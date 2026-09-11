@@ -27,6 +27,20 @@ target_link_libraries(TestConnectionModal PRIVATE PelcoDCore Threads::Threads)
 apply_compiler_flags(TestConnectionModal)
 add_test(NAME TestConnectionModal COMMAND TestConnectionModal)
 
+add_executable(TestTrafficView
+    TestTrafficView.cpp
+    ${CMAKE_SOURCE_DIR}/app-tui/views/TrafficView.cpp
+    ${CMAKE_SOURCE_DIR}/app-tui/Canvas.cpp
+    ${CMAKE_SOURCE_DIR}/app-tui/Terminal.cpp
+)
+target_include_directories(TestTrafficView PRIVATE
+    ${CMAKE_SOURCE_DIR}/app-tui
+    ${CMAKE_SOURCE_DIR}/libs/PelcoDCore
+)
+target_link_libraries(TestTrafficView PRIVATE PelcoDCore Threads::Threads)
+apply_compiler_flags(TestTrafficView)
+add_test(NAME TestTrafficView COMMAND TestTrafficView)
+
 # ==============================================================================
 # CLI Argument Validation Tests (PelcoDAppTui)
 # ==============================================================================
