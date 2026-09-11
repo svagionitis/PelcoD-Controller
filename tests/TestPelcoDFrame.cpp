@@ -48,6 +48,10 @@ void testFrameValidation()
     const std::vector<std::uint8_t> valid4 { 0xFFU, 0x01U, 0x00U, 0x01U };
     assert(PelcoD::PelcoDFrame::isValidFrame(valid4));
 
+    // Invalid 4-byte general response with bad checksum (0x01 + 0x05 = 0x06 != 0x99)
+    const std::vector<std::uint8_t> bad4 { 0xFFU, 0x01U, 0x05U, 0x99U };
+    assert(!PelcoD::PelcoDFrame::isValidFrame(bad4));
+
     // Valid 7-byte frame
     const auto valid7 = PelcoD::PelcoDFrame::createFrame(0x01U, 0x00U, 0x20U, 0x00U, 0x00U);
     assert(PelcoD::PelcoDFrame::isValidFrame(valid7));
@@ -57,11 +61,30 @@ void testFrameValidation()
     bad7[6] = 0xAAU;
     assert(!PelcoD::PelcoDFrame::isValidFrame(bad7));
 
-    // Valid 18-byte query response
+    // Valid 18-byte query response (empty/null padded)
     std::vector<std::uint8_t> valid18(18U, 0x00U);
     valid18[0] = 0xFFU;
     valid18[1] = 0x01U;
     assert(PelcoD::PelcoDFrame::isValidFrame(valid18));
+
+    // Valid 18-byte query response with ASCII model text
+    auto valid18Text = valid18;
+    valid18Text[2] = 'C';
+    valid18Text[3] = 'A';
+    valid18Text[4] = 'M';
+    valid18Text[5] = '1';
+    assert(PelcoD::PelcoDFrame::isValidFrame(valid18Text));
+
+    // Invalid 18-byte query response: non-printable control byte
+    auto bad18Ctrl = valid18Text;
+    bad18Ctrl[6] = 0x10U; // Non-printable byte < 32
+    assert(!PelcoD::PelcoDFrame::isValidFrame(bad18Ctrl));
+
+    // Invalid 18-byte query response: character after null terminator
+    auto bad18AfterNull = valid18Text;
+    bad18AfterNull[6] = 0x00U; // Null terminator
+    bad18AfterNull[7] = 'X';   // Stray char after null
+    assert(!PelcoD::PelcoDFrame::isValidFrame(bad18AfterNull));
 }
 
 void testStreamSplitting()
@@ -78,6 +101,27 @@ void testStreamSplitting()
     assert(frames[0].size() == 7U);
     assert(frames[0][6] == 0x26U);
     assert(frames[1].size() == 4U);
+
+    // Corrupted 7-byte frame must not be extracted as a false 4-byte frame
+    const std::vector<std::uint8_t> corrupted7 { 0xFFU, 0x01U, 0x00U, 0x59U, 0x10U, 0x20U, 0x99U };
+    const auto badFrames = PelcoD::PelcoDFrame::splitStream(corrupted7);
+    assert(badFrames.empty());
+
+    // Three consecutive 7-byte frames in a 21-byte stream must all be extracted as 7-byte frames
+    std::vector<std::uint8_t> multiStream;
+    const auto f1 = PelcoD::PelcoDFrame::createFrame(0x01U, 0x00U, 0x59U, 0x10U, 0x20U);
+    const auto f2 = PelcoD::PelcoDFrame::createFrame(0x01U, 0x00U, 0x5BU, 0x05U, 0x10U);
+    const auto f3 = PelcoD::PelcoDFrame::createFrame(0x01U, 0x00U, 0x5DU, 0x04U, 0xB0U);
+    multiStream.insert(multiStream.end(), f1.begin(), f1.end());
+    multiStream.insert(multiStream.end(), f2.begin(), f2.end());
+    multiStream.insert(multiStream.end(), f3.begin(), f3.end());
+    assert(multiStream.size() == 21U);
+
+    const auto multiFrames = PelcoD::PelcoDFrame::splitStream(multiStream);
+    assert(multiFrames.size() == 3U);
+    assert(multiFrames[0].size() == 7U);
+    assert(multiFrames[1].size() == 7U);
+    assert(multiFrames[2].size() == 7U);
 }
 
 int main()

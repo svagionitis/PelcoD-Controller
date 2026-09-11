@@ -358,7 +358,7 @@ void MockPelcoDDevice::processFrame(const std::vector<std::uint8_t>& frame)
     }
 }
 
-void MockPelcoDDevice::sendGeneralReply(std::uint8_t cmdChecksum)
+void MockPelcoDDevice::sendGeneralReply([[maybe_unused]] std::uint8_t cmdChecksum)
 {
     std::uint8_t alarms { 0x00U };
     {
@@ -367,8 +367,8 @@ void MockPelcoDDevice::sendGeneralReply(std::uint8_t cmdChecksum)
     }
 
     // 4-byte General Response: [0xFF, addr, alarms, cksm]
-    // Checksum = (originating_checksum + alarms) % 256
-    const std::uint8_t replyCksm = static_cast<std::uint8_t>((cmdChecksum + alarms) & 0xFFU);
+    // Standard Pelco-D checksum = (addr + alarms) % 256
+    const std::uint8_t replyCksm = static_cast<std::uint8_t>((m_address + alarms) & 0xFFU);
     const std::vector<std::uint8_t> response { PelcoDFrame::SyncByte, m_address, alarms, replyCksm };
 
     DataReceivedCallback cb;
@@ -427,6 +427,18 @@ void MockPelcoDDevice::sendQueryReply(std::uint8_t cmdChecksum)
     }
     if (cb) {
         cb(response);
+    }
+}
+
+void MockPelcoDDevice::injectRxData(const std::vector<std::uint8_t>& data)
+{
+    DataReceivedCallback cb;
+    {
+        std::lock_guard<std::mutex> lock(m_callbackMutex);
+        cb = m_dataCallback;
+    }
+    if (cb) {
+        cb(data);
     }
 }
 

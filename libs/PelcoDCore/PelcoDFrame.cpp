@@ -51,7 +51,8 @@ bool PelcoDFrame::isValidFrame(const std::vector<std::uint8_t>& frame) noexcept
 
     // 4-byte General Response: [0xFF, addr, alarms, cksm]
     if (len == GeneralResponseSize) {
-        return true;
+        const std::uint8_t expected = calculateChecksum(&frame[1], 2U);
+        return frame[3] == expected;
     }
 
     // 7-byte Standard Command or Extended Response
@@ -62,6 +63,15 @@ bool PelcoDFrame::isValidFrame(const std::vector<std::uint8_t>& frame) noexcept
 
     // 18-byte Query Response: [0xFF, addr, data1..data15, cksm]
     if (len == QueryResponseSize) {
+        bool sawNull = false;
+        for (std::size_t i { 2U }; i < 17U; ++i) {
+            const std::uint8_t b = frame[i];
+            if (b == 0x00U) {
+                sawNull = true;
+            } else if (sawNull || b < 32U || b > 126U) {
+                return false;
+            }
+        }
         return true;
     }
 
@@ -90,23 +100,7 @@ std::vector<std::vector<std::uint8_t>> PelcoDFrame::splitStream(const std::vecto
 
         const std::size_t remaining = total - idx;
 
-        // Try 18-byte query response first if sufficient bytes exist
-        if (remaining >= QueryResponseSize) {
-            std::vector<std::uint8_t> cand18(stream.begin() + static_cast<std::ptrdiff_t>(idx),
-                stream.begin() + static_cast<std::ptrdiff_t>(idx + QueryResponseSize));
-
-            // If 7-byte frame is also valid at this location, prefer 7-byte unless 18-byte is query
-            const std::uint8_t cksm7 = calculateChecksum(&stream[idx + 1U], 5U);
-            const bool is7Valid = (stream[idx + 6U] == cksm7);
-
-            if (!is7Valid) {
-                frames.push_back(std::move(cand18));
-                idx += QueryResponseSize;
-                continue;
-            }
-        }
-
-        // Try 7-byte standard frame
+        // Try 7-byte standard frame first (most common)
         if (remaining >= StandardFrameSize) {
             const std::uint8_t cksm = calculateChecksum(&stream[idx + 1U], 5U);
             if (stream[idx + 6U] == cksm) {
@@ -118,17 +112,32 @@ std::vector<std::vector<std::uint8_t>> PelcoDFrame::splitStream(const std::vecto
             }
         }
 
-        // Try 4-byte general response
+        // Try 4-byte general response with valid checksum
         if (remaining >= GeneralResponseSize) {
-            std::vector<std::uint8_t> cand4(stream.begin() + static_cast<std::ptrdiff_t>(idx),
-                stream.begin() + static_cast<std::ptrdiff_t>(idx + GeneralResponseSize));
-            frames.push_back(std::move(cand4));
-            idx += GeneralResponseSize;
-            continue;
+            const std::uint8_t cksm4 = calculateChecksum(&stream[idx + 1U], 2U);
+            if (stream[idx + 3U] == cksm4) {
+                std::vector<std::uint8_t> cand4(stream.begin() + static_cast<std::ptrdiff_t>(idx),
+                    stream.begin() + static_cast<std::ptrdiff_t>(idx + GeneralResponseSize));
+                frames.push_back(std::move(cand4));
+                idx += GeneralResponseSize;
+                continue;
+            }
         }
 
-        // Less than 4 bytes remaining from sync byte
-        break;
+        // Try 18-byte query response
+        if (remaining >= QueryResponseSize) {
+            std::vector<std::uint8_t> cand18(stream.begin() + static_cast<std::ptrdiff_t>(idx),
+                stream.begin() + static_cast<std::ptrdiff_t>(idx + QueryResponseSize));
+
+            if (isValidFrame(cand18)) {
+                frames.push_back(std::move(cand18));
+                idx += QueryResponseSize;
+                continue;
+            }
+        }
+
+        // Unrecognized or corrupted frame starting at sync byte; advance by 1
+        ++idx;
     }
 
     return frames;

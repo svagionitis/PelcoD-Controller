@@ -668,7 +668,7 @@ void PelcoDDevice::rxLoop()
             }
 
             constexpr std::size_t candidateSizes[]
-                = { PelcoDFrame::QueryResponseSize, PelcoDFrame::StandardFrameSize, PelcoDFrame::GeneralResponseSize };
+                = { PelcoDFrame::StandardFrameSize, PelcoDFrame::GeneralResponseSize, PelcoDFrame::QueryResponseSize };
 
             bool frameExtracted = false;
             std::array<std::uint8_t, PelcoDFrame::QueryResponseSize> peekBuf {};
@@ -688,7 +688,10 @@ void PelcoDDevice::rxLoop()
             }
 
             if (!frameExtracted) {
-                if (available < PelcoDFrame::QueryResponseSize) {
+                const bool awaitingQuery = m_awaitingResponse.load();
+                const std::size_t maxExpectedSize
+                    = awaitingQuery ? PelcoDFrame::QueryResponseSize : PelcoDFrame::StandardFrameSize;
+                if (available < maxExpectedSize) {
                     break;
                 }
                 m_rxRing.advanceRead(1U);

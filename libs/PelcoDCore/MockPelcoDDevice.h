@@ -78,6 +78,10 @@ public:
     void setDataCallback(DataReceivedCallback callback) override;
     void setStateCallback(StateChangedCallback callback) override;
 
+    /// @brief Injects simulated incoming byte stream to controller RX.
+    /// @param[in] data Raw byte buffer.
+    void injectRxData(const std::vector<std::uint8_t>& data);
+
 private:
     void processFrame(const std::vector<std::uint8_t>& frame);
     void sendGeneralReply(std::uint8_t cmdChecksum);

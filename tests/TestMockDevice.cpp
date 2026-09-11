@@ -3,6 +3,7 @@
 
 #include "MockPelcoDDevice.h"
 #include "PelcoDDevice.h"
+#include "PelcoDFrame.h"
 
 #include <atomic>
 #include <cassert>
@@ -10,6 +11,7 @@
 #include <iostream>
 #include <memory>
 #include <thread>
+#include <vector>
 
 void testMockDeviceEndToEnd()
 {
@@ -140,11 +142,54 @@ void testCopyOnWriteCallbacks()
     device.stop();
 }
 
+void testBurstTelemetryReception()
+{
+    auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(1U);
+    PelcoD::PelcoDDevice device(mock, 1U);
+
+    std::atomic<int> rxPacketCount { 0 };
+    device.addTrafficCallback([&](bool isTx, const std::vector<std::uint8_t>&) {
+        if (!isTx) {
+            rxPacketCount.fetch_add(1);
+        }
+    });
+
+    assert(device.start());
+
+    // Inject 3 consecutive 7-byte telemetry frames (21 bytes total) into mock RX stream simultaneously
+    // Pan response (Opcode 0x59): Pan = 100.00 deg = 10000 = 0x2710
+    const auto f1 = PelcoD::PelcoDFrame::createFrame(0x01U, 0x00U, 0x59U, 0x27U, 0x10U);
+    // Tilt response (Opcode 0x5B): Tilt = 45.00 deg = 4500 = 0x1194
+    const auto f2 = PelcoD::PelcoDFrame::createFrame(0x01U, 0x00U, 0x5BU, 0x11U, 0x94U);
+    // Zoom response (Opcode 0x5D): Zoom = 1500 = 0x05DC
+    const auto f3 = PelcoD::PelcoDFrame::createFrame(0x01U, 0x00U, 0x5DU, 0x05U, 0xDCU);
+
+    std::vector<std::uint8_t> burst;
+    burst.insert(burst.end(), f1.begin(), f1.end());
+    burst.insert(burst.end(), f2.begin(), f2.end());
+    burst.insert(burst.end(), f3.begin(), f3.end());
+    assert(burst.size() == 21U);
+
+    // Feed burst into device RX
+    mock->injectRxData(burst);
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(150));
+
+    // All 3 frames must have been individually parsed and dispatched
+    assert(rxPacketCount.load() == 3);
+    assert(device.getStatus().panCentidegrees == 10000U);
+    assert(device.getStatus().tiltCentidegrees == 4500U);
+    assert(device.getStatus().zoomPosition == 1500U);
+
+    device.stop();
+}
+
 int main()
 {
     std::cout << "[TestMockDevice] Running tests..." << std::endl;
     testMockDeviceEndToEnd();
     testCopyOnWriteCallbacks();
+    testBurstTelemetryReception();
     std::cout << "[TestMockDevice] All tests passed successfully." << std::endl;
     return 0;
 }
