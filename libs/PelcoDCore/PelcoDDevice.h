@@ -50,6 +50,8 @@ public:
     void addStatusCallback(StatusCallback cb);
     void addTrafficCallback(TrafficCallback cb);
     void addTimeoutCallback(TimeoutCallback cb);
+    /// @brief Removes all registered status, traffic, and timeout callbacks.
+    void clearCallbacks();
 
     [[nodiscard]] DeviceStatus getStatus() const;
     [[nodiscard]] DeviceInfo getInfo() const;

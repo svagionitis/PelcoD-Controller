@@ -260,6 +260,38 @@ void testDynamicTelemetryPollingLifecycle()
     devicePre.stop();
 }
 
+void testClearCallbacks()
+{
+    auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(1U);
+    PelcoD::PelcoDDevice device(mock, 1U);
+
+    std::atomic<int> trafficCount { 0 };
+    std::atomic<int> statusCount { 0 };
+
+    device.addTrafficCallback([&](bool, const std::vector<std::uint8_t>&) { trafficCount.fetch_add(1); });
+    device.addStatusCallback([&](const PelcoD::DeviceStatus&) { statusCount.fetch_add(1); });
+
+    assert(device.start());
+    device.panRight(20);
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+    assert(trafficCount.load() > 0);
+
+    const int savedTraffic = trafficCount.load();
+    const int savedStatus = statusCount.load();
+
+    device.clearCallbacks();
+
+    device.panLeft(20);
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+    // No callbacks should fire after clearCallbacks()
+    assert(trafficCount.load() == savedTraffic);
+    assert(statusCount.load() == savedStatus);
+
+    device.stop();
+}
+
 int main()
 {
     std::cout << "[TestMockDevice] Running tests..." << std::endl;
@@ -267,6 +299,7 @@ int main()
     testCopyOnWriteCallbacks();
     testBurstTelemetryReception();
     testDynamicTelemetryPollingLifecycle();
+    testClearCallbacks();
     std::cout << "[TestMockDevice] All tests passed successfully." << std::endl;
     return 0;
 }

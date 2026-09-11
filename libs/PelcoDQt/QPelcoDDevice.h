@@ -131,6 +131,7 @@ public slots:
 
 private:
     [[nodiscard]] static QString describePacket(bool isTx, const std::vector<std::uint8_t>& frame);
+    void initDeviceCallbacks();
 
     std::shared_ptr<PelcoD::ITransport> m_transport;
     std::unique_ptr<PelcoD::PelcoDDevice> m_device;

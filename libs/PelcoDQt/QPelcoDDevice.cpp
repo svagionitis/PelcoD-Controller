@@ -15,6 +15,7 @@ QPelcoDDevice::QPelcoDDevice(std::shared_ptr<PelcoD::ITransport> transport, std:
 {
     if (m_transport) {
         m_device = std::make_unique<PelcoD::PelcoDDevice>(m_transport, m_address);
+        initDeviceCallbacks();
     }
 }
 
@@ -38,15 +39,16 @@ void QPelcoDDevice::setTransport(std::shared_ptr<PelcoD::ITransport> transport, 
     m_address = address;
     if (m_transport) {
         m_device = std::make_unique<PelcoD::PelcoDDevice>(m_transport, m_address);
+        initDeviceCallbacks();
     } else {
         m_device.reset();
     }
 }
 
-bool QPelcoDDevice::connectDevice()
+void QPelcoDDevice::initDeviceCallbacks()
 {
     if (!m_device) {
-        return false;
+        return;
     }
 
     m_device->addStatusCallback([this](const PelcoD::DeviceStatus& status) {
@@ -68,6 +70,13 @@ bool QPelcoDDevice::connectDevice()
         const QString tag = QString::fromStdString(queryTag);
         QMetaObject::invokeMethod(this, [this, tag] { emit queryTimeoutOccurred(tag); });
     });
+}
+
+bool QPelcoDDevice::connectDevice()
+{
+    if (!m_device) {
+        return false;
+    }
 
     const bool ok = m_device->start();
     emit connectionStateChanged(ok);

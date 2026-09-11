@@ -154,6 +154,14 @@ void PelcoDDevice::addTimeoutCallback(TimeoutCallback cb)
     m_timeoutCallbacks = std::move(newCallbacks);
 }
 
+void PelcoDDevice::clearCallbacks()
+{
+    std::lock_guard<std::mutex> lock(m_callbackMutex);
+    m_statusCallbacks = std::make_shared<const std::vector<StatusCallback>>();
+    m_trafficCallbacks = std::make_shared<const std::vector<TrafficCallback>>();
+    m_timeoutCallbacks = std::make_shared<const std::vector<TimeoutCallback>>();
+}
+
 DeviceStatus PelcoDDevice::getStatus() const
 {
     std::lock_guard<std::mutex> lock(m_statusMutex);

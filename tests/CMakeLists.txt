@@ -70,6 +70,25 @@ if(WIN32)
     set_property(TEST TestAutoReconnect PROPERTY ENVIRONMENT "PATH=$<TARGET_FILE_DIR:Qt6::Core>;$ENV{PATH}")
 endif()
 
+add_executable(TestQPelcoDDevice
+    TestQPelcoDDevice.cpp
+)
+target_include_directories(TestQPelcoDDevice PRIVATE
+    ${CMAKE_SOURCE_DIR}/libs/PelcoDCore
+    ${CMAKE_SOURCE_DIR}/libs/PelcoDQt
+)
+target_link_libraries(TestQPelcoDDevice PRIVATE
+    PelcoDQt
+    PelcoDCore
+    Qt6::Core
+    Qt6::Test
+)
+apply_compiler_flags(TestQPelcoDDevice)
+add_test(NAME TestQPelcoDDevice COMMAND TestQPelcoDDevice)
+if(WIN32)
+    set_property(TEST TestQPelcoDDevice PROPERTY ENVIRONMENT "PATH=$<TARGET_FILE_DIR:Qt6::Core>;$ENV{PATH}")
+endif()
+
 # ==============================================================================
 # CLI Argument Validation Tests (PelcoDAppTui)
 # ==============================================================================
