@@ -184,9 +184,18 @@ private:
     std::chrono::steady_clock::time_point m_querySentTime;
 
     mutable std::mutex m_callbackMutex;
-    std::vector<StatusCallback> m_statusCallbacks;
-    std::vector<TrafficCallback> m_trafficCallbacks;
-    std::vector<TimeoutCallback> m_timeoutCallbacks;
+    /// @brief Copy-on-write snapshot of registered status telemetry callbacks.
+    std::shared_ptr<const std::vector<StatusCallback>> m_statusCallbacks {
+        std::make_shared<const std::vector<StatusCallback>>()
+    };
+    /// @brief Copy-on-write snapshot of registered TX/RX traffic packet callbacks.
+    std::shared_ptr<const std::vector<TrafficCallback>> m_trafficCallbacks {
+        std::make_shared<const std::vector<TrafficCallback>>()
+    };
+    /// @brief Copy-on-write snapshot of registered query timeout callbacks.
+    std::shared_ptr<const std::vector<TimeoutCallback>> m_timeoutCallbacks {
+        std::make_shared<const std::vector<TimeoutCallback>>()
+    };
 };
 
 } // namespace PelcoD

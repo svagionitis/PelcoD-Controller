@@ -103,19 +103,25 @@ std::uint8_t PelcoDDevice::getAddress() const noexcept
 void PelcoDDevice::addStatusCallback(StatusCallback cb)
 {
     std::lock_guard<std::mutex> lock(m_callbackMutex);
-    m_statusCallbacks.push_back(std::move(cb));
+    auto newCallbacks = std::make_shared<std::vector<StatusCallback>>(*m_statusCallbacks);
+    newCallbacks->push_back(std::move(cb));
+    m_statusCallbacks = std::move(newCallbacks);
 }
 
 void PelcoDDevice::addTrafficCallback(TrafficCallback cb)
 {
     std::lock_guard<std::mutex> lock(m_callbackMutex);
-    m_trafficCallbacks.push_back(std::move(cb));
+    auto newCallbacks = std::make_shared<std::vector<TrafficCallback>>(*m_trafficCallbacks);
+    newCallbacks->push_back(std::move(cb));
+    m_trafficCallbacks = std::move(newCallbacks);
 }
 
 void PelcoDDevice::addTimeoutCallback(TimeoutCallback cb)
 {
     std::lock_guard<std::mutex> lock(m_callbackMutex);
-    m_timeoutCallbacks.push_back(std::move(cb));
+    auto newCallbacks = std::make_shared<std::vector<TimeoutCallback>>(*m_timeoutCallbacks);
+    newCallbacks->push_back(std::move(cb));
+    m_timeoutCallbacks = std::move(newCallbacks);
 }
 
 DeviceStatus PelcoDDevice::getStatus() const
@@ -496,12 +502,12 @@ void PelcoDDevice::checkQueryTimeout()
         LOG(WARNING) << "Query timeout: No response received for query '" << tag << "' within " << m_queryTimeoutMs
                      << " ms";
 
-        std::vector<TimeoutCallback> cbs;
+        std::shared_ptr<const std::vector<TimeoutCallback>> cbs;
         {
             std::lock_guard<std::mutex> lock(m_callbackMutex);
             cbs = m_timeoutCallbacks;
         }
-        for (const auto& cb : cbs) {
+        for (const auto& cb : *cbs) {
             if (cb) {
                 cb(tag);
             }
@@ -542,13 +548,13 @@ void PelcoDDevice::workerLoop()
             VLOG(1) << "Sending command (" << item.frame.size() << " bytes, tag: '" << item.queryTag << "')";
             m_transport->sendData(item.frame);
 
-            // Dispatch TX traffic callbacks
-            std::vector<TrafficCallback> tbs;
+            // Dispatch TX traffic callbacks using copy-on-write snapshot (zero heap allocation)
+            std::shared_ptr<const std::vector<TrafficCallback>> tbs;
             {
                 std::lock_guard<std::mutex> lock(m_callbackMutex);
                 tbs = m_trafficCallbacks;
             }
-            for (const auto& cb : tbs) {
+            for (const auto& cb : *tbs) {
                 if (cb) {
                     cb(true, item.frame);
                 }
@@ -662,16 +668,16 @@ void PelcoDDevice::rxLoop()
 
 void PelcoDDevice::dispatchFrame(const std::vector<std::uint8_t>& frame)
 {
-    // Notify RX traffic callbacks
-    std::vector<TrafficCallback> tbs;
-    std::vector<StatusCallback> sbs;
+    // Notify RX traffic callbacks using copy-on-write snapshot (zero heap allocation)
+    std::shared_ptr<const std::vector<TrafficCallback>> tbs;
+    std::shared_ptr<const std::vector<StatusCallback>> sbs;
     {
         std::lock_guard<std::mutex> lock(m_callbackMutex);
         tbs = m_trafficCallbacks;
         sbs = m_statusCallbacks;
     }
 
-    for (const auto& cb : tbs) {
+    for (const auto& cb : *tbs) {
         if (cb) {
             cb(false, frame);
         }
@@ -695,7 +701,7 @@ void PelcoDDevice::dispatchFrame(const std::vector<std::uint8_t>& frame)
             m_info = currentInfo;
         }
 
-        for (const auto& cb : sbs) {
+        for (const auto& cb : *sbs) {
             if (cb) {
                 cb(currentStatus);
             }
