@@ -16,12 +16,13 @@ The System Context diagram outlines the Pelco-D Controller boundary, its human o
 |            (Surveillance Operator, Field Technician, Robotics Engineer)       |
 +-------------------------------------------------------------------------------+
                                       |
-                                      | Interacts with GUI / Commands
+                                      | Interacts with GUI / Terminal / Commands
                                       v
 +-------------------------------------------------------------------------------+
 |                           PELCO-D CONTROLLER SYSTEM                           |
 |                                                                               |
-|  - Desktop GUI Application (PelcoDApp)                                        |
+|  - Desktop GUI Application (PelcoDAppQt)                                      |
+|  - Zero-Dependency Terminal Client (PelcoDAppTui)                             |
 |  - Qt 6 Asynchronous Signal/Slot Adapter (PelcoDQt)                           |
 |  - Pure C++17 Protocol & Hardware Abstraction Engine (PelcoDCore)             |
 +-------------------------------------------------------------------------------+
@@ -48,13 +49,13 @@ C4Context
 
     Person(operator, "Operator", "Surveillance Operator, Field Technician, Robotics Engineer")
     
-    System(pelcoSystem, "Pelco-D Controller System", "C++17 / Qt 6 controller application providing PTZ controls, diagnostics, telemetry, and live traffic analysis.")
+    System(pelcoSystem, "Pelco-D Controller System", "C++17 / Qt 6 GUI (PelcoDAppQt) and zero-dependency terminal client (PelcoDAppTui) providing PTZ controls, diagnostics, telemetry, and live traffic analysis.")
 
     System_Ext(ptzDevice, "Physical Pelco-D Device", "Pan/Tilt head, motorized gimbal, dome camera, or receiver/driver via RS-485 serial bus.")
     System_Ext(tcpServer, "IP / Ethernet Serial Server", "Terminal server or raw socket bridge routing Pelco-D packets over TCP/IP.")
     SystemDb_Ext(mockDevice, "Mock Pelco-D Emulator", "In-memory virtual hardware emulator supporting telemetry, presets, and diagnostic queries.")
 
-    Rel(operator, pelcoSystem, "Sends PTZ commands, manages presets, monitors telemetry", "GUI / Mouse / Keyboard")
+    Rel(operator, pelcoSystem, "Sends PTZ commands, manages presets, monitors telemetry", "GUI / TUI / Keyboard")
     Rel(pelcoSystem, ptzDevice, "Transmits 7-byte/18-byte Pelco-D command packets; receives status responses", "RS-485 Serial (2400-115200 baud)")
     Rel(pelcoSystem, tcpServer, "Transmits Pelco-D frames wrapped in TCP byte stream", "TCP/IP Sockets")
     Rel(tcpServer, ptzDevice, "Forwards frames to RS-485 bus", "RS-485")
@@ -70,43 +71,43 @@ The Container diagram illustrates the high-level software containers that form t
 ### ASCII Diagram
 
 ```text
-+-------------------------------------------------------------------------------+
-|                                PELCO-D CONTROLLER                             |
-|                                                                               |
-|  +-------------------------------------------------------------------------+  |
-|  | PelcoDApp (Container: Desktop Executable)                               |  |
-|  | Technology: C++17, Qt 6 Widgets, Custom Dark Modern QSS Theme           |  |
-|  | Responsibility: User interaction, D-Pad, Tabs, Traffic Inspector.       |  |
-|  +-------------------------------------------------------------------------+  |
-|                                     |                                         |
-|                                     | Qt Signals / Slots & QObject API        |
-|                                     v                                         |
-|  +-------------------------------------------------------------------------+  |
-|  | PelcoDQt (Container: Shared / Static Library)                           |  |
-|  | Technology: C++17, Qt 6 Core                                            |  |
-|  | Responsibility: Thread bridge, QPelcoDDevice facade, Qt data types.     |  |
-|  +-------------------------------------------------------------------------+  |
-|                                     |                                         |
-|                                     | Pure C++ Calls / Callbacks / Observers  |
-|                                     v                                         |
-|  +-------------------------------------------------------------------------+  |
-|  | PelcoDCore (Container: Static Library - Zero Qt Dependencies)           |  |
-|  | Technology: Pure C++17, POSIX / Win32, glog, CMake Compiler Flags       |  |
-|  | Responsibility: Protocol framing, lock-free ring buffer, command queue  |  |
-|  |                 pacing (15-20ms), transport abstraction, telemetry.     |  |
-|  +-------------------------------------------------------------------------+  |
-|                    |                                     |                    |
-+--------------------|-------------------------------------|--------------------+
-                     |                                     |
-                     | Native OS System Calls              | Native Socket Calls
-                     v                                     v
-         +-----------------------+             +-----------------------+
-         | Linux termios /       |             | Linux BSD Sockets /   |
-         | Win32 Comm API        |             | Windows Winsock2      |
-         +-----------------------+             +-----------------------+
-                     |                                     |
-                     v                                     v
-           [ Hardware Serial Port ]               [ Ethernet Network ]
++-----------------------------------------------------------------------------------------------+
+|                                      PELCO-D CONTROLLER                                       |
+|                                                                                               |
+|  +--------------------------------------------+  +-----------------------------------------+  |
+|  | PelcoDAppQt (Desktop Executable)           |  | PelcoDAppTui (Console Executable)       |  |
+|  | Technology: C++17, Qt 6 Widgets, Modern QSS|  | Technology: Pure C++17, POSIX termios   |  |
+|  | Responsibility: Full GUI, D-Pad, Tabs.     |  | Responsibility: TUI Canvas, PTZ Compass |  |
+|  +--------------------------------------------+  +-----------------------------------------+  |
+|                         |                                             |                       |
+|                         | Qt Signals / Slots                          | Direct C++ API        |
+|                         v                                             | & Callbacks           |
+|  +--------------------------------------------+                       |                       |
+|  | PelcoDQt (Static / Shared Library)         |                       |                       |
+|  | Technology: C++17, Qt 6 Core               |                       |                       |
+|  | Responsibility: QPelcoDDevice facade.      |                       |                       |
+|  +--------------------------------------------+                       |                       |
+|                         |                                             |                       |
+|                         | Pure C++ Calls / std::function Callbacks    |                       |
+|                         v                                             v                       |
+|  +-----------------------------------------------------------------------------------------+  |
+|  | PelcoDCore (Static Library - Zero Qt Dependencies)                                      |  |
+|  | Technology: Pure C++17, POSIX / Win32, glog, CMake Compiler Flags                       |  |
+|  | Responsibility: Protocol framing, lock-free ring buffer, command queue                  |  |
+|  |                 pacing (15-20ms), transport abstraction, telemetry.                     |  |
+|  +-----------------------------------------------------------------------------------------+  |
+|                         |                                             |                       |
++-------------------------|---------------------------------------------|-----------------------+
+                          |                                             |
+                          | Native OS System Calls                      | Native Socket Calls
+                          v                                             v
+              +-----------------------+                     +-----------------------+
+              | Linux termios /       |                     | Linux BSD Sockets /   |
+              | Win32 Comm API        |                     | Windows Winsock2      |
+              +-----------------------+                     +-----------------------+
+                          |                                             |
+                          v                                             v
+                [ Hardware Serial Port ]                       [ Ethernet Network ]
 ```
 
 ### Mermaid Diagram
@@ -117,7 +118,8 @@ C4Container
 
     Person(user, "User / Operator", "Operates PTZ hardware or tests integrations")
 
-    Container(app, "PelcoDApp", "C++17, Qt 6 Widgets", "Main GUI application containing D-pad controls, presets, settings, and traffic inspector.")
+    Container(appQt, "PelcoDAppQt", "C++17, Qt 6 Widgets", "Main GUI application containing D-pad controls, presets, settings, and traffic inspector.")
+    Container(appTui, "PelcoDAppTui", "Pure C++17, POSIX termios", "Zero-dependency console TUI application with double-buffered canvas, PTZ compass, and diagnostic views.")
     Container(qtAdapter, "PelcoDQt", "C++17, Qt 6 Core", "Adapter layer exposing QPelcoDDevice with asynchronous Qt signals and slots.")
     Container(coreLib, "PelcoDCore", "Pure C++17, Zero Qt", "Core library containing protocol builders, stream parsers, lock-free ring, and transports.")
 
@@ -125,8 +127,10 @@ C4Container
     System_Ext(tcpSocket, "OS Socket Subsystem", "TCP/IP protocol stack (BSD sockets / Winsock2).")
     System_Ext(hardware, "PTZ Device / Gimbal", "Physical Pelco-D target receiver or dome.")
 
-    Rel(user, app, "Interacts with", "Desktop Window")
-    Rel(app, qtAdapter, "Invokes methods, listens to signals", "C++ Qt MetaObject API")
+    Rel(user, appQt, "Interacts with GUI", "Desktop Window")
+    Rel(user, appTui, "Interacts with TUI", "Terminal / ANSI Console")
+    Rel(appQt, qtAdapter, "Invokes methods, listens to signals", "C++ Qt MetaObject API")
+    Rel(appTui, coreLib, "Directly invokes API & callbacks", "C++17 Direct Call / std::function")
     Rel(qtAdapter, coreLib, "Calls API, registers callbacks", "C++17 Direct Call / std::function")
     Rel(coreLib, serialPort, "Configures baud, reads/writes bytes", "termios / Win32 API")
     Rel(coreLib, tcpSocket, "Connects, reads/writes TCP streams", "POSIX / Winsock2")
@@ -218,7 +222,7 @@ C4Component
 
 ---
 
-## 4. Level 3: Component Diagram (PelcoDApp & PelcoDQt)
+## 4. Level 3: Component Diagram (PelcoDAppQt & PelcoDQt)
 
 The Component diagram details the GUI layer (`app-qt`) and its bridge (`PelcoDQt`).
 
@@ -226,7 +230,7 @@ The Component diagram details the GUI layer (`app-qt`) and its bridge (`PelcoDQt
 
 ```text
 +-------------------------------------------------------------------------------+
-|                                    PelcoDApp                                  |
+|                                   PelcoDAppQt                                 |
 |                                                                               |
 |  +-------------------------------------------------------------------------+  |
 |  |                               MainWindow                                |  |
@@ -267,9 +271,9 @@ The Component diagram details the GUI layer (`app-qt`) and its bridge (`PelcoDQt
 
 ```mermaid
 C4Component
-    title Component Diagram - PelcoDApp and PelcoDQt
+    title Component Diagram - PelcoDAppQt and PelcoDQt
 
-    Container_Boundary(appBoundary, "PelcoDApp (Qt 6 Executable)")
+    Container_Boundary(appBoundary, "PelcoDAppQt (Qt 6 Executable)")
         Component(mainWindow, "MainWindow", "QMainWindow", "Orchestrates sub-widgets, tabs, telemetry ticker, and QSS dark theme.")
         Component(connWidget, "ConnectionWidget", "QWidget", "Provides controls for Serial, TCP, and Mock simulator connection.")
         Component(trafficWidget, "TrafficInspectorWidget", "QWidget", "Hex packet table viewer with TX/RX color tagging and manual hex sender.")
@@ -310,7 +314,95 @@ C4Component
 
 ---
 
-## 5. Level 4: Data Flow & Sequence Diagram
+## 5. Level 3: Component Diagram (PelcoDAppTui / app-tui)
+
+The Component diagram details the zero-dependency Terminal User Interface layer (`app-tui`).
+
+### ASCII Diagram
+
+```text
++-------------------------------------------------------------------------------+
+|                        PelcoDAppTui (Container: app-tui)                      |
+|                                                                               |
+|  +-------------------------------------------------------------------------+  |
+|  |                                 TuiApp                                  |  |
+|  |  - Main event loop coordinator (30-50 FPS render ticker)                |  |
+|  |  - Input router (hotkeys 1-6, F1-F6, modal focus, view delegator)       |  |
+|  |  - Owns Terminal, Canvas, and PelcoDDevice instance                      |  |
+|  +-------------------------------------------------------------------------+  |
+|         |                   |                   |                             |
+|         | Controls          | Draws into        | Delegates to                |
+|         v                   v                   v                             |
+|  +----------------+  +----------------+  +---------------------------------+  |
+|  |    Terminal    |  |     Canvas     |  | View Components (app-tui/views/)|  |
+|  | - Raw termios  |  | - Double buffer|  | - HeaderView (Status & Tabs)    |  |
+|  | - Alt screen   |  | - Delta ANSI   |  | - PtzView (Compass & Sliders)   |  |
+|  | - Mouse/SIGWINCH  | - UTF-8 cells  |  | - PresetsView (1-32 Table)      |  |
+|  | - Escape parser|  | - Box & meters |  | - SettingsView (Optics & Baud)  |  |
+|  +----------------+  +----------------+  | - AuxOsdView (Relays & OSD)     |  |
+|         |                   ^            | - DiagnosticsView (Sensors)     |  |
+|         | Flushes output    |            | - TrafficView (Hex Monitor)     |  |
+|         v                   |            | - ConnectionModal (Setup)       |  |
+|     [ Console ]             +------------| - FooterView (Hotkeys & Logs)   |  |
+|                                          +---------------------------------+  |
+|                                                           |                   |
++-----------------------------------------------------------|-------------------+
+                                                            | Pure C++ Calls
+                                                            | & Callbacks
+                                                            v
+                                              [ PelcoDCore::PelcoDDevice ]
+```
+
+### Mermaid Diagram
+
+```mermaid
+C4Component
+    title Component Diagram - PelcoDAppTui (app-tui)
+
+    Container_Boundary(tuiBoundary, "PelcoDAppTui (Console Executable)")
+        Component(tuiapp, "TuiApp", "C++17 Class", "Main coordinator. Runs 30-50 FPS loop, routes keyboard/mouse inputs, manages view lifecycle.")
+        Component(term, "Terminal", "C++17 RAII Wrapper", "Manages termios raw mode, alternate screen buffer, SIGWINCH resize handler, and escape sequence parser.")
+        Component(canvas, "Canvas", "C++17 Double Buffer", "2D cell matrix supporting UTF-8 graphemes, 24-bit TrueColor/ANSI, box drawing, and differential delta rendering.")
+        
+        Component(headerView, "HeaderView", "C++17 View", "Renders title, camera ID, connection status badge, and clickable/hotkey tab selector.")
+        Component(ptzView, "PtzView", "C++17 View", "PTZ compass crosshair, real-time azimuth/elevation angles, and fractional speed/optic meters.")
+        Component(presetView, "PresetsView", "C++17 View", "Preset table (1-32) with Set, GoTo, Clear, 180° Flip, and Zero Pan actions.")
+        Component(settingsView, "SettingsView", "C++17 View", "Configures AF, AI, AGC, BLC, AWB, line lock delay, white balance, and remote baud rates.")
+        Component(auxOsdView, "AuxOsdView", "C++17 View", "Auxiliary 1-8 relays with active cursor selection, zone scan triggers, and OSD menu keypad.")
+        Component(diagView, "DiagnosticsView", "C++17 View", "Telemetry query triggers, internal temperature, optical sensor ID, and ACK/NAK history.")
+        Component(trafficView, "TrafficView", "C++17 View", "Live rolling packet monitor with colorized hex stream and decoded Pelco-D opcodes.")
+        Component(connModal, "ConnectionModal", "C++17 Modal View", "Popup dialog to configure and switch between Mock, Serial, and TCP transports.")
+        Component(footerView, "FooterView", "C++17 View", "Bottom hotkeys reference bar and dynamic status notifications.")
+    Container_Boundary_End()
+
+    Rel(tuiapp, term, "Reads input & flushes ANSI buffer", "termios / poll / write")
+    Rel(tuiapp, canvas, "Clears, resizes, and renders delta", "Canvas API")
+    Rel(tuiapp, headerView, "Renders", "Layout")
+    Rel(tuiapp, footerView, "Renders", "Layout")
+    Rel(tuiapp, connModal, "Renders & routes input", "Modal Focus")
+    Rel(tuiapp, ptzView, "Hosts Tab 1", "Active View")
+    Rel(tuiapp, presetView, "Hosts Tab 2", "Active View")
+    Rel(tuiapp, settingsView, "Hosts Tab 3", "Active View")
+    Rel(tuiapp, auxOsdView, "Hosts Tab 4", "Active View")
+    Rel(tuiapp, diagView, "Hosts Tab 5", "Active View")
+    Rel(tuiapp, trafficView, "Hosts Tab 6", "Active View")
+
+    Rel(ptzView, canvas, "Draws into", "Canvas primitives")
+    Rel(headerView, canvas, "Draws into", "Canvas primitives")
+    Rel(footerView, canvas, "Draws into", "Canvas primitives")
+    Rel(connModal, canvas, "Draws into", "Canvas primitives")
+
+    Rel(tuiapp, device, "Controls device & registers callbacks", "PelcoDCore API")
+    Rel(ptzView, device, "Sends motion & speed commands", "PelcoDCore API")
+    Rel(presetView, device, "Sends preset commands", "PelcoDCore API")
+    Rel(settingsView, device, "Sends setting commands", "PelcoDCore API")
+    Rel(auxOsdView, device, "Sends aux & scan commands", "PelcoDCore API")
+    Rel(diagView, device, "Sends telemetry queries", "PelcoDCore API")
+```
+
+---
+
+## 6. Level 4: Data Flow & Sequence Diagram
 
 This diagram demonstrates the end-to-end round-trip execution of both an outbound command and an asynchronous incoming telemetry response.
 
@@ -383,7 +475,7 @@ sequenceDiagram
 
 ---
 
-## 6. Security Hardening & Robustness Guarantees
+## 7. Security Hardening & Robustness Guarantees
 
 As detailed in the architecture and verified by our automated test suite:
 
