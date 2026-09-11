@@ -50,7 +50,12 @@ bool QPelcoDDevice::connectDevice()
     }
 
     m_device->addStatusCallback([this](const PelcoD::DeviceStatus& status) {
-        QMetaObject::invokeMethod(this, [this, status] { emit statusUpdated(status); });
+        QMetaObject::invokeMethod(this, [this, status] {
+            emit statusUpdated(status);
+            if (!status.connected) {
+                emit connectionStateChanged(false);
+            }
+        });
     });
 
     m_device->addTrafficCallback([this](bool isTx, const std::vector<std::uint8_t>& frame) {

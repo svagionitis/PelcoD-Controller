@@ -41,6 +41,24 @@ target_link_libraries(TestTrafficView PRIVATE PelcoDCore Threads::Threads)
 apply_compiler_flags(TestTrafficView)
 add_test(NAME TestTrafficView COMMAND TestTrafficView)
 
+add_executable(TestAutoReconnect
+    TestAutoReconnect.cpp
+    ${CMAKE_SOURCE_DIR}/app-qt/widgets/ConnectionWidget.cpp
+)
+target_include_directories(TestAutoReconnect PRIVATE
+    ${CMAKE_SOURCE_DIR}/app-qt
+    ${CMAKE_SOURCE_DIR}/libs/PelcoDCore
+)
+target_link_libraries(TestAutoReconnect PRIVATE
+    PelcoDCore
+    Qt6::Core
+    Qt6::Gui
+    Qt6::Widgets
+    Qt6::Test
+)
+apply_compiler_flags(TestAutoReconnect)
+add_test(NAME TestAutoReconnect COMMAND TestAutoReconnect)
+
 # ==============================================================================
 # CLI Argument Validation Tests (PelcoDAppTui)
 # ==============================================================================

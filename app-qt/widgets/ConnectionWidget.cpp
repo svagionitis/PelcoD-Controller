@@ -1,22 +1,25 @@
 /// @file ConnectionWidget.cpp
-/// @brief Implementation of transport connection toolbar widget.
+/// @brief UI widget for configuring and initiating Pelco-D device transport connections.
 
 #include "ConnectionWidget.h"
+
 #include "MockPelcoDDevice.h"
 #include "SerialTransport.h"
 #include "TcpTransport.h"
 
-#include <QDir>
+#include <QCheckBox>
+#include <QComboBox>
+#include <QHBoxLayout>
+#include <QLabel>
+#include <QLineEdit>
+#include <QPushButton>
+#include <QSpinBox>
+#include <QStackedWidget>
 #include <QStyle>
+#include <QTimer>
 
-#ifdef _WIN32
-#ifndef WIN32_LEAN_AND_MEAN
-#define WIN32_LEAN_AND_MEAN
-#endif
-#ifndef NOMINMAX
-#define NOMINMAX
-#endif
-#include <windows.h>
+#ifdef __linux__
+#include <QDir>
 #endif
 
 namespace PelcoDApp {
@@ -117,6 +120,11 @@ void ConnectionWidget::setupUi()
     mainLayout->addWidget(lblAddress);
     mainLayout->addWidget(spinAddress);
 
+    // Auto-Reconnect Checkbox
+    chkAutoReconnect = new QCheckBox(tr("Auto-Reconnect"), this);
+    chkAutoReconnect->setToolTip(tr("Automatically retry connection with exponential backoff (1s, 2s, 5s, 10s)"));
+    mainLayout->addWidget(chkAutoReconnect);
+
     // Connect / Disconnect Button
     btnConnect = new QPushButton(tr("Connect"), this);
     btnConnect->setObjectName("btnPrimary");
@@ -131,6 +139,29 @@ void ConnectionWidget::setupUi()
     mainLayout->addWidget(lblLed);
     mainLayout->addWidget(lblStatusText);
     mainLayout->addStretch();
+
+    // Reconnect Timer setup
+    m_reconnectTimer = new QTimer(this);
+    m_reconnectTimer->setSingleShot(true);
+    connect(m_reconnectTimer, &QTimer::timeout, this, &ConnectionWidget::onReconnectTimerTimeout);
+
+    connect(chkAutoReconnect, &QCheckBox::toggled, this, [this](bool checked) {
+        if (!checked) {
+            stopAutoReconnect();
+            if (!isConnected) {
+                btnConnect->setText(tr("Connect"));
+                btnConnect->setObjectName("btnPrimary");
+                btnConnect->style()->unpolish(btnConnect);
+                btnConnect->style()->polish(btnConnect);
+                cmbMode->setEnabled(true);
+                spinAddress->setEnabled(true);
+                stackedConfig->setEnabled(true);
+                lblStatusText->setText(tr("Offline"));
+                lblStatusText->setStyleSheet("color: #8b949e;");
+                lblLed->setStyleSheet("background-color: #f85149; border-radius: 6px; border: 1px solid #da3633;");
+            }
+        }
+    });
 
     // Connections
     connect(cmbMode, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &ConnectionWidget::handleModeChanged);
@@ -147,46 +178,52 @@ void ConnectionWidget::refreshSerialPorts()
 {
     cmbSerialPort->clear();
 
-#ifdef _WIN32
-    for (int i = 1; i <= 32; ++i) {
-        const std::string portName = "\\\\.\\COM" + std::to_string(i);
-        HANDLE hComm
-            = ::CreateFileA(portName.c_str(), GENERIC_READ | GENERIC_WRITE, 0, nullptr, OPEN_EXISTING, 0, nullptr);
-        if (hComm != INVALID_HANDLE_VALUE) {
-            ::CloseHandle(hComm);
-            const QString comName = QString("COM%1").arg(i);
-            cmbSerialPort->addItem(comName, comName);
-        }
-    }
-    if (cmbSerialPort->count() == 0) {
-        cmbSerialPort->addItem("COM1", "COM1");
-        cmbSerialPort->addItem("COM3", "COM3");
-    }
-#else
+#ifdef __linux__
+    // Scan /dev for standard Linux serial device nodes
     QDir devDir("/dev");
-    QStringList filters;
-    filters << "ttyUSB*"
-            << "ttyACM*"
-            << "ttyS*";
-    const auto entries = devDir.entryList(filters, QDir::System);
-    for (const auto& entry : entries) {
-        cmbSerialPort->addItem("/dev/" + entry, "/dev/" + entry);
-    }
+    const QStringList filters { "ttyUSB*", "ttyACM*", "ttyS*" };
+    const QFileInfoList entries = devDir.entryInfoList(filters, QDir::System);
 
-    if (cmbSerialPort->count() == 0) {
-        cmbSerialPort->addItem("/dev/ttyUSB0", "/dev/ttyUSB0");
-        cmbSerialPort->addItem("/dev/ttyS0", "/dev/ttyS0");
+    for (const auto& info : entries) {
+        const QString path = info.absoluteFilePath();
+        cmbSerialPort->addItem(path, path);
+    }
+#elif defined(_WIN32)
+    for (int i = 1; i <= 32; ++i) {
+        const QString name = QString("COM%1").arg(i);
+        cmbSerialPort->addItem(name, name);
     }
 #endif
+
+    if (cmbSerialPort->count() == 0) {
+        cmbSerialPort->addItem(tr("No serial ports detected"), "");
+    }
 }
 
 void ConnectionWidget::handleConnectClicked()
 {
+    if (m_reconnectTimer && m_reconnectTimer->isActive()) {
+        // User canceled pending auto-reconnect
+        m_manualDisconnect = true;
+        stopAutoReconnect();
+        setConnectionState(false);
+        return;
+    }
+
     if (isConnected) {
+        m_manualDisconnect = true;
+        stopAutoReconnect();
         emit disconnectRequested();
         return;
     }
 
+    m_manualDisconnect = false;
+    m_reconnectAttempt = 0;
+    triggerConnect();
+}
+
+void ConnectionWidget::triggerConnect()
+{
     const auto address = static_cast<std::uint8_t>(spinAddress->value());
     const int mode = cmbMode->currentIndex();
     std::shared_ptr<PelcoD::ITransport> transport { nullptr };
@@ -214,23 +251,72 @@ void ConnectionWidget::handleConnectClicked()
     }
 }
 
+void ConnectionWidget::scheduleReconnect()
+{
+    if (!chkAutoReconnect || !chkAutoReconnect->isChecked() || m_manualDisconnect) {
+        return;
+    }
+
+    const int delayMs = kBackoffScheduleMs[std::min(m_reconnectAttempt, kMaxBackoffSteps - 1)];
+    const int attemptDisplay = m_reconnectAttempt + 1;
+    m_reconnectTimer->start(delayMs);
+
+    lblLed->setStyleSheet("background-color: #e3b341; border-radius: 6px; border: 1px solid #f0c040;");
+    lblStatusText->setText(tr("Reconnecting in %1s (attempt %2)…").arg(delayMs / 1000).arg(attemptDisplay));
+    lblStatusText->setStyleSheet("color: #e3b341; font-weight: bold;");
+
+    btnConnect->setText(tr("Cancel"));
+    btnConnect->setEnabled(true);
+    btnConnect->setObjectName("btnWarning");
+    btnConnect->style()->unpolish(btnConnect);
+    btnConnect->style()->polish(btnConnect);
+
+    cmbMode->setEnabled(false);
+    spinAddress->setEnabled(false);
+    stackedConfig->setEnabled(false);
+}
+
+void ConnectionWidget::onReconnectTimerTimeout()
+{
+    if (m_manualDisconnect || !chkAutoReconnect || !chkAutoReconnect->isChecked()) {
+        return;
+    }
+    m_reconnectAttempt++;
+    triggerConnect();
+}
+
+void ConnectionWidget::stopAutoReconnect()
+{
+    if (m_reconnectTimer) {
+        m_reconnectTimer->stop();
+    }
+    m_reconnectAttempt = 0;
+}
+
 void ConnectionWidget::setConnectionState(bool connected)
 {
     isConnected = connected;
     updateLedState(connected);
 
     if (connected) {
+        stopAutoReconnect();
+        m_manualDisconnect = false;
         btnConnect->setText(tr("Disconnect"));
         btnConnect->setObjectName("btnDanger");
         cmbMode->setEnabled(false);
         spinAddress->setEnabled(false);
         stackedConfig->setEnabled(false);
     } else {
-        btnConnect->setText(tr("Connect"));
-        btnConnect->setObjectName("btnPrimary");
-        cmbMode->setEnabled(true);
-        spinAddress->setEnabled(true);
-        stackedConfig->setEnabled(true);
+        if (!m_manualDisconnect && chkAutoReconnect && chkAutoReconnect->isChecked()) {
+            scheduleReconnect();
+        } else {
+            stopAutoReconnect();
+            btnConnect->setText(tr("Connect"));
+            btnConnect->setObjectName("btnPrimary");
+            cmbMode->setEnabled(true);
+            spinAddress->setEnabled(true);
+            stackedConfig->setEnabled(true);
+        }
     }
 
     btnConnect->style()->unpolish(btnConnect);
@@ -249,8 +335,9 @@ void ConnectionWidget::setConnecting(bool connecting)
         lblStatusText->setText(tr("Connecting…"));
         lblStatusText->setStyleSheet("color: #e3b341; font-weight: bold;");
     } else {
-        // Re-enable inputs; actual connected/offline state is set by setConnectionState().
-        btnConnect->setEnabled(true);
+        if (!isReconnecting()) {
+            btnConnect->setEnabled(true);
+        }
     }
 }
 
@@ -265,6 +352,23 @@ void ConnectionWidget::updateLedState(bool connected)
         lblStatusText->setText(tr("Offline"));
         lblStatusText->setStyleSheet("color: #8b949e;");
     }
+}
+
+bool ConnectionWidget::isAutoReconnectEnabled() const noexcept
+{
+    return chkAutoReconnect && chkAutoReconnect->isChecked();
+}
+
+void ConnectionWidget::setAutoReconnectEnabled(bool enabled)
+{
+    if (chkAutoReconnect) {
+        chkAutoReconnect->setChecked(enabled);
+    }
+}
+
+bool ConnectionWidget::isReconnecting() const noexcept
+{
+    return m_reconnectTimer && m_reconnectTimer->isActive();
 }
 
 } // namespace PelcoDApp

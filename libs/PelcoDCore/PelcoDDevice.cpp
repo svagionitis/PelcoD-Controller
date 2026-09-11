@@ -28,6 +28,34 @@ bool PelcoDDevice::start()
     }
 
     m_transport->setDataCallback([this](const std::vector<std::uint8_t>& data) { onDataReceived(data); });
+    m_transport->setStateCallback([this](TransportState state, const std::string& msg) {
+        if (state == TransportState::Disconnected || state == TransportState::Error) {
+            LOG(WARNING) << "Transport disconnected or error: " << msg;
+            bool wasConn = false;
+            {
+                std::lock_guard<std::mutex> lock(m_statusMutex);
+                wasConn = m_status.connected;
+                m_status.connected = false;
+            }
+            if (wasConn) {
+                std::shared_ptr<const std::vector<StatusCallback>> sbs;
+                {
+                    std::lock_guard<std::mutex> lock(m_callbackMutex);
+                    sbs = m_statusCallbacks;
+                }
+                DeviceStatus copy;
+                {
+                    std::lock_guard<std::mutex> lock(m_statusMutex);
+                    copy = m_status;
+                }
+                for (const auto& cb : *sbs) {
+                    if (cb) {
+                        cb(copy);
+                    }
+                }
+            }
+        }
+    });
 
     if (!m_transport->isOpen()) {
         if (!m_transport->open()) {
