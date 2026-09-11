@@ -35,10 +35,7 @@ public:
     ConnectionModal();
     ~ConnectionModal() = default;
 
-    void setOpen(bool open) noexcept
-    {
-        m_isOpen = open;
-    }
+    void setOpen(bool open) noexcept;
     [[nodiscard]] bool isOpen() const noexcept
     {
         return m_isOpen;
@@ -59,18 +56,24 @@ public:
         return m_config;
     }
 
-    void setConfig(const ConnectionConfig& config)
-    {
-        m_config = config;
-    }
+    void setConfig(const ConnectionConfig& config);
 
     /// @brief Instantiate the configured transport instance.
     [[nodiscard]] std::shared_ptr<PelcoD::ITransport> createTransport() const;
 
 private:
+    [[nodiscard]] bool isTextEditingField() const noexcept;
+    void resetCursor() noexcept;
+    bool validateAndApply();
+    void renderTextField(Canvas& canvas, int x, int y, std::string_view text, bool isSelected, const Style& textStyle,
+        const Style& cursorStyle) const;
+
     bool m_isOpen { false };
     bool m_pendingConnect { false };
     int m_selectedField { 0 };
+    int m_cursorPos { 0 };
+    std::string m_tcpPortStr { "9000" };
+    std::string m_errorMessage {};
     ConnectionConfig m_config {};
 };
 

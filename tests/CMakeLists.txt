@@ -13,6 +13,20 @@ add_pelco_test(TestMockDevice TestMockDevice.cpp)
 add_pelco_test(TestTcpTransportTimeout TestTcpTransportTimeout.cpp)
 add_pelco_test(TestProtocolCompleteness TestProtocolCompleteness.cpp)
 
+add_executable(TestConnectionModal
+    TestConnectionModal.cpp
+    ${CMAKE_SOURCE_DIR}/app-tui/views/ConnectionModal.cpp
+    ${CMAKE_SOURCE_DIR}/app-tui/Canvas.cpp
+    ${CMAKE_SOURCE_DIR}/app-tui/Terminal.cpp
+)
+target_include_directories(TestConnectionModal PRIVATE
+    ${CMAKE_SOURCE_DIR}/app-tui
+    ${CMAKE_SOURCE_DIR}/libs/PelcoDCore
+)
+target_link_libraries(TestConnectionModal PRIVATE PelcoDCore Threads::Threads)
+apply_compiler_flags(TestConnectionModal)
+add_test(NAME TestConnectionModal COMMAND TestConnectionModal)
+
 # ==============================================================================
 # CLI Argument Validation Tests (PelcoDAppTui)
 # ==============================================================================
