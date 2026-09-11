@@ -4,6 +4,7 @@
 #include "QPelcoDDevice.h"
 
 #include <QMetaObject>
+#include <QSignalBlocker>
 
 namespace PelcoDQt {
 
@@ -23,6 +24,10 @@ QPelcoDDevice::~QPelcoDDevice()
     if (m_connectThread.joinable()) {
         m_connectThread.join();
     }
+    // Block signals so connectionStateChanged(false) — emitted by
+    // disconnectDevice() — cannot fire into slots whose receiver is
+    // already mid-destruction (e.g. MainWindow::statusBar()).
+    const QSignalBlocker blocker(this);
     disconnectDevice();
 }
 
