@@ -23,6 +23,7 @@ PelcoDDevice::~PelcoDDevice()
 
 bool PelcoDDevice::start()
 {
+    std::lock_guard<std::recursive_mutex> lifecycleLock(m_lifecycleMutex);
     if (m_running.load()) {
         return true;
     }
@@ -85,6 +86,11 @@ bool PelcoDDevice::start()
 
 void PelcoDDevice::stop()
 {
+    std::lock_guard<std::recursive_mutex> lifecycleLock(m_lifecycleMutex);
+    if (!m_running.load() && !m_rxThread.joinable() && !m_workerThread.joinable() && !m_pollThread.joinable()) {
+        return;
+    }
+
     LOG(INFO) << "Stopping PelcoDDevice controller";
     m_running = false;
     m_queueCv.notify_all();

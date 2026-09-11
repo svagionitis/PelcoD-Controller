@@ -40,7 +40,13 @@ public:
     PelcoDDevice(PelcoDDevice&&) = delete;
     PelcoDDevice& operator=(PelcoDDevice&&) = delete;
 
+    /// @brief Starts worker, rx, and polling loops, opening the underlying transport.
+    /// @details Thread-safe and idempotent; returns true immediately if already running.
+    /// @return True if started or already running; false if transport initialization failed.
     [[nodiscard]] bool start();
+
+    /// @brief Stops worker, rx, and polling loops, and closes the transport.
+    /// @details Thread-safe and idempotent; safe to call multiple times or if never started.
     void stop();
     [[nodiscard]] bool isConnected() const noexcept;
 
@@ -157,6 +163,7 @@ private:
     std::shared_ptr<ITransport> m_transport;
     std::uint8_t m_address { 1U };
 
+    mutable std::recursive_mutex m_lifecycleMutex;
     std::atomic<bool> m_running { false };
     std::thread m_workerThread;
     std::thread m_pollThread;

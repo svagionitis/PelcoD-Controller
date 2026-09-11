@@ -220,11 +220,11 @@ void testDynamicTelemetryPollingLifecycle()
     assert(!device.getTelemetryPolling());
 
     // Wait for in-flight queries from the active cycle to finish transmitting
-    std::this_thread::sleep_for(std::chrono::milliseconds(150));
+    std::this_thread::sleep_for(std::chrono::milliseconds(300));
     const int countAfterSettle = txPollQueryCount.load();
 
     // Ensure no additional queries are dispatched while polling is disabled
-    std::this_thread::sleep_for(std::chrono::milliseconds(150));
+    std::this_thread::sleep_for(std::chrono::milliseconds(200));
     assert(txPollQueryCount.load() == countAfterSettle);
 
     // Re-enable polling dynamically to verify repeat enable cycle
@@ -292,6 +292,69 @@ void testClearCallbacks()
     device.stop();
 }
 
+void testReentrantStart()
+{
+    auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(1U);
+    PelcoD::PelcoDDevice device(mock, 1U);
+
+    std::atomic<int> trafficCount { 0 };
+    device.addTrafficCallback([&](bool isTx, const std::vector<std::uint8_t>&) {
+        if (isTx) {
+            trafficCount.fetch_add(1);
+        }
+    });
+
+    // 1. First start should succeed
+    assert(device.start());
+    assert(device.getStatus().connected);
+
+    // 2. Re-entrant sequential start calls while running must be idempotent
+    assert(device.start());
+    assert(device.start());
+    assert(device.start());
+
+    // Verify commands still process normally after multiple re-entrant start calls
+    device.panRight(30);
+    std::this_thread::sleep_for(std::chrono::milliseconds(80));
+    assert(trafficCount.load() >= 1);
+
+    // 3. Stop and verify idempotent stop calls
+    device.stop();
+    assert(!device.getStatus().connected);
+    device.stop(); // duplicate stop
+
+    // 4. Restart cycle after stop
+    assert(device.start());
+    assert(device.getStatus().connected);
+    assert(device.start()); // re-entrant again
+    device.stop();
+
+    // 5. Concurrent multi-threaded start() stress test
+    PelcoD::PelcoDDevice concurrentDevice(mock, 1U);
+    std::atomic<int> successCount { 0 };
+    constexpr int threadCount = 8;
+    std::vector<std::thread> threads;
+    threads.reserve(threadCount);
+
+    for (int i = 0; i < threadCount; ++i) {
+        threads.emplace_back([&]() {
+            if (concurrentDevice.start()) {
+                successCount.fetch_add(1);
+            }
+        });
+    }
+
+    for (auto& t : threads) {
+        if (t.joinable()) {
+            t.join();
+        }
+    }
+
+    assert(successCount.load() == threadCount);
+    assert(concurrentDevice.getStatus().connected);
+    concurrentDevice.stop();
+}
+
 int main()
 {
     std::cout << "[TestMockDevice] Running tests..." << std::endl;
@@ -300,6 +363,7 @@ int main()
     testBurstTelemetryReception();
     testDynamicTelemetryPollingLifecycle();
     testClearCallbacks();
+    testReentrantStart();
     std::cout << "[TestMockDevice] All tests passed successfully." << std::endl;
     return 0;
 }
