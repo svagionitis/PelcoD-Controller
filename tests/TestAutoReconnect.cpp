@@ -57,6 +57,30 @@ static void testAutoReconnectCancellationOnUncheck(ConnectionWidget& widget)
     assert(widget.reconnectAttemptCount() == 0);
 }
 
+static void testSerialPortEnumeration(ConnectionWidget& widget)
+{
+    const QStringList detected = ConnectionWidget::enumerateSerialPorts();
+    const QStringList displayed = widget.displayedSerialPorts();
+
+#if defined(_WIN32)
+    // 1. Must never return the old hardcoded 32 phantom COM ports
+    assert(displayed.size() != 32 && "Serial ports must not be hardcoded to 32 phantom COM ports");
+
+    // 2. If no hardware devices are plugged in on the test machine:
+    if (detected.isEmpty()) {
+        assert(displayed.size() == 1);
+        assert(displayed.first() == "No serial ports detected");
+    } else {
+        // If hardware devices are present, displayed list matches detected list
+        assert(displayed == detected);
+    }
+#endif
+
+    // 3. Re-scanning via refreshSerialPorts() must be repeatable and consistent
+    widget.refreshSerialPorts();
+    assert(widget.displayedSerialPorts() == displayed);
+}
+
 int main(int argc, char* argv[])
 {
     // Need QApplication for Qt Widget instantiation
@@ -67,6 +91,7 @@ int main(int argc, char* argv[])
     testAutoReconnectDisabledByDefault(widget);
     testAutoReconnectScheduledOnDrop(widget);
     testAutoReconnectCancellationOnUncheck(widget);
+    testSerialPortEnumeration(widget);
     std::cout << "[TestAutoReconnect] All tests passed successfully." << std::endl;
 
     return 0;
