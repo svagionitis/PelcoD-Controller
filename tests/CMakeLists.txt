@@ -12,3 +12,19 @@ add_pelco_test(TestProtocolParser TestProtocolParser.cpp)
 add_pelco_test(TestMockDevice TestMockDevice.cpp)
 add_pelco_test(TestTcpTransportTimeout TestTcpTransportTimeout.cpp)
 add_pelco_test(TestProtocolCompleteness TestProtocolCompleteness.cpp)
+
+# ==============================================================================
+# CLI Argument Validation Tests (PelcoDAppTui)
+# ==============================================================================
+add_test(NAME TestTuiHelp COMMAND PelcoDAppTui --help)
+add_test(NAME TestTuiInvalidAddress COMMAND PelcoDAppTui --address notanumber)
+set_tests_properties(TestTuiInvalidAddress PROPERTIES WILL_FAIL TRUE)
+add_test(NAME TestTuiAddressOutOfRange COMMAND PelcoDAppTui --address 300)
+set_tests_properties(TestTuiAddressOutOfRange PROPERTIES WILL_FAIL TRUE)
+add_test(NAME TestTuiInvalidTcpPort COMMAND PelcoDAppTui --tcp 127.0.0.1:99999)
+set_tests_properties(TestTuiInvalidTcpPort PROPERTIES WILL_FAIL TRUE)
+add_test(NAME TestTuiUnknownOption COMMAND PelcoDAppTui --unknown-flag)
+set_tests_properties(TestTuiUnknownOption PROPERTIES WILL_FAIL TRUE)
+add_test(NAME TestTuiMissingArg COMMAND PelcoDAppTui --tcp)
+set_tests_properties(TestTuiMissingArg PROPERTIES WILL_FAIL TRUE)
+
