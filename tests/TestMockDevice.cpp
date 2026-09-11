@@ -184,12 +184,89 @@ void testBurstTelemetryReception()
     device.stop();
 }
 
+void testDynamicTelemetryPollingLifecycle()
+{
+    auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(1U);
+    PelcoD::PelcoDDevice device(mock, 1U);
+
+    std::atomic<int> txPollQueryCount { 0 };
+    device.addTrafficCallback([&](bool isTx, const std::vector<std::uint8_t>& frame) {
+        // Opcode in frame[3]: QueryPan (0x51), QueryTilt (0x53), QueryZoom (0x55)
+        if (isTx && frame.size() == PelcoD::PelcoDFrame::StandardFrameSize) {
+            const std::uint8_t op = frame[3];
+            if (op == 0x51U || op == 0x53U || op == 0x55U) {
+                txPollQueryCount.fetch_add(1);
+            }
+        }
+    });
+
+    // Start with polling disabled (the default)
+    assert(!device.getTelemetryPolling());
+    assert(device.start());
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    assert(txPollQueryCount.load() == 0);
+
+    // Dynamically enable telemetry polling at 50ms interval while running
+    device.setTelemetryPolling(true, 50U);
+    assert(device.getTelemetryPolling());
+
+    // Give time for at least 2 polling cycles (each cycle emits 3 queries: Pan, Tilt, Zoom)
+    std::this_thread::sleep_for(std::chrono::milliseconds(180));
+    assert(txPollQueryCount.load() >= 3);
+
+    // Dynamically disable telemetry polling while running
+    device.setTelemetryPolling(false);
+    assert(!device.getTelemetryPolling());
+
+    // Wait for in-flight queries from the active cycle to finish transmitting
+    std::this_thread::sleep_for(std::chrono::milliseconds(150));
+    const int countAfterSettle = txPollQueryCount.load();
+
+    // Ensure no additional queries are dispatched while polling is disabled
+    std::this_thread::sleep_for(std::chrono::milliseconds(150));
+    assert(txPollQueryCount.load() == countAfterSettle);
+
+    // Re-enable polling dynamically to verify repeat enable cycle
+    device.setTelemetryPolling(true, 50U);
+    assert(device.getTelemetryPolling());
+    std::this_thread::sleep_for(std::chrono::milliseconds(180));
+    assert(txPollQueryCount.load() > countAfterSettle);
+
+    device.stop();
+
+    // Verify polling configured before start()
+    txPollQueryCount.store(0);
+    PelcoD::PelcoDDevice devicePre(mock, 1U);
+    devicePre.addTrafficCallback([&](bool isTx, const std::vector<std::uint8_t>& frame) {
+        if (isTx && frame.size() == PelcoD::PelcoDFrame::StandardFrameSize) {
+            const std::uint8_t op = frame[3];
+            if (op == 0x51U || op == 0x53U || op == 0x55U) {
+                txPollQueryCount.fetch_add(1);
+            }
+        }
+    });
+
+    devicePre.setTelemetryPolling(true, 50U);
+    assert(devicePre.getTelemetryPolling());
+    assert(devicePre.start());
+
+    // Duplicate start() call must safely return true without terminating or leaking threads
+    assert(devicePre.start());
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(180));
+    assert(txPollQueryCount.load() >= 3);
+
+    devicePre.stop();
+}
+
 int main()
 {
     std::cout << "[TestMockDevice] Running tests..." << std::endl;
     testMockDeviceEndToEnd();
     testCopyOnWriteCallbacks();
     testBurstTelemetryReception();
+    testDynamicTelemetryPollingLifecycle();
     std::cout << "[TestMockDevice] All tests passed successfully." << std::endl;
     return 0;
 }

@@ -23,6 +23,10 @@ PelcoDDevice::~PelcoDDevice()
 
 bool PelcoDDevice::start()
 {
+    if (m_running.load()) {
+        return true;
+    }
+
     if (!m_transport) {
         return false;
     }
@@ -74,9 +78,7 @@ bool PelcoDDevice::start()
     m_running = true;
     m_rxThread = std::thread(&PelcoDDevice::rxLoop, this);
     m_workerThread = std::thread(&PelcoDDevice::workerLoop, this);
-    if (m_telemetryPolling) {
-        m_pollThread = std::thread(&PelcoDDevice::pollingLoop, this);
-    }
+    m_pollThread = std::thread(&PelcoDDevice::pollingLoop, this);
 
     return true;
 }
@@ -166,14 +168,18 @@ DeviceInfo PelcoDDevice::getInfo() const
 
 void PelcoDDevice::setTelemetryPolling(bool enable, std::uint32_t intervalMs) noexcept
 {
-    m_telemetryPolling = enable;
-    m_pollIntervalMs = (intervalMs > 0U) ? intervalMs : 1000U;
+    {
+        std::lock_guard<std::mutex> lock(m_pollMutex);
+        m_telemetryPolling.store(enable);
+        m_pollIntervalMs.store((intervalMs > 0U) ? intervalMs : 1000U);
+        ++m_pollEpoch;
+    }
     m_pollCv.notify_all();
 }
 
 bool PelcoDDevice::getTelemetryPolling() const noexcept
 {
-    return m_telemetryPolling;
+    return m_telemetryPolling.load();
 }
 
 void PelcoDDevice::setQueryTimeoutMs(std::uint32_t timeoutMs) noexcept
@@ -609,16 +615,25 @@ void PelcoDDevice::workerLoop()
 void PelcoDDevice::pollingLoop()
 {
     while (m_running) {
+        std::uint64_t currentEpoch { 0U };
         {
             std::unique_lock<std::mutex> lock(m_pollMutex);
-            m_pollCv.wait_for(lock, std::chrono::milliseconds(m_pollIntervalMs), [this] { return !m_running; });
+            if (!m_telemetryPolling.load()) {
+                m_pollCv.wait(lock, [this] { return m_telemetryPolling.load() || !m_running; });
+            } else {
+                currentEpoch = m_pollEpoch;
+                const auto interval = std::chrono::milliseconds(m_pollIntervalMs.load());
+                m_pollCv.wait_for(lock, interval, [this, currentEpoch] {
+                    return !m_running || !m_telemetryPolling.load() || m_pollEpoch != currentEpoch;
+                });
+            }
         }
 
         if (!m_running) {
             break;
         }
 
-        if (m_telemetryPolling && isConnected()) {
+        if (m_telemetryPolling.load() && isConnected()) {
             queryPan();
             queryTilt();
             queryZoom();
