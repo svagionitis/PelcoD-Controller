@@ -14,6 +14,12 @@ Testing/
 Makefile
 compile_commands.json
 *.cmake.user
+_CPack_Packages/
+CPackConfig.cmake
+CPackSourceConfig.cmake
+*.tar.gz
+*.deb
+*.rpm
 
 # ==============================================================================
 # Compiled Objects & Static/Dynamic Libraries

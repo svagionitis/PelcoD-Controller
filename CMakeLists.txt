@@ -24,6 +24,15 @@ set(CMAKE_AUTOUIC ON)
 find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets Test)
 
 # ==============================================================================
+# Installation Rules (GNUInstallDirs) & RPATH Settings
+# ==============================================================================
+include(GNUInstallDirs)
+
+set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
+set(CMAKE_BUILD_WITH_INSTALL_RPATH TRUE)
+set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR};$ORIGIN/../lib")
+
+# ==============================================================================
 # Subdirectories
 # ==============================================================================
 add_subdirectory(libs)
@@ -37,5 +46,73 @@ add_subdirectory(tests)
 # Git Hooks & Clang-Format Integration
 # ==============================================================================
 include(GitHooks)
+
+# ==============================================================================
+# Target Installation
+# ==============================================================================
+
+install(TARGETS PelcoDAppQt PelcoDAppTui PelcoDCore PelcoDQt
+    EXPORT PelcoDTargets
+    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+)
+
+install(FILES
+    libs/PelcoDCore/CircularByteRing.h
+    libs/PelcoDCore/DeviceStatus.h
+    libs/PelcoDCore/ITransport.h
+    libs/PelcoDCore/MockPelcoDDevice.h
+    libs/PelcoDCore/PelcoDDevice.h
+    libs/PelcoDCore/PelcoDFrame.h
+    libs/PelcoDCore/PelcoDTypes.h
+    libs/PelcoDCore/ProtocolBuilder.h
+    libs/PelcoDCore/ProtocolParser.h
+    libs/PelcoDCore/SerialTransport.h
+    libs/PelcoDCore/TcpTransport.h
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/PelcoDCore
+)
+
+install(FILES
+    libs/PelcoDQt/QPelcoDDevice.h
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/PelcoDQt
+)
+
+install(EXPORT PelcoDTargets
+    FILE PelcoDTargets.cmake
+    NAMESPACE PelcoD::
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/PelcoD
+)
+
+# ==============================================================================
+# CPack Packaging Configuration
+# ==============================================================================
+set(CPACK_PACKAGE_NAME "PelcoDController")
+set(CPACK_PACKAGE_VENDOR "Stavros Vagionitis")
+set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Cross-Platform Pelco-D PTZ Camera Controller & Protocol Inspector")
+set(CPACK_PACKAGE_VERSION_MAJOR ${PROJECT_VERSION_MAJOR})
+set(CPACK_PACKAGE_VERSION_MINOR ${PROJECT_VERSION_MINOR})
+set(CPACK_PACKAGE_VERSION_PATCH ${PROJECT_VERSION_PATCH})
+set(CPACK_PACKAGE_VERSION "${PROJECT_VERSION}")
+set(CPACK_PACKAGE_CONTACT "Stavros Vagionitis <stavros@vagionitis.com>")
+set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_CURRENT_SOURCE_DIR}/LICENSE")
+set(CPACK_RESOURCE_FILE_README "${CMAKE_CURRENT_SOURCE_DIR}/README.md")
+
+# Debian packaging options
+set(CPACK_DEBIAN_PACKAGE_MAINTAINER "${CPACK_PACKAGE_CONTACT}")
+set(CPACK_DEBIAN_PACKAGE_SECTION "video")
+set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS ON)
+
+# RPM packaging options
+set(CPACK_RPM_PACKAGE_GROUP "Applications/Multimedia")
+set(CPACK_RPM_PACKAGE_LICENSE "MIT")
+
+# Package generators
+set(CPACK_GENERATOR "TGZ;DEB")
+set(CPACK_SOURCE_GENERATOR "TGZ")
+
+include(CPack)
+
 
 
