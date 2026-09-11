@@ -1,3 +1,11 @@
+# Ensure assert() remains active in test executables regardless of build configuration
+string(REPLACE "/DNDEBUG" "" CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE}")
+string(REPLACE "-DNDEBUG" "" CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE}")
+string(REPLACE "/DNDEBUG" "" CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELWITHDEBINFO}")
+string(REPLACE "-DNDEBUG" "" CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELWITHDEBINFO}")
+string(REPLACE "/DNDEBUG" "" CMAKE_CXX_FLAGS_MINSIZEREL "${CMAKE_CXX_FLAGS_MINSIZEREL}")
+string(REPLACE "-DNDEBUG" "" CMAKE_CXX_FLAGS_MINSIZEREL "${CMAKE_CXX_FLAGS_MINSIZEREL}")
+
 function(add_pelco_test test_name test_source)
     add_executable(${test_name} ${test_source})
     target_link_libraries(${test_name} PRIVATE PelcoDCore)
@@ -58,6 +66,9 @@ target_link_libraries(TestAutoReconnect PRIVATE
 )
 apply_compiler_flags(TestAutoReconnect)
 add_test(NAME TestAutoReconnect COMMAND TestAutoReconnect)
+if(WIN32)
+    set_property(TEST TestAutoReconnect PROPERTY ENVIRONMENT "PATH=$<TARGET_FILE_DIR:Qt6::Core>;$ENV{PATH}")
+endif()
 
 # ==============================================================================
 # CLI Argument Validation Tests (PelcoDAppTui)

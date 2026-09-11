@@ -574,7 +574,10 @@ void PelcoDDevice::workerLoop()
             }
 
             VLOG(1) << "Sending command (" << item.frame.size() << " bytes, tag: '" << item.queryTag << "')";
-            m_transport->sendData(item.frame);
+            const bool sendSuccess = m_transport->sendData(item.frame);
+            if (!sendSuccess) {
+                LOG(WARNING) << "Failed to transmit frame across transport.";
+            }
 
             // Dispatch TX traffic callbacks using copy-on-write snapshot (zero heap allocation)
             std::shared_ptr<const std::vector<TrafficCallback>> tbs;

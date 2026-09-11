@@ -6,6 +6,7 @@
 #include "ITransport.h"
 #include "PelcoDTypes.h"
 
+#include <array>
 #include <atomic>
 #include <cstdint>
 #include <map>

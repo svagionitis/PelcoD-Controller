@@ -20,6 +20,8 @@ CPackSourceConfig.cmake
 *.tar.gz
 *.deb
 *.rpm
+vcpkg_installed/
+vcpkg-dependencies/
 
 # ==============================================================================
 # Compiled Objects & Static/Dynamic Libraries

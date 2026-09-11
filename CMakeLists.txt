@@ -114,5 +114,12 @@ set(CPACK_SOURCE_GENERATOR "TGZ")
 
 include(CPack)
 
-
-
+if(MSVC)
+    message(STATUS "If using the 'Visual Studio' generator, now run")
+    message(STATUS "     cmake --build . [target] --config <Config>")
+    message(STATUS "If using the 'Ninja' generator, now run")
+    message(STATUS "     cmake --build . [target]")
+else()
+    message(STATUS "If using the 'Unix Makefiles' generator, now run")
+    message(STATUS "     cmake --build . [target] -- -j$(nproc)")
+endif()

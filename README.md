@@ -42,12 +42,16 @@ The project uses a modular CMake architecture with dedicated `CMakeLists.txt` fi
 ## Build Instructions
 
 ### Prerequisites
-- C++17 compliant compiler (GCC 9+, Clang 10+, or MSVC 2019+)
-- CMake 3.16+
-- Google glog (`libgoogle-glog-dev`)
-- Qt 6.2+ (`QtCore`, `QtGui`, `QtWidgets`, `QtTest`)
+- **Compiler**: C++17 compliant compiler (GCC 9+, Clang 10+, or MSVC 2019+).
+- **Build System**: CMake 3.16+.
+- **Package Manager (Windows)**: [vcpkg](https://github.com/microsoft/vcpkg) using manifest mode (`vcpkg.json`) to manage `glog`.
+- **Dependencies (Linux)**: `libgoogle-glog-dev`.
+- **GUI & Qt Adapter**: Qt 6.2+ (`QtCore`, `QtGui`, `QtWidgets`, `QtTest`).
 
 ### Compiling & Running Tests
+
+#### Linux (GCC / Clang)
+
 ```bash
 # Configure standard release build
 cmake -B build -S . -DCMAKE_BUILD_TYPE=Release
@@ -57,6 +61,22 @@ cmake --build build -j$(nproc)
 
 # Run complete automated test suite
 ctest --test-dir build --output-on-failure
+```
+
+#### Windows (MSVC)
+
+```cmd
+# Configure build with vcpkg manifest mode and Qt 6
+cmake -B build -S . ^
+  -DCMAKE_TOOLCHAIN_FILE=C:\vcpkg\scripts\buildsystems\vcpkg.cmake ^
+  -DCMAKE_PREFIX_PATH=C:\Qt\6.6.1\msvc2019_64
+
+# Build all targets (Release)
+cmake --build build --config Release
+
+# Run complete automated test suite
+set PATH=C:\Qt\6.6.1\msvc2019_64\bin;%PATH%
+ctest --test-dir build -C Release --output-on-failure
 ```
 
 ### Compiling with Sanitizers

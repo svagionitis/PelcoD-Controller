@@ -10,6 +10,17 @@
 
 namespace PelcoDTui {
 
+namespace {
+inline void safeLocalTime(const std::time_t* timep, std::tm* result)
+{
+#ifndef _WIN32
+    ::localtime_r(timep, result);
+#else
+    ::localtime_s(result, timep);
+#endif
+}
+} // namespace
+
 std::string_view TrafficView::filterToString(TrafficFilter filter) noexcept
 {
     switch (filter) {
@@ -201,7 +212,7 @@ bool TrafficView::exportToFile(const std::string& filename) const
     const auto now = std::chrono::system_clock::now();
     const std::time_t nowT = std::chrono::system_clock::to_time_t(now);
     std::tm tmBuf {};
-    localtime_r(&nowT, &tmBuf);
+    safeLocalTime(&nowT, &tmBuf);
 
     char dateBuf[32];
     std::strftime(dateBuf, sizeof(dateBuf), "%Y-%m-%d %H:%M:%S", &tmBuf);
@@ -226,7 +237,7 @@ bool TrafficView::exportToFile(const std::string& filename) const
 
         const std::time_t pktT = std::chrono::system_clock::to_time_t(pkt.timestamp);
         std::tm pktTm {};
-        localtime_r(&pktT, &pktTm);
+        safeLocalTime(&pktT, &pktTm);
 
         const auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(pkt.timestamp.time_since_epoch()) % 1000;
 
@@ -294,7 +305,7 @@ void TrafficView::render(Canvas& canvas, int startY, int width, int height)
         // Timestamp
         const std::time_t t = std::chrono::system_clock::to_time_t(pkt->timestamp);
         std::tm tmBuf {};
-        localtime_r(&t, &tmBuf);
+        safeLocalTime(&t, &tmBuf);
 
         char timeBuf[16];
         std::strftime(timeBuf, sizeof(timeBuf), "%H:%M:%S", &tmBuf);
@@ -358,7 +369,7 @@ bool TrafficView::handleInput(const InputEvent& event, [[maybe_unused]] PelcoD::
         const auto now = std::chrono::system_clock::now();
         const std::time_t nowT = std::chrono::system_clock::to_time_t(now);
         std::tm tmBuf {};
-        localtime_r(&nowT, &tmBuf);
+        safeLocalTime(&nowT, &tmBuf);
 
         char fnBuf[64];
         std::strftime(fnBuf, sizeof(fnBuf), "pelcod_traffic_%Y%m%d_%H%M%S.log", &tmBuf);

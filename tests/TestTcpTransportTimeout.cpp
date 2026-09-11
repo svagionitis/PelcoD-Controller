@@ -41,8 +41,13 @@ static void testConnectRefusedFast()
         = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - before);
 
     assert(!ok && "open() must fail when connection is refused");
+#ifdef _WIN32
+    // Windows TCP/IP stack performs SYN retry backoff on closed loopback ports (~2 s)
+    assert(elapsed.count() < 3500 && "open() must return fast on ECONNREFUSED");
+#else
     // ECONNREFUSED is immediate; allow 500 ms margin.
     assert(elapsed.count() < 500 && "open() must return fast on ECONNREFUSED");
+#endif
 
     std::cout << "  testConnectRefusedFast: elapsed=" << elapsed.count() << "ms — PASSED\n";
 }

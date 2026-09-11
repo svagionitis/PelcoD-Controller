@@ -1,0 +1,9 @@
+{
+  "name": "pelcod-controller",
+  "version-string": "1.0.0",
+  "builtin-baseline": "4eb0f7cabb9ca18132d80009312411b9261bba7b",
+  "description": "Pelco-D PTZ camera controller library and applications.",
+  "dependencies": [
+    "glog"
+  ]
+}
