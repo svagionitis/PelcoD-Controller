@@ -28,6 +28,7 @@ find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets Test)
 # ==============================================================================
 add_subdirectory(libs)
 add_subdirectory(app-qt)
+add_subdirectory(app-tui)
 
 enable_testing()
 add_subdirectory(tests)

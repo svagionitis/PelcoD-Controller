@@ -1,4 +1,4 @@
-add_executable(PelcoDApp
+add_executable(PelcoDAppQt
     main.cpp
     MainWindow.h
     MainWindow.cpp
@@ -21,14 +21,14 @@ add_executable(PelcoDApp
     resources.qrc
 )
 
-target_include_directories(PelcoDApp PRIVATE
+target_include_directories(PelcoDAppQt PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}/..
 )
 
-target_link_libraries(PelcoDApp PRIVATE
+target_link_libraries(PelcoDAppQt PRIVATE
     PelcoDQt
     Qt6::Widgets
 )
 
-apply_compiler_flags(PelcoDApp)
+apply_compiler_flags(PelcoDAppQt)
