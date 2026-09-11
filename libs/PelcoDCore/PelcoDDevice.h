@@ -115,6 +115,13 @@ public:
     void setGain(std::uint16_t gain);
     void setAutoIrisLevel(std::uint8_t level);
     void setAutoIrisPeak(std::uint8_t peak);
+    void setPhaseDelayMode(SwitchState state);
+    void adjustLineLockDelay(std::uint16_t centidegrees);
+    void adjustWhiteBalanceRB(std::uint16_t value);
+    void adjustWhiteBalanceMG(std::uint16_t value);
+    void setMagnification(std::uint16_t value, bool relative = false);
+    void setBaudRate(std::uint32_t baud);
+    void setZeroPosition();
 
     // System Commands & Queries
     void resetDefaults();
@@ -122,8 +129,10 @@ public:
     void queryPan();
     void queryTilt();
     void queryZoom();
+    void queryMagnification();
     void queryDeviceType();
     void queryGeneral();
+    void queryDiagnostics();
     void queryAll();
 
     void sendRawFrame(const std::vector<std::uint8_t>& frame);

@@ -362,6 +362,41 @@ void PelcoDDevice::setAutoIrisPeak(std::uint8_t peak)
     enqueueCommand(ProtocolBuilder::buildAutoIrisPeak(m_address, peak));
 }
 
+void PelcoDDevice::setPhaseDelayMode(SwitchState state)
+{
+    enqueueCommand(ProtocolBuilder::buildPhaseDelayMode(m_address, state));
+}
+
+void PelcoDDevice::adjustLineLockDelay(std::uint16_t centidegrees)
+{
+    enqueueCommand(ProtocolBuilder::buildLineLockDelay(m_address, centidegrees));
+}
+
+void PelcoDDevice::adjustWhiteBalanceRB(std::uint16_t value)
+{
+    enqueueCommand(ProtocolBuilder::buildWhiteBalanceRB(m_address, value));
+}
+
+void PelcoDDevice::adjustWhiteBalanceMG(std::uint16_t value)
+{
+    enqueueCommand(ProtocolBuilder::buildWhiteBalanceMG(m_address, value));
+}
+
+void PelcoDDevice::setMagnification(std::uint16_t value, bool relative)
+{
+    enqueueCommand(ProtocolBuilder::buildSetMagnification(m_address, value, relative));
+}
+
+void PelcoDDevice::setBaudRate(std::uint32_t baud)
+{
+    enqueueCommand(ProtocolBuilder::buildSetBaudRate(m_address, baud));
+}
+
+void PelcoDDevice::setZeroPosition()
+{
+    enqueueCommand(ProtocolBuilder::buildSetZeroPosition(m_address));
+}
+
 void PelcoDDevice::resetDefaults()
 {
     enqueueCommand(ProtocolBuilder::buildResetDefaults(m_address));
@@ -387,6 +422,11 @@ void PelcoDDevice::queryZoom()
     sendQueryFrame(ProtocolBuilder::buildQueryZoom(m_address), "QueryZoom");
 }
 
+void PelcoDDevice::queryMagnification()
+{
+    sendQueryFrame(ProtocolBuilder::buildQueryMag(m_address), "QueryMagnification");
+}
+
 void PelcoDDevice::queryDeviceType()
 {
     sendQueryFrame(ProtocolBuilder::buildQueryDevType(m_address), "QueryDeviceType");
@@ -397,11 +437,17 @@ void PelcoDDevice::queryGeneral()
     sendQueryFrame(ProtocolBuilder::buildQueryGeneral(m_address), "QueryGeneral");
 }
 
+void PelcoDDevice::queryDiagnostics()
+{
+    sendQueryFrame(ProtocolBuilder::buildQueryDiagnostics(m_address), "QueryDiagnostics");
+}
+
 void PelcoDDevice::queryAll()
 {
     queryPan();
     queryTilt();
     queryZoom();
+    queryMagnification();
     queryDeviceType();
     queryGeneral();
 }

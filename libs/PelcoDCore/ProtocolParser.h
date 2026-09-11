@@ -60,6 +60,22 @@ public:
     [[nodiscard]] static bool parseDevType(
         const std::vector<std::uint8_t>& frame, std::uint8_t& swType, std::uint8_t& hwType) noexcept;
 
+    /// @brief Decodes 7-byte Standard Extended Response (opcode 0x01) ACK/NAK.
+    /// @param[in] frame Raw response frame.
+    /// @param[out] echoOpcode The command opcode being acknowledged.
+    /// @param[out] ack True = ACK (success), False = NAK (failure).
+    /// @return True if opcode is 0x01 and frame is valid.
+    [[nodiscard]] static bool parseAck(
+        const std::vector<std::uint8_t>& frame, std::uint8_t& echoOpcode, bool& ack) noexcept;
+
+    /// @brief Decodes 7-byte Diagnostic Information response (opcode 0x71).
+    /// @param[in] frame Raw response frame.
+    /// @param[out] temp Temperature raw value.
+    /// @param[out] sensorId Sensor identifier.
+    /// @return True if opcode is 0x71 and frame is valid.
+    [[nodiscard]] static bool parseDiagnostics(
+        const std::vector<std::uint8_t>& frame, std::uint8_t& temp, std::uint8_t& sensorId) noexcept;
+
     /// @brief Decodes 18-byte Query response packet.
     /// @param[in] frame Raw response frame.
     /// @param[out] payload Extracted text payload string.

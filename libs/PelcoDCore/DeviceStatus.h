@@ -42,6 +42,17 @@ struct DeviceStatus {
     // Active preset tracking (0 if none active)
     std::uint8_t activePreset { 0U };
 
+    // Magnification (raw device value from 0x63 response)
+    std::uint16_t magnification { 0U };
+
+    // ACK/NAK tracking (from 0x01 Standard Extended Response)
+    bool lastAckOk { false };
+    std::uint8_t lastAckOpcode { 0x00U };
+
+    // Diagnostic telemetry (from 0x71 response)
+    std::uint8_t diagnosticTemp { 0U };
+    std::uint8_t diagnosticSensorId { 0U };
+
     // Timestamp of last received message
     std::chrono::steady_clock::time_point lastRxTime {};
 

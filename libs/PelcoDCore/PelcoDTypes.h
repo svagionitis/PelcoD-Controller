@@ -76,12 +76,14 @@ enum class CommandOpcode : std::uint8_t {
     QueryPanPosition = 0x51U,
     QueryTiltPosition = 0x53U,
     QueryZoomPosition = 0x55U,
-    Download = 0x57U,
+    PrepareForDownload = 0x57U,
     SetMagnification = 0x5FU,
     QueryMagnification = 0x61U,
     EchoMode = 0x65U,
     SetBaudRate = 0x67U,
-    QueryDeviceType = 0x6BU
+    StartDownload = 0x69U,
+    QueryDeviceType = 0x6BU,
+    QueryDiagnostics = 0x6FU
 };
 
 /// @enum ResponseOpcode
@@ -92,7 +94,8 @@ enum class ResponseOpcode : std::uint8_t {
     QueryTilt = 0x5BU,
     QueryZoom = 0x5DU,
     QueryMagnification = 0x63U,
-    QueryDeviceType = 0x6DU
+    QueryDeviceType = 0x6DU,
+    QueryDiagnostics = 0x71U
 };
 
 /// @enum AutoMode

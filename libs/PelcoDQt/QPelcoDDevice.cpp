@@ -442,6 +442,48 @@ void QPelcoDDevice::setAutoIrisPeak(int peak)
     }
 }
 
+void QPelcoDDevice::setPhaseDelayMode(int state)
+{
+    if (m_device) {
+        m_device->setPhaseDelayMode(static_cast<PelcoD::SwitchState>(state));
+    }
+}
+
+void QPelcoDDevice::adjustWhiteBalanceRB(int value)
+{
+    if (m_device) {
+        m_device->adjustWhiteBalanceRB(static_cast<std::uint16_t>(value));
+    }
+}
+
+void QPelcoDDevice::adjustWhiteBalanceMG(int value)
+{
+    if (m_device) {
+        m_device->adjustWhiteBalanceMG(static_cast<std::uint16_t>(value));
+    }
+}
+
+void QPelcoDDevice::setMagnification(int value, bool relative)
+{
+    if (m_device) {
+        m_device->setMagnification(static_cast<std::uint16_t>(value), relative);
+    }
+}
+
+void QPelcoDDevice::setBaudRate(int baud)
+{
+    if (m_device) {
+        m_device->setBaudRate(static_cast<std::uint32_t>(baud));
+    }
+}
+
+void QPelcoDDevice::setZeroPosition()
+{
+    if (m_device) {
+        m_device->setZeroPosition();
+    }
+}
+
 void QPelcoDDevice::resetDefaults()
 {
     if (m_device) {
@@ -477,6 +519,13 @@ void QPelcoDDevice::queryZoom()
     }
 }
 
+void QPelcoDDevice::queryMagnification()
+{
+    if (m_device) {
+        m_device->queryMagnification();
+    }
+}
+
 void QPelcoDDevice::queryDeviceType()
 {
     if (m_device) {
@@ -488,6 +537,13 @@ void QPelcoDDevice::queryGeneral()
 {
     if (m_device) {
         m_device->queryGeneral();
+    }
+}
+
+void QPelcoDDevice::queryDiagnostics()
+{
+    if (m_device) {
+        m_device->queryDiagnostics();
     }
 }
 

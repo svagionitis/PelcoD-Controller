@@ -42,6 +42,21 @@ void SystemTab::setupUi()
     lblAlarms->setObjectName("lblTelemetry");
     gridInfo->addWidget(lblAlarms, 3, 1);
 
+    gridInfo->addWidget(new QLabel(tr("Magnification (raw):")), 4, 0);
+    lblMagnification = new QLabel("--");
+    lblMagnification->setObjectName("lblTelemetry");
+    gridInfo->addWidget(lblMagnification, 4, 1);
+
+    gridInfo->addWidget(new QLabel(tr("Diagnostic Temp (raw):")), 0, 2);
+    lblDiagTemp = new QLabel("--");
+    lblDiagTemp->setObjectName("lblTelemetry");
+    gridInfo->addWidget(lblDiagTemp, 0, 3);
+
+    gridInfo->addWidget(new QLabel(tr("Diagnostic Sensor ID:")), 1, 2);
+    lblDiagSensorId = new QLabel("--");
+    lblDiagSensorId->setObjectName("lblTelemetry");
+    gridInfo->addWidget(lblDiagSensorId, 1, 3);
+
     mainLayout->addWidget(grpInfo);
 
     // Group 2: Diagnostic Queries
@@ -53,15 +68,19 @@ void SystemTab::setupUi()
     btnQueryPan = new QPushButton(tr("Query Pan"));
     btnQueryTilt = new QPushButton(tr("Query Tilt"));
     btnQueryZoom = new QPushButton(tr("Query Zoom"));
+    btnQueryMag = new QPushButton(tr("Query Magnification"));
     btnQueryDevType = new QPushButton(tr("Query Device Type"));
     btnQueryGeneral = new QPushButton(tr("Query General Info"));
+    btnQueryDiagnostics = new QPushButton(tr("Query Diagnostics"));
 
     layoutQuery->addWidget(btnQueryAll);
     layoutQuery->addWidget(btnQueryPan);
     layoutQuery->addWidget(btnQueryTilt);
     layoutQuery->addWidget(btnQueryZoom);
+    layoutQuery->addWidget(btnQueryMag);
     layoutQuery->addWidget(btnQueryDevType);
     layoutQuery->addWidget(btnQueryGeneral);
+    layoutQuery->addWidget(btnQueryDiagnostics);
     layoutQuery->addStretch();
 
     mainLayout->addWidget(grpQuery);
@@ -90,8 +109,22 @@ void SystemTab::setupUi()
     btnRemoteReset->setObjectName("btnDanger");
     btnResetDefaults = new QPushButton(tr("Reset Camera Defaults"));
 
+    // Baud rate setter
+    layoutMaint->addWidget(new QLabel(tr("Set Remote Baud Rate:")));
+    cmbBaudRate = new QComboBox();
+    cmbBaudRate->addItem("2400", 2400);
+    cmbBaudRate->addItem("4800", 4800);
+    cmbBaudRate->addItem("9600", 9600);
+    cmbBaudRate->addItem("19200", 19200);
+    cmbBaudRate->addItem("38400", 38400);
+    cmbBaudRate->addItem("115200", 115200);
+    cmbBaudRate->setCurrentIndex(2); // default 9600
+    btnSetBaudRate = new QPushButton(tr("Apply Baud Rate"));
+
     layoutMaint->addWidget(btnRemoteReset);
     layoutMaint->addWidget(btnResetDefaults);
+    layoutMaint->addWidget(cmbBaudRate);
+    layoutMaint->addWidget(btnSetBaudRate);
     layoutMaint->addStretch();
 
     mainLayout->addWidget(grpMaint);
@@ -102,14 +135,18 @@ void SystemTab::setupUi()
     connect(btnQueryPan, &QPushButton::clicked, m_device, &PelcoDQt::QPelcoDDevice::queryPan);
     connect(btnQueryTilt, &QPushButton::clicked, m_device, &PelcoDQt::QPelcoDDevice::queryTilt);
     connect(btnQueryZoom, &QPushButton::clicked, m_device, &PelcoDQt::QPelcoDDevice::queryZoom);
+    connect(btnQueryMag, &QPushButton::clicked, m_device, &PelcoDQt::QPelcoDDevice::queryMagnification);
     connect(btnQueryDevType, &QPushButton::clicked, m_device, &PelcoDQt::QPelcoDDevice::queryDeviceType);
     connect(btnQueryGeneral, &QPushButton::clicked, m_device, &PelcoDQt::QPelcoDDevice::queryGeneral);
+    connect(btnQueryDiagnostics, &QPushButton::clicked, m_device, &PelcoDQt::QPelcoDDevice::queryDiagnostics);
 
     connect(chkPolling, &QCheckBox::toggled, this, &SystemTab::handlePollingToggled);
     connect(spinInterval, QOverload<int>::of(&QSpinBox::valueChanged), this, &SystemTab::handlePollIntervalChanged);
 
     connect(btnRemoteReset, &QPushButton::clicked, m_device, &PelcoDQt::QPelcoDDevice::remoteReset);
     connect(btnResetDefaults, &QPushButton::clicked, m_device, &PelcoDQt::QPelcoDDevice::resetDefaults);
+    connect(btnSetBaudRate, &QPushButton::clicked, this,
+        [this] { m_device->setBaudRate(cmbBaudRate->currentData().toInt()); });
 }
 
 void SystemTab::handlePollingToggled(bool checked)
@@ -143,6 +180,16 @@ void SystemTab::updateStatus(const PelcoD::DeviceStatus& status)
     } else {
         lblAlarms->setText("0x00 (Clear)");
         lblAlarms->setStyleSheet("color: #7ee787;");
+    }
+
+    if (status.magnification != 0U) {
+        lblMagnification->setText(QString::number(status.magnification));
+    }
+    if (status.diagnosticTemp != 0U) {
+        lblDiagTemp->setText(QString::number(status.diagnosticTemp));
+    }
+    if (status.diagnosticSensorId != 0U) {
+        lblDiagSensorId->setText(QString("0x%1").arg(status.diagnosticSensorId, 2, 16, QLatin1Char('0')));
     }
 }
 

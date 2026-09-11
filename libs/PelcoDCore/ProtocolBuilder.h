@@ -95,12 +95,31 @@ public:
 
     [[nodiscard]] static std::vector<std::uint8_t> buildAutoIrisPeak(std::uint8_t address, std::uint8_t peak);
 
+    [[nodiscard]] static std::vector<std::uint8_t> buildPhaseDelayMode(std::uint8_t address, SwitchState state);
+
+    [[nodiscard]] static std::vector<std::uint8_t> buildLineLockDelay(std::uint8_t address, std::uint16_t centidegrees);
+
+    [[nodiscard]] static std::vector<std::uint8_t> buildWhiteBalanceRB(std::uint8_t address, std::uint16_t value);
+
+    [[nodiscard]] static std::vector<std::uint8_t> buildWhiteBalanceMG(std::uint8_t address, std::uint16_t value);
+
     // Absolute Positioning
     [[nodiscard]] static std::vector<std::uint8_t> buildSetPan(std::uint8_t address, std::uint16_t centidegrees);
 
     [[nodiscard]] static std::vector<std::uint8_t> buildSetTilt(std::uint8_t address, std::uint16_t centidegrees);
 
     [[nodiscard]] static std::vector<std::uint8_t> buildSetZoom(std::uint8_t address, std::uint16_t position);
+
+    /// @brief Sets device hardware azimuth zero at current position (opcode 0x49).
+    [[nodiscard]] static std::vector<std::uint8_t> buildSetZeroPosition(std::uint8_t address);
+
+    /// @brief Sets optical magnification (opcode 0x5F).
+    /// @param relative If true, value is a relative delta; if false, absolute.
+    [[nodiscard]] static std::vector<std::uint8_t> buildSetMagnification(
+        std::uint8_t address, std::uint16_t value, bool relative = false);
+
+    /// @brief Sets remote baud rate (opcode 0x67).
+    [[nodiscard]] static std::vector<std::uint8_t> buildSetBaudRate(std::uint8_t address, std::uint32_t baud);
 
     // Queries
     [[nodiscard]] static std::vector<std::uint8_t> buildQueryPan(std::uint8_t address);
@@ -122,6 +141,9 @@ public:
     [[nodiscard]] static std::vector<std::uint8_t> buildClearScreen(std::uint8_t address);
 
     [[nodiscard]] static std::vector<std::uint8_t> buildAlarmAck(std::uint8_t address, std::uint8_t alarmId);
+
+    /// @brief Requests diagnostic information from device (opcode 0x6F).
+    [[nodiscard]] static std::vector<std::uint8_t> buildQueryDiagnostics(std::uint8_t address);
 };
 
 } // namespace PelcoD

@@ -82,6 +82,33 @@ bool ProtocolParser::parseDevType(
     return true;
 }
 
+bool ProtocolParser::parseAck(const std::vector<std::uint8_t>& frame, std::uint8_t& echoOpcode, bool& ack) noexcept
+{
+    if (frame.size() != PelcoDFrame::StandardFrameSize || frame[0] != PelcoDFrame::SyncByte) {
+        return false;
+    }
+    if (frame[3] != static_cast<std::uint8_t>(ResponseOpcode::StandardExtended)) {
+        return false;
+    }
+    echoOpcode = frame[4];
+    ack = (frame[5] == 0x01U); // 0x01 = ACK, 0x00 = NAK
+    return true;
+}
+
+bool ProtocolParser::parseDiagnostics(
+    const std::vector<std::uint8_t>& frame, std::uint8_t& temp, std::uint8_t& sensorId) noexcept
+{
+    if (frame.size() != PelcoDFrame::StandardFrameSize || frame[0] != PelcoDFrame::SyncByte) {
+        return false;
+    }
+    if (frame[3] != static_cast<std::uint8_t>(ResponseOpcode::QueryDiagnostics)) {
+        return false;
+    }
+    temp = frame[4];
+    sensorId = frame[5];
+    return true;
+}
+
 bool ProtocolParser::parseQuery(const std::vector<std::uint8_t>& frame, std::string& payload)
 {
     if (frame.size() != PelcoDFrame::QueryResponseSize || frame[0] != PelcoDFrame::SyncByte) {
@@ -121,6 +148,16 @@ bool ProtocolParser::updateStatus(const std::vector<std::uint8_t>& frame, Device
         status.address = frame[1];
         const auto opcode = static_cast<ResponseOpcode>(frame[3]);
         switch (opcode) {
+        case ResponseOpcode::StandardExtended: {
+            std::uint8_t echoOpcode { 0U };
+            bool ack { false };
+            if (parseAck(frame, echoOpcode, ack)) {
+                status.lastAckOk = ack;
+                status.lastAckOpcode = echoOpcode;
+                return true;
+            }
+            return false;
+        }
         case ResponseOpcode::QueryPan:
             return parsePan(frame, status.panCentidegrees);
 
@@ -130,8 +167,14 @@ bool ProtocolParser::updateStatus(const std::vector<std::uint8_t>& frame, Device
         case ResponseOpcode::QueryZoom:
             return parseZoom(frame, status.zoomPosition);
 
+        case ResponseOpcode::QueryMagnification:
+            return parseMag(frame, status.magnification);
+
         case ResponseOpcode::QueryDeviceType:
             return parseDevType(frame, info.softwareType, info.hardwareType);
+
+        case ResponseOpcode::QueryDiagnostics:
+            return parseDiagnostics(frame, status.diagnosticTemp, status.diagnosticSensorId);
 
         default:
             return false;

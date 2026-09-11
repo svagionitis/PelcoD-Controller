@@ -253,6 +253,34 @@ std::vector<std::uint8_t> ProtocolBuilder::buildAutoIrisPeak(std::uint8_t addres
         address, 0x00U, static_cast<std::uint8_t>(CommandOpcode::AdjustAutoIrisPeak), 0x00U, peak);
 }
 
+std::vector<std::uint8_t> ProtocolBuilder::buildPhaseDelayMode(std::uint8_t address, SwitchState state)
+{
+    return PelcoDFrame::createFrame(address, 0x00U, static_cast<std::uint8_t>(CommandOpcode::PhaseDelayMode), 0x00U,
+        static_cast<std::uint8_t>(state));
+}
+
+std::vector<std::uint8_t> ProtocolBuilder::buildLineLockDelay(std::uint8_t address, std::uint16_t centidegrees)
+{
+    const std::uint8_t msb = static_cast<std::uint8_t>((centidegrees >> 8U) & 0xFFU);
+    const std::uint8_t lsb = static_cast<std::uint8_t>(centidegrees & 0xFFU);
+    return PelcoDFrame::createFrame(address, 0x00U, static_cast<std::uint8_t>(CommandOpcode::AdjustLineLock), msb, lsb);
+}
+
+std::vector<std::uint8_t> ProtocolBuilder::buildWhiteBalanceRB(std::uint8_t address, std::uint16_t value)
+{
+    const std::uint8_t msb = static_cast<std::uint8_t>((value >> 8U) & 0xFFU);
+    const std::uint8_t lsb = static_cast<std::uint8_t>(value & 0xFFU);
+    return PelcoDFrame::createFrame(
+        address, 0x00U, static_cast<std::uint8_t>(CommandOpcode::AdjustWbRedBlue), msb, lsb);
+}
+
+std::vector<std::uint8_t> ProtocolBuilder::buildWhiteBalanceMG(std::uint8_t address, std::uint16_t value)
+{
+    const std::uint8_t msb = static_cast<std::uint8_t>((value >> 8U) & 0xFFU);
+    const std::uint8_t lsb = static_cast<std::uint8_t>(value & 0xFFU);
+    return PelcoDFrame::createFrame(address, 0x00U, static_cast<std::uint8_t>(CommandOpcode::AdjustWbMg), msb, lsb);
+}
+
 std::vector<std::uint8_t> ProtocolBuilder::buildSetPan(std::uint8_t address, std::uint16_t centidegrees)
 {
     const std::uint8_t msb = static_cast<std::uint8_t>((centidegrees >> 8U) & 0xFFU);
@@ -274,6 +302,41 @@ std::vector<std::uint8_t> ProtocolBuilder::buildSetZoom(std::uint8_t address, st
     const std::uint8_t lsb = static_cast<std::uint8_t>(position & 0xFFU);
     return PelcoDFrame::createFrame(
         address, 0x00U, static_cast<std::uint8_t>(CommandOpcode::SetZoomPosition), msb, lsb);
+}
+
+std::vector<std::uint8_t> ProtocolBuilder::buildSetZeroPosition(std::uint8_t address)
+{
+    return PelcoDFrame::createFrame(
+        address, 0x00U, static_cast<std::uint8_t>(CommandOpcode::SetZeroPosition), 0x00U, 0x00U);
+}
+
+std::vector<std::uint8_t> ProtocolBuilder::buildSetMagnification(
+    std::uint8_t address, std::uint16_t value, bool relative)
+{
+    // data1: 0x00=absolute, 0x01=relative (rel/abs bit per spec §5.48)
+    const std::uint8_t relAbs = relative ? 0x01U : 0x00U;
+    const std::uint8_t lsb = static_cast<std::uint8_t>(value & 0xFFU);
+    return PelcoDFrame::createFrame(
+        address, 0x00U, static_cast<std::uint8_t>(CommandOpcode::SetMagnification), relAbs, lsb);
+}
+
+std::vector<std::uint8_t> ProtocolBuilder::buildSetBaudRate(std::uint8_t address, std::uint32_t baud)
+{
+    // Spec-defined baud codes (§5.52): 2400=0, 4800=1, 9600=2, 19200=3, 38400=4, 115200=5
+    std::uint8_t baudCode { 0x00U };
+    if (baud >= 115200U) {
+        baudCode = 0x05U;
+    } else if (baud >= 38400U) {
+        baudCode = 0x04U;
+    } else if (baud >= 19200U) {
+        baudCode = 0x03U;
+    } else if (baud >= 9600U) {
+        baudCode = 0x02U;
+    } else if (baud >= 4800U) {
+        baudCode = 0x01U;
+    }
+    return PelcoDFrame::createFrame(
+        address, 0x00U, static_cast<std::uint8_t>(CommandOpcode::SetBaudRate), 0x00U, baudCode);
 }
 
 std::vector<std::uint8_t> ProtocolBuilder::buildQueryPan(std::uint8_t address)
@@ -327,6 +390,12 @@ std::vector<std::uint8_t> ProtocolBuilder::buildAlarmAck(std::uint8_t address, s
 {
     return PelcoDFrame::createFrame(
         address, 0x00U, static_cast<std::uint8_t>(CommandOpcode::AlarmAcknowledge), 0x00U, alarmId);
+}
+
+std::vector<std::uint8_t> ProtocolBuilder::buildQueryDiagnostics(std::uint8_t address)
+{
+    return PelcoDFrame::createFrame(
+        address, 0x00U, static_cast<std::uint8_t>(CommandOpcode::QueryDiagnostics), 0x00U, 0x00U);
 }
 
 } // namespace PelcoD

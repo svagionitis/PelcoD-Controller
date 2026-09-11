@@ -107,6 +107,12 @@ public slots:
     void setGain(int gain);
     void setAutoIrisLevel(int level);
     void setAutoIrisPeak(int peak);
+    void setPhaseDelayMode(int state);
+    void adjustWhiteBalanceRB(int value);
+    void adjustWhiteBalanceMG(int value);
+    void setMagnification(int value, bool relative = false);
+    void setBaudRate(int baud);
+    void setZeroPosition();
 
     // System & Queries
     void resetDefaults();
@@ -114,8 +120,10 @@ public slots:
     void queryPan();
     void queryTilt();
     void queryZoom();
+    void queryMagnification();
     void queryDeviceType();
     void queryGeneral();
+    void queryDiagnostics();
     void queryAll();
 
     void sendRawHex(const QByteArray& hexData);

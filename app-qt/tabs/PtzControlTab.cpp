@@ -63,8 +63,11 @@ void PtzControlTab::setupUi()
     auto* quickActions = new QHBoxLayout();
     auto* btnZero = new QPushButton(tr("Zero Pan (0°)"));
     auto* btnFlip = new QPushButton(tr("Flip 180°"));
+    auto* btnSetZeroPos = new QPushButton(tr("Set Hardware Zero"));
+    btnSetZeroPos->setToolTip(tr("Calibrate azimuth zero reference at current position (opcode 0x49)"));
     quickActions->addWidget(btnZero);
     quickActions->addWidget(btnFlip);
+    quickActions->addWidget(btnSetZeroPos);
     dpadMainLayout->addLayout(quickActions);
 
     mainLayout->addWidget(dpadGroup, 1);
@@ -90,6 +93,7 @@ void PtzControlTab::setupUi()
     // Quick action connections
     connect(btnZero, &QPushButton::clicked, m_device, &PelcoDQt::QPelcoDDevice::zeroPan);
     connect(btnFlip, &QPushButton::clicked, m_device, &PelcoDQt::QPelcoDDevice::flip180);
+    connect(btnSetZeroPos, &QPushButton::clicked, m_device, &PelcoDQt::QPelcoDDevice::setZeroPosition);
 }
 
 void PtzControlTab::createDpad(QGridLayout* layout)

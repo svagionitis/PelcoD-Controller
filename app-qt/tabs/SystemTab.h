@@ -7,6 +7,7 @@
 #include "QPelcoDDevice.h"
 
 #include <QCheckBox>
+#include <QComboBox>
 #include <QGridLayout>
 #include <QGroupBox>
 #include <QHBoxLayout>
@@ -44,8 +45,10 @@ private:
     QPushButton* btnQueryPan { nullptr };
     QPushButton* btnQueryTilt { nullptr };
     QPushButton* btnQueryZoom { nullptr };
+    QPushButton* btnQueryMag { nullptr };
     QPushButton* btnQueryDevType { nullptr };
     QPushButton* btnQueryGeneral { nullptr };
+    QPushButton* btnQueryDiagnostics { nullptr };
 
     // Telemetry Polling
     QCheckBox* chkPolling { nullptr };
@@ -54,12 +57,17 @@ private:
     // Maintenance
     QPushButton* btnRemoteReset { nullptr };
     QPushButton* btnResetDefaults { nullptr };
+    QComboBox* cmbBaudRate { nullptr };
+    QPushButton* btnSetBaudRate { nullptr };
 
     // Info Labels
     QLabel* lblModelName { nullptr };
     QLabel* lblSwType { nullptr };
     QLabel* lblHwType { nullptr };
     QLabel* lblAlarms { nullptr };
+    QLabel* lblMagnification { nullptr };
+    QLabel* lblDiagTemp { nullptr };
+    QLabel* lblDiagSensorId { nullptr };
 };
 
 } // namespace PelcoDApp
