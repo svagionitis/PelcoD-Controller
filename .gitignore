@@ -1,0 +1,117 @@
+# ==============================================================================
+# Build Artifacts & CMake
+# ==============================================================================
+build/
+build-*/
+cmake-build-*/
+out/
+bin/
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+CTestTestfile.cmake
+Testing/
+Makefile
+compile_commands.json
+*.cmake.user
+
+# ==============================================================================
+# Compiled Objects & Static/Dynamic Libraries
+# ==============================================================================
+*.o
+*.obj
+*.a
+*.lib
+*.so
+*.so.*
+*.dylib
+*.dll
+*.res
+*.rc
+*_resource.rc
+*_pch.h.cpp
+
+# ==============================================================================
+# Binaries & Executables
+# ==============================================================================
+*.exe
+*.out
+*.app
+PelcoDApp
+TestPelcoDFrame
+TestCircularByteRing
+TestProtocolBuilder
+TestProtocolParser
+TestMockDevice
+
+# ==============================================================================
+# Qt Generated Files
+# ==============================================================================
+*_autogen/
+moc_*.cpp
+mocs_compilation.cpp
+ui_*.h
+qrc_*.cpp
+*.moc
+*.qm
+*.qrc.depends
+*.prl
+.qmake.cache
+.qmake.stash
+
+# ==============================================================================
+# IDEs, Editors & Tools
+# ==============================================================================
+# Qt Creator
+*.pro.user*
+CMakeLists.txt.user*
+
+# Visual Studio & VS Code
+.vs/
+.vscode/
+*.sln
+*.suo
+*.vcproj
+*.vcxproj
+*.vcxproj.*
+*.vcxproj.user
+*.idb
+*.ilk
+*.pdb
+*.sdf
+*.opensdf
+*.ncb
+*.ib_pdb_index
+
+# JetBrains / CLion
+.idea/
+cmake-build-debug/
+cmake-build-release/
+
+# Vim / Emacs / Backups
+*~
+*.swp
+*.swo
+*.flc
+*.autosave
+.#*
+*.*#
+*.orig
+*.rej
+
+# ==============================================================================
+# Operating System Files
+# ==============================================================================
+.DS_Store
+.directory
+Thumbs.db
+
+# ==============================================================================
+# Documentation & Doxygen Generated Output
+# ==============================================================================
+docs/doxygen/
+docs/html/
+docs/latex/
+docs/doxygen_sqlite3.db
+*.qch
+*.qhc
