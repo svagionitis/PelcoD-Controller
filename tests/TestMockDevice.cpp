@@ -72,6 +72,28 @@ void testMockDeviceEndToEnd()
     assert(statusReceived.load());
     assert(device.getStatus().panCentidegrees == state1.panCentidegrees);
 
+    // 7. Set Zero Position (Calibration opcode 0x49)
+    device.panRight(0x20U);
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    assert(mock->getInternalState().panCentidegrees > 0U);
+    device.setZeroPosition();
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    assert(mock->getInternalState().panCentidegrees == 0U);
+
+    // 8. Set and Query Magnification (0x5F / 0x61)
+    device.setMagnification(250U);
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    assert(mock->getInternalState().magnification == 250U);
+    device.queryMagnification();
+    std::this_thread::sleep_for(std::chrono::milliseconds(150));
+    assert(device.getStatus().magnification == 250U);
+
+    // 9. Query Diagnostics (0x6F -> 0x71)
+    device.queryDiagnostics();
+    std::this_thread::sleep_for(std::chrono::milliseconds(150));
+    assert(device.getStatus().diagnosticTemp == mock->getInternalState().diagnosticTemp);
+    assert(device.getStatus().diagnosticSensorId == mock->getInternalState().diagnosticSensorId);
+
     device.stop();
     assert(!device.isConnected());
 }

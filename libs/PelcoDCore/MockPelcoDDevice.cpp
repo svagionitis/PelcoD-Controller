@@ -255,6 +255,50 @@ void MockPelcoDDevice::processFrame(const std::vector<std::uint8_t>& frame)
         break;
     }
 
+    case CommandOpcode::SetZeroPosition: {
+        {
+            std::lock_guard<std::mutex> lock(m_stateMutex);
+            m_state.panCentidegrees = 0U;
+        }
+        sendExtendedReply(0x00U, static_cast<std::uint8_t>(ResponseOpcode::StandardExtended),
+            static_cast<std::uint8_t>(CommandOpcode::SetZeroPosition), 0x01U);
+        break;
+    }
+
+    case CommandOpcode::SetMagnification: {
+        {
+            std::lock_guard<std::mutex> lock(m_stateMutex);
+            m_state.magnification = static_cast<std::uint16_t>((data1 << 8U) | data2);
+        }
+        sendExtendedReply(0x00U, static_cast<std::uint8_t>(ResponseOpcode::StandardExtended),
+            static_cast<std::uint8_t>(CommandOpcode::SetMagnification), 0x01U);
+        break;
+    }
+
+    case CommandOpcode::QueryMagnification: {
+        std::uint16_t mag { 0U };
+        {
+            std::lock_guard<std::mutex> lock(m_stateMutex);
+            mag = m_state.magnification;
+        }
+        const std::uint8_t msb = static_cast<std::uint8_t>((mag >> 8U) & 0xFFU);
+        const std::uint8_t lsb = static_cast<std::uint8_t>(mag & 0xFFU);
+        sendExtendedReply(0x00U, static_cast<std::uint8_t>(ResponseOpcode::QueryMagnification), msb, lsb);
+        break;
+    }
+
+    case CommandOpcode::QueryDiagnostics: {
+        std::uint8_t temp { 0U };
+        std::uint8_t sensor { 0U };
+        {
+            std::lock_guard<std::mutex> lock(m_stateMutex);
+            temp = m_state.diagnosticTemp;
+            sensor = m_state.diagnosticSensorId;
+        }
+        sendExtendedReply(0x00U, static_cast<std::uint8_t>(ResponseOpcode::QueryDiagnostics), temp, sensor);
+        break;
+    }
+
     case CommandOpcode::QueryPanPosition: {
         std::uint16_t pan { 0U };
         {

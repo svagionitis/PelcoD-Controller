@@ -31,6 +31,9 @@ struct MockDeviceState {
     std::uint16_t zoomPosition { 1000U };
     std::uint16_t focusPosition { 2000U };
     std::uint16_t irisPosition { 500U };
+    std::uint16_t magnification { 100U };
+    std::uint8_t diagnosticTemp { 28U };
+    std::uint8_t diagnosticSensorId { 0x05U };
 
     std::uint8_t zoomSpeed { 0U };
     std::uint8_t focusSpeed { 0U };
