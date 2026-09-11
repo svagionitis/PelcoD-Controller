@@ -33,6 +33,11 @@ public:
     void setPort(std::uint16_t port);
     [[nodiscard]] std::uint16_t getPort() const noexcept;
 
+    /// @brief Set the maximum time to wait for a TCP connect to complete.
+    /// @param ms Timeout in milliseconds. Must be > 0. Default: 5000.
+    void setConnectTimeout(int ms) noexcept;
+    [[nodiscard]] int getConnectTimeout() const noexcept;
+
     // ITransport interface
     [[nodiscard]] bool open() override;
     void close() override;
@@ -47,6 +52,7 @@ private:
 
     std::string m_host;
     std::uint16_t m_port { 4001U };
+    int m_connectTimeoutMs { 5000 };
 
 #ifdef _WIN32
     using SocketHandle = std::uintptr_t;

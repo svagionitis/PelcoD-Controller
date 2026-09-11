@@ -33,6 +33,7 @@ signals:
 
 public slots:
     void setConnectionState(bool connected);
+    void setConnecting(bool connecting);
     void refreshSerialPorts();
 
 private slots:

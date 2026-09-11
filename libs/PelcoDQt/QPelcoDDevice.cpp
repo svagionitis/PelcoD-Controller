@@ -19,6 +19,10 @@ QPelcoDDevice::QPelcoDDevice(std::shared_ptr<PelcoD::ITransport> transport, std:
 
 QPelcoDDevice::~QPelcoDDevice()
 {
+    // Join any in-flight async connect thread before tearing down.
+    if (m_connectThread.joinable()) {
+        m_connectThread.join();
+    }
     disconnectDevice();
 }
 
@@ -60,8 +64,38 @@ bool QPelcoDDevice::connectDevice()
     return ok;
 }
 
+void QPelcoDDevice::connectDeviceAsync()
+{
+    if (!m_device) {
+        emit connectionStateChanged(false);
+        return;
+    }
+
+    // If a previous connect thread is still running, do not spawn another.
+    if (m_connectThread.joinable()) {
+        m_connectThread.join();
+    }
+
+    emit connectingStateChanged(true);
+
+    m_connectThread = std::thread([this] {
+        const bool ok = connectDevice();
+        // Post result back to the Qt main thread.
+        QMetaObject::invokeMethod(this, [this, ok] {
+            emit connectingStateChanged(false);
+            if (!ok) {
+                emit connectionStateChanged(false);
+            }
+        });
+    });
+}
+
 void QPelcoDDevice::disconnectDevice()
 {
+    // Cancel any in-flight async connect first.
+    if (m_connectThread.joinable()) {
+        m_connectThread.join();
+    }
     if (m_device) {
         m_device->stop();
     }

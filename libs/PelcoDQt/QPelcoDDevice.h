@@ -13,6 +13,7 @@
 #include <QString>
 
 #include <memory>
+#include <thread>
 #include <vector>
 
 namespace PelcoDQt {
@@ -29,6 +30,9 @@ public:
 
     void setTransport(std::shared_ptr<PelcoD::ITransport> transport, std::uint8_t address = 1U);
     [[nodiscard]] bool connectDevice();
+    /// @brief Initiates the TCP/Serial connect on a background thread.
+    ///        Returns immediately; result is signalled via connectionStateChanged().
+    void connectDeviceAsync();
     void disconnectDevice();
     [[nodiscard]] bool isConnected() const noexcept;
 
@@ -43,6 +47,8 @@ signals:
     void statusUpdated(const PelcoD::DeviceStatus& status);
     void trafficLogged(bool isTx, const QByteArray& packet, const QString& description);
     void connectionStateChanged(bool connected);
+    /// @brief Emitted when an async connect attempt starts (true) or finishes (false).
+    void connectingStateChanged(bool connecting);
     void queryTimeoutOccurred(const QString& queryTag);
 
 public slots:
@@ -121,6 +127,7 @@ private:
     std::shared_ptr<PelcoD::ITransport> m_transport;
     std::unique_ptr<PelcoD::PelcoDDevice> m_device;
     std::uint8_t m_address { 1U };
+    std::thread m_connectThread;
 };
 
 } // namespace PelcoDQt

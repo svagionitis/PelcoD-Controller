@@ -237,6 +237,23 @@ void ConnectionWidget::setConnectionState(bool connected)
     btnConnect->style()->polish(btnConnect);
 }
 
+void ConnectionWidget::setConnecting(bool connecting)
+{
+    if (connecting) {
+        btnConnect->setEnabled(false);
+        btnConnect->setText(tr("Connecting…"));
+        cmbMode->setEnabled(false);
+        spinAddress->setEnabled(false);
+        stackedConfig->setEnabled(false);
+        lblLed->setStyleSheet("background-color: #e3b341; border-radius: 6px; border: 1px solid #f0c040;");
+        lblStatusText->setText(tr("Connecting…"));
+        lblStatusText->setStyleSheet("color: #e3b341; font-weight: bold;");
+    } else {
+        // Re-enable inputs; actual connected/offline state is set by setConnectionState().
+        btnConnect->setEnabled(true);
+    }
+}
+
 void ConnectionWidget::updateLedState(bool connected)
 {
     if (connected) {

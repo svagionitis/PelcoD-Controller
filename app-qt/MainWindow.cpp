@@ -76,10 +76,20 @@ void MainWindow::setupConnections()
     connect(m_device, &PelcoDQt::QPelcoDDevice::trafficLogged, m_inspectorWidget, &TrafficInspectorWidget::logFrame);
     connect(m_device, &PelcoDQt::QPelcoDDevice::connectionStateChanged, m_connectionWidget,
         &ConnectionWidget::setConnectionState);
+    connect(m_device, &PelcoDQt::QPelcoDDevice::connectingStateChanged, m_connectionWidget,
+        &ConnectionWidget::setConnecting);
 
     // Raw hex injection from inspector
     connect(m_inspectorWidget, &TrafficInspectorWidget::sendRawHexRequested, m_device,
         &PelcoDQt::QPelcoDDevice::sendRawHex);
+
+    connect(m_device, &PelcoDQt::QPelcoDDevice::connectionStateChanged, this, [this](bool connected) {
+        if (connected) {
+            statusBar()->showMessage(tr("Connected to Pelco-D Device #%1").arg(m_device->coreDevice() ? 1 : 0));
+        } else {
+            statusBar()->showMessage(tr("Connection failed"));
+        }
+    });
 
     // Query timeout notification
     connect(m_device, &PelcoDQt::QPelcoDDevice::queryTimeoutOccurred, this,
@@ -89,11 +99,8 @@ void MainWindow::setupConnections()
 void MainWindow::handleConnect(std::shared_ptr<PelcoD::ITransport> transport, std::uint8_t address)
 {
     m_device->setTransport(std::move(transport), address);
-    if (m_device->connectDevice()) {
-        statusBar()->showMessage(tr("Connected to Pelco-D Device #%1").arg(address));
-    } else {
-        statusBar()->showMessage(tr("Connection failed"));
-    }
+    statusBar()->showMessage(tr("Connecting…"));
+    m_device->connectDeviceAsync();
 }
 
 void MainWindow::handleDisconnect()

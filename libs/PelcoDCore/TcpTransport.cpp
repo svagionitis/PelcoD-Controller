@@ -148,16 +148,30 @@ std::uint16_t TcpTransport::getPort() const noexcept
     return m_port;
 }
 
+void TcpTransport::setConnectTimeout(int ms) noexcept
+{
+    if (ms > 0) {
+        m_connectTimeoutMs = ms;
+    }
+}
+
+int TcpTransport::getConnectTimeout() const noexcept
+{
+    return m_connectTimeoutMs;
+}
+
 bool TcpTransport::open()
 {
     close();
 
     std::string host;
     std::uint16_t port { 4001U };
+    int timeoutMs { 5000 };
     {
         std::lock_guard<std::mutex> lock(m_writeMutex);
         host = m_host;
         port = m_port;
+        timeoutMs = m_connectTimeoutMs;
     }
 
     if (host.empty() || host.size() > 255U || port == 0U) {
@@ -166,9 +180,10 @@ bool TcpTransport::open()
         return false;
     }
 
-    LOG(INFO) << "Connecting to TCP host " << host << ":" << port;
+    LOG(INFO) << "Connecting to TCP host " << host << ":" << port << " (timeout=" << timeoutMs << "ms)";
     notifyState(TransportState::Connecting, "Connecting to " + host + ":" + std::to_string(port));
 
+    // --- DNS resolution (synchronous; entire open() must run off the UI thread) ---
     struct addrinfo hints { };
     hints.ai_family = AF_UNSPEC;
     hints.ai_socktype = SOCK_STREAM;
@@ -178,7 +193,7 @@ bool TcpTransport::open()
     const std::string portStr = std::to_string(port);
     const int status = ::getaddrinfo(host.c_str(), portStr.c_str(), &hints, &res);
     if (status != 0 || res == nullptr) {
-        std::string errStr = (status != 0) ? gai_strerror(status) : "Address resolution failed";
+        const std::string errStr = (status != 0) ? gai_strerror(status) : "Address resolution failed";
         LOG(ERROR) << "Failed to resolve host " << host << ": " << errStr;
         notifyState(TransportState::Error, "Resolve error: " + errStr);
         return false;
@@ -191,12 +206,58 @@ bool TcpTransport::open()
             continue;
         }
 
-        if (::connect(sock, p->ai_addr, static_cast<socklen_t>(p->ai_addrlen)) == 0) {
-            break; // Successfully connected
+        // Set non-blocking BEFORE connect() — the OS must not block the caller.
+        if (!setNonBlocking(sock, true)) {
+            LOG(WARNING) << "setNonBlocking failed; connect may block";
         }
 
-        CLOSE_SOCKET(sock);
-        sock = InvalidSocket;
+        const int connRet = ::connect(sock, p->ai_addr, static_cast<socklen_t>(p->ai_addrlen));
+
+        bool connected { false };
+        if (connRet == 0) {
+            // Immediate success (e.g. loopback).
+            connected = true;
+        } else if (connRet < 0) {
+#ifdef _WIN32
+            const bool inProgress = (::WSAGetLastError() == WSAEWOULDBLOCK);
+#else
+            const bool inProgress = (errno == EINPROGRESS);
+#endif
+            if (inProgress) {
+                // Await writability within the configured timeout.
+#ifdef _WIN32
+                WSAPOLLFD pfd {};
+                pfd.fd = sock;
+                pfd.events = POLLOUT;
+                const int pollRet = POLL_SOCKET(&pfd, 1, timeoutMs);
+#else
+                struct pollfd pfd { };
+                pfd.fd = sock;
+                pfd.events = POLLOUT;
+                const int pollRet = POLL_SOCKET(&pfd, 1, timeoutMs);
+#endif
+                if (pollRet > 0 && (pfd.revents & POLLOUT)) {
+                    // Confirm via SO_ERROR.
+                    int soErr { 0 };
+                    socklen_t soErrLen = sizeof(soErr);
+                    ::getsockopt(sock, SOL_SOCKET, SO_ERROR, reinterpret_cast<char*>(&soErr), &soErrLen);
+                    connected = (soErr == 0);
+                    if (!connected) {
+                        LOG(WARNING) << "connect SO_ERROR: " << getSocketErrorString(soErr);
+                    }
+                } else if (pollRet == 0) {
+                    LOG(WARNING) << "connect timed out after " << timeoutMs << "ms";
+                    notifyState(TransportState::Error, "Connect timed out after " + std::to_string(timeoutMs) + "ms");
+                }
+            }
+        }
+
+        if (!connected) {
+            CLOSE_SOCKET(sock);
+            sock = InvalidSocket;
+            continue;
+        }
+        break; // Connected.
     }
 
     ::freeaddrinfo(res);
@@ -208,8 +269,7 @@ bool TcpTransport::open()
         return false;
     }
 
-    setNonBlocking(sock, true);
-
+    // Socket is already non-blocking from above.
     int nodelay = 1;
     ::setsockopt(sock, IPPROTO_TCP, TCP_NODELAY, reinterpret_cast<const char*>(&nodelay), sizeof(nodelay));
 
