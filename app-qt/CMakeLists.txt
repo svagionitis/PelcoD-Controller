@@ -32,3 +32,13 @@ target_link_libraries(PelcoDAppQt PRIVATE
 )
 
 apply_compiler_flags(PelcoDAppQt)
+
+if(WIN32 AND WINDEPLOYQT_EXECUTABLE)
+    add_custom_command(TARGET PelcoDAppQt POST_BUILD
+        COMMAND "${WINDEPLOYQT_EXECUTABLE}"
+            --no-compiler-runtime
+            --no-translations
+            "$<TARGET_FILE:PelcoDAppQt>"
+        COMMENT "Deploying Qt libraries for PelcoDAppQt using windeployqt..."
+    )
+endif()

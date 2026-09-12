@@ -23,6 +23,15 @@ set(CMAKE_AUTOUIC ON)
 
 find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets Test)
 
+if(WIN32)
+    find_program(WINDEPLOYQT_EXECUTABLE windeployqt
+        HINTS
+            "${Qt6_DIR}/../../../bin"
+            "${CMAKE_PREFIX_PATH}/bin"
+            "$ENV{QTDIR}/bin"
+    )
+endif()
+
 # ==============================================================================
 # Installation Rules (GNUInstallDirs) & RPATH Settings
 # ==============================================================================
@@ -84,6 +93,17 @@ install(EXPORT PelcoDTargets
     NAMESPACE PelcoD::
     DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/PelcoD
 )
+
+if(WIN32 AND WINDEPLOYQT_EXECUTABLE)
+    install(CODE "
+        execute_process(
+            COMMAND \"${WINDEPLOYQT_EXECUTABLE}\"
+                --no-compiler-runtime
+                --no-translations
+                \"\${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_BINDIR}/PelcoDAppQt.exe\"
+        )
+    ")
+endif()
 
 # ==============================================================================
 # CPack Packaging Configuration
