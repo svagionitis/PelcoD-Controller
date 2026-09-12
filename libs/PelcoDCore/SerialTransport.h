@@ -5,6 +5,7 @@
 
 #include "ITransport.h"
 
+#include <array>
 #include <atomic>
 #include <cstdint>
 #include <mutex>
@@ -47,6 +48,24 @@ public:
 
     void setBaudRate(std::uint32_t baudRate);
     [[nodiscard]] std::uint32_t getBaudRate() const noexcept;
+
+    /// @brief Standard RS-485 serial communication baud rates supported by Pelco-D devices.
+    static constexpr std::array<std::uint32_t, 7> StandardBaudRates {
+        2400U, 4800U, 9600U, 19200U, 38400U, 57600U, 115200U
+    };
+
+    /// @brief Validates if a given baud rate is a recognized standard rate.
+    /// @param[in] baudRate Baud rate in bits per second.
+    /// @return True if supported by the transport.
+    [[nodiscard]] static constexpr bool isValidBaudRate(std::uint32_t baudRate) noexcept
+    {
+        for (const auto rate : StandardBaudRates) {
+            if (rate == baudRate) {
+                return true;
+            }
+        }
+        return false;
+    }
 
     /// @brief Discovers and enumerates available hardware and virtual serial communication ports.
     /// @details Scans active Windows Registry serial device mappings and MS-DOS devices on Windows,

@@ -76,8 +76,9 @@ void ConnectionWidget::setupUi()
 
     auto* lblBaud = new QLabel(tr("Baud:"), pageSerial);
     cmbBaudRate = new QComboBox(pageSerial);
-    const QStringList bauds { "2400", "4800", "9600", "19200", "38400", "57600", "115200" };
-    cmbBaudRate->addItems(bauds);
+    for (const auto baud : PelcoD::SerialTransport::StandardBaudRates) {
+        cmbBaudRate->addItem(QString::number(baud));
+    }
     cmbBaudRate->setCurrentText("2400");
 
     serialLayout->addWidget(lblPort);

@@ -75,18 +75,7 @@ namespace {
 
     bool isValidBaudRate(std::uint32_t baudRate) noexcept
     {
-        switch (baudRate) {
-        case 2400U:
-        case 4800U:
-        case 9600U:
-        case 19200U:
-        case 38400U:
-        case 57600U:
-        case 115200U:
-            return true;
-        default:
-            return false;
-        }
+        return SerialTransport::isValidBaudRate(baudRate);
     }
 
 } // namespace

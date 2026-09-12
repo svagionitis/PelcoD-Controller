@@ -12,9 +12,6 @@
 
 namespace PelcoDTui {
 
-static const std::uint32_t kBaudRates[] = { 2400, 4800, 9600, 19200, 38400, 57600, 115200 };
-static const int kNumBauds = 7;
-
 ConnectionModal::ConnectionModal()
 {
     m_detectedPorts = PelcoD::SerialTransport::enumeratePorts();
@@ -331,19 +328,21 @@ bool ConnectionModal::handleInput(const InputEvent& event)
 
         // Field 3: Baud rate if Serial
         if (m_selectedField == 3 && m_config.type == TransportType::Serial && (isLeft || isRight)) {
+            constexpr auto& bauds = PelcoD::SerialTransport::StandardBaudRates;
+            constexpr int numBauds = static_cast<int>(bauds.size());
             int curIdx = 2;
-            for (int i = 0; i < kNumBauds; ++i) {
-                if (kBaudRates[i] == m_config.serialBaud) {
+            for (int i = 0; i < numBauds; ++i) {
+                if (bauds[static_cast<std::size_t>(i)] == m_config.serialBaud) {
                     curIdx = i;
                     break;
                 }
             }
             if (isLeft) {
-                curIdx = (curIdx > 0) ? curIdx - 1 : (kNumBauds - 1);
+                curIdx = (curIdx > 0) ? curIdx - 1 : (numBauds - 1);
             } else {
-                curIdx = (curIdx < kNumBauds - 1) ? curIdx + 1 : 0;
+                curIdx = (curIdx < numBauds - 1) ? curIdx + 1 : 0;
             }
-            m_config.serialBaud = kBaudRates[curIdx];
+            m_config.serialBaud = bauds[static_cast<std::size_t>(curIdx)];
             return true;
         }
 

@@ -50,11 +50,46 @@ static void testTransportAccessors()
     std::cout << "  testTransportAccessors: PASSED\n";
 }
 
+/// @brief Verify StandardBaudRates definitions and isValidBaudRate() validation.
+static void testStandardBaudRates()
+{
+    constexpr auto& bauds = PelcoD::SerialTransport::StandardBaudRates;
+    assert(bauds.size() == 7U);
+
+    // Verify rates are in strictly ascending order
+    for (std::size_t i { 1U }; i < bauds.size(); ++i) {
+        assert(bauds[i] > bauds[i - 1U] && "Baud rates must be sorted in strictly ascending order");
+    }
+
+    // Verify all defined rates pass validation
+    for (const auto rate : bauds) {
+        assert(PelcoD::SerialTransport::isValidBaudRate(rate) && "Standard rate must be recognized");
+    }
+
+    // Specific expected values
+    assert(bauds[0] == 2400U);
+    assert(bauds[1] == 4800U);
+    assert(bauds[2] == 9600U);
+    assert(bauds[3] == 19200U);
+    assert(bauds[4] == 38400U);
+    assert(bauds[5] == 57600U);
+    assert(bauds[6] == 115200U);
+
+    // Verify non-standard rates are rejected
+    assert(!PelcoD::SerialTransport::isValidBaudRate(0U));
+    assert(!PelcoD::SerialTransport::isValidBaudRate(1200U));
+    assert(!PelcoD::SerialTransport::isValidBaudRate(14400U));
+    assert(!PelcoD::SerialTransport::isValidBaudRate(99999U));
+
+    std::cout << "  testStandardBaudRates: PASSED\n";
+}
+
 int main()
 {
     std::cout << "[TestSerialTransport] Running...\n";
     testEnumeratePorts();
     testTransportAccessors();
+    testStandardBaudRates();
     std::cout << "[TestSerialTransport] All tests passed.\n";
     return 0;
 }
