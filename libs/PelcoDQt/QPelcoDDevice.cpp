@@ -2,6 +2,7 @@
 /// @brief Implementation of Qt 6 QPelcoDDevice adapter.
 
 #include "QPelcoDDevice.h"
+#include "ProtocolParser.h"
 
 #include <QMetaObject>
 #include <QSignalBlocker>
@@ -584,138 +585,8 @@ void QPelcoDDevice::sendRawHexPacket(const QString& hex)
 
 QString QPelcoDDevice::describePacket(bool isTx, const std::vector<std::uint8_t>& frame)
 {
-    if (frame.empty()) {
-        return QStringLiteral("Empty");
-    }
-
-    if (frame.size() == 4U) {
-        return QStringLiteral("General Response (Addr %1, Alarms: 0x%2)")
-            .arg(frame[1])
-            .arg(frame[2], 2, 16, QLatin1Char('0'));
-    }
-
-    if (frame.size() == 18U) {
-        QString payload;
-        for (std::size_t i { 2U }; i < 17U; ++i) {
-            if (frame[i] != 0U) {
-                payload.append(QLatin1Char(static_cast<char>(frame[i])));
-            }
-        }
-        return QStringLiteral("Query Response (Addr %1): \"%2\"").arg(frame[1]).arg(payload);
-    }
-
-    if (frame.size() == 7U) {
-        const std::uint8_t addr = frame[1];
-        const std::uint8_t cmd1 = frame[2];
-        const std::uint8_t cmd2 = frame[3];
-        const std::uint8_t d1 = frame[4];
-        const std::uint8_t d2 = frame[5];
-
-        if (isTx) {
-            if ((cmd2 & 0x01U) == 0U) {
-                QStringList acts;
-                if ((cmd2 & 0x02U) != 0U) {
-                    acts << QStringLiteral("Right(spd %1)").arg(d1);
-                }
-                if ((cmd2 & 0x04U) != 0U) {
-                    acts << QStringLiteral("Left(spd %1)").arg(d1);
-                }
-                if ((cmd2 & 0x08U) != 0U) {
-                    acts << QStringLiteral("Up(spd %1)").arg(d2);
-                }
-                if ((cmd2 & 0x10U) != 0U) {
-                    acts << QStringLiteral("Down(spd %1)").arg(d2);
-                }
-                if ((cmd2 & 0x20U) != 0U) {
-                    acts << QStringLiteral("ZoomTele");
-                }
-                if ((cmd2 & 0x40U) != 0U) {
-                    acts << QStringLiteral("ZoomWide");
-                }
-                if ((cmd1 & 0x01U) != 0U) {
-                    acts << QStringLiteral("FocusNear");
-                }
-                if ((cmd2 & 0x80U) != 0U) {
-                    acts << QStringLiteral("FocusFar");
-                }
-                if ((cmd1 & 0x02U) != 0U) {
-                    acts << QStringLiteral("IrisOpen");
-                }
-                if ((cmd1 & 0x04U) != 0U) {
-                    acts << QStringLiteral("IrisClose");
-                }
-                if (acts.isEmpty()) {
-                    acts << QStringLiteral("Stop");
-                }
-                return QStringLiteral("TX Standard Motion: %1").arg(acts.join(QLatin1String(", ")));
-            }
-
-            // Extended command
-            switch (static_cast<PelcoD::CommandOpcode>(cmd2)) {
-            case PelcoD::CommandOpcode::SetPreset:
-                return QStringLiteral("TX Set Preset %1").arg(d2);
-            case PelcoD::CommandOpcode::ClearPreset:
-                return QStringLiteral("TX Clear Preset %1").arg(d2);
-            case PelcoD::CommandOpcode::GoToPreset:
-                return QStringLiteral("TX Go To Preset %1").arg(d2);
-            case PelcoD::CommandOpcode::SetAuxiliary:
-                return QStringLiteral("TX Set Aux %1").arg(d2);
-            case PelcoD::CommandOpcode::ClearAuxiliary:
-                return QStringLiteral("TX Clear Aux %1").arg(d2);
-            case PelcoD::CommandOpcode::SetPanPosition: {
-                const double deg = static_cast<double>((d1 << 8U) | d2) / 100.0;
-                return QStringLiteral("TX Set Pan Pos: %1 deg").arg(deg, 0, 'f', 2);
-            }
-            case PelcoD::CommandOpcode::SetTiltPosition: {
-                const double deg = static_cast<double>((d1 << 8U) | d2) / 100.0;
-                return QStringLiteral("TX Set Tilt Pos: %1 deg").arg(deg, 0, 'f', 2);
-            }
-            case PelcoD::CommandOpcode::SetZoomPosition:
-                return QStringLiteral("TX Set Zoom Pos: %1").arg((d1 << 8U) | d2);
-            case PelcoD::CommandOpcode::QueryPanPosition:
-                return QStringLiteral("TX Query Pan");
-            case PelcoD::CommandOpcode::QueryTiltPosition:
-                return QStringLiteral("TX Query Tilt");
-            case PelcoD::CommandOpcode::QueryZoomPosition:
-                return QStringLiteral("TX Query Zoom");
-            case PelcoD::CommandOpcode::QueryDeviceType:
-                return QStringLiteral("TX Query Device Type");
-            case PelcoD::CommandOpcode::Query:
-                return QStringLiteral("TX Query General");
-            default:
-                return QStringLiteral("TX Opcode 0x%1 (Data: 0x%2 0x%3)")
-                    .arg(cmd2, 2, 16, QLatin1Char('0'))
-                    .arg(d1, 2, 16, QLatin1Char('0'))
-                    .arg(d2, 2, 16, QLatin1Char('0'));
-            }
-        } else {
-            // RX 7-byte extended reply
-            switch (static_cast<PelcoD::ResponseOpcode>(cmd2)) {
-            case PelcoD::ResponseOpcode::QueryPan: {
-                const double deg = static_cast<double>((d1 << 8U) | d2) / 100.0;
-                return QStringLiteral("RX Pan Position: %1 deg").arg(deg, 0, 'f', 2);
-            }
-            case PelcoD::ResponseOpcode::QueryTilt: {
-                const double deg = static_cast<double>((d1 << 8U) | d2) / 100.0;
-                return QStringLiteral("RX Tilt Position: %1 deg").arg(deg, 0, 'f', 2);
-            }
-            case PelcoD::ResponseOpcode::QueryZoom:
-                return QStringLiteral("RX Zoom Position: %1").arg((d1 << 8U) | d2);
-            case PelcoD::ResponseOpcode::QueryMagnification:
-                return QStringLiteral("RX Magnification: %1").arg((d1 << 8U) | d2);
-            case PelcoD::ResponseOpcode::QueryDeviceType:
-                return QStringLiteral("RX Device Type: SW 0x%1, HW 0x%2")
-                    .arg(d1, 2, 16, QLatin1Char('0'))
-                    .arg(d2, 2, 16, QLatin1Char('0'));
-            default:
-                return QStringLiteral("RX Extended Frame (Addr %1, Resp 0x%2)")
-                    .arg(addr)
-                    .arg(cmd2, 2, 16, QLatin1Char('0'));
-            }
-        }
-    }
-
-    return QStringLiteral("Frame (%1 bytes)").arg(frame.size());
+    return QString::fromStdString(PelcoD::ProtocolParser::describeFrame(isTx, frame));
 }
+
 
 } // namespace PelcoDQt

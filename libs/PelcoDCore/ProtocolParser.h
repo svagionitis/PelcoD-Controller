@@ -89,6 +89,16 @@ public:
     /// @return True if frame was recognized and applied.
     [[nodiscard]] static bool updateStatus(
         const std::vector<std::uint8_t>& frame, DeviceStatus& status, DeviceInfo& info);
+
+    /// @brief Disassembles a raw Pelco-D frame into a human-readable description string.
+    /// @details Decodes standard PTZ directional movements, extended commands (presets,
+    /// aux relays, queries, baud rate, reset, zero position), response packets (ACK/NAK,
+    /// telemetry angles in degrees, zoom, magnification, device type, diagnostics), 4-byte
+    /// general status, and 18-byte query replies.
+    /// @param[in] isTx True if outbound command from controller; false if inbound response from device.
+    /// @param[in] frame Raw byte vector of the protocol frame.
+    /// @return Formatted human-readable protocol description.
+    [[nodiscard]] static std::string describeFrame(bool isTx, const std::vector<std::uint8_t>& frame);
 };
 
 } // namespace PelcoD

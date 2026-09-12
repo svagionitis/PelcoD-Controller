@@ -1,5 +1,6 @@
 #include "TrafficView.h"
 
+#include "ProtocolParser.h"
 #include "UtfSymbols.h"
 
 #include <algorithm>
@@ -36,117 +37,7 @@ std::string_view TrafficView::filterToString(TrafficFilter filter) noexcept
 
 std::string TrafficView::decodeFrame(bool isTx, const std::vector<std::uint8_t>& frame)
 {
-    if (frame.size() < 7U) {
-        return "Fragment (" + std::to_string(frame.size()) + " bytes)";
-    }
-
-    const std::uint8_t cmd1 = frame[2];
-    const std::uint8_t cmd2 = frame[3];
-    const std::uint8_t d1 = frame[4];
-    const std::uint8_t d2 = frame[5];
-
-    if (!isTx) {
-        // Responses
-        if (cmd2 == 0x01U) {
-            return (d2 == 0x01U) ? "ACK (OK) for Opcode 0x" + std::to_string(d1)
-                                 : "NAK (Error) for Opcode 0x" + std::to_string(d1);
-        }
-        if (cmd2 == 0x59U) {
-            const std::uint16_t cdeg = static_cast<std::uint16_t>((static_cast<std::uint16_t>(d1) << 8U) | d2);
-            std::ostringstream oss;
-            oss << "Pan Response: " << std::fixed << std::setprecision(2) << (static_cast<double>(cdeg) / 100.0) << "°";
-            return oss.str();
-        }
-        if (cmd2 == 0x5BU) {
-            const std::uint16_t cdeg = static_cast<std::uint16_t>((static_cast<std::uint16_t>(d1) << 8U) | d2);
-            std::ostringstream oss;
-            oss << "Tilt Response: " << std::fixed << std::setprecision(2) << (static_cast<double>(cdeg) / 100.0)
-                << "°";
-            return oss.str();
-        }
-        if (cmd2 == 0x5DU) {
-            const std::uint16_t z = static_cast<std::uint16_t>((static_cast<std::uint16_t>(d1) << 8U) | d2);
-            return "Zoom Response: " + std::to_string(z);
-        }
-        if (cmd2 == 0x63U) {
-            const std::uint16_t mag = static_cast<std::uint16_t>((static_cast<std::uint16_t>(d1) << 8U) | d2);
-            return "Magnification: " + std::to_string(mag);
-        }
-        if (cmd2 == 0x71U) {
-            return "Diagnostics: Temp=" + std::to_string(d1) + "°C, SensorID=0x" + std::to_string(d2);
-        }
-        return "Generic Response (Cmd2=0x" + std::to_string(cmd2) + ")";
-    }
-
-    // Outbound Commands (TX)
-    if (cmd1 == 0x00U && cmd2 == 0x00U) {
-        return "Stop Motion";
-    }
-
-    std::string actions;
-    if (cmd2 & 0x02U)
-        actions += "PanRight ";
-    if (cmd2 & 0x04U)
-        actions += "PanLeft ";
-    if (cmd2 & 0x08U)
-        actions += "TiltUp ";
-    if (cmd2 & 0x10U)
-        actions += "TiltDown ";
-    if (cmd2 & 0x20U)
-        actions += "ZoomTele ";
-    if (cmd2 & 0x40U)
-        actions += "ZoomWide ";
-    if (cmd1 & 0x01U)
-        actions += "FocusNear ";
-    if (cmd1 & 0x02U)
-        actions += "IrisOpen ";
-    if (cmd1 & 0x04U)
-        actions += "IrisClose ";
-    if (cmd1 & 0x08U)
-        actions += "FocusFar ";
-
-    if (!actions.empty()) {
-        std::ostringstream oss;
-        oss << actions << "(panSpd=" << static_cast<int>(d1) << ", tiltSpd=" << static_cast<int>(d2) << ")";
-        return oss.str();
-    }
-
-    // Extended Commands
-    switch (cmd2) {
-    case 0x03U:
-        return "Set Preset " + std::to_string(d2);
-    case 0x05U:
-        return "Clear Preset " + std::to_string(d2);
-    case 0x07U:
-        return "GoTo Preset " + std::to_string(d2);
-    case 0x09U:
-        return "Set Aux " + std::to_string(d2) + " ON";
-    case 0x0BU:
-        return "Clear Aux " + std::to_string(d2) + " OFF";
-    case 0x49U:
-        return "Set Zero Position";
-    case 0x51U:
-        return "Query Pan Position";
-    case 0x53U:
-        return "Query Tilt Position";
-    case 0x55U:
-        return "Query Zoom Position";
-    case 0x61U:
-        return "Query Magnification";
-    case 0x67U:
-        return "Set Baud Rate";
-    case 0x6FU:
-        return "Query Diagnostics";
-    case 0x0FU:
-        return "Remote Reset";
-    default:
-        break;
-    }
-
-    std::ostringstream oss;
-    oss << "Command (Cmd1=0x" << std::hex << static_cast<int>(cmd1) << " Cmd2=0x" << static_cast<int>(cmd2) << std::dec
-        << ")";
-    return oss.str();
+    return PelcoD::ProtocolParser::describeFrame(isTx, frame);
 }
 
 void TrafficView::addPacket(bool isTx, const std::vector<std::uint8_t>& frame)

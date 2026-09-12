@@ -95,12 +95,82 @@ void testParseQuery()
     assert(!PelcoD::ProtocolParser::updateStatus(badQFrame, status, info));
 }
 
+void testDescribeFrame()
+{
+    using PelcoD::PelcoDFrame;
+    using PelcoD::ProtocolParser;
+
+    // 1. Empty and fragments
+    assert(ProtocolParser::describeFrame(true, {}) == "Empty");
+    assert(ProtocolParser::describeFrame(false, {}) == "Empty");
+    assert(ProtocolParser::describeFrame(false, { 0xFFU, 0x01U }) == "Raw Frame (2 bytes)");
+
+    // 2. 4-byte general response
+    const std::vector<std::uint8_t> genFrame { 0xFFU, 0x02U, 0x0AU, 0x0CU };
+    assert(ProtocolParser::describeFrame(false, genFrame) == "General Response (Addr 2, Alarms: 0x0A)");
+
+    // 3. 18-byte query response
+    std::vector<std::uint8_t> qFrame(18U, 0x00U);
+    qFrame[0] = 0xFFU;
+    qFrame[1] = 0x03U;
+    qFrame[2] = 'S';
+    qFrame[3] = 'O';
+    qFrame[4] = 'N';
+    qFrame[5] = 'Y';
+    qFrame[17] = PelcoDFrame::calculateChecksum(&qFrame[1], 16U);
+    assert(ProtocolParser::describeFrame(false, qFrame) == "Query Response (Addr 3): \"SONY\"");
+
+    // 4. 7-byte TX PTZ commands
+    const auto stopFrame = PelcoDFrame::createFrame(0x01U, 0x00U, 0x00U, 0x00U, 0x00U);
+    assert(ProtocolParser::describeFrame(true, stopFrame) == "PTZ Stop");
+
+    const auto moveFrame = PelcoDFrame::createFrame(0x01U, 0x01U, 0x02U | 0x08U | 0x20U, 0x20U, 0x15U);
+    // cmd2 has Right(spd 32), Up(spd 21), ZoomTele, cmd1 has FocusNear
+    assert(ProtocolParser::describeFrame(true, moveFrame) == "PTZ: Right(spd 32), Up(spd 21), ZoomTele, FocusNear");
+
+    // 5. 7-byte TX Extended commands
+    const auto presetFrame = PelcoDFrame::createFrame(0x01U, 0x00U, 0x07U, 0x00U, 0x05U);
+    assert(ProtocolParser::describeFrame(true, presetFrame) == "GoTo Preset 5");
+
+    const auto auxFrame = PelcoDFrame::createFrame(0x01U, 0x00U, 0x09U, 0x00U, 0x02U);
+    assert(ProtocolParser::describeFrame(true, auxFrame) == "Set Aux 2 ON");
+
+    const auto qPanFrame = PelcoDFrame::createFrame(0x01U, 0x00U, 0x51U, 0x00U, 0x00U);
+    assert(ProtocolParser::describeFrame(true, qPanFrame) == "Query Pan Position");
+
+    // 6. 7-byte RX Responses
+    const auto ackFrame = PelcoDFrame::createFrame(0x01U, 0x00U, 0x01U, 0x51U, 0x01U);
+    assert(ProtocolParser::describeFrame(false, ackFrame) == "ACK (OK) for Opcode 0x51");
+
+    const auto nakFrame = PelcoDFrame::createFrame(0x01U, 0x00U, 0x01U, 0x51U, 0x00U);
+    assert(ProtocolParser::describeFrame(false, nakFrame) == "NAK (Error) for Opcode 0x51");
+
+    const auto panFrame = PelcoDFrame::createFrame(0x01U, 0x00U, 0x59U, 0x30U, 0x39U);
+    assert(ProtocolParser::describeFrame(false, panFrame) == "Pan Response: 123.45°");
+
+    const auto tiltFrame = PelcoDFrame::createFrame(0x01U, 0x00U, 0x5BU, 0x11U, 0xD7U);
+    assert(ProtocolParser::describeFrame(false, tiltFrame) == "Tilt Response: 45.67°");
+
+    const auto zoomFrame = PelcoDFrame::createFrame(0x01U, 0x00U, 0x5DU, 0x04U, 0xB0U);
+    assert(ProtocolParser::describeFrame(false, zoomFrame) == "Zoom Response: 1200");
+
+    const auto magFrame = PelcoDFrame::createFrame(0x01U, 0x00U, 0x63U, 0x00U, 0x0AU);
+    assert(ProtocolParser::describeFrame(false, magFrame) == "Magnification Response: 10");
+
+    const auto devFrame = PelcoDFrame::createFrame(0x01U, 0x00U, 0x6DU, 0x05U, 0x02U);
+    assert(ProtocolParser::describeFrame(false, devFrame) == "Device Type Response: SW=0x05 HW=0x02");
+
+    const auto diagFrame = PelcoDFrame::createFrame(0x01U, 0x00U, 0x71U, 0x23U, 0x01U);
+    assert(ProtocolParser::describeFrame(false, diagFrame) == "Diagnostics Response: Temp=35°C Sensor=0x01");
+}
+
 int main()
 {
     std::cout << "[TestProtocolParser] Running tests..." << std::endl;
     testParseGeneral();
     testParseExtended();
     testParseQuery();
+    testDescribeFrame();
     std::cout << "[TestProtocolParser] All tests passed successfully." << std::endl;
     return 0;
 }

@@ -6,6 +6,8 @@
 
 #include <cctype>
 #include <chrono>
+#include <iomanip>
+#include <sstream>
 
 namespace PelcoD {
 
@@ -189,6 +191,158 @@ bool ProtocolParser::updateStatus(const std::vector<std::uint8_t>& frame, Device
     }
 
     return false;
+}
+
+static std::string toHexByte(std::uint8_t val)
+{
+    std::ostringstream oss;
+    oss << std::hex << std::uppercase << std::setw(2) << std::setfill('0') << static_cast<int>(val);
+    return oss.str();
+}
+
+std::string ProtocolParser::describeFrame(bool isTx, const std::vector<std::uint8_t>& frame)
+{
+    if (frame.empty()) {
+        return "Empty";
+    }
+
+    if (frame.size() == PelcoDFrame::GeneralResponseSize) {
+        return "General Response (Addr " + std::to_string(frame[1]) + ", Alarms: 0x" + toHexByte(frame[2]) + ")";
+    }
+
+    if (frame.size() == PelcoDFrame::QueryResponseSize) {
+        std::string payload;
+        for (std::size_t i { 2U }; i < 17U; ++i) {
+            if (frame[i] != 0U) {
+                payload.push_back(static_cast<char>(frame[i]));
+            }
+        }
+        return "Query Response (Addr " + std::to_string(frame[1]) + "): \"" + payload + "\"";
+    }
+
+    if (frame.size() == PelcoDFrame::StandardFrameSize) {
+        const std::uint8_t cmd1 = frame[2];
+        const std::uint8_t cmd2 = frame[3];
+        const std::uint8_t d1 = frame[4];
+        const std::uint8_t d2 = frame[5];
+
+        if (isTx) {
+            if ((cmd2 & 0x01U) == 0U) {
+                std::vector<std::string> acts;
+                if ((cmd2 & 0x02U) != 0U) {
+                    acts.push_back("Right(spd " + std::to_string(d1) + ")");
+                }
+                if ((cmd2 & 0x04U) != 0U) {
+                    acts.push_back("Left(spd " + std::to_string(d1) + ")");
+                }
+                if ((cmd2 & 0x08U) != 0U) {
+                    acts.push_back("Up(spd " + std::to_string(d2) + ")");
+                }
+                if ((cmd2 & 0x10U) != 0U) {
+                    acts.push_back("Down(spd " + std::to_string(d2) + ")");
+                }
+                if ((cmd2 & 0x20U) != 0U) {
+                    acts.push_back("ZoomTele");
+                }
+                if ((cmd2 & 0x40U) != 0U) {
+                    acts.push_back("ZoomWide");
+                }
+                if ((cmd1 & 0x01U) != 0U) {
+                    acts.push_back("FocusNear");
+                }
+                if ((cmd2 & 0x80U) != 0U) {
+                    acts.push_back("FocusFar");
+                }
+                if ((cmd1 & 0x08U) != 0U) {
+                    acts.push_back("IrisOpen");
+                }
+                if ((cmd1 & 0x04U) != 0U) {
+                    acts.push_back("IrisClose");
+                }
+                if (acts.empty()) {
+                    return "PTZ Stop";
+                }
+                std::string result = "PTZ: ";
+                for (std::size_t i { 0U }; i < acts.size(); ++i) {
+                    if (i > 0U) {
+                        result += ", ";
+                    }
+                    result += acts[i];
+                }
+                return result;
+            }
+
+            // Extended command
+            switch (cmd2) {
+            case 0x03U:
+                return "Set Preset " + std::to_string(d2);
+            case 0x05U:
+                return "Clear Preset " + std::to_string(d2);
+            case 0x07U:
+                return "GoTo Preset " + std::to_string(d2);
+            case 0x09U:
+                return "Set Aux " + std::to_string(d2) + " ON";
+            case 0x0BU:
+                return "Clear Aux " + std::to_string(d2) + " OFF";
+            case 0x49U:
+                return "Set Zero Position";
+            case 0x51U:
+                return "Query Pan Position";
+            case 0x53U:
+                return "Query Tilt Position";
+            case 0x55U:
+                return "Query Zoom Position";
+            case 0x61U:
+                return "Query Magnification";
+            case 0x67U:
+                return "Set Baud Rate";
+            case 0x6FU:
+                return "Query Diagnostics";
+            case 0x0FU:
+                return "Remote Reset";
+            default:
+                break;
+            }
+            return "Extended Command (Cmd2=0x" + toHexByte(cmd2) + ")";
+        }
+
+        // Responses (!isTx)
+        if (cmd2 == 0x01U) {
+            return (d2 == 0x01U) ? ("ACK (OK) for Opcode 0x" + toHexByte(d1))
+                                 : ("NAK (Error) for Opcode 0x" + toHexByte(d1));
+        }
+        if (cmd2 == static_cast<std::uint8_t>(ResponseOpcode::QueryPan)) {
+            const auto cdeg = static_cast<std::uint16_t>((static_cast<std::uint16_t>(d1) << 8U) | d2);
+            std::ostringstream oss;
+            oss << "Pan Response: " << std::fixed << std::setprecision(2) << (static_cast<double>(cdeg) / 100.0) << "°";
+            return oss.str();
+        }
+        if (cmd2 == static_cast<std::uint8_t>(ResponseOpcode::QueryTilt)) {
+            const auto cdeg = static_cast<std::uint16_t>((static_cast<std::uint16_t>(d1) << 8U) | d2);
+            std::ostringstream oss;
+            oss << "Tilt Response: " << std::fixed << std::setprecision(2) << (static_cast<double>(cdeg) / 100.0) << "°";
+            return oss.str();
+        }
+        if (cmd2 == static_cast<std::uint8_t>(ResponseOpcode::QueryZoom)) {
+            const auto pos = static_cast<std::uint16_t>((static_cast<std::uint16_t>(d1) << 8U) | d2);
+            return "Zoom Response: " + std::to_string(pos);
+        }
+        if (cmd2 == static_cast<std::uint8_t>(ResponseOpcode::QueryMagnification)) {
+            const auto mag = static_cast<std::uint16_t>((static_cast<std::uint16_t>(d1) << 8U) | d2);
+            return "Magnification Response: " + std::to_string(mag);
+        }
+        if (cmd2 == static_cast<std::uint8_t>(ResponseOpcode::QueryDeviceType)) {
+            return "Device Type Response: SW=0x" + toHexByte(d1) + " HW=0x" + toHexByte(d2);
+        }
+        if (cmd2 == static_cast<std::uint8_t>(ResponseOpcode::QueryDiagnostics)) {
+            const auto temp = static_cast<int>(static_cast<std::int8_t>(d1));
+            return "Diagnostics Response: Temp=" + std::to_string(temp) + "°C Sensor=0x" + toHexByte(d2);
+        }
+
+        return "Response (Opcode 0x" + toHexByte(cmd2) + ")";
+    }
+
+    return "Raw Frame (" + std::to_string(frame.size()) + " bytes)";
 }
 
 } // namespace PelcoD
