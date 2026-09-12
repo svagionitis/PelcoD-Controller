@@ -3,6 +3,8 @@
 
 #include "TrafficInspectorWidget.h"
 
+#include "PelcoDFrame.h"
+
 #include <QDateTime>
 #include <QFont>
 #include <QHeaderView>
@@ -146,14 +148,15 @@ void TrafficInspectorWidget::clearLog()
 
 void TrafficInspectorWidget::handleSendClicked()
 {
-    QString text = editRawHex->text().trimmed();
-    text.remove(' ');
-    if (text.isEmpty()) {
+    const QString qtext = editRawHex->text().trimmed();
+    if (qtext.isEmpty()) {
         return;
     }
 
-    const QByteArray rawBytes = QByteArray::fromHex(text.toUtf8());
-    if (!rawBytes.isEmpty()) {
+    const std::string text = qtext.toStdString();
+    const std::vector<std::uint8_t> bytes = PelcoD::PelcoDFrame::fromHexString(text);
+    if (!bytes.empty()) {
+        const QByteArray rawBytes(reinterpret_cast<const char*>(bytes.data()), static_cast<qsizetype>(bytes.size()));
         emit sendRawHexRequested(rawBytes);
     }
 }

@@ -152,6 +152,66 @@ void testStreamSplitting()
     assert(badQFrames.empty());
 }
 
+void testToHexString()
+{
+    const std::vector<std::uint8_t> frame { 0xFFU, 0x01U, 0x00U, 0x04U, 0x20U, 0x00U, 0x25U };
+
+    // Default space delimiter
+    assert(PelcoD::PelcoDFrame::toHexString(frame) == "FF 01 00 04 20 00 25");
+
+    // Custom delimiter ':'
+    assert(PelcoD::PelcoDFrame::toHexString(frame, ':') == "FF:01:00:04:20:00:25");
+
+    // No delimiter '\0'
+    assert(PelcoD::PelcoDFrame::toHexString(frame, '\0') == "FF010004200025");
+
+    // Empty vector
+    assert(PelcoD::PelcoDFrame::toHexString(std::vector<std::uint8_t> {}).empty());
+
+    // Raw pointer overload
+    assert(PelcoD::PelcoDFrame::toHexString(frame.data(), frame.size(), '-') == "FF-01-00-04-20-00-25");
+    assert(PelcoD::PelcoDFrame::toHexString(nullptr, 0U).empty());
+}
+
+void testFromHexString()
+{
+    const std::vector<std::uint8_t> expected { 0xFFU, 0x01U, 0x00U, 0x04U, 0x20U, 0x00U, 0x25U };
+
+    // Standard spaced hex
+    assert(PelcoD::PelcoDFrame::fromHexString("FF 01 00 04 20 00 25") == expected);
+
+    // Unspaced hex
+    assert(PelcoD::PelcoDFrame::fromHexString("FF010004200025") == expected);
+
+    // Lowercase hex
+    assert(PelcoD::PelcoDFrame::fromHexString("ff 01 00 04 20 00 25") == expected);
+
+    // Colon-delimited
+    assert(PelcoD::PelcoDFrame::fromHexString("FF:01:00:04:20:00:25") == expected);
+
+    // With 0x / 0X prefixes
+    assert(PelcoD::PelcoDFrame::fromHexString("0xFF 0x01 0x00 0x04 0x20 0x00 0x25") == expected);
+    assert(PelcoD::PelcoDFrame::fromHexString("0XFF 0X01 0X00 0X04 0X20 0X00 0X25") == expected);
+
+    // Mixed spacing and leading/trailing whitespace
+    assert(PelcoD::PelcoDFrame::fromHexString("  FF  01  00 04   20 00 25 \t\r\n ") == expected);
+
+    // Empty and whitespace-only
+    assert(PelcoD::PelcoDFrame::fromHexString("").empty());
+    assert(PelcoD::PelcoDFrame::fromHexString("   ").empty());
+
+    // Incomplete / odd trailing nibble
+    const std::vector<std::uint8_t> expectedPrefix { 0xFFU, 0x01U };
+    assert(PelcoD::PelcoDFrame::fromHexString("FF 01 A") == expectedPrefix);
+
+    // Non-hex characters ignored
+    assert(PelcoD::PelcoDFrame::fromHexString("ZZ FF -- 01 !!") == expectedPrefix);
+
+    // Round-trip test
+    const auto serialized = PelcoD::PelcoDFrame::toHexString(expected);
+    assert(PelcoD::PelcoDFrame::fromHexString(serialized) == expected);
+}
+
 int main()
 {
     std::cout << "[TestPelcoDFrame] Running tests..." << std::endl;
@@ -159,6 +219,8 @@ int main()
     testCreateFrame();
     testFrameValidation();
     testStreamSplitting();
+    testToHexString();
+    testFromHexString();
     std::cout << "[TestPelcoDFrame] All tests passed successfully." << std::endl;
     return 0;
 }

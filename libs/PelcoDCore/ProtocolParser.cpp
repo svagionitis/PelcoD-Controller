@@ -195,9 +195,7 @@ bool ProtocolParser::updateStatus(const std::vector<std::uint8_t>& frame, Device
 
 static std::string toHexByte(std::uint8_t val)
 {
-    std::ostringstream oss;
-    oss << std::hex << std::uppercase << std::setw(2) << std::setfill('0') << static_cast<int>(val);
-    return oss.str();
+    return PelcoDFrame::toHexString(&val, 1U, '\0');
 }
 
 std::string ProtocolParser::describeFrame(bool isTx, const std::vector<std::uint8_t>& frame)

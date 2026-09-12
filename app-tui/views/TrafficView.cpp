@@ -1,5 +1,6 @@
 #include "TrafficView.h"
 
+#include "PelcoDFrame.h"
 #include "ProtocolParser.h"
 #include "UtfSymbols.h"
 
@@ -42,18 +43,11 @@ std::string TrafficView::decodeFrame(bool isTx, const std::vector<std::uint8_t>&
 
 void TrafficView::addPacket(bool isTx, const std::vector<std::uint8_t>& frame)
 {
-    std::ostringstream hexOss;
-    for (std::size_t i = 0; i < frame.size(); ++i) {
-        if (i > 0)
-            hexOss << " ";
-        hexOss << std::hex << std::uppercase << std::setw(2) << std::setfill('0') << static_cast<int>(frame[i]);
-    }
-
     PacketRecord rec {};
     rec.timestamp = std::chrono::system_clock::now();
     rec.isTx = isTx;
     rec.frame = frame;
-    rec.hexStr = hexOss.str();
+    rec.hexStr = PelcoD::PelcoDFrame::toHexString(frame, ' ');
     rec.decoded = decodeFrame(isTx, frame);
 
     std::lock_guard<std::mutex> lock(m_mutex);

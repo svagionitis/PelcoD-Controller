@@ -5,6 +5,8 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <string>
+#include <string_view>
 #include <vector>
 
 namespace PelcoD {
@@ -48,6 +50,26 @@ public:
     /// @param[in] stream Input byte buffer.
     /// @return List of isolated valid protocol frames.
     [[nodiscard]] static std::vector<std::vector<std::uint8_t>> splitStream(const std::vector<std::uint8_t>& stream);
+
+    /// @brief Converts byte buffer to uppercase hexadecimal string with optional delimiter.
+    /// @param[in] bytes Raw byte buffer.
+    /// @param[in] delimiter Character separator between hex bytes (default ' ', '\0' for no delimiter).
+    /// @return Formatted uppercase hexadecimal string (e.g. "FF 01 00 04 20 00 25").
+    [[nodiscard]] static std::string toHexString(const std::vector<std::uint8_t>& bytes, char delimiter = ' ');
+
+    /// @brief Converts contiguous byte sequence to uppercase hexadecimal string.
+    /// @param[in] data Pointer to byte sequence.
+    /// @param[in] length Number of bytes.
+    /// @param[in] delimiter Character separator between hex bytes (default ' ', '\0' for no delimiter).
+    /// @return Formatted uppercase hexadecimal string.
+    [[nodiscard]] static std::string toHexString(const std::uint8_t* data, std::size_t length, char delimiter = ' ');
+
+    /// @brief Parses hexadecimal string into byte vector.
+    /// @details Ignores common delimiters (spaces, colons, commas, dashes) and optional "0x"/"0X" prefixes.
+    /// Case-insensitive. Incomplete trailing hex digits are ignored.
+    /// @param[in] hexStr Hexadecimal input string view.
+    /// @return Parsed byte vector, empty if invalid or no hex digits found.
+    [[nodiscard]] static std::vector<std::uint8_t> fromHexString(std::string_view hexStr);
 };
 
 } // namespace PelcoD
