@@ -48,6 +48,12 @@ public:
     void setBaudRate(std::uint32_t baudRate);
     [[nodiscard]] std::uint32_t getBaudRate() const noexcept;
 
+    /// @brief Discovers and enumerates available hardware and virtual serial communication ports.
+    /// @details Scans active Windows Registry serial device mappings and MS-DOS devices on Windows,
+    /// or standard /dev device nodes on POSIX/Linux/macOS. Returns naturally sorted port names.
+    /// @return Naturally sorted list of detected serial port names (e.g. "COM1", "COM2", "/dev/ttyUSB0").
+    [[nodiscard]] static std::vector<std::string> enumeratePorts();
+
     // ITransport interface
     [[nodiscard]] bool open() override;
     void close() override;

@@ -20,20 +20,7 @@
 #include <QTimer>
 
 #include <algorithm>
-#include <cctype>
 #include <string>
-
-#if defined(_WIN32)
-#ifndef WIN32_LEAN_AND_MEAN
-#define WIN32_LEAN_AND_MEAN
-#endif
-#ifndef NOMINMAX
-#define NOMINMAX
-#endif
-#include <windows.h>
-#elif defined(__linux__) || defined(__APPLE__)
-#include <QDir>
-#endif
 
 namespace PelcoDApp {
 
@@ -202,95 +189,9 @@ QStringList ConnectionWidget::displayedSerialPorts() const
 QStringList ConnectionWidget::enumerateSerialPorts()
 {
     QStringList ports;
-
-#if defined(_WIN32)
-    // 1. Query Windows Registry: HKEY_LOCAL_MACHINE\HARDWARE\DEVICEMAP\SERIALCOMM
-    // This key is dynamically populated by the Windows kernel / PnP for all active serial hardware.
-    HKEY hKey = nullptr;
-    if (::RegOpenKeyExA(HKEY_LOCAL_MACHINE, "HARDWARE\\DEVICEMAP\\SERIALCOMM", 0, KEY_READ, &hKey) == ERROR_SUCCESS) {
-        char valueName[256];
-        char data[256];
-        DWORD index = 0;
-        while (true) {
-            DWORD valueNameLen = sizeof(valueName);
-            DWORD dataLen = sizeof(data);
-            DWORD type = 0;
-            const LONG status = ::RegEnumValueA(
-                hKey, index++, valueName, &valueNameLen, nullptr, &type, reinterpret_cast<LPBYTE>(data), &dataLen);
-            if (status == ERROR_NO_MORE_ITEMS) {
-                break;
-            }
-            if (status == ERROR_SUCCESS && (type == REG_SZ || type == REG_MULTI_SZ) && dataLen > 0) {
-                const std::size_t safeLen = (dataLen < sizeof(data)) ? dataLen : (sizeof(data) - 1);
-                data[safeLen] = '\0';
-                const QString portName = QString::fromLocal8Bit(data).trimmed();
-                if (!portName.isEmpty() && !ports.contains(portName)) {
-                    ports.append(portName);
-                }
-            }
-        }
-        ::RegCloseKey(hKey);
+    for (const auto& port : PelcoD::SerialTransport::enumeratePorts()) {
+        ports.append(QString::fromStdString(port));
     }
-
-    // 2. Query MS-DOS device map via QueryDosDeviceA for any virtual or redirected COM ports
-    char dosBuf[65536];
-    const DWORD charsRead = ::QueryDosDeviceA(nullptr, dosBuf, sizeof(dosBuf));
-    if (charsRead > 0) {
-        const char* current = dosBuf;
-        while (*current != '\0') {
-            const std::string devName(current);
-            // Must strictly match "COM" followed only by digits (e.g. COM1, COM12)
-            if (devName.rfind("COM", 0) == 0 && devName.size() > 3) {
-                bool onlyDigits = true;
-                for (std::size_t i = 3; i < devName.size(); ++i) {
-                    if (!std::isdigit(static_cast<unsigned char>(devName[i]))) {
-                        onlyDigits = false;
-                        break;
-                    }
-                }
-                if (onlyDigits) {
-                    const QString qPort = QString::fromStdString(devName);
-                    if (!ports.contains(qPort)) {
-                        ports.append(qPort);
-                    }
-                }
-            }
-            current += devName.size() + 1;
-        }
-    }
-
-#elif defined(__linux__)
-    // Scan /dev for standard Linux serial device nodes
-    QDir devDir("/dev");
-    const QStringList filters { "ttyUSB*", "ttyACM*", "ttyS*", "rfcomm*" };
-    const QFileInfoList entries = devDir.entryInfoList(filters, QDir::System);
-
-    for (const auto& info : entries) {
-        const QString path = info.absoluteFilePath();
-        if (!ports.contains(path)) {
-            ports.append(path);
-        }
-    }
-
-#elif defined(__APPLE__)
-    // Scan /dev for standard macOS serial device nodes
-    QDir devDir("/dev");
-    const QStringList filters { "cu.*", "tty.*" };
-    const QFileInfoList entries = devDir.entryInfoList(filters, QDir::System);
-
-    for (const auto& info : entries) {
-        const QString path = info.absoluteFilePath();
-        if (!ports.contains(path)) {
-            ports.append(path);
-        }
-    }
-#endif
-
-    // Naturally sort the detected port names (e.g., COM1, COM2, COM10 instead of COM1, COM10, COM2)
-    QCollator collator;
-    collator.setNumericMode(true);
-    std::sort(ports.begin(), ports.end(), collator);
-
     return ports;
 }
 

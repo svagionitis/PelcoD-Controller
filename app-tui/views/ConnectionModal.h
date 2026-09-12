@@ -10,6 +10,7 @@
 #include <cstdint>
 #include <memory>
 #include <string>
+#include <vector>
 
 namespace PelcoDTui {
 
@@ -23,7 +24,11 @@ struct ConnectionConfig {
     TransportType type { TransportType::Mock };
     std::string tcpHost { "127.0.0.1" };
     std::uint16_t tcpPort { 9000U };
+#ifdef _WIN32
+    std::string serialPort { "COM1" };
+#else
     std::string serialPort { "/dev/ttyUSB0" };
+#endif
     std::uint32_t serialBaud { 9600U };
     std::uint8_t address { 1U };
 };
@@ -75,6 +80,7 @@ private:
     std::string m_tcpPortStr { "9000" };
     std::string m_errorMessage {};
     ConnectionConfig m_config {};
+    std::vector<std::string> m_detectedPorts {};
 };
 
 } // namespace PelcoDTui

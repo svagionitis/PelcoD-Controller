@@ -147,12 +147,41 @@ static void testValidationAndRendering()
     assert(!modal.isOpen());
 }
 
+static void testSerialPortCycling()
+{
+    ConnectionModal modal;
+    ConnectionConfig cfg;
+    cfg.type = TransportType::Serial;
+    cfg.serialPort = "COM1";
+
+    modal.setConfig(cfg);
+    modal.setOpen(true);
+
+    // Navigate to Field 2 (Serial Port)
+    InputEvent downEv { Key::Down, '\0', {} };
+    modal.handleInput(downEv); // Field 1
+    modal.handleInput(downEv); // Field 2
+
+    // PageDown / PageUp cycling
+    InputEvent pgDn { Key::PageDown, '\0', {} };
+    InputEvent pgUp { Key::PageUp, '\0', {} };
+    modal.handleInput(pgDn);
+    modal.handleInput(pgUp);
+    assert(!modal.getConfig().serialPort.empty());
+
+    // Close via Escape
+    InputEvent escEv { Key::Escape, '\0', {} };
+    modal.handleInput(escEv);
+    assert(!modal.isOpen());
+}
+
 int main()
 {
     std::cout << "[TestConnectionModal] Running tests..." << std::endl;
     testTcpEditing();
     testSerialEditingAndHotkeys();
     testValidationAndRendering();
+    testSerialPortCycling();
     std::cout << "[TestConnectionModal] All tests passed successfully." << std::endl;
     return 0;
 }

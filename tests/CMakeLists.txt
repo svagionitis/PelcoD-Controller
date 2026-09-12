@@ -20,6 +20,7 @@ add_pelco_test(TestProtocolParser TestProtocolParser.cpp)
 add_pelco_test(TestMockDevice TestMockDevice.cpp)
 add_pelco_test(TestTcpTransportTimeout TestTcpTransportTimeout.cpp)
 add_pelco_test(TestProtocolCompleteness TestProtocolCompleteness.cpp)
+add_pelco_test(TestSerialTransport TestSerialTransport.cpp)
 
 add_executable(TestConnectionModal
     TestConnectionModal.cpp

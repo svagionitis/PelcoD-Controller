@@ -23,7 +23,10 @@
 #include <unistd.h>
 #endif
 
+#include <algorithm>
+#include <cctype>
 #include <chrono>
+#include <filesystem>
 #include <glog/logging.h>
 
 namespace PelcoD {
@@ -439,4 +442,138 @@ void SerialTransport::notifyState(TransportState state, const std::string& error
     }
 }
 
+namespace {
+bool naturalLess(const std::string& a, const std::string& b)
+{
+    std::size_t i { 0U };
+    std::size_t j { 0U };
+    while (i < a.size() && j < b.size()) {
+        if (std::isdigit(static_cast<unsigned char>(a[i])) && std::isdigit(static_cast<unsigned char>(b[j]))) {
+            std::size_t endA { i };
+            while (endA < a.size() && std::isdigit(static_cast<unsigned char>(a[endA]))) {
+                ++endA;
+            }
+            std::size_t endB { j };
+            while (endB < b.size() && std::isdigit(static_cast<unsigned char>(b[endB]))) {
+                ++endB;
+            }
+            const unsigned long long numA = std::stoull(a.substr(i, endA - i));
+            const unsigned long long numB = std::stoull(b.substr(j, endB - j));
+            if (numA != numB) {
+                return numA < numB;
+            }
+            i = endA;
+            j = endB;
+        } else {
+            if (a[i] != b[j]) {
+                return a[i] < b[j];
+            }
+            ++i;
+            ++j;
+        }
+    }
+    return a.size() < b.size();
+}
+} // namespace
+
+std::vector<std::string> SerialTransport::enumeratePorts()
+{
+    std::vector<std::string> ports;
+
+#if defined(_WIN32)
+    // 1. Query Windows Registry: HKEY_LOCAL_MACHINE\HARDWARE\DEVICEMAP\SERIALCOMM
+    HKEY hKey = nullptr;
+    if (::RegOpenKeyExA(HKEY_LOCAL_MACHINE, "HARDWARE\\DEVICEMAP\\SERIALCOMM", 0, KEY_READ, &hKey) == ERROR_SUCCESS) {
+        char valueName[256];
+        char data[256];
+        DWORD index = 0;
+        while (true) {
+            DWORD valueNameLen = sizeof(valueName);
+            DWORD dataLen = sizeof(data);
+            DWORD type = 0;
+            const LONG status = ::RegEnumValueA(
+                hKey, index++, valueName, &valueNameLen, nullptr, &type, reinterpret_cast<LPBYTE>(data), &dataLen);
+            if (status == ERROR_NO_MORE_ITEMS) {
+                break;
+            }
+            if (status == ERROR_SUCCESS && (type == REG_SZ || type == REG_MULTI_SZ) && dataLen > 0) {
+                const std::size_t safeLen = (dataLen < sizeof(data)) ? dataLen : (sizeof(data) - 1);
+                data[safeLen] = '\0';
+                std::string portName(data);
+                while (!portName.empty() && std::isspace(static_cast<unsigned char>(portName.back()))) {
+                    portName.pop_back();
+                }
+                if (!portName.empty() && std::find(ports.begin(), ports.end(), portName) == ports.end()) {
+                    ports.push_back(portName);
+                }
+            }
+        }
+        ::RegCloseKey(hKey);
+    }
+
+    // 2. Query MS-DOS device map via QueryDosDeviceA for virtual or redirected COM ports
+    char dosBuf[65536];
+    const DWORD charsRead = ::QueryDosDeviceA(nullptr, dosBuf, sizeof(dosBuf));
+    if (charsRead > 0) {
+        const char* current = dosBuf;
+        while (*current != '\0') {
+            const std::string devName(current);
+            // Must strictly match "COM" followed only by digits (e.g. COM1, COM12)
+            if (devName.rfind("COM", 0) == 0 && devName.size() > 3) {
+                bool onlyDigits = true;
+                for (std::size_t i = 3; i < devName.size(); ++i) {
+                    if (!std::isdigit(static_cast<unsigned char>(devName[i]))) {
+                        onlyDigits = false;
+                        break;
+                    }
+                }
+                if (onlyDigits && std::find(ports.begin(), ports.end(), devName) == ports.end()) {
+                    ports.push_back(devName);
+                }
+            }
+            current += devName.size() + 1;
+        }
+    }
+
+#elif defined(__linux__)
+    // Scan /dev for standard Linux serial device nodes
+    try {
+        if (std::filesystem::exists("/dev")) {
+            for (const auto& entry : std::filesystem::directory_iterator("/dev")) {
+                const std::string filename = entry.path().filename().string();
+                if (filename.rfind("ttyUSB", 0) == 0 || filename.rfind("ttyACM", 0) == 0 ||
+                    filename.rfind("ttyS", 0) == 0 || filename.rfind("rfcomm", 0) == 0) {
+                    const std::string fullPath = entry.path().string();
+                    if (std::find(ports.begin(), ports.end(), fullPath) == ports.end()) {
+                        ports.push_back(fullPath);
+                    }
+                }
+            }
+        }
+    } catch (...) {
+    }
+
+#elif defined(__APPLE__)
+    // Scan /dev for standard macOS serial device nodes
+    try {
+        if (std::filesystem::exists("/dev")) {
+            for (const auto& entry : std::filesystem::directory_iterator("/dev")) {
+                const std::string filename = entry.path().filename().string();
+                if (filename.rfind("cu.", 0) == 0 || filename.rfind("tty.", 0) == 0) {
+                    const std::string fullPath = entry.path().string();
+                    if (std::find(ports.begin(), ports.end(), fullPath) == ports.end()) {
+                        ports.push_back(fullPath);
+                    }
+                }
+            }
+        }
+    } catch (...) {
+    }
+#endif
+
+    std::sort(ports.begin(), ports.end(), naturalLess);
+    return ports;
+}
+
 } // namespace PelcoD
+

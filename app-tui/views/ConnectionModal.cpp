@@ -15,12 +15,22 @@ namespace PelcoDTui {
 static const std::uint32_t kBaudRates[] = { 2400, 4800, 9600, 19200, 38400, 57600, 115200 };
 static const int kNumBauds = 7;
 
-ConnectionModal::ConnectionModal() = default;
+ConnectionModal::ConnectionModal()
+{
+    m_detectedPorts = PelcoD::SerialTransport::enumeratePorts();
+    if (!m_detectedPorts.empty()) {
+        m_config.serialPort = m_detectedPorts.front();
+    }
+}
 
 void ConnectionModal::setOpen(bool open) noexcept
 {
     m_isOpen = open;
     if (open) {
+        m_detectedPorts = PelcoD::SerialTransport::enumeratePorts();
+        if (m_config.type == TransportType::Serial && !m_detectedPorts.empty() && m_config.serialPort.empty()) {
+            m_config.serialPort = m_detectedPorts.front();
+        }
         m_tcpPortStr = std::to_string(m_config.tcpPort);
         m_errorMessage.clear();
         resetCursor();
@@ -241,8 +251,13 @@ void ConnectionModal::render(Canvas& canvas, int screenWidth, int screenHeight)
 
     // Bottom navigation hint
     if (isTextEditingField()) {
-        canvas.drawString(startX + 4, startY + modalH - 2,
-            "[▲/▼] Navigate   [Type/Backspace] Edit   [Enter] Apply   [Esc] Cancel", labelStyle);
+        if (m_config.type == TransportType::Serial && !m_detectedPorts.empty()) {
+            canvas.drawString(startX + 4, startY + modalH - 2,
+                "[▲/▼] Navigate  [PgUp/PgDn] Cycle Ports  [Type] Edit  [Enter] Connect", labelStyle);
+        } else {
+            canvas.drawString(startX + 4, startY + modalH - 2,
+                "[▲/▼] Navigate   [Type/Backspace] Edit   [Enter] Apply   [Esc] Cancel", labelStyle);
+        }
     } else {
         canvas.drawString(
             startX + 4, startY + modalH - 2, "[▲/▼] Select   [◄/►] Change   [Enter] Apply   [Esc] Close", labelStyle);
@@ -294,6 +309,9 @@ bool ConnectionModal::handleInput(const InputEvent& event)
                 m_config.type = isLeft ? TransportType::Mock : TransportType::Serial;
             } else {
                 m_config.type = isLeft ? TransportType::Tcp : TransportType::Mock;
+            }
+            if (m_config.type == TransportType::Serial && !m_detectedPorts.empty() && m_config.serialPort.empty()) {
+                m_config.serialPort = m_detectedPorts.front();
             }
             resetCursor();
             return true;
@@ -361,6 +379,22 @@ bool ConnectionModal::handleInput(const InputEvent& event)
 
     if (!activeText) {
         return true;
+    }
+
+    // Cycle detected serial ports on PageUp / PageDown if editing serial port
+    if (m_selectedField == 2 && m_config.type == TransportType::Serial && !m_detectedPorts.empty()) {
+        if (event.key == Key::PageUp || event.key == Key::PageDown) {
+            auto it = std::find(m_detectedPorts.begin(), m_detectedPorts.end(), m_config.serialPort);
+            int idx = (it != m_detectedPorts.end()) ? static_cast<int>(std::distance(m_detectedPorts.begin(), it)) : -1;
+            if (event.key == Key::PageDown) {
+                idx = (idx + 1) % static_cast<int>(m_detectedPorts.size());
+            } else {
+                idx = (idx > 0) ? (idx - 1) : static_cast<int>(m_detectedPorts.size() - 1);
+            }
+            m_config.serialPort = m_detectedPorts[static_cast<std::size_t>(idx)];
+            m_cursorPos = static_cast<int>(m_config.serialPort.size());
+            return true;
+        }
     }
 
     m_cursorPos = std::clamp(m_cursorPos, 0, static_cast<int>(activeText->size()));
