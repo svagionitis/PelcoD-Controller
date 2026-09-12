@@ -171,12 +171,21 @@ QComboBox QAbstractItemView {
 
 QTableWidget {
     background-color: #161b22;
+    alternate-background-color: #1c2128;
     border: 1px solid #30363d;
     gridline-color: #21262d;
     color: #e6edf3;
     font-family: "Courier New", monospace;
     font-size: 11px;
+    selection-background-color: #1f6feb;
+    selection-color: #ffffff;
 }
+
+QTableWidget::item:selected {
+    background-color: #1f6feb;
+    color: #ffffff;
+}
+
 
 QHeaderView::section {
     background-color: #21262d;

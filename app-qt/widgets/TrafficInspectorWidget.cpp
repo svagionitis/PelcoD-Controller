@@ -4,6 +4,7 @@
 #include "TrafficInspectorWidget.h"
 
 #include <QDateTime>
+#include <QFont>
 #include <QHeaderView>
 #include <QLabel>
 
@@ -57,6 +58,14 @@ void TrafficInspectorWidget::setupUi()
     tableInspector->setEditTriggers(QAbstractItemView::NoEditTriggers);
     tableInspector->setAlternatingRowColors(true);
 
+    QPalette tablePal = tableInspector->palette();
+    tablePal.setColor(QPalette::Base, QColor("#161b22"));
+    tablePal.setColor(QPalette::AlternateBase, QColor("#1c2128"));
+    tablePal.setColor(QPalette::Text, QColor("#e6edf3"));
+    tablePal.setColor(QPalette::Highlight, QColor("#1f6feb"));
+    tablePal.setColor(QPalette::HighlightedText, QColor("#ffffff"));
+    tableInspector->setPalette(tablePal);
+
     mainLayout->addWidget(tableInspector);
 
     // Raw hex injection bar
@@ -102,10 +111,17 @@ void TrafficInspectorWidget::logFrame(bool isTx, const QByteArray& frame, const 
     auto* itemHex = new QTableWidgetItem(hexStr);
     auto* itemDesc = new QTableWidgetItem(description);
 
+    QFont dirFont = itemDir->font();
+    dirFont.setBold(true);
+    itemDir->setFont(dirFont);
+    itemDir->setTextAlignment(Qt::AlignCenter);
+
     if (isTx) {
         itemDir->setForeground(QColor("#58a6ff")); // Blue for TX
+        itemDir->setBackground(QColor(31, 111, 235, 45)); // Subtle blue badge
     } else {
-        itemDir->setForeground(QColor("#7ee787")); // Green for RX
+        itemDir->setForeground(QColor("#3fb950")); // High-contrast green for RX
+        itemDir->setBackground(QColor(46, 160, 67, 45)); // Subtle green badge
     }
 
     tableInspector->setItem(row, 0, itemTime);
