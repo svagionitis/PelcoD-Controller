@@ -10,8 +10,66 @@
 #include <chrono>
 #include <iostream>
 #include <memory>
+#include <mutex>
 #include <thread>
 #include <vector>
+
+class ControlledTransport final : public PelcoD::ITransport {
+public:
+    bool open() override
+    {
+        m_open = true;
+        return true;
+    }
+
+    void close() override
+    {
+        m_open = false;
+    }
+
+    [[nodiscard]] bool isOpen() const noexcept override
+    {
+        return m_open.load();
+    }
+
+    [[nodiscard]] bool sendData(const std::vector<std::uint8_t>& data) override
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        m_sentFrames.push_back(data);
+        return m_open.load();
+    }
+
+    void setDataCallback(DataReceivedCallback callback) override
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        m_dataCallback = std::move(callback);
+    }
+
+    void setStateCallback(StateChangedCallback callback) override
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        m_stateCallback = std::move(callback);
+    }
+
+    void inject(const std::vector<std::uint8_t>& data)
+    {
+        DataReceivedCallback callback;
+        {
+            std::lock_guard<std::mutex> lock(m_mutex);
+            callback = m_dataCallback;
+        }
+        if (callback) {
+            callback(data);
+        }
+    }
+
+private:
+    std::atomic<bool> m_open { false };
+    mutable std::mutex m_mutex;
+    DataReceivedCallback m_dataCallback;
+    StateChangedCallback m_stateCallback;
+    std::vector<std::vector<std::uint8_t>> m_sentFrames;
+};
 
 void testMockDeviceEndToEnd()
 {
@@ -404,49 +462,66 @@ void testSharedBusDeviceFiltering()
 
 void testQueryResponseCorrelation()
 {
-    auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(1U);
-    PelcoD::PelcoDDevice device(mock, 1U);
-    device.setQueryTimeoutMs(400U);
+    auto transport = std::make_shared<ControlledTransport>();
+    PelcoD::PelcoDDevice device(transport, 1U);
+    device.setQueryTimeoutMs(150U);
 
-    std::atomic<bool> queryPanCompleted { false };
-    assert(device.start());
-
-    // Worker thread sends queryPan()
-    std::thread t([&]() {
-        device.queryPan();
-        queryPanCompleted.store(true);
+    std::atomic<bool> panUpdated { false };
+    std::atomic<bool> timedOut { false };
+    device.addStatusCallback([&](const PelcoD::DeviceStatus& status) {
+        if (status.panCentidegrees == 8500U) {
+            panUpdated.store(true);
+        }
+    });
+    device.addTimeoutCallback([&](const std::string& tag) {
+        if (tag == "QueryPan") {
+            timedOut.store(true);
+        }
     });
 
-    // Wait for query to be sent and worker to block
-    std::this_thread::sleep_for(std::chrono::milliseconds(60));
-    assert(!queryPanCompleted.load());
+    assert(device.start());
+
+    device.queryPan();
+    std::this_thread::sleep_for(std::chrono::milliseconds(80));
 
     // Inject an interleaved 4-byte general response for Device 1 (e.g. motion/alarm acknowledgment)
     const std::vector<std::uint8_t> fGen { 0xFFU, 0x01U, 0x00U, 0x01U };
-    mock->injectRxData(fGen);
+    transport->inject(fGen);
 
-    std::this_thread::sleep_for(std::chrono::milliseconds(60));
-
-    // queryPan() must NOT be unblocked by the 4-byte general response
-    assert(!queryPanCompleted.load());
+    // Inject a valid response for another device.
+    const auto fOtherDevicePan = PelcoD::PelcoDFrame::createFrame(0x02U, 0x00U, 0x59U, 0x13U, 0x88U);
+    transport->inject(fOtherDevicePan);
 
     // Inject a mismatched 7-byte Tilt response for Device 1 (opcode 0x5B, tilt = 2000)
     const auto fTilt = PelcoD::PelcoDFrame::createFrame(0x01U, 0x00U, 0x5BU, 0x07U, 0xD0U);
-    mock->injectRxData(fTilt);
+    transport->inject(fTilt);
 
     std::this_thread::sleep_for(std::chrono::milliseconds(60));
-
-    // queryPan() must NOT be unblocked by the Tilt response
-    assert(!queryPanCompleted.load());
+    assert(!panUpdated.load());
+    assert(device.getStatus().address == 1U);
+    assert(device.getStatus().panCentidegrees == 0U);
+    assert(device.getStatus().tiltCentidegrees == 0U);
 
     // Inject the expected 7-byte Pan response for Device 1 (opcode 0x59, pan = 8500 = 0x2134)
     const auto fPan = PelcoD::PelcoDFrame::createFrame(0x01U, 0x00U, 0x59U, 0x21U, 0x34U);
-    mock->injectRxData(fPan);
+    transport->inject(fPan);
 
-    // Now queryPan() should complete
-    t.join();
-    assert(queryPanCompleted.load());
+    for (int attempt = 0; attempt < 20 && !panUpdated.load(); ++attempt) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+    assert(panUpdated.load());
     assert(device.getStatus().panCentidegrees == 8500U);
+
+    // A mismatched response must not satisfy a subsequent query.
+    panUpdated.store(false);
+    timedOut.store(false);
+    device.queryPan();
+    std::this_thread::sleep_for(std::chrono::milliseconds(80));
+    transport->inject(fTilt);
+    for (int attempt = 0; attempt < 30 && !timedOut.load(); ++attempt) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+    assert(timedOut.load());
 
     device.stop();
 }

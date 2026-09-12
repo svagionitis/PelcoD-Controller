@@ -803,6 +803,17 @@ void PelcoDDevice::dispatchFrame(const std::vector<std::uint8_t>& frame)
         return;
     }
 
+    bool awaitingQuery { false };
+    std::string pendingQueryTag;
+    {
+        std::lock_guard<std::mutex> lock(m_statusMutex);
+        awaitingQuery = m_awaitingResponse.load();
+        pendingQueryTag = m_pendingQueryTag;
+    }
+    if (awaitingQuery && !isResponseMatchingQuery(pendingQueryTag, frame)) {
+        return;
+    }
+
     DeviceStatus currentStatus;
     DeviceInfo currentInfo;
     {
