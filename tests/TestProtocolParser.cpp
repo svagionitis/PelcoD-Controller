@@ -78,6 +78,7 @@ void testParseQuery()
     qFrame[4] = 'L';
     qFrame[5] = 'C';
     qFrame[6] = 'O';
+    qFrame[17] = PelcoD::PelcoDFrame::calculateChecksum(&qFrame[1], 16U);
 
     std::string payload;
     assert(PelcoD::ProtocolParser::parseQuery(qFrame, payload));
@@ -87,6 +88,11 @@ void testParseQuery()
     PelcoD::DeviceInfo info;
     assert(PelcoD::ProtocolParser::updateStatus(qFrame, status, info));
     assert(info.modelName == "PELCO");
+
+    // Corrupted checksum must be rejected by updateStatus
+    auto badQFrame = qFrame;
+    badQFrame[17] ^= 0x55U;
+    assert(!PelcoD::ProtocolParser::updateStatus(badQFrame, status, info));
 }
 
 int main()

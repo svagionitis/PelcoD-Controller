@@ -65,6 +65,7 @@ void testFrameValidation()
     std::vector<std::uint8_t> valid18(18U, 0x00U);
     valid18[0] = 0xFFU;
     valid18[1] = 0x01U;
+    valid18[17] = PelcoD::PelcoDFrame::calculateChecksum(&valid18[1], 16U);
     assert(PelcoD::PelcoDFrame::isValidFrame(valid18));
 
     // Valid 18-byte query response with ASCII model text
@@ -73,6 +74,7 @@ void testFrameValidation()
     valid18Text[3] = 'A';
     valid18Text[4] = 'M';
     valid18Text[5] = '1';
+    valid18Text[17] = PelcoD::PelcoDFrame::calculateChecksum(&valid18Text[1], 16U);
     assert(PelcoD::PelcoDFrame::isValidFrame(valid18Text));
 
     // Invalid 18-byte query response: non-printable control byte
@@ -85,6 +87,11 @@ void testFrameValidation()
     bad18AfterNull[6] = 0x00U; // Null terminator
     bad18AfterNull[7] = 'X';   // Stray char after null
     assert(!PelcoD::PelcoDFrame::isValidFrame(bad18AfterNull));
+
+    // Invalid 18-byte query response: corrupted checksum at byte 17
+    auto bad18Cksm = valid18Text;
+    bad18Cksm[17] ^= 0xFFU; // Corrupted checksum byte
+    assert(!PelcoD::PelcoDFrame::isValidFrame(bad18Cksm));
 }
 
 void testStreamSplitting()
@@ -122,6 +129,27 @@ void testStreamSplitting()
     assert(multiFrames[0].size() == 7U);
     assert(multiFrames[1].size() == 7U);
     assert(multiFrames[2].size() == 7U);
+
+    // Valid 18-byte query frame extraction via splitStream
+    std::vector<std::uint8_t> qFrame(18U, 0x00U);
+    qFrame[0] = 0xFFU;
+    qFrame[1] = 0x01U;
+    qFrame[2] = 'S';
+    qFrame[3] = 'E';
+    qFrame[4] = 'N';
+    qFrame[5] = 'S';
+    qFrame[6] = 'O';
+    qFrame[7] = 'R';
+    qFrame[17] = PelcoD::PelcoDFrame::calculateChecksum(&qFrame[1], 16U);
+    const auto qFrames = PelcoD::PelcoDFrame::splitStream(qFrame);
+    assert(qFrames.size() == 1U);
+    assert(qFrames[0].size() == 18U);
+
+    // Corrupted 18-byte query frame checksum must be rejected
+    auto badQFrame = qFrame;
+    badQFrame[17] ^= 0x55U;
+    const auto badQFrames = PelcoD::PelcoDFrame::splitStream(badQFrame);
+    assert(badQFrames.empty());
 }
 
 int main()

@@ -63,6 +63,11 @@ bool PelcoDFrame::isValidFrame(const std::vector<std::uint8_t>& frame) noexcept
 
     // 18-byte Query Response: [0xFF, addr, data1..data15, cksm]
     if (len == QueryResponseSize) {
+        const std::uint8_t expected = calculateChecksum(&frame[1], 16U);
+        if (frame[17] != expected) {
+            return false;
+        }
+
         bool sawNull = false;
         for (std::size_t i { 2U }; i < 17U; ++i) {
             const std::uint8_t b = frame[i];

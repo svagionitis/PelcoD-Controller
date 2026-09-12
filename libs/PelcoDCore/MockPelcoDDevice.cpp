@@ -395,7 +395,7 @@ void MockPelcoDDevice::sendExtendedReply(std::uint8_t resp1, std::uint8_t resp2,
     }
 }
 
-void MockPelcoDDevice::sendQueryReply(std::uint8_t cmdChecksum)
+void MockPelcoDDevice::sendQueryReply([[maybe_unused]] std::uint8_t cmdChecksum)
 {
     std::vector<std::uint8_t> response(PelcoDFrame::QueryResponseSize, 0x00U);
     response[0] = PelcoDFrame::SyncByte;
@@ -412,13 +412,8 @@ void MockPelcoDDevice::sendQueryReply(std::uint8_t cmdChecksum)
         response[2U + i] = static_cast<std::uint8_t>(model[i]);
     }
 
-    // Checksum = (sum of bytes 1..16 + cmdChecksum) % 256
-    std::uint32_t sum { 0U };
-    for (std::size_t i { 1U }; i < 17U; ++i) {
-        sum += static_cast<std::uint32_t>(response[i]);
-    }
-    sum += static_cast<std::uint32_t>(cmdChecksum);
-    response[17] = static_cast<std::uint8_t>(sum & 0xFFU);
+    // Standard Pelco-D checksum = sum of bytes 1..16 % 256
+    response[17] = PelcoDFrame::calculateChecksum(&response[1], 16U);
 
     DataReceivedCallback cb;
     {

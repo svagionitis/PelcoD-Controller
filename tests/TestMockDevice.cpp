@@ -96,6 +96,11 @@ void testMockDeviceEndToEnd()
     assert(device.getStatus().diagnosticTemp == mock->getInternalState().diagnosticTemp);
     assert(device.getStatus().diagnosticSensorId == mock->getInternalState().diagnosticSensorId);
 
+    // 10. Query General (18-byte model name response)
+    device.queryGeneral();
+    std::this_thread::sleep_for(std::chrono::milliseconds(150));
+    assert(device.getInfo().modelName == mock->getInternalState().modelName);
+
     device.stop();
     assert(!device.isConnected());
 }
