@@ -154,6 +154,8 @@ private:
     void onDataReceived(const std::vector<std::uint8_t>& data);
     void dispatchFrame(const std::vector<std::uint8_t>& frame);
     void checkQueryTimeout();
+    [[nodiscard]] static bool isResponseMatchingQuery(
+        const std::string& queryTag, const std::vector<std::uint8_t>& frame) noexcept;
 
     struct CommandItem {
         std::vector<std::uint8_t> frame;
@@ -161,7 +163,7 @@ private:
     };
 
     std::shared_ptr<ITransport> m_transport;
-    std::uint8_t m_address { 1U };
+    std::atomic<std::uint8_t> m_address { 1U };
 
     mutable std::recursive_mutex m_lifecycleMutex;
     std::atomic<bool> m_running { false };

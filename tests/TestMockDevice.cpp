@@ -360,6 +360,97 @@ void testReentrantStart()
     concurrentDevice.stop();
 }
 
+void testSharedBusDeviceFiltering()
+{
+    auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(1U);
+    PelcoD::PelcoDDevice device(mock, 1U);
+
+    std::atomic<int> rxTrafficCount { 0 };
+    std::atomic<int> statusUpdateCount { 0 };
+
+    device.addTrafficCallback([&](bool isTx, const std::vector<std::uint8_t>&) {
+        if (!isTx) {
+            rxTrafficCount.fetch_add(1);
+        }
+    });
+
+    device.addStatusCallback([&](const PelcoD::DeviceStatus&) {
+        statusUpdateCount.fetch_add(1);
+    });
+
+    assert(device.start());
+
+    // Inject a Pan response for Device 2 (address 2, pan = 5000 = 0x1388)
+    const auto fDev2Pan = PelcoD::PelcoDFrame::createFrame(0x02U, 0x00U, 0x59U, 0x13U, 0x88U);
+    mock->injectRxData(fDev2Pan);
+
+    // Inject a 4-byte general response for Device 2 (address 2, alarms = 0x05)
+    const std::vector<std::uint8_t> fDev2Gen { 0xFFU, 0x02U, 0x05U, 0x07U };
+    mock->injectRxData(fDev2Gen);
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+    // Traffic callback must see both frames (bus sniffer)
+    assert(rxTrafficCount.load() == 2);
+
+    // Device 1 status must NOT be modified by Device 2's packets
+    assert(device.getStatus().address == 1U);
+    assert(device.getStatus().panCentidegrees == 0U);
+    assert(device.getStatus().alarms == 0U);
+    assert(statusUpdateCount.load() == 0);
+
+    device.stop();
+}
+
+void testQueryResponseCorrelation()
+{
+    auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(1U);
+    PelcoD::PelcoDDevice device(mock, 1U);
+    device.setQueryTimeoutMs(400U);
+
+    std::atomic<bool> queryPanCompleted { false };
+    assert(device.start());
+
+    // Worker thread sends queryPan()
+    std::thread t([&]() {
+        device.queryPan();
+        queryPanCompleted.store(true);
+    });
+
+    // Wait for query to be sent and worker to block
+    std::this_thread::sleep_for(std::chrono::milliseconds(60));
+    assert(!queryPanCompleted.load());
+
+    // Inject an interleaved 4-byte general response for Device 1 (e.g. motion/alarm acknowledgment)
+    const std::vector<std::uint8_t> fGen { 0xFFU, 0x01U, 0x00U, 0x01U };
+    mock->injectRxData(fGen);
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(60));
+
+    // queryPan() must NOT be unblocked by the 4-byte general response
+    assert(!queryPanCompleted.load());
+
+    // Inject a mismatched 7-byte Tilt response for Device 1 (opcode 0x5B, tilt = 2000)
+    const auto fTilt = PelcoD::PelcoDFrame::createFrame(0x01U, 0x00U, 0x5BU, 0x07U, 0xD0U);
+    mock->injectRxData(fTilt);
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(60));
+
+    // queryPan() must NOT be unblocked by the Tilt response
+    assert(!queryPanCompleted.load());
+
+    // Inject the expected 7-byte Pan response for Device 1 (opcode 0x59, pan = 8500 = 0x2134)
+    const auto fPan = PelcoD::PelcoDFrame::createFrame(0x01U, 0x00U, 0x59U, 0x21U, 0x34U);
+    mock->injectRxData(fPan);
+
+    // Now queryPan() should complete
+    t.join();
+    assert(queryPanCompleted.load());
+    assert(device.getStatus().panCentidegrees == 8500U);
+
+    device.stop();
+}
+
 int main()
 {
     std::cout << "[TestMockDevice] Running tests..." << std::endl;
@@ -369,6 +460,8 @@ int main()
     testDynamicTelemetryPollingLifecycle();
     testClearCallbacks();
     testReentrantStart();
+    testSharedBusDeviceFiltering();
+    testQueryResponseCorrelation();
     std::cout << "[TestMockDevice] All tests passed successfully." << std::endl;
     return 0;
 }
