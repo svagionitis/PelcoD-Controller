@@ -1,6 +1,8 @@
 add_library(PelcoDQt STATIC
     QPelcoDDevice.h
     QPelcoDDevice.cpp
+    QPatrolController.h
+    QPatrolController.cpp
 )
 
 target_include_directories(PelcoDQt PUBLIC

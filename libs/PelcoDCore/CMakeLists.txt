@@ -21,6 +21,8 @@ add_library(PelcoDCore STATIC
     ProtocolParser.cpp
     PelcoDDevice.h
     PelcoDDevice.cpp
+    PatrolController.h
+    PatrolController.cpp
 )
 
 target_include_directories(PelcoDCore PUBLIC

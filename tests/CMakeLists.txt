@@ -22,6 +22,7 @@ add_pelco_test(TestTcpTransportTimeout TestTcpTransportTimeout.cpp)
 add_pelco_test(TestProtocolCompleteness TestProtocolCompleteness.cpp)
 add_pelco_test(TestSerialTransport TestSerialTransport.cpp)
 add_pelco_test(TestUdpTransport TestUdpTransport.cpp)
+add_pelco_test(TestPatrolController TestPatrolController.cpp)
 
 add_executable(TestConnectionModal
     TestConnectionModal.cpp

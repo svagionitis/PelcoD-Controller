@@ -1,11 +1,21 @@
-#include "PresetsView.h"
+/// @file PresetsView.cpp
+/// @brief Implementation of PresetsView with automated preset tour support.
 
+#include "PresetsView.h"
 #include "UtfSymbols.h"
 
 #include <iomanip>
 #include <sstream>
 
 namespace PelcoDTui {
+
+PresetsView::PresetsView()
+    : m_patrol(std::make_unique<PelcoD::PatrolController>())
+{
+    m_patrol->addStep(PelcoD::PatrolStep { 1U, 5U, "Gate 1", 0U });
+    m_patrol->addStep(PelcoD::PatrolStep { 2U, 5U, "Fence West", 0U });
+    m_patrol->addStep(PelcoD::PatrolStep { 3U, 5U, "Yard", 0U });
+}
 
 void PresetsView::render(Canvas& canvas, int startY, int width, int height)
 {
@@ -14,6 +24,7 @@ void PresetsView::render(Canvas& canvas, int startY, int width, int height)
     const Style titleStyle { Colors::Cyan, Colors::PanelBg, true, false, false, false, false };
     const Style labelStyle { Colors::Gray, Colors::PanelBg, false, false, false, false, false };
     const Style actionStyle { Colors::Yellow, Colors::PanelBg, true, false, false, false, false };
+    const Style patrolActiveStyle { Colors::Green, Colors::PanelBg, true, false, false, false, false };
 
     canvas.drawPanel(1, startY, width - 2, panelHeight, "Presets & Touring Management (1–32)", borderStyle, titleStyle);
 
@@ -48,8 +59,16 @@ void PresetsView::render(Canvas& canvas, int startY, int width, int height)
     canvas.drawHLine(2, bottomY, width - 4, Symbols::BoxHoriz, borderStyle);
 
     canvas.drawString(
-        4, bottomY + 1, "Actions: [G / Enter] GoTo   [S] Set   [C] Clear   [P] Flip 180°   [Z] Set Zero", labelStyle);
-    canvas.drawString(width - static_cast<int>(m_lastAction.size()) - 6, bottomY + 1, m_lastAction, actionStyle);
+        4, bottomY + 1, "Actions: [G] GoTo  [S] Set  [C] Clear  [P] Flip  [Z] Zero  [T] Tour", labelStyle);
+
+    if (m_patrol && m_patrol->isRunning()) {
+        std::ostringstream patrolOss;
+        patrolOss << " [Tour: Step " << (m_patrol->getCurrentStepIndex() + 1) << " | "
+                  << m_patrol->getRemainingDwellSeconds() << "s] ";
+        canvas.drawString(width - 36, bottomY + 1, patrolOss.str(), patrolActiveStyle);
+    }
+
+    canvas.drawString(width - static_cast<int>(m_lastAction.size()) - 4, bottomY + 1, m_lastAction, actionStyle);
 }
 
 bool PresetsView::handleInput(const InputEvent& event, PelcoD::PelcoDDevice& device)
@@ -92,6 +111,21 @@ bool PresetsView::handleInput(const InputEvent& event, PelcoD::PelcoDDevice& dev
     if (event.ch == 'z' || event.ch == 'Z') {
         device.zeroPan();
         m_lastAction = "Zero Pan";
+        return true;
+    }
+    if (event.ch == 't' || event.ch == 'T') {
+        if (!m_patrol) {
+            m_patrol = std::make_unique<PelcoD::PatrolController>(&device);
+        } else {
+            m_patrol->setDevice(&device);
+        }
+        if (m_patrol->isRunning()) {
+            m_patrol->stop();
+            m_lastAction = "Tour Stopped";
+        } else {
+            m_patrol->start();
+            m_lastAction = "Tour Started";
+        }
         return true;
     }
 
