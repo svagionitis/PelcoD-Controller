@@ -64,6 +64,8 @@ bool PelcoDDevice::start()
 
     if (!m_transport->isOpen()) {
         if (!m_transport->open()) {
+            m_transport->setDataCallback(nullptr);
+            m_transport->setStateCallback(nullptr);
             return false;
         }
     }
@@ -88,6 +90,13 @@ void PelcoDDevice::stop()
 {
     std::lock_guard<std::recursive_mutex> lifecycleLock(m_lifecycleMutex);
     if (!m_running.load() && !m_rxThread.joinable() && !m_workerThread.joinable() && !m_pollThread.joinable()) {
+        if (m_transport) {
+            if (m_transport->isOpen()) {
+                m_transport->close();
+            }
+            m_transport->setDataCallback(nullptr);
+            m_transport->setStateCallback(nullptr);
+        }
         return;
     }
 
@@ -109,8 +118,12 @@ void PelcoDDevice::stop()
     }
     m_awaitingResponse = false;
 
-    if (m_transport && m_transport->isOpen()) {
-        m_transport->close();
+    if (m_transport) {
+        if (m_transport->isOpen()) {
+            m_transport->close();
+        }
+        m_transport->setDataCallback(nullptr);
+        m_transport->setStateCallback(nullptr);
     }
 
     {

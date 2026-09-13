@@ -8,11 +8,16 @@
 #include <atomic>
 #include <cassert>
 #include <chrono>
+#include <cstdlib>
 #include <iostream>
 #include <memory>
 #include <mutex>
 #include <thread>
 #include <vector>
+
+#if defined(_MSC_VER)
+#include <crtdbg.h>
+#endif
 
 class ControlledTransport final : public PelcoD::ITransport {
 public:
@@ -63,12 +68,77 @@ public:
         }
     }
 
+    [[nodiscard]] bool hasDataCallback() const
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        return static_cast<bool>(m_dataCallback);
+    }
+
+    [[nodiscard]] bool hasStateCallback() const
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        return static_cast<bool>(m_stateCallback);
+    }
+
+    void triggerState(PelcoD::TransportState state, const std::string& errorMsg)
+    {
+        StateChangedCallback callback;
+        {
+            std::lock_guard<std::mutex> lock(m_mutex);
+            callback = m_stateCallback;
+        }
+        if (callback) {
+            callback(state, errorMsg);
+        }
+    }
+
 private:
     std::atomic<bool> m_open { false };
     mutable std::mutex m_mutex;
     DataReceivedCallback m_dataCallback;
     StateChangedCallback m_stateCallback;
     std::vector<std::vector<std::uint8_t>> m_sentFrames;
+};
+
+class FailingOpenTransport final : public PelcoD::ITransport {
+public:
+    bool open() override
+    {
+        return false;
+    }
+
+    void close() override {}
+    [[nodiscard]] bool isOpen() const noexcept override { return false; }
+    [[nodiscard]] bool sendData([[maybe_unused]] const std::vector<std::uint8_t>& data) override { return false; }
+
+    void setDataCallback(DataReceivedCallback callback) override
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        m_dataCallback = std::move(callback);
+    }
+
+    void setStateCallback(StateChangedCallback callback) override
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        m_stateCallback = std::move(callback);
+    }
+
+    [[nodiscard]] bool hasDataCallback() const
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        return static_cast<bool>(m_dataCallback);
+    }
+
+    [[nodiscard]] bool hasStateCallback() const
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        return static_cast<bool>(m_stateCallback);
+    }
+
+private:
+    mutable std::mutex m_mutex;
+    DataReceivedCallback m_dataCallback;
+    StateChangedCallback m_stateCallback;
 };
 
 void testMockDeviceEndToEnd()
@@ -526,8 +596,64 @@ void testQueryResponseCorrelation()
     device.stop();
 }
 
+void testTransportCallbackDeregistration()
+{
+    // Scenario 1: Callbacks are unregistered on explicit stop()
+    {
+        auto transport = std::make_shared<ControlledTransport>();
+        PelcoD::PelcoDDevice device(transport, 1U);
+        assert(device.start());
+        assert(transport->hasDataCallback());
+        assert(transport->hasStateCallback());
+
+        device.stop();
+        assert(!transport->hasDataCallback());
+        assert(!transport->hasStateCallback());
+
+        // Invocations after stop must be safe no-ops and not crash
+        transport->inject({ 0xFF, 0x01, 0x00, 0x00, 0x00, 0x00, 0x01 });
+        transport->triggerState(PelcoD::TransportState::Disconnected, "Closed");
+    }
+
+    // Scenario 2: Callbacks are unregistered upon destruction without prior explicit stop()
+    {
+        auto transport = std::make_shared<ControlledTransport>();
+        {
+            PelcoD::PelcoDDevice device(transport, 1U);
+            assert(device.start());
+            assert(transport->hasDataCallback());
+            assert(transport->hasStateCallback());
+        } // device destroyed here
+
+        assert(!transport->hasDataCallback());
+        assert(!transport->hasStateCallback());
+
+        // Invocations after destruction must not dereference dangling pointers
+        transport->inject({ 0xFF, 0x01, 0x00, 0x00, 0x00, 0x00, 0x01 });
+        transport->triggerState(PelcoD::TransportState::Disconnected, "Closed");
+    }
+
+    // Scenario 3: Callbacks are cleared if start() fails during open()
+    {
+        auto failingTransport = std::make_shared<FailingOpenTransport>();
+        PelcoD::PelcoDDevice device(failingTransport, 1U);
+        const bool started = device.start();
+        assert(!started);
+        assert(!failingTransport->hasDataCallback());
+        assert(!failingTransport->hasStateCallback());
+    }
+}
+
 int main()
 {
+#if defined(_MSC_VER)
+    _set_abort_behavior(0, _WRITE_ABORT_MSG | _CALL_REPORTFAULT);
+    _CrtSetReportMode(_CRT_ASSERT, _CRTDBG_MODE_FILE | _CRTDBG_MODE_DEBUG);
+    _CrtSetReportFile(_CRT_ASSERT, _CRTDBG_FILE_STDERR);
+    _CrtSetReportMode(_CRT_ERROR, _CRTDBG_MODE_FILE | _CRTDBG_MODE_DEBUG);
+    _CrtSetReportFile(_CRT_ERROR, _CRTDBG_FILE_STDERR);
+#endif
+
     std::cout << "[TestMockDevice] Running tests..." << std::endl;
     testMockDeviceEndToEnd();
     testCopyOnWriteCallbacks();
@@ -537,6 +663,7 @@ int main()
     testReentrantStart();
     testSharedBusDeviceFiltering();
     testQueryResponseCorrelation();
+    testTransportCallbackDeregistration();
     std::cout << "[TestMockDevice] All tests passed successfully." << std::endl;
     return 0;
 }
