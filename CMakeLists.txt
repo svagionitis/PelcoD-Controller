@@ -5,6 +5,10 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+# Enable the compile_commands.json
+# See https://cmake.org/cmake/help/latest/variable/CMAKE_EXPORT_COMPILE_COMMANDS.html
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
 # ==============================================================================
 # Compiler Flags, Security Hardening, and Sanitizers
 # ==============================================================================
