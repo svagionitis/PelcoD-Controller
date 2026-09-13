@@ -24,6 +24,7 @@ add_pelco_test(TestSerialTransport TestSerialTransport.cpp)
 add_pelco_test(TestUdpTransport TestUdpTransport.cpp)
 add_pelco_test(TestPatrolController TestPatrolController.cpp)
 add_pelco_test(TestBusScanner TestBusScanner.cpp)
+add_pelco_test(TestMockKinematics TestMockKinematics.cpp)
 
 add_executable(TestConnectionModal
     TestConnectionModal.cpp
@@ -57,6 +58,7 @@ add_executable(TestAutoReconnect
     TestAutoReconnect.cpp
     ${CMAKE_SOURCE_DIR}/app-qt/widgets/ConnectionWidget.cpp
     ${CMAKE_SOURCE_DIR}/app-qt/dialogs/BusScanDialog.cpp
+    ${CMAKE_SOURCE_DIR}/app-qt/dialogs/MockDynamicsDialog.cpp
 )
 target_include_directories(TestAutoReconnect PRIVATE
     ${CMAKE_SOURCE_DIR}/app-qt

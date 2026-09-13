@@ -52,6 +52,25 @@ template <typename T> [[nodiscard]] bool parseInteger(std::string_view str, T& o
     return (ec == std::errc {}) && (ptr == end);
 }
 
+/// @brief Exception-safe floating point parser using std::stod.
+/// @param str String view containing ASCII floating point representation.
+/// @param outVal Output value reference populated on success.
+/// @return true if string was non-empty and fully parsed into outVal without exception.
+[[nodiscard]] bool parseDouble(std::string_view str, double& outVal) noexcept
+{
+    if (str.empty()) {
+        return false;
+    }
+    try {
+        std::size_t idx = 0;
+        const std::string s(str);
+        outVal = std::stod(s, &idx);
+        return (idx == s.size());
+    } catch (...) {
+        return false;
+    }
+}
+
 /// @brief Display command-line usage information and keyboard shortcuts.
 /// @param progName Executable name invoked in the shell.
 void printUsage(std::string_view progName)
@@ -60,6 +79,11 @@ void printUsage(std::string_view progName)
               << "Usage: " << progName << " [options]\n\n"
               << "Options:\n"
               << "  --mock                      Start in standalone Mock simulator mode (default)\n"
+              << "  --mock-speed <deg/s>        Mock max PTZ slew speed in deg/s (e.g. 60.0)\n"
+              << "  --mock-accel <deg/s^2>      Mock PTZ acceleration in deg/s^2 (e.g. 120.0)\n"
+              << "  --mock-latency <ms>         Mock link transit base latency in ms (e.g. 50)\n"
+              << "  --mock-jitter <ms>          Mock link latency jitter in ms (e.g. 15)\n"
+              << "  --mock-drop <percent>       Mock link packet loss rate 0-100% (e.g. 5.0)\n"
               << "  --tcp <host:port>           Connect via TCP network socket (e.g. 192.168.1.100:4001)\n"
               << "  --udp <host:port>           Connect via UDP network socket (e.g. 192.168.1.100:4001)\n"
               << "  --serial <port> [baud]      Connect via RS-485 serial port (e.g. /dev/ttyUSB0 9600)\n"
@@ -98,6 +122,88 @@ void printUsage(std::string_view progName)
 
         if (arg == "--mock") {
             result.config.type = PelcoDTui::TransportType::Mock;
+        } else if (arg == "--mock-speed") {
+            if (i + 1 >= argc) {
+                result.status = ParseStatus::Error;
+                result.errorMessage = "Option '--mock-speed' requires a speed in deg/s (e.g. 60.0)";
+                return result;
+            }
+            const std::string_view valStr = argv[++i];
+            double speedVal { 0.0 };
+            if (!parseDouble(valStr, speedVal) || speedVal <= 0.0 || speedVal > 1000.0) {
+                result.status = ParseStatus::Error;
+                result.errorMessage = "Invalid mock speed '" + std::string(valStr)
+                    + "': speed must be a positive number between 0.1 and 1000.0 deg/s";
+                return result;
+            }
+            result.config.kinematicsConfig.enabled = true;
+            result.config.kinematicsConfig.maxPanSpeedDegPerSec = speedVal;
+            result.config.kinematicsConfig.maxTiltSpeedDegPerSec = speedVal;
+        } else if (arg == "--mock-accel") {
+            if (i + 1 >= argc) {
+                result.status = ParseStatus::Error;
+                result.errorMessage = "Option '--mock-accel' requires an acceleration in deg/s^2 (e.g. 120.0)";
+                return result;
+            }
+            const std::string_view valStr = argv[++i];
+            double accelVal { 0.0 };
+            if (!parseDouble(valStr, accelVal) || accelVal <= 0.0 || accelVal > 5000.0) {
+                result.status = ParseStatus::Error;
+                result.errorMessage = "Invalid mock acceleration '" + std::string(valStr)
+                    + "': acceleration must be a positive number between 0.1 and 5000.0 deg/s^2";
+                return result;
+            }
+            result.config.kinematicsConfig.enabled = true;
+            result.config.kinematicsConfig.panAccelerationDegPerSec2 = accelVal;
+            result.config.kinematicsConfig.tiltAccelerationDegPerSec2 = accelVal;
+        } else if (arg == "--mock-latency") {
+            if (i + 1 >= argc) {
+                result.status = ParseStatus::Error;
+                result.errorMessage = "Option '--mock-latency' requires a latency in milliseconds (e.g. 50)";
+                return result;
+            }
+            const std::string_view valStr = argv[++i];
+            std::uint32_t latVal { 0U };
+            if (!parseInteger(valStr, latVal) || latVal > 10000U) {
+                result.status = ParseStatus::Error;
+                result.errorMessage = "Invalid mock latency '" + std::string(valStr)
+                    + "': latency must be an integer between 0 and 10000 ms";
+                return result;
+            }
+            result.config.latencyConfig.enabled = true;
+            result.config.latencyConfig.baseLatencyMs = latVal;
+        } else if (arg == "--mock-jitter") {
+            if (i + 1 >= argc) {
+                result.status = ParseStatus::Error;
+                result.errorMessage = "Option '--mock-jitter' requires a jitter in milliseconds (e.g. 15)";
+                return result;
+            }
+            const std::string_view valStr = argv[++i];
+            std::uint32_t jitVal { 0U };
+            if (!parseInteger(valStr, jitVal) || jitVal > 5000U) {
+                result.status = ParseStatus::Error;
+                result.errorMessage = "Invalid mock jitter '" + std::string(valStr)
+                    + "': jitter must be an integer between 0 and 5000 ms";
+                return result;
+            }
+            result.config.latencyConfig.enabled = true;
+            result.config.latencyConfig.jitterMs = jitVal;
+        } else if (arg == "--mock-drop") {
+            if (i + 1 >= argc) {
+                result.status = ParseStatus::Error;
+                result.errorMessage = "Option '--mock-drop' requires a drop percentage 0.0-100.0 (e.g. 5.0)";
+                return result;
+            }
+            const std::string_view valStr = argv[++i];
+            double dropVal { 0.0 };
+            if (!parseDouble(valStr, dropVal) || dropVal < 0.0 || dropVal > 100.0) {
+                result.status = ParseStatus::Error;
+                result.errorMessage = "Invalid mock drop rate '" + std::string(valStr)
+                    + "': drop rate must be between 0.0 and 100.0 percent";
+                return result;
+            }
+            result.config.latencyConfig.enabled = true;
+            result.config.latencyConfig.packetDropPercent = dropVal;
         } else if (arg == "--tcp") {
             if (i + 1 >= argc) {
                 result.status = ParseStatus::Error;
@@ -301,9 +407,13 @@ int main(int argc, char* argv[])
         try {
             std::shared_ptr<PelcoD::ITransport> transport;
             switch (parseResult.config.type) {
-            case PelcoDTui::TransportType::Mock:
-                transport = std::make_shared<PelcoD::MockPelcoDDevice>(parseResult.config.address);
+            case PelcoDTui::TransportType::Mock: {
+                auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(parseResult.config.address);
+                mock->setKinematicsConfig(parseResult.config.kinematicsConfig);
+                mock->setLatencyConfig(parseResult.config.latencyConfig);
+                transport = mock;
                 break;
+            }
             case PelcoDTui::TransportType::Tcp:
                 transport = std::make_shared<PelcoD::TcpTransport>(
                     parseResult.config.tcpHost, parseResult.config.tcpPort);
@@ -316,9 +426,13 @@ int main(int argc, char* argv[])
                 transport = std::make_shared<PelcoD::SerialTransport>(
                     parseResult.config.serialPort, parseResult.config.serialBaud);
                 break;
-            default:
-                transport = std::make_shared<PelcoD::MockPelcoDDevice>(parseResult.config.address);
+            default: {
+                auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(parseResult.config.address);
+                mock->setKinematicsConfig(parseResult.config.kinematicsConfig);
+                mock->setLatencyConfig(parseResult.config.latencyConfig);
+                transport = mock;
                 break;
+            }
             }
 
             std::cout << "Starting Pelco-D Bus Scan on range ["

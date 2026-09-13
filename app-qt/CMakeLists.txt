@@ -20,6 +20,8 @@ add_executable(PelcoDAppQt
     tabs/SystemTab.cpp
     dialogs/BusScanDialog.h
     dialogs/BusScanDialog.cpp
+    dialogs/MockDynamicsDialog.h
+    dialogs/MockDynamicsDialog.cpp
     resources.qrc
 )
 

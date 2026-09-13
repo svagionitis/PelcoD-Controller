@@ -25,6 +25,10 @@ add_library(PelcoDCore STATIC
     PatrolController.cpp
     BusScanner.h
     BusScanner.cpp
+    KinematicsSimulator.h
+    KinematicsSimulator.cpp
+    LatencyPipeline.h
+    LatencyPipeline.cpp
 )
 
 target_include_directories(PelcoDCore PUBLIC

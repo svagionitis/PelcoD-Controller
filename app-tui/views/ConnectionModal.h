@@ -5,6 +5,8 @@
 
 #include "Canvas.h"
 #include "ITransport.h"
+#include "KinematicsSimulator.h"
+#include "LatencyPipeline.h"
 #include "Terminal.h"
 
 #include <cstdint>
@@ -34,6 +36,8 @@ struct ConnectionConfig {
 #endif
     std::uint32_t serialBaud { 9600U };
     std::uint8_t address { 1U };
+    PelcoD::KinematicsConfig kinematicsConfig {};
+    PelcoD::LatencyConfig latencyConfig {};
 };
 
 /// @class ConnectionModal

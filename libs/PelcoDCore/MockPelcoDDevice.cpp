@@ -17,6 +17,12 @@ MockPelcoDDevice::MockPelcoDDevice(std::uint8_t address) noexcept
 MockDeviceState MockPelcoDDevice::getInternalState() const
 {
     std::lock_guard<std::mutex> lock(m_stateMutex);
+    if (m_kinematics.getConfig().enabled) {
+        m_kinematics.update(std::chrono::steady_clock::now());
+        m_state.panCentidegrees = m_kinematics.currentPanCentidegrees();
+        m_state.tiltCentidegrees = m_kinematics.currentTiltCentidegrees();
+        m_state.zoomPosition = m_kinematics.currentZoomInt();
+    }
     return m_state;
 }
 
@@ -24,6 +30,41 @@ void MockPelcoDDevice::setInternalState(const MockDeviceState& state)
 {
     std::lock_guard<std::mutex> lock(m_stateMutex);
     m_state = state;
+    m_kinematics.setPositionImmediate(
+        state.panCentidegrees / 100.0, state.tiltCentidegrees / 100.0, static_cast<double>(state.zoomPosition));
+}
+
+void MockPelcoDDevice::setKinematicsConfig(const KinematicsConfig& config)
+{
+    std::lock_guard<std::mutex> lock(m_stateMutex);
+    m_kinematics.setConfig(config);
+    m_kinematics.setPositionImmediate(
+        m_state.panCentidegrees / 100.0, m_state.tiltCentidegrees / 100.0, static_cast<double>(m_state.zoomPosition));
+}
+
+KinematicsConfig MockPelcoDDevice::getKinematicsConfig() const
+{
+    return m_kinematics.getConfig();
+}
+
+void MockPelcoDDevice::setLatencyConfig(const LatencyConfig& config)
+{
+    m_latency.setConfig(config);
+}
+
+LatencyConfig MockPelcoDDevice::getLatencyConfig() const
+{
+    return m_latency.getConfig();
+}
+
+bool MockPelcoDDevice::isMoving() const
+{
+    std::lock_guard<std::mutex> lock(m_stateMutex);
+    if (m_kinematics.getConfig().enabled) {
+        m_kinematics.update(std::chrono::steady_clock::now());
+        return m_kinematics.isMoving();
+    }
+    return false;
 }
 
 bool MockPelcoDDevice::open()
@@ -43,6 +84,8 @@ bool MockPelcoDDevice::open()
 void MockPelcoDDevice::close()
 {
     m_open.store(false);
+    m_latency.flush();
+    m_kinematics.stop();
     StateChangedCallback cb;
     {
         std::lock_guard<std::mutex> lock(m_callbackMutex);
@@ -105,40 +148,75 @@ void MockPelcoDDevice::processFrame(const std::vector<std::uint8_t>& frame)
         {
             std::lock_guard<std::mutex> lock(m_stateMutex);
 
-            // Pan motion: data1 is pan speed (0..63)
-            const std::uint16_t panStep = static_cast<std::uint16_t>((data1 & 0x3FU) * 10U);
-            if ((cmd2 & 0x02U) != 0U) {
-                // Right: increase pan (modulo 36000 centidegrees)
-                m_state.panCentidegrees = static_cast<std::uint16_t>((m_state.panCentidegrees + panStep) % 36000U);
-            } else if ((cmd2 & 0x04U) != 0U) {
-                // Left: decrease pan
-                if (m_state.panCentidegrees >= panStep) {
-                    m_state.panCentidegrees = static_cast<std::uint16_t>(m_state.panCentidegrees - panStep);
-                } else {
-                    m_state.panCentidegrees = static_cast<std::uint16_t>(36000U - (panStep - m_state.panCentidegrees));
+            if (m_kinematics.getConfig().enabled) {
+                double panFraction = 0.0;
+                const double panSpeed = static_cast<double>(data1 & 0x3FU) / 63.0;
+                if ((cmd2 & 0x02U) != 0U) {
+                    panFraction = panSpeed;
+                } else if ((cmd2 & 0x04U) != 0U) {
+                    panFraction = -panSpeed;
                 }
-            }
 
-            // Tilt motion: data2 is tilt speed (0..63)
-            const std::uint16_t tiltStep = static_cast<std::uint16_t>((data2 & 0x3FU) * 10U);
-            if ((cmd2 & 0x08U) != 0U) {
-                // Up
-                m_state.tiltCentidegrees = static_cast<std::uint16_t>((m_state.tiltCentidegrees + tiltStep) % 36000U);
-            } else if ((cmd2 & 0x10U) != 0U) {
-                // Down
-                if (m_state.tiltCentidegrees >= tiltStep) {
-                    m_state.tiltCentidegrees = static_cast<std::uint16_t>(m_state.tiltCentidegrees - tiltStep);
-                } else {
-                    m_state.tiltCentidegrees
-                        = static_cast<std::uint16_t>(36000U - (tiltStep - m_state.tiltCentidegrees));
+                double tiltFraction = 0.0;
+                const double tiltSpeed = static_cast<double>(data2 & 0x3FU) / 63.0;
+                if ((cmd2 & 0x08U) != 0U) {
+                    tiltFraction = tiltSpeed;
+                } else if ((cmd2 & 0x10U) != 0U) {
+                    tiltFraction = -tiltSpeed;
                 }
-            }
 
-            // Zoom: cmd2 bit 5 = tele, bit 6 = wide
-            if ((cmd2 & 0x20U) != 0U && m_state.zoomPosition < 65000U) {
-                m_state.zoomPosition = static_cast<std::uint16_t>(m_state.zoomPosition + 100U);
-            } else if ((cmd2 & 0x40U) != 0U && m_state.zoomPosition >= 100U) {
-                m_state.zoomPosition = static_cast<std::uint16_t>(m_state.zoomPosition - 100U);
+                double zoomFraction = 0.0;
+                if ((cmd2 & 0x20U) != 0U) {
+                    zoomFraction = 1.0;
+                } else if ((cmd2 & 0x40U) != 0U) {
+                    zoomFraction = -1.0;
+                }
+
+                if (panFraction == 0.0 && tiltFraction == 0.0 && zoomFraction == 0.0) {
+                    m_kinematics.stop();
+                } else {
+                    m_kinematics.setDirectionalMotion(panFraction, tiltFraction, zoomFraction);
+                }
+            } else {
+                // Instantaneous stepping
+                // Pan motion: data1 is pan speed (0..63)
+                const std::uint16_t panStep = static_cast<std::uint16_t>((data1 & 0x3FU) * 10U);
+                if ((cmd2 & 0x02U) != 0U) {
+                    // Right: increase pan (modulo 36000 centidegrees)
+                    m_state.panCentidegrees = static_cast<std::uint16_t>((m_state.panCentidegrees + panStep) % 36000U);
+                } else if ((cmd2 & 0x04U) != 0U) {
+                    // Left: decrease pan
+                    if (m_state.panCentidegrees >= panStep) {
+                        m_state.panCentidegrees = static_cast<std::uint16_t>(m_state.panCentidegrees - panStep);
+                    } else {
+                        m_state.panCentidegrees = static_cast<std::uint16_t>(36000U - (panStep - m_state.panCentidegrees));
+                    }
+                }
+
+                // Tilt motion: data2 is tilt speed (0..63)
+                const std::uint16_t tiltStep = static_cast<std::uint16_t>((data2 & 0x3FU) * 10U);
+                if ((cmd2 & 0x08U) != 0U) {
+                    // Up
+                    m_state.tiltCentidegrees = static_cast<std::uint16_t>((m_state.tiltCentidegrees + tiltStep) % 36000U);
+                } else if ((cmd2 & 0x10U) != 0U) {
+                    // Down
+                    if (m_state.tiltCentidegrees >= tiltStep) {
+                        m_state.tiltCentidegrees = static_cast<std::uint16_t>(m_state.tiltCentidegrees - tiltStep);
+                    } else {
+                        m_state.tiltCentidegrees
+                            = static_cast<std::uint16_t>(36000U - (tiltStep - m_state.tiltCentidegrees));
+                    }
+                }
+
+                // Zoom: cmd2 bit 5 = tele, bit 6 = wide
+                if ((cmd2 & 0x20U) != 0U && m_state.zoomPosition < 65000U) {
+                    m_state.zoomPosition = static_cast<std::uint16_t>(m_state.zoomPosition + 100U);
+                } else if ((cmd2 & 0x40U) != 0U && m_state.zoomPosition >= 100U) {
+                    m_state.zoomPosition = static_cast<std::uint16_t>(m_state.zoomPosition - 100U);
+                }
+
+                m_kinematics.setPositionImmediate(
+                    m_state.panCentidegrees / 100.0, m_state.tiltCentidegrees / 100.0, static_cast<double>(m_state.zoomPosition));
             }
 
             // Focus: cmd1 bit 0 = near, cmd2 bit 7 = far
@@ -187,16 +265,37 @@ void MockPelcoDDevice::processFrame(const std::vector<std::uint8_t>& frame)
             std::lock_guard<std::mutex> lock(m_stateMutex);
             if (data2 == 0x21U) {
                 // Flip 180 deg
-                m_state.panCentidegrees = static_cast<std::uint16_t>((m_state.panCentidegrees + 18000U) % 36000U);
+                if (m_kinematics.getConfig().enabled) {
+                    m_kinematics.update(std::chrono::steady_clock::now());
+                    const double newPan = std::fmod(m_kinematics.currentPanDeg() + 180.0, 360.0);
+                    m_kinematics.slewTo(newPan, m_kinematics.currentTiltDeg());
+                } else {
+                    m_state.panCentidegrees = static_cast<std::uint16_t>((m_state.panCentidegrees + 18000U) % 36000U);
+                    m_kinematics.setPositionImmediate(
+                        m_state.panCentidegrees / 100.0, m_kinematics.currentTiltDeg(), m_kinematics.currentZoom());
+                }
             } else if (data2 == 0x22U) {
                 // Go to zero pan
-                m_state.panCentidegrees = 0U;
+                if (m_kinematics.getConfig().enabled) {
+                    m_kinematics.update(std::chrono::steady_clock::now());
+                    m_kinematics.slewTo(0.0, m_kinematics.currentTiltDeg());
+                } else {
+                    m_state.panCentidegrees = 0U;
+                    m_kinematics.setPositionImmediate(0.0, m_kinematics.currentTiltDeg(), m_kinematics.currentZoom());
+                }
             } else {
                 const auto it = m_state.presets.find(data2);
                 if (it != m_state.presets.end()) {
-                    m_state.panCentidegrees = it->second.pan;
-                    m_state.tiltCentidegrees = it->second.tilt;
-                    m_state.zoomPosition = it->second.zoom;
+                    if (m_kinematics.getConfig().enabled) {
+                        m_kinematics.slewTo(it->second.pan / 100.0, it->second.tilt / 100.0);
+                        m_kinematics.slewZoomTo(it->second.zoom);
+                    } else {
+                        m_state.panCentidegrees = it->second.pan;
+                        m_state.tiltCentidegrees = it->second.tilt;
+                        m_state.zoomPosition = it->second.zoom;
+                        m_kinematics.setPositionImmediate(
+                            it->second.pan / 100.0, it->second.tilt / 100.0, static_cast<double>(it->second.zoom));
+                    }
                 }
             }
         }
@@ -231,6 +330,12 @@ void MockPelcoDDevice::processFrame(const std::vector<std::uint8_t>& frame)
             std::lock_guard<std::mutex> lock(m_stateMutex);
             const std::uint16_t pan = static_cast<std::uint16_t>((data1 << 8U) | data2);
             m_state.panCentidegrees = static_cast<std::uint16_t>(pan % 36000U);
+            if (m_kinematics.getConfig().enabled) {
+                m_kinematics.slewTo(m_state.panCentidegrees / 100.0, m_kinematics.currentTiltDeg());
+            } else {
+                m_kinematics.setPositionImmediate(
+                    m_state.panCentidegrees / 100.0, m_kinematics.currentTiltDeg(), m_kinematics.currentZoom());
+            }
         }
         sendGeneralReply(cksm);
         break;
@@ -241,6 +346,12 @@ void MockPelcoDDevice::processFrame(const std::vector<std::uint8_t>& frame)
             std::lock_guard<std::mutex> lock(m_stateMutex);
             const std::uint16_t tilt = static_cast<std::uint16_t>((data1 << 8U) | data2);
             m_state.tiltCentidegrees = static_cast<std::uint16_t>(tilt % 36000U);
+            if (m_kinematics.getConfig().enabled) {
+                m_kinematics.slewTo(m_kinematics.currentPanDeg(), m_state.tiltCentidegrees / 100.0);
+            } else {
+                m_kinematics.setPositionImmediate(
+                    m_kinematics.currentPanDeg(), m_state.tiltCentidegrees / 100.0, m_kinematics.currentZoom());
+            }
         }
         sendGeneralReply(cksm);
         break;
@@ -249,7 +360,14 @@ void MockPelcoDDevice::processFrame(const std::vector<std::uint8_t>& frame)
     case CommandOpcode::SetZoomPosition: {
         {
             std::lock_guard<std::mutex> lock(m_stateMutex);
-            m_state.zoomPosition = static_cast<std::uint16_t>((data1 << 8U) | data2);
+            const std::uint16_t zoom = static_cast<std::uint16_t>((data1 << 8U) | data2);
+            m_state.zoomPosition = zoom;
+            if (m_kinematics.getConfig().enabled) {
+                m_kinematics.slewZoomTo(zoom);
+            } else {
+                m_kinematics.setPositionImmediate(
+                    m_kinematics.currentPanDeg(), m_kinematics.currentTiltDeg(), static_cast<double>(zoom));
+            }
         }
         sendGeneralReply(cksm);
         break;
@@ -259,6 +377,7 @@ void MockPelcoDDevice::processFrame(const std::vector<std::uint8_t>& frame)
         {
             std::lock_guard<std::mutex> lock(m_stateMutex);
             m_state.panCentidegrees = 0U;
+            m_kinematics.setPositionImmediate(0.0, m_kinematics.currentTiltDeg(), m_kinematics.currentZoom());
         }
         sendExtendedReply(0x00U, static_cast<std::uint8_t>(ResponseOpcode::StandardExtended),
             static_cast<std::uint8_t>(CommandOpcode::SetZeroPosition), 0x01U);
@@ -303,7 +422,13 @@ void MockPelcoDDevice::processFrame(const std::vector<std::uint8_t>& frame)
         std::uint16_t pan { 0U };
         {
             std::lock_guard<std::mutex> lock(m_stateMutex);
-            pan = m_state.panCentidegrees;
+            if (m_kinematics.getConfig().enabled) {
+                m_kinematics.update(std::chrono::steady_clock::now());
+                pan = m_kinematics.currentPanCentidegrees();
+                m_state.panCentidegrees = pan;
+            } else {
+                pan = m_state.panCentidegrees;
+            }
         }
         const std::uint8_t msb = static_cast<std::uint8_t>((pan >> 8U) & 0xFFU);
         const std::uint8_t lsb = static_cast<std::uint8_t>(pan & 0xFFU);
@@ -315,7 +440,13 @@ void MockPelcoDDevice::processFrame(const std::vector<std::uint8_t>& frame)
         std::uint16_t tilt { 0U };
         {
             std::lock_guard<std::mutex> lock(m_stateMutex);
-            tilt = m_state.tiltCentidegrees;
+            if (m_kinematics.getConfig().enabled) {
+                m_kinematics.update(std::chrono::steady_clock::now());
+                tilt = m_kinematics.currentTiltCentidegrees();
+                m_state.tiltCentidegrees = tilt;
+            } else {
+                tilt = m_state.tiltCentidegrees;
+            }
         }
         const std::uint8_t msb = static_cast<std::uint8_t>((tilt >> 8U) & 0xFFU);
         const std::uint8_t lsb = static_cast<std::uint8_t>(tilt & 0xFFU);
@@ -327,7 +458,13 @@ void MockPelcoDDevice::processFrame(const std::vector<std::uint8_t>& frame)
         std::uint16_t zoom { 0U };
         {
             std::lock_guard<std::mutex> lock(m_stateMutex);
-            zoom = m_state.zoomPosition;
+            if (m_kinematics.getConfig().enabled) {
+                m_kinematics.update(std::chrono::steady_clock::now());
+                zoom = m_kinematics.currentZoomInt();
+                m_state.zoomPosition = zoom;
+            } else {
+                zoom = m_state.zoomPosition;
+            }
         }
         const std::uint8_t msb = static_cast<std::uint8_t>((zoom >> 8U) & 0xFFU);
         const std::uint8_t lsb = static_cast<std::uint8_t>(zoom & 0xFFU);
@@ -369,7 +506,7 @@ void MockPelcoDDevice::sendGeneralReply([[maybe_unused]] std::uint8_t cmdChecksu
     // 4-byte General Response: [0xFF, addr, alarms, cksm]
     // Standard Pelco-D checksum = (addr + alarms) % 256
     const std::uint8_t replyCksm = static_cast<std::uint8_t>((m_address + alarms) & 0xFFU);
-    const std::vector<std::uint8_t> response { PelcoDFrame::SyncByte, m_address, alarms, replyCksm };
+    std::vector<std::uint8_t> response { PelcoDFrame::SyncByte, m_address, alarms, replyCksm };
 
     DataReceivedCallback cb;
     {
@@ -377,13 +514,13 @@ void MockPelcoDDevice::sendGeneralReply([[maybe_unused]] std::uint8_t cmdChecksu
         cb = m_dataCallback;
     }
     if (cb) {
-        cb(response);
+        m_latency.enqueue(std::move(response), std::move(cb));
     }
 }
 
 void MockPelcoDDevice::sendExtendedReply(std::uint8_t resp1, std::uint8_t resp2, std::uint8_t d1, std::uint8_t d2)
 {
-    const std::vector<std::uint8_t> response = PelcoDFrame::createFrame(m_address, resp1, resp2, d1, d2);
+    std::vector<std::uint8_t> response = PelcoDFrame::createFrame(m_address, resp1, resp2, d1, d2);
 
     DataReceivedCallback cb;
     {
@@ -391,7 +528,7 @@ void MockPelcoDDevice::sendExtendedReply(std::uint8_t resp1, std::uint8_t resp2,
         cb = m_dataCallback;
     }
     if (cb) {
-        cb(response);
+        m_latency.enqueue(std::move(response), std::move(cb));
     }
 }
 
@@ -421,7 +558,7 @@ void MockPelcoDDevice::sendQueryReply([[maybe_unused]] std::uint8_t cmdChecksum)
         cb = m_dataCallback;
     }
     if (cb) {
-        cb(response);
+        m_latency.enqueue(std::move(response), std::move(cb));
     }
 }
 
@@ -433,7 +570,7 @@ void MockPelcoDDevice::injectRxData(const std::vector<std::uint8_t>& data)
         cb = m_dataCallback;
     }
     if (cb) {
-        cb(data);
+        m_latency.enqueue(data, std::move(cb));
     }
 }
 

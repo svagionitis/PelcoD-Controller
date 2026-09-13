@@ -8,6 +8,7 @@
 #include "TcpTransport.h"
 #include "UdpTransport.h"
 #include "dialogs/BusScanDialog.h"
+#include "dialogs/MockDynamicsDialog.h"
 
 #include <QCheckBox>
 #include <QCollator>
@@ -62,9 +63,13 @@ void ConnectionWidget::setupUi()
     pageMock = new QWidget(this);
     auto* mockLayout = new QHBoxLayout(pageMock);
     mockLayout->setContentsMargins(0, 0, 0, 0);
+    mockLayout->setSpacing(8);
     auto* lblMockDesc = new QLabel(tr("Simulating virtual Pelco-D device"), pageMock);
     lblMockDesc->setStyleSheet("color: #7ee787; font-style: italic;");
+    btnMockDynamics = new QPushButton(tr("⚙ Dynamics..."), pageMock);
+    btnMockDynamics->setToolTip(tr("Configure simulated PTZ physical kinematics, link latency, and packet loss"));
     mockLayout->addWidget(lblMockDesc);
+    mockLayout->addWidget(btnMockDynamics);
     mockLayout->addStretch();
     stackedConfig->addWidget(pageMock);
 
@@ -210,6 +215,7 @@ void ConnectionWidget::setupUi()
     connect(cmbMode, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &ConnectionWidget::handleModeChanged);
     connect(btnRefreshPorts, &QPushButton::clicked, this, &ConnectionWidget::refreshSerialPorts);
     connect(btnScanBus, &QPushButton::clicked, this, &ConnectionWidget::handleScanBus);
+    connect(btnMockDynamics, &QPushButton::clicked, this, &ConnectionWidget::handleConfigureDynamics);
     connect(btnConnect, &QPushButton::clicked, this, &ConnectionWidget::handleConnectClicked);
 }
 
@@ -288,7 +294,10 @@ std::shared_ptr<PelcoD::ITransport> ConnectionWidget::createConfiguredTransport(
 
     if (mode == 0) {
         // Mock Simulator
-        return std::make_shared<PelcoD::MockPelcoDDevice>(address);
+        auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(address);
+        mock->setKinematicsConfig(m_mockKinematicsConfig);
+        mock->setLatencyConfig(m_mockLatencyConfig);
+        return mock;
     }
     if (mode == 1) {
         // Serial Port
@@ -314,6 +323,18 @@ std::shared_ptr<PelcoD::ITransport> ConnectionWidget::createConfiguredTransport(
             host.toStdString(), static_cast<std::uint16_t>(port), static_cast<std::uint16_t>(localPort));
     }
     return nullptr;
+}
+
+void ConnectionWidget::handleConfigureDynamics()
+{
+    MockDynamicsDialog dialog(this);
+    dialog.setKinematicsConfig(m_mockKinematicsConfig);
+    dialog.setLatencyConfig(m_mockLatencyConfig);
+
+    if (dialog.exec() == QDialog::Accepted) {
+        m_mockKinematicsConfig = dialog.kinematicsConfig();
+        m_mockLatencyConfig = dialog.latencyConfig();
+    }
 }
 
 void ConnectionWidget::handleScanBus()

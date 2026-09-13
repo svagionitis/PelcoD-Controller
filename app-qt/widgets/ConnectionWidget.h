@@ -4,6 +4,8 @@
 /// @brief UI widget for configuring and initiating Pelco-D device transport connections.
 
 #include "ITransport.h"
+#include "KinematicsSimulator.h"
+#include "LatencyPipeline.h"
 
 #include <QCheckBox>
 #include <QComboBox>
@@ -71,6 +73,7 @@ private slots:
     void handleConnectClicked();
     void handleModeChanged(int index);
     void handleScanBus();
+    void handleConfigureDynamics();
     void onReconnectTimerTimeout();
 
 private:
@@ -101,6 +104,9 @@ private:
 
     // Mock widgets
     QWidget* pageMock { nullptr };
+    QPushButton* btnMockDynamics { nullptr };
+    PelcoD::KinematicsConfig m_mockKinematicsConfig {};
+    PelcoD::LatencyConfig m_mockLatencyConfig {};
 
     // Common
     QSpinBox* spinAddress { nullptr };

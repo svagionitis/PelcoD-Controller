@@ -54,16 +54,24 @@ bool ConnectionModal::hasPendingConnect() noexcept
 std::shared_ptr<PelcoD::ITransport> ConnectionModal::createTransport() const
 {
     switch (m_config.type) {
-    case TransportType::Mock:
-        return std::make_shared<PelcoD::MockPelcoDDevice>(m_config.address);
+    case TransportType::Mock: {
+        auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(m_config.address);
+        mock->setKinematicsConfig(m_config.kinematicsConfig);
+        mock->setLatencyConfig(m_config.latencyConfig);
+        return mock;
+    }
     case TransportType::Tcp:
         return std::make_shared<PelcoD::TcpTransport>(m_config.tcpHost, m_config.tcpPort);
     case TransportType::Udp:
         return std::make_shared<PelcoD::UdpTransport>(m_config.udpHost, m_config.udpPort, m_config.udpLocalPort);
     case TransportType::Serial:
         return std::make_shared<PelcoD::SerialTransport>(m_config.serialPort, m_config.serialBaud);
-    default:
-        return std::make_shared<PelcoD::MockPelcoDDevice>(m_config.address);
+    default: {
+        auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(m_config.address);
+        mock->setKinematicsConfig(m_config.kinematicsConfig);
+        mock->setLatencyConfig(m_config.latencyConfig);
+        return mock;
+    }
     }
 }
 

@@ -4,6 +4,8 @@
 /// @brief In-memory Pelco-D device emulator implementing ITransport for offline simulation.
 
 #include "ITransport.h"
+#include "KinematicsSimulator.h"
+#include "LatencyPipeline.h"
 #include "PelcoDTypes.h"
 
 #include <array>
@@ -70,6 +72,26 @@ public:
     [[nodiscard]] MockDeviceState getInternalState() const;
     void setInternalState(const MockDeviceState& state);
 
+    /// @brief Update PTZ kinematics simulation parameters.
+    /// @param[in] config Kinematics settings.
+    void setKinematicsConfig(const KinematicsConfig& config);
+
+    /// @brief Retrieve current PTZ kinematics simulation parameters.
+    /// @return Active KinematicsConfig.
+    [[nodiscard]] KinematicsConfig getKinematicsConfig() const;
+
+    /// @brief Update link delay, jitter, and packet loss parameters.
+    /// @param[in] config Latency settings.
+    void setLatencyConfig(const LatencyConfig& config);
+
+    /// @brief Retrieve current latency configuration.
+    /// @return Active LatencyConfig.
+    [[nodiscard]] LatencyConfig getLatencyConfig() const;
+
+    /// @brief Check if camera head or lens is actively slewing or moving.
+    /// @return true if non-zero velocity or slewing in progress.
+    [[nodiscard]] bool isMoving() const;
+
     // ITransport interface
     [[nodiscard]] bool open() override;
     void close() override;
@@ -92,11 +114,14 @@ private:
     std::atomic<bool> m_open { false };
 
     mutable std::mutex m_stateMutex;
-    MockDeviceState m_state {};
+    mutable MockDeviceState m_state {};
 
     mutable std::mutex m_callbackMutex;
     DataReceivedCallback m_dataCallback;
     StateChangedCallback m_stateCallback;
+
+    mutable KinematicsSimulator m_kinematics;
+    LatencyPipeline m_latency;
 };
 
 } // namespace PelcoD
