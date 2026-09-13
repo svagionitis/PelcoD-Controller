@@ -21,6 +21,7 @@ add_pelco_test(TestMockDevice TestMockDevice.cpp)
 add_pelco_test(TestTcpTransportTimeout TestTcpTransportTimeout.cpp)
 add_pelco_test(TestProtocolCompleteness TestProtocolCompleteness.cpp)
 add_pelco_test(TestSerialTransport TestSerialTransport.cpp)
+add_pelco_test(TestUdpTransport TestUdpTransport.cpp)
 
 add_executable(TestConnectionModal
     TestConnectionModal.cpp
@@ -104,4 +105,8 @@ add_test(NAME TestTuiUnknownOption COMMAND PelcoDAppTui --unknown-flag)
 set_tests_properties(TestTuiUnknownOption PROPERTIES WILL_FAIL TRUE)
 add_test(NAME TestTuiMissingArg COMMAND PelcoDAppTui --tcp)
 set_tests_properties(TestTuiMissingArg PROPERTIES WILL_FAIL TRUE)
+add_test(NAME TestTuiInvalidUdpPort COMMAND PelcoDAppTui --udp 127.0.0.1:99999)
+set_tests_properties(TestTuiInvalidUdpPort PROPERTIES WILL_FAIL TRUE)
+add_test(NAME TestTuiMissingUdpArg COMMAND PelcoDAppTui --udp)
+set_tests_properties(TestTuiMissingUdpArg PROPERTIES WILL_FAIL TRUE)
 

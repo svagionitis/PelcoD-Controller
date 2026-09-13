@@ -11,6 +11,8 @@ add_library(PelcoDCore STATIC
     SerialTransport.cpp
     TcpTransport.h
     TcpTransport.cpp
+    UdpTransport.h
+    UdpTransport.cpp
     MockPelcoDDevice.h
     MockPelcoDDevice.cpp
     ProtocolBuilder.h

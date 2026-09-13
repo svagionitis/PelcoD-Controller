@@ -6,6 +6,7 @@
 #include "MockPelcoDDevice.h"
 #include "SerialTransport.h"
 #include "TcpTransport.h"
+#include "UdpTransport.h"
 
 #include <QCheckBox>
 #include <QCollator>
@@ -27,6 +28,10 @@ namespace PelcoDApp {
 ConnectionWidget::ConnectionWidget(QWidget* parent)
     : QWidget(parent)
 {
+    m_reconnectTimer = new QTimer(this);
+    m_reconnectTimer->setSingleShot(true);
+    connect(m_reconnectTimer, &QTimer::timeout, this, &ConnectionWidget::onReconnectTimerTimeout);
+
     setupUi();
     refreshSerialPorts();
     updateLedState(false);
@@ -44,6 +49,7 @@ void ConnectionWidget::setupUi()
     cmbMode->addItem(tr("Mock Device (Offline)"), 0);
     cmbMode->addItem(tr("Serial Port (RS-485)"), 1);
     cmbMode->addItem(tr("TCP Socket Bridge"), 2);
+    cmbMode->addItem(tr("UDP/IP Datagram"), 3);
 
     mainLayout->addWidget(lblMode);
     mainLayout->addWidget(cmbMode);
@@ -108,6 +114,36 @@ void ConnectionWidget::setupUi()
     tcpLayout->addWidget(lblTcpPort);
     tcpLayout->addWidget(spinTcpPort);
     stackedConfig->addWidget(pageTcp);
+
+    // Page 3: UDP
+    pageUdp = new QWidget(this);
+    auto* udpLayout = new QHBoxLayout(pageUdp);
+    udpLayout->setContentsMargins(0, 0, 0, 0);
+    udpLayout->setSpacing(6);
+
+    auto* lblUdpHost = new QLabel(tr("Host:"), pageUdp);
+    editUdpHost = new QLineEdit("192.168.1.100", pageUdp);
+    editUdpHost->setFixedWidth(110);
+
+    auto* lblUdpPort = new QLabel(tr("Port:"), pageUdp);
+    spinUdpPort = new QSpinBox(pageUdp);
+    spinUdpPort->setRange(1, 65535);
+    spinUdpPort->setValue(4001);
+
+    auto* lblUdpLocalPort = new QLabel(tr("Local Port:"), pageUdp);
+    spinUdpLocalPort = new QSpinBox(pageUdp);
+    spinUdpLocalPort->setRange(0, 65535);
+    spinUdpLocalPort->setValue(0);
+    spinUdpLocalPort->setSpecialValueText(tr("Auto"));
+    spinUdpLocalPort->setToolTip(tr("Local UDP binding port (0 = OS dynamic allocation)"));
+
+    udpLayout->addWidget(lblUdpHost);
+    udpLayout->addWidget(editUdpHost);
+    udpLayout->addWidget(lblUdpPort);
+    udpLayout->addWidget(spinUdpPort);
+    udpLayout->addWidget(lblUdpLocalPort);
+    udpLayout->addWidget(spinUdpLocalPort);
+    stackedConfig->addWidget(pageUdp);
 
     mainLayout->addWidget(stackedConfig);
 
@@ -260,6 +296,13 @@ void ConnectionWidget::triggerConnect()
         const QString host = editTcpHost->text();
         const auto port = static_cast<quint16>(spinTcpPort->value());
         transport = std::make_shared<PelcoD::TcpTransport>(host.toStdString(), static_cast<std::uint16_t>(port));
+    } else if (mode == 3) {
+        // UDP Socket
+        const QString host = editUdpHost->text();
+        const auto port = static_cast<quint16>(spinUdpPort->value());
+        const auto localPort = static_cast<quint16>(spinUdpLocalPort->value());
+        transport = std::make_shared<PelcoD::UdpTransport>(
+            host.toStdString(), static_cast<std::uint16_t>(port), static_cast<std::uint16_t>(localPort));
     }
 
     if (transport) {

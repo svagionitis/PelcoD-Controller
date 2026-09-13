@@ -70,6 +70,62 @@ static void testTcpEditing()
     assert(modal.getConfig().tcpPort == 4001U);
 }
 
+static void testUdpEditing()
+{
+    ConnectionModal modal;
+    ConnectionConfig initialCfg;
+    initialCfg.type = TransportType::Udp;
+    initialCfg.udpHost = "127.0.0.1";
+    initialCfg.udpPort = 9000U;
+    initialCfg.address = 1U;
+
+    modal.setConfig(initialCfg);
+    modal.setOpen(true);
+    assert(modal.isOpen());
+
+    // Navigate to Field 2 (UDP Host)
+    InputEvent downEv { Key::Down, '\0', {} };
+    modal.handleInput(downEv); // to Field 1
+    modal.handleInput(downEv); // to Field 2 (UDP Host)
+
+    // Backspace to clear "0.1" from "127.0.0.1"
+    InputEvent bsEv { Key::Backspace, '\0', {} };
+    modal.handleInput(bsEv);
+    modal.handleInput(bsEv);
+    modal.handleInput(bsEv);
+
+    // Type "8.20"
+    modal.handleInput(InputEvent { Key::Character, '8', {} });
+    modal.handleInput(InputEvent { Key::Character, '.', {} });
+    modal.handleInput(InputEvent { Key::Character, '2', {} });
+    modal.handleInput(InputEvent { Key::Character, '0', {} });
+
+    assert(modal.getConfig().udpHost == "127.0.8.20");
+
+    // Navigate to Field 3 (UDP Port)
+    modal.handleInput(downEv);
+
+    // Clear port "9000"
+    for (int i = 0; i < 4; ++i) {
+        modal.handleInput(bsEv);
+    }
+
+    // Type "5005"
+    modal.handleInput(InputEvent { Key::Character, '5', {} });
+    modal.handleInput(InputEvent { Key::Character, '0', {} });
+    modal.handleInput(InputEvent { Key::Character, '0', {} });
+    modal.handleInput(InputEvent { Key::Character, '5', {} });
+
+    // Press Enter to submit
+    InputEvent enterEv { Key::Enter, '\0', {} };
+    modal.handleInput(enterEv);
+
+    assert(!modal.isOpen());
+    assert(modal.hasPendingConnect());
+    assert(modal.getConfig().udpHost == "127.0.8.20");
+    assert(modal.getConfig().udpPort == 5005U);
+}
+
 static void testSerialEditingAndHotkeys()
 {
     ConnectionModal modal;
@@ -179,6 +235,7 @@ int main()
 {
     std::cout << "[TestConnectionModal] Running tests..." << std::endl;
     testTcpEditing();
+    testUdpEditing();
     testSerialEditingAndHotkeys();
     testValidationAndRendering();
     testSerialPortCycling();

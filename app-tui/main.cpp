@@ -50,6 +50,7 @@ void printUsage(std::string_view progName)
               << "Options:\n"
               << "  --mock                      Start in standalone Mock simulator mode (default)\n"
               << "  --tcp <host:port>           Connect via TCP network socket (e.g. 192.168.1.100:4001)\n"
+              << "  --udp <host:port>           Connect via UDP network socket (e.g. 192.168.1.100:4001)\n"
               << "  --serial <port> [baud]      Connect via RS-485 serial port (e.g. /dev/ttyUSB0 9600)\n"
               << "  --address <id>              Set Pelco-D camera address 1–254 (default: 1)\n"
               << "  --help, -h                  Display this help message and exit\n\n"
@@ -128,6 +129,49 @@ void printUsage(std::string_view progName)
                 result.config.tcpPort = 9000U;
             }
             result.config.type = PelcoDTui::TransportType::Tcp;
+        } else if (arg == "--udp") {
+            if (i + 1 >= argc) {
+                result.status = ParseStatus::Error;
+                result.errorMessage = "Option '--udp' requires an argument: <host[:port]>";
+                return result;
+            }
+            const std::string_view endpoint = argv[++i];
+            const auto colonPos = endpoint.find(':');
+            if (colonPos != std::string_view::npos) {
+                const std::string_view host = endpoint.substr(0, colonPos);
+                const std::string_view portStr = endpoint.substr(colonPos + 1);
+
+                if (host.empty()) {
+                    result.status = ParseStatus::Error;
+                    result.errorMessage = "UDP endpoint is missing host address: '" + std::string(endpoint) + "'";
+                    return result;
+                }
+                if (portStr.empty()) {
+                    result.status = ParseStatus::Error;
+                    result.errorMessage = "UDP endpoint is missing port after colon: '" + std::string(endpoint) + "'";
+                    return result;
+                }
+
+                std::uint16_t port { 0U };
+                if (!parseInteger(portStr, port) || port == 0U) {
+                    result.status = ParseStatus::Error;
+                    result.errorMessage = "Invalid UDP port '" + std::string(portStr)
+                        + "': port must be an integer between 1 and 65535";
+                    return result;
+                }
+
+                result.config.udpHost = std::string(host);
+                result.config.udpPort = port;
+            } else {
+                if (endpoint.empty()) {
+                    result.status = ParseStatus::Error;
+                    result.errorMessage = "UDP endpoint host cannot be empty";
+                    return result;
+                }
+                result.config.udpHost = std::string(endpoint);
+                result.config.udpPort = 9000U;
+            }
+            result.config.type = PelcoDTui::TransportType::Udp;
         } else if (arg == "--serial") {
             if (i + 1 >= argc) {
                 result.status = ParseStatus::Error;

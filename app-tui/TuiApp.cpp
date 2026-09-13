@@ -38,6 +38,9 @@ void TuiApp::setupDevice(const ConnectionConfig& config)
     case TransportType::Tcp:
         m_transportName = "TCP " + config.tcpHost + ":" + std::to_string(config.tcpPort);
         break;
+    case TransportType::Udp:
+        m_transportName = "UDP " + config.udpHost + ":" + std::to_string(config.udpPort);
+        break;
     case TransportType::Serial:
         m_transportName = "Serial " + config.serialPort;
         break;

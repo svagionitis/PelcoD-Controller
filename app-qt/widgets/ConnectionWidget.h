@@ -90,6 +90,12 @@ private:
     QLineEdit* editTcpHost { nullptr };
     QSpinBox* spinTcpPort { nullptr };
 
+    // UDP widgets
+    QWidget* pageUdp { nullptr };
+    QLineEdit* editUdpHost { nullptr };
+    QSpinBox* spinUdpPort { nullptr };
+    QSpinBox* spinUdpLocalPort { nullptr };
+
     // Mock widgets
     QWidget* pageMock { nullptr };
 

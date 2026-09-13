@@ -3,6 +3,7 @@
 #include "MockPelcoDDevice.h"
 #include "SerialTransport.h"
 #include "TcpTransport.h"
+#include "UdpTransport.h"
 #include "UtfSymbols.h"
 
 #include <algorithm>
@@ -29,6 +30,7 @@ void ConnectionModal::setOpen(bool open) noexcept
             m_config.serialPort = m_detectedPorts.front();
         }
         m_tcpPortStr = std::to_string(m_config.tcpPort);
+        m_udpPortStr = std::to_string(m_config.udpPort);
         m_errorMessage.clear();
         resetCursor();
     }
@@ -38,6 +40,7 @@ void ConnectionModal::setConfig(const ConnectionConfig& config)
 {
     m_config = config;
     m_tcpPortStr = std::to_string(m_config.tcpPort);
+    m_udpPortStr = std::to_string(m_config.udpPort);
     resetCursor();
 }
 
@@ -55,6 +58,8 @@ std::shared_ptr<PelcoD::ITransport> ConnectionModal::createTransport() const
         return std::make_shared<PelcoD::MockPelcoDDevice>(m_config.address);
     case TransportType::Tcp:
         return std::make_shared<PelcoD::TcpTransport>(m_config.tcpHost, m_config.tcpPort);
+    case TransportType::Udp:
+        return std::make_shared<PelcoD::UdpTransport>(m_config.udpHost, m_config.udpPort, m_config.udpLocalPort);
     case TransportType::Serial:
         return std::make_shared<PelcoD::SerialTransport>(m_config.serialPort, m_config.serialBaud);
     default:
@@ -64,7 +69,7 @@ std::shared_ptr<PelcoD::ITransport> ConnectionModal::createTransport() const
 
 bool ConnectionModal::isTextEditingField() const noexcept
 {
-    if (m_config.type == TransportType::Tcp) {
+    if (m_config.type == TransportType::Tcp || m_config.type == TransportType::Udp) {
         return (m_selectedField == 2 || m_selectedField == 3);
     }
     if (m_config.type == TransportType::Serial) {
@@ -78,13 +83,21 @@ void ConnectionModal::resetCursor() noexcept
     if (m_selectedField == 2) {
         if (m_config.type == TransportType::Tcp) {
             m_cursorPos = static_cast<int>(m_config.tcpHost.size());
+        } else if (m_config.type == TransportType::Udp) {
+            m_cursorPos = static_cast<int>(m_config.udpHost.size());
         } else if (m_config.type == TransportType::Serial) {
             m_cursorPos = static_cast<int>(m_config.serialPort.size());
         } else {
             m_cursorPos = 0;
         }
-    } else if (m_selectedField == 3 && m_config.type == TransportType::Tcp) {
-        m_cursorPos = static_cast<int>(m_tcpPortStr.size());
+    } else if (m_selectedField == 3) {
+        if (m_config.type == TransportType::Tcp) {
+            m_cursorPos = static_cast<int>(m_tcpPortStr.size());
+        } else if (m_config.type == TransportType::Udp) {
+            m_cursorPos = static_cast<int>(m_udpPortStr.size());
+        } else {
+            m_cursorPos = 0;
+        }
     } else {
         m_cursorPos = 0;
     }
@@ -111,6 +124,25 @@ bool ConnectionModal::validateAndApply()
             return false;
         }
         m_config.tcpPort = portVal;
+    } else if (m_config.type == TransportType::Udp) {
+        if (m_config.udpHost.empty()) {
+            m_errorMessage = "Error: UDP Host/IP address cannot be empty";
+            return false;
+        }
+        if (m_udpPortStr.empty()) {
+            m_errorMessage = "Error: UDP Port cannot be empty";
+            return false;
+        }
+
+        std::uint16_t portVal { 0U };
+        const char* first = m_udpPortStr.data();
+        const char* last = m_udpPortStr.data() + m_udpPortStr.size();
+        auto [ptr, ec] = std::from_chars(first, last, portVal);
+        if (ec != std::errc {} || ptr != last || portVal == 0U) {
+            m_errorMessage = "Error: UDP Port must be between 1 and 65535";
+            return false;
+        }
+        m_config.udpPort = portVal;
     } else if (m_config.type == TransportType::Serial) {
         if (m_config.serialPort.empty()) {
             m_errorMessage = "Error: Serial device path cannot be empty";
@@ -192,6 +224,9 @@ void ConnectionModal::render(Canvas& canvas, int screenWidth, int screenHeight)
     case TransportType::Tcp:
         modeStr = "< TCP NETWORK >   ";
         break;
+    case TransportType::Udp:
+        modeStr = "< UDP DATAGRAM >  ";
+        break;
     case TransportType::Serial:
         modeStr = "< SERIAL RS-485 > ";
         break;
@@ -215,6 +250,14 @@ void ConnectionModal::render(Canvas& canvas, int screenWidth, int screenHeight)
 
         canvas.drawString(contentX, curY, "4. TCP Port      : ", labelStyle);
         renderTextField(canvas, contentX + 20, curY, m_tcpPortStr, (m_selectedField == 3), textStyle, cursorStyle);
+        curY += 2;
+    } else if (m_config.type == TransportType::Udp) {
+        canvas.drawString(contentX, curY, "3. UDP Host/IP   : ", labelStyle);
+        renderTextField(canvas, contentX + 20, curY, m_config.udpHost, (m_selectedField == 2), textStyle, cursorStyle);
+        curY += 2;
+
+        canvas.drawString(contentX, curY, "4. UDP Port      : ", labelStyle);
+        renderTextField(canvas, contentX + 20, curY, m_udpPortStr, (m_selectedField == 3), textStyle, cursorStyle);
         curY += 2;
     } else if (m_config.type == TransportType::Serial) {
         canvas.drawString(contentX, curY, "3. Serial Device : ", labelStyle);
@@ -300,12 +343,26 @@ bool ConnectionModal::handleInput(const InputEvent& event)
 
         // Field 0: Transport mode
         if (m_selectedField == 0 && (isLeft || isRight)) {
-            if (m_config.type == TransportType::Mock) {
-                m_config.type = isLeft ? TransportType::Serial : TransportType::Tcp;
-            } else if (m_config.type == TransportType::Tcp) {
-                m_config.type = isLeft ? TransportType::Mock : TransportType::Serial;
+            if (isRight) {
+                if (m_config.type == TransportType::Mock) {
+                    m_config.type = TransportType::Tcp;
+                } else if (m_config.type == TransportType::Tcp) {
+                    m_config.type = TransportType::Udp;
+                } else if (m_config.type == TransportType::Udp) {
+                    m_config.type = TransportType::Serial;
+                } else {
+                    m_config.type = TransportType::Mock;
+                }
             } else {
-                m_config.type = isLeft ? TransportType::Tcp : TransportType::Mock;
+                if (m_config.type == TransportType::Mock) {
+                    m_config.type = TransportType::Serial;
+                } else if (m_config.type == TransportType::Serial) {
+                    m_config.type = TransportType::Udp;
+                } else if (m_config.type == TransportType::Udp) {
+                    m_config.type = TransportType::Tcp;
+                } else {
+                    m_config.type = TransportType::Mock;
+                }
             }
             if (m_config.type == TransportType::Serial && !m_detectedPorts.empty() && m_config.serialPort.empty()) {
                 m_config.serialPort = m_detectedPorts.front();
@@ -368,12 +425,19 @@ bool ConnectionModal::handleInput(const InputEvent& event)
     if (m_selectedField == 2) {
         if (m_config.type == TransportType::Tcp) {
             activeText = &m_config.tcpHost;
+        } else if (m_config.type == TransportType::Udp) {
+            activeText = &m_config.udpHost;
         } else if (m_config.type == TransportType::Serial) {
             activeText = &m_config.serialPort;
         }
-    } else if (m_selectedField == 3 && m_config.type == TransportType::Tcp) {
-        activeText = &m_tcpPortStr;
-        onlyDigits = true;
+    } else if (m_selectedField == 3) {
+        if (m_config.type == TransportType::Tcp) {
+            activeText = &m_tcpPortStr;
+            onlyDigits = true;
+        } else if (m_config.type == TransportType::Udp) {
+            activeText = &m_udpPortStr;
+            onlyDigits = true;
+        }
     }
 
     if (!activeText) {
