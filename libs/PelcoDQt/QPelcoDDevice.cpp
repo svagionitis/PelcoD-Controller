@@ -80,7 +80,7 @@ bool QPelcoDDevice::connectDevice()
     }
 
     const bool ok = m_device->start();
-    emit connectionStateChanged(ok);
+    QMetaObject::invokeMethod(this, [this, ok] { emit connectionStateChanged(ok); });
     return ok;
 }
 
@@ -99,13 +99,11 @@ void QPelcoDDevice::connectDeviceAsync()
     emit connectingStateChanged(true);
 
     m_connectThread = std::thread([this] {
-        const bool ok = connectDevice();
+        const bool ok = m_device ? m_device->start() : false;
         // Post result back to the Qt main thread.
         QMetaObject::invokeMethod(this, [this, ok] {
             emit connectingStateChanged(false);
-            if (!ok) {
-                emit connectionStateChanged(false);
-            }
+            emit connectionStateChanged(ok);
         });
     });
 }
