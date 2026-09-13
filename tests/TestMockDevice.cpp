@@ -141,6 +141,48 @@ private:
     StateChangedCallback m_stateCallback;
 };
 
+class FailingSendTransport final : public PelcoD::ITransport {
+public:
+    bool open() override
+    {
+        m_open = true;
+        return true;
+    }
+
+    void close() override
+    {
+        m_open = false;
+    }
+
+    [[nodiscard]] bool isOpen() const noexcept override
+    {
+        return m_open.load();
+    }
+
+    [[nodiscard]] bool sendData([[maybe_unused]] const std::vector<std::uint8_t>& data) override
+    {
+        return false;
+    }
+
+    void setDataCallback(DataReceivedCallback callback) override
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        m_dataCallback = std::move(callback);
+    }
+
+    void setStateCallback(StateChangedCallback callback) override
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        m_stateCallback = std::move(callback);
+    }
+
+private:
+    std::atomic<bool> m_open { false };
+    mutable std::mutex m_mutex;
+    DataReceivedCallback m_dataCallback;
+    StateChangedCallback m_stateCallback;
+};
+
 void testMockDeviceEndToEnd()
 {
     auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(1U);
@@ -687,6 +729,52 @@ void testConcurrentQueryTimeoutAndAddressUpdates()
     device.stop();
 }
 
+void testFailedSendDoesNotTriggerTxCallbackOrTimeoutWait()
+{
+    auto transport = std::make_shared<FailingSendTransport>();
+    PelcoD::PelcoDDevice device(transport, 1U);
+    device.setQueryTimeoutMs(500U);
+
+    std::atomic<int> txCount { 0 };
+    std::atomic<int> timeoutCount { 0 };
+
+    device.addTrafficCallback([&](bool isTx, const std::vector<std::uint8_t>&) {
+        if (isTx) {
+            txCount.fetch_add(1);
+        }
+    });
+
+    device.addTimeoutCallback([&](const std::string&) {
+        timeoutCount.fetch_add(1);
+    });
+
+    assert(device.start());
+    assert(device.isConnected());
+
+    // 1. Standard motion command (sendData returns false)
+    device.panLeft(0x20U);
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    assert(txCount.load() == 0);
+
+    // 2. Query command (sendData returns false)
+    const auto start = std::chrono::steady_clock::now();
+    device.queryPan();
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+    // Must not log TX traffic
+    assert(txCount.load() == 0);
+
+    // Must not block/stall waiting for 500ms timeout
+    const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
+        std::chrono::steady_clock::now() - start).count();
+    assert(elapsed < 400);
+
+    // Timeout callback must not be invoked for an unsent query
+    assert(timeoutCount.load() == 0);
+
+    device.stop();
+}
+
 int main()
 {
 #if defined(_MSC_VER)
@@ -708,6 +796,7 @@ int main()
     testQueryResponseCorrelation();
     testTransportCallbackDeregistration();
     testConcurrentQueryTimeoutAndAddressUpdates();
+    testFailedSendDoesNotTriggerTxCallbackOrTimeoutWait();
     std::cout << "[TestMockDevice] All tests passed successfully." << std::endl;
     return 0;
 }

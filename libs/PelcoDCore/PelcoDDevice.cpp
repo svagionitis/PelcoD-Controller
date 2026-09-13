@@ -611,27 +611,32 @@ void PelcoDDevice::workerLoop()
             const bool sendSuccess = m_transport->sendData(item.frame);
             if (!sendSuccess) {
                 LOG(WARNING) << "Failed to transmit frame across transport.";
-            }
-
-            // Dispatch TX traffic callbacks using copy-on-write snapshot (zero heap allocation)
-            std::shared_ptr<const std::vector<TrafficCallback>> tbs;
-            {
-                std::lock_guard<std::mutex> lock(m_callbackMutex);
-                tbs = m_trafficCallbacks;
-            }
-            for (const auto& cb : *tbs) {
-                if (cb) {
-                    cb(true, item.frame);
+                if (!item.queryTag.empty()) {
+                    std::lock_guard<std::mutex> lock(m_statusMutex);
+                    m_awaitingResponse = false;
+                    m_pendingQueryTag.clear();
                 }
-            }
-
-            if (!item.queryTag.empty()) {
+            } else {
+                // Dispatch TX traffic callbacks using copy-on-write snapshot (zero heap allocation)
+                std::shared_ptr<const std::vector<TrafficCallback>> tbs;
                 {
-                    std::unique_lock<std::mutex> lock(m_statusMutex);
-                    m_responseCv.wait_for(lock, std::chrono::milliseconds(m_queryTimeoutMs.load()),
-                        [this] { return !m_awaitingResponse.load() || !m_running; });
+                    std::lock_guard<std::mutex> lock(m_callbackMutex);
+                    tbs = m_trafficCallbacks;
                 }
-                checkQueryTimeout();
+                for (const auto& cb : *tbs) {
+                    if (cb) {
+                        cb(true, item.frame);
+                    }
+                }
+
+                if (!item.queryTag.empty()) {
+                    {
+                        std::unique_lock<std::mutex> lock(m_statusMutex);
+                        m_responseCv.wait_for(lock, std::chrono::milliseconds(m_queryTimeoutMs.load()),
+                            [this] { return !m_awaitingResponse.load() || !m_running; });
+                    }
+                    checkQueryTimeout();
+                }
             }
         }
 
