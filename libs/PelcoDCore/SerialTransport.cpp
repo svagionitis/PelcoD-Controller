@@ -357,6 +357,7 @@ void SerialTransport::setStateCallback(StateChangedCallback callback)
 void SerialTransport::readWorker()
 {
     std::vector<std::uint8_t> buffer(512U, 0x00U);
+    bool unrecoverableError { false };
 
 #ifdef _WIN32
     while (m_running.load()) {
@@ -379,7 +380,8 @@ void SerialTransport::readWorker()
                 std::this_thread::sleep_for(std::chrono::milliseconds(10));
             }
         } else {
-            if (m_running.load()) {
+            if (m_running.exchange(false)) {
+                unrecoverableError = true;
                 const std::string errStr = getWin32ErrorString(::GetLastError());
                 notifyState(TransportState::Error, "Serial read error: " + errStr);
             }
@@ -408,15 +410,33 @@ void SerialTransport::readWorker()
                     cb(chunk);
                 }
             } else if (bytesRead < 0 && (errno != EAGAIN && errno != EWOULDBLOCK)) {
-                notifyState(TransportState::Error, "Serial read error");
+                if (m_running.exchange(false)) {
+                    unrecoverableError = true;
+                    notifyState(TransportState::Error, "Serial read error");
+                }
                 break;
             }
         } else if (ret < 0 && errno != EINTR) {
-            notifyState(TransportState::Error, "Serial poll error");
+            if (m_running.exchange(false)) {
+                unrecoverableError = true;
+                notifyState(TransportState::Error, "Serial poll error");
+            }
             break;
         }
     }
 #endif
+
+    if (unrecoverableError) {
+        std::lock_guard<std::mutex> lock(m_writeMutex);
+        if (m_handle != INVALID_SERIAL_HANDLE) {
+#ifdef _WIN32
+            ::CloseHandle(m_handle);
+#else
+            ::close(m_handle);
+#endif
+            m_handle = INVALID_SERIAL_HANDLE;
+        }
+    }
 }
 
 void SerialTransport::notifyState(TransportState state, const std::string& errorMsg)

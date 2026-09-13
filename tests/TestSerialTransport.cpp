@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <cassert>
+#include <cstdlib>
 #include <iostream>
 #include <string>
 #include <vector>
@@ -84,12 +85,40 @@ static void testStandardBaudRates()
     std::cout << "  testStandardBaudRates: PASSED\n";
 }
 
+/// @brief Verify that unopened or closed serial transport consistently rejects sendData and reports closed.
+static void testSerialClosedStateRejection()
+{
+    PelcoD::SerialTransport transport("NON_EXISTENT_PORT_12345", 9600U);
+    assert(!transport.isOpen());
+
+    // sendData on closed transport must immediately return false
+    const std::vector<std::uint8_t> frame { 0xFF, 0x01, 0x00, 0x00, 0x00, 0x00, 0x01 };
+    assert(!transport.sendData(frame));
+
+    // open() to a non-existent port must return false
+    const bool opened = transport.open();
+    assert(!opened);
+    assert(!transport.isOpen());
+    assert(!transport.sendData(frame));
+
+    transport.close();
+    assert(!transport.isOpen());
+    assert(!transport.sendData(frame));
+
+    std::cout << "  testSerialClosedStateRejection: PASSED\n";
+}
+
 int main()
 {
+#if defined(_MSC_VER)
+    _set_abort_behavior(0, _WRITE_ABORT_MSG | _CALL_REPORTFAULT);
+#endif
+
     std::cout << "[TestSerialTransport] Running...\n";
     testEnumeratePorts();
     testTransportAccessors();
     testStandardBaudRates();
+    testSerialClosedStateRejection();
     std::cout << "[TestSerialTransport] All tests passed.\n";
     return 0;
 }

@@ -362,6 +362,7 @@ void TcpTransport::setStateCallback(StateChangedCallback callback)
 void TcpTransport::readWorker()
 {
     std::vector<std::uint8_t> buffer(2048U, 0x00U);
+    bool unrecoverableError { false };
 
     while (m_running.load()) {
 #ifdef _WIN32
@@ -376,7 +377,7 @@ void TcpTransport::readWorker()
         const int ret = POLL_SOCKET(&pfd, 1, 50);
 #endif
 
-        if (ret > 0 && (pfd.revents & POLLIN)) {
+        if (ret > 0 && (pfd.revents & (POLLIN | POLLHUP | POLLERR))) {
 #ifdef _WIN32
             const int bytesRead
                 = ::recv(m_sockfd, reinterpret_cast<char*>(buffer.data()), static_cast<int>(buffer.size()), 0);
@@ -395,17 +396,27 @@ void TcpTransport::readWorker()
                 if (cb) {
                     cb(chunk);
                 }
-            } else if (bytesRead == 0) {
-                if (m_running.load()) {
+            } else if (bytesRead == 0 || (pfd.revents & POLLHUP)) {
+                if (m_running.exchange(false)) {
+                    unrecoverableError = true;
                     notifyState(TransportState::Disconnected, "Remote host closed connection");
                 }
                 break;
             } else if (!IS_WOULDBLOCK()) {
-                if (m_running.load()) {
+                if (m_running.exchange(false)) {
+                    unrecoverableError = true;
                     notifyState(TransportState::Error, "Socket read error: " + getSocketErrorString());
                 }
                 break;
             }
+        }
+    }
+
+    if (unrecoverableError) {
+        std::lock_guard<std::mutex> lock(m_writeMutex);
+        if (m_sockfd != InvalidSocket) {
+            CLOSE_SOCKET(m_sockfd);
+            m_sockfd = InvalidSocket;
         }
     }
 }

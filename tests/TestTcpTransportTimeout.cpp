@@ -4,10 +4,36 @@
 
 #include "TcpTransport.h"
 
+#include <atomic>
 #include <cassert>
 #include <chrono>
 #include <cstdint>
+#include <cstdlib>
 #include <iostream>
+#include <thread>
+
+#if defined(_MSC_VER)
+#include <crtdbg.h>
+#endif
+
+#ifdef _WIN32
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#include <windows.h>
+#include <winsock2.h>
+#include <ws2tcpip.h>
+#define TEST_CLOSE_SOCKET(s) ::closesocket(s)
+using TestSocket = SOCKET;
+#else
+#include <arpa/inet.h>
+#include <netinet/in.h>
+#include <sys/socket.h>
+#include <unistd.h>
+#define TEST_CLOSE_SOCKET(s) ::close(s)
+using TestSocket = int;
+constexpr TestSocket INVALID_SOCKET = -1;
+#endif
 
 /// @brief open() to an unreachable address must complete within timeout + margin.
 static void testConnectTimesOutFast()
@@ -70,12 +96,100 @@ static void testDnsFailureFast()
     std::cout << "  testDnsFailureFast: elapsed=" << elapsed.count() << "ms — PASSED\n";
 }
 
+/// @brief Remote socket closure must cause isOpen() to become false and fail subsequent writes.
+static void testTcpRemoteClosureReportsClosed()
+{
+#ifdef _WIN32
+    WSADATA wsaData {};
+    ::WSAStartup(MAKEWORD(2, 2), &wsaData);
+#endif
+
+    const TestSocket listenSock = ::socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+    assert(listenSock != INVALID_SOCKET);
+
+    sockaddr_in serverAddr {};
+    serverAddr.sin_family = AF_INET;
+    serverAddr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+    serverAddr.sin_port = htons(0); // Ephemeral port
+
+    const int bindRet = ::bind(listenSock, reinterpret_cast<sockaddr*>(&serverAddr), sizeof(serverAddr));
+    assert(bindRet == 0);
+
+    const int listenRet = ::listen(listenSock, 1);
+    assert(listenRet == 0);
+
+    sockaddr_in boundAddr {};
+    socklen_t addrLen = sizeof(boundAddr);
+    ::getsockname(listenSock, reinterpret_cast<sockaddr*>(&boundAddr), &addrLen);
+    const std::uint16_t port = ntohs(boundAddr.sin_port);
+
+    std::atomic<TestSocket> acceptedClient { INVALID_SOCKET };
+    std::thread serverThread([listenSock, &acceptedClient]() {
+        sockaddr_in clientAddr {};
+        socklen_t clientLen = sizeof(clientAddr);
+        const TestSocket client = ::accept(listenSock, reinterpret_cast<sockaddr*>(&clientAddr), &clientLen);
+        acceptedClient.store(client);
+    });
+
+    PelcoD::TcpTransport transport("127.0.0.1", port);
+    transport.setConnectTimeout(3000);
+
+    std::atomic<bool> disconnectedNotified { false };
+    transport.setStateCallback([&](PelcoD::TransportState state, const std::string&) {
+        if (state == PelcoD::TransportState::Disconnected) {
+            disconnectedNotified.store(true);
+        }
+    });
+
+    const bool connected = transport.open();
+    assert(connected);
+    assert(transport.isOpen());
+
+    if (serverThread.joinable()) {
+        serverThread.join();
+    }
+    const TestSocket clientSock = acceptedClient.load();
+    assert(clientSock != INVALID_SOCKET);
+
+    // Abruptly close client and listener on server side to induce EOF on client transport
+    ::shutdown(clientSock, 2);
+    TEST_CLOSE_SOCKET(clientSock);
+    TEST_CLOSE_SOCKET(listenSock);
+
+    // Give time for transport readWorker to observe EOF
+    for (int attempt = 0; attempt < 100 && !disconnectedNotified.load(); ++attempt) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+
+    assert(disconnectedNotified.load() && "Transport must notify Disconnected upon remote closure");
+    assert(!transport.isOpen() && "isOpen() must be false after remote closure");
+    assert(!transport.sendData({ 0xFF, 0x01, 0x00, 0x00, 0x00, 0x00, 0x01 }) && "sendData() must fail when socket is dead");
+
+    transport.close();
+    assert(!transport.isOpen());
+
+#ifdef _WIN32
+    ::WSACleanup();
+#endif
+
+    std::cout << "  testTcpRemoteClosureReportsClosed: PASSED\n";
+}
+
 int main()
 {
+#if defined(_MSC_VER)
+    _set_abort_behavior(0, _WRITE_ABORT_MSG | _CALL_REPORTFAULT);
+    _CrtSetReportMode(_CRT_ASSERT, _CRTDBG_MODE_FILE | _CRTDBG_MODE_DEBUG);
+    _CrtSetReportFile(_CRT_ASSERT, _CRTDBG_FILE_STDERR);
+    _CrtSetReportMode(_CRT_ERROR, _CRTDBG_MODE_FILE | _CRTDBG_MODE_DEBUG);
+    _CrtSetReportFile(_CRT_ERROR, _CRTDBG_FILE_STDERR);
+#endif
+
     std::cout << "[TestTcpTransportTimeout] Running...\n";
     testConnectRefusedFast();
     testConnectTimesOutFast();
     testDnsFailureFast();
+    testTcpRemoteClosureReportsClosed();
     std::cout << "[TestTcpTransportTimeout] All tests passed.\n";
     return 0;
 }
