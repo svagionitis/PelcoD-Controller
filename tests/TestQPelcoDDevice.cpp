@@ -174,6 +174,55 @@ static void testAsyncConnectSignalsEmittedOnMainThread()
     }
 }
 
+static void testInvokeCore()
+{
+    // Scenario 1: Configured device executes member function and lambda
+    {
+        auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(1U);
+        PelcoDQt::QPelcoDDevice device(mock, 1U);
+        assert(device.connectDevice());
+
+        int txCount { 0 };
+        QObject::connect(&device, &PelcoDQt::QPelcoDDevice::trafficLogged,
+            [&](bool isTx, const QByteArray&, const QString&) {
+                if (isTx) {
+                    ++txCount;
+                }
+            });
+
+        // Test member function invocation via std::invoke
+        device.invokeCore(&PelcoD::PelcoDDevice::panRight, static_cast<std::uint8_t>(25));
+        for (int i = 0; i < 20 && txCount == 0; ++i) {
+            QCoreApplication::processEvents();
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        }
+        assert(txCount == 1);
+
+        // Test lambda execution via std::invoke
+        bool lambdaExecuted { false };
+        device.invokeCore([&](PelcoD::PelcoDDevice* dev) {
+            assert(dev != nullptr);
+            lambdaExecuted = true;
+        });
+        assert(lambdaExecuted);
+
+        device.disconnectDevice();
+    }
+
+    // Scenario 2: Unconfigured device safely ignores invocation without null pointer dereference
+    {
+        PelcoDQt::QPelcoDDevice unconfiguredDevice(nullptr);
+        bool calledOnNull { false };
+        unconfiguredDevice.invokeCore([&](PelcoD::PelcoDDevice*) {
+            calledOnNull = true;
+        });
+        assert(!calledOnNull);
+
+        // Member function pointer invocation on null device is also safe
+        unconfiguredDevice.invokeCore(&PelcoD::PelcoDDevice::stopMotion);
+    }
+}
+
 int main(int argc, char* argv[])
 {
     PelcoDTest::initTestHarness();
@@ -183,6 +232,7 @@ int main(int argc, char* argv[])
     std::cout << "[TestQPelcoDDevice] Running tests..." << std::endl;
     testNoDuplicateSignalsOnReconnection();
     testAsyncConnectSignalsEmittedOnMainThread();
+    testInvokeCore();
     std::cout << "[TestQPelcoDDevice] All tests passed successfully." << std::endl;
 
     return 0;

@@ -12,8 +12,10 @@
 #include <QObject>
 #include <QString>
 
+#include <functional>
 #include <memory>
 #include <thread>
+#include <utility>
 #include <vector>
 
 namespace PelcoDQt {
@@ -39,6 +41,15 @@ public:
     [[nodiscard]] PelcoD::DeviceStatus currentStatus() const;
     [[nodiscard]] PelcoD::DeviceInfo deviceInfo() const;
     [[nodiscard]] PelcoD::PelcoDDevice* coreDevice() const noexcept;
+
+    /// @brief Executes a callable or PelcoDDevice member function on the underlying core device if valid.
+    template <typename Func, typename... Args>
+    void invokeCore(Func&& func, Args&&... args)
+    {
+        if (m_device) {
+            std::invoke(std::forward<Func>(func), m_device.get(), std::forward<Args>(args)...);
+        }
+    }
 
     void setTelemetryPolling(bool enable, int intervalMs = 1000);
     void setQueryTimeoutMs(int timeoutMs);
