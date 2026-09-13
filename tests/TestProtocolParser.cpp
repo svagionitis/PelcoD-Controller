@@ -4,6 +4,7 @@
 #include "DeviceStatus.h"
 #include "PelcoDFrame.h"
 #include "ProtocolParser.h"
+#include "TestHelpers.h"
 
 #include <cassert>
 #include <iostream>
@@ -166,6 +167,7 @@ void testDescribeFrame()
 
 int main()
 {
+    PelcoDTest::initTestHarness();
     std::cout << "[TestProtocolParser] Running tests..." << std::endl;
     testParseGeneral();
     testParseExtended();

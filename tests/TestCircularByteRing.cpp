@@ -2,6 +2,7 @@
 /// @brief Unit and concurrent stress tests for SPSC lock-free CircularByteRing.
 
 #include "CircularByteRing.h"
+#include "TestHelpers.h"
 
 #include <atomic>
 #include <cassert>
@@ -119,6 +120,7 @@ void testConcurrentSPSC()
 
 int main()
 {
+    PelcoDTest::initTestHarness();
     std::cout << "[TestCircularByteRing] Running tests..." << std::endl;
     testBasicOperations();
     testWrapAround();

@@ -7,6 +7,7 @@
 #include "PelcoDTypes.h"
 #include "ProtocolBuilder.h"
 #include "ProtocolParser.h"
+#include "TestHelpers.h"
 
 #include <cassert>
 #include <cstdint>
@@ -146,6 +147,7 @@ static void testDiagnosticsResponseParsed()
 
 int main()
 {
+    PelcoDTest::initTestHarness();
     std::cout << "[TestProtocolCompleteness] Running...\n";
     testMagnificationResponseWired();
     testSetZeroPositionOpcode();

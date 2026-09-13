@@ -12,9 +12,7 @@
 #include <iostream>
 #include <thread>
 
-#if defined(_MSC_VER)
-#include <crtdbg.h>
-#endif
+#include "TestHelpers.h"
 
 #ifdef _WIN32
 #ifndef WIN32_LEAN_AND_MEAN
@@ -260,13 +258,7 @@ static void testConcurrentSendAndClose()
 
 int main()
 {
-#if defined(_MSC_VER)
-    _set_abort_behavior(0, _WRITE_ABORT_MSG | _CALL_REPORTFAULT);
-    _CrtSetReportMode(_CRT_ASSERT, _CRTDBG_MODE_FILE | _CRTDBG_MODE_DEBUG);
-    _CrtSetReportFile(_CRT_ASSERT, _CRTDBG_FILE_STDERR);
-    _CrtSetReportMode(_CRT_ERROR, _CRTDBG_MODE_FILE | _CRTDBG_MODE_DEBUG);
-    _CrtSetReportFile(_CRT_ERROR, _CRTDBG_FILE_STDERR);
-#endif
+    PelcoDTest::initTestHarness();
 
     std::cout << "[TestTcpTransportTimeout] Running...\n";
     testConnectRefusedFast();

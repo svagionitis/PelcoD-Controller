@@ -2,6 +2,7 @@
 /// @brief Unit tests for Pelco-D frame checksum, creation, validation, and stream splitting.
 
 #include "PelcoDFrame.h"
+#include "TestHelpers.h"
 
 #include <cassert>
 #include <iostream>
@@ -214,6 +215,7 @@ void testFromHexString()
 
 int main()
 {
+    PelcoDTest::initTestHarness();
     std::cout << "[TestPelcoDFrame] Running tests..." << std::endl;
     testChecksumCalculation();
     testCreateFrame();

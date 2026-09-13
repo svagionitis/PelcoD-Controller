@@ -3,6 +3,7 @@
 
 #include "PelcoDFrame.h"
 #include "ProtocolBuilder.h"
+#include "TestHelpers.h"
 
 #include <cassert>
 #include <iostream>
@@ -100,6 +101,7 @@ void testQueries()
 
 int main()
 {
+    PelcoDTest::initTestHarness();
     std::cout << "[TestProtocolBuilder] Running tests..." << std::endl;
     testMotionCommands();
     testPresets();

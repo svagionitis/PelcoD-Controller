@@ -2,6 +2,7 @@
 /// @brief Unit tests for PelcoD::SerialTransport and port enumeration.
 
 #include "SerialTransport.h"
+#include "TestHelpers.h"
 
 #include <algorithm>
 #include <cassert>
@@ -110,9 +111,7 @@ static void testSerialClosedStateRejection()
 
 int main()
 {
-#if defined(_MSC_VER)
-    _set_abort_behavior(0, _WRITE_ABORT_MSG | _CALL_REPORTFAULT);
-#endif
+    PelcoDTest::initTestHarness();
 
     std::cout << "[TestSerialTransport] Running...\n";
     testEnumeratePorts();

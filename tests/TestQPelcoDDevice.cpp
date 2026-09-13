@@ -15,19 +15,9 @@
 #include <utility>
 #include <vector>
 
-#if defined(_MSC_VER)
-#include <crtdbg.h>
-#endif
+#include "TestHelpers.h"
 
-class FailingOpenTransport final : public PelcoD::ITransport {
-public:
-    bool open() override { return false; }
-    void close() override {}
-    [[nodiscard]] bool isOpen() const noexcept override { return false; }
-    [[nodiscard]] bool sendData([[maybe_unused]] const std::vector<std::uint8_t>& data) override { return false; }
-    void setDataCallback([[maybe_unused]] DataReceivedCallback callback) override {}
-    void setStateCallback([[maybe_unused]] StateChangedCallback callback) override {}
-};
+using namespace PelcoDTest;
 
 static void testNoDuplicateSignalsOnReconnection()
 {
@@ -186,13 +176,7 @@ static void testAsyncConnectSignalsEmittedOnMainThread()
 
 int main(int argc, char* argv[])
 {
-#if defined(_MSC_VER)
-    _set_abort_behavior(0, _WRITE_ABORT_MSG | _CALL_REPORTFAULT);
-    _CrtSetReportMode(_CRT_ASSERT, _CRTDBG_MODE_FILE | _CRTDBG_MODE_DEBUG);
-    _CrtSetReportFile(_CRT_ASSERT, _CRTDBG_FILE_STDERR);
-    _CrtSetReportMode(_CRT_ERROR, _CRTDBG_MODE_FILE | _CRTDBG_MODE_DEBUG);
-    _CrtSetReportFile(_CRT_ERROR, _CRTDBG_FILE_STDERR);
-#endif
+    PelcoDTest::initTestHarness();
 
     QCoreApplication app(argc, argv);
 
