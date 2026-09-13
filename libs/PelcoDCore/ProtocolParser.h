@@ -12,6 +12,16 @@
 
 namespace PelcoD {
 
+/// @enum ResponseClassification
+/// @brief High-level classification of an incoming Pelco-D response frame.
+enum class ResponseClassification {
+    Unknown,
+    General,
+    ExtendedTelemetry,
+    StandardExtendedAckNak,
+    QueryReply
+};
+
 /// @class ProtocolParser
 /// @brief Decodes Pelco-D 4-byte general, 7-byte extended, and 18-byte query responses.
 class ProtocolParser {
@@ -99,6 +109,20 @@ public:
     /// @param[in] frame Raw byte vector of the protocol frame.
     /// @return Formatted human-readable protocol description.
     [[nodiscard]] static std::string describeFrame(bool isTx, const std::vector<std::uint8_t>& frame);
+
+    /// @brief Classifies the type of an incoming response frame based on length and opcode.
+    /// @param[in] frame Raw response frame.
+    /// @return Category of the response frame.
+    [[nodiscard]] static ResponseClassification classifyResponse(
+        const std::vector<std::uint8_t>& frame) noexcept;
+
+    /// @brief Checks whether a received frame matches the expected query tag.
+    /// @param[in] queryTag Name of query (e.g. "QueryPan", "QueryTilt", "QueryZoom", "QueryMagnification",
+    ///                     "QueryDeviceType", "QueryDiagnostics", "QueryGeneral").
+    /// @param[in] frame Incoming response frame.
+    /// @return True if the frame satisfies the given query tag.
+    [[nodiscard]] static bool isResponseMatchingQuery(
+        const std::string& queryTag, const std::vector<std::uint8_t>& frame) noexcept;
 };
 
 } // namespace PelcoD

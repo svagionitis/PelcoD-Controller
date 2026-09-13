@@ -165,6 +165,93 @@ void testDescribeFrame()
     assert(ProtocolParser::describeFrame(false, diagFrame) == "Diagnostics Response: Temp=35°C Sensor=0x01");
 }
 
+void testResponseClassification()
+{
+    // General 4-byte response
+    const std::vector<std::uint8_t> genFrame { 0xFFU, 0x01U, 0x00U, 0x01U };
+    assert(PelcoD::ProtocolParser::classifyResponse(genFrame) == PelcoD::ResponseClassification::General);
+
+    // Standard Extended ACK/NAK (opcode 0x01)
+    const auto ackFrame = PelcoD::PelcoDFrame::createFrame(0x01U, 0x00U, 0x01U, 0x51U, 0x01U);
+    assert(PelcoD::ProtocolParser::classifyResponse(ackFrame) == PelcoD::ResponseClassification::StandardExtendedAckNak);
+
+    // Extended Telemetry (0x59, 0x5B, 0x5D, 0x63, 0x6D, 0x71)
+    const auto panFrame = PelcoD::PelcoDFrame::createFrame(0x01U, 0x00U, 0x59U, 0x10U, 0x20U);
+    assert(PelcoD::ProtocolParser::classifyResponse(panFrame) == PelcoD::ResponseClassification::ExtendedTelemetry);
+
+    const auto tiltFrame = PelcoD::PelcoDFrame::createFrame(0x01U, 0x00U, 0x5BU, 0x10U, 0x20U);
+    assert(PelcoD::ProtocolParser::classifyResponse(tiltFrame) == PelcoD::ResponseClassification::ExtendedTelemetry);
+
+    const auto zoomFrame = PelcoD::PelcoDFrame::createFrame(0x01U, 0x00U, 0x5DU, 0x10U, 0x20U);
+    assert(PelcoD::ProtocolParser::classifyResponse(zoomFrame) == PelcoD::ResponseClassification::ExtendedTelemetry);
+
+    const auto magFrame = PelcoD::PelcoDFrame::createFrame(0x01U, 0x00U, 0x63U, 0x10U, 0x20U);
+    assert(PelcoD::ProtocolParser::classifyResponse(magFrame) == PelcoD::ResponseClassification::ExtendedTelemetry);
+
+    const auto devFrame = PelcoD::PelcoDFrame::createFrame(0x01U, 0x00U, 0x6DU, 0x10U, 0x20U);
+    assert(PelcoD::ProtocolParser::classifyResponse(devFrame) == PelcoD::ResponseClassification::ExtendedTelemetry);
+
+    const auto diagFrame = PelcoD::PelcoDFrame::createFrame(0x01U, 0x00U, 0x71U, 0x10U, 0x20U);
+    assert(PelcoD::ProtocolParser::classifyResponse(diagFrame) == PelcoD::ResponseClassification::ExtendedTelemetry);
+
+    // 18-byte Query Response
+    std::vector<std::uint8_t> qFrame(18U, 0x00U);
+    qFrame[0] = 0xFFU;
+    assert(PelcoD::ProtocolParser::classifyResponse(qFrame) == PelcoD::ResponseClassification::QueryReply);
+
+    // Unknown cases
+    assert(PelcoD::ProtocolParser::classifyResponse({}) == PelcoD::ResponseClassification::Unknown);
+    const std::vector<std::uint8_t> badSync { 0xFEU, 0x01U, 0x00U, 0x01U };
+    assert(PelcoD::ProtocolParser::classifyResponse(badSync) == PelcoD::ResponseClassification::Unknown);
+
+    const auto unknownOp = PelcoD::PelcoDFrame::createFrame(0x01U, 0x00U, 0x99U, 0x00U, 0x00U);
+    assert(PelcoD::ProtocolParser::classifyResponse(unknownOp) == PelcoD::ResponseClassification::Unknown);
+}
+
+void testQueryMatching()
+{
+    const auto panFrame = PelcoD::PelcoDFrame::createFrame(0x01U, 0x00U, 0x59U, 0x10U, 0x20U);
+    const auto tiltFrame = PelcoD::PelcoDFrame::createFrame(0x01U, 0x00U, 0x5BU, 0x10U, 0x20U);
+    const auto zoomFrame = PelcoD::PelcoDFrame::createFrame(0x01U, 0x00U, 0x5DU, 0x10U, 0x20U);
+    const auto magFrame = PelcoD::PelcoDFrame::createFrame(0x01U, 0x00U, 0x63U, 0x10U, 0x20U);
+    const auto devFrame = PelcoD::PelcoDFrame::createFrame(0x01U, 0x00U, 0x6DU, 0x10U, 0x20U);
+    const auto diagFrame = PelcoD::PelcoDFrame::createFrame(0x01U, 0x00U, 0x71U, 0x10U, 0x20U);
+    std::vector<std::uint8_t> q18Frame(18U, 0x00U);
+    q18Frame[0] = 0xFFU;
+
+    // Exact tag matching
+    assert(PelcoD::ProtocolParser::isResponseMatchingQuery("QueryPan", panFrame));
+    assert(!PelcoD::ProtocolParser::isResponseMatchingQuery("QueryPan", tiltFrame));
+
+    assert(PelcoD::ProtocolParser::isResponseMatchingQuery("QueryTilt", tiltFrame));
+    assert(!PelcoD::ProtocolParser::isResponseMatchingQuery("QueryTilt", panFrame));
+
+    assert(PelcoD::ProtocolParser::isResponseMatchingQuery("QueryZoom", zoomFrame));
+    assert(!PelcoD::ProtocolParser::isResponseMatchingQuery("QueryZoom", panFrame));
+
+    assert(PelcoD::ProtocolParser::isResponseMatchingQuery("QueryMagnification", magFrame));
+    assert(!PelcoD::ProtocolParser::isResponseMatchingQuery("QueryMagnification", zoomFrame));
+
+    assert(PelcoD::ProtocolParser::isResponseMatchingQuery("QueryDeviceType", devFrame));
+    assert(!PelcoD::ProtocolParser::isResponseMatchingQuery("QueryDeviceType", magFrame));
+
+    assert(PelcoD::ProtocolParser::isResponseMatchingQuery("QueryDiagnostics", diagFrame));
+    assert(!PelcoD::ProtocolParser::isResponseMatchingQuery("QueryDiagnostics", devFrame));
+
+    assert(PelcoD::ProtocolParser::isResponseMatchingQuery("QueryGeneral", q18Frame));
+    assert(!PelcoD::ProtocolParser::isResponseMatchingQuery("QueryGeneral", panFrame));
+
+    // Fallback heuristic for generic queries
+    assert(PelcoD::ProtocolParser::isResponseMatchingQuery("GenericQuery", panFrame));
+    assert(PelcoD::ProtocolParser::isResponseMatchingQuery("GenericQuery", tiltFrame));
+    assert(PelcoD::ProtocolParser::isResponseMatchingQuery("GenericQuery", q18Frame));
+
+    // Non-matching frames and empty safety
+    const auto nonTelemetry = PelcoD::PelcoDFrame::createFrame(0x01U, 0x00U, 0x03U, 0x00U, 0x01U);
+    assert(!PelcoD::ProtocolParser::isResponseMatchingQuery("GenericQuery", nonTelemetry));
+    assert(!PelcoD::ProtocolParser::isResponseMatchingQuery("QueryPan", {}));
+}
+
 int main()
 {
     PelcoDTest::initTestHarness();
@@ -173,6 +260,8 @@ int main()
     testParseExtended();
     testParseQuery();
     testDescribeFrame();
+    testResponseClassification();
+    testQueryMatching();
     std::cout << "[TestProtocolParser] All tests passed successfully." << std::endl;
     return 0;
 }

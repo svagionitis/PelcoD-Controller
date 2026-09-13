@@ -343,4 +343,88 @@ std::string ProtocolParser::describeFrame(bool isTx, const std::vector<std::uint
     return "Raw Frame (" + std::to_string(frame.size()) + " bytes)";
 }
 
+ResponseClassification ProtocolParser::classifyResponse(const std::vector<std::uint8_t>& frame) noexcept
+{
+    if (frame.empty() || frame[0] != PelcoDFrame::SyncByte) {
+        return ResponseClassification::Unknown;
+    }
+
+    if (frame.size() == PelcoDFrame::GeneralResponseSize) {
+        return ResponseClassification::General;
+    }
+
+    if (frame.size() == PelcoDFrame::QueryResponseSize) {
+        return ResponseClassification::QueryReply;
+    }
+
+    if (frame.size() == PelcoDFrame::StandardFrameSize) {
+        const std::uint8_t op = frame[3];
+        if (op == static_cast<std::uint8_t>(ResponseOpcode::StandardExtended)) {
+            return ResponseClassification::StandardExtendedAckNak;
+        }
+        if (op == static_cast<std::uint8_t>(ResponseOpcode::QueryPan)
+            || op == static_cast<std::uint8_t>(ResponseOpcode::QueryTilt)
+            || op == static_cast<std::uint8_t>(ResponseOpcode::QueryZoom)
+            || op == static_cast<std::uint8_t>(ResponseOpcode::QueryMagnification)
+            || op == static_cast<std::uint8_t>(ResponseOpcode::QueryDeviceType)
+            || op == static_cast<std::uint8_t>(ResponseOpcode::QueryDiagnostics)) {
+            return ResponseClassification::ExtendedTelemetry;
+        }
+    }
+
+    return ResponseClassification::Unknown;
+}
+
+bool ProtocolParser::isResponseMatchingQuery(
+    const std::string& queryTag, const std::vector<std::uint8_t>& frame) noexcept
+{
+    if (frame.empty()) {
+        return false;
+    }
+
+    if (queryTag == "QueryPan") {
+        return frame.size() == PelcoDFrame::StandardFrameSize
+            && frame[3] == static_cast<std::uint8_t>(ResponseOpcode::QueryPan);
+    }
+    if (queryTag == "QueryTilt") {
+        return frame.size() == PelcoDFrame::StandardFrameSize
+            && frame[3] == static_cast<std::uint8_t>(ResponseOpcode::QueryTilt);
+    }
+    if (queryTag == "QueryZoom") {
+        return frame.size() == PelcoDFrame::StandardFrameSize
+            && frame[3] == static_cast<std::uint8_t>(ResponseOpcode::QueryZoom);
+    }
+    if (queryTag == "QueryMagnification") {
+        return frame.size() == PelcoDFrame::StandardFrameSize
+            && frame[3] == static_cast<std::uint8_t>(ResponseOpcode::QueryMagnification);
+    }
+    if (queryTag == "QueryDeviceType") {
+        return frame.size() == PelcoDFrame::StandardFrameSize
+            && frame[3] == static_cast<std::uint8_t>(ResponseOpcode::QueryDeviceType);
+    }
+    if (queryTag == "QueryDiagnostics") {
+        return frame.size() == PelcoDFrame::StandardFrameSize
+            && frame[3] == static_cast<std::uint8_t>(ResponseOpcode::QueryDiagnostics);
+    }
+    if (queryTag == "QueryGeneral") {
+        return frame.size() == PelcoDFrame::QueryResponseSize;
+    }
+
+    // Generic query fallback: any recognized standard query response opcode or 18-byte query response
+    if (frame.size() == PelcoDFrame::StandardFrameSize) {
+        const std::uint8_t op = frame[3];
+        return op == static_cast<std::uint8_t>(ResponseOpcode::QueryPan)
+            || op == static_cast<std::uint8_t>(ResponseOpcode::QueryTilt)
+            || op == static_cast<std::uint8_t>(ResponseOpcode::QueryZoom)
+            || op == static_cast<std::uint8_t>(ResponseOpcode::QueryMagnification)
+            || op == static_cast<std::uint8_t>(ResponseOpcode::QueryDeviceType)
+            || op == static_cast<std::uint8_t>(ResponseOpcode::QueryDiagnostics);
+    }
+    if (frame.size() == PelcoDFrame::QueryResponseSize) {
+        return true;
+    }
+
+    return false;
+}
+
 } // namespace PelcoD

@@ -751,53 +751,7 @@ void PelcoDDevice::rxLoop()
 bool PelcoDDevice::isResponseMatchingQuery(
     const std::string& queryTag, const std::vector<std::uint8_t>& frame) noexcept
 {
-    if (frame.empty()) {
-        return false;
-    }
-
-    if (queryTag == "QueryPan") {
-        return frame.size() == PelcoDFrame::StandardFrameSize
-            && frame[3] == static_cast<std::uint8_t>(ResponseOpcode::QueryPan);
-    }
-    if (queryTag == "QueryTilt") {
-        return frame.size() == PelcoDFrame::StandardFrameSize
-            && frame[3] == static_cast<std::uint8_t>(ResponseOpcode::QueryTilt);
-    }
-    if (queryTag == "QueryZoom") {
-        return frame.size() == PelcoDFrame::StandardFrameSize
-            && frame[3] == static_cast<std::uint8_t>(ResponseOpcode::QueryZoom);
-    }
-    if (queryTag == "QueryMagnification") {
-        return frame.size() == PelcoDFrame::StandardFrameSize
-            && frame[3] == static_cast<std::uint8_t>(ResponseOpcode::QueryMagnification);
-    }
-    if (queryTag == "QueryDeviceType") {
-        return frame.size() == PelcoDFrame::StandardFrameSize
-            && frame[3] == static_cast<std::uint8_t>(ResponseOpcode::QueryDeviceType);
-    }
-    if (queryTag == "QueryDiagnostics") {
-        return frame.size() == PelcoDFrame::StandardFrameSize
-            && frame[3] == static_cast<std::uint8_t>(ResponseOpcode::QueryDiagnostics);
-    }
-    if (queryTag == "QueryGeneral") {
-        return frame.size() == PelcoDFrame::QueryResponseSize;
-    }
-
-    // Generic query fallback: any recognized standard query response opcode or 18-byte query response
-    if (frame.size() == PelcoDFrame::StandardFrameSize) {
-        const std::uint8_t op = frame[3];
-        return op == static_cast<std::uint8_t>(ResponseOpcode::QueryPan)
-            || op == static_cast<std::uint8_t>(ResponseOpcode::QueryTilt)
-            || op == static_cast<std::uint8_t>(ResponseOpcode::QueryZoom)
-            || op == static_cast<std::uint8_t>(ResponseOpcode::QueryMagnification)
-            || op == static_cast<std::uint8_t>(ResponseOpcode::QueryDeviceType)
-            || op == static_cast<std::uint8_t>(ResponseOpcode::QueryDiagnostics);
-    }
-    if (frame.size() == PelcoDFrame::QueryResponseSize) {
-        return true;
-    }
-
-    return false;
+    return ProtocolParser::isResponseMatchingQuery(queryTag, frame);
 }
 
 void PelcoDDevice::dispatchFrame(const std::vector<std::uint8_t>& frame)
