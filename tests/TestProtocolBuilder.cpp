@@ -99,6 +99,150 @@ void testQueries()
     assert(PelcoD::PelcoDFrame::isValidFrame(qDev));
 }
 
+void testConfigurationAndSpeeds()
+{
+    // Zoom speed (max 3)
+    const auto zSpeed = PelcoD::ProtocolBuilder::buildZoomSpeed(1U, 2U);
+    assert(zSpeed[3] == 0x25U);
+    assert(zSpeed[5] == 0x02U);
+    assert(PelcoD::PelcoDFrame::isValidFrame(zSpeed));
+
+    // Focus speed (max 3)
+    const auto fSpeed = PelcoD::ProtocolBuilder::buildFocusSpeed(1U, 3U);
+    assert(fSpeed[3] == 0x27U);
+    assert(fSpeed[5] == 0x03U);
+    assert(PelcoD::PelcoDFrame::isValidFrame(fSpeed));
+
+    // Auto Focus
+    const auto autoF = PelcoD::ProtocolBuilder::buildAutoFocus(1U, PelcoD::AutoMode::Auto);
+    assert(autoF[3] == 0x2BU);
+    assert(autoF[5] == static_cast<std::uint8_t>(PelcoD::AutoMode::Auto));
+    assert(PelcoD::PelcoDFrame::isValidFrame(autoF));
+
+    // Auto Iris
+    const auto autoI = PelcoD::ProtocolBuilder::buildAutoIris(1U, PelcoD::AutoMode::On);
+    assert(autoI[3] == 0x2DU);
+    assert(autoI[5] == static_cast<std::uint8_t>(PelcoD::AutoMode::On));
+    assert(PelcoD::PelcoDFrame::isValidFrame(autoI));
+
+    // Agc
+    const auto agc = PelcoD::ProtocolBuilder::buildAgc(1U, PelcoD::AutoMode::Off);
+    assert(agc[3] == 0x2FU);
+    assert(agc[5] == static_cast<std::uint8_t>(PelcoD::AutoMode::Off));
+    assert(PelcoD::PelcoDFrame::isValidFrame(agc));
+
+    // Backlight compensation
+    const auto blc = PelcoD::ProtocolBuilder::buildBacklight(1U, PelcoD::SwitchState::On);
+    assert(blc[3] == 0x31U);
+    assert(blc[5] == 0x01U);
+    assert(PelcoD::PelcoDFrame::isValidFrame(blc));
+
+    // Auto white balance
+    const auto awb = PelcoD::ProtocolBuilder::buildWhiteBalance(1U, PelcoD::SwitchState::On);
+    assert(awb[3] == 0x33U);
+    assert(awb[5] == 0x01U);
+    assert(PelcoD::PelcoDFrame::isValidFrame(awb));
+
+    // Reset Defaults & Remote Reset
+    const auto rDef = PelcoD::ProtocolBuilder::buildResetDefaults(1U);
+    assert(rDef[3] == 0x29U);
+    assert(PelcoD::PelcoDFrame::isValidFrame(rDef));
+
+    const auto rRem = PelcoD::ProtocolBuilder::buildRemoteReset(1U);
+    assert(rRem[3] == 0x0FU);
+    assert(PelcoD::PelcoDFrame::isValidFrame(rRem));
+}
+
+void testPatternsAndZones()
+{
+    // Pattern Start, Stop, Run
+    const auto pStart = PelcoD::ProtocolBuilder::buildPatternStart(1U, 2U);
+    assert(pStart[3] == 0x1FU);
+    assert(pStart[5] == 0x02U);
+    assert(PelcoD::PelcoDFrame::isValidFrame(pStart));
+
+    const auto pStop = PelcoD::ProtocolBuilder::buildPatternStop(1U);
+    assert(pStop[3] == 0x21U);
+    assert(PelcoD::PelcoDFrame::isValidFrame(pStop));
+
+    const auto pRun = PelcoD::ProtocolBuilder::buildRunPattern(1U, 2U);
+    assert(pRun[3] == 0x23U);
+    assert(pRun[5] == 0x02U);
+    assert(PelcoD::PelcoDFrame::isValidFrame(pRun));
+
+    // Zone Start & End
+    const auto zStart = PelcoD::ProtocolBuilder::buildSetZoneStart(1U, 1U);
+    assert(zStart[3] == 0x11U);
+    assert(zStart[5] == 0x01U);
+    assert(PelcoD::PelcoDFrame::isValidFrame(zStart));
+
+    const auto zEnd = PelcoD::ProtocolBuilder::buildSetZoneEnd(1U, 1U);
+    assert(zEnd[3] == 0x13U);
+    assert(zEnd[5] == 0x01U);
+    assert(PelcoD::PelcoDFrame::isValidFrame(zEnd));
+
+    // Zone Scan On & Off
+    const auto zScanOn = PelcoD::ProtocolBuilder::buildZoneScan(1U, true);
+    assert(zScanOn[3] == 0x1BU);
+    assert(PelcoD::PelcoDFrame::isValidFrame(zScanOn));
+
+    const auto zScanOff = PelcoD::ProtocolBuilder::buildZoneScan(1U, false);
+    assert(zScanOff[3] == 0x1DU);
+    assert(PelcoD::PelcoDFrame::isValidFrame(zScanOff));
+}
+
+void test16BitCommands()
+{
+    // Shutter Speed: 0x0120 -> msb 0x01, lsb 0x20
+    const auto shutter = PelcoD::ProtocolBuilder::buildShutterSpeed(1U, 0x0120U);
+    assert(shutter[3] == 0x37U);
+    assert(shutter[4] == 0x01U);
+    assert(shutter[5] == 0x20U);
+    assert(PelcoD::PelcoDFrame::isValidFrame(shutter));
+
+    // Gain: 0x0250 -> msb 0x02, lsb 0x50
+    const auto gain = PelcoD::ProtocolBuilder::buildGain(1U, 0x0250U);
+    assert(gain[3] == 0x3FU);
+    assert(gain[4] == 0x02U);
+    assert(gain[5] == 0x50U);
+    assert(PelcoD::PelcoDFrame::isValidFrame(gain));
+
+    // White Balance Red/Blue: 0x0080
+    const auto wbRB = PelcoD::ProtocolBuilder::buildWhiteBalanceRB(1U, 0x0080U);
+    assert(wbRB[3] == 0x3BU);
+    assert(wbRB[4] == 0x00U);
+    assert(wbRB[5] == 0x80U);
+    assert(PelcoD::PelcoDFrame::isValidFrame(wbRB));
+
+    // White Balance Magenta/Green: 0x0090
+    const auto wbMG = PelcoD::ProtocolBuilder::buildWhiteBalanceMG(1U, 0x0090U);
+    assert(wbMG[3] == 0x3DU);
+    assert(wbMG[4] == 0x00U);
+    assert(wbMG[5] == 0x90U);
+    assert(PelcoD::PelcoDFrame::isValidFrame(wbMG));
+}
+
+void testOsdAndAlarms()
+{
+    // Write Character 'A' at column 5
+    const auto writeChar = PelcoD::ProtocolBuilder::buildWriteChar(1U, 5U, 'A');
+    assert(writeChar[3] == 0x15U);
+    assert(writeChar[4] == 0x05U);
+    assert(writeChar[5] == static_cast<std::uint8_t>('A'));
+    assert(PelcoD::PelcoDFrame::isValidFrame(writeChar));
+
+    // Clear Screen
+    const auto clrScreen = PelcoD::ProtocolBuilder::buildClearScreen(1U);
+    assert(clrScreen[3] == 0x17U);
+    assert(PelcoD::PelcoDFrame::isValidFrame(clrScreen));
+
+    // Alarm Acknowledge
+    const auto ack = PelcoD::ProtocolBuilder::buildAlarmAck(1U, 4U);
+    assert(ack[3] == 0x19U);
+    assert(ack[5] == 0x04U);
+    assert(PelcoD::PelcoDFrame::isValidFrame(ack));
+}
+
 int main()
 {
     PelcoDTest::initTestHarness();
@@ -107,6 +251,10 @@ int main()
     testPresets();
     testAbsolutePositioning();
     testQueries();
+    testConfigurationAndSpeeds();
+    testPatternsAndZones();
+    test16BitCommands();
+    testOsdAndAlarms();
     std::cout << "[TestProtocolBuilder] All tests passed successfully." << std::endl;
     return 0;
 }
