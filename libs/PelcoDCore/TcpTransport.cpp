@@ -273,7 +273,7 @@ bool TcpTransport::open()
     int nodelay = 1;
     ::setsockopt(sock, IPPROTO_TCP, TCP_NODELAY, reinterpret_cast<const char*>(&nodelay), sizeof(nodelay));
 
-    m_sockfd = sock;
+    m_sockfd.store(sock);
     m_running = true;
     m_readThread = std::thread(&TcpTransport::readWorker, this);
 
@@ -290,17 +290,25 @@ void TcpTransport::close()
         m_readThread.join();
     }
 
-    if (m_sockfd != InvalidSocket) {
-        LOG(INFO) << "Closing TCP socket";
-        CLOSE_SOCKET(m_sockfd);
-        m_sockfd = InvalidSocket;
+    bool wasClosed { false };
+    {
+        std::lock_guard<std::mutex> lock(m_writeMutex);
+        const SocketHandle sock = m_sockfd.exchange(InvalidSocket);
+        if (sock != InvalidSocket) {
+            LOG(INFO) << "Closing TCP socket";
+            CLOSE_SOCKET(sock);
+            wasClosed = true;
+        }
+    }
+
+    if (wasClosed) {
         notifyState(TransportState::Disconnected, "Socket closed");
     }
 }
 
 bool TcpTransport::isOpen() const noexcept
 {
-    return (m_sockfd != InvalidSocket) && m_running.load();
+    return m_running.load() && (m_sockfd.load() != InvalidSocket);
 }
 
 bool TcpTransport::sendData(const std::vector<std::uint8_t>& data)
@@ -310,17 +318,21 @@ bool TcpTransport::sendData(const std::vector<std::uint8_t>& data)
     }
 
     std::lock_guard<std::mutex> lock(m_writeMutex);
+    const SocketHandle sock = m_sockfd.load();
+    if (sock == InvalidSocket || !m_running.load()) {
+        return false;
+    }
 
     std::size_t totalSent { 0U };
     const std::size_t toSend { data.size() };
 
     while (totalSent < toSend && m_running.load()) {
 #ifdef _WIN32
-        const int sent = ::send(m_sockfd, reinterpret_cast<const char*>(data.data() + totalSent),
+        const int sent = ::send(sock, reinterpret_cast<const char*>(data.data() + totalSent),
             static_cast<int>(toSend - totalSent), SEND_FLAGS);
 #else
         const ssize_t sent
-            = ::send(m_sockfd, reinterpret_cast<const char*>(data.data() + totalSent), toSend - totalSent, SEND_FLAGS);
+            = ::send(sock, reinterpret_cast<const char*>(data.data() + totalSent), toSend - totalSent, SEND_FLAGS);
 #endif
 
         if (sent > 0) {
@@ -329,12 +341,12 @@ bool TcpTransport::sendData(const std::vector<std::uint8_t>& data)
             if (IS_WOULDBLOCK()) {
 #ifdef _WIN32
                 WSAPOLLFD pfd {};
-                pfd.fd = m_sockfd;
+                pfd.fd = sock;
                 pfd.events = POLLOUT;
                 POLL_SOCKET(&pfd, 1, 50);
 #else
                 struct pollfd pfd { };
-                pfd.fd = m_sockfd;
+                pfd.fd = sock;
                 pfd.events = POLLOUT;
                 POLL_SOCKET(&pfd, 1, 50);
 #endif
@@ -367,12 +379,12 @@ void TcpTransport::readWorker()
     while (m_running.load()) {
 #ifdef _WIN32
         WSAPOLLFD pfd {};
-        pfd.fd = m_sockfd;
+        pfd.fd = m_sockfd.load();
         pfd.events = POLLIN;
         const int ret = POLL_SOCKET(&pfd, 1, 50);
 #else
         struct pollfd pfd { };
-        pfd.fd = m_sockfd;
+        pfd.fd = m_sockfd.load();
         pfd.events = POLLIN;
         const int ret = POLL_SOCKET(&pfd, 1, 50);
 #endif
@@ -380,9 +392,9 @@ void TcpTransport::readWorker()
         if (ret > 0 && (pfd.revents & (POLLIN | POLLHUP | POLLERR))) {
 #ifdef _WIN32
             const int bytesRead
-                = ::recv(m_sockfd, reinterpret_cast<char*>(buffer.data()), static_cast<int>(buffer.size()), 0);
+                = ::recv(m_sockfd.load(), reinterpret_cast<char*>(buffer.data()), static_cast<int>(buffer.size()), 0);
 #else
-            const ssize_t bytesRead = ::recv(m_sockfd, reinterpret_cast<char*>(buffer.data()), buffer.size(), 0);
+            const ssize_t bytesRead = ::recv(m_sockfd.load(), reinterpret_cast<char*>(buffer.data()), buffer.size(), 0);
 #endif
 
             if (bytesRead > 0) {
@@ -414,9 +426,9 @@ void TcpTransport::readWorker()
 
     if (unrecoverableError) {
         std::lock_guard<std::mutex> lock(m_writeMutex);
-        if (m_sockfd != InvalidSocket) {
-            CLOSE_SOCKET(m_sockfd);
-            m_sockfd = InvalidSocket;
+        const SocketHandle sock = m_sockfd.exchange(InvalidSocket);
+        if (sock != InvalidSocket) {
+            CLOSE_SOCKET(sock);
         }
     }
 }

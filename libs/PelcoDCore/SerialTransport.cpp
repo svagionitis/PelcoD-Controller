@@ -153,7 +153,7 @@ bool SerialTransport::open()
         return false;
     }
 
-    m_handle = hComm;
+    m_handle.store(hComm);
 #else
     const int fd = ::open(port.c_str(), O_RDWR | O_NOCTTY | O_NONBLOCK);
     if (fd < 0) {
@@ -163,16 +163,18 @@ bool SerialTransport::open()
         return false;
     }
 
-    m_handle = fd;
+    m_handle.store(fd);
 #endif
 
     if (!configurePort()) {
+        const SerialHandle h = m_handle.exchange(INVALID_SERIAL_HANDLE);
+        if (h != INVALID_SERIAL_HANDLE) {
 #ifdef _WIN32
-        ::CloseHandle(m_handle);
+            ::CloseHandle(h);
 #else
-        ::close(m_handle);
+            ::close(h);
 #endif
-        m_handle = INVALID_SERIAL_HANDLE;
+        }
         return false;
     }
 
@@ -192,11 +194,16 @@ bool SerialTransport::configurePort()
         baud = m_baudRate;
     }
 
+    const SerialHandle handle = m_handle.load();
+    if (handle == INVALID_SERIAL_HANDLE) {
+        return false;
+    }
+
 #ifdef _WIN32
     DCB dcbSerialParams {};
     dcbSerialParams.DCBlength = sizeof(dcbSerialParams);
 
-    if (!::GetCommState(m_handle, &dcbSerialParams)) {
+    if (!::GetCommState(handle, &dcbSerialParams)) {
         const std::string errStr = getWin32ErrorString(::GetLastError());
         notifyState(TransportState::Error, "GetCommState failed: " + errStr);
         return false;
@@ -212,7 +219,7 @@ bool SerialTransport::configurePort()
     dcbSerialParams.fInX = FALSE;
     dcbSerialParams.fDtrControl = DTR_CONTROL_ENABLE;
 
-    if (!::SetCommState(m_handle, &dcbSerialParams)) {
+    if (!::SetCommState(handle, &dcbSerialParams)) {
         const std::string errStr = getWin32ErrorString(::GetLastError());
         notifyState(TransportState::Error, "SetCommState failed: " + errStr);
         return false;
@@ -225,18 +232,18 @@ bool SerialTransport::configurePort()
     timeouts.WriteTotalTimeoutConstant = 100;
     timeouts.WriteTotalTimeoutMultiplier = 10;
 
-    if (!::SetCommTimeouts(m_handle, &timeouts)) {
+    if (!::SetCommTimeouts(handle, &timeouts)) {
         const std::string errStr = getWin32ErrorString(::GetLastError());
         notifyState(TransportState::Error, "SetCommTimeouts failed: " + errStr);
         return false;
     }
 
-    ::PurgeComm(m_handle, PURGE_RXCLEAR | PURGE_TXCLEAR);
+    ::PurgeComm(handle, PURGE_RXCLEAR | PURGE_TXCLEAR);
     return true;
 
 #else
     struct termios tty { };
-    if (::tcgetattr(m_handle, &tty) != 0) {
+    if (::tcgetattr(handle, &tty) != 0) {
         const std::string errStr = std::strerror(errno);
         notifyState(TransportState::Error, "tcgetattr failed: " + errStr);
         return false;
@@ -263,13 +270,13 @@ bool SerialTransport::configurePort()
     tty.c_cc[VMIN] = 0;
     tty.c_cc[VTIME] = 1;
 
-    if (::tcsetattr(m_handle, TCSANOW, &tty) != 0) {
+    if (::tcsetattr(handle, TCSANOW, &tty) != 0) {
         const std::string errStr = std::strerror(errno);
         notifyState(TransportState::Error, "tcsetattr failed: " + errStr);
         return false;
     }
 
-    ::tcflush(m_handle, TCIOFLUSH);
+    ::tcflush(handle, TCIOFLUSH);
     return true;
 #endif
 }
@@ -282,21 +289,29 @@ void SerialTransport::close()
         m_readThread.join();
     }
 
-    if (m_handle != INVALID_SERIAL_HANDLE) {
-        LOG(INFO) << "Closing serial port";
+    bool wasClosed { false };
+    {
+        std::lock_guard<std::mutex> lock(m_writeMutex);
+        const SerialHandle handle = m_handle.exchange(INVALID_SERIAL_HANDLE);
+        if (handle != INVALID_SERIAL_HANDLE) {
+            LOG(INFO) << "Closing serial port";
 #ifdef _WIN32
-        ::CloseHandle(m_handle);
+            ::CloseHandle(handle);
 #else
-        ::close(m_handle);
+            ::close(handle);
 #endif
-        m_handle = INVALID_SERIAL_HANDLE;
+            wasClosed = true;
+        }
+    }
+
+    if (wasClosed) {
         notifyState(TransportState::Disconnected, "Port closed");
     }
 }
 
 bool SerialTransport::isOpen() const noexcept
 {
-    return (m_handle != INVALID_SERIAL_HANDLE) && m_running.load();
+    return m_running.load() && (m_handle.load() != INVALID_SERIAL_HANDLE);
 }
 
 bool SerialTransport::sendData(const std::vector<std::uint8_t>& data)
@@ -306,10 +321,14 @@ bool SerialTransport::sendData(const std::vector<std::uint8_t>& data)
     }
 
     std::lock_guard<std::mutex> lock(m_writeMutex);
+    const SerialHandle handle = m_handle.load();
+    if (handle == INVALID_SERIAL_HANDLE || !m_running.load()) {
+        return false;
+    }
 
 #ifdef _WIN32
     DWORD bytesWritten = 0;
-    const BOOL success = ::WriteFile(m_handle, data.data(), static_cast<DWORD>(data.size()), &bytesWritten, nullptr);
+    const BOOL success = ::WriteFile(handle, data.data(), static_cast<DWORD>(data.size()), &bytesWritten, nullptr);
     return success && (bytesWritten == static_cast<DWORD>(data.size()));
 
 #else
@@ -317,14 +336,14 @@ bool SerialTransport::sendData(const std::vector<std::uint8_t>& data)
     const std::size_t toWrite { data.size() };
 
     while (totalWritten < toWrite && m_running.load()) {
-        const ssize_t written = ::write(m_handle, data.data() + totalWritten, toWrite - totalWritten);
+        const ssize_t written = ::write(handle, data.data() + totalWritten, toWrite - totalWritten);
 
         if (written > 0) {
             totalWritten += static_cast<std::size_t>(written);
         } else if (written < 0) {
             if (errno == EAGAIN || errno == EWOULDBLOCK) {
                 struct pollfd pfd { };
-                pfd.fd = m_handle;
+                pfd.fd = handle;
                 pfd.events = POLLOUT;
                 ::poll(&pfd, 1, 50);
                 continue;
@@ -361,9 +380,13 @@ void SerialTransport::readWorker()
 
 #ifdef _WIN32
     while (m_running.load()) {
+        const SerialHandle handle = m_handle.load();
+        if (handle == INVALID_SERIAL_HANDLE) {
+            break;
+        }
         DWORD bytesRead = 0;
         const BOOL success
-            = ::ReadFile(m_handle, buffer.data(), static_cast<DWORD>(buffer.size()), &bytesRead, nullptr);
+            = ::ReadFile(handle, buffer.data(), static_cast<DWORD>(buffer.size()), &bytesRead, nullptr);
 
         if (success) {
             if (bytesRead > 0) {
@@ -391,13 +414,17 @@ void SerialTransport::readWorker()
 
 #else
     while (m_running.load()) {
+        const SerialHandle handle = m_handle.load();
+        if (handle == INVALID_SERIAL_HANDLE) {
+            break;
+        }
         struct pollfd pfd { };
-        pfd.fd = m_handle;
+        pfd.fd = handle;
         pfd.events = POLLIN;
 
         const int ret = ::poll(&pfd, 1, 50);
         if (ret > 0 && (pfd.revents & POLLIN)) {
-            const ssize_t bytesRead = ::read(m_handle, buffer.data(), buffer.size());
+            const ssize_t bytesRead = ::read(handle, buffer.data(), buffer.size());
             if (bytesRead > 0) {
                 std::vector<std::uint8_t> chunk(buffer.begin(), buffer.begin() + bytesRead);
 
@@ -428,13 +455,13 @@ void SerialTransport::readWorker()
 
     if (unrecoverableError) {
         std::lock_guard<std::mutex> lock(m_writeMutex);
-        if (m_handle != INVALID_SERIAL_HANDLE) {
+        const SerialHandle handle = m_handle.exchange(INVALID_SERIAL_HANDLE);
+        if (handle != INVALID_SERIAL_HANDLE) {
 #ifdef _WIN32
-            ::CloseHandle(m_handle);
+            ::CloseHandle(handle);
 #else
-            ::close(m_handle);
+            ::close(handle);
 #endif
-            m_handle = INVALID_SERIAL_HANDLE;
         }
     }
 }

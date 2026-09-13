@@ -88,7 +88,7 @@ private:
 
     std::string m_portName;
     std::uint32_t m_baudRate { 9600U };
-    SerialHandle m_handle { INVALID_SERIAL_HANDLE };
+    std::atomic<SerialHandle> m_handle { INVALID_SERIAL_HANDLE };
 
     std::atomic<bool> m_running { false };
     std::thread m_readThread;

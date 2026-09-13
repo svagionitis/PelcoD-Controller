@@ -175,6 +175,89 @@ static void testTcpRemoteClosureReportsClosed()
     std::cout << "  testTcpRemoteClosureReportsClosed: PASSED\n";
 }
 
+/// @brief Verify concurrent sendData() and close() do not race or crash.
+static void testConcurrentSendAndClose()
+{
+#ifdef _WIN32
+    WSADATA wsaData {};
+    ::WSAStartup(MAKEWORD(2, 2), &wsaData);
+#endif
+
+    const TestSocket listenSock = ::socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+    assert(listenSock != INVALID_SOCKET);
+
+    sockaddr_in serverAddr {};
+    serverAddr.sin_family = AF_INET;
+    serverAddr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+    serverAddr.sin_port = htons(0);
+
+    const int bindRet = ::bind(listenSock, reinterpret_cast<sockaddr*>(&serverAddr), sizeof(serverAddr));
+    assert(bindRet == 0);
+    assert(::listen(listenSock, 1) == 0);
+
+    sockaddr_in boundAddr {};
+    socklen_t addrLen = sizeof(boundAddr);
+    ::getsockname(listenSock, reinterpret_cast<sockaddr*>(&boundAddr), &addrLen);
+    const std::uint16_t port = ntohs(boundAddr.sin_port);
+
+    std::atomic<TestSocket> acceptedClient { INVALID_SOCKET };
+    std::thread serverThread([listenSock, &acceptedClient]() {
+        sockaddr_in clientAddr {};
+        socklen_t clientLen = sizeof(clientAddr);
+        const TestSocket client = ::accept(listenSock, reinterpret_cast<sockaddr*>(&clientAddr), &clientLen);
+        acceptedClient.store(client);
+    });
+
+    PelcoD::TcpTransport transport("127.0.0.1", port);
+    transport.setConnectTimeout(3000);
+    assert(transport.open());
+    assert(transport.isOpen());
+
+    if (serverThread.joinable()) {
+        serverThread.join();
+    }
+    const TestSocket clientSock = acceptedClient.load();
+    assert(clientSock != INVALID_SOCKET);
+
+    // Launch concurrent sendData workers
+    std::atomic<bool> stopSending { false };
+    constexpr int workerCount = 4;
+    std::vector<std::thread> workers;
+    workers.reserve(workerCount);
+
+    const std::vector<std::uint8_t> frame { 0xFF, 0x01, 0x00, 0x00, 0x00, 0x00, 0x01 };
+    for (int i = 0; i < workerCount; ++i) {
+        workers.emplace_back([&transport, &stopSending, &frame]() {
+            while (!stopSending.load() && transport.isOpen()) {
+                static_cast<void>(transport.sendData(frame));
+            }
+        });
+    }
+
+    // Let them send briefly, then concurrently close the transport
+    std::this_thread::sleep_for(std::chrono::milliseconds(20));
+    transport.close();
+    stopSending.store(true);
+
+    for (auto& w : workers) {
+        if (w.joinable()) {
+            w.join();
+        }
+    }
+
+    assert(!transport.isOpen());
+    assert(!transport.sendData(frame));
+
+    TEST_CLOSE_SOCKET(clientSock);
+    TEST_CLOSE_SOCKET(listenSock);
+
+#ifdef _WIN32
+    ::WSACleanup();
+#endif
+
+    std::cout << "  testConcurrentSendAndClose: PASSED\n";
+}
+
 int main()
 {
 #if defined(_MSC_VER)
@@ -190,6 +273,7 @@ int main()
     testConnectTimesOutFast();
     testDnsFailureFast();
     testTcpRemoteClosureReportsClosed();
+    testConcurrentSendAndClose();
     std::cout << "[TestTcpTransportTimeout] All tests passed.\n";
     return 0;
 }

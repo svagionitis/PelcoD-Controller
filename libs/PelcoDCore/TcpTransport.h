@@ -62,7 +62,7 @@ private:
     static constexpr SocketHandle InvalidSocket { -1 };
 #endif
 
-    SocketHandle m_sockfd { InvalidSocket };
+    std::atomic<SocketHandle> m_sockfd { InvalidSocket };
 
     std::atomic<bool> m_running { false };
     std::thread m_readThread;
