@@ -211,12 +211,12 @@ bool PelcoDDevice::getTelemetryPolling() const noexcept
 
 void PelcoDDevice::setQueryTimeoutMs(std::uint32_t timeoutMs) noexcept
 {
-    m_queryTimeoutMs = (timeoutMs > 0U) ? timeoutMs : 1000U;
+    m_queryTimeoutMs.store((timeoutMs > 0U) ? timeoutMs : 1000U);
 }
 
 std::uint32_t PelcoDDevice::getQueryTimeoutMs() const noexcept
 {
-    return m_queryTimeoutMs;
+    return m_queryTimeoutMs.load();
 }
 
 void PelcoDDevice::panLeft(std::uint8_t speed)
@@ -551,7 +551,8 @@ void PelcoDDevice::checkQueryTimeout()
 
     const auto now = std::chrono::steady_clock::now();
     const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - m_querySentTime).count();
-    if (elapsed >= static_cast<long long>(m_queryTimeoutMs)) {
+    const auto timeoutMs = m_queryTimeoutMs.load();
+    if (elapsed >= static_cast<long long>(timeoutMs)) {
         m_awaitingResponse = false;
         m_responseCv.notify_all();
         std::string tag;
@@ -560,7 +561,7 @@ void PelcoDDevice::checkQueryTimeout()
             tag = m_pendingQueryTag;
         }
 
-        LOG(WARNING) << "Query timeout: No response received for query '" << tag << "' within " << m_queryTimeoutMs
+        LOG(WARNING) << "Query timeout: No response received for query '" << tag << "' within " << timeoutMs
                      << " ms";
 
         std::shared_ptr<const std::vector<TimeoutCallback>> cbs;
@@ -627,7 +628,7 @@ void PelcoDDevice::workerLoop()
             if (!item.queryTag.empty()) {
                 {
                     std::unique_lock<std::mutex> lock(m_statusMutex);
-                    m_responseCv.wait_for(lock, std::chrono::milliseconds(m_queryTimeoutMs),
+                    m_responseCv.wait_for(lock, std::chrono::milliseconds(m_queryTimeoutMs.load()),
                         [this] { return !m_awaitingResponse.load() || !m_running; });
                 }
                 checkQueryTimeout();

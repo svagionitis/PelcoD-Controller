@@ -644,6 +644,49 @@ void testTransportCallbackDeregistration()
     }
 }
 
+void testConcurrentQueryTimeoutAndAddressUpdates()
+{
+    auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(1U);
+    PelcoD::PelcoDDevice device(mock, 1U);
+    assert(device.start());
+
+    std::atomic<bool> running { true };
+
+    std::thread timeoutWorker([&]() {
+        std::uint32_t counter { 10U };
+        while (running.load()) {
+            device.setQueryTimeoutMs(counter);
+            const auto current = device.getQueryTimeoutMs();
+            assert(current >= 10U);
+            counter = (counter % 500U) + 10U;
+            std::this_thread::yield();
+        }
+    });
+
+    std::thread addressWorker([&]() {
+        std::uint8_t addr { 1U };
+        while (running.load()) {
+            device.setAddress(addr);
+            const auto current = device.getAddress();
+            assert(current >= 1U);
+            addr = (addr % 10U) + 1U;
+            std::this_thread::yield();
+        }
+    });
+
+    for (int i = 0; i < 50; ++i) {
+        device.panLeft(0x20U);
+        device.queryPan();
+        std::this_thread::sleep_for(std::chrono::milliseconds(2));
+    }
+
+    running.store(false);
+    timeoutWorker.join();
+    addressWorker.join();
+
+    device.stop();
+}
+
 int main()
 {
 #if defined(_MSC_VER)
@@ -664,6 +707,7 @@ int main()
     testSharedBusDeviceFiltering();
     testQueryResponseCorrelation();
     testTransportCallbackDeregistration();
+    testConcurrentQueryTimeoutAndAddressUpdates();
     std::cout << "[TestMockDevice] All tests passed successfully." << std::endl;
     return 0;
 }

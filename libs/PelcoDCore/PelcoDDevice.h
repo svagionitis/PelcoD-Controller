@@ -182,7 +182,7 @@ private:
     std::atomic<bool> m_telemetryPolling { false };
     std::atomic<std::uint32_t> m_pollIntervalMs { 1000U };
     std::uint64_t m_pollEpoch { 0U };
-    std::uint32_t m_queryTimeoutMs { 1000U };
+    std::atomic<std::uint32_t> m_queryTimeoutMs { 1000U };
     std::mutex m_pollMutex;
     std::condition_variable m_pollCv;
 
