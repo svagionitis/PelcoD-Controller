@@ -3,6 +3,8 @@ add_library(PelcoDQt STATIC
     QPelcoDDevice.cpp
     QPatrolController.h
     QPatrolController.cpp
+    QBusScanner.h
+    QBusScanner.cpp
 )
 
 target_include_directories(PelcoDQt PUBLIC

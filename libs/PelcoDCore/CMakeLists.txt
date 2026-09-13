@@ -23,6 +23,8 @@ add_library(PelcoDCore STATIC
     PelcoDDevice.cpp
     PatrolController.h
     PatrolController.cpp
+    BusScanner.h
+    BusScanner.cpp
 )
 
 target_include_directories(PelcoDCore PUBLIC

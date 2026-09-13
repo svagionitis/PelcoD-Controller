@@ -23,6 +23,7 @@ add_pelco_test(TestProtocolCompleteness TestProtocolCompleteness.cpp)
 add_pelco_test(TestSerialTransport TestSerialTransport.cpp)
 add_pelco_test(TestUdpTransport TestUdpTransport.cpp)
 add_pelco_test(TestPatrolController TestPatrolController.cpp)
+add_pelco_test(TestBusScanner TestBusScanner.cpp)
 
 add_executable(TestConnectionModal
     TestConnectionModal.cpp
@@ -55,12 +56,15 @@ add_test(NAME TestTrafficView COMMAND TestTrafficView)
 add_executable(TestAutoReconnect
     TestAutoReconnect.cpp
     ${CMAKE_SOURCE_DIR}/app-qt/widgets/ConnectionWidget.cpp
+    ${CMAKE_SOURCE_DIR}/app-qt/dialogs/BusScanDialog.cpp
 )
 target_include_directories(TestAutoReconnect PRIVATE
     ${CMAKE_SOURCE_DIR}/app-qt
     ${CMAKE_SOURCE_DIR}/libs/PelcoDCore
+    ${CMAKE_SOURCE_DIR}/libs/PelcoDQt
 )
 target_link_libraries(TestAutoReconnect PRIVATE
+    PelcoDQt
     PelcoDCore
     Qt6::Core
     Qt6::Gui
@@ -110,4 +114,8 @@ add_test(NAME TestTuiInvalidUdpPort COMMAND PelcoDAppTui --udp 127.0.0.1:99999)
 set_tests_properties(TestTuiInvalidUdpPort PROPERTIES WILL_FAIL TRUE)
 add_test(NAME TestTuiMissingUdpArg COMMAND PelcoDAppTui --udp)
 set_tests_properties(TestTuiMissingUdpArg PROPERTIES WILL_FAIL TRUE)
+add_test(NAME TestTuiInvalidScanRange COMMAND PelcoDAppTui --scan 50-10)
+set_tests_properties(TestTuiInvalidScanRange PROPERTIES WILL_FAIL TRUE)
+add_test(NAME TestTuiScanMock COMMAND PelcoDAppTui --mock --scan 1-2)
+
 

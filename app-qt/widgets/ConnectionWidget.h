@@ -65,9 +65,12 @@ public slots:
     void setConnecting(bool connecting);
     void refreshSerialPorts();
 
+    [[nodiscard]] std::shared_ptr<PelcoD::ITransport> createConfiguredTransport() const;
+
 private slots:
     void handleConnectClicked();
     void handleModeChanged(int index);
+    void handleScanBus();
     void onReconnectTimerTimeout();
 
 private:
@@ -101,6 +104,7 @@ private:
 
     // Common
     QSpinBox* spinAddress { nullptr };
+    QPushButton* btnScanBus { nullptr };
     QCheckBox* chkAutoReconnect { nullptr };
     QPushButton* btnConnect { nullptr };
     QLabel* lblLed { nullptr };

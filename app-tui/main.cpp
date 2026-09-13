@@ -1,15 +1,22 @@
-/// @file main.cpp
-/// @brief CLI entry point for the Pelco-D UTF-8 Terminal User Interface (app-tui).
-
+#include "BusScanner.h"
+#include "MockPelcoDDevice.h"
+#include "SerialTransport.h"
+#include "TcpTransport.h"
 #include "TuiApp.h"
+#include "UdpTransport.h"
 #include "views/ConnectionModal.h"
 
 #include <charconv>
+#include <chrono>
 #include <cstdint>
 #include <cstdlib>
+#include <iomanip>
 #include <iostream>
+#include <memory>
+#include <sstream>
 #include <string>
 #include <string_view>
+#include <thread>
 
 namespace {
 
@@ -23,6 +30,10 @@ struct ParseResult {
     ParseStatus status { ParseStatus::Success };
     PelcoDTui::ConnectionConfig config {};
     std::string errorMessage {};
+    bool scanMode { false };
+    std::uint8_t scanStart { 1U };
+    std::uint8_t scanEnd { 32U };
+    std::uint32_t scanTimeoutMs { 150U };
 };
 
 /// @brief Exception-safe integer parser using std::from_chars.
@@ -53,6 +64,7 @@ void printUsage(std::string_view progName)
               << "  --udp <host:port>           Connect via UDP network socket (e.g. 192.168.1.100:4001)\n"
               << "  --serial <port> [baud]      Connect via RS-485 serial port (e.g. /dev/ttyUSB0 9600)\n"
               << "  --address <id>              Set Pelco-D camera address 1–254 (default: 1)\n"
+              << "  --scan [start-end]          Scan bus for active Pelco-D devices (e.g. --scan 1-32)\n"
               << "  --help, -h                  Display this help message and exit\n\n"
               << "Keyboard Shortcuts:\n"
               << "  1–6 / F1–F6                 Switch between application tabs\n"
@@ -218,6 +230,40 @@ void printUsage(std::string_view progName)
                 return result;
             }
             result.config.address = static_cast<std::uint8_t>(addrVal);
+        } else if (arg == "--scan") {
+            result.scanMode = true;
+            if (i + 1 < argc) {
+                const std::string_view nextArg = argv[i + 1];
+                if (!nextArg.empty() && nextArg.front() != '-') {
+                    ++i;
+                    const auto hyphenPos = nextArg.find('-');
+                    if (hyphenPos != std::string_view::npos) {
+                        const auto startStr = nextArg.substr(0, hyphenPos);
+                        const auto endStr = nextArg.substr(hyphenPos + 1);
+                        int sVal { 0 };
+                        int eVal { 0 };
+                        if (!parseInteger(startStr, sVal) || sVal < 1 || sVal > 254
+                            || !parseInteger(endStr, eVal) || eVal < 1 || eVal > 254 || sVal > eVal) {
+                            result.status = ParseStatus::Error;
+                            result.errorMessage = "Invalid scan range '" + std::string(nextArg)
+                                + "': range must be in format <start>-<end> with 1 <= start <= end <= 254";
+                            return result;
+                        }
+                        result.scanStart = static_cast<std::uint8_t>(sVal);
+                        result.scanEnd = static_cast<std::uint8_t>(eVal);
+                    } else {
+                        int eVal { 0 };
+                        if (!parseInteger(nextArg, eVal) || eVal < 1 || eVal > 254) {
+                            result.status = ParseStatus::Error;
+                            result.errorMessage = "Invalid scan address '" + std::string(nextArg)
+                                + "': address must be an integer between 1 and 254";
+                            return result;
+                        }
+                        result.scanStart = 1U;
+                        result.scanEnd = static_cast<std::uint8_t>(eVal);
+                    }
+                }
+            }
         } else {
             result.status = ParseStatus::Error;
             result.errorMessage = "Unrecognized option or argument: '" + std::string(arg) + "'";
@@ -249,6 +295,90 @@ int main(int argc, char* argv[])
         std::cerr << "Error: " << parseResult.errorMessage << "\n\n"
                   << "Try '" << argv[0] << " --help' for more information.\n";
         return 1;
+    }
+
+    if (parseResult.scanMode) {
+        try {
+            std::shared_ptr<PelcoD::ITransport> transport;
+            switch (parseResult.config.type) {
+            case PelcoDTui::TransportType::Mock:
+                transport = std::make_shared<PelcoD::MockPelcoDDevice>(parseResult.config.address);
+                break;
+            case PelcoDTui::TransportType::Tcp:
+                transport = std::make_shared<PelcoD::TcpTransport>(
+                    parseResult.config.tcpHost, parseResult.config.tcpPort);
+                break;
+            case PelcoDTui::TransportType::Udp:
+                transport = std::make_shared<PelcoD::UdpTransport>(
+                    parseResult.config.udpHost, parseResult.config.udpPort, parseResult.config.udpLocalPort);
+                break;
+            case PelcoDTui::TransportType::Serial:
+                transport = std::make_shared<PelcoD::SerialTransport>(
+                    parseResult.config.serialPort, parseResult.config.serialBaud);
+                break;
+            default:
+                transport = std::make_shared<PelcoD::MockPelcoDDevice>(parseResult.config.address);
+                break;
+            }
+
+            std::cout << "Starting Pelco-D Bus Scan on range ["
+                      << static_cast<int>(parseResult.scanStart) << ".."
+                      << static_cast<int>(parseResult.scanEnd) << "] (timeout: "
+                      << parseResult.scanTimeoutMs << "ms)...\n\n";
+
+            PelcoD::BusScanner scanner(std::move(transport));
+            PelcoD::ScanConfig scanCfg;
+            scanCfg.startAddress = parseResult.scanStart;
+            scanCfg.endAddress = parseResult.scanEnd;
+            scanCfg.timeoutMs = parseResult.scanTimeoutMs;
+
+            scanner.setScanProgressCallback([](std::uint8_t current, std::size_t scanned, std::size_t total) {
+                std::cout << "\rScanning address " << static_cast<int>(current)
+                          << " (" << scanned << "/" << total << ")..." << std::flush;
+            });
+
+            scanner.setDeviceDiscoveredCallback([](const PelcoD::DiscoveredDevice& dev) {
+                std::cout << "\n[+] Found Pelco-D device at address " << static_cast<int>(dev.address)
+                          << " (response time: " << dev.responseTimeMs << "ms";
+                if (dev.hasPanPosition) {
+                    std::cout << ", pan: " << std::fixed << std::setprecision(2)
+                              << (dev.panCentidegrees / 100.0) << "\xC2\xB0";
+                }
+                std::cout << ")\n";
+            });
+
+            scanner.startScan(scanCfg);
+            while (scanner.getState() == PelcoD::ScanState::Scanning) {
+                std::this_thread::sleep_for(std::chrono::milliseconds(50));
+            }
+
+            const auto found = scanner.getDiscoveredDevices();
+            std::cout << "\n\nScan completed. Total devices found: " << found.size() << "\n";
+            if (!found.empty()) {
+                std::cout << "--------------------------------------------------------\n";
+                std::cout << std::left << std::setw(12) << "Address ID"
+                          << std::setw(18) << "Response Time"
+                          << "Status / Telemetry\n";
+                std::cout << "--------------------------------------------------------\n";
+                for (const auto& d : found) {
+                    std::string info = "Online (Responded)";
+                    if (d.hasPanPosition) {
+                        std::ostringstream ss;
+                        ss << "Online (Pan: " << std::fixed << std::setprecision(2)
+                           << (d.panCentidegrees / 100.0) << "\xC2\xB0)";
+                        info = ss.str();
+                    }
+                    std::cout << std::left << std::setw(12) << static_cast<int>(d.address)
+                              << std::setw(18) << (std::to_string(d.responseTimeMs) + " ms")
+                              << info << "\n";
+                }
+                std::cout << "--------------------------------------------------------\n";
+            }
+            return 0;
+        } catch (const std::exception& ex) {
+            std::cerr << "Bus scanner error: " << ex.what() << "\n";
+            return 1;
+        }
     }
 
     try {

@@ -7,6 +7,7 @@
 #include "SerialTransport.h"
 #include "TcpTransport.h"
 #include "UdpTransport.h"
+#include "dialogs/BusScanDialog.h"
 
 #include <QCheckBox>
 #include <QCollator>
@@ -154,8 +155,12 @@ void ConnectionWidget::setupUi()
     spinAddress->setValue(1);
     spinAddress->setToolTip(tr("Pelco-D Device Address (1 - 255)"));
 
+    btnScanBus = new QPushButton(tr("Scan Bus..."), this);
+    btnScanBus->setToolTip(tr("Scan bus for active Pelco-D device addresses"));
+
     mainLayout->addWidget(lblAddress);
     mainLayout->addWidget(spinAddress);
+    mainLayout->addWidget(btnScanBus);
 
     // Auto-Reconnect Checkbox
     chkAutoReconnect = new QCheckBox(tr("Auto-Reconnect"), this);
@@ -192,6 +197,7 @@ void ConnectionWidget::setupUi()
                 btnConnect->style()->polish(btnConnect);
                 cmbMode->setEnabled(true);
                 spinAddress->setEnabled(true);
+                btnScanBus->setEnabled(true);
                 stackedConfig->setEnabled(true);
                 lblStatusText->setText(tr("Offline"));
                 lblStatusText->setStyleSheet("color: #8b949e;");
@@ -203,6 +209,7 @@ void ConnectionWidget::setupUi()
     // Connections
     connect(cmbMode, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &ConnectionWidget::handleModeChanged);
     connect(btnRefreshPorts, &QPushButton::clicked, this, &ConnectionWidget::refreshSerialPorts);
+    connect(btnScanBus, &QPushButton::clicked, this, &ConnectionWidget::handleScanBus);
     connect(btnConnect, &QPushButton::clicked, this, &ConnectionWidget::handleConnectClicked);
 }
 
@@ -274,37 +281,61 @@ void ConnectionWidget::handleConnectClicked()
     triggerConnect();
 }
 
-void ConnectionWidget::triggerConnect()
+std::shared_ptr<PelcoD::ITransport> ConnectionWidget::createConfiguredTransport() const
 {
     const auto address = static_cast<std::uint8_t>(spinAddress->value());
     const int mode = cmbMode->currentIndex();
-    std::shared_ptr<PelcoD::ITransport> transport { nullptr };
 
     if (mode == 0) {
         // Mock Simulator
-        transport = std::make_shared<PelcoD::MockPelcoDDevice>(address);
-    } else if (mode == 1) {
+        return std::make_shared<PelcoD::MockPelcoDDevice>(address);
+    }
+    if (mode == 1) {
         // Serial Port
         QString portPath = cmbSerialPort->currentData().toString();
         if (portPath.isEmpty()) {
             portPath = cmbSerialPort->currentText();
         }
         const qint32 baud = cmbBaudRate->currentText().toInt();
-        transport = std::make_shared<PelcoD::SerialTransport>(portPath.toStdString(), static_cast<std::uint32_t>(baud));
-    } else if (mode == 2) {
+        return std::make_shared<PelcoD::SerialTransport>(portPath.toStdString(), static_cast<std::uint32_t>(baud));
+    }
+    if (mode == 2) {
         // TCP Socket
         const QString host = editTcpHost->text();
         const auto port = static_cast<quint16>(spinTcpPort->value());
-        transport = std::make_shared<PelcoD::TcpTransport>(host.toStdString(), static_cast<std::uint16_t>(port));
-    } else if (mode == 3) {
+        return std::make_shared<PelcoD::TcpTransport>(host.toStdString(), static_cast<std::uint16_t>(port));
+    }
+    if (mode == 3) {
         // UDP Socket
         const QString host = editUdpHost->text();
         const auto port = static_cast<quint16>(spinUdpPort->value());
         const auto localPort = static_cast<quint16>(spinUdpLocalPort->value());
-        transport = std::make_shared<PelcoD::UdpTransport>(
+        return std::make_shared<PelcoD::UdpTransport>(
             host.toStdString(), static_cast<std::uint16_t>(port), static_cast<std::uint16_t>(localPort));
     }
+    return nullptr;
+}
 
+void ConnectionWidget::handleScanBus()
+{
+    auto transport = createConfiguredTransport();
+    if (!transport) {
+        return;
+    }
+
+    BusScanDialog dialog(std::move(transport), this);
+    connect(&dialog, &BusScanDialog::addressSelected, this, [this](int address) {
+        if (spinAddress) {
+            spinAddress->setValue(address);
+        }
+    });
+    dialog.exec();
+}
+
+void ConnectionWidget::triggerConnect()
+{
+    const auto address = static_cast<std::uint8_t>(spinAddress->value());
+    auto transport = createConfiguredTransport();
     if (transport) {
         emit connectRequested(transport, address);
     }
@@ -332,6 +363,7 @@ void ConnectionWidget::scheduleReconnect()
 
     cmbMode->setEnabled(false);
     spinAddress->setEnabled(false);
+    btnScanBus->setEnabled(false);
     stackedConfig->setEnabled(false);
 }
 
@@ -364,6 +396,7 @@ void ConnectionWidget::setConnectionState(bool connected)
         btnConnect->setObjectName("btnDanger");
         cmbMode->setEnabled(false);
         spinAddress->setEnabled(false);
+        btnScanBus->setEnabled(false);
         stackedConfig->setEnabled(false);
     } else {
         if (!m_manualDisconnect && chkAutoReconnect && chkAutoReconnect->isChecked()) {
@@ -374,6 +407,7 @@ void ConnectionWidget::setConnectionState(bool connected)
             btnConnect->setObjectName("btnPrimary");
             cmbMode->setEnabled(true);
             spinAddress->setEnabled(true);
+            btnScanBus->setEnabled(true);
             stackedConfig->setEnabled(true);
         }
     }
@@ -389,6 +423,7 @@ void ConnectionWidget::setConnecting(bool connecting)
         btnConnect->setText(tr("Connecting…"));
         cmbMode->setEnabled(false);
         spinAddress->setEnabled(false);
+        btnScanBus->setEnabled(false);
         stackedConfig->setEnabled(false);
         lblLed->setStyleSheet("background-color: #e3b341; border-radius: 6px; border: 1px solid #f0c040;");
         lblStatusText->setText(tr("Connecting…"));
@@ -396,6 +431,7 @@ void ConnectionWidget::setConnecting(bool connecting)
     } else {
         if (!isReconnecting()) {
             btnConnect->setEnabled(true);
+            btnScanBus->setEnabled(!isConnected);
         }
     }
 }

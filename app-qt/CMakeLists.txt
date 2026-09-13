@@ -18,6 +18,8 @@ add_executable(PelcoDAppQt
     tabs/OsdScreenTab.cpp
     tabs/SystemTab.h
     tabs/SystemTab.cpp
+    dialogs/BusScanDialog.h
+    dialogs/BusScanDialog.cpp
     resources.qrc
 )
 
