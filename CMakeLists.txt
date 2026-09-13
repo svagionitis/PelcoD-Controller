@@ -76,6 +76,7 @@ install(FILES
     libs/PelcoDCore/CircularByteRing.h
     libs/PelcoDCore/DeviceStatus.h
     libs/PelcoDCore/ITransport.h
+    libs/PelcoDCore/BaseTransport.h
     libs/PelcoDCore/MockPelcoDDevice.h
     libs/PelcoDCore/PelcoDDevice.h
     libs/PelcoDCore/PelcoDFrame.h

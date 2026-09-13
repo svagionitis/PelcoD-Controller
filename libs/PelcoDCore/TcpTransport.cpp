@@ -284,11 +284,7 @@ bool TcpTransport::open()
 
 void TcpTransport::close()
 {
-    m_running = false;
-
-    if (m_readThread.joinable()) {
-        m_readThread.join();
-    }
+    stopReadThread();
 
     bool wasClosed { false };
     {
@@ -359,17 +355,6 @@ bool TcpTransport::sendData(const std::vector<std::uint8_t>& data)
     return (totalSent == toSend);
 }
 
-void TcpTransport::setDataCallback(DataReceivedCallback callback)
-{
-    std::lock_guard<std::mutex> lock(m_callbackMutex);
-    m_dataCallback = std::move(callback);
-}
-
-void TcpTransport::setStateCallback(StateChangedCallback callback)
-{
-    std::lock_guard<std::mutex> lock(m_callbackMutex);
-    m_stateCallback = std::move(callback);
-}
 
 void TcpTransport::readWorker()
 {
@@ -400,14 +385,7 @@ void TcpTransport::readWorker()
             if (bytesRead > 0) {
                 std::vector<std::uint8_t> chunk(buffer.begin(), buffer.begin() + bytesRead);
 
-                DataReceivedCallback cb;
-                {
-                    std::lock_guard<std::mutex> lock(m_callbackMutex);
-                    cb = m_dataCallback;
-                }
-                if (cb) {
-                    cb(chunk);
-                }
+                invokeDataCallback(chunk);
             } else if (bytesRead == 0 || (pfd.revents & POLLHUP)) {
                 if (m_running.exchange(false)) {
                     unrecoverableError = true;
@@ -430,18 +408,6 @@ void TcpTransport::readWorker()
         if (sock != InvalidSocket) {
             CLOSE_SOCKET(sock);
         }
-    }
-}
-
-void TcpTransport::notifyState(TransportState state, const std::string& errorMsg)
-{
-    StateChangedCallback cb;
-    {
-        std::lock_guard<std::mutex> lock(m_callbackMutex);
-        cb = m_stateCallback;
-    }
-    if (cb) {
-        cb(state, errorMsg);
     }
 }
 

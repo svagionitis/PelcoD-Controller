@@ -2,6 +2,8 @@ add_library(PelcoDCore STATIC
     PelcoDTypes.h
     DeviceStatus.h
     ITransport.h
+    BaseTransport.h
+    BaseTransport.cpp
     PelcoDFrame.h
     PelcoDFrame.cpp
     CircularByteRing.h

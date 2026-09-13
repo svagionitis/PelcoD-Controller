@@ -3,20 +3,18 @@
 /// @file TcpTransport.h
 /// @brief Cross-platform TCP socket transport for Pelco-D over IP bridges (Linux & Windows).
 
-#include "ITransport.h"
+#include "BaseTransport.h"
 
 #include <atomic>
 #include <cstdint>
-#include <mutex>
 #include <string>
-#include <thread>
 #include <vector>
 
 namespace PelcoD {
 
 /// @class TcpTransport
 /// @brief Standard TCP client socket implementation of ITransport (zero Qt dependency).
-class TcpTransport : public ITransport {
+class TcpTransport : public BaseTransport {
 public:
     explicit TcpTransport(std::string host = "192.168.1.100", std::uint16_t port = 4001U);
     ~TcpTransport() override;
@@ -43,12 +41,9 @@ public:
     void close() override;
     [[nodiscard]] bool isOpen() const noexcept override;
     [[nodiscard]] bool sendData(const std::vector<std::uint8_t>& data) override;
-    void setDataCallback(DataReceivedCallback callback) override;
-    void setStateCallback(StateChangedCallback callback) override;
 
 private:
     void readWorker();
-    void notifyState(TransportState state, const std::string& errorMsg);
 
     std::string m_host;
     std::uint16_t m_port { 4001U };
@@ -63,15 +58,6 @@ private:
 #endif
 
     std::atomic<SocketHandle> m_sockfd { InvalidSocket };
-
-    std::atomic<bool> m_running { false };
-    std::thread m_readThread;
-
-    mutable std::mutex m_callbackMutex;
-    DataReceivedCallback m_dataCallback;
-    StateChangedCallback m_stateCallback;
-
-    mutable std::mutex m_writeMutex;
 };
 
 } // namespace PelcoD

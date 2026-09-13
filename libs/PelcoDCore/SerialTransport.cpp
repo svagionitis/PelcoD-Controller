@@ -283,11 +283,7 @@ bool SerialTransport::configurePort()
 
 void SerialTransport::close()
 {
-    m_running = false;
-
-    if (m_readThread.joinable()) {
-        m_readThread.join();
-    }
+    stopReadThread();
 
     bool wasClosed { false };
     {
@@ -361,17 +357,6 @@ bool SerialTransport::sendData(const std::vector<std::uint8_t>& data)
 #endif
 }
 
-void SerialTransport::setDataCallback(DataReceivedCallback callback)
-{
-    std::lock_guard<std::mutex> lock(m_callbackMutex);
-    m_dataCallback = std::move(callback);
-}
-
-void SerialTransport::setStateCallback(StateChangedCallback callback)
-{
-    std::lock_guard<std::mutex> lock(m_callbackMutex);
-    m_stateCallback = std::move(callback);
-}
 
 void SerialTransport::readWorker()
 {
@@ -391,14 +376,7 @@ void SerialTransport::readWorker()
         if (success) {
             if (bytesRead > 0) {
                 std::vector<std::uint8_t> chunk(buffer.begin(), buffer.begin() + bytesRead);
-                DataReceivedCallback cb;
-                {
-                    std::lock_guard<std::mutex> lock(m_callbackMutex);
-                    cb = m_dataCallback;
-                }
-                if (cb) {
-                    cb(chunk);
-                }
+                invokeDataCallback(chunk);
             } else {
                 std::this_thread::sleep_for(std::chrono::milliseconds(10));
             }
@@ -428,14 +406,7 @@ void SerialTransport::readWorker()
             if (bytesRead > 0) {
                 std::vector<std::uint8_t> chunk(buffer.begin(), buffer.begin() + bytesRead);
 
-                DataReceivedCallback cb;
-                {
-                    std::lock_guard<std::mutex> lock(m_callbackMutex);
-                    cb = m_dataCallback;
-                }
-                if (cb) {
-                    cb(chunk);
-                }
+                invokeDataCallback(chunk);
             } else if (bytesRead < 0 && (errno != EAGAIN && errno != EWOULDBLOCK)) {
                 if (m_running.exchange(false)) {
                     unrecoverableError = true;
@@ -466,17 +437,6 @@ void SerialTransport::readWorker()
     }
 }
 
-void SerialTransport::notifyState(TransportState state, const std::string& errorMsg)
-{
-    StateChangedCallback cb;
-    {
-        std::lock_guard<std::mutex> lock(m_callbackMutex);
-        cb = m_stateCallback;
-    }
-    if (cb) {
-        cb(state, errorMsg);
-    }
-}
 
 namespace {
 bool naturalLess(const std::string& a, const std::string& b)

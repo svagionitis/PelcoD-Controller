@@ -3,14 +3,12 @@
 /// @file SerialTransport.h
 /// @brief Cross-platform serial port transport for Linux (termios) and Windows (Win32 API).
 
-#include "ITransport.h"
+#include "BaseTransport.h"
 
 #include <array>
 #include <atomic>
 #include <cstdint>
-#include <mutex>
 #include <string>
-#include <thread>
 #include <vector>
 
 #ifdef _WIN32
@@ -32,7 +30,7 @@ namespace PelcoD {
 
 /// @class SerialTransport
 /// @brief Cross-platform thread-safe serial transport (zero Qt dependency).
-class SerialTransport : public ITransport {
+class SerialTransport : public BaseTransport {
 public:
     explicit SerialTransport(std::string portName = "", std::uint32_t baudRate = 9600U);
     ~SerialTransport() override;
@@ -78,26 +76,14 @@ public:
     void close() override;
     [[nodiscard]] bool isOpen() const noexcept override;
     [[nodiscard]] bool sendData(const std::vector<std::uint8_t>& data) override;
-    void setDataCallback(DataReceivedCallback callback) override;
-    void setStateCallback(StateChangedCallback callback) override;
 
 private:
     void readWorker();
-    void notifyState(TransportState state, const std::string& errorMsg);
     bool configurePort();
 
     std::string m_portName;
     std::uint32_t m_baudRate { 9600U };
     std::atomic<SerialHandle> m_handle { INVALID_SERIAL_HANDLE };
-
-    std::atomic<bool> m_running { false };
-    std::thread m_readThread;
-
-    mutable std::mutex m_callbackMutex;
-    DataReceivedCallback m_dataCallback;
-    StateChangedCallback m_stateCallback;
-
-    mutable std::mutex m_writeMutex;
 };
 
 } // namespace PelcoD
