@@ -36,6 +36,7 @@ QPelcoDDevice::~QPelcoDDevice()
 
 void QPelcoDDevice::setTransport(std::shared_ptr<PelcoD::ITransport> transport, std::uint8_t address)
 {
+    m_deviceConnections.clear();
     disconnectDevice();
     if (m_fujinonAdapter) {
         delete m_fujinonAdapter;
@@ -56,11 +57,12 @@ void QPelcoDDevice::setTransport(std::shared_ptr<PelcoD::ITransport> transport, 
 
 void QPelcoDDevice::initDeviceCallbacks()
 {
+    m_deviceConnections.clear();
     if (!m_device) {
         return;
     }
 
-    m_device->addStatusCallback([this](const PelcoD::DeviceStatus& status) {
+    m_deviceConnections += m_device->addStatusCallback([this](const PelcoD::DeviceStatus& status) {
         QMetaObject::invokeMethod(this, [this, status] {
             emit statusUpdated(status);
             if (!status.connected) {
@@ -70,18 +72,18 @@ void QPelcoDDevice::initDeviceCallbacks()
     });
 
     if (m_fujinonDevice) {
-        m_fujinonDevice->addFujinonStatusCallback([this](const PelcoD::FujinonStatus& status) {
+        m_deviceConnections += m_fujinonDevice->addFujinonStatusCallback([this](const PelcoD::FujinonStatus& status) {
             QMetaObject::invokeMethod(this, [this, status] { emit fujinonStatusUpdated(status); });
         });
     }
 
-    m_device->addTrafficCallback([this](bool isTx, const std::vector<std::uint8_t>& frame) {
+    m_deviceConnections += m_device->addTrafficCallback([this](bool isTx, const std::vector<std::uint8_t>& frame) {
         const QByteArray bytes(reinterpret_cast<const char*>(frame.data()), static_cast<int>(frame.size()));
         const QString desc = describePacket(isTx, frame);
         QMetaObject::invokeMethod(this, [this, isTx, bytes, desc] { emit trafficLogged(isTx, bytes, desc); });
     });
 
-    m_device->addTimeoutCallback([this](const std::string& queryTag) {
+    m_deviceConnections += m_device->addTimeoutCallback([this](const std::string& queryTag) {
         const QString tag = QString::fromStdString(queryTag);
         QMetaObject::invokeMethod(this, [this, tag] { emit queryTimeoutOccurred(tag); });
     });

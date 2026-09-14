@@ -205,12 +205,32 @@ bool PelcoDDevice::CallbackState::removeTimeout(CallbackId id)
     return true;
 }
 
+bool PelcoDDevice::CallbackState::removeQueryCompleted(CallbackId id)
+{
+    std::lock_guard<std::mutex> lock(mutex);
+    const auto& current = *queryCompletedCallbacks;
+    auto it = std::find_if(current.begin(), current.end(), [id](const auto& entry) { return entry.id == id; });
+    if (it == current.end()) {
+        return false;
+    }
+    auto nextList = std::make_shared<std::vector<CallbackEntry<QueryCompletedCallback>>>();
+    nextList->reserve(current.size() - 1U);
+    for (const auto& entry : current) {
+        if (entry.id != id) {
+            nextList->push_back(entry);
+        }
+    }
+    queryCompletedCallbacks = std::move(nextList);
+    return true;
+}
+
 void PelcoDDevice::CallbackState::clear()
 {
     std::lock_guard<std::mutex> lock(mutex);
     statusCallbacks = std::make_shared<const std::vector<CallbackEntry<StatusCallback>>>();
     trafficCallbacks = std::make_shared<const std::vector<CallbackEntry<TrafficCallback>>>();
     timeoutCallbacks = std::make_shared<const std::vector<CallbackEntry<TimeoutCallback>>>();
+    queryCompletedCallbacks = std::make_shared<const std::vector<CallbackEntry<QueryCompletedCallback>>>();
 }
 
 Connection PelcoDDevice::addStatusCallback(StatusCallback cb)
@@ -254,6 +274,44 @@ Connection PelcoDDevice::addTrafficCallback(TrafficCallback cb)
     });
 }
 
+Connection PelcoDDevice::addTrafficCallback(TrafficCallback cb, bool notifyTx, bool notifyRx)
+{
+    if (!cb) {
+        return Connection {};
+    }
+    return addTrafficCallback(
+        [cb = std::move(cb), notifyTx, notifyRx](bool isTx, const std::vector<std::uint8_t>& frame) {
+            if (isTx && !notifyTx) {
+                return;
+            }
+            if (!isTx && !notifyRx) {
+                return;
+            }
+            cb(isTx, frame);
+        });
+}
+
+Connection PelcoDDevice::addTrafficCallback(
+    std::uint8_t addressFilter, TrafficCallback cb, bool notifyTx, bool notifyRx)
+{
+    if (!cb) {
+        return Connection {};
+    }
+    return addTrafficCallback(
+        [cb = std::move(cb), addressFilter, notifyTx, notifyRx](bool isTx, const std::vector<std::uint8_t>& frame) {
+            if (isTx && !notifyTx) {
+                return;
+            }
+            if (!isTx && !notifyRx) {
+                return;
+            }
+            if (frame.size() >= 2U && frame[1] != addressFilter) {
+                return;
+            }
+            cb(isTx, frame);
+        });
+}
+
 Connection PelcoDDevice::addTimeoutCallback(TimeoutCallback cb)
 {
     if (!cb) {
@@ -275,6 +333,27 @@ Connection PelcoDDevice::addTimeoutCallback(TimeoutCallback cb)
     });
 }
 
+Connection PelcoDDevice::addQueryCompletedCallback(QueryCompletedCallback cb)
+{
+    if (!cb) {
+        return Connection {};
+    }
+    const CallbackId id = m_callbackState->nextId.fetch_add(1U, std::memory_order_relaxed);
+    {
+        std::lock_guard<std::mutex> lock(m_callbackState->mutex);
+        auto nextList = std::make_shared<std::vector<CallbackEntry<QueryCompletedCallback>>>(
+            *m_callbackState->queryCompletedCallbacks);
+        nextList->push_back({ id, std::move(cb) });
+        m_callbackState->queryCompletedCallbacks = std::move(nextList);
+    }
+    std::weak_ptr<CallbackState> weakState = m_callbackState;
+    return Connection([weakState, id]() {
+        if (auto state = weakState.lock()) {
+            state->removeQueryCompleted(id);
+        }
+    });
+}
+
 bool PelcoDDevice::removeStatusCallback(CallbackId id)
 {
     return m_callbackState->removeStatus(id);
@@ -288,6 +367,11 @@ bool PelcoDDevice::removeTrafficCallback(CallbackId id)
 bool PelcoDDevice::removeTimeoutCallback(CallbackId id)
 {
     return m_callbackState->removeTimeout(id);
+}
+
+bool PelcoDDevice::removeQueryCompletedCallback(CallbackId id)
+{
+    return m_callbackState->removeQueryCompleted(id);
 }
 
 void PelcoDDevice::clearCallbacks()
@@ -629,6 +713,85 @@ void PelcoDDevice::queryAll()
     queryGeneral();
 }
 
+namespace {
+
+    template <typename ResultT, typename Extractor>
+    std::future<ResultT> executeAsyncQuery(PelcoDDevice* device, const std::string& queryTag,
+        std::function<void()> triggerQuery, Extractor extractResult, std::chrono::milliseconds timeout)
+    {
+        auto promise = std::make_shared<std::promise<ResultT>>();
+        auto future = promise->get_future();
+
+        if (!device->isConnected()) {
+            promise->set_exception(std::make_exception_ptr(std::runtime_error("Device is not connected")));
+            return future;
+        }
+
+        auto fulfilled = std::make_shared<std::atomic<bool>>(false);
+        auto conn = std::make_shared<ScopedConnection>();
+
+        *conn
+            = device->addQueryCompletedCallback([promise, fulfilled, conn, queryTag, extractResult](
+                                                    const std::string& tag, bool success, const DeviceStatus& status) {
+                  if (tag != queryTag) {
+                      return;
+                  }
+                  if (fulfilled->exchange(true)) {
+                      return;
+                  }
+                  conn->disconnect();
+                  if (success) {
+                      promise->set_value(extractResult(status));
+                  } else {
+                      promise->set_exception(
+                          std::make_exception_ptr(std::runtime_error("Query '" + queryTag + "' timed out")));
+                  }
+              });
+
+        if (timeout > std::chrono::milliseconds(0)) {
+            std::thread([promise, fulfilled, conn, queryTag, timeout]() {
+                std::this_thread::sleep_for(timeout);
+                if (!fulfilled->exchange(true)) {
+                    conn->disconnect();
+                    try {
+                        promise->set_exception(
+                            std::make_exception_ptr(std::runtime_error("Query '" + queryTag + "' timed out")));
+                    } catch (...) {
+                    }
+                }
+            }).detach();
+        }
+
+        triggerQuery();
+        return future;
+    }
+
+} // namespace
+
+std::future<std::uint16_t> PelcoDDevice::queryPanAsync(std::chrono::milliseconds timeout)
+{
+    return executeAsyncQuery<std::uint16_t>(
+        this, "QueryPan", [this] { queryPan(); }, [](const DeviceStatus& s) { return s.panCentidegrees; }, timeout);
+}
+
+std::future<std::uint16_t> PelcoDDevice::queryTiltAsync(std::chrono::milliseconds timeout)
+{
+    return executeAsyncQuery<std::uint16_t>(
+        this, "QueryTilt", [this] { queryTilt(); }, [](const DeviceStatus& s) { return s.tiltCentidegrees; }, timeout);
+}
+
+std::future<std::uint16_t> PelcoDDevice::queryZoomAsync(std::chrono::milliseconds timeout)
+{
+    return executeAsyncQuery<std::uint16_t>(
+        this, "QueryZoom", [this] { queryZoom(); }, [](const DeviceStatus& s) { return s.zoomPosition; }, timeout);
+}
+
+std::future<DeviceStatus> PelcoDDevice::queryStatusAsync(std::chrono::milliseconds timeout)
+{
+    return executeAsyncQuery<DeviceStatus>(
+        this, "QueryPan", [this] { queryPan(); }, [](const DeviceStatus& s) { return s; }, timeout);
+}
+
 void PelcoDDevice::sendRawFrame(const std::vector<std::uint8_t>& frame)
 {
     enqueueCommand(frame);
@@ -700,13 +863,25 @@ void PelcoDDevice::checkQueryTimeout()
         LOG(WARNING) << "Query timeout: No response received for query '" << tag << "' within " << timeoutMs << " ms";
 
         std::shared_ptr<const std::vector<CallbackEntry<TimeoutCallback>>> cbs;
+        std::shared_ptr<const std::vector<CallbackEntry<QueryCompletedCallback>>> qcbs;
         {
             std::lock_guard<std::mutex> lock(m_callbackState->mutex);
             cbs = m_callbackState->timeoutCallbacks;
+            qcbs = m_callbackState->queryCompletedCallbacks;
         }
         for (const auto& entry : *cbs) {
             if (entry.cb) {
                 entry.cb(tag);
+            }
+        }
+        DeviceStatus statusCopy;
+        {
+            std::lock_guard<std::mutex> lock(m_statusMutex);
+            statusCopy = m_status;
+        }
+        for (const auto& entry : *qcbs) {
+            if (entry.cb) {
+                entry.cb(tag, false, statusCopy);
             }
         }
     }
@@ -970,9 +1145,11 @@ void PelcoDDevice::dispatchFrame(const std::vector<std::uint8_t>& frame)
 
     if (ProtocolParser::updateStatus(frame, currentStatus, currentInfo)) {
         bool querySatisfied = false;
+        std::string satisfiedTag;
         {
             std::lock_guard<std::mutex> lock(m_statusMutex);
             if (m_awaitingResponse.load() && isResponseMatchingQuery(m_pendingQueryTag, frame)) {
+                satisfiedTag = m_pendingQueryTag;
                 m_awaitingResponse = false;
                 m_pendingQueryTag.clear();
                 querySatisfied = true;
@@ -983,6 +1160,16 @@ void PelcoDDevice::dispatchFrame(const std::vector<std::uint8_t>& frame)
 
         if (querySatisfied) {
             m_responseCv.notify_all();
+            std::shared_ptr<const std::vector<CallbackEntry<QueryCompletedCallback>>> qcbs;
+            {
+                std::lock_guard<std::mutex> lock(m_callbackState->mutex);
+                qcbs = m_callbackState->queryCompletedCallbacks;
+            }
+            for (const auto& entry : *qcbs) {
+                if (entry.cb) {
+                    entry.cb(satisfiedTag, true, currentStatus);
+                }
+            }
         }
 
         for (const auto& entry : *sbs) {

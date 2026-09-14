@@ -169,6 +169,7 @@ private:
     QFujinonSX800Device* m_fujinonAdapter { nullptr };
     std::uint8_t m_address { 1U };
     std::atomic<std::uint64_t> m_connectGeneration { 0U };
+    PelcoD::ScopedConnectionList m_deviceConnections {};
 };
 
 } // namespace PelcoDQt

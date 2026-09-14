@@ -11,10 +11,12 @@
 #include "ProtocolParser.h"
 
 #include <atomic>
+#include <chrono>
 #include <condition_variable>
 #include <cstdint>
 #include <deque>
 #include <functional>
+#include <future>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -30,6 +32,8 @@ public:
     using StatusCallback = std::function<void(const DeviceStatus& status)>;
     using TrafficCallback = std::function<void(bool isTx, const std::vector<std::uint8_t>& frame)>;
     using TimeoutCallback = std::function<void(const std::string& queryTag)>;
+    using QueryCompletedCallback
+        = std::function<void(const std::string& queryTag, bool success, const DeviceStatus& status)>;
 
     explicit PelcoDDevice(std::shared_ptr<ITransport> transport, std::uint8_t address = 1U);
     virtual ~PelcoDDevice();
@@ -55,7 +59,29 @@ public:
 
     Connection addStatusCallback(StatusCallback cb);
     Connection addTrafficCallback(TrafficCallback cb);
+
+    /// @brief Registers a traffic callback with direction filtering.
+    /// @param[in] cb Function invoked on packet transmission or reception.
+    /// @param[in] notifyTx Whether to notify on outbound (TX) frames.
+    /// @param[in] notifyRx Whether to notify on inbound (RX) frames.
+    /// @return Connection object to manage the subscription.
+    Connection addTrafficCallback(TrafficCallback cb, bool notifyTx, bool notifyRx);
+
+    /// @brief Registers a traffic callback with address and direction filtering.
+    /// @param[in] addressFilter Only notify on frames matching this device address.
+    /// @param[in] cb Function invoked on matching frames.
+    /// @param[in] notifyTx Whether to notify on outbound (TX) frames.
+    /// @param[in] notifyRx Whether to notify on inbound (RX) frames.
+    /// @return Connection object to manage the subscription.
+    Connection addTrafficCallback(
+        std::uint8_t addressFilter, TrafficCallback cb, bool notifyTx = true, bool notifyRx = true);
+
     Connection addTimeoutCallback(TimeoutCallback cb);
+
+    /// @brief Registers a callback for query completion or timeout events.
+    /// @param[in] cb Callback receiving queryTag, success flag, and DeviceStatus snapshot.
+    /// @return Connection object to manage the subscription.
+    Connection addQueryCompletedCallback(QueryCompletedCallback cb);
 
     /// @brief Removes a status callback by identifier.
     /// @param[in] id Callback identifier.
@@ -71,6 +97,11 @@ public:
     /// @param[in] id Callback identifier.
     /// @return True if callback was found and removed; false otherwise.
     bool removeTimeoutCallback(CallbackId id);
+
+    /// @brief Removes a query completed callback by identifier.
+    /// @param[in] id Callback identifier.
+    /// @return True if callback was found and removed; false otherwise.
+    bool removeQueryCompletedCallback(CallbackId id);
 
     /// @brief Removes all registered status, traffic, and timeout callbacks.
     virtual void clearCallbacks();
@@ -159,6 +190,30 @@ public:
     void queryDiagnostics();
     void queryAll();
 
+    /// @brief Asynchronously queries current pan angle with timeout.
+    /// @param[in] timeout Maximum wait duration.
+    /// @return Future resolving to pan angle in centidegrees, or throwing std::runtime_error on failure/timeout.
+    [[nodiscard]] std::future<std::uint16_t> queryPanAsync(
+        std::chrono::milliseconds timeout = std::chrono::milliseconds(1000));
+
+    /// @brief Asynchronously queries current tilt angle with timeout.
+    /// @param[in] timeout Maximum wait duration.
+    /// @return Future resolving to tilt angle in centidegrees, or throwing std::runtime_error on failure/timeout.
+    [[nodiscard]] std::future<std::uint16_t> queryTiltAsync(
+        std::chrono::milliseconds timeout = std::chrono::milliseconds(1000));
+
+    /// @brief Asynchronously queries optical zoom position with timeout.
+    /// @param[in] timeout Maximum wait duration.
+    /// @return Future resolving to raw zoom position, or throwing std::runtime_error on failure/timeout.
+    [[nodiscard]] std::future<std::uint16_t> queryZoomAsync(
+        std::chrono::milliseconds timeout = std::chrono::milliseconds(1000));
+
+    /// @brief Asynchronously queries full device status with timeout.
+    /// @param[in] timeout Maximum wait duration.
+    /// @return Future resolving to updated DeviceStatus, or throwing std::runtime_error on failure/timeout.
+    [[nodiscard]] std::future<DeviceStatus> queryStatusAsync(
+        std::chrono::milliseconds timeout = std::chrono::milliseconds(1000));
+
     void sendRawFrame(const std::vector<std::uint8_t>& frame);
     void sendQueryFrame(const std::vector<std::uint8_t>& frame, std::string queryTag = "Query");
 
@@ -226,10 +281,14 @@ private:
         std::shared_ptr<const std::vector<CallbackEntry<TimeoutCallback>>> timeoutCallbacks {
             std::make_shared<const std::vector<CallbackEntry<TimeoutCallback>>>()
         };
+        std::shared_ptr<const std::vector<CallbackEntry<QueryCompletedCallback>>> queryCompletedCallbacks {
+            std::make_shared<const std::vector<CallbackEntry<QueryCompletedCallback>>>()
+        };
 
         bool removeStatus(CallbackId id);
         bool removeTraffic(CallbackId id);
         bool removeTimeout(CallbackId id);
+        bool removeQueryCompleted(CallbackId id);
         void clear();
     };
 

@@ -10,6 +10,7 @@
 #include <atomic>
 #include <cassert>
 #include <chrono>
+#include <future>
 #include <iostream>
 #include <memory>
 #include <thread>
@@ -233,14 +234,147 @@ void testFujinonSX800DeviceConnection()
     fujinonDevice.stop();
 }
 
+/// @brief Tests ScopedConnectionList container operations, move semantics, and destruction cleanup.
+void testScopedConnectionList()
+{
+    std::cout << "Testing ScopedConnectionList container..." << std::endl;
+    PelcoD::ScopedConnectionList list;
+    assert(list.empty());
+    assert(list.size() == 0);
+
+    bool disc1 = false;
+    bool disc2 = false;
+    list += PelcoD::Connection([&disc1] { disc1 = true; });
+    list.add(PelcoD::Connection([&disc2] { disc2 = true; }));
+
+    assert(!list.empty());
+    assert(list.size() == 2);
+    assert(!disc1);
+    assert(!disc2);
+
+    list.disconnectAll();
+    assert(disc1);
+    assert(disc2);
+    assert(list.size() == 2);
+
+    list.clear();
+    assert(list.empty());
+
+    // Move semantics & auto-disconnect on destruction
+    bool disc3 = false;
+    {
+        PelcoD::ScopedConnectionList listA;
+        listA += PelcoD::Connection([&disc3] { disc3 = true; });
+        PelcoD::ScopedConnectionList listB = std::move(listA);
+        assert(!disc3);
+    }
+    assert(disc3);
+}
+
+/// @brief Tests address and direction filtering on traffic callbacks.
+void testFilteredTrafficCallbacks()
+{
+    std::cout << "Testing filtered traffic callbacks..." << std::endl;
+    auto transport = std::make_shared<ControlledTransport>();
+    PelcoD::PelcoDDevice device(transport, 1U);
+
+    std::atomic<int> txOnlyCount { 0 };
+    std::atomic<int> rxOnlyCount { 0 };
+    std::atomic<int> addr1Count { 0 };
+    std::atomic<int> addr2Count { 0 };
+
+    PelcoD::ScopedConnectionList conns;
+    conns += device.addTrafficCallback(
+        [&txOnlyCount](bool, const std::vector<std::uint8_t>&) { txOnlyCount.fetch_add(1); }, true, false);
+    conns += device.addTrafficCallback(
+        [&rxOnlyCount](bool, const std::vector<std::uint8_t>&) { rxOnlyCount.fetch_add(1); }, false, true);
+    conns += device.addTrafficCallback(
+        1U, [&addr1Count](bool, const std::vector<std::uint8_t>&) { addr1Count.fetch_add(1); });
+    conns += device.addTrafficCallback(
+        2U, [&addr2Count](bool, const std::vector<std::uint8_t>&) { addr2Count.fetch_add(1); });
+
+    assert(device.start());
+
+    // Send pan command (Address 1, TX)
+    device.panLeft(0x20);
+
+    bool txReceived = waitFor([&] { return txOnlyCount.load() >= 1; }, 2000);
+    assert(txReceived);
+    assert(rxOnlyCount.load() == 0); // RX only must NOT receive TX
+    assert(addr1Count.load() >= 1); // Addr 1 received TX
+    assert(addr2Count.load() == 0); // Addr 2 must NOT receive Addr 1
+
+    // Inject RX frame for Address 2
+    const std::vector<std::uint8_t> frameAddr2 = { 0xFF, 0x02, 0x00, 0x00, 0x00, 0x00, 0x02 };
+    transport->inject(frameAddr2);
+
+    bool rxReceived = waitFor([&] { return rxOnlyCount.load() >= 1; }, 2000);
+    assert(rxReceived);
+    assert(addr2Count.load() >= 1); // Addr 2 received RX
+
+    device.stop();
+}
+
+/// @brief Tests std::future-based asynchronous queries.
+void testAsyncQueries()
+{
+    std::cout << "Testing std::future async queries..." << std::endl;
+    auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(1U);
+    PelcoD::PelcoDDevice device(mock, 1U);
+
+    // Test disconnected device immediately fails
+    auto failFut = device.queryPanAsync();
+    bool threw = false;
+    try {
+        failFut.get();
+    } catch (const std::runtime_error&) {
+        threw = true;
+    }
+    assert(threw);
+
+    assert(device.start());
+
+    // Send Pan Right to set non-zero pan
+    device.panRight(0x20);
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+    // Query pan asynchronously
+    auto panFut = device.queryPanAsync();
+    assert(panFut.valid());
+    std::uint16_t pan = panFut.get();
+    assert(pan > 0U);
+
+    // Query status asynchronously
+    auto statusFut = device.queryStatusAsync();
+    assert(statusFut.valid());
+    auto status = statusFut.get();
+    assert(status.connected);
+
+    // Query timeout failure path via watchdog timeout
+    auto shortTimeoutFut = device.queryPanAsync(std::chrono::milliseconds(1));
+    std::this_thread::sleep_for(std::chrono::milliseconds(20));
+    bool timedOut = false;
+    try {
+        shortTimeoutFut.get();
+    } catch (const std::runtime_error&) {
+        timedOut = true;
+    }
+    assert(timedOut);
+
+    device.stop();
+}
+
 int main()
 {
     std::cout << "=== Running TestConnection ===" << std::endl;
     testBasicConnection();
     testScopedConnection();
+    testScopedConnectionList();
     testPelcoDDeviceSelectiveDisconnection();
     testDisconnectAfterDeviceDestruction();
     testFujinonSX800DeviceConnection();
+    testFilteredTrafficCallbacks();
+    testAsyncQueries();
     std::cout << "=== All TestConnection tests passed! ===" << std::endl;
     return 0;
 }
