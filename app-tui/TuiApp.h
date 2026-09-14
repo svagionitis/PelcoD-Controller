@@ -4,12 +4,15 @@
 /// @brief Main application coordinator managing event loop, views, and device lifecycle.
 
 #include "Canvas.h"
+#include "FujinonSX800Device.h"
+#include "FujinonTypes.h"
 #include "PelcoDDevice.h"
 #include "Terminal.h"
 #include "views/AuxOsdView.h"
 #include "views/ConnectionModal.h"
 #include "views/DiagnosticsView.h"
 #include "views/FooterView.h"
+#include "views/FujinonView.h"
 #include "views/HeaderView.h"
 #include "views/PresetsView.h"
 #include "views/PtzView.h"
@@ -51,7 +54,7 @@ private:
     std::string m_transportName { "Mock Mode" };
     ConnectionConfig m_currentConfig {};
 
-    std::unique_ptr<PelcoD::PelcoDDevice> m_device;
+    std::unique_ptr<PelcoD::FujinonSX800Device> m_device;
 
     // View Components
     HeaderView m_headerView {};
@@ -61,6 +64,7 @@ private:
     AuxOsdView m_auxOsdView {};
     DiagnosticsView m_diagnosticsView {};
     TrafficView m_trafficView {};
+    FujinonView m_fujinonView {};
     ConnectionModal m_connectionModal {};
     FooterView m_footerView {};
 };

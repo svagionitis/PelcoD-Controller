@@ -15,7 +15,9 @@ QPelcoDDevice::QPelcoDDevice(std::shared_ptr<PelcoD::ITransport> transport, std:
     , m_address { address }
 {
     if (m_transport) {
-        m_device = std::make_shared<PelcoD::PelcoDDevice>(m_transport, m_address);
+        m_fujinonDevice = std::make_shared<PelcoD::FujinonSX800Device>(m_transport, m_address);
+        m_device = m_fujinonDevice;
+        m_fujinonAdapter = new QFujinonSX800Device(m_fujinonDevice, this);
         initDeviceCallbacks();
     }
 }
@@ -35,10 +37,17 @@ QPelcoDDevice::~QPelcoDDevice()
 void QPelcoDDevice::setTransport(std::shared_ptr<PelcoD::ITransport> transport, std::uint8_t address)
 {
     disconnectDevice();
+    if (m_fujinonAdapter) {
+        delete m_fujinonAdapter;
+        m_fujinonAdapter = nullptr;
+    }
+    m_fujinonDevice.reset();
     m_transport = std::move(transport);
     m_address = address;
     if (m_transport) {
-        m_device = std::make_shared<PelcoD::PelcoDDevice>(m_transport, m_address);
+        m_fujinonDevice = std::make_shared<PelcoD::FujinonSX800Device>(m_transport, m_address);
+        m_device = m_fujinonDevice;
+        m_fujinonAdapter = new QFujinonSX800Device(m_fujinonDevice, this);
         initDeviceCallbacks();
     } else {
         m_device.reset();
@@ -59,6 +68,12 @@ void QPelcoDDevice::initDeviceCallbacks()
             }
         });
     });
+
+    if (m_fujinonDevice) {
+        m_fujinonDevice->addFujinonStatusCallback([this](const PelcoD::FujinonStatus& status) {
+            QMetaObject::invokeMethod(this, [this, status] { emit fujinonStatusUpdated(status); });
+        });
+    }
 
     m_device->addTrafficCallback([this](bool isTx, const std::vector<std::uint8_t>& frame) {
         const QByteArray bytes(reinterpret_cast<const char*>(frame.data()), static_cast<int>(frame.size()));

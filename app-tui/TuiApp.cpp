@@ -47,7 +47,7 @@ void TuiApp::setupDevice(const ConnectionConfig& config)
     }
 
     auto transport = m_connectionModal.createTransport();
-    m_device = std::make_unique<PelcoD::PelcoDDevice>(transport, config.address);
+    m_device = std::make_unique<PelcoD::FujinonSX800Device>(transport, config.address);
 
     m_device->addTrafficCallback(
         [this](bool isTx, const std::vector<std::uint8_t>& frame) { m_trafficView.addPacket(isTx, frame); });
@@ -83,7 +83,7 @@ void TuiApp::handleGlobalInput(const InputEvent& event)
     // Mouse click handling
     if (event.key == Key::MouseClick && !event.mouse.isRelease) {
         const int clickedTab = m_headerView.handleMouseClick(event.mouse.x, event.mouse.y);
-        if (clickedTab >= 0 && clickedTab < 6) {
+        if (clickedTab >= 0 && clickedTab < 7) {
             m_activeTab = clickedTab;
             return;
         }
@@ -110,23 +110,23 @@ void TuiApp::handleGlobalInput(const InputEvent& event)
     }
 
     // Tab shortcuts
-    if (event.ch >= '1' && event.ch <= '6') {
+    if (event.ch >= '1' && event.ch <= '7') {
         m_activeTab = event.ch - '1';
         return;
     }
 
-    if (event.key >= Key::F1 && event.key <= Key::F6) {
+    if (event.key >= Key::F1 && event.key <= Key::F7) {
         m_activeTab = static_cast<int>(event.key) - static_cast<int>(Key::F1);
         return;
     }
 
     if (event.key == Key::Tab) {
-        m_activeTab = (m_activeTab + 1) % 6;
+        m_activeTab = (m_activeTab + 1) % 7;
         return;
     }
 
     if (event.key == Key::Backtab) {
-        m_activeTab = (m_activeTab + 5) % 6;
+        m_activeTab = (m_activeTab + 6) % 7;
         return;
     }
 
@@ -150,6 +150,9 @@ void TuiApp::handleGlobalInput(const InputEvent& event)
             break;
         case 5:
             m_trafficView.handleInput(event, *m_device);
+            break;
+        case 6:
+            m_fujinonView.handleInput(event, *m_device);
             break;
         default:
             break;
@@ -195,6 +198,10 @@ void TuiApp::renderFrame()
             break;
         case 5:
             m_trafficView.render(m_canvas, viewStartY, width, viewHeight);
+            break;
+        case 6:
+            m_fujinonView.render(m_canvas, viewStartY, width, viewHeight,
+                m_device ? m_device->getFujinonStatus() : PelcoD::FujinonStatus {});
             break;
         default:
             break;

@@ -7,8 +7,8 @@
 
 namespace PelcoDTui {
 
-static const char* const kTabs[]
-    = { "[1] PTZ Motion", "[2] Presets & Tours", "[3] Settings", "[4] Aux & OSD", "[5] Diagnostics", "[6] Traffic" };
+static const char* const kTabs[] = { "[1] PTZ Motion", "[2] Presets & Tours", "[3] Settings", "[4] Aux & OSD",
+    "[5] Diagnostics", "[6] Traffic", "[7] Fujinon" };
 
 void HeaderView::render(
     Canvas& canvas, int width, int activeTab, bool connected, const std::string& transportName, std::uint8_t address)
@@ -58,7 +58,7 @@ void HeaderView::render(
     }
 
     int curX = 2;
-    for (int i = 0; i < 6; ++i) {
+    for (int i = 0; i < 7; ++i) {
         const std::string tabText = std::string(" ") + kTabs[i] + " ";
         const int tabLen = static_cast<int>(tabText.size());
 

@@ -18,6 +18,8 @@ add_executable(PelcoDAppQt
     tabs/OsdScreenTab.cpp
     tabs/SystemTab.h
     tabs/SystemTab.cpp
+    tabs/FujinonSX800Tab.h
+    tabs/FujinonSX800Tab.cpp
     dialogs/BusScanDialog.h
     dialogs/BusScanDialog.cpp
     dialogs/MockDynamicsDialog.h

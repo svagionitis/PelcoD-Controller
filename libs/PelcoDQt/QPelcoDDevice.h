@@ -4,9 +4,12 @@
 /// @brief Qt 6 QObject adapter wrapping PelcoDDevice for GUI integration.
 
 #include "DeviceStatus.h"
+#include "FujinonSX800Device.h"
+#include "FujinonTypes.h"
 #include "ITransport.h"
 #include "PelcoDDevice.h"
 #include "PelcoDTypes.h"
+#include "QFujinonSX800Device.h"
 
 #include <QByteArray>
 #include <QObject>
@@ -46,6 +49,18 @@ public:
     [[nodiscard]] PelcoD::DeviceInfo deviceInfo() const;
     [[nodiscard]] PelcoD::PelcoDDevice* coreDevice() const noexcept;
 
+    /// @brief Get access to the underlying Fujinon SX800 Qt adapter profile.
+    [[nodiscard]] QFujinonSX800Device* fujinonDevice() const noexcept
+    {
+        return m_fujinonAdapter;
+    }
+
+    /// @brief Get access to the underlying core FujinonSX800Device.
+    [[nodiscard]] std::shared_ptr<PelcoD::FujinonSX800Device> fujinonCoreDevice() const noexcept
+    {
+        return m_fujinonDevice;
+    }
+
     /// @brief Executes a callable or PelcoDDevice member function on the underlying core device if valid.
     template <typename Func, typename... Args> void invokeCore(Func&& func, Args&&... args)
     {
@@ -59,6 +74,7 @@ public:
 
 signals:
     void statusUpdated(const PelcoD::DeviceStatus& status);
+    void fujinonStatusUpdated(const PelcoD::FujinonStatus& status);
     void trafficLogged(bool isTx, const QByteArray& packet, const QString& description);
     void connectionStateChanged(bool connected);
     /// @brief Emitted when an async connect attempt starts (true) or finishes (false).
@@ -149,6 +165,8 @@ private:
 
     std::shared_ptr<PelcoD::ITransport> m_transport;
     std::shared_ptr<PelcoD::PelcoDDevice> m_device;
+    std::shared_ptr<PelcoD::FujinonSX800Device> m_fujinonDevice;
+    QFujinonSX800Device* m_fujinonAdapter { nullptr };
     std::uint8_t m_address { 1U };
     std::atomic<std::uint64_t> m_connectGeneration { 0U };
 };

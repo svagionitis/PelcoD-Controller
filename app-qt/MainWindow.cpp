@@ -42,6 +42,7 @@ void MainWindow::setupUi()
     m_auxZonesTab = new AuxZonesTab(m_device, this);
     m_osdTab = new OsdScreenTab(m_device, this);
     m_systemTab = new SystemTab(m_device, this);
+    m_fujinonTab = new FujinonSX800Tab(m_device, this);
 
     m_tabWidget->addTab(m_ptzTab, tr("PTZ Motion"));
     m_tabWidget->addTab(m_presetsTab, tr("Presets"));
@@ -49,6 +50,7 @@ void MainWindow::setupUi()
     m_tabWidget->addTab(m_auxZonesTab, tr("Aux & Zones"));
     m_tabWidget->addTab(m_osdTab, tr("OSD Display"));
     m_tabWidget->addTab(m_systemTab, tr("System Diagnostics"));
+    m_tabWidget->addTab(m_fujinonTab, tr("Fujinon SX800"));
 
     centralLayout->addWidget(m_tabWidget);
     setCentralWidget(centralWidget);
@@ -73,6 +75,7 @@ void MainWindow::setupConnections()
 
     // Device events
     connect(m_device, &PelcoDQt::QPelcoDDevice::statusUpdated, this, &MainWindow::handleStatusUpdated);
+    connect(m_device, &PelcoDQt::QPelcoDDevice::fujinonStatusUpdated, this, &MainWindow::handleFujinonStatusUpdated);
     connect(m_device, &PelcoDQt::QPelcoDDevice::trafficLogged, m_inspectorWidget, &TrafficInspectorWidget::logFrame);
     connect(m_device, &PelcoDQt::QPelcoDDevice::connectionStateChanged, m_connectionWidget,
         &ConnectionWidget::setConnectionState);
@@ -113,6 +116,13 @@ void MainWindow::handleStatusUpdated(const PelcoD::DeviceStatus& status)
 {
     m_ptzTab->updateTelemetry(status);
     m_systemTab->updateStatus(status);
+}
+
+void MainWindow::handleFujinonStatusUpdated(const PelcoD::FujinonStatus& status)
+{
+    if (m_fujinonTab) {
+        m_fujinonTab->updateFujinonStatus(status);
+    }
 }
 
 } // namespace PelcoDApp

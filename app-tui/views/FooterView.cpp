@@ -29,7 +29,7 @@ void FooterView::render(Canvas& canvas, int y, int width, [[maybe_unused]] int a
         curX += static_cast<int>(label.size()) + 3;
     };
 
-    drawHotkey("1-6", "Tabs");
+    drawHotkey("1-7", "Tabs");
     drawHotkey("C", "Connect");
     drawHotkey("Space", "Stop");
     drawHotkey("Q", "Quit");

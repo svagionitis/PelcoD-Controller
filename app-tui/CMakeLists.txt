@@ -25,6 +25,8 @@ add_executable(PelcoDAppTui
     views/DiagnosticsView.cpp
     views/TrafficView.h
     views/TrafficView.cpp
+    views/FujinonView.h
+    views/FujinonView.cpp
     views/FooterView.h
     views/FooterView.cpp
     views/ConnectionModal.h
