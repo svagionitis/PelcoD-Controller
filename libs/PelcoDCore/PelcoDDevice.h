@@ -149,7 +149,6 @@ private:
     void enqueueCommand(const std::vector<std::uint8_t>& frame, std::string queryTag = "",
         CommandPriority priority = CommandPriority::Normal);
     void workerLoop();
-    void pollingLoop();
     void onDataReceived(const std::vector<std::uint8_t>& data);
     void dispatchFrame(const std::vector<std::uint8_t>& frame);
     void checkQueryTimeout();
@@ -168,7 +167,6 @@ private:
     mutable std::recursive_mutex m_lifecycleMutex;
     std::atomic<bool> m_running { false };
     std::thread m_workerThread;
-    std::thread m_pollThread;
 
     std::mutex m_queueMutex;
     std::condition_variable m_queueCv;
@@ -179,10 +177,7 @@ private:
 
     std::atomic<bool> m_telemetryPolling { false };
     std::atomic<std::uint32_t> m_pollIntervalMs { 1000U };
-    std::uint64_t m_pollEpoch { 0U };
     std::atomic<std::uint32_t> m_queryTimeoutMs { 1000U };
-    std::mutex m_pollMutex;
-    std::condition_variable m_pollCv;
 
     mutable std::mutex m_statusMutex;
     DeviceStatus m_status {};

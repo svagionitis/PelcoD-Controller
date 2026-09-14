@@ -83,7 +83,6 @@ bool PelcoDDevice::start()
     }
     m_running = true;
     m_workerThread = std::thread(&PelcoDDevice::workerLoop, this);
-    m_pollThread = std::thread(&PelcoDDevice::pollingLoop, this);
 
     return true;
 }
@@ -91,7 +90,7 @@ bool PelcoDDevice::start()
 void PelcoDDevice::stop()
 {
     std::lock_guard<std::recursive_mutex> lifecycleLock(m_lifecycleMutex);
-    if (!m_running.load() && !m_workerThread.joinable() && !m_pollThread.joinable()) {
+    if (!m_running.load() && !m_workerThread.joinable()) {
         if (m_transport) {
             if (m_transport->isOpen()) {
                 m_transport->close();
@@ -107,13 +106,9 @@ void PelcoDDevice::stop()
     m_abortQueryWait.store(true);
     m_queueCv.notify_all();
     m_responseCv.notify_all();
-    m_pollCv.notify_all();
 
     if (m_workerThread.joinable()) {
         m_workerThread.join();
-    }
-    if (m_pollThread.joinable()) {
-        m_pollThread.join();
     }
     {
         std::lock_guard<std::mutex> lock(m_rxMutex);
@@ -198,13 +193,9 @@ DeviceInfo PelcoDDevice::getInfo() const
 
 void PelcoDDevice::setTelemetryPolling(bool enable, std::uint32_t intervalMs) noexcept
 {
-    {
-        std::lock_guard<std::mutex> lock(m_pollMutex);
-        m_telemetryPolling.store(enable);
-        m_pollIntervalMs.store((intervalMs > 0U) ? intervalMs : 1000U);
-        ++m_pollEpoch;
-    }
-    m_pollCv.notify_all();
+    m_telemetryPolling.store(enable);
+    m_pollIntervalMs.store((intervalMs > 0U) ? intervalMs : 1000U);
+    m_queueCv.notify_all();
 }
 
 bool PelcoDDevice::getTelemetryPolling() const noexcept
@@ -607,14 +598,57 @@ void PelcoDDevice::checkQueryTimeout()
 
 void PelcoDDevice::workerLoop()
 {
+    auto nextPollTime = std::chrono::steady_clock::now();
+    bool lastPollingEnabled { false };
+
     while (m_running) {
         checkQueryTimeout();
+
+        const bool pollingEnabled = m_telemetryPolling.load();
+        if (pollingEnabled && !lastPollingEnabled) {
+            nextPollTime = std::chrono::steady_clock::now();
+        }
+        lastPollingEnabled = pollingEnabled;
+
+        const auto now = std::chrono::steady_clock::now();
+        if (pollingEnabled && isConnected() && now >= nextPollTime) {
+            bool queriesAlreadyPending { false };
+            {
+                std::lock_guard<std::mutex> lock(m_queueMutex);
+                for (const auto& qItem : m_commandQueue) {
+                    if (qItem.priority == CommandPriority::Low) {
+                        queriesAlreadyPending = true;
+                        break;
+                    }
+                }
+            }
+
+            if (!queriesAlreadyPending) {
+                queryPan();
+                queryTilt();
+                queryZoom();
+            }
+            nextPollTime = now + std::chrono::milliseconds(m_pollIntervalMs.load());
+        }
 
         CommandItem item;
         {
             std::unique_lock<std::mutex> lock(m_queueMutex);
-            m_queueCv.wait_for(
-                lock, std::chrono::milliseconds(50), [this] { return !m_commandQueue.empty() || !m_running; });
+            if (m_commandQueue.empty()) {
+                if (pollingEnabled && isConnected()) {
+                    const auto currentNow = std::chrono::steady_clock::now();
+                    const auto waitTime = (nextPollTime > currentNow)
+                        ? std::chrono::duration_cast<std::chrono::milliseconds>(nextPollTime - currentNow)
+                        : std::chrono::milliseconds(0);
+                    if (waitTime.count() > 0) {
+                        m_queueCv.wait_for(lock, waitTime, [this] { return !m_commandQueue.empty() || !m_running; });
+                    }
+                } else {
+                    m_queueCv.wait_for(lock, std::chrono::milliseconds(100), [this] {
+                        return !m_commandQueue.empty() || !m_running || (m_telemetryPolling.load() && isConnected());
+                    });
+                }
+            }
 
             if (!m_running) {
                 break;
@@ -686,35 +720,6 @@ void PelcoDDevice::workerLoop()
             = std::chrono::duration_cast<std::chrono::milliseconds>(commandEndTime - sendStartTime).count();
         if (elapsedMs < 20) {
             std::this_thread::sleep_for(std::chrono::milliseconds(20 - elapsedMs));
-        }
-    }
-}
-
-void PelcoDDevice::pollingLoop()
-{
-    while (m_running) {
-        std::uint64_t currentEpoch { 0U };
-        {
-            std::unique_lock<std::mutex> lock(m_pollMutex);
-            if (!m_telemetryPolling.load()) {
-                m_pollCv.wait(lock, [this] { return m_telemetryPolling.load() || !m_running; });
-            } else {
-                currentEpoch = m_pollEpoch;
-                const auto interval = std::chrono::milliseconds(m_pollIntervalMs.load());
-                m_pollCv.wait_for(lock, interval, [this, currentEpoch] {
-                    return !m_running || !m_telemetryPolling.load() || m_pollEpoch != currentEpoch;
-                });
-            }
-        }
-
-        if (!m_running) {
-            break;
-        }
-
-        if (m_telemetryPolling.load() && isConnected()) {
-            queryPan();
-            queryTilt();
-            queryZoom();
         }
     }
 }
