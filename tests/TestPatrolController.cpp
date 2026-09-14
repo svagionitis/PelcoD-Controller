@@ -180,6 +180,31 @@ static void testManualSkip()
     std::cout << "  testManualSkip: PASSED\n";
 }
 
+/// @brief Verify background thread is NOT spawned until start() and terminates on stop().
+static void testLazyThreadLifecycle()
+{
+    PelcoD::PatrolController controller;
+    assert(!controller.isWorkerActive() && "Worker thread spawned eagerly in constructor!");
+
+    controller.addStep(PelcoD::PatrolStep { 1U, 5U, "Gate", 0U });
+    assert(!controller.isWorkerActive() && "Worker thread spawned before start()!");
+
+    assert(controller.start());
+    assert(controller.isWorkerActive() && "Worker thread not active after start()!");
+
+    controller.stop();
+    assert(!controller.isWorkerActive() && "Worker thread remained active after stop()!");
+
+    // Restart sequence to verify thread can cleanly re-spawn
+    assert(controller.start());
+    assert(controller.isWorkerActive() && "Worker thread not active after second start()!");
+
+    controller.stop();
+    assert(!controller.isWorkerActive() && "Worker thread active after second stop()!");
+
+    std::cout << "  testLazyThreadLifecycle: PASSED\n";
+}
+
 int main()
 {
     PelcoDTest::initTestHarness();
@@ -189,6 +214,7 @@ int main()
     testTourExecutionAndAdvancement();
     testPauseAndResume();
     testManualSkip();
+    testLazyThreadLifecycle();
     std::cout << "[TestPatrolController] All tests passed.\n";
     return 0;
 }

@@ -11,15 +11,11 @@ namespace PelcoD {
 PatrolController::PatrolController(PelcoDDevice* device)
 {
     setDevice(device);
-    m_workerRunning.store(true);
-    m_worker = std::thread(&PatrolController::workerLoop, this);
 }
 
 PatrolController::PatrolController(GoToPresetCallback dispatcher)
     : m_dispatcher(std::move(dispatcher))
 {
-    m_workerRunning.store(true);
-    m_worker = std::thread(&PatrolController::workerLoop, this);
 }
 
 PatrolController::~PatrolController()
@@ -35,6 +31,10 @@ PatrolController::~PatrolController()
 
 bool PatrolController::start()
 {
+    if (m_worker.joinable() && !m_workerRunning.load()) {
+        m_worker.join();
+    }
+
     std::unique_lock<std::mutex> lock(m_mutex);
     if (m_steps.empty()) {
         return false;
@@ -50,6 +50,8 @@ bool PatrolController::start()
     m_stepAdvanceDelta = 0;
     m_needsDispatch = true;
     m_state.store(PatrolState::Running);
+    m_workerRunning.store(true);
+    m_worker = std::thread(&PatrolController::workerLoop, this);
 
     const auto stateCb = m_stateChangedCb;
     m_cv.notify_all();
@@ -65,24 +67,30 @@ bool PatrolController::start()
 
 void PatrolController::stop()
 {
-    std::unique_lock<std::mutex> lock(m_mutex);
-    if (m_state.load() == PatrolState::Idle) {
-        return;
+    {
+        std::unique_lock<std::mutex> lock(m_mutex);
+        if (m_state.load() == PatrolState::Idle) {
+            return;
+        }
+
+        m_state.store(PatrolState::Idle);
+        m_workerRunning.store(false);
+        m_remainingDwellSeconds = 0U;
+        m_needsDispatch = false;
+        m_stepAdvanceRequested = false;
+        m_stepAdvanceDelta = 0;
+
+        const auto stateCb = m_stateChangedCb;
+        m_cv.notify_all();
+
+        if (stateCb) {
+            lock.unlock();
+            stateCb(PatrolState::Idle);
+        }
     }
 
-    m_state.store(PatrolState::Idle);
-    m_remainingDwellSeconds = 0U;
-    m_needsDispatch = false;
-    m_stepAdvanceRequested = false;
-    m_stepAdvanceDelta = 0;
-
-    const auto stateCb = m_stateChangedCb;
-    m_cv.notify_all();
-
-    if (stateCb) {
-        lock.unlock();
-        stateCb(PatrolState::Idle);
-        lock.lock();
+    if (m_worker.joinable() && std::this_thread::get_id() != m_worker.get_id()) {
+        m_worker.join();
     }
 }
 
@@ -157,6 +165,11 @@ bool PatrolController::isPaused() const noexcept
 PatrolState PatrolController::getState() const noexcept
 {
     return m_state.load();
+}
+
+bool PatrolController::isWorkerActive() const noexcept
+{
+    return m_workerRunning.load();
 }
 
 void PatrolController::addStep(const PatrolStep& step)
@@ -252,9 +265,7 @@ void PatrolController::setDevice(PelcoDDevice* device)
 {
     std::lock_guard<std::mutex> lock(m_mutex);
     if (device != nullptr) {
-        m_dispatcher = [device](std::uint8_t presetId) {
-            device->goToPreset(presetId);
-        };
+        m_dispatcher = [device](std::uint8_t presetId) { device->goToPreset(presetId); };
     } else {
         m_dispatcher = nullptr;
     }
@@ -316,19 +327,11 @@ void PatrolController::workerLoop()
 
     while (m_workerRunning.load()) {
         if (m_state.load() == PatrolState::Idle) {
-            m_cv.wait(lock, [this] {
-                return !m_workerRunning.load() || m_state.load() != PatrolState::Idle;
-            });
-            if (!m_workerRunning.load()) {
-                break;
-            }
-            continue;
+            break;
         }
 
         if (m_state.load() == PatrolState::Paused) {
-            m_cv.wait(lock, [this] {
-                return !m_workerRunning.load() || m_state.load() != PatrolState::Paused;
-            });
+            m_cv.wait(lock, [this] { return !m_workerRunning.load() || m_state.load() != PatrolState::Paused; });
             if (!m_workerRunning.load()) {
                 break;
             }
@@ -409,6 +412,7 @@ void PatrolController::workerLoop()
                     dispatchCurrentStep(lock);
                 } else {
                     m_state.store(PatrolState::Idle);
+                    m_workerRunning.store(false);
                     const auto stateCb = m_stateChangedCb;
                     const auto finishCb = m_tourFinishedCb;
 
@@ -420,6 +424,7 @@ void PatrolController::workerLoop()
                         finishCb();
                     }
                     lock.lock();
+                    break;
                 }
             }
         }

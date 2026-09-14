@@ -10,7 +10,6 @@ namespace PelcoD {
 LatencyPipeline::LatencyPipeline()
     : m_rng(std::random_device {}())
 {
-    m_worker = std::thread(&LatencyPipeline::workerLoop, this);
 }
 
 LatencyPipeline::~LatencyPipeline()
@@ -20,8 +19,18 @@ LatencyPipeline::~LatencyPipeline()
 
 void LatencyPipeline::setConfig(const LatencyConfig& config)
 {
+    if (m_worker.joinable() && !m_running.load()) {
+        m_worker.join();
+    }
+
     std::lock_guard<std::mutex> lock(m_mutex);
     m_config = config;
+    if (m_config.enabled
+        && (m_config.baseLatencyMs > 0U || m_config.jitterMs > 0U || m_config.packetDropPercent > 0.0)) {
+        ensureWorkerRunningLocked();
+    } else {
+        stopWorkerLocked();
+    }
 }
 
 LatencyConfig LatencyPipeline::getConfig() const
@@ -39,11 +48,14 @@ void LatencyPipeline::enqueue(std::vector<std::uint8_t> data, Callback callback)
     std::unique_lock<std::mutex> lock(m_mutex);
 
     // If latency simulation is disabled or 0 delay, invoke immediately
-    if (!m_config.enabled || (m_config.baseLatencyMs == 0U && m_config.jitterMs == 0U && m_config.packetDropPercent <= 0.0)) {
+    if (!m_config.enabled
+        || (m_config.baseLatencyMs == 0U && m_config.jitterMs == 0U && m_config.packetDropPercent <= 0.0)) {
         lock.unlock();
         callback(data);
         return;
     }
+
+    ensureWorkerRunningLocked();
 
     // Simulated packet drop check
     if (m_config.packetDropPercent > 0.0) {
@@ -75,9 +87,7 @@ void LatencyPipeline::enqueue(std::vector<std::uint8_t> data, Callback callback)
 
     // Insert in sorted order by dispatchTime
     const auto insertPos = std::upper_bound(m_queue.begin(), m_queue.end(), item,
-        [](const QueuedItem& a, const QueuedItem& b) {
-            return a.dispatchTime < b.dispatchTime;
-        });
+        [](const QueuedItem& a, const QueuedItem& b) { return a.dispatchTime < b.dispatchTime; });
     m_queue.insert(insertPos, std::move(item));
 
     m_cv.notify_one();
@@ -104,6 +114,30 @@ void LatencyPipeline::stop()
     }
 }
 
+bool LatencyPipeline::isWorkerActive() const noexcept
+{
+    return m_running.load();
+}
+
+void LatencyPipeline::ensureWorkerRunningLocked()
+{
+    if (!m_running.load()) {
+        if (m_worker.joinable()) {
+            m_worker.join();
+        }
+        m_running.store(true);
+        m_worker = std::thread(&LatencyPipeline::workerLoop, this);
+    }
+}
+
+void LatencyPipeline::stopWorkerLocked()
+{
+    if (m_running.load()) {
+        m_running.store(false);
+        m_cv.notify_all();
+    }
+}
+
 void LatencyPipeline::workerLoop()
 {
     while (m_running.load()) {
@@ -116,9 +150,7 @@ void LatencyPipeline::workerLoop()
             }
 
             if (m_queue.empty()) {
-                m_cv.wait(lock, [this] {
-                    return !m_running.load() || !m_queue.empty();
-                });
+                m_cv.wait(lock, [this] { return !m_running.load() || !m_queue.empty(); });
             } else {
                 const auto nextReadyTime = m_queue.front().dispatchTime;
                 m_cv.wait_until(lock, nextReadyTime, [this, nextReadyTime] {

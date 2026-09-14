@@ -58,6 +58,9 @@ public:
     /// @brief Shut down background dispatcher worker thread.
     void stop();
 
+    /// @brief Query if background worker thread is currently running.
+    [[nodiscard]] bool isWorkerActive() const noexcept;
+
 private:
     struct QueuedItem {
         std::chrono::steady_clock::time_point dispatchTime;
@@ -66,6 +69,8 @@ private:
     };
 
     void workerLoop();
+    void ensureWorkerRunningLocked();
+    void stopWorkerLocked();
 
     mutable std::mutex m_mutex;
     LatencyConfig m_config {};
@@ -73,7 +78,7 @@ private:
     std::vector<QueuedItem> m_queue;
     std::condition_variable m_cv;
     std::thread m_worker;
-    std::atomic<bool> m_running { true };
+    std::atomic<bool> m_running { false };
 
     std::mt19937 m_rng;
 };

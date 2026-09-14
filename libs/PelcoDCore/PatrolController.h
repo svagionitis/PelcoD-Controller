@@ -19,11 +19,7 @@ class PelcoDDevice;
 
 /// @enum PatrolState
 /// @brief Operational state of the patrol tour sequence.
-enum class PatrolState : std::uint8_t {
-    Idle,
-    Running,
-    Paused
-};
+enum class PatrolState : std::uint8_t { Idle, Running, Paused };
 
 /// @struct PatrolStep
 /// @brief A single preset destination and dwell time in a patrol sequence.
@@ -66,6 +62,7 @@ public:
     [[nodiscard]] bool isRunning() const noexcept;
     [[nodiscard]] bool isPaused() const noexcept;
     [[nodiscard]] PatrolState getState() const noexcept;
+    [[nodiscard]] bool isWorkerActive() const noexcept;
 
     // Configuration & Step Management
     void addStep(const PatrolStep& step);

@@ -138,8 +138,8 @@ void testPresetSlewShortestArc()
     // Wait until slew finishes (should take ~0.15s)
     const auto startWait = std::chrono::steady_clock::now();
     bool reached = false;
-    while (std::chrono::duration_cast<std::chrono::milliseconds>(
-               std::chrono::steady_clock::now() - startWait).count() < 1000) {
+    while (std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - startWait).count()
+        < 1000) {
         std::this_thread::sleep_for(std::chrono::milliseconds(20));
         sim.update();
         if (!sim.isMoving()) {
@@ -175,8 +175,8 @@ void testZoomTransitSimulation()
     // Wait for zoom to reach target
     const auto startWait = std::chrono::steady_clock::now();
     bool reached = false;
-    while (std::chrono::duration_cast<std::chrono::milliseconds>(
-               std::chrono::steady_clock::now() - startWait).count() < 1500) {
+    while (std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - startWait).count()
+        < 1500) {
         std::this_thread::sleep_for(std::chrono::milliseconds(20));
         sim.update();
         if (!sim.isMoving()) {
@@ -194,12 +194,15 @@ void testLatencyQueueTiming()
 {
     std::cout << "[Test] testLatencyQueueTiming...\n";
     PelcoD::LatencyPipeline pipe;
+    assert(!pipe.isWorkerActive() && "LatencyPipeline thread started eagerly in constructor!");
+
     PelcoD::LatencyConfig cfg;
     cfg.enabled = true;
     cfg.baseLatencyMs = 60U;
     cfg.jitterMs = 0U;
     cfg.packetDropPercent = 0.0;
     pipe.setConfig(cfg);
+    assert(pipe.isWorkerActive() && "LatencyPipeline thread not started when enabled!");
 
     std::atomic<bool> received { false };
     std::chrono::steady_clock::time_point sendTime;
@@ -215,8 +218,9 @@ void testLatencyQueueTiming()
 
     // Wait for delivery
     const auto startWait = std::chrono::steady_clock::now();
-    while (!received.load() && std::chrono::duration_cast<std::chrono::milliseconds>(
-               std::chrono::steady_clock::now() - startWait).count() < 500) {
+    while (!received.load()
+        && std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - startWait).count()
+            < 500) {
         std::this_thread::sleep_for(std::chrono::milliseconds(5));
     }
 
@@ -241,9 +245,7 @@ void testPacketDropSimulation()
     pipe.setConfig(cfg);
 
     std::atomic<int> receivedCount { 0 };
-    const auto deliveryCb = [&]([[maybe_unused]] const std::vector<std::uint8_t>& data) {
-        receivedCount.fetch_add(1);
-    };
+    const auto deliveryCb = [&]([[maybe_unused]] const std::vector<std::uint8_t>& data) { receivedCount.fetch_add(1); };
 
     for (int i = 0; i < 10; ++i) {
         pipe.enqueue({ 0xFF, 0x01, 0x00, 0x00, 0x00, 0x00, 0x01 }, deliveryCb);
@@ -301,8 +303,9 @@ void testMockDeviceWithKinematicsAndLatency()
     // Wait until slewing starts (device worker loop dispatches command asynchronously)
     const auto startWaitMove = std::chrono::steady_clock::now();
     bool startedMoving = false;
-    while (std::chrono::duration_cast<std::chrono::milliseconds>(
-               std::chrono::steady_clock::now() - startWaitMove).count() < 1000) {
+    while (
+        std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - startWaitMove).count()
+        < 1000) {
         if (mock->isMoving()) {
             startedMoving = true;
             break;
@@ -314,8 +317,9 @@ void testMockDeviceWithKinematicsAndLatency()
     // Wait until slew reaches preset 1
     const auto startWaitSettle = std::chrono::steady_clock::now();
     bool settled = false;
-    while (std::chrono::duration_cast<std::chrono::milliseconds>(
-               std::chrono::steady_clock::now() - startWaitSettle).count() < 2000) {
+    while (std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - startWaitSettle)
+               .count()
+        < 2000) {
         std::this_thread::sleep_for(std::chrono::milliseconds(20));
         if (!mock->isMoving()) {
             settled = true;
