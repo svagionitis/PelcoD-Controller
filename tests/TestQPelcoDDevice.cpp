@@ -25,8 +25,8 @@ static void testNoDuplicateSignalsOnReconnection()
     PelcoDQt::QPelcoDDevice device(mock, 1U);
 
     int txCount { 0 };
-    QObject::connect(&device, &PelcoDQt::QPelcoDDevice::trafficLogged,
-        [&](bool isTx, const QByteArray&, const QString&) {
+    QObject::connect(
+        &device, &PelcoDQt::QPelcoDDevice::trafficLogged, [&](bool isTx, const QByteArray&, const QString&) {
             if (isTx) {
                 ++txCount;
             }
@@ -96,16 +96,12 @@ static void testAsyncConnectSignalsEmittedOnMainThread()
         // Use Qt::DirectConnection to catch any signal emitted directly on a background thread
         QObject::connect(
             &device, &PelcoDQt::QPelcoDDevice::connectingStateChanged, &device,
-            [&](bool connecting) {
-                connectingSignals.emplace_back(connecting, QThread::currentThread());
-            },
+            [&](bool connecting) { connectingSignals.emplace_back(connecting, QThread::currentThread()); },
             Qt::DirectConnection);
 
         QObject::connect(
             &device, &PelcoDQt::QPelcoDDevice::connectionStateChanged, &device,
-            [&](bool connected) {
-                connectionSignals.emplace_back(connected, QThread::currentThread());
-            },
+            [&](bool connected) { connectionSignals.emplace_back(connected, QThread::currentThread()); },
             Qt::DirectConnection);
 
         device.connectDeviceAsync();
@@ -141,16 +137,12 @@ static void testAsyncConnectSignalsEmittedOnMainThread()
 
         QObject::connect(
             &device, &PelcoDQt::QPelcoDDevice::connectingStateChanged, &device,
-            [&](bool connecting) {
-                connectingSignals.emplace_back(connecting, QThread::currentThread());
-            },
+            [&](bool connecting) { connectingSignals.emplace_back(connecting, QThread::currentThread()); },
             Qt::DirectConnection);
 
         QObject::connect(
             &device, &PelcoDQt::QPelcoDDevice::connectionStateChanged, &device,
-            [&](bool connected) {
-                connectionSignals.emplace_back(connected, QThread::currentThread());
-            },
+            [&](bool connected) { connectionSignals.emplace_back(connected, QThread::currentThread()); },
             Qt::DirectConnection);
 
         device.connectDeviceAsync();
@@ -183,8 +175,8 @@ static void testInvokeCore()
         assert(device.connectDevice());
 
         int txCount { 0 };
-        QObject::connect(&device, &PelcoDQt::QPelcoDDevice::trafficLogged,
-            [&](bool isTx, const QByteArray&, const QString&) {
+        QObject::connect(
+            &device, &PelcoDQt::QPelcoDDevice::trafficLogged, [&](bool isTx, const QByteArray&, const QString&) {
                 if (isTx) {
                     ++txCount;
                 }
@@ -213,14 +205,90 @@ static void testInvokeCore()
     {
         PelcoDQt::QPelcoDDevice unconfiguredDevice(nullptr);
         bool calledOnNull { false };
-        unconfiguredDevice.invokeCore([&](PelcoD::PelcoDDevice*) {
-            calledOnNull = true;
-        });
+        unconfiguredDevice.invokeCore([&](PelcoD::PelcoDDevice*) { calledOnNull = true; });
         assert(!calledOnNull);
 
         // Member function pointer invocation on null device is also safe
         unconfiguredDevice.invokeCore(&PelcoD::PelcoDDevice::stopMotion);
     }
+}
+
+/// @class SlowOpenTransport
+/// @brief Mock transport with simulated connection latency in open().
+class SlowOpenTransport final : public PelcoD::BaseTransport {
+public:
+    bool open() override
+    {
+        m_open.store(true);
+        std::this_thread::sleep_for(std::chrono::milliseconds(300));
+        return m_open.load();
+    }
+    void close() override
+    {
+        m_open.store(false);
+    }
+    [[nodiscard]] bool isOpen() const noexcept override
+    {
+        return m_open.load();
+    }
+    [[nodiscard]] bool sendData(const std::vector<std::uint8_t>&) override
+    {
+        return m_open.load();
+    }
+
+private:
+    std::atomic<bool> m_open { false };
+};
+
+static void testDisconnectDoesNotBlockGuiThreadDuringConnect()
+{
+    auto slow = std::make_shared<SlowOpenTransport>();
+    PelcoDQt::QPelcoDDevice device(slow, 1U);
+
+    device.connectDeviceAsync();
+    std::this_thread::sleep_for(std::chrono::milliseconds(30)); // connect is now in-flight in slow->open()
+
+    // Call disconnectDevice() on current thread (simulating GUI thread button click)
+    const auto start = std::chrono::steady_clock::now();
+    device.disconnectDevice();
+    const auto elapsedMs
+        = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start).count();
+
+    // With m_connectThread.join(), elapsedMs is ~270ms. With non-blocking disconnect, it must be < 50ms!
+    assert(elapsedMs < 50);
+}
+
+static void testDestructionDuringInFlightConnectDoesNotBlockOrCrash()
+{
+    auto slow = std::make_shared<SlowOpenTransport>();
+    const auto start = std::chrono::steady_clock::now();
+    {
+        PelcoDQt::QPelcoDDevice device(slow, 1U);
+        device.connectDeviceAsync();
+        std::this_thread::sleep_for(std::chrono::milliseconds(30)); // in-flight in slow->open()
+    } // device destructor called here
+    const auto elapsedMs
+        = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start).count();
+
+    // Destructor must NOT block waiting for the 300ms open() to finish!
+    assert(elapsedMs < 100);
+}
+
+static void testRapidConnectCallsDoNotBlock()
+{
+    auto slow = std::make_shared<SlowOpenTransport>();
+    PelcoDQt::QPelcoDDevice device(slow, 1U);
+
+    const auto start = std::chrono::steady_clock::now();
+    device.connectDeviceAsync();
+    std::this_thread::sleep_for(std::chrono::milliseconds(20));
+    // Calling connectDeviceAsync a second time while first is running must NOT block
+    device.connectDeviceAsync();
+    const auto elapsedMs
+        = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start).count();
+
+    assert(elapsedMs < 100);
+    device.disconnectDevice();
 }
 
 int main(int argc, char* argv[])
@@ -233,6 +301,9 @@ int main(int argc, char* argv[])
     testNoDuplicateSignalsOnReconnection();
     testAsyncConnectSignalsEmittedOnMainThread();
     testInvokeCore();
+    testDisconnectDoesNotBlockGuiThreadDuringConnect();
+    testDestructionDuringInFlightConnectDoesNotBlockOrCrash();
+    testRapidConnectCallsDoNotBlock();
     std::cout << "[TestQPelcoDDevice] All tests passed successfully." << std::endl;
 
     return 0;

@@ -15,17 +15,16 @@ QPelcoDDevice::QPelcoDDevice(std::shared_ptr<PelcoD::ITransport> transport, std:
     , m_address { address }
 {
     if (m_transport) {
-        m_device = std::make_unique<PelcoD::PelcoDDevice>(m_transport, m_address);
+        m_device = std::make_shared<PelcoD::PelcoDDevice>(m_transport, m_address);
         initDeviceCallbacks();
     }
 }
 
 QPelcoDDevice::~QPelcoDDevice()
 {
-    // Join any in-flight async connect thread before tearing down.
-    if (m_connectThread.joinable()) {
-        m_connectThread.join();
-    }
+    // Invalidate any in-flight async connect attempt
+    ++m_connectGeneration;
+
     // Block signals so connectionStateChanged(false) — emitted by
     // disconnectDevice() — cannot fire into slots whose receiver is
     // already mid-destruction (e.g. MainWindow::statusBar()).
@@ -39,7 +38,7 @@ void QPelcoDDevice::setTransport(std::shared_ptr<PelcoD::ITransport> transport, 
     m_transport = std::move(transport);
     m_address = address;
     if (m_transport) {
-        m_device = std::make_unique<PelcoD::PelcoDDevice>(m_transport, m_address);
+        m_device = std::make_shared<PelcoD::PelcoDDevice>(m_transport, m_address);
         initDeviceCallbacks();
     } else {
         m_device.reset();
@@ -91,32 +90,64 @@ void QPelcoDDevice::connectDeviceAsync()
         return;
     }
 
-    // If a previous connect thread is still running, do not spawn another.
-    if (m_connectThread.joinable()) {
-        m_connectThread.join();
-    }
-
+    // Invalidate previous in-flight connects and mark connecting
+    const auto gen = ++m_connectGeneration;
     emit connectingStateChanged(true);
 
-    m_connectThread = std::thread([this] {
-        const bool ok = m_device ? m_device->start() : false;
-        // Post result back to the Qt main thread.
-        QMetaObject::invokeMethod(this, [this, ok] {
-            emit connectingStateChanged(false);
-            emit connectionStateChanged(ok);
-        });
-    });
+    const auto device = m_device;
+    const QPointer<QPelcoDDevice> weakThis(this);
+
+    QThreadPool::globalInstance()->start(QRunnable::create([weakThis, device, gen]() {
+        const bool ok = device ? device->start() : false;
+
+        // Post result back to the Qt main thread if still valid
+        if (weakThis) {
+            QMetaObject::invokeMethod(weakThis.data(), [weakThis, device, gen, ok]() {
+                if (!weakThis) {
+                    if (ok && device) {
+                        device->stop();
+                    }
+                    return;
+                }
+
+                // Discard result if connection was cancelled or superseded
+                if (weakThis->m_connectGeneration.load() != gen) {
+                    if (ok && device) {
+                        device->stop();
+                    }
+                    return;
+                }
+
+                emit weakThis->connectingStateChanged(false);
+                emit weakThis->connectionStateChanged(ok);
+            });
+        } else if (ok && device) {
+            device->stop();
+        }
+    }));
 }
 
 void QPelcoDDevice::disconnectDevice()
 {
-    // Cancel any in-flight async connect first.
-    if (m_connectThread.joinable()) {
-        m_connectThread.join();
-    }
+    // Invalidate any in-flight async connect
+    ++m_connectGeneration;
+
     if (m_device) {
-        m_device->stop();
+        if (m_device->isConnected()) {
+            m_device->stop();
+        } else {
+            // A connect attempt is in-flight. Do not block the GUI thread on m_lifecycleMutex.
+            // Dispatch a background task to stop the device once open() completes.
+            const auto device = m_device;
+            QThreadPool::globalInstance()->start(QRunnable::create([device]() {
+                if (device) {
+                    device->stop();
+                }
+            }));
+        }
     }
+
+    emit connectingStateChanged(false);
     emit connectionStateChanged(false);
 }
 
@@ -154,15 +185,28 @@ void QPelcoDDevice::setTelemetryPolling(bool enable, int intervalMs)
 }
 
 // --- Forwarding Macros for Core Device Passthrough ---
-#define FORWARD_CORE_0(slotName) \
-    void QPelcoDDevice::slotName() { if (m_device) { m_device->slotName(); } }
+#define FORWARD_CORE_0(slotName)                                                                                       \
+    void QPelcoDDevice::slotName()                                                                                     \
+    {                                                                                                                  \
+        if (m_device) {                                                                                                \
+            m_device->slotName();                                                                                      \
+        }                                                                                                              \
+    }
 
-#define FORWARD_CORE_1(slotName, ArgType, CastType) \
-    void QPelcoDDevice::slotName(ArgType val) { if (m_device) { m_device->slotName(static_cast<CastType>(val)); } }
+#define FORWARD_CORE_1(slotName, ArgType, CastType)                                                                    \
+    void QPelcoDDevice::slotName(ArgType val)                                                                          \
+    {                                                                                                                  \
+        if (m_device) {                                                                                                \
+            m_device->slotName(static_cast<CastType>(val));                                                            \
+        }                                                                                                              \
+    }
 
-#define FORWARD_CORE_SWITCH(slotName) \
-    void QPelcoDDevice::slotName(bool enable) { \
-        if (m_device) { m_device->slotName(enable ? PelcoD::SwitchState::On : PelcoD::SwitchState::Off); } \
+#define FORWARD_CORE_SWITCH(slotName)                                                                                  \
+    void QPelcoDDevice::slotName(bool enable)                                                                          \
+    {                                                                                                                  \
+        if (m_device) {                                                                                                \
+            m_device->slotName(enable ? PelcoD::SwitchState::On : PelcoD::SwitchState::Off);                           \
+        }                                                                                                              \
     }
 
 // Configuration
@@ -284,6 +328,5 @@ QString QPelcoDDevice::describePacket(bool isTx, const std::vector<std::uint8_t>
 {
     return QString::fromStdString(PelcoD::ProtocolParser::describeFrame(isTx, frame));
 }
-
 
 } // namespace PelcoDQt

@@ -10,11 +10,15 @@
 
 #include <QByteArray>
 #include <QObject>
+#include <QPointer>
+#include <QRunnable>
 #include <QString>
+#include <QThreadPool>
 
+#include <atomic>
+#include <cstdint>
 #include <functional>
 #include <memory>
-#include <thread>
 #include <utility>
 #include <vector>
 
@@ -43,8 +47,7 @@ public:
     [[nodiscard]] PelcoD::PelcoDDevice* coreDevice() const noexcept;
 
     /// @brief Executes a callable or PelcoDDevice member function on the underlying core device if valid.
-    template <typename Func, typename... Args>
-    void invokeCore(Func&& func, Args&&... args)
+    template <typename Func, typename... Args> void invokeCore(Func&& func, Args&&... args)
     {
         if (m_device) {
             std::invoke(std::forward<Func>(func), m_device.get(), std::forward<Args>(args)...);
@@ -145,9 +148,9 @@ private:
     void initDeviceCallbacks();
 
     std::shared_ptr<PelcoD::ITransport> m_transport;
-    std::unique_ptr<PelcoD::PelcoDDevice> m_device;
+    std::shared_ptr<PelcoD::PelcoDDevice> m_device;
     std::uint8_t m_address { 1U };
-    std::thread m_connectThread;
+    std::atomic<std::uint64_t> m_connectGeneration { 0U };
 };
 
 } // namespace PelcoDQt
