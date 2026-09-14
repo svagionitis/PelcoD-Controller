@@ -7,8 +7,8 @@ A production-grade, cross-platform C++17 library and modern Qt 6 desktop client 
 ## Architectural Highlights
 
 - **Three-Tier Separation of Concerns:**
-  1. [`libs/PelcoDCore/`](libs/PelcoDCore/): Pure C++17 static library with **zero Qt dependencies**. Encapsulates framing, checksum calculations, direct stream accumulator parsing, transports, simulated device emulator (`MockPelcoDDevice`), protocol builders/parsers, and high-level device controller (`PelcoDDevice`).
-  2. [`libs/PelcoDQt/`](libs/PelcoDQt/): Qt 6 adapter layer (`QPelcoDDevice`) exposing signals and slots for asynchronous UI integration.
+  1. [`libs/PelcoDCore/`](libs/PelcoDCore/): Pure C++17 static library with **zero Qt dependencies**. Encapsulates framing, checksum calculations, direct stream accumulator parsing, transports, simulated device emulator (`MockPelcoDDevice`), protocol builders/parsers, high-level device controller (`PelcoDDevice`), and specialized camera profiles (`FujinonSX800Device`).
+  2. [`libs/PelcoDQt/`](libs/PelcoDQt/): Qt 6 adapter layer (`QPelcoDDevice`, `QFujinonSX800Device`) exposing signals and slots for asynchronous UI integration.
   3. [`app-qt/`](app-qt/): Sleek, modern dark-themed Qt 6 desktop dashboard with live telemetry, interactive D-pad, preset manager, device settings, aux/zones/patterns, OSD labeling, and real-time hex traffic inspector.
 - **Direct Real-Time RX Stream Framing:**
   - Inbound byte streams are framed and validated directly inside the transport callback (`onDataReceived`) using a bounded accumulator, eliminating redundant context switches and delivering sub-microsecond frame dispatch without thread sprawl.
@@ -119,10 +119,46 @@ cmake --build build --target format-check
 
 ---
 
+## Specialized Profiles: Fujinon SX800 / SX801 (Protocol v2.12.0)
+
+Specialized camera profiles ([`FujinonSX800Device`](libs/PelcoDCore/FujinonSX800Device.h) and [`QFujinonSX800Device`](libs/PelcoDQt/QFujinonSX800Device.h)) provide full protocol coverage for Fujinon SX800 and SX801 long-range surveillance zoom cameras conforming to Protocol Specification Version 2.12.0 (November 2022):
+
+- **Stabilization & Optical Filters:**
+  - Optical & Electronic Image Stabilization (Auto, OIS On, EIS On, Off)
+  - Visible-Light-Cut (VLC) optical filter toggle
+  - Optical & Digital Defog (Off, Levels 1–3)
+  - De-Heat Haze image reduction (Off, Levels 1–2)
+  - Wide Dynamic Range (WDR Levels 1–3)
+- **Fine Image Quality Parameter Adjustments (1–100):**
+  - Brightness Fine (`0xEB`), Contrast Fine (`0xED`), Saturation Fine (`0xEF`), Sharpness Fine (`0xF1`)
+  - White Balance Shift Red Fine (`0xF5`) & Blue Fine (`0xF7`)
+  - Continuous telemetry querying (`0xFD` / `0xFF`)
+- **Extended Day / Night Switching:**
+  - Extended operating modes: Auto, Auto & Scheduled, Scheduled, Day, Night
+  - Luminance thresholds: Day to Night (`0x03`) and Night to Day (`0x05`)
+  - Auto-switching delay seconds (0–60s)
+  - Scheduled Day start time (`0x09`) and Night start time (`0x0B`)
+  - Day & Night optical filter overrides (IR cut vs. IR pass)
+- **Advanced Optics & Zoom Telemetry:**
+  - 40x optical zoom with extended zoom speeds (steps 1–8: 4s to 60s)
+  - Extended focus speeds (steps 1–5) and One-Push Auto-Focus
+  - Digital zoom modes: Off, Digital Zoom (1.25x–2.0x), and Sensor Crop Mode
+  - Physical focal length conversion mapping 16-bit raw zoom coordinates to focal length (20.0 mm wide to 800.0 mm tele, up to 1600.0 mm with digital zoom)
+- **System, Media & OSD Navigation:**
+  - Anti-Aliasing filter toggle (`0xF0 0x55`)
+  - Full OSD menu navigation: OK (`0x9B`), Direction (`0x9D`), and Back (`0xAB`)
+  - SD card recording, movie playback, card formatting, and factory reset
+  - OSD Language selection (English, French, Japanese)
+  - Real-Time Clock (RTC) synchronization (`0x00 0x3B`: seconds, hours, minutes, date, year)
+
+---
+
 ## Documentation
 
 - [C4 Architecture Models (ASCII & Mermaid)](docs/C4_Architecture.md)
 - [Pelco-D Specification (v5.0.1 PDF)](docs/DProtocol_Version_5_Revision_1.pdf)
+- [Fujinon SX800 / SX801 Protocol Specification v2.12.0 (PDF)](docs/pelco-d_protocol_specification_for_sx800_801_v2.12.0_en.pdf)
+- [Fujinon SX800 / SX801 Protocol Specification v2.51 (PDF)](docs/Pelco-D_Protocol_Specification_for_SX800_801_V.2.51_ENG.pdf)
 
 ---
 
