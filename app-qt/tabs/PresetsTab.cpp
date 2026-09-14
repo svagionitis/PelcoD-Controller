@@ -315,23 +315,23 @@ void PresetsTab::onPatrolStepChanged(int stepIndex, int presetId, const QString&
 {
     tablePatrol->selectRow(stepIndex);
     const int total = m_patrol->stepCount();
-    lblPatrolStatus->setText(tr("Touring: Step %1/%2 — %3 (Preset %4)").arg(stepIndex + 1).arg(total).arg(name).arg(presetId));
+    lblPatrolStatus->setText(
+        tr("Touring: Step %1/%2 — %3 (Preset %4)").arg(stepIndex + 1).arg(total).arg(name).arg(presetId));
 }
 
 void PresetsTab::onPatrolDwellTick(int stepIndex, int remainingSeconds)
 {
     const auto steps = m_patrol->steps();
     if (static_cast<std::size_t>(stepIndex) < steps.size()) {
-        const auto totalDwell = steps[static_cast<std::size_t>(stepIndex)].dwellTimeSeconds;
-        const int pct = totalDwell > 0 ? static_cast<int>((totalDwell - remainingSeconds) * 100 / totalDwell) : 100;
+        const auto totalDwell = static_cast<int>(steps[static_cast<std::size_t>(stepIndex)].dwellTimeSeconds);
+        const int pct = totalDwell > 0 ? ((totalDwell - remainingSeconds) * 100 / totalDwell) : 100;
         progressDwell->setValue(pct);
-        lblPatrolStatus->setText(
-            tr("Touring: Step %1/%2 — %3 (Preset %4) | Dwell: %5s remaining")
-                .arg(stepIndex + 1)
-                .arg(steps.size())
-                .arg(QString::fromStdString(steps[static_cast<std::size_t>(stepIndex)].name))
-                .arg(steps[static_cast<std::size_t>(stepIndex)].presetId)
-                .arg(remainingSeconds));
+        lblPatrolStatus->setText(tr("Touring: Step %1/%2 — %3 (Preset %4) | Dwell: %5s remaining")
+                                     .arg(stepIndex + 1)
+                                     .arg(steps.size())
+                                     .arg(QString::fromStdString(steps[static_cast<std::size_t>(stepIndex)].name))
+                                     .arg(steps[static_cast<std::size_t>(stepIndex)].presetId)
+                                     .arg(remainingSeconds));
     }
 }
 

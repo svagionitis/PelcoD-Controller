@@ -73,11 +73,6 @@ namespace {
     }
 #endif
 
-    bool isValidBaudRate(std::uint32_t baudRate) noexcept
-    {
-        return SerialTransport::isValidBaudRate(baudRate);
-    }
-
 } // namespace
 
 SerialTransport::SerialTransport(std::string portName, std::uint32_t baudRate)
@@ -357,7 +352,6 @@ bool SerialTransport::sendData(const std::vector<std::uint8_t>& data)
 #endif
 }
 
-
 void SerialTransport::readWorker()
 {
     std::vector<std::uint8_t> buffer(512U, 0x00U);
@@ -370,8 +364,7 @@ void SerialTransport::readWorker()
             break;
         }
         DWORD bytesRead = 0;
-        const BOOL success
-            = ::ReadFile(handle, buffer.data(), static_cast<DWORD>(buffer.size()), &bytesRead, nullptr);
+        const BOOL success = ::ReadFile(handle, buffer.data(), static_cast<DWORD>(buffer.size()), &bytesRead, nullptr);
 
         if (success) {
             if (bytesRead > 0) {
@@ -437,39 +430,38 @@ void SerialTransport::readWorker()
     }
 }
 
-
 namespace {
-bool naturalLess(const std::string& a, const std::string& b)
-{
-    std::size_t i { 0U };
-    std::size_t j { 0U };
-    while (i < a.size() && j < b.size()) {
-        if (std::isdigit(static_cast<unsigned char>(a[i])) && std::isdigit(static_cast<unsigned char>(b[j]))) {
-            std::size_t endA { i };
-            while (endA < a.size() && std::isdigit(static_cast<unsigned char>(a[endA]))) {
-                ++endA;
+    bool naturalLess(const std::string& a, const std::string& b)
+    {
+        std::size_t i { 0U };
+        std::size_t j { 0U };
+        while (i < a.size() && j < b.size()) {
+            if (std::isdigit(static_cast<unsigned char>(a[i])) && std::isdigit(static_cast<unsigned char>(b[j]))) {
+                std::size_t endA { i };
+                while (endA < a.size() && std::isdigit(static_cast<unsigned char>(a[endA]))) {
+                    ++endA;
+                }
+                std::size_t endB { j };
+                while (endB < b.size() && std::isdigit(static_cast<unsigned char>(b[endB]))) {
+                    ++endB;
+                }
+                const unsigned long long numA = std::stoull(a.substr(i, endA - i));
+                const unsigned long long numB = std::stoull(b.substr(j, endB - j));
+                if (numA != numB) {
+                    return numA < numB;
+                }
+                i = endA;
+                j = endB;
+            } else {
+                if (a[i] != b[j]) {
+                    return a[i] < b[j];
+                }
+                ++i;
+                ++j;
             }
-            std::size_t endB { j };
-            while (endB < b.size() && std::isdigit(static_cast<unsigned char>(b[endB]))) {
-                ++endB;
-            }
-            const unsigned long long numA = std::stoull(a.substr(i, endA - i));
-            const unsigned long long numB = std::stoull(b.substr(j, endB - j));
-            if (numA != numB) {
-                return numA < numB;
-            }
-            i = endA;
-            j = endB;
-        } else {
-            if (a[i] != b[j]) {
-                return a[i] < b[j];
-            }
-            ++i;
-            ++j;
         }
+        return a.size() < b.size();
     }
-    return a.size() < b.size();
-}
 } // namespace
 
 std::vector<std::string> SerialTransport::enumeratePorts()
@@ -537,8 +529,8 @@ std::vector<std::string> SerialTransport::enumeratePorts()
         if (std::filesystem::exists("/dev")) {
             for (const auto& entry : std::filesystem::directory_iterator("/dev")) {
                 const std::string filename = entry.path().filename().string();
-                if (filename.rfind("ttyUSB", 0) == 0 || filename.rfind("ttyACM", 0) == 0 ||
-                    filename.rfind("ttyS", 0) == 0 || filename.rfind("rfcomm", 0) == 0) {
+                if (filename.rfind("ttyUSB", 0) == 0 || filename.rfind("ttyACM", 0) == 0
+                    || filename.rfind("ttyS", 0) == 0 || filename.rfind("rfcomm", 0) == 0) {
                     const std::string fullPath = entry.path().string();
                     if (std::find(ports.begin(), ports.end(), fullPath) == ports.end()) {
                         ports.push_back(fullPath);
@@ -572,4 +564,3 @@ std::vector<std::string> SerialTransport::enumeratePorts()
 }
 
 } // namespace PelcoD
-

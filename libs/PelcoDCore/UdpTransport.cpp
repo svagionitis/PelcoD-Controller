@@ -44,68 +44,68 @@ namespace PelcoD {
 namespace {
 
 #ifdef _WIN32
-struct WinsockInit {
-    WinsockInit()
+    struct WinsockInit {
+        WinsockInit()
+        {
+            WSADATA wsaData {};
+            ::WSAStartup(MAKEWORD(2, 2), &wsaData);
+        }
+        ~WinsockInit()
+        {
+            ::WSACleanup();
+        }
+    };
+
+    void ensureWinsockInitialized()
     {
-        WSADATA wsaData {};
-        ::WSAStartup(MAKEWORD(2, 2), &wsaData);
+        static WinsockInit init;
     }
-    ~WinsockInit()
+
+    std::string getSocketErrorString(int errCode = 0)
     {
-        ::WSACleanup();
+        if (errCode == 0) {
+            errCode = ::WSAGetLastError();
+        }
+        char* errText = nullptr;
+        const DWORD len = FormatMessageA(
+            FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS, nullptr,
+            errCode, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), reinterpret_cast<LPSTR>(&errText), 0, nullptr);
+        std::string msg
+            = (len > 0 && errText != nullptr) ? std::string(errText) : "Winsock error " + std::to_string(errCode);
+        if (errText != nullptr) {
+            LocalFree(errText);
+        }
+        while (!msg.empty() && (msg.back() == '\r' || msg.back() == '\n')) {
+            msg.pop_back();
+        }
+        return msg;
     }
-};
 
-void ensureWinsockInitialized()
-{
-    static WinsockInit init;
-}
-
-std::string getSocketErrorString(int errCode = 0)
-{
-    if (errCode == 0) {
-        errCode = ::WSAGetLastError();
+    bool setNonBlocking(SOCKET s, bool nonBlocking)
+    {
+        u_long mode = nonBlocking ? 1 : 0;
+        return ::ioctlsocket(s, FIONBIO, &mode) == 0;
     }
-    char* errText = nullptr;
-    const DWORD len = FormatMessageA(
-        FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS, nullptr,
-        errCode, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), reinterpret_cast<LPSTR>(&errText), 0, nullptr);
-    std::string msg
-        = (len > 0 && errText != nullptr) ? std::string(errText) : "Winsock error " + std::to_string(errCode);
-    if (errText != nullptr) {
-        LocalFree(errText);
-    }
-    while (!msg.empty() && (msg.back() == '\r' || msg.back() == '\n')) {
-        msg.pop_back();
-    }
-    return msg;
-}
-
-bool setNonBlocking(SOCKET s, bool nonBlocking)
-{
-    u_long mode = nonBlocking ? 1 : 0;
-    return ::ioctlsocket(s, FIONBIO, &mode) == 0;
-}
 
 #else
 
-std::string getSocketErrorString(int errCode = 0)
-{
-    if (errCode == 0) {
-        errCode = errno;
+    std::string getSocketErrorString(int errCode = 0)
+    {
+        if (errCode == 0) {
+            errCode = errno;
+        }
+        return std::string(std::strerror(errCode));
     }
-    return std::string(std::strerror(errCode));
-}
 
-bool setNonBlocking(int fd, bool nonBlocking)
-{
-    int flags = ::fcntl(fd, F_GETFL, 0);
-    if (flags == -1) {
-        return false;
+    bool setNonBlocking(int fd, bool nonBlocking)
+    {
+        int flags = ::fcntl(fd, F_GETFL, 0);
+        if (flags == -1) {
+            return false;
+        }
+        flags = nonBlocking ? (flags | O_NONBLOCK) : (flags & ~O_NONBLOCK);
+        return ::fcntl(fd, F_SETFL, flags) == 0;
     }
-    flags = nonBlocking ? (flags | O_NONBLOCK) : (flags & ~O_NONBLOCK);
-    return ::fcntl(fd, F_SETFL, flags) == 0;
-}
 
 #endif
 
@@ -199,7 +199,7 @@ bool UdpTransport::open()
 
     notifyState(TransportState::Connecting, "");
 
-    struct addrinfo hints {};
+    struct addrinfo hints { };
     hints.ai_family = AF_UNSPEC;
     hints.ai_socktype = SOCK_DGRAM;
     hints.ai_protocol = IPPROTO_UDP;
@@ -231,36 +231,38 @@ bool UdpTransport::open()
         if (m_localPort > 0U) {
             bool bindOk = false;
             if (ptr->ai_family == AF_INET) {
-                struct sockaddr_in addr4 {};
+                struct sockaddr_in addr4 { };
                 addr4.sin_family = AF_INET;
                 addr4.sin_addr.s_addr = htonl(INADDR_ANY);
                 addr4.sin_port = htons(m_localPort);
-                bindOk = (::bind(static_cast<SOCKET>(s), reinterpret_cast<struct sockaddr*>(&addr4), sizeof(addr4)) == 0);
+                bindOk = (::bind(s, reinterpret_cast<struct sockaddr*>(&addr4), sizeof(addr4)) == 0);
             } else if (ptr->ai_family == AF_INET6) {
-                struct sockaddr_in6 addr6 {};
+                struct sockaddr_in6 addr6 { };
                 addr6.sin6_family = AF_INET6;
                 addr6.sin6_addr = in6addr_any;
                 addr6.sin6_port = htons(m_localPort);
-                bindOk = (::bind(static_cast<SOCKET>(s), reinterpret_cast<struct sockaddr*>(&addr6), sizeof(addr6)) == 0);
+                bindOk = (::bind(s, reinterpret_cast<struct sockaddr*>(&addr6), sizeof(addr6)) == 0);
             }
 
             if (!bindOk) {
-                LOG(WARNING) << "UdpTransport: Failed to bind to local port " << m_localPort << ": " << getSocketErrorString();
-                CLOSE_SOCKET(static_cast<SOCKET>(s));
+                LOG(WARNING) << "UdpTransport: Failed to bind to local port " << m_localPort << ": "
+                             << getSocketErrorString();
+                CLOSE_SOCKET(s);
                 continue;
             }
         }
 
         // Connect the UDP socket to destination address to establish default peer and filter incoming datagrams
-        if (::connect(static_cast<SOCKET>(s), ptr->ai_addr, static_cast<socklen_t>(ptr->ai_addrlen)) != 0) {
-            LOG(WARNING) << "UdpTransport: Failed to connect UDP socket to " << m_host << ":" << m_port << ": " << getSocketErrorString();
-            CLOSE_SOCKET(static_cast<SOCKET>(s));
+        if (::connect(s, ptr->ai_addr, static_cast<socklen_t>(ptr->ai_addrlen)) != 0) {
+            LOG(WARNING) << "UdpTransport: Failed to connect UDP socket to " << m_host << ":" << m_port << ": "
+                         << getSocketErrorString();
+            CLOSE_SOCKET(s);
             continue;
         }
 
-        if (!setNonBlocking(static_cast<SOCKET>(s), true)) {
+        if (!setNonBlocking(s, true)) {
             LOG(WARNING) << "UdpTransport: Failed to set non-blocking mode: " << getSocketErrorString();
-            CLOSE_SOCKET(static_cast<SOCKET>(s));
+            CLOSE_SOCKET(s);
             continue;
         }
 
@@ -296,7 +298,7 @@ void UdpTransport::close()
 
     const auto sock = m_sockfd.exchange(InvalidSocket);
     if (sock != InvalidSocket) {
-        CLOSE_SOCKET(static_cast<SOCKET>(sock));
+        CLOSE_SOCKET(sock);
     }
 
     stopReadThread();
@@ -315,10 +317,16 @@ bool UdpTransport::sendData(const std::vector<std::uint8_t>& data)
         return false;
     }
 
-    const auto bytesSent = ::send(static_cast<SOCKET>(sock), reinterpret_cast<const char*>(data.data()),
-        static_cast<int>(data.size()), SEND_FLAGS);
+#ifdef _WIN32
+    const int bytesSent
+        = ::send(sock, reinterpret_cast<const char*>(data.data()), static_cast<int>(data.size()), SEND_FLAGS);
 
     if (bytesSent != static_cast<int>(data.size())) {
+#else
+    const ssize_t bytesSent = ::send(sock, reinterpret_cast<const char*>(data.data()), data.size(), SEND_FLAGS);
+
+    if (bytesSent != static_cast<ssize_t>(data.size())) {
+#endif
         LOG(WARNING) << "UdpTransport: send error: " << getSocketErrorString();
         return false;
     }
@@ -359,8 +367,12 @@ void UdpTransport::readWorker()
         }
 
         if (pfd.revents & POLLIN) {
-            const int bytesRead = ::recv(static_cast<SOCKET>(sock), reinterpret_cast<char*>(rxBuffer.data()),
-                static_cast<int>(rxBuffer.size()), 0);
+#ifdef _WIN32
+            const int bytesRead
+                = ::recv(sock, reinterpret_cast<char*>(rxBuffer.data()), static_cast<int>(rxBuffer.size()), 0);
+#else
+            const ssize_t bytesRead = ::recv(sock, reinterpret_cast<char*>(rxBuffer.data()), rxBuffer.size(), 0);
+#endif
 
             if (bytesRead > 0) {
                 const std::vector<std::uint8_t> packet(rxBuffer.begin(), rxBuffer.begin() + bytesRead);
