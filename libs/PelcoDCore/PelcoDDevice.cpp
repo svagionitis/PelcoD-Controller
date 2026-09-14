@@ -4,6 +4,7 @@
 #include "PelcoDDevice.h"
 #include "PelcoDFrame.h"
 
+#include <algorithm>
 #include <chrono>
 #include <glog/logging.h>
 
@@ -43,19 +44,19 @@ bool PelcoDDevice::start()
                 m_status.connected = false;
             }
             if (wasConn) {
-                std::shared_ptr<const std::vector<StatusCallback>> sbs;
+                std::shared_ptr<const std::vector<CallbackEntry<StatusCallback>>> sbs;
                 {
-                    std::lock_guard<std::mutex> lock(m_callbackMutex);
-                    sbs = m_statusCallbacks;
+                    std::lock_guard<std::mutex> lock(m_callbackState->mutex);
+                    sbs = m_callbackState->statusCallbacks;
                 }
                 DeviceStatus copy;
                 {
                     std::lock_guard<std::mutex> lock(m_statusMutex);
                     copy = m_status;
                 }
-                for (const auto& cb : *sbs) {
-                    if (cb) {
-                        cb(copy);
+                for (const auto& entry : *sbs) {
+                    if (entry.cb) {
+                        entry.cb(copy);
                     }
                 }
             }
@@ -147,36 +148,151 @@ std::uint8_t PelcoDDevice::getAddress() const noexcept
     return m_address;
 }
 
-void PelcoDDevice::addStatusCallback(StatusCallback cb)
+bool PelcoDDevice::CallbackState::removeStatus(CallbackId id)
 {
-    std::lock_guard<std::mutex> lock(m_callbackMutex);
-    auto newCallbacks = std::make_shared<std::vector<StatusCallback>>(*m_statusCallbacks);
-    newCallbacks->push_back(std::move(cb));
-    m_statusCallbacks = std::move(newCallbacks);
+    std::lock_guard<std::mutex> lock(mutex);
+    const auto& current = *statusCallbacks;
+    auto it = std::find_if(current.begin(), current.end(), [id](const auto& entry) { return entry.id == id; });
+    if (it == current.end()) {
+        return false;
+    }
+    auto nextList = std::make_shared<std::vector<CallbackEntry<StatusCallback>>>();
+    nextList->reserve(current.size() - 1U);
+    for (const auto& entry : current) {
+        if (entry.id != id) {
+            nextList->push_back(entry);
+        }
+    }
+    statusCallbacks = std::move(nextList);
+    return true;
 }
 
-void PelcoDDevice::addTrafficCallback(TrafficCallback cb)
+bool PelcoDDevice::CallbackState::removeTraffic(CallbackId id)
 {
-    std::lock_guard<std::mutex> lock(m_callbackMutex);
-    auto newCallbacks = std::make_shared<std::vector<TrafficCallback>>(*m_trafficCallbacks);
-    newCallbacks->push_back(std::move(cb));
-    m_trafficCallbacks = std::move(newCallbacks);
+    std::lock_guard<std::mutex> lock(mutex);
+    const auto& current = *trafficCallbacks;
+    auto it = std::find_if(current.begin(), current.end(), [id](const auto& entry) { return entry.id == id; });
+    if (it == current.end()) {
+        return false;
+    }
+    auto nextList = std::make_shared<std::vector<CallbackEntry<TrafficCallback>>>();
+    nextList->reserve(current.size() - 1U);
+    for (const auto& entry : current) {
+        if (entry.id != id) {
+            nextList->push_back(entry);
+        }
+    }
+    trafficCallbacks = std::move(nextList);
+    return true;
 }
 
-void PelcoDDevice::addTimeoutCallback(TimeoutCallback cb)
+bool PelcoDDevice::CallbackState::removeTimeout(CallbackId id)
 {
-    std::lock_guard<std::mutex> lock(m_callbackMutex);
-    auto newCallbacks = std::make_shared<std::vector<TimeoutCallback>>(*m_timeoutCallbacks);
-    newCallbacks->push_back(std::move(cb));
-    m_timeoutCallbacks = std::move(newCallbacks);
+    std::lock_guard<std::mutex> lock(mutex);
+    const auto& current = *timeoutCallbacks;
+    auto it = std::find_if(current.begin(), current.end(), [id](const auto& entry) { return entry.id == id; });
+    if (it == current.end()) {
+        return false;
+    }
+    auto nextList = std::make_shared<std::vector<CallbackEntry<TimeoutCallback>>>();
+    nextList->reserve(current.size() - 1U);
+    for (const auto& entry : current) {
+        if (entry.id != id) {
+            nextList->push_back(entry);
+        }
+    }
+    timeoutCallbacks = std::move(nextList);
+    return true;
+}
+
+void PelcoDDevice::CallbackState::clear()
+{
+    std::lock_guard<std::mutex> lock(mutex);
+    statusCallbacks = std::make_shared<const std::vector<CallbackEntry<StatusCallback>>>();
+    trafficCallbacks = std::make_shared<const std::vector<CallbackEntry<TrafficCallback>>>();
+    timeoutCallbacks = std::make_shared<const std::vector<CallbackEntry<TimeoutCallback>>>();
+}
+
+Connection PelcoDDevice::addStatusCallback(StatusCallback cb)
+{
+    if (!cb) {
+        return Connection {};
+    }
+    const CallbackId id = m_callbackState->nextId.fetch_add(1U, std::memory_order_relaxed);
+    {
+        std::lock_guard<std::mutex> lock(m_callbackState->mutex);
+        auto nextList = std::make_shared<std::vector<CallbackEntry<StatusCallback>>>(*m_callbackState->statusCallbacks);
+        nextList->push_back({ id, std::move(cb) });
+        m_callbackState->statusCallbacks = std::move(nextList);
+    }
+    std::weak_ptr<CallbackState> weakState = m_callbackState;
+    return Connection([weakState, id]() {
+        if (auto state = weakState.lock()) {
+            state->removeStatus(id);
+        }
+    });
+}
+
+Connection PelcoDDevice::addTrafficCallback(TrafficCallback cb)
+{
+    if (!cb) {
+        return Connection {};
+    }
+    const CallbackId id = m_callbackState->nextId.fetch_add(1U, std::memory_order_relaxed);
+    {
+        std::lock_guard<std::mutex> lock(m_callbackState->mutex);
+        auto nextList
+            = std::make_shared<std::vector<CallbackEntry<TrafficCallback>>>(*m_callbackState->trafficCallbacks);
+        nextList->push_back({ id, std::move(cb) });
+        m_callbackState->trafficCallbacks = std::move(nextList);
+    }
+    std::weak_ptr<CallbackState> weakState = m_callbackState;
+    return Connection([weakState, id]() {
+        if (auto state = weakState.lock()) {
+            state->removeTraffic(id);
+        }
+    });
+}
+
+Connection PelcoDDevice::addTimeoutCallback(TimeoutCallback cb)
+{
+    if (!cb) {
+        return Connection {};
+    }
+    const CallbackId id = m_callbackState->nextId.fetch_add(1U, std::memory_order_relaxed);
+    {
+        std::lock_guard<std::mutex> lock(m_callbackState->mutex);
+        auto nextList
+            = std::make_shared<std::vector<CallbackEntry<TimeoutCallback>>>(*m_callbackState->timeoutCallbacks);
+        nextList->push_back({ id, std::move(cb) });
+        m_callbackState->timeoutCallbacks = std::move(nextList);
+    }
+    std::weak_ptr<CallbackState> weakState = m_callbackState;
+    return Connection([weakState, id]() {
+        if (auto state = weakState.lock()) {
+            state->removeTimeout(id);
+        }
+    });
+}
+
+bool PelcoDDevice::removeStatusCallback(CallbackId id)
+{
+    return m_callbackState->removeStatus(id);
+}
+
+bool PelcoDDevice::removeTrafficCallback(CallbackId id)
+{
+    return m_callbackState->removeTraffic(id);
+}
+
+bool PelcoDDevice::removeTimeoutCallback(CallbackId id)
+{
+    return m_callbackState->removeTimeout(id);
 }
 
 void PelcoDDevice::clearCallbacks()
 {
-    std::lock_guard<std::mutex> lock(m_callbackMutex);
-    m_statusCallbacks = std::make_shared<const std::vector<StatusCallback>>();
-    m_trafficCallbacks = std::make_shared<const std::vector<TrafficCallback>>();
-    m_timeoutCallbacks = std::make_shared<const std::vector<TimeoutCallback>>();
+    m_callbackState->clear();
 }
 
 DeviceStatus PelcoDDevice::getStatus() const
@@ -583,14 +699,14 @@ void PelcoDDevice::checkQueryTimeout()
 
         LOG(WARNING) << "Query timeout: No response received for query '" << tag << "' within " << timeoutMs << " ms";
 
-        std::shared_ptr<const std::vector<TimeoutCallback>> cbs;
+        std::shared_ptr<const std::vector<CallbackEntry<TimeoutCallback>>> cbs;
         {
-            std::lock_guard<std::mutex> lock(m_callbackMutex);
-            cbs = m_timeoutCallbacks;
+            std::lock_guard<std::mutex> lock(m_callbackState->mutex);
+            cbs = m_callbackState->timeoutCallbacks;
         }
-        for (const auto& cb : *cbs) {
-            if (cb) {
-                cb(tag);
+        for (const auto& entry : *cbs) {
+            if (entry.cb) {
+                entry.cb(tag);
             }
         }
     }
@@ -682,14 +798,14 @@ void PelcoDDevice::workerLoop()
                 }
             } else {
                 // Dispatch TX traffic callbacks using copy-on-write snapshot (zero heap allocation)
-                std::shared_ptr<const std::vector<TrafficCallback>> tbs;
+                std::shared_ptr<const std::vector<CallbackEntry<TrafficCallback>>> tbs;
                 {
-                    std::lock_guard<std::mutex> lock(m_callbackMutex);
-                    tbs = m_trafficCallbacks;
+                    std::lock_guard<std::mutex> lock(m_callbackState->mutex);
+                    tbs = m_callbackState->trafficCallbacks;
                 }
-                for (const auto& cb : *tbs) {
-                    if (cb) {
-                        cb(true, item.frame);
+                for (const auto& entry : *tbs) {
+                    if (entry.cb) {
+                        entry.cb(true, item.frame);
                     }
                 }
 
@@ -814,17 +930,17 @@ void PelcoDDevice::resolveQueryWait()
 void PelcoDDevice::dispatchFrame(const std::vector<std::uint8_t>& frame)
 {
     // Notify RX traffic callbacks using copy-on-write snapshot (zero heap allocation)
-    std::shared_ptr<const std::vector<TrafficCallback>> tbs;
-    std::shared_ptr<const std::vector<StatusCallback>> sbs;
+    std::shared_ptr<const std::vector<CallbackEntry<TrafficCallback>>> tbs;
+    std::shared_ptr<const std::vector<CallbackEntry<StatusCallback>>> sbs;
     {
-        std::lock_guard<std::mutex> lock(m_callbackMutex);
-        tbs = m_trafficCallbacks;
-        sbs = m_statusCallbacks;
+        std::lock_guard<std::mutex> lock(m_callbackState->mutex);
+        tbs = m_callbackState->trafficCallbacks;
+        sbs = m_callbackState->statusCallbacks;
     }
 
-    for (const auto& cb : *tbs) {
-        if (cb) {
-            cb(false, frame);
+    for (const auto& entry : *tbs) {
+        if (entry.cb) {
+            entry.cb(false, frame);
         }
     }
 
@@ -869,9 +985,9 @@ void PelcoDDevice::dispatchFrame(const std::vector<std::uint8_t>& frame)
             m_responseCv.notify_all();
         }
 
-        for (const auto& cb : *sbs) {
-            if (cb) {
-                cb(currentStatus);
+        for (const auto& entry : *sbs) {
+            if (entry.cb) {
+                entry.cb(currentStatus);
             }
         }
     }

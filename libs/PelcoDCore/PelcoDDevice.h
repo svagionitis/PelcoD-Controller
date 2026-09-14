@@ -3,6 +3,7 @@
 /// @file PelcoDDevice.h
 /// @brief Asynchronous thread-safe controller managing Pelco-D device communication.
 
+#include "Connection.h"
 #include "DeviceStatus.h"
 #include "ITransport.h"
 #include "PelcoDTypes.h"
@@ -52,11 +53,27 @@ public:
     void setAddress(std::uint8_t address);
     [[nodiscard]] std::uint8_t getAddress() const noexcept;
 
-    void addStatusCallback(StatusCallback cb);
-    void addTrafficCallback(TrafficCallback cb);
-    void addTimeoutCallback(TimeoutCallback cb);
+    Connection addStatusCallback(StatusCallback cb);
+    Connection addTrafficCallback(TrafficCallback cb);
+    Connection addTimeoutCallback(TimeoutCallback cb);
+
+    /// @brief Removes a status callback by identifier.
+    /// @param[in] id Callback identifier.
+    /// @return True if callback was found and removed; false otherwise.
+    bool removeStatusCallback(CallbackId id);
+
+    /// @brief Removes a traffic callback by identifier.
+    /// @param[in] id Callback identifier.
+    /// @return True if callback was found and removed; false otherwise.
+    bool removeTrafficCallback(CallbackId id);
+
+    /// @brief Removes a timeout callback by identifier.
+    /// @param[in] id Callback identifier.
+    /// @return True if callback was found and removed; false otherwise.
+    bool removeTimeoutCallback(CallbackId id);
+
     /// @brief Removes all registered status, traffic, and timeout callbacks.
-    void clearCallbacks();
+    virtual void clearCallbacks();
 
     [[nodiscard]] DeviceStatus getStatus() const;
     [[nodiscard]] DeviceInfo getInfo() const;
@@ -192,19 +209,31 @@ private:
     std::string m_pendingQueryTag;
     std::chrono::steady_clock::time_point m_querySentTime;
 
-    mutable std::mutex m_callbackMutex;
-    /// @brief Copy-on-write snapshot of registered status telemetry callbacks.
-    std::shared_ptr<const std::vector<StatusCallback>> m_statusCallbacks {
-        std::make_shared<const std::vector<StatusCallback>>()
+    template <typename CallbackT> struct CallbackEntry {
+        CallbackId id { 0U };
+        CallbackT cb {};
     };
-    /// @brief Copy-on-write snapshot of registered TX/RX traffic packet callbacks.
-    std::shared_ptr<const std::vector<TrafficCallback>> m_trafficCallbacks {
-        std::make_shared<const std::vector<TrafficCallback>>()
+
+    struct CallbackState {
+        mutable std::mutex mutex;
+        std::atomic<CallbackId> nextId { 1U };
+        std::shared_ptr<const std::vector<CallbackEntry<StatusCallback>>> statusCallbacks {
+            std::make_shared<const std::vector<CallbackEntry<StatusCallback>>>()
+        };
+        std::shared_ptr<const std::vector<CallbackEntry<TrafficCallback>>> trafficCallbacks {
+            std::make_shared<const std::vector<CallbackEntry<TrafficCallback>>>()
+        };
+        std::shared_ptr<const std::vector<CallbackEntry<TimeoutCallback>>> timeoutCallbacks {
+            std::make_shared<const std::vector<CallbackEntry<TimeoutCallback>>>()
+        };
+
+        bool removeStatus(CallbackId id);
+        bool removeTraffic(CallbackId id);
+        bool removeTimeout(CallbackId id);
+        void clear();
     };
-    /// @brief Copy-on-write snapshot of registered query timeout callbacks.
-    std::shared_ptr<const std::vector<TimeoutCallback>> m_timeoutCallbacks {
-        std::make_shared<const std::vector<TimeoutCallback>>()
-    };
+
+    std::shared_ptr<CallbackState> m_callbackState { std::make_shared<CallbackState>() };
 };
 
 } // namespace PelcoD

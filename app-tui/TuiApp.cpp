@@ -49,7 +49,7 @@ void TuiApp::setupDevice(const ConnectionConfig& config)
     auto transport = m_connectionModal.createTransport();
     m_device = std::make_unique<PelcoD::FujinonSX800Device>(transport, config.address);
 
-    m_device->addTrafficCallback(
+    m_trafficConnection = m_device->addTrafficCallback(
         [this](bool isTx, const std::vector<std::uint8_t>& frame) { m_trafficView.addPacket(isTx, frame); });
 
     const bool started = m_device->start();

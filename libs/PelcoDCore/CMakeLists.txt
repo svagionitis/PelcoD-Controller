@@ -1,5 +1,6 @@
 add_library(PelcoDCore STATIC
     PelcoDTypes.h
+    Connection.h
     DeviceStatus.h
     ITransport.h
     BaseTransport.h

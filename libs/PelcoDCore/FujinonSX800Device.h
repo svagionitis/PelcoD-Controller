@@ -33,7 +33,16 @@ public:
 
     /// @brief Register a callback for extended Fujinon telemetry updates.
     /// @param[in] cb Function receiving FujinonStatus snapshot.
-    void addFujinonStatusCallback(FujinonStatusCallback cb);
+    /// @return Connection object to manage or disconnect the subscription.
+    Connection addFujinonStatusCallback(FujinonStatusCallback cb);
+
+    /// @brief Removes a Fujinon status callback by identifier.
+    /// @param[in] id Callback identifier.
+    /// @return True if callback was found and removed; false otherwise.
+    bool removeFujinonStatusCallback(CallbackId id);
+
+    /// @brief Removes all base callbacks as well as Fujinon status callbacks.
+    void clearCallbacks() override;
 
     // Stabilization & Image Enhancement
     /// @brief Select Optical/Electronic image stabilization mode.
@@ -355,9 +364,23 @@ protected:
 private:
     mutable std::mutex m_fujinonMutex;
     FujinonStatus m_fujinonStatus {};
-    std::shared_ptr<const std::vector<FujinonStatusCallback>> m_fujinonCallbacks {
-        std::make_shared<const std::vector<FujinonStatusCallback>>()
+    struct FujinonCallbackEntry {
+        CallbackId id { 0U };
+        FujinonStatusCallback cb {};
     };
+
+    struct FujinonCallbackState {
+        mutable std::mutex mutex;
+        std::atomic<CallbackId> nextId { 1U };
+        std::shared_ptr<const std::vector<FujinonCallbackEntry>> callbacks {
+            std::make_shared<const std::vector<FujinonCallbackEntry>>()
+        };
+
+        bool remove(CallbackId id);
+        void clear();
+    };
+
+    std::shared_ptr<FujinonCallbackState> m_fujinonCallbackState { std::make_shared<FujinonCallbackState>() };
 };
 
 } // namespace PelcoD

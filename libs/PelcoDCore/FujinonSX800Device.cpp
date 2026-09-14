@@ -3,6 +3,7 @@
 
 #include "FujinonSX800Device.h"
 
+#include <algorithm>
 #include <utility>
 
 namespace PelcoD {
@@ -20,15 +21,60 @@ FujinonStatus FujinonSX800Device::getFujinonStatus() const
     return status;
 }
 
-void FujinonSX800Device::addFujinonStatusCallback(FujinonStatusCallback cb)
+bool FujinonSX800Device::FujinonCallbackState::remove(CallbackId id)
+{
+    std::lock_guard<std::mutex> lock(mutex);
+    const auto& current = *callbacks;
+    auto it = std::find_if(current.begin(), current.end(), [id](const auto& entry) { return entry.id == id; });
+    if (it == current.end()) {
+        return false;
+    }
+    auto nextList = std::make_shared<std::vector<FujinonCallbackEntry>>();
+    nextList->reserve(current.size() - 1U);
+    for (const auto& entry : current) {
+        if (entry.id != id) {
+            nextList->push_back(entry);
+        }
+    }
+    callbacks = std::move(nextList);
+    return true;
+}
+
+void FujinonSX800Device::FujinonCallbackState::clear()
+{
+    std::lock_guard<std::mutex> lock(mutex);
+    callbacks = std::make_shared<const std::vector<FujinonCallbackEntry>>();
+}
+
+Connection FujinonSX800Device::addFujinonStatusCallback(FujinonStatusCallback cb)
 {
     if (!cb) {
-        return;
+        return Connection {};
     }
-    std::lock_guard<std::mutex> lock(m_fujinonMutex);
-    auto nextList = std::make_shared<std::vector<FujinonStatusCallback>>(*m_fujinonCallbacks);
-    nextList->push_back(std::move(cb));
-    m_fujinonCallbacks = nextList;
+    const CallbackId id = m_fujinonCallbackState->nextId.fetch_add(1U, std::memory_order_relaxed);
+    {
+        std::lock_guard<std::mutex> lock(m_fujinonCallbackState->mutex);
+        auto nextList = std::make_shared<std::vector<FujinonCallbackEntry>>(*m_fujinonCallbackState->callbacks);
+        nextList->push_back({ id, std::move(cb) });
+        m_fujinonCallbackState->callbacks = std::move(nextList);
+    }
+    std::weak_ptr<FujinonCallbackState> weakState = m_fujinonCallbackState;
+    return Connection([weakState, id]() {
+        if (auto state = weakState.lock()) {
+            state->remove(id);
+        }
+    });
+}
+
+bool FujinonSX800Device::removeFujinonStatusCallback(CallbackId id)
+{
+    return m_fujinonCallbackState->remove(id);
+}
+
+void FujinonSX800Device::clearCallbacks()
+{
+    PelcoDDevice::clearCallbacks();
+    m_fujinonCallbackState->clear();
 }
 
 void FujinonSX800Device::setOISMode(FujinonOISMode mode)
@@ -480,14 +526,17 @@ void FujinonSX800Device::dispatchFrame(const std::vector<std::uint8_t>& frame)
 {
     bool updated = false;
     FujinonStatus currentStatus;
-    std::shared_ptr<const std::vector<FujinonStatusCallback>> callbacks;
+    std::shared_ptr<const std::vector<FujinonCallbackEntry>> callbacks;
 
     {
         std::lock_guard<std::mutex> lock(m_fujinonMutex);
         if (FujinonParser::updateFujinonStatus(frame, m_fujinonStatus)) {
             updated = true;
             currentStatus = m_fujinonStatus;
-            callbacks = m_fujinonCallbacks;
+            {
+                std::lock_guard<std::mutex> cbLock(m_fujinonCallbackState->mutex);
+                callbacks = m_fujinonCallbackState->callbacks;
+            }
         }
     }
 
@@ -495,9 +544,9 @@ void FujinonSX800Device::dispatchFrame(const std::vector<std::uint8_t>& frame)
         resolveQueryWait();
         if (callbacks) {
             currentStatus.baseStatus = getStatus();
-            for (const auto& cb : *callbacks) {
-                if (cb) {
-                    cb(currentStatus);
+            for (const auto& entry : *callbacks) {
+                if (entry.cb) {
+                    entry.cb(currentStatus);
                 }
             }
         }

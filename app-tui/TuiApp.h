@@ -55,6 +55,7 @@ private:
     ConnectionConfig m_currentConfig {};
 
     std::unique_ptr<PelcoD::FujinonSX800Device> m_device;
+    PelcoD::ScopedConnection m_trafficConnection {};
 
     // View Components
     HeaderView m_headerView {};
