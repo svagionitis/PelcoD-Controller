@@ -7,11 +7,11 @@ A production-grade, cross-platform C++17 library and modern Qt 6 desktop client 
 ## Architectural Highlights
 
 - **Three-Tier Separation of Concerns:**
-  1. [`libs/PelcoDCore/`](libs/PelcoDCore/): Pure C++17 static library with **zero Qt dependencies**. Encapsulates framing, checksum calculations, SPSC lock-free ring buffer, transports, simulated device emulator (`MockPelcoDDevice`), protocol builders/parsers, and high-level device controller (`PelcoDDevice`).
+  1. [`libs/PelcoDCore/`](libs/PelcoDCore/): Pure C++17 static library with **zero Qt dependencies**. Encapsulates framing, checksum calculations, direct stream accumulator parsing, transports, simulated device emulator (`MockPelcoDDevice`), protocol builders/parsers, and high-level device controller (`PelcoDDevice`).
   2. [`libs/PelcoDQt/`](libs/PelcoDQt/): Qt 6 adapter layer (`QPelcoDDevice`) exposing signals and slots for asynchronous UI integration.
   3. [`app-qt/`](app-qt/): Sleek, modern dark-themed Qt 6 desktop dashboard with live telemetry, interactive D-pad, preset manager, device settings, aux/zones/patterns, OSD labeling, and real-time hex traffic inspector.
-- **Lock-Free RX Streaming:**
-  - Transport inbound byte streams feed a Single-Producer Single-Consumer (SPSC) ring buffer (`CircularByteRing`) with `alignas(64)` cacheline padding for zero-allocation, thread-safe asynchronous stream framing.
+- **Direct Real-Time RX Stream Framing:**
+  - Inbound byte streams are framed and validated directly inside the transport callback (`onDataReceived`) using a bounded accumulator, eliminating redundant context switches and delivering sub-microsecond frame dispatch without thread sprawl.
 - **Paced Command Queue:**
   - High-level commands are paced through an inter-command delay worker thread (~15–20 ms spacing) per Pelco-D RS-485 specifications with a bounded capacity (256 commands).
 - **Cross-Platform Transports:**

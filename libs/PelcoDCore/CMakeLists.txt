@@ -6,7 +6,6 @@ add_library(PelcoDCore STATIC
     BaseTransport.cpp
     PelcoDFrame.h
     PelcoDFrame.cpp
-    CircularByteRing.h
     SerialTransport.h
     SerialTransport.cpp
     TcpTransport.h

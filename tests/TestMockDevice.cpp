@@ -655,6 +655,92 @@ void testStopMotionPreemptsQueries()
     assert(elapsedMs < 150);
 }
 
+void testStreamingFramingAndFragmentation()
+{
+    auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(1U);
+    PelcoD::PelcoDDevice device(mock, 1U);
+
+    std::atomic<int> rxPacketCount { 0 };
+    device.addTrafficCallback([&](bool isTx, const std::vector<std::uint8_t>&) {
+        if (!isTx) {
+            rxPacketCount.fetch_add(1);
+        }
+    });
+
+    assert(device.start());
+
+    // 1. Fragmented frame across two chunks
+    // Pan response (Opcode 0x59): Pan = 120.00 deg = 12000 = 0x2EE0
+    const auto panFrame = PelcoD::PelcoDFrame::createFrame(0x01U, 0x00U, 0x59U, 0x2EU, 0xE0U);
+    assert(panFrame.size() == 7U);
+
+    // Chunk 1: first 3 bytes
+    std::vector<std::uint8_t> chunk1(panFrame.begin(), panFrame.begin() + 3);
+    mock->injectRxData(chunk1);
+    std::this_thread::sleep_for(std::chrono::milliseconds(20));
+    assert(rxPacketCount.load() == 0);
+    assert(device.getStatus().panCentidegrees == 0U);
+
+    // Chunk 2: remaining 4 bytes
+    std::vector<std::uint8_t> chunk2(panFrame.begin() + 3, panFrame.end());
+    mock->injectRxData(chunk2);
+    std::this_thread::sleep_for(std::chrono::milliseconds(20));
+    assert(rxPacketCount.load() == 1);
+    assert(device.getStatus().panCentidegrees == 12000U);
+
+    // 2. Back-to-back frames batched in a single chunk
+    // Tilt response (0x5B): Tilt = 30.00 deg = 3000 = 0x0BB8
+    const auto tiltFrame = PelcoD::PelcoDFrame::createFrame(0x01U, 0x00U, 0x5BU, 0x0BU, 0xB8U);
+    // Zoom response (0x5D): Zoom = 2000 = 0x07D0
+    const auto zoomFrame = PelcoD::PelcoDFrame::createFrame(0x01U, 0x00U, 0x5DU, 0x07U, 0xD0U);
+
+    std::vector<std::uint8_t> batched;
+    batched.insert(batched.end(), tiltFrame.begin(), tiltFrame.end());
+    batched.insert(batched.end(), zoomFrame.begin(), zoomFrame.end());
+    assert(batched.size() == 14U);
+
+    mock->injectRxData(batched);
+    std::this_thread::sleep_for(std::chrono::milliseconds(20));
+    assert(rxPacketCount.load() == 3);
+    assert(device.getStatus().tiltCentidegrees == 3000U);
+    assert(device.getStatus().zoomPosition == 2000U);
+
+    // 3. Leading noise / garbage before sync byte
+    std::vector<std::uint8_t> noisyFrame = { 0x12U, 0x34U, 0xAAU, 0x55U, 0x00U };
+    // Pan response: Pan = 50.00 deg = 5000 = 0x1388
+    const auto panFrame2 = PelcoD::PelcoDFrame::createFrame(0x01U, 0x00U, 0x59U, 0x13U, 0x88U);
+    noisyFrame.insert(noisyFrame.end(), panFrame2.begin(), panFrame2.end());
+
+    mock->injectRxData(noisyFrame);
+    std::this_thread::sleep_for(std::chrono::milliseconds(20));
+    assert(rxPacketCount.load() == 4);
+    assert(device.getStatus().panCentidegrees == 5000U);
+
+    // False sync byte followed by junk, then followed by valid tilt frame: Tilt = 60.00 deg = 6000 = 0x1770
+    const auto tiltFrame2 = PelcoD::PelcoDFrame::createFrame(0x01U, 0x00U, 0x5BU, 0x17U, 0x70U);
+    // Bytes 1+2 != byte 3 (not a 4-byte response), and bytes 1..5 sum != byte 6 (not a 7-byte response)
+    std::vector<std::uint8_t> corruptStream = { 0xFFU, 0x01U, 0x02U, 0x99U, 0x04U, 0x05U, 0x00U };
+    corruptStream.insert(corruptStream.end(), tiltFrame2.begin(), tiltFrame2.end());
+
+    mock->injectRxData(corruptStream);
+    std::this_thread::sleep_for(std::chrono::milliseconds(20));
+    assert(rxPacketCount.load() == 5);
+    assert(device.getStatus().tiltCentidegrees == 6000U);
+
+    // 5. Buffer overflow resilience (exceeding MaxRxBufferSize with noise)
+    std::vector<std::uint8_t> hugeNoise(5000U, 0x55U);
+    mock->injectRxData(hugeNoise);
+
+    // Now inject valid zoom frame: Zoom = 3500 = 0x0DAC
+    const auto zoomFrame2 = PelcoD::PelcoDFrame::createFrame(0x01U, 0x00U, 0x5DU, 0x0DU, 0xACU);
+    mock->injectRxData(zoomFrame2);
+    std::this_thread::sleep_for(std::chrono::milliseconds(20));
+    assert(rxPacketCount.load() == 6);
+    assert(device.getStatus().zoomPosition == 3500U);
+
+    device.stop();
+}
+
 int main()
 {
     PelcoDTest::initTestHarness();
@@ -672,6 +758,7 @@ int main()
     testConcurrentQueryTimeoutAndAddressUpdates();
     testFailedSendDoesNotTriggerTxCallbackOrTimeoutWait();
     testStopMotionPreemptsQueries();
+    testStreamingFramingAndFragmentation();
     std::cout << "[TestMockDevice] All tests passed successfully." << std::endl;
     return 0;
 }

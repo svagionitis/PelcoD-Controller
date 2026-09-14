@@ -14,7 +14,6 @@ function(add_pelco_test test_name test_source)
 endfunction()
 
 add_pelco_test(TestPelcoDFrame TestPelcoDFrame.cpp)
-add_pelco_test(TestCircularByteRing TestCircularByteRing.cpp)
 add_pelco_test(TestProtocolBuilder TestProtocolBuilder.cpp)
 add_pelco_test(TestProtocolParser TestProtocolParser.cpp)
 add_pelco_test(TestMockDevice TestMockDevice.cpp)

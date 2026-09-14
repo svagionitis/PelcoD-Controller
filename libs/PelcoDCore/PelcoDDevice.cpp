@@ -77,9 +77,11 @@ bool PelcoDDevice::start()
 
     LOG(INFO) << "Starting PelcoDDevice controller (address: " << static_cast<int>(m_address) << ")";
 
-    m_rxRing.clear();
+    {
+        std::lock_guard<std::mutex> lock(m_rxMutex);
+        m_rxBuffer.clear();
+    }
     m_running = true;
-    m_rxThread = std::thread(&PelcoDDevice::rxLoop, this);
     m_workerThread = std::thread(&PelcoDDevice::workerLoop, this);
     m_pollThread = std::thread(&PelcoDDevice::pollingLoop, this);
 
@@ -89,7 +91,7 @@ bool PelcoDDevice::start()
 void PelcoDDevice::stop()
 {
     std::lock_guard<std::recursive_mutex> lifecycleLock(m_lifecycleMutex);
-    if (!m_running.load() && !m_rxThread.joinable() && !m_workerThread.joinable() && !m_pollThread.joinable()) {
+    if (!m_running.load() && !m_workerThread.joinable() && !m_pollThread.joinable()) {
         if (m_transport) {
             if (m_transport->isOpen()) {
                 m_transport->close();
@@ -104,18 +106,18 @@ void PelcoDDevice::stop()
     m_running = false;
     m_abortQueryWait.store(true);
     m_queueCv.notify_all();
-    m_rxCv.notify_all();
     m_responseCv.notify_all();
     m_pollCv.notify_all();
 
-    if (m_rxThread.joinable()) {
-        m_rxThread.join();
-    }
     if (m_workerThread.joinable()) {
         m_workerThread.join();
     }
     if (m_pollThread.joinable()) {
         m_pollThread.join();
+    }
+    {
+        std::lock_guard<std::mutex> lock(m_rxMutex);
+        m_rxBuffer.clear();
     }
     m_awaitingResponse = false;
 
@@ -723,37 +725,31 @@ void PelcoDDevice::onDataReceived(const std::vector<std::uint8_t>& data)
         return;
     }
 
-    if (!m_rxRing.writeExact(data.data(), data.size())) {
-        LOG(WARNING) << "PelcoDDevice RX ring buffer overflow: dropped " << data.size() << " bytes";
-    }
-    m_rxCv.notify_one();
-}
+    std::vector<std::vector<std::uint8_t>> framesToDispatch;
 
-void PelcoDDevice::rxLoop()
-{
-    while (m_running) {
-        {
-            std::unique_lock<std::mutex> lock(m_rxMutex);
-            m_rxCv.wait_for(lock, std::chrono::milliseconds(50),
-                [this] { return (m_rxRing.availableRead() >= PelcoDFrame::GeneralResponseSize) || !m_running; });
+    {
+        std::lock_guard<std::mutex> lock(m_rxMutex);
+
+        constexpr std::size_t MaxRxBufferSize { 4096U };
+        if (m_rxBuffer.size() + data.size() > MaxRxBufferSize) {
+            LOG(WARNING) << "PelcoDDevice RX accumulator overflow: resetting buffer";
+            m_rxBuffer.clear();
         }
 
-        if (!m_running) {
-            break;
-        }
+        m_rxBuffer.insert(m_rxBuffer.end(), data.begin(), data.end());
 
-        while (m_rxRing.availableRead() >= PelcoDFrame::GeneralResponseSize) {
-            const std::size_t syncOffset = m_rxRing.findByte(PelcoDFrame::SyncByte);
-            if (syncOffset == decltype(m_rxRing)::npos) {
-                m_rxRing.advanceRead(m_rxRing.availableRead());
+        while (m_rxBuffer.size() >= PelcoDFrame::GeneralResponseSize) {
+            const auto syncIt = std::find(m_rxBuffer.begin(), m_rxBuffer.end(), PelcoDFrame::SyncByte);
+            if (syncIt == m_rxBuffer.end()) {
+                m_rxBuffer.clear();
                 break;
             }
 
-            if (syncOffset > 0U) {
-                m_rxRing.advanceRead(syncOffset);
+            if (syncIt != m_rxBuffer.begin()) {
+                m_rxBuffer.erase(m_rxBuffer.begin(), syncIt);
             }
 
-            const std::size_t available = m_rxRing.availableRead();
+            const std::size_t available = m_rxBuffer.size();
             if (available < PelcoDFrame::GeneralResponseSize) {
                 break;
             }
@@ -762,18 +758,17 @@ void PelcoDDevice::rxLoop()
                 = { PelcoDFrame::StandardFrameSize, PelcoDFrame::GeneralResponseSize, PelcoDFrame::QueryResponseSize };
 
             bool frameExtracted = false;
-            std::array<std::uint8_t, PelcoDFrame::QueryResponseSize> peekBuf {};
 
             for (const std::size_t candidateSize : candidateSizes) {
                 if (available >= candidateSize) {
-                    if (m_rxRing.peekBytes(peekBuf.data(), candidateSize)) {
-                        std::vector<std::uint8_t> frame(peekBuf.begin(), peekBuf.begin() + candidateSize);
-                        if (PelcoDFrame::isValidFrame(frame)) {
-                            m_rxRing.advanceRead(candidateSize);
-                            frameExtracted = true;
-                            dispatchFrame(frame);
-                            break;
-                        }
+                    std::vector<std::uint8_t> frame(
+                        m_rxBuffer.begin(), m_rxBuffer.begin() + static_cast<std::ptrdiff_t>(candidateSize));
+                    if (PelcoDFrame::isValidFrame(frame)) {
+                        m_rxBuffer.erase(
+                            m_rxBuffer.begin(), m_rxBuffer.begin() + static_cast<std::ptrdiff_t>(candidateSize));
+                        framesToDispatch.push_back(std::move(frame));
+                        frameExtracted = true;
+                        break;
                     }
                 }
             }
@@ -785,9 +780,13 @@ void PelcoDDevice::rxLoop()
                 if (available < maxExpectedSize) {
                     break;
                 }
-                m_rxRing.advanceRead(1U);
+                m_rxBuffer.erase(m_rxBuffer.begin());
             }
         }
+    }
+
+    for (const auto& frame : framesToDispatch) {
+        dispatchFrame(frame);
     }
 }
 

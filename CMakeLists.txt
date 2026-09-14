@@ -73,7 +73,6 @@ install(TARGETS PelcoDAppQt PelcoDAppTui PelcoDCore PelcoDQt
 )
 
 install(FILES
-    libs/PelcoDCore/CircularByteRing.h
     libs/PelcoDCore/DeviceStatus.h
     libs/PelcoDCore/ITransport.h
     libs/PelcoDCore/BaseTransport.h

@@ -3,7 +3,6 @@
 /// @file PelcoDDevice.h
 /// @brief Asynchronous thread-safe controller managing Pelco-D device communication.
 
-#include "CircularByteRing.h"
 #include "DeviceStatus.h"
 #include "ITransport.h"
 #include "PelcoDTypes.h"
@@ -151,7 +150,6 @@ private:
         CommandPriority priority = CommandPriority::Normal);
     void workerLoop();
     void pollingLoop();
-    void rxLoop();
     void onDataReceived(const std::vector<std::uint8_t>& data);
     void dispatchFrame(const std::vector<std::uint8_t>& frame);
     void checkQueryTimeout();
@@ -171,15 +169,13 @@ private:
     std::atomic<bool> m_running { false };
     std::thread m_workerThread;
     std::thread m_pollThread;
-    std::thread m_rxThread;
 
     std::mutex m_queueMutex;
     std::condition_variable m_queueCv;
     std::deque<CommandItem> m_commandQueue;
 
-    CircularByteRing<65536U> m_rxRing;
     std::mutex m_rxMutex;
-    std::condition_variable m_rxCv;
+    std::vector<std::uint8_t> m_rxBuffer;
 
     std::atomic<bool> m_telemetryPolling { false };
     std::atomic<std::uint32_t> m_pollIntervalMs { 1000U };
