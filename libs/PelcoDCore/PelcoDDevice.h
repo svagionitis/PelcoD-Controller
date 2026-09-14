@@ -31,7 +31,7 @@ public:
     using TimeoutCallback = std::function<void(const std::string& queryTag)>;
 
     explicit PelcoDDevice(std::shared_ptr<ITransport> transport, std::uint8_t address = 1U);
-    ~PelcoDDevice();
+    virtual ~PelcoDDevice();
 
     // Non-copyable, non-movable
     PelcoDDevice(const PelcoDDevice&) = delete;
@@ -145,15 +145,18 @@ public:
     void sendRawFrame(const std::vector<std::uint8_t>& frame);
     void sendQueryFrame(const std::vector<std::uint8_t>& frame, std::string queryTag = "Query");
 
-private:
+protected:
     void enqueueCommand(const std::vector<std::uint8_t>& frame, std::string queryTag = "",
         CommandPriority priority = CommandPriority::Normal);
+    virtual void dispatchFrame(const std::vector<std::uint8_t>& frame);
+    [[nodiscard]] virtual bool isResponseMatchingQuery(
+        const std::string& queryTag, const std::vector<std::uint8_t>& frame) const noexcept;
+    void resolveQueryWait();
+
+private:
     void workerLoop();
     void onDataReceived(const std::vector<std::uint8_t>& data);
-    void dispatchFrame(const std::vector<std::uint8_t>& frame);
     void checkQueryTimeout();
-    [[nodiscard]] static bool isResponseMatchingQuery(
-        const std::string& queryTag, const std::vector<std::uint8_t>& frame) noexcept;
 
     struct CommandItem {
         std::vector<std::uint8_t> frame;

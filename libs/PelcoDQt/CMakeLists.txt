@@ -5,6 +5,8 @@ add_library(PelcoDQt STATIC
     QPatrolController.cpp
     QBusScanner.h
     QBusScanner.cpp
+    QFujinonSX800Device.h
+    QFujinonSX800Device.cpp
 )
 
 target_include_directories(PelcoDQt PUBLIC

@@ -795,9 +795,20 @@ void PelcoDDevice::onDataReceived(const std::vector<std::uint8_t>& data)
     }
 }
 
-bool PelcoDDevice::isResponseMatchingQuery(const std::string& queryTag, const std::vector<std::uint8_t>& frame) noexcept
+bool PelcoDDevice::isResponseMatchingQuery(
+    const std::string& queryTag, const std::vector<std::uint8_t>& frame) const noexcept
 {
     return ProtocolParser::isResponseMatchingQuery(queryTag, frame);
+}
+
+void PelcoDDevice::resolveQueryWait()
+{
+    {
+        std::lock_guard<std::mutex> lock(m_statusMutex);
+        m_awaitingResponse = false;
+        m_pendingQueryTag.clear();
+    }
+    m_responseCv.notify_all();
 }
 
 void PelcoDDevice::dispatchFrame(const std::vector<std::uint8_t>& frame)
