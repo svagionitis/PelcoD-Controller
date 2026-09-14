@@ -35,9 +35,8 @@ std::shared_ptr<ITransport> BusScanner::getTransport() const
 
 bool BusScanner::startScan(const ScanConfig& config)
 {
-    if (config.startAddress == 0U || config.startAddress > 254U ||
-        config.endAddress == 0U || config.endAddress > 254U ||
-        config.startAddress > config.endAddress) {
+    if (config.startAddress == 0U || config.startAddress > 254U || config.endAddress == 0U || config.endAddress > 254U
+        || config.startAddress > config.endAddress) {
         return false;
     }
 
@@ -53,9 +52,7 @@ bool BusScanner::startScan(const ScanConfig& config)
     }
 
     // Register callback for incoming responses
-    m_transport->setDataCallback([this](const std::vector<std::uint8_t>& data) {
-        onDataReceived(data);
-    });
+    m_transport->setDataCallback([this](const std::vector<std::uint8_t>& data) { onDataReceived(data); });
 
     if (m_worker.joinable()) {
         m_worker.join();
@@ -79,6 +76,7 @@ void BusScanner::stopScan()
     m_stopRequested.store(true);
     m_pauseRequested.store(false);
     m_rxCv.notify_all();
+    m_pauseCv.notify_all();
 
     if (m_worker.joinable() && m_worker.get_id() != std::this_thread::get_id()) {
         m_worker.join();
@@ -118,6 +116,7 @@ void BusScanner::resumeScan()
     if (m_state.load() == ScanState::Paused) {
         m_pauseRequested.store(false);
         m_state.store(ScanState::Scanning);
+        m_pauseCv.notify_all();
         ScanStateChangedCallback stateCb;
         {
             std::lock_guard<std::mutex> lock(m_mutex);
@@ -219,8 +218,9 @@ void BusScanner::scanWorker(ScanConfig config)
             break;
         }
 
-        while (m_pauseRequested.load() && !m_stopRequested.load()) {
-            std::this_thread::sleep_for(std::chrono::milliseconds(50));
+        {
+            std::unique_lock<std::mutex> pauseLock(m_mutex);
+            m_pauseCv.wait(pauseLock, [this] { return !m_pauseRequested.load() || m_stopRequested.load(); });
         }
 
         if (m_stopRequested.load()) {
@@ -261,9 +261,8 @@ void BusScanner::scanWorker(ScanConfig config)
         }
 
         std::unique_lock<std::mutex> rxLock(m_rxMutex);
-        m_rxCv.wait_for(rxLock, std::chrono::milliseconds(config.timeoutMs), [this] {
-            return m_foundResponse || m_stopRequested.load();
-        });
+        m_rxCv.wait_for(rxLock, std::chrono::milliseconds(config.timeoutMs),
+            [this] { return m_foundResponse || m_stopRequested.load(); });
 
         if (m_stopRequested.load()) {
             break;
@@ -300,9 +299,8 @@ void BusScanner::scanWorker(ScanConfig config)
 
         if (config.interCommandDelayMs > 0U) {
             std::unique_lock<std::mutex> delayLock(m_rxMutex);
-            m_rxCv.wait_for(delayLock, std::chrono::milliseconds(config.interCommandDelayMs), [this] {
-                return m_stopRequested.load();
-            });
+            m_rxCv.wait_for(delayLock, std::chrono::milliseconds(config.interCommandDelayMs),
+                [this] { return m_stopRequested.load(); });
         }
     }
 

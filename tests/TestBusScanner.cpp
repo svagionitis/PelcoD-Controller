@@ -169,9 +169,8 @@ static void testStopScan()
     cfg.interCommandDelayMs = 10U;
 
     std::atomic<std::size_t> scannedCount { 0 };
-    scanner.setScanProgressCallback([&](std::uint8_t /*curr*/, std::size_t scanned, std::size_t /*tot*/) {
-        scannedCount.store(scanned);
-    });
+    scanner.setScanProgressCallback(
+        [&](std::uint8_t /*curr*/, std::size_t scanned, std::size_t /*tot*/) { scannedCount.store(scanned); });
 
     assert(scanner.startScan(cfg));
     // Wait until at least 1 address is scanned
@@ -233,6 +232,39 @@ static void testPauseResume()
     std::cout << "  testPauseResume: PASSED\n";
 }
 
+/// @brief Verify stopping an active scan while it is paused immediately wakes the condition variable.
+static void testStopWhilePaused()
+{
+    auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(1U);
+    PelcoD::BusScanner scanner(mock);
+
+    PelcoD::ScanConfig cfg;
+    cfg.startAddress = 1U;
+    cfg.endAddress = 50U;
+    cfg.timeoutMs = 100U;
+    cfg.interCommandDelayMs = 10U;
+
+    assert(scanner.startScan(cfg));
+    std::this_thread::sleep_for(std::chrono::milliseconds(20));
+
+    scanner.pauseScan();
+    assert(scanner.isPaused());
+    assert(scanner.getState() == PelcoD::ScanState::Paused);
+
+    // Call stopScan while paused - must immediately notify m_pauseCv and join worker
+    const auto stopStart = std::chrono::steady_clock::now();
+    scanner.stopScan();
+    const auto stopDuration
+        = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - stopStart);
+
+    assert(!scanner.isScanning());
+    assert(!scanner.isPaused());
+    assert(scanner.getState() == PelcoD::ScanState::Idle);
+    assert(stopDuration < std::chrono::milliseconds(100) && "stopScan while paused took too long!");
+
+    std::cout << "  testStopWhilePaused: PASSED\n";
+}
+
 int main()
 {
     std::cout << "Running TestBusScanner...\n";
@@ -242,6 +274,7 @@ int main()
     testProgressCallbacks();
     testStopScan();
     testPauseResume();
+    testStopWhilePaused();
 
     std::cout << "All TestBusScanner tests PASSED!\n";
     return 0;

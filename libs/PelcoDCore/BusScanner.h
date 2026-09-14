@@ -34,11 +34,7 @@ struct DiscoveredDevice {
 
 /// @enum ScanState
 /// @brief Current operational state of the bus scanner.
-enum class ScanState : std::uint8_t {
-    Idle,
-    Scanning,
-    Paused
-};
+enum class ScanState : std::uint8_t { Idle, Scanning, Paused };
 
 /// @struct ScanConfig
 /// @brief Configuration settings controlling address probe range and timing.
@@ -54,7 +50,8 @@ struct ScanConfig {
 class BusScanner {
 public:
     using DeviceDiscoveredCallback = std::function<void(const DiscoveredDevice& device)>;
-    using ScanProgressCallback = std::function<void(std::uint8_t currentAddress, std::size_t scannedCount, std::size_t totalCount)>;
+    using ScanProgressCallback
+        = std::function<void(std::uint8_t currentAddress, std::size_t scannedCount, std::size_t totalCount)>;
     using ScanStateChangedCallback = std::function<void(ScanState state)>;
     using ScanFinishedCallback = std::function<void(const std::vector<DiscoveredDevice>& discoveredDevices)>;
 
@@ -135,6 +132,7 @@ private:
     std::thread m_worker;
     std::atomic<bool> m_stopRequested { false };
     std::atomic<bool> m_pauseRequested { false };
+    std::condition_variable m_pauseCv;
     std::atomic<ScanState> m_state { ScanState::Idle };
 
     // Response synchronization
