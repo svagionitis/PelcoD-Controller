@@ -10,6 +10,7 @@
 #include "PelcoDDevice.h"
 #include "PelcoDTypes.h"
 #include "QFujinonSX800Device.h"
+#include "RetryPolicy.h"
 
 #include <QByteArray>
 #include <QObject>
@@ -72,6 +73,11 @@ public:
     void setTelemetryPolling(bool enable, int intervalMs = 1000);
     void setQueryTimeoutMs(int timeoutMs);
 
+    void setRetryConfig(const PelcoD::RetryConfig& config);
+    void setRetryConfig(int maxRetries, int initialBackoffMs = 50, int maxBackoffMs = 1000,
+        double backoffMultiplier = 2.0, int strategy = 2);
+    [[nodiscard]] PelcoD::RetryConfig retryConfig() const;
+
 signals:
     void statusUpdated(const PelcoD::DeviceStatus& status);
     void fujinonStatusUpdated(const PelcoD::FujinonStatus& status);
@@ -80,6 +86,7 @@ signals:
     /// @brief Emitted when an async connect attempt starts (true) or finishes (false).
     void connectingStateChanged(bool connecting);
     void queryTimeoutOccurred(const QString& queryTag);
+    void queryRetryAttempted(const QString& queryTag, int attempt, int maxRetries, int delayMs);
 
 public slots:
     // Motion

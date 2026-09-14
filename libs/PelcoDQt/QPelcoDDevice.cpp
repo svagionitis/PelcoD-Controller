@@ -87,6 +87,15 @@ void QPelcoDDevice::initDeviceCallbacks()
         const QString tag = QString::fromStdString(queryTag);
         QMetaObject::invokeMethod(this, [this, tag] { emit queryTimeoutOccurred(tag); });
     });
+
+    m_deviceConnections += m_device->addRetryCallback([this](const std::string& queryTag, std::uint32_t attempt,
+                                                          std::uint32_t maxRetries, std::chrono::milliseconds delay) {
+        const QString tag = QString::fromStdString(queryTag);
+        QMetaObject::invokeMethod(this, [this, tag, attempt, maxRetries, delay] {
+            emit queryRetryAttempted(
+                tag, static_cast<int>(attempt), static_cast<int>(maxRetries), static_cast<int>(delay.count()));
+        });
+    });
 }
 
 bool QPelcoDDevice::connectDevice()
@@ -228,6 +237,35 @@ void QPelcoDDevice::setTelemetryPolling(bool enable, int intervalMs)
 
 // Configuration
 FORWARD_CORE_1(setQueryTimeoutMs, int, std::uint32_t)
+
+void QPelcoDDevice::setRetryConfig(const PelcoD::RetryConfig& config)
+{
+    if (m_device) {
+        m_device->setRetryConfig(config);
+    }
+}
+
+void QPelcoDDevice::setRetryConfig(
+    int maxRetries, int initialBackoffMs, int maxBackoffMs, double backoffMultiplier, int strategy)
+{
+    if (m_device) {
+        PelcoD::RetryConfig cfg;
+        cfg.maxRetries = static_cast<std::uint32_t>(std::max(0, maxRetries));
+        cfg.initialBackoff = std::chrono::milliseconds(std::max(0, initialBackoffMs));
+        cfg.maxBackoff = std::chrono::milliseconds(std::max(0, maxBackoffMs));
+        cfg.backoffMultiplier = (backoffMultiplier >= 1.0) ? backoffMultiplier : 1.0;
+        cfg.strategy = static_cast<PelcoD::BackoffStrategy>(std::clamp(strategy, 0, 2));
+        m_device->setRetryConfig(cfg);
+    }
+}
+
+PelcoD::RetryConfig QPelcoDDevice::retryConfig() const
+{
+    if (m_device) {
+        return m_device->getRetryConfig();
+    }
+    return PelcoD::RetryConfig {};
+}
 
 // Motion
 FORWARD_CORE_1(panLeft, int, std::uint8_t)

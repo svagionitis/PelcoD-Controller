@@ -100,6 +100,25 @@ if(WIN32)
     set_property(TEST TestQPelcoDDevice PROPERTY ENVIRONMENT "PATH=$<TARGET_FILE_DIR:Qt6::Core>;$ENV{PATH}")
 endif()
 
+add_executable(TestRetryPolicy
+    TestRetryPolicy.cpp
+)
+target_include_directories(TestRetryPolicy PRIVATE
+    ${CMAKE_SOURCE_DIR}/libs/PelcoDCore
+    ${CMAKE_SOURCE_DIR}/libs/PelcoDQt
+)
+target_link_libraries(TestRetryPolicy PRIVATE
+    PelcoDQt
+    PelcoDCore
+    Qt6::Core
+    Qt6::Test
+)
+apply_compiler_flags(TestRetryPolicy)
+add_test(NAME TestRetryPolicy COMMAND TestRetryPolicy)
+if(WIN32)
+    set_property(TEST TestRetryPolicy PROPERTY ENVIRONMENT "PATH=$<TARGET_FILE_DIR:Qt6::Core>;$ENV{PATH}")
+endif()
+
 # ==============================================================================
 # CLI Argument Validation Tests (PelcoDAppTui)
 # ==============================================================================

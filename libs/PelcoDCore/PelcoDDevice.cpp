@@ -224,6 +224,25 @@ bool PelcoDDevice::CallbackState::removeQueryCompleted(CallbackId id)
     return true;
 }
 
+bool PelcoDDevice::CallbackState::removeRetry(CallbackId id)
+{
+    std::lock_guard<std::mutex> lock(mutex);
+    const auto& current = *retryCallbacks;
+    auto it = std::find_if(current.begin(), current.end(), [id](const auto& entry) { return entry.id == id; });
+    if (it == current.end()) {
+        return false;
+    }
+    auto nextList = std::make_shared<std::vector<CallbackEntry<RetryCallback>>>();
+    nextList->reserve(current.size() - 1U);
+    for (const auto& entry : current) {
+        if (entry.id != id) {
+            nextList->push_back(entry);
+        }
+    }
+    retryCallbacks = std::move(nextList);
+    return true;
+}
+
 void PelcoDDevice::CallbackState::clear()
 {
     std::lock_guard<std::mutex> lock(mutex);
@@ -231,6 +250,7 @@ void PelcoDDevice::CallbackState::clear()
     trafficCallbacks = std::make_shared<const std::vector<CallbackEntry<TrafficCallback>>>();
     timeoutCallbacks = std::make_shared<const std::vector<CallbackEntry<TimeoutCallback>>>();
     queryCompletedCallbacks = std::make_shared<const std::vector<CallbackEntry<QueryCompletedCallback>>>();
+    retryCallbacks = std::make_shared<const std::vector<CallbackEntry<RetryCallback>>>();
 }
 
 Connection PelcoDDevice::addStatusCallback(StatusCallback cb)
@@ -354,6 +374,26 @@ Connection PelcoDDevice::addQueryCompletedCallback(QueryCompletedCallback cb)
     });
 }
 
+Connection PelcoDDevice::addRetryCallback(RetryCallback cb)
+{
+    if (!cb) {
+        return Connection {};
+    }
+    const CallbackId id = m_callbackState->nextId.fetch_add(1U, std::memory_order_relaxed);
+    {
+        std::lock_guard<std::mutex> lock(m_callbackState->mutex);
+        auto nextList = std::make_shared<std::vector<CallbackEntry<RetryCallback>>>(*m_callbackState->retryCallbacks);
+        nextList->push_back({ id, std::move(cb) });
+        m_callbackState->retryCallbacks = std::move(nextList);
+    }
+    std::weak_ptr<CallbackState> weakState = m_callbackState;
+    return Connection([weakState, id]() {
+        if (auto state = weakState.lock()) {
+            state->removeRetry(id);
+        }
+    });
+}
+
 bool PelcoDDevice::removeStatusCallback(CallbackId id)
 {
     return m_callbackState->removeStatus(id);
@@ -372,6 +412,11 @@ bool PelcoDDevice::removeTimeoutCallback(CallbackId id)
 bool PelcoDDevice::removeQueryCompletedCallback(CallbackId id)
 {
     return m_callbackState->removeQueryCompleted(id);
+}
+
+bool PelcoDDevice::removeRetryCallback(CallbackId id)
+{
+    return m_callbackState->removeRetry(id);
 }
 
 void PelcoDDevice::clearCallbacks()
@@ -411,6 +456,18 @@ void PelcoDDevice::setQueryTimeoutMs(std::uint32_t timeoutMs) noexcept
 std::uint32_t PelcoDDevice::getQueryTimeoutMs() const noexcept
 {
     return m_queryTimeoutMs.load();
+}
+
+void PelcoDDevice::setRetryConfig(const RetryConfig& config) noexcept
+{
+    std::lock_guard<std::mutex> lock(m_retryMutex);
+    m_retryConfig = config;
+}
+
+RetryConfig PelcoDDevice::getRetryConfig() const noexcept
+{
+    std::lock_guard<std::mutex> lock(m_retryMutex);
+    return m_retryConfig;
 }
 
 void PelcoDDevice::panLeft(std::uint8_t speed)
@@ -827,9 +884,9 @@ void PelcoDDevice::enqueueCommand(
         }
 
         if (priority == CommandPriority::Urgent) {
-            m_commandQueue.push_front({ frame, std::move(queryTag), priority });
+            m_commandQueue.push_front({ frame, std::move(queryTag), priority, 0U, std::chrono::steady_clock::now() });
         } else {
-            m_commandQueue.push_back({ frame, std::move(queryTag), priority });
+            m_commandQueue.push_back({ frame, std::move(queryTag), priority, 0U, std::chrono::steady_clock::now() });
         }
     }
 
@@ -925,18 +982,72 @@ void PelcoDDevice::workerLoop()
         CommandItem item;
         {
             std::unique_lock<std::mutex> lock(m_queueMutex);
-            if (m_commandQueue.empty()) {
+            const auto curNow = std::chrono::steady_clock::now();
+
+            auto readyIt = m_commandQueue.end();
+            auto earliestWait = std::chrono::steady_clock::time_point::max();
+
+            for (auto it = m_commandQueue.begin(); it != m_commandQueue.end(); ++it) {
+                if (it->earliestDispatchTime <= curNow) {
+                    readyIt = it;
+                    break;
+                }
+                if (it->earliestDispatchTime < earliestWait) {
+                    earliestWait = it->earliestDispatchTime;
+                }
+            }
+
+            if (readyIt != m_commandQueue.end()) {
+                item = std::move(*readyIt);
+                m_commandQueue.erase(readyIt);
+            } else {
                 if (pollingEnabled && isConnected()) {
-                    const auto currentNow = std::chrono::steady_clock::now();
-                    const auto waitTime = (nextPollTime > currentNow)
-                        ? std::chrono::duration_cast<std::chrono::milliseconds>(nextPollTime - currentNow)
+                    auto waitTime = (nextPollTime > curNow)
+                        ? std::chrono::duration_cast<std::chrono::milliseconds>(nextPollTime - curNow)
                         : std::chrono::milliseconds(0);
+                    if (!m_commandQueue.empty() && earliestWait != std::chrono::steady_clock::time_point::max()) {
+                        const auto backoffDiff
+                            = std::chrono::duration_cast<std::chrono::milliseconds>(earliestWait - curNow);
+                        waitTime = std::min(waitTime, std::max(backoffDiff, std::chrono::milliseconds(1)));
+                    }
                     if (waitTime.count() > 0) {
-                        m_queueCv.wait_for(lock, waitTime, [this] { return !m_commandQueue.empty() || !m_running; });
+                        m_queueCv.wait_for(lock, waitTime, [this, earliestWait] {
+                            if (!m_running) {
+                                return true;
+                            }
+                            const auto checkNow = std::chrono::steady_clock::now();
+                            if (!m_commandQueue.empty() && checkNow >= earliestWait) {
+                                return true;
+                            }
+                            for (const auto& q : m_commandQueue) {
+                                if (q.earliestDispatchTime <= checkNow) {
+                                    return true;
+                                }
+                            }
+                            return false;
+                        });
                     }
                 } else {
-                    m_queueCv.wait_for(lock, std::chrono::milliseconds(100), [this] {
-                        return !m_commandQueue.empty() || !m_running || (m_telemetryPolling.load() && isConnected());
+                    auto waitTime = std::chrono::milliseconds(100);
+                    if (!m_commandQueue.empty() && earliestWait != std::chrono::steady_clock::time_point::max()) {
+                        const auto backoffDiff
+                            = std::chrono::duration_cast<std::chrono::milliseconds>(earliestWait - curNow);
+                        waitTime = std::min(waitTime, std::max(backoffDiff, std::chrono::milliseconds(1)));
+                    }
+                    m_queueCv.wait_for(lock, waitTime, [this, earliestWait] {
+                        if (!m_running || (m_telemetryPolling.load() && isConnected())) {
+                            return true;
+                        }
+                        const auto checkNow = std::chrono::steady_clock::now();
+                        if (!m_commandQueue.empty() && checkNow >= earliestWait) {
+                            return true;
+                        }
+                        for (const auto& q : m_commandQueue) {
+                            if (q.earliestDispatchTime <= checkNow) {
+                                return true;
+                            }
+                        }
+                        return false;
                     });
                 }
             }
@@ -944,12 +1055,9 @@ void PelcoDDevice::workerLoop()
             if (!m_running) {
                 break;
             }
-            if (m_commandQueue.empty()) {
+            if (item.frame.empty()) {
                 continue;
             }
-
-            item = std::move(m_commandQueue.front());
-            m_commandQueue.pop_front();
         }
 
         const auto sendStartTime = std::chrono::steady_clock::now();
@@ -970,6 +1078,56 @@ void PelcoDDevice::workerLoop()
                     std::lock_guard<std::mutex> lock(m_statusMutex);
                     m_awaitingResponse = false;
                     m_pendingQueryTag.clear();
+                }
+
+                RetryConfig retryCfg;
+                {
+                    std::lock_guard<std::mutex> rLock(m_retryMutex);
+                    retryCfg = m_retryConfig;
+                }
+                if (retryCfg.retryOnTransportError && item.retryCount < retryCfg.maxRetries) {
+                    item.retryCount++;
+                    const auto backoffDelay = calculateBackoffDelay(retryCfg, item.retryCount);
+                    item.earliestDispatchTime = std::chrono::steady_clock::now() + backoffDelay;
+
+                    std::shared_ptr<const std::vector<CallbackEntry<RetryCallback>>> rcbs;
+                    {
+                        std::lock_guard<std::mutex> lock(m_callbackState->mutex);
+                        rcbs = m_callbackState->retryCallbacks;
+                    }
+                    for (const auto& entry : *rcbs) {
+                        if (entry.cb) {
+                            entry.cb(item.queryTag.empty() ? "Command" : item.queryTag, item.retryCount,
+                                retryCfg.maxRetries, backoffDelay);
+                        }
+                    }
+
+                    LOG(INFO) << "Transport transmission failed for "
+                              << (item.queryTag.empty() ? "command" : "query '" + item.queryTag + "'") << " (attempt "
+                              << item.retryCount << "/" << retryCfg.maxRetries << "). Retrying in "
+                              << backoffDelay.count() << " ms";
+
+                    {
+                        std::lock_guard<std::mutex> lock(m_queueMutex);
+                        m_commandQueue.push_back(std::move(item));
+                    }
+                    m_queueCv.notify_one();
+                } else if (!item.queryTag.empty() && retryCfg.maxRetries > 0U) {
+                    DeviceStatus statusCopy;
+                    {
+                        std::lock_guard<std::mutex> lock(m_statusMutex);
+                        statusCopy = m_status;
+                    }
+                    std::shared_ptr<const std::vector<CallbackEntry<QueryCompletedCallback>>> qcbs;
+                    {
+                        std::lock_guard<std::mutex> lock(m_callbackState->mutex);
+                        qcbs = m_callbackState->queryCompletedCallbacks;
+                    }
+                    for (const auto& entry : *qcbs) {
+                        if (entry.cb) {
+                            entry.cb(item.queryTag, false, statusCopy);
+                        }
+                    }
                 }
             } else {
                 // Dispatch TX traffic callbacks using copy-on-write snapshot (zero heap allocation)
@@ -999,7 +1157,46 @@ void PelcoDDevice::workerLoop()
                         }
                     }
                     if (!queryAborted) {
-                        checkQueryTimeout();
+                        if (m_awaitingResponse.load()) {
+                            RetryConfig retryCfg;
+                            {
+                                std::lock_guard<std::mutex> rLock(m_retryMutex);
+                                retryCfg = m_retryConfig;
+                            }
+                            if (item.retryCount < retryCfg.maxRetries) {
+                                {
+                                    std::lock_guard<std::mutex> lock(m_statusMutex);
+                                    m_awaitingResponse = false;
+                                    m_pendingQueryTag.clear();
+                                }
+                                item.retryCount++;
+                                const auto backoffDelay = calculateBackoffDelay(retryCfg, item.retryCount);
+                                item.earliestDispatchTime = std::chrono::steady_clock::now() + backoffDelay;
+
+                                std::shared_ptr<const std::vector<CallbackEntry<RetryCallback>>> rcbs;
+                                {
+                                    std::lock_guard<std::mutex> lock(m_callbackState->mutex);
+                                    rcbs = m_callbackState->retryCallbacks;
+                                }
+                                for (const auto& entry : *rcbs) {
+                                    if (entry.cb) {
+                                        entry.cb(item.queryTag, item.retryCount, retryCfg.maxRetries, backoffDelay);
+                                    }
+                                }
+
+                                LOG(INFO)
+                                    << "Query '" << item.queryTag << "' timed out (attempt " << item.retryCount << "/"
+                                    << retryCfg.maxRetries << "). Retrying in " << backoffDelay.count() << " ms";
+
+                                {
+                                    std::lock_guard<std::mutex> lock(m_queueMutex);
+                                    m_commandQueue.push_back(std::move(item));
+                                }
+                                m_queueCv.notify_one();
+                            } else {
+                                checkQueryTimeout();
+                            }
+                        }
                     }
                 }
             }

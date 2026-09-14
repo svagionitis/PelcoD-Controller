@@ -9,6 +9,7 @@
 #include "PelcoDTypes.h"
 #include "ProtocolBuilder.h"
 #include "ProtocolParser.h"
+#include "RetryPolicy.h"
 
 #include <atomic>
 #include <chrono>
@@ -34,6 +35,8 @@ public:
     using TimeoutCallback = std::function<void(const std::string& queryTag)>;
     using QueryCompletedCallback
         = std::function<void(const std::string& queryTag, bool success, const DeviceStatus& status)>;
+    using RetryCallback = std::function<void(
+        const std::string& queryTag, std::uint32_t attempt, std::uint32_t maxRetries, std::chrono::milliseconds delay)>;
 
     explicit PelcoDDevice(std::shared_ptr<ITransport> transport, std::uint8_t address = 1U);
     virtual ~PelcoDDevice();
@@ -83,6 +86,11 @@ public:
     /// @return Connection object to manage the subscription.
     Connection addQueryCompletedCallback(QueryCompletedCallback cb);
 
+    /// @brief Registers a callback for query retry attempt notifications.
+    /// @param[in] cb Callback receiving queryTag, attempt number (1-based), maxRetries, and scheduled delay.
+    /// @return Connection object to manage the subscription.
+    Connection addRetryCallback(RetryCallback cb);
+
     /// @brief Removes a status callback by identifier.
     /// @param[in] id Callback identifier.
     /// @return True if callback was found and removed; false otherwise.
@@ -103,6 +111,11 @@ public:
     /// @return True if callback was found and removed; false otherwise.
     bool removeQueryCompletedCallback(CallbackId id);
 
+    /// @brief Removes a retry callback by identifier.
+    /// @param[in] id Callback identifier.
+    /// @return True if callback was found and removed; false otherwise.
+    bool removeRetryCallback(CallbackId id);
+
     /// @brief Removes all registered status, traffic, and timeout callbacks.
     virtual void clearCallbacks();
 
@@ -113,6 +126,9 @@ public:
     [[nodiscard]] bool getTelemetryPolling() const noexcept;
     void setQueryTimeoutMs(std::uint32_t timeoutMs) noexcept;
     [[nodiscard]] std::uint32_t getQueryTimeoutMs() const noexcept;
+
+    void setRetryConfig(const RetryConfig& config) noexcept;
+    [[nodiscard]] RetryConfig getRetryConfig() const noexcept;
 
     // Motion & Positioning
     void panLeft(std::uint8_t speed);
@@ -231,9 +247,11 @@ private:
     void checkQueryTimeout();
 
     struct CommandItem {
-        std::vector<std::uint8_t> frame;
-        std::string queryTag;
+        std::vector<std::uint8_t> frame {};
+        std::string queryTag {};
         CommandPriority priority { CommandPriority::Normal };
+        std::uint32_t retryCount { 0U };
+        std::chrono::steady_clock::time_point earliestDispatchTime { std::chrono::steady_clock::now() };
     };
 
     std::shared_ptr<ITransport> m_transport;
@@ -253,6 +271,9 @@ private:
     std::atomic<bool> m_telemetryPolling { false };
     std::atomic<std::uint32_t> m_pollIntervalMs { 1000U };
     std::atomic<std::uint32_t> m_queryTimeoutMs { 1000U };
+
+    mutable std::mutex m_retryMutex;
+    RetryConfig m_retryConfig {};
 
     mutable std::mutex m_statusMutex;
     DeviceStatus m_status {};
@@ -284,11 +305,15 @@ private:
         std::shared_ptr<const std::vector<CallbackEntry<QueryCompletedCallback>>> queryCompletedCallbacks {
             std::make_shared<const std::vector<CallbackEntry<QueryCompletedCallback>>>()
         };
+        std::shared_ptr<const std::vector<CallbackEntry<RetryCallback>>> retryCallbacks {
+            std::make_shared<const std::vector<CallbackEntry<RetryCallback>>>()
+        };
 
         bool removeStatus(CallbackId id);
         bool removeTraffic(CallbackId id);
         bool removeTimeout(CallbackId id);
         bool removeQueryCompleted(CallbackId id);
+        bool removeRetry(CallbackId id);
         void clear();
     };
 
