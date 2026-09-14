@@ -147,7 +147,8 @@ public:
     void sendQueryFrame(const std::vector<std::uint8_t>& frame, std::string queryTag = "Query");
 
 private:
-    void enqueueCommand(const std::vector<std::uint8_t>& frame, std::string queryTag = "");
+    void enqueueCommand(const std::vector<std::uint8_t>& frame, std::string queryTag = "",
+        CommandPriority priority = CommandPriority::Normal);
     void workerLoop();
     void pollingLoop();
     void rxLoop();
@@ -160,6 +161,7 @@ private:
     struct CommandItem {
         std::vector<std::uint8_t> frame;
         std::string queryTag;
+        CommandPriority priority { CommandPriority::Normal };
     };
 
     std::shared_ptr<ITransport> m_transport;
@@ -191,6 +193,7 @@ private:
     DeviceInfo m_info {};
 
     std::atomic<bool> m_awaitingResponse { false };
+    std::atomic<bool> m_abortQueryWait { false };
     std::condition_variable m_responseCv;
     std::string m_pendingQueryTag;
     std::chrono::steady_clock::time_point m_querySentTime;

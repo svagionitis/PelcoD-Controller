@@ -102,6 +102,7 @@ void PelcoDDevice::stop()
 
     LOG(INFO) << "Stopping PelcoDDevice controller";
     m_running = false;
+    m_abortQueryWait.store(true);
     m_queueCv.notify_all();
     m_rxCv.notify_all();
     m_responseCv.notify_all();
@@ -241,7 +242,7 @@ void PelcoDDevice::tiltDown(std::uint8_t speed)
 
 void PelcoDDevice::stopMotion()
 {
-    enqueueCommand(ProtocolBuilder::buildStop(m_address));
+    enqueueCommand(ProtocolBuilder::buildStop(m_address), "", CommandPriority::Urgent);
 }
 
 void PelcoDDevice::move(PanDirection panDir, std::uint8_t panSpeed, TiltDirection tiltDir, std::uint8_t tiltSpeed)
@@ -526,20 +527,46 @@ void PelcoDDevice::sendRawFrame(const std::vector<std::uint8_t>& frame)
 
 void PelcoDDevice::sendQueryFrame(const std::vector<std::uint8_t>& frame, std::string queryTag)
 {
-    enqueueCommand(frame, std::move(queryTag));
+    enqueueCommand(frame, std::move(queryTag), CommandPriority::Low);
 }
 
-void PelcoDDevice::enqueueCommand(const std::vector<std::uint8_t>& frame, std::string queryTag)
+void PelcoDDevice::enqueueCommand(
+    const std::vector<std::uint8_t>& frame, std::string queryTag, CommandPriority priority)
 {
     constexpr std::size_t MaxQueueSize = 256U;
     {
         std::lock_guard<std::mutex> lock(m_queueMutex);
+
+        // For Urgent commands (e.g. stopMotion), purge any pending Low-priority queries from the queue
+        if (priority == CommandPriority::Urgent) {
+            auto it = m_commandQueue.begin();
+            while (it != m_commandQueue.end()) {
+                if (it->priority == CommandPriority::Low) {
+                    it = m_commandQueue.erase(it);
+                } else {
+                    ++it;
+                }
+            }
+        }
+
         if (m_commandQueue.size() >= MaxQueueSize) {
             LOG(WARNING) << "PelcoDDevice command queue full (" << MaxQueueSize << " items), dropping oldest command";
             m_commandQueue.pop_front();
         }
-        m_commandQueue.push_back({ frame, std::move(queryTag) });
+
+        if (priority == CommandPriority::Urgent) {
+            m_commandQueue.push_front({ frame, std::move(queryTag), priority });
+        } else {
+            m_commandQueue.push_back({ frame, std::move(queryTag), priority });
+        }
     }
+
+    // If an urgent command arrives while waiting for a query response, abort the query wait immediately
+    if (priority == CommandPriority::Urgent && m_awaitingResponse.load()) {
+        m_abortQueryWait.store(true);
+        m_responseCv.notify_all();
+    }
+
     m_queueCv.notify_one();
 }
 
@@ -561,8 +588,7 @@ void PelcoDDevice::checkQueryTimeout()
             tag = m_pendingQueryTag;
         }
 
-        LOG(WARNING) << "Query timeout: No response received for query '" << tag << "' within " << timeoutMs
-                     << " ms";
+        LOG(WARNING) << "Query timeout: No response received for query '" << tag << "' within " << timeoutMs << " ms";
 
         std::shared_ptr<const std::vector<TimeoutCallback>> cbs;
         {
@@ -599,11 +625,13 @@ void PelcoDDevice::workerLoop()
             m_commandQueue.pop_front();
         }
 
+        const auto sendStartTime = std::chrono::steady_clock::now();
         if (m_transport && m_transport->isOpen() && !item.frame.empty()) {
             if (!item.queryTag.empty()) {
                 std::lock_guard<std::mutex> lock(m_statusMutex);
+                m_abortQueryWait.store(false);
                 m_pendingQueryTag = item.queryTag;
-                m_querySentTime = std::chrono::steady_clock::now();
+                m_querySentTime = sendStartTime;
                 m_awaitingResponse = true;
             }
 
@@ -630,18 +658,33 @@ void PelcoDDevice::workerLoop()
                 }
 
                 if (!item.queryTag.empty()) {
+                    bool queryAborted { false };
                     {
                         std::unique_lock<std::mutex> lock(m_statusMutex);
                         m_responseCv.wait_for(lock, std::chrono::milliseconds(m_queryTimeoutMs.load()),
-                            [this] { return !m_awaitingResponse.load() || !m_running; });
+                            [this] { return !m_awaitingResponse.load() || !m_running || m_abortQueryWait.load(); });
+
+                        if (m_abortQueryWait.load()) {
+                            queryAborted = true;
+                            m_abortQueryWait.store(false);
+                            m_awaitingResponse = false;
+                            m_pendingQueryTag.clear();
+                        }
                     }
-                    checkQueryTimeout();
+                    if (!queryAborted) {
+                        checkQueryTimeout();
+                    }
                 }
             }
         }
 
-        // 20ms inter-command delay per Pelco-D RS-485 specification
-        std::this_thread::sleep_for(std::chrono::milliseconds(20));
+        // Inter-command delay per Pelco-D RS-485 specification (20ms quiet time between frames)
+        const auto commandEndTime = std::chrono::steady_clock::now();
+        const auto elapsedMs
+            = std::chrono::duration_cast<std::chrono::milliseconds>(commandEndTime - sendStartTime).count();
+        if (elapsedMs < 20) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(20 - elapsedMs));
+        }
     }
 }
 
@@ -748,8 +791,7 @@ void PelcoDDevice::rxLoop()
     }
 }
 
-bool PelcoDDevice::isResponseMatchingQuery(
-    const std::string& queryTag, const std::vector<std::uint8_t>& frame) noexcept
+bool PelcoDDevice::isResponseMatchingQuery(const std::string& queryTag, const std::vector<std::uint8_t>& frame) noexcept
 {
     return ProtocolParser::isResponseMatchingQuery(queryTag, frame);
 }
@@ -821,4 +863,3 @@ void PelcoDDevice::dispatchFrame(const std::vector<std::uint8_t>& frame)
 }
 
 } // namespace PelcoD
-

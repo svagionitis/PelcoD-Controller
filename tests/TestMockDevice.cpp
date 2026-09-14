@@ -380,9 +380,7 @@ void testSharedBusDeviceFiltering()
         }
     });
 
-    device.addStatusCallback([&](const PelcoD::DeviceStatus&) {
-        statusUpdateCount.fetch_add(1);
-    });
+    device.addStatusCallback([&](const PelcoD::DeviceStatus&) { statusUpdateCount.fetch_add(1); });
 
     assert(device.start());
 
@@ -580,9 +578,7 @@ void testFailedSendDoesNotTriggerTxCallbackOrTimeoutWait()
         }
     });
 
-    device.addTimeoutCallback([&](const std::string&) {
-        timeoutCount.fetch_add(1);
-    });
+    device.addTimeoutCallback([&](const std::string&) { timeoutCount.fetch_add(1); });
 
     assert(device.start());
     assert(device.isConnected());
@@ -601,14 +597,62 @@ void testFailedSendDoesNotTriggerTxCallbackOrTimeoutWait()
     assert(txCount.load() == 0);
 
     // Must not block/stall waiting for 500ms timeout
-    const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
-        std::chrono::steady_clock::now() - start).count();
+    const auto elapsed
+        = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start).count();
     assert(elapsed < 400);
 
     // Timeout callback must not be invoked for an unsent query
     assert(timeoutCount.load() == 0);
 
     device.stop();
+}
+
+void testStopMotionPreemptsQueries()
+{
+    auto transport = std::make_shared<ControlledTransport>();
+    PelcoD::PelcoDDevice device(transport, 1U);
+    device.setQueryTimeoutMs(1000U); // 1-second timeout per query
+    assert(device.start());
+
+    // Enqueue 3 queries that will not receive replies
+    device.queryPan();
+    device.queryTilt();
+    device.queryZoom();
+
+    // Allow worker loop to start processing the first query
+    std::this_thread::sleep_for(std::chrono::milliseconds(30));
+
+    // Now issue stopMotion() - this is safety-critical and must preempt the waiting queries!
+    const auto startTime = std::chrono::steady_clock::now();
+    device.stopMotion();
+
+    // Wait until stopMotion frame is seen in transport sent frames
+    const std::vector<std::uint8_t> stopFrame = PelcoD::ProtocolBuilder::buildStop(1U);
+    bool stopSent = false;
+    long long elapsedMs = 0;
+
+    for (int i = 0; i < 40; ++i) { // check for up to 400ms
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        const auto frames = transport->getSentFrames();
+        for (const auto& f : frames) {
+            if (f == stopFrame) {
+                stopSent = true;
+                elapsedMs = std::chrono::duration_cast<std::chrono::milliseconds>(
+                    std::chrono::steady_clock::now() - startTime)
+                                .count();
+                break;
+            }
+        }
+        if (stopSent) {
+            break;
+        }
+    }
+
+    device.stop();
+
+    // stopMotion MUST be sent promptly (< 150ms), NOT delayed by queries (> 1000ms or 3000ms)
+    assert(stopSent);
+    assert(elapsedMs < 150);
 }
 
 int main()
@@ -627,6 +671,7 @@ int main()
     testTransportCallbackDeregistration();
     testConcurrentQueryTimeoutAndAddressUpdates();
     testFailedSendDoesNotTriggerTxCallbackOrTimeoutWait();
+    testStopMotionPreemptsQueries();
     std::cout << "[TestMockDevice] All tests passed successfully." << std::endl;
     return 0;
 }

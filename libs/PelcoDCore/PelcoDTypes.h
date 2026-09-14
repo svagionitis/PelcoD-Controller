@@ -110,6 +110,14 @@ enum class SwitchState : std::uint8_t { Off = 0x00U, On = 0x01U };
 /// @brief Operational state of communication transport.
 enum class TransportState : std::uint8_t { Disconnected = 0x00U, Connecting = 0x01U, Connected = 0x02U, Error = 0x03U };
 
+/// @enum CommandPriority
+/// @brief Priority levels for command execution in PelcoDDevice.
+enum class CommandPriority : std::uint8_t {
+    Low = 0U, ///< Background queries and non-essential telemetry polling
+    Normal = 1U, ///< Standard motion, presets, and configuration commands
+    Urgent = 2U ///< Safety-critical commands (e.g. stopMotion) that preempt in-flight queries
+};
+
 /// @struct DeviceInfo
 /// @brief Identification information received from device query.
 struct DeviceInfo {
