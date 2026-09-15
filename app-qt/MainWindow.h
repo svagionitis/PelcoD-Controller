@@ -13,6 +13,7 @@
 #include "app-qt/tabs/PresetsTab.h"
 #include "app-qt/tabs/PtzControlTab.h"
 #include "app-qt/tabs/SystemTab.h"
+#include "app-qt/tabs/VideoStreamTab.h"
 #include "app-qt/widgets/ConnectionWidget.h"
 #include "app-qt/widgets/TrafficInspectorWidget.h"
 
@@ -46,6 +47,7 @@ private:
     ConnectionWidget* m_connectionWidget { nullptr };
     QTabWidget* m_tabWidget { nullptr };
 
+    VideoStreamTab* m_videoTab { nullptr };
     PtzControlTab* m_ptzTab { nullptr };
     PresetsTab* m_presetsTab { nullptr };
     DeviceSettingsTab* m_settingsTab { nullptr };

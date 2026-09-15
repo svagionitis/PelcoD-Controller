@@ -36,6 +36,7 @@ void MainWindow::setupUi()
 
     m_tabWidget = new QTabWidget(centralWidget);
 
+    m_videoTab = new VideoStreamTab(m_device, this);
     m_ptzTab = new PtzControlTab(m_device, this);
     m_presetsTab = new PresetsTab(m_device, this);
     m_settingsTab = new DeviceSettingsTab(m_device, this);
@@ -44,6 +45,7 @@ void MainWindow::setupUi()
     m_systemTab = new SystemTab(m_device, this);
     m_fujinonTab = new FujinonSX800Tab(m_device, this);
 
+    m_tabWidget->addTab(m_videoTab, tr("Video Stream & HUD"));
     m_tabWidget->addTab(m_ptzTab, tr("PTZ Motion"));
     m_tabWidget->addTab(m_presetsTab, tr("Presets"));
     m_tabWidget->addTab(m_settingsTab, tr("Device Settings"));
@@ -114,12 +116,18 @@ void MainWindow::handleDisconnect()
 
 void MainWindow::handleStatusUpdated(const PelcoD::DeviceStatus& status)
 {
+    if (m_videoTab) {
+        m_videoTab->handleDeviceStatusUpdated(status);
+    }
     m_ptzTab->updateTelemetry(status);
     m_systemTab->updateStatus(status);
 }
 
 void MainWindow::handleFujinonStatusUpdated(const PelcoD::FujinonStatus& status)
 {
+    if (m_videoTab) {
+        m_videoTab->handleFujinonStatusUpdated(status);
+    }
     if (m_fujinonTab) {
         m_fujinonTab->updateFujinonStatus(status);
     }

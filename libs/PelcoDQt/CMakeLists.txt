@@ -22,4 +22,15 @@ target_link_libraries(PelcoDQt PUBLIC
     Qt6::Core
 )
 
+if(PELCOD_ENABLE_VIDEO)
+    target_sources(PelcoDQt PRIVATE
+        QVideoStreamWorker.h
+        QVideoStreamWorker.cpp
+    )
+    target_link_libraries(PelcoDQt PUBLIC
+        PelcoDVideo
+        Qt6::Gui
+    )
+endif()
+
 apply_compiler_flags(PelcoDQt)

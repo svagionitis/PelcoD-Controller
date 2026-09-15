@@ -39,6 +39,62 @@ if(WIN32)
 endif()
 
 # ==============================================================================
+# Video Subsystem (PelcoDVideo) Dependencies
+# ==============================================================================
+option(PELCOD_ENABLE_VIDEO "Build in-tree RTSP video decoder and overlay subsystem" ON)
+option(PELCOD_ENABLE_FFMPEG "Enable FFmpeg decoder backend in PelcoDVideo" ON)
+option(PELCOD_ENABLE_GSTREAMER "Enable GStreamer decoder backend in PelcoDVideo" ON)
+
+if(PELCOD_ENABLE_VIDEO)
+    # FFmpeg components
+    if(PELCOD_ENABLE_FFMPEG)
+        find_package(FFmpeg COMPONENTS avcodec avformat avutil swscale QUIET)
+        if(NOT FFmpeg_FOUND AND NOT FFMPEG_FOUND)
+            find_path(FFMPEG_INCLUDE_DIR NAMES libavcodec/avcodec.h PATHS "C:/vcpkg/installed/x64-windows/include" "$ENV{FFMPEG_ROOT}/include")
+            find_library(AVCODEC_LIBRARY NAMES avcodec PATHS "C:/vcpkg/installed/x64-windows/lib" "$ENV{FFMPEG_ROOT}/lib")
+            find_library(AVFORMAT_LIBRARY NAMES avformat PATHS "C:/vcpkg/installed/x64-windows/lib" "$ENV{FFMPEG_ROOT}/lib")
+            find_library(AVUTIL_LIBRARY NAMES avutil PATHS "C:/vcpkg/installed/x64-windows/lib" "$ENV{FFMPEG_ROOT}/lib")
+            find_library(SWSCALE_LIBRARY NAMES swscale PATHS "C:/vcpkg/installed/x64-windows/lib" "$ENV{FFMPEG_ROOT}/lib")
+            if(FFMPEG_INCLUDE_DIR AND AVCODEC_LIBRARY AND AVFORMAT_LIBRARY AND AVUTIL_LIBRARY AND SWSCALE_LIBRARY)
+                set(FFMPEG_FOUND TRUE)
+                set(FFMPEG_INCLUDE_DIRS ${FFMPEG_INCLUDE_DIR})
+                set(FFMPEG_LIBRARIES ${AVCODEC_LIBRARY} ${AVFORMAT_LIBRARY} ${AVUTIL_LIBRARY} ${SWSCALE_LIBRARY})
+            endif()
+        endif()
+        if(FFMPEG_FOUND)
+            message(STATUS "PelcoDVideo: FFmpeg backend enabled")
+        else()
+            message(WARNING "PelcoDVideo: FFmpeg libraries not found, disabling FFmpeg backend")
+            set(PELCOD_ENABLE_FFMPEG OFF)
+        endif()
+    endif()
+
+    # GStreamer components
+    if(PELCOD_ENABLE_GSTREAMER)
+        find_path(GST_INCLUDE_DIR NAMES gst/gst.h PATHS "C:/vcpkg/installed/x64-windows/include/gstreamer-1.0" "${GSTREAMER_ROOT}/include/gstreamer-1.0" "$ENV{GSTREAMER_1_0_ROOT_MSVC_X86_64}/include/gstreamer-1.0" PATH_SUFFIXES "gstreamer-1.0")
+        find_path(GLIB_INCLUDE_DIR NAMES glib.h PATHS "C:/vcpkg/installed/x64-windows/include/glib-2.0" "${GSTREAMER_ROOT}/include/glib-2.0" "$ENV{GSTREAMER_1_0_ROOT_MSVC_X86_64}/include/glib-2.0" PATH_SUFFIXES "glib-2.0")
+        find_path(GLIBCONFIG_INCLUDE_DIR NAMES glibconfig.h PATHS "C:/vcpkg/installed/x64-windows/lib/glib-2.0/include" "${GSTREAMER_ROOT}/lib/glib-2.0/include" "$ENV{GSTREAMER_1_0_ROOT_MSVC_X86_64}/lib/glib-2.0/include" PATH_SUFFIXES "glib-2.0/include")
+
+        find_library(GST_LIBRARY NAMES gstreamer-1.0 PATHS "C:/vcpkg/installed/x64-windows/lib" "${GSTREAMER_ROOT}/lib" "$ENV{GSTREAMER_1_0_ROOT_MSVC_X86_64}/lib")
+        find_library(GST_BASE_LIBRARY NAMES gstbase-1.0 PATHS "C:/vcpkg/installed/x64-windows/lib" "${GSTREAMER_ROOT}/lib" "$ENV{GSTREAMER_1_0_ROOT_MSVC_X86_64}/lib")
+        find_library(GST_APP_LIBRARY NAMES gstapp-1.0 PATHS "C:/vcpkg/installed/x64-windows/lib" "${GSTREAMER_ROOT}/lib" "$ENV{GSTREAMER_1_0_ROOT_MSVC_X86_64}/lib")
+        find_library(GST_VIDEO_LIBRARY NAMES gstvideo-1.0 PATHS "C:/vcpkg/installed/x64-windows/lib" "${GSTREAMER_ROOT}/lib" "$ENV{GSTREAMER_1_0_ROOT_MSVC_X86_64}/lib")
+        find_library(GLIB_LIBRARY NAMES glib-2.0 PATHS "C:/vcpkg/installed/x64-windows/lib" "${GSTREAMER_ROOT}/lib" "$ENV{GSTREAMER_1_0_ROOT_MSVC_X86_64}/lib")
+        find_library(GOBJECT_LIBRARY NAMES gobject-2.0 PATHS "C:/vcpkg/installed/x64-windows/lib" "${GSTREAMER_ROOT}/lib" "$ENV{GSTREAMER_1_0_ROOT_MSVC_X86_64}/lib")
+
+        if(GST_INCLUDE_DIR AND GLIB_INCLUDE_DIR AND GLIBCONFIG_INCLUDE_DIR AND GST_LIBRARY AND GST_BASE_LIBRARY AND GST_APP_LIBRARY AND GST_VIDEO_LIBRARY AND GLIB_LIBRARY AND GOBJECT_LIBRARY)
+            set(GSTREAMER_FOUND TRUE)
+            set(GSTREAMER_INCLUDE_DIRS ${GST_INCLUDE_DIR} ${GLIB_INCLUDE_DIR} ${GLIBCONFIG_INCLUDE_DIR})
+            set(GSTREAMER_LIBRARIES ${GST_LIBRARY} ${GST_BASE_LIBRARY} ${GST_APP_LIBRARY} ${GST_VIDEO_LIBRARY} ${GLIB_LIBRARY} ${GOBJECT_LIBRARY})
+            message(STATUS "PelcoDVideo: GStreamer backend enabled")
+        else()
+            message(WARNING "PelcoDVideo: GStreamer libraries not found, disabling GStreamer backend")
+            set(PELCOD_ENABLE_GSTREAMER OFF)
+        endif()
+    endif()
+endif()
+
+# ==============================================================================
 # Installation Rules (GNUInstallDirs) & RPATH Settings
 # ==============================================================================
 include(GNUInstallDirs)
@@ -66,7 +122,12 @@ include(GitHooks)
 # Target Installation
 # ==============================================================================
 
-install(TARGETS PelcoDAppQt PelcoDAppTui PelcoDCore PelcoDQt
+set(PELCOD_INSTALL_TARGETS PelcoDAppQt PelcoDAppTui PelcoDCore PelcoDQt)
+if(PELCOD_ENABLE_VIDEO)
+    list(APPEND PELCOD_INSTALL_TARGETS PelcoDVideo)
+endif()
+
+install(TARGETS ${PELCOD_INSTALL_TARGETS}
     EXPORT PelcoDTargets
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}

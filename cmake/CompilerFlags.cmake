@@ -20,7 +20,7 @@ function(apply_compiler_flags TARGET_NAME)
     endif()
 
     if(MSVC)
-        target_compile_options(${TARGET_NAME} PRIVATE /W4 /wd4324 /permissive-)
+        target_compile_options(${TARGET_NAME} PRIVATE /W4 /wd4324 /permissive- /FS)
         if(WARNINGS_AS_ERRORS)
             target_compile_options(${TARGET_NAME} PRIVATE /WX)
         endif()

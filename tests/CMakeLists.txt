@@ -78,9 +78,6 @@ target_link_libraries(TestAutoReconnect PRIVATE
 )
 apply_compiler_flags(TestAutoReconnect)
 add_test(NAME TestAutoReconnect COMMAND TestAutoReconnect)
-if(WIN32)
-    set_property(TEST TestAutoReconnect PROPERTY ENVIRONMENT "PATH=$<TARGET_FILE_DIR:Qt6::Core>;$ENV{PATH}")
-endif()
 
 add_executable(TestQPelcoDDevice
     TestQPelcoDDevice.cpp
@@ -97,9 +94,6 @@ target_link_libraries(TestQPelcoDDevice PRIVATE
 )
 apply_compiler_flags(TestQPelcoDDevice)
 add_test(NAME TestQPelcoDDevice COMMAND TestQPelcoDDevice)
-if(WIN32)
-    set_property(TEST TestQPelcoDDevice PROPERTY ENVIRONMENT "PATH=$<TARGET_FILE_DIR:Qt6::Core>;$ENV{PATH}")
-endif()
 
 add_executable(TestRetryPolicy
     TestRetryPolicy.cpp
@@ -116,8 +110,22 @@ target_link_libraries(TestRetryPolicy PRIVATE
 )
 apply_compiler_flags(TestRetryPolicy)
 add_test(NAME TestRetryPolicy COMMAND TestRetryPolicy)
+
 if(WIN32)
-    set_property(TEST TestRetryPolicy PROPERTY ENVIRONMENT "PATH=$<TARGET_FILE_DIR:Qt6::Core>;$ENV{PATH}")
+    set(QT_DEVICE_TESTS
+        TestAutoReconnect
+        TestQPelcoDDevice
+        TestRetryPolicy
+    )
+    foreach(qt_test IN LISTS QT_DEVICE_TESTS)
+        set_property(TEST ${qt_test} PROPERTY ENVIRONMENT_MODIFICATION
+            "PATH=path_list_prepend:$<TARGET_FILE_DIR:Qt6::Core>"
+            "PATH=path_list_prepend:${CMAKE_BINARY_DIR}/vcpkg_installed/x64-windows/debug/bin"
+            "PATH=path_list_prepend:${CMAKE_BINARY_DIR}/vcpkg_installed/x64-windows/bin"
+            "PATH=path_list_prepend:C:/vcpkg/installed/x64-windows/debug/bin"
+            "PATH=path_list_prepend:C:/vcpkg/installed/x64-windows/bin"
+        )
+    endforeach()
 endif()
 
 # ==============================================================================
@@ -142,4 +150,53 @@ add_test(NAME TestTuiInvalidScanRange COMMAND PelcoDAppTui --scan 50-10)
 set_tests_properties(TestTuiInvalidScanRange PROPERTIES WILL_FAIL TRUE)
 add_test(NAME TestTuiScanMock COMMAND PelcoDAppTui --mock --scan 1-2)
 
+if(WIN32)
+    set(TUI_CLI_TESTS
+        TestTuiHelp
+        TestTuiInvalidAddress
+        TestTuiAddressOutOfRange
+        TestTuiInvalidTcpPort
+        TestTuiUnknownOption
+        TestTuiMissingArg
+        TestTuiInvalidUdpPort
+        TestTuiMissingUdpArg
+        TestTuiInvalidScanRange
+        TestTuiScanMock
+    )
+    foreach(tui_t IN LISTS TUI_CLI_TESTS)
+        set_property(TEST ${tui_t} PROPERTY ENVIRONMENT_MODIFICATION
+            "PATH=path_list_prepend:${CMAKE_BINARY_DIR}/vcpkg_installed/x64-windows/debug/bin"
+            "PATH=path_list_prepend:${CMAKE_BINARY_DIR}/vcpkg_installed/x64-windows/bin"
+            "PATH=path_list_prepend:C:/vcpkg/installed/x64-windows/debug/bin"
+            "PATH=path_list_prepend:C:/vcpkg/installed/x64-windows/bin"
+        )
+    endforeach()
+endif()
 
+if(PELCOD_ENABLE_VIDEO)
+    add_executable(TestVideoDecoder
+        TestVideoDecoder.cpp
+    )
+    target_include_directories(TestVideoDecoder PRIVATE
+        ${CMAKE_SOURCE_DIR}/libs/PelcoDVideo
+        ${CMAKE_SOURCE_DIR}/libs/PelcoDQt
+    )
+    target_link_libraries(TestVideoDecoder PRIVATE
+        PelcoDQt
+        PelcoDVideo
+        Qt6::Core
+        Qt6::Gui
+        Qt6::Test
+    )
+    apply_compiler_flags(TestVideoDecoder)
+    add_test(NAME TestVideoDecoder COMMAND TestVideoDecoder)
+    if(WIN32)
+        set_property(TEST TestVideoDecoder PROPERTY ENVIRONMENT_MODIFICATION
+            "PATH=path_list_prepend:$<TARGET_FILE_DIR:Qt6::Core>"
+            "PATH=path_list_prepend:${CMAKE_BINARY_DIR}/vcpkg_installed/x64-windows/debug/bin"
+            "PATH=path_list_prepend:${CMAKE_BINARY_DIR}/vcpkg_installed/x64-windows/bin"
+            "PATH=path_list_prepend:C:/vcpkg/installed/x64-windows/debug/bin"
+            "PATH=path_list_prepend:C:/vcpkg/installed/x64-windows/bin"
+        )
+    endif()
+endif()

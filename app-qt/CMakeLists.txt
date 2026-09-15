@@ -6,6 +6,10 @@ add_executable(PelcoDAppQt
     widgets/ConnectionWidget.cpp
     widgets/TrafficInspectorWidget.h
     widgets/TrafficInspectorWidget.cpp
+    widgets/VideoOverlayWidget.h
+    widgets/VideoOverlayWidget.cpp
+    tabs/VideoStreamTab.h
+    tabs/VideoStreamTab.cpp
     tabs/PtzControlTab.h
     tabs/PtzControlTab.cpp
     tabs/PresetsTab.h
@@ -32,10 +36,12 @@ add_executable(PelcoDAppQt
 target_include_directories(PelcoDAppQt PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}/..
+    ${CMAKE_SOURCE_DIR}/libs/PelcoDVideo
 )
 
 target_link_libraries(PelcoDAppQt PRIVATE
     PelcoDQt
+    PelcoDVideo
     Qt6::Widgets
 )
 
