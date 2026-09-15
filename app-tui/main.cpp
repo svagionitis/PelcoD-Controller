@@ -1,5 +1,6 @@
 #include "BusScanner.h"
 #include "MockPelcoDDevice.h"
+#include "DecoderTypes.h"
 #include "SerialTransport.h"
 #include "TcpTransport.h"
 #include "TuiApp.h"
@@ -35,6 +36,8 @@ struct ParseResult {
     std::uint8_t scanStart { 1U };
     std::uint8_t scanEnd { 32U };
     std::uint32_t scanTimeoutMs { 150U };
+    std::string videoSource { "mock:smpte" };
+    PelcoD::Video::BackendType videoBackend { PelcoD::Video::BackendType::Mock };
 };
 
 /// @brief Exception-safe integer parser using std::from_chars.
@@ -91,9 +94,11 @@ void printUsage(std::string_view progName)
               << "  --address <id>              Set Pelco-D camera address 1–254 (default: 1)\n"
               << "  --scan [start-end]          Scan bus for active Pelco-D devices (e.g. --scan 1-32)\n"
               << "  --multi-baud                Cycle standard baud rates (2400-115200) during --scan\n"
+              << "  --video <source>            Video source (mock:smpte, rtsp://..., file.mp4, or camera device)\n"
+              << "  --video-backend <backend>   Decoder backend (mock, ffmpeg, or gstreamer)\n"
               << "  --help, -h                  Display this help message and exit\n\n"
               << "Keyboard Shortcuts:\n"
-              << "  1–6 / F1–F6                 Switch between application tabs\n"
+              << "  1–8 / F1–F8                 Switch between application tabs (Tab 8 is Video View)\n"
               << "  Tab / Backtab               Cycle tab focus forward / backward\n"
               << "  W / A / S / D or Arrows     PTZ motion: Pan Left/Right, Tilt Up/Down\n"
               << "  Space                       Emergency Stop all motion\n"
@@ -374,6 +379,32 @@ void printUsage(std::string_view progName)
             }
         } else if (arg == "--multi-baud") {
             result.multiBaud = true;
+        } else if (arg == "--video") {
+            if (i + 1 >= argc) {
+                result.status = ParseStatus::Error;
+                result.errorMessage = "Option '--video' requires a source path or URL (e.g. mock:smpte or rtsp://...)";
+                return result;
+            }
+            result.videoSource = argv[++i];
+        } else if (arg == "--video-backend") {
+            if (i + 1 >= argc) {
+                result.status = ParseStatus::Error;
+                result.errorMessage = "Option '--video-backend' requires a backend name (mock, ffmpeg, or gstreamer)";
+                return result;
+            }
+            const std::string_view beStr = argv[++i];
+            if (beStr == "mock") {
+                result.videoBackend = PelcoD::Video::BackendType::Mock;
+            } else if (beStr == "ffmpeg") {
+                result.videoBackend = PelcoD::Video::BackendType::FFmpeg;
+            } else if (beStr == "gstreamer") {
+                result.videoBackend = PelcoD::Video::BackendType::GStreamer;
+            } else {
+                result.status = ParseStatus::Error;
+                result.errorMessage
+                    = "Unknown video backend '" + std::string(beStr) + "': expected mock, ffmpeg, or gstreamer";
+                return result;
+            }
         } else {
             result.status = ParseStatus::Error;
             result.errorMessage = "Unrecognized option or argument: '" + std::string(arg) + "'";
@@ -513,7 +544,7 @@ int main(int argc, char* argv[])
     }
 
     try {
-        PelcoDTui::TuiApp app(parseResult.config);
+        PelcoDTui::TuiApp app(parseResult.config, parseResult.videoSource, parseResult.videoBackend);
         app.run();
     } catch (const std::exception& ex) {
         std::cerr << "Fatal error: " << ex.what() << "\n";

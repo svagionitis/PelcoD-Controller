@@ -5,20 +5,121 @@
 
 namespace PelcoDTui {
 
-TuiApp::TuiApp(const ConnectionConfig& initialConfig)
+TuiApp::TuiApp(const ConnectionConfig& initialConfig, const std::string& videoSource,
+    videodecoder::BackendType videoBackend)
     : m_currentConfig(initialConfig)
+    , m_videoSource(videoSource.empty() ? "mock:smpte" : videoSource)
+    , m_videoBackend(videoBackend)
 {
     const auto size = m_terminal.getSize();
     m_canvas.resize(size.width, size.height);
     m_connectionModal.setConfig(initialConfig);
     setupDevice(initialConfig);
+    startVideoWorker();
 }
 
 TuiApp::~TuiApp()
 {
+    stopVideoWorker();
     if (m_device) {
         m_device->stop();
     }
+}
+
+void TuiApp::setVideoConfig(const std::string& source, videodecoder::BackendType backend)
+{
+    stopVideoWorker();
+    m_videoSource = source.empty() ? "mock:smpte" : source;
+    m_videoBackend = backend;
+    startVideoWorker();
+}
+
+void TuiApp::startVideoWorker()
+{
+    stopVideoWorker();
+    m_videoRunning = true;
+    m_videoThread = std::thread(&TuiApp::videoWorkerLoop, this);
+}
+
+void TuiApp::stopVideoWorker()
+{
+    m_videoRunning = false;
+    if (m_videoThread.joinable()) {
+        m_videoThread.join();
+    }
+}
+
+void TuiApp::videoWorkerLoop()
+{
+    m_videoDecoder = videodecoder::DecoderFactory::create(m_videoBackend);
+    if (!m_videoDecoder) {
+        m_videoView.setStreamInfo(videodecoder::StreamState::Error, m_videoSource, "Failed to create decoder");
+        return;
+    }
+
+    const std::string backendName = (m_videoBackend == videodecoder::BackendType::Mock) ? "Mock"
+        : (m_videoBackend == videodecoder::BackendType::FFmpeg)                         ? "FFmpeg"
+                                                                                        : "GStreamer";
+
+    m_videoView.setStreamInfo(videodecoder::StreamState::Connecting, m_videoSource, backendName);
+
+    if (!m_videoDecoder->initialize(m_videoSource)) {
+        m_videoView.setStreamInfo(videodecoder::StreamState::Error, m_videoSource, "Failed to initialize");
+        return;
+    }
+
+    const auto metadata = m_videoDecoder->getVideoMetadata();
+    const double fps = (metadata.frameRate > 0.0) ? metadata.frameRate : 30.0;
+    m_videoView.setStreamInfo(videodecoder::StreamState::Streaming, m_videoSource, backendName, fps);
+
+    double lastPts = -1.0;
+    auto lastFrameTime = std::chrono::steady_clock::now();
+
+    while (m_videoRunning) {
+        if (m_videoView.isPaused()) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(50));
+            continue;
+        }
+
+        if (m_videoDecoder->decodeNextFrame()) {
+            const auto frame = m_videoDecoder->getRawFrameData();
+            if (frame.data && frame.width > 0 && frame.height > 0) {
+                m_videoView.updateFrame(frame.data, frame.width, frame.height, frame.timestamp, frame.decodeTimeMs);
+                m_videoView.setStreamInfo(videodecoder::StreamState::Streaming, m_videoSource, backendName, fps);
+            }
+
+            // Frame pacing
+            if (lastPts >= 0.0) {
+                const double ptsDiff = frame.timestamp - lastPts;
+                if (ptsDiff > 0.001 && ptsDiff < 5.0) {
+                    const auto now = std::chrono::steady_clock::now();
+                    const std::chrono::duration<double> actualElapsed = now - lastFrameTime;
+                    const double sleepTime = ptsDiff - actualElapsed.count();
+                    if (sleepTime > 0.001) {
+                        std::this_thread::sleep_for(
+                            std::chrono::microseconds(static_cast<long long>(sleepTime * 1000000.0)));
+                    }
+                }
+            } else {
+                std::this_thread::sleep_for(std::chrono::milliseconds(static_cast<int>(1000.0 / fps)));
+            }
+            lastPts = frame.timestamp;
+            lastFrameTime = std::chrono::steady_clock::now();
+        } else {
+            // EOF or disconnected
+            if (m_videoView.isLoop()) {
+                m_videoDecoder->seek(0.0);
+                lastPts = -1.0;
+                std::this_thread::sleep_for(std::chrono::milliseconds(20));
+            } else {
+                m_videoView.setStreamInfo(videodecoder::StreamState::Disconnected, m_videoSource, backendName, fps);
+                std::this_thread::sleep_for(std::chrono::milliseconds(100));
+            }
+        }
+    }
+
+    m_videoDecoder->close();
+    m_videoDecoder.reset();
 }
 
 void TuiApp::setupDevice(const ConnectionConfig& config)
@@ -83,7 +184,7 @@ void TuiApp::handleGlobalInput(const InputEvent& event)
     // Mouse click handling
     if (event.key == Key::MouseClick && !event.mouse.isRelease) {
         const int clickedTab = m_headerView.handleMouseClick(event.mouse.x, event.mouse.y);
-        if (clickedTab >= 0 && clickedTab < 7) {
+        if (clickedTab >= 0 && clickedTab < 8) {
             m_activeTab = clickedTab;
             return;
         }
@@ -110,23 +211,23 @@ void TuiApp::handleGlobalInput(const InputEvent& event)
     }
 
     // Tab shortcuts
-    if (event.ch >= '1' && event.ch <= '7') {
+    if (event.ch >= '1' && event.ch <= '8') {
         m_activeTab = event.ch - '1';
         return;
     }
 
-    if (event.key >= Key::F1 && event.key <= Key::F7) {
+    if (event.key >= Key::F1 && event.key <= Key::F8) {
         m_activeTab = static_cast<int>(event.key) - static_cast<int>(Key::F1);
         return;
     }
 
     if (event.key == Key::Tab) {
-        m_activeTab = (m_activeTab + 1) % 7;
+        m_activeTab = (m_activeTab + 1) % 8;
         return;
     }
 
     if (event.key == Key::Backtab) {
-        m_activeTab = (m_activeTab + 6) % 7;
+        m_activeTab = (m_activeTab + 7) % 8;
         return;
     }
 
@@ -153,6 +254,9 @@ void TuiApp::handleGlobalInput(const InputEvent& event)
             break;
         case 6:
             m_fujinonView.handleInput(event, *m_device);
+            break;
+        case 7:
+            m_videoView.handleInput(event, *m_device);
             break;
         default:
             break;
@@ -202,6 +306,9 @@ void TuiApp::renderFrame()
         case 6:
             m_fujinonView.render(m_canvas, viewStartY, width, viewHeight,
                 m_device ? m_device->getFujinonStatus() : PelcoD::FujinonStatus {});
+            break;
+        case 7:
+            m_videoView.render(m_canvas, viewStartY, width, viewHeight, status);
             break;
         default:
             break;

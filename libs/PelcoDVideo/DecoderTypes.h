@@ -128,3 +128,4 @@ struct VideoDeviceInfo {
 }
 
 } // namespace PelcoD::Video
+namespace videodecoder = PelcoD::Video;

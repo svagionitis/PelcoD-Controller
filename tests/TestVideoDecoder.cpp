@@ -2,6 +2,7 @@
 /// @brief Automated unit test suite for the in-tree PelcoDVideo library and components.
 
 #include "AtomicTripleBuffer.h"
+#include "BrailleRenderer.h"
 #include "DecoderFactory.h"
 #include "DecoderTypes.h"
 #include "DeviceEnumerator.h"
@@ -32,6 +33,9 @@ private slots:
     void testLoopPlaybackControl();
     void testLetterboxMath();
     void testCompassHeadingCalculations();
+    void testBrailleRendererUtf8();
+    void testBrailleRendererLumaAndPalette();
+    void testBrailleRendererGridRasterization();
 };
 
 void TestVideoDecoder::testMockDecoderLifecycle()
@@ -263,6 +267,101 @@ void TestVideoDecoder::testCompassHeadingCalculations()
     QCOMPARE(headingToCardinal(180.0), "S");
     QCOMPARE(headingToCardinal(270.0), "W");
     QCOMPARE(headingToCardinal(359.9), "N");
+}
+
+void TestVideoDecoder::testBrailleRendererUtf8()
+{
+    using videodecoder::BrailleRenderer;
+
+    // Dot mask 0 should produce empty Braille pattern U+2800 (\xE2\xA0\x80)
+    const std::string emptyBraille = BrailleRenderer::utf8BrailleChar(0x00);
+    QCOMPARE(emptyBraille, std::string("\xE2\xA0\x80"));
+
+    // Dot mask 0xFF should produce full 8-dot Braille pattern U+28FF (\xE2\xA3\xBF)
+    const std::string fullBraille = BrailleRenderer::utf8BrailleChar(0xFF);
+    QCOMPARE(fullBraille, std::string("\xE2\xA3\xBF"));
+
+    // Dot 1 (bit 0) -> U+2801 (\xE2\xA0\x81)
+    QCOMPARE(BrailleRenderer::utf8BrailleChar(0x01), std::string("\xE2\xA0\x81"));
+
+    // Dot 8 (bit 7) -> U+2880 (\xE2\xA2\x80)
+    QCOMPARE(BrailleRenderer::utf8BrailleChar(0x80), std::string("\xE2\xA2\x80"));
+}
+
+void TestVideoDecoder::testBrailleRendererLumaAndPalette()
+{
+    using videodecoder::BrailleRenderer;
+    using videodecoder::TuiColorPalette;
+
+    // ITU-R BT.601 luminance checks
+    QCOMPARE(BrailleRenderer::calculateLuma(0, 0, 0), 0);
+    QCOMPARE(BrailleRenderer::calculateLuma(255, 255, 255), 255);
+    QCOMPARE(BrailleRenderer::calculateLuma(255, 0, 0), 76);
+    QCOMPARE(BrailleRenderer::calculateLuma(0, 255, 0), 149);
+    QCOMPARE(BrailleRenderer::calculateLuma(0, 0, 255), 29);
+
+    // Color palette simulation
+    std::uint8_t outR = 0, outG = 0, outB = 0;
+
+    // TrueColor pass-through
+    BrailleRenderer::applyPalette(TuiColorPalette::TrueColor, 100, 150, 200, outR, outG, outB);
+    QCOMPARE(outR, 100);
+    QCOMPARE(outG, 150);
+    QCOMPARE(outB, 200);
+
+    // Amber phosphor tint
+    BrailleRenderer::applyPalette(TuiColorPalette::Amber, 255, 255, 255, outR, outG, outB);
+    QCOMPARE(outR, 255);
+    QCOMPARE(outG, 176);
+    QCOMPARE(outB, 0);
+
+    // Cyan HUD tint
+    BrailleRenderer::applyPalette(TuiColorPalette::CyanHud, 255, 255, 255, outR, outG, outB);
+    QCOMPARE(outR, 0);
+    QCOMPARE(outG, 230);
+    QCOMPARE(outB, 255);
+}
+
+void TestVideoDecoder::testBrailleRendererGridRasterization()
+{
+    using videodecoder::BrailleRenderer;
+    using videodecoder::BrailleRenderOptions;
+    using videodecoder::DitherAlgorithm;
+    using videodecoder::TerminalPixelCell;
+    using videodecoder::TuiRenderMode;
+
+    // Create synthetic 20x20 test image (left half black, right half white)
+    std::vector<std::uint8_t> rgbData(20 * 20 * 3, 0);
+    for (int y = 0; y < 20; ++y) {
+        for (int x = 10; x < 20; ++x) {
+            const int idx = (y * 20 + x) * 3;
+            rgbData[idx] = 255;
+            rgbData[idx + 1] = 255;
+            rgbData[idx + 2] = 255;
+        }
+    }
+
+    std::vector<TerminalPixelCell> cells;
+
+    // Test with Bayer 4x4
+    BrailleRenderOptions opts;
+    opts.mode = TuiRenderMode::Braille;
+    opts.dither = DitherAlgorithm::Bayer4x4;
+
+    BrailleRenderer::renderFrame(rgbData.data(), 20, 20, 10, 5, opts, cells);
+    QCOMPARE(static_cast<int>(cells.size()), 50);
+
+    // Leftmost cell (pure black) should be empty Braille
+    QCOMPARE(cells[0].utf8Text, std::string("\xE2\xA0\x80"));
+    // Rightmost cell (pure white) should be full Braille
+    QCOMPARE(cells[9].utf8Text, std::string("\xE2\xA3\xBF"));
+
+    // Test with Half-Block mode
+    opts.mode = TuiRenderMode::HalfBlock;
+    BrailleRenderer::renderFrame(rgbData.data(), 20, 20, 10, 5, opts, cells);
+    QCOMPARE(static_cast<int>(cells.size()), 50);
+    QVERIFY(cells[0].hasBg);
+    QCOMPARE(cells[0].utf8Text, std::string("\xE2\x96\x80"));
 }
 
 QTEST_MAIN(TestVideoDecoder)

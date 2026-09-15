@@ -31,15 +31,19 @@ add_executable(PelcoDAppTui
     views/FooterView.cpp
     views/ConnectionModal.h
     views/ConnectionModal.cpp
+    views/VideoView.h
+    views/VideoView.cpp
 )
 
 target_include_directories(PelcoDAppTui PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_SOURCE_DIR}/libs
+    ${CMAKE_SOURCE_DIR}/libs/PelcoDVideo
 )
 
 target_link_libraries(PelcoDAppTui PRIVATE
     PelcoDCore
+    PelcoDVideo
     Threads::Threads
 )
 

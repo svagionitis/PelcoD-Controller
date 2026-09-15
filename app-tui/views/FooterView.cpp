@@ -29,9 +29,17 @@ void FooterView::render(Canvas& canvas, int y, int width, [[maybe_unused]] int a
         curX += static_cast<int>(label.size()) + 3;
     };
 
-    drawHotkey("1-7", "Tabs");
-    drawHotkey("C", "Connect");
-    drawHotkey("Space", "Stop");
+    drawHotkey("1-8", "Tabs");
+    if (activeTab == 7) {
+        drawHotkey("M", "Mode");
+        drawHotkey("D", "Dither");
+        drawHotkey("T", "Palette");
+        drawHotkey("WASD", "PTZ");
+        drawHotkey("Space", "Stop");
+    } else {
+        drawHotkey("C", "Connect");
+        drawHotkey("Space", "Stop");
+    }
     drawHotkey("Q", "Quit");
 
     // Message banner on the right

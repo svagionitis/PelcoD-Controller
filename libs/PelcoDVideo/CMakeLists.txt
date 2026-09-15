@@ -8,6 +8,8 @@ set(PELCOD_VIDEO_SOURCES
     DecoderFactory.cpp
     DeviceEnumerator.h
     DeviceEnumerator.cpp
+    BrailleRenderer.h
+    BrailleRenderer.cpp
 )
 
 if(PELCOD_ENABLE_FFMPEG AND FFMPEG_FOUND)

@@ -23,7 +23,7 @@ public:
         std::uint8_t address);
 
     /// @brief Handle mouse click on header to switch tabs.
-    /// @return Clicked tab index (0-6) or -1 if no tab was clicked.
+    /// @return Clicked tab index (0-7) or -1 if no tab was clicked.
     [[nodiscard]] int handleMouseClick(int x, int y) const noexcept;
 
 private:
