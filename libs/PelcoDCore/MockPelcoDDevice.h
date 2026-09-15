@@ -54,6 +54,9 @@ struct MockDeviceState {
 
     std::map<std::uint8_t, PresetPosition> presets {};
     std::array<bool, 8> auxStates { false, false, false, false, false, false, false, false };
+
+    std::uint32_t baudRate { 9600U };
+    bool filterByBaudRate { false };
 };
 
 /// @class MockPelcoDDevice
@@ -100,6 +103,9 @@ public:
     void setDataCallback(DataReceivedCallback callback) override;
     void setStateCallback(StateChangedCallback callback) override;
 
+    bool setBaudRate(std::uint32_t baudRate) override;
+    [[nodiscard]] std::uint32_t getBaudRate() const noexcept override;
+
     /// @brief Injects simulated incoming byte stream to controller RX.
     /// @param[in] data Raw byte buffer.
     void injectRxData(const std::vector<std::uint8_t>& data);
@@ -112,6 +118,7 @@ private:
 
     std::uint8_t m_address { 1U };
     std::atomic<bool> m_open { false };
+    std::atomic<std::uint32_t> m_currentBaudRate { 9600U };
 
     mutable std::mutex m_stateMutex;
     mutable MockDeviceState m_state {};

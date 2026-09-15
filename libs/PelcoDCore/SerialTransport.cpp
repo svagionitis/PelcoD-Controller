@@ -98,20 +98,27 @@ std::string SerialTransport::getPortName() const
     return m_portName;
 }
 
-void SerialTransport::setBaudRate(std::uint32_t baudRate)
+bool SerialTransport::setBaudRate(std::uint32_t baudRate)
 {
-    std::lock_guard<std::mutex> lock(m_writeMutex);
     if (!isValidBaudRate(baudRate)) {
-        LOG(WARNING) << "Unsupported baud rate " << baudRate << ", defaulting to 2400 baud";
-        m_baudRate = 2400U;
-    } else {
-        m_baudRate = baudRate;
+        LOG(WARNING) << "Unsupported baud rate " << baudRate;
+        return false;
     }
+
+    {
+        std::lock_guard<std::mutex> lock(m_writeMutex);
+        m_baudRate.store(baudRate);
+    }
+
+    if (m_handle.load() != INVALID_SERIAL_HANDLE) {
+        return configurePort();
+    }
+    return true;
 }
 
 std::uint32_t SerialTransport::getBaudRate() const noexcept
 {
-    return m_baudRate;
+    return m_baudRate.load();
 }
 
 bool SerialTransport::open()

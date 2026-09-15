@@ -44,6 +44,22 @@ public:
     /// @brief Registers callback for transport state changes.
     /// @param[in] callback Function invoked on connect/disconnect/error.
     virtual void setStateCallback(StateChangedCallback callback) = 0;
+
+    /// @brief Configures transport baud rate if supported by underlying channel.
+    /// @param[in] baudRate Baud rate in bits per second.
+    /// @return True if rate was supported and applied, false otherwise.
+    virtual bool setBaudRate(std::uint32_t baudRate)
+    {
+        (void)baudRate;
+        return false;
+    }
+
+    /// @brief Retrieves current baud rate if supported by underlying channel.
+    /// @return Current baud rate in bits per second, or 0 if unsupported.
+    [[nodiscard]] virtual std::uint32_t getBaudRate() const noexcept
+    {
+        return 0U;
+    }
 };
 
 } // namespace PelcoD

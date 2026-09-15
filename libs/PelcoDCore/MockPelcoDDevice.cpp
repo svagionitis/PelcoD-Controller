@@ -126,10 +126,28 @@ void MockPelcoDDevice::setStateCallback(StateChangedCallback callback)
     m_stateCallback = std::move(callback);
 }
 
+bool MockPelcoDDevice::setBaudRate(std::uint32_t baudRate)
+{
+    m_currentBaudRate.store(baudRate);
+    return true;
+}
+
+std::uint32_t MockPelcoDDevice::getBaudRate() const noexcept
+{
+    return m_currentBaudRate.load();
+}
+
 void MockPelcoDDevice::processFrame(const std::vector<std::uint8_t>& frame)
 {
     if (frame.size() != PelcoDFrame::StandardFrameSize) {
         return;
+    }
+
+    {
+        std::lock_guard<std::mutex> lock(m_stateMutex);
+        if (m_state.filterByBaudRate && m_currentBaudRate.load() != m_state.baudRate) {
+            return;
+        }
     }
 
     const std::uint8_t addr = frame[1];
@@ -189,7 +207,8 @@ void MockPelcoDDevice::processFrame(const std::vector<std::uint8_t>& frame)
                     if (m_state.panCentidegrees >= panStep) {
                         m_state.panCentidegrees = static_cast<std::uint16_t>(m_state.panCentidegrees - panStep);
                     } else {
-                        m_state.panCentidegrees = static_cast<std::uint16_t>(36000U - (panStep - m_state.panCentidegrees));
+                        m_state.panCentidegrees
+                            = static_cast<std::uint16_t>(36000U - (panStep - m_state.panCentidegrees));
                     }
                 }
 
@@ -197,7 +216,8 @@ void MockPelcoDDevice::processFrame(const std::vector<std::uint8_t>& frame)
                 const std::uint16_t tiltStep = static_cast<std::uint16_t>((data2 & 0x3FU) * 10U);
                 if ((cmd2 & 0x08U) != 0U) {
                     // Up
-                    m_state.tiltCentidegrees = static_cast<std::uint16_t>((m_state.tiltCentidegrees + tiltStep) % 36000U);
+                    m_state.tiltCentidegrees
+                        = static_cast<std::uint16_t>((m_state.tiltCentidegrees + tiltStep) % 36000U);
                 } else if ((cmd2 & 0x10U) != 0U) {
                     // Down
                     if (m_state.tiltCentidegrees >= tiltStep) {
@@ -215,8 +235,8 @@ void MockPelcoDDevice::processFrame(const std::vector<std::uint8_t>& frame)
                     m_state.zoomPosition = static_cast<std::uint16_t>(m_state.zoomPosition - 100U);
                 }
 
-                m_kinematics.setPositionImmediate(
-                    m_state.panCentidegrees / 100.0, m_state.tiltCentidegrees / 100.0, static_cast<double>(m_state.zoomPosition));
+                m_kinematics.setPositionImmediate(m_state.panCentidegrees / 100.0, m_state.tiltCentidegrees / 100.0,
+                    static_cast<double>(m_state.zoomPosition));
             }
 
             // Focus: cmd1 bit 0 = near, cmd2 bit 7 = far

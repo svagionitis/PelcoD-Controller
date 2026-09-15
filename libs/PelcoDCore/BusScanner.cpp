@@ -161,6 +161,18 @@ void BusScanner::setScanProgressCallback(ScanProgressCallback cb)
     m_progressCb = std::move(cb);
 }
 
+void BusScanner::setBaudRateChangedCallback(BaudRateChangedCallback cb)
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    m_baudRateCb = std::move(cb);
+}
+
+void BusScanner::setMultiBaudProgressCallback(MultiBaudProgressCallback cb)
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    m_multiBaudProgressCb = std::move(cb);
+}
+
 void BusScanner::setScanStateChangedCallback(ScanStateChangedCallback cb)
 {
     std::lock_guard<std::mutex> lock(m_mutex);
@@ -205,7 +217,21 @@ void BusScanner::scanWorker(ScanConfig config)
         config.endAddress = 254U;
     }
 
-    const std::size_t totalCount = static_cast<std::size_t>(config.endAddress - config.startAddress + 1);
+    std::shared_ptr<ITransport> trans;
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        trans = m_transport;
+    }
+
+    const std::uint32_t originalBaud = trans ? trans->getBaudRate() : 0U;
+
+    std::vector<std::uint32_t> baudList = config.baudRates;
+    if (baudList.empty()) {
+        baudList.push_back(originalBaud);
+    }
+
+    const std::size_t addressesPerBaud = static_cast<std::size_t>(config.endAddress - config.startAddress + 1);
+    const std::size_t totalCount = addressesPerBaud * baudList.size();
     std::size_t scannedCount = 0U;
 
     {
@@ -213,95 +239,133 @@ void BusScanner::scanWorker(ScanConfig config)
         m_discoveredDevices.clear();
     }
 
-    for (int addr = config.startAddress; addr <= config.endAddress; ++addr) {
+    for (const auto currentBaud : baudList) {
         if (m_stopRequested.load()) {
             break;
         }
 
-        {
-            std::unique_lock<std::mutex> pauseLock(m_mutex);
-            m_pauseCv.wait(pauseLock, [this] { return !m_pauseRequested.load() || m_stopRequested.load(); });
+        if (trans && currentBaud > 0U) {
+            trans->setBaudRate(currentBaud);
         }
 
-        if (m_stopRequested.load()) {
-            break;
-        }
-
-        const auto targetAddr = static_cast<std::uint8_t>(addr);
-        ++scannedCount;
-
-        ScanProgressCallback progCb;
+        BaudRateChangedCallback baudCb;
         {
             std::lock_guard<std::mutex> lock(m_mutex);
-            progCb = m_progressCb;
+            baudCb = m_baudRateCb;
         }
-        if (progCb) {
-            progCb(targetAddr, scannedCount, totalCount);
-        }
-
-        {
-            std::lock_guard<std::mutex> rxLock(m_rxMutex);
-            m_rxBuffer.clear();
-            m_currentProbeAddress = targetAddr;
-            m_foundResponse = false;
-            m_matchedResponse.clear();
+        if (baudCb) {
+            baudCb(currentBaud);
         }
 
-        const auto probe = ProtocolBuilder::buildQueryPan(targetAddr);
-        const auto sentTime = std::chrono::steady_clock::now();
-
-        std::shared_ptr<ITransport> trans;
-        {
-            std::lock_guard<std::mutex> lock(m_mutex);
-            trans = m_transport;
+        if (config.baudSwitchDelayMs > 0U && currentBaud > 0U) {
+            std::unique_lock<std::mutex> delayLock(m_rxMutex);
+            m_rxCv.wait_for(delayLock, std::chrono::milliseconds(config.baudSwitchDelayMs),
+                [this] { return m_stopRequested.load(); });
+            if (m_stopRequested.load()) {
+                break;
+            }
         }
 
-        if (!trans || !trans->sendData(probe)) {
-            continue;
-        }
-
-        std::unique_lock<std::mutex> rxLock(m_rxMutex);
-        m_rxCv.wait_for(rxLock, std::chrono::milliseconds(config.timeoutMs),
-            [this] { return m_foundResponse || m_stopRequested.load(); });
-
-        if (m_stopRequested.load()) {
-            break;
-        }
-
-        if (m_foundResponse) {
-            const auto endTime = std::chrono::steady_clock::now();
-            const auto latencyMs = static_cast<std::uint32_t>(
-                std::chrono::duration_cast<std::chrono::milliseconds>(endTime - sentTime).count());
-
-            DiscoveredDevice dev;
-            dev.address = targetAddr;
-            dev.responseTimeMs = latencyMs;
-            dev.rawResponse = m_matchedResponse;
-
-            std::uint16_t panVal { 0U };
-            if (ProtocolParser::parsePan(dev.rawResponse, panVal)) {
-                dev.hasPanPosition = true;
-                dev.panCentidegrees = panVal;
+        for (int addr = config.startAddress; addr <= config.endAddress; ++addr) {
+            if (m_stopRequested.load()) {
+                break;
             }
 
-            DeviceDiscoveredCallback discCb;
+            {
+                std::unique_lock<std::mutex> pauseLock(m_mutex);
+                m_pauseCv.wait(pauseLock, [this] { return !m_pauseRequested.load() || m_stopRequested.load(); });
+            }
+
+            if (m_stopRequested.load()) {
+                break;
+            }
+
+            const auto targetAddr = static_cast<std::uint8_t>(addr);
+            ++scannedCount;
+
+            ScanProgressCallback progCb;
+            MultiBaudProgressCallback multiProgCb;
             {
                 std::lock_guard<std::mutex> lock(m_mutex);
-                m_discoveredDevices.push_back(dev);
-                discCb = m_discoveredCb;
+                progCb = m_progressCb;
+                multiProgCb = m_multiBaudProgressCb;
             }
-            if (discCb) {
-                discCb(dev);
+            if (progCb) {
+                progCb(targetAddr, scannedCount, totalCount);
+            }
+            if (multiProgCb) {
+                multiProgCb(currentBaud, targetAddr, scannedCount, totalCount);
+            }
+
+            {
+                std::lock_guard<std::mutex> rxLock(m_rxMutex);
+                m_rxBuffer.clear();
+                m_currentProbeAddress = targetAddr;
+                m_foundResponse = false;
+                m_matchedResponse.clear();
+            }
+
+            const auto probe = ProtocolBuilder::buildQueryPan(targetAddr);
+            const auto sentTime = std::chrono::steady_clock::now();
+
+            std::shared_ptr<ITransport> activeTrans;
+            {
+                std::lock_guard<std::mutex> lock(m_mutex);
+                activeTrans = m_transport;
+            }
+
+            if (!activeTrans || !activeTrans->sendData(probe)) {
+                continue;
+            }
+
+            std::unique_lock<std::mutex> rxLock(m_rxMutex);
+            m_rxCv.wait_for(rxLock, std::chrono::milliseconds(config.timeoutMs),
+                [this] { return m_foundResponse || m_stopRequested.load(); });
+
+            if (m_stopRequested.load()) {
+                break;
+            }
+
+            if (m_foundResponse) {
+                const auto endTime = std::chrono::steady_clock::now();
+                const auto latencyMs = static_cast<std::uint32_t>(
+                    std::chrono::duration_cast<std::chrono::milliseconds>(endTime - sentTime).count());
+
+                DiscoveredDevice dev;
+                dev.address = targetAddr;
+                dev.baudRate = (currentBaud > 0U) ? currentBaud : originalBaud;
+                dev.responseTimeMs = latencyMs;
+                dev.rawResponse = m_matchedResponse;
+
+                std::uint16_t panVal { 0U };
+                if (ProtocolParser::parsePan(dev.rawResponse, panVal)) {
+                    dev.hasPanPosition = true;
+                    dev.panCentidegrees = panVal;
+                }
+
+                DeviceDiscoveredCallback discCb;
+                {
+                    std::lock_guard<std::mutex> lock(m_mutex);
+                    m_discoveredDevices.push_back(dev);
+                    discCb = m_discoveredCb;
+                }
+                if (discCb) {
+                    discCb(dev);
+                }
+            }
+
+            rxLock.unlock();
+
+            if (config.interCommandDelayMs > 0U) {
+                std::unique_lock<std::mutex> delayLock(m_rxMutex);
+                m_rxCv.wait_for(delayLock, std::chrono::milliseconds(config.interCommandDelayMs),
+                    [this] { return m_stopRequested.load(); });
             }
         }
+    }
 
-        rxLock.unlock();
-
-        if (config.interCommandDelayMs > 0U) {
-            std::unique_lock<std::mutex> delayLock(m_rxMutex);
-            m_rxCv.wait_for(delayLock, std::chrono::milliseconds(config.interCommandDelayMs),
-                [this] { return m_stopRequested.load(); });
-        }
+    if (trans && originalBaud > 0U && !config.baudRates.empty()) {
+        trans->setBaudRate(originalBaud);
     }
 
     std::vector<DiscoveredDevice> results;

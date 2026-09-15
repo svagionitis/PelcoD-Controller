@@ -60,6 +60,21 @@ public slots:
     /// @return true if scan successfully started, false on invalid parameters.
     bool startScan(int startAddress = 1, int endAddress = 32, int timeoutMs = 150);
 
+    /// @brief Start asynchronous multi-baud address probe across specified range and baud rates.
+    /// @param[in] startAddress Lowest bus address to probe (1–254).
+    /// @param[in] endAddress Highest bus address to probe (1–254).
+    /// @param[in] timeoutMs Per-device response timeout in milliseconds.
+    /// @param[in] baudRates List of baud rates to probe.
+    /// @return true if scan successfully started, false on invalid parameters.
+    bool startScan(int startAddress, int endAddress, int timeoutMs, const std::vector<std::uint32_t>& baudRates);
+
+    /// @brief Start asynchronous multi-baud address probe using standard Pelco-D baud rates.
+    /// @param[in] startAddress Lowest bus address to probe (1–254).
+    /// @param[in] endAddress Highest bus address to probe (1–254).
+    /// @param[in] timeoutMs Per-device response timeout in milliseconds.
+    /// @return true if scan successfully started, false on invalid parameters.
+    bool startMultiBaudScan(int startAddress = 1, int endAddress = 32, int timeoutMs = 150);
+
     /// @brief Stop active discovery scan.
     void stopScan();
 
@@ -76,6 +91,18 @@ signals:
     /// @param hasPan True if response decoded pan position.
     /// @param panCentidegrees Pan angle in hundredths of a degree.
     void deviceDiscovered(int address, int responseTimeMs, bool hasPan, int panCentidegrees);
+
+    /// @brief Emitted on GUI thread when an active Pelco-D device is identified with its baud rate.
+    /// @param address Discovered device address (1–254).
+    /// @param baudRate Baud rate in bits per second.
+    /// @param responseTimeMs Round-trip latency in milliseconds.
+    /// @param hasPan True if response decoded pan position.
+    /// @param panCentidegrees Pan angle in hundredths of a degree.
+    void deviceDiscoveredFull(int address, quint32 baudRate, int responseTimeMs, bool hasPan, int panCentidegrees);
+
+    /// @brief Emitted on GUI thread when active baud rate changes during multi-baud discovery.
+    /// @param baudRate New active baud rate in bits per second.
+    void baudRateChanged(quint32 baudRate);
 
     /// @brief Emitted on GUI thread when progress changes after each probed address.
     /// @param currentAddress Address currently probed.

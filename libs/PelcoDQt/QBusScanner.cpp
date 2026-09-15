@@ -27,41 +27,47 @@ void QBusScanner::setupCallbacks()
 {
     m_scanner->setDeviceDiscoveredCallback([this](const PelcoD::DiscoveredDevice& dev) {
         const int addr = static_cast<int>(dev.address);
+        const auto baud = static_cast<quint32>(dev.baudRate);
         const int respTime = static_cast<int>(dev.responseTimeMs);
         const bool hasPan = dev.hasPanPosition;
         const int pan = static_cast<int>(dev.panCentidegrees);
 
         QMetaObject::invokeMethod(
-            this, [this, addr, respTime, hasPan, pan] {
+            this,
+            [this, addr, baud, respTime, hasPan, pan] {
                 emit deviceDiscovered(addr, respTime, hasPan, pan);
-            }, Qt::QueuedConnection);
+                emit deviceDiscoveredFull(addr, baud, respTime, hasPan, pan);
+            },
+            Qt::QueuedConnection);
     });
 
-    m_scanner->setScanProgressCallback([this](std::uint8_t currentAddress, std::size_t scannedCount, std::size_t totalCount) {
-        const int cur = static_cast<int>(currentAddress);
-        const int scanned = static_cast<int>(scannedCount);
-        const int total = static_cast<int>(totalCount);
-        const int pct = total > 0 ? (scanned * 100 / total) : 0;
-
+    m_scanner->setBaudRateChangedCallback([this](std::uint32_t baud) {
+        const auto b = static_cast<quint32>(baud);
         QMetaObject::invokeMethod(
-            this, [this, cur, scanned, total, pct] {
-                emit progressUpdated(cur, scanned, total, pct);
-            }, Qt::QueuedConnection);
+            this, [this, b] { emit baudRateChanged(b); }, Qt::QueuedConnection);
     });
+
+    m_scanner->setScanProgressCallback(
+        [this](std::uint8_t currentAddress, std::size_t scannedCount, std::size_t totalCount) {
+            const int cur = static_cast<int>(currentAddress);
+            const int scanned = static_cast<int>(scannedCount);
+            const int total = static_cast<int>(totalCount);
+            const int pct = total > 0 ? (scanned * 100 / total) : 0;
+
+            QMetaObject::invokeMethod(
+                this, [this, cur, scanned, total, pct] { emit progressUpdated(cur, scanned, total, pct); },
+                Qt::QueuedConnection);
+        });
 
     m_scanner->setScanStateChangedCallback([this](PelcoD::ScanState state) {
         QMetaObject::invokeMethod(
-            this, [this, state] {
-                emit stateChanged(state);
-            }, Qt::QueuedConnection);
+            this, [this, state] { emit stateChanged(state); }, Qt::QueuedConnection);
     });
 
     m_scanner->setScanFinishedCallback([this](const std::vector<PelcoD::DiscoveredDevice>& devices) {
         const int count = static_cast<int>(devices.size());
         QMetaObject::invokeMethod(
-            this, [this, count] {
-                emit scanFinished(count);
-            }, Qt::QueuedConnection);
+            this, [this, count] { emit scanFinished(count); }, Qt::QueuedConnection);
     });
 }
 
@@ -84,6 +90,27 @@ bool QBusScanner::startScan(int startAddress, int endAddress, int timeoutMs)
     cfg.timeoutMs = static_cast<std::uint32_t>(std::max(10, timeoutMs));
 
     return m_scanner->startScan(cfg);
+}
+
+bool QBusScanner::startScan(
+    int startAddress, int endAddress, int timeoutMs, const std::vector<std::uint32_t>& baudRates)
+{
+    if (!m_scanner) {
+        return false;
+    }
+
+    PelcoD::ScanConfig cfg;
+    cfg.startAddress = static_cast<std::uint8_t>(std::clamp(startAddress, 1, 254));
+    cfg.endAddress = static_cast<std::uint8_t>(std::clamp(endAddress, 1, 254));
+    cfg.timeoutMs = static_cast<std::uint32_t>(std::max(10, timeoutMs));
+    cfg.baudRates = baudRates;
+
+    return m_scanner->startScan(cfg);
+}
+
+bool QBusScanner::startMultiBaudScan(int startAddress, int endAddress, int timeoutMs)
+{
+    return startScan(startAddress, endAddress, timeoutMs, PelcoD::ScanConfig::standardBaudRates());
 }
 
 void QBusScanner::stopScan()

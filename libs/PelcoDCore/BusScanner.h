@@ -26,6 +26,7 @@ namespace PelcoD {
 /// @brief Attributes of a device detected during bus scanning.
 struct DiscoveredDevice {
     std::uint8_t address { 1U };
+    std::uint32_t baudRate { 0U };
     std::uint32_t responseTimeMs { 0U };
     bool hasPanPosition { false };
     std::uint16_t panCentidegrees { 0U };
@@ -37,12 +38,25 @@ struct DiscoveredDevice {
 enum class ScanState : std::uint8_t { Idle, Scanning, Paused };
 
 /// @struct ScanConfig
-/// @brief Configuration settings controlling address probe range and timing.
+/// @brief Configuration settings controlling address probe range, baud rates, and timing.
 struct ScanConfig {
     std::uint8_t startAddress { 1U };
     std::uint8_t endAddress { 32U };
     std::uint32_t timeoutMs { 150U };
     std::uint32_t interCommandDelayMs { 20U };
+
+    /// @brief List of baud rates to probe. If empty, probes only the current transport baud rate.
+    std::vector<std::uint32_t> baudRates {};
+
+    /// @brief Settling delay after switching baud rates before probing addresses (ms).
+    std::uint32_t baudSwitchDelayMs { 15U };
+
+    /// @brief Common standard baud rates for multi-baud auto-discovery.
+    /// @return Vector of standard baud rates ordered by popularity.
+    [[nodiscard]] static std::vector<std::uint32_t> standardBaudRates()
+    {
+        return { 9600U, 2400U, 4800U, 19200U, 38400U, 57600U, 115200U };
+    }
 };
 
 /// @class BusScanner
@@ -52,6 +66,9 @@ public:
     using DeviceDiscoveredCallback = std::function<void(const DiscoveredDevice& device)>;
     using ScanProgressCallback
         = std::function<void(std::uint8_t currentAddress, std::size_t scannedCount, std::size_t totalCount)>;
+    using BaudRateChangedCallback = std::function<void(std::uint32_t currentBaudRate)>;
+    using MultiBaudProgressCallback = std::function<void(
+        std::uint32_t currentBaudRate, std::uint8_t currentAddress, std::size_t scannedCount, std::size_t totalCount)>;
     using ScanStateChangedCallback = std::function<void(ScanState state)>;
     using ScanFinishedCallback = std::function<void(const std::vector<DiscoveredDevice>& discoveredDevices)>;
 
@@ -114,6 +131,14 @@ public:
     /// @param[in] cb Callback receiving current address, scanned count, and total count.
     void setScanProgressCallback(ScanProgressCallback cb);
 
+    /// @brief Register callback invoked when the scanner switches to a new baud rate during multi-baud discovery.
+    /// @param[in] cb Callback receiving active baud rate in bps.
+    void setBaudRateChangedCallback(BaudRateChangedCallback cb);
+
+    /// @brief Register callback invoked after probing each bus address, reporting active baud rate.
+    /// @param[in] cb Callback receiving current baud rate, current address, scanned count, and total count.
+    void setMultiBaudProgressCallback(MultiBaudProgressCallback cb);
+
     /// @brief Register callback invoked on scan operational state transitions.
     /// @param[in] cb Callback receiving new ScanState value.
     void setScanStateChangedCallback(ScanStateChangedCallback cb);
@@ -147,6 +172,8 @@ private:
 
     DeviceDiscoveredCallback m_discoveredCb;
     ScanProgressCallback m_progressCb;
+    BaudRateChangedCallback m_baudRateCb;
+    MultiBaudProgressCallback m_multiBaudProgressCb;
     ScanStateChangedCallback m_stateCb;
     ScanFinishedCallback m_finishedCb;
 };

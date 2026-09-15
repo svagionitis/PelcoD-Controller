@@ -31,6 +31,7 @@ struct ParseResult {
     PelcoDTui::ConnectionConfig config {};
     std::string errorMessage {};
     bool scanMode { false };
+    bool multiBaud { false };
     std::uint8_t scanStart { 1U };
     std::uint8_t scanEnd { 32U };
     std::uint32_t scanTimeoutMs { 150U };
@@ -89,6 +90,7 @@ void printUsage(std::string_view progName)
               << "  --serial <port> [baud]      Connect via RS-485 serial port (e.g. /dev/ttyUSB0 9600)\n"
               << "  --address <id>              Set Pelco-D camera address 1–254 (default: 1)\n"
               << "  --scan [start-end]          Scan bus for active Pelco-D devices (e.g. --scan 1-32)\n"
+              << "  --multi-baud                Cycle standard baud rates (2400-115200) during --scan\n"
               << "  --help, -h                  Display this help message and exit\n\n"
               << "Keyboard Shortcuts:\n"
               << "  1–6 / F1–F6                 Switch between application tabs\n"
@@ -348,8 +350,8 @@ void printUsage(std::string_view progName)
                         const auto endStr = nextArg.substr(hyphenPos + 1);
                         int sVal { 0 };
                         int eVal { 0 };
-                        if (!parseInteger(startStr, sVal) || sVal < 1 || sVal > 254
-                            || !parseInteger(endStr, eVal) || eVal < 1 || eVal > 254 || sVal > eVal) {
+                        if (!parseInteger(startStr, sVal) || sVal < 1 || sVal > 254 || !parseInteger(endStr, eVal)
+                            || eVal < 1 || eVal > 254 || sVal > eVal) {
                             result.status = ParseStatus::Error;
                             result.errorMessage = "Invalid scan range '" + std::string(nextArg)
                                 + "': range must be in format <start>-<end> with 1 <= start <= end <= 254";
@@ -370,6 +372,8 @@ void printUsage(std::string_view progName)
                     }
                 }
             }
+        } else if (arg == "--multi-baud") {
+            result.multiBaud = true;
         } else {
             result.status = ParseStatus::Error;
             result.errorMessage = "Unrecognized option or argument: '" + std::string(arg) + "'";
@@ -415,8 +419,8 @@ int main(int argc, char* argv[])
                 break;
             }
             case PelcoDTui::TransportType::Tcp:
-                transport = std::make_shared<PelcoD::TcpTransport>(
-                    parseResult.config.tcpHost, parseResult.config.tcpPort);
+                transport
+                    = std::make_shared<PelcoD::TcpTransport>(parseResult.config.tcpHost, parseResult.config.tcpPort);
                 break;
             case PelcoDTui::TransportType::Udp:
                 transport = std::make_shared<PelcoD::UdpTransport>(
@@ -435,28 +439,41 @@ int main(int argc, char* argv[])
             }
             }
 
-            std::cout << "Starting Pelco-D Bus Scan on range ["
-                      << static_cast<int>(parseResult.scanStart) << ".."
-                      << static_cast<int>(parseResult.scanEnd) << "] (timeout: "
-                      << parseResult.scanTimeoutMs << "ms)...\n\n";
+            std::cout << "Starting Pelco-D Bus Scan on range [" << static_cast<int>(parseResult.scanStart) << ".."
+                      << static_cast<int>(parseResult.scanEnd) << "] (timeout: " << parseResult.scanTimeoutMs << "ms)"
+                      << (parseResult.multiBaud ? " [Multi-Baud Auto-Discovery active]" : "") << "...\n\n";
 
             PelcoD::BusScanner scanner(std::move(transport));
             PelcoD::ScanConfig scanCfg;
             scanCfg.startAddress = parseResult.scanStart;
             scanCfg.endAddress = parseResult.scanEnd;
             scanCfg.timeoutMs = parseResult.scanTimeoutMs;
+            if (parseResult.multiBaud) {
+                scanCfg.baudRates = PelcoD::ScanConfig::standardBaudRates();
+            }
 
-            scanner.setScanProgressCallback([](std::uint8_t current, std::size_t scanned, std::size_t total) {
-                std::cout << "\rScanning address " << static_cast<int>(current)
-                          << " (" << scanned << "/" << total << ")..." << std::flush;
-            });
+            if (parseResult.multiBaud) {
+                scanner.setMultiBaudProgressCallback(
+                    [](std::uint32_t baud, std::uint8_t current, std::size_t scanned, std::size_t total) {
+                        std::cout << "\rScanning " << baud << " bps, address " << static_cast<int>(current) << " ("
+                                  << scanned << "/" << total << ")..." << std::flush;
+                    });
+            } else {
+                scanner.setScanProgressCallback([](std::uint8_t current, std::size_t scanned, std::size_t total) {
+                    std::cout << "\rScanning address " << static_cast<int>(current) << " (" << scanned << "/" << total
+                              << ")..." << std::flush;
+                });
+            }
 
             scanner.setDeviceDiscoveredCallback([](const PelcoD::DiscoveredDevice& dev) {
-                std::cout << "\n[+] Found Pelco-D device at address " << static_cast<int>(dev.address)
-                          << " (response time: " << dev.responseTimeMs << "ms";
+                std::cout << "\n[+] Found Pelco-D device at address " << static_cast<int>(dev.address);
+                if (dev.baudRate > 0U) {
+                    std::cout << " @" << dev.baudRate << " bps";
+                }
+                std::cout << " (response time: " << dev.responseTimeMs << "ms";
                 if (dev.hasPanPosition) {
-                    std::cout << ", pan: " << std::fixed << std::setprecision(2)
-                              << (dev.panCentidegrees / 100.0) << "\xC2\xB0";
+                    std::cout << ", pan: " << std::fixed << std::setprecision(2) << (dev.panCentidegrees / 100.0)
+                              << "\xC2\xB0";
                 }
                 std::cout << ")\n";
             });
@@ -469,24 +486,24 @@ int main(int argc, char* argv[])
             const auto found = scanner.getDiscoveredDevices();
             std::cout << "\n\nScan completed. Total devices found: " << found.size() << "\n";
             if (!found.empty()) {
-                std::cout << "--------------------------------------------------------\n";
-                std::cout << std::left << std::setw(12) << "Address ID"
-                          << std::setw(18) << "Response Time"
+                std::cout << "--------------------------------------------------------------------\n";
+                std::cout << std::left << std::setw(12) << "Address ID" << std::setw(14) << "Baud Rate" << std::setw(18)
+                          << "Response Time"
                           << "Status / Telemetry\n";
-                std::cout << "--------------------------------------------------------\n";
+                std::cout << "--------------------------------------------------------------------\n";
                 for (const auto& d : found) {
                     std::string info = "Online (Responded)";
                     if (d.hasPanPosition) {
                         std::ostringstream ss;
-                        ss << "Online (Pan: " << std::fixed << std::setprecision(2)
-                           << (d.panCentidegrees / 100.0) << "\xC2\xB0)";
+                        ss << "Online (Pan: " << std::fixed << std::setprecision(2) << (d.panCentidegrees / 100.0)
+                           << "\xC2\xB0)";
                         info = ss.str();
                     }
-                    std::cout << std::left << std::setw(12) << static_cast<int>(d.address)
-                              << std::setw(18) << (std::to_string(d.responseTimeMs) + " ms")
-                              << info << "\n";
+                    const std::string baudStr = (d.baudRate > 0U) ? std::to_string(d.baudRate) : "Default";
+                    std::cout << std::left << std::setw(12) << static_cast<int>(d.address) << std::setw(14) << baudStr
+                              << std::setw(18) << (std::to_string(d.responseTimeMs) + " ms") << info << "\n";
                 }
-                std::cout << "--------------------------------------------------------\n";
+                std::cout << "--------------------------------------------------------------------\n";
             }
             return 0;
         } catch (const std::exception& ex) {

@@ -350,6 +350,11 @@ void ConnectionWidget::handleScanBus()
             spinAddress->setValue(address);
         }
     });
+    connect(&dialog, &BusScanDialog::baudRateSelected, this, [this](quint32 baudRate) {
+        if (cmbBaudRate && baudRate > 0U) {
+            cmbBaudRate->setCurrentText(QString::number(baudRate));
+        }
+    });
     dialog.exec();
 }
 

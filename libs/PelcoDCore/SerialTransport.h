@@ -44,13 +44,15 @@ public:
     void setPortName(const std::string& portName);
     [[nodiscard]] std::string getPortName() const;
 
-    void setBaudRate(std::uint32_t baudRate);
-    [[nodiscard]] std::uint32_t getBaudRate() const noexcept;
+    /// @brief Configures serial communication baud rate.
+    /// @param[in] baudRate Baud rate in bits per second.
+    /// @return True if baud rate is supported and applied, false otherwise.
+    bool setBaudRate(std::uint32_t baudRate) override;
+    [[nodiscard]] std::uint32_t getBaudRate() const noexcept override;
 
     /// @brief Standard RS-485 serial communication baud rates supported by Pelco-D devices.
-    static constexpr std::array<std::uint32_t, 7> StandardBaudRates {
-        2400U, 4800U, 9600U, 19200U, 38400U, 57600U, 115200U
-    };
+    static constexpr std::array<std::uint32_t, 7> StandardBaudRates { 2400U, 4800U, 9600U, 19200U, 38400U, 57600U,
+        115200U };
 
     /// @brief Validates if a given baud rate is a recognized standard rate.
     /// @param[in] baudRate Baud rate in bits per second.
@@ -82,7 +84,7 @@ private:
     bool configurePort();
 
     std::string m_portName;
-    std::uint32_t m_baudRate { 9600U };
+    std::atomic<std::uint32_t> m_baudRate { 9600U };
     std::atomic<SerialHandle> m_handle { INVALID_SERIAL_HANDLE };
 };
 

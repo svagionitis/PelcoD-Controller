@@ -6,6 +6,7 @@
 #include "ITransport.h"
 #include "QBusScanner.h"
 
+#include <QCheckBox>
 #include <QDialog>
 #include <QHeaderView>
 #include <QLabel>
@@ -38,10 +39,26 @@ public:
         return m_selectedAddress;
     }
 
+    /// @brief Retrieve the selected device baud rate.
+    /// @return Baud rate in bps or 0 if none/unspecified.
+    [[nodiscard]] quint32 selectedBaudRate() const noexcept
+    {
+        return m_selectedBaudRate;
+    }
+
 signals:
     /// @brief Emitted when user selects and confirms an address.
     /// @param address Chosen Pelco-D address (1–254).
     void addressSelected(int address);
+
+    /// @brief Emitted when user selects and confirms a device with baud rate.
+    /// @param address Chosen Pelco-D address (1–254).
+    /// @param baudRate Baud rate of chosen device.
+    void deviceSelected(int address, quint32 baudRate);
+
+    /// @brief Emitted when a baud rate is selected by user.
+    /// @param baudRate Selected baud rate in bps.
+    void baudRateSelected(quint32 baudRate);
 
 private slots:
     void handleStartScan();
@@ -50,6 +67,8 @@ private slots:
     void handleTableSelectionChanged();
 
     void onDeviceDiscovered(int address, int responseTimeMs, bool hasPan, int panCentidegrees);
+    void onDeviceDiscoveredFull(int address, quint32 baudRate, int responseTimeMs, bool hasPan, int panCentidegrees);
+    void onBaudRateChanged(quint32 baudRate);
     void onProgressUpdated(int currentAddress, int scannedCount, int totalCount, int percent);
     void onStateChanged(PelcoD::ScanState state);
     void onScanFinished(int totalFound);
@@ -63,6 +82,7 @@ private:
     QSpinBox* spinStartAddr { nullptr };
     QSpinBox* spinEndAddr { nullptr };
     QSpinBox* spinTimeoutMs { nullptr };
+    QCheckBox* chkMultiBaud { nullptr };
 
     QPushButton* btnStartScan { nullptr };
     QPushButton* btnStopScan { nullptr };
@@ -74,6 +94,8 @@ private:
     QTableWidget* tableResults { nullptr };
 
     int m_selectedAddress { -1 };
+    quint32 m_selectedBaudRate { 0U };
+    quint32 m_currentBaudRate { 0U };
 };
 
 } // namespace PelcoDApp
