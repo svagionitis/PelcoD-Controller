@@ -34,6 +34,7 @@ public slots:
 private slots:
     void handlePollingToggled(bool checked);
     void handlePollIntervalChanged(int val);
+    void handleLaunchProfiler();
 
 private:
     void setupUi();
@@ -49,6 +50,7 @@ private:
     QPushButton* btnQueryDevType { nullptr };
     QPushButton* btnQueryGeneral { nullptr };
     QPushButton* btnQueryDiagnostics { nullptr };
+    QPushButton* btnLaunchProfiler { nullptr };
 
     // Telemetry Polling
     QCheckBox* chkPolling { nullptr };

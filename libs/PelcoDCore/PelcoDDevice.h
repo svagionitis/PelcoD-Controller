@@ -91,6 +91,14 @@ public:
     /// @return Connection object to manage the subscription.
     Connection addRetryCallback(RetryCallback cb);
 
+    using QueryLatencyCallback = std::function<void(
+        const std::string& queryTag, std::chrono::microseconds duration, bool success)>;
+
+    /// @brief Registers a callback for query round-trip latency and outcome notifications.
+    /// @param[in] cb Callback receiving queryTag, microsecond duration, and success flag.
+    /// @return Connection object to manage the subscription.
+    Connection addQueryLatencyCallback(QueryLatencyCallback cb);
+
     /// @brief Removes a status callback by identifier.
     /// @param[in] id Callback identifier.
     /// @return True if callback was found and removed; false otherwise.
@@ -115,6 +123,11 @@ public:
     /// @param[in] id Callback identifier.
     /// @return True if callback was found and removed; false otherwise.
     bool removeRetryCallback(CallbackId id);
+
+    /// @brief Removes a query latency callback by identifier.
+    /// @param[in] id Callback identifier.
+    /// @return True if callback was found and removed; false otherwise.
+    bool removeQueryLatencyCallback(CallbackId id);
 
     /// @brief Removes all registered status, traffic, and timeout callbacks.
     virtual void clearCallbacks();
@@ -308,12 +321,16 @@ private:
         std::shared_ptr<const std::vector<CallbackEntry<RetryCallback>>> retryCallbacks {
             std::make_shared<const std::vector<CallbackEntry<RetryCallback>>>()
         };
+        std::shared_ptr<const std::vector<CallbackEntry<QueryLatencyCallback>>> queryLatencyCallbacks {
+            std::make_shared<const std::vector<CallbackEntry<QueryLatencyCallback>>>()
+        };
 
         bool removeStatus(CallbackId id);
         bool removeTraffic(CallbackId id);
         bool removeTimeout(CallbackId id);
         bool removeQueryCompleted(CallbackId id);
         bool removeRetry(CallbackId id);
+        bool removeQueryLatency(CallbackId id);
         void clear();
     };
 

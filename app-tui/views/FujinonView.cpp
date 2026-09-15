@@ -316,7 +316,11 @@ bool FujinonView::handleInput(const InputEvent& event, PelcoD::FujinonSX800Devic
         const auto now = std::chrono::system_clock::now();
         const std::time_t tt = std::chrono::system_clock::to_time_t(now);
         std::tm localTm {};
+#if defined(_WIN32)
+        localtime_s(&localTm, &tt);
+#else
         localtime_r(&tt, &localTm);
+#endif
         device.setRTCYear(static_cast<std::uint16_t>(localTm.tm_year + 1900));
         device.setRTCMonthDay(
             static_cast<std::uint8_t>(localTm.tm_mon + 1), static_cast<std::uint8_t>(localTm.tm_mday));

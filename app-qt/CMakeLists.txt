@@ -24,6 +24,8 @@ add_executable(PelcoDAppQt
     dialogs/BusScanDialog.cpp
     dialogs/MockDynamicsDialog.h
     dialogs/MockDynamicsDialog.cpp
+    dialogs/RttProfilerDialog.h
+    dialogs/RttProfilerDialog.cpp
     resources.qrc
 )
 

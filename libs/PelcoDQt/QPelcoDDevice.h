@@ -49,6 +49,10 @@ public:
     [[nodiscard]] PelcoD::DeviceStatus currentStatus() const;
     [[nodiscard]] PelcoD::DeviceInfo deviceInfo() const;
     [[nodiscard]] PelcoD::PelcoDDevice* coreDevice() const noexcept;
+    [[nodiscard]] std::shared_ptr<PelcoD::PelcoDDevice> sharedCoreDevice() const noexcept
+    {
+        return m_device;
+    }
 
     /// @brief Get access to the underlying Fujinon SX800 Qt adapter profile.
     [[nodiscard]] QFujinonSX800Device* fujinonDevice() const noexcept

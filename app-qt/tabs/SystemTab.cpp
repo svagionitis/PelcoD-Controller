@@ -2,6 +2,7 @@
 /// @brief Implementation of device diagnostic queries and polling tab.
 
 #include "SystemTab.h"
+#include "app-qt/dialogs/RttProfilerDialog.h"
 
 namespace PelcoDApp {
 
@@ -97,6 +98,9 @@ void SystemTab::setupUi()
     spinInterval->setRange(100, 10000);
     spinInterval->setValue(1000);
     layoutPoll->addWidget(spinInterval);
+
+    btnLaunchProfiler = new QPushButton(tr("RTT & Jitter Profiler..."));
+    layoutPoll->addWidget(btnLaunchProfiler);
     layoutPoll->addStretch();
 
     mainLayout->addWidget(grpPoll);
@@ -147,6 +151,20 @@ void SystemTab::setupUi()
     connect(btnResetDefaults, &QPushButton::clicked, m_device, &PelcoDQt::QPelcoDDevice::resetDefaults);
     connect(btnSetBaudRate, &QPushButton::clicked, this,
         [this] { m_device->setBaudRate(cmbBaudRate->currentData().toInt()); });
+    connect(btnLaunchProfiler, &QPushButton::clicked, this, &SystemTab::handleLaunchProfiler);
+}
+
+void SystemTab::handleLaunchProfiler()
+{
+    if (!m_device) {
+        return;
+    }
+    auto coreDev = m_device->sharedCoreDevice();
+    if (!coreDev) {
+        return;
+    }
+    RttProfilerDialog dialog(coreDev, this);
+    dialog.exec();
 }
 
 void SystemTab::handlePollingToggled(bool checked)

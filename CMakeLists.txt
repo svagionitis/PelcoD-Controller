@@ -19,6 +19,8 @@ include(CompilerFlags)
 # Dependencies
 # ==============================================================================
 find_package(Threads REQUIRED)
+set(GFLAGS_USE_TARGET_NAMESPACE ON)
+find_package(gflags CONFIG REQUIRED)
 find_package(glog REQUIRED)
 
 set(CMAKE_AUTOMOC ON)

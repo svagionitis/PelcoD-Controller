@@ -243,6 +243,25 @@ bool PelcoDDevice::CallbackState::removeRetry(CallbackId id)
     return true;
 }
 
+bool PelcoDDevice::CallbackState::removeQueryLatency(CallbackId id)
+{
+    std::lock_guard<std::mutex> lock(mutex);
+    const auto& current = *queryLatencyCallbacks;
+    auto it = std::find_if(current.begin(), current.end(), [id](const auto& entry) { return entry.id == id; });
+    if (it == current.end()) {
+        return false;
+    }
+    auto nextList = std::make_shared<std::vector<CallbackEntry<QueryLatencyCallback>>>();
+    nextList->reserve(current.size() - 1U);
+    for (const auto& entry : current) {
+        if (entry.id != id) {
+            nextList->push_back(entry);
+        }
+    }
+    queryLatencyCallbacks = std::move(nextList);
+    return true;
+}
+
 void PelcoDDevice::CallbackState::clear()
 {
     std::lock_guard<std::mutex> lock(mutex);
@@ -251,6 +270,7 @@ void PelcoDDevice::CallbackState::clear()
     timeoutCallbacks = std::make_shared<const std::vector<CallbackEntry<TimeoutCallback>>>();
     queryCompletedCallbacks = std::make_shared<const std::vector<CallbackEntry<QueryCompletedCallback>>>();
     retryCallbacks = std::make_shared<const std::vector<CallbackEntry<RetryCallback>>>();
+    queryLatencyCallbacks = std::make_shared<const std::vector<CallbackEntry<QueryLatencyCallback>>>();
 }
 
 Connection PelcoDDevice::addStatusCallback(StatusCallback cb)
@@ -394,6 +414,27 @@ Connection PelcoDDevice::addRetryCallback(RetryCallback cb)
     });
 }
 
+Connection PelcoDDevice::addQueryLatencyCallback(QueryLatencyCallback cb)
+{
+    if (!cb) {
+        return Connection {};
+    }
+    const CallbackId id = m_callbackState->nextId.fetch_add(1U, std::memory_order_relaxed);
+    {
+        std::lock_guard<std::mutex> lock(m_callbackState->mutex);
+        auto nextList = std::make_shared<std::vector<CallbackEntry<QueryLatencyCallback>>>(
+            *m_callbackState->queryLatencyCallbacks);
+        nextList->push_back({ id, std::move(cb) });
+        m_callbackState->queryLatencyCallbacks = std::move(nextList);
+    }
+    std::weak_ptr<CallbackState> weakState = m_callbackState;
+    return Connection([weakState, id]() {
+        if (auto state = weakState.lock()) {
+            state->removeQueryLatency(id);
+        }
+    });
+}
+
 bool PelcoDDevice::removeStatusCallback(CallbackId id)
 {
     return m_callbackState->removeStatus(id);
@@ -417,6 +458,11 @@ bool PelcoDDevice::removeQueryCompletedCallback(CallbackId id)
 bool PelcoDDevice::removeRetryCallback(CallbackId id)
 {
     return m_callbackState->removeRetry(id);
+}
+
+bool PelcoDDevice::removeQueryLatencyCallback(CallbackId id)
+{
+    return m_callbackState->removeQueryLatency(id);
 }
 
 void PelcoDDevice::clearCallbacks()
@@ -921,10 +967,12 @@ void PelcoDDevice::checkQueryTimeout()
 
         std::shared_ptr<const std::vector<CallbackEntry<TimeoutCallback>>> cbs;
         std::shared_ptr<const std::vector<CallbackEntry<QueryCompletedCallback>>> qcbs;
+        std::shared_ptr<const std::vector<CallbackEntry<QueryLatencyCallback>>> lcbs;
         {
             std::lock_guard<std::mutex> lock(m_callbackState->mutex);
             cbs = m_callbackState->timeoutCallbacks;
             qcbs = m_callbackState->queryCompletedCallbacks;
+            lcbs = m_callbackState->queryLatencyCallbacks;
         }
         for (const auto& entry : *cbs) {
             if (entry.cb) {
@@ -939,6 +987,12 @@ void PelcoDDevice::checkQueryTimeout()
         for (const auto& entry : *qcbs) {
             if (entry.cb) {
                 entry.cb(tag, false, statusCopy);
+            }
+        }
+        const auto durationUs = std::chrono::duration_cast<std::chrono::microseconds>(now - m_querySentTime);
+        for (const auto& entry : *lcbs) {
+            if (entry.cb) {
+                entry.cb(tag, durationUs, false);
             }
         }
     }
@@ -1356,15 +1410,24 @@ void PelcoDDevice::dispatchFrame(const std::vector<std::uint8_t>& frame)
         }
 
         if (querySatisfied) {
+            const auto durationUs = std::chrono::duration_cast<std::chrono::microseconds>(
+                std::chrono::steady_clock::now() - m_querySentTime);
             m_responseCv.notify_all();
             std::shared_ptr<const std::vector<CallbackEntry<QueryCompletedCallback>>> qcbs;
+            std::shared_ptr<const std::vector<CallbackEntry<QueryLatencyCallback>>> lcbs;
             {
                 std::lock_guard<std::mutex> lock(m_callbackState->mutex);
                 qcbs = m_callbackState->queryCompletedCallbacks;
+                lcbs = m_callbackState->queryLatencyCallbacks;
             }
             for (const auto& entry : *qcbs) {
                 if (entry.cb) {
                     entry.cb(satisfiedTag, true, currentStatus);
+                }
+            }
+            for (const auto& entry : *lcbs) {
+                if (entry.cb) {
+                    entry.cb(satisfiedTag, durationUs, true);
                 }
             }
         }

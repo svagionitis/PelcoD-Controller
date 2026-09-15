@@ -27,6 +27,7 @@ add_pelco_test(TestMockKinematics TestMockKinematics.cpp)
 add_pelco_test(TestFujinonProtocol TestFujinonProtocol.cpp)
 add_pelco_test(TestFujinonSX800Device TestFujinonSX800Device.cpp)
 add_pelco_test(TestConnection TestConnection.cpp)
+add_pelco_test(TestRttProfiler TestRttProfiler.cpp)
 
 add_executable(TestConnectionModal
     TestConnectionModal.cpp
