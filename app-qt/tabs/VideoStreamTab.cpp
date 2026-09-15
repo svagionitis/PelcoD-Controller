@@ -1,8 +1,8 @@
 #include "VideoStreamTab.h"
 #include "DecoderFactory.h"
+#include "DeviceEnumerator.h"
 
 #include <QDateTime>
-#include <QFileDialog>
 #include <QFileDialog>
 #include <QGridLayout>
 #include <QGroupBox>
@@ -44,15 +44,60 @@ void VideoStreamTab::setupUi()
     topLayout->setContentsMargins(8, 6, 8, 6);
     topLayout->setSpacing(8);
 
-    topLayout->addWidget(new QLabel(tr("URL / Preset:"), this));
+    topLayout->addWidget(new QLabel(tr("Source:"), this));
 
-    m_sourceCombo = new QComboBox(this);
+    m_sourceTypeCombo = new QComboBox(this);
+    m_sourceTypeCombo->addItem(tr("RTSP / Stream"), 0);
+    m_sourceTypeCombo->addItem(tr("Video File"), 1);
+    m_sourceTypeCombo->addItem(tr("Capture Device"), 2);
+    m_sourceTypeCombo->addItem(tr("Test Pattern"), 3);
+    topLayout->addWidget(m_sourceTypeCombo);
+
+    // RTSP Container
+    m_rtspContainer = new QWidget(this);
+    auto* rtspLayout = new QHBoxLayout(m_rtspContainer);
+    rtspLayout->setContentsMargins(0, 0, 0, 0);
+    rtspLayout->setSpacing(4);
+    m_sourceCombo = new QComboBox(m_rtspContainer);
     m_sourceCombo->setEditable(true);
     m_sourceCombo->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
-    m_sourceCombo->addItem(QStringLiteral("mock://smpte-bars"), tr("Mock: SMPTE Color Bars"));
     m_sourceCombo->addItem(QStringLiteral("rtsp://admin:admin@192.168.1.108:554/cam/realmonitor?channel=1&subtype=0"), tr("Preset: Fujinon SX800 RTSP"));
     m_sourceCombo->addItem(QStringLiteral("rtsp://192.168.1.100:554/stream1"), tr("Preset: Camera 1 RTSP"));
-    topLayout->addWidget(m_sourceCombo);
+    rtspLayout->addWidget(m_sourceCombo);
+    topLayout->addWidget(m_rtspContainer, 1);
+
+    // File Container
+    m_fileContainer = new QWidget(this);
+    auto* fileLayout = new QHBoxLayout(m_fileContainer);
+    fileLayout->setContentsMargins(0, 0, 0, 0);
+    fileLayout->setSpacing(4);
+    m_filePathEdit = new QLineEdit(m_fileContainer);
+    m_filePathEdit->setPlaceholderText(tr("Select local video file (.mp4, .mkv, .avi, .mov, etc.)..."));
+    m_btnBrowseFile = new QPushButton(tr("Browse..."), m_fileContainer);
+    m_chkLoopFile = new QCheckBox(tr("Loop"), m_fileContainer);
+    m_chkLoopFile->setChecked(true);
+    m_chkLoopFile->setToolTip(tr("Continuously loop video playback when reaching end of file"));
+    fileLayout->addWidget(m_filePathEdit, 1);
+    fileLayout->addWidget(m_btnBrowseFile);
+    fileLayout->addWidget(m_chkLoopFile);
+    topLayout->addWidget(m_fileContainer, 1);
+    m_fileContainer->hide();
+
+    // Device Container
+    m_deviceContainer = new QWidget(this);
+    auto* devLayout = new QHBoxLayout(m_deviceContainer);
+    devLayout->setContentsMargins(0, 0, 0, 0);
+    devLayout->setSpacing(4);
+    m_deviceCombo = new QComboBox(m_deviceContainer);
+    m_deviceCombo->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+    m_btnRefreshDevices = new QPushButton(tr("Refresh"), m_deviceContainer);
+    m_btnRefreshDevices->setToolTip(tr("Rescan hardware video capture devices"));
+    devLayout->addWidget(m_deviceCombo, 1);
+    devLayout->addWidget(m_btnRefreshDevices);
+    topLayout->addWidget(m_deviceContainer, 1);
+    m_deviceContainer->hide();
+
+    populateCaptureDevices();
 
     topLayout->addWidget(new QLabel(tr("Backend:"), this));
     m_backendCombo = new QComboBox(this);
@@ -244,6 +289,12 @@ void VideoStreamTab::setupUi()
 
 void VideoStreamTab::setupConnections()
 {
+    // Source selection controls
+    connect(m_sourceTypeCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &VideoStreamTab::onSourceTypeChanged);
+    connect(m_btnBrowseFile, &QPushButton::clicked, this, &VideoStreamTab::onBrowseFileClicked);
+    connect(m_btnRefreshDevices, &QPushButton::clicked, this, &VideoStreamTab::onRefreshDevicesClicked);
+    connect(m_chkLoopFile, &QCheckBox::toggled, this, &VideoStreamTab::onLoopFileToggled);
+
     // Toolbar buttons
     connect(m_btnConnect, &QPushButton::clicked, this, &VideoStreamTab::onConnectClicked);
     connect(m_btnDisconnect, &QPushButton::clicked, this, &VideoStreamTab::onDisconnectClicked);
@@ -270,21 +321,99 @@ void VideoStreamTab::setupConnections()
     connect(m_overlayWidget, &VideoOverlayWidget::zoomRequested, this, &VideoStreamTab::handleOverlayZoomRequested);
 }
 
+void VideoStreamTab::onSourceTypeChanged(int index)
+{
+    m_rtspContainer->setVisible(index == 0);
+    m_fileContainer->setVisible(index == 1);
+    m_deviceContainer->setVisible(index == 2);
+}
+
+void VideoStreamTab::onBrowseFileClicked()
+{
+    const QString filePath = QFileDialog::getOpenFileName(
+        this,
+        tr("Open Video File"),
+        QString(),
+        tr("Video Files (*.mp4 *.mkv *.avi *.mov *.webm *.ts *.flv *.m4v);;All Files (*.*)"));
+
+    if (!filePath.isEmpty()) {
+        m_filePathEdit->setText(filePath);
+    }
+}
+
+void VideoStreamTab::onRefreshDevicesClicked()
+{
+    populateCaptureDevices();
+}
+
+void VideoStreamTab::onLoopFileToggled(bool checked)
+{
+    if (m_worker != nullptr) {
+        m_worker->setLoopPlayback(checked);
+    }
+}
+
+void VideoStreamTab::populateCaptureDevices()
+{
+    m_deviceCombo->clear();
+    const auto devices = PelcoD::Video::DeviceEnumerator::enumerateDevices();
+    for (const auto& dev : devices) {
+        m_deviceCombo->addItem(QString::fromStdString(dev.name), QString::fromStdString(dev.path));
+    }
+
+    if (m_deviceCombo->count() == 0) {
+#ifdef _WIN32
+        m_deviceCombo->addItem(tr("Default Windows Camera (video=Integrated Camera)"), QStringLiteral("video=Integrated Camera"));
+        m_deviceCombo->addItem(tr("Generic DirectShow (video=default)"), QStringLiteral("video=default"));
+#else
+        m_deviceCombo->addItem(tr("Primary V4L2 Device (/dev/video0)"), QStringLiteral("/dev/video0"));
+#endif
+    }
+}
+
 void VideoStreamTab::onConnectClicked()
 {
-    const QString source = m_sourceCombo->currentText().trimmed();
-    if (source.isEmpty()) {
-        QMessageBox::warning(this, tr("Invalid Source"), tr("Please enter a valid RTSP stream URL or select a preset."));
-        return;
+    QString source;
+    const int typeIdx = m_sourceTypeCombo->currentIndex();
+
+    if (typeIdx == 0) { // RTSP
+        source = m_sourceCombo->currentText().trimmed();
+        if (source.isEmpty()) {
+            QMessageBox::warning(this, tr("Invalid Source"), tr("Please enter a valid RTSP stream URL or select a preset."));
+            return;
+        }
+    } else if (typeIdx == 1) { // File
+        source = m_filePathEdit->text().trimmed();
+        if (source.isEmpty()) {
+            QMessageBox::warning(this, tr("Invalid Source"), tr("Please select or enter a valid video file path."));
+            return;
+        }
+    } else if (typeIdx == 2) { // Device
+        source = m_deviceCombo->currentData().toString();
+        if (source.isEmpty()) {
+            source = m_deviceCombo->currentText().trimmed();
+        }
+        if (source.isEmpty()) {
+            QMessageBox::warning(this, tr("Invalid Source"), tr("Please select a valid hardware capture device."));
+            return;
+        }
+    } else { // Mock
+        source = QStringLiteral("mock://smpte-bars");
     }
 
     const auto backend = static_cast<PelcoD::Video::BackendType>(m_backendCombo->currentData().toInt());
 
     m_btnConnect->setEnabled(false);
     m_btnDisconnect->setEnabled(true);
+    m_sourceTypeCombo->setEnabled(false);
     m_sourceCombo->setEnabled(false);
+    m_filePathEdit->setEnabled(false);
+    m_btnBrowseFile->setEnabled(false);
+    m_deviceCombo->setEnabled(false);
+    m_btnRefreshDevices->setEnabled(false);
     m_backendCombo->setEnabled(false);
 
+    m_worker->setLoopPlayback(m_chkLoopFile->isChecked());
     m_worker->openStream(source, backend, PelcoD::Video::DeviceType::CPU);
 }
 
@@ -295,7 +424,12 @@ void VideoStreamTab::onDisconnectClicked()
 
     m_btnConnect->setEnabled(true);
     m_btnDisconnect->setEnabled(false);
+    m_sourceTypeCombo->setEnabled(true);
     m_sourceCombo->setEnabled(true);
+    m_filePathEdit->setEnabled(true);
+    m_btnBrowseFile->setEnabled(true);
+    m_deviceCombo->setEnabled(true);
+    m_btnRefreshDevices->setEnabled(true);
     m_backendCombo->setEnabled(true);
     m_statusLabel->setText(tr("Status: Disconnected"));
 }

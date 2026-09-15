@@ -91,13 +91,17 @@ bool GStreamerDecoder::initialize(std::string_view source,
     m_threadCount = threadCount;
     m_deviceType = device;
 
-    // Determine URI scheme
-    std::string uri = m_filePath;
-    if (uri.find("://") == std::string::npos) {
-        gchar* fileUri = gst_filename_to_uri(uri.c_str(), nullptr);
-        if (fileUri != nullptr) {
-            uri = fileUri;
-            g_free(fileUri);
+    // Determine source configuration
+    const SourceType srcType = detectSourceType(m_filePath);
+    std::string uri;
+    if (srcType != SourceType::Device) {
+        uri = m_filePath;
+        if (uri.find("://") == std::string::npos) {
+            gchar* fileUri = gst_filename_to_uri(uri.c_str(), nullptr);
+            if (fileUri != nullptr) {
+                uri = fileUri;
+                g_free(fileUri);
+            }
         }
     }
 
@@ -148,10 +152,25 @@ bool GStreamerDecoder::initialize(std::string_view source,
     gst_element_add_pad(sinkBin, ghostPad);
     gst_object_unref(pad);
 
-    g_object_set(G_OBJECT(m_pipeline.get()),
-                 "uri", uri.c_str(),
-                 "video-sink", sinkBin,
-                 nullptr);
+    if (srcType == SourceType::Device) {
+#ifdef _WIN32
+        GstElement* devSrc = gst_element_factory_make("autovideosrc", "cam-src");
+#else
+        GstElement* devSrc = gst_element_factory_make("v4l2src", "cam-src");
+        if (devSrc && m_filePath.rfind("/dev/video", 0) == 0) {
+            g_object_set(G_OBJECT(devSrc), "device", m_filePath.c_str(), nullptr);
+        }
+#endif
+        if (devSrc != nullptr) {
+            g_object_set(G_OBJECT(m_pipeline.get()), "video-source", devSrc, nullptr);
+        }
+        g_object_set(G_OBJECT(m_pipeline.get()), "video-sink", sinkBin, nullptr);
+    } else {
+        g_object_set(G_OBJECT(m_pipeline.get()),
+                     "uri", uri.c_str(),
+                     "video-sink", sinkBin,
+                     nullptr);
+    }
 
     // Start pipeline
     GstStateChangeReturn ret = gst_element_set_state(m_pipeline.get(), GST_STATE_PLAYING);

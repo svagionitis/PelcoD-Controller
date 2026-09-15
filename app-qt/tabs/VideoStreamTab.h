@@ -49,6 +49,10 @@ public slots:
     void toggleFullscreen();
 
 private slots:
+    void onSourceTypeChanged(int index);
+    void onBrowseFileClicked();
+    void onRefreshDevicesClicked();
+    void onLoopFileToggled(bool checked);
     void onConnectClicked();
     void onDisconnectClicked();
     void onSnapshotClicked();
@@ -64,6 +68,7 @@ private slots:
 private:
     void setupUi();
     void setupConnections();
+    void populateCaptureDevices();
 
     PelcoDQt::QPelcoDDevice* m_device { nullptr };
     PelcoD::Video::QVideoStreamWorker* m_worker { nullptr };
@@ -72,7 +77,18 @@ private:
     VideoOverlayWidget* m_overlayWidget { nullptr };
 
     // Stream Controls Bar
+    QComboBox* m_sourceTypeCombo { nullptr };
+    QWidget* m_rtspContainer { nullptr };
+    QWidget* m_fileContainer { nullptr };
+    QWidget* m_deviceContainer { nullptr };
+
     QComboBox* m_sourceCombo { nullptr };
+    QLineEdit* m_filePathEdit { nullptr };
+    QPushButton* m_btnBrowseFile { nullptr };
+    QCheckBox* m_chkLoopFile { nullptr };
+    QComboBox* m_deviceCombo { nullptr };
+    QPushButton* m_btnRefreshDevices { nullptr };
+
     QComboBox* m_backendCombo { nullptr };
     QPushButton* m_btnConnect { nullptr };
     QPushButton* m_btnDisconnect { nullptr };

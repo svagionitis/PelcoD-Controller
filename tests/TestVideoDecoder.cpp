@@ -4,6 +4,7 @@
 #include "AtomicTripleBuffer.h"
 #include "DecoderFactory.h"
 #include "DecoderTypes.h"
+#include "DeviceEnumerator.h"
 #include "MockVideoDecoder.h"
 #include "QVideoStreamWorker.h"
 
@@ -26,6 +27,9 @@ private slots:
     void testAtomicTripleBuffer();
     void testDecoderFactory();
     void testVideoStreamWorkerMockStream();
+    void testSourceTypeDetection();
+    void testDeviceEnumeration();
+    void testLoopPlaybackControl();
     void testLetterboxMath();
     void testCompassHeadingCalculations();
 };
@@ -171,6 +175,57 @@ void TestVideoDecoder::testVideoStreamWorkerMockStream()
     // Test clean stop
     worker.stopPlayback();
     QCOMPARE(worker.streamState(), StreamState::Disconnected);
+}
+
+void TestVideoDecoder::testSourceTypeDetection()
+{
+    // Test pattern URIs
+    QCOMPARE(detectSourceType("mock://smpte-bars"), SourceType::MockPattern);
+    QCOMPARE(detectSourceType("mock://test"), SourceType::MockPattern);
+
+    // Network / RTSP feeds
+    QCOMPARE(detectSourceType("rtsp://192.168.1.100:554/live"), SourceType::Rtsp);
+    QCOMPARE(detectSourceType("rtmp://stream.example.com/live/feed"), SourceType::Rtsp);
+    QCOMPARE(detectSourceType("http://192.168.1.100/video.mjpg"), SourceType::Rtsp);
+    QCOMPARE(detectSourceType("udp://239.255.0.1:1234"), SourceType::Rtsp);
+    QCOMPARE(detectSourceType("tcp://127.0.0.1:8000"), SourceType::Rtsp);
+
+    // Hardware capture devices
+    QCOMPARE(detectSourceType("video=Integrated Camera"), SourceType::Device);
+    QCOMPARE(detectSourceType("video:0"), SourceType::Device);
+    QCOMPARE(detectSourceType("device://default"), SourceType::Device);
+    QCOMPARE(detectSourceType("dshow:video=USB Webcam"), SourceType::Device);
+    QCOMPARE(detectSourceType("/dev/video0"), SourceType::Device);
+    QCOMPARE(detectSourceType("/dev/video1"), SourceType::Device);
+
+    // Local multimedia files
+    QCOMPARE(detectSourceType("sample.mp4"), SourceType::File);
+    QCOMPARE(detectSourceType("C:/Videos/recording.mkv"), SourceType::File);
+    QCOMPARE(detectSourceType("test_clip.avi"), SourceType::File);
+    QCOMPARE(detectSourceType("/var/media/camera_dump.ts"), SourceType::File);
+}
+
+void TestVideoDecoder::testDeviceEnumeration()
+{
+    // Ensure hardware device enumeration runs safely without throwing or crashing
+    const auto devices = PelcoD::Video::DeviceEnumerator::enumerateDevices();
+    for (const auto& dev : devices) {
+        QVERIFY(!dev.name.empty());
+        QVERIFY(!dev.path.empty());
+    }
+}
+
+void TestVideoDecoder::testLoopPlaybackControl()
+{
+    PelcoDQt::QVideoStreamWorker worker;
+    // Verify default is loop = true
+    QVERIFY(worker.isLoopPlayback());
+
+    worker.setLoopPlayback(false);
+    QVERIFY(!worker.isLoopPlayback());
+
+    worker.setLoopPlayback(true);
+    QVERIFY(worker.isLoopPlayback());
 }
 
 void TestVideoDecoder::testLetterboxMath()

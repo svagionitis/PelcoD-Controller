@@ -85,6 +85,25 @@ StreamState QVideoStreamWorker::streamState() const
     return m_state;
 }
 
+void QVideoStreamWorker::setLoopPlayback(bool loop)
+{
+    QMutexLocker locker(&m_mutex);
+    m_loopPlayback = loop;
+}
+
+bool QVideoStreamWorker::isLoopPlayback() const
+{
+    QMutexLocker locker(&m_mutex);
+    return m_loopPlayback;
+}
+
+void QVideoStreamWorker::seekTo(double timestampSeconds)
+{
+    QMutexLocker locker(&m_mutex);
+    m_requestedSeekPos = timestampSeconds;
+    m_condition.wakeAll();
+}
+
 void QVideoStreamWorker::run()
 {
     QString currentSource;
@@ -140,6 +159,9 @@ void QVideoStreamWorker::run()
     framePacer.start();
 
     while (true) {
+        double seekTarget = -1.0;
+        bool shouldLoop = true;
+
         {
             QMutexLocker locker(&m_mutex);
             if (m_stopRequested) {
@@ -151,10 +173,25 @@ void QVideoStreamWorker::run()
             if (m_stopRequested) {
                 break;
             }
+            if (m_requestedSeekPos >= 0.0) {
+                seekTarget = m_requestedSeekPos;
+                m_requestedSeekPos = -1.0;
+            }
+            shouldLoop = m_loopPlayback;
+        }
+
+        if (seekTarget >= 0.0 && m_decoder) {
+            m_decoder->seek(seekTarget);
         }
 
         const bool ok = m_decoder->decodeNextFrame();
         if (!ok) {
+            if (shouldLoop && (meta.duration > 0.0 || currentBackend == BackendType::Mock)) {
+                // Loop finite video back to start
+                m_decoder->seek(0.0);
+                continue;
+            }
+
             QMutexLocker locker(&m_mutex);
             if (m_stopRequested) {
                 break;
@@ -169,6 +206,10 @@ void QVideoStreamWorker::run()
             // Construct QImage with deep copy to safely transfer across Qt thread boundaries
             const QImage img(frame.data, frame.width, frame.height, frame.width * 3, QImage::Format_RGB888);
             emit frameReady(img.copy(), frame.timestamp, frame.decodeTimeMs);
+
+            if (meta.duration > 0.0) {
+                emit playbackPositionChanged(frame.timestamp, meta.duration);
+            }
 
             ++frameCount;
             const qint64 elapsedMs = fpsTimer.elapsed();

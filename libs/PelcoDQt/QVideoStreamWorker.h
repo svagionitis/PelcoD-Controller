@@ -53,6 +53,18 @@ public:
     /// @return Current StreamState.
     [[nodiscard]] PelcoD::Video::StreamState streamState() const;
 
+    /// @brief Enables or disables looping for finite file playback.
+    /// @param[in] loop True to loop playback continuously upon reaching EOF.
+    void setLoopPlayback(bool loop);
+
+    /// @brief Checks whether finite file playback loops continuously.
+    /// @return True if loop playback is enabled.
+    [[nodiscard]] bool isLoopPlayback() const;
+
+    /// @brief Requests seek to a timestamp in seconds.
+    /// @param[in] timestampSeconds Target position in seconds.
+    void seekTo(double timestampSeconds);
+
 signals:
     /// @brief Emitted when a video frame is decoded and ready for display.
     /// @param frame Decoded QImage in Format_RGB888.
@@ -77,6 +89,11 @@ signals:
     /// @param avgDecodeMs Rolling average decode time in milliseconds.
     void statsUpdated(double fps, double avgDecodeMs);
 
+    /// @brief Emitted when file playback progress updates.
+    /// @param currentSec Current presentation timestamp in seconds.
+    /// @param totalSec Total duration in seconds (or 0 for live streams).
+    void playbackPositionChanged(double currentSec, double totalSec);
+
 protected:
     void run() override;
 
@@ -93,6 +110,8 @@ private:
     PelcoD::Video::StreamState m_state { PelcoD::Video::StreamState::Disconnected };
     bool m_stopRequested { false };
     bool m_pauseRequested { false };
+    bool m_loopPlayback { true };
+    double m_requestedSeekPos { -1.0 };
 };
 
 } // namespace PelcoDQt

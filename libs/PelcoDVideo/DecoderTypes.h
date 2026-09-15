@@ -89,4 +89,42 @@ enum class StreamState {
     Error         ///< Fatal stream error occurred
 };
 
+/// @enum SourceType
+/// @brief Categorizes the origin and protocol of a video media source.
+enum class SourceType {
+    Rtsp,        ///< RTSP, RTMP, HTTP, UDP, or TCP network live feed
+    File,        ///< Local multimedia container file (.mp4, .mkv, .avi, .mov, etc.)
+    Device,      ///< Hardware capture device (DirectShow webcam, HDMI card, V4L2 device)
+    MockPattern  ///< In-process synthetic test pattern generator
+};
+
+/// @struct VideoDeviceInfo
+/// @brief Descriptor for an enumerated hardware video capture device.
+struct VideoDeviceInfo {
+    std::string name;        ///< User-friendly device name (e.g. "Integrated Camera")
+    std::string path;        ///< Connection path/identifier (e.g. "video=Integrated Camera" or "/dev/video0")
+    std::string description; ///< Bus, driver, or hardware description
+};
+
+/// @brief Detects the categorical source type from a URI, file path, or device identifier.
+/// @param[in] source Source URI, local filesystem path, or hardware device identifier.
+/// @return Deduced SourceType.
+[[nodiscard]] inline SourceType detectSourceType(std::string_view source) noexcept
+{
+    if (source.rfind("mock://", 0) == 0) {
+        return SourceType::MockPattern;
+    }
+    if (source.rfind("rtsp://", 0) == 0 || source.rfind("rtmp://", 0) == 0 ||
+        source.rfind("http://", 0) == 0 || source.rfind("https://", 0) == 0 ||
+        source.rfind("udp://", 0) == 0 || source.rfind("tcp://", 0) == 0) {
+        return SourceType::Rtsp;
+    }
+    if (source.rfind("video=", 0) == 0 || source.rfind("video:", 0) == 0 ||
+        source.rfind("device:", 0) == 0 || source.rfind("device://", 0) == 0 ||
+        source.rfind("dshow:", 0) == 0 || source.rfind("/dev/video", 0) == 0) {
+        return SourceType::Device;
+    }
+    return SourceType::File;
+}
+
 } // namespace PelcoD::Video

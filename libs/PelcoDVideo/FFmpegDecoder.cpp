@@ -61,21 +61,42 @@ bool FFmpegDecoder::initialize(std::string_view source,
     AVFormatContext* formatCtxRaw = nullptr;
     AVDictionary* options = nullptr;
 
-    // Sub-second RTSP/network timeouts
-    av_dict_set(&options, "stimeout", "1000000", 0);
-    av_dict_set(&options, "rw_timeout", "1000000", 0);
+    const SourceType srcType = detectSourceType(m_filePath);
+    const AVInputFormat* iformat = nullptr;
+    std::string openPath = m_filePath;
 
-    // Prefer TCP for RTSP to prevent packet drop artifacts
-    if (m_filePath.rfind("rtsp://", 0) == 0) {
-        av_dict_set(&options, "rtsp_transport", "tcp", 0);
+    if (srcType == SourceType::Rtsp) {
+        // Sub-second RTSP/network timeouts
+        av_dict_set(&options, "stimeout", "1000000", 0);
+        av_dict_set(&options, "rw_timeout", "1000000", 0);
+        if (m_filePath.rfind("rtsp://", 0) == 0) {
+            av_dict_set(&options, "rtsp_transport", "tcp", 0);
+        }
+    } else if (srcType == SourceType::Device) {
+#ifdef _WIN32
+        iformat = av_find_input_format("dshow");
+        if (openPath.rfind("device:", 0) == 0 || openPath.rfind("device://", 0) == 0 || openPath.rfind("dshow:", 0) == 0) {
+            const auto pos = openPath.find_first_of(":/");
+            const std::string rem = openPath.substr(openPath.find_first_not_of(":/", pos));
+            if (rem.rfind("video=", 0) != 0) {
+                openPath = "video=" + rem;
+            } else {
+                openPath = rem;
+            }
+        } else if (openPath.rfind("video:", 0) == 0) {
+            openPath = "video=" + openPath.substr(6);
+        }
+#else
+        iformat = av_find_input_format("v4l2");
+#endif
     }
 
-    int ret = avformat_open_input(&formatCtxRaw, m_filePath.c_str(), nullptr, &options);
+    int ret = avformat_open_input(&formatCtxRaw, openPath.c_str(), const_cast<AVInputFormat*>(iformat), &options);
     if (options != nullptr) {
         av_dict_free(&options);
     }
     if (ret < 0) {
-        LOG(ERROR) << "FFmpegDecoder: Failed to open source: " << m_filePath << " (error: " << ret << ")";
+        LOG(ERROR) << "FFmpegDecoder: Failed to open source: " << m_filePath << " (resolved: " << openPath << ", error: " << ret << ")";
         return false;
     }
     m_formatCtx.reset(formatCtxRaw);

@@ -6,6 +6,8 @@ set(PELCOD_VIDEO_SOURCES
     MockVideoDecoder.cpp
     DecoderFactory.h
     DecoderFactory.cpp
+    DeviceEnumerator.h
+    DeviceEnumerator.cpp
 )
 
 if(PELCOD_ENABLE_FFMPEG AND FFMPEG_FOUND)
@@ -33,6 +35,10 @@ target_include_directories(PelcoDVideo PUBLIC
 target_link_libraries(PelcoDVideo PUBLIC
     glog::glog
 )
+
+if(WIN32)
+    target_link_libraries(PelcoDVideo PUBLIC ole32 oleaut32 strmiids)
+endif()
 
 if(PELCOD_ENABLE_FFMPEG AND FFMPEG_FOUND)
     target_compile_definitions(PelcoDVideo PUBLIC PELCOD_HAS_FFMPEG)
