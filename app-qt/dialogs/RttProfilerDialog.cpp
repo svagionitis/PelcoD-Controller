@@ -24,8 +24,7 @@ RttSparklineWidget::RttSparklineWidget(QWidget* parent)
     setStyleSheet("background-color: #1a1e24; border: 1px solid #2d3748; border-radius: 4px;");
 }
 
-void RttSparklineWidget::updateData(
-    const std::vector<PelcoD::RttSample>& history, double avgRttMs, double maxRttMs)
+void RttSparklineWidget::updateData(const std::vector<PelcoD::RttSample>& history, double avgRttMs, double maxRttMs)
 {
     m_samples = history;
     m_avgRttMs = avgRttMs;
@@ -74,14 +73,15 @@ void RttSparklineWidget::paintEvent(QPaintEvent* /*event*/)
 
     // Compute point coordinates
     const std::size_t count = m_samples.size();
-    const double stepX = (count > 1U) ? (static_cast<double>(chartW) / (count - 1U)) : chartW;
+    const double stepX
+        = (count > 1U) ? (static_cast<double>(chartW) / static_cast<double>(count - 1U)) : static_cast<double>(chartW);
 
     QPolygonF polyline;
     QPainterPath fillPath;
     fillPath.moveTo(padding, padding + chartH);
 
     for (std::size_t i = 0U; i < count; ++i) {
-        const double x = padding + (i * stepX);
+        const double x = padding + (static_cast<double>(i) * stepX);
         const double sampleVal = m_samples[i].success ? m_samples[i].rttMs : scaleMax;
         const double clampedVal = std::min(sampleVal, scaleMax);
         const double y = (padding + chartH) - (clampedVal / scaleMax * chartH);
@@ -93,7 +93,7 @@ void RttSparklineWidget::paintEvent(QPaintEvent* /*event*/)
             fillPath.lineTo(x, y);
         }
     }
-    fillPath.lineTo(padding + ((count - 1U) * stepX), padding + chartH);
+    fillPath.lineTo(padding + (static_cast<double>(count - 1U) * stepX), padding + chartH);
     fillPath.closeSubpath();
 
     // Area fill under curve
@@ -119,7 +119,7 @@ void RttSparklineWidget::paintEvent(QPaintEvent* /*event*/)
 
     // Draw sample dots / timeout indicators
     for (std::size_t i = 0U; i < count; ++i) {
-        const double x = padding + (i * stepX);
+        const double x = padding + (static_cast<double>(i) * stepX);
         if (m_samples[i].success) {
             const double y = (padding + chartH) - (std::min(m_samples[i].rttMs, scaleMax) / scaleMax * chartH);
             p.setPen(Qt::NoPen);
@@ -129,8 +129,10 @@ void RttSparklineWidget::paintEvent(QPaintEvent* /*event*/)
             // Draw red cross/marker for timeout at chart ceiling
             const double y = padding + 4;
             p.setPen(QPen(QColor("#e74c3c"), 2));
-            p.drawLine(static_cast<int>(x - 3), static_cast<int>(y - 3), static_cast<int>(x + 3), static_cast<int>(y + 3));
-            p.drawLine(static_cast<int>(x + 3), static_cast<int>(y - 3), static_cast<int>(x - 3), static_cast<int>(y + 3));
+            p.drawLine(
+                static_cast<int>(x - 3), static_cast<int>(y - 3), static_cast<int>(x + 3), static_cast<int>(y + 3));
+            p.drawLine(
+                static_cast<int>(x + 3), static_cast<int>(y - 3), static_cast<int>(x - 3), static_cast<int>(y + 3));
         }
     }
 }
@@ -147,9 +149,11 @@ RttProfilerDialog::RttProfilerDialog(std::shared_ptr<PelcoD::PelcoDDevice> devic
     setupUi();
 
     connect(m_profiler.get(), &PelcoDQt::QRttProfiler::sampleRecorded, this, &RttProfilerDialog::onSampleRecorded);
-    connect(m_profiler.get(), &PelcoDQt::QRttProfiler::statisticsUpdated, this, &RttProfilerDialog::onStatisticsUpdated);
+    connect(
+        m_profiler.get(), &PelcoDQt::QRttProfiler::statisticsUpdated, this, &RttProfilerDialog::onStatisticsUpdated);
     connect(m_profiler.get(), &PelcoDQt::QRttProfiler::stateChanged, this, &RttProfilerDialog::onStateChanged);
-    connect(m_profiler.get(), &PelcoDQt::QRttProfiler::profilingFinished, this, &RttProfilerDialog::onProfilingFinished);
+    connect(
+        m_profiler.get(), &PelcoDQt::QRttProfiler::profilingFinished, this, &RttProfilerDialog::onProfilingFinished);
 }
 
 RttProfilerDialog::~RttProfilerDialog()
@@ -164,15 +168,20 @@ void RttProfilerDialog::setupUi()
     setWindowTitle("Round-Trip-Time (RTT) & Jitter Profiler");
     resize(760, 620);
     setStyleSheet("QDialog { background-color: #12151a; color: #ecf0f1; font-family: 'Segoe UI', sans-serif; }"
-                  "QGroupBox { font-weight: bold; border: 1px solid #2d3748; border-radius: 6px; margin-top: 10px; padding-top: 12px; }"
+                  "QGroupBox { font-weight: bold; border: 1px solid #2d3748; border-radius: 6px; margin-top: 10px; "
+                  "padding-top: 12px; }"
                   "QGroupBox::title { subcontrol-origin: margin; left: 10px; color: #63b3ed; }"
                   "QLabel { color: #e2e8f0; }"
-                  "QSpinBox, QComboBox { background-color: #1a202c; border: 1px solid #4a5568; border-radius: 4px; padding: 4px; color: #edf2f7; }"
-                  "QPushButton { background-color: #2b6cb0; border: none; border-radius: 4px; padding: 6px 14px; color: white; font-weight: bold; }"
+                  "QSpinBox, QComboBox { background-color: #1a202c; border: 1px solid #4a5568; border-radius: 4px; "
+                  "padding: 4px; color: #edf2f7; }"
+                  "QPushButton { background-color: #2b6cb0; border: none; border-radius: 4px; padding: 6px 14px; "
+                  "color: white; font-weight: bold; }"
                   "QPushButton:hover { background-color: #3182ce; }"
                   "QPushButton:disabled { background-color: #4a5568; color: #a0aec0; }"
-                  "QTableWidget { background-color: #1a202c; border: 1px solid #2d3748; border-radius: 4px; gridline-color: #2d3748; color: #e2e8f0; }"
-                  "QHeaderView::section { background-color: #2d3748; color: #cbd5e0; font-weight: bold; padding: 4px; border: 1px solid #1a202c; }");
+                  "QTableWidget { background-color: #1a202c; border: 1px solid #2d3748; border-radius: 4px; "
+                  "gridline-color: #2d3748; color: #e2e8f0; }"
+                  "QHeaderView::section { background-color: #2d3748; color: #cbd5e0; font-weight: bold; padding: 4px; "
+                  "border: 1px solid #1a202c; }");
 
     auto* mainLayout = new QVBoxLayout(this);
     mainLayout->setSpacing(12);
@@ -254,7 +263,8 @@ void RttProfilerDialog::setupUi()
 
     ctrlLayout->addWidget(new QLabel("Command:", this));
     cmbQueryTag = new QComboBox(this);
-    cmbQueryTag->addItems({ "QueryPan", "QueryTilt", "QueryZoom", "QueryDeviceType", "QueryDiagnostics", "QueryGeneral" });
+    cmbQueryTag->addItems(
+        { "QueryPan", "QueryTilt", "QueryZoom", "QueryDeviceType", "QueryDiagnostics", "QueryGeneral" });
     ctrlLayout->addWidget(cmbQueryTag);
 
     ctrlLayout->addStretch();
@@ -355,7 +365,8 @@ void RttProfilerDialog::handleExportCsvClicked()
 
 void RttProfilerDialog::handleExportJsonClicked()
 {
-    const QString path = QFileDialog::getSaveFileName(this, "Export Latency Telemetry to JSON", "", "JSON Files (*.json)");
+    const QString path
+        = QFileDialog::getSaveFileName(this, "Export Latency Telemetry to JSON", "", "JSON Files (*.json)");
     if (!path.isEmpty()) {
         if (!m_profiler->exportToJson(path)) {
             QMessageBox::critical(this, "Export Error", "Failed to write JSON file.");
@@ -387,8 +398,7 @@ void RttProfilerDialog::onProfilingFinished(const PelcoD::RttStatistics& stats)
     updateKpiCards(stats);
 }
 
-void RttProfilerDialog::onSampleRecorded(
-    const PelcoD::RttSample& sample, const PelcoD::RttStatistics& stats)
+void RttProfilerDialog::onSampleRecorded(const PelcoD::RttSample& sample, const PelcoD::RttStatistics& stats)
 {
     const int row = tableSamples->rowCount();
     tableSamples->insertRow(row);
@@ -442,14 +452,11 @@ void RttProfilerDialog::updateKpiCards(const PelcoD::RttStatistics& stats)
         lblLossPercent->setStyleSheet("font-size: 16px; font-weight: bold; color: #2ecc71;");
     }
 
-    lblProbeCounts->setText(QString("%1 / %2 / %3")
-                               .arg(stats.successfulProbes)
-                               .arg(stats.timedOutProbes)
-                               .arg(stats.totalProbes));
+    lblProbeCounts->setText(
+        QString("%1 / %2 / %3").arg(stats.successfulProbes).arg(stats.timedOutProbes).arg(stats.totalProbes));
 
-    lblPercentiles->setText(QString("P50: %1 | P95: %2 ms")
-                               .arg(stats.p50RttMs, 0, 'f', 1)
-                               .arg(stats.p95RttMs, 0, 'f', 1));
+    lblPercentiles->setText(
+        QString("P50: %1 | P95: %2 ms").arg(stats.p50RttMs, 0, 'f', 1).arg(stats.p95RttMs, 0, 'f', 1));
 }
 
 } // namespace PelcoDApp

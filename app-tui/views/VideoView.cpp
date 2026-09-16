@@ -13,17 +13,17 @@ using namespace PelcoD::Video;
 
 namespace {
 
-inline std::string compassCardinal(double headingDeg) noexcept
-{
-    while (headingDeg < 0.0)
-        headingDeg += 360.0;
-    while (headingDeg >= 360.0)
-        headingDeg -= 360.0;
+    inline std::string compassCardinal(double headingDeg) noexcept
+    {
+        while (headingDeg < 0.0)
+            headingDeg += 360.0;
+        while (headingDeg >= 360.0)
+            headingDeg -= 360.0;
 
-    static const char* const kDirections[] = { "N", "NE", "E", "SE", "S", "SW", "W", "NW" };
-    const int idx = static_cast<int>(std::floor((headingDeg + 22.5) / 45.0)) % 8;
-    return kDirections[idx];
-}
+        static const char* const kDirections[] = { "N", "NE", "E", "SE", "S", "SW", "W", "NW" };
+        const int idx = static_cast<int>(std::floor((headingDeg + 22.5) / 45.0)) % 8;
+        return kDirections[idx];
+    }
 
 } // namespace
 
@@ -37,8 +37,7 @@ VideoView::VideoView()
     m_options.invert = false;
 }
 
-void VideoView::updateFrame(
-    const std::uint8_t* data, int width, int height, double timestamp, double decodeMs)
+void VideoView::updateFrame(const std::uint8_t* data, int width, int height, double timestamp, double decodeMs)
 {
     if (!data || width <= 0 || height <= 0) {
         return;
@@ -149,16 +148,16 @@ bool VideoView::handleInput(const InputEvent& event, PelcoD::PelcoDDevice& devic
     // Speed controls
     if (event.ch == '[') {
         if (m_panSpeed > 4U)
-            m_panSpeed -= 4U;
+            m_panSpeed = static_cast<uint8_t>(m_panSpeed - 4U);
         if (m_tiltSpeed > 4U)
-            m_tiltSpeed -= 4U;
+            m_tiltSpeed = static_cast<uint8_t>(m_tiltSpeed - 4U);
         return true;
     }
     if (event.ch == ']') {
         if (m_panSpeed < 60U)
-            m_panSpeed += 4U;
+            m_panSpeed = static_cast<uint8_t>(m_panSpeed + 4U);
         if (m_tiltSpeed < 60U)
-            m_tiltSpeed += 4U;
+            m_tiltSpeed = static_cast<uint8_t>(m_tiltSpeed + 4U);
         return true;
     }
 
@@ -203,7 +202,6 @@ void VideoView::renderHudBar(Canvas& canvas, int y, int width, const PelcoD::Dev
     const Style titleStyle { Colors::Cyan, Colors::HeaderBg, true, false, false, false, false };
     const Style valStyle { Colors::Yellow, Colors::HeaderBg, true, false, false, false, false };
     const Style badgeStyle { Colors::Green, Colors::HeaderBg, true, false, false, false, false };
-    const Style dimStyle { Colors::DarkGray, Colors::HeaderBg, false, false, false, false, false };
 
     // Clear bar
     for (int x = 0; x < width; ++x) {
@@ -294,8 +292,7 @@ void VideoView::renderControlsBar(Canvas& canvas, int y, int width)
     }
 }
 
-void VideoView::render(
-    Canvas& canvas, int startY, int width, int height, const PelcoD::DeviceStatus& status)
+void VideoView::render(Canvas& canvas, int startY, int width, int height, const PelcoD::DeviceStatus& status)
 {
     if (width < 20 || height < 6) {
         return;
@@ -337,8 +334,8 @@ void VideoView::render(
         const int boxY = viewStartY + (viewHeight - boxH) / 2;
 
         canvas.drawBox(boxX, boxY, boxW, boxH, Style { Colors::DarkGray, Colors::PanelBg }, true);
-        canvas.drawString(boxX + 4, boxY + 2, "TACTICAL VIDEO VIEWPORT (STANDBY)",
-            Style { Colors::Cyan, Colors::PanelBg, true });
+        canvas.drawString(
+            boxX + 4, boxY + 2, "TACTICAL VIDEO VIEWPORT (STANDBY)", Style { Colors::Cyan, Colors::PanelBg, true });
         canvas.drawString(boxX + 4, boxY + 4, "Source: " + m_sourceName, Style { Colors::White, Colors::PanelBg });
         canvas.drawString(boxX + 4, boxY + 6, "Press 'C' to connect or pass --video <source>",
             Style { Colors::Yellow, Colors::PanelBg, false, true });

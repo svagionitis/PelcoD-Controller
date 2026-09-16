@@ -7,42 +7,25 @@ namespace PelcoD::Video {
 
 namespace {
 
-// Standard Bayer 4x4 Dithering Matrix
-constexpr int kBayer4x4[4][4] = {
-    { 0, 8, 2, 10 },
-    { 12, 4, 14, 6 },
-    { 3, 11, 1, 9 },
-    { 15, 7, 13, 5 }
-};
+    // Standard Bayer 4x4 Dithering Matrix
+    constexpr int kBayer4x4[4][4] = { { 0, 8, 2, 10 }, { 12, 4, 14, 6 }, { 3, 11, 1, 9 }, { 15, 7, 13, 5 } };
 
-// Standard Bayer 8x8 Dithering Matrix
-constexpr int kBayer8x8[8][8] = {
-    { 0, 32, 8, 40, 2, 34, 10, 42 },
-    { 48, 16, 56, 24, 50, 18, 58, 26 },
-    { 12, 44, 4, 36, 14, 46, 6, 38 },
-    { 60, 28, 52, 20, 62, 30, 54, 22 },
-    { 3, 35, 11, 43, 1, 33, 9, 41 },
-    { 51, 19, 59, 27, 49, 17, 57, 25 },
-    { 15, 47, 7, 39, 13, 45, 5, 37 },
-    { 63, 31, 55, 23, 61, 29, 53, 21 }
-};
+    // Standard Bayer 8x8 Dithering Matrix
+    constexpr int kBayer8x8[8][8] = { { 0, 32, 8, 40, 2, 34, 10, 42 }, { 48, 16, 56, 24, 50, 18, 58, 26 },
+        { 12, 44, 4, 36, 14, 46, 6, 38 }, { 60, 28, 52, 20, 62, 30, 54, 22 }, { 3, 35, 11, 43, 1, 33, 9, 41 },
+        { 51, 19, 59, 27, 49, 17, 57, 25 }, { 15, 47, 7, 39, 13, 45, 5, 37 }, { 63, 31, 55, 23, 61, 29, 53, 21 } };
 
-// Unicode Braille dot position bitmask layout:
-// (dx=0, dy=0) -> 0x01 | (dx=1, dy=0) -> 0x08
-// (dx=0, dy=1) -> 0x02 | (dx=1, dy=1) -> 0x10
-// (dx=0, dy=2) -> 0x04 | (dx=1, dy=2) -> 0x20
-// (dx=0, dy=3) -> 0x40 | (dx=1, dy=3) -> 0x80
-constexpr int kDotMap[4][2] = {
-    { 0x01, 0x08 },
-    { 0x02, 0x10 },
-    { 0x04, 0x20 },
-    { 0x40, 0x80 }
-};
+    // Unicode Braille dot position bitmask layout:
+    // (dx=0, dy=0) -> 0x01 | (dx=1, dy=0) -> 0x08
+    // (dx=0, dy=1) -> 0x02 | (dx=1, dy=1) -> 0x10
+    // (dx=0, dy=2) -> 0x04 | (dx=1, dy=2) -> 0x20
+    // (dx=0, dy=3) -> 0x40 | (dx=1, dy=3) -> 0x80
+    constexpr int kDotMap[4][2] = { { 0x01, 0x08 }, { 0x02, 0x10 }, { 0x04, 0x20 }, { 0x40, 0x80 } };
 
-inline std::uint8_t clampToUint8(int val) noexcept
-{
-    return static_cast<std::uint8_t>(std::clamp(val, 0, 255));
-}
+    inline std::uint8_t clampToUint8(int val) noexcept
+    {
+        return static_cast<std::uint8_t>(std::clamp(val, 0, 255));
+    }
 
 } // namespace
 
@@ -197,7 +180,8 @@ void BrailleRenderer::renderBrailleGrid(const std::uint8_t* rgbData, int srcWidt
 
             float luma = static_cast<float>(calculateLuma(r, g, b));
             // Apply contrast and brightness adjustments
-            luma = (luma - 128.0f) * static_cast<float>(options.contrast) + 128.0f + static_cast<float>(options.brightness);
+            luma = (luma - 128.0f) * static_cast<float>(options.contrast) + 128.0f
+                + static_cast<float>(options.brightness);
             if (options.invert) {
                 luma = 255.0f - luma;
             }
@@ -221,7 +205,7 @@ void BrailleRenderer::renderBrailleGrid(const std::uint8_t* rgbData, int srcWidt
             const int by = sy % 4;
             for (int sx = 0; sx < subW; ++sx) {
                 const int bx = sx % 4;
-                const float threshold = (kBayer4x4[by][bx] + 0.5f) * (255.0f / 16.0f);
+                const float threshold = (static_cast<float>(kBayer4x4[by][bx]) + 0.5f) * (255.0f / 16.0f);
                 const std::size_t idx = static_cast<std::size_t>(sy * subW + sx);
                 dotActive[idx] = (lumaGrid[idx] >= threshold);
             }
@@ -234,7 +218,7 @@ void BrailleRenderer::renderBrailleGrid(const std::uint8_t* rgbData, int srcWidt
             const int by = sy % 8;
             for (int sx = 0; sx < subW; ++sx) {
                 const int bx = sx % 8;
-                const float threshold = (kBayer8x8[by][bx] + 0.5f) * (255.0f / 64.0f);
+                const float threshold = (static_cast<float>(kBayer8x8[by][bx]) + 0.5f) * (255.0f / 64.0f);
                 const std::size_t idx = static_cast<std::size_t>(sy * subW + sx);
                 dotActive[idx] = (lumaGrid[idx] >= threshold);
             }

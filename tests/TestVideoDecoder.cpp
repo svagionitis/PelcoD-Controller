@@ -155,9 +155,7 @@ void TestVideoDecoder::testVideoStreamWorkerMockStream()
     QVERIFY(worker.isStreaming() || worker.streamState() == StreamState::Connecting);
 
     // Wait for at least 3 decoded frames
-    const bool gotFrames = QTest::qWaitFor([&]() {
-        return spyFrames.count() >= 3;
-    }, 2000);
+    const bool gotFrames = QTest::qWaitFor([&]() { return spyFrames.count() >= 3; }, 2000);
 
     QVERIFY(gotFrames);
     QVERIFY(!spyMetadata.isEmpty());
@@ -254,8 +252,10 @@ void TestVideoDecoder::testLetterboxMath()
 void TestVideoDecoder::testCompassHeadingCalculations()
 {
     auto headingToCardinal = [](double deg) -> const char* {
-        while (deg < 0.0) deg += 360.0;
-        while (deg >= 360.0) deg -= 360.0;
+        while (deg < 0.0)
+            deg += 360.0;
+        while (deg >= 360.0)
+            deg -= 360.0;
         static const char* kCardinals[] = { "N", "NE", "E", "SE", "S", "SW", "W", "NW" };
         const int idx = static_cast<int>(std::floor((deg + 22.5) / 45.0)) % 8;
         return kCardinals[idx];
@@ -334,10 +334,10 @@ void TestVideoDecoder::testBrailleRendererGridRasterization()
     std::vector<std::uint8_t> rgbData(20 * 20 * 3, 0);
     for (int y = 0; y < 20; ++y) {
         for (int x = 10; x < 20; ++x) {
-            const int idx = (y * 20 + x) * 3;
+            const std::size_t idx = static_cast<std::size_t>((y * 20 + x) * 3);
             rgbData[idx] = 255;
-            rgbData[idx + 1] = 255;
-            rgbData[idx + 2] = 255;
+            rgbData[idx + 1U] = 255;
+            rgbData[idx + 2U] = 255;
         }
     }
 
