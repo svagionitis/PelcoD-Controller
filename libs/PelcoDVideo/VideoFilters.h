@@ -1345,6 +1345,8 @@ public:
         double predictedErrorY { 0.0 }; ///< Latency-compensated predicted boresight error Y
         double scaleFactor { 1.0 }; ///< Current scale ratio relative to initial acquisition
         double appearanceScore { 1.0 }; ///< Appearance signature correlation score (0.0 to 1.0)
+        double normalizedWidth { 0.0 }; ///< Target width normalized by viewport frame width [0.0 to 1.0]
+        double normalizedHeight { 0.0 }; ///< Target height normalized by viewport frame height [0.0 to 1.0]
     };
 
     CentroidTargetTrackerFilter(bool autoAcquire = true, int targetWidth = 40, int targetHeight = 40);

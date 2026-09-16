@@ -194,6 +194,109 @@ void testPtzAutoTrackerCoastingAndLost()
     std::cout << "  -> PASSED\n";
 }
 
+void testAutoZoomFraming()
+{
+    std::cout << "[Test] testAutoZoomFraming...\n";
+    PtzAutoTracker tracker;
+    tracker.setAutoZoomEnabled(true);
+    tracker.setTargetFramingHeight(0.20, 0.04);
+    tracker.setZoomCenteringThreshold(0.25);
+
+    assert(tracker.isAutoZoomEnabled());
+    assert(std::abs(tracker.getTargetFramingHeight() - 0.20) < 1e-6);
+    assert(std::abs(tracker.getFramingDeadband() - 0.04) < 1e-6);
+    assert(std::abs(tracker.getZoomCenteringThreshold() - 0.25) < 1e-6);
+
+    // 1. Target too small (height = 0.12 < 0.16) and centered (errorX = 0.05, errorY = 0.05) -> Tele (+1)
+    const auto cmdTele = tracker.update(0.05, 0.05, 0.0, 0.0, true, false, 0.04, 0.12);
+    assert(cmdTele.zoomDirection == 1);
+    assert(cmdTele.shouldZoom);
+    assert(cmdTele.zoomSpeed > 0);
+
+    // 2. Target within deadband (height = 0.20) -> Stop (0)
+    const auto cmdDeadband = tracker.update(0.05, 0.05, 0.0, 0.0, true, false, 0.04, 0.20);
+    assert(cmdDeadband.zoomDirection == 0);
+    assert(!cmdDeadband.shouldZoom);
+
+    // 3. Target too large (height = 0.30 > 0.24) -> Wide (-1)
+    const auto cmdWide = tracker.update(0.05, 0.05, 0.0, 0.0, true, false, 0.04, 0.30);
+    assert(cmdWide.zoomDirection == -1);
+    assert(cmdWide.shouldZoom);
+    assert(cmdWide.zoomSpeed > 0);
+
+    // 4. Centering Interlock: Target too small (0.12) but off-center (errorX = 0.40 > 0.25) -> Tele inhibited (0)
+    const auto cmdInhibited = tracker.update(0.40, 0.05, 0.0, 0.0, true, false, 0.04, 0.12);
+    assert(cmdInhibited.zoomDirection == 0);
+    assert(!cmdInhibited.shouldZoom);
+
+    // 5. Target too large (0.30) and off-center (errorX = 0.40) -> Wide still operates for safety (-1)
+    const auto cmdWideOffCenter = tracker.update(0.40, 0.05, 0.0, 0.0, true, false, 0.04, 0.30);
+    assert(cmdWideOffCenter.zoomDirection == -1);
+    assert(cmdWideOffCenter.shouldZoom);
+
+    // 6. Target lost -> Zoom immediately stops
+    const auto cmdLost = tracker.update(0.0, 0.0, 0.0, 0.0, false, false, 0.04);
+    assert(cmdLost.zoomDirection == 0);
+    assert(!cmdLost.shouldZoom);
+
+    std::cout << "  -> PASSED\n";
+}
+
+void testPredictiveLeadBoresight()
+{
+    std::cout << "[Test] testPredictiveLeadBoresight...\n";
+    PtzAutoTracker tracker;
+    tracker.setPredictiveLeadEnabled(false);
+    assert(!tracker.isPredictiveLeadEnabled());
+
+    tracker.setPanGains(40.0, 0.0, 0.0, 0.0); // Pure P-controller for clean math
+
+    // Stationary at errorX = 0.10 -> out = 4.0
+    const auto cmdNoLead = tracker.update(0.10, 0.0, 0.0, 0.0, true, false, 0.04);
+
+    // Enable predictive lead
+    tracker.setPredictiveLeadEnabled(true);
+    tracker.setLeadGain(0.10, 0.25); // kLead = 0.10s, maxLead = 0.25
+    assert(tracker.isPredictiveLeadEnabled());
+    assert(std::abs(tracker.getLeadGain() - 0.10) < 1e-6);
+    assert(std::abs(tracker.getMaxLead() - 0.25) < 1e-6);
+
+    // Moving right at vx = 1.0 -> lead deflection = 0.10 -> effective error = 0.20 -> out should double
+    const auto cmdWithLead = tracker.update(0.10, 0.0, 1.0, 0.0, true, false, 0.04);
+    assert(cmdWithLead.panDirection == 1);
+    assert(cmdWithLead.panSpeed > cmdNoLead.panSpeed);
+
+    // Test clamp: vx = 10.0 -> lead = 1.0 clamped to maxLead = 0.25 -> effective error = 0.10 + 0.25 = 0.35
+    const auto cmdClamped = tracker.update(0.10, 0.0, 10.0, 0.0, true, false, 0.04);
+    const auto cmdClamped2 = tracker.update(0.10, 0.0, 100.0, 0.0, true, false, 0.04);
+    assert(cmdClamped.panSpeed == cmdClamped2.panSpeed);
+
+    std::cout << "  -> PASSED\n";
+}
+
+void testZoomAwareGainScheduling()
+{
+    std::cout << "[Test] testZoomAwareGainScheduling...\n";
+    PtzAutoTracker tracker;
+    tracker.setPanGains(40.0, 0.0, 0.0, 0.0); // Pure P-controller
+
+    // Base zoom = 1.0x at errorX = 0.20 -> out = 8.0
+    const auto cmdWide = tracker.update(0.20, 0.0, 0.0, 0.0, true, false, 0.04, 0.0, 1.0);
+    assert(cmdWide.panSpeed == 8);
+
+    // Magnification = 16.0x -> gain scaled down by sqrt(16) = 4 -> out should be 2
+    const auto cmdTele = tracker.update(0.20, 0.0, 0.0, 0.0, true, false, 0.04, 0.0, 16.0);
+    assert(cmdTele.panSpeed == 2);
+
+    // Disable gain scheduling -> out returns to 8 even at 16x zoom
+    tracker.setZoomGainSchedulingEnabled(false);
+    assert(!tracker.isZoomGainSchedulingEnabled());
+    const auto cmdNoSched = tracker.update(0.20, 0.0, 0.0, 0.0, true, false, 0.04, 0.0, 16.0);
+    assert(cmdNoSched.panSpeed == 8);
+
+    std::cout << "  -> PASSED\n";
+}
+
 } // namespace
 
 int main()
@@ -211,6 +314,9 @@ int main()
     testPtzAutoTrackerTracking();
     testPtzAutoTrackerDeadband();
     testPtzAutoTrackerCoastingAndLost();
+    testAutoZoomFraming();
+    testPredictiveLeadBoresight();
+    testZoomAwareGainScheduling();
 
     std::cout << "========================================\n";
     std::cout << "All TestPidController Tests Passed!\n";

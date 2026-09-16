@@ -141,12 +141,15 @@ private:
     QCheckBox* m_chkScaleAdaptation { nullptr };
     QCheckBox* m_chkAppearanceFusion { nullptr };
     QCheckBox* m_chkAutoFollowPtz { nullptr };
+    QCheckBox* m_chkAutoZoomFraming { nullptr };
+    QCheckBox* m_chkPredictiveLead { nullptr };
     QCheckBox* m_chkTripwire { nullptr };
     QComboBox* m_comboTripwireDir { nullptr };
     QCheckBox* m_chkHeatmap { nullptr };
     QTimer* m_autoFollowTimer { nullptr };
     std::unique_ptr<PelcoD::PtzAutoTracker> m_autoTracker;
     std::shared_ptr<PelcoD::Video::CentroidTargetTrackerFilter> m_targetTracker;
+    int m_lastZoomDirection { 0 };
     // Privacy & Operational Overlays Controls
     QCheckBox* m_chkPrivacyMask { nullptr };
     QComboBox* m_comboPrivacyMode { nullptr };

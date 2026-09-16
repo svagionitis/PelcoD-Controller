@@ -1993,6 +1993,10 @@ void CentroidTargetTrackerFilter::acquireTarget(int x, int y, int width, int hei
     m_impl->state.scaleFactor = 1.0;
     m_impl->state.appearanceScore = 1.0;
     m_impl->state.confidence = 1.0;
+    m_impl->state.normalizedWidth
+        = (m_impl->lastWidth > 0) ? (static_cast<double>(width) / static_cast<double>(m_impl->lastWidth)) : 0.0;
+    m_impl->state.normalizedHeight
+        = (m_impl->lastHeight > 0) ? (static_cast<double>(height) / static_cast<double>(m_impl->lastHeight)) : 0.0;
 
     const float cx = static_cast<float>(x) + static_cast<float>(width) / 2.0f;
     const float cy = static_cast<float>(y) + static_cast<float>(height) / 2.0f;
@@ -2032,6 +2036,10 @@ CentroidTargetTrackerFilter::TargetState CentroidTargetTrackerFilter::getTargetS
     TargetState copy = m_impl->state;
 
     if (copy.locked) {
+        if (m_impl->lastWidth > 0 && m_impl->lastHeight > 0) {
+            copy.normalizedWidth = static_cast<double>(copy.width) / static_cast<double>(m_impl->lastWidth);
+            copy.normalizedHeight = static_cast<double>(copy.height) / static_cast<double>(m_impl->lastHeight);
+        }
         if (lookaheadLatencySeconds > 0.0 && m_impl->lastWidth > 0 && m_impl->lastHeight > 0) {
             const double framesAhead = lookaheadLatencySeconds * 30.0;
             const double predCx
@@ -2359,6 +2367,10 @@ void CentroidTargetTrackerFilter::process(uint8_t* data, int width, int height, 
         m_impl->state.y = m_impl->targetRect.y;
         m_impl->state.width = m_impl->targetRect.width;
         m_impl->state.height = m_impl->targetRect.height;
+        m_impl->state.normalizedWidth
+            = (width > 0) ? (static_cast<double>(m_impl->targetRect.width) / static_cast<double>(width)) : 0.0;
+        m_impl->state.normalizedHeight
+            = (height > 0) ? (static_cast<double>(m_impl->targetRect.height) / static_cast<double>(height)) : 0.0;
 
         const double cx
             = static_cast<double>(m_impl->targetRect.x) + static_cast<double>(m_impl->targetRect.width) / 2.0;

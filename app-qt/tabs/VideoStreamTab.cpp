@@ -312,6 +312,15 @@ void VideoStreamTab::setupUi()
     m_chkAutoFollowPtz->setToolTip(tr("Enables closed-loop PID PTZ auto-tracking with Kalman motion estimation"));
     visionLayout->addWidget(m_chkAutoFollowPtz);
 
+    m_chkAutoZoomFraming = new QCheckBox(tr("  └ Auto-Zoom Framing"), visionGroup);
+    m_chkAutoZoomFraming->setToolTip(tr("Maintains constant target visual scale via closed-loop Zoom Tele/Wide"));
+    visionLayout->addWidget(m_chkAutoZoomFraming);
+
+    m_chkPredictiveLead = new QCheckBox(tr("  └ Predictive Lead Angle"), visionGroup);
+    m_chkPredictiveLead->setToolTip(
+        tr("Offsets boresight ahead along target velocity to preserve forward situational awareness"));
+    visionLayout->addWidget(m_chkPredictiveLead);
+
     m_autoTracker = std::make_unique<PelcoD::PtzAutoTracker>();
     m_autoFollowTimer = new QTimer(this);
 
@@ -572,6 +581,16 @@ void VideoStreamTab::setupConnections()
             m_targetTracker->setAppearanceFusion(checked);
         }
     });
+    connect(m_chkAutoZoomFraming, &QCheckBox::toggled, this, [this](bool checked) {
+        if (m_autoTracker) {
+            m_autoTracker->setAutoZoomEnabled(checked);
+        }
+    });
+    connect(m_chkPredictiveLead, &QCheckBox::toggled, this, [this](bool checked) {
+        if (m_autoTracker) {
+            m_autoTracker->setPredictiveLeadEnabled(checked);
+        }
+    });
     connect(m_chkTripwire, &QCheckBox::toggled, this, &VideoStreamTab::onFilterConfigurationChanged);
     connect(m_comboTripwireDir, QOverload<int>::of(&QComboBox::currentIndexChanged), this,
         &VideoStreamTab::onFilterConfigurationChanged);
@@ -592,7 +611,14 @@ void VideoStreamTab::setupConnections()
             }
             if (m_autoTracker) {
                 m_autoTracker->reset();
+                if (m_chkAutoZoomFraming) {
+                    m_autoTracker->setAutoZoomEnabled(m_chkAutoZoomFraming->isChecked());
+                }
+                if (m_chkPredictiveLead) {
+                    m_autoTracker->setPredictiveLeadEnabled(m_chkPredictiveLead->isChecked());
+                }
             }
+            m_lastZoomDirection = 0;
             if (m_autoFollowTimer && !m_autoFollowTimer->isActive()) {
                 m_autoFollowTimer->start(40); // 25 Hz update rate
             }
@@ -602,6 +628,10 @@ void VideoStreamTab::setupConnections()
             }
             if (m_device) {
                 m_device->stopMotion();
+                if (m_lastZoomDirection != 0) {
+                    m_device->zoomStop();
+                    m_lastZoomDirection = 0;
+                }
             }
             if (m_autoTracker) {
                 m_autoTracker->reset();
@@ -1102,6 +1132,10 @@ void VideoStreamTab::onAutoFollowTick()
         if (m_autoTracker) {
             m_autoTracker->reset();
         }
+        if (m_lastZoomDirection != 0 && m_device) {
+            m_device->zoomStop();
+            m_lastZoomDirection = 0;
+        }
         return;
     }
 
@@ -1109,13 +1143,25 @@ void VideoStreamTab::onAutoFollowTick()
     const auto state = m_targetTracker->getTargetState(0.10);
     const double dt = 0.04; // 25 Hz update rate (40 ms)
 
-    const auto cmd = m_autoTracker->update(
-        state.predictedErrorX, state.predictedErrorY, state.vx, state.vy, state.locked, state.isCoasting, dt);
+    const auto cmd = m_autoTracker->update(state.predictedErrorX, state.predictedErrorY, state.vx, state.vy,
+        state.locked, state.isCoasting, dt, state.normalizedHeight, 1.0);
 
     if (cmd.shouldMove) {
         m_device->move(cmd.panDirection, cmd.panSpeed, cmd.tiltDirection, cmd.tiltSpeed);
     } else if (cmd.state == PelcoD::PtzAutoTracker::TrackingState::Lost || !cmd.shouldMove) {
         m_device->stopMotion();
+    }
+
+    // Closed-Loop Auto-Zoom command execution with state deduplication
+    if (cmd.zoomDirection != m_lastZoomDirection) {
+        if (cmd.zoomDirection == 1) {
+            m_device->zoomTele();
+        } else if (cmd.zoomDirection == -1) {
+            m_device->zoomWide();
+        } else {
+            m_device->zoomStop();
+        }
+        m_lastZoomDirection = cmd.zoomDirection;
     }
 }
 #endif
