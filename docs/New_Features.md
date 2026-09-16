@@ -1,11 +1,4 @@
-Searched for "TODO"
-Listed directory docs
-Viewed C4_Architecture.md:1-100
-Searched for "PatrolController"
-Searched for "export"
-Viewed TrafficInspectorWidget.cpp:1-60
-Viewed BusScanner.h:1-60
-Viewed KinematicsSimulator.h:1-60
+# New Features & Enhancement Roadmap
 
 Here is a curated list of high-value features and enhancements that can be added to the project, organized by domain and impact:
 
@@ -64,10 +57,49 @@ Here is a curated list of high-value features and enhancements that can be added
 
 ---
 
+### 5. Video Analytics & Tracking Filters
+
+#### A. Target Tracking Engine Enhancements
+* **Dynamic Scale Adaptation (Zoom & Distance Compensation)**:
+  * Currently, target bounding box dimensions (`width`, `height`) in `CentroidTargetTrackerFilter` remain fixed at acquisition. If the target approaches/recedes or the camera zooms, the box becomes ill-fitted.
+  * Estimate scale expansion/contraction factor $s$ dynamically using pairwise Lucas-Kanade feature dispersion:
+    $$s = \operatorname{median}\left(\frac{\|\mathbf{p}_i^{(t)} - \mathbf{p}_j^{(t)}\|}{\|\mathbf{p}_i^{(t-1)} - \mathbf{p}_j^{(t-1)}\|}\right)$$
+  * Expand the Kalman filter to a 6-state vector $[x, y, w, h, v_x, v_y]^T$ for scale-invariant target framing.
+* **Appearance Model Fusion (Anti-Drift / Re-Identification)**:
+  * Pure Lucas-Kanade optical flow can accumulate sub-pixel drift over long tracking sessions and latch onto background clutter.
+  * Fuse optical flow with an HSV Color / Luma Histogram Back-Projection or an NCC / MOSSE correlation template centered on the target to periodically re-anchor the centroid and prevent track drift.
+* **Constant Acceleration (CA) Kinematic Kalman Model**:
+  * Upgrade the linear 4-state constant-velocity filter to a 6-state constant-acceleration model $[x, y, v_x, v_y, a_x, a_y]^T$ with adaptive process noise covariance $Q(k)$ driven by measurement innovation residuals, dramatically improving response on maneuvering, braking, or accelerating targets.
+* **Trajectory Breadcrumbs & Predictive Lead Vector**:
+  * Render a decaying temporal trajectory path showing past target coordinates and a forward-pointing velocity vector arrow projecting where the target will be in 1–2 seconds.
+
+#### B. Closed-Loop PTZ Auto-Tracking Extensions
+* **Closed-Loop 3-Axis Auto-Zoom (Target Framing)**:
+  * Expand `PtzAutoTracker` beyond Pan and Tilt to issue dynamic continuous/stepped `Zoom Tele` and `Zoom Wide` commands via `QPelcoDDevice::zoom()`, maintaining a constant relative target size on screen (e.g. 20% of viewport height).
+* **Predictive Lead Angle Boresight Deflection**:
+  * Offset the camera boresight slightly ahead along the target's estimated velocity vector so fast-moving objects stay centered in their direction of travel rather than lagging at the screen periphery.
+
+#### C. New Tactical & Surveillance Filters
+* **`LoiteringDetectorFilter` (Stationary Dwell-Time Alarm)**:
+  * Define an arbitrary polygon Region of Interest (ROI); any target detected inside starts an accumulation dwell timer. If it remains longer than a configurable threshold (e.g. > 15s), it triggers an alert callback and flashing visual alarm brackets.
+* **`MultiTargetTrackerFilter` (SORT / Hungarian Data Association)**:
+  * Fuses `MovingTargetIndicatorFilter` (MOG2) detections with a bank of Kalman filters and bipartite IoU matching, assigning persistent track IDs (`#01`, `#02`, `#03`) across multiple simultaneous targets with speed readings and trajectory trails. Clicking any ID binds the PTZ auto-tracker to that target.
+* **`TurbulenceMitigationFilter` (Heat Shimmer / Atmospheric Distortion Suppression)**:
+  * Counteracts extreme telephoto atmospheric boiling over hot desert sand, runways, or maritime surfaces using temporal multi-frame "Lucky Imaging" patch selection and variance-weighted reconstruction.
+* **`GeometricRangeCalculatorFilter` (Mast Elevation Stadiametric Rangefinder)**:
+  * Computes real-time slant and ground distance to target based on camera elevation angle $\theta_{\text{el}}$ and known mast installation height: $D_{\text{ground}} = H_{\text{mast}} / \tan(-\theta_{\text{el}})$, overlaying live range readings on the OSD HUD.
+* **`RetinexFilter` (Multi-Scale Retinex Night / Shadow Enhancement)**:
+  * Decomposes scenes into reflectance and illumination components using MSRCR, recovering details hidden in dark shadows without washing out high-intensity headlights or perimeter floodlights.
+
+---
+
 ### Recommendation
 
 If you want to stay in the **core architecture & communication layer**, the two best next steps are:
 1. **`ScopedConnectionList`** (to streamline handling multiple connections cleanly).
 2. **`queryAsync()` via `std::future`** (to bring modern C++17 async queries alongside the callback system).
 
-If you want to expand **tools & diagnostics**, adding **PCAP / CSV Traffic Export to the Qt Traffic Inspector** is a high-utility improvement.
+If you want to advance **video analytics & autonomous PTZ tracking**, the highest-impact steps are:
+1. **Target Tracking Scale Adaptation & Appearance Fusion** (eliminating drift and allowing full zoom independence).
+2. **`LoiteringDetectorFilter`** (critical commercial/security surveillance analytics).
+3. **Closed-Loop Auto-Zoom** (completing the full 3-axis autonomous tracking suite).
