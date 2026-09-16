@@ -33,4 +33,14 @@ if(PELCOD_ENABLE_VIDEO)
     )
 endif()
 
+if(PELCOD_ENABLE_ONVIF)
+    target_sources(PelcoDQt PRIVATE
+        QOnvifDevice.h
+        QOnvifDevice.cpp
+    )
+    target_link_libraries(PelcoDQt PUBLIC
+        PelcoDOnvif
+    )
+endif()
+
 apply_compiler_flags(PelcoDQt)

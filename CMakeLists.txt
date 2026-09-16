@@ -43,6 +43,17 @@ if(WIN32)
 endif()
 
 # ==============================================================================
+# ONVIF Subsystem (PelcoDOnvif) Dependencies
+# ==============================================================================
+option(PELCOD_ENABLE_ONVIF "Build in-tree ONVIF Profile S client subsystem" ON)
+if(PELCOD_ENABLE_ONVIF)
+    find_package(CURL REQUIRED)
+    find_package(pugixml CONFIG REQUIRED)
+    find_package(OpenSSL REQUIRED)
+    message(STATUS "PelcoDOnvif: ONVIF Profile S subsystem enabled (curl, pugixml, OpenSSL)")
+endif()
+
+# ==============================================================================
 # Video Subsystem (PelcoDVideo) Dependencies
 # ==============================================================================
 option(PELCOD_ENABLE_VIDEO "Build in-tree RTSP video decoder and overlay subsystem" ON)
@@ -201,6 +212,9 @@ include(GitHooks)
 # ==============================================================================
 
 set(PELCOD_INSTALL_TARGETS PelcoDAppQt PelcoDAppTui PelcoDCore PelcoDQt)
+if(PELCOD_ENABLE_ONVIF)
+    list(APPEND PELCOD_INSTALL_TARGETS PelcoDOnvif)
+endif()
 if(PELCOD_ENABLE_VIDEO)
     list(APPEND PELCOD_INSTALL_TARGETS PelcoDVideo)
 endif()
