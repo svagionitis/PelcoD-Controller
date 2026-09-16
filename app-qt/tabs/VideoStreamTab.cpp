@@ -308,6 +308,16 @@ void VideoStreamTab::setupUi()
     m_chkAppearanceFusion->setToolTip(tr("Fuses color/intensity signature to prevent optical flow drift"));
     visionLayout->addWidget(m_chkAppearanceFusion);
 
+    m_chkTrajectoryTrail = new QCheckBox(tr("  └ Trajectory Trail"), visionGroup);
+    m_chkTrajectoryTrail->setChecked(true);
+    m_chkTrajectoryTrail->setToolTip(tr("Renders temporal decaying motion breadcrumbs for the target"));
+    visionLayout->addWidget(m_chkTrajectoryTrail);
+
+    m_chkPredictiveVector = new QCheckBox(tr("  └ Predictive Vector Overlay"), visionGroup);
+    m_chkPredictiveVector->setChecked(true);
+    m_chkPredictiveVector->setToolTip(tr("Projects future kinematic trajectory and interception reticle"));
+    visionLayout->addWidget(m_chkPredictiveVector);
+
     m_chkAutoFollowPtz = new QCheckBox(tr("Auto-Follow PTZ (PID)"), visionGroup);
     m_chkAutoFollowPtz->setToolTip(tr("Enables closed-loop PID PTZ auto-tracking with Kalman motion estimation"));
     visionLayout->addWidget(m_chkAutoFollowPtz);
@@ -579,6 +589,16 @@ void VideoStreamTab::setupConnections()
     connect(m_chkAppearanceFusion, &QCheckBox::toggled, this, [this](bool checked) {
         if (m_targetTracker) {
             m_targetTracker->setAppearanceFusion(checked);
+        }
+    });
+    connect(m_chkTrajectoryTrail, &QCheckBox::toggled, this, [this](bool checked) {
+        if (m_targetTracker) {
+            m_targetTracker->setTrajectoryTrail(checked);
+        }
+    });
+    connect(m_chkPredictiveVector, &QCheckBox::toggled, this, [this](bool checked) {
+        if (m_targetTracker) {
+            m_targetTracker->setPredictiveVector(checked);
         }
     });
     connect(m_chkAutoZoomFraming, &QCheckBox::toggled, this, [this](bool checked) {
@@ -1062,6 +1082,12 @@ void VideoStreamTab::onFilterConfigurationChanged()
         }
         if (m_chkAppearanceFusion != nullptr) {
             m_targetTracker->setAppearanceFusion(m_chkAppearanceFusion->isChecked());
+        }
+        if (m_chkTrajectoryTrail != nullptr) {
+            m_targetTracker->setTrajectoryTrail(m_chkTrajectoryTrail->isChecked());
+        }
+        if (m_chkPredictiveVector != nullptr) {
+            m_targetTracker->setPredictiveVector(m_chkPredictiveVector->isChecked());
         }
         m_worker->addFrameProcessor(m_targetTracker);
     } else {

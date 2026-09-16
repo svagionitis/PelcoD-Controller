@@ -1212,6 +1212,54 @@ void TestVideoDecoder::testCentroidTargetTrackerFilter()
     QVERIFY(stScaled.width >= 20);
     QVERIFY(stScaled.height >= 20);
     QVERIFY(stScaled.appearanceScore > 0.0);
+
+    // Test Constant Acceleration (CA) Kinematic Model & Adaptive Noise
+    tracker.setAdaptiveProcessNoiseEnabled(true);
+    QVERIFY(tracker.isAdaptiveProcessNoiseEnabled());
+    tracker.setAdaptiveProcessNoiseEnabled(false);
+    QVERIFY(!tracker.isAdaptiveProcessNoiseEnabled());
+    tracker.setAdaptiveProcessNoiseEnabled(true);
+
+    tracker.setTrajectoryTrail(true, 25);
+    QVERIFY(tracker.isTrajectoryTrail());
+    QCOMPARE(tracker.getTrajectoryMaxPoints(), 25);
+    tracker.setTrajectoryTrail(false);
+    QVERIFY(!tracker.isTrajectoryTrail());
+    tracker.setTrajectoryTrail(true, 20);
+
+    tracker.setPredictiveVector(true, 1.2);
+    QVERIFY(tracker.isPredictiveVector());
+    QVERIFY(qFuzzyCompare(tracker.getPredictiveVectorLookahead(), 1.2));
+    tracker.setPredictiveVector(false);
+    QVERIFY(!tracker.isPredictiveVector());
+    tracker.setPredictiveVector(true, 1.5);
+
+    // Feed sequence of accelerated motion frames: position delta increases each frame
+    // Frame 0: x=10, Frame 1: x=12 (+2), Frame 2: x=16 (+4), Frame 3: x=22 (+6), Frame 4: x=30 (+8)
+    tracker.acquireTarget(10, 10, 20, 20);
+    auto fA0 = createSizedBox(10, 10, 20, 20);
+    tracker.process(fA0.data(), w, h, PixelFormat::RGB24);
+
+    auto fA1 = createSizedBox(12, 10, 20, 20);
+    tracker.process(fA1.data(), w, h, PixelFormat::RGB24);
+
+    auto fA2 = createSizedBox(16, 10, 20, 20);
+    tracker.process(fA2.data(), w, h, PixelFormat::RGB24);
+
+    auto fA3 = createSizedBox(22, 10, 20, 20);
+    tracker.process(fA3.data(), w, h, PixelFormat::RGB24);
+
+    auto fA4 = createSizedBox(30, 10, 20, 20);
+    tracker.process(fA4.data(), w, h, PixelFormat::RGB24);
+
+    auto stAccel = tracker.getTargetState();
+    QVERIFY(stAccel.locked);
+    QVERIFY(stAccel.vx > 0.0);
+    QVERIFY(stAccel.ax > 0.0); // Positive acceleration along X detected by 6-state CA filter
+
+    // Test quadratic lookahead prediction with acceleration
+    auto stPred = tracker.getTargetState(0.10);
+    QVERIFY(stPred.predictedErrorX > stAccel.errorX);
 }
 
 void TestVideoDecoder::testPerimeterTripwireFilter()

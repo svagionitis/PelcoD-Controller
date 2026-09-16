@@ -140,6 +140,8 @@ private:
     QCheckBox* m_chkTargetLock { nullptr };
     QCheckBox* m_chkScaleAdaptation { nullptr };
     QCheckBox* m_chkAppearanceFusion { nullptr };
+    QCheckBox* m_chkTrajectoryTrail { nullptr };
+    QCheckBox* m_chkPredictiveVector { nullptr };
     QCheckBox* m_chkAutoFollowPtz { nullptr };
     QCheckBox* m_chkAutoZoomFraming { nullptr };
     QCheckBox* m_chkPredictiveLead { nullptr };

@@ -11,6 +11,7 @@
 #include <chrono>
 #include <cmath>
 #include <ctime>
+#include <deque>
 #include <fstream>
 #include <iomanip>
 #include <numeric>
@@ -1830,7 +1831,9 @@ struct CentroidTargetTrackerFilter::Impl {
     bool kalmanInitialized { false };
     float qPos { 1e-2f };
     float qVel { 1e-1f };
+    float qAcc { 1e-1f };
     float rPos { 1e-1f };
+    bool adaptiveNoise { true };
 
     bool scaleAdaptation { true };
     bool appearanceFusion { true };
@@ -1839,23 +1842,36 @@ struct CentroidTargetTrackerFilter::Impl {
     double initialHeight { 40.0 };
     cv::Mat modelHist;
 
+    bool trajectoryTrail { true };
+    int maxTrajectoryPoints { 30 };
+    std::deque<cv::Point2f> trajectoryHistory;
+
+    bool predictiveVector { true };
+    double predictiveVectorLookahead { 1.5 };
+
     void initKalman(float initX, float initY)
     {
-        kalman.init(4, 2, 0, CV_32F);
-        kalman.transitionMatrix = (cv::Mat_<float>(4, 4) << 1.0f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f, 1.0f, 0.0f, 0.0f,
-            1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f);
+        kalman.init(6, 2, 0, CV_32F);
+        kalman.transitionMatrix = (cv::Mat_<float>(6, 6) << 1.0f, 0.0f, 1.0f, 0.0f, 0.5f, 0.0f, 0.0f, 1.0f, 0.0f, 1.0f,
+            0.0f, 0.5f, 0.0f, 0.0f, 1.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f,
+            1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f);
 
-        kalman.measurementMatrix = (cv::Mat_<float>(2, 4) << 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f);
+        kalman.measurementMatrix
+            = (cv::Mat_<float>(2, 6) << 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f);
 
-        cv::setIdentity(kalman.processNoiseCov, cv::Scalar::all(static_cast<double>(qPos)));
+        cv::setIdentity(kalman.processNoiseCov, cv::Scalar::all(0.0));
+        kalman.processNoiseCov.at<float>(0, 0) = qPos;
+        kalman.processNoiseCov.at<float>(1, 1) = qPos;
         kalman.processNoiseCov.at<float>(2, 2) = qVel;
         kalman.processNoiseCov.at<float>(3, 3) = qVel;
+        kalman.processNoiseCov.at<float>(4, 4) = qAcc;
+        kalman.processNoiseCov.at<float>(5, 5) = qAcc;
 
         cv::setIdentity(kalman.measurementNoiseCov, cv::Scalar::all(static_cast<double>(rPos)));
         cv::setIdentity(kalman.errorCovPost, cv::Scalar::all(1.0));
         cv::setIdentity(kalman.errorCovPre, cv::Scalar::all(1.0));
 
-        kalman.statePost = (cv::Mat_<float>(4, 1) << initX, initY, 0.0f, 0.0f);
+        kalman.statePost = (cv::Mat_<float>(6, 1) << initX, initY, 0.0f, 0.0f, 0.0f, 0.0f);
         kalman.statePre = kalman.statePost.clone();
         kalmanInitialized = true;
     }
@@ -1983,6 +1999,7 @@ void CentroidTargetTrackerFilter::acquireTarget(int x, int y, int width, int hei
     m_impl->initialHeight = static_cast<double>(m_impl->targetRect.height);
     m_impl->modelHist.release();
     m_impl->trackedPoints.clear();
+    m_impl->trajectoryHistory.clear();
     m_impl->lostFrames = 0;
     m_impl->state.locked = true;
     m_impl->state.isCoasting = false;
@@ -1990,6 +2007,10 @@ void CentroidTargetTrackerFilter::acquireTarget(int x, int y, int width, int hei
     m_impl->state.y = y;
     m_impl->state.width = width;
     m_impl->state.height = height;
+    m_impl->state.vx = 0.0;
+    m_impl->state.vy = 0.0;
+    m_impl->state.ax = 0.0;
+    m_impl->state.ay = 0.0;
     m_impl->state.scaleFactor = 1.0;
     m_impl->state.appearanceScore = 1.0;
     m_impl->state.confidence = 1.0;
@@ -2012,6 +2033,7 @@ void CentroidTargetTrackerFilter::releaseTarget()
     m_impl->targetRect = cv::Rect();
     m_impl->modelHist.release();
     m_impl->trackedPoints.clear();
+    m_impl->trajectoryHistory.clear();
     m_impl->lostFrames = 0;
     m_impl->kalmanInitialized = false;
     m_impl->state = TargetState();
@@ -2042,10 +2064,10 @@ CentroidTargetTrackerFilter::TargetState CentroidTargetTrackerFilter::getTargetS
         }
         if (lookaheadLatencySeconds > 0.0 && m_impl->lastWidth > 0 && m_impl->lastHeight > 0) {
             const double framesAhead = lookaheadLatencySeconds * 30.0;
-            const double predCx
-                = static_cast<double>(copy.x) + static_cast<double>(copy.width) / 2.0 + copy.vx * framesAhead;
-            const double predCy
-                = static_cast<double>(copy.y) + static_cast<double>(copy.height) / 2.0 + copy.vy * framesAhead;
+            const double predCx = static_cast<double>(copy.x) + static_cast<double>(copy.width) / 2.0
+                + copy.vx * framesAhead + 0.5 * copy.ax * framesAhead * framesAhead;
+            const double predCy = static_cast<double>(copy.y) + static_cast<double>(copy.height) / 2.0
+                + copy.vy * framesAhead + 0.5 * copy.ay * framesAhead * framesAhead;
             const double halfW = static_cast<double>(m_impl->lastWidth) / 2.0;
             const double halfH = static_cast<double>(m_impl->lastHeight) / 2.0;
             copy.predictedErrorX = (predCx - halfW) / halfW;
@@ -2075,12 +2097,21 @@ int CentroidTargetTrackerFilter::getMaxCoastFrames() const noexcept
     return 30;
 }
 
-void CentroidTargetTrackerFilter::setProcessNoise(double qPos, double qVel) noexcept
+void CentroidTargetTrackerFilter::setProcessNoise(double qPos, double qVel, double qAcc) noexcept
 {
     if (m_impl) {
         std::lock_guard<std::mutex> lock(m_impl->stateMutex);
         m_impl->qPos = static_cast<float>(std::max(1e-6, qPos));
         m_impl->qVel = static_cast<float>(std::max(1e-6, qVel));
+        m_impl->qAcc = static_cast<float>(std::max(1e-6, qAcc));
+        if (m_impl->kalmanInitialized) {
+            m_impl->kalman.processNoiseCov.at<float>(0, 0) = m_impl->qPos;
+            m_impl->kalman.processNoiseCov.at<float>(1, 1) = m_impl->qPos;
+            m_impl->kalman.processNoiseCov.at<float>(2, 2) = m_impl->qVel;
+            m_impl->kalman.processNoiseCov.at<float>(3, 3) = m_impl->qVel;
+            m_impl->kalman.processNoiseCov.at<float>(4, 4) = m_impl->qAcc;
+            m_impl->kalman.processNoiseCov.at<float>(5, 5) = m_impl->qAcc;
+        }
     }
 }
 
@@ -2090,6 +2121,80 @@ void CentroidTargetTrackerFilter::setMeasurementNoise(double rPos) noexcept
         std::lock_guard<std::mutex> lock(m_impl->stateMutex);
         m_impl->rPos = static_cast<float>(std::max(1e-6, rPos));
     }
+}
+
+void CentroidTargetTrackerFilter::setAdaptiveProcessNoiseEnabled(bool enabled) noexcept
+{
+    if (m_impl) {
+        std::lock_guard<std::mutex> lock(m_impl->stateMutex);
+        m_impl->adaptiveNoise = enabled;
+    }
+}
+
+bool CentroidTargetTrackerFilter::isAdaptiveProcessNoiseEnabled() const noexcept
+{
+    if (m_impl) {
+        std::lock_guard<std::mutex> lock(m_impl->stateMutex);
+        return m_impl->adaptiveNoise;
+    }
+    return true;
+}
+
+void CentroidTargetTrackerFilter::setTrajectoryTrail(bool enabled, int maxPoints) noexcept
+{
+    if (m_impl) {
+        std::lock_guard<std::mutex> lock(m_impl->stateMutex);
+        m_impl->trajectoryTrail = enabled;
+        m_impl->maxTrajectoryPoints = std::clamp(maxPoints, 5, 200);
+        if (!enabled) {
+            m_impl->trajectoryHistory.clear();
+        }
+    }
+}
+
+bool CentroidTargetTrackerFilter::isTrajectoryTrail() const noexcept
+{
+    if (m_impl) {
+        std::lock_guard<std::mutex> lock(m_impl->stateMutex);
+        return m_impl->trajectoryTrail;
+    }
+    return true;
+}
+
+int CentroidTargetTrackerFilter::getTrajectoryMaxPoints() const noexcept
+{
+    if (m_impl) {
+        std::lock_guard<std::mutex> lock(m_impl->stateMutex);
+        return m_impl->maxTrajectoryPoints;
+    }
+    return 30;
+}
+
+void CentroidTargetTrackerFilter::setPredictiveVector(bool enabled, double lookaheadSeconds) noexcept
+{
+    if (m_impl) {
+        std::lock_guard<std::mutex> lock(m_impl->stateMutex);
+        m_impl->predictiveVector = enabled;
+        m_impl->predictiveVectorLookahead = std::clamp(lookaheadSeconds, 0.1, 5.0);
+    }
+}
+
+bool CentroidTargetTrackerFilter::isPredictiveVector() const noexcept
+{
+    if (m_impl) {
+        std::lock_guard<std::mutex> lock(m_impl->stateMutex);
+        return m_impl->predictiveVector;
+    }
+    return true;
+}
+
+double CentroidTargetTrackerFilter::getPredictiveVectorLookahead() const noexcept
+{
+    if (m_impl) {
+        std::lock_guard<std::mutex> lock(m_impl->stateMutex);
+        return m_impl->predictiveVectorLookahead;
+    }
+    return 1.5;
 }
 
 void CentroidTargetTrackerFilter::setScaleAdaptation(bool enabled) noexcept
@@ -2300,12 +2405,29 @@ void CentroidTargetTrackerFilter::process(uint8_t* data, int width, int height, 
                     }
 
                     if (m_impl->kalmanInitialized) {
+                        if (!prediction.empty()) {
+                            const float innovX = measCenterX - prediction.at<float>(0);
+                            const float innovY = measCenterY - prediction.at<float>(1);
+                            const float innovNorm = std::sqrt(innovX * innovX + innovY * innovY);
+
+                            if (m_impl->adaptiveNoise) {
+                                const float scale = std::clamp(innovNorm / 3.0f, 1.0f, 10.0f);
+                                m_impl->kalman.processNoiseCov.at<float>(4, 4) = m_impl->qAcc * scale * scale;
+                                m_impl->kalman.processNoiseCov.at<float>(5, 5) = m_impl->qAcc * scale * scale;
+                            } else {
+                                m_impl->kalman.processNoiseCov.at<float>(4, 4) = m_impl->qAcc;
+                                m_impl->kalman.processNoiseCov.at<float>(5, 5) = m_impl->qAcc;
+                            }
+                        }
+
                         cv::Mat measurement = (cv::Mat_<float>(2, 1) << measCenterX, measCenterY);
                         cv::Mat estimated = m_impl->kalman.correct(measurement);
                         const float estCenterX = estimated.at<float>(0);
                         const float estCenterY = estimated.at<float>(1);
                         m_impl->state.vx = static_cast<double>(estimated.at<float>(2));
                         m_impl->state.vy = static_cast<double>(estimated.at<float>(3));
+                        m_impl->state.ax = static_cast<double>(estimated.at<float>(4));
+                        m_impl->state.ay = static_cast<double>(estimated.at<float>(5));
 
                         m_impl->targetRect.x = std::clamp(static_cast<int>(std::round(estCenterX
                                                               - static_cast<float>(m_impl->targetRect.width) / 2.0f)),
@@ -2322,6 +2444,8 @@ void CentroidTargetTrackerFilter::process(uint8_t* data, int width, int height, 
                             height - m_impl->targetRect.height);
                         m_impl->state.vx = static_cast<double>(meanShift.x);
                         m_impl->state.vy = static_cast<double>(meanShift.y);
+                        m_impl->state.ax = 0.0;
+                        m_impl->state.ay = 0.0;
                     }
 
                     m_impl->trackedPoints = goodNext;
@@ -2339,6 +2463,8 @@ void CentroidTargetTrackerFilter::process(uint8_t* data, int width, int height, 
                     const float predCenterY = prediction.at<float>(1);
                     m_impl->state.vx = static_cast<double>(prediction.at<float>(2));
                     m_impl->state.vy = static_cast<double>(prediction.at<float>(3));
+                    m_impl->state.ax = static_cast<double>(prediction.at<float>(4));
+                    m_impl->state.ay = static_cast<double>(prediction.at<float>(5));
 
                     m_impl->targetRect.x = std::clamp(
                         static_cast<int>(std::round(predCenterX - static_cast<float>(m_impl->targetRect.width) / 2.0f)),
@@ -2354,6 +2480,7 @@ void CentroidTargetTrackerFilter::process(uint8_t* data, int width, int height, 
                     m_impl->state.locked = false;
                     m_impl->state.isCoasting = false;
                     m_impl->kalmanInitialized = false;
+                    m_impl->trajectoryHistory.clear();
                     m_impl->targetRect = cv::Rect();
                 }
             }
@@ -2402,11 +2529,57 @@ void CentroidTargetTrackerFilter::process(uint8_t* data, int width, int height, 
         cv::line(mat, cv::Point(r.x + r.width / 2, r.y + r.height / 2 - 4),
             cv::Point(r.x + r.width / 2, r.y + r.height / 2 + 4), lockColor, 1);
 
-        // Velocity vector projection
         const cv::Point centerPt(r.x + r.width / 2, r.y + r.height / 2);
-        const cv::Point arrowEnd(centerPt.x + static_cast<int>(std::round(m_impl->state.vx * 4.0)),
-            centerPt.y + static_cast<int>(std::round(m_impl->state.vy * 4.0)));
-        cv::arrowedLine(mat, centerPt, arrowEnd, lockColor, 1, cv::LINE_AA, 0, 0.3);
+
+        // Trajectory breadcrumbs path
+        if (m_impl->trajectoryTrail) {
+            m_impl->trajectoryHistory.push_back(
+                cv::Point2f(static_cast<float>(centerPt.x), static_cast<float>(centerPt.y)));
+            while (m_impl->trajectoryHistory.size() > static_cast<std::size_t>(m_impl->maxTrajectoryPoints)) {
+                m_impl->trajectoryHistory.pop_front();
+            }
+
+            const std::size_t nPts = m_impl->trajectoryHistory.size();
+            for (std::size_t i = 1U; i < nPts; ++i) {
+                const double alpha = static_cast<double>(i) / static_cast<double>(nPts);
+                cv::Scalar segColor = lockColor * alpha;
+                cv::line(mat, cv::Point(m_impl->trajectoryHistory[i - 1]), cv::Point(m_impl->trajectoryHistory[i]),
+                    segColor, 1, cv::LINE_AA);
+                if (i % 3 == 0 || i == nPts - 1) {
+                    const int radius = std::max(1, static_cast<int>(std::round(1.0 + 2.0 * alpha)));
+                    cv::circle(mat, cv::Point(m_impl->trajectoryHistory[i]), radius, segColor, -1, cv::LINE_AA);
+                }
+            }
+        }
+
+        // Predictive lead vector & interception reticle projection
+        if (m_impl->predictiveVector && (std::abs(m_impl->state.vx) > 0.05 || std::abs(m_impl->state.vy) > 0.05)) {
+            const double fps = 30.0;
+            const double framesAhead = m_impl->predictiveVectorLookahead * fps;
+            const double predX = static_cast<double>(centerPt.x) + m_impl->state.vx * framesAhead
+                + 0.5 * m_impl->state.ax * framesAhead * framesAhead;
+            const double predY = static_cast<double>(centerPt.y) + m_impl->state.vy * framesAhead
+                + 0.5 * m_impl->state.ay * framesAhead * framesAhead;
+            const cv::Point futurePt(std::clamp(static_cast<int>(std::round(predX)), 0, width - 1),
+                std::clamp(static_cast<int>(std::round(predY)), 0, height - 1));
+
+            // Forward-projecting vector arrow
+            cv::arrowedLine(mat, centerPt, futurePt, lockColor, 2, cv::LINE_AA, 0, 0.15);
+
+            // Interception reticle and lookahead label
+            cv::circle(mat, futurePt, 5, lockColor, 1, cv::LINE_AA);
+            cv::drawMarker(mat, futurePt, lockColor, cv::MARKER_CROSS, 8, 1, cv::LINE_AA);
+
+            char timeBuf[16];
+            std::snprintf(timeBuf, sizeof(timeBuf), "+%.1fs", m_impl->predictiveVectorLookahead);
+            cv::putText(mat, timeBuf, cv::Point(futurePt.x + 6, futurePt.y - 4), cv::FONT_HERSHEY_PLAIN, 0.8, lockColor,
+                1, cv::LINE_AA);
+        } else {
+            // Standard velocity vector projection
+            const cv::Point arrowEnd(centerPt.x + static_cast<int>(std::round(m_impl->state.vx * 4.0)),
+                centerPt.y + static_cast<int>(std::round(m_impl->state.vy * 4.0)));
+            cv::arrowedLine(mat, centerPt, arrowEnd, lockColor, 1, cv::LINE_AA, 0, 0.3);
+        }
 
         std::string tag;
         if (m_impl->state.isCoasting) {

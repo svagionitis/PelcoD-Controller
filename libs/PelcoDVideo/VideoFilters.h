@@ -1338,6 +1338,8 @@ public:
         double errorY { 0.0 }; ///< Normalized Y offset from boresight (-1.0 up to +1.0 down)
         double vx { 0.0 }; ///< Target velocity X in px/frame
         double vy { 0.0 }; ///< Target velocity Y in px/frame
+        double ax { 0.0 }; ///< Target acceleration X in px/frame^2
+        double ay { 0.0 }; ///< Target acceleration Y in px/frame^2
         double confidence { 0.0 }; ///< Tracking confidence (0.0 to 1.0)
         bool locked { false };
         bool isCoasting { false }; ///< True if target is temporarily occluded and coasting on prediction
@@ -1376,8 +1378,10 @@ public:
 
     void setMaxCoastFrames(int frames) noexcept;
     int getMaxCoastFrames() const noexcept;
-    void setProcessNoise(double qPos, double qVel) noexcept;
+    void setProcessNoise(double qPos, double qVel, double qAcc = 1e-1) noexcept;
     void setMeasurementNoise(double rPos) noexcept;
+    void setAdaptiveProcessNoiseEnabled(bool enabled) noexcept;
+    bool isAdaptiveProcessNoiseEnabled() const noexcept;
 
     void setScaleAdaptation(bool enabled) noexcept;
     bool isScaleAdaptation() const noexcept;
@@ -1385,6 +1389,14 @@ public:
     bool isAppearanceFusion() const noexcept;
     void setAppearanceLearningRate(double rate) noexcept;
     double getAppearanceLearningRate() const noexcept;
+
+    void setTrajectoryTrail(bool enabled, int maxPoints = 30) noexcept;
+    bool isTrajectoryTrail() const noexcept;
+    int getTrajectoryMaxPoints() const noexcept;
+
+    void setPredictiveVector(bool enabled, double lookaheadSeconds = 1.5) noexcept;
+    bool isPredictiveVector() const noexcept;
+    double getPredictiveVectorLookahead() const noexcept;
 
 private:
     bool m_autoAcquire;
