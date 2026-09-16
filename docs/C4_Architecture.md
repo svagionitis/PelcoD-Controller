@@ -11,34 +11,36 @@ The System Context diagram outlines the Pelco-D Controller boundary, its human o
 ### ASCII Diagram
 
 ```text
-+-------------------------------------------------------------------------------+
-|                                 OPERATOR                                      |
-|            (Surveillance Operator, Field Technician, Robotics Engineer)       |
-+-------------------------------------------------------------------------------+
-                                      |
-                                      | Interacts with GUI / Terminal / Commands
-                                      v
-+-------------------------------------------------------------------------------+
-|                           PELCO-D CONTROLLER SYSTEM                           |
-|                                                                               |
-|  - Desktop GUI Application (PelcoDAppQt)                                      |
-|  - Zero-Dependency Terminal Client (PelcoDAppTui)                             |
-|  - Qt 6 Asynchronous Signal/Slot Adapter (PelcoDQt)                           |
-|  - Pure C++17 Protocol & Hardware Abstraction Engine (PelcoDCore)             |
-+-------------------------------------------------------------------------------+
-           |                                  |                        |
-           | RS-485 Half/Full Duplex          | TCP/IP (Raw Socket)    | Direct Memory
-           v                                  v                        v
-+-----------------------+          +--------------------+    +------------------+
-|  PHYSICAL PTZ DEVICE  |          |  IP SERIAL SERVER  |    |  MOCK EMULATOR   |
-| (Pan/Tilt Head, Dome, |          | (Moxa, Perle, ESP) |    | (In-Memory PTZ   |
-|  Gimbal, Receiver)    |          |         |          |    |  Virtual Device) |
-+-----------------------+          +---------+----------+    +------------------+
-                                             | RS-485
-                                             v
-                                   +--------------------+
-                                   | PHYSICAL PTZ DEVICE|
-                                   +--------------------+
++---------------------------------------------------------------------------------------------------+
+|                                             OPERATOR                                              |
+|                    (Surveillance Operator, Field Technician, Robotics Engineer)                   |
++---------------------------------------------------------------------------------------------------+
+                                                  |
+                                                  | Interacts with GUI / Terminal / CLI Commands
+                                                  v
++---------------------------------------------------------------------------------------------------+
+|                                     PELCO-D CONTROLLER SYSTEM                                     |
+|                                                                                                   |
+|  - Desktop GUI Application (PelcoDAppQt): Video, HUD, D-Pad, Presets, ONVIF Tab, RTT Profiler     |
+|  - Zero-Dependency Terminal Client (PelcoDAppTui): Braille Video, PTZ Compass, ONVIF CLI Tools   |
+|  - Qt 6 Asynchronous Signal/Slot Adapter (PelcoDQt)                                               |
+|  - Tactical Video Streaming & Computer Vision Pipeline (PelcoDVideo)                              |
+|  - Standalone ONVIF Profile S & T Client Engine (PelcoDOnvif)                                     |
+|  - Pure C++17 Protocol, Transports, Tracking & Hardware Abstraction (PelcoDCore)                  |
++---------------------------------------------------------------------------------------------------+
+         |                       |                     |                     |               |
+         | RS-485                | TCP/IP (Raw Socket) | HTTP SOAP / WS-Sec  | RTSP / RTP    | Direct Memory
+         v                       v                     v                     v               v
++------------------+   +-------------------+  +-------------------+  +---------------+ +---------------+
+| PHYSICAL PELCO-D |   | IP SERIAL SERVER  |  | ONVIF IP CAMERA   |  | RTSP STREAM / | | MOCK HARDWARE |
+| (Pan/Tilt Head,  |   | (Moxa, Perle, ESP)|  | (Profile S & T:   |  | NETWORK VIDEO | | & SMPTE VIDEO |
+|  Dome, Gimbal)   |   |         |         |  |  PTZ, Img, Events)|  | (H.264/RTSP)   | |  EMULATORS    |
++------------------+   +---------+---------+  +-------------------+  +---------------+ +---------------+
+                                 | RS-485
+                                 v
+                       +-------------------+
+                       | PHYSICAL PELCO-D  |
+                       +-------------------+
 ```
 
 ### Mermaid Diagram
@@ -49,17 +51,21 @@ C4Context
 
     Person(operator, "Operator", "Surveillance Operator, Field Technician, Robotics Engineer")
     
-    System(pelcoSystem, "Pelco-D Controller System", "C++17 / Qt 6 GUI (PelcoDAppQt) and zero-dependency terminal client (PelcoDAppTui) providing PTZ controls, diagnostics, telemetry, and live traffic analysis.")
+    System(pelcoSystem, "Pelco-D Controller System", "C++17 / Qt 6 GUI (PelcoDAppQt) and terminal client (PelcoDAppTui) providing PTZ controls, tactical video analytics, ONVIF Profile S/T integration, RTT profiling, and traffic analysis.")
 
     System_Ext(ptzDevice, "Physical Pelco-D Device", "Pan/Tilt head, motorized gimbal, dome camera, or receiver/driver via RS-485 serial bus.")
     System_Ext(tcpServer, "IP / Ethernet Serial Server", "Terminal server or raw socket bridge routing Pelco-D packets over TCP/IP.")
-    SystemDb_Ext(mockDevice, "Mock Pelco-D Emulator", "In-memory virtual hardware emulator supporting telemetry, presets, and diagnostic queries.")
+    System_Ext(onvifDevice, "ONVIF IP Camera", "Profile S and Profile T compliant IP camera supporting SOAP PTZ, Imaging, and PullPoint event services.")
+    System_Ext(rtspStream, "RTSP / Media Stream", "RTSP/RTP network stream or video capture device providing live H.264/HEVC video.")
+    SystemDb_Ext(mockDevice, "Mock Emulators", "In-memory virtual hardware emulator (kinematics, presets) and synthetic SMPTE color-bar video generator.")
 
-    Rel(operator, pelcoSystem, "Sends PTZ commands, manages presets, monitors telemetry", "GUI / TUI / Keyboard")
-    Rel(pelcoSystem, ptzDevice, "Transmits 7-byte/18-byte Pelco-D command packets; receives status responses", "RS-485 Serial (2400-115200 baud)")
+    Rel(operator, pelcoSystem, "Controls PTZ, monitors video, manages presets, inspects traffic", "GUI / TUI / CLI")
+    Rel(pelcoSystem, ptzDevice, "Transmits 7-byte Pelco-D command packets; receives status responses", "RS-485 Serial (2400-115200 baud)")
     Rel(pelcoSystem, tcpServer, "Transmits Pelco-D frames wrapped in TCP byte stream", "TCP/IP Sockets")
     Rel(tcpServer, ptzDevice, "Forwards frames to RS-485 bus", "RS-485")
-    Rel(pelcoSystem, mockDevice, "Simulates hardware responses without physical devices", "Direct Memory / C++ Callbacks")
+    Rel(pelcoSystem, onvifDevice, "Queries device capabilities, triggers PTZ, tunes imaging, polls events", "HTTP / SOAP (WS-Security)")
+    Rel(pelcoSystem, rtspStream, "Decodes and displays live video feeds with tactical filters", "RTSP / RTP (FFmpeg / GStreamer)")
+    Rel(pelcoSystem, mockDevice, "Simulates hardware & video frames without physical equipment", "Direct Memory / In-Process")
 ```
 
 ---
@@ -71,43 +77,51 @@ The Container diagram illustrates the high-level software containers that form t
 ### ASCII Diagram
 
 ```text
-+-----------------------------------------------------------------------------------------------+
-|                                      PELCO-D CONTROLLER                                       |
-|                                                                                               |
-|  +--------------------------------------------+  +-----------------------------------------+  |
-|  | PelcoDAppQt (Desktop Executable)           |  | PelcoDAppTui (Console Executable)       |  |
-|  | Technology: C++17, Qt 6 Widgets, Modern QSS|  | Technology: Pure C++17, POSIX termios   |  |
-|  | Responsibility: Full GUI, D-Pad, Tabs.     |  | Responsibility: TUI Canvas, PTZ Compass |  |
-|  +--------------------------------------------+  +-----------------------------------------+  |
-|                         |                                             |                       |
-|                         | Qt Signals / Slots                          | Direct C++ API        |
-|                         v                                             | & Callbacks           |
-|  +--------------------------------------------+                       |                       |
-|  | PelcoDQt (Static / Shared Library)         |                       |                       |
-|  | Technology: C++17, Qt 6 Core               |                       |                       |
-|  | Responsibility: QPelcoDDevice facade.      |                       |                       |
-|  +--------------------------------------------+                       |                       |
-|                         |                                             |                       |
-|                         | Pure C++ Calls / std::function Callbacks    |                       |
-|                         v                                             v                       |
-|  +-----------------------------------------------------------------------------------------+  |
-|  | PelcoDCore (Static Library - Zero Qt Dependencies)                                      |  |
-|  | Technology: Pure C++17, POSIX / Win32, glog, CMake Compiler Flags                       |  |
-|  | Responsibility: Protocol framing, lock-free ring buffer, command queue                  |  |
-|  |                 pacing (15-20ms), transport abstraction, telemetry.                     |  |
-|  +-----------------------------------------------------------------------------------------+  |
-|                         |                                             |                       |
-+-------------------------|---------------------------------------------|-----------------------+
-                          |                                             |
-                          | Native OS System Calls                      | Native Socket Calls
-                          v                                             v
-              +-----------------------+                     +-----------------------+
-              | Linux termios /       |                     | Linux BSD Sockets /   |
-              | Win32 Comm API        |                     | Windows Winsock2      |
-              +-----------------------+                     +-----------------------+
-                          |                                             |
-                          v                                             v
-                [ Hardware Serial Port ]                       [ Ethernet Network ]
++-------------------------------------------------------------------------------------------------------------------------------+
+|                                                      PELCO-D CONTROLLER                                                       |
+|                                                                                                                               |
+|  +-----------------------------------------------------------+  +----------------------------------------------------------+  |
+|  | PelcoDAppQt (Desktop GUI Executable)                      |  | PelcoDAppTui (Console & CLI Executable)                  |  |
+|  | Technology: C++17, Qt 6 Widgets, Modern Dark QSS          |  | Technology: Pure C++17, POSIX termios / Win32 Console   |  |
+|  | Features: Video Canvas, HUD Overlays, ONVIF Tab, D-Pad,  |  | Features: Braille Video, PTZ Compass, Traffic Inspector, |  |
+|  |           RTT Profiler, Bus Scanner, Fujinon Optics.      |  |           Bus Scanner, ONVIF CLI Discovery & Diagnostics.|  |
+|  +-----------------------------------------------------------+  +----------------------------------------------------------+  |
+|                         |                                                                     |                               |
+|                         | Qt Signals & Slots                                                  | Direct C++ API & Callbacks    |
+|                         v                                                                     |                               |
+|  +-----------------------------------------------------------+                                |                               |
+|  | PelcoDQt (Qt 6 Adapter Library)                           |                                |                               |
+|  | Technology: C++17, Qt 6 Core & Threading                  |                                |                               |
+|  | Adapters: QPelcoDDevice, QFujinonSX800Device,             |                                |                               |
+|  |           QVideoStreamWorker, QOnvifDevice, QRttProfiler. |                                |                               |
+|  +-----------------------------------------------------------+                                |                               |
+|             |                              |                         |                        |                               |
+|             | Calls C++ API                | Video Frames            | SOAP / Signals         |                               |
+|             v                              v                         v                        |                               |
+|  +-----------------------+   +----------------------------+   +----------------------------+  |                               |
+|  | PelcoDCore            |   | PelcoDVideo                |   | PelcoDOnvif                |  |                               |
+|  | Technology: Pure C++17|   | Technology: Pure C++17,    |   | Technology: Pure C++17,    |<-+                               |
+|  |             Zero Qt   |   |   OpenCV 4, FFmpeg, GStrm  |   |   libcurl, pugixml, Zero Qt|                                  |
+|  | Responsibilities:    |   | Responsibilities:          |   | Responsibilities:          |                                  |
+|  | - Protocol Framing    |   | - AtomicTripleBuffer (wait-|   | - WS-Discovery (Multicast) |                                  |
+|  | - Transports (Serial, |   |   free, zero-copy display) |   | - WS-Security (SHA-1 dig.) |                                  |
+|  |   TCP, UDP, Mock)     |   | - FFmpeg & GStreamer dec.  |   | - Profile S (PTZ, Media,   |                                  |
+|  | - PtzAutoTracker (CA  |   | - Tactical Filter Pipeline |   |   GetStreamUri/Snapshot)   |                                  |
+|  |   Kalman, PID, Zoom)  |   |   (Dehaze, CLAHE, Shimmer, |   | - Profile T (Imaging,      |                                  |
+|  | - BusScanner / RTT    |   |   Thermal, LK Tracking)    |   |   PullPoint Events)        |                                  |
+|  +-----------------------+   +----------------------------+   +----------------------------+                                  |
+|             |                              |                                |                                                 |
++-------------|------------------------------|--------------------------------|-------------------------------------------------+
+              |                              |                                |
+              | Native OS Calls              | RTSP / RTP Network Packets     | HTTP / SOAP Wire Calls
+              v                              v                                v
+  +-----------------------+      +-----------------------+        +-----------------------+
+  | Linux termios /       |      | Network Socket Stack  |        | HTTP Network Client   |
+  | Win32 Comm / Winsock2 |      | (libavformat/GStreamer|        | (libcurl / OS Sockets)|
+  +-----------------------+      +-----------------------+        +-----------------------+
+              |                              |                                |
+              v                              v                                v
+   [ Hardware Serial / TCP ]      [ RTSP IP Video Stream ]         [ ONVIF IP PTZ Camera ]
 ```
 
 ### Mermaid Diagram
@@ -115,27 +129,34 @@ The Container diagram illustrates the high-level software containers that form t
 ```mermaid
 C4Container
     title Container Diagram - Pelco-D Controller System
+    
+    Person(user, "Operator", "Operates PTZ hardware, monitors live video feeds, tracks targets")
 
-    Person(user, "User / Operator", "Operates PTZ hardware or tests integrations")
+    Container(appQt, "PelcoDAppQt", "C++17, Qt 6 Widgets", "Main GUI application with live video canvas, tactical HUD, D-pad, ONVIF Profile S/T tab, RTT profiler, and bus scanner.")
+    Container(appTui, "PelcoDAppTui", "Pure C++17, termios / Win32", "Zero-dependency console application with double-buffered canvas, terminal Braille video playback, PTZ compass, and ONVIF CLI discovery tools.")
+    Container(qtAdapter, "PelcoDQt", "C++17, Qt 6 Core", "Qt adapter layer wrapping core C++ objects (QPelcoDDevice, QVideoStreamWorker, QOnvifDevice, QRttProfiler).")
+    Container(coreLib, "PelcoDCore", "Pure C++17, Zero Qt", "Core library containing protocol framing, command pacing, transports, PtzAutoTracker (CA Kalman/PID), BusScanner, and RttProfiler.")
+    Container(videoLib, "PelcoDVideo", "Pure C++17, OpenCV, FFmpeg, GStreamer", "Video decoding pipeline with AtomicTripleBuffer, tactical filters (Dehaze, CLAHE, Shimmer, Thermal, LK), and BrailleRenderer.")
+    Container(onvifLib, "PelcoDOnvif", "Pure C++17, libcurl, pugixml", "ONVIF Profile S and T SOAP client handling WS-Discovery, WS-Security, Media, PTZ, Imaging, and PullPoint event streams.")
 
-    Container(appQt, "PelcoDAppQt", "C++17, Qt 6 Widgets", "Main GUI application containing D-pad controls, presets, settings, and traffic inspector.")
-    Container(appTui, "PelcoDAppTui", "Pure C++17, POSIX termios", "Zero-dependency console TUI application with double-buffered canvas, PTZ compass, and diagnostic views.")
-    Container(qtAdapter, "PelcoDQt", "C++17, Qt 6 Core", "Adapter layer exposing QPelcoDDevice with asynchronous Qt signals and slots.")
-    Container(coreLib, "PelcoDCore", "Pure C++17, Zero Qt", "Core library containing protocol builders, stream parsers, lock-free ring, and transports.")
-
-    System_Ext(serialPort, "OS Serial Subsystem", "Linux /dev/ttyUSB* or Windows COM* serial driver.")
-    System_Ext(tcpSocket, "OS Socket Subsystem", "TCP/IP protocol stack (BSD sockets / Winsock2).")
-    System_Ext(hardware, "PTZ Device / Gimbal", "Physical Pelco-D target receiver or dome.")
+    System_Ext(serialPort, "Serial Port (RS-485)", "Native POSIX termios or Win32 Comm API.")
+    System_Ext(tcpSocket, "Ethernet Serial Server", "Raw TCP/IP stream forwarding Pelco-D frames.")
+    System_Ext(rtspSource, "RTSP / Video Source", "RTSP/RTP network stream or capture device.")
+    System_Ext(onvifCam, "ONVIF IP Camera", "Network camera responding to SOAP Profile S/T requests.")
 
     Rel(user, appQt, "Interacts with GUI", "Desktop Window")
-    Rel(user, appTui, "Interacts with TUI", "Terminal / ANSI Console")
-    Rel(appQt, qtAdapter, "Invokes methods, listens to signals", "C++ Qt MetaObject API")
-    Rel(appTui, coreLib, "Directly invokes API & callbacks", "C++17 Direct Call / std::function")
-    Rel(qtAdapter, coreLib, "Calls API, registers callbacks", "C++17 Direct Call / std::function")
-    Rel(coreLib, serialPort, "Configures baud, reads/writes bytes", "termios / Win32 API")
-    Rel(coreLib, tcpSocket, "Connects, reads/writes TCP streams", "POSIX / Winsock2")
-    Rel(serialPort, hardware, "Transmits Pelco-D RS-485 frames", "EIA-485")
-    Rel(tcpSocket, hardware, "Transmits raw Pelco-D packets over Ethernet", "TCP Stream")
+    Rel(user, appTui, "Interacts with TUI", "ANSI / Braille Console")
+    Rel(appQt, qtAdapter, "Invokes methods, listens to signals", "Qt MetaObject API")
+    Rel(appQt, videoLib, "Renders frames from AtomicTripleBuffer", "Direct C++ API")
+    Rel(appTui, coreLib, "Invokes PTZ & bus scanner", "Direct C++ API")
+    Rel(appTui, videoLib, "Renders Braille stream", "Direct C++ API")
+    Rel(appTui, onvifLib, "Invokes CLI discovery & diagnostics", "Direct C++ API")
+    Rel(qtAdapter, coreLib, "Calls API, forwards telemetry", "Direct C++ Call / std::function")
+    Rel(qtAdapter, onvifLib, "Dispatches SOAP calls asynchronously", "Direct C++ Call")
+    Rel(coreLib, serialPort, "Reads/writes RS-485 frames", "termios / Win32 API")
+    Rel(coreLib, tcpSocket, "Reads/writes raw TCP packets", "BSD Sockets / Winsock2")
+    Rel(videoLib, rtspSource, "Demuxes and decodes video streams", "FFmpeg / GStreamer")
+    Rel(onvifLib, onvifCam, "Sends SOAP envelopes & parses XML", "HTTP POST (libcurl)")
 ```
 
 ---
@@ -147,45 +168,45 @@ The Component diagram details the internal modular structure of `libs/PelcoDCore
 ### ASCII Diagram
 
 ```text
-+-------------------------------------------------------------------------------+
-|                                  PelcoDCore                                   |
-|                                                                               |
-|  +-------------------------------------------------------------------------+  |
-|  |                             PelcoDDevice                                |  |
-|  |  - High-level coordinator & thread-safe facade                          |  |
-|  |  - Paced outbound command queue (15-20 ms delay, max 256 items)         |  |
-|  |  - Background telemetry polling loop                                    |  |
-|  |  - State management (DeviceStatus, DeviceInfo)                          |  |
-|  +-------------------------------------------------------------------------+  |
-|         |                     |                           |          |        |
-|         | Uses                | Feeds RX bytes            | Parses   | Uses   |
-|         v                     v                           v          |        |
-|  +----------------+    +------------------+    +----------------+    |        |
-|  |ProtocolBuilder |    | CircularByteRing |    | ProtocolParser |    |        |
-|  | - buildMotion  |    | - SPSC lock-free |    | - parseGeneral |    |        |
-|  | - buildSetPan  |    | - alignas(64)    |    | - parsePan/Tilt|    |        |
-|  | - buildPreset  |    | - Zero-alloc     |    | - parseQuery   |    |        |
-|  | - buildAux/Zone|    +------------------+    +----------------+    |        |
-|  +----------------+             |                      ^             |        |
-|         |                       | Reads frames         |             |        |
-|         | Produces              +----------------------+             |        |
-|         v                                                            |        |
-|  +--------------------------------------------------------------+    |        |
-|  |                         PelcoDFrame                          |    |        |
-|  |  - SyncByte (0xFF), Standard (7-byte), General (4-byte)      |    |        |
-|  |  - Query (18-byte), Modulo-256 Checksum, Stream Framing      |    |        |
-|  +--------------------------------------------------------------+    |        |
-|                                                                      |        |
-|  +-------------------------------------------------------------------+-----+  |
-|  |                           ITransport (Interface)                        |  |
-|  +-------------------------------------------------------------------------+  |
-|          ^                               ^                        ^           |
-|          | Implements                    | Implements             | Implements|
-|  +--------------------+       +--------------------+    +------------------+  |
-|  |  SerialTransport   |       |    TcpTransport    |    | MockPelcoDDevice |  |
-|  | (termios / Win32)  |       | (POSIX / Winsock2) |    | (Virtual Memory) |  |
-|  +--------------------+       +--------------------+    +------------------+  |
-+-------------------------------------------------------------------------------+
++-------------------------------------------------------------------------------------------------------+
+|                                              PelcoDCore                                               |
+|                                                                                                       |
+|  +-------------------------------------------------------------------------------------------------+  |
+|  |                                          PelcoDDevice                                           |  |
+|  |  - High-level coordinator & thread-safe facade                                                  |  |
+|  |  - Paced outbound command queue (15-20 ms delay, max 256 items)                                 |  |
+|  |  - Non-blocking async queries (queryPanAsync, queryTiltAsync, queryZoomAsync with std::future)   |  |
+|  |  - Background telemetry polling loop & connection management (ScopedConnectionList)             |  |
+|  +-------------------------------------------------------------------------------------------------+  |
+|         |                     |                           |          |                     |          |
+|         | Uses                | Feeds RX bytes            | Parses   | Uses                | Guides   |
+|         v                     v                           v          |                     v          |
+|  +----------------+    +------------------+    +----------------+    |            +-----------------+ |
+|  |ProtocolBuilder |    | CircularByteRing |    | ProtocolParser |    |            | PtzAutoTracker  | |
+|  | - buildMotion  |    | - SPSC lock-free |    | - parseGeneral |    |            | - CA Kalman (6D)| |
+|  | - buildSetPan  |    | - alignas(64)    |    | - parsePan/Tilt|    |            | - Dual PID loop | |
+|  | - buildPreset  |    | - Zero-alloc     |    | - parseQuery   |    |            | - Dynamic Zoom  | |
+|  | - buildAux/Zone|    +------------------+    +----------------+    |            | - Predictive Lead|
+|  +----------------+             |                      ^             |            +-----------------+ |
+|         |                       | Reads frames         |             |                     |          |
+|         | Produces              +----------------------+             |                     v          |
+|         v                                                            |            +-----------------+ |
+|  +--------------------------------------------------------------+    |            | Diagnostics &   | |
+|  |                         PelcoDFrame                          |    |            | Discovery Tools | |
+|  |  - SyncByte (0xFF), Standard (7-byte), General (4-byte)      |    |            | - BusScanner    | |
+|  |  - Query (18-byte), Modulo-256 Checksum, Stream Framing      |    |            | - RttProfiler   | |
+|  +--------------------------------------------------------------+    |            +-----------------+ |
+|                                                                      |                                |
+|  +-------------------------------------------------------------------+-----------------------------+  |
+|  |                                   ITransport (Pure Interface)                                   |  |
+|  +-------------------------------------------------------------------------------------------------+  |
+|          ^                               ^                        ^                       ^           |
+|          | Implements                    | Implements             | Implements            | Implements|
+|  +--------------------+       +--------------------+    +------------------+    +------------------+  |
+|  |  SerialTransport   |       |    TcpTransport    |    |   UdpTransport   |    | MockPelcoDDevice |  |
+|  | (termios / Win32)  |       | (POSIX / Winsock2) |    | (POSIX / Winsock)|    | (Virtual Memory) |  |
+|  +--------------------+       +--------------------+    +------------------+    +------------------+  |
++-------------------------------------------------------------------------------------------------------+
 ```
 
 ### Mermaid Diagram
@@ -195,7 +216,7 @@ C4Component
     title Component Diagram - PelcoDCore Library
 
     Container_Boundary(core, "PelcoDCore (Static Library)")
-        Component(device, "PelcoDDevice", "C++17 Class", "Main facade. Coordinates command pacing (~20ms), RX consumer thread, and telemetry polling.")
+        Component(device, "PelcoDDevice", "C++17 Class", "Main facade. Paced queue (~20ms), RX consumer thread, async queries (std::future), and telemetry polling.")
         Component(fujinon, "FujinonSX800Device", "C++17 Class", "Specialized profile subclassing PelcoDDevice with OIS, defog, fine image, DayNightEx, and focal length telemetry.")
         Component(builder, "ProtocolBuilder", "C++17 Static Utility", "Constructs standard motion, speed clamping, presets, auxiliaries, zones, and query frames.")
         Component(fbuilder, "FujinonBuilder", "C++17 Static Utility", "Encodes Fujinon proprietary packets (Original Commands 1-10, RTC, Menu Back, 0x5D Zoom).")
@@ -203,9 +224,13 @@ C4Component
         Component(ring, "CircularByteRing", "C++17 SPSC Template", "Lock-free circular buffer with cacheline padding (64 bytes) for asynchronous RX ingestion.")
         Component(parser, "ProtocolParser", "C++17 Static Utility", "Parses general responses, pan/tilt/zoom telemetry, device type, and sanitized query text.")
         Component(fparser, "FujinonParser", "C++17 Static Utility", "Decodes 0xF0/0xF1 responses, fine image, DayNightEx, ZoomFocusEx, and RTC telemetry.")
+        Component(tracker, "PtzAutoTracker", "C++17 Class", "Closed-loop visual tracking using 6-state CA Kalman filter, PID controllers, dynamic zoom, and predictive lead.")
+        Component(busScan, "BusScanner", "C++17 Class", "Multi-baud (2400-115200) RS-485 bus address auto-discovery engine.")
+        Component(rttProf, "RttProfiler", "C++17 Class", "High-precision latency and jitter profiler measuring query round-trip times.")
         Component(itransport, "ITransport", "C++17 Pure Interface", "Defines open, close, sendData, and data/state callbacks.")
         Component(serial, "SerialTransport", "C++17 Implementation", "Cross-platform serial transport (POSIX termios / Win32 Comm API) with baud rate validation.")
         Component(tcp, "TcpTransport", "C++17 Implementation", "Cross-platform TCP socket transport (BSD sockets / Winsock2) with hostname checks.")
+        Component(udp, "UdpTransport", "C++17 Implementation", "Cross-platform UDP datagram transport with socket pair binding.")
         Component(mock, "MockPelcoDDevice", "C++17 In-Memory Emulator", "Simulates PTZ motors, angles, preset registers, and query replies in memory.")
         Component(status, "DeviceStatus / FujinonStatus", "C++17 Data Structures", "Telemetry state holding coordinates, alarm flags, preset states, and camera optics info.")
     Container_Boundary_End()
@@ -216,9 +241,13 @@ C4Component
     Rel(device, builder, "Builds command frames", "Static calls")
     Rel(builder, frame, "Creates valid frames with checksum", "PelcoDFrame::create")
     Rel(fbuilder, frame, "Creates valid frames with checksum", "PelcoDFrame::create")
+    Rel(tracker, device, "Issues pan, tilt, and zoom commands", "Direct API")
+    Rel(busScan, device, "Probes device addresses", "Direct API")
+    Rel(rttProf, device, "Dispatches timed queries", "Direct API")
     Rel(device, itransport, "Sends paced byte packets", "ITransport::sendData")
     Rel(itransport, serial, "Implemented by")
     Rel(itransport, tcp, "Implemented by")
+    Rel(itransport, udp, "Implemented by")
     Rel(itransport, mock, "Implemented by")
     Rel(itransport, device, "Notifies incoming raw bytes", "std::function callback")
     Rel(device, ring, "Pushes bytes from transport", "writeExact")
@@ -229,49 +258,202 @@ C4Component
 
 ---
 
-## 4. Level 3: Component Diagram (PelcoDAppQt & PelcoDQt)
+## 4. Level 3: Component Diagram (PelcoDVideo)
+
+The Component diagram details the internal modular structure of `libs/PelcoDVideo`.
+
+### ASCII Diagram
+
+```text
++---------------------------------------------------------------------------------------------------------------+
+|                                                  PelcoDVideo                                                  |
+|                                                                                                               |
+|  +---------------------------------------------------------------------------------------------------------+  |
+|  |                                            IDecoder (Interface)                                         |  |
+|  +---------------------------------------------------------------------------------------------------------+  |
+|          ^                                           ^                                           ^            |
+|          | Implements                                | Implements                                | Implements |
+|  +-----------------------+               +-----------------------+               +-----------------------+    |
+|  |     FfmpegDecoder     |               |    GstreamerDecoder   |               |      MockDecoder      |    |
+|  |  (libavcodec/swscale) |               |     (GstPipeline)     |               |     (SMPTE Pattern)   |    |
+|  +-----------------------+               +-----------------------+               +-----------------------+    |
+|          |                                           |                                           |            |
+|          +-------------------------------------------+-------------------------------------------+            |
+|                                                      | Writes decoded BGR24 frames                            |
+|                                                      v                                                        |
+|  +---------------------------------------------------------------------------------------------------------+  |
+|  |                                            AtomicTripleBuffer                                           |  |
+|  |  - Wait-free, lock-free 3-slot buffer (WriteSlot, DirtySlot, ReadSlot)                                  |  |
+|  |  - std::atomic pointer exchange eliminates tearing and thread contention                               |  |
+|  +---------------------------------------------------------------------------------------------------------+  |
+|                                                      |                                                        |
+|                                                      | Reads latest frame                                     |
+|                                                      v                                                        |
+|  +---------------------------------------------------------------------------------------------------------+  |
+|  |                                      IFrameProcessor (Tactical Pipeline)                                |  |
+|  |  +------------------------+  +------------------------+  +------------------------+  +----------------+ |  |
+|  |  | DehazeFilter           |  | ClaheFilter            |  | HeatShimmerMitigation  |  | ThermalColor   | |  |
+|  |  | (Dark Channel Prior)   |  | (Local Adaptive Hist)  |  | (Temporal Multi-Frame) |  | (Ironbow/Rain) | |  |
+|  |  +------------------------+  +------------------------+  +------------------------+  +----------------+ |  |
+|  |  +------------------------+  +------------------------+  +------------------------+  +----------------+ |  |
+|  |  | MovingTargetIndicator  |  | CentroidTargetTracker  |  | TacticalOverlayFilter  |  | BrailleRenderer| |  |
+|  |  | (MOG2 Background Sub)  |  | (LK Optical Flow / CA) |  | (Reticles, Crosshairs) |  | (2x4 UTF-8)    | |  |
+|  |  +------------------------+  +------------------------+  +------------------------+  +----------------+ |  |
+|  +---------------------------------------------------------------------------------------------------------+  |
++---------------------------------------------------------------------------------------------------------------+
+```
+
+### Mermaid Diagram
+
+```mermaid
+C4Component
+    title Component Diagram - PelcoDVideo Library
+
+    Container_Boundary(video, "PelcoDVideo (Library)")
+        Component(idecoder, "IDecoder", "C++17 Interface", "Defines open, close, decodeFrame, and frame callbacks.")
+        Component(ffmpeg, "FfmpegDecoder", "C++17 Implementation", "Hardware-accelerated RTSP/RTMP/file decoding via libavcodec & libswscale.")
+        Component(gst, "GstreamerDecoder", "C++17 Implementation", "Ultra-low-latency pipeline integration with VAAPI/NVDEC.")
+        Component(mockDec, "MockDecoder", "C++17 Implementation", "Synthetic SMPTE color bars with moving target for unit testing.")
+        Component(tripleBuf, "AtomicTripleBuffer", "C++17 Template", "Lock-free wait-free triple buffer with atomic pointer exchange.")
+        Component(iprocessor, "IFrameProcessor", "C++17 Interface", "Pure virtual processFrame(cv::Mat& frame) contract.")
+        Component(dehaze, "DehazeFilter", "C++17 Implementation", "Dark channel prior atmospheric defogging.")
+        Component(clahe, "ClaheFilter", "C++17 Implementation", "Contrast Limited Adaptive Histogram Equalization.")
+        Component(shimmer, "HeatShimmerMitigationFilter", "C++17 Implementation", "Multi-frame temporal fusion suppressing heat haze.")
+        Component(thermal, "ThermalColorFilter", "C++17 Implementation", "Pseudo-color mappings (Ironbow, White-Hot, Black-Hot, Rainbow).")
+        Component(mti, "MovingTargetIndicatorFilter", "C++17 Implementation", "MOG2 background subtraction with bounding boxes.")
+        Component(tracker, "CentroidTargetTrackerFilter", "C++17 Implementation", "Lucas-Kanade optical flow tracking with scale adaptation.")
+        Component(overlay, "TacticalOverlayFilter", "C++17 Implementation", "HUD reticles, azimuth ticks, boresight crosshairs.")
+        Component(braille, "BrailleRenderer", "C++17 Implementation", "Downsamples video to UTF-8 Braille 2x4 cell glyphs for terminal.")
+    Container_Boundary_End()
+
+    Rel(idecoder, ffmpeg, "Implemented by")
+    Rel(idecoder, gst, "Implemented by")
+    Rel(idecoder, mockDec, "Implemented by")
+    Rel(ffmpeg, tripleBuf, "Writes decoded BGR frame", "produce()")
+    Rel(gst, tripleBuf, "Writes decoded BGR frame", "produce()")
+    Rel(mockDec, tripleBuf, "Writes decoded BGR frame", "produce()")
+    Rel(tripleBuf, iprocessor, "Provides frame to pipeline", "consume()")
+    Rel(iprocessor, dehaze, "Implemented by")
+    Rel(iprocessor, clahe, "Implemented by")
+    Rel(iprocessor, shimmer, "Implemented by")
+    Rel(iprocessor, thermal, "Implemented by")
+    Rel(iprocessor, mti, "Implemented by")
+    Rel(iprocessor, tracker, "Implemented by")
+    Rel(iprocessor, overlay, "Implemented by")
+    Rel(iprocessor, braille, "Invoked for terminal display")
+```
+
+---
+
+## 5. Level 3: Component Diagram (PelcoDOnvif)
+
+The Component diagram details the internal modular structure of `libs/PelcoDOnvif`.
+
+### ASCII Diagram
+
+```text
++---------------------------------------------------------------------------------------------------------------+
+|                                                  PelcoDOnvif                                                  |
+|                                                                                                               |
+|  +---------------------------------------------------------------------------------------------------------+  |
+|  |                                                OnvifClient                                              |  |
+|  |  - High-level coordinator for ONVIF Profile S and Profile T services                                    |  |
+|  |  - Holds base service URL, active credentials, and profile tokens                                       |  |
+|  +---------------------------------------------------------------------------------------------------------+  |
+|         |                     |                            |                            |                     |
+|         | Authenticates       | Discovers                  | Dispatches SOAP            | Parses XML          |
+|         v                     v                            v                            v                     |
+|  +----------------+    +--------------------+       +--------------------+       +--------------------+       |
+|  | OnvifSecurity  |    |   OnvifDiscovery   |       |     OnvifSoap      |       |  pugixml DOM /     |       |
+|  | - Nonce (rand) |    | - WS-Discovery     |       | - Envelope builder |       |  XPath Evaluator   |       |
+|  | - Created (ISO)|    |   multicast UDP    |       | - Action headers   |       | - Extract values   |       |
+|  | - SHA-1 Digest |    |   239.255.255.250  |       | - HTTP POST runner |       | - Type conversion  |       |
+|  | - WS-Sec Header|    | - ProbeMatch parse |       |   via libcurl      |       | - Fault handling   |       |
+|  +----------------+    +--------------------+       +--------------------+       +--------------------+       |
+|         |                                                  |                            |                     |
+|         +--------------------------------------------------+----------------------------+                     |
+|                                                            | Executes Profile S/T Calls                       |
+|                                                            v                                                  |
+|  +---------------------------------------------------------------------------------------------------------+  |
+|  |                                          Service Operations                                             |  |
+|  |  - Device Management: GetDeviceInformation, GetCapabilities, GetServices                                |  |
+|  |  - Media Service:     GetProfiles, GetStreamUri (RTSP), GetSnapshotUri (JPEG)                           |  |
+|  |  - PTZ Service:       ContinuousMove, RelativeMove, AbsoluteMove, Stop, Set/Goto Preset, Home            |  |
+|  |  - Imaging Service:   GetImagingSettings, SetImagingSettings (Brightness, Contrast, WDR, IR Cut, Focus)  |  |
+|  |  - PullPoint Events:  CreatePullPointSubscription, PullMessages (Real-time motion/tamper notifications)   |  |
+|  +---------------------------------------------------------------------------------------------------------+  |
++---------------------------------------------------------------------------------------------------------------+
+```
+
+### Mermaid Diagram
+
+```mermaid
+C4Component
+    title Component Diagram - PelcoDOnvif Library
+
+    Container_Boundary(onvif, "PelcoDOnvif (Library)")
+        Component(client, "OnvifClient", "C++17 Class", "Main coordinator. Dispatches Profile S (PTZ, Media) and Profile T (Imaging, PullPoint) commands.")
+        Component(discovery, "OnvifDiscovery", "C++17 Class", "Multicast UDP WS-Discovery probe (239.255.255.250:3702) parser.")
+        Component(security, "OnvifSecurity", "C++17 Class", "Generates WS-Security UsernameToken with Nonce, Created timestamp, and SHA-1 password digest.")
+        Component(soap, "OnvifSoap", "C++17 Class", "Constructs SOAP envelopes and sends HTTP POST requests via libcurl.")
+        Component(pugi, "pugixml Engine", "C++ XML Parser", "Parses SOAP XML responses, evaluates XPath queries, handles faults.")
+        Component(types, "OnvifTypes", "C++17 Structs", "Data structures for DeviceInfo, Profiles, PTZStatus, ImagingSettings, and PullPoint Events.")
+    Container_Boundary_End()
+
+    Rel(client, security, "Generates auth headers", "buildWsSecurityHeader")
+    Rel(client, soap, "Sends SOAP request", "sendSoapRequest")
+    Rel(soap, pugi, "Parses response XML", "pugi::xml_document")
+    Rel(client, types, "Returns structured data", "Direct C++ structs")
+    Rel(discovery, pugi, "Parses ProbeMatch XML", "pugi::xml_document")
+```
+
+---
+
+## 6. Level 3: Component Diagram (PelcoDAppQt & PelcoDQt)
 
 The Component diagram details the GUI layer (`app-qt`) and its bridge (`PelcoDQt`).
 
 ### ASCII Diagram
 
 ```text
-+-------------------------------------------------------------------------------+
-|                                   PelcoDAppQt                                 |
-|                                                                               |
-|  +-------------------------------------------------------------------------+  |
-|  |                               MainWindow                                |  |
-|  |  - Central widget host, tabbed dashboard, status bar, notifications    |  |
-|  +-------------------------------------------------------------------------+  |
-|         |                   |                   |                             |
-|         v                   v                   v                             |
-|  +-----------------+ +--------------------+ +------------------------------+  |
-|  |ConnectionWidget | |TrafficInspector    | | Tab Widgets:                 |  |
-|  | - Port/Baud     | | - Live hex monitor | | - PtzControlTab (D-Pad)      |  |
-|  | - Host/Port     | | - Filter (TX/RX)   | | - PresetsTab (1-255, Tours)  |  |
-|  | - Mock selector | | - Raw packet send  | | - DeviceSettingsTab (Optics) |  |
-|  +-----------------+ +--------------------+ | - AuxZonesTab (Relays, Zones)|  |
-|                                             | - OsdScreenTab (OSD Text)    |  |
-|                                             | - SystemTab (Diagnostics)    |  |
-|                                             +------------------------------+  |
-|                                                            |                  |
-+------------------------------------------------------------|------------------+
-                                                             | Qt Signals/Slots
++---------------------------------------------------------------------------------------------------------------+
+|                                                  PelcoDAppQt                                                  |
+|                                                                                                               |
+|  +---------------------------------------------------------------------------------------------------------+  |
+|  |                                                MainWindow                                               |  |
+|  |  - Central widget host, tabbed dashboard, status bar, notifications, live video ticker                  |  |
+|  +---------------------------------------------------------------------------------------------------------+  |
+|         |                   |                   |                                                             |
+|         v                   v                   v                                                             |
+|  +-----------------+ +--------------------+ +--------------------------------------------------------------+  |
+|  |ConnectionWidget | |TrafficInspector    | | Tab Widgets:                                                 |  |
+|  | - Port/Baud     | | - Live hex monitor | | - LiveVideoTab (Video Canvas, HUD Overlays, Filters)         |  |
+|  | - Host/Port     | | - Filter (TX/RX)   | | - OnvifCameraTab (Profile S/T: Discovery, Imaging, Events)   |  |
+|  | - Mock selector | | - Raw packet send  | | - PtzControlTab (8-Way D-Pad, Jog, Speed Sliders)            |  |
+|  +-----------------+ +--------------------+ | - PresetsTab (1-255, Tours, Scan)                            |  |
+|                                             | - DeviceSettingsTab (Optics & Focus)                         |  |
+|                                             | - AuxZonesTab (Relays, Zones, Patterns)                      |  |
+|                                             | - OsdScreenTab (OSD Text Generator)                          |  |
+|                                             | - SystemTab (Diagnostics, Queries)                           |  |
+|                                             | - RttProfilerWidget (Latency & Jitter Graphs)                |  |
+|                                             | - BusScannerWidget (Multi-Baud Auto-Discovery)               |  |
+|                                             +--------------------------------------------------------------+  |
+|                                                            |                                                  |
++------------------------------------------------------------|--------------------------------------------------+
+                                                             | Qt Signals & Slots
                                                              v
-+-------------------------------------------------------------------------------+
-|                                    PelcoDQt                                   |
-|                                                                               |
-|  +-------------------------------------------------------------------------+  |
-|  |                              QPelcoDDevice                              |  |
-|  |  - QObject wrapper inheriting QObject                                   |  |
-|  |  - Signals: statusChanged, trafficLogged, queryResponseReceived, etc.   |  |
-|  |  - Slots: connectSerial, connectTcp, connectMock, panLeft, tiltUp, etc. |  |
-|  |  - Encapsulates PelcoDDevice instance                                   |  |
-|  +-------------------------------------------------------------------------+  |
-|                                     |                                         |
-|                                     v (Invokes C++ API)                       |
-|                          [ PelcoDCore::PelcoDDevice ]                         |
-+-------------------------------------------------------------------------------+
++---------------------------------------------------------------------------------------------------------------+
+|                                                   PelcoDQt                                                    |
+|                                                                                                               |
+|  +-----------------------+  +-----------------------+  +-----------------------+  +------------------------+  |
+|  |     QPelcoDDevice     |  |  QFujinonSX800Device  |  |  QVideoStreamWorker   |  |      QOnvifDevice      |  |
+|  | - Qt wrapper for core |  | - Fujinon optics & OIS|  | - Background decoding |  | - Asynchronous Profile |  |
+|  |   PelcoDDevice        |  |   extended profile    |  |   and triple buffering|  |   S & T SOAP worker    |  |
+|  +-----------------------+  +-----------------------+  +-----------------------+  +------------------------+  |
+|             |                           |                          |                          |               |
+|             v                           v                          v                          v               |
+|  [ PelcoDCore::PelcoDDevice ] [ FujinonSX800Device ]    [ PelcoDVideo::IDecoder ]    [ PelcoDOnvif::Client ]  |
++---------------------------------------------------------------------------------------------------------------+
 ```
 
 ### Mermaid Diagram
@@ -282,23 +464,31 @@ C4Component
 
     Container_Boundary(appBoundary, "PelcoDAppQt (Qt 6 Executable)")
         Component(mainWindow, "MainWindow", "QMainWindow", "Orchestrates sub-widgets, tabs, telemetry ticker, and QSS dark theme.")
-        Component(connWidget, "ConnectionWidget", "QWidget", "Provides controls for Serial, TCP, and Mock simulator connection.")
+        Component(connWidget, "ConnectionWidget", "QWidget", "Provides controls for Serial, TCP, UDP, and Mock simulator connection.")
         Component(trafficWidget, "TrafficInspectorWidget", "QWidget", "Hex packet table viewer with TX/RX color tagging and manual hex sender.")
+        Component(videoTab, "LiveVideoTab", "QWidget", "Renders live video canvas, HUD overlays, tactical filters, and tracking boxes.")
+        Component(onvifTab, "OnvifCameraTab", "QWidget", "Manages ONVIF discovery, profile selection, imaging adjustments, and events.")
         Component(ptzTab, "PtzControlTab", "QWidget", "8-direction interactive D-Pad with hold-to-move, speed sliders, and coordinates.")
         Component(presetTab, "PresetsTab", "QWidget", "Manages 255 presets with Set, Go To, Clear, quick buttons, and auto tour.")
         Component(settingsTab, "DeviceSettingsTab", "QWidget", "Optics controls: Auto Focus, Auto Iris, AGC, BLC, White Balance, Shutter, Gain.")
         Component(auxTab, "AuxZonesTab", "QWidget", "Toggles 8 Aux relays, configures 8 sector zones, and triggers 4 guard patterns.")
         Component(osdTab, "OsdScreenTab", "QWidget", "OSD character generator for columns 0-39 and alarm reset controls.")
         Component(sysTab, "SystemTab", "QWidget", "Diagnostic query runner (Pan, Tilt, Zoom, Device Type) and polling setup.")
+        Component(rttWidget, "RttProfilerWidget", "QWidget", "Renders live RTT latency and jitter histograms.")
+        Component(busWidget, "BusScannerWidget", "QWidget", "Executes multi-baud RS-485 bus address scans.")
     Container_Boundary_End()
 
     Container_Boundary(qtBoundary, "PelcoDQt (Qt 6 Adapter)")
         Component(qdevice, "QPelcoDDevice", "QObject", "Translates Qt signals and slots to/from pure C++ PelcoDDevice.")
         Component(qfujinon, "QFujinonSX800Device", "QObject", "Translates Qt signals and slots for FujinonSX800Device specialized camera profile.")
+        Component(qvideo, "QVideoStreamWorker", "QObject", "Worker thread interfacing PelcoDVideo decoder and AtomicTripleBuffer.")
+        Component(qonvif, "QOnvifDevice", "QObject", "Worker thread translating Qt calls to asynchronous OnvifClient SOAP requests.")
     Container_Boundary_End()
 
     Rel(mainWindow, connWidget, "Embeds", "Layout")
     Rel(mainWindow, trafficWidget, "Embeds", "Layout")
+    Rel(mainWindow, videoTab, "Hosts in QTabWidget", "Layout")
+    Rel(mainWindow, onvifTab, "Hosts in QTabWidget", "Layout")
     Rel(mainWindow, ptzTab, "Hosts in QTabWidget", "Layout")
     Rel(mainWindow, presetTab, "Hosts in QTabWidget", "Layout")
     Rel(mainWindow, settingsTab, "Hosts in QTabWidget", "Layout")
@@ -306,6 +496,8 @@ C4Component
     Rel(mainWindow, osdTab, "Hosts in QTabWidget", "Layout")
     Rel(mainWindow, sysTab, "Hosts in QTabWidget", "Layout")
 
+    Rel(videoTab, qvideo, "Connects frameReady signal", "Qt Slots")
+    Rel(onvifTab, qonvif, "Invokes discovery, PTZ, imaging", "Qt Slots")
     Rel(connWidget, qdevice, "Triggers connect/disconnect", "Qt Slots")
     Rel(ptzTab, qdevice, "Sends motion and coordinate requests", "Qt Slots")
     Rel(presetTab, qdevice, "Invokes preset actions", "Qt Slots")
@@ -322,43 +514,43 @@ C4Component
 
 ---
 
-## 5. Level 3: Component Diagram (PelcoDAppTui / app-tui)
+## 7. Level 3: Component Diagram (PelcoDAppTui / app-tui)
 
-The Component diagram details the zero-dependency Terminal User Interface layer (`app-tui`).
+The Component diagram details the zero-dependency Terminal User Interface and CLI tooling layer (`app-tui`).
 
 ### ASCII Diagram
 
 ```text
-+-------------------------------------------------------------------------------+
-|                        PelcoDAppTui (Container: app-tui)                      |
-|                                                                               |
-|  +-------------------------------------------------------------------------+  |
-|  |                                 TuiApp                                  |  |
-|  |  - Main event loop coordinator (30-50 FPS render ticker)                |  |
-|  |  - Input router (hotkeys 1-6, F1-F6, modal focus, view delegator)       |  |
-|  |  - Owns Terminal, Canvas, and PelcoDDevice instance                      |  |
-|  +-------------------------------------------------------------------------+  |
-|         |                   |                   |                             |
-|         | Controls          | Draws into        | Delegates to                |
-|         v                   v                   v                             |
-|  +----------------+  +----------------+  +---------------------------------+  |
-|  |    Terminal    |  |     Canvas     |  | View Components (app-tui/views/)|  |
-|  | - Raw termios  |  | - Double buffer|  | - HeaderView (Status & Tabs)    |  |
-|  | - Alt screen   |  | - Delta ANSI   |  | - PtzView (Compass & Sliders)   |  |
-|  | - Mouse/SIGWINCH  | - UTF-8 cells  |  | - PresetsView (1-32 Table)      |  |
-|  | - Escape parser|  | - Box & meters |  | - SettingsView (Optics & Baud)  |  |
-|  +----------------+  +----------------+  | - AuxOsdView (Relays & OSD)     |  |
-|         |                   ^            | - DiagnosticsView (Sensors)     |  |
-|         | Flushes output    |            | - TrafficView (Hex Monitor)     |  |
-|         v                   |            | - ConnectionModal (Setup)       |  |
-|     [ Console ]             +------------| - FooterView (Hotkeys & Logs)   |  |
-|                                          +---------------------------------+  |
-|                                                           |                   |
-+-----------------------------------------------------------|-------------------+
-                                                            | Pure C++ Calls
-                                                            | & Callbacks
++---------------------------------------------------------------------------------------------------------------+
+|                                       PelcoDAppTui (Container: app-tui)                                       |
+|                                                                                                               |
+|  +---------------------------------------------------------------------------------------------------------+  |
+|  |                                                TuiApp                                                   |  |
+|  |  - Main event loop coordinator (30-50 FPS render ticker)                                                |  |
+|  |  - Input router (hotkeys 1-6, F1-F6, modal focus, view delegator)                                       |  |
+|  |  - CLI subcommand dispatcher (--onvif-discover, --onvif-info, --onvif-imaging, --onvif-events)            |  |
+|  |  - Owns Terminal, Canvas, PelcoDDevice, and BrailleRenderer instances                                   |  |
+|  +---------------------------------------------------------------------------------------------------------+  |
+|         |                   |                   |                                              |              |
+|         | Controls          | Draws into        | Delegates to Views                           | Renders Video|
+|         v                   v                   v                                              v              |
+|  +----------------+  +----------------+  +------------------------------------------+   +-------------------+ |
+|  |    Terminal    |  |     Canvas     |  | View Components (app-tui/views/):        |   |  BrailleRenderer  | |
+|  | - Raw termios  |  | - Double buffer|  | - HeaderView (Status, Camera ID, Tabs)   |   | - 2x4 cell mapping| |
+|  | - Win32 Console|  | - Delta ANSI   |  | - PtzView (Compass, Sliders, Speed)      |   | - UTF-8 TrueColor | |
+|  | - Mouse & Resize  | - UTF-8 cells  |  | - PresetsView (1-32 Table, Scan, Flip)   |   +-------------------+ |
+|  | - Escape parser|  | - Box & meters |  | - SettingsView (Optics, Baud, AF, AWB)   |             |           |
+|  +----------------+  +----------------+  | - AuxOsdView (Relays, Zones, OSD Menu)   |             |           |
+|         |                   ^            | - DiagnosticsView (Sensors, Bus Scan, RTT)|            |           |
+|         | Flushes output    |            | - TrafficView (Hex Monitor & Opcode Log) |             |           |
+|         v                   |            | - ConnectionModal (Serial, TCP, Mock)    |             |           |
+|     [ Console ]             +------------| - FooterView (Hotkeys & Notifications)   |<------------+           |
+|                                          +------------------------------------------+                         |
+|                                                           |                                                   |
++-----------------------------------------------------------|---------------------------------------------------+
+                                                            | Direct C++ API Calls & Callbacks
                                                             v
-                                              [ PelcoDCore::PelcoDDevice ]
+                                            [ PelcoDCore ] & [ PelcoDOnvif ]
 ```
 
 ### Mermaid Diagram
@@ -367,24 +559,26 @@ The Component diagram details the zero-dependency Terminal User Interface layer 
 C4Component
     title Component Diagram - PelcoDAppTui (app-tui)
 
-    Container_Boundary(tuiBoundary, "PelcoDAppTui (Console Executable)")
-        Component(tuiapp, "TuiApp", "C++17 Class", "Main coordinator. Runs 30-50 FPS loop, routes keyboard/mouse inputs, manages view lifecycle.")
-        Component(term, "Terminal", "C++17 RAII Wrapper", "Manages termios raw mode, alternate screen buffer, SIGWINCH resize handler, and escape sequence parser.")
-        Component(canvas, "Canvas", "C++17 Double Buffer", "2D cell matrix supporting UTF-8 graphemes, 24-bit TrueColor/ANSI, box drawing, and differential delta rendering.")
+    Container_Boundary(tuiBoundary, "PelcoDAppTui (Console & CLI Executable)")
+        Component(tuiapp, "TuiApp", "C++17 Class", "Main coordinator. 30-50 FPS loop, keyboard/mouse router, view delegator, ONVIF CLI runner.")
+        Component(term, "Terminal", "C++17 RAII Wrapper", "Manages termios / Win32 raw mode, alternate screen buffer, resize handler, escape sequences.")
+        Component(canvas, "Canvas", "C++17 Double Buffer", "2D cell matrix with UTF-8 graphemes, 24-bit TrueColor, differential ANSI delta rendering.")
+        Component(braille, "BrailleRenderer", "C++17 Class", "Downsamples live video frames into 2x4 dot Braille Unicode characters for console display.")
         
         Component(headerView, "HeaderView", "C++17 View", "Renders title, camera ID, connection status badge, and clickable/hotkey tab selector.")
         Component(ptzView, "PtzView", "C++17 View", "PTZ compass crosshair, real-time azimuth/elevation angles, and fractional speed/optic meters.")
         Component(presetView, "PresetsView", "C++17 View", "Preset table (1-32) with Set, GoTo, Clear, 180° Flip, and Zero Pan actions.")
         Component(settingsView, "SettingsView", "C++17 View", "Configures AF, AI, AGC, BLC, AWB, line lock delay, white balance, and remote baud rates.")
         Component(auxOsdView, "AuxOsdView", "C++17 View", "Auxiliary 1-8 relays with active cursor selection, zone scan triggers, and OSD menu keypad.")
-        Component(diagView, "DiagnosticsView", "C++17 View", "Telemetry query triggers, internal temperature, optical sensor ID, and ACK/NAK history.")
+        Component(diagView, "DiagnosticsView", "C++17 View", "Sensors, bus scanner triggers, live RTT latency histograms, and ACK/NAK history.")
         Component(trafficView, "TrafficView", "C++17 View", "Live rolling packet monitor with colorized hex stream and decoded Pelco-D opcodes.")
         Component(connModal, "ConnectionModal", "C++17 Modal View", "Popup dialog to configure and switch between Mock, Serial, and TCP transports.")
         Component(footerView, "FooterView", "C++17 View", "Bottom hotkeys reference bar and dynamic status notifications.")
     Container_Boundary_End()
 
-    Rel(tuiapp, term, "Reads input & flushes ANSI buffer", "termios / poll / write")
+    Rel(tuiapp, term, "Reads input & flushes ANSI buffer", "termios / Win32 / write")
     Rel(tuiapp, canvas, "Clears, resizes, and renders delta", "Canvas API")
+    Rel(tuiapp, braille, "Renders video frames to Braille cells", "Direct C++ Call")
     Rel(tuiapp, headerView, "Renders", "Layout")
     Rel(tuiapp, footerView, "Renders", "Layout")
     Rel(tuiapp, connModal, "Renders & routes input", "Modal Focus")
@@ -399,53 +593,16 @@ C4Component
     Rel(headerView, canvas, "Draws into", "Canvas primitives")
     Rel(footerView, canvas, "Draws into", "Canvas primitives")
     Rel(connModal, canvas, "Draws into", "Canvas primitives")
-
-    Rel(tuiapp, device, "Controls device & registers callbacks", "PelcoDCore API")
-    Rel(ptzView, device, "Sends motion & speed commands", "PelcoDCore API")
-    Rel(presetView, device, "Sends preset commands", "PelcoDCore API")
-    Rel(settingsView, device, "Sends setting commands", "PelcoDCore API")
-    Rel(auxOsdView, device, "Sends aux & scan commands", "PelcoDCore API")
-    Rel(diagView, device, "Sends telemetry queries", "PelcoDCore API")
+    Rel(diagView, canvas, "Draws into", "Canvas primitives")
 ```
 
 ---
 
-## 6. Level 4: Data Flow & Sequence Diagram
+## 8. Level 4: Data Flow & Sequence Diagrams
+
+### 8.1 Outbound Command & Telemetry Round-Trip
 
 This diagram demonstrates the end-to-end round-trip execution of both an outbound command and an asynchronous incoming telemetry response.
-
-### ASCII Diagram
-
-```text
-[ User ]        [ PtzControlTab ]     [ QPelcoDDevice ]    [ PelcoDDevice ]     [ ITransport ]      [ Hardware / Mock ]
-   |                    |                    |                    |                    |                    |
-   |-- Press "UP" ----->|                    |                    |                    |                    |
-   |                    |-- tiltUp(speed) -->|                    |                    |                    |
-   |                    |                    |-- tiltUp(speed) -->|                    |                    |
-   |                    |                    |                    |-- buildTilt() ---->| (ProtocolBuilder)  |
-   |                    |                    |                    |-- enqueueCommand ->|                    |
-   |                    |                    |                    |   [Paced Queue]    |                    |
-   |                    |                    |                    |   (sleep ~20ms)    |                    |
-   |                    |                    |                    |-- sendData(frame)->|                    |
-   |                    |                    |                    |                    |-- Write to Wire -->|
-   |                    |                    |                    |                    |   [0xFF,0x01, ...] |
-   |                    |                    |                    |                    |                    |
-   |                    |                    |                    |                    |<-- RX Bytes -------|
-   |                    |                    |                    |<-- onDataReceived -|   [0xFF,0x01, ...] |
-   |                    |                    |                    |    (writeExact)    |                    |
-   |                    |                    |                    |          |         |                    |
-   |                    |                    |                    |    [Lock-Free Ring]|                    |
-   |                    |                    |                    |          |         |                    |
-   |                    |                    |                    |    (splitStream)   |                    |
-   |                    |                    |                    |          |         |                    |
-   |                    |                    |                    |    (updateStatus)  |                    |
-   |                    |                    |<-- statusCallback -|                    |                    |
-   |                    |<-- statusChanged --|                    |                    |                    |
-   |<-- Update GUI -----|                    |                    |                    |                    |
-   |    (Tilt: 45.00°)  |                    |                    |                    |                    |
-```
-
-### Mermaid Sequence Diagram
 
 ```mermaid
 sequenceDiagram
@@ -481,15 +638,48 @@ sequenceDiagram
     UI-->>User: Update live position coordinates (Tilt: +45.00°)
 ```
 
+### 8.2 Closed-Loop Vision-Guided Autonomous Tracking
+
+This diagram illustrates autonomous 3-axis tracking bridging video decoding, target detection, kinematic estimation, and paced PTZ motor commands:
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Stream as RTSP Stream / Decoder
+    participant Triple as AtomicTripleBuffer
+    participant Filter as CentroidTargetTrackerFilter
+    participant AutoTrack as PtzAutoTracker
+    participant PID as PidController
+    participant Dev as PelcoDDevice
+    participant HW as PTZ Head
+
+    Stream->>Triple: produce(decoded BGR frame) [Wait-Free]
+    Triple->>Filter: consume(cv::Mat& frame)
+    Note over Filter: Lucas-Kanade optical flow + pairwise scale measurement
+    Filter->>Filter: Detect target centroid (cx, cy) and scale factor (s)
+    Filter->>AutoTrack: onTargetAcquired(TargetState: cx, cy, scale)
+    Note over AutoTrack: 6-state CA Kalman Filter: predict & update [x,y,vx,vy,ax,ay]
+    AutoTrack->>AutoTrack: Apply predictive boresight lead: cx' = cx + vx*t_lead
+    AutoTrack->>PID: calculate(error_x, error_y)
+    PID-->>AutoTrack: return (pan_velocity, tilt_velocity)
+    Note over AutoTrack: Compare target scale against reference size
+    AutoTrack->>Dev: motion(panDir, panSpeed, tiltDir, tiltSpeed)
+    AutoTrack->>Dev: zoom(ZoomTele / ZoomWide)
+    Dev->>HW: Paced RS-485 / TCP Command Frames
+```
+
 ---
 
-## 7. Security Hardening & Robustness Guarantees
+## 9. Security Hardening & Robustness Guarantees
 
 As detailed in the architecture and verified by our automated test suite:
 
 1. **Lock-Free Concurrency:** Single-Producer Single-Consumer (SPSC) lock-free ring buffer with `alignas(64)` eliminates mutex contention between inbound I/O drivers and stream parsers.
-2. **Deterministic Memory Footprint:**
+2. **Wait-Free Video Synchronization:** `AtomicTripleBuffer` uses lock-free atomic pointer exchanges to prevent race conditions or pipeline stalling between high-rate RTSP decoding and UI rendering.
+3. **Deterministic Memory Footprint:**
    - Command pacing queue bounded to 256 items with drop-oldest overflow strategy.
    - Stream splitter capped at 1 MB per chunk and 2048 frames per cycle to prevent memory exhaustion.
-3. **Input Sanitization:** Query payloads are character-by-character sanitized with `std::isprint` to protect user interfaces and system logs from terminal escape sequences and non-printable control characters.
-4. **Binary Hardening:** Complies with modern hardening standards (`-fstack-protector-strong`, `-fstack-clash-protection`, `-fcf-protection=full`, `_FORTIFY_SOURCE=2`, `/GS`, `/guard:cf`, `ASLR`, `DEP`, `-pie`).
+4. **Input Sanitization:** Query payloads are character-by-character sanitized with `std::isprint` to protect user interfaces and system logs from terminal escape sequences and non-printable control characters.
+5. **WS-Security Authentication:** ONVIF client produces nonces, timestamps, and SHA-1 password digests ensuring credentials are never transmitted in plaintext over the wire.
+6. **Binary Hardening:** Complies with modern hardening standards (`-fstack-protector-strong`, `-fstack-clash-protection`, `-fcf-protection=full`, `_FORTIFY_SOURCE=2`, `/GS`, `/guard:cf`, `ASLR`, `DEP`, `-pie`).
+
