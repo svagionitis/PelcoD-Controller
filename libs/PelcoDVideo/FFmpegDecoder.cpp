@@ -7,6 +7,15 @@
 #include <glog/logging.h>
 #include <thread>
 
+// Check if libavformat version is older than 59.4.100
+#if LIBAVFORMAT_VERSION_INT < AV_VERSION_INT(59, 4, 100)
+#define AV_FIND_BEST_STREAM(ctx, type, wanted, related, codec, flags)                                                  \
+    av_find_best_stream(ctx, type, wanted, related, const_cast<AVCodec**>(codec), flags)
+#else
+#define AV_FIND_BEST_STREAM(ctx, type, wanted, related, codec, flags)                                                  \
+    av_find_best_stream(ctx, type, wanted, related, const_cast<const AVCodec**>(codec), flags)
+#endif
+
 namespace PelcoD::Video {
 
 FFmpegDecoder::FFmpegDecoder()
@@ -44,10 +53,7 @@ void FFmpegDecoder::close()
     m_reconnectAttempts = 0;
 }
 
-bool FFmpegDecoder::initialize(std::string_view source,
-                              PixelFormat format,
-                              int threadCount,
-                              DeviceType device)
+bool FFmpegDecoder::initialize(std::string_view source, PixelFormat format, int threadCount, DeviceType device)
 {
     close();
     const auto start = std::chrono::steady_clock::now();
@@ -75,7 +81,8 @@ bool FFmpegDecoder::initialize(std::string_view source,
     } else if (srcType == SourceType::Device) {
 #ifdef _WIN32
         iformat = av_find_input_format("dshow");
-        if (openPath.rfind("device:", 0) == 0 || openPath.rfind("device://", 0) == 0 || openPath.rfind("dshow:", 0) == 0) {
+        if (openPath.rfind("device:", 0) == 0 || openPath.rfind("device://", 0) == 0
+            || openPath.rfind("dshow:", 0) == 0) {
             const auto pos = openPath.find_first_of(":/");
             const std::string rem = openPath.substr(openPath.find_first_not_of(":/", pos));
             if (rem.rfind("video=", 0) != 0) {
@@ -96,7 +103,8 @@ bool FFmpegDecoder::initialize(std::string_view source,
         av_dict_free(&options);
     }
     if (ret < 0) {
-        LOG(ERROR) << "FFmpegDecoder: Failed to open source: " << m_filePath << " (resolved: " << openPath << ", error: " << ret << ")";
+        LOG(ERROR) << "FFmpegDecoder: Failed to open source: " << m_filePath << " (resolved: " << openPath
+                   << ", error: " << ret << ")";
         return false;
     }
     m_formatCtx.reset(formatCtxRaw);
@@ -109,7 +117,7 @@ bool FFmpegDecoder::initialize(std::string_view source,
     }
 
     const AVCodec* codec = nullptr;
-    ret = av_find_best_stream(m_formatCtx.get(), AVMEDIA_TYPE_VIDEO, -1, -1, &codec, 0);
+    ret = AV_FIND_BEST_STREAM(m_formatCtx.get(), AVMEDIA_TYPE_VIDEO, -1, -1, &codec, 0);
     if (ret < 0 || codec == nullptr) {
         LOG(ERROR) << "FFmpegDecoder: Failed to find video stream in: " << m_filePath;
         close();
@@ -169,7 +177,8 @@ bool FFmpegDecoder::initialize(std::string_view source,
     m_height = m_codecCtx->height;
     m_codecName = codec->name ? codec->name : "unknown";
 
-    const AVRational rFrameRate = av_guess_frame_rate(m_formatCtx.get(), m_formatCtx->streams[m_videoStreamIndex], nullptr);
+    const AVRational rFrameRate
+        = av_guess_frame_rate(m_formatCtx.get(), m_formatCtx->streams[m_videoStreamIndex], nullptr);
     if (rFrameRate.den > 0 && rFrameRate.num > 0) {
         m_frameRate = av_q2d(rFrameRate);
     } else {
@@ -240,13 +249,13 @@ bool FFmpegDecoder::decodeNextFrame()
                 m_rgbBuffer.resize(static_cast<std::size_t>(m_width * m_height * 3));
             }
 
-            const AVPixelFormat dstPixFmt = (m_outputFormat == PixelFormat::RGB24) ? AV_PIX_FMT_RGB24 : AV_PIX_FMT_BGR24;
+            const AVPixelFormat dstPixFmt
+                = (m_outputFormat == PixelFormat::RGB24) ? AV_PIX_FMT_RGB24 : AV_PIX_FMT_BGR24;
 
             if (!m_swsCtx) {
-                m_swsCtx.reset(sws_getContext(
-                    m_rawFrame->width, m_rawFrame->height, static_cast<AVPixelFormat>(m_rawFrame->format),
-                    m_width, m_height, dstPixFmt,
-                    SWS_BILINEAR, nullptr, nullptr, nullptr));
+                m_swsCtx.reset(sws_getContext(m_rawFrame->width, m_rawFrame->height,
+                    static_cast<AVPixelFormat>(m_rawFrame->format), m_width, m_height, dstPixFmt, SWS_BILINEAR, nullptr,
+                    nullptr, nullptr));
                 if (!m_swsCtx) {
                     LOG(ERROR) << "FFmpegDecoder: Failed to allocate SwsContext";
                     return false;
@@ -256,9 +265,8 @@ bool FFmpegDecoder::decodeNextFrame()
             std::uint8_t* dstData[4] = { m_rgbBuffer.data(), nullptr, nullptr, nullptr };
             int dstLinesize[4] = { m_width * 3, 0, 0, 0 };
 
-            sws_scale(m_swsCtx.get(),
-                      m_rawFrame->data, m_rawFrame->linesize, 0, m_rawFrame->height,
-                      dstData, dstLinesize);
+            sws_scale(
+                m_swsCtx.get(), m_rawFrame->data, m_rawFrame->linesize, 0, m_rawFrame->height, dstData, dstLinesize);
 
             // Compute presentation timestamp
             if (m_rawFrame->best_effort_timestamp != AV_NOPTS_VALUE) {
@@ -315,7 +323,8 @@ bool FFmpegDecoder::decodeNextFrame()
                 // Read failed on live stream -> auto-reconnect
                 const bool isLive = (m_duration <= 0.0);
                 if (isLive && m_reconnectAttempts < 3) {
-                    LOG(WARNING) << "FFmpegDecoder: Live stream packet error. Reconnecting (" << m_reconnectAttempts + 1 << "/3)...";
+                    LOG(WARNING) << "FFmpegDecoder: Live stream packet error. Reconnecting (" << m_reconnectAttempts + 1
+                                 << "/3)...";
                     ++m_reconnectAttempts;
                     std::this_thread::sleep_for(std::chrono::milliseconds(500));
                     if (reconnect()) {
@@ -366,7 +375,8 @@ DecoderPerformanceStats FFmpegDecoder::getPerformanceStats() const
     DecoderPerformanceStats stats;
     stats.initializationTimeMs = m_initTimeMs;
     stats.totalDecodedFrames = m_decodedFramesCount;
-    stats.averageDecodeTimeMs = (m_decodedFramesCount > 0U) ? (m_totalDecodeTimeMs / static_cast<double>(m_decodedFramesCount)) : 0.0;
+    stats.averageDecodeTimeMs
+        = (m_decodedFramesCount > 0U) ? (m_totalDecodeTimeMs / static_cast<double>(m_decodedFramesCount)) : 0.0;
     return stats;
 }
 

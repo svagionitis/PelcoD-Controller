@@ -1,4 +1,8 @@
 cmake_minimum_required(VERSION 3.16)
+# Disable Qt Creator automatic vcpkg and MaintenanceTool provider warnings
+set(QT_CREATOR_SKIP_VCPKG_SETUP ON CACHE BOOL "Disable Qt Creator automatic vcpkg setup")
+set(QT_CREATOR_ENABLE_MAINTENANCE_TOOL_PROVIDER OFF CACHE BOOL "Disable Qt Creator MaintenanceTool provider")
+
 project(PelcoDController VERSION 1.0.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
@@ -50,6 +54,21 @@ if(PELCOD_ENABLE_VIDEO)
     if(PELCOD_ENABLE_FFMPEG)
         find_package(FFmpeg COMPONENTS avcodec avformat avutil swscale QUIET)
         if(NOT FFmpeg_FOUND AND NOT FFMPEG_FOUND)
+            find_package(PkgConfig QUIET)
+            if(PKG_CONFIG_FOUND)
+                pkg_check_modules(FFMPEG QUIET
+                    libavcodec
+                    libavformat
+                    libavutil
+                    libswscale
+                )
+                if(FFMPEG_FOUND)
+                    set(FFMPEG_INCLUDE_DIRS ${FFMPEG_INCLUDE_DIRS})
+                    set(FFMPEG_LIBRARIES ${FFMPEG_LINK_LIBRARIES})
+                endif()
+            endif()
+        endif()
+        if(NOT FFmpeg_FOUND AND NOT FFMPEG_FOUND)
             find_path(FFMPEG_INCLUDE_DIR NAMES libavcodec/avcodec.h PATHS "C:/vcpkg/installed/x64-windows/include" "$ENV{FFMPEG_ROOT}/include")
             find_library(AVCODEC_LIBRARY NAMES avcodec PATHS "C:/vcpkg/installed/x64-windows/lib" "$ENV{FFMPEG_ROOT}/lib")
             find_library(AVFORMAT_LIBRARY NAMES avformat PATHS "C:/vcpkg/installed/x64-windows/lib" "$ENV{FFMPEG_ROOT}/lib")
@@ -61,7 +80,8 @@ if(PELCOD_ENABLE_VIDEO)
                 set(FFMPEG_LIBRARIES ${AVCODEC_LIBRARY} ${AVFORMAT_LIBRARY} ${AVUTIL_LIBRARY} ${SWSCALE_LIBRARY})
             endif()
         endif()
-        if(FFMPEG_FOUND)
+        if(FFmpeg_FOUND OR FFMPEG_FOUND)
+            set(FFMPEG_FOUND TRUE)
             message(STATUS "PelcoDVideo: FFmpeg backend enabled")
         else()
             message(WARNING "PelcoDVideo: FFmpeg libraries not found, disabling FFmpeg backend")
@@ -71,21 +91,51 @@ if(PELCOD_ENABLE_VIDEO)
 
     # GStreamer components
     if(PELCOD_ENABLE_GSTREAMER)
-        find_path(GST_INCLUDE_DIR NAMES gst/gst.h PATHS "C:/vcpkg/installed/x64-windows/include/gstreamer-1.0" "${GSTREAMER_ROOT}/include/gstreamer-1.0" "$ENV{GSTREAMER_1_0_ROOT_MSVC_X86_64}/include/gstreamer-1.0" PATH_SUFFIXES "gstreamer-1.0")
-        find_path(GLIB_INCLUDE_DIR NAMES glib.h PATHS "C:/vcpkg/installed/x64-windows/include/glib-2.0" "${GSTREAMER_ROOT}/include/glib-2.0" "$ENV{GSTREAMER_1_0_ROOT_MSVC_X86_64}/include/glib-2.0" PATH_SUFFIXES "glib-2.0")
-        find_path(GLIBCONFIG_INCLUDE_DIR NAMES glibconfig.h PATHS "C:/vcpkg/installed/x64-windows/lib/glib-2.0/include" "${GSTREAMER_ROOT}/lib/glib-2.0/include" "$ENV{GSTREAMER_1_0_ROOT_MSVC_X86_64}/lib/glib-2.0/include" PATH_SUFFIXES "glib-2.0/include")
+        find_package(PkgConfig QUIET)
+        if(PKG_CONFIG_FOUND)
+            pkg_check_modules(GST QUIET
+                gstreamer-1.0
+                gstreamer-base-1.0
+                gstreamer-app-1.0
+                gstreamer-video-1.0
+                glib-2.0
+                gobject-2.0
+            )
+            if(GST_FOUND)
+                set(GSTREAMER_FOUND TRUE)
+                set(GSTREAMER_INCLUDE_DIRS ${GST_INCLUDE_DIRS})
+                set(GSTREAMER_LIBRARIES ${GST_LINK_LIBRARIES})
+            endif()
+        endif()
 
-        find_library(GST_LIBRARY NAMES gstreamer-1.0 PATHS "C:/vcpkg/installed/x64-windows/lib" "${GSTREAMER_ROOT}/lib" "$ENV{GSTREAMER_1_0_ROOT_MSVC_X86_64}/lib")
-        find_library(GST_BASE_LIBRARY NAMES gstbase-1.0 PATHS "C:/vcpkg/installed/x64-windows/lib" "${GSTREAMER_ROOT}/lib" "$ENV{GSTREAMER_1_0_ROOT_MSVC_X86_64}/lib")
-        find_library(GST_APP_LIBRARY NAMES gstapp-1.0 PATHS "C:/vcpkg/installed/x64-windows/lib" "${GSTREAMER_ROOT}/lib" "$ENV{GSTREAMER_1_0_ROOT_MSVC_X86_64}/lib")
-        find_library(GST_VIDEO_LIBRARY NAMES gstvideo-1.0 PATHS "C:/vcpkg/installed/x64-windows/lib" "${GSTREAMER_ROOT}/lib" "$ENV{GSTREAMER_1_0_ROOT_MSVC_X86_64}/lib")
-        find_library(GLIB_LIBRARY NAMES glib-2.0 PATHS "C:/vcpkg/installed/x64-windows/lib" "${GSTREAMER_ROOT}/lib" "$ENV{GSTREAMER_1_0_ROOT_MSVC_X86_64}/lib")
-        find_library(GOBJECT_LIBRARY NAMES gobject-2.0 PATHS "C:/vcpkg/installed/x64-windows/lib" "${GSTREAMER_ROOT}/lib" "$ENV{GSTREAMER_1_0_ROOT_MSVC_X86_64}/lib")
+        if(NOT GSTREAMER_FOUND)
+            find_path(GST_INCLUDE_DIR NAMES gst/gst.h PATHS "C:/vcpkg/installed/x64-windows/include/gstreamer-1.0" "${GSTREAMER_ROOT}/include/gstreamer-1.0" "$ENV{GSTREAMER_1_0_ROOT_MSVC_X86_64}/include/gstreamer-1.0" PATH_SUFFIXES "gstreamer-1.0")
+            find_path(GLIB_INCLUDE_DIR NAMES glib.h PATHS "C:/vcpkg/installed/x64-windows/include/glib-2.0" "${GSTREAMER_ROOT}/include/glib-2.0" "$ENV{GSTREAMER_1_0_ROOT_MSVC_X86_64}/include/glib-2.0" PATH_SUFFIXES "glib-2.0")
+            find_path(GLIBCONFIG_INCLUDE_DIR NAMES glibconfig.h
+                PATHS
+                    "C:/vcpkg/installed/x64-windows/lib/glib-2.0/include"
+                    "${GSTREAMER_ROOT}/lib/glib-2.0/include"
+                    "$ENV{GSTREAMER_1_0_ROOT_MSVC_X86_64}/lib/glib-2.0/include"
+                    "/usr/lib/${CMAKE_LIBRARY_ARCHITECTURE}/glib-2.0/include"
+                    "/usr/lib64/glib-2.0/include"
+                    "/usr/lib/glib-2.0/include"
+                PATH_SUFFIXES "glib-2.0/include")
 
-        if(GST_INCLUDE_DIR AND GLIB_INCLUDE_DIR AND GLIBCONFIG_INCLUDE_DIR AND GST_LIBRARY AND GST_BASE_LIBRARY AND GST_APP_LIBRARY AND GST_VIDEO_LIBRARY AND GLIB_LIBRARY AND GOBJECT_LIBRARY)
-            set(GSTREAMER_FOUND TRUE)
-            set(GSTREAMER_INCLUDE_DIRS ${GST_INCLUDE_DIR} ${GLIB_INCLUDE_DIR} ${GLIBCONFIG_INCLUDE_DIR})
-            set(GSTREAMER_LIBRARIES ${GST_LIBRARY} ${GST_BASE_LIBRARY} ${GST_APP_LIBRARY} ${GST_VIDEO_LIBRARY} ${GLIB_LIBRARY} ${GOBJECT_LIBRARY})
+            find_library(GST_LIBRARY NAMES gstreamer-1.0 PATHS "C:/vcpkg/installed/x64-windows/lib" "${GSTREAMER_ROOT}/lib" "$ENV{GSTREAMER_1_0_ROOT_MSVC_X86_64}/lib")
+            find_library(GST_BASE_LIBRARY NAMES gstbase-1.0 PATHS "C:/vcpkg/installed/x64-windows/lib" "${GSTREAMER_ROOT}/lib" "$ENV{GSTREAMER_1_0_ROOT_MSVC_X86_64}/lib")
+            find_library(GST_APP_LIBRARY NAMES gstapp-1.0 PATHS "C:/vcpkg/installed/x64-windows/lib" "${GSTREAMER_ROOT}/lib" "$ENV{GSTREAMER_1_0_ROOT_MSVC_X86_64}/lib")
+            find_library(GST_VIDEO_LIBRARY NAMES gstvideo-1.0 PATHS "C:/vcpkg/installed/x64-windows/lib" "${GSTREAMER_ROOT}/lib" "$ENV{GSTREAMER_1_0_ROOT_MSVC_X86_64}/lib")
+            find_library(GLIB_LIBRARY NAMES glib-2.0 PATHS "C:/vcpkg/installed/x64-windows/lib" "${GSTREAMER_ROOT}/lib" "$ENV{GSTREAMER_1_0_ROOT_MSVC_X86_64}/lib")
+            find_library(GOBJECT_LIBRARY NAMES gobject-2.0 PATHS "C:/vcpkg/installed/x64-windows/lib" "${GSTREAMER_ROOT}/lib" "$ENV{GSTREAMER_1_0_ROOT_MSVC_X86_64}/lib")
+
+            if(GST_INCLUDE_DIR AND GLIB_INCLUDE_DIR AND GLIBCONFIG_INCLUDE_DIR AND GST_LIBRARY AND GST_BASE_LIBRARY AND GST_APP_LIBRARY AND GST_VIDEO_LIBRARY AND GLIB_LIBRARY AND GOBJECT_LIBRARY)
+                set(GSTREAMER_FOUND TRUE)
+                set(GSTREAMER_INCLUDE_DIRS ${GST_INCLUDE_DIR} ${GLIB_INCLUDE_DIR} ${GLIBCONFIG_INCLUDE_DIR})
+                set(GSTREAMER_LIBRARIES ${GST_LIBRARY} ${GST_BASE_LIBRARY} ${GST_APP_LIBRARY} ${GST_VIDEO_LIBRARY} ${GLIB_LIBRARY} ${GOBJECT_LIBRARY})
+            endif()
+        endif()
+
+        if(GSTREAMER_FOUND)
             message(STATUS "PelcoDVideo: GStreamer backend enabled")
         else()
             message(WARNING "PelcoDVideo: GStreamer libraries not found, disabling GStreamer backend")
