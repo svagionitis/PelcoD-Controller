@@ -279,6 +279,38 @@ void VideoStreamTab::setupUi()
     reticleLayout->addWidget(m_comboReticleStyle);
     visionLayout->addLayout(reticleLayout);
 
+    // Motion & Target Tracking Sub-Panel
+    visionLayout->addWidget(new QLabel(tr("Motion & Target Tracking:"), visionGroup));
+    m_chkHeatmap = new QCheckBox(tr("Activity Heatmap"), visionGroup);
+    visionLayout->addWidget(m_chkHeatmap);
+
+    auto* flowLayout = new QHBoxLayout();
+    m_chkOpticalFlow = new QCheckBox(tr("Motion Flow"), visionGroup);
+    m_comboFlowMode = new QComboBox(visionGroup);
+    m_comboFlowMode->addItem(
+        tr("Vector Arrows"), static_cast<int>(PelcoD::Video::OpticalFlowFieldFilter::DisplayMode::VectorArrows));
+    m_comboFlowMode->addItem(
+        tr("Color Flow"), static_cast<int>(PelcoD::Video::OpticalFlowFieldFilter::DisplayMode::ColorFlow));
+    flowLayout->addWidget(m_chkOpticalFlow);
+    flowLayout->addWidget(m_comboFlowMode);
+    visionLayout->addLayout(flowLayout);
+
+    m_chkTargetLock = new QCheckBox(tr("Visual Target Lock"), visionGroup);
+    visionLayout->addWidget(m_chkTargetLock);
+
+    auto* tripLayout = new QHBoxLayout();
+    m_chkTripwire = new QCheckBox(tr("Perimeter Tripwire"), visionGroup);
+    m_comboTripwireDir = new QComboBox(visionGroup);
+    m_comboTripwireDir->addItem(
+        tr("Bi-directional"), static_cast<int>(PelcoD::Video::PerimeterTripwireFilter::Direction::Bidirectional));
+    m_comboTripwireDir->addItem(
+        tr("A -> B"), static_cast<int>(PelcoD::Video::PerimeterTripwireFilter::Direction::A_to_B));
+    m_comboTripwireDir->addItem(
+        tr("B -> A"), static_cast<int>(PelcoD::Video::PerimeterTripwireFilter::Direction::B_to_A));
+    tripLayout->addWidget(m_chkTripwire);
+    tripLayout->addWidget(m_comboTripwireDir);
+    visionLayout->addLayout(tripLayout);
+
     sideLayout->addWidget(visionGroup);
 #endif
 
@@ -459,6 +491,14 @@ void VideoStreamTab::setupConnections()
     connect(m_chkMtiMotion, &QCheckBox::toggled, this, &VideoStreamTab::onFilterConfigurationChanged);
     connect(m_chkReticleHud, &QCheckBox::toggled, this, &VideoStreamTab::onFilterConfigurationChanged);
     connect(m_comboReticleStyle, QOverload<int>::of(&QComboBox::currentIndexChanged), this,
+        &VideoStreamTab::onFilterConfigurationChanged);
+    connect(m_chkHeatmap, &QCheckBox::toggled, this, &VideoStreamTab::onFilterConfigurationChanged);
+    connect(m_chkOpticalFlow, &QCheckBox::toggled, this, &VideoStreamTab::onFilterConfigurationChanged);
+    connect(m_comboFlowMode, QOverload<int>::of(&QComboBox::currentIndexChanged), this,
+        &VideoStreamTab::onFilterConfigurationChanged);
+    connect(m_chkTargetLock, &QCheckBox::toggled, this, &VideoStreamTab::onFilterConfigurationChanged);
+    connect(m_chkTripwire, &QCheckBox::toggled, this, &VideoStreamTab::onFilterConfigurationChanged);
+    connect(m_comboTripwireDir, QOverload<int>::of(&QComboBox::currentIndexChanged), this,
         &VideoStreamTab::onFilterConfigurationChanged);
 #endif
 
@@ -854,6 +894,36 @@ void VideoStreamTab::onFilterConfigurationChanged()
         }
         m_worker->addFrameProcessor(std::make_shared<PelcoD::Video::TacticalReticleOverlayFilter>(
             style, PelcoD::Video::TacticalReticleOverlayFilter::Color::TacticalGreen, 1, 14));
+    }
+
+    // 14. Motion Activity Heatmap
+    if (m_chkHeatmap != nullptr && m_chkHeatmap->isChecked()) {
+        m_worker->addFrameProcessor(std::make_shared<PelcoD::Video::MotionHeatmapFilter>(0.95, 0.40, 20));
+    }
+
+    // 15. Optical Flow Motion Field
+    if (m_chkOpticalFlow != nullptr && m_chkOpticalFlow->isChecked()) {
+        auto mode = PelcoD::Video::OpticalFlowFieldFilter::DisplayMode::VectorArrows;
+        if (m_comboFlowMode != nullptr) {
+            mode = static_cast<PelcoD::Video::OpticalFlowFieldFilter::DisplayMode>(
+                m_comboFlowMode->currentData().toInt());
+        }
+        m_worker->addFrameProcessor(std::make_shared<PelcoD::Video::OpticalFlowFieldFilter>(mode, 16, 1.5, 2.0));
+    }
+
+    // 16. Visual Target Lock-On & Boresight Offset Tracker
+    if (m_chkTargetLock != nullptr && m_chkTargetLock->isChecked()) {
+        m_worker->addFrameProcessor(std::make_shared<PelcoD::Video::CentroidTargetTrackerFilter>(true, 40, 40));
+    }
+
+    // 17. Perimeter Tripwire Intrusion Detection
+    if (m_chkTripwire != nullptr && m_chkTripwire->isChecked()) {
+        auto dir = PelcoD::Video::PerimeterTripwireFilter::Direction::Bidirectional;
+        if (m_comboTripwireDir != nullptr) {
+            dir = static_cast<PelcoD::Video::PerimeterTripwireFilter::Direction>(
+                m_comboTripwireDir->currentData().toInt());
+        }
+        m_worker->addFrameProcessor(std::make_shared<PelcoD::Video::PerimeterTripwireFilter>(0.1, 0.5, 0.9, 0.5, dir));
     }
 }
 #endif

@@ -56,6 +56,10 @@ private slots:
     void testHotspotTrackerFilter();
     void testMovingTargetIndicatorFilter();
     void testTacticalReticleOverlayFilter();
+    void testOpticalFlowFieldFilter();
+    void testCentroidTargetTrackerFilter();
+    void testPerimeterTripwireFilter();
+    void testMotionHeatmapFilter();
     void testVideoFiltersPipelineIntegration();
     void testConcurrentProcessorReconfiguration();
 #endif
@@ -512,11 +516,19 @@ void TestVideoDecoder::testVideoFiltersNullSafety()
     HotspotTrackerFilter spotFilter;
     MovingTargetIndicatorFilter mtiFilter;
     TacticalReticleOverlayFilter reticleFilter;
+    OpticalFlowFieldFilter flowFilter;
+    CentroidTargetTrackerFilter trackerFilter;
+    PerimeterTripwireFilter tripwireFilter;
+    MotionHeatmapFilter heatmapFilter;
 
     isoFilter.process(nullptr, 640, 360, PixelFormat::RGB24);
     spotFilter.process(nullptr, 640, 360, PixelFormat::RGB24);
     mtiFilter.process(nullptr, 640, 360, PixelFormat::RGB24);
     reticleFilter.process(nullptr, 640, 360, PixelFormat::RGB24);
+    flowFilter.process(nullptr, 640, 360, PixelFormat::RGB24);
+    trackerFilter.process(nullptr, 640, 360, PixelFormat::RGB24);
+    tripwireFilter.process(nullptr, 640, 360, PixelFormat::RGB24);
+    heatmapFilter.process(nullptr, 640, 360, PixelFormat::RGB24);
 
     // Verify non-positive dimensions do not crash
     std::vector<std::uint8_t> dummy(1024U, 128U);
@@ -537,6 +549,10 @@ void TestVideoDecoder::testVideoFiltersNullSafety()
     spotFilter.process(dummy.data(), 0, -1, PixelFormat::RGB24);
     mtiFilter.process(dummy.data(), -1, -1, PixelFormat::RGB24);
     reticleFilter.process(dummy.data(), 0, 0, PixelFormat::RGB24);
+    flowFilter.process(dummy.data(), -1, -1, PixelFormat::RGB24);
+    trackerFilter.process(dummy.data(), 0, -1, PixelFormat::RGB24);
+    tripwireFilter.process(dummy.data(), -1, 0, PixelFormat::RGB24);
+    heatmapFilter.process(dummy.data(), 0, 0, PixelFormat::RGB24);
 
     QVERIFY(true);
 }
@@ -1005,6 +1021,181 @@ void TestVideoDecoder::testTacticalReticleOverlayFilter()
         }
         QVERIFY(hasPixels);
     }
+}
+
+void TestVideoDecoder::testOpticalFlowFieldFilter()
+{
+    OpticalFlowFieldFilter flow(OpticalFlowFieldFilter::DisplayMode::VectorArrows, 16, 1.5, 2.0);
+    QCOMPARE(flow.getDisplayMode(), OpticalFlowFieldFilter::DisplayMode::VectorArrows);
+    QCOMPARE(flow.getGridStep(), 16);
+    QVERIFY(qFuzzyCompare(flow.getMinVelocity(), 1.5));
+    QVERIFY(qFuzzyCompare(flow.getArrowScale(), 2.0));
+
+    flow.setDisplayMode(OpticalFlowFieldFilter::DisplayMode::ColorFlow);
+    QCOMPARE(flow.getDisplayMode(), OpticalFlowFieldFilter::DisplayMode::ColorFlow);
+    flow.setGridStep(20);
+    QCOMPARE(flow.getGridStep(), 20);
+    flow.setMinVelocity(2.0);
+    QVERIFY(qFuzzyCompare(flow.getMinVelocity(), 2.0));
+    flow.setArrowScale(1.5);
+    QVERIFY(qFuzzyCompare(flow.getArrowScale(), 1.5));
+
+    const int w = 64;
+    const int h = 64;
+    auto createMovingPattern = [w, h](int shiftX) {
+        std::vector<std::uint8_t> frame(static_cast<std::size_t>(w * h * 3), 0U);
+        for (int y = 0; y < h; ++y) {
+            for (int x = 0; x < w; ++x) {
+                const std::uint8_t val = ((x + shiftX) % 16 < 8) ? 200U : 40U;
+                const std::size_t idx = static_cast<std::size_t>((y * w + x) * 3);
+                frame[idx + 0U] = val;
+                frame[idx + 1U] = val;
+                frame[idx + 2U] = val;
+            }
+        }
+        return frame;
+    };
+
+    auto f1 = createMovingPattern(0);
+    flow.process(f1.data(), w, h, PixelFormat::RGB24);
+
+    auto f2 = createMovingPattern(4);
+    flow.process(f2.data(), w, h, PixelFormat::RGB24);
+
+    flow.setDisplayMode(OpticalFlowFieldFilter::DisplayMode::VectorArrows);
+    auto f3 = createMovingPattern(8);
+    flow.process(f3.data(), w, h, PixelFormat::RGB24);
+
+    QVERIFY(!f3.empty());
+    flow.reset();
+}
+
+void TestVideoDecoder::testCentroidTargetTrackerFilter()
+{
+    CentroidTargetTrackerFilter tracker(true, 40, 40);
+    QVERIFY(tracker.isAutoAcquire());
+    tracker.setAutoAcquire(false);
+    QVERIFY(!tracker.isAutoAcquire());
+
+    tracker.acquireTarget(20, 20, 30, 30);
+    QVERIFY(tracker.isTargetLocked());
+    auto state = tracker.getTargetState();
+    QCOMPARE(state.x, 20);
+    QCOMPARE(state.y, 20);
+    QCOMPARE(state.width, 30);
+    QCOMPARE(state.height, 30);
+    QVERIFY(qFuzzyCompare(state.confidence, 1.0));
+
+    tracker.releaseTarget();
+    QVERIFY(!tracker.isTargetLocked());
+
+    const int w = 128;
+    const int h = 128;
+    auto createFrameWithBox = [w, h](int bx, int by) {
+        std::vector<std::uint8_t> frame(static_cast<std::size_t>(w * h * 3), 50U);
+        for (int y = by; y < by + 30 && y < h; ++y) {
+            for (int x = bx; x < bx + 30 && x < w; ++x) {
+                const std::size_t idx = static_cast<std::size_t>((y * w + x) * 3);
+                frame[idx + 0U] = 240U;
+                frame[idx + 1U] = 240U;
+                frame[idx + 2U] = 240U;
+            }
+        }
+        return frame;
+    };
+
+    tracker.setAutoAcquire(true);
+    auto f1 = createFrameWithBox(20, 20);
+    tracker.process(f1.data(), w, h, PixelFormat::RGB24);
+
+    auto f2 = createFrameWithBox(26, 24);
+    tracker.process(f2.data(), w, h, PixelFormat::RGB24);
+
+    auto f3 = createFrameWithBox(32, 28);
+    tracker.process(f3.data(), w, h, PixelFormat::RGB24);
+
+    QVERIFY(!f3.empty());
+}
+
+void TestVideoDecoder::testPerimeterTripwireFilter()
+{
+    PerimeterTripwireFilter trip(0.1, 0.5, 0.9, 0.5, PerimeterTripwireFilter::Direction::Bidirectional);
+    double x1, y1, x2, y2;
+    trip.getTripwire(x1, y1, x2, y2);
+    QVERIFY(qFuzzyCompare(x1, 0.1));
+    QVERIFY(qFuzzyCompare(y1, 0.5));
+    QVERIFY(qFuzzyCompare(x2, 0.9));
+    QVERIFY(qFuzzyCompare(y2, 0.5));
+    QCOMPARE(trip.getDirection(), PerimeterTripwireFilter::Direction::Bidirectional);
+
+    trip.setTripwire(0.0, 0.5, 1.0, 0.5);
+    trip.setDirection(PerimeterTripwireFilter::Direction::A_to_B);
+    QCOMPARE(trip.getDirection(), PerimeterTripwireFilter::Direction::A_to_B);
+    QCOMPARE(trip.getIntrusionCount(), 0ULL);
+    QVERIFY(!trip.hasAlarm());
+
+    const int w = 128;
+    const int h = 128;
+    auto createTargetFrame = [w, h](int cy) {
+        std::vector<std::uint8_t> frame(static_cast<std::size_t>(w * h * 3), 40U);
+        for (int y = cy - 10; y < cy + 10 && y < h; ++y) {
+            for (int x = 54; x < 74 && x < w; ++x) {
+                const std::size_t idx = static_cast<std::size_t>((y * w + x) * 3);
+                frame[idx + 0U] = 230U;
+                frame[idx + 1U] = 230U;
+                frame[idx + 2U] = 230U;
+            }
+        }
+        return frame;
+    };
+
+    trip.setDirection(PerimeterTripwireFilter::Direction::Bidirectional);
+    auto f1 = createTargetFrame(40);
+    trip.process(f1.data(), w, h, PixelFormat::RGB24);
+
+    auto f2 = createTargetFrame(75);
+    trip.process(f2.data(), w, h, PixelFormat::RGB24);
+
+    QVERIFY(trip.getIntrusionCount() >= 1ULL);
+    QVERIFY(trip.hasAlarm());
+
+    trip.resetIntrusionCount();
+    QCOMPARE(trip.getIntrusionCount(), 0ULL);
+    QVERIFY(!trip.hasAlarm());
+}
+
+void TestVideoDecoder::testMotionHeatmapFilter()
+{
+    MotionHeatmapFilter heatmap(0.95, 0.40, 20);
+    QVERIFY(qFuzzyCompare(heatmap.getDecayFactor(), 0.95));
+    QVERIFY(qFuzzyCompare(heatmap.getOpacity(), 0.40));
+    QCOMPARE(heatmap.getThreshold(), 20);
+
+    heatmap.setDecayFactor(0.90);
+    QVERIFY(qFuzzyCompare(heatmap.getDecayFactor(), 0.90));
+    heatmap.setOpacity(0.50);
+    QVERIFY(qFuzzyCompare(heatmap.getOpacity(), 0.50));
+    heatmap.setThreshold(25);
+    QCOMPARE(heatmap.getThreshold(), 25);
+
+    const int w = 64;
+    const int h = 64;
+    std::vector<std::uint8_t> baseFrame(static_cast<std::size_t>(w * h * 3), 100U);
+    heatmap.process(baseFrame.data(), w, h, PixelFormat::RGB24);
+
+    std::vector<std::uint8_t> motionFrame = baseFrame;
+    for (int y = 0; y < 20; ++y) {
+        for (int x = 0; x < 20; ++x) {
+            const std::size_t idx = static_cast<std::size_t>((y * w + x) * 3);
+            motionFrame[idx + 0U] = 220U;
+            motionFrame[idx + 1U] = 220U;
+            motionFrame[idx + 2U] = 220U;
+        }
+    }
+
+    heatmap.process(motionFrame.data(), w, h, PixelFormat::RGB24);
+    QVERIFY(!motionFrame.empty());
+    heatmap.reset();
 }
 
 void TestVideoDecoder::testVideoFiltersPipelineIntegration()

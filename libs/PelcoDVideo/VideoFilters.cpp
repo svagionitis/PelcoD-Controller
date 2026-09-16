@@ -1714,6 +1714,558 @@ void TacticalReticleOverlayFilter::process(uint8_t* data, int width, int height,
     }
 }
 
+// -----------------------------------------------------------------------------
+// OpticalFlowFieldFilter Implementation
+// -----------------------------------------------------------------------------
+struct OpticalFlowFieldFilter::Impl {
+    cv::Mat prevGray;
+};
+
+OpticalFlowFieldFilter::OpticalFlowFieldFilter(DisplayMode mode, int gridStep, double minVelocity, double arrowScale)
+    : m_mode(mode)
+    , m_gridStep(std::max(4, gridStep))
+    , m_minVelocity(std::max(0.0, minVelocity))
+    , m_arrowScale(arrowScale)
+    , m_impl(std::make_unique<Impl>())
+{
+}
+
+OpticalFlowFieldFilter::~OpticalFlowFieldFilter() = default;
+OpticalFlowFieldFilter::OpticalFlowFieldFilter(OpticalFlowFieldFilter&&) noexcept = default;
+OpticalFlowFieldFilter& OpticalFlowFieldFilter::operator=(OpticalFlowFieldFilter&&) noexcept = default;
+
+void OpticalFlowFieldFilter::reset()
+{
+    if (m_impl) {
+        m_impl->prevGray.release();
+    }
+}
+
+void OpticalFlowFieldFilter::process(uint8_t* data, int width, int height, PixelFormat format)
+{
+    if (!data || width <= 0 || height <= 0 || !m_impl
+        || (format != PixelFormat::RGB24 && format != PixelFormat::BGR24)) {
+        return;
+    }
+
+    cv::Mat mat(height, width, CV_8UC3, data);
+    cv::Mat gray;
+    const int convCode = (format == PixelFormat::RGB24) ? cv::COLOR_RGB2GRAY : cv::COLOR_BGR2GRAY;
+    cv::cvtColor(mat, gray, convCode);
+
+    if (m_impl->prevGray.empty() || m_impl->prevGray.size() != gray.size()) {
+        m_impl->prevGray = gray.clone();
+        return;
+    }
+
+    cv::Mat flow;
+    cv::calcOpticalFlowFarneback(m_impl->prevGray, gray, flow, 0.5, 3, 15, 3, 5, 1.2, 0);
+    m_impl->prevGray = gray.clone();
+
+    if (m_mode == DisplayMode::VectorArrows) {
+        const cv::Scalar arrowColor = (format == PixelFormat::RGB24) ? cv::Scalar(0, 255, 64) : cv::Scalar(64, 255, 0);
+        const int step = m_gridStep;
+        for (int y = step / 2; y < height; y += step) {
+            for (int x = step / 2; x < width; x += step) {
+                const cv::Point2f flowAtPoint = flow.at<cv::Point2f>(y, x);
+                const double mag = std::hypot(static_cast<double>(flowAtPoint.x), static_cast<double>(flowAtPoint.y));
+                if (mag >= m_minVelocity) {
+                    const int endX = std::max(0,
+                        std::min(width - 1,
+                            static_cast<int>(std::round(
+                                static_cast<double>(x) + static_cast<double>(flowAtPoint.x) * m_arrowScale))));
+                    const int endY = std::max(0,
+                        std::min(height - 1,
+                            static_cast<int>(std::round(
+                                static_cast<double>(y) + static_cast<double>(flowAtPoint.y) * m_arrowScale))));
+                    cv::arrowedLine(mat, cv::Point(x, y), cv::Point(endX, endY), arrowColor, 1, cv::LINE_AA, 0, 0.25);
+                }
+            }
+        }
+    } else if (m_mode == DisplayMode::ColorFlow) {
+        std::vector<cv::Mat> hsvChannels(3);
+        hsvChannels[1] = cv::Mat(height, width, CV_8UC1, cv::Scalar(255));
+
+        cv::Mat flowPlanes[2];
+        cv::split(flow, flowPlanes);
+
+        cv::Mat magnitude;
+        cv::Mat angle;
+        cv::cartToPolar(flowPlanes[0], flowPlanes[1], magnitude, angle, true);
+
+        angle.convertTo(hsvChannels[0], CV_8U, 0.5);
+        cv::normalize(magnitude, hsvChannels[2], 0, 255, cv::NORM_MINMAX, CV_8U);
+
+        cv::Mat hsv;
+        cv::merge(hsvChannels, hsv);
+        cv::Mat bgrFlow;
+        cv::cvtColor(hsv, bgrFlow, cv::COLOR_HSV2BGR);
+
+        if (format == PixelFormat::RGB24) {
+            cv::cvtColor(bgrFlow, bgrFlow, cv::COLOR_BGR2RGB);
+        }
+        cv::addWeighted(mat, 0.6, bgrFlow, 0.4, 0.0, mat);
+    }
+}
+
+// -----------------------------------------------------------------------------
+// CentroidTargetTrackerFilter Implementation
+// -----------------------------------------------------------------------------
+struct CentroidTargetTrackerFilter::Impl {
+    TargetState state;
+    mutable std::mutex stateMutex;
+    cv::Mat prevGray;
+    std::vector<cv::Point2f> trackedPoints;
+    cv::Rect targetRect;
+    int lostFrames { 0 };
+};
+
+CentroidTargetTrackerFilter::CentroidTargetTrackerFilter(bool autoAcquire, int targetWidth, int targetHeight)
+    : m_autoAcquire(autoAcquire)
+    , m_defaultWidth(std::max(10, targetWidth))
+    , m_defaultHeight(std::max(10, targetHeight))
+    , m_impl(std::make_unique<Impl>())
+{
+}
+
+CentroidTargetTrackerFilter::~CentroidTargetTrackerFilter() = default;
+CentroidTargetTrackerFilter::CentroidTargetTrackerFilter(CentroidTargetTrackerFilter&&) noexcept = default;
+CentroidTargetTrackerFilter& CentroidTargetTrackerFilter::operator=(CentroidTargetTrackerFilter&&) noexcept = default;
+
+void CentroidTargetTrackerFilter::acquireTarget(int x, int y, int width, int height)
+{
+    if (!m_impl) {
+        return;
+    }
+    std::lock_guard<std::mutex> lock(m_impl->stateMutex);
+    m_impl->targetRect = cv::Rect(x, y, std::max(10, width), std::max(10, height));
+    m_impl->trackedPoints.clear();
+    m_impl->lostFrames = 0;
+    m_impl->state.locked = true;
+    m_impl->state.x = x;
+    m_impl->state.y = y;
+    m_impl->state.width = width;
+    m_impl->state.height = height;
+    m_impl->state.confidence = 1.0;
+}
+
+void CentroidTargetTrackerFilter::releaseTarget()
+{
+    if (!m_impl) {
+        return;
+    }
+    std::lock_guard<std::mutex> lock(m_impl->stateMutex);
+    m_impl->targetRect = cv::Rect();
+    m_impl->trackedPoints.clear();
+    m_impl->lostFrames = 0;
+    m_impl->state = TargetState();
+}
+
+bool CentroidTargetTrackerFilter::isTargetLocked() const
+{
+    if (!m_impl) {
+        return false;
+    }
+    std::lock_guard<std::mutex> lock(m_impl->stateMutex);
+    return m_impl->state.locked;
+}
+
+CentroidTargetTrackerFilter::TargetState CentroidTargetTrackerFilter::getTargetState() const
+{
+    if (!m_impl) {
+        return {};
+    }
+    std::lock_guard<std::mutex> lock(m_impl->stateMutex);
+    return m_impl->state;
+}
+
+void CentroidTargetTrackerFilter::process(uint8_t* data, int width, int height, PixelFormat format)
+{
+    if (!data || width <= 0 || height <= 0 || !m_impl
+        || (format != PixelFormat::RGB24 && format != PixelFormat::BGR24)) {
+        return;
+    }
+
+    cv::Mat mat(height, width, CV_8UC3, data);
+    cv::Mat gray;
+    const int convCode = (format == PixelFormat::RGB24) ? cv::COLOR_RGB2GRAY : cv::COLOR_BGR2GRAY;
+    cv::cvtColor(mat, gray, convCode);
+
+    std::lock_guard<std::mutex> lock(m_impl->stateMutex);
+
+    if (!m_impl->state.locked && m_autoAcquire && !m_impl->prevGray.empty()) {
+        cv::Mat diff;
+        cv::absdiff(m_impl->prevGray, gray, diff);
+        cv::threshold(diff, diff, 25, 255, cv::THRESH_BINARY);
+        std::vector<std::vector<cv::Point>> contours;
+        cv::findContours(diff, contours, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_SIMPLE);
+
+        double maxArea = 0.0;
+        cv::Rect bestRect;
+        for (const auto& c : contours) {
+            const double a = cv::contourArea(c);
+            if (a > 200.0 && a > maxArea) {
+                maxArea = a;
+                bestRect = cv::boundingRect(c);
+            }
+        }
+        if (maxArea > 200.0) {
+            m_impl->targetRect = bestRect;
+            m_impl->state.locked = true;
+            m_impl->state.confidence = 1.0;
+            m_impl->trackedPoints.clear();
+            m_impl->lostFrames = 0;
+        }
+    }
+
+    if (m_impl->state.locked && !m_impl->prevGray.empty()) {
+        if (m_impl->trackedPoints.empty()) {
+            const cv::Rect bounded = m_impl->targetRect & cv::Rect(0, 0, width, height);
+            if (bounded.width >= 10 && bounded.height >= 10) {
+                cv::Mat roi = m_impl->prevGray(bounded);
+                std::vector<cv::Point2f> pts;
+                cv::goodFeaturesToTrack(roi, pts, 25, 0.01, 5.0);
+                for (const auto& p : pts) {
+                    m_impl->trackedPoints.push_back(
+                        cv::Point2f(p.x + static_cast<float>(bounded.x), p.y + static_cast<float>(bounded.y)));
+                }
+            }
+        }
+
+        if (!m_impl->trackedPoints.empty()) {
+            std::vector<cv::Point2f> nextPts;
+            std::vector<uchar> status;
+            std::vector<float> err;
+            cv::calcOpticalFlowPyrLK(m_impl->prevGray, gray, m_impl->trackedPoints, nextPts, status, err);
+
+            std::vector<cv::Point2f> goodNext;
+            cv::Point2f meanShift(0.0f, 0.0f);
+            for (std::size_t i = 0U; i < status.size(); ++i) {
+                if (status[i]) {
+                    goodNext.push_back(nextPts[i]);
+                    meanShift += (nextPts[i] - m_impl->trackedPoints[i]);
+                }
+            }
+
+            if (!goodNext.empty()) {
+                meanShift.x /= static_cast<float>(goodNext.size());
+                meanShift.y /= static_cast<float>(goodNext.size());
+
+                m_impl->targetRect.x = std::max(0,
+                    std::min(width - m_impl->targetRect.width,
+                        static_cast<int>(std::round(static_cast<float>(m_impl->targetRect.x) + meanShift.x))));
+                m_impl->targetRect.y = std::max(0,
+                    std::min(height - m_impl->targetRect.height,
+                        static_cast<int>(std::round(static_cast<float>(m_impl->targetRect.y) + meanShift.y))));
+                m_impl->trackedPoints = goodNext;
+                m_impl->state.vx = static_cast<double>(meanShift.x);
+                m_impl->state.vy = static_cast<double>(meanShift.y);
+                m_impl->state.confidence = std::min(1.0, static_cast<double>(goodNext.size()) / 15.0);
+                m_impl->lostFrames = 0;
+            } else {
+                m_impl->lostFrames++;
+                m_impl->state.confidence *= 0.8;
+                if (m_impl->lostFrames > 10) {
+                    m_impl->state.locked = false;
+                    m_impl->targetRect = cv::Rect();
+                }
+            }
+        }
+    }
+
+    m_impl->prevGray = gray.clone();
+
+    if (m_impl->state.locked) {
+        m_impl->state.x = m_impl->targetRect.x;
+        m_impl->state.y = m_impl->targetRect.y;
+        m_impl->state.width = m_impl->targetRect.width;
+        m_impl->state.height = m_impl->targetRect.height;
+
+        const double cx
+            = static_cast<double>(m_impl->targetRect.x) + static_cast<double>(m_impl->targetRect.width) / 2.0;
+        const double cy
+            = static_cast<double>(m_impl->targetRect.y) + static_cast<double>(m_impl->targetRect.height) / 2.0;
+        const double halfW = static_cast<double>(width) / 2.0;
+        const double halfH = static_cast<double>(height) / 2.0;
+        m_impl->state.errorX = (cx - halfW) / halfW;
+        m_impl->state.errorY = (cy - halfH) / halfH;
+
+        const cv::Scalar lockColor = (m_impl->state.confidence > 0.5)
+            ? ((format == PixelFormat::RGB24) ? cv::Scalar(0, 255, 64) : cv::Scalar(64, 255, 0))
+            : ((format == PixelFormat::RGB24) ? cv::Scalar(255, 200, 0) : cv::Scalar(0, 200, 255));
+
+        const cv::Rect r = m_impl->targetRect;
+        cv::rectangle(mat, r, lockColor, 2, cv::LINE_AA);
+        cv::line(mat, cv::Point(r.x + r.width / 2 - 4, r.y + r.height / 2),
+            cv::Point(r.x + r.width / 2 + 4, r.y + r.height / 2), lockColor, 1);
+        cv::line(mat, cv::Point(r.x + r.width / 2, r.y + r.height / 2 - 4),
+            cv::Point(r.x + r.width / 2, r.y + r.height / 2 + 4), lockColor, 1);
+
+        const std::string tag = "LOCK [dX:" + std::to_string(static_cast<int>(m_impl->state.errorX * 100.0))
+            + "% dY:" + std::to_string(static_cast<int>(m_impl->state.errorY * 100.0)) + "%]";
+        cv::putText(
+            mat, tag, cv::Point(r.x, std::max(12, r.y - 4)), cv::FONT_HERSHEY_PLAIN, 0.8, lockColor, 1, cv::LINE_AA);
+    }
+}
+
+// -----------------------------------------------------------------------------
+// PerimeterTripwireFilter Implementation
+// -----------------------------------------------------------------------------
+struct PerimeterTripwireFilter::Impl {
+    std::size_t intrusionCount { 0U };
+    int alarmFrames { 0 };
+    cv::Mat prevGray;
+    std::vector<cv::Point2f> prevCentroids;
+    mutable std::mutex mutex;
+};
+
+PerimeterTripwireFilter::PerimeterTripwireFilter(
+    double x1Norm, double y1Norm, double x2Norm, double y2Norm, Direction direction)
+    : m_x1Norm(x1Norm)
+    , m_y1Norm(y1Norm)
+    , m_x2Norm(x2Norm)
+    , m_y2Norm(y2Norm)
+    , m_direction(direction)
+    , m_impl(std::make_unique<Impl>())
+{
+}
+
+PerimeterTripwireFilter::~PerimeterTripwireFilter() = default;
+PerimeterTripwireFilter::PerimeterTripwireFilter(PerimeterTripwireFilter&&) noexcept = default;
+PerimeterTripwireFilter& PerimeterTripwireFilter::operator=(PerimeterTripwireFilter&&) noexcept = default;
+
+void PerimeterTripwireFilter::setTripwire(double x1Norm, double y1Norm, double x2Norm, double y2Norm)
+{
+    m_x1Norm = x1Norm;
+    m_y1Norm = y1Norm;
+    m_x2Norm = x2Norm;
+    m_y2Norm = y2Norm;
+}
+
+void PerimeterTripwireFilter::getTripwire(double& x1Norm, double& y1Norm, double& x2Norm, double& y2Norm) const
+{
+    x1Norm = m_x1Norm;
+    y1Norm = m_y1Norm;
+    x2Norm = m_x2Norm;
+    y2Norm = m_y2Norm;
+}
+
+bool PerimeterTripwireFilter::hasAlarm() const
+{
+    if (!m_impl) {
+        return false;
+    }
+    std::lock_guard<std::mutex> lock(m_impl->mutex);
+    return m_impl->alarmFrames > 0;
+}
+
+std::size_t PerimeterTripwireFilter::getIntrusionCount() const
+{
+    if (!m_impl) {
+        return 0U;
+    }
+    std::lock_guard<std::mutex> lock(m_impl->mutex);
+    return m_impl->intrusionCount;
+}
+
+void PerimeterTripwireFilter::resetIntrusionCount()
+{
+    if (!m_impl) {
+        return;
+    }
+    std::lock_guard<std::mutex> lock(m_impl->mutex);
+    m_impl->intrusionCount = 0U;
+    m_impl->alarmFrames = 0;
+}
+
+static bool segmentsIntersect(
+    const cv::Point2f& p1, const cv::Point2f& p2, const cv::Point2f& q1, const cv::Point2f& q2, double& orientationSign)
+{
+    auto ccw = [](const cv::Point2f& a, const cv::Point2f& b, const cv::Point2f& c) -> double {
+        return static_cast<double>((b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x));
+    };
+
+    const double d1 = ccw(q1, q2, p1);
+    const double d2 = ccw(q1, q2, p2);
+    const double d3 = ccw(p1, p2, q1);
+    const double d4 = ccw(p1, p2, q2);
+
+    orientationSign = d1 - d2;
+    return (((d1 > 0.0 && d2 < 0.0) || (d1 < 0.0 && d2 > 0.0)) && ((d3 > 0.0 && d4 < 0.0) || (d3 < 0.0 && d4 > 0.0)));
+}
+
+void PerimeterTripwireFilter::process(uint8_t* data, int width, int height, PixelFormat format)
+{
+    if (!data || width <= 0 || height <= 0 || !m_impl
+        || (format != PixelFormat::RGB24 && format != PixelFormat::BGR24)) {
+        return;
+    }
+
+    cv::Mat mat(height, width, CV_8UC3, data);
+    cv::Mat gray;
+    const int convCode = (format == PixelFormat::RGB24) ? cv::COLOR_RGB2GRAY : cv::COLOR_BGR2GRAY;
+    cv::cvtColor(mat, gray, convCode);
+
+    std::lock_guard<std::mutex> lock(m_impl->mutex);
+
+    const cv::Point2f tripA(static_cast<float>(m_x1Norm * static_cast<double>(width)),
+        static_cast<float>(m_y1Norm * static_cast<double>(height)));
+    const cv::Point2f tripB(static_cast<float>(m_x2Norm * static_cast<double>(width)),
+        static_cast<float>(m_y2Norm * static_cast<double>(height)));
+
+    if (!m_impl->prevGray.empty()) {
+        cv::Mat diff;
+        cv::absdiff(m_impl->prevGray, gray, diff);
+        cv::threshold(diff, diff, 25, 255, cv::THRESH_BINARY);
+
+        std::vector<std::vector<cv::Point>> contours;
+        cv::findContours(diff, contours, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_SIMPLE);
+
+        std::vector<cv::Point2f> currentCentroids;
+        for (const auto& c : contours) {
+            if (cv::contourArea(c) > 100.0) {
+                const cv::Moments m = cv::moments(c);
+                if (m.m00 > 0.0) {
+                    currentCentroids.push_back(
+                        cv::Point2f(static_cast<float>(m.m10 / m.m00), static_cast<float>(m.m01 / m.m00)));
+                }
+            }
+        }
+
+        for (const auto& cur : currentCentroids) {
+            for (const auto& prev : m_impl->prevCentroids) {
+                if (cv::norm(cur - prev) < 100.0) {
+                    double orient = 0.0;
+                    if (segmentsIntersect(prev, cur, tripA, tripB, orient)) {
+                        bool trigger = false;
+                        if (m_direction == Direction::Bidirectional) {
+                            trigger = true;
+                        } else if (m_direction == Direction::A_to_B && orient > 0.0) {
+                            trigger = true;
+                        } else if (m_direction == Direction::B_to_A && orient < 0.0) {
+                            trigger = true;
+                        }
+                        if (trigger) {
+                            m_impl->intrusionCount++;
+                            m_impl->alarmFrames = 15;
+                        }
+                    }
+                }
+            }
+        }
+
+        m_impl->prevCentroids = std::move(currentCentroids);
+    } else {
+        cv::Mat thresh;
+        cv::threshold(gray, thresh, 128, 255, cv::THRESH_BINARY);
+        std::vector<std::vector<cv::Point>> contours;
+        cv::findContours(thresh, contours, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_SIMPLE);
+        for (const auto& c : contours) {
+            if (cv::contourArea(c) > 100.0) {
+                const cv::Moments m = cv::moments(c);
+                if (m.m00 > 0.0) {
+                    m_impl->prevCentroids.push_back(
+                        cv::Point2f(static_cast<float>(m.m10 / m.m00), static_cast<float>(m.m01 / m.m00)));
+                }
+            }
+        }
+    }
+
+    m_impl->prevGray = gray.clone();
+
+    const bool inAlarm = (m_impl->alarmFrames > 0);
+    if (m_impl->alarmFrames > 0) {
+        m_impl->alarmFrames--;
+    }
+
+    const cv::Scalar tripColor = inAlarm
+        ? ((format == PixelFormat::RGB24) ? cv::Scalar(255, 32, 32) : cv::Scalar(32, 32, 255))
+        : ((format == PixelFormat::RGB24) ? cv::Scalar(255, 191, 0) : cv::Scalar(0, 191, 255));
+
+    cv::line(mat, tripA, tripB, tripColor, inAlarm ? 3 : 2, cv::LINE_AA);
+    cv::circle(mat, tripA, 4, tripColor, -1);
+    cv::circle(mat, tripB, 4, tripColor, -1);
+
+    const std::string badge = "TRIPWIRE ALARMS: " + std::to_string(m_impl->intrusionCount);
+    cv::putText(mat, badge, cv::Point(static_cast<int>(tripA.x), std::max(14, static_cast<int>(tripA.y) - 6)),
+        cv::FONT_HERSHEY_PLAIN, 0.85, tripColor, 1, cv::LINE_AA);
+}
+
+// -----------------------------------------------------------------------------
+// MotionHeatmapFilter Implementation
+// -----------------------------------------------------------------------------
+struct MotionHeatmapFilter::Impl {
+    cv::Mat prevGray;
+    cv::Mat accumHeatmap;
+    mutable std::mutex mutex;
+};
+
+MotionHeatmapFilter::MotionHeatmapFilter(double decayFactor, double opacity, int threshold)
+    : m_decayFactor(std::max(0.01, std::min(0.999, decayFactor)))
+    , m_opacity(std::max(0.0, std::min(1.0, opacity)))
+    , m_threshold(std::max(1, std::min(255, threshold)))
+    , m_impl(std::make_unique<Impl>())
+{
+}
+
+MotionHeatmapFilter::~MotionHeatmapFilter() = default;
+MotionHeatmapFilter::MotionHeatmapFilter(MotionHeatmapFilter&&) noexcept = default;
+MotionHeatmapFilter& MotionHeatmapFilter::operator=(MotionHeatmapFilter&&) noexcept = default;
+
+void MotionHeatmapFilter::reset()
+{
+    if (m_impl) {
+        std::lock_guard<std::mutex> lock(m_impl->mutex);
+        m_impl->prevGray.release();
+        m_impl->accumHeatmap.release();
+    }
+}
+
+void MotionHeatmapFilter::process(uint8_t* data, int width, int height, PixelFormat format)
+{
+    if (!data || width <= 0 || height <= 0 || !m_impl
+        || (format != PixelFormat::RGB24 && format != PixelFormat::BGR24)) {
+        return;
+    }
+
+    cv::Mat mat(height, width, CV_8UC3, data);
+    cv::Mat gray;
+    const int convCode = (format == PixelFormat::RGB24) ? cv::COLOR_RGB2GRAY : cv::COLOR_BGR2GRAY;
+    cv::cvtColor(mat, gray, convCode);
+
+    std::lock_guard<std::mutex> lock(m_impl->mutex);
+
+    if (m_impl->prevGray.empty() || m_impl->prevGray.size() != gray.size()) {
+        m_impl->prevGray = gray.clone();
+        m_impl->accumHeatmap = cv::Mat::zeros(height, width, CV_32F);
+        return;
+    }
+
+    cv::Mat diff;
+    cv::absdiff(m_impl->prevGray, gray, diff);
+    m_impl->prevGray = gray.clone();
+
+    cv::Mat motionMask;
+    cv::threshold(diff, motionMask, m_threshold, 1.0, cv::THRESH_BINARY);
+    cv::Mat motionFloat;
+    motionMask.convertTo(motionFloat, CV_32F);
+
+    m_impl->accumHeatmap = m_impl->accumHeatmap * static_cast<float>(m_decayFactor)
+        + motionFloat * (1.0f - static_cast<float>(m_decayFactor));
+
+    cv::Mat normHeatmap;
+    cv::normalize(m_impl->accumHeatmap, normHeatmap, 0, 255, cv::NORM_MINMAX, CV_8U);
+
+    cv::Mat colorHeatmap;
+    cv::applyColorMap(normHeatmap, colorHeatmap, cv::COLORMAP_JET);
+
+    if (format == PixelFormat::RGB24) {
+        cv::cvtColor(colorHeatmap, colorHeatmap, cv::COLOR_BGR2RGB);
+    }
+
+    cv::addWeighted(mat, 1.0 - m_opacity, colorHeatmap, m_opacity, 0.0, mat);
+}
+
 } // namespace PelcoD::Video
 
 #endif // PELCOD_HAS_FILTERS

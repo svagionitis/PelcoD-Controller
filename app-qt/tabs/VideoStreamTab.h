@@ -127,6 +127,13 @@ private:
     QCheckBox* m_chkMtiMotion { nullptr };
     QCheckBox* m_chkReticleHud { nullptr };
     QComboBox* m_comboReticleStyle { nullptr };
+    // Motion & Target Tracking Controls
+    QCheckBox* m_chkOpticalFlow { nullptr };
+    QComboBox* m_comboFlowMode { nullptr };
+    QCheckBox* m_chkTargetLock { nullptr };
+    QCheckBox* m_chkTripwire { nullptr };
+    QComboBox* m_comboTripwireDir { nullptr };
+    QCheckBox* m_chkHeatmap { nullptr };
 #endif
 
     // Quick PTZ Controls

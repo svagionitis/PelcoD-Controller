@@ -1253,6 +1253,233 @@ private:
     int m_deadbandGap;
 };
 
+/**
+ * @class OpticalFlowFieldFilter
+ * @brief Computes and visualizes spatial motion vectors across the surveillance scene using optical flow.
+ */
+class VIDEOFILTERS_API OpticalFlowFieldFilter : public IFrameProcessor {
+public:
+    enum class DisplayMode {
+        VectorArrows, ///< Tactical velocity arrows on a spatial grid
+        ColorFlow ///< Directional color wheel (Hue = angle, Saturation/Value = speed)
+    };
+
+    OpticalFlowFieldFilter(DisplayMode mode = DisplayMode::VectorArrows, int gridStep = 16, double minVelocity = 1.5,
+        double arrowScale = 2.0);
+    ~OpticalFlowFieldFilter() override;
+
+    OpticalFlowFieldFilter(const OpticalFlowFieldFilter&) = delete;
+    OpticalFlowFieldFilter& operator=(const OpticalFlowFieldFilter&) = delete;
+    OpticalFlowFieldFilter(OpticalFlowFieldFilter&&) noexcept;
+    OpticalFlowFieldFilter& operator=(OpticalFlowFieldFilter&&) noexcept;
+
+    void process(uint8_t* data, int width, int height, PixelFormat format) override;
+
+    void setDisplayMode(DisplayMode mode)
+    {
+        m_mode = mode;
+    }
+    DisplayMode getDisplayMode() const
+    {
+        return m_mode;
+    }
+
+    void setGridStep(int step)
+    {
+        m_gridStep = std::max(4, step);
+    }
+    int getGridStep() const
+    {
+        return m_gridStep;
+    }
+
+    void setMinVelocity(double minVel)
+    {
+        m_minVelocity = std::max(0.0, minVel);
+    }
+    double getMinVelocity() const
+    {
+        return m_minVelocity;
+    }
+
+    void setArrowScale(double scale)
+    {
+        m_arrowScale = scale;
+    }
+    double getArrowScale() const
+    {
+        return m_arrowScale;
+    }
+
+    void reset();
+
+private:
+    DisplayMode m_mode;
+    int m_gridStep;
+    double m_minVelocity;
+    double m_arrowScale;
+
+    struct Impl;
+    std::unique_ptr<Impl> m_impl;
+};
+
+/**
+ * @class CentroidTargetTrackerFilter
+ * @brief Locks onto and tracks a visual target, computing azimuth/elevation boresight error telemetry for PTZ tracking.
+ */
+class VIDEOFILTERS_API CentroidTargetTrackerFilter : public IFrameProcessor {
+public:
+    struct TargetState {
+        int x { 0 };
+        int y { 0 };
+        int width { 0 };
+        int height { 0 };
+        double errorX { 0.0 }; ///< Normalized X offset from boresight (-1.0 left to +1.0 right)
+        double errorY { 0.0 }; ///< Normalized Y offset from boresight (-1.0 up to +1.0 down)
+        double vx { 0.0 }; ///< Target velocity X in px/frame
+        double vy { 0.0 }; ///< Target velocity Y in px/frame
+        double confidence { 0.0 }; ///< Tracking confidence (0.0 to 1.0)
+        bool locked { false };
+    };
+
+    CentroidTargetTrackerFilter(bool autoAcquire = true, int targetWidth = 40, int targetHeight = 40);
+    ~CentroidTargetTrackerFilter() override;
+
+    CentroidTargetTrackerFilter(const CentroidTargetTrackerFilter&) = delete;
+    CentroidTargetTrackerFilter& operator=(const CentroidTargetTrackerFilter&) = delete;
+    CentroidTargetTrackerFilter(CentroidTargetTrackerFilter&&) noexcept;
+    CentroidTargetTrackerFilter& operator=(CentroidTargetTrackerFilter&&) noexcept;
+
+    void process(uint8_t* data, int width, int height, PixelFormat format) override;
+
+    void setAutoAcquire(bool autoAcquire)
+    {
+        m_autoAcquire = autoAcquire;
+    }
+    bool isAutoAcquire() const
+    {
+        return m_autoAcquire;
+    }
+
+    void acquireTarget(int x, int y, int width, int height);
+    void releaseTarget();
+
+    bool isTargetLocked() const;
+    TargetState getTargetState() const;
+
+private:
+    bool m_autoAcquire;
+    int m_defaultWidth;
+    int m_defaultHeight;
+
+    struct Impl;
+    std::unique_ptr<Impl> m_impl;
+};
+
+/**
+ * @class PerimeterTripwireFilter
+ * @brief Virtual security tripwire detecting directional line-crossing intrusions with visual alarms.
+ */
+class VIDEOFILTERS_API PerimeterTripwireFilter : public IFrameProcessor {
+public:
+    enum class Direction {
+        Bidirectional, ///< Crossings in either direction trigger alarm
+        A_to_B, ///< Only crossings from A side to B side trigger alarm
+        B_to_A ///< Only crossings from B side to A side trigger alarm
+    };
+
+    PerimeterTripwireFilter(double x1Norm = 0.1, double y1Norm = 0.5, double x2Norm = 0.9, double y2Norm = 0.5,
+        Direction direction = Direction::Bidirectional);
+    ~PerimeterTripwireFilter() override;
+
+    PerimeterTripwireFilter(const PerimeterTripwireFilter&) = delete;
+    PerimeterTripwireFilter& operator=(const PerimeterTripwireFilter&) = delete;
+    PerimeterTripwireFilter(PerimeterTripwireFilter&&) noexcept;
+    PerimeterTripwireFilter& operator=(PerimeterTripwireFilter&&) noexcept;
+
+    void process(uint8_t* data, int width, int height, PixelFormat format) override;
+
+    void setTripwire(double x1Norm, double y1Norm, double x2Norm, double y2Norm);
+    void getTripwire(double& x1Norm, double& y1Norm, double& x2Norm, double& y2Norm) const;
+
+    void setDirection(Direction dir)
+    {
+        m_direction = dir;
+    }
+    Direction getDirection() const
+    {
+        return m_direction;
+    }
+
+    bool hasAlarm() const;
+    std::size_t getIntrusionCount() const;
+    void resetIntrusionCount();
+
+private:
+    double m_x1Norm;
+    double m_y1Norm;
+    double m_x2Norm;
+    double m_y2Norm;
+    Direction m_direction;
+
+    struct Impl;
+    std::unique_ptr<Impl> m_impl;
+};
+
+/**
+ * @class MotionHeatmapFilter
+ * @brief Temporal motion accumulation buffer revealing high-traffic paths and unauthorized loitering zones.
+ */
+class VIDEOFILTERS_API MotionHeatmapFilter : public IFrameProcessor {
+public:
+    MotionHeatmapFilter(double decayFactor = 0.95, double opacity = 0.40, int threshold = 20);
+    ~MotionHeatmapFilter() override;
+
+    MotionHeatmapFilter(const MotionHeatmapFilter&) = delete;
+    MotionHeatmapFilter& operator=(const MotionHeatmapFilter&) = delete;
+    MotionHeatmapFilter(MotionHeatmapFilter&&) noexcept;
+    MotionHeatmapFilter& operator=(MotionHeatmapFilter&&) noexcept;
+
+    void process(uint8_t* data, int width, int height, PixelFormat format) override;
+
+    void setDecayFactor(double decay)
+    {
+        m_decayFactor = std::max(0.01, std::min(0.999, decay));
+    }
+    double getDecayFactor() const
+    {
+        return m_decayFactor;
+    }
+
+    void setOpacity(double opacity)
+    {
+        m_opacity = std::max(0.0, std::min(1.0, opacity));
+    }
+    double getOpacity() const
+    {
+        return m_opacity;
+    }
+
+    void setThreshold(int thresh)
+    {
+        m_threshold = std::max(1, std::min(255, thresh));
+    }
+    int getThreshold() const
+    {
+        return m_threshold;
+    }
+
+    void reset();
+
+private:
+    double m_decayFactor;
+    double m_opacity;
+    int m_threshold;
+
+    struct Impl;
+    std::unique_ptr<Impl> m_impl;
+};
+
 } // namespace PelcoD::Video
 
 #endif // PELCOD_HAS_FILTERS
