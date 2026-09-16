@@ -8,11 +8,15 @@
 #include "DeviceEnumerator.h"
 #include "MockVideoDecoder.h"
 #include "QVideoStreamWorker.h"
+#if defined(PELCOD_HAS_FILTERS)
+#include "VideoFilters.h"
+#endif
 
 #include <QCoreApplication>
 #include <QImage>
 #include <QSignalSpy>
 #include <QTest>
+#include <algorithm>
 #include <cassert>
 #include <cmath>
 #include <iostream>
@@ -37,6 +41,13 @@ private slots:
     void testBrailleRendererLumaAndPalette();
     void testBrailleRendererGridRasterization();
     void testFrameProcessorPipeline();
+#if defined(PELCOD_HAS_FILTERS)
+    void testVideoFiltersNullSafety();
+    void testFalseColorThermalPalettes();
+    void testLocalAreaProcessingAndClahe();
+    void testTemporalDenoise();
+    void testVideoFiltersPipelineIntegration();
+#endif
 };
 
 void TestVideoDecoder::testMockDecoderLifecycle()
@@ -453,6 +464,207 @@ void TestVideoDecoder::testFrameProcessorPipeline()
     QVERIFY(spyFrames.count() >= 1);
     worker.stopPlayback();
 }
+
+#if defined(PELCOD_HAS_FILTERS)
+void TestVideoDecoder::testVideoFiltersNullSafety()
+{
+    BrightnessContrastFilter bcFilter;
+    GaussianBlurFilter blurFilter;
+    EdgeDetectionFilter edgeFilter;
+    ClaheFilter claheFilter;
+    FalseColorFilter falseColorFilter;
+    LocalAreaProcessingFilter lapFilter;
+    HistogramEqualizationFilter histFilter;
+    TemporalDenoiseFilter denoiseFilter;
+    LensDistortionFilter lensFilter;
+
+    // Verify null data pointers do not crash
+    bcFilter.process(nullptr, 0, 0, PixelFormat::RGB24);
+    blurFilter.process(nullptr, 640, 360, PixelFormat::RGB24);
+    edgeFilter.process(nullptr, 640, 360, PixelFormat::RGB24);
+    claheFilter.process(nullptr, 640, 360, PixelFormat::RGB24);
+    falseColorFilter.process(nullptr, 640, 360, PixelFormat::RGB24);
+    lapFilter.process(nullptr, 640, 360, PixelFormat::RGB24);
+    histFilter.process(nullptr, 640, 360, PixelFormat::RGB24);
+    denoiseFilter.process(nullptr, 640, 360, PixelFormat::RGB24);
+    lensFilter.process(nullptr, 640, 360, PixelFormat::RGB24);
+
+    // Verify non-positive dimensions do not crash
+    std::vector<std::uint8_t> dummy(1024U, 128U);
+    bcFilter.process(dummy.data(), -1, 10, PixelFormat::RGB24);
+    blurFilter.process(dummy.data(), 10, -1, PixelFormat::RGB24);
+    edgeFilter.process(dummy.data(), 0, 0, PixelFormat::RGB24);
+    claheFilter.process(dummy.data(), -5, -5, PixelFormat::RGB24);
+    falseColorFilter.process(dummy.data(), 0, 10, PixelFormat::RGB24);
+    lapFilter.process(dummy.data(), 10, 0, PixelFormat::RGB24);
+    histFilter.process(dummy.data(), -1, -1, PixelFormat::RGB24);
+    denoiseFilter.process(dummy.data(), 0, 0, PixelFormat::RGB24);
+    lensFilter.process(dummy.data(), 0, 0, PixelFormat::RGB24);
+
+    QVERIFY(true);
+}
+
+void TestVideoDecoder::testFalseColorThermalPalettes()
+{
+    // Generate a 256x1 synthetic gray ramp (R=i, G=i, B=i)
+    std::vector<std::uint8_t> origBuf(256U * 3U);
+    for (std::size_t i = 0U; i < 256U; ++i) {
+        origBuf[i * 3U + 0U] = static_cast<std::uint8_t>(i);
+        origBuf[i * 3U + 1U] = static_cast<std::uint8_t>(i);
+        origBuf[i * 3U + 2U] = static_cast<std::uint8_t>(i);
+    }
+
+    // 1. WhiteHot (grayscale preservation)
+    {
+        std::vector<std::uint8_t> buf = origBuf;
+        FalseColorFilter filter(FalseColorPalette::WhiteHot);
+        filter.process(buf.data(), 256, 1, PixelFormat::RGB24);
+        QCOMPARE(buf[0], static_cast<std::uint8_t>(0));
+        QCOMPARE(buf[255U * 3U], static_cast<std::uint8_t>(255));
+    }
+
+    // 2. BlackHot (grayscale inversion: 0 becomes 255, 255 becomes 0)
+    {
+        std::vector<std::uint8_t> buf = origBuf;
+        FalseColorFilter filter(FalseColorPalette::BlackHot);
+        filter.process(buf.data(), 256, 1, PixelFormat::RGB24);
+        QCOMPARE(buf[0], static_cast<std::uint8_t>(255));
+        QCOMPARE(buf[255U * 3U], static_cast<std::uint8_t>(0));
+    }
+
+    // 3. Iron256 colormap verification
+    {
+        std::vector<std::uint8_t> buf = origBuf;
+        FalseColorFilter filter(FalseColorPalette::Iron256);
+        filter.process(buf.data(), 256, 1, PixelFormat::RGB24);
+        const bool differentColors
+            = (buf[0] != buf[255U * 3U] || buf[1] != buf[255U * 3U + 1U] || buf[2] != buf[255U * 3U + 2U]);
+        QVERIFY(differentColors);
+    }
+
+    // 4. Custom User Palette via interpolation
+    {
+        std::vector<std::uint8_t> buf = origBuf;
+        FalseColorFilter filter(FalseColorPalette::UserPalette);
+
+        std::map<uint8_t, std::vector<uint8_t>> controlPoints;
+        controlPoints[0] = { 0, 0, 255 }; // Blue cold
+        controlPoints[128] = { 0, 255, 0 }; // Green mid
+        controlPoints[255] = { 255, 0, 0 }; // Red hot
+        filter.generateInterpolatedPalette(controlPoints, false);
+
+        filter.process(buf.data(), 256, 1, PixelFormat::RGB24);
+        // Pixel 0 should be blue
+        QCOMPARE(buf[0], static_cast<std::uint8_t>(0));
+        QCOMPARE(buf[1], static_cast<std::uint8_t>(0));
+        QCOMPARE(buf[2], static_cast<std::uint8_t>(255));
+        // Pixel 255 should be red
+        QCOMPARE(buf[255U * 3U + 0U], static_cast<std::uint8_t>(255));
+        QCOMPARE(buf[255U * 3U + 1U], static_cast<std::uint8_t>(0));
+        QCOMPARE(buf[255U * 3U + 2U], static_cast<std::uint8_t>(0));
+    }
+}
+
+void TestVideoDecoder::testLocalAreaProcessingAndClahe()
+{
+    // Generate low-contrast 64x64 synthetic image (values between 100 and 110)
+    const int w = 64;
+    const int h = 64;
+    std::vector<std::uint8_t> lowContrast(static_cast<std::size_t>(w * h * 3));
+    for (std::size_t i = 0U; i < lowContrast.size(); i += 3U) {
+        const std::uint8_t val = static_cast<std::uint8_t>(100U + static_cast<unsigned int>((i / 3U) % 11U));
+        lowContrast[i] = val;
+        lowContrast[i + 1U] = val;
+        lowContrast[i + 2U] = val;
+    }
+
+    // Test CLAHE: contrast should expand
+    std::vector<std::uint8_t> claheBuf = lowContrast;
+    ClaheFilter clahe(4.0, 8, 1.0);
+    clahe.process(claheBuf.data(), w, h, PixelFormat::RGB24);
+
+    std::uint8_t minVal = 255;
+    std::uint8_t maxVal = 0;
+    for (std::size_t i = 0U; i < claheBuf.size(); i += 3U) {
+        minVal = std::min(minVal, claheBuf[i]);
+        maxVal = std::max(maxVal, claheBuf[i]);
+    }
+    // Dynamic range should be wider than original [100, 110]
+    QVERIFY(minVal < 100 || maxVal > 110);
+
+    // Test LAP: Local Area Processing executes cleanly
+    std::vector<std::uint8_t> lapBuf = lowContrast;
+    LocalAreaProcessingFilter lap(3, 0.7, 2.0);
+    lap.process(lapBuf.data(), w, h, PixelFormat::RGB24);
+    QVERIFY(!lapBuf.empty());
+}
+
+void TestVideoDecoder::testTemporalDenoise()
+{
+    const int w = 32;
+    const int h = 32;
+    const std::size_t numBytes = static_cast<std::size_t>(w * h * 3);
+
+    // Frame 1: uniform 128
+    std::vector<std::uint8_t> frame1(numBytes, 128U);
+    TemporalDenoiseFilter denoise(0.5, 30.0);
+    denoise.process(frame1.data(), w, h, PixelFormat::RGB24);
+    // History initialized to 128
+    QCOMPARE(frame1[0], static_cast<std::uint8_t>(128));
+
+    // Frame 2: small noise on pixel 0 (value 136, diff = 8 < threshold 30)
+    std::vector<std::uint8_t> frame2(numBytes, 128U);
+    frame2[0] = 136U;
+    denoise.process(frame2.data(), w, h, PixelFormat::RGB24);
+    // Should be averaged towards history: 0.5 * 128 + 0.5 * 136 = 132
+    QCOMPARE(frame2[0], static_cast<std::uint8_t>(132));
+
+    // Frame 3: large motion on pixel 0 (value 230, diff = 98 > threshold 30 across channels)
+    std::vector<std::uint8_t> frame3(numBytes, 128U);
+    frame3[0] = 230U;
+    frame3[1] = 230U;
+    frame3[2] = 230U;
+    denoise.process(frame3.data(), w, h, PixelFormat::RGB24);
+    // Motion thresholding keeps the new value without temporal blur
+    QCOMPARE(frame3[0], static_cast<std::uint8_t>(230));
+    QCOMPARE(frame3[1], static_cast<std::uint8_t>(230));
+    QCOMPARE(frame3[2], static_cast<std::uint8_t>(230));
+
+    // Test reset
+    denoise.reset();
+}
+
+void TestVideoDecoder::testVideoFiltersPipelineIntegration()
+{
+    MockVideoDecoder decoder;
+    QVERIFY(decoder.initialize("mock://test", PixelFormat::RGB24));
+
+    // Decode baseline frame 0
+    decoder.seek(0.0);
+    QVERIFY(decoder.decodeNextFrame());
+    const FrameInfo baseFrame = decoder.getRawFrameData();
+    std::vector<std::uint8_t> baseBytes(baseFrame.data, baseFrame.data + baseFrame.size);
+
+    // Add OpenCV tactical filter
+    auto falseColor = std::make_shared<FalseColorFilter>(FalseColorPalette::Jet);
+    decoder.addFrameProcessor(falseColor);
+
+    decoder.seek(0.0);
+    QVERIFY(decoder.decodeNextFrame());
+    const FrameInfo filteredFrame = decoder.getRawFrameData();
+
+    bool hasDifference = false;
+    for (std::size_t i = 0U; i < filteredFrame.size; ++i) {
+        if (filteredFrame.data[i] != baseBytes[i]) {
+            hasDifference = true;
+            break;
+        }
+    }
+    QVERIFY(hasDifference);
+
+    decoder.close();
+}
+#endif
 
 QTEST_MAIN(TestVideoDecoder)
 #include "TestVideoDecoder.moc"

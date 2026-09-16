@@ -26,6 +26,13 @@ if(PELCOD_ENABLE_GSTREAMER AND GSTREAMER_FOUND)
     )
 endif()
 
+if(PELCOD_ENABLE_FILTERS AND OpenCV_FOUND)
+    list(APPEND PELCOD_VIDEO_SOURCES
+        VideoFilters.h
+        VideoFilters.cpp
+    )
+endif()
+
 add_library(PelcoDVideo STATIC ${PELCOD_VIDEO_SOURCES})
 
 target_include_directories(PelcoDVideo PUBLIC
@@ -52,6 +59,12 @@ if(PELCOD_ENABLE_GSTREAMER AND GSTREAMER_FOUND)
     target_compile_definitions(PelcoDVideo PUBLIC PELCOD_HAS_GSTREAMER)
     target_include_directories(PelcoDVideo SYSTEM PUBLIC ${GSTREAMER_INCLUDE_DIRS})
     target_link_libraries(PelcoDVideo PUBLIC ${GSTREAMER_LIBRARIES})
+endif()
+
+if(PELCOD_ENABLE_FILTERS AND OpenCV_FOUND)
+    target_compile_definitions(PelcoDVideo PUBLIC PELCOD_HAS_FILTERS)
+    target_include_directories(PelcoDVideo SYSTEM PUBLIC ${OpenCV_INCLUDE_DIRS})
+    target_link_libraries(PelcoDVideo PUBLIC ${OpenCV_LIBS})
 endif()
 
 apply_compiler_flags(PelcoDVideo)

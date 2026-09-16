@@ -33,6 +33,7 @@
         "plugins-ugly",
         "x264"
       ]
-    }
+    },
+    "opencv4"
   ]
 }
