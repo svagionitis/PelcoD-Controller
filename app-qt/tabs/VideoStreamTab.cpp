@@ -298,6 +298,16 @@ void VideoStreamTab::setupUi()
     m_chkTargetLock = new QCheckBox(tr("Visual Target Lock"), visionGroup);
     visionLayout->addWidget(m_chkTargetLock);
 
+    m_chkScaleAdaptation = new QCheckBox(tr("  └ Scale Adaptation"), visionGroup);
+    m_chkScaleAdaptation->setChecked(true);
+    m_chkScaleAdaptation->setToolTip(tr("Dynamically adjusts target bounding box during camera zoom or range changes"));
+    visionLayout->addWidget(m_chkScaleAdaptation);
+
+    m_chkAppearanceFusion = new QCheckBox(tr("  └ Appearance Fusion"), visionGroup);
+    m_chkAppearanceFusion->setChecked(true);
+    m_chkAppearanceFusion->setToolTip(tr("Fuses color/intensity signature to prevent optical flow drift"));
+    visionLayout->addWidget(m_chkAppearanceFusion);
+
     m_chkAutoFollowPtz = new QCheckBox(tr("Auto-Follow PTZ (PID)"), visionGroup);
     m_chkAutoFollowPtz->setToolTip(tr("Enables closed-loop PID PTZ auto-tracking with Kalman motion estimation"));
     visionLayout->addWidget(m_chkAutoFollowPtz);
@@ -552,6 +562,16 @@ void VideoStreamTab::setupConnections()
     connect(m_comboFlowMode, QOverload<int>::of(&QComboBox::currentIndexChanged), this,
         &VideoStreamTab::onFilterConfigurationChanged);
     connect(m_chkTargetLock, &QCheckBox::toggled, this, &VideoStreamTab::onFilterConfigurationChanged);
+    connect(m_chkScaleAdaptation, &QCheckBox::toggled, this, [this](bool checked) {
+        if (m_targetTracker) {
+            m_targetTracker->setScaleAdaptation(checked);
+        }
+    });
+    connect(m_chkAppearanceFusion, &QCheckBox::toggled, this, [this](bool checked) {
+        if (m_targetTracker) {
+            m_targetTracker->setAppearanceFusion(checked);
+        }
+    });
     connect(m_chkTripwire, &QCheckBox::toggled, this, &VideoStreamTab::onFilterConfigurationChanged);
     connect(m_comboTripwireDir, QOverload<int>::of(&QComboBox::currentIndexChanged), this,
         &VideoStreamTab::onFilterConfigurationChanged);
@@ -1007,6 +1027,12 @@ void VideoStreamTab::onFilterConfigurationChanged()
     // 16. Visual Target Lock-On & Boresight Offset Tracker (Kalman State Estimation)
     if (m_chkTargetLock != nullptr && m_chkTargetLock->isChecked()) {
         m_targetTracker = std::make_shared<PelcoD::Video::CentroidTargetTrackerFilter>(true, 40, 40);
+        if (m_chkScaleAdaptation != nullptr) {
+            m_targetTracker->setScaleAdaptation(m_chkScaleAdaptation->isChecked());
+        }
+        if (m_chkAppearanceFusion != nullptr) {
+            m_targetTracker->setAppearanceFusion(m_chkAppearanceFusion->isChecked());
+        }
         m_worker->addFrameProcessor(m_targetTracker);
     } else {
         m_targetTracker.reset();

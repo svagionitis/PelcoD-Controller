@@ -1343,6 +1343,8 @@ public:
         bool isCoasting { false }; ///< True if target is temporarily occluded and coasting on prediction
         double predictedErrorX { 0.0 }; ///< Latency-compensated predicted boresight error X
         double predictedErrorY { 0.0 }; ///< Latency-compensated predicted boresight error Y
+        double scaleFactor { 1.0 }; ///< Current scale ratio relative to initial acquisition
+        double appearanceScore { 1.0 }; ///< Appearance signature correlation score (0.0 to 1.0)
     };
 
     CentroidTargetTrackerFilter(bool autoAcquire = true, int targetWidth = 40, int targetHeight = 40);
@@ -1374,6 +1376,13 @@ public:
     int getMaxCoastFrames() const noexcept;
     void setProcessNoise(double qPos, double qVel) noexcept;
     void setMeasurementNoise(double rPos) noexcept;
+
+    void setScaleAdaptation(bool enabled) noexcept;
+    bool isScaleAdaptation() const noexcept;
+    void setAppearanceFusion(bool enabled) noexcept;
+    bool isAppearanceFusion() const noexcept;
+    void setAppearanceLearningRate(double rate) noexcept;
+    double getAppearanceLearningRate() const noexcept;
 
 private:
     bool m_autoAcquire;

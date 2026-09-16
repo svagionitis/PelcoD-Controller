@@ -138,6 +138,8 @@ private:
     QCheckBox* m_chkOpticalFlow { nullptr };
     QComboBox* m_comboFlowMode { nullptr };
     QCheckBox* m_chkTargetLock { nullptr };
+    QCheckBox* m_chkScaleAdaptation { nullptr };
+    QCheckBox* m_chkAppearanceFusion { nullptr };
     QCheckBox* m_chkAutoFollowPtz { nullptr };
     QCheckBox* m_chkTripwire { nullptr };
     QComboBox* m_comboTripwireDir { nullptr };

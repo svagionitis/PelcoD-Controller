@@ -1832,6 +1832,13 @@ struct CentroidTargetTrackerFilter::Impl {
     float qVel { 1e-1f };
     float rPos { 1e-1f };
 
+    bool scaleAdaptation { true };
+    bool appearanceFusion { true };
+    double appearanceLearningRate { 0.02 };
+    double initialWidth { 40.0 };
+    double initialHeight { 40.0 };
+    cv::Mat modelHist;
+
     void initKalman(float initX, float initY)
     {
         kalman.init(4, 2, 0, CV_32F);
@@ -1851,6 +1858,105 @@ struct CentroidTargetTrackerFilter::Impl {
         kalman.statePost = (cv::Mat_<float>(4, 1) << initX, initY, 0.0f, 0.0f);
         kalman.statePre = kalman.statePost.clone();
         kalmanInitialized = true;
+    }
+
+    void extractAppearanceModel(const cv::Mat& bgrOrRgb, const cv::Rect& roi, PixelFormat format)
+    {
+        const cv::Rect bounded = roi & cv::Rect(0, 0, bgrOrRgb.cols, bgrOrRgb.rows);
+        if (bounded.width < 5 || bounded.height < 5) {
+            return;
+        }
+        cv::Mat hsv;
+        const int code = (format == PixelFormat::RGB24) ? cv::COLOR_RGB2HSV : cv::COLOR_BGR2HSV;
+        cv::cvtColor(bgrOrRgb(bounded), hsv, code);
+        int histSize[] = { 16, 16 };
+        float hRanges[] = { 0, 180 };
+        float sRanges[] = { 0, 256 };
+        const float* ranges[] = { hRanges, sRanges };
+        int channels[] = { 0, 1 };
+        cv::calcHist(&hsv, 1, channels, cv::Mat(), modelHist, 2, histSize, ranges, true, false);
+        cv::normalize(modelHist, modelHist, 0, 255, cv::NORM_MINMAX);
+    }
+
+    cv::Point2f computeAppearanceCentroid(
+        const cv::Mat& bgrOrRgb, const cv::Rect& searchArea, PixelFormat format, double& score)
+    {
+        const cv::Rect bounded = searchArea & cv::Rect(0, 0, bgrOrRgb.cols, bgrOrRgb.rows);
+        if (bounded.width < 10 || bounded.height < 10 || modelHist.empty()) {
+            score = 1.0;
+            return cv::Point2f(static_cast<float>(searchArea.x) + static_cast<float>(searchArea.width) / 2.0f,
+                static_cast<float>(searchArea.y) + static_cast<float>(searchArea.height) / 2.0f);
+        }
+        cv::Mat hsv;
+        const int code = (format == PixelFormat::RGB24) ? cv::COLOR_RGB2HSV : cv::COLOR_BGR2HSV;
+        cv::cvtColor(bgrOrRgb(bounded), hsv, code);
+        float hRanges[] = { 0, 180 };
+        float sRanges[] = { 0, 256 };
+        const float* ranges[] = { hRanges, sRanges };
+        int channels[] = { 0, 1 };
+        cv::Mat backproj;
+        cv::calcBackProject(&hsv, 1, channels, modelHist, backproj, ranges);
+
+        cv::Rect candidateInBounded(
+            targetRect.x - bounded.x, targetRect.y - bounded.y, targetRect.width, targetRect.height);
+        candidateInBounded = candidateInBounded & cv::Rect(0, 0, bounded.width, bounded.height);
+        if (candidateInBounded.width >= 5 && candidateInBounded.height >= 5) {
+            cv::Mat candHsv = hsv(candidateInBounded);
+            cv::Mat candHist;
+            int histSize[] = { 16, 16 };
+            cv::calcHist(&candHsv, 1, channels, cv::Mat(), candHist, 2, histSize, ranges, true, false);
+            cv::normalize(candHist, candHist, 0, 255, cv::NORM_MINMAX);
+            const double dist = cv::compareHist(modelHist, candHist, cv::HISTCMP_BHATTACHARYYA);
+            score = std::clamp(1.0 - dist, 0.0, 1.0);
+
+            if (score > 0.80 && appearanceLearningRate > 0.0) {
+                cv::addWeighted(
+                    modelHist, 1.0 - appearanceLearningRate, candHist, appearanceLearningRate, 0.0, modelHist);
+                cv::normalize(modelHist, modelHist, 0, 255, cv::NORM_MINMAX);
+            }
+        } else {
+            score = 0.5;
+        }
+
+        const int maxShiftX = std::max(0, bounded.width - 5);
+        const int maxShiftY = std::max(0, bounded.height - 5);
+        cv::Rect trackWin(std::clamp(candidateInBounded.x, 0, maxShiftX),
+            std::clamp(candidateInBounded.y, 0, maxShiftY),
+            std::min(candidateInBounded.width, bounded.width - std::clamp(candidateInBounded.x, 0, maxShiftX)),
+            std::min(candidateInBounded.height, bounded.height - std::clamp(candidateInBounded.y, 0, maxShiftY)));
+        if (trackWin.width >= 5 && trackWin.height >= 5) {
+            cv::meanShift(
+                backproj, trackWin, cv::TermCriteria(cv::TermCriteria::EPS | cv::TermCriteria::COUNT, 10, 1.0));
+            return cv::Point2f(static_cast<float>(bounded.x + trackWin.x) + static_cast<float>(trackWin.width) / 2.0f,
+                static_cast<float>(bounded.y + trackWin.y) + static_cast<float>(trackWin.height) / 2.0f);
+        }
+
+        return cv::Point2f(static_cast<float>(searchArea.x) + static_cast<float>(searchArea.width) / 2.0f,
+            static_cast<float>(searchArea.y) + static_cast<float>(searchArea.height) / 2.0f);
+    }
+
+    double computeScaleChange(const std::vector<cv::Point2f>& prevPts, const std::vector<cv::Point2f>& currPts)
+    {
+        if (prevPts.size() < 3 || currPts.size() < 3 || prevPts.size() != currPts.size()) {
+            return 1.0;
+        }
+        std::vector<double> ratios;
+        ratios.reserve(prevPts.size() * (prevPts.size() - 1) / 2);
+        for (std::size_t i = 0U; i < prevPts.size(); ++i) {
+            for (std::size_t j = i + 1U; j < prevPts.size(); ++j) {
+                const double dPrev = cv::norm(prevPts[i] - prevPts[j]);
+                if (dPrev >= 4.0) {
+                    const double dCurr = cv::norm(currPts[i] - currPts[j]);
+                    ratios.push_back(dCurr / dPrev);
+                }
+            }
+        }
+        if (ratios.empty()) {
+            return 1.0;
+        }
+        std::sort(ratios.begin(), ratios.end());
+        const double medianRatio = ratios[ratios.size() / 2];
+        return std::clamp(medianRatio, 0.85, 1.15);
     }
 };
 
@@ -1873,6 +1979,9 @@ void CentroidTargetTrackerFilter::acquireTarget(int x, int y, int width, int hei
     }
     std::lock_guard<std::mutex> lock(m_impl->stateMutex);
     m_impl->targetRect = cv::Rect(x, y, std::max(10, width), std::max(10, height));
+    m_impl->initialWidth = static_cast<double>(m_impl->targetRect.width);
+    m_impl->initialHeight = static_cast<double>(m_impl->targetRect.height);
+    m_impl->modelHist.release();
     m_impl->trackedPoints.clear();
     m_impl->lostFrames = 0;
     m_impl->state.locked = true;
@@ -1881,6 +1990,8 @@ void CentroidTargetTrackerFilter::acquireTarget(int x, int y, int width, int hei
     m_impl->state.y = y;
     m_impl->state.width = width;
     m_impl->state.height = height;
+    m_impl->state.scaleFactor = 1.0;
+    m_impl->state.appearanceScore = 1.0;
     m_impl->state.confidence = 1.0;
 
     const float cx = static_cast<float>(x) + static_cast<float>(width) / 2.0f;
@@ -1895,6 +2006,7 @@ void CentroidTargetTrackerFilter::releaseTarget()
     }
     std::lock_guard<std::mutex> lock(m_impl->stateMutex);
     m_impl->targetRect = cv::Rect();
+    m_impl->modelHist.release();
     m_impl->trackedPoints.clear();
     m_impl->lostFrames = 0;
     m_impl->kalmanInitialized = false;
@@ -1972,6 +2084,57 @@ void CentroidTargetTrackerFilter::setMeasurementNoise(double rPos) noexcept
     }
 }
 
+void CentroidTargetTrackerFilter::setScaleAdaptation(bool enabled) noexcept
+{
+    if (m_impl) {
+        std::lock_guard<std::mutex> lock(m_impl->stateMutex);
+        m_impl->scaleAdaptation = enabled;
+    }
+}
+
+bool CentroidTargetTrackerFilter::isScaleAdaptation() const noexcept
+{
+    if (m_impl) {
+        std::lock_guard<std::mutex> lock(m_impl->stateMutex);
+        return m_impl->scaleAdaptation;
+    }
+    return true;
+}
+
+void CentroidTargetTrackerFilter::setAppearanceFusion(bool enabled) noexcept
+{
+    if (m_impl) {
+        std::lock_guard<std::mutex> lock(m_impl->stateMutex);
+        m_impl->appearanceFusion = enabled;
+    }
+}
+
+bool CentroidTargetTrackerFilter::isAppearanceFusion() const noexcept
+{
+    if (m_impl) {
+        std::lock_guard<std::mutex> lock(m_impl->stateMutex);
+        return m_impl->appearanceFusion;
+    }
+    return true;
+}
+
+void CentroidTargetTrackerFilter::setAppearanceLearningRate(double rate) noexcept
+{
+    if (m_impl) {
+        std::lock_guard<std::mutex> lock(m_impl->stateMutex);
+        m_impl->appearanceLearningRate = std::clamp(rate, 0.0, 1.0);
+    }
+}
+
+double CentroidTargetTrackerFilter::getAppearanceLearningRate() const noexcept
+{
+    if (m_impl) {
+        std::lock_guard<std::mutex> lock(m_impl->stateMutex);
+        return m_impl->appearanceLearningRate;
+    }
+    return 0.02;
+}
+
 void CentroidTargetTrackerFilter::process(uint8_t* data, int width, int height, PixelFormat format)
 {
     if (!data || width <= 0 || height <= 0 || !m_impl
@@ -2015,8 +2178,12 @@ void CentroidTargetTrackerFilter::process(uint8_t* data, int width, int height, 
         }
         if (maxArea > 200.0) {
             m_impl->targetRect = bestRect;
+            m_impl->initialWidth = static_cast<double>(bestRect.width);
+            m_impl->initialHeight = static_cast<double>(bestRect.height);
             m_impl->state.locked = true;
             m_impl->state.isCoasting = false;
+            m_impl->state.scaleFactor = 1.0;
+            m_impl->state.appearanceScore = 1.0;
             m_impl->state.confidence = 1.0;
             m_impl->trackedPoints.clear();
             m_impl->lostFrames = 0;
@@ -2029,6 +2196,10 @@ void CentroidTargetTrackerFilter::process(uint8_t* data, int width, int height, 
 
     // Tracking step
     if (m_impl->state.locked) {
+        if (justAcquired || m_impl->modelHist.empty()) {
+            m_impl->extractAppearanceModel(mat, m_impl->targetRect, format);
+        }
+
         if (justAcquired) {
             // Seed initial tracked points on current frame for subsequent optical flow
             const cv::Rect bounded = m_impl->targetRect & cv::Rect(0, 0, width, height);
@@ -2063,10 +2234,12 @@ void CentroidTargetTrackerFilter::process(uint8_t* data, int width, int height, 
                 std::vector<float> err;
                 cv::calcOpticalFlowPyrLK(m_impl->prevGray, gray, m_impl->trackedPoints, nextPts, status, err);
 
+                std::vector<cv::Point2f> goodPrev;
                 std::vector<cv::Point2f> goodNext;
                 cv::Point2f meanShift(0.0f, 0.0f);
                 for (std::size_t i = 0U; i < status.size(); ++i) {
                     if (status[i]) {
+                        goodPrev.push_back(m_impl->trackedPoints[i]);
                         goodNext.push_back(nextPts[i]);
                         meanShift += (nextPts[i] - m_impl->trackedPoints[i]);
                     }
@@ -2074,13 +2247,49 @@ void CentroidTargetTrackerFilter::process(uint8_t* data, int width, int height, 
 
                 if (!goodNext.empty()) {
                     trackedSuccessfully = true;
+
+                    // Dynamic Scale Adaptation
+                    if (m_impl->scaleAdaptation && goodPrev.size() >= 3) {
+                        const double sRatio = m_impl->computeScaleChange(goodPrev, goodNext);
+                        m_impl->state.scaleFactor = std::clamp(m_impl->state.scaleFactor * sRatio, 0.25, 4.0);
+                        const int newW = std::clamp(
+                            static_cast<int>(std::round(m_impl->initialWidth * m_impl->state.scaleFactor)), 10, width);
+                        const int newH = std::clamp(
+                            static_cast<int>(std::round(m_impl->initialHeight * m_impl->state.scaleFactor)), 10,
+                            height);
+                        m_impl->targetRect.width = newW;
+                        m_impl->targetRect.height = newH;
+                    }
+
                     meanShift.x /= static_cast<float>(goodNext.size());
                     meanShift.y /= static_cast<float>(goodNext.size());
 
-                    const float measCenterX = static_cast<float>(m_impl->targetRect.x)
+                    float measCenterX = static_cast<float>(m_impl->targetRect.x)
                         + static_cast<float>(m_impl->targetRect.width) / 2.0f + meanShift.x;
-                    const float measCenterY = static_cast<float>(m_impl->targetRect.y)
+                    float measCenterY = static_cast<float>(m_impl->targetRect.y)
                         + static_cast<float>(m_impl->targetRect.height) / 2.0f + meanShift.y;
+
+                    // Appearance Model Fusion
+                    if (m_impl->appearanceFusion && !m_impl->modelHist.empty()) {
+                        const int padX = m_impl->targetRect.width / 2;
+                        const int padY = m_impl->targetRect.height / 2;
+                        const int searchLeft = std::clamp(m_impl->targetRect.x - padX, 0, width);
+                        const int searchTop = std::clamp(m_impl->targetRect.y - padY, 0, height);
+                        const cv::Rect searchArea(searchLeft, searchTop,
+                            std::min(m_impl->targetRect.width + 2 * padX, width - searchLeft),
+                            std::min(m_impl->targetRect.height + 2 * padY, height - searchTop));
+
+                        double appScore = 1.0;
+                        const cv::Point2f appCenter
+                            = m_impl->computeAppearanceCentroid(mat, searchArea, format, appScore);
+                        m_impl->state.appearanceScore = appScore;
+
+                        if (appScore > 0.35) {
+                            const float gamma = static_cast<float>(std::clamp(0.20 * appScore, 0.0, 0.25));
+                            measCenterX = (1.0f - gamma) * measCenterX + gamma * appCenter.x;
+                            measCenterY = (1.0f - gamma) * measCenterY + gamma * appCenter.y;
+                        }
+                    }
 
                     if (m_impl->kalmanInitialized) {
                         cv::Mat measurement = (cv::Mat_<float>(2, 1) << measCenterX, measCenterY);
@@ -2192,8 +2401,11 @@ void CentroidTargetTrackerFilter::process(uint8_t* data, int width, int height, 
             tag = "COASTING [dX:" + std::to_string(static_cast<int>(m_impl->state.errorX * 100.0))
                 + "% dY:" + std::to_string(static_cast<int>(m_impl->state.errorY * 100.0)) + "%]";
         } else {
-            tag = "LOCK [dX:" + std::to_string(static_cast<int>(m_impl->state.errorX * 100.0))
-                + "% dY:" + std::to_string(static_cast<int>(m_impl->state.errorY * 100.0)) + "%]";
+            char buf[64];
+            std::snprintf(buf, sizeof(buf), "LOCK %.1fx [%d%%] [dX:%d%% dY:%d%%]", m_impl->state.scaleFactor,
+                static_cast<int>(m_impl->state.appearanceScore * 100.0), static_cast<int>(m_impl->state.errorX * 100.0),
+                static_cast<int>(m_impl->state.errorY * 100.0));
+            tag = buf;
         }
         cv::putText(
             mat, tag, cv::Point(r.x, std::max(12, r.y - 4)), cv::FONT_HERSHEY_PLAIN, 0.8, lockColor, 1, cv::LINE_AA);
