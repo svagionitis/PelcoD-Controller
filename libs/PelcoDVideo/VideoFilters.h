@@ -1480,6 +1480,320 @@ private:
     std::unique_ptr<Impl> m_impl;
 };
 
+/**
+ * @class PrivacyMaskFilter
+ * @brief Multi-zone static or dynamic geometric privacy masks (blackout, blur, mosaic) for regulatory GDPR compliance.
+ */
+class VIDEOFILTERS_API PrivacyMaskFilter : public IFrameProcessor {
+public:
+    enum class ConcealmentMode {
+        Blackout, ///< Solid fill obscuration (default black)
+        Blur, ///< Heavy Gaussian blur concealing identities/text while preserving ambient light
+        Mosaic ///< Pixelated mosaic blocks
+    };
+
+    struct PrivacyZone {
+        int id { 0 };
+        double xNorm { 0.0 }; ///< Normalized left coordinate [0.0, 1.0]
+        double yNorm { 0.0 }; ///< Normalized top coordinate [0.0, 1.0]
+        double widthNorm { 0.0 }; ///< Normalized width [0.0, 1.0]
+        double heightNorm { 0.0 }; ///< Normalized height [0.0, 1.0]
+        ConcealmentMode mode { ConcealmentMode::Blackout };
+        bool enabled { true };
+        std::string label;
+    };
+
+    PrivacyMaskFilter(ConcealmentMode defaultMode = ConcealmentMode::Blackout);
+
+    void process(uint8_t* data, int width, int height, PixelFormat format) override;
+
+    int addZone(double xNorm, double yNorm, double widthNorm, double heightNorm,
+        ConcealmentMode mode = ConcealmentMode::Blackout, const std::string& label = "");
+    int addZone(const PrivacyZone& zone);
+    bool removeZone(int id);
+    void clearZones();
+    void setZoneEnabled(int id, bool enabled);
+    std::vector<PrivacyZone> getZones() const;
+
+    void setDefaultMode(ConcealmentMode mode)
+    {
+        m_defaultMode = mode;
+    }
+    ConcealmentMode getDefaultMode() const
+    {
+        return m_defaultMode;
+    }
+
+    void setMaskColor(uint8_t r, uint8_t g, uint8_t b);
+    void setBlurKernelSize(int ksize)
+    {
+        m_blurKernelSize = std::max(3, ksize);
+    }
+    int getBlurKernelSize() const
+    {
+        return m_blurKernelSize;
+    }
+    void setMosaicBlockSize(int blockSize)
+    {
+        m_mosaicBlockSize = std::max(2, blockSize);
+    }
+    int getMosaicBlockSize() const
+    {
+        return m_mosaicBlockSize;
+    }
+
+private:
+    mutable std::mutex m_mutex;
+    std::vector<PrivacyZone> m_zones;
+    int m_nextZoneId { 1 };
+    ConcealmentMode m_defaultMode { ConcealmentMode::Blackout };
+    uint8_t m_maskR { 0 };
+    uint8_t m_maskG { 0 };
+    uint8_t m_maskB { 0 };
+    int m_blurKernelSize { 25 };
+    int m_mosaicBlockSize { 16 };
+};
+
+/**
+ * @class TimestampWatermarkFilter
+ * @brief Real-time evidential OSD watermark (ISO 8601 timestamp, camera ID, GPS, frame sequence counter).
+ */
+class VIDEOFILTERS_API TimestampWatermarkFilter : public IFrameProcessor {
+public:
+    enum class Position { TopLeft, TopRight, BottomLeft, BottomRight };
+
+    enum class Color { White, Amber, TacticalGreen, Cyan };
+
+    TimestampWatermarkFilter(Position position = Position::TopLeft, const std::string& cameraName = "CAM-01",
+        bool showTimestamp = true, bool showFrameCounter = true);
+
+    void process(uint8_t* data, int width, int height, PixelFormat format) override;
+
+    void setPosition(Position pos)
+    {
+        m_position = pos;
+    }
+    Position getPosition() const
+    {
+        return m_position;
+    }
+
+    void setCameraName(const std::string& name);
+    std::string getCameraName() const;
+
+    void setShowTimestamp(bool show)
+    {
+        m_showTimestamp = show;
+    }
+    bool getShowTimestamp() const
+    {
+        return m_showTimestamp;
+    }
+
+    void setShowFrameCounter(bool show)
+    {
+        m_showFrameCounter = show;
+    }
+    bool getShowFrameCounter() const
+    {
+        return m_showFrameCounter;
+    }
+
+    void setGpsCoordinates(double latitude, double longitude, double altitudeMeters, bool enabled = true);
+    void clearGpsCoordinates();
+
+    void setCustomTimestamp(const std::string& isoString);
+    void setUseSystemClock(bool useSystem);
+    bool isUsingSystemClock() const;
+
+    void setScrimOpacity(double opacity)
+    {
+        m_scrimOpacity = std::max(0.0, std::min(1.0, opacity));
+    }
+    double getScrimOpacity() const
+    {
+        return m_scrimOpacity;
+    }
+
+    void setColor(Color color)
+    {
+        m_color = color;
+    }
+    Color getColor() const
+    {
+        return m_color;
+    }
+
+    uint64_t getFrameCounter() const;
+    void resetFrameCounter();
+
+private:
+    mutable std::mutex m_mutex;
+    Position m_position;
+    std::string m_cameraName;
+    bool m_showTimestamp;
+    bool m_showFrameCounter;
+    bool m_showGps { false };
+    double m_latitude { 0.0 };
+    double m_longitude { 0.0 };
+    double m_altitudeMeters { 0.0 };
+    bool m_useSystemClock { true };
+    std::string m_customTimestamp;
+    double m_scrimOpacity { 0.65 };
+    Color m_color { Color::White };
+    uint64_t m_frameCounter { 0 };
+};
+
+/**
+ * @class TelemetryOsdFilter
+ * @brief Tactical operational OSD overlay rendering real-time pan/tilt angles, compass heading, FOV, and payload
+ * telemetry.
+ */
+class VIDEOFILTERS_API TelemetryOsdFilter : public IFrameProcessor {
+public:
+    enum class Color { TacticalGreen, Amber, Cyan, White, Red };
+
+    struct TelemetryData {
+        double panDegrees { 0.0 }; ///< 0.0 to 360.0 degrees
+        double tiltDegrees { 0.0 }; ///< -90.0 (nadir) to +90.0 (zenith)
+        double zoomMagnification { 1.0 }; ///< Optical zoom multiplier (e.g. 1.0x to 40.0x)
+        double horizontalFovDegrees { 60.0 }; ///< Horizontal field of view in degrees
+        std::string sensorPayload { "OPTICAL HD" };
+        std::string statusMessage { "LINK: OK" };
+    };
+
+    TelemetryOsdFilter(Color color = Color::TacticalGreen, bool showCompass = true, bool showReticleAngles = true);
+
+    void process(uint8_t* data, int width, int height, PixelFormat format) override;
+
+    void setTelemetry(const TelemetryData& data);
+    TelemetryData getTelemetry() const;
+
+    void setPanTiltZoom(double panDegrees, double tiltDegrees, double zoomMagnification);
+
+    void setColor(Color color)
+    {
+        m_color = color;
+    }
+    Color getColor() const
+    {
+        return m_color;
+    }
+
+    void setShowCompass(bool show)
+    {
+        m_showCompass = show;
+    }
+    bool getShowCompass() const
+    {
+        return m_showCompass;
+    }
+
+    void setShowReticleAngles(bool show)
+    {
+        m_showReticleAngles = show;
+    }
+    bool getShowReticleAngles() const
+    {
+        return m_showReticleAngles;
+    }
+
+    static std::string formatHeading(double azimuthDegrees);
+
+private:
+    mutable std::mutex m_mutex;
+    Color m_color;
+    bool m_showCompass;
+    bool m_showReticleAngles;
+    TelemetryData m_telemetry;
+};
+
+/**
+ * @class PictureInPictureFilter
+ * @brief Overlays a secondary video feed, sensor stream, or center-bore electronic zoom inset onto the main viewport.
+ */
+class VIDEOFILTERS_API PictureInPictureFilter : public IFrameProcessor {
+public:
+    enum class Mode {
+        DigitalZoom, ///< Electronic center-bore crop and magnification
+        SecondaryFeed ///< External secondary stream / sensor frame buffer
+    };
+
+    enum class Corner { TopRight, TopLeft, BottomRight, BottomLeft };
+
+    PictureInPictureFilter(Mode mode = Mode::DigitalZoom, Corner corner = Corner::TopRight, double scaleRatio = 0.28,
+        double digitalZoomFactor = 2.0);
+
+    void process(uint8_t* data, int width, int height, PixelFormat format) override;
+
+    void setMode(Mode mode)
+    {
+        m_mode = mode;
+    }
+    Mode getMode() const
+    {
+        return m_mode;
+    }
+
+    void setCorner(Corner corner)
+    {
+        m_corner = corner;
+    }
+    Corner getCorner() const
+    {
+        return m_corner;
+    }
+
+    void setScaleRatio(double ratio)
+    {
+        m_scaleRatio = std::max(0.10, std::min(0.60, ratio));
+    }
+    double getScaleRatio() const
+    {
+        return m_scaleRatio;
+    }
+
+    void setDigitalZoomFactor(double factor)
+    {
+        m_digitalZoomFactor = std::max(1.1, std::min(10.0, factor));
+    }
+    double getDigitalZoomFactor() const
+    {
+        return m_digitalZoomFactor;
+    }
+
+    void setSecondaryFrame(const uint8_t* data, int width, int height, PixelFormat format);
+    void clearSecondaryFrame();
+
+    void setBorder(bool showBorder, uint8_t r = 0, uint8_t g = 255, uint8_t b = 64, int thickness = 2);
+    void setShowBadge(bool show)
+    {
+        m_showBadge = show;
+    }
+    bool getShowBadge() const
+    {
+        return m_showBadge;
+    }
+
+private:
+    mutable std::mutex m_mutex;
+    Mode m_mode;
+    Corner m_corner;
+    double m_scaleRatio;
+    double m_digitalZoomFactor;
+    bool m_showBorder { true };
+    uint8_t m_borderR { 0 };
+    uint8_t m_borderG { 255 };
+    uint8_t m_borderB { 64 };
+    int m_borderThickness { 2 };
+    bool m_showBadge { true };
+
+    std::vector<uint8_t> m_secondaryBuffer;
+    int m_secondaryWidth { 0 };
+    int m_secondaryHeight { 0 };
+    PixelFormat m_secondaryFormat { PixelFormat::RGB24 };
+};
+
 } // namespace PelcoD::Video
 
 #endif // PELCOD_HAS_FILTERS

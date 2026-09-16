@@ -311,6 +311,38 @@ void VideoStreamTab::setupUi()
     tripLayout->addWidget(m_comboTripwireDir);
     visionLayout->addLayout(tripLayout);
 
+    // Privacy & Operational Overlays Sub-Panel
+    visionLayout->addWidget(new QLabel(tr("Privacy & Operational Overlays:"), visionGroup));
+
+    auto* privLayout = new QHBoxLayout();
+    m_chkPrivacyMask = new QCheckBox(tr("Privacy Mask"), visionGroup);
+    m_comboPrivacyMode = new QComboBox(visionGroup);
+    m_comboPrivacyMode->addItem(
+        tr("Blackout"), static_cast<int>(PelcoD::Video::PrivacyMaskFilter::ConcealmentMode::Blackout));
+    m_comboPrivacyMode->addItem(tr("Blur"), static_cast<int>(PelcoD::Video::PrivacyMaskFilter::ConcealmentMode::Blur));
+    m_comboPrivacyMode->addItem(
+        tr("Mosaic"), static_cast<int>(PelcoD::Video::PrivacyMaskFilter::ConcealmentMode::Mosaic));
+    privLayout->addWidget(m_chkPrivacyMask);
+    privLayout->addWidget(m_comboPrivacyMode);
+    visionLayout->addLayout(privLayout);
+
+    m_chkForensicWatermark = new QCheckBox(tr("Forensic Watermark"), visionGroup);
+    visionLayout->addWidget(m_chkForensicWatermark);
+
+    m_chkTelemetryOsd = new QCheckBox(tr("Telemetry HUD"), visionGroup);
+    visionLayout->addWidget(m_chkTelemetryOsd);
+
+    auto* pipLayout = new QHBoxLayout();
+    m_chkPictureInPicture = new QCheckBox(tr("Picture-in-Picture"), visionGroup);
+    m_comboPipMode = new QComboBox(visionGroup);
+    m_comboPipMode->addItem(
+        tr("Digital Zoom (2x)"), static_cast<int>(PelcoD::Video::PictureInPictureFilter::Mode::DigitalZoom));
+    m_comboPipMode->addItem(
+        tr("Aux Feed"), static_cast<int>(PelcoD::Video::PictureInPictureFilter::Mode::SecondaryFeed));
+    pipLayout->addWidget(m_chkPictureInPicture);
+    pipLayout->addWidget(m_comboPipMode);
+    visionLayout->addLayout(pipLayout);
+
     sideLayout->addWidget(visionGroup);
 #endif
 
@@ -499,6 +531,14 @@ void VideoStreamTab::setupConnections()
     connect(m_chkTargetLock, &QCheckBox::toggled, this, &VideoStreamTab::onFilterConfigurationChanged);
     connect(m_chkTripwire, &QCheckBox::toggled, this, &VideoStreamTab::onFilterConfigurationChanged);
     connect(m_comboTripwireDir, QOverload<int>::of(&QComboBox::currentIndexChanged), this,
+        &VideoStreamTab::onFilterConfigurationChanged);
+    connect(m_chkPrivacyMask, &QCheckBox::toggled, this, &VideoStreamTab::onFilterConfigurationChanged);
+    connect(m_comboPrivacyMode, QOverload<int>::of(&QComboBox::currentIndexChanged), this,
+        &VideoStreamTab::onFilterConfigurationChanged);
+    connect(m_chkForensicWatermark, &QCheckBox::toggled, this, &VideoStreamTab::onFilterConfigurationChanged);
+    connect(m_chkTelemetryOsd, &QCheckBox::toggled, this, &VideoStreamTab::onFilterConfigurationChanged);
+    connect(m_chkPictureInPicture, &QCheckBox::toggled, this, &VideoStreamTab::onFilterConfigurationChanged);
+    connect(m_comboPipMode, QOverload<int>::of(&QComboBox::currentIndexChanged), this,
         &VideoStreamTab::onFilterConfigurationChanged);
 #endif
 
@@ -924,6 +964,50 @@ void VideoStreamTab::onFilterConfigurationChanged()
                 m_comboTripwireDir->currentData().toInt());
         }
         m_worker->addFrameProcessor(std::make_shared<PelcoD::Video::PerimeterTripwireFilter>(0.1, 0.5, 0.9, 0.5, dir));
+    }
+
+    // 18. Privacy Masking (censors private property / windows before operational HUD)
+    if (m_chkPrivacyMask != nullptr && m_chkPrivacyMask->isChecked()) {
+        auto mode = PelcoD::Video::PrivacyMaskFilter::ConcealmentMode::Blackout;
+        if (m_comboPrivacyMode != nullptr) {
+            mode = static_cast<PelcoD::Video::PrivacyMaskFilter::ConcealmentMode>(
+                m_comboPrivacyMode->currentData().toInt());
+        }
+        auto privacy = std::make_shared<PelcoD::Video::PrivacyMaskFilter>(mode);
+        privacy->addZone(0.05, 0.05, 0.25, 0.20, mode, "Restricted Zone 1");
+        privacy->addZone(0.70, 0.10, 0.22, 0.25, mode, "Restricted Zone 2");
+        m_worker->addFrameProcessor(privacy);
+    }
+
+    // 19. Picture-in-Picture (PiP) Inset (Electronic Zoom or Secondary Feed)
+    if (m_chkPictureInPicture != nullptr && m_chkPictureInPicture->isChecked()) {
+        auto mode = PelcoD::Video::PictureInPictureFilter::Mode::DigitalZoom;
+        if (m_comboPipMode != nullptr) {
+            mode = static_cast<PelcoD::Video::PictureInPictureFilter::Mode>(m_comboPipMode->currentData().toInt());
+        }
+        m_worker->addFrameProcessor(std::make_shared<PelcoD::Video::PictureInPictureFilter>(
+            mode, PelcoD::Video::PictureInPictureFilter::Corner::TopRight, 0.28, 2.0));
+    }
+
+    // 20. Operational Telemetry OSD (PTZ angles, compass heading, FOV)
+    if (m_chkTelemetryOsd != nullptr && m_chkTelemetryOsd->isChecked()) {
+        auto telem = std::make_shared<PelcoD::Video::TelemetryOsdFilter>(
+            PelcoD::Video::TelemetryOsdFilter::Color::TacticalGreen, true, true);
+        PelcoD::Video::TelemetryOsdFilter::TelemetryData telemData;
+        telemData.panDegrees = 184.5;
+        telemData.tiltDegrees = -12.3;
+        telemData.zoomMagnification = 25.0;
+        telemData.horizontalFovDegrees = 2.4;
+        telemData.sensorPayload = "OPTICAL HD";
+        telemData.statusMessage = "LINK: OK";
+        telem->setTelemetry(telemData);
+        m_worker->addFrameProcessor(telem);
+    }
+
+    // 21. Forensic Timestamp & Evidentiary Watermark (burned into top layer)
+    if (m_chkForensicWatermark != nullptr && m_chkForensicWatermark->isChecked()) {
+        m_worker->addFrameProcessor(std::make_shared<PelcoD::Video::TimestampWatermarkFilter>(
+            PelcoD::Video::TimestampWatermarkFilter::Position::TopLeft, "CAM-01 [PTZ]", true, true));
     }
 }
 #endif

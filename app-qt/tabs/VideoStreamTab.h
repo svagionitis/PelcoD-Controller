@@ -134,6 +134,13 @@ private:
     QCheckBox* m_chkTripwire { nullptr };
     QComboBox* m_comboTripwireDir { nullptr };
     QCheckBox* m_chkHeatmap { nullptr };
+    // Privacy & Operational Overlays Controls
+    QCheckBox* m_chkPrivacyMask { nullptr };
+    QComboBox* m_comboPrivacyMode { nullptr };
+    QCheckBox* m_chkForensicWatermark { nullptr };
+    QCheckBox* m_chkTelemetryOsd { nullptr };
+    QCheckBox* m_chkPictureInPicture { nullptr };
+    QComboBox* m_comboPipMode { nullptr };
 #endif
 
     // Quick PTZ Controls

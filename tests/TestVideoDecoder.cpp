@@ -60,6 +60,10 @@ private slots:
     void testCentroidTargetTrackerFilter();
     void testPerimeterTripwireFilter();
     void testMotionHeatmapFilter();
+    void testPrivacyMaskFilter();
+    void testTimestampWatermarkFilter();
+    void testTelemetryOsdFilter();
+    void testPictureInPictureFilter();
     void testVideoFiltersPipelineIntegration();
     void testConcurrentProcessorReconfiguration();
 #endif
@@ -520,6 +524,10 @@ void TestVideoDecoder::testVideoFiltersNullSafety()
     CentroidTargetTrackerFilter trackerFilter;
     PerimeterTripwireFilter tripwireFilter;
     MotionHeatmapFilter heatmapFilter;
+    PrivacyMaskFilter privacyFilter;
+    TimestampWatermarkFilter watermarkFilter;
+    TelemetryOsdFilter telemetryFilter;
+    PictureInPictureFilter pipFilter;
 
     isoFilter.process(nullptr, 640, 360, PixelFormat::RGB24);
     spotFilter.process(nullptr, 640, 360, PixelFormat::RGB24);
@@ -529,6 +537,10 @@ void TestVideoDecoder::testVideoFiltersNullSafety()
     trackerFilter.process(nullptr, 640, 360, PixelFormat::RGB24);
     tripwireFilter.process(nullptr, 640, 360, PixelFormat::RGB24);
     heatmapFilter.process(nullptr, 640, 360, PixelFormat::RGB24);
+    privacyFilter.process(nullptr, 640, 360, PixelFormat::RGB24);
+    watermarkFilter.process(nullptr, 640, 360, PixelFormat::RGB24);
+    telemetryFilter.process(nullptr, 640, 360, PixelFormat::RGB24);
+    pipFilter.process(nullptr, 640, 360, PixelFormat::RGB24);
 
     // Verify non-positive dimensions do not crash
     std::vector<std::uint8_t> dummy(1024U, 128U);
@@ -553,6 +565,10 @@ void TestVideoDecoder::testVideoFiltersNullSafety()
     trackerFilter.process(dummy.data(), 0, -1, PixelFormat::RGB24);
     tripwireFilter.process(dummy.data(), -1, 0, PixelFormat::RGB24);
     heatmapFilter.process(dummy.data(), 0, 0, PixelFormat::RGB24);
+    privacyFilter.process(dummy.data(), -1, 0, PixelFormat::RGB24);
+    watermarkFilter.process(dummy.data(), 0, -1, PixelFormat::RGB24);
+    telemetryFilter.process(dummy.data(), -1, -1, PixelFormat::RGB24);
+    pipFilter.process(dummy.data(), 0, 0, PixelFormat::RGB24);
 
     QVERIFY(true);
 }
@@ -1196,6 +1212,246 @@ void TestVideoDecoder::testMotionHeatmapFilter()
     heatmap.process(motionFrame.data(), w, h, PixelFormat::RGB24);
     QVERIFY(!motionFrame.empty());
     heatmap.reset();
+}
+
+void TestVideoDecoder::testPrivacyMaskFilter()
+{
+    const int w = 64;
+    const int h = 64;
+    std::vector<std::uint8_t> frame(static_cast<std::size_t>(w * h * 3), 255U); // Pure white
+
+    PrivacyMaskFilter filter(PrivacyMaskFilter::ConcealmentMode::Blackout);
+    filter.setMaskColor(0U, 0U, 0U); // Black
+    filter.setBlurKernelSize(25);
+    filter.setMosaicBlockSize(8);
+    QCOMPARE(filter.getBlurKernelSize(), 25);
+    QCOMPARE(filter.getMosaicBlockSize(), 8);
+
+    // Add zone covering top-left quadrant [0..32, 0..32]
+    int zoneId = filter.addZone(0.0, 0.0, 0.5, 0.5, PrivacyMaskFilter::ConcealmentMode::Blackout, "Zone1");
+    QVERIFY(zoneId > 0);
+    QCOMPARE(filter.getZones().size(), 1U);
+
+    filter.process(frame.data(), w, h, PixelFormat::RGB24);
+
+    // Pixel inside zone (10, 10) must be black
+    std::size_t insideIdx = static_cast<std::size_t>((10 * w + 10) * 3);
+    QCOMPARE(frame[insideIdx + 0U], 0U);
+    QCOMPARE(frame[insideIdx + 1U], 0U);
+    QCOMPARE(frame[insideIdx + 2U], 0U);
+
+    // Pixel outside zone (50, 50) must remain white
+    std::size_t outsideIdx = static_cast<std::size_t>((50 * w + 50) * 3);
+    QCOMPARE(frame[outsideIdx + 0U], 255U);
+    QCOMPARE(frame[outsideIdx + 1U], 255U);
+    QCOMPARE(frame[outsideIdx + 2U], 255U);
+
+    // Test zone disabling
+    filter.setZoneEnabled(zoneId, false);
+    std::fill(frame.begin(), frame.end(), 255U);
+    filter.process(frame.data(), w, h, PixelFormat::RGB24);
+    QCOMPARE(frame[insideIdx + 0U], 255U);
+
+    // Test Mosaic mode
+    filter.setZoneEnabled(zoneId, true);
+    PrivacyMaskFilter::PrivacyZone z;
+    z.id = zoneId;
+    z.xNorm = 0.0;
+    z.yNorm = 0.0;
+    z.widthNorm = 0.5;
+    z.heightNorm = 0.5;
+    z.mode = PrivacyMaskFilter::ConcealmentMode::Mosaic;
+    filter.clearZones();
+    filter.addZone(z);
+    filter.process(frame.data(), w, h, PixelFormat::RGB24);
+    QVERIFY(!frame.empty());
+
+    // Test Blur mode
+    filter.setDefaultMode(PrivacyMaskFilter::ConcealmentMode::Blur);
+    QCOMPARE(filter.getDefaultMode(), PrivacyMaskFilter::ConcealmentMode::Blur);
+
+    // Test remove zone
+    QVERIFY(filter.removeZone(z.id));
+    QVERIFY(filter.getZones().empty());
+}
+
+void TestVideoDecoder::testTimestampWatermarkFilter()
+{
+    const int w = 200;
+    const int h = 100;
+    std::vector<std::uint8_t> frame(static_cast<std::size_t>(w * h * 3), 0U); // Black background
+
+    TimestampWatermarkFilter filter(TimestampWatermarkFilter::Position::TopLeft, "TEST-CAM", true, true);
+    filter.setCustomTimestamp("2026-09-16 14:00:00.000 UTC");
+    filter.setUseSystemClock(false);
+    QVERIFY(!filter.isUsingSystemClock());
+    QCOMPARE(filter.getCameraName(), std::string("TEST-CAM"));
+    QCOMPARE(filter.getFrameCounter(), 0ULL);
+
+    filter.process(frame.data(), w, h, PixelFormat::RGB24);
+    QCOMPARE(filter.getFrameCounter(), 1ULL);
+
+    // Top-left area should have scrim / text drawn (pixels no longer 0)
+    bool hasDrawn = false;
+    for (int y = 0; y < 25; ++y) {
+        for (int x = 0; x < 80; ++x) {
+            std::size_t idx = static_cast<std::size_t>((y * w + x) * 3);
+            if (frame[idx + 0U] > 0U || frame[idx + 1U] > 0U || frame[idx + 2U] > 0U) {
+                hasDrawn = true;
+                break;
+            }
+        }
+    }
+    QVERIFY(hasDrawn);
+
+    // Consecutive frames increment counter
+    filter.process(frame.data(), w, h, PixelFormat::RGB24);
+    QCOMPARE(filter.getFrameCounter(), 2ULL);
+
+    filter.resetFrameCounter();
+    QCOMPARE(filter.getFrameCounter(), 0ULL);
+
+    // Test GPS coordinates and position
+    filter.setGpsCoordinates(37.7749, -122.4194, 45.0, true);
+    filter.setPosition(TimestampWatermarkFilter::Position::BottomRight);
+    QCOMPARE(filter.getPosition(), TimestampWatermarkFilter::Position::BottomRight);
+    filter.setColor(TimestampWatermarkFilter::Color::Amber);
+    QCOMPARE(filter.getColor(), TimestampWatermarkFilter::Color::Amber);
+    filter.setScrimOpacity(0.5);
+    QCOMPARE(filter.getScrimOpacity(), 0.5);
+
+    filter.process(frame.data(), w, h, PixelFormat::BGR24);
+    QCOMPARE(filter.getFrameCounter(), 1ULL);
+    filter.clearGpsCoordinates();
+}
+
+void TestVideoDecoder::testTelemetryOsdFilter()
+{
+    const int w = 320;
+    const int h = 240;
+    std::vector<std::uint8_t> frame(static_cast<std::size_t>(w * h * 3), 0U);
+
+    TelemetryOsdFilter filter(TelemetryOsdFilter::Color::TacticalGreen, true, true);
+    QCOMPARE(filter.getColor(), TelemetryOsdFilter::Color::TacticalGreen);
+    QVERIFY(filter.getShowCompass());
+    QVERIFY(filter.getShowReticleAngles());
+
+    // Test heading cardinal formatting
+    QCOMPARE(TelemetryOsdFilter::formatHeading(0.0), std::string("N"));
+    QCOMPARE(TelemetryOsdFilter::formatHeading(90.0), std::string("E"));
+    QCOMPARE(TelemetryOsdFilter::formatHeading(180.0), std::string("S"));
+    QCOMPARE(TelemetryOsdFilter::formatHeading(270.0), std::string("W"));
+    QCOMPARE(TelemetryOsdFilter::formatHeading(45.0), std::string("NE"));
+
+    // Set telemetry data
+    TelemetryOsdFilter::TelemetryData data;
+    data.panDegrees = 135.0;
+    data.tiltDegrees = -8.5;
+    data.zoomMagnification = 12.0;
+    data.horizontalFovDegrees = 5.2;
+    data.sensorPayload = "EO DAYLIGHT";
+    data.statusMessage = "SYS OK";
+    filter.setTelemetry(data);
+
+    TelemetryOsdFilter::TelemetryData retrieved = filter.getTelemetry();
+    QCOMPARE(retrieved.panDegrees, 135.0);
+    QCOMPARE(retrieved.tiltDegrees, -8.5);
+    QCOMPARE(retrieved.zoomMagnification, 12.0);
+
+    filter.process(frame.data(), w, h, PixelFormat::RGB24);
+
+    // Compass banner at top center should have drawn non-black pixels
+    bool hasCompass = false;
+    for (int y = 5; y < 25; ++y) {
+        for (int x = 120; x < 200; ++x) {
+            std::size_t idx = static_cast<std::size_t>((y * w + x) * 3);
+            if (frame[idx + 0U] > 0U || frame[idx + 1U] > 0U || frame[idx + 2U] > 0U) {
+                hasCompass = true;
+                break;
+            }
+        }
+    }
+    QVERIFY(hasCompass);
+
+    filter.setPanTiltZoom(200.0, 15.0, 20.0);
+    QCOMPARE(filter.getTelemetry().panDegrees, 200.0);
+
+    filter.setColor(TelemetryOsdFilter::Color::Cyan);
+    filter.setShowCompass(false);
+    filter.setShowReticleAngles(false);
+    QVERIFY(!filter.getShowCompass());
+    QVERIFY(!filter.getShowReticleAngles());
+}
+
+void TestVideoDecoder::testPictureInPictureFilter()
+{
+    const int w = 200;
+    const int h = 200;
+    // Fill main frame with green, but center region with red
+    std::vector<std::uint8_t> frame(static_cast<std::size_t>(w * h * 3), 0U);
+    for (int y = 0; y < h; ++y) {
+        for (int x = 0; x < w; ++x) {
+            std::size_t idx = static_cast<std::size_t>((y * w + x) * 3);
+            if (x >= 80 && x <= 120 && y >= 80 && y <= 120) {
+                frame[idx + 0U] = 255U; // Red
+                frame[idx + 1U] = 0U;
+                frame[idx + 2U] = 0U;
+            } else {
+                frame[idx + 0U] = 0U;
+                frame[idx + 1U] = 200U; // Green
+                frame[idx + 2U] = 0U;
+            }
+        }
+    }
+
+    PictureInPictureFilter pip(
+        PictureInPictureFilter::Mode::DigitalZoom, PictureInPictureFilter::Corner::TopRight, 0.30, 2.0);
+    QCOMPARE(pip.getMode(), PictureInPictureFilter::Mode::DigitalZoom);
+    QCOMPARE(pip.getCorner(), PictureInPictureFilter::Corner::TopRight);
+    QCOMPARE(pip.getScaleRatio(), 0.30);
+    QCOMPARE(pip.getDigitalZoomFactor(), 2.0);
+    QVERIFY(pip.getShowBadge());
+
+    pip.process(frame.data(), w, h, PixelFormat::RGB24);
+
+    // In top-right corner (approx x=130..190, y=10..60), center red pixels should be rendered!
+    bool hasZoomedRed = false;
+    for (int y = 20; y < 60; ++y) {
+        for (int x = 140; x < 185; ++x) {
+            std::size_t idx = static_cast<std::size_t>((y * w + x) * 3);
+            if (frame[idx + 0U] > 200U && frame[idx + 1U] < 50U) {
+                hasZoomedRed = true;
+                break;
+            }
+        }
+    }
+    QVERIFY(hasZoomedRed);
+
+    // Test SecondaryFeed mode
+    std::vector<std::uint8_t> secFrame(static_cast<std::size_t>(50 * 50 * 3), 0U);
+    for (std::size_t i = 0U; i < 50U * 50U; ++i) {
+        secFrame[i * 3U + 2U] = 255U; // Blue
+    }
+
+    pip.setMode(PictureInPictureFilter::Mode::SecondaryFeed);
+    pip.setCorner(PictureInPictureFilter::Corner::BottomLeft);
+    pip.setSecondaryFrame(secFrame.data(), 50, 50, PixelFormat::RGB24);
+
+    pip.process(frame.data(), w, h, PixelFormat::RGB24);
+
+    // Bottom-left corner (x=15..60, y=140..185) should have blue secondary feed
+    bool hasSecBlue = false;
+    for (int y = 145; y < 180; ++y) {
+        for (int x = 20; x < 55; ++x) {
+            std::size_t idx = static_cast<std::size_t>((y * w + x) * 3);
+            if (frame[idx + 2U] > 200U && frame[idx + 0U] < 50U) {
+                hasSecBlue = true;
+                break;
+            }
+        }
+    }
+    QVERIFY(hasSecBlue);
+    pip.clearSecondaryFrame();
 }
 
 void TestVideoDecoder::testVideoFiltersPipelineIntegration()
