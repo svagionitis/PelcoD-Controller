@@ -32,9 +32,8 @@ public:
     /// @param[in] source URL (RTSP, file, or mock pattern).
     /// @param[in] backend Requested decoding backend.
     /// @param[in] device Hardware acceleration device.
-    void openStream(const QString& source,
-                    PelcoD::Video::BackendType backend = PelcoD::Video::BackendType::FFmpeg,
-                    PelcoD::Video::DeviceType device = PelcoD::Video::DeviceType::CPU);
+    void openStream(const QString& source, PelcoD::Video::BackendType backend = PelcoD::Video::BackendType::FFmpeg,
+        PelcoD::Video::DeviceType device = PelcoD::Video::DeviceType::CPU);
 
     /// @brief Stops decoding and terminates worker loop.
     void stopPlayback();
@@ -64,6 +63,13 @@ public:
     /// @brief Requests seek to a timestamp in seconds.
     /// @param[in] timestampSeconds Target position in seconds.
     void seekTo(double timestampSeconds);
+
+    /// @brief Adds a post-processing frame processor to the active decoder pipeline.
+    /// @param[in] processor Shared pointer to frame processor.
+    void addFrameProcessor(std::shared_ptr<PelcoD::Video::IFrameProcessor> processor);
+
+    /// @brief Clears all registered frame processors.
+    void clearFrameProcessors();
 
 signals:
     /// @brief Emitted when a video frame is decoded and ready for display.
@@ -112,6 +118,7 @@ private:
     bool m_pauseRequested { false };
     bool m_loopPlayback { true };
     double m_requestedSeekPos { -1.0 };
+    std::vector<std::shared_ptr<PelcoD::Video::IFrameProcessor>> m_processors;
 };
 
 } // namespace PelcoDQt

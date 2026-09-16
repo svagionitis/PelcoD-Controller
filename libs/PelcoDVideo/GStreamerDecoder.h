@@ -72,9 +72,18 @@ public:
     GstMapInfoWrapper(const GstMapInfoWrapper&) = delete;
     GstMapInfoWrapper& operator=(const GstMapInfoWrapper&) = delete;
 
-    [[nodiscard]] bool isMapped() const noexcept { return m_mapped; }
-    [[nodiscard]] const std::uint8_t* data() const noexcept { return m_info.data; }
-    [[nodiscard]] std::size_t size() const noexcept { return m_info.size; }
+    [[nodiscard]] bool isMapped() const noexcept
+    {
+        return m_mapped;
+    }
+    [[nodiscard]] const std::uint8_t* data() const noexcept
+    {
+        return m_info.data;
+    }
+    [[nodiscard]] std::size_t size() const noexcept
+    {
+        return m_info.size;
+    }
 
 private:
     GstBuffer* m_buffer { nullptr };
@@ -92,10 +101,8 @@ public:
     GStreamerDecoder(const GStreamerDecoder&) = delete;
     GStreamerDecoder& operator=(const GStreamerDecoder&) = delete;
 
-    bool initialize(std::string_view source,
-                    PixelFormat format = PixelFormat::RGB24,
-                    int threadCount = 0,
-                    DeviceType device = DeviceType::CPU) override;
+    bool initialize(std::string_view source, PixelFormat format = PixelFormat::RGB24, int threadCount = 0,
+        DeviceType device = DeviceType::CPU) override;
 
     bool decodeNextFrame() override;
 
@@ -111,12 +118,18 @@ public:
 
     [[nodiscard]] bool isTripleBufferingEnabled() const override;
 
+    void addFrameProcessor(std::shared_ptr<IFrameProcessor> processor) override;
+
+    void clearFrameProcessors() override;
+
     void close() override;
 
 private:
     static void initGStreamer();
     std::string getBusErrorMessage();
     bool reconnect();
+
+    std::vector<std::shared_ptr<IFrameProcessor>> m_processors;
 
     GstElementPtr m_pipeline;
     GstElement* m_sink { nullptr };

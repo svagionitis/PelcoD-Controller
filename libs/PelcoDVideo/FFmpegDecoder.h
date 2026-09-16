@@ -85,10 +85,8 @@ public:
     FFmpegDecoder(const FFmpegDecoder&) = delete;
     FFmpegDecoder& operator=(const FFmpegDecoder&) = delete;
 
-    bool initialize(std::string_view source,
-                    PixelFormat format = PixelFormat::RGB24,
-                    int threadCount = 0,
-                    DeviceType device = DeviceType::CPU) override;
+    bool initialize(std::string_view source, PixelFormat format = PixelFormat::RGB24, int threadCount = 0,
+        DeviceType device = DeviceType::CPU) override;
 
     bool decodeNextFrame() override;
 
@@ -104,10 +102,16 @@ public:
 
     [[nodiscard]] bool isTripleBufferingEnabled() const override;
 
+    void addFrameProcessor(std::shared_ptr<IFrameProcessor> processor) override;
+
+    void clearFrameProcessors() override;
+
     void close() override;
 
 private:
     bool reconnect();
+
+    std::vector<std::shared_ptr<IFrameProcessor>> m_processors;
 
     AVFormatContextPtr m_formatCtx;
     AVCodecContextPtr m_codecCtx;

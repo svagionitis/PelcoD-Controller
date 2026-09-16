@@ -104,6 +104,26 @@ void QVideoStreamWorker::seekTo(double timestampSeconds)
     m_condition.wakeAll();
 }
 
+void QVideoStreamWorker::addFrameProcessor(std::shared_ptr<PelcoD::Video::IFrameProcessor> processor)
+{
+    QMutexLocker locker(&m_mutex);
+    if (processor) {
+        m_processors.push_back(processor);
+        if (m_decoder) {
+            m_decoder->addFrameProcessor(processor);
+        }
+    }
+}
+
+void QVideoStreamWorker::clearFrameProcessors()
+{
+    QMutexLocker locker(&m_mutex);
+    m_processors.clear();
+    if (m_decoder) {
+        m_decoder->clearFrameProcessors();
+    }
+}
+
 void QVideoStreamWorker::run()
 {
     QString currentSource;
@@ -140,14 +160,21 @@ void QVideoStreamWorker::run()
         return;
     }
 
+    {
+        QMutexLocker locker(&m_mutex);
+        for (const auto& proc : m_processors) {
+            m_decoder->addFrameProcessor(proc);
+        }
+    }
+
     const VideoMetadata meta = m_decoder->getVideoMetadata();
     {
         QMutexLocker locker(&m_mutex);
         m_state = StreamState::Streaming;
     }
 
-    emit streamStatusChanged(StreamState::Streaming, tr("Connected. Streaming %1x%2 @ %3 FPS")
-        .arg(meta.width).arg(meta.height).arg(meta.frameRate, 0, 'f', 1));
+    emit streamStatusChanged(StreamState::Streaming,
+        tr("Connected. Streaming %1x%2 @ %3 FPS").arg(meta.width).arg(meta.height).arg(meta.frameRate, 0, 'f', 1));
     emit streamMetadataReady(meta.width, meta.height, meta.frameRate, QString::fromStdString(meta.codecName));
 
     QElapsedTimer fpsTimer;

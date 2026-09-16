@@ -22,10 +22,8 @@ public:
     /// @brief Destructor.
     ~MockVideoDecoder() override = default;
 
-    bool initialize(std::string_view source,
-                    PixelFormat format = PixelFormat::RGB24,
-                    int threadCount = 0,
-                    DeviceType device = DeviceType::CPU) override;
+    bool initialize(std::string_view source, PixelFormat format = PixelFormat::RGB24, int threadCount = 0,
+        DeviceType device = DeviceType::CPU) override;
 
     bool decodeNextFrame() override;
 
@@ -41,6 +39,10 @@ public:
 
     [[nodiscard]] bool isTripleBufferingEnabled() const override;
 
+    void addFrameProcessor(std::shared_ptr<IFrameProcessor> processor) override;
+
+    void clearFrameProcessors() override;
+
     void close() override;
 
 private:
@@ -52,6 +54,8 @@ private:
     PixelFormat m_format { PixelFormat::RGB24 };
     bool m_initialized { false };
     bool m_tripleBufferingEnabled { false };
+
+    std::vector<std::shared_ptr<IFrameProcessor>> m_processors;
 
     std::uint64_t m_frameIndex { 0U };
     double m_currentTimeSec { 0.0 };

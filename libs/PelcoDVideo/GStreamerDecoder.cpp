@@ -16,9 +16,7 @@ static std::once_flag s_gstInitOnce;
 
 void GStreamerDecoder::initGStreamer()
 {
-    std::call_once(s_gstInitOnce, []() {
-        gst_init(nullptr, nullptr);
-    });
+    std::call_once(s_gstInitOnce, []() { gst_init(nullptr, nullptr); });
 }
 
 GStreamerDecoder::GStreamerDecoder()
@@ -78,10 +76,7 @@ std::string GStreamerDecoder::getBusErrorMessage()
     return errMsg;
 }
 
-bool GStreamerDecoder::initialize(std::string_view source,
-                                  PixelFormat format,
-                                  int threadCount,
-                                  DeviceType device)
+bool GStreamerDecoder::initialize(std::string_view source, PixelFormat format, int threadCount, DeviceType device)
 {
     close();
     const auto start = std::chrono::steady_clock::now();
@@ -128,9 +123,7 @@ bool GStreamerDecoder::initialize(std::string_view source,
 
     // Configure appsink caps (RGB / BGR)
     const char* formatStr = (m_outputFormat == PixelFormat::RGB24) ? "RGB" : "BGR";
-    GstCaps* caps = gst_caps_new_simple("video/x-raw",
-                                        "format", G_TYPE_STRING, formatStr,
-                                        nullptr);
+    GstCaps* caps = gst_caps_new_simple("video/x-raw", "format", G_TYPE_STRING, formatStr, nullptr);
     gst_app_sink_set_caps(GST_APP_SINK(m_sink), caps);
     gst_caps_unref(caps);
 
@@ -166,10 +159,7 @@ bool GStreamerDecoder::initialize(std::string_view source,
         }
         g_object_set(G_OBJECT(m_pipeline.get()), "video-sink", sinkBin, nullptr);
     } else {
-        g_object_set(G_OBJECT(m_pipeline.get()),
-                     "uri", uri.c_str(),
-                     "video-sink", sinkBin,
-                     nullptr);
+        g_object_set(G_OBJECT(m_pipeline.get()), "uri", uri.c_str(), "video-sink", sinkBin, nullptr);
     }
 
     // Start pipeline
@@ -231,7 +221,8 @@ bool GStreamerDecoder::decodeNextFrame()
 
         // Potential live stream drop -> auto-reconnect
         if (m_duration <= 0.0 && m_reconnectAttempts < 3) {
-            LOG(WARNING) << "GStreamerDecoder: Stream sample timeout. Reconnecting (" << m_reconnectAttempts + 1 << "/3)...";
+            LOG(WARNING) << "GStreamerDecoder: Stream sample timeout. Reconnecting (" << m_reconnectAttempts + 1
+                         << "/3)...";
             ++m_reconnectAttempts;
             std::this_thread::sleep_for(std::chrono::milliseconds(500));
             if (reconnect()) {
@@ -264,6 +255,13 @@ bool GStreamerDecoder::decodeNextFrame()
             }
             const std::size_t copyBytes = std::min(map.size(), expectedSize);
             std::memcpy(m_rgbBuffer.data(), map.data(), copyBytes);
+
+            // Apply registered frame processors in-place
+            for (auto& processor : m_processors) {
+                if (processor) {
+                    processor->process(m_rgbBuffer.data(), m_width, m_height, m_outputFormat);
+                }
+            }
 
             if (GST_BUFFER_PTS_IS_VALID(buffer)) {
                 m_timestamp = static_cast<double>(buffer->pts) / GST_SECOND;
@@ -332,7 +330,8 @@ DecoderPerformanceStats GStreamerDecoder::getPerformanceStats() const
     DecoderPerformanceStats stats;
     stats.initializationTimeMs = m_initTimeMs;
     stats.totalDecodedFrames = m_decodedFramesCount;
-    stats.averageDecodeTimeMs = (m_decodedFramesCount > 0U) ? (m_totalDecodeTimeMs / static_cast<double>(m_decodedFramesCount)) : 0.0;
+    stats.averageDecodeTimeMs
+        = (m_decodedFramesCount > 0U) ? (m_totalDecodeTimeMs / static_cast<double>(m_decodedFramesCount)) : 0.0;
     return stats;
 }
 
@@ -343,10 +342,9 @@ bool GStreamerDecoder::seek(double timeInSeconds)
     }
 
     const gint64 targetNs = static_cast<gint64>(timeInSeconds * GST_SECOND);
-    return (gst_element_seek_simple(m_pipeline.get(),
-                                   GST_FORMAT_TIME,
-                                   static_cast<GstSeekFlags>(GST_SEEK_FLAG_FLUSH | GST_SEEK_FLAG_KEY_UNIT),
-                                   targetNs) != 0);
+    return (gst_element_seek_simple(m_pipeline.get(), GST_FORMAT_TIME,
+                static_cast<GstSeekFlags>(GST_SEEK_FLAG_FLUSH | GST_SEEK_FLAG_KEY_UNIT), targetNs)
+        != 0);
 }
 
 void GStreamerDecoder::enableTripleBuffering(bool enable)
@@ -367,6 +365,18 @@ void GStreamerDecoder::enableTripleBuffering(bool enable)
 bool GStreamerDecoder::isTripleBufferingEnabled() const
 {
     return m_tripleBufferingEnabled;
+}
+
+void GStreamerDecoder::addFrameProcessor(std::shared_ptr<IFrameProcessor> processor)
+{
+    if (processor) {
+        m_processors.push_back(processor);
+    }
+}
+
+void GStreamerDecoder::clearFrameProcessors()
+{
+    m_processors.clear();
 }
 
 } // namespace PelcoD::Video

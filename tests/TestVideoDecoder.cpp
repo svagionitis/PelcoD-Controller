@@ -36,6 +36,7 @@ private slots:
     void testBrailleRendererUtf8();
     void testBrailleRendererLumaAndPalette();
     void testBrailleRendererGridRasterization();
+    void testFrameProcessorPipeline();
 };
 
 void TestVideoDecoder::testMockDecoderLifecycle()
@@ -362,6 +363,95 @@ void TestVideoDecoder::testBrailleRendererGridRasterization()
     QCOMPARE(static_cast<int>(cells.size()), 50);
     QVERIFY(cells[0].hasBg);
     QCOMPARE(cells[0].utf8Text, std::string("\xE2\x96\x80"));
+}
+
+namespace {
+
+class InvertColorTestProcessor : public IFrameProcessor {
+public:
+    void process(std::uint8_t* data, int width, int height, PixelFormat /*format*/) override
+    {
+        const std::size_t totalBytes = static_cast<std::size_t>(width * height * 3);
+        for (std::size_t i = 0U; i < totalBytes; ++i) {
+            data[i] = static_cast<std::uint8_t>(255U - data[i]);
+        }
+    }
+};
+
+class BrightnessOffsetTestProcessor : public IFrameProcessor {
+public:
+    explicit BrightnessOffsetTestProcessor(int offset)
+        : m_offset(offset)
+    {
+    }
+
+    void process(std::uint8_t* data, int width, int height, PixelFormat /*format*/) override
+    {
+        const std::size_t totalBytes = static_cast<std::size_t>(width * height * 3);
+        for (std::size_t i = 0U; i < totalBytes; ++i) {
+            const int val = static_cast<int>(data[i]) + m_offset;
+            data[i] = static_cast<std::uint8_t>(std::clamp(val, 0, 255));
+        }
+    }
+
+private:
+    int m_offset { 0 };
+};
+
+} // namespace
+
+void TestVideoDecoder::testFrameProcessorPipeline()
+{
+    MockVideoDecoder decoder;
+    QVERIFY(decoder.initialize("mock://test", PixelFormat::RGB24));
+
+    // Decode baseline frame 0 without processors
+    decoder.seek(0.0);
+    QVERIFY(decoder.decodeNextFrame());
+    const FrameInfo raw0 = decoder.getRawFrameData();
+    const std::uint8_t origR = raw0.data[0];
+    const std::uint8_t origG = raw0.data[1];
+    const std::uint8_t origB = raw0.data[2];
+
+    // Register invert color processor and re-decode frame 0
+    auto invertProc = std::make_shared<InvertColorTestProcessor>();
+    decoder.addFrameProcessor(invertProc);
+
+    decoder.seek(0.0);
+    QVERIFY(decoder.decodeNextFrame());
+    const FrameInfo raw1 = decoder.getRawFrameData();
+    QCOMPARE(raw1.data[0], static_cast<std::uint8_t>(255U - origR));
+    QCOMPARE(raw1.data[1], static_cast<std::uint8_t>(255U - origG));
+    QCOMPARE(raw1.data[2], static_cast<std::uint8_t>(255U - origB));
+
+    // Test sequential chaining: add brightness offset +10 and re-decode frame 0
+    auto brightProc = std::make_shared<BrightnessOffsetTestProcessor>(10);
+    decoder.addFrameProcessor(brightProc);
+
+    decoder.seek(0.0);
+    QVERIFY(decoder.decodeNextFrame());
+    const FrameInfo raw2 = decoder.getRawFrameData();
+    const std::uint8_t expectedR = static_cast<std::uint8_t>(std::clamp(static_cast<int>(255U - origR) + 10, 0, 255));
+    QCOMPARE(raw2.data[0], expectedR);
+
+    // Clear processors and verify restoration of original values on frame 0
+    decoder.clearFrameProcessors();
+    decoder.seek(0.0);
+    QVERIFY(decoder.decodeNextFrame());
+    const FrameInfo raw3 = decoder.getRawFrameData();
+    QCOMPARE(raw3.data[0], origR);
+    QCOMPARE(raw3.data[1], origG);
+    QCOMPARE(raw3.data[2], origB);
+
+    // Verify integration with QVideoStreamWorker
+    QVideoStreamWorker worker;
+    worker.addFrameProcessor(invertProc);
+    QSignalSpy spyFrames(&worker, &QVideoStreamWorker::frameReady);
+    worker.openStream("mock://test", BackendType::Mock);
+
+    QVERIFY(spyFrames.wait(2000));
+    QVERIFY(spyFrames.count() >= 1);
+    worker.stopPlayback();
 }
 
 QTEST_MAIN(TestVideoDecoder)

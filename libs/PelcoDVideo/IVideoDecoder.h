@@ -24,10 +24,9 @@ public:
     /// @param[in] threadCount Number of decoding worker threads (0 for auto).
     /// @param[in] device Hardware acceleration device type (defaults to CPU).
     /// @return True if initialized successfully and ready to decode.
-    virtual bool initialize(std::string_view source,
-                            PixelFormat format = PixelFormat::RGB24,
-                            int threadCount = 0,
-                            DeviceType device = DeviceType::CPU) = 0;
+    virtual bool initialize(std::string_view source, PixelFormat format = PixelFormat::RGB24, int threadCount = 0,
+        DeviceType device = DeviceType::CPU)
+        = 0;
 
     /// @brief Decodes the next available frame in the video stream.
     /// @return True if a new frame was successfully decoded and cached.
@@ -57,6 +56,13 @@ public:
     /// @brief Checks whether atomic triple buffering is active.
     /// @return True if active.
     [[nodiscard]] virtual bool isTripleBufferingEnabled() const = 0;
+
+    /// @brief Adds a post-processing frame processor to the decoder.
+    /// @param[in] processor Shared pointer to frame processor implementation.
+    virtual void addFrameProcessor(std::shared_ptr<IFrameProcessor> processor) = 0;
+
+    /// @brief Clears all registered post-processing frame processors.
+    virtual void clearFrameProcessors() = 0;
 
     /// @brief Closes the video stream and releases decoder resources.
     virtual void close() = 0;

@@ -268,6 +268,13 @@ bool FFmpegDecoder::decodeNextFrame()
             sws_scale(
                 m_swsCtx.get(), m_rawFrame->data, m_rawFrame->linesize, 0, m_rawFrame->height, dstData, dstLinesize);
 
+            // Apply registered frame processors in-place
+            for (auto& processor : m_processors) {
+                if (processor) {
+                    processor->process(m_rgbBuffer.data(), m_width, m_height, m_outputFormat);
+                }
+            }
+
             // Compute presentation timestamp
             if (m_rawFrame->best_effort_timestamp != AV_NOPTS_VALUE) {
                 const AVRational tb = m_formatCtx->streams[m_videoStreamIndex]->time_base;
@@ -414,6 +421,18 @@ void FFmpegDecoder::enableTripleBuffering(bool enable)
 bool FFmpegDecoder::isTripleBufferingEnabled() const
 {
     return m_tripleBufferingEnabled;
+}
+
+void FFmpegDecoder::addFrameProcessor(std::shared_ptr<IFrameProcessor> processor)
+{
+    if (processor) {
+        m_processors.push_back(processor);
+    }
+}
+
+void FFmpegDecoder::clearFrameProcessors()
+{
+    m_processors.clear();
 }
 
 } // namespace PelcoD::Video

@@ -11,10 +11,8 @@ MockVideoDecoder::MockVideoDecoder()
 {
 }
 
-bool MockVideoDecoder::initialize(std::string_view source,
-                                  PixelFormat format,
-                                  int /*threadCount*/,
-                                  DeviceType /*device*/)
+bool MockVideoDecoder::initialize(
+    std::string_view source, PixelFormat format, int /*threadCount*/, DeviceType /*device*/)
 {
     (void)source;
     m_format = format;
@@ -53,6 +51,12 @@ bool MockVideoDecoder::decodeNextFrame()
     }
 
     renderTestPattern(m_currentFrameBuffer.data());
+
+    for (auto& processor : m_processors) {
+        if (processor) {
+            processor->process(m_currentFrameBuffer.data(), m_width, m_height, m_format);
+        }
+    }
 
     m_currentTimeSec = static_cast<double>(m_frameIndex) / m_frameRate;
     ++m_frameIndex;
@@ -144,6 +148,18 @@ bool MockVideoDecoder::isTripleBufferingEnabled() const
     return m_tripleBufferingEnabled;
 }
 
+void MockVideoDecoder::addFrameProcessor(std::shared_ptr<IFrameProcessor> processor)
+{
+    if (processor) {
+        m_processors.push_back(processor);
+    }
+}
+
+void MockVideoDecoder::clearFrameProcessors()
+{
+    m_processors.clear();
+}
+
 void MockVideoDecoder::close()
 {
     m_initialized = false;
@@ -171,13 +187,13 @@ void MockVideoDecoder::renderTestPattern(std::uint8_t* buffer)
 
     static constexpr ColorRgb kBars[8] = {
         { 235U, 235U, 235U }, // White
-        { 219U, 219U,  16U }, // Yellow
-        {  16U, 219U, 219U }, // Cyan
-        {  16U, 219U,  16U }, // Green
-        { 219U,  16U, 219U }, // Magenta
-        { 219U,  16U,  16U }, // Red
-        {  16U,  16U, 219U }, // Blue
-        {  16U,  16U,  16U }  // Black
+        { 219U, 219U, 16U }, // Yellow
+        { 16U, 219U, 219U }, // Cyan
+        { 16U, 219U, 16U }, // Green
+        { 219U, 16U, 219U }, // Magenta
+        { 219U, 16U, 16U }, // Red
+        { 16U, 16U, 219U }, // Blue
+        { 16U, 16U, 16U } // Black
     };
 
     const int barWidth = m_width / 8;
@@ -201,9 +217,8 @@ void MockVideoDecoder::renderTestPattern(std::uint8_t* buffer)
             } else {
                 // Bottom Section: Grayscale ramp and cast shadow
                 const int grayVal = (x * 255) / std::max(1, m_width);
-                c = { static_cast<std::uint8_t>(grayVal),
-                      static_cast<std::uint8_t>(grayVal),
-                      static_cast<std::uint8_t>(grayVal) };
+                c = { static_cast<std::uint8_t>(grayVal), static_cast<std::uint8_t>(grayVal),
+                    static_cast<std::uint8_t>(grayVal) };
 
                 // Moving tick marker on bottom ramp
                 if (std::abs(x - movingX) <= 3) {
