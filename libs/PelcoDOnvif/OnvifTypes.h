@@ -37,6 +37,7 @@ struct MediaProfile {
     int videoWidth { 0 }; ///< Native video resolution width in pixels
     int videoHeight { 0 }; ///< Native video resolution height in pixels
     std::string videoEncoding; ///< Encoding format (e.g. "H264", "H265", "JPEG")
+    std::string videoSourceToken {}; ///< Video source configuration token for imaging service
 };
 
 /// @struct StreamUriInfo
@@ -66,6 +67,32 @@ struct PtzPreset {
     double pan { 0.0 }; ///< Normalized pan position [-1.0 to +1.0] if provided
     double tilt { 0.0 }; ///< Normalized tilt position [-1.0 to +1.0] if provided
     double zoom { 0.0 }; ///< Normalized zoom position [0.0 to 1.0] if provided
+};
+
+/// @struct ImagingSettings
+/// @brief Optical, exposure, color, and focus parameters (ONVIF Profile T Imaging Service).
+struct ImagingSettings {
+    float brightness { 50.0f }; ///< Brightness level [0.0 to 100.0]
+    float colorSaturation { 50.0f }; ///< Color saturation level [0.0 to 100.0]
+    float contrast { 50.0f }; ///< Contrast level [0.0 to 100.0]
+    float sharpness { 50.0f }; ///< Sharpness level [0.0 to 100.0]
+    std::string irCutFilter { "AUTO" }; ///< IR cut filter mode: "ON", "OFF", or "AUTO"
+    bool backlightCompensation { false }; ///< Backlight compensation enable
+    float backlightLevel { 0.0f }; ///< Backlight compensation level [0.0 to 100.0]
+    bool wideDynamicRange { false }; ///< Wide Dynamic Range (WDR) enable
+    float wdrLevel { 0.0f }; ///< WDR level [0.0 to 100.0]
+    std::string autoFocusMode { "AUTO" }; ///< Auto-focus mode: "AUTO" or "MANUAL"
+};
+
+/// @struct OnvifEvent
+/// @brief Real-time event notification (ONVIF PullPoint NotificationMessage).
+struct OnvifEvent {
+    std::string topic {}; ///< Event topic, e.g. "tns1:RuleEngine/CellMotionDetector/Motion"
+    std::string sourceName {}; ///< Source item name, e.g. "VideoSourceConfigurationToken"
+    std::string sourceValue {}; ///< Source item value, e.g. "VideoSourceToken_1"
+    std::string dataName {}; ///< Data item name, e.g. "IsMotion" or "State"
+    std::string dataValue {}; ///< Data item value, e.g. "true" or "false"
+    std::string utcTime {}; ///< Notification timestamp from camera
 };
 
 } // namespace PelcoD::Onvif

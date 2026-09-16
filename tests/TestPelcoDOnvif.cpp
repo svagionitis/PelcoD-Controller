@@ -391,6 +391,119 @@ void testSoapEnvelopeWrapping()
     assert(env.find("<tds:GetDeviceInformation/>") != std::string::npos);
 }
 
+void testImagingSettingsParsing()
+{
+    const std::string xml =
+        "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+        "xmlns:timg=\"http://www.onvif.org/ver20/imaging/wsdl\" "
+        "xmlns:tt=\"http://www.onvif.org/ver10/schema\">\n"
+        "  <SOAP-ENV:Body>\n"
+        "    <timg:GetImagingSettingsResponse>\n"
+        "      <timg:ImagingSettings>\n"
+        "        <tt:Brightness>65.0</tt:Brightness>\n"
+        "        <tt:ColorSaturation>75.0</tt:ColorSaturation>\n"
+        "        <tt:Contrast>80.0</tt:Contrast>\n"
+        "        <tt:Sharpness>45.0</tt:Sharpness>\n"
+        "        <tt:IrCutFilter>AUTO</tt:IrCutFilter>\n"
+        "        <tt:BacklightCompensation>\n"
+        "          <tt:Mode>ON</tt:Mode>\n"
+        "          <tt:Level>50.0</tt:Level>\n"
+        "        </tt:BacklightCompensation>\n"
+        "        <tt:WideDynamicRange>\n"
+        "          <tt:Mode>OFF</tt:Mode>\n"
+        "          <tt:Level>0.0</tt:Level>\n"
+        "        </tt:WideDynamicRange>\n"
+        "        <tt:Focus>\n"
+        "          <tt:AutoFocusMode>MANUAL</tt:AutoFocusMode>\n"
+        "        </tt:Focus>\n"
+        "      </timg:ImagingSettings>\n"
+        "    </timg:GetImagingSettingsResponse>\n"
+        "  </SOAP-ENV:Body>\n"
+        "</SOAP-ENV:Envelope>";
+
+    const auto settings = PelcoD::Onvif::OnvifClient::parseImagingSettingsResponse(xml);
+    assert(settings.has_value());
+    assert(settings->brightness == 65.0f);
+    assert(settings->colorSaturation == 75.0f);
+    assert(settings->contrast == 80.0f);
+    assert(settings->sharpness == 45.0f);
+    assert(settings->irCutFilter == "AUTO");
+    assert(settings->backlightCompensation == true);
+    assert(settings->backlightLevel == 50.0f);
+    assert(settings->wideDynamicRange == false);
+    assert(settings->autoFocusMode == "MANUAL");
+}
+
+void testPullPointEventsParsing()
+{
+    // 1. Parse subscription creation response
+    const std::string subXml =
+        "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+        "xmlns:wsa=\"http://www.w3.org/2005/08/addressing\" "
+        "xmlns:tev=\"http://www.onvif.org/ver10/events/wsdl\">\n"
+        "  <SOAP-ENV:Body>\n"
+        "    <tev:CreatePullPointSubscriptionResponse>\n"
+        "      <tev:SubscriptionReference>\n"
+        "        <wsa:Address>http://192.168.1.100:8080/onvif/Subscription?idx=42</wsa:Address>\n"
+        "      </tev:SubscriptionReference>\n"
+        "      <wsnt:CurrentTime>2026-09-16T20:40:00Z</wsnt:CurrentTime>\n"
+        "      <wsnt:TerminationTime>2026-09-16T20:41:00Z</wsnt:TerminationTime>\n"
+        "    </tev:CreatePullPointSubscriptionResponse>\n"
+        "  </SOAP-ENV:Body>\n"
+        "</SOAP-ENV:Envelope>";
+
+    const auto subUrl = PelcoD::Onvif::OnvifClient::parseCreatePullPointSubscriptionResponse(subXml);
+    assert(subUrl.has_value());
+    assert(*subUrl == "http://192.168.1.100:8080/onvif/Subscription?idx=42");
+
+    // 2. Parse pull messages response with motion & tamper events
+    const std::string pullXml =
+        "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+        "xmlns:wsnt=\"http://docs.oasis-open.org/wsn/b-2\" "
+        "xmlns:tt=\"http://www.onvif.org/ver10/schema\" "
+        "xmlns:tev=\"http://www.onvif.org/ver10/events/wsdl\">\n"
+        "  <SOAP-ENV:Body>\n"
+        "    <tev:PullMessagesResponse>\n"
+        "      <wsnt:NotificationMessage>\n"
+        "        <wsnt:Topic>tns1:RuleEngine/CellMotionDetector/Motion</wsnt:Topic>\n"
+        "        <wsnt:Message UtcTime=\"2026-09-16T20:40:05Z\">\n"
+        "          <tt:Source>\n"
+        "            <tt:SimpleItem Name=\"VideoSourceConfigurationToken\" Value=\"VideoSource_1\"/>\n"
+        "          </tt:Source>\n"
+        "          <tt:Data>\n"
+        "            <tt:SimpleItem Name=\"IsMotion\" Value=\"true\"/>\n"
+        "          </tt:Data>\n"
+        "        </wsnt:Message>\n"
+        "      </wsnt:NotificationMessage>\n"
+        "      <wsnt:NotificationMessage>\n"
+        "        <wsnt:Topic>tns1:VideoSource/ImageTooDark/AnalyticsService</wsnt:Topic>\n"
+        "        <wsnt:Message UtcTime=\"2026-09-16T20:40:06Z\">\n"
+        "          <tt:Source>\n"
+        "            <tt:SimpleItem Name=\"Source\" Value=\"Source_0\"/>\n"
+        "          </tt:Source>\n"
+        "          <tt:Data>\n"
+        "            <tt:SimpleItem Name=\"State\" Value=\"ACTIVE\"/>\n"
+        "          </tt:Data>\n"
+        "        </wsnt:Message>\n"
+        "      </wsnt:NotificationMessage>\n"
+        "    </tev:PullMessagesResponse>\n"
+        "  </SOAP-ENV:Body>\n"
+        "</SOAP-ENV:Envelope>";
+
+    const auto events = PelcoD::Onvif::OnvifClient::parsePullMessagesResponse(pullXml);
+    assert(events.size() == 2U);
+    assert(events[0].topic == "tns1:RuleEngine/CellMotionDetector/Motion");
+    assert(events[0].sourceName == "VideoSourceConfigurationToken");
+    assert(events[0].sourceValue == "VideoSource_1");
+    assert(events[0].dataName == "IsMotion");
+    assert(events[0].dataValue == "true");
+    assert(events[0].utcTime == "2026-09-16T20:40:05Z");
+
+    assert(events[1].topic == "tns1:VideoSource/ImageTooDark/AnalyticsService");
+    assert(events[1].dataName == "State");
+    assert(events[1].dataValue == "ACTIVE");
+}
+
 int main()
 {
 #ifdef _WIN32
@@ -442,6 +555,14 @@ int main()
     std::cout << "[RUN] Testing ONVIF SOAP Envelope Wrapping...\n";
     testSoapEnvelopeWrapping();
     std::cout << "[PASS] SOAP Envelope Wrapping\n";
+
+    std::cout << "[RUN] Testing ONVIF ImagingSettings XML Parsing (Profile T)...\n";
+    testImagingSettingsParsing();
+    std::cout << "[PASS] ImagingSettings XML Parsing (Profile T)\n";
+
+    std::cout << "[RUN] Testing ONVIF PullPoint Events XML Parsing (Profile T)...\n";
+    testPullPointEventsParsing();
+    std::cout << "[PASS] PullPoint Events XML Parsing (Profile T)\n";
 
     std::cout << "\nAll PelcoDOnvif unit tests PASSED successfully!\n";
     return 0;

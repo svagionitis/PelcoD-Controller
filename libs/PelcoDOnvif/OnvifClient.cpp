@@ -319,6 +319,16 @@ std::vector<MediaProfile> OnvifClient::parseProfilesResponse(const std::string& 
             prof.name = nameNode.text().as_string();
         }
 
+        const auto vscNode = findRecursiveNodeWithSuffix(node, "VideoSourceConfiguration");
+        if (vscNode) {
+            const auto srcTokNode = findNodeWithSuffix(vscNode, "SourceToken");
+            if (srcTokNode) {
+                prof.videoSourceToken = srcTokNode.text().as_string();
+            } else {
+                prof.videoSourceToken = vscNode.attribute("token").as_string();
+            }
+        }
+
         const auto vecNode = findRecursiveNodeWithSuffix(node, "VideoEncoderConfiguration");
         if (vecNode) {
             const auto resNode = findNodeWithSuffix(vecNode, "Resolution");
@@ -897,6 +907,317 @@ bool OnvifClient::removePreset(const std::string& profileToken, const std::strin
 
     const std::string reqXml = wrapSoapEnvelope(ss.str());
     const HttpResponse resp = m_httpClient.sendPost(m_capabilities.ptzXAddr, reqXml);
+    return resp.isSuccess();
+}
+
+std::optional<ImagingSettings> OnvifClient::parseImagingSettingsResponse(const std::string& xml)
+{
+    pugi::xml_document doc {};
+    if (!doc.load_string(xml.c_str())) {
+        return std::nullopt;
+    }
+
+    const auto imgSettingsNode = findRecursiveNodeWithSuffix(doc, "ImagingSettings");
+    if (!imgSettingsNode) {
+        return std::nullopt;
+    }
+
+    ImagingSettings settings {};
+    const auto brightNode = findNodeWithSuffix(imgSettingsNode, "Brightness");
+    if (brightNode) {
+        settings.brightness = brightNode.text().as_float(settings.brightness);
+    }
+    const auto satNode = findNodeWithSuffix(imgSettingsNode, "ColorSaturation");
+    if (satNode) {
+        settings.colorSaturation = satNode.text().as_float(settings.colorSaturation);
+    }
+    const auto contrastNode = findNodeWithSuffix(imgSettingsNode, "Contrast");
+    if (contrastNode) {
+        settings.contrast = contrastNode.text().as_float(settings.contrast);
+    }
+    const auto sharpNode = findNodeWithSuffix(imgSettingsNode, "Sharpness");
+    if (sharpNode) {
+        settings.sharpness = sharpNode.text().as_float(settings.sharpness);
+    }
+    const auto irNode = findNodeWithSuffix(imgSettingsNode, "IrCutFilter");
+    if (irNode) {
+        settings.irCutFilter = irNode.text().as_string(settings.irCutFilter.c_str());
+    }
+
+    const auto blcNode = findNodeWithSuffix(imgSettingsNode, "BacklightCompensation");
+    if (blcNode) {
+        const auto modeNode = findNodeWithSuffix(blcNode, "Mode");
+        if (modeNode) {
+            settings.backlightCompensation = (std::string(modeNode.text().as_string()) == "ON");
+        }
+        const auto lvlNode = findNodeWithSuffix(blcNode, "Level");
+        if (lvlNode) {
+            settings.backlightLevel = lvlNode.text().as_float(0.0f);
+        }
+    }
+
+    const auto wdrNode = findNodeWithSuffix(imgSettingsNode, "WideDynamicRange");
+    if (wdrNode) {
+        const auto modeNode = findNodeWithSuffix(wdrNode, "Mode");
+        if (modeNode) {
+            settings.wideDynamicRange = (std::string(modeNode.text().as_string()) == "ON");
+        }
+        const auto lvlNode = findNodeWithSuffix(wdrNode, "Level");
+        if (lvlNode) {
+            settings.wdrLevel = lvlNode.text().as_float(0.0f);
+        }
+    }
+
+    const auto focusNode = findNodeWithSuffix(imgSettingsNode, "Focus");
+    if (focusNode) {
+        const auto autoModeNode = findNodeWithSuffix(focusNode, "AutoFocusMode");
+        if (autoModeNode) {
+            settings.autoFocusMode = autoModeNode.text().as_string("AUTO");
+        }
+    }
+
+    return settings;
+}
+
+std::optional<ImagingSettings> OnvifClient::getImagingSettings(const std::string& videoSourceToken)
+{
+    if (m_capabilities.imagingXAddr.empty()) {
+        static_cast<void>(getCapabilities());
+    }
+
+    if (m_capabilities.imagingXAddr.empty()) {
+        return std::nullopt;
+    }
+
+    std::ostringstream ss {};
+    ss << "<timg:GetImagingSettings xmlns:timg=\"http://www.onvif.org/ver20/imaging/wsdl\">\n"
+       << "  <timg:VideoSourceToken>" << videoSourceToken << "</timg:VideoSourceToken>\n"
+       << "</timg:GetImagingSettings>";
+
+    const std::string reqXml = wrapSoapEnvelope(ss.str());
+    const HttpResponse resp = m_httpClient.sendPost(m_capabilities.imagingXAddr, reqXml);
+    if (!resp.isSuccess()) {
+        return std::nullopt;
+    }
+
+    return parseImagingSettingsResponse(resp.body);
+}
+
+bool OnvifClient::setImagingSettings(
+    const std::string& videoSourceToken, const ImagingSettings& settings, bool forcePersistence)
+{
+    if (m_capabilities.imagingXAddr.empty()) {
+        static_cast<void>(getCapabilities());
+    }
+
+    if (m_capabilities.imagingXAddr.empty()) {
+        return false;
+    }
+
+    std::ostringstream ss {};
+    ss << "<timg:SetImagingSettings xmlns:timg=\"http://www.onvif.org/ver20/imaging/wsdl\" "
+       << "xmlns:tt=\"http://www.onvif.org/ver10/schema\">\n"
+       << "  <timg:VideoSourceToken>" << videoSourceToken << "</timg:VideoSourceToken>\n"
+       << "  <timg:ImagingSettings>\n"
+       << "    <tt:Brightness>" << std::fixed << std::setprecision(1) << settings.brightness << "</tt:Brightness>\n"
+       << "    <tt:ColorSaturation>" << settings.colorSaturation << "</tt:ColorSaturation>\n"
+       << "    <tt:Contrast>" << settings.contrast << "</tt:Contrast>\n"
+       << "    <tt:Sharpness>" << settings.sharpness << "</tt:Sharpness>\n"
+       << "    <tt:IrCutFilter>" << settings.irCutFilter << "</tt:IrCutFilter>\n"
+       << "    <tt:BacklightCompensation>\n"
+       << "      <tt:Mode>" << (settings.backlightCompensation ? "ON" : "OFF") << "</tt:Mode>\n"
+       << "      <tt:Level>" << settings.backlightLevel << "</tt:Level>\n"
+       << "    </tt:BacklightCompensation>\n"
+       << "    <tt:WideDynamicRange>\n"
+       << "      <tt:Mode>" << (settings.wideDynamicRange ? "ON" : "OFF") << "</tt:Mode>\n"
+       << "      <tt:Level>" << settings.wdrLevel << "</tt:Level>\n"
+       << "    </tt:WideDynamicRange>\n"
+       << "    <tt:Focus>\n"
+       << "      <tt:AutoFocusMode>" << settings.autoFocusMode << "</tt:AutoFocusMode>\n"
+       << "    </tt:Focus>\n"
+       << "  </timg:ImagingSettings>\n"
+       << "  <timg:ForcePersistence>" << (forcePersistence ? "true" : "false") << "</timg:ForcePersistence>\n"
+       << "</timg:SetImagingSettings>";
+
+    const std::string reqXml = wrapSoapEnvelope(ss.str());
+    const HttpResponse resp = m_httpClient.sendPost(m_capabilities.imagingXAddr, reqXml);
+    return resp.isSuccess();
+}
+
+bool OnvifClient::moveFocus(const std::string& videoSourceToken, float speed)
+{
+    if (m_capabilities.imagingXAddr.empty()) {
+        static_cast<void>(getCapabilities());
+    }
+
+    if (m_capabilities.imagingXAddr.empty()) {
+        return false;
+    }
+
+    std::ostringstream ss {};
+    ss << "<timg:Move xmlns:timg=\"http://www.onvif.org/ver20/imaging/wsdl\" "
+       << "xmlns:tt=\"http://www.onvif.org/ver10/schema\">\n"
+       << "  <timg:VideoSourceToken>" << videoSourceToken << "</timg:VideoSourceToken>\n"
+       << "  <timg:Focus>\n"
+       << "    <tt:Continuous>\n"
+       << "      <tt:Speed>" << std::fixed << std::setprecision(2) << speed << "</tt:Speed>\n"
+       << "    </tt:Continuous>\n"
+       << "  </timg:Focus>\n"
+       << "</timg:Move>";
+
+    const std::string reqXml = wrapSoapEnvelope(ss.str());
+    const HttpResponse resp = m_httpClient.sendPost(m_capabilities.imagingXAddr, reqXml);
+    return resp.isSuccess();
+}
+
+bool OnvifClient::stopFocus(const std::string& videoSourceToken)
+{
+    if (m_capabilities.imagingXAddr.empty()) {
+        static_cast<void>(getCapabilities());
+    }
+
+    if (m_capabilities.imagingXAddr.empty()) {
+        return false;
+    }
+
+    std::ostringstream ss {};
+    ss << "<timg:Stop xmlns:timg=\"http://www.onvif.org/ver20/imaging/wsdl\">\n"
+       << "  <timg:VideoSourceToken>" << videoSourceToken << "</timg:VideoSourceToken>\n"
+       << "</timg:Stop>";
+
+    const std::string reqXml = wrapSoapEnvelope(ss.str());
+    const HttpResponse resp = m_httpClient.sendPost(m_capabilities.imagingXAddr, reqXml);
+    return resp.isSuccess();
+}
+
+std::optional<std::string> OnvifClient::parseCreatePullPointSubscriptionResponse(const std::string& xml)
+{
+    pugi::xml_document doc {};
+    if (!doc.load_string(xml.c_str())) {
+        return std::nullopt;
+    }
+
+    const auto respNode = findRecursiveNodeWithSuffix(doc, "CreatePullPointSubscriptionResponse");
+    if (!respNode) {
+        return std::nullopt;
+    }
+
+    const auto addrNode = findRecursiveNodeWithSuffix(respNode, "Address");
+    if (addrNode) {
+        const std::string addr = addrNode.text().as_string();
+        if (!addr.empty()) {
+            return addr;
+        }
+    }
+    return std::nullopt;
+}
+
+std::optional<std::string> OnvifClient::createPullPointSubscription()
+{
+    if (m_capabilities.eventsXAddr.empty()) {
+        static_cast<void>(getCapabilities());
+    }
+
+    if (m_capabilities.eventsXAddr.empty()) {
+        return std::nullopt;
+    }
+
+    const std::string body =
+        "<tev:CreatePullPointSubscription xmlns:tev=\"http://www.onvif.org/ver10/events/wsdl\">\n"
+        "  <tev:InitialTerminationTime>PT60S</tev:InitialTerminationTime>\n"
+        "</tev:CreatePullPointSubscription>";
+
+    const std::string reqXml = wrapSoapEnvelope(body);
+    const HttpResponse resp = m_httpClient.sendPost(m_capabilities.eventsXAddr, reqXml);
+    if (!resp.isSuccess()) {
+        return std::nullopt;
+    }
+
+    return parseCreatePullPointSubscriptionResponse(resp.body);
+}
+
+std::vector<OnvifEvent> OnvifClient::parsePullMessagesResponse(const std::string& xml)
+{
+    std::vector<OnvifEvent> events {};
+
+    pugi::xml_document doc {};
+    if (!doc.load_string(xml.c_str())) {
+        return events;
+    }
+
+    std::vector<pugi::xml_node> msgNodes {};
+    collectNodesWithSuffix(doc, "NotificationMessage", msgNodes);
+
+    for (const auto& msgNode : msgNodes) {
+        OnvifEvent ev {};
+
+        const auto topicNode = findNodeWithSuffix(msgNode, "Topic");
+        if (topicNode) {
+            ev.topic = topicNode.text().as_string();
+        }
+
+        const auto messageNode = findNodeWithSuffix(msgNode, "Message");
+        if (messageNode) {
+            ev.utcTime = messageNode.attribute("UtcTime").as_string();
+
+            const auto sourceNode = findNodeWithSuffix(messageNode, "Source");
+            if (sourceNode) {
+                const auto simpleItem = findRecursiveNodeWithSuffix(sourceNode, "SimpleItem");
+                if (simpleItem) {
+                    ev.sourceName = simpleItem.attribute("Name").as_string();
+                    ev.sourceValue = simpleItem.attribute("Value").as_string();
+                }
+            }
+
+            const auto dataNode = findNodeWithSuffix(messageNode, "Data");
+            if (dataNode) {
+                const auto simpleItem = findRecursiveNodeWithSuffix(dataNode, "SimpleItem");
+                if (simpleItem) {
+                    ev.dataName = simpleItem.attribute("Name").as_string();
+                    ev.dataValue = simpleItem.attribute("Value").as_string();
+                }
+            }
+        }
+
+        if (!ev.topic.empty() || !ev.dataName.empty()) {
+            events.push_back(std::move(ev));
+        }
+    }
+
+    return events;
+}
+
+std::vector<OnvifEvent> OnvifClient::pullMessages(
+    const std::string& subscriptionUrl, int timeoutSeconds, int messageLimit)
+{
+    if (subscriptionUrl.empty()) {
+        return {};
+    }
+
+    std::ostringstream ss {};
+    ss << "<tev:PullMessages xmlns:tev=\"http://www.onvif.org/ver10/events/wsdl\">\n"
+       << "  <tev:Timeout>PT" << timeoutSeconds << "S</tev:Timeout>\n"
+       << "  <tev:MessageLimit>" << messageLimit << "</tev:MessageLimit>\n"
+       << "</tev:PullMessages>";
+
+    const std::string reqXml = wrapSoapEnvelope(ss.str());
+    const HttpResponse resp = m_httpClient.sendPost(subscriptionUrl, reqXml);
+    if (!resp.isSuccess()) {
+        return {};
+    }
+
+    return parsePullMessagesResponse(resp.body);
+}
+
+bool OnvifClient::unsubscribe(const std::string& subscriptionUrl)
+{
+    if (subscriptionUrl.empty()) {
+        return false;
+    }
+
+    const std::string body = "<wsnt:Unsubscribe xmlns:wsnt=\"http://docs.oasis-open.org/wsn/b-2\"/>";
+    const std::string reqXml = wrapSoapEnvelope(body);
+    const HttpResponse resp = m_httpClient.sendPost(subscriptionUrl, reqXml);
     return resp.isSuccess();
 }
 

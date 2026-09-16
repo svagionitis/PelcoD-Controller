@@ -125,9 +125,12 @@ void QOnvifDevice::disconnectFromCamera()
         return;
     }
 
+    stopEventSubscription();
+
     m_connected = false;
     m_endpoint.clear();
     m_activeProfileToken.clear();
+    m_activeVideoSourceToken.clear();
     m_rtspStreamUri.clear();
     m_snapshotUri.clear();
     m_profiles.clear();
@@ -146,6 +149,16 @@ bool QOnvifDevice::setActiveProfile(const QString& token)
 
     m_activeProfileToken = token;
 
+    for (const auto& p : m_profiles) {
+        if (p.token == token.toStdString()) {
+            m_activeVideoSourceToken = QString::fromStdString(p.videoSourceToken);
+            break;
+        }
+    }
+    if (m_activeVideoSourceToken.isEmpty() && !m_profiles.empty()) {
+        m_activeVideoSourceToken = QString::fromStdString(m_profiles.front().videoSourceToken);
+    }
+
     const auto uriInfo = m_client->getStreamUri(token.toStdString(), true);
     if (uriInfo && !uriInfo->uri.empty()) {
         m_rtspStreamUri = QString::fromStdString(uriInfo->uri);
@@ -156,6 +169,7 @@ bool QOnvifDevice::setActiveProfile(const QString& token)
 
     resolveSnapshotUri();
     refreshPresets();
+    refreshImagingSettings();
     return !m_rtspStreamUri.isEmpty();
 }
 
@@ -292,6 +306,121 @@ void QOnvifDevice::refreshStatus()
     if (status) {
         emit statusUpdated(*status);
     }
+}
+
+void QOnvifDevice::refreshImagingSettings(const QString& videoSourceToken)
+{
+    if (!m_client) {
+        return;
+    }
+
+    const QString token = !videoSourceToken.isEmpty() ? videoSourceToken : m_activeVideoSourceToken;
+    if (token.isEmpty()) {
+        return;
+    }
+
+    const auto settings = m_client->getImagingSettings(token.toStdString());
+    if (settings) {
+        m_imagingSettings = *settings;
+        emit imagingSettingsUpdated(m_imagingSettings);
+    }
+}
+
+bool QOnvifDevice::setImagingSettings(
+    const PelcoD::Onvif::ImagingSettings& settings, const QString& videoSourceToken)
+{
+    if (!m_client) {
+        return false;
+    }
+
+    const QString token = !videoSourceToken.isEmpty() ? videoSourceToken : m_activeVideoSourceToken;
+    if (token.isEmpty()) {
+        return false;
+    }
+
+    const bool ok = m_client->setImagingSettings(token.toStdString(), settings, true);
+    if (ok) {
+        m_imagingSettings = settings;
+        emit imagingSettingsUpdated(m_imagingSettings);
+    }
+    return ok;
+}
+
+void QOnvifDevice::focusContinuous(float speed, const QString& videoSourceToken)
+{
+    if (!m_client) {
+        return;
+    }
+
+    const QString token = !videoSourceToken.isEmpty() ? videoSourceToken : m_activeVideoSourceToken;
+    if (token.isEmpty()) {
+        return;
+    }
+
+    m_client->moveFocus(token.toStdString(), speed);
+}
+
+void QOnvifDevice::focusStop(const QString& videoSourceToken)
+{
+    if (!m_client) {
+        return;
+    }
+
+    const QString token = !videoSourceToken.isEmpty() ? videoSourceToken : m_activeVideoSourceToken;
+    if (token.isEmpty()) {
+        return;
+    }
+
+    m_client->stopFocus(token.toStdString());
+}
+
+void QOnvifDevice::startEventSubscription(int pollIntervalMs)
+{
+    if (!m_client || m_eventSubActive) {
+        return;
+    }
+
+    const auto subUrl = m_client->createPullPointSubscription();
+    if (!subUrl || subUrl->empty()) {
+        emit errorOccurred(tr("Failed to establish ONVIF PullPoint event subscription."));
+        return;
+    }
+
+    m_eventSubscriptionUrl = QString::fromStdString(*subUrl);
+    m_eventSubActive = true;
+
+    // Launch background worker thread for event polling loop
+    QThread* thread = QThread::create([this, pollIntervalMs]() {
+        while (m_eventSubActive && m_client && !m_eventSubscriptionUrl.isEmpty()) {
+            const auto events = m_client->pullMessages(m_eventSubscriptionUrl.toStdString(), 3, 10);
+            for (const auto& ev : events) {
+                QMetaObject::invokeMethod(
+                    this, [this, ev]() { emit eventReceived(ev); }, ::Qt::QueuedConnection);
+            }
+            QThread::msleep(pollIntervalMs);
+        }
+    });
+
+    connect(thread, &QThread::finished, thread, &QObject::deleteLater);
+    thread->start();
+}
+
+void QOnvifDevice::stopEventSubscription()
+{
+    if (!m_eventSubActive) {
+        return;
+    }
+
+    m_eventSubActive = false;
+    if (m_client && !m_eventSubscriptionUrl.isEmpty()) {
+        m_client->unsubscribe(m_eventSubscriptionUrl.toStdString());
+    }
+    m_eventSubscriptionUrl.clear();
+}
+
+bool QOnvifDevice::isEventSubscriptionActive() const
+{
+    return m_eventSubActive;
 }
 
 } // namespace PelcoD::Qt

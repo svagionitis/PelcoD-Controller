@@ -73,6 +73,17 @@ private slots:
     void handleRebootCamera();
     void handleRebootCompleted(bool success);
 
+    // Profile T: Imaging & Events
+    void handleRefreshImaging();
+    void handleApplyImaging();
+    void handleFocusNear();
+    void handleFocusFar();
+    void handleFocusStop();
+    void handleToggleEvents(bool enable);
+    void handleClearEvents();
+    void handleImagingSettingsUpdated(const PelcoD::Onvif::ImagingSettings& settings);
+    void handleEventReceived(const PelcoD::Onvif::OnvifEvent& event);
+
 private:
     void setupUi();
     void updateConnectionUi(bool connected);
@@ -125,6 +136,29 @@ private:
     QPushButton* btnGotoPreset { nullptr };
     QPushButton* btnSavePreset { nullptr };
     QPushButton* btnDeletePreset { nullptr };
+
+    // Profile T: Optical & Imaging widgets
+    QSlider* sliderBrightness { nullptr };
+    QLabel* lblBrightnessVal { nullptr };
+    QSlider* sliderContrast { nullptr };
+    QLabel* lblContrastVal { nullptr };
+    QSlider* sliderSaturation { nullptr };
+    QLabel* lblSaturationVal { nullptr };
+    QSlider* sliderSharpness { nullptr };
+    QLabel* lblSharpnessVal { nullptr };
+    QComboBox* cmbIrFilter { nullptr };
+    QCheckBox* chkBacklight { nullptr };
+    QCheckBox* chkWdr { nullptr };
+    QComboBox* cmbAutoFocus { nullptr };
+    QPushButton* btnFocusNear { nullptr };
+    QPushButton* btnFocusFar { nullptr };
+    QPushButton* btnRefreshImaging { nullptr };
+    QPushButton* btnApplyImaging { nullptr };
+
+    // Profile T: Live Events widgets
+    QPushButton* btnToggleEvents { nullptr };
+    QTableWidget* tableEvents { nullptr };
+    QPushButton* btnClearEvents { nullptr };
 
     // Maintenance
     QPushButton* btnReboot { nullptr };

@@ -148,6 +148,44 @@ public Q_SLOTS:
     /// @brief Refreshes and emits current PTZ kinematics status.
     void refreshStatus();
 
+    // =========================================================================
+    // Profile T: Imaging & Optical Controls
+    // =========================================================================
+
+    /// @brief Queries and emits current optical/imaging settings.
+    /// @param[in] videoSourceToken Optional token (defaults to active profile's video source).
+    void refreshImagingSettings(const QString& videoSourceToken = QString());
+
+    /// @brief Applies updated optical/imaging parameters to the camera.
+    /// @param[in] settings Updated imaging parameters.
+    /// @param[in] videoSourceToken Optional token (defaults to active profile's video source).
+    /// @return True on success.
+    bool setImagingSettings(
+        const PelcoD::Onvif::ImagingSettings& settings, const QString& videoSourceToken = QString());
+
+    /// @brief Starts continuous motorized optical focus movement.
+    /// @param[in] speed Normalized speed [-1.0 (near) to +1.0 (far)].
+    /// @param[in] videoSourceToken Optional token (defaults to active profile's video source).
+    void focusContinuous(float speed, const QString& videoSourceToken = QString());
+
+    /// @brief Stops motorized optical focus movement.
+    /// @param[in] videoSourceToken Optional token (defaults to active profile's video source).
+    void focusStop(const QString& videoSourceToken = QString());
+
+    // =========================================================================
+    // Profile T: PullPoint Event Service
+    // =========================================================================
+
+    /// @brief Starts background PullPoint event subscription and polling loop.
+    /// @param[in] pollIntervalMs Interval between event pulls in milliseconds.
+    void startEventSubscription(int pollIntervalMs = 2000);
+
+    /// @brief Stops background PullPoint event subscription and unregisters from camera.
+    void stopEventSubscription();
+
+    /// @brief Checks if event subscription is currently active.
+    [[nodiscard]] bool isEventSubscriptionActive() const;
+
 Q_SIGNALS:
     /// @brief Emitted when device connection succeeds.
     /// @param[in] endpoint Connected service URL.
@@ -177,6 +215,14 @@ Q_SIGNALS:
     /// @param[in] success True if reboot was accepted.
     void rebootCompleted(bool success);
 
+    /// @brief Emitted when optical imaging settings are refreshed.
+    /// @param[in] settings Current camera imaging settings.
+    void imagingSettingsUpdated(const PelcoD::Onvif::ImagingSettings& settings);
+
+    /// @brief Emitted when an event notification message is pulled.
+    /// @param[in] event Event notification details.
+    void eventReceived(const PelcoD::Onvif::OnvifEvent& event);
+
     /// @brief Emitted when an operation fails.
     /// @param[in] message Diagnostic error message.
     void errorOccurred(const QString& message);
@@ -186,15 +232,21 @@ Q_SIGNALS:
     void discoveryFinished(const QList<PelcoD::Onvif::DiscoveredDevice>& devices);
 
 private:
+    void pollEvents();
+
     std::unique_ptr<PelcoD::Onvif::OnvifClient> m_client {};
     bool m_connected { false };
     QString m_endpoint {};
     QString m_activeProfileToken {};
+    QString m_activeVideoSourceToken {};
     QString m_rtspStreamUri {};
     QString m_snapshotUri {};
     std::vector<PelcoD::Onvif::MediaProfile> m_profiles {};
     std::vector<PelcoD::Onvif::PtzPreset> m_presets {};
     PelcoD::Onvif::DeviceInformation m_deviceInfo {};
+    PelcoD::Onvif::ImagingSettings m_imagingSettings {};
+    QString m_eventSubscriptionUrl {};
+    bool m_eventSubActive { false };
 };
 
 } // namespace PelcoD::Qt

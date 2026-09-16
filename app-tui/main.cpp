@@ -48,6 +48,9 @@ struct ParseResult {
     bool onvifDiscover { false };
     std::uint32_t onvifTimeoutMs { 2000U };
     bool onvifInfo { false };
+    bool onvifImaging { false };
+    bool onvifEvents { false };
+    std::uint32_t onvifEventDurationSec { 10U };
     std::string onvifEndpoint {};
     std::string onvifUser { "admin" };
     std::string onvifPass {};
@@ -64,17 +67,15 @@ template <typename T> [[nodiscard]] bool parseInteger(std::string_view str, T& o
     if (str.empty()) {
         return false;
     }
-    const char* begin = str.data();
-    const char* end = str.data() + str.size();
-    auto [ptr, ec] = std::from_chars(begin, end, outVal);
-    return (ec == std::errc {}) && (ptr == end);
+    const auto res = std::from_chars(str.data(), str.data() + str.size(), outVal);
+    return (res.ec == std::errc {} && res.ptr == str.data() + str.size());
 }
 
-/// @brief Exception-safe floating point parser using std::stod.
-/// @param str String view containing ASCII floating point representation.
+/// @brief Exception-safe floating-point parser.
+/// @param str String view containing ASCII decimal number.
 /// @param outVal Output value reference populated on success.
-/// @return true if string was non-empty and fully parsed into outVal without exception.
-[[nodiscard]] bool parseDouble(std::string_view str, double& outVal) noexcept
+/// @return true if parsed successfully.
+[[nodiscard]] inline bool parseDouble(std::string_view str, double& outVal) noexcept
 {
     if (str.empty()) {
         return false;
@@ -113,8 +114,11 @@ void printUsage(std::string_view progName)
 #if defined(PELCOD_ENABLE_ONVIF)
               << "  --onvif-discover [timeout]  Discover ONVIF cameras on LAN (timeout in ms, default: 2000)\n"
               << "  --onvif-info <endpoint>     Query and display ONVIF camera device info and profiles\n"
-              << "  --onvif-user <username>     Username for --onvif-info (default: admin)\n"
-              << "  --onvif-pass <password>     Password for --onvif-info\n"
+              << "  --onvif-imaging <endpoint>  Query and display ONVIF Profile T optical imaging settings\n"
+              << "  --onvif-events <endpoint>   Subscribe and monitor ONVIF PullPoint events (e.g. motion)\n"
+              << "  --onvif-event-sec <seconds> Duration to monitor events (default: 10)\n"
+              << "  --onvif-user <username>     Username for ONVIF authentication (default: admin)\n"
+              << "  --onvif-pass <password>     Password for ONVIF authentication\n"
 #endif
               << "  --help, -h                  Display this help message and exit\n\n"
               << "Keyboard Shortcuts:\n"
@@ -443,6 +447,33 @@ void printUsage(std::string_view progName)
             }
             result.onvifInfo = true;
             result.onvifEndpoint = argv[++i];
+        } else if (arg == "--onvif-imaging") {
+            if (i + 1 >= argc) {
+                result.status = ParseStatus::Error;
+                result.errorMessage = "Option '--onvif-imaging' requires an ONVIF endpoint URL";
+                return result;
+            }
+            result.onvifImaging = true;
+            result.onvifEndpoint = argv[++i];
+        } else if (arg == "--onvif-events") {
+            if (i + 1 >= argc) {
+                result.status = ParseStatus::Error;
+                result.errorMessage = "Option '--onvif-events' requires an ONVIF endpoint URL";
+                return result;
+            }
+            result.onvifEvents = true;
+            result.onvifEndpoint = argv[++i];
+        } else if (arg == "--onvif-event-sec") {
+            if (i + 1 >= argc) {
+                result.status = ParseStatus::Error;
+                result.errorMessage = "Option '--onvif-event-sec' requires a duration in seconds";
+                return result;
+            }
+            const std::string_view valStr = argv[++i];
+            std::uint32_t secVal { 10U };
+            if (parseInteger(valStr, secVal) && secVal > 0U) {
+                result.onvifEventDurationSec = secVal;
+            }
         } else if (arg == "--onvif-user") {
             if (i + 1 >= argc) {
                 result.status = ParseStatus::Error;
@@ -565,6 +596,91 @@ int main(int argc, char* argv[])
                 }
             }
         }
+        return 0;
+    }
+
+    if (parseResult.onvifImaging) {
+        std::cout << "Connecting to ONVIF camera: " << parseResult.onvifEndpoint << "...\n";
+        PelcoD::Onvif::SecurityCredentials creds {};
+        creds.username = parseResult.onvifUser;
+        creds.password = parseResult.onvifPass;
+
+        PelcoD::Onvif::OnvifClient client(parseResult.onvifEndpoint, creds);
+        const auto caps = client.getCapabilities();
+        if (!caps || caps->imagingXAddr.empty()) {
+            std::cerr << "Error: Camera does not report an ONVIF Imaging Service endpoint.\n";
+            return 1;
+        }
+
+        std::cout << "Imaging Service XAddr: " << caps->imagingXAddr << "\n";
+        const auto profiles = client.getProfiles();
+        std::string videoSourceToken = "VideoSource_1";
+        if (!profiles.empty() && !profiles.front().videoSourceToken.empty()) {
+            videoSourceToken = profiles.front().videoSourceToken;
+        }
+
+        std::cout << "Querying imaging settings for video source: " << videoSourceToken << "...\n";
+        const auto settings = client.getImagingSettings(videoSourceToken);
+        if (!settings) {
+            std::cerr << "Error: Failed to query imaging settings from camera.\n";
+            return 1;
+        }
+
+        std::cout << "\n[Profile T: Imaging Settings]\n";
+        std::cout << "  Brightness:            " << settings->brightness << "\n";
+        std::cout << "  Contrast:              " << settings->contrast << "\n";
+        std::cout << "  Color Saturation:      " << settings->colorSaturation << "\n";
+        std::cout << "  Sharpness:             " << settings->sharpness << "\n";
+        std::cout << "  IR Cut Filter:         " << settings->irCutFilter << "\n";
+        std::cout << "  Backlight Comp (BLC):  " << (settings->backlightCompensation ? "ON" : "OFF") << " ("
+                  << settings->backlightLevel << ")\n";
+        std::cout << "  Wide Dynamic Range:    " << (settings->wideDynamicRange ? "ON" : "OFF") << " ("
+                  << settings->wdrLevel << ")\n";
+        std::cout << "  Auto Focus Mode:       " << settings->autoFocusMode << "\n";
+        return 0;
+    }
+
+    if (parseResult.onvifEvents) {
+        std::cout << "Connecting to ONVIF camera: " << parseResult.onvifEndpoint << "...\n";
+        PelcoD::Onvif::SecurityCredentials creds {};
+        creds.username = parseResult.onvifUser;
+        creds.password = parseResult.onvifPass;
+
+        PelcoD::Onvif::OnvifClient client(parseResult.onvifEndpoint, creds);
+        const auto caps = client.getCapabilities();
+        if (!caps || caps->eventsXAddr.empty()) {
+            std::cerr << "Error: Camera does not report an ONVIF Events Service endpoint.\n";
+            return 1;
+        }
+
+        std::cout << "Establishing PullPoint subscription on " << caps->eventsXAddr << "...\n";
+        const auto subUrl = client.createPullPointSubscription();
+        if (!subUrl || subUrl->empty()) {
+            std::cerr << "Error: Failed to create PullPoint subscription.\n";
+            return 1;
+        }
+
+        std::cout << "Subscription active: " << *subUrl << "\n";
+        std::cout << "Monitoring events for " << parseResult.onvifEventDurationSec << " seconds (Ctrl+C to abort)...\n";
+        std::cout << "--------------------------------------------------------------------------------\n";
+
+        const auto startTime = std::chrono::steady_clock::now();
+        const auto maxDuration = std::chrono::seconds(parseResult.onvifEventDurationSec);
+        std::size_t eventCount = 0;
+
+        while (std::chrono::steady_clock::now() - startTime < maxDuration) {
+            const auto events = client.pullMessages(*subUrl, 2, 10);
+            for (const auto& ev : events) {
+                ++eventCount;
+                std::cout << "[" << (ev.utcTime.empty() ? "NOW" : ev.utcTime) << "] "
+                          << ev.topic << " -> " << ev.dataName << "=" << ev.dataValue << "\n";
+            }
+            std::this_thread::sleep_for(std::chrono::milliseconds(500));
+        }
+
+        std::cout << "--------------------------------------------------------------------------------\n";
+        std::cout << "Monitoring completed. Total events received: " << eventCount << "\n";
+        client.unsubscribe(*subUrl);
         return 0;
     }
 #endif

@@ -177,6 +177,55 @@ public:
     bool removePreset(const std::string& profileToken, const std::string& presetToken);
 
     // =========================================================================
+    // Imaging Service (Profile T)
+    // =========================================================================
+
+    /// @brief Queries current optical and imaging settings for a video source.
+    /// @param[in] videoSourceToken Video source token (e.g. from MediaProfile).
+    /// @return ImagingSettings or nullopt on communication/SOAP failure.
+    [[nodiscard]] std::optional<ImagingSettings> getImagingSettings(const std::string& videoSourceToken);
+
+    /// @brief Updates optical, color, exposure, and focus settings on the camera.
+    /// @param[in] videoSourceToken Video source token.
+    /// @param[in] settings New imaging parameters to apply.
+    /// @param[in] forcePersistence If true, saves changes to non-volatile memory.
+    /// @return True if imaging settings update was accepted.
+    bool setImagingSettings(
+        const std::string& videoSourceToken, const ImagingSettings& settings, bool forcePersistence = true);
+
+    /// @brief Starts continuous motorized optical focus movement.
+    /// @param[in] videoSourceToken Video source token.
+    /// @param[in] speed Normalized focus speed [-1.0 (near) to +1.0 (far)].
+    /// @return True if focus move command was accepted.
+    bool moveFocus(const std::string& videoSourceToken, float speed);
+
+    /// @brief Stops motorized optical focus movement.
+    /// @param[in] videoSourceToken Video source token.
+    /// @return True if focus stop command was accepted.
+    bool stopFocus(const std::string& videoSourceToken);
+
+    // =========================================================================
+    // Event Service (PullPoint - Profile T)
+    // =========================================================================
+
+    /// @brief Creates a PullPoint event subscription on the camera.
+    /// @return Subscription reference URL or nullopt on failure.
+    [[nodiscard]] std::optional<std::string> createPullPointSubscription();
+
+    /// @brief Polls queued notification events from an active subscription.
+    /// @param[in] subscriptionUrl Subscription reference URL from createPullPointSubscription.
+    /// @param[in] timeoutSeconds Maximum seconds camera holds request before returning.
+    /// @param[in] messageLimit Maximum number of event messages to retrieve.
+    /// @return Vector of parsed OnvifEvent items.
+    [[nodiscard]] std::vector<OnvifEvent> pullMessages(
+        const std::string& subscriptionUrl, int timeoutSeconds = 5, int messageLimit = 10);
+
+    /// @brief Unsubscribes and closes an active PullPoint event subscription.
+    /// @param[in] subscriptionUrl Subscription reference URL.
+    /// @return True if unsubscription succeeded.
+    bool unsubscribe(const std::string& subscriptionUrl);
+
+    // =========================================================================
     // XML Envelope & Parsing Helpers (Public for testing)
     // =========================================================================
 
@@ -229,6 +278,21 @@ public:
     /// @param[in] xml Raw response XML.
     /// @return Reboot message string or nullopt on failure.
     [[nodiscard]] static std::optional<std::string> parseSystemRebootResponse(const std::string& xml);
+
+    /// @brief Parses GetImagingSettings XML response.
+    /// @param[in] xml Raw response XML.
+    /// @return Extracted ImagingSettings or nullopt on parse failure.
+    [[nodiscard]] static std::optional<ImagingSettings> parseImagingSettingsResponse(const std::string& xml);
+
+    /// @brief Parses CreatePullPointSubscription XML response.
+    /// @param[in] xml Raw response XML.
+    /// @return Extracted subscription reference URL or nullopt on failure.
+    [[nodiscard]] static std::optional<std::string> parseCreatePullPointSubscriptionResponse(const std::string& xml);
+
+    /// @brief Parses PullMessagesResponse XML response into event list.
+    /// @param[in] xml Raw response XML.
+    /// @return Vector of parsed OnvifEvent items.
+    [[nodiscard]] static std::vector<OnvifEvent> parsePullMessagesResponse(const std::string& xml);
 
 private:
     std::string m_deviceEndpoint {};

@@ -6,8 +6,10 @@
 
 #include <QApplication>
 #include <QClipboard>
+#include <QDateTime>
 #include <QHeaderView>
 #include <QMessageBox>
+#include <QSignalBlocker>
 #include <QSplitter>
 
 namespace PelcoDApp {
@@ -38,6 +40,10 @@ OnvifCameraTab::OnvifCameraTab(
             &OnvifCameraTab::handleStatusUpdated);
         connect(m_onvifDevice, &PelcoD::Qt::QOnvifDevice::rebootCompleted, this,
             &OnvifCameraTab::handleRebootCompleted);
+        connect(m_onvifDevice, &PelcoD::Qt::QOnvifDevice::imagingSettingsUpdated, this,
+            &OnvifCameraTab::handleImagingSettingsUpdated);
+        connect(m_onvifDevice, &PelcoD::Qt::QOnvifDevice::eventReceived, this,
+            &OnvifCameraTab::handleEventReceived);
     }
 
     updateConnectionUi(false);
@@ -160,6 +166,108 @@ void OnvifCameraTab::setupUi()
     infoGrid->addWidget(btnReboot, 9, 0, 1, 2);
 
     leftLayout->addWidget(groupInfo);
+
+    // =========================================================================
+    // Profile T: Optical & Imaging Controls
+    // =========================================================================
+    auto* groupImaging = new QGroupBox(tr("Profile T: Optical & Imaging Controls"), leftContainer);
+    auto* imgLayout = new QGridLayout(groupImaging);
+    imgLayout->setSpacing(4);
+
+    // Brightness
+    imgLayout->addWidget(new QLabel(tr("Brightness:"), groupImaging), 0, 0);
+    sliderBrightness = new QSlider(Qt::Horizontal, groupImaging);
+    sliderBrightness->setRange(0, 100);
+    sliderBrightness->setValue(50);
+    lblBrightnessVal = new QLabel("50", groupImaging);
+    lblBrightnessVal->setFixedWidth(28);
+    connect(sliderBrightness, &QSlider::valueChanged, this, [this](int v) {
+        lblBrightnessVal->setText(QString::number(v));
+    });
+    imgLayout->addWidget(sliderBrightness, 0, 1);
+    imgLayout->addWidget(lblBrightnessVal, 0, 2);
+
+    // Contrast
+    imgLayout->addWidget(new QLabel(tr("Contrast:"), groupImaging), 1, 0);
+    sliderContrast = new QSlider(Qt::Horizontal, groupImaging);
+    sliderContrast->setRange(0, 100);
+    sliderContrast->setValue(50);
+    lblContrastVal = new QLabel("50", groupImaging);
+    lblContrastVal->setFixedWidth(28);
+    connect(sliderContrast, &QSlider::valueChanged, this, [this](int v) {
+        lblContrastVal->setText(QString::number(v));
+    });
+    imgLayout->addWidget(sliderContrast, 1, 1);
+    imgLayout->addWidget(lblContrastVal, 1, 2);
+
+    // Saturation
+    imgLayout->addWidget(new QLabel(tr("Saturation:"), groupImaging), 2, 0);
+    sliderSaturation = new QSlider(Qt::Horizontal, groupImaging);
+    sliderSaturation->setRange(0, 100);
+    sliderSaturation->setValue(50);
+    lblSaturationVal = new QLabel("50", groupImaging);
+    lblSaturationVal->setFixedWidth(28);
+    connect(sliderSaturation, &QSlider::valueChanged, this, [this](int v) {
+        lblSaturationVal->setText(QString::number(v));
+    });
+    imgLayout->addWidget(sliderSaturation, 2, 1);
+    imgLayout->addWidget(lblSaturationVal, 2, 2);
+
+    // Sharpness
+    imgLayout->addWidget(new QLabel(tr("Sharpness:"), groupImaging), 3, 0);
+    sliderSharpness = new QSlider(Qt::Horizontal, groupImaging);
+    sliderSharpness->setRange(0, 100);
+    sliderSharpness->setValue(50);
+    lblSharpnessVal = new QLabel("50", groupImaging);
+    lblSharpnessVal->setFixedWidth(28);
+    connect(sliderSharpness, &QSlider::valueChanged, this, [this](int v) {
+        lblSharpnessVal->setText(QString::number(v));
+    });
+    imgLayout->addWidget(sliderSharpness, 3, 1);
+    imgLayout->addWidget(lblSharpnessVal, 3, 2);
+
+    // IR Filter & WDR/BLC
+    imgLayout->addWidget(new QLabel(tr("IR Filter:"), groupImaging), 4, 0);
+    cmbIrFilter = new QComboBox(groupImaging);
+    cmbIrFilter->addItems({ "AUTO", "ON", "OFF" });
+    imgLayout->addWidget(cmbIrFilter, 4, 1, 1, 2);
+
+    auto* chkLayout = new QHBoxLayout();
+    chkBacklight = new QCheckBox(tr("BLC"), groupImaging);
+    chkWdr = new QCheckBox(tr("WDR"), groupImaging);
+    chkLayout->addWidget(chkBacklight);
+    chkLayout->addWidget(chkWdr);
+    imgLayout->addLayout(chkLayout, 5, 0, 1, 3);
+
+    // Focus controls
+    auto* focusLayout = new QHBoxLayout();
+    cmbAutoFocus = new QComboBox(groupImaging);
+    cmbAutoFocus->addItems({ "AUTO", "MANUAL" });
+    btnFocusNear = new QPushButton(tr("Focus Near"), groupImaging);
+    btnFocusFar = new QPushButton(tr("Focus Far"), groupImaging);
+    connect(btnFocusNear, &QPushButton::pressed, this, &OnvifCameraTab::handleFocusNear);
+    connect(btnFocusNear, &QPushButton::released, this, &OnvifCameraTab::handleFocusStop);
+    connect(btnFocusFar, &QPushButton::pressed, this, &OnvifCameraTab::handleFocusFar);
+    connect(btnFocusFar, &QPushButton::released, this, &OnvifCameraTab::handleFocusStop);
+
+    focusLayout->addWidget(new QLabel(tr("Focus:"), groupImaging));
+    focusLayout->addWidget(cmbAutoFocus);
+    focusLayout->addWidget(btnFocusNear);
+    focusLayout->addWidget(btnFocusFar);
+    imgLayout->addLayout(focusLayout, 6, 0, 1, 3);
+
+    // Action buttons
+    auto* imgBtnLayout = new QHBoxLayout();
+    btnRefreshImaging = new QPushButton(tr("Refresh"), groupImaging);
+    btnApplyImaging = new QPushButton(tr("Apply Settings"), groupImaging);
+    btnApplyImaging->setStyleSheet("QPushButton { font-weight: bold; background-color: #238636; color: white; }");
+    connect(btnRefreshImaging, &QPushButton::clicked, this, &OnvifCameraTab::handleRefreshImaging);
+    connect(btnApplyImaging, &QPushButton::clicked, this, &OnvifCameraTab::handleApplyImaging);
+    imgBtnLayout->addWidget(btnRefreshImaging);
+    imgBtnLayout->addWidget(btnApplyImaging);
+    imgLayout->addLayout(imgBtnLayout, 7, 0, 1, 3);
+
+    leftLayout->addWidget(groupImaging);
     leftLayout->addStretch();
     midSplitter->addWidget(leftContainer);
 
@@ -313,6 +421,34 @@ void OnvifCameraTab::setupUi()
     presetsLayout->addLayout(presetControls);
 
     rightLayout->addWidget(groupPresets);
+
+    // =========================================================================
+    // Profile T: Live Event Monitor
+    // =========================================================================
+    auto* groupEvents = new QGroupBox(tr("Profile T: Live Event Monitor"), rightContainer);
+    auto* eventsLayout = new QVBoxLayout(groupEvents);
+
+    auto* eventHeaderLayout = new QHBoxLayout();
+    btnToggleEvents = new QPushButton(tr("▶ Subscribe Events"), groupEvents);
+    btnClearEvents = new QPushButton(tr("Clear"), groupEvents);
+    connect(btnToggleEvents, &QPushButton::clicked, this, [this]() {
+        const bool active = m_onvifDevice ? m_onvifDevice->isEventSubscriptionActive() : false;
+        handleToggleEvents(!active);
+    });
+    connect(btnClearEvents, &QPushButton::clicked, this, &OnvifCameraTab::handleClearEvents);
+    eventHeaderLayout->addWidget(btnToggleEvents);
+    eventHeaderLayout->addWidget(btnClearEvents);
+    eventHeaderLayout->addStretch();
+    eventsLayout->addLayout(eventHeaderLayout);
+
+    tableEvents = new QTableWidget(0, 4, groupEvents);
+    tableEvents->setHorizontalHeaderLabels({ tr("Time"), tr("Topic"), tr("Item"), tr("Value") });
+    tableEvents->horizontalHeader()->setStretchLastSection(true);
+    tableEvents->setSelectionBehavior(QAbstractItemView::SelectRows);
+    tableEvents->setFixedHeight(120);
+    eventsLayout->addWidget(tableEvents);
+
+    rightLayout->addWidget(groupEvents);
     rightLayout->addStretch();
     midSplitter->addWidget(rightContainer);
 
@@ -345,6 +481,22 @@ void OnvifCameraTab::updateConnectionUi(bool connected)
     btnSavePreset->setEnabled(connected);
     btnDeletePreset->setEnabled(connected);
 
+    // Profile T widgets
+    sliderBrightness->setEnabled(connected);
+    sliderContrast->setEnabled(connected);
+    sliderSaturation->setEnabled(connected);
+    sliderSharpness->setEnabled(connected);
+    cmbIrFilter->setEnabled(connected);
+    chkBacklight->setEnabled(connected);
+    chkWdr->setEnabled(connected);
+    cmbAutoFocus->setEnabled(connected);
+    btnFocusNear->setEnabled(connected);
+    btnFocusFar->setEnabled(connected);
+    btnRefreshImaging->setEnabled(connected);
+    btnApplyImaging->setEnabled(connected);
+    btnToggleEvents->setEnabled(connected);
+    btnClearEvents->setEnabled(connected);
+
     if (connected) {
         lblConnectionStatus->setText(tr("Connected"));
         lblConnectionStatus->setStyleSheet("color: #7ee787; font-weight: bold;");
@@ -360,6 +512,9 @@ void OnvifCameraTab::updateConnectionUi(bool connected)
         editRtspUri->clear();
         editSnapshotUri->clear();
         tablePresets->setRowCount(0);
+        tableEvents->setRowCount(0);
+        btnToggleEvents->setText(tr("▶ Subscribe Events"));
+        btnToggleEvents->setStyleSheet("");
         lblTelemetryPanTilt->setText(tr("Pan/Tilt: (0.00, 0.00)"));
         lblTelemetryZoom->setText(tr("Zoom: 0.00"));
         lblTelemetryMoving->setText(tr("Status: IDLE"));
@@ -658,6 +813,141 @@ void OnvifCameraTab::handleRebootCompleted(bool success)
         QMessageBox::warning(
             this, tr("Reboot Failed"), tr("Camera rejected the reboot command or service is unavailable."));
     }
+}
+
+void OnvifCameraTab::handleRefreshImaging()
+{
+    if (m_onvifDevice != nullptr) {
+        m_onvifDevice->refreshImagingSettings();
+    }
+}
+
+void OnvifCameraTab::handleApplyImaging()
+{
+    if (m_onvifDevice == nullptr) {
+        return;
+    }
+
+    PelcoD::Onvif::ImagingSettings settings {};
+    settings.brightness = static_cast<float>(sliderBrightness->value());
+    settings.contrast = static_cast<float>(sliderContrast->value());
+    settings.colorSaturation = static_cast<float>(sliderSaturation->value());
+    settings.sharpness = static_cast<float>(sliderSharpness->value());
+    settings.irCutFilter = cmbIrFilter->currentText().toStdString();
+    settings.backlightCompensation = chkBacklight->isChecked();
+    settings.wideDynamicRange = chkWdr->isChecked();
+    settings.autoFocusMode = cmbAutoFocus->currentText().toStdString();
+
+    const bool ok = m_onvifDevice->setImagingSettings(settings);
+    if (!ok) {
+        QMessageBox::warning(this, tr("Imaging Error"), tr("Failed to apply imaging settings to camera."));
+    }
+}
+
+void OnvifCameraTab::handleFocusNear()
+{
+    if (m_onvifDevice != nullptr) {
+        m_onvifDevice->focusContinuous(-1.0f);
+    }
+}
+
+void OnvifCameraTab::handleFocusFar()
+{
+    if (m_onvifDevice != nullptr) {
+        m_onvifDevice->focusContinuous(1.0f);
+    }
+}
+
+void OnvifCameraTab::handleFocusStop()
+{
+    if (m_onvifDevice != nullptr) {
+        m_onvifDevice->focusStop();
+    }
+}
+
+void OnvifCameraTab::handleToggleEvents(bool enable)
+{
+    if (m_onvifDevice == nullptr) {
+        return;
+    }
+
+    if (enable) {
+        m_onvifDevice->startEventSubscription(2000);
+        btnToggleEvents->setText(tr("⏹ Stop Events"));
+        btnToggleEvents->setStyleSheet("QPushButton { font-weight: bold; color: #f85149; }");
+    } else {
+        m_onvifDevice->stopEventSubscription();
+        btnToggleEvents->setText(tr("▶ Subscribe Events"));
+        btnToggleEvents->setStyleSheet("");
+    }
+}
+
+void OnvifCameraTab::handleClearEvents()
+{
+    if (tableEvents != nullptr) {
+        tableEvents->setRowCount(0);
+    }
+}
+
+void OnvifCameraTab::handleImagingSettingsUpdated(const PelcoD::Onvif::ImagingSettings& settings)
+{
+    const QSignalBlocker b1(sliderBrightness);
+    const QSignalBlocker b2(sliderContrast);
+    const QSignalBlocker b3(sliderSaturation);
+    const QSignalBlocker b4(sliderSharpness);
+    const QSignalBlocker b5(cmbIrFilter);
+    const QSignalBlocker b6(chkBacklight);
+    const QSignalBlocker b7(chkWdr);
+    const QSignalBlocker b8(cmbAutoFocus);
+
+    sliderBrightness->setValue(static_cast<int>(settings.brightness));
+    lblBrightnessVal->setText(QString::number(static_cast<int>(settings.brightness)));
+
+    sliderContrast->setValue(static_cast<int>(settings.contrast));
+    lblContrastVal->setText(QString::number(static_cast<int>(settings.contrast)));
+
+    sliderSaturation->setValue(static_cast<int>(settings.colorSaturation));
+    lblSaturationVal->setText(QString::number(static_cast<int>(settings.colorSaturation)));
+
+    sliderSharpness->setValue(static_cast<int>(settings.sharpness));
+    lblSharpnessVal->setText(QString::number(static_cast<int>(settings.sharpness)));
+
+    const int irIdx = cmbIrFilter->findText(QString::fromStdString(settings.irCutFilter));
+    if (irIdx >= 0) {
+        cmbIrFilter->setCurrentIndex(irIdx);
+    }
+
+    chkBacklight->setChecked(settings.backlightCompensation);
+    chkWdr->setChecked(settings.wideDynamicRange);
+
+    const int focusIdx = cmbAutoFocus->findText(QString::fromStdString(settings.autoFocusMode));
+    if (focusIdx >= 0) {
+        cmbAutoFocus->setCurrentIndex(focusIdx);
+    }
+}
+
+void OnvifCameraTab::handleEventReceived(const PelcoD::Onvif::OnvifEvent& event)
+{
+    if (tableEvents == nullptr) {
+        return;
+    }
+
+    constexpr int kMaxRows = 100;
+    if (tableEvents->rowCount() >= kMaxRows) {
+        tableEvents->removeRow(0);
+    }
+
+    const int row = tableEvents->rowCount();
+    tableEvents->insertRow(row);
+
+    const QString timeStr = !event.utcTime.empty() ? QString::fromStdString(event.utcTime)
+                                                   : QDateTime::currentDateTime().toString("hh:mm:ss");
+    tableEvents->setItem(row, 0, new QTableWidgetItem(timeStr));
+    tableEvents->setItem(row, 1, new QTableWidgetItem(QString::fromStdString(event.topic)));
+    tableEvents->setItem(row, 2, new QTableWidgetItem(QString::fromStdString(event.dataName)));
+    tableEvents->setItem(row, 3, new QTableWidgetItem(QString::fromStdString(event.dataValue)));
+
+    tableEvents->scrollToBottom();
 }
 
 } // namespace PelcoDApp
