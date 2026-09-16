@@ -52,6 +52,10 @@ private slots:
     void testImageStabilizationEIS();
     void testAutoWhiteBalance();
     void testChromaticAberrationCorrection();
+    void testIsothermFilter();
+    void testHotspotTrackerFilter();
+    void testMovingTargetIndicatorFilter();
+    void testTacticalReticleOverlayFilter();
     void testVideoFiltersPipelineIntegration();
     void testConcurrentProcessorReconfiguration();
 #endif
@@ -504,6 +508,16 @@ void TestVideoDecoder::testVideoFiltersNullSafety()
     wbFilter.process(nullptr, 640, 360, PixelFormat::RGB24);
     caFilter.process(nullptr, 640, 360, PixelFormat::RGB24);
 
+    IsothermFilter isoFilter;
+    HotspotTrackerFilter spotFilter;
+    MovingTargetIndicatorFilter mtiFilter;
+    TacticalReticleOverlayFilter reticleFilter;
+
+    isoFilter.process(nullptr, 640, 360, PixelFormat::RGB24);
+    spotFilter.process(nullptr, 640, 360, PixelFormat::RGB24);
+    mtiFilter.process(nullptr, 640, 360, PixelFormat::RGB24);
+    reticleFilter.process(nullptr, 640, 360, PixelFormat::RGB24);
+
     // Verify non-positive dimensions do not crash
     std::vector<std::uint8_t> dummy(1024U, 128U);
     bcFilter.process(dummy.data(), -1, 10, PixelFormat::RGB24);
@@ -519,6 +533,10 @@ void TestVideoDecoder::testVideoFiltersNullSafety()
     stabFilter.process(dummy.data(), -1, 0, PixelFormat::RGB24);
     wbFilter.process(dummy.data(), 0, -1, PixelFormat::RGB24);
     caFilter.process(dummy.data(), -1, -1, PixelFormat::RGB24);
+    isoFilter.process(dummy.data(), -1, 0, PixelFormat::RGB24);
+    spotFilter.process(dummy.data(), 0, -1, PixelFormat::RGB24);
+    mtiFilter.process(dummy.data(), -1, -1, PixelFormat::RGB24);
+    reticleFilter.process(dummy.data(), 0, 0, PixelFormat::RGB24);
 
     QVERIFY(true);
 }
@@ -811,6 +829,182 @@ void TestVideoDecoder::testChromaticAberrationCorrection()
     ca.process(img.data(), w, h, PixelFormat::RGB24);
 
     QVERIFY(!img.empty());
+}
+
+void TestVideoDecoder::testIsothermFilter()
+{
+    IsothermFilter iso(140, 180, IsothermFilter::HighlightColor::Red, true);
+    QCOMPARE(iso.getLowThreshold(), 140);
+    QCOMPARE(iso.getHighThreshold(), 180);
+    QCOMPARE(iso.getHighlightColor(), IsothermFilter::HighlightColor::Red);
+    QVERIFY(iso.isWhiteHotBackground());
+
+    iso.setPreset(IsothermFilter::Preset::HumanBody);
+    QCOMPARE(iso.getPreset(), IsothermFilter::Preset::HumanBody);
+    QCOMPARE(iso.getLowThreshold(), 140);
+    QCOMPARE(iso.getHighThreshold(), 180);
+    QCOMPARE(iso.getHighlightColor(), IsothermFilter::HighlightColor::Amber);
+
+    iso.setPreset(IsothermFilter::Preset::HighHeat);
+    QCOMPARE(iso.getPreset(), IsothermFilter::Preset::HighHeat);
+    QCOMPARE(iso.getLowThreshold(), 200);
+    QCOMPARE(iso.getHighThreshold(), 255);
+    QCOMPARE(iso.getHighlightColor(), IsothermFilter::HighlightColor::Red);
+
+    iso.setThresholds(100, 150);
+    QCOMPARE(iso.getPreset(), IsothermFilter::Preset::Custom);
+    QCOMPARE(iso.getLowThreshold(), 100);
+    QCOMPARE(iso.getHighThreshold(), 150);
+    iso.setHighlightColor(IsothermFilter::HighlightColor::Cyan);
+    QCOMPARE(iso.getHighlightColor(), IsothermFilter::HighlightColor::Cyan);
+    iso.setWhiteHotBackground(false);
+    QVERIFY(!iso.isWhiteHotBackground());
+
+    // Process a 2x1 image: pixel 0 inside isotherm (luma 120), pixel 1 outside (luma 50)
+    iso.setWhiteHotBackground(true);
+    iso.setHighlightColor(IsothermFilter::HighlightColor::Red);
+    std::vector<std::uint8_t> frame = {
+        120U, 120U, 120U, // Pixel 0 (inside 100-150)
+        50U, 50U, 50U // Pixel 1 (outside)
+    };
+
+    iso.process(frame.data(), 2, 1, PixelFormat::RGB24);
+    // Pixel 0 should be Red alert
+    QCOMPARE(frame[0], static_cast<std::uint8_t>(255));
+    QCOMPARE(frame[1], static_cast<std::uint8_t>(0));
+    QCOMPARE(frame[2], static_cast<std::uint8_t>(0));
+    // Pixel 1 should be monochrome luma 50
+    QCOMPARE(frame[3], static_cast<std::uint8_t>(50));
+    QCOMPARE(frame[4], static_cast<std::uint8_t>(50));
+    QCOMPARE(frame[5], static_cast<std::uint8_t>(50));
+}
+
+void TestVideoDecoder::testHotspotTrackerFilter()
+{
+    HotspotTrackerFilter tracker(true, 16);
+    QVERIFY(tracker.getShowOverlay());
+    QCOMPARE(tracker.getCenterBoxSize(), 16);
+
+    tracker.setShowOverlay(false);
+    QVERIFY(!tracker.getShowOverlay());
+    tracker.setCenterBoxSize(20);
+    QCOMPARE(tracker.getCenterBoxSize(), 20);
+
+    // Create 64x64 test image with uniform luma 100
+    const int w = 64;
+    const int h = 64;
+    std::vector<std::uint8_t> img(static_cast<std::size_t>(w * h * 3), 100U);
+
+    // Hotspot at (12, 18)
+    const std::size_t hotIdx = static_cast<std::size_t>((18 * w + 12) * 3);
+    img[hotIdx + 0U] = 250U;
+    img[hotIdx + 1U] = 250U;
+    img[hotIdx + 2U] = 250U;
+
+    // Coldspot at (45, 52)
+    const std::size_t coldIdx = static_cast<std::size_t>((52 * w + 45) * 3);
+    img[coldIdx + 0U] = 10U;
+    img[coldIdx + 1U] = 10U;
+    img[coldIdx + 2U] = 10U;
+
+    tracker.process(img.data(), w, h, PixelFormat::RGB24);
+
+    const auto stats = tracker.getStats();
+    QCOMPARE(stats.hotX, 12);
+    QCOMPARE(stats.hotY, 18);
+    QCOMPARE(stats.hotVal, static_cast<std::uint8_t>(250));
+    QCOMPARE(stats.coldX, 45);
+    QCOMPARE(stats.coldY, 52);
+    QCOMPARE(stats.coldVal, static_cast<std::uint8_t>(10));
+}
+
+void TestVideoDecoder::testMovingTargetIndicatorFilter()
+{
+    MovingTargetIndicatorFilter mti(50, 10000, 8);
+    QCOMPARE(mti.getMinArea(), 50);
+    QCOMPARE(mti.getMaxArea(), 10000);
+    QCOMPARE(mti.getMaxTargets(), 8);
+
+    mti.setMinArea(40);
+    QCOMPARE(mti.getMinArea(), 40);
+    mti.setMaxArea(8000);
+    QCOMPARE(mti.getMaxArea(), 8000);
+    mti.setMaxTargets(12);
+    QCOMPARE(mti.getMaxTargets(), 12);
+
+    const int w = 128;
+    const int h = 128;
+    std::vector<std::uint8_t> staticFrame(static_cast<std::size_t>(w * h * 3), 120U);
+
+    // Feed 5 static frames to build MOG2 background model
+    for (int i = 0; i < 5; ++i) {
+        std::vector<std::uint8_t> f = staticFrame;
+        mti.process(f.data(), w, h, PixelFormat::RGB24);
+    }
+
+    // Frame 6: introduce large moving object (20x20 block) at (40, 40)
+    std::vector<std::uint8_t> movingFrame = staticFrame;
+    for (int y = 40; y < 60; ++y) {
+        for (int x = 40; x < 60; ++x) {
+            const std::size_t idx = static_cast<std::size_t>((y * w + x) * 3);
+            movingFrame[idx + 0U] = 255U;
+            movingFrame[idx + 1U] = 255U;
+            movingFrame[idx + 2U] = 255U;
+        }
+    }
+
+    mti.process(movingFrame.data(), w, h, PixelFormat::RGB24);
+    QVERIFY(mti.getTargetCount() >= 1U);
+    const auto targets = mti.getTargets();
+    QVERIFY(!targets.empty());
+    QVERIFY(targets[0].width > 0);
+    QVERIFY(targets[0].height > 0);
+
+    mti.reset();
+    QCOMPARE(mti.getTargetCount(), 0ULL);
+}
+
+void TestVideoDecoder::testTacticalReticleOverlayFilter()
+{
+    TacticalReticleOverlayFilter reticle(
+        TacticalReticleOverlayFilter::Style::Crosshair, TacticalReticleOverlayFilter::Color::TacticalGreen, 1, 12);
+
+    QCOMPARE(reticle.getStyle(), TacticalReticleOverlayFilter::Style::Crosshair);
+    QCOMPARE(reticle.getColor(), TacticalReticleOverlayFilter::Color::TacticalGreen);
+    QCOMPARE(reticle.getLineThickness(), 1);
+    QCOMPARE(reticle.getDeadbandGap(), 12);
+
+    reticle.setStyle(TacticalReticleOverlayFilter::Style::MilDot);
+    QCOMPARE(reticle.getStyle(), TacticalReticleOverlayFilter::Style::MilDot);
+    reticle.setColor(TacticalReticleOverlayFilter::Color::Red);
+    QCOMPARE(reticle.getColor(), TacticalReticleOverlayFilter::Color::Red);
+    reticle.setLineThickness(2);
+    QCOMPARE(reticle.getLineThickness(), 2);
+    reticle.setDeadbandGap(14);
+    QCOMPARE(reticle.getDeadbandGap(), 14);
+
+    const int w = 64;
+    const int h = 64;
+
+    // Test all styles for rendering stability
+    const auto styles = { TacticalReticleOverlayFilter::Style::Crosshair, TacticalReticleOverlayFilter::Style::MilDot,
+        TacticalReticleOverlayFilter::Style::Stadiametric, TacticalReticleOverlayFilter::Style::CornerBrackets };
+
+    for (const auto s : styles) {
+        std::vector<std::uint8_t> frame(static_cast<std::size_t>(w * h * 3), 0U);
+        reticle.setStyle(s);
+        reticle.process(frame.data(), w, h, PixelFormat::RGB24);
+
+        // Verify reticle drew non-zero lines
+        bool hasPixels = false;
+        for (const auto b : frame) {
+            if (b > 0U) {
+                hasPixels = true;
+                break;
+            }
+        }
+        QVERIFY(hasPixels);
+    }
 }
 
 void TestVideoDecoder::testVideoFiltersPipelineIntegration()

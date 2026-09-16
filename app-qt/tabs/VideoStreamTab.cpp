@@ -245,6 +245,40 @@ void VideoStreamTab::setupUi()
     m_chkEdgeDetect = new QCheckBox(tr("Canny Edge Outlines"), visionGroup);
     visionLayout->addWidget(m_chkEdgeDetect);
 
+    // Tactical & Thermal Analytics Sub-Panel
+    visionLayout->addWidget(new QLabel(tr("Tactical & Thermal Analytics:"), visionGroup));
+    auto* isoLayout = new QHBoxLayout();
+    m_chkIsotherm = new QCheckBox(tr("Isotherm"), visionGroup);
+    m_comboIsothermPreset = new QComboBox(visionGroup);
+    m_comboIsothermPreset->addItem(tr("Body Heat"), static_cast<int>(PelcoD::Video::IsothermFilter::Preset::HumanBody));
+    m_comboIsothermPreset->addItem(tr("High Heat"), static_cast<int>(PelcoD::Video::IsothermFilter::Preset::HighHeat));
+    m_comboIsothermPreset->addItem(
+        tr("Custom (140-180)"), static_cast<int>(PelcoD::Video::IsothermFilter::Preset::Custom));
+    isoLayout->addWidget(m_chkIsotherm);
+    isoLayout->addWidget(m_comboIsothermPreset);
+    visionLayout->addLayout(isoLayout);
+
+    m_chkHotspotTracker = new QCheckBox(tr("Hotspot & Radiometry"), visionGroup);
+    visionLayout->addWidget(m_chkHotspotTracker);
+
+    m_chkMtiMotion = new QCheckBox(tr("Moving Target (MTI)"), visionGroup);
+    visionLayout->addWidget(m_chkMtiMotion);
+
+    auto* reticleLayout = new QHBoxLayout();
+    m_chkReticleHud = new QCheckBox(tr("Reticle HUD"), visionGroup);
+    m_comboReticleStyle = new QComboBox(visionGroup);
+    m_comboReticleStyle->addItem(
+        tr("Crosshair"), static_cast<int>(PelcoD::Video::TacticalReticleOverlayFilter::Style::Crosshair));
+    m_comboReticleStyle->addItem(
+        tr("Mil-Dot"), static_cast<int>(PelcoD::Video::TacticalReticleOverlayFilter::Style::MilDot));
+    m_comboReticleStyle->addItem(
+        tr("Stadiametric"), static_cast<int>(PelcoD::Video::TacticalReticleOverlayFilter::Style::Stadiametric));
+    m_comboReticleStyle->addItem(
+        tr("Corner Brackets"), static_cast<int>(PelcoD::Video::TacticalReticleOverlayFilter::Style::CornerBrackets));
+    reticleLayout->addWidget(m_chkReticleHud);
+    reticleLayout->addWidget(m_comboReticleStyle);
+    visionLayout->addLayout(reticleLayout);
+
     sideLayout->addWidget(visionGroup);
 #endif
 
@@ -418,6 +452,14 @@ void VideoStreamTab::setupConnections()
     connect(m_chkDenoise, &QCheckBox::toggled, this, &VideoStreamTab::onFilterConfigurationChanged);
     connect(m_chkSharpen, &QCheckBox::toggled, this, &VideoStreamTab::onFilterConfigurationChanged);
     connect(m_chkEdgeDetect, &QCheckBox::toggled, this, &VideoStreamTab::onFilterConfigurationChanged);
+    connect(m_chkIsotherm, &QCheckBox::toggled, this, &VideoStreamTab::onFilterConfigurationChanged);
+    connect(m_comboIsothermPreset, QOverload<int>::of(&QComboBox::currentIndexChanged), this,
+        &VideoStreamTab::onFilterConfigurationChanged);
+    connect(m_chkHotspotTracker, &QCheckBox::toggled, this, &VideoStreamTab::onFilterConfigurationChanged);
+    connect(m_chkMtiMotion, &QCheckBox::toggled, this, &VideoStreamTab::onFilterConfigurationChanged);
+    connect(m_chkReticleHud, &QCheckBox::toggled, this, &VideoStreamTab::onFilterConfigurationChanged);
+    connect(m_comboReticleStyle, QOverload<int>::of(&QComboBox::currentIndexChanged), this,
+        &VideoStreamTab::onFilterConfigurationChanged);
 #endif
 
     // Worker signals to Overlay Widget
@@ -776,10 +818,42 @@ void VideoStreamTab::onFilterConfigurationChanged()
         m_worker->addFrameProcessor(std::make_shared<PelcoD::Video::EdgeDetectionFilter>(50.0, 150.0));
     }
 
-    // 6. Thermal / False Color Palette (applied last across color mapped result)
+    // 9. Isotherm Thermal Slicing
+    if (m_chkIsotherm != nullptr && m_chkIsotherm->isChecked()) {
+        auto iso = std::make_shared<PelcoD::Video::IsothermFilter>();
+        if (m_comboIsothermPreset != nullptr) {
+            const auto preset
+                = static_cast<PelcoD::Video::IsothermFilter::Preset>(m_comboIsothermPreset->currentData().toInt());
+            iso->setPreset(preset);
+        }
+        m_worker->addFrameProcessor(iso);
+    }
+
+    // 10. Thermal / False Color Palette (applied across color mapped result)
     if (m_comboPalette != nullptr && m_comboPalette->currentIndex() > 0) {
         const auto palette = static_cast<PelcoD::Video::FalseColorPalette>(m_comboPalette->currentData().toInt());
         m_worker->addFrameProcessor(std::make_shared<PelcoD::Video::FalseColorFilter>(palette));
+    }
+
+    // 11. Moving Target Indication (MTI) - target acquisition brackets
+    if (m_chkMtiMotion != nullptr && m_chkMtiMotion->isChecked()) {
+        m_worker->addFrameProcessor(std::make_shared<PelcoD::Video::MovingTargetIndicatorFilter>(80, 50000, 16));
+    }
+
+    // 12. Hotspot & Spot Radiometry Tracker
+    if (m_chkHotspotTracker != nullptr && m_chkHotspotTracker->isChecked()) {
+        m_worker->addFrameProcessor(std::make_shared<PelcoD::Video::HotspotTrackerFilter>(true, 32));
+    }
+
+    // 13. Tactical Reticle HUD Overlay (drawn on top of all image layers)
+    if (m_chkReticleHud != nullptr && m_chkReticleHud->isChecked()) {
+        auto style = PelcoD::Video::TacticalReticleOverlayFilter::Style::Crosshair;
+        if (m_comboReticleStyle != nullptr) {
+            style = static_cast<PelcoD::Video::TacticalReticleOverlayFilter::Style>(
+                m_comboReticleStyle->currentData().toInt());
+        }
+        m_worker->addFrameProcessor(std::make_shared<PelcoD::Video::TacticalReticleOverlayFilter>(
+            style, PelcoD::Video::TacticalReticleOverlayFilter::Color::TacticalGreen, 1, 14));
     }
 }
 #endif

@@ -14,6 +14,7 @@
 #include <cstdint>
 #include <map>
 #include <memory>
+#include <mutex>
 #include <string>
 #include <vector>
 
@@ -1004,6 +1005,252 @@ private:
     double m_blueCoeff;
     double m_centerOffsetX;
     double m_centerOffsetY;
+};
+
+/**
+ * @class IsothermFilter
+ * @brief Isolates critical temperature/intensity bands with alert colors while rendering background in monochrome.
+ */
+class VIDEOFILTERS_API IsothermFilter : public IFrameProcessor {
+public:
+    enum class Preset {
+        Custom, ///< Custom threshold range
+        HumanBody, ///< Narrow band for personnel body heat (~140 to 180 in 8-bit luma)
+        HighHeat ///< High intensity threshold for fire, engines, and muzzle flashes (> 200)
+    };
+
+    enum class HighlightColor {
+        Red, ///< Tactical Alert Red (RGB 255, 0, 0)
+        Amber, ///< High-Vis Amber (RGB 255, 191, 0)
+        Cyan, ///< Electric Cyan (RGB 0, 255, 255)
+        Iron256 ///< Thermal colormap slice
+    };
+
+    IsothermFilter(int lowThreshold = 140, int highThreshold = 180, HighlightColor color = HighlightColor::Red,
+        bool whiteHotBackground = true);
+
+    void process(uint8_t* data, int width, int height, PixelFormat format) override;
+
+    void setPreset(Preset preset);
+    Preset getPreset() const
+    {
+        return m_preset;
+    }
+
+    void setThresholds(int low, int high);
+    int getLowThreshold() const
+    {
+        return m_lowThreshold;
+    }
+    int getHighThreshold() const
+    {
+        return m_highThreshold;
+    }
+
+    void setHighlightColor(HighlightColor color)
+    {
+        m_color = color;
+    }
+    HighlightColor getHighlightColor() const
+    {
+        return m_color;
+    }
+
+    void setWhiteHotBackground(bool whiteHot)
+    {
+        m_whiteHotBackground = whiteHot;
+    }
+    bool isWhiteHotBackground() const
+    {
+        return m_whiteHotBackground;
+    }
+
+private:
+    Preset m_preset;
+    int m_lowThreshold;
+    int m_highThreshold;
+    HighlightColor m_color;
+    bool m_whiteHotBackground;
+};
+
+/**
+ * @class HotspotTrackerFilter
+ * @brief Automatically locates, tracks, and annotates peak thermal hot and cold spots with optical bore radiometry.
+ */
+class VIDEOFILTERS_API HotspotTrackerFilter : public IFrameProcessor {
+public:
+    struct RadiometryStats {
+        int hotX { 0 };
+        int hotY { 0 };
+        uint8_t hotVal { 0 };
+        int coldX { 0 };
+        int coldY { 0 };
+        uint8_t coldVal { 0 };
+        uint8_t centerMean { 0 };
+    };
+
+    HotspotTrackerFilter(bool showOverlay = true, int centerBoxSize = 32);
+
+    void process(uint8_t* data, int width, int height, PixelFormat format) override;
+
+    void setShowOverlay(bool show)
+    {
+        m_showOverlay = show;
+    }
+    bool getShowOverlay() const
+    {
+        return m_showOverlay;
+    }
+
+    void setCenterBoxSize(int size)
+    {
+        m_centerBoxSize = size;
+    }
+    int getCenterBoxSize() const
+    {
+        return m_centerBoxSize;
+    }
+
+    RadiometryStats getStats() const;
+
+private:
+    bool m_showOverlay;
+    int m_centerBoxSize;
+    mutable std::mutex m_statsMutex;
+    RadiometryStats m_stats;
+};
+
+/**
+ * @class MovingTargetIndicatorFilter
+ * @brief Ground Moving Target Indication (GMTI/MTI) detecting moving objects against a static/stabilized background.
+ */
+class VIDEOFILTERS_API MovingTargetIndicatorFilter : public IFrameProcessor {
+public:
+    struct TargetBox {
+        int x { 0 };
+        int y { 0 };
+        int width { 0 };
+        int height { 0 };
+        int id { 0 };
+    };
+
+    MovingTargetIndicatorFilter(int minArea = 100, int maxArea = 50000, int maxTargets = 16);
+    ~MovingTargetIndicatorFilter() override;
+
+    MovingTargetIndicatorFilter(const MovingTargetIndicatorFilter&) = delete;
+    MovingTargetIndicatorFilter& operator=(const MovingTargetIndicatorFilter&) = delete;
+    MovingTargetIndicatorFilter(MovingTargetIndicatorFilter&&) noexcept;
+    MovingTargetIndicatorFilter& operator=(MovingTargetIndicatorFilter&&) noexcept;
+
+    void process(uint8_t* data, int width, int height, PixelFormat format) override;
+
+    void setMinArea(int minArea)
+    {
+        m_minArea = minArea;
+    }
+    int getMinArea() const
+    {
+        return m_minArea;
+    }
+
+    void setMaxArea(int maxArea)
+    {
+        m_maxArea = maxArea;
+    }
+    int getMaxArea() const
+    {
+        return m_maxArea;
+    }
+
+    void setMaxTargets(int maxTargets)
+    {
+        m_maxTargets = maxTargets;
+    }
+    int getMaxTargets() const
+    {
+        return m_maxTargets;
+    }
+
+    void reset();
+    std::size_t getTargetCount() const;
+    std::vector<TargetBox> getTargets() const;
+
+private:
+    int m_minArea;
+    int m_maxArea;
+    int m_maxTargets;
+
+    struct Impl;
+    std::unique_ptr<Impl> m_impl;
+};
+
+/**
+ * @class TacticalReticleOverlayFilter
+ * @brief Overlays military boresight reticles, mil-dot scales, and stadiametric rangefinder markings.
+ */
+class VIDEOFILTERS_API TacticalReticleOverlayFilter : public IFrameProcessor {
+public:
+    enum class Style {
+        Crosshair, ///< Boresight crosshair with open center circle
+        MilDot, ///< Calibrated mil-dots on X and Y axes
+        Stadiametric, ///< Human/vehicle height reference scale brackets
+        CornerBrackets ///< Tactical camera sensor frame border brackets
+    };
+
+    enum class Color {
+        TacticalGreen, ///< High-vis Night-vision Green (RGB 0, 255, 64)
+        Red, ///< Alert Red (RGB 255, 48, 48)
+        Amber, ///< FLIR Amber (RGB 255, 191, 0)
+        White, ///< White (RGB 255, 255, 255)
+        Cyan ///< Electric Cyan (RGB 0, 255, 255)
+    };
+
+    TacticalReticleOverlayFilter(Style style = Style::Crosshair, Color color = Color::TacticalGreen,
+        int lineThickness = 1, int deadbandGap = 16);
+
+    void process(uint8_t* data, int width, int height, PixelFormat format) override;
+
+    void setStyle(Style style)
+    {
+        m_style = style;
+    }
+    Style getStyle() const
+    {
+        return m_style;
+    }
+
+    void setColor(Color color)
+    {
+        m_color = color;
+    }
+    Color getColor() const
+    {
+        return m_color;
+    }
+
+    void setLineThickness(int thickness)
+    {
+        m_lineThickness = thickness;
+    }
+    int getLineThickness() const
+    {
+        return m_lineThickness;
+    }
+
+    void setDeadbandGap(int gap)
+    {
+        m_deadbandGap = gap;
+    }
+    int getDeadbandGap() const
+    {
+        return m_deadbandGap;
+    }
+
+private:
+    Style m_style;
+    Color m_color;
+    int m_lineThickness;
+    int m_deadbandGap;
 };
 
 } // namespace PelcoD::Video

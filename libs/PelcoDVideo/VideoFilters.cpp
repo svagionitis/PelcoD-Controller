@@ -1297,6 +1297,423 @@ void ChromaticAberrationFilter::process(uint8_t* data, int width, int height, Pi
     cv::merge(channels, mat);
 }
 
+// -----------------------------------------------------------------------------
+// IsothermFilter Implementation
+// -----------------------------------------------------------------------------
+IsothermFilter::IsothermFilter(int lowThreshold, int highThreshold, HighlightColor color, bool whiteHotBackground)
+    : m_preset(Preset::Custom)
+    , m_lowThreshold(lowThreshold)
+    , m_highThreshold(highThreshold)
+    , m_color(color)
+    , m_whiteHotBackground(whiteHotBackground)
+{
+}
+
+void IsothermFilter::setPreset(Preset preset)
+{
+    m_preset = preset;
+    switch (preset) {
+    case Preset::HumanBody:
+        m_lowThreshold = 140;
+        m_highThreshold = 180;
+        m_color = HighlightColor::Amber;
+        break;
+    case Preset::HighHeat:
+        m_lowThreshold = 200;
+        m_highThreshold = 255;
+        m_color = HighlightColor::Red;
+        break;
+    case Preset::Custom:
+    default:
+        break;
+    }
+}
+
+void IsothermFilter::setThresholds(int low, int high)
+{
+    m_preset = Preset::Custom;
+    m_lowThreshold = std::max(0, std::min(255, low));
+    m_highThreshold = std::max(m_lowThreshold, std::min(255, high));
+}
+
+void IsothermFilter::process(uint8_t* data, int width, int height, PixelFormat format)
+{
+    if (!data || width <= 0 || height <= 0) {
+        return;
+    }
+
+    const int low = std::min(m_lowThreshold, m_highThreshold);
+    const int high = std::max(m_lowThreshold, m_highThreshold);
+
+    uint8_t alertR = 255U;
+    uint8_t alertG = 0U;
+    uint8_t alertB = 0U;
+    switch (m_color) {
+    case HighlightColor::Amber:
+        alertR = 255U;
+        alertG = 191U;
+        alertB = 0U;
+        break;
+    case HighlightColor::Cyan:
+        alertR = 0U;
+        alertG = 255U;
+        alertB = 255U;
+        break;
+    case HighlightColor::Red:
+    default:
+        alertR = 255U;
+        alertG = 0U;
+        alertB = 0U;
+        break;
+    }
+
+    const std::size_t numPixels = static_cast<std::size_t>(width * height);
+    if (format == PixelFormat::RGB24 || format == PixelFormat::BGR24) {
+        const std::size_t rOff = (format == PixelFormat::RGB24) ? 0U : 2U;
+        const std::size_t gOff = 1U;
+        const std::size_t bOff = (format == PixelFormat::RGB24) ? 2U : 0U;
+
+        for (std::size_t i = 0U; i < numPixels; ++i) {
+            const std::size_t idx = i * 3U;
+            const uint8_t r = data[idx + rOff];
+            const uint8_t g = data[idx + gOff];
+            const uint8_t b = data[idx + bOff];
+
+            const int luma = (299 * static_cast<int>(r) + 587 * static_cast<int>(g) + 114 * static_cast<int>(b)) / 1000;
+
+            if (luma >= low && luma <= high) {
+                if (m_color == HighlightColor::Iron256) {
+                    const double norm
+                        = (high > low) ? static_cast<double>(luma - low) / static_cast<double>(high - low) : 0.5;
+                    data[idx + rOff] = static_cast<uint8_t>(std::min(255.0, norm * 2.0 * 255.0));
+                    data[idx + gOff] = static_cast<uint8_t>(std::min(255.0, std::max(0.0, (norm - 0.5) * 2.0 * 255.0)));
+                    data[idx + bOff] = static_cast<uint8_t>(std::max(0.0, (0.5 - norm) * 2.0 * 255.0));
+                } else {
+                    data[idx + rOff] = alertR;
+                    data[idx + gOff] = alertG;
+                    data[idx + bOff] = alertB;
+                }
+            } else {
+                const uint8_t bgLuma
+                    = m_whiteHotBackground ? static_cast<uint8_t>(luma) : static_cast<uint8_t>(255 - luma);
+                data[idx + 0U] = bgLuma;
+                data[idx + 1U] = bgLuma;
+                data[idx + 2U] = bgLuma;
+            }
+        }
+    }
+}
+
+// -----------------------------------------------------------------------------
+// HotspotTrackerFilter Implementation
+// -----------------------------------------------------------------------------
+HotspotTrackerFilter::HotspotTrackerFilter(bool showOverlay, int centerBoxSize)
+    : m_showOverlay(showOverlay)
+    , m_centerBoxSize(centerBoxSize)
+{
+}
+
+HotspotTrackerFilter::RadiometryStats HotspotTrackerFilter::getStats() const
+{
+    std::lock_guard<std::mutex> lock(m_statsMutex);
+    return m_stats;
+}
+
+void HotspotTrackerFilter::process(uint8_t* data, int width, int height, PixelFormat format)
+{
+    if (!data || width <= 0 || height <= 0) {
+        return;
+    }
+
+    cv::Mat mat(height, width, CV_8UC3, data);
+    cv::Mat gray;
+    const int convCode = (format == PixelFormat::RGB24) ? cv::COLOR_RGB2GRAY : cv::COLOR_BGR2GRAY;
+    cv::cvtColor(mat, gray, convCode);
+
+    double minVal = 0.0;
+    double maxVal = 0.0;
+    cv::Point minLoc;
+    cv::Point maxLoc;
+    cv::minMaxLoc(gray, &minVal, &maxVal, &minLoc, &maxLoc);
+
+    const int boxSize = std::max(4, std::min(m_centerBoxSize, std::min(width, height) / 2));
+    const int boxX = std::max(0, (width - boxSize) / 2);
+    const int boxY = std::max(0, (height - boxSize) / 2);
+    cv::Rect centerRect(boxX, boxY, boxSize, boxSize);
+    cv::Scalar centerMeanScalar = cv::mean(gray(centerRect));
+
+    {
+        std::lock_guard<std::mutex> lock(m_statsMutex);
+        m_stats.hotX = maxLoc.x;
+        m_stats.hotY = maxLoc.y;
+        m_stats.hotVal = static_cast<uint8_t>(std::max(0.0, std::min(255.0, maxVal)));
+        m_stats.coldX = minLoc.x;
+        m_stats.coldY = minLoc.y;
+        m_stats.coldVal = static_cast<uint8_t>(std::max(0.0, std::min(255.0, minVal)));
+        m_stats.centerMean = static_cast<uint8_t>(std::max(0.0, std::min(255.0, centerMeanScalar[0])));
+    }
+
+    if (!m_showOverlay || mat.channels() != 3) {
+        return;
+    }
+
+    const cv::Scalar redColor = (format == PixelFormat::RGB24) ? cv::Scalar(255, 32, 32) : cv::Scalar(32, 32, 255);
+    const cv::Scalar blueColor = (format == PixelFormat::RGB24) ? cv::Scalar(32, 128, 255) : cv::Scalar(255, 128, 32);
+    const cv::Scalar yellowColor = (format == PixelFormat::RGB24) ? cv::Scalar(255, 220, 0) : cv::Scalar(0, 220, 255);
+
+    auto drawTargetMarker = [&](const cv::Point& pt, const cv::Scalar& color, const std::string& label) {
+        const int r = 7;
+        cv::circle(mat, pt, r, color, 1, cv::LINE_AA);
+        cv::line(mat, cv::Point(pt.x - r - 4, pt.y), cv::Point(pt.x + r + 4, pt.y), color, 1, cv::LINE_AA);
+        cv::line(mat, cv::Point(pt.x, pt.y - r - 4), cv::Point(pt.x, pt.y + r + 4), color, 1, cv::LINE_AA);
+        const int textX = std::min(width - 60, std::max(4, pt.x + r + 4));
+        const int textY = std::min(height - 4, std::max(12, pt.y - r));
+        cv::putText(mat, label, cv::Point(textX, textY), cv::FONT_HERSHEY_PLAIN, 0.8, color, 1, cv::LINE_AA);
+    };
+
+    drawTargetMarker(maxLoc, redColor, "HOT:" + std::to_string(static_cast<int>(maxVal)));
+    drawTargetMarker(minLoc, blueColor, "COLD:" + std::to_string(static_cast<int>(minVal)));
+
+    cv::rectangle(mat, centerRect, yellowColor, 1, cv::LINE_AA);
+    const std::string centerText = "AVG:" + std::to_string(static_cast<int>(centerMeanScalar[0]));
+    cv::putText(
+        mat, centerText, cv::Point(boxX + 2, boxY - 3), cv::FONT_HERSHEY_PLAIN, 0.8, yellowColor, 1, cv::LINE_AA);
+}
+
+// -----------------------------------------------------------------------------
+// MovingTargetIndicatorFilter Implementation
+// -----------------------------------------------------------------------------
+struct MovingTargetIndicatorFilter::Impl {
+    cv::Ptr<cv::BackgroundSubtractorMOG2> bgSubtractor;
+    std::vector<TargetBox> targets;
+    mutable std::mutex targetsMutex;
+    int frameCounter { 0 };
+
+    Impl()
+    {
+        bgSubtractor = cv::createBackgroundSubtractorMOG2(50, 16.0, false);
+    }
+};
+
+MovingTargetIndicatorFilter::MovingTargetIndicatorFilter(int minArea, int maxArea, int maxTargets)
+    : m_minArea(minArea)
+    , m_maxArea(maxArea)
+    , m_maxTargets(maxTargets)
+    , m_impl(std::make_unique<Impl>())
+{
+}
+
+MovingTargetIndicatorFilter::~MovingTargetIndicatorFilter() = default;
+MovingTargetIndicatorFilter::MovingTargetIndicatorFilter(MovingTargetIndicatorFilter&&) noexcept = default;
+MovingTargetIndicatorFilter& MovingTargetIndicatorFilter::operator=(MovingTargetIndicatorFilter&&) noexcept = default;
+
+void MovingTargetIndicatorFilter::reset()
+{
+    if (m_impl) {
+        std::lock_guard<std::mutex> lock(m_impl->targetsMutex);
+        m_impl->bgSubtractor = cv::createBackgroundSubtractorMOG2(50, 16.0, false);
+        m_impl->targets.clear();
+        m_impl->frameCounter = 0;
+    }
+}
+
+std::size_t MovingTargetIndicatorFilter::getTargetCount() const
+{
+    if (!m_impl) {
+        return 0U;
+    }
+    std::lock_guard<std::mutex> lock(m_impl->targetsMutex);
+    return m_impl->targets.size();
+}
+
+std::vector<MovingTargetIndicatorFilter::TargetBox> MovingTargetIndicatorFilter::getTargets() const
+{
+    if (!m_impl) {
+        return {};
+    }
+    std::lock_guard<std::mutex> lock(m_impl->targetsMutex);
+    return m_impl->targets;
+}
+
+void MovingTargetIndicatorFilter::process(uint8_t* data, int width, int height, PixelFormat format)
+{
+    if (!data || width <= 0 || height <= 0 || !m_impl) {
+        return;
+    }
+
+    cv::Mat mat(height, width, CV_8UC3, data);
+    cv::Mat gray;
+    const int convCode = (format == PixelFormat::RGB24) ? cv::COLOR_RGB2GRAY : cv::COLOR_BGR2GRAY;
+    cv::cvtColor(mat, gray, convCode);
+
+    cv::Mat fgMask;
+    m_impl->bgSubtractor->apply(gray, fgMask);
+    m_impl->frameCounter++;
+
+    if (m_impl->frameCounter < 3) {
+        std::lock_guard<std::mutex> lock(m_impl->targetsMutex);
+        m_impl->targets.clear();
+        return;
+    }
+
+    cv::Mat kernel = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(3, 3));
+    cv::morphologyEx(fgMask, fgMask, cv::MORPH_OPEN, kernel);
+    cv::morphologyEx(fgMask, fgMask, cv::MORPH_DILATE, kernel);
+
+    std::vector<std::vector<cv::Point>> contours;
+    cv::findContours(fgMask, contours, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_SIMPLE);
+
+    std::vector<TargetBox> newTargets;
+    const cv::Scalar bracketColor = (format == PixelFormat::RGB24) ? cv::Scalar(0, 255, 64) : cv::Scalar(64, 255, 0);
+
+    int targetId = 1;
+    for (const auto& contour : contours) {
+        const double area = cv::contourArea(contour);
+        if (area >= static_cast<double>(m_minArea) && area <= static_cast<double>(m_maxArea)) {
+            const cv::Rect r = cv::boundingRect(contour);
+            TargetBox tb;
+            tb.x = r.x;
+            tb.y = r.y;
+            tb.width = r.width;
+            tb.height = r.height;
+            tb.id = targetId;
+            newTargets.push_back(tb);
+
+            if (mat.channels() == 3) {
+                const int cornerLen = std::max(4, std::min(12, std::min(r.width, r.height) / 3));
+                cv::line(mat, cv::Point(r.x, r.y), cv::Point(r.x + cornerLen, r.y), bracketColor, 1, cv::LINE_AA);
+                cv::line(mat, cv::Point(r.x, r.y), cv::Point(r.x, r.y + cornerLen), bracketColor, 1, cv::LINE_AA);
+                cv::line(mat, cv::Point(r.x + r.width, r.y), cv::Point(r.x + r.width - cornerLen, r.y), bracketColor, 1,
+                    cv::LINE_AA);
+                cv::line(mat, cv::Point(r.x + r.width, r.y), cv::Point(r.x + r.width, r.y + cornerLen), bracketColor, 1,
+                    cv::LINE_AA);
+                cv::line(mat, cv::Point(r.x, r.y + r.height), cv::Point(r.x + cornerLen, r.y + r.height), bracketColor,
+                    1, cv::LINE_AA);
+                cv::line(mat, cv::Point(r.x, r.y + r.height), cv::Point(r.x, r.y + r.height - cornerLen), bracketColor,
+                    1, cv::LINE_AA);
+                cv::line(mat, cv::Point(r.x + r.width, r.y + r.height),
+                    cv::Point(r.x + r.width - cornerLen, r.y + r.height), bracketColor, 1, cv::LINE_AA);
+                cv::line(mat, cv::Point(r.x + r.width, r.y + r.height),
+                    cv::Point(r.x + r.width, r.y + r.height - cornerLen), bracketColor, 1, cv::LINE_AA);
+
+                const std::string tag = "T" + std::to_string(targetId);
+                cv::putText(mat, tag, cv::Point(r.x, std::max(10, r.y - 2)), cv::FONT_HERSHEY_PLAIN, 0.8, bracketColor,
+                    1, cv::LINE_AA);
+            }
+
+            targetId++;
+            if (static_cast<int>(newTargets.size()) >= m_maxTargets) {
+                break;
+            }
+        }
+    }
+
+    {
+        std::lock_guard<std::mutex> lock(m_impl->targetsMutex);
+        m_impl->targets = std::move(newTargets);
+    }
+}
+
+// -----------------------------------------------------------------------------
+// TacticalReticleOverlayFilter Implementation
+// -----------------------------------------------------------------------------
+TacticalReticleOverlayFilter::TacticalReticleOverlayFilter(Style style, Color color, int lineThickness, int deadbandGap)
+    : m_style(style)
+    , m_color(color)
+    , m_lineThickness(std::max(1, lineThickness))
+    , m_deadbandGap(std::max(2, deadbandGap))
+{
+}
+
+void TacticalReticleOverlayFilter::process(uint8_t* data, int width, int height, PixelFormat format)
+{
+    if (!data || width <= 0 || height <= 0 || (format != PixelFormat::RGB24 && format != PixelFormat::BGR24)) {
+        return;
+    }
+
+    cv::Mat mat(height, width, CV_8UC3, data);
+
+    cv::Scalar cvColor;
+    switch (m_color) {
+    case Color::Red:
+        cvColor = (format == PixelFormat::RGB24) ? cv::Scalar(255, 48, 48) : cv::Scalar(48, 48, 255);
+        break;
+    case Color::Amber:
+        cvColor = (format == PixelFormat::RGB24) ? cv::Scalar(255, 191, 0) : cv::Scalar(0, 191, 255);
+        break;
+    case Color::White:
+        cvColor = cv::Scalar(255, 255, 255);
+        break;
+    case Color::Cyan:
+        cvColor = (format == PixelFormat::RGB24) ? cv::Scalar(0, 255, 255) : cv::Scalar(255, 255, 0);
+        break;
+    case Color::TacticalGreen:
+    default:
+        cvColor = (format == PixelFormat::RGB24) ? cv::Scalar(0, 255, 64) : cv::Scalar(64, 255, 0);
+        break;
+    }
+
+    const int cx = width / 2;
+    const int cy = height / 2;
+    const int gap = m_deadbandGap;
+    const int thick = m_lineThickness;
+
+    if (m_style == Style::Crosshair) {
+        const int armLen = std::min(width, height) / 4;
+        cv::line(mat, cv::Point(cx - armLen, cy), cv::Point(cx - gap, cy), cvColor, thick, cv::LINE_AA);
+        cv::line(mat, cv::Point(cx + gap, cy), cv::Point(cx + armLen, cy), cvColor, thick, cv::LINE_AA);
+        cv::line(mat, cv::Point(cx, cy - armLen), cv::Point(cx, cy - gap), cvColor, thick, cv::LINE_AA);
+        cv::line(mat, cv::Point(cx, cy + gap), cv::Point(cx, cy + armLen), cvColor, thick, cv::LINE_AA);
+        cv::circle(mat, cv::Point(cx, cy), gap / 2, cvColor, thick, cv::LINE_AA);
+    } else if (m_style == Style::MilDot) {
+        const int armLen = std::min(width, height) / 3;
+        cv::line(mat, cv::Point(cx - armLen, cy), cv::Point(cx - gap, cy), cvColor, thick, cv::LINE_AA);
+        cv::line(mat, cv::Point(cx + gap, cy), cv::Point(cx + armLen, cy), cvColor, thick, cv::LINE_AA);
+        cv::line(mat, cv::Point(cx, cy - armLen), cv::Point(cx, cy - gap), cvColor, thick, cv::LINE_AA);
+        cv::line(mat, cv::Point(cx, cy + gap), cv::Point(cx, cy + armLen), cvColor, thick, cv::LINE_AA);
+
+        const int milSpacing = 20;
+        for (int d = gap + milSpacing; d <= armLen; d += milSpacing) {
+            cv::circle(mat, cv::Point(cx + d, cy), 2, cvColor, -1, cv::LINE_AA);
+            cv::circle(mat, cv::Point(cx - d, cy), 2, cvColor, -1, cv::LINE_AA);
+            cv::circle(mat, cv::Point(cx, cy + d), 2, cvColor, -1, cv::LINE_AA);
+            cv::circle(mat, cv::Point(cx, cy - d), 2, cvColor, -1, cv::LINE_AA);
+        }
+        cv::circle(mat, cv::Point(cx, cy), 2, cvColor, -1, cv::LINE_AA);
+    } else if (m_style == Style::Stadiametric) {
+        const int armLen = std::min(width, height) / 3;
+        cv::line(mat, cv::Point(cx - armLen, cy), cv::Point(cx + armLen, cy), cvColor, thick, cv::LINE_AA);
+        cv::line(mat, cv::Point(cx, cy - armLen), cv::Point(cx, cy + armLen), cvColor, thick, cv::LINE_AA);
+
+        const int tickSpacing = 16;
+        for (int i = 1; i <= 6; ++i) {
+            const int y = cy + i * tickSpacing;
+            const int tickW = 6 + i * 4;
+            cv::line(mat, cv::Point(cx - tickW, y), cv::Point(cx + tickW, y), cvColor, thick, cv::LINE_AA);
+        }
+    } else if (m_style == Style::CornerBrackets) {
+        const int margin = 20;
+        const int bracketLen = 30;
+        cv::line(mat, cv::Point(margin, margin), cv::Point(margin + bracketLen, margin), cvColor, thick, cv::LINE_AA);
+        cv::line(mat, cv::Point(margin, margin), cv::Point(margin, margin + bracketLen), cvColor, thick, cv::LINE_AA);
+        cv::line(mat, cv::Point(width - margin, margin), cv::Point(width - margin - bracketLen, margin), cvColor, thick,
+            cv::LINE_AA);
+        cv::line(mat, cv::Point(width - margin, margin), cv::Point(width - margin, margin + bracketLen), cvColor, thick,
+            cv::LINE_AA);
+        cv::line(mat, cv::Point(margin, height - margin), cv::Point(margin + bracketLen, height - margin), cvColor,
+            thick, cv::LINE_AA);
+        cv::line(mat, cv::Point(margin, height - margin), cv::Point(margin, height - margin - bracketLen), cvColor,
+            thick, cv::LINE_AA);
+        cv::line(mat, cv::Point(width - margin, height - margin),
+            cv::Point(width - margin - bracketLen, height - margin), cvColor, thick, cv::LINE_AA);
+        cv::line(mat, cv::Point(width - margin, height - margin),
+            cv::Point(width - margin, height - margin - bracketLen), cvColor, thick, cv::LINE_AA);
+
+        cv::line(mat, cv::Point(cx - 8, cy), cv::Point(cx + 8, cy), cvColor, thick, cv::LINE_AA);
+        cv::line(mat, cv::Point(cx, cy - 8), cv::Point(cx, cy + 8), cvColor, thick, cv::LINE_AA);
+    }
+}
+
 } // namespace PelcoD::Video
 
 #endif // PELCOD_HAS_FILTERS

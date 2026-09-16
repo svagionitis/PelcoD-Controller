@@ -120,6 +120,13 @@ private:
     QCheckBox* m_chkDenoise { nullptr };
     QCheckBox* m_chkSharpen { nullptr };
     QCheckBox* m_chkEdgeDetect { nullptr };
+    // Tactical & Thermal Analytics Controls
+    QCheckBox* m_chkIsotherm { nullptr };
+    QComboBox* m_comboIsothermPreset { nullptr };
+    QCheckBox* m_chkHotspotTracker { nullptr };
+    QCheckBox* m_chkMtiMotion { nullptr };
+    QCheckBox* m_chkReticleHud { nullptr };
+    QComboBox* m_comboReticleStyle { nullptr };
 #endif
 
     // Quick PTZ Controls
