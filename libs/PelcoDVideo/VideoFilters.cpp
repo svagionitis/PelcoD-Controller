@@ -1822,6 +1822,36 @@ struct CentroidTargetTrackerFilter::Impl {
     std::vector<cv::Point2f> trackedPoints;
     cv::Rect targetRect;
     int lostFrames { 0 };
+    int maxCoastFrames { 30 };
+    int lastWidth { 640 };
+    int lastHeight { 360 };
+
+    cv::KalmanFilter kalman;
+    bool kalmanInitialized { false };
+    float qPos { 1e-2f };
+    float qVel { 1e-1f };
+    float rPos { 1e-1f };
+
+    void initKalman(float initX, float initY)
+    {
+        kalman.init(4, 2, 0, CV_32F);
+        kalman.transitionMatrix = (cv::Mat_<float>(4, 4) << 1.0f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f, 1.0f, 0.0f, 0.0f,
+            1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f);
+
+        kalman.measurementMatrix = (cv::Mat_<float>(2, 4) << 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f);
+
+        cv::setIdentity(kalman.processNoiseCov, cv::Scalar::all(static_cast<double>(qPos)));
+        kalman.processNoiseCov.at<float>(2, 2) = qVel;
+        kalman.processNoiseCov.at<float>(3, 3) = qVel;
+
+        cv::setIdentity(kalman.measurementNoiseCov, cv::Scalar::all(static_cast<double>(rPos)));
+        cv::setIdentity(kalman.errorCovPost, cv::Scalar::all(1.0));
+        cv::setIdentity(kalman.errorCovPre, cv::Scalar::all(1.0));
+
+        kalman.statePost = (cv::Mat_<float>(4, 1) << initX, initY, 0.0f, 0.0f);
+        kalman.statePre = kalman.statePost.clone();
+        kalmanInitialized = true;
+    }
 };
 
 CentroidTargetTrackerFilter::CentroidTargetTrackerFilter(bool autoAcquire, int targetWidth, int targetHeight)
@@ -1846,11 +1876,16 @@ void CentroidTargetTrackerFilter::acquireTarget(int x, int y, int width, int hei
     m_impl->trackedPoints.clear();
     m_impl->lostFrames = 0;
     m_impl->state.locked = true;
+    m_impl->state.isCoasting = false;
     m_impl->state.x = x;
     m_impl->state.y = y;
     m_impl->state.width = width;
     m_impl->state.height = height;
     m_impl->state.confidence = 1.0;
+
+    const float cx = static_cast<float>(x) + static_cast<float>(width) / 2.0f;
+    const float cy = static_cast<float>(y) + static_cast<float>(height) / 2.0f;
+    m_impl->initKalman(cx, cy);
 }
 
 void CentroidTargetTrackerFilter::releaseTarget()
@@ -1862,6 +1897,7 @@ void CentroidTargetTrackerFilter::releaseTarget()
     m_impl->targetRect = cv::Rect();
     m_impl->trackedPoints.clear();
     m_impl->lostFrames = 0;
+    m_impl->kalmanInitialized = false;
     m_impl->state = TargetState();
 }
 
@@ -1874,13 +1910,66 @@ bool CentroidTargetTrackerFilter::isTargetLocked() const
     return m_impl->state.locked;
 }
 
-CentroidTargetTrackerFilter::TargetState CentroidTargetTrackerFilter::getTargetState() const
+CentroidTargetTrackerFilter::TargetState CentroidTargetTrackerFilter::getTargetState(
+    double lookaheadLatencySeconds) const
 {
     if (!m_impl) {
         return {};
     }
     std::lock_guard<std::mutex> lock(m_impl->stateMutex);
-    return m_impl->state;
+    TargetState copy = m_impl->state;
+
+    if (copy.locked) {
+        if (lookaheadLatencySeconds > 0.0 && m_impl->lastWidth > 0 && m_impl->lastHeight > 0) {
+            const double framesAhead = lookaheadLatencySeconds * 30.0;
+            const double predCx
+                = static_cast<double>(copy.x) + static_cast<double>(copy.width) / 2.0 + copy.vx * framesAhead;
+            const double predCy
+                = static_cast<double>(copy.y) + static_cast<double>(copy.height) / 2.0 + copy.vy * framesAhead;
+            const double halfW = static_cast<double>(m_impl->lastWidth) / 2.0;
+            const double halfH = static_cast<double>(m_impl->lastHeight) / 2.0;
+            copy.predictedErrorX = (predCx - halfW) / halfW;
+            copy.predictedErrorY = (predCy - halfH) / halfH;
+        } else {
+            copy.predictedErrorX = copy.errorX;
+            copy.predictedErrorY = copy.errorY;
+        }
+    }
+    return copy;
+}
+
+void CentroidTargetTrackerFilter::setMaxCoastFrames(int frames) noexcept
+{
+    if (m_impl) {
+        std::lock_guard<std::mutex> lock(m_impl->stateMutex);
+        m_impl->maxCoastFrames = std::max(0, frames);
+    }
+}
+
+int CentroidTargetTrackerFilter::getMaxCoastFrames() const noexcept
+{
+    if (m_impl) {
+        std::lock_guard<std::mutex> lock(m_impl->stateMutex);
+        return m_impl->maxCoastFrames;
+    }
+    return 30;
+}
+
+void CentroidTargetTrackerFilter::setProcessNoise(double qPos, double qVel) noexcept
+{
+    if (m_impl) {
+        std::lock_guard<std::mutex> lock(m_impl->stateMutex);
+        m_impl->qPos = static_cast<float>(std::max(1e-6, qPos));
+        m_impl->qVel = static_cast<float>(std::max(1e-6, qVel));
+    }
+}
+
+void CentroidTargetTrackerFilter::setMeasurementNoise(double rPos) noexcept
+{
+    if (m_impl) {
+        std::lock_guard<std::mutex> lock(m_impl->stateMutex);
+        m_impl->rPos = static_cast<float>(std::max(1e-6, rPos));
+    }
 }
 
 void CentroidTargetTrackerFilter::process(uint8_t* data, int width, int height, PixelFormat format)
@@ -1896,7 +1985,18 @@ void CentroidTargetTrackerFilter::process(uint8_t* data, int width, int height, 
     cv::cvtColor(mat, gray, convCode);
 
     std::lock_guard<std::mutex> lock(m_impl->stateMutex);
+    m_impl->lastWidth = width;
+    m_impl->lastHeight = height;
 
+    // Kalman prediction step
+    cv::Mat prediction;
+    if (m_impl->kalmanInitialized) {
+        prediction = m_impl->kalman.predict();
+    }
+
+    bool justAcquired = false;
+
+    // Auto-acquire when unlocked
     if (!m_impl->state.locked && m_autoAcquire && !m_impl->prevGray.empty()) {
         cv::Mat diff;
         cv::absdiff(m_impl->prevGray, gray, diff);
@@ -1916,17 +2016,24 @@ void CentroidTargetTrackerFilter::process(uint8_t* data, int width, int height, 
         if (maxArea > 200.0) {
             m_impl->targetRect = bestRect;
             m_impl->state.locked = true;
+            m_impl->state.isCoasting = false;
             m_impl->state.confidence = 1.0;
             m_impl->trackedPoints.clear();
             m_impl->lostFrames = 0;
+            const float cx = static_cast<float>(bestRect.x) + static_cast<float>(bestRect.width) / 2.0f;
+            const float cy = static_cast<float>(bestRect.y) + static_cast<float>(bestRect.height) / 2.0f;
+            m_impl->initKalman(cx, cy);
+            justAcquired = true;
         }
     }
 
-    if (m_impl->state.locked && !m_impl->prevGray.empty()) {
-        if (m_impl->trackedPoints.empty()) {
+    // Tracking step
+    if (m_impl->state.locked) {
+        if (justAcquired) {
+            // Seed initial tracked points on current frame for subsequent optical flow
             const cv::Rect bounded = m_impl->targetRect & cv::Rect(0, 0, width, height);
             if (bounded.width >= 10 && bounded.height >= 10) {
-                cv::Mat roi = m_impl->prevGray(bounded);
+                cv::Mat roi = gray(bounded);
                 std::vector<cv::Point2f> pts;
                 cv::goodFeaturesToTrack(roi, pts, 25, 0.01, 5.0);
                 for (const auto& p : pts) {
@@ -1934,43 +2041,102 @@ void CentroidTargetTrackerFilter::process(uint8_t* data, int width, int height, 
                         cv::Point2f(p.x + static_cast<float>(bounded.x), p.y + static_cast<float>(bounded.y)));
                 }
             }
-        }
+        } else if (!m_impl->prevGray.empty()) {
+            bool trackedSuccessfully = false;
 
-        if (!m_impl->trackedPoints.empty()) {
-            std::vector<cv::Point2f> nextPts;
-            std::vector<uchar> status;
-            std::vector<float> err;
-            cv::calcOpticalFlowPyrLK(m_impl->prevGray, gray, m_impl->trackedPoints, nextPts, status, err);
-
-            std::vector<cv::Point2f> goodNext;
-            cv::Point2f meanShift(0.0f, 0.0f);
-            for (std::size_t i = 0U; i < status.size(); ++i) {
-                if (status[i]) {
-                    goodNext.push_back(nextPts[i]);
-                    meanShift += (nextPts[i] - m_impl->trackedPoints[i]);
+            if (m_impl->trackedPoints.empty() && !m_impl->state.isCoasting) {
+                const cv::Rect bounded = m_impl->targetRect & cv::Rect(0, 0, width, height);
+                if (bounded.width >= 10 && bounded.height >= 10) {
+                    cv::Mat roi = m_impl->prevGray(bounded);
+                    std::vector<cv::Point2f> pts;
+                    cv::goodFeaturesToTrack(roi, pts, 25, 0.01, 5.0);
+                    for (const auto& p : pts) {
+                        m_impl->trackedPoints.push_back(
+                            cv::Point2f(p.x + static_cast<float>(bounded.x), p.y + static_cast<float>(bounded.y)));
+                    }
                 }
             }
 
-            if (!goodNext.empty()) {
-                meanShift.x /= static_cast<float>(goodNext.size());
-                meanShift.y /= static_cast<float>(goodNext.size());
+            if (!m_impl->trackedPoints.empty() && !m_impl->state.isCoasting) {
+                std::vector<cv::Point2f> nextPts;
+                std::vector<uchar> status;
+                std::vector<float> err;
+                cv::calcOpticalFlowPyrLK(m_impl->prevGray, gray, m_impl->trackedPoints, nextPts, status, err);
 
-                m_impl->targetRect.x = std::max(0,
-                    std::min(width - m_impl->targetRect.width,
-                        static_cast<int>(std::round(static_cast<float>(m_impl->targetRect.x) + meanShift.x))));
-                m_impl->targetRect.y = std::max(0,
-                    std::min(height - m_impl->targetRect.height,
-                        static_cast<int>(std::round(static_cast<float>(m_impl->targetRect.y) + meanShift.y))));
-                m_impl->trackedPoints = goodNext;
-                m_impl->state.vx = static_cast<double>(meanShift.x);
-                m_impl->state.vy = static_cast<double>(meanShift.y);
-                m_impl->state.confidence = std::min(1.0, static_cast<double>(goodNext.size()) / 15.0);
-                m_impl->lostFrames = 0;
-            } else {
+                std::vector<cv::Point2f> goodNext;
+                cv::Point2f meanShift(0.0f, 0.0f);
+                for (std::size_t i = 0U; i < status.size(); ++i) {
+                    if (status[i]) {
+                        goodNext.push_back(nextPts[i]);
+                        meanShift += (nextPts[i] - m_impl->trackedPoints[i]);
+                    }
+                }
+
+                if (!goodNext.empty()) {
+                    trackedSuccessfully = true;
+                    meanShift.x /= static_cast<float>(goodNext.size());
+                    meanShift.y /= static_cast<float>(goodNext.size());
+
+                    const float measCenterX = static_cast<float>(m_impl->targetRect.x)
+                        + static_cast<float>(m_impl->targetRect.width) / 2.0f + meanShift.x;
+                    const float measCenterY = static_cast<float>(m_impl->targetRect.y)
+                        + static_cast<float>(m_impl->targetRect.height) / 2.0f + meanShift.y;
+
+                    if (m_impl->kalmanInitialized) {
+                        cv::Mat measurement = (cv::Mat_<float>(2, 1) << measCenterX, measCenterY);
+                        cv::Mat estimated = m_impl->kalman.correct(measurement);
+                        const float estCenterX = estimated.at<float>(0);
+                        const float estCenterY = estimated.at<float>(1);
+                        m_impl->state.vx = static_cast<double>(estimated.at<float>(2));
+                        m_impl->state.vy = static_cast<double>(estimated.at<float>(3));
+
+                        m_impl->targetRect.x = std::clamp(static_cast<int>(std::round(estCenterX
+                                                              - static_cast<float>(m_impl->targetRect.width) / 2.0f)),
+                            0, width - m_impl->targetRect.width);
+                        m_impl->targetRect.y = std::clamp(static_cast<int>(std::round(estCenterY
+                                                              - static_cast<float>(m_impl->targetRect.height) / 2.0f)),
+                            0, height - m_impl->targetRect.height);
+                    } else {
+                        m_impl->targetRect.x = std::clamp(
+                            static_cast<int>(std::round(static_cast<float>(m_impl->targetRect.x) + meanShift.x)), 0,
+                            width - m_impl->targetRect.width);
+                        m_impl->targetRect.y = std::clamp(
+                            static_cast<int>(std::round(static_cast<float>(m_impl->targetRect.y) + meanShift.y)), 0,
+                            height - m_impl->targetRect.height);
+                        m_impl->state.vx = static_cast<double>(meanShift.x);
+                        m_impl->state.vy = static_cast<double>(meanShift.y);
+                    }
+
+                    m_impl->trackedPoints = goodNext;
+                    m_impl->state.confidence = std::min(1.0, static_cast<double>(goodNext.size()) / 15.0);
+                    m_impl->lostFrames = 0;
+                    m_impl->state.isCoasting = false;
+                }
+            }
+
+            if (!trackedSuccessfully) {
+                // Optical flow lost features: occlusion coasting via Kalman prediction
                 m_impl->lostFrames++;
-                m_impl->state.confidence *= 0.8;
-                if (m_impl->lostFrames > 10) {
+                if (m_impl->lostFrames <= m_impl->maxCoastFrames && m_impl->kalmanInitialized && !prediction.empty()) {
+                    const float predCenterX = prediction.at<float>(0);
+                    const float predCenterY = prediction.at<float>(1);
+                    m_impl->state.vx = static_cast<double>(prediction.at<float>(2));
+                    m_impl->state.vy = static_cast<double>(prediction.at<float>(3));
+
+                    m_impl->targetRect.x = std::clamp(
+                        static_cast<int>(std::round(predCenterX - static_cast<float>(m_impl->targetRect.width) / 2.0f)),
+                        0, width - m_impl->targetRect.width);
+                    m_impl->targetRect.y = std::clamp(static_cast<int>(std::round(predCenterY
+                                                          - static_cast<float>(m_impl->targetRect.height) / 2.0f)),
+                        0, height - m_impl->targetRect.height);
+                    m_impl->state.isCoasting = true;
+                    m_impl->state.confidence = std::max(0.05,
+                        1.0 - static_cast<double>(m_impl->lostFrames) / static_cast<double>(m_impl->maxCoastFrames));
+                    m_impl->trackedPoints.clear();
+                } else if (m_impl->lostFrames > m_impl->maxCoastFrames) {
                     m_impl->state.locked = false;
+                    m_impl->state.isCoasting = false;
+                    m_impl->kalmanInitialized = false;
                     m_impl->targetRect = cv::Rect();
                 }
             }
@@ -1993,10 +2159,20 @@ void CentroidTargetTrackerFilter::process(uint8_t* data, int width, int height, 
         const double halfH = static_cast<double>(height) / 2.0;
         m_impl->state.errorX = (cx - halfW) / halfW;
         m_impl->state.errorY = (cy - halfH) / halfH;
+        m_impl->state.predictedErrorX = m_impl->state.errorX;
+        m_impl->state.predictedErrorY = m_impl->state.errorY;
 
-        const cv::Scalar lockColor = (m_impl->state.confidence > 0.5)
-            ? ((format == PixelFormat::RGB24) ? cv::Scalar(0, 255, 64) : cv::Scalar(64, 255, 0))
-            : ((format == PixelFormat::RGB24) ? cv::Scalar(255, 200, 0) : cv::Scalar(0, 200, 255));
+        cv::Scalar lockColor;
+        if (m_impl->state.isCoasting) {
+            lockColor
+                = (format == PixelFormat::RGB24) ? cv::Scalar(255, 165, 0) : cv::Scalar(0, 165, 255); // Amber Coasting
+        } else if (m_impl->state.confidence > 0.5) {
+            lockColor
+                = (format == PixelFormat::RGB24) ? cv::Scalar(0, 255, 64) : cv::Scalar(64, 255, 0); // Green Locked
+        } else {
+            lockColor
+                = (format == PixelFormat::RGB24) ? cv::Scalar(255, 200, 0) : cv::Scalar(0, 200, 255); // Yellow Low Conf
+        }
 
         const cv::Rect r = m_impl->targetRect;
         cv::rectangle(mat, r, lockColor, 2, cv::LINE_AA);
@@ -2005,8 +2181,20 @@ void CentroidTargetTrackerFilter::process(uint8_t* data, int width, int height, 
         cv::line(mat, cv::Point(r.x + r.width / 2, r.y + r.height / 2 - 4),
             cv::Point(r.x + r.width / 2, r.y + r.height / 2 + 4), lockColor, 1);
 
-        const std::string tag = "LOCK [dX:" + std::to_string(static_cast<int>(m_impl->state.errorX * 100.0))
-            + "% dY:" + std::to_string(static_cast<int>(m_impl->state.errorY * 100.0)) + "%]";
+        // Velocity vector projection
+        const cv::Point centerPt(r.x + r.width / 2, r.y + r.height / 2);
+        const cv::Point arrowEnd(centerPt.x + static_cast<int>(std::round(m_impl->state.vx * 4.0)),
+            centerPt.y + static_cast<int>(std::round(m_impl->state.vy * 4.0)));
+        cv::arrowedLine(mat, centerPt, arrowEnd, lockColor, 1, cv::LINE_AA, 0, 0.3);
+
+        std::string tag;
+        if (m_impl->state.isCoasting) {
+            tag = "COASTING [dX:" + std::to_string(static_cast<int>(m_impl->state.errorX * 100.0))
+                + "% dY:" + std::to_string(static_cast<int>(m_impl->state.errorY * 100.0)) + "%]";
+        } else {
+            tag = "LOCK [dX:" + std::to_string(static_cast<int>(m_impl->state.errorX * 100.0))
+                + "% dY:" + std::to_string(static_cast<int>(m_impl->state.errorY * 100.0)) + "%]";
+        }
         cv::putText(
             mat, tag, cv::Point(r.x, std::max(12, r.y - 4)), cv::FONT_HERSHEY_PLAIN, 0.8, lockColor, 1, cv::LINE_AA);
     }

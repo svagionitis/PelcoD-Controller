@@ -298,6 +298,13 @@ void VideoStreamTab::setupUi()
     m_chkTargetLock = new QCheckBox(tr("Visual Target Lock"), visionGroup);
     visionLayout->addWidget(m_chkTargetLock);
 
+    m_chkAutoFollowPtz = new QCheckBox(tr("Auto-Follow PTZ (PID)"), visionGroup);
+    m_chkAutoFollowPtz->setToolTip(tr("Enables closed-loop PID PTZ auto-tracking with Kalman motion estimation"));
+    visionLayout->addWidget(m_chkAutoFollowPtz);
+
+    m_autoTracker = std::make_unique<PelcoD::PtzAutoTracker>();
+    m_autoFollowTimer = new QTimer(this);
+
     auto* tripLayout = new QHBoxLayout();
     m_chkTripwire = new QCheckBox(tr("Perimeter Tripwire"), visionGroup);
     m_comboTripwireDir = new QComboBox(visionGroup);
@@ -415,42 +422,58 @@ void VideoStreamTab::setupUi()
 
     // Connect D-Pad buttons
     auto getSpeed = [this]() -> std::uint8_t { return static_cast<std::uint8_t>(m_speedSlider->value()); };
+    auto cancelAutoFollow = [this]() {
+#if defined(PELCOD_HAS_FILTERS)
+        if (m_chkAutoFollowPtz && m_chkAutoFollowPtz->isChecked()) {
+            m_chkAutoFollowPtz->setChecked(false);
+        }
+#endif
+    };
 
-    connect(btnUp, &QPushButton::pressed, this, [this, getSpeed]() {
+    connect(btnUp, &QPushButton::pressed, this, [this, getSpeed, cancelAutoFollow]() {
+        cancelAutoFollow();
         if (m_device)
             m_device->tiltUp(getSpeed());
     });
-    connect(btnDown, &QPushButton::pressed, this, [this, getSpeed]() {
+    connect(btnDown, &QPushButton::pressed, this, [this, getSpeed, cancelAutoFollow]() {
+        cancelAutoFollow();
         if (m_device)
             m_device->tiltDown(getSpeed());
     });
-    connect(btnLeft, &QPushButton::pressed, this, [this, getSpeed]() {
+    connect(btnLeft, &QPushButton::pressed, this, [this, getSpeed, cancelAutoFollow]() {
+        cancelAutoFollow();
         if (m_device)
             m_device->panLeft(getSpeed());
     });
-    connect(btnRight, &QPushButton::pressed, this, [this, getSpeed]() {
+    connect(btnRight, &QPushButton::pressed, this, [this, getSpeed, cancelAutoFollow]() {
+        cancelAutoFollow();
         if (m_device)
             m_device->panRight(getSpeed());
     });
 
-    connect(btnUpLeft, &QPushButton::pressed, this, [this, getSpeed]() {
+    connect(btnUpLeft, &QPushButton::pressed, this, [this, getSpeed, cancelAutoFollow]() {
+        cancelAutoFollow();
         if (m_device)
             m_device->move(-1, getSpeed(), 1, getSpeed());
     });
-    connect(btnUpRight, &QPushButton::pressed, this, [this, getSpeed]() {
+    connect(btnUpRight, &QPushButton::pressed, this, [this, getSpeed, cancelAutoFollow]() {
+        cancelAutoFollow();
         if (m_device)
             m_device->move(1, getSpeed(), 1, getSpeed());
     });
-    connect(btnDownLeft, &QPushButton::pressed, this, [this, getSpeed]() {
+    connect(btnDownLeft, &QPushButton::pressed, this, [this, getSpeed, cancelAutoFollow]() {
+        cancelAutoFollow();
         if (m_device)
             m_device->move(-1, getSpeed(), -1, getSpeed());
     });
-    connect(btnDownRight, &QPushButton::pressed, this, [this, getSpeed]() {
+    connect(btnDownRight, &QPushButton::pressed, this, [this, getSpeed, cancelAutoFollow]() {
+        cancelAutoFollow();
         if (m_device)
             m_device->move(1, getSpeed(), -1, getSpeed());
     });
 
-    connect(btnStop, &QPushButton::clicked, this, [this]() {
+    connect(btnStop, &QPushButton::clicked, this, [this, cancelAutoFollow]() {
+        cancelAutoFollow();
         if (m_device)
             m_device->stopMotion();
     });
@@ -540,6 +563,31 @@ void VideoStreamTab::setupConnections()
     connect(m_chkPictureInPicture, &QCheckBox::toggled, this, &VideoStreamTab::onFilterConfigurationChanged);
     connect(m_comboPipMode, QOverload<int>::of(&QComboBox::currentIndexChanged), this,
         &VideoStreamTab::onFilterConfigurationChanged);
+
+    connect(m_autoFollowTimer, &QTimer::timeout, this, &VideoStreamTab::onAutoFollowTick);
+    connect(m_chkAutoFollowPtz, &QCheckBox::toggled, this, [this](bool checked) {
+        if (checked) {
+            if (m_chkTargetLock && !m_chkTargetLock->isChecked()) {
+                m_chkTargetLock->setChecked(true);
+            }
+            if (m_autoTracker) {
+                m_autoTracker->reset();
+            }
+            if (m_autoFollowTimer && !m_autoFollowTimer->isActive()) {
+                m_autoFollowTimer->start(40); // 25 Hz update rate
+            }
+        } else {
+            if (m_autoFollowTimer && m_autoFollowTimer->isActive()) {
+                m_autoFollowTimer->stop();
+            }
+            if (m_device) {
+                m_device->stopMotion();
+            }
+            if (m_autoTracker) {
+                m_autoTracker->reset();
+            }
+        }
+    });
 #endif
 
     // Worker signals to Overlay Widget
@@ -795,6 +843,11 @@ void VideoStreamTab::handleRttStatsUpdated(double avgRttMs, double jitterMs)
 void VideoStreamTab::handleOverlayPanTiltRequested(
     int panSpeed, int tiltSpeed, bool left, bool right, bool up, bool down)
 {
+#if defined(PELCOD_HAS_FILTERS)
+    if (m_chkAutoFollowPtz && m_chkAutoFollowPtz->isChecked()) {
+        m_chkAutoFollowPtz->setChecked(false);
+    }
+#endif
     if (!m_device)
         return;
     int panDir = 0;
@@ -951,9 +1004,15 @@ void VideoStreamTab::onFilterConfigurationChanged()
         m_worker->addFrameProcessor(std::make_shared<PelcoD::Video::OpticalFlowFieldFilter>(mode, 16, 1.5, 2.0));
     }
 
-    // 16. Visual Target Lock-On & Boresight Offset Tracker
+    // 16. Visual Target Lock-On & Boresight Offset Tracker (Kalman State Estimation)
     if (m_chkTargetLock != nullptr && m_chkTargetLock->isChecked()) {
-        m_worker->addFrameProcessor(std::make_shared<PelcoD::Video::CentroidTargetTrackerFilter>(true, 40, 40));
+        m_targetTracker = std::make_shared<PelcoD::Video::CentroidTargetTrackerFilter>(true, 40, 40);
+        m_worker->addFrameProcessor(m_targetTracker);
+    } else {
+        m_targetTracker.reset();
+        if (m_chkAutoFollowPtz && m_chkAutoFollowPtz->isChecked()) {
+            m_chkAutoFollowPtz->setChecked(false);
+        }
     }
 
     // 17. Perimeter Tripwire Intrusion Detection
@@ -1008,6 +1067,29 @@ void VideoStreamTab::onFilterConfigurationChanged()
     if (m_chkForensicWatermark != nullptr && m_chkForensicWatermark->isChecked()) {
         m_worker->addFrameProcessor(std::make_shared<PelcoD::Video::TimestampWatermarkFilter>(
             PelcoD::Video::TimestampWatermarkFilter::Position::TopLeft, "CAM-01 [PTZ]", true, true));
+    }
+}
+
+void VideoStreamTab::onAutoFollowTick()
+{
+    if (!m_chkAutoFollowPtz || !m_chkAutoFollowPtz->isChecked() || !m_targetTracker || !m_device) {
+        if (m_autoTracker) {
+            m_autoTracker->reset();
+        }
+        return;
+    }
+
+    // Query Kalman-filtered target state with 100ms lookahead to compensate for latency
+    const auto state = m_targetTracker->getTargetState(0.10);
+    const double dt = 0.04; // 25 Hz update rate (40 ms)
+
+    const auto cmd = m_autoTracker->update(
+        state.predictedErrorX, state.predictedErrorY, state.vx, state.vy, state.locked, state.isCoasting, dt);
+
+    if (cmd.shouldMove) {
+        m_device->move(cmd.panDirection, cmd.panSpeed, cmd.tiltDirection, cmd.tiltSpeed);
+    } else if (cmd.state == PelcoD::PtzAutoTracker::TrackingState::Lost || !cmd.shouldMove) {
+        m_device->stopMotion();
     }
 }
 #endif

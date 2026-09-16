@@ -1340,6 +1340,9 @@ public:
         double vy { 0.0 }; ///< Target velocity Y in px/frame
         double confidence { 0.0 }; ///< Tracking confidence (0.0 to 1.0)
         bool locked { false };
+        bool isCoasting { false }; ///< True if target is temporarily occluded and coasting on prediction
+        double predictedErrorX { 0.0 }; ///< Latency-compensated predicted boresight error X
+        double predictedErrorY { 0.0 }; ///< Latency-compensated predicted boresight error Y
     };
 
     CentroidTargetTrackerFilter(bool autoAcquire = true, int targetWidth = 40, int targetHeight = 40);
@@ -1365,7 +1368,12 @@ public:
     void releaseTarget();
 
     bool isTargetLocked() const;
-    TargetState getTargetState() const;
+    TargetState getTargetState(double lookaheadLatencySeconds = 0.0) const;
+
+    void setMaxCoastFrames(int frames) noexcept;
+    int getMaxCoastFrames() const noexcept;
+    void setProcessNoise(double qPos, double qVel) noexcept;
+    void setMeasurementNoise(double rPos) noexcept;
 
 private:
     bool m_autoAcquire;

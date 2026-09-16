@@ -39,6 +39,10 @@ add_library(PelcoDCore STATIC
     FujinonParser.cpp
     FujinonSX800Device.h
     FujinonSX800Device.cpp
+    PidController.h
+    PidController.cpp
+    PtzAutoTracker.h
+    PtzAutoTracker.cpp
 )
 
 target_include_directories(PelcoDCore PUBLIC

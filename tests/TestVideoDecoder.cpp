@@ -1121,6 +1121,11 @@ void TestVideoDecoder::testCentroidTargetTrackerFilter()
     };
 
     tracker.setAutoAcquire(true);
+    tracker.setMaxCoastFrames(15);
+    QCOMPARE(tracker.getMaxCoastFrames(), 15);
+    tracker.setProcessNoise(0.01, 0.1);
+    tracker.setMeasurementNoise(0.1);
+
     auto f1 = createFrameWithBox(20, 20);
     tracker.process(f1.data(), w, h, PixelFormat::RGB24);
 
@@ -1131,6 +1136,31 @@ void TestVideoDecoder::testCentroidTargetTrackerFilter()
     tracker.process(f3.data(), w, h, PixelFormat::RGB24);
 
     QVERIFY(!f3.empty());
+    auto trackedState = tracker.getTargetState();
+    QVERIFY(trackedState.locked);
+    QVERIFY(!trackedState.isCoasting);
+    QVERIFY(trackedState.vx > 0.0);
+    QVERIFY(trackedState.vy > 0.0);
+
+    // Test Latency Lookahead Prediction
+    auto lookaheadState = tracker.getTargetState(0.10);
+    QVERIFY(lookaheadState.predictedErrorX > lookaheadState.errorX);
+    QVERIFY(lookaheadState.predictedErrorY > lookaheadState.errorY);
+
+    // Test Occlusion Coasting: Target disappears behind obstacle
+    std::vector<std::uint8_t> blankFrame(static_cast<std::size_t>(w * h * 3), 50U);
+    tracker.process(blankFrame.data(), w, h, PixelFormat::RGB24);
+
+    auto coastState = tracker.getTargetState();
+    QVERIFY(coastState.locked);
+    QVERIFY(coastState.isCoasting);
+    QVERIFY(coastState.x >= trackedState.x); // Kalman continues predictive trajectory
+
+    // Feed blank frames exceeding maxCoastFrames (15 frames) -> Lock must be gracefully released
+    for (int i = 0; i < 20; ++i) {
+        tracker.process(blankFrame.data(), w, h, PixelFormat::RGB24);
+    }
+    QVERIFY(!tracker.isTargetLocked());
 }
 
 void TestVideoDecoder::testPerimeterTripwireFilter()

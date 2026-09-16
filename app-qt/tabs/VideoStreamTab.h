@@ -5,6 +5,7 @@
 
 #include "DeviceStatus.h"
 #include "FujinonTypes.h"
+#include "PtzAutoTracker.h"
 #include "QPelcoDDevice.h"
 #include "QVideoStreamWorker.h"
 #include "app-qt/widgets/VideoOverlayWidget.h"
@@ -16,8 +17,13 @@
 #include <QLineEdit>
 #include <QPushButton>
 #include <QSlider>
+#include <QTimer>
 #include <QVBoxLayout>
 #include <QWidget>
+
+namespace PelcoD::Video {
+class CentroidTargetTrackerFilter;
+}
 
 namespace PelcoDApp {
 
@@ -61,6 +67,7 @@ private slots:
     void onWorkerStatsUpdated(double fps, double avgDecodeMs);
 #if defined(PELCOD_HAS_FILTERS)
     void onFilterConfigurationChanged();
+    void onAutoFollowTick();
 #endif
 
     // Interactive PTZ handling
@@ -131,9 +138,13 @@ private:
     QCheckBox* m_chkOpticalFlow { nullptr };
     QComboBox* m_comboFlowMode { nullptr };
     QCheckBox* m_chkTargetLock { nullptr };
+    QCheckBox* m_chkAutoFollowPtz { nullptr };
     QCheckBox* m_chkTripwire { nullptr };
     QComboBox* m_comboTripwireDir { nullptr };
     QCheckBox* m_chkHeatmap { nullptr };
+    QTimer* m_autoFollowTimer { nullptr };
+    std::unique_ptr<PelcoD::PtzAutoTracker> m_autoTracker;
+    std::shared_ptr<PelcoD::Video::CentroidTargetTrackerFilter> m_targetTracker;
     // Privacy & Operational Overlays Controls
     QCheckBox* m_chkPrivacyMask { nullptr };
     QComboBox* m_comboPrivacyMode { nullptr };
