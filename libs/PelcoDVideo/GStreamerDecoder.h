@@ -7,6 +7,7 @@
 #include "IVideoDecoder.h"
 
 #include <memory>
+#include <mutex>
 #include <string>
 #include <vector>
 
@@ -129,6 +130,7 @@ private:
     std::string getBusErrorMessage();
     bool reconnect();
 
+    mutable std::mutex m_processorMutex;
     std::vector<std::shared_ptr<IFrameProcessor>> m_processors;
 
     GstElementPtr m_pipeline;

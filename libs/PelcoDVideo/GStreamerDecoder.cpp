@@ -257,7 +257,12 @@ bool GStreamerDecoder::decodeNextFrame()
             std::memcpy(m_rgbBuffer.data(), map.data(), copyBytes);
 
             // Apply registered frame processors in-place
-            for (auto& processor : m_processors) {
+            std::vector<std::shared_ptr<IFrameProcessor>> processors;
+            {
+                std::lock_guard<std::mutex> lock(m_processorMutex);
+                processors = m_processors;
+            }
+            for (auto& processor : processors) {
                 if (processor) {
                     processor->process(m_rgbBuffer.data(), m_width, m_height, m_outputFormat);
                 }
@@ -370,12 +375,14 @@ bool GStreamerDecoder::isTripleBufferingEnabled() const
 void GStreamerDecoder::addFrameProcessor(std::shared_ptr<IFrameProcessor> processor)
 {
     if (processor) {
+        std::lock_guard<std::mutex> lock(m_processorMutex);
         m_processors.push_back(processor);
     }
 }
 
 void GStreamerDecoder::clearFrameProcessors()
 {
+    std::lock_guard<std::mutex> lock(m_processorMutex);
     m_processors.clear();
 }
 

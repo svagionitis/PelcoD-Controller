@@ -12,6 +12,10 @@
 #include <QSplitter>
 #include <QStandardPaths>
 
+#if defined(PELCOD_HAS_FILTERS)
+#include "VideoFilters.h"
+#endif
+
 namespace PelcoDApp {
 
 VideoStreamTab::VideoStreamTab(PelcoDQt::QPelcoDDevice* device, QWidget* parent)
@@ -61,7 +65,8 @@ void VideoStreamTab::setupUi()
     m_sourceCombo = new QComboBox(m_rtspContainer);
     m_sourceCombo->setEditable(true);
     m_sourceCombo->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
-    m_sourceCombo->addItem(QStringLiteral("rtsp://admin:admin@192.168.1.108:554/cam/realmonitor?channel=1&subtype=0"), tr("Preset: Fujinon SX800 RTSP"));
+    m_sourceCombo->addItem(QStringLiteral("rtsp://admin:admin@192.168.1.108:554/cam/realmonitor?channel=1&subtype=0"),
+        tr("Preset: Fujinon SX800 RTSP"));
     m_sourceCombo->addItem(QStringLiteral("rtsp://192.168.1.100:554/stream1"), tr("Preset: Camera 1 RTSP"));
     rtspLayout->addWidget(m_sourceCombo);
     topLayout->addWidget(m_rtspContainer, 1);
@@ -118,7 +123,8 @@ void VideoStreamTab::setupUi()
     topLayout->addWidget(m_backendCombo);
 
     m_btnConnect = new QPushButton(tr("Connect"), this);
-    m_btnConnect->setStyleSheet("QPushButton { font-weight: bold; background-color: #2E7D32; color: white; padding: 4px 12px; border-radius: 3px; }"
+    m_btnConnect->setStyleSheet("QPushButton { font-weight: bold; background-color: #2E7D32; color: white; padding: "
+                                "4px 12px; border-radius: 3px; }"
                                 "QPushButton:hover { background-color: #388E3C; }");
     topLayout->addWidget(m_btnConnect);
 
@@ -191,6 +197,45 @@ void VideoStreamTab::setupUi()
 
     sideLayout->addWidget(hudGroup);
 
+#if defined(PELCOD_HAS_FILTERS)
+    // Group: Tactical Vision & Image Enhancement
+    auto* visionGroup = new QGroupBox(tr("Tactical Image Enhancement"), sidePanel);
+    auto* visionLayout = new QVBoxLayout(visionGroup);
+    visionLayout->setSpacing(4);
+
+    visionLayout->addWidget(new QLabel(tr("Thermal / False Color:"), visionGroup));
+    m_comboPalette = new QComboBox(visionGroup);
+    m_comboPalette->addItem(tr("Off (Natural Colors)"), -1);
+    m_comboPalette->addItem(tr("White Hot (Grayscale)"), static_cast<int>(PelcoD::Video::FalseColorPalette::WhiteHot));
+    m_comboPalette->addItem(tr("Black Hot (Inverted)"), static_cast<int>(PelcoD::Video::FalseColorPalette::BlackHot));
+    m_comboPalette->addItem(tr("Iron256 (Thermal Iron)"), static_cast<int>(PelcoD::Video::FalseColorPalette::Iron256));
+    m_comboPalette->addItem(tr("Jet (Rainbow Spectrum)"), static_cast<int>(PelcoD::Video::FalseColorPalette::Jet));
+    m_comboPalette->addItem(
+        tr("Turbo (High Dynamic Range)"), static_cast<int>(PelcoD::Video::FalseColorPalette::Turbo));
+    m_comboPalette->addItem(tr("Rainbow"), static_cast<int>(PelcoD::Video::FalseColorPalette::Rainbow));
+    m_comboPalette->addItem(tr("Hot-Cold"), static_cast<int>(PelcoD::Video::FalseColorPalette::HotCold));
+    m_comboPalette->addItem(tr("Ice-Fire"), static_cast<int>(PelcoD::Video::FalseColorPalette::IceFire));
+    m_comboPalette->addItem(tr("Bone"), static_cast<int>(PelcoD::Video::FalseColorPalette::Bone));
+    visionLayout->addWidget(m_comboPalette);
+
+    m_chkLapHaze = new QCheckBox(tr("Fog / Haze Penetration (LAP)"), visionGroup);
+    visionLayout->addWidget(m_chkLapHaze);
+
+    m_chkClahe = new QCheckBox(tr("Adaptive Contrast (CLAHE)"), visionGroup);
+    visionLayout->addWidget(m_chkClahe);
+
+    m_chkDenoise = new QCheckBox(tr("Heat Shimmer Denoise"), visionGroup);
+    visionLayout->addWidget(m_chkDenoise);
+
+    m_chkSharpen = new QCheckBox(tr("Acuity Sharpening"), visionGroup);
+    visionLayout->addWidget(m_chkSharpen);
+
+    m_chkEdgeDetect = new QCheckBox(tr("Canny Edge Outlines"), visionGroup);
+    visionLayout->addWidget(m_chkEdgeDetect);
+
+    sideLayout->addWidget(visionGroup);
+#endif
+
     // Group 2: Quick PTZ Keypad
     auto* ptzGroup = new QGroupBox(tr("Quick Camera Control"), sidePanel);
     auto* ptzLayout = new QVBoxLayout(ptzGroup);
@@ -253,34 +298,71 @@ void VideoStreamTab::setupUi()
     mainLayout->addWidget(splitter);
 
     // Bottom Status Strip
-    m_statusLabel = new QLabel(tr("Status: Idle. Enter an RTSP URL or choose Mock Test Pattern and press Connect."), this);
+    m_statusLabel
+        = new QLabel(tr("Status: Idle. Enter an RTSP URL or choose Mock Test Pattern and press Connect."), this);
     m_statusLabel->setStyleSheet("color: #90A4AE; font-size: 11px; padding: 2px 4px;");
     mainLayout->addWidget(m_statusLabel);
 
     // Connect D-Pad buttons
-    auto getSpeed = [this]() -> std::uint8_t {
-        return static_cast<std::uint8_t>(m_speedSlider->value());
-    };
+    auto getSpeed = [this]() -> std::uint8_t { return static_cast<std::uint8_t>(m_speedSlider->value()); };
 
-    connect(btnUp, &QPushButton::pressed, this, [this, getSpeed]() { if (m_device) m_device->tiltUp(getSpeed()); });
-    connect(btnDown, &QPushButton::pressed, this, [this, getSpeed]() { if (m_device) m_device->tiltDown(getSpeed()); });
-    connect(btnLeft, &QPushButton::pressed, this, [this, getSpeed]() { if (m_device) m_device->panLeft(getSpeed()); });
-    connect(btnRight, &QPushButton::pressed, this, [this, getSpeed]() { if (m_device) m_device->panRight(getSpeed()); });
-
-    connect(btnUpLeft, &QPushButton::pressed, this, [this, getSpeed]() { if (m_device) m_device->move(-1, getSpeed(), 1, getSpeed()); });
-    connect(btnUpRight, &QPushButton::pressed, this, [this, getSpeed]() { if (m_device) m_device->move(1, getSpeed(), 1, getSpeed()); });
-    connect(btnDownLeft, &QPushButton::pressed, this, [this, getSpeed]() { if (m_device) m_device->move(-1, getSpeed(), -1, getSpeed()); });
-    connect(btnDownRight, &QPushButton::pressed, this, [this, getSpeed]() { if (m_device) m_device->move(1, getSpeed(), -1, getSpeed()); });
-
-    connect(btnStop, &QPushButton::clicked, this, [this]() { if (m_device) m_device->stopMotion(); });
-    connect(btnZoomIn, &QPushButton::pressed, this, [this]() { if (m_device) m_device->zoomTele(); });
-    connect(btnZoomIn, &QPushButton::released, this, [this]() { if (m_device) m_device->zoomStop(); });
-    connect(btnZoomOut, &QPushButton::pressed, this, [this]() { if (m_device) m_device->zoomWide(); });
-    connect(btnZoomOut, &QPushButton::released, this, [this]() { if (m_device) m_device->zoomStop(); });
-
-    connect(m_speedSlider, &QSlider::valueChanged, this, [this](int val) {
-        m_speedLabel->setText(QString::number(val));
+    connect(btnUp, &QPushButton::pressed, this, [this, getSpeed]() {
+        if (m_device)
+            m_device->tiltUp(getSpeed());
     });
+    connect(btnDown, &QPushButton::pressed, this, [this, getSpeed]() {
+        if (m_device)
+            m_device->tiltDown(getSpeed());
+    });
+    connect(btnLeft, &QPushButton::pressed, this, [this, getSpeed]() {
+        if (m_device)
+            m_device->panLeft(getSpeed());
+    });
+    connect(btnRight, &QPushButton::pressed, this, [this, getSpeed]() {
+        if (m_device)
+            m_device->panRight(getSpeed());
+    });
+
+    connect(btnUpLeft, &QPushButton::pressed, this, [this, getSpeed]() {
+        if (m_device)
+            m_device->move(-1, getSpeed(), 1, getSpeed());
+    });
+    connect(btnUpRight, &QPushButton::pressed, this, [this, getSpeed]() {
+        if (m_device)
+            m_device->move(1, getSpeed(), 1, getSpeed());
+    });
+    connect(btnDownLeft, &QPushButton::pressed, this, [this, getSpeed]() {
+        if (m_device)
+            m_device->move(-1, getSpeed(), -1, getSpeed());
+    });
+    connect(btnDownRight, &QPushButton::pressed, this, [this, getSpeed]() {
+        if (m_device)
+            m_device->move(1, getSpeed(), -1, getSpeed());
+    });
+
+    connect(btnStop, &QPushButton::clicked, this, [this]() {
+        if (m_device)
+            m_device->stopMotion();
+    });
+    connect(btnZoomIn, &QPushButton::pressed, this, [this]() {
+        if (m_device)
+            m_device->zoomTele();
+    });
+    connect(btnZoomIn, &QPushButton::released, this, [this]() {
+        if (m_device)
+            m_device->zoomStop();
+    });
+    connect(btnZoomOut, &QPushButton::pressed, this, [this]() {
+        if (m_device)
+            m_device->zoomWide();
+    });
+    connect(btnZoomOut, &QPushButton::released, this, [this]() {
+        if (m_device)
+            m_device->zoomStop();
+    });
+
+    connect(
+        m_speedSlider, &QSlider::valueChanged, this, [this](int val) { m_speedLabel->setText(QString::number(val)); });
 
     // F11 Shortcut for fullscreen toggle
     auto* f11Shortcut = new QShortcut(QKeySequence(Qt::Key_F11), this);
@@ -290,7 +372,8 @@ void VideoStreamTab::setupUi()
 void VideoStreamTab::setupConnections()
 {
     // Source selection controls
-    connect(m_sourceTypeCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &VideoStreamTab::onSourceTypeChanged);
+    connect(m_sourceTypeCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this,
+        &VideoStreamTab::onSourceTypeChanged);
     connect(m_btnBrowseFile, &QPushButton::clicked, this, &VideoStreamTab::onBrowseFileClicked);
     connect(m_btnRefreshDevices, &QPushButton::clicked, this, &VideoStreamTab::onRefreshDevicesClicked);
     connect(m_chkLoopFile, &QCheckBox::toggled, this, &VideoStreamTab::onLoopFileToggled);
@@ -308,15 +391,29 @@ void VideoStreamTab::setupConnections()
     connect(m_chkOpticsHud, &QCheckBox::toggled, m_overlayWidget, &VideoOverlayWidget::setShowOpticsHud);
     connect(m_chkDiagnostics, &QCheckBox::toggled, m_overlayWidget, &VideoOverlayWidget::setShowDiagnostics);
     connect(m_chkInteractivePtz, &QCheckBox::toggled, m_overlayWidget, &VideoOverlayWidget::setInteractivePtzEnabled);
-    connect(m_comboColorScheme, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &VideoStreamTab::onColorSchemeChanged);
+    connect(m_comboColorScheme, QOverload<int>::of(&QComboBox::currentIndexChanged), this,
+        &VideoStreamTab::onColorSchemeChanged);
+
+#if defined(PELCOD_HAS_FILTERS)
+    connect(m_comboPalette, QOverload<int>::of(&QComboBox::currentIndexChanged), this,
+        &VideoStreamTab::onFilterConfigurationChanged);
+    connect(m_chkLapHaze, &QCheckBox::toggled, this, &VideoStreamTab::onFilterConfigurationChanged);
+    connect(m_chkClahe, &QCheckBox::toggled, this, &VideoStreamTab::onFilterConfigurationChanged);
+    connect(m_chkDenoise, &QCheckBox::toggled, this, &VideoStreamTab::onFilterConfigurationChanged);
+    connect(m_chkSharpen, &QCheckBox::toggled, this, &VideoStreamTab::onFilterConfigurationChanged);
+    connect(m_chkEdgeDetect, &QCheckBox::toggled, this, &VideoStreamTab::onFilterConfigurationChanged);
+#endif
 
     // Worker signals to Overlay Widget
-    connect(m_worker, &PelcoD::Video::QVideoStreamWorker::frameReady, m_overlayWidget, &VideoOverlayWidget::updateFrame);
-    connect(m_worker, &PelcoD::Video::QVideoStreamWorker::streamStatusChanged, this, &VideoStreamTab::onWorkerStatusChanged);
+    connect(
+        m_worker, &PelcoD::Video::QVideoStreamWorker::frameReady, m_overlayWidget, &VideoOverlayWidget::updateFrame);
+    connect(m_worker, &PelcoD::Video::QVideoStreamWorker::streamStatusChanged, this,
+        &VideoStreamTab::onWorkerStatusChanged);
     connect(m_worker, &PelcoD::Video::QVideoStreamWorker::statsUpdated, this, &VideoStreamTab::onWorkerStatsUpdated);
 
     // Interactive Joystick signals from Overlay to Device
-    connect(m_overlayWidget, &VideoOverlayWidget::panTiltRequested, this, &VideoStreamTab::handleOverlayPanTiltRequested);
+    connect(
+        m_overlayWidget, &VideoOverlayWidget::panTiltRequested, this, &VideoStreamTab::handleOverlayPanTiltRequested);
     connect(m_overlayWidget, &VideoOverlayWidget::stopPtzRequested, this, &VideoStreamTab::handleOverlayStopRequested);
     connect(m_overlayWidget, &VideoOverlayWidget::zoomRequested, this, &VideoStreamTab::handleOverlayZoomRequested);
 }
@@ -330,10 +427,7 @@ void VideoStreamTab::onSourceTypeChanged(int index)
 
 void VideoStreamTab::onBrowseFileClicked()
 {
-    const QString filePath = QFileDialog::getOpenFileName(
-        this,
-        tr("Open Video File"),
-        QString(),
+    const QString filePath = QFileDialog::getOpenFileName(this, tr("Open Video File"), QString(),
         tr("Video Files (*.mp4 *.mkv *.avi *.mov *.webm *.ts *.flv *.m4v);;All Files (*.*)"));
 
     if (!filePath.isEmpty()) {
@@ -363,7 +457,8 @@ void VideoStreamTab::populateCaptureDevices()
 
     if (m_deviceCombo->count() == 0) {
 #ifdef _WIN32
-        m_deviceCombo->addItem(tr("Default Windows Camera (video=Integrated Camera)"), QStringLiteral("video=Integrated Camera"));
+        m_deviceCombo->addItem(
+            tr("Default Windows Camera (video=Integrated Camera)"), QStringLiteral("video=Integrated Camera"));
         m_deviceCombo->addItem(tr("Generic DirectShow (video=default)"), QStringLiteral("video=default"));
 #else
         m_deviceCombo->addItem(tr("Primary V4L2 Device (/dev/video0)"), QStringLiteral("/dev/video0"));
@@ -379,7 +474,8 @@ void VideoStreamTab::onConnectClicked()
     if (typeIdx == 0) { // RTSP
         source = m_sourceCombo->currentText().trimmed();
         if (source.isEmpty()) {
-            QMessageBox::warning(this, tr("Invalid Source"), tr("Please enter a valid RTSP stream URL or select a preset."));
+            QMessageBox::warning(
+                this, tr("Invalid Source"), tr("Please enter a valid RTSP stream URL or select a preset."));
             return;
         }
     } else if (typeIdx == 1) { // File
@@ -415,6 +511,9 @@ void VideoStreamTab::onConnectClicked()
 
     m_worker->setLoopPlayback(m_chkLoopFile->isChecked());
     m_worker->openStream(source, backend, PelcoD::Video::DeviceType::CPU);
+#if defined(PELCOD_HAS_FILTERS)
+    onFilterConfigurationChanged();
+#endif
 }
 
 void VideoStreamTab::onDisconnectClicked()
@@ -442,10 +541,11 @@ void VideoStreamTab::onSnapshotClicked()
         return;
     }
 
-    const QString defaultPath = QStandardPaths::writableLocation(QStandardPaths::PicturesLocation) +
-        QStringLiteral("/PelcoD_Snapshot_%1.png").arg(QDateTime::currentDateTime().toString("yyyyMMdd_hhmmss"));
+    const QString defaultPath = QStandardPaths::writableLocation(QStandardPaths::PicturesLocation)
+        + QStringLiteral("/PelcoD_Snapshot_%1.png").arg(QDateTime::currentDateTime().toString("yyyyMMdd_hhmmss"));
 
-    const QString filePath = QFileDialog::getSaveFileName(this, tr("Save Video Snapshot"), defaultPath, tr("PNG Image (*.png);;JPEG Image (*.jpg)"));
+    const QString filePath = QFileDialog::getSaveFileName(
+        this, tr("Save Video Snapshot"), defaultPath, tr("PNG Image (*.png);;JPEG Image (*.jpg)"));
     if (!filePath.isEmpty()) {
         if (snapshot.save(filePath)) {
             m_statusLabel->setText(tr("Snapshot saved to: %1").arg(filePath));
@@ -479,13 +579,8 @@ void VideoStreamTab::onWorkerStatusChanged(PelcoD::Video::StreamState state, con
 void VideoStreamTab::onWorkerStatsUpdated(double fps, double avgDecodeMs)
 {
     const QString backendName = m_backendCombo->currentText();
-    m_overlayWidget->setStreamDiagnostics(backendName,
-                                          m_overlayWidget->width(),
-                                          m_overlayWidget->height(),
-                                          fps,
-                                          avgDecodeMs,
-                                          0.0,
-                                          0.0);
+    m_overlayWidget->setStreamDiagnostics(
+        backendName, m_overlayWidget->width(), m_overlayWidget->height(), fps, avgDecodeMs, 0.0, 0.0);
 }
 
 void VideoStreamTab::handleDeviceStatusUpdated(const PelcoD::DeviceStatus& status)
@@ -506,70 +601,90 @@ void VideoStreamTab::handleFujinonStatusUpdated(const PelcoD::FujinonStatus& sta
 
     QString oisStr = "OFF";
     switch (status.oisMode) {
-    case PelcoD::FujinonOISMode::Auto:   oisStr = "AUTO"; break;
-    case PelcoD::FujinonOISMode::OisOn:  oisStr = "OIS ON"; break;
-    case PelcoD::FujinonOISMode::EisOn:  oisStr = "EIS ON"; break;
-    case PelcoD::FujinonOISMode::Off:   oisStr = "OFF"; break;
+    case PelcoD::FujinonOISMode::Auto:
+        oisStr = "AUTO";
+        break;
+    case PelcoD::FujinonOISMode::OisOn:
+        oisStr = "OIS ON";
+        break;
+    case PelcoD::FujinonOISMode::EisOn:
+        oisStr = "EIS ON";
+        break;
+    case PelcoD::FujinonOISMode::Off:
+        oisStr = "OFF";
+        break;
     }
 
     QString defogStr = "OFF";
     switch (status.defogLevel) {
-    case PelcoD::FujinonDefogLevel::Level1: defogStr = "L1"; break;
-    case PelcoD::FujinonDefogLevel::Level2: defogStr = "L2"; break;
-    case PelcoD::FujinonDefogLevel::Level3: defogStr = "L3"; break;
-    default: defogStr = "OFF"; break;
+    case PelcoD::FujinonDefogLevel::Level1:
+        defogStr = "L1";
+        break;
+    case PelcoD::FujinonDefogLevel::Level2:
+        defogStr = "L2";
+        break;
+    case PelcoD::FujinonDefogLevel::Level3:
+        defogStr = "L3";
+        break;
+    default:
+        defogStr = "OFF";
+        break;
     }
 
     QString dnStr = "AUTO";
     switch (status.dayNightMode) {
-    case PelcoD::FujinonDayNightMode::Day:   dnStr = "DAY [VIS]"; break;
-    case PelcoD::FujinonDayNightMode::Night: dnStr = "NIGHT [IR]"; break;
-    default: dnStr = "AUTO"; break;
+    case PelcoD::FujinonDayNightMode::Day:
+        dnStr = "DAY [VIS]";
+        break;
+    case PelcoD::FujinonDayNightMode::Night:
+        dnStr = "NIGHT [IR]";
+        break;
+    default:
+        dnStr = "AUTO";
+        break;
     }
 
-    m_overlayWidget->setOpticalStatus(
-        (status.baseStatus.autoFocus == PelcoD::AutoMode::On) ? "AUTO" : "MANUAL",
-        (status.baseStatus.autoIris == PelcoD::AutoMode::On) ? "AUTO" : "MANUAL",
-        oisStr,
-        defogStr,
-        dnStr
-    );
+    m_overlayWidget->setOpticalStatus((status.baseStatus.autoFocus == PelcoD::AutoMode::On) ? "AUTO" : "MANUAL",
+        (status.baseStatus.autoIris == PelcoD::AutoMode::On) ? "AUTO" : "MANUAL", oisStr, defogStr, dnStr);
 }
 
 void VideoStreamTab::handleRttStatsUpdated(double avgRttMs, double jitterMs)
 {
-    m_overlayWidget->setStreamDiagnostics(m_backendCombo->currentText(),
-                                          m_overlayWidget->width(),
-                                          m_overlayWidget->height(),
-                                          0.0,
-                                          0.0,
-                                          avgRttMs,
-                                          jitterMs);
+    m_overlayWidget->setStreamDiagnostics(m_backendCombo->currentText(), m_overlayWidget->width(),
+        m_overlayWidget->height(), 0.0, 0.0, avgRttMs, jitterMs);
 }
 
-void VideoStreamTab::handleOverlayPanTiltRequested(int panSpeed, int tiltSpeed, bool left, bool right, bool up, bool down)
+void VideoStreamTab::handleOverlayPanTiltRequested(
+    int panSpeed, int tiltSpeed, bool left, bool right, bool up, bool down)
 {
-    if (!m_device) return;
+    if (!m_device)
+        return;
     int panDir = 0;
-    if (left) panDir = -1;
-    else if (right) panDir = 1;
+    if (left)
+        panDir = -1;
+    else if (right)
+        panDir = 1;
 
     int tiltDir = 0;
-    if (up) tiltDir = 1;
-    else if (down) tiltDir = -1;
+    if (up)
+        tiltDir = 1;
+    else if (down)
+        tiltDir = -1;
 
     m_device->move(panDir, panSpeed, tiltDir, tiltSpeed);
 }
 
 void VideoStreamTab::handleOverlayStopRequested()
 {
-    if (!m_device) return;
+    if (!m_device)
+        return;
     m_device->stopMotion();
 }
 
 void VideoStreamTab::handleOverlayZoomRequested(bool zoomIn)
 {
-    if (!m_device) return;
+    if (!m_device)
+        return;
     if (zoomIn) {
         m_device->zoomTele();
     } else {
@@ -589,5 +704,47 @@ void VideoStreamTab::toggleFullscreen()
         setupUi(); // Re-attach to layout
     }
 }
+
+#if defined(PELCOD_HAS_FILTERS)
+void VideoStreamTab::onFilterConfigurationChanged()
+{
+    if (m_worker == nullptr) {
+        return;
+    }
+
+    m_worker->clearFrameProcessors();
+
+    // 1. Denoise first to suppress scintillation before edge/contrast amplification
+    if (m_chkDenoise != nullptr && m_chkDenoise->isChecked()) {
+        m_worker->addFrameProcessor(std::make_shared<PelcoD::Video::TemporalDenoiseFilter>(0.5, 30.0));
+    }
+
+    // 2. Atmospheric Penetration / LAP
+    if (m_chkLapHaze != nullptr && m_chkLapHaze->isChecked()) {
+        m_worker->addFrameProcessor(std::make_shared<PelcoD::Video::LocalAreaProcessingFilter>(5, 0.6, 5.0));
+    }
+
+    // 3. CLAHE Adaptive Contrast
+    if (m_chkClahe != nullptr && m_chkClahe->isChecked()) {
+        m_worker->addFrameProcessor(std::make_shared<PelcoD::Video::ClaheFilter>(2.5, 8, 1.0));
+    }
+
+    // 4. Optical Acuity Sharpening
+    if (m_chkSharpen != nullptr && m_chkSharpen->isChecked()) {
+        m_worker->addFrameProcessor(std::make_shared<PelcoD::Video::SharpenFilter>(1.2, 3));
+    }
+
+    // 5. Canny Edge Outlines
+    if (m_chkEdgeDetect != nullptr && m_chkEdgeDetect->isChecked()) {
+        m_worker->addFrameProcessor(std::make_shared<PelcoD::Video::EdgeDetectionFilter>(50.0, 150.0));
+    }
+
+    // 6. Thermal / False Color Palette (applied last across color mapped result)
+    if (m_comboPalette != nullptr && m_comboPalette->currentIndex() > 0) {
+        const auto palette = static_cast<PelcoD::Video::FalseColorPalette>(m_comboPalette->currentData().toInt());
+        m_worker->addFrameProcessor(std::make_shared<PelcoD::Video::FalseColorFilter>(palette));
+    }
+}
+#endif
 
 } // namespace PelcoDApp

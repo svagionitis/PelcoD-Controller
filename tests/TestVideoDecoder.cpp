@@ -17,9 +17,11 @@
 #include <QSignalSpy>
 #include <QTest>
 #include <algorithm>
+#include <atomic>
 #include <cassert>
 #include <cmath>
 #include <iostream>
+#include <thread>
 
 using namespace PelcoD::Video;
 
@@ -47,6 +49,7 @@ private slots:
     void testLocalAreaProcessingAndClahe();
     void testTemporalDenoise();
     void testVideoFiltersPipelineIntegration();
+    void testConcurrentProcessorReconfiguration();
 #endif
 };
 
@@ -662,6 +665,47 @@ void TestVideoDecoder::testVideoFiltersPipelineIntegration()
     }
     QVERIFY(hasDifference);
 
+    decoder.close();
+}
+
+void TestVideoDecoder::testConcurrentProcessorReconfiguration()
+{
+    MockVideoDecoder decoder;
+    QVERIFY(decoder.initialize("mock://test", PixelFormat::RGB24));
+
+    std::atomic<bool> running { true };
+    std::atomic<int> framesDecoded { 0 };
+
+    std::thread decodeThread([&]() {
+        while (running.load(std::memory_order_relaxed)) {
+            if (decoder.decodeNextFrame()) {
+                framesDecoded.fetch_add(1, std::memory_order_relaxed);
+            }
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        }
+    });
+
+    // Concurrently mutate the processor chain while decoding is actively progressing
+    for (int cycle = 0; cycle < 10; ++cycle) {
+        decoder.addFrameProcessor(std::make_shared<FalseColorFilter>(FalseColorPalette::Iron256));
+        std::this_thread::sleep_for(std::chrono::milliseconds(2));
+
+        decoder.addFrameProcessor(std::make_shared<ClaheFilter>(2.5, 8, 1.0));
+        std::this_thread::sleep_for(std::chrono::milliseconds(2));
+
+        decoder.clearFrameProcessors();
+        std::this_thread::sleep_for(std::chrono::milliseconds(2));
+
+        decoder.addFrameProcessor(std::make_shared<TemporalDenoiseFilter>(0.5, 30.0));
+        std::this_thread::sleep_for(std::chrono::milliseconds(2));
+
+        decoder.clearFrameProcessors();
+    }
+
+    running.store(false, std::memory_order_relaxed);
+    decodeThread.join();
+
+    QVERIFY(framesDecoded.load() > 10);
     decoder.close();
 }
 #endif

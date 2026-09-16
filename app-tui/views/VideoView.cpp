@@ -50,6 +50,12 @@ void VideoView::updateFrame(const std::uint8_t* data, int width, int height, dou
     m_frameHeight = height;
     m_framePts = timestamp;
     m_decodeMs = decodeMs;
+
+#if defined(PELCOD_HAS_FILTERS)
+    if (m_tacticalPaletteIndex > 0 && m_falseColorFilter) {
+        m_falseColorFilter->process(m_frameBuffer.data(), width, height, PixelFormat::RGB24);
+    }
+#endif
 }
 
 void VideoView::setStreamInfo(
@@ -117,6 +123,56 @@ void VideoView::cyclePalette() noexcept
     }
 }
 
+#if defined(PELCOD_HAS_FILTERS)
+void VideoView::cycleTacticalFilter() noexcept
+{
+    m_tacticalPaletteIndex = (m_tacticalPaletteIndex + 1) % 6;
+    switch (m_tacticalPaletteIndex) {
+    case 1:
+        m_falseColorFilter
+            = std::make_unique<PelcoD::Video::FalseColorFilter>(PelcoD::Video::FalseColorPalette::Iron256);
+        break;
+    case 2:
+        m_falseColorFilter = std::make_unique<PelcoD::Video::FalseColorFilter>(PelcoD::Video::FalseColorPalette::Jet);
+        break;
+    case 3:
+        m_falseColorFilter = std::make_unique<PelcoD::Video::FalseColorFilter>(PelcoD::Video::FalseColorPalette::Turbo);
+        break;
+    case 4:
+        m_falseColorFilter
+            = std::make_unique<PelcoD::Video::FalseColorFilter>(PelcoD::Video::FalseColorPalette::WhiteHot);
+        break;
+    case 5:
+        m_falseColorFilter
+            = std::make_unique<PelcoD::Video::FalseColorFilter>(PelcoD::Video::FalseColorPalette::BlackHot);
+        break;
+    case 0:
+    default:
+        m_falseColorFilter.reset();
+        break;
+    }
+}
+
+std::string VideoView::tacticalFilterName() const
+{
+    switch (m_tacticalPaletteIndex) {
+    case 1:
+        return "Iron256";
+    case 2:
+        return "Jet";
+    case 3:
+        return "Turbo";
+    case 4:
+        return "WhiteHot";
+    case 5:
+        return "BlackHot";
+    case 0:
+    default:
+        return "OFF";
+    }
+}
+#endif
+
 bool VideoView::handleInput(const InputEvent& event, PelcoD::PelcoDDevice& device)
 {
     // Mode toggles
@@ -132,6 +188,12 @@ bool VideoView::handleInput(const InputEvent& event, PelcoD::PelcoDDevice& devic
         cyclePalette();
         return true;
     }
+#if defined(PELCOD_HAS_FILTERS)
+    if (event.ch == 'f' || event.ch == 'F') {
+        cycleTacticalFilter();
+        return true;
+    }
+#endif
     if (event.ch == 'i' || event.ch == 'I') {
         m_options.invert = !m_options.invert;
         return true;
@@ -282,6 +344,9 @@ void VideoView::renderControlsBar(Canvas& canvas, int y, int width)
     drawBadge("M", "Mode", videodecoder::BrailleRenderer::renderModeName(m_options.mode));
     drawBadge("D", "Dither", videodecoder::BrailleRenderer::ditherName(m_options.dither));
     drawBadge("T", "Palette", videodecoder::BrailleRenderer::paletteName(m_options.palette));
+#if defined(PELCOD_HAS_FILTERS)
+    drawBadge("F", "Thermal", tacticalFilterName());
+#endif
     drawBadge("L", "Loop", m_loop ? "ON" : "OFF");
     drawBadge("Spd", "PTZ", std::to_string(static_cast<int>(m_panSpeed)));
 

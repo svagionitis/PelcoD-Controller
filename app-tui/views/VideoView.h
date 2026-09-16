@@ -10,9 +10,14 @@
 #include "Terminal.h"
 
 #include <cstdint>
+#include <memory>
 #include <mutex>
 #include <string>
 #include <vector>
+
+#if defined(PELCOD_HAS_FILTERS)
+#include "VideoFilters.h"
+#endif
 
 namespace PelcoDTui {
 
@@ -36,8 +41,8 @@ public:
     void updateFrame(const std::uint8_t* data, int width, int height, double timestamp, double decodeMs);
 
     /// @brief Update stream status metadata. Thread-safe.
-    void setStreamInfo(videodecoder::StreamState state, const std::string& source, const std::string& backend,
-        double fps = 0.0);
+    void setStreamInfo(
+        videodecoder::StreamState state, const std::string& source, const std::string& backend, double fps = 0.0);
 
     [[nodiscard]] videodecoder::BrailleRenderOptions& getOptions() noexcept
     {
@@ -51,6 +56,10 @@ public:
     void cycleRenderMode() noexcept;
     void cycleDither() noexcept;
     void cyclePalette() noexcept;
+#if defined(PELCOD_HAS_FILTERS)
+    void cycleTacticalFilter() noexcept;
+    [[nodiscard]] std::string tacticalFilterName() const;
+#endif
 
     [[nodiscard]] bool isPaused() const noexcept
     {
@@ -95,6 +104,11 @@ private:
 
     // Raster cache
     std::vector<videodecoder::TerminalPixelCell> m_renderedCells {};
+
+#if defined(PELCOD_HAS_FILTERS)
+    int m_tacticalPaletteIndex { 0 };
+    std::unique_ptr<PelcoD::Video::FalseColorFilter> m_falseColorFilter {};
+#endif
 };
 
 } // namespace PelcoDTui

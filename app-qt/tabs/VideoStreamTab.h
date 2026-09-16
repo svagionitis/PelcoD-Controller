@@ -59,6 +59,9 @@ private slots:
     void onColorSchemeChanged(int index);
     void onWorkerStatusChanged(PelcoD::Video::StreamState state, const QString& message);
     void onWorkerStatsUpdated(double fps, double avgDecodeMs);
+#if defined(PELCOD_HAS_FILTERS)
+    void onFilterConfigurationChanged();
+#endif
 
     // Interactive PTZ handling
     void handleOverlayPanTiltRequested(int panSpeed, int tiltSpeed, bool left, bool right, bool up, bool down);
@@ -104,6 +107,16 @@ private:
     QCheckBox* m_chkDiagnostics { nullptr };
     QCheckBox* m_chkInteractivePtz { nullptr };
     QComboBox* m_comboColorScheme { nullptr };
+
+#if defined(PELCOD_HAS_FILTERS)
+    // Vision & Tactical Image Enhancement Controls
+    QComboBox* m_comboPalette { nullptr };
+    QCheckBox* m_chkLapHaze { nullptr };
+    QCheckBox* m_chkClahe { nullptr };
+    QCheckBox* m_chkDenoise { nullptr };
+    QCheckBox* m_chkSharpen { nullptr };
+    QCheckBox* m_chkEdgeDetect { nullptr };
+#endif
 
     // Quick PTZ Controls
     QSlider* m_speedSlider { nullptr };

@@ -7,6 +7,7 @@
 #include "IVideoDecoder.h"
 
 #include <chrono>
+#include <mutex>
 #include <string>
 #include <vector>
 
@@ -55,6 +56,7 @@ private:
     bool m_initialized { false };
     bool m_tripleBufferingEnabled { false };
 
+    mutable std::mutex m_processorMutex;
     std::vector<std::shared_ptr<IFrameProcessor>> m_processors;
 
     std::uint64_t m_frameIndex { 0U };

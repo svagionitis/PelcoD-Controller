@@ -7,6 +7,7 @@
 #include "IVideoDecoder.h"
 
 #include <memory>
+#include <mutex>
 #include <string>
 #include <vector>
 
@@ -111,6 +112,7 @@ public:
 private:
     bool reconnect();
 
+    mutable std::mutex m_processorMutex;
     std::vector<std::shared_ptr<IFrameProcessor>> m_processors;
 
     AVFormatContextPtr m_formatCtx;
