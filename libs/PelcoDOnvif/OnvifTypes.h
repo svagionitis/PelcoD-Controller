@@ -58,4 +58,14 @@ struct PtzStatus {
     std::string utcTime; ///< Camera UTC timestamp
 };
 
+/// @struct PtzPreset
+/// @brief Stored pan/tilt/zoom preset position on the camera.
+struct PtzPreset {
+    std::string token {}; ///< Unique preset identifier token, e.g. "1" or "Preset_1"
+    std::string name {}; ///< User-friendly preset label, e.g. "Front Gate"
+    double pan { 0.0 }; ///< Normalized pan position [-1.0 to +1.0] if provided
+    double tilt { 0.0 }; ///< Normalized tilt position [-1.0 to +1.0] if provided
+    double zoom { 0.0 }; ///< Normalized zoom position [0.0 to 1.0] if provided
+};
+
 } // namespace PelcoD::Onvif

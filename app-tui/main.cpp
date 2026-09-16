@@ -3,9 +3,15 @@
 #include "DecoderTypes.h"
 #include "SerialTransport.h"
 #include "TcpTransport.h"
-#include "TuiApp.h"
 #include "UdpTransport.h"
+#include "TuiApp.h"
 #include "views/ConnectionModal.h"
+
+#if defined(PELCOD_ENABLE_ONVIF)
+#include "PelcoDOnvif/OnvifClient.h"
+#include "PelcoDOnvif/OnvifDiscovery.h"
+#include "PelcoDOnvif/OnvifTypes.h"
+#endif
 
 #include <charconv>
 #include <chrono>
@@ -38,6 +44,14 @@ struct ParseResult {
     std::uint32_t scanTimeoutMs { 150U };
     std::string videoSource { "mock:smpte" };
     PelcoD::Video::BackendType videoBackend { PelcoD::Video::BackendType::Mock };
+#if defined(PELCOD_ENABLE_ONVIF)
+    bool onvifDiscover { false };
+    std::uint32_t onvifTimeoutMs { 2000U };
+    bool onvifInfo { false };
+    std::string onvifEndpoint {};
+    std::string onvifUser { "admin" };
+    std::string onvifPass {};
+#endif
 };
 
 /// @brief Exception-safe integer parser using std::from_chars.
@@ -96,6 +110,12 @@ void printUsage(std::string_view progName)
               << "  --multi-baud                Cycle standard baud rates (2400-115200) during --scan\n"
               << "  --video <source>            Video source (mock:smpte, rtsp://..., file.mp4, or camera device)\n"
               << "  --video-backend <backend>   Decoder backend (mock, ffmpeg, or gstreamer)\n"
+#if defined(PELCOD_ENABLE_ONVIF)
+              << "  --onvif-discover [timeout]  Discover ONVIF cameras on LAN (timeout in ms, default: 2000)\n"
+              << "  --onvif-info <endpoint>     Query and display ONVIF camera device info and profiles\n"
+              << "  --onvif-user <username>     Username for --onvif-info (default: admin)\n"
+              << "  --onvif-pass <password>     Password for --onvif-info\n"
+#endif
               << "  --help, -h                  Display this help message and exit\n\n"
               << "Keyboard Shortcuts:\n"
               << "  1–8 / F1–F8                 Switch between application tabs (Tab 8 is Video View)\n"
@@ -405,6 +425,39 @@ void printUsage(std::string_view progName)
                     = "Unknown video backend '" + std::string(beStr) + "': expected mock, ffmpeg, or gstreamer";
                 return result;
             }
+#if defined(PELCOD_ENABLE_ONVIF)
+        } else if (arg == "--onvif-discover") {
+            result.onvifDiscover = true;
+            if (i + 1 < argc && argv[i + 1][0] != '-') {
+                const std::string_view valStr = argv[++i];
+                std::uint32_t tVal { 2000U };
+                if (parseInteger(valStr, tVal) && tVal > 0U) {
+                    result.onvifTimeoutMs = tVal;
+                }
+            }
+        } else if (arg == "--onvif-info") {
+            if (i + 1 >= argc) {
+                result.status = ParseStatus::Error;
+                result.errorMessage = "Option '--onvif-info' requires an ONVIF endpoint URL";
+                return result;
+            }
+            result.onvifInfo = true;
+            result.onvifEndpoint = argv[++i];
+        } else if (arg == "--onvif-user") {
+            if (i + 1 >= argc) {
+                result.status = ParseStatus::Error;
+                result.errorMessage = "Option '--onvif-user' requires a username";
+                return result;
+            }
+            result.onvifUser = argv[++i];
+        } else if (arg == "--onvif-pass") {
+            if (i + 1 >= argc) {
+                result.status = ParseStatus::Error;
+                result.errorMessage = "Option '--onvif-pass' requires a password";
+                return result;
+            }
+            result.onvifPass = argv[++i];
+#endif
         } else {
             result.status = ParseStatus::Error;
             result.errorMessage = "Unrecognized option or argument: '" + std::string(arg) + "'";
@@ -437,6 +490,84 @@ int main(int argc, char* argv[])
                   << "Try '" << argv[0] << " --help' for more information.\n";
         return 1;
     }
+
+#if defined(PELCOD_ENABLE_ONVIF)
+    if (parseResult.onvifDiscover) {
+        std::cout << "Starting WS-Discovery multicast probe on LAN (timeout: "
+                  << parseResult.onvifTimeoutMs << " ms)...\n";
+        const auto devices = PelcoD::Onvif::OnvifDiscovery::discoverDevices(
+            std::chrono::milliseconds(parseResult.onvifTimeoutMs));
+        std::cout << "Discovery completed. Total ONVIF devices detected: " << devices.size() << "\n";
+        if (!devices.empty()) {
+            std::cout << "--------------------------------------------------------------------------------\n";
+            std::cout << std::left << std::setw(18) << "IPv4 Address" << std::setw(24) << "Hardware / Name"
+                      << "Device Service Endpoint (XAddr)\n";
+            std::cout << "--------------------------------------------------------------------------------\n";
+            for (const auto& dev : devices) {
+                std::string label = dev.hardware.empty() ? dev.name : dev.hardware;
+                if (label.empty()) {
+                    label = "Unknown";
+                }
+                std::cout << std::left << std::setw(18) << dev.ip << std::setw(24) << label << dev.endpoint << "\n";
+            }
+            std::cout << "--------------------------------------------------------------------------------\n";
+        }
+        return 0;
+    }
+
+    if (parseResult.onvifInfo) {
+        std::cout << "Connecting to ONVIF camera: " << parseResult.onvifEndpoint << "...\n";
+        PelcoD::Onvif::SecurityCredentials creds {};
+        creds.username = parseResult.onvifUser;
+        creds.password = parseResult.onvifPass;
+
+        PelcoD::Onvif::OnvifClient client(parseResult.onvifEndpoint, creds);
+        const auto caps = client.getCapabilities();
+        if (!caps) {
+            std::cerr << "Error: Failed to query capabilities from " << parseResult.onvifEndpoint << "\n";
+            return 1;
+        }
+
+        std::cout << "\n[Capabilities]\n";
+        std::cout << "  Device XAddr:  " << caps->deviceXAddr << "\n";
+        std::cout << "  Media XAddr:   " << caps->mediaXAddr << "\n";
+        std::cout << "  PTZ XAddr:     " << caps->ptzXAddr << "\n";
+
+        const auto info = client.getDeviceInformation();
+        if (info) {
+            std::cout << "\n[Device Information]\n";
+            std::cout << "  Manufacturer:  " << info->manufacturer << "\n";
+            std::cout << "  Model:         " << info->model << "\n";
+            std::cout << "  Firmware:      " << info->firmwareVersion << "\n";
+            std::cout << "  Serial Number: " << info->serialNumber << "\n";
+            std::cout << "  Hardware ID:   " << info->hardwareId << "\n";
+        }
+
+        const auto profiles = client.getProfiles();
+        std::cout << "\n[Media Profiles: " << profiles.size() << "]\n";
+        for (const auto& p : profiles) {
+            std::cout << "  * Profile [" << p.token << "] \"" << p.name << "\": "
+                      << p.videoWidth << "x" << p.videoHeight << " (" << p.videoEncoding << ")\n";
+            const auto streamUri = client.getStreamUri(p.token, true);
+            if (streamUri) {
+                std::cout << "    RTSP URI:     " << streamUri->uri << "\n";
+            }
+            const auto snapUri = client.getSnapshotUri(p.token, true);
+            if (snapUri) {
+                std::cout << "    Snapshot URI: " << *snapUri << "\n";
+            }
+            const auto presets = client.getPresets(p.token);
+            if (!presets.empty()) {
+                std::cout << "    Presets (" << presets.size() << "): ";
+                for (size_t pi = 0; pi < presets.size(); ++pi) {
+                    std::cout << presets[pi].token << " (\"" << presets[pi].name << "\")"
+                              << (pi + 1 < presets.size() ? ", " : "\n");
+                }
+            }
+        }
+        return 0;
+    }
+#endif
 
     if (parseResult.scanMode) {
         try {

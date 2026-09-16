@@ -42,9 +42,17 @@ public:
     /// @return RTSP URI.
     [[nodiscard]] QString rtspStreamUri() const;
 
+    /// @brief Gets snapshot HTTP URI resolved for current profile.
+    /// @return Snapshot URI.
+    [[nodiscard]] QString snapshotUri() const;
+
     /// @brief Gets discovered media profiles.
     /// @return List of MediaProfile records.
     [[nodiscard]] std::vector<PelcoD::Onvif::MediaProfile> profiles() const;
+
+    /// @brief Gets cached PTZ presets for current profile.
+    /// @return List of PtzPreset records.
+    [[nodiscard]] std::vector<PelcoD::Onvif::PtzPreset> presets() const;
 
     /// @brief Gets camera hardware identification metadata.
     /// @return DeviceInformation struct.
@@ -97,6 +105,46 @@ public Q_SLOTS:
     /// @param[in] zoom Normalized zoom [0.0, 1.0].
     void absoluteMove(double pan, double tilt, double zoom);
 
+    /// @brief Moves PTZ head relatively by translation offset delta.
+    /// @param[in] pan Pan step delta [-1.0, 1.0].
+    /// @param[in] tilt Tilt step delta [-1.0, 1.0].
+    /// @param[in] zoom Zoom step delta [-1.0, 1.0].
+    void relativeMove(double pan, double tilt, double zoom = 0.0);
+
+    /// @brief Commands camera head to move to configured home position.
+    void gotoHomePosition();
+
+    /// @brief Sets current camera head position as home position.
+    void setHomePosition();
+
+    /// @brief Refreshes PTZ presets from camera for active profile.
+    void refreshPresets();
+
+    /// @brief Recalls and navigates to preset.
+    /// @param[in] presetToken Preset identifier token.
+    /// @param[in] speed Normalized speed [0.0, 1.0].
+    /// @return True on success.
+    bool gotoPreset(const QString& presetToken, double speed = 1.0);
+
+    /// @brief Saves or updates preset.
+    /// @param[in] presetName Friendly preset label.
+    /// @param[in] presetToken Optional token to overwrite.
+    /// @return True on success.
+    bool setPreset(const QString& presetName, const QString& presetToken = QString());
+
+    /// @brief Deletes preset from camera.
+    /// @param[in] presetToken Preset identifier token.
+    /// @return True on success.
+    bool removePreset(const QString& presetToken);
+
+    /// @brief Resolves HTTP snapshot URI for active profile.
+    /// @return Resolved URI string.
+    QString resolveSnapshotUri();
+
+    /// @brief Sends reboot command to camera.
+    /// @return True on success.
+    bool rebootCamera();
+
     /// @brief Refreshes and emits current PTZ kinematics status.
     void refreshStatus();
 
@@ -113,9 +161,21 @@ Q_SIGNALS:
     /// @param[in] uri RTSP stream URL ready for playback.
     void streamUriResolved(const QString& uri);
 
+    /// @brief Emitted when active snapshot URI is resolved.
+    /// @param[in] uri JPEG snapshot URL.
+    void snapshotUriResolved(const QString& uri);
+
     /// @brief Emitted when PTZ position/status is refreshed.
     /// @param[in] status Current kinematics state.
     void statusUpdated(const PelcoD::Onvif::PtzStatus& status);
+
+    /// @brief Emitted when preset list is refreshed.
+    /// @param[in] presets List of camera presets.
+    void presetsUpdated(const std::vector<PelcoD::Onvif::PtzPreset>& presets);
+
+    /// @brief Emitted when reboot request completes.
+    /// @param[in] success True if reboot was accepted.
+    void rebootCompleted(bool success);
 
     /// @brief Emitted when an operation fails.
     /// @param[in] message Diagnostic error message.
@@ -131,7 +191,9 @@ private:
     QString m_endpoint {};
     QString m_activeProfileToken {};
     QString m_rtspStreamUri {};
+    QString m_snapshotUri {};
     std::vector<PelcoD::Onvif::MediaProfile> m_profiles {};
+    std::vector<PelcoD::Onvif::PtzPreset> m_presets {};
     PelcoD::Onvif::DeviceInformation m_deviceInfo {};
 };
 

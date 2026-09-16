@@ -54,6 +54,16 @@ void MainWindow::setupUi()
     m_tabWidget->addTab(m_systemTab, tr("System Diagnostics"));
     m_tabWidget->addTab(m_fujinonTab, tr("Fujinon SX800"));
 
+#if defined(PELCOD_ENABLE_ONVIF)
+    m_onvifDevice = new PelcoD::Qt::QOnvifDevice(this);
+    m_onvifTab = new OnvifCameraTab(m_onvifDevice, m_videoTab, this);
+    m_tabWidget->addTab(m_onvifTab, tr("ONVIF Camera"));
+
+    connect(m_onvifTab, &OnvifCameraTab::streamUriSelected, this, [this](const QString& uri) {
+        statusBar()->showMessage(tr("ONVIF RTSP URI ready: %1").arg(uri), 5000);
+    });
+#endif
+
     centralLayout->addWidget(m_tabWidget);
     setCentralWidget(centralWidget);
 

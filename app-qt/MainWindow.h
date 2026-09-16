@@ -17,6 +17,11 @@
 #include "app-qt/widgets/ConnectionWidget.h"
 #include "app-qt/widgets/TrafficInspectorWidget.h"
 
+#if defined(PELCOD_ENABLE_ONVIF)
+#include "QOnvifDevice.h"
+#include "app-qt/tabs/OnvifCameraTab.h"
+#endif
+
 #include <QDockWidget>
 #include <QMainWindow>
 #include <QTabWidget>
@@ -55,6 +60,11 @@ private:
     OsdScreenTab* m_osdTab { nullptr };
     SystemTab* m_systemTab { nullptr };
     FujinonSX800Tab* m_fujinonTab { nullptr };
+
+#if defined(PELCOD_ENABLE_ONVIF)
+    PelcoD::Qt::QOnvifDevice* m_onvifDevice { nullptr };
+    OnvifCameraTab* m_onvifTab { nullptr };
+#endif
 
     QDockWidget* m_dockInspector { nullptr };
     TrafficInspectorWidget* m_inspectorWidget { nullptr };

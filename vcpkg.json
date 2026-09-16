@@ -4,6 +4,7 @@
   "builtin-baseline": "4eb0f7cabb9ca18132d80009312411b9261bba7b",
   "description": "Pelco-D PTZ camera controller library and applications.",
   "dependencies": [
+    "curl",
     {
       "name": "ffmpeg",
       "features": [
@@ -17,6 +18,7 @@
     },
     "gflags",
     "glog",
+    "pugixml",
     {
       "name": "gstreamer",
       "features": [

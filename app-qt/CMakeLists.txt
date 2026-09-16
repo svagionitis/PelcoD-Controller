@@ -36,8 +36,16 @@ add_executable(PelcoDAppQt
 target_include_directories(PelcoDAppQt PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}/..
+    ${CMAKE_SOURCE_DIR}/libs
     ${CMAKE_SOURCE_DIR}/libs/PelcoDVideo
 )
+
+if(PELCOD_ENABLE_ONVIF)
+    target_sources(PelcoDAppQt PRIVATE
+        tabs/OnvifCameraTab.h
+        tabs/OnvifCameraTab.cpp
+    )
+endif()
 
 target_link_libraries(PelcoDAppQt PRIVATE
     PelcoDQt

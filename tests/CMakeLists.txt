@@ -201,3 +201,25 @@ if(PELCOD_ENABLE_VIDEO)
         )
     endif()
 endif()
+
+if(PELCOD_ENABLE_ONVIF)
+    add_executable(TestPelcoDOnvif
+        TestPelcoDOnvif.cpp
+    )
+    target_include_directories(TestPelcoDOnvif PRIVATE
+        ${CMAKE_SOURCE_DIR}/libs
+    )
+    target_link_libraries(TestPelcoDOnvif PRIVATE
+        PelcoDOnvif
+    )
+    apply_compiler_flags(TestPelcoDOnvif)
+    add_test(NAME TestPelcoDOnvif COMMAND TestPelcoDOnvif)
+    if(WIN32)
+        set_property(TEST TestPelcoDOnvif PROPERTY ENVIRONMENT_MODIFICATION
+            "PATH=path_list_prepend:${CMAKE_BINARY_DIR}/vcpkg_installed/x64-windows/debug/bin"
+            "PATH=path_list_prepend:${CMAKE_BINARY_DIR}/vcpkg_installed/x64-windows/bin"
+            "PATH=path_list_prepend:C:/vcpkg/installed/x64-windows/debug/bin"
+            "PATH=path_list_prepend:C:/vcpkg/installed/x64-windows/bin"
+        )
+    endif()
+endif()

@@ -73,6 +73,10 @@ public:
     /// @return True if system date/time query succeeded.
     bool synchronizeSystemTime();
 
+    /// @brief Sends a hardware/system reboot request to the camera.
+    /// @return True if system reboot command was accepted.
+    bool systemReboot();
+
     // =========================================================================
     // Media Service
     // =========================================================================
@@ -88,6 +92,13 @@ public:
     [[nodiscard]] std::optional<StreamUriInfo> getStreamUri(
         const std::string& profileToken, bool injectCredentials = true);
 
+    /// @brief Resolves HTTP JPEG snapshot URI for grabbing a still image.
+    /// @param[in] profileToken Media profile token (e.g. "Profile_1").
+    /// @param[in] injectCredentials If true, embeds user:pass into URL.
+    /// @return Snapshot URI string or nullopt on failure.
+    [[nodiscard]] std::optional<std::string> getSnapshotUri(
+        const std::string& profileToken, bool injectCredentials = true);
+
     // =========================================================================
     // PTZ Service
     // =========================================================================
@@ -99,6 +110,15 @@ public:
     /// @param[in] zoomSpeed Normalized zoom velocity [-1.0 (wide) to +1.0 (tele)].
     /// @return True if command was acknowledged by camera.
     bool continuousMove(const std::string& profileToken, double panSpeed, double tiltSpeed, double zoomSpeed = 0.0);
+
+    /// @brief Sends relative translation command to step PTZ position by a delta.
+    /// @param[in] profileToken Media profile token.
+    /// @param[in] panTranslation Normalized pan offset step [-1.0 to +1.0].
+    /// @param[in] tiltTranslation Normalized tilt offset step [-1.0 to +1.0].
+    /// @param[in] zoomTranslation Normalized zoom offset step [-1.0 to +1.0].
+    /// @return True if relative move command succeeded.
+    bool relativeMove(
+        const std::string& profileToken, double panTranslation, double tiltTranslation, double zoomTranslation = 0.0);
 
     /// @brief Stops active pan/tilt or zoom motion.
     /// @param[in] profileToken Media profile token.
@@ -119,6 +139,42 @@ public:
     /// @param[in] zoom Normalized zoom [0.0, 1.0].
     /// @return True if absolute move command succeeded.
     bool absoluteMove(const std::string& profileToken, double pan, double tilt, double zoom);
+
+    /// @brief Moves PTZ head to configured camera home position.
+    /// @param[in] profileToken Media profile token.
+    /// @return True if goto home position command succeeded.
+    bool gotoHomePosition(const std::string& profileToken);
+
+    /// @brief Saves current PTZ position as the camera home position.
+    /// @param[in] profileToken Media profile token.
+    /// @return True if set home position command succeeded.
+    bool setHomePosition(const std::string& profileToken);
+
+    /// @brief Queries list of stored presets for a media profile.
+    /// @param[in] profileToken Media profile token.
+    /// @return Vector of stored PtzPreset items.
+    [[nodiscard]] std::vector<PtzPreset> getPresets(const std::string& profileToken);
+
+    /// @brief Saves current position as a preset or updates an existing preset.
+    /// @param[in] profileToken Media profile token.
+    /// @param[in] presetName Optional label for the preset.
+    /// @param[in] presetToken Optional token to overwrite.
+    /// @return Assigned preset token or nullopt on failure.
+    [[nodiscard]] std::optional<std::string> setPreset(
+        const std::string& profileToken, const std::string& presetName = "", const std::string& presetToken = "");
+
+    /// @brief Recalls and moves PTZ head to a stored preset position.
+    /// @param[in] profileToken Media profile token.
+    /// @param[in] presetToken Preset identifier token.
+    /// @param[in] speed Normalized speed [0.0 to 1.0].
+    /// @return True if goto preset command succeeded.
+    bool gotoPreset(const std::string& profileToken, const std::string& presetToken, double speed = 1.0);
+
+    /// @brief Removes a preset from camera storage.
+    /// @param[in] profileToken Media profile token.
+    /// @param[in] presetToken Preset identifier token.
+    /// @return True if preset removal succeeded.
+    bool removePreset(const std::string& profileToken, const std::string& presetToken);
 
     // =========================================================================
     // XML Envelope & Parsing Helpers (Public for testing)
@@ -149,10 +205,30 @@ public:
     /// @return Extracted StreamUriInfo.
     [[nodiscard]] static std::optional<StreamUriInfo> parseStreamUriResponse(const std::string& xml);
 
+    /// @brief Parses GetSnapshotUri XML response.
+    /// @param[in] xml Raw response XML.
+    /// @return Extracted snapshot URI string.
+    [[nodiscard]] static std::optional<std::string> parseSnapshotUriResponse(const std::string& xml);
+
     /// @brief Parses GetStatus PTZ XML response.
     /// @param[in] xml Raw response XML.
     /// @return Extracted PtzStatus.
     [[nodiscard]] static std::optional<PtzStatus> parsePtzStatusResponse(const std::string& xml);
+
+    /// @brief Parses GetPresets PTZ XML response.
+    /// @param[in] xml Raw response XML.
+    /// @return Vector of parsed PtzPreset objects.
+    [[nodiscard]] static std::vector<PtzPreset> parsePresetsResponse(const std::string& xml);
+
+    /// @brief Parses SetPreset PTZ XML response.
+    /// @param[in] xml Raw response XML.
+    /// @return Assigned preset token or nullopt on failure.
+    [[nodiscard]] static std::optional<std::string> parseSetPresetResponse(const std::string& xml);
+
+    /// @brief Parses SystemReboot Device XML response.
+    /// @param[in] xml Raw response XML.
+    /// @return Reboot message string or nullopt on failure.
+    [[nodiscard]] static std::optional<std::string> parseSystemRebootResponse(const std::string& xml);
 
 private:
     std::string m_deviceEndpoint {};

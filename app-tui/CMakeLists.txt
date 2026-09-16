@@ -47,4 +47,11 @@ target_link_libraries(PelcoDAppTui PRIVATE
     Threads::Threads
 )
 
+if(PELCOD_ENABLE_ONVIF)
+    target_link_libraries(PelcoDAppTui PRIVATE
+        PelcoDOnvif
+    )
+    target_compile_definitions(PelcoDAppTui PRIVATE PELCOD_ENABLE_ONVIF=1)
+endif()
+
 apply_compiler_flags(PelcoDAppTui)

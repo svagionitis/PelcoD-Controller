@@ -574,4 +574,330 @@ bool OnvifClient::absoluteMove(const std::string& profileToken, double pan, doub
     return resp.isSuccess();
 }
 
+std::optional<std::string> OnvifClient::parseSystemRebootResponse(const std::string& xml)
+{
+    pugi::xml_document doc {};
+    if (!doc.load_string(xml.c_str())) {
+        return std::nullopt;
+    }
+
+    const auto respNode = findRecursiveNodeWithSuffix(doc, "SystemRebootResponse");
+    if (!respNode) {
+        return std::nullopt;
+    }
+
+    const auto msgNode = findNodeWithSuffix(respNode, "Message");
+    if (msgNode) {
+        return msgNode.text().as_string();
+    }
+    return std::string("Reboot initiated");
+}
+
+bool OnvifClient::systemReboot()
+{
+    const std::string targetUrl = !m_capabilities.deviceXAddr.empty() ? m_capabilities.deviceXAddr : m_deviceEndpoint;
+    const std::string body = "<tds:SystemReboot/>";
+    const std::string reqXml = wrapSoapEnvelope(body);
+
+    const HttpResponse resp = m_httpClient.sendPost(targetUrl, reqXml);
+    return resp.isSuccess();
+}
+
+std::optional<std::string> OnvifClient::parseSnapshotUriResponse(const std::string& xml)
+{
+    pugi::xml_document doc {};
+    if (!doc.load_string(xml.c_str())) {
+        return std::nullopt;
+    }
+
+    const auto mediaUriNode = findRecursiveNodeWithSuffix(doc, "MediaUri");
+    if (!mediaUriNode) {
+        return std::nullopt;
+    }
+
+    const auto uriNode = findNodeWithSuffix(mediaUriNode, "Uri");
+    if (uriNode) {
+        return uriNode.text().as_string();
+    }
+    return std::nullopt;
+}
+
+std::optional<std::string> OnvifClient::getSnapshotUri(const std::string& profileToken, bool injectCredentials)
+{
+    if (m_capabilities.mediaXAddr.empty()) {
+        static_cast<void>(getCapabilities());
+    }
+
+    const std::string targetUrl = !m_capabilities.mediaXAddr.empty() ? m_capabilities.mediaXAddr : m_deviceEndpoint;
+
+    std::ostringstream ss {};
+    ss << "<trt:GetSnapshotUri>\n"
+       << "  <trt:ProfileToken>" << profileToken << "</trt:ProfileToken>\n"
+       << "</trt:GetSnapshotUri>";
+
+    const std::string reqXml = wrapSoapEnvelope(ss.str());
+    const HttpResponse resp = m_httpClient.sendPost(targetUrl, reqXml);
+    if (!resp.isSuccess()) {
+        return std::nullopt;
+    }
+
+    auto result = parseSnapshotUriResponse(resp.body);
+    if (result && injectCredentials && !m_credentials.username.empty() && !result->empty()) {
+        constexpr const char* kHttpPrefix = "http://";
+        constexpr const char* kHttpsPrefix = "https://";
+        if (result->rfind(kHttpPrefix, 0) == 0 && result->find('@') == std::string::npos) {
+            std::string injected = kHttpPrefix;
+            injected += m_credentials.username;
+            if (!m_credentials.password.empty()) {
+                injected += ":" + m_credentials.password;
+            }
+            injected += "@";
+            injected += result->substr(std::strlen(kHttpPrefix));
+            *result = std::move(injected);
+        } else if (result->rfind(kHttpsPrefix, 0) == 0 && result->find('@') == std::string::npos) {
+            std::string injected = kHttpsPrefix;
+            injected += m_credentials.username;
+            if (!m_credentials.password.empty()) {
+                injected += ":" + m_credentials.password;
+            }
+            injected += "@";
+            injected += result->substr(std::strlen(kHttpsPrefix));
+            *result = std::move(injected);
+        }
+    }
+    return result;
+}
+
+bool OnvifClient::relativeMove(
+    const std::string& profileToken, double panTranslation, double tiltTranslation, double zoomTranslation)
+{
+    if (m_capabilities.ptzXAddr.empty()) {
+        static_cast<void>(getCapabilities());
+    }
+
+    if (m_capabilities.ptzXAddr.empty()) {
+        return false;
+    }
+
+    std::ostringstream ss {};
+    ss << "<tptz:RelativeMove>\n"
+       << "  <tptz:ProfileToken>" << profileToken << "</tptz:ProfileToken>\n"
+       << "  <tptz:Translation>\n"
+       << "    <tt:PanTilt x=\"" << std::fixed << std::setprecision(4) << panTranslation << "\" y=\""
+       << tiltTranslation << "\"/>\n"
+       << "    <tt:Zoom x=\"" << zoomTranslation << "\"/>\n"
+       << "  </tptz:Translation>\n"
+       << "</tptz:RelativeMove>";
+
+    const std::string reqXml = wrapSoapEnvelope(ss.str());
+    const HttpResponse resp = m_httpClient.sendPost(m_capabilities.ptzXAddr, reqXml);
+    return resp.isSuccess();
+}
+
+bool OnvifClient::gotoHomePosition(const std::string& profileToken)
+{
+    if (m_capabilities.ptzXAddr.empty()) {
+        static_cast<void>(getCapabilities());
+    }
+
+    if (m_capabilities.ptzXAddr.empty()) {
+        return false;
+    }
+
+    std::ostringstream ss {};
+    ss << "<tptz:GotoHomePosition>\n"
+       << "  <tptz:ProfileToken>" << profileToken << "</tptz:ProfileToken>\n"
+       << "</tptz:GotoHomePosition>";
+
+    const std::string reqXml = wrapSoapEnvelope(ss.str());
+    const HttpResponse resp = m_httpClient.sendPost(m_capabilities.ptzXAddr, reqXml);
+    return resp.isSuccess();
+}
+
+bool OnvifClient::setHomePosition(const std::string& profileToken)
+{
+    if (m_capabilities.ptzXAddr.empty()) {
+        static_cast<void>(getCapabilities());
+    }
+
+    if (m_capabilities.ptzXAddr.empty()) {
+        return false;
+    }
+
+    std::ostringstream ss {};
+    ss << "<tptz:SetHomePosition>\n"
+       << "  <tptz:ProfileToken>" << profileToken << "</tptz:ProfileToken>\n"
+       << "</tptz:SetHomePosition>";
+
+    const std::string reqXml = wrapSoapEnvelope(ss.str());
+    const HttpResponse resp = m_httpClient.sendPost(m_capabilities.ptzXAddr, reqXml);
+    return resp.isSuccess();
+}
+
+std::vector<PtzPreset> OnvifClient::parsePresetsResponse(const std::string& xml)
+{
+    std::vector<PtzPreset> presets {};
+    pugi::xml_document doc {};
+    if (!doc.load_string(xml.c_str())) {
+        return presets;
+    }
+
+    std::vector<pugi::xml_node> presetNodes {};
+    collectNodesWithSuffix(doc, "Preset", presetNodes);
+
+    for (const auto& node : presetNodes) {
+        PtzPreset p {};
+        p.token = node.attribute("token").as_string();
+        if (p.token.empty()) {
+            const auto tokChild = findNodeWithSuffix(node, "token");
+            if (tokChild) {
+                p.token = tokChild.text().as_string();
+            }
+        }
+
+        const auto nameNode = findNodeWithSuffix(node, "Name");
+        if (nameNode) {
+            p.name = nameNode.text().as_string();
+        }
+
+        const auto posNode = findRecursiveNodeWithSuffix(node, "PTZPosition");
+        if (posNode) {
+            const auto pt = findNodeWithSuffix(posNode, "PanTilt");
+            if (pt) {
+                p.pan = pt.attribute("x").as_double(0.0);
+                p.tilt = pt.attribute("y").as_double(0.0);
+            }
+            const auto z = findNodeWithSuffix(posNode, "Zoom");
+            if (z) {
+                p.zoom = z.attribute("x").as_double(0.0);
+            }
+        }
+
+        if (!p.token.empty() || !p.name.empty()) {
+            presets.push_back(std::move(p));
+        }
+    }
+    return presets;
+}
+
+std::vector<PtzPreset> OnvifClient::getPresets(const std::string& profileToken)
+{
+    if (m_capabilities.ptzXAddr.empty()) {
+        static_cast<void>(getCapabilities());
+    }
+
+    if (m_capabilities.ptzXAddr.empty()) {
+        return {};
+    }
+
+    std::ostringstream ss {};
+    ss << "<tptz:GetPresets>\n"
+       << "  <tptz:ProfileToken>" << profileToken << "</tptz:ProfileToken>\n"
+       << "</tptz:GetPresets>";
+
+    const std::string reqXml = wrapSoapEnvelope(ss.str());
+    const HttpResponse resp = m_httpClient.sendPost(m_capabilities.ptzXAddr, reqXml);
+    if (!resp.isSuccess()) {
+        return {};
+    }
+
+    return parsePresetsResponse(resp.body);
+}
+
+std::optional<std::string> OnvifClient::parseSetPresetResponse(const std::string& xml)
+{
+    pugi::xml_document doc {};
+    if (!doc.load_string(xml.c_str())) {
+        return std::nullopt;
+    }
+
+    const auto respNode = findRecursiveNodeWithSuffix(doc, "SetPresetResponse");
+    if (!respNode) {
+        return std::nullopt;
+    }
+
+    const auto tokNode = findNodeWithSuffix(respNode, "PresetToken");
+    if (tokNode) {
+        return tokNode.text().as_string();
+    }
+    return std::nullopt;
+}
+
+std::optional<std::string> OnvifClient::setPreset(
+    const std::string& profileToken, const std::string& presetName, const std::string& presetToken)
+{
+    if (m_capabilities.ptzXAddr.empty()) {
+        static_cast<void>(getCapabilities());
+    }
+
+    if (m_capabilities.ptzXAddr.empty()) {
+        return std::nullopt;
+    }
+
+    std::ostringstream ss {};
+    ss << "<tptz:SetPreset>\n"
+       << "  <tptz:ProfileToken>" << profileToken << "</tptz:ProfileToken>\n";
+    if (!presetName.empty()) {
+        ss << "  <tptz:PresetName>" << presetName << "</tptz:PresetName>\n";
+    }
+    if (!presetToken.empty()) {
+        ss << "  <tptz:PresetToken>" << presetToken << "</tptz:PresetToken>\n";
+    }
+    ss << "</tptz:SetPreset>";
+
+    const std::string reqXml = wrapSoapEnvelope(ss.str());
+    const HttpResponse resp = m_httpClient.sendPost(m_capabilities.ptzXAddr, reqXml);
+    if (!resp.isSuccess()) {
+        return std::nullopt;
+    }
+
+    return parseSetPresetResponse(resp.body);
+}
+
+bool OnvifClient::gotoPreset(const std::string& profileToken, const std::string& presetToken, double speed)
+{
+    if (m_capabilities.ptzXAddr.empty()) {
+        static_cast<void>(getCapabilities());
+    }
+
+    if (m_capabilities.ptzXAddr.empty()) {
+        return false;
+    }
+
+    std::ostringstream ss {};
+    ss << "<tptz:GotoPreset>\n"
+       << "  <tptz:ProfileToken>" << profileToken << "</tptz:ProfileToken>\n"
+       << "  <tptz:PresetToken>" << presetToken << "</tptz:PresetToken>\n"
+       << "  <tptz:Speed>\n"
+       << "    <tt:PanTilt x=\"" << std::fixed << std::setprecision(4) << speed << "\" y=\"" << speed << "\"/>\n"
+       << "    <tt:Zoom x=\"" << speed << "\"/>\n"
+       << "  </tptz:Speed>\n"
+       << "</tptz:GotoPreset>";
+
+    const std::string reqXml = wrapSoapEnvelope(ss.str());
+    const HttpResponse resp = m_httpClient.sendPost(m_capabilities.ptzXAddr, reqXml);
+    return resp.isSuccess();
+}
+
+bool OnvifClient::removePreset(const std::string& profileToken, const std::string& presetToken)
+{
+    if (m_capabilities.ptzXAddr.empty()) {
+        static_cast<void>(getCapabilities());
+    }
+
+    if (m_capabilities.ptzXAddr.empty()) {
+        return false;
+    }
+
+    std::ostringstream ss {};
+    ss << "<tptz:RemovePreset>\n"
+       << "  <tptz:ProfileToken>" << profileToken << "</tptz:ProfileToken>\n"
+       << "  <tptz:PresetToken>" << presetToken << "</tptz:PresetToken>\n"
+       << "</tptz:RemovePreset>";
+
+    const std::string reqXml = wrapSoapEnvelope(ss.str());
+    const HttpResponse resp = m_httpClient.sendPost(m_capabilities.ptzXAddr, reqXml);
+    return resp.isSuccess();
+}
+
 } // namespace PelcoD::Onvif

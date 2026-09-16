@@ -29,9 +29,19 @@ QString QOnvifDevice::rtspStreamUri() const
     return m_rtspStreamUri;
 }
 
+QString QOnvifDevice::snapshotUri() const
+{
+    return m_snapshotUri;
+}
+
 std::vector<PelcoD::Onvif::MediaProfile> QOnvifDevice::profiles() const
 {
     return m_profiles;
+}
+
+std::vector<PelcoD::Onvif::PtzPreset> QOnvifDevice::presets() const
+{
+    return m_presets;
 }
 
 PelcoD::Onvif::DeviceInformation QOnvifDevice::deviceInformation() const
@@ -119,7 +129,9 @@ void QOnvifDevice::disconnectFromCamera()
     m_endpoint.clear();
     m_activeProfileToken.clear();
     m_rtspStreamUri.clear();
+    m_snapshotUri.clear();
     m_profiles.clear();
+    m_presets.clear();
     m_deviceInfo = {};
     m_client.reset();
 
@@ -138,11 +150,13 @@ bool QOnvifDevice::setActiveProfile(const QString& token)
     if (uriInfo && !uriInfo->uri.empty()) {
         m_rtspStreamUri = QString::fromStdString(uriInfo->uri);
         emit streamUriResolved(m_rtspStreamUri);
-        return true;
+    } else {
+        emit errorOccurred(tr("Failed to resolve RTSP stream URI for profile '%1'").arg(token));
     }
 
-    emit errorOccurred(tr("Failed to resolve RTSP stream URI for profile '%1'").arg(token));
-    return false;
+    resolveSnapshotUri();
+    refreshPresets();
+    return !m_rtspStreamUri.isEmpty();
 }
 
 void QOnvifDevice::move(double panSpeed, double tiltSpeed)
@@ -176,6 +190,97 @@ void QOnvifDevice::absoluteMove(double pan, double tilt, double zoom)
         return;
     }
     m_client->absoluteMove(m_activeProfileToken.toStdString(), pan, tilt, zoom);
+}
+
+void QOnvifDevice::relativeMove(double pan, double tilt, double zoom)
+{
+    if (!m_client || m_activeProfileToken.isEmpty()) {
+        return;
+    }
+    m_client->relativeMove(m_activeProfileToken.toStdString(), pan, tilt, zoom);
+}
+
+void QOnvifDevice::gotoHomePosition()
+{
+    if (!m_client || m_activeProfileToken.isEmpty()) {
+        return;
+    }
+    m_client->gotoHomePosition(m_activeProfileToken.toStdString());
+}
+
+void QOnvifDevice::setHomePosition()
+{
+    if (!m_client || m_activeProfileToken.isEmpty()) {
+        return;
+    }
+    m_client->setHomePosition(m_activeProfileToken.toStdString());
+}
+
+void QOnvifDevice::refreshPresets()
+{
+    if (!m_client || m_activeProfileToken.isEmpty()) {
+        return;
+    }
+    m_presets = m_client->getPresets(m_activeProfileToken.toStdString());
+    emit presetsUpdated(m_presets);
+}
+
+bool QOnvifDevice::gotoPreset(const QString& presetToken, double speed)
+{
+    if (!m_client || m_activeProfileToken.isEmpty()) {
+        return false;
+    }
+    return m_client->gotoPreset(m_activeProfileToken.toStdString(), presetToken.toStdString(), speed);
+}
+
+bool QOnvifDevice::setPreset(const QString& presetName, const QString& presetToken)
+{
+    if (!m_client || m_activeProfileToken.isEmpty()) {
+        return false;
+    }
+    const auto res = m_client->setPreset(
+        m_activeProfileToken.toStdString(), presetName.toStdString(), presetToken.toStdString());
+    if (res) {
+        refreshPresets();
+        return true;
+    }
+    return false;
+}
+
+bool QOnvifDevice::removePreset(const QString& presetToken)
+{
+    if (!m_client || m_activeProfileToken.isEmpty()) {
+        return false;
+    }
+    const bool ok = m_client->removePreset(m_activeProfileToken.toStdString(), presetToken.toStdString());
+    if (ok) {
+        refreshPresets();
+    }
+    return ok;
+}
+
+QString QOnvifDevice::resolveSnapshotUri()
+{
+    if (!m_client || m_activeProfileToken.isEmpty()) {
+        return {};
+    }
+    const auto snap = m_client->getSnapshotUri(m_activeProfileToken.toStdString(), true);
+    if (snap) {
+        m_snapshotUri = QString::fromStdString(*snap);
+        emit snapshotUriResolved(m_snapshotUri);
+        return m_snapshotUri;
+    }
+    return {};
+}
+
+bool QOnvifDevice::rebootCamera()
+{
+    if (!m_client) {
+        return false;
+    }
+    const bool ok = m_client->systemReboot();
+    emit rebootCompleted(ok);
+    return ok;
 }
 
 void QOnvifDevice::refreshStatus()

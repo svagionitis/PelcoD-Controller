@@ -2,11 +2,35 @@
 
 #include <pugixml.hpp>
 
+#ifdef _WIN32
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+#include <winsock2.h>
+#include <ws2tcpip.h>
+
+using SocketType = SOCKET;
+constexpr SocketType kInvalidSocket = INVALID_SOCKET;
+#define CLOSE_SOCKET(s) ::closesocket(s)
+#define POLL_SOCKET(fds, nfds, timeout) ::WSAPoll(fds, nfds, timeout)
+using SockOptLenType = int;
+#else
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include <poll.h>
 #include <sys/socket.h>
 #include <unistd.h>
+
+using SocketType = int;
+constexpr SocketType kInvalidSocket = -1;
+#define CLOSE_SOCKET(s) ::close(s)
+#define POLL_SOCKET(fds, nfds, timeout) ::poll(fds, nfds, timeout)
+using SockOptLenType = socklen_t;
+#endif
 
 #include <array>
 #include <cstring>
@@ -162,7 +186,8 @@ std::vector<DiscoveredDevice> OnvifDiscovery::parseProbeMatches(
             continue;
         }
 
-        dev.ip = !senderIp.empty() ? senderIp : extractIpFromUrl(dev.endpoint);
+        const std::string extractedIp = extractIpFromUrl(dev.endpoint);
+        dev.ip = !extractedIp.empty() ? extractedIp : senderIp;
 
         const auto scopesNode = findNodeWithSuffix(matchNode, "Scopes");
         if (scopesNode) {
@@ -200,18 +225,33 @@ std::vector<DiscoveredDevice> OnvifDiscovery::discoverDevices(std::chrono::milli
 {
     std::vector<DiscoveredDevice> discovered {};
 
-    const int sockFd = socket(AF_INET, SOCK_DGRAM, 0);
-    if (sockFd < 0) {
+#ifdef _WIN32
+    WSADATA wsaData;
+    if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) {
+        return discovered;
+    }
+#endif
+
+    const SocketType sockFd = socket(AF_INET, SOCK_DGRAM, 0);
+    if (sockFd == kInvalidSocket) {
+#ifdef _WIN32
+        WSACleanup();
+#endif
         return discovered;
     }
 
     // Set SO_REUSEADDR
     int reuse = 1;
-    setsockopt(sockFd, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse));
+    setsockopt(sockFd, SOL_SOCKET, SO_REUSEADDR, reinterpret_cast<const char*>(&reuse), sizeof(reuse));
 
     // Set multicast TTL
+#ifdef _WIN32
+    DWORD ttl = 4;
+    setsockopt(sockFd, IPPROTO_IP, IP_MULTICAST_TTL, reinterpret_cast<const char*>(&ttl), sizeof(ttl));
+#else
     unsigned char ttl = 4;
-    setsockopt(sockFd, IPPROTO_IP, IP_MULTICAST_TTL, &ttl, sizeof(ttl));
+    setsockopt(sockFd, IPPROTO_IP, IP_MULTICAST_TTL, reinterpret_cast<const char*>(&ttl), sizeof(ttl));
+#endif
 
     sockaddr_in destAddr {};
     destAddr.sin_family = AF_INET;
@@ -219,11 +259,14 @@ std::vector<DiscoveredDevice> OnvifDiscovery::discoverDevices(std::chrono::milli
     inet_pton(AF_INET, kMulticastIp, &destAddr.sin_addr);
 
     const std::string probePayload = createProbePayload();
-    const ssize_t sent = sendto(sockFd, probePayload.data(), probePayload.size(), 0,
+    const auto sent = sendto(sockFd, probePayload.data(), static_cast<int>(probePayload.size()), 0,
         reinterpret_cast<struct sockaddr*>(&destAddr), sizeof(destAddr));
 
     if (sent < 0) {
-        close(sockFd);
+        CLOSE_SOCKET(sockFd);
+#ifdef _WIN32
+        WSACleanup();
+#endif
         return discovered;
     }
 
@@ -238,19 +281,23 @@ std::vector<DiscoveredDevice> OnvifDiscovery::discoverDevices(std::chrono::milli
         }
 
         const int remainingMs = static_cast<int>((timeout - elapsed).count());
+#ifdef _WIN32
+        WSAPOLLFD pfd {};
+#else
         pollfd pfd {};
+#endif
         pfd.fd = sockFd;
         pfd.events = POLLIN;
 
-        const int pollRet = poll(&pfd, 1, remainingMs);
+        const int pollRet = POLL_SOCKET(&pfd, 1, remainingMs);
         if (pollRet <= 0) {
             break;
         }
 
         if (pfd.revents & POLLIN) {
             sockaddr_in senderAddr {};
-            socklen_t senderLen = sizeof(senderAddr);
-            const ssize_t recvd = recvfrom(sockFd, buffer.data(), buffer.size() - 1, 0,
+            SockOptLenType senderLen = sizeof(senderAddr);
+            const auto recvd = recvfrom(sockFd, buffer.data(), static_cast<int>(buffer.size() - 1), 0,
                 reinterpret_cast<struct sockaddr*>(&senderAddr), &senderLen);
 
             if (recvd > 0) {
@@ -277,7 +324,10 @@ std::vector<DiscoveredDevice> OnvifDiscovery::discoverDevices(std::chrono::milli
         }
     }
 
-    close(sockFd);
+    CLOSE_SOCKET(sockFd);
+#ifdef _WIN32
+    WSACleanup();
+#endif
     return discovered;
 }
 
