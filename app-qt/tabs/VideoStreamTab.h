@@ -111,6 +111,10 @@ private:
 #if defined(PELCOD_HAS_FILTERS)
     // Vision & Tactical Image Enhancement Controls
     QComboBox* m_comboPalette { nullptr };
+    QCheckBox* m_chkDcpDehaze { nullptr };
+    QCheckBox* m_chkStabilizer { nullptr };
+    QCheckBox* m_chkWhiteBalance { nullptr };
+    QCheckBox* m_chkChromaticAberration { nullptr };
     QCheckBox* m_chkLapHaze { nullptr };
     QCheckBox* m_chkClahe { nullptr };
     QCheckBox* m_chkDenoise { nullptr };

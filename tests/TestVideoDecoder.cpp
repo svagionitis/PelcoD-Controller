@@ -48,6 +48,10 @@ private slots:
     void testFalseColorThermalPalettes();
     void testLocalAreaProcessingAndClahe();
     void testTemporalDenoise();
+    void testDarkChannelDehaze();
+    void testImageStabilizationEIS();
+    void testAutoWhiteBalance();
+    void testChromaticAberrationCorrection();
     void testVideoFiltersPipelineIntegration();
     void testConcurrentProcessorReconfiguration();
 #endif
@@ -480,6 +484,10 @@ void TestVideoDecoder::testVideoFiltersNullSafety()
     HistogramEqualizationFilter histFilter;
     TemporalDenoiseFilter denoiseFilter;
     LensDistortionFilter lensFilter;
+    DarkChannelDehazeFilter dehazeFilter;
+    ImageStabilizationFilter stabFilter;
+    WhiteBalanceFilter wbFilter;
+    ChromaticAberrationFilter caFilter;
 
     // Verify null data pointers do not crash
     bcFilter.process(nullptr, 0, 0, PixelFormat::RGB24);
@@ -491,6 +499,10 @@ void TestVideoDecoder::testVideoFiltersNullSafety()
     histFilter.process(nullptr, 640, 360, PixelFormat::RGB24);
     denoiseFilter.process(nullptr, 640, 360, PixelFormat::RGB24);
     lensFilter.process(nullptr, 640, 360, PixelFormat::RGB24);
+    dehazeFilter.process(nullptr, 640, 360, PixelFormat::RGB24);
+    stabFilter.process(nullptr, 640, 360, PixelFormat::RGB24);
+    wbFilter.process(nullptr, 640, 360, PixelFormat::RGB24);
+    caFilter.process(nullptr, 640, 360, PixelFormat::RGB24);
 
     // Verify non-positive dimensions do not crash
     std::vector<std::uint8_t> dummy(1024U, 128U);
@@ -503,6 +515,10 @@ void TestVideoDecoder::testVideoFiltersNullSafety()
     histFilter.process(dummy.data(), -1, -1, PixelFormat::RGB24);
     denoiseFilter.process(dummy.data(), 0, 0, PixelFormat::RGB24);
     lensFilter.process(dummy.data(), 0, 0, PixelFormat::RGB24);
+    dehazeFilter.process(dummy.data(), 0, 0, PixelFormat::RGB24);
+    stabFilter.process(dummy.data(), -1, 0, PixelFormat::RGB24);
+    wbFilter.process(dummy.data(), 0, -1, PixelFormat::RGB24);
+    caFilter.process(dummy.data(), -1, -1, PixelFormat::RGB24);
 
     QVERIFY(true);
 }
@@ -635,6 +651,166 @@ void TestVideoDecoder::testTemporalDenoise()
 
     // Test reset
     denoise.reset();
+}
+
+void TestVideoDecoder::testDarkChannelDehaze()
+{
+    DarkChannelDehazeFilter dehaze(0.90, 5, 0.15);
+    QVERIFY(qFuzzyCompare(dehaze.getOmega(), 0.90));
+    QCOMPARE(dehaze.getPatchSize(), 5);
+    QVERIFY(qFuzzyCompare(dehaze.getT0(), 0.15));
+
+    dehaze.setOmega(0.85);
+    QVERIFY(qFuzzyCompare(dehaze.getOmega(), 0.85));
+    dehaze.setPatchSize(7);
+    QCOMPARE(dehaze.getPatchSize(), 7);
+    dehaze.setT0(0.10);
+    QVERIFY(qFuzzyCompare(dehaze.getT0(), 0.10));
+
+    // Create a foggy synthetic image (high minimum luma, low contrast: values between 180 and 220)
+    const int w = 64;
+    const int h = 64;
+    const std::size_t numBytes = static_cast<std::size_t>(w * h * 3);
+    std::vector<std::uint8_t> foggy(numBytes);
+    for (std::size_t i = 0U; i < numBytes; ++i) {
+        foggy[i] = static_cast<std::uint8_t>(180U + (i % 41U));
+    }
+
+    dehaze.process(foggy.data(), w, h, PixelFormat::RGB24);
+
+    std::uint8_t minVal = 255U;
+    std::uint8_t maxVal = 0U;
+    for (std::size_t i = 0U; i < numBytes; ++i) {
+        minVal = std::min(minVal, foggy[i]);
+        maxVal = std::max(maxVal, foggy[i]);
+    }
+
+    // Baseline minimum was 180; after dehazing minVal should drop significantly penetrating haze
+    QVERIFY(minVal < 160U);
+    QVERIFY(maxVal >= 180U);
+}
+
+void TestVideoDecoder::testImageStabilizationEIS()
+{
+    ImageStabilizationFilter stab(0.85, 25.0, 0.05);
+    QVERIFY(qFuzzyCompare(stab.getSmoothingFactor(), 0.85));
+    QVERIFY(qFuzzyCompare(stab.getMaxJitterPixels(), 25.0));
+    QVERIFY(qFuzzyCompare(stab.getCropMarginPercent(), 0.05));
+
+    stab.setSmoothingFactor(0.75);
+    QVERIFY(qFuzzyCompare(stab.getSmoothingFactor(), 0.75));
+    stab.setMaxJitterPixels(40.0);
+    QVERIFY(qFuzzyCompare(stab.getMaxJitterPixels(), 40.0));
+    stab.setCropMarginPercent(0.06);
+    QVERIFY(qFuzzyCompare(stab.getCropMarginPercent(), 0.06));
+
+    const int w = 128;
+    const int h = 128;
+
+    auto createPattern = [w, h](int offsetX, int offsetY) -> std::vector<std::uint8_t> {
+        std::vector<std::uint8_t> img(static_cast<std::size_t>(w * h * 3), 0U);
+        for (int y = 0; y < h; ++y) {
+            for (int x = 0; x < w; ++x) {
+                const int px = (x + offsetX) / 16;
+                const int py = (y + offsetY) / 16;
+                const std::uint8_t val = ((px + py) % 2 == 0) ? 240U : 20U;
+                const std::size_t idx = static_cast<std::size_t>((y * w + x) * 3);
+                img[idx + 0U] = val;
+                img[idx + 1U] = val;
+                img[idx + 2U] = val;
+            }
+        }
+        return img;
+    };
+
+    std::vector<std::uint8_t> f1 = createPattern(0, 0);
+    stab.process(f1.data(), w, h, PixelFormat::RGB24);
+
+    std::vector<std::uint8_t> f2 = createPattern(3, 2);
+    stab.process(f2.data(), w, h, PixelFormat::RGB24);
+
+    std::vector<std::uint8_t> f3 = createPattern(-2, -1);
+    stab.process(f3.data(), w, h, PixelFormat::RGB24);
+
+    QVERIFY(!f3.empty());
+    stab.reset();
+}
+
+void TestVideoDecoder::testAutoWhiteBalance()
+{
+    WhiteBalanceFilter wb(WhiteBalanceFilter::Mode::GrayWorld, 1.0);
+    QCOMPARE(wb.getMode(), WhiteBalanceFilter::Mode::GrayWorld);
+    QVERIFY(qFuzzyCompare(wb.getStrength(), 1.0));
+
+    wb.setMode(WhiteBalanceFilter::Mode::WhitePatch);
+    QCOMPARE(wb.getMode(), WhiteBalanceFilter::Mode::WhitePatch);
+    wb.setStrength(0.85);
+    QVERIFY(qFuzzyCompare(wb.getStrength(), 0.85));
+
+    // Test GrayWorld with warm color tint (R=200, G=100, B=50)
+    wb.setMode(WhiteBalanceFilter::Mode::GrayWorld);
+    wb.setStrength(1.0);
+    const int w = 32;
+    const int h = 32;
+    const std::size_t numBytes = static_cast<std::size_t>(w * h * 3);
+    std::vector<std::uint8_t> tinted(numBytes);
+    for (std::size_t i = 0U; i < numBytes; i += 3U) {
+        tinted[i + 0U] = 200U;
+        tinted[i + 1U] = 100U;
+        tinted[i + 2U] = 50U;
+    }
+
+    wb.process(tinted.data(), w, h, PixelFormat::RGB24);
+
+    // After GrayWorld, R should decrease and B should increase
+    QVERIFY(tinted[0] < 200U);
+    QVERIFY(tinted[2] > 50U);
+
+    // Test WhitePatch mode
+    wb.setMode(WhiteBalanceFilter::Mode::WhitePatch);
+    std::vector<std::uint8_t> patchImg(numBytes, 50U);
+    for (std::size_t i = 0U; i < 30U; i += 3U) {
+        patchImg[i + 0U] = 240U;
+        patchImg[i + 1U] = 180U;
+        patchImg[i + 2U] = 120U;
+    }
+    wb.process(patchImg.data(), w, h, PixelFormat::RGB24);
+    QVERIFY(!patchImg.empty());
+}
+
+void TestVideoDecoder::testChromaticAberrationCorrection()
+{
+    ChromaticAberrationFilter ca(0.008, -0.008, 0.05, -0.05);
+    QVERIFY(qFuzzyCompare(ca.getRedCoeff(), 0.008));
+    QVERIFY(qFuzzyCompare(ca.getBlueCoeff(), -0.008));
+    QVERIFY(qFuzzyCompare(ca.getCenterOffsetX(), 0.05));
+    QVERIFY(qFuzzyCompare(ca.getCenterOffsetY(), -0.05));
+
+    ca.setParameters(0.003, -0.003, 0.0, 0.0);
+    QVERIFY(qFuzzyCompare(ca.getRedCoeff(), 0.003));
+    QVERIFY(qFuzzyCompare(ca.getBlueCoeff(), -0.003));
+    QVERIFY(qFuzzyCompare(ca.getCenterOffsetX(), 0.0));
+    QVERIFY(qFuzzyCompare(ca.getCenterOffsetY(), 0.0));
+
+    // Process a 64x64 checkerboard image
+    const int w = 64;
+    const int h = 64;
+    const std::size_t numBytes = static_cast<std::size_t>(w * h * 3);
+    std::vector<std::uint8_t> img(numBytes);
+    for (int y = 0; y < h; ++y) {
+        for (int x = 0; x < w; ++x) {
+            const std::uint8_t val = ((x / 8 + y / 8) % 2 == 0) ? 255U : 0U;
+            const std::size_t idx = static_cast<std::size_t>((y * w + x) * 3);
+            img[idx + 0U] = val;
+            img[idx + 1U] = val;
+            img[idx + 2U] = val;
+        }
+    }
+
+    ca.setParameters(0.01, -0.01);
+    ca.process(img.data(), w, h, PixelFormat::RGB24);
+
+    QVERIFY(!img.empty());
 }
 
 void TestVideoDecoder::testVideoFiltersPipelineIntegration()

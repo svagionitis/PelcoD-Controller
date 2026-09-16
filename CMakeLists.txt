@@ -146,7 +146,7 @@ if(PELCOD_ENABLE_VIDEO)
 
     # OpenCV video enhancement filters
     if(PELCOD_ENABLE_FILTERS)
-        find_package(OpenCV COMPONENTS core imgproc QUIET)
+        find_package(OpenCV COMPONENTS core imgproc video calib3d QUIET)
         if(NOT OpenCV_FOUND)
             find_package(PkgConfig QUIET)
             if(PKG_CONFIG_FOUND)

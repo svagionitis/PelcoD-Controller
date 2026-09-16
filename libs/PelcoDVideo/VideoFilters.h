@@ -811,6 +811,201 @@ private:
     double m_centerOffsetY;
 };
 
+/**
+ * @class DarkChannelDehazeFilter
+ * @brief Atmospheric scattering inversion based on Dark Channel Prior (DCP) for fog and haze removal.
+ */
+class VIDEOFILTERS_API DarkChannelDehazeFilter : public IFrameProcessor {
+public:
+    /**
+     * @brief Constructor.
+     * @param omega Dehazing intensity factor (0.0 = no dehaze, 0.85 = typical, up to 0.95).
+     * @param patchSize Patch neighborhood kernel radius for local dark channel calculation.
+     * @param t0 Minimum transmission threshold floor to avoid noise amplification.
+     */
+    DarkChannelDehazeFilter(double omega = 0.85, int patchSize = 9, double t0 = 0.1);
+
+    void process(uint8_t* data, int width, int height, PixelFormat format) override;
+
+    void setOmega(double omega)
+    {
+        m_omega = omega;
+    }
+    double getOmega() const
+    {
+        return m_omega;
+    }
+    void setPatchSize(int patchSize)
+    {
+        m_patchSize = patchSize;
+    }
+    int getPatchSize() const
+    {
+        return m_patchSize;
+    }
+    void setT0(double t0)
+    {
+        m_t0 = t0;
+    }
+    double getT0() const
+    {
+        return m_t0;
+    }
+
+private:
+    double m_omega;
+    int m_patchSize;
+    double m_t0;
+};
+
+/**
+ * @class ImageStabilizationFilter
+ * @brief Electronic Image Stabilization (EIS) compensating for camera mast vibration and telephoto jitter.
+ */
+class VIDEOFILTERS_API ImageStabilizationFilter : public IFrameProcessor {
+public:
+    /**
+     * @brief Constructor.
+     * @param smoothingFactor Weight of trajectory history (0.1 = fast, 0.8 = smooth, up to 0.95).
+     * @param maxJitterPixels Maximum pixel jitter threshold before resetting trajectory (deliberate PTZ pan/tilt).
+     * @param cropMarginPercent Auto-crop margin percentage to mask warping border artifacts (e.g. 0.04 = 4%).
+     */
+    ImageStabilizationFilter(
+        double smoothingFactor = 0.8, double maxJitterPixels = 30.0, double cropMarginPercent = 0.04);
+    ~ImageStabilizationFilter() override;
+
+    // Non-copyable due to unique_ptr PIMPL
+    ImageStabilizationFilter(const ImageStabilizationFilter&) = delete;
+    ImageStabilizationFilter& operator=(const ImageStabilizationFilter&) = delete;
+    ImageStabilizationFilter(ImageStabilizationFilter&&) noexcept;
+    ImageStabilizationFilter& operator=(ImageStabilizationFilter&&) noexcept;
+
+    void process(uint8_t* data, int width, int height, PixelFormat format) override;
+
+    void setSmoothingFactor(double factor)
+    {
+        m_smoothingFactor = factor;
+    }
+    double getSmoothingFactor() const
+    {
+        return m_smoothingFactor;
+    }
+    void setMaxJitterPixels(double maxJitter)
+    {
+        m_maxJitterPixels = maxJitter;
+    }
+    double getMaxJitterPixels() const
+    {
+        return m_maxJitterPixels;
+    }
+    void setCropMarginPercent(double margin)
+    {
+        m_cropMarginPercent = margin;
+    }
+    double getCropMarginPercent() const
+    {
+        return m_cropMarginPercent;
+    }
+    void reset();
+
+private:
+    double m_smoothingFactor;
+    double m_maxJitterPixels;
+    double m_cropMarginPercent;
+
+    struct Impl;
+    std::unique_ptr<Impl> m_impl;
+};
+
+/**
+ * @class WhiteBalanceFilter
+ * @brief Automatic White Balance (AWB) adjusting color casts from artificial lights and atmospheric scattering.
+ */
+class VIDEOFILTERS_API WhiteBalanceFilter : public IFrameProcessor {
+public:
+    /**
+     * @enum Mode
+     * @brief AWB algorithm variant.
+     */
+    enum class Mode {
+        GrayWorld, ///< Equalizes channel mean intensities to global scene mean
+        WhitePatch ///< Scales channels based on peak specular highlights
+    };
+
+    /**
+     * @brief Constructor.
+     * @param mode White balance algorithm mode.
+     * @param strength Alpha blend between original and white-balanced image (0.0 to 1.0).
+     */
+    WhiteBalanceFilter(Mode mode = Mode::GrayWorld, double strength = 1.0);
+
+    void process(uint8_t* data, int width, int height, PixelFormat format) override;
+
+    void setMode(Mode mode)
+    {
+        m_mode = mode;
+    }
+    Mode getMode() const
+    {
+        return m_mode;
+    }
+    void setStrength(double strength)
+    {
+        m_strength = strength;
+    }
+    double getStrength() const
+    {
+        return m_strength;
+    }
+
+private:
+    Mode m_mode;
+    double m_strength;
+};
+
+/**
+ * @class ChromaticAberrationFilter
+ * @brief Corrects lateral chromatic aberration (radial color fringing) typical of telephoto optics.
+ */
+class VIDEOFILTERS_API ChromaticAberrationFilter : public IFrameProcessor {
+public:
+    /**
+     * @brief Constructor.
+     * @param redCoeff Radial distortion correction factor for the Red channel.
+     * @param blueCoeff Radial distortion correction factor for the Blue channel.
+     * @param centerOffsetX Normalized optical axis X center offset (-0.5 to +0.5).
+     * @param centerOffsetY Normalized optical axis Y center offset (-0.5 to +0.5).
+     */
+    ChromaticAberrationFilter(
+        double redCoeff = 0.005, double blueCoeff = -0.005, double centerOffsetX = 0.0, double centerOffsetY = 0.0);
+
+    void process(uint8_t* data, int width, int height, PixelFormat format) override;
+
+    void setParameters(double redCoeff, double blueCoeff, double centerOffsetX = 0.0, double centerOffsetY = 0.0);
+    double getRedCoeff() const
+    {
+        return m_redCoeff;
+    }
+    double getBlueCoeff() const
+    {
+        return m_blueCoeff;
+    }
+    double getCenterOffsetX() const
+    {
+        return m_centerOffsetX;
+    }
+    double getCenterOffsetY() const
+    {
+        return m_centerOffsetY;
+    }
+
+private:
+    double m_redCoeff;
+    double m_blueCoeff;
+    double m_centerOffsetX;
+    double m_centerOffsetY;
+};
+
 } // namespace PelcoD::Video
 
 #endif // PELCOD_HAS_FILTERS

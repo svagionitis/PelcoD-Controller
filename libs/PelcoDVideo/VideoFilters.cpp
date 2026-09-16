@@ -974,6 +974,329 @@ void LensDistortionFilter::process(uint8_t* data, int width, int height, PixelFo
     corrected.copyTo(mat);
 }
 
+// --- DarkChannelDehazeFilter ---
+DarkChannelDehazeFilter::DarkChannelDehazeFilter(double omega, int patchSize, double t0)
+    : m_omega(std::clamp(omega, 0.0, 1.0))
+    , m_patchSize(std::max(3, patchSize | 1))
+    , m_t0(std::clamp(t0, 0.01, 0.5))
+{
+}
+
+void DarkChannelDehazeFilter::process(uint8_t* data, int width, int height, PixelFormat format)
+{
+    (void)format;
+    if (!data || width <= 0 || height <= 0 || m_omega <= 0.0) {
+        return;
+    }
+
+    cv::Mat mat(height, width, CV_8UC3, data);
+
+    // 1. Calculate dark channel across RGB color planes
+    std::vector<cv::Mat> channels(3);
+    cv::split(mat, channels);
+    cv::Mat minChannel;
+    cv::min(channels[0], channels[1], minChannel);
+    cv::min(minChannel, channels[2], minChannel);
+
+    cv::Mat darkChannel;
+    cv::Mat kernel = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(m_patchSize, m_patchSize));
+    cv::erode(minChannel, darkChannel, kernel);
+
+    // 2. Estimate atmospheric light A from brightest dark channel pixels
+    const int numTopPixels = std::max(1, static_cast<int>(static_cast<double>(width * height) * 0.001));
+    cv::Mat flatDark = darkChannel.reshape(1, 1);
+    cv::Mat sortedIdx;
+    cv::sortIdx(flatDark, sortedIdx, cv::SORT_EVERY_ROW + cv::SORT_DESCENDING);
+
+    double sumA[3] = { 0.0, 0.0, 0.0 };
+    for (int i = 0; i < numTopPixels; ++i) {
+        const int idx = sortedIdx.at<int>(0, i);
+        const int r = idx / width;
+        const int c = idx % width;
+        const cv::Vec3b pixel = mat.at<cv::Vec3b>(r, c);
+        sumA[0] += static_cast<double>(pixel[0]);
+        sumA[1] += static_cast<double>(pixel[1]);
+        sumA[2] += static_cast<double>(pixel[2]);
+    }
+    const double denom = static_cast<double>(numTopPixels);
+    const double A[3]
+        = { std::max(1.0, sumA[0] / denom), std::max(1.0, sumA[1] / denom), std::max(1.0, sumA[2] / denom) };
+
+    // 3. Compute transmission map
+    cv::Mat normCh0, normCh1, normCh2;
+    channels[0].convertTo(normCh0, CV_32F, 1.0 / A[0]);
+    channels[1].convertTo(normCh1, CV_32F, 1.0 / A[1]);
+    channels[2].convertTo(normCh2, CV_32F, 1.0 / A[2]);
+
+    cv::Mat minNorm;
+    cv::min(normCh0, normCh1, minNorm);
+    cv::min(minNorm, normCh2, minNorm);
+
+    cv::Mat darkNorm;
+    cv::erode(minNorm, darkNorm, kernel);
+
+    cv::Mat transmission = 1.0f - static_cast<float>(m_omega) * darkNorm;
+    cv::blur(transmission, transmission, cv::Size(m_patchSize, m_patchSize));
+    cv::max(transmission, static_cast<float>(m_t0), transmission);
+
+    // 4. Recover scene radiance J = (I - A) / max(t, t0) + A
+    for (std::size_t c = 0U; c < 3U; ++c) {
+        cv::Mat chFloat;
+        channels[c].convertTo(chFloat, CV_32F);
+        cv::Mat diff = chFloat - A[c];
+        cv::Mat recovered = (diff / transmission) + A[c];
+        recovered.convertTo(channels[c], CV_8U);
+    }
+    cv::merge(channels, mat);
+}
+
+// --- ImageStabilizationFilter ---
+struct ImageStabilizationFilter::Impl {
+    cv::Mat prevGray;
+    double prevX { 0.0 };
+    double prevY { 0.0 };
+    double prevA { 0.0 };
+    double smoothX { 0.0 };
+    double smoothY { 0.0 };
+    double smoothA { 0.0 };
+    bool hasPrev { false };
+};
+
+ImageStabilizationFilter::ImageStabilizationFilter(
+    double smoothingFactor, double maxJitterPixels, double cropMarginPercent)
+    : m_smoothingFactor(std::clamp(smoothingFactor, 0.0, 0.98))
+    , m_maxJitterPixels(std::max(5.0, maxJitterPixels))
+    , m_cropMarginPercent(std::clamp(cropMarginPercent, 0.0, 0.2))
+    , m_impl(std::make_unique<Impl>())
+{
+}
+
+ImageStabilizationFilter::~ImageStabilizationFilter() = default;
+ImageStabilizationFilter::ImageStabilizationFilter(ImageStabilizationFilter&&) noexcept = default;
+ImageStabilizationFilter& ImageStabilizationFilter::operator=(ImageStabilizationFilter&&) noexcept = default;
+
+void ImageStabilizationFilter::reset()
+{
+    if (m_impl) {
+        m_impl->prevGray.release();
+        m_impl->prevX = 0.0;
+        m_impl->prevY = 0.0;
+        m_impl->prevA = 0.0;
+        m_impl->smoothX = 0.0;
+        m_impl->smoothY = 0.0;
+        m_impl->smoothA = 0.0;
+        m_impl->hasPrev = false;
+    }
+}
+
+void ImageStabilizationFilter::process(uint8_t* data, int width, int height, PixelFormat format)
+{
+    if (!data || width <= 0 || height <= 0 || !m_impl) {
+        return;
+    }
+
+    cv::Mat mat(height, width, CV_8UC3, data);
+    cv::Mat curGray;
+    if (format == PixelFormat::BGR24) {
+        cv::cvtColor(mat, curGray, cv::COLOR_BGR2GRAY);
+    } else {
+        cv::cvtColor(mat, curGray, cv::COLOR_RGB2GRAY);
+    }
+
+    if (!m_impl->hasPrev || m_impl->prevGray.cols != width || m_impl->prevGray.rows != height) {
+        m_impl->prevGray = curGray;
+        m_impl->hasPrev = true;
+        return;
+    }
+
+    std::vector<cv::Point2f> prevPts;
+    cv::goodFeaturesToTrack(m_impl->prevGray, prevPts, 150, 0.01, 15.0);
+
+    if (prevPts.size() < 10U) {
+        m_impl->prevGray = curGray;
+        return;
+    }
+
+    std::vector<cv::Point2f> curPts;
+    std::vector<uchar> status;
+    std::vector<float> err;
+    cv::calcOpticalFlowPyrLK(m_impl->prevGray, curGray, prevPts, curPts, status, err);
+
+    std::vector<cv::Point2f> prevClean, curClean;
+    for (std::size_t i = 0U; i < status.size(); ++i) {
+        if (status[i]) {
+            prevClean.push_back(prevPts[i]);
+            curClean.push_back(curPts[i]);
+        }
+    }
+
+    double dx = 0.0, dy = 0.0, da = 0.0;
+    if (prevClean.size() >= 8U) {
+        const cv::Mat affine = cv::estimateAffinePartial2D(prevClean, curClean);
+        if (!affine.empty()) {
+            dx = affine.at<double>(0, 2);
+            dy = affine.at<double>(1, 2);
+            da = std::atan2(affine.at<double>(1, 0), affine.at<double>(0, 0));
+        }
+    }
+
+    m_impl->prevX += dx;
+    m_impl->prevY += dy;
+    m_impl->prevA += da;
+
+    if (std::abs(dx) > m_maxJitterPixels || std::abs(dy) > m_maxJitterPixels) {
+        m_impl->smoothX = m_impl->prevX;
+        m_impl->smoothY = m_impl->prevY;
+        m_impl->smoothA = m_impl->prevA;
+    } else {
+        m_impl->smoothX = m_smoothingFactor * m_impl->smoothX + (1.0 - m_smoothingFactor) * m_impl->prevX;
+        m_impl->smoothY = m_smoothingFactor * m_impl->smoothY + (1.0 - m_smoothingFactor) * m_impl->prevY;
+        m_impl->smoothA = m_smoothingFactor * m_impl->smoothA + (1.0 - m_smoothingFactor) * m_impl->prevA;
+    }
+
+    const double diffX = m_impl->smoothX - m_impl->prevX;
+    const double diffY = m_impl->smoothY - m_impl->prevY;
+    const double diffA = m_impl->smoothA - m_impl->prevA;
+
+    cv::Mat warp(2, 3, CV_64F);
+    const double cosA = std::cos(diffA);
+    const double sinA = std::sin(diffA);
+    warp.at<double>(0, 0) = cosA;
+    warp.at<double>(0, 1) = -sinA;
+    warp.at<double>(1, 0) = sinA;
+    warp.at<double>(1, 1) = cosA;
+
+    const double cx = static_cast<double>(width) / 2.0;
+    const double cy = static_cast<double>(height) / 2.0;
+    warp.at<double>(0, 2) = diffX + (cx - (cosA * cx - sinA * cy));
+    warp.at<double>(1, 2) = diffY + (cy - (sinA * cx + cosA * cy));
+
+    cv::Mat stabilized;
+    cv::warpAffine(mat, stabilized, warp, mat.size(), cv::INTER_LINEAR, cv::BORDER_REFLECT_101);
+
+    if (m_cropMarginPercent > 0.001) {
+        const int cropX = static_cast<int>(static_cast<double>(width) * m_cropMarginPercent);
+        const int cropY = static_cast<int>(static_cast<double>(height) * m_cropMarginPercent);
+        const cv::Rect roi(cropX, cropY, width - 2 * cropX, height - 2 * cropY);
+        const cv::Mat cropped = stabilized(roi);
+        cv::resize(cropped, mat, mat.size(), 0.0, 0.0, cv::INTER_LINEAR);
+    } else {
+        stabilized.copyTo(mat);
+    }
+
+    m_impl->prevGray = curGray;
+}
+
+// --- WhiteBalanceFilter ---
+WhiteBalanceFilter::WhiteBalanceFilter(Mode mode, double strength)
+    : m_mode(mode)
+    , m_strength(std::clamp(strength, 0.0, 1.0))
+{
+}
+
+void WhiteBalanceFilter::process(uint8_t* data, int width, int height, PixelFormat format)
+{
+    (void)format;
+    if (!data || width <= 0 || height <= 0 || m_strength <= 0.0) {
+        return;
+    }
+
+    cv::Mat mat(height, width, CV_8UC3, data);
+    std::vector<cv::Mat> channels(3);
+    cv::split(mat, channels);
+
+    double gain[3] = { 1.0, 1.0, 1.0 };
+    if (m_mode == Mode::GrayWorld) {
+        const cv::Scalar meanVal = cv::mean(mat);
+        const double avgMean = (meanVal[0] + meanVal[1] + meanVal[2]) / 3.0;
+        gain[0] = avgMean / std::max(1.0, meanVal[0]);
+        gain[1] = avgMean / std::max(1.0, meanVal[1]);
+        gain[2] = avgMean / std::max(1.0, meanVal[2]);
+    } else { // WhitePatch
+        double minVal = 0.0, maxVal = 0.0;
+        for (std::size_t i = 0U; i < 3U; ++i) {
+            cv::minMaxLoc(channels[i], &minVal, &maxVal);
+            gain[i] = 255.0 / std::max(1.0, maxVal);
+        }
+    }
+
+    for (std::size_t i = 0U; i < 3U; ++i) {
+        const double g = 1.0 + m_strength * (gain[i] - 1.0);
+        cv::Mat scaled;
+        channels[i].convertTo(scaled, CV_8U, g);
+        channels[i] = scaled;
+    }
+
+    cv::merge(channels, mat);
+}
+
+// --- ChromaticAberrationFilter ---
+ChromaticAberrationFilter::ChromaticAberrationFilter(
+    double redCoeff, double blueCoeff, double centerOffsetX, double centerOffsetY)
+    : m_redCoeff(redCoeff)
+    , m_blueCoeff(blueCoeff)
+    , m_centerOffsetX(centerOffsetX)
+    , m_centerOffsetY(centerOffsetY)
+{
+}
+
+void ChromaticAberrationFilter::setParameters(
+    double redCoeff, double blueCoeff, double centerOffsetX, double centerOffsetY)
+{
+    m_redCoeff = redCoeff;
+    m_blueCoeff = blueCoeff;
+    m_centerOffsetX = centerOffsetX;
+    m_centerOffsetY = centerOffsetY;
+}
+
+void ChromaticAberrationFilter::process(uint8_t* data, int width, int height, PixelFormat format)
+{
+    if (!data || width <= 0 || height <= 0 || (m_redCoeff == 0.0 && m_blueCoeff == 0.0)) {
+        return;
+    }
+
+    cv::Mat mat(height, width, CV_8UC3, data);
+    std::vector<cv::Mat> channels(3);
+    cv::split(mat, channels);
+
+    const std::size_t bIdx = (format == PixelFormat::BGR24) ? 0U : 2U;
+    const std::size_t rIdx = (format == PixelFormat::BGR24) ? 2U : 0U;
+
+    const double cx = (static_cast<double>(width) / 2.0) + m_centerOffsetX * static_cast<double>(width);
+    const double cy = (static_cast<double>(height) / 2.0) + m_centerOffsetY * static_cast<double>(height);
+    const double maxRadius = std::sqrt(cx * cx + cy * cy);
+    if (maxRadius <= 0.0) {
+        return;
+    }
+
+    auto warpChannel = [&](cv::Mat& ch, double k) {
+        if (std::abs(k) < 1e-6)
+            return;
+        cv::Mat mapX(height, width, CV_32F);
+        cv::Mat mapY(height, width, CV_32F);
+        for (int y = 0; y < height; ++y) {
+            float* pMapX = mapX.ptr<float>(y);
+            float* pMapY = mapY.ptr<float>(y);
+            for (int x = 0; x < width; ++x) {
+                const double dx = (static_cast<double>(x) - cx) / maxRadius;
+                const double dy = (static_cast<double>(y) - cy) / maxRadius;
+                const double r2 = dx * dx + dy * dy;
+                const double factor = 1.0 + k * r2;
+                pMapX[x] = static_cast<float>(cx + dx * factor * maxRadius);
+                pMapY[x] = static_cast<float>(cy + dy * factor * maxRadius);
+            }
+        }
+        cv::Mat warped;
+        cv::remap(ch, warped, mapX, mapY, cv::INTER_LINEAR, cv::BORDER_REFLECT_101);
+        ch = warped;
+    };
+
+    warpChannel(channels[rIdx], m_redCoeff);
+    warpChannel(channels[bIdx], m_blueCoeff);
+
+    cv::merge(channels, mat);
+}
+
 } // namespace PelcoD::Video
 
 #endif // PELCOD_HAS_FILTERS

@@ -218,6 +218,18 @@ void VideoStreamTab::setupUi()
     m_comboPalette->addItem(tr("Bone"), static_cast<int>(PelcoD::Video::FalseColorPalette::Bone));
     visionLayout->addWidget(m_comboPalette);
 
+    m_chkDcpDehaze = new QCheckBox(tr("Atmospheric Dehaze (DCP)"), visionGroup);
+    visionLayout->addWidget(m_chkDcpDehaze);
+
+    m_chkStabilizer = new QCheckBox(tr("Electronic Stabilization (EIS)"), visionGroup);
+    visionLayout->addWidget(m_chkStabilizer);
+
+    m_chkWhiteBalance = new QCheckBox(tr("Auto White Balance (AWB)"), visionGroup);
+    visionLayout->addWidget(m_chkWhiteBalance);
+
+    m_chkChromaticAberration = new QCheckBox(tr("Chromatic Aberration Fix"), visionGroup);
+    visionLayout->addWidget(m_chkChromaticAberration);
+
     m_chkLapHaze = new QCheckBox(tr("Fog / Haze Penetration (LAP)"), visionGroup);
     visionLayout->addWidget(m_chkLapHaze);
 
@@ -397,6 +409,10 @@ void VideoStreamTab::setupConnections()
 #if defined(PELCOD_HAS_FILTERS)
     connect(m_comboPalette, QOverload<int>::of(&QComboBox::currentIndexChanged), this,
         &VideoStreamTab::onFilterConfigurationChanged);
+    connect(m_chkDcpDehaze, &QCheckBox::toggled, this, &VideoStreamTab::onFilterConfigurationChanged);
+    connect(m_chkStabilizer, &QCheckBox::toggled, this, &VideoStreamTab::onFilterConfigurationChanged);
+    connect(m_chkWhiteBalance, &QCheckBox::toggled, this, &VideoStreamTab::onFilterConfigurationChanged);
+    connect(m_chkChromaticAberration, &QCheckBox::toggled, this, &VideoStreamTab::onFilterConfigurationChanged);
     connect(m_chkLapHaze, &QCheckBox::toggled, this, &VideoStreamTab::onFilterConfigurationChanged);
     connect(m_chkClahe, &QCheckBox::toggled, this, &VideoStreamTab::onFilterConfigurationChanged);
     connect(m_chkDenoise, &QCheckBox::toggled, this, &VideoStreamTab::onFilterConfigurationChanged);
@@ -714,27 +730,48 @@ void VideoStreamTab::onFilterConfigurationChanged()
 
     m_worker->clearFrameProcessors();
 
-    // 1. Denoise first to suppress scintillation before edge/contrast amplification
+    // 0. Electronic Image Stabilization (EIS) - applied first on incoming raw frame
+    if (m_chkStabilizer != nullptr && m_chkStabilizer->isChecked()) {
+        m_worker->addFrameProcessor(std::make_shared<PelcoD::Video::ImageStabilizationFilter>(0.8, 30.0, 0.04));
+    }
+
+    // 1. Denoise to suppress scintillation before edge/contrast amplification
     if (m_chkDenoise != nullptr && m_chkDenoise->isChecked()) {
         m_worker->addFrameProcessor(std::make_shared<PelcoD::Video::TemporalDenoiseFilter>(0.5, 30.0));
     }
 
-    // 2. Atmospheric Penetration / LAP
+    // 2. Dark Channel Prior (DCP) Dehaze - removes atmospheric haze/fog
+    if (m_chkDcpDehaze != nullptr && m_chkDcpDehaze->isChecked()) {
+        m_worker->addFrameProcessor(std::make_shared<PelcoD::Video::DarkChannelDehazeFilter>(0.85, 9, 0.1));
+    }
+
+    // 3. Auto White Balance (AWB) - corrects illumination color casts
+    if (m_chkWhiteBalance != nullptr && m_chkWhiteBalance->isChecked()) {
+        m_worker->addFrameProcessor(std::make_shared<PelcoD::Video::WhiteBalanceFilter>(
+            PelcoD::Video::WhiteBalanceFilter::Mode::GrayWorld, 1.0));
+    }
+
+    // 4. Chromatic Aberration Correction - fixes radial color fringing at extreme zoom
+    if (m_chkChromaticAberration != nullptr && m_chkChromaticAberration->isChecked()) {
+        m_worker->addFrameProcessor(std::make_shared<PelcoD::Video::ChromaticAberrationFilter>(0.005, -0.005));
+    }
+
+    // 5. Atmospheric Penetration / LAP
     if (m_chkLapHaze != nullptr && m_chkLapHaze->isChecked()) {
         m_worker->addFrameProcessor(std::make_shared<PelcoD::Video::LocalAreaProcessingFilter>(5, 0.6, 5.0));
     }
 
-    // 3. CLAHE Adaptive Contrast
+    // 6. CLAHE Adaptive Contrast
     if (m_chkClahe != nullptr && m_chkClahe->isChecked()) {
         m_worker->addFrameProcessor(std::make_shared<PelcoD::Video::ClaheFilter>(2.5, 8, 1.0));
     }
 
-    // 4. Optical Acuity Sharpening
+    // 7. Optical Acuity Sharpening
     if (m_chkSharpen != nullptr && m_chkSharpen->isChecked()) {
         m_worker->addFrameProcessor(std::make_shared<PelcoD::Video::SharpenFilter>(1.2, 3));
     }
 
-    // 5. Canny Edge Outlines
+    // 8. Canny Edge Outlines
     if (m_chkEdgeDetect != nullptr && m_chkEdgeDetect->isChecked()) {
         m_worker->addFrameProcessor(std::make_shared<PelcoD::Video::EdgeDetectionFilter>(50.0, 150.0));
     }
