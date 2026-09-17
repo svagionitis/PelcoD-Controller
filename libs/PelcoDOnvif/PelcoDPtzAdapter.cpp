@@ -8,6 +8,21 @@ namespace PelcoD::Onvif {
 PelcoDPtzAdapter::PelcoDPtzAdapter(std::shared_ptr<PelcoD::PelcoDDevice> device)
     : m_device(std::move(device))
 {
+    if (m_device) {
+        m_statusConn = m_device->addStatusCallback(
+            [this](const PelcoD::DeviceStatus& status) { onDeviceStatusUpdated(status); });
+    }
+}
+
+PelcoDPtzAdapter::~PelcoDPtzAdapter()
+{
+    m_statusConn.disconnect();
+}
+
+void PelcoDPtzAdapter::setEventPublisher(EventCallback publisher)
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    m_eventPublisher = std::move(publisher);
 }
 
 void PelcoDPtzAdapter::handleContinuousMove(float panSpeed, float tiltSpeed, float zoomSpeed)
@@ -129,17 +144,32 @@ bool PelcoDPtzAdapter::handleGotoPreset(const std::string& token)
 {
     std::lock_guard<std::mutex> lock(m_mutex);
 
+    bool dispatched = false;
     try {
         const int id = std::stoi(token);
         if (m_device && id >= 1 && id <= 255) {
             m_device->goToPreset(static_cast<std::uint8_t>(id));
-            return true;
+            dispatched = true;
         }
     } catch (...) {
         // Fall through
     }
 
-    return m_presets.find(token) != m_presets.end();
+    if (!dispatched) {
+        dispatched = (m_presets.find(token) != m_presets.end());
+    }
+
+    if (dispatched && m_eventPublisher) {
+        OnvifEvent ev {};
+        ev.topic = "tns1:PTZController/PTZPresets/Reached";
+        ev.sourceName = "PresetToken";
+        ev.sourceValue = token;
+        ev.dataName = "State";
+        ev.dataValue = "true";
+        m_eventPublisher(ev);
+    }
+
+    return dispatched;
 }
 
 bool PelcoDPtzAdapter::handleRemovePreset(const std::string& token)
@@ -182,6 +212,72 @@ PtzStatus PelcoDPtzAdapter::handleGetStatus()
     status.zoom = static_cast<float>(devStatus.zoomPosition) / 65535.0f;
     status.isMoving = m_isMoving.load();
     return status;
+}
+
+ImagingSettings PelcoDPtzAdapter::handleGetImagingSettings(const std::string& /*videoSourceToken*/)
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    return m_imagingSettings;
+}
+
+bool PelcoDPtzAdapter::handleSetImagingSettings(
+    const std::string& /*videoSourceToken*/, const ImagingSettings& settings)
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    m_imagingSettings = settings;
+
+    if (m_device) {
+        m_device->setBacklightComp(settings.backlightCompensation ? SwitchState::On : SwitchState::Off);
+    }
+    return true;
+}
+
+void PelcoDPtzAdapter::handleMoveFocus(const std::string& /*videoSourceToken*/, float speed)
+{
+    if (!m_device) {
+        return;
+    }
+
+    if (speed < -0.05f) {
+        m_device->focusNear();
+    } else if (speed > 0.05f) {
+        m_device->focusFar();
+    } else {
+        m_device->focusStop();
+    }
+}
+
+void PelcoDPtzAdapter::handleStopFocus(const std::string& /*videoSourceToken*/)
+{
+    if (m_device) {
+        m_device->focusStop();
+    }
+}
+
+void PelcoDPtzAdapter::onDeviceStatusUpdated(const PelcoD::DeviceStatus& status)
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    if (!m_eventPublisher) {
+        return;
+    }
+
+    if (status.alarms != m_lastAlarms) {
+        for (int i = 0; i < 8; ++i) {
+            const auto mask = static_cast<std::uint8_t>(1U << i);
+            const bool oldBit = (m_lastAlarms & mask) != 0U;
+            const bool newBit = (status.alarms & mask) != 0U;
+            if (oldBit != newBit) {
+                OnvifEvent ev {};
+                ev.topic = "tns1:Device/Trigger/DigitalInput";
+                ev.sourceName = "InputToken";
+                ev.sourceValue = "Alarm_" + std::to_string(i + 1);
+                ev.dataName = "LogicalState";
+                ev.dataValue = newBit ? "true" : "false";
+                m_eventPublisher(ev);
+            }
+        }
+        m_lastAlarms = status.alarms;
+    }
 }
 
 } // namespace PelcoD::Onvif

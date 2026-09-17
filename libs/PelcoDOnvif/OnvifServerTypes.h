@@ -6,6 +6,7 @@
 #include "OnvifTypes.h"
 
 #include <cstdint>
+#include <functional>
 #include <memory>
 #include <string>
 #include <vector>
@@ -46,7 +47,42 @@ struct OnvifServerConfig {
     std::string serviceUuid {};
 
     /// @brief Additional WS-Discovery scope URIs.
-    std::vector<std::string> scopes {};
+    std::vector<std::string> scopes { "onvif://www.onvif.org/Profile/S", "onvif://www.onvif.org/Profile/T" };
+
+    /// @brief Default optical and imaging configuration.
+    ImagingSettings defaultImagingSettings {};
+};
+
+/// @brief Callback signature for publishing asynchronous ONVIF event notifications.
+using EventCallback = std::function<void(const OnvifEvent& event)>;
+
+/// @class IImagingHandler
+/// @brief Abstract interface for decoupling ONVIF Profile T Imaging requests from hardware.
+class IImagingHandler {
+public:
+    virtual ~IImagingHandler() = default;
+
+    /// @brief Retrieves current optical and imaging parameters for a video source.
+    /// @param[in] videoSourceToken Video source token.
+    /// @return Current ImagingSettings structure.
+    [[nodiscard]] virtual ImagingSettings handleGetImagingSettings(const std::string& videoSourceToken) = 0;
+
+    /// @brief Applies updated imaging parameters to the video source.
+    /// @param[in] videoSourceToken Video source token.
+    /// @param[in] settings New imaging parameters.
+    /// @return True if settings were successfully applied.
+    [[nodiscard]] virtual bool handleSetImagingSettings(
+        const std::string& videoSourceToken, const ImagingSettings& settings)
+        = 0;
+
+    /// @brief Starts continuous optical focus movement.
+    /// @param[in] videoSourceToken Video source token.
+    /// @param[in] speed Normalized speed [-1.0 (near) to +1.0 (far)].
+    virtual void handleMoveFocus(const std::string& videoSourceToken, float speed) = 0;
+
+    /// @brief Halts active optical focus movement.
+    /// @param[in] videoSourceToken Video source token.
+    virtual void handleStopFocus(const std::string& videoSourceToken) = 0;
 };
 
 /// @class IPtzHandler

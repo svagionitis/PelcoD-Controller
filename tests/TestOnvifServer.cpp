@@ -94,6 +94,38 @@ public:
     std::vector<PtzPreset> presets {};
 };
 
+class MockImagingHandler : public IImagingHandler {
+public:
+    ImagingSettings handleGetImagingSettings(const std::string& /*videoSourceToken*/) override
+    {
+        return settings;
+    }
+
+    bool handleSetImagingSettings(const std::string& /*videoSourceToken*/, const ImagingSettings& newSettings) override
+    {
+        settings = newSettings;
+        setSettingsCount++;
+        return true;
+    }
+
+    void handleMoveFocus(const std::string& /*videoSourceToken*/, float speed) override
+    {
+        lastFocusSpeed = speed;
+        moveFocusCount++;
+    }
+
+    void handleStopFocus(const std::string& /*videoSourceToken*/) override
+    {
+        stopFocusCount++;
+    }
+
+    ImagingSettings settings {};
+    int setSettingsCount { 0 };
+    float lastFocusSpeed { 0.0f };
+    int moveFocusCount { 0 };
+    int stopFocusCount { 0 };
+};
+
 void testWsDiscoveryPayloads()
 {
     std::cout << "[RUN] testWsDiscoveryPayloads..." << std::endl;
@@ -121,6 +153,13 @@ void testWsDiscoveryPayloads()
     assert(std::string(xaddrsNode.text().as_string()).find("http://192.168.1.100:8080/onvif/device_service")
         != std::string::npos);
 
+    // Verify Profile S & T in scopes
+    const pugi::xml_node scopesNode = doc.select_node("//*[local-name()='Scopes']").node();
+    assert(scopesNode);
+    const std::string scopesStr = scopesNode.text().as_string();
+    assert(scopesStr.find("onvif://www.onvif.org/Profile/S") != std::string::npos);
+    assert(scopesStr.find("onvif://www.onvif.org/Profile/T") != std::string::npos);
+
     const std::string hello = discServer.createHelloPayload("192.168.1.100");
     assert(doc.load_string(hello.c_str()));
     const pugi::xml_node helloNode = doc.select_node("//*[local-name()='Hello']").node();
@@ -136,11 +175,11 @@ void testWsDiscoveryPayloads()
 
 void testHttpSoapEndpoints()
 {
-    std::cout << "[RUN] testHttpSoapEndpoints..." << std::endl;
+    std::cout << "[RUN] testHttpSoapEndpoints (Profile S)..." << std::endl;
 
     OnvifServerConfig config;
     config.bindAddress = "127.0.0.1";
-    config.port = 18080; // High test port
+    config.port = 18080;
     config.deviceName = "Test Bridge Camera";
     config.manufacturer = "PelcoD-Test";
     config.model = "Model-XYZ";
@@ -152,7 +191,6 @@ void testHttpSoapEndpoints()
     assert(server.start());
     assert(server.isRunning());
 
-    // Give server thread a moment to bind and listen
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
     httplib::Client client("127.0.0.1", 18080);
@@ -199,7 +237,7 @@ void testHttpSoapEndpoints()
         assert(modelNode && std::string(modelNode.text().as_string()) == "Model-XYZ");
     }
 
-    // 3. GetCapabilities
+    // 3. GetCapabilities (including Profile T Imaging and Events)
     {
         const std::string soapReq = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
                                     "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
@@ -216,6 +254,8 @@ void testHttpSoapEndpoints()
         assert(doc.load_string(res->body.c_str()));
         assert(doc.select_node("//*[local-name()='PTZ']/*[local-name()='XAddr']"));
         assert(doc.select_node("//*[local-name()='Media']/*[local-name()='XAddr']"));
+        assert(doc.select_node("//*[local-name()='Imaging']/*[local-name()='XAddr']"));
+        assert(doc.select_node("//*[local-name()='Events']/*[local-name()='XAddr']"));
     }
 
     // 4. Media GetProfiles & GetStreamUri
@@ -291,58 +331,186 @@ void testHttpSoapEndpoints()
         assert(mockHandler->lastStopZ == true);
     }
 
-    // 6. PTZ Presets & Status
+    server.stop();
+    assert(!server.isRunning());
+
+    std::cout << "[PASS] testHttpSoapEndpoints (Profile S)" << std::endl;
+}
+
+void testProfileTImagingAndEvents()
+{
+    std::cout << "[RUN] testProfileTImagingAndEvents..." << std::endl;
+
+    OnvifServerConfig config;
+    config.bindAddress = "127.0.0.1";
+    config.port = 18081; // Unique test port
+    config.deviceName = "Profile T Camera";
+
+    auto mockImaging = std::make_shared<MockImagingHandler>();
+    mockImaging->settings.brightness = 60.0f;
+    mockImaging->settings.contrast = 70.0f;
+
+    OnvifServer server(config, nullptr, mockImaging);
+    assert(server.start());
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+    httplib::Client client("127.0.0.1", 18081);
+    client.set_connection_timeout(std::chrono::seconds(2));
+    client.set_read_timeout(std::chrono::seconds(3));
+
+    // 1. GetImagingSettings
     {
-        const std::string setPresetReq
-            = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
-              "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
-              "xmlns:tptz=\"http://www.onvif.org/ver20/ptz/wsdl\">\r\n"
-              "  <SOAP-ENV:Body>\r\n"
-              "    <tptz:SetPreset>\r\n"
-              "      <tptz:PresetName>Gate View</tptz:PresetName>\r\n"
-              "      <tptz:PresetToken>5</tptz:PresetToken>\r\n"
-              "    </tptz:SetPreset>\r\n"
-              "  </SOAP-ENV:Body>\r\n"
-              "</SOAP-ENV:Envelope>";
+        const std::string req = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+                                "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                "xmlns:timg=\"http://www.onvif.org/ver20/imaging/wsdl\">\r\n"
+                                "  <SOAP-ENV:Body>\r\n"
+                                "    <timg:GetImagingSettings>\r\n"
+                                "      <timg:VideoSourceToken>VideoSource_1</timg:VideoSourceToken>\r\n"
+                                "    </timg:GetImagingSettings>\r\n"
+                                "  </SOAP-ENV:Body>\r\n"
+                                "</SOAP-ENV:Envelope>";
 
-        auto resSet = client.Post("/onvif/ptz_service", setPresetReq, "application/soap+xml; charset=utf-8");
-        assert(resSet && resSet->status == 200);
-        assert(mockHandler->presets.size() == 1);
-        assert(mockHandler->presets[0].token == "5");
+        auto res = client.Post("/onvif/imaging_service", req, "application/soap+xml; charset=utf-8");
+        assert(res && res->status == 200);
 
-        const std::string getPresetsReq
-            = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
-              "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
-              "xmlns:tptz=\"http://www.onvif.org/ver20/ptz/wsdl\">\r\n"
-              "  <SOAP-ENV:Body>\r\n"
-              "    <tptz:GetPresets/>\r\n"
-              "  </SOAP-ENV:Body>\r\n"
-              "</SOAP-ENV:Envelope>";
-
-        auto resGet = client.Post("/onvif/ptz_service", getPresetsReq, "application/soap+xml; charset=utf-8");
-        assert(resGet && resGet->status == 200);
         pugi::xml_document doc;
-        assert(doc.load_string(resGet->body.c_str()));
-        assert(doc.select_node("//*[local-name()='Preset'][@token='5']"));
+        assert(doc.load_string(res->body.c_str()));
+        const auto bNode = doc.select_node("//*[local-name()='Brightness']").node();
+        assert(bNode && std::abs(bNode.text().as_float() - 60.0f) < 0.1f);
+    }
 
-        const std::string statusReq = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
-                                      "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
-                                      "xmlns:tptz=\"http://www.onvif.org/ver20/ptz/wsdl\">\r\n"
-                                      "  <SOAP-ENV:Body>\r\n"
-                                      "    <tptz:GetStatus/>\r\n"
-                                      "  </SOAP-ENV:Body>\r\n"
-                                      "</SOAP-ENV:Envelope>";
+    // 2. SetImagingSettings
+    {
+        const std::string req = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+                                "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                "xmlns:timg=\"http://www.onvif.org/ver20/imaging/wsdl\" "
+                                "xmlns:tt=\"http://www.onvif.org/ver10/schema\">\r\n"
+                                "  <SOAP-ENV:Body>\r\n"
+                                "    <timg:SetImagingSettings>\r\n"
+                                "      <timg:VideoSourceToken>VideoSource_1</timg:VideoSourceToken>\r\n"
+                                "      <timg:ImagingSettings>\r\n"
+                                "        <tt:Brightness>85.0</tt:Brightness>\r\n"
+                                "        <tt:Contrast>45.0</tt:Contrast>\r\n"
+                                "      </timg:ImagingSettings>\r\n"
+                                "    </timg:SetImagingSettings>\r\n"
+                                "  </SOAP-ENV:Body>\r\n"
+                                "</SOAP-ENV:Envelope>";
 
-        auto resStatus = client.Post("/onvif/ptz_service", statusReq, "application/soap+xml; charset=utf-8");
-        assert(resStatus && resStatus->status == 200);
-        assert(doc.load_string(resStatus->body.c_str()));
-        assert(doc.select_node("//*[local-name()='PTZStatus']"));
+        auto res = client.Post("/onvif/imaging_service", req, "application/soap+xml; charset=utf-8");
+        assert(res && res->status == 200);
+        assert(mockImaging->setSettingsCount == 1);
+        assert(std::abs(mockImaging->settings.brightness - 85.0f) < 0.1f);
+        assert(std::abs(mockImaging->settings.contrast - 45.0f) < 0.1f);
+    }
+
+    // 3. Move Focus & Stop Focus
+    {
+        const std::string moveReq = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+                                    "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                    "xmlns:timg=\"http://www.onvif.org/ver20/imaging/wsdl\" "
+                                    "xmlns:tt=\"http://www.onvif.org/ver10/schema\">\r\n"
+                                    "  <SOAP-ENV:Body>\r\n"
+                                    "    <timg:Move>\r\n"
+                                    "      <timg:VideoSourceToken>VideoSource_1</timg:VideoSourceToken>\r\n"
+                                    "      <timg:Focus>\r\n"
+                                    "        <tt:Continuous><tt:Speed>0.8</tt:Speed></tt:Continuous>\r\n"
+                                    "      </timg:Focus>\r\n"
+                                    "    </timg:Move>\r\n"
+                                    "  </SOAP-ENV:Body>\r\n"
+                                    "</SOAP-ENV:Envelope>";
+
+        auto resMove = client.Post("/onvif/imaging_service", moveReq, "application/soap+xml; charset=utf-8");
+        assert(resMove && resMove->status == 200);
+        assert(mockImaging->moveFocusCount == 1);
+        assert(std::abs(mockImaging->lastFocusSpeed - 0.8f) < 0.01f);
+
+        const std::string stopReq = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+                                    "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                    "xmlns:timg=\"http://www.onvif.org/ver20/imaging/wsdl\">\r\n"
+                                    "  <SOAP-ENV:Body>\r\n"
+                                    "    <timg:Stop>\r\n"
+                                    "      <timg:VideoSourceToken>VideoSource_1</timg:VideoSourceToken>\r\n"
+                                    "    </timg:Stop>\r\n"
+                                    "  </SOAP-ENV:Body>\r\n"
+                                    "</SOAP-ENV:Envelope>";
+
+        auto resStop = client.Post("/onvif/imaging_service", stopReq, "application/soap+xml; charset=utf-8");
+        assert(resStop && resStop->status == 200);
+        assert(mockImaging->stopFocusCount == 1);
+    }
+
+    // 4. Events: CreatePullPointSubscription, PublishEvent, PullMessages
+    {
+        const std::string subReq = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+                                   "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                   "xmlns:tev=\"http://www.onvif.org/ver10/events/wsdl\">\r\n"
+                                   "  <SOAP-ENV:Body>\r\n"
+                                   "    <tev:CreatePullPointSubscription/>\r\n"
+                                   "  </SOAP-ENV:Body>\r\n"
+                                   "</SOAP-ENV:Envelope>";
+
+        auto resSub = client.Post("/onvif/event_service", subReq, "application/soap+xml; charset=utf-8");
+        assert(resSub && resSub->status == 200);
+
+        pugi::xml_document doc;
+        assert(doc.load_string(resSub->body.c_str()));
+        const auto addrNode = doc.select_node("//*[local-name()='Address']").node();
+        assert(addrNode);
+        const std::string subUrl = addrNode.text().as_string();
+        assert(subUrl.find("/onvif/events/subscription/") != std::string::npos);
+
+        // Publish mock motion detection event
+        OnvifEvent motionEv {};
+        motionEv.topic = "tns1:RuleEngine/CellMotionDetector/Motion";
+        motionEv.sourceName = "VideoSourceToken";
+        motionEv.sourceValue = "VideoSource_1";
+        motionEv.dataName = "IsMotion";
+        motionEv.dataValue = "true";
+        server.publishEvent(motionEv);
+
+        // Pull messages from subscription endpoint
+        const std::string pullReq = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+                                    "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                    "xmlns:tev=\"http://www.onvif.org/ver10/events/wsdl\">\r\n"
+                                    "  <SOAP-ENV:Body>\r\n"
+                                    "    <tev:PullMessages>\r\n"
+                                    "      <tev:Timeout>PT1S</tev:Timeout>\r\n"
+                                    "      <tev:MessageLimit>5</tev:MessageLimit>\r\n"
+                                    "    </tev:PullMessages>\r\n"
+                                    "  </SOAP-ENV:Body>\r\n"
+                                    "</SOAP-ENV:Envelope>";
+
+        const auto slashPos = subUrl.find("/onvif/events/subscription/");
+        const std::string subPath = subUrl.substr(slashPos);
+
+        auto resPull = client.Post(subPath.c_str(), pullReq, "application/soap+xml; charset=utf-8");
+        assert(resPull && resPull->status == 200);
+
+        pugi::xml_document pullDoc;
+        assert(pullDoc.load_string(resPull->body.c_str()));
+        const auto topicNode = pullDoc.select_node("//*[local-name()='Topic']").node();
+        assert(topicNode && std::string(topicNode.text().as_string()) == "tns1:RuleEngine/CellMotionDetector/Motion");
+
+        const auto dataNode = pullDoc.select_node("//*[local-name()='Data']/*[local-name()='SimpleItem']").node();
+        assert(dataNode && std::string(dataNode.attribute("Value").as_string()) == "true");
+
+        // Unsubscribe
+        const std::string unsubReq = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+                                     "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                     "xmlns:wsnt=\"http://docs.oasis-open.org/wsn/b-2\">\r\n"
+                                     "  <SOAP-ENV:Body>\r\n"
+                                     "    <wsnt:Unsubscribe/>\r\n"
+                                     "  </SOAP-ENV:Body>\r\n"
+                                     "</SOAP-ENV:Envelope>";
+
+        auto resUnsub = client.Post(subPath.c_str(), unsubReq, "application/soap+xml; charset=utf-8");
+        assert(resUnsub && resUnsub->status == 200);
     }
 
     server.stop();
     assert(!server.isRunning());
-
-    std::cout << "[PASS] testHttpSoapEndpoints" << std::endl;
+    std::cout << "[PASS] testProfileTImagingAndEvents" << std::endl;
 }
 
 void testPelcoDPtzAdapter()
@@ -371,9 +539,30 @@ void testPelcoDPtzAdapter()
     assert(presets.size() == 1);
     assert(presets[0].token == "2");
 
+    // Test Profile T event emission on preset recall
+    std::vector<OnvifEvent> capturedEvents;
+    adapter.setEventPublisher([&capturedEvents](const OnvifEvent& ev) { capturedEvents.push_back(ev); });
+
     assert(adapter.handleGotoPreset("2"));
+    assert(!capturedEvents.empty());
+    assert(capturedEvents.back().topic == "tns1:PTZController/PTZPresets/Reached");
+    assert(capturedEvents.back().sourceValue == "2");
+
     assert(adapter.handleRemovePreset("2"));
     assert(adapter.handleGetPresets().empty());
+
+    // Optical Focus (Profile T)
+    adapter.handleMoveFocus("VideoSource_1", 1.0f);
+    adapter.handleStopFocus("VideoSource_1");
+
+    // Imaging Settings
+    ImagingSettings imgSettings {};
+    imgSettings.brightness = 75.0f;
+    imgSettings.backlightCompensation = true;
+    assert(adapter.handleSetImagingSettings("VideoSource_1", imgSettings));
+    const auto readSettings = adapter.handleGetImagingSettings("VideoSource_1");
+    assert(std::abs(readSettings.brightness - 75.0f) < 0.1f);
+    assert(readSettings.backlightCompensation == true);
 
     const auto status = adapter.handleGetStatus();
     (void)status;
@@ -387,6 +576,7 @@ int main()
     std::cout << "Starting TestOnvifServer test suite..." << std::endl;
     testWsDiscoveryPayloads();
     testHttpSoapEndpoints();
+    testProfileTImagingAndEvents();
     testPelcoDPtzAdapter();
     std::cout << "All TestOnvifServer tests passed successfully!" << std::endl;
     return 0;

@@ -9,20 +9,27 @@
 #include <httplib.h>
 
 #include <atomic>
+#include <condition_variable>
+#include <deque>
+#include <map>
 #include <memory>
+#include <mutex>
 #include <string>
 #include <thread>
 
 namespace PelcoD::Onvif {
 
 /// @class OnvifServer
-/// @brief Standalone Qt-free ONVIF Profile S HTTP server coordinating Device, Media, and PTZ services.
+/// @brief Standalone Qt-free ONVIF Profile S and Profile T HTTP server coordinating Device, Media, PTZ, Imaging, and
+/// Event services.
 class OnvifServer {
 public:
     /// @brief Constructs server with configuration and optional PTZ handler.
     /// @param[in] config Server networking and metadata parameters.
     /// @param[in] ptzHandler Optional handler receiving PTZ motion and preset events.
-    explicit OnvifServer(OnvifServerConfig config, std::shared_ptr<IPtzHandler> ptzHandler = nullptr);
+    /// @param[in] imagingHandler Optional handler receiving Profile T imaging requests.
+    explicit OnvifServer(OnvifServerConfig config, std::shared_ptr<IPtzHandler> ptzHandler = nullptr,
+        std::shared_ptr<IImagingHandler> imagingHandler = nullptr);
 
     /// @brief Destructor stops HTTP service and WS-Discovery daemon.
     ~OnvifServer();
@@ -52,18 +59,42 @@ public:
     /// @param[in] handler New IPtzHandler instance.
     void setPtzHandler(std::shared_ptr<IPtzHandler> handler);
 
+    /// @brief Sets or replaces the active Profile T Imaging handler.
+    /// @param[in] handler New IImagingHandler instance.
+    void setImagingHandler(std::shared_ptr<IImagingHandler> handler);
+
+    /// @brief Pushes an asynchronous ONVIF event to all active PullPoint subscriptions.
+    /// @param[in] event The event to publish.
+    void publishEvent(const OnvifEvent& event);
+
 private:
     void setupRoutes();
     void handleDeviceService(const httplib::Request& req, httplib::Response& res);
     void handleMediaService(const httplib::Request& req, httplib::Response& res);
     void handlePtzService(const httplib::Request& req, httplib::Response& res);
+    void handleImagingService(const httplib::Request& req, httplib::Response& res);
+    void handleEventService(const httplib::Request& req, httplib::Response& res);
+    void handleSubscriptionService(const httplib::Request& req, httplib::Response& res);
 
     [[nodiscard]] std::string resolveHost(const httplib::Request& req) const;
 
+    struct PullPointSubscription {
+        std::string id {};
+        std::chrono::steady_clock::time_point terminationTime {};
+        std::deque<OnvifEvent> queue {};
+        std::mutex mutex {};
+        std::condition_variable cv {};
+    };
+
     OnvifServerConfig m_config;
     std::shared_ptr<IPtzHandler> m_ptzHandler;
+    std::shared_ptr<IImagingHandler> m_imagingHandler;
     std::unique_ptr<WsDiscoveryServer> m_discoveryServer;
     httplib::Server m_httpServer;
+
+    mutable std::mutex m_subMutex {};
+    std::map<std::string, std::shared_ptr<PullPointSubscription>> m_subscriptions {};
+    uint32_t m_nextSubId { 1 };
 
     std::atomic<bool> m_running { false };
     std::thread m_httpThread {};

@@ -361,8 +361,13 @@ std::string WsDiscoveryServer::createHelloPayload(const std::string& localIp) co
         << "        onvif://www.onvif.org/type/video_encoder\r\n"
         << "        onvif://www.onvif.org/type/ptz\r\n"
         << "        onvif://www.onvif.org/name/" << m_config.deviceName << "\r\n"
-        << "        onvif://www.onvif.org/hardware/" << m_config.model << "\r\n"
-        << "      </d:Scopes>\r\n"
+        << "        onvif://www.onvif.org/hardware/" << m_config.model << "\r\n";
+
+    for (const auto& scope : m_config.scopes) {
+        oss << "        " << scope << "\r\n";
+    }
+
+    oss << "      </d:Scopes>\r\n"
         << "      <d:XAddrs>http://" << localIp << ":" << m_config.port << "/onvif/device_service</d:XAddrs>\r\n"
         << "      <d:MetadataVersion>1</d:MetadataVersion>\r\n"
         << "    </d:Hello>\r\n"

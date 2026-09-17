@@ -2,6 +2,7 @@
 
 #include <pugixml.hpp>
 
+#include <algorithm>
 #include <chrono>
 #include <ctime>
 #include <iomanip>
@@ -19,6 +20,10 @@ namespace {
             << "xmlns:tds=\"http://www.onvif.org/ver10/device/wsdl\" "
             << "xmlns:trt=\"http://www.onvif.org/ver10/media/wsdl\" "
             << "xmlns:tptz=\"http://www.onvif.org/ver20/ptz/wsdl\" "
+            << "xmlns:timg=\"http://www.onvif.org/ver20/imaging/wsdl\" "
+            << "xmlns:tev=\"http://www.onvif.org/ver10/events/wsdl\" "
+            << "xmlns:wsnt=\"http://docs.oasis-open.org/wsn/b-2\" "
+            << "xmlns:wsa=\"http://schemas.xmlsoap.org/ws/2004/08/addressing\" "
             << "xmlns:tt=\"http://www.onvif.org/ver10/schema\">\r\n"
             << "  <SOAP-ENV:Body>\r\n"
             << bodyXml << "  </SOAP-ENV:Body>\r\n"
@@ -26,11 +31,46 @@ namespace {
         return oss.str();
     }
 
+    std::string formatIso8601Utc(const std::chrono::system_clock::time_point& tp)
+    {
+        const std::time_t t = std::chrono::system_clock::to_time_t(tp);
+        std::tm tmUtc {};
+#ifdef _WIN32
+        gmtime_s(&tmUtc, &t);
+#else
+        gmtime_r(&t, &tmUtc);
+#endif
+        char buf[32] { 0 };
+        std::strftime(buf, sizeof(buf), "%Y-%m-%dT%H:%M:%SZ", &tmUtc);
+        return std::string(buf);
+    }
+
+    int parseTimeoutSeconds(const std::string& isoDuration, int defaultSecs = 5)
+    {
+        if (isoDuration.empty()) {
+            return defaultSecs;
+        }
+
+        const auto posT = isoDuration.find('T');
+        const auto posS = isoDuration.find('S');
+        if (posT != std::string::npos && posS != std::string::npos && posS > posT + 1) {
+            try {
+                const int val = std::stoi(isoDuration.substr(posT + 1, posS - posT - 1));
+                return std::clamp(val, 0, 10);
+            } catch (...) {
+                // Fallback
+            }
+        }
+        return defaultSecs;
+    }
+
 } // namespace
 
-OnvifServer::OnvifServer(OnvifServerConfig config, std::shared_ptr<IPtzHandler> ptzHandler)
+OnvifServer::OnvifServer(
+    OnvifServerConfig config, std::shared_ptr<IPtzHandler> ptzHandler, std::shared_ptr<IImagingHandler> imagingHandler)
     : m_config(std::move(config))
     , m_ptzHandler(std::move(ptzHandler))
+    , m_imagingHandler(std::move(imagingHandler))
 {
     m_discoveryServer = std::make_unique<WsDiscoveryServer>(m_config);
     setupRoutes();
@@ -77,6 +117,14 @@ void OnvifServer::stop()
     m_httpServer.stop();
     m_running = false;
 
+    {
+        std::lock_guard<std::mutex> lock(m_subMutex);
+        for (auto& [id, sub] : m_subscriptions) {
+            std::lock_guard<std::mutex> subLock(sub->mutex);
+            sub->cv.notify_all();
+        }
+    }
+
     if (m_httpThread.joinable()) {
         m_httpThread.join();
     }
@@ -95,6 +143,26 @@ OnvifServerConfig OnvifServer::getConfig() const
 void OnvifServer::setPtzHandler(std::shared_ptr<IPtzHandler> handler)
 {
     m_ptzHandler = std::move(handler);
+}
+
+void OnvifServer::setImagingHandler(std::shared_ptr<IImagingHandler> handler)
+{
+    m_imagingHandler = std::move(handler);
+}
+
+void OnvifServer::publishEvent(const OnvifEvent& event)
+{
+    OnvifEvent ev = event;
+    if (ev.utcTime.empty()) {
+        ev.utcTime = formatIso8601Utc(std::chrono::system_clock::now());
+    }
+
+    std::lock_guard<std::mutex> lock(m_subMutex);
+    for (auto& [id, sub] : m_subscriptions) {
+        std::lock_guard<std::mutex> subLock(sub->mutex);
+        sub->queue.push_back(ev);
+        sub->cv.notify_one();
+    }
 }
 
 std::string OnvifServer::resolveHost(const httplib::Request& req) const
@@ -125,6 +193,18 @@ void OnvifServer::setupRoutes()
 
     m_httpServer.Post("/onvif/ptz_service",
         [this](const httplib::Request& req, httplib::Response& res) { handlePtzService(req, res); });
+
+    m_httpServer.Post("/onvif/imaging_service",
+        [this](const httplib::Request& req, httplib::Response& res) { handleImagingService(req, res); });
+
+    m_httpServer.Post("/onvif/event_service",
+        [this](const httplib::Request& req, httplib::Response& res) { handleEventService(req, res); });
+
+    m_httpServer.Post("/onvif/events/subscription",
+        [this](const httplib::Request& req, httplib::Response& res) { handleSubscriptionService(req, res); });
+
+    m_httpServer.Post(R"(/onvif/events/subscription/(.+))",
+        [this](const httplib::Request& req, httplib::Response& res) { handleSubscriptionService(req, res); });
 
     m_httpServer.Get("/onvif/snapshot", [](const httplib::Request&, httplib::Response& res) {
         res.status = 501;
@@ -191,6 +271,12 @@ void OnvifServer::handleDeviceService(const httplib::Request& req, httplib::Resp
              << "        <tt:PTZ>\r\n"
              << "          <tt:XAddr>http://" << host << ":" << port << "/onvif/ptz_service</tt:XAddr>\r\n"
              << "        </tt:PTZ>\r\n"
+             << "        <tt:Imaging>\r\n"
+             << "          <tt:XAddr>http://" << host << ":" << port << "/onvif/imaging_service</tt:XAddr>\r\n"
+             << "        </tt:Imaging>\r\n"
+             << "        <tt:Events>\r\n"
+             << "          <tt:XAddr>http://" << host << ":" << port << "/onvif/event_service</tt:XAddr>\r\n"
+             << "        </tt:Events>\r\n"
              << "      </tds:Capabilities>\r\n"
              << "    </tds:GetCapabilitiesResponse>\r\n";
     } else if (opName.find("GetServices") != std::string::npos) {
@@ -209,6 +295,16 @@ void OnvifServer::handleDeviceService(const httplib::Request& req, httplib::Resp
              << "        <tds:Namespace>http://www.onvif.org/ver20/ptz/wsdl</tds:Namespace>\r\n"
              << "        <tds:XAddr>http://" << host << ":" << port << "/onvif/ptz_service</tds:XAddr>\r\n"
              << "        <tds:Version><tt:Major>2</tt:Major><tt:Minor>0</tt:Minor></tds:Version>\r\n"
+             << "      </tds:Service>\r\n"
+             << "      <tds:Service>\r\n"
+             << "        <tds:Namespace>http://www.onvif.org/ver20/imaging/wsdl</tds:Namespace>\r\n"
+             << "        <tds:XAddr>http://" << host << ":" << port << "/onvif/imaging_service</tds:XAddr>\r\n"
+             << "        <tds:Version><tt:Major>20</tt:Major><tt:Minor>0</tt:Minor></tds:Version>\r\n"
+             << "      </tds:Service>\r\n"
+             << "      <tds:Service>\r\n"
+             << "        <tds:Namespace>http://www.onvif.org/ver10/events/wsdl</tds:Namespace>\r\n"
+             << "        <tds:XAddr>http://" << host << ":" << port << "/onvif/event_service</tds:XAddr>\r\n"
+             << "        <tds:Version><tt:Major>10</tt:Major><tt:Minor>0</tt:Minor></tds:Version>\r\n"
              << "      </tds:Service>\r\n"
              << "    </tds:GetServicesResponse>\r\n";
     } else if (opName.find("GetScopes") != std::string::npos) {
@@ -229,7 +325,6 @@ void OnvifServer::handleDeviceService(const httplib::Request& req, httplib::Resp
         }
         body << "    </tds:GetScopesResponse>\r\n";
     } else {
-        // Generic success acknowledgement
         body << "    <tds:" << opName << "Response/>\r\n";
     }
 
@@ -483,6 +578,332 @@ void OnvifServer::handlePtzService(const httplib::Request& req, httplib::Respons
              << "    </tptz:GetStatusResponse>\r\n";
     } else {
         body << "    <tptz:" << opName << "Response/>\r\n";
+    }
+
+    res.status = 200;
+    res.set_content(wrapSoapResponse(body.str()), "application/soap+xml; charset=utf-8");
+}
+
+void OnvifServer::handleImagingService(const httplib::Request& req, httplib::Response& res)
+{
+    pugi::xml_document doc;
+    if (!doc.load_string(req.body.c_str())) {
+        res.status = 400;
+        return;
+    }
+
+    const pugi::xml_node bodyNode = doc.select_node("//*[local-name()='Body']").node();
+    const pugi::xml_node reqNode = bodyNode ? bodyNode.first_child() : pugi::xml_node {};
+    const std::string opName = reqNode ? reqNode.name() : "";
+
+    const pugi::xml_node vsNode = doc.select_node("//*[local-name()='VideoSourceToken']").node();
+    const std::string videoSourceToken = vsNode ? vsNode.text().as_string() : "VideoSource_1";
+
+    std::ostringstream body;
+
+    if (opName.find("GetImagingSettings") != std::string::npos) {
+        ImagingSettings settings = m_config.defaultImagingSettings;
+        if (m_imagingHandler) {
+            settings = m_imagingHandler->handleGetImagingSettings(videoSourceToken);
+        }
+
+        body << "    <timg:GetImagingSettingsResponse>\r\n"
+             << "      <timg:ImagingSettings>\r\n"
+             << "        <tt:Brightness>" << std::fixed << std::setprecision(1) << settings.brightness
+             << "</tt:Brightness>\r\n"
+             << "        <tt:ColorSaturation>" << settings.colorSaturation << "</tt:ColorSaturation>\r\n"
+             << "        <tt:Contrast>" << settings.contrast << "</tt:Contrast>\r\n"
+             << "        <tt:Sharpness>" << settings.sharpness << "</tt:Sharpness>\r\n"
+             << "        <tt:IrCutFilter>" << settings.irCutFilter << "</tt:IrCutFilter>\r\n"
+             << "        <tt:BacklightCompensation>\r\n"
+             << "          <tt:Mode>" << (settings.backlightCompensation ? "ON" : "OFF") << "</tt:Mode>\r\n"
+             << "          <tt:Level>" << settings.backlightLevel << "</tt:Level>\r\n"
+             << "        </tt:BacklightCompensation>\r\n"
+             << "        <tt:WideDynamicRange>\r\n"
+             << "          <tt:Mode>" << (settings.wideDynamicRange ? "ON" : "OFF") << "</tt:Mode>\r\n"
+             << "          <tt:Level>" << settings.wdrLevel << "</tt:Level>\r\n"
+             << "        </tt:WideDynamicRange>\r\n"
+             << "        <tt:Focus>\r\n"
+             << "          <tt:AutoFocusMode>" << settings.autoFocusMode << "</tt:AutoFocusMode>\r\n"
+             << "        </tt:Focus>\r\n"
+             << "      </timg:ImagingSettings>\r\n"
+             << "    </timg:GetImagingSettingsResponse>\r\n";
+    } else if (opName.find("SetImagingSettings") != std::string::npos) {
+        ImagingSettings settings = m_config.defaultImagingSettings;
+        if (m_imagingHandler) {
+            settings = m_imagingHandler->handleGetImagingSettings(videoSourceToken);
+        }
+
+        const pugi::xml_node brightNode = doc.select_node("//*[local-name()='Brightness']").node();
+        if (brightNode) {
+            settings.brightness = brightNode.text().as_float(settings.brightness);
+        }
+
+        const pugi::xml_node satNode = doc.select_node("//*[local-name()='ColorSaturation']").node();
+        if (satNode) {
+            settings.colorSaturation = satNode.text().as_float(settings.colorSaturation);
+        }
+
+        const pugi::xml_node contrastNode = doc.select_node("//*[local-name()='Contrast']").node();
+        if (contrastNode) {
+            settings.contrast = contrastNode.text().as_float(settings.contrast);
+        }
+
+        const pugi::xml_node sharpNode = doc.select_node("//*[local-name()='Sharpness']").node();
+        if (sharpNode) {
+            settings.sharpness = sharpNode.text().as_float(settings.sharpness);
+        }
+
+        const pugi::xml_node irNode = doc.select_node("//*[local-name()='IrCutFilter']").node();
+        if (irNode) {
+            settings.irCutFilter = irNode.text().as_string(settings.irCutFilter.c_str());
+        }
+
+        const pugi::xml_node blcNode = doc.select_node("//*[local-name()='BacklightCompensation']").node();
+        if (blcNode) {
+            const pugi::xml_node mode = blcNode.child("tt:Mode") ? blcNode.child("tt:Mode") : blcNode.first_child();
+            if (mode) {
+                settings.backlightCompensation = (std::string(mode.text().as_string()) == "ON");
+            }
+        }
+
+        if (m_imagingHandler) {
+            m_imagingHandler->handleSetImagingSettings(videoSourceToken, settings);
+        }
+
+        body << "    <timg:SetImagingSettingsResponse/>\r\n";
+    } else if (opName.find("Move") != std::string::npos) {
+        float speed = 0.0f;
+        const pugi::xml_node speedNode = doc.select_node("//*[local-name()='Speed']").node();
+        if (speedNode) {
+            speed = speedNode.text().as_float(0.0f);
+        }
+
+        if (m_imagingHandler) {
+            m_imagingHandler->handleMoveFocus(videoSourceToken, speed);
+        }
+
+        body << "    <timg:MoveResponse/>\r\n";
+    } else if (opName.find("Stop") != std::string::npos) {
+        if (m_imagingHandler) {
+            m_imagingHandler->handleStopFocus(videoSourceToken);
+        }
+
+        body << "    <timg:StopResponse/>\r\n";
+    } else if (opName.find("GetOptions") != std::string::npos) {
+        body << "    <timg:GetOptionsResponse>\r\n"
+             << "      <timg:ImagingOptions>\r\n"
+             << "        <tt:BacklightCompensation>\r\n"
+             << "          <tt:Mode>ON</tt:Mode>\r\n"
+             << "          <tt:Mode>OFF</tt:Mode>\r\n"
+             << "          <tt:LevelRange><tt:Min>0.0</tt:Min><tt:Max>100.0</tt:Max></tt:LevelRange>\r\n"
+             << "        </tt:BacklightCompensation>\r\n"
+             << "        <tt:Brightness><tt:Min>0.0</tt:Min><tt:Max>100.0</tt:Max></tt:Brightness>\r\n"
+             << "        <tt:ColorSaturation><tt:Min>0.0</tt:Min><tt:Max>100.0</tt:Max></tt:ColorSaturation>\r\n"
+             << "        <tt:Contrast><tt:Min>0.0</tt:Min><tt:Max>100.0</tt:Max></tt:Contrast>\r\n"
+             << "        <tt:Sharpness><tt:Min>0.0</tt:Min><tt:Max>100.0</tt:Max></tt:Sharpness>\r\n"
+             << "        <tt:Focus>\r\n"
+             << "          <tt:AutoFocusModes>AUTO</tt:AutoFocusModes>\r\n"
+             << "          <tt:AutoFocusModes>MANUAL</tt:AutoFocusModes>\r\n"
+             << "          "
+                "<tt:Continuous><tt:Speed><tt:Min>-1.0</tt:Min><tt:Max>1.0</tt:Max></tt:Speed></tt:Continuous>\r\n"
+             << "        </tt:Focus>\r\n"
+             << "      </timg:ImagingOptions>\r\n"
+             << "    </timg:GetOptionsResponse>\r\n";
+    } else {
+        body << "    <timg:" << opName << "Response/>\r\n";
+    }
+
+    res.status = 200;
+    res.set_content(wrapSoapResponse(body.str()), "application/soap+xml; charset=utf-8");
+}
+
+void OnvifServer::handleEventService(const httplib::Request& req, httplib::Response& res)
+{
+    pugi::xml_document doc;
+    if (!doc.load_string(req.body.c_str())) {
+        res.status = 400;
+        return;
+    }
+
+    const std::string host = resolveHost(req);
+    const int port = m_config.port;
+
+    const pugi::xml_node bodyNode = doc.select_node("//*[local-name()='Body']").node();
+    const pugi::xml_node reqNode = bodyNode ? bodyNode.first_child() : pugi::xml_node {};
+    const std::string opName = reqNode ? reqNode.name() : "";
+
+    std::ostringstream body;
+
+    if (opName.find("CreatePullPointSubscription") != std::string::npos) {
+        std::string subId;
+        std::shared_ptr<PullPointSubscription> sub;
+        {
+            std::lock_guard<std::mutex> lock(m_subMutex);
+            subId = std::to_string(m_nextSubId++);
+            sub = std::make_shared<PullPointSubscription>();
+            sub->id = subId;
+            sub->terminationTime = std::chrono::steady_clock::now() + std::chrono::minutes(10);
+            m_subscriptions[subId] = sub;
+        }
+
+        const auto now = std::chrono::system_clock::now();
+        const std::string curTime = formatIso8601Utc(now);
+        const std::string termTime = formatIso8601Utc(now + std::chrono::minutes(10));
+
+        body << "    <tev:CreatePullPointSubscriptionResponse>\r\n"
+             << "      <tev:SubscriptionReference>\r\n"
+             << "        <wsa:Address>http://" << host << ":" << port << "/onvif/events/subscription/" << subId
+             << "</wsa:Address>\r\n"
+             << "      </tev:SubscriptionReference>\r\n"
+             << "      <wsnt:CurrentTime>" << curTime << "</wsnt:CurrentTime>\r\n"
+             << "      <wsnt:TerminationTime>" << termTime << "</wsnt:TerminationTime>\r\n"
+             << "    </tev:CreatePullPointSubscriptionResponse>\r\n";
+    } else if (opName.find("GetEventProperties") != std::string::npos) {
+        body << "    <tev:GetEventPropertiesResponse>\r\n"
+             << "      "
+                "<tev:TopicNamespaceLocation>http://www.onvif.org/onvif/ver10/topics/topicns.xml</"
+                "tev:TopicNamespaceLocation>\r\n"
+             << "      <wsnt:FixedTopicSet>true</wsnt:FixedTopicSet>\r\n"
+             << "      <wstop:TopicSet xmlns:wstop=\"http://docs.oasis-open.org/wsn/t-1\">\r\n"
+             << "        <tns1:RuleEngine xmlns:tns1=\"http://www.onvif.org/ver10/topics\">\r\n"
+             << "          <tns1:CellMotionDetector><tns1:Motion/></tns1:CellMotionDetector>\r\n"
+             << "        </tns1:RuleEngine>\r\n"
+             << "        <tns1:PTZController xmlns:tns1=\"http://www.onvif.org/ver10/topics\">\r\n"
+             << "          <tns1:PTZPresets><tns1:Reached/></tns1:PTZPresets>\r\n"
+             << "        </tns1:PTZController>\r\n"
+             << "        <tns1:Device xmlns:tns1=\"http://www.onvif.org/ver10/topics\">\r\n"
+             << "          <tns1:Trigger><tns1:DigitalInput/></tns1:Trigger>\r\n"
+             << "        </tns1:Device>\r\n"
+             << "      </wstop:TopicSet>\r\n"
+             << "    </tev:GetEventPropertiesResponse>\r\n";
+    } else {
+        body << "    <tev:" << opName << "Response/>\r\n";
+    }
+
+    res.status = 200;
+    res.set_content(wrapSoapResponse(body.str()), "application/soap+xml; charset=utf-8");
+}
+
+void OnvifServer::handleSubscriptionService(const httplib::Request& req, httplib::Response& res)
+{
+    pugi::xml_document doc;
+    if (!doc.load_string(req.body.c_str())) {
+        res.status = 400;
+        return;
+    }
+
+    // Extract subscription ID from URI if present
+    std::string subId;
+    const std::string prefix = "/onvif/events/subscription/";
+    if (req.path.rfind(prefix, 0) == 0 && req.path.length() > prefix.length()) {
+        subId = req.path.substr(prefix.length());
+    }
+
+    std::shared_ptr<PullPointSubscription> sub;
+    {
+        std::lock_guard<std::mutex> lock(m_subMutex);
+        if (!subId.empty()) {
+            const auto it = m_subscriptions.find(subId);
+            if (it != m_subscriptions.end()) {
+                sub = it->second;
+            }
+        }
+        if (!sub && !m_subscriptions.empty()) {
+            sub = m_subscriptions.begin()->second;
+        }
+    }
+
+    if (!sub) {
+        // Auto-create implicit subscription if none exists
+        std::lock_guard<std::mutex> lock(m_subMutex);
+        subId = std::to_string(m_nextSubId++);
+        sub = std::make_shared<PullPointSubscription>();
+        sub->id = subId;
+        sub->terminationTime = std::chrono::steady_clock::now() + std::chrono::minutes(10);
+        m_subscriptions[subId] = sub;
+    }
+
+    const pugi::xml_node bodyNode = doc.select_node("//*[local-name()='Body']").node();
+    const pugi::xml_node reqNode = bodyNode ? bodyNode.first_child() : pugi::xml_node {};
+    const std::string opName = reqNode ? reqNode.name() : "";
+
+    std::ostringstream body;
+
+    if (opName.find("PullMessages") != std::string::npos) {
+        const pugi::xml_node timeoutNode = doc.select_node("//*[local-name()='Timeout']").node();
+        const std::string timeoutStr = timeoutNode ? timeoutNode.text().as_string() : "PT5S";
+        const int timeoutSecs = parseTimeoutSeconds(timeoutStr, 5);
+
+        const pugi::xml_node limitNode = doc.select_node("//*[local-name()='MessageLimit']").node();
+        const int limit = limitNode ? std::clamp(limitNode.text().as_int(10), 1, 100) : 10;
+
+        std::vector<OnvifEvent> pulledEvents;
+        {
+            std::unique_lock<std::mutex> lock(sub->mutex);
+            if (sub->queue.empty() && timeoutSecs > 0) {
+                sub->cv.wait_for(
+                    lock, std::chrono::seconds(timeoutSecs), [&]() { return !sub->queue.empty() || !m_running; });
+            }
+
+            while (!sub->queue.empty() && static_cast<int>(pulledEvents.size()) < limit) {
+                pulledEvents.push_back(std::move(sub->queue.front()));
+                sub->queue.pop_front();
+            }
+        }
+
+        const auto now = std::chrono::system_clock::now();
+        const std::string curTime = formatIso8601Utc(now);
+        const std::string termTime = formatIso8601Utc(now + std::chrono::minutes(10));
+
+        body << "    <tev:PullMessagesResponse>\r\n"
+             << "      <wsnt:CurrentTime>" << curTime << "</wsnt:CurrentTime>\r\n"
+             << "      <wsnt:TerminationTime>" << termTime << "</wsnt:TerminationTime>\r\n";
+
+        for (const auto& ev : pulledEvents) {
+            body << "      <wsnt:NotificationMessage>\r\n"
+                 << "        <wsnt:Topic Dialect=\"http://www.onvif.org/ver10/tev/topicExpression/ConcreteSet\">"
+                 << ev.topic << "</wsnt:Topic>\r\n"
+                 << "        <wsnt:Message UtcTime=\"" << ev.utcTime << "\">\r\n";
+
+            if (!ev.sourceName.empty()) {
+                body << "          <tt:Source>\r\n"
+                     << "            <tt:SimpleItem Name=\"" << ev.sourceName << "\" Value=\"" << ev.sourceValue
+                     << "\"/>\r\n"
+                     << "          </tt:Source>\r\n";
+            }
+
+            if (!ev.dataName.empty()) {
+                body << "          <tt:Data>\r\n"
+                     << "            <tt:SimpleItem Name=\"" << ev.dataName << "\" Value=\"" << ev.dataValue
+                     << "\"/>\r\n"
+                     << "          </tt:Data>\r\n";
+            }
+
+            body << "        </wsnt:Message>\r\n"
+                 << "      </wsnt:NotificationMessage>\r\n";
+        }
+
+        body << "    </tev:PullMessagesResponse>\r\n";
+    } else if (opName.find("Unsubscribe") != std::string::npos) {
+        {
+            std::lock_guard<std::mutex> lock(m_subMutex);
+            if (!subId.empty()) {
+                m_subscriptions.erase(subId);
+            }
+        }
+        body << "    <wsnt:UnsubscribeResponse/>\r\n";
+    } else if (opName.find("Renew") != std::string::npos) {
+        const auto now = std::chrono::system_clock::now();
+        const std::string curTime = formatIso8601Utc(now);
+        const std::string termTime = formatIso8601Utc(now + std::chrono::minutes(10));
+
+        body << "    <wsnt:RenewResponse>\r\n"
+             << "      <wsnt:TerminationTime>" << termTime << "</wsnt:TerminationTime>\r\n"
+             << "      <wsnt:CurrentTime>" << curTime << "</wsnt:CurrentTime>\r\n"
+             << "    </wsnt:RenewResponse>\r\n";
+    } else {
+        body << "    <wsnt:" << opName << "Response/>\r\n";
     }
 
     res.status = 200;
