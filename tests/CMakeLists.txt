@@ -222,4 +222,25 @@ if(PELCOD_ENABLE_ONVIF)
             "PATH=path_list_prepend:C:/vcpkg/installed/x64-windows/bin"
         )
     endif()
+
+    add_executable(TestOnvifServer
+        TestOnvifServer.cpp
+    )
+    target_include_directories(TestOnvifServer PRIVATE
+        ${CMAKE_SOURCE_DIR}/libs
+    )
+    target_link_libraries(TestOnvifServer PRIVATE
+        PelcoDOnvif
+        PelcoDCore
+    )
+    apply_compiler_flags(TestOnvifServer)
+    add_test(NAME TestOnvifServer COMMAND TestOnvifServer)
+    if(WIN32)
+        set_property(TEST TestOnvifServer PROPERTY ENVIRONMENT_MODIFICATION
+            "PATH=path_list_prepend:${CMAKE_BINARY_DIR}/vcpkg_installed/x64-windows/debug/bin"
+            "PATH=path_list_prepend:${CMAKE_BINARY_DIR}/vcpkg_installed/x64-windows/bin"
+            "PATH=path_list_prepend:C:/vcpkg/installed/x64-windows/debug/bin"
+            "PATH=path_list_prepend:C:/vcpkg/installed/x64-windows/bin"
+        )
+    endif()
 endif()
