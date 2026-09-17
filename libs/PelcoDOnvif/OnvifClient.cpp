@@ -1858,4 +1858,503 @@ std::optional<std::string> OnvifClient::parseCreateOsdResponse(const std::string
     return tokenNode.text().as_string();
 }
 
+std::vector<OnvifUser> OnvifClient::parseUsersResponse(const std::string& xml)
+{
+    std::vector<OnvifUser> users {};
+    pugi::xml_document doc {};
+    if (!doc.load_string(xml.c_str())) {
+        return users;
+    }
+    std::vector<pugi::xml_node> userNodes {};
+    collectNodesWithSuffix(doc, "User", userNodes);
+    for (const auto& uNode : userNodes) {
+        OnvifUser u {};
+        const auto un = findNodeWithSuffix(uNode, "Username");
+        if (un) {
+            u.username = un.text().as_string();
+        }
+        const auto pw = findNodeWithSuffix(uNode, "Password");
+        if (pw) {
+            u.password = pw.text().as_string();
+        }
+        const auto ul = findNodeWithSuffix(uNode, "UserLevel");
+        if (ul) {
+            u.level = userLevelFromString(ul.text().as_string());
+        }
+        if (!u.username.empty()) {
+            users.push_back(u);
+        }
+    }
+    return users;
+}
+
+std::vector<OnvifUser> OnvifClient::getUsers()
+{
+    const std::string targetUrl = !m_capabilities.deviceXAddr.empty() ? m_capabilities.deviceXAddr : m_deviceEndpoint;
+    const std::string body = "<tds:GetUsers/>";
+    const std::string reqXml = wrapSoapEnvelope(body);
+    const HttpResponse resp = m_httpClient.sendPost(targetUrl, reqXml);
+    if (!resp.isSuccess()) {
+        return {};
+    }
+    return parseUsersResponse(resp.body);
+}
+
+bool OnvifClient::createUsers(const std::vector<OnvifUser>& users)
+{
+    const std::string targetUrl = !m_capabilities.deviceXAddr.empty() ? m_capabilities.deviceXAddr : m_deviceEndpoint;
+    std::ostringstream ss {};
+    ss << "<tds:CreateUsers>";
+    for (const auto& u : users) {
+        ss << "<tds:User>"
+           << "<tt:Username>" << u.username << "</tt:Username>"
+           << "<tt:Password>" << u.password << "</tt:Password>"
+           << "<tt:UserLevel>" << userLevelToString(u.level) << "</tt:UserLevel>"
+           << "</tds:User>";
+    }
+    ss << "</tds:CreateUsers>";
+    const std::string reqXml = wrapSoapEnvelope(ss.str());
+    const HttpResponse resp = m_httpClient.sendPost(targetUrl, reqXml);
+    return resp.isSuccess();
+}
+
+bool OnvifClient::setUser(const OnvifUser& user)
+{
+    const std::string targetUrl = !m_capabilities.deviceXAddr.empty() ? m_capabilities.deviceXAddr : m_deviceEndpoint;
+    std::ostringstream ss {};
+    ss << "<tds:SetUser>"
+       << "<tds:User>"
+       << "<tt:Username>" << user.username << "</tt:Username>";
+    if (!user.password.empty()) {
+        ss << "<tt:Password>" << user.password << "</tt:Password>";
+    }
+    ss << "<tt:UserLevel>" << userLevelToString(user.level) << "</tt:UserLevel>"
+       << "</tds:User>"
+       << "</tds:SetUser>";
+    const std::string reqXml = wrapSoapEnvelope(ss.str());
+    const HttpResponse resp = m_httpClient.sendPost(targetUrl, reqXml);
+    return resp.isSuccess();
+}
+
+bool OnvifClient::deleteUsers(const std::vector<std::string>& usernames)
+{
+    const std::string targetUrl = !m_capabilities.deviceXAddr.empty() ? m_capabilities.deviceXAddr : m_deviceEndpoint;
+    std::ostringstream ss {};
+    ss << "<tds:DeleteUsers>";
+    for (const auto& name : usernames) {
+        ss << "<tds:Username>" << name << "</tds:Username>";
+    }
+    ss << "</tds:DeleteUsers>";
+    const std::string reqXml = wrapSoapEnvelope(ss.str());
+    const HttpResponse resp = m_httpClient.sendPost(targetUrl, reqXml);
+    return resp.isSuccess();
+}
+
+std::vector<NetworkInterfaceConfig> OnvifClient::parseNetworkInterfacesResponse(const std::string& xml)
+{
+    std::vector<NetworkInterfaceConfig> ifaces {};
+    pugi::xml_document doc {};
+    if (!doc.load_string(xml.c_str())) {
+        return ifaces;
+    }
+    std::vector<pugi::xml_node> ifaceNodes {};
+    collectNodesWithSuffix(doc, "NetworkInterfaces", ifaceNodes);
+    for (const auto& node : ifaceNodes) {
+        NetworkInterfaceConfig cfg {};
+        cfg.token = node.attribute("token").as_string();
+        const auto en = findNodeWithSuffix(node, "Enabled");
+        if (en) {
+            cfg.enabled = en.text().as_bool(true);
+        }
+        const auto info = findNodeWithSuffix(node, "Info");
+        if (info) {
+            const auto nm = findNodeWithSuffix(info, "Name");
+            if (nm) {
+                cfg.name = nm.text().as_string();
+            }
+            const auto hw = findNodeWithSuffix(info, "HwAddress");
+            if (hw) {
+                cfg.hwAddress = hw.text().as_string();
+            }
+            const auto mtu = findNodeWithSuffix(info, "MTU");
+            if (mtu) {
+                cfg.mtu = mtu.text().as_int(1500);
+            }
+        }
+        const auto ipv4 = findNodeWithSuffix(node, "IPv4");
+        if (ipv4) {
+            const auto ipv4En = findNodeWithSuffix(ipv4, "Enabled");
+            if (ipv4En) {
+                cfg.ipv4.enabled = ipv4En.text().as_bool(true);
+            }
+            const auto conf = findNodeWithSuffix(ipv4, "Config");
+            if (conf) {
+                const auto dhcp = findNodeWithSuffix(conf, "DHCP");
+                if (dhcp) {
+                    cfg.ipv4.dhcp = dhcp.text().as_bool(false);
+                }
+                const auto manual = findNodeWithSuffix(conf, "Manual");
+                if (manual) {
+                    const auto addr = findNodeWithSuffix(manual, "Address");
+                    if (addr) {
+                        cfg.ipv4.manualAddress = addr.text().as_string();
+                    }
+                    const auto pfx = findNodeWithSuffix(manual, "PrefixLength");
+                    if (pfx) {
+                        cfg.ipv4.prefixLength = pfx.text().as_int(24);
+                    }
+                }
+            }
+        }
+        if (cfg.name.empty() && !cfg.token.empty()) {
+            cfg.name = cfg.token;
+        }
+        if (!cfg.token.empty()) {
+            ifaces.push_back(cfg);
+        }
+    }
+    return ifaces;
+}
+
+std::vector<NetworkInterfaceConfig> OnvifClient::getNetworkInterfaces()
+{
+    const std::string targetUrl = !m_capabilities.deviceXAddr.empty() ? m_capabilities.deviceXAddr : m_deviceEndpoint;
+    const std::string body = "<tds:GetNetworkInterfaces/>";
+    const std::string reqXml = wrapSoapEnvelope(body);
+    const HttpResponse resp = m_httpClient.sendPost(targetUrl, reqXml);
+    if (!resp.isSuccess()) {
+        return {};
+    }
+    return parseNetworkInterfacesResponse(resp.body);
+}
+
+bool OnvifClient::setNetworkInterfaces(const NetworkInterfaceConfig& config)
+{
+    const std::string targetUrl = !m_capabilities.deviceXAddr.empty() ? m_capabilities.deviceXAddr : m_deviceEndpoint;
+    std::ostringstream ss {};
+    ss << "<tds:SetNetworkInterfaces>"
+       << "<tds:InterfaceToken>" << config.token << "</tds:InterfaceToken>"
+       << "<tds:NetworkInterface>"
+       << "<tt:Enabled>" << (config.enabled ? "true" : "false") << "</tt:Enabled>"
+       << "<tt:MTU>" << config.mtu << "</tt:MTU>"
+       << "<tt:IPv4>"
+       << "<tt:Enabled>" << (config.ipv4.enabled ? "true" : "false") << "</tt:Enabled>"
+       << "<tt:Manual>"
+       << "<tt:Address>" << config.ipv4.manualAddress << "</tt:Address>"
+       << "<tt:PrefixLength>" << config.ipv4.prefixLength << "</tt:PrefixLength>"
+       << "</tt:Manual>"
+       << "<tt:DHCP>" << (config.ipv4.dhcp ? "true" : "false") << "</tt:DHCP>"
+       << "</tt:IPv4>"
+       << "</tds:NetworkInterface>"
+       << "</tds:SetNetworkInterfaces>";
+    const std::string reqXml = wrapSoapEnvelope(ss.str());
+    const HttpResponse resp = m_httpClient.sendPost(targetUrl, reqXml);
+    return resp.isSuccess();
+}
+
+std::string OnvifClient::parseNetworkDefaultGatewayResponse(const std::string& xml)
+{
+    pugi::xml_document doc {};
+    if (!doc.load_string(xml.c_str())) {
+        return {};
+    }
+    const auto gwNode = findRecursiveNodeWithSuffix(doc, "IPv4Address");
+    if (gwNode) {
+        return gwNode.text().as_string();
+    }
+    return {};
+}
+
+std::string OnvifClient::getNetworkDefaultGateway()
+{
+    const std::string targetUrl = !m_capabilities.deviceXAddr.empty() ? m_capabilities.deviceXAddr : m_deviceEndpoint;
+    const std::string body = "<tds:GetNetworkDefaultGateway/>";
+    const std::string reqXml = wrapSoapEnvelope(body);
+    const HttpResponse resp = m_httpClient.sendPost(targetUrl, reqXml);
+    if (!resp.isSuccess()) {
+        return {};
+    }
+    return parseNetworkDefaultGatewayResponse(resp.body);
+}
+
+bool OnvifClient::setNetworkDefaultGateway(const std::string& gateway)
+{
+    const std::string targetUrl = !m_capabilities.deviceXAddr.empty() ? m_capabilities.deviceXAddr : m_deviceEndpoint;
+    std::ostringstream ss {};
+    ss << "<tds:SetNetworkDefaultGateway>"
+       << "<tds:IPv4Address>" << gateway << "</tds:IPv4Address>"
+       << "</tds:SetNetworkDefaultGateway>";
+    const std::string reqXml = wrapSoapEnvelope(ss.str());
+    const HttpResponse resp = m_httpClient.sendPost(targetUrl, reqXml);
+    return resp.isSuccess();
+}
+
+std::optional<DnsConfig> OnvifClient::parseDnsResponse(const std::string& xml)
+{
+    pugi::xml_document doc {};
+    if (!doc.load_string(xml.c_str())) {
+        return std::nullopt;
+    }
+    const auto dnsNode = findRecursiveNodeWithSuffix(doc, "DNSInformation");
+    if (!dnsNode) {
+        return std::nullopt;
+    }
+    DnsConfig cfg {};
+    const auto dhcp = findNodeWithSuffix(dnsNode, "FromDHCP");
+    if (dhcp) {
+        cfg.fromDhcp = dhcp.text().as_bool(false);
+    }
+    std::vector<pugi::xml_node> sdNodes {};
+    collectNodesWithSuffix(dnsNode, "SearchDomain", sdNodes);
+    for (const auto& sd : sdNodes) {
+        cfg.searchDomains.push_back(sd.text().as_string());
+    }
+    std::vector<pugi::xml_node> manualNodes {};
+    collectNodesWithSuffix(dnsNode, "DNSManual", manualNodes);
+    for (const auto& m : manualNodes) {
+        const auto ip = findNodeWithSuffix(m, "IPv4Address");
+        if (ip) {
+            cfg.dnsServers.push_back(ip.text().as_string());
+        }
+    }
+    return cfg;
+}
+
+std::optional<DnsConfig> OnvifClient::getDNS()
+{
+    const std::string targetUrl = !m_capabilities.deviceXAddr.empty() ? m_capabilities.deviceXAddr : m_deviceEndpoint;
+    const std::string body = "<tds:GetDNS/>";
+    const std::string reqXml = wrapSoapEnvelope(body);
+    const HttpResponse resp = m_httpClient.sendPost(targetUrl, reqXml);
+    if (!resp.isSuccess()) {
+        return std::nullopt;
+    }
+    return parseDnsResponse(resp.body);
+}
+
+bool OnvifClient::setDNS(const DnsConfig& dns)
+{
+    const std::string targetUrl = !m_capabilities.deviceXAddr.empty() ? m_capabilities.deviceXAddr : m_deviceEndpoint;
+    std::ostringstream ss {};
+    ss << "<tds:SetDNS>"
+       << "<tds:FromDHCP>" << (dns.fromDhcp ? "true" : "false") << "</tds:FromDHCP>";
+    for (const auto& sd : dns.searchDomains) {
+        ss << "<tds:SearchDomain>" << sd << "</tds:SearchDomain>";
+    }
+    for (const auto& server : dns.dnsServers) {
+        ss << "<tds:DNSManual>"
+           << "<tt:Type>IPv4</tt:Type>"
+           << "<tt:IPv4Address>" << server << "</tt:IPv4Address>"
+           << "</tds:DNSManual>";
+    }
+    ss << "</tds:SetDNS>";
+    const std::string reqXml = wrapSoapEnvelope(ss.str());
+    const HttpResponse resp = m_httpClient.sendPost(targetUrl, reqXml);
+    return resp.isSuccess();
+}
+
+std::optional<NtpConfig> OnvifClient::parseNtpResponse(const std::string& xml)
+{
+    pugi::xml_document doc {};
+    if (!doc.load_string(xml.c_str())) {
+        return std::nullopt;
+    }
+    const auto ntpNode = findRecursiveNodeWithSuffix(doc, "NTPInformation");
+    if (!ntpNode) {
+        return std::nullopt;
+    }
+    NtpConfig cfg {};
+    const auto dhcp = findNodeWithSuffix(ntpNode, "FromDHCP");
+    if (dhcp) {
+        cfg.fromDhcp = dhcp.text().as_bool(false);
+    }
+    std::vector<pugi::xml_node> manualNodes {};
+    collectNodesWithSuffix(ntpNode, "NTPManual", manualNodes);
+    for (const auto& m : manualNodes) {
+        const auto dnsNm = findNodeWithSuffix(m, "DNSname");
+        if (dnsNm) {
+            cfg.manualServers.push_back(dnsNm.text().as_string());
+        } else {
+            const auto ip = findNodeWithSuffix(m, "IPv4Address");
+            if (ip) {
+                cfg.manualServers.push_back(ip.text().as_string());
+            }
+        }
+    }
+    return cfg;
+}
+
+std::optional<NtpConfig> OnvifClient::getNTP()
+{
+    const std::string targetUrl = !m_capabilities.deviceXAddr.empty() ? m_capabilities.deviceXAddr : m_deviceEndpoint;
+    const std::string body = "<tds:GetNTP/>";
+    const std::string reqXml = wrapSoapEnvelope(body);
+    const HttpResponse resp = m_httpClient.sendPost(targetUrl, reqXml);
+    if (!resp.isSuccess()) {
+        return std::nullopt;
+    }
+    return parseNtpResponse(resp.body);
+}
+
+bool OnvifClient::setNTP(const NtpConfig& ntp)
+{
+    const std::string targetUrl = !m_capabilities.deviceXAddr.empty() ? m_capabilities.deviceXAddr : m_deviceEndpoint;
+    std::ostringstream ss {};
+    ss << "<tds:SetNTP>"
+       << "<tds:FromDHCP>" << (ntp.fromDhcp ? "true" : "false") << "</tds:FromDHCP>";
+    for (const auto& srv : ntp.manualServers) {
+        ss << "<tds:NTPManual>"
+           << "<tt:Type>DNS</tt:Type>"
+           << "<tt:DNSname>" << srv << "</tt:DNSname>"
+           << "</tds:NTPManual>";
+    }
+    ss << "</tds:SetNTP>";
+    const std::string reqXml = wrapSoapEnvelope(ss.str());
+    const HttpResponse resp = m_httpClient.sendPost(targetUrl, reqXml);
+    return resp.isSuccess();
+}
+
+std::string OnvifClient::parseHostnameResponse(const std::string& xml)
+{
+    pugi::xml_document doc {};
+    if (!doc.load_string(xml.c_str())) {
+        return {};
+    }
+    const auto nameNode = findRecursiveNodeWithSuffix(doc, "Name");
+    if (nameNode) {
+        return nameNode.text().as_string();
+    }
+    return {};
+}
+
+std::string OnvifClient::getHostname()
+{
+    const std::string targetUrl = !m_capabilities.deviceXAddr.empty() ? m_capabilities.deviceXAddr : m_deviceEndpoint;
+    const std::string body = "<tds:GetHostname/>";
+    const std::string reqXml = wrapSoapEnvelope(body);
+    const HttpResponse resp = m_httpClient.sendPost(targetUrl, reqXml);
+    if (!resp.isSuccess()) {
+        return {};
+    }
+    return parseHostnameResponse(resp.body);
+}
+
+bool OnvifClient::setHostname(const std::string& hostname)
+{
+    const std::string targetUrl = !m_capabilities.deviceXAddr.empty() ? m_capabilities.deviceXAddr : m_deviceEndpoint;
+    std::ostringstream ss {};
+    ss << "<tds:SetHostname>"
+       << "<tds:Name>" << hostname << "</tds:Name>"
+       << "</tds:SetHostname>";
+    const std::string reqXml = wrapSoapEnvelope(ss.str());
+    const HttpResponse resp = m_httpClient.sendPost(targetUrl, reqXml);
+    return resp.isSuccess();
+}
+
+bool OnvifClient::setSystemDateAndTime(const SystemDateTimeConfig& dt)
+{
+    const std::string targetUrl = !m_capabilities.deviceXAddr.empty() ? m_capabilities.deviceXAddr : m_deviceEndpoint;
+    std::ostringstream ss {};
+    ss << "<tds:SetSystemDateAndTime>"
+       << "<tds:DateTimeType>" << dt.dateTimeType << "</tds:DateTimeType>"
+       << "<tds:DaylightSavings>" << (dt.daylightSavings ? "true" : "false") << "</tds:DaylightSavings>"
+       << "<tds:TimeZone><tt:TZ>" << dt.timeZone << "</tt:TZ></tds:TimeZone>"
+       << "<tds:UTCDateTime>"
+       << "<tt:Time>"
+       << "<tt:Hour>" << dt.hour << "</tt:Hour>"
+       << "<tt:Minute>" << dt.minute << "</tt:Minute>"
+       << "<tt:Second>" << dt.second << "</tt:Second>"
+       << "</tt:Time>"
+       << "<tt:Date>"
+       << "<tt:Year>" << dt.year << "</tt:Year>"
+       << "<tt:Month>" << dt.month << "</tt:Month>"
+       << "<tt:Day>" << dt.day << "</tt:Day>"
+       << "</tt:Date>"
+       << "</tds:UTCDateTime>"
+       << "</tds:SetSystemDateAndTime>";
+    const std::string reqXml = wrapSoapEnvelope(ss.str());
+    const HttpResponse resp = m_httpClient.sendPost(targetUrl, reqXml);
+    return resp.isSuccess();
+}
+
+bool OnvifClient::setSystemFactoryDefault(FactoryDefaultType type)
+{
+    const std::string targetUrl = !m_capabilities.deviceXAddr.empty() ? m_capabilities.deviceXAddr : m_deviceEndpoint;
+    const std::string defStr = (type == FactoryDefaultType::Hard) ? "Hard" : "Soft";
+    const std::string body = "<tds:SetSystemFactoryDefault><tds:FactoryDefault>" + defStr
+        + "</tds:FactoryDefault></tds:SetSystemFactoryDefault>";
+    const std::string reqXml = wrapSoapEnvelope(body);
+    const HttpResponse resp = m_httpClient.sendPost(targetUrl, reqXml);
+    return resp.isSuccess();
+}
+
+std::vector<std::string> OnvifClient::parseScopesResponse(const std::string& xml)
+{
+    std::vector<std::string> scopes {};
+    pugi::xml_document doc {};
+    if (!doc.load_string(xml.c_str())) {
+        return scopes;
+    }
+    std::vector<pugi::xml_node> scopeNodes {};
+    collectNodesWithSuffix(doc, "ScopeItem", scopeNodes);
+    for (const auto& s : scopeNodes) {
+        scopes.push_back(s.text().as_string());
+    }
+    return scopes;
+}
+
+std::vector<std::string> OnvifClient::getScopes()
+{
+    const std::string targetUrl = !m_capabilities.deviceXAddr.empty() ? m_capabilities.deviceXAddr : m_deviceEndpoint;
+    const std::string body = "<tds:GetScopes/>";
+    const std::string reqXml = wrapSoapEnvelope(body);
+    const HttpResponse resp = m_httpClient.sendPost(targetUrl, reqXml);
+    if (!resp.isSuccess()) {
+        return {};
+    }
+    return parseScopesResponse(resp.body);
+}
+
+bool OnvifClient::addScopes(const std::vector<std::string>& scopes)
+{
+    const std::string targetUrl = !m_capabilities.deviceXAddr.empty() ? m_capabilities.deviceXAddr : m_deviceEndpoint;
+    std::ostringstream ss {};
+    ss << "<tds:AddScopes>";
+    for (const auto& s : scopes) {
+        ss << "<tds:ScopeItem>" << s << "</tds:ScopeItem>";
+    }
+    ss << "</tds:AddScopes>";
+    const std::string reqXml = wrapSoapEnvelope(ss.str());
+    const HttpResponse resp = m_httpClient.sendPost(targetUrl, reqXml);
+    return resp.isSuccess();
+}
+
+bool OnvifClient::removeScopes(const std::vector<std::string>& scopes)
+{
+    const std::string targetUrl = !m_capabilities.deviceXAddr.empty() ? m_capabilities.deviceXAddr : m_deviceEndpoint;
+    std::ostringstream ss {};
+    ss << "<tds:RemoveScopes>";
+    for (const auto& s : scopes) {
+        ss << "<tds:ScopeItem>" << s << "</tds:ScopeItem>";
+    }
+    ss << "</tds:RemoveScopes>";
+    const std::string reqXml = wrapSoapEnvelope(ss.str());
+    const HttpResponse resp = m_httpClient.sendPost(targetUrl, reqXml);
+    return resp.isSuccess();
+}
+
+bool OnvifClient::setScopes(const std::vector<std::string>& scopes)
+{
+    const std::string targetUrl = !m_capabilities.deviceXAddr.empty() ? m_capabilities.deviceXAddr : m_deviceEndpoint;
+    std::ostringstream ss {};
+    ss << "<tds:SetScopes>";
+    for (const auto& s : scopes) {
+        ss << "<tds:ScopeItem>" << s << "</tds:ScopeItem>";
+    }
+    ss << "</tds:SetScopes>";
+    const std::string reqXml = wrapSoapEnvelope(ss.str());
+    const HttpResponse resp = m_httpClient.sendPost(targetUrl, reqXml);
+    return resp.isSuccess();
+}
+
 } // namespace PelcoD::Onvif

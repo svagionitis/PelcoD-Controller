@@ -1162,6 +1162,354 @@ void testMedia2OsdAndAnalytics()
     std::cout << "[PASS] testMedia2OsdAndAnalytics" << std::endl;
 }
 
+void testDeviceManagementAndSecurity()
+{
+    std::cout << "[RUN] testDeviceManagementAndSecurity" << std::endl;
+
+    OnvifServerConfig config;
+    config.port = 18591;
+    config.deviceName = "DeviceMgmtCamera";
+
+    OnvifServer server(config);
+    assert(server.start());
+    assert(server.isRunning());
+
+    httplib::Client client("127.0.0.1", config.port);
+    client.set_connection_timeout(std::chrono::seconds(2));
+    client.set_read_timeout(std::chrono::seconds(2));
+
+    // 1. GetUsers (defaults: admin, operator)
+    {
+        const std::string req = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+                                "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                "xmlns:tds=\"http://www.onvif.org/ver10/device/wsdl\">\r\n"
+                                "  <SOAP-ENV:Body>\r\n"
+                                "    <tds:GetUsers/>\r\n"
+                                "  </SOAP-ENV:Body>\r\n"
+                                "</SOAP-ENV:Envelope>";
+        auto res = client.Post("/onvif/device_service", req, "application/soap+xml; charset=utf-8");
+        assert(res && res->status == 200);
+        pugi::xml_document doc;
+        assert(doc.load_string(res->body.c_str()));
+        const auto users = doc.select_nodes("//*[local-name()='User']");
+        assert(users.size() >= 2);
+    }
+
+    // 2. CreateUsers
+    {
+        const std::string req = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+                                "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                "xmlns:tds=\"http://www.onvif.org/ver10/device/wsdl\" "
+                                "xmlns:tt=\"http://www.onvif.org/ver10/schema\">\r\n"
+                                "  <SOAP-ENV:Body>\r\n"
+                                "    <tds:CreateUsers>\r\n"
+                                "      <tds:User>\r\n"
+                                "        <tt:Username>guard1</tt:Username>\r\n"
+                                "        <tt:Password>guardpass</tt:Password>\r\n"
+                                "        <tt:UserLevel>User</tt:UserLevel>\r\n"
+                                "      </tds:User>\r\n"
+                                "    </tds:CreateUsers>\r\n"
+                                "  </SOAP-ENV:Body>\r\n"
+                                "</SOAP-ENV:Envelope>";
+        auto res = client.Post("/onvif/device_service", req, "application/soap+xml; charset=utf-8");
+        assert(res && res->status == 200);
+        assert(res->body.find("CreateUsersResponse") != std::string::npos);
+    }
+
+    // 3. Verify user created via GetUsers
+    {
+        const std::string req = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+                                "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                "xmlns:tds=\"http://www.onvif.org/ver10/device/wsdl\">\r\n"
+                                "  <SOAP-ENV:Body>\r\n"
+                                "    <tds:GetUsers/>\r\n"
+                                "  </SOAP-ENV:Body>\r\n"
+                                "</SOAP-ENV:Envelope>";
+        auto res = client.Post("/onvif/device_service", req, "application/soap+xml; charset=utf-8");
+        assert(res && res->status == 200);
+        assert(res->body.find("guard1") != std::string::npos);
+    }
+
+    // 4. SetUser (update role)
+    {
+        const std::string req = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+                                "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                "xmlns:tds=\"http://www.onvif.org/ver10/device/wsdl\" "
+                                "xmlns:tt=\"http://www.onvif.org/ver10/schema\">\r\n"
+                                "  <SOAP-ENV:Body>\r\n"
+                                "    <tds:SetUser>\r\n"
+                                "      <tds:User>\r\n"
+                                "        <tt:Username>guard1</tt:Username>\r\n"
+                                "        <tt:Password>newguardpass</tt:Password>\r\n"
+                                "        <tt:UserLevel>Operator</tt:UserLevel>\r\n"
+                                "      </tds:User>\r\n"
+                                "    </tds:SetUser>\r\n"
+                                "  </SOAP-ENV:Body>\r\n"
+                                "</SOAP-ENV:Envelope>";
+        auto res = client.Post("/onvif/device_service", req, "application/soap+xml; charset=utf-8");
+        assert(res && res->status == 200);
+        assert(res->body.find("SetUserResponse") != std::string::npos);
+    }
+
+    // 5. DeleteUsers
+    {
+        const std::string req = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+                                "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                "xmlns:tds=\"http://www.onvif.org/ver10/device/wsdl\">\r\n"
+                                "  <SOAP-ENV:Body>\r\n"
+                                "    <tds:DeleteUsers>\r\n"
+                                "      <tds:Username>guard1</tds:Username>\r\n"
+                                "    </tds:DeleteUsers>\r\n"
+                                "  </SOAP-ENV:Body>\r\n"
+                                "</SOAP-ENV:Envelope>";
+        auto res = client.Post("/onvif/device_service", req, "application/soap+xml; charset=utf-8");
+        assert(res && res->status == 200);
+        assert(res->body.find("DeleteUsersResponse") != std::string::npos);
+    }
+
+    // 6. Network Interfaces: Get and Set
+    {
+        const std::string getReq = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+                                   "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                   "xmlns:tds=\"http://www.onvif.org/ver10/device/wsdl\">\r\n"
+                                   "  <SOAP-ENV:Body>\r\n"
+                                   "    <tds:GetNetworkInterfaces/>\r\n"
+                                   "  </SOAP-ENV:Body>\r\n"
+                                   "</SOAP-ENV:Envelope>";
+        auto res = client.Post("/onvif/device_service", getReq, "application/soap+xml; charset=utf-8");
+        assert(res && res->status == 200);
+        assert(res->body.find("NetworkInterfaces token=\"eth0\"") != std::string::npos);
+
+        const std::string setReq = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+                                   "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                   "xmlns:tds=\"http://www.onvif.org/ver10/device/wsdl\" "
+                                   "xmlns:tt=\"http://www.onvif.org/ver10/schema\">\r\n"
+                                   "  <SOAP-ENV:Body>\r\n"
+                                   "    <tds:SetNetworkInterfaces>\r\n"
+                                   "      <tds:InterfaceToken>eth0</tds:InterfaceToken>\r\n"
+                                   "      <tds:NetworkInterface>\r\n"
+                                   "        <tt:Enabled>true</tt:Enabled>\r\n"
+                                   "        <tt:MTU>1400</tt:MTU>\r\n"
+                                   "        <tt:IPv4>\r\n"
+                                   "          <tt:Enabled>true</tt:Enabled>\r\n"
+                                   "          <tt:Manual>\r\n"
+                                   "            <tt:Address>10.0.0.50</tt:Address>\r\n"
+                                   "            <tt:PrefixLength>16</tt:PrefixLength>\r\n"
+                                   "          </tt:Manual>\r\n"
+                                   "          <tt:DHCP>false</tt:DHCP>\r\n"
+                                   "        </tt:IPv4>\r\n"
+                                   "      </tds:NetworkInterface>\r\n"
+                                   "    </tds:SetNetworkInterfaces>\r\n"
+                                   "  </SOAP-ENV:Body>\r\n"
+                                   "</SOAP-ENV:Envelope>";
+        auto resSet = client.Post("/onvif/device_service", setReq, "application/soap+xml; charset=utf-8");
+        assert(resSet && resSet->status == 200);
+        assert(resSet->body.find("SetNetworkInterfacesResponse") != std::string::npos);
+
+        auto resVerify = client.Post("/onvif/device_service", getReq, "application/soap+xml; charset=utf-8");
+        assert(resVerify && resVerify->status == 200);
+        assert(resVerify->body.find("<tt:MTU>1400</tt:MTU>") != std::string::npos);
+        assert(resVerify->body.find("<tt:Address>10.0.0.50</tt:Address>") != std::string::npos);
+    }
+
+    // 7. Default Gateway: Get and Set
+    {
+        const std::string setGwReq = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+                                     "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                     "xmlns:tds=\"http://www.onvif.org/ver10/device/wsdl\" "
+                                     "xmlns:tt=\"http://www.onvif.org/ver10/schema\">\r\n"
+                                     "  <SOAP-ENV:Body>\r\n"
+                                     "    <tds:SetNetworkDefaultGateway>\r\n"
+                                     "      <tds:IPv4Address>10.0.0.1</tds:IPv4Address>\r\n"
+                                     "    </tds:SetNetworkDefaultGateway>\r\n"
+                                     "  </SOAP-ENV:Body>\r\n"
+                                     "</SOAP-ENV:Envelope>";
+        auto resGw = client.Post("/onvif/device_service", setGwReq, "application/soap+xml; charset=utf-8");
+        assert(resGw && resGw->status == 200);
+
+        const std::string getGwReq = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+                                     "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                     "xmlns:tds=\"http://www.onvif.org/ver10/device/wsdl\">\r\n"
+                                     "  <SOAP-ENV:Body>\r\n"
+                                     "    <tds:GetNetworkDefaultGateway/>\r\n"
+                                     "  </SOAP-ENV:Body>\r\n"
+                                     "</SOAP-ENV:Envelope>";
+        auto resGet = client.Post("/onvif/device_service", getGwReq, "application/soap+xml; charset=utf-8");
+        assert(resGet && resGet->status == 200);
+        assert(resGet->body.find("<tt:IPv4Address>10.0.0.1</tt:IPv4Address>") != std::string::npos);
+    }
+
+    // 8. DNS & NTP: Get and Set
+    {
+        const std::string setDns = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+                                   "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                   "xmlns:tds=\"http://www.onvif.org/ver10/device/wsdl\">\r\n"
+                                   "  <SOAP-ENV:Body>\r\n"
+                                   "    <tds:SetDNS>\r\n"
+                                   "      <tds:FromDHCP>false</tds:FromDHCP>\r\n"
+                                   "      <tds:DNSManual><tt:IPv4Address>9.9.9.9</tt:IPv4Address></tds:DNSManual>\r\n"
+                                   "    </tds:SetDNS>\r\n"
+                                   "  </SOAP-ENV:Body>\r\n"
+                                   "</SOAP-ENV:Envelope>";
+        auto resDns = client.Post("/onvif/device_service", setDns, "application/soap+xml; charset=utf-8");
+        assert(resDns && resDns->status == 200);
+
+        const std::string getDns = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+                                   "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                   "xmlns:tds=\"http://www.onvif.org/ver10/device/wsdl\">\r\n"
+                                   "  <SOAP-ENV:Body>\r\n"
+                                   "    <tds:GetDNS/>\r\n"
+                                   "  </SOAP-ENV:Body>\r\n"
+                                   "</SOAP-ENV:Envelope>";
+        auto resGetDns = client.Post("/onvif/device_service", getDns, "application/soap+xml; charset=utf-8");
+        assert(resGetDns && resGetDns->status == 200);
+        assert(resGetDns->body.find("9.9.9.9") != std::string::npos);
+
+        const std::string setNtp
+            = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+              "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+              "xmlns:tds=\"http://www.onvif.org/ver10/device/wsdl\">\r\n"
+              "  <SOAP-ENV:Body>\r\n"
+              "    <tds:SetNTP>\r\n"
+              "      <tds:FromDHCP>false</tds:FromDHCP>\r\n"
+              "      <tds:NTPManual><tt:DNSname>time.cloudflare.com</tt:DNSname></tds:NTPManual>\r\n"
+              "    </tds:SetNTP>\r\n"
+              "  </SOAP-ENV:Body>\r\n"
+              "</SOAP-ENV:Envelope>";
+        auto resNtp = client.Post("/onvif/device_service", setNtp, "application/soap+xml; charset=utf-8");
+        assert(resNtp && resNtp->status == 200);
+
+        const std::string getNtp = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+                                   "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                   "xmlns:tds=\"http://www.onvif.org/ver10/device/wsdl\">\r\n"
+                                   "  <SOAP-ENV:Body>\r\n"
+                                   "    <tds:GetNTP/>\r\n"
+                                   "  </SOAP-ENV:Body>\r\n"
+                                   "</SOAP-ENV:Envelope>";
+        auto resGetNtp = client.Post("/onvif/device_service", getNtp, "application/soap+xml; charset=utf-8");
+        assert(resGetNtp && resGetNtp->status == 200);
+        assert(resGetNtp->body.find("time.cloudflare.com") != std::string::npos);
+    }
+
+    // 9. Hostname: Get and Set
+    {
+        const std::string setHn = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+                                  "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                  "xmlns:tds=\"http://www.onvif.org/ver10/device/wsdl\">\r\n"
+                                  "  <SOAP-ENV:Body>\r\n"
+                                  "    <tds:SetHostname><tds:Name>PTZ-Camera-West</tds:Name></tds:SetHostname>\r\n"
+                                  "  </SOAP-ENV:Body>\r\n"
+                                  "</SOAP-ENV:Envelope>";
+        auto resHn = client.Post("/onvif/device_service", setHn, "application/soap+xml; charset=utf-8");
+        assert(resHn && resHn->status == 200);
+
+        const std::string getHn = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+                                  "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                  "xmlns:tds=\"http://www.onvif.org/ver10/device/wsdl\">\r\n"
+                                  "  <SOAP-ENV:Body>\r\n"
+                                  "    <tds:GetHostname/>\r\n"
+                                  "  </SOAP-ENV:Body>\r\n"
+                                  "</SOAP-ENV:Envelope>";
+        auto resGetHn = client.Post("/onvif/device_service", getHn, "application/soap+xml; charset=utf-8");
+        assert(resGetHn && resGetHn->status == 200);
+        assert(resGetHn->body.find("PTZ-Camera-West") != std::string::npos);
+    }
+
+    // 10. Date & Time: SetSystemDateAndTime
+    {
+        const std::string setDt = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+                                  "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                  "xmlns:tds=\"http://www.onvif.org/ver10/device/wsdl\" "
+                                  "xmlns:tt=\"http://www.onvif.org/ver10/schema\">\r\n"
+                                  "  <SOAP-ENV:Body>\r\n"
+                                  "    <tds:SetSystemDateAndTime>\r\n"
+                                  "      <tds:DateTimeType>Manual</tds:DateTimeType>\r\n"
+                                  "      <tds:DaylightSavings>false</tds:DaylightSavings>\r\n"
+                                  "      <tds:TimeZone><tt:TZ>UTC</tt:TZ></tds:TimeZone>\r\n"
+                                  "      <tds:UTCDateTime>\r\n"
+                                  "        <tt:Time><tt:Hour>12</tt:Hour><tt:Minute>30</tt:Minute><tt:Second>0</"
+                                  "tt:Second></tt:Time>\r\n"
+                                  "        <tt:Date><tt:Year>2026</tt:Year><tt:Month>9</tt:Month><tt:Day>17</tt:Day></"
+                                  "tt:Date>\r\n"
+                                  "      </tds:UTCDateTime>\r\n"
+                                  "    </tds:SetSystemDateAndTime>\r\n"
+                                  "  </SOAP-ENV:Body>\r\n"
+                                  "</SOAP-ENV:Envelope>";
+        auto resDt = client.Post("/onvif/device_service", setDt, "application/soap+xml; charset=utf-8");
+        assert(resDt && resDt->status == 200);
+        assert(resDt->body.find("SetSystemDateAndTimeResponse") != std::string::npos);
+    }
+
+    // 11. Scopes: AddScopes, RemoveScopes, SetScopes
+    {
+        const std::string addSc = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+                                  "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                  "xmlns:tds=\"http://www.onvif.org/ver10/device/wsdl\">\r\n"
+                                  "  <SOAP-ENV:Body>\r\n"
+                                  "    <tds:AddScopes>\r\n"
+                                  "      <tds:ScopeItem>onvif://www.onvif.org/location/Sector4</tds:ScopeItem>\r\n"
+                                  "    </tds:AddScopes>\r\n"
+                                  "  </SOAP-ENV:Body>\r\n"
+                                  "</SOAP-ENV:Envelope>";
+        auto resAdd = client.Post("/onvif/device_service", addSc, "application/soap+xml; charset=utf-8");
+        assert(resAdd && resAdd->status == 200);
+
+        const std::string getSc = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+                                  "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                  "xmlns:tds=\"http://www.onvif.org/ver10/device/wsdl\">\r\n"
+                                  "  <SOAP-ENV:Body>\r\n"
+                                  "    <tds:GetScopes/>\r\n"
+                                  "  </SOAP-ENV:Body>\r\n"
+                                  "</SOAP-ENV:Envelope>";
+        auto resGet = client.Post("/onvif/device_service", getSc, "application/soap+xml; charset=utf-8");
+        assert(resGet && resGet->status == 200);
+        assert(resGet->body.find("Sector4") != std::string::npos);
+
+        const std::string remSc = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+                                  "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                  "xmlns:tds=\"http://www.onvif.org/ver10/device/wsdl\">\r\n"
+                                  "  <SOAP-ENV:Body>\r\n"
+                                  "    <tds:RemoveScopes>\r\n"
+                                  "      <tds:ScopeItem>onvif://www.onvif.org/location/Sector4</tds:ScopeItem>\r\n"
+                                  "    </tds:RemoveScopes>\r\n"
+                                  "  </SOAP-ENV:Body>\r\n"
+                                  "</SOAP-ENV:Envelope>";
+        auto resRem = client.Post("/onvif/device_service", remSc, "application/soap+xml; charset=utf-8");
+        assert(resRem && resRem->status == 200);
+    }
+
+    // 12. SystemReboot & SetSystemFactoryDefault
+    {
+        const std::string reboot = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+                                   "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                   "xmlns:tds=\"http://www.onvif.org/ver10/device/wsdl\">\r\n"
+                                   "  <SOAP-ENV:Body>\r\n"
+                                   "    <tds:SystemReboot/>\r\n"
+                                   "  </SOAP-ENV:Body>\r\n"
+                                   "</SOAP-ENV:Envelope>";
+        auto resReboot = client.Post("/onvif/device_service", reboot, "application/soap+xml; charset=utf-8");
+        assert(resReboot && resReboot->status == 200);
+        assert(resReboot->body.find("SystemRebootResponse") != std::string::npos);
+
+        const std::string factory = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+                                    "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                    "xmlns:tds=\"http://www.onvif.org/ver10/device/wsdl\">\r\n"
+                                    "  <SOAP-ENV:Body>\r\n"
+                                    "    <tds:SetSystemFactoryDefault>"
+                                    "      <tds:FactoryDefault>Soft</tds:FactoryDefault>"
+                                    "    </tds:SetSystemFactoryDefault>\r\n"
+                                    "  </SOAP-ENV:Body>\r\n"
+                                    "</SOAP-ENV:Envelope>";
+        auto resFactory = client.Post("/onvif/device_service", factory, "application/soap+xml; charset=utf-8");
+        assert(resFactory && resFactory->status == 200);
+        assert(resFactory->body.find("SetSystemFactoryDefaultResponse") != std::string::npos);
+    }
+
+    server.stop();
+    assert(!server.isRunning());
+    std::cout << "[PASS] testDeviceManagementAndSecurity" << std::endl;
+}
+
 int main()
 {
     std::cout << "Starting TestOnvifServer test suite..." << std::endl;
@@ -1172,6 +1520,7 @@ int main()
     testPresetToursServerAndAdapter();
     testPtzServiceExtensionsServerAndAdapter();
     testMedia2OsdAndAnalytics();
+    testDeviceManagementAndSecurity();
     std::cout << "All TestOnvifServer tests passed successfully!" << std::endl;
     return 0;
 }

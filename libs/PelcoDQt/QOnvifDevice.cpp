@@ -115,6 +115,12 @@ bool QOnvifDevice::connectToCamera(const QString& endpoint, const QString& usern
     const QString modelLabel = !m_deviceInfo.model.empty() ? QString::fromStdString(m_deviceInfo.model)
                                                            : QString::fromStdString(m_deviceInfo.manufacturer);
 
+    refreshUsers();
+    refreshNetworkInterfaces();
+    refreshNetworkGateway();
+    refreshDNS();
+    refreshNTP();
+
     emit connected(m_endpoint, modelLabel);
     return true;
 }
@@ -137,6 +143,11 @@ void QOnvifDevice::disconnectFromCamera()
     m_presets.clear();
     m_presetTours.clear();
     m_osds.clear();
+    m_users.clear();
+    m_networkInterfaces.clear();
+    m_networkGateway.clear();
+    m_dnsConfig = {};
+    m_ntpConfig = {};
     m_deviceInfo = {};
     m_client.reset();
 
@@ -545,6 +556,160 @@ bool QOnvifDevice::deleteOSD(const QString& osdToken)
     if (ok) {
         refreshOSDs();
     }
+    return ok;
+}
+
+void QOnvifDevice::refreshUsers()
+{
+    if (!m_client) {
+        return;
+    }
+    m_users = m_client->getUsers();
+    emit usersUpdated(m_users);
+}
+
+bool QOnvifDevice::createUser(const PelcoD::Onvif::OnvifUser& user)
+{
+    if (!m_client) {
+        return false;
+    }
+    const bool ok = m_client->createUsers({ user });
+    if (ok) {
+        refreshUsers();
+    }
+    return ok;
+}
+
+bool QOnvifDevice::setUser(const PelcoD::Onvif::OnvifUser& user)
+{
+    if (!m_client) {
+        return false;
+    }
+    const bool ok = m_client->setUser(user);
+    if (ok) {
+        refreshUsers();
+    }
+    return ok;
+}
+
+bool QOnvifDevice::deleteUser(const QString& username)
+{
+    if (!m_client || username.isEmpty()) {
+        return false;
+    }
+    const bool ok = m_client->deleteUsers({ username.toStdString() });
+    if (ok) {
+        refreshUsers();
+    }
+    return ok;
+}
+
+void QOnvifDevice::refreshNetworkInterfaces()
+{
+    if (!m_client) {
+        return;
+    }
+    m_networkInterfaces = m_client->getNetworkInterfaces();
+    emit networkInterfacesUpdated(m_networkInterfaces);
+}
+
+bool QOnvifDevice::setNetworkInterface(const PelcoD::Onvif::NetworkInterfaceConfig& config)
+{
+    if (!m_client) {
+        return false;
+    }
+    const bool ok = m_client->setNetworkInterfaces(config);
+    if (ok) {
+        refreshNetworkInterfaces();
+    }
+    return ok;
+}
+
+void QOnvifDevice::refreshNetworkGateway()
+{
+    if (!m_client) {
+        return;
+    }
+    m_networkGateway = QString::fromStdString(m_client->getNetworkDefaultGateway());
+    emit networkGatewayUpdated(m_networkGateway);
+}
+
+bool QOnvifDevice::setNetworkGateway(const QString& gateway)
+{
+    if (!m_client) {
+        return false;
+    }
+    const bool ok = m_client->setNetworkDefaultGateway(gateway.toStdString());
+    if (ok) {
+        refreshNetworkGateway();
+    }
+    return ok;
+}
+
+void QOnvifDevice::refreshDNS()
+{
+    if (!m_client) {
+        return;
+    }
+    const auto res = m_client->getDNS();
+    if (res) {
+        m_dnsConfig = *res;
+        emit dnsUpdated(m_dnsConfig);
+    }
+}
+
+bool QOnvifDevice::setDNS(const PelcoD::Onvif::DnsConfig& dns)
+{
+    if (!m_client) {
+        return false;
+    }
+    const bool ok = m_client->setDNS(dns);
+    if (ok) {
+        refreshDNS();
+    }
+    return ok;
+}
+
+void QOnvifDevice::refreshNTP()
+{
+    if (!m_client) {
+        return;
+    }
+    const auto res = m_client->getNTP();
+    if (res) {
+        m_ntpConfig = *res;
+        emit ntpUpdated(m_ntpConfig);
+    }
+}
+
+bool QOnvifDevice::setNTP(const PelcoD::Onvif::NtpConfig& ntp)
+{
+    if (!m_client) {
+        return false;
+    }
+    const bool ok = m_client->setNTP(ntp);
+    if (ok) {
+        refreshNTP();
+    }
+    return ok;
+}
+
+bool QOnvifDevice::setSystemDateAndTime(const PelcoD::Onvif::SystemDateTimeConfig& dt)
+{
+    if (!m_client) {
+        return false;
+    }
+    return m_client->setSystemDateAndTime(dt);
+}
+
+bool QOnvifDevice::setSystemFactoryDefault(bool hard)
+{
+    if (!m_client) {
+        return false;
+    }
+    const bool ok = m_client->setSystemFactoryDefault(
+        hard ? PelcoD::Onvif::FactoryDefaultType::Hard : PelcoD::Onvif::FactoryDefaultType::Soft);
+    emit factoryDefaultCompleted(ok);
     return ok;
 }
 

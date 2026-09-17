@@ -80,12 +80,21 @@ namespace {
 } // namespace
 
 OnvifServer::OnvifServer(OnvifServerConfig config, std::shared_ptr<IPtzHandler> ptzHandler,
-    std::shared_ptr<IImagingHandler> imagingHandler, std::shared_ptr<IOsdHandler> osdHandler)
+    std::shared_ptr<IImagingHandler> imagingHandler, std::shared_ptr<IOsdHandler> osdHandler,
+    std::shared_ptr<IDeviceManagementHandler> deviceHandler)
     : m_config(std::move(config))
     , m_ptzHandler(std::move(ptzHandler))
     , m_imagingHandler(std::move(imagingHandler))
     , m_osdHandler(std::move(osdHandler))
+    , m_deviceHandler(std::move(deviceHandler))
 {
+    m_internalUsers = m_config.defaultUsers;
+    m_internalNetworkInterfaces = m_config.defaultNetworkInterfaces;
+    m_internalGateway = m_config.defaultGateway;
+    m_internalDns = m_config.defaultDns;
+    m_internalNtp = m_config.defaultNtp;
+    m_internalHostname = m_config.hostname;
+
     OsdConfig defaultOsd;
     defaultOsd.token = "OSD_1";
     defaultOsd.videoSourceToken = "VideoSource_1";
@@ -176,6 +185,11 @@ void OnvifServer::setImagingHandler(std::shared_ptr<IImagingHandler> handler)
 void OnvifServer::setOsdHandler(std::shared_ptr<IOsdHandler> handler)
 {
     m_osdHandler = std::move(handler);
+}
+
+void OnvifServer::setDeviceManagementHandler(std::shared_ptr<IDeviceManagementHandler> handler)
+{
+    m_deviceHandler = std::move(handler);
 }
 
 void OnvifServer::publishEvent(const OnvifEvent& event)
@@ -302,7 +316,7 @@ void OnvifServer::handleDeviceService(const httplib::Request& req, httplib::Resp
 
     std::ostringstream body;
 
-    if (opName.find("GetSystemDateAndTime") != std::string::npos) {
+    if (isOp(opName, "GetSystemDateAndTime")) {
         const auto now = std::chrono::system_clock::now();
         const std::time_t nowTime = std::chrono::system_clock::to_time_t(now);
         std::tm utcTm {};
@@ -311,11 +325,16 @@ void OnvifServer::handleDeviceService(const httplib::Request& req, httplib::Resp
 #else
         gmtime_r(&nowTime, &utcTm);
 #endif
+        std::lock_guard<std::mutex> lock(m_deviceMutex);
+        const std::string dtType = m_internalDateTime.dateTimeType.empty() ? "Manual" : m_internalDateTime.dateTimeType;
+        const std::string tzStr = m_internalDateTime.timeZone.empty() ? "UTC" : m_internalDateTime.timeZone;
+        const bool dst = m_internalDateTime.daylightSavings;
+
         body << "    <tds:GetSystemDateAndTimeResponse>\r\n"
              << "      <tds:SystemDateAndTime>\r\n"
-             << "        <tt:DateTimeType>Manual</tt:DateTimeType>\r\n"
-             << "        <tt:DaylightSavings>false</tt:DaylightSavings>\r\n"
-             << "        <tt:TimeZone><tt:TZ>UTC</tt:TZ></tt:TimeZone>\r\n"
+             << "        <tt:DateTimeType>" << dtType << "</tt:DateTimeType>\r\n"
+             << "        <tt:DaylightSavings>" << (dst ? "true" : "false") << "</tt:DaylightSavings>\r\n"
+             << "        <tt:TimeZone><tt:TZ>" << tzStr << "</tt:TZ></tt:TimeZone>\r\n"
              << "        <tt:UTCDateTime>\r\n"
              << "          <tt:Time><tt:Hour>" << utcTm.tm_hour << "</tt:Hour><tt:Minute>" << utcTm.tm_min
              << "</tt:Minute><tt:Second>" << utcTm.tm_sec << "</tt:Second></tt:Time>\r\n"
@@ -324,7 +343,62 @@ void OnvifServer::handleDeviceService(const httplib::Request& req, httplib::Resp
              << "        </tt:UTCDateTime>\r\n"
              << "      </tds:SystemDateAndTime>\r\n"
              << "    </tds:GetSystemDateAndTimeResponse>\r\n";
-    } else if (opName.find("GetDeviceInformation") != std::string::npos) {
+    } else if (isOp(opName, "SetSystemDateAndTime")) {
+        SystemDateTimeConfig dt;
+        const auto dtTypeNode = doc.select_node(".//*[local-name()='DateTimeType']").node();
+        if (dtTypeNode) {
+            dt.dateTimeType = dtTypeNode.text().as_string();
+        }
+        const auto dsNode = doc.select_node(".//*[local-name()='DaylightSavings']").node();
+        if (dsNode) {
+            dt.daylightSavings = dsNode.text().as_bool(false);
+        }
+        const auto tzNode = doc.select_node(".//*[local-name()='TimeZone']/*[local-name()='TZ']").node();
+        if (tzNode) {
+            dt.timeZone = tzNode.text().as_string();
+        }
+        const auto hourNode
+            = doc.select_node(".//*[local-name()='UTCDateTime']/*[local-name()='Time']/*[local-name()='Hour']").node();
+        if (hourNode) {
+            dt.hour = hourNode.text().as_int();
+        }
+        const auto minNode
+            = doc.select_node(".//*[local-name()='UTCDateTime']/*[local-name()='Time']/*[local-name()='Minute']")
+                  .node();
+        if (minNode) {
+            dt.minute = minNode.text().as_int();
+        }
+        const auto secNode
+            = doc.select_node(".//*[local-name()='UTCDateTime']/*[local-name()='Time']/*[local-name()='Second']")
+                  .node();
+        if (secNode) {
+            dt.second = secNode.text().as_int();
+        }
+        const auto yearNode
+            = doc.select_node(".//*[local-name()='UTCDateTime']/*[local-name()='Date']/*[local-name()='Year']").node();
+        if (yearNode) {
+            dt.year = yearNode.text().as_int();
+        }
+        const auto monNode
+            = doc.select_node(".//*[local-name()='UTCDateTime']/*[local-name()='Date']/*[local-name()='Month']").node();
+        if (monNode) {
+            dt.month = monNode.text().as_int();
+        }
+        const auto dayNode
+            = doc.select_node(".//*[local-name()='UTCDateTime']/*[local-name()='Date']/*[local-name()='Day']").node();
+        if (dayNode) {
+            dt.day = dayNode.text().as_int();
+        }
+
+        if (m_deviceHandler) {
+            m_deviceHandler->handleSetSystemDateAndTime(dt);
+        }
+        {
+            std::lock_guard<std::mutex> lock(m_deviceMutex);
+            m_internalDateTime = dt;
+        }
+        body << "    <tds:SetSystemDateAndTimeResponse/>\r\n";
+    } else if (isOp(opName, "GetDeviceInformation")) {
         body << "    <tds:GetDeviceInformationResponse>\r\n"
              << "      <tds:Manufacturer>" << m_config.manufacturer << "</tds:Manufacturer>\r\n"
              << "      <tds:Model>" << m_config.model << "</tds:Model>\r\n"
@@ -332,7 +406,7 @@ void OnvifServer::handleDeviceService(const httplib::Request& req, httplib::Resp
              << "      <tds:SerialNumber>" << m_config.serialNumber << "</tds:SerialNumber>\r\n"
              << "      <tds:HardwareId>" << m_config.hardwareId << "</tds:HardwareId>\r\n"
              << "    </tds:GetDeviceInformationResponse>\r\n";
-    } else if (opName.find("GetCapabilities") != std::string::npos) {
+    } else if (isOp(opName, "GetCapabilities")) {
         body << "    <tds:GetCapabilitiesResponse>\r\n"
              << "      <tds:Capabilities>\r\n"
              << "        <tt:Device>\r\n"
@@ -356,7 +430,7 @@ void OnvifServer::handleDeviceService(const httplib::Request& req, httplib::Resp
              << "        </tt:Analytics>\r\n"
              << "      </tds:Capabilities>\r\n"
              << "    </tds:GetCapabilitiesResponse>\r\n";
-    } else if (opName.find("GetServices") != std::string::npos) {
+    } else if (isOp(opName, "GetServices")) {
         body << "    <tds:GetServicesResponse>\r\n"
              << "      <tds:Service>\r\n"
              << "        <tds:Namespace>http://www.onvif.org/ver10/device/wsdl</tds:Namespace>\r\n"
@@ -394,7 +468,7 @@ void OnvifServer::handleDeviceService(const httplib::Request& req, httplib::Resp
              << "        <tds:Version><tt:Major>20</tt:Major><tt:Minor>0</tt:Minor></tds:Version>\r\n"
              << "      </tds:Service>\r\n"
              << "    </tds:GetServicesResponse>\r\n";
-    } else if (opName.find("GetScopes") != std::string::npos) {
+    } else if (isOp(opName, "GetScopes")) {
         body << "    <tds:GetScopesResponse>\r\n"
              << "      "
                 "<tds:Scopes><tt:ScopeDef>Fixed</tt:ScopeDef><tt:ScopeItem>onvif://www.onvif.org/type/video_encoder</"
@@ -411,6 +485,367 @@ void OnvifServer::handleDeviceService(const httplib::Request& req, httplib::Resp
                  << "</tt:ScopeItem></tds:Scopes>\r\n";
         }
         body << "    </tds:GetScopesResponse>\r\n";
+    } else if (isOp(opName, "AddScopes")) {
+        const auto scNodes = doc.select_nodes(".//*[local-name()='ScopeItem']");
+        for (const auto& sel : scNodes) {
+            m_config.scopes.push_back(sel.node().text().as_string());
+        }
+        body << "    <tds:AddScopesResponse/>\r\n";
+    } else if (isOp(opName, "RemoveScopes")) {
+        const auto scNodes = doc.select_nodes(".//*[local-name()='ScopeItem']");
+        for (const auto& sel : scNodes) {
+            const std::string target = sel.node().text().as_string();
+            m_config.scopes.erase(
+                std::remove(m_config.scopes.begin(), m_config.scopes.end(), target), m_config.scopes.end());
+        }
+        body << "    <tds:RemoveScopesResponse/>\r\n";
+    } else if (isOp(opName, "SetScopes")) {
+        m_config.scopes.clear();
+        const auto scNodes = doc.select_nodes(".//*[local-name()='ScopeItem']");
+        for (const auto& sel : scNodes) {
+            m_config.scopes.push_back(sel.node().text().as_string());
+        }
+        body << "    <tds:SetScopesResponse/>\r\n";
+    } else if (isOp(opName, "GetUsers")) {
+        std::vector<OnvifUser> users;
+        if (m_deviceHandler) {
+            users = m_deviceHandler->handleGetUsers();
+        } else {
+            std::lock_guard<std::mutex> lock(m_deviceMutex);
+            users = m_internalUsers;
+        }
+        body << "    <tds:GetUsersResponse>\r\n";
+        for (const auto& u : users) {
+            body << "      <tds:User>\r\n"
+                 << "        <tt:Username>" << u.username << "</tt:Username>\r\n"
+                 << "        <tt:UserLevel>" << userLevelToString(u.level) << "</tt:UserLevel>\r\n"
+                 << "      </tds:User>\r\n";
+        }
+        body << "    </tds:GetUsersResponse>\r\n";
+    } else if (isOp(opName, "CreateUsers")) {
+        const auto userNodes = doc.select_nodes(".//*[local-name()='User']");
+        std::vector<OnvifUser> newUsers;
+        for (const auto& sel : userNodes) {
+            const auto uNode = sel.node();
+            OnvifUser u;
+            const auto un = uNode.select_node(".//*[local-name()='Username']").node();
+            if (un) {
+                u.username = un.text().as_string();
+            }
+            const auto pw = uNode.select_node(".//*[local-name()='Password']").node();
+            if (pw) {
+                u.password = pw.text().as_string();
+            }
+            const auto ul = uNode.select_node(".//*[local-name()='UserLevel']").node();
+            if (ul) {
+                u.level = userLevelFromString(ul.text().as_string());
+            }
+            if (!u.username.empty()) {
+                newUsers.push_back(u);
+            }
+        }
+        if (m_deviceHandler) {
+            m_deviceHandler->handleCreateUsers(newUsers);
+        }
+        {
+            std::lock_guard<std::mutex> lock(m_deviceMutex);
+            for (const auto& nu : newUsers) {
+                auto it = std::find_if(m_internalUsers.begin(), m_internalUsers.end(),
+                    [&](const OnvifUser& existing) { return existing.username == nu.username; });
+                if (it != m_internalUsers.end()) {
+                    *it = nu;
+                } else {
+                    m_internalUsers.push_back(nu);
+                }
+            }
+        }
+        body << "    <tds:CreateUsersResponse/>\r\n";
+    } else if (isOp(opName, "SetUser")) {
+        const auto userNodes = doc.select_nodes(".//*[local-name()='User']");
+        for (const auto& sel : userNodes) {
+            const auto uNode = sel.node();
+            OnvifUser u;
+            const auto un = uNode.select_node(".//*[local-name()='Username']").node();
+            if (un) {
+                u.username = un.text().as_string();
+            }
+            const auto pw = uNode.select_node(".//*[local-name()='Password']").node();
+            if (pw) {
+                u.password = pw.text().as_string();
+            }
+            const auto ul = uNode.select_node(".//*[local-name()='UserLevel']").node();
+            if (ul) {
+                u.level = userLevelFromString(ul.text().as_string());
+            }
+            if (!u.username.empty()) {
+                if (m_deviceHandler) {
+                    m_deviceHandler->handleSetUser(u);
+                }
+                std::lock_guard<std::mutex> lock(m_deviceMutex);
+                auto it = std::find_if(m_internalUsers.begin(), m_internalUsers.end(),
+                    [&](const OnvifUser& existing) { return existing.username == u.username; });
+                if (it != m_internalUsers.end()) {
+                    *it = u;
+                } else {
+                    m_internalUsers.push_back(u);
+                }
+            }
+        }
+        body << "    <tds:SetUserResponse/>\r\n";
+    } else if (isOp(opName, "DeleteUsers")) {
+        const auto unNodes = doc.select_nodes(".//*[local-name()='Username']");
+        std::vector<std::string> names;
+        for (const auto& sel : unNodes) {
+            names.push_back(sel.node().text().as_string());
+        }
+        if (m_deviceHandler) {
+            m_deviceHandler->handleDeleteUsers(names);
+        }
+        {
+            std::lock_guard<std::mutex> lock(m_deviceMutex);
+            for (const auto& name : names) {
+                m_internalUsers.erase(std::remove_if(m_internalUsers.begin(), m_internalUsers.end(),
+                                          [&](const OnvifUser& u) { return u.username == name; }),
+                    m_internalUsers.end());
+            }
+        }
+        body << "    <tds:DeleteUsersResponse/>\r\n";
+    } else if (isOp(opName, "GetNetworkInterfaces")) {
+        std::vector<NetworkInterfaceConfig> ifaces;
+        if (m_deviceHandler) {
+            ifaces = m_deviceHandler->handleGetNetworkInterfaces();
+        } else {
+            std::lock_guard<std::mutex> lock(m_deviceMutex);
+            ifaces = m_internalNetworkInterfaces;
+        }
+        body << "    <tds:GetNetworkInterfacesResponse>\r\n";
+        for (const auto& iface : ifaces) {
+            body << "      <tds:NetworkInterfaces token=\"" << iface.token << "\">\r\n"
+                 << "        <tt:Enabled>" << (iface.enabled ? "true" : "false") << "</tt:Enabled>\r\n"
+                 << "        <tt:Info>\r\n"
+                 << "          <tt:Name>" << iface.name << "</tt:Name>\r\n"
+                 << "          <tt:HwAddress>" << iface.hwAddress << "</tt:HwAddress>\r\n"
+                 << "          <tt:MTU>" << iface.mtu << "</tt:MTU>\r\n"
+                 << "        </tt:Info>\r\n"
+                 << "        <tt:IPv4>\r\n"
+                 << "          <tt:Enabled>" << (iface.ipv4.enabled ? "true" : "false") << "</tt:Enabled>\r\n"
+                 << "          <tt:Config>\r\n"
+                 << "            <tt:Manual>\r\n"
+                 << "              <tt:Address>" << iface.ipv4.manualAddress << "</tt:Address>\r\n"
+                 << "              <tt:PrefixLength>" << iface.ipv4.prefixLength << "</tt:PrefixLength>\r\n"
+                 << "            </tt:Manual>\r\n"
+                 << "            <tt:DHCP>" << (iface.ipv4.dhcp ? "true" : "false") << "</tt:DHCP>\r\n"
+                 << "          </tt:Config>\r\n"
+                 << "        </tt:IPv4>\r\n"
+                 << "      </tds:NetworkInterfaces>\r\n";
+        }
+        body << "    </tds:GetNetworkInterfacesResponse>\r\n";
+    } else if (isOp(opName, "SetNetworkInterfaces")) {
+        NetworkInterfaceConfig iface;
+        const auto tokNode = doc.select_node(".//*[local-name()='InterfaceToken']").node();
+        if (tokNode) {
+            iface.token = tokNode.text().as_string();
+        }
+        const auto enNode = doc.select_node(".//*[local-name()='NetworkInterface']/*[local-name()='Enabled']").node();
+        if (enNode) {
+            iface.enabled = enNode.text().as_bool(true);
+        }
+        const auto mtuNode = doc.select_node(".//*[local-name()='MTU']").node();
+        if (mtuNode) {
+            iface.mtu = mtuNode.text().as_int(1500);
+        }
+        const auto ipv4EnNode = doc.select_node(".//*[local-name()='IPv4']/*[local-name()='Enabled']").node();
+        if (ipv4EnNode) {
+            iface.ipv4.enabled = ipv4EnNode.text().as_bool(true);
+        }
+        const auto dhcpNode = doc.select_node(".//*[local-name()='DHCP']").node();
+        if (dhcpNode) {
+            iface.ipv4.dhcp = dhcpNode.text().as_bool(false);
+        }
+        const auto addrNode = doc.select_node(".//*[local-name()='Manual']/*[local-name()='Address']").node();
+        if (addrNode) {
+            iface.ipv4.manualAddress = addrNode.text().as_string();
+        }
+        const auto pfxNode = doc.select_node(".//*[local-name()='Manual']/*[local-name()='PrefixLength']").node();
+        if (pfxNode) {
+            iface.ipv4.prefixLength = pfxNode.text().as_int(24);
+        }
+
+        if (m_deviceHandler) {
+            m_deviceHandler->handleSetNetworkInterfaces(iface);
+        }
+        {
+            std::lock_guard<std::mutex> lock(m_deviceMutex);
+            auto it = std::find_if(m_internalNetworkInterfaces.begin(), m_internalNetworkInterfaces.end(),
+                [&](const NetworkInterfaceConfig& c) { return c.token == iface.token; });
+            if (it != m_internalNetworkInterfaces.end()) {
+                *it = iface;
+            } else {
+                m_internalNetworkInterfaces.push_back(iface);
+            }
+        }
+        body << "    <tds:SetNetworkInterfacesResponse>\r\n"
+             << "      <tds:RebootNeeded>false</tds:RebootNeeded>\r\n"
+             << "    </tds:SetNetworkInterfacesResponse>\r\n";
+    } else if (isOp(opName, "GetNetworkDefaultGateway")) {
+        std::string gw;
+        if (m_deviceHandler) {
+            gw = m_deviceHandler->handleGetNetworkDefaultGateway();
+        } else {
+            std::lock_guard<std::mutex> lock(m_deviceMutex);
+            gw = m_internalGateway;
+        }
+        body << "    <tds:GetNetworkDefaultGatewayResponse>\r\n"
+             << "      <tds:NetworkGateway>\r\n"
+             << "        <tt:IPv4Address>" << gw << "</tt:IPv4Address>\r\n"
+             << "      </tds:NetworkGateway>\r\n"
+             << "    </tds:GetNetworkDefaultGatewayResponse>\r\n";
+    } else if (isOp(opName, "SetNetworkDefaultGateway")) {
+        const auto gwNode = doc.select_node(".//*[local-name()='IPv4Address']").node();
+        std::string gw = gwNode ? gwNode.text().as_string() : "";
+        if (m_deviceHandler) {
+            m_deviceHandler->handleSetNetworkDefaultGateway(gw);
+        }
+        {
+            std::lock_guard<std::mutex> lock(m_deviceMutex);
+            m_internalGateway = gw;
+        }
+        body << "    <tds:SetNetworkDefaultGatewayResponse/>\r\n";
+    } else if (isOp(opName, "GetDNS")) {
+        DnsConfig dns;
+        if (m_deviceHandler) {
+            dns = m_deviceHandler->handleGetDNS();
+        } else {
+            std::lock_guard<std::mutex> lock(m_deviceMutex);
+            dns = m_internalDns;
+        }
+        body << "    <tds:GetDNSResponse>\r\n"
+             << "      <tds:DNSInformation>\r\n"
+             << "        <tt:FromDHCP>" << (dns.fromDhcp ? "true" : "false") << "</tt:FromDHCP>\r\n";
+        for (const auto& sd : dns.searchDomains) {
+            body << "        <tt:SearchDomain>" << sd << "</tt:SearchDomain>\r\n";
+        }
+        for (const auto& server : dns.dnsServers) {
+            body << "        <tt:DNSManual>\r\n"
+                 << "          <tt:Type>IPv4</tt:Type>\r\n"
+                 << "          <tt:IPv4Address>" << server << "</tt:IPv4Address>\r\n"
+                 << "        </tt:DNSManual>\r\n";
+        }
+        body << "      </tds:DNSInformation>\r\n"
+             << "    </tds:GetDNSResponse>\r\n";
+    } else if (isOp(opName, "SetDNS")) {
+        DnsConfig dns;
+        const auto dhcpNode = doc.select_node(".//*[local-name()='FromDHCP']").node();
+        if (dhcpNode) {
+            dns.fromDhcp = dhcpNode.text().as_bool(false);
+        }
+        const auto sdNodes = doc.select_nodes(".//*[local-name()='SearchDomain']");
+        for (const auto& sel : sdNodes) {
+            dns.searchDomains.push_back(sel.node().text().as_string());
+        }
+        const auto srvNodes = doc.select_nodes(".//*[local-name()='DNSManual']/*[local-name()='IPv4Address']");
+        for (const auto& sel : srvNodes) {
+            dns.dnsServers.push_back(sel.node().text().as_string());
+        }
+        if (m_deviceHandler) {
+            m_deviceHandler->handleSetDNS(dns);
+        }
+        {
+            std::lock_guard<std::mutex> lock(m_deviceMutex);
+            m_internalDns = dns;
+        }
+        body << "    <tds:SetDNSResponse/>\r\n";
+    } else if (isOp(opName, "GetNTP")) {
+        NtpConfig ntp;
+        if (m_deviceHandler) {
+            ntp = m_deviceHandler->handleGetNTP();
+        } else {
+            std::lock_guard<std::mutex> lock(m_deviceMutex);
+            ntp = m_internalNtp;
+        }
+        body << "    <tds:GetNTPResponse>\r\n"
+             << "      <tds:NTPInformation>\r\n"
+             << "        <tt:FromDHCP>" << (ntp.fromDhcp ? "true" : "false") << "</tt:FromDHCP>\r\n";
+        for (const auto& srv : ntp.manualServers) {
+            body << "        <tt:NTPManual>\r\n"
+                 << "          <tt:Type>DNS</tt:Type>\r\n"
+                 << "          <tt:DNSname>" << srv << "</tt:DNSname>\r\n"
+                 << "        </tt:NTPManual>\r\n";
+        }
+        body << "      </tds:NTPInformation>\r\n"
+             << "    </tds:GetNTPResponse>\r\n";
+    } else if (isOp(opName, "SetNTP")) {
+        NtpConfig ntp;
+        const auto dhcpNode = doc.select_node(".//*[local-name()='FromDHCP']").node();
+        if (dhcpNode) {
+            ntp.fromDhcp = dhcpNode.text().as_bool(false);
+        }
+        const auto ntpNodes = doc.select_nodes(".//*[local-name()='NTPManual']/*[local-name()='DNSname']");
+        for (const auto& sel : ntpNodes) {
+            ntp.manualServers.push_back(sel.node().text().as_string());
+        }
+        const auto ipNodes = doc.select_nodes(".//*[local-name()='NTPManual']/*[local-name()='IPv4Address']");
+        for (const auto& sel : ipNodes) {
+            ntp.manualServers.push_back(sel.node().text().as_string());
+        }
+        if (m_deviceHandler) {
+            m_deviceHandler->handleSetNTP(ntp);
+        }
+        {
+            std::lock_guard<std::mutex> lock(m_deviceMutex);
+            m_internalNtp = ntp;
+        }
+        body << "    <tds:SetNTPResponse/>\r\n";
+    } else if (isOp(opName, "GetHostname")) {
+        std::string hn;
+        if (m_deviceHandler) {
+            hn = m_deviceHandler->handleGetHostname();
+        } else {
+            std::lock_guard<std::mutex> lock(m_deviceMutex);
+            hn = m_internalHostname;
+        }
+        body << "    <tds:GetHostnameResponse>\r\n"
+             << "      <tds:HostnameInformation>\r\n"
+             << "        <tt:FromDHCP>false</tt:FromDHCP>\r\n"
+             << "        <tt:Name>" << hn << "</tt:Name>\r\n"
+             << "      </tds:HostnameInformation>\r\n"
+             << "    </tds:GetHostnameResponse>\r\n";
+    } else if (isOp(opName, "SetHostname")) {
+        const auto hnNode = doc.select_node(".//*[local-name()='Name']").node();
+        std::string hn = hnNode ? hnNode.text().as_string() : "";
+        if (m_deviceHandler) {
+            m_deviceHandler->handleSetHostname(hn);
+        }
+        {
+            std::lock_guard<std::mutex> lock(m_deviceMutex);
+            m_internalHostname = hn;
+        }
+        body << "    <tds:SetHostnameResponse/>\r\n";
+    } else if (isOp(opName, "SetSystemFactoryDefault")) {
+        const auto defNode = doc.select_node(".//*[local-name()='FactoryDefault']").node();
+        const std::string defType = defNode ? defNode.text().as_string() : "Soft";
+        const FactoryDefaultType type = (defType == "Hard") ? FactoryDefaultType::Hard : FactoryDefaultType::Soft;
+        if (m_deviceHandler) {
+            m_deviceHandler->handleSetSystemFactoryDefault(type);
+        }
+        {
+            std::lock_guard<std::mutex> lock(m_deviceMutex);
+            m_internalUsers = m_config.defaultUsers;
+            m_internalNetworkInterfaces = m_config.defaultNetworkInterfaces;
+            m_internalGateway = m_config.defaultGateway;
+            m_internalDns = m_config.defaultDns;
+            m_internalNtp = m_config.defaultNtp;
+            m_internalHostname = m_config.hostname;
+        }
+        body << "    <tds:SetSystemFactoryDefaultResponse/>\r\n";
+    } else if (isOp(opName, "SystemReboot")) {
+        std::string msg = "Rebooting";
+        if (m_deviceHandler) {
+            msg = m_deviceHandler->handleSystemReboot();
+        }
+        body << "    <tds:SystemRebootResponse>\r\n"
+             << "      <tds:Message>" << msg << "</tds:Message>\r\n"
+             << "    </tds:SystemRebootResponse>\r\n";
     } else {
         body << "    <tds:" << opName << "Response/>\r\n";
     }

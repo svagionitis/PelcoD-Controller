@@ -689,6 +689,167 @@ void testOsdParsing()
     assert(*createdToken == "OSD_CREATED_42");
 }
 
+void testDeviceUsersParsing()
+{
+    const std::string xml = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+                            "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                            "xmlns:tds=\"http://www.onvif.org/ver10/device/wsdl\" "
+                            "xmlns:tt=\"http://www.onvif.org/ver10/schema\">\r\n"
+                            "  <SOAP-ENV:Body>\r\n"
+                            "    <tds:GetUsersResponse>\r\n"
+                            "      <tds:User>\r\n"
+                            "        <tt:Username>admin</tt:Username>\r\n"
+                            "        <tt:Password></tt:Password>\r\n"
+                            "        <tt:UserLevel>Administrator</tt:UserLevel>\r\n"
+                            "      </tds:User>\r\n"
+                            "      <tds:User>\r\n"
+                            "        <tt:Username>operator1</tt:Username>\r\n"
+                            "        <tt:Password>secretpass</tt:Password>\r\n"
+                            "        <tt:UserLevel>Operator</tt:UserLevel>\r\n"
+                            "      </tds:User>\r\n"
+                            "      <tds:User>\r\n"
+                            "        <tt:Username>guest</tt:Username>\r\n"
+                            "        <tt:UserLevel>User</tt:UserLevel>\r\n"
+                            "      </tds:User>\r\n"
+                            "    </tds:GetUsersResponse>\r\n"
+                            "  </SOAP-ENV:Body>\r\n"
+                            "</SOAP-ENV:Envelope>";
+
+    const auto users = PelcoD::Onvif::OnvifClient::parseUsersResponse(xml);
+    assert(users.size() == 3);
+    assert(users[0].username == "admin");
+    assert(users[0].level == PelcoD::Onvif::OnvifUserLevel::Administrator);
+    assert(users[1].username == "operator1");
+    assert(users[1].password == "secretpass");
+    assert(users[1].level == PelcoD::Onvif::OnvifUserLevel::Operator);
+    assert(users[2].username == "guest");
+    assert(users[2].level == PelcoD::Onvif::OnvifUserLevel::User);
+}
+
+void testDeviceNetworkInterfacesParsing()
+{
+    const std::string xml = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+                            "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                            "xmlns:tds=\"http://www.onvif.org/ver10/device/wsdl\" "
+                            "xmlns:tt=\"http://www.onvif.org/ver10/schema\">\r\n"
+                            "  <SOAP-ENV:Body>\r\n"
+                            "    <tds:GetNetworkInterfacesResponse>\r\n"
+                            "      <tds:NetworkInterfaces token=\"eth0\">\r\n"
+                            "        <tt:Enabled>true</tt:Enabled>\r\n"
+                            "        <tt:Info>\r\n"
+                            "          <tt:Name>eth0</tt:Name>\r\n"
+                            "          <tt:HwAddress>00:11:22:33:44:55</tt:HwAddress>\r\n"
+                            "          <tt:MTU>1500</tt:MTU>\r\n"
+                            "        </tt:Info>\r\n"
+                            "        <tt:IPv4>\r\n"
+                            "          <tt:Enabled>true</tt:Enabled>\r\n"
+                            "          <tt:Config>\r\n"
+                            "            <tt:Manual>\r\n"
+                            "              <tt:Address>192.168.1.50</tt:Address>\r\n"
+                            "              <tt:PrefixLength>24</tt:PrefixLength>\r\n"
+                            "            </tt:Manual>\r\n"
+                            "            <tt:DHCP>false</tt:DHCP>\r\n"
+                            "          </tt:Config>\r\n"
+                            "        </tt:IPv4>\r\n"
+                            "      </tds:NetworkInterfaces>\r\n"
+                            "    </tds:GetNetworkInterfacesResponse>\r\n"
+                            "  </SOAP-ENV:Body>\r\n"
+                            "</SOAP-ENV:Envelope>";
+
+    const auto ifaces = PelcoD::Onvif::OnvifClient::parseNetworkInterfacesResponse(xml);
+    assert(ifaces.size() == 1);
+    assert(ifaces[0].token == "eth0");
+    assert(ifaces[0].enabled == true);
+    assert(ifaces[0].name == "eth0");
+    assert(ifaces[0].hwAddress == "00:11:22:33:44:55");
+    assert(ifaces[0].mtu == 1500);
+    assert(ifaces[0].ipv4.enabled == true);
+    assert(ifaces[0].ipv4.dhcp == false);
+    assert(ifaces[0].ipv4.manualAddress == "192.168.1.50");
+    assert(ifaces[0].ipv4.prefixLength == 24);
+}
+
+void testDeviceDnsNtpParsing()
+{
+    const std::string dnsXml = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+                               "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                               "xmlns:tds=\"http://www.onvif.org/ver10/device/wsdl\" "
+                               "xmlns:tt=\"http://www.onvif.org/ver10/schema\">\r\n"
+                               "  <SOAP-ENV:Body>\r\n"
+                               "    <tds:GetDNSResponse>\r\n"
+                               "      <tds:DNSInformation>\r\n"
+                               "        <tt:FromDHCP>false</tt:FromDHCP>\r\n"
+                               "        <tt:SearchDomain>lan</tt:SearchDomain>\r\n"
+                               "        <tt:DNSManual>\r\n"
+                               "          <tt:Type>IPv4</tt:Type>\r\n"
+                               "          <tt:IPv4Address>8.8.8.8</tt:IPv4Address>\r\n"
+                               "        </tt:DNSManual>\r\n"
+                               "        <tt:DNSManual>\r\n"
+                               "          <tt:Type>IPv4</tt:Type>\r\n"
+                               "          <tt:IPv4Address>1.1.1.1</tt:IPv4Address>\r\n"
+                               "        </tt:DNSManual>\r\n"
+                               "      </tds:DNSInformation>\r\n"
+                               "    </tds:GetDNSResponse>\r\n"
+                               "  </SOAP-ENV:Body>\r\n"
+                               "</SOAP-ENV:Envelope>";
+
+    const auto dns = PelcoD::Onvif::OnvifClient::parseDnsResponse(dnsXml);
+    assert(dns.has_value());
+    assert(dns->fromDhcp == false);
+    assert(dns->searchDomains.size() == 1 && dns->searchDomains[0] == "lan");
+    assert(dns->dnsServers.size() == 2 && dns->dnsServers[0] == "8.8.8.8" && dns->dnsServers[1] == "1.1.1.1");
+
+    const std::string ntpXml = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+                               "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                               "xmlns:tds=\"http://www.onvif.org/ver10/device/wsdl\" "
+                               "xmlns:tt=\"http://www.onvif.org/ver10/schema\">\r\n"
+                               "  <SOAP-ENV:Body>\r\n"
+                               "    <tds:GetNTPResponse>\r\n"
+                               "      <tds:NTPInformation>\r\n"
+                               "        <tt:FromDHCP>true</tt:FromDHCP>\r\n"
+                               "        <tt:NTPManual>\r\n"
+                               "          <tt:Type>DNS</tt:Type>\r\n"
+                               "          <tt:DNSname>time.google.com</tt:DNSname>\r\n"
+                               "        </tt:NTPManual>\r\n"
+                               "      </tds:NTPInformation>\r\n"
+                               "    </tds:GetNTPResponse>\r\n"
+                               "  </SOAP-ENV:Body>\r\n"
+                               "</SOAP-ENV:Envelope>";
+
+    const auto ntp = PelcoD::Onvif::OnvifClient::parseNtpResponse(ntpXml);
+    assert(ntp.has_value());
+    assert(ntp->fromDhcp == true);
+    assert(ntp->manualServers.size() == 1 && ntp->manualServers[0] == "time.google.com");
+}
+
+void testDeviceGatewayAndHostnameParsing()
+{
+    const std::string gwXml
+        = "<tds:GetNetworkDefaultGatewayResponse xmlns:tds=\"http://www.onvif.org/ver10/device/wsdl\" "
+          "xmlns:tt=\"http://www.onvif.org/ver10/schema\">"
+          "<tds:NetworkGateway><tt:IPv4Address>192.168.1.254</tt:IPv4Address></tds:NetworkGateway>"
+          "</tds:GetNetworkDefaultGatewayResponse>";
+    const std::string gw = PelcoD::Onvif::OnvifClient::parseNetworkDefaultGatewayResponse(gwXml);
+    assert(gw == "192.168.1.254");
+
+    const std::string hnXml = "<tds:GetHostnameResponse xmlns:tds=\"http://www.onvif.org/ver10/device/wsdl\" "
+                              "xmlns:tt=\"http://www.onvif.org/ver10/schema\">"
+                              "<tds:HostnameInformation><tt:Name>CamFrontGate</tt:Name></tds:HostnameInformation>"
+                              "</tds:GetHostnameResponse>";
+    const std::string hn = PelcoD::Onvif::OnvifClient::parseHostnameResponse(hnXml);
+    assert(hn == "CamFrontGate");
+
+    const std::string scXml = "<tds:GetScopesResponse xmlns:tds=\"http://www.onvif.org/ver10/device/wsdl\" "
+                              "xmlns:tt=\"http://www.onvif.org/ver10/schema\">"
+                              "<tds:Scopes><tt:ScopeItem>onvif://www.onvif.org/type/ptz</tt:ScopeItem></tds:Scopes>"
+                              "<tds:Scopes><tt:ScopeItem>onvif://www.onvif.org/name/Cam1</tt:ScopeItem></tds:Scopes>"
+                              "</tds:GetScopesResponse>";
+    const auto scopes = PelcoD::Onvif::OnvifClient::parseScopesResponse(scXml);
+    assert(scopes.size() == 2);
+    assert(scopes[0] == "onvif://www.onvif.org/type/ptz");
+    assert(scopes[1] == "onvif://www.onvif.org/name/Cam1");
+}
+
 int main()
 {
 #ifdef _WIN32
@@ -760,6 +921,22 @@ int main()
     std::cout << "[RUN] Testing ONVIF OSD XML Parsing...\n";
     testOsdParsing();
     std::cout << "[PASS] ONVIF OSD XML Parsing\n";
+
+    std::cout << "[RUN] Testing ONVIF Device Users XML Parsing...\n";
+    testDeviceUsersParsing();
+    std::cout << "[PASS] Device Users XML Parsing\n";
+
+    std::cout << "[RUN] Testing ONVIF Device Network Interfaces XML Parsing...\n";
+    testDeviceNetworkInterfacesParsing();
+    std::cout << "[PASS] Device Network Interfaces XML Parsing\n";
+
+    std::cout << "[RUN] Testing ONVIF Device DNS & NTP XML Parsing...\n";
+    testDeviceDnsNtpParsing();
+    std::cout << "[PASS] Device DNS & NTP XML Parsing\n";
+
+    std::cout << "[RUN] Testing ONVIF Device Gateway, Hostname, & Scopes XML Parsing...\n";
+    testDeviceGatewayAndHostnameParsing();
+    std::cout << "[PASS] Device Gateway, Hostname, & Scopes XML Parsing\n";
 
     std::cout << "\nAll PelcoDOnvif unit tests PASSED successfully!\n";
     return 0;

@@ -52,6 +52,26 @@ struct OnvifServerConfig {
 
     /// @brief Default optical and imaging configuration.
     ImagingSettings defaultImagingSettings {};
+
+    /// @brief Default ONVIF user accounts.
+    std::vector<OnvifUser> defaultUsers { { "admin", "admin", OnvifUserLevel::Administrator },
+        { "operator", "operator", OnvifUserLevel::Operator } };
+
+    /// @brief Default network interfaces.
+    std::vector<NetworkInterfaceConfig> defaultNetworkInterfaces { { "eth0", true, "eth0", "00:11:22:33:44:55", 1500,
+        { true, true, "192.168.1.100", 24 } } };
+
+    /// @brief Default network default gateway.
+    std::string defaultGateway { "192.168.1.1" };
+
+    /// @brief Default DNS configuration.
+    DnsConfig defaultDns { true, { "local" }, { "8.8.8.8", "1.1.1.1" } };
+
+    /// @brief Default NTP configuration.
+    NtpConfig defaultNtp { true, { "pool.ntp.org" } };
+
+    /// @brief System hostname.
+    std::string hostname { "PelcoD-Bridge" };
 };
 
 /// @brief Callback signature for publishing asynchronous ONVIF event notifications.
@@ -263,6 +283,142 @@ public:
     [[nodiscard]] virtual bool handleDeleteOSD(const std::string& /*osdToken*/)
     {
         return false;
+    }
+};
+
+/// @class IDeviceManagementHandler
+/// @brief Abstract interface receiving ONVIF Device Management (/onvif/device_service) requests.
+class IDeviceManagementHandler {
+public:
+    virtual ~IDeviceManagementHandler() = default;
+
+    /// @brief Retrieves list of configured ONVIF user accounts.
+    /// @return Vector of OnvifUser records.
+    [[nodiscard]] virtual std::vector<OnvifUser> handleGetUsers()
+    {
+        return {};
+    }
+
+    /// @brief Adds new ONVIF user accounts.
+    /// @param[in] users Vector of new users to create.
+    /// @return True on success.
+    [[nodiscard]] virtual bool handleCreateUsers(const std::vector<OnvifUser>& /*users*/)
+    {
+        return false;
+    }
+
+    /// @brief Updates an existing ONVIF user's password and/or role.
+    /// @param[in] user Updated user record.
+    /// @return True on success.
+    [[nodiscard]] virtual bool handleSetUser(const OnvifUser& /*user*/)
+    {
+        return false;
+    }
+
+    /// @brief Removes user accounts by username.
+    /// @param[in] usernames List of usernames to delete.
+    /// @return True on success.
+    [[nodiscard]] virtual bool handleDeleteUsers(const std::vector<std::string>& /*usernames*/)
+    {
+        return false;
+    }
+
+    /// @brief Retrieves network adapter interface configurations.
+    /// @return Vector of NetworkInterfaceConfig records.
+    [[nodiscard]] virtual std::vector<NetworkInterfaceConfig> handleGetNetworkInterfaces()
+    {
+        return {};
+    }
+
+    /// @brief Modifies a network interface configuration.
+    /// @param[in] config Updated interface settings.
+    /// @return True on success.
+    [[nodiscard]] virtual bool handleSetNetworkInterfaces(const NetworkInterfaceConfig& /*config*/)
+    {
+        return false;
+    }
+
+    /// @brief Retrieves default network gateway address.
+    /// @return Gateway IP address.
+    [[nodiscard]] virtual std::string handleGetNetworkDefaultGateway()
+    {
+        return {};
+    }
+
+    /// @brief Sets default network gateway address.
+    /// @param[in] gateway Gateway IP address.
+    /// @return True on success.
+    [[nodiscard]] virtual bool handleSetNetworkDefaultGateway(const std::string& /*gateway*/)
+    {
+        return false;
+    }
+
+    /// @brief Retrieves DNS server configuration.
+    /// @return DnsConfig structure.
+    [[nodiscard]] virtual DnsConfig handleGetDNS()
+    {
+        return {};
+    }
+
+    /// @brief Updates DNS server configuration.
+    /// @param[in] dns New DNS settings.
+    /// @return True on success.
+    [[nodiscard]] virtual bool handleSetDNS(const DnsConfig& /*dns*/)
+    {
+        return false;
+    }
+
+    /// @brief Retrieves NTP server configuration.
+    /// @return NtpConfig structure.
+    [[nodiscard]] virtual NtpConfig handleGetNTP()
+    {
+        return {};
+    }
+
+    /// @brief Updates NTP server configuration.
+    /// @param[in] ntp New NTP settings.
+    /// @return True on success.
+    [[nodiscard]] virtual bool handleSetNTP(const NtpConfig& /*ntp*/)
+    {
+        return false;
+    }
+
+    /// @brief Retrieves device hostname.
+    /// @return Hostname string.
+    [[nodiscard]] virtual std::string handleGetHostname()
+    {
+        return {};
+    }
+
+    /// @brief Updates device hostname.
+    /// @param[in] hostname New hostname.
+    /// @return True on success.
+    [[nodiscard]] virtual bool handleSetHostname(const std::string& /*hostname*/)
+    {
+        return false;
+    }
+
+    /// @brief Configures system date, time, and timezone.
+    /// @param[in] dt Updated system date and time settings.
+    /// @return True on success.
+    [[nodiscard]] virtual bool handleSetSystemDateAndTime(const SystemDateTimeConfig& /*dt*/)
+    {
+        return false;
+    }
+
+    /// @brief Resets system to factory defaults.
+    /// @param[in] type Factory default reset type (Hard or Soft).
+    /// @return True on success.
+    [[nodiscard]] virtual bool handleSetSystemFactoryDefault(FactoryDefaultType /*type*/)
+    {
+        return false;
+    }
+
+    /// @brief Dispatches system reboot command.
+    /// @return Informational message confirming reboot initiation.
+    [[nodiscard]] virtual std::string handleSystemReboot()
+    {
+        return "Rebooting";
     }
 };
 

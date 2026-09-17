@@ -44,6 +44,15 @@ OnvifCameraTab::OnvifCameraTab(PelcoD::Qt::QOnvifDevice* onvifDevice, VideoStrea
             &OnvifCameraTab::handleAuxiliaryCompleted);
         connect(m_onvifDevice, &PelcoD::Qt::QOnvifDevice::eventReceived, this, &OnvifCameraTab::handleEventReceived);
         connect(m_onvifDevice, &PelcoD::Qt::QOnvifDevice::osdsUpdated, this, &OnvifCameraTab::handleOsdsUpdated);
+        connect(m_onvifDevice, &PelcoD::Qt::QOnvifDevice::usersUpdated, this, &OnvifCameraTab::handleUsersUpdated);
+        connect(m_onvifDevice, &PelcoD::Qt::QOnvifDevice::networkInterfacesUpdated, this,
+            &OnvifCameraTab::handleNetworkUpdated);
+        connect(m_onvifDevice, &PelcoD::Qt::QOnvifDevice::networkGatewayUpdated, this,
+            &OnvifCameraTab::handleGatewayUpdated);
+        connect(m_onvifDevice, &PelcoD::Qt::QOnvifDevice::dnsUpdated, this, &OnvifCameraTab::handleDnsUpdated);
+        connect(m_onvifDevice, &PelcoD::Qt::QOnvifDevice::ntpUpdated, this, &OnvifCameraTab::handleNtpUpdated);
+        connect(m_onvifDevice, &PelcoD::Qt::QOnvifDevice::factoryDefaultCompleted, this,
+            &OnvifCameraTab::handleFactoryDefaultCompleted);
     }
 
     updateConnectionUi(false);
@@ -626,6 +635,158 @@ void OnvifCameraTab::setupUi()
     devTabLayout->addWidget(groupInfo);
     devTabLayout->addStretch();
 
+    // -------------------------------------------------------------------------
+    // Sub-Tab 7: Users & Security
+    // -------------------------------------------------------------------------
+    auto* usersTabLayout = createScrollTab(tr("Users & Security"));
+
+    auto* groupUsers = new QGroupBox(tr("ONVIF User Accounts"), this);
+    auto* usersLayout = new QVBoxLayout(groupUsers);
+    usersLayout->setSpacing(6);
+
+    tableUsers = new QTableWidget(groupUsers);
+    tableUsers->setColumnCount(3);
+    tableUsers->setHorizontalHeaderLabels({ tr("Username"), tr("User Level"), tr("Password Status") });
+    tableUsers->horizontalHeader()->setStretchLastSection(true);
+    tableUsers->setSelectionBehavior(QAbstractItemView::SelectRows);
+    tableUsers->setSelectionMode(QAbstractItemView::SingleSelection);
+    tableUsers->setMinimumHeight(140);
+    usersLayout->addWidget(tableUsers);
+
+    auto* userForm = new QGridLayout();
+    userForm->setSpacing(6);
+
+    userForm->addWidget(new QLabel(tr("Username:"), groupUsers), 0, 0);
+    editUserUsername = new QLineEdit(groupUsers);
+    userForm->addWidget(editUserUsername, 0, 1);
+
+    userForm->addWidget(new QLabel(tr("Password:"), groupUsers), 0, 2);
+    editUserPassword = new QLineEdit(groupUsers);
+    editUserPassword->setEchoMode(QLineEdit::Password);
+    userForm->addWidget(editUserPassword, 0, 3);
+
+    userForm->addWidget(new QLabel(tr("User Level:"), groupUsers), 1, 0);
+    cmbUserLevel = new QComboBox(groupUsers);
+    cmbUserLevel->addItems({ QStringLiteral("Administrator"), QStringLiteral("Operator"), QStringLiteral("User"),
+        QStringLiteral("Anonymous") });
+    userForm->addWidget(cmbUserLevel, 1, 1);
+
+    auto* userBtnLayout = new QHBoxLayout();
+    btnAddUser = new QPushButton(tr("＋ Add User"), groupUsers);
+    btnUpdateUser = new QPushButton(tr("✎ Update User"), groupUsers);
+    btnDeleteUser = new QPushButton(tr("🗑 Delete User"), groupUsers);
+    btnRefreshUsers = new QPushButton(tr("⟳ Refresh"), groupUsers);
+
+    userBtnLayout->addWidget(btnAddUser);
+    userBtnLayout->addWidget(btnUpdateUser);
+    userBtnLayout->addWidget(btnDeleteUser);
+    userBtnLayout->addWidget(btnRefreshUsers);
+    userBtnLayout->addStretch();
+    userForm->addLayout(userBtnLayout, 1, 2, 1, 2);
+
+    usersLayout->addLayout(userForm);
+    usersTabLayout->addWidget(groupUsers);
+    usersTabLayout->addStretch();
+
+    // -------------------------------------------------------------------------
+    // Sub-Tab 8: Network & Maintenance
+    // -------------------------------------------------------------------------
+    auto* netTabLayout = createScrollTab(tr("Network & Maintenance"));
+
+    auto* groupNet = new QGroupBox(tr("Network Interface Configuration"), this);
+    auto* netGrid = new QGridLayout(groupNet);
+    netGrid->setSpacing(6);
+
+    netGrid->addWidget(new QLabel(tr("Interface:"), groupNet), 0, 0);
+    editNetToken = new QLineEdit(groupNet);
+    editNetToken->setReadOnly(true);
+    netGrid->addWidget(editNetToken, 0, 1);
+
+    chkNetEnabled = new QCheckBox(tr("Enabled"), groupNet);
+    chkNetEnabled->setChecked(true);
+    netGrid->addWidget(chkNetEnabled, 0, 2);
+
+    chkNetDhcp = new QCheckBox(tr("DHCP (Auto IPv4)"), groupNet);
+    netGrid->addWidget(chkNetDhcp, 0, 3);
+
+    netGrid->addWidget(new QLabel(tr("IP Address:"), groupNet), 1, 0);
+    editNetIp = new QLineEdit(groupNet);
+    netGrid->addWidget(editNetIp, 1, 1);
+
+    netGrid->addWidget(new QLabel(tr("Prefix Length:"), groupNet), 1, 2);
+    spinNetPrefix = new QSpinBox(groupNet);
+    spinNetPrefix->setRange(1, 32);
+    spinNetPrefix->setValue(24);
+    netGrid->addWidget(spinNetPrefix, 1, 3);
+
+    netGrid->addWidget(new QLabel(tr("Gateway:"), groupNet), 2, 0);
+    editNetGateway = new QLineEdit(groupNet);
+    netGrid->addWidget(editNetGateway, 2, 1);
+
+    auto* netBtnLayout = new QHBoxLayout();
+    btnRefreshNetwork = new QPushButton(tr("⟳ Refresh Network"), groupNet);
+    btnApplyNetwork = new QPushButton(tr("Apply Network"), groupNet);
+    btnApplyNetwork->setStyleSheet(QStringLiteral("QPushButton { font-weight: bold; }"));
+    netBtnLayout->addWidget(btnRefreshNetwork);
+    netBtnLayout->addWidget(btnApplyNetwork);
+    netBtnLayout->addStretch();
+    netGrid->addLayout(netBtnLayout, 2, 2, 1, 2);
+
+    netTabLayout->addWidget(groupNet);
+
+    auto* groupDnsNtp = new QGroupBox(tr("DNS & NTP Configuration"), this);
+    auto* dnsNtpGrid = new QGridLayout(groupDnsNtp);
+    dnsNtpGrid->setSpacing(6);
+
+    dnsNtpGrid->addWidget(new QLabel(tr("DNS Servers:"), groupDnsNtp), 0, 0);
+    editDnsServers = new QLineEdit(groupDnsNtp);
+    editDnsServers->setPlaceholderText(tr("e.g. 8.8.8.8, 1.1.1.1"));
+    dnsNtpGrid->addWidget(editDnsServers, 0, 1);
+
+    chkDnsDhcp = new QCheckBox(tr("DNS from DHCP"), groupDnsNtp);
+    dnsNtpGrid->addWidget(chkDnsDhcp, 0, 2);
+
+    auto* dnsBtnLayout = new QHBoxLayout();
+    btnRefreshDns = new QPushButton(tr("⟳ Refresh DNS"), groupDnsNtp);
+    btnApplyDns = new QPushButton(tr("Apply DNS"), groupDnsNtp);
+    dnsBtnLayout->addWidget(btnRefreshDns);
+    dnsBtnLayout->addWidget(btnApplyDns);
+    dnsNtpGrid->addLayout(dnsBtnLayout, 0, 3);
+
+    dnsNtpGrid->addWidget(new QLabel(tr("NTP Servers:"), groupDnsNtp), 1, 0);
+    editNtpServers = new QLineEdit(groupDnsNtp);
+    editNtpServers->setPlaceholderText(tr("e.g. pool.ntp.org"));
+    dnsNtpGrid->addWidget(editNtpServers, 1, 1);
+
+    chkNtpDhcp = new QCheckBox(tr("NTP from DHCP"), groupDnsNtp);
+    dnsNtpGrid->addWidget(chkNtpDhcp, 1, 2);
+
+    auto* ntpBtnLayout = new QHBoxLayout();
+    btnRefreshNtp = new QPushButton(tr("⟳ Refresh NTP"), groupDnsNtp);
+    btnApplyNtp = new QPushButton(tr("Apply NTP"), groupDnsNtp);
+    ntpBtnLayout->addWidget(btnRefreshNtp);
+    ntpBtnLayout->addWidget(btnApplyNtp);
+    dnsNtpGrid->addLayout(ntpBtnLayout, 1, 3);
+
+    netTabLayout->addWidget(groupDnsNtp);
+
+    auto* groupMaint = new QGroupBox(tr("System Lifecycle & Time"), this);
+    auto* maintLayout = new QHBoxLayout(groupMaint);
+    maintLayout->setSpacing(8);
+
+    btnSyncPcTime = new QPushButton(tr("⏱ Sync Time with PC"), groupMaint);
+    btnFactoryDefaultSoft = new QPushButton(tr("Soft Factory Reset"), groupMaint);
+    btnFactoryDefaultHard = new QPushButton(tr("⚠ Hard Factory Reset"), groupMaint);
+    btnFactoryDefaultHard->setStyleSheet(QStringLiteral("QPushButton { color: #f85149; }"));
+
+    maintLayout->addWidget(btnSyncPcTime);
+    maintLayout->addWidget(btnFactoryDefaultSoft);
+    maintLayout->addWidget(btnFactoryDefaultHard);
+    maintLayout->addStretch();
+
+    netTabLayout->addWidget(groupMaint);
+    netTabLayout->addStretch();
+
     // Add tab widget to main layout
     mainLayout->addWidget(m_cameraTabs, 1);
 
@@ -647,6 +808,24 @@ void OnvifCameraTab::setupUi()
     connect(btnUpdateOsd, &QPushButton::clicked, this, &OnvifCameraTab::handleSetOsd);
     connect(btnDeleteOsd, &QPushButton::clicked, this, &OnvifCameraTab::handleDeleteOsd);
     connect(tableOsds, &QTableWidget::itemSelectionChanged, this, &OnvifCameraTab::handleOsdSelectionChanged);
+
+    // Users & Security connections
+    connect(btnRefreshUsers, &QPushButton::clicked, this, &OnvifCameraTab::handleRefreshUsers);
+    connect(btnAddUser, &QPushButton::clicked, this, &OnvifCameraTab::handleAddUser);
+    connect(btnUpdateUser, &QPushButton::clicked, this, &OnvifCameraTab::handleUpdateUser);
+    connect(btnDeleteUser, &QPushButton::clicked, this, &OnvifCameraTab::handleDeleteUser);
+    connect(tableUsers, &QTableWidget::itemSelectionChanged, this, &OnvifCameraTab::handleUserSelectionChanged);
+
+    // Network & Maintenance connections
+    connect(btnRefreshNetwork, &QPushButton::clicked, this, &OnvifCameraTab::handleRefreshNetwork);
+    connect(btnApplyNetwork, &QPushButton::clicked, this, &OnvifCameraTab::handleApplyNetwork);
+    connect(btnRefreshDns, &QPushButton::clicked, this, &OnvifCameraTab::handleRefreshDns);
+    connect(btnApplyDns, &QPushButton::clicked, this, &OnvifCameraTab::handleApplyDns);
+    connect(btnRefreshNtp, &QPushButton::clicked, this, &OnvifCameraTab::handleRefreshNtp);
+    connect(btnApplyNtp, &QPushButton::clicked, this, &OnvifCameraTab::handleApplyNtp);
+    connect(btnSyncPcTime, &QPushButton::clicked, this, &OnvifCameraTab::handleSyncPcTime);
+    connect(btnFactoryDefaultSoft, &QPushButton::clicked, this, &OnvifCameraTab::handleFactoryDefaultSoft);
+    connect(btnFactoryDefaultHard, &QPushButton::clicked, this, &OnvifCameraTab::handleFactoryDefaultHard);
 }
 
 void OnvifCameraTab::updateConnectionUi(bool connected)
@@ -708,6 +887,39 @@ void OnvifCameraTab::updateConnectionUi(bool connected)
     btnUpdateOsd->setEnabled(connected);
     btnDeleteOsd->setEnabled(connected);
 
+    // Device Management: Users & Security widgets
+    tableUsers->setEnabled(connected);
+    editUserUsername->setEnabled(connected);
+    editUserPassword->setEnabled(connected);
+    cmbUserLevel->setEnabled(connected);
+    btnAddUser->setEnabled(connected);
+    btnUpdateUser->setEnabled(connected);
+    btnDeleteUser->setEnabled(connected);
+    btnRefreshUsers->setEnabled(connected);
+
+    // Device Management: Network & Maintenance widgets
+    chkNetEnabled->setEnabled(connected);
+    chkNetDhcp->setEnabled(connected);
+    editNetIp->setEnabled(connected);
+    spinNetPrefix->setEnabled(connected);
+    editNetGateway->setEnabled(connected);
+    btnRefreshNetwork->setEnabled(connected);
+    btnApplyNetwork->setEnabled(connected);
+
+    chkDnsDhcp->setEnabled(connected);
+    editDnsServers->setEnabled(connected);
+    btnRefreshDns->setEnabled(connected);
+    btnApplyDns->setEnabled(connected);
+
+    chkNtpDhcp->setEnabled(connected);
+    editNtpServers->setEnabled(connected);
+    btnRefreshNtp->setEnabled(connected);
+    btnApplyNtp->setEnabled(connected);
+
+    btnSyncPcTime->setEnabled(connected);
+    btnFactoryDefaultSoft->setEnabled(connected);
+    btnFactoryDefaultHard->setEnabled(connected);
+
     if (connected) {
         lblConnectionStatus->setText(tr("Connected"));
         lblConnectionStatus->setStyleSheet("color: #7ee787; font-weight: bold;");
@@ -732,6 +944,14 @@ void OnvifCameraTab::updateConnectionUi(bool connected)
         btnToggleEvents->setStyleSheet("");
         tableOsds->setRowCount(0);
         editOsdText->clear();
+        tableUsers->setRowCount(0);
+        editUserUsername->clear();
+        editUserPassword->clear();
+        editNetToken->clear();
+        editNetIp->clear();
+        editNetGateway->clear();
+        editDnsServers->clear();
+        editNtpServers->clear();
         lblTelemetryPanTilt->setText(tr("Pan/Tilt: (0.00, 0.00)"));
         lblTelemetryZoom->setText(tr("Zoom: 0.00"));
         lblTelemetryMoving->setText(tr("Status: IDLE"));
@@ -1536,6 +1756,300 @@ void OnvifCameraTab::handleOsdSelectionChanged()
 
     if (tableOsds->item(row, 4) && !chkOsdDateTime->isChecked()) {
         editOsdText->setText(tableOsds->item(row, 4)->text());
+    }
+}
+
+void OnvifCameraTab::handleRefreshUsers()
+{
+    if (m_onvifDevice != nullptr) {
+        m_onvifDevice->refreshUsers();
+    }
+}
+
+void OnvifCameraTab::handleAddUser()
+{
+    if (m_onvifDevice == nullptr) {
+        return;
+    }
+    const QString username = editUserUsername->text().trimmed();
+    const QString password = editUserPassword->text();
+    if (username.isEmpty()) {
+        QMessageBox::warning(this, tr("User Management"), tr("Username cannot be empty."));
+        return;
+    }
+
+    PelcoD::Onvif::OnvifUser user {};
+    user.username = username.toStdString();
+    user.password = password.toStdString();
+    user.level = PelcoD::Onvif::userLevelFromString(cmbUserLevel->currentText().toStdString());
+
+    if (m_onvifDevice->createUser(user)) {
+        editUserUsername->clear();
+        editUserPassword->clear();
+    } else {
+        QMessageBox::critical(this, tr("User Management"), tr("Failed to create user."));
+    }
+}
+
+void OnvifCameraTab::handleUpdateUser()
+{
+    if (m_onvifDevice == nullptr) {
+        return;
+    }
+    const QString username = editUserUsername->text().trimmed();
+    const QString password = editUserPassword->text();
+    if (username.isEmpty()) {
+        QMessageBox::warning(this, tr("User Management"), tr("Please select or enter a username to update."));
+        return;
+    }
+
+    PelcoD::Onvif::OnvifUser user {};
+    user.username = username.toStdString();
+    user.password = password.toStdString();
+    user.level = PelcoD::Onvif::userLevelFromString(cmbUserLevel->currentText().toStdString());
+
+    if (!m_onvifDevice->setUser(user)) {
+        QMessageBox::critical(this, tr("User Management"), tr("Failed to update user."));
+    }
+}
+
+void OnvifCameraTab::handleDeleteUser()
+{
+    if (m_onvifDevice == nullptr) {
+        return;
+    }
+    const QString username = editUserUsername->text().trimmed();
+    if (username.isEmpty()) {
+        QMessageBox::warning(this, tr("User Management"), tr("Please select a user to delete."));
+        return;
+    }
+
+    if (QMessageBox::question(
+            this, tr("Confirm Delete"), tr("Are you sure you want to delete user '%1'?").arg(username))
+        != QMessageBox::Yes) {
+        return;
+    }
+
+    if (m_onvifDevice->deleteUser(username)) {
+        editUserUsername->clear();
+        editUserPassword->clear();
+    } else {
+        QMessageBox::critical(this, tr("User Management"), tr("Failed to delete user."));
+    }
+}
+
+void OnvifCameraTab::handleUsersUpdated(const std::vector<PelcoD::Onvif::OnvifUser>& users)
+{
+    tableUsers->setRowCount(0);
+    for (const auto& u : users) {
+        const int row = tableUsers->rowCount();
+        tableUsers->insertRow(row);
+        tableUsers->setItem(row, 0, new QTableWidgetItem(QString::fromStdString(u.username)));
+        tableUsers->setItem(
+            row, 1, new QTableWidgetItem(QString::fromStdString(PelcoD::Onvif::userLevelToString(u.level))));
+        tableUsers->setItem(
+            row, 2, new QTableWidgetItem(u.password.empty() ? tr("Not Set / Hidden") : tr("Configured")));
+    }
+}
+
+void OnvifCameraTab::handleUserSelectionChanged()
+{
+    const auto selected = tableUsers->selectedItems();
+    if (selected.isEmpty()) {
+        return;
+    }
+    const int row = selected.first()->row();
+    if (row >= 0 && row < tableUsers->rowCount()) {
+        editUserUsername->setText(tableUsers->item(row, 0)->text());
+        cmbUserLevel->setCurrentText(tableUsers->item(row, 1)->text());
+        editUserPassword->clear();
+    }
+}
+
+void OnvifCameraTab::handleRefreshNetwork()
+{
+    if (m_onvifDevice != nullptr) {
+        m_onvifDevice->refreshNetworkInterfaces();
+        m_onvifDevice->refreshNetworkGateway();
+    }
+}
+
+void OnvifCameraTab::handleApplyNetwork()
+{
+    if (m_onvifDevice == nullptr) {
+        return;
+    }
+    PelcoD::Onvif::NetworkInterfaceConfig cfg {};
+    cfg.token = editNetToken->text().isEmpty() ? "eth0" : editNetToken->text().toStdString();
+    cfg.enabled = chkNetEnabled->isChecked();
+    cfg.ipv4.enabled = chkNetEnabled->isChecked();
+    cfg.ipv4.dhcp = chkNetDhcp->isChecked();
+    cfg.ipv4.manualAddress = editNetIp->text().trimmed().toStdString();
+    cfg.ipv4.prefixLength = spinNetPrefix->value();
+
+    const bool netOk = m_onvifDevice->setNetworkInterface(cfg);
+    const QString gw = editNetGateway->text().trimmed();
+    bool gwOk = true;
+    if (!gw.isEmpty()) {
+        gwOk = m_onvifDevice->setNetworkGateway(gw);
+    }
+    if (netOk && gwOk) {
+        QMessageBox::information(this, tr("Network Configuration"), tr("Network settings applied successfully."));
+    } else {
+        QMessageBox::critical(this, tr("Network Configuration"), tr("Failed to apply some network settings."));
+    }
+}
+
+void OnvifCameraTab::handleRefreshDns()
+{
+    if (m_onvifDevice != nullptr) {
+        m_onvifDevice->refreshDNS();
+    }
+}
+
+void OnvifCameraTab::handleApplyDns()
+{
+    if (m_onvifDevice == nullptr) {
+        return;
+    }
+    PelcoD::Onvif::DnsConfig dns {};
+    dns.fromDhcp = chkDnsDhcp->isChecked();
+    const QStringList parts = editDnsServers->text().split(',', Qt::SkipEmptyParts);
+    for (const auto& p : parts) {
+        dns.dnsServers.push_back(p.trimmed().toStdString());
+    }
+    if (m_onvifDevice->setDNS(dns)) {
+        QMessageBox::information(this, tr("DNS Configuration"), tr("DNS settings applied successfully."));
+    } else {
+        QMessageBox::critical(this, tr("DNS Configuration"), tr("Failed to apply DNS settings."));
+    }
+}
+
+void OnvifCameraTab::handleRefreshNtp()
+{
+    if (m_onvifDevice != nullptr) {
+        m_onvifDevice->refreshNTP();
+    }
+}
+
+void OnvifCameraTab::handleApplyNtp()
+{
+    if (m_onvifDevice == nullptr) {
+        return;
+    }
+    PelcoD::Onvif::NtpConfig ntp {};
+    ntp.fromDhcp = chkNtpDhcp->isChecked();
+    const QStringList parts = editNtpServers->text().split(',', Qt::SkipEmptyParts);
+    for (const auto& p : parts) {
+        ntp.manualServers.push_back(p.trimmed().toStdString());
+    }
+    if (m_onvifDevice->setNTP(ntp)) {
+        QMessageBox::information(this, tr("NTP Configuration"), tr("NTP settings applied successfully."));
+    } else {
+        QMessageBox::critical(this, tr("NTP Configuration"), tr("Failed to apply NTP settings."));
+    }
+}
+
+void OnvifCameraTab::handleSyncPcTime()
+{
+    if (m_onvifDevice == nullptr) {
+        return;
+    }
+    const auto utcNow = QDateTime::currentDateTimeUtc();
+    const auto dt = utcNow.date();
+    const auto tm = utcNow.time();
+
+    PelcoD::Onvif::SystemDateTimeConfig cfg {};
+    cfg.dateTimeType = "Manual";
+    cfg.daylightSavings = false;
+    cfg.timeZone = "UTC";
+    cfg.year = dt.year();
+    cfg.month = dt.month();
+    cfg.day = dt.day();
+    cfg.hour = tm.hour();
+    cfg.minute = tm.minute();
+    cfg.second = tm.second();
+
+    if (m_onvifDevice->setSystemDateAndTime(cfg)) {
+        QMessageBox::information(this, tr("System Time"), tr("Camera time synchronized with PC UTC clock."));
+    } else {
+        QMessageBox::critical(this, tr("System Time"), tr("Failed to set camera date and time."));
+    }
+}
+
+void OnvifCameraTab::handleFactoryDefaultSoft()
+{
+    if (m_onvifDevice == nullptr) {
+        return;
+    }
+    if (QMessageBox::warning(this, tr("Soft Factory Reset"),
+            tr("Are you sure you want to perform a soft factory reset? Network parameters will be preserved."),
+            QMessageBox::Yes | QMessageBox::No)
+        != QMessageBox::Yes) {
+        return;
+    }
+    m_onvifDevice->setSystemFactoryDefault(false);
+}
+
+void OnvifCameraTab::handleFactoryDefaultHard()
+{
+    if (m_onvifDevice == nullptr) {
+        return;
+    }
+    if (QMessageBox::critical(this, tr("Hard Factory Reset"),
+            tr("WARNING: Are you sure you want to perform a hard factory reset? ALL settings and accounts will be "
+               "wiped!"),
+            QMessageBox::Yes | QMessageBox::No)
+        != QMessageBox::Yes) {
+        return;
+    }
+    m_onvifDevice->setSystemFactoryDefault(true);
+}
+
+void OnvifCameraTab::handleNetworkUpdated(const std::vector<PelcoD::Onvif::NetworkInterfaceConfig>& ifaces)
+{
+    if (ifaces.empty()) {
+        return;
+    }
+    const auto& iface = ifaces.front();
+    editNetToken->setText(QString::fromStdString(iface.token));
+    chkNetEnabled->setChecked(iface.enabled);
+    chkNetDhcp->setChecked(iface.ipv4.dhcp);
+    editNetIp->setText(QString::fromStdString(iface.ipv4.manualAddress));
+    spinNetPrefix->setValue(iface.ipv4.prefixLength > 0 ? iface.ipv4.prefixLength : 24);
+}
+
+void OnvifCameraTab::handleGatewayUpdated(const QString& gateway)
+{
+    editNetGateway->setText(gateway);
+}
+
+void OnvifCameraTab::handleDnsUpdated(const PelcoD::Onvif::DnsConfig& dns)
+{
+    chkDnsDhcp->setChecked(dns.fromDhcp);
+    QStringList servers {};
+    for (const auto& s : dns.dnsServers) {
+        servers << QString::fromStdString(s);
+    }
+    editDnsServers->setText(servers.join(QStringLiteral(", ")));
+}
+
+void OnvifCameraTab::handleNtpUpdated(const PelcoD::Onvif::NtpConfig& ntp)
+{
+    chkNtpDhcp->setChecked(ntp.fromDhcp);
+    QStringList servers {};
+    for (const auto& s : ntp.manualServers) {
+        servers << QString::fromStdString(s);
+    }
+    editNtpServers->setText(servers.join(QStringLiteral(", ")));
+}
+
+void OnvifCameraTab::handleFactoryDefaultCompleted(bool success)
+{
+    if (success) {
+        QMessageBox::information(this, tr("Factory Reset"), tr("Factory reset successfully accepted by camera."));
+    } else {
+        QMessageBox::critical(this, tr("Factory Reset"), tr("Factory reset rejected or failed."));
     }
 }
 

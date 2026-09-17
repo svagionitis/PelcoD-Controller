@@ -68,6 +68,41 @@ public:
         return m_osds;
     }
 
+    /// @brief Gets cached ONVIF user accounts.
+    /// @return List of OnvifUser records.
+    [[nodiscard]] std::vector<PelcoD::Onvif::OnvifUser> users() const
+    {
+        return m_users;
+    }
+
+    /// @brief Gets cached network interface configurations.
+    /// @return List of NetworkInterfaceConfig records.
+    [[nodiscard]] std::vector<PelcoD::Onvif::NetworkInterfaceConfig> networkInterfaces() const
+    {
+        return m_networkInterfaces;
+    }
+
+    /// @brief Gets cached DNS configuration.
+    /// @return DnsConfig struct.
+    [[nodiscard]] PelcoD::Onvif::DnsConfig dnsConfig() const
+    {
+        return m_dnsConfig;
+    }
+
+    /// @brief Gets cached NTP configuration.
+    /// @return NtpConfig struct.
+    [[nodiscard]] PelcoD::Onvif::NtpConfig ntpConfig() const
+    {
+        return m_ntpConfig;
+    }
+
+    /// @brief Gets cached device gateway.
+    /// @return Gateway IP address.
+    [[nodiscard]] QString networkGateway() const
+    {
+        return m_networkGateway;
+    }
+
     /// @brief Gets camera hardware identification metadata.
     /// @return DeviceInformation struct.
     [[nodiscard]] PelcoD::Onvif::DeviceInformation deviceInformation() const;
@@ -252,6 +287,70 @@ public Q_SLOTS:
     /// @return True if removed successfully.
     bool deleteOSD(const QString& osdToken);
 
+    // =========================================================================
+    // Device Management & Security
+    // =========================================================================
+
+    /// @brief Queries list of configured ONVIF user accounts.
+    void refreshUsers();
+
+    /// @brief Creates new ONVIF user account on camera.
+    /// @param[in] user New user parameters.
+    /// @return True on success.
+    bool createUser(const PelcoD::Onvif::OnvifUser& user);
+
+    /// @brief Updates an existing ONVIF user's password and/or role.
+    /// @param[in] user Updated user parameters.
+    /// @return True on success.
+    bool setUser(const PelcoD::Onvif::OnvifUser& user);
+
+    /// @brief Deletes ONVIF user account by username.
+    /// @param[in] username Username to delete.
+    /// @return True on success.
+    bool deleteUser(const QString& username);
+
+    /// @brief Queries network adapter interface configurations.
+    void refreshNetworkInterfaces();
+
+    /// @brief Updates network interface configuration.
+    /// @param[in] config Updated interface settings.
+    /// @return True on success.
+    bool setNetworkInterface(const PelcoD::Onvif::NetworkInterfaceConfig& config);
+
+    /// @brief Queries default gateway IP.
+    void refreshNetworkGateway();
+
+    /// @brief Sets default gateway address.
+    /// @param[in] gateway Gateway IP address.
+    /// @return True on success.
+    bool setNetworkGateway(const QString& gateway);
+
+    /// @brief Queries DNS server configuration.
+    void refreshDNS();
+
+    /// @brief Sets DNS server configuration.
+    /// @param[in] dns Updated DNS settings.
+    /// @return True on success.
+    bool setDNS(const PelcoD::Onvif::DnsConfig& dns);
+
+    /// @brief Queries NTP server configuration.
+    void refreshNTP();
+
+    /// @brief Sets NTP server configuration.
+    /// @param[in] ntp Updated NTP settings.
+    /// @return True on success.
+    bool setNTP(const PelcoD::Onvif::NtpConfig& ntp);
+
+    /// @brief Updates camera system date, time, and timezone.
+    /// @param[in] dt Date/time parameters.
+    /// @return True on success.
+    bool setSystemDateAndTime(const PelcoD::Onvif::SystemDateTimeConfig& dt);
+
+    /// @brief Resets device to factory default settings.
+    /// @param[in] hard True for hard reset, false for soft.
+    /// @return True on success.
+    bool setSystemFactoryDefault(bool hard = false);
+
 Q_SIGNALS:
     /// @brief Emitted when device connection succeeds.
     /// @param[in] endpoint Connected service URL.
@@ -302,6 +401,30 @@ Q_SIGNALS:
     /// @param[in] osds List of camera OSD configurations.
     void osdsUpdated(const std::vector<PelcoD::Onvif::OsdConfig>& osds);
 
+    /// @brief Emitted when ONVIF users list is refreshed.
+    /// @param[in] users List of camera user accounts.
+    void usersUpdated(const std::vector<PelcoD::Onvif::OnvifUser>& users);
+
+    /// @brief Emitted when network interface configuration is refreshed.
+    /// @param[in] ifaces List of network interface configs.
+    void networkInterfacesUpdated(const std::vector<PelcoD::Onvif::NetworkInterfaceConfig>& ifaces);
+
+    /// @brief Emitted when default gateway is refreshed.
+    /// @param[in] gateway Gateway address string.
+    void networkGatewayUpdated(const QString& gateway);
+
+    /// @brief Emitted when DNS configuration is refreshed.
+    /// @param[in] dns Current DNS settings.
+    void dnsUpdated(const PelcoD::Onvif::DnsConfig& dns);
+
+    /// @brief Emitted when NTP configuration is refreshed.
+    /// @param[in] ntp Current NTP settings.
+    void ntpUpdated(const PelcoD::Onvif::NtpConfig& ntp);
+
+    /// @brief Emitted when factory default reset command finishes.
+    /// @param[in] success True if accepted.
+    void factoryDefaultCompleted(bool success);
+
     /// @brief Emitted when an operation fails.
     /// @param[in] message Diagnostic error message.
     void errorOccurred(const QString& message);
@@ -324,6 +447,11 @@ private:
     std::vector<PelcoD::Onvif::PtzPreset> m_presets {};
     std::vector<PelcoD::Onvif::PresetTour> m_presetTours {};
     std::vector<PelcoD::Onvif::OsdConfig> m_osds {};
+    std::vector<PelcoD::Onvif::OnvifUser> m_users {};
+    std::vector<PelcoD::Onvif::NetworkInterfaceConfig> m_networkInterfaces {};
+    QString m_networkGateway {};
+    PelcoD::Onvif::DnsConfig m_dnsConfig {};
+    PelcoD::Onvif::NtpConfig m_ntpConfig {};
     PelcoD::Onvif::DeviceInformation m_deviceInfo {};
     PelcoD::Onvif::ImagingSettings m_imagingSettings {};
     QString m_eventSubscriptionUrl {};

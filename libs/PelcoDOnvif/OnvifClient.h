@@ -78,6 +78,103 @@ public:
     bool systemReboot();
 
     // =========================================================================
+    // Device Management & Security Extensions
+    // =========================================================================
+
+    /// @brief Queries list of ONVIF user accounts configured on the camera.
+    /// @return Vector of OnvifUser objects.
+    [[nodiscard]] std::vector<OnvifUser> getUsers();
+
+    /// @brief Creates one or more new ONVIF user accounts on the device.
+    /// @param[in] users Vector of new users to create.
+    /// @return True on success.
+    bool createUsers(const std::vector<OnvifUser>& users);
+
+    /// @brief Modifies an existing ONVIF user's password and/or authorization level.
+    /// @param[in] user Updated user parameters.
+    /// @return True on success.
+    bool setUser(const OnvifUser& user);
+
+    /// @brief Deletes ONVIF user accounts by username.
+    /// @param[in] usernames List of usernames to remove.
+    /// @return True on success.
+    bool deleteUsers(const std::vector<std::string>& usernames);
+
+    /// @brief Queries list of network adapter interface configurations.
+    /// @return Vector of NetworkInterfaceConfig records.
+    [[nodiscard]] std::vector<NetworkInterfaceConfig> getNetworkInterfaces();
+
+    /// @brief Updates network interface parameters.
+    /// @param[in] config Updated interface settings.
+    /// @return True on success.
+    bool setNetworkInterfaces(const NetworkInterfaceConfig& config);
+
+    /// @brief Queries default network gateway IPv4 address.
+    /// @return Gateway IP address string.
+    [[nodiscard]] std::string getNetworkDefaultGateway();
+
+    /// @brief Sets default network gateway address.
+    /// @param[in] gateway Gateway IP address string.
+    /// @return True on success.
+    bool setNetworkDefaultGateway(const std::string& gateway);
+
+    /// @brief Queries DNS server configuration.
+    /// @return DnsConfig or nullopt on communication failure.
+    [[nodiscard]] std::optional<DnsConfig> getDNS();
+
+    /// @brief Sets DNS server configuration.
+    /// @param[in] dns New DNS configuration.
+    /// @return True on success.
+    bool setDNS(const DnsConfig& dns);
+
+    /// @brief Queries NTP server configuration.
+    /// @return NtpConfig or nullopt on communication failure.
+    [[nodiscard]] std::optional<NtpConfig> getNTP();
+
+    /// @brief Sets NTP server configuration.
+    /// @param[in] ntp New NTP configuration.
+    /// @return True on success.
+    bool setNTP(const NtpConfig& ntp);
+
+    /// @brief Queries device hostname.
+    /// @return Hostname string.
+    [[nodiscard]] std::string getHostname();
+
+    /// @brief Sets device hostname.
+    /// @param[in] hostname New hostname string.
+    /// @return True on success.
+    bool setHostname(const std::string& hostname);
+
+    /// @brief Updates camera system date, time, and timezone.
+    /// @param[in] dateTime Date and time parameters.
+    /// @return True on success.
+    bool setSystemDateAndTime(const SystemDateTimeConfig& dateTime);
+
+    /// @brief Resets device to factory default settings.
+    /// @param[in] type FactoryDefaultType (Hard or Soft).
+    /// @return True on success.
+    bool setSystemFactoryDefault(FactoryDefaultType type = FactoryDefaultType::Soft);
+
+    /// @brief Queries device scopes.
+    /// @return Vector of scope URIs.
+    [[nodiscard]] std::vector<std::string> getScopes();
+
+    /// @brief Adds configurable scopes to device.
+    /// @param[in] scopes List of scope URIs to add.
+    /// @return True on success.
+    bool addScopes(const std::vector<std::string>& scopes);
+
+    /// @brief Removes configurable scopes from device.
+    /// @param[in] scopes List of scope URIs to remove.
+    /// @return True on success.
+    bool removeScopes(const std::vector<std::string>& scopes);
+
+    /// @brief Sets/replaces configurable scopes on device.
+    /// @param[in] scopes Complete list of scope URIs.
+    /// @return True on success.
+    bool setScopes(const std::vector<std::string>& scopes);
+
+    // =========================================================================
     // Media Service
     // =========================================================================
 
@@ -401,6 +498,41 @@ public:
     /// @param[in] xml Raw response XML.
     /// @return Assigned OSD token or nullopt on failure.
     [[nodiscard]] static std::optional<std::string> parseCreateOsdResponse(const std::string& xml);
+
+    /// @brief Parses GetUsers XML response.
+    /// @param[in] xml Raw response XML.
+    /// @return Vector of OnvifUser records.
+    [[nodiscard]] static std::vector<OnvifUser> parseUsersResponse(const std::string& xml);
+
+    /// @brief Parses GetNetworkInterfaces XML response.
+    /// @param[in] xml Raw response XML.
+    /// @return Vector of NetworkInterfaceConfig records.
+    [[nodiscard]] static std::vector<NetworkInterfaceConfig> parseNetworkInterfacesResponse(const std::string& xml);
+
+    /// @brief Parses GetNetworkDefaultGateway XML response.
+    /// @param[in] xml Raw response XML.
+    /// @return Gateway address string.
+    [[nodiscard]] static std::string parseNetworkDefaultGatewayResponse(const std::string& xml);
+
+    /// @brief Parses GetDNS XML response.
+    /// @param[in] xml Raw response XML.
+    /// @return Extracted DnsConfig or nullopt on failure.
+    [[nodiscard]] static std::optional<DnsConfig> parseDnsResponse(const std::string& xml);
+
+    /// @brief Parses GetNTP XML response.
+    /// @param[in] xml Raw response XML.
+    /// @return Extracted NtpConfig or nullopt on failure.
+    [[nodiscard]] static std::optional<NtpConfig> parseNtpResponse(const std::string& xml);
+
+    /// @brief Parses GetHostname XML response.
+    /// @param[in] xml Raw response XML.
+    /// @return Hostname string.
+    [[nodiscard]] static std::string parseHostnameResponse(const std::string& xml);
+
+    /// @brief Parses GetScopes XML response.
+    /// @param[in] xml Raw response XML.
+    /// @return Vector of scope URIs.
+    [[nodiscard]] static std::vector<std::string> parseScopesResponse(const std::string& xml);
 
 private:
     std::string m_deviceEndpoint {};

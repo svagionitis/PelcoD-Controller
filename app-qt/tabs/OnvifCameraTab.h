@@ -112,6 +112,30 @@ private slots:
     void handleOsdsUpdated(const std::vector<PelcoD::Onvif::OsdConfig>& osds);
     void handleOsdSelectionChanged();
 
+    // Device Management: Users & Security
+    void handleRefreshUsers();
+    void handleAddUser();
+    void handleUpdateUser();
+    void handleDeleteUser();
+    void handleUsersUpdated(const std::vector<PelcoD::Onvif::OnvifUser>& users);
+    void handleUserSelectionChanged();
+
+    // Device Management: Network & System
+    void handleRefreshNetwork();
+    void handleApplyNetwork();
+    void handleRefreshDns();
+    void handleApplyDns();
+    void handleRefreshNtp();
+    void handleApplyNtp();
+    void handleSyncPcTime();
+    void handleFactoryDefaultSoft();
+    void handleFactoryDefaultHard();
+    void handleNetworkUpdated(const std::vector<PelcoD::Onvif::NetworkInterfaceConfig>& ifaces);
+    void handleGatewayUpdated(const QString& gateway);
+    void handleDnsUpdated(const PelcoD::Onvif::DnsConfig& dns);
+    void handleNtpUpdated(const PelcoD::Onvif::NtpConfig& ntp);
+    void handleFactoryDefaultCompleted(bool success);
+
 private:
     void setupUi();
     void updateConnectionUi(bool connected);
@@ -222,6 +246,40 @@ private:
 
     // Maintenance
     QPushButton* btnReboot { nullptr };
+
+    // Device Management: Users & Security widgets
+    QTableWidget* tableUsers { nullptr };
+    QLineEdit* editUserUsername { nullptr };
+    QLineEdit* editUserPassword { nullptr };
+    QComboBox* cmbUserLevel { nullptr };
+    QPushButton* btnRefreshUsers { nullptr };
+    QPushButton* btnAddUser { nullptr };
+    QPushButton* btnUpdateUser { nullptr };
+    QPushButton* btnDeleteUser { nullptr };
+
+    // Device Management: Network & System widgets
+    QLineEdit* editNetToken { nullptr };
+    QCheckBox* chkNetEnabled { nullptr };
+    QCheckBox* chkNetDhcp { nullptr };
+    QLineEdit* editNetIp { nullptr };
+    QSpinBox* spinNetPrefix { nullptr };
+    QLineEdit* editNetGateway { nullptr };
+    QPushButton* btnRefreshNetwork { nullptr };
+    QPushButton* btnApplyNetwork { nullptr };
+
+    QCheckBox* chkDnsDhcp { nullptr };
+    QLineEdit* editDnsServers { nullptr };
+    QPushButton* btnRefreshDns { nullptr };
+    QPushButton* btnApplyDns { nullptr };
+
+    QCheckBox* chkNtpDhcp { nullptr };
+    QLineEdit* editNtpServers { nullptr };
+    QPushButton* btnRefreshNtp { nullptr };
+    QPushButton* btnApplyNtp { nullptr };
+
+    QPushButton* btnSyncPcTime { nullptr };
+    QPushButton* btnFactoryDefaultSoft { nullptr };
+    QPushButton* btnFactoryDefaultHard { nullptr };
 };
 
 } // namespace PelcoDApp

@@ -33,8 +33,9 @@ public:
     /// @param[in] config Server networking and metadata parameters.
     /// @param[in] ptzHandler Optional handler receiving PTZ motion and preset events.
     /// @param[in] imagingHandler Optional handler receiving Profile T imaging requests.
-    explicit OnvifServer(OnvifServerConfig config, std::shared_ptr<IPtzHandler> ptzHandler = nullptr,
-        std::shared_ptr<IImagingHandler> imagingHandler = nullptr, std::shared_ptr<IOsdHandler> osdHandler = nullptr);
+    explicit OnvifServer(OnvifServerConfig config = {}, std::shared_ptr<IPtzHandler> ptzHandler = nullptr,
+        std::shared_ptr<IImagingHandler> imagingHandler = nullptr, std::shared_ptr<IOsdHandler> osdHandler = nullptr,
+        std::shared_ptr<IDeviceManagementHandler> deviceHandler = nullptr);
 
     /// @brief Destructor stops HTTP service and WS-Discovery daemon.
     ~OnvifServer();
@@ -71,6 +72,10 @@ public:
     /// @brief Sets or replaces the active OSD handler.
     /// @param[in] handler New IOsdHandler instance.
     void setOsdHandler(std::shared_ptr<IOsdHandler> handler);
+
+    /// @brief Sets or replaces the active Device Management handler.
+    /// @param[in] handler New IDeviceManagementHandler instance.
+    void setDeviceManagementHandler(std::shared_ptr<IDeviceManagementHandler> handler);
 
     /// @brief Pushes an asynchronous ONVIF event to active PullPoint and push subscriptions.
     /// @param[in] event The event to publish.
@@ -115,8 +120,18 @@ private:
     std::shared_ptr<IPtzHandler> m_ptzHandler;
     std::shared_ptr<IImagingHandler> m_imagingHandler;
     std::shared_ptr<IOsdHandler> m_osdHandler;
+    std::shared_ptr<IDeviceManagementHandler> m_deviceHandler;
     std::unique_ptr<WsDiscoveryServer> m_discoveryServer;
     httplib::Server m_httpServer;
+
+    mutable std::mutex m_deviceMutex {};
+    std::vector<OnvifUser> m_internalUsers {};
+    std::vector<NetworkInterfaceConfig> m_internalNetworkInterfaces {};
+    std::string m_internalGateway { "192.168.1.1" };
+    DnsConfig m_internalDns {};
+    NtpConfig m_internalNtp {};
+    std::string m_internalHostname { "PelcoD-Bridge" };
+    SystemDateTimeConfig m_internalDateTime {};
 
     mutable std::mutex m_osdMutex {};
     std::map<std::string, OsdConfig> m_internalOsds {};

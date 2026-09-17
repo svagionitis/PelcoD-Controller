@@ -168,4 +168,110 @@ struct AnalyticsRule {
     bool enabled { true }; ///< Whether the analytics rule is actively evaluated
 };
 
+/// @enum OnvifUserLevel
+/// @brief Role-based user authorization level conforming to ONVIF Device Service.
+enum class OnvifUserLevel : std::uint8_t { Administrator, Operator, User, Anonymous, Extended };
+
+/// @brief Converts an OnvifUserLevel enum to string representation.
+/// @param[in] level User privilege level.
+/// @return String representation (e.g. "Administrator").
+[[nodiscard]] inline std::string userLevelToString(OnvifUserLevel level)
+{
+    switch (level) {
+    case OnvifUserLevel::Administrator:
+        return "Administrator";
+    case OnvifUserLevel::Operator:
+        return "Operator";
+    case OnvifUserLevel::User:
+        return "User";
+    case OnvifUserLevel::Anonymous:
+        return "Anonymous";
+    case OnvifUserLevel::Extended:
+        return "Extended";
+    default:
+        return "User";
+    }
+}
+
+/// @brief Parses an ONVIF UserLevel string into its enum counterpart.
+/// @param[in] str String representation.
+/// @return OnvifUserLevel enum value.
+[[nodiscard]] inline OnvifUserLevel userLevelFromString(const std::string& str)
+{
+    if (str == "Administrator") {
+        return OnvifUserLevel::Administrator;
+    }
+    if (str == "Operator") {
+        return OnvifUserLevel::Operator;
+    }
+    if (str == "Anonymous") {
+        return OnvifUserLevel::Anonymous;
+    }
+    if (str == "Extended") {
+        return OnvifUserLevel::Extended;
+    }
+    return OnvifUserLevel::User;
+}
+
+/// @struct OnvifUser
+/// @brief User account on the ONVIF device for authentication and access control.
+struct OnvifUser {
+    std::string username {}; ///< User login name
+    std::string password {}; ///< Password (plaintext or hash)
+    OnvifUserLevel level { OnvifUserLevel::User }; ///< Role authorization level
+};
+
+/// @struct NetworkIPv4Config
+/// @brief IPv4 network configuration for a network adapter interface.
+struct NetworkIPv4Config {
+    bool enabled { true }; ///< True if IPv4 stack is enabled
+    bool dhcp { true }; ///< True if IPv4 address is assigned via DHCP
+    std::string manualAddress { "192.168.1.100" }; ///< Static IPv4 address
+    int prefixLength { 24 }; ///< Subnet prefix length (e.g. 24 for 255.255.255.0)
+};
+
+/// @struct NetworkInterfaceConfig
+/// @brief Physical or virtual network interface configuration.
+struct NetworkInterfaceConfig {
+    std::string token { "eth0" }; ///< Network interface token
+    bool enabled { true }; ///< Adapter enabled state
+    std::string name { "eth0" }; ///< System device name
+    std::string hwAddress { "00:11:22:33:44:55" }; ///< Physical MAC address
+    int mtu { 1500 }; ///< Maximum transmission unit in bytes
+    NetworkIPv4Config ipv4 {}; ///< IPv4 parameters
+};
+
+/// @struct DnsConfig
+/// @brief Domain Name System (DNS) server configuration.
+struct DnsConfig {
+    bool fromDhcp { true }; ///< True if DNS servers are retrieved from DHCP
+    std::vector<std::string> searchDomains {}; ///< Search domain suffixes
+    std::vector<std::string> dnsServers {}; ///< Configured DNS server IP addresses
+};
+
+/// @struct NtpConfig
+/// @brief Network Time Protocol (NTP) server configuration.
+struct NtpConfig {
+    bool fromDhcp { true }; ///< True if NTP servers are acquired from DHCP
+    std::vector<std::string> manualServers {}; ///< Explicit NTP server hostnames or IPs
+};
+
+/// @enum FactoryDefaultType
+/// @brief Reset operation type for SetSystemFactoryDefault.
+enum class FactoryDefaultType : std::uint8_t { Hard, Soft };
+
+/// @struct SystemDateTimeConfig
+/// @brief System date, time, and timezone parameters.
+struct SystemDateTimeConfig {
+    std::string dateTimeType { "NTP" }; ///< "Manual" or "NTP"
+    bool daylightSavings { false }; ///< True if daylight saving time active
+    std::string timeZone { "UTC" }; ///< Posix or standard timezone identifier (e.g. "UTC", "GMT+2")
+    int hour { 0 }; ///< UTC hour [0, 23]
+    int minute { 0 }; ///< UTC minute [0, 59]
+    int second { 0 }; ///< UTC second [0, 59]
+    int year { 2026 }; ///< Gregorian year
+    int month { 1 }; ///< Month [1, 12]
+    int day { 1 }; ///< Day [1, 31]
+};
+
 } // namespace PelcoD::Onvif
