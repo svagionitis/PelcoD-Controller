@@ -183,6 +183,40 @@ public:
     {
         return false;
     }
+
+    /// @brief Moves camera relatively by specified coordinate translation vector.
+    /// @param[in] pan Relative pan translation [-1.0 to 1.0].
+    /// @param[in] tilt Relative tilt translation [-1.0 to 1.0].
+    /// @param[in] zoom Relative zoom translation [-1.0 to 1.0].
+    /// @param[in] speed Movement speed ratio [0.0 to 1.0].
+    /// @return True if relative move command dispatched.
+    [[nodiscard]] virtual bool handleRelativeMove(float /*pan*/, float /*tilt*/, float /*zoom*/, float /*speed*/ = 1.0f)
+    {
+        return false;
+    }
+
+    /// @brief Directs camera head to return to configured home position.
+    /// @param[in] speed Movement speed ratio [0.0 to 1.0].
+    /// @return True if command dispatched.
+    [[nodiscard]] virtual bool handleGotoHomePosition(float /*speed*/ = 1.0f)
+    {
+        return false;
+    }
+
+    /// @brief Stores current camera position as reference home position.
+    /// @return True if home position saved.
+    [[nodiscard]] virtual bool handleSetHomePosition()
+    {
+        return false;
+    }
+
+    /// @brief Dispatches ONVIF auxiliary command (wiper, washer, IR, aux relays).
+    /// @param[in] auxiliaryData Raw auxiliary command string token.
+    /// @return Auxiliary response string or empty if unsupported.
+    [[nodiscard]] virtual std::string handleSendAuxiliaryCommand(const std::string& /*auxiliaryData*/)
+    {
+        return {};
+    }
 };
 
 } // namespace PelcoD::Onvif

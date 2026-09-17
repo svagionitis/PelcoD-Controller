@@ -556,6 +556,38 @@ void testPullPointEventsParsing()
     assert(events[1].dataValue == "ACTIVE");
 }
 
+void testSendAuxiliaryCommandParsing()
+{
+    const std::string xmlWithResponse = "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                        "xmlns:tptz=\"http://www.onvif.org/ver20/ptz/wsdl\">\n"
+                                        "  <SOAP-ENV:Body>\n"
+                                        "    <tptz:SendAuxiliaryCommandResponse>\n"
+                                        "      <tptz:AuxiliaryResponse>tt:Wiper|On</tptz:AuxiliaryResponse>\n"
+                                        "    </tptz:SendAuxiliaryCommandResponse>\n"
+                                        "  </SOAP-ENV:Body>\n"
+                                        "</SOAP-ENV:Envelope>";
+
+    const auto resp1 = PelcoD::Onvif::OnvifClient::parseSendAuxiliaryCommandResponse(xmlWithResponse);
+    assert(resp1.has_value());
+    assert(*resp1 == "tt:Wiper|On");
+
+    const std::string xmlEmptyResponse
+        = "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+          "xmlns:tptz=\"http://www.onvif.org/ver20/ptz/wsdl\">\n"
+          "  <SOAP-ENV:Body>\n"
+          "    <tptz:SendAuxiliaryCommandResponse/>\n"
+          "  </SOAP-ENV:Body>\n"
+          "</SOAP-ENV:Envelope>";
+
+    const auto resp2 = PelcoD::Onvif::OnvifClient::parseSendAuxiliaryCommandResponse(xmlEmptyResponse);
+    assert(resp2.has_value());
+    assert(resp2->empty());
+
+    const std::string xmlInvalid = "<InvalidXml>";
+    const auto resp3 = PelcoD::Onvif::OnvifClient::parseSendAuxiliaryCommandResponse(xmlInvalid);
+    assert(!resp3.has_value());
+}
+
 int main()
 {
 #ifdef _WIN32
@@ -603,6 +635,10 @@ int main()
     std::cout << "[RUN] Testing ONVIF PTZ Preset Tours XML Parsing...\n";
     testPresetToursParsing();
     std::cout << "[PASS] PTZ Preset Tours XML Parsing\n";
+
+    std::cout << "[RUN] Testing ONVIF SendAuxiliaryCommand XML Parsing...\n";
+    testSendAuxiliaryCommandParsing();
+    std::cout << "[PASS] SendAuxiliaryCommand XML Parsing\n";
 
     std::cout << "[RUN] Testing ONVIF SystemReboot XML Parsing...\n";
     testSystemRebootParsing();

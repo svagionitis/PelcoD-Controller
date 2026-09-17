@@ -212,6 +212,13 @@ public:
     /// @return True if deletion succeeded.
     bool removePresetTour(const std::string& profileToken, const std::string& tourToken);
 
+    /// @brief Sends an ONVIF auxiliary command (wiper, washer, IR, aux relays).
+    /// @param[in] profileToken Media profile token.
+    /// @param[in] auxiliaryData Auxiliary command string token (e.g. "tt:Wiper|On", "Aux1On").
+    /// @return Returned auxiliary response string or nullopt on failure.
+    [[nodiscard]] std::optional<std::string> sendAuxiliaryCommand(
+        const std::string& profileToken, const std::string& auxiliaryData);
+
     // =========================================================================
     // Imaging Service (Profile T)
     // =========================================================================
@@ -324,6 +331,11 @@ public:
     /// @param[in] xml Raw response XML.
     /// @return Assigned tour token or nullopt on failure.
     [[nodiscard]] static std::optional<std::string> parseCreatePresetTourResponse(const std::string& xml);
+
+    /// @brief Parses SendAuxiliaryCommand XML response.
+    /// @param[in] xml Raw response XML.
+    /// @return Extracted auxiliary response string or nullopt on failure.
+    [[nodiscard]] static std::optional<std::string> parseSendAuxiliaryCommandResponse(const std::string& xml);
 
     /// @brief Parses SystemReboot Device XML response.
     /// @param[in] xml Raw response XML.

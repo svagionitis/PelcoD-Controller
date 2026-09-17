@@ -744,6 +744,52 @@ bool OnvifClient::setHomePosition(const std::string& profileToken)
     return resp.isSuccess();
 }
 
+std::optional<std::string> OnvifClient::sendAuxiliaryCommand(
+    const std::string& profileToken, const std::string& auxiliaryData)
+{
+    if (m_capabilities.ptzXAddr.empty()) {
+        static_cast<void>(getCapabilities());
+    }
+
+    if (m_capabilities.ptzXAddr.empty()) {
+        return std::nullopt;
+    }
+
+    std::ostringstream ss {};
+    ss << "<tptz:SendAuxiliaryCommand>\n"
+       << "  <tptz:ProfileToken>" << profileToken << "</tptz:ProfileToken>\n"
+       << "  <tptz:AuxiliaryData>" << auxiliaryData << "</tptz:AuxiliaryData>\n"
+       << "</tptz:SendAuxiliaryCommand>";
+
+    const std::string reqXml = wrapSoapEnvelope(ss.str());
+    const HttpResponse resp = m_httpClient.sendPost(m_capabilities.ptzXAddr, reqXml);
+    if (!resp.isSuccess()) {
+        return std::nullopt;
+    }
+
+    return parseSendAuxiliaryCommandResponse(resp.body);
+}
+
+std::optional<std::string> OnvifClient::parseSendAuxiliaryCommandResponse(const std::string& xml)
+{
+    pugi::xml_document doc {};
+    if (!doc.load_string(xml.c_str())) {
+        return std::nullopt;
+    }
+
+    const auto respNode = findRecursiveNodeWithSuffix(doc, "AuxiliaryResponse");
+    if (respNode) {
+        return respNode.text().as_string();
+    }
+
+    const auto mainNode = findRecursiveNodeWithSuffix(doc, "SendAuxiliaryCommandResponse");
+    if (mainNode) {
+        return "";
+    }
+
+    return std::nullopt;
+}
+
 std::vector<PtzPreset> OnvifClient::parsePresetsResponse(const std::string& xml)
 {
     std::vector<PtzPreset> presets {};

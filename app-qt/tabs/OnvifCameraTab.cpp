@@ -40,6 +40,8 @@ OnvifCameraTab::OnvifCameraTab(PelcoD::Qt::QOnvifDevice* onvifDevice, VideoStrea
             m_onvifDevice, &PelcoD::Qt::QOnvifDevice::rebootCompleted, this, &OnvifCameraTab::handleRebootCompleted);
         connect(m_onvifDevice, &PelcoD::Qt::QOnvifDevice::imagingSettingsUpdated, this,
             &OnvifCameraTab::handleImagingSettingsUpdated);
+        connect(m_onvifDevice, &PelcoD::Qt::QOnvifDevice::auxiliaryCommandCompleted, this,
+            &OnvifCameraTab::handleAuxiliaryCompleted);
         connect(m_onvifDevice, &PelcoD::Qt::QOnvifDevice::eventReceived, this, &OnvifCameraTab::handleEventReceived);
     }
 
@@ -223,6 +225,33 @@ void OnvifCameraTab::setupUi()
     homeLayout->addWidget(btnGotoHome);
     homeLayout->addWidget(btnSetHome);
 
+    // Auxiliary Commands
+    auto* auxLayout = new QHBoxLayout();
+    btnWiperOn = new QPushButton(tr("Wiper ON"), groupPtz);
+    btnWiperOff = new QPushButton(tr("Wiper OFF"), groupPtz);
+    btnWasher = new QPushButton(tr("Washer"), groupPtz);
+    btnIrOn = new QPushButton(tr("IR ON"), groupPtz);
+    btnIrOff = new QPushButton(tr("IR OFF"), groupPtz);
+    editCustomAux = new QLineEdit(groupPtz);
+    editCustomAux->setPlaceholderText(tr("e.g. Aux1On"));
+    btnSendAux = new QPushButton(tr("Send Aux"), groupPtz);
+
+    connect(btnWiperOn, &QPushButton::clicked, this, &OnvifCameraTab::handleSendWiperOn);
+    connect(btnWiperOff, &QPushButton::clicked, this, &OnvifCameraTab::handleSendWiperOff);
+    connect(btnWasher, &QPushButton::clicked, this, &OnvifCameraTab::handleSendWasher);
+    connect(btnIrOn, &QPushButton::clicked, this, &OnvifCameraTab::handleSendIrOn);
+    connect(btnIrOff, &QPushButton::clicked, this, &OnvifCameraTab::handleSendIrOff);
+    connect(btnSendAux, &QPushButton::clicked, this, &OnvifCameraTab::handleSendCustomAux);
+
+    auxLayout->addWidget(new QLabel(tr("Aux:"), groupPtz));
+    auxLayout->addWidget(btnWiperOn);
+    auxLayout->addWidget(btnWiperOff);
+    auxLayout->addWidget(btnWasher);
+    auxLayout->addWidget(btnIrOn);
+    auxLayout->addWidget(btnIrOff);
+    auxLayout->addWidget(editCustomAux);
+    auxLayout->addWidget(btnSendAux);
+
     // Telemetry display
     auto* telemLayout = new QHBoxLayout();
     lblTelemetryPanTilt = new QLabel(tr("Pan/Tilt: (0.00, 0.00)"), groupPtz);
@@ -237,6 +266,7 @@ void OnvifCameraTab::setupUi()
     ptzLayout->addLayout(speedLayout);
     ptzLayout->addLayout(relLayout);
     ptzLayout->addLayout(homeLayout);
+    ptzLayout->addLayout(auxLayout);
     ptzLayout->addLayout(telemLayout);
 
     ptzTabLayout->addWidget(groupPtz);
@@ -566,6 +596,13 @@ void OnvifCameraTab::updateConnectionUi(bool connected)
     btnGotoHome->setEnabled(connected);
     btnSetHome->setEnabled(connected);
     btnRelMove->setEnabled(connected);
+    btnWiperOn->setEnabled(connected);
+    btnWiperOff->setEnabled(connected);
+    btnWasher->setEnabled(connected);
+    btnIrOn->setEnabled(connected);
+    btnIrOff->setEnabled(connected);
+    editCustomAux->setEnabled(connected);
+    btnSendAux->setEnabled(connected);
     btnRefreshPresets->setEnabled(connected);
     btnGotoPreset->setEnabled(connected);
     btnSavePreset->setEnabled(connected);
@@ -827,6 +864,58 @@ void OnvifCameraTab::handleSetHome()
 {
     if (m_onvifDevice != nullptr) {
         m_onvifDevice->setHomePosition();
+    }
+}
+
+void OnvifCameraTab::handleSendWiperOn()
+{
+    if (m_onvifDevice != nullptr) {
+        m_onvifDevice->sendAuxiliaryCommand("tt:Wiper|On");
+    }
+}
+
+void OnvifCameraTab::handleSendWiperOff()
+{
+    if (m_onvifDevice != nullptr) {
+        m_onvifDevice->sendAuxiliaryCommand("tt:Wiper|Off");
+    }
+}
+
+void OnvifCameraTab::handleSendWasher()
+{
+    if (m_onvifDevice != nullptr) {
+        m_onvifDevice->sendAuxiliaryCommand("tt:Washer|On");
+    }
+}
+
+void OnvifCameraTab::handleSendIrOn()
+{
+    if (m_onvifDevice != nullptr) {
+        m_onvifDevice->sendAuxiliaryCommand("tt:IR|On");
+    }
+}
+
+void OnvifCameraTab::handleSendIrOff()
+{
+    if (m_onvifDevice != nullptr) {
+        m_onvifDevice->sendAuxiliaryCommand("tt:IR|Off");
+    }
+}
+
+void OnvifCameraTab::handleSendCustomAux()
+{
+    if (m_onvifDevice != nullptr && editCustomAux != nullptr) {
+        const QString cmd = editCustomAux->text().trimmed();
+        if (!cmd.isEmpty()) {
+            m_onvifDevice->sendAuxiliaryCommand(cmd);
+        }
+    }
+}
+
+void OnvifCameraTab::handleAuxiliaryCompleted(bool success, const QString& /*response*/)
+{
+    if (!success) {
+        QMessageBox::warning(this, tr("Auxiliary Command"), tr("Auxiliary command execution failed."));
     }
 }
 

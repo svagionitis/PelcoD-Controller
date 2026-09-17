@@ -64,6 +64,13 @@ private slots:
     void handleRelativeMove();
     void handleGotoHome();
     void handleSetHome();
+    void handleSendWiperOn();
+    void handleSendWiperOff();
+    void handleSendWasher();
+    void handleSendIrOn();
+    void handleSendIrOff();
+    void handleSendCustomAux();
+    void handleAuxiliaryCompleted(bool success, const QString& response);
     void handleRefreshPresets();
     void handleGotoPreset();
     void handleSavePreset();
@@ -138,9 +145,16 @@ private:
     QDoubleSpinBox* spinRelTilt { nullptr };
     QDoubleSpinBox* spinRelZoom { nullptr };
     QPushButton* btnRelMove { nullptr };
-    QPushButton* btnGotoHome { nullptr };
-    QPushButton* btnSetHome { nullptr };
-    QLabel* lblTelemetryPanTilt { nullptr };
+    QPushButton* btnGotoHome = nullptr;
+    QPushButton* btnSetHome = nullptr;
+    QPushButton* btnWiperOn = nullptr;
+    QPushButton* btnWiperOff = nullptr;
+    QPushButton* btnWasher = nullptr;
+    QPushButton* btnIrOn = nullptr;
+    QPushButton* btnIrOff = nullptr;
+    QLineEdit* editCustomAux = nullptr;
+    QPushButton* btnSendAux = nullptr;
+    QLabel* lblTelemetryPanTilt = nullptr;
     QLabel* lblTelemetryZoom { nullptr };
     QLabel* lblTelemetryMoving { nullptr };
 

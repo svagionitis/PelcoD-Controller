@@ -124,6 +124,11 @@ public Q_SLOTS:
     /// @brief Sets current camera head position as home position.
     void setHomePosition();
 
+    /// @brief Sends an auxiliary command (e.g. "tt:Wiper|On", "tt:Washer|On", "Aux1On").
+    /// @param[in] auxiliaryData Command string token.
+    /// @return Returned auxiliary response or empty on failure.
+    QString sendAuxiliaryCommand(const QString& auxiliaryData);
+
     /// @brief Refreshes PTZ presets from camera for active profile.
     void refreshPresets();
 
@@ -254,6 +259,11 @@ Q_SIGNALS:
     /// @brief Emitted when optical imaging settings are refreshed.
     /// @param[in] settings Current camera imaging settings.
     void imagingSettingsUpdated(const PelcoD::Onvif::ImagingSettings& settings);
+
+    /// @brief Emitted when an auxiliary command finishes.
+    /// @param[in] success True if accepted.
+    /// @param[in] response Server response payload.
+    void auxiliaryCommandCompleted(bool success, const QString& response);
 
     /// @brief Emitted when an event notification message is pulled.
     /// @param[in] event Event notification details.

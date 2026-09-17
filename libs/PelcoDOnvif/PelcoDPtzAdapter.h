@@ -71,6 +71,11 @@ public:
     [[nodiscard]] bool handleOperatePresetTour(const std::string& tourToken, PresetTourOperation op) override;
     [[nodiscard]] bool handleRemovePresetTour(const std::string& tourToken) override;
 
+    [[nodiscard]] bool handleRelativeMove(float pan, float tilt, float zoom, float speed = 1.0f) override;
+    [[nodiscard]] bool handleGotoHomePosition(float speed = 1.0f) override;
+    [[nodiscard]] bool handleSetHomePosition() override;
+    [[nodiscard]] std::string handleSendAuxiliaryCommand(const std::string& auxiliaryData) override;
+
     // =========================================================================
     // IImagingHandler Implementation (Profile T)
     // =========================================================================
@@ -102,6 +107,11 @@ private:
     PelcoD::Connection m_statusConn {};
     std::uint8_t m_lastAlarms { 0x00U };
     ImagingSettings m_imagingSettings {};
+    std::string m_homePresetToken { "1" };
+    float m_homePan { 0.0f };
+    float m_homeTilt { 0.0f };
+    float m_homeZoom { 0.0f };
+    bool m_hasHomeCoordinates { false };
 };
 
 } // namespace PelcoD::Onvif

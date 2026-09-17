@@ -232,6 +232,19 @@ void QOnvifDevice::setHomePosition()
     m_client->setHomePosition(m_activeProfileToken.toStdString());
 }
 
+QString QOnvifDevice::sendAuxiliaryCommand(const QString& auxiliaryData)
+{
+    if (!m_client || m_activeProfileToken.isEmpty()) {
+        emit auxiliaryCommandCompleted(false, QString());
+        return QString();
+    }
+    const auto resp = m_client->sendAuxiliaryCommand(m_activeProfileToken.toStdString(), auxiliaryData.toStdString());
+    const bool success = resp.has_value();
+    const QString result = success ? QString::fromStdString(*resp) : QString();
+    emit auxiliaryCommandCompleted(success, result);
+    return result;
+}
+
 void QOnvifDevice::refreshPresets()
 {
     if (!m_client || m_activeProfileToken.isEmpty()) {

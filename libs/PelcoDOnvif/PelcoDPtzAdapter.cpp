@@ -341,6 +341,149 @@ bool PelcoDPtzAdapter::handleRemovePresetTour(const std::string& tourToken)
     return removed;
 }
 
+bool PelcoDPtzAdapter::handleRelativeMove(float pan, float tilt, float zoom, float /*speed*/)
+{
+    if (!m_device) {
+        return false;
+    }
+
+    const auto currentStatus = m_device->getStatus();
+
+    if (std::abs(pan) > 0.0001f) {
+        float currentPan = static_cast<float>(currentStatus.panDegrees());
+        float newPan = std::fmod(currentPan + pan + 360.0f, 360.0f);
+        if (newPan < 0.0f) {
+            newPan += 360.0f;
+        }
+        const auto cDeg = static_cast<std::uint16_t>(std::clamp(newPan * 100.0f, 0.0f, 35999.0f));
+        m_device->setPanAngle(cDeg);
+    }
+
+    if (std::abs(tilt) > 0.0001f) {
+        float currentTilt = static_cast<float>(currentStatus.tiltDegrees());
+        float newTilt = std::clamp(currentTilt + tilt, 0.0f, 90.0f);
+        const auto cDeg = static_cast<std::uint16_t>(std::clamp(newTilt * 100.0f, 0.0f, 35999.0f));
+        m_device->setTiltAngle(cDeg);
+    }
+
+    if (std::abs(zoom) > 0.0001f) {
+        float currentZoomNorm = static_cast<float>(currentStatus.zoomPosition) / 65535.0f;
+        float newZoom = std::clamp(currentZoomNorm + zoom, 0.0f, 1.0f);
+        const auto pos = static_cast<std::uint16_t>(newZoom * 65535.0f);
+        m_device->setZoomPosition(pos);
+    }
+
+    return true;
+}
+
+bool PelcoDPtzAdapter::handleGotoHomePosition(float /*speed*/)
+{
+    if (!m_device) {
+        return false;
+    }
+    std::lock_guard<std::mutex> lock(m_mutex);
+    if (m_hasHomeCoordinates) {
+        handleAbsoluteMove(m_homePan, m_homeTilt, m_homeZoom);
+        return true;
+    }
+    if (!m_homePresetToken.empty()) {
+        try {
+            const auto presetId = static_cast<std::uint8_t>(std::stoul(m_homePresetToken));
+            if (presetId > 0U) {
+                m_device->goToPreset(presetId);
+                return true;
+            }
+        } catch (...) {
+        }
+    }
+    handleAbsoluteMove(0.0f, 0.0f, 0.0f);
+    return true;
+}
+
+bool PelcoDPtzAdapter::handleSetHomePosition()
+{
+    if (!m_device) {
+        return false;
+    }
+    std::lock_guard<std::mutex> lock(m_mutex);
+    const auto status = m_device->getStatus();
+    m_homePan = static_cast<float>(status.panDegrees());
+    m_homeTilt = static_cast<float>(status.tiltDegrees());
+    m_homeZoom = static_cast<float>(status.zoomPosition) / 65535.0f;
+    m_hasHomeCoordinates = true;
+
+    try {
+        const auto presetId = static_cast<std::uint8_t>(std::stoul(m_homePresetToken));
+        if (presetId > 0U) {
+            m_device->setPreset(presetId);
+        }
+    } catch (...) {
+    }
+    return true;
+}
+
+std::string PelcoDPtzAdapter::handleSendAuxiliaryCommand(const std::string& auxiliaryData)
+{
+    if (!m_device || auxiliaryData.empty()) {
+        return {};
+    }
+
+    if (auxiliaryData.find("Wiper") != std::string::npos || auxiliaryData.find("wiper") != std::string::npos) {
+        const bool isOff
+            = auxiliaryData.find("Off") != std::string::npos || auxiliaryData.find("off") != std::string::npos;
+        if (isOff) {
+            m_device->clearAuxiliary(1U);
+        } else {
+            m_device->setAuxiliary(1U);
+        }
+        return auxiliaryData;
+    }
+
+    if (auxiliaryData.find("Washer") != std::string::npos || auxiliaryData.find("washer") != std::string::npos) {
+        const bool isOff
+            = auxiliaryData.find("Off") != std::string::npos || auxiliaryData.find("off") != std::string::npos;
+        if (isOff) {
+            m_device->clearAuxiliary(2U);
+        } else {
+            m_device->setAuxiliary(2U);
+        }
+        return auxiliaryData;
+    }
+
+    if (auxiliaryData.find("IR") != std::string::npos || auxiliaryData.find("ir") != std::string::npos
+        || auxiliaryData.find("Ir") != std::string::npos) {
+        const bool isOff
+            = auxiliaryData.find("Off") != std::string::npos || auxiliaryData.find("off") != std::string::npos;
+        if (isOff) {
+            m_device->clearAuxiliary(3U);
+        } else {
+            m_device->setAuxiliary(3U);
+        }
+        return auxiliaryData;
+    }
+
+    auto auxPos = auxiliaryData.find("Aux");
+    if (auxPos == std::string::npos) {
+        auxPos = auxiliaryData.find("aux");
+    }
+    if (auxPos != std::string::npos && auxPos + 3 < auxiliaryData.size()
+        && std::isdigit(static_cast<unsigned char>(auxiliaryData[auxPos + 3]))) {
+        const auto auxId = static_cast<std::uint8_t>(auxiliaryData[auxPos + 3] - '0');
+        if (auxId >= 1U && auxId <= 8U) {
+            const bool isOff
+                = auxiliaryData.find("Off") != std::string::npos || auxiliaryData.find("off") != std::string::npos;
+            if (isOff) {
+                m_device->clearAuxiliary(auxId);
+            } else {
+                m_device->setAuxiliary(auxId);
+            }
+            return auxiliaryData;
+        }
+    }
+
+    return auxiliaryData;
+}
+
 void PelcoDPtzAdapter::saveTours()
 {
     if (m_persistencePath.empty()) {

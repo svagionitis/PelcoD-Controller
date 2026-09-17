@@ -494,6 +494,98 @@ void OnvifServer::handlePtzService(const httplib::Request& req, httplib::Respons
         }
 
         body << "    <tptz:AbsoluteMoveResponse/>\r\n";
+    } else if (opName.find("RelativeMove") != std::string::npos) {
+        float pan = 0.0f;
+        float tilt = 0.0f;
+        float zoom = 0.0f;
+        float speed = 1.0f;
+
+        const pugi::xml_node ptNode
+            = doc.select_node("//*[local-name()='Translation']/*[local-name()='PanTilt']").node();
+        if (ptNode) {
+            pan = ptNode.attribute("x").as_float(0.0f);
+            tilt = ptNode.attribute("y").as_float(0.0f);
+        }
+
+        const pugi::xml_node zNode = doc.select_node("//*[local-name()='Translation']/*[local-name()='Zoom']").node();
+        if (zNode) {
+            zoom = zNode.attribute("x").as_float(0.0f);
+        }
+
+        const pugi::xml_node spNode = doc.select_node("//*[local-name()='Speed']/*[local-name()='PanTilt']").node();
+        if (spNode) {
+            speed = spNode.attribute("x").as_float(1.0f);
+        }
+
+        if (m_ptzHandler) {
+            m_ptzHandler->handleRelativeMove(pan, tilt, zoom, speed);
+        }
+
+        body << "    <tptz:RelativeMoveResponse/>\r\n";
+    } else if (opName.find("GotoHomePosition") != std::string::npos) {
+        float speed = 1.0f;
+        const pugi::xml_node spNode = doc.select_node("//*[local-name()='Speed']/*[local-name()='PanTilt']").node();
+        if (spNode) {
+            speed = spNode.attribute("x").as_float(1.0f);
+        }
+        if (m_ptzHandler) {
+            m_ptzHandler->handleGotoHomePosition(speed);
+        }
+        body << "    <tptz:GotoHomePositionResponse/>\r\n";
+    } else if (opName.find("SetHomePosition") != std::string::npos) {
+        if (m_ptzHandler) {
+            m_ptzHandler->handleSetHomePosition();
+        }
+        body << "    <tptz:SetHomePositionResponse/>\r\n";
+    } else if (opName.find("SendAuxiliaryCommand") != std::string::npos) {
+        const pugi::xml_node auxNode = doc.select_node("//*[local-name()='AuxiliaryData']").node();
+        const std::string auxData = auxNode ? auxNode.text().as_string() : "";
+        std::string auxResp = auxData;
+        if (m_ptzHandler) {
+            auxResp = m_ptzHandler->handleSendAuxiliaryCommand(auxData);
+        }
+        body << "    <tptz:SendAuxiliaryCommandResponse>\r\n"
+             << "      <tptz:AuxiliaryResponse>" << auxResp << "</tptz:AuxiliaryResponse>\r\n"
+             << "    </tptz:SendAuxiliaryCommandResponse>\r\n";
+    } else if (opName.find("GetConfigurationOptions") != std::string::npos
+        || opName.find("GetConfigurationOption") != std::string::npos) {
+        body << "    <tptz:GetConfigurationOptionsResponse>\r\n"
+             << "      <tptz:PTZConfigurationOptions>\r\n"
+             << "        <tt:Spaces>\r\n"
+             << "          <tt:AbsolutePanTiltPositionSpace>\r\n"
+             << "            <tt:URI>http://www.onvif.org/ver10/tptz/PanTiltSpaces/PositionGenericSpace</tt:URI>\r\n"
+             << "            <tt:XRange><tt:Min>-1.0</tt:Min><tt:Max>1.0</tt:Max></tt:XRange>\r\n"
+             << "            <tt:YRange><tt:Min>-1.0</tt:Min><tt:Max>1.0</tt:Max></tt:YRange>\r\n"
+             << "          </tt:AbsolutePanTiltPositionSpace>\r\n"
+             << "          <tt:AbsoluteZoomPositionSpace>\r\n"
+             << "            <tt:URI>http://www.onvif.org/ver10/tptz/ZoomSpaces/PositionGenericSpace</tt:URI>\r\n"
+             << "            <tt:XRange><tt:Min>0.0</tt:Min><tt:Max>1.0</tt:Max></tt:XRange>\r\n"
+             << "          </tt:AbsoluteZoomPositionSpace>\r\n"
+             << "          <tt:RelativePanTiltTranslationSpace>\r\n"
+             << "            <tt:URI>http://www.onvif.org/ver10/tptz/PanTiltSpaces/TranslationGenericSpace</tt:URI>\r\n"
+             << "            <tt:XRange><tt:Min>-1.0</tt:Min><tt:Max>1.0</tt:Max></tt:XRange>\r\n"
+             << "            <tt:YRange><tt:Min>-1.0</tt:Min><tt:Max>1.0</tt:Max></tt:YRange>\r\n"
+             << "          </tt:RelativePanTiltTranslationSpace>\r\n"
+             << "          <tt:RelativeZoomTranslationSpace>\r\n"
+             << "            <tt:URI>http://www.onvif.org/ver10/tptz/ZoomSpaces/TranslationGenericSpace</tt:URI>\r\n"
+             << "            <tt:XRange><tt:Min>-1.0</tt:Min><tt:Max>1.0</tt:Max></tt:XRange>\r\n"
+             << "          </tt:RelativeZoomTranslationSpace>\r\n"
+             << "          <tt:ContinuousPanTiltVelocitySpace>\r\n"
+             << "            <tt:URI>http://www.onvif.org/ver10/tptz/PanTiltSpaces/VelocityGenericSpace</tt:URI>\r\n"
+             << "            <tt:XRange><tt:Min>-1.0</tt:Min><tt:Max>1.0</tt:Max></tt:XRange>\r\n"
+             << "            <tt:YRange><tt:Min>-1.0</tt:Min><tt:Max>1.0</tt:Max></tt:YRange>\r\n"
+             << "          </tt:ContinuousPanTiltVelocitySpace>\r\n"
+             << "          <tt:ContinuousZoomVelocitySpace>\r\n"
+             << "            <tt:URI>http://www.onvif.org/ver10/tptz/ZoomSpaces/VelocityGenericSpace</tt:URI>\r\n"
+             << "            <tt:XRange><tt:Min>-1.0</tt:Min><tt:Max>1.0</tt:Max></tt:XRange>\r\n"
+             << "          </tt:ContinuousZoomVelocitySpace>\r\n"
+             << "        </tt:Spaces>\r\n"
+             << "        <tt:PTZTimeout>\r\n"
+             << "          <tt:Min>PT0S</tt:Min>\r\n"
+             << "          <tt:Max>PT300S</tt:Max>\r\n"
+             << "        </tt:PTZTimeout>\r\n"
+             << "      </tptz:PTZConfigurationOptions>\r\n"
+             << "    </tptz:GetConfigurationOptionsResponse>\r\n";
     } else if (opName.find("GetConfigurations") != std::string::npos
         || opName.find("GetConfiguration") != std::string::npos) {
         body << "    <tptz:GetConfigurationsResponse>\r\n"
@@ -525,7 +617,15 @@ void OnvifServer::handlePtzService(const httplib::Request& req, httplib::Respons
              << "          </tt:ContinuousZoomVelocitySpace>\r\n"
              << "        </tt:SupportedPTZSpaces>\r\n"
              << "        <tt:MaximumNumberOfPresets>255</tt:MaximumNumberOfPresets>\r\n"
-             << "        <tt:HomeSupported>false</tt:HomeSupported>\r\n"
+             << "        <tt:HomeSupported>true</tt:HomeSupported>\r\n"
+             << "        <tt:AuxiliaryCommands>tt:Wiper|On</tt:AuxiliaryCommands>\r\n"
+             << "        <tt:AuxiliaryCommands>tt:Wiper|Off</tt:AuxiliaryCommands>\r\n"
+             << "        <tt:AuxiliaryCommands>tt:Washer|On</tt:AuxiliaryCommands>\r\n"
+             << "        <tt:AuxiliaryCommands>tt:Washer|Off</tt:AuxiliaryCommands>\r\n"
+             << "        <tt:AuxiliaryCommands>tt:IR|On</tt:AuxiliaryCommands>\r\n"
+             << "        <tt:AuxiliaryCommands>tt:IR|Off</tt:AuxiliaryCommands>\r\n"
+             << "        <tt:AuxiliaryCommands>Aux1On</tt:AuxiliaryCommands>\r\n"
+             << "        <tt:AuxiliaryCommands>Aux1Off</tt:AuxiliaryCommands>\r\n"
              << "      </tptz:PTZNode>\r\n"
              << "    </tptz:GetNodesResponse>\r\n";
     } else if (opName.find("GetPresets") != std::string::npos) {

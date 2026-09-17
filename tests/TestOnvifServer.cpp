@@ -765,6 +765,172 @@ void testPresetToursServerAndAdapter()
     std::cout << "[PASS] testPresetToursServerAndAdapter" << std::endl;
 }
 
+void testPtzServiceExtensionsServerAndAdapter()
+{
+    std::cout << "[RUN] testPtzServiceExtensionsServerAndAdapter..." << std::endl;
+
+    auto mockTransport = std::make_shared<PelcoD::MockPelcoDDevice>(1U);
+    auto device = std::make_shared<PelcoD::PelcoDDevice>(mockTransport, 1U);
+    assert(device->start());
+
+    auto adapter = std::make_shared<PelcoDPtzAdapter>(device);
+
+    OnvifServerConfig config;
+    config.bindAddress = "127.0.0.1";
+    config.port = 18083; // Unique port
+    config.deviceName = "PTZ Extensions Test Camera";
+
+    OnvifServer server(config, adapter, adapter);
+    assert(server.start());
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+    httplib::Client client("127.0.0.1", 18083);
+    client.set_connection_timeout(std::chrono::seconds(2));
+    client.set_read_timeout(std::chrono::seconds(2));
+
+    // 1. Verify GetNodes reports HomeSupported=true and AuxiliaryCommands
+    {
+        const std::string req = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+                                "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                "xmlns:tptz=\"http://www.onvif.org/ver20/ptz/wsdl\">\r\n"
+                                "  <SOAP-ENV:Body>\r\n"
+                                "    <tptz:GetNodes/>\r\n"
+                                "  </SOAP-ENV:Body>\r\n"
+                                "</SOAP-ENV:Envelope>";
+
+        auto res = client.Post("/onvif/ptz_service", req, "application/soap+xml; charset=utf-8");
+        assert(res && res->status == 200);
+
+        pugi::xml_document doc;
+        assert(doc.load_string(res->body.c_str()));
+        const auto homeNode = doc.select_node("//*[local-name()='HomeSupported']").node();
+        assert(homeNode && homeNode.text().as_bool());
+        const auto auxNodes = doc.select_nodes("//*[local-name()='AuxiliaryCommands']");
+        assert(auxNodes.size() >= 4);
+    }
+
+    // 2. Verify GetConfigurationOptions
+    {
+        const std::string req = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+                                "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                "xmlns:tptz=\"http://www.onvif.org/ver20/ptz/wsdl\">\r\n"
+                                "  <SOAP-ENV:Body>\r\n"
+                                "    <tptz:GetConfigurationOptions>\r\n"
+                                "      <tptz:ConfigurationToken>PTZConfig_1</tptz:ConfigurationToken>\r\n"
+                                "    </tptz:GetConfigurationOptions>\r\n"
+                                "  </SOAP-ENV:Body>\r\n"
+                                "</SOAP-ENV:Envelope>";
+
+        auto res = client.Post("/onvif/ptz_service", req, "application/soap+xml; charset=utf-8");
+        assert(res && res->status == 200);
+
+        pugi::xml_document doc;
+        assert(doc.load_string(res->body.c_str()));
+        assert(doc.select_node("//*[local-name()='GetConfigurationOptionsResponse']"));
+        assert(doc.select_node("//*[local-name()='PTZConfigurationOptions']"));
+        assert(doc.select_node("//*[local-name()='Spaces']"));
+    }
+
+    // 3. Test RelativeMove
+    {
+        const std::string req
+            = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+              "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+              "xmlns:tptz=\"http://www.onvif.org/ver20/ptz/wsdl\" xmlns:tt=\"http://www.onvif.org/ver10/schema\">\r\n"
+              "  <SOAP-ENV:Body>\r\n"
+              "    <tptz:RelativeMove>\r\n"
+              "      <tptz:ProfileToken>ProfileToken_1</tptz:ProfileToken>\r\n"
+              "      <tptz:Translation>\r\n"
+              "        <tt:PanTilt x=\"10.0\" y=\"5.0\"/>\r\n"
+              "        <tt:Zoom x=\"0.1\"/>\r\n"
+              "      </tptz:Translation>\r\n"
+              "      <tptz:Speed>\r\n"
+              "        <tt:PanTilt x=\"0.8\" y=\"0.8\"/>\r\n"
+              "      </tptz:Speed>\r\n"
+              "    </tptz:RelativeMove>\r\n"
+              "  </SOAP-ENV:Body>\r\n"
+              "</SOAP-ENV:Envelope>";
+
+        auto res = client.Post("/onvif/ptz_service", req, "application/soap+xml; charset=utf-8");
+        assert(res && res->status == 200);
+
+        pugi::xml_document doc;
+        assert(doc.load_string(res->body.c_str()));
+        assert(doc.select_node("//*[local-name()='RelativeMoveResponse']"));
+    }
+
+    // 4. Test SetHomePosition and GotoHomePosition
+    {
+        const std::string reqSet = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+                                   "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                   "xmlns:tptz=\"http://www.onvif.org/ver20/ptz/wsdl\">\r\n"
+                                   "  <SOAP-ENV:Body>\r\n"
+                                   "    <tptz:SetHomePosition>\r\n"
+                                   "      <tptz:ProfileToken>ProfileToken_1</tptz:ProfileToken>\r\n"
+                                   "    </tptz:SetHomePosition>\r\n"
+                                   "  </SOAP-ENV:Body>\r\n"
+                                   "</SOAP-ENV:Envelope>";
+
+        auto resSet = client.Post("/onvif/ptz_service", reqSet, "application/soap+xml; charset=utf-8");
+        assert(resSet && resSet->status == 200);
+
+        pugi::xml_document docSet;
+        assert(docSet.load_string(resSet->body.c_str()));
+        assert(docSet.select_node("//*[local-name()='SetHomePositionResponse']"));
+
+        const std::string reqGoto = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+                                    "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                    "xmlns:tptz=\"http://www.onvif.org/ver20/ptz/wsdl\">\r\n"
+                                    "  <SOAP-ENV:Body>\r\n"
+                                    "    <tptz:GotoHomePosition>\r\n"
+                                    "      <tptz:ProfileToken>ProfileToken_1</tptz:ProfileToken>\r\n"
+                                    "    </tptz:GotoHomePosition>\r\n"
+                                    "  </SOAP-ENV:Body>\r\n"
+                                    "</SOAP-ENV:Envelope>";
+
+        auto resGoto = client.Post("/onvif/ptz_service", reqGoto, "application/soap+xml; charset=utf-8");
+        assert(resGoto && resGoto->status == 200);
+
+        pugi::xml_document docGoto;
+        assert(docGoto.load_string(resGoto->body.c_str()));
+        assert(docGoto.select_node("//*[local-name()='GotoHomePositionResponse']"));
+    }
+
+    // 5. Test SendAuxiliaryCommand
+    {
+        for (const auto& cmd : { "tt:Wiper|On", "tt:Wiper|Off", "tt:Washer|On", "Aux1On", "Aux1Off" }) {
+            const std::string req = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+                                    "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                    "xmlns:tptz=\"http://www.onvif.org/ver20/ptz/wsdl\">\r\n"
+                                    "  <SOAP-ENV:Body>\r\n"
+                                    "    <tptz:SendAuxiliaryCommand>\r\n"
+                                    "      <tptz:ProfileToken>ProfileToken_1</tptz:ProfileToken>\r\n"
+                                    "      <tptz:AuxiliaryData>"
+                + std::string(cmd)
+                + "</tptz:AuxiliaryData>\r\n"
+                  "    </tptz:SendAuxiliaryCommand>\r\n"
+                  "  </SOAP-ENV:Body>\r\n"
+                  "</SOAP-ENV:Envelope>";
+
+            auto res = client.Post("/onvif/ptz_service", req, "application/soap+xml; charset=utf-8");
+            assert(res && res->status == 200);
+
+            pugi::xml_document doc;
+            assert(doc.load_string(res->body.c_str()));
+            const auto respNode = doc.select_node("//*[local-name()='AuxiliaryResponse']").node();
+            assert(respNode);
+            assert(std::string(respNode.text().as_string()) == cmd);
+        }
+    }
+
+    server.stop();
+    assert(!server.isRunning());
+    device->stop();
+
+    std::cout << "[PASS] testPtzServiceExtensionsServerAndAdapter" << std::endl;
+}
+
 int main()
 {
     std::cout << "Starting TestOnvifServer test suite..." << std::endl;
@@ -773,6 +939,7 @@ int main()
     testProfileTImagingAndEvents();
     testPelcoDPtzAdapter();
     testPresetToursServerAndAdapter();
+    testPtzServiceExtensionsServerAndAdapter();
     std::cout << "All TestOnvifServer tests passed successfully!" << std::endl;
     return 0;
 }
