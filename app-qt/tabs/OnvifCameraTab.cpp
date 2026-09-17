@@ -43,6 +43,7 @@ OnvifCameraTab::OnvifCameraTab(PelcoD::Qt::QOnvifDevice* onvifDevice, VideoStrea
         connect(m_onvifDevice, &PelcoD::Qt::QOnvifDevice::auxiliaryCommandCompleted, this,
             &OnvifCameraTab::handleAuxiliaryCompleted);
         connect(m_onvifDevice, &PelcoD::Qt::QOnvifDevice::eventReceived, this, &OnvifCameraTab::handleEventReceived);
+        connect(m_onvifDevice, &PelcoD::Qt::QOnvifDevice::osdsUpdated, this, &OnvifCameraTab::handleOsdsUpdated);
     }
 
     updateConnectionUi(false);
@@ -505,7 +506,61 @@ void OnvifCameraTab::setupUi()
     eventsTabLayout->addStretch();
 
     // -------------------------------------------------------------------------
-    // Sub-Tab 5: Device & Streams
+    // Sub-Tab 5: OSD Overlays
+    // -------------------------------------------------------------------------
+    auto* osdTabLayout = createScrollTab(tr("OSD Overlays"));
+
+    auto* groupOsd = new QGroupBox(tr("On-Screen Display (OSD) Overlays"), this);
+    auto* osdLayout = new QVBoxLayout(groupOsd);
+    osdLayout->setSpacing(6);
+
+    tableOsds = new QTableWidget(0, 5, groupOsd);
+    tableOsds->setHorizontalHeaderLabels({ tr("Token"), tr("Type"), tr("Position"), tr("Font Size"), tr("Content") });
+    tableOsds->horizontalHeader()->setStretchLastSection(true);
+    tableOsds->setSelectionBehavior(QAbstractItemView::SelectRows);
+    tableOsds->setSelectionMode(QAbstractItemView::SingleSelection);
+    tableOsds->setMinimumHeight(180);
+    osdLayout->addWidget(tableOsds);
+
+    auto* editOsdGrid = new QGridLayout();
+    editOsdGrid->addWidget(new QLabel(tr("Text Content:"), groupOsd), 0, 0);
+    editOsdText = new QLineEdit(groupOsd);
+    editOsdText->setPlaceholderText(tr("Text overlay or label..."));
+    editOsdGrid->addWidget(editOsdText, 0, 1, 1, 3);
+
+    editOsdGrid->addWidget(new QLabel(tr("Position:"), groupOsd), 1, 0);
+    cmbOsdPosition = new QComboBox(groupOsd);
+    cmbOsdPosition->addItems({ tr("UpperLeft"), tr("UpperRight"), tr("LowerLeft"), tr("LowerRight"), tr("Custom") });
+    editOsdGrid->addWidget(cmbOsdPosition, 1, 1);
+
+    editOsdGrid->addWidget(new QLabel(tr("Font Size:"), groupOsd), 1, 2);
+    spinOsdFontSize = new QSpinBox(groupOsd);
+    spinOsdFontSize->setRange(12, 72);
+    spinOsdFontSize->setValue(24);
+    editOsdGrid->addWidget(spinOsdFontSize, 1, 3);
+
+    chkOsdDateTime = new QCheckBox(tr("Dynamic Date & Time Overlay"), groupOsd);
+    editOsdGrid->addWidget(chkOsdDateTime, 2, 0, 1, 4);
+
+    osdLayout->addLayout(editOsdGrid);
+
+    auto* osdBtnLayout = new QHBoxLayout();
+    btnRefreshOsds = new QPushButton(tr("Refresh"), groupOsd);
+    btnAddOsd = new QPushButton(tr("Add OSD"), groupOsd);
+    btnUpdateOsd = new QPushButton(tr("Update Selected"), groupOsd);
+    btnDeleteOsd = new QPushButton(tr("Delete Selected"), groupOsd);
+    osdBtnLayout->addWidget(btnRefreshOsds);
+    osdBtnLayout->addWidget(btnAddOsd);
+    osdBtnLayout->addWidget(btnUpdateOsd);
+    osdBtnLayout->addWidget(btnDeleteOsd);
+    osdBtnLayout->addStretch();
+    osdLayout->addLayout(osdBtnLayout);
+
+    osdTabLayout->addWidget(groupOsd);
+    osdTabLayout->addStretch();
+
+    // -------------------------------------------------------------------------
+    // Sub-Tab 6: Device & Streams
     // -------------------------------------------------------------------------
     auto* devTabLayout = createScrollTab(tr("Device & Streams"));
 
@@ -585,6 +640,13 @@ void OnvifCameraTab::setupUi()
     connect(btnCopyRtsp, &QPushButton::clicked, this, &OnvifCameraTab::handleCopyRtsp);
     connect(btnStreamInVideoTab, &QPushButton::clicked, this, &OnvifCameraTab::handleSendToVideoTab);
     connect(btnReboot, &QPushButton::clicked, this, &OnvifCameraTab::handleRebootCamera);
+
+    // OSD Connections
+    connect(btnRefreshOsds, &QPushButton::clicked, this, &OnvifCameraTab::handleRefreshOsds);
+    connect(btnAddOsd, &QPushButton::clicked, this, &OnvifCameraTab::handleCreateOsd);
+    connect(btnUpdateOsd, &QPushButton::clicked, this, &OnvifCameraTab::handleSetOsd);
+    connect(btnDeleteOsd, &QPushButton::clicked, this, &OnvifCameraTab::handleDeleteOsd);
+    connect(tableOsds, &QTableWidget::itemSelectionChanged, this, &OnvifCameraTab::handleOsdSelectionChanged);
 }
 
 void OnvifCameraTab::updateConnectionUi(bool connected)
@@ -635,6 +697,17 @@ void OnvifCameraTab::updateConnectionUi(bool connected)
     btnToggleEvents->setEnabled(connected);
     btnClearEvents->setEnabled(connected);
 
+    // Profile T OSD widgets
+    tableOsds->setEnabled(connected);
+    editOsdText->setEnabled(connected);
+    cmbOsdPosition->setEnabled(connected);
+    chkOsdDateTime->setEnabled(connected);
+    spinOsdFontSize->setEnabled(connected);
+    btnRefreshOsds->setEnabled(connected);
+    btnAddOsd->setEnabled(connected);
+    btnUpdateOsd->setEnabled(connected);
+    btnDeleteOsd->setEnabled(connected);
+
     if (connected) {
         lblConnectionStatus->setText(tr("Connected"));
         lblConnectionStatus->setStyleSheet("color: #7ee787; font-weight: bold;");
@@ -657,6 +730,8 @@ void OnvifCameraTab::updateConnectionUi(bool connected)
         tableEvents->setRowCount(0);
         btnToggleEvents->setText(tr("▶ Subscribe Events"));
         btnToggleEvents->setStyleSheet("");
+        tableOsds->setRowCount(0);
+        editOsdText->clear();
         lblTelemetryPanTilt->setText(tr("Pan/Tilt: (0.00, 0.00)"));
         lblTelemetryZoom->setText(tr("Zoom: 0.00"));
         lblTelemetryMoving->setText(tr("Status: IDLE"));
@@ -1325,6 +1400,143 @@ void OnvifCameraTab::handleEventReceived(const PelcoD::Onvif::OnvifEvent& event)
     tableEvents->setItem(row, 3, new QTableWidgetItem(QString::fromStdString(event.dataValue)));
 
     tableEvents->scrollToBottom();
+}
+
+void OnvifCameraTab::handleRefreshOsds()
+{
+    if (m_onvifDevice) {
+        m_onvifDevice->refreshOSDs();
+    }
+}
+
+void OnvifCameraTab::handleCreateOsd()
+{
+    if (!m_onvifDevice) {
+        return;
+    }
+    PelcoD::Onvif::OsdConfig osd;
+    osd.plainText = editOsdText->text().toStdString();
+    osd.fontSize = static_cast<uint32_t>(spinOsdFontSize->value());
+    osd.isDateAndTime = chkOsdDateTime->isChecked();
+
+    const int posIdx = cmbOsdPosition->currentIndex();
+    if (posIdx == 1) {
+        osd.position = PelcoD::Onvif::OsdPositionType::UpperRight;
+    } else if (posIdx == 2) {
+        osd.position = PelcoD::Onvif::OsdPositionType::LowerLeft;
+    } else if (posIdx == 3) {
+        osd.position = PelcoD::Onvif::OsdPositionType::LowerRight;
+    } else if (posIdx == 4) {
+        osd.position = PelcoD::Onvif::OsdPositionType::Custom;
+    } else {
+        osd.position = PelcoD::Onvif::OsdPositionType::UpperLeft;
+    }
+
+    m_onvifDevice->createOSD(osd);
+}
+
+void OnvifCameraTab::handleSetOsd()
+{
+    if (!m_onvifDevice || tableOsds == nullptr) {
+        return;
+    }
+    const int row = tableOsds->currentRow();
+    if (row < 0 || row >= tableOsds->rowCount()) {
+        return;
+    }
+    const QString token = tableOsds->item(row, 0)->text();
+    PelcoD::Onvif::OsdConfig osd;
+    osd.token = token.toStdString();
+    osd.plainText = editOsdText->text().toStdString();
+    osd.fontSize = static_cast<uint32_t>(spinOsdFontSize->value());
+    osd.isDateAndTime = chkOsdDateTime->isChecked();
+
+    const int posIdx = cmbOsdPosition->currentIndex();
+    if (posIdx == 1) {
+        osd.position = PelcoD::Onvif::OsdPositionType::UpperRight;
+    } else if (posIdx == 2) {
+        osd.position = PelcoD::Onvif::OsdPositionType::LowerLeft;
+    } else if (posIdx == 3) {
+        osd.position = PelcoD::Onvif::OsdPositionType::LowerRight;
+    } else if (posIdx == 4) {
+        osd.position = PelcoD::Onvif::OsdPositionType::Custom;
+    } else {
+        osd.position = PelcoD::Onvif::OsdPositionType::UpperLeft;
+    }
+
+    m_onvifDevice->setOSD(osd);
+}
+
+void OnvifCameraTab::handleDeleteOsd()
+{
+    if (!m_onvifDevice || tableOsds == nullptr) {
+        return;
+    }
+    const int row = tableOsds->currentRow();
+    if (row < 0 || row >= tableOsds->rowCount()) {
+        return;
+    }
+    const QString token = tableOsds->item(row, 0)->text();
+    m_onvifDevice->deleteOSD(token);
+}
+
+void OnvifCameraTab::handleOsdsUpdated(const std::vector<PelcoD::Onvif::OsdConfig>& osds)
+{
+    if (tableOsds == nullptr) {
+        return;
+    }
+    tableOsds->setRowCount(0);
+    for (const auto& osd : osds) {
+        const int row = tableOsds->rowCount();
+        tableOsds->insertRow(row);
+        tableOsds->setItem(row, 0, new QTableWidgetItem(QString::fromStdString(osd.token)));
+        tableOsds->setItem(row, 1, new QTableWidgetItem(osd.isDateAndTime ? tr("Date/Time") : tr("Plain Text")));
+
+        QString posStr = tr("UpperLeft");
+        if (osd.position == PelcoD::Onvif::OsdPositionType::UpperRight) {
+            posStr = tr("UpperRight");
+        } else if (osd.position == PelcoD::Onvif::OsdPositionType::LowerLeft) {
+            posStr = tr("LowerLeft");
+        } else if (osd.position == PelcoD::Onvif::OsdPositionType::LowerRight) {
+            posStr = tr("LowerRight");
+        } else if (osd.position == PelcoD::Onvif::OsdPositionType::Custom) {
+            posStr = tr("Custom");
+        }
+        tableOsds->setItem(row, 2, new QTableWidgetItem(posStr));
+
+        tableOsds->setItem(row, 3, new QTableWidgetItem(QString::number(osd.fontSize)));
+        tableOsds->setItem(row, 4,
+            new QTableWidgetItem(osd.isDateAndTime ? QString("%1 %2").arg(
+                                     QString::fromStdString(osd.dateFormat), QString::fromStdString(osd.timeFormat))
+                                                   : QString::fromStdString(osd.plainText)));
+    }
+}
+
+void OnvifCameraTab::handleOsdSelectionChanged()
+{
+    if (tableOsds == nullptr) {
+        return;
+    }
+    const int row = tableOsds->currentRow();
+    if (row < 0 || row >= tableOsds->rowCount()) {
+        return;
+    }
+    const QString type = tableOsds->item(row, 1)->text();
+    chkOsdDateTime->setChecked(type == tr("Date/Time"));
+
+    const QString pos = tableOsds->item(row, 2)->text();
+    const int posIdx = cmbOsdPosition->findText(pos);
+    if (posIdx >= 0) {
+        cmbOsdPosition->setCurrentIndex(posIdx);
+    }
+
+    if (tableOsds->item(row, 3)) {
+        spinOsdFontSize->setValue(tableOsds->item(row, 3)->text().toInt());
+    }
+
+    if (tableOsds->item(row, 4) && !chkOsdDateTime->isChecked()) {
+        editOsdText->setText(tableOsds->item(row, 4)->text());
+    }
 }
 
 } // namespace PelcoDApp

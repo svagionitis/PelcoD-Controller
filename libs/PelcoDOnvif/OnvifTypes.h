@@ -121,4 +121,51 @@ struct PresetTour {
     std::vector<PresetTourSpot> spots {}; ///< Sequence of tour spots
 };
 
+/// @enum OsdType
+/// @brief Type of On-Screen Display overlay.
+enum class OsdType : std::uint8_t { Text, Image, Extended };
+
+/// @enum OsdPositionType
+/// @brief Standard placement zones for On-Screen Display overlays.
+enum class OsdPositionType : std::uint8_t { UpperLeft, UpperRight, LowerLeft, LowerRight, Custom };
+
+/// @struct OsdConfig
+/// @brief Configuration parameters for an ONVIF On-Screen Display (OSD) overlay.
+struct OsdConfig {
+    std::string token {}; ///< Unique OSD token, e.g. "OSD_1"
+    std::string videoSourceToken { "VideoSource_1" }; ///< Video source attachment
+    OsdType type { OsdType::Text }; ///< Text or Image overlay
+    OsdPositionType position { OsdPositionType::UpperLeft }; ///< Corner or custom position
+    float customX { 0.0f }; ///< Normalized X coordinate [-1.0 to 1.0] if position is Custom
+    float customY { 0.0f }; ///< Normalized Y coordinate [-1.0 to 1.0] if position is Custom
+    std::string plainText {}; ///< Text string displayed on screen
+    std::uint32_t fontSize { 24U }; ///< Rendered font point size
+    bool isDateAndTime { false }; ///< If true, overlays dynamic date/time
+    std::string dateFormat { "YYYY/MM/DD" }; ///< Date format string
+    std::string timeFormat { "HH:mm:ss" }; ///< Time format string
+};
+
+/// @struct VideoEncoderConfig
+/// @brief Media2 video encoding configuration parameters.
+struct VideoEncoderConfig {
+    std::string token { "VideoEncoderConfig_1" }; ///< Unique configuration token
+    std::string name { "VideoEncoderConfig" }; ///< User-friendly configuration name
+    std::string encoding { "H264" }; ///< Video codec ("H264", "H265", "JPEG")
+    int width { 1920 }; ///< Frame width in pixels
+    int height { 1080 }; ///< Frame height in pixels
+    float frameRateLimit { 30.0f }; ///< Maximum encoded framerate
+    int bitrateLimitKbps { 4096 }; ///< Bitrate target limit in Kbps
+    int govLength { 30 }; ///< Group of Video / keyframe interval
+};
+
+/// @struct AnalyticsRule
+/// @brief Analytics rule definition for ONVIF Analytics Service.
+struct AnalyticsRule {
+    std::string name {}; ///< Rule identifier name, e.g. "MyMotionDetector"
+    std::string type {
+        "CellMotionDetector"
+    }; ///< Rule algorithm type ("CellMotionDetector", "LineDetector", "FieldDetector")
+    bool enabled { true }; ///< Whether the analytics rule is actively evaluated
+};
+
 } // namespace PelcoD::Onvif

@@ -1575,4 +1575,287 @@ bool OnvifClient::unsubscribe(const std::string& subscriptionUrl)
     return resp.isSuccess();
 }
 
+namespace {
+
+    OsdConfig parseOsdNode(const pugi::xml_node& osdNode)
+    {
+        OsdConfig osd {};
+        osd.token = osdNode.attribute("token").as_string();
+
+        const auto vsn = findRecursiveNodeWithSuffix(osdNode, "VideoSourceConfigurationToken");
+        if (vsn) {
+            osd.videoSourceToken = vsn.text().as_string();
+        }
+
+        const auto posNode = findRecursiveNodeWithSuffix(osdNode, "Position");
+        if (posNode) {
+            const auto typeNode = findNodeWithSuffix(posNode, "Type");
+            const std::string posType = typeNode ? typeNode.text().as_string() : "UpperLeft";
+            if (posType == "UpperRight") {
+                osd.position = OsdPositionType::UpperRight;
+            } else if (posType == "LowerLeft") {
+                osd.position = OsdPositionType::LowerLeft;
+            } else if (posType == "LowerRight") {
+                osd.position = OsdPositionType::LowerRight;
+            } else if (posType == "Custom") {
+                osd.position = OsdPositionType::Custom;
+                const auto pNode = findNodeWithSuffix(posNode, "Pos");
+                if (pNode) {
+                    osd.customX = pNode.attribute("x").as_float(0.0f);
+                    osd.customY = pNode.attribute("y").as_float(0.0f);
+                }
+            } else {
+                osd.position = OsdPositionType::UpperLeft;
+            }
+        }
+
+        const auto textStringNode = findRecursiveNodeWithSuffix(osdNode, "TextString");
+        if (textStringNode) {
+            const auto typeNode = findNodeWithSuffix(textStringNode, "Type");
+            const std::string textType = typeNode ? typeNode.text().as_string() : "Plain";
+            osd.isDateAndTime = (textType == "DateAndTime");
+
+            const auto plainNode = findNodeWithSuffix(textStringNode, "PlainText");
+            if (plainNode) {
+                osd.plainText = plainNode.text().as_string();
+            }
+
+            const auto fsNode = findNodeWithSuffix(textStringNode, "FontSize");
+            if (fsNode) {
+                osd.fontSize = fsNode.text().as_uint(24U);
+            }
+
+            const auto dfNode = findNodeWithSuffix(textStringNode, "DateFormat");
+            if (dfNode) {
+                osd.dateFormat = dfNode.text().as_string();
+            }
+
+            const auto tfNode = findNodeWithSuffix(textStringNode, "TimeFormat");
+            if (tfNode) {
+                osd.timeFormat = tfNode.text().as_string();
+            }
+        }
+
+        return osd;
+    }
+
+} // namespace
+
+std::vector<OsdConfig> OnvifClient::getOSDs(const std::string& videoSourceConfigurationToken)
+{
+    if (m_capabilities.mediaXAddr.empty()) {
+        static_cast<void>(getCapabilities());
+    }
+
+    const std::string targetUrl = !m_capabilities.mediaXAddr.empty() ? m_capabilities.mediaXAddr : m_deviceEndpoint;
+
+    std::ostringstream ss {};
+    ss << "<trt:GetOSDs>\n";
+    if (!videoSourceConfigurationToken.empty()) {
+        ss << "  <trt:ConfigurationToken>" << videoSourceConfigurationToken << "</trt:ConfigurationToken>\n";
+    }
+    ss << "</trt:GetOSDs>";
+
+    const std::string reqXml = wrapSoapEnvelope(ss.str());
+    const HttpResponse resp = m_httpClient.sendPost(targetUrl, reqXml);
+    if (!resp.isSuccess()) {
+        return {};
+    }
+
+    return parseOsdListResponse(resp.body);
+}
+
+std::optional<OsdConfig> OnvifClient::getOSD(const std::string& osdToken)
+{
+    if (m_capabilities.mediaXAddr.empty()) {
+        static_cast<void>(getCapabilities());
+    }
+
+    const std::string targetUrl = !m_capabilities.mediaXAddr.empty() ? m_capabilities.mediaXAddr : m_deviceEndpoint;
+
+    std::ostringstream ss {};
+    ss << "<trt:GetOSD>\n"
+       << "  <trt:OSDToken>" << osdToken << "</trt:OSDToken>\n"
+       << "</trt:GetOSD>";
+
+    const std::string reqXml = wrapSoapEnvelope(ss.str());
+    const HttpResponse resp = m_httpClient.sendPost(targetUrl, reqXml);
+    if (!resp.isSuccess()) {
+        return std::nullopt;
+    }
+
+    return parseOsdResponse(resp.body);
+}
+
+std::string OnvifClient::createOSD(const OsdConfig& osd)
+{
+    if (m_capabilities.mediaXAddr.empty()) {
+        static_cast<void>(getCapabilities());
+    }
+
+    const std::string targetUrl = !m_capabilities.mediaXAddr.empty() ? m_capabilities.mediaXAddr : m_deviceEndpoint;
+
+    std::string posStr = "UpperLeft";
+    if (osd.position == OsdPositionType::UpperRight) {
+        posStr = "UpperRight";
+    } else if (osd.position == OsdPositionType::LowerLeft) {
+        posStr = "LowerLeft";
+    } else if (osd.position == OsdPositionType::LowerRight) {
+        posStr = "LowerRight";
+    } else if (osd.position == OsdPositionType::Custom) {
+        posStr = "Custom";
+    }
+
+    std::ostringstream ss {};
+    ss << "<trt:CreateOSD>\n"
+       << "  <trt:OSD";
+    if (!osd.token.empty()) {
+        ss << " token=\"" << osd.token << "\"";
+    }
+    ss << ">\n"
+       << "    <tt:VideoSourceConfigurationToken>" << osd.videoSourceToken << "</tt:VideoSourceConfigurationToken>\n"
+       << "    <tt:Type>Text</tt:Type>\n"
+       << "    <tt:Position>\n"
+       << "      <tt:Type>" << posStr << "</tt:Type>\n";
+    if (osd.position == OsdPositionType::Custom) {
+        ss << "      <tt:Pos x=\"" << osd.customX << "\" y=\"" << osd.customY << "\"/>\n";
+    }
+    ss << "    </tt:Position>\n"
+       << "    <tt:TextString>\n"
+       << "      <tt:Type>" << (osd.isDateAndTime ? "DateAndTime" : "Plain") << "</tt:Type>\n";
+    if (!osd.isDateAndTime) {
+        ss << "      <tt:PlainText>" << osd.plainText << "</tt:PlainText>\n";
+    } else {
+        ss << "      <tt:DateFormat>" << osd.dateFormat << "</tt:DateFormat>\n"
+           << "      <tt:TimeFormat>" << osd.timeFormat << "</tt:TimeFormat>\n";
+    }
+    ss << "      <tt:FontSize>" << osd.fontSize << "</tt:FontSize>\n"
+       << "    </tt:TextString>\n"
+       << "  </trt:OSD>\n"
+       << "</trt:CreateOSD>";
+
+    const std::string reqXml = wrapSoapEnvelope(ss.str());
+    const HttpResponse resp = m_httpClient.sendPost(targetUrl, reqXml);
+    if (!resp.isSuccess()) {
+        return {};
+    }
+
+    auto res = parseCreateOsdResponse(resp.body);
+    return res.value_or("");
+}
+
+bool OnvifClient::setOSD(const OsdConfig& osd)
+{
+    if (m_capabilities.mediaXAddr.empty()) {
+        static_cast<void>(getCapabilities());
+    }
+
+    const std::string targetUrl = !m_capabilities.mediaXAddr.empty() ? m_capabilities.mediaXAddr : m_deviceEndpoint;
+
+    std::string posStr = "UpperLeft";
+    if (osd.position == OsdPositionType::UpperRight) {
+        posStr = "UpperRight";
+    } else if (osd.position == OsdPositionType::LowerLeft) {
+        posStr = "LowerLeft";
+    } else if (osd.position == OsdPositionType::LowerRight) {
+        posStr = "LowerRight";
+    } else if (osd.position == OsdPositionType::Custom) {
+        posStr = "Custom";
+    }
+
+    std::ostringstream ss {};
+    ss << "<trt:SetOSD>\n"
+       << "  <trt:OSD token=\"" << osd.token << "\">\n"
+       << "    <tt:VideoSourceConfigurationToken>" << osd.videoSourceToken << "</tt:VideoSourceConfigurationToken>\n"
+       << "    <tt:Type>Text</tt:Type>\n"
+       << "    <tt:Position>\n"
+       << "      <tt:Type>" << posStr << "</tt:Type>\n";
+    if (osd.position == OsdPositionType::Custom) {
+        ss << "      <tt:Pos x=\"" << osd.customX << "\" y=\"" << osd.customY << "\"/>\n";
+    }
+    ss << "    </tt:Position>\n"
+       << "    <tt:TextString>\n"
+       << "      <tt:Type>" << (osd.isDateAndTime ? "DateAndTime" : "Plain") << "</tt:Type>\n";
+    if (!osd.isDateAndTime) {
+        ss << "      <tt:PlainText>" << osd.plainText << "</tt:PlainText>\n";
+    } else {
+        ss << "      <tt:DateFormat>" << osd.dateFormat << "</tt:DateFormat>\n"
+           << "      <tt:TimeFormat>" << osd.timeFormat << "</tt:TimeFormat>\n";
+    }
+    ss << "      <tt:FontSize>" << osd.fontSize << "</tt:FontSize>\n"
+       << "    </tt:TextString>\n"
+       << "  </trt:OSD>\n"
+       << "</trt:SetOSD>";
+
+    const std::string reqXml = wrapSoapEnvelope(ss.str());
+    const HttpResponse resp = m_httpClient.sendPost(targetUrl, reqXml);
+    return resp.isSuccess();
+}
+
+bool OnvifClient::deleteOSD(const std::string& osdToken)
+{
+    if (m_capabilities.mediaXAddr.empty()) {
+        static_cast<void>(getCapabilities());
+    }
+
+    const std::string targetUrl = !m_capabilities.mediaXAddr.empty() ? m_capabilities.mediaXAddr : m_deviceEndpoint;
+
+    std::ostringstream ss {};
+    ss << "<trt:DeleteOSD>\n"
+       << "  <trt:OSDToken>" << osdToken << "</trt:OSDToken>\n"
+       << "</trt:DeleteOSD>";
+
+    const std::string reqXml = wrapSoapEnvelope(ss.str());
+    const HttpResponse resp = m_httpClient.sendPost(targetUrl, reqXml);
+    return resp.isSuccess();
+}
+
+std::vector<OsdConfig> OnvifClient::parseOsdListResponse(const std::string& xml)
+{
+    pugi::xml_document doc {};
+    if (!doc.load_string(xml.c_str())) {
+        return {};
+    }
+
+    std::vector<pugi::xml_node> osdNodes {};
+    collectNodesWithSuffix(doc, "OSD", osdNodes);
+
+    std::vector<OsdConfig> result {};
+    result.reserve(osdNodes.size());
+    for (const auto& node : osdNodes) {
+        result.push_back(parseOsdNode(node));
+    }
+    return result;
+}
+
+std::optional<OsdConfig> OnvifClient::parseOsdResponse(const std::string& xml)
+{
+    pugi::xml_document doc {};
+    if (!doc.load_string(xml.c_str())) {
+        return std::nullopt;
+    }
+
+    const auto osdNode = findRecursiveNodeWithSuffix(doc, "OSD");
+    if (!osdNode) {
+        return std::nullopt;
+    }
+
+    return parseOsdNode(osdNode);
+}
+
+std::optional<std::string> OnvifClient::parseCreateOsdResponse(const std::string& xml)
+{
+    pugi::xml_document doc {};
+    if (!doc.load_string(xml.c_str())) {
+        return std::nullopt;
+    }
+
+    const auto tokenNode = findRecursiveNodeWithSuffix(doc, "OSDToken");
+    if (!tokenNode) {
+        return std::nullopt;
+    }
+
+    return tokenNode.text().as_string();
+}
+
 } // namespace PelcoD::Onvif

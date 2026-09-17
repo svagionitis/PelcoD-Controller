@@ -931,6 +931,237 @@ void testPtzServiceExtensionsServerAndAdapter()
     std::cout << "[PASS] testPtzServiceExtensionsServerAndAdapter" << std::endl;
 }
 
+void testMedia2OsdAndAnalytics()
+{
+    OnvifServerConfig config;
+    config.port = 18588;
+    config.bindAddress = "127.0.0.1";
+    config.deviceName = "Media2Cam";
+    config.model = "ONVIF-M2";
+    config.rtspStreamUri = "rtsp://127.0.0.1:8554/live2";
+
+    OnvifServer server(config);
+    assert(server.start());
+    assert(server.isRunning());
+
+    httplib::Client client("127.0.0.1", config.port);
+    client.set_connection_timeout(2, 0);
+    client.set_read_timeout(2, 0);
+
+    // 1. Verify GetServices advertises Media2 and Analytics
+    {
+        const std::string req
+            = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+              "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+              "xmlns:tds=\"http://www.onvif.org/ver10/device/wsdl\">\r\n"
+              "  <SOAP-ENV:Body><tds:GetServices><tds:IncludeCapability>false</tds:IncludeCapability></"
+              "tds:GetServices></SOAP-ENV:Body>\r\n"
+              "</SOAP-ENV:Envelope>";
+        auto res = client.Post("/onvif/device_service", req, "application/soap+xml; charset=utf-8");
+        assert(res && res->status == 200);
+        assert(res->body.find("http://www.onvif.org/ver20/media/wsdl") != std::string::npos);
+        assert(res->body.find("/onvif/media2_service") != std::string::npos);
+        assert(res->body.find("http://www.onvif.org/ver20/analytics/wsdl") != std::string::npos);
+        assert(res->body.find("/onvif/analytics_service") != std::string::npos);
+    }
+
+    // 2. Media2 Service (/onvif/media2_service)
+    {
+        // GetProfiles
+        const std::string reqProf = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+                                    "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                    "xmlns:tr2=\"http://www.onvif.org/ver20/media/wsdl\">\r\n"
+                                    "  <SOAP-ENV:Body><tr2:GetProfiles/></SOAP-ENV:Body>\r\n"
+                                    "</SOAP-ENV:Envelope>";
+        auto resProf = client.Post("/onvif/media2_service", reqProf, "application/soap+xml; charset=utf-8");
+        assert(resProf && resProf->status == 200);
+        pugi::xml_document docProf;
+        assert(docProf.load_string(resProf->body.c_str()));
+        assert(docProf.select_node("//*[local-name()='GetProfilesResponse']"));
+        assert(docProf.select_node("//*[local-name()='Profiles']"));
+        assert(docProf.select_node("//*[local-name()='VideoEncoder']"));
+
+        // GetStreamUri
+        const std::string reqUri
+            = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+              "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+              "xmlns:tr2=\"http://www.onvif.org/ver20/media/wsdl\">\r\n"
+              "  <SOAP-ENV:Body><tr2:GetStreamUri><tr2:ProfileToken>ProfileToken_1</tr2:ProfileToken></"
+              "tr2:GetStreamUri></SOAP-ENV:Body>\r\n"
+              "</SOAP-ENV:Envelope>";
+        auto resUri = client.Post("/onvif/media2_service", reqUri, "application/soap+xml; charset=utf-8");
+        assert(resUri && resUri->status == 200);
+        assert(resUri->body.find("rtsp://127.0.0.1:8554/live2") != std::string::npos);
+
+        // GetVideoEncoderConfigurations
+        const std::string reqEnc = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+                                   "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                   "xmlns:tr2=\"http://www.onvif.org/ver20/media/wsdl\">\r\n"
+                                   "  <SOAP-ENV:Body><tr2:GetVideoEncoderConfigurations/></SOAP-ENV:Body>\r\n"
+                                   "</SOAP-ENV:Envelope>";
+        auto resEnc = client.Post("/onvif/media2_service", reqEnc, "application/soap+xml; charset=utf-8");
+        assert(resEnc && resEnc->status == 200);
+        pugi::xml_document docEnc;
+        assert(docEnc.load_string(resEnc->body.c_str()));
+        assert(docEnc.select_node("//*[local-name()='Encoding']"));
+
+        // GetServiceCapabilities
+        const std::string reqCap = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+                                   "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                   "xmlns:tr2=\"http://www.onvif.org/ver20/media/wsdl\">\r\n"
+                                   "  <SOAP-ENV:Body><tr2:GetServiceCapabilities/></SOAP-ENV:Body>\r\n"
+                                   "</SOAP-ENV:Envelope>";
+        auto resCap = client.Post("/onvif/media2_service", reqCap, "application/soap+xml; charset=utf-8");
+        assert(resCap && resCap->status == 200);
+        assert(resCap->body.find("OSD=\"true\"") != std::string::npos);
+    }
+
+    // 3. OSD Management (/onvif/media_service & /onvif/media2_service)
+    {
+        // GetOSDOptions
+        const std::string reqOpt = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+                                   "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                   "xmlns:trt=\"http://www.onvif.org/ver10/media/wsdl\">\r\n"
+                                   "  <SOAP-ENV:Body><trt:GetOSDOptions/></SOAP-ENV:Body>\r\n"
+                                   "</SOAP-ENV:Envelope>";
+        auto resOpt = client.Post("/onvif/media_service", reqOpt, "application/soap+xml; charset=utf-8");
+        assert(resOpt && resOpt->status == 200);
+        assert(resOpt->body.find("PositionOption") != std::string::npos);
+
+        // GetOSDs (should include default OSD_1)
+        const std::string reqList = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+                                    "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                    "xmlns:trt=\"http://www.onvif.org/ver10/media/wsdl\">\r\n"
+                                    "  <SOAP-ENV:Body><trt:GetOSDs/></SOAP-ENV:Body>\r\n"
+                                    "</SOAP-ENV:Envelope>";
+        auto resList = client.Post("/onvif/media_service", reqList, "application/soap+xml; charset=utf-8");
+        assert(resList && resList->status == 200);
+        assert(resList->body.find("OSD_1") != std::string::npos);
+
+        // CreateOSD
+        const std::string reqCreate
+            = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+              "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+              "xmlns:trt=\"http://www.onvif.org/ver10/media/wsdl\" xmlns:tt=\"http://www.onvif.org/ver10/schema\">\r\n"
+              "  <SOAP-ENV:Body>\r\n"
+              "    <trt:CreateOSD>\r\n"
+              "      <trt:OSD token=\"OSD_TEST\">\r\n"
+              "        <tt:VideoSourceConfigurationToken>VideoSource_1</tt:VideoSourceConfigurationToken>\r\n"
+              "        <tt:Type>Text</tt:Type>\r\n"
+              "        <tt:Position><tt:Type>LowerRight</tt:Type></tt:Position>\r\n"
+              "        <tt:TextString>\r\n"
+              "          <tt:Type>Plain</tt:Type>\r\n"
+              "          <tt:PlainText>East Gate</tt:PlainText>\r\n"
+              "          <tt:FontSize>22</tt:FontSize>\r\n"
+              "        </tt:TextString>\r\n"
+              "      </trt:OSD>\r\n"
+              "    </trt:CreateOSD>\r\n"
+              "  </SOAP-ENV:Body>\r\n"
+              "</SOAP-ENV:Envelope>";
+        auto resCreate = client.Post("/onvif/media_service", reqCreate, "application/soap+xml; charset=utf-8");
+        assert(resCreate && resCreate->status == 200);
+        assert(resCreate->body.find("OSD_TEST") != std::string::npos);
+
+        // GetOSD
+        const std::string reqGet
+            = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+              "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+              "xmlns:trt=\"http://www.onvif.org/ver10/media/wsdl\">\r\n"
+              "  <SOAP-ENV:Body><trt:GetOSD><trt:OSDToken>OSD_TEST</trt:OSDToken></trt:GetOSD></SOAP-ENV:Body>\r\n"
+              "</SOAP-ENV:Envelope>";
+        auto resGet = client.Post("/onvif/media_service", reqGet, "application/soap+xml; charset=utf-8");
+        assert(resGet && resGet->status == 200);
+        assert(resGet->body.find("East Gate") != std::string::npos);
+        assert(resGet->body.find("LowerRight") != std::string::npos);
+
+        // SetOSD via Media2 endpoint
+        const std::string reqSet
+            = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+              "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+              "xmlns:tr2=\"http://www.onvif.org/ver20/media/wsdl\" xmlns:tt=\"http://www.onvif.org/ver10/schema\">\r\n"
+              "  <SOAP-ENV:Body>\r\n"
+              "    <tr2:SetOSD>\r\n"
+              "      <tr2:OSD token=\"OSD_TEST\">\r\n"
+              "        <tt:VideoSourceConfigurationToken>VideoSource_1</tt:VideoSourceConfigurationToken>\r\n"
+              "        <tt:Type>Text</tt:Type>\r\n"
+              "        <tt:Position><tt:Type>UpperRight</tt:Type></tt:Position>\r\n"
+              "        <tt:TextString>\r\n"
+              "          <tt:Type>Plain</tt:Type>\r\n"
+              "          <tt:PlainText>East Gate - Armed</tt:PlainText>\r\n"
+              "          <tt:FontSize>26</tt:FontSize>\r\n"
+              "        </tt:TextString>\r\n"
+              "      </tr2:OSD>\r\n"
+              "    </tr2:SetOSD>\r\n"
+              "  </SOAP-ENV:Body>\r\n"
+              "</SOAP-ENV:Envelope>";
+        auto resSet = client.Post("/onvif/media2_service", reqSet, "application/soap+xml; charset=utf-8");
+        assert(resSet && resSet->status == 200);
+
+        // DeleteOSD
+        const std::string reqDel
+            = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+              "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+              "xmlns:trt=\"http://www.onvif.org/ver10/media/wsdl\">\r\n"
+              "  "
+              "<SOAP-ENV:Body><trt:DeleteOSD><trt:OSDToken>OSD_TEST</trt:OSDToken></trt:DeleteOSD></SOAP-ENV:Body>\r\n"
+              "</SOAP-ENV:Envelope>";
+        auto resDel = client.Post("/onvif/media_service", reqDel, "application/soap+xml; charset=utf-8");
+        assert(resDel && resDel->status == 200);
+    }
+
+    // 4. Analytics Service (/onvif/analytics_service)
+    {
+        const std::string reqCap = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+                                   "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                   "xmlns:tan=\"http://www.onvif.org/ver20/analytics/wsdl\">\r\n"
+                                   "  <SOAP-ENV:Body><tan:GetServiceCapabilities/></SOAP-ENV:Body>\r\n"
+                                   "</SOAP-ENV:Envelope>";
+        auto resCap = client.Post("/onvif/analytics_service", reqCap, "application/soap+xml; charset=utf-8");
+        assert(resCap && resCap->status == 200);
+        assert(resCap->body.find("RuleSupport=\"true\"") != std::string::npos);
+
+        const std::string reqRules = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+                                     "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                     "xmlns:tan=\"http://www.onvif.org/ver20/analytics/wsdl\">\r\n"
+                                     "  <SOAP-ENV:Body><tan:GetSupportedRules/></SOAP-ENV:Body>\r\n"
+                                     "</SOAP-ENV:Envelope>";
+        auto resRules = client.Post("/onvif/analytics_service", reqRules, "application/soap+xml; charset=utf-8");
+        assert(resRules && resRules->status == 200);
+        assert(resRules->body.find("CellMotionDetector") != std::string::npos);
+    }
+
+    // 5. Event Push Subscription (<wsnt:Subscribe>)
+    {
+        const std::string reqSub
+            = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+              "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+              "xmlns:wsnt=\"http://docs.oasis-open.org/wsn/b-2\" "
+              "xmlns:wsa=\"http://schemas.xmlsoap.org/ws/2004/08/addressing\">\r\n"
+              "  <SOAP-ENV:Body>\r\n"
+              "    <wsnt:Subscribe>\r\n"
+              "      <wsnt:ConsumerReference><wsa:Address>http://127.0.0.1:18589/notify</wsa:Address></"
+              "wsnt:ConsumerReference>\r\n"
+              "    </wsnt:Subscribe>\r\n"
+              "  </SOAP-ENV:Body>\r\n"
+              "</SOAP-ENV:Envelope>";
+        auto resSub = client.Post("/onvif/event_service", reqSub, "application/soap+xml; charset=utf-8");
+        assert(resSub && resSub->status == 200);
+        assert(resSub->body.find("SubscribeResponse") != std::string::npos);
+        assert(resSub->body.find("SubscriptionReference") != std::string::npos);
+
+        // Publish event to exercise push path
+        OnvifEvent ev;
+        ev.topic = "tns1:RuleEngine/CellMotionDetector/Motion";
+        ev.dataName = "IsMotion";
+        ev.dataValue = "true";
+        server.publishEvent(ev);
+    }
+
+    server.stop();
+    assert(!server.isRunning());
+    std::cout << "[PASS] testMedia2OsdAndAnalytics" << std::endl;
+}
+
 int main()
 {
     std::cout << "Starting TestOnvifServer test suite..." << std::endl;
@@ -940,6 +1171,7 @@ int main()
     testPelcoDPtzAdapter();
     testPresetToursServerAndAdapter();
     testPtzServiceExtensionsServerAndAdapter();
+    testMedia2OsdAndAnalytics();
     std::cout << "All TestOnvifServer tests passed successfully!" << std::endl;
     return 0;
 }

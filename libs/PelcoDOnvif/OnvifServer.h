@@ -14,8 +14,13 @@
 #include <map>
 #include <memory>
 #include <mutex>
+#include <sstream>
 #include <string>
 #include <thread>
+
+namespace pugi {
+class xml_document;
+}
 
 namespace PelcoD::Onvif {
 
@@ -29,7 +34,7 @@ public:
     /// @param[in] ptzHandler Optional handler receiving PTZ motion and preset events.
     /// @param[in] imagingHandler Optional handler receiving Profile T imaging requests.
     explicit OnvifServer(OnvifServerConfig config, std::shared_ptr<IPtzHandler> ptzHandler = nullptr,
-        std::shared_ptr<IImagingHandler> imagingHandler = nullptr);
+        std::shared_ptr<IImagingHandler> imagingHandler = nullptr, std::shared_ptr<IOsdHandler> osdHandler = nullptr);
 
     /// @brief Destructor stops HTTP service and WS-Discovery daemon.
     ~OnvifServer();
@@ -63,7 +68,11 @@ public:
     /// @param[in] handler New IImagingHandler instance.
     void setImagingHandler(std::shared_ptr<IImagingHandler> handler);
 
-    /// @brief Pushes an asynchronous ONVIF event to all active PullPoint subscriptions.
+    /// @brief Sets or replaces the active OSD handler.
+    /// @param[in] handler New IOsdHandler instance.
+    void setOsdHandler(std::shared_ptr<IOsdHandler> handler);
+
+    /// @brief Pushes an asynchronous ONVIF event to active PullPoint and push subscriptions.
     /// @param[in] event The event to publish.
     void publishEvent(const OnvifEvent& event);
 
@@ -75,10 +84,15 @@ private:
     void setupRoutes();
     void handleDeviceService(const httplib::Request& req, httplib::Response& res);
     void handleMediaService(const httplib::Request& req, httplib::Response& res);
+    void handleMedia2Service(const httplib::Request& req, httplib::Response& res);
     void handlePtzService(const httplib::Request& req, httplib::Response& res);
     void handleImagingService(const httplib::Request& req, httplib::Response& res);
     void handleEventService(const httplib::Request& req, httplib::Response& res);
     void handleSubscriptionService(const httplib::Request& req, httplib::Response& res);
+    void handleAnalyticsService(const httplib::Request& req, httplib::Response& res);
+
+    void processOsdRequest(
+        const std::string& opName, const pugi::xml_document& doc, std::ostringstream& body, const std::string& prefix);
 
     [[nodiscard]] std::string resolveHost(const httplib::Request& req) const;
 
@@ -90,15 +104,27 @@ private:
         std::condition_variable cv {};
     };
 
+    struct PushSubscription {
+        std::string id {};
+        std::string consumerUrl {};
+        std::chrono::steady_clock::time_point terminationTime {};
+    };
+
     OnvifServerConfig m_config;
     RequestLogCallback m_logCallback {};
     std::shared_ptr<IPtzHandler> m_ptzHandler;
     std::shared_ptr<IImagingHandler> m_imagingHandler;
+    std::shared_ptr<IOsdHandler> m_osdHandler;
     std::unique_ptr<WsDiscoveryServer> m_discoveryServer;
     httplib::Server m_httpServer;
 
+    mutable std::mutex m_osdMutex {};
+    std::map<std::string, OsdConfig> m_internalOsds {};
+    uint32_t m_nextOsdId { 1 };
+
     mutable std::mutex m_subMutex {};
     std::map<std::string, std::shared_ptr<PullPointSubscription>> m_subscriptions {};
+    std::map<std::string, PushSubscription> m_pushSubscriptions {};
     uint32_t m_nextSubId { 1 };
 
     std::atomic<bool> m_running { false };

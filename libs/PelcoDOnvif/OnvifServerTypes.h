@@ -219,4 +219,51 @@ public:
     }
 };
 
+/// @class IOsdHandler
+/// @brief Interface receiving ONVIF On-Screen Display (OSD) management events.
+class IOsdHandler {
+public:
+    virtual ~IOsdHandler() = default;
+
+    /// @brief Queries list of all configured OSD overlays for a video source.
+    /// @param[in] videoSourceToken Video source token.
+    /// @return List of OsdConfig structs.
+    [[nodiscard]] virtual std::vector<OsdConfig> handleGetOSDs(const std::string& /*videoSourceToken*/)
+    {
+        return {};
+    }
+
+    /// @brief Queries a specific OSD overlay by token.
+    /// @param[in] osdToken OSD identifier token.
+    /// @return OsdConfig or nullopt if not found.
+    [[nodiscard]] virtual std::optional<OsdConfig> handleGetOSD(const std::string& /*osdToken*/)
+    {
+        return std::nullopt;
+    }
+
+    /// @brief Creates a new OSD overlay configuration.
+    /// @param[in] osd OSD configuration parameters.
+    /// @return Assigned token string or empty on failure.
+    [[nodiscard]] virtual std::string handleCreateOSD(const OsdConfig& /*osd*/)
+    {
+        return {};
+    }
+
+    /// @brief Modifies an existing OSD overlay.
+    /// @param[in] osd Updated OSD configuration.
+    /// @return True on success.
+    [[nodiscard]] virtual bool handleSetOSD(const OsdConfig& /*osd*/)
+    {
+        return false;
+    }
+
+    /// @brief Deletes an OSD overlay.
+    /// @param[in] osdToken Token of the OSD to delete.
+    /// @return True if removed successfully.
+    [[nodiscard]] virtual bool handleDeleteOSD(const std::string& /*osdToken*/)
+    {
+        return false;
+    }
+};
+
 } // namespace PelcoD::Onvif

@@ -136,6 +136,7 @@ void QOnvifDevice::disconnectFromCamera()
     m_profiles.clear();
     m_presets.clear();
     m_presetTours.clear();
+    m_osds.clear();
     m_deviceInfo = {};
     m_client.reset();
 
@@ -172,6 +173,7 @@ bool QOnvifDevice::setActiveProfile(const QString& token)
     refreshPresets();
     refreshPresetTours();
     refreshImagingSettings();
+    refreshOSDs();
     return !m_rtspStreamUri.isEmpty();
 }
 
@@ -489,6 +491,61 @@ void QOnvifDevice::stopEventSubscription()
 bool QOnvifDevice::isEventSubscriptionActive() const
 {
     return m_eventSubActive;
+}
+
+void QOnvifDevice::refreshOSDs()
+{
+    if (!m_client) {
+        return;
+    }
+    const std::string vsToken = m_activeVideoSourceToken.toStdString();
+    m_osds = m_client->getOSDs(vsToken);
+    emit osdsUpdated(m_osds);
+}
+
+QString QOnvifDevice::createOSD(const PelcoD::Onvif::OsdConfig& osd)
+{
+    if (!m_client) {
+        return QString();
+    }
+    PelcoD::Onvif::OsdConfig cfg = osd;
+    if (cfg.videoSourceToken.empty() && !m_activeVideoSourceToken.isEmpty()) {
+        cfg.videoSourceToken = m_activeVideoSourceToken.toStdString();
+    }
+    const std::string token = m_client->createOSD(cfg);
+    if (!token.empty()) {
+        refreshOSDs();
+        return QString::fromStdString(token);
+    }
+    return QString();
+}
+
+bool QOnvifDevice::setOSD(const PelcoD::Onvif::OsdConfig& osd)
+{
+    if (!m_client) {
+        return false;
+    }
+    PelcoD::Onvif::OsdConfig cfg = osd;
+    if (cfg.videoSourceToken.empty() && !m_activeVideoSourceToken.isEmpty()) {
+        cfg.videoSourceToken = m_activeVideoSourceToken.toStdString();
+    }
+    const bool ok = m_client->setOSD(cfg);
+    if (ok) {
+        refreshOSDs();
+    }
+    return ok;
+}
+
+bool QOnvifDevice::deleteOSD(const QString& osdToken)
+{
+    if (!m_client || osdToken.isEmpty()) {
+        return false;
+    }
+    const bool ok = m_client->deleteOSD(osdToken.toStdString());
+    if (ok) {
+        refreshOSDs();
+    }
+    return ok;
 }
 
 } // namespace PelcoD::Qt

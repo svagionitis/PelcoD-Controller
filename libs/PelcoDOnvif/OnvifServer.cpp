@@ -19,9 +19,11 @@ namespace {
             << "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
             << "xmlns:tds=\"http://www.onvif.org/ver10/device/wsdl\" "
             << "xmlns:trt=\"http://www.onvif.org/ver10/media/wsdl\" "
+            << "xmlns:tr2=\"http://www.onvif.org/ver20/media/wsdl\" "
             << "xmlns:tptz=\"http://www.onvif.org/ver20/ptz/wsdl\" "
             << "xmlns:timg=\"http://www.onvif.org/ver20/imaging/wsdl\" "
             << "xmlns:tev=\"http://www.onvif.org/ver10/events/wsdl\" "
+            << "xmlns:tan=\"http://www.onvif.org/ver20/analytics/wsdl\" "
             << "xmlns:wsnt=\"http://docs.oasis-open.org/wsn/b-2\" "
             << "xmlns:wsa=\"http://schemas.xmlsoap.org/ws/2004/08/addressing\" "
             << "xmlns:tt=\"http://www.onvif.org/ver10/schema\">\r\n"
@@ -29,6 +31,17 @@ namespace {
             << bodyXml << "  </SOAP-ENV:Body>\r\n"
             << "</SOAP-ENV:Envelope>\r\n";
         return oss.str();
+    }
+
+    bool isOp(const std::string& opName, const std::string& target)
+    {
+        if (opName == target) {
+            return true;
+        }
+        if (opName.length() > target.length() && opName.rfind(":" + target) == opName.length() - target.length() - 1) {
+            return true;
+        }
+        return false;
     }
 
     std::string formatIso8601Utc(const std::chrono::system_clock::time_point& tp)
@@ -66,12 +79,22 @@ namespace {
 
 } // namespace
 
-OnvifServer::OnvifServer(
-    OnvifServerConfig config, std::shared_ptr<IPtzHandler> ptzHandler, std::shared_ptr<IImagingHandler> imagingHandler)
+OnvifServer::OnvifServer(OnvifServerConfig config, std::shared_ptr<IPtzHandler> ptzHandler,
+    std::shared_ptr<IImagingHandler> imagingHandler, std::shared_ptr<IOsdHandler> osdHandler)
     : m_config(std::move(config))
     , m_ptzHandler(std::move(ptzHandler))
     , m_imagingHandler(std::move(imagingHandler))
+    , m_osdHandler(std::move(osdHandler))
 {
+    OsdConfig defaultOsd;
+    defaultOsd.token = "OSD_1";
+    defaultOsd.videoSourceToken = "VideoSource_1";
+    defaultOsd.type = OsdType::Text;
+    defaultOsd.position = OsdPositionType::UpperLeft;
+    defaultOsd.plainText = "PelcoD Camera";
+    defaultOsd.fontSize = 24U;
+    m_internalOsds[defaultOsd.token] = defaultOsd;
+
     m_discoveryServer = std::make_unique<WsDiscoveryServer>(m_config);
     setupRoutes();
 }
@@ -150,6 +173,11 @@ void OnvifServer::setImagingHandler(std::shared_ptr<IImagingHandler> handler)
     m_imagingHandler = std::move(handler);
 }
 
+void OnvifServer::setOsdHandler(std::shared_ptr<IOsdHandler> handler)
+{
+    m_osdHandler = std::move(handler);
+}
+
 void OnvifServer::publishEvent(const OnvifEvent& event)
 {
     OnvifEvent ev = event;
@@ -157,11 +185,42 @@ void OnvifServer::publishEvent(const OnvifEvent& event)
         ev.utcTime = formatIso8601Utc(std::chrono::system_clock::now());
     }
 
-    std::lock_guard<std::mutex> lock(m_subMutex);
-    for (auto& [id, sub] : m_subscriptions) {
-        std::lock_guard<std::mutex> subLock(sub->mutex);
-        sub->queue.push_back(ev);
-        sub->cv.notify_one();
+    std::vector<std::string> pushUrls;
+    {
+        std::lock_guard<std::mutex> lock(m_subMutex);
+        for (auto& [id, sub] : m_subscriptions) {
+            std::lock_guard<std::mutex> subLock(sub->mutex);
+            sub->queue.push_back(ev);
+            sub->cv.notify_one();
+        }
+        for (const auto& [id, pushSub] : m_pushSubscriptions) {
+            if (!pushSub.consumerUrl.empty()) {
+                pushUrls.push_back(pushSub.consumerUrl);
+            }
+        }
+    }
+
+    if (!pushUrls.empty()) {
+        std::thread([pushUrls = std::move(pushUrls), ev]() {
+            for (const auto& url : pushUrls) {
+                try {
+                    const std::string prefixHttp = "http://";
+                    if (url.rfind(prefixHttp, 0) == 0) {
+                        const std::string noPrefix = url.substr(prefixHttp.length());
+                        const auto slashPos = noPrefix.find('/');
+                        const std::string hostPort
+                            = (slashPos != std::string::npos) ? noPrefix.substr(0, slashPos) : noPrefix;
+                        const std::string path = (slashPos != std::string::npos) ? noPrefix.substr(slashPos) : "/";
+                        httplib::Client cli(hostPort);
+                        cli.set_connection_timeout(1, 0);
+                        cli.set_read_timeout(1, 0);
+                        cli.Post(path.c_str(), "<NotificationMessage/>", "application/soap+xml; charset=utf-8");
+                    }
+                } catch (...) {
+                    // Ignore client connection error on push notifications
+                }
+            }
+        }).detach();
     }
 }
 
@@ -196,6 +255,9 @@ void OnvifServer::setupRoutes()
     m_httpServer.Post("/onvif/media_service",
         [this](const httplib::Request& req, httplib::Response& res) { handleMediaService(req, res); });
 
+    m_httpServer.Post("/onvif/media2_service",
+        [this](const httplib::Request& req, httplib::Response& res) { handleMedia2Service(req, res); });
+
     m_httpServer.Post("/onvif/ptz_service",
         [this](const httplib::Request& req, httplib::Response& res) { handlePtzService(req, res); });
 
@@ -210,6 +272,9 @@ void OnvifServer::setupRoutes()
 
     m_httpServer.Post(R"(/onvif/events/subscription/(.+))",
         [this](const httplib::Request& req, httplib::Response& res) { handleSubscriptionService(req, res); });
+
+    m_httpServer.Post("/onvif/analytics_service",
+        [this](const httplib::Request& req, httplib::Response& res) { handleAnalyticsService(req, res); });
 
     m_httpServer.Get("/onvif/snapshot", [](const httplib::Request&, httplib::Response& res) {
         res.status = 501;
@@ -285,6 +350,10 @@ void OnvifServer::handleDeviceService(const httplib::Request& req, httplib::Resp
              << "        <tt:Events>\r\n"
              << "          <tt:XAddr>http://" << host << ":" << port << "/onvif/event_service</tt:XAddr>\r\n"
              << "        </tt:Events>\r\n"
+             << "        <tt:Analytics>\r\n"
+             << "          <tt:XAddr>http://" << host << ":" << port << "/onvif/analytics_service</tt:XAddr>\r\n"
+             << "          <tt:RuleSupport>true</tt:RuleSupport>\r\n"
+             << "        </tt:Analytics>\r\n"
              << "      </tds:Capabilities>\r\n"
              << "    </tds:GetCapabilitiesResponse>\r\n";
     } else if (opName.find("GetServices") != std::string::npos) {
@@ -300,6 +369,11 @@ void OnvifServer::handleDeviceService(const httplib::Request& req, httplib::Resp
              << "        <tds:Version><tt:Major>10</tt:Major><tt:Minor>0</tt:Minor></tds:Version>\r\n"
              << "      </tds:Service>\r\n"
              << "      <tds:Service>\r\n"
+             << "        <tds:Namespace>http://www.onvif.org/ver20/media/wsdl</tds:Namespace>\r\n"
+             << "        <tds:XAddr>http://" << host << ":" << port << "/onvif/media2_service</tds:XAddr>\r\n"
+             << "        <tds:Version><tt:Major>20</tt:Major><tt:Minor>0</tt:Minor></tds:Version>\r\n"
+             << "      </tds:Service>\r\n"
+             << "      <tds:Service>\r\n"
              << "        <tds:Namespace>http://www.onvif.org/ver20/ptz/wsdl</tds:Namespace>\r\n"
              << "        <tds:XAddr>http://" << host << ":" << port << "/onvif/ptz_service</tds:XAddr>\r\n"
              << "        <tds:Version><tt:Major>2</tt:Major><tt:Minor>0</tt:Minor></tds:Version>\r\n"
@@ -313,6 +387,11 @@ void OnvifServer::handleDeviceService(const httplib::Request& req, httplib::Resp
              << "        <tds:Namespace>http://www.onvif.org/ver10/events/wsdl</tds:Namespace>\r\n"
              << "        <tds:XAddr>http://" << host << ":" << port << "/onvif/event_service</tds:XAddr>\r\n"
              << "        <tds:Version><tt:Major>10</tt:Major><tt:Minor>0</tt:Minor></tds:Version>\r\n"
+             << "      </tds:Service>\r\n"
+             << "      <tds:Service>\r\n"
+             << "        <tds:Namespace>http://www.onvif.org/ver20/analytics/wsdl</tds:Namespace>\r\n"
+             << "        <tds:XAddr>http://" << host << ":" << port << "/onvif/analytics_service</tds:XAddr>\r\n"
+             << "        <tds:Version><tt:Major>20</tt:Major><tt:Minor>0</tt:Minor></tds:Version>\r\n"
              << "      </tds:Service>\r\n"
              << "    </tds:GetServicesResponse>\r\n";
     } else if (opName.find("GetScopes") != std::string::npos) {
@@ -360,7 +439,10 @@ void OnvifServer::handleMediaService(const httplib::Request& req, httplib::Respo
 
     std::ostringstream body;
 
-    if (opName.find("GetProfiles") != std::string::npos) {
+    if (isOp(opName, "GetOSDOptions") || isOp(opName, "GetOSDs") || isOp(opName, "GetOSD") || isOp(opName, "CreateOSD")
+        || isOp(opName, "SetOSD") || isOp(opName, "DeleteOSD")) {
+        processOsdRequest(opName, doc, body, "trt");
+    } else if (opName.find("GetProfiles") != std::string::npos) {
         body << "    <trt:GetProfilesResponse>\r\n"
              << "      <trt:Profiles token=\"ProfileToken_1\" fixed=\"true\">\r\n"
              << "        <tt:Name>MainProfile</tt:Name>\r\n"
@@ -410,6 +492,329 @@ void OnvifServer::handleMediaService(const httplib::Request& req, httplib::Respo
              << "    </trt:GetSnapshotUriResponse>\r\n";
     } else {
         body << "    <trt:" << opName << "Response/>\r\n";
+    }
+
+    res.status = 200;
+    res.set_content(wrapSoapResponse(body.str()), "application/soap+xml; charset=utf-8");
+}
+
+void OnvifServer::processOsdRequest(
+    const std::string& opName, const pugi::xml_document& doc, std::ostringstream& body, const std::string& prefix)
+{
+    auto serializeOsd = [&](const OsdConfig& osd) {
+        std::string posStr = "UpperLeft";
+        if (osd.position == OsdPositionType::UpperRight) {
+            posStr = "UpperRight";
+        } else if (osd.position == OsdPositionType::LowerLeft) {
+            posStr = "LowerLeft";
+        } else if (osd.position == OsdPositionType::LowerRight) {
+            posStr = "LowerRight";
+        } else if (osd.position == OsdPositionType::Custom) {
+            posStr = "Custom";
+        }
+
+        std::ostringstream s;
+        s << "      <" << prefix << ":OSD token=\"" << osd.token << "\">\r\n"
+          << "        <tt:VideoSourceConfigurationToken>" << osd.videoSourceToken
+          << "</tt:VideoSourceConfigurationToken>\r\n"
+          << "        <tt:Type>Text</tt:Type>\r\n"
+          << "        <tt:Position>\r\n"
+          << "          <tt:Type>" << posStr << "</tt:Type>\r\n";
+        if (osd.position == OsdPositionType::Custom) {
+            s << "          <tt:Pos x=\"" << osd.customX << "\" y=\"" << osd.customY << "\"/>\r\n";
+        }
+        s << "        </tt:Position>\r\n"
+          << "        <tt:TextString>\r\n"
+          << "          <tt:Type>" << (osd.isDateAndTime ? "DateAndTime" : "Plain") << "</tt:Type>\r\n";
+        if (!osd.isDateAndTime) {
+            s << "          <tt:PlainText>" << osd.plainText << "</tt:PlainText>\r\n";
+        } else {
+            s << "          <tt:DateFormat>" << osd.dateFormat << "</tt:DateFormat>\r\n"
+              << "          <tt:TimeFormat>" << osd.timeFormat << "</tt:TimeFormat>\r\n";
+        }
+        s << "          <tt:FontSize>" << osd.fontSize << "</tt:FontSize>\r\n"
+          << "        </tt:TextString>\r\n"
+          << "      </" << prefix << ":OSD>\r\n";
+        return s.str();
+    };
+
+    auto parseOsdConfig = [](const pugi::xml_node& osdNode) -> OsdConfig {
+        OsdConfig osd;
+        if (!osdNode) {
+            return osd;
+        }
+        osd.token = osdNode.attribute("token").as_string();
+        const pugi::xml_node vsn = osdNode.select_node(".//*[local-name()='VideoSourceConfigurationToken']").node();
+        if (vsn) {
+            osd.videoSourceToken = vsn.text().as_string();
+        }
+
+        const pugi::xml_node posTypeNode
+            = osdNode.select_node(".//*[local-name()='Position']/*[local-name()='Type']").node();
+        const std::string posType = posTypeNode ? posTypeNode.text().as_string() : "UpperLeft";
+        if (posType == "UpperRight") {
+            osd.position = OsdPositionType::UpperRight;
+        } else if (posType == "LowerLeft") {
+            osd.position = OsdPositionType::LowerLeft;
+        } else if (posType == "LowerRight") {
+            osd.position = OsdPositionType::LowerRight;
+        } else if (posType == "Custom") {
+            osd.position = OsdPositionType::Custom;
+            const pugi::xml_node posNode
+                = osdNode.select_node(".//*[local-name()='Position']/*[local-name()='Pos']").node();
+            if (posNode) {
+                osd.customX = posNode.attribute("x").as_float(0.0f);
+                osd.customY = posNode.attribute("y").as_float(0.0f);
+            }
+        } else {
+            osd.position = OsdPositionType::UpperLeft;
+        }
+
+        const pugi::xml_node textTypeNode
+            = osdNode.select_node(".//*[local-name()='TextString']/*[local-name()='Type']").node();
+        const std::string textType = textTypeNode ? textTypeNode.text().as_string() : "Plain";
+        osd.isDateAndTime = (textType == "DateAndTime");
+
+        const pugi::xml_node ptNode
+            = osdNode.select_node(".//*[local-name()='TextString']/*[local-name()='PlainText']").node();
+        if (ptNode) {
+            osd.plainText = ptNode.text().as_string();
+        }
+
+        const pugi::xml_node fsNode
+            = osdNode.select_node(".//*[local-name()='TextString']/*[local-name()='FontSize']").node();
+        if (fsNode) {
+            osd.fontSize = fsNode.text().as_uint(24U);
+        }
+
+        const pugi::xml_node dfNode
+            = osdNode.select_node(".//*[local-name()='TextString']/*[local-name()='DateFormat']").node();
+        if (dfNode) {
+            osd.dateFormat = dfNode.text().as_string();
+        }
+
+        const pugi::xml_node tfNode
+            = osdNode.select_node(".//*[local-name()='TextString']/*[local-name()='TimeFormat']").node();
+        if (tfNode) {
+            osd.timeFormat = tfNode.text().as_string();
+        }
+
+        return osd;
+    };
+
+    if (isOp(opName, "GetOSDOptions")) {
+        body << "    <" << prefix << ":GetOSDOptionsResponse>\r\n"
+             << "      <" << prefix << ":OSDOptions>\r\n"
+             << "        <tt:MaximumNumberOfOSDs Total=\"10\" Image=\"2\" PlainText=\"8\" DateAndTime=\"4\"/>\r\n"
+             << "        <tt:Type>Text</tt:Type>\r\n"
+             << "        <tt:PositionOption>UpperLeft</tt:PositionOption>\r\n"
+             << "        <tt:PositionOption>UpperRight</tt:PositionOption>\r\n"
+             << "        <tt:PositionOption>LowerLeft</tt:PositionOption>\r\n"
+             << "        <tt:PositionOption>LowerRight</tt:PositionOption>\r\n"
+             << "        <tt:PositionOption>Custom</tt:PositionOption>\r\n"
+             << "        <tt:TextOption>\r\n"
+             << "          <tt:Type>Plain</tt:Type>\r\n"
+             << "          <tt:Type>DateAndTime</tt:Type>\r\n"
+             << "          <tt:FontSizeRange Min=\"12\" Max=\"64\"/>\r\n"
+             << "          <tt:DateFormat>YYYY/MM/DD</tt:DateFormat>\r\n"
+             << "          <tt:TimeFormat>HH:mm:ss</tt:TimeFormat>\r\n"
+             << "        </tt:TextOption>\r\n"
+             << "      </" << prefix << ":OSDOptions>\r\n"
+             << "    </" << prefix << ":GetOSDOptionsResponse>\r\n";
+    } else if (isOp(opName, "GetOSDs")) {
+        const pugi::xml_node vsNode = doc.select_node("//*[local-name()='ConfigurationToken']").node();
+        const std::string vsToken = vsNode ? vsNode.text().as_string() : "";
+
+        std::vector<OsdConfig> osds;
+        if (m_osdHandler) {
+            osds = m_osdHandler->handleGetOSDs(vsToken);
+        }
+        if (osds.empty()) {
+            std::lock_guard<std::mutex> lock(m_osdMutex);
+            for (const auto& [tok, osd] : m_internalOsds) {
+                if (vsToken.empty() || osd.videoSourceToken == vsToken) {
+                    osds.push_back(osd);
+                }
+            }
+        }
+
+        body << "    <" << prefix << ":GetOSDsResponse>\r\n";
+        for (const auto& osd : osds) {
+            body << serializeOsd(osd);
+        }
+        body << "    </" << prefix << ":GetOSDsResponse>\r\n";
+    } else if (isOp(opName, "GetOSD")) {
+        const pugi::xml_node tokenNode = doc.select_node("//*[local-name()='OSDToken']").node();
+        const std::string token = tokenNode ? tokenNode.text().as_string() : "";
+
+        std::optional<OsdConfig> found;
+        if (m_osdHandler) {
+            found = m_osdHandler->handleGetOSD(token);
+        }
+        if (!found) {
+            std::lock_guard<std::mutex> lock(m_osdMutex);
+            const auto it = m_internalOsds.find(token);
+            if (it != m_internalOsds.end()) {
+                found = it->second;
+            }
+        }
+
+        body << "    <" << prefix << ":GetOSDResponse>\r\n";
+        if (found) {
+            body << serializeOsd(*found);
+        }
+        body << "    </" << prefix << ":GetOSDResponse>\r\n";
+    } else if (isOp(opName, "CreateOSD")) {
+        const pugi::xml_node osdNode = doc.select_node("//*[local-name()='OSD']").node();
+        OsdConfig osd = parseOsdConfig(osdNode);
+
+        std::string assignedToken;
+        if (m_osdHandler) {
+            assignedToken = m_osdHandler->handleCreateOSD(osd);
+        }
+        if (assignedToken.empty()) {
+            std::lock_guard<std::mutex> lock(m_osdMutex);
+            if (osd.token.empty()) {
+                osd.token = "OSD_" + std::to_string(m_nextOsdId++);
+            }
+            assignedToken = osd.token;
+            m_internalOsds[assignedToken] = osd;
+        }
+
+        body << "    <" << prefix << ":CreateOSDResponse>\r\n"
+             << "      <" << prefix << ":OSDToken>" << assignedToken << "</" << prefix << ":OSDToken>\r\n"
+             << "    </" << prefix << ":CreateOSDResponse>\r\n";
+    } else if (isOp(opName, "SetOSD")) {
+        const pugi::xml_node osdNode = doc.select_node("//*[local-name()='OSD']").node();
+        OsdConfig osd = parseOsdConfig(osdNode);
+
+        bool ok = false;
+        if (m_osdHandler) {
+            ok = m_osdHandler->handleSetOSD(osd);
+        }
+        if (!ok) {
+            std::lock_guard<std::mutex> lock(m_osdMutex);
+            if (!osd.token.empty()) {
+                m_internalOsds[osd.token] = osd;
+            }
+        }
+
+        body << "    <" << prefix << ":SetOSDResponse/>\r\n";
+    } else if (isOp(opName, "DeleteOSD")) {
+        const pugi::xml_node tokenNode = doc.select_node("//*[local-name()='OSDToken']").node();
+        const std::string token = tokenNode ? tokenNode.text().as_string() : "";
+
+        bool ok = false;
+        if (m_osdHandler) {
+            ok = m_osdHandler->handleDeleteOSD(token);
+        }
+        if (!ok) {
+            std::lock_guard<std::mutex> lock(m_osdMutex);
+            m_internalOsds.erase(token);
+        }
+
+        body << "    <" << prefix << ":DeleteOSDResponse/>\r\n";
+    }
+}
+
+void OnvifServer::handleMedia2Service(const httplib::Request& req, httplib::Response& res)
+{
+    pugi::xml_document doc;
+    if (!doc.load_string(req.body.c_str())) {
+        res.status = 400;
+        return;
+    }
+
+    const std::string host = resolveHost(req);
+    const int port = m_config.port;
+
+    const pugi::xml_node bodyNode = doc.select_node("//*[local-name()='Body']").node();
+    const pugi::xml_node reqNode = bodyNode ? bodyNode.first_child() : pugi::xml_node {};
+    const std::string opName = reqNode ? reqNode.name() : "";
+    if (m_logCallback) {
+        m_logCallback("Media2", opName, req.remote_addr);
+    }
+
+    std::ostringstream body;
+
+    if (isOp(opName, "GetOSDOptions") || isOp(opName, "GetOSDs") || isOp(opName, "GetOSD") || isOp(opName, "CreateOSD")
+        || isOp(opName, "SetOSD") || isOp(opName, "DeleteOSD")) {
+        processOsdRequest(opName, doc, body, "tr2");
+    } else if (isOp(opName, "GetProfiles")) {
+        body << "    <tr2:GetProfilesResponse>\r\n"
+             << "      <tr2:Profiles token=\"ProfileToken_1\" fixed=\"true\">\r\n"
+             << "        <tr2:Name>MainProfile2</tr2:Name>\r\n"
+             << "        <tr2:Configurations>\r\n"
+             << "          <tr2:VideoSource token=\"VideoSourceConfig_1\">\r\n"
+             << "            <tr2:Name>VideoSourceConfig</tr2:Name>\r\n"
+             << "            <tr2:UseCount>1</tr2:UseCount>\r\n"
+             << "            <tr2:SourceToken>VideoSource_1</tr2:SourceToken>\r\n"
+             << "            <tr2:Bounds x=\"0\" y=\"0\" width=\"1920\" height=\"1080\"/>\r\n"
+             << "          </tr2:VideoSource>\r\n"
+             << "          <tr2:VideoEncoder token=\"VideoEncoderConfig_1\">\r\n"
+             << "            <tr2:Name>VideoEncoderConfig</tr2:Name>\r\n"
+             << "            <tr2:UseCount>1</tr2:UseCount>\r\n"
+             << "            <tr2:Encoding>H264</tr2:Encoding>\r\n"
+             << "            <tr2:Resolution>\r\n"
+             << "              <tr2:Width>1920</tr2:Width>\r\n"
+             << "              <tr2:Height>1080</tr2:Height>\r\n"
+             << "            </tr2:Resolution>\r\n"
+             << "            <tr2:RateControl>\r\n"
+             << "              <tr2:FrameRateLimit>30</tr2:FrameRateLimit>\r\n"
+             << "              <tr2:BitrateLimit>4096</tr2:BitrateLimit>\r\n"
+             << "            </tr2:RateControl>\r\n"
+             << "          </tr2:VideoEncoder>\r\n"
+             << "          <tr2:PTZ token=\"PTZConfig_1\">\r\n"
+             << "            <tr2:Name>PTZConfig</tr2:Name>\r\n"
+             << "            <tr2:UseCount>1</tr2:UseCount>\r\n"
+             << "            <tr2:NodeToken>PTZNode_1</tr2:NodeToken>\r\n"
+             << "          </tr2:PTZ>\r\n"
+             << "        </tr2:Configurations>\r\n"
+             << "      </tr2:Profiles>\r\n"
+             << "    </tr2:GetProfilesResponse>\r\n";
+    } else if (isOp(opName, "GetStreamUri")) {
+        body << "    <tr2:GetStreamUriResponse>\r\n"
+             << "      <tr2:Uri>" << m_config.rtspStreamUri << "</tr2:Uri>\r\n"
+             << "    </tr2:GetStreamUriResponse>\r\n";
+    } else if (isOp(opName, "GetSnapshotUri")) {
+        body << "    <tr2:GetSnapshotUriResponse>\r\n"
+             << "      <tr2:Uri>http://" << host << ":" << port << "/onvif/snapshot</tr2:Uri>\r\n"
+             << "    </tr2:GetSnapshotUriResponse>\r\n";
+    } else if (isOp(opName, "GetVideoEncoderConfigurations")) {
+        body << "    <tr2:GetVideoEncoderConfigurationsResponse>\r\n"
+             << "      <tr2:Configurations token=\"VideoEncoderConfig_1\">\r\n"
+             << "        <tr2:Name>VideoEncoderConfig</tr2:Name>\r\n"
+             << "        <tr2:UseCount>1</tr2:UseCount>\r\n"
+             << "        <tr2:Encoding>H264</tr2:Encoding>\r\n"
+             << "        <tr2:Resolution>\r\n"
+             << "          <tr2:Width>1920</tr2:Width>\r\n"
+             << "          <tr2:Height>1080</tr2:Height>\r\n"
+             << "        </tr2:Resolution>\r\n"
+             << "        <tr2:RateControl>\r\n"
+             << "          <tr2:FrameRateLimit>30</tr2:FrameRateLimit>\r\n"
+             << "          <tr2:BitrateLimit>4096</tr2:BitrateLimit>\r\n"
+             << "        </tr2:RateControl>\r\n"
+             << "        <tr2:GovLength>30</tr2:GovLength>\r\n"
+             << "      </tr2:Configurations>\r\n"
+             << "    </tr2:GetVideoEncoderConfigurationsResponse>\r\n";
+    } else if (isOp(opName, "GetVideoEncoderConfigurationOptions")) {
+        body << "    <tr2:GetVideoEncoderConfigurationOptionsResponse>\r\n"
+             << "      <tr2:Options>\r\n"
+             << "        <tr2:GovLengthRange Min=\"1\" Max=\"120\"/>\r\n"
+             << "        <tr2:FrameRatesSupported>30</tr2:FrameRatesSupported>\r\n"
+             << "        <tr2:ResolutionsAvailable>\r\n"
+             << "          <tr2:Width>1920</tr2:Width>\r\n"
+             << "          <tr2:Height>1080</tr2:Height>\r\n"
+             << "        </tr2:ResolutionsAvailable>\r\n"
+             << "      </tr2:Options>\r\n"
+             << "    </tr2:GetVideoEncoderConfigurationOptionsResponse>\r\n";
+    } else if (isOp(opName, "GetServiceCapabilities")) {
+        body << "    <tr2:GetServiceCapabilitiesResponse>\r\n"
+             << "      <tr2:Capabilities SnapshotUri=\"true\" Rotation=\"false\" OSD=\"true\" Mask=\"false\" "
+                "SourceConfigurations=\"true\"/>\r\n"
+             << "    </tr2:GetServiceCapabilitiesResponse>\r\n";
+    } else {
+        body << "    <tr2:" << opName << "Response/>\r\n";
     }
 
     res.status = 200;
@@ -1038,6 +1443,34 @@ void OnvifServer::handleEventService(const httplib::Request& req, httplib::Respo
              << "      <wsnt:CurrentTime>" << curTime << "</wsnt:CurrentTime>\r\n"
              << "      <wsnt:TerminationTime>" << termTime << "</wsnt:TerminationTime>\r\n"
              << "    </tev:CreatePullPointSubscriptionResponse>\r\n";
+    } else if (isOp(opName, "Subscribe")) {
+        const pugi::xml_node consumerNode
+            = doc.select_node("//*[local-name()='ConsumerReference']/*[local-name()='Address']").node();
+        const std::string consumerUrl = consumerNode ? consumerNode.text().as_string() : "";
+
+        std::string subId;
+        {
+            std::lock_guard<std::mutex> lock(m_subMutex);
+            subId = std::to_string(m_nextSubId++);
+            PushSubscription pushSub;
+            pushSub.id = subId;
+            pushSub.consumerUrl = consumerUrl;
+            pushSub.terminationTime = std::chrono::steady_clock::now() + std::chrono::minutes(10);
+            m_pushSubscriptions[subId] = pushSub;
+        }
+
+        const auto now = std::chrono::system_clock::now();
+        const std::string curTime = formatIso8601Utc(now);
+        const std::string termTime = formatIso8601Utc(now + std::chrono::minutes(10));
+
+        body << "    <wsnt:SubscribeResponse>\r\n"
+             << "      <wsnt:SubscriptionReference>\r\n"
+             << "        <wsa:Address>http://" << host << ":" << port << "/onvif/events/subscription/" << subId
+             << "</wsa:Address>\r\n"
+             << "      </wsnt:SubscriptionReference>\r\n"
+             << "      <wsnt:CurrentTime>" << curTime << "</wsnt:CurrentTime>\r\n"
+             << "      <wsnt:TerminationTime>" << termTime << "</wsnt:TerminationTime>\r\n"
+             << "    </wsnt:SubscribeResponse>\r\n";
     } else if (opName.find("GetEventProperties") != std::string::npos) {
         body << "    <tev:GetEventPropertiesResponse>\r\n"
              << "      "
@@ -1172,6 +1605,7 @@ void OnvifServer::handleSubscriptionService(const httplib::Request& req, httplib
             std::lock_guard<std::mutex> lock(m_subMutex);
             if (!subId.empty()) {
                 m_subscriptions.erase(subId);
+                m_pushSubscriptions.erase(subId);
             }
         }
         body << "    <wsnt:UnsubscribeResponse/>\r\n";
@@ -1186,6 +1620,60 @@ void OnvifServer::handleSubscriptionService(const httplib::Request& req, httplib
              << "    </wsnt:RenewResponse>\r\n";
     } else {
         body << "    <wsnt:" << opName << "Response/>\r\n";
+    }
+
+    res.status = 200;
+    res.set_content(wrapSoapResponse(body.str()), "application/soap+xml; charset=utf-8");
+}
+
+void OnvifServer::handleAnalyticsService(const httplib::Request& req, httplib::Response& res)
+{
+    pugi::xml_document doc;
+    if (!doc.load_string(req.body.c_str())) {
+        res.status = 400;
+        return;
+    }
+
+    const pugi::xml_node bodyNode = doc.select_node("//*[local-name()='Body']").node();
+    const pugi::xml_node reqNode = bodyNode ? bodyNode.first_child() : pugi::xml_node {};
+    const std::string opName = reqNode ? reqNode.name() : "";
+    if (m_logCallback) {
+        m_logCallback("Analytics", opName, req.remote_addr);
+    }
+
+    std::ostringstream body;
+
+    if (isOp(opName, "GetServiceCapabilities")) {
+        body << "    <tan:GetServiceCapabilitiesResponse>\r\n"
+             << "      <tan:Capabilities RuleSupport=\"true\" AnalyticsModuleSupport=\"false\" "
+                "CellBasedSceneDescriptionSupported=\"false\"/>\r\n"
+             << "    </tan:GetServiceCapabilitiesResponse>\r\n";
+    } else if (isOp(opName, "GetSupportedRules")) {
+        body << "    <tan:GetSupportedRulesResponse>\r\n"
+             << "      <tan:SupportedRules>\r\n"
+             << "        <tan:RuleDescription Name=\"tt:CellMotionDetector\">\r\n"
+             << "          <tan:Messages IsProperty=\"true\">\r\n"
+             << "            <tt:Source>\r\n"
+             << "              <tt:SimpleItemDescription Name=\"VideoSourceConfigurationToken\" "
+                "Type=\"tt:ReferenceToken\"/>\r\n"
+             << "            </tt:Source>\r\n"
+             << "            <tt:Data>\r\n"
+             << "              <tt:SimpleItemDescription Name=\"IsMotion\" Type=\"xs:boolean\"/>\r\n"
+             << "            </tt:Data>\r\n"
+             << "          </tan:Messages>\r\n"
+             << "        </tan:RuleDescription>\r\n"
+             << "      </tan:SupportedRules>\r\n"
+             << "    </tan:GetSupportedRulesResponse>\r\n";
+    } else if (isOp(opName, "GetRules")) {
+        body << "    <tan:GetRulesResponse>\r\n"
+             << "      <tan:Rule Name=\"MotionDetectorRule\" Type=\"tt:CellMotionDetector\">\r\n"
+             << "        <tan:Parameters>\r\n"
+             << "          <tt:SimpleItem Name=\"Sensitivity\" Value=\"80\"/>\r\n"
+             << "        </tan:Parameters>\r\n"
+             << "      </tan:Rule>\r\n"
+             << "    </tan:GetRulesResponse>\r\n";
+    } else {
+        body << "    <tan:" << opName << "Response/>\r\n";
     }
 
     res.status = 200;

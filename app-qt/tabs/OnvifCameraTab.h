@@ -104,6 +104,14 @@ private slots:
     void handleImagingSettingsUpdated(const PelcoD::Onvif::ImagingSettings& settings);
     void handleEventReceived(const PelcoD::Onvif::OnvifEvent& event);
 
+    // Profile T: On-Screen Display (OSD)
+    void handleRefreshOsds();
+    void handleCreateOsd();
+    void handleSetOsd();
+    void handleDeleteOsd();
+    void handleOsdsUpdated(const std::vector<PelcoD::Onvif::OsdConfig>& osds);
+    void handleOsdSelectionChanged();
+
 private:
     void setupUi();
     void updateConnectionUi(bool connected);
@@ -200,6 +208,17 @@ private:
     QPushButton* btnToggleEvents { nullptr };
     QTableWidget* tableEvents { nullptr };
     QPushButton* btnClearEvents { nullptr };
+
+    // Profile T: On-Screen Display (OSD) widgets
+    QTableWidget* tableOsds { nullptr };
+    QLineEdit* editOsdText { nullptr };
+    QComboBox* cmbOsdPosition { nullptr };
+    QCheckBox* chkOsdDateTime { nullptr };
+    QSpinBox* spinOsdFontSize { nullptr };
+    QPushButton* btnRefreshOsds { nullptr };
+    QPushButton* btnAddOsd { nullptr };
+    QPushButton* btnUpdateOsd { nullptr };
+    QPushButton* btnDeleteOsd { nullptr };
 
     // Maintenance
     QPushButton* btnReboot { nullptr };

@@ -588,6 +588,107 @@ void testSendAuxiliaryCommandParsing()
     assert(!resp3.has_value());
 }
 
+void testOsdParsing()
+{
+    const std::string osdListXml
+        = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+          "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+          "xmlns:trt=\"http://www.onvif.org/ver10/media/wsdl\" xmlns:tt=\"http://www.onvif.org/ver10/schema\">\r\n"
+          "  <SOAP-ENV:Body>\r\n"
+          "    <trt:GetOSDsResponse>\r\n"
+          "      <trt:OSD token=\"OSD_1\">\r\n"
+          "        <tt:VideoSourceConfigurationToken>VideoSourceConfig_1</tt:VideoSourceConfigurationToken>\r\n"
+          "        <tt:Type>Text</tt:Type>\r\n"
+          "        <tt:Position>\r\n"
+          "          <tt:Type>UpperLeft</tt:Type>\r\n"
+          "        </tt:Position>\r\n"
+          "        <tt:TextString>\r\n"
+          "          <tt:Type>Plain</tt:Type>\r\n"
+          "          <tt:PlainText>Entrance Gate</tt:PlainText>\r\n"
+          "          <tt:FontSize>28</tt:FontSize>\r\n"
+          "        </tt:TextString>\r\n"
+          "      </trt:OSD>\r\n"
+          "      <trt:OSD token=\"OSD_2\">\r\n"
+          "        <tt:VideoSourceConfigurationToken>VideoSourceConfig_1</tt:VideoSourceConfigurationToken>\r\n"
+          "        <tt:Type>Text</tt:Type>\r\n"
+          "        <tt:Position>\r\n"
+          "          <tt:Type>Custom</tt:Type>\r\n"
+          "          <tt:Pos x=\"0.5\" y=\"0.5\"/>\r\n"
+          "        </tt:Position>\r\n"
+          "        <tt:TextString>\r\n"
+          "          <tt:Type>DateAndTime</tt:Type>\r\n"
+          "          <tt:DateFormat>YYYY/MM/DD</tt:DateFormat>\r\n"
+          "          <tt:TimeFormat>HH:mm:ss</tt:TimeFormat>\r\n"
+          "          <tt:FontSize>32</tt:FontSize>\r\n"
+          "        </tt:TextString>\r\n"
+          "      </trt:OSD>\r\n"
+          "    </trt:GetOSDsResponse>\r\n"
+          "  </SOAP-ENV:Body>\r\n"
+          "</SOAP-ENV:Envelope>";
+
+    const auto osds = PelcoD::Onvif::OnvifClient::parseOsdListResponse(osdListXml);
+    assert(osds.size() == 2);
+    assert(osds[0].token == "OSD_1");
+    assert(osds[0].videoSourceToken == "VideoSourceConfig_1");
+    assert(osds[0].position == PelcoD::Onvif::OsdPositionType::UpperLeft);
+    assert(!osds[0].isDateAndTime);
+    assert(osds[0].plainText == "Entrance Gate");
+    assert(osds[0].fontSize == 28);
+
+    assert(osds[1].token == "OSD_2");
+    assert(osds[1].position == PelcoD::Onvif::OsdPositionType::Custom);
+    assert(std::abs(osds[1].customX - 0.5f) < 0.001f);
+    assert(std::abs(osds[1].customY - 0.5f) < 0.001f);
+    assert(osds[1].isDateAndTime);
+    assert(osds[1].dateFormat == "YYYY/MM/DD");
+    assert(osds[1].timeFormat == "HH:mm:ss");
+    assert(osds[1].fontSize == 32);
+
+    // Test single OSD parser
+    const std::string singleOsdXml
+        = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+          "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+          "xmlns:trt=\"http://www.onvif.org/ver10/media/wsdl\" xmlns:tt=\"http://www.onvif.org/ver10/schema\">\r\n"
+          "  <SOAP-ENV:Body>\r\n"
+          "    <trt:GetOSDResponse>\r\n"
+          "      <trt:OSD token=\"OSD_99\">\r\n"
+          "        <tt:VideoSourceConfigurationToken>VideoSourceConfig_2</tt:VideoSourceConfigurationToken>\r\n"
+          "        <tt:Type>Text</tt:Type>\r\n"
+          "        <tt:Position>\r\n"
+          "          <tt:Type>LowerRight</tt:Type>\r\n"
+          "        </tt:Position>\r\n"
+          "        <tt:TextString>\r\n"
+          "          <tt:Type>Plain</tt:Type>\r\n"
+          "          <tt:PlainText>Perimeter North</tt:PlainText>\r\n"
+          "          <tt:FontSize>20</tt:FontSize>\r\n"
+          "        </tt:TextString>\r\n"
+          "      </trt:OSD>\r\n"
+          "    </trt:GetOSDResponse>\r\n"
+          "  </SOAP-ENV:Body>\r\n"
+          "</SOAP-ENV:Envelope>";
+
+    const auto singleOsd = PelcoD::Onvif::OnvifClient::parseOsdResponse(singleOsdXml);
+    assert(singleOsd.has_value());
+    assert(singleOsd->token == "OSD_99");
+    assert(singleOsd->position == PelcoD::Onvif::OsdPositionType::LowerRight);
+    assert(singleOsd->plainText == "Perimeter North");
+
+    // Test CreateOSD response parser
+    const std::string createOsdXml = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+                                     "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                     "xmlns:trt=\"http://www.onvif.org/ver10/media/wsdl\">\r\n"
+                                     "  <SOAP-ENV:Body>\r\n"
+                                     "    <trt:CreateOSDResponse>\r\n"
+                                     "      <trt:OSDToken>OSD_CREATED_42</trt:OSDToken>\r\n"
+                                     "    </trt:CreateOSDResponse>\r\n"
+                                     "  </SOAP-ENV:Body>\r\n"
+                                     "</SOAP-ENV:Envelope>";
+
+    const auto createdToken = PelcoD::Onvif::OnvifClient::parseCreateOsdResponse(createOsdXml);
+    assert(createdToken.has_value());
+    assert(*createdToken == "OSD_CREATED_42");
+}
+
 int main()
 {
 #ifdef _WIN32
@@ -655,6 +756,10 @@ int main()
     std::cout << "[RUN] Testing ONVIF PullPoint Events XML Parsing (Profile T)...\n";
     testPullPointEventsParsing();
     std::cout << "[PASS] PullPoint Events XML Parsing (Profile T)\n";
+
+    std::cout << "[RUN] Testing ONVIF OSD XML Parsing...\n";
+    testOsdParsing();
+    std::cout << "[PASS] ONVIF OSD XML Parsing\n";
 
     std::cout << "\nAll PelcoDOnvif unit tests PASSED successfully!\n";
     return 0;

@@ -61,6 +61,13 @@ public:
         return m_presetTours;
     }
 
+    /// @brief Gets cached OSD overlays for active video source.
+    /// @return List of OsdConfig records.
+    [[nodiscard]] std::vector<PelcoD::Onvif::OsdConfig> osds() const
+    {
+        return m_osds;
+    }
+
     /// @brief Gets camera hardware identification metadata.
     /// @return DeviceInformation struct.
     [[nodiscard]] PelcoD::Onvif::DeviceInformation deviceInformation() const;
@@ -223,6 +230,28 @@ public Q_SLOTS:
     /// @brief Checks if event subscription is currently active.
     [[nodiscard]] bool isEventSubscriptionActive() const;
 
+    // =========================================================================
+    // Profile T: On-Screen Display (OSD) Overlays
+    // =========================================================================
+
+    /// @brief Queries list of configured OSD overlays for active video source.
+    void refreshOSDs();
+
+    /// @brief Creates a new OSD overlay configuration on camera.
+    /// @param[in] osd OSD configuration parameters.
+    /// @return Assigned token or empty on failure.
+    QString createOSD(const PelcoD::Onvif::OsdConfig& osd);
+
+    /// @brief Modifies an existing OSD overlay.
+    /// @param[in] osd Updated OSD configuration.
+    /// @return True on success.
+    bool setOSD(const PelcoD::Onvif::OsdConfig& osd);
+
+    /// @brief Deletes an OSD overlay.
+    /// @param[in] osdToken Token of the OSD to delete.
+    /// @return True if removed successfully.
+    bool deleteOSD(const QString& osdToken);
+
 Q_SIGNALS:
     /// @brief Emitted when device connection succeeds.
     /// @param[in] endpoint Connected service URL.
@@ -269,6 +298,10 @@ Q_SIGNALS:
     /// @param[in] event Event notification details.
     void eventReceived(const PelcoD::Onvif::OnvifEvent& event);
 
+    /// @brief Emitted when OSD overlay configuration list is refreshed.
+    /// @param[in] osds List of camera OSD configurations.
+    void osdsUpdated(const std::vector<PelcoD::Onvif::OsdConfig>& osds);
+
     /// @brief Emitted when an operation fails.
     /// @param[in] message Diagnostic error message.
     void errorOccurred(const QString& message);
@@ -290,6 +323,7 @@ private:
     std::vector<PelcoD::Onvif::MediaProfile> m_profiles {};
     std::vector<PelcoD::Onvif::PtzPreset> m_presets {};
     std::vector<PelcoD::Onvif::PresetTour> m_presetTours {};
+    std::vector<PelcoD::Onvif::OsdConfig> m_osds {};
     PelcoD::Onvif::DeviceInformation m_deviceInfo {};
     PelcoD::Onvif::ImagingSettings m_imagingSettings {};
     QString m_eventSubscriptionUrl {};

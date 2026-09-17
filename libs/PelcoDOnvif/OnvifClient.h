@@ -100,6 +100,36 @@ public:
         const std::string& profileToken, bool injectCredentials = true);
 
     // =========================================================================
+    // OSD & Media Service Extensions
+    // =========================================================================
+
+    /// @brief Queries list of configured OSD overlays for a video source configuration.
+    /// @param[in] videoSourceConfigurationToken Configuration token (or empty for all).
+    /// @return List of OsdConfig records.
+    [[nodiscard]] std::vector<OsdConfig> getOSDs(
+        const std::string& videoSourceConfigurationToken = "VideoSourceConfig_1");
+
+    /// @brief Queries a specific OSD overlay by token.
+    /// @param[in] osdToken OSD identifier token.
+    /// @return OsdConfig or nullopt on failure.
+    [[nodiscard]] std::optional<OsdConfig> getOSD(const std::string& osdToken);
+
+    /// @brief Creates a new OSD overlay configuration on camera.
+    /// @param[in] osd OSD configuration parameters.
+    /// @return Assigned token string or empty on failure.
+    [[nodiscard]] std::string createOSD(const OsdConfig& osd);
+
+    /// @brief Modifies an existing OSD overlay.
+    /// @param[in] osd Updated OSD configuration.
+    /// @return True on success.
+    bool setOSD(const OsdConfig& osd);
+
+    /// @brief Deletes an OSD overlay.
+    /// @param[in] osdToken Token of the OSD to delete.
+    /// @return True if removed successfully.
+    bool deleteOSD(const std::string& osdToken);
+
+    // =========================================================================
     // PTZ Service
     // =========================================================================
 
@@ -356,6 +386,21 @@ public:
     /// @param[in] xml Raw response XML.
     /// @return Vector of parsed OnvifEvent items.
     [[nodiscard]] static std::vector<OnvifEvent> parsePullMessagesResponse(const std::string& xml);
+
+    /// @brief Parses GetOSDs XML response into list of OsdConfig objects.
+    /// @param[in] xml Raw response XML.
+    /// @return Vector of parsed OsdConfig objects.
+    [[nodiscard]] static std::vector<OsdConfig> parseOsdListResponse(const std::string& xml);
+
+    /// @brief Parses GetOSD XML response into an OsdConfig object.
+    /// @param[in] xml Raw response XML.
+    /// @return Extracted OsdConfig or nullopt on parse failure.
+    [[nodiscard]] static std::optional<OsdConfig> parseOsdResponse(const std::string& xml);
+
+    /// @brief Parses CreateOSD XML response.
+    /// @param[in] xml Raw response XML.
+    /// @return Assigned OSD token or nullopt on failure.
+    [[nodiscard]] static std::optional<std::string> parseCreateOsdResponse(const std::string& xml);
 
 private:
     std::string m_deviceEndpoint {};
