@@ -48,6 +48,10 @@ target_link_libraries(PelcoDAppTui PRIVATE
 )
 
 if(PELCOD_ENABLE_ONVIF)
+    target_sources(PelcoDAppTui PRIVATE
+        views/OnvifServerView.h
+        views/OnvifServerView.cpp
+    )
     target_link_libraries(PelcoDAppTui PRIVATE
         PelcoDOnvif
     )

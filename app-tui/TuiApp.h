@@ -20,6 +20,10 @@
 #include "views/TrafficView.h"
 #include "views/VideoView.h"
 
+#if defined(PELCOD_ENABLE_ONVIF)
+#include "views/OnvifServerView.h"
+#endif
+
 #include "DecoderFactory.h"
 #include "IVideoDecoder.h"
 
@@ -49,6 +53,17 @@ public:
 
     /// @brief Configure video stream target source and backend.
     void setVideoConfig(const std::string& source, videodecoder::BackendType backend);
+
+#if defined(PELCOD_ENABLE_ONVIF)
+    /// @brief Starts the background ONVIF server bridge.
+    void startOnvifServer();
+
+    /// @brief Configures ONVIF server parameters prior to startup.
+    /// @param[in] port Listening HTTP/SOAP port.
+    /// @param[in] name Device display name.
+    /// @param[in] rtsp Advertised RTSP stream URI.
+    void setOnvifServerConfig(int port, const std::string& name, const std::string& rtsp);
+#endif
 
 private:
     void setupDevice(const ConnectionConfig& config);
@@ -87,9 +102,11 @@ private:
     TrafficView m_trafficView {};
     FujinonView m_fujinonView {};
     VideoView m_videoView {};
+#if defined(PELCOD_ENABLE_ONVIF)
+    OnvifServerView m_onvifServerView {};
+#endif
     ConnectionModal m_connectionModal {};
     FooterView m_footerView {};
 };
 
 } // namespace PelcoDTui
-

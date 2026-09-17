@@ -67,6 +67,10 @@ public:
     /// @param[in] event The event to publish.
     void publishEvent(const OnvifEvent& event);
 
+    /// @brief Sets callback for monitoring incoming SOAP requests.
+    /// @param[in] callback Callback invoked on every incoming SOAP transaction.
+    void setRequestLogCallback(RequestLogCallback callback);
+
 private:
     void setupRoutes();
     void handleDeviceService(const httplib::Request& req, httplib::Response& res);
@@ -87,6 +91,7 @@ private:
     };
 
     OnvifServerConfig m_config;
+    RequestLogCallback m_logCallback {};
     std::shared_ptr<IPtzHandler> m_ptzHandler;
     std::shared_ptr<IImagingHandler> m_imagingHandler;
     std::unique_ptr<WsDiscoveryServer> m_discoveryServer;

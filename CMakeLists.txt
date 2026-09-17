@@ -50,6 +50,7 @@ if(PELCOD_ENABLE_ONVIF)
     find_package(CURL REQUIRED)
     find_package(pugixml CONFIG REQUIRED)
     find_package(OpenSSL REQUIRED)
+    add_compile_definitions(PELCOD_ENABLE_ONVIF=1)
     message(STATUS "PelcoDOnvif: ONVIF Profile S subsystem enabled (curl, pugixml, OpenSSL)")
 endif()
 

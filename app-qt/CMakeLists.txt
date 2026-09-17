@@ -44,7 +44,10 @@ if(PELCOD_ENABLE_ONVIF)
     target_sources(PelcoDAppQt PRIVATE
         tabs/OnvifCameraTab.h
         tabs/OnvifCameraTab.cpp
+        tabs/OnvifServerTab.h
+        tabs/OnvifServerTab.cpp
     )
+    target_compile_definitions(PelcoDAppQt PRIVATE PELCOD_ENABLE_ONVIF=1)
 endif()
 
 target_link_libraries(PelcoDAppQt PRIVATE

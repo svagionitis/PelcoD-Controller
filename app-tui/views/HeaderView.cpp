@@ -7,9 +7,15 @@
 
 namespace PelcoDTui {
 
+#if defined(PELCOD_ENABLE_ONVIF)
+static const char* const kTabs[] = { "[1] PTZ Motion", "[2] Presets & Tours", "[3] Settings", "[4] Aux & OSD",
+    "[5] Diagnostics", "[6] Traffic", "[7] Fujinon", "[8] Video", "[9] ONVIF Server" };
+static constexpr int kTabCount = 9;
+#else
 static const char* const kTabs[] = { "[1] PTZ Motion", "[2] Presets & Tours", "[3] Settings", "[4] Aux & OSD",
     "[5] Diagnostics", "[6] Traffic", "[7] Fujinon", "[8] Video" };
 static constexpr int kTabCount = 8;
+#endif
 
 void HeaderView::render(
     Canvas& canvas, int width, int activeTab, bool connected, const std::string& transportName, std::uint8_t address)

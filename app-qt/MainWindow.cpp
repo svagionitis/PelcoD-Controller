@@ -59,9 +59,12 @@ void MainWindow::setupUi()
     m_onvifTab = new OnvifCameraTab(m_onvifDevice, m_videoTab, this);
     m_tabWidget->addTab(m_onvifTab, tr("ONVIF Camera"));
 
-    connect(m_onvifTab, &OnvifCameraTab::streamUriSelected, this, [this](const QString& uri) {
-        statusBar()->showMessage(tr("ONVIF RTSP URI ready: %1").arg(uri), 5000);
-    });
+    m_onvifServer = new PelcoD::Qt::QOnvifServer({}, this);
+    m_onvifServerTab = new OnvifServerTab(m_onvifServer, m_device, this);
+    m_tabWidget->addTab(m_onvifServerTab, tr("ONVIF Server"));
+
+    connect(m_onvifTab, &OnvifCameraTab::streamUriSelected, this,
+        [this](const QString& uri) { statusBar()->showMessage(tr("ONVIF RTSP URI ready: %1").arg(uri), 5000); });
 #endif
 
     centralLayout->addWidget(m_tabWidget);

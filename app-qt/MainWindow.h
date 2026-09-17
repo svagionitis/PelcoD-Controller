@@ -19,7 +19,9 @@
 
 #if defined(PELCOD_ENABLE_ONVIF)
 #include "QOnvifDevice.h"
+#include "QOnvifServer.h"
 #include "app-qt/tabs/OnvifCameraTab.h"
+#include "app-qt/tabs/OnvifServerTab.h"
 #endif
 
 #include <QDockWidget>
@@ -64,6 +66,8 @@ private:
 #if defined(PELCOD_ENABLE_ONVIF)
     PelcoD::Qt::QOnvifDevice* m_onvifDevice { nullptr };
     OnvifCameraTab* m_onvifTab { nullptr };
+    PelcoD::Qt::QOnvifServer* m_onvifServer { nullptr };
+    OnvifServerTab* m_onvifServerTab { nullptr };
 #endif
 
     QDockWidget* m_dockInspector { nullptr };

@@ -37,10 +37,13 @@ if(PELCOD_ENABLE_ONVIF)
     target_sources(PelcoDQt PRIVATE
         QOnvifDevice.h
         QOnvifDevice.cpp
+        QOnvifServer.h
+        QOnvifServer.cpp
     )
     target_link_libraries(PelcoDQt PUBLIC
         PelcoDOnvif
     )
+    target_compile_definitions(PelcoDQt PUBLIC PELCOD_ENABLE_ONVIF=1)
 endif()
 
 apply_compiler_flags(PelcoDQt)

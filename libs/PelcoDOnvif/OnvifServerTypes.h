@@ -56,6 +56,10 @@ struct OnvifServerConfig {
 /// @brief Callback signature for publishing asynchronous ONVIF event notifications.
 using EventCallback = std::function<void(const OnvifEvent& event)>;
 
+/// @brief Callback signature for logging incoming ONVIF HTTP/SOAP requests.
+using RequestLogCallback
+    = std::function<void(const std::string& service, const std::string& action, const std::string& clientIp)>;
+
 /// @class IImagingHandler
 /// @brief Abstract interface for decoupling ONVIF Profile T Imaging requests from hardware.
 class IImagingHandler {

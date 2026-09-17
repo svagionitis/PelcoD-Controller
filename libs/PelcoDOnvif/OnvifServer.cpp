@@ -165,6 +165,11 @@ void OnvifServer::publishEvent(const OnvifEvent& event)
     }
 }
 
+void OnvifServer::setRequestLogCallback(RequestLogCallback callback)
+{
+    m_logCallback = std::move(callback);
+}
+
 std::string OnvifServer::resolveHost(const httplib::Request& req) const
 {
     if (m_config.bindAddress != "0.0.0.0" && !m_config.bindAddress.empty()) {
@@ -226,6 +231,9 @@ void OnvifServer::handleDeviceService(const httplib::Request& req, httplib::Resp
     const pugi::xml_node bodyNode = doc.select_node("//*[local-name()='Body']").node();
     const pugi::xml_node reqNode = bodyNode ? bodyNode.first_child() : pugi::xml_node {};
     const std::string opName = reqNode ? reqNode.name() : "";
+    if (m_logCallback) {
+        m_logCallback("Device", opName, req.remote_addr);
+    }
 
     std::ostringstream body;
 
@@ -346,6 +354,9 @@ void OnvifServer::handleMediaService(const httplib::Request& req, httplib::Respo
     const pugi::xml_node bodyNode = doc.select_node("//*[local-name()='Body']").node();
     const pugi::xml_node reqNode = bodyNode ? bodyNode.first_child() : pugi::xml_node {};
     const std::string opName = reqNode ? reqNode.name() : "";
+    if (m_logCallback) {
+        m_logCallback("Media", opName, req.remote_addr);
+    }
 
     std::ostringstream body;
 
@@ -416,6 +427,9 @@ void OnvifServer::handlePtzService(const httplib::Request& req, httplib::Respons
     const pugi::xml_node bodyNode = doc.select_node("//*[local-name()='Body']").node();
     const pugi::xml_node reqNode = bodyNode ? bodyNode.first_child() : pugi::xml_node {};
     const std::string opName = reqNode ? reqNode.name() : "";
+    if (m_logCallback) {
+        m_logCallback("PTZ", opName, req.remote_addr);
+    }
 
     std::ostringstream body;
 
@@ -595,6 +609,9 @@ void OnvifServer::handleImagingService(const httplib::Request& req, httplib::Res
     const pugi::xml_node bodyNode = doc.select_node("//*[local-name()='Body']").node();
     const pugi::xml_node reqNode = bodyNode ? bodyNode.first_child() : pugi::xml_node {};
     const std::string opName = reqNode ? reqNode.name() : "";
+    if (m_logCallback) {
+        m_logCallback("Imaging", opName, req.remote_addr);
+    }
 
     const pugi::xml_node vsNode = doc.select_node("//*[local-name()='VideoSourceToken']").node();
     const std::string videoSourceToken = vsNode ? vsNode.text().as_string() : "VideoSource_1";
@@ -732,6 +749,9 @@ void OnvifServer::handleEventService(const httplib::Request& req, httplib::Respo
     const pugi::xml_node bodyNode = doc.select_node("//*[local-name()='Body']").node();
     const pugi::xml_node reqNode = bodyNode ? bodyNode.first_child() : pugi::xml_node {};
     const std::string opName = reqNode ? reqNode.name() : "";
+    if (m_logCallback) {
+        m_logCallback("Events", opName, req.remote_addr);
+    }
 
     std::ostringstream body;
 
@@ -827,6 +847,9 @@ void OnvifServer::handleSubscriptionService(const httplib::Request& req, httplib
     const pugi::xml_node bodyNode = doc.select_node("//*[local-name()='Body']").node();
     const pugi::xml_node reqNode = bodyNode ? bodyNode.first_child() : pugi::xml_node {};
     const std::string opName = reqNode ? reqNode.name() : "";
+    if (m_logCallback) {
+        m_logCallback("PullPoint", opName, req.remote_addr);
+    }
 
     std::ostringstream body;
 

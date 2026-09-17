@@ -5,8 +5,8 @@
 
 namespace PelcoDTui {
 
-TuiApp::TuiApp(const ConnectionConfig& initialConfig, const std::string& videoSource,
-    videodecoder::BackendType videoBackend)
+TuiApp::TuiApp(
+    const ConnectionConfig& initialConfig, const std::string& videoSource, videodecoder::BackendType videoBackend)
     : m_currentConfig(initialConfig)
     , m_videoSource(videoSource.empty() ? "mock:smpte" : videoSource)
     , m_videoBackend(videoBackend)
@@ -33,6 +33,25 @@ void TuiApp::setVideoConfig(const std::string& source, videodecoder::BackendType
     m_videoBackend = backend;
     startVideoWorker();
 }
+
+#if defined(PELCOD_ENABLE_ONVIF)
+void TuiApp::startOnvifServer()
+{
+    m_onvifServerView.startServer();
+}
+
+void TuiApp::setOnvifServerConfig(int port, const std::string& name, const std::string& rtsp)
+{
+    auto& cfg = m_onvifServerView.config();
+    cfg.port = port;
+    if (!name.empty()) {
+        cfg.deviceName = name;
+    }
+    if (!rtsp.empty()) {
+        cfg.rtspStreamUri = rtsp;
+    }
+}
+#endif
 
 void TuiApp::startVideoWorker()
 {
@@ -158,6 +177,9 @@ void TuiApp::setupDevice(const ConnectionConfig& config)
         m_footerView.setStatusMessage("Warning: Failed to open device transport");
     }
     m_device->setTelemetryPolling(true, 1000U);
+#if defined(PELCOD_ENABLE_ONVIF)
+    m_onvifServerView.bindDevice(m_device.get());
+#endif
     m_canvas.invalidate();
 }
 
@@ -181,10 +203,16 @@ void TuiApp::run()
 
 void TuiApp::handleGlobalInput(const InputEvent& event)
 {
+#if defined(PELCOD_ENABLE_ONVIF)
+    constexpr int kTotalTabs = 9;
+#else
+    constexpr int kTotalTabs = 8;
+#endif
+
     // Mouse click handling
     if (event.key == Key::MouseClick && !event.mouse.isRelease) {
         const int clickedTab = m_headerView.handleMouseClick(event.mouse.x, event.mouse.y);
-        if (clickedTab >= 0 && clickedTab < 8) {
+        if (clickedTab >= 0 && clickedTab < kTotalTabs) {
             m_activeTab = clickedTab;
             return;
         }
@@ -211,25 +239,32 @@ void TuiApp::handleGlobalInput(const InputEvent& event)
     }
 
     // Tab shortcuts
-    if (event.ch >= '1' && event.ch <= '8') {
+    if (event.ch >= '1' && event.ch <= static_cast<char>('0' + kTotalTabs)) {
         m_activeTab = event.ch - '1';
         return;
     }
 
-    if (event.key >= Key::F1 && event.key <= Key::F8) {
+    if (event.key >= Key::F1 && static_cast<int>(event.key) < static_cast<int>(Key::F1) + kTotalTabs) {
         m_activeTab = static_cast<int>(event.key) - static_cast<int>(Key::F1);
         return;
     }
 
     if (event.key == Key::Tab) {
-        m_activeTab = (m_activeTab + 1) % 8;
+        m_activeTab = (m_activeTab + 1) % kTotalTabs;
         return;
     }
 
     if (event.key == Key::Backtab) {
-        m_activeTab = (m_activeTab + 7) % 8;
+        m_activeTab = (m_activeTab + kTotalTabs - 1) % kTotalTabs;
         return;
     }
+
+#if defined(PELCOD_ENABLE_ONVIF)
+    if (m_activeTab == 8) {
+        m_onvifServerView.handleInput(event);
+        return;
+    }
+#endif
 
     // Pass input to active view
     if (m_device) {
@@ -310,6 +345,11 @@ void TuiApp::renderFrame()
         case 7:
             m_videoView.render(m_canvas, viewStartY, width, viewHeight, status);
             break;
+#if defined(PELCOD_ENABLE_ONVIF)
+        case 8:
+            m_onvifServerView.render(m_canvas, viewStartY, width, viewHeight);
+            break;
+#endif
         default:
             break;
         }

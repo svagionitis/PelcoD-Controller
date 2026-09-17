@@ -1,10 +1,10 @@
 #include "BusScanner.h"
-#include "MockPelcoDDevice.h"
 #include "DecoderTypes.h"
+#include "MockPelcoDDevice.h"
 #include "SerialTransport.h"
 #include "TcpTransport.h"
-#include "UdpTransport.h"
 #include "TuiApp.h"
+#include "UdpTransport.h"
 #include "views/ConnectionModal.h"
 
 #if defined(PELCOD_ENABLE_ONVIF)
@@ -54,6 +54,10 @@ struct ParseResult {
     std::string onvifEndpoint {};
     std::string onvifUser { "admin" };
     std::string onvifPass {};
+    bool onvifServer { false };
+    int onvifServerPort { 8080 };
+    std::string onvifServerName { "Pelco-D ONVIF Bridge" };
+    std::string onvifServerRtsp { "rtsp://127.0.0.1:8554/live" };
 #endif
 };
 
@@ -119,10 +123,18 @@ void printUsage(std::string_view progName)
               << "  --onvif-event-sec <seconds> Duration to monitor events (default: 10)\n"
               << "  --onvif-user <username>     Username for ONVIF authentication (default: admin)\n"
               << "  --onvif-pass <password>     Password for ONVIF authentication\n"
+              << "  --onvif-server              Start embedded ONVIF Profile S/T server bridge\n"
+              << "  --onvif-server-port <port>  Port for embedded ONVIF server (default: 8080)\n"
+              << "  --onvif-server-name <name>  Advertised camera device name\n"
+              << "  --onvif-server-rtsp <uri>   Advertised RTSP stream URI for NVRs\n"
 #endif
               << "  --help, -h                  Display this help message and exit\n\n"
               << "Keyboard Shortcuts:\n"
+#if defined(PELCOD_ENABLE_ONVIF)
+              << "  1–9 / F1–F9                 Switch between application tabs (Tab 9 is ONVIF Server)\n"
+#else
               << "  1–8 / F1–F8                 Switch between application tabs (Tab 8 is Video View)\n"
+#endif
               << "  Tab / Backtab               Cycle tab focus forward / backward\n"
               << "  W / A / S / D or Arrows     PTZ motion: Pan Left/Right, Tilt Up/Down\n"
               << "  Space                       Emergency Stop all motion\n"
@@ -488,6 +500,39 @@ void printUsage(std::string_view progName)
                 return result;
             }
             result.onvifPass = argv[++i];
+        } else if (arg == "--onvif-server") {
+            result.onvifServer = true;
+        } else if (arg == "--onvif-server-port") {
+            if (i + 1 >= argc) {
+                result.status = ParseStatus::Error;
+                result.errorMessage = "Option '--onvif-server-port' requires a port number";
+                return result;
+            }
+            const std::string_view valStr = argv[++i];
+            int portVal { 8080 };
+            if (!parseInteger(valStr, portVal) || portVal <= 0 || portVal > 65535) {
+                result.status = ParseStatus::Error;
+                result.errorMessage = "Invalid port for '--onvif-server-port': expected 1-65535";
+                return result;
+            }
+            result.onvifServerPort = portVal;
+            result.onvifServer = true;
+        } else if (arg == "--onvif-server-name") {
+            if (i + 1 >= argc) {
+                result.status = ParseStatus::Error;
+                result.errorMessage = "Option '--onvif-server-name' requires a device name";
+                return result;
+            }
+            result.onvifServerName = argv[++i];
+            result.onvifServer = true;
+        } else if (arg == "--onvif-server-rtsp") {
+            if (i + 1 >= argc) {
+                result.status = ParseStatus::Error;
+                result.errorMessage = "Option '--onvif-server-rtsp' requires an RTSP stream URI";
+                return result;
+            }
+            result.onvifServerRtsp = argv[++i];
+            result.onvifServer = true;
 #endif
         } else {
             result.status = ParseStatus::Error;
@@ -524,10 +569,10 @@ int main(int argc, char* argv[])
 
 #if defined(PELCOD_ENABLE_ONVIF)
     if (parseResult.onvifDiscover) {
-        std::cout << "Starting WS-Discovery multicast probe on LAN (timeout: "
-                  << parseResult.onvifTimeoutMs << " ms)...\n";
-        const auto devices = PelcoD::Onvif::OnvifDiscovery::discoverDevices(
-            std::chrono::milliseconds(parseResult.onvifTimeoutMs));
+        std::cout << "Starting WS-Discovery multicast probe on LAN (timeout: " << parseResult.onvifTimeoutMs
+                  << " ms)...\n";
+        const auto devices
+            = PelcoD::Onvif::OnvifDiscovery::discoverDevices(std::chrono::milliseconds(parseResult.onvifTimeoutMs));
         std::cout << "Discovery completed. Total ONVIF devices detected: " << devices.size() << "\n";
         if (!devices.empty()) {
             std::cout << "--------------------------------------------------------------------------------\n";
@@ -577,8 +622,8 @@ int main(int argc, char* argv[])
         const auto profiles = client.getProfiles();
         std::cout << "\n[Media Profiles: " << profiles.size() << "]\n";
         for (const auto& p : profiles) {
-            std::cout << "  * Profile [" << p.token << "] \"" << p.name << "\": "
-                      << p.videoWidth << "x" << p.videoHeight << " (" << p.videoEncoding << ")\n";
+            std::cout << "  * Profile [" << p.token << "] \"" << p.name << "\": " << p.videoWidth << "x"
+                      << p.videoHeight << " (" << p.videoEncoding << ")\n";
             const auto streamUri = client.getStreamUri(p.token, true);
             if (streamUri) {
                 std::cout << "    RTSP URI:     " << streamUri->uri << "\n";
@@ -672,8 +717,8 @@ int main(int argc, char* argv[])
             const auto events = client.pullMessages(*subUrl, 2, 10);
             for (const auto& ev : events) {
                 ++eventCount;
-                std::cout << "[" << (ev.utcTime.empty() ? "NOW" : ev.utcTime) << "] "
-                          << ev.topic << " -> " << ev.dataName << "=" << ev.dataValue << "\n";
+                std::cout << "[" << (ev.utcTime.empty() ? "NOW" : ev.utcTime) << "] " << ev.topic << " -> "
+                          << ev.dataName << "=" << ev.dataValue << "\n";
             }
             std::this_thread::sleep_for(std::chrono::milliseconds(500));
         }
@@ -792,6 +837,12 @@ int main(int argc, char* argv[])
 
     try {
         PelcoDTui::TuiApp app(parseResult.config, parseResult.videoSource, parseResult.videoBackend);
+#if defined(PELCOD_ENABLE_ONVIF)
+        app.setOnvifServerConfig(parseResult.onvifServerPort, parseResult.onvifServerName, parseResult.onvifServerRtsp);
+        if (parseResult.onvifServer) {
+            app.startOnvifServer();
+        }
+#endif
         app.run();
     } catch (const std::exception& ex) {
         std::cerr << "Fatal error: " << ex.what() << "\n";
