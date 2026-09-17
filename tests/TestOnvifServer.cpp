@@ -2392,6 +2392,176 @@ void testProfileGAndPkiCertificates()
     std::cout << "[PASS] testProfileGAndPkiCertificates" << std::endl;
 }
 
+void testVideoAnalyticsRuleEngineAndEvaluation()
+{
+    std::cout << "[RUN] testVideoAnalyticsRuleEngineAndEvaluation" << std::endl;
+
+    auto mockTransport = std::make_shared<PelcoD::MockPelcoDDevice>(1U);
+    auto device = std::make_shared<PelcoD::PelcoDDevice>(mockTransport, 1U);
+    assert(device->start());
+    auto adapter = std::make_shared<PelcoDPtzAdapter>(device);
+
+    OnvifServerConfig config;
+    config.bindAddress = "127.0.0.1";
+    config.port = 18090;
+
+    OnvifServer server(config, adapter, adapter);
+    server.setAnalyticsHandler(adapter);
+    assert(server.start());
+    assert(server.isRunning());
+
+    httplib::Client client("127.0.0.1", 18090);
+
+    // 1. GetServiceCapabilities
+    {
+        const std::string req = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+                                "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                "xmlns:tan=\"http://www.onvif.org/ver20/analytics/wsdl\">\r\n"
+                                "  <SOAP-ENV:Body><tan:GetServiceCapabilities/></SOAP-ENV:Body>\r\n"
+                                "</SOAP-ENV:Envelope>";
+        auto res = client.Post("/onvif/analytics_service", req, "application/soap+xml; charset=utf-8");
+        assert(res && res->status == 200);
+        assert(res->body.find("RuleSupport=\"true\"") != std::string::npos);
+        assert(res->body.find("AnalyticsModuleSupport=\"true\"") != std::string::npos);
+    }
+
+    // 2. GetSupportedRules
+    {
+        const std::string req = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+                                "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                "xmlns:tan=\"http://www.onvif.org/ver20/analytics/wsdl\">\r\n"
+                                "  <SOAP-ENV:Body><tan:GetSupportedRules/></SOAP-ENV:Body>\r\n"
+                                "</SOAP-ENV:Envelope>";
+        auto res = client.Post("/onvif/analytics_service", req, "application/soap+xml; charset=utf-8");
+        assert(res && res->status == 200);
+        assert(res->body.find("tt:LineDetector") != std::string::npos);
+        assert(res->body.find("tt:FieldDetector") != std::string::npos);
+        assert(res->body.find("tt:LoiteringDetector") != std::string::npos);
+    }
+
+    // 3. CreateRules (Tripwire LineDetector + FieldDetector)
+    {
+        const std::string req
+            = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+              "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+              "xmlns:tan=\"http://www.onvif.org/ver20/analytics/wsdl\" "
+              "xmlns:tt=\"http://www.onvif.org/ver10/schema\">\r\n"
+              "  <SOAP-ENV:Body>\r\n"
+              "    <tan:CreateRules>\r\n"
+              "      <tan:ConfigurationToken>VideoAnalytics_1</tan:ConfigurationToken>\r\n"
+              "      <tan:Rule Name=\"PerimeterTripwire\" Type=\"tt:LineDetector\">\r\n"
+              "        <tan:Parameters>\r\n"
+              "          <tt:SimpleItem Name=\"Direction\" Value=\"LeftToRight\"/>\r\n"
+              "          <tt:SimpleItem Name=\"Classes\" Value=\"Human,Vehicle\"/>\r\n"
+              "          <tt:SimpleItem Name=\"MinConfidence\" Value=\"0.50\"/>\r\n"
+              "          <tt:ElementItem Name=\"Segment\">\r\n"
+              "            <tt:Point x=\"0.5000\" y=\"0.0000\"/>\r\n"
+              "            <tt:Point x=\"0.5000\" y=\"1.0000\"/>\r\n"
+              "          </tt:ElementItem>\r\n"
+              "        </tan:Parameters>\r\n"
+              "      </tan:Rule>\r\n"
+              "      <tan:Rule Name=\"ZoneIntrusion\" Type=\"tt:FieldDetector\">\r\n"
+              "        <tan:Parameters>\r\n"
+              "          <tt:SimpleItem Name=\"Classes\" Value=\"Human\"/>\r\n"
+              "          <tt:ElementItem Name=\"Field\">\r\n"
+              "            <tt:Polygon>\r\n"
+              "              <tt:Point x=\"0.2000\" y=\"0.2000\"/>\r\n"
+              "              <tt:Point x=\"0.8000\" y=\"0.2000\"/>\r\n"
+              "              <tt:Point x=\"0.8000\" y=\"0.8000\"/>\r\n"
+              "              <tt:Point x=\"0.2000\" y=\"0.8000\"/>\r\n"
+              "            </tt:Polygon>\r\n"
+              "          </tt:ElementItem>\r\n"
+              "        </tan:Parameters>\r\n"
+              "      </tan:Rule>\r\n"
+              "    </tan:CreateRules>\r\n"
+              "  </SOAP-ENV:Body>\r\n"
+              "</SOAP-ENV:Envelope>";
+        auto res = client.Post("/onvif/analytics_service", req, "application/soap+xml; charset=utf-8");
+        assert(res && res->status == 200);
+        assert(res->body.find("CreateRulesResponse") != std::string::npos);
+    }
+
+    // 4. GetRules verify persistence
+    {
+        const std::string req = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+                                "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                "xmlns:tan=\"http://www.onvif.org/ver20/analytics/wsdl\">\r\n"
+                                "  <SOAP-ENV:Body><tan:GetRules/></SOAP-ENV:Body>\r\n"
+                                "</SOAP-ENV:Envelope>";
+        auto res = client.Post("/onvif/analytics_service", req, "application/soap+xml; charset=utf-8");
+        assert(res && res->status == 200);
+        assert(res->body.find("PerimeterTripwire") != std::string::npos);
+        assert(res->body.find("ZoneIntrusion") != std::string::npos);
+    }
+
+    // 5. Test Geometric Rule Evaluation via Adapter & Event Publishing
+    std::vector<OnvifEvent> emittedEvents;
+    adapter->setEventPublisher([&emittedEvents](const OnvifEvent& ev) {
+        emittedEvents.push_back(ev);
+    });
+
+    // Frame 1: Object 1 (Human) at x=0.30 (left of vertical line x=0.50, inside zone [0.2, 0.8])
+    AnalyticsObject obj1;
+    obj1.objectId = 101;
+    obj1.className = "Human";
+    obj1.confidence = 0.85f;
+    obj1.boundingBox = { 0.28f, 0.45f, 0.32f, 0.55f }; // center (0.30, 0.50)
+
+    adapter->setDetectedObjects({ obj1 });
+
+    // Should trigger ZoneIntrusion event because center is inside polygon [0.2, 0.8]
+    assert(!emittedEvents.empty());
+    bool zoneTriggered = false;
+    for (const auto& ev : emittedEvents) {
+        if (ev.topic == "tns1:RuleEngine/FieldDetector/ObjectsInside" && ev.sourceValue == "ZoneIntrusion") {
+            zoneTriggered = true;
+        }
+    }
+    assert(zoneTriggered);
+    emittedEvents.clear();
+
+    // Frame 2: Object 1 moves to x=0.70 (right of vertical line x=0.50) -> Crossing left-to-right!
+    AnalyticsObject obj1Moved = obj1;
+    obj1Moved.boundingBox = { 0.68f, 0.45f, 0.72f, 0.55f }; // center (0.70, 0.50)
+
+    adapter->setDetectedObjects({ obj1Moved });
+
+    // Should trigger PerimeterTripwire Crossed event
+    bool tripwireTriggered = false;
+    for (const auto& ev : emittedEvents) {
+        if (ev.topic == "tns1:RuleEngine/LineDetector/Crossed" && ev.sourceValue == "PerimeterTripwire") {
+            tripwireTriggered = true;
+        }
+    }
+    assert(tripwireTriggered);
+
+    // 6. DeleteRules
+    {
+        const std::string req = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+                                "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                "xmlns:tan=\"http://www.onvif.org/ver20/analytics/wsdl\">\r\n"
+                                "  <SOAP-ENV:Body>\r\n"
+                                "    <tan:DeleteRules>\r\n"
+                                "      <tan:RuleName>PerimeterTripwire</tan:RuleName>\r\n"
+                                "    </tan:DeleteRules>\r\n"
+                                "  </SOAP-ENV:Body>\r\n"
+                                "</SOAP-ENV:Envelope>";
+        auto res = client.Post("/onvif/analytics_service", req, "application/soap+xml; charset=utf-8");
+        assert(res && res->status == 200);
+        assert(res->body.find("DeleteRulesResponse") != std::string::npos);
+
+        auto rulesRemaining = adapter->handleGetRules("");
+        assert(rulesRemaining.size() == 1U);
+        assert(rulesRemaining[0].name == "ZoneIntrusion");
+    }
+
+    server.stop();
+    assert(!server.isRunning());
+    device->stop();
+
+    std::cout << "[PASS] testVideoAnalyticsRuleEngineAndEvaluation" << std::endl;
+}
+
 int main()
 {
     std::cout << "Starting TestOnvifServer test suite..." << std::endl;
@@ -2406,6 +2576,7 @@ int main()
     testImagingExtensionsAndDeviceIo();
     testMetadataStreamsAndMaintenanceExtensions();
     testProfileGAndPkiCertificates();
+    testVideoAnalyticsRuleEngineAndEvaluation();
     std::cout << "All TestOnvifServer tests passed successfully!" << std::endl;
     return 0;
 }

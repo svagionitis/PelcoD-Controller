@@ -3,6 +3,7 @@
 /// @file OnvifTypes.h
 /// @brief Common data structures, enums, and models for ONVIF Profile S client.
 
+#include <map>
 #include <optional>
 #include <string>
 #include <vector>
@@ -201,14 +202,61 @@ struct VideoEncoderConfig {
     int govLength { 30 }; ///< Group of Video / keyframe interval
 };
 
+/// @struct Point2D
+/// @brief 2D coordinate pair normalized to [0.0, 1.0] for video analytics geometry.
+struct Point2D {
+    float x { 0.0f }; ///< Horizontal normalized coordinate [0.0, 1.0]
+    float y { 0.0f }; ///< Vertical normalized coordinate [0.0, 1.0]
+};
+
 /// @struct AnalyticsRule
-/// @brief Analytics rule definition for ONVIF Analytics Service.
+/// @brief Analytics rule definition for ONVIF Analytics Service (Profile M & Profile T).
 struct AnalyticsRule {
-    std::string name {}; ///< Rule identifier name, e.g. "MyMotionDetector"
+    std::string name {}; ///< Rule identifier name, e.g. "MyLineTripwire", "PerimeterZone"
     std::string type {
         "CellMotionDetector"
-    }; ///< Rule algorithm type ("CellMotionDetector", "LineDetector", "FieldDetector")
+    }; ///< Rule algorithm type ("CellMotionDetector", "LineDetector", "FieldDetector", "LoiteringDetector")
     bool enabled { true }; ///< Whether the analytics rule is actively evaluated
+
+    // Parameters for LineDetector (Tripwire)
+    Point2D lineStart { 0.0f, 0.0f }; ///< Line start point for LineDetector
+    Point2D lineEnd { 0.0f, 0.0f }; ///< Line end point for LineDetector
+    std::string direction { "Any" }; ///< Direction: "LeftToRight", "RightToLeft", "Any"
+
+    // Parameters for FieldDetector and LoiteringDetector
+    std::vector<Point2D> polygon {}; ///< 2D polygon vertices defining region of interest
+
+    // Parameters for LoiteringDetector
+    double dwellTimeSeconds { 5.0 }; ///< Minimum continuous dwell time in seconds to trigger alarm
+
+    // Classification filtering (Profile M)
+    std::vector<std::string> objectClasses {}; ///< Allowed classes (e.g. "Human", "Vehicle"), empty = all
+    float minConfidence { 0.5f }; ///< Minimum confidence threshold for classification
+
+    // Sensitivity for CellMotionDetector
+    int sensitivity { 50 }; ///< Sensitivity percentage [0, 100]
+};
+
+/// @struct AnalyticsRuleDescription
+/// @brief Description of a supported analytics rule algorithm.
+struct AnalyticsRuleDescription {
+    std::string ruleType {}; ///< Rule algorithm type name (e.g. "tt:LineDetector")
+    std::vector<std::string> supportedParameters {}; ///< List of configurable parameters
+};
+
+/// @struct AnalyticsModule
+/// @brief Configuration of an ONVIF Analytics Module (Profile M / T).
+struct AnalyticsModule {
+    std::string name {}; ///< Module instance identifier name
+    std::string type { "MotionDetector" }; ///< Module algorithm type (e.g. "tt:MotionDetector", "tt:ObjectClassifier")
+    std::map<std::string, std::string> parameters {}; ///< Key-value parameter dictionary
+};
+
+/// @struct AnalyticsModuleDescription
+/// @brief Description of a supported analytics module.
+struct AnalyticsModuleDescription {
+    std::string moduleType {}; ///< Module algorithm type name
+    std::vector<std::string> supportedParameters {}; ///< List of supported parameter keys
 };
 
 /// @enum OnvifUserLevel

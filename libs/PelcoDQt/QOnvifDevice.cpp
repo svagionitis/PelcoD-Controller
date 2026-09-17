@@ -1316,4 +1316,136 @@ bool QOnvifDevice::setReplayConfiguration(const PelcoD::Onvif::ReplayConfigurati
     return ok;
 }
 
+// =========================================================================
+// Profile M & Profile T: Video Analytics Rule Engine & Modules
+// =========================================================================
+
+void QOnvifDevice::refreshSupportedRules()
+{
+    if (!m_client) {
+        return;
+    }
+    const std::string cfgToken = m_activeProfileToken.toStdString();
+    m_supportedRules = m_client->getSupportedRules(cfgToken);
+    emit supportedRulesUpdated(m_supportedRules);
+}
+
+void QOnvifDevice::refreshRules()
+{
+    if (!m_client) {
+        return;
+    }
+    const std::string cfgToken = m_activeProfileToken.toStdString();
+    m_rules = m_client->getRules(cfgToken);
+    emit rulesUpdated(m_rules);
+}
+
+bool QOnvifDevice::createRules(const std::vector<PelcoD::Onvif::AnalyticsRule>& rules)
+{
+    if (!m_client) {
+        return false;
+    }
+    const std::string cfgToken = m_activeProfileToken.toStdString();
+    const bool ok = m_client->createRules(cfgToken, rules);
+    if (ok) {
+        refreshRules();
+    }
+    return ok;
+}
+
+bool QOnvifDevice::modifyRules(const std::vector<PelcoD::Onvif::AnalyticsRule>& rules)
+{
+    if (!m_client) {
+        return false;
+    }
+    const std::string cfgToken = m_activeProfileToken.toStdString();
+    const bool ok = m_client->modifyRules(cfgToken, rules);
+    if (ok) {
+        refreshRules();
+    }
+    return ok;
+}
+
+bool QOnvifDevice::deleteRules(const QStringList& ruleNames)
+{
+    if (!m_client) {
+        return false;
+    }
+    std::vector<std::string> names;
+    names.reserve(ruleNames.size());
+    for (const auto& n : ruleNames) {
+        names.push_back(n.toStdString());
+    }
+    const std::string cfgToken = m_activeProfileToken.toStdString();
+    const bool ok = m_client->deleteRules(cfgToken, names);
+    if (ok) {
+        refreshRules();
+    }
+    return ok;
+}
+
+void QOnvifDevice::refreshSupportedAnalyticsModules()
+{
+    if (!m_client) {
+        return;
+    }
+    const std::string cfgToken = m_activeProfileToken.toStdString();
+    m_supportedModules = m_client->getSupportedAnalyticsModules(cfgToken);
+    emit supportedAnalyticsModulesUpdated(m_supportedModules);
+}
+
+void QOnvifDevice::refreshAnalyticsModules()
+{
+    if (!m_client) {
+        return;
+    }
+    const std::string cfgToken = m_activeProfileToken.toStdString();
+    m_analyticsModules = m_client->getAnalyticsModules(cfgToken);
+    emit analyticsModulesUpdated(m_analyticsModules);
+}
+
+bool QOnvifDevice::createAnalyticsModules(const std::vector<PelcoD::Onvif::AnalyticsModule>& modules)
+{
+    if (!m_client) {
+        return false;
+    }
+    const std::string cfgToken = m_activeProfileToken.toStdString();
+    const bool ok = m_client->createAnalyticsModules(cfgToken, modules);
+    if (ok) {
+        refreshAnalyticsModules();
+    }
+    return ok;
+}
+
+bool QOnvifDevice::modifyAnalyticsModules(const std::vector<PelcoD::Onvif::AnalyticsModule>& modules)
+{
+    if (!m_client) {
+        return false;
+    }
+    const std::string cfgToken = m_activeProfileToken.toStdString();
+    const bool ok = m_client->modifyAnalyticsModules(cfgToken, modules);
+    if (ok) {
+        refreshAnalyticsModules();
+    }
+    return ok;
+}
+
+bool QOnvifDevice::deleteAnalyticsModules(const QStringList& moduleNames)
+{
+    if (!m_client) {
+        return false;
+    }
+    std::vector<std::string> names;
+    names.reserve(moduleNames.size());
+    for (const auto& n : moduleNames) {
+        names.push_back(n.toStdString());
+    }
+    const std::string cfgToken = m_activeProfileToken.toStdString();
+    const bool ok = m_client->deleteAnalyticsModules(cfgToken, names);
+    if (ok) {
+        refreshAnalyticsModules();
+    }
+    return ok;
+}
+
 } // namespace PelcoD::Qt

@@ -895,18 +895,21 @@ void PelcoDPtzAdapter::setDetectedObjects(std::vector<AnalyticsObject> objects)
 {
     std::lock_guard<std::mutex> lock(m_mutex);
     m_detectedObjects = std::move(objects);
+    evaluateRulesForFrame();
 }
 
 void PelcoDPtzAdapter::addDetectedObject(const AnalyticsObject& object)
 {
     std::lock_guard<std::mutex> lock(m_mutex);
     m_detectedObjects.push_back(object);
+    evaluateRulesForFrame();
 }
 
 void PelcoDPtzAdapter::clearDetectedObjects()
 {
     std::lock_guard<std::mutex> lock(m_mutex);
     m_detectedObjects.clear();
+    m_objectTracks.clear();
 }
 
 // =========================================================================
@@ -1283,6 +1286,290 @@ bool PelcoDPtzAdapter::handleSetReplayConfiguration(const ReplayConfiguration& c
     std::lock_guard<std::mutex> lock(m_mutex);
     m_replayConfig = config;
     return true;
+}
+
+// =========================================================================
+// IAnalyticsHandler Implementation (Profile M & Profile T)
+// =========================================================================
+
+std::vector<AnalyticsRuleDescription> PelcoDPtzAdapter::handleGetSupportedRules(
+    const std::string& /*configToken*/)
+{
+    return {
+        { "tt:LineDetector", { "Segment", "Direction", "Classes", "MinConfidence", "Enabled" } },
+        { "tt:FieldDetector", { "Field", "Classes", "MinConfidence", "Enabled" } },
+        { "tt:LoiteringDetector", { "Field", "DwellTime", "Classes", "MinConfidence", "Enabled" } },
+        { "tt:CellMotionDetector", { "Sensitivity", "Enabled" } },
+    };
+}
+
+std::vector<AnalyticsRule> PelcoDPtzAdapter::handleGetRules(const std::string& /*configToken*/)
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    return m_rules;
+}
+
+bool PelcoDPtzAdapter::handleCreateRules(
+    const std::string& /*configToken*/, const std::vector<AnalyticsRule>& rules)
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    for (const auto& r : rules) {
+        m_rules.push_back(r);
+    }
+    return true;
+}
+
+bool PelcoDPtzAdapter::handleModifyRules(
+    const std::string& /*configToken*/, const std::vector<AnalyticsRule>& rules)
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    for (const auto& r : rules) {
+        for (auto& existing : m_rules) {
+            if (existing.name == r.name) {
+                existing = r;
+                break;
+            }
+        }
+    }
+    return true;
+}
+
+bool PelcoDPtzAdapter::handleDeleteRules(
+    const std::string& /*configToken*/, const std::vector<std::string>& ruleNames)
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    m_rules.erase(std::remove_if(m_rules.begin(), m_rules.end(),
+                      [&](const AnalyticsRule& r) {
+                          return std::find(ruleNames.begin(), ruleNames.end(), r.name) != ruleNames.end();
+                      }),
+        m_rules.end());
+    return true;
+}
+
+std::vector<AnalyticsModuleDescription> PelcoDPtzAdapter::handleGetSupportedAnalyticsModules(
+    const std::string& /*configToken*/)
+{
+    return {
+        { "tt:ObjectClassificationModule", { "Classes", "MinConfidence" } },
+        { "tt:MotionDetectionModule", { "Sensitivity" } },
+    };
+}
+
+std::vector<AnalyticsModule> PelcoDPtzAdapter::handleGetAnalyticsModules(const std::string& /*configToken*/)
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    return m_analyticsModules;
+}
+
+bool PelcoDPtzAdapter::handleCreateAnalyticsModules(
+    const std::string& /*configToken*/, const std::vector<AnalyticsModule>& modules)
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    for (const auto& m : modules) {
+        m_analyticsModules.push_back(m);
+    }
+    return true;
+}
+
+bool PelcoDPtzAdapter::handleModifyAnalyticsModules(
+    const std::string& /*configToken*/, const std::vector<AnalyticsModule>& modules)
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    for (const auto& m : modules) {
+        for (auto& existing : m_analyticsModules) {
+            if (existing.name == m.name) {
+                existing = m;
+                break;
+            }
+        }
+    }
+    return true;
+}
+
+bool PelcoDPtzAdapter::handleDeleteAnalyticsModules(
+    const std::string& /*configToken*/, const std::vector<std::string>& moduleNames)
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    m_analyticsModules.erase(std::remove_if(m_analyticsModules.begin(), m_analyticsModules.end(),
+                                 [&](const AnalyticsModule& m) {
+                                     return std::find(moduleNames.begin(), moduleNames.end(), m.name)
+                                         != moduleNames.end();
+                                 }),
+        m_analyticsModules.end());
+    return true;
+}
+
+namespace {
+    // Point in polygon test using Ray-Casting algorithm
+    bool isPointInPolygon(const Point2D& pt, const std::vector<Point2D>& polygon)
+    {
+        if (polygon.size() < 3) {
+            return false;
+        }
+        bool inside = false;
+        const size_t n = polygon.size();
+        for (size_t i = 0, j = n - 1; i < n; j = i++) {
+            const double xi = polygon[i].x, yi = polygon[i].y;
+            const double xj = polygon[j].x, yj = polygon[j].y;
+            const bool intersect = ((yi > pt.y) != (yj > pt.y))
+                && (pt.x < (xj - xi) * (pt.y - yi) / (yj - yi + 1e-12) + xi);
+            if (intersect) {
+                inside = !inside;
+            }
+        }
+        return inside;
+    }
+
+    // Line segment crossing test
+    // Returns 0: no cross, 1: crossed left-to-right, -1: crossed right-to-left
+    int checkLineCrossing(const Point2D& p1, const Point2D& p2, const Point2D& lA, const Point2D& lB)
+    {
+        const auto ccw = [](const Point2D& a, const Point2D& b, const Point2D& c) -> double {
+            return (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x);
+        };
+
+        const double d1 = ccw(lA, lB, p1);
+        const double d2 = ccw(lA, lB, p2);
+        const double d3 = ccw(p1, p2, lA);
+        const double d4 = ccw(p1, p2, lB);
+
+        if (((d1 > 0.0 && d2 < 0.0) || (d1 < 0.0 && d2 > 0.0)) &&
+            ((d3 > 0.0 && d4 < 0.0) || (d3 < 0.0 && d4 > 0.0))) {
+            return (d1 > 0.0) ? 1 : -1;
+        }
+        return 0;
+    }
+} // namespace
+
+void PelcoDPtzAdapter::evaluateRulesForObject(const AnalyticsObject& prevObj, const AnalyticsObject& currentObj)
+{
+    const Point2D prevCenter { (prevObj.boundingBox.left + prevObj.boundingBox.right) * 0.5f,
+        (prevObj.boundingBox.top + prevObj.boundingBox.bottom) * 0.5f };
+    const Point2D currCenter { (currentObj.boundingBox.left + currentObj.boundingBox.right) * 0.5f,
+        (currentObj.boundingBox.top + currentObj.boundingBox.bottom) * 0.5f };
+
+    for (const auto& rule : m_rules) {
+        if (!rule.enabled) {
+            continue;
+        }
+
+        // Class and confidence filter check
+        if (!rule.objectClasses.empty()) {
+            const bool classMatch = std::find(rule.objectClasses.begin(), rule.objectClasses.end(),
+                                        currentObj.className) != rule.objectClasses.end();
+            if (!classMatch) {
+                continue;
+            }
+        }
+        if (rule.minConfidence > 0.0f && currentObj.confidence < rule.minConfidence) {
+            continue;
+        }
+
+        // 1. Line Crossing (Tripwire)
+        if (rule.type.find("Line") != std::string::npos) {
+            const int cross = checkLineCrossing(prevCenter, currCenter, rule.lineStart, rule.lineEnd);
+            bool crossed = false;
+            if (rule.direction == "LeftToRight" && cross == 1) {
+                crossed = true;
+            } else if (rule.direction == "RightToLeft" && cross == -1) {
+                crossed = true;
+            } else if ((rule.direction == "Any" || rule.direction.empty()) && cross != 0) {
+                crossed = true;
+            }
+
+            if (crossed && m_eventPublisher) {
+                OnvifEvent ev {};
+                ev.topic = "tns1:RuleEngine/LineDetector/Crossed";
+                ev.sourceName = "Rule";
+                ev.sourceValue = rule.name;
+                ev.dataName = "State";
+                ev.dataValue = "true";
+                m_eventPublisher(ev);
+            }
+        }
+    }
+}
+
+void PelcoDPtzAdapter::evaluateRulesForFrame()
+{
+    const auto now = std::chrono::steady_clock::now();
+
+    for (const auto& obj : m_detectedObjects) {
+        auto& track = m_objectTracks[obj.objectId];
+        const bool isNew = (track.firstSeen.time_since_epoch().count() == 0);
+        if (isNew) {
+            track.firstSeen = now;
+            track.lastSeen = now;
+            track.lastObject = obj;
+        } else {
+            evaluateRulesForObject(track.lastObject, obj);
+            track.lastSeen = now;
+            track.lastObject = obj;
+        }
+
+        const Point2D center { (obj.boundingBox.left + obj.boundingBox.right) * 0.5f,
+            (obj.boundingBox.top + obj.boundingBox.bottom) * 0.5f };
+
+        for (const auto& rule : m_rules) {
+            if (!rule.enabled) {
+                continue;
+            }
+
+            // Class and confidence filter check
+            if (!rule.objectClasses.empty()) {
+                const bool classMatch = std::find(rule.objectClasses.begin(), rule.objectClasses.end(),
+                                            obj.className) != rule.objectClasses.end();
+                if (!classMatch) {
+                    continue;
+                }
+            }
+            if (rule.minConfidence > 0.0f && obj.confidence < rule.minConfidence) {
+                continue;
+            }
+
+            // 2. Field Detector (Polygon Intrusion)
+            if (rule.type.find("Field") != std::string::npos && rule.type.find("Loitering") == std::string::npos) {
+                if (isPointInPolygon(center, rule.polygon)) {
+                    if (!track.triggeredRules[rule.name]) {
+                        track.triggeredRules[rule.name] = true;
+                        if (m_eventPublisher) {
+                            OnvifEvent ev {};
+                            ev.topic = "tns1:RuleEngine/FieldDetector/ObjectsInside";
+                            ev.sourceName = "Rule";
+                            ev.sourceValue = rule.name;
+                            ev.dataName = "State";
+                            ev.dataValue = "true";
+                            m_eventPublisher(ev);
+                        }
+                    }
+                } else {
+                    track.triggeredRules[rule.name] = false;
+                }
+            }
+
+            // 3. Loitering Detector (Polygon Intrusion + Dwell Time)
+            if (rule.type.find("Loitering") != std::string::npos) {
+                if (isPointInPolygon(center, rule.polygon)) {
+                    const double dwellSec = std::chrono::duration<double>(now - track.firstSeen).count();
+                    if (dwellSec >= rule.dwellTimeSeconds && !track.triggeredRules[rule.name]) {
+                        track.triggeredRules[rule.name] = true;
+                        if (m_eventPublisher) {
+                            OnvifEvent ev {};
+                            ev.topic = "tns1:RuleEngine/LoiteringDetector/DwellTimeExceeded";
+                            ev.sourceName = "Rule";
+                            ev.sourceValue = rule.name;
+                            ev.dataName = "State";
+                            ev.dataValue = "true";
+                            m_eventPublisher(ev);
+                        }
+                    }
+                } else {
+                    track.firstSeen = now;
+                    track.triggeredRules[rule.name] = false;
+                }
+            }
+        }
+    }
 }
 
 } // namespace PelcoD::Onvif

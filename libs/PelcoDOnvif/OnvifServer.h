@@ -37,7 +37,8 @@ public:
         std::shared_ptr<IImagingHandler> imagingHandler = nullptr, std::shared_ptr<IOsdHandler> osdHandler = nullptr,
         std::shared_ptr<IDeviceManagementHandler> deviceHandler = nullptr,
         std::shared_ptr<IDeviceIoHandler> deviceIoHandler = nullptr,
-        std::shared_ptr<IMetadataHandler> metadataHandler = nullptr);
+        std::shared_ptr<IMetadataHandler> metadataHandler = nullptr,
+        std::shared_ptr<IAnalyticsHandler> analyticsHandler = nullptr);
 
     /// @brief Destructor stops HTTP service and WS-Discovery daemon.
     ~OnvifServer();
@@ -98,6 +99,10 @@ public:
     /// @brief Sets or replaces the active Replay handler (Profile G).
     /// @param[in] handler New IReplayHandler instance.
     void setReplayHandler(std::shared_ptr<IReplayHandler> handler);
+
+    /// @brief Sets or replaces the active Analytics handler (Profile M & Profile T).
+    /// @param[in] handler New IAnalyticsHandler instance.
+    void setAnalyticsHandler(std::shared_ptr<IAnalyticsHandler> handler);
 
     /// @brief Records an operational message into the internal system log buffer.
     /// @param[in] level Log level ("INFO", "WARNING", "ERROR").
@@ -161,6 +166,7 @@ private:
     std::shared_ptr<IRecordingHandler> m_recordingHandler;
     std::shared_ptr<ISearchHandler> m_searchHandler;
     std::shared_ptr<IReplayHandler> m_replayHandler;
+    std::shared_ptr<IAnalyticsHandler> m_analyticsHandler;
     std::unique_ptr<WsDiscoveryServer> m_discoveryServer;
     httplib::Server m_httpServer;
 
@@ -198,6 +204,10 @@ private:
     std::map<std::string, std::vector<RecordingSearchResult>> m_recordingSearches {};
     std::map<std::string, std::vector<RecordedEventResult>> m_eventSearches {};
     uint32_t m_nextSearchId { 1 };
+
+    mutable std::mutex m_analyticsMutex {};
+    std::vector<AnalyticsRule> m_internalRules {};
+    std::vector<AnalyticsModule> m_internalModules {};
 
     mutable std::mutex m_logMutex {};
     std::deque<std::string> m_systemLogs {};

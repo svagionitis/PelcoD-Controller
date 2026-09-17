@@ -175,8 +175,23 @@ std::optional<OnvifCapabilities> OnvifClient::parseCapabilitiesResponse(const st
         }
     }
 
+    const auto analyticsNode = findNodeWithSuffix(capNode, "Analytics");
+    if (analyticsNode) {
+        const auto xaddr = findNodeWithSuffix(analyticsNode, "XAddr");
+        if (xaddr) {
+            caps.analyticsXAddr = xaddr.text().as_string();
+        }
+    }
+
     const auto extNode = findNodeWithSuffix(capNode, "Extension");
     if (extNode) {
+        const auto anaNode = findNodeWithSuffix(extNode, "Analytics");
+        if (anaNode) {
+            const auto xaddr = findNodeWithSuffix(anaNode, "XAddr");
+            if (xaddr) {
+                caps.analyticsXAddr = xaddr.text().as_string();
+            }
+        }
         const auto devIoNode = findNodeWithSuffix(extNode, "DeviceIO");
         if (devIoNode) {
             const auto xaddr = findNodeWithSuffix(devIoNode, "XAddr");
@@ -4108,6 +4123,387 @@ std::optional<ReplayConfiguration> OnvifClient::parseReplayConfigurationResponse
         return cfg;
     }
     return std::nullopt;
+}
+
+// =========================================================================
+// Video Analytics Service (Profile M & T)
+// =========================================================================
+
+static void serializeRuleXml(std::ostringstream& ss, const AnalyticsRule& rule)
+{
+    ss << "    <tan:Rule Name=\"" << rule.name << "\" Type=\"" << rule.type << "\">\n"
+       << "      <tan:Parameters>\n";
+
+    if (rule.type.find("Line") != std::string::npos) {
+        ss << "        <tt:SimpleItem Name=\"Direction\" Value=\"" << rule.direction << "\"/>\n"
+           << "        <tt:ElementItem Name=\"Segment\">\n"
+           << "          <tt:Point x=\"" << std::fixed << std::setprecision(4) << rule.lineStart.x << "\" y=\""
+           << std::fixed << std::setprecision(4) << rule.lineStart.y << "\"/>\n"
+           << "          <tt:Point x=\"" << std::fixed << std::setprecision(4) << rule.lineEnd.x << "\" y=\""
+           << std::fixed << std::setprecision(4) << rule.lineEnd.y << "\"/>\n"
+           << "        </tt:ElementItem>\n";
+    } else if (rule.type.find("Field") != std::string::npos || rule.type.find("Loitering") != std::string::npos) {
+        if (rule.type.find("Loitering") != std::string::npos) {
+            ss << "        <tt:SimpleItem Name=\"DwellTime\" Value=\"" << std::fixed << std::setprecision(2)
+               << rule.dwellTimeSeconds << "\"/>\n";
+        }
+        if (!rule.polygon.empty()) {
+            ss << "        <tt:ElementItem Name=\"Field\">\n"
+               << "          <tt:Polygon>\n";
+            for (const auto& pt : rule.polygon) {
+                ss << "            <tt:Point x=\"" << std::fixed << std::setprecision(4) << pt.x << "\" y=\""
+                   << std::fixed << std::setprecision(4) << pt.y << "\"/>\n";
+            }
+            ss << "          </tt:Polygon>\n"
+               << "        </tt:ElementItem>\n";
+        }
+    } else if (rule.type.find("CellMotion") != std::string::npos) {
+        ss << "        <tt:SimpleItem Name=\"Sensitivity\" Value=\"" << rule.sensitivity << "\"/>\n";
+    }
+
+    if (!rule.objectClasses.empty()) {
+        std::string classesJoined;
+        for (size_t i = 0; i < rule.objectClasses.size(); ++i) {
+            if (i > 0) {
+                classesJoined += ",";
+            }
+            classesJoined += rule.objectClasses[i];
+        }
+        ss << "        <tt:SimpleItem Name=\"Classes\" Value=\"" << classesJoined << "\"/>\n";
+        ss << "        <tt:SimpleItem Name=\"MinConfidence\" Value=\"" << std::fixed << std::setprecision(2)
+           << rule.minConfidence << "\"/>\n";
+    }
+
+    ss << "        <tt:SimpleItem Name=\"Enabled\" Value=\"" << (rule.enabled ? "true" : "false") << "\"/>\n"
+       << "      </tan:Parameters>\n"
+       << "    </tan:Rule>\n";
+}
+
+static void serializeModuleXml(std::ostringstream& ss, const AnalyticsModule& module)
+{
+    ss << "    <tan:AnalyticsModule Name=\"" << module.name << "\" Type=\"" << module.type << "\">\n"
+       << "      <tan:Parameters>\n";
+    for (const auto& [k, v] : module.parameters) {
+        ss << "        <tt:SimpleItem Name=\"" << k << "\" Value=\"" << v << "\"/>\n";
+    }
+    ss << "      </tan:Parameters>\n"
+       << "    </tan:AnalyticsModule>\n";
+}
+
+std::vector<AnalyticsRuleDescription> OnvifClient::getSupportedRules(const std::string& configToken)
+{
+    const std::string url
+        = resolveServiceUrl(m_capabilities.analyticsXAddr, m_deviceEndpoint, "/onvif/analytics_service");
+    std::ostringstream ss;
+    ss << "<tan:GetSupportedRules xmlns:tan=\"http://www.onvif.org/ver20/analytics/wsdl\">\n"
+       << "  <tan:ConfigurationToken>" << configToken << "</tan:ConfigurationToken>\n"
+       << "</tan:GetSupportedRules>";
+    const std::string reqXml = wrapSoapEnvelope(ss.str());
+    const HttpResponse resp = m_httpClient.sendPost(url, reqXml);
+    if (!resp.isSuccess()) {
+        return {};
+    }
+    return parseSupportedRulesResponse(resp.body);
+}
+
+std::vector<AnalyticsRule> OnvifClient::getRules(const std::string& configToken)
+{
+    const std::string url
+        = resolveServiceUrl(m_capabilities.analyticsXAddr, m_deviceEndpoint, "/onvif/analytics_service");
+    std::ostringstream ss;
+    ss << "<tan:GetRules xmlns:tan=\"http://www.onvif.org/ver20/analytics/wsdl\">\n"
+       << "  <tan:ConfigurationToken>" << configToken << "</tan:ConfigurationToken>\n"
+       << "</tan:GetRules>";
+    const std::string reqXml = wrapSoapEnvelope(ss.str());
+    const HttpResponse resp = m_httpClient.sendPost(url, reqXml);
+    if (!resp.isSuccess()) {
+        return {};
+    }
+    return parseRulesResponse(resp.body);
+}
+
+bool OnvifClient::createRules(const std::string& configToken, const std::vector<AnalyticsRule>& rules)
+{
+    const std::string url
+        = resolveServiceUrl(m_capabilities.analyticsXAddr, m_deviceEndpoint, "/onvif/analytics_service");
+    std::ostringstream ss;
+    ss << "<tan:CreateRules xmlns:tan=\"http://www.onvif.org/ver20/analytics/wsdl\" "
+       << "xmlns:tt=\"http://www.onvif.org/ver10/schema\">\n"
+       << "  <tan:ConfigurationToken>" << configToken << "</tan:ConfigurationToken>\n";
+    for (const auto& r : rules) {
+        serializeRuleXml(ss, r);
+    }
+    ss << "</tan:CreateRules>";
+    const std::string reqXml = wrapSoapEnvelope(ss.str());
+    const HttpResponse resp = m_httpClient.sendPost(url, reqXml);
+    return resp.isSuccess();
+}
+
+bool OnvifClient::modifyRules(const std::string& configToken, const std::vector<AnalyticsRule>& rules)
+{
+    const std::string url
+        = resolveServiceUrl(m_capabilities.analyticsXAddr, m_deviceEndpoint, "/onvif/analytics_service");
+    std::ostringstream ss;
+    ss << "<tan:ModifyRules xmlns:tan=\"http://www.onvif.org/ver20/analytics/wsdl\" "
+       << "xmlns:tt=\"http://www.onvif.org/ver10/schema\">\n"
+       << "  <tan:ConfigurationToken>" << configToken << "</tan:ConfigurationToken>\n";
+    for (const auto& r : rules) {
+        serializeRuleXml(ss, r);
+    }
+    ss << "</tan:ModifyRules>";
+    const std::string reqXml = wrapSoapEnvelope(ss.str());
+    const HttpResponse resp = m_httpClient.sendPost(url, reqXml);
+    return resp.isSuccess();
+}
+
+bool OnvifClient::deleteRules(const std::string& configToken, const std::vector<std::string>& ruleNames)
+{
+    const std::string url
+        = resolveServiceUrl(m_capabilities.analyticsXAddr, m_deviceEndpoint, "/onvif/analytics_service");
+    std::ostringstream ss;
+    ss << "<tan:DeleteRules xmlns:tan=\"http://www.onvif.org/ver20/analytics/wsdl\">\n"
+       << "  <tan:ConfigurationToken>" << configToken << "</tan:ConfigurationToken>\n";
+    for (const auto& name : ruleNames) {
+        ss << "  <tan:RuleName>" << name << "</tan:RuleName>\n";
+    }
+    ss << "</tan:DeleteRules>";
+    const std::string reqXml = wrapSoapEnvelope(ss.str());
+    const HttpResponse resp = m_httpClient.sendPost(url, reqXml);
+    return resp.isSuccess();
+}
+
+std::vector<AnalyticsModuleDescription> OnvifClient::getSupportedAnalyticsModules(const std::string& configToken)
+{
+    const std::string url
+        = resolveServiceUrl(m_capabilities.analyticsXAddr, m_deviceEndpoint, "/onvif/analytics_service");
+    std::ostringstream ss;
+    ss << "<tan:GetSupportedAnalyticsModules xmlns:tan=\"http://www.onvif.org/ver20/analytics/wsdl\">\n"
+       << "  <tan:ConfigurationToken>" << configToken << "</tan:ConfigurationToken>\n"
+       << "</tan:GetSupportedAnalyticsModules>";
+    const std::string reqXml = wrapSoapEnvelope(ss.str());
+    const HttpResponse resp = m_httpClient.sendPost(url, reqXml);
+    if (!resp.isSuccess()) {
+        return {};
+    }
+    return parseSupportedAnalyticsModulesResponse(resp.body);
+}
+
+std::vector<AnalyticsModule> OnvifClient::getAnalyticsModules(const std::string& configToken)
+{
+    const std::string url
+        = resolveServiceUrl(m_capabilities.analyticsXAddr, m_deviceEndpoint, "/onvif/analytics_service");
+    std::ostringstream ss;
+    ss << "<tan:GetAnalyticsModules xmlns:tan=\"http://www.onvif.org/ver20/analytics/wsdl\">\n"
+       << "  <tan:ConfigurationToken>" << configToken << "</tan:ConfigurationToken>\n"
+       << "</tan:GetAnalyticsModules>";
+    const std::string reqXml = wrapSoapEnvelope(ss.str());
+    const HttpResponse resp = m_httpClient.sendPost(url, reqXml);
+    if (!resp.isSuccess()) {
+        return {};
+    }
+    return parseAnalyticsModulesResponse(resp.body);
+}
+
+bool OnvifClient::createAnalyticsModules(const std::string& configToken, const std::vector<AnalyticsModule>& modules)
+{
+    const std::string url
+        = resolveServiceUrl(m_capabilities.analyticsXAddr, m_deviceEndpoint, "/onvif/analytics_service");
+    std::ostringstream ss;
+    ss << "<tan:CreateAnalyticsModules xmlns:tan=\"http://www.onvif.org/ver20/analytics/wsdl\" "
+       << "xmlns:tt=\"http://www.onvif.org/ver10/schema\">\n"
+       << "  <tan:ConfigurationToken>" << configToken << "</tan:ConfigurationToken>\n";
+    for (const auto& m : modules) {
+        serializeModuleXml(ss, m);
+    }
+    ss << "</tan:CreateAnalyticsModules>";
+    const std::string reqXml = wrapSoapEnvelope(ss.str());
+    const HttpResponse resp = m_httpClient.sendPost(url, reqXml);
+    return resp.isSuccess();
+}
+
+bool OnvifClient::modifyAnalyticsModules(const std::string& configToken, const std::vector<AnalyticsModule>& modules)
+{
+    const std::string url
+        = resolveServiceUrl(m_capabilities.analyticsXAddr, m_deviceEndpoint, "/onvif/analytics_service");
+    std::ostringstream ss;
+    ss << "<tan:ModifyAnalyticsModules xmlns:tan=\"http://www.onvif.org/ver20/analytics/wsdl\" "
+       << "xmlns:tt=\"http://www.onvif.org/ver10/schema\">\n"
+       << "  <tan:ConfigurationToken>" << configToken << "</tan:ConfigurationToken>\n";
+    for (const auto& m : modules) {
+        serializeModuleXml(ss, m);
+    }
+    ss << "</tan:ModifyAnalyticsModules>";
+    const std::string reqXml = wrapSoapEnvelope(ss.str());
+    const HttpResponse resp = m_httpClient.sendPost(url, reqXml);
+    return resp.isSuccess();
+}
+
+bool OnvifClient::deleteAnalyticsModules(const std::string& configToken, const std::vector<std::string>& moduleNames)
+{
+    const std::string url
+        = resolveServiceUrl(m_capabilities.analyticsXAddr, m_deviceEndpoint, "/onvif/analytics_service");
+    std::ostringstream ss;
+    ss << "<tan:DeleteAnalyticsModules xmlns:tan=\"http://www.onvif.org/ver20/analytics/wsdl\">\n"
+       << "  <tan:ConfigurationToken>" << configToken << "</tan:ConfigurationToken>\n";
+    for (const auto& name : moduleNames) {
+        ss << "  <tan:AnalyticsModuleName>" << name << "</tan:AnalyticsModuleName>\n";
+    }
+    ss << "</tan:DeleteAnalyticsModules>";
+    const std::string reqXml = wrapSoapEnvelope(ss.str());
+    const HttpResponse resp = m_httpClient.sendPost(url, reqXml);
+    return resp.isSuccess();
+}
+
+std::vector<AnalyticsRuleDescription> OnvifClient::parseSupportedRulesResponse(const std::string& xml)
+{
+    pugi::xml_document doc;
+    if (!doc.load_string(xml.c_str())) {
+        return {};
+    }
+    std::vector<pugi::xml_node> ruleNodes;
+    collectNodesWithSuffix(doc, "RuleDescription", ruleNodes);
+    std::vector<AnalyticsRuleDescription> descs;
+    for (const auto& node : ruleNodes) {
+        AnalyticsRuleDescription desc;
+        desc.ruleType = node.attribute("Name").as_string();
+        std::vector<pugi::xml_node> paramNodes;
+        collectNodesWithSuffix(node, "SimpleItemDescription", paramNodes);
+        collectNodesWithSuffix(node, "ElementItemDescription", paramNodes);
+        for (const auto& pn : paramNodes) {
+            const std::string pName = pn.attribute("Name").as_string();
+            if (!pName.empty()) {
+                desc.supportedParameters.push_back(pName);
+            }
+        }
+        descs.push_back(std::move(desc));
+    }
+    return descs;
+}
+
+std::vector<AnalyticsRule> OnvifClient::parseRulesResponse(const std::string& xml)
+{
+    pugi::xml_document doc;
+    if (!doc.load_string(xml.c_str())) {
+        return {};
+    }
+    std::vector<pugi::xml_node> ruleNodes;
+    collectNodesWithSuffix(doc, "Rule", ruleNodes);
+    std::vector<AnalyticsRule> rules;
+    for (const auto& node : ruleNodes) {
+        AnalyticsRule rule;
+        rule.name = node.attribute("Name").as_string();
+        rule.type = node.attribute("Type").as_string();
+
+        const auto paramsNode = findRecursiveNodeWithSuffix(node, "Parameters");
+        if (paramsNode) {
+            std::vector<pugi::xml_node> simpleItems;
+            collectNodesWithSuffix(paramsNode, "SimpleItem", simpleItems);
+            for (const auto& si : simpleItems) {
+                const std::string name = si.attribute("Name").as_string();
+                const std::string val = si.attribute("Value").as_string();
+                if (name == "Direction") {
+                    rule.direction = val;
+                } else if (name == "DwellTime") {
+                    try {
+                        rule.dwellTimeSeconds = std::stod(val);
+                    } catch (...) {
+                    }
+                } else if (name == "Sensitivity") {
+                    try {
+                        rule.sensitivity = std::stoi(val);
+                    } catch (...) {
+                    }
+                } else if (name == "MinConfidence") {
+                    try {
+                        rule.minConfidence = std::stof(val);
+                    } catch (...) {
+                    }
+                } else if (name == "Enabled") {
+                    rule.enabled = (val == "true" || val == "1");
+                } else if (name == "Classes") {
+                    rule.objectClasses.clear();
+                    std::stringstream cflow(val);
+                    std::string segment;
+                    while (std::getline(cflow, segment, ',')) {
+                        if (!segment.empty()) {
+                            rule.objectClasses.push_back(segment);
+                        }
+                    }
+                }
+            }
+
+            std::vector<pugi::xml_node> points;
+            collectNodesWithSuffix(paramsNode, "Point", points);
+            if (!points.empty()) {
+                if (rule.type.find("Line") != std::string::npos && points.size() >= 2) {
+                    rule.lineStart.x = points[0].attribute("x").as_float();
+                    rule.lineStart.y = points[0].attribute("y").as_float();
+                    rule.lineEnd.x = points[1].attribute("x").as_float();
+                    rule.lineEnd.y = points[1].attribute("y").as_float();
+                } else {
+                    for (const auto& pt : points) {
+                        rule.polygon.push_back({ pt.attribute("x").as_float(), pt.attribute("y").as_float() });
+                    }
+                }
+            }
+        }
+        rules.push_back(std::move(rule));
+    }
+    return rules;
+}
+
+std::vector<AnalyticsModuleDescription> OnvifClient::parseSupportedAnalyticsModulesResponse(const std::string& xml)
+{
+    pugi::xml_document doc;
+    if (!doc.load_string(xml.c_str())) {
+        return {};
+    }
+    std::vector<pugi::xml_node> modNodes;
+    collectNodesWithSuffix(doc, "AnalyticsModuleDescription", modNodes);
+    std::vector<AnalyticsModuleDescription> descs;
+    for (const auto& node : modNodes) {
+        AnalyticsModuleDescription desc;
+        desc.moduleType = node.attribute("Name").as_string();
+        std::vector<pugi::xml_node> paramNodes;
+        collectNodesWithSuffix(node, "SimpleItemDescription", paramNodes);
+        for (const auto& pn : paramNodes) {
+            const std::string pName = pn.attribute("Name").as_string();
+            if (!pName.empty()) {
+                desc.supportedParameters.push_back(pName);
+            }
+        }
+        descs.push_back(std::move(desc));
+    }
+    return descs;
+}
+
+std::vector<AnalyticsModule> OnvifClient::parseAnalyticsModulesResponse(const std::string& xml)
+{
+    pugi::xml_document doc;
+    if (!doc.load_string(xml.c_str())) {
+        return {};
+    }
+    std::vector<pugi::xml_node> modNodes;
+    collectNodesWithSuffix(doc, "AnalyticsModule", modNodes);
+    std::vector<AnalyticsModule> modules;
+    for (const auto& node : modNodes) {
+        AnalyticsModule mod;
+        mod.name = node.attribute("Name").as_string();
+        mod.type = node.attribute("Type").as_string();
+
+        const auto paramsNode = findRecursiveNodeWithSuffix(node, "Parameters");
+        if (paramsNode) {
+            std::vector<pugi::xml_node> simpleItems;
+            collectNodesWithSuffix(paramsNode, "SimpleItem", simpleItems);
+            for (const auto& si : simpleItems) {
+                const std::string name = si.attribute("Name").as_string();
+                const std::string val = si.attribute("Value").as_string();
+                mod.parameters[name] = val;
+            }
+        }
+        modules.push_back(std::move(mod));
+    }
+    return modules;
 }
 
 } // namespace PelcoD::Onvif

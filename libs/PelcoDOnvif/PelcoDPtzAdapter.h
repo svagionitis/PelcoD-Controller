@@ -28,7 +28,8 @@ class PelcoDPtzAdapter : public IPtzHandler,
                          public IDeviceManagementHandler,
                          public IRecordingHandler,
                          public ISearchHandler,
-                         public IReplayHandler {
+                         public IReplayHandler,
+                         public IAnalyticsHandler {
 public:
     /// @brief Constructs adapter wrapping an existing PelcoDDevice.
     /// @param[in] device Shared pointer to initialized PelcoDDevice instance.
@@ -197,6 +198,27 @@ public:
     [[nodiscard]] ReplayConfiguration handleGetReplayConfiguration() override;
     [[nodiscard]] bool handleSetReplayConfiguration(const ReplayConfiguration& config) override;
 
+    // =========================================================================
+    // IAnalyticsHandler Implementation (Profile M & Profile T)
+    // =========================================================================
+
+    [[nodiscard]] std::vector<AnalyticsRuleDescription> handleGetSupportedRules(
+        const std::string& configToken) override;
+    [[nodiscard]] std::vector<AnalyticsRule> handleGetRules(const std::string& configToken) override;
+    bool handleCreateRules(const std::string& configToken, const std::vector<AnalyticsRule>& rules) override;
+    bool handleModifyRules(const std::string& configToken, const std::vector<AnalyticsRule>& rules) override;
+    bool handleDeleteRules(const std::string& configToken, const std::vector<std::string>& ruleNames) override;
+
+    [[nodiscard]] std::vector<AnalyticsModuleDescription> handleGetSupportedAnalyticsModules(
+        const std::string& configToken) override;
+    [[nodiscard]] std::vector<AnalyticsModule> handleGetAnalyticsModules(const std::string& configToken) override;
+    bool handleCreateAnalyticsModules(
+        const std::string& configToken, const std::vector<AnalyticsModule>& modules) override;
+    bool handleModifyAnalyticsModules(
+        const std::string& configToken, const std::vector<AnalyticsModule>& modules) override;
+    bool handleDeleteAnalyticsModules(
+        const std::string& configToken, const std::vector<std::string>& moduleNames) override;
+
 private:
     void onDeviceStatusUpdated(const PelcoD::DeviceStatus& status);
     void saveTours();
@@ -245,6 +267,20 @@ private:
     std::map<std::string, std::vector<RecordingSearchResult>> m_recordingSearches {};
     std::map<std::string, std::vector<RecordedEventResult>> m_eventSearches {};
     uint32_t m_nextSearchSessionId { 1 };
+
+    void evaluateRulesForObject(const AnalyticsObject& prevObj, const AnalyticsObject& currentObj);
+    void evaluateRulesForFrame();
+
+    struct ObjectTrackState {
+        AnalyticsObject lastObject {};
+        std::chrono::steady_clock::time_point firstSeen {};
+        std::chrono::steady_clock::time_point lastSeen {};
+        std::map<std::string, bool> triggeredRules {}; // ruleName -> bool
+    };
+
+    std::vector<AnalyticsRule> m_rules {};
+    std::vector<AnalyticsModule> m_analyticsModules {};
+    std::map<int, ObjectTrackState> m_objectTracks {};
 };
 
 } // namespace PelcoD::Onvif

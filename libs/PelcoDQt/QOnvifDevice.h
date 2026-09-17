@@ -161,6 +161,24 @@ public:
         return m_replayConfig;
     }
 
+    /// @brief Gets cached video analytics rules (Profile M & T).
+    [[nodiscard]] std::vector<PelcoD::Onvif::AnalyticsRule> rules() const
+    {
+        return m_rules;
+    }
+
+    /// @brief Gets cached supported video analytics rules descriptions.
+    [[nodiscard]] std::vector<PelcoD::Onvif::AnalyticsRuleDescription> supportedRules() const
+    {
+        return m_supportedRules;
+    }
+
+    /// @brief Gets cached video analytics modules.
+    [[nodiscard]] std::vector<PelcoD::Onvif::AnalyticsModule> analyticsModules() const
+    {
+        return m_analyticsModules;
+    }
+
     /// @brief Gets camera hardware identification metadata.
     /// @return DeviceInformation struct.
     [[nodiscard]] PelcoD::Onvif::DeviceInformation deviceInformation() const;
@@ -649,6 +667,52 @@ public Q_SLOTS:
     /// @return True on success.
     bool setReplayConfiguration(const PelcoD::Onvif::ReplayConfiguration& config);
 
+    // =========================================================================
+    // Profile M & Profile T: Video Analytics Rule Engine & Modules
+    // =========================================================================
+
+    /// @brief Queries supported video analytics rules descriptions.
+    void refreshSupportedRules();
+
+    /// @brief Queries active video analytics rules from camera.
+    void refreshRules();
+
+    /// @brief Creates new video analytics rules.
+    /// @param[in] rules List of rules to create.
+    /// @return True on success.
+    bool createRules(const std::vector<PelcoD::Onvif::AnalyticsRule>& rules);
+
+    /// @brief Modifies existing video analytics rules.
+    /// @param[in] rules List of updated rules.
+    /// @return True on success.
+    bool modifyRules(const std::vector<PelcoD::Onvif::AnalyticsRule>& rules);
+
+    /// @brief Deletes video analytics rules by name.
+    /// @param[in] ruleNames List of rule names to delete.
+    /// @return True on success.
+    bool deleteRules(const QStringList& ruleNames);
+
+    /// @brief Queries supported video analytics modules descriptions.
+    void refreshSupportedAnalyticsModules();
+
+    /// @brief Queries active video analytics modules from camera.
+    void refreshAnalyticsModules();
+
+    /// @brief Creates new video analytics modules.
+    /// @param[in] modules List of modules to create.
+    /// @return True on success.
+    bool createAnalyticsModules(const std::vector<PelcoD::Onvif::AnalyticsModule>& modules);
+
+    /// @brief Modifies existing video analytics modules.
+    /// @param[in] modules List of updated modules.
+    /// @return True on success.
+    bool modifyAnalyticsModules(const std::vector<PelcoD::Onvif::AnalyticsModule>& modules);
+
+    /// @brief Deletes video analytics modules by name.
+    /// @param[in] moduleNames List of module names to delete.
+    /// @return True on success.
+    bool deleteAnalyticsModules(const QStringList& moduleNames);
+
 Q_SIGNALS:
     /// @brief Emitted when device connection succeeds.
     /// @param[in] endpoint Connected service URL.
@@ -817,6 +881,22 @@ Q_SIGNALS:
     /// @param[in] config Replay configuration.
     void replayConfigurationUpdated(const PelcoD::Onvif::ReplayConfiguration& config);
 
+    /// @brief Emitted when video analytics rules list is refreshed.
+    /// @param[in] rules List of rules.
+    void rulesUpdated(const std::vector<PelcoD::Onvif::AnalyticsRule>& rules);
+
+    /// @brief Emitted when supported video analytics rules are refreshed.
+    /// @param[in] rules List of supported rule descriptions.
+    void supportedRulesUpdated(const std::vector<PelcoD::Onvif::AnalyticsRuleDescription>& rules);
+
+    /// @brief Emitted when video analytics modules list is refreshed.
+    /// @param[in] modules List of modules.
+    void analyticsModulesUpdated(const std::vector<PelcoD::Onvif::AnalyticsModule>& modules);
+
+    /// @brief Emitted when supported video analytics modules are refreshed.
+    /// @param[in] modules List of supported module descriptions.
+    void supportedAnalyticsModulesUpdated(const std::vector<PelcoD::Onvif::AnalyticsModuleDescription>& modules);
+
     /// @brief Emitted when an operation fails.
     /// @param[in] message Diagnostic error message.
     void errorOccurred(const QString& message);
@@ -861,6 +941,10 @@ private:
     std::vector<PelcoD::Onvif::RecordingJob> m_recordingJobs {};
     std::optional<PelcoD::Onvif::RecordingSummary> m_recordingSummary {};
     std::optional<PelcoD::Onvif::ReplayConfiguration> m_replayConfig {};
+    std::vector<PelcoD::Onvif::AnalyticsRule> m_rules {};
+    std::vector<PelcoD::Onvif::AnalyticsRuleDescription> m_supportedRules {};
+    std::vector<PelcoD::Onvif::AnalyticsModule> m_analyticsModules {};
+    std::vector<PelcoD::Onvif::AnalyticsModuleDescription> m_supportedModules {};
 };
 
 } // namespace PelcoD::Qt

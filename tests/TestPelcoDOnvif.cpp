@@ -1446,6 +1446,158 @@ void testProfileGSearchAndReplayXmlParsing()
     assert(replayCfg->sessionTimeout == "PT60S");
 }
 
+void testVideoAnalyticsRulesAndModulesParsing()
+{
+    // 1. Parse GetSupportedRulesResponse
+    const std::string suppRulesXml
+        = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+          "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+          "xmlns:tan=\"http://www.onvif.org/ver20/analytics/wsdl\" "
+          "xmlns:tt=\"http://www.onvif.org/ver10/schema\">\r\n"
+          "  <SOAP-ENV:Body>\r\n"
+          "    <tan:GetSupportedRulesResponse>\r\n"
+          "      <tan:SupportedRules>\r\n"
+          "        <tan:RuleDescription Name=\"tt:LineDetector\">\r\n"
+          "          <tan:Parameters>\r\n"
+          "            <tt:SimpleItemDescription Name=\"Direction\" Type=\"xs:string\"/>\r\n"
+          "            <tt:SimpleItemDescription Name=\"Classes\" Type=\"xs:string\"/>\r\n"
+          "          </tan:Parameters>\r\n"
+          "        </tan:RuleDescription>\r\n"
+          "        <tan:RuleDescription Name=\"tt:FieldDetector\">\r\n"
+          "          <tan:Parameters>\r\n"
+          "            <tt:SimpleItemDescription Name=\"Field\" Type=\"xs:string\"/>\r\n"
+          "          </tan:Parameters>\r\n"
+          "        </tan:RuleDescription>\r\n"
+          "      </tan:SupportedRules>\r\n"
+          "    </tan:GetSupportedRulesResponse>\r\n"
+          "  </SOAP-ENV:Body>\r\n"
+          "</SOAP-ENV:Envelope>";
+
+    const auto suppRules = PelcoD::Onvif::OnvifClient::parseSupportedRulesResponse(suppRulesXml);
+    assert(suppRules.size() == 2U);
+    assert(suppRules[0].ruleType == "tt:LineDetector");
+    assert(suppRules[0].supportedParameters.size() == 2U);
+    assert(suppRules[0].supportedParameters[0] == "Direction");
+    assert(suppRules[0].supportedParameters[1] == "Classes");
+    assert(suppRules[1].ruleType == "tt:FieldDetector");
+
+    // 2. Parse GetRulesResponse
+    const std::string rulesXml
+        = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+          "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+          "xmlns:tan=\"http://www.onvif.org/ver20/analytics/wsdl\" "
+          "xmlns:tt=\"http://www.onvif.org/ver10/schema\">\r\n"
+          "  <SOAP-ENV:Body>\r\n"
+          "    <tan:GetRulesResponse>\r\n"
+          "      <tan:Rule Name=\"PerimeterTripwire\" Type=\"tt:LineDetector\">\r\n"
+          "        <tan:Parameters>\r\n"
+          "          <tt:SimpleItem Name=\"Direction\" Value=\"LeftToRight\"/>\r\n"
+          "          <tt:SimpleItem Name=\"Classes\" Value=\"Human,Vehicle\"/>\r\n"
+          "          <tt:SimpleItem Name=\"MinConfidence\" Value=\"0.60\"/>\r\n"
+          "          <tt:SimpleItem Name=\"Enabled\" Value=\"true\"/>\r\n"
+          "          <tt:ElementItem Name=\"Segment\">\r\n"
+          "            <tt:Point x=\"0.1000\" y=\"0.5000\"/>\r\n"
+          "            <tt:Point x=\"0.9000\" y=\"0.5000\"/>\r\n"
+          "          </tt:ElementItem>\r\n"
+          "        </tan:Parameters>\r\n"
+          "      </tan:Rule>\r\n"
+          "      <tan:Rule Name=\"CourtyardLoiter\" Type=\"tt:LoiteringDetector\">\r\n"
+          "        <tan:Parameters>\r\n"
+          "          <tt:SimpleItem Name=\"DwellTime\" Value=\"10.50\"/>\r\n"
+          "          <tt:SimpleItem Name=\"Classes\" Value=\"Human\"/>\r\n"
+          "          <tt:SimpleItem Name=\"Enabled\" Value=\"true\"/>\r\n"
+          "          <tt:ElementItem Name=\"Field\">\r\n"
+          "            <tt:Polygon>\r\n"
+          "              <tt:Point x=\"0.2000\" y=\"0.2000\"/>\r\n"
+          "              <tt:Point x=\"0.8000\" y=\"0.2000\"/>\r\n"
+          "              <tt:Point x=\"0.8000\" y=\"0.8000\"/>\r\n"
+          "              <tt:Point x=\"0.2000\" y=\"0.8000\"/>\r\n"
+          "            </tt:Polygon>\r\n"
+          "          </tt:ElementItem>\r\n"
+          "        </tan:Parameters>\r\n"
+          "      </tan:Rule>\r\n"
+          "    </tan:GetRulesResponse>\r\n"
+          "  </SOAP-ENV:Body>\r\n"
+          "</SOAP-ENV:Envelope>";
+
+    const auto rules = PelcoD::Onvif::OnvifClient::parseRulesResponse(rulesXml);
+    assert(rules.size() == 2U);
+
+    // Rule 1: Tripwire
+    assert(rules[0].name == "PerimeterTripwire");
+    assert(rules[0].type == "tt:LineDetector");
+    assert(rules[0].direction == "LeftToRight");
+    assert(rules[0].objectClasses.size() == 2U);
+    assert(rules[0].objectClasses[0] == "Human");
+    assert(rules[0].objectClasses[1] == "Vehicle");
+    assert(std::fabs(rules[0].minConfidence - 0.60f) < 0.01f);
+    assert(rules[0].enabled == true);
+    assert(std::fabs(rules[0].lineStart.x - 0.1000f) < 0.001f);
+    assert(std::fabs(rules[0].lineStart.y - 0.5000f) < 0.001f);
+    assert(std::fabs(rules[0].lineEnd.x - 0.9000f) < 0.001f);
+    assert(std::fabs(rules[0].lineEnd.y - 0.5000f) < 0.001f);
+
+    // Rule 2: Loitering
+    assert(rules[1].name == "CourtyardLoiter");
+    assert(rules[1].type == "tt:LoiteringDetector");
+    assert(std::fabs(rules[1].dwellTimeSeconds - 10.50) < 0.01);
+    assert(rules[1].objectClasses.size() == 1U);
+    assert(rules[1].objectClasses[0] == "Human");
+    assert(rules[1].polygon.size() == 4U);
+    assert(std::fabs(rules[1].polygon[0].x - 0.2000f) < 0.001f);
+    assert(std::fabs(rules[1].polygon[2].y - 0.8000f) < 0.001f);
+
+    // 3. Parse GetSupportedAnalyticsModulesResponse
+    const std::string suppModsXml
+        = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+          "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+          "xmlns:tan=\"http://www.onvif.org/ver20/analytics/wsdl\" "
+          "xmlns:tt=\"http://www.onvif.org/ver10/schema\">\r\n"
+          "  <SOAP-ENV:Body>\r\n"
+          "    <tan:GetSupportedAnalyticsModulesResponse>\r\n"
+          "      <tan:SupportedAnalyticsModules>\r\n"
+          "        <tan:AnalyticsModuleDescription Name=\"tt:ObjectClassificationModule\">\r\n"
+          "          <tan:Parameters>\r\n"
+          "            <tt:SimpleItemDescription Name=\"Classes\" Type=\"xs:string\"/>\r\n"
+          "          </tan:Parameters>\r\n"
+          "        </tan:AnalyticsModuleDescription>\r\n"
+          "      </tan:SupportedAnalyticsModules>\r\n"
+          "    </tan:GetSupportedAnalyticsModulesResponse>\r\n"
+          "  </SOAP-ENV:Body>\r\n"
+          "</SOAP-ENV:Envelope>";
+
+    const auto suppMods = PelcoD::Onvif::OnvifClient::parseSupportedAnalyticsModulesResponse(suppModsXml);
+    assert(suppMods.size() == 1U);
+    assert(suppMods[0].moduleType == "tt:ObjectClassificationModule");
+    assert(suppMods[0].supportedParameters.size() == 1U);
+    assert(suppMods[0].supportedParameters[0] == "Classes");
+
+    // 4. Parse GetAnalyticsModulesResponse
+    const std::string modsXml
+        = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+          "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+          "xmlns:tan=\"http://www.onvif.org/ver20/analytics/wsdl\" "
+          "xmlns:tt=\"http://www.onvif.org/ver10/schema\">\r\n"
+          "  <SOAP-ENV:Body>\r\n"
+          "    <tan:GetAnalyticsModulesResponse>\r\n"
+          "      <tan:AnalyticsModule Name=\"Classifier_1\" Type=\"tt:ObjectClassificationModule\">\r\n"
+          "        <tan:Parameters>\r\n"
+          "          <tt:SimpleItem Name=\"Classes\" Value=\"Human,Vehicle,TwoWheeler\"/>\r\n"
+          "          <tt:SimpleItem Name=\"MinConfidence\" Value=\"0.75\"/>\r\n"
+          "        </tan:Parameters>\r\n"
+          "      </tan:AnalyticsModule>\r\n"
+          "    </tan:GetAnalyticsModulesResponse>\r\n"
+          "  </SOAP-ENV:Body>\r\n"
+          "</SOAP-ENV:Envelope>";
+
+    const auto mods = PelcoD::Onvif::OnvifClient::parseAnalyticsModulesResponse(modsXml);
+    assert(mods.size() == 1U);
+    assert(mods[0].name == "Classifier_1");
+    assert(mods[0].type == "tt:ObjectClassificationModule");
+    assert(mods[0].parameters.at("Classes") == "Human,Vehicle,TwoWheeler");
+    assert(mods[0].parameters.at("MinConfidence") == "0.75");
+}
+
 int main()
 {
 #ifdef _WIN32
@@ -1582,6 +1734,10 @@ int main()
     std::cout << "[RUN] Testing ONVIF Profile G Search & Replay XML Parsing...\n";
     testProfileGSearchAndReplayXmlParsing();
     std::cout << "[PASS] Profile G Search & Replay XML Parsing\n";
+
+    std::cout << "[RUN] Testing ONVIF Video Analytics Rules & Modules XML Parsing (Profile M & T)...\n";
+    testVideoAnalyticsRulesAndModulesParsing();
+    std::cout << "[PASS] Video Analytics Rules & Modules XML Parsing (Profile M & T)\n";
 
     std::cout << "\nAll PelcoDOnvif unit tests PASSED successfully!\n";
     return 0;

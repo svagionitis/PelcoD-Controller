@@ -160,6 +160,15 @@ private slots:
     void handleMetadataConfigsUpdated(const std::vector<PelcoD::Onvif::MetadataConfiguration>& configs);
     void handleMetadataReceived(const PelcoD::Onvif::MetadataStreamPayload& payload);
 
+    // Profile M & T: Video Analytics Rule Engine & Modules
+    void handleRefreshRules();
+    void handleAddRule();
+    void handleDeleteRule();
+    void handleRulesUpdated(const std::vector<PelcoD::Onvif::AnalyticsRule>& rules);
+    void handleSupportedRulesUpdated(const std::vector<PelcoD::Onvif::AnalyticsRuleDescription>& rules);
+    void handleRefreshAnalyticsModules();
+    void handleAnalyticsModulesUpdated(const std::vector<PelcoD::Onvif::AnalyticsModule>& modules);
+
     // Maintenance & System Logs Extensions
     void handleFetchSystemLog();
     void handleFetchAccessLog();
@@ -392,6 +401,17 @@ private:
     QPushButton* btnPollMetaOnce { nullptr };
     QLabel* lblMetaTelemetry { nullptr };
     QTableWidget* tableMetaObjects { nullptr };
+
+    // Profile M & T: Video Analytics Rule Engine widgets
+    QTableWidget* tableRules { nullptr };
+    QPushButton* btnRefreshRules { nullptr };
+    QLineEdit* editRuleName { nullptr };
+    QComboBox* cmbRuleType { nullptr };
+    QLineEdit* editRuleClasses { nullptr };
+    QDoubleSpinBox* spinRuleMinConf { nullptr };
+    QDoubleSpinBox* spinRuleDwellTime { nullptr };
+    QPushButton* btnAddRule { nullptr };
+    QPushButton* btnDeleteRule { nullptr };
 
     // PKI Certificates & TLS Security widgets (Sub-Tab 8)
     QTableWidget* tableCertificates { nullptr };

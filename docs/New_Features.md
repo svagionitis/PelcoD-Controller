@@ -93,6 +93,21 @@ Here is a curated list of high-value features and enhancements that can be added
 
 ---
 
+### 6. ONVIF Standards & Profiles (Profile M & Profile T Analytics - Completed)
+
+* **ONVIF Profile M & Profile T Video Analytics Rule Engine & Classification**:
+  * Full ONVIF Analytics Service (`tan:`) client and server implementation.
+  * Geometric rule evaluators:
+    * `tt:LineDetector` (Tripwire segment crossing with directionality: `LeftToRight`, `RightToLeft`, `Any`).
+    * `tt:FieldDetector` (Polygon intrusion detection via ray casting).
+    * `tt:LoiteringDetector` (Polygon dwell-time tracking with threshold timers).
+    * `tt:CellMotionDetector` (Sensitivity grid filtering).
+  * Object classification and likelihood filters (`Human`, `Vehicle`, `TwoWheeler`) with minimum confidence thresholds.
+  * Real-time notification dispatch via ONVIF PullPoint (`tns1:RuleEngine/*`) and live metadata stream integration.
+  * Complete Qt layer (`QOnvifDevice`) and UI controls (`OnvifCameraTab`) for configuring rules and inspecting triggered events.
+
+---
+
 ### Recommendation
 
 If you want to stay in the **core architecture & communication layer**, the two best next steps are:

@@ -87,7 +87,7 @@ namespace {
 OnvifServer::OnvifServer(OnvifServerConfig config, std::shared_ptr<IPtzHandler> ptzHandler,
     std::shared_ptr<IImagingHandler> imagingHandler, std::shared_ptr<IOsdHandler> osdHandler,
     std::shared_ptr<IDeviceManagementHandler> deviceHandler, std::shared_ptr<IDeviceIoHandler> deviceIoHandler,
-    std::shared_ptr<IMetadataHandler> metadataHandler)
+    std::shared_ptr<IMetadataHandler> metadataHandler, std::shared_ptr<IAnalyticsHandler> analyticsHandler)
     : m_config(std::move(config))
     , m_ptzHandler(std::move(ptzHandler))
     , m_imagingHandler(std::move(imagingHandler))
@@ -95,6 +95,7 @@ OnvifServer::OnvifServer(OnvifServerConfig config, std::shared_ptr<IPtzHandler> 
     , m_deviceHandler(std::move(deviceHandler))
     , m_deviceIoHandler(std::move(deviceIoHandler))
     , m_metadataHandler(std::move(metadataHandler))
+    , m_analyticsHandler(std::move(analyticsHandler))
 {
     m_internalUsers = m_config.defaultUsers;
     m_internalNetworkInterfaces = m_config.defaultNetworkInterfaces;
@@ -285,6 +286,11 @@ void OnvifServer::setSearchHandler(std::shared_ptr<ISearchHandler> handler)
 void OnvifServer::setReplayHandler(std::shared_ptr<IReplayHandler> handler)
 {
     m_replayHandler = std::move(handler);
+}
+
+void OnvifServer::setAnalyticsHandler(std::shared_ptr<IAnalyticsHandler> handler)
+{
+    m_analyticsHandler = std::move(handler);
 }
 
 void OnvifServer::logSystemMessage(const std::string& level, const std::string& msg)
@@ -3071,35 +3077,377 @@ void OnvifServer::handleAnalyticsService(const httplib::Request& req, httplib::R
 
     std::ostringstream body;
 
+    const auto serializeRuleToXml = [](std::ostringstream& ss, const AnalyticsRule& rule) {
+        ss << "      <tan:Rule Name=\"" << rule.name << "\" Type=\"" << rule.type << "\">\r\n"
+           << "        <tan:Parameters>\r\n";
+        if (rule.type.find("Line") != std::string::npos) {
+            ss << "          <tt:SimpleItem Name=\"Direction\" Value=\"" << rule.direction << "\"/>\r\n"
+               << "          <tt:ElementItem Name=\"Segment\">\r\n"
+               << "            <tt:Point x=\"" << std::fixed << std::setprecision(4) << rule.lineStart.x << "\" y=\""
+               << std::fixed << std::setprecision(4) << rule.lineStart.y << "\"/>\r\n"
+               << "            <tt:Point x=\"" << std::fixed << std::setprecision(4) << rule.lineEnd.x << "\" y=\""
+               << std::fixed << std::setprecision(4) << rule.lineEnd.y << "\"/>\r\n"
+               << "          </tt:ElementItem>\r\n";
+        } else if (rule.type.find("Field") != std::string::npos || rule.type.find("Loitering") != std::string::npos) {
+            if (rule.type.find("Loitering") != std::string::npos) {
+                ss << "          <tt:SimpleItem Name=\"DwellTime\" Value=\"" << std::fixed << std::setprecision(2)
+                   << rule.dwellTimeSeconds << "\"/>\r\n";
+            }
+            if (!rule.polygon.empty()) {
+                ss << "          <tt:ElementItem Name=\"Field\">\r\n"
+                   << "            <tt:Polygon>\r\n";
+                for (const auto& pt : rule.polygon) {
+                    ss << "              <tt:Point x=\"" << std::fixed << std::setprecision(4) << pt.x << "\" y=\""
+                       << std::fixed << std::setprecision(4) << pt.y << "\"/>\r\n";
+                }
+                ss << "            </tt:Polygon>\r\n"
+                   << "          </tt:ElementItem>\r\n";
+            }
+        } else if (rule.type.find("CellMotion") != std::string::npos) {
+            ss << "          <tt:SimpleItem Name=\"Sensitivity\" Value=\"" << rule.sensitivity << "\"/>\r\n";
+        }
+
+        if (!rule.objectClasses.empty()) {
+            std::string classesJoined;
+            for (size_t i = 0; i < rule.objectClasses.size(); ++i) {
+                if (i > 0) {
+                    classesJoined += ",";
+                }
+                classesJoined += rule.objectClasses[i];
+            }
+            ss << "          <tt:SimpleItem Name=\"Classes\" Value=\"" << classesJoined << "\"/>\r\n"
+               << "          <tt:SimpleItem Name=\"MinConfidence\" Value=\"" << std::fixed << std::setprecision(2)
+               << rule.minConfidence << "\"/>\r\n";
+        }
+
+        ss << "          <tt:SimpleItem Name=\"Enabled\" Value=\"" << (rule.enabled ? "true" : "false") << "\"/>\r\n"
+           << "        </tan:Parameters>\r\n"
+           << "      </tan:Rule>\r\n";
+    };
+
+    const auto serializeModuleToXml = [](std::ostringstream& ss, const AnalyticsModule& mod) {
+        ss << "      <tan:AnalyticsModule Name=\"" << mod.name << "\" Type=\"" << mod.type << "\">\r\n"
+           << "        <tan:Parameters>\r\n";
+        for (const auto& [k, v] : mod.parameters) {
+            ss << "          <tt:SimpleItem Name=\"" << k << "\" Value=\"" << v << "\"/>\r\n";
+        }
+        ss << "        </tan:Parameters>\r\n"
+           << "      </tan:AnalyticsModule>\r\n";
+    };
+
     if (isOp(opName, "GetServiceCapabilities")) {
         body << "    <tan:GetServiceCapabilitiesResponse>\r\n"
-             << "      <tan:Capabilities RuleSupport=\"true\" AnalyticsModuleSupport=\"false\" "
+             << "      <tan:Capabilities RuleSupport=\"true\" AnalyticsModuleSupport=\"true\" "
                 "CellBasedSceneDescriptionSupported=\"false\"/>\r\n"
              << "    </tan:GetServiceCapabilitiesResponse>\r\n";
     } else if (isOp(opName, "GetSupportedRules")) {
+        const std::string configToken
+            = reqNode.select_node(".//*[local-name()='ConfigurationToken']").node().text().as_string();
+        std::vector<AnalyticsRuleDescription> descs;
+        if (m_analyticsHandler) {
+            descs = m_analyticsHandler->handleGetSupportedRules(configToken);
+        }
+        if (descs.empty()) {
+            descs = {
+                { "tt:LineDetector", { "Segment", "Direction", "Classes", "MinConfidence", "Enabled" } },
+                { "tt:FieldDetector", { "Field", "Classes", "MinConfidence", "Enabled" } },
+                { "tt:LoiteringDetector", { "Field", "DwellTime", "Classes", "MinConfidence", "Enabled" } },
+                { "tt:CellMotionDetector", { "Sensitivity", "Enabled" } },
+            };
+        }
         body << "    <tan:GetSupportedRulesResponse>\r\n"
-             << "      <tan:SupportedRules>\r\n"
-             << "        <tan:RuleDescription Name=\"tt:CellMotionDetector\">\r\n"
-             << "          <tan:Messages IsProperty=\"true\">\r\n"
-             << "            <tt:Source>\r\n"
-             << "              <tt:SimpleItemDescription Name=\"VideoSourceConfigurationToken\" "
-                "Type=\"tt:ReferenceToken\"/>\r\n"
-             << "            </tt:Source>\r\n"
-             << "            <tt:Data>\r\n"
-             << "              <tt:SimpleItemDescription Name=\"IsMotion\" Type=\"xs:boolean\"/>\r\n"
-             << "            </tt:Data>\r\n"
-             << "          </tan:Messages>\r\n"
-             << "        </tan:RuleDescription>\r\n"
-             << "      </tan:SupportedRules>\r\n"
+             << "      <tan:SupportedRules>\r\n";
+        for (const auto& desc : descs) {
+            body << "        <tan:RuleDescription Name=\"" << desc.ruleType << "\">\r\n"
+                 << "          <tan:Messages IsProperty=\"true\">\r\n"
+                 << "            <tt:Source>\r\n"
+                 << "              <tt:SimpleItemDescription Name=\"VideoAnalyticsConfigurationToken\" "
+                    "Type=\"tt:ReferenceToken\"/>\r\n"
+                 << "            </tt:Source>\r\n"
+                 << "            <tt:Data>\r\n"
+                 << "              <tt:SimpleItemDescription Name=\"State\" Type=\"xs:boolean\"/>\r\n"
+                 << "            </tt:Data>\r\n"
+                 << "          </tan:Messages>\r\n";
+            for (const auto& param : desc.supportedParameters) {
+                body << "          <tan:Parameters>\r\n"
+                     << "            <tt:SimpleItemDescription Name=\"" << param << "\" Type=\"xs:string\"/>\r\n"
+                     << "          </tan:Parameters>\r\n";
+            }
+            body << "        </tan:RuleDescription>\r\n";
+        }
+        body << "      </tan:SupportedRules>\r\n"
              << "    </tan:GetSupportedRulesResponse>\r\n";
     } else if (isOp(opName, "GetRules")) {
-        body << "    <tan:GetRulesResponse>\r\n"
-             << "      <tan:Rule Name=\"MotionDetectorRule\" Type=\"tt:CellMotionDetector\">\r\n"
-             << "        <tan:Parameters>\r\n"
-             << "          <tt:SimpleItem Name=\"Sensitivity\" Value=\"80\"/>\r\n"
-             << "        </tan:Parameters>\r\n"
-             << "      </tan:Rule>\r\n"
-             << "    </tan:GetRulesResponse>\r\n";
+        const std::string configToken
+            = reqNode.select_node(".//*[local-name()='ConfigurationToken']").node().text().as_string();
+        std::vector<AnalyticsRule> rules;
+        if (m_analyticsHandler) {
+            rules = m_analyticsHandler->handleGetRules(configToken);
+        } else {
+            std::lock_guard<std::mutex> lock(m_analyticsMutex);
+            rules = m_internalRules;
+        }
+        body << "    <tan:GetRulesResponse>\r\n";
+        for (const auto& r : rules) {
+            serializeRuleToXml(body, r);
+        }
+        body << "    </tan:GetRulesResponse>\r\n";
+    } else if (isOp(opName, "CreateRules")) {
+        const std::string configToken
+            = reqNode.select_node(".//*[local-name()='ConfigurationToken']").node().text().as_string();
+        std::vector<AnalyticsRule> newRules;
+        for (auto rNode : reqNode.select_nodes(".//*[local-name()='Rule']")) {
+            AnalyticsRule rule;
+            rule.name = rNode.node().attribute("Name").as_string();
+            rule.type = rNode.node().attribute("Type").as_string();
+            for (auto si : rNode.node().select_nodes(".//*[local-name()='SimpleItem']")) {
+                const std::string sName = si.node().attribute("Name").as_string();
+                const std::string sVal = si.node().attribute("Value").as_string();
+                if (sName == "Direction") {
+                    rule.direction = sVal;
+                } else if (sName == "DwellTime") {
+                    try {
+                        rule.dwellTimeSeconds = std::stod(sVal);
+                    } catch (...) {
+                    }
+                } else if (sName == "Sensitivity") {
+                    try {
+                        rule.sensitivity = std::stoi(sVal);
+                    } catch (...) {
+                    }
+                } else if (sName == "MinConfidence") {
+                    try {
+                        rule.minConfidence = std::stof(sVal);
+                    } catch (...) {
+                    }
+                } else if (sName == "Enabled") {
+                    rule.enabled = (sVal == "true" || sVal == "1");
+                } else if (sName == "Classes") {
+                    std::stringstream ss(sVal);
+                    std::string c;
+                    while (std::getline(ss, c, ',')) {
+                        if (!c.empty())
+                            rule.objectClasses.push_back(c);
+                    }
+                }
+            }
+            std::vector<Point2D> pts;
+            for (auto pt : rNode.node().select_nodes(".//*[local-name()='Point']")) {
+                pts.push_back({ pt.node().attribute("x").as_float(), pt.node().attribute("y").as_float() });
+            }
+            if (!pts.empty()) {
+                if (rule.type.find("Line") != std::string::npos && pts.size() >= 2) {
+                    rule.lineStart = pts[0];
+                    rule.lineEnd = pts[1];
+                } else {
+                    rule.polygon = pts;
+                }
+            }
+            newRules.push_back(std::move(rule));
+        }
+        if (m_analyticsHandler) {
+            m_analyticsHandler->handleCreateRules(configToken, newRules);
+        } else {
+            std::lock_guard<std::mutex> lock(m_analyticsMutex);
+            for (auto& r : newRules) {
+                m_internalRules.push_back(r);
+            }
+        }
+        body << "    <tan:CreateRulesResponse/>\r\n";
+    } else if (isOp(opName, "ModifyRules")) {
+        const std::string configToken
+            = reqNode.select_node(".//*[local-name()='ConfigurationToken']").node().text().as_string();
+        std::vector<AnalyticsRule> modRules;
+        for (auto rNode : reqNode.select_nodes(".//*[local-name()='Rule']")) {
+            AnalyticsRule rule;
+            rule.name = rNode.node().attribute("Name").as_string();
+            rule.type = rNode.node().attribute("Type").as_string();
+            for (auto si : rNode.node().select_nodes(".//*[local-name()='SimpleItem']")) {
+                const std::string sName = si.node().attribute("Name").as_string();
+                const std::string sVal = si.node().attribute("Value").as_string();
+                if (sName == "Direction") {
+                    rule.direction = sVal;
+                } else if (sName == "DwellTime") {
+                    try {
+                        rule.dwellTimeSeconds = std::stod(sVal);
+                    } catch (...) {
+                    }
+                } else if (sName == "Sensitivity") {
+                    try {
+                        rule.sensitivity = std::stoi(sVal);
+                    } catch (...) {
+                    }
+                } else if (sName == "MinConfidence") {
+                    try {
+                        rule.minConfidence = std::stof(sVal);
+                    } catch (...) {
+                    }
+                } else if (sName == "Enabled") {
+                    rule.enabled = (sVal == "true" || sVal == "1");
+                } else if (sName == "Classes") {
+                    std::stringstream ss(sVal);
+                    std::string c;
+                    while (std::getline(ss, c, ',')) {
+                        if (!c.empty())
+                            rule.objectClasses.push_back(c);
+                    }
+                }
+            }
+            std::vector<Point2D> pts;
+            for (auto pt : rNode.node().select_nodes(".//*[local-name()='Point']")) {
+                pts.push_back({ pt.node().attribute("x").as_float(), pt.node().attribute("y").as_float() });
+            }
+            if (!pts.empty()) {
+                if (rule.type.find("Line") != std::string::npos && pts.size() >= 2) {
+                    rule.lineStart = pts[0];
+                    rule.lineEnd = pts[1];
+                } else {
+                    rule.polygon = pts;
+                }
+            }
+            modRules.push_back(std::move(rule));
+        }
+        if (m_analyticsHandler) {
+            m_analyticsHandler->handleModifyRules(configToken, modRules);
+        } else {
+            std::lock_guard<std::mutex> lock(m_analyticsMutex);
+            for (const auto& mr : modRules) {
+                for (auto& ir : m_internalRules) {
+                    if (ir.name == mr.name) {
+                        ir = mr;
+                        break;
+                    }
+                }
+            }
+        }
+        body << "    <tan:ModifyRulesResponse/>\r\n";
+    } else if (isOp(opName, "DeleteRules")) {
+        const std::string configToken
+            = reqNode.select_node(".//*[local-name()='ConfigurationToken']").node().text().as_string();
+        std::vector<std::string> delNames;
+        for (auto rn : reqNode.select_nodes(".//*[local-name()='RuleName']")) {
+            delNames.push_back(rn.node().text().as_string());
+        }
+        if (m_analyticsHandler) {
+            m_analyticsHandler->handleDeleteRules(configToken, delNames);
+        } else {
+            std::lock_guard<std::mutex> lock(m_analyticsMutex);
+            m_internalRules.erase(std::remove_if(m_internalRules.begin(), m_internalRules.end(),
+                                      [&](const AnalyticsRule& r) {
+                                          return std::find(delNames.begin(), delNames.end(), r.name) != delNames.end();
+                                      }),
+                m_internalRules.end());
+        }
+        body << "    <tan:DeleteRulesResponse/>\r\n";
+    } else if (isOp(opName, "GetSupportedAnalyticsModules")) {
+        const std::string configToken
+            = reqNode.select_node(".//*[local-name()='ConfigurationToken']").node().text().as_string();
+        std::vector<AnalyticsModuleDescription> descs;
+        if (m_analyticsHandler) {
+            descs = m_analyticsHandler->handleGetSupportedAnalyticsModules(configToken);
+        }
+        if (descs.empty()) {
+            descs = {
+                { "tt:ObjectClassificationModule", { "Classes", "MinConfidence" } },
+                { "tt:MotionDetectionModule", { "Sensitivity" } },
+            };
+        }
+        body << "    <tan:GetSupportedAnalyticsModulesResponse>\r\n"
+             << "      <tan:SupportedAnalyticsModules>\r\n";
+        for (const auto& desc : descs) {
+            body << "        <tan:AnalyticsModuleDescription Name=\"" << desc.moduleType << "\">\r\n";
+            for (const auto& p : desc.supportedParameters) {
+                body << "          <tan:Parameters>\r\n"
+                     << "            <tt:SimpleItemDescription Name=\"" << p << "\" Type=\"xs:string\"/>\r\n"
+                     << "          </tan:Parameters>\r\n";
+            }
+            body << "        </tan:AnalyticsModuleDescription>\r\n";
+        }
+        body << "      </tan:SupportedAnalyticsModules>\r\n"
+             << "    </tan:GetSupportedAnalyticsModulesResponse>\r\n";
+    } else if (isOp(opName, "GetAnalyticsModules")) {
+        const std::string configToken
+            = reqNode.select_node(".//*[local-name()='ConfigurationToken']").node().text().as_string();
+        std::vector<AnalyticsModule> mods;
+        if (m_analyticsHandler) {
+            mods = m_analyticsHandler->handleGetAnalyticsModules(configToken);
+        } else {
+            std::lock_guard<std::mutex> lock(m_analyticsMutex);
+            mods = m_internalModules;
+        }
+        body << "    <tan:GetAnalyticsModulesResponse>\r\n";
+        for (const auto& m : mods) {
+            serializeModuleToXml(body, m);
+        }
+        body << "    </tan:GetAnalyticsModulesResponse>\r\n";
+    } else if (isOp(opName, "CreateAnalyticsModules")) {
+        const std::string configToken
+            = reqNode.select_node(".//*[local-name()='ConfigurationToken']").node().text().as_string();
+        std::vector<AnalyticsModule> newMods;
+        for (auto mNode : reqNode.select_nodes(".//*[local-name()='AnalyticsModule']")) {
+            AnalyticsModule mod;
+            mod.name = mNode.node().attribute("Name").as_string();
+            mod.type = mNode.node().attribute("Type").as_string();
+            for (auto si : mNode.node().select_nodes(".//*[local-name()='SimpleItem']")) {
+                mod.parameters[si.node().attribute("Name").as_string()] = si.node().attribute("Value").as_string();
+            }
+            newMods.push_back(std::move(mod));
+        }
+        if (m_analyticsHandler) {
+            m_analyticsHandler->handleCreateAnalyticsModules(configToken, newMods);
+        } else {
+            std::lock_guard<std::mutex> lock(m_analyticsMutex);
+            for (auto& m : newMods) {
+                m_internalModules.push_back(m);
+            }
+        }
+        body << "    <tan:CreateAnalyticsModulesResponse/>\r\n";
+    } else if (isOp(opName, "ModifyAnalyticsModules")) {
+        const std::string configToken
+            = reqNode.select_node(".//*[local-name()='ConfigurationToken']").node().text().as_string();
+        std::vector<AnalyticsModule> modMods;
+        for (auto mNode : reqNode.select_nodes(".//*[local-name()='AnalyticsModule']")) {
+            AnalyticsModule mod;
+            mod.name = mNode.node().attribute("Name").as_string();
+            mod.type = mNode.node().attribute("Type").as_string();
+            for (auto si : mNode.node().select_nodes(".//*[local-name()='SimpleItem']")) {
+                mod.parameters[si.node().attribute("Name").as_string()] = si.node().attribute("Value").as_string();
+            }
+            modMods.push_back(std::move(mod));
+        }
+        if (m_analyticsHandler) {
+            m_analyticsHandler->handleModifyAnalyticsModules(configToken, modMods);
+        } else {
+            std::lock_guard<std::mutex> lock(m_analyticsMutex);
+            for (const auto& mm : modMods) {
+                for (auto& im : m_internalModules) {
+                    if (im.name == mm.name) {
+                        im = mm;
+                        break;
+                    }
+                }
+            }
+        }
+        body << "    <tan:ModifyAnalyticsModulesResponse/>\r\n";
+    } else if (isOp(opName, "DeleteAnalyticsModules")) {
+        const std::string configToken
+            = reqNode.select_node(".//*[local-name()='ConfigurationToken']").node().text().as_string();
+        std::vector<std::string> delNames;
+        for (auto mn : reqNode.select_nodes(".//*[local-name()='AnalyticsModuleName']")) {
+            delNames.push_back(mn.node().text().as_string());
+        }
+        if (m_analyticsHandler) {
+            m_analyticsHandler->handleDeleteAnalyticsModules(configToken, delNames);
+        } else {
+            std::lock_guard<std::mutex> lock(m_analyticsMutex);
+            m_internalModules.erase(std::remove_if(m_internalModules.begin(), m_internalModules.end(),
+                                        [&](const AnalyticsModule& m) {
+                                            return std::find(delNames.begin(), delNames.end(), m.name)
+                                                != delNames.end();
+                                        }),
+                m_internalModules.end());
+        }
+        body << "    <tan:DeleteAnalyticsModulesResponse/>\r\n";
     } else {
         body << "    <tan:" << opName << "Response/>\r\n";
     }

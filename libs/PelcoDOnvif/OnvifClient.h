@@ -27,6 +27,7 @@ struct OnvifCapabilities {
     std::string recordingXAddr {}; ///< Recording service endpoint (Profile G)
     std::string searchXAddr {}; ///< Search service endpoint (Profile G)
     std::string replayXAddr {}; ///< Replay service endpoint (Profile G)
+    std::string analyticsXAddr {}; ///< Analytics service endpoint (Profile M & T)
 };
 
 /// @class OnvifClient
@@ -495,6 +496,69 @@ public:
     [[nodiscard]] std::optional<MetadataStreamPayload> getMetadataStream(const std::string& streamUri = "");
 
     // =========================================================================
+    // Video Analytics Service (Profile M & T)
+    // =========================================================================
+
+    /// @brief Retrieves list of supported analytics rule types for a configuration token.
+    /// @param[in] configToken Video analytics configuration token.
+    /// @return Vector of AnalyticsRuleDescription objects.
+    [[nodiscard]] std::vector<AnalyticsRuleDescription> getSupportedRules(
+        const std::string& configToken = "VideoAnalyticsConfig_1");
+
+    /// @brief Retrieves currently configured analytics rules.
+    /// @param[in] configToken Video analytics configuration token.
+    /// @return Vector of AnalyticsRule objects.
+    [[nodiscard]] std::vector<AnalyticsRule> getRules(const std::string& configToken = "VideoAnalyticsConfig_1");
+
+    /// @brief Creates one or more new analytics rules (e.g. LineDetector, FieldDetector, LoiteringDetector).
+    /// @param[in] configToken Video analytics configuration token.
+    /// @param[in] rules Vector of rules to create.
+    /// @return True on success.
+    bool createRules(const std::string& configToken, const std::vector<AnalyticsRule>& rules);
+
+    /// @brief Modifies parameters of existing analytics rules.
+    /// @param[in] configToken Video analytics configuration token.
+    /// @param[in] rules Vector of updated rules.
+    /// @return True on success.
+    bool modifyRules(const std::string& configToken, const std::vector<AnalyticsRule>& rules);
+
+    /// @brief Deletes analytics rules by name.
+    /// @param[in] configToken Video analytics configuration token.
+    /// @param[in] ruleNames Names of rules to delete.
+    /// @return True on success.
+    bool deleteRules(const std::string& configToken, const std::vector<std::string>& ruleNames);
+
+    /// @brief Retrieves list of supported analytics modules.
+    /// @param[in] configToken Video analytics configuration token.
+    /// @return Vector of AnalyticsModuleDescription objects.
+    [[nodiscard]] std::vector<AnalyticsModuleDescription> getSupportedAnalyticsModules(
+        const std::string& configToken = "VideoAnalyticsConfig_1");
+
+    /// @brief Retrieves configured analytics modules.
+    /// @param[in] configToken Video analytics configuration token.
+    /// @return Vector of AnalyticsModule objects.
+    [[nodiscard]] std::vector<AnalyticsModule> getAnalyticsModules(
+        const std::string& configToken = "VideoAnalyticsConfig_1");
+
+    /// @brief Creates one or more analytics modules.
+    /// @param[in] configToken Video analytics configuration token.
+    /// @param[in] modules Modules to create.
+    /// @return True on success.
+    bool createAnalyticsModules(const std::string& configToken, const std::vector<AnalyticsModule>& modules);
+
+    /// @brief Modifies parameters of existing analytics modules.
+    /// @param[in] configToken Video analytics configuration token.
+    /// @param[in] modules Updated modules.
+    /// @return True on success.
+    bool modifyAnalyticsModules(const std::string& configToken, const std::vector<AnalyticsModule>& modules);
+
+    /// @brief Deletes analytics modules by name.
+    /// @param[in] configToken Video analytics configuration token.
+    /// @param[in] moduleNames Names of modules to delete.
+    /// @return True on success.
+    bool deleteAnalyticsModules(const std::string& configToken, const std::vector<std::string>& moduleNames);
+
+    // =========================================================================
     // System Maintenance & Device Service Extensions
     // =========================================================================
 
@@ -915,6 +979,12 @@ public:
 
     [[nodiscard]] static std::optional<std::string> parseReplayUriResponse(const std::string& xml);
     [[nodiscard]] static std::optional<ReplayConfiguration> parseReplayConfigurationResponse(const std::string& xml);
+
+    [[nodiscard]] static std::vector<AnalyticsRuleDescription> parseSupportedRulesResponse(const std::string& xml);
+    [[nodiscard]] static std::vector<AnalyticsRule> parseRulesResponse(const std::string& xml);
+    [[nodiscard]] static std::vector<AnalyticsModuleDescription> parseSupportedAnalyticsModulesResponse(
+        const std::string& xml);
+    [[nodiscard]] static std::vector<AnalyticsModule> parseAnalyticsModulesResponse(const std::string& xml);
 
 private:
     std::string m_deviceEndpoint {};

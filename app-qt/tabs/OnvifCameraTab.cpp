@@ -98,6 +98,14 @@ OnvifCameraTab::OnvifCameraTab(PelcoD::Qt::QOnvifDevice* onvifDevice, VideoStrea
             &OnvifCameraTab::handleRecordingSearchResultsReceived);
         connect(m_onvifDevice, &PelcoD::Qt::QOnvifDevice::eventSearchResultsReceived, this,
             &OnvifCameraTab::handleEventSearchResultsReceived);
+
+        // Profile M & T Analytics Rules & Modules
+        connect(m_onvifDevice, &PelcoD::Qt::QOnvifDevice::rulesUpdated, this,
+            &OnvifCameraTab::handleRulesUpdated);
+        connect(m_onvifDevice, &PelcoD::Qt::QOnvifDevice::supportedRulesUpdated, this,
+            &OnvifCameraTab::handleSupportedRulesUpdated);
+        connect(m_onvifDevice, &PelcoD::Qt::QOnvifDevice::analyticsModulesUpdated, this,
+            &OnvifCameraTab::handleAnalyticsModulesUpdated);
         connect(m_onvifDevice, &PelcoD::Qt::QOnvifDevice::replayUriResolved, this,
             &OnvifCameraTab::handleReplayUriResolved);
     }
@@ -1099,6 +1107,59 @@ void OnvifCameraTab::setupUi()
     metaStreamLayout->addWidget(tableMetaObjects);
 
     metaTabLayout->addWidget(groupMetaStream);
+
+    auto* groupRules = new QGroupBox(tr("Profile M & T: Video Analytics Rule Engine"), this);
+    auto* rulesLayout = new QVBoxLayout(groupRules);
+    rulesLayout->setSpacing(6);
+
+    tableRules = new QTableWidget(0, 5, groupRules);
+    tableRules->setHorizontalHeaderLabels(
+        { tr("Rule Name"), tr("Type"), tr("Classes"), tr("Parameters / Dwell"), tr("Status") });
+    tableRules->horizontalHeader()->setStretchLastSection(true);
+    tableRules->setSelectionBehavior(QAbstractItemView::SelectRows);
+    tableRules->setSelectionMode(QAbstractItemView::SingleSelection);
+    tableRules->setMinimumHeight(130);
+    rulesLayout->addWidget(tableRules);
+
+    auto* ruleInputRow = new QHBoxLayout();
+    editRuleName = new QLineEdit(groupRules);
+    editRuleName->setPlaceholderText(tr("Rule Name (e.g. PerimeterTripwire)"));
+    cmbRuleType = new QComboBox(groupRules);
+    cmbRuleType->addItem(tr("Tripwire (tt:LineDetector)"), QStringLiteral("tt:LineDetector"));
+    cmbRuleType->addItem(tr("Field Intrusion (tt:FieldDetector)"), QStringLiteral("tt:FieldDetector"));
+    cmbRuleType->addItem(tr("Loitering (tt:LoiteringDetector)"), QStringLiteral("tt:LoiteringDetector"));
+    cmbRuleType->addItem(tr("Cell Motion (tt:CellMotionDetector)"), QStringLiteral("tt:CellMotionDetector"));
+
+    editRuleClasses = new QLineEdit(groupRules);
+    editRuleClasses->setPlaceholderText(tr("Classes (e.g. Human,Vehicle)"));
+    editRuleClasses->setText(QStringLiteral("Human,Vehicle"));
+
+    spinRuleMinConf = new QDoubleSpinBox(groupRules);
+    spinRuleMinConf->setRange(0.0, 1.0);
+    spinRuleMinConf->setSingleStep(0.05);
+    spinRuleMinConf->setValue(0.5);
+    spinRuleMinConf->setPrefix(tr("Conf: "));
+
+    spinRuleDwellTime = new QDoubleSpinBox(groupRules);
+    spinRuleDwellTime->setRange(0.0, 300.0);
+    spinRuleDwellTime->setValue(5.0);
+    spinRuleDwellTime->setSuffix(tr(" s"));
+
+    btnAddRule = new QPushButton(tr("➕ Add Rule"), groupRules);
+    btnDeleteRule = new QPushButton(tr("🗑 Delete Rule"), groupRules);
+    btnRefreshRules = new QPushButton(tr("🔄 Refresh Rules"), groupRules);
+
+    ruleInputRow->addWidget(editRuleName, 2);
+    ruleInputRow->addWidget(cmbRuleType, 2);
+    ruleInputRow->addWidget(editRuleClasses, 2);
+    ruleInputRow->addWidget(spinRuleMinConf, 1);
+    ruleInputRow->addWidget(spinRuleDwellTime, 1);
+    ruleInputRow->addWidget(btnAddRule);
+    ruleInputRow->addWidget(btnDeleteRule);
+    ruleInputRow->addWidget(btnRefreshRules);
+    rulesLayout->addLayout(ruleInputRow);
+
+    metaTabLayout->addWidget(groupRules);
     metaTabLayout->addStretch();
 
     // -------------------------------------------------------------------------
@@ -1346,6 +1407,11 @@ void OnvifCameraTab::setupUi()
     connect(btnFindEvents, &QPushButton::clicked, this, &OnvifCameraTab::handleFindEvents);
     connect(btnResolveReplayUri, &QPushButton::clicked, this, &OnvifCameraTab::handleResolveReplayUri);
     connect(btnPlayReplayUri, &QPushButton::clicked, this, &OnvifCameraTab::handlePlayInVideoStreamTab);
+
+    // Profile M & T: Analytics Rules connections
+    connect(btnRefreshRules, &QPushButton::clicked, this, &OnvifCameraTab::handleRefreshRules);
+    connect(btnAddRule, &QPushButton::clicked, this, &OnvifCameraTab::handleAddRule);
+    connect(btnDeleteRule, &QPushButton::clicked, this, &OnvifCameraTab::handleDeleteRule);
 }
 
 void OnvifCameraTab::updateConnectionUi(bool connected)
@@ -1476,6 +1542,17 @@ void OnvifCameraTab::updateConnectionUi(bool connected)
     btnToggleMetaStream->setEnabled(connected);
     btnPollMetaOnce->setEnabled(connected);
     tableMetaObjects->setEnabled(connected);
+
+    // Profile M & T Analytics Rules widgets
+    tableRules->setEnabled(connected);
+    editRuleName->setEnabled(connected);
+    cmbRuleType->setEnabled(connected);
+    editRuleClasses->setEnabled(connected);
+    spinRuleMinConf->setEnabled(connected);
+    spinRuleDwellTime->setEnabled(connected);
+    btnAddRule->setEnabled(connected);
+    btnDeleteRule->setEnabled(connected);
+    btnRefreshRules->setEnabled(connected);
 
     // PKI Certificates widgets
     tableCertificates->setEnabled(connected);
@@ -2990,6 +3067,146 @@ void OnvifCameraTab::handleMetadataReceived(const PelcoD::Onvif::MetadataStreamP
         tableMetaObjects->setItem(row, 4, new QTableWidgetItem(geo));
         tableMetaObjects->setItem(row, 5, new QTableWidgetItem(ts));
     }
+}
+
+// =========================================================================
+// Profile M & T: Video Analytics Rule Engine & Modules Handlers
+// =========================================================================
+
+void OnvifCameraTab::handleRefreshRules()
+{
+    if (m_onvifDevice != nullptr) {
+        m_onvifDevice->refreshRules();
+        m_onvifDevice->refreshSupportedRules();
+    }
+}
+
+void OnvifCameraTab::handleAddRule()
+{
+    if (m_onvifDevice == nullptr || editRuleName == nullptr || cmbRuleType == nullptr) {
+        return;
+    }
+    const QString name = editRuleName->text().trimmed();
+    if (name.isEmpty()) {
+        QMessageBox::warning(this, tr("Add Rule"), tr("Please enter a rule name."));
+        return;
+    }
+
+    PelcoD::Onvif::AnalyticsRule rule;
+    rule.name = name.toStdString();
+    rule.type = cmbRuleType->currentData().toString().toStdString();
+    rule.enabled = true;
+
+    if (editRuleClasses != nullptr) {
+        const QString classesStr = editRuleClasses->text().trimmed();
+        if (!classesStr.isEmpty()) {
+            const auto list = classesStr.split(',', Qt::SkipEmptyParts);
+            for (const auto& c : list) {
+                rule.objectClasses.push_back(c.trimmed().toStdString());
+            }
+        }
+    }
+
+    if (spinRuleMinConf != nullptr) {
+        rule.minConfidence = static_cast<float>(spinRuleMinConf->value());
+    }
+
+    if (spinRuleDwellTime != nullptr) {
+        rule.dwellTimeSeconds = spinRuleDwellTime->value();
+    }
+
+    // Default geometries for quick evaluation setup
+    if (rule.type.find("Line") != std::string::npos) {
+        rule.lineStart = { 0.2f, 0.5f };
+        rule.lineEnd = { 0.8f, 0.5f };
+        rule.direction = "Any";
+    } else {
+        rule.polygon = { { 0.2f, 0.2f }, { 0.8f, 0.2f }, { 0.8f, 0.8f }, { 0.2f, 0.8f } };
+    }
+
+    if (m_onvifDevice->createRules({ rule })) {
+        editRuleName->clear();
+    } else {
+        QMessageBox::warning(this, tr("Add Rule"), tr("Failed to create rule on camera."));
+    }
+}
+
+void OnvifCameraTab::handleDeleteRule()
+{
+    if (m_onvifDevice == nullptr || tableRules == nullptr) {
+        return;
+    }
+    const int row = tableRules->currentRow();
+    if (row < 0 || row >= tableRules->rowCount()) {
+        QMessageBox::warning(this, tr("Delete Rule"), tr("Please select a rule to delete."));
+        return;
+    }
+    const auto* item = tableRules->item(row, 0);
+    if (item == nullptr) {
+        return;
+    }
+    m_onvifDevice->deleteRules({ item->text() });
+}
+
+void OnvifCameraTab::handleRulesUpdated(const std::vector<PelcoD::Onvif::AnalyticsRule>& rules)
+{
+    if (tableRules == nullptr) {
+        return;
+    }
+    tableRules->setRowCount(0);
+    for (const auto& r : rules) {
+        const int row = tableRules->rowCount();
+        tableRules->insertRow(row);
+        tableRules->setItem(row, 0, new QTableWidgetItem(QString::fromStdString(r.name)));
+        tableRules->setItem(row, 1, new QTableWidgetItem(QString::fromStdString(r.type)));
+
+        QString classesStr;
+        for (size_t i = 0; i < r.objectClasses.size(); ++i) {
+            if (i > 0)
+                classesStr += QStringLiteral(", ");
+            classesStr += QString::fromStdString(r.objectClasses[i]);
+        }
+        tableRules->setItem(row, 2, new QTableWidgetItem(classesStr.isEmpty() ? tr("All") : classesStr));
+
+        QString paramStr;
+        if (r.type.find("Loitering") != std::string::npos) {
+            paramStr = QStringLiteral("Dwell: %1s | Polygon: %2 pts").arg(r.dwellTimeSeconds).arg(r.polygon.size());
+        } else if (r.type.find("Line") != std::string::npos) {
+            paramStr = QStringLiteral("Dir: %1 | Line: (%2,%3)->(%4,%5)")
+                           .arg(QString::fromStdString(r.direction))
+                           .arg(r.lineStart.x, 0, 'f', 2)
+                           .arg(r.lineStart.y, 0, 'f', 2)
+                           .arg(r.lineEnd.x, 0, 'f', 2)
+                           .arg(r.lineEnd.y, 0, 'f', 2);
+        } else if (r.type.find("Field") != std::string::npos) {
+            paramStr = QStringLiteral("Polygon: %1 pts").arg(r.polygon.size());
+        } else {
+            paramStr = QStringLiteral("Sensitivity: %1").arg(r.sensitivity);
+        }
+        tableRules->setItem(row, 3, new QTableWidgetItem(paramStr));
+
+        auto* statusItem = new QTableWidgetItem(r.enabled ? tr("Active") : tr("Disabled"));
+        statusItem->setForeground(QBrush(r.enabled ? QColor("#7ee787") : QColor("#8b949e")));
+        tableRules->setItem(row, 4, statusItem);
+    }
+}
+
+void OnvifCameraTab::handleSupportedRulesUpdated(const std::vector<PelcoD::Onvif::AnalyticsRuleDescription>& rules)
+{
+    (void)rules;
+}
+
+void OnvifCameraTab::handleRefreshAnalyticsModules()
+{
+    if (m_onvifDevice != nullptr) {
+        m_onvifDevice->refreshAnalyticsModules();
+        m_onvifDevice->refreshSupportedAnalyticsModules();
+    }
+}
+
+void OnvifCameraTab::handleAnalyticsModulesUpdated(const std::vector<PelcoD::Onvif::AnalyticsModule>& modules)
+{
+    (void)modules;
 }
 
 void OnvifCameraTab::handleFetchSystemLog()
