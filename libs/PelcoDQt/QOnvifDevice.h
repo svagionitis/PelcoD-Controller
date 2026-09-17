@@ -103,6 +103,34 @@ public:
         return m_networkGateway;
     }
 
+    /// @brief Gets cached optical focus status.
+    /// @return FocusStatus20 struct.
+    [[nodiscard]] PelcoD::Onvif::FocusStatus20 focusStatus() const
+    {
+        return m_focusStatus;
+    }
+
+    /// @brief Gets cached imaging presets.
+    /// @return Vector of ImagingPreset.
+    [[nodiscard]] std::vector<PelcoD::Onvif::ImagingPreset> imagingPresets() const
+    {
+        return m_imagingPresets;
+    }
+
+    /// @brief Gets cached relay outputs.
+    /// @return Vector of RelayOutputConfig.
+    [[nodiscard]] std::vector<PelcoD::Onvif::RelayOutputConfig> relayOutputs() const
+    {
+        return m_relayOutputs;
+    }
+
+    /// @brief Gets cached digital inputs.
+    /// @return Vector of DigitalInputConfig.
+    [[nodiscard]] std::vector<PelcoD::Onvif::DigitalInputConfig> digitalInputs() const
+    {
+        return m_digitalInputs;
+    }
+
     /// @brief Gets camera hardware identification metadata.
     /// @return DeviceInformation struct.
     [[nodiscard]] PelcoD::Onvif::DeviceInformation deviceInformation() const;
@@ -251,6 +279,32 @@ public Q_SLOTS:
     /// @param[in] videoSourceToken Optional token (defaults to active profile's video source).
     void focusStop(const QString& videoSourceToken = QString());
 
+    /// @brief Queries current focus status and encoder position.
+    /// @param[in] videoSourceToken Optional token.
+    void refreshFocusStatus(const QString& videoSourceToken = QString());
+
+    /// @brief Moves optical focus to absolute position.
+    /// @param[in] position Target position [0.0 to 1.0].
+    /// @param[in] speed Speed ratio.
+    /// @param[in] videoSourceToken Optional token.
+    void focusAbsolute(float position, float speed = 1.0f, const QString& videoSourceToken = QString());
+
+    /// @brief Moves optical focus relative to current position.
+    /// @param[in] distance Displacement [-1.0 to 1.0].
+    /// @param[in] speed Speed ratio.
+    /// @param[in] videoSourceToken Optional token.
+    void focusRelative(float distance, float speed = 1.0f, const QString& videoSourceToken = QString());
+
+    /// @brief Queries saved optical imaging presets.
+    /// @param[in] videoSourceToken Optional token.
+    void refreshImagingPresets(const QString& videoSourceToken = QString());
+
+    /// @brief Recalls saved optical imaging preset.
+    /// @param[in] presetToken Preset token.
+    /// @param[in] videoSourceToken Optional token.
+    /// @return True on success.
+    bool setCurrentImagingPreset(const QString& presetToken, const QString& videoSourceToken = QString());
+
     // =========================================================================
     // Profile T: PullPoint Event Service
     // =========================================================================
@@ -351,6 +405,28 @@ public Q_SLOTS:
     /// @return True on success.
     bool setSystemFactoryDefault(bool hard = false);
 
+    // =========================================================================
+    // Profile S/T: Device I/O & Relay Outputs
+    // =========================================================================
+
+    /// @brief Queries list of configured relay outputs from camera.
+    void refreshRelayOutputs();
+
+    /// @brief Changes the logical state of a relay output.
+    /// @param[in] relayToken Relay token (e.g. "Relay_1").
+    /// @param[in] active True to activate, false to deactivate.
+    /// @return True on success.
+    bool setRelayOutputState(const QString& relayToken, bool active);
+
+    /// @brief Configures relay parameters (mode, delay time, idle state).
+    /// @param[in] relayToken Relay token.
+    /// @param[in] settings Updated relay configuration.
+    /// @return True on success.
+    bool setRelayOutputSettings(const QString& relayToken, const PelcoD::Onvif::RelayOutputConfig& settings);
+
+    /// @brief Queries list of configured digital inputs from camera.
+    void refreshDigitalInputs();
+
 Q_SIGNALS:
     /// @brief Emitted when device connection succeeds.
     /// @param[in] endpoint Connected service URL.
@@ -425,6 +501,22 @@ Q_SIGNALS:
     /// @param[in] success True if accepted.
     void factoryDefaultCompleted(bool success);
 
+    /// @brief Emitted when optical focus status is refreshed.
+    /// @param[in] status Current focus status.
+    void focusStatusUpdated(const PelcoD::Onvif::FocusStatus20& status);
+
+    /// @brief Emitted when optical imaging presets are refreshed.
+    /// @param[in] presets List of camera imaging presets.
+    void imagingPresetsUpdated(const std::vector<PelcoD::Onvif::ImagingPreset>& presets);
+
+    /// @brief Emitted when relay outputs list is refreshed.
+    /// @param[in] relays List of camera relay outputs.
+    void relayOutputsUpdated(const std::vector<PelcoD::Onvif::RelayOutputConfig>& relays);
+
+    /// @brief Emitted when digital inputs list is refreshed.
+    /// @param[in] inputs List of camera digital inputs.
+    void digitalInputsUpdated(const std::vector<PelcoD::Onvif::DigitalInputConfig>& inputs);
+
     /// @brief Emitted when an operation fails.
     /// @param[in] message Diagnostic error message.
     void errorOccurred(const QString& message);
@@ -454,6 +546,10 @@ private:
     PelcoD::Onvif::NtpConfig m_ntpConfig {};
     PelcoD::Onvif::DeviceInformation m_deviceInfo {};
     PelcoD::Onvif::ImagingSettings m_imagingSettings {};
+    PelcoD::Onvif::FocusStatus20 m_focusStatus {};
+    std::vector<PelcoD::Onvif::ImagingPreset> m_imagingPresets {};
+    std::vector<PelcoD::Onvif::RelayOutputConfig> m_relayOutputs {};
+    std::vector<PelcoD::Onvif::DigitalInputConfig> m_digitalInputs {};
     QString m_eventSubscriptionUrl {};
     bool m_eventSubActive { false };
 };

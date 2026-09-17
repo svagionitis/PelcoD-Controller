@@ -23,6 +23,7 @@ struct OnvifCapabilities {
     std::string ptzXAddr {}; ///< PTZ service endpoint
     std::string eventsXAddr {}; ///< Events service endpoint
     std::string imagingXAddr {}; ///< Imaging service endpoint
+    std::string deviceIoXAddr {}; ///< DeviceIO service endpoint
 };
 
 /// @class OnvifClient
@@ -374,6 +375,71 @@ public:
     /// @return True if focus stop command was accepted.
     bool stopFocus(const std::string& videoSourceToken);
 
+    /// @brief Queries current focus status and encoder position.
+    /// @param[in] videoSourceToken Video source token.
+    /// @return Current FocusStatus20 or nullopt on failure.
+    [[nodiscard]] std::optional<FocusStatus20> getFocusStatus(const std::string& videoSourceToken);
+
+    /// @brief Moves optical focus using continuous velocity.
+    /// @param[in] videoSourceToken Video source token.
+    /// @param[in] speed Speed ratio [-1.0 to 1.0].
+    /// @return True if command was accepted.
+    bool moveFocusContinuous(const std::string& videoSourceToken, float speed);
+
+    /// @brief Moves optical focus to absolute position.
+    /// @param[in] videoSourceToken Video source token.
+    /// @param[in] position Target position [0.0 to 1.0].
+    /// @param[in] speed Velocity ratio [0.0 to 1.0].
+    /// @return True if command was accepted.
+    bool moveFocusAbsolute(const std::string& videoSourceToken, float position, float speed = 1.0f);
+
+    /// @brief Moves optical focus relative to current position.
+    /// @param[in] videoSourceToken Video source token.
+    /// @param[in] distance Displacement [-1.0 to 1.0].
+    /// @param[in] speed Velocity ratio [0.0 to 1.0].
+    /// @return True if command was accepted.
+    bool moveFocusRelative(const std::string& videoSourceToken, float distance, float speed = 1.0f);
+
+    /// @brief Retrieves list of saved optical imaging presets.
+    /// @param[in] videoSourceToken Video source token.
+    /// @return Vector of ImagingPreset.
+    [[nodiscard]] std::vector<ImagingPreset> getImagingPresets(const std::string& videoSourceToken);
+
+    /// @brief Recalls an optical imaging preset.
+    /// @param[in] videoSourceToken Video source token.
+    /// @param[in] presetToken Target preset token.
+    /// @return True if preset recalled.
+    bool setCurrentImagingPreset(const std::string& videoSourceToken, const std::string& presetToken);
+
+    // =========================================================================
+    // Device I/O & Relay Outputs Service (Profile S & T)
+    // =========================================================================
+
+    /// @brief Queries all configured relay outputs.
+    /// @return Vector of RelayOutputConfig.
+    [[nodiscard]] std::vector<RelayOutputConfig> getRelayOutputs();
+
+    /// @brief Queries configuration options for a relay output.
+    /// @param[in] relayToken Relay token (e.g. "Relay_1").
+    /// @return Vector of supported relay modes.
+    [[nodiscard]] std::vector<std::string> getRelayOutputOptions(const std::string& relayToken);
+
+    /// @brief Configures relay output parameters (mode, delay, idle state).
+    /// @param[in] relayToken Target relay token.
+    /// @param[in] settings Updated configuration.
+    /// @return True if update accepted.
+    bool setRelayOutputSettings(const std::string& relayToken, const RelayOutputConfig& settings);
+
+    /// @brief Changes the logical state of a relay output.
+    /// @param[in] relayToken Target relay token.
+    /// @param[in] state Target state (Active or Inactive).
+    /// @return True if state change accepted.
+    bool setRelayOutputState(const std::string& relayToken, RelayLogicalState state);
+
+    /// @brief Queries all digital inputs.
+    /// @return Vector of DigitalInputConfig.
+    [[nodiscard]] std::vector<DigitalInputConfig> getDigitalInputs();
+
     // =========================================================================
     // Event Service (PullPoint - Profile T)
     // =========================================================================
@@ -533,6 +599,26 @@ public:
     /// @param[in] xml Raw response XML.
     /// @return Vector of scope URIs.
     [[nodiscard]] static std::vector<std::string> parseScopesResponse(const std::string& xml);
+
+    /// @brief Parses GetStatus (FocusStatus20) XML response.
+    /// @param[in] xml Raw response XML.
+    /// @return FocusStatus20 or nullopt.
+    [[nodiscard]] static std::optional<FocusStatus20> parseFocusStatusResponse(const std::string& xml);
+
+    /// @brief Parses GetPresets XML response for imaging presets.
+    /// @param[in] xml Raw response XML.
+    /// @return Vector of ImagingPreset.
+    [[nodiscard]] static std::vector<ImagingPreset> parseImagingPresetsResponse(const std::string& xml);
+
+    /// @brief Parses GetRelayOutputs XML response.
+    /// @param[in] xml Raw response XML.
+    /// @return Vector of RelayOutputConfig.
+    [[nodiscard]] static std::vector<RelayOutputConfig> parseRelayOutputsResponse(const std::string& xml);
+
+    /// @brief Parses GetDigitalInputs XML response.
+    /// @param[in] xml Raw response XML.
+    /// @return Vector of DigitalInputConfig.
+    [[nodiscard]] static std::vector<DigitalInputConfig> parseDigitalInputsResponse(const std::string& xml);
 
 private:
     std::string m_deviceEndpoint {};

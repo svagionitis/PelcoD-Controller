@@ -21,7 +21,7 @@ namespace PelcoD::Onvif {
 /// @brief Implements IPtzHandler and IImagingHandler by delegating commands to a PelcoDDevice instance.
 /// @details Converts normalized velocity, focus, and angle ranges to Pelco-D protocol parameters and emits ONVIF
 /// events.
-class PelcoDPtzAdapter : public IPtzHandler, public IImagingHandler {
+class PelcoDPtzAdapter : public IPtzHandler, public IImagingHandler, public IDeviceIoHandler {
 public:
     /// @brief Constructs adapter wrapping an existing PelcoDDevice.
     /// @param[in] device Shared pointer to initialized PelcoDDevice instance.
@@ -85,6 +85,22 @@ public:
         const std::string& videoSourceToken, const ImagingSettings& settings) override;
     void handleMoveFocus(const std::string& videoSourceToken, float speed) override;
     void handleStopFocus(const std::string& videoSourceToken) override;
+    [[nodiscard]] FocusStatus20 handleGetFocusStatus(const std::string& videoSourceToken) override;
+    [[nodiscard]] bool handleMoveFocusAdvanced(const std::string& videoSourceToken, const FocusMove& move) override;
+    [[nodiscard]] std::vector<ImagingPreset> handleGetImagingPresets(const std::string& videoSourceToken) override;
+    [[nodiscard]] bool handleSetCurrentImagingPreset(
+        const std::string& videoSourceToken, const std::string& presetToken) override;
+
+    // =========================================================================
+    // IDeviceIoHandler Implementation (Profile S & T)
+    // =========================================================================
+
+    [[nodiscard]] std::vector<RelayOutputConfig> handleGetRelayOutputs() override;
+    [[nodiscard]] std::vector<std::string> handleGetRelayOutputOptions(const std::string& token) override;
+    [[nodiscard]] bool handleSetRelayOutputSettings(
+        const std::string& token, const RelayOutputConfig& settings) override;
+    [[nodiscard]] bool handleSetRelayOutputState(const std::string& token, RelayLogicalState state) override;
+    [[nodiscard]] std::vector<DigitalInputConfig> handleGetDigitalInputs() override;
 
 private:
     void onDeviceStatusUpdated(const PelcoD::DeviceStatus& status);
@@ -112,6 +128,14 @@ private:
     float m_homeTilt { 0.0f };
     float m_homeZoom { 0.0f };
     bool m_hasHomeCoordinates { false };
+    FocusStatus20 m_focusStatus {};
+    std::vector<ImagingPreset> m_imagingPresets { { "Preset_Clear", "Clear", "Clear Daylight" },
+        { "Preset_BW", "B/W", "Night Vision B/W" } };
+    std::string m_currentImagingPresetToken { "Preset_Clear" };
+    std::vector<RelayOutputConfig> m_relays { { "Relay_1", RelayMode::Bistable, 0.0f, RelayIdleState::Open,
+                                                  RelayLogicalState::Inactive },
+        { "Relay_2", RelayMode::Bistable, 0.0f, RelayIdleState::Open, RelayLogicalState::Inactive } };
+    std::vector<DigitalInputConfig> m_digitalInputs { { "Input_1", RelayIdleState::Open, "Alarm", false } };
 };
 
 } // namespace PelcoD::Onvif

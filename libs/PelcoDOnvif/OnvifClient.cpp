@@ -161,6 +161,17 @@ std::optional<OnvifCapabilities> OnvifClient::parseCapabilitiesResponse(const st
         }
     }
 
+    const auto extNode = findNodeWithSuffix(capNode, "Extension");
+    if (extNode) {
+        const auto devIoNode = findNodeWithSuffix(extNode, "DeviceIO");
+        if (devIoNode) {
+            const auto xaddr = findNodeWithSuffix(devIoNode, "XAddr");
+            if (xaddr) {
+                caps.deviceIoXAddr = xaddr.text().as_string();
+            }
+        }
+    }
+
     return caps;
 }
 
@@ -179,6 +190,12 @@ std::optional<OnvifCapabilities> OnvifClient::getCapabilities()
         m_capabilities = *parsed;
         if (m_capabilities.deviceXAddr.empty()) {
             m_capabilities.deviceXAddr = m_deviceEndpoint;
+        }
+        if (m_capabilities.deviceIoXAddr.empty() && !m_deviceEndpoint.empty()) {
+            const auto pos = m_deviceEndpoint.find("/onvif/");
+            if (pos != std::string::npos) {
+                m_capabilities.deviceIoXAddr = m_deviceEndpoint.substr(0, pos) + "/onvif/deviceio_service";
+            }
         }
     }
     return parsed;
@@ -1445,6 +1462,241 @@ bool OnvifClient::stopFocus(const std::string& videoSourceToken)
     return resp.isSuccess();
 }
 
+std::optional<FocusStatus20> OnvifClient::getFocusStatus(const std::string& videoSourceToken)
+{
+    if (m_capabilities.imagingXAddr.empty()) {
+        static_cast<void>(getCapabilities());
+    }
+    if (m_capabilities.imagingXAddr.empty()) {
+        return std::nullopt;
+    }
+
+    std::ostringstream ss {};
+    ss << "<timg:GetStatus xmlns:timg=\"http://www.onvif.org/ver20/imaging/wsdl\">\n"
+       << "  <timg:VideoSourceToken>" << videoSourceToken << "</timg:VideoSourceToken>\n"
+       << "</timg:GetStatus>";
+
+    const std::string reqXml = wrapSoapEnvelope(ss.str());
+    const HttpResponse resp = m_httpClient.sendPost(m_capabilities.imagingXAddr, reqXml);
+    if (!resp.isSuccess()) {
+        return std::nullopt;
+    }
+    return parseFocusStatusResponse(resp.body);
+}
+
+bool OnvifClient::moveFocusContinuous(const std::string& videoSourceToken, float speed)
+{
+    return moveFocus(videoSourceToken, speed);
+}
+
+bool OnvifClient::moveFocusAbsolute(const std::string& videoSourceToken, float position, float speed)
+{
+    if (m_capabilities.imagingXAddr.empty()) {
+        static_cast<void>(getCapabilities());
+    }
+    if (m_capabilities.imagingXAddr.empty()) {
+        return false;
+    }
+
+    std::ostringstream ss {};
+    ss << "<timg:Move xmlns:timg=\"http://www.onvif.org/ver20/imaging/wsdl\" "
+       << "xmlns:tt=\"http://www.onvif.org/ver10/schema\">\n"
+       << "  <timg:VideoSourceToken>" << videoSourceToken << "</timg:VideoSourceToken>\n"
+       << "  <timg:Focus>\n"
+       << "    <tt:Absolute>\n"
+       << "      <tt:Position>" << std::fixed << std::setprecision(2) << position << "</tt:Position>\n"
+       << "      <tt:Speed>" << std::fixed << std::setprecision(2) << speed << "</tt:Speed>\n"
+       << "    </tt:Absolute>\n"
+       << "  </timg:Focus>\n"
+       << "</timg:Move>";
+
+    const std::string reqXml = wrapSoapEnvelope(ss.str());
+    const HttpResponse resp = m_httpClient.sendPost(m_capabilities.imagingXAddr, reqXml);
+    return resp.isSuccess();
+}
+
+bool OnvifClient::moveFocusRelative(const std::string& videoSourceToken, float distance, float speed)
+{
+    if (m_capabilities.imagingXAddr.empty()) {
+        static_cast<void>(getCapabilities());
+    }
+    if (m_capabilities.imagingXAddr.empty()) {
+        return false;
+    }
+
+    std::ostringstream ss {};
+    ss << "<timg:Move xmlns:timg=\"http://www.onvif.org/ver20/imaging/wsdl\" "
+       << "xmlns:tt=\"http://www.onvif.org/ver10/schema\">\n"
+       << "  <timg:VideoSourceToken>" << videoSourceToken << "</timg:VideoSourceToken>\n"
+       << "  <timg:Focus>\n"
+       << "    <tt:Relative>\n"
+       << "      <tt:Distance>" << std::fixed << std::setprecision(2) << distance << "</tt:Distance>\n"
+       << "      <tt:Speed>" << std::fixed << std::setprecision(2) << speed << "</tt:Speed>\n"
+       << "    </tt:Relative>\n"
+       << "  </timg:Focus>\n"
+       << "</timg:Move>";
+
+    const std::string reqXml = wrapSoapEnvelope(ss.str());
+    const HttpResponse resp = m_httpClient.sendPost(m_capabilities.imagingXAddr, reqXml);
+    return resp.isSuccess();
+}
+
+std::vector<ImagingPreset> OnvifClient::getImagingPresets(const std::string& videoSourceToken)
+{
+    if (m_capabilities.imagingXAddr.empty()) {
+        static_cast<void>(getCapabilities());
+    }
+    if (m_capabilities.imagingXAddr.empty()) {
+        return {};
+    }
+
+    std::ostringstream ss {};
+    ss << "<timg:GetPresets xmlns:timg=\"http://www.onvif.org/ver20/imaging/wsdl\">\n"
+       << "  <timg:VideoSourceToken>" << videoSourceToken << "</timg:VideoSourceToken>\n"
+       << "</timg:GetPresets>";
+
+    const std::string reqXml = wrapSoapEnvelope(ss.str());
+    const HttpResponse resp = m_httpClient.sendPost(m_capabilities.imagingXAddr, reqXml);
+    if (!resp.isSuccess()) {
+        return {};
+    }
+    return parseImagingPresetsResponse(resp.body);
+}
+
+bool OnvifClient::setCurrentImagingPreset(const std::string& videoSourceToken, const std::string& presetToken)
+{
+    if (m_capabilities.imagingXAddr.empty()) {
+        static_cast<void>(getCapabilities());
+    }
+    if (m_capabilities.imagingXAddr.empty()) {
+        return false;
+    }
+
+    std::ostringstream ss {};
+    ss << "<timg:SetCurrentPreset xmlns:timg=\"http://www.onvif.org/ver20/imaging/wsdl\">\n"
+       << "  <timg:VideoSourceToken>" << videoSourceToken << "</timg:VideoSourceToken>\n"
+       << "  <timg:PresetToken>" << presetToken << "</timg:PresetToken>\n"
+       << "</timg:SetCurrentPreset>";
+
+    const std::string reqXml = wrapSoapEnvelope(ss.str());
+    const HttpResponse resp = m_httpClient.sendPost(m_capabilities.imagingXAddr, reqXml);
+    return resp.isSuccess();
+}
+
+std::vector<RelayOutputConfig> OnvifClient::getRelayOutputs()
+{
+    if (m_capabilities.deviceIoXAddr.empty()) {
+        static_cast<void>(getCapabilities());
+    }
+    const std::string endpoint
+        = !m_capabilities.deviceIoXAddr.empty() ? m_capabilities.deviceIoXAddr : m_deviceEndpoint;
+
+    const std::string body = "<tmd:GetRelayOutputs xmlns:tmd=\"http://www.onvif.org/ver10/deviceIO/wsdl\"/>";
+    const std::string reqXml = wrapSoapEnvelope(body);
+    const HttpResponse resp = m_httpClient.sendPost(endpoint, reqXml);
+    if (!resp.isSuccess()) {
+        return {};
+    }
+    return parseRelayOutputsResponse(resp.body);
+}
+
+std::vector<std::string> OnvifClient::getRelayOutputOptions(const std::string& relayToken)
+{
+    if (m_capabilities.deviceIoXAddr.empty()) {
+        static_cast<void>(getCapabilities());
+    }
+    const std::string endpoint
+        = !m_capabilities.deviceIoXAddr.empty() ? m_capabilities.deviceIoXAddr : m_deviceEndpoint;
+
+    std::ostringstream ss;
+    ss << "<tmd:GetRelayOutputOptions xmlns:tmd=\"http://www.onvif.org/ver10/deviceIO/wsdl\">\n"
+       << "  <tmd:RelayOutputToken>" << relayToken << "</tmd:RelayOutputToken>\n"
+       << "</tmd:GetRelayOutputOptions>";
+
+    const std::string reqXml = wrapSoapEnvelope(ss.str());
+    const HttpResponse resp = m_httpClient.sendPost(endpoint, reqXml);
+    if (!resp.isSuccess()) {
+        return { "Bistable", "Monostable" };
+    }
+
+    std::vector<std::string> options;
+    pugi::xml_document doc;
+    if (doc.load_string(resp.body.c_str())) {
+        const auto optNode = findRecursiveNodeWithSuffix(doc, "RelayOutputOptions");
+        if (optNode) {
+            for (auto child = optNode.first_child(); child; child = child.next_sibling()) {
+                if (std::string(child.name()).find("Mode") != std::string::npos) {
+                    options.push_back(child.text().as_string());
+                }
+            }
+        }
+    }
+    if (options.empty()) {
+        options = { "Bistable", "Monostable" };
+    }
+    return options;
+}
+
+bool OnvifClient::setRelayOutputSettings(const std::string& relayToken, const RelayOutputConfig& settings)
+{
+    if (m_capabilities.deviceIoXAddr.empty()) {
+        static_cast<void>(getCapabilities());
+    }
+    const std::string endpoint
+        = !m_capabilities.deviceIoXAddr.empty() ? m_capabilities.deviceIoXAddr : m_deviceEndpoint;
+
+    std::ostringstream ss;
+    ss << "<tmd:SetRelayOutputSettings xmlns:tmd=\"http://www.onvif.org/ver10/deviceIO/wsdl\" "
+       << "xmlns:tt=\"http://www.onvif.org/ver10/schema\">\n"
+       << "  <tmd:RelayOutputToken>" << relayToken << "</tmd:RelayOutputToken>\n"
+       << "  <tmd:Properties>\n"
+       << "    <tt:Mode>" << relayModeToString(settings.mode) << "</tt:Mode>\n"
+       << "    <tt:DelayTime>PT" << static_cast<int>(settings.delayTimeSeconds) << "S</tt:DelayTime>\n"
+       << "    <tt:IdleState>" << relayIdleStateToString(settings.idleState) << "</tt:IdleState>\n"
+       << "  </tmd:Properties>\n"
+       << "</tmd:SetRelayOutputSettings>";
+
+    const std::string reqXml = wrapSoapEnvelope(ss.str());
+    const HttpResponse resp = m_httpClient.sendPost(endpoint, reqXml);
+    return resp.isSuccess();
+}
+
+bool OnvifClient::setRelayOutputState(const std::string& relayToken, RelayLogicalState state)
+{
+    if (m_capabilities.deviceIoXAddr.empty()) {
+        static_cast<void>(getCapabilities());
+    }
+    const std::string endpoint
+        = !m_capabilities.deviceIoXAddr.empty() ? m_capabilities.deviceIoXAddr : m_deviceEndpoint;
+
+    std::ostringstream ss;
+    ss << "<tmd:SetRelayOutputState xmlns:tmd=\"http://www.onvif.org/ver10/deviceIO/wsdl\">\n"
+       << "  <tmd:RelayOutputToken>" << relayToken << "</tmd:RelayOutputToken>\n"
+       << "  <tmd:LogicalState>" << relayLogicalStateToString(state) << "</tmd:LogicalState>\n"
+       << "</tmd:SetRelayOutputState>";
+
+    const std::string reqXml = wrapSoapEnvelope(ss.str());
+    const HttpResponse resp = m_httpClient.sendPost(endpoint, reqXml);
+    return resp.isSuccess();
+}
+
+std::vector<DigitalInputConfig> OnvifClient::getDigitalInputs()
+{
+    if (m_capabilities.deviceIoXAddr.empty()) {
+        static_cast<void>(getCapabilities());
+    }
+    const std::string endpoint
+        = !m_capabilities.deviceIoXAddr.empty() ? m_capabilities.deviceIoXAddr : m_deviceEndpoint;
+
+    const std::string body = "<tmd:GetDigitalInputs xmlns:tmd=\"http://www.onvif.org/ver10/deviceIO/wsdl\"/>";
+    const std::string reqXml = wrapSoapEnvelope(body);
+    const HttpResponse resp = m_httpClient.sendPost(endpoint, reqXml);
+    if (!resp.isSuccess()) {
+        return {};
+    }
+    return parseDigitalInputsResponse(resp.body);
+}
+
 std::optional<std::string> OnvifClient::parseCreatePullPointSubscriptionResponse(const std::string& xml)
 {
     pugi::xml_document doc {};
@@ -2355,6 +2607,142 @@ bool OnvifClient::setScopes(const std::vector<std::string>& scopes)
     const std::string reqXml = wrapSoapEnvelope(ss.str());
     const HttpResponse resp = m_httpClient.sendPost(targetUrl, reqXml);
     return resp.isSuccess();
+}
+
+std::optional<FocusStatus20> OnvifClient::parseFocusStatusResponse(const std::string& xml)
+{
+    pugi::xml_document doc {};
+    if (!doc.load_string(xml.c_str())) {
+        return std::nullopt;
+    }
+
+    const auto statusNode = findRecursiveNodeWithSuffix(doc, "FocusStatus20");
+    if (!statusNode) {
+        return std::nullopt;
+    }
+
+    FocusStatus20 st;
+    const auto pos = findNodeWithSuffix(statusNode, "Position");
+    if (pos) {
+        st.position = pos.text().as_float(0.0f);
+    }
+    const auto move = findNodeWithSuffix(statusNode, "MoveStatus");
+    if (move) {
+        st.moveStatus = move.text().as_string("IDLE");
+    }
+    const auto err = findNodeWithSuffix(statusNode, "Error");
+    if (err) {
+        st.error = err.text().as_string();
+    }
+    return st;
+}
+
+std::vector<ImagingPreset> OnvifClient::parseImagingPresetsResponse(const std::string& xml)
+{
+    std::vector<ImagingPreset> presets;
+    pugi::xml_document doc {};
+    if (!doc.load_string(xml.c_str())) {
+        return presets;
+    }
+
+    const auto respNode = findRecursiveNodeWithSuffix(doc, "GetPresetsResponse");
+    if (!respNode) {
+        return presets;
+    }
+
+    for (auto child = respNode.first_child(); child; child = child.next_sibling()) {
+        if (std::string(child.name()).find("Preset") != std::string::npos) {
+            ImagingPreset p;
+            p.token = child.attribute("token").as_string();
+            p.type = child.attribute("type").as_string("Custom");
+            const auto nameNode = findNodeWithSuffix(child, "Name");
+            if (nameNode) {
+                p.name = nameNode.text().as_string();
+            }
+            presets.push_back(p);
+        }
+    }
+    return presets;
+}
+
+std::vector<RelayOutputConfig> OnvifClient::parseRelayOutputsResponse(const std::string& xml)
+{
+    std::vector<RelayOutputConfig> relays;
+    pugi::xml_document doc {};
+    if (!doc.load_string(xml.c_str())) {
+        return relays;
+    }
+
+    const auto respNode = findRecursiveNodeWithSuffix(doc, "GetRelayOutputsResponse");
+    if (!respNode) {
+        return relays;
+    }
+
+    for (auto child = respNode.first_child(); child; child = child.next_sibling()) {
+        if (std::string(child.name()).find("RelayOutputs") != std::string::npos) {
+            RelayOutputConfig r;
+            r.token = child.attribute("token").as_string();
+
+            const auto propNode = findNodeWithSuffix(child, "Properties");
+            if (propNode) {
+                const auto modeNode = findNodeWithSuffix(propNode, "Mode");
+                if (modeNode) {
+                    r.mode = relayModeFromString(modeNode.text().as_string());
+                }
+                const auto delayNode = findNodeWithSuffix(propNode, "DelayTime");
+                if (delayNode) {
+                    const std::string dt = delayNode.text().as_string();
+                    const auto posT = dt.find('T');
+                    const auto posS = dt.find('S');
+                    if (posT != std::string::npos && posS != std::string::npos && posS > posT + 1) {
+                        try {
+                            r.delayTimeSeconds = std::stof(dt.substr(posT + 1, posS - posT - 1));
+                        } catch (...) {
+                        }
+                    }
+                }
+                const auto idleNode = findNodeWithSuffix(propNode, "IdleState");
+                if (idleNode) {
+                    r.idleState = relayIdleStateFromString(idleNode.text().as_string());
+                }
+            }
+
+            const auto stateNode = findNodeWithSuffix(child, "LogicalState");
+            if (stateNode) {
+                r.logicalState = relayLogicalStateFromString(stateNode.text().as_string());
+            }
+
+            relays.push_back(r);
+        }
+    }
+    return relays;
+}
+
+std::vector<DigitalInputConfig> OnvifClient::parseDigitalInputsResponse(const std::string& xml)
+{
+    std::vector<DigitalInputConfig> inputs;
+    pugi::xml_document doc {};
+    if (!doc.load_string(xml.c_str())) {
+        return inputs;
+    }
+
+    const auto respNode = findRecursiveNodeWithSuffix(doc, "GetDigitalInputsResponse");
+    if (!respNode) {
+        return inputs;
+    }
+
+    for (auto child = respNode.first_child(); child; child = child.next_sibling()) {
+        if (std::string(child.name()).find("DigitalInputs") != std::string::npos) {
+            DigitalInputConfig in;
+            in.token = child.attribute("token").as_string();
+            const auto idleNode = findNodeWithSuffix(child, "IdleState");
+            if (idleNode) {
+                in.idleState = relayIdleStateFromString(idleNode.text().as_string());
+            }
+            inputs.push_back(in);
+        }
+    }
+    return inputs;
 }
 
 } // namespace PelcoD::Onvif

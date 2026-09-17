@@ -850,6 +850,120 @@ void testDeviceGatewayAndHostnameParsing()
     assert(scopes[1] == "onvif://www.onvif.org/name/Cam1");
 }
 
+void testFocusStatusParsing()
+{
+    const std::string xml = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+                            "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                            "xmlns:timg=\"http://www.onvif.org/ver20/imaging/wsdl\" "
+                            "xmlns:tt=\"http://www.onvif.org/ver10/schema\">\r\n"
+                            "  <SOAP-ENV:Body>\r\n"
+                            "    <timg:GetStatusResponse>\r\n"
+                            "      <timg:Status>\r\n"
+                            "        <tt:FocusStatus20>\r\n"
+                            "          <tt:Position>0.75</tt:Position>\r\n"
+                            "          <tt:MoveStatus>IDLE</tt:MoveStatus>\r\n"
+                            "        </tt:FocusStatus20>\r\n"
+                            "      </timg:Status>\r\n"
+                            "    </timg:GetStatusResponse>\r\n"
+                            "  </SOAP-ENV:Body>\r\n"
+                            "</SOAP-ENV:Envelope>";
+
+    const auto status = PelcoD::Onvif::OnvifClient::parseFocusStatusResponse(xml);
+    assert(status.has_value());
+    assert(std::abs(status->position - 0.75f) < 0.01f);
+    assert(status->moveStatus == "IDLE");
+}
+
+void testImagingPresetsParsing()
+{
+    const std::string xml = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+                            "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                            "xmlns:timg=\"http://www.onvif.org/ver20/imaging/wsdl\" "
+                            "xmlns:tt=\"http://www.onvif.org/ver10/schema\">\r\n"
+                            "  <SOAP-ENV:Body>\r\n"
+                            "    <timg:GetPresetsResponse>\r\n"
+                            "      <timg:Preset token=\"Preset_Day\" type=\"Custom\">\r\n"
+                            "        <tt:Name>Day Outdoor</tt:Name>\r\n"
+                            "      </timg:Preset>\r\n"
+                            "      <timg:Preset token=\"Preset_Night\" type=\"Custom\">\r\n"
+                            "        <tt:Name>Night IR</tt:Name>\r\n"
+                            "      </timg:Preset>\r\n"
+                            "    </timg:GetPresetsResponse>\r\n"
+                            "  </SOAP-ENV:Body>\r\n"
+                            "</SOAP-ENV:Envelope>";
+
+    const auto presets = PelcoD::Onvif::OnvifClient::parseImagingPresetsResponse(xml);
+    assert(presets.size() == 2);
+    assert(presets[0].token == "Preset_Day");
+    assert(presets[0].name == "Day Outdoor");
+    assert(presets[0].type == "Custom");
+    assert(presets[1].token == "Preset_Night");
+    assert(presets[1].name == "Night IR");
+}
+
+void testRelayOutputsParsing()
+{
+    const std::string xml = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+                            "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                            "xmlns:tmd=\"http://www.onvif.org/ver10/deviceIO/wsdl\" "
+                            "xmlns:tt=\"http://www.onvif.org/ver10/schema\">\r\n"
+                            "  <SOAP-ENV:Body>\r\n"
+                            "    <tmd:GetRelayOutputsResponse>\r\n"
+                            "      <tmd:RelayOutputs token=\"Relay_1\">\r\n"
+                            "        <tt:Properties>\r\n"
+                            "          <tt:Mode>Bistable</tt:Mode>\r\n"
+                            "          <tt:DelayTime>PT0S</tt:DelayTime>\r\n"
+                            "          <tt:IdleState>open</tt:IdleState>\r\n"
+                            "        </tt:Properties>\r\n"
+                            "        <tt:LogicalState>active</tt:LogicalState>\r\n"
+                            "      </tmd:RelayOutputs>\r\n"
+                            "      <tmd:RelayOutputs token=\"Relay_2\">\r\n"
+                            "        <tt:Properties>\r\n"
+                            "          <tt:Mode>Monostable</tt:Mode>\r\n"
+                            "          <tt:DelayTime>PT5S</tt:DelayTime>\r\n"
+                            "          <tt:IdleState>closed</tt:IdleState>\r\n"
+                            "        </tt:Properties>\r\n"
+                            "        <tt:LogicalState>inactive</tt:LogicalState>\r\n"
+                            "      </tmd:RelayOutputs>\r\n"
+                            "    </tmd:GetRelayOutputsResponse>\r\n"
+                            "  </SOAP-ENV:Body>\r\n"
+                            "</SOAP-ENV:Envelope>";
+
+    const auto relays = PelcoD::Onvif::OnvifClient::parseRelayOutputsResponse(xml);
+    assert(relays.size() == 2);
+    assert(relays[0].token == "Relay_1");
+    assert(relays[0].mode == PelcoD::Onvif::RelayMode::Bistable);
+    assert(relays[0].idleState == PelcoD::Onvif::RelayIdleState::Open);
+    assert(relays[0].logicalState == PelcoD::Onvif::RelayLogicalState::Active);
+
+    assert(relays[1].token == "Relay_2");
+    assert(relays[1].mode == PelcoD::Onvif::RelayMode::Monostable);
+    assert(std::abs(relays[1].delayTimeSeconds - 5.0f) < 0.01f);
+    assert(relays[1].idleState == PelcoD::Onvif::RelayIdleState::Closed);
+    assert(relays[1].logicalState == PelcoD::Onvif::RelayLogicalState::Inactive);
+}
+
+void testDigitalInputsParsing()
+{
+    const std::string xml = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+                            "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                            "xmlns:tmd=\"http://www.onvif.org/ver10/deviceIO/wsdl\" "
+                            "xmlns:tt=\"http://www.onvif.org/ver10/schema\">\r\n"
+                            "  <SOAP-ENV:Body>\r\n"
+                            "    <tmd:GetDigitalInputsResponse>\r\n"
+                            "      <tmd:DigitalInputs token=\"Input_1\">\r\n"
+                            "        <tt:IdleState>open</tt:IdleState>\r\n"
+                            "      </tmd:DigitalInputs>\r\n"
+                            "    </tmd:GetDigitalInputsResponse>\r\n"
+                            "  </SOAP-ENV:Body>\r\n"
+                            "</SOAP-ENV:Envelope>";
+
+    const auto inputs = PelcoD::Onvif::OnvifClient::parseDigitalInputsResponse(xml);
+    assert(inputs.size() == 1);
+    assert(inputs[0].token == "Input_1");
+    assert(inputs[0].idleState == PelcoD::Onvif::RelayIdleState::Open);
+}
+
 int main()
 {
 #ifdef _WIN32
@@ -937,6 +1051,22 @@ int main()
     std::cout << "[RUN] Testing ONVIF Device Gateway, Hostname, & Scopes XML Parsing...\n";
     testDeviceGatewayAndHostnameParsing();
     std::cout << "[PASS] Device Gateway, Hostname, & Scopes XML Parsing\n";
+
+    std::cout << "[RUN] Testing ONVIF Focus Status XML Parsing...\n";
+    testFocusStatusParsing();
+    std::cout << "[PASS] Focus Status XML Parsing\n";
+
+    std::cout << "[RUN] Testing ONVIF Imaging Presets XML Parsing...\n";
+    testImagingPresetsParsing();
+    std::cout << "[PASS] Imaging Presets XML Parsing\n";
+
+    std::cout << "[RUN] Testing ONVIF Relay Outputs XML Parsing...\n";
+    testRelayOutputsParsing();
+    std::cout << "[PASS] Relay Outputs XML Parsing\n";
+
+    std::cout << "[RUN] Testing ONVIF Digital Inputs XML Parsing...\n";
+    testDigitalInputsParsing();
+    std::cout << "[PASS] Digital Inputs XML Parsing\n";
 
     std::cout << "\nAll PelcoDOnvif unit tests PASSED successfully!\n";
     return 0;

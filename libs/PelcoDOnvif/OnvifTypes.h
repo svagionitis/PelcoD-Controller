@@ -69,6 +69,46 @@ struct PtzPreset {
     double zoom { 0.0 }; ///< Normalized zoom position [0.0 to 1.0] if provided
 };
 
+/// @enum FocusMoveMode
+/// @brief Movement control mode for focus operations.
+enum class FocusMoveMode : std::uint8_t { Continuous, Absolute, Relative };
+
+/// @struct FocusMove
+/// @brief Directional or positional focus request parameters.
+struct FocusMove {
+    FocusMoveMode mode { FocusMoveMode::Continuous }; ///< Continuous, Absolute, or Relative
+    float continuousSpeed { 0.0f }; ///< Speed ratio [-1.0 to 1.0] (negative = near, positive = far)
+    float absolutePosition { 0.0f }; ///< Target position [0.0 to 1.0]
+    float relativeDistance { 0.0f }; ///< Relative displacement [-1.0 to 1.0]
+    float relativeSpeed { 1.0f }; ///< Relative speed ratio [0.0 to 1.0]
+};
+
+/// @struct FocusStatus20
+/// @brief Optical focus status and encoder position (Profile T).
+struct FocusStatus20 {
+    float position { 0.0f }; ///< Current optical focus position [0.0 to 1.0]
+    std::string moveStatus { "IDLE" }; ///< Status: "IDLE", "MOVING", "UNKNOWN"
+    std::string error {}; ///< Error detail if any
+};
+
+/// @struct ExposureSettings
+/// @brief Exposure and iris control parameters.
+struct ExposureSettings {
+    std::string mode { "AUTO" }; ///< Exposure mode: "AUTO", "MANUAL"
+    std::string priority { "LowNoise" }; ///< Priority: "LowNoise", "FrameRate"
+    float exposureTime { 10000.0f }; ///< Exposure time in microseconds
+    float gain { 0.0f }; ///< Sensor analog/digital gain in dB
+    float iris { 50.0f }; ///< Iris aperture [0.0 to 100.0]
+};
+
+/// @struct ImagingPreset
+/// @brief Saved optical configuration profile.
+struct ImagingPreset {
+    std::string token {}; ///< Unique preset token
+    std::string type { "Custom" }; ///< Type: "Clear", "B/W", "Custom"
+    std::string name {}; ///< User-friendly preset label
+};
+
 /// @struct ImagingSettings
 /// @brief Optical, exposure, color, and focus parameters (ONVIF Profile T Imaging Service).
 struct ImagingSettings {
@@ -82,6 +122,8 @@ struct ImagingSettings {
     bool wideDynamicRange { false }; ///< Wide Dynamic Range (WDR) enable
     float wdrLevel { 0.0f }; ///< WDR level [0.0 to 100.0]
     std::string autoFocusMode { "AUTO" }; ///< Auto-focus mode: "AUTO" or "MANUAL"
+    ExposureSettings exposure {}; ///< Exposure and iris parameters
+    FocusStatus20 focusStatus {}; ///< Current focus position and movement status
 };
 
 /// @struct OnvifEvent
@@ -273,5 +315,72 @@ struct SystemDateTimeConfig {
     int month { 1 }; ///< Month [1, 12]
     int day { 1 }; ///< Day [1, 31]
 };
+
+/// @enum RelayLogicalState
+/// @brief Logical state of a physical or virtual relay output.
+enum class RelayLogicalState : std::uint8_t { Active, Inactive };
+
+/// @enum RelayMode
+/// @brief Operating mode of a relay output (Monostable pulse vs. Bistable latch).
+enum class RelayMode : std::uint8_t { Monostable, Bistable };
+
+/// @enum RelayIdleState
+/// @brief Electrical unenergized contact state (Open vs Closed).
+enum class RelayIdleState : std::uint8_t { Open, Closed };
+
+/// @struct RelayOutputConfig
+/// @brief Configuration and state for an ONVIF Relay Output (Profile S/T).
+struct RelayOutputConfig {
+    std::string token {}; ///< Unique relay token, e.g. "Relay_1"
+    RelayMode mode { RelayMode::Bistable }; ///< Operating mode
+    float delayTimeSeconds { 0.0f }; ///< Delay duration in seconds for Monostable mode
+    RelayIdleState idleState { RelayIdleState::Open }; ///< Open or Closed when unenergized
+    RelayLogicalState logicalState { RelayLogicalState::Inactive }; ///< Current state: Active or Inactive
+};
+
+/// @struct DigitalInputConfig
+/// @brief Configuration and state for an ONVIF Digital Input (sensor input).
+struct DigitalInputConfig {
+    std::string token {}; ///< Unique input token, e.g. "Input_1"
+    RelayIdleState idleState { RelayIdleState::Open }; ///< Normal contact idle state
+    std::string sensorType { "Manual" }; ///< Sensor description, e.g. "Alarm", "PIR", "Manual"
+    bool active { false }; ///< Current live contact state
+};
+
+/// @brief Converts RelayLogicalState enum to ONVIF string ("active" or "inactive").
+[[nodiscard]] inline std::string relayLogicalStateToString(RelayLogicalState state)
+{
+    return (state == RelayLogicalState::Active) ? "active" : "inactive";
+}
+
+/// @brief Converts string to RelayLogicalState enum.
+[[nodiscard]] inline RelayLogicalState relayLogicalStateFromString(const std::string& str)
+{
+    return (str == "active" || str == "Active") ? RelayLogicalState::Active : RelayLogicalState::Inactive;
+}
+
+/// @brief Converts RelayMode enum to ONVIF string ("Monostable" or "Bistable").
+[[nodiscard]] inline std::string relayModeToString(RelayMode mode)
+{
+    return (mode == RelayMode::Monostable) ? "Monostable" : "Bistable";
+}
+
+/// @brief Converts string to RelayMode enum.
+[[nodiscard]] inline RelayMode relayModeFromString(const std::string& str)
+{
+    return (str == "Monostable") ? RelayMode::Monostable : RelayMode::Bistable;
+}
+
+/// @brief Converts RelayIdleState enum to ONVIF string ("open" or "closed").
+[[nodiscard]] inline std::string relayIdleStateToString(RelayIdleState state)
+{
+    return (state == RelayIdleState::Closed) ? "closed" : "open";
+}
+
+/// @brief Converts string to RelayIdleState enum.
+[[nodiscard]] inline RelayIdleState relayIdleStateFromString(const std::string& str)
+{
+    return (str == "closed" || str == "Closed") ? RelayIdleState::Closed : RelayIdleState::Open;
+}
 
 } // namespace PelcoD::Onvif

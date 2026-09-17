@@ -120,6 +120,10 @@ bool QOnvifDevice::connectToCamera(const QString& endpoint, const QString& usern
     refreshNetworkGateway();
     refreshDNS();
     refreshNTP();
+    refreshRelayOutputs();
+    refreshDigitalInputs();
+    refreshImagingPresets();
+    refreshFocusStatus();
 
     emit connected(m_endpoint, modelLabel);
     return true;
@@ -149,6 +153,10 @@ void QOnvifDevice::disconnectFromCamera()
     m_dnsConfig = {};
     m_ntpConfig = {};
     m_deviceInfo = {};
+    m_focusStatus = {};
+    m_imagingPresets.clear();
+    m_relayOutputs.clear();
+    m_digitalInputs.clear();
     m_client.reset();
 
     emit disconnected();
@@ -453,6 +461,94 @@ void QOnvifDevice::focusStop(const QString& videoSourceToken)
     }
 
     m_client->stopFocus(token.toStdString());
+    m_focusStatus.moveStatus = "IDLE";
+    emit focusStatusUpdated(m_focusStatus);
+}
+
+void QOnvifDevice::refreshFocusStatus(const QString& videoSourceToken)
+{
+    if (!m_client) {
+        return;
+    }
+
+    const QString token = !videoSourceToken.isEmpty() ? videoSourceToken : m_activeVideoSourceToken;
+    if (token.isEmpty()) {
+        return;
+    }
+
+    const auto st = m_client->getFocusStatus(token.toStdString());
+    if (st) {
+        m_focusStatus = *st;
+        emit focusStatusUpdated(m_focusStatus);
+    }
+}
+
+void QOnvifDevice::focusAbsolute(float position, float speed, const QString& videoSourceToken)
+{
+    if (!m_client) {
+        return;
+    }
+
+    const QString token = !videoSourceToken.isEmpty() ? videoSourceToken : m_activeVideoSourceToken;
+    if (token.isEmpty()) {
+        return;
+    }
+
+    m_client->moveFocusAbsolute(token.toStdString(), position, speed);
+    m_focusStatus.position = std::clamp(position, 0.0f, 1.0f);
+    m_focusStatus.moveStatus = "MOVING";
+    emit focusStatusUpdated(m_focusStatus);
+}
+
+void QOnvifDevice::focusRelative(float distance, float speed, const QString& videoSourceToken)
+{
+    if (!m_client) {
+        return;
+    }
+
+    const QString token = !videoSourceToken.isEmpty() ? videoSourceToken : m_activeVideoSourceToken;
+    if (token.isEmpty()) {
+        return;
+    }
+
+    m_client->moveFocusRelative(token.toStdString(), distance, speed);
+    m_focusStatus.position = std::clamp(m_focusStatus.position + distance, 0.0f, 1.0f);
+    m_focusStatus.moveStatus = "MOVING";
+    emit focusStatusUpdated(m_focusStatus);
+}
+
+void QOnvifDevice::refreshImagingPresets(const QString& videoSourceToken)
+{
+    if (!m_client) {
+        return;
+    }
+
+    const QString token = !videoSourceToken.isEmpty() ? videoSourceToken : m_activeVideoSourceToken;
+    if (token.isEmpty()) {
+        return;
+    }
+
+    m_imagingPresets = m_client->getImagingPresets(token.toStdString());
+    emit imagingPresetsUpdated(m_imagingPresets);
+}
+
+bool QOnvifDevice::setCurrentImagingPreset(const QString& presetToken, const QString& videoSourceToken)
+{
+    if (!m_client) {
+        return false;
+    }
+
+    const QString token = !videoSourceToken.isEmpty() ? videoSourceToken : m_activeVideoSourceToken;
+    if (token.isEmpty()) {
+        return false;
+    }
+
+    const bool ok = m_client->setCurrentImagingPreset(token.toStdString(), presetToken.toStdString());
+    if (ok) {
+        refreshImagingSettings(token);
+        refreshFocusStatus(token);
+    }
+    return ok;
 }
 
 void QOnvifDevice::startEventSubscription(int pollIntervalMs)
@@ -711,6 +807,53 @@ bool QOnvifDevice::setSystemFactoryDefault(bool hard)
         hard ? PelcoD::Onvif::FactoryDefaultType::Hard : PelcoD::Onvif::FactoryDefaultType::Soft);
     emit factoryDefaultCompleted(ok);
     return ok;
+}
+
+void QOnvifDevice::refreshRelayOutputs()
+{
+    if (!m_client) {
+        return;
+    }
+
+    m_relayOutputs = m_client->getRelayOutputs();
+    emit relayOutputsUpdated(m_relayOutputs);
+}
+
+bool QOnvifDevice::setRelayOutputState(const QString& relayToken, bool active)
+{
+    if (!m_client) {
+        return false;
+    }
+
+    const auto state = active ? PelcoD::Onvif::RelayLogicalState::Active : PelcoD::Onvif::RelayLogicalState::Inactive;
+    const bool ok = m_client->setRelayOutputState(relayToken.toStdString(), state);
+    if (ok) {
+        refreshRelayOutputs();
+    }
+    return ok;
+}
+
+bool QOnvifDevice::setRelayOutputSettings(const QString& relayToken, const PelcoD::Onvif::RelayOutputConfig& settings)
+{
+    if (!m_client) {
+        return false;
+    }
+
+    const bool ok = m_client->setRelayOutputSettings(relayToken.toStdString(), settings);
+    if (ok) {
+        refreshRelayOutputs();
+    }
+    return ok;
+}
+
+void QOnvifDevice::refreshDigitalInputs()
+{
+    if (!m_client) {
+        return;
+    }
+
+    m_digitalInputs = m_client->getDigitalInputs();
+    emit digitalInputsUpdated(m_digitalInputs);
 }
 
 } // namespace PelcoD::Qt

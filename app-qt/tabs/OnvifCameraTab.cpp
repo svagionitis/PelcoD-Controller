@@ -53,6 +53,14 @@ OnvifCameraTab::OnvifCameraTab(PelcoD::Qt::QOnvifDevice* onvifDevice, VideoStrea
         connect(m_onvifDevice, &PelcoD::Qt::QOnvifDevice::ntpUpdated, this, &OnvifCameraTab::handleNtpUpdated);
         connect(m_onvifDevice, &PelcoD::Qt::QOnvifDevice::factoryDefaultCompleted, this,
             &OnvifCameraTab::handleFactoryDefaultCompleted);
+        connect(m_onvifDevice, &PelcoD::Qt::QOnvifDevice::focusStatusUpdated, this,
+            &OnvifCameraTab::handleFocusStatusUpdated);
+        connect(m_onvifDevice, &PelcoD::Qt::QOnvifDevice::imagingPresetsUpdated, this,
+            &OnvifCameraTab::handleImagingPresetsUpdated);
+        connect(
+            m_onvifDevice, &PelcoD::Qt::QOnvifDevice::relayOutputsUpdated, this, &OnvifCameraTab::handleRelaysUpdated);
+        connect(m_onvifDevice, &PelcoD::Qt::QOnvifDevice::digitalInputsUpdated, this,
+            &OnvifCameraTab::handleDigitalInputsUpdated);
     }
 
     updateConnectionUi(false);
@@ -461,11 +469,27 @@ void OnvifCameraTab::setupUi()
     connect(btnFocusFar, &QPushButton::pressed, this, &OnvifCameraTab::handleFocusFar);
     connect(btnFocusFar, &QPushButton::released, this, &OnvifCameraTab::handleFocusStop);
 
+    lblFocusStatus = new QLabel(tr("Focus: Idle"), groupImaging);
+    lblFocusStatus->setStyleSheet(QStringLiteral("color: #8b949e; font-weight: bold;"));
+
     focusLayout->addWidget(new QLabel(tr("Focus:"), groupImaging));
     focusLayout->addWidget(cmbAutoFocus);
     focusLayout->addWidget(btnFocusNear);
     focusLayout->addWidget(btnFocusFar);
+    focusLayout->addWidget(lblFocusStatus);
     imgLayout->addLayout(focusLayout, 6, 0, 1, 3);
+
+    // Imaging Presets
+    auto* presetLayout = new QHBoxLayout();
+    presetLayout->addWidget(new QLabel(tr("Optical Preset:"), groupImaging));
+    cmbImagingPresets = new QComboBox(groupImaging);
+    cmbImagingPresets->setMinimumWidth(180);
+    btnRecallImagingPreset = new QPushButton(tr("Recall Preset"), groupImaging);
+    connect(btnRecallImagingPreset, &QPushButton::clicked, this, &OnvifCameraTab::handleRecallImagingPreset);
+    presetLayout->addWidget(cmbImagingPresets);
+    presetLayout->addWidget(btnRecallImagingPreset);
+    presetLayout->addStretch();
+    imgLayout->addLayout(presetLayout, 7, 0, 1, 3);
 
     // Action buttons
     auto* imgBtnLayout = new QHBoxLayout();
@@ -477,7 +501,7 @@ void OnvifCameraTab::setupUi()
     connect(btnApplyImaging, &QPushButton::clicked, this, &OnvifCameraTab::handleApplyImaging);
     imgBtnLayout->addWidget(btnRefreshImaging);
     imgBtnLayout->addWidget(btnApplyImaging);
-    imgLayout->addLayout(imgBtnLayout, 7, 0, 1, 3);
+    imgLayout->addLayout(imgBtnLayout, 8, 0, 1, 3);
 
     imagingTabLayout->addWidget(groupImaging);
     imagingTabLayout->addStretch();
@@ -787,6 +811,88 @@ void OnvifCameraTab::setupUi()
     netTabLayout->addWidget(groupMaint);
     netTabLayout->addStretch();
 
+    // -------------------------------------------------------------------------
+    // Sub-Tab 9: Relays & I/O (Profile S & T)
+    // -------------------------------------------------------------------------
+    auto* relayTabLayout = createScrollTab(tr("Relays & I/O"));
+
+    auto* groupRelays = new QGroupBox(tr("Profile S/T: Relay Outputs & Actuators"));
+    auto* relaysLayout = new QVBoxLayout(groupRelays);
+    relaysLayout->setSpacing(6);
+
+    tableRelays = new QTableWidget(0, 5, groupRelays);
+    tableRelays->setHorizontalHeaderLabels(
+        { tr("Token"), tr("Mode"), tr("Delay (s)"), tr("Idle State"), tr("Logical State") });
+    tableRelays->horizontalHeader()->setStretchLastSection(true);
+    tableRelays->setSelectionBehavior(QAbstractItemView::SelectRows);
+    tableRelays->setSelectionMode(QAbstractItemView::SingleSelection);
+    tableRelays->setMinimumHeight(120);
+
+    auto* relayEditLayout = new QGridLayout();
+    relayEditLayout->setSpacing(6);
+
+    relayEditLayout->addWidget(new QLabel(tr("Relay Token:"), groupRelays), 0, 0);
+    editRelayToken = new QLineEdit(groupRelays);
+    editRelayToken->setReadOnly(true);
+    relayEditLayout->addWidget(editRelayToken, 0, 1);
+
+    relayEditLayout->addWidget(new QLabel(tr("Mode:"), groupRelays), 0, 2);
+    cmbRelayMode = new QComboBox(groupRelays);
+    cmbRelayMode->addItems({ QStringLiteral("Bistable"), QStringLiteral("Monostable") });
+    relayEditLayout->addWidget(cmbRelayMode, 0, 3);
+
+    relayEditLayout->addWidget(new QLabel(tr("Delay Time (s):"), groupRelays), 1, 0);
+    spinRelayDelay = new QDoubleSpinBox(groupRelays);
+    spinRelayDelay->setRange(0.0, 300.0);
+    spinRelayDelay->setDecimals(1);
+    relayEditLayout->addWidget(spinRelayDelay, 1, 1);
+
+    relayEditLayout->addWidget(new QLabel(tr("Idle State:"), groupRelays), 1, 2);
+    cmbRelayIdleState = new QComboBox(groupRelays);
+    cmbRelayIdleState->addItems({ QStringLiteral("open"), QStringLiteral("closed") });
+    relayEditLayout->addWidget(cmbRelayIdleState, 1, 3);
+
+    auto* relayBtnLayout = new QHBoxLayout();
+    btnRefreshRelays = new QPushButton(tr("Refresh Relays"), groupRelays);
+    btnActivateRelay = new QPushButton(tr("⚡ Activate (Aux ON)"), groupRelays);
+    btnActivateRelay->setStyleSheet(QStringLiteral("font-weight: bold; background-color: #238636; color: white;"));
+    btnDeactivateRelay = new QPushButton(tr("⭕ Deactivate (Aux OFF)"), groupRelays);
+    btnApplyRelaySettings = new QPushButton(tr("Save Settings"), groupRelays);
+
+    relayBtnLayout->addWidget(btnRefreshRelays);
+    relayBtnLayout->addWidget(btnActivateRelay);
+    relayBtnLayout->addWidget(btnDeactivateRelay);
+    relayBtnLayout->addWidget(btnApplyRelaySettings);
+    relayBtnLayout->addStretch();
+
+    relaysLayout->addWidget(tableRelays);
+    relaysLayout->addLayout(relayEditLayout);
+    relaysLayout->addLayout(relayBtnLayout);
+
+    // Digital Inputs Group
+    auto* groupInputs = new QGroupBox(tr("Profile S/T: Digital Inputs & Sensors"));
+    auto* inputsLayout = new QVBoxLayout(groupInputs);
+    inputsLayout->setSpacing(6);
+
+    tableDigitalInputs = new QTableWidget(0, 4, groupInputs);
+    tableDigitalInputs->setHorizontalHeaderLabels({ tr("Token"), tr("Idle State"), tr("Sensor Type"), tr("State") });
+    tableDigitalInputs->horizontalHeader()->setStretchLastSection(true);
+    tableDigitalInputs->setSelectionBehavior(QAbstractItemView::SelectRows);
+    tableDigitalInputs->setSelectionMode(QAbstractItemView::SingleSelection);
+    tableDigitalInputs->setMinimumHeight(100);
+
+    auto* inputBtnLayout = new QHBoxLayout();
+    btnRefreshInputs = new QPushButton(tr("Refresh Inputs"), groupInputs);
+    inputBtnLayout->addWidget(btnRefreshInputs);
+    inputBtnLayout->addStretch();
+
+    inputsLayout->addWidget(tableDigitalInputs);
+    inputsLayout->addLayout(inputBtnLayout);
+
+    relayTabLayout->addWidget(groupRelays);
+    relayTabLayout->addWidget(groupInputs);
+    relayTabLayout->addStretch();
+
     // Add tab widget to main layout
     mainLayout->addWidget(m_cameraTabs, 1);
 
@@ -826,6 +932,14 @@ void OnvifCameraTab::setupUi()
     connect(btnSyncPcTime, &QPushButton::clicked, this, &OnvifCameraTab::handleSyncPcTime);
     connect(btnFactoryDefaultSoft, &QPushButton::clicked, this, &OnvifCameraTab::handleFactoryDefaultSoft);
     connect(btnFactoryDefaultHard, &QPushButton::clicked, this, &OnvifCameraTab::handleFactoryDefaultHard);
+
+    // Relay & I/O connections
+    connect(btnRefreshRelays, &QPushButton::clicked, this, &OnvifCameraTab::handleRefreshRelays);
+    connect(btnActivateRelay, &QPushButton::clicked, this, &OnvifCameraTab::handleActivateRelay);
+    connect(btnDeactivateRelay, &QPushButton::clicked, this, &OnvifCameraTab::handleDeactivateRelay);
+    connect(btnApplyRelaySettings, &QPushButton::clicked, this, &OnvifCameraTab::handleApplyRelaySettings);
+    connect(btnRefreshInputs, &QPushButton::clicked, this, &OnvifCameraTab::handleRefreshInputs);
+    connect(tableRelays, &QTableWidget::itemSelectionChanged, this, &OnvifCameraTab::handleRelaySelectionChanged);
 }
 
 void OnvifCameraTab::updateConnectionUi(bool connected)
@@ -871,6 +985,8 @@ void OnvifCameraTab::updateConnectionUi(bool connected)
     cmbAutoFocus->setEnabled(connected);
     btnFocusNear->setEnabled(connected);
     btnFocusFar->setEnabled(connected);
+    cmbImagingPresets->setEnabled(connected);
+    btnRecallImagingPreset->setEnabled(connected);
     btnRefreshImaging->setEnabled(connected);
     btnApplyImaging->setEnabled(connected);
     btnToggleEvents->setEnabled(connected);
@@ -919,6 +1035,19 @@ void OnvifCameraTab::updateConnectionUi(bool connected)
     btnSyncPcTime->setEnabled(connected);
     btnFactoryDefaultSoft->setEnabled(connected);
     btnFactoryDefaultHard->setEnabled(connected);
+
+    // Relay & I/O widgets
+    tableRelays->setEnabled(connected);
+    editRelayToken->setEnabled(connected);
+    cmbRelayMode->setEnabled(connected);
+    spinRelayDelay->setEnabled(connected);
+    cmbRelayIdleState->setEnabled(connected);
+    btnRefreshRelays->setEnabled(connected);
+    btnActivateRelay->setEnabled(connected);
+    btnDeactivateRelay->setEnabled(connected);
+    btnApplyRelaySettings->setEnabled(connected);
+    tableDigitalInputs->setEnabled(connected);
+    btnRefreshInputs->setEnabled(connected);
 
     if (connected) {
         lblConnectionStatus->setText(tr("Connected"));
@@ -2050,6 +2179,184 @@ void OnvifCameraTab::handleFactoryDefaultCompleted(bool success)
         QMessageBox::information(this, tr("Factory Reset"), tr("Factory reset successfully accepted by camera."));
     } else {
         QMessageBox::critical(this, tr("Factory Reset"), tr("Factory reset rejected or failed."));
+    }
+}
+
+void OnvifCameraTab::handleRecallImagingPreset()
+{
+    if (m_onvifDevice == nullptr || cmbImagingPresets == nullptr) {
+        return;
+    }
+    const QString token = cmbImagingPresets->currentData().toString();
+    if (!token.isEmpty()) {
+        m_onvifDevice->setCurrentImagingPreset(token);
+    }
+}
+
+void OnvifCameraTab::handleFocusStatusUpdated(const PelcoD::Onvif::FocusStatus20& status)
+{
+    if (lblFocusStatus == nullptr) {
+        return;
+    }
+    const bool isMoving = (status.moveStatus == "MOVING");
+    const QString moveStr = QString::fromStdString(status.moveStatus.empty() ? "IDLE" : status.moveStatus);
+    const QString color = isMoving ? QStringLiteral("#d29922") : QStringLiteral("#7ee787");
+    lblFocusStatus->setText(tr("Focus: %1 | Pos: %2").arg(moveStr).arg(QString::number(status.position, 'f', 2)));
+    lblFocusStatus->setStyleSheet(QString("font-weight: bold; color: %1;").arg(color));
+}
+
+void OnvifCameraTab::handleImagingPresetsUpdated(const std::vector<PelcoD::Onvif::ImagingPreset>& presets)
+{
+    if (cmbImagingPresets == nullptr) {
+        return;
+    }
+    const QString previousToken = cmbImagingPresets->currentData().toString();
+    const QSignalBlocker blocker(cmbImagingPresets);
+    cmbImagingPresets->clear();
+
+    for (const auto& p : presets) {
+        const QString label = QString::fromStdString(p.name.empty() ? p.token : p.name);
+        cmbImagingPresets->addItem(label, QString::fromStdString(p.token));
+    }
+
+    int selectIndex = cmbImagingPresets->findData(previousToken);
+    if (selectIndex < 0 && cmbImagingPresets->count() > 0) {
+        selectIndex = 0;
+    }
+    if (selectIndex >= 0) {
+        cmbImagingPresets->setCurrentIndex(selectIndex);
+    }
+}
+
+void OnvifCameraTab::handleRefreshRelays()
+{
+    if (m_onvifDevice != nullptr) {
+        m_onvifDevice->refreshRelayOutputs();
+    }
+}
+
+void OnvifCameraTab::handleActivateRelay()
+{
+    if (m_onvifDevice == nullptr || editRelayToken == nullptr) {
+        return;
+    }
+    const QString token = editRelayToken->text().trimmed();
+    if (!token.isEmpty()) {
+        m_onvifDevice->setRelayOutputState(token, true);
+    }
+}
+
+void OnvifCameraTab::handleDeactivateRelay()
+{
+    if (m_onvifDevice == nullptr || editRelayToken == nullptr) {
+        return;
+    }
+    const QString token = editRelayToken->text().trimmed();
+    if (!token.isEmpty()) {
+        m_onvifDevice->setRelayOutputState(token, false);
+    }
+}
+
+void OnvifCameraTab::handleApplyRelaySettings()
+{
+    if (m_onvifDevice == nullptr || editRelayToken == nullptr || cmbRelayMode == nullptr || spinRelayDelay == nullptr
+        || cmbRelayIdleState == nullptr) {
+        return;
+    }
+    const QString token = editRelayToken->text().trimmed();
+    if (token.isEmpty()) {
+        QMessageBox::warning(this, tr("Relay Settings"), tr("Please select or enter a relay token."));
+        return;
+    }
+    PelcoD::Onvif::RelayOutputConfig cfg {};
+    cfg.token = token.toStdString();
+    cfg.mode = PelcoD::Onvif::relayModeFromString(cmbRelayMode->currentText().toStdString());
+    cfg.delayTimeSeconds = static_cast<float>(spinRelayDelay->value());
+    cfg.idleState = PelcoD::Onvif::relayIdleStateFromString(cmbRelayIdleState->currentText().toStdString());
+
+    if (m_onvifDevice->setRelayOutputSettings(token, cfg)) {
+        QMessageBox::information(this, tr("Relay Settings"), tr("Relay settings updated successfully."));
+    } else {
+        QMessageBox::warning(this, tr("Relay Settings"), tr("Failed to update relay settings."));
+    }
+}
+
+void OnvifCameraTab::handleRefreshInputs()
+{
+    if (m_onvifDevice != nullptr) {
+        m_onvifDevice->refreshDigitalInputs();
+    }
+}
+
+void OnvifCameraTab::handleRelaysUpdated(const std::vector<PelcoD::Onvif::RelayOutputConfig>& relays)
+{
+    if (tableRelays == nullptr) {
+        return;
+    }
+    tableRelays->setRowCount(0);
+    for (const auto& r : relays) {
+        const int row = tableRelays->rowCount();
+        tableRelays->insertRow(row);
+        tableRelays->setItem(row, 0, new QTableWidgetItem(QString::fromStdString(r.token)));
+        tableRelays->setItem(
+            row, 1, new QTableWidgetItem(QString::fromStdString(PelcoD::Onvif::relayModeToString(r.mode))));
+        tableRelays->setItem(row, 2, new QTableWidgetItem(QString::number(r.delayTimeSeconds, 'f', 1)));
+        tableRelays->setItem(
+            row, 3, new QTableWidgetItem(QString::fromStdString(PelcoD::Onvif::relayIdleStateToString(r.idleState))));
+        const QString stateStr = QString::fromStdString(PelcoD::Onvif::relayLogicalStateToString(r.logicalState));
+        auto* itemState = new QTableWidgetItem(stateStr);
+        if (r.logicalState == PelcoD::Onvif::RelayLogicalState::Active) {
+            itemState->setForeground(QBrush(QColor("#7ee787")));
+        } else {
+            itemState->setForeground(QBrush(QColor("#8b949e")));
+        }
+        tableRelays->setItem(row, 4, itemState);
+    }
+}
+
+void OnvifCameraTab::handleDigitalInputsUpdated(const std::vector<PelcoD::Onvif::DigitalInputConfig>& inputs)
+{
+    if (tableDigitalInputs == nullptr) {
+        return;
+    }
+    tableDigitalInputs->setRowCount(0);
+    for (const auto& in : inputs) {
+        const int row = tableDigitalInputs->rowCount();
+        tableDigitalInputs->insertRow(row);
+        tableDigitalInputs->setItem(row, 0, new QTableWidgetItem(QString::fromStdString(in.token)));
+        tableDigitalInputs->setItem(
+            row, 1, new QTableWidgetItem(QString::fromStdString(PelcoD::Onvif::relayIdleStateToString(in.idleState))));
+        tableDigitalInputs->setItem(row, 2, new QTableWidgetItem(in.active ? tr("Active") : tr("Inactive")));
+    }
+}
+
+void OnvifCameraTab::handleRelaySelectionChanged()
+{
+    if (tableRelays == nullptr || editRelayToken == nullptr || cmbRelayMode == nullptr || spinRelayDelay == nullptr
+        || cmbRelayIdleState == nullptr) {
+        return;
+    }
+    const int row = tableRelays->currentRow();
+    if (row < 0 || row >= tableRelays->rowCount()) {
+        return;
+    }
+    if (tableRelays->item(row, 0) != nullptr) {
+        editRelayToken->setText(tableRelays->item(row, 0)->text());
+    }
+    if (tableRelays->item(row, 1) != nullptr) {
+        const int idx = cmbRelayMode->findText(tableRelays->item(row, 1)->text());
+        if (idx >= 0) {
+            cmbRelayMode->setCurrentIndex(idx);
+        }
+    }
+    if (tableRelays->item(row, 2) != nullptr) {
+        spinRelayDelay->setValue(tableRelays->item(row, 2)->text().toDouble());
+    }
+    if (tableRelays->item(row, 3) != nullptr) {
+        const int idx = cmbRelayIdleState->findText(tableRelays->item(row, 3)->text());
+        if (idx >= 0) {
+            cmbRelayIdleState->setCurrentIndex(idx);
+        }
     }
 }
 

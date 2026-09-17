@@ -633,9 +633,148 @@ void PelcoDPtzAdapter::handleMoveFocus(const std::string& /*videoSourceToken*/, 
 
 void PelcoDPtzAdapter::handleStopFocus(const std::string& /*videoSourceToken*/)
 {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    m_focusStatus.moveStatus = "IDLE";
     if (m_device) {
         m_device->focusStop();
     }
+}
+
+FocusStatus20 PelcoDPtzAdapter::handleGetFocusStatus(const std::string& /*videoSourceToken*/)
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    return m_focusStatus;
+}
+
+bool PelcoDPtzAdapter::handleMoveFocusAdvanced(const std::string& videoSourceToken, const FocusMove& move)
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    m_focusStatus.moveStatus = "MOVING";
+
+    if (move.mode == FocusMoveMode::Continuous) {
+        handleMoveFocus(videoSourceToken, move.continuousSpeed);
+    } else if (move.mode == FocusMoveMode::Absolute) {
+        m_focusStatus.position = std::clamp(move.absolutePosition, 0.0f, 1.0f);
+        if (m_device) {
+            if (move.absolutePosition > 0.5f) {
+                m_device->focusFar();
+            } else {
+                m_device->focusNear();
+            }
+        }
+    } else if (move.mode == FocusMoveMode::Relative) {
+        m_focusStatus.position = std::clamp(m_focusStatus.position + move.relativeDistance, 0.0f, 1.0f);
+        if (m_device) {
+            if (move.relativeDistance > 0.0f) {
+                m_device->focusFar();
+            } else {
+                m_device->focusNear();
+            }
+        }
+    }
+    return true;
+}
+
+std::vector<ImagingPreset> PelcoDPtzAdapter::handleGetImagingPresets(const std::string& /*videoSourceToken*/)
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    return m_imagingPresets;
+}
+
+bool PelcoDPtzAdapter::handleSetCurrentImagingPreset(
+    const std::string& /*videoSourceToken*/, const std::string& presetToken)
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    for (const auto& p : m_imagingPresets) {
+        if (p.token == presetToken) {
+            m_currentImagingPresetToken = presetToken;
+            return true;
+        }
+    }
+    return false;
+}
+
+std::vector<RelayOutputConfig> PelcoDPtzAdapter::handleGetRelayOutputs()
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    return m_relays;
+}
+
+std::vector<std::string> PelcoDPtzAdapter::handleGetRelayOutputOptions(const std::string& /*token*/)
+{
+    return { "Bistable", "Monostable" };
+}
+
+bool PelcoDPtzAdapter::handleSetRelayOutputSettings(const std::string& token, const RelayOutputConfig& settings)
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    for (auto& r : m_relays) {
+        if (r.token == token) {
+            r.mode = settings.mode;
+            r.delayTimeSeconds = settings.delayTimeSeconds;
+            r.idleState = settings.idleState;
+            return true;
+        }
+    }
+    return false;
+}
+
+bool PelcoDPtzAdapter::handleSetRelayOutputState(const std::string& token, RelayLogicalState state)
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    for (auto& r : m_relays) {
+        if (r.token == token) {
+            r.logicalState = state;
+
+            // Extract numeric suffix for Aux index (e.g. "Relay_1" -> Aux 1)
+            std::uint8_t auxId = 1U;
+            const auto underPos = token.find('_');
+            if (underPos != std::string::npos && underPos + 1 < token.length()) {
+                try {
+                    auxId = static_cast<std::uint8_t>(std::stoi(token.substr(underPos + 1)));
+                } catch (...) {
+                    auxId = 1U;
+                }
+            }
+
+            if (m_device) {
+                if (state == RelayLogicalState::Active) {
+                    m_device->setAuxiliary(auxId);
+                } else {
+                    m_device->clearAuxiliary(auxId);
+                }
+            }
+
+            // If monostable pulse, auto-reset after delay
+            if (r.mode == RelayMode::Monostable && state == RelayLogicalState::Active && r.delayTimeSeconds > 0.0f) {
+                const auto delayMs = static_cast<int>(r.delayTimeSeconds * 1000.0f);
+                std::thread([this, token, auxId, delayMs]() {
+                    std::this_thread::sleep_for(std::chrono::milliseconds(delayMs));
+                    {
+                        std::lock_guard<std::mutex> lk(m_mutex);
+                        for (auto& rel : m_relays) {
+                            if (rel.token == token) {
+                                rel.logicalState = RelayLogicalState::Inactive;
+                                break;
+                            }
+                        }
+                    }
+                    if (m_device) {
+                        m_device->clearAuxiliary(auxId);
+                    }
+                }).detach();
+            }
+
+            return true;
+        }
+    }
+    return false;
+}
+
+std::vector<DigitalInputConfig> PelcoDPtzAdapter::handleGetDigitalInputs()
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    return m_digitalInputs;
 }
 
 void PelcoDPtzAdapter::onDeviceStatusUpdated(const PelcoD::DeviceStatus& status)

@@ -136,6 +136,21 @@ private slots:
     void handleNtpUpdated(const PelcoD::Onvif::NtpConfig& ntp);
     void handleFactoryDefaultCompleted(bool success);
 
+    // Profile T: Imaging Presets & Focus Status
+    void handleRecallImagingPreset();
+    void handleFocusStatusUpdated(const PelcoD::Onvif::FocusStatus20& status);
+    void handleImagingPresetsUpdated(const std::vector<PelcoD::Onvif::ImagingPreset>& presets);
+
+    // Profile S/T: Device I/O & Relay Outputs
+    void handleRefreshRelays();
+    void handleActivateRelay();
+    void handleDeactivateRelay();
+    void handleApplyRelaySettings();
+    void handleRefreshInputs();
+    void handleRelaysUpdated(const std::vector<PelcoD::Onvif::RelayOutputConfig>& relays);
+    void handleDigitalInputsUpdated(const std::vector<PelcoD::Onvif::DigitalInputConfig>& inputs);
+    void handleRelaySelectionChanged();
+
 private:
     void setupUi();
     void updateConnectionUi(bool connected);
@@ -225,8 +240,24 @@ private:
     QComboBox* cmbAutoFocus { nullptr };
     QPushButton* btnFocusNear { nullptr };
     QPushButton* btnFocusFar { nullptr };
+    QLabel* lblFocusStatus { nullptr };
+    QComboBox* cmbImagingPresets { nullptr };
+    QPushButton* btnRecallImagingPreset { nullptr };
     QPushButton* btnRefreshImaging { nullptr };
     QPushButton* btnApplyImaging { nullptr };
+
+    // Profile S/T: Device I/O & Relay Outputs widgets
+    QTableWidget* tableRelays { nullptr };
+    QLineEdit* editRelayToken { nullptr };
+    QComboBox* cmbRelayMode { nullptr };
+    QDoubleSpinBox* spinRelayDelay { nullptr };
+    QComboBox* cmbRelayIdleState { nullptr };
+    QPushButton* btnRefreshRelays { nullptr };
+    QPushButton* btnActivateRelay { nullptr };
+    QPushButton* btnDeactivateRelay { nullptr };
+    QPushButton* btnApplyRelaySettings { nullptr };
+    QTableWidget* tableDigitalInputs { nullptr };
+    QPushButton* btnRefreshInputs { nullptr };
 
     // Profile T: Live Events widgets
     QPushButton* btnToggleEvents { nullptr };

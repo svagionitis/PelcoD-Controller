@@ -24,6 +24,7 @@ namespace {
             << "xmlns:timg=\"http://www.onvif.org/ver20/imaging/wsdl\" "
             << "xmlns:tev=\"http://www.onvif.org/ver10/events/wsdl\" "
             << "xmlns:tan=\"http://www.onvif.org/ver20/analytics/wsdl\" "
+            << "xmlns:tmd=\"http://www.onvif.org/ver10/deviceIO/wsdl\" "
             << "xmlns:wsnt=\"http://docs.oasis-open.org/wsn/b-2\" "
             << "xmlns:wsa=\"http://schemas.xmlsoap.org/ws/2004/08/addressing\" "
             << "xmlns:tt=\"http://www.onvif.org/ver10/schema\">\r\n"
@@ -81,12 +82,13 @@ namespace {
 
 OnvifServer::OnvifServer(OnvifServerConfig config, std::shared_ptr<IPtzHandler> ptzHandler,
     std::shared_ptr<IImagingHandler> imagingHandler, std::shared_ptr<IOsdHandler> osdHandler,
-    std::shared_ptr<IDeviceManagementHandler> deviceHandler)
+    std::shared_ptr<IDeviceManagementHandler> deviceHandler, std::shared_ptr<IDeviceIoHandler> deviceIoHandler)
     : m_config(std::move(config))
     , m_ptzHandler(std::move(ptzHandler))
     , m_imagingHandler(std::move(imagingHandler))
     , m_osdHandler(std::move(osdHandler))
     , m_deviceHandler(std::move(deviceHandler))
+    , m_deviceIoHandler(std::move(deviceIoHandler))
 {
     m_internalUsers = m_config.defaultUsers;
     m_internalNetworkInterfaces = m_config.defaultNetworkInterfaces;
@@ -94,6 +96,11 @@ OnvifServer::OnvifServer(OnvifServerConfig config, std::shared_ptr<IPtzHandler> 
     m_internalDns = m_config.defaultDns;
     m_internalNtp = m_config.defaultNtp;
     m_internalHostname = m_config.hostname;
+    m_internalRelayOutputs = m_config.defaultRelayOutputs;
+    m_internalDigitalInputs = m_config.defaultDigitalInputs;
+    m_internalImagingPresets
+        = { { "Preset_Clear", "Clear", "Clear Daylight" }, { "Preset_BW", "B/W", "Night Vision B/W" } };
+    m_currentImagingPresetToken = "Preset_Clear";
 
     OsdConfig defaultOsd;
     defaultOsd.token = "OSD_1";
@@ -190,6 +197,11 @@ void OnvifServer::setOsdHandler(std::shared_ptr<IOsdHandler> handler)
 void OnvifServer::setDeviceManagementHandler(std::shared_ptr<IDeviceManagementHandler> handler)
 {
     m_deviceHandler = std::move(handler);
+}
+
+void OnvifServer::setDeviceIoHandler(std::shared_ptr<IDeviceIoHandler> handler)
+{
+    m_deviceIoHandler = std::move(handler);
 }
 
 void OnvifServer::publishEvent(const OnvifEvent& event)
@@ -289,6 +301,9 @@ void OnvifServer::setupRoutes()
 
     m_httpServer.Post("/onvif/analytics_service",
         [this](const httplib::Request& req, httplib::Response& res) { handleAnalyticsService(req, res); });
+
+    m_httpServer.Post("/onvif/deviceio_service",
+        [this](const httplib::Request& req, httplib::Response& res) { handleDeviceIoService(req, res); });
 
     m_httpServer.Get("/onvif/snapshot", [](const httplib::Request&, httplib::Response& res) {
         res.status = 501;
@@ -407,6 +422,12 @@ void OnvifServer::handleDeviceService(const httplib::Request& req, httplib::Resp
              << "      <tds:HardwareId>" << m_config.hardwareId << "</tds:HardwareId>\r\n"
              << "    </tds:GetDeviceInformationResponse>\r\n";
     } else if (isOp(opName, "GetCapabilities")) {
+        size_t numRelays = 0;
+        {
+            std::lock_guard<std::mutex> lock(m_deviceIoMutex);
+            numRelays = m_internalRelayOutputs.size();
+        }
+
         body << "    <tds:GetCapabilitiesResponse>\r\n"
              << "      <tds:Capabilities>\r\n"
              << "        <tt:Device>\r\n"
@@ -428,6 +449,13 @@ void OnvifServer::handleDeviceService(const httplib::Request& req, httplib::Resp
              << "          <tt:XAddr>http://" << host << ":" << port << "/onvif/analytics_service</tt:XAddr>\r\n"
              << "          <tt:RuleSupport>true</tt:RuleSupport>\r\n"
              << "        </tt:Analytics>\r\n"
+             << "        <tt:Extension>\r\n"
+             << "          <tt:DeviceIO>\r\n"
+             << "            <tt:XAddr>http://" << host << ":" << port << "/onvif/deviceio_service</tt:XAddr>\r\n"
+             << "            <tt:VideoSources>1</tt:VideoSources>\r\n"
+             << "            <tt:RelayOutputs>" << numRelays << "</tt:RelayOutputs>\r\n"
+             << "          </tt:DeviceIO>\r\n"
+             << "        </tt:Extension>\r\n"
              << "      </tds:Capabilities>\r\n"
              << "    </tds:GetCapabilitiesResponse>\r\n";
     } else if (isOp(opName, "GetServices")) {
@@ -445,22 +473,27 @@ void OnvifServer::handleDeviceService(const httplib::Request& req, httplib::Resp
              << "      <tds:Service>\r\n"
              << "        <tds:Namespace>http://www.onvif.org/ver20/media/wsdl</tds:Namespace>\r\n"
              << "        <tds:XAddr>http://" << host << ":" << port << "/onvif/media2_service</tds:XAddr>\r\n"
-             << "        <tds:Version><tt:Major>20</tt:Major><tt:Minor>0</tt:Minor></tds:Version>\r\n"
+             << "        <tds:Version><tt:Major>20</tt:Major><tt:Minor>0</tt:Minor></tt:Version>\r\n"
              << "      </tds:Service>\r\n"
              << "      <tds:Service>\r\n"
              << "        <tds:Namespace>http://www.onvif.org/ver20/ptz/wsdl</tds:Namespace>\r\n"
              << "        <tds:XAddr>http://" << host << ":" << port << "/onvif/ptz_service</tds:XAddr>\r\n"
-             << "        <tds:Version><tt:Major>2</tt:Major><tt:Minor>0</tt:Minor></tds:Version>\r\n"
+             << "        <tds:Version><tt:Major>2</tt:Major><tt:Minor>0</tt:Minor></tt:Version>\r\n"
              << "      </tds:Service>\r\n"
              << "      <tds:Service>\r\n"
              << "        <tds:Namespace>http://www.onvif.org/ver20/imaging/wsdl</tds:Namespace>\r\n"
              << "        <tds:XAddr>http://" << host << ":" << port << "/onvif/imaging_service</tds:XAddr>\r\n"
-             << "        <tds:Version><tt:Major>20</tt:Major><tt:Minor>0</tt:Minor></tds:Version>\r\n"
+             << "        <tds:Version><tt:Major>20</tt:Major><tt:Minor>0</tt:Minor></tt:Version>\r\n"
+             << "      </tds:Service>\r\n"
+             << "      <tds:Service>\r\n"
+             << "        <tds:Namespace>http://www.onvif.org/ver10/deviceIO/wsdl</tds:Namespace>\r\n"
+             << "        <tds:XAddr>http://" << host << ":" << port << "/onvif/deviceio_service</tds:XAddr>\r\n"
+             << "        <tds:Version><tt:Major>10</tt:Major><tt:Minor>0</tt:Minor></tt:Version>\r\n"
              << "      </tds:Service>\r\n"
              << "      <tds:Service>\r\n"
              << "        <tds:Namespace>http://www.onvif.org/ver10/events/wsdl</tds:Namespace>\r\n"
              << "        <tds:XAddr>http://" << host << ":" << port << "/onvif/event_service</tds:XAddr>\r\n"
-             << "        <tds:Version><tt:Major>10</tt:Major><tt:Minor>0</tt:Minor></tds:Version>\r\n"
+             << "        <tds:Version><tt:Major>10</tt:Major><tt:Minor>0</tt:Minor></tt:Version>\r\n"
              << "      </tds:Service>\r\n"
              << "      <tds:Service>\r\n"
              << "        <tds:Namespace>http://www.onvif.org/ver20/analytics/wsdl</tds:Namespace>\r\n"
@@ -1788,25 +1821,75 @@ void OnvifServer::handleImagingService(const httplib::Request& req, httplib::Res
         }
 
         body << "    <timg:SetImagingSettingsResponse/>\r\n";
-    } else if (opName.find("Move") != std::string::npos) {
-        float speed = 0.0f;
-        const pugi::xml_node speedNode = doc.select_node("//*[local-name()='Speed']").node();
-        if (speedNode) {
-            speed = speedNode.text().as_float(0.0f);
+    } else if (isOp(opName, "GetStatus")) {
+        FocusStatus20 status;
+        if (m_imagingHandler) {
+            status = m_imagingHandler->handleGetFocusStatus(videoSourceToken);
+        } else {
+            std::lock_guard<std::mutex> lock(m_imagingMutex);
+            status = m_internalFocusStatus;
+        }
+
+        body << "    <timg:GetStatusResponse>\r\n"
+             << "      <timg:Status>\r\n"
+             << "        <tt:FocusStatus20>\r\n"
+             << "          <tt:Position>" << std::fixed << std::setprecision(2) << status.position
+             << "</tt:Position>\r\n"
+             << "          <tt:MoveStatus>" << status.moveStatus << "</tt:MoveStatus>\r\n"
+             << "        </tt:FocusStatus20>\r\n"
+             << "      </timg:Status>\r\n"
+             << "    </timg:GetStatusResponse>\r\n";
+    } else if (isOp(opName, "Move")) {
+        FocusMove move;
+        const pugi::xml_node absNode = doc.select_node("//*[local-name()='Absolute']").node();
+        const pugi::xml_node relNode = doc.select_node("//*[local-name()='Relative']").node();
+
+        if (absNode) {
+            move.mode = FocusMoveMode::Absolute;
+            const pugi::xml_node posNode = absNode.select_node(".//*[local-name()='Position']").node();
+            move.absolutePosition = posNode ? posNode.text().as_float(0.0f) : absNode.text().as_float(0.0f);
+            const pugi::xml_node spdNode = absNode.select_node(".//*[local-name()='Speed']").node();
+            if (spdNode) {
+                move.relativeSpeed = spdNode.text().as_float(1.0f);
+            }
+        } else if (relNode) {
+            move.mode = FocusMoveMode::Relative;
+            const pugi::xml_node distNode = relNode.select_node(".//*[local-name()='Distance']").node();
+            move.relativeDistance = distNode ? distNode.text().as_float(0.0f) : relNode.text().as_float(0.0f);
+            const pugi::xml_node spdNode = relNode.select_node(".//*[local-name()='Speed']").node();
+            if (spdNode) {
+                move.relativeSpeed = spdNode.text().as_float(1.0f);
+            }
+        } else {
+            move.mode = FocusMoveMode::Continuous;
+            const pugi::xml_node spdNode = doc.select_node("//*[local-name()='Speed']").node();
+            move.continuousSpeed = spdNode ? spdNode.text().as_float(0.0f) : 0.0f;
         }
 
         if (m_imagingHandler) {
-            m_imagingHandler->handleMoveFocus(videoSourceToken, speed);
+            m_imagingHandler->handleMoveFocusAdvanced(videoSourceToken, move);
+        } else {
+            std::lock_guard<std::mutex> lock(m_imagingMutex);
+            m_internalFocusStatus.moveStatus = "MOVING";
+            if (move.mode == FocusMoveMode::Absolute) {
+                m_internalFocusStatus.position = std::clamp(move.absolutePosition, 0.0f, 1.0f);
+            } else if (move.mode == FocusMoveMode::Relative) {
+                m_internalFocusStatus.position
+                    = std::clamp(m_internalFocusStatus.position + move.relativeDistance, 0.0f, 1.0f);
+            }
         }
 
         body << "    <timg:MoveResponse/>\r\n";
-    } else if (opName.find("Stop") != std::string::npos) {
+    } else if (isOp(opName, "Stop")) {
         if (m_imagingHandler) {
             m_imagingHandler->handleStopFocus(videoSourceToken);
+        } else {
+            std::lock_guard<std::mutex> lock(m_imagingMutex);
+            m_internalFocusStatus.moveStatus = "IDLE";
         }
 
         body << "    <timg:StopResponse/>\r\n";
-    } else if (opName.find("GetOptions") != std::string::npos) {
+    } else if (isOp(opName, "GetOptions")) {
         body << "    <timg:GetOptionsResponse>\r\n"
              << "      <timg:ImagingOptions>\r\n"
              << "        <tt:BacklightCompensation>\r\n"
@@ -1826,8 +1909,222 @@ void OnvifServer::handleImagingService(const httplib::Request& req, httplib::Res
              << "        </tt:Focus>\r\n"
              << "      </timg:ImagingOptions>\r\n"
              << "    </timg:GetOptionsResponse>\r\n";
+    } else if (isOp(opName, "GetMoveOptions")) {
+        body << "    <timg:GetMoveOptionsResponse>\r\n"
+             << "      <timg:MoveOptions>\r\n"
+             << "        <tt:Absolute>\r\n"
+             << "          <tt:Position><tt:Min>0.0</tt:Min><tt:Max>1.0</tt:Max></tt:Position>\r\n"
+             << "          <tt:Speed><tt:Min>0.0</tt:Min><tt:Max>1.0</tt:Max></tt:Speed>\r\n"
+             << "        </tt:Absolute>\r\n"
+             << "        <tt:Relative>\r\n"
+             << "          <tt:Distance><tt:Min>-1.0</tt:Min><tt:Max>1.0</tt:Max></tt:Distance>\r\n"
+             << "          <tt:Speed><tt:Min>0.0</tt:Min><tt:Max>1.0</tt:Max></tt:Speed>\r\n"
+             << "        </tt:Relative>\r\n"
+             << "        <tt:Continuous>\r\n"
+             << "          <tt:Speed><tt:Min>-1.0</tt:Min><tt:Max>1.0</tt:Max></tt:Speed>\r\n"
+             << "        </tt:Continuous>\r\n"
+             << "      </timg:MoveOptions>\r\n"
+             << "    </timg:GetMoveOptionsResponse>\r\n";
+    } else if (isOp(opName, "GetPresets")) {
+        std::vector<ImagingPreset> presets;
+        if (m_imagingHandler) {
+            presets = m_imagingHandler->handleGetImagingPresets(videoSourceToken);
+        } else {
+            std::lock_guard<std::mutex> lock(m_imagingMutex);
+            presets = m_internalImagingPresets;
+        }
+
+        body << "    <timg:GetPresetsResponse>\r\n";
+        for (const auto& p : presets) {
+            body << "      <timg:Preset token=\"" << p.token << "\" type=\"" << p.type << "\">\r\n"
+                 << "        <timg:Name>" << p.name << "</timg:Name>\r\n"
+                 << "      </timg:Preset>\r\n";
+        }
+        body << "    </timg:GetPresetsResponse>\r\n";
+    } else if (isOp(opName, "GetCurrentPreset")) {
+        std::string currentToken;
+        {
+            std::lock_guard<std::mutex> lock(m_imagingMutex);
+            currentToken = m_currentImagingPresetToken;
+        }
+        body << "    <timg:GetCurrentPresetResponse>\r\n"
+             << "      <timg:CurrentPreset>\r\n"
+             << "        <timg:Token>" << currentToken << "</timg:Token>\r\n"
+             << "      </timg:CurrentPreset>\r\n"
+             << "    </timg:GetCurrentPresetResponse>\r\n";
+    } else if (isOp(opName, "SetCurrentPreset")) {
+        const pugi::xml_node presetNode = doc.select_node("//*[local-name()='PresetToken']").node();
+        const std::string token = presetNode ? presetNode.text().as_string() : "";
+        if (m_imagingHandler) {
+            m_imagingHandler->handleSetCurrentImagingPreset(videoSourceToken, token);
+        }
+        {
+            std::lock_guard<std::mutex> lock(m_imagingMutex);
+            m_currentImagingPresetToken = token;
+        }
+        body << "    <timg:SetCurrentPresetResponse/>\r\n";
     } else {
         body << "    <timg:" << opName << "Response/>\r\n";
+    }
+
+    res.status = 200;
+    res.set_content(wrapSoapResponse(body.str()), "application/soap+xml; charset=utf-8");
+}
+
+void OnvifServer::handleDeviceIoService(const httplib::Request& req, httplib::Response& res)
+{
+    pugi::xml_document doc;
+    if (!doc.load_string(req.body.c_str())) {
+        res.status = 400;
+        return;
+    }
+
+    const pugi::xml_node bodyNode = doc.select_node("//*[local-name()='Body']").node();
+    const pugi::xml_node reqNode = bodyNode ? bodyNode.first_child() : pugi::xml_node {};
+    const std::string opName = reqNode ? reqNode.name() : "";
+    if (m_logCallback) {
+        m_logCallback("DeviceIO", opName, req.remote_addr);
+    }
+
+    std::ostringstream body;
+
+    if (isOp(opName, "GetRelayOutputs")) {
+        std::vector<RelayOutputConfig> relays;
+        if (m_deviceIoHandler) {
+            relays = m_deviceIoHandler->handleGetRelayOutputs();
+        } else {
+            std::lock_guard<std::mutex> lock(m_deviceIoMutex);
+            relays = m_internalRelayOutputs;
+        }
+
+        body << "    <tmd:GetRelayOutputsResponse>\r\n";
+        for (const auto& r : relays) {
+            body << "      <tmd:RelayOutputs token=\"" << r.token << "\">\r\n"
+                 << "        <tt:Properties>\r\n"
+                 << "          <tt:Mode>" << relayModeToString(r.mode) << "</tt:Mode>\r\n"
+                 << "          <tt:DelayTime>PT" << static_cast<int>(r.delayTimeSeconds) << "S</tt:DelayTime>\r\n"
+                 << "          <tt:IdleState>" << relayIdleStateToString(r.idleState) << "</tt:IdleState>\r\n"
+                 << "        </tt:Properties>\r\n"
+                 << "        <tt:LogicalState>" << relayLogicalStateToString(r.logicalState) << "</tt:LogicalState>\r\n"
+                 << "      </tmd:RelayOutputs>\r\n";
+        }
+        body << "    </tmd:GetRelayOutputsResponse>\r\n";
+    } else if (isOp(opName, "GetRelayOutputOptions")) {
+        const pugi::xml_node tokenNode = doc.select_node("//*[local-name()='RelayOutputToken']").node();
+        const std::string token = tokenNode ? tokenNode.text().as_string() : "Relay_1";
+
+        body << "    <tmd:GetRelayOutputOptionsResponse>\r\n"
+             << "      <tmd:RelayOutputOptions token=\"" << token << "\">\r\n"
+             << "        <tt:Mode>Bistable</tt:Mode>\r\n"
+             << "        <tt:Mode>Monostable</tt:Mode>\r\n"
+             << "        <tt:DelayTimes>\r\n"
+             << "          <tt:Min>PT0S</tt:Min>\r\n"
+             << "          <tt:Max>PT300S</tt:Max>\r\n"
+             << "        </tt:DelayTimes>\r\n"
+             << "        <tt:Discrete>false</tt:Discrete>\r\n"
+             << "      </tmd:RelayOutputOptions>\r\n"
+             << "    </tmd:GetRelayOutputOptionsResponse>\r\n";
+    } else if (isOp(opName, "SetRelayOutputSettings")) {
+        const pugi::xml_node tokenNode = doc.select_node("//*[local-name()='RelayOutputToken']").node();
+        const std::string token = tokenNode ? tokenNode.text().as_string() : "";
+
+        RelayOutputConfig updated;
+        updated.token = token;
+
+        const pugi::xml_node modeNode = doc.select_node("//*[local-name()='Mode']").node();
+        if (modeNode) {
+            updated.mode = relayModeFromString(modeNode.text().as_string());
+        }
+
+        const pugi::xml_node delayNode = doc.select_node("//*[local-name()='DelayTime']").node();
+        if (delayNode) {
+            updated.delayTimeSeconds = static_cast<float>(parseTimeoutSeconds(delayNode.text().as_string(), 0));
+        }
+
+        const pugi::xml_node idleNode = doc.select_node("//*[local-name()='IdleState']").node();
+        if (idleNode) {
+            updated.idleState = relayIdleStateFromString(idleNode.text().as_string());
+        }
+
+        if (m_deviceIoHandler) {
+            m_deviceIoHandler->handleSetRelayOutputSettings(token, updated);
+        }
+        {
+            std::lock_guard<std::mutex> lock(m_deviceIoMutex);
+            for (auto& r : m_internalRelayOutputs) {
+                if (r.token == token) {
+                    r.mode = updated.mode;
+                    r.delayTimeSeconds = updated.delayTimeSeconds;
+                    r.idleState = updated.idleState;
+                    break;
+                }
+            }
+        }
+
+        body << "    <tmd:SetRelayOutputSettingsResponse/>\r\n";
+    } else if (isOp(opName, "SetRelayOutputState")) {
+        const pugi::xml_node tokenNode = doc.select_node("//*[local-name()='RelayOutputToken']").node();
+        const std::string token = tokenNode ? tokenNode.text().as_string() : "";
+
+        const pugi::xml_node stateNode = doc.select_node("//*[local-name()='LogicalState']").node();
+        const std::string stateStr = stateNode ? stateNode.text().as_string() : "active";
+        const RelayLogicalState state = relayLogicalStateFromString(stateStr);
+
+        if (m_deviceIoHandler) {
+            m_deviceIoHandler->handleSetRelayOutputState(token, state);
+        }
+        {
+            std::lock_guard<std::mutex> lock(m_deviceIoMutex);
+            for (auto& r : m_internalRelayOutputs) {
+                if (r.token == token) {
+                    r.logicalState = state;
+                    break;
+                }
+            }
+        }
+
+        body << "    <tmd:SetRelayOutputStateResponse/>\r\n";
+    } else if (isOp(opName, "GetDigitalInputs")) {
+        std::vector<DigitalInputConfig> inputs;
+        if (m_deviceIoHandler) {
+            inputs = m_deviceIoHandler->handleGetDigitalInputs();
+        } else {
+            std::lock_guard<std::mutex> lock(m_deviceIoMutex);
+            inputs = m_internalDigitalInputs;
+        }
+
+        body << "    <tmd:GetDigitalInputsResponse>\r\n";
+        for (const auto& in : inputs) {
+            body << "      <tmd:DigitalInputs token=\"" << in.token << "\">\r\n"
+                 << "        <tt:IdleState>" << relayIdleStateToString(in.idleState) << "</tt:IdleState>\r\n"
+                 << "      </tmd:DigitalInputs>\r\n";
+        }
+        body << "    </tmd:GetDigitalInputsResponse>\r\n";
+    } else if (isOp(opName, "GetDigitalInputConfigurationOptions")) {
+        const pugi::xml_node tokenNode = doc.select_node("//*[local-name()='Token']").node();
+        const std::string token = tokenNode ? tokenNode.text().as_string() : "Input_1";
+
+        body << "    <tmd:GetDigitalInputConfigurationOptionsResponse>\r\n"
+             << "      <tmd:DigitalInputOptions token=\"" << token << "\">\r\n"
+             << "        <tt:IdleState>open</tt:IdleState>\r\n"
+             << "        <tt:IdleState>closed</tt:IdleState>\r\n"
+             << "      </tmd:DigitalInputOptions>\r\n"
+             << "    </tmd:GetDigitalInputConfigurationOptionsResponse>\r\n";
+    } else if (isOp(opName, "GetVideoSources")) {
+        body << "    <tmd:GetVideoSourcesResponse>\r\n"
+             << "      <tmd:VideoSources token=\"VideoSource_1\">\r\n"
+             << "        <tt:Framerate>30.0</tt:Framerate>\r\n"
+             << "        <tt:Resolution><tt:Width>1920</tt:Width><tt:Height>1080</tt:Height></tt:Resolution>\r\n"
+             << "      </tmd:VideoSources>\r\n"
+             << "    </tmd:GetVideoSourcesResponse>\r\n";
+    } else if (isOp(opName, "GetVideoOutputs")) {
+        body << "    <tmd:GetVideoOutputsResponse/>\r\n";
+    } else if (isOp(opName, "GetAudioSources")) {
+        body << "    <tmd:GetAudioSourcesResponse/>\r\n";
+    } else if (isOp(opName, "GetAudioOutputs")) {
+        body << "    <tmd:GetAudioOutputsResponse/>\r\n";
+    } else {
+        body << "    <tmd:" << opName << "Response/>\r\n";
     }
 
     res.status = 200;

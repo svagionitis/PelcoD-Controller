@@ -72,6 +72,14 @@ struct OnvifServerConfig {
 
     /// @brief System hostname.
     std::string hostname { "PelcoD-Bridge" };
+
+    /// @brief Default relay outputs for DeviceIO service.
+    std::vector<RelayOutputConfig> defaultRelayOutputs { { "Relay_1", RelayMode::Bistable, 0.0f, RelayIdleState::Open,
+                                                             RelayLogicalState::Inactive },
+        { "Relay_2", RelayMode::Bistable, 0.0f, RelayIdleState::Open, RelayLogicalState::Inactive } };
+
+    /// @brief Default digital inputs for DeviceIO service.
+    std::vector<DigitalInputConfig> defaultDigitalInputs { { "Input_1", RelayIdleState::Open, "Alarm", false } };
 };
 
 /// @brief Callback signature for publishing asynchronous ONVIF event notifications.
@@ -108,6 +116,84 @@ public:
     /// @brief Halts active optical focus movement.
     /// @param[in] videoSourceToken Video source token.
     virtual void handleStopFocus(const std::string& videoSourceToken) = 0;
+
+    /// @brief Queries current focus status and encoder position.
+    /// @param[in] videoSourceToken Video source token.
+    /// @return Current FocusStatus20 structure.
+    [[nodiscard]] virtual FocusStatus20 handleGetFocusStatus(const std::string& /*videoSourceToken*/)
+    {
+        return FocusStatus20 {};
+    }
+
+    /// @brief Moves optical focus with directional or positional mode.
+    /// @param[in] videoSourceToken Video source token.
+    /// @param[in] move Focus movement request.
+    /// @return True if focus command was accepted.
+    [[nodiscard]] virtual bool handleMoveFocusAdvanced(const std::string& videoSourceToken, const FocusMove& move)
+    {
+        if (move.mode == FocusMoveMode::Continuous) {
+            handleMoveFocus(videoSourceToken, move.continuousSpeed);
+            return true;
+        }
+        return false;
+    }
+
+    /// @brief Retrieves list of saved optical imaging presets.
+    /// @param[in] videoSourceToken Video source token.
+    /// @return Vector of ImagingPreset.
+    [[nodiscard]] virtual std::vector<ImagingPreset> handleGetImagingPresets(const std::string& /*videoSourceToken*/)
+    {
+        return {};
+    }
+
+    /// @brief Recalls and applies an optical imaging preset.
+    /// @param[in] videoSourceToken Video source token.
+    /// @param[in] presetToken Target preset token.
+    /// @return True if preset was recalled.
+    [[nodiscard]] virtual bool handleSetCurrentImagingPreset(
+        const std::string& /*videoSourceToken*/, const std::string& /*presetToken*/)
+    {
+        return false;
+    }
+};
+
+/// @class IDeviceIoHandler
+/// @brief Abstract interface for decoupling ONVIF DeviceIO & Relay Output requests from hardware.
+class IDeviceIoHandler {
+public:
+    virtual ~IDeviceIoHandler() = default;
+
+    /// @brief Retrieves all configured relay outputs.
+    /// @return Vector of RelayOutputConfig.
+    [[nodiscard]] virtual std::vector<RelayOutputConfig> handleGetRelayOutputs() = 0;
+
+    /// @brief Retrieves configuration options for a given relay.
+    /// @param[in] token Relay token.
+    /// @return Vector of supported modes ("Monostable", "Bistable").
+    [[nodiscard]] virtual std::vector<std::string> handleGetRelayOutputOptions(const std::string& /*token*/)
+    {
+        return { "Bistable", "Monostable" };
+    }
+
+    /// @brief Applies updated mode, delay time, or idle state to a relay.
+    /// @param[in] token Relay token.
+    /// @param[in] settings Updated configuration parameters.
+    /// @return True if configuration was applied.
+    [[nodiscard]] virtual bool handleSetRelayOutputSettings(const std::string& token, const RelayOutputConfig& settings)
+        = 0;
+
+    /// @brief Changes the logical state (Active/Inactive) of a relay.
+    /// @param[in] token Relay token.
+    /// @param[in] state Desired logical state.
+    /// @return True if state was changed.
+    [[nodiscard]] virtual bool handleSetRelayOutputState(const std::string& token, RelayLogicalState state) = 0;
+
+    /// @brief Retrieves all configured digital inputs.
+    /// @return Vector of DigitalInputConfig.
+    [[nodiscard]] virtual std::vector<DigitalInputConfig> handleGetDigitalInputs()
+    {
+        return {};
+    }
 };
 
 /// @class IPtzHandler

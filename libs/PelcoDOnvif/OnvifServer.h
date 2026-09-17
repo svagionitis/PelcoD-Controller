@@ -35,7 +35,8 @@ public:
     /// @param[in] imagingHandler Optional handler receiving Profile T imaging requests.
     explicit OnvifServer(OnvifServerConfig config = {}, std::shared_ptr<IPtzHandler> ptzHandler = nullptr,
         std::shared_ptr<IImagingHandler> imagingHandler = nullptr, std::shared_ptr<IOsdHandler> osdHandler = nullptr,
-        std::shared_ptr<IDeviceManagementHandler> deviceHandler = nullptr);
+        std::shared_ptr<IDeviceManagementHandler> deviceHandler = nullptr,
+        std::shared_ptr<IDeviceIoHandler> deviceIoHandler = nullptr);
 
     /// @brief Destructor stops HTTP service and WS-Discovery daemon.
     ~OnvifServer();
@@ -77,6 +78,10 @@ public:
     /// @param[in] handler New IDeviceManagementHandler instance.
     void setDeviceManagementHandler(std::shared_ptr<IDeviceManagementHandler> handler);
 
+    /// @brief Sets or replaces the active Device I/O handler.
+    /// @param[in] handler New IDeviceIoHandler instance.
+    void setDeviceIoHandler(std::shared_ptr<IDeviceIoHandler> handler);
+
     /// @brief Pushes an asynchronous ONVIF event to active PullPoint and push subscriptions.
     /// @param[in] event The event to publish.
     void publishEvent(const OnvifEvent& event);
@@ -92,6 +97,7 @@ private:
     void handleMedia2Service(const httplib::Request& req, httplib::Response& res);
     void handlePtzService(const httplib::Request& req, httplib::Response& res);
     void handleImagingService(const httplib::Request& req, httplib::Response& res);
+    void handleDeviceIoService(const httplib::Request& req, httplib::Response& res);
     void handleEventService(const httplib::Request& req, httplib::Response& res);
     void handleSubscriptionService(const httplib::Request& req, httplib::Response& res);
     void handleAnalyticsService(const httplib::Request& req, httplib::Response& res);
@@ -121,6 +127,7 @@ private:
     std::shared_ptr<IImagingHandler> m_imagingHandler;
     std::shared_ptr<IOsdHandler> m_osdHandler;
     std::shared_ptr<IDeviceManagementHandler> m_deviceHandler;
+    std::shared_ptr<IDeviceIoHandler> m_deviceIoHandler;
     std::unique_ptr<WsDiscoveryServer> m_discoveryServer;
     httplib::Server m_httpServer;
 
@@ -132,6 +139,15 @@ private:
     NtpConfig m_internalNtp {};
     std::string m_internalHostname { "PelcoD-Bridge" };
     SystemDateTimeConfig m_internalDateTime {};
+
+    mutable std::mutex m_imagingMutex {};
+    FocusStatus20 m_internalFocusStatus {};
+    std::vector<ImagingPreset> m_internalImagingPresets {};
+    std::string m_currentImagingPresetToken {};
+
+    mutable std::mutex m_deviceIoMutex {};
+    std::vector<RelayOutputConfig> m_internalRelayOutputs {};
+    std::vector<DigitalInputConfig> m_internalDigitalInputs {};
 
     mutable std::mutex m_osdMutex {};
     std::map<std::string, OsdConfig> m_internalOsds {};

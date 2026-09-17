@@ -1510,6 +1510,246 @@ void testDeviceManagementAndSecurity()
     std::cout << "[PASS] testDeviceManagementAndSecurity" << std::endl;
 }
 
+void testImagingExtensionsAndDeviceIo()
+{
+    std::cout << "[RUN] testImagingExtensionsAndDeviceIo..." << std::endl;
+
+    auto mockTransport = std::make_shared<PelcoD::MockPelcoDDevice>(1U);
+    auto device = std::make_shared<PelcoD::PelcoDDevice>(mockTransport, 1U);
+    assert(device->start());
+
+    auto adapter = std::make_shared<PelcoDPtzAdapter>(device);
+
+    OnvifServerConfig config;
+    config.port = 18595;
+    config.bindAddress = "127.0.0.1";
+    config.deviceName = "ImagingDeviceIoCamera";
+
+    OnvifServer server(config, adapter, adapter);
+    server.setDeviceIoHandler(adapter);
+    assert(server.start());
+    assert(server.isRunning());
+
+    httplib::Client client("127.0.0.1", config.port);
+    client.set_connection_timeout(std::chrono::seconds(2));
+    client.set_read_timeout(std::chrono::seconds(2));
+
+    // 1. GetCapabilities: check tt:DeviceIO and tt:Imaging
+    {
+        const std::string req = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+                                "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                "xmlns:tds=\"http://www.onvif.org/ver10/device/wsdl\">\r\n"
+                                "  <SOAP-ENV:Body><tds:GetCapabilities/></SOAP-ENV:Body>\r\n"
+                                "</SOAP-ENV:Envelope>";
+        auto res = client.Post("/onvif/device_service", req, "application/soap+xml; charset=utf-8");
+        assert(res && res->status == 200);
+        assert(res->body.find("/onvif/imaging_service") != std::string::npos);
+        assert(res->body.find("/onvif/deviceio_service") != std::string::npos);
+    }
+
+    // 2. GetServices: check deviceIO and imaging
+    {
+        const std::string req = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+                                "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                "xmlns:tds=\"http://www.onvif.org/ver10/device/wsdl\">\r\n"
+                                "  <SOAP-ENV:Body><tds:GetServices/></SOAP-ENV:Body>\r\n"
+                                "</SOAP-ENV:Envelope>";
+        auto res = client.Post("/onvif/device_service", req, "application/soap+xml; charset=utf-8");
+        assert(res && res->status == 200);
+        assert(res->body.find("http://www.onvif.org/ver10/deviceIO/wsdl") != std::string::npos);
+        assert(res->body.find("/onvif/deviceio_service") != std::string::npos);
+    }
+
+    // 3. Extended Imaging Service: GetStatus (FocusStatus20)
+    {
+        const std::string req = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+                                "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                "xmlns:timg=\"http://www.onvif.org/ver20/imaging/wsdl\">\r\n"
+                                "  <SOAP-ENV:Body>\r\n"
+                                "    <timg:GetStatus>\r\n"
+                                "      <timg:VideoSourceToken>VideoSource_1</timg:VideoSourceToken>\r\n"
+                                "    </timg:GetStatus>\r\n"
+                                "  </SOAP-ENV:Body>\r\n"
+                                "</SOAP-ENV:Envelope>";
+        auto res = client.Post("/onvif/imaging_service", req, "application/soap+xml; charset=utf-8");
+        assert(res && res->status == 200);
+        pugi::xml_document doc;
+        assert(doc.load_string(res->body.c_str()));
+        assert(doc.select_node("//*[local-name()='FocusStatus20']"));
+        assert(doc.select_node("//*[local-name()='MoveStatus']"));
+    }
+
+    // 4. Extended Imaging Service: Move (Continuous, Absolute, Relative) & Stop
+    {
+        const std::string reqCont = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+                                    "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                    "xmlns:timg=\"http://www.onvif.org/ver20/imaging/wsdl\" "
+                                    "xmlns:tt=\"http://www.onvif.org/ver10/schema\">\r\n"
+                                    "  <SOAP-ENV:Body>\r\n"
+                                    "    <timg:Move>\r\n"
+                                    "      <timg:VideoSourceToken>VideoSource_1</timg:VideoSourceToken>\r\n"
+                                    "      <timg:Focus>\r\n"
+                                    "        <tt:Continuous><tt:Speed>0.5</tt:Speed></tt:Continuous>\r\n"
+                                    "      </timg:Focus>\r\n"
+                                    "    </timg:Move>\r\n"
+                                    "  </SOAP-ENV:Body>\r\n"
+                                    "</SOAP-ENV:Envelope>";
+        auto resCont = client.Post("/onvif/imaging_service", reqCont, "application/soap+xml; charset=utf-8");
+        assert(resCont && resCont->status == 200);
+
+        const std::string reqAbs = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+                                   "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                   "xmlns:timg=\"http://www.onvif.org/ver20/imaging/wsdl\" "
+                                   "xmlns:tt=\"http://www.onvif.org/ver10/schema\">\r\n"
+                                   "  <SOAP-ENV:Body>\r\n"
+                                   "    <timg:Move>\r\n"
+                                   "      <timg:VideoSourceToken>VideoSource_1</timg:VideoSourceToken>\r\n"
+                                   "      <timg:Focus>\r\n"
+                                   "        <tt:Absolute><tt:Position>0.7</tt:Position></tt:Absolute>\r\n"
+                                   "      </timg:Focus>\r\n"
+                                   "    </timg:Move>\r\n"
+                                   "  </SOAP-ENV:Body>\r\n"
+                                   "</SOAP-ENV:Envelope>";
+        auto resAbs = client.Post("/onvif/imaging_service", reqAbs, "application/soap+xml; charset=utf-8");
+        assert(resAbs && resAbs->status == 200);
+
+        const std::string reqStop = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+                                    "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                    "xmlns:timg=\"http://www.onvif.org/ver20/imaging/wsdl\">\r\n"
+                                    "  <SOAP-ENV:Body>\r\n"
+                                    "    <timg:Stop>\r\n"
+                                    "      <timg:VideoSourceToken>VideoSource_1</timg:VideoSourceToken>\r\n"
+                                    "    </timg:Stop>\r\n"
+                                    "  </SOAP-ENV:Body>\r\n"
+                                    "</SOAP-ENV:Envelope>";
+        auto resStop = client.Post("/onvif/imaging_service", reqStop, "application/soap+xml; charset=utf-8");
+        assert(resStop && resStop->status == 200);
+    }
+
+    // 5. Extended Imaging Service: GetPresets & SetCurrentPreset
+    {
+        const std::string reqGet = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+                                   "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                   "xmlns:timg=\"http://www.onvif.org/ver20/imaging/wsdl\">\r\n"
+                                   "  <SOAP-ENV:Body>\r\n"
+                                   "    <timg:GetPresets>\r\n"
+                                   "      <timg:VideoSourceToken>VideoSource_1</timg:VideoSourceToken>\r\n"
+                                   "    </timg:GetPresets>\r\n"
+                                   "  </SOAP-ENV:Body>\r\n"
+                                   "</SOAP-ENV:Envelope>";
+        auto resGet = client.Post("/onvif/imaging_service", reqGet, "application/soap+xml; charset=utf-8");
+        assert(resGet && resGet->status == 200);
+        assert(resGet->body.find("Preset_Clear") != std::string::npos);
+        assert(resGet->body.find("Preset_BW") != std::string::npos);
+
+        const std::string reqSet = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+                                   "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                   "xmlns:timg=\"http://www.onvif.org/ver20/imaging/wsdl\">\r\n"
+                                   "  <SOAP-ENV:Body>\r\n"
+                                   "    <timg:SetCurrentPreset>\r\n"
+                                   "      <timg:VideoSourceToken>VideoSource_1</timg:VideoSourceToken>\r\n"
+                                   "      <timg:PresetToken>Preset_BW</timg:PresetToken>\r\n"
+                                   "    </timg:SetCurrentPreset>\r\n"
+                                   "  </SOAP-ENV:Body>\r\n"
+                                   "</SOAP-ENV:Envelope>";
+        auto resSet = client.Post("/onvif/imaging_service", reqSet, "application/soap+xml; charset=utf-8");
+        assert(resSet && resSet->status == 200);
+    }
+
+    // 6. DeviceIO Service: GetRelayOutputs
+    {
+        const std::string req = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+                                "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                "xmlns:tmd=\"http://www.onvif.org/ver10/deviceIO/wsdl\">\r\n"
+                                "  <SOAP-ENV:Body><tmd:GetRelayOutputs/></SOAP-ENV:Body>\r\n"
+                                "</SOAP-ENV:Envelope>";
+        auto res = client.Post("/onvif/deviceio_service", req, "application/soap+xml; charset=utf-8");
+        assert(res && res->status == 200);
+        assert(res->body.find("Relay_1") != std::string::npos);
+        assert(res->body.find("Relay_2") != std::string::npos);
+    }
+
+    // 7. DeviceIO Service: SetRelayOutputState (active & inactive)
+    {
+        const std::string reqActive = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+                                      "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                      "xmlns:tmd=\"http://www.onvif.org/ver10/deviceIO/wsdl\">\r\n"
+                                      "  <SOAP-ENV:Body>\r\n"
+                                      "    <tmd:SetRelayOutputState>\r\n"
+                                      "      <tmd:RelayOutputToken>Relay_1</tmd:RelayOutputToken>\r\n"
+                                      "      <tmd:LogicalState>active</tmd:LogicalState>\r\n"
+                                      "    </tmd:SetRelayOutputState>\r\n"
+                                      "  </SOAP-ENV:Body>\r\n"
+                                      "</SOAP-ENV:Envelope>";
+        auto resActive = client.Post("/onvif/deviceio_service", reqActive, "application/soap+xml; charset=utf-8");
+        assert(resActive && resActive->status == 200);
+
+        const auto relaysAfterActive = adapter->handleGetRelayOutputs();
+        assert(!relaysAfterActive.empty() && relaysAfterActive[0].logicalState == RelayLogicalState::Active);
+
+        const std::string reqInactive = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+                                        "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                        "xmlns:tmd=\"http://www.onvif.org/ver10/deviceIO/wsdl\">\r\n"
+                                        "  <SOAP-ENV:Body>\r\n"
+                                        "    <tmd:SetRelayOutputState>\r\n"
+                                        "      <tmd:RelayOutputToken>Relay_1</tmd:RelayOutputToken>\r\n"
+                                        "      <tmd:LogicalState>inactive</tmd:LogicalState>\r\n"
+                                        "    </tmd:SetRelayOutputState>\r\n"
+                                        "  </SOAP-ENV:Body>\r\n"
+                                        "</SOAP-ENV:Envelope>";
+        auto resInactive = client.Post("/onvif/deviceio_service", reqInactive, "application/soap+xml; charset=utf-8");
+        assert(resInactive && resInactive->status == 200);
+
+        const auto relaysAfterInactive = adapter->handleGetRelayOutputs();
+        assert(!relaysAfterInactive.empty() && relaysAfterInactive[0].logicalState == RelayLogicalState::Inactive);
+    }
+
+    // 8. DeviceIO Service: SetRelayOutputSettings
+    {
+        const std::string req = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+                                "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                "xmlns:tmd=\"http://www.onvif.org/ver10/deviceIO/wsdl\" "
+                                "xmlns:tt=\"http://www.onvif.org/ver10/schema\">\r\n"
+                                "  <SOAP-ENV:Body>\r\n"
+                                "    <tmd:SetRelayOutputSettings>\r\n"
+                                "      <tmd:RelayOutputToken>Relay_1</tmd:RelayOutputToken>\r\n"
+                                "      <tmd:Properties>\r\n"
+                                "        <tt:Mode>Monostable</tt:Mode>\r\n"
+                                "        <tt:DelayTime>PT2S</tt:DelayTime>\r\n"
+                                "        <tt:IdleState>closed</tt:IdleState>\r\n"
+                                "      </tmd:Properties>\r\n"
+                                "    </tmd:SetRelayOutputSettings>\r\n"
+                                "  </SOAP-ENV:Body>\r\n"
+                                "</SOAP-ENV:Envelope>";
+        auto res = client.Post("/onvif/deviceio_service", req, "application/soap+xml; charset=utf-8");
+        assert(res && res->status == 200);
+
+        const auto relays = adapter->handleGetRelayOutputs();
+        assert(!relays.empty());
+        assert(relays[0].mode == RelayMode::Monostable);
+        assert(std::abs(relays[0].delayTimeSeconds - 2.0f) < 0.1f);
+        assert(relays[0].idleState == RelayIdleState::Closed);
+    }
+
+    // 9. DeviceIO Service: GetDigitalInputs
+    {
+        const std::string req = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+                                "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                "xmlns:tmd=\"http://www.onvif.org/ver10/deviceIO/wsdl\">\r\n"
+                                "  <SOAP-ENV:Body><tmd:GetDigitalInputs/></SOAP-ENV:Body>\r\n"
+                                "</SOAP-ENV:Envelope>";
+        auto res = client.Post("/onvif/deviceio_service", req, "application/soap+xml; charset=utf-8");
+        assert(res && res->status == 200);
+        assert(res->body.find("Input_1") != std::string::npos);
+    }
+
+    server.stop();
+    assert(!server.isRunning());
+    device->stop();
+
+    std::cout << "[PASS] testImagingExtensionsAndDeviceIo" << std::endl;
+}
+
 int main()
 {
     std::cout << "Starting TestOnvifServer test suite..." << std::endl;
@@ -1521,6 +1761,7 @@ int main()
     testPtzServiceExtensionsServerAndAdapter();
     testMedia2OsdAndAnalytics();
     testDeviceManagementAndSecurity();
+    testImagingExtensionsAndDeviceIo();
     std::cout << "All TestOnvifServer tests passed successfully!" << std::endl;
     return 0;
 }
