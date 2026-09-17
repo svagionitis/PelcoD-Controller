@@ -1903,6 +1903,145 @@ void testPrivacyMasksAndVideoSourceModesParsing()
     }
 }
 
+void testThermalAndRadiometryParsing()
+{
+    using namespace PelcoD::Onvif;
+
+    // 1. parseCapabilitiesResponse with Thermal extension
+    {
+        const std::string xml =
+            "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n"
+            "<soap:Envelope xmlns:soap=\"http://www.w3.org/2003/05/soap-envelope\" xmlns:tt=\"http://www.onvif.org/ver10/schema\">\n"
+            "  <soap:Body>\n"
+            "    <tt:GetCapabilitiesResponse>\n"
+            "      <tt:Capabilities>\n"
+            "        <tt:Extension>\n"
+            "          <tt:Thermal>\n"
+            "            <tt:XAddr>http://192.168.1.100/onvif/thermal_service</tt:XAddr>\n"
+            "          </tt:Thermal>\n"
+            "        </tt:Extension>\n"
+            "      </tt:Capabilities>\n"
+            "    </tt:GetCapabilitiesResponse>\n"
+            "  </soap:Body>\n"
+            "</soap:Envelope>";
+
+        const auto caps = OnvifClient::parseCapabilitiesResponse(xml);
+        assert(caps.has_value());
+        assert(caps->thermalXAddr == "http://192.168.1.100/onvif/thermal_service");
+    }
+
+    // 2. parseRadiometryConfigurationResponse
+    {
+        const std::string xml =
+            "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n"
+            "<soap:Envelope xmlns:soap=\"http://www.w3.org/2003/05/soap-envelope\" xmlns:tth=\"http://www.onvif.org/ver10/thermal/wsdl\">\n"
+            "  <soap:Body>\n"
+            "    <tth:GetRadiometryConfigurationResponse>\n"
+            "      <tth:Configuration>\n"
+            "        <tth:Emissivity>0.92</tth:Emissivity>\n"
+            "        <tth:Distance>7.5</tth:Distance>\n"
+            "        <tth:ReflectedTemperature>22.0</tth:ReflectedTemperature>\n"
+            "        <tth:AtmosphericTemperature>21.5</tth:AtmosphericTemperature>\n"
+            "        <tth:RelativeHumidity>45.0</tth:RelativeHumidity>\n"
+            "        <tth:WindowTransmission>0.98</tth:WindowTransmission>\n"
+            "      </tth:Configuration>\n"
+            "    </tth:GetRadiometryConfigurationResponse>\n"
+            "  </soap:Body>\n"
+            "</soap:Envelope>";
+
+        const auto cfg = OnvifClient::parseRadiometryConfigurationResponse(xml);
+        assert(cfg.has_value());
+        assert(std::fabs(cfg->emissivity - 0.92f) < 0.001f);
+        assert(std::fabs(cfg->distance - 7.5f) < 0.001f);
+        assert(std::fabs(cfg->reflectedTemperature - 22.0f) < 0.001f);
+        assert(std::fabs(cfg->atmosphericTemperature - 21.5f) < 0.001f);
+        assert(std::fabs(cfg->relativeHumidity - 45.0f) < 0.001f);
+        assert(std::fabs(cfg->windowTransmission - 0.98f) < 0.001f);
+    }
+
+    // 3. parseRadiometrySpotsResponse
+    {
+        const std::string xml =
+            "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n"
+            "<soap:Envelope xmlns:soap=\"http://www.w3.org/2003/05/soap-envelope\" xmlns:tth=\"http://www.onvif.org/ver10/thermal/wsdl\">\n"
+            "  <soap:Body>\n"
+            "    <tth:GetRadiometrySpotsResponse>\n"
+            "      <tth:Spot token=\"Spot_1\">\n"
+            "        <tth:Position x=\"0.35\" y=\"0.45\"/>\n"
+            "        <tth:Label>Target Spot</tth:Label>\n"
+            "        <tth:Temperature>37.2</tth:Temperature>\n"
+            "      </tth:Spot>\n"
+            "    </tth:GetRadiometrySpotsResponse>\n"
+            "  </soap:Body>\n"
+            "</soap:Envelope>";
+
+        const auto spots = OnvifClient::parseRadiometrySpotsResponse(xml);
+        assert(spots.size() == 1U);
+        assert(spots[0].token == "Spot_1");
+        assert(spots[0].label == "Target Spot");
+        assert(std::fabs(spots[0].position.x - 0.35f) < 0.001f);
+        assert(std::fabs(spots[0].position.y - 0.45f) < 0.001f);
+        assert(std::fabs(spots[0].temperature - 37.2f) < 0.001f);
+    }
+
+    // 4. parseRadiometryBoxesResponse
+    {
+        const std::string xml =
+            "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n"
+            "<soap:Envelope xmlns:soap=\"http://www.w3.org/2003/05/soap-envelope\" xmlns:tth=\"http://www.onvif.org/ver10/thermal/wsdl\">\n"
+            "  <soap:Body>\n"
+            "    <tth:GetRadiometryBoxesResponse>\n"
+            "      <tth:Box token=\"Box_1\">\n"
+            "        <tth:TopLeft x=\"0.2\" y=\"0.3\"/>\n"
+            "        <tth:BottomRight x=\"0.6\" y=\"0.8\"/>\n"
+            "        <tth:Label>Engine Zone</tth:Label>\n"
+            "        <tth:MinTemperature>25.0</tth:MinTemperature>\n"
+            "        <tth:MaxTemperature>85.4</tth:MaxTemperature>\n"
+            "        <tth:AvgTemperature>54.2</tth:AvgTemperature>\n"
+            "      </tth:Box>\n"
+            "    </tth:GetRadiometryBoxesResponse>\n"
+            "  </soap:Body>\n"
+            "</soap:Envelope>";
+
+        const auto boxes = OnvifClient::parseRadiometryBoxesResponse(xml);
+        assert(boxes.size() == 1U);
+        assert(boxes[0].token == "Box_1");
+        assert(boxes[0].label == "Engine Zone");
+        assert(std::fabs(boxes[0].topLeft.x - 0.2f) < 0.001f);
+        assert(std::fabs(boxes[0].topLeft.y - 0.3f) < 0.001f);
+        assert(std::fabs(boxes[0].bottomRight.x - 0.6f) < 0.001f);
+        assert(std::fabs(boxes[0].bottomRight.y - 0.8f) < 0.001f);
+        assert(std::fabs(boxes[0].minTemperature - 25.0f) < 0.001f);
+        assert(std::fabs(boxes[0].maxTemperature - 85.4f) < 0.001f);
+        assert(std::fabs(boxes[0].avgTemperature - 54.2f) < 0.001f);
+    }
+
+    // 5. parseColorPalettesResponse
+    {
+        const std::string xml =
+            "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n"
+            "<soap:Envelope xmlns:soap=\"http://www.w3.org/2003/05/soap-envelope\" xmlns:tth=\"http://www.onvif.org/ver10/thermal/wsdl\">\n"
+            "  <soap:Body>\n"
+            "    <tth:GetColorPalettesResponse>\n"
+            "      <tth:ColorPalette token=\"Ironbow\">\n"
+            "        <tth:Name>Ironbow</tth:Name>\n"
+            "      </tth:ColorPalette>\n"
+            "      <tth:ColorPalette token=\"WhiteHot\">\n"
+            "        <tth:Name>White Hot</tth:Name>\n"
+            "      </tth:ColorPalette>\n"
+            "    </tth:GetColorPalettesResponse>\n"
+            "  </soap:Body>\n"
+            "</soap:Envelope>";
+
+        const auto palettes = OnvifClient::parseColorPalettesResponse(xml);
+        assert(palettes.size() == 2U);
+        assert(palettes[0].token == "Ironbow");
+        assert(palettes[0].name == "Ironbow");
+        assert(palettes[1].token == "WhiteHot");
+        assert(palettes[1].name == "White Hot");
+    }
+}
+
 int main()
 {
 #ifdef _WIN32
@@ -2051,6 +2190,10 @@ int main()
     std::cout << "[RUN] Testing ONVIF Profile T Privacy Masks & Video Source Modes XML Parsing...\n";
     testPrivacyMasksAndVideoSourceModesParsing();
     std::cout << "[PASS] Profile T Privacy Masks & Video Source Modes XML Parsing\n";
+
+    std::cout << "[RUN] Testing ONVIF Thermal Service & Radiometry XML Parsing...\n";
+    testThermalAndRadiometryParsing();
+    std::cout << "[PASS] Thermal Service & Radiometry XML Parsing\n";
 
     std::cout << "\nAll PelcoDOnvif unit tests PASSED successfully!\n";
     return 0;

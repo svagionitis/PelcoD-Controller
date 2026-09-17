@@ -29,6 +29,7 @@ struct OnvifCapabilities {
     std::string searchXAddr {}; ///< Search service endpoint (Profile G)
     std::string replayXAddr {}; ///< Replay service endpoint (Profile G)
     std::string analyticsXAddr {}; ///< Analytics service endpoint (Profile M & T)
+    std::string thermalXAddr {}; ///< Thermal service endpoint (ver10/thermal/wsdl)
 };
 
 /// @class OnvifClient
@@ -293,6 +294,67 @@ public:
     /// @param[in] modeToken Desired mode token (e.g. "Mode_4K30").
     /// @return True if mode switch succeeded (or initiated reboot).
     bool setVideoSourceMode(const std::string& videoSourceToken, const std::string& modeToken);
+
+    // =========================================================================
+    // Thermal & Radiometry Service (ver10/thermal/wsdl)
+    // =========================================================================
+
+    /// @brief Queries radiometric compensation parameters for a video source.
+    /// @param[in] videoSourceToken Video source token (default: "VideoSource_1").
+    /// @return RadiometryConfig or nullopt on failure.
+    [[nodiscard]] std::optional<RadiometryConfig> getRadiometryConfiguration(
+        const std::string& videoSourceToken = "VideoSource_1");
+
+    /// @brief Sets radiometric compensation parameters.
+    /// @param[in] videoSourceToken Video source token.
+    /// @param[in] config Updated parameters.
+    /// @return True on success.
+    bool setRadiometryConfiguration(
+        const std::string& videoSourceToken, const RadiometryConfig& config);
+
+    /// @brief Retrieves spotmeter temperature measurements.
+    /// @param[in] videoSourceToken Video source token.
+    /// @return Vector of RadiometrySpot.
+    [[nodiscard]] std::vector<RadiometrySpot> getRadiometrySpots(
+        const std::string& videoSourceToken = "VideoSource_1");
+
+    /// @brief Sets or replaces spotmeters.
+    /// @param[in] videoSourceToken Video source token.
+    /// @param[in] spots Vector of spots.
+    /// @return True on success.
+    bool setRadiometrySpots(
+        const std::string& videoSourceToken, const std::vector<RadiometrySpot>& spots);
+
+    /// @brief Retrieves rectangular zone temperature measurements.
+    /// @param[in] videoSourceToken Video source token.
+    /// @return Vector of RadiometryBox.
+    [[nodiscard]] std::vector<RadiometryBox> getRadiometryBoxes(
+        const std::string& videoSourceToken = "VideoSource_1");
+
+    /// @brief Sets or replaces rectangular zone temperature measurements.
+    /// @param[in] videoSourceToken Video source token.
+    /// @param[in] boxes Vector of boxes.
+    /// @return True on success.
+    bool setRadiometryBoxes(
+        const std::string& videoSourceToken, const std::vector<RadiometryBox>& boxes);
+
+    /// @brief Retrieves available false-color palettes.
+    /// @param[in] videoSourceToken Video source token.
+    /// @return Vector of ColorPalette.
+    [[nodiscard]] std::vector<ColorPalette> getColorPalettes(
+        const std::string& videoSourceToken = "VideoSource_1");
+
+    /// @brief Sets active false-color palette.
+    /// @param[in] videoSourceToken Video source token.
+    /// @param[in] paletteToken Palette token (e.g. "Ironbow").
+    /// @return True on success.
+    bool setColorPalette(
+        const std::string& videoSourceToken, const std::string& paletteToken);
+
+    /// @brief Triggers Non-Uniformity Correction (NUC / shutter calibration).
+    /// @param[in] videoSourceToken Video source token.
+    /// @return True on success.
+    bool triggerNuc(const std::string& videoSourceToken = "VideoSource_1");
 
     // =========================================================================
     // PTZ Service
@@ -1076,6 +1138,11 @@ public:
     [[nodiscard]] static std::optional<std::string> parseCreateMaskResponse(const std::string& xml);
     [[nodiscard]] static std::vector<VideoSourceMode> parseVideoSourceModesResponse(const std::string& xml);
     [[nodiscard]] static std::optional<bool> parseSetVideoSourceModeResponse(const std::string& xml);
+
+    [[nodiscard]] static std::optional<RadiometryConfig> parseRadiometryConfigurationResponse(const std::string& xml);
+    [[nodiscard]] static std::vector<RadiometrySpot> parseRadiometrySpotsResponse(const std::string& xml);
+    [[nodiscard]] static std::vector<RadiometryBox> parseRadiometryBoxesResponse(const std::string& xml);
+    [[nodiscard]] static std::vector<ColorPalette> parseColorPalettesResponse(const std::string& xml);
 
 private:
     std::string m_deviceEndpoint {};

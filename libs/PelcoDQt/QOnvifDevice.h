@@ -203,6 +203,30 @@ public:
         return m_videoSourceModes;
     }
 
+    /// @brief Gets cached radiometric environmental configuration.
+    [[nodiscard]] PelcoD::Onvif::RadiometryConfig radiometryConfig() const
+    {
+        return m_radiometryConfig;
+    }
+
+    /// @brief Gets cached spotmeter measurements.
+    [[nodiscard]] std::vector<PelcoD::Onvif::RadiometrySpot> radiometrySpots() const
+    {
+        return m_radiometrySpots;
+    }
+
+    /// @brief Gets cached radiometric zone/box measurements.
+    [[nodiscard]] std::vector<PelcoD::Onvif::RadiometryBox> radiometryBoxes() const
+    {
+        return m_radiometryBoxes;
+    }
+
+    /// @brief Gets cached thermal color palettes.
+    [[nodiscard]] std::vector<PelcoD::Onvif::ColorPalette> colorPalettes() const
+    {
+        return m_colorPalettes;
+    }
+
     /// @brief Gets camera hardware identification metadata.
     /// @return DeviceInformation struct.
     [[nodiscard]] PelcoD::Onvif::DeviceInformation deviceInformation() const;
@@ -797,6 +821,63 @@ public Q_SLOTS:
     /// @return True if mode switch was accepted.
     bool setVideoSourceMode(const QString& videoSourceToken, const QString& modeToken);
 
+    /// @brief Queries radiometric compensation parameters from camera.
+    /// @param[in] videoSourceToken Video source token.
+    void refreshRadiometryConfiguration(const QString& videoSourceToken = "VideoSource_1");
+
+    /// @brief Updates radiometric compensation parameters on camera.
+    /// @param[in] videoSourceToken Video source token.
+    /// @param[in] config Updated configuration.
+    /// @return True on success.
+    bool setRadiometryConfiguration(const QString& videoSourceToken, const PelcoD::Onvif::RadiometryConfig& config);
+    bool setRadiometryConfiguration(const PelcoD::Onvif::RadiometryConfig& config)
+    {
+        return setRadiometryConfiguration("VideoSource_1", config);
+    }
+
+    /// @brief Queries radiometric spotmeters and measurement boxes.
+    /// @param[in] videoSourceToken Video source token.
+    void refreshRadiometryMeasurements(const QString& videoSourceToken = "VideoSource_1");
+
+    /// @brief Updates or replaces radiometric spotmeters.
+    /// @param[in] videoSourceToken Video source token.
+    /// @param[in] spots Vector of spots.
+    /// @return True on success.
+    bool setRadiometrySpots(const QString& videoSourceToken, const std::vector<PelcoD::Onvif::RadiometrySpot>& spots);
+    bool setRadiometrySpots(const std::vector<PelcoD::Onvif::RadiometrySpot>& spots)
+    {
+        return setRadiometrySpots("VideoSource_1", spots);
+    }
+
+    /// @brief Updates or replaces radiometric measurement boxes.
+    /// @param[in] videoSourceToken Video source token.
+    /// @param[in] boxes Vector of boxes.
+    /// @return True on success.
+    bool setRadiometryBoxes(const QString& videoSourceToken, const std::vector<PelcoD::Onvif::RadiometryBox>& boxes);
+    bool setRadiometryBoxes(const std::vector<PelcoD::Onvif::RadiometryBox>& boxes)
+    {
+        return setRadiometryBoxes("VideoSource_1", boxes);
+    }
+
+    /// @brief Queries available thermal false-color palettes.
+    /// @param[in] videoSourceToken Video source token.
+    void refreshColorPalettes(const QString& videoSourceToken = "VideoSource_1");
+
+    /// @brief Switches active thermal false-color palette.
+    /// @param[in] videoSourceToken Video source token.
+    /// @param[in] paletteToken Palette token (e.g. "Ironbow").
+    /// @return True on success.
+    bool setColorPalette(const QString& videoSourceToken, const QString& paletteToken);
+    bool setColorPalette(const QString& paletteToken)
+    {
+        return setColorPalette("VideoSource_1", paletteToken);
+    }
+
+    /// @brief Triggers Non-Uniformity Correction (NUC / shutter calibration).
+    /// @param[in] videoSourceToken Video source token.
+    /// @return True on success.
+    bool triggerNuc(const QString& videoSourceToken = "VideoSource_1");
+
 Q_SIGNALS:
     /// @brief Emitted when device connection succeeds.
     /// @param[in] endpoint Connected service URL.
@@ -1006,6 +1087,26 @@ Q_SIGNALS:
     /// @param[in] rebootRequired True if device requires reboot.
     void videoSourceModeChanged(const QString& modeToken, bool rebootRequired);
 
+    /// @brief Emitted when radiometric configuration is retrieved.
+    /// @param[in] config Radiometric compensation configuration.
+    void radiometryConfigurationUpdated(const PelcoD::Onvif::RadiometryConfig& config);
+
+    /// @brief Emitted when radiometric spotmeters list is refreshed.
+    /// @param[in] spots List of spotmeters.
+    void radiometrySpotsUpdated(const std::vector<PelcoD::Onvif::RadiometrySpot>& spots);
+
+    /// @brief Emitted when radiometric measurement boxes list is refreshed.
+    /// @param[in] boxes List of measurement boxes.
+    void radiometryBoxesUpdated(const std::vector<PelcoD::Onvif::RadiometryBox>& boxes);
+
+    /// @brief Emitted when false-color palettes are refreshed.
+    /// @param[in] palettes Available palettes.
+    void colorPalettesUpdated(const std::vector<PelcoD::Onvif::ColorPalette>& palettes);
+
+    /// @brief Emitted when NUC shutter calibration completes.
+    /// @param[in] success True if command succeeded.
+    void nucTriggered(bool success);
+
     /// @brief Emitted when an operation fails.
     /// @param[in] message Diagnostic error message.
     void errorOccurred(const QString& message);
@@ -1059,6 +1160,11 @@ private:
     std::vector<PelcoD::Onvif::PrivacyMask> m_masks {};
     std::optional<PelcoD::Onvif::MaskOptions> m_maskOptions {};
     std::vector<PelcoD::Onvif::VideoSourceMode> m_videoSourceModes {};
+
+    PelcoD::Onvif::RadiometryConfig m_radiometryConfig {};
+    std::vector<PelcoD::Onvif::RadiometrySpot> m_radiometrySpots {};
+    std::vector<PelcoD::Onvif::RadiometryBox> m_radiometryBoxes {};
+    std::vector<PelcoD::Onvif::ColorPalette> m_colorPalettes {};
 };
 
 } // namespace PelcoD::Qt

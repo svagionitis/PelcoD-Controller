@@ -1594,4 +1594,108 @@ bool QOnvifDevice::setVideoSourceMode(const QString& videoSourceToken, const QSt
     return ok;
 }
 
+void QOnvifDevice::refreshRadiometryConfiguration(const QString& videoSourceToken)
+{
+    if (!m_client) {
+        return;
+    }
+    const std::string vs = videoSourceToken.isEmpty() ? "VideoSource_1" : videoSourceToken.toStdString();
+    const auto cfg = m_client->getRadiometryConfiguration(vs);
+    if (cfg) {
+        m_radiometryConfig = *cfg;
+        emit radiometryConfigurationUpdated(m_radiometryConfig);
+    }
+}
+
+bool QOnvifDevice::setRadiometryConfiguration(
+    const QString& videoSourceToken, const PelcoD::Onvif::RadiometryConfig& config)
+{
+    if (!m_client) {
+        return false;
+    }
+    const std::string vs = videoSourceToken.isEmpty() ? "VideoSource_1" : videoSourceToken.toStdString();
+    const bool ok = m_client->setRadiometryConfiguration(vs, config);
+    if (ok) {
+        m_radiometryConfig = config;
+        emit radiometryConfigurationUpdated(m_radiometryConfig);
+    }
+    return ok;
+}
+
+void QOnvifDevice::refreshRadiometryMeasurements(const QString& videoSourceToken)
+{
+    if (!m_client) {
+        return;
+    }
+    const std::string vs = videoSourceToken.isEmpty() ? "VideoSource_1" : videoSourceToken.toStdString();
+    m_radiometrySpots = m_client->getRadiometrySpots(vs);
+    m_radiometryBoxes = m_client->getRadiometryBoxes(vs);
+    emit radiometrySpotsUpdated(m_radiometrySpots);
+    emit radiometryBoxesUpdated(m_radiometryBoxes);
+}
+
+bool QOnvifDevice::setRadiometrySpots(
+    const QString& videoSourceToken, const std::vector<PelcoD::Onvif::RadiometrySpot>& spots)
+{
+    if (!m_client) {
+        return false;
+    }
+    const std::string vs = videoSourceToken.isEmpty() ? "VideoSource_1" : videoSourceToken.toStdString();
+    const bool ok = m_client->setRadiometrySpots(vs, spots);
+    if (ok) {
+        m_radiometrySpots = spots;
+        emit radiometrySpotsUpdated(m_radiometrySpots);
+    }
+    return ok;
+}
+
+bool QOnvifDevice::setRadiometryBoxes(
+    const QString& videoSourceToken, const std::vector<PelcoD::Onvif::RadiometryBox>& boxes)
+{
+    if (!m_client) {
+        return false;
+    }
+    const std::string vs = videoSourceToken.isEmpty() ? "VideoSource_1" : videoSourceToken.toStdString();
+    const bool ok = m_client->setRadiometryBoxes(vs, boxes);
+    if (ok) {
+        m_radiometryBoxes = boxes;
+        emit radiometryBoxesUpdated(m_radiometryBoxes);
+    }
+    return ok;
+}
+
+void QOnvifDevice::refreshColorPalettes(const QString& videoSourceToken)
+{
+    if (!m_client) {
+        return;
+    }
+    const std::string vs = videoSourceToken.isEmpty() ? "VideoSource_1" : videoSourceToken.toStdString();
+    m_colorPalettes = m_client->getColorPalettes(vs);
+    emit colorPalettesUpdated(m_colorPalettes);
+}
+
+bool QOnvifDevice::setColorPalette(const QString& videoSourceToken, const QString& paletteToken)
+{
+    if (!m_client) {
+        return false;
+    }
+    const std::string vs = videoSourceToken.isEmpty() ? "VideoSource_1" : videoSourceToken.toStdString();
+    const bool ok = m_client->setColorPalette(vs, paletteToken.toStdString());
+    if (ok) {
+        refreshColorPalettes(videoSourceToken);
+    }
+    return ok;
+}
+
+bool QOnvifDevice::triggerNuc(const QString& videoSourceToken)
+{
+    if (!m_client) {
+        return false;
+    }
+    const std::string vs = videoSourceToken.isEmpty() ? "VideoSource_1" : videoSourceToken.toStdString();
+    const bool ok = m_client->triggerNuc(vs);
+    emit nucTriggered(ok);
+    return ok;
+}
+
 } // namespace PelcoD::Qt

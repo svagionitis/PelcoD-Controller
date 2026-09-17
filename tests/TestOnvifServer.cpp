@@ -3025,6 +3025,251 @@ void testProfileTPrivacyMasksAndVideoSourceModes()
     std::cout << "[PASS] testProfileTPrivacyMasksAndVideoSourceModes" << std::endl;
 }
 
+void testThermalServiceAndRadiometry()
+{
+    const int port = 18585;
+    OnvifServerConfig config;
+    config.port = port;
+    config.deviceName = "Thermal Test Camera";
+
+    auto mockTransport = std::make_shared<PelcoD::MockPelcoDDevice>();
+    auto device = std::make_shared<PelcoD::PelcoDDevice>(mockTransport);
+    assert(device->start());
+
+    auto adapter = std::make_shared<PelcoDPtzAdapter>(device);
+
+    std::vector<OnvifEvent> publishedEvents;
+    adapter->setEventPublisher([&](const OnvifEvent& ev) {
+        publishedEvents.push_back(ev);
+    });
+
+    OnvifServer server(config, adapter, adapter);
+    server.setThermalHandler(adapter);
+
+    assert(server.start());
+    assert(server.isRunning());
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+    httplib::Client client("127.0.0.1", port);
+    client.set_connection_timeout(5, 0);
+    client.set_read_timeout(5, 0);
+
+    // 1. GetCapabilities on /onvif/device_service - verify Thermal extension
+    {
+        const std::string req = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+                                "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                "xmlns:tds=\"http://www.onvif.org/ver10/device/wsdl\">\r\n"
+                                "  <SOAP-ENV:Body>\r\n"
+                                "    <tds:GetCapabilities/>\r\n"
+                                "  </SOAP-ENV:Body>\r\n"
+                                "</SOAP-ENV:Envelope>";
+        auto res = client.Post("/onvif/device_service", req, "application/soap+xml; charset=utf-8");
+        assert(res && res->status == 200);
+        assert(res->body.find("GetCapabilitiesResponse") != std::string::npos);
+        assert(res->body.find("<tt:Thermal>") != std::string::npos);
+        assert(res->body.find("/onvif/thermal_service") != std::string::npos);
+    }
+
+    // 2. GetServices on /onvif/device_service - verify Thermal WSDL
+    {
+        const std::string req = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+                                "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                "xmlns:tds=\"http://www.onvif.org/ver10/device/wsdl\">\r\n"
+                                "  <SOAP-ENV:Body>\r\n"
+                                "    <tds:GetServices/>\r\n"
+                                "  </SOAP-ENV:Body>\r\n"
+                                "</SOAP-ENV:Envelope>";
+        auto res = client.Post("/onvif/device_service", req, "application/soap+xml; charset=utf-8");
+        assert(res && res->status == 200);
+        assert(res->body.find("http://www.onvif.org/ver10/thermal/wsdl") != std::string::npos);
+    }
+
+    // 3. Thermal Service - GetServiceCapabilities
+    {
+        const std::string req = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+                                "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                "xmlns:tth=\"http://www.onvif.org/ver10/thermal/wsdl\">\r\n"
+                                "  <SOAP-ENV:Body>\r\n"
+                                "    <tth:GetServiceCapabilities/>\r\n"
+                                "  </SOAP-ENV:Body>\r\n"
+                                "</SOAP-ENV:Envelope>";
+        auto res = client.Post("/onvif/thermal_service", req, "application/soap+xml; charset=utf-8");
+        assert(res && res->status == 200);
+        assert(res->body.find("GetServiceCapabilitiesResponse") != std::string::npos);
+        assert(res->body.find("Radiometry=\"true\"") != std::string::npos);
+        assert(res->body.find("ColorPalette=\"true\"") != std::string::npos);
+        assert(res->body.find("NUC=\"true\"") != std::string::npos);
+    }
+
+    // 4. Thermal Service - GetRadiometryConfiguration & SetRadiometryConfiguration
+    {
+        const std::string getReq = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+                                   "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                   "xmlns:tth=\"http://www.onvif.org/ver10/thermal/wsdl\">\r\n"
+                                   "  <SOAP-ENV:Body>\r\n"
+                                   "    <tth:GetRadiometryConfiguration>\r\n"
+                                   "      <tth:VideoSourceToken>VideoSource_1</tth:VideoSourceToken>\r\n"
+                                   "    </tth:GetRadiometryConfiguration>\r\n"
+                                   "  </SOAP-ENV:Body>\r\n"
+                                   "</SOAP-ENV:Envelope>";
+        auto res = client.Post("/onvif/thermal_service", getReq, "application/soap+xml; charset=utf-8");
+        assert(res && res->status == 200);
+        assert(res->body.find("GetRadiometryConfigurationResponse") != std::string::npos);
+        assert(res->body.find("<tth:Emissivity>") != std::string::npos);
+
+        const std::string setReq = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+                                   "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                   "xmlns:tth=\"http://www.onvif.org/ver10/thermal/wsdl\">\r\n"
+                                   "  <SOAP-ENV:Body>\r\n"
+                                   "    <tth:SetRadiometryConfiguration>\r\n"
+                                   "      <tth:VideoSourceToken>VideoSource_1</tth:VideoSourceToken>\r\n"
+                                   "      <tth:Configuration>\r\n"
+                                   "        <tth:Emissivity>0.96</tth:Emissivity>\r\n"
+                                   "        <tth:Distance>12.5</tth:Distance>\r\n"
+                                   "        <tth:ReflectedTemperature>24.0</tth:ReflectedTemperature>\r\n"
+                                   "        <tth:AtmosphericTemperature>23.0</tth:AtmosphericTemperature>\r\n"
+                                   "        <tth:RelativeHumidity>55.0</tth:RelativeHumidity>\r\n"
+                                   "        <tth:WindowTransmission>0.95</tth:WindowTransmission>\r\n"
+                                   "      </tth:Configuration>\r\n"
+                                   "    </tth:SetRadiometryConfiguration>\r\n"
+                                   "  </SOAP-ENV:Body>\r\n"
+                                   "</SOAP-ENV:Envelope>";
+        auto setRes = client.Post("/onvif/thermal_service", setReq, "application/soap+xml; charset=utf-8");
+        assert(setRes && setRes->status == 200);
+        assert(setRes->body.find("SetRadiometryConfigurationResponse") != std::string::npos);
+
+        const auto cfg = adapter->handleGetRadiometryConfiguration("VideoSource_1");
+        assert(std::fabs(cfg.emissivity - 0.96f) < 0.001f);
+        assert(std::fabs(cfg.distance - 12.5f) < 0.001f);
+    }
+
+    // 5. Thermal Service - GetColorPalettes & SetColorPalette
+    {
+        const std::string getReq = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+                                   "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                   "xmlns:tth=\"http://www.onvif.org/ver10/thermal/wsdl\">\r\n"
+                                   "  <SOAP-ENV:Body>\r\n"
+                                   "    <tth:GetColorPalettes>\r\n"
+                                   "      <tth:VideoSourceToken>VideoSource_1</tth:VideoSourceToken>\r\n"
+                                   "    </tth:GetColorPalettes>\r\n"
+                                   "  </SOAP-ENV:Body>\r\n"
+                                   "</SOAP-ENV:Envelope>";
+        auto res = client.Post("/onvif/thermal_service", getReq, "application/soap+xml; charset=utf-8");
+        assert(res && res->status == 200);
+        assert(res->body.find("GetColorPalettesResponse") != std::string::npos);
+        assert(res->body.find("WhiteHot") != std::string::npos);
+        assert(res->body.find("Ironbow") != std::string::npos);
+
+        const std::string setReq = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+                                   "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                   "xmlns:tth=\"http://www.onvif.org/ver10/thermal/wsdl\">\r\n"
+                                   "  <SOAP-ENV:Body>\r\n"
+                                   "    <tth:SetColorPalette>\r\n"
+                                   "      <tth:VideoSourceToken>VideoSource_1</tth:VideoSourceToken>\r\n"
+                                   "      <tth:PaletteToken>Ironbow</tth:PaletteToken>\r\n"
+                                   "    </tth:SetColorPalette>\r\n"
+                                   "  </SOAP-ENV:Body>\r\n"
+                                   "</SOAP-ENV:Envelope>";
+        auto setRes = client.Post("/onvif/thermal_service", setReq, "application/soap+xml; charset=utf-8");
+        assert(setRes && setRes->status == 200);
+        assert(setRes->body.find("SetColorPaletteResponse") != std::string::npos);
+    }
+
+    // 6. Thermal Service - TriggerNUC
+    {
+        const std::string nucReq = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+                                   "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                   "xmlns:tth=\"http://www.onvif.org/ver10/thermal/wsdl\">\r\n"
+                                   "  <SOAP-ENV:Body>\r\n"
+                                   "    <tth:TriggerNUC>\r\n"
+                                   "      <tth:VideoSourceToken>VideoSource_1</tth:VideoSourceToken>\r\n"
+                                   "    </tth:TriggerNUC>\r\n"
+                                   "  </SOAP-ENV:Body>\r\n"
+                                   "</SOAP-ENV:Envelope>";
+        auto res = client.Post("/onvif/thermal_service", nucReq, "application/soap+xml; charset=utf-8");
+        assert(res && res->status == 200);
+        assert(res->body.find("TriggerNUCResponse") != std::string::npos);
+    }
+
+    // 7. Radiometry Alarm Threshold Event verification via SetRadiometryBoxes
+    {
+        RadiometryBox testBox {};
+        testBox.token = "Box_1";
+        testBox.label = "Overheat Zone";
+        testBox.minTemperature = 30.0f;
+        testBox.maxTemperature = 85.0f; // Above 50.0 default threshold
+        testBox.avgTemperature = 65.0f;
+        testBox.topLeft = { 0.1f, 0.1f };
+        testBox.bottomRight = { 0.5f, 0.5f };
+
+        publishedEvents.clear();
+        assert(adapter->handleSetRadiometryBoxes("VideoSource_1", { testBox }));
+        // Expect an alarm event was emitted because 85.0 >= 70.0
+        assert(!publishedEvents.empty());
+        assert(publishedEvents.back().topic.find("Thermal/Radiometry/HighTemperatureAlarm") != std::string::npos);
+    }
+
+    // 8. End-to-end OnvifClient calls against running server
+    {
+        OnvifClient onvifClient("http://127.0.0.1:" + std::to_string(port) + "/onvif/device_service");
+        const auto caps = onvifClient.getCapabilities();
+        assert(caps.has_value());
+        assert(!caps->thermalXAddr.empty());
+
+        // Radiometry config
+        const auto radCfg = onvifClient.getRadiometryConfiguration("VideoSource_1");
+        assert(radCfg.has_value());
+        assert(std::fabs(radCfg->emissivity - 0.96f) < 0.001f);
+
+        RadiometryConfig newCfg = *radCfg;
+        newCfg.emissivity = 0.88f;
+        assert(onvifClient.setRadiometryConfiguration("VideoSource_1", newCfg));
+
+        // Color palettes
+        const auto palettes = onvifClient.getColorPalettes("VideoSource_1");
+        assert(!palettes.empty());
+        assert(onvifClient.setColorPalette("VideoSource_1", "Rainbow"));
+
+        // Spots
+        RadiometrySpot spot1 {};
+        spot1.token = "Spot_Client1";
+        spot1.label = "Bearing";
+        spot1.position = { 0.4f, 0.6f };
+        spot1.temperature = 41.5f;
+        assert(onvifClient.setRadiometrySpots("VideoSource_1", { spot1 }));
+
+        const auto spots = onvifClient.getRadiometrySpots("VideoSource_1");
+        assert(spots.size() == 1U);
+        assert(spots[0].token == "Spot_Client1");
+        assert(std::fabs(spots[0].temperature - 41.5f) < 0.001f);
+
+        // Boxes
+        RadiometryBox box1 {};
+        box1.token = "Box_Client1";
+        box1.label = "Transformer";
+        box1.topLeft = { 0.2f, 0.2f };
+        box1.bottomRight = { 0.8f, 0.8f };
+        box1.minTemperature = 28.0f;
+        box1.maxTemperature = 62.0f;
+        box1.avgTemperature = 48.0f;
+        assert(onvifClient.setRadiometryBoxes("VideoSource_1", { box1 }));
+
+        const auto boxes = onvifClient.getRadiometryBoxes("VideoSource_1");
+        assert(boxes.size() == 1U);
+        assert(boxes[0].token == "Box_Client1");
+
+        // Trigger NUC
+        assert(onvifClient.triggerNuc("VideoSource_1"));
+    }
+
+    server.stop();
+    assert(!server.isRunning());
+    device->stop();
+
+    std::cout << "[PASS] testThermalServiceAndRadiometry" << std::endl;
+}
+
 int main()
 {
     std::cout << "Starting TestOnvifServer test suite..." << std::endl;
@@ -3042,6 +3287,7 @@ int main()
     testVideoAnalyticsRuleEngineAndEvaluation();
     testPtzGeoMoveAndSphericalSpaces();
     testProfileTPrivacyMasksAndVideoSourceModes();
+    testThermalServiceAndRadiometry();
     std::cout << "All TestOnvifServer tests passed successfully!" << std::endl;
     return 0;
 }

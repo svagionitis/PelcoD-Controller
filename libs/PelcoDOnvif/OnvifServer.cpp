@@ -204,6 +204,12 @@ OnvifServer::OnvifServer(OnvifServerConfig config, std::shared_ptr<IPtzHandler> 
         m_internalVideoSourceModes.push_back(mode2);
     }
 
+    m_internalRadiometryConfig = m_config.defaultRadiometryConfig;
+    m_internalRadiometrySpots = m_config.defaultRadiometrySpots;
+    m_internalRadiometryBoxes = m_config.defaultRadiometryBoxes;
+    m_internalColorPalettes = m_config.defaultColorPalettes;
+    m_internalThermalCaps = m_config.defaultThermalCapabilities;
+
     logSystemMessage("INFO", "ONVIF Server initialized successfully");
 
     m_discoveryServer = std::make_unique<WsDiscoveryServer>(m_config);
@@ -337,6 +343,11 @@ void OnvifServer::setVideoSourceModeHandler(std::shared_ptr<IVideoSourceModeHand
     m_videoSourceModeHandler = std::move(handler);
 }
 
+void OnvifServer::setThermalHandler(std::shared_ptr<IThermalHandler> handler)
+{
+    m_thermalHandler = std::move(handler);
+}
+
 void OnvifServer::logSystemMessage(const std::string& level, const std::string& msg)
 {
     std::lock_guard<std::mutex> lock(m_logMutex);
@@ -458,6 +469,9 @@ void OnvifServer::setupRoutes()
 
     m_httpServer.Post("/onvif/replay_service",
         [this](const httplib::Request& req, httplib::Response& res) { handleReplayService(req, res); });
+
+    m_httpServer.Post("/onvif/thermal_service",
+        [this](const httplib::Request& req, httplib::Response& res) { handleThermalService(req, res); });
 
     m_httpServer.Get("/onvif/metadata_stream",
         [this](const httplib::Request& req, httplib::Response& res) { handleMetadataStream(req, res); });
@@ -637,6 +651,9 @@ void OnvifServer::handleDeviceService(const httplib::Request& req, httplib::Resp
              << "          <tt:Media2>\r\n"
              << "            <tt:XAddr>http://" << host << ":" << port << "/onvif/media2_service</tt:XAddr>\r\n"
              << "          </tt:Media2>\r\n"
+             << "          <tt:Thermal>\r\n"
+             << "            <tt:XAddr>http://" << host << ":" << port << "/onvif/thermal_service</tt:XAddr>\r\n"
+             << "          </tt:Thermal>\r\n"
              << "        </tt:Extension>\r\n"
              << "      </tds:Capabilities>\r\n"
              << "    </tds:GetCapabilitiesResponse>\r\n";
@@ -646,6 +663,11 @@ void OnvifServer::handleDeviceService(const httplib::Request& req, httplib::Resp
              << "        <tds:Namespace>http://www.onvif.org/ver10/device/wsdl</tds:Namespace>\r\n"
              << "        <tds:XAddr>http://" << host << ":" << port << "/onvif/device_service</tds:XAddr>\r\n"
              << "        <tds:Version><tt:Major>10</tt:Major><tt:Minor>0</tt:Minor></tds:Version>\r\n"
+             << "      </tds:Service>\r\n"
+             << "      <tds:Service>\r\n"
+             << "        <tds:Namespace>http://www.onvif.org/ver10/thermal/wsdl</tds:Namespace>\r\n"
+             << "        <tds:XAddr>http://" << host << ":" << port << "/onvif/thermal_service</tds:XAddr>\r\n"
+             << "        <tds:Version><tt:Major>1</tt:Major><tt:Minor>0</tt:Minor></tds:Version>\r\n"
              << "      </tds:Service>\r\n"
              << "      <tds:Service>\r\n"
              << "        <tds:Namespace>http://www.onvif.org/ver10/media/wsdl</tds:Namespace>\r\n"
@@ -4537,6 +4559,247 @@ void OnvifServer::handleReplayService(const httplib::Request& req, httplib::Resp
         body << "    <trp:SetReplayConfigurationResponse/>\r\n";
     } else {
         body << "    <trp:" << opName << "Response/>\r\n";
+    }
+
+    res.status = 200;
+    res.set_content(wrapSoapResponse(body.str()), "application/soap+xml; charset=utf-8");
+}
+
+void OnvifServer::handleThermalService(const httplib::Request& req, httplib::Response& res)
+{
+    pugi::xml_document doc;
+    if (!doc.load_string(req.body.c_str())) {
+        res.status = 400;
+        return;
+    }
+
+    const pugi::xml_node bodyNode = doc.select_node("//*[local-name()='Body']").node();
+    const pugi::xml_node reqNode = bodyNode ? bodyNode.first_child() : pugi::xml_node {};
+    const std::string opName = reqNode ? reqNode.name() : "";
+    if (m_logCallback) {
+        m_logCallback("Thermal", opName, req.remote_addr);
+    }
+    {
+        std::lock_guard<std::mutex> lock(m_logMutex);
+        const std::string timestamp = formatIso8601Utc(std::chrono::system_clock::now());
+        std::ostringstream entry;
+        entry << "[" << timestamp << "] [" << req.remote_addr << "] ThermalService: " << opName;
+        m_accessLogs.push_back(entry.str());
+        if (m_accessLogs.size() > 500) {
+            m_accessLogs.pop_front();
+        }
+    }
+
+    std::ostringstream body;
+
+    if (isOp(opName, "GetServiceCapabilities")) {
+        body << "    <tth:GetServiceCapabilitiesResponse>\r\n"
+             << "      <tth:Capabilities Radiometry=\"true\" ColorPalette=\"true\" NUC=\"true\" Cooler=\"false\"/>\r\n"
+             << "    </tth:GetServiceCapabilitiesResponse>\r\n";
+    } else if (isOp(opName, "GetRadiometryConfigurationOptions")) {
+        body << "    <tth:GetRadiometryConfigurationOptionsResponse>\r\n"
+             << "      <tth:Options>\r\n"
+             << "        <tth:EmissivityRange Min=\"0.01\" Max=\"1.00\"/>\r\n"
+             << "        <tth:DistanceRange Min=\"0.1\" Max=\"1000.0\"/>\r\n"
+             << "        <tth:ReflectedTemperatureRange Min=\"-50.0\" Max=\"1500.0\"/>\r\n"
+             << "        <tth:AtmosphericTemperatureRange Min=\"-50.0\" Max=\"100.0\"/>\r\n"
+             << "        <tth:RelativeHumidityRange Min=\"0.0\" Max=\"100.0\"/>\r\n"
+             << "        <tth:WindowTransmissionRange Min=\"0.01\" Max=\"1.00\"/>\r\n"
+             << "      </tth:Options>\r\n"
+             << "    </tth:GetRadiometryConfigurationOptionsResponse>\r\n";
+    } else if (isOp(opName, "GetRadiometryConfiguration")) {
+        const auto tokNode = reqNode.select_node(".//*[local-name()='VideoSourceToken']").node();
+        const std::string tok = tokNode ? tokNode.text().as_string() : "VideoSource_1";
+        RadiometryConfig cfg {};
+        if (m_thermalHandler) {
+            cfg = m_thermalHandler->handleGetRadiometryConfiguration(tok);
+        } else {
+            std::lock_guard<std::mutex> lock(m_thermalMutex);
+            cfg = m_internalRadiometryConfig;
+        }
+        body << "    <tth:GetRadiometryConfigurationResponse>\r\n"
+             << "      <tth:Configuration>\r\n"
+             << "        <tth:VideoSourceToken>" << tok << "</tth:VideoSourceToken>\r\n"
+             << "        <tth:Emissivity>" << std::fixed << std::setprecision(2) << cfg.emissivity << "</tth:Emissivity>\r\n"
+             << "        <tth:Distance>" << std::fixed << std::setprecision(1) << cfg.distance << "</tth:Distance>\r\n"
+             << "        <tth:ReflectedTemperature>" << std::fixed << std::setprecision(1) << cfg.reflectedTemperature << "</tth:ReflectedTemperature>\r\n"
+             << "        <tth:AtmosphericTemperature>" << std::fixed << std::setprecision(1) << cfg.atmosphericTemperature << "</tth:AtmosphericTemperature>\r\n"
+             << "        <tth:RelativeHumidity>" << std::fixed << std::setprecision(1) << cfg.relativeHumidity << "</tth:RelativeHumidity>\r\n"
+             << "        <tth:WindowTransmission>" << std::fixed << std::setprecision(2) << cfg.windowTransmission << "</tth:WindowTransmission>\r\n"
+             << "      </tth:Configuration>\r\n"
+             << "    </tth:GetRadiometryConfigurationResponse>\r\n";
+    } else if (isOp(opName, "SetRadiometryConfiguration")) {
+        const auto cfgNode = reqNode.select_node(".//*[local-name()='Configuration']").node();
+        const auto tokNode = cfgNode ? cfgNode.select_node(".//*[local-name()='VideoSourceToken']").node() : pugi::xml_node {};
+        const std::string tok = tokNode ? tokNode.text().as_string() : "VideoSource_1";
+
+        RadiometryConfig cfg {};
+        if (cfgNode) {
+            const auto emNode = cfgNode.select_node(".//*[local-name()='Emissivity']").node();
+            if (emNode) cfg.emissivity = emNode.text().as_float(0.95f);
+            const auto distNode = cfgNode.select_node(".//*[local-name()='Distance']").node();
+            if (distNode) cfg.distance = distNode.text().as_float(5.0f);
+            const auto refNode = cfgNode.select_node(".//*[local-name()='ReflectedTemperature']").node();
+            if (refNode) cfg.reflectedTemperature = refNode.text().as_float(20.0f);
+            const auto atmNode = cfgNode.select_node(".//*[local-name()='AtmosphericTemperature']").node();
+            if (atmNode) cfg.atmosphericTemperature = atmNode.text().as_float(20.0f);
+            const auto humNode = cfgNode.select_node(".//*[local-name()='RelativeHumidity']").node();
+            if (humNode) cfg.relativeHumidity = humNode.text().as_float(50.0f);
+            const auto winNode = cfgNode.select_node(".//*[local-name()='WindowTransmission']").node();
+            if (winNode) cfg.windowTransmission = winNode.text().as_float(1.0f);
+        }
+
+        if (m_thermalHandler) {
+            m_thermalHandler->handleSetRadiometryConfiguration(tok, cfg);
+        }
+        {
+            std::lock_guard<std::mutex> lock(m_thermalMutex);
+            m_internalRadiometryConfig = cfg;
+        }
+        body << "    <tth:SetRadiometryConfigurationResponse/>\r\n";
+    } else if (isOp(opName, "GetRadiometrySpots")) {
+        const auto tokNode = reqNode.select_node(".//*[local-name()='VideoSourceToken']").node();
+        const std::string tok = tokNode ? tokNode.text().as_string() : "VideoSource_1";
+        std::vector<RadiometrySpot> spots {};
+        if (m_thermalHandler) {
+            spots = m_thermalHandler->handleGetRadiometrySpots(tok);
+        } else {
+            std::lock_guard<std::mutex> lock(m_thermalMutex);
+            spots = m_internalRadiometrySpots;
+        }
+        body << "    <tth:GetRadiometrySpotsResponse>\r\n";
+        for (const auto& s : spots) {
+            body << "      <tth:Spot token=\"" << s.token << "\">\r\n"
+                 << "        <tth:Position x=\"" << std::fixed << std::setprecision(4) << s.position.x
+                 << "\" y=\"" << s.position.y << "\"/>\r\n"
+                 << "        <tth:Label>" << s.label << "</tth:Label>\r\n"
+                 << "        <tth:Temperature>" << std::fixed << std::setprecision(1) << s.temperature << "</tth:Temperature>\r\n"
+                 << "      </tth:Spot>\r\n";
+        }
+        body << "    </tth:GetRadiometrySpotsResponse>\r\n";
+    } else if (isOp(opName, "SetRadiometrySpots")) {
+        const auto tokNode = reqNode.select_node(".//*[local-name()='VideoSourceToken']").node();
+        const std::string tok = tokNode ? tokNode.text().as_string() : "VideoSource_1";
+        std::vector<RadiometrySpot> spots {};
+        for (const auto& spotNode : reqNode.select_nodes(".//*[local-name()='Spot']")) {
+            RadiometrySpot s {};
+            s.token = spotNode.node().attribute("token").as_string();
+            const auto pos = spotNode.node().select_node(".//*[local-name()='Position']").node();
+            if (pos) {
+                s.position.x = pos.attribute("x").as_float(0.5f);
+                s.position.y = pos.attribute("y").as_float(0.5f);
+            }
+            const auto lbl = spotNode.node().select_node(".//*[local-name()='Label']").node();
+            if (lbl) s.label = lbl.text().as_string();
+            const auto temp = spotNode.node().select_node(".//*[local-name()='Temperature']").node();
+            if (temp) s.temperature = temp.text().as_float(0.0f);
+            if (!s.token.empty()) spots.push_back(std::move(s));
+        }
+        if (m_thermalHandler) {
+            m_thermalHandler->handleSetRadiometrySpots(tok, spots);
+        }
+        {
+            std::lock_guard<std::mutex> lock(m_thermalMutex);
+            m_internalRadiometrySpots = spots;
+        }
+        body << "    <tth:SetRadiometrySpotsResponse/>\r\n";
+    } else if (isOp(opName, "GetRadiometryBoxes")) {
+        const auto tokNode = reqNode.select_node(".//*[local-name()='VideoSourceToken']").node();
+        const std::string tok = tokNode ? tokNode.text().as_string() : "VideoSource_1";
+        std::vector<RadiometryBox> boxes {};
+        if (m_thermalHandler) {
+            boxes = m_thermalHandler->handleGetRadiometryBoxes(tok);
+        } else {
+            std::lock_guard<std::mutex> lock(m_thermalMutex);
+            boxes = m_internalRadiometryBoxes;
+        }
+        body << "    <tth:GetRadiometryBoxesResponse>\r\n";
+        for (const auto& b : boxes) {
+            body << "      <tth:Box token=\"" << b.token << "\">\r\n"
+                 << "        <tth:TopLeft x=\"" << std::fixed << std::setprecision(4) << b.topLeft.x
+                 << "\" y=\"" << b.topLeft.y << "\"/>\r\n"
+                 << "        <tth:BottomRight x=\"" << b.bottomRight.x << "\" y=\"" << b.bottomRight.y << "\"/>\r\n"
+                 << "        <tth:Label>" << b.label << "</tth:Label>\r\n"
+                 << "        <tth:MinTemperature>" << std::fixed << std::setprecision(1) << b.minTemperature << "</tth:MinTemperature>\r\n"
+                 << "        <tth:MaxTemperature>" << b.maxTemperature << "</tth:MaxTemperature>\r\n"
+                 << "        <tth:AvgTemperature>" << b.avgTemperature << "</tth:AvgTemperature>\r\n"
+                 << "      </tth:Box>\r\n";
+        }
+        body << "    </tth:GetRadiometryBoxesResponse>\r\n";
+    } else if (isOp(opName, "SetRadiometryBoxes")) {
+        const auto tokNode = reqNode.select_node(".//*[local-name()='VideoSourceToken']").node();
+        const std::string tok = tokNode ? tokNode.text().as_string() : "VideoSource_1";
+        std::vector<RadiometryBox> boxes {};
+        for (const auto& boxNode : reqNode.select_nodes(".//*[local-name()='Box']")) {
+            RadiometryBox b {};
+            b.token = boxNode.node().attribute("token").as_string();
+            const auto tl = boxNode.node().select_node(".//*[local-name()='TopLeft']").node();
+            if (tl) {
+                b.topLeft.x = tl.attribute("x").as_float(0.0f);
+                b.topLeft.y = tl.attribute("y").as_float(0.0f);
+            }
+            const auto br = boxNode.node().select_node(".//*[local-name()='BottomRight']").node();
+            if (br) {
+                b.bottomRight.x = br.attribute("x").as_float(1.0f);
+                b.bottomRight.y = br.attribute("y").as_float(1.0f);
+            }
+            const auto lbl = boxNode.node().select_node(".//*[local-name()='Label']").node();
+            if (lbl) b.label = lbl.text().as_string();
+            const auto minT = boxNode.node().select_node(".//*[local-name()='MinTemperature']").node();
+            if (minT) b.minTemperature = minT.text().as_float(0.0f);
+            const auto maxT = boxNode.node().select_node(".//*[local-name()='MaxTemperature']").node();
+            if (maxT) b.maxTemperature = maxT.text().as_float(0.0f);
+            const auto avgT = boxNode.node().select_node(".//*[local-name()='AvgTemperature']").node();
+            if (avgT) b.avgTemperature = avgT.text().as_float(0.0f);
+            if (!b.token.empty()) boxes.push_back(std::move(b));
+        }
+        if (m_thermalHandler) {
+            m_thermalHandler->handleSetRadiometryBoxes(tok, boxes);
+        }
+        {
+            std::lock_guard<std::mutex> lock(m_thermalMutex);
+            m_internalRadiometryBoxes = boxes;
+        }
+        body << "    <tth:SetRadiometryBoxesResponse/>\r\n";
+    } else if (isOp(opName, "GetColorPalettes")) {
+        const auto tokNode = reqNode.select_node(".//*[local-name()='VideoSourceToken']").node();
+        const std::string tok = tokNode ? tokNode.text().as_string() : "VideoSource_1";
+        std::vector<ColorPalette> palettes {};
+        if (m_thermalHandler) {
+            palettes = m_thermalHandler->handleGetColorPalettes(tok);
+        } else {
+            std::lock_guard<std::mutex> lock(m_thermalMutex);
+            palettes = m_internalColorPalettes;
+        }
+        body << "    <tth:GetColorPalettesResponse>\r\n";
+        for (const auto& p : palettes) {
+            body << "      <tth:Palette token=\"" << p.token << "\" IsDefault=\"" << (p.isDefault ? "true" : "false") << "\">\r\n"
+                 << "        <tth:Name>" << p.name << "</tth:Name>\r\n"
+                 << "      </tth:Palette>\r\n";
+        }
+        body << "    </tth:GetColorPalettesResponse>\r\n";
+    } else if (isOp(opName, "SetColorPalette")) {
+        const auto tokNode = reqNode.select_node(".//*[local-name()='VideoSourceToken']").node();
+        const std::string tok = tokNode ? tokNode.text().as_string() : "VideoSource_1";
+        const auto palNode = reqNode.select_node(".//*[local-name()='PaletteToken']").node();
+        const std::string pal = palNode ? palNode.text().as_string() : "WhiteHot";
+        if (m_thermalHandler) {
+            m_thermalHandler->handleSetColorPalette(tok, pal);
+        }
+        {
+            std::lock_guard<std::mutex> lock(m_thermalMutex);
+            m_internalActiveColorPalette = pal;
+        }
+        body << "    <tth:SetColorPaletteResponse/>\r\n";
+    } else if (isOp(opName, "TriggerNUC") || isOp(opName, "ManualNUC")) {
+        const auto tokNode = reqNode.select_node(".//*[local-name()='VideoSourceToken']").node();
+        const std::string tok = tokNode ? tokNode.text().as_string() : "VideoSource_1";
+        if (m_thermalHandler) {
+            m_thermalHandler->handleTriggerNuc(tok);
+        }
+        body << "    <tth:TriggerNUCResponse/>\r\n";
+    } else {
+        body << "    <tth:" << opName << "Response/>\r\n";
     }
 
     res.status = 200;

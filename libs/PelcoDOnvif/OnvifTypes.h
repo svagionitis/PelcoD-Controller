@@ -831,4 +831,70 @@ struct VideoSourceMode {
     std::string description {};             ///< Human-readable mode label
 };
 
+/// @enum RadiometryAlarmType
+/// @brief Type of radiometric temperature threshold alarm.
+enum class RadiometryAlarmType {
+    HighTemperature,    ///< Triggered when temperature rises above threshold
+    LowTemperature      ///< Triggered when temperature falls below threshold
+};
+
+/// @struct RadiometryConfig
+/// @brief Radiometric compensation parameters for temperature calculation (ONVIF Thermal Service).
+struct RadiometryConfig {
+    float emissivity { 0.95f };              ///< Surface emissivity [0.01, 1.00] (0.95 for human skin/matte)
+    float distance { 5.0f };                 ///< Distance to target in meters
+    float reflectedTemperature { 20.0f };    ///< Ambient reflected temperature in Celsius
+    float atmosphericTemperature { 20.0f };  ///< Ambient atmospheric temperature in Celsius
+    float relativeHumidity { 50.0f };        ///< Relative humidity percentage [0.0, 100.0]
+    float windowTransmission { 1.0f };       ///< Window/optics transmission factor [0.01, 1.00]
+};
+
+/// @struct RadiometrySpot
+/// @brief Single point spotmeter temperature measurement (ONVIF Thermal Service).
+struct RadiometrySpot {
+    std::string token {};                    ///< Unique spot token (e.g. "Spot_1")
+    Point2D position { 0.5f, 0.5f };         ///< Normalized coordinates [0.0, 1.0]
+    std::string label { "Spot 1" };          ///< Human-readable label
+    float temperature { 25.0f };             ///< Measured temperature in Celsius
+};
+
+/// @struct RadiometryBox
+/// @brief Rectangular area temperature measurement zone (ONVIF Thermal Service).
+struct RadiometryBox {
+    std::string token {};                    ///< Unique box token (e.g. "Box_1")
+    Point2D topLeft { 0.25f, 0.25f };        ///< Normalized top-left coordinates [0.0, 1.0]
+    Point2D bottomRight { 0.75f, 0.75f };    ///< Normalized bottom-right coordinates [0.0, 1.0]
+    std::string label { "Area 1" };          ///< Human-readable label
+    float minTemperature { 22.0f };          ///< Minimum measured temperature in Celsius
+    float maxTemperature { 38.5f };          ///< Maximum measured temperature in Celsius
+    float avgTemperature { 30.2f };          ///< Average measured temperature in Celsius
+};
+
+/// @struct RadiometryAlarmConfig
+/// @brief Radiometric temperature threshold alarm configuration (ONVIF Thermal Service).
+struct RadiometryAlarmConfig {
+    std::string token {};                    ///< Associated spot or box token
+    float thresholdTemperature { 50.0f };    ///< Alarm temperature threshold in Celsius
+    float hysteresis { 2.0f };               ///< Alarm hysteresis in Celsius
+    RadiometryAlarmType alarmType { RadiometryAlarmType::HighTemperature }; ///< High or Low alarm
+    bool enabled { true };                   ///< Whether alarm evaluation is active
+};
+
+/// @struct ColorPalette
+/// @brief Thermal false-color visualization palette (ONVIF Thermal Service).
+struct ColorPalette {
+    std::string token {};                    ///< Palette token (e.g. "WhiteHot", "Ironbow")
+    std::string name {};                     ///< Display name
+    bool isDefault { false };                ///< Whether this is the camera's default palette
+};
+
+/// @struct ThermalCapabilities
+/// @brief Device capabilities supported by the ONVIF Thermal Service.
+struct ThermalCapabilities {
+    bool radiometry { true };                ///< Radiometric temperature measurement supported
+    bool colorPalette { true };              ///< False-color palette selection supported
+    bool nuc { true };                       ///< Non-Uniformity Correction (shutter) supported
+    bool cooler { false };                   ///< Stirling or pulse-tube cooler supported
+};
+
 } // namespace PelcoD::Onvif

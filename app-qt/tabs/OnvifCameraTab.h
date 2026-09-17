@@ -238,6 +238,21 @@ private slots:
     void handlePkcs10CsrReceived(const PelcoD::Onvif::Pkcs10Request& csr);
     void handleClientCertModeUpdated(PelcoD::Onvif::ClientCertificateMode mode);
 
+    // Thermal & Radiometry Service
+    void handleRefreshRadiometry();
+    void handleApplyRadiometry();
+    void handleRefreshPalettes();
+    void handleSetPalette();
+    void handleTriggerNuc();
+    void handleRefreshMeasurements();
+    void handleAddMeasurement();
+    void handleDeleteMeasurement();
+    void handleRadiometryConfigUpdated(const PelcoD::Onvif::RadiometryConfig& config);
+    void handleRadiometrySpotsUpdated(const std::vector<PelcoD::Onvif::RadiometrySpot>& spots);
+    void handleRadiometryBoxesUpdated(const std::vector<PelcoD::Onvif::RadiometryBox>& boxes);
+    void handleColorPalettesUpdated(const std::vector<PelcoD::Onvif::ColorPalette>& palettes);
+    void handleNucTriggered(bool success);
+
 private:
     void setupUi();
     void updateConnectionUi(bool connected);
@@ -526,6 +541,37 @@ private:
     QDoubleSpinBox* spinSphericalElevation { nullptr };
     QDoubleSpinBox* spinSphericalZoom { nullptr };
     QPushButton* btnExecuteSphericalMove { nullptr };
+
+    // Thermal & Radiometry UI controls (Sub-Tab 13)
+    QDoubleSpinBox* spinEmissivity { nullptr };
+    QDoubleSpinBox* spinTargetDistance { nullptr };
+    QDoubleSpinBox* spinReflectedTemp { nullptr };
+    QDoubleSpinBox* spinAtmosphericTemp { nullptr };
+    QDoubleSpinBox* spinRelativeHumidity { nullptr };
+    QDoubleSpinBox* spinWindowTransmission { nullptr };
+    QPushButton* btnRefreshRadiometry { nullptr };
+    QPushButton* btnApplyRadiometry { nullptr };
+
+    QComboBox* cmbThermalPalettes { nullptr };
+    QPushButton* btnSetPalette { nullptr };
+    QPushButton* btnRefreshPalettes { nullptr };
+    QPushButton* btnTriggerNuc { nullptr };
+    QLabel* lblNucStatus { nullptr };
+
+    QTableWidget* tableRadiometry { nullptr };
+    QComboBox* cmbRadType { nullptr };
+    QLineEdit* editRadToken { nullptr };
+    QLineEdit* editRadLabel { nullptr };
+    QDoubleSpinBox* spinRadX1 { nullptr };
+    QDoubleSpinBox* spinRadY1 { nullptr };
+    QDoubleSpinBox* spinRadX2 { nullptr };
+    QDoubleSpinBox* spinRadY2 { nullptr };
+    QPushButton* btnAddMeasurement { nullptr };
+    QPushButton* btnDeleteMeasurement { nullptr };
+    QPushButton* btnRefreshMeasurements { nullptr };
+
+    QDoubleSpinBox* spinAlarmThreshold { nullptr };
+    QLabel* lblThermalAlarmStatus { nullptr };
 };
 
 } // namespace PelcoDApp

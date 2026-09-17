@@ -227,6 +227,23 @@ std::optional<OnvifCapabilities> OnvifClient::parseCapabilitiesResponse(const st
                 caps.media2XAddr = xaddr.text().as_string();
             }
         }
+        const auto thermalNode = findNodeWithSuffix(extNode, "Thermal");
+        if (thermalNode) {
+            const auto xaddr = findNodeWithSuffix(thermalNode, "XAddr");
+            if (xaddr) {
+                caps.thermalXAddr = xaddr.text().as_string();
+            }
+        }
+    }
+
+    if (caps.thermalXAddr.empty()) {
+        const auto thermalNode = findNodeWithSuffix(capNode, "Thermal");
+        if (thermalNode) {
+            const auto xaddr = findNodeWithSuffix(thermalNode, "XAddr");
+            if (xaddr) {
+                caps.thermalXAddr = xaddr.text().as_string();
+            }
+        }
     }
 
     if (caps.media2XAddr.empty()) {
@@ -5256,6 +5273,370 @@ std::optional<bool> OnvifClient::parseSetVideoSourceModeResponse(const std::stri
     }
 
     return false;
+}
+
+std::optional<RadiometryConfig> OnvifClient::getRadiometryConfiguration(const std::string& videoSourceToken)
+{
+    const std::string targetUrl
+        = resolveServiceUrl(m_capabilities.thermalXAddr, m_deviceEndpoint, "/onvif/thermal_service");
+    std::ostringstream ss {};
+    ss << "<tth:GetRadiometryConfiguration xmlns:tth=\"http://www.onvif.org/ver10/thermal/wsdl\">\n"
+       << "  <tth:VideoSourceToken>" << videoSourceToken << "</tth:VideoSourceToken>\n"
+       << "</tth:GetRadiometryConfiguration>";
+
+    const std::string reqXml = wrapSoapEnvelope(ss.str());
+    const HttpResponse resp = m_httpClient.sendPost(targetUrl, reqXml);
+    if (!resp.isSuccess()) {
+        return std::nullopt;
+    }
+    return parseRadiometryConfigurationResponse(resp.body);
+}
+
+bool OnvifClient::setRadiometryConfiguration(
+    const std::string& videoSourceToken, const RadiometryConfig& config)
+{
+    const std::string targetUrl
+        = resolveServiceUrl(m_capabilities.thermalXAddr, m_deviceEndpoint, "/onvif/thermal_service");
+    std::ostringstream ss {};
+    ss << "<tth:SetRadiometryConfiguration xmlns:tth=\"http://www.onvif.org/ver10/thermal/wsdl\">\n"
+       << "  <tth:Configuration>\n"
+       << "    <tth:VideoSourceToken>" << videoSourceToken << "</tth:VideoSourceToken>\n"
+       << "    <tth:Emissivity>" << std::fixed << std::setprecision(2) << config.emissivity << "</tth:Emissivity>\n"
+       << "    <tth:Distance>" << std::fixed << std::setprecision(1) << config.distance << "</tth:Distance>\n"
+       << "    <tth:ReflectedTemperature>" << std::fixed << std::setprecision(1) << config.reflectedTemperature
+       << "</tth:ReflectedTemperature>\n"
+       << "    <tth:AtmosphericTemperature>" << std::fixed << std::setprecision(1) << config.atmosphericTemperature
+       << "</tth:AtmosphericTemperature>\n"
+       << "    <tth:RelativeHumidity>" << std::fixed << std::setprecision(1) << config.relativeHumidity
+       << "</tth:RelativeHumidity>\n"
+       << "    <tth:WindowTransmission>" << std::fixed << std::setprecision(2) << config.windowTransmission
+       << "</tth:WindowTransmission>\n"
+       << "  </tth:Configuration>\n"
+       << "</tth:SetRadiometryConfiguration>";
+
+    const std::string reqXml = wrapSoapEnvelope(ss.str());
+    const HttpResponse resp = m_httpClient.sendPost(targetUrl, reqXml);
+    return resp.isSuccess();
+}
+
+std::vector<RadiometrySpot> OnvifClient::getRadiometrySpots(const std::string& videoSourceToken)
+{
+    const std::string targetUrl
+        = resolveServiceUrl(m_capabilities.thermalXAddr, m_deviceEndpoint, "/onvif/thermal_service");
+    std::ostringstream ss {};
+    ss << "<tth:GetRadiometrySpots xmlns:tth=\"http://www.onvif.org/ver10/thermal/wsdl\">\n"
+       << "  <tth:VideoSourceToken>" << videoSourceToken << "</tth:VideoSourceToken>\n"
+       << "</tth:GetRadiometrySpots>";
+
+    const std::string reqXml = wrapSoapEnvelope(ss.str());
+    const HttpResponse resp = m_httpClient.sendPost(targetUrl, reqXml);
+    if (!resp.isSuccess()) {
+        return {};
+    }
+    return parseRadiometrySpotsResponse(resp.body);
+}
+
+bool OnvifClient::setRadiometrySpots(
+    const std::string& videoSourceToken, const std::vector<RadiometrySpot>& spots)
+{
+    const std::string targetUrl
+        = resolveServiceUrl(m_capabilities.thermalXAddr, m_deviceEndpoint, "/onvif/thermal_service");
+    std::ostringstream ss {};
+    ss << "<tth:SetRadiometrySpots xmlns:tth=\"http://www.onvif.org/ver10/thermal/wsdl\" "
+       << "xmlns:tt=\"http://www.onvif.org/ver10/schema\">\n"
+       << "  <tth:VideoSourceToken>" << videoSourceToken << "</tth:VideoSourceToken>\n";
+    for (const auto& s : spots) {
+        ss << "  <tth:Spot token=\"" << s.token << "\">\n"
+           << "    <tth:Position x=\"" << std::fixed << std::setprecision(4) << s.position.x
+           << "\" y=\"" << s.position.y << "\"/>\n"
+           << "    <tth:Label>" << s.label << "</tth:Label>\n"
+           << "    <tth:Temperature>" << std::fixed << std::setprecision(1) << s.temperature << "</tth:Temperature>\n"
+           << "  </tth:Spot>\n";
+    }
+    ss << "</tth:SetRadiometrySpots>";
+
+    const std::string reqXml = wrapSoapEnvelope(ss.str());
+    const HttpResponse resp = m_httpClient.sendPost(targetUrl, reqXml);
+    return resp.isSuccess();
+}
+
+std::vector<RadiometryBox> OnvifClient::getRadiometryBoxes(const std::string& videoSourceToken)
+{
+    const std::string targetUrl
+        = resolveServiceUrl(m_capabilities.thermalXAddr, m_deviceEndpoint, "/onvif/thermal_service");
+    std::ostringstream ss {};
+    ss << "<tth:GetRadiometryBoxes xmlns:tth=\"http://www.onvif.org/ver10/thermal/wsdl\">\n"
+       << "  <tth:VideoSourceToken>" << videoSourceToken << "</tth:VideoSourceToken>\n"
+       << "</tth:GetRadiometryBoxes>";
+
+    const std::string reqXml = wrapSoapEnvelope(ss.str());
+    const HttpResponse resp = m_httpClient.sendPost(targetUrl, reqXml);
+    if (!resp.isSuccess()) {
+        return {};
+    }
+    return parseRadiometryBoxesResponse(resp.body);
+}
+
+bool OnvifClient::setRadiometryBoxes(
+    const std::string& videoSourceToken, const std::vector<RadiometryBox>& boxes)
+{
+    const std::string targetUrl
+        = resolveServiceUrl(m_capabilities.thermalXAddr, m_deviceEndpoint, "/onvif/thermal_service");
+    std::ostringstream ss {};
+    ss << "<tth:SetRadiometryBoxes xmlns:tth=\"http://www.onvif.org/ver10/thermal/wsdl\" "
+       << "xmlns:tt=\"http://www.onvif.org/ver10/schema\">\n"
+       << "  <tth:VideoSourceToken>" << videoSourceToken << "</tth:VideoSourceToken>\n";
+    for (const auto& b : boxes) {
+        ss << "  <tth:Box token=\"" << b.token << "\">\n"
+           << "    <tth:TopLeft x=\"" << std::fixed << std::setprecision(4) << b.topLeft.x
+           << "\" y=\"" << b.topLeft.y << "\"/>\n"
+           << "    <tth:BottomRight x=\"" << b.bottomRight.x << "\" y=\"" << b.bottomRight.y << "\"/>\n"
+           << "    <tth:Label>" << b.label << "</tth:Label>\n"
+           << "    <tth:MinTemperature>" << std::fixed << std::setprecision(1) << b.minTemperature << "</tth:MinTemperature>\n"
+           << "    <tth:MaxTemperature>" << b.maxTemperature << "</tth:MaxTemperature>\n"
+           << "    <tth:AvgTemperature>" << b.avgTemperature << "</tth:AvgTemperature>\n"
+           << "  </tth:Box>\n";
+    }
+    ss << "</tth:SetRadiometryBoxes>";
+
+    const std::string reqXml = wrapSoapEnvelope(ss.str());
+    const HttpResponse resp = m_httpClient.sendPost(targetUrl, reqXml);
+    return resp.isSuccess();
+}
+
+std::vector<ColorPalette> OnvifClient::getColorPalettes(const std::string& videoSourceToken)
+{
+    const std::string targetUrl
+        = resolveServiceUrl(m_capabilities.thermalXAddr, m_deviceEndpoint, "/onvif/thermal_service");
+    std::ostringstream ss {};
+    ss << "<tth:GetColorPalettes xmlns:tth=\"http://www.onvif.org/ver10/thermal/wsdl\">\n"
+       << "  <tth:VideoSourceToken>" << videoSourceToken << "</tth:VideoSourceToken>\n"
+       << "</tth:GetColorPalettes>";
+
+    const std::string reqXml = wrapSoapEnvelope(ss.str());
+    const HttpResponse resp = m_httpClient.sendPost(targetUrl, reqXml);
+    if (!resp.isSuccess()) {
+        return {};
+    }
+    return parseColorPalettesResponse(resp.body);
+}
+
+bool OnvifClient::setColorPalette(
+    const std::string& videoSourceToken, const std::string& paletteToken)
+{
+    const std::string targetUrl
+        = resolveServiceUrl(m_capabilities.thermalXAddr, m_deviceEndpoint, "/onvif/thermal_service");
+    std::ostringstream ss {};
+    ss << "<tth:SetColorPalette xmlns:tth=\"http://www.onvif.org/ver10/thermal/wsdl\">\n"
+       << "  <tth:VideoSourceToken>" << videoSourceToken << "</tth:VideoSourceToken>\n"
+       << "  <tth:PaletteToken>" << paletteToken << "</tth:PaletteToken>\n"
+       << "</tth:SetColorPalette>";
+
+    const std::string reqXml = wrapSoapEnvelope(ss.str());
+    const HttpResponse resp = m_httpClient.sendPost(targetUrl, reqXml);
+    return resp.isSuccess();
+}
+
+bool OnvifClient::triggerNuc(const std::string& videoSourceToken)
+{
+    const std::string targetUrl
+        = resolveServiceUrl(m_capabilities.thermalXAddr, m_deviceEndpoint, "/onvif/thermal_service");
+    std::ostringstream ss {};
+    ss << "<tth:TriggerNUC xmlns:tth=\"http://www.onvif.org/ver10/thermal/wsdl\">\n"
+       << "  <tth:VideoSourceToken>" << videoSourceToken << "</tth:VideoSourceToken>\n"
+       << "</tth:TriggerNUC>";
+
+    const std::string reqXml = wrapSoapEnvelope(ss.str());
+    const HttpResponse resp = m_httpClient.sendPost(targetUrl, reqXml);
+    return resp.isSuccess();
+}
+
+std::optional<RadiometryConfig> OnvifClient::parseRadiometryConfigurationResponse(const std::string& xml)
+{
+    pugi::xml_document doc {};
+    if (!doc.load_string(xml.c_str())) {
+        return std::nullopt;
+    }
+
+    const auto cfgNode = findRecursiveNodeWithSuffix(doc, "Configuration");
+    if (!cfgNode) {
+        return std::nullopt;
+    }
+
+    RadiometryConfig cfg {};
+    const auto em = findNodeWithSuffix(cfgNode, "Emissivity");
+    if (em) {
+        cfg.emissivity = em.text().as_float(0.95f);
+    }
+    const auto dist = findNodeWithSuffix(cfgNode, "Distance");
+    if (dist) {
+        cfg.distance = dist.text().as_float(5.0f);
+    }
+    const auto refT = findNodeWithSuffix(cfgNode, "ReflectedTemperature");
+    if (refT) {
+        cfg.reflectedTemperature = refT.text().as_float(20.0f);
+    }
+    const auto atmT = findNodeWithSuffix(cfgNode, "AtmosphericTemperature");
+    if (atmT) {
+        cfg.atmosphericTemperature = atmT.text().as_float(20.0f);
+    }
+    const auto hum = findNodeWithSuffix(cfgNode, "RelativeHumidity");
+    if (hum) {
+        cfg.relativeHumidity = hum.text().as_float(50.0f);
+    }
+    const auto winT = findNodeWithSuffix(cfgNode, "WindowTransmission");
+    if (winT) {
+        cfg.windowTransmission = winT.text().as_float(1.0f);
+    }
+
+    return cfg;
+}
+
+std::vector<RadiometrySpot> OnvifClient::parseRadiometrySpotsResponse(const std::string& xml)
+{
+    std::vector<RadiometrySpot> spots {};
+    pugi::xml_document doc {};
+    if (!doc.load_string(xml.c_str())) {
+        return spots;
+    }
+
+    std::vector<pugi::xml_node> spotNodes {};
+    collectNodesWithSuffix(doc, "Spot", spotNodes);
+    for (const auto& node : spotNodes) {
+        RadiometrySpot s {};
+        s.token = node.attribute("token").as_string();
+        if (s.token.empty()) {
+            const auto tokNode = findNodeWithSuffix(node, "token");
+            if (tokNode) {
+                s.token = tokNode.text().as_string();
+            }
+        }
+
+        const auto posNode = findNodeWithSuffix(node, "Position");
+        if (posNode) {
+            s.position.x = posNode.attribute("x").as_float(0.5f);
+            s.position.y = posNode.attribute("y").as_float(0.5f);
+        }
+
+        const auto lbl = findNodeWithSuffix(node, "Label");
+        if (lbl) {
+            s.label = lbl.text().as_string();
+        }
+
+        const auto temp = findNodeWithSuffix(node, "Temperature");
+        if (temp) {
+            s.temperature = temp.text().as_float(0.0f);
+        }
+
+        if (!s.token.empty()) {
+            spots.push_back(std::move(s));
+        }
+    }
+    return spots;
+}
+
+std::vector<RadiometryBox> OnvifClient::parseRadiometryBoxesResponse(const std::string& xml)
+{
+    std::vector<RadiometryBox> boxes {};
+    pugi::xml_document doc {};
+    if (!doc.load_string(xml.c_str())) {
+        return boxes;
+    }
+
+    std::vector<pugi::xml_node> boxNodes {};
+    collectNodesWithSuffix(doc, "Box", boxNodes);
+    for (const auto& node : boxNodes) {
+        RadiometryBox b {};
+        b.token = node.attribute("token").as_string();
+        if (b.token.empty()) {
+            const auto tokNode = findNodeWithSuffix(node, "token");
+            if (tokNode) {
+                b.token = tokNode.text().as_string();
+            }
+        }
+
+        const auto tlNode = findNodeWithSuffix(node, "TopLeft");
+        if (tlNode) {
+            b.topLeft.x = tlNode.attribute("x").as_float(0.0f);
+            b.topLeft.y = tlNode.attribute("y").as_float(0.0f);
+        }
+
+        const auto brNode = findNodeWithSuffix(node, "BottomRight");
+        if (brNode) {
+            b.bottomRight.x = brNode.attribute("x").as_float(1.0f);
+            b.bottomRight.y = brNode.attribute("y").as_float(1.0f);
+        }
+
+        const auto lbl = findNodeWithSuffix(node, "Label");
+        if (lbl) {
+            b.label = lbl.text().as_string();
+        }
+
+        const auto minT = findNodeWithSuffix(node, "MinTemperature");
+        if (minT) {
+            b.minTemperature = minT.text().as_float(0.0f);
+        }
+        const auto maxT = findNodeWithSuffix(node, "MaxTemperature");
+        if (maxT) {
+            b.maxTemperature = maxT.text().as_float(0.0f);
+        }
+        const auto avgT = findNodeWithSuffix(node, "AvgTemperature");
+        if (avgT) {
+            b.avgTemperature = avgT.text().as_float(0.0f);
+        }
+
+        if (!b.token.empty()) {
+            boxes.push_back(std::move(b));
+        }
+    }
+    return boxes;
+}
+
+std::vector<ColorPalette> OnvifClient::parseColorPalettesResponse(const std::string& xml)
+{
+    std::vector<ColorPalette> palettes {};
+    pugi::xml_document doc {};
+    if (!doc.load_string(xml.c_str())) {
+        return palettes;
+    }
+
+    std::vector<pugi::xml_node> palNodes {};
+    collectNodesWithSuffix(doc, "Palette", palNodes);
+    if (palNodes.empty()) {
+        collectNodesWithSuffix(doc, "ColorPalette", palNodes);
+    }
+
+    for (const auto& node : palNodes) {
+        ColorPalette p {};
+        p.token = node.attribute("token").as_string();
+        if (p.token.empty()) {
+            const auto tokNode = findNodeWithSuffix(node, "token");
+            if (tokNode) {
+                p.token = tokNode.text().as_string();
+            }
+        }
+
+        const auto nameNode = findNodeWithSuffix(node, "Name");
+        if (nameNode) {
+            p.name = nameNode.text().as_string();
+        } else {
+            p.name = p.token;
+        }
+
+        if (node.attribute("IsDefault")) {
+            p.isDefault = node.attribute("IsDefault").as_bool(false);
+        } else {
+            const auto defNode = findNodeWithSuffix(node, "IsDefault");
+            if (defNode) {
+                p.isDefault = defNode.text().as_bool(false);
+            }
+        }
+
+        if (!p.token.empty()) {
+            palettes.push_back(std::move(p));
+        }
+    }
+    return palettes;
 }
 
 } // namespace PelcoD::Onvif

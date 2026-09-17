@@ -4,6 +4,7 @@
 #include "OnvifCameraTab.h"
 #include "VideoStreamTab.h"
 #include <PelcoDOnvif/GeodesyUtils.h>
+#include <algorithm>
 
 #include <QApplication>
 #include <QClipboard>
@@ -123,6 +124,18 @@ OnvifCameraTab::OnvifCameraTab(PelcoD::Qt::QOnvifDevice* onvifDevice, VideoStrea
             &OnvifCameraTab::handleVideoSourceModesUpdated);
         connect(m_onvifDevice, &PelcoD::Qt::QOnvifDevice::videoSourceModeChanged, this,
             &OnvifCameraTab::handleVideoSourceModeChanged);
+
+        // Thermal & Radiometry Service
+        connect(m_onvifDevice, &PelcoD::Qt::QOnvifDevice::radiometryConfigurationUpdated, this,
+            &OnvifCameraTab::handleRadiometryConfigUpdated);
+        connect(m_onvifDevice, &PelcoD::Qt::QOnvifDevice::radiometrySpotsUpdated, this,
+            &OnvifCameraTab::handleRadiometrySpotsUpdated);
+        connect(m_onvifDevice, &PelcoD::Qt::QOnvifDevice::radiometryBoxesUpdated, this,
+            &OnvifCameraTab::handleRadiometryBoxesUpdated);
+        connect(m_onvifDevice, &PelcoD::Qt::QOnvifDevice::colorPalettesUpdated, this,
+            &OnvifCameraTab::handleColorPalettesUpdated);
+        connect(m_onvifDevice, &PelcoD::Qt::QOnvifDevice::nucTriggered, this,
+            &OnvifCameraTab::handleNucTriggered);
     }
 
     updateConnectionUi(false);
@@ -1575,6 +1588,182 @@ void OnvifCameraTab::setupUi()
     recTabLayout->addWidget(groupSearch);
     recTabLayout->addStretch();
 
+    // -------------------------------------------------------------------------
+    // Sub-Tab 12: Thermal & Radiometry (ONVIF Thermal Service)
+    // -------------------------------------------------------------------------
+    auto* thermalTabLayout = createScrollTab(tr("Thermal & Radiometry"));
+
+    // Group 1: Radiometry Environmental Parameters
+    auto* groupRadParams = new QGroupBox(tr("Radiometry Environmental Parameters"), this);
+    auto* gridRadParams = new QGridLayout(groupRadParams);
+    gridRadParams->setSpacing(6);
+
+    gridRadParams->addWidget(new QLabel(tr("Emissivity:"), groupRadParams), 0, 0);
+    spinEmissivity = new QDoubleSpinBox(groupRadParams);
+    spinEmissivity->setRange(0.01, 1.0);
+    spinEmissivity->setSingleStep(0.01);
+    spinEmissivity->setValue(0.95);
+    gridRadParams->addWidget(spinEmissivity, 0, 1);
+
+    gridRadParams->addWidget(new QLabel(tr("Target Distance (m):"), groupRadParams), 0, 2);
+    spinTargetDistance = new QDoubleSpinBox(groupRadParams);
+    spinTargetDistance->setRange(0.1, 10000.0);
+    spinTargetDistance->setSingleStep(0.5);
+    spinTargetDistance->setValue(5.0);
+    gridRadParams->addWidget(spinTargetDistance, 0, 3);
+
+    gridRadParams->addWidget(new QLabel(tr("Reflected Temp (°C):"), groupRadParams), 0, 4);
+    spinReflectedTemp = new QDoubleSpinBox(groupRadParams);
+    spinReflectedTemp->setRange(-50.0, 500.0);
+    spinReflectedTemp->setValue(20.0);
+    gridRadParams->addWidget(spinReflectedTemp, 0, 5);
+
+    gridRadParams->addWidget(new QLabel(tr("Atmospheric Temp (°C):"), groupRadParams), 1, 0);
+    spinAtmosphericTemp = new QDoubleSpinBox(groupRadParams);
+    spinAtmosphericTemp->setRange(-50.0, 100.0);
+    spinAtmosphericTemp->setValue(20.0);
+    gridRadParams->addWidget(spinAtmosphericTemp, 1, 1);
+
+    gridRadParams->addWidget(new QLabel(tr("Relative Humidity (%):"), groupRadParams), 1, 2);
+    spinRelativeHumidity = new QDoubleSpinBox(groupRadParams);
+    spinRelativeHumidity->setRange(0.0, 100.0);
+    spinRelativeHumidity->setValue(50.0);
+    gridRadParams->addWidget(spinRelativeHumidity, 1, 3);
+
+    gridRadParams->addWidget(new QLabel(tr("Window Transmittance:"), groupRadParams), 1, 4);
+    spinWindowTransmission = new QDoubleSpinBox(groupRadParams);
+    spinWindowTransmission->setRange(0.01, 1.0);
+    spinWindowTransmission->setSingleStep(0.01);
+    spinWindowTransmission->setValue(1.0);
+    gridRadParams->addWidget(spinWindowTransmission, 1, 5);
+
+    auto* radParamBtnRow = new QHBoxLayout();
+    btnRefreshRadiometry = new QPushButton(tr("🔄 Refresh Radiometry"), groupRadParams);
+    btnApplyRadiometry = new QPushButton(tr("💾 Apply Radiometry"), groupRadParams);
+    btnApplyRadiometry->setStyleSheet(
+        QStringLiteral("QPushButton { font-weight: bold; background-color: #238636; color: white; }"));
+    radParamBtnRow->addWidget(btnRefreshRadiometry);
+    radParamBtnRow->addWidget(btnApplyRadiometry);
+    radParamBtnRow->addStretch();
+    gridRadParams->addLayout(radParamBtnRow, 2, 0, 1, 6);
+
+    thermalTabLayout->addWidget(groupRadParams);
+
+    // Group 2: Color Palettes & Non-Uniformity Correction (NUC)
+    auto* groupPaletteNuc = new QGroupBox(tr("Thermal Color Palettes & NUC Calibration"), this);
+    auto* paletteNucLayout = new QHBoxLayout(groupPaletteNuc);
+    paletteNucLayout->setSpacing(8);
+
+    paletteNucLayout->addWidget(new QLabel(tr("Color Palette:"), groupPaletteNuc));
+    cmbThermalPalettes = new QComboBox(groupPaletteNuc);
+    cmbThermalPalettes->setMinimumWidth(160);
+    paletteNucLayout->addWidget(cmbThermalPalettes);
+
+    btnSetPalette = new QPushButton(tr("🎨 Apply Palette"), groupPaletteNuc);
+    btnRefreshPalettes = new QPushButton(tr("🔄 Refresh Palettes"), groupPaletteNuc);
+    paletteNucLayout->addWidget(btnSetPalette);
+    paletteNucLayout->addWidget(btnRefreshPalettes);
+
+    paletteNucLayout->addSpacing(20);
+
+    btnTriggerNuc = new QPushButton(tr("⚡ Calibrate NUC"), groupPaletteNuc);
+    btnTriggerNuc->setStyleSheet(
+        QStringLiteral("QPushButton { font-weight: bold; background-color: #1f6feb; color: white; }"));
+    lblNucStatus = new QLabel(tr("NUC: Ready"), groupPaletteNuc);
+    lblNucStatus->setStyleSheet(QStringLiteral("color: #8b949e; font-weight: bold;"));
+    paletteNucLayout->addWidget(btnTriggerNuc);
+    paletteNucLayout->addWidget(lblNucStatus);
+    paletteNucLayout->addStretch();
+
+    thermalTabLayout->addWidget(groupPaletteNuc);
+
+    // Group 3: Spots & Boxes Measurement Table
+    auto* groupMeasurements = new QGroupBox(tr("Radiometry Temperature Measurements (Spots & Boxes)"), this);
+    auto* measLayout = new QVBoxLayout(groupMeasurements);
+    measLayout->setSpacing(6);
+
+    tableRadiometry = new QTableWidget(0, 7, groupMeasurements);
+    tableRadiometry->setHorizontalHeaderLabels({
+        tr("Token"), tr("Type"), tr("Label"), tr("Coordinates"), tr("Celsius"), tr("Fahrenheit"), tr("Alarm")
+    });
+    tableRadiometry->horizontalHeader()->setStretchLastSection(true);
+    tableRadiometry->setSelectionBehavior(QAbstractItemView::SelectRows);
+    tableRadiometry->setSelectionMode(QAbstractItemView::SingleSelection);
+    tableRadiometry->setMinimumHeight(150);
+    measLayout->addWidget(tableRadiometry);
+
+    // Measurement controls
+    auto* measEditGrid = new QGridLayout();
+    measEditGrid->addWidget(new QLabel(tr("Type:"), groupMeasurements), 0, 0);
+    cmbRadType = new QComboBox(groupMeasurements);
+    cmbRadType->addItem(tr("Spotmeter (Point)"), QStringLiteral("Spot"));
+    cmbRadType->addItem(tr("Box (ROI)"), QStringLiteral("Box"));
+    measEditGrid->addWidget(cmbRadType, 0, 1);
+
+    measEditGrid->addWidget(new QLabel(tr("Token:"), groupMeasurements), 0, 2);
+    editRadToken = new QLineEdit(groupMeasurements);
+    editRadToken->setPlaceholderText(tr("e.g. Spot1 or Box1"));
+    measEditGrid->addWidget(editRadToken, 0, 3);
+
+    measEditGrid->addWidget(new QLabel(tr("Label:"), groupMeasurements), 0, 4);
+    editRadLabel = new QLineEdit(groupMeasurements);
+    editRadLabel->setPlaceholderText(tr("e.g. Bearing Check"));
+    measEditGrid->addWidget(editRadLabel, 0, 5);
+
+    measEditGrid->addWidget(new QLabel(tr("X1 / Y1:"), groupMeasurements), 1, 0);
+    auto* p1Layout = new QHBoxLayout();
+    spinRadX1 = new QDoubleSpinBox(groupMeasurements);
+    spinRadX1->setRange(-1.0, 1.0);
+    spinRadX1->setSingleStep(0.05);
+    spinRadX1->setValue(0.0);
+    spinRadY1 = new QDoubleSpinBox(groupMeasurements);
+    spinRadY1->setRange(-1.0, 1.0);
+    spinRadY1->setSingleStep(0.05);
+    spinRadY1->setValue(0.0);
+    p1Layout->addWidget(spinRadX1);
+    p1Layout->addWidget(spinRadY1);
+    measEditGrid->addLayout(p1Layout, 1, 1);
+
+    measEditGrid->addWidget(new QLabel(tr("X2 / Y2:"), groupMeasurements), 1, 2);
+    auto* p2Layout = new QHBoxLayout();
+    spinRadX2 = new QDoubleSpinBox(groupMeasurements);
+    spinRadX2->setRange(-1.0, 1.0);
+    spinRadX2->setSingleStep(0.05);
+    spinRadX2->setValue(0.2);
+    spinRadY2 = new QDoubleSpinBox(groupMeasurements);
+    spinRadY2->setRange(-1.0, 1.0);
+    spinRadY2->setSingleStep(0.05);
+    spinRadY2->setValue(0.2);
+    p2Layout->addWidget(spinRadX2);
+    p2Layout->addWidget(spinRadY2);
+    measEditGrid->addLayout(p2Layout, 1, 3);
+
+    measEditGrid->addWidget(new QLabel(tr("Alarm Thresh (°C):"), groupMeasurements), 1, 4);
+    spinAlarmThreshold = new QDoubleSpinBox(groupMeasurements);
+    spinAlarmThreshold->setRange(-50.0, 500.0);
+    spinAlarmThreshold->setValue(75.0);
+    measEditGrid->addWidget(spinAlarmThreshold, 1, 5);
+
+    auto* measBtnRow = new QHBoxLayout();
+    btnAddMeasurement = new QPushButton(tr("➕ Add / Save Measurement"), groupMeasurements);
+    btnDeleteMeasurement = new QPushButton(tr("🗑 Delete Measurement"), groupMeasurements);
+    btnRefreshMeasurements = new QPushButton(tr("🔄 Refresh Measurements"), groupMeasurements);
+    lblThermalAlarmStatus = new QLabel(tr("Alarm: Normal"), groupMeasurements);
+    lblThermalAlarmStatus->setStyleSheet(QStringLiteral("font-weight: bold; color: #238636; padding: 2px 8px;"));
+
+    measBtnRow->addWidget(btnAddMeasurement);
+    measBtnRow->addWidget(btnDeleteMeasurement);
+    measBtnRow->addWidget(btnRefreshMeasurements);
+    measBtnRow->addSpacing(16);
+    measBtnRow->addWidget(lblThermalAlarmStatus);
+    measBtnRow->addStretch();
+
+    measLayout->addLayout(measEditGrid);
+    measLayout->addLayout(measBtnRow);
+
+    thermalTabLayout->addWidget(groupMeasurements);
+    thermalTabLayout->addStretch();
+
     // Add tab widget to main layout
     mainLayout->addWidget(m_cameraTabs, 1);
 
@@ -1680,6 +1869,16 @@ void OnvifCameraTab::setupUi()
     connect(spinCameraElev, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, updateGeoTargetLambda);
     connect(spinCameraYaw, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, updateGeoTargetLambda);
     connect(spinCameraPitch, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, updateGeoTargetLambda);
+
+    // Thermal & Radiometry connections
+    connect(btnRefreshRadiometry, &QPushButton::clicked, this, &OnvifCameraTab::handleRefreshRadiometry);
+    connect(btnApplyRadiometry, &QPushButton::clicked, this, &OnvifCameraTab::handleApplyRadiometry);
+    connect(btnRefreshPalettes, &QPushButton::clicked, this, &OnvifCameraTab::handleRefreshPalettes);
+    connect(btnSetPalette, &QPushButton::clicked, this, &OnvifCameraTab::handleSetPalette);
+    connect(btnTriggerNuc, &QPushButton::clicked, this, &OnvifCameraTab::handleTriggerNuc);
+    connect(btnRefreshMeasurements, &QPushButton::clicked, this, &OnvifCameraTab::handleRefreshMeasurements);
+    connect(btnAddMeasurement, &QPushButton::clicked, this, &OnvifCameraTab::handleAddMeasurement);
+    connect(btnDeleteMeasurement, &QPushButton::clicked, this, &OnvifCameraTab::handleDeleteMeasurement);
 }
 
 void OnvifCameraTab::updateConnectionUi(bool connected)
@@ -1888,6 +2087,32 @@ void OnvifCameraTab::updateConnectionUi(bool connected)
     btnResolveReplayUri->setEnabled(connected);
     btnPlayReplayUri->setEnabled(connected);
 
+    // Thermal & Radiometry widgets
+    spinEmissivity->setEnabled(connected);
+    spinTargetDistance->setEnabled(connected);
+    spinReflectedTemp->setEnabled(connected);
+    spinAtmosphericTemp->setEnabled(connected);
+    spinRelativeHumidity->setEnabled(connected);
+    spinWindowTransmission->setEnabled(connected);
+    btnRefreshRadiometry->setEnabled(connected);
+    btnApplyRadiometry->setEnabled(connected);
+    cmbThermalPalettes->setEnabled(connected);
+    btnSetPalette->setEnabled(connected);
+    btnRefreshPalettes->setEnabled(connected);
+    btnTriggerNuc->setEnabled(connected);
+    tableRadiometry->setEnabled(connected);
+    cmbRadType->setEnabled(connected);
+    editRadToken->setEnabled(connected);
+    editRadLabel->setEnabled(connected);
+    spinRadX1->setEnabled(connected);
+    spinRadY1->setEnabled(connected);
+    spinRadX2->setEnabled(connected);
+    spinRadY2->setEnabled(connected);
+    btnAddMeasurement->setEnabled(connected);
+    btnDeleteMeasurement->setEnabled(connected);
+    btnRefreshMeasurements->setEnabled(connected);
+    spinAlarmThreshold->setEnabled(connected);
+
     if (!connected && btnToggleMetaStream->isChecked()) {
         btnToggleMetaStream->setChecked(false);
     }
@@ -1945,6 +2170,13 @@ void OnvifCameraTab::updateConnectionUi(bool connected)
         editEventEndUtc->clear();
         editReplayUri->clear();
         lblRecordingSummary->setText(tr("Storage Summary: Disconnected"));
+
+        tableRadiometry->setRowCount(0);
+        cmbThermalPalettes->clear();
+        lblNucStatus->setText(tr("NUC: Ready"));
+        lblThermalAlarmStatus->setText(tr("Alarm: Normal"));
+        lblThermalAlarmStatus->setStyleSheet(
+            QStringLiteral("font-weight: bold; color: #238636; padding: 2px 8px;"));
     }
 }
 
@@ -2063,6 +2295,9 @@ void OnvifCameraTab::handleDeviceConnected(const QString& endpoint, const QStrin
         handleRefreshRecordingJobs();
         handleRefreshRecordingSummary();
         handleRefreshGeoLocation();
+        handleRefreshRadiometry();
+        handleRefreshPalettes();
+        handleRefreshMeasurements();
     }
 }
 
@@ -4302,6 +4537,283 @@ void OnvifCameraTab::handleClientCertModeUpdated(PelcoD::Onvif::ClientCertificat
     const int idx = cmbClientCertMode->findData(static_cast<int>(mode));
     if (idx >= 0) {
         cmbClientCertMode->setCurrentIndex(idx);
+    }
+}
+
+void OnvifCameraTab::handleRefreshRadiometry()
+{
+    if (m_onvifDevice != nullptr) {
+        m_onvifDevice->refreshRadiometryConfiguration();
+    }
+}
+
+void OnvifCameraTab::handleApplyRadiometry()
+{
+    if (m_onvifDevice == nullptr) {
+        return;
+    }
+    PelcoD::Onvif::RadiometryConfig cfg;
+    cfg.emissivity = spinEmissivity->value();
+    cfg.distance = spinTargetDistance->value();
+    cfg.reflectedTemperature = spinReflectedTemp->value();
+    cfg.atmosphericTemperature = spinAtmosphericTemp->value();
+    cfg.relativeHumidity = spinRelativeHumidity->value();
+    cfg.windowTransmission = spinWindowTransmission->value();
+    m_onvifDevice->setRadiometryConfiguration(cfg);
+}
+
+void OnvifCameraTab::handleRefreshPalettes()
+{
+    if (m_onvifDevice != nullptr) {
+        m_onvifDevice->refreshColorPalettes();
+    }
+}
+
+void OnvifCameraTab::handleSetPalette()
+{
+    if (m_onvifDevice == nullptr) {
+        return;
+    }
+    const QString palette = cmbThermalPalettes->currentText().trimmed();
+    if (!palette.isEmpty()) {
+        m_onvifDevice->setColorPalette(palette);
+    }
+}
+
+void OnvifCameraTab::handleTriggerNuc()
+{
+    if (m_onvifDevice == nullptr) {
+        return;
+    }
+    lblNucStatus->setText(tr("NUC: Calibrating..."));
+    lblNucStatus->setStyleSheet(QStringLiteral("color: #d29922; font-weight: bold;"));
+    m_onvifDevice->triggerNuc();
+}
+
+void OnvifCameraTab::handleRefreshMeasurements()
+{
+    if (m_onvifDevice != nullptr) {
+        m_onvifDevice->refreshRadiometryMeasurements();
+    }
+}
+
+void OnvifCameraTab::handleAddMeasurement()
+{
+    if (m_onvifDevice == nullptr) {
+        return;
+    }
+    const QString type = cmbRadType->currentData().toString();
+    const QString token = editRadToken->text().trimmed().isEmpty()
+        ? QString("Rad_%1").arg(QDateTime::currentMSecsSinceEpoch() % 10000)
+        : editRadToken->text().trimmed();
+    const QString label = editRadLabel->text().trimmed();
+
+    if (type == QStringLiteral("Spot")) {
+        PelcoD::Onvif::RadiometrySpot spot;
+        spot.token = token.toStdString();
+        spot.label = label.toStdString();
+        spot.position.x = static_cast<float>(spinRadX1->value());
+        spot.position.y = static_cast<float>(spinRadY1->value());
+        spot.temperature = 36.5f;
+
+        auto spots = m_onvifDevice->radiometrySpots();
+        bool found = false;
+        for (auto& s : spots) {
+            if (s.token == spot.token) {
+                s = spot;
+                found = true;
+                break;
+            }
+        }
+        if (!found) {
+            spots.push_back(spot);
+        }
+        m_onvifDevice->setRadiometrySpots(spots);
+    } else {
+        PelcoD::Onvif::RadiometryBox box;
+        box.token = token.toStdString();
+        box.label = label.toStdString();
+        box.topLeft.x = static_cast<float>(spinRadX1->value());
+        box.topLeft.y = static_cast<float>(spinRadY1->value());
+        box.bottomRight.x = static_cast<float>(spinRadX2->value());
+        box.bottomRight.y = static_cast<float>(spinRadY2->value());
+        box.avgTemperature = 42.0f;
+        box.maxTemperature = 55.0f;
+        box.minTemperature = 30.0f;
+
+        auto boxes = m_onvifDevice->radiometryBoxes();
+        bool found = false;
+        for (auto& b : boxes) {
+            if (b.token == box.token) {
+                b = box;
+                found = true;
+                break;
+            }
+        }
+        if (!found) {
+            boxes.push_back(box);
+        }
+        m_onvifDevice->setRadiometryBoxes(boxes);
+    }
+}
+
+void OnvifCameraTab::handleDeleteMeasurement()
+{
+    if (m_onvifDevice == nullptr) {
+        return;
+    }
+    const int row = tableRadiometry->currentRow();
+    if (row < 0) {
+        return;
+    }
+    const QString token = tableRadiometry->item(row, 0)->text();
+    const QString type = tableRadiometry->item(row, 1)->text();
+
+    if (type.contains(QStringLiteral("Spot"), Qt::CaseInsensitive)) {
+        auto spots = m_onvifDevice->radiometrySpots();
+        spots.erase(std::remove_if(spots.begin(), spots.end(), [&](const PelcoD::Onvif::RadiometrySpot& s) {
+            return s.token == token.toStdString();
+        }), spots.end());
+        m_onvifDevice->setRadiometrySpots(spots);
+    } else {
+        auto boxes = m_onvifDevice->radiometryBoxes();
+        boxes.erase(std::remove_if(boxes.begin(), boxes.end(), [&](const PelcoD::Onvif::RadiometryBox& b) {
+            return b.token == token.toStdString();
+        }), boxes.end());
+        m_onvifDevice->setRadiometryBoxes(boxes);
+    }
+}
+
+void OnvifCameraTab::handleRadiometryConfigUpdated(const PelcoD::Onvif::RadiometryConfig& config)
+{
+    QSignalBlocker b1(spinEmissivity);
+    QSignalBlocker b2(spinTargetDistance);
+    QSignalBlocker b3(spinReflectedTemp);
+    QSignalBlocker b4(spinAtmosphericTemp);
+    QSignalBlocker b5(spinRelativeHumidity);
+    QSignalBlocker b6(spinWindowTransmission);
+
+    spinEmissivity->setValue(config.emissivity);
+    spinTargetDistance->setValue(config.distance);
+    spinReflectedTemp->setValue(config.reflectedTemperature);
+    spinAtmosphericTemp->setValue(config.atmosphericTemperature);
+    spinRelativeHumidity->setValue(config.relativeHumidity);
+    spinWindowTransmission->setValue(config.windowTransmission);
+}
+
+void OnvifCameraTab::handleRadiometrySpotsUpdated(const std::vector<PelcoD::Onvif::RadiometrySpot>& spots)
+{
+    tableRadiometry->setRowCount(0);
+    for (const auto& s : spots) {
+        const int row = tableRadiometry->rowCount();
+        tableRadiometry->insertRow(row);
+        tableRadiometry->setItem(row, 0, new QTableWidgetItem(QString::fromStdString(s.token)));
+        tableRadiometry->setItem(row, 1, new QTableWidgetItem(tr("Spotmeter")));
+        tableRadiometry->setItem(row, 2, new QTableWidgetItem(QString::fromStdString(s.label)));
+        tableRadiometry->setItem(row, 3, new QTableWidgetItem(
+            QString("(%1, %2)").arg(s.position.x, 0, 'f', 2).arg(s.position.y, 0, 'f', 2)));
+        tableRadiometry->setItem(row, 4, new QTableWidgetItem(QString("%1 °C").arg(s.temperature, 0, 'f', 1)));
+        tableRadiometry->setItem(row, 5, new QTableWidgetItem(QString("%1 °F").arg(s.temperature * 1.8f + 32.0f, 0, 'f', 1)));
+        tableRadiometry->setItem(row, 6, new QTableWidgetItem(tr("N/A")));
+    }
+    if (m_onvifDevice != nullptr) {
+        const float thresh = static_cast<float>(spinAlarmThreshold->value());
+        for (const auto& b : m_onvifDevice->radiometryBoxes()) {
+            const int row = tableRadiometry->rowCount();
+            tableRadiometry->insertRow(row);
+            tableRadiometry->setItem(row, 0, new QTableWidgetItem(QString::fromStdString(b.token)));
+            tableRadiometry->setItem(row, 1, new QTableWidgetItem(tr("Box ROI")));
+            tableRadiometry->setItem(row, 2, new QTableWidgetItem(QString::fromStdString(b.label)));
+            tableRadiometry->setItem(row, 3, new QTableWidgetItem(
+                QString("[%1, %2, %3, %4]")
+                    .arg(b.topLeft.x, 0, 'f', 2)
+                    .arg(b.topLeft.y, 0, 'f', 2)
+                    .arg(b.bottomRight.x, 0, 'f', 2)
+                    .arg(b.bottomRight.y, 0, 'f', 2)));
+            tableRadiometry->setItem(row, 4, new QTableWidgetItem(
+                QString("Avg %1 °C (Max %2)").arg(b.avgTemperature, 0, 'f', 1).arg(b.maxTemperature, 0, 'f', 1)));
+            tableRadiometry->setItem(row, 5, new QTableWidgetItem(
+                QString("Avg %1 °F").arg(b.avgTemperature * 1.8f + 32.0f, 0, 'f', 1)));
+            const bool alarm = (b.maxTemperature >= thresh);
+            auto* itemAlarm = new QTableWidgetItem(alarm ? tr("🚨 HIGH TEMP") : tr("Normal"));
+            if (alarm) {
+                itemAlarm->setForeground(QBrush(QColor(230, 50, 50)));
+            }
+            tableRadiometry->setItem(row, 6, itemAlarm);
+        }
+    }
+}
+
+void OnvifCameraTab::handleRadiometryBoxesUpdated(const std::vector<PelcoD::Onvif::RadiometryBox>& boxes)
+{
+    tableRadiometry->setRowCount(0);
+    if (m_onvifDevice != nullptr) {
+        for (const auto& s : m_onvifDevice->radiometrySpots()) {
+            const int row = tableRadiometry->rowCount();
+            tableRadiometry->insertRow(row);
+            tableRadiometry->setItem(row, 0, new QTableWidgetItem(QString::fromStdString(s.token)));
+            tableRadiometry->setItem(row, 1, new QTableWidgetItem(tr("Spotmeter")));
+            tableRadiometry->setItem(row, 2, new QTableWidgetItem(QString::fromStdString(s.label)));
+            tableRadiometry->setItem(row, 3, new QTableWidgetItem(
+                QString("(%1, %2)").arg(s.position.x, 0, 'f', 2).arg(s.position.y, 0, 'f', 2)));
+            tableRadiometry->setItem(row, 4, new QTableWidgetItem(QString("%1 °C").arg(s.temperature, 0, 'f', 1)));
+            tableRadiometry->setItem(row, 5, new QTableWidgetItem(QString("%1 °F").arg(s.temperature * 1.8f + 32.0f, 0, 'f', 1)));
+            tableRadiometry->setItem(row, 6, new QTableWidgetItem(tr("N/A")));
+        }
+    }
+    bool anyAlarm = false;
+    const float thresh = static_cast<float>(spinAlarmThreshold->value());
+    for (const auto& b : boxes) {
+        const int row = tableRadiometry->rowCount();
+        tableRadiometry->insertRow(row);
+        tableRadiometry->setItem(row, 0, new QTableWidgetItem(QString::fromStdString(b.token)));
+        tableRadiometry->setItem(row, 1, new QTableWidgetItem(tr("Box ROI")));
+        tableRadiometry->setItem(row, 2, new QTableWidgetItem(QString::fromStdString(b.label)));
+        tableRadiometry->setItem(row, 3, new QTableWidgetItem(
+            QString("[%1, %2, %3, %4]")
+                .arg(b.topLeft.x, 0, 'f', 2)
+                .arg(b.topLeft.y, 0, 'f', 2)
+                .arg(b.bottomRight.x, 0, 'f', 2)
+                .arg(b.bottomRight.y, 0, 'f', 2)));
+        tableRadiometry->setItem(row, 4, new QTableWidgetItem(
+            QString("Avg %1 °C (Max %2)").arg(b.avgTemperature, 0, 'f', 1).arg(b.maxTemperature, 0, 'f', 1)));
+        tableRadiometry->setItem(row, 5, new QTableWidgetItem(
+            QString("Avg %1 °F").arg(b.avgTemperature * 1.8f + 32.0f, 0, 'f', 1)));
+        const bool alarm = (b.maxTemperature >= thresh);
+        if (alarm) {
+            anyAlarm = true;
+        }
+        auto* itemAlarm = new QTableWidgetItem(alarm ? tr("🚨 HIGH TEMP") : tr("Normal"));
+        if (alarm) {
+            itemAlarm->setForeground(QBrush(QColor(230, 50, 50)));
+        }
+        tableRadiometry->setItem(row, 6, itemAlarm);
+    }
+    if (anyAlarm) {
+        lblThermalAlarmStatus->setText(tr("🚨 HIGH TEMP ALARM!"));
+        lblThermalAlarmStatus->setStyleSheet(QStringLiteral("font-weight: bold; color: #da3633; padding: 2px 8px;"));
+    } else {
+        lblThermalAlarmStatus->setText(tr("Alarm: Normal"));
+        lblThermalAlarmStatus->setStyleSheet(QStringLiteral("font-weight: bold; color: #238636; padding: 2px 8px;"));
+    }
+}
+
+void OnvifCameraTab::handleColorPalettesUpdated(const std::vector<PelcoD::Onvif::ColorPalette>& palettes)
+{
+    cmbThermalPalettes->clear();
+    for (const auto& p : palettes) {
+        cmbThermalPalettes->addItem(QString::fromStdString(p.name), QString::fromStdString(p.token));
+    }
+}
+
+void OnvifCameraTab::handleNucTriggered(bool success)
+{
+    if (success) {
+        lblNucStatus->setText(tr("NUC: Calibrated"));
+        lblNucStatus->setStyleSheet(QStringLiteral("color: #7ee787; font-weight: bold;"));
+    } else {
+        lblNucStatus->setText(tr("NUC: Failed"));
+        lblNucStatus->setStyleSheet(QStringLiteral("color: #da3633; font-weight: bold;"));
     }
 }
 

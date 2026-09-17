@@ -1788,4 +1788,104 @@ bool PelcoDPtzAdapter::handleSetVideoSourceMode(
     return found;
 }
 
+RadiometryConfig PelcoDPtzAdapter::handleGetRadiometryConfiguration(const std::string& /*videoSourceToken*/)
+{
+    std::lock_guard<std::mutex> lock(m_thermalMutex);
+    return m_radiometryConfig;
+}
+
+bool PelcoDPtzAdapter::handleSetRadiometryConfiguration(
+    const std::string& /*videoSourceToken*/, const RadiometryConfig& config)
+{
+    std::lock_guard<std::mutex> lock(m_thermalMutex);
+    m_radiometryConfig = config;
+    return true;
+}
+
+std::vector<RadiometrySpot> PelcoDPtzAdapter::handleGetRadiometrySpots(const std::string& /*videoSourceToken*/)
+{
+    std::lock_guard<std::mutex> lock(m_thermalMutex);
+    return m_radiometrySpots;
+}
+
+bool PelcoDPtzAdapter::handleSetRadiometrySpots(
+    const std::string& /*videoSourceToken*/, const std::vector<RadiometrySpot>& spots)
+{
+    std::lock_guard<std::mutex> lock(m_thermalMutex);
+    m_radiometrySpots = spots;
+    return true;
+}
+
+std::vector<RadiometryBox> PelcoDPtzAdapter::handleGetRadiometryBoxes(const std::string& /*videoSourceToken*/)
+{
+    std::lock_guard<std::mutex> lock(m_thermalMutex);
+    return m_radiometryBoxes;
+}
+
+bool PelcoDPtzAdapter::handleSetRadiometryBoxes(
+    const std::string& /*videoSourceToken*/, const std::vector<RadiometryBox>& boxes)
+{
+    std::lock_guard<std::mutex> lock(m_thermalMutex);
+    m_radiometryBoxes = boxes;
+
+    // Check high temperature alarms against configured thresholds
+    EventCallback publisher {};
+    {
+        std::lock_guard<std::mutex> lockPub(m_mutex);
+        publisher = m_eventPublisher;
+    }
+
+    for (const auto& box : m_radiometryBoxes) {
+        for (const auto& alarm : m_radiometryAlarms) {
+            if (alarm.enabled && alarm.token == box.token) {
+                if (box.maxTemperature >= alarm.thresholdTemperature) {
+                    if (publisher) {
+                        OnvifEvent ev {};
+                        ev.topic = "tns1:Thermal/Radiometry/HighTemperatureAlarm";
+                        ev.sourceName = "BoxToken";
+                        ev.sourceValue = box.token;
+                        ev.dataName = "State";
+                        ev.dataValue = "true";
+                        publisher(ev);
+                    }
+                }
+            }
+        }
+    }
+
+    return true;
+}
+
+std::vector<ColorPalette> PelcoDPtzAdapter::handleGetColorPalettes(const std::string& /*videoSourceToken*/)
+{
+    std::lock_guard<std::mutex> lock(m_thermalMutex);
+    return m_colorPalettes;
+}
+
+bool PelcoDPtzAdapter::handleSetColorPalette(
+    const std::string& /*videoSourceToken*/, const std::string& paletteToken)
+{
+    std::lock_guard<std::mutex> lock(m_thermalMutex);
+    bool found = false;
+    for (auto& pal : m_colorPalettes) {
+        if (pal.token == paletteToken) {
+            pal.isDefault = true;
+            m_activeColorPalette = pal.token;
+            found = true;
+        } else {
+            pal.isDefault = false;
+        }
+    }
+    return found;
+}
+
+bool PelcoDPtzAdapter::handleTriggerNuc(const std::string& /*videoSourceToken*/)
+{
+    if (m_device) {
+        // Send Pelco-D auxiliary command 5 (conventional FFC/NUC trigger on thermal PTZs)
+        m_device->setAuxiliary(5);
+    }
+    return true;
+}
+
 } // namespace PelcoD::Onvif

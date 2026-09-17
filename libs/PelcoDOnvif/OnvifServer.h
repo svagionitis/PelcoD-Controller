@@ -112,6 +112,10 @@ public:
     /// @param[in] handler New IVideoSourceModeHandler instance.
     void setVideoSourceModeHandler(std::shared_ptr<IVideoSourceModeHandler> handler);
 
+    /// @brief Sets or replaces the active Thermal & Radiometry handler.
+    /// @param[in] handler New IThermalHandler instance.
+    void setThermalHandler(std::shared_ptr<IThermalHandler> handler);
+
     /// @brief Records an operational message into the internal system log buffer.
     /// @param[in] level Log level ("INFO", "WARNING", "ERROR").
     /// @param[in] msg Log message.
@@ -140,6 +144,7 @@ private:
     void handleRecordingService(const httplib::Request& req, httplib::Response& res);
     void handleSearchService(const httplib::Request& req, httplib::Response& res);
     void handleReplayService(const httplib::Request& req, httplib::Response& res);
+    void handleThermalService(const httplib::Request& req, httplib::Response& res);
 
     void processOsdRequest(
         const std::string& opName, const pugi::xml_document& doc, std::ostringstream& body, const std::string& prefix);
@@ -181,6 +186,7 @@ private:
     std::shared_ptr<IAnalyticsHandler> m_analyticsHandler;
     std::shared_ptr<IMaskHandler> m_maskHandler;
     std::shared_ptr<IVideoSourceModeHandler> m_videoSourceModeHandler;
+    std::shared_ptr<IThermalHandler> m_thermalHandler;
     std::unique_ptr<WsDiscoveryServer> m_discoveryServer;
     httplib::Server m_httpServer;
 
@@ -240,6 +246,14 @@ private:
 
     mutable std::mutex m_videoSourceModeMutex {};
     std::vector<VideoSourceMode> m_internalVideoSourceModes {};
+
+    mutable std::mutex m_thermalMutex {};
+    RadiometryConfig m_internalRadiometryConfig {};
+    std::vector<RadiometrySpot> m_internalRadiometrySpots {};
+    std::vector<RadiometryBox> m_internalRadiometryBoxes {};
+    std::vector<ColorPalette> m_internalColorPalettes {};
+    std::string m_internalActiveColorPalette { "WhiteHot" };
+    ThermalCapabilities m_internalThermalCaps {};
 
     mutable std::mutex m_subMutex {};
     std::map<std::string, std::shared_ptr<PullPointSubscription>> m_subscriptions {};

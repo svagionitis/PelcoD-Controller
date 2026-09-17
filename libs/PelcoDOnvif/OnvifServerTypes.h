@@ -118,6 +118,37 @@ struct OnvifServerConfig {
         { "Mode_4K30", false, 30.0f, 3840, 2160, { "H264", "H265" }, true, "4K Ultra HD 30fps" },
         { "Mode_720p120", false, 120.0f, 1280, 720, { "H264", "H265" }, true, "720p 120fps High Speed" }
     };
+
+    /// @brief Default radiometric compensation parameters (ONVIF Thermal Service).
+    RadiometryConfig defaultRadiometryConfig {};
+
+    /// @brief Default radiometric spot meters.
+    std::vector<RadiometrySpot> defaultRadiometrySpots {
+        { "Spot_1", { 0.5f, 0.5f }, "Center Spot", 24.5f }
+    };
+
+    /// @brief Default radiometric measurement boxes.
+    std::vector<RadiometryBox> defaultRadiometryBoxes {
+        { "Box_1", { 0.2f, 0.2f }, { 0.8f, 0.8f }, "Central Target Zone", 21.0f, 36.8f, 28.4f }
+    };
+
+    /// @brief Default radiometric temperature alarm configurations.
+    std::vector<RadiometryAlarmConfig> defaultRadiometryAlarms {
+        { "Box_1", 50.0f, 2.0f, RadiometryAlarmType::HighTemperature, true }
+    };
+
+    /// @brief Default thermal false-color palettes.
+    std::vector<ColorPalette> defaultColorPalettes {
+        { "WhiteHot", "White Hot", true },
+        { "BlackHot", "Black Hot", false },
+        { "Ironbow", "Ironbow", false },
+        { "Rainbow", "Rainbow", false },
+        { "Sepia", "Sepia", false },
+        { "Fire", "Fire", false }
+    };
+
+    /// @brief Default thermal service capabilities.
+    ThermalCapabilities defaultThermalCapabilities {};
 };
 
 /// @brief Callback signature for publishing asynchronous ONVIF event notifications.
@@ -1078,6 +1109,97 @@ public:
         const std::string& /*videoSourceToken*/, const std::string& /*modeToken*/, bool& outRebootNeeded)
     {
         outRebootNeeded = false;
+        return false;
+    }
+};
+
+/// @class IThermalHandler
+/// @brief Abstract interface decoupling ONVIF Thermal Service and Radiometry from hardware.
+class IThermalHandler {
+public:
+    virtual ~IThermalHandler() = default;
+
+    /// @brief Retrieves radiometric parameters for a video source.
+    /// @param[in] videoSourceToken Video source token.
+    /// @return RadiometryConfig structure.
+    [[nodiscard]] virtual RadiometryConfig handleGetRadiometryConfiguration(
+        const std::string& /*videoSourceToken*/)
+    {
+        return {};
+    }
+
+    /// @brief Updates radiometric compensation parameters.
+    /// @param[in] videoSourceToken Video source token.
+    /// @param[in] config Updated radiometry configuration.
+    /// @return True on success.
+    virtual bool handleSetRadiometryConfiguration(
+        const std::string& /*videoSourceToken*/, const RadiometryConfig& /*config*/)
+    {
+        return false;
+    }
+
+    /// @brief Retrieves radiometric spot meters.
+    /// @param[in] videoSourceToken Video source token.
+    /// @return Vector of RadiometrySpot.
+    [[nodiscard]] virtual std::vector<RadiometrySpot> handleGetRadiometrySpots(
+        const std::string& /*videoSourceToken*/)
+    {
+        return {};
+    }
+
+    /// @brief Updates or replaces radiometric spot meters.
+    /// @param[in] videoSourceToken Video source token.
+    /// @param[in] spots Vector of spots.
+    /// @return True on success.
+    virtual bool handleSetRadiometrySpots(
+        const std::string& /*videoSourceToken*/, const std::vector<RadiometrySpot>& /*spots*/)
+    {
+        return false;
+    }
+
+    /// @brief Retrieves radiometric measurement boxes.
+    /// @param[in] videoSourceToken Video source token.
+    /// @return Vector of RadiometryBox.
+    [[nodiscard]] virtual std::vector<RadiometryBox> handleGetRadiometryBoxes(
+        const std::string& /*videoSourceToken*/)
+    {
+        return {};
+    }
+
+    /// @brief Updates or replaces radiometric measurement boxes.
+    /// @param[in] videoSourceToken Video source token.
+    /// @param[in] boxes Vector of measurement boxes.
+    /// @return True on success.
+    virtual bool handleSetRadiometryBoxes(
+        const std::string& /*videoSourceToken*/, const std::vector<RadiometryBox>& /*boxes*/)
+    {
+        return false;
+    }
+
+    /// @brief Retrieves available thermal false-color palettes.
+    /// @param[in] videoSourceToken Video source token.
+    /// @return Vector of ColorPalette.
+    [[nodiscard]] virtual std::vector<ColorPalette> handleGetColorPalettes(
+        const std::string& /*videoSourceToken*/)
+    {
+        return {};
+    }
+
+    /// @brief Sets active thermal false-color palette.
+    /// @param[in] videoSourceToken Video source token.
+    /// @param[in] paletteToken Desired palette token (e.g. "Ironbow").
+    /// @return True on success.
+    virtual bool handleSetColorPalette(
+        const std::string& /*videoSourceToken*/, const std::string& /*paletteToken*/)
+    {
+        return false;
+    }
+
+    /// @brief Triggers Non-Uniformity Correction (NUC / flat-field shutter calibration).
+    /// @param[in] videoSourceToken Video source token.
+    /// @return True on success.
+    virtual bool handleTriggerNuc(const std::string& /*videoSourceToken*/)
+    {
         return false;
     }
 };
