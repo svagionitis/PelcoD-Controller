@@ -1,4 +1,5 @@
 #include <PelcoDCore/MockPelcoDDevice.h>
+#include <PelcoDOnvif/OnvifClient.h>
 #include <PelcoDOnvif/OnvifServer.h>
 #include <PelcoDOnvif/PelcoDPtzAdapter.h>
 
@@ -2745,6 +2746,285 @@ void testPtzGeoMoveAndSphericalSpaces()
     std::cout << "[PASS] testPtzGeoMoveAndSphericalSpaces" << std::endl;
 }
 
+void testProfileTPrivacyMasksAndVideoSourceModes()
+{
+    const int port = 18599;
+    OnvifServerConfig config;
+    config.port = port;
+    config.deviceName = "Profile T Privacy & Source Modes Camera";
+
+    auto mockTransport = std::make_shared<PelcoD::MockPelcoDDevice>();
+    auto device = std::make_shared<PelcoD::PelcoDDevice>(mockTransport);
+    assert(device->start());
+
+    auto adapter = std::make_shared<PelcoDPtzAdapter>(device);
+
+    OnvifServer server(config, adapter, adapter);
+    server.setMaskHandler(adapter);
+    server.setVideoSourceModeHandler(adapter);
+    assert(server.start());
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+    httplib::Client client("127.0.0.1", port);
+    client.set_connection_timeout(std::chrono::seconds(2));
+    client.set_read_timeout(std::chrono::seconds(2));
+
+    // 1. Verify Media2 GetServiceCapabilities returns Mask="true"
+    {
+        const std::string req = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+                                "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                "xmlns:tr2=\"http://www.onvif.org/ver20/media/wsdl\">\r\n"
+                                "  <SOAP-ENV:Body><tr2:GetServiceCapabilities/></SOAP-ENV:Body>\r\n"
+                                "</SOAP-ENV:Envelope>";
+        auto res = client.Post("/onvif/media2_service", req, "application/soap+xml; charset=utf-8");
+        assert(res && res->status == 200);
+        assert(res->body.find("Mask=\"true\"") != std::string::npos);
+    }
+
+    // 2. GetMaskOptions
+    {
+        const std::string req = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+                                "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                "xmlns:tr2=\"http://www.onvif.org/ver20/media/wsdl\">\r\n"
+                                "  <SOAP-ENV:Body>\r\n"
+                                "    <tr2:GetMaskOptions>\r\n"
+                                "      <tr2:ConfigurationToken>VideoSource_1</tr2:ConfigurationToken>\r\n"
+                                "    </tr2:GetMaskOptions>\r\n"
+                                "  </SOAP-ENV:Body>\r\n"
+                                "</SOAP-ENV:Envelope>";
+        auto res = client.Post("/onvif/media2_service", req, "application/soap+xml; charset=utf-8");
+        assert(res && res->status == 200);
+        assert(res->body.find("GetMaskOptionsResponse") != std::string::npos);
+        assert(res->body.find("MaxMasks") != std::string::npos);
+        assert(res->body.find("Rectangle=\"true\"") != std::string::npos);
+    }
+
+    // 3. GetMasks - check default mask Mask_1
+    {
+        const std::string req = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+                                "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                "xmlns:tr2=\"http://www.onvif.org/ver20/media/wsdl\">\r\n"
+                                "  <SOAP-ENV:Body>\r\n"
+                                "    <tr2:GetMasks>\r\n"
+                                "      <tr2:ConfigurationToken>VideoSource_1</tr2:ConfigurationToken>\r\n"
+                                "    </tr2:GetMasks>\r\n"
+                                "  </SOAP-ENV:Body>\r\n"
+                                "</SOAP-ENV:Envelope>";
+        auto res = client.Post("/onvif/media2_service", req, "application/soap+xml; charset=utf-8");
+        assert(res && res->status == 200);
+        assert(res->body.find("GetMasksResponse") != std::string::npos);
+        assert(res->body.find("Mask_1") != std::string::npos);
+    }
+
+    // 4. CreateMask - add a new mask Mask_New
+    {
+        const std::string req = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+                                "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                "xmlns:tr2=\"http://www.onvif.org/ver20/media/wsdl\" "
+                                "xmlns:tt=\"http://www.onvif.org/ver10/schema\">\r\n"
+                                "  <SOAP-ENV:Body>\r\n"
+                                "    <tr2:CreateMask>\r\n"
+                                "      <tr2:Mask token=\"Mask_New\">\r\n"
+                                "        <tr2:ConfigurationToken>VideoSource_1</tr2:ConfigurationToken>\r\n"
+                                "        <tr2:Polygon>\r\n"
+                                "          <tt:Point x=\"0.2\" y=\"0.2\"/>\r\n"
+                                "          <tt:Point x=\"0.8\" y=\"0.2\"/>\r\n"
+                                "          <tt:Point x=\"0.8\" y=\"0.8\"/>\r\n"
+                                "          <tt:Point x=\"0.2\" y=\"0.8\"/>\r\n"
+                                "        </tr2:Polygon>\r\n"
+                                "        <tr2:Type>Blurred</tr2:Type>\r\n"
+                                "        <tr2:Enabled>true</tr2:Enabled>\r\n"
+                                "      </tr2:Mask>\r\n"
+                                "    </tr2:CreateMask>\r\n"
+                                "  </SOAP-ENV:Body>\r\n"
+                                "</SOAP-ENV:Envelope>";
+        auto res = client.Post("/onvif/media2_service", req, "application/soap+xml; charset=utf-8");
+        assert(res && res->status == 200);
+        assert(res->body.find("CreateMaskResponse") != std::string::npos);
+        assert(res->body.find("Mask_New") != std::string::npos);
+    }
+
+    // 5. GetMask - retrieve Mask_New
+    {
+        const std::string req = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+                                "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                "xmlns:tr2=\"http://www.onvif.org/ver20/media/wsdl\">\r\n"
+                                "  <SOAP-ENV:Body>\r\n"
+                                "    <tr2:GetMask>\r\n"
+                                "      <tr2:Token>Mask_New</tr2:Token>\r\n"
+                                "    </tr2:GetMask>\r\n"
+                                "  </SOAP-ENV:Body>\r\n"
+                                "</SOAP-ENV:Envelope>";
+        auto res = client.Post("/onvif/media2_service", req, "application/soap+xml; charset=utf-8");
+        assert(res && res->status == 200);
+        assert(res->body.find("GetMaskResponse") != std::string::npos);
+        assert(res->body.find("Blurred") != std::string::npos);
+    }
+
+    // 6. SetMask - modify Mask_New to Pixelated and disabled
+    {
+        const std::string req = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+                                "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                "xmlns:tr2=\"http://www.onvif.org/ver20/media/wsdl\" "
+                                "xmlns:tt=\"http://www.onvif.org/ver10/schema\">\r\n"
+                                "  <SOAP-ENV:Body>\r\n"
+                                "    <tr2:SetMask>\r\n"
+                                "      <tr2:Mask token=\"Mask_New\">\r\n"
+                                "        <tr2:ConfigurationToken>VideoSource_1</tr2:ConfigurationToken>\r\n"
+                                "        <tr2:Polygon>\r\n"
+                                "          <tt:Point x=\"0.3\" y=\"0.3\"/>\r\n"
+                                "          <tt:Point x=\"0.7\" y=\"0.7\"/>\r\n"
+                                "        </tr2:Polygon>\r\n"
+                                "        <tr2:Type>Pixelated</tr2:Type>\r\n"
+                                "        <tr2:Enabled>false</tr2:Enabled>\r\n"
+                                "      </tr2:Mask>\r\n"
+                                "    </tr2:SetMask>\r\n"
+                                "  </SOAP-ENV:Body>\r\n"
+                                "</SOAP-ENV:Envelope>";
+        auto res = client.Post("/onvif/media2_service", req, "application/soap+xml; charset=utf-8");
+        assert(res && res->status == 200);
+        assert(res->body.find("SetMaskResponse") != std::string::npos);
+
+        // Verify changes took effect
+        const auto maskOpt = adapter->handleGetMask("Mask_New");
+        assert(maskOpt.has_value());
+        assert(maskOpt->type == MaskType::Pixelated);
+        assert(maskOpt->enabled == false);
+    }
+
+    // 7. DeleteMask - remove Mask_New
+    {
+        const std::string req = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+                                "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                "xmlns:tr2=\"http://www.onvif.org/ver20/media/wsdl\">\r\n"
+                                "  <SOAP-ENV:Body>\r\n"
+                                "    <tr2:DeleteMask>\r\n"
+                                "      <tr2:Token>Mask_New</tr2:Token>\r\n"
+                                "    </tr2:DeleteMask>\r\n"
+                                "  </SOAP-ENV:Body>\r\n"
+                                "</SOAP-ENV:Envelope>";
+        auto res = client.Post("/onvif/media2_service", req, "application/soap+xml; charset=utf-8");
+        assert(res && res->status == 200);
+        assert(res->body.find("DeleteMaskResponse") != std::string::npos);
+
+        assert(!adapter->handleGetMask("Mask_New").has_value());
+    }
+
+    // 8. VideoSourceModes - GetVideoSourceModes on /onvif/media2_service
+    {
+        const std::string req = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+                                "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                "xmlns:tr2=\"http://www.onvif.org/ver20/media/wsdl\">\r\n"
+                                "  <SOAP-ENV:Body>\r\n"
+                                "    <tr2:GetVideoSourceModes>\r\n"
+                                "      <tr2:VideoSourceToken>VideoSource_1</tr2:VideoSourceToken>\r\n"
+                                "    </tr2:GetVideoSourceModes>\r\n"
+                                "  </SOAP-ENV:Body>\r\n"
+                                "</SOAP-ENV:Envelope>";
+        auto res = client.Post("/onvif/media2_service", req, "application/soap+xml; charset=utf-8");
+        assert(res && res->status == 200);
+        assert(res->body.find("GetVideoSourceModesResponse") != std::string::npos);
+        assert(res->body.find("Mode_1080p60") != std::string::npos);
+        assert(res->body.find("Mode_4k30") != std::string::npos);
+    }
+
+    // 9. VideoSourceModes - GetVideoSourceModes on /onvif/device_service
+    {
+        const std::string req = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+                                "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                "xmlns:tds=\"http://www.onvif.org/ver10/device/wsdl\">\r\n"
+                                "  <SOAP-ENV:Body>\r\n"
+                                "    <tds:GetVideoSourceModes>\r\n"
+                                "      <tds:VideoSourceToken>VideoSource_1</tds:VideoSourceToken>\r\n"
+                                "    </tds:GetVideoSourceModes>\r\n"
+                                "  </SOAP-ENV:Body>\r\n"
+                                "</SOAP-ENV:Envelope>";
+        auto res = client.Post("/onvif/device_service", req, "application/soap+xml; charset=utf-8");
+        assert(res && res->status == 200);
+        assert(res->body.find("GetVideoSourceModesResponse") != std::string::npos);
+        assert(res->body.find("Mode_1080p60") != std::string::npos);
+    }
+
+    // 10. SetVideoSourceMode - apply Mode_4k30 (triggers reboot flag)
+    {
+        const std::string req = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+                                "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                "xmlns:tr2=\"http://www.onvif.org/ver20/media/wsdl\">\r\n"
+                                "  <SOAP-ENV:Body>\r\n"
+                                "    <tr2:SetVideoSourceMode>\r\n"
+                                "      <tr2:VideoSourceToken>VideoSource_1</tr2:VideoSourceToken>\r\n"
+                                "      <tr2:VideoSourceModeToken>Mode_4k30</tr2:VideoSourceModeToken>\r\n"
+                                "    </tr2:SetVideoSourceMode>\r\n"
+                                "  </SOAP-ENV:Body>\r\n"
+                                "</SOAP-ENV:Envelope>";
+        auto res = client.Post("/onvif/media2_service", req, "application/soap+xml; charset=utf-8");
+        assert(res && res->status == 200);
+        assert(res->body.find("SetVideoSourceModeResponse") != std::string::npos);
+        assert(res->body.find("Reboot>true</") != std::string::npos);
+
+        // Verify active mode in adapter
+        const auto modes = adapter->handleGetVideoSourceModes("VideoSource_1");
+        for (const auto& m : modes) {
+            if (m.token == "Mode_4k30") {
+                assert(m.enabled == true);
+            } else {
+                assert(m.enabled == false);
+            }
+        }
+    }
+
+    // 11. End-to-end OnvifClient calls against the running server
+    {
+        OnvifClient onvifClient("http://127.0.0.1:" + std::to_string(port) + "/onvif/device_service");
+        assert(onvifClient.getCapabilities());
+
+        const auto opts = onvifClient.getMaskOptions("VideoSource_1");
+        assert(opts.has_value());
+        assert(opts->maxMasks == 8);
+
+        auto masks = onvifClient.getMasks("VideoSource_1");
+        assert(masks.size() == 1U);
+        assert(masks[0].token == "Mask_1");
+
+        PrivacyMask clientMask {};
+        clientMask.token = "Mask_Client";
+        clientMask.configurationToken = "VideoSource_1";
+        clientMask.type = MaskType::Color;
+        clientMask.color = { 0, 255, 0, "RGB" };
+        clientMask.enabled = true;
+        clientMask.polygon = { { 0.1f, 0.1f }, { 0.5f, 0.5f } };
+
+        const std::string createdTok = onvifClient.createMask(clientMask);
+        assert(createdTok == "Mask_Client");
+
+        masks = onvifClient.getMasks("VideoSource_1");
+        assert(masks.size() == 2U);
+
+        const auto singleMask = onvifClient.getMask("Mask_Client");
+        assert(singleMask.has_value());
+        assert(singleMask->token == "Mask_Client");
+
+        clientMask.enabled = false;
+        assert(onvifClient.setMask(clientMask));
+
+        assert(onvifClient.deleteMask("Mask_Client"));
+        masks = onvifClient.getMasks("VideoSource_1");
+        assert(masks.size() == 1U);
+
+        const auto modes = onvifClient.getVideoSourceModes("VideoSource_1");
+        assert(modes.size() == 2U);
+
+        assert(onvifClient.setVideoSourceMode("VideoSource_1", "Mode_1080p60"));
+    }
+
+    server.stop();
+    assert(!server.isRunning());
+    device->stop();
+
+    std::cout << "[PASS] testProfileTPrivacyMasksAndVideoSourceModes" << std::endl;
+}
+
 int main()
 {
     std::cout << "Starting TestOnvifServer test suite..." << std::endl;
@@ -2761,6 +3041,7 @@ int main()
     testProfileGAndPkiCertificates();
     testVideoAnalyticsRuleEngineAndEvaluation();
     testPtzGeoMoveAndSphericalSpaces();
+    testProfileTPrivacyMasksAndVideoSourceModes();
     std::cout << "All TestOnvifServer tests passed successfully!" << std::endl;
     return 0;
 }

@@ -20,6 +20,7 @@ namespace PelcoD::Onvif {
 struct OnvifCapabilities {
     std::string deviceXAddr {}; ///< Device service endpoint
     std::string mediaXAddr {}; ///< Media service endpoint
+    std::string media2XAddr {}; ///< Media2 service endpoint (Profile T)
     std::string ptzXAddr {}; ///< PTZ service endpoint
     std::string eventsXAddr {}; ///< Events service endpoint
     std::string imagingXAddr {}; ///< Imaging service endpoint
@@ -245,6 +246,53 @@ public:
     /// @param[in] osdToken Token of the OSD to delete.
     /// @return True if removed successfully.
     bool deleteOSD(const std::string& osdToken);
+
+    // =========================================================================
+    // Privacy Masks & Video Source Modes (Profile T / Media2)
+    // =========================================================================
+
+    /// @brief Queries privacy mask configuration options for a video source.
+    /// @param[in] configToken VideoSourceConfiguration token.
+    /// @return MaskOptions containing limits and supported types.
+    [[nodiscard]] std::optional<MaskOptions> getMaskOptions(
+        const std::string& configToken = "VideoSourceConfig_1");
+
+    /// @brief Queries all configured privacy masks for a video source.
+    /// @param[in] configToken Optional VideoSourceConfiguration token filter.
+    /// @return Vector of PrivacyMask objects.
+    [[nodiscard]] std::vector<PrivacyMask> getMasks(const std::string& configToken = "");
+
+    /// @brief Queries a specific privacy mask by token.
+    /// @param[in] maskToken Mask token identifier.
+    /// @return PrivacyMask if found.
+    [[nodiscard]] std::optional<PrivacyMask> getMask(const std::string& maskToken);
+
+    /// @brief Creates a new privacy mask on the device.
+    /// @param[in] mask PrivacyMask configuration.
+    /// @return Created mask token on success, empty on failure.
+    [[nodiscard]] std::string createMask(const PrivacyMask& mask);
+
+    /// @brief Modifies an existing privacy mask.
+    /// @param[in] mask Updated mask configuration.
+    /// @return True on success.
+    bool setMask(const PrivacyMask& mask);
+
+    /// @brief Deletes a privacy mask.
+    /// @param[in] maskToken Token of mask to delete.
+    /// @return True on success.
+    bool deleteMask(const std::string& maskToken);
+
+    /// @brief Queries available video source capture modes.
+    /// @param[in] videoSourceToken Video source token (default: "VideoSource_1").
+    /// @return Vector of VideoSourceMode structures.
+    [[nodiscard]] std::vector<VideoSourceMode> getVideoSourceModes(
+        const std::string& videoSourceToken = "VideoSource_1");
+
+    /// @brief Sets the active video source capture mode.
+    /// @param[in] videoSourceToken Video source token.
+    /// @param[in] modeToken Desired mode token (e.g. "Mode_4K30").
+    /// @return True if mode switch succeeded (or initiated reboot).
+    bool setVideoSourceMode(const std::string& videoSourceToken, const std::string& modeToken);
 
     // =========================================================================
     // PTZ Service
@@ -1021,6 +1069,13 @@ public:
         const std::string& xml);
     [[nodiscard]] static std::vector<AnalyticsModule> parseAnalyticsModulesResponse(const std::string& xml);
     [[nodiscard]] static std::optional<LocationEntity> parseGetGeoLocationResponse(const std::string& xml);
+
+    [[nodiscard]] static std::optional<MaskOptions> parseMaskOptionsResponse(const std::string& xml);
+    [[nodiscard]] static std::vector<PrivacyMask> parseMasksResponse(const std::string& xml);
+    [[nodiscard]] static std::optional<PrivacyMask> parseMaskResponse(const std::string& xml);
+    [[nodiscard]] static std::optional<std::string> parseCreateMaskResponse(const std::string& xml);
+    [[nodiscard]] static std::vector<VideoSourceMode> parseVideoSourceModesResponse(const std::string& xml);
+    [[nodiscard]] static std::optional<bool> parseSetVideoSourceModeResponse(const std::string& xml);
 
 private:
     std::string m_deviceEndpoint {};

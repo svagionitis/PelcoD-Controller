@@ -120,6 +120,20 @@ private slots:
     void handleOsdsUpdated(const std::vector<PelcoD::Onvif::OsdConfig>& osds);
     void handleOsdSelectionChanged();
 
+    // Profile T: Privacy Masks
+    void handleRefreshMasks();
+    void handleAddMask();
+    void handleUpdateMask();
+    void handleDeleteMask();
+    void handleMasksUpdated(const std::vector<PelcoD::Onvif::PrivacyMask>& masks);
+    void handleMaskSelectionChanged();
+
+    // Profile T: Video Source Modes
+    void handleRefreshVideoSourceModes();
+    void handleApplyVideoSourceMode();
+    void handleVideoSourceModesUpdated(const std::vector<PelcoD::Onvif::VideoSourceMode>& modes);
+    void handleVideoSourceModeChanged(const QString& modeToken, bool rebootRequired);
+
     // Device Management: Users & Security
     void handleRefreshUsers();
     void handleAddUser();
@@ -347,6 +361,25 @@ private:
     QPushButton* btnAddOsd { nullptr };
     QPushButton* btnUpdateOsd { nullptr };
     QPushButton* btnDeleteOsd { nullptr };
+
+    // Profile T: Privacy Masks widgets
+    QTableWidget* tableMasks { nullptr };
+    QLineEdit* editMaskToken { nullptr };
+    QComboBox* cmbMaskType { nullptr };
+    QSpinBox* spinMaskColorR { nullptr };
+    QSpinBox* spinMaskColorG { nullptr };
+    QSpinBox* spinMaskColorB { nullptr };
+    QCheckBox* chkMaskEnabled { nullptr };
+    QPushButton* btnRefreshMasks { nullptr };
+    QPushButton* btnAddMask { nullptr };
+    QPushButton* btnUpdateMask { nullptr };
+    QPushButton* btnDeleteMask { nullptr };
+
+    // Profile T: Video Source Modes widgets
+    QComboBox* cmbVideoSourceModes { nullptr };
+    QLabel* lblVideoSourceModeInfo { nullptr };
+    QPushButton* btnRefreshVideoSourceModes { nullptr };
+    QPushButton* btnApplyVideoSourceMode { nullptr };
 
     // Maintenance
     QPushButton* btnReboot { nullptr };

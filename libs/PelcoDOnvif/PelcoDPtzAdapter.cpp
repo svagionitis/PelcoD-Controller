@@ -49,6 +49,29 @@ PelcoDPtzAdapter::PelcoDPtzAdapter(std::shared_ptr<PelcoD::PelcoDDevice> device)
     m_recordingJobs.push_back(defJob);
 
     m_replayConfig.sessionTimeout = "PT60S";
+
+    VideoSourceMode mode1;
+    mode1.token = "Mode_1080p60";
+    mode1.enabled = true;
+    mode1.maxFramerate = 60.0f;
+    mode1.width = 1920;
+    mode1.height = 1080;
+    mode1.encodings = { "H264", "H265" };
+    mode1.reboot = false;
+    mode1.description = "1080p 60fps";
+
+    VideoSourceMode mode2;
+    mode2.token = "Mode_4k30";
+    mode2.enabled = false;
+    mode2.maxFramerate = 30.0f;
+    mode2.width = 3840;
+    mode2.height = 2160;
+    mode2.encodings = { "H264", "H265" };
+    mode2.reboot = true;
+    mode2.description = "4K UHD 30fps (reboot required)";
+
+    m_videoSourceModes.push_back(mode1);
+    m_videoSourceModes.push_back(mode2);
 }
 
 PelcoDPtzAdapter::~PelcoDPtzAdapter()
@@ -1663,6 +1686,106 @@ bool PelcoDPtzAdapter::handleDeleteGeoLocation(const std::string& /*entityToken*
     std::lock_guard<std::mutex> lock(m_mutex);
     m_cameraLocation = LocationEntity {};
     return true;
+}
+
+// =========================================================================
+// IMaskHandler Implementation (Profile T / Media2)
+// =========================================================================
+
+MaskOptions PelcoDPtzAdapter::handleGetMaskOptions(const std::string& /*configToken*/)
+{
+    std::lock_guard<std::mutex> lock(m_maskMutex);
+    return m_maskOptions;
+}
+
+std::vector<PrivacyMask> PelcoDPtzAdapter::handleGetMasks(const std::string& configToken)
+{
+    std::lock_guard<std::mutex> lock(m_maskMutex);
+    if (configToken.empty()) {
+        return m_masks;
+    }
+    std::vector<PrivacyMask> filtered {};
+    for (const auto& m : m_masks) {
+        if (m.configurationToken == configToken) {
+            filtered.push_back(m);
+        }
+    }
+    return filtered;
+}
+
+std::optional<PrivacyMask> PelcoDPtzAdapter::handleGetMask(const std::string& maskToken)
+{
+    std::lock_guard<std::mutex> lock(m_maskMutex);
+    const auto it = std::find_if(m_masks.begin(), m_masks.end(),
+        [&maskToken](const PrivacyMask& m) { return m.token == maskToken; });
+    if (it != m_masks.end()) {
+        return *it;
+    }
+    return std::nullopt;
+}
+
+bool PelcoDPtzAdapter::handleSetMask(const PrivacyMask& mask)
+{
+    std::lock_guard<std::mutex> lock(m_maskMutex);
+    const auto it = std::find_if(m_masks.begin(), m_masks.end(),
+        [&mask](const PrivacyMask& m) { return m.token == mask.token; });
+    if (it != m_masks.end()) {
+        *it = mask;
+    } else {
+        m_masks.push_back(mask);
+    }
+    return true;
+}
+
+std::string PelcoDPtzAdapter::handleCreateMask(const PrivacyMask& mask)
+{
+    std::lock_guard<std::mutex> lock(m_maskMutex);
+    PrivacyMask created = mask;
+    if (created.token.empty()) {
+        created.token = "Mask_" + std::to_string(m_nextMaskId++);
+    }
+    m_masks.push_back(created);
+    return created.token;
+}
+
+bool PelcoDPtzAdapter::handleDeleteMask(const std::string& maskToken)
+{
+    std::lock_guard<std::mutex> lock(m_maskMutex);
+    const auto it = std::find_if(m_masks.begin(), m_masks.end(),
+        [&maskToken](const PrivacyMask& m) { return m.token == maskToken; });
+    if (it != m_masks.end()) {
+        m_masks.erase(it);
+        return true;
+    }
+    return false;
+}
+
+// =========================================================================
+// IVideoSourceModeHandler Implementation (Profile T / Media2)
+// =========================================================================
+
+std::vector<VideoSourceMode> PelcoDPtzAdapter::handleGetVideoSourceModes(const std::string& /*videoSourceToken*/)
+{
+    std::lock_guard<std::mutex> lock(m_videoSourceModeMutex);
+    return m_videoSourceModes;
+}
+
+bool PelcoDPtzAdapter::handleSetVideoSourceMode(
+    const std::string& /*videoSourceToken*/, const std::string& modeToken, bool& outRebootNeeded)
+{
+    std::lock_guard<std::mutex> lock(m_videoSourceModeMutex);
+    bool found = false;
+    outRebootNeeded = false;
+    for (auto& mode : m_videoSourceModes) {
+        if (mode.token == modeToken) {
+            mode.enabled = true;
+            outRebootNeeded = mode.reboot;
+            found = true;
+        } else {
+            mode.enabled = false;
+        }
+    }
+    return found;
 }
 
 } // namespace PelcoD::Onvif

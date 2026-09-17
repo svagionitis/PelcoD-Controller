@@ -220,6 +220,23 @@ std::optional<OnvifCapabilities> OnvifClient::parseCapabilitiesResponse(const st
                 caps.replayXAddr = xaddr.text().as_string();
             }
         }
+        const auto media2Node = findNodeWithSuffix(extNode, "Media2");
+        if (media2Node) {
+            const auto xaddr = findNodeWithSuffix(media2Node, "XAddr");
+            if (xaddr) {
+                caps.media2XAddr = xaddr.text().as_string();
+            }
+        }
+    }
+
+    if (caps.media2XAddr.empty()) {
+        const auto media2Node = findNodeWithSuffix(capNode, "Media2");
+        if (media2Node) {
+            const auto xaddr = findNodeWithSuffix(media2Node, "XAddr");
+            if (xaddr) {
+                caps.media2XAddr = xaddr.text().as_string();
+            }
+        }
     }
 
     if (caps.recordingXAddr.empty()) {
@@ -4677,6 +4694,568 @@ std::optional<LocationEntity> OnvifClient::parseGetGeoLocationResponse(const std
     }
 
     return entity;
+}
+
+// =========================================================================
+// Privacy Masks & Video Source Modes (Profile T / Media2)
+// =========================================================================
+
+namespace {
+
+PrivacyMask parseMaskFromNode(const pugi::xml_node& maskNode)
+{
+    PrivacyMask mask {};
+    if (maskNode.attribute("token")) {
+        mask.token = maskNode.attribute("token").as_string();
+    } else if (maskNode.attribute("Token")) {
+        mask.token = maskNode.attribute("Token").as_string();
+    } else {
+        const auto tokChild = findNodeWithSuffix(maskNode, "Token");
+        if (tokChild) {
+            mask.token = tokChild.text().as_string();
+        }
+    }
+
+    const auto cfgContainer = findNodeWithSuffix(maskNode, "Configuration");
+
+    const auto cfgNode = findNodeWithSuffix(maskNode, "ConfigurationToken");
+    if (cfgNode) {
+        mask.configurationToken = cfgNode.text().as_string();
+    } else if (cfgContainer) {
+        if (cfgContainer.attribute("token")) {
+            mask.configurationToken = cfgContainer.attribute("token").as_string();
+        } else if (cfgContainer.attribute("Token")) {
+            mask.configurationToken = cfgContainer.attribute("Token").as_string();
+        }
+    }
+
+    auto polyNode = findNodeWithSuffix(maskNode, "Polygon");
+    if (!polyNode && cfgContainer) {
+        polyNode = findNodeWithSuffix(cfgContainer, "Polygon");
+    }
+
+    if (polyNode) {
+        for (const auto& ptNode : polyNode.children()) {
+            const std::string ptName = ptNode.name();
+            const auto colonPos = ptName.find(':');
+            const std::string localPt = (colonPos != std::string::npos) ? ptName.substr(colonPos + 1) : ptName;
+            if (localPt == "Point") {
+                Point2D pt {};
+                if (ptNode.attribute("x")) {
+                    pt.x = ptNode.attribute("x").as_float(0.0f);
+                } else if (ptNode.attribute("X")) {
+                    pt.x = ptNode.attribute("X").as_float(0.0f);
+                }
+                if (ptNode.attribute("y")) {
+                    pt.y = ptNode.attribute("y").as_float(0.0f);
+                } else if (ptNode.attribute("Y")) {
+                    pt.y = ptNode.attribute("Y").as_float(0.0f);
+                }
+                mask.polygon.push_back(pt);
+            }
+        }
+    }
+
+    const auto typeNode = findNodeWithSuffix(maskNode, "Type");
+    if (typeNode) {
+        mask.type = stringToMaskType(typeNode.text().as_string("Color"));
+    } else if (maskNode.attribute("Type")) {
+        mask.type = stringToMaskType(maskNode.attribute("Type").as_string("Color"));
+    } else if (maskNode.attribute("type")) {
+        mask.type = stringToMaskType(maskNode.attribute("type").as_string("Color"));
+    } else if (cfgContainer) {
+        const auto cfgType = findNodeWithSuffix(cfgContainer, "Type");
+        if (cfgType) {
+            mask.type = stringToMaskType(cfgType.text().as_string("Color"));
+        } else if (cfgContainer.attribute("Type")) {
+            mask.type = stringToMaskType(cfgContainer.attribute("Type").as_string("Color"));
+        }
+    }
+
+    auto colorNode = findNodeWithSuffix(maskNode, "Color");
+    if (!colorNode && cfgContainer) {
+        colorNode = findNodeWithSuffix(cfgContainer, "Color");
+    }
+
+    if (colorNode) {
+        if (colorNode.attribute("X")) {
+            mask.color.x = colorNode.attribute("X").as_int(0);
+        } else if (colorNode.attribute("x")) {
+            mask.color.x = colorNode.attribute("x").as_int(0);
+        }
+        if (colorNode.attribute("Y")) {
+            mask.color.y = colorNode.attribute("Y").as_int(0);
+        } else if (colorNode.attribute("y")) {
+            mask.color.y = colorNode.attribute("y").as_int(0);
+        }
+        if (colorNode.attribute("Z")) {
+            mask.color.z = colorNode.attribute("Z").as_int(0);
+        } else if (colorNode.attribute("z")) {
+            mask.color.z = colorNode.attribute("z").as_int(0);
+        }
+        if (colorNode.attribute("Colorspace")) {
+            mask.color.colorspace = colorNode.attribute("Colorspace").as_string("RGB");
+        } else if (colorNode.attribute("colorspace")) {
+            mask.color.colorspace = colorNode.attribute("colorspace").as_string("RGB");
+        }
+    }
+
+    const auto enabledNode = findNodeWithSuffix(maskNode, "Enabled");
+    if (enabledNode) {
+        mask.enabled = enabledNode.text().as_bool(true);
+    } else if (maskNode.attribute("Enabled")) {
+        mask.enabled = maskNode.attribute("Enabled").as_bool(true);
+    } else if (maskNode.attribute("enabled")) {
+        mask.enabled = maskNode.attribute("enabled").as_bool(true);
+    }
+
+    return mask;
+}
+
+} // namespace
+
+std::optional<MaskOptions> OnvifClient::getMaskOptions(const std::string& configToken)
+{
+    const std::string targetUrl
+        = resolveServiceUrl(m_capabilities.media2XAddr, m_deviceEndpoint, "/onvif/media2_service");
+    std::ostringstream ss {};
+    ss << "<tr2:GetMaskOptions xmlns:tr2=\"http://www.onvif.org/ver20/media/wsdl\">\n"
+       << "  <tr2:ConfigurationToken>" << configToken << "</tr2:ConfigurationToken>\n"
+       << "</tr2:GetMaskOptions>";
+
+    const std::string reqXml = wrapSoapEnvelope(ss.str());
+    const HttpResponse resp = m_httpClient.sendPost(targetUrl, reqXml);
+    if (!resp.isSuccess()) {
+        return std::nullopt;
+    }
+    return parseMaskOptionsResponse(resp.body);
+}
+
+std::vector<PrivacyMask> OnvifClient::getMasks(const std::string& configToken)
+{
+    const std::string targetUrl
+        = resolveServiceUrl(m_capabilities.media2XAddr, m_deviceEndpoint, "/onvif/media2_service");
+    std::ostringstream ss {};
+    ss << "<tr2:GetMasks xmlns:tr2=\"http://www.onvif.org/ver20/media/wsdl\">\n";
+    if (!configToken.empty()) {
+        ss << "  <tr2:ConfigurationToken>" << configToken << "</tr2:ConfigurationToken>\n";
+    }
+    ss << "</tr2:GetMasks>";
+
+    const std::string reqXml = wrapSoapEnvelope(ss.str());
+    const HttpResponse resp = m_httpClient.sendPost(targetUrl, reqXml);
+    if (!resp.isSuccess()) {
+        return {};
+    }
+    return parseMasksResponse(resp.body);
+}
+
+std::optional<PrivacyMask> OnvifClient::getMask(const std::string& maskToken)
+{
+    const std::string targetUrl
+        = resolveServiceUrl(m_capabilities.media2XAddr, m_deviceEndpoint, "/onvif/media2_service");
+    std::ostringstream ss {};
+    ss << "<tr2:GetMask xmlns:tr2=\"http://www.onvif.org/ver20/media/wsdl\">\n"
+       << "  <tr2:Token>" << maskToken << "</tr2:Token>\n"
+       << "</tr2:GetMask>";
+
+    const std::string reqXml = wrapSoapEnvelope(ss.str());
+    const HttpResponse resp = m_httpClient.sendPost(targetUrl, reqXml);
+    if (!resp.isSuccess()) {
+        return std::nullopt;
+    }
+    return parseMaskResponse(resp.body);
+}
+
+std::string OnvifClient::createMask(const PrivacyMask& mask)
+{
+    const std::string targetUrl
+        = resolveServiceUrl(m_capabilities.media2XAddr, m_deviceEndpoint, "/onvif/media2_service");
+    std::ostringstream ss {};
+    ss << "<tr2:CreateMask xmlns:tr2=\"http://www.onvif.org/ver20/media/wsdl\" "
+       << "xmlns:tt=\"http://www.onvif.org/ver10/schema\">\n"
+       << "  <tr2:Mask";
+    if (!mask.token.empty()) {
+        ss << " token=\"" << mask.token << "\"";
+    }
+    ss << ">\n"
+       << "    <tr2:ConfigurationToken>" << mask.configurationToken << "</tr2:ConfigurationToken>\n"
+       << "    <tr2:Polygon>\n";
+    for (const auto& pt : mask.polygon) {
+        ss << "      <tt:Point x=\"" << std::fixed << std::setprecision(4) << pt.x
+           << "\" y=\"" << pt.y << "\"/>\n";
+    }
+    ss << "    </tr2:Polygon>\n"
+       << "    <tr2:Type>" << maskTypeToString(mask.type) << "</tr2:Type>\n"
+       << "    <tr2:Color X=\"" << mask.color.x << "\" Y=\"" << mask.color.y
+       << "\" Z=\"" << mask.color.z << "\" Colorspace=\"" << mask.color.colorspace << "\"/>\n"
+       << "    <tr2:Enabled>" << (mask.enabled ? "true" : "false") << "</tr2:Enabled>\n"
+       << "  </tr2:Mask>\n"
+       << "</tr2:CreateMask>";
+
+    const std::string reqXml = wrapSoapEnvelope(ss.str());
+    const HttpResponse resp = m_httpClient.sendPost(targetUrl, reqXml);
+    if (!resp.isSuccess()) {
+        return {};
+    }
+    return parseCreateMaskResponse(resp.body).value_or("");
+}
+
+bool OnvifClient::setMask(const PrivacyMask& mask)
+{
+    const std::string targetUrl
+        = resolveServiceUrl(m_capabilities.media2XAddr, m_deviceEndpoint, "/onvif/media2_service");
+    std::ostringstream ss {};
+    ss << "<tr2:SetMask xmlns:tr2=\"http://www.onvif.org/ver20/media/wsdl\" "
+       << "xmlns:tt=\"http://www.onvif.org/ver10/schema\">\n"
+       << "  <tr2:Mask token=\"" << mask.token << "\">\n"
+       << "    <tr2:ConfigurationToken>" << mask.configurationToken << "</tr2:ConfigurationToken>\n"
+       << "    <tr2:Polygon>\n";
+    for (const auto& pt : mask.polygon) {
+        ss << "      <tt:Point x=\"" << std::fixed << std::setprecision(4) << pt.x
+           << "\" y=\"" << pt.y << "\"/>\n";
+    }
+    ss << "    </tr2:Polygon>\n"
+       << "    <tr2:Type>" << maskTypeToString(mask.type) << "</tr2:Type>\n"
+       << "    <tr2:Color X=\"" << mask.color.x << "\" Y=\"" << mask.color.y
+       << "\" Z=\"" << mask.color.z << "\" Colorspace=\"" << mask.color.colorspace << "\"/>\n"
+       << "    <tr2:Enabled>" << (mask.enabled ? "true" : "false") << "</tr2:Enabled>\n"
+       << "  </tr2:Mask>\n"
+       << "</tr2:SetMask>";
+
+    const std::string reqXml = wrapSoapEnvelope(ss.str());
+    const HttpResponse resp = m_httpClient.sendPost(targetUrl, reqXml);
+    return resp.isSuccess();
+}
+
+bool OnvifClient::deleteMask(const std::string& maskToken)
+{
+    const std::string targetUrl
+        = resolveServiceUrl(m_capabilities.media2XAddr, m_deviceEndpoint, "/onvif/media2_service");
+    std::ostringstream ss {};
+    ss << "<tr2:DeleteMask xmlns:tr2=\"http://www.onvif.org/ver20/media/wsdl\">\n"
+       << "  <tr2:Token>" << maskToken << "</tr2:Token>\n"
+       << "</tr2:DeleteMask>";
+
+    const std::string reqXml = wrapSoapEnvelope(ss.str());
+    const HttpResponse resp = m_httpClient.sendPost(targetUrl, reqXml);
+    return resp.isSuccess();
+}
+
+std::vector<VideoSourceMode> OnvifClient::getVideoSourceModes(const std::string& videoSourceToken)
+{
+    const std::string targetUrl
+        = resolveServiceUrl(m_capabilities.media2XAddr, m_deviceEndpoint, "/onvif/media2_service");
+    std::ostringstream ss {};
+    ss << "<tr2:GetVideoSourceModes xmlns:tr2=\"http://www.onvif.org/ver20/media/wsdl\">\n"
+       << "  <tr2:VideoSourceToken>" << videoSourceToken << "</tr2:VideoSourceToken>\n"
+       << "</tr2:GetVideoSourceModes>";
+
+    const std::string reqXml = wrapSoapEnvelope(ss.str());
+    const HttpResponse resp = m_httpClient.sendPost(targetUrl, reqXml);
+    if (!resp.isSuccess()) {
+        return {};
+    }
+    return parseVideoSourceModesResponse(resp.body);
+}
+
+bool OnvifClient::setVideoSourceMode(const std::string& videoSourceToken, const std::string& modeToken)
+{
+    const std::string targetUrl
+        = resolveServiceUrl(m_capabilities.media2XAddr, m_deviceEndpoint, "/onvif/media2_service");
+    std::ostringstream ss {};
+    ss << "<tr2:SetVideoSourceMode xmlns:tr2=\"http://www.onvif.org/ver20/media/wsdl\">\n"
+       << "  <tr2:VideoSourceToken>" << videoSourceToken << "</tr2:VideoSourceToken>\n"
+       << "  <tr2:VideoSourceModeToken>" << modeToken << "</tr2:VideoSourceModeToken>\n"
+       << "</tr2:SetVideoSourceMode>";
+
+    const std::string reqXml = wrapSoapEnvelope(ss.str());
+    const HttpResponse resp = m_httpClient.sendPost(targetUrl, reqXml);
+    return resp.isSuccess();
+}
+
+std::optional<MaskOptions> OnvifClient::parseMaskOptionsResponse(const std::string& xml)
+{
+    pugi::xml_document doc {};
+    if (!doc.load_string(xml.c_str())) {
+        return std::nullopt;
+    }
+
+    const auto optsNode = findRecursiveNodeWithSuffix(doc, "Options");
+    if (!optsNode) {
+        return std::nullopt;
+    }
+
+    MaskOptions opts {};
+    if (optsNode.attribute("MaxMasks")) {
+        opts.maxMasks = optsNode.attribute("MaxMasks").as_int(8);
+    } else {
+        const auto mm = findNodeWithSuffix(optsNode, "MaxMasks");
+        if (mm) {
+            opts.maxMasks = mm.text().as_int(8);
+        }
+    }
+
+    if (optsNode.attribute("MaxPoints")) {
+        opts.maxPoints = optsNode.attribute("MaxPoints").as_int(8);
+    } else {
+        const auto mp = findNodeWithSuffix(optsNode, "MaxPoints");
+        if (mp) {
+            opts.maxPoints = mp.text().as_int(8);
+        }
+    }
+
+    if (optsNode.attribute("Rectangle")) {
+        opts.rectangleSupported = optsNode.attribute("Rectangle").as_bool(true);
+    } else if (optsNode.attribute("RectangleSupported")) {
+        opts.rectangleSupported = optsNode.attribute("RectangleSupported").as_bool(true);
+    } else {
+        const auto rs = findNodeWithSuffix(optsNode, "Rectangle");
+        if (rs) {
+            opts.rectangleSupported = rs.text().as_bool(true);
+        } else {
+            const auto rs2 = findNodeWithSuffix(optsNode, "RectangleSupported");
+            if (rs2) {
+                opts.rectangleSupported = rs2.text().as_bool(true);
+            }
+        }
+    }
+
+    if (optsNode.attribute("Polygon")) {
+        opts.polygonSupported = optsNode.attribute("Polygon").as_bool(true);
+    } else if (optsNode.attribute("PolygonSupported")) {
+        opts.polygonSupported = optsNode.attribute("PolygonSupported").as_bool(true);
+    } else {
+        const auto ps = findNodeWithSuffix(optsNode, "Polygon");
+        if (ps) {
+            opts.polygonSupported = ps.text().as_bool(true);
+        } else {
+            const auto ps2 = findNodeWithSuffix(optsNode, "PolygonSupported");
+            if (ps2) {
+                opts.polygonSupported = ps2.text().as_bool(true);
+            }
+        }
+    }
+
+    std::vector<MaskType> types {};
+    std::vector<std::string> colorSpaces {};
+
+    for (const auto& child : optsNode.children()) {
+        const std::string name = child.name();
+        const auto colonPos = name.find(':');
+        const std::string localName = (colonPos != std::string::npos) ? name.substr(colonPos + 1) : name;
+        if (localName == "Types" || localName == "Type" || localName == "SupportedTypes" || localName == "SupportedType") {
+            types.push_back(stringToMaskType(child.text().as_string("Color")));
+        } else if (localName == "SupportedColorSpaces" || localName == "SupportedColorSpace" || localName == "ColorSpaces" || localName == "ColorSpace") {
+            colorSpaces.push_back(child.text().as_string("RGB"));
+        }
+    }
+
+    if (!types.empty()) {
+        opts.supportedTypes = std::move(types);
+    }
+    if (!colorSpaces.empty()) {
+        opts.supportedColorSpaces = std::move(colorSpaces);
+    }
+
+    return opts;
+}
+
+std::vector<PrivacyMask> OnvifClient::parseMasksResponse(const std::string& xml)
+{
+    pugi::xml_document doc {};
+    if (!doc.load_string(xml.c_str())) {
+        return {};
+    }
+
+    std::vector<PrivacyMask> masks {};
+    std::vector<pugi::xml_node> maskNodes {};
+    collectNodesWithSuffix(doc, "Mask", maskNodes);
+    if (maskNodes.empty()) {
+        collectNodesWithSuffix(doc, "Masks", maskNodes);
+    }
+
+    for (const auto& node : maskNodes) {
+        // Skip container if it is GetMasksResponse or similar
+        const std::string name = node.name();
+        const auto colonPos = name.find(':');
+        const std::string localName = (colonPos != std::string::npos) ? name.substr(colonPos + 1) : name;
+        if (localName == "Mask" || localName == "Masks") {
+            // Check that it looks like an actual mask definition (has token, ConfigurationToken, or Type)
+            if (node.attribute("token") || node.attribute("Token")
+                || findNodeWithSuffix(node, "Token") || findNodeWithSuffix(node, "ConfigurationToken")
+                || findNodeWithSuffix(node, "Polygon") || findNodeWithSuffix(node, "Type")) {
+                masks.push_back(parseMaskFromNode(node));
+            }
+        }
+    }
+
+    return masks;
+}
+
+std::optional<PrivacyMask> OnvifClient::parseMaskResponse(const std::string& xml)
+{
+    pugi::xml_document doc {};
+    if (!doc.load_string(xml.c_str())) {
+        return std::nullopt;
+    }
+
+    const auto maskNode = findRecursiveNodeWithSuffix(doc, "Mask");
+    if (!maskNode) {
+        return std::nullopt;
+    }
+
+    return parseMaskFromNode(maskNode);
+}
+
+std::optional<std::string> OnvifClient::parseCreateMaskResponse(const std::string& xml)
+{
+    pugi::xml_document doc {};
+    if (!doc.load_string(xml.c_str())) {
+        return std::nullopt;
+    }
+
+    const auto respNode = findRecursiveNodeWithSuffix(doc, "CreateMaskResponse");
+    if (respNode) {
+        const auto tokNode = findNodeWithSuffix(respNode, "Token");
+        if (tokNode) {
+            return tokNode.text().as_string();
+        }
+        if (respNode.attribute("token")) {
+            return respNode.attribute("token").as_string();
+        }
+    }
+
+    const auto tokNode = findRecursiveNodeWithSuffix(doc, "Token");
+    if (tokNode) {
+        return tokNode.text().as_string();
+    }
+
+    return std::nullopt;
+}
+
+std::vector<VideoSourceMode> OnvifClient::parseVideoSourceModesResponse(const std::string& xml)
+{
+    pugi::xml_document doc {};
+    if (!doc.load_string(xml.c_str())) {
+        return {};
+    }
+
+    std::vector<pugi::xml_node> modeNodes {};
+    collectNodesWithSuffix(doc, "VideoSourceModes", modeNodes);
+    if (modeNodes.empty()) {
+        collectNodesWithSuffix(doc, "VideoSourceMode", modeNodes);
+    }
+
+    std::vector<VideoSourceMode> modes {};
+    for (const auto& node : modeNodes) {
+        VideoSourceMode mode {};
+        if (node.attribute("token")) {
+            mode.token = node.attribute("token").as_string();
+        } else if (node.attribute("Token")) {
+            mode.token = node.attribute("Token").as_string();
+        } else {
+            const auto tokChild = findNodeWithSuffix(node, "Token");
+            if (tokChild) {
+                mode.token = tokChild.text().as_string();
+            }
+        }
+
+        if (node.attribute("Enabled")) {
+            mode.enabled = node.attribute("Enabled").as_bool(false);
+        } else if (node.attribute("enabled")) {
+            mode.enabled = node.attribute("enabled").as_bool(false);
+        } else {
+            const auto en = findNodeWithSuffix(node, "Enabled");
+            if (en) {
+                mode.enabled = en.text().as_bool(false);
+            }
+        }
+
+        const auto fps = findNodeWithSuffix(node, "MaxFramerate");
+        if (fps) {
+            mode.maxFramerate = fps.text().as_float(30.0f);
+        }
+
+        auto parseRes = [&](const pugi::xml_node& rNode) {
+            if (rNode.attribute("Width")) {
+                mode.width = rNode.attribute("Width").as_int(mode.width);
+            } else if (rNode.attribute("width")) {
+                mode.width = rNode.attribute("width").as_int(mode.width);
+            } else {
+                const auto w = findNodeWithSuffix(rNode, "Width");
+                if (w) mode.width = w.text().as_int(mode.width);
+            }
+            if (rNode.attribute("Height")) {
+                mode.height = rNode.attribute("Height").as_int(mode.height);
+            } else if (rNode.attribute("height")) {
+                mode.height = rNode.attribute("height").as_int(mode.height);
+            } else {
+                const auto h = findNodeWithSuffix(rNode, "Height");
+                if (h) mode.height = h.text().as_int(mode.height);
+            }
+        };
+
+        const auto res = findNodeWithSuffix(node, "MaxResolution");
+        if (res) {
+            parseRes(res);
+        } else {
+            const auto res2 = findNodeWithSuffix(node, "Resolution");
+            if (res2) {
+                parseRes(res2);
+            }
+        }
+
+        const auto encNode = findNodeWithSuffix(node, "Encodings");
+        if (encNode) {
+            std::string encText = encNode.text().as_string();
+            std::istringstream iss(encText);
+            std::string item {};
+            std::vector<std::string> encs {};
+            while (iss >> item) {
+                encs.push_back(item);
+            }
+            if (!encs.empty()) {
+                mode.encodings = std::move(encs);
+            }
+        }
+
+        const auto rebootNode = findNodeWithSuffix(node, "Reboot");
+        if (rebootNode) {
+            mode.reboot = rebootNode.text().as_bool(false);
+        }
+
+        const auto descNode = findNodeWithSuffix(node, "Description");
+        if (descNode) {
+            mode.description = descNode.text().as_string();
+        }
+
+        if (!mode.token.empty() || mode.width > 0) {
+            modes.push_back(std::move(mode));
+        }
+    }
+
+    return modes;
+}
+
+std::optional<bool> OnvifClient::parseSetVideoSourceModeResponse(const std::string& xml)
+{
+    pugi::xml_document doc {};
+    if (!doc.load_string(xml.c_str())) {
+        return std::nullopt;
+    }
+
+    const auto respNode = findRecursiveNodeWithSuffix(doc, "SetVideoSourceModeResponse");
+    if (!respNode) {
+        return std::nullopt;
+    }
+
+    const auto rebootNode = findNodeWithSuffix(respNode, "Reboot");
+    if (rebootNode) {
+        return rebootNode.text().as_bool(false);
+    }
+
+    return false;
 }
 
 } // namespace PelcoD::Onvif

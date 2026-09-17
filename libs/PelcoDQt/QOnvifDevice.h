@@ -185,6 +185,24 @@ public:
         return m_geoLocation;
     }
 
+    /// @brief Gets cached privacy masks (Profile T / Media2).
+    [[nodiscard]] std::vector<PelcoD::Onvif::PrivacyMask> masks() const
+    {
+        return m_masks;
+    }
+
+    /// @brief Gets cached privacy mask options (Profile T / Media2).
+    [[nodiscard]] std::optional<PelcoD::Onvif::MaskOptions> maskOptions() const
+    {
+        return m_maskOptions;
+    }
+
+    /// @brief Gets cached video source modes (Profile T / Media2).
+    [[nodiscard]] std::vector<PelcoD::Onvif::VideoSourceMode> videoSourceModes() const
+    {
+        return m_videoSourceModes;
+    }
+
     /// @brief Gets camera hardware identification metadata.
     /// @return DeviceInformation struct.
     [[nodiscard]] PelcoD::Onvif::DeviceInformation deviceInformation() const;
@@ -742,6 +760,43 @@ public Q_SLOTS:
     /// @return True on success.
     bool deleteAnalyticsModules(const QStringList& moduleNames);
 
+    // =========================================================================
+    // Profile T: Privacy Masks & Video Source Modes
+    // =========================================================================
+
+    /// @brief Queries list of privacy masks configured on the device.
+    /// @param[in] configToken Optional configuration token filter.
+    void refreshMasks(const QString& configToken = QString());
+
+    /// @brief Queries privacy mask configuration limits and options.
+    /// @param[in] configToken VideoSourceConfiguration token.
+    void refreshMaskOptions(const QString& configToken = "VideoSourceConfig_1");
+
+    /// @brief Creates a new privacy mask on the camera.
+    /// @param[in] mask Privacy mask definition.
+    /// @return Created mask token on success, empty on failure.
+    QString createMask(const PelcoD::Onvif::PrivacyMask& mask);
+
+    /// @brief Updates an existing privacy mask on the camera.
+    /// @param[in] mask Updated mask definition.
+    /// @return True on success.
+    bool setMask(const PelcoD::Onvif::PrivacyMask& mask);
+
+    /// @brief Deletes a privacy mask by token.
+    /// @param[in] maskToken Mask identifier token.
+    /// @return True on success.
+    bool deleteMask(const QString& maskToken);
+
+    /// @brief Queries supported video capture modes from camera.
+    /// @param[in] videoSourceToken Video source token.
+    void refreshVideoSourceModes(const QString& videoSourceToken = "VideoSource_1");
+
+    /// @brief Switches camera sensor capture mode.
+    /// @param[in] videoSourceToken Video source token.
+    /// @param[in] modeToken Desired mode token (e.g. "Mode_4K30").
+    /// @return True if mode switch was accepted.
+    bool setVideoSourceMode(const QString& videoSourceToken, const QString& modeToken);
+
 Q_SIGNALS:
     /// @brief Emitted when device connection succeeds.
     /// @param[in] endpoint Connected service URL.
@@ -934,6 +989,23 @@ Q_SIGNALS:
     /// @param[in] modules List of supported module descriptions.
     void supportedAnalyticsModulesUpdated(const std::vector<PelcoD::Onvif::AnalyticsModuleDescription>& modules);
 
+    /// @brief Emitted when privacy masks list is refreshed.
+    /// @param[in] masks List of configured privacy masks.
+    void masksUpdated(const std::vector<PelcoD::Onvif::PrivacyMask>& masks);
+
+    /// @brief Emitted when privacy mask options are retrieved.
+    /// @param[in] options Supported mask limits and features.
+    void maskOptionsUpdated(const PelcoD::Onvif::MaskOptions& options);
+
+    /// @brief Emitted when video source capture modes list is refreshed.
+    /// @param[in] modes List of video source capture modes.
+    void videoSourceModesUpdated(const std::vector<PelcoD::Onvif::VideoSourceMode>& modes);
+
+    /// @brief Emitted when a video source mode switch completes.
+    /// @param[in] modeToken Activated mode token.
+    /// @param[in] rebootRequired True if device requires reboot.
+    void videoSourceModeChanged(const QString& modeToken, bool rebootRequired);
+
     /// @brief Emitted when an operation fails.
     /// @param[in] message Diagnostic error message.
     void errorOccurred(const QString& message);
@@ -983,6 +1055,10 @@ private:
     std::vector<PelcoD::Onvif::AnalyticsModule> m_analyticsModules {};
     std::vector<PelcoD::Onvif::AnalyticsModuleDescription> m_supportedModules {};
     std::optional<PelcoD::Onvif::LocationEntity> m_geoLocation {};
+
+    std::vector<PelcoD::Onvif::PrivacyMask> m_masks {};
+    std::optional<PelcoD::Onvif::MaskOptions> m_maskOptions {};
+    std::vector<PelcoD::Onvif::VideoSourceMode> m_videoSourceModes {};
 };
 
 } // namespace PelcoD::Qt

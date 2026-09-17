@@ -756,4 +756,79 @@ struct SphericalPosition {
     double elevationDegrees { 0.0 }; ///< Elevation angle [-90.0, +90.0] degrees
 };
 
+/// @enum MaskType
+/// @brief Visual obfuscation appearance for ONVIF Privacy Masks (Profile T).
+enum class MaskType {
+    Color,     ///< Solid opaque color rectangle or polygon
+    Pixelated, ///< Mosaic / pixelated blur effect
+    Blurred    ///< Gaussian blur effect
+};
+
+/// @brief Converts MaskType enum to ONVIF string representation.
+inline std::string maskTypeToString(MaskType type)
+{
+    switch (type) {
+    case MaskType::Pixelated: return "Pixelated";
+    case MaskType::Blurred: return "Blurred";
+    case MaskType::Color:
+    default:
+        return "Color";
+    }
+}
+
+/// @brief Converts ONVIF string representation to MaskType enum.
+inline MaskType stringToMaskType(const std::string& str)
+{
+    if (str == "Pixelated") return MaskType::Pixelated;
+    if (str == "Blurred") return MaskType::Blurred;
+    return MaskType::Color;
+}
+
+
+/// @struct MaskColor
+/// @brief Color specification for solid color privacy masks.
+struct MaskColor {
+    int x { 0 };                     ///< Color coordinate X (e.g. Red in RGB, Y in YUV) [0..255]
+    int y { 0 };                     ///< Color coordinate Y (e.g. Green in RGB, U in YUV) [0..255]
+    int z { 0 };                     ///< Color coordinate Z (e.g. Blue in RGB, V in YUV) [0..255]
+    std::string colorspace { "RGB" };///< Color space ("RGB", "YUV")
+};
+
+/// @struct PrivacyMask
+/// @brief Privacy exclusion mask definition (ONVIF Profile T / Media2).
+struct PrivacyMask {
+    std::string token {};                   ///< Unique mask identifier (e.g. "Mask_1")
+    std::string configurationToken {};      ///< Associated VideoSourceConfiguration token
+    std::vector<Point2D> polygon {};        ///< Geometric vertices in normalized coordinates [0.0, 1.0]
+    MaskType type { MaskType::Color };      ///< Mask type (Color, Pixelated, Blurred)
+    MaskColor color {};                     ///< Fill color for MaskType::Color
+    bool enabled { true };                  ///< Whether mask is actively rendered
+};
+
+/// @struct MaskOptions
+/// @brief Privacy mask capabilities and limits supported by device (Media2 GetMaskOptions).
+struct MaskOptions {
+    int maxMasks { 8 };                                   ///< Maximum simultaneous masks
+    int maxPoints { 8 };                                  ///< Maximum vertices per polygon mask
+    std::vector<MaskType> supportedTypes {
+        MaskType::Color, MaskType::Pixelated, MaskType::Blurred
+    };                                                    ///< Supported visual mask styles
+    std::vector<std::string> supportedColorSpaces { "RGB" }; ///< Supported color spaces
+    bool rectangleSupported { true };                     ///< Rectangle masks supported
+    bool polygonSupported { true };                       ///< Polygonal masks supported
+};
+
+/// @struct VideoSourceMode
+/// @brief Sensor capture resolution and framerate mode (ONVIF Profile T / Media2).
+struct VideoSourceMode {
+    std::string token {};                   ///< Mode identifier (e.g. "Mode_1080p60", "Mode_4K30")
+    bool enabled { false };                 ///< True if this mode is currently active
+    float maxFramerate { 30.0f };           ///< Maximum framerate supported in this mode
+    int width { 1920 };                     ///< Maximum image width in pixels
+    int height { 1080 };                    ///< Maximum image height in pixels
+    std::vector<std::string> encodings { "H264", "H265" }; ///< Supported video encodings
+    bool reboot { false };                  ///< True if applying mode triggers hardware reboot
+    std::string description {};             ///< Human-readable mode label
+};
+
 } // namespace PelcoD::Onvif

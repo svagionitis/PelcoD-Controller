@@ -105,6 +105,19 @@ struct OnvifServerConfig {
 
     /// @brief Default installed X.509 certificates.
     std::vector<OnvifCertificate> defaultCertificates {};
+
+    /// @brief Default privacy masks (Profile T / Media2).
+    std::vector<PrivacyMask> defaultMasks {};
+
+    /// @brief Default privacy mask options.
+    MaskOptions defaultMaskOptions {};
+
+    /// @brief Default video source capture modes (Profile T / Media2).
+    std::vector<VideoSourceMode> defaultVideoSourceModes {
+        { "Mode_1080p60", true, 60.0f, 1920, 1080, { "H264", "H265" }, false, "1080p 60fps Standard" },
+        { "Mode_4K30", false, 30.0f, 3840, 2160, { "H264", "H265" }, true, "4K Ultra HD 30fps" },
+        { "Mode_720p120", false, 120.0f, 1280, 720, { "H264", "H265" }, true, "720p 120fps High Speed" }
+    };
 };
 
 /// @brief Callback signature for publishing asynchronous ONVIF event notifications.
@@ -983,6 +996,89 @@ public:
         const std::string& /*configToken*/, const std::vector<std::string>& /*moduleNames*/)
     {
         return true;
+    }
+};
+
+/// @class IMaskHandler
+/// @brief Abstract interface decoupling ONVIF Media2 Privacy Mask management from hardware.
+class IMaskHandler {
+public:
+    virtual ~IMaskHandler() = default;
+
+    /// @brief Retrieves privacy mask capabilities for a video source configuration.
+    /// @param[in] configToken VideoSourceConfiguration token.
+    /// @return MaskOptions containing limits and supported types.
+    [[nodiscard]] virtual MaskOptions handleGetMaskOptions(const std::string& /*configToken*/)
+    {
+        return {};
+    }
+
+    /// @brief Retrieves all configured privacy masks.
+    /// @param[in] configToken Optional configuration token filter.
+    /// @return Vector of active PrivacyMask definitions.
+    [[nodiscard]] virtual std::vector<PrivacyMask> handleGetMasks(const std::string& /*configToken*/)
+    {
+        return {};
+    }
+
+    /// @brief Retrieves a specific privacy mask by token.
+    /// @param[in] maskToken Mask token identifier.
+    /// @return PrivacyMask if found.
+    [[nodiscard]] virtual std::optional<PrivacyMask> handleGetMask(const std::string& /*maskToken*/)
+    {
+        return std::nullopt;
+    }
+
+    /// @brief Modifies an existing privacy mask.
+    /// @param[in] mask Updated mask settings.
+    /// @return True on success.
+    virtual bool handleSetMask(const PrivacyMask& /*mask*/)
+    {
+        return false;
+    }
+
+    /// @brief Creates a new privacy mask.
+    /// @param[in] mask New mask to register.
+    /// @return Assigned mask token on success, empty on failure.
+    virtual std::string handleCreateMask(const PrivacyMask& /*mask*/)
+    {
+        return {};
+    }
+
+    /// @brief Deletes a privacy mask by token.
+    /// @param[in] maskToken Token of mask to delete.
+    /// @return True if deleted.
+    virtual bool handleDeleteMask(const std::string& /*maskToken*/)
+    {
+        return false;
+    }
+};
+
+/// @class IVideoSourceModeHandler
+/// @brief Abstract interface decoupling ONVIF Video Source Mode management from hardware.
+class IVideoSourceModeHandler {
+public:
+    virtual ~IVideoSourceModeHandler() = default;
+
+    /// @brief Retrieves available video source sensor capture modes.
+    /// @param[in] videoSourceToken Video source token (e.g. "VideoSource_1").
+    /// @return Vector of supported VideoSourceMode options.
+    [[nodiscard]] virtual std::vector<VideoSourceMode> handleGetVideoSourceModes(
+        const std::string& /*videoSourceToken*/)
+    {
+        return {};
+    }
+
+    /// @brief Switches camera sensor capture mode.
+    /// @param[in] videoSourceToken Video source token.
+    /// @param[in] modeToken Desired mode token (e.g. "Mode_4K30").
+    /// @param[out] outRebootNeeded Set to true if camera reboot is required to activate mode.
+    /// @return True on successful mode switch request.
+    virtual bool handleSetVideoSourceMode(
+        const std::string& /*videoSourceToken*/, const std::string& /*modeToken*/, bool& outRebootNeeded)
+    {
+        outRebootNeeded = false;
+        return false;
     }
 };
 

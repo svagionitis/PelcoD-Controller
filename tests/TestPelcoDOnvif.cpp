@@ -1690,6 +1690,219 @@ void testGeodesyAndGeoMoveParsing()
     assert(std::fabs(locEntity->orientation.roll - 0.0) < 0.01);
 }
 
+void testPrivacyMasksAndVideoSourceModesParsing()
+{
+    using namespace PelcoD::Onvif;
+
+    // 1. Enum string conversions
+    assert(maskTypeToString(MaskType::Color) == "Color");
+    assert(maskTypeToString(MaskType::Pixelated) == "Pixelated");
+    assert(maskTypeToString(MaskType::Blurred) == "Blurred");
+    assert(stringToMaskType("Color") == MaskType::Color);
+    assert(stringToMaskType("Pixelated") == MaskType::Pixelated);
+    assert(stringToMaskType("Blurred") == MaskType::Blurred);
+    assert(stringToMaskType("Unknown") == MaskType::Color);
+
+    // 2. parseMaskOptionsResponse
+    {
+        const std::string xml =
+            "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n"
+            "<soap:Envelope xmlns:soap=\"http://www.w3.org/2003/05/soap-envelope\" xmlns:tr2=\"http://www.onvif.org/ver20/media/wsdl\">\n"
+            "  <soap:Body>\n"
+            "    <tr2:GetMaskOptionsResponse>\n"
+            "      <tr2:Options Rectangle=\"true\" Polygon=\"false\" SingleRule=\"false\">\n"
+            "        <tr2:MaxMasks>8</tr2:MaxMasks>\n"
+            "        <tr2:MaxPoints>4</tr2:MaxPoints>\n"
+            "        <tr2:Types>Color</tr2:Types>\n"
+            "        <tr2:Types>Pixelated</tr2:Types>\n"
+            "        <tr2:Types>Blurred</tr2:Types>\n"
+            "        <tr2:Color Supported=\"true\"/>\n"
+            "      </tr2:Options>\n"
+            "    </tr2:GetMaskOptionsResponse>\n"
+            "  </soap:Body>\n"
+            "</soap:Envelope>";
+
+        const auto opt = OnvifClient::parseMaskOptionsResponse(xml);
+        assert(opt.has_value());
+        assert(opt->maxMasks == 8);
+        assert(opt->maxPoints == 4);
+        assert(opt->rectangleSupported == true);
+        assert(opt->polygonSupported == false);
+        assert(opt->supportedTypes.size() == 3U);
+        assert(opt->supportedTypes[0] == MaskType::Color);
+        assert(opt->supportedTypes[1] == MaskType::Pixelated);
+        assert(opt->supportedTypes[2] == MaskType::Blurred);
+    }
+
+    // 3. parseMasksResponse
+    {
+        const std::string xml =
+            "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n"
+            "<soap:Envelope xmlns:soap=\"http://www.w3.org/2003/05/soap-envelope\" xmlns:tr2=\"http://www.onvif.org/ver20/media/wsdl\">\n"
+            "  <soap:Body>\n"
+            "    <tr2:GetMasksResponse>\n"
+            "      <tr2:Mask token=\"Mask_1\" Enabled=\"true\" Type=\"Color\">\n"
+            "        <tr2:Configuration token=\"Mask_1\">\n"
+            "          <tr2:Polygon>\n"
+            "            <tr2:Point x=\"0.1\" y=\"0.2\"/>\n"
+            "            <tr2:Point x=\"0.5\" y=\"0.2\"/>\n"
+            "            <tr2:Point x=\"0.5\" y=\"0.6\"/>\n"
+            "            <tr2:Point x=\"0.1\" y=\"0.6\"/>\n"
+            "          </tr2:Polygon>\n"
+            "          <tr2:Color X=\"128\" Y=\"64\" Z=\"32\"/>\n"
+            "        </tr2:Configuration>\n"
+            "      </tr2:Mask>\n"
+            "      <tr2:Mask token=\"Mask_2\" Enabled=\"false\" Type=\"Blurred\">\n"
+            "        <tr2:Configuration token=\"Mask_2\">\n"
+            "          <tr2:Polygon>\n"
+            "            <tr2:Point x=\"0.6\" y=\"0.6\"/>\n"
+            "            <tr2:Point x=\"0.9\" y=\"0.9\"/>\n"
+            "          </tr2:Polygon>\n"
+            "        </tr2:Configuration>\n"
+            "      </tr2:Mask>\n"
+            "    </tr2:GetMasksResponse>\n"
+            "  </soap:Body>\n"
+            "</soap:Envelope>";
+
+        const auto masks = OnvifClient::parseMasksResponse(xml);
+        assert(masks.size() == 2U);
+        assert(masks[0].token == "Mask_1");
+        assert(masks[0].enabled == true);
+        assert(masks[0].type == MaskType::Color);
+        assert(masks[0].polygon.size() == 4U);
+        assert(std::fabs(masks[0].polygon[0].x - 0.1f) < 0.001f);
+        assert(std::fabs(masks[0].polygon[0].y - 0.2f) < 0.001f);
+        assert(masks[0].color.x == 128);
+        assert(masks[0].color.y == 64);
+        assert(masks[0].color.z == 32);
+
+        assert(masks[1].token == "Mask_2");
+        assert(masks[1].enabled == false);
+        assert(masks[1].type == MaskType::Blurred);
+        assert(masks[1].polygon.size() == 2U);
+    }
+
+    // 4. parseMaskResponse
+    {
+        const std::string xml =
+            "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n"
+            "<soap:Envelope xmlns:soap=\"http://www.w3.org/2003/05/soap-envelope\" xmlns:tr2=\"http://www.onvif.org/ver20/media/wsdl\">\n"
+            "  <soap:Body>\n"
+            "    <tr2:GetMaskResponse>\n"
+            "      <tr2:Mask token=\"Mask_Single\" Enabled=\"true\" Type=\"Pixelated\">\n"
+            "        <tr2:Configuration token=\"Mask_Single\">\n"
+            "          <tr2:Polygon>\n"
+            "            <tr2:Point x=\"0.2\" y=\"0.2\"/>\n"
+            "            <tr2:Point x=\"0.4\" y=\"0.4\"/>\n"
+            "          </tr2:Polygon>\n"
+            "        </tr2:Configuration>\n"
+            "      </tr2:Mask>\n"
+            "    </tr2:GetMaskResponse>\n"
+            "  </soap:Body>\n"
+            "</soap:Envelope>";
+
+        const auto mask = OnvifClient::parseMaskResponse(xml);
+        assert(mask.has_value());
+        assert(mask->token == "Mask_Single");
+        assert(mask->enabled == true);
+        assert(mask->type == MaskType::Pixelated);
+        assert(mask->polygon.size() == 2U);
+    }
+
+    // 5. parseCreateMaskResponse
+    {
+        const std::string xml =
+            "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n"
+            "<soap:Envelope xmlns:soap=\"http://www.w3.org/2003/05/soap-envelope\" xmlns:tr2=\"http://www.onvif.org/ver20/media/wsdl\">\n"
+            "  <soap:Body>\n"
+            "    <tr2:CreateMaskResponse>\n"
+            "      <tr2:Token>Created_Mask_999</tr2:Token>\n"
+            "    </tr2:CreateMaskResponse>\n"
+            "  </soap:Body>\n"
+            "</soap:Envelope>";
+
+        const auto token = OnvifClient::parseCreateMaskResponse(xml);
+        assert(token.has_value());
+        assert(*token == "Created_Mask_999");
+    }
+
+    // 6. parseVideoSourceModesResponse
+    {
+        const std::string xml =
+            "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n"
+            "<soap:Envelope xmlns:soap=\"http://www.w3.org/2003/05/soap-envelope\" xmlns:tr2=\"http://www.onvif.org/ver20/media/wsdl\">\n"
+            "  <soap:Body>\n"
+            "    <tr2:GetVideoSourceModesResponse>\n"
+            "      <tr2:VideoSourceModes token=\"Mode_1080p60\" Enabled=\"true\">\n"
+            "        <tr2:MaxFramerate>60.0</tr2:MaxFramerate>\n"
+            "        <tr2:MaxResolution Width=\"1920\" Height=\"1080\"/>\n"
+            "        <tr2:Encodings>H264 H265</tr2:Encodings>\n"
+            "        <tr2:Description>1080p 60fps Mode</tr2:Description>\n"
+            "      </tr2:VideoSourceModes>\n"
+            "      <tr2:VideoSourceModes token=\"Mode_4k30\" Enabled=\"false\">\n"
+            "        <tr2:MaxFramerate>30.0</tr2:MaxFramerate>\n"
+            "        <tr2:MaxResolution Width=\"3840\" Height=\"2160\"/>\n"
+            "        <tr2:Encodings>H265</tr2:Encodings>\n"
+            "        <tr2:Description>4K 30fps Mode</tr2:Description>\n"
+            "      </tr2:VideoSourceModes>\n"
+            "    </tr2:GetVideoSourceModesResponse>\n"
+            "  </soap:Body>\n"
+            "</soap:Envelope>";
+
+        const auto modes = OnvifClient::parseVideoSourceModesResponse(xml);
+        assert(modes.size() == 2U);
+        assert(modes[0].token == "Mode_1080p60");
+        assert(modes[0].enabled == true);
+        assert(std::fabs(modes[0].maxFramerate - 60.0f) < 0.001f);
+        assert(modes[0].width == 1920);
+        assert(modes[0].height == 1080);
+        assert(modes[0].encodings.size() == 2U);
+        assert(modes[0].encodings[0] == "H264");
+        assert(modes[0].encodings[1] == "H265");
+        assert(modes[0].description == "1080p 60fps Mode");
+
+        assert(modes[1].token == "Mode_4k30");
+        assert(modes[1].enabled == false);
+        assert(modes[1].width == 3840);
+        assert(modes[1].height == 2160);
+        assert(std::fabs(modes[1].maxFramerate - 30.0f) < 0.001f);
+        assert(modes[1].encodings.size() == 1U);
+        assert(modes[1].encodings[0] == "H265");
+        assert(modes[1].description == "4K 30fps Mode");
+    }
+
+    // 7. parseSetVideoSourceModeResponse
+    {
+        const std::string xmlWithReboot =
+            "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n"
+            "<soap:Envelope xmlns:soap=\"http://www.w3.org/2003/05/soap-envelope\" xmlns:tr2=\"http://www.onvif.org/ver20/media/wsdl\">\n"
+            "  <soap:Body>\n"
+            "    <tr2:SetVideoSourceModeResponse>\n"
+            "      <tr2:Reboot>true</tr2:Reboot>\n"
+            "    </tr2:SetVideoSourceModeResponse>\n"
+            "  </soap:Body>\n"
+            "</soap:Envelope>";
+
+        const auto reboot1 = OnvifClient::parseSetVideoSourceModeResponse(xmlWithReboot);
+        assert(reboot1.has_value());
+        assert(*reboot1 == true);
+
+        const std::string xmlNoReboot =
+            "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n"
+            "<soap:Envelope xmlns:soap=\"http://www.w3.org/2003/05/soap-envelope\" xmlns:tr2=\"http://www.onvif.org/ver20/media/wsdl\">\n"
+            "  <soap:Body>\n"
+            "    <tr2:SetVideoSourceModeResponse>\n"
+            "      <tr2:Reboot>false</tr2:Reboot>\n"
+            "    </tr2:SetVideoSourceModeResponse>\n"
+            "  </soap:Body>\n"
+            "</soap:Envelope>";
+
+        const auto reboot2 = OnvifClient::parseSetVideoSourceModeResponse(xmlNoReboot);
+        assert(reboot2.has_value());
+        assert(*reboot2 == false);
+    }
+}
+
 int main()
 {
 #ifdef _WIN32
@@ -1834,6 +2047,10 @@ int main()
     std::cout << "[RUN] Testing ONVIF PTZ Geodesy, GeoMove & GeoLocation XML Parsing...\n";
     testGeodesyAndGeoMoveParsing();
     std::cout << "[PASS] PTZ Geodesy, GeoMove & GeoLocation XML Parsing\n";
+
+    std::cout << "[RUN] Testing ONVIF Profile T Privacy Masks & Video Source Modes XML Parsing...\n";
+    testPrivacyMasksAndVideoSourceModesParsing();
+    std::cout << "[PASS] Profile T Privacy Masks & Video Source Modes XML Parsing\n";
 
     std::cout << "\nAll PelcoDOnvif unit tests PASSED successfully!\n";
     return 0;

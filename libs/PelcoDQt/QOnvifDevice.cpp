@@ -124,6 +124,9 @@ bool QOnvifDevice::connectToCamera(const QString& endpoint, const QString& usern
     refreshDigitalInputs();
     refreshImagingPresets();
     refreshFocusStatus();
+    refreshMasks();
+    refreshMaskOptions();
+    refreshVideoSourceModes();
 
     emit connected(m_endpoint, modelLabel);
     return true;
@@ -165,6 +168,9 @@ void QOnvifDevice::disconnectFromCamera()
     m_recordingJobs.clear();
     m_recordingSummary.reset();
     m_replayConfig.reset();
+    m_masks.clear();
+    m_maskOptions.reset();
+    m_videoSourceModes.clear();
     m_client.reset();
 
     emit disconnected();
@@ -1491,6 +1497,99 @@ bool QOnvifDevice::deleteAnalyticsModules(const QStringList& moduleNames)
     const bool ok = m_client->deleteAnalyticsModules(cfgToken, names);
     if (ok) {
         refreshAnalyticsModules();
+    }
+    return ok;
+}
+
+// =========================================================================
+// Profile T: Privacy Masks & Video Source Modes
+// =========================================================================
+
+void QOnvifDevice::refreshMasks(const QString& configToken)
+{
+    if (!m_client) {
+        return;
+    }
+    const std::string token = configToken.isEmpty() ? m_activeVideoSourceToken.toStdString() : configToken.toStdString();
+    m_masks = m_client->getMasks(token);
+    emit masksUpdated(m_masks);
+}
+
+void QOnvifDevice::refreshMaskOptions(const QString& configToken)
+{
+    if (!m_client) {
+        return;
+    }
+    const std::string token = configToken.isEmpty() ? "VideoSourceConfig_1" : configToken.toStdString();
+    m_maskOptions = m_client->getMaskOptions(token);
+    if (m_maskOptions.has_value()) {
+        emit maskOptionsUpdated(*m_maskOptions);
+    }
+}
+
+QString QOnvifDevice::createMask(const PelcoD::Onvif::PrivacyMask& mask)
+{
+    if (!m_client) {
+        return QString();
+    }
+    const std::string token = m_client->createMask(mask);
+    if (!token.empty()) {
+        refreshMasks(QString::fromStdString(mask.configurationToken));
+    }
+    return QString::fromStdString(token);
+}
+
+bool QOnvifDevice::setMask(const PelcoD::Onvif::PrivacyMask& mask)
+{
+    if (!m_client) {
+        return false;
+    }
+    const bool ok = m_client->setMask(mask);
+    if (ok) {
+        refreshMasks(QString::fromStdString(mask.configurationToken));
+    }
+    return ok;
+}
+
+bool QOnvifDevice::deleteMask(const QString& maskToken)
+{
+    if (!m_client) {
+        return false;
+    }
+    const bool ok = m_client->deleteMask(maskToken.toStdString());
+    if (ok) {
+        refreshMasks();
+    }
+    return ok;
+}
+
+void QOnvifDevice::refreshVideoSourceModes(const QString& videoSourceToken)
+{
+    if (!m_client) {
+        return;
+    }
+    const std::string token = videoSourceToken.isEmpty() ? "VideoSource_1" : videoSourceToken.toStdString();
+    m_videoSourceModes = m_client->getVideoSourceModes(token);
+    emit videoSourceModesUpdated(m_videoSourceModes);
+}
+
+bool QOnvifDevice::setVideoSourceMode(const QString& videoSourceToken, const QString& modeToken)
+{
+    if (!m_client) {
+        return false;
+    }
+    const std::string vs = videoSourceToken.isEmpty() ? "VideoSource_1" : videoSourceToken.toStdString();
+    const bool ok = m_client->setVideoSourceMode(vs, modeToken.toStdString());
+    if (ok) {
+        bool reboot = false;
+        for (const auto& m : m_videoSourceModes) {
+            if (m.token == modeToken.toStdString()) {
+                reboot = m.reboot;
+                break;
+            }
+        }
+        emit videoSourceModeChanged(modeToken, reboot);
+        refreshVideoSourceModes(videoSourceToken);
     }
     return ok;
 }

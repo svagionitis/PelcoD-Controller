@@ -104,6 +104,14 @@ public:
     /// @param[in] handler New IAnalyticsHandler instance.
     void setAnalyticsHandler(std::shared_ptr<IAnalyticsHandler> handler);
 
+    /// @brief Sets or replaces the active Privacy Mask handler (Profile T / Media2).
+    /// @param[in] handler New IMaskHandler instance.
+    void setMaskHandler(std::shared_ptr<IMaskHandler> handler);
+
+    /// @brief Sets or replaces the active Video Source Mode handler (Profile T / Media2).
+    /// @param[in] handler New IVideoSourceModeHandler instance.
+    void setVideoSourceModeHandler(std::shared_ptr<IVideoSourceModeHandler> handler);
+
     /// @brief Records an operational message into the internal system log buffer.
     /// @param[in] level Log level ("INFO", "WARNING", "ERROR").
     /// @param[in] msg Log message.
@@ -137,6 +145,10 @@ private:
         const std::string& opName, const pugi::xml_document& doc, std::ostringstream& body, const std::string& prefix);
     void processMetadataRequest(
         const std::string& opName, const pugi::xml_document& doc, std::ostringstream& body, const std::string& prefix);
+    void processMaskRequest(
+        const std::string& opName, const pugi::xml_document& doc, std::ostringstream& body, const std::string& prefix);
+    void processVideoSourceModeRequest(
+        const std::string& opName, const pugi::xml_document& doc, std::ostringstream& body, const std::string& prefix);
 
     [[nodiscard]] std::string generateMetadataStreamXml(const MetadataStreamPayload& payload) const;
     [[nodiscard]] std::string resolveHost(const httplib::Request& req) const;
@@ -167,6 +179,8 @@ private:
     std::shared_ptr<ISearchHandler> m_searchHandler;
     std::shared_ptr<IReplayHandler> m_replayHandler;
     std::shared_ptr<IAnalyticsHandler> m_analyticsHandler;
+    std::shared_ptr<IMaskHandler> m_maskHandler;
+    std::shared_ptr<IVideoSourceModeHandler> m_videoSourceModeHandler;
     std::unique_ptr<WsDiscoveryServer> m_discoveryServer;
     httplib::Server m_httpServer;
 
@@ -218,6 +232,14 @@ private:
     mutable std::mutex m_osdMutex {};
     std::map<std::string, OsdConfig> m_internalOsds {};
     uint32_t m_nextOsdId { 1 };
+
+    mutable std::mutex m_maskMutex {};
+    std::vector<PrivacyMask> m_internalMasks {};
+    MaskOptions m_internalMaskOptions {};
+    uint32_t m_nextMaskId { 1 };
+
+    mutable std::mutex m_videoSourceModeMutex {};
+    std::vector<VideoSourceMode> m_internalVideoSourceModes {};
 
     mutable std::mutex m_subMutex {};
     std::map<std::string, std::shared_ptr<PullPointSubscription>> m_subscriptions {};

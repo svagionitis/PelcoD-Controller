@@ -29,7 +29,9 @@ class PelcoDPtzAdapter : public IPtzHandler,
                          public IRecordingHandler,
                          public ISearchHandler,
                          public IReplayHandler,
-                         public IAnalyticsHandler {
+                         public IAnalyticsHandler,
+                         public IMaskHandler,
+                         public IVideoSourceModeHandler {
 public:
     /// @brief Constructs adapter wrapping an existing PelcoDDevice.
     /// @param[in] device Shared pointer to initialized PelcoDDevice instance.
@@ -231,6 +233,25 @@ public:
     bool handleDeleteAnalyticsModules(
         const std::string& configToken, const std::vector<std::string>& moduleNames) override;
 
+    // =========================================================================
+    // IMaskHandler Implementation (Profile T / Media2)
+    // =========================================================================
+
+    [[nodiscard]] MaskOptions handleGetMaskOptions(const std::string& configToken) override;
+    [[nodiscard]] std::vector<PrivacyMask> handleGetMasks(const std::string& configToken) override;
+    [[nodiscard]] std::optional<PrivacyMask> handleGetMask(const std::string& maskToken) override;
+    bool handleSetMask(const PrivacyMask& mask) override;
+    [[nodiscard]] std::string handleCreateMask(const PrivacyMask& mask) override;
+    bool handleDeleteMask(const std::string& maskToken) override;
+
+    // =========================================================================
+    // IVideoSourceModeHandler Implementation (Profile T / Media2)
+    // =========================================================================
+
+    [[nodiscard]] std::vector<VideoSourceMode> handleGetVideoSourceModes(const std::string& videoSourceToken) override;
+    bool handleSetVideoSourceMode(
+        const std::string& videoSourceToken, const std::string& modeToken, bool& outRebootNeeded) override;
+
 private:
     void onDeviceStatusUpdated(const PelcoD::DeviceStatus& status);
     void saveTours();
@@ -295,6 +316,17 @@ private:
     std::map<int, ObjectTrackState> m_objectTracks {};
 
     LocationEntity m_cameraLocation { "Device", "Location_1", true, { 37.7749, -122.4194, 10.0 }, { 0.0, 0.0, 0.0 } };
+
+    mutable std::mutex m_maskMutex {};
+    std::vector<PrivacyMask> m_masks {
+        { "Mask_1", "VideoSource_1", { { 0.1f, 0.1f }, { 0.3f, 0.1f }, { 0.3f, 0.3f }, { 0.1f, 0.3f } },
+          MaskType::Color, { 0, 0, 0, "RGB" }, true }
+    };
+    MaskOptions m_maskOptions {};
+    uint32_t m_nextMaskId { 2 };
+
+    mutable std::mutex m_videoSourceModeMutex {};
+    std::vector<VideoSourceMode> m_videoSourceModes {};
 };
 
 } // namespace PelcoD::Onvif

@@ -115,6 +115,14 @@ OnvifCameraTab::OnvifCameraTab(PelcoD::Qt::QOnvifDevice* onvifDevice, VideoStrea
             &OnvifCameraTab::handleGeoLocationUpdated);
         connect(m_onvifDevice, &PelcoD::Qt::QOnvifDevice::geoMoveCompleted, this,
             &OnvifCameraTab::handleGeoMoveCompleted);
+
+        // Profile T: Privacy Masks & Video Source Modes
+        connect(m_onvifDevice, &PelcoD::Qt::QOnvifDevice::masksUpdated, this,
+            &OnvifCameraTab::handleMasksUpdated);
+        connect(m_onvifDevice, &PelcoD::Qt::QOnvifDevice::videoSourceModesUpdated, this,
+            &OnvifCameraTab::handleVideoSourceModesUpdated);
+        connect(m_onvifDevice, &PelcoD::Qt::QOnvifDevice::videoSourceModeChanged, this,
+            &OnvifCameraTab::handleVideoSourceModeChanged);
     }
 
     updateConnectionUi(false);
@@ -737,7 +745,7 @@ void OnvifCameraTab::setupUi()
     // -------------------------------------------------------------------------
     // Sub-Tab 5: OSD Overlays
     // -------------------------------------------------------------------------
-    auto* osdTabLayout = createScrollTab(tr("OSD Overlays"));
+    auto* osdTabLayout = createScrollTab(tr("OSD & Privacy Masks"));
 
     auto* groupOsd = new QGroupBox(tr("On-Screen Display (OSD) Overlays"), this);
     auto* osdLayout = new QVBoxLayout(groupOsd);
@@ -785,7 +793,77 @@ void OnvifCameraTab::setupUi()
     osdBtnLayout->addStretch();
     osdLayout->addLayout(osdBtnLayout);
 
+    auto* groupMasks = new QGroupBox(tr("Profile T: Privacy Masks"), this);
+    auto* maskLayout = new QVBoxLayout(groupMasks);
+    maskLayout->setSpacing(6);
+
+    tableMasks = new QTableWidget(0, 5, groupMasks);
+    tableMasks->setHorizontalHeaderLabels({ tr("Token"), tr("Config Token"), tr("Type"), tr("Color (RGB)"), tr("Enabled") });
+    tableMasks->horizontalHeader()->setStretchLastSection(true);
+    tableMasks->setSelectionBehavior(QAbstractItemView::SelectRows);
+    tableMasks->setSelectionMode(QAbstractItemView::SingleSelection);
+    tableMasks->setMinimumHeight(160);
+    maskLayout->addWidget(tableMasks);
+
+    auto* editMaskGrid = new QGridLayout();
+    editMaskGrid->addWidget(new QLabel(tr("Mask Token:"), groupMasks), 0, 0);
+    editMaskToken = new QLineEdit(groupMasks);
+    editMaskToken->setPlaceholderText(tr("e.g. Mask_1 (auto-generated if empty)"));
+    editMaskGrid->addWidget(editMaskToken, 0, 1);
+
+    editMaskGrid->addWidget(new QLabel(tr("Type:"), groupMasks), 0, 2);
+    cmbMaskType = new QComboBox(groupMasks);
+    cmbMaskType->addItems({ tr("Color"), tr("Pixelated"), tr("Blurred") });
+    editMaskGrid->addWidget(cmbMaskType, 0, 3);
+
+    auto* colorLayout = new QHBoxLayout();
+    colorLayout->addWidget(new QLabel(tr("R:"), groupMasks));
+    spinMaskColorR = new QSpinBox(groupMasks);
+    spinMaskColorR->setRange(0, 255);
+    spinMaskColorR->setValue(0);
+    colorLayout->addWidget(spinMaskColorR);
+
+    colorLayout->addWidget(new QLabel(tr("G:"), groupMasks));
+    spinMaskColorG = new QSpinBox(groupMasks);
+    spinMaskColorG->setRange(0, 255);
+    spinMaskColorG->setValue(0);
+    colorLayout->addWidget(spinMaskColorG);
+
+    colorLayout->addWidget(new QLabel(tr("B:"), groupMasks));
+    spinMaskColorB = new QSpinBox(groupMasks);
+    spinMaskColorB->setRange(0, 255);
+    spinMaskColorB->setValue(0);
+    colorLayout->addWidget(spinMaskColorB);
+
+    editMaskGrid->addWidget(new QLabel(tr("Color:"), groupMasks), 1, 0);
+    editMaskGrid->addLayout(colorLayout, 1, 1);
+
+    chkMaskEnabled = new QCheckBox(tr("Mask Enabled"), groupMasks);
+    chkMaskEnabled->setChecked(true);
+    editMaskGrid->addWidget(chkMaskEnabled, 1, 2, 1, 2);
+
+    maskLayout->addLayout(editMaskGrid);
+
+    auto* maskBtnLayout = new QHBoxLayout();
+    btnRefreshMasks = new QPushButton(tr("Refresh"), groupMasks);
+    btnAddMask = new QPushButton(tr("Add Mask"), groupMasks);
+    btnUpdateMask = new QPushButton(tr("Update Selected"), groupMasks);
+    btnDeleteMask = new QPushButton(tr("Delete Selected"), groupMasks);
+    maskBtnLayout->addWidget(btnRefreshMasks);
+    maskBtnLayout->addWidget(btnAddMask);
+    maskBtnLayout->addWidget(btnUpdateMask);
+    maskBtnLayout->addWidget(btnDeleteMask);
+    maskBtnLayout->addStretch();
+    maskLayout->addLayout(maskBtnLayout);
+
+    connect(btnRefreshMasks, &QPushButton::clicked, this, &OnvifCameraTab::handleRefreshMasks);
+    connect(btnAddMask, &QPushButton::clicked, this, &OnvifCameraTab::handleAddMask);
+    connect(btnUpdateMask, &QPushButton::clicked, this, &OnvifCameraTab::handleUpdateMask);
+    connect(btnDeleteMask, &QPushButton::clicked, this, &OnvifCameraTab::handleDeleteMask);
+    connect(tableMasks, &QTableWidget::itemSelectionChanged, this, &OnvifCameraTab::handleMaskSelectionChanged);
+
     osdTabLayout->addWidget(groupOsd);
+    osdTabLayout->addWidget(groupMasks);
     osdTabLayout->addStretch();
 
     // -------------------------------------------------------------------------
@@ -822,6 +900,31 @@ void OnvifCameraTab::setupUi()
     streamGrid->addWidget(editSnapshotUri, 3, 1);
 
     devTabLayout->addWidget(groupStreams);
+
+    auto* groupModes = new QGroupBox(tr("Profile T: Video Source Modes (Sensor Capture Modes)"), devTabLayout->parentWidget());
+    auto* modesGrid = new QGridLayout(groupModes);
+    modesGrid->setSpacing(6);
+
+    modesGrid->addWidget(new QLabel(tr("Capture Mode:"), groupModes), 0, 0);
+    cmbVideoSourceModes = new QComboBox(groupModes);
+    modesGrid->addWidget(cmbVideoSourceModes, 0, 1);
+
+    lblVideoSourceModeInfo = new QLabel(tr("-"), groupModes);
+    lblVideoSourceModeInfo->setStyleSheet(QStringLiteral("color: #8b949e;"));
+    modesGrid->addWidget(lblVideoSourceModeInfo, 1, 0, 1, 2);
+
+    auto* modeBtnLayout = new QHBoxLayout();
+    btnRefreshVideoSourceModes = new QPushButton(tr("Refresh Modes"), groupModes);
+    btnApplyVideoSourceMode = new QPushButton(tr("Apply Mode"), groupModes);
+    modeBtnLayout->addWidget(btnRefreshVideoSourceModes);
+    modeBtnLayout->addWidget(btnApplyVideoSourceMode);
+    modeBtnLayout->addStretch();
+    modesGrid->addLayout(modeBtnLayout, 2, 0, 1, 2);
+
+    connect(btnRefreshVideoSourceModes, &QPushButton::clicked, this, &OnvifCameraTab::handleRefreshVideoSourceModes);
+    connect(btnApplyVideoSourceMode, &QPushButton::clicked, this, &OnvifCameraTab::handleApplyVideoSourceMode);
+
+    devTabLayout->addWidget(groupModes);
 
     auto* groupInfo = new QGroupBox(tr("Device Identification"));
     auto* infoGrid = new QGridLayout(groupInfo);
@@ -1643,6 +1746,24 @@ void OnvifCameraTab::updateConnectionUi(bool connected)
     btnAddOsd->setEnabled(connected);
     btnUpdateOsd->setEnabled(connected);
     btnDeleteOsd->setEnabled(connected);
+
+    // Profile T: Privacy Masks widgets
+    tableMasks->setEnabled(connected);
+    editMaskToken->setEnabled(connected);
+    cmbMaskType->setEnabled(connected);
+    spinMaskColorR->setEnabled(connected);
+    spinMaskColorG->setEnabled(connected);
+    spinMaskColorB->setEnabled(connected);
+    chkMaskEnabled->setEnabled(connected);
+    btnRefreshMasks->setEnabled(connected);
+    btnAddMask->setEnabled(connected);
+    btnUpdateMask->setEnabled(connected);
+    btnDeleteMask->setEnabled(connected);
+
+    // Profile T: Video Source Modes widgets
+    cmbVideoSourceModes->setEnabled(connected);
+    btnRefreshVideoSourceModes->setEnabled(connected);
+    btnApplyVideoSourceMode->setEnabled(connected);
 
     // Device Management: Users & Security widgets
     tableUsers->setEnabled(connected);
@@ -2729,6 +2850,191 @@ void OnvifCameraTab::handleOsdSelectionChanged()
 
     if (tableOsds->item(row, 4) && !chkOsdDateTime->isChecked()) {
         editOsdText->setText(tableOsds->item(row, 4)->text());
+    }
+}
+
+void OnvifCameraTab::handleRefreshMasks()
+{
+    if (m_onvifDevice) {
+        m_onvifDevice->refreshMasks();
+    }
+}
+
+void OnvifCameraTab::handleAddMask()
+{
+    if (!m_onvifDevice) {
+        return;
+    }
+    PelcoD::Onvif::PrivacyMask mask;
+    mask.token = editMaskToken->text().trimmed().toStdString();
+    mask.configurationToken = "VideoSourceConfig_1";
+
+    const int typeIdx = cmbMaskType->currentIndex();
+    if (typeIdx == 1) {
+        mask.type = PelcoD::Onvif::MaskType::Pixelated;
+    } else if (typeIdx == 2) {
+        mask.type = PelcoD::Onvif::MaskType::Blurred;
+    } else {
+        mask.type = PelcoD::Onvif::MaskType::Color;
+    }
+
+    mask.color.x = spinMaskColorR->value();
+    mask.color.y = spinMaskColorG->value();
+    mask.color.z = spinMaskColorB->value();
+    mask.color.colorspace = "RGB";
+    mask.enabled = chkMaskEnabled->isChecked();
+
+    // Default normalized rectangle polygon
+    mask.polygon = { { 0.1f, 0.1f }, { 0.3f, 0.1f }, { 0.3f, 0.3f }, { 0.1f, 0.3f } };
+
+    m_onvifDevice->createMask(mask);
+}
+
+void OnvifCameraTab::handleUpdateMask()
+{
+    if (!m_onvifDevice || tableMasks == nullptr) {
+        return;
+    }
+    const int row = tableMasks->currentRow();
+    if (row < 0 || row >= tableMasks->rowCount()) {
+        return;
+    }
+    const QString token = tableMasks->item(row, 0)->text();
+    PelcoD::Onvif::PrivacyMask mask;
+    mask.token = token.toStdString();
+    mask.configurationToken = tableMasks->item(row, 1) ? tableMasks->item(row, 1)->text().toStdString() : "VideoSourceConfig_1";
+
+    const int typeIdx = cmbMaskType->currentIndex();
+    if (typeIdx == 1) {
+        mask.type = PelcoD::Onvif::MaskType::Pixelated;
+    } else if (typeIdx == 2) {
+        mask.type = PelcoD::Onvif::MaskType::Blurred;
+    } else {
+        mask.type = PelcoD::Onvif::MaskType::Color;
+    }
+
+    mask.color.x = spinMaskColorR->value();
+    mask.color.y = spinMaskColorG->value();
+    mask.color.z = spinMaskColorB->value();
+    mask.color.colorspace = "RGB";
+    mask.enabled = chkMaskEnabled->isChecked();
+    mask.polygon = { { 0.1f, 0.1f }, { 0.3f, 0.1f }, { 0.3f, 0.3f }, { 0.1f, 0.3f } };
+
+    m_onvifDevice->setMask(mask);
+}
+
+void OnvifCameraTab::handleDeleteMask()
+{
+    if (!m_onvifDevice || tableMasks == nullptr) {
+        return;
+    }
+    const int row = tableMasks->currentRow();
+    if (row < 0 || row >= tableMasks->rowCount()) {
+        return;
+    }
+    const QString token = tableMasks->item(row, 0)->text();
+    m_onvifDevice->deleteMask(token);
+}
+
+void OnvifCameraTab::handleMasksUpdated(const std::vector<PelcoD::Onvif::PrivacyMask>& masks)
+{
+    if (tableMasks == nullptr) {
+        return;
+    }
+    tableMasks->setRowCount(0);
+    for (const auto& mask : masks) {
+        const int row = tableMasks->rowCount();
+        tableMasks->insertRow(row);
+        tableMasks->setItem(row, 0, new QTableWidgetItem(QString::fromStdString(mask.token)));
+        tableMasks->setItem(row, 1, new QTableWidgetItem(QString::fromStdString(mask.configurationToken)));
+        tableMasks->setItem(row, 2, new QTableWidgetItem(QString::fromStdString(PelcoD::Onvif::maskTypeToString(mask.type))));
+        tableMasks->setItem(row, 3, new QTableWidgetItem(QString("R:%1 G:%2 B:%3").arg(mask.color.x).arg(mask.color.y).arg(mask.color.z)));
+        tableMasks->setItem(row, 4, new QTableWidgetItem(mask.enabled ? tr("Enabled") : tr("Disabled")));
+    }
+}
+
+void OnvifCameraTab::handleMaskSelectionChanged()
+{
+    if (tableMasks == nullptr) {
+        return;
+    }
+    const int row = tableMasks->currentRow();
+    if (row < 0 || row >= tableMasks->rowCount()) {
+        return;
+    }
+    if (tableMasks->item(row, 0)) {
+        editMaskToken->setText(tableMasks->item(row, 0)->text());
+    }
+    if (tableMasks->item(row, 2)) {
+        const QString typeStr = tableMasks->item(row, 2)->text();
+        const int idx = cmbMaskType->findText(typeStr);
+        if (idx >= 0) {
+            cmbMaskType->setCurrentIndex(idx);
+        }
+    }
+    if (tableMasks->item(row, 4)) {
+        chkMaskEnabled->setChecked(tableMasks->item(row, 4)->text() == tr("Enabled"));
+    }
+}
+
+void OnvifCameraTab::handleRefreshVideoSourceModes()
+{
+    if (m_onvifDevice) {
+        m_onvifDevice->refreshVideoSourceModes();
+    }
+}
+
+void OnvifCameraTab::handleApplyVideoSourceMode()
+{
+    if (!m_onvifDevice || cmbVideoSourceModes == nullptr) {
+        return;
+    }
+    const QString modeToken = cmbVideoSourceModes->currentData().toString();
+    if (modeToken.isEmpty()) {
+        return;
+    }
+    m_onvifDevice->setVideoSourceMode("VideoSource_1", modeToken);
+}
+
+void OnvifCameraTab::handleVideoSourceModesUpdated(const std::vector<PelcoD::Onvif::VideoSourceMode>& modes)
+{
+    if (cmbVideoSourceModes == nullptr) {
+        return;
+    }
+    const QString previousToken = cmbVideoSourceModes->currentData().toString();
+    const QSignalBlocker blocker(cmbVideoSourceModes);
+    cmbVideoSourceModes->clear();
+
+    for (const auto& mode : modes) {
+        QString label = QString("%1 (%2x%3 @ %4 fps%5)")
+            .arg(QString::fromStdString(mode.token))
+            .arg(mode.width)
+            .arg(mode.height)
+            .arg(mode.maxFramerate, 0, 'f', 0)
+            .arg(mode.reboot ? tr(", Reboot") : "");
+        if (mode.enabled) {
+            label += tr(" [ACTIVE]");
+        }
+        cmbVideoSourceModes->addItem(label, QString::fromStdString(mode.token));
+    }
+
+    int selectIndex = cmbVideoSourceModes->findData(previousToken);
+    if (selectIndex < 0 && cmbVideoSourceModes->count() > 0) {
+        selectIndex = 0;
+    }
+    if (selectIndex >= 0) {
+        cmbVideoSourceModes->setCurrentIndex(selectIndex);
+    }
+}
+
+void OnvifCameraTab::handleVideoSourceModeChanged(const QString& modeToken, bool rebootRequired)
+{
+    if (rebootRequired) {
+        QMessageBox::warning(this, tr("Camera Mode Changed"),
+            tr("Mode '%1' applied successfully.\nA camera reboot is required to activate this sensor mode.").arg(modeToken));
+    } else {
+        QMessageBox::information(this, tr("Camera Mode Changed"),
+            tr("Mode '%1' applied successfully.").arg(modeToken));
     }
 }
 

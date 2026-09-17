@@ -176,6 +176,34 @@ OnvifServer::OnvifServer(OnvifServerConfig config, std::shared_ptr<IPtzHandler> 
         m_deviceHandler->handleSetGeoLocation(m_config.defaultLocation);
     }
 
+    m_internalMasks = m_config.defaultMasks;
+    m_internalMaskOptions = m_config.defaultMaskOptions;
+    m_internalVideoSourceModes = m_config.defaultVideoSourceModes;
+    if (m_internalVideoSourceModes.empty()) {
+        VideoSourceMode mode1;
+        mode1.token = "Mode_1080p60";
+        mode1.enabled = true;
+        mode1.maxFramerate = 60.0f;
+        mode1.width = 1920;
+        mode1.height = 1080;
+        mode1.encodings = { "H264", "H265" };
+        mode1.reboot = false;
+        mode1.description = "1080p 60fps";
+
+        VideoSourceMode mode2;
+        mode2.token = "Mode_4K30";
+        mode2.enabled = false;
+        mode2.maxFramerate = 30.0f;
+        mode2.width = 3840;
+        mode2.height = 2160;
+        mode2.encodings = { "H264", "H265" };
+        mode2.reboot = true;
+        mode2.description = "4K 30fps (Reboot required)";
+
+        m_internalVideoSourceModes.push_back(mode1);
+        m_internalVideoSourceModes.push_back(mode2);
+    }
+
     logSystemMessage("INFO", "ONVIF Server initialized successfully");
 
     m_discoveryServer = std::make_unique<WsDiscoveryServer>(m_config);
@@ -297,6 +325,16 @@ void OnvifServer::setReplayHandler(std::shared_ptr<IReplayHandler> handler)
 void OnvifServer::setAnalyticsHandler(std::shared_ptr<IAnalyticsHandler> handler)
 {
     m_analyticsHandler = std::move(handler);
+}
+
+void OnvifServer::setMaskHandler(std::shared_ptr<IMaskHandler> handler)
+{
+    m_maskHandler = std::move(handler);
+}
+
+void OnvifServer::setVideoSourceModeHandler(std::shared_ptr<IVideoSourceModeHandler> handler)
+{
+    m_videoSourceModeHandler = std::move(handler);
 }
 
 void OnvifServer::logSystemMessage(const std::string& level, const std::string& msg)
@@ -596,6 +634,9 @@ void OnvifServer::handleDeviceService(const httplib::Request& req, httplib::Resp
              << "          <tt:Replay>\r\n"
              << "            <tt:XAddr>http://" << host << ":" << port << "/onvif/replay_service</tt:XAddr>\r\n"
              << "          </tt:Replay>\r\n"
+             << "          <tt:Media2>\r\n"
+             << "            <tt:XAddr>http://" << host << ":" << port << "/onvif/media2_service</tt:XAddr>\r\n"
+             << "          </tt:Media2>\r\n"
              << "        </tt:Extension>\r\n"
              << "      </tds:Capabilities>\r\n"
              << "    </tds:GetCapabilitiesResponse>\r\n";
@@ -1392,6 +1433,8 @@ void OnvifServer::handleDeviceService(const httplib::Request& req, httplib::Resp
             m_deviceHandler->handleDeleteGeoLocation(entToken);
         }
         body << "    <tds:DeleteGeoLocationResponse/>\r\n";
+    } else if (isOp(opName, "GetVideoSourceModes") || isOp(opName, "SetVideoSourceMode")) {
+        processVideoSourceModeRequest(opName, doc, body, "tds");
     } else {
         body << "    <tds:" << opName << "Response/>\r\n";
     }
@@ -1851,6 +1894,313 @@ void OnvifServer::processMetadataRequest(
     }
 }
 
+void OnvifServer::processMaskRequest(
+    const std::string& opName, const pugi::xml_document& doc, std::ostringstream& body, const std::string& prefix)
+{
+    auto serializeMask = [&](const PrivacyMask& m) {
+        std::ostringstream s;
+        s << "      <" << prefix << ":Mask token=\"" << m.token << "\">\r\n"
+          << "        <" << prefix << ":ConfigurationToken>" << m.configurationToken << "</" << prefix << ":ConfigurationToken>\r\n"
+          << "        <" << prefix << ":Polygon>\r\n";
+        for (const auto& pt : m.polygon) {
+            s << "          <tt:Point x=\"" << std::fixed << std::setprecision(4) << pt.x
+              << "\" y=\"" << pt.y << "\"/>\r\n";
+        }
+        s << "        </" << prefix << ":Polygon>\r\n"
+          << "        <" << prefix << ":Type>" << maskTypeToString(m.type) << "</" << prefix << ":Type>\r\n"
+          << "        <" << prefix << ":Color X=\"" << m.color.x << "\" Y=\"" << m.color.y
+          << "\" Z=\"" << m.color.z << "\" Colorspace=\"" << m.color.colorspace << "\"/>\r\n"
+          << "        <" << prefix << ":Enabled>" << (m.enabled ? "true" : "false") << "</" << prefix << ":Enabled>\r\n"
+          << "      </" << prefix << ":Mask>\r\n";
+        return s.str();
+    };
+
+    if (isOp(opName, "GetMaskOptions")) {
+        const pugi::xml_node cfgNode = doc.select_node("//*[local-name()='ConfigurationToken']").node();
+        const std::string cfgToken = cfgNode ? cfgNode.text().as_string() : "";
+
+        MaskOptions opts;
+        if (m_maskHandler) {
+            opts = m_maskHandler->handleGetMaskOptions(cfgToken);
+        } else {
+            std::lock_guard<std::mutex> lock(m_maskMutex);
+            opts = m_internalMaskOptions;
+        }
+
+        body << "    <" << prefix << ":GetMaskOptionsResponse>\r\n"
+             << "      <" << prefix << ":Options MaxMasks=\"" << opts.maxMasks << "\" MaxPoints=\""
+             << opts.maxPoints << "\" Rectangle=\"" << (opts.rectangleSupported ? "true" : "false")
+             << "\" RectangleSupported=\"" << (opts.rectangleSupported ? "true" : "false")
+             << "\" Polygon=\"" << (opts.polygonSupported ? "true" : "false")
+             << "\" PolygonSupported=\"" << (opts.polygonSupported ? "true" : "false") << "\">\r\n"
+             << "        <" << prefix << ":MaxMasks>" << opts.maxMasks << "</" << prefix << ":MaxMasks>\r\n"
+             << "        <" << prefix << ":MaxPoints>" << opts.maxPoints << "</" << prefix << ":MaxPoints>\r\n";
+        for (const auto& t : opts.supportedTypes) {
+            body << "        <" << prefix << ":Types>" << maskTypeToString(t) << "</" << prefix << ":Types>\r\n";
+            body << "        <" << prefix << ":SupportedTypes>" << maskTypeToString(t) << "</" << prefix << ":SupportedTypes>\r\n";
+        }
+        for (const auto& cs : opts.supportedColorSpaces) {
+            body << "        <" << prefix << ":SupportedColorSpaces>" << cs << "</" << prefix << ":SupportedColorSpaces>\r\n";
+        }
+        body << "      </" << prefix << ":Options>\r\n"
+             << "    </" << prefix << ":GetMaskOptionsResponse>\r\n";
+
+    } else if (isOp(opName, "GetMasks")) {
+        const pugi::xml_node cfgNode = doc.select_node("//*[local-name()='ConfigurationToken']").node();
+        const std::string cfgToken = cfgNode ? cfgNode.text().as_string() : "";
+
+        std::vector<PrivacyMask> masks;
+        if (m_maskHandler) {
+            masks = m_maskHandler->handleGetMasks(cfgToken);
+        } else {
+            std::lock_guard<std::mutex> lock(m_maskMutex);
+            if (cfgToken.empty()) {
+                masks = m_internalMasks;
+            } else {
+                for (const auto& m : m_internalMasks) {
+                    if (m.configurationToken == cfgToken) {
+                        masks.push_back(m);
+                    }
+                }
+            }
+        }
+
+        body << "    <" << prefix << ":GetMasksResponse>\r\n";
+        for (const auto& m : masks) {
+            body << serializeMask(m);
+        }
+        body << "    </" << prefix << ":GetMasksResponse>\r\n";
+
+    } else if (isOp(opName, "GetMask")) {
+        const pugi::xml_node tokNode = doc.select_node("//*[local-name()='Token']").node();
+        const std::string token = tokNode ? tokNode.text().as_string() : "";
+
+        std::optional<PrivacyMask> opt;
+        if (m_maskHandler) {
+            opt = m_maskHandler->handleGetMask(token);
+        } else {
+            std::lock_guard<std::mutex> lock(m_maskMutex);
+            const auto it = std::find_if(m_internalMasks.begin(), m_internalMasks.end(),
+                [&token](const PrivacyMask& m) { return m.token == token; });
+            if (it != m_internalMasks.end()) {
+                opt = *it;
+            }
+        }
+
+        body << "    <" << prefix << ":GetMaskResponse>\r\n";
+        if (opt.has_value()) {
+            body << serializeMask(*opt);
+        }
+        body << "    </" << prefix << ":GetMaskResponse>\r\n";
+
+    } else if (isOp(opName, "CreateMask")) {
+        const pugi::xml_node maskNode = doc.select_node("//*[local-name()='Mask']").node();
+        PrivacyMask mask {};
+        if (maskNode) {
+            if (maskNode.attribute("token")) {
+                mask.token = maskNode.attribute("token").as_string();
+            } else if (maskNode.attribute("Token")) {
+                mask.token = maskNode.attribute("Token").as_string();
+            }
+            const auto cfg = maskNode.select_node(".//*[local-name()='ConfigurationToken']").node();
+            if (cfg) mask.configurationToken = cfg.text().as_string();
+
+            const auto polyNode = maskNode.select_node(".//*[local-name()='Polygon']").node();
+            if (polyNode) {
+                for (const auto& ptNode : polyNode.children()) {
+                    Point2D pt {};
+                    if (ptNode.attribute("x")) pt.x = ptNode.attribute("x").as_float(0.0f);
+                    else if (ptNode.attribute("X")) pt.x = ptNode.attribute("X").as_float(0.0f);
+                    if (ptNode.attribute("y")) pt.y = ptNode.attribute("y").as_float(0.0f);
+                    else if (ptNode.attribute("Y")) pt.y = ptNode.attribute("Y").as_float(0.0f);
+                    mask.polygon.push_back(pt);
+                }
+            }
+
+            const auto typeNode = maskNode.select_node(".//*[local-name()='Type']").node();
+            if (typeNode) mask.type = stringToMaskType(typeNode.text().as_string("Color"));
+
+            const auto colorNode = maskNode.select_node(".//*[local-name()='Color']").node();
+            if (colorNode) {
+                if (colorNode.attribute("X")) mask.color.x = colorNode.attribute("X").as_int(0);
+                else if (colorNode.attribute("x")) mask.color.x = colorNode.attribute("x").as_int(0);
+                if (colorNode.attribute("Y")) mask.color.y = colorNode.attribute("Y").as_int(0);
+                else if (colorNode.attribute("y")) mask.color.y = colorNode.attribute("y").as_int(0);
+                if (colorNode.attribute("Z")) mask.color.z = colorNode.attribute("Z").as_int(0);
+                else if (colorNode.attribute("z")) mask.color.z = colorNode.attribute("z").as_int(0);
+                if (colorNode.attribute("Colorspace")) mask.color.colorspace = colorNode.attribute("Colorspace").as_string("RGB");
+                else if (colorNode.attribute("colorspace")) mask.color.colorspace = colorNode.attribute("colorspace").as_string("RGB");
+            }
+
+            const auto enNode = maskNode.select_node(".//*[local-name()='Enabled']").node();
+            if (enNode) mask.enabled = enNode.text().as_bool(true);
+            else if (maskNode.attribute("Enabled")) mask.enabled = maskNode.attribute("Enabled").as_bool(true);
+        }
+
+        std::string assignedToken = mask.token;
+        if (assignedToken.empty()) {
+            std::lock_guard<std::mutex> lock(m_maskMutex);
+            assignedToken = "Mask_" + std::to_string(m_nextMaskId++);
+            mask.token = assignedToken;
+        }
+
+        if (m_maskHandler) {
+            assignedToken = m_maskHandler->handleCreateMask(mask);
+            if (assignedToken.empty()) {
+                assignedToken = mask.token;
+            }
+        } else {
+            std::lock_guard<std::mutex> lock(m_maskMutex);
+            m_internalMasks.push_back(mask);
+        }
+
+        body << "    <" << prefix << ":CreateMaskResponse>\r\n"
+             << "      <" << prefix << ":Token>" << assignedToken << "</" << prefix << ":Token>\r\n"
+             << "    </" << prefix << ":CreateMaskResponse>\r\n";
+
+    } else if (isOp(opName, "SetMask")) {
+        const pugi::xml_node maskNode = doc.select_node("//*[local-name()='Mask']").node();
+        PrivacyMask mask {};
+        if (maskNode) {
+            if (maskNode.attribute("token")) mask.token = maskNode.attribute("token").as_string();
+            else if (maskNode.attribute("Token")) mask.token = maskNode.attribute("Token").as_string();
+            const auto cfg = maskNode.select_node(".//*[local-name()='ConfigurationToken']").node();
+            if (cfg) mask.configurationToken = cfg.text().as_string();
+
+            const auto polyNode = maskNode.select_node(".//*[local-name()='Polygon']").node();
+            if (polyNode) {
+                for (const auto& ptNode : polyNode.children()) {
+                    Point2D pt {};
+                    if (ptNode.attribute("x")) pt.x = ptNode.attribute("x").as_float(0.0f);
+                    else if (ptNode.attribute("X")) pt.x = ptNode.attribute("X").as_float(0.0f);
+                    if (ptNode.attribute("y")) pt.y = ptNode.attribute("y").as_float(0.0f);
+                    else if (ptNode.attribute("Y")) pt.y = ptNode.attribute("Y").as_float(0.0f);
+                    mask.polygon.push_back(pt);
+                }
+            }
+
+            const auto typeNode = maskNode.select_node(".//*[local-name()='Type']").node();
+            if (typeNode) mask.type = stringToMaskType(typeNode.text().as_string("Color"));
+
+            const auto colorNode = maskNode.select_node(".//*[local-name()='Color']").node();
+            if (colorNode) {
+                if (colorNode.attribute("X")) mask.color.x = colorNode.attribute("X").as_int(0);
+                else if (colorNode.attribute("x")) mask.color.x = colorNode.attribute("x").as_int(0);
+                if (colorNode.attribute("Y")) mask.color.y = colorNode.attribute("Y").as_int(0);
+                else if (colorNode.attribute("y")) mask.color.y = colorNode.attribute("y").as_int(0);
+                if (colorNode.attribute("Z")) mask.color.z = colorNode.attribute("Z").as_int(0);
+                else if (colorNode.attribute("z")) mask.color.z = colorNode.attribute("z").as_int(0);
+                if (colorNode.attribute("Colorspace")) mask.color.colorspace = colorNode.attribute("Colorspace").as_string("RGB");
+                else if (colorNode.attribute("colorspace")) mask.color.colorspace = colorNode.attribute("colorspace").as_string("RGB");
+            }
+
+            const auto enNode = maskNode.select_node(".//*[local-name()='Enabled']").node();
+            if (enNode) mask.enabled = enNode.text().as_bool(true);
+            else if (maskNode.attribute("Enabled")) mask.enabled = maskNode.attribute("Enabled").as_bool(true);
+        }
+
+        bool ok = false;
+        if (m_maskHandler) {
+            ok = m_maskHandler->handleSetMask(mask);
+        }
+        if (!ok) {
+            std::lock_guard<std::mutex> lock(m_maskMutex);
+            const auto it = std::find_if(m_internalMasks.begin(), m_internalMasks.end(),
+                [&mask](const PrivacyMask& m) { return m.token == mask.token; });
+            if (it != m_internalMasks.end()) {
+                *it = mask;
+            } else {
+                m_internalMasks.push_back(mask);
+            }
+        }
+
+        body << "    <" << prefix << ":SetMaskResponse/>\r\n";
+
+    } else if (isOp(opName, "DeleteMask")) {
+        const pugi::xml_node tokNode = doc.select_node("//*[local-name()='Token']").node();
+        const std::string token = tokNode ? tokNode.text().as_string() : "";
+
+        bool ok = false;
+        if (m_maskHandler) {
+            ok = m_maskHandler->handleDeleteMask(token);
+        }
+        if (!ok) {
+            std::lock_guard<std::mutex> lock(m_maskMutex);
+            m_internalMasks.erase(
+                std::remove_if(m_internalMasks.begin(), m_internalMasks.end(),
+                    [&token](const PrivacyMask& m) { return m.token == token; }),
+                m_internalMasks.end());
+        }
+
+        body << "    <" << prefix << ":DeleteMaskResponse/>\r\n";
+    }
+}
+
+void OnvifServer::processVideoSourceModeRequest(
+    const std::string& opName, const pugi::xml_document& doc, std::ostringstream& body, const std::string& prefix)
+{
+    if (isOp(opName, "GetVideoSourceModes")) {
+        const pugi::xml_node vsNode = doc.select_node("//*[local-name()='VideoSourceToken']").node();
+        const std::string vsToken = vsNode ? vsNode.text().as_string() : "VideoSource_1";
+
+        std::vector<VideoSourceMode> modes;
+        if (m_videoSourceModeHandler) {
+            modes = m_videoSourceModeHandler->handleGetVideoSourceModes(vsToken);
+        } else {
+            std::lock_guard<std::mutex> lock(m_videoSourceModeMutex);
+            modes = m_internalVideoSourceModes;
+        }
+
+        body << "    <" << prefix << ":GetVideoSourceModesResponse>\r\n";
+        for (const auto& mode : modes) {
+            body << "      <" << prefix << ":VideoSourceModes token=\"" << mode.token << "\" Enabled=\""
+                 << (mode.enabled ? "true" : "false") << "\">\r\n"
+                 << "        <" << prefix << ":MaxFramerate>" << std::fixed << std::setprecision(1) << mode.maxFramerate
+                 << "</" << prefix << ":MaxFramerate>\r\n"
+                 << "        <" << prefix << ":MaxResolution>\r\n"
+                 << "          <tt:Width>" << mode.width << "</tt:Width>\r\n"
+                 << "          <tt:Height>" << mode.height << "</tt:Height>\r\n"
+                 << "        </" << prefix << ":MaxResolution>\r\n"
+                 << "        <" << prefix << ":Encodings>";
+            for (size_t i = 0; i < mode.encodings.size(); ++i) {
+                if (i > 0) body << " ";
+                body << mode.encodings[i];
+            }
+            body << "</" << prefix << ":Encodings>\r\n"
+                 << "        <" << prefix << ":Reboot>" << (mode.reboot ? "true" : "false") << "</" << prefix << ":Reboot>\r\n"
+                 << "        <" << prefix << ":Description>" << mode.description << "</" << prefix << ":Description>\r\n"
+                 << "      </" << prefix << ":VideoSourceModes>\r\n";
+        }
+        body << "    </" << prefix << ":GetVideoSourceModesResponse>\r\n";
+
+    } else if (isOp(opName, "SetVideoSourceMode")) {
+        const pugi::xml_node vsNode = doc.select_node("//*[local-name()='VideoSourceToken']").node();
+        const std::string vsToken = vsNode ? vsNode.text().as_string() : "VideoSource_1";
+
+        const pugi::xml_node modeNode = doc.select_node("//*[local-name()='VideoSourceModeToken' or local-name()='ModeToken']").node();
+        const std::string modeToken = modeNode ? modeNode.text().as_string() : "";
+
+        bool rebootRequired = false;
+        if (m_videoSourceModeHandler) {
+            static_cast<void>(m_videoSourceModeHandler->handleSetVideoSourceMode(vsToken, modeToken, rebootRequired));
+        } else {
+            std::lock_guard<std::mutex> lock(m_videoSourceModeMutex);
+            for (auto& m : m_internalVideoSourceModes) {
+                if (m.token == modeToken) {
+                    m.enabled = true;
+                    rebootRequired = m.reboot;
+                } else {
+                    m.enabled = false;
+                }
+            }
+        }
+
+        body << "    <" << prefix << ":SetVideoSourceModeResponse>\r\n"
+             << "      <" << prefix << ":Reboot>" << (rebootRequired ? "true" : "false") << "</" << prefix << ":Reboot>\r\n"
+             << "    </" << prefix << ":SetVideoSourceModeResponse>\r\n";
+    }
+}
+
 std::string OnvifServer::generateMetadataStreamXml(const MetadataStreamPayload& payload) const
 {
     std::ostringstream ss;
@@ -2058,9 +2408,14 @@ void OnvifServer::handleMedia2Service(const httplib::Request& req, httplib::Resp
              << "        </tr2:ResolutionsAvailable>\r\n"
              << "      </tr2:Options>\r\n"
              << "    </tr2:GetVideoEncoderConfigurationOptionsResponse>\r\n";
+    } else if (isOp(opName, "GetMaskOptions") || isOp(opName, "GetMasks") || isOp(opName, "GetMask")
+        || isOp(opName, "CreateMask") || isOp(opName, "SetMask") || isOp(opName, "DeleteMask")) {
+        processMaskRequest(opName, doc, body, "tr2");
+    } else if (isOp(opName, "GetVideoSourceModes") || isOp(opName, "SetVideoSourceMode")) {
+        processVideoSourceModeRequest(opName, doc, body, "tr2");
     } else if (isOp(opName, "GetServiceCapabilities")) {
         body << "    <tr2:GetServiceCapabilitiesResponse>\r\n"
-             << "      <tr2:Capabilities SnapshotUri=\"true\" Rotation=\"false\" OSD=\"true\" Mask=\"false\" "
+             << "      <tr2:Capabilities SnapshotUri=\"true\" Rotation=\"false\" OSD=\"true\" Mask=\"true\" "
                 "SourceConfigurations=\"true\"/>\r\n"
              << "    </tr2:GetServiceCapabilitiesResponse>\r\n";
     } else {
