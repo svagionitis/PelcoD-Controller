@@ -17,6 +17,7 @@
 #include <QLineEdit>
 #include <QPushButton>
 #include <QSlider>
+#include <QTabWidget>
 #include <QTimer>
 #include <QVBoxLayout>
 #include <QWidget>
@@ -105,6 +106,9 @@ private:
     QPushButton* m_btnSnapshot { nullptr };
     QPushButton* m_btnFullscreen { nullptr };
     QLabel* m_statusLabel { nullptr };
+
+    // Side Panel Controls
+    QTabWidget* m_sideTabs { nullptr };
 
     // Overlay Toggles Panel
     QCheckBox* m_chkCrosshair { nullptr };

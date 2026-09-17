@@ -34,6 +34,18 @@ QTabBar::tab:hover:!selected {
     color: #d1d5db;
 }
 
+QTabWidget#videoSideTabs::pane {
+    border: 1px solid #2d3136;
+    background-color: #1e2124;
+    border-radius: 4px;
+}
+
+QTabWidget#videoSideTabs QTabBar::tab {
+    padding: 5px 8px;
+    font-size: 11px;
+    min-width: 36px;
+}
+
 QGroupBox {
     border: 1px solid #32373e;
     border-radius: 6px;
@@ -232,4 +244,30 @@ QStatusBar {
     background-color: #161b22;
     color: #8b949e;
     border-top: 1px solid #30363d;
+}
+
+QScrollBar:vertical {
+    background-color: #161b22;
+    width: 8px;
+    margin: 0px;
+    border-radius: 4px;
+}
+
+QScrollBar::handle:vertical {
+    background-color: #373e47;
+    min-height: 24px;
+    border-radius: 4px;
+}
+
+QScrollBar::handle:vertical:hover {
+    background-color: #58a6ff;
+}
+
+QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+    height: 0px;
+    background: none;
+}
+
+QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {
+    background: none;
 }

@@ -8,6 +8,7 @@
 #include <QGroupBox>
 #include <QIcon>
 #include <QMessageBox>
+#include <QScrollArea>
 #include <QShortcut>
 #include <QSplitter>
 #include <QStandardPaths>
@@ -152,240 +153,40 @@ void VideoStreamTab::setupUi()
 
     // Right Side Panel
     auto* sidePanel = new QWidget(splitter);
-    sidePanel->setMaximumWidth(280);
-    sidePanel->setMinimumWidth(220);
+    sidePanel->setMinimumWidth(260);
+    sidePanel->setMaximumWidth(320);
     auto* sideLayout = new QVBoxLayout(sidePanel);
-    sideLayout->setContentsMargins(4, 0, 4, 0);
-    sideLayout->setSpacing(8);
+    sideLayout->setContentsMargins(0, 0, 0, 0);
+    sideLayout->setSpacing(0);
 
-    // Group 1: HUD Overlays
-    auto* hudGroup = new QGroupBox(tr("Tactical HUD Layers"), sidePanel);
-    auto* hudLayout = new QVBoxLayout(hudGroup);
-    hudLayout->setSpacing(4);
+    m_sideTabs = new QTabWidget(sidePanel);
+    m_sideTabs->setObjectName(QStringLiteral("videoSideTabs"));
+    sideLayout->addWidget(m_sideTabs);
 
-    m_chkCrosshair = new QCheckBox(tr("Target Reticle / Crosshairs"), hudGroup);
-    m_chkCrosshair->setChecked(true);
-    hudLayout->addWidget(m_chkCrosshair);
+    auto createScrollTab = [this](const QString& title) -> QVBoxLayout* {
+        auto* pageContainer = new QWidget();
+        auto* pageLayout = new QVBoxLayout(pageContainer);
+        pageLayout->setContentsMargins(6, 6, 6, 6);
+        pageLayout->setSpacing(6);
 
-    m_chkCompass = new QCheckBox(tr("Compass Heading Tape"), hudGroup);
-    m_chkCompass->setChecked(true);
-    hudLayout->addWidget(m_chkCompass);
+        auto* scrollArea = new QScrollArea(m_sideTabs);
+        scrollArea->setWidgetResizable(true);
+        scrollArea->setFrameShape(QFrame::NoFrame);
+        scrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+        scrollArea->setWidget(pageContainer);
 
-    m_chkPitchLadder = new QCheckBox(tr("Elevation Pitch Ladder"), hudGroup);
-    m_chkPitchLadder->setChecked(true);
-    hudLayout->addWidget(m_chkPitchLadder);
+        m_sideTabs->addTab(scrollArea, title);
+        return pageLayout;
+    };
 
-    m_chkOpticsHud = new QCheckBox(tr("Optics & Zoom Telemetry"), hudGroup);
-    m_chkOpticsHud->setChecked(true);
-    hudLayout->addWidget(m_chkOpticsHud);
+    // =========================================================================
+    // Tab 1: PTZ (Camera Motion & Keypad)
+    // =========================================================================
+    auto* ptzTabLayout = createScrollTab(tr("PTZ"));
 
-    m_chkDiagnostics = new QCheckBox(tr("Stream Diagnostics HUD"), hudGroup);
-    m_chkDiagnostics->setChecked(true);
-    hudLayout->addWidget(m_chkDiagnostics);
-
-    m_chkInteractivePtz = new QCheckBox(tr("Click-to-PTZ Joystick"), hudGroup);
-    m_chkInteractivePtz->setChecked(true);
-    hudLayout->addWidget(m_chkInteractivePtz);
-
-    hudLayout->addWidget(new QLabel(tr("HUD Color Theme:"), hudGroup));
-    m_comboColorScheme = new QComboBox(hudGroup);
-    m_comboColorScheme->addItem(tr("Tactical Cyan"), QColor(0, 229, 255));
-    m_comboColorScheme->addItem(tr("Phosphor Green"), QColor(0, 230, 118));
-    m_comboColorScheme->addItem(tr("Amber Night"), QColor(255, 179, 0));
-    m_comboColorScheme->addItem(tr("Crisp White"), QColor(255, 255, 255));
-    hudLayout->addWidget(m_comboColorScheme);
-
-    sideLayout->addWidget(hudGroup);
-
-#if defined(PELCOD_HAS_FILTERS)
-    // Group: Tactical Vision & Image Enhancement
-    auto* visionGroup = new QGroupBox(tr("Tactical Image Enhancement"), sidePanel);
-    auto* visionLayout = new QVBoxLayout(visionGroup);
-    visionLayout->setSpacing(4);
-
-    visionLayout->addWidget(new QLabel(tr("Thermal / False Color:"), visionGroup));
-    m_comboPalette = new QComboBox(visionGroup);
-    m_comboPalette->addItem(tr("Off (Natural Colors)"), -1);
-    m_comboPalette->addItem(tr("White Hot (Grayscale)"), static_cast<int>(PelcoD::Video::FalseColorPalette::WhiteHot));
-    m_comboPalette->addItem(tr("Black Hot (Inverted)"), static_cast<int>(PelcoD::Video::FalseColorPalette::BlackHot));
-    m_comboPalette->addItem(tr("Iron256 (Thermal Iron)"), static_cast<int>(PelcoD::Video::FalseColorPalette::Iron256));
-    m_comboPalette->addItem(tr("Jet (Rainbow Spectrum)"), static_cast<int>(PelcoD::Video::FalseColorPalette::Jet));
-    m_comboPalette->addItem(
-        tr("Turbo (High Dynamic Range)"), static_cast<int>(PelcoD::Video::FalseColorPalette::Turbo));
-    m_comboPalette->addItem(tr("Rainbow"), static_cast<int>(PelcoD::Video::FalseColorPalette::Rainbow));
-    m_comboPalette->addItem(tr("Hot-Cold"), static_cast<int>(PelcoD::Video::FalseColorPalette::HotCold));
-    m_comboPalette->addItem(tr("Ice-Fire"), static_cast<int>(PelcoD::Video::FalseColorPalette::IceFire));
-    m_comboPalette->addItem(tr("Bone"), static_cast<int>(PelcoD::Video::FalseColorPalette::Bone));
-    visionLayout->addWidget(m_comboPalette);
-
-    m_chkDcpDehaze = new QCheckBox(tr("Atmospheric Dehaze (DCP)"), visionGroup);
-    visionLayout->addWidget(m_chkDcpDehaze);
-
-    m_chkStabilizer = new QCheckBox(tr("Electronic Stabilization (EIS)"), visionGroup);
-    visionLayout->addWidget(m_chkStabilizer);
-
-    m_chkWhiteBalance = new QCheckBox(tr("Auto White Balance (AWB)"), visionGroup);
-    visionLayout->addWidget(m_chkWhiteBalance);
-
-    m_chkChromaticAberration = new QCheckBox(tr("Chromatic Aberration Fix"), visionGroup);
-    visionLayout->addWidget(m_chkChromaticAberration);
-
-    m_chkLapHaze = new QCheckBox(tr("Fog / Haze Penetration (LAP)"), visionGroup);
-    visionLayout->addWidget(m_chkLapHaze);
-
-    m_chkClahe = new QCheckBox(tr("Adaptive Contrast (CLAHE)"), visionGroup);
-    visionLayout->addWidget(m_chkClahe);
-
-    m_chkDenoise = new QCheckBox(tr("Heat Shimmer Denoise"), visionGroup);
-    visionLayout->addWidget(m_chkDenoise);
-
-    m_chkSharpen = new QCheckBox(tr("Acuity Sharpening"), visionGroup);
-    visionLayout->addWidget(m_chkSharpen);
-
-    m_chkEdgeDetect = new QCheckBox(tr("Canny Edge Outlines"), visionGroup);
-    visionLayout->addWidget(m_chkEdgeDetect);
-
-    // Tactical & Thermal Analytics Sub-Panel
-    visionLayout->addWidget(new QLabel(tr("Tactical & Thermal Analytics:"), visionGroup));
-    auto* isoLayout = new QHBoxLayout();
-    m_chkIsotherm = new QCheckBox(tr("Isotherm"), visionGroup);
-    m_comboIsothermPreset = new QComboBox(visionGroup);
-    m_comboIsothermPreset->addItem(tr("Body Heat"), static_cast<int>(PelcoD::Video::IsothermFilter::Preset::HumanBody));
-    m_comboIsothermPreset->addItem(tr("High Heat"), static_cast<int>(PelcoD::Video::IsothermFilter::Preset::HighHeat));
-    m_comboIsothermPreset->addItem(
-        tr("Custom (140-180)"), static_cast<int>(PelcoD::Video::IsothermFilter::Preset::Custom));
-    isoLayout->addWidget(m_chkIsotherm);
-    isoLayout->addWidget(m_comboIsothermPreset);
-    visionLayout->addLayout(isoLayout);
-
-    m_chkHotspotTracker = new QCheckBox(tr("Hotspot & Radiometry"), visionGroup);
-    visionLayout->addWidget(m_chkHotspotTracker);
-
-    m_chkMtiMotion = new QCheckBox(tr("Moving Target (MTI)"), visionGroup);
-    visionLayout->addWidget(m_chkMtiMotion);
-
-    auto* reticleLayout = new QHBoxLayout();
-    m_chkReticleHud = new QCheckBox(tr("Reticle HUD"), visionGroup);
-    m_comboReticleStyle = new QComboBox(visionGroup);
-    m_comboReticleStyle->addItem(
-        tr("Crosshair"), static_cast<int>(PelcoD::Video::TacticalReticleOverlayFilter::Style::Crosshair));
-    m_comboReticleStyle->addItem(
-        tr("Mil-Dot"), static_cast<int>(PelcoD::Video::TacticalReticleOverlayFilter::Style::MilDot));
-    m_comboReticleStyle->addItem(
-        tr("Stadiametric"), static_cast<int>(PelcoD::Video::TacticalReticleOverlayFilter::Style::Stadiametric));
-    m_comboReticleStyle->addItem(
-        tr("Corner Brackets"), static_cast<int>(PelcoD::Video::TacticalReticleOverlayFilter::Style::CornerBrackets));
-    reticleLayout->addWidget(m_chkReticleHud);
-    reticleLayout->addWidget(m_comboReticleStyle);
-    visionLayout->addLayout(reticleLayout);
-
-    // Motion & Target Tracking Sub-Panel
-    visionLayout->addWidget(new QLabel(tr("Motion & Target Tracking:"), visionGroup));
-    m_chkHeatmap = new QCheckBox(tr("Activity Heatmap"), visionGroup);
-    visionLayout->addWidget(m_chkHeatmap);
-
-    auto* flowLayout = new QHBoxLayout();
-    m_chkOpticalFlow = new QCheckBox(tr("Motion Flow"), visionGroup);
-    m_comboFlowMode = new QComboBox(visionGroup);
-    m_comboFlowMode->addItem(
-        tr("Vector Arrows"), static_cast<int>(PelcoD::Video::OpticalFlowFieldFilter::DisplayMode::VectorArrows));
-    m_comboFlowMode->addItem(
-        tr("Color Flow"), static_cast<int>(PelcoD::Video::OpticalFlowFieldFilter::DisplayMode::ColorFlow));
-    flowLayout->addWidget(m_chkOpticalFlow);
-    flowLayout->addWidget(m_comboFlowMode);
-    visionLayout->addLayout(flowLayout);
-
-    m_chkTargetLock = new QCheckBox(tr("Visual Target Lock"), visionGroup);
-    visionLayout->addWidget(m_chkTargetLock);
-
-    m_chkScaleAdaptation = new QCheckBox(tr("  └ Scale Adaptation"), visionGroup);
-    m_chkScaleAdaptation->setChecked(true);
-    m_chkScaleAdaptation->setToolTip(tr("Dynamically adjusts target bounding box during camera zoom or range changes"));
-    visionLayout->addWidget(m_chkScaleAdaptation);
-
-    m_chkAppearanceFusion = new QCheckBox(tr("  └ Appearance Fusion"), visionGroup);
-    m_chkAppearanceFusion->setChecked(true);
-    m_chkAppearanceFusion->setToolTip(tr("Fuses color/intensity signature to prevent optical flow drift"));
-    visionLayout->addWidget(m_chkAppearanceFusion);
-
-    m_chkTrajectoryTrail = new QCheckBox(tr("  └ Trajectory Trail"), visionGroup);
-    m_chkTrajectoryTrail->setChecked(true);
-    m_chkTrajectoryTrail->setToolTip(tr("Renders temporal decaying motion breadcrumbs for the target"));
-    visionLayout->addWidget(m_chkTrajectoryTrail);
-
-    m_chkPredictiveVector = new QCheckBox(tr("  └ Predictive Vector Overlay"), visionGroup);
-    m_chkPredictiveVector->setChecked(true);
-    m_chkPredictiveVector->setToolTip(tr("Projects future kinematic trajectory and interception reticle"));
-    visionLayout->addWidget(m_chkPredictiveVector);
-
-    m_chkAutoFollowPtz = new QCheckBox(tr("Auto-Follow PTZ (PID)"), visionGroup);
-    m_chkAutoFollowPtz->setToolTip(tr("Enables closed-loop PID PTZ auto-tracking with Kalman motion estimation"));
-    visionLayout->addWidget(m_chkAutoFollowPtz);
-
-    m_chkAutoZoomFraming = new QCheckBox(tr("  └ Auto-Zoom Framing"), visionGroup);
-    m_chkAutoZoomFraming->setToolTip(tr("Maintains constant target visual scale via closed-loop Zoom Tele/Wide"));
-    visionLayout->addWidget(m_chkAutoZoomFraming);
-
-    m_chkPredictiveLead = new QCheckBox(tr("  └ Predictive Lead Angle"), visionGroup);
-    m_chkPredictiveLead->setToolTip(
-        tr("Offsets boresight ahead along target velocity to preserve forward situational awareness"));
-    visionLayout->addWidget(m_chkPredictiveLead);
-
-    m_autoTracker = std::make_unique<PelcoD::PtzAutoTracker>();
-    m_autoFollowTimer = new QTimer(this);
-
-    auto* tripLayout = new QHBoxLayout();
-    m_chkTripwire = new QCheckBox(tr("Perimeter Tripwire"), visionGroup);
-    m_comboTripwireDir = new QComboBox(visionGroup);
-    m_comboTripwireDir->addItem(
-        tr("Bi-directional"), static_cast<int>(PelcoD::Video::PerimeterTripwireFilter::Direction::Bidirectional));
-    m_comboTripwireDir->addItem(
-        tr("A -> B"), static_cast<int>(PelcoD::Video::PerimeterTripwireFilter::Direction::A_to_B));
-    m_comboTripwireDir->addItem(
-        tr("B -> A"), static_cast<int>(PelcoD::Video::PerimeterTripwireFilter::Direction::B_to_A));
-    tripLayout->addWidget(m_chkTripwire);
-    tripLayout->addWidget(m_comboTripwireDir);
-    visionLayout->addLayout(tripLayout);
-
-    // Privacy & Operational Overlays Sub-Panel
-    visionLayout->addWidget(new QLabel(tr("Privacy & Operational Overlays:"), visionGroup));
-
-    auto* privLayout = new QHBoxLayout();
-    m_chkPrivacyMask = new QCheckBox(tr("Privacy Mask"), visionGroup);
-    m_comboPrivacyMode = new QComboBox(visionGroup);
-    m_comboPrivacyMode->addItem(
-        tr("Blackout"), static_cast<int>(PelcoD::Video::PrivacyMaskFilter::ConcealmentMode::Blackout));
-    m_comboPrivacyMode->addItem(tr("Blur"), static_cast<int>(PelcoD::Video::PrivacyMaskFilter::ConcealmentMode::Blur));
-    m_comboPrivacyMode->addItem(
-        tr("Mosaic"), static_cast<int>(PelcoD::Video::PrivacyMaskFilter::ConcealmentMode::Mosaic));
-    privLayout->addWidget(m_chkPrivacyMask);
-    privLayout->addWidget(m_comboPrivacyMode);
-    visionLayout->addLayout(privLayout);
-
-    m_chkForensicWatermark = new QCheckBox(tr("Forensic Watermark"), visionGroup);
-    visionLayout->addWidget(m_chkForensicWatermark);
-
-    m_chkTelemetryOsd = new QCheckBox(tr("Telemetry HUD"), visionGroup);
-    visionLayout->addWidget(m_chkTelemetryOsd);
-
-    auto* pipLayout = new QHBoxLayout();
-    m_chkPictureInPicture = new QCheckBox(tr("Picture-in-Picture"), visionGroup);
-    m_comboPipMode = new QComboBox(visionGroup);
-    m_comboPipMode->addItem(
-        tr("Digital Zoom (2x)"), static_cast<int>(PelcoD::Video::PictureInPictureFilter::Mode::DigitalZoom));
-    m_comboPipMode->addItem(
-        tr("Aux Feed"), static_cast<int>(PelcoD::Video::PictureInPictureFilter::Mode::SecondaryFeed));
-    pipLayout->addWidget(m_chkPictureInPicture);
-    pipLayout->addWidget(m_comboPipMode);
-    visionLayout->addLayout(pipLayout);
-
-    sideLayout->addWidget(visionGroup);
-#endif
-
-    // Group 2: Quick PTZ Keypad
-    auto* ptzGroup = new QGroupBox(tr("Quick Camera Control"), sidePanel);
-    auto* ptzLayout = new QVBoxLayout(ptzGroup);
-    ptzLayout->setSpacing(6);
+    auto* ptzGroup = new QGroupBox(tr("Quick Camera Control"));
+    auto* ptzGroupLayout = new QVBoxLayout(ptzGroup);
+    ptzGroupLayout->setSpacing(6);
 
     auto* gridPad = new QGridLayout();
     gridPad->setSpacing(4);
@@ -411,7 +212,7 @@ void VideoStreamTab::setupUi()
     gridPad->addWidget(btnDown, 2, 1);
     gridPad->addWidget(btnDownRight, 2, 2);
 
-    ptzLayout->addLayout(gridPad);
+    ptzGroupLayout->addLayout(gridPad);
 
     // Zoom Rocker
     auto* zoomLayout = new QHBoxLayout();
@@ -419,7 +220,7 @@ void VideoStreamTab::setupUi()
     auto* btnZoomOut = new QPushButton(tr("Zoom -"), ptzGroup);
     zoomLayout->addWidget(btnZoomIn);
     zoomLayout->addWidget(btnZoomOut);
-    ptzLayout->addLayout(zoomLayout);
+    ptzGroupLayout->addLayout(zoomLayout);
 
     // Speed Slider
     auto* speedHeader = new QHBoxLayout();
@@ -427,15 +228,294 @@ void VideoStreamTab::setupUi()
     m_speedLabel = new QLabel(QStringLiteral("30"), ptzGroup);
     m_speedLabel->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
     speedHeader->addWidget(m_speedLabel);
-    ptzLayout->addLayout(speedHeader);
+    ptzGroupLayout->addLayout(speedHeader);
 
     m_speedSlider = new QSlider(Qt::Horizontal, ptzGroup);
     m_speedSlider->setRange(1, 63);
     m_speedSlider->setValue(30);
-    ptzLayout->addWidget(m_speedSlider);
+    ptzGroupLayout->addWidget(m_speedSlider);
 
-    sideLayout->addWidget(ptzGroup);
-    sideLayout->addStretch();
+    ptzTabLayout->addWidget(ptzGroup);
+
+    // Interactive Canvas PTZ
+    auto* interactiveGroup = new QGroupBox(tr("Interactive Canvas"));
+    auto* interactiveLayout = new QVBoxLayout(interactiveGroup);
+    interactiveLayout->setSpacing(4);
+    m_chkInteractivePtz = new QCheckBox(tr("Click-to-PTZ Joystick"), interactiveGroup);
+    m_chkInteractivePtz->setChecked(true);
+    interactiveLayout->addWidget(m_chkInteractivePtz);
+    ptzTabLayout->addWidget(interactiveGroup);
+
+    ptzTabLayout->addStretch();
+
+    // =========================================================================
+    // Tab 2: HUD (Tactical HUD Layers & Styling)
+    // =========================================================================
+    auto* hudTabLayout = createScrollTab(tr("HUD"));
+
+    auto* hudGroup = new QGroupBox(tr("Tactical HUD Layers"));
+    auto* hudGroupLayout = new QVBoxLayout(hudGroup);
+    hudGroupLayout->setSpacing(4);
+
+    m_chkCrosshair = new QCheckBox(tr("Target Reticle / Crosshairs"), hudGroup);
+    m_chkCrosshair->setChecked(true);
+    hudGroupLayout->addWidget(m_chkCrosshair);
+
+    m_chkCompass = new QCheckBox(tr("Compass Heading Tape"), hudGroup);
+    m_chkCompass->setChecked(true);
+    hudGroupLayout->addWidget(m_chkCompass);
+
+    m_chkPitchLadder = new QCheckBox(tr("Elevation Pitch Ladder"), hudGroup);
+    m_chkPitchLadder->setChecked(true);
+    hudGroupLayout->addWidget(m_chkPitchLadder);
+
+    m_chkOpticsHud = new QCheckBox(tr("Optics & Zoom Telemetry"), hudGroup);
+    m_chkOpticsHud->setChecked(true);
+    hudGroupLayout->addWidget(m_chkOpticsHud);
+
+    m_chkDiagnostics = new QCheckBox(tr("Stream Diagnostics HUD"), hudGroup);
+    m_chkDiagnostics->setChecked(true);
+    hudGroupLayout->addWidget(m_chkDiagnostics);
+
+    hudTabLayout->addWidget(hudGroup);
+
+    auto* styleGroup = new QGroupBox(tr("HUD Styling"));
+    auto* styleLayout = new QVBoxLayout(styleGroup);
+    styleLayout->setSpacing(4);
+    styleLayout->addWidget(new QLabel(tr("HUD Color Theme:"), styleGroup));
+    m_comboColorScheme = new QComboBox(styleGroup);
+    m_comboColorScheme->addItem(tr("Tactical Cyan"), QColor(0, 229, 255));
+    m_comboColorScheme->addItem(tr("Phosphor Green"), QColor(0, 230, 118));
+    m_comboColorScheme->addItem(tr("Amber Night"), QColor(255, 179, 0));
+    m_comboColorScheme->addItem(tr("Crisp White"), QColor(255, 255, 255));
+    styleLayout->addWidget(m_comboColorScheme);
+
+    hudTabLayout->addWidget(styleGroup);
+    hudTabLayout->addStretch();
+
+#if defined(PELCOD_HAS_FILTERS)
+    // =========================================================================
+    // Tab 3: Vision (Tactical Image Enhancement & Atmospheric)
+    // =========================================================================
+    auto* visionTabLayout = createScrollTab(tr("Vision"));
+
+    auto* atmosGroup = new QGroupBox(tr("Atmospheric & Optics"));
+    auto* atmosLayout = new QVBoxLayout(atmosGroup);
+    atmosLayout->setSpacing(4);
+
+    atmosLayout->addWidget(new QLabel(tr("Thermal / False Color:"), atmosGroup));
+    m_comboPalette = new QComboBox(atmosGroup);
+    m_comboPalette->addItem(tr("Off (Natural Colors)"), -1);
+    m_comboPalette->addItem(tr("White Hot (Grayscale)"), static_cast<int>(PelcoD::Video::FalseColorPalette::WhiteHot));
+    m_comboPalette->addItem(tr("Black Hot (Inverted)"), static_cast<int>(PelcoD::Video::FalseColorPalette::BlackHot));
+    m_comboPalette->addItem(tr("Iron256 (Thermal Iron)"), static_cast<int>(PelcoD::Video::FalseColorPalette::Iron256));
+    m_comboPalette->addItem(tr("Jet (Rainbow Spectrum)"), static_cast<int>(PelcoD::Video::FalseColorPalette::Jet));
+    m_comboPalette->addItem(
+        tr("Turbo (High Dynamic Range)"), static_cast<int>(PelcoD::Video::FalseColorPalette::Turbo));
+    m_comboPalette->addItem(tr("Rainbow"), static_cast<int>(PelcoD::Video::FalseColorPalette::Rainbow));
+    m_comboPalette->addItem(tr("Hot-Cold"), static_cast<int>(PelcoD::Video::FalseColorPalette::HotCold));
+    m_comboPalette->addItem(tr("Ice-Fire"), static_cast<int>(PelcoD::Video::FalseColorPalette::IceFire));
+    m_comboPalette->addItem(tr("Bone"), static_cast<int>(PelcoD::Video::FalseColorPalette::Bone));
+    atmosLayout->addWidget(m_comboPalette);
+
+    m_chkDcpDehaze = new QCheckBox(tr("Atmospheric Dehaze (DCP)"), atmosGroup);
+    atmosLayout->addWidget(m_chkDcpDehaze);
+
+    m_chkLapHaze = new QCheckBox(tr("Fog / Haze Penetration (LAP)"), atmosGroup);
+    atmosLayout->addWidget(m_chkLapHaze);
+
+    m_chkWhiteBalance = new QCheckBox(tr("Auto White Balance (AWB)"), atmosGroup);
+    atmosLayout->addWidget(m_chkWhiteBalance);
+
+    m_chkChromaticAberration = new QCheckBox(tr("Chromatic Aberration Fix"), atmosGroup);
+    atmosLayout->addWidget(m_chkChromaticAberration);
+
+    visionTabLayout->addWidget(atmosGroup);
+
+    auto* enhanceGroup = new QGroupBox(tr("Image Enhancement"));
+    auto* enhanceLayout = new QVBoxLayout(enhanceGroup);
+    enhanceLayout->setSpacing(4);
+
+    m_chkStabilizer = new QCheckBox(tr("Electronic Stabilization (EIS)"), enhanceGroup);
+    enhanceLayout->addWidget(m_chkStabilizer);
+
+    m_chkClahe = new QCheckBox(tr("Adaptive Contrast (CLAHE)"), enhanceGroup);
+    enhanceLayout->addWidget(m_chkClahe);
+
+    m_chkDenoise = new QCheckBox(tr("Heat Shimmer Denoise"), enhanceGroup);
+    enhanceLayout->addWidget(m_chkDenoise);
+
+    m_chkSharpen = new QCheckBox(tr("Acuity Sharpening"), enhanceGroup);
+    enhanceLayout->addWidget(m_chkSharpen);
+
+    m_chkEdgeDetect = new QCheckBox(tr("Canny Edge Outlines"), enhanceGroup);
+    enhanceLayout->addWidget(m_chkEdgeDetect);
+
+    visionTabLayout->addWidget(enhanceGroup);
+    visionTabLayout->addStretch();
+
+    // =========================================================================
+    // Tab 4: Tracking (Motion, Target Lock & Kinematics)
+    // =========================================================================
+    auto* trackTabLayout = createScrollTab(tr("Tracking"));
+
+    auto* lockGroup = new QGroupBox(tr("Target Lock & Kinematics"));
+    auto* lockLayout = new QVBoxLayout(lockGroup);
+    lockLayout->setSpacing(4);
+
+    m_chkTargetLock = new QCheckBox(tr("Visual Target Lock"), lockGroup);
+    lockLayout->addWidget(m_chkTargetLock);
+
+    m_chkScaleAdaptation = new QCheckBox(tr("  └ Scale Adaptation"), lockGroup);
+    m_chkScaleAdaptation->setChecked(true);
+    m_chkScaleAdaptation->setToolTip(tr("Dynamically adjusts target bounding box during camera zoom or range changes"));
+    lockLayout->addWidget(m_chkScaleAdaptation);
+
+    m_chkAppearanceFusion = new QCheckBox(tr("  └ Appearance Fusion"), lockGroup);
+    m_chkAppearanceFusion->setChecked(true);
+    m_chkAppearanceFusion->setToolTip(tr("Fuses color/intensity signature to prevent optical flow drift"));
+    lockLayout->addWidget(m_chkAppearanceFusion);
+
+    m_chkTrajectoryTrail = new QCheckBox(tr("  └ Trajectory Trail"), lockGroup);
+    m_chkTrajectoryTrail->setChecked(true);
+    m_chkTrajectoryTrail->setToolTip(tr("Renders temporal decaying motion breadcrumbs for the target"));
+    lockLayout->addWidget(m_chkTrajectoryTrail);
+
+    m_chkPredictiveVector = new QCheckBox(tr("  └ Predictive Vector Overlay"), lockGroup);
+    m_chkPredictiveVector->setChecked(true);
+    m_chkPredictiveVector->setToolTip(tr("Projects future kinematic trajectory and interception reticle"));
+    lockLayout->addWidget(m_chkPredictiveVector);
+
+    m_chkAutoFollowPtz = new QCheckBox(tr("Auto-Follow PTZ (PID)"), lockGroup);
+    m_chkAutoFollowPtz->setToolTip(tr("Enables closed-loop PID PTZ auto-tracking with Kalman motion estimation"));
+    lockLayout->addWidget(m_chkAutoFollowPtz);
+
+    m_chkAutoZoomFraming = new QCheckBox(tr("  └ Auto-Zoom Framing"), lockGroup);
+    m_chkAutoZoomFraming->setToolTip(tr("Maintains constant target visual scale via closed-loop Zoom Tele/Wide"));
+    lockLayout->addWidget(m_chkAutoZoomFraming);
+
+    m_chkPredictiveLead = new QCheckBox(tr("  └ Predictive Lead Angle"), lockGroup);
+    m_chkPredictiveLead->setToolTip(
+        tr("Offsets boresight ahead along target velocity to preserve forward situational awareness"));
+    lockLayout->addWidget(m_chkPredictiveLead);
+
+    m_autoTracker = std::make_unique<PelcoD::PtzAutoTracker>();
+    m_autoFollowTimer = new QTimer(this);
+
+    trackTabLayout->addWidget(lockGroup);
+
+    auto* analyticsGroup = new QGroupBox(tr("Thermal & Motion Analytics"));
+    auto* analyticsLayout = new QVBoxLayout(analyticsGroup);
+    analyticsLayout->setSpacing(4);
+
+    m_chkHotspotTracker = new QCheckBox(tr("Hotspot & Radiometry"), analyticsGroup);
+    analyticsLayout->addWidget(m_chkHotspotTracker);
+
+    auto* isoLayout = new QHBoxLayout();
+    m_chkIsotherm = new QCheckBox(tr("Isotherm"), analyticsGroup);
+    m_comboIsothermPreset = new QComboBox(analyticsGroup);
+    m_comboIsothermPreset->addItem(tr("Body Heat"), static_cast<int>(PelcoD::Video::IsothermFilter::Preset::HumanBody));
+    m_comboIsothermPreset->addItem(tr("High Heat"), static_cast<int>(PelcoD::Video::IsothermFilter::Preset::HighHeat));
+    m_comboIsothermPreset->addItem(
+        tr("Custom (140-180)"), static_cast<int>(PelcoD::Video::IsothermFilter::Preset::Custom));
+    isoLayout->addWidget(m_chkIsotherm);
+    isoLayout->addWidget(m_comboIsothermPreset);
+    analyticsLayout->addLayout(isoLayout);
+
+    m_chkMtiMotion = new QCheckBox(tr("Moving Target (MTI)"), analyticsGroup);
+    analyticsLayout->addWidget(m_chkMtiMotion);
+
+    m_chkHeatmap = new QCheckBox(tr("Activity Heatmap"), analyticsGroup);
+    analyticsLayout->addWidget(m_chkHeatmap);
+
+    auto* flowLayout = new QHBoxLayout();
+    m_chkOpticalFlow = new QCheckBox(tr("Motion Flow"), analyticsGroup);
+    m_comboFlowMode = new QComboBox(analyticsGroup);
+    m_comboFlowMode->addItem(
+        tr("Vector Arrows"), static_cast<int>(PelcoD::Video::OpticalFlowFieldFilter::DisplayMode::VectorArrows));
+    m_comboFlowMode->addItem(
+        tr("Color Flow"), static_cast<int>(PelcoD::Video::OpticalFlowFieldFilter::DisplayMode::ColorFlow));
+    flowLayout->addWidget(m_chkOpticalFlow);
+    flowLayout->addWidget(m_comboFlowMode);
+    analyticsLayout->addLayout(flowLayout);
+
+    auto* tripLayout = new QHBoxLayout();
+    m_chkTripwire = new QCheckBox(tr("Perimeter Tripwire"), analyticsGroup);
+    m_comboTripwireDir = new QComboBox(analyticsGroup);
+    m_comboTripwireDir->addItem(
+        tr("Bi-directional"), static_cast<int>(PelcoD::Video::PerimeterTripwireFilter::Direction::Bidirectional));
+    m_comboTripwireDir->addItem(
+        tr("A -> B"), static_cast<int>(PelcoD::Video::PerimeterTripwireFilter::Direction::A_to_B));
+    m_comboTripwireDir->addItem(
+        tr("B -> A"), static_cast<int>(PelcoD::Video::PerimeterTripwireFilter::Direction::B_to_A));
+    tripLayout->addWidget(m_chkTripwire);
+    tripLayout->addWidget(m_comboTripwireDir);
+    analyticsLayout->addLayout(tripLayout);
+
+    trackTabLayout->addWidget(analyticsGroup);
+    trackTabLayout->addStretch();
+
+    // =========================================================================
+    // Tab 5: Overlays (Tactical Reticles, Privacy & PiP)
+    // =========================================================================
+    auto* overlayTabLayout = createScrollTab(tr("Overlays"));
+
+    auto* reticleGroup = new QGroupBox(tr("Tactical Reticles"));
+    auto* reticleGroupLayout = new QVBoxLayout(reticleGroup);
+    reticleGroupLayout->setSpacing(4);
+
+    auto* reticleLayout = new QHBoxLayout();
+    m_chkReticleHud = new QCheckBox(tr("Reticle HUD"), reticleGroup);
+    m_comboReticleStyle = new QComboBox(reticleGroup);
+    m_comboReticleStyle->addItem(
+        tr("Crosshair"), static_cast<int>(PelcoD::Video::TacticalReticleOverlayFilter::Style::Crosshair));
+    m_comboReticleStyle->addItem(
+        tr("Mil-Dot"), static_cast<int>(PelcoD::Video::TacticalReticleOverlayFilter::Style::MilDot));
+    m_comboReticleStyle->addItem(
+        tr("Stadiametric"), static_cast<int>(PelcoD::Video::TacticalReticleOverlayFilter::Style::Stadiametric));
+    m_comboReticleStyle->addItem(
+        tr("Corner Brackets"), static_cast<int>(PelcoD::Video::TacticalReticleOverlayFilter::Style::CornerBrackets));
+    reticleLayout->addWidget(m_chkReticleHud);
+    reticleLayout->addWidget(m_comboReticleStyle);
+    reticleGroupLayout->addLayout(reticleLayout);
+    overlayTabLayout->addWidget(reticleGroup);
+
+    auto* privGroup = new QGroupBox(tr("Operational & Privacy"));
+    auto* privGroupLayout = new QVBoxLayout(privGroup);
+    privGroupLayout->setSpacing(4);
+
+    auto* privLayout = new QHBoxLayout();
+    m_chkPrivacyMask = new QCheckBox(tr("Privacy Mask"), privGroup);
+    m_comboPrivacyMode = new QComboBox(privGroup);
+    m_comboPrivacyMode->addItem(
+        tr("Blackout"), static_cast<int>(PelcoD::Video::PrivacyMaskFilter::ConcealmentMode::Blackout));
+    m_comboPrivacyMode->addItem(tr("Blur"), static_cast<int>(PelcoD::Video::PrivacyMaskFilter::ConcealmentMode::Blur));
+    m_comboPrivacyMode->addItem(
+        tr("Mosaic"), static_cast<int>(PelcoD::Video::PrivacyMaskFilter::ConcealmentMode::Mosaic));
+    privLayout->addWidget(m_chkPrivacyMask);
+    privLayout->addWidget(m_comboPrivacyMode);
+    privGroupLayout->addLayout(privLayout);
+
+    m_chkForensicWatermark = new QCheckBox(tr("Forensic Watermark"), privGroup);
+    privGroupLayout->addWidget(m_chkForensicWatermark);
+
+    m_chkTelemetryOsd = new QCheckBox(tr("Telemetry HUD"), privGroup);
+    privGroupLayout->addWidget(m_chkTelemetryOsd);
+
+    auto* pipLayout = new QHBoxLayout();
+    m_chkPictureInPicture = new QCheckBox(tr("Picture-in-Picture"), privGroup);
+    m_comboPipMode = new QComboBox(privGroup);
+    m_comboPipMode->addItem(
+        tr("Digital Zoom (2x)"), static_cast<int>(PelcoD::Video::PictureInPictureFilter::Mode::DigitalZoom));
+    m_comboPipMode->addItem(
+        tr("Aux Feed"), static_cast<int>(PelcoD::Video::PictureInPictureFilter::Mode::SecondaryFeed));
+    pipLayout->addWidget(m_chkPictureInPicture);
+    pipLayout->addWidget(m_comboPipMode);
+    privGroupLayout->addLayout(pipLayout);
+
+    overlayTabLayout->addWidget(privGroup);
+    overlayTabLayout->addStretch();
+#endif
 
     splitter->addWidget(sidePanel);
     splitter->setStretchFactor(0, 4);
