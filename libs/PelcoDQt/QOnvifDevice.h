@@ -427,6 +427,53 @@ public Q_SLOTS:
     /// @brief Queries list of configured digital inputs from camera.
     void refreshDigitalInputs();
 
+    // =========================================================================
+    // Profile T/M: Metadata Stream & Video Analytics
+    // =========================================================================
+
+    /// @brief Queries list of metadata configurations on the device.
+    void refreshMetadataConfigurations();
+
+    /// @brief Modifies an existing metadata configuration.
+    /// @param[in] config Updated configuration.
+    /// @return True on success.
+    bool setMetadataConfiguration(const PelcoD::Onvif::MetadataConfiguration& config);
+
+    /// @brief Starts background metadata polling/streaming loop.
+    /// @param[in] intervalMs Polling interval in milliseconds.
+    void startMetadataStreaming(int intervalMs = 1000);
+
+    /// @brief Stops background metadata streaming loop.
+    void stopMetadataStreaming();
+
+    /// @brief Checks whether metadata streaming is active.
+    [[nodiscard]] bool isMetadataStreamingActive() const;
+
+    /// @brief Polls and emits current metadata snapshot once.
+    void pollCurrentMetadata();
+
+    // =========================================================================
+    // Device Management: System Logs & Maintenance
+    // =========================================================================
+
+    /// @brief Queries system or access logs from camera.
+    /// @param[in] logType Log type (System or Access).
+    void fetchSystemLog(PelcoD::Onvif::SystemLogType logType = PelcoD::Onvif::SystemLogType::System);
+
+    /// @brief Queries detailed system diagnostics and support information.
+    void fetchSystemSupportInformation();
+
+    /// @brief Downloads a system configuration backup archive.
+    void downloadSystemBackup();
+
+    /// @brief Restores system configuration using a backup archive payload.
+    /// @param[in] backupData Backup archive payload.
+    /// @return True on success.
+    bool restoreSystem(const QString& backupData);
+
+    /// @brief Queries unique endpoint reference GUID from device.
+    void fetchEndpointReference();
+
 Q_SIGNALS:
     /// @brief Emitted when device connection succeeds.
     /// @param[in] endpoint Connected service URL.
@@ -517,6 +564,35 @@ Q_SIGNALS:
     /// @param[in] inputs List of camera digital inputs.
     void digitalInputsUpdated(const std::vector<PelcoD::Onvif::DigitalInputConfig>& inputs);
 
+    /// @brief Emitted when metadata configurations list is refreshed.
+    /// @param[in] configs List of metadata configurations.
+    void metadataConfigurationsUpdated(const std::vector<PelcoD::Onvif::MetadataConfiguration>& configs);
+
+    /// @brief Emitted when a metadata stream packet (Profile T/M) is received.
+    /// @param[in] payload Metadata stream payload.
+    void metadataReceived(const PelcoD::Onvif::MetadataStreamPayload& payload);
+
+    /// @brief Emitted when system or access log content is retrieved.
+    /// @param[in] logType Log type.
+    /// @param[in] logData Text content of log.
+    void systemLogReceived(PelcoD::Onvif::SystemLogType logType, const QString& logData);
+
+    /// @brief Emitted when system support information is retrieved.
+    /// @param[in] info Diagnostics support structure.
+    void systemSupportInfoReceived(const PelcoD::Onvif::SystemSupportInfo& info);
+
+    /// @brief Emitted when system backup archive is retrieved.
+    /// @param[in] backupData Backup archive payload.
+    void systemBackupReceived(const QString& backupData);
+
+    /// @brief Emitted when restore system command completes.
+    /// @param[in] success True on success.
+    void systemRestoreCompleted(bool success);
+
+    /// @brief Emitted when endpoint reference is retrieved.
+    /// @param[in] endpointReference GUID string.
+    void endpointReferenceReceived(const QString& endpointReference);
+
     /// @brief Emitted when an operation fails.
     /// @param[in] message Diagnostic error message.
     void errorOccurred(const QString& message);
@@ -527,6 +603,7 @@ Q_SIGNALS:
 
 private:
     void pollEvents();
+    void pollMetadata();
 
     std::unique_ptr<PelcoD::Onvif::OnvifClient> m_client {};
     bool m_connected { false };
@@ -552,6 +629,8 @@ private:
     std::vector<PelcoD::Onvif::DigitalInputConfig> m_digitalInputs {};
     QString m_eventSubscriptionUrl {};
     bool m_eventSubActive { false };
+    std::vector<PelcoD::Onvif::MetadataConfiguration> m_metadataConfigs {};
+    bool m_metadataStreamingActive { false };
 };
 
 } // namespace PelcoD::Qt

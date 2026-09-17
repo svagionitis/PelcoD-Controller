@@ -803,4 +803,150 @@ void PelcoDPtzAdapter::onDeviceStatusUpdated(const PelcoD::DeviceStatus& status)
     }
 }
 
+// =========================================================================
+// IMetadataHandler Implementation
+// =========================================================================
+
+std::vector<MetadataConfiguration> PelcoDPtzAdapter::handleGetMetadataConfigurations()
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    return m_metadataConfigs;
+}
+
+std::optional<MetadataConfiguration> PelcoDPtzAdapter::handleGetMetadataConfiguration(const std::string& token)
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    for (const auto& cfg : m_metadataConfigs) {
+        if (cfg.token == token) {
+            return cfg;
+        }
+    }
+    return std::nullopt;
+}
+
+bool PelcoDPtzAdapter::handleSetMetadataConfiguration(const MetadataConfiguration& config)
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    for (auto& cfg : m_metadataConfigs) {
+        if (cfg.token == config.token) {
+            cfg = config;
+            return true;
+        }
+    }
+    m_metadataConfigs.push_back(config);
+    return true;
+}
+
+MetadataConfigurationOptions PelcoDPtzAdapter::handleGetMetadataConfigurationOptions(
+    const std::string& /*configToken*/, const std::string& /*profileToken*/)
+{
+    MetadataConfigurationOptions opts {};
+    opts.ptzStatusSupported = true;
+    opts.analyticsSupported = true;
+    opts.eventsSupported = true;
+    return opts;
+}
+
+MetadataStreamPayload PelcoDPtzAdapter::handleGetCurrentMetadata(const std::string& /*profileToken*/)
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    MetadataStreamPayload payload {};
+    payload.ptzStatus = handleGetStatus();
+
+    AnalyticsFrame frame {};
+    frame.objects = m_detectedObjects;
+    payload.analyticsFrame = frame;
+
+    return payload;
+}
+
+void PelcoDPtzAdapter::setDetectedObjects(std::vector<AnalyticsObject> objects)
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    m_detectedObjects = std::move(objects);
+}
+
+void PelcoDPtzAdapter::addDetectedObject(const AnalyticsObject& object)
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    m_detectedObjects.push_back(object);
+}
+
+void PelcoDPtzAdapter::clearDetectedObjects()
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    m_detectedObjects.clear();
+}
+
+// =========================================================================
+// IDeviceManagementHandler Implementation
+// =========================================================================
+
+std::string PelcoDPtzAdapter::handleGetSystemLog(SystemLogType logType)
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    std::ostringstream ss;
+    if (logType == SystemLogType::Access) {
+        ss << "[ACCESS LOG] Pelco-D PTZ Adapter active\n";
+    } else {
+        ss << "[SYSTEM LOG] Pelco-D Hardware State: " << (m_device ? "Connected" : "Disconnected") << "\n";
+        ss << "[SYSTEM LOG] Presets configured: " << m_presets.size() << "\n";
+        ss << "[SYSTEM LOG] Tours configured: " << m_tours.size() << "\n";
+    }
+    return ss.str();
+}
+
+SystemSupportInfo PelcoDPtzAdapter::handleGetSystemSupportInformation()
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    SystemSupportInfo info {};
+    const auto uptime
+        = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() - m_startTime).count();
+    info.uptimeSeconds = static_cast<uint64_t>(uptime);
+    info.cpuLoadPercent = 5.0f;
+    info.memoryUsedMb = 32;
+    info.memoryTotalMb = 512;
+    info.activeConnections = 1;
+    info.storageState = "OK";
+
+    std::ostringstream ss;
+    ss << "Pelco-D Controller Diagnostics\n"
+       << "------------------------------\n"
+       << "Device Connected: " << (m_device ? "Yes" : "No") << "\n"
+       << "Presets Count: " << m_presets.size() << "\n"
+       << "Tours Count: " << m_tours.size() << "\n"
+       << "Relays Count: " << m_relays.size() << "\n"
+       << "Digital Inputs Count: " << m_digitalInputs.size() << "\n"
+       << "Uptime: " << uptime << " seconds\n";
+    info.rawDiagnostics = ss.str();
+    return info;
+}
+
+std::string PelcoDPtzAdapter::handleGetSystemBackup()
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    std::ostringstream ss;
+    ss << "{\n"
+       << "  \"presets_count\": " << m_presets.size() << ",\n"
+       << "  \"tours_count\": " << m_tours.size() << ",\n"
+       << "  \"imaging\": {\n"
+       << "    \"brightness\": " << m_imagingSettings.brightness << ",\n"
+       << "    \"colorSaturation\": " << m_imagingSettings.colorSaturation << ",\n"
+       << "    \"contrast\": " << m_imagingSettings.contrast << "\n"
+       << "  }\n"
+       << "}";
+    return ss.str();
+}
+
+bool PelcoDPtzAdapter::handleRestoreSystem(const std::string& backupData)
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    return !backupData.empty();
+}
+
+std::string PelcoDPtzAdapter::handleGetEndpointReference()
+{
+    return "urn:uuid:pelco-d-ptz-controller-adapter-01";
+}
+
 } // namespace PelcoD::Onvif

@@ -1827,6 +1827,165 @@ bool OnvifClient::unsubscribe(const std::string& subscriptionUrl)
     return resp.isSuccess();
 }
 
+std::vector<MetadataConfiguration> OnvifClient::getMetadataConfigurations()
+{
+    if (m_capabilities.mediaXAddr.empty()) {
+        static_cast<void>(getCapabilities());
+    }
+    const std::string endpoint = !m_capabilities.mediaXAddr.empty() ? m_capabilities.mediaXAddr : m_deviceEndpoint;
+    const std::string body = "<trt:GetMetadataConfigurations xmlns:trt=\"http://www.onvif.org/ver10/media/wsdl\"/>";
+    const std::string reqXml = wrapSoapEnvelope(body);
+    const HttpResponse resp = m_httpClient.sendPost(endpoint, reqXml);
+    if (!resp.isSuccess()) {
+        return {};
+    }
+    return parseMetadataConfigurationsResponse(resp.body);
+}
+
+std::optional<MetadataConfiguration> OnvifClient::getMetadataConfiguration(const std::string& configToken)
+{
+    if (m_capabilities.mediaXAddr.empty()) {
+        static_cast<void>(getCapabilities());
+    }
+    const std::string endpoint = !m_capabilities.mediaXAddr.empty() ? m_capabilities.mediaXAddr : m_deviceEndpoint;
+    std::ostringstream ss;
+    ss << "<trt:GetMetadataConfiguration xmlns:trt=\"http://www.onvif.org/ver10/media/wsdl\">\n"
+       << "  <trt:ConfigurationToken>" << configToken << "</trt:ConfigurationToken>\n"
+       << "</trt:GetMetadataConfiguration>";
+    const std::string reqXml = wrapSoapEnvelope(ss.str());
+    const HttpResponse resp = m_httpClient.sendPost(endpoint, reqXml);
+    if (!resp.isSuccess()) {
+        return std::nullopt;
+    }
+    return parseMetadataConfigurationResponse(resp.body);
+}
+
+bool OnvifClient::setMetadataConfiguration(const MetadataConfiguration& config)
+{
+    if (m_capabilities.mediaXAddr.empty()) {
+        static_cast<void>(getCapabilities());
+    }
+    const std::string endpoint = !m_capabilities.mediaXAddr.empty() ? m_capabilities.mediaXAddr : m_deviceEndpoint;
+    std::ostringstream ss;
+    ss << "<trt:SetMetadataConfiguration xmlns:trt=\"http://www.onvif.org/ver10/media/wsdl\" "
+       << "xmlns:tt=\"http://www.onvif.org/ver10/schema\">\n"
+       << "  <trt:Configuration token=\"" << config.token << "\">\n"
+       << "    <tt:Name>" << config.name << "</tt:Name>\n"
+       << "    <tt:UseCount>" << config.useCount << "</tt:UseCount>\n";
+    if (config.ptzStatusEnabled) {
+        ss << "    <tt:PTZStatus>\n"
+           << "      <tt:Status>true</tt:Status>\n"
+           << "      <tt:Position>true</tt:Position>\n"
+           << "    </tt:PTZStatus>\n";
+    }
+    ss << "    <tt:Analytics>" << (config.analyticsEnabled ? "true" : "false") << "</tt:Analytics>\n"
+       << "    <tt:Events>" << (config.eventsEnabled ? "true" : "false") << "</tt:Events>\n"
+       << "    <tt:GeoLocation>" << (config.geoOrientationEnabled ? "true" : "false") << "</tt:GeoLocation>\n"
+       << "  </trt:Configuration>\n"
+       << "</trt:SetMetadataConfiguration>";
+    const std::string reqXml = wrapSoapEnvelope(ss.str());
+    const HttpResponse resp = m_httpClient.sendPost(endpoint, reqXml);
+    return resp.isSuccess();
+}
+
+std::optional<MetadataConfigurationOptions> OnvifClient::getMetadataConfigurationOptions(
+    const std::string& configToken, const std::string& /*profileToken*/)
+{
+    if (m_capabilities.mediaXAddr.empty()) {
+        static_cast<void>(getCapabilities());
+    }
+    const std::string endpoint = !m_capabilities.mediaXAddr.empty() ? m_capabilities.mediaXAddr : m_deviceEndpoint;
+    std::ostringstream ss;
+    ss << "<trt:GetMetadataConfigurationOptions xmlns:trt=\"http://www.onvif.org/ver10/media/wsdl\">\n"
+       << "  <trt:ConfigurationToken>" << configToken << "</trt:ConfigurationToken>\n"
+       << "</trt:GetMetadataConfigurationOptions>";
+    const std::string reqXml = wrapSoapEnvelope(ss.str());
+    const HttpResponse resp = m_httpClient.sendPost(endpoint, reqXml);
+    if (!resp.isSuccess()) {
+        return std::nullopt;
+    }
+    return parseMetadataConfigurationOptionsResponse(resp.body);
+}
+
+std::optional<MetadataStreamPayload> OnvifClient::getMetadataStream(const std::string& streamUri)
+{
+    std::string url = streamUri;
+    if (url.empty()) {
+        const auto pos = m_deviceEndpoint.find("/onvif/");
+        if (pos != std::string::npos) {
+            url = m_deviceEndpoint.substr(0, pos) + "/onvif/metadata_stream";
+        } else {
+            url = m_deviceEndpoint + "/metadata_stream";
+        }
+    }
+    const HttpResponse resp = m_httpClient.sendGet(url);
+    if (!resp.isSuccess()) {
+        return std::nullopt;
+    }
+    return parseMetadataStreamResponse(resp.body);
+}
+
+std::optional<std::string> OnvifClient::getSystemLog(SystemLogType logType)
+{
+    std::ostringstream ss;
+    ss << "<tds:GetSystemLog xmlns:tds=\"http://www.onvif.org/ver10/device/wsdl\">\n"
+       << "  <tds:LogType>" << systemLogTypeToString(logType) << "</tds:LogType>\n"
+       << "</tds:GetSystemLog>";
+    const std::string reqXml = wrapSoapEnvelope(ss.str());
+    const HttpResponse resp = m_httpClient.sendPost(m_deviceEndpoint, reqXml);
+    if (!resp.isSuccess()) {
+        return std::nullopt;
+    }
+    return parseSystemLogResponse(resp.body);
+}
+
+std::optional<SystemSupportInfo> OnvifClient::getSystemSupportInformation()
+{
+    const std::string body = "<tds:GetSystemSupportInformation xmlns:tds=\"http://www.onvif.org/ver10/device/wsdl\"/>";
+    const std::string reqXml = wrapSoapEnvelope(body);
+    const HttpResponse resp = m_httpClient.sendPost(m_deviceEndpoint, reqXml);
+    if (!resp.isSuccess()) {
+        return std::nullopt;
+    }
+    return parseSystemSupportInformationResponse(resp.body);
+}
+
+std::optional<std::string> OnvifClient::getSystemBackup()
+{
+    const std::string body = "<tds:GetSystemBackup xmlns:tds=\"http://www.onvif.org/ver10/device/wsdl\"/>";
+    const std::string reqXml = wrapSoapEnvelope(body);
+    const HttpResponse resp = m_httpClient.sendPost(m_deviceEndpoint, reqXml);
+    if (!resp.isSuccess()) {
+        return std::nullopt;
+    }
+    return parseSystemBackupResponse(resp.body);
+}
+
+bool OnvifClient::restoreSystem(const std::string& backupData)
+{
+    std::ostringstream ss;
+    ss << "<tds:RestoreSystem xmlns:tds=\"http://www.onvif.org/ver10/device/wsdl\" "
+       << "xmlns:tt=\"http://www.onvif.org/ver10/schema\">\n"
+       << "  <tds:BackupFiles>\n"
+       << "    <tt:Data>" << backupData << "</tt:Data>\n"
+       << "  </tds:BackupFiles>\n"
+       << "</tds:RestoreSystem>";
+    const std::string reqXml = wrapSoapEnvelope(ss.str());
+    const HttpResponse resp = m_httpClient.sendPost(m_deviceEndpoint, reqXml);
+    return resp.isSuccess();
+}
+
+std::optional<std::string> OnvifClient::getEndpointReference()
+{
+    const std::string body = "<tds:GetEndpointReference xmlns:tds=\"http://www.onvif.org/ver10/device/wsdl\"/>";
+    const std::string reqXml = wrapSoapEnvelope(body);
+    const HttpResponse resp = m_httpClient.sendPost(m_deviceEndpoint, reqXml);
+    if (!resp.isSuccess()) {
+        return std::nullopt;
+    }
+    return parseEndpointReferenceResponse(resp.body);
+}
+
 namespace {
 
     OsdConfig parseOsdNode(const pugi::xml_node& osdNode)
@@ -2743,6 +2902,260 @@ std::vector<DigitalInputConfig> OnvifClient::parseDigitalInputsResponse(const st
         }
     }
     return inputs;
+}
+
+std::vector<MetadataConfiguration> OnvifClient::parseMetadataConfigurationsResponse(const std::string& xml)
+{
+    std::vector<MetadataConfiguration> list;
+    pugi::xml_document doc {};
+    if (!doc.load_string(xml.c_str())) {
+        return list;
+    }
+    const auto respNode = findRecursiveNodeWithSuffix(doc, "GetMetadataConfigurationsResponse");
+    if (!respNode) {
+        return list;
+    }
+    for (auto child = respNode.first_child(); child; child = child.next_sibling()) {
+        if (std::string(child.name()).find("Configurations") != std::string::npos) {
+            MetadataConfiguration cfg {};
+            cfg.token = child.attribute("token").as_string();
+            const auto nameNode = findNodeWithSuffix(child, "Name");
+            if (nameNode) {
+                cfg.name = nameNode.text().as_string();
+            }
+            const auto useNode = findNodeWithSuffix(child, "UseCount");
+            if (useNode) {
+                cfg.useCount = useNode.text().as_int(1);
+            }
+            const auto sessionNode = findNodeWithSuffix(child, "SessionTimeout");
+            if (sessionNode) {
+                cfg.sessionTimeout = sessionNode.text().as_string("PT60S");
+            }
+            const auto ptzNode = findNodeWithSuffix(child, "PTZStatus");
+            cfg.ptzStatusEnabled = (ptzNode != nullptr);
+            const auto anaNode = findNodeWithSuffix(child, "Analytics");
+            if (anaNode) {
+                cfg.analyticsEnabled = anaNode.text().as_bool(true);
+            }
+            const auto evNode = findNodeWithSuffix(child, "Events");
+            if (evNode) {
+                cfg.eventsEnabled = evNode.text().as_bool(true);
+            }
+            const auto geoNode = findNodeWithSuffix(child, "GeoLocation");
+            if (geoNode) {
+                cfg.geoOrientationEnabled = geoNode.text().as_bool(true);
+            }
+            list.push_back(cfg);
+        }
+    }
+    return list;
+}
+
+std::optional<MetadataConfiguration> OnvifClient::parseMetadataConfigurationResponse(const std::string& xml)
+{
+    pugi::xml_document doc {};
+    if (!doc.load_string(xml.c_str())) {
+        return std::nullopt;
+    }
+    const auto cfgNode = findRecursiveNodeWithSuffix(doc, "Configuration");
+    if (!cfgNode) {
+        return std::nullopt;
+    }
+    MetadataConfiguration cfg {};
+    cfg.token = cfgNode.attribute("token").as_string();
+    const auto nameNode = findNodeWithSuffix(cfgNode, "Name");
+    if (nameNode) {
+        cfg.name = nameNode.text().as_string();
+    }
+    const auto useNode = findNodeWithSuffix(cfgNode, "UseCount");
+    if (useNode) {
+        cfg.useCount = useNode.text().as_int(1);
+    }
+    const auto sessionNode = findNodeWithSuffix(cfgNode, "SessionTimeout");
+    if (sessionNode) {
+        cfg.sessionTimeout = sessionNode.text().as_string("PT60S");
+    }
+    const auto ptzNode = findNodeWithSuffix(cfgNode, "PTZStatus");
+    cfg.ptzStatusEnabled = (ptzNode != nullptr);
+    const auto anaNode = findNodeWithSuffix(cfgNode, "Analytics");
+    if (anaNode) {
+        cfg.analyticsEnabled = anaNode.text().as_bool(true);
+    }
+    const auto evNode = findNodeWithSuffix(cfgNode, "Events");
+    if (evNode) {
+        cfg.eventsEnabled = evNode.text().as_bool(true);
+    }
+    const auto geoNode = findNodeWithSuffix(cfgNode, "GeoLocation");
+    if (geoNode) {
+        cfg.geoOrientationEnabled = geoNode.text().as_bool(true);
+    }
+    return cfg;
+}
+
+std::optional<MetadataConfigurationOptions> OnvifClient::parseMetadataConfigurationOptionsResponse(
+    const std::string& xml)
+{
+    pugi::xml_document doc {};
+    if (!doc.load_string(xml.c_str())) {
+        return std::nullopt;
+    }
+    const auto optsNode = findRecursiveNodeWithSuffix(doc, "Options");
+    if (!optsNode) {
+        return std::nullopt;
+    }
+    MetadataConfigurationOptions opts {};
+    const auto ptzOpts = findNodeWithSuffix(optsNode, "PTZStatusFilterOptions");
+    const auto ptzSupp = findNodeWithSuffix(optsNode, "PTZStatusSupported");
+    if (ptzOpts) {
+        opts.ptzStatusSupported = true;
+    } else if (ptzSupp) {
+        opts.ptzStatusSupported = ptzSupp.text().as_bool(true);
+    }
+    const auto anaSupp = findNodeWithSuffix(optsNode, "AnalyticsSupported");
+    if (anaSupp) {
+        opts.analyticsSupported = anaSupp.text().as_bool(true);
+    }
+    const auto evSupp = findNodeWithSuffix(optsNode, "EventsSupported");
+    if (evSupp) {
+        opts.eventsSupported = evSupp.text().as_bool(true);
+    }
+    return opts;
+}
+
+std::optional<MetadataStreamPayload> OnvifClient::parseMetadataStreamResponse(const std::string& xml)
+{
+    pugi::xml_document doc {};
+    if (!doc.load_string(xml.c_str())) {
+        return std::nullopt;
+    }
+    MetadataStreamPayload payload {};
+
+    // 1. PTZStatus
+    const auto ptzNode = findRecursiveNodeWithSuffix(doc, "PTZStatus");
+    if (ptzNode) {
+        PtzStatus ptz {};
+        const auto panTiltNode = findRecursiveNodeWithSuffix(ptzNode, "PanTilt");
+        if (panTiltNode) {
+            ptz.pan = panTiltNode.attribute("x").as_float(0.0f);
+            ptz.tilt = panTiltNode.attribute("y").as_float(0.0f);
+        }
+        const auto zoomNode = findRecursiveNodeWithSuffix(ptzNode, "Zoom");
+        if (zoomNode) {
+            ptz.zoom = zoomNode.attribute("x").as_float(0.0f);
+        }
+        const auto moveStatusNode = findRecursiveNodeWithSuffix(ptzNode, "MoveStatus");
+        if (moveStatusNode) {
+            const auto ptMove = findNodeWithSuffix(moveStatusNode, "PanTilt");
+            ptz.isMoving = (ptMove && std::string(ptMove.text().as_string()) == "MOVING");
+        }
+        const auto utcNode = findNodeWithSuffix(ptzNode, "UtcTime");
+        if (utcNode) {
+            ptz.utcTime = utcNode.text().as_string();
+        }
+        payload.ptzStatus = ptz;
+    }
+
+    // 2. VideoAnalytics -> Frame -> Object
+    const auto frameNode = findRecursiveNodeWithSuffix(doc, "Frame");
+    if (frameNode) {
+        AnalyticsFrame frame {};
+        frame.utcTime = frameNode.attribute("UtcTime").as_string();
+        for (auto child = frameNode.first_child(); child; child = child.next_sibling()) {
+            if (std::string(child.name()).find("Object") != std::string::npos) {
+                AnalyticsObject obj {};
+                obj.objectId = child.attribute("ObjectId").as_int(0);
+                const auto bboxNode = findRecursiveNodeWithSuffix(child, "BoundingBox");
+                if (bboxNode) {
+                    obj.boundingBox.left = bboxNode.attribute("left").as_float(0.0f);
+                    obj.boundingBox.top = bboxNode.attribute("top").as_float(0.0f);
+                    obj.boundingBox.right = bboxNode.attribute("right").as_float(0.0f);
+                    obj.boundingBox.bottom = bboxNode.attribute("bottom").as_float(0.0f);
+                }
+                auto classNode = findRecursiveNodeWithSuffix(child, "ClassCandidate");
+                if (!classNode) {
+                    classNode = findRecursiveNodeWithSuffix(child, "Class");
+                }
+                if (classNode) {
+                    const auto typeNode = findNodeWithSuffix(classNode, "Type");
+                    if (typeNode) {
+                        obj.className = typeNode.text().as_string();
+                    }
+                    const auto confNode = findNodeWithSuffix(classNode, "Likelihood");
+                    if (confNode) {
+                        obj.confidence = confNode.text().as_float(0.0f);
+                    }
+                }
+                const auto geoNode = findRecursiveNodeWithSuffix(child, "GeoLocation");
+                if (geoNode) {
+                    obj.geoLocation.latitude = geoNode.attribute("lat").as_double(0.0);
+                    obj.geoLocation.longitude = geoNode.attribute("lon").as_double(0.0);
+                    obj.geoLocation.elevation = geoNode.attribute("elevation").as_double(0.0);
+                }
+                frame.objects.push_back(obj);
+            }
+        }
+        payload.analyticsFrame = frame;
+    }
+
+    // 3. Events
+    payload.events = parsePullMessagesResponse(xml);
+
+    return payload;
+}
+
+std::optional<std::string> OnvifClient::parseSystemLogResponse(const std::string& xml)
+{
+    pugi::xml_document doc {};
+    if (!doc.load_string(xml.c_str())) {
+        return std::nullopt;
+    }
+    const auto strNode = findRecursiveNodeWithSuffix(doc, "String");
+    if (strNode) {
+        return strNode.text().as_string();
+    }
+    return std::nullopt;
+}
+
+std::optional<SystemSupportInfo> OnvifClient::parseSystemSupportInformationResponse(const std::string& xml)
+{
+    pugi::xml_document doc {};
+    if (!doc.load_string(xml.c_str())) {
+        return std::nullopt;
+    }
+    const auto strNode = findRecursiveNodeWithSuffix(doc, "String");
+    if (!strNode) {
+        return std::nullopt;
+    }
+    SystemSupportInfo info {};
+    info.rawDiagnostics = strNode.text().as_string();
+    info.storageState = "OK";
+    return info;
+}
+
+std::optional<std::string> OnvifClient::parseSystemBackupResponse(const std::string& xml)
+{
+    pugi::xml_document doc {};
+    if (!doc.load_string(xml.c_str())) {
+        return std::nullopt;
+    }
+    const auto dataNode = findRecursiveNodeWithSuffix(doc, "Data");
+    if (dataNode) {
+        return dataNode.text().as_string();
+    }
+    return std::nullopt;
+}
+
+std::optional<std::string> OnvifClient::parseEndpointReferenceResponse(const std::string& xml)
+{
+    pugi::xml_document doc {};
+    if (!doc.load_string(xml.c_str())) {
+        return std::nullopt;
+    }
+    const auto guidNode = findRecursiveNodeWithSuffix(doc, "GUID");
+    if (guidNode) {
+        return guidNode.text().as_string();
+    }
+    return std::nullopt;
 }
 
 } // namespace PelcoD::Onvif

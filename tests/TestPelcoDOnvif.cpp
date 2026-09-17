@@ -7,6 +7,7 @@
 #include "PelcoDOnvif/OnvifTypes.h"
 
 #include <cassert>
+#include <cmath>
 #include <iostream>
 #include <string>
 #include <vector>
@@ -964,6 +965,180 @@ void testDigitalInputsParsing()
     assert(inputs[0].idleState == PelcoD::Onvif::RelayIdleState::Open);
 }
 
+void testMetadataConfigurationsParsing()
+{
+    const std::string xml = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+                            "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                            "xmlns:trt=\"http://www.onvif.org/ver10/media/wsdl\" "
+                            "xmlns:tt=\"http://www.onvif.org/ver10/schema\">\r\n"
+                            "  <SOAP-ENV:Body>\r\n"
+                            "    <trt:GetMetadataConfigurationsResponse>\r\n"
+                            "      <trt:Configurations token=\"Meta_1\">\r\n"
+                            "        <tt:Name>MainMetadata</tt:Name>\r\n"
+                            "        <tt:UseCount>2</tt:UseCount>\r\n"
+                            "        <tt:PTZStatus>\r\n"
+                            "          <tt:Status>true</tt:Status>\r\n"
+                            "        </tt:PTZStatus>\r\n"
+                            "        <tt:Analytics>true</tt:Analytics>\r\n"
+                            "        <tt:Events>false</tt:Events>\r\n"
+                            "      </trt:Configurations>\r\n"
+                            "    </trt:GetMetadataConfigurationsResponse>\r\n"
+                            "  </SOAP-ENV:Body>\r\n"
+                            "</SOAP-ENV:Envelope>";
+
+    const auto configs = PelcoD::Onvif::OnvifClient::parseMetadataConfigurationsResponse(xml);
+    assert(configs.size() == 1);
+    assert(configs[0].token == "Meta_1");
+    assert(configs[0].name == "MainMetadata");
+    assert(configs[0].useCount == 2);
+    assert(configs[0].ptzStatusEnabled == true);
+    assert(configs[0].analyticsEnabled == true);
+    assert(configs[0].eventsEnabled == false);
+}
+
+void testMetadataConfigurationOptionsParsing()
+{
+    const std::string xml = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+                            "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                            "xmlns:trt=\"http://www.onvif.org/ver10/media/wsdl\" "
+                            "xmlns:tt=\"http://www.onvif.org/ver10/schema\">\r\n"
+                            "  <SOAP-ENV:Body>\r\n"
+                            "    <trt:GetMetadataConfigurationOptionsResponse>\r\n"
+                            "      <trt:Options>\r\n"
+                            "        <tt:PTZStatusSupported>true</tt:PTZStatusSupported>\r\n"
+                            "        <tt:AnalyticsSupported>true</tt:AnalyticsSupported>\r\n"
+                            "      </trt:Options>\r\n"
+                            "    </trt:GetMetadataConfigurationOptionsResponse>\r\n"
+                            "  </SOAP-ENV:Body>\r\n"
+                            "</SOAP-ENV:Envelope>";
+
+    const auto opts = PelcoD::Onvif::OnvifClient::parseMetadataConfigurationOptionsResponse(xml);
+    assert(opts.has_value());
+    assert(opts->ptzStatusSupported == true);
+    assert(opts->analyticsSupported == true);
+}
+
+void testMetadataStreamParsing()
+{
+    const std::string xml = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+                            "<tt:MetadataStream xmlns:tt=\"http://www.onvif.org/ver10/schema\">\r\n"
+                            "  <tt:PTZStatus>\r\n"
+                            "    <tt:Position>\r\n"
+                            "      <tt:PanTilt x=\"0.55\" y=\"-0.25\"/>\r\n"
+                            "      <tt:Zoom x=\"0.75\"/>\r\n"
+                            "    </tt:Position>\r\n"
+                            "    <tt:MoveStatus>\r\n"
+                            "      <tt:PanTilt>MOVING</tt:PanTilt>\r\n"
+                            "    </tt:MoveStatus>\r\n"
+                            "  </tt:PTZStatus>\r\n"
+                            "  <tt:VideoAnalytics>\r\n"
+                            "    <tt:Frame UtcTime=\"2026-09-17T12:00:00Z\">\r\n"
+                            "      <tt:Object ObjectId=\"42\">\r\n"
+                            "        <tt:Appearance>\r\n"
+                            "          <tt:Class>\r\n"
+                            "            <tt:Type>Car</tt:Type>\r\n"
+                            "            <tt:Likelihood>0.92</tt:Likelihood>\r\n"
+                            "          </tt:Class>\r\n"
+                            "          <tt:Shape>\r\n"
+                            "            <tt:BoundingBox left=\"0.1\" top=\"0.2\" right=\"0.4\" bottom=\"0.6\"/>\r\n"
+                            "          </tt:Shape>\r\n"
+                            "          <tt:GeoLocation lat=\"37.7749\" lon=\"-122.4194\" elevation=\"15.0\"/>\r\n"
+                            "        </tt:Appearance>\r\n"
+                            "      </tt:Object>\r\n"
+                            "    </tt:Frame>\r\n"
+                            "  </tt:VideoAnalytics>\r\n"
+                            "</tt:MetadataStream>";
+
+    const auto payload = PelcoD::Onvif::OnvifClient::parseMetadataStreamResponse(xml);
+    assert(payload.has_value());
+    assert(payload->ptzStatus.has_value());
+    assert(std::abs(payload->ptzStatus->pan - 0.55) < 0.001);
+    assert(std::abs(payload->ptzStatus->tilt - (-0.25)) < 0.001);
+    assert(std::abs(payload->ptzStatus->zoom - 0.75) < 0.001);
+    assert(payload->ptzStatus->isMoving == true);
+
+    assert(payload->analyticsFrame.has_value());
+    assert(payload->analyticsFrame->utcTime == "2026-09-17T12:00:00Z");
+    assert(payload->analyticsFrame->objects.size() == 1);
+    assert(payload->analyticsFrame->objects[0].objectId == 42);
+    assert(payload->analyticsFrame->objects[0].className == "Car");
+    assert(std::abs(static_cast<double>(payload->analyticsFrame->objects[0].confidence) - 0.92) < 0.01);
+    assert(std::abs(static_cast<double>(payload->analyticsFrame->objects[0].boundingBox.left) - 0.1) < 0.01);
+    assert(std::abs(payload->analyticsFrame->objects[0].geoLocation.latitude - 37.7749) < 0.001);
+}
+
+void testSystemLogsParsing()
+{
+    const std::string xml = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+                            "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                            "xmlns:tds=\"http://www.onvif.org/ver10/device/wsdl\" "
+                            "xmlns:tt=\"http://www.onvif.org/ver10/schema\">\r\n"
+                            "  <SOAP-ENV:Body>\r\n"
+                            "    <tds:GetSystemLogResponse>\r\n"
+                            "      <tds:SystemLog>\r\n"
+                            "        <tt:String>2026-09-17 12:00:00 [INFO] System boot completed</tt:String>\r\n"
+                            "      </tds:SystemLog>\r\n"
+                            "    </tds:GetSystemLogResponse>\r\n"
+                            "  </SOAP-ENV:Body>\r\n"
+                            "</SOAP-ENV:Envelope>";
+
+    const auto logData = PelcoD::Onvif::OnvifClient::parseSystemLogResponse(xml);
+    assert(logData.has_value());
+    assert(logData->find("System boot completed") != std::string::npos);
+}
+
+void testSystemSupportInfoAndBackupParsing()
+{
+    const std::string supportXml = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+                                   "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                   "xmlns:tds=\"http://www.onvif.org/ver10/device/wsdl\" "
+                                   "xmlns:tt=\"http://www.onvif.org/ver10/schema\">\r\n"
+                                   "  <SOAP-ENV:Body>\r\n"
+                                   "    <tds:GetSystemSupportInformationResponse>\r\n"
+                                   "      <tds:SupportInformation>\r\n"
+                                   "        <tt:String>CPU: 12.5%, Mem: 128MB/512MB, Connections: 3</tt:String>\r\n"
+                                   "      </tds:SupportInformation>\r\n"
+                                   "    </tds:GetSystemSupportInformationResponse>\r\n"
+                                   "  </SOAP-ENV:Body>\r\n"
+                                   "</SOAP-ENV:Envelope>";
+
+    const auto info = PelcoD::Onvif::OnvifClient::parseSystemSupportInformationResponse(supportXml);
+    assert(info.has_value());
+    assert(info->rawDiagnostics.find("CPU: 12.5%") != std::string::npos);
+
+    const std::string backupXml = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+                                  "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                  "xmlns:tds=\"http://www.onvif.org/ver10/device/wsdl\" "
+                                  "xmlns:tt=\"http://www.onvif.org/ver10/schema\">\r\n"
+                                  "  <SOAP-ENV:Body>\r\n"
+                                  "    <tds:GetSystemBackupResponse>\r\n"
+                                  "      <tds:BackupFiles>\r\n"
+                                  "        <tt:Data>BASE64BACKUPDATA12345</tt:Data>\r\n"
+                                  "      </tds:BackupFiles>\r\n"
+                                  "    </tds:GetSystemBackupResponse>\r\n"
+                                  "  </SOAP-ENV:Body>\r\n"
+                                  "</SOAP-ENV:Envelope>";
+
+    const auto backupData = PelcoD::Onvif::OnvifClient::parseSystemBackupResponse(backupXml);
+    assert(backupData.has_value());
+    assert(*backupData == "BASE64BACKUPDATA12345");
+
+    const std::string epRefXml = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+                                 "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                 "xmlns:tds=\"http://www.onvif.org/ver10/device/wsdl\" "
+                                 "xmlns:tt=\"http://www.onvif.org/ver10/schema\">\r\n"
+                                 "  <SOAP-ENV:Body>\r\n"
+                                 "    <tds:GetEndpointReferenceResponse>\r\n"
+                                 "      <tds:GUID>urn:uuid:11223344-5566-7788-99aa-bbccddeeff00</tds:GUID>\r\n"
+                                 "    </tds:GetEndpointReferenceResponse>\r\n"
+                                 "  </SOAP-ENV:Body>\r\n"
+                                 "</SOAP-ENV:Envelope>";
+
+    const auto guid = PelcoD::Onvif::OnvifClient::parseEndpointReferenceResponse(epRefXml);
+    assert(guid.has_value());
+    assert(guid->find("11223344-5566-7788-99aa-bbccddeeff00") != std::string::npos);
+}
+
 int main()
 {
 #ifdef _WIN32
@@ -1067,6 +1242,23 @@ int main()
     std::cout << "[RUN] Testing ONVIF Digital Inputs XML Parsing...\n";
     testDigitalInputsParsing();
     std::cout << "[PASS] Digital Inputs XML Parsing\n";
+
+    std::cout << "[RUN] Testing ONVIF Metadata Configurations XML Parsing (Profile M/T)...\n";
+    testMetadataConfigurationsParsing();
+    testMetadataConfigurationOptionsParsing();
+    std::cout << "[PASS] Metadata Configurations XML Parsing (Profile M/T)\n";
+
+    std::cout << "[RUN] Testing ONVIF Metadata Stream XML Parsing (Profile M/T)...\n";
+    testMetadataStreamParsing();
+    std::cout << "[PASS] Metadata Stream XML Parsing (Profile M/T)\n";
+
+    std::cout << "[RUN] Testing ONVIF System Log XML Parsing...\n";
+    testSystemLogsParsing();
+    std::cout << "[PASS] System Log XML Parsing\n";
+
+    std::cout << "[RUN] Testing ONVIF Support Info & Backup XML Parsing...\n";
+    testSystemSupportInfoAndBackupParsing();
+    std::cout << "[PASS] Support Info & Backup XML Parsing\n";
 
     std::cout << "\nAll PelcoDOnvif unit tests PASSED successfully!\n";
     return 0;

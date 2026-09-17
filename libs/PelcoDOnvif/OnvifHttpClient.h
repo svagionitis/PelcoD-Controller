@@ -54,6 +54,11 @@ public:
     [[nodiscard]] HttpResponse sendPost(
         const std::string& url, const std::string& soapXml, const std::string& soapAction = "");
 
+    /// @brief Executes a synchronous HTTP GET request.
+    /// @param[in] url Destination URL.
+    /// @return HttpResponse containing status code and response body.
+    [[nodiscard]] HttpResponse sendGet(const std::string& url);
+
 private:
     std::chrono::milliseconds m_timeout { 5000 };
 };

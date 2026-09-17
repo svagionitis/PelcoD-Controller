@@ -21,7 +21,11 @@ namespace PelcoD::Onvif {
 /// @brief Implements IPtzHandler and IImagingHandler by delegating commands to a PelcoDDevice instance.
 /// @details Converts normalized velocity, focus, and angle ranges to Pelco-D protocol parameters and emits ONVIF
 /// events.
-class PelcoDPtzAdapter : public IPtzHandler, public IImagingHandler, public IDeviceIoHandler {
+class PelcoDPtzAdapter : public IPtzHandler,
+                         public IImagingHandler,
+                         public IDeviceIoHandler,
+                         public IMetadataHandler,
+                         public IDeviceManagementHandler {
 public:
     /// @brief Constructs adapter wrapping an existing PelcoDDevice.
     /// @param[in] device Shared pointer to initialized PelcoDDevice instance.
@@ -102,6 +106,39 @@ public:
     [[nodiscard]] bool handleSetRelayOutputState(const std::string& token, RelayLogicalState state) override;
     [[nodiscard]] std::vector<DigitalInputConfig> handleGetDigitalInputs() override;
 
+    // =========================================================================
+    // IMetadataHandler Implementation (Profile T & M)
+    // =========================================================================
+
+    [[nodiscard]] std::vector<MetadataConfiguration> handleGetMetadataConfigurations() override;
+    [[nodiscard]] std::optional<MetadataConfiguration> handleGetMetadataConfiguration(
+        const std::string& token) override;
+    [[nodiscard]] bool handleSetMetadataConfiguration(const MetadataConfiguration& config) override;
+    [[nodiscard]] MetadataConfigurationOptions handleGetMetadataConfigurationOptions(
+        const std::string& configToken, const std::string& profileToken = "") override;
+    [[nodiscard]] MetadataStreamPayload handleGetCurrentMetadata(const std::string& profileToken = "") override;
+
+    /// @brief Injects or updates active analytics detected objects for metadata streaming.
+    /// @param[in] objects List of detected objects.
+    void setDetectedObjects(std::vector<AnalyticsObject> objects);
+
+    /// @brief Appends a single detected analytics object.
+    /// @param[in] object AnalyticsObject to track.
+    void addDetectedObject(const AnalyticsObject& object);
+
+    /// @brief Clears current active detected analytics objects.
+    void clearDetectedObjects();
+
+    // =========================================================================
+    // IDeviceManagementHandler Implementation (Profile S/T/M)
+    // =========================================================================
+
+    [[nodiscard]] std::string handleGetSystemLog(SystemLogType logType) override;
+    [[nodiscard]] SystemSupportInfo handleGetSystemSupportInformation() override;
+    [[nodiscard]] std::string handleGetSystemBackup() override;
+    [[nodiscard]] bool handleRestoreSystem(const std::string& backupData) override;
+    [[nodiscard]] std::string handleGetEndpointReference() override;
+
 private:
     void onDeviceStatusUpdated(const PelcoD::DeviceStatus& status);
     void saveTours();
@@ -136,6 +173,11 @@ private:
                                                   RelayLogicalState::Inactive },
         { "Relay_2", RelayMode::Bistable, 0.0f, RelayIdleState::Open, RelayLogicalState::Inactive } };
     std::vector<DigitalInputConfig> m_digitalInputs { { "Input_1", RelayIdleState::Open, "Alarm", false } };
+
+    std::vector<MetadataConfiguration> m_metadataConfigs { { "MetadataConfig_1", "DefaultMetadataConfig", 1, "PT60S",
+        true, true, true, true } };
+    std::vector<AnalyticsObject> m_detectedObjects {};
+    std::chrono::steady_clock::time_point m_startTime { std::chrono::steady_clock::now() };
 };
 
 } // namespace PelcoD::Onvif

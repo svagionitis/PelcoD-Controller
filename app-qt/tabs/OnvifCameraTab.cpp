@@ -7,6 +7,7 @@
 #include <QApplication>
 #include <QClipboard>
 #include <QDateTime>
+#include <QFontDatabase>
 #include <QHeaderView>
 #include <QMessageBox>
 #include <QSignalBlocker>
@@ -61,6 +62,20 @@ OnvifCameraTab::OnvifCameraTab(PelcoD::Qt::QOnvifDevice* onvifDevice, VideoStrea
             m_onvifDevice, &PelcoD::Qt::QOnvifDevice::relayOutputsUpdated, this, &OnvifCameraTab::handleRelaysUpdated);
         connect(m_onvifDevice, &PelcoD::Qt::QOnvifDevice::digitalInputsUpdated, this,
             &OnvifCameraTab::handleDigitalInputsUpdated);
+        connect(m_onvifDevice, &PelcoD::Qt::QOnvifDevice::metadataConfigurationsUpdated, this,
+            &OnvifCameraTab::handleMetadataConfigsUpdated);
+        connect(
+            m_onvifDevice, &PelcoD::Qt::QOnvifDevice::metadataReceived, this, &OnvifCameraTab::handleMetadataReceived);
+        connect(m_onvifDevice, &PelcoD::Qt::QOnvifDevice::systemLogReceived, this,
+            &OnvifCameraTab::handleSystemLogReceived);
+        connect(m_onvifDevice, &PelcoD::Qt::QOnvifDevice::systemSupportInfoReceived, this,
+            &OnvifCameraTab::handleSystemSupportInfoReceived);
+        connect(m_onvifDevice, &PelcoD::Qt::QOnvifDevice::systemBackupReceived, this,
+            &OnvifCameraTab::handleSystemBackupReceived);
+        connect(m_onvifDevice, &PelcoD::Qt::QOnvifDevice::systemRestoreCompleted, this,
+            &OnvifCameraTab::handleSystemRestoreCompleted);
+        connect(m_onvifDevice, &PelcoD::Qt::QOnvifDevice::endpointReferenceReceived, this,
+            &OnvifCameraTab::handleEndpointReferenceReceived);
     }
 
     updateConnectionUi(false);
@@ -809,6 +824,52 @@ void OnvifCameraTab::setupUi()
     maintLayout->addStretch();
 
     netTabLayout->addWidget(groupMaint);
+
+    // Maintenance Extensions: System Logs & Support Diagnostics
+    auto* groupLogs = new QGroupBox(tr("System Logs & Diagnostics"), this);
+    auto* logsLayout = new QVBoxLayout(groupLogs);
+    logsLayout->setSpacing(6);
+
+    auto* logBtnLayout = new QHBoxLayout();
+    btnFetchSystemLog = new QPushButton(tr("📄 Fetch System Log"), groupLogs);
+    btnFetchAccessLog = new QPushButton(tr("🔒 Fetch Access Log"), groupLogs);
+    btnFetchSupportInfo = new QPushButton(tr("🛠 Diagnostics / Support Info"), groupLogs);
+    btnFetchEndpointRef = new QPushButton(tr("🆔 Endpoint UUID"), groupLogs);
+    lblEndpointRef = new QLabel(tr("UUID: N/A"), groupLogs);
+    lblEndpointRef->setStyleSheet(QStringLiteral("color: #58a6ff; font-family: monospace; font-weight: bold;"));
+
+    logBtnLayout->addWidget(btnFetchSystemLog);
+    logBtnLayout->addWidget(btnFetchAccessLog);
+    logBtnLayout->addWidget(btnFetchSupportInfo);
+    logBtnLayout->addWidget(btnFetchEndpointRef);
+    logBtnLayout->addWidget(lblEndpointRef);
+    logBtnLayout->addStretch();
+    logsLayout->addLayout(logBtnLayout);
+
+    txtSystemLogs = new QTextEdit(groupLogs);
+    txtSystemLogs->setReadOnly(true);
+    txtSystemLogs->setMinimumHeight(140);
+    txtSystemLogs->setFont(QFontDatabase::systemFont(QFontDatabase::FixedFont));
+    txtSystemLogs->setPlaceholderText(tr("System and access diagnostic log output will appear here..."));
+    logsLayout->addWidget(txtSystemLogs);
+
+    netTabLayout->addWidget(groupLogs);
+
+    // Maintenance Extensions: Configuration Backup & Restore
+    auto* groupBackup = new QGroupBox(tr("Configuration Backup & Restore"), this);
+    auto* backupLayout = new QHBoxLayout(groupBackup);
+    backupLayout->setSpacing(6);
+
+    btnDownloadBackup = new QPushButton(tr("📥 Download Backup XML"), groupBackup);
+    editBackupPayload = new QLineEdit(groupBackup);
+    editBackupPayload->setPlaceholderText(tr("Base64 or XML configuration backup payload"));
+    btnRestoreBackup = new QPushButton(tr("📤 Restore Camera Configuration"), groupBackup);
+
+    backupLayout->addWidget(btnDownloadBackup);
+    backupLayout->addWidget(editBackupPayload, 1);
+    backupLayout->addWidget(btnRestoreBackup);
+
+    netTabLayout->addWidget(groupBackup);
     netTabLayout->addStretch();
 
     // -------------------------------------------------------------------------
@@ -893,6 +954,71 @@ void OnvifCameraTab::setupUi()
     relayTabLayout->addWidget(groupInputs);
     relayTabLayout->addStretch();
 
+    // -------------------------------------------------------------------------
+    // Sub-Tab 10: Metadata & Analytics (Profile T & M)
+    // -------------------------------------------------------------------------
+    auto* metaTabLayout = createScrollTab(tr("Metadata & Analytics"));
+
+    auto* groupMetaConfig = new QGroupBox(tr("Profile M/T: Metadata Stream Configuration"), this);
+    auto* metaConfigLayout = new QVBoxLayout(groupMetaConfig);
+    metaConfigLayout->setSpacing(6);
+
+    auto* metaCfgRow1 = new QHBoxLayout();
+    metaCfgRow1->addWidget(new QLabel(tr("Configuration:"), groupMetaConfig));
+    cmbMetaConfigs = new QComboBox(groupMetaConfig);
+    metaCfgRow1->addWidget(cmbMetaConfigs, 1);
+    btnRefreshMetaConfigs = new QPushButton(tr("Refresh Configs"), groupMetaConfig);
+    metaCfgRow1->addWidget(btnRefreshMetaConfigs);
+    metaConfigLayout->addLayout(metaCfgRow1);
+
+    auto* metaChkRow = new QHBoxLayout();
+    chkMetaPtzStatus = new QCheckBox(tr("PTZ Status Stream"), groupMetaConfig);
+    chkMetaAnalytics = new QCheckBox(tr("Analytics (Objects / Bounding Boxes)"), groupMetaConfig);
+    chkMetaEvents = new QCheckBox(tr("Event Notifications"), groupMetaConfig);
+    chkMetaGeo = new QCheckBox(tr("Geo-Location Coordinates"), groupMetaConfig);
+    chkMetaPtzStatus->setChecked(true);
+    chkMetaAnalytics->setChecked(true);
+    metaChkRow->addWidget(chkMetaPtzStatus);
+    metaChkRow->addWidget(chkMetaAnalytics);
+    metaChkRow->addWidget(chkMetaEvents);
+    metaChkRow->addWidget(chkMetaGeo);
+    metaConfigLayout->addLayout(metaChkRow);
+
+    auto* metaBtnRow = new QHBoxLayout();
+    btnApplyMetaConfig = new QPushButton(tr("Apply Metadata Config"), groupMetaConfig);
+    metaBtnRow->addWidget(btnApplyMetaConfig);
+    metaBtnRow->addStretch();
+    metaConfigLayout->addLayout(metaBtnRow);
+
+    metaTabLayout->addWidget(groupMetaConfig);
+
+    auto* groupMetaStream = new QGroupBox(tr("Live Metadata & Analytics Stream"), this);
+    auto* metaStreamLayout = new QVBoxLayout(groupMetaStream);
+    metaStreamLayout->setSpacing(6);
+
+    auto* streamCtrlRow = new QHBoxLayout();
+    btnToggleMetaStream = new QPushButton(tr("▶ Start Metadata Streaming (5 Hz)"), groupMetaStream);
+    btnToggleMetaStream->setCheckable(true);
+    btnPollMetaOnce = new QPushButton(tr("🔄 Poll Once"), groupMetaStream);
+    lblMetaTelemetry = new QLabel(tr("PTZ: Pan=0.000 Tilt=0.000 Zoom=0.000 | Moving: No | Frame: -"), groupMetaStream);
+    lblMetaTelemetry->setStyleSheet(QStringLiteral("color: #58a6ff; font-family: monospace; font-weight: bold;"));
+
+    streamCtrlRow->addWidget(btnToggleMetaStream);
+    streamCtrlRow->addWidget(btnPollMetaOnce);
+    streamCtrlRow->addWidget(lblMetaTelemetry, 1);
+    metaStreamLayout->addLayout(streamCtrlRow);
+
+    tableMetaObjects = new QTableWidget(0, 6, groupMetaStream);
+    tableMetaObjects->setHorizontalHeaderLabels({ tr("Object ID"), tr("Class"), tr("Confidence"),
+        tr("Bounding Box (L,T,R,B)"), tr("Geo Location"), tr("Timestamp") });
+    tableMetaObjects->horizontalHeader()->setStretchLastSection(true);
+    tableMetaObjects->setSelectionBehavior(QAbstractItemView::SelectRows);
+    tableMetaObjects->setMinimumHeight(160);
+    metaStreamLayout->addWidget(tableMetaObjects);
+
+    metaTabLayout->addWidget(groupMetaStream);
+    metaTabLayout->addStretch();
+
     // Add tab widget to main layout
     mainLayout->addWidget(m_cameraTabs, 1);
 
@@ -940,6 +1066,20 @@ void OnvifCameraTab::setupUi()
     connect(btnApplyRelaySettings, &QPushButton::clicked, this, &OnvifCameraTab::handleApplyRelaySettings);
     connect(btnRefreshInputs, &QPushButton::clicked, this, &OnvifCameraTab::handleRefreshInputs);
     connect(tableRelays, &QTableWidget::itemSelectionChanged, this, &OnvifCameraTab::handleRelaySelectionChanged);
+
+    // Maintenance Extensions connections
+    connect(btnFetchSystemLog, &QPushButton::clicked, this, &OnvifCameraTab::handleFetchSystemLog);
+    connect(btnFetchAccessLog, &QPushButton::clicked, this, &OnvifCameraTab::handleFetchAccessLog);
+    connect(btnFetchSupportInfo, &QPushButton::clicked, this, &OnvifCameraTab::handleFetchSupportInfo);
+    connect(btnDownloadBackup, &QPushButton::clicked, this, &OnvifCameraTab::handleDownloadBackup);
+    connect(btnRestoreBackup, &QPushButton::clicked, this, &OnvifCameraTab::handleRestoreBackup);
+    connect(btnFetchEndpointRef, &QPushButton::clicked, this, &OnvifCameraTab::handleFetchEndpointReference);
+
+    // Profile T/M: Metadata & Analytics connections
+    connect(btnRefreshMetaConfigs, &QPushButton::clicked, this, &OnvifCameraTab::handleRefreshMetadataConfigs);
+    connect(btnApplyMetaConfig, &QPushButton::clicked, this, &OnvifCameraTab::handleApplyMetadataConfig);
+    connect(btnToggleMetaStream, &QPushButton::toggled, this, &OnvifCameraTab::handleToggleMetadataStream);
+    connect(btnPollMetaOnce, &QPushButton::clicked, this, &OnvifCameraTab::handlePollMetadataOnce);
 }
 
 void OnvifCameraTab::updateConnectionUi(bool connected)
@@ -1036,6 +1176,16 @@ void OnvifCameraTab::updateConnectionUi(bool connected)
     btnFactoryDefaultSoft->setEnabled(connected);
     btnFactoryDefaultHard->setEnabled(connected);
 
+    // Maintenance Extensions widgets
+    btnFetchSystemLog->setEnabled(connected);
+    btnFetchAccessLog->setEnabled(connected);
+    txtSystemLogs->setEnabled(connected);
+    btnFetchSupportInfo->setEnabled(connected);
+    btnDownloadBackup->setEnabled(connected);
+    btnRestoreBackup->setEnabled(connected);
+    editBackupPayload->setEnabled(connected);
+    btnFetchEndpointRef->setEnabled(connected);
+
     // Relay & I/O widgets
     tableRelays->setEnabled(connected);
     editRelayToken->setEnabled(connected);
@@ -1048,6 +1198,22 @@ void OnvifCameraTab::updateConnectionUi(bool connected)
     btnApplyRelaySettings->setEnabled(connected);
     tableDigitalInputs->setEnabled(connected);
     btnRefreshInputs->setEnabled(connected);
+
+    // Metadata & Analytics widgets
+    cmbMetaConfigs->setEnabled(connected);
+    chkMetaPtzStatus->setEnabled(connected);
+    chkMetaAnalytics->setEnabled(connected);
+    chkMetaEvents->setEnabled(connected);
+    chkMetaGeo->setEnabled(connected);
+    btnRefreshMetaConfigs->setEnabled(connected);
+    btnApplyMetaConfig->setEnabled(connected);
+    btnToggleMetaStream->setEnabled(connected);
+    btnPollMetaOnce->setEnabled(connected);
+    tableMetaObjects->setEnabled(connected);
+
+    if (!connected && btnToggleMetaStream->isChecked()) {
+        btnToggleMetaStream->setChecked(false);
+    }
 
     if (connected) {
         lblConnectionStatus->setText(tr("Connected"));
@@ -2357,6 +2523,238 @@ void OnvifCameraTab::handleRelaySelectionChanged()
         if (idx >= 0) {
             cmbRelayIdleState->setCurrentIndex(idx);
         }
+    }
+}
+
+void OnvifCameraTab::handleRefreshMetadataConfigs()
+{
+    if (m_onvifDevice != nullptr) {
+        m_onvifDevice->refreshMetadataConfigurations();
+    }
+}
+
+void OnvifCameraTab::handleApplyMetadataConfig()
+{
+    if (m_onvifDevice == nullptr || cmbMetaConfigs == nullptr) {
+        return;
+    }
+    const QString token = cmbMetaConfigs->currentData().toString();
+    if (token.isEmpty()) {
+        return;
+    }
+
+    PelcoD::Onvif::MetadataConfiguration cfg {};
+    cfg.token = token.toStdString();
+    cfg.name = cmbMetaConfigs->currentText().toStdString();
+    cfg.ptzStatusEnabled = chkMetaPtzStatus != nullptr && chkMetaPtzStatus->isChecked();
+    cfg.analyticsEnabled = chkMetaAnalytics != nullptr && chkMetaAnalytics->isChecked();
+    cfg.eventsEnabled = chkMetaEvents != nullptr && chkMetaEvents->isChecked();
+    cfg.geoOrientationEnabled = chkMetaGeo != nullptr && chkMetaGeo->isChecked();
+
+    m_onvifDevice->setMetadataConfiguration(cfg);
+}
+
+void OnvifCameraTab::handleToggleMetadataStream(bool start)
+{
+    if (m_onvifDevice == nullptr) {
+        return;
+    }
+    if (start) {
+        if (btnToggleMetaStream != nullptr) {
+            btnToggleMetaStream->setText(tr("⏹ Stop Metadata Streaming"));
+        }
+        m_onvifDevice->startMetadataStreaming(200);
+    } else {
+        if (btnToggleMetaStream != nullptr) {
+            btnToggleMetaStream->setText(tr("▶ Start Metadata Streaming (5 Hz)"));
+        }
+        m_onvifDevice->stopMetadataStreaming();
+    }
+}
+
+void OnvifCameraTab::handlePollMetadataOnce()
+{
+    if (m_onvifDevice != nullptr) {
+        m_onvifDevice->pollCurrentMetadata();
+    }
+}
+
+void OnvifCameraTab::handleMetadataConfigsUpdated(const std::vector<PelcoD::Onvif::MetadataConfiguration>& configs)
+{
+    if (cmbMetaConfigs == nullptr) {
+        return;
+    }
+    cmbMetaConfigs->clear();
+    for (const auto& cfg : configs) {
+        cmbMetaConfigs->addItem(QString::fromStdString(cfg.name), QString::fromStdString(cfg.token));
+    }
+    if (!configs.empty()) {
+        const auto& first = configs.front();
+        if (chkMetaPtzStatus != nullptr) {
+            chkMetaPtzStatus->setChecked(first.ptzStatusEnabled);
+        }
+        if (chkMetaAnalytics != nullptr) {
+            chkMetaAnalytics->setChecked(first.analyticsEnabled);
+        }
+        if (chkMetaEvents != nullptr) {
+            chkMetaEvents->setChecked(first.eventsEnabled);
+        }
+        if (chkMetaGeo != nullptr) {
+            chkMetaGeo->setChecked(first.geoOrientationEnabled);
+        }
+    }
+}
+
+void OnvifCameraTab::handleMetadataReceived(const PelcoD::Onvif::MetadataStreamPayload& payload)
+{
+    if (lblMetaTelemetry != nullptr) {
+        QString text = QStringLiteral("PTZ: ");
+        if (payload.ptzStatus.has_value()) {
+            text += QStringLiteral("Pan=%1 Tilt=%2 Zoom=%3 | Moving: %4")
+                        .arg(payload.ptzStatus->pan, 0, 'f', 3)
+                        .arg(payload.ptzStatus->tilt, 0, 'f', 3)
+                        .arg(payload.ptzStatus->zoom, 0, 'f', 3)
+                        .arg(payload.ptzStatus->isMoving ? tr("Yes") : tr("No"));
+        } else {
+            text += QStringLiteral("Pan=N/A Tilt=N/A Zoom=N/A");
+        }
+
+        if (payload.analyticsFrame.has_value()) {
+            text += QStringLiteral(" | Objs: %1 (%2x%3)")
+                        .arg(payload.analyticsFrame->objects.size())
+                        .arg(payload.analyticsFrame->frameWidth)
+                        .arg(payload.analyticsFrame->frameHeight);
+        }
+        lblMetaTelemetry->setText(text);
+    }
+
+    if (tableMetaObjects == nullptr || !payload.analyticsFrame.has_value()) {
+        return;
+    }
+
+    const auto& frame = *payload.analyticsFrame;
+    const QString ts = QString::fromStdString(frame.utcTime);
+    tableMetaObjects->setRowCount(0);
+    for (const auto& obj : frame.objects) {
+        const int row = tableMetaObjects->rowCount();
+        tableMetaObjects->insertRow(row);
+        tableMetaObjects->setItem(row, 0, new QTableWidgetItem(QString::number(obj.objectId)));
+        tableMetaObjects->setItem(row, 1, new QTableWidgetItem(QString::fromStdString(obj.className)));
+        tableMetaObjects->setItem(row, 2, new QTableWidgetItem(QString::number(obj.confidence, 'f', 2)));
+        const QString bbox = QStringLiteral("[%1, %2, %3, %4]")
+                                 .arg(obj.boundingBox.left, 0, 'f', 2)
+                                 .arg(obj.boundingBox.top, 0, 'f', 2)
+                                 .arg(obj.boundingBox.right, 0, 'f', 2)
+                                 .arg(obj.boundingBox.bottom, 0, 'f', 2);
+        tableMetaObjects->setItem(row, 3, new QTableWidgetItem(bbox));
+        const QString geo = QStringLiteral("Lat: %1, Lon: %2")
+                                .arg(obj.geoLocation.latitude, 0, 'f', 4)
+                                .arg(obj.geoLocation.longitude, 0, 'f', 4);
+        tableMetaObjects->setItem(row, 4, new QTableWidgetItem(geo));
+        tableMetaObjects->setItem(row, 5, new QTableWidgetItem(ts));
+    }
+}
+
+void OnvifCameraTab::handleFetchSystemLog()
+{
+    if (m_onvifDevice != nullptr) {
+        m_onvifDevice->fetchSystemLog(PelcoD::Onvif::SystemLogType::System);
+    }
+}
+
+void OnvifCameraTab::handleFetchAccessLog()
+{
+    if (m_onvifDevice != nullptr) {
+        m_onvifDevice->fetchSystemLog(PelcoD::Onvif::SystemLogType::Access);
+    }
+}
+
+void OnvifCameraTab::handleSystemLogReceived(PelcoD::Onvif::SystemLogType logType, const QString& logData)
+{
+    if (txtSystemLogs == nullptr) {
+        return;
+    }
+    const QString typeName = (logType == PelcoD::Onvif::SystemLogType::System) ? QStringLiteral("=== SYSTEM LOG ===")
+                                                                               : QStringLiteral("=== ACCESS LOG ===");
+    txtSystemLogs->append(typeName);
+    txtSystemLogs->append(logData);
+    txtSystemLogs->append(QStringLiteral(""));
+}
+
+void OnvifCameraTab::handleFetchSupportInfo()
+{
+    if (m_onvifDevice != nullptr) {
+        m_onvifDevice->fetchSystemSupportInformation();
+    }
+}
+
+void OnvifCameraTab::handleSystemSupportInfoReceived(const PelcoD::Onvif::SystemSupportInfo& info)
+{
+    if (txtSystemLogs == nullptr) {
+        return;
+    }
+    txtSystemLogs->append(QStringLiteral("=== SYSTEM SUPPORT INFORMATION ==="));
+    txtSystemLogs->append(QString::fromStdString(info.rawDiagnostics));
+    txtSystemLogs->append(QStringLiteral(""));
+}
+
+void OnvifCameraTab::handleDownloadBackup()
+{
+    if (m_onvifDevice != nullptr) {
+        m_onvifDevice->downloadSystemBackup();
+    }
+}
+
+void OnvifCameraTab::handleSystemBackupReceived(const QString& backupData)
+{
+    if (editBackupPayload != nullptr) {
+        editBackupPayload->setText(backupData);
+    }
+    QMessageBox::information(this, tr("Backup Downloaded"),
+        tr("Camera configuration backup retrieved successfully (%1 characters).").arg(backupData.size()));
+}
+
+void OnvifCameraTab::handleRestoreBackup()
+{
+    if (m_onvifDevice == nullptr || editBackupPayload == nullptr) {
+        return;
+    }
+    const QString payload = editBackupPayload->text().trimmed();
+    if (payload.isEmpty()) {
+        QMessageBox::warning(this, tr("Restore System"), tr("Backup payload cannot be empty."));
+        return;
+    }
+
+    const auto answer = QMessageBox::warning(this, tr("Restore System"),
+        tr("Are you sure you want to restore this configuration backup?\nThe camera may reboot."),
+        QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
+    if (answer != QMessageBox::Yes) {
+        return;
+    }
+
+    m_onvifDevice->restoreSystem(payload);
+}
+
+void OnvifCameraTab::handleSystemRestoreCompleted(bool success)
+{
+    if (success) {
+        QMessageBox::information(this, tr("System Restore"), tr("System configuration restored successfully!"));
+    } else {
+        QMessageBox::critical(this, tr("System Restore"), tr("Failed to restore system configuration."));
+    }
+}
+
+void OnvifCameraTab::handleFetchEndpointReference()
+{
+    if (m_onvifDevice != nullptr) {
+        m_onvifDevice->fetchEndpointReference();
+    }
+}
+
+void OnvifCameraTab::handleEndpointReferenceReceived(const QString& endpointReference)
+{
+    if (lblEndpointRef != nullptr) {
+        lblEndpointRef->setText(QStringLiteral("UUID: %1").arg(endpointReference));
     }
 }
 

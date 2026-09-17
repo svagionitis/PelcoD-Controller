@@ -36,7 +36,8 @@ public:
     explicit OnvifServer(OnvifServerConfig config = {}, std::shared_ptr<IPtzHandler> ptzHandler = nullptr,
         std::shared_ptr<IImagingHandler> imagingHandler = nullptr, std::shared_ptr<IOsdHandler> osdHandler = nullptr,
         std::shared_ptr<IDeviceManagementHandler> deviceHandler = nullptr,
-        std::shared_ptr<IDeviceIoHandler> deviceIoHandler = nullptr);
+        std::shared_ptr<IDeviceIoHandler> deviceIoHandler = nullptr,
+        std::shared_ptr<IMetadataHandler> metadataHandler = nullptr);
 
     /// @brief Destructor stops HTTP service and WS-Discovery daemon.
     ~OnvifServer();
@@ -82,6 +83,15 @@ public:
     /// @param[in] handler New IDeviceIoHandler instance.
     void setDeviceIoHandler(std::shared_ptr<IDeviceIoHandler> handler);
 
+    /// @brief Sets or replaces the active Metadata handler.
+    /// @param[in] handler New IMetadataHandler instance.
+    void setMetadataHandler(std::shared_ptr<IMetadataHandler> handler);
+
+    /// @brief Records an operational message into the internal system log buffer.
+    /// @param[in] level Log level ("INFO", "WARNING", "ERROR").
+    /// @param[in] msg Log message.
+    void logSystemMessage(const std::string& level, const std::string& msg);
+
     /// @brief Pushes an asynchronous ONVIF event to active PullPoint and push subscriptions.
     /// @param[in] event The event to publish.
     void publishEvent(const OnvifEvent& event);
@@ -101,10 +111,14 @@ private:
     void handleEventService(const httplib::Request& req, httplib::Response& res);
     void handleSubscriptionService(const httplib::Request& req, httplib::Response& res);
     void handleAnalyticsService(const httplib::Request& req, httplib::Response& res);
+    void handleMetadataStream(const httplib::Request& req, httplib::Response& res);
 
     void processOsdRequest(
         const std::string& opName, const pugi::xml_document& doc, std::ostringstream& body, const std::string& prefix);
+    void processMetadataRequest(
+        const std::string& opName, const pugi::xml_document& doc, std::ostringstream& body, const std::string& prefix);
 
+    [[nodiscard]] std::string generateMetadataStreamXml(const MetadataStreamPayload& payload) const;
     [[nodiscard]] std::string resolveHost(const httplib::Request& req) const;
 
     struct PullPointSubscription {
@@ -128,6 +142,7 @@ private:
     std::shared_ptr<IOsdHandler> m_osdHandler;
     std::shared_ptr<IDeviceManagementHandler> m_deviceHandler;
     std::shared_ptr<IDeviceIoHandler> m_deviceIoHandler;
+    std::shared_ptr<IMetadataHandler> m_metadataHandler;
     std::unique_ptr<WsDiscoveryServer> m_discoveryServer;
     httplib::Server m_httpServer;
 
@@ -148,6 +163,15 @@ private:
     mutable std::mutex m_deviceIoMutex {};
     std::vector<RelayOutputConfig> m_internalRelayOutputs {};
     std::vector<DigitalInputConfig> m_internalDigitalInputs {};
+
+    mutable std::mutex m_metadataMutex {};
+    std::vector<MetadataConfiguration> m_internalMetadataConfigs {};
+
+    mutable std::mutex m_logMutex {};
+    std::deque<std::string> m_systemLogs {};
+    std::deque<std::string> m_accessLogs {};
+
+    std::chrono::steady_clock::time_point m_startTime { std::chrono::steady_clock::now() };
 
     mutable std::mutex m_osdMutex {};
     std::map<std::string, OsdConfig> m_internalOsds {};

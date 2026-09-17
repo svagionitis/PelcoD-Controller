@@ -19,6 +19,7 @@
 #include <QSpinBox>
 #include <QTabWidget>
 #include <QTableWidget>
+#include <QTextEdit>
 #include <QVBoxLayout>
 #include <QWidget>
 
@@ -150,6 +151,27 @@ private slots:
     void handleRelaysUpdated(const std::vector<PelcoD::Onvif::RelayOutputConfig>& relays);
     void handleDigitalInputsUpdated(const std::vector<PelcoD::Onvif::DigitalInputConfig>& inputs);
     void handleRelaySelectionChanged();
+
+    // Profile T & M: Metadata & Analytics
+    void handleRefreshMetadataConfigs();
+    void handleApplyMetadataConfig();
+    void handleToggleMetadataStream(bool start);
+    void handlePollMetadataOnce();
+    void handleMetadataConfigsUpdated(const std::vector<PelcoD::Onvif::MetadataConfiguration>& configs);
+    void handleMetadataReceived(const PelcoD::Onvif::MetadataStreamPayload& payload);
+
+    // Maintenance & System Logs Extensions
+    void handleFetchSystemLog();
+    void handleFetchAccessLog();
+    void handleSystemLogReceived(PelcoD::Onvif::SystemLogType logType, const QString& logData);
+    void handleFetchSupportInfo();
+    void handleSystemSupportInfoReceived(const PelcoD::Onvif::SystemSupportInfo& info);
+    void handleDownloadBackup();
+    void handleSystemBackupReceived(const QString& backupData);
+    void handleRestoreBackup();
+    void handleSystemRestoreCompleted(bool success);
+    void handleFetchEndpointReference();
+    void handleEndpointReferenceReceived(const QString& endpointReference);
 
 private:
     void setupUi();
@@ -311,6 +333,30 @@ private:
     QPushButton* btnSyncPcTime { nullptr };
     QPushButton* btnFactoryDefaultSoft { nullptr };
     QPushButton* btnFactoryDefaultHard { nullptr };
+
+    // Enhanced Network & Maintenance widgets (Sub-Tab 8)
+    QPushButton* btnFetchSystemLog { nullptr };
+    QPushButton* btnFetchAccessLog { nullptr };
+    QTextEdit* txtSystemLogs { nullptr };
+    QPushButton* btnFetchSupportInfo { nullptr };
+    QPushButton* btnDownloadBackup { nullptr };
+    QPushButton* btnRestoreBackup { nullptr };
+    QLineEdit* editBackupPayload { nullptr };
+    QPushButton* btnFetchEndpointRef { nullptr };
+    QLabel* lblEndpointRef { nullptr };
+
+    // Profile T & M: Metadata & Analytics widgets (Sub-Tab 10)
+    QComboBox* cmbMetaConfigs { nullptr };
+    QCheckBox* chkMetaPtzStatus { nullptr };
+    QCheckBox* chkMetaAnalytics { nullptr };
+    QCheckBox* chkMetaEvents { nullptr };
+    QCheckBox* chkMetaGeo { nullptr };
+    QPushButton* btnRefreshMetaConfigs { nullptr };
+    QPushButton* btnApplyMetaConfig { nullptr };
+    QPushButton* btnToggleMetaStream { nullptr };
+    QPushButton* btnPollMetaOnce { nullptr };
+    QLabel* lblMetaTelemetry { nullptr };
+    QTableWidget* tableMetaObjects { nullptr };
 };
 
 } // namespace PelcoDApp

@@ -80,6 +80,13 @@ struct OnvifServerConfig {
 
     /// @brief Default digital inputs for DeviceIO service.
     std::vector<DigitalInputConfig> defaultDigitalInputs { { "Input_1", RelayIdleState::Open, "Alarm", false } };
+
+    /// @brief Default metadata stream configurations (Profile T / Profile M).
+    std::vector<MetadataConfiguration> defaultMetadataConfigs { { "MetadataConfig_1", "MetadataConfiguration", 1,
+        "PT60S", true, true, true, false } };
+
+    /// @brief Default RTSP or HTTP metadata stream URI.
+    std::string metadataStreamUri { "rtsp://127.0.0.1:8554/metadata" };
 };
 
 /// @brief Callback signature for publishing asynchronous ONVIF event notifications.
@@ -505,6 +512,89 @@ public:
     [[nodiscard]] virtual std::string handleSystemReboot()
     {
         return "Rebooting";
+    }
+
+    /// @brief Retrieves the requested system or access log content.
+    /// @param[in] logType Log type (System or Access).
+    /// @return String containing log entries.
+    [[nodiscard]] virtual std::string handleGetSystemLog(SystemLogType /*logType*/)
+    {
+        return {};
+    }
+
+    /// @brief Generates comprehensive system and diagnostic support telemetry.
+    /// @return SystemSupportInfo structure.
+    [[nodiscard]] virtual SystemSupportInfo handleGetSystemSupportInformation()
+    {
+        return SystemSupportInfo {};
+    }
+
+    /// @brief Backs up system settings, returning an archive payload string.
+    /// @return Serialized backup payload.
+    [[nodiscard]] virtual std::string handleGetSystemBackup()
+    {
+        return {};
+    }
+
+    /// @brief Restores system settings from an archive payload string.
+    /// @param[in] backupData Backup payload to restore.
+    /// @return True on success.
+    [[nodiscard]] virtual bool handleRestoreSystem(const std::string& /*backupData*/)
+    {
+        return false;
+    }
+
+    /// @brief Retrieves device unique endpoint reference URN/UUID.
+    /// @return URN endpoint string.
+    [[nodiscard]] virtual std::string handleGetEndpointReference()
+    {
+        return {};
+    }
+};
+
+/// @class IMetadataHandler
+/// @brief Abstract interface decoupling ONVIF Metadata Configuration & Streaming from hardware.
+class IMetadataHandler {
+public:
+    virtual ~IMetadataHandler() = default;
+
+    /// @brief Retrieves all metadata configurations.
+    /// @return Vector of MetadataConfiguration records.
+    [[nodiscard]] virtual std::vector<MetadataConfiguration> handleGetMetadataConfigurations() = 0;
+
+    /// @brief Retrieves a specific metadata configuration by token.
+    /// @param[in] token Configuration identifier.
+    /// @return MetadataConfiguration or nullopt if not found.
+    [[nodiscard]] virtual std::optional<MetadataConfiguration> handleGetMetadataConfiguration(
+        const std::string& /*token*/)
+    {
+        return std::nullopt;
+    }
+
+    /// @brief Modifies a metadata configuration.
+    /// @param[in] config Updated configuration.
+    /// @return True on success.
+    [[nodiscard]] virtual bool handleSetMetadataConfiguration(const MetadataConfiguration& /*config*/)
+    {
+        return false;
+    }
+
+    /// @brief Retrieves options and capabilities for metadata configuration.
+    /// @param[in] configToken Configuration token.
+    /// @param[in] profileToken Profile token.
+    /// @return MetadataConfigurationOptions structure.
+    [[nodiscard]] virtual MetadataConfigurationOptions handleGetMetadataConfigurationOptions(
+        const std::string& /*configToken*/, const std::string& /*profileToken*/ = "")
+    {
+        return MetadataConfigurationOptions {};
+    }
+
+    /// @brief Produces a live snapshot of active metadata (PTZ telemetry, analytics objects, events).
+    /// @param[in] profileToken Media profile token.
+    /// @return MetadataStreamPayload structure.
+    [[nodiscard]] virtual MetadataStreamPayload handleGetCurrentMetadata(const std::string& /*profileToken*/ = "")
+    {
+        return MetadataStreamPayload {};
     }
 };
 

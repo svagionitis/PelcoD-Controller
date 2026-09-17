@@ -1750,6 +1750,190 @@ void testImagingExtensionsAndDeviceIo()
     std::cout << "[PASS] testImagingExtensionsAndDeviceIo" << std::endl;
 }
 
+void testMetadataStreamsAndMaintenanceExtensions()
+{
+    std::cout << "[RUN] testMetadataStreamsAndMaintenanceExtensions" << std::endl;
+
+    auto mockTransport = std::make_shared<PelcoD::MockPelcoDDevice>(1U);
+    auto device = std::make_shared<PelcoD::PelcoDDevice>(mockTransport, 1U);
+    assert(device->start());
+
+    auto adapter = std::make_shared<PelcoDPtzAdapter>(device);
+
+    // Populate analytics objects
+    AnalyticsObject carObj {};
+    carObj.objectId = 101;
+    carObj.className = "Vehicle";
+    carObj.confidence = 0.95f;
+    carObj.boundingBox = { 0.1f, 0.2f, 0.5f, 0.7f };
+    carObj.geoLocation = { 37.7749, -122.4194, 10.0 };
+    adapter->addDetectedObject(carObj);
+
+    OnvifServerConfig config;
+    config.port = 18596;
+    config.bindAddress = "127.0.0.1";
+    config.deviceName = "MetadataMaintenanceCamera";
+
+    OnvifServer server(config, adapter, adapter);
+    server.setMetadataHandler(adapter);
+    server.setDeviceManagementHandler(adapter);
+    assert(server.start());
+    assert(server.isRunning());
+
+    httplib::Client client("127.0.0.1", config.port);
+    client.set_connection_timeout(std::chrono::seconds(2));
+    client.set_read_timeout(std::chrono::seconds(2));
+
+    // 1. GetMetadataConfigurations (Media Service)
+    {
+        const std::string req = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+                                "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                "xmlns:trt=\"http://www.onvif.org/ver10/media/wsdl\">\r\n"
+                                "  <SOAP-ENV:Body><trt:GetMetadataConfigurations/></SOAP-ENV:Body>\r\n"
+                                "</SOAP-ENV:Envelope>";
+        auto res = client.Post("/onvif/media_service", req, "application/soap+xml; charset=utf-8");
+        assert(res && res->status == 200);
+        assert(res->body.find("GetMetadataConfigurationsResponse") != std::string::npos);
+        assert(res->body.find("MetadataConfig_1") != std::string::npos);
+    }
+
+    // 2. SetMetadataConfiguration (Media Service)
+    {
+        const std::string req = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+                                "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                "xmlns:trt=\"http://www.onvif.org/ver10/media/wsdl\" "
+                                "xmlns:tt=\"http://www.onvif.org/ver10/schema\">\r\n"
+                                "  <SOAP-ENV:Body>\r\n"
+                                "    <trt:SetMetadataConfiguration>\r\n"
+                                "      <trt:Configuration token=\"MetadataConfig_1\">\r\n"
+                                "        <tt:Name>UpdatedMetadata</tt:Name>\r\n"
+                                "        <tt:UseCount>1</tt:UseCount>\r\n"
+                                "        <tt:PTZStatus>\r\n"
+                                "          <tt:Status>true</tt:Status>\r\n"
+                                "        </tt:PTZStatus>\r\n"
+                                "        <tt:Analytics>true</tt:Analytics>\r\n"
+                                "        <tt:Events>true</tt:Events>\r\n"
+                                "      </trt:Configuration>\r\n"
+                                "    </trt:SetMetadataConfiguration>\r\n"
+                                "  </SOAP-ENV:Body>\r\n"
+                                "</SOAP-ENV:Envelope>";
+        auto res = client.Post("/onvif/media_service", req, "application/soap+xml; charset=utf-8");
+        assert(res && res->status == 200);
+        assert(res->body.find("SetMetadataConfigurationResponse") != std::string::npos);
+
+        const auto cfg = adapter->handleGetMetadataConfiguration("MetadataConfig_1");
+        assert(cfg.has_value());
+        assert(cfg->name == "UpdatedMetadata");
+        assert(cfg->eventsEnabled == true);
+    }
+
+    // 3. GET /onvif/metadata_stream
+    {
+        auto res = client.Get("/onvif/metadata_stream");
+        assert(res && res->status == 200);
+        assert(res->body.find("<tt:MetadataStream") != std::string::npos);
+        assert(res->body.find("<tt:PTZStatus>") != std::string::npos);
+        assert(res->body.find("<tt:VideoAnalytics>") != std::string::npos);
+        assert(res->body.find("ObjectId=\"101\"") != std::string::npos);
+        assert(res->body.find("Vehicle") != std::string::npos);
+    }
+
+    // 4. Device Management: GetSystemLog (System)
+    {
+        const std::string req = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+                                "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                "xmlns:tds=\"http://www.onvif.org/ver10/device/wsdl\">\r\n"
+                                "  <SOAP-ENV:Body>\r\n"
+                                "    <tds:GetSystemLog>\r\n"
+                                "      <tds:LogType>System</tds:LogType>\r\n"
+                                "    </tds:GetSystemLog>\r\n"
+                                "  </SOAP-ENV:Body>\r\n"
+                                "</SOAP-ENV:Envelope>";
+        auto res = client.Post("/onvif/device_service", req, "application/soap+xml; charset=utf-8");
+        assert(res && res->status == 200);
+        assert(res->body.find("GetSystemLogResponse") != std::string::npos);
+        assert(res->body.find("SystemLog") != std::string::npos);
+    }
+
+    // 5. Device Management: GetSystemLog (Access)
+    {
+        const std::string req = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+                                "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                "xmlns:tds=\"http://www.onvif.org/ver10/device/wsdl\">\r\n"
+                                "  <SOAP-ENV:Body>\r\n"
+                                "    <tds:GetSystemLog>\r\n"
+                                "      <tds:LogType>Access</tds:LogType>\r\n"
+                                "    </tds:GetSystemLog>\r\n"
+                                "  </SOAP-ENV:Body>\r\n"
+                                "</SOAP-ENV:Envelope>";
+        auto res = client.Post("/onvif/device_service", req, "application/soap+xml; charset=utf-8");
+        assert(res && res->status == 200);
+        assert(res->body.find("GetSystemLogResponse") != std::string::npos);
+        assert(
+            res->body.find("DeviceService:") != std::string::npos || res->body.find("ACCESS LOG") != std::string::npos);
+    }
+
+    // 6. Device Management: GetSystemSupportInformation
+    {
+        const std::string req = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+                                "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                "xmlns:tds=\"http://www.onvif.org/ver10/device/wsdl\">\r\n"
+                                "  <SOAP-ENV:Body><tds:GetSystemSupportInformation/></SOAP-ENV:Body>\r\n"
+                                "</SOAP-ENV:Envelope>";
+        auto res = client.Post("/onvif/device_service", req, "application/soap+xml; charset=utf-8");
+        assert(res && res->status == 200);
+        assert(res->body.find("GetSystemSupportInformationResponse") != std::string::npos);
+        assert(res->body.find("SupportInformation") != std::string::npos);
+    }
+
+    // 7. Device Management: GetSystemBackup & RestoreSystem
+    {
+        const std::string reqBackup = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+                                      "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                      "xmlns:tds=\"http://www.onvif.org/ver10/device/wsdl\">\r\n"
+                                      "  <SOAP-ENV:Body><tds:GetSystemBackup/></SOAP-ENV:Body>\r\n"
+                                      "</SOAP-ENV:Envelope>";
+        auto resBackup = client.Post("/onvif/device_service", reqBackup, "application/soap+xml; charset=utf-8");
+        assert(resBackup && resBackup->status == 200);
+        assert(resBackup->body.find("GetSystemBackupResponse") != std::string::npos);
+        assert(resBackup->body.find("BackupFiles") != std::string::npos);
+
+        const std::string reqRestore
+            = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+              "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+              "xmlns:tds=\"http://www.onvif.org/ver10/device/wsdl\" "
+              "xmlns:tt=\"http://www.onvif.org/ver10/schema\">\r\n"
+              "  <SOAP-ENV:Body>\r\n"
+              "    <tds:RestoreSystem>\r\n"
+              "      <tds:BackupFiles><tt:Data>TEST_RESTORE_BLOB</tt:Data></tds:BackupFiles>\r\n"
+              "    </tds:RestoreSystem>\r\n"
+              "  </SOAP-ENV:Body>\r\n"
+              "</SOAP-ENV:Envelope>";
+        auto resRestore = client.Post("/onvif/device_service", reqRestore, "application/soap+xml; charset=utf-8");
+        assert(resRestore && resRestore->status == 200);
+        assert(resRestore->body.find("RestoreSystemResponse") != std::string::npos);
+    }
+
+    // 8. Device Management: GetEndpointReference
+    {
+        const std::string req = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+                                "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                "xmlns:tds=\"http://www.onvif.org/ver10/device/wsdl\">\r\n"
+                                "  <SOAP-ENV:Body><tds:GetEndpointReference/></SOAP-ENV:Body>\r\n"
+                                "</SOAP-ENV:Envelope>";
+        auto res = client.Post("/onvif/device_service", req, "application/soap+xml; charset=utf-8");
+        assert(res && res->status == 200);
+        assert(res->body.find("GetEndpointReferenceResponse") != std::string::npos);
+        assert(res->body.find("GUID") != std::string::npos);
+    }
+
+    server.stop();
+    assert(!server.isRunning());
+    device->stop();
+
+    std::cout << "[PASS] testMetadataStreamsAndMaintenanceExtensions" << std::endl;
+}
+
 int main()
 {
     std::cout << "Starting TestOnvifServer test suite..." << std::endl;
@@ -1762,6 +1946,7 @@ int main()
     testMedia2OsdAndAnalytics();
     testDeviceManagementAndSecurity();
     testImagingExtensionsAndDeviceIo();
+    testMetadataStreamsAndMaintenanceExtensions();
     std::cout << "All TestOnvifServer tests passed successfully!" << std::endl;
     return 0;
 }

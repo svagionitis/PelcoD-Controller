@@ -136,6 +136,7 @@ void QOnvifDevice::disconnectFromCamera()
     }
 
     stopEventSubscription();
+    stopMetadataStreaming();
 
     m_connected = false;
     m_endpoint.clear();
@@ -157,6 +158,7 @@ void QOnvifDevice::disconnectFromCamera()
     m_imagingPresets.clear();
     m_relayOutputs.clear();
     m_digitalInputs.clear();
+    m_metadataConfigs.clear();
     m_client.reset();
 
     emit disconnected();
@@ -854,6 +856,129 @@ void QOnvifDevice::refreshDigitalInputs()
 
     m_digitalInputs = m_client->getDigitalInputs();
     emit digitalInputsUpdated(m_digitalInputs);
+}
+
+void QOnvifDevice::refreshMetadataConfigurations()
+{
+    if (!m_client) {
+        return;
+    }
+    m_metadataConfigs = m_client->getMetadataConfigurations();
+    emit metadataConfigurationsUpdated(m_metadataConfigs);
+}
+
+bool QOnvifDevice::setMetadataConfiguration(const PelcoD::Onvif::MetadataConfiguration& config)
+{
+    if (!m_client) {
+        return false;
+    }
+    const bool ok = m_client->setMetadataConfiguration(config);
+    if (ok) {
+        refreshMetadataConfigurations();
+    }
+    return ok;
+}
+
+void QOnvifDevice::pollCurrentMetadata()
+{
+    if (!m_client) {
+        return;
+    }
+    const auto payload = m_client->getMetadataStream();
+    if (payload) {
+        emit metadataReceived(*payload);
+    }
+}
+
+void QOnvifDevice::startMetadataStreaming(int intervalMs)
+{
+    if (!m_client || m_metadataStreamingActive) {
+        return;
+    }
+    m_metadataStreamingActive = true;
+
+    QThread* thread = QThread::create([this, intervalMs]() {
+        while (m_metadataStreamingActive && m_client) {
+            const auto payload = m_client->getMetadataStream();
+            if (payload) {
+                QMetaObject::invokeMethod(
+                    this, [this, payload]() { emit metadataReceived(*payload); }, ::Qt::QueuedConnection);
+            }
+            QThread::msleep(static_cast<unsigned long>(std::max(100, intervalMs)));
+        }
+    });
+
+    connect(thread, &QThread::finished, thread, &QObject::deleteLater);
+    thread->start();
+}
+
+void QOnvifDevice::stopMetadataStreaming()
+{
+    m_metadataStreamingActive = false;
+}
+
+bool QOnvifDevice::isMetadataStreamingActive() const
+{
+    return m_metadataStreamingActive;
+}
+
+void QOnvifDevice::pollMetadata()
+{
+    pollCurrentMetadata();
+}
+
+void QOnvifDevice::fetchSystemLog(PelcoD::Onvif::SystemLogType logType)
+{
+    if (!m_client) {
+        return;
+    }
+    const auto logOpt = m_client->getSystemLog(logType);
+    if (logOpt) {
+        emit systemLogReceived(logType, QString::fromStdString(*logOpt));
+    }
+}
+
+void QOnvifDevice::fetchSystemSupportInformation()
+{
+    if (!m_client) {
+        return;
+    }
+    const auto infoOpt = m_client->getSystemSupportInformation();
+    if (infoOpt) {
+        emit systemSupportInfoReceived(*infoOpt);
+    }
+}
+
+void QOnvifDevice::downloadSystemBackup()
+{
+    if (!m_client) {
+        return;
+    }
+    const auto backupOpt = m_client->getSystemBackup();
+    if (backupOpt) {
+        emit systemBackupReceived(QString::fromStdString(*backupOpt));
+    }
+}
+
+bool QOnvifDevice::restoreSystem(const QString& backupData)
+{
+    if (!m_client) {
+        return false;
+    }
+    const bool ok = m_client->restoreSystem(backupData.toStdString());
+    emit systemRestoreCompleted(ok);
+    return ok;
+}
+
+void QOnvifDevice::fetchEndpointReference()
+{
+    if (!m_client) {
+        return;
+    }
+    const auto epOpt = m_client->getEndpointReference();
+    if (epOpt) {
+        emit endpointReferenceReceived(QString::fromStdString(*epOpt));
+    }
 }
 
 } // namespace PelcoD::Qt

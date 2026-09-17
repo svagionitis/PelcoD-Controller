@@ -3,6 +3,7 @@
 /// @file OnvifTypes.h
 /// @brief Common data structures, enums, and models for ONVIF Profile S client.
 
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -382,5 +383,107 @@ struct DigitalInputConfig {
 {
     return (str == "closed" || str == "Closed") ? RelayIdleState::Closed : RelayIdleState::Open;
 }
+
+/// @struct GeoLocation
+/// @brief Geographic coordinates conforming to WGS84 for ONVIF Profile M analytics.
+struct GeoLocation {
+    double latitude { 0.0 }; ///< Latitude in degrees [-90.0, 90.0]
+    double longitude { 0.0 }; ///< Longitude in degrees [-180.0, 180.0]
+    double elevation { 0.0 }; ///< Elevation above sea level in meters
+};
+
+/// @struct BoundingBox
+/// @brief Normalized bounding box for detected objects in video analytics frames.
+struct BoundingBox {
+    float left { 0.0f }; ///< Left normalized coordinate
+    float top { 0.0f }; ///< Top normalized coordinate
+    float right { 0.0f }; ///< Right normalized coordinate
+    float bottom { 0.0f }; ///< Bottom normalized coordinate
+};
+
+/// @struct AnalyticsObject
+/// @brief Classified object detected in a video analytics frame (Profile M).
+struct AnalyticsObject {
+    int objectId { 0 }; ///< Unique object tracking identifier
+    std::string className { "Human" }; ///< Object class: "Human", "Vehicle", "Bike", "Bag"
+    float confidence { 1.0f }; ///< Classification confidence [0.0, 1.0]
+    BoundingBox boundingBox {}; ///< Spatial position on frame
+    float speed { 0.0f }; ///< Estimated speed in m/s
+    GeoLocation geoLocation {}; ///< Geographic location if calibrated
+};
+
+/// @struct AnalyticsFrame
+/// @brief Video analytics time-slice frame containing detected objects (Profile M).
+struct AnalyticsFrame {
+    std::string utcTime {}; ///< Frame timestamp in ISO 8601 UTC
+    int frameWidth { 1920 }; ///< Frame pixel width
+    int frameHeight { 1080 }; ///< Frame pixel height
+    std::vector<AnalyticsObject> objects {}; ///< Detected objects
+};
+
+/// @struct MetadataConfiguration
+/// @brief Configuration defining which telemetry and analytics streams are enabled.
+struct MetadataConfiguration {
+    std::string token { "MetadataConfig_1" }; ///< Configuration token
+    std::string name { "MetadataConfiguration" }; ///< Configuration name
+    int useCount { 1 }; ///< Number of profiles referencing this configuration
+    std::string sessionTimeout { "PT60S" }; ///< Streaming session keep-alive timeout
+    bool ptzStatusEnabled { true }; ///< Stream PTZ status telemetry (Profile T)
+    bool analyticsEnabled { true }; ///< Stream object analytics & bounding boxes (Profile M)
+    bool eventsEnabled { true }; ///< Stream notification events in metadata channel
+    bool geoOrientationEnabled { false }; ///< Stream compass heading / geo-orientation
+};
+
+/// @struct MetadataConfigurationOptions
+/// @brief Capability options for metadata configuration.
+struct MetadataConfigurationOptions {
+    bool ptzStatusSupported { true }; ///< True if PTZ status streaming is supported
+    bool analyticsSupported { true }; ///< True if video analytics metadata is supported
+    bool eventsSupported { true }; ///< True if event notification streaming is supported
+};
+
+/// @struct MetadataStreamPayload
+/// @brief Full snapshot of active metadata (PTZ status, analytics frame, and events).
+struct MetadataStreamPayload {
+    std::optional<PtzStatus> ptzStatus {}; ///< Current PTZ kinematics
+    std::optional<AnalyticsFrame> analyticsFrame {}; ///< Detected objects
+    std::vector<OnvifEvent> events {}; ///< Recent event notifications
+};
+
+/// @enum SystemLogType
+/// @brief Type of system log retrieved from camera (ONVIF Device Service).
+enum class SystemLogType : std::uint8_t { System, Access };
+
+/// @brief Converts SystemLogType enum to ONVIF string representation.
+[[nodiscard]] inline std::string systemLogTypeToString(SystemLogType type)
+{
+    return (type == SystemLogType::Access) ? "Access" : "System";
+}
+
+/// @brief Parses SystemLogType enum from string representation.
+[[nodiscard]] inline SystemLogType systemLogTypeFromString(const std::string& str)
+{
+    return (str == "Access" || str == "access") ? SystemLogType::Access : SystemLogType::System;
+}
+
+/// @struct SystemSupportInfo
+/// @brief Diagnostics and performance telemetry for device support.
+struct SystemSupportInfo {
+    uint64_t uptimeSeconds { 0 }; ///< Device uptime in seconds
+    float cpuLoadPercent { 0.0f }; ///< Current CPU load [0.0, 100.0]
+    uint32_t memoryUsedMb { 0 }; ///< Used RAM in megabytes
+    uint32_t memoryTotalMb { 0 }; ///< Total RAM in megabytes
+    uint32_t activeConnections { 0 }; ///< Number of open client connections
+    std::string storageState { "OK" }; ///< Storage / filesystem health
+    std::string rawDiagnostics {}; ///< Text diagnostic dump
+};
+
+/// @struct SystemBackupData
+/// @brief Configuration archive for backup and restore operations.
+struct SystemBackupData {
+    std::string backupTimestamp {}; ///< ISO timestamp when backup was created
+    std::string configPayloadJson {}; ///< Serialized settings JSON/XML payload
+    std::string checksum {}; ///< Checksum verification string
+};
 
 } // namespace PelcoD::Onvif

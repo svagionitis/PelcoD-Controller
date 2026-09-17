@@ -462,6 +462,62 @@ public:
     bool unsubscribe(const std::string& subscriptionUrl);
 
     // =========================================================================
+    // Metadata Service (Profile T & M)
+    // =========================================================================
+
+    /// @brief Queries list of all Metadata Configurations available on device.
+    /// @return Vector of MetadataConfiguration structures.
+    [[nodiscard]] std::vector<MetadataConfiguration> getMetadataConfigurations();
+
+    /// @brief Queries a specific Metadata Configuration by token.
+    /// @param[in] configToken Configuration token.
+    /// @return MetadataConfiguration structure or nullopt on failure.
+    [[nodiscard]] std::optional<MetadataConfiguration> getMetadataConfiguration(const std::string& configToken);
+
+    /// @brief Updates parameters of an existing Metadata Configuration.
+    /// @param[in] config Updated MetadataConfiguration structure.
+    /// @return True on success.
+    bool setMetadataConfiguration(const MetadataConfiguration& config);
+
+    /// @brief Queries metadata streaming capability options.
+    /// @param[in] configToken Configuration token.
+    /// @param[in] profileToken Profile token (optional).
+    /// @return MetadataConfigurationOptions or nullopt on failure.
+    [[nodiscard]] std::optional<MetadataConfigurationOptions> getMetadataConfigurationOptions(
+        const std::string& configToken, const std::string& profileToken = "");
+
+    /// @brief Fetches live snapshot of current ONVIF metadata stream (telemetry, detected objects, events).
+    /// @param[in] streamUri Direct HTTP metadata stream URI (e.g. /onvif/metadata_stream).
+    /// @return MetadataStreamPayload or nullopt on failure.
+    [[nodiscard]] std::optional<MetadataStreamPayload> getMetadataStream(const std::string& streamUri = "");
+
+    // =========================================================================
+    // System Maintenance & Device Service Extensions
+    // =========================================================================
+
+    /// @brief Queries system or access logs from camera.
+    /// @param[in] logType Type of log (System or Access).
+    /// @return String containing log entries or nullopt on failure.
+    [[nodiscard]] std::optional<std::string> getSystemLog(SystemLogType logType);
+
+    /// @brief Retrieves detailed system diagnostics and support information.
+    /// @return SystemSupportInfo or nullopt on failure.
+    [[nodiscard]] std::optional<SystemSupportInfo> getSystemSupportInformation();
+
+    /// @brief Downloads a system backup archive from device.
+    /// @return Serialized backup payload string or nullopt on failure.
+    [[nodiscard]] std::optional<std::string> getSystemBackup();
+
+    /// @brief Restores system settings on device using a backup archive payload.
+    /// @param[in] backupData Backup archive payload.
+    /// @return True on success.
+    bool restoreSystem(const std::string& backupData);
+
+    /// @brief Queries unique endpoint reference identifier GUID/UUID from device.
+    /// @return Endpoint reference string or nullopt on failure.
+    [[nodiscard]] std::optional<std::string> getEndpointReference();
+
+    // =========================================================================
     // XML Envelope & Parsing Helpers (Public for testing)
     // =========================================================================
 
@@ -619,6 +675,48 @@ public:
     /// @param[in] xml Raw response XML.
     /// @return Vector of DigitalInputConfig.
     [[nodiscard]] static std::vector<DigitalInputConfig> parseDigitalInputsResponse(const std::string& xml);
+
+    /// @brief Parses GetMetadataConfigurations XML response.
+    /// @param[in] xml Raw response XML.
+    /// @return Vector of MetadataConfiguration structures.
+    [[nodiscard]] static std::vector<MetadataConfiguration> parseMetadataConfigurationsResponse(const std::string& xml);
+
+    /// @brief Parses GetMetadataConfiguration XML response.
+    /// @param[in] xml Raw response XML.
+    /// @return MetadataConfiguration or nullopt on failure.
+    [[nodiscard]] static std::optional<MetadataConfiguration> parseMetadataConfigurationResponse(
+        const std::string& xml);
+
+    /// @brief Parses GetMetadataConfigurationOptions XML response.
+    /// @param[in] xml Raw response XML.
+    /// @return MetadataConfigurationOptions or nullopt on failure.
+    [[nodiscard]] static std::optional<MetadataConfigurationOptions> parseMetadataConfigurationOptionsResponse(
+        const std::string& xml);
+
+    /// @brief Parses Profile M / Profile T MetadataStream XML document.
+    /// @param[in] xml Raw response XML.
+    /// @return MetadataStreamPayload with extracted PTZ status, detected objects, and events.
+    [[nodiscard]] static std::optional<MetadataStreamPayload> parseMetadataStreamResponse(const std::string& xml);
+
+    /// @brief Parses GetSystemLog XML response.
+    /// @param[in] xml Raw response XML.
+    /// @return Extracted log text or nullopt on failure.
+    [[nodiscard]] static std::optional<std::string> parseSystemLogResponse(const std::string& xml);
+
+    /// @brief Parses GetSystemSupportInformation XML response.
+    /// @param[in] xml Raw response XML.
+    /// @return Extracted SystemSupportInfo or nullopt on failure.
+    [[nodiscard]] static std::optional<SystemSupportInfo> parseSystemSupportInformationResponse(const std::string& xml);
+
+    /// @brief Parses GetSystemBackup XML response.
+    /// @param[in] xml Raw response XML.
+    /// @return Backup archive payload string or nullopt on failure.
+    [[nodiscard]] static std::optional<std::string> parseSystemBackupResponse(const std::string& xml);
+
+    /// @brief Parses GetEndpointReference XML response.
+    /// @param[in] xml Raw response XML.
+    /// @return Endpoint GUID string or nullopt on failure.
+    [[nodiscard]] static std::optional<std::string> parseEndpointReferenceResponse(const std::string& xml);
 
 private:
     std::string m_deviceEndpoint {};

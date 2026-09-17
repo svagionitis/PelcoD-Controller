@@ -109,4 +109,43 @@ HttpResponse OnvifHttpClient::sendPost(
     return response;
 }
 
+HttpResponse OnvifHttpClient::sendGet(const std::string& url)
+{
+    HttpResponse response {};
+
+    std::unique_ptr<CURL, CurlEasyDeleter> curl(curl_easy_init());
+    if (!curl) {
+        response.errorMessage = "Failed to initialize curl handle";
+        return response;
+    }
+
+    curl_easy_setopt(curl.get(), CURLOPT_URL, url.c_str());
+    curl_easy_setopt(curl.get(), CURLOPT_HTTPGET, 1L);
+
+    curl_easy_setopt(curl.get(), CURLOPT_WRITEFUNCTION, writeCallback);
+    curl_easy_setopt(curl.get(), CURLOPT_WRITEDATA, &response.body);
+
+    const long timeoutMs = static_cast<long>(m_timeout.count());
+    curl_easy_setopt(curl.get(), CURLOPT_TIMEOUT_MS, timeoutMs);
+    curl_easy_setopt(curl.get(), CURLOPT_CONNECTTIMEOUT_MS, timeoutMs > 3000 ? 3000L : timeoutMs);
+
+    curl_easy_setopt(curl.get(), CURLOPT_SSL_VERIFYPEER, 0L);
+    curl_easy_setopt(curl.get(), CURLOPT_SSL_VERIFYHOST, 0L);
+
+    char errorBuffer[CURL_ERROR_SIZE] { 0 };
+    curl_easy_setopt(curl.get(), CURLOPT_ERRORBUFFER, errorBuffer);
+
+    const CURLcode res = curl_easy_perform(curl.get());
+    if (res != CURLE_OK) {
+        response.errorMessage = errorBuffer[0] != '\0' ? errorBuffer : curl_easy_strerror(res);
+        return response;
+    }
+
+    long httpCode { 0 };
+    curl_easy_getinfo(curl.get(), CURLINFO_RESPONSE_CODE, &httpCode);
+    response.statusCode = httpCode;
+
+    return response;
+}
+
 } // namespace PelcoD::Onvif

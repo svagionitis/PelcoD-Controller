@@ -82,13 +82,15 @@ namespace {
 
 OnvifServer::OnvifServer(OnvifServerConfig config, std::shared_ptr<IPtzHandler> ptzHandler,
     std::shared_ptr<IImagingHandler> imagingHandler, std::shared_ptr<IOsdHandler> osdHandler,
-    std::shared_ptr<IDeviceManagementHandler> deviceHandler, std::shared_ptr<IDeviceIoHandler> deviceIoHandler)
+    std::shared_ptr<IDeviceManagementHandler> deviceHandler, std::shared_ptr<IDeviceIoHandler> deviceIoHandler,
+    std::shared_ptr<IMetadataHandler> metadataHandler)
     : m_config(std::move(config))
     , m_ptzHandler(std::move(ptzHandler))
     , m_imagingHandler(std::move(imagingHandler))
     , m_osdHandler(std::move(osdHandler))
     , m_deviceHandler(std::move(deviceHandler))
     , m_deviceIoHandler(std::move(deviceIoHandler))
+    , m_metadataHandler(std::move(metadataHandler))
 {
     m_internalUsers = m_config.defaultUsers;
     m_internalNetworkInterfaces = m_config.defaultNetworkInterfaces;
@@ -102,6 +104,19 @@ OnvifServer::OnvifServer(OnvifServerConfig config, std::shared_ptr<IPtzHandler> 
         = { { "Preset_Clear", "Clear", "Clear Daylight" }, { "Preset_BW", "B/W", "Night Vision B/W" } };
     m_currentImagingPresetToken = "Preset_Clear";
 
+    if (!m_config.defaultMetadataConfigs.empty()) {
+        m_internalMetadataConfigs = m_config.defaultMetadataConfigs;
+    } else {
+        MetadataConfiguration defMeta;
+        defMeta.token = "MetadataConfig_1";
+        defMeta.name = "DefaultMetadataConfig";
+        defMeta.ptzStatusEnabled = true;
+        defMeta.analyticsEnabled = true;
+        defMeta.eventsEnabled = true;
+        defMeta.geoOrientationEnabled = true;
+        m_internalMetadataConfigs.push_back(defMeta);
+    }
+
     OsdConfig defaultOsd;
     defaultOsd.token = "OSD_1";
     defaultOsd.videoSourceToken = "VideoSource_1";
@@ -110,6 +125,8 @@ OnvifServer::OnvifServer(OnvifServerConfig config, std::shared_ptr<IPtzHandler> 
     defaultOsd.plainText = "PelcoD Camera";
     defaultOsd.fontSize = 24U;
     m_internalOsds[defaultOsd.token] = defaultOsd;
+
+    logSystemMessage("INFO", "ONVIF Server initialized successfully");
 
     m_discoveryServer = std::make_unique<WsDiscoveryServer>(m_config);
     setupRoutes();
@@ -202,6 +219,23 @@ void OnvifServer::setDeviceManagementHandler(std::shared_ptr<IDeviceManagementHa
 void OnvifServer::setDeviceIoHandler(std::shared_ptr<IDeviceIoHandler> handler)
 {
     m_deviceIoHandler = std::move(handler);
+}
+
+void OnvifServer::setMetadataHandler(std::shared_ptr<IMetadataHandler> handler)
+{
+    m_metadataHandler = std::move(handler);
+}
+
+void OnvifServer::logSystemMessage(const std::string& level, const std::string& msg)
+{
+    std::lock_guard<std::mutex> lock(m_logMutex);
+    const std::string timestamp = formatIso8601Utc(std::chrono::system_clock::now());
+    std::ostringstream ss;
+    ss << "[" << timestamp << "] [" << level << "] " << msg;
+    m_systemLogs.push_back(ss.str());
+    if (m_systemLogs.size() > 500) {
+        m_systemLogs.pop_front();
+    }
 }
 
 void OnvifServer::publishEvent(const OnvifEvent& event)
@@ -305,6 +339,9 @@ void OnvifServer::setupRoutes()
     m_httpServer.Post("/onvif/deviceio_service",
         [this](const httplib::Request& req, httplib::Response& res) { handleDeviceIoService(req, res); });
 
+    m_httpServer.Get("/onvif/metadata_stream",
+        [this](const httplib::Request& req, httplib::Response& res) { handleMetadataStream(req, res); });
+
     m_httpServer.Get("/onvif/snapshot", [](const httplib::Request&, httplib::Response& res) {
         res.status = 501;
         res.set_content("Snapshot service not implemented", "text/plain");
@@ -327,6 +364,16 @@ void OnvifServer::handleDeviceService(const httplib::Request& req, httplib::Resp
     const std::string opName = reqNode ? reqNode.name() : "";
     if (m_logCallback) {
         m_logCallback("Device", opName, req.remote_addr);
+    }
+    {
+        std::lock_guard<std::mutex> lock(m_logMutex);
+        const std::string timestamp = formatIso8601Utc(std::chrono::system_clock::now());
+        std::ostringstream entry;
+        entry << "[" << timestamp << "] [" << req.remote_addr << "] DeviceService: " << opName;
+        m_accessLogs.push_back(entry.str());
+        if (m_accessLogs.size() > 500) {
+            m_accessLogs.pop_front();
+        }
     }
 
     std::ostringstream body;
@@ -879,6 +926,103 @@ void OnvifServer::handleDeviceService(const httplib::Request& req, httplib::Resp
         body << "    <tds:SystemRebootResponse>\r\n"
              << "      <tds:Message>" << msg << "</tds:Message>\r\n"
              << "    </tds:SystemRebootResponse>\r\n";
+    } else if (isOp(opName, "GetSystemLog")) {
+        const pugi::xml_node logTypeNode = reqNode.select_node(".//*[local-name()='LogType']").node();
+        const std::string logTypeStr = logTypeNode ? logTypeNode.text().as_string() : "System";
+        const SystemLogType logType = (logTypeStr == "Access") ? SystemLogType::Access : SystemLogType::System;
+        std::string logData;
+        if (m_deviceHandler) {
+            logData = m_deviceHandler->handleGetSystemLog(logType);
+        }
+        {
+            std::lock_guard<std::mutex> lock(m_logMutex);
+            const auto& logs = (logType == SystemLogType::Access) ? m_accessLogs : m_systemLogs;
+            std::ostringstream ss;
+            if (!logData.empty()) {
+                ss << logData << "\n";
+            }
+            for (const auto& entry : logs) {
+                ss << entry << "\n";
+            }
+            logData = ss.str();
+        }
+        body << "    <tds:GetSystemLogResponse>\r\n"
+             << "      <tds:SystemLog>\r\n"
+             << "        <tt:String>" << logData << "</tt:String>\r\n"
+             << "      </tds:SystemLog>\r\n"
+             << "    </tds:GetSystemLogResponse>\r\n";
+    } else if (isOp(opName, "GetSystemSupportInformation")) {
+        SystemSupportInfo info;
+        if (m_deviceHandler) {
+            info = m_deviceHandler->handleGetSystemSupportInformation();
+        }
+        if (info.rawDiagnostics.empty()) {
+            const auto uptime
+                = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() - m_startTime)
+                      .count();
+            info.uptimeSeconds = static_cast<uint64_t>(uptime);
+            info.storageState = "OK";
+            std::ostringstream ss;
+            ss << "ONVIF System Diagnostics & Support Information\n"
+               << "---------------------------------------------\n"
+               << "Model: " << m_config.model << "\n"
+               << "Manufacturer: " << m_config.manufacturer << "\n"
+               << "Firmware: " << m_config.firmwareVersion << "\n"
+               << "HardwareId: " << m_config.hardwareId << "\n"
+               << "SerialNumber: " << m_config.serialNumber << "\n"
+               << "Hostname: " << m_internalHostname << "\n"
+               << "Uptime: " << uptime << " seconds\n";
+            info.rawDiagnostics = ss.str();
+        }
+        body << "    <tds:GetSystemSupportInformationResponse>\r\n"
+             << "      <tds:SupportInformation>\r\n"
+             << "        <tt:String>" << info.rawDiagnostics << "</tt:String>\r\n"
+             << "      </tds:SupportInformation>\r\n"
+             << "    </tds:GetSystemSupportInformationResponse>\r\n";
+    } else if (isOp(opName, "GetSystemBackup")) {
+        std::string backupData;
+        if (m_deviceHandler) {
+            backupData = m_deviceHandler->handleGetSystemBackup();
+        }
+        if (backupData.empty()) {
+            std::ostringstream ss;
+            ss << "{\n"
+               << "  \"hostname\": \"" << m_internalHostname << "\",\n"
+               << "  \"gateway\": \"" << m_internalGateway << "\",\n"
+               << "  \"dns\": \"" << (m_internalDns.dnsServers.empty() ? "" : m_internalDns.dnsServers[0]) << "\",\n"
+               << "  \"ntp\": \"" << (m_internalNtp.manualServers.empty() ? "" : m_internalNtp.manualServers[0])
+               << "\"\n"
+               << "}";
+            backupData = ss.str();
+        }
+        body << "    <tds:GetSystemBackupResponse>\r\n"
+             << "      <tds:BackupFiles>\r\n"
+             << "        <tt:Data>" << backupData << "</tt:Data>\r\n"
+             << "      </tds:BackupFiles>\r\n"
+             << "    </tds:GetSystemBackupResponse>\r\n";
+    } else if (isOp(opName, "RestoreSystem")) {
+        const pugi::xml_node dataNode
+            = reqNode.select_node(".//*[local-name()='BackupFiles']/*[local-name()='Data']").node();
+        const std::string backupData = dataNode ? dataNode.text().as_string() : "";
+        bool ok = true;
+        if (m_deviceHandler) {
+            ok = m_deviceHandler->handleRestoreSystem(backupData);
+        }
+        logSystemMessage("INFO", std::string("RestoreSystem executed, status: ") + (ok ? "SUCCESS" : "FAILURE"));
+        body << "    <tds:RestoreSystemResponse>\r\n"
+             << "      <tds:Message>" << (ok ? "Restored" : "Failed") << "</tds:Message>\r\n"
+             << "    </tds:RestoreSystemResponse>\r\n";
+    } else if (isOp(opName, "GetEndpointReference")) {
+        std::string ep;
+        if (m_deviceHandler) {
+            ep = m_deviceHandler->handleGetEndpointReference();
+        }
+        if (ep.empty()) {
+            ep = "urn:uuid:" + m_config.serialNumber;
+        }
+        body << "    <tds:GetEndpointReferenceResponse>\r\n"
+             << "      <tds:GUID>" << ep << "</tds:GUID>\r\n"
+             << "    </tds:GetEndpointReferenceResponse>\r\n";
     } else {
         body << "    <tds:" << opName << "Response/>\r\n";
     }
@@ -910,6 +1054,10 @@ void OnvifServer::handleMediaService(const httplib::Request& req, httplib::Respo
     if (isOp(opName, "GetOSDOptions") || isOp(opName, "GetOSDs") || isOp(opName, "GetOSD") || isOp(opName, "CreateOSD")
         || isOp(opName, "SetOSD") || isOp(opName, "DeleteOSD")) {
         processOsdRequest(opName, doc, body, "trt");
+    } else if (isOp(opName, "GetMetadataConfigurations") || isOp(opName, "GetMetadataConfiguration")
+        || isOp(opName, "SetMetadataConfiguration") || isOp(opName, "GetMetadataConfigurationOptions")
+        || isOp(opName, "GetCompatibleMetadataConfigurations")) {
+        processMetadataRequest(opName, doc, body, "trt");
     } else if (opName.find("GetProfiles") != std::string::npos) {
         body << "    <trt:GetProfilesResponse>\r\n"
              << "      <trt:Profiles token=\"ProfileToken_1\" fixed=\"true\">\r\n"
@@ -931,6 +1079,10 @@ void OnvifServer::handleMediaService(const httplib::Request& req, httplib::Respo
                 "<tt:DefaultContinuousZoomVelocitySpace>http://www.onvif.org/ver10/tptz/ZoomSpaces/"
                 "VelocityGenericSpace</tt:DefaultContinuousZoomVelocitySpace>\r\n"
              << "        </tt:PTZConfiguration>\r\n"
+             << "        <tt:MetadataConfiguration token=\"MetadataConfig_1\">\r\n"
+             << "          <tt:Name>DefaultMetadataConfig</tt:Name>\r\n"
+             << "          <tt:UseCount>1</tt:UseCount>\r\n"
+             << "        </tt:MetadataConfiguration>\r\n"
              << "      </trt:Profiles>\r\n"
              << "    </trt:GetProfilesResponse>\r\n";
     } else if (opName.find("GetVideoSources") != std::string::npos) {
@@ -1185,6 +1337,259 @@ void OnvifServer::processOsdRequest(
     }
 }
 
+void OnvifServer::processMetadataRequest(
+    const std::string& opName, const pugi::xml_document& doc, std::ostringstream& body, const std::string& prefix)
+{
+    auto serializeMetaConfig = [&](const MetadataConfiguration& cfg) {
+        std::ostringstream s;
+        s << "      <" << prefix << ":Configurations token=\"" << cfg.token << "\">\r\n"
+          << "        <tt:Name>" << cfg.name << "</tt:Name>\r\n"
+          << "        <tt:UseCount>1</tt:UseCount>\r\n";
+        if (cfg.ptzStatusEnabled) {
+            s << "        <tt:PTZStatus>\r\n"
+              << "          <tt:Status>true</tt:Status>\r\n"
+              << "          <tt:Position>true</tt:Position>\r\n"
+              << "        </tt:PTZStatus>\r\n";
+        }
+        s << "        <tt:Analytics>" << (cfg.analyticsEnabled ? "true" : "false") << "</tt:Analytics>\r\n"
+          << "        <tt:Events>" << (cfg.eventsEnabled ? "true" : "false") << "</tt:Events>\r\n"
+          << "        <tt:GeoLocation>" << (cfg.geoOrientationEnabled ? "true" : "false") << "</tt:GeoLocation>\r\n"
+          << "      </" << prefix << ":Configurations>\r\n";
+        return s.str();
+    };
+
+    if (isOp(opName, "GetMetadataConfigurations") || isOp(opName, "GetCompatibleMetadataConfigurations")) {
+        std::vector<MetadataConfiguration> configs;
+        if (m_metadataHandler) {
+            configs = m_metadataHandler->handleGetMetadataConfigurations();
+        } else {
+            std::lock_guard<std::mutex> lock(m_metadataMutex);
+            configs = m_internalMetadataConfigs;
+        }
+
+        body << "    <" << prefix << ":GetMetadataConfigurationsResponse>\r\n";
+        for (const auto& c : configs) {
+            body << serializeMetaConfig(c);
+        }
+        body << "    </" << prefix << ":GetMetadataConfigurationsResponse>\r\n";
+    } else if (isOp(opName, "GetMetadataConfiguration")) {
+        const pugi::xml_node tokenNode = doc.select_node("//*[local-name()='ConfigurationToken']").node();
+        const std::string token = tokenNode ? tokenNode.text().as_string() : "";
+
+        MetadataConfiguration found;
+        bool hasFound = false;
+        if (m_metadataHandler) {
+            const auto list = m_metadataHandler->handleGetMetadataConfigurations();
+            const auto it = std::find_if(list.begin(), list.end(), [&](const auto& c) { return c.token == token; });
+            if (it != list.end()) {
+                found = *it;
+                hasFound = true;
+            }
+        }
+        if (!hasFound) {
+            std::lock_guard<std::mutex> lock(m_metadataMutex);
+            const auto it = std::find_if(m_internalMetadataConfigs.begin(), m_internalMetadataConfigs.end(),
+                [&](const auto& c) { return c.token == token; });
+            if (it != m_internalMetadataConfigs.end()) {
+                found = *it;
+                hasFound = true;
+            }
+        }
+
+        body << "    <" << prefix << ":GetMetadataConfigurationResponse>\r\n"
+             << "      <" << prefix << ":Configuration token=\"" << found.token << "\">\r\n"
+             << "        <tt:Name>" << found.name << "</tt:Name>\r\n"
+             << "        <tt:UseCount>1</tt:UseCount>\r\n";
+        if (found.ptzStatusEnabled) {
+            body << "        <tt:PTZStatus>\r\n"
+                 << "          <tt:Status>true</tt:Status>\r\n"
+                 << "          <tt:Position>true</tt:Position>\r\n"
+                 << "        </tt:PTZStatus>\r\n";
+        }
+        body << "        <tt:Analytics>" << (found.analyticsEnabled ? "true" : "false") << "</tt:Analytics>\r\n"
+             << "        <tt:Events>" << (found.eventsEnabled ? "true" : "false") << "</tt:Events>\r\n"
+             << "        <tt:GeoLocation>" << (found.geoOrientationEnabled ? "true" : "false")
+             << "</tt:GeoLocation>\r\n"
+             << "      </" << prefix << ":Configuration>\r\n"
+             << "    </" << prefix << ":GetMetadataConfigurationResponse>\r\n";
+    } else if (isOp(opName, "SetMetadataConfiguration")) {
+        const pugi::xml_node cfgNode = doc.select_node("//*[local-name()='Configuration']").node();
+        MetadataConfiguration cfg;
+        if (cfgNode) {
+            cfg.token = cfgNode.attribute("token").as_string();
+            const pugi::xml_node nameNode = cfgNode.select_node(".//*[local-name()='Name']").node();
+            if (nameNode) {
+                cfg.name = nameNode.text().as_string();
+            }
+            const pugi::xml_node ptzNode = cfgNode.select_node(".//*[local-name()='PTZStatus']").node();
+            cfg.ptzStatusEnabled = (ptzNode != nullptr);
+            const pugi::xml_node anaNode = cfgNode.select_node(".//*[local-name()='Analytics']").node();
+            if (anaNode) {
+                cfg.analyticsEnabled = anaNode.text().as_bool(true);
+            }
+            const pugi::xml_node evNode = cfgNode.select_node(".//*[local-name()='Events']").node();
+            if (evNode) {
+                cfg.eventsEnabled = evNode.text().as_bool(true);
+            }
+            const pugi::xml_node geoNode = cfgNode.select_node(".//*[local-name()='GeoLocation']").node();
+            if (geoNode) {
+                cfg.geoOrientationEnabled = geoNode.text().as_bool(true);
+            }
+        }
+
+        bool ok = false;
+        if (m_metadataHandler) {
+            ok = m_metadataHandler->handleSetMetadataConfiguration(cfg);
+        }
+        if (!ok) {
+            std::lock_guard<std::mutex> lock(m_metadataMutex);
+            const auto it = std::find_if(m_internalMetadataConfigs.begin(), m_internalMetadataConfigs.end(),
+                [&](const auto& c) { return c.token == cfg.token; });
+            if (it != m_internalMetadataConfigs.end()) {
+                *it = cfg;
+            } else {
+                m_internalMetadataConfigs.push_back(cfg);
+            }
+        }
+        body << "    <" << prefix << ":SetMetadataConfigurationResponse/>\r\n";
+    } else if (isOp(opName, "GetMetadataConfigurationOptions")) {
+        const pugi::xml_node tokenNode = doc.select_node("//*[local-name()='ConfigurationToken']").node();
+        const std::string token = tokenNode ? tokenNode.text().as_string() : "";
+
+        MetadataConfigurationOptions opts;
+        if (m_metadataHandler) {
+            opts = m_metadataHandler->handleGetMetadataConfigurationOptions(token, "");
+        } else {
+            opts.ptzStatusSupported = true;
+            opts.analyticsSupported = true;
+            opts.eventsSupported = true;
+        }
+
+        body << "    <" << prefix << ":GetMetadataConfigurationOptionsResponse>\r\n"
+             << "      <" << prefix << ":Options>\r\n"
+             << "        <tt:PTZStatusFilterOptions>\r\n"
+             << "          <tt:PanTiltStatusSupported>" << (opts.ptzStatusSupported ? "true" : "false")
+             << "</tt:PanTiltStatusSupported>\r\n"
+             << "          <tt:ZoomStatusSupported>" << (opts.ptzStatusSupported ? "true" : "false")
+             << "</tt:ZoomStatusSupported>\r\n"
+             << "          <tt:PanTiltPositionSupported>" << (opts.ptzStatusSupported ? "true" : "false")
+             << "</tt:PanTiltPositionSupported>\r\n"
+             << "          <tt:ZoomPositionSupported>" << (opts.ptzStatusSupported ? "true" : "false")
+             << "</tt:ZoomPositionSupported>\r\n"
+             << "        </tt:PTZStatusFilterOptions>\r\n"
+             << "      </" << prefix << ":Options>\r\n"
+             << "    </" << prefix << ":GetMetadataConfigurationOptionsResponse>\r\n";
+    }
+}
+
+std::string OnvifServer::generateMetadataStreamXml(const MetadataStreamPayload& payload) const
+{
+    std::ostringstream ss;
+    ss << "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+       << "<tt:MetadataStream xmlns:tt=\"http://www.onvif.org/ver10/schema\" "
+       << "xmlns:wsnt=\"http://docs.oasis-open.org/wsn/b-2\">\r\n";
+
+    if (payload.ptzStatus.has_value()) {
+        const auto& ptz = payload.ptzStatus.value();
+        ss << "  <tt:PTZStatus>\r\n"
+           << "    <tt:Position>\r\n"
+           << "      <tt:PanTilt x=\"" << std::fixed << std::setprecision(4) << ptz.pan << "\" "
+           << "y=\"" << std::fixed << std::setprecision(4) << ptz.tilt << "\" "
+           << "space=\"http://www.onvif.org/ver10/tptz/PanTiltSpaces/PositionGenericSpace\"/>\r\n"
+           << "      <tt:Zoom x=\"" << std::fixed << std::setprecision(4) << ptz.zoom << "\" "
+           << "space=\"http://www.onvif.org/ver10/tptz/ZoomSpaces/PositionGenericSpace\"/>\r\n"
+           << "    </tt:Position>\r\n"
+           << "    <tt:MoveStatus>\r\n"
+           << "      <tt:PanTilt>" << (ptz.isMoving ? "MOVING" : "IDLE") << "</tt:PanTilt>\r\n"
+           << "      <tt:Zoom>" << (ptz.isMoving ? "MOVING" : "IDLE") << "</tt:Zoom>\r\n"
+           << "    </tt:MoveStatus>\r\n";
+        if (!ptz.utcTime.empty()) {
+            ss << "    <tt:UtcTime>" << ptz.utcTime << "</tt:UtcTime>\r\n";
+        }
+        ss << "  </tt:PTZStatus>\r\n";
+    }
+
+    if (payload.analyticsFrame.has_value() && !payload.analyticsFrame->objects.empty()) {
+        const auto& frame = payload.analyticsFrame.value();
+        const std::string frameTime
+            = frame.utcTime.empty() ? formatIso8601Utc(std::chrono::system_clock::now()) : frame.utcTime;
+        ss << "  <tt:VideoAnalytics>\r\n"
+           << "    <tt:Frame UtcTime=\"" << frameTime << "\">\r\n"
+           << "      <tt:Transformation>\r\n"
+           << "        <tt:Translate x=\"0.00\" y=\"0.00\"/>\r\n"
+           << "        <tt:Scale x=\"1.00\" y=\"1.00\"/>\r\n"
+           << "      </tt:Transformation>\r\n";
+
+        for (const auto& obj : frame.objects) {
+            ss << "      <tt:Object ObjectId=\"" << obj.objectId << "\">\r\n"
+               << "        <tt:Appearance>\r\n"
+               << "          <tt:Shape>\r\n"
+               << "            <tt:BoundingBox left=\"" << std::fixed << std::setprecision(4) << obj.boundingBox.left
+               << "\" top=\"" << std::fixed << std::setprecision(4) << obj.boundingBox.top << "\" right=\""
+               << std::fixed << std::setprecision(4) << obj.boundingBox.right << "\" bottom=\"" << std::fixed
+               << std::setprecision(4) << obj.boundingBox.bottom << "\"/>\r\n"
+               << "          </tt:Shape>\r\n"
+               << "          <tt:Class>\r\n"
+               << "            <tt:ClassCandidate>\r\n"
+               << "              <tt:Type>" << obj.className << "</tt:Type>\r\n"
+               << "              <tt:Likelihood>" << std::fixed << std::setprecision(2) << obj.confidence
+               << "</tt:Likelihood>\r\n"
+               << "            </tt:ClassCandidate>\r\n"
+               << "          </tt:Class>\r\n";
+            if (obj.geoLocation.latitude != 0.0 || obj.geoLocation.longitude != 0.0) {
+                ss << "          <tt:GeoLocation lat=\"" << std::fixed << std::setprecision(6)
+                   << obj.geoLocation.latitude << "\" lon=\"" << std::fixed << std::setprecision(6)
+                   << obj.geoLocation.longitude << "\" elevation=\"" << std::fixed << std::setprecision(2)
+                   << obj.geoLocation.elevation << "\"/>\r\n";
+            }
+            ss << "        </tt:Appearance>\r\n"
+               << "      </tt:Object>\r\n";
+        }
+        ss << "    </tt:Frame>\r\n"
+           << "  </tt:VideoAnalytics>\r\n";
+    }
+
+    for (const auto& ev : payload.events) {
+        ss << "  <wsnt:NotificationMessage>\r\n"
+           << "    <wsnt:Topic Dialect=\"http://www.onvif.org/ver10/tev/topicExpression/ConcreteSet\">" << ev.topic
+           << "</wsnt:Topic>\r\n"
+           << "    <wsnt:Message>\r\n"
+           << "      <tt:Message UtcTime=\"" << ev.utcTime << "\" PropertyOperation=\"Initialized\">\r\n";
+        if (!ev.sourceName.empty()) {
+            ss << "        <tt:Source>\r\n"
+               << "          <tt:SimpleItem Name=\"" << ev.sourceName << "\" Value=\"" << ev.sourceValue << "\"/>\r\n"
+               << "        </tt:Source>\r\n";
+        }
+        if (!ev.dataName.empty()) {
+            ss << "        <tt:Data>\r\n"
+               << "          <tt:SimpleItem Name=\"" << ev.dataName << "\" Value=\"" << ev.dataValue << "\"/>\r\n"
+               << "        </tt:Data>\r\n";
+        }
+        ss << "      </tt:Message>\r\n"
+           << "    </wsnt:Message>\r\n"
+           << "  </wsnt:NotificationMessage>\r\n";
+    }
+
+    ss << "</tt:MetadataStream>\r\n";
+    return ss.str();
+}
+
+void OnvifServer::handleMetadataStream(const httplib::Request& req, httplib::Response& res)
+{
+    if (m_logCallback) {
+        m_logCallback("MetadataStream", "GetStream", req.remote_addr);
+    }
+    MetadataStreamPayload payload;
+    if (m_metadataHandler) {
+        payload = m_metadataHandler->handleGetCurrentMetadata("");
+    } else if (m_ptzHandler) {
+        payload.ptzStatus = m_ptzHandler->handleGetStatus();
+    }
+    const std::string xml = generateMetadataStreamXml(payload);
+    res.status = 200;
+    res.set_content(xml, "application/xml; charset=utf-8");
+}
+
 void OnvifServer::handleMedia2Service(const httplib::Request& req, httplib::Response& res)
 {
     pugi::xml_document doc;
@@ -1208,6 +1613,10 @@ void OnvifServer::handleMedia2Service(const httplib::Request& req, httplib::Resp
     if (isOp(opName, "GetOSDOptions") || isOp(opName, "GetOSDs") || isOp(opName, "GetOSD") || isOp(opName, "CreateOSD")
         || isOp(opName, "SetOSD") || isOp(opName, "DeleteOSD")) {
         processOsdRequest(opName, doc, body, "tr2");
+    } else if (isOp(opName, "GetMetadataConfigurations") || isOp(opName, "GetMetadataConfiguration")
+        || isOp(opName, "SetMetadataConfiguration") || isOp(opName, "GetMetadataConfigurationOptions")
+        || isOp(opName, "GetCompatibleMetadataConfigurations")) {
+        processMetadataRequest(opName, doc, body, "tr2");
     } else if (isOp(opName, "GetProfiles")) {
         body << "    <tr2:GetProfilesResponse>\r\n"
              << "      <tr2:Profiles token=\"ProfileToken_1\" fixed=\"true\">\r\n"
@@ -1237,6 +1646,10 @@ void OnvifServer::handleMedia2Service(const httplib::Request& req, httplib::Resp
              << "            <tr2:UseCount>1</tr2:UseCount>\r\n"
              << "            <tr2:NodeToken>PTZNode_1</tr2:NodeToken>\r\n"
              << "          </tr2:PTZ>\r\n"
+             << "          <tr2:Metadata token=\"MetadataConfig_1\">\r\n"
+             << "            <tr2:Name>DefaultMetadataConfig</tr2:Name>\r\n"
+             << "            <tr2:UseCount>1</tr2:UseCount>\r\n"
+             << "          </tr2:Metadata>\r\n"
              << "        </tr2:Configurations>\r\n"
              << "      </tr2:Profiles>\r\n"
              << "    </tr2:GetProfilesResponse>\r\n";
