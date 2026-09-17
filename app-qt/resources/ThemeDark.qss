@@ -34,16 +34,18 @@ QTabBar::tab:hover:!selected {
     color: #d1d5db;
 }
 
-QTabWidget#videoSideTabs::pane {
+QTabWidget#videoSideTabs::pane,
+QTabWidget#onvifCameraTabs::pane {
     border: 1px solid #2d3136;
     background-color: #1e2124;
     border-radius: 4px;
 }
 
-QTabWidget#videoSideTabs QTabBar::tab {
-    padding: 5px 8px;
+QTabWidget#videoSideTabs QTabBar::tab,
+QTabWidget#onvifCameraTabs QTabBar::tab {
+    padding: 5px 12px;
     font-size: 11px;
-    min-width: 36px;
+    min-width: 40px;
 }
 
 QGroupBox {

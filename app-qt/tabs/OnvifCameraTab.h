@@ -14,8 +14,10 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QPushButton>
+#include <QScrollArea>
 #include <QSlider>
 #include <QSpinBox>
+#include <QTabWidget>
 #include <QTableWidget>
 #include <QVBoxLayout>
 #include <QWidget>
@@ -30,8 +32,8 @@ class OnvifCameraTab : public QWidget {
     Q_OBJECT
 
 public:
-    explicit OnvifCameraTab(PelcoD::Qt::QOnvifDevice* onvifDevice, VideoStreamTab* videoTab = nullptr,
-        QWidget* parent = nullptr);
+    explicit OnvifCameraTab(
+        PelcoD::Qt::QOnvifDevice* onvifDevice, VideoStreamTab* videoTab = nullptr, QWidget* parent = nullptr);
     ~OnvifCameraTab() override = default;
 
 signals:
@@ -91,6 +93,8 @@ private:
     PelcoD::Qt::QOnvifDevice* m_onvifDevice { nullptr };
     VideoStreamTab* m_videoTab { nullptr };
     QList<PelcoD::Onvif::DiscoveredDevice> m_discoveredList {};
+
+    QTabWidget* m_cameraTabs { nullptr };
 
     // Discovery & Connection widgets
     QPushButton* btnDiscover { nullptr };

@@ -51,11 +51,11 @@ void OnvifCameraTab::setupUi()
     mainLayout->setSpacing(6);
 
     // =========================================================================
-    // Top Row: Discovery & Authentication
+    // Top Section: Compact Discovery & Authentication Banner
     // =========================================================================
     auto* groupDiscovery = new QGroupBox(tr("ONVIF Discovery & Authentication"), this);
     auto* gridDisc = new QGridLayout(groupDiscovery);
-    gridDisc->setContentsMargins(8, 8, 8, 8);
+    gridDisc->setContentsMargins(8, 6, 8, 6);
     gridDisc->setSpacing(6);
 
     btnDiscover = new QPushButton(tr("🔍 Discover Cameras"), groupDiscovery);
@@ -63,213 +63,74 @@ void OnvifCameraTab::setupUi()
     cmbDiscovered = new QComboBox(groupDiscovery);
     cmbDiscovered->addItem(tr("-- Select Discovered Device --"), -1);
 
+    lblConnectionStatus = new QLabel(tr("Disconnected"), groupDiscovery);
+    lblConnectionStatus->setStyleSheet(QStringLiteral("color: #8b949e; font-weight: bold; padding: 2px 8px;"));
+
     gridDisc->addWidget(btnDiscover, 0, 0);
-    gridDisc->addWidget(cmbDiscovered, 0, 1, 1, 3);
+    gridDisc->addWidget(cmbDiscovered, 0, 1, 1, 2);
+    gridDisc->addWidget(lblConnectionStatus, 0, 3, Qt::AlignRight);
 
-    gridDisc->addWidget(new QLabel(tr("Endpoint URL:"), groupDiscovery), 1, 0);
+    auto* connRow = new QHBoxLayout();
+    connRow->setSpacing(6);
+    connRow->addWidget(new QLabel(tr("Endpoint:"), groupDiscovery));
     editEndpoint = new QLineEdit(groupDiscovery);
-    editEndpoint->setPlaceholderText("http://192.168.1.100/onvif/device_service");
-    editEndpoint->setText("http://192.168.1.100/onvif/device_service");
-    gridDisc->addWidget(editEndpoint, 1, 1, 1, 3);
+    editEndpoint->setPlaceholderText(QStringLiteral("http://192.168.1.100/onvif/device_service"));
+    editEndpoint->setText(QStringLiteral("http://192.168.1.100/onvif/device_service"));
+    connRow->addWidget(editEndpoint, 1);
 
-    gridDisc->addWidget(new QLabel(tr("User:"), groupDiscovery), 2, 0);
+    connRow->addWidget(new QLabel(tr("User:"), groupDiscovery));
     editUsername = new QLineEdit(groupDiscovery);
-    editUsername->setText("admin");
-    gridDisc->addWidget(editUsername, 2, 1);
+    editUsername->setText(QStringLiteral("admin"));
+    editUsername->setMaximumWidth(110);
+    connRow->addWidget(editUsername);
 
-    gridDisc->addWidget(new QLabel(tr("Pass:"), groupDiscovery), 2, 2);
+    connRow->addWidget(new QLabel(tr("Pass:"), groupDiscovery));
     editPassword = new QLineEdit(groupDiscovery);
     editPassword->setEchoMode(QLineEdit::Password);
-    gridDisc->addWidget(editPassword, 2, 3);
+    editPassword->setMaximumWidth(110);
+    connRow->addWidget(editPassword);
 
-    auto* connBtnLayout = new QHBoxLayout();
     btnConnect = new QPushButton(tr("Connect"), groupDiscovery);
-    btnConnect->setStyleSheet("QPushButton { font-weight: bold; background-color: #238636; color: white; }");
+    btnConnect->setStyleSheet(QStringLiteral(
+        "QPushButton { font-weight: bold; background-color: #238636; color: white; padding: 4px 12px; }"));
     btnDisconnect = new QPushButton(tr("Disconnect"), groupDiscovery);
-    lblConnectionStatus = new QLabel(tr("Disconnected"), groupDiscovery);
-    lblConnectionStatus->setStyleSheet("color: #8b949e; font-weight: bold;");
+    connRow->addWidget(btnConnect);
+    connRow->addWidget(btnDisconnect);
 
-    connBtnLayout->addWidget(btnConnect);
-    connBtnLayout->addWidget(btnDisconnect);
-    connBtnLayout->addWidget(lblConnectionStatus);
-    connBtnLayout->addStretch();
-    gridDisc->addLayout(connBtnLayout, 3, 0, 1, 4);
+    gridDisc->addLayout(connRow, 1, 0, 1, 4);
 
     mainLayout->addWidget(groupDiscovery);
 
     // =========================================================================
-    // Middle Splitter: Device Info / Video & PTZ / Presets
+    // Central Categorized Sub-Tabs
     // =========================================================================
-    auto* midSplitter = new QSplitter(Qt::Horizontal, this);
+    m_cameraTabs = new QTabWidget(this);
+    m_cameraTabs->setObjectName(QStringLiteral("onvifCameraTabs"));
 
-    // Panel Left: Device Information & Media Profiles
-    auto* leftContainer = new QWidget(midSplitter);
-    auto* leftLayout = new QVBoxLayout(leftContainer);
-    leftLayout->setContentsMargins(0, 0, 0, 0);
-    leftLayout->setSpacing(6);
+    auto createScrollTab = [this](const QString& title) -> QVBoxLayout* {
+        auto* pageContainer = new QWidget();
+        auto* pageLayout = new QVBoxLayout(pageContainer);
+        pageLayout->setContentsMargins(8, 8, 8, 8);
+        pageLayout->setSpacing(6);
 
-    auto* groupInfo = new QGroupBox(tr("Device Identification & Streams"), leftContainer);
-    auto* infoGrid = new QGridLayout(groupInfo);
-    infoGrid->setContentsMargins(6, 6, 6, 6);
-    infoGrid->setSpacing(4);
+        auto* scrollArea = new QScrollArea(m_cameraTabs);
+        scrollArea->setWidgetResizable(true);
+        scrollArea->setFrameShape(QFrame::NoFrame);
+        scrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+        scrollArea->setWidget(pageContainer);
 
-    infoGrid->addWidget(new QLabel(tr("Manufacturer:"), groupInfo), 0, 0);
-    lblManufacturer = new QLabel(tr("-"), groupInfo);
-    infoGrid->addWidget(lblManufacturer, 0, 1);
+        m_cameraTabs->addTab(scrollArea, title);
+        return pageLayout;
+    };
 
-    infoGrid->addWidget(new QLabel(tr("Model:"), groupInfo), 1, 0);
-    lblModel = new QLabel(tr("-"), groupInfo);
-    infoGrid->addWidget(lblModel, 1, 1);
+    // -------------------------------------------------------------------------
+    // Sub-Tab 1: PTZ Control
+    // -------------------------------------------------------------------------
+    auto* ptzTabLayout = createScrollTab(tr("PTZ Control"));
 
-    infoGrid->addWidget(new QLabel(tr("Firmware:"), groupInfo), 2, 0);
-    lblFirmware = new QLabel(tr("-"), groupInfo);
-    infoGrid->addWidget(lblFirmware, 2, 1);
-
-    infoGrid->addWidget(new QLabel(tr("Serial No:"), groupInfo), 3, 0);
-    lblSerial = new QLabel(tr("-"), groupInfo);
-    infoGrid->addWidget(lblSerial, 3, 1);
-
-    infoGrid->addWidget(new QLabel(tr("Hardware ID:"), groupInfo), 4, 0);
-    lblHardwareId = new QLabel(tr("-"), groupInfo);
-    infoGrid->addWidget(lblHardwareId, 4, 1);
-
-    infoGrid->addWidget(new QLabel(tr("Media Profile:"), groupInfo), 5, 0);
-    cmbProfiles = new QComboBox(groupInfo);
-    infoGrid->addWidget(cmbProfiles, 5, 1);
-
-    infoGrid->addWidget(new QLabel(tr("RTSP URI:"), groupInfo), 6, 0);
-    editRtspUri = new QLineEdit(groupInfo);
-    editRtspUri->setReadOnly(true);
-    infoGrid->addWidget(editRtspUri, 6, 1);
-
-    auto* rtspBtnLayout = new QHBoxLayout();
-    btnCopyRtsp = new QPushButton(tr("Copy RTSP"), groupInfo);
-    btnStreamInVideoTab = new QPushButton(tr("▶ Open in Video Tab"), groupInfo);
-    btnStreamInVideoTab->setStyleSheet("QPushButton { font-weight: bold; background-color: #1f6feb; color: white; }");
-    rtspBtnLayout->addWidget(btnCopyRtsp);
-    rtspBtnLayout->addWidget(btnStreamInVideoTab);
-    infoGrid->addLayout(rtspBtnLayout, 7, 0, 1, 2);
-
-    infoGrid->addWidget(new QLabel(tr("Snapshot URI:"), groupInfo), 8, 0);
-    editSnapshotUri = new QLineEdit(groupInfo);
-    editSnapshotUri->setReadOnly(true);
-    infoGrid->addWidget(editSnapshotUri, 8, 1);
-
-    // Maintenance button
-    btnReboot = new QPushButton(tr("⚠ Reboot Camera"), groupInfo);
-    btnReboot->setStyleSheet("QPushButton { color: #f85149; }");
-    infoGrid->addWidget(btnReboot, 9, 0, 1, 2);
-
-    leftLayout->addWidget(groupInfo);
-
-    // =========================================================================
-    // Profile T: Optical & Imaging Controls
-    // =========================================================================
-    auto* groupImaging = new QGroupBox(tr("Profile T: Optical & Imaging Controls"), leftContainer);
-    auto* imgLayout = new QGridLayout(groupImaging);
-    imgLayout->setSpacing(4);
-
-    // Brightness
-    imgLayout->addWidget(new QLabel(tr("Brightness:"), groupImaging), 0, 0);
-    sliderBrightness = new QSlider(Qt::Horizontal, groupImaging);
-    sliderBrightness->setRange(0, 100);
-    sliderBrightness->setValue(50);
-    lblBrightnessVal = new QLabel("50", groupImaging);
-    lblBrightnessVal->setFixedWidth(28);
-    connect(sliderBrightness, &QSlider::valueChanged, this,
-        [this](int v) { lblBrightnessVal->setText(QString::number(v)); });
-    imgLayout->addWidget(sliderBrightness, 0, 1);
-    imgLayout->addWidget(lblBrightnessVal, 0, 2);
-
-    // Contrast
-    imgLayout->addWidget(new QLabel(tr("Contrast:"), groupImaging), 1, 0);
-    sliderContrast = new QSlider(Qt::Horizontal, groupImaging);
-    sliderContrast->setRange(0, 100);
-    sliderContrast->setValue(50);
-    lblContrastVal = new QLabel("50", groupImaging);
-    lblContrastVal->setFixedWidth(28);
-    connect(
-        sliderContrast, &QSlider::valueChanged, this, [this](int v) { lblContrastVal->setText(QString::number(v)); });
-    imgLayout->addWidget(sliderContrast, 1, 1);
-    imgLayout->addWidget(lblContrastVal, 1, 2);
-
-    // Saturation
-    imgLayout->addWidget(new QLabel(tr("Saturation:"), groupImaging), 2, 0);
-    sliderSaturation = new QSlider(Qt::Horizontal, groupImaging);
-    sliderSaturation->setRange(0, 100);
-    sliderSaturation->setValue(50);
-    lblSaturationVal = new QLabel("50", groupImaging);
-    lblSaturationVal->setFixedWidth(28);
-    connect(sliderSaturation, &QSlider::valueChanged, this,
-        [this](int v) { lblSaturationVal->setText(QString::number(v)); });
-    imgLayout->addWidget(sliderSaturation, 2, 1);
-    imgLayout->addWidget(lblSaturationVal, 2, 2);
-
-    // Sharpness
-    imgLayout->addWidget(new QLabel(tr("Sharpness:"), groupImaging), 3, 0);
-    sliderSharpness = new QSlider(Qt::Horizontal, groupImaging);
-    sliderSharpness->setRange(0, 100);
-    sliderSharpness->setValue(50);
-    lblSharpnessVal = new QLabel("50", groupImaging);
-    lblSharpnessVal->setFixedWidth(28);
-    connect(
-        sliderSharpness, &QSlider::valueChanged, this, [this](int v) { lblSharpnessVal->setText(QString::number(v)); });
-    imgLayout->addWidget(sliderSharpness, 3, 1);
-    imgLayout->addWidget(lblSharpnessVal, 3, 2);
-
-    // IR Filter & WDR/BLC
-    imgLayout->addWidget(new QLabel(tr("IR Filter:"), groupImaging), 4, 0);
-    cmbIrFilter = new QComboBox(groupImaging);
-    cmbIrFilter->addItems({ "AUTO", "ON", "OFF" });
-    imgLayout->addWidget(cmbIrFilter, 4, 1, 1, 2);
-
-    auto* chkLayout = new QHBoxLayout();
-    chkBacklight = new QCheckBox(tr("BLC"), groupImaging);
-    chkWdr = new QCheckBox(tr("WDR"), groupImaging);
-    chkLayout->addWidget(chkBacklight);
-    chkLayout->addWidget(chkWdr);
-    imgLayout->addLayout(chkLayout, 5, 0, 1, 3);
-
-    // Focus controls
-    auto* focusLayout = new QHBoxLayout();
-    cmbAutoFocus = new QComboBox(groupImaging);
-    cmbAutoFocus->addItems({ "AUTO", "MANUAL" });
-    btnFocusNear = new QPushButton(tr("Focus Near"), groupImaging);
-    btnFocusFar = new QPushButton(tr("Focus Far"), groupImaging);
-    connect(btnFocusNear, &QPushButton::pressed, this, &OnvifCameraTab::handleFocusNear);
-    connect(btnFocusNear, &QPushButton::released, this, &OnvifCameraTab::handleFocusStop);
-    connect(btnFocusFar, &QPushButton::pressed, this, &OnvifCameraTab::handleFocusFar);
-    connect(btnFocusFar, &QPushButton::released, this, &OnvifCameraTab::handleFocusStop);
-
-    focusLayout->addWidget(new QLabel(tr("Focus:"), groupImaging));
-    focusLayout->addWidget(cmbAutoFocus);
-    focusLayout->addWidget(btnFocusNear);
-    focusLayout->addWidget(btnFocusFar);
-    imgLayout->addLayout(focusLayout, 6, 0, 1, 3);
-
-    // Action buttons
-    auto* imgBtnLayout = new QHBoxLayout();
-    btnRefreshImaging = new QPushButton(tr("Refresh"), groupImaging);
-    btnApplyImaging = new QPushButton(tr("Apply Settings"), groupImaging);
-    btnApplyImaging->setStyleSheet("QPushButton { font-weight: bold; background-color: #238636; color: white; }");
-    connect(btnRefreshImaging, &QPushButton::clicked, this, &OnvifCameraTab::handleRefreshImaging);
-    connect(btnApplyImaging, &QPushButton::clicked, this, &OnvifCameraTab::handleApplyImaging);
-    imgBtnLayout->addWidget(btnRefreshImaging);
-    imgBtnLayout->addWidget(btnApplyImaging);
-    imgLayout->addLayout(imgBtnLayout, 7, 0, 1, 3);
-
-    leftLayout->addWidget(groupImaging);
-    leftLayout->addStretch();
-    midSplitter->addWidget(leftContainer);
-
-    // Panel Right: PTZ Controls & Presets
-    auto* rightContainer = new QWidget(midSplitter);
-    auto* rightLayout = new QVBoxLayout(rightContainer);
-    rightLayout->setContentsMargins(0, 0, 0, 0);
-    rightLayout->setSpacing(6);
-
-    auto* groupPtz = new QGroupBox(tr("PTZ Motion & Positioning"), rightContainer);
+    auto* groupPtz = new QGroupBox(tr("PTZ Motion & Positioning"));
     auto* ptzLayout = new QVBoxLayout(groupPtz);
+    ptzLayout->setSpacing(6);
 
     // Continuous Jog Grid
     auto* jogGrid = new QGridLayout();
@@ -283,21 +144,22 @@ void OnvifCameraTab::setupUi()
         return b;
     };
 
-    jogGrid->addWidget(makeJogBtn("↖", -1.0, 1.0), 0, 0);
-    jogGrid->addWidget(makeJogBtn("▲", 0.0, 1.0), 0, 1);
-    jogGrid->addWidget(makeJogBtn("↗", 1.0, 1.0), 0, 2);
+    jogGrid->addWidget(makeJogBtn(QStringLiteral("↖"), -1.0, 1.0), 0, 0);
+    jogGrid->addWidget(makeJogBtn(QStringLiteral("▲"), 0.0, 1.0), 0, 1);
+    jogGrid->addWidget(makeJogBtn(QStringLiteral("↗"), 1.0, 1.0), 0, 2);
 
-    jogGrid->addWidget(makeJogBtn("◀", -1.0, 0.0), 1, 0);
+    jogGrid->addWidget(makeJogBtn(QStringLiteral("◀"), -1.0, 0.0), 1, 0);
     auto* btnStop = new QPushButton(tr("STOP"), groupPtz);
     btnStop->setFixedSize(50, 40);
-    btnStop->setStyleSheet("QPushButton { font-weight: bold; background-color: #da3633; color: white; }");
+    btnStop->setStyleSheet(
+        QStringLiteral("QPushButton { font-weight: bold; background-color: #da3633; color: white; }"));
     connect(btnStop, &QPushButton::clicked, this, &OnvifCameraTab::handleStopMotion);
     jogGrid->addWidget(btnStop, 1, 1);
-    jogGrid->addWidget(makeJogBtn("▶", 1.0, 0.0), 1, 2);
+    jogGrid->addWidget(makeJogBtn(QStringLiteral("▶"), 1.0, 0.0), 1, 2);
 
-    jogGrid->addWidget(makeJogBtn("↙", -1.0, -1.0), 2, 0);
-    jogGrid->addWidget(makeJogBtn("▼", 0.0, -1.0), 2, 1);
-    jogGrid->addWidget(makeJogBtn("↘", 1.0, -1.0), 2, 2);
+    jogGrid->addWidget(makeJogBtn(QStringLiteral("↙"), -1.0, -1.0), 2, 0);
+    jogGrid->addWidget(makeJogBtn(QStringLiteral("▼"), 0.0, -1.0), 2, 1);
+    jogGrid->addWidget(makeJogBtn(QStringLiteral("↘"), 1.0, -1.0), 2, 2);
 
     // Zoom buttons
     auto* btnZoomIn = new QPushButton(tr("Zoom Tele (+)"), groupPtz);
@@ -317,7 +179,7 @@ void OnvifCameraTab::setupUi()
     sliderSpeed = new QSlider(Qt::Horizontal, groupPtz);
     sliderSpeed->setRange(1, 10);
     sliderSpeed->setValue(5);
-    lblSpeedVal = new QLabel("0.5", groupPtz);
+    lblSpeedVal = new QLabel(QStringLiteral("0.5"), groupPtz);
     connect(sliderSpeed, &QSlider::valueChanged, this,
         [this](int val) { lblSpeedVal->setText(QString::number(val / 10.0, 'f', 1)); });
     speedLayout->addWidget(sliderSpeed);
@@ -375,18 +237,24 @@ void OnvifCameraTab::setupUi()
     ptzLayout->addLayout(homeLayout);
     ptzLayout->addLayout(telemLayout);
 
-    rightLayout->addWidget(groupPtz);
+    ptzTabLayout->addWidget(groupPtz);
+    ptzTabLayout->addStretch();
 
-    // Presets GroupBox
-    auto* groupPresets = new QGroupBox(tr("Stored Presets"), rightContainer);
+    // -------------------------------------------------------------------------
+    // Sub-Tab 2: Presets
+    // -------------------------------------------------------------------------
+    auto* presetsTabLayout = createScrollTab(tr("Presets"));
+
+    auto* groupPresets = new QGroupBox(tr("Stored Camera Presets"));
     auto* presetsLayout = new QVBoxLayout(groupPresets);
+    presetsLayout->setSpacing(6);
 
     tablePresets = new QTableWidget(0, 2, groupPresets);
     tablePresets->setHorizontalHeaderLabels({ tr("Token"), tr("Label / Name") });
     tablePresets->horizontalHeader()->setStretchLastSection(true);
     tablePresets->setSelectionBehavior(QAbstractItemView::SelectRows);
     tablePresets->setSelectionMode(QAbstractItemView::SingleSelection);
-    tablePresets->setFixedHeight(120);
+    tablePresets->setMinimumHeight(200);
 
     auto* presetControls = new QHBoxLayout();
     btnRefreshPresets = new QPushButton(tr("Refresh"), groupPresets);
@@ -410,13 +278,120 @@ void OnvifCameraTab::setupUi()
     presetsLayout->addWidget(tablePresets);
     presetsLayout->addLayout(presetControls);
 
-    rightLayout->addWidget(groupPresets);
+    presetsTabLayout->addWidget(groupPresets);
+    presetsTabLayout->addStretch();
 
-    // =========================================================================
-    // Profile T: Live Event Monitor
-    // =========================================================================
-    auto* groupEvents = new QGroupBox(tr("Profile T: Live Event Monitor"), rightContainer);
+    // -------------------------------------------------------------------------
+    // Sub-Tab 3: Imaging (Profile T)
+    // -------------------------------------------------------------------------
+    auto* imagingTabLayout = createScrollTab(tr("Imaging"));
+
+    auto* groupImaging = new QGroupBox(tr("Profile T: Optical & Imaging Controls"));
+    auto* imgLayout = new QGridLayout(groupImaging);
+    imgLayout->setSpacing(6);
+
+    // Brightness
+    imgLayout->addWidget(new QLabel(tr("Brightness:"), groupImaging), 0, 0);
+    sliderBrightness = new QSlider(Qt::Horizontal, groupImaging);
+    sliderBrightness->setRange(0, 100);
+    sliderBrightness->setValue(50);
+    lblBrightnessVal = new QLabel(QStringLiteral("50"), groupImaging);
+    lblBrightnessVal->setFixedWidth(28);
+    connect(sliderBrightness, &QSlider::valueChanged, this,
+        [this](int v) { lblBrightnessVal->setText(QString::number(v)); });
+    imgLayout->addWidget(sliderBrightness, 0, 1);
+    imgLayout->addWidget(lblBrightnessVal, 0, 2);
+
+    // Contrast
+    imgLayout->addWidget(new QLabel(tr("Contrast:"), groupImaging), 1, 0);
+    sliderContrast = new QSlider(Qt::Horizontal, groupImaging);
+    sliderContrast->setRange(0, 100);
+    sliderContrast->setValue(50);
+    lblContrastVal = new QLabel(QStringLiteral("50"), groupImaging);
+    lblContrastVal->setFixedWidth(28);
+    connect(
+        sliderContrast, &QSlider::valueChanged, this, [this](int v) { lblContrastVal->setText(QString::number(v)); });
+    imgLayout->addWidget(sliderContrast, 1, 1);
+    imgLayout->addWidget(lblContrastVal, 1, 2);
+
+    // Saturation
+    imgLayout->addWidget(new QLabel(tr("Saturation:"), groupImaging), 2, 0);
+    sliderSaturation = new QSlider(Qt::Horizontal, groupImaging);
+    sliderSaturation->setRange(0, 100);
+    sliderSaturation->setValue(50);
+    lblSaturationVal = new QLabel(QStringLiteral("50"), groupImaging);
+    lblSaturationVal->setFixedWidth(28);
+    connect(sliderSaturation, &QSlider::valueChanged, this,
+        [this](int v) { lblSaturationVal->setText(QString::number(v)); });
+    imgLayout->addWidget(sliderSaturation, 2, 1);
+    imgLayout->addWidget(lblSaturationVal, 2, 2);
+
+    // Sharpness
+    imgLayout->addWidget(new QLabel(tr("Sharpness:"), groupImaging), 3, 0);
+    sliderSharpness = new QSlider(Qt::Horizontal, groupImaging);
+    sliderSharpness->setRange(0, 100);
+    sliderSharpness->setValue(50);
+    lblSharpnessVal = new QLabel(QStringLiteral("50"), groupImaging);
+    lblSharpnessVal->setFixedWidth(28);
+    connect(
+        sliderSharpness, &QSlider::valueChanged, this, [this](int v) { lblSharpnessVal->setText(QString::number(v)); });
+    imgLayout->addWidget(sliderSharpness, 3, 1);
+    imgLayout->addWidget(lblSharpnessVal, 3, 2);
+
+    // IR Filter
+    imgLayout->addWidget(new QLabel(tr("IR Filter:"), groupImaging), 4, 0);
+    cmbIrFilter = new QComboBox(groupImaging);
+    cmbIrFilter->addItems({ QStringLiteral("AUTO"), QStringLiteral("ON"), QStringLiteral("OFF") });
+    imgLayout->addWidget(cmbIrFilter, 4, 1, 1, 2);
+
+    // BLC / WDR
+    auto* chkLayout = new QHBoxLayout();
+    chkBacklight = new QCheckBox(tr("Backlight Compensation (BLC)"), groupImaging);
+    chkWdr = new QCheckBox(tr("Wide Dynamic Range (WDR)"), groupImaging);
+    chkLayout->addWidget(chkBacklight);
+    chkLayout->addWidget(chkWdr);
+    imgLayout->addLayout(chkLayout, 5, 0, 1, 3);
+
+    // Focus controls
+    auto* focusLayout = new QHBoxLayout();
+    cmbAutoFocus = new QComboBox(groupImaging);
+    cmbAutoFocus->addItems({ QStringLiteral("AUTO"), QStringLiteral("MANUAL") });
+    btnFocusNear = new QPushButton(tr("Focus Near"), groupImaging);
+    btnFocusFar = new QPushButton(tr("Focus Far"), groupImaging);
+    connect(btnFocusNear, &QPushButton::pressed, this, &OnvifCameraTab::handleFocusNear);
+    connect(btnFocusNear, &QPushButton::released, this, &OnvifCameraTab::handleFocusStop);
+    connect(btnFocusFar, &QPushButton::pressed, this, &OnvifCameraTab::handleFocusFar);
+    connect(btnFocusFar, &QPushButton::released, this, &OnvifCameraTab::handleFocusStop);
+
+    focusLayout->addWidget(new QLabel(tr("Focus:"), groupImaging));
+    focusLayout->addWidget(cmbAutoFocus);
+    focusLayout->addWidget(btnFocusNear);
+    focusLayout->addWidget(btnFocusFar);
+    imgLayout->addLayout(focusLayout, 6, 0, 1, 3);
+
+    // Action buttons
+    auto* imgBtnLayout = new QHBoxLayout();
+    btnRefreshImaging = new QPushButton(tr("Refresh"), groupImaging);
+    btnApplyImaging = new QPushButton(tr("Apply Settings"), groupImaging);
+    btnApplyImaging->setStyleSheet(
+        QStringLiteral("QPushButton { font-weight: bold; background-color: #238636; color: white; }"));
+    connect(btnRefreshImaging, &QPushButton::clicked, this, &OnvifCameraTab::handleRefreshImaging);
+    connect(btnApplyImaging, &QPushButton::clicked, this, &OnvifCameraTab::handleApplyImaging);
+    imgBtnLayout->addWidget(btnRefreshImaging);
+    imgBtnLayout->addWidget(btnApplyImaging);
+    imgLayout->addLayout(imgBtnLayout, 7, 0, 1, 3);
+
+    imagingTabLayout->addWidget(groupImaging);
+    imagingTabLayout->addStretch();
+
+    // -------------------------------------------------------------------------
+    // Sub-Tab 4: Events (Profile T)
+    // -------------------------------------------------------------------------
+    auto* eventsTabLayout = createScrollTab(tr("Events"));
+
+    auto* groupEvents = new QGroupBox(tr("Profile T: Live Event Monitor"));
     auto* eventsLayout = new QVBoxLayout(groupEvents);
+    eventsLayout->setSpacing(6);
 
     auto* eventHeaderLayout = new QHBoxLayout();
     btnToggleEvents = new QPushButton(tr("▶ Subscribe Events"), groupEvents);
@@ -435,14 +410,81 @@ void OnvifCameraTab::setupUi()
     tableEvents->setHorizontalHeaderLabels({ tr("Time"), tr("Topic"), tr("Item"), tr("Value") });
     tableEvents->horizontalHeader()->setStretchLastSection(true);
     tableEvents->setSelectionBehavior(QAbstractItemView::SelectRows);
-    tableEvents->setFixedHeight(120);
+    tableEvents->setMinimumHeight(200);
     eventsLayout->addWidget(tableEvents);
 
-    rightLayout->addWidget(groupEvents);
-    rightLayout->addStretch();
-    midSplitter->addWidget(rightContainer);
+    eventsTabLayout->addWidget(groupEvents);
+    eventsTabLayout->addStretch();
 
-    mainLayout->addWidget(midSplitter, 1);
+    // -------------------------------------------------------------------------
+    // Sub-Tab 5: Device & Streams
+    // -------------------------------------------------------------------------
+    auto* devTabLayout = createScrollTab(tr("Device & Streams"));
+
+    auto* groupStreams = new QGroupBox(tr("Media Profiles & Streaming"));
+    auto* streamGrid = new QGridLayout(groupStreams);
+    streamGrid->setSpacing(6);
+
+    streamGrid->addWidget(new QLabel(tr("Media Profile:"), groupStreams), 0, 0);
+    cmbProfiles = new QComboBox(groupStreams);
+    streamGrid->addWidget(cmbProfiles, 0, 1);
+
+    streamGrid->addWidget(new QLabel(tr("RTSP URI:"), groupStreams), 1, 0);
+    editRtspUri = new QLineEdit(groupStreams);
+    editRtspUri->setReadOnly(true);
+    streamGrid->addWidget(editRtspUri, 1, 1);
+
+    auto* rtspBtnLayout = new QHBoxLayout();
+    btnCopyRtsp = new QPushButton(tr("Copy RTSP"), groupStreams);
+    btnStreamInVideoTab = new QPushButton(tr("▶ Open in Video Tab"), groupStreams);
+    btnStreamInVideoTab->setStyleSheet(
+        QStringLiteral("QPushButton { font-weight: bold; background-color: #1f6feb; color: white; }"));
+    rtspBtnLayout->addWidget(btnCopyRtsp);
+    rtspBtnLayout->addWidget(btnStreamInVideoTab);
+    rtspBtnLayout->addStretch();
+    streamGrid->addLayout(rtspBtnLayout, 2, 1);
+
+    streamGrid->addWidget(new QLabel(tr("Snapshot URI:"), groupStreams), 3, 0);
+    editSnapshotUri = new QLineEdit(groupStreams);
+    editSnapshotUri->setReadOnly(true);
+    streamGrid->addWidget(editSnapshotUri, 3, 1);
+
+    devTabLayout->addWidget(groupStreams);
+
+    auto* groupInfo = new QGroupBox(tr("Device Identification"));
+    auto* infoGrid = new QGridLayout(groupInfo);
+    infoGrid->setSpacing(6);
+
+    infoGrid->addWidget(new QLabel(tr("Manufacturer:"), groupInfo), 0, 0);
+    lblManufacturer = new QLabel(tr("-"), groupInfo);
+    infoGrid->addWidget(lblManufacturer, 0, 1);
+
+    infoGrid->addWidget(new QLabel(tr("Model:"), groupInfo), 1, 0);
+    lblModel = new QLabel(tr("-"), groupInfo);
+    infoGrid->addWidget(lblModel, 1, 1);
+
+    infoGrid->addWidget(new QLabel(tr("Firmware:"), groupInfo), 2, 0);
+    lblFirmware = new QLabel(tr("-"), groupInfo);
+    infoGrid->addWidget(lblFirmware, 2, 1);
+
+    infoGrid->addWidget(new QLabel(tr("Serial No:"), groupInfo), 3, 0);
+    lblSerial = new QLabel(tr("-"), groupInfo);
+    infoGrid->addWidget(lblSerial, 3, 1);
+
+    infoGrid->addWidget(new QLabel(tr("Hardware ID:"), groupInfo), 4, 0);
+    lblHardwareId = new QLabel(tr("-"), groupInfo);
+    infoGrid->addWidget(lblHardwareId, 4, 1);
+
+    btnReboot = new QPushButton(tr("⚠ Reboot Camera"), groupInfo);
+    btnReboot->setStyleSheet(QStringLiteral("QPushButton { color: #f85149; }"));
+    btnReboot->setMaximumWidth(160);
+    infoGrid->addWidget(btnReboot, 5, 0, 1, 2);
+
+    devTabLayout->addWidget(groupInfo);
+    devTabLayout->addStretch();
+
+    // Add tab widget to main layout
+    mainLayout->addWidget(m_cameraTabs, 1);
 
     // Connections
     connect(btnDiscover, &QPushButton::clicked, this, &OnvifCameraTab::handleStartDiscovery);
