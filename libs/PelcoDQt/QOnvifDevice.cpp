@@ -159,6 +159,12 @@ void QOnvifDevice::disconnectFromCamera()
     m_relayOutputs.clear();
     m_digitalInputs.clear();
     m_metadataConfigs.clear();
+    m_certificates.clear();
+    m_clientCertMode = PelcoD::Onvif::ClientCertificateMode::Off;
+    m_recordings.clear();
+    m_recordingJobs.clear();
+    m_recordingSummary.reset();
+    m_replayConfig.reset();
     m_client.reset();
 
     emit disconnected();
@@ -979,6 +985,335 @@ void QOnvifDevice::fetchEndpointReference()
     if (epOpt) {
         emit endpointReferenceReceived(QString::fromStdString(*epOpt));
     }
+}
+
+// =========================================================================
+// PKI Certificates & HTTPS/TLS Security Service
+// =========================================================================
+
+void QOnvifDevice::refreshCertificates()
+{
+    if (!m_client) {
+        return;
+    }
+    m_certificates = m_client->getCertificates();
+    emit certificatesUpdated(m_certificates);
+}
+
+void QOnvifDevice::fetchCertificateInformation(const QString& certificateId)
+{
+    if (!m_client) {
+        return;
+    }
+    const auto infoOpt = m_client->getCertificateInformation(certificateId.toStdString());
+    if (infoOpt) {
+        emit certificateInfoReceived(*infoOpt);
+    }
+}
+
+bool QOnvifDevice::createCertificate(const QString& certificateId, const QString& subject, int daysValid)
+{
+    if (!m_client) {
+        return false;
+    }
+    const auto certOpt = m_client->createCertificate(certificateId.toStdString(), subject.toStdString(), daysValid);
+    if (certOpt) {
+        refreshCertificates();
+        return true;
+    }
+    return false;
+}
+
+bool QOnvifDevice::createPkcs10Csr(const QString& certificateId, const QString& subject)
+{
+    if (!m_client) {
+        return false;
+    }
+    const auto csrOpt = m_client->getPkcs10Request(certificateId.toStdString(), subject.toStdString());
+    if (csrOpt) {
+        emit pkcs10CsrReceived(*csrOpt);
+        return true;
+    }
+    return false;
+}
+
+bool QOnvifDevice::loadCertificates(const std::vector<PelcoD::Onvif::OnvifCertificate>& certificates)
+{
+    if (!m_client) {
+        return false;
+    }
+    const bool ok = m_client->loadCertificates(certificates);
+    if (ok) {
+        refreshCertificates();
+    }
+    return ok;
+}
+
+bool QOnvifDevice::deleteCertificates(const QStringList& certificateIds)
+{
+    if (!m_client) {
+        return false;
+    }
+    std::vector<std::string> ids;
+    ids.reserve(static_cast<size_t>(certificateIds.size()));
+    for (const auto& id : certificateIds) {
+        ids.push_back(id.toStdString());
+    }
+    const bool ok = m_client->deleteCertificates(ids);
+    if (ok) {
+        refreshCertificates();
+    }
+    return ok;
+}
+
+void QOnvifDevice::refreshClientCertificateMode()
+{
+    if (!m_client) {
+        return;
+    }
+    const auto modeOpt = m_client->getClientCertificateMode();
+    if (modeOpt) {
+        m_clientCertMode = *modeOpt;
+        emit clientCertificateModeUpdated(m_clientCertMode);
+    }
+}
+
+bool QOnvifDevice::setClientCertificateMode(PelcoD::Onvif::ClientCertificateMode mode)
+{
+    if (!m_client) {
+        return false;
+    }
+    const bool ok = m_client->setClientCertificateMode(mode);
+    if (ok) {
+        m_clientCertMode = mode;
+        emit clientCertificateModeUpdated(m_clientCertMode);
+    }
+    return ok;
+}
+
+// =========================================================================
+// Profile G: Recording Service
+// =========================================================================
+
+void QOnvifDevice::refreshRecordings()
+{
+    if (!m_client) {
+        return;
+    }
+    m_recordings = m_client->getRecordings();
+    emit recordingsUpdated(m_recordings);
+}
+
+QString QOnvifDevice::createRecording(const PelcoD::Onvif::RecordingConfig& config)
+{
+    if (!m_client) {
+        return {};
+    }
+    const auto tokOpt = m_client->createRecording(config);
+    if (tokOpt) {
+        refreshRecordings();
+        return QString::fromStdString(*tokOpt);
+    }
+    return {};
+}
+
+bool QOnvifDevice::setRecordingConfiguration(const PelcoD::Onvif::RecordingConfig& config)
+{
+    if (!m_client) {
+        return false;
+    }
+    const bool ok = m_client->setRecordingConfiguration(config);
+    if (ok) {
+        refreshRecordings();
+    }
+    return ok;
+}
+
+bool QOnvifDevice::deleteRecording(const QString& recordingToken)
+{
+    if (!m_client) {
+        return false;
+    }
+    const bool ok = m_client->deleteRecording(recordingToken.toStdString());
+    if (ok) {
+        refreshRecordings();
+    }
+    return ok;
+}
+
+QString QOnvifDevice::createTrack(const QString& recordingToken, const PelcoD::Onvif::RecordingTrack& track)
+{
+    if (!m_client) {
+        return {};
+    }
+    const auto trkOpt = m_client->createTrack(recordingToken.toStdString(), track);
+    if (trkOpt) {
+        refreshRecordings();
+        return QString::fromStdString(*trkOpt);
+    }
+    return {};
+}
+
+bool QOnvifDevice::deleteTrack(const QString& recordingToken, const QString& trackToken)
+{
+    if (!m_client) {
+        return false;
+    }
+    const bool ok = m_client->deleteTrack(recordingToken.toStdString(), trackToken.toStdString());
+    if (ok) {
+        refreshRecordings();
+    }
+    return ok;
+}
+
+void QOnvifDevice::refreshRecordingJobs()
+{
+    if (!m_client) {
+        return;
+    }
+    m_recordingJobs = m_client->getRecordingJobs();
+    emit recordingJobsUpdated(m_recordingJobs);
+}
+
+QString QOnvifDevice::createRecordingJob(const PelcoD::Onvif::RecordingJob& job)
+{
+    if (!m_client) {
+        return {};
+    }
+    const auto jobOpt = m_client->createRecordingJob(job);
+    if (jobOpt) {
+        refreshRecordingJobs();
+        return QString::fromStdString(*jobOpt);
+    }
+    return {};
+}
+
+bool QOnvifDevice::setRecordingJobMode(const QString& jobToken, PelcoD::Onvif::RecordingJobMode mode)
+{
+    if (!m_client) {
+        return false;
+    }
+    const bool ok = m_client->setRecordingJobMode(jobToken.toStdString(), mode);
+    if (ok) {
+        refreshRecordingJobs();
+    }
+    return ok;
+}
+
+bool QOnvifDevice::deleteRecordingJob(const QString& jobToken)
+{
+    if (!m_client) {
+        return false;
+    }
+    const bool ok = m_client->deleteRecordingJob(jobToken.toStdString());
+    if (ok) {
+        refreshRecordingJobs();
+    }
+    return ok;
+}
+
+void QOnvifDevice::refreshRecordingSummary()
+{
+    if (!m_client) {
+        return;
+    }
+    m_recordingSummary = m_client->getRecordingSummary();
+    if (m_recordingSummary) {
+        emit recordingSummaryUpdated(*m_recordingSummary);
+    }
+}
+
+// =========================================================================
+// Profile G: Search Service
+// =========================================================================
+
+QString QOnvifDevice::findRecordings(const QString& scope, int maxMatches)
+{
+    if (!m_client) {
+        return {};
+    }
+    const auto tokOpt = m_client->findRecordings(scope.toStdString(), maxMatches);
+    if (tokOpt) {
+        return QString::fromStdString(*tokOpt);
+    }
+    return {};
+}
+
+void QOnvifDevice::refreshRecordingSearchResults(const QString& searchToken)
+{
+    if (!m_client || searchToken.isEmpty()) {
+        return;
+    }
+    const auto results = m_client->getRecordingSearchResults(searchToken.toStdString());
+    emit recordingSearchResultsReceived(searchToken, results);
+}
+
+QString QOnvifDevice::findEvents(const QString& startUtc, const QString& endUtc, int maxMatches)
+{
+    if (!m_client) {
+        return {};
+    }
+    const auto tokOpt = m_client->findEvents(startUtc.toStdString(), endUtc.toStdString(), maxMatches);
+    if (tokOpt) {
+        return QString::fromStdString(*tokOpt);
+    }
+    return {};
+}
+
+void QOnvifDevice::refreshEventSearchResults(const QString& searchToken)
+{
+    if (!m_client || searchToken.isEmpty()) {
+        return;
+    }
+    const auto results = m_client->getEventSearchResults(searchToken.toStdString());
+    emit eventSearchResultsReceived(searchToken, results);
+}
+
+bool QOnvifDevice::endSearch(const QString& searchToken)
+{
+    if (!m_client || searchToken.isEmpty()) {
+        return false;
+    }
+    return m_client->endSearch(searchToken.toStdString());
+}
+
+// =========================================================================
+// Profile G: Replay Service
+// =========================================================================
+
+void QOnvifDevice::resolveReplayUri(const QString& recordingToken, const QString& streamType)
+{
+    if (!m_client) {
+        return;
+    }
+    const auto uriOpt = m_client->getReplayUri(recordingToken.toStdString(), streamType.toStdString());
+    if (uriOpt) {
+        emit replayUriResolved(recordingToken, QString::fromStdString(*uriOpt));
+    }
+}
+
+void QOnvifDevice::refreshReplayConfiguration()
+{
+    if (!m_client) {
+        return;
+    }
+    m_replayConfig = m_client->getReplayConfiguration();
+    if (m_replayConfig) {
+        emit replayConfigurationUpdated(*m_replayConfig);
+    }
+}
+
+bool QOnvifDevice::setReplayConfiguration(const PelcoD::Onvif::ReplayConfiguration& config)
+{
+    if (!m_client) {
+        return false;
+    }
+    const bool ok = m_client->setReplayConfiguration(config);
+    if (ok) {
+        m_replayConfig = config;
+        emit replayConfigurationUpdated(config);
+    }
+    return ok;
 }
 
 } // namespace PelcoD::Qt

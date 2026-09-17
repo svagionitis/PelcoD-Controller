@@ -486,4 +486,179 @@ struct SystemBackupData {
     std::string checksum {}; ///< Checksum verification string
 };
 
+// =========================================================================
+// Profile G: Recording, Search & Replay Data Models
+// =========================================================================
+
+/// @enum RecordingTrackType
+/// @brief Media type of a track within an ONVIF recording container (Profile G).
+enum class RecordingTrackType : std::uint8_t { Video, Audio, Metadata };
+
+/// @brief Converts RecordingTrackType to string representation.
+[[nodiscard]] inline std::string recordingTrackTypeToString(RecordingTrackType type)
+{
+    switch (type) {
+    case RecordingTrackType::Audio:
+        return "Audio";
+    case RecordingTrackType::Metadata:
+        return "Metadata";
+    case RecordingTrackType::Video:
+    default:
+        return "Video";
+    }
+}
+
+/// @brief Parses RecordingTrackType from string representation.
+[[nodiscard]] inline RecordingTrackType recordingTrackTypeFromString(const std::string& str)
+{
+    if (str == "Audio" || str == "audio") {
+        return RecordingTrackType::Audio;
+    }
+    if (str == "Metadata" || str == "metadata") {
+        return RecordingTrackType::Metadata;
+    }
+    return RecordingTrackType::Video;
+}
+
+/// @struct RecordingTrack
+/// @brief A specific recorded stream track (e.g. video, audio, or metadata).
+struct RecordingTrack {
+    std::string trackToken { "Track_Video" }; ///< Track token
+    RecordingTrackType trackType { RecordingTrackType::Video }; ///< Track type
+    std::string description {}; ///< Description
+};
+
+/// @struct RecordingConfig
+/// @brief Configuration and attributes of an edge recording storage container.
+struct RecordingConfig {
+    std::string recordingToken { "Recording_1" }; ///< Unique recording token
+    std::string sourceToken { "VideoSource_1" }; ///< Bound video source
+    std::string content { "Primary surveillance recording" }; ///< Descriptive label
+    std::string maximumRetentionTime { "P30D" }; ///< Maximum retention time ISO 8601 duration
+    std::vector<RecordingTrack> tracks {}; ///< Associated recorded tracks
+};
+
+/// @struct RecordingSummary
+/// @brief Aggregated storage volume and time statistics for recordings.
+struct RecordingSummary {
+    std::string dataFrom {}; ///< Earliest recording timestamp (ISO 8601 UTC)
+    std::string dataUntil {}; ///< Latest recording timestamp (ISO 8601 UTC)
+    int numberRecordings { 0 }; ///< Total number of recording containers
+    uint64_t totalStorageBytes { 0 }; ///< Total disk bytes consumed
+};
+
+/// @enum RecordingJobMode
+/// @brief Operational mode of an automated recording job.
+enum class RecordingJobMode : std::uint8_t { Active, Idle };
+
+/// @brief Converts RecordingJobMode to string representation.
+[[nodiscard]] inline std::string recordingJobModeToString(RecordingJobMode mode)
+{
+    return (mode == RecordingJobMode::Active) ? "Active" : "Idle";
+}
+
+/// @brief Parses RecordingJobMode from string representation.
+[[nodiscard]] inline RecordingJobMode recordingJobModeFromString(const std::string& str)
+{
+    return (str == "Active" || str == "active") ? RecordingJobMode::Active : RecordingJobMode::Idle;
+}
+
+/// @struct RecordingJob
+/// @brief Automation job associating a media source with an edge recording container.
+struct RecordingJob {
+    std::string jobToken { "Job_1" }; ///< Unique job token
+    std::string recordingToken { "Recording_1" }; ///< Target recording token
+    RecordingJobMode mode { RecordingJobMode::Active }; ///< Current job mode
+    int priority { 1 }; ///< Priority integer
+    std::string sourceToken { "VideoSource_1" }; ///< Video source token
+};
+
+/// @struct RecordingSearchResult
+/// @brief Match item returned from a historical recording search query.
+struct RecordingSearchResult {
+    std::string recordingToken {}; ///< Matching recording token
+    std::string trackToken {}; ///< Matching track token
+    std::string earliestTime {}; ///< Earliest segment timestamp
+    std::string latestTime {}; ///< Latest segment timestamp
+    std::string searchState { "Completed" }; ///< State of the search
+};
+
+/// @struct RecordedEventResult
+/// @brief Historical event notification found within recorded time slices.
+struct RecordedEventResult {
+    std::string recordingToken {}; ///< Originating recording container
+    std::string eventTime {}; ///< Event timestamp (ISO 8601 UTC)
+    std::string topic {}; ///< ONVIF event topic
+    std::string source {}; ///< Event source name/value
+    std::string data {}; ///< Event data payload
+};
+
+/// @struct ReplayConfiguration
+/// @brief Session parameters and timeouts for RTSP replay streams.
+struct ReplayConfiguration {
+    std::string sessionTimeout { "PT60S" }; ///< Replay stream keep-alive duration
+};
+
+// =========================================================================
+// Device Management: PKI Certificates & HTTPS/TLS Security Models
+// =========================================================================
+
+/// @struct CertificateInformation
+/// @brief X.509 certificate metadata and validity attributes.
+struct CertificateInformation {
+    std::string certificateId { "Cert_1" }; ///< Unique certificate identifier
+    std::string subject {}; ///< X.509 Distinguished Name subject
+    std::string issuer {}; ///< Certificate Authority or self-signed issuer
+    std::string validNotBefore {}; ///< Start of validity period
+    std::string validNotAfter {}; ///< Expiration timestamp
+    std::string keyAlgorithm { "RSA" }; ///< Public key algorithm
+    bool isDefault { false }; ///< True if bound as default TLS server cert
+};
+
+/// @struct OnvifCertificate
+/// @brief Complete certificate record including raw DER base64 representation.
+struct OnvifCertificate {
+    std::string certificateId { "Cert_1" }; ///< Certificate ID
+    std::string x509DerBase64 {}; ///< Base64-encoded DER X.509 certificate data
+    CertificateInformation info {}; ///< Decoded metadata
+};
+
+/// @struct Pkcs10Request
+/// @brief PKCS#10 Certificate Signing Request (CSR) generated on device.
+struct Pkcs10Request {
+    std::string certificateId {}; ///< Associated certificate ID
+    std::string subject {}; ///< Requested subject DN
+    std::string csrBase64 {}; ///< Base64-encoded PKCS#10 CSR payload
+};
+
+/// @enum ClientCertificateMode
+/// @brief TLS client certificate authentication enforcement mode.
+enum class ClientCertificateMode : std::uint8_t { Off, Optional, Required };
+
+/// @brief Converts ClientCertificateMode to string representation.
+[[nodiscard]] inline std::string clientCertificateModeToString(ClientCertificateMode mode)
+{
+    switch (mode) {
+    case ClientCertificateMode::Optional:
+        return "Optional";
+    case ClientCertificateMode::Required:
+        return "Required";
+    case ClientCertificateMode::Off:
+    default:
+        return "Off";
+    }
+}
+
+/// @brief Parses ClientCertificateMode from string representation.
+[[nodiscard]] inline ClientCertificateMode clientCertificateModeFromString(const std::string& str)
+{
+    if (str == "Optional" || str == "optional") {
+        return ClientCertificateMode::Optional;
+    }
+    if (str == "Required" || str == "required") {
+        return ClientCertificateMode::Required;
+    }
+    return ClientCertificateMode::Off;
+}
+
 } // namespace PelcoD::Onvif

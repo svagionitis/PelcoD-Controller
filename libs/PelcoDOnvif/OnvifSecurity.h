@@ -3,6 +3,8 @@
 /// @file OnvifSecurity.h
 /// @brief WS-Security UsernameToken authentication generation for ONVIF SOAP requests.
 
+#include "OnvifTypes.h"
+
 #include <chrono>
 #include <cstdint>
 #include <string>
@@ -28,9 +30,9 @@ struct UsernameTokenData {
 };
 
 /// @class OnvifSecurity
-/// @brief Utility class generating WS-Security authentication headers.
-/// @details Implements WS-Security UsernameToken Profile 1.0 using SHA-1 digest:
-/// PasswordDigest = Base64(SHA-1(RawNonce + CreatedUtc + Password))
+/// @brief Utility class generating WS-Security authentication headers and X.509 PKI assets.
+/// @details Implements WS-Security UsernameToken Profile 1.0 using SHA-1 digest,
+/// and OpenSSL cryptographic helpers for X.509 certificates and PKCS#10 CSRs.
 class OnvifSecurity {
 public:
     /// @brief Generates random 16-byte nonce.
@@ -60,6 +62,11 @@ public:
     /// @return Base64 encoded string.
     [[nodiscard]] static std::string base64Encode(const std::string& text);
 
+    /// @brief Decodes Base64 encoded string into raw bytes.
+    /// @param[in] base64Text Base64 input string.
+    /// @return Decoded byte vector.
+    [[nodiscard]] static std::vector<uint8_t> base64Decode(const std::string& base64Text);
+
     /// @brief Builds complete UsernameToken parameters for SOAP envelope.
     /// @param[in] credentials User credentials and clock offset.
     /// @return Generated UsernameToken data.
@@ -69,6 +76,28 @@ public:
     /// @param[in] credentials User credentials and clock offset.
     /// @return XML formatted security header element string. Empty if username is empty.
     [[nodiscard]] static std::string buildSoapSecurityHeader(const SecurityCredentials& credentials);
+
+    /// @brief Generates a self-signed X.509 certificate and returns an OnvifCertificate record.
+    /// @param[in] certificateId Certificate token identifier.
+    /// @param[in] subject Distinguished name (e.g. "CN=PelcoD-Camera, O=Security").
+    /// @param[in] daysValid Certificate validity duration in days.
+    /// @return Complete OnvifCertificate with base64 DER data and decoded info.
+    [[nodiscard]] static OnvifCertificate generateSelfSignedCertificate(
+        const std::string& certificateId, const std::string& subject = "", int daysValid = 365);
+
+    /// @brief Generates a PKCS#10 Certificate Signing Request (CSR) in base64/PEM format.
+    /// @param[in] certificateId Associated certificate identifier.
+    /// @param[in] subject Distinguished name.
+    /// @return Pkcs10Request struct with base64 CSR payload.
+    [[nodiscard]] static Pkcs10Request generatePkcs10Csr(
+        const std::string& certificateId, const std::string& subject = "");
+
+    /// @brief Parses an X.509 DER base64 encoded certificate into CertificateInformation.
+    /// @param[in] certificateId Certificate ID to assign.
+    /// @param[in] x509DerBase64 Base64 encoded DER data.
+    /// @return Decoded CertificateInformation metadata.
+    [[nodiscard]] static CertificateInformation parseCertificateInfo(
+        const std::string& certificateId, const std::string& x509DerBase64);
 };
 
 } // namespace PelcoD::Onvif

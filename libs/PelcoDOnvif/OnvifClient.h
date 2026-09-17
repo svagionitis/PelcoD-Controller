@@ -24,6 +24,9 @@ struct OnvifCapabilities {
     std::string eventsXAddr {}; ///< Events service endpoint
     std::string imagingXAddr {}; ///< Imaging service endpoint
     std::string deviceIoXAddr {}; ///< DeviceIO service endpoint
+    std::string recordingXAddr {}; ///< Recording service endpoint (Profile G)
+    std::string searchXAddr {}; ///< Search service endpoint (Profile G)
+    std::string replayXAddr {}; ///< Replay service endpoint (Profile G)
 };
 
 /// @class OnvifClient
@@ -518,6 +521,173 @@ public:
     [[nodiscard]] std::optional<std::string> getEndpointReference();
 
     // =========================================================================
+    // PKI Certificates & HTTPS/TLS Security Service
+    // =========================================================================
+
+    /// @brief Queries list of installed X.509 certificates on device.
+    /// @return Vector of OnvifCertificate records.
+    [[nodiscard]] std::vector<OnvifCertificate> getCertificates();
+
+    /// @brief Queries detailed information for a specific certificate ID.
+    /// @param[in] certificateId Certificate identifier token.
+    /// @return CertificateInformation or nullopt on failure.
+    [[nodiscard]] std::optional<CertificateInformation> getCertificateInformation(const std::string& certificateId);
+
+    /// @brief Requests device to generate a self-signed X.509 certificate.
+    /// @param[in] certificateId Certificate token.
+    /// @param[in] subject Subject distinguished name.
+    /// @param[in] daysValid Validity period in days.
+    /// @return Created OnvifCertificate or nullopt on failure.
+    [[nodiscard]] std::optional<OnvifCertificate> createCertificate(
+        const std::string& certificateId, const std::string& subject, int daysValid = 365);
+
+    /// @brief Generates a PKCS#10 Certificate Signing Request (CSR) on device.
+    /// @param[in] certificateId Target certificate token.
+    /// @param[in] subject Subject distinguished name.
+    /// @return Pkcs10Request or nullopt on failure.
+    [[nodiscard]] std::optional<Pkcs10Request> getPkcs10Request(
+        const std::string& certificateId, const std::string& subject);
+
+    /// @brief Uploads signed X.509 certificates to device.
+    /// @param[in] certificates List of certificates to upload.
+    /// @return True on success.
+    bool loadCertificates(const std::vector<OnvifCertificate>& certificates);
+
+    /// @brief Deletes certificates from device by token ID.
+    /// @param[in] certificateIds List of certificate IDs to delete.
+    /// @return True on success.
+    bool deleteCertificates(const std::vector<std::string>& certificateIds);
+
+    /// @brief Queries TLS client certificate authentication mode.
+    /// @return ClientCertificateMode or nullopt on failure.
+    [[nodiscard]] std::optional<ClientCertificateMode> getClientCertificateMode();
+
+    /// @brief Configures TLS client certificate authentication mode.
+    /// @param[in] mode Desired ClientCertificateMode.
+    /// @return True on success.
+    bool setClientCertificateMode(ClientCertificateMode mode);
+
+    // =========================================================================
+    // Profile G: Recording Service
+    // =========================================================================
+
+    /// @brief Retrieves list of all edge recordings stored on camera.
+    /// @return Vector of RecordingConfig structures.
+    [[nodiscard]] std::vector<RecordingConfig> getRecordings();
+
+    /// @brief Creates a new recording storage container on camera.
+    /// @param[in] config Recording container configuration.
+    /// @return Assigned recordingToken or nullopt on failure.
+    [[nodiscard]] std::optional<std::string> createRecording(const RecordingConfig& config);
+
+    /// @brief Retrieves configuration of a specific recording container.
+    /// @param[in] recordingToken Target recording token.
+    /// @return RecordingConfig or nullopt on failure.
+    [[nodiscard]] std::optional<RecordingConfig> getRecordingConfiguration(const std::string& recordingToken);
+
+    /// @brief Updates configuration of an existing recording container.
+    /// @param[in] config Updated recording configuration.
+    /// @return True on success.
+    bool setRecordingConfiguration(const RecordingConfig& config);
+
+    /// @brief Deletes a recording container and its stored data.
+    /// @param[in] recordingToken Target recording token.
+    /// @return True on success.
+    bool deleteRecording(const std::string& recordingToken);
+
+    /// @brief Adds a track (video, audio, metadata) to a recording container.
+    /// @param[in] recordingToken Parent recording token.
+    /// @param[in] track Track parameters.
+    /// @return Assigned trackToken or nullopt on failure.
+    [[nodiscard]] std::optional<std::string> createTrack(
+        const std::string& recordingToken, const RecordingTrack& track);
+
+    /// @brief Deletes a track from a recording container.
+    /// @param[in] recordingToken Parent recording token.
+    /// @param[in] trackToken Track token to delete.
+    /// @return True on success.
+    bool deleteTrack(const std::string& recordingToken, const std::string& trackToken);
+
+    /// @brief Retrieves list of active automated recording jobs.
+    /// @return Vector of RecordingJob structures.
+    [[nodiscard]] std::vector<RecordingJob> getRecordingJobs();
+
+    /// @brief Creates an automated recording job binding a source to a recording.
+    /// @param[in] job Job configuration.
+    /// @return Assigned jobToken or nullopt on failure.
+    [[nodiscard]] std::optional<std::string> createRecordingJob(const RecordingJob& job);
+
+    /// @brief Updates the operational mode of a recording job (Active vs Idle).
+    /// @param[in] jobToken Target job token.
+    /// @param[in] mode Desired RecordingJobMode.
+    /// @return True on success.
+    bool setRecordingJobMode(const std::string& jobToken, RecordingJobMode mode);
+
+    /// @brief Deletes a recording job.
+    /// @param[in] jobToken Target job token.
+    /// @return True on success.
+    bool deleteRecordingJob(const std::string& jobToken);
+
+    /// @brief Retrieves overall storage and time range summary for recordings.
+    /// @return RecordingSummary or nullopt on failure.
+    [[nodiscard]] std::optional<RecordingSummary> getRecordingSummary();
+
+    // =========================================================================
+    // Profile G: Search Service
+    // =========================================================================
+
+    /// @brief Initiates historical recording search query.
+    /// @param[in] scope Search scope.
+    /// @param[in] maxMatches Maximum results.
+    /// @param[in] keepAliveTime Search session keepalive ISO duration.
+    /// @return Search session token or nullopt on failure.
+    [[nodiscard]] std::optional<std::string> findRecordings(
+        const std::string& scope = "", int maxMatches = 10, const std::string& keepAliveTime = "PT60S");
+
+    /// @brief Polls results for an active recording search query.
+    /// @param[in] searchToken Search session token.
+    /// @return Vector of RecordingSearchResult matches.
+    [[nodiscard]] std::vector<RecordingSearchResult> getRecordingSearchResults(const std::string& searchToken);
+
+    /// @brief Initiates historical recorded events search query.
+    /// @param[in] startUtc Start timestamp (ISO 8601 UTC).
+    /// @param[in] endUtc End timestamp (ISO 8601 UTC).
+    /// @param[in] maxMatches Maximum matches.
+    /// @return Search session token or nullopt on failure.
+    [[nodiscard]] std::optional<std::string> findEvents(
+        const std::string& startUtc, const std::string& endUtc = "", int maxMatches = 10);
+
+    /// @brief Polls results for an active event search query.
+    /// @param[in] searchToken Search session token.
+    /// @return Vector of RecordedEventResult matches.
+    [[nodiscard]] std::vector<RecordedEventResult> getEventSearchResults(const std::string& searchToken);
+
+    /// @brief Closes an active search query session.
+    /// @param[in] searchToken Search session token.
+    /// @return True on success.
+    bool endSearch(const std::string& searchToken);
+
+    // =========================================================================
+    // Profile G: Replay Service
+    // =========================================================================
+
+    /// @brief Resolves RTSP replay URI for playback of a recorded track.
+    /// @param[in] recordingToken Target recording token.
+    /// @param[in] streamType Stream transport type (e.g. "RTP-Unicast").
+    /// @return Replay RTSP URI string or nullopt on failure.
+    [[nodiscard]] std::optional<std::string> getReplayUri(
+        const std::string& recordingToken, const std::string& streamType = "RTP-Unicast");
+
+    /// @brief Retrieves current replay session parameters.
+    /// @return ReplayConfiguration or nullopt on failure.
+    [[nodiscard]] std::optional<ReplayConfiguration> getReplayConfiguration();
+
+    /// @brief Configures replay session timeouts.
+    /// @param[in] config Desired replay configuration.
+    /// @return True on success.
+    bool setReplayConfiguration(const ReplayConfiguration& config);
+
+    // =========================================================================
     // XML Envelope & Parsing Helpers (Public for testing)
     // =========================================================================
 
@@ -717,6 +887,34 @@ public:
     /// @param[in] xml Raw response XML.
     /// @return Endpoint GUID string or nullopt on failure.
     [[nodiscard]] static std::optional<std::string> parseEndpointReferenceResponse(const std::string& xml);
+
+    // =========================================================================
+    // Profile G & PKI XML Parsing Helpers
+    // =========================================================================
+
+    [[nodiscard]] static std::vector<OnvifCertificate> parseCertificatesResponse(const std::string& xml);
+    [[nodiscard]] static std::optional<CertificateInformation> parseCertificateInformationResponse(
+        const std::string& xml);
+    [[nodiscard]] static std::optional<OnvifCertificate> parseCreateCertificateResponse(const std::string& xml);
+    [[nodiscard]] static std::optional<Pkcs10Request> parsePkcs10RequestResponse(const std::string& xml);
+    [[nodiscard]] static std::optional<ClientCertificateMode> parseClientCertificateModeResponse(
+        const std::string& xml);
+
+    [[nodiscard]] static std::vector<RecordingConfig> parseRecordingsResponse(const std::string& xml);
+    [[nodiscard]] static std::optional<std::string> parseCreateRecordingResponse(const std::string& xml);
+    [[nodiscard]] static std::optional<RecordingConfig> parseRecordingConfigurationResponse(const std::string& xml);
+    [[nodiscard]] static std::vector<RecordingJob> parseRecordingJobsResponse(const std::string& xml);
+    [[nodiscard]] static std::optional<std::string> parseCreateRecordingJobResponse(const std::string& xml);
+    [[nodiscard]] static std::optional<RecordingSummary> parseRecordingSummaryResponse(const std::string& xml);
+    [[nodiscard]] static std::optional<std::string> parseCreateTrackResponse(const std::string& xml);
+
+    [[nodiscard]] static std::optional<std::string> parseFindRecordingsResponse(const std::string& xml);
+    [[nodiscard]] static std::vector<RecordingSearchResult> parseRecordingSearchResultsResponse(const std::string& xml);
+    [[nodiscard]] static std::optional<std::string> parseFindEventsResponse(const std::string& xml);
+    [[nodiscard]] static std::vector<RecordedEventResult> parseEventSearchResultsResponse(const std::string& xml);
+
+    [[nodiscard]] static std::optional<std::string> parseReplayUriResponse(const std::string& xml);
+    [[nodiscard]] static std::optional<ReplayConfiguration> parseReplayConfigurationResponse(const std::string& xml);
 
 private:
     std::string m_deviceEndpoint {};

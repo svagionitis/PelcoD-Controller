@@ -1934,6 +1934,464 @@ void testMetadataStreamsAndMaintenanceExtensions()
     std::cout << "[PASS] testMetadataStreamsAndMaintenanceExtensions" << std::endl;
 }
 
+void testProfileGAndPkiCertificates()
+{
+    std::cout << "[RUN] testProfileGAndPkiCertificates" << std::endl;
+
+    auto mockTransport = std::make_shared<PelcoD::MockPelcoDDevice>(1U);
+    auto device = std::make_shared<PelcoD::PelcoDDevice>(mockTransport, 1U);
+    assert(device->start());
+
+    auto adapter = std::make_shared<PelcoDPtzAdapter>(device);
+
+    OnvifServerConfig config;
+    config.port = 18597;
+    config.bindAddress = "127.0.0.1";
+    config.deviceName = "ProfileGCam";
+
+    OnvifServer server(config, adapter, adapter);
+    server.setDeviceManagementHandler(adapter);
+    server.setRecordingHandler(adapter);
+    server.setSearchHandler(adapter);
+    server.setReplayHandler(adapter);
+    assert(server.start());
+    assert(server.isRunning());
+
+    httplib::Client client("127.0.0.1", config.port);
+    client.set_connection_timeout(std::chrono::seconds(3));
+    client.set_read_timeout(std::chrono::seconds(3));
+
+    // 1. Device Management: CreateCertificate
+    {
+        const std::string req = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+                                "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                "xmlns:tds=\"http://www.onvif.org/ver10/device/wsdl\">\r\n"
+                                "  <SOAP-ENV:Body>\r\n"
+                                "    <tds:CreateCertificate>\r\n"
+                                "      <tds:CertificateID>cert_pki_1</tds:CertificateID>\r\n"
+                                "      <tds:Subject>CN=ProfileGCam,O=Org</tds:Subject>\r\n"
+                                "      <tds:ValidDays>365</tds:ValidDays>\r\n"
+                                "    </tds:CreateCertificate>\r\n"
+                                "  </SOAP-ENV:Body>\r\n"
+                                "</SOAP-ENV:Envelope>";
+        auto res = client.Post("/onvif/device_service", req, "application/soap+xml; charset=utf-8");
+        assert(res && res->status == 200);
+        assert(res->body.find("CreateCertificateResponse") != std::string::npos);
+        pugi::xml_document doc;
+        assert(doc.load_string(res->body.c_str()));
+        const pugi::xml_node idNode = doc.select_node("//*[local-name()='CertificateID']").node();
+        assert(idNode && std::string(idNode.text().as_string()) == "cert_pki_1");
+        const pugi::xml_node dataNode = doc.select_node("//*[local-name()='Data']").node();
+        assert(dataNode && !std::string(dataNode.text().as_string()).empty());
+    }
+
+    // 2. Device Management: GetCertificates
+    {
+        const std::string req = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+                                "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                "xmlns:tds=\"http://www.onvif.org/ver10/device/wsdl\">\r\n"
+                                "  <SOAP-ENV:Body><tds:GetCertificates/></SOAP-ENV:Body>\r\n"
+                                "</SOAP-ENV:Envelope>";
+        auto res = client.Post("/onvif/device_service", req, "application/soap+xml; charset=utf-8");
+        assert(res && res->status == 200);
+        assert(res->body.find("GetCertificatesResponse") != std::string::npos);
+        assert(res->body.find("cert_pki_1") != std::string::npos);
+    }
+
+    // 3. Device Management: GetCertificateInformation
+    {
+        const std::string req = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+                                "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                "xmlns:tds=\"http://www.onvif.org/ver10/device/wsdl\">\r\n"
+                                "  <SOAP-ENV:Body>\r\n"
+                                "    <tds:GetCertificateInformation>\r\n"
+                                "      <tds:CertificateID>cert_pki_1</tds:CertificateID>\r\n"
+                                "    </tds:GetCertificateInformation>\r\n"
+                                "  </SOAP-ENV:Body>\r\n"
+                                "</SOAP-ENV:Envelope>";
+        auto res = client.Post("/onvif/device_service", req, "application/soap+xml; charset=utf-8");
+        assert(res && res->status == 200);
+        assert(res->body.find("GetCertificateInformationResponse") != std::string::npos);
+        assert(res->body.find("ProfileGCam") != std::string::npos);
+    }
+
+    // 4. Device Management: GetPkcs10Request
+    {
+        const std::string req = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+                                "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                "xmlns:tds=\"http://www.onvif.org/ver10/device/wsdl\">\r\n"
+                                "  <SOAP-ENV:Body>\r\n"
+                                "    <tds:GetPkcs10Request>\r\n"
+                                "      <tds:CertificateID>csr_pki_1</tds:CertificateID>\r\n"
+                                "      <tds:Subject>CN=CSRCamera,O=Org</tds:Subject>\r\n"
+                                "    </tds:GetPkcs10Request>\r\n"
+                                "  </SOAP-ENV:Body>\r\n"
+                                "</SOAP-ENV:Envelope>";
+        auto res = client.Post("/onvif/device_service", req, "application/soap+xml; charset=utf-8");
+        assert(res && res->status == 200);
+        assert(res->body.find("GetPkcs10RequestResponse") != std::string::npos);
+        assert(res->body.find("Pkcs10Request") != std::string::npos);
+    }
+
+    // 5. Device Management: ClientCertificateMode (Get, Set, Get)
+    {
+        const std::string reqGet = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+                                   "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                   "xmlns:tds=\"http://www.onvif.org/ver10/device/wsdl\">\r\n"
+                                   "  <SOAP-ENV:Body><tds:GetClientCertificateMode/></SOAP-ENV:Body>\r\n"
+                                   "</SOAP-ENV:Envelope>";
+        auto resGet = client.Post("/onvif/device_service", reqGet, "application/soap+xml; charset=utf-8");
+        assert(resGet && resGet->status == 200);
+        assert(resGet->body.find("GetClientCertificateModeResponse") != std::string::npos);
+
+        const std::string reqSet = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+                                   "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                   "xmlns:tds=\"http://www.onvif.org/ver10/device/wsdl\">\r\n"
+                                   "  <SOAP-ENV:Body>\r\n"
+                                   "    <tds:SetClientCertificateMode>\r\n"
+                                   "      <tds:ClientCertificateMode>Optional</tds:ClientCertificateMode>\r\n"
+                                   "    </tds:SetClientCertificateMode>\r\n"
+                                   "  </SOAP-ENV:Body>\r\n"
+                                   "</SOAP-ENV:Envelope>";
+        auto resSet = client.Post("/onvif/device_service", reqSet, "application/soap+xml; charset=utf-8");
+        assert(resSet && resSet->status == 200);
+        assert(resSet->body.find("SetClientCertificateModeResponse") != std::string::npos);
+
+        auto resGet2 = client.Post("/onvif/device_service", reqGet, "application/soap+xml; charset=utf-8");
+        assert(resGet2 && resGet2->status == 200);
+        assert(resGet2->body.find("Optional") != std::string::npos);
+    }
+
+    // 6. Device Management: DeleteCertificates
+    {
+        const std::string req = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+                                "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                "xmlns:tds=\"http://www.onvif.org/ver10/device/wsdl\">\r\n"
+                                "  <SOAP-ENV:Body>\r\n"
+                                "    <tds:DeleteCertificates>\r\n"
+                                "      <tds:CertificateID>cert_pki_1</tds:CertificateID>\r\n"
+                                "    </tds:DeleteCertificates>\r\n"
+                                "  </SOAP-ENV:Body>\r\n"
+                                "</SOAP-ENV:Envelope>";
+        auto res = client.Post("/onvif/device_service", req, "application/soap+xml; charset=utf-8");
+        assert(res && res->status == 200);
+        assert(res->body.find("DeleteCertificatesResponse") != std::string::npos);
+    }
+
+    // 7. Recording Service: GetServiceCapabilities & CreateRecording
+    std::string recToken;
+    {
+        const std::string reqCaps = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+                                    "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                    "xmlns:trc=\"http://www.onvif.org/ver10/recording/wsdl\">\r\n"
+                                    "  <SOAP-ENV:Body><trc:GetServiceCapabilities/></SOAP-ENV:Body>\r\n"
+                                    "</SOAP-ENV:Envelope>";
+        auto resCaps = client.Post("/onvif/recording_service", reqCaps, "application/soap+xml; charset=utf-8");
+        assert(resCaps && resCaps->status == 200);
+        assert(resCaps->body.find("GetServiceCapabilitiesResponse") != std::string::npos);
+        assert(resCaps->body.find("DynamicRecordings") != std::string::npos);
+
+        const std::string reqCreate = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+                                      "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                      "xmlns:trc=\"http://www.onvif.org/ver10/recording/wsdl\" "
+                                      "xmlns:tt=\"http://www.onvif.org/ver10/schema\">\r\n"
+                                      "  <SOAP-ENV:Body>\r\n"
+                                      "    <trc:CreateRecording>\r\n"
+                                      "      <trc:RecordingConfiguration>\r\n"
+                                      "        <tt:Source>\r\n"
+                                      "          <tt:SourceId>Profile_1</tt:SourceId>\r\n"
+                                      "        </tt:Source>\r\n"
+                                      "        <tt:Content>Daily Test</tt:Content>\r\n"
+                                      "        <tt:MaximumRetentionTime>P30D</tt:MaximumRetentionTime>\r\n"
+                                      "      </trc:RecordingConfiguration>\r\n"
+                                      "    </trc:CreateRecording>\r\n"
+                                      "  </SOAP-ENV:Body>\r\n"
+                                      "</SOAP-ENV:Envelope>";
+        auto resCreate = client.Post("/onvif/recording_service", reqCreate, "application/soap+xml; charset=utf-8");
+        assert(resCreate && resCreate->status == 200);
+        assert(resCreate->body.find("CreateRecordingResponse") != std::string::npos);
+        pugi::xml_document doc;
+        assert(doc.load_string(resCreate->body.c_str()));
+        const pugi::xml_node tNode = doc.select_node("//*[local-name()='RecordingToken']").node();
+        assert(tNode);
+        recToken = tNode.text().as_string();
+        assert(!recToken.empty());
+    }
+
+    // 8. Recording Service: GetRecordings & CreateTrack
+    std::string trkToken;
+    {
+        const std::string reqGet = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+                                   "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                   "xmlns:trc=\"http://www.onvif.org/ver10/recording/wsdl\">\r\n"
+                                   "  <SOAP-ENV:Body><trc:GetRecordings/></SOAP-ENV:Body>\r\n"
+                                   "</SOAP-ENV:Envelope>";
+        auto resGet = client.Post("/onvif/recording_service", reqGet, "application/soap+xml; charset=utf-8");
+        assert(resGet && resGet->status == 200);
+        assert(resGet->body.find(recToken) != std::string::npos);
+
+        const std::string reqTrk = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+                                   "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                   "xmlns:trc=\"http://www.onvif.org/ver10/recording/wsdl\" "
+                                   "xmlns:tt=\"http://www.onvif.org/ver10/schema\">\r\n"
+                                   "  <SOAP-ENV:Body>\r\n"
+                                   "    <trc:CreateTrack>\r\n"
+                                   "      <trc:RecordingToken>"
+            + recToken
+            + "</trc:RecordingToken>\r\n"
+              "      <trc:TrackConfiguration>\r\n"
+              "        <tt:TrackType>Video</tt:TrackType>\r\n"
+              "        <tt:Description>1080p Stream</tt:Description>\r\n"
+              "      </trc:TrackConfiguration>\r\n"
+              "    </trc:CreateTrack>\r\n"
+              "  </SOAP-ENV:Body>\r\n"
+              "</SOAP-ENV:Envelope>";
+        auto resTrk = client.Post("/onvif/recording_service", reqTrk, "application/soap+xml; charset=utf-8");
+        assert(resTrk && resTrk->status == 200);
+        assert(resTrk->body.find("CreateTrackResponse") != std::string::npos);
+        pugi::xml_document doc;
+        assert(doc.load_string(resTrk->body.c_str()));
+        const pugi::xml_node tNode = doc.select_node("//*[local-name()='TrackToken']").node();
+        assert(tNode);
+        trkToken = tNode.text().as_string();
+        assert(!trkToken.empty());
+    }
+
+    // 9. Recording Service: CreateRecordingJob, GetRecordingJobs, SetRecordingJobMode
+    std::string jobToken;
+    {
+        const std::string reqJob = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+                                   "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                   "xmlns:trc=\"http://www.onvif.org/ver10/recording/wsdl\" "
+                                   "xmlns:tt=\"http://www.onvif.org/ver10/schema\">\r\n"
+                                   "  <SOAP-ENV:Body>\r\n"
+                                   "    <trc:CreateRecordingJob>\r\n"
+                                   "      <trc:JobConfiguration>\r\n"
+                                   "        <tt:RecordingToken>"
+            + recToken
+            + "</tt:RecordingToken>\r\n"
+              "        <tt:Mode>Active</tt:Mode>\r\n"
+              "        <tt:Priority>1</tt:Priority>\r\n"
+              "        <tt:SourceToken>Profile_1</tt:SourceToken>\r\n"
+              "      </trc:JobConfiguration>\r\n"
+              "    </trc:CreateRecordingJob>\r\n"
+              "  </SOAP-ENV:Body>\r\n"
+              "</SOAP-ENV:Envelope>";
+        auto resJob = client.Post("/onvif/recording_service", reqJob, "application/soap+xml; charset=utf-8");
+        assert(resJob && resJob->status == 200);
+        assert(resJob->body.find("CreateRecordingJobResponse") != std::string::npos);
+        pugi::xml_document doc;
+        assert(doc.load_string(resJob->body.c_str()));
+        const pugi::xml_node tNode = doc.select_node("//*[local-name()='JobToken']").node();
+        assert(tNode);
+        jobToken = tNode.text().as_string();
+        assert(!jobToken.empty());
+
+        const std::string reqGet = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+                                   "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                   "xmlns:trc=\"http://www.onvif.org/ver10/recording/wsdl\">\r\n"
+                                   "  <SOAP-ENV:Body><trc:GetRecordingJobs/></SOAP-ENV:Body>\r\n"
+                                   "</SOAP-ENV:Envelope>";
+        auto resGet = client.Post("/onvif/recording_service", reqGet, "application/soap+xml; charset=utf-8");
+        assert(resGet && resGet->status == 200);
+        assert(resGet->body.find(jobToken) != std::string::npos);
+
+        const std::string reqMode = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+                                    "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                    "xmlns:trc=\"http://www.onvif.org/ver10/recording/wsdl\">\r\n"
+                                    "  <SOAP-ENV:Body>\r\n"
+                                    "    <trc:SetRecordingJobMode>\r\n"
+                                    "      <trc:JobToken>"
+            + jobToken
+            + "</trc:JobToken>\r\n"
+              "      <trc:Mode>Idle</trc:Mode>\r\n"
+              "    </trc:SetRecordingJobMode>\r\n"
+              "  </SOAP-ENV:Body>\r\n"
+              "</SOAP-ENV:Envelope>";
+        auto resMode = client.Post("/onvif/recording_service", reqMode, "application/soap+xml; charset=utf-8");
+        assert(resMode && resMode->status == 200);
+        assert(resMode->body.find("SetRecordingJobModeResponse") != std::string::npos);
+    }
+
+    // 10. Recording Service: GetRecordingSummary
+    {
+        const std::string req = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+                                "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                "xmlns:trc=\"http://www.onvif.org/ver10/recording/wsdl\">\r\n"
+                                "  <SOAP-ENV:Body><trc:GetRecordingSummary/></SOAP-ENV:Body>\r\n"
+                                "</SOAP-ENV:Envelope>";
+        auto res = client.Post("/onvif/recording_service", req, "application/soap+xml; charset=utf-8");
+        assert(res && res->status == 200);
+        assert(res->body.find("GetRecordingSummaryResponse") != std::string::npos);
+        assert(res->body.find("NumberRecordings") != std::string::npos);
+    }
+
+    // 11. Search Service: GetServiceCapabilities, FindRecordings, GetRecordingSearchResults
+    std::string recSearchToken;
+    {
+        const std::string reqCaps = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+                                    "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                    "xmlns:tse=\"http://www.onvif.org/ver10/search/wsdl\">\r\n"
+                                    "  <SOAP-ENV:Body><tse:GetServiceCapabilities/></SOAP-ENV:Body>\r\n"
+                                    "</SOAP-ENV:Envelope>";
+        auto resCaps = client.Post("/onvif/search_service", reqCaps, "application/soap+xml; charset=utf-8");
+        assert(resCaps && resCaps->status == 200);
+        assert(resCaps->body.find("GetServiceCapabilitiesResponse") != std::string::npos);
+
+        const std::string reqFind = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+                                    "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                    "xmlns:tse=\"http://www.onvif.org/ver10/search/wsdl\">\r\n"
+                                    "  <SOAP-ENV:Body>\r\n"
+                                    "    <tse:FindRecordings>\r\n"
+                                    "      <tse:MaxMatches>10</tse:MaxMatches>\r\n"
+                                    "    </tse:FindRecordings>\r\n"
+                                    "  </SOAP-ENV:Body>\r\n"
+                                    "</SOAP-ENV:Envelope>";
+        auto resFind = client.Post("/onvif/search_service", reqFind, "application/soap+xml; charset=utf-8");
+        assert(resFind && resFind->status == 200);
+        assert(resFind->body.find("FindRecordingsResponse") != std::string::npos);
+        pugi::xml_document doc;
+        assert(doc.load_string(resFind->body.c_str()));
+        const pugi::xml_node tNode = doc.select_node("//*[local-name()='SearchToken']").node();
+        assert(tNode);
+        recSearchToken = tNode.text().as_string();
+        assert(!recSearchToken.empty());
+
+        const std::string reqResults = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+                                       "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                       "xmlns:tse=\"http://www.onvif.org/ver10/search/wsdl\">\r\n"
+                                       "  <SOAP-ENV:Body>\r\n"
+                                       "    <tse:GetRecordingSearchResults>\r\n"
+                                       "      <tse:SearchToken>"
+            + recSearchToken
+            + "</tse:SearchToken>\r\n"
+              "    </tse:GetRecordingSearchResults>\r\n"
+              "  </SOAP-ENV:Body>\r\n"
+              "</SOAP-ENV:Envelope>";
+        auto resResults = client.Post("/onvif/search_service", reqResults, "application/soap+xml; charset=utf-8");
+        assert(resResults && resResults->status == 200);
+        assert(resResults->body.find("GetRecordingSearchResultsResponse") != std::string::npos);
+        assert(resResults->body.find("ResultList") != std::string::npos);
+    }
+
+    // 12. Search Service: FindEvents, GetEventSearchResults, EndSearch
+    {
+        const std::string reqFind = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+                                    "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                    "xmlns:tse=\"http://www.onvif.org/ver10/search/wsdl\">\r\n"
+                                    "  <SOAP-ENV:Body>\r\n"
+                                    "    <tse:FindEvents>\r\n"
+                                    "      <tse:StartPoint>2026-09-01T00:00:00Z</tse:StartPoint>\r\n"
+                                    "      <tse:EndPoint>2026-09-17T00:00:00Z</tse:EndPoint>\r\n"
+                                    "    </tse:FindEvents>\r\n"
+                                    "  </SOAP-ENV:Body>\r\n"
+                                    "</SOAP-ENV:Envelope>";
+        auto resFind = client.Post("/onvif/search_service", reqFind, "application/soap+xml; charset=utf-8");
+        assert(resFind && resFind->status == 200);
+        assert(resFind->body.find("FindEventsResponse") != std::string::npos);
+        pugi::xml_document doc;
+        assert(doc.load_string(resFind->body.c_str()));
+        const pugi::xml_node tNode = doc.select_node("//*[local-name()='SearchToken']").node();
+        assert(tNode);
+        const std::string evSearchToken = tNode.text().as_string();
+        assert(!evSearchToken.empty());
+
+        const std::string reqResults = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+                                       "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                       "xmlns:tse=\"http://www.onvif.org/ver10/search/wsdl\">\r\n"
+                                       "  <SOAP-ENV:Body>\r\n"
+                                       "    <tse:GetEventSearchResults>\r\n"
+                                       "      <tse:SearchToken>"
+            + evSearchToken
+            + "</tse:SearchToken>\r\n"
+              "    </tse:GetEventSearchResults>\r\n"
+              "  </SOAP-ENV:Body>\r\n"
+              "</SOAP-ENV:Envelope>";
+        auto resResults = client.Post("/onvif/search_service", reqResults, "application/soap+xml; charset=utf-8");
+        assert(resResults && resResults->status == 200);
+        assert(resResults->body.find("GetEventSearchResultsResponse") != std::string::npos);
+        assert(resResults->body.find("ResultList") != std::string::npos);
+
+        const std::string reqEnd = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+                                   "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                   "xmlns:tse=\"http://www.onvif.org/ver10/search/wsdl\">\r\n"
+                                   "  <SOAP-ENV:Body>\r\n"
+                                   "    <tse:EndSearch>\r\n"
+                                   "      <tse:SearchToken>"
+            + recSearchToken
+            + "</tse:SearchToken>\r\n"
+              "    </tse:EndSearch>\r\n"
+              "  </SOAP-ENV:Body>\r\n"
+              "</SOAP-ENV:Envelope>";
+        auto resEnd = client.Post("/onvif/search_service", reqEnd, "application/soap+xml; charset=utf-8");
+        assert(resEnd && resEnd->status == 200);
+        assert(resEnd->body.find("EndSearchResponse") != std::string::npos);
+    }
+
+    // 13. Replay Service: GetServiceCapabilities, GetReplayUri, Get/Set ReplayConfiguration
+    {
+        const std::string reqCaps = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+                                    "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                    "xmlns:trp=\"http://www.onvif.org/ver10/replay/wsdl\">\r\n"
+                                    "  <SOAP-ENV:Body><trp:GetServiceCapabilities/></SOAP-ENV:Body>\r\n"
+                                    "</SOAP-ENV:Envelope>";
+        auto resCaps = client.Post("/onvif/replay_service", reqCaps, "application/soap+xml; charset=utf-8");
+        assert(resCaps && resCaps->status == 200);
+        assert(resCaps->body.find("GetServiceCapabilitiesResponse") != std::string::npos);
+        assert(resCaps->body.find("ReversePlayback") != std::string::npos);
+
+        const std::string reqUri = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+                                   "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                   "xmlns:trp=\"http://www.onvif.org/ver10/replay/wsdl\">\r\n"
+                                   "  <SOAP-ENV:Body>\r\n"
+                                   "    <trp:GetReplayUri>\r\n"
+                                   "      <trp:RecordingToken>"
+            + recToken
+            + "</trp:RecordingToken>\r\n"
+              "    </trp:GetReplayUri>\r\n"
+              "  </SOAP-ENV:Body>\r\n"
+              "</SOAP-ENV:Envelope>";
+        auto resUri = client.Post("/onvif/replay_service", reqUri, "application/soap+xml; charset=utf-8");
+        assert(resUri && resUri->status == 200);
+        assert(resUri->body.find("GetReplayUriResponse") != std::string::npos);
+        assert(resUri->body.find("rtsp://") != std::string::npos);
+
+        const std::string reqGetCfg = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+                                      "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                      "xmlns:trp=\"http://www.onvif.org/ver10/replay/wsdl\">\r\n"
+                                      "  <SOAP-ENV:Body><trp:GetReplayConfiguration/></SOAP-ENV:Body>\r\n"
+                                      "</SOAP-ENV:Envelope>";
+        auto resGetCfg = client.Post("/onvif/replay_service", reqGetCfg, "application/soap+xml; charset=utf-8");
+        assert(resGetCfg && resGetCfg->status == 200);
+        assert(resGetCfg->body.find("GetReplayConfigurationResponse") != std::string::npos);
+
+        const std::string reqSetCfg = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+                                      "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                      "xmlns:trp=\"http://www.onvif.org/ver10/replay/wsdl\">\r\n"
+                                      "  <SOAP-ENV:Body>\r\n"
+                                      "    <trp:SetReplayConfiguration>\r\n"
+                                      "      <trp:Configuration>\r\n"
+                                      "        <tt:SessionTimeout>PT120S</tt:SessionTimeout>\r\n"
+                                      "      </trp:Configuration>\r\n"
+                                      "    </trp:SetReplayConfiguration>\r\n"
+                                      "  </SOAP-ENV:Body>\r\n"
+                                      "</SOAP-ENV:Envelope>";
+        auto resSetCfg = client.Post("/onvif/replay_service", reqSetCfg, "application/soap+xml; charset=utf-8");
+        assert(resSetCfg && resSetCfg->status == 200);
+        assert(resSetCfg->body.find("SetReplayConfigurationResponse") != std::string::npos);
+
+        auto resGetCfg2 = client.Post("/onvif/replay_service", reqGetCfg, "application/soap+xml; charset=utf-8");
+        assert(resGetCfg2 && resGetCfg2->status == 200);
+        assert(resGetCfg2->body.find("PT120S") != std::string::npos);
+    }
+
+    server.stop();
+    assert(!server.isRunning());
+    device->stop();
+
+    std::cout << "[PASS] testProfileGAndPkiCertificates" << std::endl;
+}
+
 int main()
 {
     std::cout << "Starting TestOnvifServer test suite..." << std::endl;
@@ -1947,6 +2405,7 @@ int main()
     testDeviceManagementAndSecurity();
     testImagingExtensionsAndDeviceIo();
     testMetadataStreamsAndMaintenanceExtensions();
+    testProfileGAndPkiCertificates();
     std::cout << "All TestOnvifServer tests passed successfully!" << std::endl;
     return 0;
 }

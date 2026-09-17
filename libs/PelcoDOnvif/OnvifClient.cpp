@@ -1,4 +1,5 @@
 #include "OnvifClient.h"
+#include "OnvifSecurity.h"
 
 #include <pugixml.hpp>
 
@@ -10,6 +11,19 @@
 namespace PelcoD::Onvif {
 
 namespace {
+
+    std::string resolveServiceUrl(
+        const std::string& specificUrl, const std::string& deviceEndpoint, const std::string& pathSuffix)
+    {
+        if (!specificUrl.empty()) {
+            return specificUrl;
+        }
+        const auto pos = deviceEndpoint.find("/onvif/");
+        if (pos != std::string::npos) {
+            return deviceEndpoint.substr(0, pos) + pathSuffix;
+        }
+        return deviceEndpoint + pathSuffix;
+    }
 
     pugi::xml_node findNodeWithSuffix(const pugi::xml_node& parent, const std::string& suffix)
     {
@@ -168,6 +182,55 @@ std::optional<OnvifCapabilities> OnvifClient::parseCapabilitiesResponse(const st
             const auto xaddr = findNodeWithSuffix(devIoNode, "XAddr");
             if (xaddr) {
                 caps.deviceIoXAddr = xaddr.text().as_string();
+            }
+        }
+        const auto recNode = findNodeWithSuffix(extNode, "Recording");
+        if (recNode) {
+            const auto xaddr = findNodeWithSuffix(recNode, "XAddr");
+            if (xaddr) {
+                caps.recordingXAddr = xaddr.text().as_string();
+            }
+        }
+        const auto searchNode = findNodeWithSuffix(extNode, "Search");
+        if (searchNode) {
+            const auto xaddr = findNodeWithSuffix(searchNode, "XAddr");
+            if (xaddr) {
+                caps.searchXAddr = xaddr.text().as_string();
+            }
+        }
+        const auto replayNode = findNodeWithSuffix(extNode, "Replay");
+        if (replayNode) {
+            const auto xaddr = findNodeWithSuffix(replayNode, "XAddr");
+            if (xaddr) {
+                caps.replayXAddr = xaddr.text().as_string();
+            }
+        }
+    }
+
+    if (caps.recordingXAddr.empty()) {
+        const auto recNode = findNodeWithSuffix(capNode, "Recording");
+        if (recNode) {
+            const auto xaddr = findNodeWithSuffix(recNode, "XAddr");
+            if (xaddr) {
+                caps.recordingXAddr = xaddr.text().as_string();
+            }
+        }
+    }
+    if (caps.searchXAddr.empty()) {
+        const auto searchNode = findNodeWithSuffix(capNode, "Search");
+        if (searchNode) {
+            const auto xaddr = findNodeWithSuffix(searchNode, "XAddr");
+            if (xaddr) {
+                caps.searchXAddr = xaddr.text().as_string();
+            }
+        }
+    }
+    if (caps.replayXAddr.empty()) {
+        const auto replayNode = findNodeWithSuffix(capNode, "Replay");
+        if (replayNode) {
+            const auto xaddr = findNodeWithSuffix(replayNode, "XAddr");
+            if (xaddr) {
+                caps.replayXAddr = xaddr.text().as_string();
             }
         }
     }
@@ -1986,6 +2049,446 @@ std::optional<std::string> OnvifClient::getEndpointReference()
     return parseEndpointReferenceResponse(resp.body);
 }
 
+// =========================================================================
+// PKI Certificates & HTTPS/TLS Security Service
+// =========================================================================
+
+std::vector<OnvifCertificate> OnvifClient::getCertificates()
+{
+    const std::string body = "<tds:GetCertificates xmlns:tds=\"http://www.onvif.org/ver10/device/wsdl\"/>";
+    const std::string reqXml = wrapSoapEnvelope(body);
+    const HttpResponse resp = m_httpClient.sendPost(m_deviceEndpoint, reqXml);
+    if (!resp.isSuccess()) {
+        return {};
+    }
+    return parseCertificatesResponse(resp.body);
+}
+
+std::optional<CertificateInformation> OnvifClient::getCertificateInformation(const std::string& certificateId)
+{
+    std::ostringstream ss;
+    ss << "<tds:GetCertificateInformation xmlns:tds=\"http://www.onvif.org/ver10/device/wsdl\">\n"
+       << "  <tds:CertificateID>" << certificateId << "</tds:CertificateID>\n"
+       << "</tds:GetCertificateInformation>";
+    const std::string reqXml = wrapSoapEnvelope(ss.str());
+    const HttpResponse resp = m_httpClient.sendPost(m_deviceEndpoint, reqXml);
+    if (!resp.isSuccess()) {
+        return std::nullopt;
+    }
+    return parseCertificateInformationResponse(resp.body);
+}
+
+std::optional<OnvifCertificate> OnvifClient::createCertificate(
+    const std::string& certificateId, const std::string& subject, int daysValid)
+{
+    std::ostringstream ss;
+    ss << "<tds:CreateCertificate xmlns:tds=\"http://www.onvif.org/ver10/device/wsdl\">\n"
+       << "  <tds:CertificateID>" << certificateId << "</tds:CertificateID>\n"
+       << "  <tds:Subject>" << subject << "</tds:Subject>\n"
+       << "  <tds:ValidNotAfter>" << daysValid << "</tds:ValidNotAfter>\n"
+       << "</tds:CreateCertificate>";
+    const std::string reqXml = wrapSoapEnvelope(ss.str());
+    const HttpResponse resp = m_httpClient.sendPost(m_deviceEndpoint, reqXml);
+    if (!resp.isSuccess()) {
+        return std::nullopt;
+    }
+    return parseCreateCertificateResponse(resp.body);
+}
+
+std::optional<Pkcs10Request> OnvifClient::getPkcs10Request(const std::string& certificateId, const std::string& subject)
+{
+    std::ostringstream ss;
+    ss << "<tds:GetPkcs10Request xmlns:tds=\"http://www.onvif.org/ver10/device/wsdl\">\n"
+       << "  <tds:CertificateID>" << certificateId << "</tds:CertificateID>\n"
+       << "  <tds:Subject>" << subject << "</tds:Subject>\n"
+       << "</tds:GetPkcs10Request>";
+    const std::string reqXml = wrapSoapEnvelope(ss.str());
+    const HttpResponse resp = m_httpClient.sendPost(m_deviceEndpoint, reqXml);
+    if (!resp.isSuccess()) {
+        return std::nullopt;
+    }
+    return parsePkcs10RequestResponse(resp.body);
+}
+
+bool OnvifClient::loadCertificates(const std::vector<OnvifCertificate>& certificates)
+{
+    std::ostringstream ss;
+    ss << "<tds:LoadCertificates xmlns:tds=\"http://www.onvif.org/ver10/device/wsdl\" "
+       << "xmlns:tt=\"http://www.onvif.org/ver10/schema\">\n";
+    for (const auto& cert : certificates) {
+        ss << "  <tds:NVTCertificate>\n"
+           << "    <tt:CertificateID>" << cert.certificateId << "</tt:CertificateID>\n"
+           << "    <tt:Certificate><tt:Data>" << cert.x509DerBase64 << "</tt:Data></tt:Certificate>\n"
+           << "  </tds:NVTCertificate>\n";
+    }
+    ss << "</tds:LoadCertificates>";
+    const std::string reqXml = wrapSoapEnvelope(ss.str());
+    const HttpResponse resp = m_httpClient.sendPost(m_deviceEndpoint, reqXml);
+    return resp.isSuccess();
+}
+
+bool OnvifClient::deleteCertificates(const std::vector<std::string>& certificateIds)
+{
+    std::ostringstream ss;
+    ss << "<tds:DeleteCertificates xmlns:tds=\"http://www.onvif.org/ver10/device/wsdl\">\n";
+    for (const auto& id : certificateIds) {
+        ss << "  <tds:CertificateID>" << id << "</tds:CertificateID>\n";
+    }
+    ss << "</tds:DeleteCertificates>";
+    const std::string reqXml = wrapSoapEnvelope(ss.str());
+    const HttpResponse resp = m_httpClient.sendPost(m_deviceEndpoint, reqXml);
+    return resp.isSuccess();
+}
+
+std::optional<ClientCertificateMode> OnvifClient::getClientCertificateMode()
+{
+    const std::string body = "<tds:GetClientCertificateMode xmlns:tds=\"http://www.onvif.org/ver10/device/wsdl\"/>";
+    const std::string reqXml = wrapSoapEnvelope(body);
+    const HttpResponse resp = m_httpClient.sendPost(m_deviceEndpoint, reqXml);
+    if (!resp.isSuccess()) {
+        return std::nullopt;
+    }
+    return parseClientCertificateModeResponse(resp.body);
+}
+
+bool OnvifClient::setClientCertificateMode(ClientCertificateMode mode)
+{
+    std::ostringstream ss;
+    ss << "<tds:SetClientCertificateMode xmlns:tds=\"http://www.onvif.org/ver10/device/wsdl\">\n"
+       << "  <tds:Enabled>" << (mode == ClientCertificateMode::Required ? "true" : "false") << "</tds:Enabled>\n"
+       << "</tds:SetClientCertificateMode>";
+    const std::string reqXml = wrapSoapEnvelope(ss.str());
+    const HttpResponse resp = m_httpClient.sendPost(m_deviceEndpoint, reqXml);
+    return resp.isSuccess();
+}
+
+// =========================================================================
+// Profile G: Recording Service
+// =========================================================================
+
+std::vector<RecordingConfig> OnvifClient::getRecordings()
+{
+    const std::string url
+        = resolveServiceUrl(m_capabilities.recordingXAddr, m_deviceEndpoint, "/onvif/recording_service");
+    const std::string body = "<trc:GetRecordings xmlns:trc=\"http://www.onvif.org/ver10/recording/wsdl\"/>";
+    const std::string reqXml = wrapSoapEnvelope(body);
+    const HttpResponse resp = m_httpClient.sendPost(url, reqXml);
+    if (!resp.isSuccess()) {
+        return {};
+    }
+    return parseRecordingsResponse(resp.body);
+}
+
+std::optional<std::string> OnvifClient::createRecording(const RecordingConfig& config)
+{
+    const std::string url
+        = resolveServiceUrl(m_capabilities.recordingXAddr, m_deviceEndpoint, "/onvif/recording_service");
+    std::ostringstream ss;
+    ss << "<trc:CreateRecording xmlns:trc=\"http://www.onvif.org/ver10/recording/wsdl\" "
+       << "xmlns:tt=\"http://www.onvif.org/ver10/schema\">\n"
+       << "  <trc:RecordingConfiguration>\n"
+       << "    <tt:Source><tt:SourceId>" << config.sourceToken << "</tt:SourceId></tt:Source>\n"
+       << "    <tt:Content>" << config.content << "</tt:Content>\n"
+       << "    <tt:MaximumRetentionTime>" << config.maximumRetentionTime << "</tt:MaximumRetentionTime>\n"
+       << "  </trc:RecordingConfiguration>\n"
+       << "</trc:CreateRecording>";
+    const std::string reqXml = wrapSoapEnvelope(ss.str());
+    const HttpResponse resp = m_httpClient.sendPost(url, reqXml);
+    if (!resp.isSuccess()) {
+        return std::nullopt;
+    }
+    return parseCreateRecordingResponse(resp.body);
+}
+
+std::optional<RecordingConfig> OnvifClient::getRecordingConfiguration(const std::string& recordingToken)
+{
+    const std::string url
+        = resolveServiceUrl(m_capabilities.recordingXAddr, m_deviceEndpoint, "/onvif/recording_service");
+    std::ostringstream ss;
+    ss << "<trc:GetRecordingConfiguration xmlns:trc=\"http://www.onvif.org/ver10/recording/wsdl\">\n"
+       << "  <trc:RecordingToken>" << recordingToken << "</trc:RecordingToken>\n"
+       << "</trc:GetRecordingConfiguration>";
+    const std::string reqXml = wrapSoapEnvelope(ss.str());
+    const HttpResponse resp = m_httpClient.sendPost(url, reqXml);
+    if (!resp.isSuccess()) {
+        return std::nullopt;
+    }
+    return parseRecordingConfigurationResponse(resp.body);
+}
+
+bool OnvifClient::setRecordingConfiguration(const RecordingConfig& config)
+{
+    const std::string url
+        = resolveServiceUrl(m_capabilities.recordingXAddr, m_deviceEndpoint, "/onvif/recording_service");
+    std::ostringstream ss;
+    ss << "<trc:SetRecordingConfiguration xmlns:trc=\"http://www.onvif.org/ver10/recording/wsdl\" "
+       << "xmlns:tt=\"http://www.onvif.org/ver10/schema\">\n"
+       << "  <trc:RecordingToken>" << config.recordingToken << "</trc:RecordingToken>\n"
+       << "  <trc:RecordingConfiguration>\n"
+       << "    <tt:Source><tt:SourceId>" << config.sourceToken << "</tt:SourceId></tt:Source>\n"
+       << "    <tt:Content>" << config.content << "</tt:Content>\n"
+       << "    <tt:MaximumRetentionTime>" << config.maximumRetentionTime << "</tt:MaximumRetentionTime>\n"
+       << "  </trc:RecordingConfiguration>\n"
+       << "</trc:SetRecordingConfiguration>";
+    const std::string reqXml = wrapSoapEnvelope(ss.str());
+    const HttpResponse resp = m_httpClient.sendPost(url, reqXml);
+    return resp.isSuccess();
+}
+
+bool OnvifClient::deleteRecording(const std::string& recordingToken)
+{
+    const std::string url
+        = resolveServiceUrl(m_capabilities.recordingXAddr, m_deviceEndpoint, "/onvif/recording_service");
+    std::ostringstream ss;
+    ss << "<trc:DeleteRecording xmlns:trc=\"http://www.onvif.org/ver10/recording/wsdl\">\n"
+       << "  <trc:RecordingToken>" << recordingToken << "</trc:RecordingToken>\n"
+       << "</trc:DeleteRecording>";
+    const std::string reqXml = wrapSoapEnvelope(ss.str());
+    const HttpResponse resp = m_httpClient.sendPost(url, reqXml);
+    return resp.isSuccess();
+}
+
+std::optional<std::string> OnvifClient::createTrack(const std::string& recordingToken, const RecordingTrack& track)
+{
+    const std::string url
+        = resolveServiceUrl(m_capabilities.recordingXAddr, m_deviceEndpoint, "/onvif/recording_service");
+    std::ostringstream ss;
+    ss << "<trc:CreateTrack xmlns:trc=\"http://www.onvif.org/ver10/recording/wsdl\" "
+       << "xmlns:tt=\"http://www.onvif.org/ver10/schema\">\n"
+       << "  <trc:RecordingToken>" << recordingToken << "</trc:RecordingToken>\n"
+       << "  <trc:TrackConfiguration>\n"
+       << "    <tt:TrackType>" << recordingTrackTypeToString(track.trackType) << "</tt:TrackType>\n"
+       << "    <tt:Description>" << track.description << "</tt:Description>\n"
+       << "  </trc:TrackConfiguration>\n"
+       << "</trc:CreateTrack>";
+    const std::string reqXml = wrapSoapEnvelope(ss.str());
+    const HttpResponse resp = m_httpClient.sendPost(url, reqXml);
+    if (!resp.isSuccess()) {
+        return std::nullopt;
+    }
+    return parseCreateTrackResponse(resp.body);
+}
+
+bool OnvifClient::deleteTrack(const std::string& recordingToken, const std::string& trackToken)
+{
+    const std::string url
+        = resolveServiceUrl(m_capabilities.recordingXAddr, m_deviceEndpoint, "/onvif/recording_service");
+    std::ostringstream ss;
+    ss << "<trc:DeleteTrack xmlns:trc=\"http://www.onvif.org/ver10/recording/wsdl\">\n"
+       << "  <trc:RecordingToken>" << recordingToken << "</trc:RecordingToken>\n"
+       << "  <trc:TrackToken>" << trackToken << "</trc:TrackToken>\n"
+       << "</trc:DeleteTrack>";
+    const std::string reqXml = wrapSoapEnvelope(ss.str());
+    const HttpResponse resp = m_httpClient.sendPost(url, reqXml);
+    return resp.isSuccess();
+}
+
+std::vector<RecordingJob> OnvifClient::getRecordingJobs()
+{
+    const std::string url
+        = resolveServiceUrl(m_capabilities.recordingXAddr, m_deviceEndpoint, "/onvif/recording_service");
+    const std::string body = "<trc:GetRecordingJobs xmlns:trc=\"http://www.onvif.org/ver10/recording/wsdl\"/>";
+    const std::string reqXml = wrapSoapEnvelope(body);
+    const HttpResponse resp = m_httpClient.sendPost(url, reqXml);
+    if (!resp.isSuccess()) {
+        return {};
+    }
+    return parseRecordingJobsResponse(resp.body);
+}
+
+std::optional<std::string> OnvifClient::createRecordingJob(const RecordingJob& job)
+{
+    const std::string url
+        = resolveServiceUrl(m_capabilities.recordingXAddr, m_deviceEndpoint, "/onvif/recording_service");
+    std::ostringstream ss;
+    ss << "<trc:CreateRecordingJob xmlns:trc=\"http://www.onvif.org/ver10/recording/wsdl\" "
+       << "xmlns:tt=\"http://www.onvif.org/ver10/schema\">\n"
+       << "  <trc:JobConfiguration>\n"
+       << "    <tt:RecordingToken>" << job.recordingToken << "</tt:RecordingToken>\n"
+       << "    <tt:Mode>" << recordingJobModeToString(job.mode) << "</tt:Mode>\n"
+       << "    <tt:Priority>" << job.priority << "</tt:Priority>\n"
+       << "    <tt:Source><tt:SourceToken>" << job.sourceToken << "</tt:SourceToken></tt:Source>\n"
+       << "  </trc:JobConfiguration>\n"
+       << "</trc:CreateRecordingJob>";
+    const std::string reqXml = wrapSoapEnvelope(ss.str());
+    const HttpResponse resp = m_httpClient.sendPost(url, reqXml);
+    if (!resp.isSuccess()) {
+        return std::nullopt;
+    }
+    return parseCreateRecordingJobResponse(resp.body);
+}
+
+bool OnvifClient::setRecordingJobMode(const std::string& jobToken, RecordingJobMode mode)
+{
+    const std::string url
+        = resolveServiceUrl(m_capabilities.recordingXAddr, m_deviceEndpoint, "/onvif/recording_service");
+    std::ostringstream ss;
+    ss << "<trc:SetRecordingJobMode xmlns:trc=\"http://www.onvif.org/ver10/recording/wsdl\">\n"
+       << "  <trc:JobToken>" << jobToken << "</trc:JobToken>\n"
+       << "  <trc:Mode>" << recordingJobModeToString(mode) << "</trc:Mode>\n"
+       << "</trc:SetRecordingJobMode>";
+    const std::string reqXml = wrapSoapEnvelope(ss.str());
+    const HttpResponse resp = m_httpClient.sendPost(url, reqXml);
+    return resp.isSuccess();
+}
+
+bool OnvifClient::deleteRecordingJob(const std::string& jobToken)
+{
+    const std::string url
+        = resolveServiceUrl(m_capabilities.recordingXAddr, m_deviceEndpoint, "/onvif/recording_service");
+    std::ostringstream ss;
+    ss << "<trc:DeleteRecordingJob xmlns:trc=\"http://www.onvif.org/ver10/recording/wsdl\">\n"
+       << "  <trc:JobToken>" << jobToken << "</trc:JobToken>\n"
+       << "</trc:DeleteRecordingJob>";
+    const std::string reqXml = wrapSoapEnvelope(ss.str());
+    const HttpResponse resp = m_httpClient.sendPost(url, reqXml);
+    return resp.isSuccess();
+}
+
+std::optional<RecordingSummary> OnvifClient::getRecordingSummary()
+{
+    const std::string url
+        = resolveServiceUrl(m_capabilities.recordingXAddr, m_deviceEndpoint, "/onvif/recording_service");
+    const std::string body = "<trc:GetRecordingSummary xmlns:trc=\"http://www.onvif.org/ver10/recording/wsdl\"/>";
+    const std::string reqXml = wrapSoapEnvelope(body);
+    const HttpResponse resp = m_httpClient.sendPost(url, reqXml);
+    if (!resp.isSuccess()) {
+        return std::nullopt;
+    }
+    return parseRecordingSummaryResponse(resp.body);
+}
+
+// =========================================================================
+// Profile G: Search Service
+// =========================================================================
+
+std::optional<std::string> OnvifClient::findRecordings(
+    const std::string& scope, int maxMatches, const std::string& keepAliveTime)
+{
+    const std::string url = resolveServiceUrl(m_capabilities.searchXAddr, m_deviceEndpoint, "/onvif/search_service");
+    std::ostringstream ss;
+    ss << "<tse:FindRecordings xmlns:tse=\"http://www.onvif.org/ver10/search/wsdl\">\n"
+       << "  <tse:Scope><tse:IncludedSources>" << scope << "</tse:IncludedSources></tse:Scope>\n"
+       << "  <tse:MaxMatches>" << maxMatches << "</tse:MaxMatches>\n"
+       << "  <tse:KeepAliveTime>" << keepAliveTime << "</tse:KeepAliveTime>\n"
+       << "</tse:FindRecordings>";
+    const std::string reqXml = wrapSoapEnvelope(ss.str());
+    const HttpResponse resp = m_httpClient.sendPost(url, reqXml);
+    if (!resp.isSuccess()) {
+        return std::nullopt;
+    }
+    return parseFindRecordingsResponse(resp.body);
+}
+
+std::vector<RecordingSearchResult> OnvifClient::getRecordingSearchResults(const std::string& searchToken)
+{
+    const std::string url = resolveServiceUrl(m_capabilities.searchXAddr, m_deviceEndpoint, "/onvif/search_service");
+    std::ostringstream ss;
+    ss << "<tse:GetRecordingSearchResults xmlns:tse=\"http://www.onvif.org/ver10/search/wsdl\">\n"
+       << "  <tse:SearchToken>" << searchToken << "</tse:SearchToken>\n"
+       << "</tse:GetRecordingSearchResults>";
+    const std::string reqXml = wrapSoapEnvelope(ss.str());
+    const HttpResponse resp = m_httpClient.sendPost(url, reqXml);
+    if (!resp.isSuccess()) {
+        return {};
+    }
+    return parseRecordingSearchResultsResponse(resp.body);
+}
+
+std::optional<std::string> OnvifClient::findEvents(
+    const std::string& startUtc, const std::string& endUtc, int maxMatches)
+{
+    const std::string url = resolveServiceUrl(m_capabilities.searchXAddr, m_deviceEndpoint, "/onvif/search_service");
+    std::ostringstream ss;
+    ss << "<tse:FindEvents xmlns:tse=\"http://www.onvif.org/ver10/search/wsdl\">\n"
+       << "  <tse:StartPoint>" << startUtc << "</tse:StartPoint>\n";
+    if (!endUtc.empty()) {
+        ss << "  <tse:EndPoint>" << endUtc << "</tse:EndPoint>\n";
+    }
+    ss << "  <tse:MaxMatches>" << maxMatches << "</tse:MaxMatches>\n"
+       << "</tse:FindEvents>";
+    const std::string reqXml = wrapSoapEnvelope(ss.str());
+    const HttpResponse resp = m_httpClient.sendPost(url, reqXml);
+    if (!resp.isSuccess()) {
+        return std::nullopt;
+    }
+    return parseFindEventsResponse(resp.body);
+}
+
+std::vector<RecordedEventResult> OnvifClient::getEventSearchResults(const std::string& searchToken)
+{
+    const std::string url = resolveServiceUrl(m_capabilities.searchXAddr, m_deviceEndpoint, "/onvif/search_service");
+    std::ostringstream ss;
+    ss << "<tse:GetEventSearchResults xmlns:tse=\"http://www.onvif.org/ver10/search/wsdl\">\n"
+       << "  <tse:SearchToken>" << searchToken << "</tse:SearchToken>\n"
+       << "</tse:GetEventSearchResults>";
+    const std::string reqXml = wrapSoapEnvelope(ss.str());
+    const HttpResponse resp = m_httpClient.sendPost(url, reqXml);
+    if (!resp.isSuccess()) {
+        return {};
+    }
+    return parseEventSearchResultsResponse(resp.body);
+}
+
+bool OnvifClient::endSearch(const std::string& searchToken)
+{
+    const std::string url = resolveServiceUrl(m_capabilities.searchXAddr, m_deviceEndpoint, "/onvif/search_service");
+    std::ostringstream ss;
+    ss << "<tse:EndSearch xmlns:tse=\"http://www.onvif.org/ver10/search/wsdl\">\n"
+       << "  <tse:SearchToken>" << searchToken << "</tse:SearchToken>\n"
+       << "</tse:EndSearch>";
+    const std::string reqXml = wrapSoapEnvelope(ss.str());
+    const HttpResponse resp = m_httpClient.sendPost(url, reqXml);
+    return resp.isSuccess();
+}
+
+// =========================================================================
+// Profile G: Replay Service
+// =========================================================================
+
+std::optional<std::string> OnvifClient::getReplayUri(const std::string& recordingToken, const std::string& streamType)
+{
+    const std::string url = resolveServiceUrl(m_capabilities.replayXAddr, m_deviceEndpoint, "/onvif/replay_service");
+    std::ostringstream ss;
+    ss << "<trp:GetReplayUri xmlns:trp=\"http://www.onvif.org/ver10/replay/wsdl\" "
+       << "xmlns:tt=\"http://www.onvif.org/ver10/schema\">\n"
+       << "  <trp:StreamSetup><tt:Stream>" << streamType << "</tt:Stream></trp:StreamSetup>\n"
+       << "  <trp:RecordingToken>" << recordingToken << "</trp:RecordingToken>\n"
+       << "</trp:GetReplayUri>";
+    const std::string reqXml = wrapSoapEnvelope(ss.str());
+    const HttpResponse resp = m_httpClient.sendPost(url, reqXml);
+    if (!resp.isSuccess()) {
+        return std::nullopt;
+    }
+    return parseReplayUriResponse(resp.body);
+}
+
+std::optional<ReplayConfiguration> OnvifClient::getReplayConfiguration()
+{
+    const std::string url = resolveServiceUrl(m_capabilities.replayXAddr, m_deviceEndpoint, "/onvif/replay_service");
+    const std::string body = "<trp:GetReplayConfiguration xmlns:trp=\"http://www.onvif.org/ver10/replay/wsdl\"/>";
+    const std::string reqXml = wrapSoapEnvelope(body);
+    const HttpResponse resp = m_httpClient.sendPost(url, reqXml);
+    if (!resp.isSuccess()) {
+        return std::nullopt;
+    }
+    return parseReplayConfigurationResponse(resp.body);
+}
+
+bool OnvifClient::setReplayConfiguration(const ReplayConfiguration& config)
+{
+    const std::string url = resolveServiceUrl(m_capabilities.replayXAddr, m_deviceEndpoint, "/onvif/replay_service");
+    std::ostringstream ss;
+    ss << "<trp:SetReplayConfiguration xmlns:trp=\"http://www.onvif.org/ver10/replay/wsdl\" "
+       << "xmlns:tt=\"http://www.onvif.org/ver10/schema\">\n"
+       << "  <trp:Configuration><tt:SessionTimeout>" << config.sessionTimeout
+       << "</tt:SessionTimeout></trp:Configuration>\n"
+       << "</trp:SetReplayConfiguration>";
+    const std::string reqXml = wrapSoapEnvelope(ss.str());
+    const HttpResponse resp = m_httpClient.sendPost(url, reqXml);
+    return resp.isSuccess();
+}
+
 namespace {
 
     OsdConfig parseOsdNode(const pugi::xml_node& osdNode)
@@ -3154,6 +3657,455 @@ std::optional<std::string> OnvifClient::parseEndpointReferenceResponse(const std
     const auto guidNode = findRecursiveNodeWithSuffix(doc, "GUID");
     if (guidNode) {
         return guidNode.text().as_string();
+    }
+    return std::nullopt;
+}
+
+// =========================================================================
+// Profile G & PKI XML Parsing Helpers
+// =========================================================================
+
+std::vector<OnvifCertificate> OnvifClient::parseCertificatesResponse(const std::string& xml)
+{
+    pugi::xml_document doc;
+    if (!doc.load_string(xml.c_str())) {
+        return {};
+    }
+    std::vector<OnvifCertificate> certs;
+    std::vector<pugi::xml_node> certNodes;
+    collectNodesWithSuffix(doc, "NvtCertificate", certNodes);
+    if (certNodes.empty()) {
+        collectNodesWithSuffix(doc, "NVTCertificate", certNodes);
+    }
+    for (const auto& node : certNodes) {
+        const auto idNode = findRecursiveNodeWithSuffix(node, "CertificateID");
+        const auto dataNode = findRecursiveNodeWithSuffix(node, "Data");
+        if (idNode && dataNode) {
+            OnvifCertificate c;
+            c.certificateId = idNode.text().as_string();
+            c.x509DerBase64 = dataNode.text().as_string();
+            c.info = OnvifSecurity::parseCertificateInfo(c.certificateId, c.x509DerBase64);
+            certs.push_back(std::move(c));
+        }
+    }
+    return certs;
+}
+
+std::optional<CertificateInformation> OnvifClient::parseCertificateInformationResponse(const std::string& xml)
+{
+    pugi::xml_document doc;
+    if (!doc.load_string(xml.c_str())) {
+        return std::nullopt;
+    }
+    const auto infoNode = findRecursiveNodeWithSuffix(doc, "CertificateInformation");
+    if (!infoNode) {
+        return std::nullopt;
+    }
+    CertificateInformation info {};
+    const auto idNode = findRecursiveNodeWithSuffix(infoNode, "CertificateID");
+    if (idNode)
+        info.certificateId = idNode.text().as_string();
+
+    auto issuerNode = findRecursiveNodeWithSuffix(infoNode, "IssuerDN");
+    if (!issuerNode)
+        issuerNode = findRecursiveNodeWithSuffix(infoNode, "Issuer");
+    if (issuerNode)
+        info.issuer = issuerNode.text().as_string();
+
+    auto subjectNode = findRecursiveNodeWithSuffix(infoNode, "SubjectDN");
+    if (!subjectNode)
+        subjectNode = findRecursiveNodeWithSuffix(infoNode, "Subject");
+    if (subjectNode)
+        info.subject = subjectNode.text().as_string();
+
+    const auto fromNode = findRecursiveNodeWithSuffix(infoNode, "From");
+    if (fromNode)
+        info.validNotBefore = fromNode.text().as_string();
+
+    const auto untilNode = findRecursiveNodeWithSuffix(infoNode, "Until");
+    if (untilNode)
+        info.validNotAfter = untilNode.text().as_string();
+
+    const auto keyUsageNode = findRecursiveNodeWithSuffix(infoNode, "KeyUsage");
+    if (keyUsageNode)
+        info.keyAlgorithm = keyUsageNode.text().as_string();
+
+    return info;
+}
+
+std::optional<OnvifCertificate> OnvifClient::parseCreateCertificateResponse(const std::string& xml)
+{
+    pugi::xml_document doc;
+    if (!doc.load_string(xml.c_str())) {
+        return std::nullopt;
+    }
+    auto certNode = findRecursiveNodeWithSuffix(doc, "NvtCertificate");
+    if (!certNode) {
+        certNode = findRecursiveNodeWithSuffix(doc, "NVTCertificate");
+    }
+    if (!certNode) {
+        return std::nullopt;
+    }
+    const auto idNode = findRecursiveNodeWithSuffix(certNode, "CertificateID");
+    const auto dataNode = findRecursiveNodeWithSuffix(certNode, "Data");
+    if (!idNode || !dataNode) {
+        return std::nullopt;
+    }
+    OnvifCertificate c;
+    c.certificateId = idNode.text().as_string();
+    c.x509DerBase64 = dataNode.text().as_string();
+    c.info = OnvifSecurity::parseCertificateInfo(c.certificateId, c.x509DerBase64);
+    return c;
+}
+
+std::optional<Pkcs10Request> OnvifClient::parsePkcs10RequestResponse(const std::string& xml)
+{
+    pugi::xml_document doc;
+    if (!doc.load_string(xml.c_str())) {
+        return std::nullopt;
+    }
+    const auto reqNode = findRecursiveNodeWithSuffix(doc, "Pkcs10Request");
+    if (!reqNode) {
+        return std::nullopt;
+    }
+    Pkcs10Request req {};
+    req.csrBase64 = reqNode.text().as_string();
+    return req;
+}
+
+std::optional<ClientCertificateMode> OnvifClient::parseClientCertificateModeResponse(const std::string& xml)
+{
+    pugi::xml_document doc;
+    if (!doc.load_string(xml.c_str())) {
+        return std::nullopt;
+    }
+    const auto modeNode = findRecursiveNodeWithSuffix(doc, "ClientCertificateMode");
+    if (modeNode) {
+        const std::string val = modeNode.text().as_string();
+        if (val == "Required")
+            return ClientCertificateMode::Required;
+        if (val == "Optional")
+            return ClientCertificateMode::Optional;
+        return ClientCertificateMode::Off;
+    }
+    const auto enabledNode = findRecursiveNodeWithSuffix(doc, "Enabled");
+    if (enabledNode) {
+        return enabledNode.text().as_bool() ? ClientCertificateMode::Required : ClientCertificateMode::Off;
+    }
+    return std::nullopt;
+}
+
+std::vector<RecordingConfig> OnvifClient::parseRecordingsResponse(const std::string& xml)
+{
+    pugi::xml_document doc;
+    if (!doc.load_string(xml.c_str())) {
+        return {};
+    }
+    std::vector<RecordingConfig> recs;
+    std::vector<pugi::xml_node> itemNodes;
+    collectNodesWithSuffix(doc, "RecordingItem", itemNodes);
+    for (const auto& item : itemNodes) {
+        RecordingConfig r;
+        const auto tokNode = findRecursiveNodeWithSuffix(item, "RecordingToken");
+        if (tokNode)
+            r.recordingToken = tokNode.text().as_string();
+
+        const auto cfgNode = findRecursiveNodeWithSuffix(item, "Configuration");
+        if (cfgNode) {
+            auto srcNode = findRecursiveNodeWithSuffix(cfgNode, "SourceId");
+            if (!srcNode)
+                srcNode = findRecursiveNodeWithSuffix(cfgNode, "SourceToken");
+            if (srcNode)
+                r.sourceToken = srcNode.text().as_string();
+
+            const auto cntNode = findRecursiveNodeWithSuffix(cfgNode, "Content");
+            if (cntNode)
+                r.content = cntNode.text().as_string();
+
+            const auto retNode = findRecursiveNodeWithSuffix(cfgNode, "MaximumRetentionTime");
+            if (retNode)
+                r.maximumRetentionTime = retNode.text().as_string();
+        }
+
+        std::vector<pugi::xml_node> trkNodes;
+        collectNodesWithSuffix(item, "Track", trkNodes);
+        for (const auto& tNode : trkNodes) {
+            RecordingTrack trk;
+            const auto tTok = findRecursiveNodeWithSuffix(tNode, "TrackToken");
+            if (tTok)
+                trk.trackToken = tTok.text().as_string();
+
+            const auto typeNode = findRecursiveNodeWithSuffix(tNode, "TrackType");
+            if (typeNode)
+                trk.trackType = recordingTrackTypeFromString(typeNode.text().as_string());
+
+            const auto descNode = findRecursiveNodeWithSuffix(tNode, "Description");
+            if (descNode)
+                trk.description = descNode.text().as_string();
+
+            r.tracks.push_back(std::move(trk));
+        }
+
+        recs.push_back(std::move(r));
+    }
+    return recs;
+}
+
+std::optional<std::string> OnvifClient::parseCreateRecordingResponse(const std::string& xml)
+{
+    pugi::xml_document doc;
+    if (!doc.load_string(xml.c_str())) {
+        return std::nullopt;
+    }
+    const auto tokNode = findRecursiveNodeWithSuffix(doc, "RecordingToken");
+    if (tokNode) {
+        return tokNode.text().as_string();
+    }
+    return std::nullopt;
+}
+
+std::optional<RecordingConfig> OnvifClient::parseRecordingConfigurationResponse(const std::string& xml)
+{
+    pugi::xml_document doc;
+    if (!doc.load_string(xml.c_str())) {
+        return std::nullopt;
+    }
+    const auto cfgNode = findRecursiveNodeWithSuffix(doc, "RecordingConfiguration");
+    if (!cfgNode) {
+        return std::nullopt;
+    }
+    RecordingConfig r;
+    auto srcNode = findRecursiveNodeWithSuffix(cfgNode, "SourceId");
+    if (!srcNode)
+        srcNode = findRecursiveNodeWithSuffix(cfgNode, "SourceToken");
+    if (srcNode)
+        r.sourceToken = srcNode.text().as_string();
+
+    const auto cntNode = findRecursiveNodeWithSuffix(cfgNode, "Content");
+    if (cntNode)
+        r.content = cntNode.text().as_string();
+
+    const auto retNode = findRecursiveNodeWithSuffix(cfgNode, "MaximumRetentionTime");
+    if (retNode)
+        r.maximumRetentionTime = retNode.text().as_string();
+
+    return r;
+}
+
+std::vector<RecordingJob> OnvifClient::parseRecordingJobsResponse(const std::string& xml)
+{
+    pugi::xml_document doc;
+    if (!doc.load_string(xml.c_str())) {
+        return {};
+    }
+    std::vector<RecordingJob> jobs;
+    std::vector<pugi::xml_node> itemNodes;
+    collectNodesWithSuffix(doc, "JobItem", itemNodes);
+    for (const auto& item : itemNodes) {
+        RecordingJob j;
+        const auto tokNode = findRecursiveNodeWithSuffix(item, "JobToken");
+        if (tokNode)
+            j.jobToken = tokNode.text().as_string();
+
+        const auto cfgNode = findRecursiveNodeWithSuffix(item, "JobConfiguration");
+        if (cfgNode) {
+            const auto recNode = findRecursiveNodeWithSuffix(cfgNode, "RecordingToken");
+            if (recNode)
+                j.recordingToken = recNode.text().as_string();
+
+            const auto modeNode = findRecursiveNodeWithSuffix(cfgNode, "Mode");
+            if (modeNode)
+                j.mode = recordingJobModeFromString(modeNode.text().as_string());
+
+            const auto prioNode = findRecursiveNodeWithSuffix(cfgNode, "Priority");
+            if (prioNode)
+                j.priority = prioNode.text().as_int(5);
+
+            const auto srcNode = findRecursiveNodeWithSuffix(cfgNode, "SourceToken");
+            if (srcNode)
+                j.sourceToken = srcNode.text().as_string();
+        }
+        jobs.push_back(std::move(j));
+    }
+    return jobs;
+}
+
+std::optional<std::string> OnvifClient::parseCreateRecordingJobResponse(const std::string& xml)
+{
+    pugi::xml_document doc;
+    if (!doc.load_string(xml.c_str())) {
+        return std::nullopt;
+    }
+    const auto tokNode = findRecursiveNodeWithSuffix(doc, "JobToken");
+    if (tokNode) {
+        return tokNode.text().as_string();
+    }
+    return std::nullopt;
+}
+
+std::optional<RecordingSummary> OnvifClient::parseRecordingSummaryResponse(const std::string& xml)
+{
+    pugi::xml_document doc;
+    if (!doc.load_string(xml.c_str())) {
+        return std::nullopt;
+    }
+    const auto sumNode = findRecursiveNodeWithSuffix(doc, "Summary");
+    if (!sumNode) {
+        return std::nullopt;
+    }
+    RecordingSummary s;
+    const auto fromNode = findRecursiveNodeWithSuffix(sumNode, "DataFrom");
+    if (fromNode)
+        s.dataFrom = fromNode.text().as_string();
+
+    const auto untilNode = findRecursiveNodeWithSuffix(sumNode, "DataUntil");
+    if (untilNode)
+        s.dataUntil = untilNode.text().as_string();
+
+    const auto numNode = findRecursiveNodeWithSuffix(sumNode, "NumberRecordings");
+    if (numNode)
+        s.numberRecordings = numNode.text().as_int(0);
+
+    return s;
+}
+
+std::optional<std::string> OnvifClient::parseCreateTrackResponse(const std::string& xml)
+{
+    pugi::xml_document doc;
+    if (!doc.load_string(xml.c_str())) {
+        return std::nullopt;
+    }
+    const auto tokNode = findRecursiveNodeWithSuffix(doc, "TrackToken");
+    if (tokNode) {
+        return tokNode.text().as_string();
+    }
+    return std::nullopt;
+}
+
+std::optional<std::string> OnvifClient::parseFindRecordingsResponse(const std::string& xml)
+{
+    pugi::xml_document doc;
+    if (!doc.load_string(xml.c_str())) {
+        return std::nullopt;
+    }
+    const auto tokNode = findRecursiveNodeWithSuffix(doc, "SearchToken");
+    if (tokNode) {
+        return tokNode.text().as_string();
+    }
+    return std::nullopt;
+}
+
+std::vector<RecordingSearchResult> OnvifClient::parseRecordingSearchResultsResponse(const std::string& xml)
+{
+    pugi::xml_document doc;
+    if (!doc.load_string(xml.c_str())) {
+        return {};
+    }
+    std::vector<RecordingSearchResult> results;
+    std::vector<pugi::xml_node> infoNodes;
+    collectNodesWithSuffix(doc, "RecordingInformation", infoNodes);
+    for (const auto& node : infoNodes) {
+        RecordingSearchResult r;
+        const auto recTok = findRecursiveNodeWithSuffix(node, "RecordingToken");
+        if (recTok)
+            r.recordingToken = recTok.text().as_string();
+
+        const auto trkTok = findRecursiveNodeWithSuffix(node, "TrackToken");
+        if (trkTok)
+            r.trackToken = trkTok.text().as_string();
+
+        const auto earlyNode = findRecursiveNodeWithSuffix(node, "EarliestRecording");
+        if (earlyNode)
+            r.earliestTime = earlyNode.text().as_string();
+
+        const auto lateNode = findRecursiveNodeWithSuffix(node, "LatestRecording");
+        if (lateNode)
+            r.latestTime = lateNode.text().as_string();
+
+        const auto stateNode = findRecursiveNodeWithSuffix(node, "SearchState");
+        if (stateNode)
+            r.searchState = stateNode.text().as_string();
+
+        results.push_back(std::move(r));
+    }
+    return results;
+}
+
+std::optional<std::string> OnvifClient::parseFindEventsResponse(const std::string& xml)
+{
+    pugi::xml_document doc;
+    if (!doc.load_string(xml.c_str())) {
+        return std::nullopt;
+    }
+    const auto tokNode = findRecursiveNodeWithSuffix(doc, "SearchToken");
+    if (tokNode) {
+        return tokNode.text().as_string();
+    }
+    return std::nullopt;
+}
+
+std::vector<RecordedEventResult> OnvifClient::parseEventSearchResultsResponse(const std::string& xml)
+{
+    pugi::xml_document doc;
+    if (!doc.load_string(xml.c_str())) {
+        return {};
+    }
+    std::vector<RecordedEventResult> events;
+    std::vector<pugi::xml_node> infoNodes;
+    collectNodesWithSuffix(doc, "EventInformation", infoNodes);
+    for (const auto& node : infoNodes) {
+        RecordedEventResult e;
+        const auto recTok = findRecursiveNodeWithSuffix(node, "RecordingToken");
+        if (recTok)
+            e.recordingToken = recTok.text().as_string();
+
+        auto timeNode = findRecursiveNodeWithSuffix(node, "UtcTime");
+        if (!timeNode)
+            timeNode = findRecursiveNodeWithSuffix(node, "Time");
+        if (timeNode)
+            e.eventTime = timeNode.text().as_string();
+
+        const auto topicNode = findRecursiveNodeWithSuffix(node, "Topic");
+        if (topicNode)
+            e.topic = topicNode.text().as_string();
+
+        const auto srcNode = findRecursiveNodeWithSuffix(node, "Source");
+        if (srcNode)
+            e.source = srcNode.text().as_string();
+
+        const auto dataNode = findRecursiveNodeWithSuffix(node, "Data");
+        if (dataNode)
+            e.data = dataNode.text().as_string();
+
+        events.push_back(std::move(e));
+    }
+    return events;
+}
+
+std::optional<std::string> OnvifClient::parseReplayUriResponse(const std::string& xml)
+{
+    pugi::xml_document doc;
+    if (!doc.load_string(xml.c_str())) {
+        return std::nullopt;
+    }
+    const auto uriNode = findRecursiveNodeWithSuffix(doc, "Uri");
+    if (uriNode) {
+        return uriNode.text().as_string();
+    }
+    return std::nullopt;
+}
+
+std::optional<ReplayConfiguration> OnvifClient::parseReplayConfigurationResponse(const std::string& xml)
+{
+    pugi::xml_document doc;
+    if (!doc.load_string(xml.c_str())) {
+        return std::nullopt;
+    }
+    const auto toNode = findRecursiveNodeWithSuffix(doc, "SessionTimeout");
+    if (toNode) {
+        ReplayConfiguration cfg;
+        cfg.sessionTimeout = toNode.text().as_string();
+        return cfg;
     }
     return std::nullopt;
 }

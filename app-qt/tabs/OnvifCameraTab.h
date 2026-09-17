@@ -173,6 +173,41 @@ private slots:
     void handleFetchEndpointReference();
     void handleEndpointReferenceReceived(const QString& endpointReference);
 
+    // Profile G: Recordings & Replay
+    void handleRefreshRecordings();
+    void handleCreateRecording();
+    void handleDeleteRecording();
+    void handleCreateTrack();
+    void handleDeleteTrack();
+    void handleRefreshRecordingJobs();
+    void handleCreateRecordingJob();
+    void handleToggleJobMode();
+    void handleDeleteRecordingJob();
+    void handleRefreshRecordingSummary();
+    void handleFindRecordings();
+    void handleFindEvents();
+    void handleResolveReplayUri();
+    void handlePlayInVideoStreamTab();
+    void handleRecordingsUpdated(const std::vector<PelcoD::Onvif::RecordingConfig>& recordings);
+    void handleRecordingJobsUpdated(const std::vector<PelcoD::Onvif::RecordingJob>& jobs);
+    void handleRecordingSummaryUpdated(const PelcoD::Onvif::RecordingSummary& summary);
+    void handleRecordingSearchResultsReceived(
+        const QString& searchToken, const std::vector<PelcoD::Onvif::RecordingSearchResult>& results);
+    void handleEventSearchResultsReceived(
+        const QString& searchToken, const std::vector<PelcoD::Onvif::RecordedEventResult>& results);
+    void handleReplayUriResolved(const QString& recordingToken, const QString& uri);
+
+    // PKI Certificates & HTTPS/TLS Security
+    void handleRefreshCertificates();
+    void handleCreateSelfSignedCert();
+    void handleGenerateCsr();
+    void handleDeleteCertificate();
+    void handleApplyClientCertMode();
+    void handleCertificatesUpdated(const std::vector<PelcoD::Onvif::OnvifCertificate>& certs);
+    void handleCertificateInfoReceived(const PelcoD::Onvif::CertificateInformation& info);
+    void handlePkcs10CsrReceived(const PelcoD::Onvif::Pkcs10Request& csr);
+    void handleClientCertModeUpdated(PelcoD::Onvif::ClientCertificateMode mode);
+
 private:
     void setupUi();
     void updateConnectionUi(bool connected);
@@ -357,6 +392,56 @@ private:
     QPushButton* btnPollMetaOnce { nullptr };
     QLabel* lblMetaTelemetry { nullptr };
     QTableWidget* tableMetaObjects { nullptr };
+
+    // PKI Certificates & TLS Security widgets (Sub-Tab 8)
+    QTableWidget* tableCertificates { nullptr };
+    QPushButton* btnRefreshCerts { nullptr };
+    QLineEdit* editNewCertId { nullptr };
+    QLineEdit* editNewCertSubject { nullptr };
+    QSpinBox* spinNewCertDays { nullptr };
+    QPushButton* btnCreateSelfSignedCert { nullptr };
+    QPushButton* btnGenerateCsr { nullptr };
+    QPushButton* btnDeleteCert { nullptr };
+    QComboBox* cmbClientCertMode { nullptr };
+    QPushButton* btnApplyClientCertMode { nullptr };
+
+    // Profile G: Recordings & Replay widgets (Sub-Tab 11)
+    QLabel* lblRecordingSummary { nullptr };
+    QPushButton* btnRefreshRecordingSummary { nullptr };
+    QTableWidget* tableRecordings { nullptr };
+    QLineEdit* editNewRecordingSource { nullptr };
+    QLineEdit* editNewRecordingContent { nullptr };
+    QPushButton* btnCreateRecording { nullptr };
+    QPushButton* btnDeleteRecording { nullptr };
+    QPushButton* btnRefreshRecordings { nullptr };
+
+    QComboBox* cmbTrackType { nullptr };
+    QLineEdit* editTrackDesc { nullptr };
+    QPushButton* btnCreateTrack { nullptr };
+    QPushButton* btnDeleteTrack { nullptr };
+
+    QTableWidget* tableRecordingJobs { nullptr };
+    QLineEdit* editJobRecordingToken { nullptr };
+    QLineEdit* editJobSourceToken { nullptr };
+    QSpinBox* spinJobPriority { nullptr };
+    QComboBox* cmbJobMode { nullptr };
+    QPushButton* btnCreateJob { nullptr };
+    QPushButton* btnToggleJobMode { nullptr };
+    QPushButton* btnDeleteJob { nullptr };
+    QPushButton* btnRefreshRecordingJobs { nullptr };
+
+    QLineEdit* editSearchScope { nullptr };
+    QPushButton* btnFindRecordings { nullptr };
+    QTableWidget* tableSearchResults { nullptr };
+
+    QLineEdit* editEventStartUtc { nullptr };
+    QLineEdit* editEventEndUtc { nullptr };
+    QPushButton* btnFindEvents { nullptr };
+    QTableWidget* tableEventSearchResults { nullptr };
+
+    QLineEdit* editReplayUri { nullptr };
+    QPushButton* btnResolveReplayUri { nullptr };
+    QPushButton* btnPlayReplayUri { nullptr };
 };
 
 } // namespace PelcoDApp

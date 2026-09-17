@@ -48,7 +48,8 @@ struct OnvifServerConfig {
     std::string serviceUuid {};
 
     /// @brief Additional WS-Discovery scope URIs.
-    std::vector<std::string> scopes { "onvif://www.onvif.org/Profile/S", "onvif://www.onvif.org/Profile/T" };
+    std::vector<std::string> scopes { "onvif://www.onvif.org/Profile/S", "onvif://www.onvif.org/Profile/T",
+        "onvif://www.onvif.org/Profile/G" };
 
     /// @brief Default optical and imaging configuration.
     ImagingSettings defaultImagingSettings {};
@@ -87,6 +88,20 @@ struct OnvifServerConfig {
 
     /// @brief Default RTSP or HTTP metadata stream URI.
     std::string metadataStreamUri { "rtsp://127.0.0.1:8554/metadata" };
+
+    /// @brief Default RTSP replay stream URI template (Profile G).
+    std::string replayStreamUri { "rtsp://127.0.0.1:8554/onvif/replay" };
+
+    /// @brief Default edge recording containers (Profile G).
+    std::vector<RecordingConfig> defaultRecordings { { "Recording_1", "VideoSource_1", "Primary surveillance recording",
+        "P30D", { { "Track_Video", RecordingTrackType::Video, "H.264 Video" } } } };
+
+    /// @brief Default recording jobs (Profile G).
+    std::vector<RecordingJob> defaultRecordingJobs { { "Job_1", "Recording_1", RecordingJobMode::Active, 1,
+        "VideoSource_1" } };
+
+    /// @brief Default installed X.509 certificates.
+    std::vector<OnvifCertificate> defaultCertificates {};
 };
 
 /// @brief Callback signature for publishing asynchronous ONVIF event notifications.
@@ -550,6 +565,85 @@ public:
     {
         return {};
     }
+
+    /// @brief Retrieves list of installed X.509 certificates.
+    /// @return Vector of OnvifCertificate records.
+    [[nodiscard]] virtual std::vector<OnvifCertificate> handleGetCertificates()
+    {
+        return {};
+    }
+
+    /// @brief Retrieves detailed information for a specific certificate ID.
+    /// @param[in] certificateId Certificate identifier.
+    /// @return CertificateInformation struct or nullopt if not found.
+    [[nodiscard]] virtual std::optional<CertificateInformation> handleGetCertificateInformation(
+        const std::string& /*certificateId*/)
+    {
+        return std::nullopt;
+    }
+
+    /// @brief Generates a self-signed X.509 certificate on device.
+    /// @param[in] certificateId Desired certificate token.
+    /// @param[in] subject Distinguished name.
+    /// @param[in] daysValid Validity period in days.
+    /// @return Created OnvifCertificate.
+    [[nodiscard]] virtual OnvifCertificate handleCreateCertificate(
+        const std::string& certificateId, const std::string& subject, int /*daysValid*/ = 365)
+    {
+        OnvifCertificate cert {};
+        cert.certificateId = certificateId;
+        cert.info.certificateId = certificateId;
+        cert.info.subject = subject.empty() ? ("CN=" + certificateId) : subject;
+        cert.info.issuer = cert.info.subject;
+        cert.info.keyAlgorithm = "RSA";
+        cert.info.isDefault = true;
+        return cert;
+    }
+
+    /// @brief Generates a PKCS#10 Certificate Signing Request (CSR).
+    /// @param[in] certificateId Certificate identifier.
+    /// @param[in] subject Subject DN.
+    /// @return Pkcs10Request struct with Base64/PEM CSR.
+    [[nodiscard]] virtual Pkcs10Request handleGetPkcs10Request(
+        const std::string& certificateId, const std::string& subject)
+    {
+        Pkcs10Request req {};
+        req.certificateId = certificateId;
+        req.subject = subject.empty() ? ("CN=" + certificateId) : subject;
+        req.csrBase64 = "MIIB..." + certificateId;
+        return req;
+    }
+
+    /// @brief Loads or updates signed certificates onto the device.
+    /// @param[in] certificates List of certificates to store.
+    /// @return True on success.
+    [[nodiscard]] virtual bool handleLoadCertificates(const std::vector<OnvifCertificate>& /*certificates*/)
+    {
+        return true;
+    }
+
+    /// @brief Deletes a certificate by token ID.
+    /// @param[in] certificateId Certificate token to delete.
+    /// @return True if deleted.
+    [[nodiscard]] virtual bool handleDeleteCertificate(const std::string& /*certificateId*/)
+    {
+        return false;
+    }
+
+    /// @brief Queries client certificate authentication mode.
+    /// @return ClientCertificateMode enum.
+    [[nodiscard]] virtual ClientCertificateMode handleGetClientCertificateMode()
+    {
+        return ClientCertificateMode::Off;
+    }
+
+    /// @brief Configures client certificate authentication mode.
+    /// @param[in] mode Desired client certificate mode.
+    /// @return True on success.
+    [[nodiscard]] virtual bool handleSetClientCertificateMode(ClientCertificateMode /*mode*/)
+    {
+        return true;
+    }
 };
 
 /// @class IMetadataHandler
@@ -596,6 +690,155 @@ public:
     {
         return MetadataStreamPayload {};
     }
+};
+
+/// @class IRecordingHandler
+/// @brief Abstract interface for handling ONVIF Profile G Recording Service requests.
+class IRecordingHandler {
+public:
+    virtual ~IRecordingHandler() = default;
+
+    /// @brief Retrieves all configured recording containers.
+    /// @return Vector of RecordingConfig structures.
+    [[nodiscard]] virtual std::vector<RecordingConfig> handleGetRecordings() = 0;
+
+    /// @brief Creates a new edge recording container.
+    /// @param[in] config Recording container properties.
+    /// @return Assigned recording token string.
+    [[nodiscard]] virtual std::string handleCreateRecording(const RecordingConfig& config) = 0;
+
+    /// @brief Deletes a recording container by token.
+    /// @param[in] recordingToken Recording token to delete.
+    /// @return True on success.
+    [[nodiscard]] virtual bool handleDeleteRecording(const std::string& recordingToken) = 0;
+
+    /// @brief Retrieves configuration attributes for a specific recording container.
+    /// @param[in] recordingToken Recording token.
+    /// @return RecordingConfig or nullopt if not found.
+    [[nodiscard]] virtual std::optional<RecordingConfig> handleGetRecordingConfiguration(
+        const std::string& recordingToken)
+        = 0;
+
+    /// @brief Updates configuration attributes of an existing recording container.
+    /// @param[in] recordingToken Recording token.
+    /// @param[in] config Updated configuration.
+    /// @return True on success.
+    [[nodiscard]] virtual bool handleSetRecordingConfiguration(
+        const std::string& recordingToken, const RecordingConfig& config)
+        = 0;
+
+    /// @brief Retrieves aggregated storage volume and time window metrics.
+    /// @return RecordingSummary structure.
+    [[nodiscard]] virtual RecordingSummary handleGetRecordingSummary() = 0;
+
+    /// @brief Retrieves list of active automated recording jobs.
+    /// @return Vector of RecordingJob structures.
+    [[nodiscard]] virtual std::vector<RecordingJob> handleGetRecordingJobs() = 0;
+
+    /// @brief Creates a new automated recording job.
+    /// @param[in] job Recording job definition.
+    /// @return Assigned job token string.
+    [[nodiscard]] virtual std::string handleCreateRecordingJob(const RecordingJob& job) = 0;
+
+    /// @brief Deletes a recording job by token.
+    /// @param[in] jobToken Job token to delete.
+    /// @return True on success.
+    [[nodiscard]] virtual bool handleDeleteRecordingJob(const std::string& jobToken) = 0;
+
+    /// @brief Modifies recording job mode (Active / Idle).
+    /// @param[in] jobToken Job token.
+    /// @param[in] mode Desired mode.
+    /// @return True on success.
+    [[nodiscard]] virtual bool handleSetRecordingJobMode(const std::string& jobToken, RecordingJobMode mode) = 0;
+
+    /// @brief Retrieves all tracks associated with a recording.
+    /// @param[in] recordingToken Recording token.
+    /// @return Vector of RecordingTrack structures.
+    [[nodiscard]] virtual std::vector<RecordingTrack> handleGetTracks(const std::string& recordingToken)
+    {
+        (void)recordingToken;
+        return {};
+    }
+
+    /// @brief Creates a track within a recording container.
+    /// @param[in] recordingToken Recording token.
+    /// @param[in] track Track parameters.
+    /// @return Assigned track token string.
+    [[nodiscard]] virtual std::string handleCreateTrack(const std::string& recordingToken, const RecordingTrack& track)
+        = 0;
+
+    /// @brief Deletes a track from a recording container.
+    /// @param[in] recordingToken Recording token.
+    /// @param[in] trackToken Track token to delete.
+    /// @return True on success.
+    [[nodiscard]] virtual bool handleDeleteTrack(const std::string& recordingToken, const std::string& trackToken) = 0;
+};
+
+/// @class ISearchHandler
+/// @brief Abstract interface for handling ONVIF Profile G Search Service requests.
+class ISearchHandler {
+public:
+    virtual ~ISearchHandler() = default;
+
+    /// @brief Initiates historical recording search query.
+    /// @param[in] scope Search scope / filter.
+    /// @param[in] maxMatches Maximum match count.
+    /// @param[in] keepAliveTime Session keepalive string.
+    /// @return Unique search session token string.
+    [[nodiscard]] virtual std::string handleFindRecordings(
+        const std::string& scope, int maxMatches, const std::string& keepAliveTime)
+        = 0;
+
+    /// @brief Polls results for an active recording search query.
+    /// @param[in] searchToken Search session token.
+    /// @return Vector of RecordingSearchResult matches.
+    [[nodiscard]] virtual std::vector<RecordingSearchResult> handleGetRecordingSearchResults(
+        const std::string& searchToken)
+        = 0;
+
+    /// @brief Initiates historical recorded events search query.
+    /// @param[in] startUtc Start timestamp (ISO 8601 UTC).
+    /// @param[in] endUtc End timestamp (ISO 8601 UTC).
+    /// @param[in] maxMatches Maximum match count.
+    /// @return Unique search session token string.
+    [[nodiscard]] virtual std::string handleFindEvents(
+        const std::string& startUtc, const std::string& endUtc, int maxMatches)
+        = 0;
+
+    /// @brief Polls results for an active event search query.
+    /// @param[in] searchToken Search session token.
+    /// @return Vector of RecordedEventResult matches.
+    [[nodiscard]] virtual std::vector<RecordedEventResult> handleGetEventSearchResults(const std::string& searchToken)
+        = 0;
+
+    /// @brief Closes an active search query session.
+    /// @param[in] searchToken Search session token.
+    /// @return True on success.
+    [[nodiscard]] virtual bool handleEndSearch(const std::string& searchToken) = 0;
+};
+
+/// @class IReplayHandler
+/// @brief Abstract interface for handling ONVIF Profile G Replay Service requests.
+class IReplayHandler {
+public:
+    virtual ~IReplayHandler() = default;
+
+    /// @brief Generates an RTSP replay URI for playback of a recorded track.
+    /// @param[in] recordingToken Target recording token.
+    /// @param[in] trackToken Target track token.
+    /// @return RTSP stream replay URI.
+    [[nodiscard]] virtual std::string handleGetReplayUri(
+        const std::string& recordingToken, const std::string& trackToken)
+        = 0;
+
+    /// @brief Retrieves current replay session configuration.
+    /// @return ReplayConfiguration structure.
+    [[nodiscard]] virtual ReplayConfiguration handleGetReplayConfiguration() = 0;
+
+    /// @brief Configures replay session timeouts.
+    /// @param[in] config Updated replay parameters.
+    /// @return True on success.
+    [[nodiscard]] virtual bool handleSetReplayConfiguration(const ReplayConfiguration& config) = 0;
 };
 
 } // namespace PelcoD::Onvif

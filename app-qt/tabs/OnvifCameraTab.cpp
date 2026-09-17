@@ -76,6 +76,30 @@ OnvifCameraTab::OnvifCameraTab(PelcoD::Qt::QOnvifDevice* onvifDevice, VideoStrea
             &OnvifCameraTab::handleSystemRestoreCompleted);
         connect(m_onvifDevice, &PelcoD::Qt::QOnvifDevice::endpointReferenceReceived, this,
             &OnvifCameraTab::handleEndpointReferenceReceived);
+
+        // PKI Certificates & TLS Security
+        connect(m_onvifDevice, &PelcoD::Qt::QOnvifDevice::certificatesUpdated, this,
+            &OnvifCameraTab::handleCertificatesUpdated);
+        connect(m_onvifDevice, &PelcoD::Qt::QOnvifDevice::certificateInfoReceived, this,
+            &OnvifCameraTab::handleCertificateInfoReceived);
+        connect(m_onvifDevice, &PelcoD::Qt::QOnvifDevice::pkcs10CsrReceived, this,
+            &OnvifCameraTab::handlePkcs10CsrReceived);
+        connect(m_onvifDevice, &PelcoD::Qt::QOnvifDevice::clientCertificateModeUpdated, this,
+            &OnvifCameraTab::handleClientCertModeUpdated);
+
+        // Profile G Recordings & Replay
+        connect(m_onvifDevice, &PelcoD::Qt::QOnvifDevice::recordingsUpdated, this,
+            &OnvifCameraTab::handleRecordingsUpdated);
+        connect(m_onvifDevice, &PelcoD::Qt::QOnvifDevice::recordingJobsUpdated, this,
+            &OnvifCameraTab::handleRecordingJobsUpdated);
+        connect(m_onvifDevice, &PelcoD::Qt::QOnvifDevice::recordingSummaryUpdated, this,
+            &OnvifCameraTab::handleRecordingSummaryUpdated);
+        connect(m_onvifDevice, &PelcoD::Qt::QOnvifDevice::recordingSearchResultsReceived, this,
+            &OnvifCameraTab::handleRecordingSearchResultsReceived);
+        connect(m_onvifDevice, &PelcoD::Qt::QOnvifDevice::eventSearchResultsReceived, this,
+            &OnvifCameraTab::handleEventSearchResultsReceived);
+        connect(m_onvifDevice, &PelcoD::Qt::QOnvifDevice::replayUriResolved, this,
+            &OnvifCameraTab::handleReplayUriResolved);
     }
 
     updateConnectionUi(false);
@@ -870,6 +894,64 @@ void OnvifCameraTab::setupUi()
     backupLayout->addWidget(btnRestoreBackup);
 
     netTabLayout->addWidget(groupBackup);
+
+    // Maintenance Extensions: PKI Certificates & HTTPS/TLS Security
+    auto* groupCerts = new QGroupBox(tr("PKI Certificates & HTTPS/TLS Security"), this);
+    auto* certsLayout = new QVBoxLayout(groupCerts);
+    certsLayout->setSpacing(6);
+
+    tableCertificates = new QTableWidget(0, 6, groupCerts);
+    tableCertificates->setHorizontalHeaderLabels({ tr("Certificate ID"), tr("Subject DN"), tr("Issuer DN"),
+        tr("Valid From"), tr("Valid Until"), tr("Key Usage") });
+    tableCertificates->setSelectionBehavior(QAbstractItemView::SelectRows);
+    tableCertificates->setSelectionMode(QAbstractItemView::SingleSelection);
+    tableCertificates->setMinimumHeight(120);
+    certsLayout->addWidget(tableCertificates);
+
+    auto* certActionLayout = new QHBoxLayout();
+    btnRefreshCerts = new QPushButton(tr("🔄 Refresh Certificates"), groupCerts);
+    btnDeleteCert = new QPushButton(tr("🗑 Delete Certificate"), groupCerts);
+    certActionLayout->addWidget(btnRefreshCerts);
+    certActionLayout->addWidget(btnDeleteCert);
+    certActionLayout->addStretch();
+    certsLayout->addLayout(certActionLayout);
+
+    // Create / CSR generation form
+    auto* genFormLayout = new QHBoxLayout();
+    editNewCertId = new QLineEdit(groupCerts);
+    editNewCertId->setPlaceholderText(tr("Cert ID (e.g. Cert_1)"));
+    editNewCertSubject = new QLineEdit(groupCerts);
+    editNewCertSubject->setPlaceholderText(tr("Subject (e.g. CN=Camera1)"));
+    spinNewCertDays = new QSpinBox(groupCerts);
+    spinNewCertDays->setRange(1, 3650);
+    spinNewCertDays->setValue(365);
+    spinNewCertDays->setSuffix(tr(" days"));
+    btnCreateSelfSignedCert = new QPushButton(tr("🔏 Create Self-Signed"), groupCerts);
+    btnGenerateCsr = new QPushButton(tr("📜 Generate PKCS#10 CSR"), groupCerts);
+
+    genFormLayout->addWidget(new QLabel(tr("ID:"), groupCerts));
+    genFormLayout->addWidget(editNewCertId);
+    genFormLayout->addWidget(new QLabel(tr("Subject:"), groupCerts));
+    genFormLayout->addWidget(editNewCertSubject, 1);
+    genFormLayout->addWidget(spinNewCertDays);
+    genFormLayout->addWidget(btnCreateSelfSignedCert);
+    genFormLayout->addWidget(btnGenerateCsr);
+    certsLayout->addLayout(genFormLayout);
+
+    // Client certificate mode
+    auto* modeLayout = new QHBoxLayout();
+    modeLayout->addWidget(new QLabel(tr("TLS Client Certificate Authentication:"), groupCerts));
+    cmbClientCertMode = new QComboBox(groupCerts);
+    cmbClientCertMode->addItem(tr("Off / Disabled"), static_cast<int>(PelcoD::Onvif::ClientCertificateMode::Off));
+    cmbClientCertMode->addItem(tr("Optional"), static_cast<int>(PelcoD::Onvif::ClientCertificateMode::Optional));
+    cmbClientCertMode->addItem(tr("Required (mTLS)"), static_cast<int>(PelcoD::Onvif::ClientCertificateMode::Required));
+    btnApplyClientCertMode = new QPushButton(tr("Apply Mode"), groupCerts);
+    modeLayout->addWidget(cmbClientCertMode);
+    modeLayout->addWidget(btnApplyClientCertMode);
+    modeLayout->addStretch();
+    certsLayout->addLayout(modeLayout);
+
+    netTabLayout->addWidget(groupCerts);
     netTabLayout->addStretch();
 
     // -------------------------------------------------------------------------
@@ -1019,6 +1101,167 @@ void OnvifCameraTab::setupUi()
     metaTabLayout->addWidget(groupMetaStream);
     metaTabLayout->addStretch();
 
+    // -------------------------------------------------------------------------
+    // Sub-Tab 11: Recordings & Replay (Profile G)
+    // -------------------------------------------------------------------------
+    auto* recTabLayout = createScrollTab(tr("Recordings & Replay"));
+
+    // Storage Summary & Edge Recordings
+    auto* groupRecordings = new QGroupBox(tr("Profile G: Edge Recordings & Storage"), this);
+    auto* recLayout = new QVBoxLayout(groupRecordings);
+    recLayout->setSpacing(6);
+
+    auto* sumLayout = new QHBoxLayout();
+    lblRecordingSummary = new QLabel(tr("Storage Summary: Unknown"), groupRecordings);
+    btnRefreshRecordingSummary = new QPushButton(tr("🔄 Summary"), groupRecordings);
+    sumLayout->addWidget(lblRecordingSummary, 1);
+    sumLayout->addWidget(btnRefreshRecordingSummary);
+    recLayout->addLayout(sumLayout);
+
+    tableRecordings = new QTableWidget(0, 5, groupRecordings);
+    tableRecordings->setHorizontalHeaderLabels(
+        { tr("Recording Token"), tr("Source"), tr("Content"), tr("Retention"), tr("Tracks") });
+    tableRecordings->setSelectionBehavior(QAbstractItemView::SelectRows);
+    tableRecordings->setSelectionMode(QAbstractItemView::SingleSelection);
+    tableRecordings->setMinimumHeight(110);
+    recLayout->addWidget(tableRecordings);
+
+    auto* recActionLayout = new QHBoxLayout();
+    editNewRecordingSource = new QLineEdit(groupRecordings);
+    editNewRecordingSource->setPlaceholderText(tr("Source Token (e.g. VideoSource_1)"));
+    editNewRecordingContent = new QLineEdit(groupRecordings);
+    editNewRecordingContent->setPlaceholderText(tr("Content (e.g. MainStream)"));
+    btnCreateRecording = new QPushButton(tr("➕ Create Recording"), groupRecordings);
+    btnDeleteRecording = new QPushButton(tr("🗑 Delete Recording"), groupRecordings);
+    btnRefreshRecordings = new QPushButton(tr("🔄 Refresh"), groupRecordings);
+
+    recActionLayout->addWidget(editNewRecordingSource);
+    recActionLayout->addWidget(editNewRecordingContent);
+    recActionLayout->addWidget(btnCreateRecording);
+    recActionLayout->addWidget(btnDeleteRecording);
+    recActionLayout->addWidget(btnRefreshRecordings);
+    recLayout->addLayout(recActionLayout);
+
+    // Track Management
+    auto* trackActionLayout = new QHBoxLayout();
+    cmbTrackType = new QComboBox(groupRecordings);
+    cmbTrackType->addItem(tr("Video"), static_cast<int>(PelcoD::Onvif::RecordingTrackType::Video));
+    cmbTrackType->addItem(tr("Audio"), static_cast<int>(PelcoD::Onvif::RecordingTrackType::Audio));
+    cmbTrackType->addItem(tr("Metadata"), static_cast<int>(PelcoD::Onvif::RecordingTrackType::Metadata));
+    editTrackDesc = new QLineEdit(groupRecordings);
+    editTrackDesc->setPlaceholderText(tr("Track Description"));
+    btnCreateTrack = new QPushButton(tr("➕ Add Track"), groupRecordings);
+    btnDeleteTrack = new QPushButton(tr("🗑 Remove Track"), groupRecordings);
+
+    trackActionLayout->addWidget(new QLabel(tr("Track:"), groupRecordings));
+    trackActionLayout->addWidget(cmbTrackType);
+    trackActionLayout->addWidget(editTrackDesc, 1);
+    trackActionLayout->addWidget(btnCreateTrack);
+    trackActionLayout->addWidget(btnDeleteTrack);
+    recLayout->addLayout(trackActionLayout);
+
+    recTabLayout->addWidget(groupRecordings);
+
+    // Automated Recording Jobs
+    auto* groupJobs = new QGroupBox(tr("Automated Recording Jobs"), this);
+    auto* jobsLayout = new QVBoxLayout(groupJobs);
+    jobsLayout->setSpacing(6);
+
+    tableRecordingJobs = new QTableWidget(0, 5, groupJobs);
+    tableRecordingJobs->setHorizontalHeaderLabels(
+        { tr("Job Token"), tr("Recording Token"), tr("Source Token"), tr("Priority"), tr("Mode") });
+    tableRecordingJobs->setSelectionBehavior(QAbstractItemView::SelectRows);
+    tableRecordingJobs->setSelectionMode(QAbstractItemView::SingleSelection);
+    tableRecordingJobs->setMinimumHeight(100);
+    jobsLayout->addWidget(tableRecordingJobs);
+
+    auto* jobActionLayout = new QHBoxLayout();
+    editJobRecordingToken = new QLineEdit(groupJobs);
+    editJobRecordingToken->setPlaceholderText(tr("Rec Token"));
+    editJobSourceToken = new QLineEdit(groupJobs);
+    editJobSourceToken->setPlaceholderText(tr("Src Token"));
+    spinJobPriority = new QSpinBox(groupJobs);
+    spinJobPriority->setRange(1, 10);
+    spinJobPriority->setValue(5);
+    cmbJobMode = new QComboBox(groupJobs);
+    cmbJobMode->addItem(tr("Active"), static_cast<int>(PelcoD::Onvif::RecordingJobMode::Active));
+    cmbJobMode->addItem(tr("Idle"), static_cast<int>(PelcoD::Onvif::RecordingJobMode::Idle));
+
+    btnCreateJob = new QPushButton(tr("➕ Create Job"), groupJobs);
+    btnToggleJobMode = new QPushButton(tr("⚡ Toggle Active/Idle"), groupJobs);
+    btnDeleteJob = new QPushButton(tr("🗑 Delete Job"), groupJobs);
+    btnRefreshRecordingJobs = new QPushButton(tr("🔄 Refresh Jobs"), groupJobs);
+
+    jobActionLayout->addWidget(editJobRecordingToken);
+    jobActionLayout->addWidget(editJobSourceToken);
+    jobActionLayout->addWidget(spinJobPriority);
+    jobActionLayout->addWidget(cmbJobMode);
+    jobActionLayout->addWidget(btnCreateJob);
+    jobActionLayout->addWidget(btnToggleJobMode);
+    jobActionLayout->addWidget(btnDeleteJob);
+    jobActionLayout->addWidget(btnRefreshRecordingJobs);
+    jobsLayout->addLayout(jobActionLayout);
+
+    recTabLayout->addWidget(groupJobs);
+
+    // Historical Search & Replay
+    auto* groupSearch = new QGroupBox(tr("Historical Search & RTSP Replay"), this);
+    auto* searchLayout = new QVBoxLayout(groupSearch);
+    searchLayout->setSpacing(6);
+
+    auto* recSearchForm = new QHBoxLayout();
+    editSearchScope = new QLineEdit(groupSearch);
+    editSearchScope->setPlaceholderText(tr("Search Scope / Sources (or empty for all)"));
+    btnFindRecordings = new QPushButton(tr("🔍 Find Recordings"), groupSearch);
+    recSearchForm->addWidget(editSearchScope, 1);
+    recSearchForm->addWidget(btnFindRecordings);
+    searchLayout->addLayout(recSearchForm);
+
+    tableSearchResults = new QTableWidget(0, 5, groupSearch);
+    tableSearchResults->setHorizontalHeaderLabels(
+        { tr("Recording"), tr("Track"), tr("Earliest"), tr("Latest"), tr("State") });
+    tableSearchResults->setSelectionBehavior(QAbstractItemView::SelectRows);
+    tableSearchResults->setSelectionMode(QAbstractItemView::SingleSelection);
+    tableSearchResults->setMinimumHeight(100);
+    searchLayout->addWidget(tableSearchResults);
+
+    // Replay Stream Controls
+    auto* replayForm = new QHBoxLayout();
+    editReplayUri = new QLineEdit(groupSearch);
+    editReplayUri->setPlaceholderText(tr("RTSP Replay URI will appear here..."));
+    btnResolveReplayUri = new QPushButton(tr("🎬 Get Replay URI"), groupSearch);
+    btnPlayReplayUri = new QPushButton(tr("▶ Play in Video Stream Tab"), groupSearch);
+    btnPlayReplayUri->setStyleSheet(QStringLiteral("font-weight: bold; background-color: #238636; color: white;"));
+
+    replayForm->addWidget(editReplayUri, 1);
+    replayForm->addWidget(btnResolveReplayUri);
+    replayForm->addWidget(btnPlayReplayUri);
+    searchLayout->addLayout(replayForm);
+
+    // Event Search
+    auto* evSearchForm = new QHBoxLayout();
+    editEventStartUtc = new QLineEdit(groupSearch);
+    editEventStartUtc->setPlaceholderText(tr("Start UTC (e.g. 2026-01-01T00:00:00Z)"));
+    editEventEndUtc = new QLineEdit(groupSearch);
+    editEventEndUtc->setPlaceholderText(tr("End UTC (optional)"));
+    btnFindEvents = new QPushButton(tr("🔍 Find Recorded Events"), groupSearch);
+
+    evSearchForm->addWidget(editEventStartUtc);
+    evSearchForm->addWidget(editEventEndUtc);
+    evSearchForm->addWidget(btnFindEvents);
+    searchLayout->addLayout(evSearchForm);
+
+    tableEventSearchResults = new QTableWidget(0, 5, groupSearch);
+    tableEventSearchResults->setHorizontalHeaderLabels(
+        { tr("Recording"), tr("UTC Time"), tr("Topic"), tr("Source"), tr("Data") });
+    tableEventSearchResults->setSelectionBehavior(QAbstractItemView::SelectRows);
+    tableEventSearchResults->setSelectionMode(QAbstractItemView::SingleSelection);
+    tableEventSearchResults->setMinimumHeight(100);
+    searchLayout->addWidget(tableEventSearchResults);
+
+    recTabLayout->addWidget(groupSearch);
+    recTabLayout->addStretch();
+
     // Add tab widget to main layout
     mainLayout->addWidget(m_cameraTabs, 1);
 
@@ -1080,6 +1323,29 @@ void OnvifCameraTab::setupUi()
     connect(btnApplyMetaConfig, &QPushButton::clicked, this, &OnvifCameraTab::handleApplyMetadataConfig);
     connect(btnToggleMetaStream, &QPushButton::toggled, this, &OnvifCameraTab::handleToggleMetadataStream);
     connect(btnPollMetaOnce, &QPushButton::clicked, this, &OnvifCameraTab::handlePollMetadataOnce);
+
+    // PKI Certificates & TLS Security connections
+    connect(btnRefreshCerts, &QPushButton::clicked, this, &OnvifCameraTab::handleRefreshCertificates);
+    connect(btnCreateSelfSignedCert, &QPushButton::clicked, this, &OnvifCameraTab::handleCreateSelfSignedCert);
+    connect(btnGenerateCsr, &QPushButton::clicked, this, &OnvifCameraTab::handleGenerateCsr);
+    connect(btnDeleteCert, &QPushButton::clicked, this, &OnvifCameraTab::handleDeleteCertificate);
+    connect(btnApplyClientCertMode, &QPushButton::clicked, this, &OnvifCameraTab::handleApplyClientCertMode);
+
+    // Profile G: Recordings & Replay connections
+    connect(btnRefreshRecordingSummary, &QPushButton::clicked, this, &OnvifCameraTab::handleRefreshRecordingSummary);
+    connect(btnRefreshRecordings, &QPushButton::clicked, this, &OnvifCameraTab::handleRefreshRecordings);
+    connect(btnCreateRecording, &QPushButton::clicked, this, &OnvifCameraTab::handleCreateRecording);
+    connect(btnDeleteRecording, &QPushButton::clicked, this, &OnvifCameraTab::handleDeleteRecording);
+    connect(btnCreateTrack, &QPushButton::clicked, this, &OnvifCameraTab::handleCreateTrack);
+    connect(btnDeleteTrack, &QPushButton::clicked, this, &OnvifCameraTab::handleDeleteTrack);
+    connect(btnRefreshRecordingJobs, &QPushButton::clicked, this, &OnvifCameraTab::handleRefreshRecordingJobs);
+    connect(btnCreateJob, &QPushButton::clicked, this, &OnvifCameraTab::handleCreateRecordingJob);
+    connect(btnToggleJobMode, &QPushButton::clicked, this, &OnvifCameraTab::handleToggleJobMode);
+    connect(btnDeleteJob, &QPushButton::clicked, this, &OnvifCameraTab::handleDeleteRecordingJob);
+    connect(btnFindRecordings, &QPushButton::clicked, this, &OnvifCameraTab::handleFindRecordings);
+    connect(btnFindEvents, &QPushButton::clicked, this, &OnvifCameraTab::handleFindEvents);
+    connect(btnResolveReplayUri, &QPushButton::clicked, this, &OnvifCameraTab::handleResolveReplayUri);
+    connect(btnPlayReplayUri, &QPushButton::clicked, this, &OnvifCameraTab::handlePlayInVideoStreamTab);
 }
 
 void OnvifCameraTab::updateConnectionUi(bool connected)
@@ -1211,6 +1477,50 @@ void OnvifCameraTab::updateConnectionUi(bool connected)
     btnPollMetaOnce->setEnabled(connected);
     tableMetaObjects->setEnabled(connected);
 
+    // PKI Certificates widgets
+    tableCertificates->setEnabled(connected);
+    btnRefreshCerts->setEnabled(connected);
+    editNewCertId->setEnabled(connected);
+    editNewCertSubject->setEnabled(connected);
+    spinNewCertDays->setEnabled(connected);
+    btnCreateSelfSignedCert->setEnabled(connected);
+    btnGenerateCsr->setEnabled(connected);
+    btnDeleteCert->setEnabled(connected);
+    cmbClientCertMode->setEnabled(connected);
+    btnApplyClientCertMode->setEnabled(connected);
+
+    // Profile G: Recordings & Replay widgets
+    btnRefreshRecordingSummary->setEnabled(connected);
+    tableRecordings->setEnabled(connected);
+    editNewRecordingSource->setEnabled(connected);
+    editNewRecordingContent->setEnabled(connected);
+    btnCreateRecording->setEnabled(connected);
+    btnDeleteRecording->setEnabled(connected);
+    btnRefreshRecordings->setEnabled(connected);
+    cmbTrackType->setEnabled(connected);
+    editTrackDesc->setEnabled(connected);
+    btnCreateTrack->setEnabled(connected);
+    btnDeleteTrack->setEnabled(connected);
+    tableRecordingJobs->setEnabled(connected);
+    editJobRecordingToken->setEnabled(connected);
+    editJobSourceToken->setEnabled(connected);
+    spinJobPriority->setEnabled(connected);
+    cmbJobMode->setEnabled(connected);
+    btnCreateJob->setEnabled(connected);
+    btnToggleJobMode->setEnabled(connected);
+    btnDeleteJob->setEnabled(connected);
+    btnRefreshRecordingJobs->setEnabled(connected);
+    editSearchScope->setEnabled(connected);
+    btnFindRecordings->setEnabled(connected);
+    tableSearchResults->setEnabled(connected);
+    editEventStartUtc->setEnabled(connected);
+    editEventEndUtc->setEnabled(connected);
+    btnFindEvents->setEnabled(connected);
+    tableEventSearchResults->setEnabled(connected);
+    editReplayUri->setEnabled(connected);
+    btnResolveReplayUri->setEnabled(connected);
+    btnPlayReplayUri->setEnabled(connected);
+
     if (!connected && btnToggleMetaStream->isChecked()) {
         btnToggleMetaStream->setChecked(false);
     }
@@ -1250,6 +1560,24 @@ void OnvifCameraTab::updateConnectionUi(bool connected)
         lblTelemetryPanTilt->setText(tr("Pan/Tilt: (0.00, 0.00)"));
         lblTelemetryZoom->setText(tr("Zoom: 0.00"));
         lblTelemetryMoving->setText(tr("Status: IDLE"));
+
+        tableCertificates->setRowCount(0);
+        editNewCertId->clear();
+        editNewCertSubject->clear();
+        tableRecordings->setRowCount(0);
+        editNewRecordingSource->clear();
+        editNewRecordingContent->clear();
+        editTrackDesc->clear();
+        tableRecordingJobs->setRowCount(0);
+        editJobRecordingToken->clear();
+        editJobSourceToken->clear();
+        tableSearchResults->setRowCount(0);
+        editSearchScope->clear();
+        tableEventSearchResults->setRowCount(0);
+        editEventStartUtc->clear();
+        editEventEndUtc->clear();
+        editReplayUri->clear();
+        lblRecordingSummary->setText(tr("Storage Summary: Disconnected"));
     }
 }
 
@@ -1318,7 +1646,11 @@ void OnvifCameraTab::handleConnect()
 
     const bool ok = m_onvifDevice->connectToCamera(endpoint, user, pass);
     if (!ok) {
-        updateConnectionUi(false);
+        btnConnect->setEnabled(true);
+        lblConnectionStatus->setText(tr("Failed"));
+        lblConnectionStatus->setStyleSheet("color: #da3633; font-weight: bold;");
+        QMessageBox::critical(this, tr("Connection Failed"),
+            tr("Failed to connect to ONVIF camera at:\n%1\nPlease verify IP, port, and credentials.").arg(endpoint));
     }
 }
 
@@ -1358,6 +1690,11 @@ void OnvifCameraTab::handleDeviceConnected(const QString& endpoint, const QStrin
         if (!profiles.empty()) {
             cmbProfiles->setCurrentIndex(0);
         }
+
+        handleRefreshCertificates();
+        handleRefreshRecordings();
+        handleRefreshRecordingJobs();
+        handleRefreshRecordingSummary();
     }
 }
 
@@ -2755,6 +3092,429 @@ void OnvifCameraTab::handleEndpointReferenceReceived(const QString& endpointRefe
 {
     if (lblEndpointRef != nullptr) {
         lblEndpointRef->setText(QStringLiteral("UUID: %1").arg(endpointReference));
+    }
+}
+
+// =========================================================================
+// Profile G: Recordings & Replay
+// =========================================================================
+
+void OnvifCameraTab::handleRefreshRecordings()
+{
+    if (m_onvifDevice != nullptr) {
+        m_onvifDevice->refreshRecordings();
+    }
+}
+
+void OnvifCameraTab::handleCreateRecording()
+{
+    if (m_onvifDevice == nullptr)
+        return;
+    PelcoD::Onvif::RecordingConfig cfg;
+    cfg.sourceToken = editNewRecordingSource->text().trimmed().toStdString();
+    if (cfg.sourceToken.empty())
+        cfg.sourceToken = "VideoSource_1";
+    cfg.content = editNewRecordingContent->text().trimmed().toStdString();
+    if (cfg.content.empty())
+        cfg.content = "MainStream";
+    cfg.maximumRetentionTime = "P30D";
+
+    const QString token = m_onvifDevice->createRecording(cfg);
+    if (!token.isEmpty()) {
+        editNewRecordingSource->clear();
+        editNewRecordingContent->clear();
+        QMessageBox::information(this, tr("Create Recording"), tr("Created recording with token: %1").arg(token));
+    } else {
+        QMessageBox::critical(this, tr("Create Recording"), tr("Failed to create recording."));
+    }
+}
+
+void OnvifCameraTab::handleDeleteRecording()
+{
+    if (m_onvifDevice == nullptr)
+        return;
+    const int row = tableRecordings->currentRow();
+    if (row < 0) {
+        QMessageBox::warning(this, tr("Delete Recording"), tr("Please select a recording to delete."));
+        return;
+    }
+    const QString token = tableRecordings->item(row, 0)->text();
+    if (m_onvifDevice->deleteRecording(token)) {
+        QMessageBox::information(this, tr("Delete Recording"), tr("Recording %1 deleted.").arg(token));
+    } else {
+        QMessageBox::critical(this, tr("Delete Recording"), tr("Failed to delete recording %1.").arg(token));
+    }
+}
+
+void OnvifCameraTab::handleCreateTrack()
+{
+    if (m_onvifDevice == nullptr)
+        return;
+    const int row = tableRecordings->currentRow();
+    if (row < 0) {
+        QMessageBox::warning(this, tr("Add Track"), tr("Please select a parent recording in the table."));
+        return;
+    }
+    const QString recToken = tableRecordings->item(row, 0)->text();
+    PelcoD::Onvif::RecordingTrack trk;
+    trk.trackType = static_cast<PelcoD::Onvif::RecordingTrackType>(cmbTrackType->currentData().toInt());
+    trk.description = editTrackDesc->text().trimmed().toStdString();
+    if (trk.description.empty())
+        trk.description = "PrimaryTrack";
+
+    const QString trkToken = m_onvifDevice->createTrack(recToken, trk);
+    if (!trkToken.isEmpty()) {
+        editTrackDesc->clear();
+        QMessageBox::information(this, tr("Add Track"), tr("Created track %1 in recording %2").arg(trkToken, recToken));
+    } else {
+        QMessageBox::critical(this, tr("Add Track"), tr("Failed to create track."));
+    }
+}
+
+void OnvifCameraTab::handleDeleteTrack()
+{
+    if (m_onvifDevice == nullptr)
+        return;
+    const int row = tableRecordings->currentRow();
+    if (row < 0) {
+        QMessageBox::warning(this, tr("Delete Track"), tr("Please select a recording in the table."));
+        return;
+    }
+    const QString recToken = tableRecordings->item(row, 0)->text();
+    const QString trackStr = tableRecordings->item(row, 4)->text();
+    if (trackStr.isEmpty()) {
+        QMessageBox::warning(this, tr("Delete Track"), tr("Selected recording has no tracks."));
+        return;
+    }
+    const QString trackToken = trackStr.split(',').first().trimmed();
+    if (m_onvifDevice->deleteTrack(recToken, trackToken)) {
+        QMessageBox::information(this, tr("Delete Track"), tr("Deleted track %1.").arg(trackToken));
+    } else {
+        QMessageBox::critical(this, tr("Delete Track"), tr("Failed to delete track %1.").arg(trackToken));
+    }
+}
+
+void OnvifCameraTab::handleRefreshRecordingJobs()
+{
+    if (m_onvifDevice != nullptr) {
+        m_onvifDevice->refreshRecordingJobs();
+    }
+}
+
+void OnvifCameraTab::handleCreateRecordingJob()
+{
+    if (m_onvifDevice == nullptr)
+        return;
+    PelcoD::Onvif::RecordingJob job;
+    job.recordingToken = editJobRecordingToken->text().trimmed().toStdString();
+    job.sourceToken = editJobSourceToken->text().trimmed().toStdString();
+    if (job.recordingToken.empty() || job.sourceToken.empty()) {
+        QMessageBox::warning(this, tr("Create Job"), tr("Recording Token and Source Token are required."));
+        return;
+    }
+    job.priority = spinJobPriority->value();
+    job.mode = static_cast<PelcoD::Onvif::RecordingJobMode>(cmbJobMode->currentData().toInt());
+
+    const QString jobToken = m_onvifDevice->createRecordingJob(job);
+    if (!jobToken.isEmpty()) {
+        editJobRecordingToken->clear();
+        editJobSourceToken->clear();
+        QMessageBox::information(this, tr("Create Job"), tr("Created recording job: %1").arg(jobToken));
+    } else {
+        QMessageBox::critical(this, tr("Create Job"), tr("Failed to create recording job."));
+    }
+}
+
+void OnvifCameraTab::handleToggleJobMode()
+{
+    if (m_onvifDevice == nullptr)
+        return;
+    const int row = tableRecordingJobs->currentRow();
+    if (row < 0) {
+        QMessageBox::warning(this, tr("Toggle Job"), tr("Please select a recording job in the table."));
+        return;
+    }
+    const QString jobToken = tableRecordingJobs->item(row, 0)->text();
+    const QString curMode = tableRecordingJobs->item(row, 4)->text();
+    const auto newMode
+        = (curMode == "Active") ? PelcoD::Onvif::RecordingJobMode::Idle : PelcoD::Onvif::RecordingJobMode::Active;
+    if (m_onvifDevice->setRecordingJobMode(jobToken, newMode)) {
+        QMessageBox::information(this, tr("Toggle Job"), tr("Job %1 mode changed.").arg(jobToken));
+    }
+}
+
+void OnvifCameraTab::handleDeleteRecordingJob()
+{
+    if (m_onvifDevice == nullptr)
+        return;
+    const int row = tableRecordingJobs->currentRow();
+    if (row < 0) {
+        QMessageBox::warning(this, tr("Delete Job"), tr("Please select a recording job in the table."));
+        return;
+    }
+    const QString jobToken = tableRecordingJobs->item(row, 0)->text();
+    if (m_onvifDevice->deleteRecordingJob(jobToken)) {
+        QMessageBox::information(this, tr("Delete Job"), tr("Deleted job %1.").arg(jobToken));
+    }
+}
+
+void OnvifCameraTab::handleRefreshRecordingSummary()
+{
+    if (m_onvifDevice != nullptr) {
+        m_onvifDevice->refreshRecordingSummary();
+    }
+}
+
+void OnvifCameraTab::handleFindRecordings()
+{
+    if (m_onvifDevice == nullptr)
+        return;
+    const QString scope = editSearchScope->text().trimmed();
+    const QString token = m_onvifDevice->findRecordings(scope, 20);
+    if (!token.isEmpty()) {
+        m_onvifDevice->refreshRecordingSearchResults(token);
+    }
+}
+
+void OnvifCameraTab::handleFindEvents()
+{
+    if (m_onvifDevice == nullptr)
+        return;
+    const QString startUtc = editEventStartUtc->text().trimmed();
+    const QString endUtc = editEventEndUtc->text().trimmed();
+    const QString token = m_onvifDevice->findEvents(startUtc, endUtc, 20);
+    if (!token.isEmpty()) {
+        m_onvifDevice->refreshEventSearchResults(token);
+    }
+}
+
+void OnvifCameraTab::handleResolveReplayUri()
+{
+    if (m_onvifDevice == nullptr)
+        return;
+    QString recToken;
+    const int row = tableRecordings->currentRow();
+    if (row >= 0) {
+        recToken = tableRecordings->item(row, 0)->text();
+    } else if (tableSearchResults->currentRow() >= 0) {
+        recToken = tableSearchResults->item(tableSearchResults->currentRow(), 0)->text();
+    } else if (!editNewRecordingSource->text().isEmpty()) {
+        recToken = editNewRecordingSource->text();
+    } else {
+        recToken = "Rec_Main";
+    }
+    m_onvifDevice->resolveReplayUri(recToken);
+}
+
+void OnvifCameraTab::handlePlayInVideoStreamTab()
+{
+    const QString uri = editReplayUri->text().trimmed();
+    if (!uri.isEmpty()) {
+        emit streamUriSelected(uri);
+    } else {
+        QMessageBox::warning(this, tr("Play Replay"), tr("Please resolve or enter a replay RTSP URI first."));
+    }
+}
+
+void OnvifCameraTab::handleRecordingsUpdated(const std::vector<PelcoD::Onvif::RecordingConfig>& recordings)
+{
+    tableRecordings->setRowCount(0);
+    for (const auto& r : recordings) {
+        const int row = tableRecordings->rowCount();
+        tableRecordings->insertRow(row);
+        tableRecordings->setItem(row, 0, new QTableWidgetItem(QString::fromStdString(r.recordingToken)));
+        tableRecordings->setItem(row, 1, new QTableWidgetItem(QString::fromStdString(r.sourceToken)));
+        tableRecordings->setItem(row, 2, new QTableWidgetItem(QString::fromStdString(r.content)));
+        tableRecordings->setItem(row, 3, new QTableWidgetItem(QString::fromStdString(r.maximumRetentionTime)));
+
+        QStringList trkTokens;
+        for (const auto& t : r.tracks) {
+            trkTokens << QString::fromStdString(t.trackToken);
+        }
+        tableRecordings->setItem(row, 4, new QTableWidgetItem(trkTokens.join(QStringLiteral(", "))));
+    }
+}
+
+void OnvifCameraTab::handleRecordingJobsUpdated(const std::vector<PelcoD::Onvif::RecordingJob>& jobs)
+{
+    tableRecordingJobs->setRowCount(0);
+    for (const auto& j : jobs) {
+        const int row = tableRecordingJobs->rowCount();
+        tableRecordingJobs->insertRow(row);
+        tableRecordingJobs->setItem(row, 0, new QTableWidgetItem(QString::fromStdString(j.jobToken)));
+        tableRecordingJobs->setItem(row, 1, new QTableWidgetItem(QString::fromStdString(j.recordingToken)));
+        tableRecordingJobs->setItem(row, 2, new QTableWidgetItem(QString::fromStdString(j.sourceToken)));
+        tableRecordingJobs->setItem(row, 3, new QTableWidgetItem(QString::number(j.priority)));
+        tableRecordingJobs->setItem(
+            row, 4, new QTableWidgetItem(QString::fromStdString(PelcoD::Onvif::recordingJobModeToString(j.mode))));
+    }
+}
+
+void OnvifCameraTab::handleRecordingSummaryUpdated(const PelcoD::Onvif::RecordingSummary& summary)
+{
+    lblRecordingSummary->setText(tr("Storage Summary: %1 recordings | Earliest: %2 | Latest: %3 | Total Size: %4 MB")
+                                     .arg(summary.numberRecordings)
+                                     .arg(QString::fromStdString(summary.dataFrom))
+                                     .arg(QString::fromStdString(summary.dataUntil))
+                                     .arg(summary.totalStorageBytes / (1024ULL * 1024ULL)));
+}
+
+void OnvifCameraTab::handleRecordingSearchResultsReceived(
+    const QString& /*searchToken*/, const std::vector<PelcoD::Onvif::RecordingSearchResult>& results)
+{
+    tableSearchResults->setRowCount(0);
+    for (const auto& r : results) {
+        const int row = tableSearchResults->rowCount();
+        tableSearchResults->insertRow(row);
+        tableSearchResults->setItem(row, 0, new QTableWidgetItem(QString::fromStdString(r.recordingToken)));
+        tableSearchResults->setItem(row, 1, new QTableWidgetItem(QString::fromStdString(r.trackToken)));
+        tableSearchResults->setItem(row, 2, new QTableWidgetItem(QString::fromStdString(r.earliestTime)));
+        tableSearchResults->setItem(row, 3, new QTableWidgetItem(QString::fromStdString(r.latestTime)));
+        tableSearchResults->setItem(row, 4, new QTableWidgetItem(QString::fromStdString(r.searchState)));
+    }
+}
+
+void OnvifCameraTab::handleEventSearchResultsReceived(
+    const QString& /*searchToken*/, const std::vector<PelcoD::Onvif::RecordedEventResult>& results)
+{
+    tableEventSearchResults->setRowCount(0);
+    for (const auto& e : results) {
+        const int row = tableEventSearchResults->rowCount();
+        tableEventSearchResults->insertRow(row);
+        tableEventSearchResults->setItem(row, 0, new QTableWidgetItem(QString::fromStdString(e.recordingToken)));
+        tableEventSearchResults->setItem(row, 1, new QTableWidgetItem(QString::fromStdString(e.eventTime)));
+        tableEventSearchResults->setItem(row, 2, new QTableWidgetItem(QString::fromStdString(e.topic)));
+        tableEventSearchResults->setItem(row, 3, new QTableWidgetItem(QString::fromStdString(e.source)));
+        tableEventSearchResults->setItem(row, 4, new QTableWidgetItem(QString::fromStdString(e.data)));
+    }
+}
+
+void OnvifCameraTab::handleReplayUriResolved(const QString& recordingToken, const QString& uri)
+{
+    editReplayUri->setText(uri);
+    QMessageBox::information(
+        this, tr("Replay URI Resolved"), tr("Resolved replay URI for %1:\n%2").arg(recordingToken, uri));
+}
+
+// =========================================================================
+// PKI Certificates & HTTPS/TLS Security
+// =========================================================================
+
+void OnvifCameraTab::handleRefreshCertificates()
+{
+    if (m_onvifDevice != nullptr) {
+        m_onvifDevice->refreshCertificates();
+        m_onvifDevice->refreshClientCertificateMode();
+    }
+}
+
+void OnvifCameraTab::handleCreateSelfSignedCert()
+{
+    if (m_onvifDevice == nullptr)
+        return;
+    const QString id = editNewCertId->text().trimmed();
+    const QString subject = editNewCertSubject->text().trimmed();
+    const int days = spinNewCertDays->value();
+    if (id.isEmpty() || subject.isEmpty()) {
+        QMessageBox::warning(this, tr("Create Certificate"), tr("Certificate ID and Subject DN cannot be empty."));
+        return;
+    }
+    if (m_onvifDevice->createCertificate(id, subject, days)) {
+        editNewCertId->clear();
+        editNewCertSubject->clear();
+        QMessageBox::information(
+            this, tr("Create Certificate"), tr("Self-signed certificate %1 created successfully.").arg(id));
+    } else {
+        QMessageBox::critical(this, tr("Create Certificate"), tr("Failed to create certificate %1.").arg(id));
+    }
+}
+
+void OnvifCameraTab::handleGenerateCsr()
+{
+    if (m_onvifDevice == nullptr)
+        return;
+    const QString id = editNewCertId->text().trimmed();
+    const QString subject = editNewCertSubject->text().trimmed();
+    if (id.isEmpty() || subject.isEmpty()) {
+        QMessageBox::warning(this, tr("Generate CSR"), tr("Certificate ID and Subject DN cannot be empty."));
+        return;
+    }
+    if (!m_onvifDevice->createPkcs10Csr(id, subject)) {
+        QMessageBox::critical(this, tr("Generate CSR"), tr("Failed to generate PKCS#10 CSR for %1.").arg(id));
+    }
+}
+
+void OnvifCameraTab::handleDeleteCertificate()
+{
+    if (m_onvifDevice == nullptr)
+        return;
+    const int row = tableCertificates->currentRow();
+    if (row < 0) {
+        QMessageBox::warning(this, tr("Delete Certificate"), tr("Please select a certificate to delete."));
+        return;
+    }
+    const QString id = tableCertificates->item(row, 0)->text();
+    if (m_onvifDevice->deleteCertificates({ id })) {
+        QMessageBox::information(this, tr("Delete Certificate"), tr("Certificate %1 deleted.").arg(id));
+    } else {
+        QMessageBox::critical(this, tr("Delete Certificate"), tr("Failed to delete certificate %1.").arg(id));
+    }
+}
+
+void OnvifCameraTab::handleApplyClientCertMode()
+{
+    if (m_onvifDevice == nullptr)
+        return;
+    const auto mode = static_cast<PelcoD::Onvif::ClientCertificateMode>(cmbClientCertMode->currentData().toInt());
+    if (m_onvifDevice->setClientCertificateMode(mode)) {
+        QMessageBox::information(
+            this, tr("Client Certificate Mode"), tr("Client certificate authentication mode applied."));
+    } else {
+        QMessageBox::critical(this, tr("Client Certificate Mode"), tr("Failed to update client certificate mode."));
+    }
+}
+
+void OnvifCameraTab::handleCertificatesUpdated(const std::vector<PelcoD::Onvif::OnvifCertificate>& certs)
+{
+    tableCertificates->setRowCount(0);
+    for (const auto& c : certs) {
+        const int row = tableCertificates->rowCount();
+        tableCertificates->insertRow(row);
+        tableCertificates->setItem(row, 0, new QTableWidgetItem(QString::fromStdString(c.certificateId)));
+        tableCertificates->setItem(row, 1, new QTableWidgetItem(QString::fromStdString(c.info.subject)));
+        tableCertificates->setItem(row, 2, new QTableWidgetItem(QString::fromStdString(c.info.issuer)));
+        tableCertificates->setItem(row, 3, new QTableWidgetItem(QString::fromStdString(c.info.validNotBefore)));
+        tableCertificates->setItem(row, 4, new QTableWidgetItem(QString::fromStdString(c.info.validNotAfter)));
+        tableCertificates->setItem(row, 5, new QTableWidgetItem(QString::fromStdString(c.info.keyAlgorithm)));
+    }
+}
+
+void OnvifCameraTab::handleCertificateInfoReceived(const PelcoD::Onvif::CertificateInformation& info)
+{
+    QMessageBox::information(this, tr("Certificate Information"),
+        tr("Certificate ID: %1\nSubject: %2\nIssuer: %3\nValid From: %4\nValid Until: %5\nKey Usage: %6")
+            .arg(QString::fromStdString(info.certificateId))
+            .arg(QString::fromStdString(info.subject))
+            .arg(QString::fromStdString(info.issuer))
+            .arg(QString::fromStdString(info.validNotBefore))
+            .arg(QString::fromStdString(info.validNotAfter))
+            .arg(QString::fromStdString(info.keyAlgorithm)));
+}
+
+void OnvifCameraTab::handlePkcs10CsrReceived(const PelcoD::Onvif::Pkcs10Request& csr)
+{
+    QMessageBox msgBox(this);
+    msgBox.setWindowTitle(tr("PKCS#10 CSR Generated"));
+    msgBox.setText(tr("Generated CSR for certificate '%1'").arg(QString::fromStdString(csr.certificateId)));
+    msgBox.setDetailedText(QString::fromStdString(csr.csrBase64));
+    msgBox.exec();
+}
+
+void OnvifCameraTab::handleClientCertModeUpdated(PelcoD::Onvif::ClientCertificateMode mode)
+{
+    const int idx = cmbClientCertMode->findData(static_cast<int>(mode));
+    if (idx >= 0) {
+        cmbClientCertMode->setCurrentIndex(idx);
     }
 }
 

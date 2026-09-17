@@ -1,4 +1,5 @@
 #include "OnvifServer.h"
+#include "OnvifSecurity.h"
 
 #include <pugixml.hpp>
 
@@ -25,6 +26,9 @@ namespace {
             << "xmlns:tev=\"http://www.onvif.org/ver10/events/wsdl\" "
             << "xmlns:tan=\"http://www.onvif.org/ver20/analytics/wsdl\" "
             << "xmlns:tmd=\"http://www.onvif.org/ver10/deviceIO/wsdl\" "
+            << "xmlns:trc=\"http://www.onvif.org/ver10/recording/wsdl\" "
+            << "xmlns:tse=\"http://www.onvif.org/ver10/search/wsdl\" "
+            << "xmlns:trp=\"http://www.onvif.org/ver10/replay/wsdl\" "
             << "xmlns:wsnt=\"http://docs.oasis-open.org/wsn/b-2\" "
             << "xmlns:wsa=\"http://schemas.xmlsoap.org/ws/2004/08/addressing\" "
             << "xmlns:tt=\"http://www.onvif.org/ver10/schema\">\r\n"
@@ -126,6 +130,48 @@ OnvifServer::OnvifServer(OnvifServerConfig config, std::shared_ptr<IPtzHandler> 
     defaultOsd.fontSize = 24U;
     m_internalOsds[defaultOsd.token] = defaultOsd;
 
+    if (!m_config.defaultCertificates.empty()) {
+        m_internalCertificates = m_config.defaultCertificates;
+    } else {
+        auto defCert = OnvifSecurity::generateSelfSignedCertificate("Cert_Server", "CN=PelcoD-Camera, O=PelcoD", 365);
+        m_internalCertificates.push_back(defCert);
+    }
+
+    if (!m_config.defaultRecordings.empty()) {
+        m_internalRecordings = m_config.defaultRecordings;
+    } else {
+        RecordingConfig defRec;
+        defRec.recordingToken = "Rec_Main";
+        defRec.content = "Continuous Recording";
+        defRec.sourceToken = "VideoSource_1";
+        defRec.maximumRetentionTime = "P30D";
+        RecordingTrack vidTrack;
+        vidTrack.trackToken = "Track_Video_1";
+        vidTrack.trackType = RecordingTrackType::Video;
+        vidTrack.description = "Main H.264 Video Track";
+        defRec.tracks.push_back(vidTrack);
+        RecordingTrack audTrack;
+        audTrack.trackToken = "Track_Audio_1";
+        audTrack.trackType = RecordingTrackType::Audio;
+        audTrack.description = "AAC Audio Track";
+        defRec.tracks.push_back(audTrack);
+        m_internalRecordings.push_back(defRec);
+    }
+
+    if (!m_config.defaultRecordingJobs.empty()) {
+        m_internalRecordingJobs = m_config.defaultRecordingJobs;
+    } else {
+        RecordingJob defJob;
+        defJob.jobToken = "Job_Continuous";
+        defJob.recordingToken = "Rec_Main";
+        defJob.mode = RecordingJobMode::Active;
+        defJob.priority = 5;
+        defJob.sourceToken = "Profile_1";
+        m_internalRecordingJobs.push_back(defJob);
+    }
+
+    m_internalReplayConfig.sessionTimeout = "PT60S";
+
     logSystemMessage("INFO", "ONVIF Server initialized successfully");
 
     m_discoveryServer = std::make_unique<WsDiscoveryServer>(m_config);
@@ -224,6 +270,21 @@ void OnvifServer::setDeviceIoHandler(std::shared_ptr<IDeviceIoHandler> handler)
 void OnvifServer::setMetadataHandler(std::shared_ptr<IMetadataHandler> handler)
 {
     m_metadataHandler = std::move(handler);
+}
+
+void OnvifServer::setRecordingHandler(std::shared_ptr<IRecordingHandler> handler)
+{
+    m_recordingHandler = std::move(handler);
+}
+
+void OnvifServer::setSearchHandler(std::shared_ptr<ISearchHandler> handler)
+{
+    m_searchHandler = std::move(handler);
+}
+
+void OnvifServer::setReplayHandler(std::shared_ptr<IReplayHandler> handler)
+{
+    m_replayHandler = std::move(handler);
 }
 
 void OnvifServer::logSystemMessage(const std::string& level, const std::string& msg)
@@ -338,6 +399,15 @@ void OnvifServer::setupRoutes()
 
     m_httpServer.Post("/onvif/deviceio_service",
         [this](const httplib::Request& req, httplib::Response& res) { handleDeviceIoService(req, res); });
+
+    m_httpServer.Post("/onvif/recording_service",
+        [this](const httplib::Request& req, httplib::Response& res) { handleRecordingService(req, res); });
+
+    m_httpServer.Post("/onvif/search_service",
+        [this](const httplib::Request& req, httplib::Response& res) { handleSearchService(req, res); });
+
+    m_httpServer.Post("/onvif/replay_service",
+        [this](const httplib::Request& req, httplib::Response& res) { handleReplayService(req, res); });
 
     m_httpServer.Get("/onvif/metadata_stream",
         [this](const httplib::Request& req, httplib::Response& res) { handleMetadataStream(req, res); });
@@ -502,6 +572,18 @@ void OnvifServer::handleDeviceService(const httplib::Request& req, httplib::Resp
              << "            <tt:VideoSources>1</tt:VideoSources>\r\n"
              << "            <tt:RelayOutputs>" << numRelays << "</tt:RelayOutputs>\r\n"
              << "          </tt:DeviceIO>\r\n"
+             << "          <tt:Recording>\r\n"
+             << "            <tt:XAddr>http://" << host << ":" << port << "/onvif/recording_service</tt:XAddr>\r\n"
+             << "            <tt:Receiver>false</tt:Receiver>\r\n"
+             << "            <tt:MediaProfileSummary>false</tt:MediaProfileSummary>\r\n"
+             << "          </tt:Recording>\r\n"
+             << "          <tt:Search>\r\n"
+             << "            <tt:XAddr>http://" << host << ":" << port << "/onvif/search_service</tt:XAddr>\r\n"
+             << "            <tt:MetadataSearch>true</tt:MetadataSearch>\r\n"
+             << "          </tt:Search>\r\n"
+             << "          <tt:Replay>\r\n"
+             << "            <tt:XAddr>http://" << host << ":" << port << "/onvif/replay_service</tt:XAddr>\r\n"
+             << "          </tt:Replay>\r\n"
              << "        </tt:Extension>\r\n"
              << "      </tds:Capabilities>\r\n"
              << "    </tds:GetCapabilitiesResponse>\r\n";
@@ -520,32 +602,47 @@ void OnvifServer::handleDeviceService(const httplib::Request& req, httplib::Resp
              << "      <tds:Service>\r\n"
              << "        <tds:Namespace>http://www.onvif.org/ver20/media/wsdl</tds:Namespace>\r\n"
              << "        <tds:XAddr>http://" << host << ":" << port << "/onvif/media2_service</tds:XAddr>\r\n"
-             << "        <tds:Version><tt:Major>20</tt:Major><tt:Minor>0</tt:Minor></tt:Version>\r\n"
+             << "        <tds:Version><tt:Major>20</tt:Major><tt:Minor>0</tt:Minor></tds:Version>\r\n"
              << "      </tds:Service>\r\n"
              << "      <tds:Service>\r\n"
              << "        <tds:Namespace>http://www.onvif.org/ver20/ptz/wsdl</tds:Namespace>\r\n"
              << "        <tds:XAddr>http://" << host << ":" << port << "/onvif/ptz_service</tds:XAddr>\r\n"
-             << "        <tds:Version><tt:Major>2</tt:Major><tt:Minor>0</tt:Minor></tt:Version>\r\n"
+             << "        <tds:Version><tt:Major>2</tt:Major><tt:Minor>0</tt:Minor></tds:Version>\r\n"
              << "      </tds:Service>\r\n"
              << "      <tds:Service>\r\n"
              << "        <tds:Namespace>http://www.onvif.org/ver20/imaging/wsdl</tds:Namespace>\r\n"
              << "        <tds:XAddr>http://" << host << ":" << port << "/onvif/imaging_service</tds:XAddr>\r\n"
-             << "        <tds:Version><tt:Major>20</tt:Major><tt:Minor>0</tt:Minor></tt:Version>\r\n"
+             << "        <tds:Version><tt:Major>20</tt:Major><tt:Minor>0</tt:Minor></tds:Version>\r\n"
              << "      </tds:Service>\r\n"
              << "      <tds:Service>\r\n"
              << "        <tds:Namespace>http://www.onvif.org/ver10/deviceIO/wsdl</tds:Namespace>\r\n"
              << "        <tds:XAddr>http://" << host << ":" << port << "/onvif/deviceio_service</tds:XAddr>\r\n"
-             << "        <tds:Version><tt:Major>10</tt:Major><tt:Minor>0</tt:Minor></tt:Version>\r\n"
+             << "        <tds:Version><tt:Major>10</tt:Major><tt:Minor>0</tt:Minor></tds:Version>\r\n"
              << "      </tds:Service>\r\n"
              << "      <tds:Service>\r\n"
              << "        <tds:Namespace>http://www.onvif.org/ver10/events/wsdl</tds:Namespace>\r\n"
              << "        <tds:XAddr>http://" << host << ":" << port << "/onvif/event_service</tds:XAddr>\r\n"
-             << "        <tds:Version><tt:Major>10</tt:Major><tt:Minor>0</tt:Minor></tt:Version>\r\n"
+             << "        <tds:Version><tt:Major>10</tt:Major><tt:Minor>0</tt:Minor></tds:Version>\r\n"
              << "      </tds:Service>\r\n"
              << "      <tds:Service>\r\n"
              << "        <tds:Namespace>http://www.onvif.org/ver20/analytics/wsdl</tds:Namespace>\r\n"
              << "        <tds:XAddr>http://" << host << ":" << port << "/onvif/analytics_service</tds:XAddr>\r\n"
              << "        <tds:Version><tt:Major>20</tt:Major><tt:Minor>0</tt:Minor></tds:Version>\r\n"
+             << "      </tds:Service>\r\n"
+             << "      <tds:Service>\r\n"
+             << "        <tds:Namespace>http://www.onvif.org/ver10/recording/wsdl</tds:Namespace>\r\n"
+             << "        <tds:XAddr>http://" << host << ":" << port << "/onvif/recording_service</tt:XAddr>\r\n"
+             << "        <tds:Version><tt:Major>17</tt:Major><tt:Minor>0</tt:Minor></tds:Version>\r\n"
+             << "      </tds:Service>\r\n"
+             << "      <tds:Service>\r\n"
+             << "        <tds:Namespace>http://www.onvif.org/ver10/search/wsdl</tds:Namespace>\r\n"
+             << "        <tds:XAddr>http://" << host << ":" << port << "/onvif/search_service</tt:XAddr>\r\n"
+             << "        <tds:Version><tt:Major>10</tt:Major><tt:Minor>0</tt:Minor></tds:Version>\r\n"
+             << "      </tds:Service>\r\n"
+             << "      <tds:Service>\r\n"
+             << "        <tds:Namespace>http://www.onvif.org/ver10/replay/wsdl</tds:Namespace>\r\n"
+             << "        <tds:XAddr>http://" << host << ":" << port << "/onvif/replay_service</tt:XAddr>\r\n"
+             << "        <tds:Version><tt:Major>10</tt:Major><tt:Minor>0</tt:Minor></tds:Version>\r\n"
              << "      </tds:Service>\r\n"
              << "    </tds:GetServicesResponse>\r\n";
     } else if (isOp(opName, "GetScopes")) {
@@ -1023,6 +1120,192 @@ void OnvifServer::handleDeviceService(const httplib::Request& req, httplib::Resp
         body << "    <tds:GetEndpointReferenceResponse>\r\n"
              << "      <tds:GUID>" << ep << "</tds:GUID>\r\n"
              << "    </tds:GetEndpointReferenceResponse>\r\n";
+    } else if (isOp(opName, "GetCertificates")) {
+        std::vector<OnvifCertificate> certs;
+        if (m_deviceHandler) {
+            certs = m_deviceHandler->handleGetCertificates();
+        }
+        if (certs.empty()) {
+            std::lock_guard<std::mutex> lock(m_certMutex);
+            certs = m_internalCertificates;
+        }
+        body << "    <tds:GetCertificatesResponse>\r\n";
+        for (const auto& cert : certs) {
+            body << "      <tds:NvtCertificate>\r\n"
+                 << "        <tt:CertificateID>" << cert.certificateId << "</tt:CertificateID>\r\n"
+                 << "        <tt:Certificate>\r\n"
+                 << "          <tt:Data>" << cert.x509DerBase64 << "</tt:Data>\r\n"
+                 << "        </tt:Certificate>\r\n"
+                 << "      </tds:NvtCertificate>\r\n";
+        }
+        body << "    </tds:GetCertificatesResponse>\r\n";
+    } else if (isOp(opName, "GetCertificateInformation")) {
+        const pugi::xml_node idNode = reqNode.select_node(".//*[local-name()='CertificateID']").node();
+        const std::string certId = idNode ? idNode.text().as_string() : "";
+        CertificateInformation info {};
+        bool found = false;
+        if (m_deviceHandler) {
+            const auto opt = m_deviceHandler->handleGetCertificateInformation(certId);
+            if (opt.has_value()) {
+                info = *opt;
+                found = true;
+            }
+        }
+        if (!found) {
+            std::lock_guard<std::mutex> lock(m_certMutex);
+            for (const auto& c : m_internalCertificates) {
+                if (c.certificateId == certId) {
+                    if (!c.info.certificateId.empty()) {
+                        info = c.info;
+                        found = true;
+                    } else {
+                        info = OnvifSecurity::parseCertificateInfo(c.certificateId, c.x509DerBase64);
+                        found = true;
+                    }
+                    break;
+                }
+            }
+        }
+        body << "    <tds:GetCertificateInformationResponse>\r\n"
+             << "      <tds:CertificateInformation>\r\n"
+             << "        <tt:CertificateID>" << (info.certificateId.empty() ? certId : info.certificateId)
+             << "</tt:CertificateID>\r\n"
+             << "        <tt:IssuerDN>" << info.issuer << "</tt:IssuerDN>\r\n"
+             << "        <tt:SubjectDN>" << info.subject << "</tt:SubjectDN>\r\n"
+             << "        <tt:Validity>\r\n"
+             << "          <tt:From>" << info.validNotBefore << "</tt:From>\r\n"
+             << "          <tt:Until>" << info.validNotAfter << "</tt:Until>\r\n"
+             << "        </tt:Validity>\r\n"
+             << "        <tt:Extension>\r\n"
+             << "          <tt:KeyUsage>" << info.keyAlgorithm << "</tt:KeyUsage>\r\n"
+             << "        </tt:Extension>\r\n"
+             << "      </tds:CertificateInformation>\r\n"
+             << "    </tds:GetCertificateInformationResponse>\r\n";
+    } else if (isOp(opName, "CreateCertificate")) {
+        const pugi::xml_node idNode = reqNode.select_node(".//*[local-name()='CertificateID']").node();
+        const pugi::xml_node subjNode = reqNode.select_node(".//*[local-name()='Subject']").node();
+        const std::string certId = idNode
+            ? idNode.text().as_string()
+            : "Cert_" + std::to_string(std::chrono::system_clock::now().time_since_epoch().count());
+        const std::string subj = subjNode ? subjNode.text().as_string() : "CN=" + m_config.deviceName;
+
+        OnvifCertificate newCert {};
+        if (m_deviceHandler) {
+            newCert = m_deviceHandler->handleCreateCertificate(certId, subj, 365);
+        } else {
+            newCert = OnvifSecurity::generateSelfSignedCertificate(certId, subj, 365);
+        }
+        {
+            std::lock_guard<std::mutex> lock(m_certMutex);
+            auto it = std::find_if(m_internalCertificates.begin(), m_internalCertificates.end(),
+                [&certId](const OnvifCertificate& c) { return c.certificateId == certId; });
+            if (it != m_internalCertificates.end()) {
+                *it = newCert;
+            } else {
+                m_internalCertificates.push_back(newCert);
+            }
+            logSystemMessage("INFO", "Created certificate ID: " + certId + " subject: " + subj);
+        }
+
+        body << "    <tds:CreateCertificateResponse>\r\n"
+             << "      <tds:NvtCertificate>\r\n"
+             << "        <tt:CertificateID>" << certId << "</tt:CertificateID>\r\n"
+             << "        <tt:Certificate>\r\n"
+             << "          <tt:Data>" << newCert.x509DerBase64 << "</tt:Data>\r\n"
+             << "        </tt:Certificate>\r\n"
+             << "      </tds:NvtCertificate>\r\n"
+             << "    </tds:CreateCertificateResponse>\r\n";
+    } else if (isOp(opName, "GetPkcs10Request")) {
+        const pugi::xml_node idNode = reqNode.select_node(".//*[local-name()='CertificateID']").node();
+        const pugi::xml_node subjNode = reqNode.select_node(".//*[local-name()='Subject']").node();
+        const std::string certId = idNode ? idNode.text().as_string() : "";
+        const std::string subj = subjNode ? subjNode.text().as_string() : "CN=" + m_config.deviceName;
+
+        Pkcs10Request csr {};
+        if (m_deviceHandler) {
+            csr = m_deviceHandler->handleGetPkcs10Request(certId, subj);
+        } else {
+            csr = OnvifSecurity::generatePkcs10Csr(certId, subj);
+        }
+        logSystemMessage("INFO", "Generated PKCS#10 CSR for " + certId + " (" + subj + ")");
+        body << "    <tds:GetPkcs10RequestResponse>\r\n"
+             << "      <tds:Pkcs10Request>" << csr.csrBase64 << "</tds:Pkcs10Request>\r\n"
+             << "    </tds:GetPkcs10RequestResponse>\r\n";
+    } else if (isOp(opName, "LoadCertificates")) {
+        std::vector<OnvifCertificate> certsToLoad;
+        const auto certNodes = reqNode.select_nodes(".//*[local-name()='NVTCertificate']");
+        for (const auto& cNode : certNodes) {
+            const pugi::xml_node idN = cNode.node().select_node(".//*[local-name()='CertificateID']").node();
+            const pugi::xml_node dataN = cNode.node().select_node(".//*[local-name()='Data']").node();
+            if (idN && dataN) {
+                OnvifCertificate c;
+                c.certificateId = idN.text().as_string();
+                c.x509DerBase64 = dataN.text().as_string();
+                c.info = OnvifSecurity::parseCertificateInfo(c.certificateId, c.x509DerBase64);
+                certsToLoad.push_back(c);
+            }
+        }
+        if (m_deviceHandler) {
+            m_deviceHandler->handleLoadCertificates(certsToLoad);
+        }
+        {
+            std::lock_guard<std::mutex> lock(m_certMutex);
+            for (const auto& c : certsToLoad) {
+                auto it = std::find_if(m_internalCertificates.begin(), m_internalCertificates.end(),
+                    [&c](const OnvifCertificate& item) { return item.certificateId == c.certificateId; });
+                if (it != m_internalCertificates.end()) {
+                    *it = c;
+                } else {
+                    m_internalCertificates.push_back(c);
+                }
+            }
+        }
+        logSystemMessage("INFO", "Loaded " + std::to_string(certsToLoad.size()) + " certificates");
+        body << "    <tds:LoadCertificatesResponse/>\r\n";
+    } else if (isOp(opName, "DeleteCertificates")) {
+        std::vector<std::string> ids;
+        const auto idNodes = reqNode.select_nodes(".//*[local-name()='CertificateID']");
+        for (const auto& idN : idNodes) {
+            ids.push_back(idN.node().text().as_string());
+        }
+        if (m_deviceHandler) {
+            for (const auto& id : ids) {
+                m_deviceHandler->handleDeleteCertificate(id);
+            }
+        }
+        {
+            std::lock_guard<std::mutex> lock(m_certMutex);
+            for (const auto& id : ids) {
+                m_internalCertificates.erase(
+                    std::remove_if(m_internalCertificates.begin(), m_internalCertificates.end(),
+                        [&id](const OnvifCertificate& c) { return c.certificateId == id; }),
+                    m_internalCertificates.end());
+            }
+        }
+        logSystemMessage("INFO", "Deleted " + std::to_string(ids.size()) + " certificates");
+        body << "    <tds:DeleteCertificatesResponse/>\r\n";
+    } else if (isOp(opName, "GetClientCertificateMode")) {
+        ClientCertificateMode mode = m_internalClientCertMode;
+        if (m_deviceHandler) {
+            mode = m_deviceHandler->handleGetClientCertificateMode();
+        }
+        body << "    <tds:GetClientCertificateModeResponse>\r\n"
+             << "      <tds:ClientCertificateMode>" << clientCertificateModeToString(mode)
+             << "</tds:ClientCertificateMode>\r\n"
+             << "    </tds:GetClientCertificateModeResponse>\r\n";
+    } else if (isOp(opName, "SetClientCertificateMode")) {
+        const pugi::xml_node modeNode = reqNode.select_node(".//*[local-name()='ClientCertificateMode']").node();
+        const std::string modeStr = modeNode ? modeNode.text().as_string() : "Off";
+        const ClientCertificateMode mode = clientCertificateModeFromString(modeStr);
+        if (m_deviceHandler) {
+            m_deviceHandler->handleSetClientCertificateMode(mode);
+        }
+        {
+            std::lock_guard<std::mutex> lock(m_certMutex);
+            m_internalClientCertMode = mode;
+        }
+        logSystemMessage("INFO", "Set ClientCertificateMode to " + modeStr);
+        body << "    <tds:SetClientCertificateModeResponse/>\r\n";
     } else {
         body << "    <tds:" << opName << "Response/>\r\n";
     }
@@ -2819,6 +3102,590 @@ void OnvifServer::handleAnalyticsService(const httplib::Request& req, httplib::R
              << "    </tan:GetRulesResponse>\r\n";
     } else {
         body << "    <tan:" << opName << "Response/>\r\n";
+    }
+
+    res.status = 200;
+    res.set_content(wrapSoapResponse(body.str()), "application/soap+xml; charset=utf-8");
+}
+
+void OnvifServer::handleRecordingService(const httplib::Request& req, httplib::Response& res)
+{
+    pugi::xml_document doc;
+    if (!doc.load_string(req.body.c_str())) {
+        res.status = 400;
+        return;
+    }
+
+    const pugi::xml_node bodyNode = doc.select_node("//*[local-name()='Body']").node();
+    const pugi::xml_node reqNode = bodyNode ? bodyNode.first_child() : pugi::xml_node {};
+    const std::string opName = reqNode ? reqNode.name() : "";
+    if (m_logCallback) {
+        m_logCallback("Recording", opName, req.remote_addr);
+    }
+
+    std::ostringstream body;
+
+    if (isOp(opName, "GetServiceCapabilities")) {
+        body << "    <trc:GetServiceCapabilitiesResponse>\r\n"
+             << "      <trc:Capabilities DynamicRecordings=\"true\" DynamicTracks=\"true\" "
+                "Encoding=\"H264,H265\" MaxRecordings=\"10\" MaxRecordingJobs=\"10\" "
+                "TotalRecordingJobLicenses=\"10\"/>\r\n"
+             << "    </trc:GetServiceCapabilitiesResponse>\r\n";
+    } else if (isOp(opName, "CreateRecording")) {
+        RecordingConfig config;
+        const pugi::xml_node cfgNode = reqNode.select_node(".//*[local-name()='RecordingConfiguration']").node();
+        if (cfgNode) {
+            const pugi::xml_node srcNode = cfgNode.select_node(".//*[local-name()='Source']").node();
+            if (srcNode) {
+                const pugi::xml_node srcId = srcNode.select_node(".//*[local-name()='SourceId']").node();
+                if (srcId)
+                    config.sourceToken = srcId.text().as_string();
+            }
+            const pugi::xml_node contentNode = cfgNode.select_node(".//*[local-name()='Content']").node();
+            if (contentNode)
+                config.content = contentNode.text().as_string();
+            const pugi::xml_node maxRetNode = cfgNode.select_node(".//*[local-name()='MaximumRetentionTime']").node();
+            if (maxRetNode)
+                config.maximumRetentionTime = maxRetNode.text().as_string();
+        }
+
+        std::string recToken;
+        if (m_recordingHandler) {
+            recToken = m_recordingHandler->handleCreateRecording(config);
+        }
+        if (recToken.empty()) {
+            std::lock_guard<std::mutex> lock(m_recordingMutex);
+            recToken = "Rec_" + std::to_string(m_internalRecordings.size() + 1);
+            config.recordingToken = recToken;
+            m_internalRecordings.push_back(config);
+        }
+        logSystemMessage("INFO", "CreateRecording token=" + recToken);
+        body << "    <trc:CreateRecordingResponse>\r\n"
+             << "      <trc:RecordingToken>" << recToken << "</trc:RecordingToken>\r\n"
+             << "    </trc:CreateRecordingResponse>\r\n";
+    } else if (isOp(opName, "GetRecordings")) {
+        std::vector<RecordingConfig> recs;
+        if (m_recordingHandler) {
+            recs = m_recordingHandler->handleGetRecordings();
+        }
+        if (recs.empty()) {
+            std::lock_guard<std::mutex> lock(m_recordingMutex);
+            recs = m_internalRecordings;
+        }
+        body << "    <trc:GetRecordingsResponse>\r\n";
+        for (const auto& rec : recs) {
+            body << "      <trc:RecordingItem>\r\n"
+                 << "        <trc:RecordingToken>" << rec.recordingToken << "</trc:RecordingToken>\r\n"
+                 << "        <trc:Configuration>\r\n"
+                 << "          <tt:Source>\r\n"
+                 << "            <tt:SourceId>" << rec.sourceToken << "</tt:SourceId>\r\n"
+                 << "            <tt:Name>" << rec.sourceToken << "</tt:Name>\r\n"
+                 << "          </tt:Source>\r\n"
+                 << "          <tt:Content>" << rec.content << "</tt:Content>\r\n"
+                 << "          <tt:MaximumRetentionTime>" << rec.maximumRetentionTime
+                 << "</tt:MaximumRetentionTime>\r\n"
+                 << "        </trc:Configuration>\r\n"
+                 << "        <trc:Tracks>\r\n";
+            for (const auto& trk : rec.tracks) {
+                body << "          <trc:Track>\r\n"
+                     << "            <trc:TrackToken>" << trk.trackToken << "</trc:TrackToken>\r\n"
+                     << "            <trc:Configuration>\r\n"
+                     << "              <tt:TrackType>" << recordingTrackTypeToString(trk.trackType)
+                     << "</tt:TrackType>\r\n"
+                     << "              <tt:Description>" << trk.description << "</tt:Description>\r\n"
+                     << "            </trc:Configuration>\r\n"
+                     << "          </trc:Track>\r\n";
+            }
+            body << "        </trc:Tracks>\r\n"
+                 << "      </trc:RecordingItem>\r\n";
+        }
+        body << "    </trc:GetRecordingsResponse>\r\n";
+    } else if (isOp(opName, "GetRecordingConfiguration")) {
+        const pugi::xml_node tokenNode = reqNode.select_node(".//*[local-name()='RecordingToken']").node();
+        const std::string token = tokenNode ? tokenNode.text().as_string() : "";
+        RecordingConfig rec;
+        bool found = false;
+        if (m_recordingHandler) {
+            const auto opt = m_recordingHandler->handleGetRecordingConfiguration(token);
+            if (opt.has_value()) {
+                rec = *opt;
+                found = true;
+            }
+        }
+        if (!found) {
+            std::lock_guard<std::mutex> lock(m_recordingMutex);
+            for (const auto& r : m_internalRecordings) {
+                if (r.recordingToken == token) {
+                    rec = r;
+                    found = true;
+                    break;
+                }
+            }
+        }
+        body << "    <trc:GetRecordingConfigurationResponse>\r\n"
+             << "      <trc:RecordingConfiguration>\r\n"
+             << "        <tt:Source>\r\n"
+             << "          <tt:SourceId>" << rec.sourceToken << "</tt:SourceId>\r\n"
+             << "          <tt:Name>" << rec.sourceToken << "</tt:Name>\r\n"
+             << "        </tt:Source>\r\n"
+             << "        <tt:Content>" << rec.content << "</tt:Content>\r\n"
+             << "        <tt:MaximumRetentionTime>" << rec.maximumRetentionTime << "</tt:MaximumRetentionTime>\r\n"
+             << "      </trc:RecordingConfiguration>\r\n"
+             << "    </trc:GetRecordingConfigurationResponse>\r\n";
+    } else if (isOp(opName, "SetRecordingConfiguration")) {
+        const pugi::xml_node tokenNode = reqNode.select_node(".//*[local-name()='RecordingToken']").node();
+        const std::string token = tokenNode ? tokenNode.text().as_string() : "";
+        const pugi::xml_node cfgNode = reqNode.select_node(".//*[local-name()='RecordingConfiguration']").node();
+        RecordingConfig rec;
+        rec.recordingToken = token;
+        if (cfgNode) {
+            const pugi::xml_node srcNode = cfgNode.select_node(".//*[local-name()='Source']").node();
+            if (srcNode) {
+                const pugi::xml_node srcId = srcNode.select_node(".//*[local-name()='SourceId']").node();
+                if (srcId)
+                    rec.sourceToken = srcId.text().as_string();
+            }
+            const pugi::xml_node contentNode = cfgNode.select_node(".//*[local-name()='Content']").node();
+            if (contentNode)
+                rec.content = contentNode.text().as_string();
+            const pugi::xml_node maxRetNode = cfgNode.select_node(".//*[local-name()='MaximumRetentionTime']").node();
+            if (maxRetNode)
+                rec.maximumRetentionTime = maxRetNode.text().as_string();
+        }
+        if (m_recordingHandler) {
+            m_recordingHandler->handleSetRecordingConfiguration(token, rec);
+        }
+        {
+            std::lock_guard<std::mutex> lock(m_recordingMutex);
+            for (auto& r : m_internalRecordings) {
+                if (r.recordingToken == token) {
+                    r.sourceToken = rec.sourceToken;
+                    r.content = rec.content;
+                    r.maximumRetentionTime = rec.maximumRetentionTime;
+                    break;
+                }
+            }
+        }
+        body << "    <trc:SetRecordingConfigurationResponse/>\r\n";
+    } else if (isOp(opName, "DeleteRecording")) {
+        const pugi::xml_node tokenNode = reqNode.select_node(".//*[local-name()='RecordingToken']").node();
+        const std::string token = tokenNode ? tokenNode.text().as_string() : "";
+        if (m_recordingHandler) {
+            m_recordingHandler->handleDeleteRecording(token);
+        }
+        {
+            std::lock_guard<std::mutex> lock(m_recordingMutex);
+            m_internalRecordings.erase(std::remove_if(m_internalRecordings.begin(), m_internalRecordings.end(),
+                                           [&token](const RecordingConfig& r) { return r.recordingToken == token; }),
+                m_internalRecordings.end());
+        }
+        logSystemMessage("INFO", "Deleted recording " + token);
+        body << "    <trc:DeleteRecordingResponse/>\r\n";
+    } else if (isOp(opName, "CreateTrack")) {
+        const pugi::xml_node tokenNode = reqNode.select_node(".//*[local-name()='RecordingToken']").node();
+        const std::string recToken = tokenNode ? tokenNode.text().as_string() : "";
+        const pugi::xml_node cfgNode = reqNode.select_node(".//*[local-name()='TrackConfiguration']").node();
+        RecordingTrack trk;
+        if (cfgNode) {
+            const pugi::xml_node typeNode = cfgNode.select_node(".//*[local-name()='TrackType']").node();
+            const pugi::xml_node descNode = cfgNode.select_node(".//*[local-name()='Description']").node();
+            if (typeNode)
+                trk.trackType = recordingTrackTypeFromString(typeNode.text().as_string());
+            if (descNode)
+                trk.description = descNode.text().as_string();
+        }
+        std::string trkToken;
+        if (m_recordingHandler) {
+            trkToken = m_recordingHandler->handleCreateTrack(recToken, trk);
+        }
+        if (trkToken.empty()) {
+            std::lock_guard<std::mutex> lock(m_recordingMutex);
+            for (auto& r : m_internalRecordings) {
+                if (r.recordingToken == recToken) {
+                    trkToken = "Track_" + std::to_string(r.tracks.size() + 1);
+                    trk.trackToken = trkToken;
+                    r.tracks.push_back(trk);
+                    break;
+                }
+            }
+        }
+        body << "    <trc:CreateTrackResponse>\r\n"
+             << "      <trc:TrackToken>" << trkToken << "</trc:TrackToken>\r\n"
+             << "    </trc:CreateTrackResponse>\r\n";
+    } else if (isOp(opName, "GetTrackConfiguration")) {
+        const pugi::xml_node recNode = reqNode.select_node(".//*[local-name()='RecordingToken']").node();
+        const pugi::xml_node trkNode = reqNode.select_node(".//*[local-name()='TrackToken']").node();
+        const std::string recToken = recNode ? recNode.text().as_string() : "";
+        const std::string trkToken = trkNode ? trkNode.text().as_string() : "";
+        RecordingTrack trk;
+        {
+            std::lock_guard<std::mutex> lock(m_recordingMutex);
+            for (const auto& r : m_internalRecordings) {
+                if (r.recordingToken == recToken) {
+                    for (const auto& t : r.tracks) {
+                        if (t.trackToken == trkToken) {
+                            trk = t;
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+        body << "    <trc:GetTrackConfigurationResponse>\r\n"
+             << "      <trc:TrackConfiguration>\r\n"
+             << "        <tt:TrackType>" << recordingTrackTypeToString(trk.trackType) << "</tt:TrackType>\r\n"
+             << "        <tt:Description>" << trk.description << "</tt:Description>\r\n"
+             << "      </trc:TrackConfiguration>\r\n"
+             << "    </trc:GetTrackConfigurationResponse>\r\n";
+    } else if (isOp(opName, "DeleteTrack")) {
+        const pugi::xml_node recNode = reqNode.select_node(".//*[local-name()='RecordingToken']").node();
+        const pugi::xml_node trkNode = reqNode.select_node(".//*[local-name()='TrackToken']").node();
+        const std::string recToken = recNode ? recNode.text().as_string() : "";
+        const std::string trkToken = trkNode ? trkNode.text().as_string() : "";
+        if (m_recordingHandler) {
+            m_recordingHandler->handleDeleteTrack(recToken, trkToken);
+        }
+        {
+            std::lock_guard<std::mutex> lock(m_recordingMutex);
+            for (auto& r : m_internalRecordings) {
+                if (r.recordingToken == recToken) {
+                    r.tracks.erase(std::remove_if(r.tracks.begin(), r.tracks.end(),
+                                       [&trkToken](const RecordingTrack& t) { return t.trackToken == trkToken; }),
+                        r.tracks.end());
+                    break;
+                }
+            }
+        }
+        body << "    <trc:DeleteTrackResponse/>\r\n";
+    } else if (isOp(opName, "GetRecordingJobs")) {
+        std::vector<RecordingJob> jobs;
+        if (m_recordingHandler) {
+            jobs = m_recordingHandler->handleGetRecordingJobs();
+        }
+        if (jobs.empty()) {
+            std::lock_guard<std::mutex> lock(m_recordingMutex);
+            jobs = m_internalRecordingJobs;
+        }
+        body << "    <trc:GetRecordingJobsResponse>\r\n";
+        for (const auto& job : jobs) {
+            body << "      <trc:JobItem>\r\n"
+                 << "        <trc:JobToken>" << job.jobToken << "</trc:JobToken>\r\n"
+                 << "        <trc:JobConfiguration>\r\n"
+                 << "          <tt:RecordingToken>" << job.recordingToken << "</tt:RecordingToken>\r\n"
+                 << "          <tt:Mode>" << recordingJobModeToString(job.mode) << "</tt:Mode>\r\n"
+                 << "          <tt:Priority>" << job.priority << "</tt:Priority>\r\n"
+                 << "          <tt:Source>\r\n"
+                 << "            <tt:SourceToken>" << job.sourceToken << "</tt:SourceToken>\r\n"
+                 << "          </tt:Source>\r\n"
+                 << "        </trc:JobConfiguration>\r\n"
+                 << "      </trc:JobItem>\r\n";
+        }
+        body << "    </trc:GetRecordingJobsResponse>\r\n";
+    } else if (isOp(opName, "CreateRecordingJob")) {
+        const pugi::xml_node cfgNode = reqNode.select_node(".//*[local-name()='JobConfiguration']").node();
+        RecordingJob job;
+        if (cfgNode) {
+            const pugi::xml_node recNode = cfgNode.select_node(".//*[local-name()='RecordingToken']").node();
+            const pugi::xml_node modeNode = cfgNode.select_node(".//*[local-name()='Mode']").node();
+            const pugi::xml_node prioNode = cfgNode.select_node(".//*[local-name()='Priority']").node();
+            const pugi::xml_node srcNode = cfgNode.select_node(".//*[local-name()='SourceToken']").node();
+            if (recNode)
+                job.recordingToken = recNode.text().as_string();
+            if (modeNode)
+                job.mode = recordingJobModeFromString(modeNode.text().as_string());
+            if (prioNode)
+                job.priority = prioNode.text().as_int(5);
+            if (srcNode)
+                job.sourceToken = srcNode.text().as_string();
+        }
+        std::string jobToken;
+        if (m_recordingHandler) {
+            jobToken = m_recordingHandler->handleCreateRecordingJob(job);
+        }
+        if (jobToken.empty()) {
+            std::lock_guard<std::mutex> lock(m_recordingMutex);
+            jobToken = "Job_" + std::to_string(m_internalRecordingJobs.size() + 1);
+            job.jobToken = jobToken;
+            m_internalRecordingJobs.push_back(job);
+        }
+        body << "    <trc:CreateRecordingJobResponse>\r\n"
+             << "      <trc:JobToken>" << jobToken << "</trc:JobToken>\r\n"
+             << "    </trc:CreateRecordingJobResponse>\r\n";
+    } else if (isOp(opName, "SetRecordingJobMode")) {
+        const pugi::xml_node tokenNode = reqNode.select_node(".//*[local-name()='JobToken']").node();
+        const pugi::xml_node modeNode = reqNode.select_node(".//*[local-name()='Mode']").node();
+        const std::string jobToken = tokenNode ? tokenNode.text().as_string() : "";
+        const std::string modeStr = modeNode ? modeNode.text().as_string() : "Active";
+        const RecordingJobMode mode = recordingJobModeFromString(modeStr);
+        if (m_recordingHandler) {
+            m_recordingHandler->handleSetRecordingJobMode(jobToken, mode);
+        }
+        {
+            std::lock_guard<std::mutex> lock(m_recordingMutex);
+            for (auto& j : m_internalRecordingJobs) {
+                if (j.jobToken == jobToken) {
+                    j.mode = mode;
+                    break;
+                }
+            }
+        }
+        logSystemMessage("INFO", "RecordingJob " + jobToken + " mode set to " + modeStr);
+        body << "    <trc:SetRecordingJobModeResponse/>\r\n";
+    } else if (isOp(opName, "DeleteRecordingJob")) {
+        const pugi::xml_node tokenNode = reqNode.select_node(".//*[local-name()='JobToken']").node();
+        const std::string jobToken = tokenNode ? tokenNode.text().as_string() : "";
+        if (m_recordingHandler) {
+            m_recordingHandler->handleDeleteRecordingJob(jobToken);
+        }
+        {
+            std::lock_guard<std::mutex> lock(m_recordingMutex);
+            m_internalRecordingJobs.erase(std::remove_if(m_internalRecordingJobs.begin(), m_internalRecordingJobs.end(),
+                                              [&jobToken](const RecordingJob& j) { return j.jobToken == jobToken; }),
+                m_internalRecordingJobs.end());
+        }
+        body << "    <trc:DeleteRecordingJobResponse/>\r\n";
+    } else if (isOp(opName, "GetRecordingSummary")) {
+        RecordingSummary sum;
+        if (m_recordingHandler) {
+            sum = m_recordingHandler->handleGetRecordingSummary();
+        } else {
+            std::lock_guard<std::mutex> lock(m_recordingMutex);
+            sum.numberRecordings = static_cast<int>(m_internalRecordings.size());
+            sum.dataFrom = "2026-01-01T00:00:00Z";
+            sum.dataUntil = formatIso8601Utc(std::chrono::system_clock::now());
+            sum.totalStorageBytes = 1073741824ULL;
+        }
+        body << "    <trc:GetRecordingSummaryResponse>\r\n"
+             << "      <trc:Summary>\r\n"
+             << "        <tt:DataFrom>" << sum.dataFrom << "</tt:DataFrom>\r\n"
+             << "        <tt:DataUntil>" << sum.dataUntil << "</tt:DataUntil>\r\n"
+             << "        <tt:NumberRecordings>" << sum.numberRecordings << "</tt:NumberRecordings>\r\n"
+             << "      </trc:Summary>\r\n"
+             << "    </trc:GetRecordingSummaryResponse>\r\n";
+    } else {
+        body << "    <trc:" << opName << "Response/>\r\n";
+    }
+
+    res.status = 200;
+    res.set_content(wrapSoapResponse(body.str()), "application/soap+xml; charset=utf-8");
+}
+
+void OnvifServer::handleSearchService(const httplib::Request& req, httplib::Response& res)
+{
+    pugi::xml_document doc;
+    if (!doc.load_string(req.body.c_str())) {
+        res.status = 400;
+        return;
+    }
+
+    const pugi::xml_node bodyNode = doc.select_node("//*[local-name()='Body']").node();
+    const pugi::xml_node reqNode = bodyNode ? bodyNode.first_child() : pugi::xml_node {};
+    const std::string opName = reqNode ? reqNode.name() : "";
+    if (m_logCallback) {
+        m_logCallback("Search", opName, req.remote_addr);
+    }
+
+    std::ostringstream body;
+
+    if (isOp(opName, "GetServiceCapabilities")) {
+        body << "    <tse:GetServiceCapabilitiesResponse>\r\n"
+             << "      <tse:Capabilities MetadataSearch=\"true\" GeneralStartEvents=\"true\"/>\r\n"
+             << "    </tse:GetServiceCapabilitiesResponse>\r\n";
+    } else if (isOp(opName, "FindRecordings")) {
+        std::string searchToken;
+        std::vector<RecordingSearchResult> results;
+        if (m_searchHandler) {
+            searchToken = m_searchHandler->handleFindRecordings("", 10, "PT60S");
+            results = m_searchHandler->handleGetRecordingSearchResults(searchToken);
+        }
+        if (searchToken.empty()) {
+            std::lock_guard<std::mutex> lock(m_searchMutex);
+            searchToken = "SearchSession_" + std::to_string(m_nextSearchId++);
+            std::lock_guard<std::mutex> recLock(m_recordingMutex);
+            for (const auto& r : m_internalRecordings) {
+                for (const auto& trk : r.tracks) {
+                    RecordingSearchResult resItem;
+                    resItem.recordingToken = r.recordingToken;
+                    resItem.trackToken = trk.trackToken;
+                    resItem.earliestTime = "2026-01-01T00:00:00Z";
+                    resItem.latestTime = formatIso8601Utc(std::chrono::system_clock::now());
+                    resItem.searchState = "Completed";
+                    results.push_back(resItem);
+                }
+            }
+            m_recordingSearches[searchToken] = results;
+        }
+        logSystemMessage("INFO", "FindRecordings searchToken=" + searchToken);
+        body << "    <tse:FindRecordingsResponse>\r\n"
+             << "      <tse:SearchToken>" << searchToken << "</tse:SearchToken>\r\n"
+             << "    </tse:FindRecordingsResponse>\r\n";
+    } else if (isOp(opName, "GetRecordingSearchResults")) {
+        const pugi::xml_node tokenNode = reqNode.select_node(".//*[local-name()='SearchToken']").node();
+        const std::string searchToken = tokenNode ? tokenNode.text().as_string() : "";
+        std::vector<RecordingSearchResult> results;
+        if (m_searchHandler) {
+            results = m_searchHandler->handleGetRecordingSearchResults(searchToken);
+        }
+        if (results.empty()) {
+            std::lock_guard<std::mutex> lock(m_searchMutex);
+            auto it = m_recordingSearches.find(searchToken);
+            if (it != m_recordingSearches.end()) {
+                results = it->second;
+            }
+        }
+        body << "    <tse:GetRecordingSearchResultsResponse>\r\n"
+             << "      <tse:ResultList SearchState=\"Completed\">\r\n";
+        for (const auto& resItem : results) {
+            body << "        <tse:RecordingInformation>\r\n"
+                 << "          <tt:RecordingToken>" << resItem.recordingToken << "</tt:RecordingToken>\r\n"
+                 << "          <tt:TrackToken>" << resItem.trackToken << "</tt:TrackToken>\r\n"
+                 << "          <tt:EarliestRecording>" << resItem.earliestTime << "</tt:EarliestRecording>\r\n"
+                 << "          <tt:LatestRecording>" << resItem.latestTime << "</tt:LatestRecording>\r\n"
+                 << "          <tt:SearchState>" << resItem.searchState << "</tt:SearchState>\r\n"
+                 << "        </tse:RecordingInformation>\r\n";
+        }
+        body << "      </tse:ResultList>\r\n"
+             << "    </tse:GetRecordingSearchResultsResponse>\r\n";
+    } else if (isOp(opName, "FindEvents")) {
+        const pugi::xml_node startNode = reqNode.select_node(".//*[local-name()='StartPoint']").node();
+        const pugi::xml_node endNode = reqNode.select_node(".//*[local-name()='EndPoint']").node();
+        const std::string startPt = startNode ? startNode.text().as_string() : "";
+        const std::string endPt = endNode ? endNode.text().as_string() : "";
+        std::string searchToken;
+        if (m_searchHandler) {
+            searchToken = m_searchHandler->handleFindEvents(startPt, endPt, 10);
+        }
+        if (searchToken.empty()) {
+            std::lock_guard<std::mutex> lock(m_searchMutex);
+            searchToken = "EventSearch_" + std::to_string(m_nextSearchId++);
+            std::vector<RecordedEventResult> evResults;
+            RecordedEventResult ev1;
+            ev1.recordingToken = "Rec_Main";
+            ev1.eventTime = startPt.empty() ? formatIso8601Utc(std::chrono::system_clock::now()) : startPt;
+            ev1.topic = "tns1:VideoAnalytics/Motion";
+            ev1.source = "VideoSource_1";
+            ev1.data = "State=true";
+            evResults.push_back(ev1);
+            m_eventSearches[searchToken] = evResults;
+        }
+        body << "    <tse:FindEventsResponse>\r\n"
+             << "      <tse:SearchToken>" << searchToken << "</tse:SearchToken>\r\n"
+             << "    </tse:FindEventsResponse>\r\n";
+    } else if (isOp(opName, "GetEventSearchResults")) {
+        const pugi::xml_node tokenNode = reqNode.select_node(".//*[local-name()='SearchToken']").node();
+        const std::string searchToken = tokenNode ? tokenNode.text().as_string() : "";
+        std::vector<RecordedEventResult> events;
+        if (m_searchHandler) {
+            events = m_searchHandler->handleGetEventSearchResults(searchToken);
+        }
+        if (events.empty()) {
+            std::lock_guard<std::mutex> lock(m_searchMutex);
+            auto it = m_eventSearches.find(searchToken);
+            if (it != m_eventSearches.end()) {
+                events = it->second;
+            }
+        }
+        body << "    <tse:GetEventSearchResultsResponse>\r\n"
+             << "      <tse:ResultList SearchState=\"Completed\">\r\n";
+        for (const auto& ev : events) {
+            body << "        <tse:EventInformation>\r\n"
+                 << "          <tt:RecordingToken>" << ev.recordingToken << "</tt:RecordingToken>\r\n"
+                 << "          <tt:UtcTime>" << ev.eventTime << "</tt:UtcTime>\r\n"
+                 << "          <tt:Topic>" << ev.topic << "</tt:Topic>\r\n"
+                 << "          <tt:Source>" << ev.source << "</tt:Source>\r\n"
+                 << "          <tt:Data>" << ev.data << "</tt:Data>\r\n"
+                 << "        </tse:EventInformation>\r\n";
+        }
+        body << "      </tse:ResultList>\r\n"
+             << "    </tse:GetEventSearchResultsResponse>\r\n";
+    } else if (isOp(opName, "EndSearch")) {
+        const pugi::xml_node tokenNode = reqNode.select_node(".//*[local-name()='SearchToken']").node();
+        const std::string searchToken = tokenNode ? tokenNode.text().as_string() : "";
+        if (m_searchHandler) {
+            m_searchHandler->handleEndSearch(searchToken);
+        }
+        {
+            std::lock_guard<std::mutex> lock(m_searchMutex);
+            m_recordingSearches.erase(searchToken);
+            m_eventSearches.erase(searchToken);
+        }
+        body << "    <tse:EndSearchResponse>\r\n"
+             << "      <tse:Endpoint>" << searchToken << "</tse:Endpoint>\r\n"
+             << "    </tse:EndSearchResponse>\r\n";
+    } else {
+        body << "    <tse:" << opName << "Response/>\r\n";
+    }
+
+    res.status = 200;
+    res.set_content(wrapSoapResponse(body.str()), "application/soap+xml; charset=utf-8");
+}
+
+void OnvifServer::handleReplayService(const httplib::Request& req, httplib::Response& res)
+{
+    pugi::xml_document doc;
+    if (!doc.load_string(req.body.c_str())) {
+        res.status = 400;
+        return;
+    }
+
+    const pugi::xml_node bodyNode = doc.select_node("//*[local-name()='Body']").node();
+    const pugi::xml_node reqNode = bodyNode ? bodyNode.first_child() : pugi::xml_node {};
+    const std::string opName = reqNode ? reqNode.name() : "";
+    if (m_logCallback) {
+        m_logCallback("Replay", opName, req.remote_addr);
+    }
+
+    std::ostringstream body;
+
+    if (isOp(opName, "GetServiceCapabilities")) {
+        body << "    <trp:GetServiceCapabilitiesResponse>\r\n"
+             << "      <trp:Capabilities ReversePlayback=\"true\" SessionTimeoutRange=\"PT10S PT300S\" "
+                "RTSPWebSocketUri=\"false\"/>\r\n"
+             << "    </trp:GetServiceCapabilitiesResponse>\r\n";
+    } else if (isOp(opName, "GetReplayUri")) {
+        const pugi::xml_node tokenNode = reqNode.select_node(".//*[local-name()='RecordingToken']").node();
+        const std::string recToken = tokenNode ? tokenNode.text().as_string() : "Rec_Main";
+        std::string uri;
+        if (m_replayHandler) {
+            uri = m_replayHandler->handleGetReplayUri(recToken, "Track_Video_1");
+        }
+        if (uri.empty()) {
+            const std::string baseReplay = m_config.replayStreamUri.empty()
+                ? "rtsp://" + resolveHost(req) + ":8554/replay"
+                : m_config.replayStreamUri;
+            uri = baseReplay + "?recording=" + recToken;
+        }
+        body << "    <trp:GetReplayUriResponse>\r\n"
+             << "      <trp:Uri>" << uri << "</trp:Uri>\r\n"
+             << "    </trp:GetReplayUriResponse>\r\n";
+    } else if (isOp(opName, "GetReplayConfiguration")) {
+        ReplayConfiguration cfg;
+        if (m_replayHandler) {
+            cfg = m_replayHandler->handleGetReplayConfiguration();
+        } else {
+            std::lock_guard<std::mutex> lock(m_recordingMutex);
+            cfg = m_internalReplayConfig;
+        }
+        body << "    <trp:GetReplayConfigurationResponse>\r\n"
+             << "      <trp:Configuration>\r\n"
+             << "        <tt:SessionTimeout>" << cfg.sessionTimeout << "</tt:SessionTimeout>\r\n"
+             << "      </trp:Configuration>\r\n"
+             << "    </trp:GetReplayConfigurationResponse>\r\n";
+    } else if (isOp(opName, "SetReplayConfiguration")) {
+        const pugi::xml_node timeoutNode = reqNode.select_node(".//*[local-name()='SessionTimeout']").node();
+        std::string timeoutStr = timeoutNode ? timeoutNode.text().as_string() : "PT60S";
+        ReplayConfiguration cfg;
+        cfg.sessionTimeout = timeoutStr;
+        if (m_replayHandler) {
+            m_replayHandler->handleSetReplayConfiguration(cfg);
+        }
+        {
+            std::lock_guard<std::mutex> lock(m_recordingMutex);
+            m_internalReplayConfig.sessionTimeout = timeoutStr;
+        }
+        body << "    <trp:SetReplayConfigurationResponse/>\r\n";
+    } else {
+        body << "    <trp:" << opName << "Response/>\r\n";
     }
 
     res.status = 200;

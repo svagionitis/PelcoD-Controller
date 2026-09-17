@@ -1,4 +1,5 @@
 #include "PelcoDPtzAdapter.h"
+#include "OnvifSecurity.h"
 #include <PelcoDCore/PatrolController.h>
 
 #include <algorithm>
@@ -17,6 +18,36 @@ PelcoDPtzAdapter::PelcoDPtzAdapter(std::shared_ptr<PelcoD::PelcoDDevice> device)
             [this](const PelcoD::DeviceStatus& status) { onDeviceStatusUpdated(status); });
     }
     loadTours();
+
+    m_certificates.push_back(
+        OnvifSecurity::generateSelfSignedCertificate("Cert_Server", "CN=PelcoD-Camera, O=PelcoD", 365));
+
+    RecordingConfig defRec;
+    defRec.recordingToken = "Rec_Main";
+    defRec.content = "Continuous Surveillance Recording";
+    defRec.sourceToken = "VideoSource_1";
+    defRec.maximumRetentionTime = "P30D";
+    RecordingTrack vidTrack;
+    vidTrack.trackToken = "Track_Video_1";
+    vidTrack.trackType = RecordingTrackType::Video;
+    vidTrack.description = "Main H.264 Video Track";
+    defRec.tracks.push_back(vidTrack);
+    RecordingTrack audTrack;
+    audTrack.trackToken = "Track_Audio_1";
+    audTrack.trackType = RecordingTrackType::Audio;
+    audTrack.description = "AAC Audio Track";
+    defRec.tracks.push_back(audTrack);
+    m_recordings.push_back(defRec);
+
+    RecordingJob defJob;
+    defJob.jobToken = "Job_Continuous";
+    defJob.recordingToken = "Rec_Main";
+    defJob.mode = RecordingJobMode::Active;
+    defJob.priority = 5;
+    defJob.sourceToken = "VideoSource_1";
+    m_recordingJobs.push_back(defJob);
+
+    m_replayConfig.sessionTimeout = "PT60S";
 }
 
 PelcoDPtzAdapter::~PelcoDPtzAdapter()
@@ -947,6 +978,311 @@ bool PelcoDPtzAdapter::handleRestoreSystem(const std::string& backupData)
 std::string PelcoDPtzAdapter::handleGetEndpointReference()
 {
     return "urn:uuid:pelco-d-ptz-controller-adapter-01";
+}
+
+std::vector<OnvifCertificate> PelcoDPtzAdapter::handleGetCertificates()
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    return m_certificates;
+}
+
+std::optional<CertificateInformation> PelcoDPtzAdapter::handleGetCertificateInformation(
+    const std::string& certificateId)
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    for (const auto& cert : m_certificates) {
+        if (cert.certificateId == certificateId) {
+            return cert.info;
+        }
+    }
+    return std::nullopt;
+}
+
+OnvifCertificate PelcoDPtzAdapter::handleCreateCertificate(
+    const std::string& certificateId, const std::string& subject, int daysValid)
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    auto cert = OnvifSecurity::generateSelfSignedCertificate(certificateId, subject, daysValid);
+    auto it = std::find_if(m_certificates.begin(), m_certificates.end(),
+        [&certificateId](const OnvifCertificate& c) { return c.certificateId == certificateId; });
+    if (it != m_certificates.end()) {
+        *it = cert;
+    } else {
+        m_certificates.push_back(cert);
+    }
+    return cert;
+}
+
+Pkcs10Request PelcoDPtzAdapter::handleGetPkcs10Request(const std::string& certificateId, const std::string& subject)
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    return OnvifSecurity::generatePkcs10Csr(certificateId, subject);
+}
+
+bool PelcoDPtzAdapter::handleLoadCertificates(const std::vector<OnvifCertificate>& certificates)
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    for (const auto& cert : certificates) {
+        auto it = std::find_if(m_certificates.begin(), m_certificates.end(),
+            [&cert](const OnvifCertificate& c) { return c.certificateId == cert.certificateId; });
+        if (it != m_certificates.end()) {
+            *it = cert;
+        } else {
+            m_certificates.push_back(cert);
+        }
+    }
+    return true;
+}
+
+bool PelcoDPtzAdapter::handleDeleteCertificate(const std::string& certificateId)
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    const auto origSize = m_certificates.size();
+    m_certificates.erase(std::remove_if(m_certificates.begin(), m_certificates.end(),
+                             [&certificateId](const OnvifCertificate& c) { return c.certificateId == certificateId; }),
+        m_certificates.end());
+    return m_certificates.size() < origSize;
+}
+
+ClientCertificateMode PelcoDPtzAdapter::handleGetClientCertificateMode()
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    return m_clientCertMode;
+}
+
+bool PelcoDPtzAdapter::handleSetClientCertificateMode(ClientCertificateMode mode)
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    m_clientCertMode = mode;
+    return true;
+}
+
+std::string PelcoDPtzAdapter::handleCreateRecording(const RecordingConfig& config)
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    RecordingConfig rec = config;
+    if (rec.recordingToken.empty()) {
+        rec.recordingToken = "Rec_" + std::to_string(m_recordings.size() + 1);
+    }
+    m_recordings.push_back(rec);
+    return rec.recordingToken;
+}
+
+std::vector<RecordingConfig> PelcoDPtzAdapter::handleGetRecordings()
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    return m_recordings;
+}
+
+std::optional<RecordingConfig> PelcoDPtzAdapter::handleGetRecordingConfiguration(const std::string& recordingToken)
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    for (const auto& r : m_recordings) {
+        if (r.recordingToken == recordingToken) {
+            return r;
+        }
+    }
+    return std::nullopt;
+}
+
+bool PelcoDPtzAdapter::handleSetRecordingConfiguration(const std::string& recordingToken, const RecordingConfig& config)
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    for (auto& r : m_recordings) {
+        if (r.recordingToken == recordingToken) {
+            r.sourceToken = config.sourceToken;
+            r.content = config.content;
+            r.maximumRetentionTime = config.maximumRetentionTime;
+            return true;
+        }
+    }
+    return false;
+}
+
+bool PelcoDPtzAdapter::handleDeleteRecording(const std::string& recordingToken)
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    const auto origSize = m_recordings.size();
+    m_recordings.erase(std::remove_if(m_recordings.begin(), m_recordings.end(),
+                           [&recordingToken](const RecordingConfig& r) { return r.recordingToken == recordingToken; }),
+        m_recordings.end());
+    return m_recordings.size() < origSize;
+}
+
+std::vector<RecordingJob> PelcoDPtzAdapter::handleGetRecordingJobs()
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    return m_recordingJobs;
+}
+
+std::string PelcoDPtzAdapter::handleCreateRecordingJob(const RecordingJob& job)
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    RecordingJob j = job;
+    if (j.jobToken.empty()) {
+        j.jobToken = "Job_" + std::to_string(m_recordingJobs.size() + 1);
+    }
+    m_recordingJobs.push_back(j);
+    return j.jobToken;
+}
+
+bool PelcoDPtzAdapter::handleSetRecordingJobMode(const std::string& jobToken, RecordingJobMode mode)
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    for (auto& j : m_recordingJobs) {
+        if (j.jobToken == jobToken) {
+            j.mode = mode;
+            return true;
+        }
+    }
+    return false;
+}
+
+bool PelcoDPtzAdapter::handleDeleteRecordingJob(const std::string& jobToken)
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    const auto origSize = m_recordingJobs.size();
+    m_recordingJobs.erase(std::remove_if(m_recordingJobs.begin(), m_recordingJobs.end(),
+                              [&jobToken](const RecordingJob& j) { return j.jobToken == jobToken; }),
+        m_recordingJobs.end());
+    return m_recordingJobs.size() < origSize;
+}
+
+RecordingSummary PelcoDPtzAdapter::handleGetRecordingSummary()
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    RecordingSummary sum {};
+    sum.numberRecordings = static_cast<int>(m_recordings.size());
+    sum.dataFrom = "2026-01-01T00:00:00Z";
+    sum.dataUntil = "2026-09-17T00:00:00Z";
+    sum.totalStorageBytes = 1073741824ULL;
+    return sum;
+}
+
+std::vector<RecordingTrack> PelcoDPtzAdapter::handleGetTracks(const std::string& recordingToken)
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    for (const auto& r : m_recordings) {
+        if (r.recordingToken == recordingToken) {
+            return r.tracks;
+        }
+    }
+    return {};
+}
+
+std::string PelcoDPtzAdapter::handleCreateTrack(const std::string& recordingToken, const RecordingTrack& track)
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    for (auto& r : m_recordings) {
+        if (r.recordingToken == recordingToken) {
+            RecordingTrack t = track;
+            if (t.trackToken.empty()) {
+                t.trackToken = "Track_" + std::to_string(r.tracks.size() + 1);
+            }
+            r.tracks.push_back(t);
+            return t.trackToken;
+        }
+    }
+    return {};
+}
+
+bool PelcoDPtzAdapter::handleDeleteTrack(const std::string& recordingToken, const std::string& trackToken)
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    for (auto& r : m_recordings) {
+        if (r.recordingToken == recordingToken) {
+            const auto origSize = r.tracks.size();
+            r.tracks.erase(std::remove_if(r.tracks.begin(), r.tracks.end(),
+                               [&trackToken](const RecordingTrack& t) { return t.trackToken == trackToken; }),
+                r.tracks.end());
+            return r.tracks.size() < origSize;
+        }
+    }
+    return false;
+}
+
+std::string PelcoDPtzAdapter::handleFindRecordings(
+    const std::string& /*scope*/, int /*maxMatches*/, const std::string& /*keepAliveTime*/)
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    const std::string token = "SearchSession_" + std::to_string(m_nextSearchSessionId++);
+    std::vector<RecordingSearchResult> results;
+    for (const auto& r : m_recordings) {
+        for (const auto& trk : r.tracks) {
+            RecordingSearchResult resItem;
+            resItem.recordingToken = r.recordingToken;
+            resItem.trackToken = trk.trackToken;
+            resItem.earliestTime = "2026-01-01T00:00:00Z";
+            resItem.latestTime = "2026-09-17T00:00:00Z";
+            resItem.searchState = "Completed";
+            results.push_back(resItem);
+        }
+    }
+    m_recordingSearches[token] = results;
+    return token;
+}
+
+std::vector<RecordingSearchResult> PelcoDPtzAdapter::handleGetRecordingSearchResults(const std::string& searchToken)
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    auto it = m_recordingSearches.find(searchToken);
+    if (it != m_recordingSearches.end()) {
+        return it->second;
+    }
+    return {};
+}
+
+std::string PelcoDPtzAdapter::handleFindEvents(
+    const std::string& startUtc, const std::string& /*endUtc*/, int /*maxMatches*/)
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    const std::string token = "EventSearch_" + std::to_string(m_nextSearchSessionId++);
+    std::vector<RecordedEventResult> events;
+    RecordedEventResult ev;
+    ev.recordingToken = "Rec_Main";
+    ev.eventTime = startUtc.empty() ? "2026-09-17T00:00:00Z" : startUtc;
+    ev.topic = "tns1:VideoAnalytics/Motion";
+    ev.source = "VideoSource_1";
+    ev.data = "State=true";
+    events.push_back(ev);
+    m_eventSearches[token] = events;
+    return token;
+}
+
+std::vector<RecordedEventResult> PelcoDPtzAdapter::handleGetEventSearchResults(const std::string& searchToken)
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    auto it = m_eventSearches.find(searchToken);
+    if (it != m_eventSearches.end()) {
+        return it->second;
+    }
+    return {};
+}
+
+bool PelcoDPtzAdapter::handleEndSearch(const std::string& searchToken)
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    m_recordingSearches.erase(searchToken);
+    m_eventSearches.erase(searchToken);
+    return true;
+}
+
+std::string PelcoDPtzAdapter::handleGetReplayUri(const std::string& recordingToken, const std::string& trackToken)
+{
+    return "rtsp://127.0.0.1:8554/replay?recording=" + recordingToken + "&track=" + trackToken;
+}
+
+ReplayConfiguration PelcoDPtzAdapter::handleGetReplayConfiguration()
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    return m_replayConfig;
+}
+
+bool PelcoDPtzAdapter::handleSetReplayConfiguration(const ReplayConfiguration& config)
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    m_replayConfig = config;
+    return true;
 }
 
 } // namespace PelcoD::Onvif

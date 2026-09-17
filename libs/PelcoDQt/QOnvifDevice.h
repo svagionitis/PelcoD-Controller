@@ -131,6 +131,36 @@ public:
         return m_digitalInputs;
     }
 
+    /// @brief Gets cached installed X.509 certificates.
+    [[nodiscard]] std::vector<PelcoD::Onvif::OnvifCertificate> certificates() const
+    {
+        return m_certificates;
+    }
+
+    /// @brief Gets cached recordings list (Profile G).
+    [[nodiscard]] std::vector<PelcoD::Onvif::RecordingConfig> recordings() const
+    {
+        return m_recordings;
+    }
+
+    /// @brief Gets cached recording jobs list (Profile G).
+    [[nodiscard]] std::vector<PelcoD::Onvif::RecordingJob> recordingJobs() const
+    {
+        return m_recordingJobs;
+    }
+
+    /// @brief Gets cached recording summary (Profile G).
+    [[nodiscard]] std::optional<PelcoD::Onvif::RecordingSummary> recordingSummary() const
+    {
+        return m_recordingSummary;
+    }
+
+    /// @brief Gets cached replay configuration (Profile G).
+    [[nodiscard]] std::optional<PelcoD::Onvif::ReplayConfiguration> replayConfiguration() const
+    {
+        return m_replayConfig;
+    }
+
     /// @brief Gets camera hardware identification metadata.
     /// @return DeviceInformation struct.
     [[nodiscard]] PelcoD::Onvif::DeviceInformation deviceInformation() const;
@@ -474,6 +504,151 @@ public Q_SLOTS:
     /// @brief Queries unique endpoint reference GUID from device.
     void fetchEndpointReference();
 
+    // =========================================================================
+    // PKI Certificates & HTTPS/TLS Security Service
+    // =========================================================================
+
+    /// @brief Queries list of installed X.509 certificates from camera.
+    void refreshCertificates();
+
+    /// @brief Queries detailed information for a specific certificate ID.
+    /// @param[in] certificateId Certificate token.
+    void fetchCertificateInformation(const QString& certificateId);
+
+    /// @brief Requests camera to create a self-signed X.509 certificate.
+    /// @param[in] certificateId Certificate token.
+    /// @param[in] subject Subject distinguished name.
+    /// @param[in] daysValid Validity period in days.
+    /// @return True on success.
+    bool createCertificate(const QString& certificateId, const QString& subject, int daysValid = 365);
+
+    /// @brief Requests camera to generate a PKCS#10 Certificate Signing Request (CSR).
+    /// @param[in] certificateId Certificate token.
+    /// @param[in] subject Subject distinguished name.
+    /// @return True on success.
+    bool createPkcs10Csr(const QString& certificateId, const QString& subject);
+
+    /// @brief Uploads signed X.509 certificates to camera.
+    /// @param[in] certificates List of certificates.
+    /// @return True on success.
+    bool loadCertificates(const std::vector<PelcoD::Onvif::OnvifCertificate>& certificates);
+
+    /// @brief Deletes certificates from camera by token IDs.
+    /// @param[in] certificateIds List of certificate IDs.
+    /// @return True on success.
+    bool deleteCertificates(const QStringList& certificateIds);
+
+    /// @brief Queries TLS client certificate authentication mode.
+    void refreshClientCertificateMode();
+
+    /// @brief Sets TLS client certificate authentication mode.
+    /// @param[in] mode Desired ClientCertificateMode.
+    /// @return True on success.
+    bool setClientCertificateMode(PelcoD::Onvif::ClientCertificateMode mode);
+
+    // =========================================================================
+    // Profile G: Recording Service
+    // =========================================================================
+
+    /// @brief Queries list of edge recordings on camera.
+    void refreshRecordings();
+
+    /// @brief Creates a new recording storage container on camera.
+    /// @param[in] config Recording container configuration.
+    /// @return Assigned recordingToken or empty on failure.
+    QString createRecording(const PelcoD::Onvif::RecordingConfig& config);
+
+    /// @brief Updates configuration of an existing recording container.
+    /// @param[in] config Updated recording configuration.
+    /// @return True on success.
+    bool setRecordingConfiguration(const PelcoD::Onvif::RecordingConfig& config);
+
+    /// @brief Deletes a recording container and its stored data.
+    /// @param[in] recordingToken Target recording token.
+    /// @return True on success.
+    bool deleteRecording(const QString& recordingToken);
+
+    /// @brief Adds a track to a recording container.
+    /// @param[in] recordingToken Parent recording token.
+    /// @param[in] track Track parameters.
+    /// @return Assigned trackToken or empty on failure.
+    QString createTrack(const QString& recordingToken, const PelcoD::Onvif::RecordingTrack& track);
+
+    /// @brief Deletes a track from a recording container.
+    /// @param[in] recordingToken Parent recording token.
+    /// @param[in] trackToken Track token to delete.
+    /// @return True on success.
+    bool deleteTrack(const QString& recordingToken, const QString& trackToken);
+
+    /// @brief Queries list of automated recording jobs.
+    void refreshRecordingJobs();
+
+    /// @brief Creates an automated recording job binding a source to a recording.
+    /// @param[in] job Job configuration.
+    /// @return Assigned jobToken or empty on failure.
+    QString createRecordingJob(const PelcoD::Onvif::RecordingJob& job);
+
+    /// @brief Sets the operational mode of a recording job (Active vs Idle).
+    /// @param[in] jobToken Target job token.
+    /// @param[in] mode Desired RecordingJobMode.
+    /// @return True on success.
+    bool setRecordingJobMode(const QString& jobToken, PelcoD::Onvif::RecordingJobMode mode);
+
+    /// @brief Deletes a recording job.
+    /// @param[in] jobToken Target job token.
+    /// @return True on success.
+    bool deleteRecordingJob(const QString& jobToken);
+
+    /// @brief Queries overall storage and time range summary for recordings.
+    void refreshRecordingSummary();
+
+    // =========================================================================
+    // Profile G: Search Service
+    // =========================================================================
+
+    /// @brief Initiates historical recording search query.
+    /// @param[in] scope Search scope.
+    /// @param[in] maxMatches Maximum results.
+    /// @return Search session token or empty on failure.
+    QString findRecordings(const QString& scope = QString(), int maxMatches = 10);
+
+    /// @brief Polls results for an active recording search query.
+    /// @param[in] searchToken Search session token.
+    void refreshRecordingSearchResults(const QString& searchToken);
+
+    /// @brief Initiates historical recorded events search query.
+    /// @param[in] startUtc Start timestamp (ISO 8601 UTC).
+    /// @param[in] endUtc End timestamp (ISO 8601 UTC).
+    /// @param[in] maxMatches Maximum matches.
+    /// @return Search session token or empty on failure.
+    QString findEvents(const QString& startUtc, const QString& endUtc = QString(), int maxMatches = 10);
+
+    /// @brief Polls results for an active event search query.
+    /// @param[in] searchToken Search session token.
+    void refreshEventSearchResults(const QString& searchToken);
+
+    /// @brief Closes an active search query session.
+    /// @param[in] searchToken Search session token.
+    /// @return True on success.
+    bool endSearch(const QString& searchToken);
+
+    // =========================================================================
+    // Profile G: Replay Service
+    // =========================================================================
+
+    /// @brief Resolves RTSP replay URI for playback of a recorded track.
+    /// @param[in] recordingToken Target recording token.
+    /// @param[in] streamType Stream transport type (e.g. "RTP-Unicast").
+    void resolveReplayUri(const QString& recordingToken, const QString& streamType = "RTP-Unicast");
+
+    /// @brief Queries current replay session parameters.
+    void refreshReplayConfiguration();
+
+    /// @brief Configures replay session timeouts.
+    /// @param[in] config Desired replay configuration.
+    /// @return True on success.
+    bool setReplayConfiguration(const PelcoD::Onvif::ReplayConfiguration& config);
+
 Q_SIGNALS:
     /// @brief Emitted when device connection succeeds.
     /// @param[in] endpoint Connected service URL.
@@ -593,6 +768,55 @@ Q_SIGNALS:
     /// @param[in] endpointReference GUID string.
     void endpointReferenceReceived(const QString& endpointReference);
 
+    /// @brief Emitted when X.509 certificates list is refreshed.
+    /// @param[in] certs List of certificates.
+    void certificatesUpdated(const std::vector<PelcoD::Onvif::OnvifCertificate>& certs);
+
+    /// @brief Emitted when detailed certificate information is retrieved.
+    /// @param[in] info Certificate information.
+    void certificateInfoReceived(const PelcoD::Onvif::CertificateInformation& info);
+
+    /// @brief Emitted when a PKCS#10 CSR is generated.
+    /// @param[in] csr PKCS#10 CSR request object.
+    void pkcs10CsrReceived(const PelcoD::Onvif::Pkcs10Request& csr);
+
+    /// @brief Emitted when client certificate authentication mode is updated.
+    /// @param[in] mode Current ClientCertificateMode.
+    void clientCertificateModeUpdated(PelcoD::Onvif::ClientCertificateMode mode);
+
+    /// @brief Emitted when edge recordings list is refreshed.
+    /// @param[in] recordings List of recordings.
+    void recordingsUpdated(const std::vector<PelcoD::Onvif::RecordingConfig>& recordings);
+
+    /// @brief Emitted when recording jobs list is refreshed.
+    /// @param[in] jobs List of recording jobs.
+    void recordingJobsUpdated(const std::vector<PelcoD::Onvif::RecordingJob>& jobs);
+
+    /// @brief Emitted when recording storage summary is refreshed.
+    /// @param[in] summary Recording summary structure.
+    void recordingSummaryUpdated(const PelcoD::Onvif::RecordingSummary& summary);
+
+    /// @brief Emitted when recording search query results are retrieved.
+    /// @param[in] searchToken Search session token.
+    /// @param[in] results Vector of search results.
+    void recordingSearchResultsReceived(
+        const QString& searchToken, const std::vector<PelcoD::Onvif::RecordingSearchResult>& results);
+
+    /// @brief Emitted when recorded event search query results are retrieved.
+    /// @param[in] searchToken Search session token.
+    /// @param[in] results Vector of event search results.
+    void eventSearchResultsReceived(
+        const QString& searchToken, const std::vector<PelcoD::Onvif::RecordedEventResult>& results);
+
+    /// @brief Emitted when RTSP replay URI is resolved.
+    /// @param[in] recordingToken Recording token.
+    /// @param[in] uri Replay RTSP URI string.
+    void replayUriResolved(const QString& recordingToken, const QString& uri);
+
+    /// @brief Emitted when replay configuration is updated.
+    /// @param[in] config Replay configuration.
+    void replayConfigurationUpdated(const PelcoD::Onvif::ReplayConfiguration& config);
+
     /// @brief Emitted when an operation fails.
     /// @param[in] message Diagnostic error message.
     void errorOccurred(const QString& message);
@@ -631,6 +855,12 @@ private:
     bool m_eventSubActive { false };
     std::vector<PelcoD::Onvif::MetadataConfiguration> m_metadataConfigs {};
     bool m_metadataStreamingActive { false };
+    std::vector<PelcoD::Onvif::OnvifCertificate> m_certificates {};
+    PelcoD::Onvif::ClientCertificateMode m_clientCertMode { PelcoD::Onvif::ClientCertificateMode::Off };
+    std::vector<PelcoD::Onvif::RecordingConfig> m_recordings {};
+    std::vector<PelcoD::Onvif::RecordingJob> m_recordingJobs {};
+    std::optional<PelcoD::Onvif::RecordingSummary> m_recordingSummary {};
+    std::optional<PelcoD::Onvif::ReplayConfiguration> m_replayConfig {};
 };
 
 } // namespace PelcoD::Qt

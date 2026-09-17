@@ -1139,6 +1139,313 @@ void testSystemSupportInfoAndBackupParsing()
     assert(guid->find("11223344-5566-7788-99aa-bbccddeeff00") != std::string::npos);
 }
 
+void testPkiSecurityAndCrypto()
+{
+    // 1. Test generateSelfSignedCertificate
+    const auto cert
+        = PelcoD::Onvif::OnvifSecurity::generateSelfSignedCertificate("Cert_Test", "CN=TestCamera, O=Security", 365);
+    assert(cert.certificateId == "Cert_Test");
+    assert(!cert.x509DerBase64.empty());
+    assert(cert.info.subject.find("TestCamera") != std::string::npos);
+    assert(!cert.info.validNotBefore.empty());
+    assert(!cert.info.validNotAfter.empty());
+
+    // 2. Test parseCertificateInfo
+    const auto info = PelcoD::Onvif::OnvifSecurity::parseCertificateInfo("Cert_Test", cert.x509DerBase64);
+    assert(info.certificateId == "Cert_Test");
+    assert(info.subject.find("TestCamera") != std::string::npos);
+
+    // 3. Test generatePkcs10Csr
+    const auto csr = PelcoD::Onvif::OnvifSecurity::generatePkcs10Csr("Cert_Test", "CN=TestCamera, O=Security");
+    assert(csr.certificateId == "Cert_Test");
+    assert(!csr.csrBase64.empty());
+    assert(csr.subject.find("TestCamera") != std::string::npos);
+}
+
+void testPkiXmlParsing()
+{
+    // 1. GetCertificates response
+    const std::string certsXml = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+                                 "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                 "xmlns:tds=\"http://www.onvif.org/ver10/device/wsdl\" "
+                                 "xmlns:tt=\"http://www.onvif.org/ver10/schema\">\r\n"
+                                 "  <SOAP-ENV:Body>\r\n"
+                                 "    <tds:GetCertificatesResponse>\r\n"
+                                 "      <tds:NvtCertificate>\r\n"
+                                 "        <tt:CertificateID>Cert_Main</tt:CertificateID>\r\n"
+                                 "        <tt:Certificate>\r\n"
+                                 "          <tt:Data>MIIBjjCCATSgAwIBAgIU...</tt:Data>\r\n"
+                                 "        </tt:Certificate>\r\n"
+                                 "      </tds:NvtCertificate>\r\n"
+                                 "    </tds:GetCertificatesResponse>\r\n"
+                                 "  </SOAP-ENV:Body>\r\n"
+                                 "</SOAP-ENV:Envelope>";
+
+    const auto certList = PelcoD::Onvif::OnvifClient::parseCertificatesResponse(certsXml);
+    assert(certList.size() == 1U);
+    assert(certList[0].certificateId == "Cert_Main");
+    assert(certList[0].x509DerBase64 == "MIIBjjCCATSgAwIBAgIU...");
+
+    // 2. GetCertificateInformation response
+    const std::string infoXml = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+                                "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                "xmlns:tds=\"http://www.onvif.org/ver10/device/wsdl\" "
+                                "xmlns:tt=\"http://www.onvif.org/ver10/schema\">\r\n"
+                                "  <SOAP-ENV:Body>\r\n"
+                                "    <tds:GetCertificateInformationResponse>\r\n"
+                                "      <tds:CertificateInformation>\r\n"
+                                "        <tt:CertificateID>Cert_Main</tt:CertificateID>\r\n"
+                                "        <tt:IssuerDN>CN=RootCA</tt:IssuerDN>\r\n"
+                                "        <tt:SubjectDN>CN=TestCamera</tt:SubjectDN>\r\n"
+                                "        <tt:Validity>\r\n"
+                                "          <tt:From>2026-01-01T00:00:00Z</tt:From>\r\n"
+                                "          <tt:Until>2027-01-01T00:00:00Z</tt:Until>\r\n"
+                                "        </tt:Validity>\r\n"
+                                "        <tt:Extension>\r\n"
+                                "          <tt:KeyUsage>Digital Signature</tt:KeyUsage>\r\n"
+                                "        </tt:Extension>\r\n"
+                                "      </tds:CertificateInformation>\r\n"
+                                "    </tds:GetCertificateInformationResponse>\r\n"
+                                "  </SOAP-ENV:Body>\r\n"
+                                "</SOAP-ENV:Envelope>";
+
+    const auto infoOpt = PelcoD::Onvif::OnvifClient::parseCertificateInformationResponse(infoXml);
+    assert(infoOpt.has_value());
+    assert(infoOpt->certificateId == "Cert_Main");
+    assert(infoOpt->issuer == "CN=RootCA");
+    assert(infoOpt->subject == "CN=TestCamera");
+    assert(infoOpt->validNotBefore == "2026-01-01T00:00:00Z");
+    assert(infoOpt->validNotAfter == "2027-01-01T00:00:00Z");
+    assert(infoOpt->keyAlgorithm == "Digital Signature");
+
+    // 3. GetPkcs10Request response
+    const std::string csrXml = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+                               "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                               "xmlns:tds=\"http://www.onvif.org/ver10/device/wsdl\">\r\n"
+                               "  <SOAP-ENV:Body>\r\n"
+                               "    <tds:GetPkcs10RequestResponse>\r\n"
+                               "      <tds:Pkcs10Request>MIICvDCCAaQCAQAw</tds:Pkcs10Request>\r\n"
+                               "    </tds:GetPkcs10RequestResponse>\r\n"
+                               "  </SOAP-ENV:Body>\r\n"
+                               "</SOAP-ENV:Envelope>";
+
+    const auto csrOpt = PelcoD::Onvif::OnvifClient::parsePkcs10RequestResponse(csrXml);
+    assert(csrOpt.has_value());
+    assert(csrOpt->csrBase64 == "MIICvDCCAaQCAQAw");
+
+    // 4. ClientCertificateMode response
+    const std::string modeXml = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+                                "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                "xmlns:tds=\"http://www.onvif.org/ver10/device/wsdl\">\r\n"
+                                "  <SOAP-ENV:Body>\r\n"
+                                "    <tds:GetClientCertificateModeResponse>\r\n"
+                                "      <tds:ClientCertificateMode>Required</tds:ClientCertificateMode>\r\n"
+                                "    </tds:GetClientCertificateModeResponse>\r\n"
+                                "  </SOAP-ENV:Body>\r\n"
+                                "</SOAP-ENV:Envelope>";
+
+    const auto modeOpt = PelcoD::Onvif::OnvifClient::parseClientCertificateModeResponse(modeXml);
+    assert(modeOpt.has_value());
+    assert(*modeOpt == PelcoD::Onvif::ClientCertificateMode::Required);
+}
+
+void testProfileGRecordingXmlParsing()
+{
+    // 1. GetRecordings response
+    const std::string recsXml = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+                                "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                "xmlns:trc=\"http://www.onvif.org/ver10/recording/wsdl\" "
+                                "xmlns:tt=\"http://www.onvif.org/ver10/schema\">\r\n"
+                                "  <SOAP-ENV:Body>\r\n"
+                                "    <trc:GetRecordingsResponse>\r\n"
+                                "      <trc:RecordingItem>\r\n"
+                                "        <trc:RecordingToken>Rec_Main</trc:RecordingToken>\r\n"
+                                "        <trc:Configuration>\r\n"
+                                "          <tt:Source>\r\n"
+                                "            <tt:SourceId>VideoSource_1</tt:SourceId>\r\n"
+                                "          </tt:Source>\r\n"
+                                "          <tt:Content>MainStream</tt:Content>\r\n"
+                                "          <tt:MaximumRetentionTime>P30D</tt:MaximumRetentionTime>\r\n"
+                                "        </trc:Configuration>\r\n"
+                                "        <trc:Tracks>\r\n"
+                                "          <trc:Track>\r\n"
+                                "            <trc:TrackToken>Track_Video_1</trc:TrackToken>\r\n"
+                                "            <trc:Configuration>\r\n"
+                                "              <tt:TrackType>Video</tt:TrackType>\r\n"
+                                "              <tt:Description>H264 Main Profile</tt:Description>\r\n"
+                                "            </trc:Configuration>\r\n"
+                                "          </trc:Track>\r\n"
+                                "        </trc:Tracks>\r\n"
+                                "      </trc:RecordingItem>\r\n"
+                                "    </trc:GetRecordingsResponse>\r\n"
+                                "  </SOAP-ENV:Body>\r\n"
+                                "</SOAP-ENV:Envelope>";
+
+    const auto recs = PelcoD::Onvif::OnvifClient::parseRecordingsResponse(recsXml);
+    assert(recs.size() == 1U);
+    assert(recs[0].recordingToken == "Rec_Main");
+    assert(recs[0].sourceToken == "VideoSource_1");
+    assert(recs[0].content == "MainStream");
+    assert(recs[0].maximumRetentionTime == "P30D");
+    assert(recs[0].tracks.size() == 1U);
+    assert(recs[0].tracks[0].trackToken == "Track_Video_1");
+    assert(recs[0].tracks[0].trackType == PelcoD::Onvif::RecordingTrackType::Video);
+
+    // 2. CreateRecording response
+    const std::string createRecXml
+        = "<trc:CreateRecordingResponse xmlns:trc=\"http://www.onvif.org/ver10/recording/wsdl\">"
+          "<trc:RecordingToken>Rec_New_1</trc:RecordingToken>"
+          "</trc:CreateRecordingResponse>";
+    const auto createdRecTok = PelcoD::Onvif::OnvifClient::parseCreateRecordingResponse(createRecXml);
+    assert(createdRecTok.has_value());
+    assert(*createdRecTok == "Rec_New_1");
+
+    // 3. GetRecordingJobs response
+    const std::string jobsXml = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+                                "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                "xmlns:trc=\"http://www.onvif.org/ver10/recording/wsdl\" "
+                                "xmlns:tt=\"http://www.onvif.org/ver10/schema\">\r\n"
+                                "  <SOAP-ENV:Body>\r\n"
+                                "    <trc:GetRecordingJobsResponse>\r\n"
+                                "      <trc:JobItem>\r\n"
+                                "        <trc:JobToken>Job_1</trc:JobToken>\r\n"
+                                "        <trc:JobConfiguration>\r\n"
+                                "          <tt:RecordingToken>Rec_Main</tt:RecordingToken>\r\n"
+                                "          <tt:Mode>Active</tt:Mode>\r\n"
+                                "          <tt:Priority>5</tt:Priority>\r\n"
+                                "          <tt:Source>\r\n"
+                                "            <tt:SourceToken>VideoSource_1</tt:SourceToken>\r\n"
+                                "          </tt:Source>\r\n"
+                                "        </trc:JobConfiguration>\r\n"
+                                "      </trc:JobItem>\r\n"
+                                "    </trc:GetRecordingJobsResponse>\r\n"
+                                "  </SOAP-ENV:Body>\r\n"
+                                "</SOAP-ENV:Envelope>";
+
+    const auto jobs = PelcoD::Onvif::OnvifClient::parseRecordingJobsResponse(jobsXml);
+    assert(jobs.size() == 1U);
+    assert(jobs[0].jobToken == "Job_1");
+    assert(jobs[0].recordingToken == "Rec_Main");
+    assert(jobs[0].mode == PelcoD::Onvif::RecordingJobMode::Active);
+    assert(jobs[0].priority == 5);
+    assert(jobs[0].sourceToken == "VideoSource_1");
+
+    // 4. GetRecordingSummary response
+    const std::string sumXml = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+                               "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                               "xmlns:trc=\"http://www.onvif.org/ver10/recording/wsdl\" "
+                               "xmlns:tt=\"http://www.onvif.org/ver10/schema\">\r\n"
+                               "  <SOAP-ENV:Body>\r\n"
+                               "    <trc:GetRecordingSummaryResponse>\r\n"
+                               "      <trc:Summary>\r\n"
+                               "        <tt:DataFrom>2026-01-01T00:00:00Z</tt:DataFrom>\r\n"
+                               "        <tt:DataUntil>2026-09-17T00:00:00Z</tt:DataUntil>\r\n"
+                               "        <tt:NumberRecordings>3</tt:NumberRecordings>\r\n"
+                               "      </trc:Summary>\r\n"
+                               "    </trc:GetRecordingSummaryResponse>\r\n"
+                               "  </SOAP-ENV:Body>\r\n"
+                               "</SOAP-ENV:Envelope>";
+
+    const auto sumOpt = PelcoD::Onvif::OnvifClient::parseRecordingSummaryResponse(sumXml);
+    assert(sumOpt.has_value());
+    assert(sumOpt->dataFrom == "2026-01-01T00:00:00Z");
+    assert(sumOpt->dataUntil == "2026-09-17T00:00:00Z");
+    assert(sumOpt->numberRecordings == 3);
+}
+
+void testProfileGSearchAndReplayXmlParsing()
+{
+    // 1. FindRecordings response
+    const std::string findRecXml = "<tse:FindRecordingsResponse xmlns:tse=\"http://www.onvif.org/ver10/search/wsdl\">"
+                                   "<tse:SearchToken>Search_Rec_Session_1</tse:SearchToken>"
+                                   "</tse:FindRecordingsResponse>";
+    const auto searchTok = PelcoD::Onvif::OnvifClient::parseFindRecordingsResponse(findRecXml);
+    assert(searchTok.has_value());
+    assert(*searchTok == "Search_Rec_Session_1");
+
+    // 2. GetRecordingSearchResults response
+    const std::string searchResXml = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+                                     "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                     "xmlns:tse=\"http://www.onvif.org/ver10/search/wsdl\" "
+                                     "xmlns:tt=\"http://www.onvif.org/ver10/schema\">\r\n"
+                                     "  <SOAP-ENV:Body>\r\n"
+                                     "    <tse:GetRecordingSearchResultsResponse>\r\n"
+                                     "      <tse:ResultList SearchState=\"Completed\">\r\n"
+                                     "        <tse:RecordingInformation>\r\n"
+                                     "          <tt:RecordingToken>Rec_Main</tt:RecordingToken>\r\n"
+                                     "          <tt:TrackToken>Track_Video_1</tt:TrackToken>\r\n"
+                                     "          <tt:EarliestRecording>2026-01-01T00:00:00Z</tt:EarliestRecording>\r\n"
+                                     "          <tt:LatestRecording>2026-09-17T00:00:00Z</tt:LatestRecording>\r\n"
+                                     "          <tt:SearchState>Completed</tt:SearchState>\r\n"
+                                     "        </tse:RecordingInformation>\r\n"
+                                     "      </tse:ResultList>\r\n"
+                                     "    </tse:GetRecordingSearchResultsResponse>\r\n"
+                                     "  </SOAP-ENV:Body>\r\n"
+                                     "</SOAP-ENV:Envelope>";
+
+    const auto searchResults = PelcoD::Onvif::OnvifClient::parseRecordingSearchResultsResponse(searchResXml);
+    assert(searchResults.size() == 1U);
+    assert(searchResults[0].recordingToken == "Rec_Main");
+    assert(searchResults[0].trackToken == "Track_Video_1");
+    assert(searchResults[0].earliestTime == "2026-01-01T00:00:00Z");
+    assert(searchResults[0].latestTime == "2026-09-17T00:00:00Z");
+    assert(searchResults[0].searchState == "Completed");
+
+    // 3. GetEventSearchResults response
+    const std::string eventResXml = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+                                    "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                    "xmlns:tse=\"http://www.onvif.org/ver10/search/wsdl\" "
+                                    "xmlns:tt=\"http://www.onvif.org/ver10/schema\">\r\n"
+                                    "  <SOAP-ENV:Body>\r\n"
+                                    "    <tse:GetEventSearchResultsResponse>\r\n"
+                                    "      <tse:ResultList SearchState=\"Completed\">\r\n"
+                                    "        <tse:EventInformation>\r\n"
+                                    "          <tt:RecordingToken>Rec_Main</tt:RecordingToken>\r\n"
+                                    "          <tt:UtcTime>2026-09-17T12:00:00Z</tt:UtcTime>\r\n"
+                                    "          <tt:Topic>tns1:VideoAnalytics/Motion</tt:Topic>\r\n"
+                                    "          <tt:Source>VideoSource_1</tt:Source>\r\n"
+                                    "          <tt:Data>State=true</tt:Data>\r\n"
+                                    "        </tse:EventInformation>\r\n"
+                                    "      </tse:ResultList>\r\n"
+                                    "    </tse:GetEventSearchResultsResponse>\r\n"
+                                    "  </SOAP-ENV:Body>\r\n"
+                                    "</SOAP-ENV:Envelope>";
+
+    const auto eventResults = PelcoD::Onvif::OnvifClient::parseEventSearchResultsResponse(eventResXml);
+    assert(eventResults.size() == 1U);
+    assert(eventResults[0].recordingToken == "Rec_Main");
+    assert(eventResults[0].eventTime == "2026-09-17T12:00:00Z");
+    assert(eventResults[0].topic == "tns1:VideoAnalytics/Motion");
+    assert(eventResults[0].source == "VideoSource_1");
+    assert(eventResults[0].data == "State=true");
+
+    // 4. GetReplayUri response
+    const std::string replayUriXml = "<trp:GetReplayUriResponse xmlns:trp=\"http://www.onvif.org/ver10/replay/wsdl\">"
+                                     "<trp:Uri>rtsp://192.168.1.50:8554/replay?recording=Rec_Main</trp:Uri>"
+                                     "</trp:GetReplayUriResponse>";
+    const auto replayUri = PelcoD::Onvif::OnvifClient::parseReplayUriResponse(replayUriXml);
+    assert(replayUri.has_value());
+    assert(*replayUri == "rtsp://192.168.1.50:8554/replay?recording=Rec_Main");
+
+    // 5. GetReplayConfiguration response
+    const std::string replayCfgXml = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+                                     "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                     "xmlns:trp=\"http://www.onvif.org/ver10/replay/wsdl\" "
+                                     "xmlns:tt=\"http://www.onvif.org/ver10/schema\">\r\n"
+                                     "  <SOAP-ENV:Body>\r\n"
+                                     "    <trp:GetReplayConfigurationResponse>\r\n"
+                                     "      <trp:Configuration>\r\n"
+                                     "        <tt:SessionTimeout>PT60S</tt:SessionTimeout>\r\n"
+                                     "      </trp:Configuration>\r\n"
+                                     "    </trp:GetReplayConfigurationResponse>\r\n"
+                                     "  </SOAP-ENV:Body>\r\n"
+                                     "</SOAP-ENV:Envelope>";
+
+    const auto replayCfg = PelcoD::Onvif::OnvifClient::parseReplayConfigurationResponse(replayCfgXml);
+    assert(replayCfg.has_value());
+    assert(replayCfg->sessionTimeout == "PT60S");
+}
+
 int main()
 {
 #ifdef _WIN32
@@ -1259,6 +1566,22 @@ int main()
     std::cout << "[RUN] Testing ONVIF Support Info & Backup XML Parsing...\n";
     testSystemSupportInfoAndBackupParsing();
     std::cout << "[PASS] Support Info & Backup XML Parsing\n";
+
+    std::cout << "[RUN] Testing ONVIF PKI Security & OpenSSL Crypto...\n";
+    testPkiSecurityAndCrypto();
+    std::cout << "[PASS] PKI Security & OpenSSL Crypto\n";
+
+    std::cout << "[RUN] Testing ONVIF PKI XML Parsing...\n";
+    testPkiXmlParsing();
+    std::cout << "[PASS] PKI XML Parsing\n";
+
+    std::cout << "[RUN] Testing ONVIF Profile G Recording XML Parsing...\n";
+    testProfileGRecordingXmlParsing();
+    std::cout << "[PASS] Profile G Recording XML Parsing\n";
+
+    std::cout << "[RUN] Testing ONVIF Profile G Search & Replay XML Parsing...\n";
+    testProfileGSearchAndReplayXmlParsing();
+    std::cout << "[PASS] Profile G Search & Replay XML Parsing\n";
 
     std::cout << "\nAll PelcoDOnvif unit tests PASSED successfully!\n";
     return 0;

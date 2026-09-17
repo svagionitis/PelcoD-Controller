@@ -25,7 +25,10 @@ class PelcoDPtzAdapter : public IPtzHandler,
                          public IImagingHandler,
                          public IDeviceIoHandler,
                          public IMetadataHandler,
-                         public IDeviceManagementHandler {
+                         public IDeviceManagementHandler,
+                         public IRecordingHandler,
+                         public ISearchHandler,
+                         public IReplayHandler {
 public:
     /// @brief Constructs adapter wrapping an existing PelcoDDevice.
     /// @param[in] device Shared pointer to initialized PelcoDDevice instance.
@@ -130,7 +133,7 @@ public:
     void clearDetectedObjects();
 
     // =========================================================================
-    // IDeviceManagementHandler Implementation (Profile S/T/M)
+    // IDeviceManagementHandler Implementation (Profile S/T/M/PKI)
     // =========================================================================
 
     [[nodiscard]] std::string handleGetSystemLog(SystemLogType logType) override;
@@ -138,6 +141,61 @@ public:
     [[nodiscard]] std::string handleGetSystemBackup() override;
     [[nodiscard]] bool handleRestoreSystem(const std::string& backupData) override;
     [[nodiscard]] std::string handleGetEndpointReference() override;
+
+    [[nodiscard]] std::vector<OnvifCertificate> handleGetCertificates() override;
+    [[nodiscard]] std::optional<CertificateInformation> handleGetCertificateInformation(
+        const std::string& certificateId) override;
+    [[nodiscard]] OnvifCertificate handleCreateCertificate(
+        const std::string& certificateId, const std::string& subject, int daysValid = 365) override;
+    [[nodiscard]] Pkcs10Request handleGetPkcs10Request(
+        const std::string& certificateId, const std::string& subject) override;
+    [[nodiscard]] bool handleLoadCertificates(const std::vector<OnvifCertificate>& certificates) override;
+    [[nodiscard]] bool handleDeleteCertificate(const std::string& certificateId) override;
+    [[nodiscard]] ClientCertificateMode handleGetClientCertificateMode() override;
+    [[nodiscard]] bool handleSetClientCertificateMode(ClientCertificateMode mode) override;
+
+    // =========================================================================
+    // IRecordingHandler Implementation (Profile G)
+    // =========================================================================
+
+    [[nodiscard]] std::string handleCreateRecording(const RecordingConfig& config) override;
+    [[nodiscard]] std::vector<RecordingConfig> handleGetRecordings() override;
+    [[nodiscard]] std::optional<RecordingConfig> handleGetRecordingConfiguration(
+        const std::string& recordingToken) override;
+    [[nodiscard]] bool handleSetRecordingConfiguration(
+        const std::string& recordingToken, const RecordingConfig& config) override;
+    [[nodiscard]] bool handleDeleteRecording(const std::string& recordingToken) override;
+    [[nodiscard]] std::vector<RecordingJob> handleGetRecordingJobs() override;
+    [[nodiscard]] std::string handleCreateRecordingJob(const RecordingJob& job) override;
+    [[nodiscard]] bool handleSetRecordingJobMode(const std::string& jobToken, RecordingJobMode mode) override;
+    [[nodiscard]] bool handleDeleteRecordingJob(const std::string& jobToken) override;
+    [[nodiscard]] RecordingSummary handleGetRecordingSummary() override;
+    [[nodiscard]] std::vector<RecordingTrack> handleGetTracks(const std::string& recordingToken) override;
+    [[nodiscard]] std::string handleCreateTrack(
+        const std::string& recordingToken, const RecordingTrack& track) override;
+    [[nodiscard]] bool handleDeleteTrack(const std::string& recordingToken, const std::string& trackToken) override;
+
+    // =========================================================================
+    // ISearchHandler Implementation (Profile G)
+    // =========================================================================
+
+    [[nodiscard]] std::string handleFindRecordings(
+        const std::string& scope, int maxMatches, const std::string& keepAliveTime) override;
+    [[nodiscard]] std::vector<RecordingSearchResult> handleGetRecordingSearchResults(
+        const std::string& searchToken) override;
+    [[nodiscard]] std::string handleFindEvents(
+        const std::string& startUtc, const std::string& endUtc, int maxMatches) override;
+    [[nodiscard]] std::vector<RecordedEventResult> handleGetEventSearchResults(const std::string& searchToken) override;
+    [[nodiscard]] bool handleEndSearch(const std::string& searchToken) override;
+
+    // =========================================================================
+    // IReplayHandler Implementation (Profile G)
+    // =========================================================================
+
+    [[nodiscard]] std::string handleGetReplayUri(
+        const std::string& recordingToken, const std::string& trackToken) override;
+    [[nodiscard]] ReplayConfiguration handleGetReplayConfiguration() override;
+    [[nodiscard]] bool handleSetReplayConfiguration(const ReplayConfiguration& config) override;
 
 private:
     void onDeviceStatusUpdated(const PelcoD::DeviceStatus& status);
@@ -178,6 +236,15 @@ private:
         true, true, true, true } };
     std::vector<AnalyticsObject> m_detectedObjects {};
     std::chrono::steady_clock::time_point m_startTime { std::chrono::steady_clock::now() };
+
+    std::vector<OnvifCertificate> m_certificates {};
+    ClientCertificateMode m_clientCertMode { ClientCertificateMode::Off };
+    std::vector<RecordingConfig> m_recordings {};
+    std::vector<RecordingJob> m_recordingJobs {};
+    ReplayConfiguration m_replayConfig {};
+    std::map<std::string, std::vector<RecordingSearchResult>> m_recordingSearches {};
+    std::map<std::string, std::vector<RecordedEventResult>> m_eventSearches {};
+    uint32_t m_nextSearchSessionId { 1 };
 };
 
 } // namespace PelcoD::Onvif

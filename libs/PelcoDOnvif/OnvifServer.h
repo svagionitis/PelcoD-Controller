@@ -87,6 +87,18 @@ public:
     /// @param[in] handler New IMetadataHandler instance.
     void setMetadataHandler(std::shared_ptr<IMetadataHandler> handler);
 
+    /// @brief Sets or replaces the active Recording handler (Profile G).
+    /// @param[in] handler New IRecordingHandler instance.
+    void setRecordingHandler(std::shared_ptr<IRecordingHandler> handler);
+
+    /// @brief Sets or replaces the active Search handler (Profile G).
+    /// @param[in] handler New ISearchHandler instance.
+    void setSearchHandler(std::shared_ptr<ISearchHandler> handler);
+
+    /// @brief Sets or replaces the active Replay handler (Profile G).
+    /// @param[in] handler New IReplayHandler instance.
+    void setReplayHandler(std::shared_ptr<IReplayHandler> handler);
+
     /// @brief Records an operational message into the internal system log buffer.
     /// @param[in] level Log level ("INFO", "WARNING", "ERROR").
     /// @param[in] msg Log message.
@@ -112,6 +124,9 @@ private:
     void handleSubscriptionService(const httplib::Request& req, httplib::Response& res);
     void handleAnalyticsService(const httplib::Request& req, httplib::Response& res);
     void handleMetadataStream(const httplib::Request& req, httplib::Response& res);
+    void handleRecordingService(const httplib::Request& req, httplib::Response& res);
+    void handleSearchService(const httplib::Request& req, httplib::Response& res);
+    void handleReplayService(const httplib::Request& req, httplib::Response& res);
 
     void processOsdRequest(
         const std::string& opName, const pugi::xml_document& doc, std::ostringstream& body, const std::string& prefix);
@@ -143,6 +158,9 @@ private:
     std::shared_ptr<IDeviceManagementHandler> m_deviceHandler;
     std::shared_ptr<IDeviceIoHandler> m_deviceIoHandler;
     std::shared_ptr<IMetadataHandler> m_metadataHandler;
+    std::shared_ptr<IRecordingHandler> m_recordingHandler;
+    std::shared_ptr<ISearchHandler> m_searchHandler;
+    std::shared_ptr<IReplayHandler> m_replayHandler;
     std::unique_ptr<WsDiscoveryServer> m_discoveryServer;
     httplib::Server m_httpServer;
 
@@ -155,6 +173,10 @@ private:
     std::string m_internalHostname { "PelcoD-Bridge" };
     SystemDateTimeConfig m_internalDateTime {};
 
+    mutable std::mutex m_certMutex {};
+    std::vector<OnvifCertificate> m_internalCertificates {};
+    ClientCertificateMode m_internalClientCertMode { ClientCertificateMode::Off };
+
     mutable std::mutex m_imagingMutex {};
     FocusStatus20 m_internalFocusStatus {};
     std::vector<ImagingPreset> m_internalImagingPresets {};
@@ -166,6 +188,16 @@ private:
 
     mutable std::mutex m_metadataMutex {};
     std::vector<MetadataConfiguration> m_internalMetadataConfigs {};
+
+    mutable std::mutex m_recordingMutex {};
+    std::vector<RecordingConfig> m_internalRecordings {};
+    std::vector<RecordingJob> m_internalRecordingJobs {};
+    ReplayConfiguration m_internalReplayConfig {};
+
+    mutable std::mutex m_searchMutex {};
+    std::map<std::string, std::vector<RecordingSearchResult>> m_recordingSearches {};
+    std::map<std::string, std::vector<RecordedEventResult>> m_eventSearches {};
+    uint32_t m_nextSearchId { 1 };
 
     mutable std::mutex m_logMutex {};
     std::deque<std::string> m_systemLogs {};
