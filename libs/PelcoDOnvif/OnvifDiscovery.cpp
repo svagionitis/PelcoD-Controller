@@ -18,6 +18,7 @@ constexpr SocketType kInvalidSocket = INVALID_SOCKET;
 #define CLOSE_SOCKET(s) ::closesocket(s)
 #define POLL_SOCKET(fds, nfds, timeout) ::WSAPoll(fds, nfds, timeout)
 using SockOptLenType = int;
+using SockBufLenType = int;
 #else
 #include <arpa/inet.h>
 #include <netinet/in.h>
@@ -30,6 +31,7 @@ constexpr SocketType kInvalidSocket = -1;
 #define CLOSE_SOCKET(s) ::close(s)
 #define POLL_SOCKET(fds, nfds, timeout) ::poll(fds, nfds, timeout)
 using SockOptLenType = socklen_t;
+using SockBufLenType = size_t;
 #endif
 
 #include <array>
@@ -259,7 +261,7 @@ std::vector<DiscoveredDevice> OnvifDiscovery::discoverDevices(std::chrono::milli
     inet_pton(AF_INET, kMulticastIp, &destAddr.sin_addr);
 
     const std::string probePayload = createProbePayload();
-    const auto sent = sendto(sockFd, probePayload.data(), static_cast<int>(probePayload.size()), 0,
+    const auto sent = sendto(sockFd, probePayload.data(), static_cast<SockBufLenType>(probePayload.size()), 0,
         reinterpret_cast<struct sockaddr*>(&destAddr), sizeof(destAddr));
 
     if (sent < 0) {
@@ -297,7 +299,7 @@ std::vector<DiscoveredDevice> OnvifDiscovery::discoverDevices(std::chrono::milli
         if (pfd.revents & POLLIN) {
             sockaddr_in senderAddr {};
             SockOptLenType senderLen = sizeof(senderAddr);
-            const auto recvd = recvfrom(sockFd, buffer.data(), static_cast<int>(buffer.size() - 1), 0,
+            const auto recvd = recvfrom(sockFd, buffer.data(), static_cast<SockBufLenType>(buffer.size() - 1), 0,
                 reinterpret_cast<struct sockaddr*>(&senderAddr), &senderLen);
 
             if (recvd > 0) {

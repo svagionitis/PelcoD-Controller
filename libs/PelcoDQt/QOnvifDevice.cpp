@@ -252,8 +252,8 @@ bool QOnvifDevice::setPreset(const QString& presetName, const QString& presetTok
     if (!m_client || m_activeProfileToken.isEmpty()) {
         return false;
     }
-    const auto res = m_client->setPreset(
-        m_activeProfileToken.toStdString(), presetName.toStdString(), presetToken.toStdString());
+    const auto res
+        = m_client->setPreset(m_activeProfileToken.toStdString(), presetName.toStdString(), presetToken.toStdString());
     if (res) {
         refreshPresets();
         return true;
@@ -326,8 +326,7 @@ void QOnvifDevice::refreshImagingSettings(const QString& videoSourceToken)
     }
 }
 
-bool QOnvifDevice::setImagingSettings(
-    const PelcoD::Onvif::ImagingSettings& settings, const QString& videoSourceToken)
+bool QOnvifDevice::setImagingSettings(const PelcoD::Onvif::ImagingSettings& settings, const QString& videoSourceToken)
 {
     if (!m_client) {
         return false;
@@ -397,7 +396,7 @@ void QOnvifDevice::startEventSubscription(int pollIntervalMs)
                 QMetaObject::invokeMethod(
                     this, [this, ev]() { emit eventReceived(ev); }, ::Qt::QueuedConnection);
             }
-            QThread::msleep(pollIntervalMs);
+            QThread::msleep(static_cast<unsigned long>(std::max(0, pollIntervalMs)));
         }
     });
 

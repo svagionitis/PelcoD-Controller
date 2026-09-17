@@ -14,8 +14,7 @@
 
 namespace PelcoDApp {
 
-OnvifCameraTab::OnvifCameraTab(
-    PelcoD::Qt::QOnvifDevice* onvifDevice, VideoStreamTab* videoTab, QWidget* parent)
+OnvifCameraTab::OnvifCameraTab(PelcoD::Qt::QOnvifDevice* onvifDevice, VideoStreamTab* videoTab, QWidget* parent)
     : QWidget(parent)
     , m_onvifDevice(onvifDevice)
     , m_videoTab(videoTab)
@@ -26,24 +25,20 @@ OnvifCameraTab::OnvifCameraTab(
         connect(m_onvifDevice, &PelcoD::Qt::QOnvifDevice::discoveryFinished, this,
             &OnvifCameraTab::handleDiscoveryFinished);
         connect(m_onvifDevice, &PelcoD::Qt::QOnvifDevice::connected, this, &OnvifCameraTab::handleDeviceConnected);
-        connect(m_onvifDevice, &PelcoD::Qt::QOnvifDevice::disconnected, this,
-            &OnvifCameraTab::handleDeviceDisconnected);
-        connect(m_onvifDevice, &PelcoD::Qt::QOnvifDevice::errorOccurred, this,
-            &OnvifCameraTab::handleErrorOccurred);
+        connect(
+            m_onvifDevice, &PelcoD::Qt::QOnvifDevice::disconnected, this, &OnvifCameraTab::handleDeviceDisconnected);
+        connect(m_onvifDevice, &PelcoD::Qt::QOnvifDevice::errorOccurred, this, &OnvifCameraTab::handleErrorOccurred);
         connect(m_onvifDevice, &PelcoD::Qt::QOnvifDevice::streamUriResolved, this,
             &OnvifCameraTab::handleStreamUriResolved);
         connect(m_onvifDevice, &PelcoD::Qt::QOnvifDevice::snapshotUriResolved, this,
             &OnvifCameraTab::handleSnapshotUriResolved);
-        connect(m_onvifDevice, &PelcoD::Qt::QOnvifDevice::presetsUpdated, this,
-            &OnvifCameraTab::handlePresetsUpdated);
-        connect(m_onvifDevice, &PelcoD::Qt::QOnvifDevice::statusUpdated, this,
-            &OnvifCameraTab::handleStatusUpdated);
-        connect(m_onvifDevice, &PelcoD::Qt::QOnvifDevice::rebootCompleted, this,
-            &OnvifCameraTab::handleRebootCompleted);
+        connect(m_onvifDevice, &PelcoD::Qt::QOnvifDevice::presetsUpdated, this, &OnvifCameraTab::handlePresetsUpdated);
+        connect(m_onvifDevice, &PelcoD::Qt::QOnvifDevice::statusUpdated, this, &OnvifCameraTab::handleStatusUpdated);
+        connect(
+            m_onvifDevice, &PelcoD::Qt::QOnvifDevice::rebootCompleted, this, &OnvifCameraTab::handleRebootCompleted);
         connect(m_onvifDevice, &PelcoD::Qt::QOnvifDevice::imagingSettingsUpdated, this,
             &OnvifCameraTab::handleImagingSettingsUpdated);
-        connect(m_onvifDevice, &PelcoD::Qt::QOnvifDevice::eventReceived, this,
-            &OnvifCameraTab::handleEventReceived);
+        connect(m_onvifDevice, &PelcoD::Qt::QOnvifDevice::eventReceived, this, &OnvifCameraTab::handleEventReceived);
     }
 
     updateConnectionUi(false);
@@ -181,9 +176,8 @@ void OnvifCameraTab::setupUi()
     sliderBrightness->setValue(50);
     lblBrightnessVal = new QLabel("50", groupImaging);
     lblBrightnessVal->setFixedWidth(28);
-    connect(sliderBrightness, &QSlider::valueChanged, this, [this](int v) {
-        lblBrightnessVal->setText(QString::number(v));
-    });
+    connect(sliderBrightness, &QSlider::valueChanged, this,
+        [this](int v) { lblBrightnessVal->setText(QString::number(v)); });
     imgLayout->addWidget(sliderBrightness, 0, 1);
     imgLayout->addWidget(lblBrightnessVal, 0, 2);
 
@@ -194,9 +188,8 @@ void OnvifCameraTab::setupUi()
     sliderContrast->setValue(50);
     lblContrastVal = new QLabel("50", groupImaging);
     lblContrastVal->setFixedWidth(28);
-    connect(sliderContrast, &QSlider::valueChanged, this, [this](int v) {
-        lblContrastVal->setText(QString::number(v));
-    });
+    connect(
+        sliderContrast, &QSlider::valueChanged, this, [this](int v) { lblContrastVal->setText(QString::number(v)); });
     imgLayout->addWidget(sliderContrast, 1, 1);
     imgLayout->addWidget(lblContrastVal, 1, 2);
 
@@ -207,9 +200,8 @@ void OnvifCameraTab::setupUi()
     sliderSaturation->setValue(50);
     lblSaturationVal = new QLabel("50", groupImaging);
     lblSaturationVal->setFixedWidth(28);
-    connect(sliderSaturation, &QSlider::valueChanged, this, [this](int v) {
-        lblSaturationVal->setText(QString::number(v));
-    });
+    connect(sliderSaturation, &QSlider::valueChanged, this,
+        [this](int v) { lblSaturationVal->setText(QString::number(v)); });
     imgLayout->addWidget(sliderSaturation, 2, 1);
     imgLayout->addWidget(lblSaturationVal, 2, 2);
 
@@ -220,9 +212,8 @@ void OnvifCameraTab::setupUi()
     sliderSharpness->setValue(50);
     lblSharpnessVal = new QLabel("50", groupImaging);
     lblSharpnessVal->setFixedWidth(28);
-    connect(sliderSharpness, &QSlider::valueChanged, this, [this](int v) {
-        lblSharpnessVal->setText(QString::number(v));
-    });
+    connect(
+        sliderSharpness, &QSlider::valueChanged, this, [this](int v) { lblSharpnessVal->setText(QString::number(v)); });
     imgLayout->addWidget(sliderSharpness, 3, 1);
     imgLayout->addWidget(lblSharpnessVal, 3, 2);
 
@@ -327,9 +318,8 @@ void OnvifCameraTab::setupUi()
     sliderSpeed->setRange(1, 10);
     sliderSpeed->setValue(5);
     lblSpeedVal = new QLabel("0.5", groupPtz);
-    connect(sliderSpeed, &QSlider::valueChanged, this, [this](int val) {
-        lblSpeedVal->setText(QString::number(val / 10.0, 'f', 1));
-    });
+    connect(sliderSpeed, &QSlider::valueChanged, this,
+        [this](int val) { lblSpeedVal->setText(QString::number(val / 10.0, 'f', 1)); });
     speedLayout->addWidget(sliderSpeed);
     speedLayout->addWidget(lblSpeedVal);
 
@@ -460,8 +450,8 @@ void OnvifCameraTab::setupUi()
         &OnvifCameraTab::handleSelectDiscovered);
     connect(btnConnect, &QPushButton::clicked, this, &OnvifCameraTab::handleConnect);
     connect(btnDisconnect, &QPushButton::clicked, this, &OnvifCameraTab::handleDisconnect);
-    connect(cmbProfiles, QOverload<int>::of(&QComboBox::currentIndexChanged), this,
-        &OnvifCameraTab::handleProfileSelected);
+    connect(
+        cmbProfiles, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &OnvifCameraTab::handleProfileSelected);
     connect(btnCopyRtsp, &QPushButton::clicked, this, &OnvifCameraTab::handleCopyRtsp);
     connect(btnStreamInVideoTab, &QPushButton::clicked, this, &OnvifCameraTab::handleSendToVideoTab);
     connect(btnReboot, &QPushButton::clicked, this, &OnvifCameraTab::handleRebootCamera);
@@ -540,7 +530,7 @@ void OnvifCameraTab::handleDiscoveryFinished(const QList<PelcoD::Onvif::Discover
     cmbDiscovered->clear();
     cmbDiscovered->addItem(tr("-- Select Discovered Device (%1 found) --").arg(devices.size()), -1);
 
-    for (int i = 0; i < devices.size(); ++i) {
+    for (qsizetype i = 0; i < devices.size(); ++i) {
         const auto& d = devices[i];
         QString label = QString::fromStdString(d.ip);
         if (!d.hardware.empty()) {
@@ -548,7 +538,7 @@ void OnvifCameraTab::handleDiscoveryFinished(const QList<PelcoD::Onvif::Discover
         } else if (!d.name.empty()) {
             label += QString(" (%1)").arg(QString::fromStdString(d.name));
         }
-        cmbDiscovered->addItem(label, i);
+        cmbDiscovered->addItem(label, static_cast<int>(i));
     }
 
     if (!devices.empty()) {
@@ -773,10 +763,11 @@ void OnvifCameraTab::handleDeletePreset()
 void OnvifCameraTab::handlePresetsUpdated(const std::vector<PelcoD::Onvif::PtzPreset>& presets)
 {
     tablePresets->setRowCount(static_cast<int>(presets.size()));
-    for (int i = 0; i < static_cast<int>(presets.size()); ++i) {
+    for (size_t i = 0; i < presets.size(); ++i) {
         const auto& p = presets[i];
-        tablePresets->setItem(i, 0, new QTableWidgetItem(QString::fromStdString(p.token)));
-        tablePresets->setItem(i, 1, new QTableWidgetItem(QString::fromStdString(p.name)));
+        const int row = static_cast<int>(i);
+        tablePresets->setItem(row, 0, new QTableWidgetItem(QString::fromStdString(p.token)));
+        tablePresets->setItem(row, 1, new QTableWidgetItem(QString::fromStdString(p.name)));
     }
 }
 
@@ -785,8 +776,7 @@ void OnvifCameraTab::handleStatusUpdated(const PelcoD::Onvif::PtzStatus& status)
     lblTelemetryPanTilt->setText(
         tr("Pan/Tilt: (%1, %2)").arg(QString::number(status.pan, 'f', 2)).arg(QString::number(status.tilt, 'f', 2)));
     lblTelemetryZoom->setText(tr("Zoom: %1").arg(QString::number(status.zoom, 'f', 2)));
-    lblTelemetryMoving->setText(
-        status.isMoving ? tr("Status: MOVING") : tr("Status: IDLE"));
+    lblTelemetryMoving->setText(status.isMoving ? tr("Status: MOVING") : tr("Status: IDLE"));
     lblTelemetryMoving->setStyleSheet(
         status.isMoving ? "color: #d29922; font-weight: bold;" : "color: #7ee787; font-weight: bold;");
 }
