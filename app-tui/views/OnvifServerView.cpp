@@ -22,12 +22,16 @@ OnvifServerView::~OnvifServerView()
 }
 
 #if defined(PELCOD_ENABLE_ONVIF)
-void OnvifServerView::bindDevice(PelcoD::PelcoDDevice* device)
+void OnvifServerView::bindDevice(PelcoD::PelcoDDevice* device, PelcoD::PatrolController* patrol)
 {
     m_device = device;
+    m_patrol = patrol;
     if (m_device != nullptr && m_ptzBridgeEnabled) {
         auto nonOwning = std::shared_ptr<PelcoD::PelcoDDevice>(m_device, [](PelcoD::PelcoDDevice*) {});
         m_ptzAdapter = std::make_shared<PelcoD::Onvif::PelcoDPtzAdapter>(nonOwning);
+        if (m_patrol != nullptr) {
+            m_ptzAdapter->setPatrolController(m_patrol);
+        }
     } else {
         m_ptzAdapter.reset();
     }
@@ -48,6 +52,9 @@ bool OnvifServerView::startServer()
     if (m_ptzBridgeEnabled && m_device != nullptr && m_ptzAdapter == nullptr) {
         auto nonOwning = std::shared_ptr<PelcoD::PelcoDDevice>(m_device, [](PelcoD::PelcoDDevice*) {});
         m_ptzAdapter = std::make_shared<PelcoD::Onvif::PelcoDPtzAdapter>(nonOwning);
+        if (m_patrol != nullptr) {
+            m_ptzAdapter->setPatrolController(m_patrol);
+        }
     }
 
     try {

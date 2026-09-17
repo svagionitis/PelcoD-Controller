@@ -571,6 +571,200 @@ void testPelcoDPtzAdapter()
     std::cout << "[PASS] testPelcoDPtzAdapter" << std::endl;
 }
 
+void testPresetToursServerAndAdapter()
+{
+    std::cout << "[RUN] testPresetToursServerAndAdapter..." << std::endl;
+
+    auto mockTransport = std::make_shared<PelcoD::MockPelcoDDevice>(1U);
+    auto device = std::make_shared<PelcoD::PelcoDDevice>(mockTransport, 1U);
+    assert(device->start());
+
+    auto adapter = std::make_shared<PelcoDPtzAdapter>(device);
+    const std::string testDbPath = "test_tours.json";
+    std::remove(testDbPath.c_str());
+    adapter->setPersistencePath(testDbPath);
+
+    OnvifServerConfig config;
+    config.bindAddress = "127.0.0.1";
+    config.port = 18082; // Unique port
+    config.deviceName = "Preset Tour Test Camera";
+
+    OnvifServer server(config, adapter, adapter);
+    assert(server.start());
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+    httplib::Client client("127.0.0.1", 18082);
+    client.set_connection_timeout(std::chrono::seconds(2));
+    client.set_read_timeout(std::chrono::seconds(2));
+
+    // 1. GetPresetTourOptions
+    {
+        const std::string req = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+                                "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                "xmlns:tptz=\"http://www.onvif.org/ver20/ptz/wsdl\">\r\n"
+                                "  <SOAP-ENV:Body>\r\n"
+                                "    <tptz:GetPresetTourOptions>\r\n"
+                                "      <tptz:ProfileToken>ProfileToken_1</tptz:ProfileToken>\r\n"
+                                "    </tptz:GetPresetTourOptions>\r\n"
+                                "  </SOAP-ENV:Body>\r\n"
+                                "</SOAP-ENV:Envelope>";
+
+        auto res = client.Post("/onvif/ptz_service", req, "application/soap+xml; charset=utf-8");
+        assert(res && res->status == 200);
+
+        pugi::xml_document doc;
+        assert(doc.load_string(res->body.c_str()));
+        assert(doc.select_node("//*[local-name()='GetPresetTourOptionsResponse']"));
+        assert(doc.select_node("//*[local-name()='Options']"));
+    }
+
+    // 2. CreatePresetTour
+    std::string tourToken;
+    {
+        const std::string req = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+                                "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                "xmlns:tptz=\"http://www.onvif.org/ver20/ptz/wsdl\">\r\n"
+                                "  <SOAP-ENV:Body>\r\n"
+                                "    <tptz:CreatePresetTour>\r\n"
+                                "      <tptz:ProfileToken>ProfileToken_1</tptz:ProfileToken>\r\n"
+                                "    </tptz:CreatePresetTour>\r\n"
+                                "  </SOAP-ENV:Body>\r\n"
+                                "</SOAP-ENV:Envelope>";
+
+        auto res = client.Post("/onvif/ptz_service", req, "application/soap+xml; charset=utf-8");
+        assert(res && res->status == 200);
+
+        pugi::xml_document doc;
+        assert(doc.load_string(res->body.c_str()));
+        const auto tokenNode = doc.select_node("//*[local-name()='PresetTourToken']").node();
+        assert(tokenNode);
+        tourToken = tokenNode.text().as_string();
+        assert(!tourToken.empty());
+    }
+
+    // 3. ModifyPresetTour
+    {
+        const std::string req
+            = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+              "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+              "xmlns:tptz=\"http://www.onvif.org/ver20/ptz/wsdl\" xmlns:tt=\"http://www.onvif.org/ver10/schema\">\r\n"
+              "  <SOAP-ENV:Body>\r\n"
+              "    <tptz:ModifyPresetTour>\r\n"
+              "      <tptz:ProfileToken>ProfileToken_1</tptz:ProfileToken>\r\n"
+              "      <tptz:PresetTour token=\""
+            + tourToken
+            + "\">\r\n"
+              "        <tt:Name>Perimeter Scan</tt:Name>\r\n"
+              "        <tt:TourSpot>\r\n"
+              "          <tt:PresetDetail>\r\n"
+              "            <tt:PresetToken>1</tt:PresetToken>\r\n"
+              "          </tt:PresetDetail>\r\n"
+              "          <tt:Speed>\r\n"
+              "            <tt:PanTilt x=\"0.7\" y=\"0.7\"/>\r\n"
+              "          </tt:Speed>\r\n"
+              "          <tt:StayTime>PT5S</tt:StayTime>\r\n"
+              "        </tt:TourSpot>\r\n"
+              "      </tptz:PresetTour>\r\n"
+              "    </tptz:ModifyPresetTour>\r\n"
+              "  </SOAP-ENV:Body>\r\n"
+              "</SOAP-ENV:Envelope>";
+
+        auto res = client.Post("/onvif/ptz_service", req, "application/soap+xml; charset=utf-8");
+        assert(res && res->status == 200);
+    }
+
+    // 4. GetPresetTours
+    {
+        const std::string req = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+                                "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                "xmlns:tptz=\"http://www.onvif.org/ver20/ptz/wsdl\">\r\n"
+                                "  <SOAP-ENV:Body>\r\n"
+                                "    <tptz:GetPresetTours>\r\n"
+                                "      <tptz:ProfileToken>ProfileToken_1</tptz:ProfileToken>\r\n"
+                                "    </tptz:GetPresetTours>\r\n"
+                                "  </SOAP-ENV:Body>\r\n"
+                                "</SOAP-ENV:Envelope>";
+
+        auto res = client.Post("/onvif/ptz_service", req, "application/soap+xml; charset=utf-8");
+        assert(res && res->status == 200);
+
+        pugi::xml_document doc;
+        assert(doc.load_string(res->body.c_str()));
+        const auto tourNode = doc.select_node("//*[local-name()='PresetTour']").node();
+        assert(tourNode);
+        assert(std::string(tourNode.attribute("token").as_string()) == tourToken);
+        const auto nameNode = doc.select_node("//*[local-name()='Name']").node();
+        assert(nameNode && std::string(nameNode.text().as_string()) == "Perimeter Scan");
+    }
+
+    // 5. OperatePresetTour (Start, Pause, Stop)
+    for (const auto& op : { "Start", "Pause", "Stop" }) {
+        const std::string req = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+                                "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                "xmlns:tptz=\"http://www.onvif.org/ver20/ptz/wsdl\">\r\n"
+                                "  <SOAP-ENV:Body>\r\n"
+                                "    <tptz:OperatePresetTour>\r\n"
+                                "      <tptz:ProfileToken>ProfileToken_1</tptz:ProfileToken>\r\n"
+                                "      <tptz:PresetTourToken>"
+            + tourToken
+            + "</tptz:PresetTourToken>\r\n"
+              "      <tptz:Operation>"
+            + std::string(op)
+            + "</tptz:Operation>\r\n"
+              "    </tptz:OperatePresetTour>\r\n"
+              "  </SOAP-ENV:Body>\r\n"
+              "</SOAP-ENV:Envelope>";
+
+        auto res = client.Post("/onvif/ptz_service", req, "application/soap+xml; charset=utf-8");
+        assert(res && res->status == 200);
+    }
+
+    // 6. Test Persistence reload
+    {
+        PelcoDPtzAdapter adapterReloaded(device);
+        adapterReloaded.setPersistencePath(testDbPath);
+        const auto loadedTours = adapterReloaded.handleGetPresetTours();
+        assert(loadedTours.size() == 1);
+        assert(loadedTours[0].token == tourToken);
+        assert(loadedTours[0].name == "Perimeter Scan");
+        assert(loadedTours[0].spots.size() == 1);
+        assert(loadedTours[0].spots[0].presetToken == "1");
+        assert(loadedTours[0].spots[0].stayTimeSeconds == 5);
+    }
+
+    // 7. RemovePresetTour
+    {
+        const std::string req = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+                                "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                "xmlns:tptz=\"http://www.onvif.org/ver20/ptz/wsdl\">\r\n"
+                                "  <SOAP-ENV:Body>\r\n"
+                                "    <tptz:RemovePresetTour>\r\n"
+                                "      <tptz:ProfileToken>ProfileToken_1</tptz:ProfileToken>\r\n"
+                                "      <tptz:PresetTourToken>"
+            + tourToken
+            + "</tptz:PresetTourToken>\r\n"
+              "    </tptz:RemovePresetTour>\r\n"
+              "  </SOAP-ENV:Body>\r\n"
+              "</SOAP-ENV:Envelope>";
+
+        auto res = client.Post("/onvif/ptz_service", req, "application/soap+xml; charset=utf-8");
+        assert(res && res->status == 200);
+
+        const auto remaining = adapter->handleGetPresetTours();
+        assert(remaining.empty());
+    }
+
+    server.stop();
+    assert(!server.isRunning());
+    device->stop();
+
+    // Clean up test file
+    std::remove(testDbPath.c_str());
+
+    std::cout << "[PASS] testPresetToursServerAndAdapter" << std::endl;
+}
+
 int main()
 {
     std::cout << "Starting TestOnvifServer test suite..." << std::endl;
@@ -578,6 +772,7 @@ int main()
     testHttpSoapEndpoints();
     testProfileTImagingAndEvents();
     testPelcoDPtzAdapter();
+    testPresetToursServerAndAdapter();
     std::cout << "All TestOnvifServer tests passed successfully!" << std::endl;
     return 0;
 }

@@ -52,44 +52,44 @@ void testDiscoveryProbeGenerationAndParsing()
     assert(probe.find("dn:NetworkVideoTransmitter") != std::string::npos);
 
     // 2. Parse ProbeMatches response
-    const std::string probeMatchesXml =
-        "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n"
-        "<soap:Envelope xmlns:soap=\"http://www.w3.org/2003/05/soap-envelope\" "
-        "xmlns:wsa=\"http://schemas.xmlsoap.org/ws/2004/08/addressing\" "
-        "xmlns:d=\"http://schemas.xmlsoap.org/ws/2005/04/discovery\" "
-        "xmlns:dn=\"http://www.onvif.org/ver10/network/wsdl\">\n"
-        "  <soap:Body>\n"
-        "    <d:ProbeMatches>\n"
-        "      <d:ProbeMatch>\n"
-        "        <wsa:EndpointReference>\n"
-        "          <wsa:Address>urn:uuid:11111111-2222-3333-4444-555555555555</wsa:Address>\n"
-        "        </wsa:EndpointReference>\n"
-        "        <d:Types>dn:NetworkVideoTransmitter</d:Types>\n"
-        "        <d:Scopes>\n"
-        "          onvif://www.onvif.org/type/video_encoder\n"
-        "          onvif://www.onvif.org/type/ptz\n"
-        "          onvif://www.onvif.org/hardware/Spectra_IV\n"
-        "          onvif://www.onvif.org/name/NorthGateCamera\n"
-        "          onvif://www.onvif.org/location/Building_A\n"
-        "        </d:Scopes>\n"
-        "        <d:XAddrs>http://192.168.1.50/onvif/device_service</d:XAddrs>\n"
-        "        <d:MetadataVersion>1</d:MetadataVersion>\n"
-        "      </d:ProbeMatch>\n"
-        "      <d:ProbeMatch>\n"
-        "        <wsa:EndpointReference>\n"
-        "          <wsa:Address>urn:uuid:66666666-7777-8888-9999-000000000000</wsa:Address>\n"
-        "        </wsa:EndpointReference>\n"
-        "        <d:Types>dn:NetworkVideoTransmitter</d:Types>\n"
-        "        <d:Scopes>\n"
-        "          onvif://www.onvif.org/hardware/SX800\n"
-        "          onvif://www.onvif.org/name/PerimeterCam\n"
-        "        </d:Scopes>\n"
-        "        <d:XAddrs>http://192.168.1.60:8080/onvif/device_service</d:XAddrs>\n"
-        "        <d:MetadataVersion>1</d:MetadataVersion>\n"
-        "      </d:ProbeMatch>\n"
-        "    </d:ProbeMatches>\n"
-        "  </soap:Body>\n"
-        "</soap:Envelope>";
+    const std::string probeMatchesXml
+        = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n"
+          "<soap:Envelope xmlns:soap=\"http://www.w3.org/2003/05/soap-envelope\" "
+          "xmlns:wsa=\"http://schemas.xmlsoap.org/ws/2004/08/addressing\" "
+          "xmlns:d=\"http://schemas.xmlsoap.org/ws/2005/04/discovery\" "
+          "xmlns:dn=\"http://www.onvif.org/ver10/network/wsdl\">\n"
+          "  <soap:Body>\n"
+          "    <d:ProbeMatches>\n"
+          "      <d:ProbeMatch>\n"
+          "        <wsa:EndpointReference>\n"
+          "          <wsa:Address>urn:uuid:11111111-2222-3333-4444-555555555555</wsa:Address>\n"
+          "        </wsa:EndpointReference>\n"
+          "        <d:Types>dn:NetworkVideoTransmitter</d:Types>\n"
+          "        <d:Scopes>\n"
+          "          onvif://www.onvif.org/type/video_encoder\n"
+          "          onvif://www.onvif.org/type/ptz\n"
+          "          onvif://www.onvif.org/hardware/Spectra_IV\n"
+          "          onvif://www.onvif.org/name/NorthGateCamera\n"
+          "          onvif://www.onvif.org/location/Building_A\n"
+          "        </d:Scopes>\n"
+          "        <d:XAddrs>http://192.168.1.50/onvif/device_service</d:XAddrs>\n"
+          "        <d:MetadataVersion>1</d:MetadataVersion>\n"
+          "      </d:ProbeMatch>\n"
+          "      <d:ProbeMatch>\n"
+          "        <wsa:EndpointReference>\n"
+          "          <wsa:Address>urn:uuid:66666666-7777-8888-9999-000000000000</wsa:Address>\n"
+          "        </wsa:EndpointReference>\n"
+          "        <d:Types>dn:NetworkVideoTransmitter</d:Types>\n"
+          "        <d:Scopes>\n"
+          "          onvif://www.onvif.org/hardware/SX800\n"
+          "          onvif://www.onvif.org/name/PerimeterCam\n"
+          "        </d:Scopes>\n"
+          "        <d:XAddrs>http://192.168.1.60:8080/onvif/device_service</d:XAddrs>\n"
+          "        <d:MetadataVersion>1</d:MetadataVersion>\n"
+          "      </d:ProbeMatch>\n"
+          "    </d:ProbeMatches>\n"
+          "  </soap:Body>\n"
+          "</soap:Envelope>";
 
     const auto devices = PelcoD::Onvif::OnvifDiscovery::parseProbeMatches(probeMatchesXml, "192.168.1.50");
     assert(devices.size() == 2U);
@@ -111,32 +111,31 @@ void testDiscoveryProbeGenerationAndParsing()
 
 void testCapabilitiesParsing()
 {
-    const std::string xml =
-        "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
-        "xmlns:tds=\"http://www.onvif.org/ver10/device/wsdl\" "
-        "xmlns:tt=\"http://www.onvif.org/ver10/schema\">\n"
-        "  <SOAP-ENV:Body>\n"
-        "    <tds:GetCapabilitiesResponse>\n"
-        "      <tds:Capabilities>\n"
-        "        <tt:Device>\n"
-        "          <tt:XAddr>http://192.168.1.100/onvif/device_service</tt:XAddr>\n"
-        "        </tt:Device>\n"
-        "        <tt:Media>\n"
-        "          <tt:XAddr>http://192.168.1.100/onvif/media_service</tt:XAddr>\n"
-        "        </tt:Media>\n"
-        "        <tt:PTZ>\n"
-        "          <tt:XAddr>http://192.168.1.100/onvif/ptz_service</tt:XAddr>\n"
-        "        </tt:PTZ>\n"
-        "        <tt:Events>\n"
-        "          <tt:XAddr>http://192.168.1.100/onvif/events_service</tt:XAddr>\n"
-        "        </tt:Events>\n"
-        "        <tt:Imaging>\n"
-        "          <tt:XAddr>http://192.168.1.100/onvif/imaging_service</tt:XAddr>\n"
-        "        </tt:Imaging>\n"
-        "      </tds:Capabilities>\n"
-        "    </tds:GetCapabilitiesResponse>\n"
-        "  </SOAP-ENV:Body>\n"
-        "</SOAP-ENV:Envelope>";
+    const std::string xml = "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                            "xmlns:tds=\"http://www.onvif.org/ver10/device/wsdl\" "
+                            "xmlns:tt=\"http://www.onvif.org/ver10/schema\">\n"
+                            "  <SOAP-ENV:Body>\n"
+                            "    <tds:GetCapabilitiesResponse>\n"
+                            "      <tds:Capabilities>\n"
+                            "        <tt:Device>\n"
+                            "          <tt:XAddr>http://192.168.1.100/onvif/device_service</tt:XAddr>\n"
+                            "        </tt:Device>\n"
+                            "        <tt:Media>\n"
+                            "          <tt:XAddr>http://192.168.1.100/onvif/media_service</tt:XAddr>\n"
+                            "        </tt:Media>\n"
+                            "        <tt:PTZ>\n"
+                            "          <tt:XAddr>http://192.168.1.100/onvif/ptz_service</tt:XAddr>\n"
+                            "        </tt:PTZ>\n"
+                            "        <tt:Events>\n"
+                            "          <tt:XAddr>http://192.168.1.100/onvif/events_service</tt:XAddr>\n"
+                            "        </tt:Events>\n"
+                            "        <tt:Imaging>\n"
+                            "          <tt:XAddr>http://192.168.1.100/onvif/imaging_service</tt:XAddr>\n"
+                            "        </tt:Imaging>\n"
+                            "      </tds:Capabilities>\n"
+                            "    </tds:GetCapabilitiesResponse>\n"
+                            "  </SOAP-ENV:Body>\n"
+                            "</SOAP-ENV:Envelope>";
 
     const auto caps = PelcoD::Onvif::OnvifClient::parseCapabilitiesResponse(xml);
     assert(caps.has_value());
@@ -152,19 +151,18 @@ void testCapabilitiesParsing()
 
 void testDeviceInformationParsing()
 {
-    const std::string xml =
-        "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
-        "xmlns:tds=\"http://www.onvif.org/ver10/device/wsdl\">\n"
-        "  <SOAP-ENV:Body>\n"
-        "    <tds:GetDeviceInformationResponse>\n"
-        "      <tds:Manufacturer>Pelco</tds:Manufacturer>\n"
-        "      <tds:Model>Esprit HD PTZ</tds:Model>\n"
-        "      <tds:FirmwareVersion>2.5.0-build45</tds:FirmwareVersion>\n"
-        "      <tds:SerialNumber>PELCO-SN-998877</tds:SerialNumber>\n"
-        "      <tds:HardwareId>HW-ESPRIT-REV3</tds:HardwareId>\n"
-        "    </tds:GetDeviceInformationResponse>\n"
-        "  </SOAP-ENV:Body>\n"
-        "</SOAP-ENV:Envelope>";
+    const std::string xml = "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                            "xmlns:tds=\"http://www.onvif.org/ver10/device/wsdl\">\n"
+                            "  <SOAP-ENV:Body>\n"
+                            "    <tds:GetDeviceInformationResponse>\n"
+                            "      <tds:Manufacturer>Pelco</tds:Manufacturer>\n"
+                            "      <tds:Model>Esprit HD PTZ</tds:Model>\n"
+                            "      <tds:FirmwareVersion>2.5.0-build45</tds:FirmwareVersion>\n"
+                            "      <tds:SerialNumber>PELCO-SN-998877</tds:SerialNumber>\n"
+                            "      <tds:HardwareId>HW-ESPRIT-REV3</tds:HardwareId>\n"
+                            "    </tds:GetDeviceInformationResponse>\n"
+                            "  </SOAP-ENV:Body>\n"
+                            "</SOAP-ENV:Envelope>";
 
     const auto info = PelcoD::Onvif::OnvifClient::parseDeviceInformationResponse(xml);
     assert(info.has_value());
@@ -177,35 +175,34 @@ void testDeviceInformationParsing()
 
 void testProfilesParsing()
 {
-    const std::string xml =
-        "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
-        "xmlns:trt=\"http://www.onvif.org/ver10/media/wsdl\" "
-        "xmlns:tt=\"http://www.onvif.org/ver10/schema\">\n"
-        "  <SOAP-ENV:Body>\n"
-        "    <trt:GetProfilesResponse>\n"
-        "      <trt:Profiles token=\"Profile_1\">\n"
-        "        <tt:Name>MainStream_1080p</tt:Name>\n"
-        "        <tt:VideoEncoderConfiguration token=\"vec_1\">\n"
-        "          <tt:Encoding>H264</tt:Encoding>\n"
-        "          <tt:Resolution>\n"
-        "            <tt:Width>1920</tt:Width>\n"
-        "            <tt:Height>1080</tt:Height>\n"
-        "          </tt:Resolution>\n"
-        "        </tt:VideoEncoderConfiguration>\n"
-        "      </trt:Profiles>\n"
-        "      <trt:Profiles token=\"Profile_2\">\n"
-        "        <tt:Name>SubStream_VGA</tt:Name>\n"
-        "        <tt:VideoEncoderConfiguration token=\"vec_2\">\n"
-        "          <tt:Encoding>H265</tt:Encoding>\n"
-        "          <tt:Resolution>\n"
-        "            <tt:Width>640</tt:Width>\n"
-        "            <tt:Height>480</tt:Height>\n"
-        "          </tt:Resolution>\n"
-        "        </tt:VideoEncoderConfiguration>\n"
-        "      </trt:Profiles>\n"
-        "    </trt:GetProfilesResponse>\n"
-        "  </SOAP-ENV:Body>\n"
-        "</SOAP-ENV:Envelope>";
+    const std::string xml = "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                            "xmlns:trt=\"http://www.onvif.org/ver10/media/wsdl\" "
+                            "xmlns:tt=\"http://www.onvif.org/ver10/schema\">\n"
+                            "  <SOAP-ENV:Body>\n"
+                            "    <trt:GetProfilesResponse>\n"
+                            "      <trt:Profiles token=\"Profile_1\">\n"
+                            "        <tt:Name>MainStream_1080p</tt:Name>\n"
+                            "        <tt:VideoEncoderConfiguration token=\"vec_1\">\n"
+                            "          <tt:Encoding>H264</tt:Encoding>\n"
+                            "          <tt:Resolution>\n"
+                            "            <tt:Width>1920</tt:Width>\n"
+                            "            <tt:Height>1080</tt:Height>\n"
+                            "          </tt:Resolution>\n"
+                            "        </tt:VideoEncoderConfiguration>\n"
+                            "      </trt:Profiles>\n"
+                            "      <trt:Profiles token=\"Profile_2\">\n"
+                            "        <tt:Name>SubStream_VGA</tt:Name>\n"
+                            "        <tt:VideoEncoderConfiguration token=\"vec_2\">\n"
+                            "          <tt:Encoding>H265</tt:Encoding>\n"
+                            "          <tt:Resolution>\n"
+                            "            <tt:Width>640</tt:Width>\n"
+                            "            <tt:Height>480</tt:Height>\n"
+                            "          </tt:Resolution>\n"
+                            "        </tt:VideoEncoderConfiguration>\n"
+                            "      </trt:Profiles>\n"
+                            "    </trt:GetProfilesResponse>\n"
+                            "  </SOAP-ENV:Body>\n"
+                            "</SOAP-ENV:Envelope>";
 
     const auto profiles = PelcoD::Onvif::OnvifClient::parseProfilesResponse(xml);
     assert(profiles.size() == 2U);
@@ -225,21 +222,20 @@ void testProfilesParsing()
 
 void testStreamUriParsing()
 {
-    const std::string xml =
-        "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
-        "xmlns:trt=\"http://www.onvif.org/ver10/media/wsdl\" "
-        "xmlns:tt=\"http://www.onvif.org/ver10/schema\">\n"
-        "  <SOAP-ENV:Body>\n"
-        "    <trt:GetStreamUriResponse>\n"
-        "      <trt:MediaUri>\n"
-        "        <tt:Uri>rtsp://192.168.1.100:554/live/ch0</tt:Uri>\n"
-        "        <tt:InvalidAfterConnect>false</tt:InvalidAfterConnect>\n"
-        "        <tt:InvalidAfterReboot>true</tt:InvalidAfterReboot>\n"
-        "        <tt:Timeout>PT60S</tt:Timeout>\n"
-        "      </trt:MediaUri>\n"
-        "    </trt:GetStreamUriResponse>\n"
-        "  </SOAP-ENV:Body>\n"
-        "</SOAP-ENV:Envelope>";
+    const std::string xml = "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                            "xmlns:trt=\"http://www.onvif.org/ver10/media/wsdl\" "
+                            "xmlns:tt=\"http://www.onvif.org/ver10/schema\">\n"
+                            "  <SOAP-ENV:Body>\n"
+                            "    <trt:GetStreamUriResponse>\n"
+                            "      <trt:MediaUri>\n"
+                            "        <tt:Uri>rtsp://192.168.1.100:554/live/ch0</tt:Uri>\n"
+                            "        <tt:InvalidAfterConnect>false</tt:InvalidAfterConnect>\n"
+                            "        <tt:InvalidAfterReboot>true</tt:InvalidAfterReboot>\n"
+                            "        <tt:Timeout>PT60S</tt:Timeout>\n"
+                            "      </trt:MediaUri>\n"
+                            "    </trt:GetStreamUriResponse>\n"
+                            "  </SOAP-ENV:Body>\n"
+                            "</SOAP-ENV:Envelope>";
 
     const auto uriInfo = PelcoD::Onvif::OnvifClient::parseStreamUriResponse(xml);
     assert(uriInfo.has_value());
@@ -251,19 +247,18 @@ void testStreamUriParsing()
 
 void testSnapshotUriParsing()
 {
-    const std::string xml =
-        "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
-        "xmlns:trt=\"http://www.onvif.org/ver10/media/wsdl\" "
-        "xmlns:tt=\"http://www.onvif.org/ver10/schema\">\n"
-        "  <SOAP-ENV:Body>\n"
-        "    <trt:GetSnapshotUriResponse>\n"
-        "      <trt:MediaUri>\n"
-        "        <tt:Uri>http://192.168.1.100/onvif/snapshot/view.jpg</tt:Uri>\n"
-        "        <tt:Timeout>PT30S</tt:Timeout>\n"
-        "      </trt:MediaUri>\n"
-        "    </trt:GetSnapshotUriResponse>\n"
-        "  </SOAP-ENV:Body>\n"
-        "</SOAP-ENV:Envelope>";
+    const std::string xml = "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                            "xmlns:trt=\"http://www.onvif.org/ver10/media/wsdl\" "
+                            "xmlns:tt=\"http://www.onvif.org/ver10/schema\">\n"
+                            "  <SOAP-ENV:Body>\n"
+                            "    <trt:GetSnapshotUriResponse>\n"
+                            "      <trt:MediaUri>\n"
+                            "        <tt:Uri>http://192.168.1.100/onvif/snapshot/view.jpg</tt:Uri>\n"
+                            "        <tt:Timeout>PT30S</tt:Timeout>\n"
+                            "      </trt:MediaUri>\n"
+                            "    </trt:GetSnapshotUriResponse>\n"
+                            "  </SOAP-ENV:Body>\n"
+                            "</SOAP-ENV:Envelope>";
 
     const auto snapUri = PelcoD::Onvif::OnvifClient::parseSnapshotUriResponse(xml);
     assert(snapUri.has_value());
@@ -272,26 +267,25 @@ void testSnapshotUriParsing()
 
 void testPtzStatusParsing()
 {
-    const std::string xml =
-        "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
-        "xmlns:tptz=\"http://www.onvif.org/ver20/ptz/wsdl\" "
-        "xmlns:tt=\"http://www.onvif.org/ver10/schema\">\n"
-        "  <SOAP-ENV:Body>\n"
-        "    <tptz:GetStatusResponse>\n"
-        "      <tptz:PTZStatus>\n"
-        "        <tt:Position>\n"
-        "          <tt:PanTilt x=\"0.3500\" y=\"-0.2000\"/>\n"
-        "          <tt:Zoom x=\"0.7500\"/>\n"
-        "        </tt:Position>\n"
-        "        <tt:MoveStatus>\n"
-        "          <tt:PanTilt>MOVING</tt:PanTilt>\n"
-        "          <tt:Zoom>IDLE</tt:Zoom>\n"
-        "        </tt:MoveStatus>\n"
-        "        <tt:UtcTime>2026-09-16T19:00:00Z</tt:UtcTime>\n"
-        "      </tptz:PTZStatus>\n"
-        "    </tptz:GetStatusResponse>\n"
-        "  </SOAP-ENV:Body>\n"
-        "</SOAP-ENV:Envelope>";
+    const std::string xml = "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                            "xmlns:tptz=\"http://www.onvif.org/ver20/ptz/wsdl\" "
+                            "xmlns:tt=\"http://www.onvif.org/ver10/schema\">\n"
+                            "  <SOAP-ENV:Body>\n"
+                            "    <tptz:GetStatusResponse>\n"
+                            "      <tptz:PTZStatus>\n"
+                            "        <tt:Position>\n"
+                            "          <tt:PanTilt x=\"0.3500\" y=\"-0.2000\"/>\n"
+                            "          <tt:Zoom x=\"0.7500\"/>\n"
+                            "        </tt:Position>\n"
+                            "        <tt:MoveStatus>\n"
+                            "          <tt:PanTilt>MOVING</tt:PanTilt>\n"
+                            "          <tt:Zoom>IDLE</tt:Zoom>\n"
+                            "        </tt:MoveStatus>\n"
+                            "        <tt:UtcTime>2026-09-16T19:00:00Z</tt:UtcTime>\n"
+                            "      </tptz:PTZStatus>\n"
+                            "    </tptz:GetStatusResponse>\n"
+                            "  </SOAP-ENV:Body>\n"
+                            "</SOAP-ENV:Envelope>";
 
     const auto status = PelcoD::Onvif::OnvifClient::parsePtzStatusResponse(xml);
     assert(status.has_value());
@@ -305,29 +299,28 @@ void testPtzStatusParsing()
 void testPresetsParsing()
 {
     // 1. Parse GetPresetsResponse
-    const std::string getPresetsXml =
-        "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
-        "xmlns:tptz=\"http://www.onvif.org/ver20/ptz/wsdl\" "
-        "xmlns:tt=\"http://www.onvif.org/ver10/schema\">\n"
-        "  <SOAP-ENV:Body>\n"
-        "    <tptz:GetPresetsResponse>\n"
-        "      <tptz:Preset token=\"1\">\n"
-        "        <tt:Name>Gate Entrance</tt:Name>\n"
-        "        <tt:PTZPosition>\n"
-        "          <tt:PanTilt x=\"-0.5000\" y=\"0.1000\"/>\n"
-        "          <tt:Zoom x=\"0.4000\"/>\n"
-        "        </tt:PTZPosition>\n"
-        "      </tptz:Preset>\n"
-        "      <tptz:Preset token=\"2\">\n"
-        "        <tt:Name>Parking Lot</tt:Name>\n"
-        "        <tt:PTZPosition>\n"
-        "          <tt:PanTilt x=\"0.8000\" y=\"-0.3000\"/>\n"
-        "          <tt:Zoom x=\"1.0000\"/>\n"
-        "        </tt:PTZPosition>\n"
-        "      </tptz:Preset>\n"
-        "    </tptz:GetPresetsResponse>\n"
-        "  </SOAP-ENV:Body>\n"
-        "</SOAP-ENV:Envelope>";
+    const std::string getPresetsXml = "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                      "xmlns:tptz=\"http://www.onvif.org/ver20/ptz/wsdl\" "
+                                      "xmlns:tt=\"http://www.onvif.org/ver10/schema\">\n"
+                                      "  <SOAP-ENV:Body>\n"
+                                      "    <tptz:GetPresetsResponse>\n"
+                                      "      <tptz:Preset token=\"1\">\n"
+                                      "        <tt:Name>Gate Entrance</tt:Name>\n"
+                                      "        <tt:PTZPosition>\n"
+                                      "          <tt:PanTilt x=\"-0.5000\" y=\"0.1000\"/>\n"
+                                      "          <tt:Zoom x=\"0.4000\"/>\n"
+                                      "        </tt:PTZPosition>\n"
+                                      "      </tptz:Preset>\n"
+                                      "      <tptz:Preset token=\"2\">\n"
+                                      "        <tt:Name>Parking Lot</tt:Name>\n"
+                                      "        <tt:PTZPosition>\n"
+                                      "          <tt:PanTilt x=\"0.8000\" y=\"-0.3000\"/>\n"
+                                      "          <tt:Zoom x=\"1.0000\"/>\n"
+                                      "        </tt:PTZPosition>\n"
+                                      "      </tptz:Preset>\n"
+                                      "    </tptz:GetPresetsResponse>\n"
+                                      "  </SOAP-ENV:Body>\n"
+                                      "</SOAP-ENV:Envelope>";
 
     const auto presets = PelcoD::Onvif::OnvifClient::parsePresetsResponse(getPresetsXml);
     assert(presets.size() == 2U);
@@ -342,32 +335,92 @@ void testPresetsParsing()
     assert(presets[1].pan > 0.799 && presets[1].pan < 0.801);
 
     // 2. Parse SetPresetResponse
-    const std::string setPresetXml =
-        "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
-        "xmlns:tptz=\"http://www.onvif.org/ver20/ptz/wsdl\">\n"
-        "  <SOAP-ENV:Body>\n"
-        "    <tptz:SetPresetResponse>\n"
-        "      <tptz:PresetToken>preset_token_99</tptz:PresetToken>\n"
-        "    </tptz:SetPresetResponse>\n"
-        "  </SOAP-ENV:Body>\n"
-        "</SOAP-ENV:Envelope>";
+    const std::string setPresetXml = "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                     "xmlns:tptz=\"http://www.onvif.org/ver20/ptz/wsdl\">\n"
+                                     "  <SOAP-ENV:Body>\n"
+                                     "    <tptz:SetPresetResponse>\n"
+                                     "      <tptz:PresetToken>preset_token_99</tptz:PresetToken>\n"
+                                     "    </tptz:SetPresetResponse>\n"
+                                     "  </SOAP-ENV:Body>\n"
+                                     "</SOAP-ENV:Envelope>";
 
     const auto assignedToken = PelcoD::Onvif::OnvifClient::parseSetPresetResponse(setPresetXml);
     assert(assignedToken.has_value());
     assert(*assignedToken == "preset_token_99");
 }
 
+void testPresetToursParsing()
+{
+    const std::string toursXml = "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                 "xmlns:tptz=\"http://www.onvif.org/ver20/ptz/wsdl\" "
+                                 "xmlns:tt=\"http://www.onvif.org/ver10/schema\">\n"
+                                 "  <SOAP-ENV:Body>\n"
+                                 "    <tptz:GetPresetToursResponse>\n"
+                                 "      <tptz:PresetTour token=\"Tour_1\">\n"
+                                 "        <tt:Name>Perimeter Patrol</tt:Name>\n"
+                                 "        <tt:Status>\n"
+                                 "          <tt:State>Touring</tt:State>\n"
+                                 "        </tt:Status>\n"
+                                 "        <tt:TourSpot>\n"
+                                 "          <tt:PresetDetail>\n"
+                                 "            <tt:PresetToken>1</tt:PresetToken>\n"
+                                 "          </tt:PresetDetail>\n"
+                                 "          <tt:Speed>\n"
+                                 "            <tt:PanTilt x=\"0.8\" y=\"0.8\"/>\n"
+                                 "          </tt:Speed>\n"
+                                 "          <tt:StayTime>PT5S</tt:StayTime>\n"
+                                 "        </tt:TourSpot>\n"
+                                 "        <tt:TourSpot>\n"
+                                 "          <tt:PresetDetail>\n"
+                                 "            <tt:PresetToken>2</tt:PresetToken>\n"
+                                 "          </tt:PresetDetail>\n"
+                                 "          <tt:Speed>\n"
+                                 "            <tt:PanTilt x=\"0.5\" y=\"0.5\"/>\n"
+                                 "          </tt:Speed>\n"
+                                 "          <tt:StayTime>PT10S</tt:StayTime>\n"
+                                 "        </tt:TourSpot>\n"
+                                 "      </tptz:PresetTour>\n"
+                                 "    </tptz:GetPresetToursResponse>\n"
+                                 "  </SOAP-ENV:Body>\n"
+                                 "</SOAP-ENV:Envelope>";
+
+    const auto tours = PelcoD::Onvif::OnvifClient::parsePresetToursResponse(toursXml);
+    assert(tours.size() == 1);
+    assert(tours[0].token == "Tour_1");
+    assert(tours[0].name == "Perimeter Patrol");
+    assert(tours[0].status == PelcoD::Onvif::PresetTourState::Touring);
+    assert(tours[0].spots.size() == 2);
+    assert(tours[0].spots[0].presetToken == "1");
+    assert(std::abs(tours[0].spots[0].speed - 0.8f) < 0.01f);
+    assert(tours[0].spots[0].stayTimeSeconds == 5);
+    assert(tours[0].spots[1].presetToken == "2");
+    assert(std::abs(tours[0].spots[1].speed - 0.5f) < 0.01f);
+    assert(tours[0].spots[1].stayTimeSeconds == 10);
+
+    const std::string createXml = "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                  "xmlns:tptz=\"http://www.onvif.org/ver20/ptz/wsdl\">\n"
+                                  "  <SOAP-ENV:Body>\n"
+                                  "    <tptz:CreatePresetTourResponse>\n"
+                                  "      <tptz:PresetTourToken>Tour_99</tptz:PresetTourToken>\n"
+                                  "    </tptz:CreatePresetTourResponse>\n"
+                                  "  </SOAP-ENV:Body>\n"
+                                  "</SOAP-ENV:Envelope>";
+
+    const auto createdToken = PelcoD::Onvif::OnvifClient::parseCreatePresetTourResponse(createXml);
+    assert(createdToken.has_value());
+    assert(*createdToken == "Tour_99");
+}
+
 void testSystemRebootParsing()
 {
-    const std::string xml =
-        "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
-        "xmlns:tds=\"http://www.onvif.org/ver10/device/wsdl\">\n"
-        "  <SOAP-ENV:Body>\n"
-        "    <tds:SystemRebootResponse>\n"
-        "      <tds:Message>Device rebooting in 5 seconds</tds:Message>\n"
-        "    </tds:SystemRebootResponse>\n"
-        "  </SOAP-ENV:Body>\n"
-        "</SOAP-ENV:Envelope>";
+    const std::string xml = "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                            "xmlns:tds=\"http://www.onvif.org/ver10/device/wsdl\">\n"
+                            "  <SOAP-ENV:Body>\n"
+                            "    <tds:SystemRebootResponse>\n"
+                            "      <tds:Message>Device rebooting in 5 seconds</tds:Message>\n"
+                            "    </tds:SystemRebootResponse>\n"
+                            "  </SOAP-ENV:Body>\n"
+                            "</SOAP-ENV:Envelope>";
 
     const auto rebootMsg = PelcoD::Onvif::OnvifClient::parseSystemRebootResponse(xml);
     assert(rebootMsg.has_value());
@@ -393,33 +446,32 @@ void testSoapEnvelopeWrapping()
 
 void testImagingSettingsParsing()
 {
-    const std::string xml =
-        "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
-        "xmlns:timg=\"http://www.onvif.org/ver20/imaging/wsdl\" "
-        "xmlns:tt=\"http://www.onvif.org/ver10/schema\">\n"
-        "  <SOAP-ENV:Body>\n"
-        "    <timg:GetImagingSettingsResponse>\n"
-        "      <timg:ImagingSettings>\n"
-        "        <tt:Brightness>65.0</tt:Brightness>\n"
-        "        <tt:ColorSaturation>75.0</tt:ColorSaturation>\n"
-        "        <tt:Contrast>80.0</tt:Contrast>\n"
-        "        <tt:Sharpness>45.0</tt:Sharpness>\n"
-        "        <tt:IrCutFilter>AUTO</tt:IrCutFilter>\n"
-        "        <tt:BacklightCompensation>\n"
-        "          <tt:Mode>ON</tt:Mode>\n"
-        "          <tt:Level>50.0</tt:Level>\n"
-        "        </tt:BacklightCompensation>\n"
-        "        <tt:WideDynamicRange>\n"
-        "          <tt:Mode>OFF</tt:Mode>\n"
-        "          <tt:Level>0.0</tt:Level>\n"
-        "        </tt:WideDynamicRange>\n"
-        "        <tt:Focus>\n"
-        "          <tt:AutoFocusMode>MANUAL</tt:AutoFocusMode>\n"
-        "        </tt:Focus>\n"
-        "      </timg:ImagingSettings>\n"
-        "    </timg:GetImagingSettingsResponse>\n"
-        "  </SOAP-ENV:Body>\n"
-        "</SOAP-ENV:Envelope>";
+    const std::string xml = "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                            "xmlns:timg=\"http://www.onvif.org/ver20/imaging/wsdl\" "
+                            "xmlns:tt=\"http://www.onvif.org/ver10/schema\">\n"
+                            "  <SOAP-ENV:Body>\n"
+                            "    <timg:GetImagingSettingsResponse>\n"
+                            "      <timg:ImagingSettings>\n"
+                            "        <tt:Brightness>65.0</tt:Brightness>\n"
+                            "        <tt:ColorSaturation>75.0</tt:ColorSaturation>\n"
+                            "        <tt:Contrast>80.0</tt:Contrast>\n"
+                            "        <tt:Sharpness>45.0</tt:Sharpness>\n"
+                            "        <tt:IrCutFilter>AUTO</tt:IrCutFilter>\n"
+                            "        <tt:BacklightCompensation>\n"
+                            "          <tt:Mode>ON</tt:Mode>\n"
+                            "          <tt:Level>50.0</tt:Level>\n"
+                            "        </tt:BacklightCompensation>\n"
+                            "        <tt:WideDynamicRange>\n"
+                            "          <tt:Mode>OFF</tt:Mode>\n"
+                            "          <tt:Level>0.0</tt:Level>\n"
+                            "        </tt:WideDynamicRange>\n"
+                            "        <tt:Focus>\n"
+                            "          <tt:AutoFocusMode>MANUAL</tt:AutoFocusMode>\n"
+                            "        </tt:Focus>\n"
+                            "      </timg:ImagingSettings>\n"
+                            "    </timg:GetImagingSettingsResponse>\n"
+                            "  </SOAP-ENV:Body>\n"
+                            "</SOAP-ENV:Envelope>";
 
     const auto settings = PelcoD::Onvif::OnvifClient::parseImagingSettingsResponse(xml);
     assert(settings.has_value());
@@ -437,58 +489,58 @@ void testImagingSettingsParsing()
 void testPullPointEventsParsing()
 {
     // 1. Parse subscription creation response
-    const std::string subXml =
-        "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
-        "xmlns:wsa=\"http://www.w3.org/2005/08/addressing\" "
-        "xmlns:tev=\"http://www.onvif.org/ver10/events/wsdl\">\n"
-        "  <SOAP-ENV:Body>\n"
-        "    <tev:CreatePullPointSubscriptionResponse>\n"
-        "      <tev:SubscriptionReference>\n"
-        "        <wsa:Address>http://192.168.1.100:8080/onvif/Subscription?idx=42</wsa:Address>\n"
-        "      </tev:SubscriptionReference>\n"
-        "      <wsnt:CurrentTime>2026-09-16T20:40:00Z</wsnt:CurrentTime>\n"
-        "      <wsnt:TerminationTime>2026-09-16T20:41:00Z</wsnt:TerminationTime>\n"
-        "    </tev:CreatePullPointSubscriptionResponse>\n"
-        "  </SOAP-ENV:Body>\n"
-        "</SOAP-ENV:Envelope>";
+    const std::string subXml
+        = "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+          "xmlns:wsa=\"http://www.w3.org/2005/08/addressing\" "
+          "xmlns:tev=\"http://www.onvif.org/ver10/events/wsdl\">\n"
+          "  <SOAP-ENV:Body>\n"
+          "    <tev:CreatePullPointSubscriptionResponse>\n"
+          "      <tev:SubscriptionReference>\n"
+          "        <wsa:Address>http://192.168.1.100:8080/onvif/Subscription?idx=42</wsa:Address>\n"
+          "      </tev:SubscriptionReference>\n"
+          "      <wsnt:CurrentTime>2026-09-16T20:40:00Z</wsnt:CurrentTime>\n"
+          "      <wsnt:TerminationTime>2026-09-16T20:41:00Z</wsnt:TerminationTime>\n"
+          "    </tev:CreatePullPointSubscriptionResponse>\n"
+          "  </SOAP-ENV:Body>\n"
+          "</SOAP-ENV:Envelope>";
 
     const auto subUrl = PelcoD::Onvif::OnvifClient::parseCreatePullPointSubscriptionResponse(subXml);
     assert(subUrl.has_value());
     assert(*subUrl == "http://192.168.1.100:8080/onvif/Subscription?idx=42");
 
     // 2. Parse pull messages response with motion & tamper events
-    const std::string pullXml =
-        "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
-        "xmlns:wsnt=\"http://docs.oasis-open.org/wsn/b-2\" "
-        "xmlns:tt=\"http://www.onvif.org/ver10/schema\" "
-        "xmlns:tev=\"http://www.onvif.org/ver10/events/wsdl\">\n"
-        "  <SOAP-ENV:Body>\n"
-        "    <tev:PullMessagesResponse>\n"
-        "      <wsnt:NotificationMessage>\n"
-        "        <wsnt:Topic>tns1:RuleEngine/CellMotionDetector/Motion</wsnt:Topic>\n"
-        "        <wsnt:Message UtcTime=\"2026-09-16T20:40:05Z\">\n"
-        "          <tt:Source>\n"
-        "            <tt:SimpleItem Name=\"VideoSourceConfigurationToken\" Value=\"VideoSource_1\"/>\n"
-        "          </tt:Source>\n"
-        "          <tt:Data>\n"
-        "            <tt:SimpleItem Name=\"IsMotion\" Value=\"true\"/>\n"
-        "          </tt:Data>\n"
-        "        </wsnt:Message>\n"
-        "      </wsnt:NotificationMessage>\n"
-        "      <wsnt:NotificationMessage>\n"
-        "        <wsnt:Topic>tns1:VideoSource/ImageTooDark/AnalyticsService</wsnt:Topic>\n"
-        "        <wsnt:Message UtcTime=\"2026-09-16T20:40:06Z\">\n"
-        "          <tt:Source>\n"
-        "            <tt:SimpleItem Name=\"Source\" Value=\"Source_0\"/>\n"
-        "          </tt:Source>\n"
-        "          <tt:Data>\n"
-        "            <tt:SimpleItem Name=\"State\" Value=\"ACTIVE\"/>\n"
-        "          </tt:Data>\n"
-        "        </wsnt:Message>\n"
-        "      </wsnt:NotificationMessage>\n"
-        "    </tev:PullMessagesResponse>\n"
-        "  </SOAP-ENV:Body>\n"
-        "</SOAP-ENV:Envelope>";
+    const std::string pullXml
+        = "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+          "xmlns:wsnt=\"http://docs.oasis-open.org/wsn/b-2\" "
+          "xmlns:tt=\"http://www.onvif.org/ver10/schema\" "
+          "xmlns:tev=\"http://www.onvif.org/ver10/events/wsdl\">\n"
+          "  <SOAP-ENV:Body>\n"
+          "    <tev:PullMessagesResponse>\n"
+          "      <wsnt:NotificationMessage>\n"
+          "        <wsnt:Topic>tns1:RuleEngine/CellMotionDetector/Motion</wsnt:Topic>\n"
+          "        <wsnt:Message UtcTime=\"2026-09-16T20:40:05Z\">\n"
+          "          <tt:Source>\n"
+          "            <tt:SimpleItem Name=\"VideoSourceConfigurationToken\" Value=\"VideoSource_1\"/>\n"
+          "          </tt:Source>\n"
+          "          <tt:Data>\n"
+          "            <tt:SimpleItem Name=\"IsMotion\" Value=\"true\"/>\n"
+          "          </tt:Data>\n"
+          "        </wsnt:Message>\n"
+          "      </wsnt:NotificationMessage>\n"
+          "      <wsnt:NotificationMessage>\n"
+          "        <wsnt:Topic>tns1:VideoSource/ImageTooDark/AnalyticsService</wsnt:Topic>\n"
+          "        <wsnt:Message UtcTime=\"2026-09-16T20:40:06Z\">\n"
+          "          <tt:Source>\n"
+          "            <tt:SimpleItem Name=\"Source\" Value=\"Source_0\"/>\n"
+          "          </tt:Source>\n"
+          "          <tt:Data>\n"
+          "            <tt:SimpleItem Name=\"State\" Value=\"ACTIVE\"/>\n"
+          "          </tt:Data>\n"
+          "        </wsnt:Message>\n"
+          "      </wsnt:NotificationMessage>\n"
+          "    </tev:PullMessagesResponse>\n"
+          "  </SOAP-ENV:Body>\n"
+          "</SOAP-ENV:Envelope>";
 
     const auto events = PelcoD::Onvif::OnvifClient::parsePullMessagesResponse(pullXml);
     assert(events.size() == 2U);
@@ -547,6 +599,10 @@ int main()
     std::cout << "[RUN] Testing ONVIF PTZ Presets XML Parsing...\n";
     testPresetsParsing();
     std::cout << "[PASS] PTZ Presets XML Parsing\n";
+
+    std::cout << "[RUN] Testing ONVIF PTZ Preset Tours XML Parsing...\n";
+    testPresetToursParsing();
+    std::cout << "[PASS] PTZ Preset Tours XML Parsing\n";
 
     std::cout << "[RUN] Testing ONVIF SystemReboot XML Parsing...\n";
     testSystemRebootParsing();

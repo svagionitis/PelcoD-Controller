@@ -71,6 +71,17 @@ private slots:
     void handlePresetsUpdated(const std::vector<PelcoD::Onvif::PtzPreset>& presets);
     void handleStatusUpdated(const PelcoD::Onvif::PtzStatus& status);
 
+    // Preset Tours / Patrols
+    void handleRefreshTours();
+    void handleTourSelected(int index);
+    void handleStartTour();
+    void handlePauseTour();
+    void handleStopTour();
+    void handleAddTourStep();
+    void handleRemoveTourStep();
+    void handleSaveTour();
+    void handleToursUpdated(const std::vector<PelcoD::Onvif::PresetTour>& tours);
+
     // Maintenance
     void handleRebootCamera();
     void handleRebootCompleted(bool success);
@@ -140,6 +151,18 @@ private:
     QPushButton* btnGotoPreset { nullptr };
     QPushButton* btnSavePreset { nullptr };
     QPushButton* btnDeletePreset { nullptr };
+
+    // Preset Tours / Patrols
+    QComboBox* cmbPresetTours { nullptr };
+    QPushButton* btnRefreshTours { nullptr };
+    QPushButton* btnStartTour { nullptr };
+    QPushButton* btnPauseTour { nullptr };
+    QPushButton* btnStopTour { nullptr };
+    QLabel* lblTourStatus { nullptr };
+    QTableWidget* tableTourSpots { nullptr };
+    QPushButton* btnAddTourStep { nullptr };
+    QPushButton* btnRemoveTourStep { nullptr };
+    QPushButton* btnSaveTour { nullptr };
 
     // Profile T: Optical & Imaging widgets
     QSlider* sliderBrightness { nullptr };

@@ -95,4 +95,30 @@ struct OnvifEvent {
     std::string utcTime {}; ///< Notification timestamp from camera
 };
 
+/// @enum PresetTourOperation
+/// @brief Execution command for an ONVIF Preset Tour.
+enum class PresetTourOperation : std::uint8_t { Start, Stop, Pause };
+
+/// @enum PresetTourState
+/// @brief Operational status of an ONVIF Preset Tour.
+enum class PresetTourState : std::uint8_t { Idle, Touring, Paused, Extended };
+
+/// @struct PresetTourSpot
+/// @brief A waypoint/destination preset within an ONVIF Preset Tour.
+struct PresetTourSpot {
+    std::string presetToken {}; ///< Target preset token, e.g. "1" or "Preset_1"
+    float speed { 1.0f }; ///< Speed ratio [0.0 to 1.0]
+    std::uint32_t stayTimeSeconds { 5U }; ///< Dwell duration in seconds at this preset
+};
+
+/// @struct PresetTour
+/// @brief Sequence of presets visited in an automated tour (ONVIF PTZ Service).
+struct PresetTour {
+    std::string token {}; ///< Unique tour token identifier, e.g. "Tour_1"
+    std::string name {}; ///< User-friendly tour label, e.g. "Perimeter Patrol"
+    PresetTourState status { PresetTourState::Idle }; ///< Current operational status
+    bool autoStart { false }; ///< Automatically start tour upon boot/profile activation
+    std::vector<PresetTourSpot> spots {}; ///< Sequence of tour spots
+};
+
 } // namespace PelcoD::Onvif

@@ -1,7 +1,11 @@
 #include "PelcoDPtzAdapter.h"
+#include <PelcoDCore/PatrolController.h>
 
 #include <algorithm>
+#include <cctype>
 #include <cmath>
+#include <fstream>
+#include <sstream>
 
 namespace PelcoD::Onvif {
 
@@ -12,6 +16,7 @@ PelcoDPtzAdapter::PelcoDPtzAdapter(std::shared_ptr<PelcoD::PelcoDDevice> device)
         m_statusConn = m_device->addStatusCallback(
             [this](const PelcoD::DeviceStatus& status) { onDeviceStatusUpdated(status); });
     }
+    loadTours();
 }
 
 PelcoDPtzAdapter::~PelcoDPtzAdapter()
@@ -212,6 +217,242 @@ PtzStatus PelcoDPtzAdapter::handleGetStatus()
     status.zoom = static_cast<float>(devStatus.zoomPosition) / 65535.0f;
     status.isMoving = m_isMoving.load();
     return status;
+}
+
+void PelcoDPtzAdapter::setPatrolController(std::shared_ptr<PelcoD::PatrolController> patrol)
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    m_sharedPatrol = std::move(patrol);
+    m_patrol = m_sharedPatrol.get();
+}
+
+void PelcoDPtzAdapter::setPatrolController(PelcoD::PatrolController* patrol)
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    m_patrol = patrol;
+}
+
+void PelcoDPtzAdapter::setPersistencePath(const std::string& path)
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    m_persistencePath = path;
+    loadTours();
+}
+
+std::vector<PresetTour> PelcoDPtzAdapter::handleGetPresetTours()
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    std::vector<PresetTour> result {};
+    result.reserve(m_tours.size());
+    for (const auto& [tok, tour] : m_tours) {
+        result.push_back(tour);
+    }
+    return result;
+}
+
+std::optional<PresetTour> PelcoDPtzAdapter::handleGetPresetTour(const std::string& tourToken)
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    const auto it = m_tours.find(tourToken);
+    if (it != m_tours.end()) {
+        return it->second;
+    }
+    return std::nullopt;
+}
+
+std::string PelcoDPtzAdapter::handleCreatePresetTour()
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    std::string token = "Tour_" + std::to_string(m_nextTourId++);
+    PresetTour tour {};
+    tour.token = token;
+    tour.name = "Patrol Tour " + std::to_string(m_nextTourId - 1);
+    tour.status = PresetTourState::Idle;
+    tour.autoStart = false;
+    m_tours[token] = tour;
+    saveTours();
+    return token;
+}
+
+bool PelcoDPtzAdapter::handleModifyPresetTour(const PresetTour& tour)
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    m_tours[tour.token] = tour;
+    saveTours();
+    return true;
+}
+
+bool PelcoDPtzAdapter::handleOperatePresetTour(const std::string& tourToken, PresetTourOperation op)
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    auto it = m_tours.find(tourToken);
+    if (it == m_tours.end()) {
+        return false;
+    }
+
+    auto& tour = it->second;
+    PelcoD::PatrolController* patrol = m_patrol ? m_patrol : m_sharedPatrol.get();
+
+    if (op == PresetTourOperation::Start) {
+        tour.status = PresetTourState::Touring;
+        if (patrol) {
+            std::vector<PelcoD::PatrolStep> steps {};
+            for (const auto& spot : tour.spots) {
+                PelcoD::PatrolStep step {};
+                try {
+                    step.presetId = static_cast<std::uint8_t>(std::stoul(spot.presetToken));
+                } catch (...) {
+                    step.presetId = 1U;
+                }
+                step.dwellTimeSeconds = spot.stayTimeSeconds;
+                step.speed = static_cast<std::uint8_t>(std::clamp(spot.speed * 63.0f, 0.0f, 63.0f));
+                steps.push_back(step);
+            }
+            if (!steps.empty()) {
+                patrol->setSteps(steps);
+                patrol->setLoop(true);
+                patrol->start();
+            }
+        }
+        return true;
+    } else if (op == PresetTourOperation::Stop) {
+        tour.status = PresetTourState::Idle;
+        if (patrol) {
+            patrol->stop();
+        }
+        return true;
+    } else if (op == PresetTourOperation::Pause) {
+        tour.status = PresetTourState::Paused;
+        if (patrol) {
+            patrol->pause();
+        }
+        return true;
+    }
+    return false;
+}
+
+bool PelcoDPtzAdapter::handleRemovePresetTour(const std::string& tourToken)
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    const bool removed = m_tours.erase(tourToken) > 0;
+    if (removed) {
+        saveTours();
+    }
+    return removed;
+}
+
+void PelcoDPtzAdapter::saveTours()
+{
+    if (m_persistencePath.empty()) {
+        return;
+    }
+    std::ofstream out(m_persistencePath);
+    if (!out.is_open()) {
+        return;
+    }
+    out << "[\n";
+    bool firstTour = true;
+    for (const auto& [token, tour] : m_tours) {
+        if (!firstTour) {
+            out << ",\n";
+        }
+        firstTour = false;
+        out << "  {\n"
+            << "    \"token\": \"" << tour.token << "\",\n"
+            << "    \"name\": \"" << tour.name << "\",\n"
+            << "    \"autoStart\": " << (tour.autoStart ? "true" : "false") << ",\n"
+            << "    \"spots\": [\n";
+        bool firstSpot = true;
+        for (const auto& spot : tour.spots) {
+            if (!firstSpot) {
+                out << ",\n";
+            }
+            firstSpot = false;
+            out << "      { \"presetToken\": \"" << spot.presetToken << "\", \"speed\": " << spot.speed
+                << ", \"stayTime\": " << spot.stayTimeSeconds << " }";
+        }
+        out << "\n    ]\n  }";
+    }
+    out << "\n]\n";
+}
+
+void PelcoDPtzAdapter::loadTours()
+{
+    if (m_persistencePath.empty()) {
+        return;
+    }
+    std::ifstream in(m_persistencePath);
+    if (!in.is_open()) {
+        return;
+    }
+    std::string content((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+    if (content.empty()) {
+        return;
+    }
+
+    std::size_t pos = 0;
+    while ((pos = content.find("\"token\":", pos)) != std::string::npos) {
+        pos += 8;
+        auto q1 = content.find('"', pos);
+        if (q1 == std::string::npos) {
+            break;
+        }
+        auto q2 = content.find('"', q1 + 1);
+        if (q2 == std::string::npos) {
+            break;
+        }
+        std::string token = content.substr(q1 + 1, q2 - q1 - 1);
+        pos = q2 + 1;
+
+        PresetTour tour {};
+        tour.token = token;
+
+        auto nextTokPos = content.find("\"token\":", pos);
+
+        auto nPos = content.find("\"name\":", pos);
+        if (nPos != std::string::npos && (nextTokPos == std::string::npos || nPos < nextTokPos)) {
+            auto nq1 = content.find('"', nPos + 7);
+            if (nq1 != std::string::npos) {
+                auto nq2 = content.find('"', nq1 + 1);
+                if (nq2 != std::string::npos) {
+                    tour.name = content.substr(nq1 + 1, nq2 - nq1 - 1);
+                }
+            }
+        }
+
+        auto spotsPos = content.find("\"spots\":", pos);
+        if (spotsPos != std::string::npos && (nextTokPos == std::string::npos || spotsPos < nextTokPos)) {
+            auto closeBracket = content.find(']', spotsPos);
+            std::size_t spotPos = spotsPos;
+            while ((spotPos = content.find("\"presetToken\":", spotPos)) != std::string::npos
+                && (closeBracket == std::string::npos || spotPos < closeBracket)) {
+                spotPos += 14;
+                auto sq1 = content.find('"', spotPos);
+                if (sq1 == std::string::npos) {
+                    break;
+                }
+                auto sq2 = content.find('"', sq1 + 1);
+                if (sq2 == std::string::npos) {
+                    break;
+                }
+                PresetTourSpot spot {};
+                spot.presetToken = content.substr(sq1 + 1, sq2 - sq1 - 1);
+                spotPos = sq2 + 1;
+
+                auto spdPos = content.find("\"speed\":", spotPos);
+                if (spdPos != std::string::npos && (closeBracket == std::string::npos || spdPos < closeBracket)) {
+                    spot.speed = std::stof(content.substr(spdPos + 8));
+                }
+                auto stayPos = content.find("\"stayTime\":", spotPos);
+                if (stayPos != std::string::npos && (closeBracket == std::string::npos || stayPos < closeBracket)) {
+                    spot.stayTimeSeconds = static_cast<std::uint32_t>(std::stoul(content.substr(stayPos + 11)));
+                }
+                tour.spots.push_back(std::move(spot));
+            }
+        }
+
+        m_tours[tour.token] = tour;
+    }
 }
 
 ImagingSettings PelcoDPtzAdapter::handleGetImagingSettings(const std::string& /*videoSourceToken*/)

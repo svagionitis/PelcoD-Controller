@@ -8,6 +8,7 @@
 #include <cstdint>
 #include <functional>
 #include <memory>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -135,6 +136,53 @@ public:
     /// @brief Retrieves the current PTZ position and moving status.
     /// @return Current status snapshot.
     [[nodiscard]] virtual PtzStatus handleGetStatus() = 0;
+
+    /// @brief Retrieves all configured preset tours.
+    /// @return List of PresetTour objects.
+    [[nodiscard]] virtual std::vector<PresetTour> handleGetPresetTours()
+    {
+        return {};
+    }
+
+    /// @brief Retrieves a specific preset tour by token.
+    /// @param[in] tourToken Identifier token of the tour.
+    /// @return PresetTour struct or nullopt if not found.
+    [[nodiscard]] virtual std::optional<PresetTour> handleGetPresetTour(const std::string& /*tourToken*/)
+    {
+        return std::nullopt;
+    }
+
+    /// @brief Creates a new empty preset tour and returns its assigned token.
+    /// @return Assigned preset tour token.
+    [[nodiscard]] virtual std::string handleCreatePresetTour()
+    {
+        return {};
+    }
+
+    /// @brief Modifies an existing preset tour's configuration and spots.
+    /// @param[in] tour Updated tour parameters and spots.
+    /// @return True if modified successfully.
+    [[nodiscard]] virtual bool handleModifyPresetTour(const PresetTour& /*tour*/)
+    {
+        return false;
+    }
+
+    /// @brief Controls execution of a preset tour (Start, Stop, Pause).
+    /// @param[in] tourToken Tour identifier token.
+    /// @param[in] op Operation to execute.
+    /// @return True if operation succeeded.
+    [[nodiscard]] virtual bool handleOperatePresetTour(const std::string& /*tourToken*/, PresetTourOperation /*op*/)
+    {
+        return false;
+    }
+
+    /// @brief Deletes a preset tour.
+    /// @param[in] tourToken Tour identifier token to remove.
+    /// @return True if removed successfully.
+    [[nodiscard]] virtual bool handleRemovePresetTour(const std::string& /*tourToken*/)
+    {
+        return false;
+    }
 };
 
 } // namespace PelcoD::Onvif

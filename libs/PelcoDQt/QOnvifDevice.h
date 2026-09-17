@@ -54,6 +54,13 @@ public:
     /// @return List of PtzPreset records.
     [[nodiscard]] std::vector<PelcoD::Onvif::PtzPreset> presets() const;
 
+    /// @brief Gets cached preset tours for current profile.
+    /// @return List of PresetTour records.
+    [[nodiscard]] std::vector<PelcoD::Onvif::PresetTour> presetTours() const
+    {
+        return m_presetTours;
+    }
+
     /// @brief Gets camera hardware identification metadata.
     /// @return DeviceInformation struct.
     [[nodiscard]] PelcoD::Onvif::DeviceInformation deviceInformation() const;
@@ -137,6 +144,31 @@ public Q_SLOTS:
     /// @return True on success.
     bool removePreset(const QString& presetToken);
 
+    /// @brief Queries list of configured preset tours for active profile.
+    void refreshPresetTours();
+
+    /// @brief Operates a preset tour (Start, Stop, Pause).
+    /// @param[in] tourToken Tour identifier token.
+    /// @param[in] operation "Start", "Stop", or "Pause".
+    /// @return True on success.
+    bool operatePresetTour(const QString& tourToken, const QString& operation);
+
+    /// @brief Operates a preset tour using typed operation enum.
+    /// @param[in] tourToken Tour identifier token.
+    /// @param[in] operation PresetTourOperation enum.
+    /// @return True on success.
+    bool operatePresetTour(const QString& tourToken, PelcoD::Onvif::PresetTourOperation operation);
+
+    /// @brief Modifies a preset tour sequence.
+    /// @param[in] tour Preset tour details and spots.
+    /// @return True on success.
+    bool modifyPresetTour(const PelcoD::Onvif::PresetTour& tour);
+
+    /// @brief Deletes a preset tour.
+    /// @param[in] tourToken Tour identifier token.
+    /// @return True on success.
+    bool removePresetTour(const QString& tourToken);
+
     /// @brief Resolves HTTP snapshot URI for active profile.
     /// @return Resolved URI string.
     QString resolveSnapshotUri();
@@ -211,6 +243,10 @@ Q_SIGNALS:
     /// @param[in] presets List of camera presets.
     void presetsUpdated(const std::vector<PelcoD::Onvif::PtzPreset>& presets);
 
+    /// @brief Emitted when preset tours list is refreshed.
+    /// @param[in] tours List of camera preset tours.
+    void presetToursUpdated(const std::vector<PelcoD::Onvif::PresetTour>& tours);
+
     /// @brief Emitted when reboot request completes.
     /// @param[in] success True if reboot was accepted.
     void rebootCompleted(bool success);
@@ -243,6 +279,7 @@ private:
     QString m_snapshotUri {};
     std::vector<PelcoD::Onvif::MediaProfile> m_profiles {};
     std::vector<PelcoD::Onvif::PtzPreset> m_presets {};
+    std::vector<PelcoD::Onvif::PresetTour> m_presetTours {};
     PelcoD::Onvif::DeviceInformation m_deviceInfo {};
     PelcoD::Onvif::ImagingSettings m_imagingSettings {};
     QString m_eventSubscriptionUrl {};

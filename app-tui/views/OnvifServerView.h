@@ -18,6 +18,10 @@
 #include <mutex>
 #include <string>
 
+namespace PelcoD {
+class PatrolController;
+}
+
 namespace PelcoDTui {
 
 /// @class OnvifServerView
@@ -34,9 +38,10 @@ public:
     OnvifServerView& operator=(OnvifServerView&&) = delete;
 
 #if defined(PELCOD_ENABLE_ONVIF)
-    /// @brief Associates an active PelcoDDevice instance with the ONVIF PTZ bridge.
+    /// @brief Associates an active PelcoDDevice and optional PatrolController with the ONVIF PTZ bridge.
     /// @param[in] device Pointer to active PelcoDDevice.
-    void bindDevice(PelcoD::PelcoDDevice* device);
+    /// @param[in] patrol Optional pointer to active PatrolController.
+    void bindDevice(PelcoD::PelcoDDevice* device, PelcoD::PatrolController* patrol = nullptr);
 
     /// @brief Starts the ONVIF server with current configuration.
     /// @return True if started.
@@ -84,6 +89,7 @@ private:
 #if defined(PELCOD_ENABLE_ONVIF)
     PelcoD::Onvif::OnvifServerConfig m_config {};
     PelcoD::PelcoDDevice* m_device { nullptr };
+    PelcoD::PatrolController* m_patrol { nullptr };
     std::shared_ptr<PelcoD::Onvif::PelcoDPtzAdapter> m_ptzAdapter { nullptr };
     std::unique_ptr<PelcoD::Onvif::OnvifServer> m_server { nullptr };
 #endif

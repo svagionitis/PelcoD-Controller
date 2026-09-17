@@ -13,6 +13,10 @@
 #include <memory>
 #include <mutex>
 
+namespace PelcoD {
+class PatrolController;
+}
+
 namespace PelcoD::Qt {
 
 /// @class QOnvifServer
@@ -53,6 +57,10 @@ public:
     /// @param[in] device Pointer to QPelcoDDevice (can be nullptr to disable PTZ bridging).
     void bindDevice(PelcoDQt::QPelcoDDevice* device);
 
+    /// @brief Binds a PatrolController instance to execute incoming ONVIF Preset Tours.
+    /// @param[in] patrol Pointer to PatrolController (can be nullptr to disable tour execution).
+    void bindPatrolController(PelcoD::PatrolController* patrol);
+
     /// @brief Returns the full HTTP endpoint URL (e.g. "http://192.168.1.100:8080/onvif/device_service").
     /// @return Full endpoint URL string.
     [[nodiscard]] QString endpointUrl() const;
@@ -90,6 +98,7 @@ signals:
 private:
     PelcoD::Onvif::OnvifServerConfig m_config {};
     std::shared_ptr<PelcoD::Onvif::PelcoDPtzAdapter> m_ptzAdapter { nullptr };
+    PelcoD::PatrolController* m_patrolController { nullptr };
     std::unique_ptr<PelcoD::Onvif::OnvifServer> m_server { nullptr };
     mutable std::mutex m_mutex {};
 };

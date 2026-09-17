@@ -36,6 +36,9 @@ void QOnvifServer::bindDevice(PelcoDQt::QPelcoDDevice* device)
     std::lock_guard<std::mutex> lock(m_mutex);
     if (device != nullptr && device->sharedCoreDevice() != nullptr) {
         m_ptzAdapter = std::make_shared<PelcoD::Onvif::PelcoDPtzAdapter>(device->sharedCoreDevice());
+        if (m_patrolController != nullptr) {
+            m_ptzAdapter->setPatrolController(m_patrolController);
+        }
     } else {
         m_ptzAdapter.reset();
     }
@@ -43,6 +46,15 @@ void QOnvifServer::bindDevice(PelcoDQt::QPelcoDDevice* device)
     if (m_server != nullptr) {
         m_server->setPtzHandler(m_ptzAdapter);
         m_server->setImagingHandler(m_ptzAdapter);
+    }
+}
+
+void QOnvifServer::bindPatrolController(PelcoD::PatrolController* patrol)
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    m_patrolController = patrol;
+    if (m_ptzAdapter != nullptr) {
+        m_ptzAdapter->setPatrolController(m_patrolController);
     }
 }
 

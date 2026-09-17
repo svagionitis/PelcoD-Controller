@@ -563,6 +563,13 @@ void OnvifServer::handlePtzService(const httplib::Request& req, httplib::Respons
         }
 
         body << "    <tptz:GotoPresetResponse/>\r\n";
+    } else if (opName.find("RemovePresetTour") != std::string::npos) {
+        const pugi::xml_node tokNode = doc.select_node("//*[local-name()='PresetTourToken']").node();
+        const std::string tourTok = tokNode ? tokNode.text().as_string() : "";
+        if (m_ptzHandler) {
+            m_ptzHandler->handleRemovePresetTour(tourTok);
+        }
+        body << "    <tptz:RemovePresetTourResponse/>\r\n";
     } else if (opName.find("RemovePreset") != std::string::npos) {
         const pugi::xml_node tokenNode = doc.select_node("//*[local-name()='PresetToken']").node();
         const std::string presetToken = tokenNode ? tokenNode.text().as_string() : "";
@@ -590,6 +597,158 @@ void OnvifServer::handlePtzService(const httplib::Request& req, httplib::Respons
              << "        </tt:MoveStatus>\r\n"
              << "      </tptz:PTZStatus>\r\n"
              << "    </tptz:GetStatusResponse>\r\n";
+    } else if (opName.find("GetPresetTours") != std::string::npos) {
+        body << "    <tptz:GetPresetToursResponse>\r\n";
+        if (m_ptzHandler) {
+            const auto tours = m_ptzHandler->handleGetPresetTours();
+            for (const auto& t : tours) {
+                body << "      <tptz:PresetTour token=\"" << t.token << "\">\r\n";
+                if (!t.name.empty()) {
+                    body << "        <tt:Name>" << t.name << "</tt:Name>\r\n";
+                }
+                body << "        <tt:Status>\r\n";
+                std::string st = "Idle";
+                if (t.status == PresetTourState::Touring)
+                    st = "Touring";
+                else if (t.status == PresetTourState::Paused)
+                    st = "Paused";
+                else if (t.status == PresetTourState::Extended)
+                    st = "Extended";
+                body << "          <tt:State>" << st << "</tt:State>\r\n"
+                     << "        </tt:Status>\r\n"
+                     << "        <tt:AutoStart>" << (t.autoStart ? "true" : "false") << "</tt:AutoStart>\r\n";
+                for (const auto& s : t.spots) {
+                    body << "        <tt:TourSpot>\r\n"
+                         << "          <tt:PresetDetail>\r\n"
+                         << "            <tt:PresetToken>" << s.presetToken << "</tt:PresetToken>\r\n"
+                         << "          </tt:PresetDetail>\r\n"
+                         << "          <tt:Speed>\r\n"
+                         << "            <tt:PanTilt x=\"" << s.speed << "\" y=\"" << s.speed << "\"/>\r\n"
+                         << "          </tt:Speed>\r\n"
+                         << "          <tt:StayTime>PT" << s.stayTimeSeconds << "S</tt:StayTime>\r\n"
+                         << "        </tt:TourSpot>\r\n";
+                }
+                body << "      </tptz:PresetTour>\r\n";
+            }
+        }
+        body << "    </tptz:GetPresetToursResponse>\r\n";
+    } else if (opName.find("GetPresetTourOptions") != std::string::npos) {
+        body << "    <tptz:GetPresetTourOptionsResponse>\r\n"
+             << "      <tptz:Options>\r\n"
+             << "        <tt:AutoStart>true</tt:AutoStart>\r\n"
+             << "        <tt:StartingCondition>\r\n"
+             << "          <tt:RecurringTime><tt:Min>0</tt:Min><tt:Max>100</tt:Max></tt:RecurringTime>\r\n"
+             << "          <tt:RecurringDuration><tt:Min>PT0S</tt:Min><tt:Max>PT24H</tt:Max></tt:RecurringDuration>\r\n"
+             << "        </tt:StartingCondition>\r\n"
+             << "        <tt:TourSpot>\r\n"
+             << "          <tt:PresetDetail><tt:PresetToken>1</tt:PresetToken></tt:PresetDetail>\r\n"
+             << "          <tt:StayTime><tt:Min>PT1S</tt:Min><tt:Max>PT3600S</tt:Max></tt:StayTime>\r\n"
+             << "          "
+                "<tt:PanTiltSpeedSpace><tt:URI>http://www.onvif.org/ver10/tptz/PanTiltSpaces/VelocityGenericSpace</"
+                "tt:URI><tt:XRange><tt:Min>0.0</tt:Min><tt:Max>1.0</tt:Max></tt:XRange></tt:PanTiltSpeedSpace>\r\n"
+             << "        </tt:TourSpot>\r\n"
+             << "      </tptz:Options>\r\n"
+             << "    </tptz:GetPresetTourOptionsResponse>\r\n";
+    } else if (opName.find("GetPresetTour") != std::string::npos) {
+        const pugi::xml_node tokNode = doc.select_node("//*[local-name()='PresetTourToken']").node();
+        const std::string tourTok = tokNode ? tokNode.text().as_string() : "";
+        body << "    <tptz:GetPresetTourResponse>\r\n";
+        if (m_ptzHandler) {
+            const auto tourOpt = m_ptzHandler->handleGetPresetTour(tourTok);
+            if (tourOpt) {
+                const auto& t = *tourOpt;
+                body << "      <tptz:PresetTour token=\"" << t.token << "\">\r\n";
+                if (!t.name.empty()) {
+                    body << "        <tt:Name>" << t.name << "</tt:Name>\r\n";
+                }
+                body << "        <tt:Status>\r\n";
+                std::string st = "Idle";
+                if (t.status == PresetTourState::Touring)
+                    st = "Touring";
+                else if (t.status == PresetTourState::Paused)
+                    st = "Paused";
+                body << "          <tt:State>" << st << "</tt:State>\r\n"
+                     << "        </tt:Status>\r\n"
+                     << "        <tt:AutoStart>" << (t.autoStart ? "true" : "false") << "</tt:AutoStart>\r\n";
+                for (const auto& s : t.spots) {
+                    body << "        <tt:TourSpot>\r\n"
+                         << "          <tt:PresetDetail>\r\n"
+                         << "            <tt:PresetToken>" << s.presetToken << "</tt:PresetToken>\r\n"
+                         << "          </tt:PresetDetail>\r\n"
+                         << "          <tt:Speed>\r\n"
+                         << "            <tt:PanTilt x=\"" << s.speed << "\" y=\"" << s.speed << "\"/>\r\n"
+                         << "          </tt:Speed>\r\n"
+                         << "          <tt:StayTime>PT" << s.stayTimeSeconds << "S</tt:StayTime>\r\n"
+                         << "        </tt:TourSpot>\r\n";
+                }
+                body << "      </tptz:PresetTour>\r\n";
+            }
+        }
+        body << "    </tptz:GetPresetTourResponse>\r\n";
+    } else if (opName.find("CreatePresetTour") != std::string::npos) {
+        std::string assignedToken = "Tour_1";
+        if (m_ptzHandler) {
+            assignedToken = m_ptzHandler->handleCreatePresetTour();
+        }
+        body << "    <tptz:CreatePresetTourResponse>\r\n"
+             << "      <tptz:PresetTourToken>" << assignedToken << "</tptz:PresetTourToken>\r\n"
+             << "    </tptz:CreatePresetTourResponse>\r\n";
+    } else if (opName.find("ModifyPresetTour") != std::string::npos) {
+        const pugi::xml_node tourNode = doc.select_node("//*[local-name()='PresetTour']").node();
+        if (tourNode && m_ptzHandler) {
+            PresetTour tour {};
+            tour.token = tourNode.attribute("token").as_string();
+            const pugi::xml_node nameNode = tourNode.select_node("./*[local-name()='Name']").node();
+            if (nameNode)
+                tour.name = nameNode.text().as_string();
+            const pugi::xml_node autoStartNode = tourNode.select_node("./*[local-name()='AutoStart']").node();
+            if (autoStartNode)
+                tour.autoStart = autoStartNode.text().as_bool(false);
+
+            const auto spotNodes = tourNode.select_nodes("./*[local-name()='TourSpot']");
+            for (const auto& it : spotNodes) {
+                PresetTourSpot spot {};
+                const pugi::xml_node pTok = it.node().select_node(".//*[local-name()='PresetToken']").node();
+                if (pTok)
+                    spot.presetToken = pTok.text().as_string();
+                const pugi::xml_node speedNode
+                    = it.node().select_node(".//*[local-name()='Speed']/*[local-name()='PanTilt']").node();
+                if (speedNode) {
+                    spot.speed = speedNode.attribute("x").as_float(1.0f);
+                }
+                const pugi::xml_node stayNode = it.node().select_node(".//*[local-name()='StayTime']").node();
+                if (stayNode) {
+                    std::string st = stayNode.text().as_string();
+                    std::size_t pos = (st.rfind("PT", 0) == 0) ? 2 : 0;
+                    std::uint32_t val = 0;
+                    while (pos < st.size() && std::isdigit(static_cast<unsigned char>(st[pos]))) {
+                        val = val * 10 + static_cast<std::uint32_t>(st[pos] - '0');
+                        ++pos;
+                    }
+                    spot.stayTimeSeconds = (val > 0) ? val : 5U;
+                }
+                if (!spot.presetToken.empty()) {
+                    tour.spots.push_back(std::move(spot));
+                }
+            }
+            m_ptzHandler->handleModifyPresetTour(tour);
+        }
+        body << "    <tptz:ModifyPresetTourResponse/>\r\n";
+    } else if (opName.find("OperatePresetTour") != std::string::npos) {
+        const pugi::xml_node tokNode = doc.select_node("//*[local-name()='PresetTourToken']").node();
+        const pugi::xml_node opNode = doc.select_node("//*[local-name()='Operation']").node();
+        const std::string tourTok = tokNode ? tokNode.text().as_string() : "";
+        const std::string opVal = opNode ? opNode.text().as_string() : "Start";
+
+        PresetTourOperation tourOp = PresetTourOperation::Start;
+        if (opVal == "Stop")
+            tourOp = PresetTourOperation::Stop;
+        else if (opVal == "Pause")
+            tourOp = PresetTourOperation::Pause;
+
+        if (m_ptzHandler) {
+            m_ptzHandler->handleOperatePresetTour(tourTok, tourOp);
+        }
     } else {
         body << "    <tptz:" << opName << "Response/>\r\n";
     }

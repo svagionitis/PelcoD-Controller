@@ -31,6 +31,11 @@ public:
     explicit PresetsTab(PelcoDQt::QPelcoDDevice* device, QWidget* parent = nullptr);
     ~PresetsTab() override = default;
 
+    [[nodiscard]] PelcoDQt::QPatrolController* patrolController() const noexcept
+    {
+        return m_patrol;
+    }
+
 private slots:
     void handleGoToPreset();
     void handleSetPreset();

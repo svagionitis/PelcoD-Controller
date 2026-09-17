@@ -135,6 +135,7 @@ void QOnvifDevice::disconnectFromCamera()
     m_snapshotUri.clear();
     m_profiles.clear();
     m_presets.clear();
+    m_presetTours.clear();
     m_deviceInfo = {};
     m_client.reset();
 
@@ -169,6 +170,7 @@ bool QOnvifDevice::setActiveProfile(const QString& token)
 
     resolveSnapshotUri();
     refreshPresets();
+    refreshPresetTours();
     refreshImagingSettings();
     return !m_rtspStreamUri.isEmpty();
 }
@@ -269,6 +271,60 @@ bool QOnvifDevice::removePreset(const QString& presetToken)
     const bool ok = m_client->removePreset(m_activeProfileToken.toStdString(), presetToken.toStdString());
     if (ok) {
         refreshPresets();
+    }
+    return ok;
+}
+
+void QOnvifDevice::refreshPresetTours()
+{
+    if (!m_client || m_activeProfileToken.isEmpty()) {
+        return;
+    }
+    m_presetTours = m_client->getPresetTours(m_activeProfileToken.toStdString());
+    emit presetToursUpdated(m_presetTours);
+}
+
+bool QOnvifDevice::operatePresetTour(const QString& tourToken, PelcoD::Onvif::PresetTourOperation operation)
+{
+    if (!m_client || m_activeProfileToken.isEmpty()) {
+        return false;
+    }
+    const bool ok = m_client->operatePresetTour(m_activeProfileToken.toStdString(), tourToken.toStdString(), operation);
+    refreshPresetTours();
+    return ok;
+}
+
+bool QOnvifDevice::operatePresetTour(const QString& tourToken, const QString& operation)
+{
+    PelcoD::Onvif::PresetTourOperation op = PelcoD::Onvif::PresetTourOperation::Start;
+    if (operation.compare("Stop", ::Qt::CaseInsensitive) == 0) {
+        op = PelcoD::Onvif::PresetTourOperation::Stop;
+    } else if (operation.compare("Pause", ::Qt::CaseInsensitive) == 0) {
+        op = PelcoD::Onvif::PresetTourOperation::Pause;
+    }
+    return operatePresetTour(tourToken, op);
+}
+
+bool QOnvifDevice::modifyPresetTour(const PelcoD::Onvif::PresetTour& tour)
+{
+    if (!m_client || m_activeProfileToken.isEmpty()) {
+        return false;
+    }
+    const bool ok = m_client->modifyPresetTour(m_activeProfileToken.toStdString(), tour);
+    if (ok) {
+        refreshPresetTours();
+    }
+    return ok;
+}
+
+bool QOnvifDevice::removePresetTour(const QString& tourToken)
+{
+    if (!m_client || m_activeProfileToken.isEmpty()) {
+        return false;
+    }
+    const bool ok = m_client->removePresetTour(m_activeProfileToken.toStdString(), tourToken.toStdString());
+    if (ok) {
+        refreshPresetTours();
     }
     return ok;
 }

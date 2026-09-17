@@ -33,6 +33,8 @@ OnvifCameraTab::OnvifCameraTab(PelcoD::Qt::QOnvifDevice* onvifDevice, VideoStrea
         connect(m_onvifDevice, &PelcoD::Qt::QOnvifDevice::snapshotUriResolved, this,
             &OnvifCameraTab::handleSnapshotUriResolved);
         connect(m_onvifDevice, &PelcoD::Qt::QOnvifDevice::presetsUpdated, this, &OnvifCameraTab::handlePresetsUpdated);
+        connect(
+            m_onvifDevice, &PelcoD::Qt::QOnvifDevice::presetToursUpdated, this, &OnvifCameraTab::handleToursUpdated);
         connect(m_onvifDevice, &PelcoD::Qt::QOnvifDevice::statusUpdated, this, &OnvifCameraTab::handleStatusUpdated);
         connect(
             m_onvifDevice, &PelcoD::Qt::QOnvifDevice::rebootCompleted, this, &OnvifCameraTab::handleRebootCompleted);
@@ -278,7 +280,63 @@ void OnvifCameraTab::setupUi()
     presetsLayout->addWidget(tablePresets);
     presetsLayout->addLayout(presetControls);
 
+    // Preset Tours / Patrols Group
+    auto* groupTours = new QGroupBox(tr("Preset Tours / Patrols (Profile S)"), groupPresets);
+    auto* toursLayout = new QVBoxLayout(groupTours);
+    toursLayout->setSpacing(6);
+
+    auto* tourSelectorLayout = new QHBoxLayout();
+    cmbPresetTours = new QComboBox(groupTours);
+    cmbPresetTours->setMinimumWidth(180);
+    btnRefreshTours = new QPushButton(tr("Refresh Tours"), groupTours);
+    btnStartTour = new QPushButton(tr("▶ Start Tour"), groupTours);
+    btnPauseTour = new QPushButton(tr("⏸ Pause"), groupTours);
+    btnStopTour = new QPushButton(tr("⏹ Stop"), groupTours);
+    lblTourStatus = new QLabel(tr("Status: Idle"), groupTours);
+    lblTourStatus->setStyleSheet("font-weight: bold; color: #8b949e;");
+
+    tourSelectorLayout->addWidget(new QLabel(tr("Tour:"), groupTours));
+    tourSelectorLayout->addWidget(cmbPresetTours);
+    tourSelectorLayout->addWidget(btnRefreshTours);
+    tourSelectorLayout->addWidget(btnStartTour);
+    tourSelectorLayout->addWidget(btnPauseTour);
+    tourSelectorLayout->addWidget(btnStopTour);
+    tourSelectorLayout->addWidget(lblTourStatus);
+    tourSelectorLayout->addStretch();
+
+    tableTourSpots = new QTableWidget(0, 3, groupTours);
+    tableTourSpots->setHorizontalHeaderLabels({ tr("Preset Token"), tr("Speed (0.0 - 1.0)"), tr("Stay Time (sec)") });
+    tableTourSpots->horizontalHeader()->setStretchLastSection(true);
+    tableTourSpots->setSelectionBehavior(QAbstractItemView::SelectRows);
+    tableTourSpots->setSelectionMode(QAbstractItemView::SingleSelection);
+    tableTourSpots->setMinimumHeight(150);
+
+    auto* tourStepControls = new QHBoxLayout();
+    btnAddTourStep = new QPushButton(tr("Add Step"), groupTours);
+    btnRemoveTourStep = new QPushButton(tr("Remove Step"), groupTours);
+    btnSaveTour = new QPushButton(tr("Save Tour Modifications"), groupTours);
+
+    tourStepControls->addWidget(btnAddTourStep);
+    tourStepControls->addWidget(btnRemoveTourStep);
+    tourStepControls->addWidget(btnSaveTour);
+    tourStepControls->addStretch();
+
+    toursLayout->addLayout(tourSelectorLayout);
+    toursLayout->addWidget(tableTourSpots);
+    toursLayout->addLayout(tourStepControls);
+
+    connect(btnRefreshTours, &QPushButton::clicked, this, &OnvifCameraTab::handleRefreshTours);
+    connect(
+        cmbPresetTours, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &OnvifCameraTab::handleTourSelected);
+    connect(btnStartTour, &QPushButton::clicked, this, &OnvifCameraTab::handleStartTour);
+    connect(btnPauseTour, &QPushButton::clicked, this, &OnvifCameraTab::handlePauseTour);
+    connect(btnStopTour, &QPushButton::clicked, this, &OnvifCameraTab::handleStopTour);
+    connect(btnAddTourStep, &QPushButton::clicked, this, &OnvifCameraTab::handleAddTourStep);
+    connect(btnRemoveTourStep, &QPushButton::clicked, this, &OnvifCameraTab::handleRemoveTourStep);
+    connect(btnSaveTour, &QPushButton::clicked, this, &OnvifCameraTab::handleSaveTour);
+
     presetsTabLayout->addWidget(groupPresets);
+    presetsTabLayout->addWidget(groupTours);
     presetsTabLayout->addStretch();
 
     // -------------------------------------------------------------------------
@@ -513,6 +571,17 @@ void OnvifCameraTab::updateConnectionUi(bool connected)
     btnSavePreset->setEnabled(connected);
     btnDeletePreset->setEnabled(connected);
 
+    // Tour widgets
+    cmbPresetTours->setEnabled(connected);
+    btnRefreshTours->setEnabled(connected);
+    btnStartTour->setEnabled(connected);
+    btnPauseTour->setEnabled(connected);
+    btnStopTour->setEnabled(connected);
+    tableTourSpots->setEnabled(connected);
+    btnAddTourStep->setEnabled(connected);
+    btnRemoveTourStep->setEnabled(connected);
+    btnSaveTour->setEnabled(connected);
+
     // Profile T widgets
     sliderBrightness->setEnabled(connected);
     sliderContrast->setEnabled(connected);
@@ -544,6 +613,10 @@ void OnvifCameraTab::updateConnectionUi(bool connected)
         editRtspUri->clear();
         editSnapshotUri->clear();
         tablePresets->setRowCount(0);
+        tableTourSpots->setRowCount(0);
+        cmbPresetTours->clear();
+        lblTourStatus->setText(tr("Status: Idle"));
+        lblTourStatus->setStyleSheet("font-weight: bold; color: #8b949e;");
         tableEvents->setRowCount(0);
         btnToggleEvents->setText(tr("▶ Subscribe Events"));
         btnToggleEvents->setStyleSheet("");
@@ -810,6 +883,189 @@ void OnvifCameraTab::handlePresetsUpdated(const std::vector<PelcoD::Onvif::PtzPr
         const int row = static_cast<int>(i);
         tablePresets->setItem(row, 0, new QTableWidgetItem(QString::fromStdString(p.token)));
         tablePresets->setItem(row, 1, new QTableWidgetItem(QString::fromStdString(p.name)));
+    }
+}
+
+void OnvifCameraTab::handleRefreshTours()
+{
+    if (m_onvifDevice != nullptr) {
+        m_onvifDevice->refreshPresetTours();
+    }
+}
+
+void OnvifCameraTab::handleTourSelected(int index)
+{
+    if (m_onvifDevice == nullptr || index < 0 || cmbPresetTours == nullptr) {
+        if (tableTourSpots != nullptr) {
+            tableTourSpots->setRowCount(0);
+        }
+        return;
+    }
+
+    const QString token = cmbPresetTours->itemData(index).toString();
+    const auto tours = m_onvifDevice->presetTours();
+    for (const auto& tour : tours) {
+        if (tour.token == token.toStdString()) {
+            tableTourSpots->setRowCount(static_cast<int>(tour.spots.size()));
+            for (size_t i = 0; i < tour.spots.size(); ++i) {
+                const auto& spot = tour.spots[i];
+                const int row = static_cast<int>(i);
+                tableTourSpots->setItem(row, 0, new QTableWidgetItem(QString::fromStdString(spot.presetToken)));
+                tableTourSpots->setItem(row, 1, new QTableWidgetItem(QString::number(spot.speed, 'f', 2)));
+                tableTourSpots->setItem(row, 2, new QTableWidgetItem(QString::number(spot.stayTimeSeconds)));
+            }
+
+            QString statusStr = tr("Idle");
+            QString colorStr = "#8b949e";
+            if (tour.status == PelcoD::Onvif::PresetTourState::Touring) {
+                statusStr = tr("Touring");
+                colorStr = "#7ee787";
+            } else if (tour.status == PelcoD::Onvif::PresetTourState::Paused) {
+                statusStr = tr("Paused");
+                colorStr = "#d29922";
+            }
+            lblTourStatus->setText(tr("Status: %1").arg(statusStr));
+            lblTourStatus->setStyleSheet(QString("font-weight: bold; color: %1;").arg(colorStr));
+            return;
+        }
+    }
+}
+
+void OnvifCameraTab::handleStartTour()
+{
+    if (m_onvifDevice == nullptr || cmbPresetTours == nullptr || cmbPresetTours->currentIndex() < 0) {
+        return;
+    }
+    const QString token = cmbPresetTours->currentData().toString();
+    if (!token.isEmpty()) {
+        m_onvifDevice->operatePresetTour(token, PelcoD::Onvif::PresetTourOperation::Start);
+        lblTourStatus->setText(tr("Status: Touring"));
+        lblTourStatus->setStyleSheet("font-weight: bold; color: #7ee787;");
+    }
+}
+
+void OnvifCameraTab::handlePauseTour()
+{
+    if (m_onvifDevice == nullptr || cmbPresetTours == nullptr || cmbPresetTours->currentIndex() < 0) {
+        return;
+    }
+    const QString token = cmbPresetTours->currentData().toString();
+    if (!token.isEmpty()) {
+        m_onvifDevice->operatePresetTour(token, PelcoD::Onvif::PresetTourOperation::Pause);
+        lblTourStatus->setText(tr("Status: Paused"));
+        lblTourStatus->setStyleSheet("font-weight: bold; color: #d29922;");
+    }
+}
+
+void OnvifCameraTab::handleStopTour()
+{
+    if (m_onvifDevice == nullptr || cmbPresetTours == nullptr || cmbPresetTours->currentIndex() < 0) {
+        return;
+    }
+    const QString token = cmbPresetTours->currentData().toString();
+    if (!token.isEmpty()) {
+        m_onvifDevice->operatePresetTour(token, PelcoD::Onvif::PresetTourOperation::Stop);
+        lblTourStatus->setText(tr("Status: Idle"));
+        lblTourStatus->setStyleSheet("font-weight: bold; color: #8b949e;");
+    }
+}
+
+void OnvifCameraTab::handleAddTourStep()
+{
+    if (tableTourSpots == nullptr) {
+        return;
+    }
+    QString presetToken = "1";
+    if (tablePresets != nullptr && tablePresets->currentRow() >= 0) {
+        presetToken = tablePresets->item(tablePresets->currentRow(), 0)->text();
+    } else if (tablePresets != nullptr && tablePresets->rowCount() > 0) {
+        presetToken = tablePresets->item(0, 0)->text();
+    }
+
+    const int row = tableTourSpots->rowCount();
+    tableTourSpots->insertRow(row);
+    tableTourSpots->setItem(row, 0, new QTableWidgetItem(presetToken));
+    tableTourSpots->setItem(row, 1, new QTableWidgetItem("1.00"));
+    tableTourSpots->setItem(row, 2, new QTableWidgetItem("5"));
+    tableTourSpots->selectRow(row);
+}
+
+void OnvifCameraTab::handleRemoveTourStep()
+{
+    if (tableTourSpots == nullptr) {
+        return;
+    }
+    const int row = tableTourSpots->currentRow();
+    if (row >= 0) {
+        tableTourSpots->removeRow(row);
+    }
+}
+
+void OnvifCameraTab::handleSaveTour()
+{
+    if (m_onvifDevice == nullptr || cmbPresetTours == nullptr || cmbPresetTours->currentIndex() < 0
+        || tableTourSpots == nullptr) {
+        return;
+    }
+    const QString token = cmbPresetTours->currentData().toString();
+    if (token.isEmpty()) {
+        return;
+    }
+
+    PelcoD::Onvif::PresetTour tour;
+    tour.token = token.toStdString();
+    tour.name = cmbPresetTours->currentText().toStdString();
+
+    for (int r = 0; r < tableTourSpots->rowCount(); ++r) {
+        PelcoD::Onvif::PresetTourSpot spot;
+        if (tableTourSpots->item(r, 0) != nullptr) {
+            spot.presetToken = tableTourSpots->item(r, 0)->text().trimmed().toStdString();
+        }
+        if (tableTourSpots->item(r, 1) != nullptr) {
+            spot.speed = tableTourSpots->item(r, 1)->text().toFloat();
+        }
+        if (tableTourSpots->item(r, 2) != nullptr) {
+            spot.stayTimeSeconds = tableTourSpots->item(r, 2)->text().toUInt();
+        }
+        if (!spot.presetToken.empty()) {
+            tour.spots.push_back(spot);
+        }
+    }
+
+    m_onvifDevice->modifyPresetTour(tour);
+    QMessageBox::information(
+        this, tr("Tour Saved"), tr("Preset tour '%1' updated successfully.").arg(QString::fromStdString(tour.name)));
+}
+
+void OnvifCameraTab::handleToursUpdated(const std::vector<PelcoD::Onvif::PresetTour>& tours)
+{
+    if (cmbPresetTours == nullptr) {
+        return;
+    }
+    const QString previousToken = cmbPresetTours->currentData().toString();
+    const QSignalBlocker blocker(cmbPresetTours);
+    cmbPresetTours->clear();
+
+    for (const auto& tour : tours) {
+        QString label = QString::fromStdString(tour.name.empty() ? tour.token : tour.name);
+        cmbPresetTours->addItem(label, QString::fromStdString(tour.token));
+    }
+
+    int selectIndex = cmbPresetTours->findData(previousToken);
+    if (selectIndex < 0 && cmbPresetTours->count() > 0) {
+        selectIndex = 0;
+    }
+    if (selectIndex >= 0) {
+        cmbPresetTours->setCurrentIndex(selectIndex);
+        handleTourSelected(selectIndex);
+    } else {
+        if (tableTourSpots != nullptr) {
+            tableTourSpots->setRowCount(0);
+        }
+        if (lblTourStatus != nullptr) {
+            lblTourStatus->setText(tr("Status: Idle"));
+            lblTourStatus->setStyleSheet("font-weight: bold; color: #8b949e;");
+        }
     }
 }
 

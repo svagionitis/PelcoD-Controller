@@ -24,6 +24,11 @@ public:
     void render(Canvas& canvas, int startY, int width, int height);
     bool handleInput(const InputEvent& event, PelcoD::PelcoDDevice& device);
 
+    [[nodiscard]] PelcoD::PatrolController* patrolController() const noexcept
+    {
+        return m_patrol.get();
+    }
+
 private:
     int m_selectedIndex { 0 };
     std::string m_lastAction { "Ready" };

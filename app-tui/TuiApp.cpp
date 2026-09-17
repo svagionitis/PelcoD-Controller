@@ -178,7 +178,7 @@ void TuiApp::setupDevice(const ConnectionConfig& config)
     }
     m_device->setTelemetryPolling(true, 1000U);
 #if defined(PELCOD_ENABLE_ONVIF)
-    m_onvifServerView.bindDevice(m_device.get());
+    m_onvifServerView.bindDevice(m_device.get(), m_presetsView.patrolController());
 #endif
     m_canvas.invalidate();
 }

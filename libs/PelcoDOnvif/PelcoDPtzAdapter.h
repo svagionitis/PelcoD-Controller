@@ -4,6 +4,7 @@
 /// @brief Adapter translating ONVIF PTZ and Imaging commands to PelcoDDevice hardware control.
 
 #include "OnvifServerTypes.h"
+#include <PelcoDCore/PatrolController.h>
 #include <PelcoDCore/PelcoDDevice.h>
 
 #include <atomic>
@@ -38,6 +39,18 @@ public:
     /// @param[in] publisher Callback function invoked when alarms or presets trigger.
     void setEventPublisher(EventCallback publisher);
 
+    /// @brief Links a PatrolController for executing Preset Tours.
+    /// @param[in] patrol Pointer to initialized PatrolController.
+    void setPatrolController(std::shared_ptr<PelcoD::PatrolController> patrol);
+
+    /// @brief Links a PatrolController for executing Preset Tours.
+    /// @param[in] patrol Raw pointer to initialized PatrolController.
+    void setPatrolController(PelcoD::PatrolController* patrol);
+
+    /// @brief Sets file path for persisting tours across server restarts.
+    /// @param[in] path File path for JSON tour database.
+    void setPersistencePath(const std::string& path);
+
     // =========================================================================
     // IPtzHandler Implementation (Profile S & T)
     // =========================================================================
@@ -51,6 +64,13 @@ public:
     [[nodiscard]] std::vector<PtzPreset> handleGetPresets() override;
     [[nodiscard]] PtzStatus handleGetStatus() override;
 
+    [[nodiscard]] std::vector<PresetTour> handleGetPresetTours() override;
+    [[nodiscard]] std::optional<PresetTour> handleGetPresetTour(const std::string& tourToken) override;
+    [[nodiscard]] std::string handleCreatePresetTour() override;
+    [[nodiscard]] bool handleModifyPresetTour(const PresetTour& tour) override;
+    [[nodiscard]] bool handleOperatePresetTour(const std::string& tourToken, PresetTourOperation op) override;
+    [[nodiscard]] bool handleRemovePresetTour(const std::string& tourToken) override;
+
     // =========================================================================
     // IImagingHandler Implementation (Profile T)
     // =========================================================================
@@ -63,11 +83,19 @@ public:
 
 private:
     void onDeviceStatusUpdated(const PelcoD::DeviceStatus& status);
+    void saveTours();
+    void loadTours();
 
     std::shared_ptr<PelcoD::PelcoDDevice> m_device;
+    std::shared_ptr<PelcoD::PatrolController> m_sharedPatrol {};
+    PelcoD::PatrolController* m_patrol { nullptr };
+
     mutable std::mutex m_mutex {};
     std::map<std::string, PtzPreset> m_presets {};
     uint32_t m_nextPresetId { 1 };
+    std::map<std::string, PresetTour> m_tours {};
+    uint32_t m_nextTourId { 1 };
+    std::string m_persistencePath { "onvif_tours.json" };
     std::atomic<bool> m_isMoving { false };
 
     EventCallback m_eventPublisher {};

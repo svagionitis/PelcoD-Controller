@@ -176,6 +176,42 @@ public:
     /// @return True if preset removal succeeded.
     bool removePreset(const std::string& profileToken, const std::string& presetToken);
 
+    /// @brief Queries list of configured preset tours for a media profile.
+    /// @param[in] profileToken Media profile token.
+    /// @return Vector of PresetTour items.
+    [[nodiscard]] std::vector<PresetTour> getPresetTours(const std::string& profileToken);
+
+    /// @brief Queries full details and tour spots for a specific preset tour.
+    /// @param[in] profileToken Media profile token.
+    /// @param[in] tourToken Identifier token of the preset tour.
+    /// @return PresetTour struct or nullopt on failure.
+    [[nodiscard]] std::optional<PresetTour> getPresetTour(
+        const std::string& profileToken, const std::string& tourToken);
+
+    /// @brief Creates a new empty preset tour on the camera.
+    /// @param[in] profileToken Media profile token.
+    /// @return Assigned preset tour token or nullopt on failure.
+    [[nodiscard]] std::optional<std::string> createPresetTour(const std::string& profileToken);
+
+    /// @brief Modifies configuration, dwell times, and preset sequence of a preset tour.
+    /// @param[in] profileToken Media profile token.
+    /// @param[in] tour Preset tour structure with updated spots.
+    /// @return True if modification succeeded.
+    bool modifyPresetTour(const std::string& profileToken, const PresetTour& tour);
+
+    /// @brief Controls execution of an ONVIF Preset Tour (Start, Stop, Pause).
+    /// @param[in] profileToken Media profile token.
+    /// @param[in] tourToken Identifier token of the preset tour.
+    /// @param[in] op Operation to execute.
+    /// @return True if operation command succeeded.
+    bool operatePresetTour(const std::string& profileToken, const std::string& tourToken, PresetTourOperation op);
+
+    /// @brief Deletes a preset tour from camera storage.
+    /// @param[in] profileToken Media profile token.
+    /// @param[in] tourToken Identifier token of the preset tour.
+    /// @return True if deletion succeeded.
+    bool removePresetTour(const std::string& profileToken, const std::string& tourToken);
+
     // =========================================================================
     // Imaging Service (Profile T)
     // =========================================================================
@@ -273,6 +309,21 @@ public:
     /// @param[in] xml Raw response XML.
     /// @return Assigned preset token or nullopt on failure.
     [[nodiscard]] static std::optional<std::string> parseSetPresetResponse(const std::string& xml);
+
+    /// @brief Parses GetPresetTours XML response into list of PresetTour objects.
+    /// @param[in] xml Raw response XML.
+    /// @return Vector of parsed PresetTour objects.
+    [[nodiscard]] static std::vector<PresetTour> parsePresetToursResponse(const std::string& xml);
+
+    /// @brief Parses GetPresetTour XML response into a full PresetTour structure.
+    /// @param[in] xml Raw response XML.
+    /// @return Extracted PresetTour or nullopt on parse failure.
+    [[nodiscard]] static std::optional<PresetTour> parsePresetTourResponse(const std::string& xml);
+
+    /// @brief Parses CreatePresetTour XML response.
+    /// @param[in] xml Raw response XML.
+    /// @return Assigned tour token or nullopt on failure.
+    [[nodiscard]] static std::optional<std::string> parseCreatePresetTourResponse(const std::string& xml);
 
     /// @brief Parses SystemReboot Device XML response.
     /// @param[in] xml Raw response XML.

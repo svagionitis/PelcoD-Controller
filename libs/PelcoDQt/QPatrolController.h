@@ -40,6 +40,12 @@ public:
     [[nodiscard]] int remainingDwellSeconds() const;
     [[nodiscard]] std::vector<PelcoD::PatrolStep> steps() const;
 
+    /// @brief Direct access to underlying PelcoD::PatrolController instance.
+    [[nodiscard]] PelcoD::PatrolController* coreController() const noexcept
+    {
+        return m_controller.get();
+    }
+
     void setDevice(QPelcoDDevice* device);
 
 public slots:

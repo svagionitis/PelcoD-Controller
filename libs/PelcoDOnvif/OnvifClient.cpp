@@ -693,8 +693,8 @@ bool OnvifClient::relativeMove(
     ss << "<tptz:RelativeMove>\n"
        << "  <tptz:ProfileToken>" << profileToken << "</tptz:ProfileToken>\n"
        << "  <tptz:Translation>\n"
-       << "    <tt:PanTilt x=\"" << std::fixed << std::setprecision(4) << panTranslation << "\" y=\""
-       << tiltTranslation << "\"/>\n"
+       << "    <tt:PanTilt x=\"" << std::fixed << std::setprecision(4) << panTranslation << "\" y=\"" << tiltTranslation
+       << "\"/>\n"
        << "    <tt:Zoom x=\"" << zoomTranslation << "\"/>\n"
        << "  </tptz:Translation>\n"
        << "</tptz:RelativeMove>";
@@ -904,6 +904,315 @@ bool OnvifClient::removePreset(const std::string& profileToken, const std::strin
        << "  <tptz:ProfileToken>" << profileToken << "</tptz:ProfileToken>\n"
        << "  <tptz:PresetToken>" << presetToken << "</tptz:PresetToken>\n"
        << "</tptz:RemovePreset>";
+
+    const std::string reqXml = wrapSoapEnvelope(ss.str());
+    const HttpResponse resp = m_httpClient.sendPost(m_capabilities.ptzXAddr, reqXml);
+    return resp.isSuccess();
+}
+
+static std::uint32_t parseIsoDurationSeconds(std::string_view str)
+{
+    if (str.empty()) {
+        return 5U;
+    }
+    std::size_t pos = 0;
+    if (str.rfind("PT", 0) == 0) {
+        pos = 2;
+    }
+    std::uint32_t val = 0;
+    while (pos < str.size() && std::isdigit(static_cast<unsigned char>(str[pos]))) {
+        val = val * 10 + static_cast<std::uint32_t>(str[pos] - '0');
+        ++pos;
+    }
+    if (pos < str.size() && (str[pos] == 'M' || str[pos] == 'm')) {
+        val *= 60U;
+    }
+    return (val > 0) ? val : 5U;
+}
+
+static PresetTour parsePresetTourNode(const pugi::xml_node& node)
+{
+    PresetTour tour {};
+    tour.token = node.attribute("token").as_string();
+    if (tour.token.empty()) {
+        const auto tokChild = findNodeWithSuffix(node, "token");
+        if (tokChild) {
+            tour.token = tokChild.text().as_string();
+        }
+    }
+
+    const auto nameNode = findNodeWithSuffix(node, "Name");
+    if (nameNode) {
+        tour.name = nameNode.text().as_string();
+    }
+
+    const auto autoStartNode = findNodeWithSuffix(node, "AutoStart");
+    if (autoStartNode) {
+        tour.autoStart = autoStartNode.text().as_bool(false);
+    }
+
+    const auto statusNode = findRecursiveNodeWithSuffix(node, "Status");
+    if (statusNode) {
+        const auto stateNode = findNodeWithSuffix(statusNode, "State");
+        if (stateNode) {
+            const std::string stateStr = stateNode.text().as_string();
+            if (stateStr == "Touring" || stateStr == "Running") {
+                tour.status = PresetTourState::Touring;
+            } else if (stateStr == "Paused") {
+                tour.status = PresetTourState::Paused;
+            } else if (stateStr == "Extended") {
+                tour.status = PresetTourState::Extended;
+            } else {
+                tour.status = PresetTourState::Idle;
+            }
+        }
+    }
+
+    std::vector<pugi::xml_node> spotNodes {};
+    collectNodesWithSuffix(node, "TourSpot", spotNodes);
+    for (const auto& spotNode : spotNodes) {
+        PresetTourSpot spot {};
+        const auto detailNode = findRecursiveNodeWithSuffix(spotNode, "PresetDetail");
+        if (detailNode) {
+            const auto pTokNode = findNodeWithSuffix(detailNode, "PresetToken");
+            if (pTokNode) {
+                spot.presetToken = pTokNode.text().as_string();
+            }
+        }
+        if (spot.presetToken.empty()) {
+            const auto pTokNode = findRecursiveNodeWithSuffix(spotNode, "PresetToken");
+            if (pTokNode) {
+                spot.presetToken = pTokNode.text().as_string();
+            }
+        }
+
+        const auto speedNode = findRecursiveNodeWithSuffix(spotNode, "Speed");
+        if (speedNode) {
+            const auto pt = findNodeWithSuffix(speedNode, "PanTilt");
+            if (pt) {
+                spot.speed = pt.attribute("x").as_float(1.0f);
+            } else {
+                spot.speed = speedNode.text().as_float(1.0f);
+            }
+        }
+
+        const auto stayNode = findNodeWithSuffix(spotNode, "StayTime");
+        if (stayNode) {
+            spot.stayTimeSeconds = parseIsoDurationSeconds(stayNode.text().as_string());
+        }
+
+        if (!spot.presetToken.empty()) {
+            tour.spots.push_back(std::move(spot));
+        }
+    }
+
+    return tour;
+}
+
+std::vector<PresetTour> OnvifClient::parsePresetToursResponse(const std::string& xml)
+{
+    std::vector<PresetTour> tours {};
+    pugi::xml_document doc {};
+    if (!doc.load_string(xml.c_str())) {
+        return tours;
+    }
+
+    std::vector<pugi::xml_node> tourNodes {};
+    collectNodesWithSuffix(doc, "PresetTour", tourNodes);
+    for (const auto& node : tourNodes) {
+        PresetTour tour = parsePresetTourNode(node);
+        if (!tour.token.empty() || !tour.name.empty()) {
+            tours.push_back(std::move(tour));
+        }
+    }
+    return tours;
+}
+
+std::optional<PresetTour> OnvifClient::parsePresetTourResponse(const std::string& xml)
+{
+    pugi::xml_document doc {};
+    if (!doc.load_string(xml.c_str())) {
+        return std::nullopt;
+    }
+
+    const auto tourNode = findRecursiveNodeWithSuffix(doc, "PresetTour");
+    if (!tourNode) {
+        return std::nullopt;
+    }
+
+    return parsePresetTourNode(tourNode);
+}
+
+std::optional<std::string> OnvifClient::parseCreatePresetTourResponse(const std::string& xml)
+{
+    pugi::xml_document doc {};
+    if (!doc.load_string(xml.c_str())) {
+        return std::nullopt;
+    }
+
+    const auto tokNode = findRecursiveNodeWithSuffix(doc, "PresetTourToken");
+    if (tokNode) {
+        return tokNode.text().as_string();
+    }
+    return std::nullopt;
+}
+
+std::vector<PresetTour> OnvifClient::getPresetTours(const std::string& profileToken)
+{
+    if (m_capabilities.ptzXAddr.empty()) {
+        static_cast<void>(getCapabilities());
+    }
+
+    if (m_capabilities.ptzXAddr.empty()) {
+        return {};
+    }
+
+    std::ostringstream ss {};
+    ss << "<tptz:GetPresetTours>\n"
+       << "  <tptz:ProfileToken>" << profileToken << "</tptz:ProfileToken>\n"
+       << "</tptz:GetPresetTours>";
+
+    const std::string reqXml = wrapSoapEnvelope(ss.str());
+    const HttpResponse resp = m_httpClient.sendPost(m_capabilities.ptzXAddr, reqXml);
+    if (!resp.isSuccess()) {
+        return {};
+    }
+
+    return parsePresetToursResponse(resp.body);
+}
+
+std::optional<PresetTour> OnvifClient::getPresetTour(const std::string& profileToken, const std::string& tourToken)
+{
+    if (m_capabilities.ptzXAddr.empty()) {
+        static_cast<void>(getCapabilities());
+    }
+
+    if (m_capabilities.ptzXAddr.empty()) {
+        return std::nullopt;
+    }
+
+    std::ostringstream ss {};
+    ss << "<tptz:GetPresetTour>\n"
+       << "  <tptz:ProfileToken>" << profileToken << "</tptz:ProfileToken>\n"
+       << "  <tptz:PresetTourToken>" << tourToken << "</tptz:PresetTourToken>\n"
+       << "</tptz:GetPresetTour>";
+
+    const std::string reqXml = wrapSoapEnvelope(ss.str());
+    const HttpResponse resp = m_httpClient.sendPost(m_capabilities.ptzXAddr, reqXml);
+    if (!resp.isSuccess()) {
+        return std::nullopt;
+    }
+
+    return parsePresetTourResponse(resp.body);
+}
+
+std::optional<std::string> OnvifClient::createPresetTour(const std::string& profileToken)
+{
+    if (m_capabilities.ptzXAddr.empty()) {
+        static_cast<void>(getCapabilities());
+    }
+
+    if (m_capabilities.ptzXAddr.empty()) {
+        return std::nullopt;
+    }
+
+    std::ostringstream ss {};
+    ss << "<tptz:CreatePresetTour>\n"
+       << "  <tptz:ProfileToken>" << profileToken << "</tptz:ProfileToken>\n"
+       << "</tptz:CreatePresetTour>";
+
+    const std::string reqXml = wrapSoapEnvelope(ss.str());
+    const HttpResponse resp = m_httpClient.sendPost(m_capabilities.ptzXAddr, reqXml);
+    if (!resp.isSuccess()) {
+        return std::nullopt;
+    }
+
+    return parseCreatePresetTourResponse(resp.body);
+}
+
+bool OnvifClient::modifyPresetTour(const std::string& profileToken, const PresetTour& tour)
+{
+    if (m_capabilities.ptzXAddr.empty()) {
+        static_cast<void>(getCapabilities());
+    }
+
+    if (m_capabilities.ptzXAddr.empty()) {
+        return false;
+    }
+
+    std::ostringstream ss {};
+    ss << "<tptz:ModifyPresetTour>\n"
+       << "  <tptz:ProfileToken>" << profileToken << "</tptz:ProfileToken>\n"
+       << "  <tptz:PresetTour token=\"" << tour.token << "\">\n";
+    if (!tour.name.empty()) {
+        ss << "    <tt:Name>" << tour.name << "</tt:Name>\n";
+    }
+    ss << "    <tt:AutoStart>" << (tour.autoStart ? "true" : "false") << "</tt:AutoStart>\n";
+    for (const auto& spot : tour.spots) {
+        ss << "    <tt:TourSpot>\n"
+           << "      <tt:PresetDetail>\n"
+           << "        <tt:PresetToken>" << spot.presetToken << "</tt:PresetToken>\n"
+           << "      </tt:PresetDetail>\n"
+           << "      <tt:Speed>\n"
+           << "        <tt:PanTilt x=\"" << std::fixed << std::setprecision(2) << spot.speed << "\" y=\"" << spot.speed
+           << "\"/>\n"
+           << "      </tt:Speed>\n"
+           << "      <tt:StayTime>PT" << spot.stayTimeSeconds << "S</tt:StayTime>\n"
+           << "    </tt:TourSpot>\n";
+    }
+    ss << "  </tptz:PresetTour>\n"
+       << "</tptz:ModifyPresetTour>";
+
+    const std::string reqXml = wrapSoapEnvelope(ss.str());
+    const HttpResponse resp = m_httpClient.sendPost(m_capabilities.ptzXAddr, reqXml);
+    return resp.isSuccess();
+}
+
+bool OnvifClient::operatePresetTour(
+    const std::string& profileToken, const std::string& tourToken, PresetTourOperation op)
+{
+    if (m_capabilities.ptzXAddr.empty()) {
+        static_cast<void>(getCapabilities());
+    }
+
+    if (m_capabilities.ptzXAddr.empty()) {
+        return false;
+    }
+
+    std::string opStr = "Start";
+    if (op == PresetTourOperation::Stop) {
+        opStr = "Stop";
+    } else if (op == PresetTourOperation::Pause) {
+        opStr = "Pause";
+    }
+
+    std::ostringstream ss {};
+    ss << "<tptz:OperatePresetTour>\n"
+       << "  <tptz:ProfileToken>" << profileToken << "</tptz:ProfileToken>\n"
+       << "  <tptz:PresetTourToken>" << tourToken << "</tptz:PresetTourToken>\n"
+       << "  <tptz:Operation>" << opStr << "</tptz:Operation>\n"
+       << "</tptz:OperatePresetTour>";
+
+    const std::string reqXml = wrapSoapEnvelope(ss.str());
+    const HttpResponse resp = m_httpClient.sendPost(m_capabilities.ptzXAddr, reqXml);
+    return resp.isSuccess();
+}
+
+bool OnvifClient::removePresetTour(const std::string& profileToken, const std::string& tourToken)
+{
+    if (m_capabilities.ptzXAddr.empty()) {
+        static_cast<void>(getCapabilities());
+    }
+
+    if (m_capabilities.ptzXAddr.empty()) {
+        return false;
+    }
+
+    std::ostringstream ss {};
+    ss << "<tptz:RemovePresetTour>\n"
+       << "  <tptz:ProfileToken>" << profileToken << "</tptz:ProfileToken>\n"
+       << "  <tptz:PresetTourToken>" << tourToken << "</tptz:PresetTourToken>\n"
+       << "</tptz:RemovePresetTour>";
 
     const std::string reqXml = wrapSoapEnvelope(ss.str());
     const HttpResponse resp = m_httpClient.sendPost(m_capabilities.ptzXAddr, reqXml);
@@ -1122,10 +1431,9 @@ std::optional<std::string> OnvifClient::createPullPointSubscription()
         return std::nullopt;
     }
 
-    const std::string body =
-        "<tev:CreatePullPointSubscription xmlns:tev=\"http://www.onvif.org/ver10/events/wsdl\">\n"
-        "  <tev:InitialTerminationTime>PT60S</tev:InitialTerminationTime>\n"
-        "</tev:CreatePullPointSubscription>";
+    const std::string body = "<tev:CreatePullPointSubscription xmlns:tev=\"http://www.onvif.org/ver10/events/wsdl\">\n"
+                             "  <tev:InitialTerminationTime>PT60S</tev:InitialTerminationTime>\n"
+                             "</tev:CreatePullPointSubscription>";
 
     const std::string reqXml = wrapSoapEnvelope(body);
     const HttpResponse resp = m_httpClient.sendPost(m_capabilities.eventsXAddr, reqXml);
