@@ -172,6 +172,9 @@ OnvifServer::OnvifServer(OnvifServerConfig config, std::shared_ptr<IPtzHandler> 
     }
 
     m_internalReplayConfig.sessionTimeout = "PT60S";
+    if (m_deviceHandler) {
+        m_deviceHandler->handleSetGeoLocation(m_config.defaultLocation);
+    }
 
     logSystemMessage("INFO", "ONVIF Server initialized successfully");
 
@@ -261,6 +264,9 @@ void OnvifServer::setOsdHandler(std::shared_ptr<IOsdHandler> handler)
 void OnvifServer::setDeviceManagementHandler(std::shared_ptr<IDeviceManagementHandler> handler)
 {
     m_deviceHandler = std::move(handler);
+    if (m_deviceHandler) {
+        m_deviceHandler->handleSetGeoLocation(m_config.defaultLocation);
+    }
 }
 
 void OnvifServer::setDeviceIoHandler(std::shared_ptr<IDeviceIoHandler> handler)
@@ -1312,6 +1318,80 @@ void OnvifServer::handleDeviceService(const httplib::Request& req, httplib::Resp
         }
         logSystemMessage("INFO", "Set ClientCertificateMode to " + modeStr);
         body << "    <tds:SetClientCertificateModeResponse/>\r\n";
+    } else if (isOp(opName, "GetGeoLocation")) {
+        const pugi::xml_node entNode = reqNode.select_node(".//*[local-name()='Entity']").node();
+        const std::string entToken = entNode ? entNode.text().as_string() : "Device";
+
+        LocationEntity loc = m_config.defaultLocation;
+        if (m_deviceHandler) {
+            const auto opt = m_deviceHandler->handleGetGeoLocation(entToken);
+            if (opt.has_value()) {
+                loc = *opt;
+            }
+        }
+        body << "    <tds:GetGeoLocationResponse>\r\n"
+             << "      <tds:Location Entity=\"" << loc.entity << "\" Token=\"" << loc.token
+             << "\" Fixed=\"" << (loc.fixed ? "true" : "false") << "\">\r\n"
+             << "        <tt:GeoLocation lat=\"" << std::fixed << std::setprecision(6) << loc.location.latitude
+             << "\" lon=\"" << loc.location.longitude
+             << "\" elevation=\"" << std::setprecision(2) << loc.location.elevation << "\"/>\r\n"
+             << "        <tt:GeoOrientation yaw=\"" << std::setprecision(2) << loc.orientation.yaw
+             << "\" pitch=\"" << loc.orientation.pitch
+             << "\" roll=\"" << loc.orientation.roll << "\"/>\r\n"
+             << "      </tds:Location>\r\n"
+             << "    </tds:GetGeoLocationResponse>\r\n";
+    } else if (isOp(opName, "SetGeoLocation")) {
+        const pugi::xml_node locNode = reqNode.select_node(".//*[local-name()='Location']").node();
+        LocationEntity loc {};
+        if (locNode) {
+            loc.entity = locNode.attribute("Entity").as_string("Device");
+            loc.token = locNode.attribute("Token").as_string("Location_1");
+            loc.fixed = locNode.attribute("Fixed").as_bool(true);
+
+            const pugi::xml_node geoNode = locNode.select_node(".//*[local-name()='GeoLocation']").node();
+            if (geoNode) {
+                if (geoNode.attribute("lat")) {
+                    loc.location.latitude = geoNode.attribute("lat").as_double(0.0);
+                    loc.location.longitude = geoNode.attribute("lon").as_double(0.0);
+                    loc.location.elevation = geoNode.attribute("elevation").as_double(0.0);
+                } else {
+                    const auto latN = geoNode.child("Latitude");
+                    const auto lonN = geoNode.child("Longitude");
+                    const auto elN = geoNode.child("Elevation");
+                    if (latN) loc.location.latitude = latN.text().as_double(0.0);
+                    if (lonN) loc.location.longitude = lonN.text().as_double(0.0);
+                    if (elN) loc.location.elevation = elN.text().as_double(0.0);
+                }
+            }
+
+            const pugi::xml_node oriNode = locNode.select_node(".//*[local-name()='GeoOrientation']").node();
+            if (oriNode) {
+                if (oriNode.attribute("yaw")) {
+                    loc.orientation.yaw = oriNode.attribute("yaw").as_double(0.0);
+                    loc.orientation.pitch = oriNode.attribute("pitch").as_double(0.0);
+                    loc.orientation.roll = oriNode.attribute("roll").as_double(0.0);
+                } else {
+                    const auto yN = oriNode.child("Yaw");
+                    const auto pN = oriNode.child("Pitch");
+                    const auto rN = oriNode.child("Roll");
+                    if (yN) loc.orientation.yaw = yN.text().as_double(0.0);
+                    if (pN) loc.orientation.pitch = pN.text().as_double(0.0);
+                    if (rN) loc.orientation.roll = rN.text().as_double(0.0);
+                }
+            }
+        }
+        if (m_deviceHandler) {
+            m_deviceHandler->handleSetGeoLocation(loc);
+        }
+        m_config.defaultLocation = loc;
+        body << "    <tds:SetGeoLocationResponse/>\r\n";
+    } else if (isOp(opName, "DeleteGeoLocation")) {
+        const pugi::xml_node entNode = reqNode.select_node(".//*[local-name()='Entity']").node();
+        const std::string entToken = entNode ? entNode.text().as_string() : "Device";
+        if (m_deviceHandler) {
+            m_deviceHandler->handleDeleteGeoLocation(entToken);
+        }
+        body << "    <tds:DeleteGeoLocationResponse/>\r\n";
     } else {
         body << "    <tds:" << opName << "Response/>\r\n";
     }
@@ -2052,11 +2132,13 @@ void OnvifServer::handlePtzService(const httplib::Request& req, httplib::Respons
         float pan = -1.0f;
         float tilt = -1.0f;
         float zoom = -1.0f;
+        std::string spaceUri {};
 
         const pugi::xml_node ptNode = doc.select_node("//*[local-name()='PanTilt']").node();
         if (ptNode) {
             pan = ptNode.attribute("x").as_float(-1.0f);
             tilt = ptNode.attribute("y").as_float(-1.0f);
+            spaceUri = ptNode.attribute("space").as_string();
         }
 
         const pugi::xml_node zNode = doc.select_node("//*[local-name()='Zoom']").node();
@@ -2065,10 +2147,60 @@ void OnvifServer::handlePtzService(const httplib::Request& req, httplib::Respons
         }
 
         if (m_ptzHandler) {
-            m_ptzHandler->handleAbsoluteMove(pan, tilt, zoom);
+            if (spaceUri.find("Spherical") != std::string::npos) {
+                m_ptzHandler->handleAbsoluteMoveSpherical(pan, tilt, zoom);
+            } else {
+                m_ptzHandler->handleAbsoluteMove(pan, tilt, zoom);
+            }
         }
 
         body << "    <tptz:AbsoluteMoveResponse/>\r\n";
+    } else if (opName.find("GeoMove") != std::string::npos) {
+        const pugi::xml_node profNode = doc.select_node("//*[local-name()='ProfileToken']").node();
+        const std::string profToken = profNode ? profNode.text().as_string() : "Profile_1";
+
+        GeoMoveTarget target {};
+        pugi::xml_node targetNode = doc.select_node("//*[local-name()='Target']").node();
+        pugi::xml_node geoNode
+            = doc.select_node("//*[local-name()='Target']/*[local-name()='GeoLocation'] | //*[local-name()='GeoLocation']").node();
+        if (!geoNode && targetNode) {
+            geoNode = targetNode;
+        }
+        if (geoNode) {
+            if (geoNode.attribute("lat")) {
+                target.targetGeo.latitude = geoNode.attribute("lat").as_double(0.0);
+                target.targetGeo.longitude = geoNode.attribute("lon").as_double(0.0);
+                target.targetGeo.elevation = geoNode.attribute("elevation").as_double(0.0);
+            } else {
+                const auto latNode = geoNode.select_node(".//*[local-name()='Latitude' or local-name()='lat']").node();
+                const auto lonNode = geoNode.select_node(".//*[local-name()='Longitude' or local-name()='lon']").node();
+                const auto elevNode = geoNode.select_node(".//*[local-name()='Elevation' or local-name()='elevation']").node();
+                if (latNode) target.targetGeo.latitude = latNode.text().as_double(0.0);
+                if (lonNode) target.targetGeo.longitude = lonNode.text().as_double(0.0);
+                if (elevNode) target.targetGeo.elevation = elevNode.text().as_double(0.0);
+            }
+        }
+
+        const pugi::xml_node spNode = doc.select_node("//*[local-name()='Speed']/*[local-name()='PanTilt']").node();
+        if (spNode) {
+            target.speed = spNode.attribute("x").as_float(1.0f);
+        }
+
+        const pugi::xml_node wNode = doc.select_node("//*[local-name()='AreaWidth']").node();
+        if (wNode) {
+            target.areaWidth = wNode.text().as_float(0.0f);
+        }
+
+        const pugi::xml_node hNode = doc.select_node("//*[local-name()='AreaHeight']").node();
+        if (hNode) {
+            target.areaHeight = hNode.text().as_float(0.0f);
+        }
+
+        if (m_ptzHandler) {
+            m_ptzHandler->handleGeoMove(profToken, target);
+        }
+
+        body << "    <tptz:GeoMoveResponse/>\r\n";
     } else if (opName.find("RelativeMove") != std::string::npos) {
         float pan = 0.0f;
         float tilt = 0.0f;
@@ -2132,6 +2264,11 @@ void OnvifServer::handlePtzService(const httplib::Request& req, httplib::Respons
              << "            <tt:XRange><tt:Min>-1.0</tt:Min><tt:Max>1.0</tt:Max></tt:XRange>\r\n"
              << "            <tt:YRange><tt:Min>-1.0</tt:Min><tt:Max>1.0</tt:Max></tt:YRange>\r\n"
              << "          </tt:AbsolutePanTiltPositionSpace>\r\n"
+             << "          <tt:AbsolutePanTiltPositionSpace>\r\n"
+             << "            <tt:URI>http://www.onvif.org/ver10/tptz/PanTiltSpaces/PositionSphericalSpace</tt:URI>\r\n"
+             << "            <tt:XRange><tt:Min>0.0</tt:Min><tt:Max>360.0</tt:Max></tt:XRange>\r\n"
+             << "            <tt:YRange><tt:Min>-90.0</tt:Min><tt:Max>90.0</tt:Max></tt:YRange>\r\n"
+             << "          </tt:AbsolutePanTiltPositionSpace>\r\n"
              << "          <tt:AbsoluteZoomPositionSpace>\r\n"
              << "            <tt:URI>http://www.onvif.org/ver10/tptz/ZoomSpaces/PositionGenericSpace</tt:URI>\r\n"
              << "            <tt:XRange><tt:Min>0.0</tt:Min><tt:Max>1.0</tt:Max></tt:XRange>\r\n"
@@ -2181,6 +2318,16 @@ void OnvifServer::handlePtzService(const httplib::Request& req, httplib::Respons
              << "      <tptz:PTZNode token=\"PTZNode_1\">\r\n"
              << "        <tt:Name>PTZNode</tt:Name>\r\n"
              << "        <tt:SupportedPTZSpaces>\r\n"
+             << "          <tt:AbsolutePanTiltPositionSpace>\r\n"
+             << "            <tt:URI>http://www.onvif.org/ver10/tptz/PanTiltSpaces/PositionGenericSpace</tt:URI>\r\n"
+             << "            <tt:XRange><tt:Min>-1.0</tt:Min><tt:Max>1.0</tt:Max></tt:XRange>\r\n"
+             << "            <tt:YRange><tt:Min>-1.0</tt:Min><tt:Max>1.0</tt:Max></tt:YRange>\r\n"
+             << "          </tt:AbsolutePanTiltPositionSpace>\r\n"
+             << "          <tt:AbsolutePanTiltPositionSpace>\r\n"
+             << "            <tt:URI>http://www.onvif.org/ver10/tptz/PanTiltSpaces/PositionSphericalSpace</tt:URI>\r\n"
+             << "            <tt:XRange><tt:Min>0.0</tt:Min><tt:Max>360.0</tt:Max></tt:XRange>\r\n"
+             << "            <tt:YRange><tt:Min>-90.0</tt:Min><tt:Max>90.0</tt:Max></tt:YRange>\r\n"
+             << "          </tt:AbsolutePanTiltPositionSpace>\r\n"
              << "          <tt:ContinuousPanTiltVelocitySpace>\r\n"
              << "            <tt:URI>http://www.onvif.org/ver10/tptz/PanTiltSpaces/VelocityGenericSpace</tt:URI>\r\n"
              << "            <tt:XRange><tt:Min>-1.0</tt:Min><tt:Max>1.0</tt:Max></tt:XRange>\r\n"
@@ -2188,11 +2335,12 @@ void OnvifServer::handlePtzService(const httplib::Request& req, httplib::Respons
              << "          </tt:ContinuousPanTiltVelocitySpace>\r\n"
              << "          <tt:ContinuousZoomVelocitySpace>\r\n"
              << "            <tt:URI>http://www.onvif.org/ver10/tptz/ZoomSpaces/VelocityGenericSpace</tt:URI>\r\n"
-             << "            <tt:XRange><tt:Min>-1.0</tt:Min><tt:Max>1.0</tt:Max></tt:XRange>\r\n"
+             << "            <tt:XRange><tt:Min>0.0</tt:Min><tt:Max>1.0</tt:Max></tt:XRange>\r\n"
              << "          </tt:ContinuousZoomVelocitySpace>\r\n"
              << "        </tt:SupportedPTZSpaces>\r\n"
              << "        <tt:MaximumNumberOfPresets>255</tt:MaximumNumberOfPresets>\r\n"
              << "        <tt:HomeSupported>true</tt:HomeSupported>\r\n"
+             << "        <tt:GeoMove>true</tt:GeoMove>\r\n"
              << "        <tt:AuxiliaryCommands>tt:Wiper|On</tt:AuxiliaryCommands>\r\n"
              << "        <tt:AuxiliaryCommands>tt:Wiper|Off</tt:AuxiliaryCommands>\r\n"
              << "        <tt:AuxiliaryCommands>tt:Washer|On</tt:AuxiliaryCommands>\r\n"

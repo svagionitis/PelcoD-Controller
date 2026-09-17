@@ -179,6 +179,21 @@ public:
     /// @return True on success.
     bool setScopes(const std::vector<std::string>& scopes);
 
+    /// @brief Queries device geographic location and mounting orientation (ONVIF Device Management).
+    /// @param[in] entityToken Entity identifier (default: "Device").
+    /// @return LocationEntity or nullopt on failure.
+    [[nodiscard]] std::optional<LocationEntity> getGeoLocation(const std::string& entityToken = "Device");
+
+    /// @brief Configures device geographic location and mounting orientation.
+    /// @param[in] location LocationEntity struct.
+    /// @return True on success.
+    bool setGeoLocation(const LocationEntity& location);
+
+    /// @brief Deletes/clears device geographic location configuration.
+    /// @param[in] entityToken Entity identifier (default: "Device").
+    /// @return True on success.
+    bool deleteGeoLocation(const std::string& entityToken = "Device");
+
     // =========================================================================
     // Media Service
     // =========================================================================
@@ -271,6 +286,26 @@ public:
     /// @param[in] zoom Normalized zoom [0.0, 1.0].
     /// @return True if absolute move command succeeded.
     bool absoluteMove(const std::string& profileToken, double pan, double tilt, double zoom);
+
+    /// @brief Moves PTZ head to absolute spherical angles in degrees (PositionSphericalSpace).
+    /// @param[in] profileToken Media profile token.
+    /// @param[in] azimuthDeg Azimuth angle in degrees [0.0, 360.0).
+    /// @param[in] elevationDeg Elevation angle in degrees [-90.0, +90.0].
+    /// @param[in] zoom Normalized zoom position [0.0, 1.0].
+    /// @return True if command acknowledged.
+    bool absoluteMoveSpherical(
+        const std::string& profileToken, double azimuthDeg, double elevationDeg, double zoom = 0.0);
+
+    /// @brief Commands camera PTZ head to aim at geographic target coordinates (ONVIF GeoMove).
+    /// @param[in] profileToken Media profile token.
+    /// @param[in] target Target WGS84 geographic coordinates.
+    /// @param[in] speed Optional speed ratio [0.0, 1.0].
+    /// @param[in] areaWidth Optional target framing width in meters.
+    /// @param[in] areaHeight Optional target framing height in meters.
+    /// @return True if GeoMove command acknowledged.
+    bool geoMove(const std::string& profileToken, const GeoLocation& target,
+        std::optional<float> speed = std::nullopt, std::optional<float> areaWidth = std::nullopt,
+        std::optional<float> areaHeight = std::nullopt);
 
     /// @brief Moves PTZ head to configured camera home position.
     /// @param[in] profileToken Media profile token.
@@ -985,6 +1020,7 @@ public:
     [[nodiscard]] static std::vector<AnalyticsModuleDescription> parseSupportedAnalyticsModulesResponse(
         const std::string& xml);
     [[nodiscard]] static std::vector<AnalyticsModule> parseAnalyticsModulesResponse(const std::string& xml);
+    [[nodiscard]] static std::optional<LocationEntity> parseGetGeoLocationResponse(const std::string& xml);
 
 private:
     std::string m_deviceEndpoint {};

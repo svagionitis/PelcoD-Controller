@@ -237,6 +237,53 @@ void QOnvifDevice::absoluteMove(double pan, double tilt, double zoom)
     m_client->absoluteMove(m_activeProfileToken.toStdString(), pan, tilt, zoom);
 }
 
+void QOnvifDevice::absoluteMoveSpherical(double azimuthDeg, double elevationDeg, double zoom)
+{
+    if (!m_client || m_activeProfileToken.isEmpty()) {
+        return;
+    }
+    m_client->absoluteMoveSpherical(m_activeProfileToken.toStdString(), azimuthDeg, elevationDeg, zoom);
+}
+
+void QOnvifDevice::geoMove(double lat, double lon, double elevation, double speed, double areaWidth, double areaHeight)
+{
+    if (!m_client || m_activeProfileToken.isEmpty()) {
+        emit geoMoveCompleted(false);
+        return;
+    }
+
+    PelcoD::Onvif::GeoLocation target { lat, lon, elevation };
+    std::optional<float> sp = (speed > 0.0) ? std::optional<float>(static_cast<float>(speed)) : std::nullopt;
+    std::optional<float> w = (areaWidth > 0.0) ? std::optional<float>(static_cast<float>(areaWidth)) : std::nullopt;
+    std::optional<float> h = (areaHeight > 0.0) ? std::optional<float>(static_cast<float>(areaHeight)) : std::nullopt;
+
+    const bool ok = m_client->geoMove(m_activeProfileToken.toStdString(), target, sp, w, h);
+    emit geoMoveCompleted(ok);
+}
+
+void QOnvifDevice::refreshGeoLocation()
+{
+    if (!m_client) {
+        return;
+    }
+    const auto loc = m_client->getGeoLocation("Device");
+    if (loc.has_value()) {
+        m_geoLocation = loc;
+        emit geoLocationUpdated(*loc);
+    }
+}
+
+void QOnvifDevice::updateGeoLocation(const PelcoD::Onvif::LocationEntity& location)
+{
+    if (!m_client) {
+        return;
+    }
+    if (m_client->setGeoLocation(location)) {
+        m_geoLocation = location;
+        emit geoLocationUpdated(location);
+    }
+}
+
 void QOnvifDevice::relativeMove(double pan, double tilt, double zoom)
 {
     if (!m_client || m_activeProfileToken.isEmpty()) {

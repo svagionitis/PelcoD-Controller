@@ -709,4 +709,51 @@ enum class ClientCertificateMode : std::uint8_t { Off, Optional, Required };
     return ClientCertificateMode::Off;
 }
 
+// =========================================================================
+// Geolocation, GeoMove & Absolute Coordinate Spaces (Profile T & M)
+// =========================================================================
+
+/// @namespace CoordinateSpace
+/// @brief Standard ONVIF PTZ coordinate space URI identifiers.
+namespace CoordinateSpace {
+    inline constexpr const char* PositionGenericSpace = "http://www.onvif.org/ver10/tptz/PanTiltSpaces/PositionGenericSpace";
+    inline constexpr const char* PositionSphericalSpace = "http://www.onvif.org/ver10/tptz/PanTiltSpaces/PositionSphericalSpace";
+    inline constexpr const char* VelocityGenericSpace = "http://www.onvif.org/ver10/tptz/PanTiltSpaces/VelocityGenericSpace";
+    inline constexpr const char* TranslationGenericSpace = "http://www.onvif.org/ver10/tptz/PanTiltSpaces/TranslationGenericSpace";
+} // namespace CoordinateSpace
+
+/// @struct GeoOrientation
+/// @brief Spatial orientation angles relative to Earth (ONVIF Profile M / Core).
+struct GeoOrientation {
+    double yaw { 0.0 };    ///< Azimuth heading clockwise from True North [0.0, 360.0)
+    double pitch { 0.0 };  ///< Elevation tilt angle [-90.0, +90.0] (positive = up)
+    double roll { 0.0 };   ///< Bank rotation angle [-180.0, +180.0]
+};
+
+/// @struct LocationEntity
+/// @brief Geolocation container for a device or video source entity (ONVIF Device Management).
+struct LocationEntity {
+    std::string entity { "Device" }; ///< Entity type ("Device", "VideoSource")
+    std::string token {};            ///< Entity token identifier
+    bool fixed { true };             ///< True if coordinates are statically configured
+    GeoLocation location {};         ///< WGS84 coordinates
+    GeoOrientation orientation {};   ///< 3-axis mounting orientation
+};
+
+/// @struct GeoMoveTarget
+/// @brief Parameters for directing PTZ camera toward a geographic location (ONVIF PTZ GeoMove).
+struct GeoMoveTarget {
+    GeoLocation targetGeo {};               ///< Target WGS84 coordinate
+    std::optional<float> speed {};          ///< PTZ movement speed ratio [0.0, 1.0]
+    std::optional<float> areaWidth {};      ///< Target framing area width in meters (for auto-zoom)
+    std::optional<float> areaHeight {};     ///< Target framing area height in meters (for auto-zoom)
+};
+
+/// @struct SphericalPosition
+/// @brief Pan/tilt angles in standard spherical degrees (ONVIF PositionSphericalSpace).
+struct SphericalPosition {
+    double azimuthDegrees { 0.0 };   ///< Azimuth angle [0.0, 360.0) degrees
+    double elevationDegrees { 0.0 }; ///< Elevation angle [-90.0, +90.0] degrees
+};
+
 } // namespace PelcoD::Onvif

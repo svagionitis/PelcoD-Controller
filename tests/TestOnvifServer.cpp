@@ -2562,6 +2562,189 @@ void testVideoAnalyticsRuleEngineAndEvaluation()
     std::cout << "[PASS] testVideoAnalyticsRuleEngineAndEvaluation" << std::endl;
 }
 
+void testPtzGeoMoveAndSphericalSpaces()
+{
+    std::cout << "[RUN] testPtzGeoMoveAndSphericalSpaces..." << std::endl;
+
+    auto mockTransport = std::make_shared<PelcoD::MockPelcoDDevice>(1U);
+    auto device = std::make_shared<PelcoD::PelcoDDevice>(mockTransport, 1U);
+    assert(device->start());
+
+    auto adapter = std::make_shared<PelcoDPtzAdapter>(device);
+
+    OnvifServerConfig config;
+    config.port = 18605;
+    config.bindAddress = "127.0.0.1";
+    config.deviceName = "GeoCamera";
+    config.defaultLocation.entity = "Device";
+    config.defaultLocation.fixed = true;
+    config.defaultLocation.location = { 37.9838, 23.7275, 150.0 };
+    config.defaultLocation.orientation = { 0.0, 0.0, 0.0 }; // Pointing true North
+
+    OnvifServer server(config);
+    adapter->setCameraLocation(config.defaultLocation);
+    server.setPtzHandler(adapter);
+    server.setDeviceManagementHandler(adapter);
+    assert(server.start());
+    assert(server.isRunning());
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+    httplib::Client client("127.0.0.1", config.port);
+    client.set_connection_timeout(std::chrono::seconds(2));
+    client.set_read_timeout(std::chrono::seconds(2));
+
+    // 1. GetConfigurationOptions - should advertise PositionSphericalSpace
+    {
+        const std::string req = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+                                "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                "xmlns:tptz=\"http://www.onvif.org/ver20/ptz/wsdl\">\r\n"
+                                "  <SOAP-ENV:Body>\r\n"
+                                "    <tptz:GetConfigurationOptions>\r\n"
+                                "      <tptz:ConfigurationToken>PTZConfig_1</tptz:ConfigurationToken>\r\n"
+                                "    </tptz:GetConfigurationOptions>\r\n"
+                                "  </SOAP-ENV:Body>\r\n"
+                                "</SOAP-ENV:Envelope>";
+
+        auto res = client.Post("/onvif/ptz_service", req, "application/soap+xml; charset=utf-8");
+        assert(res && res->status == 200);
+        assert(res->body.find("PositionSphericalSpace") != std::string::npos);
+    }
+
+    // 2. GetNodes - should advertise <tt:GeoMove>true</tt:GeoMove>
+    {
+        const std::string req = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+                                "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                "xmlns:tptz=\"http://www.onvif.org/ver20/ptz/wsdl\">\r\n"
+                                "  <SOAP-ENV:Body>\r\n"
+                                "    <tptz:GetNodes/>\r\n"
+                                "  </SOAP-ENV:Body>\r\n"
+                                "</SOAP-ENV:Envelope>";
+
+        auto res = client.Post("/onvif/ptz_service", req, "application/soap+xml; charset=utf-8");
+        assert(res && res->status == 200);
+        assert(res->body.find("<tt:GeoMove>true</tt:GeoMove>") != std::string::npos);
+    }
+
+    // 3. GetGeoLocation - initial camera location
+    {
+        const std::string req = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+                                "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                "xmlns:tds=\"http://www.onvif.org/ver10/device/wsdl\">\r\n"
+                                "  <SOAP-ENV:Body>\r\n"
+                                "    <tds:GetGeoLocation/>\r\n"
+                                "  </SOAP-ENV:Body>\r\n"
+                                "</SOAP-ENV:Envelope>";
+
+        auto res = client.Post("/onvif/device_service", req, "application/soap+xml; charset=utf-8");
+        assert(res && res->status == 200);
+        assert(res->body.find("37.9838") != std::string::npos);
+        assert(res->body.find("23.7275") != std::string::npos);
+    }
+
+    // 4. SetGeoLocation - update camera location & mounting orientation
+    {
+        const std::string req = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+                                "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                "xmlns:tds=\"http://www.onvif.org/ver10/device/wsdl\" "
+                                "xmlns:tt=\"http://www.onvif.org/ver10/schema\">\r\n"
+                                "  <SOAP-ENV:Body>\r\n"
+                                "    <tds:SetGeoLocation>\r\n"
+                                "      <tds:Location Entity=\"Device\">\r\n"
+                                "        <tt:GeoLocation lat=\"38.0000\" lon=\"23.8000\" elevation=\"100.0\"/>\r\n"
+                                "        <tt:GeoOrientation yaw=\"90.0\" pitch=\"0.0\" roll=\"0.0\"/>\r\n"
+                                "      </tds:Location>\r\n"
+                                "    </tds:SetGeoLocation>\r\n"
+                                "  </SOAP-ENV:Body>\r\n"
+                                "</SOAP-ENV:Envelope>";
+
+        auto res = client.Post("/onvif/device_service", req, "application/soap+xml; charset=utf-8");
+        assert(res && res->status == 200);
+        assert(res->body.find("SetGeoLocationResponse") != std::string::npos);
+
+        const auto camLoc = adapter->cameraLocation();
+        assert(std::fabs(camLoc.location.latitude - 38.0000) < 0.0001);
+        assert(std::fabs(camLoc.location.longitude - 23.8000) < 0.0001);
+        assert(std::fabs(camLoc.orientation.yaw - 90.0) < 0.01);
+    }
+
+    // 5. GeoMove - Target directly North of camera (lat: 38.01, lon: 23.80)
+    // Since camera orientation yaw=90 (mounted facing East), target North is at relative azimuth 270°
+    {
+        const std::string req = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+                                "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                "xmlns:tptz=\"http://www.onvif.org/ver20/ptz/wsdl\" "
+                                "xmlns:tt=\"http://www.onvif.org/ver10/schema\">\r\n"
+                                "  <SOAP-ENV:Body>\r\n"
+                                "    <tptz:GeoMove>\r\n"
+                                "      <tptz:ProfileToken>ProfileToken_1</tptz:ProfileToken>\r\n"
+                                "      <tptz:Target lat=\"38.0100\" lon=\"23.8000\" elevation=\"100.0\"/>\r\n"
+                                "      <tptz:AreaWidth>20.0</tptz:AreaWidth>\r\n"
+                                "    </tptz:GeoMove>\r\n"
+                                "  </SOAP-ENV:Body>\r\n"
+                                "</SOAP-ENV:Envelope>";
+
+        auto res = client.Post("/onvif/ptz_service", req, "application/soap+xml; charset=utf-8");
+        assert(res && res->status == 200);
+        assert(res->body.find("GeoMoveResponse") != std::string::npos);
+
+        std::this_thread::sleep_for(std::chrono::milliseconds(150));
+        const auto state = mockTransport->getInternalState();
+        // 270 deg = 27000 centidegrees
+        assert(std::abs(static_cast<int>(state.panCentidegrees) - 27000) < 50);
+        assert(state.tiltCentidegrees == 0);
+    }
+
+    // 6. AbsoluteMove with PositionSphericalSpace (Azimuth 180°, Elevation 30°)
+    {
+        const std::string req = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+                                "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                "xmlns:tptz=\"http://www.onvif.org/ver20/ptz/wsdl\" "
+                                "xmlns:tt=\"http://www.onvif.org/ver10/schema\">\r\n"
+                                "  <SOAP-ENV:Body>\r\n"
+                                "    <tptz:AbsoluteMove>\r\n"
+                                "      <tptz:ProfileToken>ProfileToken_1</tptz:ProfileToken>\r\n"
+                                "      <tptz:Position>\r\n"
+                                "        <tt:PanTilt x=\"180.0\" y=\"30.0\" space=\"http://www.onvif.org/ver10/tptz/PanTiltSpaces/PositionSphericalSpace\"/>\r\n"
+                                "      </tptz:Position>\r\n"
+                                "    </tptz:AbsoluteMove>\r\n"
+                                "  </SOAP-ENV:Body>\r\n"
+                                "</SOAP-ENV:Envelope>";
+
+        auto res = client.Post("/onvif/ptz_service", req, "application/soap+xml; charset=utf-8");
+        assert(res && res->status == 200);
+        assert(res->body.find("AbsoluteMoveResponse") != std::string::npos);
+
+        std::this_thread::sleep_for(std::chrono::milliseconds(150));
+        const auto state = mockTransport->getInternalState();
+        assert(state.panCentidegrees == 18000);
+        assert(state.tiltCentidegrees == 3000);
+    }
+
+    // 7. DeleteGeoLocation
+    {
+        const std::string req = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+                                "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                "xmlns:tds=\"http://www.onvif.org/ver10/device/wsdl\">\r\n"
+                                "  <SOAP-ENV:Body>\r\n"
+                                "    <tds:DeleteGeoLocation>\r\n"
+                                "      <tds:Location Entity=\"Device\"/>\r\n"
+                                "    </tds:DeleteGeoLocation>\r\n"
+                                "  </SOAP-ENV:Body>\r\n"
+                                "</SOAP-ENV:Envelope>";
+
+        auto res = client.Post("/onvif/device_service", req, "application/soap+xml; charset=utf-8");
+        assert(res && res->status == 200);
+        assert(res->body.find("DeleteGeoLocationResponse") != std::string::npos);
+    }
+
+    server.stop();
+    assert(!server.isRunning());
+    device->stop();
+
+    std::cout << "[PASS] testPtzGeoMoveAndSphericalSpaces" << std::endl;
+}
+
 int main()
 {
     std::cout << "Starting TestOnvifServer test suite..." << std::endl;
@@ -2577,6 +2760,7 @@ int main()
     testMetadataStreamsAndMaintenanceExtensions();
     testProfileGAndPkiCertificates();
     testVideoAnalyticsRuleEngineAndEvaluation();
+    testPtzGeoMoveAndSphericalSpaces();
     std::cout << "All TestOnvifServer tests passed successfully!" << std::endl;
     return 0;
 }

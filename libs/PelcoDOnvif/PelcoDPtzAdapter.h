@@ -83,6 +83,8 @@ public:
     [[nodiscard]] bool handleGotoHomePosition(float speed = 1.0f) override;
     [[nodiscard]] bool handleSetHomePosition() override;
     [[nodiscard]] std::string handleSendAuxiliaryCommand(const std::string& auxiliaryData) override;
+    bool handleGeoMove(const std::string& profileToken, const GeoMoveTarget& target) override;
+    void handleAbsoluteMoveSpherical(float azimuthDeg, float elevationDeg, float zoom) override;
 
     // =========================================================================
     // IImagingHandler Implementation (Profile T)
@@ -154,6 +156,16 @@ public:
     [[nodiscard]] bool handleDeleteCertificate(const std::string& certificateId) override;
     [[nodiscard]] ClientCertificateMode handleGetClientCertificateMode() override;
     [[nodiscard]] bool handleSetClientCertificateMode(ClientCertificateMode mode) override;
+
+    [[nodiscard]] std::optional<LocationEntity> handleGetGeoLocation(const std::string& entityToken) override;
+    [[nodiscard]] bool handleSetGeoLocation(const LocationEntity& location) override;
+    [[nodiscard]] bool handleDeleteGeoLocation(const std::string& entityToken) override;
+
+    /// @brief Gets the configured camera mounting location.
+    [[nodiscard]] LocationEntity cameraLocation() const;
+
+    /// @brief Sets the camera mounting location and orientation.
+    void setCameraLocation(const LocationEntity& location);
 
     // =========================================================================
     // IRecordingHandler Implementation (Profile G)
@@ -281,6 +293,8 @@ private:
     std::vector<AnalyticsRule> m_rules {};
     std::vector<AnalyticsModule> m_analyticsModules {};
     std::map<int, ObjectTrackState> m_objectTracks {};
+
+    LocationEntity m_cameraLocation { "Device", "Location_1", true, { 37.7749, -122.4194, 10.0 }, { 0.0, 0.0, 0.0 } };
 };
 
 } // namespace PelcoD::Onvif

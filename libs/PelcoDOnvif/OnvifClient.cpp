@@ -679,6 +679,73 @@ bool OnvifClient::absoluteMove(const std::string& profileToken, double pan, doub
     return resp.isSuccess();
 }
 
+bool OnvifClient::absoluteMoveSpherical(
+    const std::string& profileToken, double azimuthDeg, double elevationDeg, double zoom)
+{
+    if (m_capabilities.ptzXAddr.empty()) {
+        static_cast<void>(getCapabilities());
+    }
+
+    if (m_capabilities.ptzXAddr.empty()) {
+        return false;
+    }
+
+    std::ostringstream ss {};
+    ss << "<tptz:AbsoluteMove>\n"
+       << "  <tptz:ProfileToken>" << profileToken << "</tptz:ProfileToken>\n"
+       << "  <tptz:Position>\n"
+       << "    <tt:PanTilt x=\"" << std::fixed << std::setprecision(4) << azimuthDeg << "\" y=\"" << elevationDeg
+       << "\" space=\"" << CoordinateSpace::PositionSphericalSpace << "\"/>\n"
+       << "    <tt:Zoom x=\"" << zoom << "\"/>\n"
+       << "  </tptz:Position>\n"
+       << "</tptz:AbsoluteMove>";
+
+    const std::string reqXml = wrapSoapEnvelope(ss.str());
+    const HttpResponse resp = m_httpClient.sendPost(m_capabilities.ptzXAddr, reqXml);
+    return resp.isSuccess();
+}
+
+bool OnvifClient::geoMove(const std::string& profileToken, const GeoLocation& target,
+    std::optional<float> speed, std::optional<float> areaWidth, std::optional<float> areaHeight)
+{
+    if (m_capabilities.ptzXAddr.empty()) {
+        static_cast<void>(getCapabilities());
+    }
+
+    if (m_capabilities.ptzXAddr.empty()) {
+        return false;
+    }
+
+    std::ostringstream ss {};
+    ss << "<tptz:GeoMove>\n"
+       << "  <tptz:ProfileToken>" << profileToken << "</tptz:ProfileToken>\n"
+       << "  <tptz:Target>\n"
+       << "    <tt:GeoLocation lat=\"" << std::fixed << std::setprecision(6) << target.latitude
+       << "\" lon=\"" << target.longitude
+       << "\" elevation=\"" << std::setprecision(2) << target.elevation << "\"/>\n"
+       << "  </tptz:Target>\n";
+
+    if (speed.has_value()) {
+        ss << "  <tptz:Speed>\n"
+           << "    <tt:PanTilt x=\"" << *speed << "\" y=\"" << *speed << "\"/>\n"
+           << "    <tt:Zoom x=\"" << *speed << "\"/>\n"
+           << "  </tptz:Speed>\n";
+    }
+
+    if (areaWidth.has_value()) {
+        ss << "  <tptz:AreaWidth>" << *areaWidth << "</tptz:AreaWidth>\n";
+    }
+    if (areaHeight.has_value()) {
+        ss << "  <tptz:AreaHeight>" << *areaHeight << "</tptz:AreaHeight>\n";
+    }
+
+    ss << "</tptz:GeoMove>";
+
+    const std::string reqXml = wrapSoapEnvelope(ss.str());
+    const HttpResponse resp = m_httpClient.sendPost(m_capabilities.ptzXAddr, reqXml);
+    return resp.isSuccess();
+}
+
 std::optional<std::string> OnvifClient::parseSystemRebootResponse(const std::string& xml)
 {
     pugi::xml_document doc {};
@@ -4504,6 +4571,112 @@ std::vector<AnalyticsModule> OnvifClient::parseAnalyticsModulesResponse(const st
         modules.push_back(std::move(mod));
     }
     return modules;
+}
+
+std::optional<LocationEntity> OnvifClient::getGeoLocation(const std::string& entityToken)
+{
+    const std::string targetUrl = !m_capabilities.deviceXAddr.empty() ? m_capabilities.deviceXAddr : m_deviceEndpoint;
+
+    std::ostringstream ss {};
+    ss << "<tds:GetGeoLocation>\n"
+       << "  <tds:Entity>" << entityToken << "</tds:Entity>\n"
+       << "</tds:GetGeoLocation>";
+
+    const std::string reqXml = wrapSoapEnvelope(ss.str());
+    const HttpResponse resp = m_httpClient.sendPost(targetUrl, reqXml);
+    if (!resp.isSuccess()) {
+        return std::nullopt;
+    }
+
+    return parseGetGeoLocationResponse(resp.body);
+}
+
+bool OnvifClient::setGeoLocation(const LocationEntity& location)
+{
+    const std::string targetUrl = !m_capabilities.deviceXAddr.empty() ? m_capabilities.deviceXAddr : m_deviceEndpoint;
+
+    std::ostringstream ss {};
+    ss << "<tds:SetGeoLocation>\n"
+       << "  <tds:Location Entity=\"" << location.entity << "\" Token=\"" << location.token
+       << "\" Fixed=\"" << (location.fixed ? "true" : "false") << "\">\n"
+       << "    <tt:GeoLocation lat=\"" << std::fixed << std::setprecision(6) << location.location.latitude
+       << "\" lon=\"" << location.location.longitude
+       << "\" elevation=\"" << std::setprecision(2) << location.location.elevation << "\"/>\n"
+       << "    <tt:GeoOrientation yaw=\"" << std::setprecision(2) << location.orientation.yaw
+       << "\" pitch=\"" << location.orientation.pitch
+       << "\" roll=\"" << location.orientation.roll << "\"/>\n"
+       << "  </tds:Location>\n"
+       << "</tds:SetGeoLocation>";
+
+    const std::string reqXml = wrapSoapEnvelope(ss.str());
+    const HttpResponse resp = m_httpClient.sendPost(targetUrl, reqXml);
+    return resp.isSuccess();
+}
+
+bool OnvifClient::deleteGeoLocation(const std::string& entityToken)
+{
+    const std::string targetUrl = !m_capabilities.deviceXAddr.empty() ? m_capabilities.deviceXAddr : m_deviceEndpoint;
+
+    std::ostringstream ss {};
+    ss << "<tds:DeleteGeoLocation>\n"
+       << "  <tds:Entity>" << entityToken << "</tds:Entity>\n"
+       << "</tds:DeleteGeoLocation>";
+
+    const std::string reqXml = wrapSoapEnvelope(ss.str());
+    const HttpResponse resp = m_httpClient.sendPost(targetUrl, reqXml);
+    return resp.isSuccess();
+}
+
+std::optional<LocationEntity> OnvifClient::parseGetGeoLocationResponse(const std::string& xml)
+{
+    pugi::xml_document doc {};
+    if (!doc.load_string(xml.c_str())) {
+        return std::nullopt;
+    }
+
+    const auto locNode = findRecursiveNodeWithSuffix(doc, "Location");
+    if (!locNode) {
+        return std::nullopt;
+    }
+
+    LocationEntity entity {};
+    entity.entity = locNode.attribute("Entity").as_string("Device");
+    entity.token = locNode.attribute("Token").as_string("");
+    entity.fixed = locNode.attribute("Fixed").as_bool(true);
+
+    const auto geoNode = findRecursiveNodeWithSuffix(locNode, "GeoLocation");
+    if (geoNode) {
+        if (geoNode.attribute("lat")) {
+            entity.location.latitude = geoNode.attribute("lat").as_double(0.0);
+            entity.location.longitude = geoNode.attribute("lon").as_double(0.0);
+            entity.location.elevation = geoNode.attribute("elevation").as_double(0.0);
+        } else {
+            const auto latNode = findNodeWithSuffix(geoNode, "Latitude");
+            const auto lonNode = findNodeWithSuffix(geoNode, "Longitude");
+            const auto elevNode = findNodeWithSuffix(geoNode, "Elevation");
+            if (latNode) entity.location.latitude = latNode.text().as_double(0.0);
+            if (lonNode) entity.location.longitude = lonNode.text().as_double(0.0);
+            if (elevNode) entity.location.elevation = elevNode.text().as_double(0.0);
+        }
+    }
+
+    const auto orientNode = findRecursiveNodeWithSuffix(locNode, "GeoOrientation");
+    if (orientNode) {
+        if (orientNode.attribute("yaw")) {
+            entity.orientation.yaw = orientNode.attribute("yaw").as_double(0.0);
+            entity.orientation.pitch = orientNode.attribute("pitch").as_double(0.0);
+            entity.orientation.roll = orientNode.attribute("roll").as_double(0.0);
+        } else {
+            const auto yawNode = findNodeWithSuffix(orientNode, "Yaw");
+            const auto pitchNode = findNodeWithSuffix(orientNode, "Pitch");
+            const auto rollNode = findNodeWithSuffix(orientNode, "Roll");
+            if (yawNode) entity.orientation.yaw = yawNode.text().as_double(0.0);
+            if (pitchNode) entity.orientation.pitch = pitchNode.text().as_double(0.0);
+            if (rollNode) entity.orientation.roll = rollNode.text().as_double(0.0);
+        }
+    }
+
+    return entity;
 }
 
 } // namespace PelcoD::Onvif

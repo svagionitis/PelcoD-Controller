@@ -179,6 +179,12 @@ public:
         return m_analyticsModules;
     }
 
+    /// @brief Gets cached camera geographic location and mounting orientation.
+    [[nodiscard]] std::optional<PelcoD::Onvif::LocationEntity> geoLocation() const
+    {
+        return m_geoLocation;
+    }
+
     /// @brief Gets camera hardware identification metadata.
     /// @return DeviceInformation struct.
     [[nodiscard]] PelcoD::Onvif::DeviceInformation deviceInformation() const;
@@ -229,6 +235,29 @@ public Q_SLOTS:
     /// @param[in] tilt Normalized tilt [-1.0, 1.0].
     /// @param[in] zoom Normalized zoom [0.0, 1.0].
     void absoluteMove(double pan, double tilt, double zoom);
+
+    /// @brief Moves PTZ head to absolute spherical angles in degrees.
+    /// @param[in] azimuthDeg Azimuth angle in degrees [0.0, 360.0).
+    /// @param[in] elevationDeg Elevation angle in degrees [-90.0, +90.0].
+    /// @param[in] zoom Normalized zoom position [0.0, 1.0].
+    void absoluteMoveSpherical(double azimuthDeg, double elevationDeg, double zoom = 0.0);
+
+    /// @brief Directs camera PTZ to aim at a WGS84 geographic coordinate (ONVIF GeoMove).
+    /// @param[in] lat Target latitude in degrees.
+    /// @param[in] lon Target longitude in degrees.
+    /// @param[in] elevation Target elevation in meters.
+    /// @param[in] speed Optional speed ratio [0.0, 1.0].
+    /// @param[in] areaWidth Optional target framing width in meters.
+    /// @param[in] areaHeight Optional target framing height in meters.
+    void geoMove(double lat, double lon, double elevation, double speed = 1.0,
+        double areaWidth = 0.0, double areaHeight = 0.0);
+
+    /// @brief Queries camera installation geographic location and mounting orientation.
+    void refreshGeoLocation();
+
+    /// @brief Updates camera installation geographic location and mounting orientation.
+    /// @param[in] location Updated LocationEntity.
+    void updateGeoLocation(const PelcoD::Onvif::LocationEntity& location);
 
     /// @brief Moves PTZ head relatively by translation offset delta.
     /// @param[in] pan Pan step delta [-1.0, 1.0].
@@ -738,6 +767,14 @@ Q_SIGNALS:
     /// @param[in] presets List of camera presets.
     void presetsUpdated(const std::vector<PelcoD::Onvif::PtzPreset>& presets);
 
+    /// @brief Emitted when camera geographic location/orientation is retrieved.
+    /// @param[in] location Configured LocationEntity.
+    void geoLocationUpdated(const PelcoD::Onvif::LocationEntity& location);
+
+    /// @brief Emitted when GeoMove command completes.
+    /// @param[in] success True if command acknowledged.
+    void geoMoveCompleted(bool success);
+
     /// @brief Emitted when preset tours list is refreshed.
     /// @param[in] tours List of camera preset tours.
     void presetToursUpdated(const std::vector<PelcoD::Onvif::PresetTour>& tours);
@@ -945,6 +982,7 @@ private:
     std::vector<PelcoD::Onvif::AnalyticsRuleDescription> m_supportedRules {};
     std::vector<PelcoD::Onvif::AnalyticsModule> m_analyticsModules {};
     std::vector<PelcoD::Onvif::AnalyticsModuleDescription> m_supportedModules {};
+    std::optional<PelcoD::Onvif::LocationEntity> m_geoLocation {};
 };
 
 } // namespace PelcoD::Qt

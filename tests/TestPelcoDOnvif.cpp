@@ -1,6 +1,7 @@
 /// @file TestPelcoDOnvif.cpp
 /// @brief Comprehensive unit tests for ONVIF Profile S client, discovery, security, and PTZ controls.
 
+#include "PelcoDOnvif/GeodesyUtils.h"
 #include "PelcoDOnvif/OnvifClient.h"
 #include "PelcoDOnvif/OnvifDiscovery.h"
 #include "PelcoDOnvif/OnvifSecurity.h"
@@ -1598,6 +1599,97 @@ void testVideoAnalyticsRulesAndModulesParsing()
     assert(mods[0].parameters.at("MinConfidence") == "0.75");
 }
 
+void testGeodesyAndGeoMoveParsing()
+{
+    using namespace PelcoD::Onvif;
+
+    // 1. Test Geodesy Azimuth / Elevation calculation
+    // Camera at equator/prime meridian (0, 0, 0), Target slightly north (0.01, 0, 0)
+    GeoLocation camLoc {0.0, 0.0, 0.0};
+    GeoOrientation camOri {0.0, 0.0, 0.0}; // Pointing true North
+    GeoLocation targetNorth {0.01, 0.0, 0.0}; // ~1111 meters North
+
+    double pan = 0.0;
+    double tilt = 0.0;
+    double slant = 0.0;
+    bool ok = Geodesy::computeTargetAzimuthElevation(camLoc, camOri, targetNorth, pan, tilt, slant);
+    assert(ok);
+    // Bearing should be ~0 deg (North), slant range ~1111 m
+    assert(pan >= 359.9 || pan <= 0.1);
+    assert(std::fabs(slant - 1113.0) < 50.0);
+    assert(std::fabs(tilt) < 1.0);
+
+    // Target directly East (0, 0.01, 0)
+    GeoLocation targetEast {0.0, 0.01, 0.0};
+    ok = Geodesy::computeTargetAzimuthElevation(camLoc, camOri, targetEast, pan, tilt, slant);
+    assert(ok);
+    assert(std::fabs(pan - 90.0) < 0.5);
+
+    // Camera with yaw = 90.0 (camera base mounted pointing East)
+    // Target North should now have relative azimuth of 270 degrees (counter-clockwise or 360 - 90)
+    GeoOrientation camOriEast {90.0, 0.0, 0.0};
+    ok = Geodesy::computeTargetAzimuthElevation(camLoc, camOriEast, targetNorth, pan, tilt, slant);
+    assert(ok);
+    assert(std::fabs(pan - 270.0) < 0.5);
+
+    // Camera at 100m elevation, target at 0m elevation directly 100m away ground distance
+    // ground distance = 100m => lat ~ 100 / 111319.5 ~ 0.0008983 deg
+    GeoLocation camHigh {0.0, 0.0, 100.0};
+    GeoLocation targetGround {0.0008983, 0.0, 0.0};
+    ok = Geodesy::computeTargetAzimuthElevation(camHigh, camOri, targetGround, pan, tilt, slant);
+    assert(ok);
+    // Elevation should be approximately -45 degrees (downward)
+    assert(tilt < -40.0 && tilt > -50.0);
+
+    // 2. Test computeZoomFromTargetArea
+    const double zoomVal = Geodesy::computeZoomFromTargetArea(10.0, 100.0, 60.0, 2.0);
+    assert(zoomVal > 0.8 && zoomVal <= 1.0);
+
+    const double zoomWide = Geodesy::computeZoomFromTargetArea(100.0, 10.0, 60.0, 2.0);
+    assert(zoomWide == 0.0); // Clamped to 0.0
+
+    // 3. Test anglesToPelcoCentidegrees
+    std::uint16_t panCdeg = 0;
+    std::uint16_t tiltCdeg = 0;
+    Geodesy::anglesToPelcoCentidegrees(0.0, 0.0, panCdeg, tiltCdeg);
+    assert(panCdeg == 0);
+    assert(tiltCdeg == 0);
+
+    Geodesy::anglesToPelcoCentidegrees(90.0, 45.0, panCdeg, tiltCdeg);
+    assert(panCdeg == 9000);
+    assert(tiltCdeg == 4500);
+
+    Geodesy::anglesToPelcoCentidegrees(359.5, -10.0, panCdeg, tiltCdeg);
+    assert(panCdeg == 35950);
+    assert(tiltCdeg == 35000); // 360 - 10 = 350 deg = 35000 centidegrees
+
+    // 4. Test parseGetGeoLocationResponse
+    const std::string geoXml = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+                               "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                               "xmlns:tds=\"http://www.onvif.org/ver10/device/wsdl\" "
+                               "xmlns:tt=\"http://www.onvif.org/ver10/schema\">\r\n"
+                               "  <SOAP-ENV:Body>\r\n"
+                               "    <tds:GetGeoLocationResponse>\r\n"
+                               "      <tds:Location Entity=\"Device\" Fixed=\"true\">\r\n"
+                               "        <tt:GeoLocation lat=\"37.9838\" lon=\"23.7275\" elevation=\"150.5\"/>\r\n"
+                               "        <tt:GeoOrientation yaw=\"45.0\" pitch=\"-5.0\" roll=\"0.0\"/>\r\n"
+                               "      </tds:Location>\r\n"
+                               "    </tds:GetGeoLocationResponse>\r\n"
+                               "  </SOAP-ENV:Body>\r\n"
+                               "</SOAP-ENV:Envelope>";
+
+    const auto locEntity = OnvifClient::parseGetGeoLocationResponse(geoXml);
+    assert(locEntity.has_value());
+    assert(locEntity->entity == "Device");
+    assert(locEntity->fixed == true);
+    assert(std::fabs(locEntity->location.latitude - 37.9838) < 0.0001);
+    assert(std::fabs(locEntity->location.longitude - 23.7275) < 0.0001);
+    assert(std::fabs(locEntity->location.elevation - 150.5) < 0.01);
+    assert(std::fabs(locEntity->orientation.yaw - 45.0) < 0.01);
+    assert(std::fabs(locEntity->orientation.pitch - -5.0) < 0.01);
+    assert(std::fabs(locEntity->orientation.roll - 0.0) < 0.01);
+}
+
 int main()
 {
 #ifdef _WIN32
@@ -1738,6 +1830,10 @@ int main()
     std::cout << "[RUN] Testing ONVIF Video Analytics Rules & Modules XML Parsing (Profile M & T)...\n";
     testVideoAnalyticsRulesAndModulesParsing();
     std::cout << "[PASS] Video Analytics Rules & Modules XML Parsing (Profile M & T)\n";
+
+    std::cout << "[RUN] Testing ONVIF PTZ Geodesy, GeoMove & GeoLocation XML Parsing...\n";
+    testGeodesyAndGeoMoveParsing();
+    std::cout << "[PASS] PTZ Geodesy, GeoMove & GeoLocation XML Parsing\n";
 
     std::cout << "\nAll PelcoDOnvif unit tests PASSED successfully!\n";
     return 0;

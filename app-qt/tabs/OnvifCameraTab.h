@@ -78,6 +78,13 @@ private slots:
     void handleDeletePreset();
     void handlePresetsUpdated(const std::vector<PelcoD::Onvif::PtzPreset>& presets);
     void handleStatusUpdated(const PelcoD::Onvif::PtzStatus& status);
+    void handleRefreshGeoLocation();
+    void handleSaveGeoLocation();
+    void handleExecuteGeoMove();
+    void handleExecuteAbsoluteSpherical();
+    void handleUpdateLiveGeoTargetReadout();
+    void handleGeoLocationUpdated(const PelcoD::Onvif::LocationEntity& location);
+    void handleGeoMoveCompleted(bool success);
 
     // Preset Tours / Patrols
     void handleRefreshTours();
@@ -462,6 +469,30 @@ private:
     QLineEdit* editReplayUri { nullptr };
     QPushButton* btnResolveReplayUri { nullptr };
     QPushButton* btnPlayReplayUri { nullptr };
+
+    // Geolocation & GeoMove UI controls
+    QDoubleSpinBox* spinCameraLat { nullptr };
+    QDoubleSpinBox* spinCameraLon { nullptr };
+    QDoubleSpinBox* spinCameraElev { nullptr };
+    QDoubleSpinBox* spinCameraYaw { nullptr };
+    QDoubleSpinBox* spinCameraPitch { nullptr };
+    QPushButton* btnRefreshGeoLoc { nullptr };
+    QPushButton* btnSaveGeoLoc { nullptr };
+
+    QDoubleSpinBox* spinTargetLat { nullptr };
+    QDoubleSpinBox* spinTargetLon { nullptr };
+    QDoubleSpinBox* spinTargetElev { nullptr };
+    QDoubleSpinBox* spinTargetWidth { nullptr };
+    QDoubleSpinBox* spinTargetHeight { nullptr };
+    QLabel* lblComputedGeoBearing { nullptr };
+    QLabel* lblComputedGeoTilt { nullptr };
+    QLabel* lblComputedGeoDistance { nullptr };
+    QPushButton* btnExecuteGeoMove { nullptr };
+
+    QDoubleSpinBox* spinSphericalAzimuth { nullptr };
+    QDoubleSpinBox* spinSphericalElevation { nullptr };
+    QDoubleSpinBox* spinSphericalZoom { nullptr };
+    QPushButton* btnExecuteSphericalMove { nullptr };
 };
 
 } // namespace PelcoDApp

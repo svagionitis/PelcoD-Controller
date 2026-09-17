@@ -82,6 +82,9 @@ struct OnvifServerConfig {
     /// @brief Default digital inputs for DeviceIO service.
     std::vector<DigitalInputConfig> defaultDigitalInputs { { "Input_1", RelayIdleState::Open, "Alarm", false } };
 
+    /// @brief Default camera installation geographic location and mounting orientation (WGS84).
+    LocationEntity defaultLocation { "Device", "Location_1", true, { 37.7749, -122.4194, 10.0 }, { 0.0, 0.0, 0.0 } };
+
     /// @brief Default metadata stream configurations (Profile T / Profile M).
     std::vector<MetadataConfiguration> defaultMetadataConfigs { { "MetadataConfig_1", "MetadataConfiguration", 1,
         "PT60S", true, true, true, false } };
@@ -344,6 +347,23 @@ public:
     [[nodiscard]] virtual std::string handleSendAuxiliaryCommand(const std::string& /*auxiliaryData*/)
     {
         return {};
+    }
+
+    /// @brief Directs camera PTZ toward a target WGS84 geographic coordinate (Profile T GeoMove).
+    /// @param[in] profileToken Media profile token.
+    /// @param[in] target Target geolocation, speed, and optional framing area dimensions.
+    /// @return True if command accepted and dispatched.
+    virtual bool handleGeoMove(const std::string& /*profileToken*/, const GeoMoveTarget& /*target*/)
+    {
+        return false;
+    }
+
+    /// @brief Moves camera PTZ head to absolute spherical angles in degrees (PositionSphericalSpace).
+    /// @param[in] azimuthDeg Azimuth angle in degrees [0.0, 360.0).
+    /// @param[in] elevationDeg Elevation angle in degrees [-90.0, +90.0].
+    /// @param[in] zoom Normalized zoom position [0.0, 1.0].
+    virtual void handleAbsoluteMoveSpherical(float /*azimuthDeg*/, float /*elevationDeg*/, float /*zoom*/)
+    {
     }
 };
 
@@ -643,6 +663,30 @@ public:
     virtual bool handleSetClientCertificateMode(ClientCertificateMode /*mode*/)
     {
         return true;
+    }
+
+    /// @brief Queries device geographic location and mounting orientation (ONVIF Device Management).
+    /// @param[in] entityToken Entity identifier (e.g. "Device").
+    /// @return LocationEntity if configured.
+    [[nodiscard]] virtual std::optional<LocationEntity> handleGetGeoLocation(const std::string& /*entityToken*/)
+    {
+        return std::nullopt;
+    }
+
+    /// @brief Updates device geographic location and mounting orientation.
+    /// @param[in] location Updated LocationEntity.
+    /// @return True on success.
+    virtual bool handleSetGeoLocation(const LocationEntity& /*location*/)
+    {
+        return false;
+    }
+
+    /// @brief Deletes/clears device geographic location configuration.
+    /// @param[in] entityToken Entity identifier.
+    /// @return True if deleted.
+    virtual bool handleDeleteGeoLocation(const std::string& /*entityToken*/)
+    {
+        return false;
     }
 };
 

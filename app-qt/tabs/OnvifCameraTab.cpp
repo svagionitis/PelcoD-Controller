@@ -3,6 +3,7 @@
 
 #include "OnvifCameraTab.h"
 #include "VideoStreamTab.h"
+#include <PelcoDOnvif/GeodesyUtils.h>
 
 #include <QApplication>
 #include <QClipboard>
@@ -108,6 +109,12 @@ OnvifCameraTab::OnvifCameraTab(PelcoD::Qt::QOnvifDevice* onvifDevice, VideoStrea
             &OnvifCameraTab::handleAnalyticsModulesUpdated);
         connect(m_onvifDevice, &PelcoD::Qt::QOnvifDevice::replayUriResolved, this,
             &OnvifCameraTab::handleReplayUriResolved);
+
+        // Geolocation & GeoMove
+        connect(m_onvifDevice, &PelcoD::Qt::QOnvifDevice::geoLocationUpdated, this,
+            &OnvifCameraTab::handleGeoLocationUpdated);
+        connect(m_onvifDevice, &PelcoD::Qt::QOnvifDevice::geoMoveCompleted, this,
+            &OnvifCameraTab::handleGeoMoveCompleted);
     }
 
     updateConnectionUi(false);
@@ -333,6 +340,148 @@ void OnvifCameraTab::setupUi()
     ptzLayout->addLayout(homeLayout);
     ptzLayout->addLayout(auxLayout);
     ptzLayout->addLayout(telemLayout);
+
+    // -------------------------------------------------------------------------
+    // Camera Geolocation & Mounting (WGS84)
+    // -------------------------------------------------------------------------
+    auto* groupGeoLoc = new QGroupBox(tr("Camera Geolocation & Mounting (WGS84)"), groupPtz);
+    auto* gridGeoLoc = new QGridLayout(groupGeoLoc);
+    gridGeoLoc->setSpacing(6);
+
+    gridGeoLoc->addWidget(new QLabel(tr("Latitude:"), groupGeoLoc), 0, 0);
+    spinCameraLat = new QDoubleSpinBox(groupGeoLoc);
+    spinCameraLat->setRange(-90.0, 90.0);
+    spinCameraLat->setDecimals(6);
+    spinCameraLat->setSingleStep(0.0001);
+    spinCameraLat->setValue(37.7749);
+    gridGeoLoc->addWidget(spinCameraLat, 0, 1);
+
+    gridGeoLoc->addWidget(new QLabel(tr("Longitude:"), groupGeoLoc), 0, 2);
+    spinCameraLon = new QDoubleSpinBox(groupGeoLoc);
+    spinCameraLon->setRange(-180.0, 180.0);
+    spinCameraLon->setDecimals(6);
+    spinCameraLon->setSingleStep(0.0001);
+    spinCameraLon->setValue(-122.4194);
+    gridGeoLoc->addWidget(spinCameraLon, 0, 3);
+
+    gridGeoLoc->addWidget(new QLabel(tr("Altitude (m):"), groupGeoLoc), 0, 4);
+    spinCameraElev = new QDoubleSpinBox(groupGeoLoc);
+    spinCameraElev->setRange(-1000.0, 10000.0);
+    spinCameraElev->setDecimals(2);
+    spinCameraElev->setValue(10.0);
+    gridGeoLoc->addWidget(spinCameraElev, 0, 5);
+
+    gridGeoLoc->addWidget(new QLabel(tr("Heading / Yaw (°):"), groupGeoLoc), 1, 0);
+    spinCameraYaw = new QDoubleSpinBox(groupGeoLoc);
+    spinCameraYaw->setRange(0.0, 359.99);
+    spinCameraYaw->setDecimals(2);
+    spinCameraYaw->setValue(0.0);
+    gridGeoLoc->addWidget(spinCameraYaw, 1, 1);
+
+    gridGeoLoc->addWidget(new QLabel(tr("Pitch (°):"), groupGeoLoc), 1, 2);
+    spinCameraPitch = new QDoubleSpinBox(groupGeoLoc);
+    spinCameraPitch->setRange(-90.0, 90.0);
+    spinCameraPitch->setDecimals(2);
+    spinCameraPitch->setValue(0.0);
+    gridGeoLoc->addWidget(spinCameraPitch, 1, 3);
+
+    btnRefreshGeoLoc = new QPushButton(tr("⟳ Query Location"), groupGeoLoc);
+    btnSaveGeoLoc = new QPushButton(tr("💾 Save Location"), groupGeoLoc);
+    btnSaveGeoLoc->setStyleSheet(QStringLiteral("QPushButton { font-weight: bold; background-color: #238636; color: white; }"));
+    gridGeoLoc->addWidget(btnRefreshGeoLoc, 1, 4);
+    gridGeoLoc->addWidget(btnSaveGeoLoc, 1, 5);
+
+    ptzLayout->addWidget(groupGeoLoc);
+
+    // -------------------------------------------------------------------------
+    // PTZ GeoMove & Spherical Coordinate Spaces
+    // -------------------------------------------------------------------------
+    auto* groupGeoMove = new QGroupBox(tr("PTZ GeoMove & Spherical Coordinate Spaces"), groupPtz);
+    auto* gridGeoMove = new QGridLayout(groupGeoMove);
+    gridGeoMove->setSpacing(6);
+
+    gridGeoMove->addWidget(new QLabel(tr("Target Lat:"), groupGeoMove), 0, 0);
+    spinTargetLat = new QDoubleSpinBox(groupGeoMove);
+    spinTargetLat->setRange(-90.0, 90.0);
+    spinTargetLat->setDecimals(6);
+    spinTargetLat->setSingleStep(0.0001);
+    spinTargetLat->setValue(37.7780);
+    gridGeoMove->addWidget(spinTargetLat, 0, 1);
+
+    gridGeoMove->addWidget(new QLabel(tr("Target Lon:"), groupGeoMove), 0, 2);
+    spinTargetLon = new QDoubleSpinBox(groupGeoMove);
+    spinTargetLon->setRange(-180.0, 180.0);
+    spinTargetLon->setDecimals(6);
+    spinTargetLon->setSingleStep(0.0001);
+    spinTargetLon->setValue(-122.4150);
+    gridGeoMove->addWidget(spinTargetLon, 0, 3);
+
+    gridGeoMove->addWidget(new QLabel(tr("Target Alt (m):"), groupGeoMove), 0, 4);
+    spinTargetElev = new QDoubleSpinBox(groupGeoMove);
+    spinTargetElev->setRange(-1000.0, 10000.0);
+    spinTargetElev->setDecimals(2);
+    spinTargetElev->setValue(5.0);
+    gridGeoMove->addWidget(spinTargetElev, 0, 5);
+
+    gridGeoMove->addWidget(new QLabel(tr("Area Width (m):"), groupGeoMove), 1, 0);
+    spinTargetWidth = new QDoubleSpinBox(groupGeoMove);
+    spinTargetWidth->setRange(0.0, 1000.0);
+    spinTargetWidth->setDecimals(1);
+    spinTargetWidth->setValue(0.0);
+    gridGeoMove->addWidget(spinTargetWidth, 1, 1);
+
+    gridGeoMove->addWidget(new QLabel(tr("Area Height (m):"), groupGeoMove), 1, 2);
+    spinTargetHeight = new QDoubleSpinBox(groupGeoMove);
+    spinTargetHeight->setRange(0.0, 1000.0);
+    spinTargetHeight->setDecimals(1);
+    spinTargetHeight->setValue(0.0);
+    gridGeoMove->addWidget(spinTargetHeight, 1, 3);
+
+    btnExecuteGeoMove = new QPushButton(tr("🎯 GeoMove to Target"), groupGeoMove);
+    btnExecuteGeoMove->setStyleSheet(QStringLiteral("QPushButton { font-weight: bold; background-color: #1f6feb; color: white; padding: 4px 10px; }"));
+    gridGeoMove->addWidget(btnExecuteGeoMove, 1, 4, 1, 2);
+
+    // Live Readout Row
+    auto* readoutLayout = new QHBoxLayout();
+    lblComputedGeoBearing = new QLabel(tr("Bearing: 0.00°"), groupGeoMove);
+    lblComputedGeoBearing->setStyleSheet(QStringLiteral("color: #58a6ff; font-weight: bold;"));
+    lblComputedGeoTilt = new QLabel(tr("Tilt: 0.00°"), groupGeoMove);
+    lblComputedGeoTilt->setStyleSheet(QStringLiteral("color: #58a6ff; font-weight: bold;"));
+    lblComputedGeoDistance = new QLabel(tr("Slant Dist: 0.0 m"), groupGeoMove);
+    lblComputedGeoDistance->setStyleSheet(QStringLiteral("color: #58a6ff; font-weight: bold;"));
+    readoutLayout->addWidget(lblComputedGeoBearing);
+    readoutLayout->addWidget(lblComputedGeoTilt);
+    readoutLayout->addWidget(lblComputedGeoDistance);
+    readoutLayout->addStretch();
+    gridGeoMove->addLayout(readoutLayout, 2, 0, 1, 6);
+
+    // Direct Spherical Row
+    gridGeoMove->addWidget(new QLabel(tr("Azimuth (°):"), groupGeoMove), 3, 0);
+    spinSphericalAzimuth = new QDoubleSpinBox(groupGeoMove);
+    spinSphericalAzimuth->setRange(0.0, 359.99);
+    spinSphericalAzimuth->setDecimals(2);
+    spinSphericalAzimuth->setValue(0.0);
+    gridGeoMove->addWidget(spinSphericalAzimuth, 3, 1);
+
+    gridGeoMove->addWidget(new QLabel(tr("Elevation (°):"), groupGeoMove), 3, 2);
+    spinSphericalElevation = new QDoubleSpinBox(groupGeoMove);
+    spinSphericalElevation->setRange(-90.0, 90.0);
+    spinSphericalElevation->setDecimals(2);
+    spinSphericalElevation->setValue(0.0);
+    gridGeoMove->addWidget(spinSphericalElevation, 3, 3);
+
+    gridGeoMove->addWidget(new QLabel(tr("Zoom [0-1]:"), groupGeoMove), 3, 4);
+    spinSphericalZoom = new QDoubleSpinBox(groupGeoMove);
+    spinSphericalZoom->setRange(0.0, 1.0);
+    spinSphericalZoom->setSingleStep(0.05);
+    spinSphericalZoom->setDecimals(2);
+    spinSphericalZoom->setValue(0.0);
+    gridGeoMove->addWidget(spinSphericalZoom, 3, 5);
+
+    btnExecuteSphericalMove = new QPushButton(tr("Move to Spherical (deg)"), groupGeoMove);
+    gridGeoMove->addWidget(btnExecuteSphericalMove, 4, 4, 1, 2);
+
+    ptzLayout->addWidget(groupGeoMove);
 
     ptzTabLayout->addWidget(groupPtz);
     ptzTabLayout->addStretch();
@@ -1412,6 +1561,22 @@ void OnvifCameraTab::setupUi()
     connect(btnRefreshRules, &QPushButton::clicked, this, &OnvifCameraTab::handleRefreshRules);
     connect(btnAddRule, &QPushButton::clicked, this, &OnvifCameraTab::handleAddRule);
     connect(btnDeleteRule, &QPushButton::clicked, this, &OnvifCameraTab::handleDeleteRule);
+
+    // Geolocation & GeoMove connections
+    connect(btnRefreshGeoLoc, &QPushButton::clicked, this, &OnvifCameraTab::handleRefreshGeoLocation);
+    connect(btnSaveGeoLoc, &QPushButton::clicked, this, &OnvifCameraTab::handleSaveGeoLocation);
+    connect(btnExecuteGeoMove, &QPushButton::clicked, this, &OnvifCameraTab::handleExecuteGeoMove);
+    connect(btnExecuteSphericalMove, &QPushButton::clicked, this, &OnvifCameraTab::handleExecuteAbsoluteSpherical);
+
+    auto updateGeoTargetLambda = [this]() { handleUpdateLiveGeoTargetReadout(); };
+    connect(spinTargetLat, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, updateGeoTargetLambda);
+    connect(spinTargetLon, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, updateGeoTargetLambda);
+    connect(spinTargetElev, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, updateGeoTargetLambda);
+    connect(spinCameraLat, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, updateGeoTargetLambda);
+    connect(spinCameraLon, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, updateGeoTargetLambda);
+    connect(spinCameraElev, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, updateGeoTargetLambda);
+    connect(spinCameraYaw, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, updateGeoTargetLambda);
+    connect(spinCameraPitch, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, updateGeoTargetLambda);
 }
 
 void OnvifCameraTab::updateConnectionUi(bool connected)
@@ -1434,6 +1599,10 @@ void OnvifCameraTab::updateConnectionUi(bool connected)
     btnGotoPreset->setEnabled(connected);
     btnSavePreset->setEnabled(connected);
     btnDeletePreset->setEnabled(connected);
+    btnRefreshGeoLoc->setEnabled(connected);
+    btnSaveGeoLoc->setEnabled(connected);
+    btnExecuteGeoMove->setEnabled(connected);
+    btnExecuteSphericalMove->setEnabled(connected);
 
     // Tour widgets
     cmbPresetTours->setEnabled(connected);
@@ -1772,6 +1941,7 @@ void OnvifCameraTab::handleDeviceConnected(const QString& endpoint, const QStrin
         handleRefreshRecordings();
         handleRefreshRecordingJobs();
         handleRefreshRecordingSummary();
+        handleRefreshGeoLocation();
     }
 }
 
@@ -1927,6 +2097,100 @@ void OnvifCameraTab::handleRefreshPresets()
 {
     if (m_onvifDevice != nullptr) {
         m_onvifDevice->refreshPresets();
+    }
+}
+
+void OnvifCameraTab::handleRefreshGeoLocation()
+{
+    if (m_onvifDevice != nullptr) {
+        m_onvifDevice->refreshGeoLocation();
+    }
+}
+
+void OnvifCameraTab::handleSaveGeoLocation()
+{
+    if (m_onvifDevice == nullptr) {
+        return;
+    }
+    PelcoD::Onvif::LocationEntity loc {};
+    loc.entity = "Device";
+    loc.token = "Location_1";
+    loc.fixed = true;
+    loc.location.latitude = spinCameraLat->value();
+    loc.location.longitude = spinCameraLon->value();
+    loc.location.elevation = spinCameraElev->value();
+    loc.orientation.yaw = spinCameraYaw->value();
+    loc.orientation.pitch = spinCameraPitch->value();
+    loc.orientation.roll = 0.0;
+    m_onvifDevice->updateGeoLocation(loc);
+}
+
+void OnvifCameraTab::handleExecuteGeoMove()
+{
+    if (m_onvifDevice == nullptr) {
+        return;
+    }
+    const double lat = spinTargetLat->value();
+    const double lon = spinTargetLon->value();
+    const double elev = spinTargetElev->value();
+    const double w = spinTargetWidth->value();
+    const double h = spinTargetHeight->value();
+    m_onvifDevice->geoMove(lat, lon, elev, 1.0, w, h);
+}
+
+void OnvifCameraTab::handleExecuteAbsoluteSpherical()
+{
+    if (m_onvifDevice == nullptr) {
+        return;
+    }
+    const double az = spinSphericalAzimuth->value();
+    const double el = spinSphericalElevation->value();
+    const double zoom = spinSphericalZoom->value();
+    m_onvifDevice->absoluteMoveSpherical(az, el, zoom);
+}
+
+void OnvifCameraTab::handleUpdateLiveGeoTargetReadout()
+{
+    if (!spinCameraLat || !spinTargetLat || !lblComputedGeoBearing) {
+        return;
+    }
+    PelcoD::Onvif::GeoLocation camLoc { spinCameraLat->value(), spinCameraLon->value(), spinCameraElev->value() };
+    PelcoD::Onvif::GeoOrientation camOri { spinCameraYaw->value(), spinCameraPitch->value(), 0.0 };
+    PelcoD::Onvif::GeoLocation tgtLoc { spinTargetLat->value(), spinTargetLon->value(), spinTargetElev->value() };
+
+    double pan = 0.0;
+    double tilt = 0.0;
+    double dist = 0.0;
+    PelcoD::Onvif::Geodesy::computeTargetAzimuthElevation(camLoc, camOri, tgtLoc, pan, tilt, dist);
+
+    lblComputedGeoBearing->setText(tr("Bearing: %1°").arg(QString::number(pan, 'f', 2)));
+    lblComputedGeoTilt->setText(tr("Tilt: %1°").arg(QString::number(tilt, 'f', 2)));
+    lblComputedGeoDistance->setText(tr("Slant Dist: %1 m").arg(QString::number(dist, 'f', 1)));
+}
+
+void OnvifCameraTab::handleGeoLocationUpdated(const PelcoD::Onvif::LocationEntity& location)
+{
+    if (spinCameraLat && spinCameraLon && spinCameraElev && spinCameraYaw && spinCameraPitch) {
+        const QSignalBlocker b1(spinCameraLat);
+        const QSignalBlocker b2(spinCameraLon);
+        const QSignalBlocker b3(spinCameraElev);
+        const QSignalBlocker b4(spinCameraYaw);
+        const QSignalBlocker b5(spinCameraPitch);
+
+        spinCameraLat->setValue(location.location.latitude);
+        spinCameraLon->setValue(location.location.longitude);
+        spinCameraElev->setValue(location.location.elevation);
+        spinCameraYaw->setValue(location.orientation.yaw);
+        spinCameraPitch->setValue(location.orientation.pitch);
+
+        handleUpdateLiveGeoTargetReadout();
+    }
+}
+
+void OnvifCameraTab::handleGeoMoveCompleted(bool success)
+{
+    if (!success) {
+        QMessageBox::warning(this, tr("GeoMove"), tr("Failed to execute ONVIF GeoMove request."));
     }
 }
 

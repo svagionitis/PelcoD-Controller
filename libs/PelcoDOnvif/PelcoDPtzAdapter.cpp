@@ -1,4 +1,5 @@
 #include "PelcoDPtzAdapter.h"
+#include "GeodesyUtils.h"
 #include "OnvifSecurity.h"
 #include <PelcoDCore/PatrolController.h>
 
@@ -129,6 +130,66 @@ void PelcoDPtzAdapter::handleAbsoluteMove(float pan, float tilt, float zoom)
         const auto pos = static_cast<std::uint16_t>(std::clamp(zoom * 65535.0f, 0.0f, 65535.0f));
         m_device->setZoomPosition(pos);
     }
+}
+
+void PelcoDPtzAdapter::handleAbsoluteMoveSpherical(float azimuthDeg, float elevationDeg, float zoom)
+{
+    if (!m_device) {
+        return;
+    }
+
+    std::uint16_t panCdeg = 0;
+    std::uint16_t tiltCdeg = 0;
+    Geodesy::anglesToPelcoCentidegrees(azimuthDeg, elevationDeg, panCdeg, tiltCdeg);
+
+    m_device->setPanAngle(panCdeg);
+    m_device->setTiltAngle(tiltCdeg);
+
+    if (zoom >= 0.0f) {
+        const auto pos = static_cast<std::uint16_t>(std::clamp(zoom * 65535.0f, 0.0f, 65535.0f));
+        m_device->setZoomPosition(pos);
+    }
+}
+
+bool PelcoDPtzAdapter::handleGeoMove(const std::string& /*profileToken*/, const GeoMoveTarget& target)
+{
+    if (!m_device) {
+        return false;
+    }
+
+    double panDeg = 0.0;
+    double tiltDeg = 0.0;
+    double slantRangeMeters = 0.0;
+
+    LocationEntity currentLoc;
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        currentLoc = m_cameraLocation;
+    }
+
+    const bool ok = Geodesy::computeTargetAzimuthElevation(
+        currentLoc.location, currentLoc.orientation,
+        target.targetGeo, panDeg, tiltDeg, slantRangeMeters);
+
+    if (!ok) {
+        return false;
+    }
+
+    std::uint16_t panCdeg = 0;
+    std::uint16_t tiltCdeg = 0;
+    Geodesy::anglesToPelcoCentidegrees(panDeg, tiltDeg, panCdeg, tiltCdeg);
+
+    m_device->setPanAngle(panCdeg);
+    m_device->setTiltAngle(tiltCdeg);
+
+    if (target.areaWidth.has_value() || target.areaHeight.has_value()) {
+        const double span = target.areaWidth.value_or(target.areaHeight.value_or(10.0f));
+        const double normZoom = Geodesy::computeZoomFromTargetArea(span, slantRangeMeters);
+        const auto zoomPos = static_cast<std::uint16_t>(std::clamp(normZoom * 65535.0, 0.0, 65535.0));
+        m_device->setZoomPosition(zoomPos);
+    }
+
+    return true;
 }
 
 void PelcoDPtzAdapter::handleStop(bool stopPanTilt, bool stopZoom)
@@ -1570,6 +1631,38 @@ void PelcoDPtzAdapter::evaluateRulesForFrame()
             }
         }
     }
+}
+
+LocationEntity PelcoDPtzAdapter::cameraLocation() const
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    return m_cameraLocation;
+}
+
+void PelcoDPtzAdapter::setCameraLocation(const LocationEntity& location)
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    m_cameraLocation = location;
+}
+
+std::optional<LocationEntity> PelcoDPtzAdapter::handleGetGeoLocation(const std::string& /*entityToken*/)
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    return m_cameraLocation;
+}
+
+bool PelcoDPtzAdapter::handleSetGeoLocation(const LocationEntity& location)
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    m_cameraLocation = location;
+    return true;
+}
+
+bool PelcoDPtzAdapter::handleDeleteGeoLocation(const std::string& /*entityToken*/)
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    m_cameraLocation = LocationEntity {};
+    return true;
 }
 
 } // namespace PelcoD::Onvif
