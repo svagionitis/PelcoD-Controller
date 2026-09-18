@@ -27,14 +27,14 @@ void FujinonView::render(Canvas& canvas, int startY, int width, int height, cons
     const int panelHeight = height - 1;
     const int halfWidth = width / 2;
 
-    const Style borderStyle { Colors::DarkGray, Colors::PanelBg, false, false, false, false, false };
-    const Style titleStyle { Colors::Cyan, Colors::PanelBg, true, false, false, false, false };
-    const Style labelStyle { Colors::Gray, Colors::PanelBg, false, false, false, false, false };
-    const Style textStyle { Colors::White, Colors::PanelBg, false, false, false, false, false };
-    const Style valStyle { Colors::Yellow, Colors::PanelBg, true, false, false, false, false };
-    const Style actionStyle { Colors::Yellow, Colors::PanelBg, true, false, false, false, false };
-    const Style activeBar { Colors::Cyan, Colors::PanelBg, false, false, false, false, false };
-    const Style emptyBar { Colors::DarkGray, Colors::PanelBg, false, false, false, false, false };
+    const Style& borderStyle = Styles::Border;
+    const Style& titleStyle = Styles::Title;
+    const Style& labelStyle = Styles::Label;
+    const Style& textStyle = Styles::Text;
+    const Style& valStyle = Styles::Highlight;
+    const Style& actionStyle = Styles::Highlight;
+    const Style& activeBar = Styles::ActiveBar;
+    const Style& emptyBar = Styles::EmptyBar;
 
     // 1. Left Panel: Optics & Fine Quality (Items 0..11)
     canvas.drawPanel(

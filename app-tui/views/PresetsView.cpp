@@ -20,11 +20,11 @@ PresetsView::PresetsView()
 void PresetsView::render(Canvas& canvas, int startY, int width, int height)
 {
     const int panelHeight = height - 1;
-    const Style borderStyle { Colors::DarkGray, Colors::PanelBg, false, false, false, false, false };
-    const Style titleStyle { Colors::Cyan, Colors::PanelBg, true, false, false, false, false };
-    const Style labelStyle { Colors::Gray, Colors::PanelBg, false, false, false, false, false };
-    const Style actionStyle { Colors::Yellow, Colors::PanelBg, true, false, false, false, false };
-    const Style patrolActiveStyle { Colors::Green, Colors::PanelBg, true, false, false, false, false };
+    const Style& borderStyle = Styles::Border;
+    const Style& titleStyle = Styles::Title;
+    const Style& labelStyle = Styles::Label;
+    const Style& actionStyle = Styles::Highlight;
+    const Style& patrolActiveStyle = Styles::Ok;
 
     canvas.drawPanel(1, startY, width - 2, panelHeight, "Presets & Touring Management (1–32)", borderStyle, titleStyle);
 

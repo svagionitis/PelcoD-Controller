@@ -7,7 +7,7 @@ namespace PelcoDTui {
 void FooterView::render(Canvas& canvas, int y, int width, [[maybe_unused]] int activeTab)
 {
     const Style bgStyle { Colors::White, Colors::HeaderBg, false, false, false, false, false };
-    const Style borderStyle { Colors::DarkGray, Colors::HeaderBg, false, false, false, false, false };
+    const Style& borderStyle = Styles::HeaderBorder;
     const Style keyStyle { Colors::Black, Colors::Cyan, true, false, false, false, false };
     const Style labelStyle { Colors::Gray, Colors::HeaderBg, false, false, false, false, false };
     const Style msgStyle { Colors::Yellow, Colors::HeaderBg, true, false, false, false, false };

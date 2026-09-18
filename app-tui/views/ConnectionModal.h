@@ -71,7 +71,13 @@ public:
     void setConfig(const ConnectionConfig& config);
 
     /// @brief Instantiate the configured transport instance.
-    [[nodiscard]] std::shared_ptr<PelcoD::ITransport> createTransport() const;
+    [[nodiscard]] std::shared_ptr<PelcoD::ITransport> createTransport() const
+    {
+        return createTransport(m_config);
+    }
+
+    /// @brief Factory helper to instantiate a transport from a ConnectionConfig.
+    [[nodiscard]] static std::shared_ptr<PelcoD::ITransport> createTransport(const ConnectionConfig& config);
 
 private:
     [[nodiscard]] bool isTextEditingField() const noexcept;

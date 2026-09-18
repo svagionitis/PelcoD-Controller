@@ -14,13 +14,13 @@ static const int kNumSettings = 9;
 void SettingsView::render(Canvas& canvas, int startY, int width, int height)
 {
     const int panelHeight = height - 1;
-    const Style borderStyle { Colors::DarkGray, Colors::PanelBg, false, false, false, false, false };
-    const Style titleStyle { Colors::Cyan, Colors::PanelBg, true, false, false, false, false };
-    const Style labelStyle { Colors::Gray, Colors::PanelBg, false, false, false, false, false };
-    const Style textStyle { Colors::White, Colors::PanelBg, false, false, false, false, false };
-    const Style actionStyle { Colors::Yellow, Colors::PanelBg, true, false, false, false, false };
-    const Style activeBar { Colors::Cyan, Colors::PanelBg, false, false, false, false, false };
-    const Style emptyBar { Colors::DarkGray, Colors::PanelBg, false, false, false, false, false };
+    const Style& borderStyle = Styles::Border;
+    const Style& titleStyle = Styles::Title;
+    const Style& textStyle = Styles::Text;
+    const Style& labelStyle = Styles::Label;
+    const Style& actionStyle = Styles::Highlight;
+    const Style& activeBar = Styles::ActiveBar;
+    const Style& emptyBar = Styles::EmptyBar;
 
     canvas.drawPanel(
         1, startY, width - 2, panelHeight, "Device Optics & Transmission Settings", borderStyle, titleStyle);

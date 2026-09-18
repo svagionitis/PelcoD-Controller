@@ -94,6 +94,46 @@ template <typename T> [[nodiscard]] bool parseInteger(std::string_view str, T& o
     }
 }
 
+/// @brief Parse host and optional port from an endpoint string ("host[:port]").
+[[nodiscard]] inline bool parseNetworkEndpoint(std::string_view transportName, std::string_view endpoint,
+    std::string& outHost, std::uint16_t& outPort, std::uint16_t defaultPort, std::string& outErrorMessage)
+{
+    const auto colonPos = endpoint.find(':');
+    if (colonPos != std::string_view::npos) {
+        const std::string_view host = endpoint.substr(0, colonPos);
+        const std::string_view portStr = endpoint.substr(colonPos + 1);
+
+        if (host.empty()) {
+            outErrorMessage
+                = std::string(transportName) + " endpoint is missing host address: '" + std::string(endpoint) + "'";
+            return false;
+        }
+        if (portStr.empty()) {
+            outErrorMessage
+                = std::string(transportName) + " endpoint is missing port after colon: '" + std::string(endpoint) + "'";
+            return false;
+        }
+
+        std::uint16_t port { 0U };
+        if (!parseInteger(portStr, port) || port == 0U) {
+            outErrorMessage = "Invalid " + std::string(transportName) + " port '" + std::string(portStr)
+                + "': port must be an integer between 1 and 65535";
+            return false;
+        }
+
+        outHost = std::string(host);
+        outPort = port;
+    } else {
+        if (endpoint.empty()) {
+            outErrorMessage = std::string(transportName) + " endpoint host cannot be empty";
+            return false;
+        }
+        outHost = std::string(endpoint);
+        outPort = defaultPort;
+    }
+    return true;
+}
+
 /// @brief Display command-line usage information and keyboard shortcuts.
 /// @param progName Executable name invoked in the shell.
 void printUsage(std::string_view progName)
@@ -254,40 +294,10 @@ void printUsage(std::string_view progName)
                 return result;
             }
             const std::string_view endpoint = argv[++i];
-            const auto colonPos = endpoint.find(':');
-            if (colonPos != std::string_view::npos) {
-                const std::string_view host = endpoint.substr(0, colonPos);
-                const std::string_view portStr = endpoint.substr(colonPos + 1);
-
-                if (host.empty()) {
-                    result.status = ParseStatus::Error;
-                    result.errorMessage = "TCP endpoint is missing host address: '" + std::string(endpoint) + "'";
-                    return result;
-                }
-                if (portStr.empty()) {
-                    result.status = ParseStatus::Error;
-                    result.errorMessage = "TCP endpoint is missing port after colon: '" + std::string(endpoint) + "'";
-                    return result;
-                }
-
-                std::uint16_t port { 0U };
-                if (!parseInteger(portStr, port) || port == 0U) {
-                    result.status = ParseStatus::Error;
-                    result.errorMessage = "Invalid TCP port '" + std::string(portStr)
-                        + "': port must be an integer between 1 and 65535";
-                    return result;
-                }
-
-                result.config.tcpHost = std::string(host);
-                result.config.tcpPort = port;
-            } else {
-                if (endpoint.empty()) {
-                    result.status = ParseStatus::Error;
-                    result.errorMessage = "TCP endpoint host cannot be empty";
-                    return result;
-                }
-                result.config.tcpHost = std::string(endpoint);
-                result.config.tcpPort = 9000U;
+            if (!parseNetworkEndpoint(
+                    "TCP", endpoint, result.config.tcpHost, result.config.tcpPort, 9000U, result.errorMessage)) {
+                result.status = ParseStatus::Error;
+                return result;
             }
             result.config.type = PelcoDTui::TransportType::Tcp;
         } else if (arg == "--udp") {
@@ -297,40 +307,10 @@ void printUsage(std::string_view progName)
                 return result;
             }
             const std::string_view endpoint = argv[++i];
-            const auto colonPos = endpoint.find(':');
-            if (colonPos != std::string_view::npos) {
-                const std::string_view host = endpoint.substr(0, colonPos);
-                const std::string_view portStr = endpoint.substr(colonPos + 1);
-
-                if (host.empty()) {
-                    result.status = ParseStatus::Error;
-                    result.errorMessage = "UDP endpoint is missing host address: '" + std::string(endpoint) + "'";
-                    return result;
-                }
-                if (portStr.empty()) {
-                    result.status = ParseStatus::Error;
-                    result.errorMessage = "UDP endpoint is missing port after colon: '" + std::string(endpoint) + "'";
-                    return result;
-                }
-
-                std::uint16_t port { 0U };
-                if (!parseInteger(portStr, port) || port == 0U) {
-                    result.status = ParseStatus::Error;
-                    result.errorMessage = "Invalid UDP port '" + std::string(portStr)
-                        + "': port must be an integer between 1 and 65535";
-                    return result;
-                }
-
-                result.config.udpHost = std::string(host);
-                result.config.udpPort = port;
-            } else {
-                if (endpoint.empty()) {
-                    result.status = ParseStatus::Error;
-                    result.errorMessage = "UDP endpoint host cannot be empty";
-                    return result;
-                }
-                result.config.udpHost = std::string(endpoint);
-                result.config.udpPort = 9000U;
+            if (!parseNetworkEndpoint(
+                    "UDP", endpoint, result.config.udpHost, result.config.udpPort, 9000U, result.errorMessage)) {
+                result.status = ParseStatus::Error;
+                return result;
             }
             result.config.type = PelcoDTui::TransportType::Udp;
         } else if (arg == "--serial") {
@@ -732,35 +712,7 @@ int main(int argc, char* argv[])
 
     if (parseResult.scanMode) {
         try {
-            std::shared_ptr<PelcoD::ITransport> transport;
-            switch (parseResult.config.type) {
-            case PelcoDTui::TransportType::Mock: {
-                auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(parseResult.config.address);
-                mock->setKinematicsConfig(parseResult.config.kinematicsConfig);
-                mock->setLatencyConfig(parseResult.config.latencyConfig);
-                transport = mock;
-                break;
-            }
-            case PelcoDTui::TransportType::Tcp:
-                transport
-                    = std::make_shared<PelcoD::TcpTransport>(parseResult.config.tcpHost, parseResult.config.tcpPort);
-                break;
-            case PelcoDTui::TransportType::Udp:
-                transport = std::make_shared<PelcoD::UdpTransport>(
-                    parseResult.config.udpHost, parseResult.config.udpPort, parseResult.config.udpLocalPort);
-                break;
-            case PelcoDTui::TransportType::Serial:
-                transport = std::make_shared<PelcoD::SerialTransport>(
-                    parseResult.config.serialPort, parseResult.config.serialBaud);
-                break;
-            default: {
-                auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(parseResult.config.address);
-                mock->setKinematicsConfig(parseResult.config.kinematicsConfig);
-                mock->setLatencyConfig(parseResult.config.latencyConfig);
-                transport = mock;
-                break;
-            }
-            }
+            auto transport = PelcoDTui::ConnectionModal::createTransport(parseResult.config);
 
             std::cout << "Starting Pelco-D Bus Scan on range [" << static_cast<int>(parseResult.scanStart) << ".."
                       << static_cast<int>(parseResult.scanEnd) << "] (timeout: " << parseResult.scanTimeoutMs << "ms)"

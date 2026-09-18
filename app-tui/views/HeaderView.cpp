@@ -24,7 +24,7 @@ void HeaderView::render(
 
     const Style bgStyle { Colors::White, Colors::HeaderBg, false, false, false, false, false };
     const Style titleStyle { Colors::Cyan, Colors::HeaderBg, true, false, false, false, false };
-    const Style borderStyle { Colors::DarkGray, Colors::HeaderBg, false, false, false, false, false };
+    const Style& borderStyle = Styles::HeaderBorder;
 
     // Row 0: Background bar
     for (int x = 0; x < width; ++x) {

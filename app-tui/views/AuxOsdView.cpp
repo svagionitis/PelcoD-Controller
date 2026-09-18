@@ -12,11 +12,11 @@ void AuxOsdView::render(Canvas& canvas, int startY, int width, int height)
     const int panelHeight = height - 1;
     const int halfW = width / 2;
 
-    const Style borderStyle { Colors::DarkGray, Colors::PanelBg, false, false, false, false, false };
-    const Style titleStyle { Colors::Cyan, Colors::PanelBg, true, false, false, false, false };
-    const Style textStyle { Colors::White, Colors::PanelBg, false, false, false, false, false };
-    const Style labelStyle { Colors::Gray, Colors::PanelBg, false, false, false, false, false };
-    const Style actionStyle { Colors::Yellow, Colors::PanelBg, true, false, false, false, false };
+    const Style& borderStyle = Styles::Border;
+    const Style& titleStyle = Styles::Title;
+    const Style& textStyle = Styles::Text;
+    const Style& labelStyle = Styles::Label;
+    const Style& actionStyle = Styles::Highlight;
     const Style onStyle { Colors::Black, Colors::Green, true, false, false, false, false };
     const Style offStyle { Colors::White, Colors::DarkGray, false, false, false, false, false };
 

@@ -112,6 +112,40 @@ namespace Colors {
     inline constexpr Color Orange = Color::fromRgb(245, 140, 50);
 } // namespace Colors
 
+namespace Styles {
+    inline constexpr Style Default { Colors::White, Colors::PanelBg, false, false, false, false, false };
+    inline constexpr Style Border { Colors::DarkGray, Colors::PanelBg, false, false, false, false, false };
+    inline constexpr Style Title { Colors::Cyan, Colors::PanelBg, true, false, false, false, false };
+    inline constexpr Style Label { Colors::Gray, Colors::PanelBg, false, false, false, false, false };
+    inline constexpr Style Text { Colors::White, Colors::PanelBg, false, false, false, false, false };
+    inline constexpr Style Highlight { Colors::Yellow, Colors::PanelBg, true, false, false, false, false };
+    inline constexpr Style ActiveBar { Colors::Cyan, Colors::PanelBg, false, false, false, false, false };
+    inline constexpr Style EmptyBar { Colors::DarkGray, Colors::PanelBg, false, false, false, false, false };
+    inline constexpr Style Ok { Colors::Green, Colors::PanelBg, true, false, false, false, false };
+    inline constexpr Style Warn { Colors::Red, Colors::PanelBg, true, false, false, false, false };
+    inline constexpr Style HeaderBorder { Colors::DarkGray, Colors::HeaderBg, false, false, false, false, false };
+} // namespace Styles
+
+/// @brief Appends ANSI escape sequence for a Color (foreground or background) to a string buffer.
+inline void appendColorEscape(std::string& s, const Color& color, bool isBackground)
+{
+    const char* prefix = isBackground ? "\033[48;" : "\033[38;";
+    if (color.type == ColorType::TrueColor) {
+        s.append(prefix)
+            .append("2;")
+            .append(std::to_string(color.rgb.r))
+            .append(";")
+            .append(std::to_string(color.rgb.g))
+            .append(";")
+            .append(std::to_string(color.rgb.b))
+            .append("m");
+    } else if (color.type == ColorType::Ansi16) {
+        s.append(prefix).append("5;").append(std::to_string(color.ansiIndex)).append("m");
+    } else if (color.type == ColorType::Default) {
+        s.append(isBackground ? "\033[49m" : "\033[39m");
+    }
+}
+
 /// @brief Generate ANSI escape sequence to transition from one style to another.
 /// @param[in] prev Previous style active on the terminal.
 /// @param[in] next Next desired style to apply.
@@ -146,29 +180,11 @@ namespace Colors {
         if (next.reverse) {
             s.append("\033[7m");
         }
-        // Apply FG
-        if (next.fg.type == ColorType::TrueColor) {
-            s.append("\033[38;2;")
-                .append(std::to_string(next.fg.rgb.r))
-                .append(";")
-                .append(std::to_string(next.fg.rgb.g))
-                .append(";")
-                .append(std::to_string(next.fg.rgb.b))
-                .append("m");
-        } else if (next.fg.type == ColorType::Ansi16) {
-            s.append("\033[38;5;").append(std::to_string(next.fg.ansiIndex)).append("m");
+        if (next.fg.type != ColorType::Default) {
+            appendColorEscape(s, next.fg, false);
         }
-        // Apply BG
-        if (next.bg.type == ColorType::TrueColor) {
-            s.append("\033[48;2;")
-                .append(std::to_string(next.bg.rgb.r))
-                .append(";")
-                .append(std::to_string(next.bg.rgb.g))
-                .append(";")
-                .append(std::to_string(next.bg.rgb.b))
-                .append("m");
-        } else if (next.bg.type == ColorType::Ansi16) {
-            s.append("\033[48;5;").append(std::to_string(next.bg.ansiIndex)).append("m");
+        if (next.bg.type != ColorType::Default) {
+            appendColorEscape(s, next.bg, true);
         }
         return s;
     }
@@ -190,35 +206,11 @@ namespace Colors {
     }
 
     if (prev.fg != next.fg) {
-        if (next.fg.type == ColorType::TrueColor) {
-            s.append("\033[38;2;")
-                .append(std::to_string(next.fg.rgb.r))
-                .append(";")
-                .append(std::to_string(next.fg.rgb.g))
-                .append(";")
-                .append(std::to_string(next.fg.rgb.b))
-                .append("m");
-        } else if (next.fg.type == ColorType::Ansi16) {
-            s.append("\033[38;5;").append(std::to_string(next.fg.ansiIndex)).append("m");
-        } else {
-            s.append("\033[39m");
-        }
+        appendColorEscape(s, next.fg, false);
     }
 
     if (prev.bg != next.bg) {
-        if (next.bg.type == ColorType::TrueColor) {
-            s.append("\033[48;2;")
-                .append(std::to_string(next.bg.rgb.r))
-                .append(";")
-                .append(std::to_string(next.bg.rgb.g))
-                .append(";")
-                .append(std::to_string(next.bg.rgb.b))
-                .append("m");
-        } else if (next.bg.type == ColorType::Ansi16) {
-            s.append("\033[48;5;").append(std::to_string(next.bg.ansiIndex)).append("m");
-        } else {
-            s.append("\033[49m");
-        }
+        appendColorEscape(s, next.bg, true);
     }
 
     return s;

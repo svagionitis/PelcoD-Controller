@@ -112,11 +112,11 @@ bool OnvifServerView::isRunning() const noexcept
 
 void OnvifServerView::render(Canvas& canvas, int startY, int width, int height)
 {
-    const Style borderStyle { Colors::DarkGray, Colors::PanelBg, false, false, false, false, false };
-    const Style headerStyle { Colors::Cyan, Colors::PanelBg, true, false, false, false, false };
-    const Style labelStyle { Colors::White, Colors::PanelBg, false, false, false, false, false };
-    const Style valStyle { Colors::Yellow, Colors::PanelBg, true, false, false, false, false };
-    const Style keyStyle { Colors::Green, Colors::PanelBg, true, false, false, false, false };
+    const Style& borderStyle = Styles::Border;
+    const Style& headerStyle = Styles::Title;
+    const Style& labelStyle = Styles::Text;
+    const Style& valStyle = Styles::Highlight;
+    const Style& keyStyle = Styles::Ok;
 
     const int splitX = std::max(36, width / 2);
     const int panelH = height - 1;

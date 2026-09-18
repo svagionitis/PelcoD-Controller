@@ -43,10 +43,9 @@ DiagnosticsView::DiagnosticsView()
 void DiagnosticsView::ensureProfilerConnected(PelcoD::PelcoDDevice& device)
 {
     if (!m_profilerConnected) {
-        m_latencyConn = device.addQueryLatencyCallback(
-            [this](const std::string& tag, std::chrono::microseconds duration, bool success) {
-                m_profiler.recordSample(duration, tag, success);
-            });
+        m_latencyConn
+            = device.addQueryLatencyCallback([this](const std::string& tag, std::chrono::microseconds duration,
+                                                 bool success) { m_profiler.recordSample(duration, tag, success); });
         m_profilerConnected = true;
     }
 }
@@ -57,13 +56,13 @@ void DiagnosticsView::render(Canvas& canvas, int startY, int width, int height, 
     const int panelHeight = height - 1;
     const int halfW = width / 2;
 
-    const Style borderStyle { Colors::DarkGray, Colors::PanelBg, false, false, false, false, false };
-    const Style titleStyle { Colors::Cyan, Colors::PanelBg, true, false, false, false, false };
-    const Style textStyle { Colors::White, Colors::PanelBg, false, false, false, false, false };
-    const Style labelStyle { Colors::Gray, Colors::PanelBg, false, false, false, false, false };
-    const Style actionStyle { Colors::Yellow, Colors::PanelBg, true, false, false, false, false };
-    const Style okStyle { Colors::Green, Colors::PanelBg, true, false, false, false, false };
-    const Style warnStyle { Colors::Red, Colors::PanelBg, true, false, false, false, false };
+    const Style& borderStyle = Styles::Border;
+    const Style& titleStyle = Styles::Title;
+    const Style& textStyle = Styles::Text;
+    const Style& labelStyle = Styles::Label;
+    const Style& actionStyle = Styles::Highlight;
+    const Style& okStyle = Styles::Ok;
+    const Style& warnStyle = Styles::Warn;
 
     // 1. Left Panel: Telemetry & Sensor Readings
     canvas.drawPanel(1, startY, halfW - 2, panelHeight, "Device Telemetry & Sensors", borderStyle, titleStyle);
@@ -115,8 +114,8 @@ void DiagnosticsView::render(Canvas& canvas, int startY, int width, int height, 
     // RTT & Jitter Telemetry
     const auto rttStats = m_profiler.getStatistics();
     std::ostringstream rttOss;
-    rttOss << "RTT Latency      : " << std::fixed << std::setprecision(1) << rttStats.currentRttMs << " ms (Avg: "
-           << rttStats.avgRttMs << " ms)";
+    rttOss << "RTT Latency      : " << std::fixed << std::setprecision(1) << rttStats.currentRttMs
+           << " ms (Avg: " << rttStats.avgRttMs << " ms)";
     canvas.drawString(leftX, curY, rttOss.str(), textStyle);
     curY += 1;
 

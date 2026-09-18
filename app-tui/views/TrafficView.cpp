@@ -13,14 +13,25 @@
 namespace PelcoDTui {
 
 namespace {
-inline void safeLocalTime(const std::time_t* timep, std::tm* result)
-{
+    inline void safeLocalTime(const std::time_t* timep, std::tm* result)
+    {
 #ifndef _WIN32
-    ::localtime_r(timep, result);
+        ::localtime_r(timep, result);
 #else
-    ::localtime_s(result, timep);
+        ::localtime_s(result, timep);
 #endif
-}
+    }
+
+    [[nodiscard]] inline bool matchesFilter(const PacketRecord& pkt, TrafficFilter filter) noexcept
+    {
+        if (filter == TrafficFilter::TxOnly && !pkt.isTx) {
+            return false;
+        }
+        if (filter == TrafficFilter::RxOnly && pkt.isTx) {
+            return false;
+        }
+        return true;
+    }
 } // namespace
 
 std::string_view TrafficView::filterToString(TrafficFilter filter) noexcept
@@ -113,10 +124,7 @@ bool TrafficView::exportToFile(const std::string& filename) const
 
     std::size_t count = 0;
     for (const auto& pkt : m_packets) {
-        if (m_filter == TrafficFilter::TxOnly && !pkt.isTx) {
-            continue;
-        }
-        if (m_filter == TrafficFilter::RxOnly && pkt.isTx) {
+        if (!matchesFilter(pkt, m_filter)) {
             continue;
         }
 
@@ -143,13 +151,13 @@ bool TrafficView::exportToFile(const std::string& filename) const
 void TrafficView::render(Canvas& canvas, int startY, int width, int height)
 {
     const int panelHeight = height - 1;
-    const Style borderStyle { Colors::DarkGray, Colors::PanelBg, false, false, false, false, false };
-    const Style titleStyle { Colors::Cyan, Colors::PanelBg, true, false, false, false, false };
-    const Style labelStyle { Colors::Gray, Colors::PanelBg, false, false, false, false, false };
-    const Style textStyle { Colors::White, Colors::PanelBg, false, false, false, false, false };
+    const Style& borderStyle = Styles::Border;
+    const Style& titleStyle = Styles::Title;
+    const Style& labelStyle = Styles::Label;
+    const Style& textStyle = Styles::Text;
     const Style txStyle { Colors::Cyan, Colors::PanelBg, true, false, false, false, false };
     const Style rxStyle { Colors::Magenta, Colors::PanelBg, true, false, false, false, false };
-    const Style pauseStyle { Colors::Yellow, Colors::PanelBg, true, false, false, false, false };
+    const Style& pauseStyle = Styles::Highlight;
 
     std::ostringstream titleOss;
     titleOss << "Live Hex Traffic Monitor & Protocol Inspector " << (m_paused ? "[PAUSED]" : "[LIVE]")
@@ -171,10 +179,7 @@ void TrafficView::render(Canvas& canvas, int startY, int width, int height)
     std::vector<const PacketRecord*> visiblePackets;
     visiblePackets.reserve(m_packets.size());
     for (const auto& pkt : m_packets) {
-        if (m_filter == TrafficFilter::TxOnly && !pkt.isTx) {
-            continue;
-        }
-        if (m_filter == TrafficFilter::RxOnly && pkt.isTx) {
+        if (!matchesFilter(pkt, m_filter)) {
             continue;
         }
         visiblePackets.push_back(&pkt);
