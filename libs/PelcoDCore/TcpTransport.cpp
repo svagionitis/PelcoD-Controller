@@ -2,122 +2,18 @@
 /// @brief Implementation of cross-platform TCP socket transport.
 
 #include "TcpTransport.h"
-
-#ifdef _WIN32
-#ifndef WIN32_LEAN_AND_MEAN
-#define WIN32_LEAN_AND_MEAN
-#endif
-#ifndef NOMINMAX
-#define NOMINMAX
-#endif
-#include <windows.h>
-#include <winsock2.h>
-#include <ws2tcpip.h>
-
-#define CLOSE_SOCKET(s) ::closesocket(s)
-#define POLL_SOCKET(fds, nfds, timeout) ::WSAPoll(fds, nfds, timeout)
-#define SEND_FLAGS 0
-#define IS_WOULDBLOCK() (::WSAGetLastError() == WSAEWOULDBLOCK)
-#else
-#include <arpa/inet.h>
-#include <cerrno>
-#include <cstring>
-#include <fcntl.h>
-#include <netdb.h>
-#include <netinet/in.h>
-#include <netinet/tcp.h>
-#include <poll.h>
-#include <sys/socket.h>
-#include <sys/types.h>
-#include <unistd.h>
-
-#define CLOSE_SOCKET(s) ::close(s)
-#define POLL_SOCKET(fds, nfds, timeout) ::poll(fds, nfds, timeout)
-#define SEND_FLAGS MSG_NOSIGNAL
-#define IS_WOULDBLOCK() (errno == EAGAIN || errno == EWOULDBLOCK)
-#endif
+#include "SocketUtils.h"
 
 #include <chrono>
 #include <glog/logging.h>
 
 namespace PelcoD {
 
-namespace {
-
-#ifdef _WIN32
-    struct WinsockInit {
-        WinsockInit()
-        {
-            WSADATA wsaData {};
-            ::WSAStartup(MAKEWORD(2, 2), &wsaData);
-        }
-        ~WinsockInit()
-        {
-            ::WSACleanup();
-        }
-    };
-
-    void ensureWinsockInitialized()
-    {
-        static WinsockInit init;
-    }
-
-    std::string getSocketErrorString(int errCode = 0)
-    {
-        if (errCode == 0) {
-            errCode = ::WSAGetLastError();
-        }
-        char* errText = nullptr;
-        const DWORD len = FormatMessageA(
-            FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS, nullptr,
-            errCode, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), reinterpret_cast<LPSTR>(&errText), 0, nullptr);
-        std::string msg
-            = (len > 0 && errText != nullptr) ? std::string(errText) : "Winsock error " + std::to_string(errCode);
-        if (errText != nullptr) {
-            LocalFree(errText);
-        }
-        while (!msg.empty() && (msg.back() == '\r' || msg.back() == '\n')) {
-            msg.pop_back();
-        }
-        return msg;
-    }
-
-    bool setNonBlocking(SOCKET s, bool nonBlocking)
-    {
-        u_long mode = nonBlocking ? 1 : 0;
-        return ::ioctlsocket(s, FIONBIO, &mode) == 0;
-    }
-
-#else
-
-    std::string getSocketErrorString(int errCode = 0)
-    {
-        if (errCode == 0) {
-            errCode = errno;
-        }
-        return std::string(std::strerror(errCode));
-    }
-
-    bool setNonBlocking(int fd, bool nonBlocking)
-    {
-        const int flags = ::fcntl(fd, F_GETFL, 0);
-        if (flags == -1) {
-            return false;
-        }
-        const int newFlags = nonBlocking ? (flags | O_NONBLOCK) : (flags & ~O_NONBLOCK);
-        return ::fcntl(fd, F_SETFL, newFlags) == 0;
-    }
-#endif
-
-} // namespace
-
 TcpTransport::TcpTransport(std::string host, std::uint16_t port)
     : m_host { std::move(host) }
     , m_port { port }
 {
-#ifdef _WIN32
-    ensureWinsockInitialized();
-#endif
+    Net::ensureWinsockInitialized();
 }
 
 TcpTransport::~TcpTransport()
@@ -207,7 +103,7 @@ bool TcpTransport::open()
         }
 
         // Set non-blocking BEFORE connect() — the OS must not block the caller.
-        if (!setNonBlocking(sock, true)) {
+        if (!Net::setNonBlocking(sock, true)) {
             LOG(WARNING) << "setNonBlocking failed; connect may block";
         }
 
@@ -218,24 +114,12 @@ bool TcpTransport::open()
             // Immediate success (e.g. loopback).
             connected = true;
         } else if (connRet < 0) {
-#ifdef _WIN32
-            const bool inProgress = (::WSAGetLastError() == WSAEWOULDBLOCK);
-#else
-            const bool inProgress = (errno == EINPROGRESS);
-#endif
-            if (inProgress) {
+            if (Net::isConnectInProgress()) {
                 // Await writability within the configured timeout.
-#ifdef _WIN32
-                WSAPOLLFD pfd {};
+                Net::PollFd pfd {};
                 pfd.fd = sock;
                 pfd.events = POLLOUT;
-                const int pollRet = POLL_SOCKET(&pfd, 1, timeoutMs);
-#else
-                struct pollfd pfd { };
-                pfd.fd = sock;
-                pfd.events = POLLOUT;
-                const int pollRet = POLL_SOCKET(&pfd, 1, timeoutMs);
-#endif
+                const int pollRet = Net::pollSockets(&pfd, 1, timeoutMs);
                 if (pollRet > 0 && (pfd.revents & POLLOUT)) {
                     // Confirm via SO_ERROR.
                     int soErr { 0 };
@@ -243,7 +127,7 @@ bool TcpTransport::open()
                     ::getsockopt(sock, SOL_SOCKET, SO_ERROR, reinterpret_cast<char*>(&soErr), &soErrLen);
                     connected = (soErr == 0);
                     if (!connected) {
-                        LOG(WARNING) << "connect SO_ERROR: " << getSocketErrorString(soErr);
+                        LOG(WARNING) << "connect SO_ERROR: " << Net::getSocketErrorString(soErr);
                     }
                 } else if (pollRet == 0) {
                     LOG(WARNING) << "connect timed out after " << timeoutMs << "ms";
@@ -253,7 +137,7 @@ bool TcpTransport::open()
         }
 
         if (!connected) {
-            CLOSE_SOCKET(sock);
+            Net::closeSocket(sock);
             sock = InvalidSocket;
             continue;
         }
@@ -263,7 +147,7 @@ bool TcpTransport::open()
     ::freeaddrinfo(res);
 
     if (sock == InvalidSocket) {
-        const std::string errStr = getSocketErrorString();
+        const std::string errStr = Net::getSocketErrorString();
         LOG(ERROR) << "Failed to connect to " << host << ":" << port << " - " << errStr;
         notifyState(TransportState::Error, "Connect failed: " + errStr);
         return false;
@@ -292,7 +176,7 @@ void TcpTransport::close()
         const SocketHandle sock = m_sockfd.exchange(InvalidSocket);
         if (sock != InvalidSocket) {
             LOG(INFO) << "Closing TCP socket";
-            CLOSE_SOCKET(sock);
+            Net::closeSocket(sock);
             wasClosed = true;
         }
     }
@@ -323,29 +207,17 @@ bool TcpTransport::sendData(const std::vector<std::uint8_t>& data)
     const std::size_t toSend { data.size() };
 
     while (totalSent < toSend && m_running.load()) {
-#ifdef _WIN32
-        const int sent = ::send(sock, reinterpret_cast<const char*>(data.data() + totalSent),
-            static_cast<int>(toSend - totalSent), SEND_FLAGS);
-#else
-        const ssize_t sent
-            = ::send(sock, reinterpret_cast<const char*>(data.data() + totalSent), toSend - totalSent, SEND_FLAGS);
-#endif
+        const auto sent = ::send(sock, reinterpret_cast<const char*>(data.data() + totalSent),
+            static_cast<Net::SockBufLenType>(toSend - totalSent), Net::SendFlags);
 
         if (sent > 0) {
             totalSent += static_cast<std::size_t>(sent);
         } else if (sent < 0) {
-            if (IS_WOULDBLOCK()) {
-#ifdef _WIN32
-                WSAPOLLFD pfd {};
+            if (Net::isWouldBlock()) {
+                Net::PollFd pfd {};
                 pfd.fd = sock;
                 pfd.events = POLLOUT;
-                POLL_SOCKET(&pfd, 1, 50);
-#else
-                struct pollfd pfd { };
-                pfd.fd = sock;
-                pfd.events = POLLOUT;
-                POLL_SOCKET(&pfd, 1, 50);
-#endif
+                Net::pollSockets(&pfd, 1, 50);
                 continue;
             }
             return false;
@@ -355,36 +227,23 @@ bool TcpTransport::sendData(const std::vector<std::uint8_t>& data)
     return (totalSent == toSend);
 }
 
-
 void TcpTransport::readWorker()
 {
     std::vector<std::uint8_t> buffer(2048U, 0x00U);
     bool unrecoverableError { false };
 
     while (m_running.load()) {
-#ifdef _WIN32
-        WSAPOLLFD pfd {};
+        Net::PollFd pfd {};
         pfd.fd = m_sockfd.load();
         pfd.events = POLLIN;
-        const int ret = POLL_SOCKET(&pfd, 1, 50);
-#else
-        struct pollfd pfd { };
-        pfd.fd = m_sockfd.load();
-        pfd.events = POLLIN;
-        const int ret = POLL_SOCKET(&pfd, 1, 50);
-#endif
+        const int ret = Net::pollSockets(&pfd, 1, 50);
 
         if (ret > 0 && (pfd.revents & (POLLIN | POLLHUP | POLLERR))) {
-#ifdef _WIN32
-            const int bytesRead
-                = ::recv(m_sockfd.load(), reinterpret_cast<char*>(buffer.data()), static_cast<int>(buffer.size()), 0);
-#else
-            const ssize_t bytesRead = ::recv(m_sockfd.load(), reinterpret_cast<char*>(buffer.data()), buffer.size(), 0);
-#endif
+            const auto bytesRead = ::recv(m_sockfd.load(), reinterpret_cast<char*>(buffer.data()),
+                static_cast<Net::SockBufLenType>(buffer.size()), 0);
 
             if (bytesRead > 0) {
                 std::vector<std::uint8_t> chunk(buffer.begin(), buffer.begin() + bytesRead);
-
                 invokeDataCallback(chunk);
             } else if (bytesRead == 0 || (pfd.revents & POLLHUP)) {
                 if (m_running.exchange(false)) {
@@ -392,10 +251,10 @@ void TcpTransport::readWorker()
                     notifyState(TransportState::Disconnected, "Remote host closed connection");
                 }
                 break;
-            } else if (!IS_WOULDBLOCK()) {
+            } else if (!Net::isWouldBlock()) {
                 if (m_running.exchange(false)) {
                     unrecoverableError = true;
-                    notifyState(TransportState::Error, "Socket read error: " + getSocketErrorString());
+                    notifyState(TransportState::Error, "Socket read error: " + Net::getSocketErrorString());
                 }
                 break;
             }
@@ -406,7 +265,7 @@ void TcpTransport::readWorker()
         std::lock_guard<std::mutex> lock(m_writeMutex);
         const SocketHandle sock = m_sockfd.exchange(InvalidSocket);
         if (sock != InvalidSocket) {
-            CLOSE_SOCKET(sock);
+            Net::closeSocket(sock);
         }
     }
 }

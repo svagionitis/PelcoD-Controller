@@ -1,70 +1,16 @@
 #include "OnvifDiscovery.h"
+#include "WsDiscoveryCommon.h"
 
+#include <PelcoDCore/SocketUtils.h>
 #include <pugixml.hpp>
-
-#ifdef _WIN32
-#ifndef WIN32_LEAN_AND_MEAN
-#define WIN32_LEAN_AND_MEAN
-#endif
-#ifndef NOMINMAX
-#define NOMINMAX
-#endif
-#include <windows.h>
-#include <winsock2.h>
-#include <ws2tcpip.h>
-
-using SocketType = SOCKET;
-constexpr SocketType kInvalidSocket = INVALID_SOCKET;
-#define CLOSE_SOCKET(s) ::closesocket(s)
-#define POLL_SOCKET(fds, nfds, timeout) ::WSAPoll(fds, nfds, timeout)
-using SockOptLenType = int;
-using SockBufLenType = int;
-#else
-#include <arpa/inet.h>
-#include <netinet/in.h>
-#include <poll.h>
-#include <sys/socket.h>
-#include <unistd.h>
-
-using SocketType = int;
-constexpr SocketType kInvalidSocket = -1;
-#define CLOSE_SOCKET(s) ::close(s)
-#define POLL_SOCKET(fds, nfds, timeout) ::poll(fds, nfds, timeout)
-using SockOptLenType = socklen_t;
-using SockBufLenType = size_t;
-#endif
 
 #include <array>
 #include <cstring>
-#include <iomanip>
-#include <random>
 #include <sstream>
 
 namespace PelcoD::Onvif {
 
 namespace {
-
-    constexpr const char* kMulticastIp { "239.255.255.250" };
-    constexpr uint16_t kMulticastPort { 3702 };
-
-    std::string generateRandomUuid()
-    {
-        std::random_device rd {};
-        std::mt19937 gen(rd());
-        std::uniform_int_distribution<uint32_t> dis(0, 0xFFFFFFFF);
-
-        const uint32_t d1 = dis(gen);
-        const uint16_t d2 = static_cast<uint16_t>(dis(gen) & 0xFFFF);
-        const uint16_t d3 = static_cast<uint16_t>((dis(gen) & 0x0FFF) | 0x4000); // version 4
-        const uint16_t d4 = static_cast<uint16_t>((dis(gen) & 0x3FFF) | 0x8000); // variant 1
-        const uint32_t d5a = dis(gen);
-        const uint16_t d5b = static_cast<uint16_t>(dis(gen) & 0xFFFF);
-
-        std::ostringstream ss {};
-        ss << std::hex << std::setfill('0') << std::setw(8) << d1 << "-" << std::setw(4) << d2 << "-" << std::setw(4)
-           << d3 << "-" << std::setw(4) << d4 << "-" << std::setw(8) << d5a << std::setw(4) << d5b;
-        return ss.str();
-    }
 
     std::string urlDecode(const std::string& in)
     {
@@ -227,18 +173,10 @@ std::vector<DiscoveredDevice> OnvifDiscovery::discoverDevices(std::chrono::milli
 {
     std::vector<DiscoveredDevice> discovered {};
 
-#ifdef _WIN32
-    WSADATA wsaData;
-    if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) {
-        return discovered;
-    }
-#endif
+    Net::ensureWinsockInitialized();
 
-    const SocketType sockFd = socket(AF_INET, SOCK_DGRAM, 0);
-    if (sockFd == kInvalidSocket) {
-#ifdef _WIN32
-        WSACleanup();
-#endif
+    const Net::SocketHandle sockFd = socket(AF_INET, SOCK_DGRAM, 0);
+    if (sockFd == Net::InvalidSocket) {
         return discovered;
     }
 
@@ -261,14 +199,11 @@ std::vector<DiscoveredDevice> OnvifDiscovery::discoverDevices(std::chrono::milli
     inet_pton(AF_INET, kMulticastIp, &destAddr.sin_addr);
 
     const std::string probePayload = createProbePayload();
-    const auto sent = sendto(sockFd, probePayload.data(), static_cast<SockBufLenType>(probePayload.size()), 0,
+    const auto sent = sendto(sockFd, probePayload.data(), static_cast<Net::SockBufLenType>(probePayload.size()), 0,
         reinterpret_cast<struct sockaddr*>(&destAddr), sizeof(destAddr));
 
     if (sent < 0) {
-        CLOSE_SOCKET(sockFd);
-#ifdef _WIN32
-        WSACleanup();
-#endif
+        Net::closeSocket(sockFd);
         return discovered;
     }
 
@@ -283,23 +218,19 @@ std::vector<DiscoveredDevice> OnvifDiscovery::discoverDevices(std::chrono::milli
         }
 
         const int remainingMs = static_cast<int>((timeout - elapsed).count());
-#ifdef _WIN32
-        WSAPOLLFD pfd {};
-#else
-        pollfd pfd {};
-#endif
+        Net::PollFd pfd {};
         pfd.fd = sockFd;
         pfd.events = POLLIN;
 
-        const int pollRet = POLL_SOCKET(&pfd, 1, remainingMs);
+        const int pollRet = Net::pollSockets(&pfd, 1, remainingMs);
         if (pollRet <= 0) {
             break;
         }
 
         if (pfd.revents & POLLIN) {
             sockaddr_in senderAddr {};
-            SockOptLenType senderLen = sizeof(senderAddr);
-            const auto recvd = recvfrom(sockFd, buffer.data(), static_cast<SockBufLenType>(buffer.size() - 1), 0,
+            Net::SockOptLenType senderLen = sizeof(senderAddr);
+            const auto recvd = recvfrom(sockFd, buffer.data(), static_cast<Net::SockBufLenType>(buffer.size() - 1), 0,
                 reinterpret_cast<struct sockaddr*>(&senderAddr), &senderLen);
 
             if (recvd > 0) {
@@ -326,10 +257,7 @@ std::vector<DiscoveredDevice> OnvifDiscovery::discoverDevices(std::chrono::milli
         }
     }
 
-    CLOSE_SOCKET(sockFd);
-#ifdef _WIN32
-    WSACleanup();
-#endif
+    Net::closeSocket(sockFd);
     return discovered;
 }
 

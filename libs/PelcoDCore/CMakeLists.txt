@@ -10,6 +10,8 @@ add_library(PelcoDCore STATIC
     PelcoDFrame.cpp
     SerialTransport.h
     SerialTransport.cpp
+    SocketUtils.h
+    SocketUtils.cpp
     TcpTransport.h
     TcpTransport.cpp
     UdpTransport.h

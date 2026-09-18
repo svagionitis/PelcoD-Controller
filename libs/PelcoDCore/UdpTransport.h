@@ -4,6 +4,7 @@
 /// @brief Cross-platform UDP socket transport for Pelco-D over IP bridges (Linux & Windows).
 
 #include "BaseTransport.h"
+#include "SocketUtils.h"
 
 #include <atomic>
 #include <cstdint>
@@ -16,8 +17,7 @@ namespace PelcoD {
 /// @brief Standard UDP socket implementation of ITransport (zero Qt dependency).
 class UdpTransport : public BaseTransport {
 public:
-    explicit UdpTransport(
-        std::string host = "192.168.1.100", std::uint16_t port = 4001U, std::uint16_t localPort = 0U);
+    explicit UdpTransport(std::string host = "192.168.1.100", std::uint16_t port = 4001U, std::uint16_t localPort = 0U);
     ~UdpTransport() override;
 
     // Non-copyable, non-movable
@@ -48,13 +48,8 @@ private:
     std::uint16_t m_port { 4001U };
     std::uint16_t m_localPort { 0U };
 
-#ifdef _WIN32
-    using SocketHandle = std::uintptr_t;
-    static constexpr SocketHandle InvalidSocket { ~static_cast<SocketHandle>(0) };
-#else
-    using SocketHandle = int;
-    static constexpr SocketHandle InvalidSocket { -1 };
-#endif
+    using SocketHandle = Net::SocketHandle;
+    static constexpr SocketHandle InvalidSocket { Net::InvalidSocket };
 
     std::atomic<SocketHandle> m_sockfd { InvalidSocket };
 };

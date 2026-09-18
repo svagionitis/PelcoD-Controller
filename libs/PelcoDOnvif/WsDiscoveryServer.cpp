@@ -1,75 +1,21 @@
 #include "WsDiscoveryServer.h"
+#include "WsDiscoveryCommon.h"
 
+#include <PelcoDCore/SocketUtils.h>
 #include <pugixml.hpp>
-
-#ifdef _WIN32
-#ifndef WIN32_LEAN_AND_MEAN
-#define WIN32_LEAN_AND_MEAN
-#endif
-#ifndef NOMINMAX
-#define NOMINMAX
-#endif
-#include <windows.h>
-#include <winsock2.h>
-#include <ws2tcpip.h>
-
-using SocketType = SOCKET;
-constexpr SocketType kInvalidSocket = INVALID_SOCKET;
-#define CLOSE_SOCKET(s) ::closesocket(s)
-#define POLL_SOCKET(fds, nfds, timeout) ::WSAPoll(fds, nfds, timeout)
-using SockOptLenType = int;
-using SockBufLenType = int;
-#else
-#include <arpa/inet.h>
-#include <netinet/in.h>
-#include <poll.h>
-#include <sys/socket.h>
-#include <unistd.h>
-
-using SocketType = int;
-constexpr SocketType kInvalidSocket = -1;
-#define CLOSE_SOCKET(s) ::close(s)
-#define POLL_SOCKET(fds, nfds, timeout) ::poll(fds, nfds, timeout)
-using SockOptLenType = socklen_t;
-using SockBufLenType = size_t;
-#endif
 
 #include <array>
 #include <cstring>
-#include <iomanip>
-#include <random>
 #include <sstream>
 
 namespace PelcoD::Onvif {
 
 namespace {
 
-    constexpr const char* kMulticastIp { "239.255.255.250" };
-    constexpr uint16_t kMulticastPort { 3702 };
-
-    std::string generateRandomUuid()
-    {
-        std::random_device rd {};
-        std::mt19937 gen(rd());
-        std::uniform_int_distribution<uint32_t> dis(0, 0xFFFFFFFF);
-
-        const uint32_t d1 = dis(gen);
-        const uint16_t d2 = static_cast<uint16_t>(dis(gen) & 0xFFFF);
-        const uint16_t d3 = static_cast<uint16_t>((dis(gen) & 0x0FFF) | 0x4000); // version 4
-        const uint16_t d4 = static_cast<uint16_t>((dis(gen) & 0x3FFF) | 0x8000); // variant 1
-        const uint32_t d5a = dis(gen);
-        const uint16_t d5b = static_cast<uint16_t>(dis(gen) & 0xFFFF);
-
-        std::ostringstream oss;
-        oss << std::hex << std::setfill('0') << std::setw(8) << d1 << '-' << std::setw(4) << d2 << '-' << std::setw(4)
-            << d3 << '-' << std::setw(4) << d4 << '-' << std::setw(8) << d5a << std::setw(4) << d5b;
-        return oss.str();
-    }
-
     std::string resolveLocalIp(const sockaddr_in& targetAddr)
     {
-        const SocketType probeSock = socket(AF_INET, SOCK_DGRAM, 0);
-        if (probeSock == kInvalidSocket) {
+        const Net::SocketHandle probeSock = socket(AF_INET, SOCK_DGRAM, 0);
+        if (probeSock == Net::InvalidSocket) {
             return "127.0.0.1";
         }
 
@@ -81,16 +27,16 @@ namespace {
 
         if (connect(probeSock, reinterpret_cast<struct sockaddr*>(&probeTarget), sizeof(probeTarget)) == 0) {
             sockaddr_in localAddr {};
-            SockOptLenType addrLen = sizeof(localAddr);
+            Net::SockOptLenType addrLen = sizeof(localAddr);
             if (getsockname(probeSock, reinterpret_cast<struct sockaddr*>(&localAddr), &addrLen) == 0) {
                 char ipStr[INET_ADDRSTRLEN] { 0 };
                 inet_ntop(AF_INET, &localAddr.sin_addr, ipStr, sizeof(ipStr));
-                CLOSE_SOCKET(probeSock);
+                Net::closeSocket(probeSock);
                 return std::string(ipStr);
             }
         }
 
-        CLOSE_SOCKET(probeSock);
+        Net::closeSocket(probeSock);
         return "127.0.0.1";
     }
 
@@ -115,15 +61,10 @@ bool WsDiscoveryServer::start()
         return true;
     }
 
-#ifdef _WIN32
-    WSADATA wsaData;
-    if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) {
-        return false;
-    }
-#endif
+    Net::ensureWinsockInitialized();
 
-    const SocketType sock = socket(AF_INET, SOCK_DGRAM, 0);
-    if (sock == kInvalidSocket) {
+    const Net::SocketHandle sock = socket(AF_INET, SOCK_DGRAM, 0);
+    if (sock == Net::InvalidSocket) {
         return false;
     }
 
@@ -136,7 +77,7 @@ bool WsDiscoveryServer::start()
     bindAddr.sin_addr.s_addr = htonl(INADDR_ANY);
 
     if (bind(sock, reinterpret_cast<struct sockaddr*>(&bindAddr), sizeof(bindAddr)) != 0) {
-        CLOSE_SOCKET(sock);
+        Net::closeSocket(sock);
         return false;
     }
 
@@ -150,12 +91,7 @@ bool WsDiscoveryServer::start()
     unsigned char loop = 1;
     setsockopt(sock, IPPROTO_IP, IP_MULTICAST_LOOP, reinterpret_cast<const char*>(&loop), sizeof(loop));
 
-#ifdef _WIN32
-    m_sockFd = static_cast<uintptr_t>(sock);
-#else
     m_sockFd = sock;
-#endif
-
     m_running = true;
     m_thread = std::thread(&WsDiscoveryServer::runListener, this);
 
@@ -170,7 +106,7 @@ bool WsDiscoveryServer::start()
         : resolveLocalIp(mcastDest);
 
     const std::string hello = createHelloPayload(localIp);
-    sendto(sock, hello.data(), static_cast<SockBufLenType>(hello.size()), 0,
+    sendto(sock, hello.data(), static_cast<Net::SockBufLenType>(hello.size()), 0,
         reinterpret_cast<struct sockaddr*>(&mcastDest), sizeof(mcastDest));
 
     return true;
@@ -182,8 +118,8 @@ void WsDiscoveryServer::stop()
         return;
     }
 
-    const SocketType sock = static_cast<SocketType>(m_sockFd);
-    if (sock != kInvalidSocket) {
+    const Net::SocketHandle sock = m_sockFd;
+    if (sock != Net::InvalidSocket) {
         // Broadcast Bye departure
         sockaddr_in mcastDest {};
         mcastDest.sin_family = AF_INET;
@@ -191,7 +127,7 @@ void WsDiscoveryServer::stop()
         inet_pton(AF_INET, kMulticastIp, &mcastDest.sin_addr);
 
         const std::string bye = createByePayload();
-        sendto(sock, bye.data(), static_cast<SockBufLenType>(bye.size()), 0,
+        sendto(sock, bye.data(), static_cast<Net::SockBufLenType>(bye.size()), 0,
             reinterpret_cast<struct sockaddr*>(&mcastDest), sizeof(mcastDest));
     }
 
@@ -200,13 +136,9 @@ void WsDiscoveryServer::stop()
         m_thread.join();
     }
 
-    if (sock != kInvalidSocket) {
-        CLOSE_SOCKET(sock);
-#ifdef _WIN32
-        m_sockFd = ~static_cast<uintptr_t>(0);
-#else
-        m_sockFd = -1;
-#endif
+    if (sock != Net::InvalidSocket) {
+        Net::closeSocket(sock);
+        m_sockFd = Net::InvalidSocket;
     }
 }
 
@@ -217,26 +149,22 @@ bool WsDiscoveryServer::isRunning() const noexcept
 
 void WsDiscoveryServer::runListener()
 {
-    const SocketType sock = static_cast<SocketType>(m_sockFd);
+    const Net::SocketHandle sock = m_sockFd;
     std::array<char, 8192> buffer {};
 
     while (m_running) {
-#ifdef _WIN32
-        WSAPOLLFD pfd {};
-#else
-        pollfd pfd {};
-#endif
+        Net::PollFd pfd {};
         pfd.fd = sock;
         pfd.events = POLLIN;
 
-        const int pollRet = POLL_SOCKET(&pfd, 1, 200);
+        const int pollRet = Net::pollSockets(&pfd, 1, 200);
         if (pollRet <= 0 || !(pfd.revents & POLLIN)) {
             continue;
         }
 
         sockaddr_in senderAddr {};
-        SockOptLenType senderLen = sizeof(senderAddr);
-        const auto recvd = recvfrom(sock, buffer.data(), static_cast<SockBufLenType>(buffer.size() - 1), 0,
+        Net::SockOptLenType senderLen = sizeof(senderAddr);
+        const auto recvd = recvfrom(sock, buffer.data(), static_cast<Net::SockBufLenType>(buffer.size() - 1), 0,
             reinterpret_cast<struct sockaddr*>(&senderAddr), &senderLen);
 
         if (recvd <= 0) {
@@ -280,7 +208,7 @@ void WsDiscoveryServer::runListener()
             : resolveLocalIp(senderAddr);
 
         const std::string probeMatches = createProbeMatchesPayload(msgId, localIp);
-        sendto(sock, probeMatches.data(), static_cast<SockBufLenType>(probeMatches.size()), 0,
+        sendto(sock, probeMatches.data(), static_cast<Net::SockBufLenType>(probeMatches.size()), 0,
             reinterpret_cast<struct sockaddr*>(&senderAddr), senderLen);
     }
 }

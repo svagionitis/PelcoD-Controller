@@ -4,6 +4,7 @@
 /// @brief WS-Discovery multicast responder daemon for ONVIF device discovery.
 
 #include "OnvifServerTypes.h"
+#include <PelcoDCore/SocketUtils.h>
 
 #include <atomic>
 #include <memory>
@@ -64,11 +65,7 @@ private:
     std::atomic<bool> m_running { false };
     std::thread m_thread {};
 
-#ifdef _WIN32
-    uintptr_t m_sockFd { ~static_cast<uintptr_t>(0) };
-#else
-    int m_sockFd { -1 };
-#endif
+    Net::SocketHandle m_sockFd { Net::InvalidSocket };
 };
 
 } // namespace PelcoD::Onvif

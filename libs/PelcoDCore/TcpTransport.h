@@ -4,6 +4,7 @@
 /// @brief Cross-platform TCP socket transport for Pelco-D over IP bridges (Linux & Windows).
 
 #include "BaseTransport.h"
+#include "SocketUtils.h"
 
 #include <atomic>
 #include <cstdint>
@@ -49,13 +50,8 @@ private:
     std::uint16_t m_port { 4001U };
     int m_connectTimeoutMs { 5000 };
 
-#ifdef _WIN32
-    using SocketHandle = std::uintptr_t;
-    static constexpr SocketHandle InvalidSocket { ~static_cast<SocketHandle>(0) };
-#else
-    using SocketHandle = int;
-    static constexpr SocketHandle InvalidSocket { -1 };
-#endif
+    using SocketHandle = Net::SocketHandle;
+    static constexpr SocketHandle InvalidSocket { Net::InvalidSocket };
 
     std::atomic<SocketHandle> m_sockfd { InvalidSocket };
 };
