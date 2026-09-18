@@ -43,7 +43,7 @@ void GStreamerDecoder::close()
     m_timestamp = 0.0;
     m_frameRate = 0.0;
     m_duration = 0.0;
-    m_rgbBuffer.clear();
+    m_frameBuffer.clear();
     m_reachedEof = false;
     m_reconnectAttempts = 0;
 }
@@ -85,6 +85,7 @@ bool GStreamerDecoder::initialize(std::string_view source, PixelFormat format, i
     m_filePath = std::string(source);
     m_threadCount = threadCount;
     m_deviceType = device;
+    m_reportedDeviceType = device;
 
     // Determine source configuration
     const SourceType srcType = detectSourceType(m_filePath);
@@ -193,17 +194,6 @@ bool GStreamerDecoder::initialize(std::string_view source, PixelFormat format, i
     return true;
 }
 
-bool GStreamerDecoder::reconnect()
-{
-    const std::string cachedPath = m_filePath;
-    const PixelFormat cachedFormat = m_outputFormat;
-    const int cachedThreads = m_threadCount;
-    const DeviceType cachedDevice = m_deviceType;
-
-    close();
-    return initialize(cachedPath, cachedFormat, cachedThreads, cachedDevice);
-}
-
 bool GStreamerDecoder::decodeNextFrame()
 {
     if (!m_isInitialized || !m_sink) {
@@ -250,23 +240,14 @@ bool GStreamerDecoder::decodeNextFrame()
         GstMapInfoWrapper map(buffer, GST_MAP_READ);
         if (map.isMapped()) {
             const std::size_t expectedSize = static_cast<std::size_t>(m_width * m_height * 3);
-            if (m_rgbBuffer.size() != expectedSize) {
-                m_rgbBuffer.resize(expectedSize);
+            if (m_frameBuffer.size() != expectedSize) {
+                m_frameBuffer.resize(expectedSize);
             }
             const std::size_t copyBytes = std::min(map.size(), expectedSize);
-            std::memcpy(m_rgbBuffer.data(), map.data(), copyBytes);
+            std::memcpy(m_frameBuffer.data(), map.data(), copyBytes);
 
             // Apply registered frame processors in-place
-            std::vector<std::shared_ptr<IFrameProcessor>> processors;
-            {
-                std::lock_guard<std::mutex> lock(m_processorMutex);
-                processors = m_processors;
-            }
-            for (auto& processor : processors) {
-                if (processor) {
-                    processor->process(m_rgbBuffer.data(), m_width, m_height, m_outputFormat);
-                }
-            }
+            dispatchFrameProcessors(m_frameBuffer.data(), m_width, m_height, m_outputFormat);
 
             if (GST_BUFFER_PTS_IS_VALID(buffer)) {
                 m_timestamp = static_cast<double>(buffer->pts) / GST_SECOND;
@@ -280,20 +261,8 @@ bool GStreamerDecoder::decodeNextFrame()
             m_lastDecodeTimeMs = std::chrono::duration<double, std::milli>(end - start).count();
             m_totalDecodeTimeMs += m_lastDecodeTimeMs;
 
-            if (m_tripleBufferingEnabled) {
-                auto& slot = m_tripleBuffer.getWriteBuffer();
-                if (slot.buffer.size() != expectedSize) {
-                    slot.buffer.resize(expectedSize);
-                }
-                std::memcpy(slot.buffer.data(), m_rgbBuffer.data(), expectedSize);
-                slot.width = m_width;
-                slot.height = m_height;
-                slot.size = expectedSize;
-                slot.timestamp = m_timestamp;
-                slot.decodeTimeMs = m_lastDecodeTimeMs;
-                slot.format = m_outputFormat;
-                m_tripleBuffer.publishWriteBuffer();
-            }
+            publishToTripleBuffer(
+                m_frameBuffer.data(), m_width, m_height, expectedSize, m_timestamp, m_lastDecodeTimeMs, m_outputFormat);
 
             gst_sample_unref(sample);
             return true;
@@ -302,42 +271,6 @@ bool GStreamerDecoder::decodeNextFrame()
 
     gst_sample_unref(sample);
     return false;
-}
-
-FrameInfo GStreamerDecoder::getRawFrameData() const
-{
-    FrameInfo info;
-    info.data = m_rgbBuffer.data();
-    info.width = m_width;
-    info.height = m_height;
-    info.size = m_rgbBuffer.size();
-    info.timestamp = m_timestamp;
-    info.decodeTimeMs = m_lastDecodeTimeMs;
-    info.format = m_outputFormat;
-    return info;
-}
-
-VideoMetadata GStreamerDecoder::getVideoMetadata() const
-{
-    VideoMetadata meta;
-    meta.width = m_width;
-    meta.height = m_height;
-    meta.frameRate = m_frameRate;
-    meta.duration = m_duration;
-    meta.codecName = m_codecName;
-    meta.format = m_outputFormat;
-    meta.deviceType = m_deviceType;
-    return meta;
-}
-
-DecoderPerformanceStats GStreamerDecoder::getPerformanceStats() const
-{
-    DecoderPerformanceStats stats;
-    stats.initializationTimeMs = m_initTimeMs;
-    stats.totalDecodedFrames = m_decodedFramesCount;
-    stats.averageDecodeTimeMs
-        = (m_decodedFramesCount > 0U) ? (m_totalDecodeTimeMs / static_cast<double>(m_decodedFramesCount)) : 0.0;
-    return stats;
 }
 
 bool GStreamerDecoder::seek(double timeInSeconds)
@@ -350,40 +283,6 @@ bool GStreamerDecoder::seek(double timeInSeconds)
     return (gst_element_seek_simple(m_pipeline.get(), GST_FORMAT_TIME,
                 static_cast<GstSeekFlags>(GST_SEEK_FLAG_FLUSH | GST_SEEK_FLAG_KEY_UNIT), targetNs)
         != 0);
-}
-
-void GStreamerDecoder::enableTripleBuffering(bool enable)
-{
-    m_tripleBufferingEnabled = enable;
-    if (enable && m_isInitialized && m_width > 0 && m_height > 0) {
-        const std::size_t frameBytes = static_cast<std::size_t>(m_width * m_height * 3);
-        for (auto& slot : m_tripleBuffer.getSlots()) {
-            slot.buffer.resize(frameBytes);
-            slot.width = m_width;
-            slot.height = m_height;
-            slot.size = frameBytes;
-            slot.format = m_outputFormat;
-        }
-    }
-}
-
-bool GStreamerDecoder::isTripleBufferingEnabled() const
-{
-    return m_tripleBufferingEnabled;
-}
-
-void GStreamerDecoder::addFrameProcessor(std::shared_ptr<IFrameProcessor> processor)
-{
-    if (processor) {
-        std::lock_guard<std::mutex> lock(m_processorMutex);
-        m_processors.push_back(processor);
-    }
-}
-
-void GStreamerDecoder::clearFrameProcessors()
-{
-    std::lock_guard<std::mutex> lock(m_processorMutex);
-    m_processors.clear();
 }
 
 } // namespace PelcoD::Video

@@ -3,19 +3,18 @@
 /// @file MockVideoDecoder.h
 /// @brief Synthetic test pattern and frame generator implementing IVideoDecoder.
 
-#include "AtomicTripleBuffer.h"
-#include "IVideoDecoder.h"
+#include "BaseVideoDecoder.h"
 
 #include <chrono>
-#include <mutex>
-#include <string>
-#include <vector>
+#include <cstdint>
+#include <string_view>
 
 namespace PelcoD::Video {
 
 /// @class MockVideoDecoder
 /// @brief Deterministic synthetic video decoder generating test patterns for headless testing and offline demos.
-class MockVideoDecoder : public IVideoDecoder {
+/// @details Inherits shared state and non-backend-specific method implementations from BaseVideoDecoder.
+class MockVideoDecoder : public BaseVideoDecoder {
 public:
     /// @brief Constructor.
     MockVideoDecoder();
@@ -28,46 +27,17 @@ public:
 
     bool decodeNextFrame() override;
 
-    [[nodiscard]] FrameInfo getRawFrameData() const override;
-
-    [[nodiscard]] VideoMetadata getVideoMetadata() const override;
-
-    [[nodiscard]] DecoderPerformanceStats getPerformanceStats() const override;
-
     bool seek(double timeInSeconds) override;
-
-    void enableTripleBuffering(bool enable) override;
-
-    [[nodiscard]] bool isTripleBufferingEnabled() const override;
-
-    void addFrameProcessor(std::shared_ptr<IFrameProcessor> processor) override;
-
-    void clearFrameProcessors() override;
 
     void close() override;
 
 private:
     void renderTestPattern(std::uint8_t* buffer);
 
-    int m_width { 640 };
-    int m_height { 360 };
-    double m_frameRate { 30.0 };
-    PixelFormat m_format { PixelFormat::RGB24 };
-    bool m_initialized { false };
-    bool m_tripleBufferingEnabled { false };
-
-    mutable std::mutex m_processorMutex;
-    std::vector<std::shared_ptr<IFrameProcessor>> m_processors;
-
     std::uint64_t m_frameIndex { 0U };
     double m_currentTimeSec { 0.0 };
-    std::vector<std::uint8_t> m_currentFrameBuffer;
-
-    AtomicTripleBuffer<FrameBufferSlot> m_tripleBuffer;
 
     std::chrono::steady_clock::time_point m_initTime {};
-    double m_totalDecodeTimeMs { 0.0 };
-    double m_lastDecodeTimeMs { 0.0 };
 };
 
 } // namespace PelcoD::Video

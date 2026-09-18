@@ -48,7 +48,7 @@ void FFmpegDecoder::close()
     m_frameRate = 0.0;
     m_duration = 0.0;
     m_codecName.clear();
-    m_rgbBuffer.clear();
+    m_frameBuffer.clear();
     m_reachedEof = false;
     m_reconnectAttempts = 0;
 }
@@ -176,6 +176,7 @@ bool FFmpegDecoder::initialize(std::string_view source, PixelFormat format, int 
     m_width = m_codecCtx->width;
     m_height = m_codecCtx->height;
     m_codecName = codec->name ? codec->name : "unknown";
+    m_reportedDeviceType = m_actualDeviceType;
 
     const AVRational rFrameRate
         = av_guess_frame_rate(m_formatCtx.get(), m_formatCtx->streams[m_videoStreamIndex], nullptr);
@@ -200,16 +201,10 @@ bool FFmpegDecoder::initialize(std::string_view source, PixelFormat format, int 
     }
 
     const std::size_t rgbSize = static_cast<std::size_t>(m_width * m_height * 3);
-    m_rgbBuffer.resize(rgbSize);
+    m_frameBuffer.resize(rgbSize);
 
     if (m_tripleBufferingEnabled) {
-        for (auto& slot : m_tripleBuffer.getSlots()) {
-            slot.buffer.resize(rgbSize);
-            slot.width = m_width;
-            slot.height = m_height;
-            slot.size = rgbSize;
-            slot.format = m_outputFormat;
-        }
+        initTripleBufferSlots(m_width, m_height, m_outputFormat);
     }
 
     m_isInitialized = true;
@@ -217,17 +212,6 @@ bool FFmpegDecoder::initialize(std::string_view source, PixelFormat format, int 
     m_initTimeMs = std::chrono::duration<double, std::milli>(end - start).count();
 
     return true;
-}
-
-bool FFmpegDecoder::reconnect()
-{
-    const std::string cachedPath = m_filePath;
-    const PixelFormat cachedFormat = m_outputFormat;
-    const int cachedThreads = m_threadCount;
-    const DeviceType cachedDevice = m_deviceType;
-
-    close();
-    return initialize(cachedPath, cachedFormat, cachedThreads, cachedDevice);
 }
 
 bool FFmpegDecoder::decodeNextFrame()
@@ -241,12 +225,12 @@ bool FFmpegDecoder::decodeNextFrame()
     while (true) {
         int ret = avcodec_receive_frame(m_codecCtx.get(), m_rawFrame.get());
         if (ret >= 0) {
-            // Frame received!
+            // Frame received — handle resolution change
             if (m_rawFrame->width != m_width || m_rawFrame->height != m_height) {
                 m_width = m_rawFrame->width;
                 m_height = m_rawFrame->height;
                 m_swsCtx.reset();
-                m_rgbBuffer.resize(static_cast<std::size_t>(m_width * m_height * 3));
+                m_frameBuffer.resize(static_cast<std::size_t>(m_width * m_height * 3));
             }
 
             const AVPixelFormat dstPixFmt
@@ -262,23 +246,14 @@ bool FFmpegDecoder::decodeNextFrame()
                 }
             }
 
-            std::uint8_t* dstData[4] = { m_rgbBuffer.data(), nullptr, nullptr, nullptr };
+            std::uint8_t* dstData[4] = { m_frameBuffer.data(), nullptr, nullptr, nullptr };
             int dstLinesize[4] = { m_width * 3, 0, 0, 0 };
 
             sws_scale(
                 m_swsCtx.get(), m_rawFrame->data, m_rawFrame->linesize, 0, m_rawFrame->height, dstData, dstLinesize);
 
             // Apply registered frame processors in-place
-            std::vector<std::shared_ptr<IFrameProcessor>> processors;
-            {
-                std::lock_guard<std::mutex> lock(m_processorMutex);
-                processors = m_processors;
-            }
-            for (auto& processor : processors) {
-                if (processor) {
-                    processor->process(m_rgbBuffer.data(), m_width, m_height, m_outputFormat);
-                }
-            }
+            dispatchFrameProcessors(m_frameBuffer.data(), m_width, m_height, m_outputFormat);
 
             // Compute presentation timestamp
             if (m_rawFrame->best_effort_timestamp != AV_NOPTS_VALUE) {
@@ -294,21 +269,9 @@ bool FFmpegDecoder::decodeNextFrame()
             m_lastDecodeTimeMs = std::chrono::duration<double, std::milli>(decodeEnd - decodeStart).count();
             m_totalDecodeTimeMs += m_lastDecodeTimeMs;
 
-            if (m_tripleBufferingEnabled) {
-                auto& slot = m_tripleBuffer.getWriteBuffer();
-                const std::size_t frameBytes = static_cast<std::size_t>(m_width * m_height * 3);
-                if (slot.buffer.size() != frameBytes) {
-                    slot.buffer.resize(frameBytes);
-                }
-                std::memcpy(slot.buffer.data(), m_rgbBuffer.data(), frameBytes);
-                slot.width = m_width;
-                slot.height = m_height;
-                slot.size = frameBytes;
-                slot.timestamp = m_timestamp;
-                slot.decodeTimeMs = m_lastDecodeTimeMs;
-                slot.format = m_outputFormat;
-                m_tripleBuffer.publishWriteBuffer();
-            }
+            const std::size_t frameBytes = static_cast<std::size_t>(m_width * m_height * 3);
+            publishToTripleBuffer(
+                m_frameBuffer.data(), m_width, m_height, frameBytes, m_timestamp, m_lastDecodeTimeMs, m_outputFormat);
 
             av_frame_unref(m_rawFrame.get());
             return true;
@@ -356,42 +319,6 @@ bool FFmpegDecoder::decodeNextFrame()
     }
 }
 
-FrameInfo FFmpegDecoder::getRawFrameData() const
-{
-    FrameInfo info;
-    info.data = m_rgbBuffer.data();
-    info.width = m_width;
-    info.height = m_height;
-    info.size = m_rgbBuffer.size();
-    info.timestamp = m_timestamp;
-    info.decodeTimeMs = m_lastDecodeTimeMs;
-    info.format = m_outputFormat;
-    return info;
-}
-
-VideoMetadata FFmpegDecoder::getVideoMetadata() const
-{
-    VideoMetadata meta;
-    meta.width = m_width;
-    meta.height = m_height;
-    meta.frameRate = m_frameRate;
-    meta.duration = m_duration;
-    meta.codecName = m_codecName;
-    meta.format = m_outputFormat;
-    meta.deviceType = m_actualDeviceType;
-    return meta;
-}
-
-DecoderPerformanceStats FFmpegDecoder::getPerformanceStats() const
-{
-    DecoderPerformanceStats stats;
-    stats.initializationTimeMs = m_initTimeMs;
-    stats.totalDecodedFrames = m_decodedFramesCount;
-    stats.averageDecodeTimeMs
-        = (m_decodedFramesCount > 0U) ? (m_totalDecodeTimeMs / static_cast<double>(m_decodedFramesCount)) : 0.0;
-    return stats;
-}
-
 bool FFmpegDecoder::seek(double timeInSeconds)
 {
     if (!m_isInitialized || m_duration <= 0.0) {
@@ -406,40 +333,6 @@ bool FFmpegDecoder::seek(double timeInSeconds)
         return true;
     }
     return false;
-}
-
-void FFmpegDecoder::enableTripleBuffering(bool enable)
-{
-    m_tripleBufferingEnabled = enable;
-    if (enable && m_isInitialized) {
-        const std::size_t frameBytes = static_cast<std::size_t>(m_width * m_height * 3);
-        for (auto& slot : m_tripleBuffer.getSlots()) {
-            slot.buffer.resize(frameBytes);
-            slot.width = m_width;
-            slot.height = m_height;
-            slot.size = frameBytes;
-            slot.format = m_outputFormat;
-        }
-    }
-}
-
-bool FFmpegDecoder::isTripleBufferingEnabled() const
-{
-    return m_tripleBufferingEnabled;
-}
-
-void FFmpegDecoder::addFrameProcessor(std::shared_ptr<IFrameProcessor> processor)
-{
-    if (processor) {
-        std::lock_guard<std::mutex> lock(m_processorMutex);
-        m_processors.push_back(processor);
-    }
-}
-
-void FFmpegDecoder::clearFrameProcessors()
-{
-    std::lock_guard<std::mutex> lock(m_processorMutex);
-    m_processors.clear();
 }
 
 } // namespace PelcoD::Video

@@ -3,13 +3,10 @@
 /// @file FFmpegDecoder.h
 /// @brief Native FFmpeg video decoding backend for RTSP and media streams.
 
-#include "AtomicTripleBuffer.h"
-#include "IVideoDecoder.h"
+#include "BaseVideoDecoder.h"
 
 #include <memory>
-#include <mutex>
 #include <string>
-#include <vector>
 
 #if defined(PELCOD_HAS_FFMPEG)
 extern "C" {
@@ -78,7 +75,10 @@ using SwsContextPtr = std::unique_ptr<SwsContext, SwsContextDeleter>;
 
 /// @class FFmpegDecoder
 /// @brief Concrete implementation of IVideoDecoder using FFmpeg APIs.
-class FFmpegDecoder : public IVideoDecoder {
+/// @details Inherits shared state and non-backend-specific method implementations
+///          from BaseVideoDecoder. Only initialize(), decodeNextFrame(), seek(), and
+///          close() are implemented here.
+class FFmpegDecoder : public BaseVideoDecoder {
 public:
     FFmpegDecoder();
     ~FFmpegDecoder() override;
@@ -91,30 +91,11 @@ public:
 
     bool decodeNextFrame() override;
 
-    [[nodiscard]] FrameInfo getRawFrameData() const override;
-
-    [[nodiscard]] VideoMetadata getVideoMetadata() const override;
-
-    [[nodiscard]] DecoderPerformanceStats getPerformanceStats() const override;
-
     bool seek(double timeInSeconds) override;
-
-    void enableTripleBuffering(bool enable) override;
-
-    [[nodiscard]] bool isTripleBufferingEnabled() const override;
-
-    void addFrameProcessor(std::shared_ptr<IFrameProcessor> processor) override;
-
-    void clearFrameProcessors() override;
 
     void close() override;
 
 private:
-    bool reconnect();
-
-    mutable std::mutex m_processorMutex;
-    std::vector<std::shared_ptr<IFrameProcessor>> m_processors;
-
     AVFormatContextPtr m_formatCtx;
     AVCodecContextPtr m_codecCtx;
     AVFramePtr m_rawFrame;
@@ -122,32 +103,10 @@ private:
     SwsContextPtr m_swsCtx;
 
     int m_videoStreamIndex { -1 };
-    std::vector<std::uint8_t> m_rgbBuffer;
-    bool m_tripleBufferingEnabled { false };
-    mutable AtomicTripleBuffer<FrameBufferSlot> m_tripleBuffer;
+    bool m_reachedEof { false };
 
-    int m_width { 0 };
-    int m_height { 0 };
-    double m_timestamp { 0.0 };
-    double m_frameRate { 0.0 };
-    double m_duration { 0.0 };
-    std::string m_codecName;
-    PixelFormat m_outputFormat { PixelFormat::RGB24 };
-
-    double m_initTimeMs { 0.0 };
-    double m_lastDecodeTimeMs { 0.0 };
-    double m_totalDecodeTimeMs { 0.0 };
-    std::uint64_t m_decodedFramesCount { 0U };
-
-    std::string m_filePath;
-    int m_reconnectAttempts { 0 };
-    int m_threadCount { 0 };
-    DeviceType m_deviceType { DeviceType::CPU };
     DeviceType m_actualDeviceType { DeviceType::CPU };
     AVBufferRef* m_hwDeviceCtx { nullptr };
-
-    bool m_isInitialized { false };
-    bool m_reachedEof { false };
 };
 
 } // namespace PelcoD::Video

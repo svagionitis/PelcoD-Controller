@@ -3,7 +3,6 @@
 #include <algorithm>
 #include <chrono>
 #include <cstring>
-#include <thread>
 
 namespace PelcoD::Video {
 
@@ -15,23 +14,22 @@ bool MockVideoDecoder::initialize(
     std::string_view source, PixelFormat format, int /*threadCount*/, DeviceType /*device*/)
 {
     (void)source;
-    m_format = format;
-    m_initialized = true;
+    m_outputFormat = format;
+    m_reportedDeviceType = DeviceType::CPU;
+    m_isInitialized = true;
     m_frameIndex = 0U;
     m_currentTimeSec = 0.0;
     m_initTime = std::chrono::steady_clock::now();
 
+    m_width = 640;
+    m_height = 360;
+    m_frameRate = 30.0;
+
     const std::size_t frameBytes = static_cast<std::size_t>(m_width * m_height * 3);
-    m_currentFrameBuffer.resize(frameBytes);
+    m_frameBuffer.resize(frameBytes);
 
     if (m_tripleBufferingEnabled) {
-        for (auto& slot : m_tripleBuffer.getSlots()) {
-            slot.buffer.resize(frameBytes);
-            slot.width = m_width;
-            slot.height = m_height;
-            slot.size = frameBytes;
-            slot.format = m_format;
-        }
+        initTripleBufferSlots(m_width, m_height, m_outputFormat);
     }
 
     return true;
@@ -39,93 +37,40 @@ bool MockVideoDecoder::initialize(
 
 bool MockVideoDecoder::decodeNextFrame()
 {
-    if (!m_initialized) {
+    if (!m_isInitialized) {
         return false;
     }
 
     const auto t0 = std::chrono::steady_clock::now();
 
     const std::size_t frameBytes = static_cast<std::size_t>(m_width * m_height * 3);
-    if (m_currentFrameBuffer.size() != frameBytes) {
-        m_currentFrameBuffer.resize(frameBytes);
+    if (m_frameBuffer.size() != frameBytes) {
+        m_frameBuffer.resize(frameBytes);
     }
 
-    renderTestPattern(m_currentFrameBuffer.data());
+    renderTestPattern(m_frameBuffer.data());
 
-    std::vector<std::shared_ptr<IFrameProcessor>> processors;
-    {
-        std::lock_guard<std::mutex> lock(m_processorMutex);
-        processors = m_processors;
-    }
-    for (auto& processor : processors) {
-        if (processor) {
-            processor->process(m_currentFrameBuffer.data(), m_width, m_height, m_format);
-        }
-    }
+    // Apply registered frame processors in-place
+    dispatchFrameProcessors(m_frameBuffer.data(), m_width, m_height, m_outputFormat);
 
     m_currentTimeSec = static_cast<double>(m_frameIndex) / m_frameRate;
+    m_timestamp = m_currentTimeSec;
     ++m_frameIndex;
 
     const auto t1 = std::chrono::steady_clock::now();
     m_lastDecodeTimeMs = std::chrono::duration<double, std::milli>(t1 - t0).count();
     m_totalDecodeTimeMs += m_lastDecodeTimeMs;
+    ++m_decodedFramesCount;
 
-    if (m_tripleBufferingEnabled) {
-        auto& slot = m_tripleBuffer.getWriteBuffer();
-        if (slot.buffer.size() != frameBytes) {
-            slot.buffer.resize(frameBytes);
-        }
-        std::memcpy(slot.buffer.data(), m_currentFrameBuffer.data(), frameBytes);
-        slot.width = m_width;
-        slot.height = m_height;
-        slot.size = frameBytes;
-        slot.timestamp = m_currentTimeSec;
-        slot.decodeTimeMs = m_lastDecodeTimeMs;
-        slot.format = m_format;
-        m_tripleBuffer.publishWriteBuffer();
-    }
+    publishToTripleBuffer(
+        m_frameBuffer.data(), m_width, m_height, frameBytes, m_timestamp, m_lastDecodeTimeMs, m_outputFormat);
 
     return true;
 }
 
-FrameInfo MockVideoDecoder::getRawFrameData() const
-{
-    FrameInfo info;
-    info.data = m_currentFrameBuffer.data();
-    info.width = m_width;
-    info.height = m_height;
-    info.size = m_currentFrameBuffer.size();
-    info.timestamp = m_currentTimeSec;
-    info.decodeTimeMs = m_lastDecodeTimeMs;
-    info.format = m_format;
-    return info;
-}
-
-VideoMetadata MockVideoDecoder::getVideoMetadata() const
-{
-    VideoMetadata meta;
-    meta.width = m_width;
-    meta.height = m_height;
-    meta.frameRate = m_frameRate;
-    meta.duration = 0.0; // Simulated live continuous stream
-    meta.codecName = "RAW_MOCK";
-    meta.format = m_format;
-    meta.deviceType = DeviceType::CPU;
-    return meta;
-}
-
-DecoderPerformanceStats MockVideoDecoder::getPerformanceStats() const
-{
-    DecoderPerformanceStats stats;
-    stats.initializationTimeMs = 0.5;
-    stats.totalDecodedFrames = m_frameIndex;
-    stats.averageDecodeTimeMs = (m_frameIndex > 0U) ? (m_totalDecodeTimeMs / static_cast<double>(m_frameIndex)) : 0.0;
-    return stats;
-}
-
 bool MockVideoDecoder::seek(double timeInSeconds)
 {
-    if (!m_initialized) {
+    if (!m_isInitialized) {
         return false;
     }
     m_currentTimeSec = std::max(0.0, timeInSeconds);
@@ -133,46 +78,12 @@ bool MockVideoDecoder::seek(double timeInSeconds)
     return true;
 }
 
-void MockVideoDecoder::enableTripleBuffering(bool enable)
-{
-    m_tripleBufferingEnabled = enable;
-    if (enable && m_initialized) {
-        const std::size_t frameBytes = static_cast<std::size_t>(m_width * m_height * 3);
-        for (auto& slot : m_tripleBuffer.getSlots()) {
-            slot.buffer.resize(frameBytes);
-            slot.width = m_width;
-            slot.height = m_height;
-            slot.size = frameBytes;
-            slot.format = m_format;
-        }
-    }
-}
-
-bool MockVideoDecoder::isTripleBufferingEnabled() const
-{
-    return m_tripleBufferingEnabled;
-}
-
-void MockVideoDecoder::addFrameProcessor(std::shared_ptr<IFrameProcessor> processor)
-{
-    if (processor) {
-        std::lock_guard<std::mutex> lock(m_processorMutex);
-        m_processors.push_back(processor);
-    }
-}
-
-void MockVideoDecoder::clearFrameProcessors()
-{
-    std::lock_guard<std::mutex> lock(m_processorMutex);
-    m_processors.clear();
-}
-
 void MockVideoDecoder::close()
 {
-    m_initialized = false;
+    m_isInitialized = false;
     m_frameIndex = 0U;
     m_currentTimeSec = 0.0;
-    m_currentFrameBuffer.clear();
+    m_frameBuffer.clear();
 }
 
 void MockVideoDecoder::renderTestPattern(std::uint8_t* buffer)
@@ -234,7 +145,7 @@ void MockVideoDecoder::renderTestPattern(std::uint8_t* buffer)
             }
 
             const int pixelOffset = (y * m_width + x) * 3;
-            if (m_format == PixelFormat::RGB24) {
+            if (m_outputFormat == PixelFormat::RGB24) {
                 buffer[pixelOffset + 0] = c.r;
                 buffer[pixelOffset + 1] = c.g;
                 buffer[pixelOffset + 2] = c.b;

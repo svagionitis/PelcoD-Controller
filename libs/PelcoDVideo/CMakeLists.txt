@@ -2,6 +2,8 @@ set(PELCOD_VIDEO_SOURCES
     DecoderTypes.h
     AtomicTripleBuffer.h
     IVideoDecoder.h
+    BaseVideoDecoder.h
+    BaseVideoDecoder.cpp
     MockVideoDecoder.h
     MockVideoDecoder.cpp
     DecoderFactory.h
