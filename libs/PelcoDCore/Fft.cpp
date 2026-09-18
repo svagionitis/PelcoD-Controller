@@ -195,4 +195,60 @@ std::vector<SpectralPeak> computePsd(const std::vector<double>& signal, double s
     return peaks;
 }
 
+void fft2D(std::vector<Complex>& matrix, std::size_t rows, std::size_t cols, bool inverse)
+{
+    if (rows == 0U || cols == 0U || matrix.size() != (rows * cols)) {
+        return;
+    }
+    if (!isPowerOfTwo(rows) || !isPowerOfTwo(cols)) {
+        return;
+    }
+
+    // 1D FFT along each row
+    std::vector<Complex> rowBuf(cols, Complex { 0.0, 0.0 });
+    for (std::size_t r = 0U; r < rows; ++r) {
+        const std::size_t rowOffset = r * cols;
+        for (std::size_t c = 0U; c < cols; ++c) {
+            rowBuf[c] = matrix[rowOffset + c];
+        }
+        fft(rowBuf, inverse);
+        for (std::size_t c = 0U; c < cols; ++c) {
+            matrix[rowOffset + c] = rowBuf[c];
+        }
+    }
+
+    // 1D FFT along each column
+    std::vector<Complex> colBuf(rows, Complex { 0.0, 0.0 });
+    for (std::size_t c = 0U; c < cols; ++c) {
+        for (std::size_t r = 0U; r < rows; ++r) {
+            colBuf[r] = matrix[r * cols + c];
+        }
+        fft(colBuf, inverse);
+        for (std::size_t r = 0U; r < rows; ++r) {
+            matrix[r * cols + c] = colBuf[r];
+        }
+    }
+}
+
+void applyWindow2D(std::vector<double>& image, std::size_t rows, std::size_t cols, WindowType window)
+{
+    if (rows == 0U || cols == 0U || image.size() != (rows * cols) || window == WindowType::Rectangular) {
+        return;
+    }
+
+    std::vector<double> winR(rows, 1.0);
+    applyWindow(winR, window);
+
+    std::vector<double> winC(cols, 1.0);
+    applyWindow(winC, window);
+
+    for (std::size_t r = 0U; r < rows; ++r) {
+        const double wr = winR[r];
+        const std::size_t rowOffset = r * cols;
+        for (std::size_t c = 0U; c < cols; ++c) {
+            image[rowOffset + c] *= (wr * winC[c]);
+        }
+    }
+}
+
 } // namespace PelcoD::Math

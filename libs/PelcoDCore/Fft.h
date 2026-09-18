@@ -71,6 +71,25 @@ void applyWindow(std::vector<double>& signal, WindowType window);
 /// @return Next power of two (minimum 1).
 [[nodiscard]] std::size_t nextPowerOfTwo(std::size_t n) noexcept;
 
+/// @brief In-place 2D Radix-2 Fast Fourier Transform of an M x N complex matrix.
+/// @details Computes separable 2D discrete Fourier transform (row-wise then column-wise).
+///          rows and cols must be powers of 2.
+///          When inverse is true, computes the 2D IFFT normalized by 1/(rows * cols).
+/// @param[in,out] matrix Row-major complex matrix of size rows * cols.
+/// @param[in] rows Number of rows (must be power of 2).
+/// @param[in] cols Number of columns (must be power of 2).
+/// @param[in] inverse Set to true for inverse 2D FFT, false for forward 2D FFT.
+/// @note Thread-safe.
+void fft2D(std::vector<Complex>& matrix, std::size_t rows, std::size_t cols, bool inverse = false);
+
+/// @brief Applies a separable 2D window function to an M x N real image buffer in-place.
+/// @param[in,out] image Row-major real matrix of size rows * cols.
+/// @param[in] rows Number of rows.
+/// @param[in] cols Number of columns.
+/// @param[in] window Windowing function type.
+/// @note Thread-safe.
+void applyWindow2D(std::vector<double>& image, std::size_t rows, std::size_t cols, WindowType window);
+
 /// @brief Checks if a given integer is an exact power of two.
 /// @param[in] n Integer to check.
 /// @return True if n > 0 and n is a power of 2, false otherwise.

@@ -59,6 +59,8 @@ add_library(PelcoDCore STATIC
     Dct.cpp
     DctSharpnessEvaluator.h
     DctSharpnessEvaluator.cpp
+    PhaseCorrelation.h
+    PhaseCorrelation.cpp
 )
 
 target_include_directories(PelcoDCore PUBLIC
