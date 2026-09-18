@@ -1425,7 +1425,7 @@ bool QOnvifDevice::deleteRules(const QStringList& ruleNames)
         return false;
     }
     std::vector<std::string> names;
-    names.reserve(ruleNames.size());
+    names.reserve(static_cast<size_t>(ruleNames.size()));
     for (const auto& n : ruleNames) {
         names.push_back(n.toStdString());
     }
@@ -1489,7 +1489,7 @@ bool QOnvifDevice::deleteAnalyticsModules(const QStringList& moduleNames)
         return false;
     }
     std::vector<std::string> names;
-    names.reserve(moduleNames.size());
+    names.reserve(static_cast<size_t>(moduleNames.size()));
     for (const auto& n : moduleNames) {
         names.push_back(n.toStdString());
     }
@@ -1510,7 +1510,8 @@ void QOnvifDevice::refreshMasks(const QString& configToken)
     if (!m_client) {
         return;
     }
-    const std::string token = configToken.isEmpty() ? m_activeVideoSourceToken.toStdString() : configToken.toStdString();
+    const std::string token
+        = configToken.isEmpty() ? m_activeVideoSourceToken.toStdString() : configToken.toStdString();
     m_masks = m_client->getMasks(token);
     emit masksUpdated(m_masks);
 }

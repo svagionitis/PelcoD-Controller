@@ -102,8 +102,7 @@ OnvifCameraTab::OnvifCameraTab(PelcoD::Qt::QOnvifDevice* onvifDevice, VideoStrea
             &OnvifCameraTab::handleEventSearchResultsReceived);
 
         // Profile M & T Analytics Rules & Modules
-        connect(m_onvifDevice, &PelcoD::Qt::QOnvifDevice::rulesUpdated, this,
-            &OnvifCameraTab::handleRulesUpdated);
+        connect(m_onvifDevice, &PelcoD::Qt::QOnvifDevice::rulesUpdated, this, &OnvifCameraTab::handleRulesUpdated);
         connect(m_onvifDevice, &PelcoD::Qt::QOnvifDevice::supportedRulesUpdated, this,
             &OnvifCameraTab::handleSupportedRulesUpdated);
         connect(m_onvifDevice, &PelcoD::Qt::QOnvifDevice::analyticsModulesUpdated, this,
@@ -114,12 +113,11 @@ OnvifCameraTab::OnvifCameraTab(PelcoD::Qt::QOnvifDevice* onvifDevice, VideoStrea
         // Geolocation & GeoMove
         connect(m_onvifDevice, &PelcoD::Qt::QOnvifDevice::geoLocationUpdated, this,
             &OnvifCameraTab::handleGeoLocationUpdated);
-        connect(m_onvifDevice, &PelcoD::Qt::QOnvifDevice::geoMoveCompleted, this,
-            &OnvifCameraTab::handleGeoMoveCompleted);
+        connect(
+            m_onvifDevice, &PelcoD::Qt::QOnvifDevice::geoMoveCompleted, this, &OnvifCameraTab::handleGeoMoveCompleted);
 
         // Profile T: Privacy Masks & Video Source Modes
-        connect(m_onvifDevice, &PelcoD::Qt::QOnvifDevice::masksUpdated, this,
-            &OnvifCameraTab::handleMasksUpdated);
+        connect(m_onvifDevice, &PelcoD::Qt::QOnvifDevice::masksUpdated, this, &OnvifCameraTab::handleMasksUpdated);
         connect(m_onvifDevice, &PelcoD::Qt::QOnvifDevice::videoSourceModesUpdated, this,
             &OnvifCameraTab::handleVideoSourceModesUpdated);
         connect(m_onvifDevice, &PelcoD::Qt::QOnvifDevice::videoSourceModeChanged, this,
@@ -134,8 +132,7 @@ OnvifCameraTab::OnvifCameraTab(PelcoD::Qt::QOnvifDevice* onvifDevice, VideoStrea
             &OnvifCameraTab::handleRadiometryBoxesUpdated);
         connect(m_onvifDevice, &PelcoD::Qt::QOnvifDevice::colorPalettesUpdated, this,
             &OnvifCameraTab::handleColorPalettesUpdated);
-        connect(m_onvifDevice, &PelcoD::Qt::QOnvifDevice::nucTriggered, this,
-            &OnvifCameraTab::handleNucTriggered);
+        connect(m_onvifDevice, &PelcoD::Qt::QOnvifDevice::nucTriggered, this, &OnvifCameraTab::handleNucTriggered);
     }
 
     updateConnectionUi(false);
@@ -408,7 +405,8 @@ void OnvifCameraTab::setupUi()
 
     btnRefreshGeoLoc = new QPushButton(tr("⟳ Query Location"), groupGeoLoc);
     btnSaveGeoLoc = new QPushButton(tr("💾 Save Location"), groupGeoLoc);
-    btnSaveGeoLoc->setStyleSheet(QStringLiteral("QPushButton { font-weight: bold; background-color: #238636; color: white; }"));
+    btnSaveGeoLoc->setStyleSheet(
+        QStringLiteral("QPushButton { font-weight: bold; background-color: #238636; color: white; }"));
     gridGeoLoc->addWidget(btnRefreshGeoLoc, 1, 4);
     gridGeoLoc->addWidget(btnSaveGeoLoc, 1, 5);
 
@@ -459,7 +457,8 @@ void OnvifCameraTab::setupUi()
     gridGeoMove->addWidget(spinTargetHeight, 1, 3);
 
     btnExecuteGeoMove = new QPushButton(tr("🎯 GeoMove to Target"), groupGeoMove);
-    btnExecuteGeoMove->setStyleSheet(QStringLiteral("QPushButton { font-weight: bold; background-color: #1f6feb; color: white; padding: 4px 10px; }"));
+    btnExecuteGeoMove->setStyleSheet(QStringLiteral(
+        "QPushButton { font-weight: bold; background-color: #1f6feb; color: white; padding: 4px 10px; }"));
     gridGeoMove->addWidget(btnExecuteGeoMove, 1, 4, 1, 2);
 
     // Live Readout Row
@@ -811,7 +810,8 @@ void OnvifCameraTab::setupUi()
     maskLayout->setSpacing(6);
 
     tableMasks = new QTableWidget(0, 5, groupMasks);
-    tableMasks->setHorizontalHeaderLabels({ tr("Token"), tr("Config Token"), tr("Type"), tr("Color (RGB)"), tr("Enabled") });
+    tableMasks->setHorizontalHeaderLabels(
+        { tr("Token"), tr("Config Token"), tr("Type"), tr("Color (RGB)"), tr("Enabled") });
     tableMasks->horizontalHeader()->setStretchLastSection(true);
     tableMasks->setSelectionBehavior(QAbstractItemView::SelectRows);
     tableMasks->setSelectionMode(QAbstractItemView::SingleSelection);
@@ -914,7 +914,8 @@ void OnvifCameraTab::setupUi()
 
     devTabLayout->addWidget(groupStreams);
 
-    auto* groupModes = new QGroupBox(tr("Profile T: Video Source Modes (Sensor Capture Modes)"), devTabLayout->parentWidget());
+    auto* groupModes
+        = new QGroupBox(tr("Profile T: Video Source Modes (Sensor Capture Modes)"), devTabLayout->parentWidget());
     auto* modesGrid = new QGridLayout(groupModes);
     modesGrid->setSpacing(6);
 
@@ -1683,9 +1684,8 @@ void OnvifCameraTab::setupUi()
     measLayout->setSpacing(6);
 
     tableRadiometry = new QTableWidget(0, 7, groupMeasurements);
-    tableRadiometry->setHorizontalHeaderLabels({
-        tr("Token"), tr("Type"), tr("Label"), tr("Coordinates"), tr("Celsius"), tr("Fahrenheit"), tr("Alarm")
-    });
+    tableRadiometry->setHorizontalHeaderLabels(
+        { tr("Token"), tr("Type"), tr("Label"), tr("Coordinates"), tr("Celsius"), tr("Fahrenheit"), tr("Alarm") });
     tableRadiometry->horizontalHeader()->setStretchLastSection(true);
     tableRadiometry->setSelectionBehavior(QAbstractItemView::SelectRows);
     tableRadiometry->setSelectionMode(QAbstractItemView::SingleSelection);
@@ -2175,8 +2175,7 @@ void OnvifCameraTab::updateConnectionUi(bool connected)
         cmbThermalPalettes->clear();
         lblNucStatus->setText(tr("NUC: Ready"));
         lblThermalAlarmStatus->setText(tr("Alarm: Normal"));
-        lblThermalAlarmStatus->setStyleSheet(
-            QStringLiteral("font-weight: bold; color: #238636; padding: 2px 8px;"));
+        lblThermalAlarmStatus->setStyleSheet(QStringLiteral("font-weight: bold; color: #238636; padding: 2px 8px;"));
     }
 }
 
@@ -3137,7 +3136,8 @@ void OnvifCameraTab::handleUpdateMask()
     const QString token = tableMasks->item(row, 0)->text();
     PelcoD::Onvif::PrivacyMask mask;
     mask.token = token.toStdString();
-    mask.configurationToken = tableMasks->item(row, 1) ? tableMasks->item(row, 1)->text().toStdString() : "VideoSourceConfig_1";
+    mask.configurationToken
+        = tableMasks->item(row, 1) ? tableMasks->item(row, 1)->text().toStdString() : "VideoSourceConfig_1";
 
     const int typeIdx = cmbMaskType->currentIndex();
     if (typeIdx == 1) {
@@ -3182,8 +3182,10 @@ void OnvifCameraTab::handleMasksUpdated(const std::vector<PelcoD::Onvif::Privacy
         tableMasks->insertRow(row);
         tableMasks->setItem(row, 0, new QTableWidgetItem(QString::fromStdString(mask.token)));
         tableMasks->setItem(row, 1, new QTableWidgetItem(QString::fromStdString(mask.configurationToken)));
-        tableMasks->setItem(row, 2, new QTableWidgetItem(QString::fromStdString(PelcoD::Onvif::maskTypeToString(mask.type))));
-        tableMasks->setItem(row, 3, new QTableWidgetItem(QString("R:%1 G:%2 B:%3").arg(mask.color.x).arg(mask.color.y).arg(mask.color.z)));
+        tableMasks->setItem(
+            row, 2, new QTableWidgetItem(QString::fromStdString(PelcoD::Onvif::maskTypeToString(mask.type))));
+        tableMasks->setItem(row, 3,
+            new QTableWidgetItem(QString("R:%1 G:%2 B:%3").arg(mask.color.x).arg(mask.color.y).arg(mask.color.z)));
         tableMasks->setItem(row, 4, new QTableWidgetItem(mask.enabled ? tr("Enabled") : tr("Disabled")));
     }
 }
@@ -3242,11 +3244,11 @@ void OnvifCameraTab::handleVideoSourceModesUpdated(const std::vector<PelcoD::Onv
 
     for (const auto& mode : modes) {
         QString label = QString("%1 (%2x%3 @ %4 fps%5)")
-            .arg(QString::fromStdString(mode.token))
-            .arg(mode.width)
-            .arg(mode.height)
-            .arg(mode.maxFramerate, 0, 'f', 0)
-            .arg(mode.reboot ? tr(", Reboot") : "");
+                            .arg(QString::fromStdString(mode.token))
+                            .arg(mode.width)
+                            .arg(mode.height)
+                            .arg(mode.maxFramerate, 0, 'f', 0)
+                            .arg(mode.reboot ? tr(", Reboot") : "");
         if (mode.enabled) {
             label += tr(" [ACTIVE]");
         }
@@ -3266,10 +3268,10 @@ void OnvifCameraTab::handleVideoSourceModeChanged(const QString& modeToken, bool
 {
     if (rebootRequired) {
         QMessageBox::warning(this, tr("Camera Mode Changed"),
-            tr("Mode '%1' applied successfully.\nA camera reboot is required to activate this sensor mode.").arg(modeToken));
+            tr("Mode '%1' applied successfully.\nA camera reboot is required to activate this sensor mode.")
+                .arg(modeToken));
     } else {
-        QMessageBox::information(this, tr("Camera Mode Changed"),
-            tr("Mode '%1' applied successfully.").arg(modeToken));
+        QMessageBox::information(this, tr("Camera Mode Changed"), tr("Mode '%1' applied successfully.").arg(modeToken));
     }
 }
 
@@ -4553,12 +4555,12 @@ void OnvifCameraTab::handleApplyRadiometry()
         return;
     }
     PelcoD::Onvif::RadiometryConfig cfg;
-    cfg.emissivity = spinEmissivity->value();
-    cfg.distance = spinTargetDistance->value();
-    cfg.reflectedTemperature = spinReflectedTemp->value();
-    cfg.atmosphericTemperature = spinAtmosphericTemp->value();
-    cfg.relativeHumidity = spinRelativeHumidity->value();
-    cfg.windowTransmission = spinWindowTransmission->value();
+    cfg.emissivity = static_cast<float>(spinEmissivity->value());
+    cfg.distance = static_cast<float>(spinTargetDistance->value());
+    cfg.reflectedTemperature = static_cast<float>(spinReflectedTemp->value());
+    cfg.atmosphericTemperature = static_cast<float>(spinAtmosphericTemp->value());
+    cfg.relativeHumidity = static_cast<float>(spinRelativeHumidity->value());
+    cfg.windowTransmission = static_cast<float>(spinWindowTransmission->value());
     m_onvifDevice->setRadiometryConfiguration(cfg);
 }
 
@@ -4671,15 +4673,15 @@ void OnvifCameraTab::handleDeleteMeasurement()
 
     if (type.contains(QStringLiteral("Spot"), Qt::CaseInsensitive)) {
         auto spots = m_onvifDevice->radiometrySpots();
-        spots.erase(std::remove_if(spots.begin(), spots.end(), [&](const PelcoD::Onvif::RadiometrySpot& s) {
-            return s.token == token.toStdString();
-        }), spots.end());
+        spots.erase(std::remove_if(spots.begin(), spots.end(),
+                        [&](const PelcoD::Onvif::RadiometrySpot& s) { return s.token == token.toStdString(); }),
+            spots.end());
         m_onvifDevice->setRadiometrySpots(spots);
     } else {
         auto boxes = m_onvifDevice->radiometryBoxes();
-        boxes.erase(std::remove_if(boxes.begin(), boxes.end(), [&](const PelcoD::Onvif::RadiometryBox& b) {
-            return b.token == token.toStdString();
-        }), boxes.end());
+        boxes.erase(std::remove_if(boxes.begin(), boxes.end(),
+                        [&](const PelcoD::Onvif::RadiometryBox& b) { return b.token == token.toStdString(); }),
+            boxes.end());
         m_onvifDevice->setRadiometryBoxes(boxes);
     }
 }
@@ -4710,10 +4712,11 @@ void OnvifCameraTab::handleRadiometrySpotsUpdated(const std::vector<PelcoD::Onvi
         tableRadiometry->setItem(row, 0, new QTableWidgetItem(QString::fromStdString(s.token)));
         tableRadiometry->setItem(row, 1, new QTableWidgetItem(tr("Spotmeter")));
         tableRadiometry->setItem(row, 2, new QTableWidgetItem(QString::fromStdString(s.label)));
-        tableRadiometry->setItem(row, 3, new QTableWidgetItem(
-            QString("(%1, %2)").arg(s.position.x, 0, 'f', 2).arg(s.position.y, 0, 'f', 2)));
+        tableRadiometry->setItem(row, 3,
+            new QTableWidgetItem(QString("(%1, %2)").arg(s.position.x, 0, 'f', 2).arg(s.position.y, 0, 'f', 2)));
         tableRadiometry->setItem(row, 4, new QTableWidgetItem(QString("%1 °C").arg(s.temperature, 0, 'f', 1)));
-        tableRadiometry->setItem(row, 5, new QTableWidgetItem(QString("%1 °F").arg(s.temperature * 1.8f + 32.0f, 0, 'f', 1)));
+        tableRadiometry->setItem(
+            row, 5, new QTableWidgetItem(QString("%1 °F").arg(s.temperature * 1.8f + 32.0f, 0, 'f', 1)));
         tableRadiometry->setItem(row, 6, new QTableWidgetItem(tr("N/A")));
     }
     if (m_onvifDevice != nullptr) {
@@ -4724,16 +4727,17 @@ void OnvifCameraTab::handleRadiometrySpotsUpdated(const std::vector<PelcoD::Onvi
             tableRadiometry->setItem(row, 0, new QTableWidgetItem(QString::fromStdString(b.token)));
             tableRadiometry->setItem(row, 1, new QTableWidgetItem(tr("Box ROI")));
             tableRadiometry->setItem(row, 2, new QTableWidgetItem(QString::fromStdString(b.label)));
-            tableRadiometry->setItem(row, 3, new QTableWidgetItem(
-                QString("[%1, %2, %3, %4]")
-                    .arg(b.topLeft.x, 0, 'f', 2)
-                    .arg(b.topLeft.y, 0, 'f', 2)
-                    .arg(b.bottomRight.x, 0, 'f', 2)
-                    .arg(b.bottomRight.y, 0, 'f', 2)));
-            tableRadiometry->setItem(row, 4, new QTableWidgetItem(
-                QString("Avg %1 °C (Max %2)").arg(b.avgTemperature, 0, 'f', 1).arg(b.maxTemperature, 0, 'f', 1)));
-            tableRadiometry->setItem(row, 5, new QTableWidgetItem(
-                QString("Avg %1 °F").arg(b.avgTemperature * 1.8f + 32.0f, 0, 'f', 1)));
+            tableRadiometry->setItem(row, 3,
+                new QTableWidgetItem(QString("[%1, %2, %3, %4]")
+                                         .arg(b.topLeft.x, 0, 'f', 2)
+                                         .arg(b.topLeft.y, 0, 'f', 2)
+                                         .arg(b.bottomRight.x, 0, 'f', 2)
+                                         .arg(b.bottomRight.y, 0, 'f', 2)));
+            tableRadiometry->setItem(row, 4,
+                new QTableWidgetItem(
+                    QString("Avg %1 °C (Max %2)").arg(b.avgTemperature, 0, 'f', 1).arg(b.maxTemperature, 0, 'f', 1)));
+            tableRadiometry->setItem(
+                row, 5, new QTableWidgetItem(QString("Avg %1 °F").arg(b.avgTemperature * 1.8f + 32.0f, 0, 'f', 1)));
             const bool alarm = (b.maxTemperature >= thresh);
             auto* itemAlarm = new QTableWidgetItem(alarm ? tr("🚨 HIGH TEMP") : tr("Normal"));
             if (alarm) {
@@ -4754,10 +4758,11 @@ void OnvifCameraTab::handleRadiometryBoxesUpdated(const std::vector<PelcoD::Onvi
             tableRadiometry->setItem(row, 0, new QTableWidgetItem(QString::fromStdString(s.token)));
             tableRadiometry->setItem(row, 1, new QTableWidgetItem(tr("Spotmeter")));
             tableRadiometry->setItem(row, 2, new QTableWidgetItem(QString::fromStdString(s.label)));
-            tableRadiometry->setItem(row, 3, new QTableWidgetItem(
-                QString("(%1, %2)").arg(s.position.x, 0, 'f', 2).arg(s.position.y, 0, 'f', 2)));
+            tableRadiometry->setItem(row, 3,
+                new QTableWidgetItem(QString("(%1, %2)").arg(s.position.x, 0, 'f', 2).arg(s.position.y, 0, 'f', 2)));
             tableRadiometry->setItem(row, 4, new QTableWidgetItem(QString("%1 °C").arg(s.temperature, 0, 'f', 1)));
-            tableRadiometry->setItem(row, 5, new QTableWidgetItem(QString("%1 °F").arg(s.temperature * 1.8f + 32.0f, 0, 'f', 1)));
+            tableRadiometry->setItem(
+                row, 5, new QTableWidgetItem(QString("%1 °F").arg(s.temperature * 1.8f + 32.0f, 0, 'f', 1)));
             tableRadiometry->setItem(row, 6, new QTableWidgetItem(tr("N/A")));
         }
     }
@@ -4769,16 +4774,17 @@ void OnvifCameraTab::handleRadiometryBoxesUpdated(const std::vector<PelcoD::Onvi
         tableRadiometry->setItem(row, 0, new QTableWidgetItem(QString::fromStdString(b.token)));
         tableRadiometry->setItem(row, 1, new QTableWidgetItem(tr("Box ROI")));
         tableRadiometry->setItem(row, 2, new QTableWidgetItem(QString::fromStdString(b.label)));
-        tableRadiometry->setItem(row, 3, new QTableWidgetItem(
-            QString("[%1, %2, %3, %4]")
-                .arg(b.topLeft.x, 0, 'f', 2)
-                .arg(b.topLeft.y, 0, 'f', 2)
-                .arg(b.bottomRight.x, 0, 'f', 2)
-                .arg(b.bottomRight.y, 0, 'f', 2)));
-        tableRadiometry->setItem(row, 4, new QTableWidgetItem(
-            QString("Avg %1 °C (Max %2)").arg(b.avgTemperature, 0, 'f', 1).arg(b.maxTemperature, 0, 'f', 1)));
-        tableRadiometry->setItem(row, 5, new QTableWidgetItem(
-            QString("Avg %1 °F").arg(b.avgTemperature * 1.8f + 32.0f, 0, 'f', 1)));
+        tableRadiometry->setItem(row, 3,
+            new QTableWidgetItem(QString("[%1, %2, %3, %4]")
+                                     .arg(b.topLeft.x, 0, 'f', 2)
+                                     .arg(b.topLeft.y, 0, 'f', 2)
+                                     .arg(b.bottomRight.x, 0, 'f', 2)
+                                     .arg(b.bottomRight.y, 0, 'f', 2)));
+        tableRadiometry->setItem(row, 4,
+            new QTableWidgetItem(
+                QString("Avg %1 °C (Max %2)").arg(b.avgTemperature, 0, 'f', 1).arg(b.maxTemperature, 0, 'f', 1)));
+        tableRadiometry->setItem(
+            row, 5, new QTableWidgetItem(QString("Avg %1 °F").arg(b.avgTemperature * 1.8f + 32.0f, 0, 'f', 1)));
         const bool alarm = (b.maxTemperature >= thresh);
         if (alarm) {
             anyAlarm = true;

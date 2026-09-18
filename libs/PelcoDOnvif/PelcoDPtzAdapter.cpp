@@ -191,8 +191,7 @@ bool PelcoDPtzAdapter::handleGeoMove(const std::string& /*profileToken*/, const 
     }
 
     const bool ok = Geodesy::computeTargetAzimuthElevation(
-        currentLoc.location, currentLoc.orientation,
-        target.targetGeo, panDeg, tiltDeg, slantRangeMeters);
+        currentLoc.location, currentLoc.orientation, target.targetGeo, panDeg, tiltDeg, slantRangeMeters);
 
     if (!ok) {
         return false;
@@ -1376,8 +1375,7 @@ bool PelcoDPtzAdapter::handleSetReplayConfiguration(const ReplayConfiguration& c
 // IAnalyticsHandler Implementation (Profile M & Profile T)
 // =========================================================================
 
-std::vector<AnalyticsRuleDescription> PelcoDPtzAdapter::handleGetSupportedRules(
-    const std::string& /*configToken*/)
+std::vector<AnalyticsRuleDescription> PelcoDPtzAdapter::handleGetSupportedRules(const std::string& /*configToken*/)
 {
     return {
         { "tt:LineDetector", { "Segment", "Direction", "Classes", "MinConfidence", "Enabled" } },
@@ -1393,8 +1391,7 @@ std::vector<AnalyticsRule> PelcoDPtzAdapter::handleGetRules(const std::string& /
     return m_rules;
 }
 
-bool PelcoDPtzAdapter::handleCreateRules(
-    const std::string& /*configToken*/, const std::vector<AnalyticsRule>& rules)
+bool PelcoDPtzAdapter::handleCreateRules(const std::string& /*configToken*/, const std::vector<AnalyticsRule>& rules)
 {
     std::lock_guard<std::mutex> lock(m_mutex);
     for (const auto& r : rules) {
@@ -1403,8 +1400,7 @@ bool PelcoDPtzAdapter::handleCreateRules(
     return true;
 }
 
-bool PelcoDPtzAdapter::handleModifyRules(
-    const std::string& /*configToken*/, const std::vector<AnalyticsRule>& rules)
+bool PelcoDPtzAdapter::handleModifyRules(const std::string& /*configToken*/, const std::vector<AnalyticsRule>& rules)
 {
     std::lock_guard<std::mutex> lock(m_mutex);
     for (const auto& r : rules) {
@@ -1418,8 +1414,7 @@ bool PelcoDPtzAdapter::handleModifyRules(
     return true;
 }
 
-bool PelcoDPtzAdapter::handleDeleteRules(
-    const std::string& /*configToken*/, const std::vector<std::string>& ruleNames)
+bool PelcoDPtzAdapter::handleDeleteRules(const std::string& /*configToken*/, const std::vector<std::string>& ruleNames)
 {
     std::lock_guard<std::mutex> lock(m_mutex);
     m_rules.erase(std::remove_if(m_rules.begin(), m_rules.end(),
@@ -1485,18 +1480,21 @@ bool PelcoDPtzAdapter::handleDeleteAnalyticsModules(
 
 namespace {
     // Point in polygon test using Ray-Casting algorithm
-    bool isPointInPolygon(const Point2D& pt, const std::vector<Point2D>& polygon)
+    [[nodiscard]] bool isPointInPolygon(const Point2D& pt, const std::vector<Point2D>& polygon)
     {
         if (polygon.size() < 3) {
             return false;
         }
-        bool inside = false;
-        const size_t n = polygon.size();
+        bool inside { false };
+        const double px { static_cast<double>(pt.x) };
+        const double py { static_cast<double>(pt.y) };
+        const size_t n { polygon.size() };
         for (size_t i = 0, j = n - 1; i < n; j = i++) {
-            const double xi = polygon[i].x, yi = polygon[i].y;
-            const double xj = polygon[j].x, yj = polygon[j].y;
-            const bool intersect = ((yi > pt.y) != (yj > pt.y))
-                && (pt.x < (xj - xi) * (pt.y - yi) / (yj - yi + 1e-12) + xi);
+            const double xi { static_cast<double>(polygon[i].x) };
+            const double yi { static_cast<double>(polygon[i].y) };
+            const double xj { static_cast<double>(polygon[j].x) };
+            const double yj { static_cast<double>(polygon[j].y) };
+            const bool intersect { ((yi > py) != (yj > py)) && (px < (xj - xi) * (py - yi) / (yj - yi + 1e-12) + xi) };
             if (intersect) {
                 inside = !inside;
             }
@@ -1506,19 +1504,24 @@ namespace {
 
     // Line segment crossing test
     // Returns 0: no cross, 1: crossed left-to-right, -1: crossed right-to-left
-    int checkLineCrossing(const Point2D& p1, const Point2D& p2, const Point2D& lA, const Point2D& lB)
+    [[nodiscard]] int checkLineCrossing(const Point2D& p1, const Point2D& p2, const Point2D& lA, const Point2D& lB)
     {
         const auto ccw = [](const Point2D& a, const Point2D& b, const Point2D& c) -> double {
-            return (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x);
+            const double ax { static_cast<double>(a.x) };
+            const double ay { static_cast<double>(a.y) };
+            const double bx { static_cast<double>(b.x) };
+            const double by { static_cast<double>(b.y) };
+            const double cx { static_cast<double>(c.x) };
+            const double cy { static_cast<double>(c.y) };
+            return (bx - ax) * (cy - ay) - (by - ay) * (cx - ax);
         };
 
-        const double d1 = ccw(lA, lB, p1);
-        const double d2 = ccw(lA, lB, p2);
-        const double d3 = ccw(p1, p2, lA);
-        const double d4 = ccw(p1, p2, lB);
+        const double d1 { ccw(lA, lB, p1) };
+        const double d2 { ccw(lA, lB, p2) };
+        const double d3 { ccw(p1, p2, lA) };
+        const double d4 { ccw(p1, p2, lB) };
 
-        if (((d1 > 0.0 && d2 < 0.0) || (d1 < 0.0 && d2 > 0.0)) &&
-            ((d3 > 0.0 && d4 < 0.0) || (d3 < 0.0 && d4 > 0.0))) {
+        if (((d1 > 0.0 && d2 < 0.0) || (d1 < 0.0 && d2 > 0.0)) && ((d3 > 0.0 && d4 < 0.0) || (d3 < 0.0 && d4 > 0.0))) {
             return (d1 > 0.0) ? 1 : -1;
         }
         return 0;
@@ -1539,8 +1542,9 @@ void PelcoDPtzAdapter::evaluateRulesForObject(const AnalyticsObject& prevObj, co
 
         // Class and confidence filter check
         if (!rule.objectClasses.empty()) {
-            const bool classMatch = std::find(rule.objectClasses.begin(), rule.objectClasses.end(),
-                                        currentObj.className) != rule.objectClasses.end();
+            const bool classMatch
+                = std::find(rule.objectClasses.begin(), rule.objectClasses.end(), currentObj.className)
+                != rule.objectClasses.end();
             if (!classMatch) {
                 continue;
             }
@@ -1601,8 +1605,8 @@ void PelcoDPtzAdapter::evaluateRulesForFrame()
 
             // Class and confidence filter check
             if (!rule.objectClasses.empty()) {
-                const bool classMatch = std::find(rule.objectClasses.begin(), rule.objectClasses.end(),
-                                            obj.className) != rule.objectClasses.end();
+                const bool classMatch = std::find(rule.objectClasses.begin(), rule.objectClasses.end(), obj.className)
+                    != rule.objectClasses.end();
                 if (!classMatch) {
                     continue;
                 }
@@ -1716,8 +1720,8 @@ std::vector<PrivacyMask> PelcoDPtzAdapter::handleGetMasks(const std::string& con
 std::optional<PrivacyMask> PelcoDPtzAdapter::handleGetMask(const std::string& maskToken)
 {
     std::lock_guard<std::mutex> lock(m_maskMutex);
-    const auto it = std::find_if(m_masks.begin(), m_masks.end(),
-        [&maskToken](const PrivacyMask& m) { return m.token == maskToken; });
+    const auto it = std::find_if(
+        m_masks.begin(), m_masks.end(), [&maskToken](const PrivacyMask& m) { return m.token == maskToken; });
     if (it != m_masks.end()) {
         return *it;
     }
@@ -1727,8 +1731,8 @@ std::optional<PrivacyMask> PelcoDPtzAdapter::handleGetMask(const std::string& ma
 bool PelcoDPtzAdapter::handleSetMask(const PrivacyMask& mask)
 {
     std::lock_guard<std::mutex> lock(m_maskMutex);
-    const auto it = std::find_if(m_masks.begin(), m_masks.end(),
-        [&mask](const PrivacyMask& m) { return m.token == mask.token; });
+    const auto it
+        = std::find_if(m_masks.begin(), m_masks.end(), [&mask](const PrivacyMask& m) { return m.token == mask.token; });
     if (it != m_masks.end()) {
         *it = mask;
     } else {
@@ -1751,8 +1755,8 @@ std::string PelcoDPtzAdapter::handleCreateMask(const PrivacyMask& mask)
 bool PelcoDPtzAdapter::handleDeleteMask(const std::string& maskToken)
 {
     std::lock_guard<std::mutex> lock(m_maskMutex);
-    const auto it = std::find_if(m_masks.begin(), m_masks.end(),
-        [&maskToken](const PrivacyMask& m) { return m.token == maskToken; });
+    const auto it = std::find_if(
+        m_masks.begin(), m_masks.end(), [&maskToken](const PrivacyMask& m) { return m.token == maskToken; });
     if (it != m_masks.end()) {
         m_masks.erase(it);
         return true;
@@ -1862,8 +1866,7 @@ std::vector<ColorPalette> PelcoDPtzAdapter::handleGetColorPalettes(const std::st
     return m_colorPalettes;
 }
 
-bool PelcoDPtzAdapter::handleSetColorPalette(
-    const std::string& /*videoSourceToken*/, const std::string& paletteToken)
+bool PelcoDPtzAdapter::handleSetColorPalette(const std::string& /*videoSourceToken*/, const std::string& paletteToken)
 {
     std::lock_guard<std::mutex> lock(m_thermalMutex);
     bool found = false;
