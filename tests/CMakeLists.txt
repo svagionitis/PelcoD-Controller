@@ -33,6 +33,7 @@ add_pelco_test(TestFft TestFft.cpp)
 add_pelco_test(TestOscillationDetector TestOscillationDetector.cpp)
 add_pelco_test(TestGoertzelFilter TestGoertzelFilter.cpp)
 add_pelco_test(TestLatencyEstimator TestLatencyEstimator.cpp)
+add_pelco_test(TestDctSharpness TestDctSharpness.cpp)
 
 add_executable(TestConnectionModal
     TestConnectionModal.cpp
