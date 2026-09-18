@@ -255,8 +255,7 @@ public:
     /// @brief Queries privacy mask configuration options for a video source.
     /// @param[in] configToken VideoSourceConfiguration token.
     /// @return MaskOptions containing limits and supported types.
-    [[nodiscard]] std::optional<MaskOptions> getMaskOptions(
-        const std::string& configToken = "VideoSourceConfig_1");
+    [[nodiscard]] std::optional<MaskOptions> getMaskOptions(const std::string& configToken = "VideoSourceConfig_1");
 
     /// @brief Queries all configured privacy masks for a video source.
     /// @param[in] configToken Optional VideoSourceConfiguration token filter.
@@ -309,47 +308,40 @@ public:
     /// @param[in] videoSourceToken Video source token.
     /// @param[in] config Updated parameters.
     /// @return True on success.
-    bool setRadiometryConfiguration(
-        const std::string& videoSourceToken, const RadiometryConfig& config);
+    bool setRadiometryConfiguration(const std::string& videoSourceToken, const RadiometryConfig& config);
 
     /// @brief Retrieves spotmeter temperature measurements.
     /// @param[in] videoSourceToken Video source token.
     /// @return Vector of RadiometrySpot.
-    [[nodiscard]] std::vector<RadiometrySpot> getRadiometrySpots(
-        const std::string& videoSourceToken = "VideoSource_1");
+    [[nodiscard]] std::vector<RadiometrySpot> getRadiometrySpots(const std::string& videoSourceToken = "VideoSource_1");
 
     /// @brief Sets or replaces spotmeters.
     /// @param[in] videoSourceToken Video source token.
     /// @param[in] spots Vector of spots.
     /// @return True on success.
-    bool setRadiometrySpots(
-        const std::string& videoSourceToken, const std::vector<RadiometrySpot>& spots);
+    bool setRadiometrySpots(const std::string& videoSourceToken, const std::vector<RadiometrySpot>& spots);
 
     /// @brief Retrieves rectangular zone temperature measurements.
     /// @param[in] videoSourceToken Video source token.
     /// @return Vector of RadiometryBox.
-    [[nodiscard]] std::vector<RadiometryBox> getRadiometryBoxes(
-        const std::string& videoSourceToken = "VideoSource_1");
+    [[nodiscard]] std::vector<RadiometryBox> getRadiometryBoxes(const std::string& videoSourceToken = "VideoSource_1");
 
     /// @brief Sets or replaces rectangular zone temperature measurements.
     /// @param[in] videoSourceToken Video source token.
     /// @param[in] boxes Vector of boxes.
     /// @return True on success.
-    bool setRadiometryBoxes(
-        const std::string& videoSourceToken, const std::vector<RadiometryBox>& boxes);
+    bool setRadiometryBoxes(const std::string& videoSourceToken, const std::vector<RadiometryBox>& boxes);
 
     /// @brief Retrieves available false-color palettes.
     /// @param[in] videoSourceToken Video source token.
     /// @return Vector of ColorPalette.
-    [[nodiscard]] std::vector<ColorPalette> getColorPalettes(
-        const std::string& videoSourceToken = "VideoSource_1");
+    [[nodiscard]] std::vector<ColorPalette> getColorPalettes(const std::string& videoSourceToken = "VideoSource_1");
 
     /// @brief Sets active false-color palette.
     /// @param[in] videoSourceToken Video source token.
     /// @param[in] paletteToken Palette token (e.g. "Ironbow").
     /// @return True on success.
-    bool setColorPalette(
-        const std::string& videoSourceToken, const std::string& paletteToken);
+    bool setColorPalette(const std::string& videoSourceToken, const std::string& paletteToken);
 
     /// @brief Triggers Non-Uniformity Correction (NUC / shutter calibration).
     /// @param[in] videoSourceToken Video source token.
@@ -413,9 +405,8 @@ public:
     /// @param[in] areaWidth Optional target framing width in meters.
     /// @param[in] areaHeight Optional target framing height in meters.
     /// @return True if GeoMove command acknowledged.
-    bool geoMove(const std::string& profileToken, const GeoLocation& target,
-        std::optional<float> speed = std::nullopt, std::optional<float> areaWidth = std::nullopt,
-        std::optional<float> areaHeight = std::nullopt);
+    bool geoMove(const std::string& profileToken, const GeoLocation& target, std::optional<float> speed = std::nullopt,
+        std::optional<float> areaWidth = std::nullopt, std::optional<float> areaHeight = std::nullopt);
 
     /// @brief Moves PTZ head to configured camera home position.
     /// @param[in] profileToken Media profile token.
@@ -1145,6 +1136,16 @@ public:
     [[nodiscard]] static std::vector<ColorPalette> parseColorPalettesResponse(const std::string& xml);
 
 private:
+    [[nodiscard]] HttpResponse sendSoapRequest(
+        const std::string& targetUrl, const std::string& bodyXml, const std::string& soapAction = "");
+    [[nodiscard]] bool sendSoapAction(
+        const std::string& targetUrl, const std::string& bodyXml, const std::string& soapAction = "");
+    [[nodiscard]] bool ensurePtzAddress();
+    [[nodiscard]] bool ensureImagingAddress();
+    [[nodiscard]] std::string getDeviceEndpoint() const;
+    [[nodiscard]] std::string getMediaEndpoint();
+    [[nodiscard]] std::string getDeviceIoEndpoint();
+
     std::string m_deviceEndpoint {};
     SecurityCredentials m_credentials {};
     OnvifCapabilities m_capabilities {};

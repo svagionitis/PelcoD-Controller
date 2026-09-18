@@ -60,6 +60,8 @@ public:
     [[nodiscard]] HttpResponse sendGet(const std::string& url);
 
 private:
+    [[nodiscard]] HttpResponse executeRequest(void* curlHandle, const std::string& url);
+
     std::chrono::milliseconds m_timeout { 5000 };
 };
 
