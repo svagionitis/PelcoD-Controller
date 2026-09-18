@@ -8,6 +8,7 @@
 #include "LatencyCalibrator.h"
 #include "LatencyEstimator.h"
 #include "PtzAutoTracker.h"
+#include "PtzSphericalEstimator.h"
 #include "QPelcoDDevice.h"
 #include "QVideoStreamWorker.h"
 #include "app-qt/widgets/VideoOverlayWidget.h"
@@ -165,7 +166,9 @@ private:
     QCheckBox* m_chkHeatmap { nullptr };
     QTimer* m_autoFollowTimer { nullptr };
     std::unique_ptr<PelcoD::PtzAutoTracker> m_autoTracker;
+    std::unique_ptr<PelcoD::PtzSphericalEstimator> m_sphericalEstimator;
     std::shared_ptr<PelcoD::Video::CentroidTargetTrackerFilter> m_targetTracker;
+    QComboBox* m_comboEstimatorType { nullptr };
     int m_lastZoomDirection { 0 };
     // Privacy & Operational Overlays Controls
     QCheckBox* m_chkPrivacyMask { nullptr };

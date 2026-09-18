@@ -414,8 +414,24 @@ void VideoStreamTab::setupUi()
     latencyLayout->addWidget(m_lblLatencyBadge);
     lockLayout->addLayout(latencyLayout);
 
+    auto* estLayout = new QHBoxLayout();
+    auto* lblEstimator = new QLabel(tr("Filter:"), lockGroup);
+    m_comboEstimatorType = new QComboBox(lockGroup);
+    m_comboEstimatorType->addItem(tr("Linear Kalman (2D)"), 0);
+    m_comboEstimatorType->addItem(tr("Extended Kalman (EKF)"), 1);
+    m_comboEstimatorType->addItem(tr("Unscented Kalman (UKF)"), 2);
+    m_comboEstimatorType->setToolTip(tr("Select state estimation algorithm: standard 2D Cartesian Kalman, or non-linear EKF/UKF with spherical kinematics and lens projection"));
+    estLayout->addWidget(lblEstimator);
+    estLayout->addWidget(m_comboEstimatorType);
+    lockLayout->addLayout(estLayout);
+
     m_autoTracker = std::make_unique<PelcoD::PtzAutoTracker>();
     m_autoFollowTimer = new QTimer(this);
+
+    PelcoD::SphericalEstimatorConfig sphConfig {};
+    sphConfig.intrinsics.imageWidth = 1920;
+    sphConfig.intrinsics.imageHeight = 1080;
+    m_sphericalEstimator = std::make_unique<PelcoD::PtzSphericalEstimator>(sphConfig);
 
     m_latencyEstimator = std::make_unique<PelcoD::LatencyEstimator>();
     PelcoD::LatencyEstimatorConfig estCfg {};
@@ -1285,8 +1301,28 @@ void VideoStreamTab::onAutoFollowTick()
     const auto state = m_targetTracker->getTargetState(lookahead);
     const double dt = 0.04; // 25 Hz update rate (40 ms)
 
-    const auto cmd = m_autoTracker->update(state.predictedErrorX, state.predictedErrorY, state.vx, state.vy,
-        state.locked, state.isCoasting, dt, state.normalizedHeight, 1.0);
+    PelcoD::PtzAutoTracker::TrackingCommand cmd;
+    const int estimatorIdx = m_comboEstimatorType ? m_comboEstimatorType->currentIndex() : 0;
+    if (estimatorIdx > 0 && m_sphericalEstimator) {
+        m_sphericalEstimator->setType(estimatorIdx == 2 ? PelcoD::EstimatorType::UKF : PelcoD::EstimatorType::EKF);
+
+        if (state.locked) {
+            const double targetPixelU = static_cast<double>(state.x + state.width / 2.0);
+            const double targetPixelV = static_cast<double>(state.y + state.height / 2.0);
+            m_sphericalEstimator->update(targetPixelU, targetPixelV, 0.0, 0.0, 1.0, dt);
+        } else {
+            m_sphericalEstimator->reset();
+        }
+
+        const auto sphState = m_sphericalEstimator->getState(lookahead, 0.0, 0.0);
+
+        cmd = m_autoTracker->updateAngular(sphState.errorAzimuthDeg, sphState.errorElevationDeg,
+            sphState.omegaAzimuthDegPerSec, sphState.omegaElevationDegPerSec,
+            state.locked, state.isCoasting, dt, state.normalizedHeight, 1.0);
+    } else {
+        cmd = m_autoTracker->update(state.predictedErrorX, state.predictedErrorY, state.vx, state.vy,
+            state.locked, state.isCoasting, dt, state.normalizedHeight, 1.0);
+    }
 
     if (cmd.shouldMove) {
         m_device->move(cmd.panDirection, cmd.panSpeed, cmd.tiltDirection, cmd.tiltSpeed);

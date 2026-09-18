@@ -136,9 +136,15 @@ Techniques from digital signal processing (DSP), system identification, and cont
 * **Savitzky-Golay Polynomial Smoothing Filter**:
   * Fits local low-degree polynomials via moving convolution to smooth noisy optical flow centroids.
   * Preserves peak heights, widths, and sharp maneuver inflection points without introducing the phase distortion and group delay caused by standard moving-average filters.
-* **Extended / Unscented Kalman Filter (EKF / UKF)**:
-  * Non-linear Bayesian state estimator upgrading the linear `PtzAutoTracker` Kalman filter.
-  * Models true 3D spherical kinematics, converting 2D pixel coordinates directly into pan/tilt angular rates while accounting for lens radial distortion, tilt elevation non-linearities, and dynamic focal length zoom projection.
+* **Extended / Unscented Kalman Filter (EKF / UKF) (Completed)**:
+  * Non-linear Bayesian state estimator upgrading the linear 2D Cartesian tracker to true 3D spherical kinematics and pinhole camera projective geometry.
+  * Zero external dependencies: includes header-only fixed-size `Matrix<Rows, Cols>` and `Vector<Dim>` templates with zero heap allocation, supporting Gauss-Jordan inversion with partial pivoting and lower-triangular Cholesky decomposition.
+  * Camera projective geometry model (`PtzCameraModel`) supporting dynamic optical zoom focal length scaling $f(z) = f_0 \cdot z$, 2nd-order radial distortion ($k_1, k_2$), gimbal rotation projections, iterative unprojection, and central difference Jacobian computation.
+  * Dual non-linear estimator algorithms:
+    * **Extended Kalman Filter (`ExtendedKalmanFilter`)**: Analytical Jacobian linearization with Joseph form stabilized covariance updates and Mahalanobis innovation distance outlier gating.
+    * **Unscented Kalman Filter (`UnscentedKalmanFilter`)**: 13 deterministic sigma points via scaled unscented transform ($\alpha, \beta, \kappa$) propagating directly through the exact non-linear camera projection without Jacobian approximations.
+  * Domain estimator `PtzSphericalEstimator` integrating telemetry, lookahead latency prediction, lock acquisition, and angular tracking error outputs $(\Delta\theta, \Delta\phi)$ and velocities $(\omega_\theta, \omega_\phi)$ in deg/s.
+  * Fully integrated into `PtzAutoTracker::updateAngular()` and Qt GUI `VideoStreamTab` with real-time filter algorithm selection (Linear 2D, EKF, UKF).
 
 #### C. Video Domain Enhancements
 * **Discrete Cosine Transform (DCT) Auto-Focus Sharpness Metric**:

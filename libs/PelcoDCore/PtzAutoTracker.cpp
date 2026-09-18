@@ -219,4 +219,126 @@ PtzAutoTracker::TrackingCommand PtzAutoTracker::update(double errorX, double err
     return cmd;
 }
 
+PtzAutoTracker::TrackingCommand PtzAutoTracker::updateAngular(double errorAzimuthDeg, double errorElevationDeg,
+    double omegaAzimuthDegPerSec, double omegaElevationDegPerSec, bool isLocked, bool isCoasting,
+    double dt, double targetNormHeight, double currentZoom)
+{
+    TrackingCommand cmd;
+
+    if (!isLocked) {
+        if (m_state == TrackingState::Tracking || m_state == TrackingState::Coasting) {
+            m_lostDuration += dt;
+            if (m_lostDuration < MAX_COAST_DECEL_TIME) {
+                // Graceful deceleration ramp for pan/tilt
+                double decelFactor = 1.0 - (m_lostDuration / MAX_COAST_DECEL_TIME);
+                cmd.panDirection = m_lastPanDir;
+                cmd.panSpeed = static_cast<int>(std::round(static_cast<double>(m_lastPanSpeed) * decelFactor));
+                cmd.tiltDirection = m_lastTiltDir;
+                cmd.tiltSpeed = static_cast<int>(std::round(static_cast<double>(m_lastTiltSpeed) * decelFactor));
+                cmd.zoomDirection = 0;
+                cmd.zoomSpeed = 0;
+                cmd.shouldZoom = false;
+                cmd.state = TrackingState::Lost;
+                cmd.shouldMove = (cmd.panSpeed > 0 || cmd.tiltSpeed > 0);
+                return cmd;
+            }
+        }
+        reset();
+        cmd.state = TrackingState::Lost;
+        cmd.shouldMove = false;
+        cmd.shouldZoom = false;
+        return cmd;
+    }
+
+    m_lostDuration = 0.0;
+    m_state = isCoasting ? TrackingState::Coasting : TrackingState::Tracking;
+
+    // 1. Predictive Lead Angle Deflection in physical angular domain
+    double effectiveAz = errorAzimuthDeg;
+    double effectiveEl = errorElevationDeg;
+    if (m_predictiveLeadEnabled) {
+        const double effectiveLeadGain = m_adaptiveLatencyEnabled ? m_estimatedLatencySeconds : m_leadGain;
+        // Clamp lead to reasonable angular bounds (e.g. maxLead scaled by field of view / 10 degrees)
+        const double maxAngleLead = m_maxLead * 20.0; // max angular deflection lead
+        const double leadAz = std::clamp(effectiveLeadGain * omegaAzimuthDegPerSec, -maxAngleLead, maxAngleLead);
+        const double leadEl = std::clamp(effectiveLeadGain * omegaElevationDegPerSec, -maxAngleLead, maxAngleLead);
+        effectiveAz += leadAz;
+        effectiveEl += leadEl;
+    }
+
+    // 2. Zoom-Aware Adaptive Gain Scheduling
+    if (m_zoomGainSchedulingEnabled && currentZoom > 1.0) {
+        const double zoomFactor = std::sqrt(currentZoom);
+        m_panPid.setGains(
+            m_basePanKp / zoomFactor, m_basePanKi / zoomFactor, m_basePanKd / zoomFactor, m_basePanKff / zoomFactor);
+        m_tiltPid.setGains(m_baseTiltKp / zoomFactor, m_baseTiltKi / zoomFactor, m_baseTiltKd / zoomFactor,
+            m_baseTiltKff / zoomFactor);
+    } else {
+        m_panPid.setGains(m_basePanKp, m_basePanKi, m_basePanKd, m_basePanKff);
+        m_tiltPid.setGains(m_baseTiltKp, m_baseTiltKi, m_baseTiltKd, m_baseTiltKff);
+    }
+
+    // 3. Pan Axis: Positive errorAzimuthDeg means target is to the right -> Pan Right (+1)
+    double panOutput = m_panPid.update(effectiveAz, dt, omegaAzimuthDegPerSec);
+    if (panOutput > 0.0) {
+        cmd.panDirection = 1;
+        cmd.panSpeed = std::clamp(static_cast<int>(std::round(panOutput)), 1, m_maxPanSpeed);
+    } else if (panOutput < 0.0) {
+        cmd.panDirection = -1;
+        cmd.panSpeed = std::clamp(static_cast<int>(std::round(-panOutput)), 1, m_maxPanSpeed);
+    } else {
+        cmd.panDirection = 0;
+        cmd.panSpeed = 0;
+    }
+
+    // 4. Tilt Axis: Positive errorElevationDeg means target is above boresight -> Tilt Up (+1)
+    // Negative errorElevationDeg means target is below boresight -> Tilt Down (-1)
+    double tiltOutput = m_tiltPid.update(effectiveEl, dt, omegaElevationDegPerSec);
+    if (tiltOutput > 0.0) {
+        cmd.tiltDirection = 1; // Up
+        cmd.tiltSpeed = std::clamp(static_cast<int>(std::round(tiltOutput)), 1, m_maxTiltSpeed);
+    } else if (tiltOutput < 0.0) {
+        cmd.tiltDirection = -1; // Down
+        cmd.tiltSpeed = std::clamp(static_cast<int>(std::round(-tiltOutput)), 1, m_maxTiltSpeed);
+    } else {
+        cmd.tiltDirection = 0;
+        cmd.tiltSpeed = 0;
+    }
+
+    // 5. Closed-Loop Auto-Zoom Framing
+    if (m_autoZoomEnabled && !isCoasting && targetNormHeight > 0.0) {
+        // In angular mode, consider centered if within centering threshold in degrees (e.g. 2.0 deg)
+        const bool isCentered = (std::abs(errorAzimuthDeg) <= 3.0) && (std::abs(errorElevationDeg) <= 3.0);
+
+        if (targetNormHeight < (m_targetFramingHeight - m_framingDeadband) && isCentered) {
+            cmd.zoomDirection = 1; // Tele (zoom in)
+            cmd.zoomSpeed = 32;
+            cmd.shouldZoom = true;
+        } else if (targetNormHeight > (m_targetFramingHeight + m_framingDeadband)) {
+            cmd.zoomDirection = -1; // Wide (zoom out)
+            cmd.zoomSpeed = 32;
+            cmd.shouldZoom = true;
+        } else {
+            cmd.zoomDirection = 0;
+            cmd.zoomSpeed = 0;
+            cmd.shouldZoom = false;
+        }
+    } else {
+        cmd.zoomDirection = 0;
+        cmd.zoomSpeed = 0;
+        cmd.shouldZoom = false;
+    }
+
+    cmd.state = m_state;
+    cmd.shouldMove = (cmd.panSpeed > 0 || cmd.tiltSpeed > 0);
+
+    m_lastPanDir = cmd.panDirection;
+    m_lastPanSpeed = cmd.panSpeed;
+    m_lastTiltDir = cmd.tiltDirection;
+    m_lastTiltSpeed = cmd.tiltSpeed;
+    m_lastZoomDir = cmd.zoomDirection;
+
+    return cmd;
+}
+
 } // namespace PelcoD

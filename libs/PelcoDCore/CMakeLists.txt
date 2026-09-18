@@ -69,6 +69,15 @@ add_library(PelcoDCore STATIC
     Dwt.cpp
     TransientShockDetector.h
     TransientShockDetector.cpp
+    MatrixMath.h
+    PtzCameraModel.h
+    PtzCameraModel.cpp
+    ExtendedKalmanFilter.h
+    ExtendedKalmanFilter.cpp
+    UnscentedKalmanFilter.h
+    UnscentedKalmanFilter.cpp
+    PtzSphericalEstimator.h
+    PtzSphericalEstimator.cpp
 )
 
 target_include_directories(PelcoDCore PUBLIC

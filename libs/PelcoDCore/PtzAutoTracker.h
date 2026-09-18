@@ -56,6 +56,22 @@ public:
     TrackingCommand update(double errorX, double errorY, double vx, double vy, bool isLocked, bool isCoasting,
         double dt, double targetNormHeight = 0.0, double currentZoom = 1.0);
 
+    /// @brief Compute pan/tilt/zoom motor commands from physical spherical angular errors.
+    /// @param[in] errorAzimuthDeg Boresight azimuth error in degrees (positive = target right of boresight).
+    /// @param[in] errorElevationDeg Boresight elevation error in degrees (positive = target above boresight).
+    /// @param[in] omegaAzimuthDegPerSec Target azimuth angular velocity in degrees/second.
+    /// @param[in] omegaElevationDegPerSec Target elevation angular velocity in degrees/second.
+    /// @param[in] isLocked True if target is actively acquired.
+    /// @param[in] isCoasting True if target is temporarily occluded and coasting on prediction.
+    /// @param[in] dt Elapsed time in seconds since previous update.
+    /// @param[in] targetNormHeight Optional normalized target height [0.0 to 1.0] for auto-framing zoom.
+    /// @param[in] currentZoom Current optical/sensor magnification factor (>= 1.0) for gain scheduling.
+    /// @return Actionable TrackingCommand with discrete pan/tilt/zoom directions and speeds.
+    TrackingCommand updateAngular(double errorAzimuthDeg, double errorElevationDeg,
+        double omegaAzimuthDegPerSec, double omegaElevationDegPerSec,
+        bool isLocked, bool isCoasting, double dt,
+        double targetNormHeight = 0.0, double currentZoom = 1.0);
+
     /// @brief Reset axis controllers, framing state, and set state to Idle.
     void reset() noexcept;
 
