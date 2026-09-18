@@ -98,6 +98,13 @@ public:
     /// @brief Enable or disable zoom-aware adaptive gain scheduling.
     void setZoomGainSchedulingEnabled(bool enabled) noexcept;
 
+    /// @brief Enable or disable adaptive empirical latency compensation.
+    void setAdaptiveLatencyEnabled(bool enabled) noexcept;
+
+    /// @brief Set the empirically estimated plant latency in seconds.
+    /// @param[in] latencySeconds Measured physical delay from LatencyEstimator or LatencyCalibrator.
+    void setEstimatedLatencySeconds(double latencySeconds) noexcept;
+
     [[nodiscard]] TrackingState getState() const noexcept
     {
         return m_state;
@@ -142,6 +149,14 @@ public:
     {
         return m_zoomGainSchedulingEnabled;
     }
+    [[nodiscard]] bool isAdaptiveLatencyEnabled() const noexcept
+    {
+        return m_adaptiveLatencyEnabled;
+    }
+    [[nodiscard]] double getEstimatedLatencySeconds() const noexcept
+    {
+        return m_estimatedLatencySeconds;
+    }
 
 private:
     PidController m_panPid;
@@ -168,10 +183,12 @@ private:
     double m_zoomCenteringThreshold { 0.25 };
     int m_lastZoomDir { 0 };
 
-    // Predictive Lead Angle Deflection
+    // Predictive Lead Angle Deflection & Adaptive Latency
     bool m_predictiveLeadEnabled { false };
     double m_leadGain { 0.15 };
     double m_maxLead { 0.25 };
+    bool m_adaptiveLatencyEnabled { false };
+    double m_estimatedLatencySeconds { 0.10 };
 
     // Zoom-Aware Gain Scheduling
     bool m_zoomGainSchedulingEnabled { true };

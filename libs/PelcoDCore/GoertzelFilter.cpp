@@ -15,7 +15,7 @@ namespace PelcoD {
 GoertzelFilter::GoertzelFilter(double targetFreqHz, double sampleRateHz, std::size_t blockSize)
     : m_targetFreqHz(targetFreqHz)
     , m_sampleRateHz(std::max(1.0, sampleRateHz))
-    , m_blockSize(std::max(4UL, blockSize))
+    , m_blockSize(std::max<std::size_t>(4U, blockSize))
 {
     calculateCoefficients();
 }
@@ -24,7 +24,7 @@ void GoertzelFilter::setParameters(double targetFreqHz, double sampleRateHz, std
 {
     m_targetFreqHz = targetFreqHz;
     m_sampleRateHz = std::max(1.0, sampleRateHz);
-    m_blockSize = std::max(4UL, blockSize);
+    m_blockSize = std::max<std::size_t>(4U, blockSize);
     calculateCoefficients();
     reset();
 }

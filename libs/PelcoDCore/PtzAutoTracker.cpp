@@ -84,6 +84,16 @@ void PtzAutoTracker::setLeadGain(double kLead, double maxLead) noexcept
     m_maxLead = std::clamp(maxLead, 0.01, 0.80);
 }
 
+void PtzAutoTracker::setAdaptiveLatencyEnabled(bool enabled) noexcept
+{
+    m_adaptiveLatencyEnabled = enabled;
+}
+
+void PtzAutoTracker::setEstimatedLatencySeconds(double latencySeconds) noexcept
+{
+    m_estimatedLatencySeconds = std::clamp(latencySeconds, 0.0, 1.0);
+}
+
 void PtzAutoTracker::setZoomGainSchedulingEnabled(bool enabled) noexcept
 {
     m_zoomGainSchedulingEnabled = enabled;
@@ -126,8 +136,9 @@ PtzAutoTracker::TrackingCommand PtzAutoTracker::update(double errorX, double err
     double effectiveErrorX = errorX;
     double effectiveErrorY = errorY;
     if (m_predictiveLeadEnabled) {
-        const double leadX = std::clamp(m_leadGain * vx, -m_maxLead, m_maxLead);
-        const double leadY = std::clamp(m_leadGain * vy, -m_maxLead, m_maxLead);
+        const double effectiveLeadGain = m_adaptiveLatencyEnabled ? m_estimatedLatencySeconds : m_leadGain;
+        const double leadX = std::clamp(effectiveLeadGain * vx, -m_maxLead, m_maxLead);
+        const double leadY = std::clamp(effectiveLeadGain * vy, -m_maxLead, m_maxLead);
         effectiveErrorX += leadX;
         effectiveErrorY += leadY;
     }

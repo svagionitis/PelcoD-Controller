@@ -172,6 +172,177 @@ void testDynamicLatencyTracking()
     std::cout << "  -> PASSED\n";
 }
 
+void testInvertedNegativePolarity()
+{
+    std::cout << "[Test] testInvertedNegativePolarity (Camera Pan vs Optical Flow)...\n";
+    const double fs = 100.0;
+    const int delaySamples = 8; // 80 ms latency
+    const double expectedLatencyMs = 80.0;
+
+    LatencyEstimatorConfig cfg {};
+    cfg.sampleRateHz = fs;
+    cfg.bufferCapacity = 128U;
+    cfg.minLagMs = 0.0;
+    cfg.maxLagMs = 200.0;
+    cfg.confidenceThreshold = 0.7;
+    cfg.smoothingAlpha = 1.0;
+    cfg.polarity = PeakPolarity::Negative;
+
+    LatencyEstimator estimator(cfg);
+
+    for (int i = 0; i < 200; ++i) {
+        const double t = static_cast<double>(i) / fs;
+        const double ref = std::sin(2.0 * M_PI * 2.0 * t);
+        // Optical flow is inverted: scene shifts opposite to camera command
+        const double resp = (i >= delaySamples) ? -std::sin(2.0 * M_PI * 2.0 * (t - (delaySamples / fs))) : 0.0;
+        estimator.addSample(ref, resp);
+    }
+    estimator.update();
+
+    assert(estimator.isConfident());
+    const double estimated = estimator.getEstimatedLatencyMs();
+    const double corr = estimator.getPeakCorrelation();
+    std::cout << "  Negative polarity estimated latency: " << estimated << " ms (expected: " << expectedLatencyMs
+              << " ms), Peak corr: " << corr << "\n";
+
+    assert(corr < -0.90);
+    assert(std::abs(estimated - expectedLatencyMs) <= 1.0);
+    assert(std::abs(estimator.getEstimatedLatencySeconds() - 0.080) <= 0.002);
+    assert(estimator.getPeakCorrelationMagnitude() > 0.90);
+
+    std::cout << "  -> PASSED\n";
+}
+
+void testTimestampedAsynchronousResampling()
+{
+    std::cout << "[Test] testTimestampedAsynchronousResampling...\n";
+    const double delaySec = 0.075; // 75 ms delay
+
+    LatencyEstimatorConfig cfg {};
+    cfg.sampleRateHz = 50.0;
+    cfg.bufferCapacity = 128U;
+    cfg.minLagMs = 0.0;
+    cfg.maxLagMs = 250.0;
+    cfg.confidenceThreshold = 0.7;
+    cfg.smoothingAlpha = 1.0;
+    cfg.polarity = PeakPolarity::Absolute;
+
+    LatencyEstimator estimator(cfg);
+
+    // Ingest reference at 25 Hz (commands every 40 ms) and response at 30 Hz (frames every 33.3 ms)
+    double tRef = 0.0;
+    double tResp = 0.0;
+
+    for (int step = 0; step < 200; ++step) {
+        tRef += 0.040;
+        const double refVal = std::sin(2.0 * M_PI * 1.5 * tRef);
+        estimator.addTimestampedReference(tRef, refVal);
+
+        tResp += 0.033333;
+        // Delayed signal
+        const double delayedT = tResp - delaySec;
+        const double respVal = (delayedT >= 0.0) ? std::sin(2.0 * M_PI * 1.5 * delayedT) : 0.0;
+        estimator.addTimestampedResponse(tResp, respVal);
+    }
+
+    estimator.update();
+    assert(estimator.isConfident());
+    const double estimated = estimator.getEstimatedLatencyMs();
+    std::cout << "  Asynchronous resampled latency: " << estimated << " ms (expected: 75 ms)\n";
+    assert(std::abs(estimated - 75.0) < 5.0);
+
+    std::cout << "  -> PASSED\n";
+}
+
+void testLowVarianceRejection()
+{
+    std::cout << "[Test] testLowVarianceRejection...\n";
+    LatencyEstimatorConfig cfg {};
+    cfg.minSignalVariance = 1e-4;
+    cfg.confidenceThreshold = 0.5;
+
+    LatencyEstimator estimator(cfg);
+
+    // Flat constant signal
+    for (int i = 0; i < 100; ++i) {
+        estimator.addSample(5.0, 5.0);
+    }
+    estimator.update();
+
+    assert(!estimator.isConfident());
+    assert(estimator.getReferenceVariance() < 1e-6);
+
+    std::cout << "  -> PASSED\n";
+}
+
+} // namespace
+
+#include "LatencyCalibrator.h"
+
+namespace {
+
+void testLatencyCalibratorDoubletSequence()
+{
+    std::cout << "[Test] testLatencyCalibratorDoubletSequence...\n";
+    double simulatedPanSpeed = 0.0;
+    LatencyCalibrator calibrator([&simulatedPanSpeed](int panDir, int panSpeed, int, int) {
+        simulatedPanSpeed = static_cast<double>(panDir * panSpeed);
+    });
+
+    const double trueDelaySec = 0.100; // 100 ms latency
+    double now = 1000.0;
+    assert(calibrator.start(30, 0, now));
+    assert(calibrator.isRunning());
+
+    std::deque<std::pair<double, double>> simulatedHistory;
+
+    // Simulate 1.5 seconds at 50 Hz (20 ms steps)
+    for (int i = 0; i < 75; ++i) {
+        now += 0.020;
+        calibrator.update(now);
+
+        simulatedHistory.emplace_back(now, simulatedPanSpeed);
+
+        // Delayed optical flow: inverted camera command with 100 ms delay
+        const double delayedTime = now - trueDelaySec;
+        double delayedSpeed = 0.0;
+        if (!simulatedHistory.empty()) {
+            if (delayedTime <= simulatedHistory.front().first) {
+                delayedSpeed = simulatedHistory.front().second;
+            } else if (delayedTime >= simulatedHistory.back().first) {
+                delayedSpeed = simulatedHistory.back().second;
+            } else {
+                for (std::size_t j = 1; j < simulatedHistory.size(); ++j) {
+                    if (simulatedHistory[j].first >= delayedTime) {
+                        const double t0 = simulatedHistory[j - 1].first;
+                        const double t1 = simulatedHistory[j].first;
+                        const double v0 = simulatedHistory[j - 1].second;
+                        const double v1 = simulatedHistory[j].second;
+                        const double frac = (delayedTime - t0) / (t1 - t0);
+                        delayedSpeed = v0 + frac * (v1 - v0);
+                        break;
+                    }
+                }
+            }
+        }
+        // Inverted response (pan right -> scene moves left)
+        const double opticalFlowX = -delayedSpeed;
+        calibrator.ingestVisualMotion(now, opticalFlowX);
+    }
+
+    assert(!calibrator.isRunning());
+    const auto result = calibrator.getResult();
+    std::cout << "  Calibrator result: success=" << result.success << ", latency=" << result.latencyMs
+              << " ms, corr=" << result.correlation << "\n"
+              << std::flush;
+
+    assert(result.success);
+    assert(std::abs(result.latencyMs - 100.0) < 6.0);
+    assert(result.correlation < -0.80);
+
+    std::cout << "  -> PASSED\n";
+}
+
 } // namespace
 
 int main()
@@ -181,6 +352,10 @@ int main()
     testSubSampleParabolicInterpolation();
     testUncorrelatedSignalsRejectConfidence();
     testDynamicLatencyTracking();
+    testInvertedNegativePolarity();
+    testTimestampedAsynchronousResampling();
+    testLowVarianceRejection();
+    testLatencyCalibratorDoubletSequence();
     std::cout << "All TestLatencyEstimator Tests Passed!\n";
     return 0;
 }

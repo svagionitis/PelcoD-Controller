@@ -124,10 +124,12 @@ Techniques from digital signal processing (DSP), system identification, and cont
   * Unlike Fourier transforms, wavelets excel at detecting **transient shocks, wind blast impulses, and vehicle jolts** without windowing smearing or edge artifacts.
 
 #### B. Time-Domain Filtering & State Estimation
-* **Cross-Correlation Latency Estimator**:
+* **Cross-Correlation Latency Estimator (Completed)**:
   * Measures the lagged similarity between commanded PTZ motor velocities $u(t)$ and visual velocities $v(t)$ observed by optical flow:
     $$R_{uv}(\tau) = \sum_{t} u(t) \cdot v(t + \tau)$$
   * Discovers the exact empirical physical end-to-end latency $\Delta t_{\text{delay}}$ (combining RS-485 transmission, motor acceleration ramp, camera image sensor exposure, RTSP networking, and H.264 decoding) to dynamically tune Kalman lookahead prediction.
+  * Native negative polarity support for inverse camera-to-scene optical flow, 3-point parabolic peak interpolation for sub-millisecond precision, and asynchronous timestamped resampling.
+  * Includes `LatencyCalibrator` active doublet pulse sequence and Qt GUI integration with dynamic Kalman lookahead adaptation in `VideoStreamTab`.
 * **LMS / RLS Adaptive Filter (Active Vibration Cancellation - AVC)**:
   * Dynamically adapts FIR filter weights to cancel an interfering noise source in real time.
   * Uses an external accelerometer / IMU reference mounted on the camera mast or vehicle to subtract structural vibration directly from tracking error signals or optical flow measurements.

@@ -1065,6 +1065,11 @@ struct ImageStabilizationFilter::Impl {
     double smoothY { 0.0 };
     double smoothA { 0.0 };
     bool hasPrev { false };
+
+    double lastDx { 0.0 };
+    double lastDy { 0.0 };
+    MotionCallback motionCb { nullptr };
+    std::chrono::steady_clock::time_point lastFrameTime {};
 };
 
 ImageStabilizationFilter::ImageStabilizationFilter(
@@ -1080,6 +1085,24 @@ ImageStabilizationFilter::~ImageStabilizationFilter() = default;
 ImageStabilizationFilter::ImageStabilizationFilter(ImageStabilizationFilter&&) noexcept = default;
 ImageStabilizationFilter& ImageStabilizationFilter::operator=(ImageStabilizationFilter&&) noexcept = default;
 
+void ImageStabilizationFilter::setMotionCallback(MotionCallback callback)
+{
+    if (m_impl) {
+        m_impl->motionCb = std::move(callback);
+    }
+}
+
+void ImageStabilizationFilter::getLastFrameMotion(double& dx, double& dy) const noexcept
+{
+    if (m_impl) {
+        dx = m_impl->lastDx;
+        dy = m_impl->lastDy;
+    } else {
+        dx = 0.0;
+        dy = 0.0;
+    }
+}
+
 void ImageStabilizationFilter::reset()
 {
     if (m_impl) {
@@ -1090,6 +1113,9 @@ void ImageStabilizationFilter::reset()
         m_impl->smoothX = 0.0;
         m_impl->smoothY = 0.0;
         m_impl->smoothA = 0.0;
+        m_impl->lastDx = 0.0;
+        m_impl->lastDy = 0.0;
+        m_impl->lastFrameTime = {};
         m_impl->hasPrev = false;
     }
 }
@@ -1148,6 +1174,18 @@ void ImageStabilizationFilter::process(uint8_t* data, int width, int height, Pix
     m_impl->prevX += dx;
     m_impl->prevY += dy;
     m_impl->prevA += da;
+    m_impl->lastDx = dx;
+    m_impl->lastDy = dy;
+
+    const auto now = std::chrono::steady_clock::now();
+    double dt = 0.0333;
+    if (m_impl->lastFrameTime.time_since_epoch().count() > 0) {
+        dt = std::chrono::duration<double>(now - m_impl->lastFrameTime).count();
+    }
+    m_impl->lastFrameTime = now;
+    if (m_impl->motionCb) {
+        m_impl->motionCb(dx, dy, dt);
+    }
 
     if (std::abs(dx) > m_maxJitterPixels || std::abs(dy) > m_maxJitterPixels) {
         m_impl->smoothX = m_impl->prevX;
@@ -1840,6 +1878,7 @@ struct CentroidTargetTrackerFilter::Impl {
     double appearanceLearningRate { 0.02 };
     double initialWidth { 40.0 };
     double initialHeight { 40.0 };
+    double dynamicLookaheadLatency { 0.10 };
     cv::Mat modelHist;
 
     bool trajectoryTrail { true };
@@ -2057,13 +2096,16 @@ CentroidTargetTrackerFilter::TargetState CentroidTargetTrackerFilter::getTargetS
     std::lock_guard<std::mutex> lock(m_impl->stateMutex);
     TargetState copy = m_impl->state;
 
+    const double effectiveLookahead
+        = (lookaheadLatencySeconds >= 0.0) ? lookaheadLatencySeconds : m_impl->dynamicLookaheadLatency;
+
     if (copy.locked) {
         if (m_impl->lastWidth > 0 && m_impl->lastHeight > 0) {
             copy.normalizedWidth = static_cast<double>(copy.width) / static_cast<double>(m_impl->lastWidth);
             copy.normalizedHeight = static_cast<double>(copy.height) / static_cast<double>(m_impl->lastHeight);
         }
-        if (lookaheadLatencySeconds > 0.0 && m_impl->lastWidth > 0 && m_impl->lastHeight > 0) {
-            const double framesAhead = lookaheadLatencySeconds * 30.0;
+        if (effectiveLookahead > 0.0 && m_impl->lastWidth > 0 && m_impl->lastHeight > 0) {
+            const double framesAhead = effectiveLookahead * 30.0;
             const double predCx = static_cast<double>(copy.x) + static_cast<double>(copy.width) / 2.0
                 + copy.vx * framesAhead + 0.5 * copy.ax * framesAhead * framesAhead;
             const double predCy = static_cast<double>(copy.y) + static_cast<double>(copy.height) / 2.0
@@ -2078,6 +2120,23 @@ CentroidTargetTrackerFilter::TargetState CentroidTargetTrackerFilter::getTargetS
         }
     }
     return copy;
+}
+
+void CentroidTargetTrackerFilter::setDynamicLookaheadLatency(double seconds) noexcept
+{
+    if (m_impl) {
+        std::lock_guard<std::mutex> lock(m_impl->stateMutex);
+        m_impl->dynamicLookaheadLatency = std::clamp(seconds, 0.0, 1.0);
+    }
+}
+
+double CentroidTargetTrackerFilter::getDynamicLookaheadLatency() const noexcept
+{
+    if (m_impl) {
+        std::lock_guard<std::mutex> lock(m_impl->stateMutex);
+        return m_impl->dynamicLookaheadLatency;
+    }
+    return 0.10;
 }
 
 void CentroidTargetTrackerFilter::setMaxCoastFrames(int frames) noexcept

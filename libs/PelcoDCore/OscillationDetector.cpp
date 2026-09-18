@@ -16,7 +16,7 @@ OscillationDetector::OscillationDetector(OscillationConfig config)
 void OscillationDetector::setConfig(const OscillationConfig& config)
 {
     m_config = config;
-    const std::size_t winSize = Math::nextPowerOfTwo(std::max(16UL, m_config.windowSize));
+    const std::size_t winSize = Math::nextPowerOfTwo(std::max<std::size_t>(16U, m_config.windowSize));
     m_config.windowSize = winSize;
     m_buffer.assign(winSize, 0.0);
     reset();
@@ -45,7 +45,7 @@ void OscillationDetector::addSample(double sample)
     ++m_sampleCount;
 
     // Trigger analysis once window has filled, with 50% hop size
-    const std::size_t hopSize = std::max(4UL, m_buffer.size() / 4U);
+    const std::size_t hopSize = std::max<std::size_t>(4U, m_buffer.size() / 4U);
     if (m_sampleCount >= m_buffer.size() && (m_sampleCount % hopSize == 0U)) {
         analyzeSpectrum();
     }

@@ -907,6 +907,15 @@ public:
     {
         return m_cropMarginPercent;
     }
+
+    using MotionCallback = std::function<void(double dx, double dy, double dt)>;
+
+    /// @brief Set a callback to receive real-time frame-to-frame translation for latency estimation.
+    void setMotionCallback(MotionCallback callback);
+
+    /// @brief Retrieve the latest frame-to-frame translation in pixels.
+    void getLastFrameMotion(double& dx, double& dy) const noexcept;
+
     void reset();
 
 private:
@@ -1374,7 +1383,13 @@ public:
     void releaseTarget();
 
     bool isTargetLocked() const;
-    TargetState getTargetState(double lookaheadLatencySeconds = 0.0) const;
+    TargetState getTargetState(double lookaheadLatencySeconds = -1.0) const;
+
+    /// @brief Sets the dynamic lookahead latency (in seconds) used by default.
+    void setDynamicLookaheadLatency(double seconds) noexcept;
+
+    /// @brief Gets the current dynamic lookahead latency (in seconds).
+    double getDynamicLookaheadLatency() const noexcept;
 
     void setMaxCoastFrames(int frames) noexcept;
     int getMaxCoastFrames() const noexcept;

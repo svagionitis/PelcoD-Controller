@@ -399,8 +399,33 @@ void VideoStreamTab::setupUi()
         tr("Offsets boresight ahead along target velocity to preserve forward situational awareness"));
     lockLayout->addWidget(m_chkPredictiveLead);
 
+    m_chkAdaptiveLookahead = new QCheckBox(tr("  └ Adaptive Latency Lookahead"), lockGroup);
+    m_chkAdaptiveLookahead->setChecked(true);
+    m_chkAdaptiveLookahead->setToolTip(
+        tr("Dynamically tunes Kalman lookahead using empirical Cross-Correlation Latency Estimator"));
+    lockLayout->addWidget(m_chkAdaptiveLookahead);
+
+    auto* latencyLayout = new QHBoxLayout();
+    m_btnCalibrateLatency = new QPushButton(tr("Calibrate Latency"), lockGroup);
+    m_btnCalibrateLatency->setToolTip(tr("Executes active doublet pulse sequence to measure empirical delay"));
+    m_lblLatencyBadge = new QLabel(tr("Latency: 100.0 ms [Default]"), lockGroup);
+    m_lblLatencyBadge->setStyleSheet("color: #4CAF50; font-family: monospace; font-size: 10px;");
+    latencyLayout->addWidget(m_btnCalibrateLatency);
+    latencyLayout->addWidget(m_lblLatencyBadge);
+    lockLayout->addLayout(latencyLayout);
+
     m_autoTracker = std::make_unique<PelcoD::PtzAutoTracker>();
     m_autoFollowTimer = new QTimer(this);
+
+    m_latencyEstimator = std::make_unique<PelcoD::LatencyEstimator>();
+    PelcoD::LatencyEstimatorConfig estCfg {};
+    estCfg.polarity = PelcoD::PeakPolarity::Negative;
+    estCfg.confidenceThreshold = 0.55;
+    estCfg.smoothingAlpha = 0.25;
+    m_latencyEstimator->setConfig(estCfg);
+
+    m_latencyCalibrator = std::make_unique<PelcoD::LatencyCalibrator>();
+    m_calibratorTimer = new QTimer(this);
 
     trackTabLayout->addWidget(lockGroup);
 
@@ -691,6 +716,8 @@ void VideoStreamTab::setupConnections()
             m_autoTracker->setPredictiveLeadEnabled(checked);
         }
     });
+    connect(m_btnCalibrateLatency, &QPushButton::clicked, this, &VideoStreamTab::onCalibrateLatencyClicked);
+    connect(m_calibratorTimer, &QTimer::timeout, this, &VideoStreamTab::onCalibratorTick);
     connect(m_chkTripwire, &QCheckBox::toggled, this, &VideoStreamTab::onFilterConfigurationChanged);
     connect(m_comboTripwireDir, QOverload<int>::of(&QComboBox::currentIndexChanged), this,
         &VideoStreamTab::onFilterConfigurationChanged);
@@ -1245,8 +1272,17 @@ void VideoStreamTab::onAutoFollowTick()
         return;
     }
 
-    // Query Kalman-filtered target state with 100ms lookahead to compensate for latency
-    const auto state = m_targetTracker->getTargetState(0.10);
+    // Query Kalman-filtered target state with adaptive latency lookahead
+    const double lookahead = (m_chkAdaptiveLookahead && m_chkAdaptiveLookahead->isChecked())
+        ? (m_currentEstimatedLatencyMs / 1000.0)
+        : 0.10;
+
+    if (m_autoTracker) {
+        m_autoTracker->setAdaptiveLatencyEnabled(m_chkAdaptiveLookahead && m_chkAdaptiveLookahead->isChecked());
+        m_autoTracker->setEstimatedLatencySeconds(lookahead);
+    }
+
+    const auto state = m_targetTracker->getTargetState(lookahead);
     const double dt = 0.04; // 25 Hz update rate (40 ms)
 
     const auto cmd = m_autoTracker->update(state.predictedErrorX, state.predictedErrorY, state.vx, state.vy,
@@ -1256,6 +1292,26 @@ void VideoStreamTab::onAutoFollowTick()
         m_device->move(cmd.panDirection, cmd.panSpeed, cmd.tiltDirection, cmd.tiltSpeed);
     } else if (cmd.state == PelcoD::PtzAutoTracker::TrackingState::Lost || !cmd.shouldMove) {
         m_device->stopMotion();
+    }
+
+    // Feed real-time telemetry into online latency estimator
+    if (m_latencyEstimator && state.locked) {
+        const double nowSec = std::chrono::duration<double>(
+            std::chrono::steady_clock::now().time_since_epoch()).count();
+        const double commandedPan = static_cast<double>(cmd.panDirection * cmd.panSpeed);
+        m_latencyEstimator->addTimestampedReference(nowSec, commandedPan);
+        // Optical flow / target velocity is inverted relative to camera pan
+        m_latencyEstimator->addTimestampedResponse(nowSec, -state.vx * 100.0);
+        m_latencyEstimator->update();
+
+        if (m_latencyEstimator->isConfident()) {
+            m_currentEstimatedLatencyMs = m_latencyEstimator->getEstimatedLatencyMs();
+            if (m_lblLatencyBadge) {
+                m_lblLatencyBadge->setText(tr("Latency: %1 ms [r=%2, Locked]")
+                    .arg(m_currentEstimatedLatencyMs, 0, 'f', 1)
+                    .arg(m_latencyEstimator->getPeakCorrelation(), 0, 'f', 2));
+            }
+        }
     }
 
     // Closed-Loop Auto-Zoom command execution with state deduplication
@@ -1268,6 +1324,75 @@ void VideoStreamTab::onAutoFollowTick()
             m_device->zoomStop();
         }
         m_lastZoomDirection = cmd.zoomDirection;
+    }
+}
+
+void VideoStreamTab::onCalibrateLatencyClicked()
+{
+    if (!m_device || !m_latencyCalibrator) {
+        return;
+    }
+
+    // Stop auto follow if active
+    if (m_chkAutoFollowPtz && m_chkAutoFollowPtz->isChecked()) {
+        m_chkAutoFollowPtz->setChecked(false);
+    }
+
+    m_latencyCalibrator->setCommandCallback([this](int panDir, int panSpeed, int tiltDir, int tiltSpeed) {
+        if (m_device) {
+            if (panDir == 0 && tiltDir == 0 && panSpeed == 0 && tiltSpeed == 0) {
+                m_device->stopMotion();
+            } else {
+                m_device->move(panDir, panSpeed, tiltDir, tiltSpeed);
+            }
+        }
+    });
+
+    if (m_latencyCalibrator->start(25, 0)) {
+        if (m_lblLatencyBadge) {
+            m_lblLatencyBadge->setText(tr("Calibrating (doublet pulse)..."));
+        }
+        if (m_calibratorTimer) {
+            m_calibratorTimer->start(20); // 50 Hz tick
+        }
+    }
+}
+
+void VideoStreamTab::onCalibratorTick()
+{
+    if (!m_latencyCalibrator) {
+        return;
+    }
+
+    const double nowSec = std::chrono::duration<double>(
+        std::chrono::steady_clock::now().time_since_epoch()).count();
+
+    m_latencyCalibrator->update(nowSec);
+
+    // Ingest motion feedback from target tracker if available
+    if (m_targetTracker && m_targetTracker->isTargetLocked()) {
+        const auto st = m_targetTracker->getTargetState(0.0);
+        m_latencyCalibrator->ingestVisualMotion(nowSec, -st.vx * 100.0, -st.vy * 100.0);
+    }
+
+    if (!m_latencyCalibrator->isRunning()) {
+        if (m_calibratorTimer) {
+            m_calibratorTimer->stop();
+        }
+        const auto res = m_latencyCalibrator->getResult();
+        if (res.success) {
+            m_currentEstimatedLatencyMs = res.latencyMs;
+            if (m_lblLatencyBadge) {
+                m_lblLatencyBadge->setText(tr("Calibrated: %1 ms [r=%2, OK]")
+                    .arg(res.latencyMs, 0, 'f', 1)
+                    .arg(res.correlation, 0, 'f', 2));
+            }
+        } else {
+            if (m_lblLatencyBadge) {
+                m_lblLatencyBadge->setText(tr("Calibration failed (%1)")
+                    .arg(QString::fromStdString(res.message)));
+            }
+        }
     }
 }
 #endif

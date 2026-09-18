@@ -5,6 +5,8 @@
 
 #include "DeviceStatus.h"
 #include "FujinonTypes.h"
+#include "LatencyCalibrator.h"
+#include "LatencyEstimator.h"
 #include "PtzAutoTracker.h"
 #include "QPelcoDDevice.h"
 #include "QVideoStreamWorker.h"
@@ -69,6 +71,8 @@ private slots:
 #if defined(PELCOD_HAS_FILTERS)
     void onFilterConfigurationChanged();
     void onAutoFollowTick();
+    void onCalibrateLatencyClicked();
+    void onCalibratorTick();
 #endif
 
     // Interactive PTZ handling
@@ -149,6 +153,13 @@ private:
     QCheckBox* m_chkAutoFollowPtz { nullptr };
     QCheckBox* m_chkAutoZoomFraming { nullptr };
     QCheckBox* m_chkPredictiveLead { nullptr };
+    QCheckBox* m_chkAdaptiveLookahead { nullptr };
+    QPushButton* m_btnCalibrateLatency { nullptr };
+    QLabel* m_lblLatencyBadge { nullptr };
+    QTimer* m_calibratorTimer { nullptr };
+    double m_currentEstimatedLatencyMs { 100.0 };
+    std::unique_ptr<PelcoD::LatencyEstimator> m_latencyEstimator;
+    std::unique_ptr<PelcoD::LatencyCalibrator> m_latencyCalibrator;
     QCheckBox* m_chkTripwire { nullptr };
     QComboBox* m_comboTripwireDir { nullptr };
     QCheckBox* m_chkHeatmap { nullptr };

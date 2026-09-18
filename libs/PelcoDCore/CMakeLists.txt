@@ -55,6 +55,8 @@ add_library(PelcoDCore STATIC
     GoertzelFilter.cpp
     LatencyEstimator.h
     LatencyEstimator.cpp
+    LatencyCalibrator.h
+    LatencyCalibrator.cpp
     Dct.h
     Dct.cpp
     DctSharpnessEvaluator.h
