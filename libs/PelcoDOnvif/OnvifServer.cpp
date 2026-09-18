@@ -662,33 +662,55 @@ void OnvifServer::setupRoutes()
     });
 }
 
-void OnvifServer::handleDeviceService(const httplib::Request& req, httplib::Response& res)
+std::optional<OnvifServer::SoapRequest> OnvifServer::parseSoapRequest(
+    const httplib::Request& req, httplib::Response& res, std::string_view serviceName, pugi::xml_document& doc)
 {
-    pugi::xml_document doc;
     if (!doc.load_string(req.body.c_str())) {
         res.status = 400;
-        return;
+        return std::nullopt;
     }
-
-    const std::string host = resolveHost(req);
-    const int port = m_config.port;
 
     const pugi::xml_node bodyNode = doc.select_node("//*[local-name()='Body']").node();
     const pugi::xml_node reqNode = bodyNode ? bodyNode.first_child() : pugi::xml_node {};
     const std::string opName = reqNode ? reqNode.name() : "";
     if (m_logCallback) {
-        m_logCallback("Device", opName, req.remote_addr);
+        m_logCallback(std::string(serviceName), opName, req.remote_addr);
     }
-    {
-        std::lock_guard<std::mutex> lock(m_logMutex);
-        const std::string timestamp = formatIso8601Utc(std::chrono::system_clock::now());
-        std::ostringstream entry;
-        entry << "[" << timestamp << "] [" << req.remote_addr << "] DeviceService: " << opName;
-        m_accessLogs.push_back(entry.str());
-        if (m_accessLogs.size() > 500) {
-            m_accessLogs.pop_front();
-        }
+
+    return SoapRequest { bodyNode, reqNode, opName };
+}
+
+void OnvifServer::appendAccessLog(
+    std::string_view serviceName, const std::string& opName, const std::string& remoteAddr)
+{
+    std::lock_guard<std::mutex> lock(m_logMutex);
+    const std::string timestamp = formatIso8601Utc(std::chrono::system_clock::now());
+    std::ostringstream entry;
+    entry << "[" << timestamp << "] [" << remoteAddr << "] " << serviceName << "Service: " << opName;
+    m_accessLogs.push_back(entry.str());
+    if (m_accessLogs.size() > 500) {
+        m_accessLogs.pop_front();
     }
+}
+
+void OnvifServer::sendSoapResponse(httplib::Response& res, const std::string& bodyXml, int status)
+{
+    res.status = status;
+    res.set_content(wrapSoapResponse(bodyXml), "application/soap+xml; charset=utf-8");
+}
+
+void OnvifServer::handleDeviceService(const httplib::Request& req, httplib::Response& res)
+{
+    pugi::xml_document doc;
+    const auto soap = parseSoapRequest(req, res, "Device", doc);
+    if (!soap) {
+        return;
+    }
+    const auto& [bodyNode, reqNode, opName] = *soap;
+    appendAccessLog("Device", opName, req.remote_addr);
+
+    const std::string host = resolveHost(req);
+    const int port = m_config.port;
 
     std::ostringstream body;
 
@@ -1620,27 +1642,20 @@ void OnvifServer::handleDeviceService(const httplib::Request& req, httplib::Resp
         body << "    <tds:" << opName << "Response/>\r\n";
     }
 
-    res.status = 200;
-    res.set_content(wrapSoapResponse(body.str()), "application/soap+xml; charset=utf-8");
+    sendSoapResponse(res, body.str());
 }
 
 void OnvifServer::handleMediaService(const httplib::Request& req, httplib::Response& res)
 {
     pugi::xml_document doc;
-    if (!doc.load_string(req.body.c_str())) {
-        res.status = 400;
+    const auto soap = parseSoapRequest(req, res, "Media", doc);
+    if (!soap) {
         return;
     }
+    const auto& [bodyNode, reqNode, opName] = *soap;
 
     const std::string host = resolveHost(req);
     const int port = m_config.port;
-
-    const pugi::xml_node bodyNode = doc.select_node("//*[local-name()='Body']").node();
-    const pugi::xml_node reqNode = bodyNode ? bodyNode.first_child() : pugi::xml_node {};
-    const std::string opName = reqNode ? reqNode.name() : "";
-    if (m_logCallback) {
-        m_logCallback("Media", opName, req.remote_addr);
-    }
 
     std::ostringstream body;
 
@@ -1707,8 +1722,7 @@ void OnvifServer::handleMediaService(const httplib::Request& req, httplib::Respo
         body << "    <trt:" << opName << "Response/>\r\n";
     }
 
-    res.status = 200;
-    res.set_content(wrapSoapResponse(body.str()), "application/soap+xml; charset=utf-8");
+    sendSoapResponse(res, body.str());
 }
 
 void OnvifServer::processOsdRequest(
@@ -2423,20 +2437,14 @@ void OnvifServer::handleMetadataStream(const httplib::Request& req, httplib::Res
 void OnvifServer::handleMedia2Service(const httplib::Request& req, httplib::Response& res)
 {
     pugi::xml_document doc;
-    if (!doc.load_string(req.body.c_str())) {
-        res.status = 400;
+    const auto soap = parseSoapRequest(req, res, "Media2", doc);
+    if (!soap) {
         return;
     }
+    const auto& [bodyNode, reqNode, opName] = *soap;
 
     const std::string host = resolveHost(req);
     const int port = m_config.port;
-
-    const pugi::xml_node bodyNode = doc.select_node("//*[local-name()='Body']").node();
-    const pugi::xml_node reqNode = bodyNode ? bodyNode.first_child() : pugi::xml_node {};
-    const std::string opName = reqNode ? reqNode.name() : "";
-    if (m_logCallback) {
-        m_logCallback("Media2", opName, req.remote_addr);
-    }
 
     std::ostringstream body;
 
@@ -2533,24 +2541,17 @@ void OnvifServer::handleMedia2Service(const httplib::Request& req, httplib::Resp
         body << "    <tr2:" << opName << "Response/>\r\n";
     }
 
-    res.status = 200;
-    res.set_content(wrapSoapResponse(body.str()), "application/soap+xml; charset=utf-8");
+    sendSoapResponse(res, body.str());
 }
 
 void OnvifServer::handlePtzService(const httplib::Request& req, httplib::Response& res)
 {
     pugi::xml_document doc;
-    if (!doc.load_string(req.body.c_str())) {
-        res.status = 400;
+    const auto soap = parseSoapRequest(req, res, "PTZ", doc);
+    if (!soap) {
         return;
     }
-
-    const pugi::xml_node bodyNode = doc.select_node("//*[local-name()='Body']").node();
-    const pugi::xml_node reqNode = bodyNode ? bodyNode.first_child() : pugi::xml_node {};
-    const std::string opName = reqNode ? reqNode.name() : "";
-    if (m_logCallback) {
-        m_logCallback("PTZ", opName, req.remote_addr);
-    }
+    const auto& [bodyNode, reqNode, opName] = *soap;
 
     std::ostringstream body;
 
@@ -2997,24 +2998,17 @@ void OnvifServer::handlePtzService(const httplib::Request& req, httplib::Respons
         body << "    <tptz:" << opName << "Response/>\r\n";
     }
 
-    res.status = 200;
-    res.set_content(wrapSoapResponse(body.str()), "application/soap+xml; charset=utf-8");
+    sendSoapResponse(res, body.str());
 }
 
 void OnvifServer::handleImagingService(const httplib::Request& req, httplib::Response& res)
 {
     pugi::xml_document doc;
-    if (!doc.load_string(req.body.c_str())) {
-        res.status = 400;
+    const auto soap = parseSoapRequest(req, res, "Imaging", doc);
+    if (!soap) {
         return;
     }
-
-    const pugi::xml_node bodyNode = doc.select_node("//*[local-name()='Body']").node();
-    const pugi::xml_node reqNode = bodyNode ? bodyNode.first_child() : pugi::xml_node {};
-    const std::string opName = reqNode ? reqNode.name() : "";
-    if (m_logCallback) {
-        m_logCallback("Imaging", opName, req.remote_addr);
-    }
+    const auto& [bodyNode, reqNode, opName] = *soap;
 
     const pugi::xml_node vsNode = doc.select_node("//*[local-name()='VideoSourceToken']").node();
     const std::string videoSourceToken = vsNode ? vsNode.text().as_string() : "VideoSource_1";
@@ -3238,24 +3232,17 @@ void OnvifServer::handleImagingService(const httplib::Request& req, httplib::Res
         body << "    <timg:" << opName << "Response/>\r\n";
     }
 
-    res.status = 200;
-    res.set_content(wrapSoapResponse(body.str()), "application/soap+xml; charset=utf-8");
+    sendSoapResponse(res, body.str());
 }
 
 void OnvifServer::handleDeviceIoService(const httplib::Request& req, httplib::Response& res)
 {
     pugi::xml_document doc;
-    if (!doc.load_string(req.body.c_str())) {
-        res.status = 400;
+    const auto soap = parseSoapRequest(req, res, "DeviceIO", doc);
+    if (!soap) {
         return;
     }
-
-    const pugi::xml_node bodyNode = doc.select_node("//*[local-name()='Body']").node();
-    const pugi::xml_node reqNode = bodyNode ? bodyNode.first_child() : pugi::xml_node {};
-    const std::string opName = reqNode ? reqNode.name() : "";
-    if (m_logCallback) {
-        m_logCallback("DeviceIO", opName, req.remote_addr);
-    }
+    const auto& [bodyNode, reqNode, opName] = *soap;
 
     std::ostringstream body;
 
@@ -3398,27 +3385,20 @@ void OnvifServer::handleDeviceIoService(const httplib::Request& req, httplib::Re
         body << "    <tmd:" << opName << "Response/>\r\n";
     }
 
-    res.status = 200;
-    res.set_content(wrapSoapResponse(body.str()), "application/soap+xml; charset=utf-8");
+    sendSoapResponse(res, body.str());
 }
 
 void OnvifServer::handleEventService(const httplib::Request& req, httplib::Response& res)
 {
     pugi::xml_document doc;
-    if (!doc.load_string(req.body.c_str())) {
-        res.status = 400;
+    const auto soap = parseSoapRequest(req, res, "Events", doc);
+    if (!soap) {
         return;
     }
+    const auto& [bodyNode, reqNode, opName] = *soap;
 
     const std::string host = resolveHost(req);
     const int port = m_config.port;
-
-    const pugi::xml_node bodyNode = doc.select_node("//*[local-name()='Body']").node();
-    const pugi::xml_node reqNode = bodyNode ? bodyNode.first_child() : pugi::xml_node {};
-    const std::string opName = reqNode ? reqNode.name() : "";
-    if (m_logCallback) {
-        m_logCallback("Events", opName, req.remote_addr);
-    }
 
     std::ostringstream body;
 
@@ -3496,17 +3476,17 @@ void OnvifServer::handleEventService(const httplib::Request& req, httplib::Respo
         body << "    <tev:" << opName << "Response/>\r\n";
     }
 
-    res.status = 200;
-    res.set_content(wrapSoapResponse(body.str()), "application/soap+xml; charset=utf-8");
+    sendSoapResponse(res, body.str());
 }
 
 void OnvifServer::handleSubscriptionService(const httplib::Request& req, httplib::Response& res)
 {
     pugi::xml_document doc;
-    if (!doc.load_string(req.body.c_str())) {
-        res.status = 400;
+    const auto soap = parseSoapRequest(req, res, "PullPoint", doc);
+    if (!soap) {
         return;
     }
+    const auto& [bodyNode, reqNode, opName] = *soap;
 
     // Extract subscription ID from URI if present
     std::string subId;
@@ -3537,13 +3517,6 @@ void OnvifServer::handleSubscriptionService(const httplib::Request& req, httplib
         sub->id = subId;
         sub->terminationTime = std::chrono::steady_clock::now() + std::chrono::minutes(10);
         m_subscriptions[subId] = sub;
-    }
-
-    const pugi::xml_node bodyNode = doc.select_node("//*[local-name()='Body']").node();
-    const pugi::xml_node reqNode = bodyNode ? bodyNode.first_child() : pugi::xml_node {};
-    const std::string opName = reqNode ? reqNode.name() : "";
-    if (m_logCallback) {
-        m_logCallback("PullPoint", opName, req.remote_addr);
     }
 
     std::ostringstream body;
@@ -3625,24 +3598,17 @@ void OnvifServer::handleSubscriptionService(const httplib::Request& req, httplib
         body << "    <wsnt:" << opName << "Response/>\r\n";
     }
 
-    res.status = 200;
-    res.set_content(wrapSoapResponse(body.str()), "application/soap+xml; charset=utf-8");
+    sendSoapResponse(res, body.str());
 }
 
 void OnvifServer::handleAnalyticsService(const httplib::Request& req, httplib::Response& res)
 {
     pugi::xml_document doc;
-    if (!doc.load_string(req.body.c_str())) {
-        res.status = 400;
+    const auto soap = parseSoapRequest(req, res, "Analytics", doc);
+    if (!soap) {
         return;
     }
-
-    const pugi::xml_node bodyNode = doc.select_node("//*[local-name()='Body']").node();
-    const pugi::xml_node reqNode = bodyNode ? bodyNode.first_child() : pugi::xml_node {};
-    const std::string opName = reqNode ? reqNode.name() : "";
-    if (m_logCallback) {
-        m_logCallback("Analytics", opName, req.remote_addr);
-    }
+    const auto& [bodyNode, reqNode, opName] = *soap;
 
     std::ostringstream body;
 
@@ -3923,24 +3889,17 @@ void OnvifServer::handleAnalyticsService(const httplib::Request& req, httplib::R
         body << "    <tan:" << opName << "Response/>\r\n";
     }
 
-    res.status = 200;
-    res.set_content(wrapSoapResponse(body.str()), "application/soap+xml; charset=utf-8");
+    sendSoapResponse(res, body.str());
 }
 
 void OnvifServer::handleRecordingService(const httplib::Request& req, httplib::Response& res)
 {
     pugi::xml_document doc;
-    if (!doc.load_string(req.body.c_str())) {
-        res.status = 400;
+    const auto soap = parseSoapRequest(req, res, "Recording", doc);
+    if (!soap) {
         return;
     }
-
-    const pugi::xml_node bodyNode = doc.select_node("//*[local-name()='Body']").node();
-    const pugi::xml_node reqNode = bodyNode ? bodyNode.first_child() : pugi::xml_node {};
-    const std::string opName = reqNode ? reqNode.name() : "";
-    if (m_logCallback) {
-        m_logCallback("Recording", opName, req.remote_addr);
-    }
+    const auto& [bodyNode, reqNode, opName] = *soap;
 
     std::ostringstream body;
 
@@ -4285,24 +4244,17 @@ void OnvifServer::handleRecordingService(const httplib::Request& req, httplib::R
         body << "    <trc:" << opName << "Response/>\r\n";
     }
 
-    res.status = 200;
-    res.set_content(wrapSoapResponse(body.str()), "application/soap+xml; charset=utf-8");
+    sendSoapResponse(res, body.str());
 }
 
 void OnvifServer::handleSearchService(const httplib::Request& req, httplib::Response& res)
 {
     pugi::xml_document doc;
-    if (!doc.load_string(req.body.c_str())) {
-        res.status = 400;
+    const auto soap = parseSoapRequest(req, res, "Search", doc);
+    if (!soap) {
         return;
     }
-
-    const pugi::xml_node bodyNode = doc.select_node("//*[local-name()='Body']").node();
-    const pugi::xml_node reqNode = bodyNode ? bodyNode.first_child() : pugi::xml_node {};
-    const std::string opName = reqNode ? reqNode.name() : "";
-    if (m_logCallback) {
-        m_logCallback("Search", opName, req.remote_addr);
-    }
+    const auto& [bodyNode, reqNode, opName] = *soap;
 
     std::ostringstream body;
 
@@ -4435,24 +4387,17 @@ void OnvifServer::handleSearchService(const httplib::Request& req, httplib::Resp
         body << "    <tse:" << opName << "Response/>\r\n";
     }
 
-    res.status = 200;
-    res.set_content(wrapSoapResponse(body.str()), "application/soap+xml; charset=utf-8");
+    sendSoapResponse(res, body.str());
 }
 
 void OnvifServer::handleReplayService(const httplib::Request& req, httplib::Response& res)
 {
     pugi::xml_document doc;
-    if (!doc.load_string(req.body.c_str())) {
-        res.status = 400;
+    const auto soap = parseSoapRequest(req, res, "Replay", doc);
+    if (!soap) {
         return;
     }
-
-    const pugi::xml_node bodyNode = doc.select_node("//*[local-name()='Body']").node();
-    const pugi::xml_node reqNode = bodyNode ? bodyNode.first_child() : pugi::xml_node {};
-    const std::string opName = reqNode ? reqNode.name() : "";
-    if (m_logCallback) {
-        m_logCallback("Replay", opName, req.remote_addr);
-    }
+    const auto& [bodyNode, reqNode, opName] = *soap;
 
     std::ostringstream body;
 
@@ -4507,34 +4452,18 @@ void OnvifServer::handleReplayService(const httplib::Request& req, httplib::Resp
         body << "    <trp:" << opName << "Response/>\r\n";
     }
 
-    res.status = 200;
-    res.set_content(wrapSoapResponse(body.str()), "application/soap+xml; charset=utf-8");
+    sendSoapResponse(res, body.str());
 }
 
 void OnvifServer::handleThermalService(const httplib::Request& req, httplib::Response& res)
 {
     pugi::xml_document doc;
-    if (!doc.load_string(req.body.c_str())) {
-        res.status = 400;
+    const auto soap = parseSoapRequest(req, res, "Thermal", doc);
+    if (!soap) {
         return;
     }
-
-    const pugi::xml_node bodyNode = doc.select_node("//*[local-name()='Body']").node();
-    const pugi::xml_node reqNode = bodyNode ? bodyNode.first_child() : pugi::xml_node {};
-    const std::string opName = reqNode ? reqNode.name() : "";
-    if (m_logCallback) {
-        m_logCallback("Thermal", opName, req.remote_addr);
-    }
-    {
-        std::lock_guard<std::mutex> lock(m_logMutex);
-        const std::string timestamp = formatIso8601Utc(std::chrono::system_clock::now());
-        std::ostringstream entry;
-        entry << "[" << timestamp << "] [" << req.remote_addr << "] ThermalService: " << opName;
-        m_accessLogs.push_back(entry.str());
-        if (m_accessLogs.size() > 500) {
-            m_accessLogs.pop_front();
-        }
-    }
+    const auto& [bodyNode, reqNode, opName] = *soap;
+    appendAccessLog("Thermal", opName, req.remote_addr);
 
     std::ostringstream body;
 
@@ -4771,8 +4700,7 @@ void OnvifServer::handleThermalService(const httplib::Request& req, httplib::Res
         body << "    <tth:" << opName << "Response/>\r\n";
     }
 
-    res.status = 200;
-    res.set_content(wrapSoapResponse(body.str()), "application/soap+xml; charset=utf-8");
+    sendSoapResponse(res, body.str());
 }
 
 } // namespace PelcoD::Onvif

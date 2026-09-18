@@ -7,6 +7,7 @@
 #include "WsDiscoveryServer.h"
 
 #include <httplib.h>
+#include <pugixml.hpp>
 
 #include <atomic>
 #include <condition_variable>
@@ -14,13 +15,11 @@
 #include <map>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <sstream>
 #include <string>
+#include <string_view>
 #include <thread>
-
-namespace pugi {
-class xml_document;
-}
 
 namespace PelcoD::Onvif {
 
@@ -157,6 +156,19 @@ private:
 
     [[nodiscard]] std::string generateMetadataStreamXml(const MetadataStreamPayload& payload) const;
     [[nodiscard]] std::string resolveHost(const httplib::Request& req) const;
+
+    struct SoapRequest {
+        pugi::xml_node bodyNode {};
+        pugi::xml_node reqNode {};
+        std::string opName {};
+    };
+
+    [[nodiscard]] std::optional<SoapRequest> parseSoapRequest(
+        const httplib::Request& req, httplib::Response& res, std::string_view serviceName, pugi::xml_document& doc);
+
+    void appendAccessLog(std::string_view serviceName, const std::string& opName, const std::string& remoteAddr);
+
+    void sendSoapResponse(httplib::Response& res, const std::string& bodyXml, int status = 200);
 
     struct PullPointSubscription {
         std::string id {};
