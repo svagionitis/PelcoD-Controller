@@ -1,5 +1,6 @@
 #include "OnvifDiscovery.h"
 #include "WsDiscoveryCommon.h"
+#include "XmlUtils.h"
 
 #include <PelcoDCore/SocketUtils.h>
 #include <pugixml.hpp>
@@ -45,34 +46,9 @@ namespace {
         return url.substr(hostStart, hostEnd - hostStart);
     }
 
-    pugi::xml_node findNodeWithSuffix(const pugi::xml_node& parent, const std::string& suffix)
-    {
-        for (const auto& child : parent.children()) {
-            const std::string name = child.name();
-            const auto colonPos = name.find(':');
-            const std::string localName = (colonPos != std::string::npos) ? name.substr(colonPos + 1) : name;
-            if (localName == suffix) {
-                return child;
-            }
-        }
-        return {};
-    }
-
-    void collectNodesWithSuffix(
-        const pugi::xml_node& parent, const std::string& suffix, std::vector<pugi::xml_node>& result)
-    {
-        for (const auto& child : parent.children()) {
-            const std::string name = child.name();
-            const auto colonPos = name.find(':');
-            const std::string localName = (colonPos != std::string::npos) ? name.substr(colonPos + 1) : name;
-            if (localName == suffix) {
-                result.push_back(child);
-            }
-            collectNodesWithSuffix(child, suffix, result);
-        }
-    }
-
 } // namespace
+
+using namespace Xml;
 
 std::string OnvifDiscovery::createProbePayload(const std::string& messageUuid)
 {

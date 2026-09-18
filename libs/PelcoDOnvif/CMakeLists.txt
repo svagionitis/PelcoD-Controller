@@ -40,6 +40,8 @@ add_library(PelcoDOnvif STATIC
     OnvifDiscovery.cpp
     OnvifClient.h
     OnvifClient.cpp
+    XmlUtils.h
+    XmlUtils.cpp
     OnvifServerTypes.h
     WsDiscoveryCommon.h
     WsDiscoveryCommon.cpp

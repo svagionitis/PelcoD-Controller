@@ -1,5 +1,6 @@
 #include "OnvifServer.h"
 #include "OnvifSecurity.h"
+#include "XmlUtils.h"
 
 #include <pugixml.hpp>
 
@@ -80,6 +81,185 @@ namespace {
             }
         }
         return defaultSecs;
+    }
+
+    [[nodiscard]] OnvifUser parseOnvifUser(const pugi::xml_node& uNode)
+    {
+        OnvifUser u {};
+        const auto un = uNode.select_node(".//*[local-name()='Username']").node();
+        if (un) {
+            u.username = un.text().as_string();
+        }
+        const auto pw = uNode.select_node(".//*[local-name()='Password']").node();
+        if (pw) {
+            u.password = pw.text().as_string();
+        }
+        const auto ul = uNode.select_node(".//*[local-name()='UserLevel']").node();
+        if (ul) {
+            u.level = userLevelFromString(ul.text().as_string());
+        }
+        return u;
+    }
+
+    [[nodiscard]] PrivacyMask parsePrivacyMask(const pugi::xml_node& maskNode)
+    {
+        PrivacyMask mask {};
+        if (!maskNode) {
+            return mask;
+        }
+        if (maskNode.attribute("token")) {
+            mask.token = maskNode.attribute("token").as_string();
+        } else if (maskNode.attribute("Token")) {
+            mask.token = maskNode.attribute("Token").as_string();
+        }
+        const auto cfg = maskNode.select_node(".//*[local-name()='ConfigurationToken']").node();
+        if (cfg) {
+            mask.configurationToken = cfg.text().as_string();
+        }
+
+        const auto polyNode = maskNode.select_node(".//*[local-name()='Polygon']").node();
+        if (polyNode) {
+            for (const auto& ptNode : polyNode.children()) {
+                Point2D pt {};
+                if (ptNode.attribute("x")) {
+                    pt.x = ptNode.attribute("x").as_float(0.0f);
+                } else if (ptNode.attribute("X")) {
+                    pt.x = ptNode.attribute("X").as_float(0.0f);
+                }
+                if (ptNode.attribute("y")) {
+                    pt.y = ptNode.attribute("y").as_float(0.0f);
+                } else if (ptNode.attribute("Y")) {
+                    pt.y = ptNode.attribute("Y").as_float(0.0f);
+                }
+                mask.polygon.push_back(pt);
+            }
+        }
+
+        const auto typeNode = maskNode.select_node(".//*[local-name()='Type']").node();
+        if (typeNode) {
+            mask.type = stringToMaskType(typeNode.text().as_string("Color"));
+        }
+
+        const auto colorNode = maskNode.select_node(".//*[local-name()='Color']").node();
+        if (colorNode) {
+            if (colorNode.attribute("X")) {
+                mask.color.x = colorNode.attribute("X").as_int(0);
+            } else if (colorNode.attribute("x")) {
+                mask.color.x = colorNode.attribute("x").as_int(0);
+            }
+            if (colorNode.attribute("Y")) {
+                mask.color.y = colorNode.attribute("Y").as_int(0);
+            } else if (colorNode.attribute("y")) {
+                mask.color.y = colorNode.attribute("y").as_int(0);
+            }
+            if (colorNode.attribute("Z")) {
+                mask.color.z = colorNode.attribute("Z").as_int(0);
+            } else if (colorNode.attribute("z")) {
+                mask.color.z = colorNode.attribute("z").as_int(0);
+            }
+            if (colorNode.attribute("Colorspace")) {
+                mask.color.colorspace = colorNode.attribute("Colorspace").as_string("RGB");
+            } else if (colorNode.attribute("colorspace")) {
+                mask.color.colorspace = colorNode.attribute("colorspace").as_string("RGB");
+            }
+        }
+
+        const auto enNode = maskNode.select_node(".//*[local-name()='Enabled']").node();
+        if (enNode) {
+            mask.enabled = enNode.text().as_bool(true);
+        } else if (maskNode.attribute("Enabled")) {
+            mask.enabled = maskNode.attribute("Enabled").as_bool(true);
+        }
+
+        return mask;
+    }
+
+    void appendPresetTourXml(std::ostringstream& body, const PresetTour& t, const std::string& prefix = "tptz")
+    {
+        body << "      <" << prefix << ":PresetTour token=\"" << t.token << "\">\r\n";
+        if (!t.name.empty()) {
+            body << "        <tt:Name>" << t.name << "</tt:Name>\r\n";
+        }
+        body << "        <tt:Status>\r\n";
+        std::string st = "Idle";
+        if (t.status == PresetTourState::Touring) {
+            st = "Touring";
+        } else if (t.status == PresetTourState::Paused) {
+            st = "Paused";
+        } else if (t.status == PresetTourState::Extended) {
+            st = "Extended";
+        }
+        body << "          <tt:State>" << st << "</tt:State>\r\n"
+             << "        </tt:Status>\r\n"
+             << "        <tt:AutoStart>" << (t.autoStart ? "true" : "false") << "</tt:AutoStart>\r\n";
+        for (const auto& s : t.spots) {
+            body << "        <tt:TourSpot>\r\n"
+                 << "          <tt:PresetDetail>\r\n"
+                 << "            <tt:PresetToken>" << s.presetToken << "</tt:PresetToken>\r\n"
+                 << "          </tt:PresetDetail>\r\n"
+                 << "          <tt:Speed>\r\n"
+                 << "            <tt:PanTilt x=\"" << s.speed << "\" y=\"" << s.speed << "\"/>\r\n"
+                 << "          </tt:Speed>\r\n"
+                 << "          <tt:StayTime>PT" << s.stayTimeSeconds << "S</tt:StayTime>\r\n"
+                 << "        </tt:TourSpot>\r\n";
+        }
+        body << "      </" << prefix << ":PresetTour>\r\n";
+    }
+
+    [[nodiscard]] std::vector<AnalyticsRule> parseAnalyticsRules(const pugi::xml_node& reqNode)
+    {
+        std::vector<AnalyticsRule> rules;
+        for (auto rNode : reqNode.select_nodes(".//*[local-name()='Rule']")) {
+            AnalyticsRule rule {};
+            rule.name = rNode.node().attribute("Name").as_string();
+            rule.type = rNode.node().attribute("Type").as_string();
+            for (auto si : rNode.node().select_nodes(".//*[local-name()='SimpleItem']")) {
+                const std::string sName = si.node().attribute("Name").as_string();
+                const std::string sVal = si.node().attribute("Value").as_string();
+                if (sName == "Direction") {
+                    rule.direction = sVal;
+                } else if (sName == "DwellTime") {
+                    try {
+                        rule.dwellTimeSeconds = std::stod(sVal);
+                    } catch (...) {
+                    }
+                } else if (sName == "Sensitivity") {
+                    try {
+                        rule.sensitivity = std::stoi(sVal);
+                    } catch (...) {
+                    }
+                } else if (sName == "MinConfidence") {
+                    try {
+                        rule.minConfidence = std::stof(sVal);
+                    } catch (...) {
+                    }
+                } else if (sName == "Enabled") {
+                    rule.enabled = (sVal == "true" || sVal == "1");
+                } else if (sName == "Classes") {
+                    std::stringstream ss(sVal);
+                    std::string c;
+                    while (std::getline(ss, c, ',')) {
+                        if (!c.empty()) {
+                            rule.objectClasses.push_back(c);
+                        }
+                    }
+                }
+            }
+            std::vector<Point2D> pts;
+            for (auto pt : rNode.node().select_nodes(".//*[local-name()='Point']")) {
+                pts.push_back({ pt.node().attribute("x").as_float(), pt.node().attribute("y").as_float() });
+            }
+            if (!pts.empty()) {
+                if (rule.type.find("Line") != std::string::npos && pts.size() >= 2) {
+                    rule.lineStart = pts[0];
+                    rule.lineEnd = pts[1];
+                } else {
+                    rule.polygon = pts;
+                }
+            }
+            rules.push_back(std::move(rule));
+        }
+        return rules;
     }
 
 } // namespace
@@ -778,20 +958,7 @@ void OnvifServer::handleDeviceService(const httplib::Request& req, httplib::Resp
         const auto userNodes = doc.select_nodes(".//*[local-name()='User']");
         std::vector<OnvifUser> newUsers;
         for (const auto& sel : userNodes) {
-            const auto uNode = sel.node();
-            OnvifUser u;
-            const auto un = uNode.select_node(".//*[local-name()='Username']").node();
-            if (un) {
-                u.username = un.text().as_string();
-            }
-            const auto pw = uNode.select_node(".//*[local-name()='Password']").node();
-            if (pw) {
-                u.password = pw.text().as_string();
-            }
-            const auto ul = uNode.select_node(".//*[local-name()='UserLevel']").node();
-            if (ul) {
-                u.level = userLevelFromString(ul.text().as_string());
-            }
+            const auto u = parseOnvifUser(sel.node());
             if (!u.username.empty()) {
                 newUsers.push_back(u);
             }
@@ -815,20 +982,7 @@ void OnvifServer::handleDeviceService(const httplib::Request& req, httplib::Resp
     } else if (isOp(opName, "SetUser")) {
         const auto userNodes = doc.select_nodes(".//*[local-name()='User']");
         for (const auto& sel : userNodes) {
-            const auto uNode = sel.node();
-            OnvifUser u;
-            const auto un = uNode.select_node(".//*[local-name()='Username']").node();
-            if (un) {
-                u.username = un.text().as_string();
-            }
-            const auto pw = uNode.select_node(".//*[local-name()='Password']").node();
-            if (pw) {
-                u.password = pw.text().as_string();
-            }
-            const auto ul = uNode.select_node(".//*[local-name()='UserLevel']").node();
-            if (ul) {
-                u.level = userLevelFromString(ul.text().as_string());
-            }
+            const auto u = parseOnvifUser(sel.node());
             if (!u.username.empty()) {
                 if (m_deviceHandler) {
                     m_deviceHandler->handleSetUser(u);
@@ -1393,14 +1547,13 @@ void OnvifServer::handleDeviceService(const httplib::Request& req, httplib::Resp
             }
         }
         body << "    <tds:GetGeoLocationResponse>\r\n"
-             << "      <tds:Location Entity=\"" << loc.entity << "\" Token=\"" << loc.token
-             << "\" Fixed=\"" << (loc.fixed ? "true" : "false") << "\">\r\n"
+             << "      <tds:Location Entity=\"" << loc.entity << "\" Token=\"" << loc.token << "\" Fixed=\""
+             << (loc.fixed ? "true" : "false") << "\">\r\n"
              << "        <tt:GeoLocation lat=\"" << std::fixed << std::setprecision(6) << loc.location.latitude
-             << "\" lon=\"" << loc.location.longitude
-             << "\" elevation=\"" << std::setprecision(2) << loc.location.elevation << "\"/>\r\n"
-             << "        <tt:GeoOrientation yaw=\"" << std::setprecision(2) << loc.orientation.yaw
-             << "\" pitch=\"" << loc.orientation.pitch
-             << "\" roll=\"" << loc.orientation.roll << "\"/>\r\n"
+             << "\" lon=\"" << loc.location.longitude << "\" elevation=\"" << std::setprecision(2)
+             << loc.location.elevation << "\"/>\r\n"
+             << "        <tt:GeoOrientation yaw=\"" << std::setprecision(2) << loc.orientation.yaw << "\" pitch=\""
+             << loc.orientation.pitch << "\" roll=\"" << loc.orientation.roll << "\"/>\r\n"
              << "      </tds:Location>\r\n"
              << "    </tds:GetGeoLocationResponse>\r\n";
     } else if (isOp(opName, "SetGeoLocation")) {
@@ -1421,9 +1574,12 @@ void OnvifServer::handleDeviceService(const httplib::Request& req, httplib::Resp
                     const auto latN = geoNode.child("Latitude");
                     const auto lonN = geoNode.child("Longitude");
                     const auto elN = geoNode.child("Elevation");
-                    if (latN) loc.location.latitude = latN.text().as_double(0.0);
-                    if (lonN) loc.location.longitude = lonN.text().as_double(0.0);
-                    if (elN) loc.location.elevation = elN.text().as_double(0.0);
+                    if (latN)
+                        loc.location.latitude = latN.text().as_double(0.0);
+                    if (lonN)
+                        loc.location.longitude = lonN.text().as_double(0.0);
+                    if (elN)
+                        loc.location.elevation = elN.text().as_double(0.0);
                 }
             }
 
@@ -1437,9 +1593,12 @@ void OnvifServer::handleDeviceService(const httplib::Request& req, httplib::Resp
                     const auto yN = oriNode.child("Yaw");
                     const auto pN = oriNode.child("Pitch");
                     const auto rN = oriNode.child("Roll");
-                    if (yN) loc.orientation.yaw = yN.text().as_double(0.0);
-                    if (pN) loc.orientation.pitch = pN.text().as_double(0.0);
-                    if (rN) loc.orientation.roll = rN.text().as_double(0.0);
+                    if (yN)
+                        loc.orientation.yaw = yN.text().as_double(0.0);
+                    if (pN)
+                        loc.orientation.pitch = pN.text().as_double(0.0);
+                    if (rN)
+                        loc.orientation.roll = rN.text().as_double(0.0);
                 }
             }
         }
@@ -1922,16 +2081,17 @@ void OnvifServer::processMaskRequest(
     auto serializeMask = [&](const PrivacyMask& m) {
         std::ostringstream s;
         s << "      <" << prefix << ":Mask token=\"" << m.token << "\">\r\n"
-          << "        <" << prefix << ":ConfigurationToken>" << m.configurationToken << "</" << prefix << ":ConfigurationToken>\r\n"
+          << "        <" << prefix << ":ConfigurationToken>" << m.configurationToken << "</" << prefix
+          << ":ConfigurationToken>\r\n"
           << "        <" << prefix << ":Polygon>\r\n";
         for (const auto& pt : m.polygon) {
-            s << "          <tt:Point x=\"" << std::fixed << std::setprecision(4) << pt.x
-              << "\" y=\"" << pt.y << "\"/>\r\n";
+            s << "          <tt:Point x=\"" << std::fixed << std::setprecision(4) << pt.x << "\" y=\"" << pt.y
+              << "\"/>\r\n";
         }
         s << "        </" << prefix << ":Polygon>\r\n"
           << "        <" << prefix << ":Type>" << maskTypeToString(m.type) << "</" << prefix << ":Type>\r\n"
-          << "        <" << prefix << ":Color X=\"" << m.color.x << "\" Y=\"" << m.color.y
-          << "\" Z=\"" << m.color.z << "\" Colorspace=\"" << m.color.colorspace << "\"/>\r\n"
+          << "        <" << prefix << ":Color X=\"" << m.color.x << "\" Y=\"" << m.color.y << "\" Z=\"" << m.color.z
+          << "\" Colorspace=\"" << m.color.colorspace << "\"/>\r\n"
           << "        <" << prefix << ":Enabled>" << (m.enabled ? "true" : "false") << "</" << prefix << ":Enabled>\r\n"
           << "      </" << prefix << ":Mask>\r\n";
         return s.str();
@@ -1950,19 +2110,21 @@ void OnvifServer::processMaskRequest(
         }
 
         body << "    <" << prefix << ":GetMaskOptionsResponse>\r\n"
-             << "      <" << prefix << ":Options MaxMasks=\"" << opts.maxMasks << "\" MaxPoints=\""
-             << opts.maxPoints << "\" Rectangle=\"" << (opts.rectangleSupported ? "true" : "false")
-             << "\" RectangleSupported=\"" << (opts.rectangleSupported ? "true" : "false")
-             << "\" Polygon=\"" << (opts.polygonSupported ? "true" : "false")
-             << "\" PolygonSupported=\"" << (opts.polygonSupported ? "true" : "false") << "\">\r\n"
+             << "      <" << prefix << ":Options MaxMasks=\"" << opts.maxMasks << "\" MaxPoints=\"" << opts.maxPoints
+             << "\" Rectangle=\"" << (opts.rectangleSupported ? "true" : "false") << "\" RectangleSupported=\""
+             << (opts.rectangleSupported ? "true" : "false") << "\" Polygon=\""
+             << (opts.polygonSupported ? "true" : "false") << "\" PolygonSupported=\""
+             << (opts.polygonSupported ? "true" : "false") << "\">\r\n"
              << "        <" << prefix << ":MaxMasks>" << opts.maxMasks << "</" << prefix << ":MaxMasks>\r\n"
              << "        <" << prefix << ":MaxPoints>" << opts.maxPoints << "</" << prefix << ":MaxPoints>\r\n";
         for (const auto& t : opts.supportedTypes) {
             body << "        <" << prefix << ":Types>" << maskTypeToString(t) << "</" << prefix << ":Types>\r\n";
-            body << "        <" << prefix << ":SupportedTypes>" << maskTypeToString(t) << "</" << prefix << ":SupportedTypes>\r\n";
+            body << "        <" << prefix << ":SupportedTypes>" << maskTypeToString(t) << "</" << prefix
+                 << ":SupportedTypes>\r\n";
         }
         for (const auto& cs : opts.supportedColorSpaces) {
-            body << "        <" << prefix << ":SupportedColorSpaces>" << cs << "</" << prefix << ":SupportedColorSpaces>\r\n";
+            body << "        <" << prefix << ":SupportedColorSpaces>" << cs << "</" << prefix
+                 << ":SupportedColorSpaces>\r\n";
         }
         body << "      </" << prefix << ":Options>\r\n"
              << "    </" << prefix << ":GetMaskOptionsResponse>\r\n";
@@ -2017,47 +2179,7 @@ void OnvifServer::processMaskRequest(
 
     } else if (isOp(opName, "CreateMask")) {
         const pugi::xml_node maskNode = doc.select_node("//*[local-name()='Mask']").node();
-        PrivacyMask mask {};
-        if (maskNode) {
-            if (maskNode.attribute("token")) {
-                mask.token = maskNode.attribute("token").as_string();
-            } else if (maskNode.attribute("Token")) {
-                mask.token = maskNode.attribute("Token").as_string();
-            }
-            const auto cfg = maskNode.select_node(".//*[local-name()='ConfigurationToken']").node();
-            if (cfg) mask.configurationToken = cfg.text().as_string();
-
-            const auto polyNode = maskNode.select_node(".//*[local-name()='Polygon']").node();
-            if (polyNode) {
-                for (const auto& ptNode : polyNode.children()) {
-                    Point2D pt {};
-                    if (ptNode.attribute("x")) pt.x = ptNode.attribute("x").as_float(0.0f);
-                    else if (ptNode.attribute("X")) pt.x = ptNode.attribute("X").as_float(0.0f);
-                    if (ptNode.attribute("y")) pt.y = ptNode.attribute("y").as_float(0.0f);
-                    else if (ptNode.attribute("Y")) pt.y = ptNode.attribute("Y").as_float(0.0f);
-                    mask.polygon.push_back(pt);
-                }
-            }
-
-            const auto typeNode = maskNode.select_node(".//*[local-name()='Type']").node();
-            if (typeNode) mask.type = stringToMaskType(typeNode.text().as_string("Color"));
-
-            const auto colorNode = maskNode.select_node(".//*[local-name()='Color']").node();
-            if (colorNode) {
-                if (colorNode.attribute("X")) mask.color.x = colorNode.attribute("X").as_int(0);
-                else if (colorNode.attribute("x")) mask.color.x = colorNode.attribute("x").as_int(0);
-                if (colorNode.attribute("Y")) mask.color.y = colorNode.attribute("Y").as_int(0);
-                else if (colorNode.attribute("y")) mask.color.y = colorNode.attribute("y").as_int(0);
-                if (colorNode.attribute("Z")) mask.color.z = colorNode.attribute("Z").as_int(0);
-                else if (colorNode.attribute("z")) mask.color.z = colorNode.attribute("z").as_int(0);
-                if (colorNode.attribute("Colorspace")) mask.color.colorspace = colorNode.attribute("Colorspace").as_string("RGB");
-                else if (colorNode.attribute("colorspace")) mask.color.colorspace = colorNode.attribute("colorspace").as_string("RGB");
-            }
-
-            const auto enNode = maskNode.select_node(".//*[local-name()='Enabled']").node();
-            if (enNode) mask.enabled = enNode.text().as_bool(true);
-            else if (maskNode.attribute("Enabled")) mask.enabled = maskNode.attribute("Enabled").as_bool(true);
-        }
+        PrivacyMask mask = parsePrivacyMask(maskNode);
 
         std::string assignedToken = mask.token;
         if (assignedToken.empty()) {
@@ -2082,44 +2204,7 @@ void OnvifServer::processMaskRequest(
 
     } else if (isOp(opName, "SetMask")) {
         const pugi::xml_node maskNode = doc.select_node("//*[local-name()='Mask']").node();
-        PrivacyMask mask {};
-        if (maskNode) {
-            if (maskNode.attribute("token")) mask.token = maskNode.attribute("token").as_string();
-            else if (maskNode.attribute("Token")) mask.token = maskNode.attribute("Token").as_string();
-            const auto cfg = maskNode.select_node(".//*[local-name()='ConfigurationToken']").node();
-            if (cfg) mask.configurationToken = cfg.text().as_string();
-
-            const auto polyNode = maskNode.select_node(".//*[local-name()='Polygon']").node();
-            if (polyNode) {
-                for (const auto& ptNode : polyNode.children()) {
-                    Point2D pt {};
-                    if (ptNode.attribute("x")) pt.x = ptNode.attribute("x").as_float(0.0f);
-                    else if (ptNode.attribute("X")) pt.x = ptNode.attribute("X").as_float(0.0f);
-                    if (ptNode.attribute("y")) pt.y = ptNode.attribute("y").as_float(0.0f);
-                    else if (ptNode.attribute("Y")) pt.y = ptNode.attribute("Y").as_float(0.0f);
-                    mask.polygon.push_back(pt);
-                }
-            }
-
-            const auto typeNode = maskNode.select_node(".//*[local-name()='Type']").node();
-            if (typeNode) mask.type = stringToMaskType(typeNode.text().as_string("Color"));
-
-            const auto colorNode = maskNode.select_node(".//*[local-name()='Color']").node();
-            if (colorNode) {
-                if (colorNode.attribute("X")) mask.color.x = colorNode.attribute("X").as_int(0);
-                else if (colorNode.attribute("x")) mask.color.x = colorNode.attribute("x").as_int(0);
-                if (colorNode.attribute("Y")) mask.color.y = colorNode.attribute("Y").as_int(0);
-                else if (colorNode.attribute("y")) mask.color.y = colorNode.attribute("y").as_int(0);
-                if (colorNode.attribute("Z")) mask.color.z = colorNode.attribute("Z").as_int(0);
-                else if (colorNode.attribute("z")) mask.color.z = colorNode.attribute("z").as_int(0);
-                if (colorNode.attribute("Colorspace")) mask.color.colorspace = colorNode.attribute("Colorspace").as_string("RGB");
-                else if (colorNode.attribute("colorspace")) mask.color.colorspace = colorNode.attribute("colorspace").as_string("RGB");
-            }
-
-            const auto enNode = maskNode.select_node(".//*[local-name()='Enabled']").node();
-            if (enNode) mask.enabled = enNode.text().as_bool(true);
-            else if (maskNode.attribute("Enabled")) mask.enabled = maskNode.attribute("Enabled").as_bool(true);
-        }
+        PrivacyMask mask = parsePrivacyMask(maskNode);
 
         bool ok = false;
         if (m_maskHandler) {
@@ -2148,9 +2233,8 @@ void OnvifServer::processMaskRequest(
         }
         if (!ok) {
             std::lock_guard<std::mutex> lock(m_maskMutex);
-            m_internalMasks.erase(
-                std::remove_if(m_internalMasks.begin(), m_internalMasks.end(),
-                    [&token](const PrivacyMask& m) { return m.token == token; }),
+            m_internalMasks.erase(std::remove_if(m_internalMasks.begin(), m_internalMasks.end(),
+                                      [&token](const PrivacyMask& m) { return m.token == token; }),
                 m_internalMasks.end());
         }
 
@@ -2185,12 +2269,15 @@ void OnvifServer::processVideoSourceModeRequest(
                  << "        </" << prefix << ":MaxResolution>\r\n"
                  << "        <" << prefix << ":Encodings>";
             for (size_t i = 0; i < mode.encodings.size(); ++i) {
-                if (i > 0) body << " ";
+                if (i > 0)
+                    body << " ";
                 body << mode.encodings[i];
             }
             body << "</" << prefix << ":Encodings>\r\n"
-                 << "        <" << prefix << ":Reboot>" << (mode.reboot ? "true" : "false") << "</" << prefix << ":Reboot>\r\n"
-                 << "        <" << prefix << ":Description>" << mode.description << "</" << prefix << ":Description>\r\n"
+                 << "        <" << prefix << ":Reboot>" << (mode.reboot ? "true" : "false") << "</" << prefix
+                 << ":Reboot>\r\n"
+                 << "        <" << prefix << ":Description>" << mode.description << "</" << prefix
+                 << ":Description>\r\n"
                  << "      </" << prefix << ":VideoSourceModes>\r\n";
         }
         body << "    </" << prefix << ":GetVideoSourceModesResponse>\r\n";
@@ -2199,7 +2286,8 @@ void OnvifServer::processVideoSourceModeRequest(
         const pugi::xml_node vsNode = doc.select_node("//*[local-name()='VideoSourceToken']").node();
         const std::string vsToken = vsNode ? vsNode.text().as_string() : "VideoSource_1";
 
-        const pugi::xml_node modeNode = doc.select_node("//*[local-name()='VideoSourceModeToken' or local-name()='ModeToken']").node();
+        const pugi::xml_node modeNode
+            = doc.select_node("//*[local-name()='VideoSourceModeToken' or local-name()='ModeToken']").node();
         const std::string modeToken = modeNode ? modeNode.text().as_string() : "";
 
         bool rebootRequired = false;
@@ -2218,7 +2306,8 @@ void OnvifServer::processVideoSourceModeRequest(
         }
 
         body << "    <" << prefix << ":SetVideoSourceModeResponse>\r\n"
-             << "      <" << prefix << ":Reboot>" << (rebootRequired ? "true" : "false") << "</" << prefix << ":Reboot>\r\n"
+             << "      <" << prefix << ":Reboot>" << (rebootRequired ? "true" : "false") << "</" << prefix
+             << ":Reboot>\r\n"
              << "    </" << prefix << ":SetVideoSourceModeResponse>\r\n";
     }
 }
@@ -2539,7 +2628,9 @@ void OnvifServer::handlePtzService(const httplib::Request& req, httplib::Respons
         GeoMoveTarget target {};
         pugi::xml_node targetNode = doc.select_node("//*[local-name()='Target']").node();
         pugi::xml_node geoNode
-            = doc.select_node("//*[local-name()='Target']/*[local-name()='GeoLocation'] | //*[local-name()='GeoLocation']").node();
+            = doc.select_node(
+                     "//*[local-name()='Target']/*[local-name()='GeoLocation'] | //*[local-name()='GeoLocation']")
+                  .node();
         if (!geoNode && targetNode) {
             geoNode = targetNode;
         }
@@ -2551,10 +2642,14 @@ void OnvifServer::handlePtzService(const httplib::Request& req, httplib::Respons
             } else {
                 const auto latNode = geoNode.select_node(".//*[local-name()='Latitude' or local-name()='lat']").node();
                 const auto lonNode = geoNode.select_node(".//*[local-name()='Longitude' or local-name()='lon']").node();
-                const auto elevNode = geoNode.select_node(".//*[local-name()='Elevation' or local-name()='elevation']").node();
-                if (latNode) target.targetGeo.latitude = latNode.text().as_double(0.0);
-                if (lonNode) target.targetGeo.longitude = lonNode.text().as_double(0.0);
-                if (elevNode) target.targetGeo.elevation = elevNode.text().as_double(0.0);
+                const auto elevNode
+                    = geoNode.select_node(".//*[local-name()='Elevation' or local-name()='elevation']").node();
+                if (latNode)
+                    target.targetGeo.latitude = latNode.text().as_double(0.0);
+                if (lonNode)
+                    target.targetGeo.longitude = lonNode.text().as_double(0.0);
+                if (elevNode)
+                    target.targetGeo.elevation = elevNode.text().as_double(0.0);
             }
         }
 
@@ -2802,33 +2897,7 @@ void OnvifServer::handlePtzService(const httplib::Request& req, httplib::Respons
         if (m_ptzHandler) {
             const auto tours = m_ptzHandler->handleGetPresetTours();
             for (const auto& t : tours) {
-                body << "      <tptz:PresetTour token=\"" << t.token << "\">\r\n";
-                if (!t.name.empty()) {
-                    body << "        <tt:Name>" << t.name << "</tt:Name>\r\n";
-                }
-                body << "        <tt:Status>\r\n";
-                std::string st = "Idle";
-                if (t.status == PresetTourState::Touring)
-                    st = "Touring";
-                else if (t.status == PresetTourState::Paused)
-                    st = "Paused";
-                else if (t.status == PresetTourState::Extended)
-                    st = "Extended";
-                body << "          <tt:State>" << st << "</tt:State>\r\n"
-                     << "        </tt:Status>\r\n"
-                     << "        <tt:AutoStart>" << (t.autoStart ? "true" : "false") << "</tt:AutoStart>\r\n";
-                for (const auto& s : t.spots) {
-                    body << "        <tt:TourSpot>\r\n"
-                         << "          <tt:PresetDetail>\r\n"
-                         << "            <tt:PresetToken>" << s.presetToken << "</tt:PresetToken>\r\n"
-                         << "          </tt:PresetDetail>\r\n"
-                         << "          <tt:Speed>\r\n"
-                         << "            <tt:PanTilt x=\"" << s.speed << "\" y=\"" << s.speed << "\"/>\r\n"
-                         << "          </tt:Speed>\r\n"
-                         << "          <tt:StayTime>PT" << s.stayTimeSeconds << "S</tt:StayTime>\r\n"
-                         << "        </tt:TourSpot>\r\n";
-                }
-                body << "      </tptz:PresetTour>\r\n";
+                appendPresetTourXml(body, t);
             }
         }
         body << "    </tptz:GetPresetToursResponse>\r\n";
@@ -2856,32 +2925,7 @@ void OnvifServer::handlePtzService(const httplib::Request& req, httplib::Respons
         if (m_ptzHandler) {
             const auto tourOpt = m_ptzHandler->handleGetPresetTour(tourTok);
             if (tourOpt) {
-                const auto& t = *tourOpt;
-                body << "      <tptz:PresetTour token=\"" << t.token << "\">\r\n";
-                if (!t.name.empty()) {
-                    body << "        <tt:Name>" << t.name << "</tt:Name>\r\n";
-                }
-                body << "        <tt:Status>\r\n";
-                std::string st = "Idle";
-                if (t.status == PresetTourState::Touring)
-                    st = "Touring";
-                else if (t.status == PresetTourState::Paused)
-                    st = "Paused";
-                body << "          <tt:State>" << st << "</tt:State>\r\n"
-                     << "        </tt:Status>\r\n"
-                     << "        <tt:AutoStart>" << (t.autoStart ? "true" : "false") << "</tt:AutoStart>\r\n";
-                for (const auto& s : t.spots) {
-                    body << "        <tt:TourSpot>\r\n"
-                         << "          <tt:PresetDetail>\r\n"
-                         << "            <tt:PresetToken>" << s.presetToken << "</tt:PresetToken>\r\n"
-                         << "          </tt:PresetDetail>\r\n"
-                         << "          <tt:Speed>\r\n"
-                         << "            <tt:PanTilt x=\"" << s.speed << "\" y=\"" << s.speed << "\"/>\r\n"
-                         << "          </tt:Speed>\r\n"
-                         << "          <tt:StayTime>PT" << s.stayTimeSeconds << "S</tt:StayTime>\r\n"
-                         << "        </tt:TourSpot>\r\n";
-                }
-                body << "      </tptz:PresetTour>\r\n";
+                appendPresetTourXml(body, *tourOpt);
             }
         }
         body << "    </tptz:GetPresetTourResponse>\r\n";
@@ -3720,56 +3764,7 @@ void OnvifServer::handleAnalyticsService(const httplib::Request& req, httplib::R
     } else if (isOp(opName, "CreateRules")) {
         const std::string configToken
             = reqNode.select_node(".//*[local-name()='ConfigurationToken']").node().text().as_string();
-        std::vector<AnalyticsRule> newRules;
-        for (auto rNode : reqNode.select_nodes(".//*[local-name()='Rule']")) {
-            AnalyticsRule rule;
-            rule.name = rNode.node().attribute("Name").as_string();
-            rule.type = rNode.node().attribute("Type").as_string();
-            for (auto si : rNode.node().select_nodes(".//*[local-name()='SimpleItem']")) {
-                const std::string sName = si.node().attribute("Name").as_string();
-                const std::string sVal = si.node().attribute("Value").as_string();
-                if (sName == "Direction") {
-                    rule.direction = sVal;
-                } else if (sName == "DwellTime") {
-                    try {
-                        rule.dwellTimeSeconds = std::stod(sVal);
-                    } catch (...) {
-                    }
-                } else if (sName == "Sensitivity") {
-                    try {
-                        rule.sensitivity = std::stoi(sVal);
-                    } catch (...) {
-                    }
-                } else if (sName == "MinConfidence") {
-                    try {
-                        rule.minConfidence = std::stof(sVal);
-                    } catch (...) {
-                    }
-                } else if (sName == "Enabled") {
-                    rule.enabled = (sVal == "true" || sVal == "1");
-                } else if (sName == "Classes") {
-                    std::stringstream ss(sVal);
-                    std::string c;
-                    while (std::getline(ss, c, ',')) {
-                        if (!c.empty())
-                            rule.objectClasses.push_back(c);
-                    }
-                }
-            }
-            std::vector<Point2D> pts;
-            for (auto pt : rNode.node().select_nodes(".//*[local-name()='Point']")) {
-                pts.push_back({ pt.node().attribute("x").as_float(), pt.node().attribute("y").as_float() });
-            }
-            if (!pts.empty()) {
-                if (rule.type.find("Line") != std::string::npos && pts.size() >= 2) {
-                    rule.lineStart = pts[0];
-                    rule.lineEnd = pts[1];
-                } else {
-                    rule.polygon = pts;
-                }
-            }
-            newRules.push_back(std::move(rule));
-        }
+        std::vector<AnalyticsRule> newRules = parseAnalyticsRules(reqNode);
         if (m_analyticsHandler) {
             m_analyticsHandler->handleCreateRules(configToken, newRules);
         } else {
@@ -3782,56 +3777,7 @@ void OnvifServer::handleAnalyticsService(const httplib::Request& req, httplib::R
     } else if (isOp(opName, "ModifyRules")) {
         const std::string configToken
             = reqNode.select_node(".//*[local-name()='ConfigurationToken']").node().text().as_string();
-        std::vector<AnalyticsRule> modRules;
-        for (auto rNode : reqNode.select_nodes(".//*[local-name()='Rule']")) {
-            AnalyticsRule rule;
-            rule.name = rNode.node().attribute("Name").as_string();
-            rule.type = rNode.node().attribute("Type").as_string();
-            for (auto si : rNode.node().select_nodes(".//*[local-name()='SimpleItem']")) {
-                const std::string sName = si.node().attribute("Name").as_string();
-                const std::string sVal = si.node().attribute("Value").as_string();
-                if (sName == "Direction") {
-                    rule.direction = sVal;
-                } else if (sName == "DwellTime") {
-                    try {
-                        rule.dwellTimeSeconds = std::stod(sVal);
-                    } catch (...) {
-                    }
-                } else if (sName == "Sensitivity") {
-                    try {
-                        rule.sensitivity = std::stoi(sVal);
-                    } catch (...) {
-                    }
-                } else if (sName == "MinConfidence") {
-                    try {
-                        rule.minConfidence = std::stof(sVal);
-                    } catch (...) {
-                    }
-                } else if (sName == "Enabled") {
-                    rule.enabled = (sVal == "true" || sVal == "1");
-                } else if (sName == "Classes") {
-                    std::stringstream ss(sVal);
-                    std::string c;
-                    while (std::getline(ss, c, ',')) {
-                        if (!c.empty())
-                            rule.objectClasses.push_back(c);
-                    }
-                }
-            }
-            std::vector<Point2D> pts;
-            for (auto pt : rNode.node().select_nodes(".//*[local-name()='Point']")) {
-                pts.push_back({ pt.node().attribute("x").as_float(), pt.node().attribute("y").as_float() });
-            }
-            if (!pts.empty()) {
-                if (rule.type.find("Line") != std::string::npos && pts.size() >= 2) {
-                    rule.lineStart = pts[0];
-                    rule.lineEnd = pts[1];
-                } else {
-                    rule.polygon = pts;
-                }
-            }
-            modRules.push_back(std::move(rule));
-        }
+        std::vector<AnalyticsRule> modRules = parseAnalyticsRules(reqNode);
         if (m_analyticsHandler) {
             m_analyticsHandler->handleModifyRules(configToken, modRules);
         } else {
@@ -4620,33 +4566,45 @@ void OnvifServer::handleThermalService(const httplib::Request& req, httplib::Res
         body << "    <tth:GetRadiometryConfigurationResponse>\r\n"
              << "      <tth:Configuration>\r\n"
              << "        <tth:VideoSourceToken>" << tok << "</tth:VideoSourceToken>\r\n"
-             << "        <tth:Emissivity>" << std::fixed << std::setprecision(2) << cfg.emissivity << "</tth:Emissivity>\r\n"
+             << "        <tth:Emissivity>" << std::fixed << std::setprecision(2) << cfg.emissivity
+             << "</tth:Emissivity>\r\n"
              << "        <tth:Distance>" << std::fixed << std::setprecision(1) << cfg.distance << "</tth:Distance>\r\n"
-             << "        <tth:ReflectedTemperature>" << std::fixed << std::setprecision(1) << cfg.reflectedTemperature << "</tth:ReflectedTemperature>\r\n"
-             << "        <tth:AtmosphericTemperature>" << std::fixed << std::setprecision(1) << cfg.atmosphericTemperature << "</tth:AtmosphericTemperature>\r\n"
-             << "        <tth:RelativeHumidity>" << std::fixed << std::setprecision(1) << cfg.relativeHumidity << "</tth:RelativeHumidity>\r\n"
-             << "        <tth:WindowTransmission>" << std::fixed << std::setprecision(2) << cfg.windowTransmission << "</tth:WindowTransmission>\r\n"
+             << "        <tth:ReflectedTemperature>" << std::fixed << std::setprecision(1) << cfg.reflectedTemperature
+             << "</tth:ReflectedTemperature>\r\n"
+             << "        <tth:AtmosphericTemperature>" << std::fixed << std::setprecision(1)
+             << cfg.atmosphericTemperature << "</tth:AtmosphericTemperature>\r\n"
+             << "        <tth:RelativeHumidity>" << std::fixed << std::setprecision(1) << cfg.relativeHumidity
+             << "</tth:RelativeHumidity>\r\n"
+             << "        <tth:WindowTransmission>" << std::fixed << std::setprecision(2) << cfg.windowTransmission
+             << "</tth:WindowTransmission>\r\n"
              << "      </tth:Configuration>\r\n"
              << "    </tth:GetRadiometryConfigurationResponse>\r\n";
     } else if (isOp(opName, "SetRadiometryConfiguration")) {
         const auto cfgNode = reqNode.select_node(".//*[local-name()='Configuration']").node();
-        const auto tokNode = cfgNode ? cfgNode.select_node(".//*[local-name()='VideoSourceToken']").node() : pugi::xml_node {};
+        const auto tokNode
+            = cfgNode ? cfgNode.select_node(".//*[local-name()='VideoSourceToken']").node() : pugi::xml_node {};
         const std::string tok = tokNode ? tokNode.text().as_string() : "VideoSource_1";
 
         RadiometryConfig cfg {};
         if (cfgNode) {
             const auto emNode = cfgNode.select_node(".//*[local-name()='Emissivity']").node();
-            if (emNode) cfg.emissivity = emNode.text().as_float(0.95f);
+            if (emNode)
+                cfg.emissivity = emNode.text().as_float(0.95f);
             const auto distNode = cfgNode.select_node(".//*[local-name()='Distance']").node();
-            if (distNode) cfg.distance = distNode.text().as_float(5.0f);
+            if (distNode)
+                cfg.distance = distNode.text().as_float(5.0f);
             const auto refNode = cfgNode.select_node(".//*[local-name()='ReflectedTemperature']").node();
-            if (refNode) cfg.reflectedTemperature = refNode.text().as_float(20.0f);
+            if (refNode)
+                cfg.reflectedTemperature = refNode.text().as_float(20.0f);
             const auto atmNode = cfgNode.select_node(".//*[local-name()='AtmosphericTemperature']").node();
-            if (atmNode) cfg.atmosphericTemperature = atmNode.text().as_float(20.0f);
+            if (atmNode)
+                cfg.atmosphericTemperature = atmNode.text().as_float(20.0f);
             const auto humNode = cfgNode.select_node(".//*[local-name()='RelativeHumidity']").node();
-            if (humNode) cfg.relativeHumidity = humNode.text().as_float(50.0f);
+            if (humNode)
+                cfg.relativeHumidity = humNode.text().as_float(50.0f);
             const auto winNode = cfgNode.select_node(".//*[local-name()='WindowTransmission']").node();
-            if (winNode) cfg.windowTransmission = winNode.text().as_float(1.0f);
+            if (winNode)
+                cfg.windowTransmission = winNode.text().as_float(1.0f);
         }
 
         if (m_thermalHandler) {
@@ -4670,10 +4628,11 @@ void OnvifServer::handleThermalService(const httplib::Request& req, httplib::Res
         body << "    <tth:GetRadiometrySpotsResponse>\r\n";
         for (const auto& s : spots) {
             body << "      <tth:Spot token=\"" << s.token << "\">\r\n"
-                 << "        <tth:Position x=\"" << std::fixed << std::setprecision(4) << s.position.x
-                 << "\" y=\"" << s.position.y << "\"/>\r\n"
+                 << "        <tth:Position x=\"" << std::fixed << std::setprecision(4) << s.position.x << "\" y=\""
+                 << s.position.y << "\"/>\r\n"
                  << "        <tth:Label>" << s.label << "</tth:Label>\r\n"
-                 << "        <tth:Temperature>" << std::fixed << std::setprecision(1) << s.temperature << "</tth:Temperature>\r\n"
+                 << "        <tth:Temperature>" << std::fixed << std::setprecision(1) << s.temperature
+                 << "</tth:Temperature>\r\n"
                  << "      </tth:Spot>\r\n";
         }
         body << "    </tth:GetRadiometrySpotsResponse>\r\n";
@@ -4690,10 +4649,13 @@ void OnvifServer::handleThermalService(const httplib::Request& req, httplib::Res
                 s.position.y = pos.attribute("y").as_float(0.5f);
             }
             const auto lbl = spotNode.node().select_node(".//*[local-name()='Label']").node();
-            if (lbl) s.label = lbl.text().as_string();
+            if (lbl)
+                s.label = lbl.text().as_string();
             const auto temp = spotNode.node().select_node(".//*[local-name()='Temperature']").node();
-            if (temp) s.temperature = temp.text().as_float(0.0f);
-            if (!s.token.empty()) spots.push_back(std::move(s));
+            if (temp)
+                s.temperature = temp.text().as_float(0.0f);
+            if (!s.token.empty())
+                spots.push_back(std::move(s));
         }
         if (m_thermalHandler) {
             m_thermalHandler->handleSetRadiometrySpots(tok, spots);
@@ -4716,11 +4678,12 @@ void OnvifServer::handleThermalService(const httplib::Request& req, httplib::Res
         body << "    <tth:GetRadiometryBoxesResponse>\r\n";
         for (const auto& b : boxes) {
             body << "      <tth:Box token=\"" << b.token << "\">\r\n"
-                 << "        <tth:TopLeft x=\"" << std::fixed << std::setprecision(4) << b.topLeft.x
-                 << "\" y=\"" << b.topLeft.y << "\"/>\r\n"
+                 << "        <tth:TopLeft x=\"" << std::fixed << std::setprecision(4) << b.topLeft.x << "\" y=\""
+                 << b.topLeft.y << "\"/>\r\n"
                  << "        <tth:BottomRight x=\"" << b.bottomRight.x << "\" y=\"" << b.bottomRight.y << "\"/>\r\n"
                  << "        <tth:Label>" << b.label << "</tth:Label>\r\n"
-                 << "        <tth:MinTemperature>" << std::fixed << std::setprecision(1) << b.minTemperature << "</tth:MinTemperature>\r\n"
+                 << "        <tth:MinTemperature>" << std::fixed << std::setprecision(1) << b.minTemperature
+                 << "</tth:MinTemperature>\r\n"
                  << "        <tth:MaxTemperature>" << b.maxTemperature << "</tth:MaxTemperature>\r\n"
                  << "        <tth:AvgTemperature>" << b.avgTemperature << "</tth:AvgTemperature>\r\n"
                  << "      </tth:Box>\r\n";
@@ -4744,14 +4707,19 @@ void OnvifServer::handleThermalService(const httplib::Request& req, httplib::Res
                 b.bottomRight.y = br.attribute("y").as_float(1.0f);
             }
             const auto lbl = boxNode.node().select_node(".//*[local-name()='Label']").node();
-            if (lbl) b.label = lbl.text().as_string();
+            if (lbl)
+                b.label = lbl.text().as_string();
             const auto minT = boxNode.node().select_node(".//*[local-name()='MinTemperature']").node();
-            if (minT) b.minTemperature = minT.text().as_float(0.0f);
+            if (minT)
+                b.minTemperature = minT.text().as_float(0.0f);
             const auto maxT = boxNode.node().select_node(".//*[local-name()='MaxTemperature']").node();
-            if (maxT) b.maxTemperature = maxT.text().as_float(0.0f);
+            if (maxT)
+                b.maxTemperature = maxT.text().as_float(0.0f);
             const auto avgT = boxNode.node().select_node(".//*[local-name()='AvgTemperature']").node();
-            if (avgT) b.avgTemperature = avgT.text().as_float(0.0f);
-            if (!b.token.empty()) boxes.push_back(std::move(b));
+            if (avgT)
+                b.avgTemperature = avgT.text().as_float(0.0f);
+            if (!b.token.empty())
+                boxes.push_back(std::move(b));
         }
         if (m_thermalHandler) {
             m_thermalHandler->handleSetRadiometryBoxes(tok, boxes);
@@ -4773,7 +4741,8 @@ void OnvifServer::handleThermalService(const httplib::Request& req, httplib::Res
         }
         body << "    <tth:GetColorPalettesResponse>\r\n";
         for (const auto& p : palettes) {
-            body << "      <tth:Palette token=\"" << p.token << "\" IsDefault=\"" << (p.isDefault ? "true" : "false") << "\">\r\n"
+            body << "      <tth:Palette token=\"" << p.token << "\" IsDefault=\"" << (p.isDefault ? "true" : "false")
+                 << "\">\r\n"
                  << "        <tth:Name>" << p.name << "</tth:Name>\r\n"
                  << "      </tth:Palette>\r\n";
         }
