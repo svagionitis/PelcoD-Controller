@@ -256,10 +256,26 @@ private slots:
 private:
     void setupUi();
     void updateConnectionUi(bool connected);
+    void initConnectionWidgets();
+    void registerConnectionWidget(QWidget* w);
+
+    /// @brief Returns true if m_onvifDevice is non-null. Used as a single-line guard in slots.
+    [[nodiscard]] bool requireDevice() const noexcept
+    {
+        return m_onvifDevice != nullptr;
+    }
+
+    /// @brief Configures a QTableWidget with standard read-only, single-row-select settings.
+    static void configureTable(QTableWidget* table, const QStringList& headers);
+
+    /// @brief Maps a cmbOsdPosition combo index to the corresponding OsdPositionType enum value.
+    [[nodiscard]] static PelcoD::Onvif::OsdPositionType osdPositionFromIndex(int index) noexcept;
 
     PelcoD::Qt::QOnvifDevice* m_onvifDevice { nullptr };
     VideoStreamTab* m_videoTab { nullptr };
     QList<PelcoD::Onvif::DiscoveredDevice> m_discoveredList {};
+
+    QList<QWidget*> m_connectionWidgets;
 
     QTabWidget* m_cameraTabs { nullptr };
 

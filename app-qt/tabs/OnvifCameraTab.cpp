@@ -516,10 +516,7 @@ void OnvifCameraTab::setupUi()
     presetsLayout->setSpacing(6);
 
     tablePresets = new QTableWidget(0, 2, groupPresets);
-    tablePresets->setHorizontalHeaderLabels({ tr("Token"), tr("Label / Name") });
-    tablePresets->horizontalHeader()->setStretchLastSection(true);
-    tablePresets->setSelectionBehavior(QAbstractItemView::SelectRows);
-    tablePresets->setSelectionMode(QAbstractItemView::SingleSelection);
+    configureTable(tablePresets, { tr("Token"), tr("Label / Name") });
     tablePresets->setMinimumHeight(200);
 
     auto* presetControls = new QHBoxLayout();
@@ -569,10 +566,7 @@ void OnvifCameraTab::setupUi()
     tourSelectorLayout->addStretch();
 
     tableTourSpots = new QTableWidget(0, 3, groupTours);
-    tableTourSpots->setHorizontalHeaderLabels({ tr("Preset Token"), tr("Speed (0.0 - 1.0)"), tr("Stay Time (sec)") });
-    tableTourSpots->horizontalHeader()->setStretchLastSection(true);
-    tableTourSpots->setSelectionBehavior(QAbstractItemView::SelectRows);
-    tableTourSpots->setSelectionMode(QAbstractItemView::SingleSelection);
+    configureTable(tableTourSpots, { tr("Preset Token"), tr("Speed (0.0 - 1.0)"), tr("Stay Time (sec)") });
     tableTourSpots->setMinimumHeight(150);
 
     auto* tourStepControls = new QHBoxLayout();
@@ -745,9 +739,7 @@ void OnvifCameraTab::setupUi()
     eventsLayout->addLayout(eventHeaderLayout);
 
     tableEvents = new QTableWidget(0, 4, groupEvents);
-    tableEvents->setHorizontalHeaderLabels({ tr("Time"), tr("Topic"), tr("Item"), tr("Value") });
-    tableEvents->horizontalHeader()->setStretchLastSection(true);
-    tableEvents->setSelectionBehavior(QAbstractItemView::SelectRows);
+    configureTable(tableEvents, { tr("Time"), tr("Topic"), tr("Item"), tr("Value") });
     tableEvents->setMinimumHeight(200);
     eventsLayout->addWidget(tableEvents);
 
@@ -764,10 +756,7 @@ void OnvifCameraTab::setupUi()
     osdLayout->setSpacing(6);
 
     tableOsds = new QTableWidget(0, 5, groupOsd);
-    tableOsds->setHorizontalHeaderLabels({ tr("Token"), tr("Type"), tr("Position"), tr("Font Size"), tr("Content") });
-    tableOsds->horizontalHeader()->setStretchLastSection(true);
-    tableOsds->setSelectionBehavior(QAbstractItemView::SelectRows);
-    tableOsds->setSelectionMode(QAbstractItemView::SingleSelection);
+    configureTable(tableOsds, { tr("Token"), tr("Type"), tr("Position"), tr("Font Size"), tr("Content") });
     tableOsds->setMinimumHeight(180);
     osdLayout->addWidget(tableOsds);
 
@@ -810,11 +799,7 @@ void OnvifCameraTab::setupUi()
     maskLayout->setSpacing(6);
 
     tableMasks = new QTableWidget(0, 5, groupMasks);
-    tableMasks->setHorizontalHeaderLabels(
-        { tr("Token"), tr("Config Token"), tr("Type"), tr("Color (RGB)"), tr("Enabled") });
-    tableMasks->horizontalHeader()->setStretchLastSection(true);
-    tableMasks->setSelectionBehavior(QAbstractItemView::SelectRows);
-    tableMasks->setSelectionMode(QAbstractItemView::SingleSelection);
+    configureTable(tableMasks, { tr("Token"), tr("Config Token"), tr("Type"), tr("Color (RGB)"), tr("Enabled") });
     tableMasks->setMinimumHeight(160);
     maskLayout->addWidget(tableMasks);
 
@@ -982,11 +967,7 @@ void OnvifCameraTab::setupUi()
     usersLayout->setSpacing(6);
 
     tableUsers = new QTableWidget(groupUsers);
-    tableUsers->setColumnCount(3);
-    tableUsers->setHorizontalHeaderLabels({ tr("Username"), tr("User Level"), tr("Password Status") });
-    tableUsers->horizontalHeader()->setStretchLastSection(true);
-    tableUsers->setSelectionBehavior(QAbstractItemView::SelectRows);
-    tableUsers->setSelectionMode(QAbstractItemView::SingleSelection);
+    configureTable(tableUsers, { tr("Username"), tr("User Level"), tr("Password Status") });
     tableUsers->setMinimumHeight(140);
     usersLayout->addWidget(tableUsers);
 
@@ -1175,10 +1156,9 @@ void OnvifCameraTab::setupUi()
     certsLayout->setSpacing(6);
 
     tableCertificates = new QTableWidget(0, 6, groupCerts);
-    tableCertificates->setHorizontalHeaderLabels({ tr("Certificate ID"), tr("Subject DN"), tr("Issuer DN"),
-        tr("Valid From"), tr("Valid Until"), tr("Key Usage") });
-    tableCertificates->setSelectionBehavior(QAbstractItemView::SelectRows);
-    tableCertificates->setSelectionMode(QAbstractItemView::SingleSelection);
+    configureTable(tableCertificates,
+        { tr("Certificate ID"), tr("Subject DN"), tr("Issuer DN"), tr("Valid From"), tr("Valid Until"),
+            tr("Key Usage") });
     tableCertificates->setMinimumHeight(120);
     certsLayout->addWidget(tableCertificates);
 
@@ -1238,11 +1218,7 @@ void OnvifCameraTab::setupUi()
     relaysLayout->setSpacing(6);
 
     tableRelays = new QTableWidget(0, 5, groupRelays);
-    tableRelays->setHorizontalHeaderLabels(
-        { tr("Token"), tr("Mode"), tr("Delay (s)"), tr("Idle State"), tr("Logical State") });
-    tableRelays->horizontalHeader()->setStretchLastSection(true);
-    tableRelays->setSelectionBehavior(QAbstractItemView::SelectRows);
-    tableRelays->setSelectionMode(QAbstractItemView::SingleSelection);
+    configureTable(tableRelays, { tr("Token"), tr("Mode"), tr("Delay (s)"), tr("Idle State"), tr("Logical State") });
     tableRelays->setMinimumHeight(120);
 
     auto* relayEditLayout = new QGridLayout();
@@ -1292,10 +1268,7 @@ void OnvifCameraTab::setupUi()
     inputsLayout->setSpacing(6);
 
     tableDigitalInputs = new QTableWidget(0, 4, groupInputs);
-    tableDigitalInputs->setHorizontalHeaderLabels({ tr("Token"), tr("Idle State"), tr("Sensor Type"), tr("State") });
-    tableDigitalInputs->horizontalHeader()->setStretchLastSection(true);
-    tableDigitalInputs->setSelectionBehavior(QAbstractItemView::SelectRows);
-    tableDigitalInputs->setSelectionMode(QAbstractItemView::SingleSelection);
+    configureTable(tableDigitalInputs, { tr("Token"), tr("Idle State"), tr("Sensor Type"), tr("State") });
     tableDigitalInputs->setMinimumHeight(100);
 
     auto* inputBtnLayout = new QHBoxLayout();
@@ -1365,10 +1338,9 @@ void OnvifCameraTab::setupUi()
     metaStreamLayout->addLayout(streamCtrlRow);
 
     tableMetaObjects = new QTableWidget(0, 6, groupMetaStream);
-    tableMetaObjects->setHorizontalHeaderLabels({ tr("Object ID"), tr("Class"), tr("Confidence"),
-        tr("Bounding Box (L,T,R,B)"), tr("Geo Location"), tr("Timestamp") });
-    tableMetaObjects->horizontalHeader()->setStretchLastSection(true);
-    tableMetaObjects->setSelectionBehavior(QAbstractItemView::SelectRows);
+    configureTable(tableMetaObjects,
+        { tr("Object ID"), tr("Class"), tr("Confidence"), tr("Bounding Box (L,T,R,B)"), tr("Geo Location"),
+            tr("Timestamp") });
     tableMetaObjects->setMinimumHeight(160);
     metaStreamLayout->addWidget(tableMetaObjects);
 
@@ -1379,11 +1351,7 @@ void OnvifCameraTab::setupUi()
     rulesLayout->setSpacing(6);
 
     tableRules = new QTableWidget(0, 5, groupRules);
-    tableRules->setHorizontalHeaderLabels(
-        { tr("Rule Name"), tr("Type"), tr("Classes"), tr("Parameters / Dwell"), tr("Status") });
-    tableRules->horizontalHeader()->setStretchLastSection(true);
-    tableRules->setSelectionBehavior(QAbstractItemView::SelectRows);
-    tableRules->setSelectionMode(QAbstractItemView::SingleSelection);
+    configureTable(tableRules, { tr("Rule Name"), tr("Type"), tr("Classes"), tr("Parameters / Dwell"), tr("Status") });
     tableRules->setMinimumHeight(130);
     rulesLayout->addWidget(tableRules);
 
@@ -1446,10 +1414,8 @@ void OnvifCameraTab::setupUi()
     recLayout->addLayout(sumLayout);
 
     tableRecordings = new QTableWidget(0, 5, groupRecordings);
-    tableRecordings->setHorizontalHeaderLabels(
-        { tr("Recording Token"), tr("Source"), tr("Content"), tr("Retention"), tr("Tracks") });
-    tableRecordings->setSelectionBehavior(QAbstractItemView::SelectRows);
-    tableRecordings->setSelectionMode(QAbstractItemView::SingleSelection);
+    configureTable(
+        tableRecordings, { tr("Recording Token"), tr("Source"), tr("Content"), tr("Retention"), tr("Tracks") });
     tableRecordings->setMinimumHeight(110);
     recLayout->addWidget(tableRecordings);
 
@@ -1495,10 +1461,8 @@ void OnvifCameraTab::setupUi()
     jobsLayout->setSpacing(6);
 
     tableRecordingJobs = new QTableWidget(0, 5, groupJobs);
-    tableRecordingJobs->setHorizontalHeaderLabels(
-        { tr("Job Token"), tr("Recording Token"), tr("Source Token"), tr("Priority"), tr("Mode") });
-    tableRecordingJobs->setSelectionBehavior(QAbstractItemView::SelectRows);
-    tableRecordingJobs->setSelectionMode(QAbstractItemView::SingleSelection);
+    configureTable(
+        tableRecordingJobs, { tr("Job Token"), tr("Recording Token"), tr("Source Token"), tr("Priority"), tr("Mode") });
     tableRecordingJobs->setMinimumHeight(100);
     jobsLayout->addWidget(tableRecordingJobs);
 
@@ -1545,10 +1509,7 @@ void OnvifCameraTab::setupUi()
     searchLayout->addLayout(recSearchForm);
 
     tableSearchResults = new QTableWidget(0, 5, groupSearch);
-    tableSearchResults->setHorizontalHeaderLabels(
-        { tr("Recording"), tr("Track"), tr("Earliest"), tr("Latest"), tr("State") });
-    tableSearchResults->setSelectionBehavior(QAbstractItemView::SelectRows);
-    tableSearchResults->setSelectionMode(QAbstractItemView::SingleSelection);
+    configureTable(tableSearchResults, { tr("Recording"), tr("Track"), tr("Earliest"), tr("Latest"), tr("State") });
     tableSearchResults->setMinimumHeight(100);
     searchLayout->addWidget(tableSearchResults);
 
@@ -1579,10 +1540,7 @@ void OnvifCameraTab::setupUi()
     searchLayout->addLayout(evSearchForm);
 
     tableEventSearchResults = new QTableWidget(0, 5, groupSearch);
-    tableEventSearchResults->setHorizontalHeaderLabels(
-        { tr("Recording"), tr("UTC Time"), tr("Topic"), tr("Source"), tr("Data") });
-    tableEventSearchResults->setSelectionBehavior(QAbstractItemView::SelectRows);
-    tableEventSearchResults->setSelectionMode(QAbstractItemView::SingleSelection);
+    configureTable(tableEventSearchResults, { tr("Recording"), tr("UTC Time"), tr("Topic"), tr("Source"), tr("Data") });
     tableEventSearchResults->setMinimumHeight(100);
     searchLayout->addWidget(tableEventSearchResults);
 
@@ -1684,11 +1642,8 @@ void OnvifCameraTab::setupUi()
     measLayout->setSpacing(6);
 
     tableRadiometry = new QTableWidget(0, 7, groupMeasurements);
-    tableRadiometry->setHorizontalHeaderLabels(
+    configureTable(tableRadiometry,
         { tr("Token"), tr("Type"), tr("Label"), tr("Coordinates"), tr("Celsius"), tr("Fahrenheit"), tr("Alarm") });
-    tableRadiometry->horizontalHeader()->setStretchLastSection(true);
-    tableRadiometry->setSelectionBehavior(QAbstractItemView::SelectRows);
-    tableRadiometry->setSelectionMode(QAbstractItemView::SingleSelection);
     tableRadiometry->setMinimumHeight(150);
     measLayout->addWidget(tableRadiometry);
 
@@ -1879,239 +1834,293 @@ void OnvifCameraTab::setupUi()
     connect(btnRefreshMeasurements, &QPushButton::clicked, this, &OnvifCameraTab::handleRefreshMeasurements);
     connect(btnAddMeasurement, &QPushButton::clicked, this, &OnvifCameraTab::handleAddMeasurement);
     connect(btnDeleteMeasurement, &QPushButton::clicked, this, &OnvifCameraTab::handleDeleteMeasurement);
+    initConnectionWidgets();
+}
+
+// ---------------------------------------------------------------------------
+// Helper: configureTable
+// ---------------------------------------------------------------------------
+void OnvifCameraTab::configureTable(QTableWidget* table, const QStringList& headers)
+{
+    table->setColumnCount(static_cast<int>(headers.size()));
+    table->setHorizontalHeaderLabels(headers);
+    table->horizontalHeader()->setStretchLastSection(true);
+    table->setSelectionBehavior(QAbstractItemView::SelectRows);
+    table->setSelectionMode(QAbstractItemView::SingleSelection);
+    table->setEditTriggers(QAbstractItemView::NoEditTriggers);
+}
+
+// ---------------------------------------------------------------------------
+// Helper: osdPositionFromIndex
+// ---------------------------------------------------------------------------
+PelcoD::Onvif::OsdPositionType OnvifCameraTab::osdPositionFromIndex(int index) noexcept
+{
+    switch (index) {
+    case 1:
+        return PelcoD::Onvif::OsdPositionType::UpperRight;
+    case 2:
+        return PelcoD::Onvif::OsdPositionType::LowerLeft;
+    case 3:
+        return PelcoD::Onvif::OsdPositionType::LowerRight;
+    case 4:
+        return PelcoD::Onvif::OsdPositionType::Custom;
+    default:
+        return PelcoD::Onvif::OsdPositionType::UpperLeft;
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Helper: registerConnectionWidget / initConnectionWidgets
+// ---------------------------------------------------------------------------
+void OnvifCameraTab::registerConnectionWidget(QWidget* w)
+{
+    if (w != nullptr) {
+        m_connectionWidgets.append(w);
+    }
+}
+
+void OnvifCameraTab::initConnectionWidgets()
+{
+    // PTZ
+    registerConnectionWidget(cmbProfiles);
+    registerConnectionWidget(btnGotoHome);
+    registerConnectionWidget(btnSetHome);
+    registerConnectionWidget(btnRelMove);
+    registerConnectionWidget(btnWiperOn);
+    registerConnectionWidget(btnWiperOff);
+    registerConnectionWidget(btnWasher);
+    registerConnectionWidget(btnIrOn);
+    registerConnectionWidget(btnIrOff);
+    registerConnectionWidget(editCustomAux);
+    registerConnectionWidget(btnSendAux);
+
+    // Presets
+    registerConnectionWidget(btnRefreshPresets);
+    registerConnectionWidget(btnGotoPreset);
+    registerConnectionWidget(btnSavePreset);
+    registerConnectionWidget(btnDeletePreset);
+
+    // Geolocation
+    registerConnectionWidget(btnRefreshGeoLoc);
+    registerConnectionWidget(btnSaveGeoLoc);
+    registerConnectionWidget(btnExecuteGeoMove);
+    registerConnectionWidget(btnExecuteSphericalMove);
+
+    // Tours
+    registerConnectionWidget(cmbPresetTours);
+    registerConnectionWidget(btnRefreshTours);
+    registerConnectionWidget(btnStartTour);
+    registerConnectionWidget(btnPauseTour);
+    registerConnectionWidget(btnStopTour);
+    registerConnectionWidget(tableTourSpots);
+    registerConnectionWidget(btnAddTourStep);
+    registerConnectionWidget(btnRemoveTourStep);
+    registerConnectionWidget(btnSaveTour);
+
+    // Profile T: Imaging
+    registerConnectionWidget(sliderBrightness);
+    registerConnectionWidget(sliderContrast);
+    registerConnectionWidget(sliderSaturation);
+    registerConnectionWidget(sliderSharpness);
+    registerConnectionWidget(cmbIrFilter);
+    registerConnectionWidget(chkBacklight);
+    registerConnectionWidget(chkWdr);
+    registerConnectionWidget(cmbAutoFocus);
+    registerConnectionWidget(btnFocusNear);
+    registerConnectionWidget(btnFocusFar);
+    registerConnectionWidget(cmbImagingPresets);
+    registerConnectionWidget(btnRecallImagingPreset);
+    registerConnectionWidget(btnRefreshImaging);
+    registerConnectionWidget(btnApplyImaging);
+    registerConnectionWidget(btnToggleEvents);
+    registerConnectionWidget(btnClearEvents);
+
+    // Profile T: OSD
+    registerConnectionWidget(tableOsds);
+    registerConnectionWidget(editOsdText);
+    registerConnectionWidget(cmbOsdPosition);
+    registerConnectionWidget(chkOsdDateTime);
+    registerConnectionWidget(spinOsdFontSize);
+    registerConnectionWidget(btnRefreshOsds);
+    registerConnectionWidget(btnAddOsd);
+    registerConnectionWidget(btnUpdateOsd);
+    registerConnectionWidget(btnDeleteOsd);
+
+    // Profile T: Privacy Masks
+    registerConnectionWidget(tableMasks);
+    registerConnectionWidget(editMaskToken);
+    registerConnectionWidget(cmbMaskType);
+    registerConnectionWidget(spinMaskColorR);
+    registerConnectionWidget(spinMaskColorG);
+    registerConnectionWidget(spinMaskColorB);
+    registerConnectionWidget(chkMaskEnabled);
+    registerConnectionWidget(btnRefreshMasks);
+    registerConnectionWidget(btnAddMask);
+    registerConnectionWidget(btnUpdateMask);
+    registerConnectionWidget(btnDeleteMask);
+
+    // Profile T: Video Source Modes
+    registerConnectionWidget(cmbVideoSourceModes);
+    registerConnectionWidget(btnRefreshVideoSourceModes);
+    registerConnectionWidget(btnApplyVideoSourceMode);
+
+    // Maintenance
+    registerConnectionWidget(btnReboot);
+
+    // Device Management: Users
+    registerConnectionWidget(tableUsers);
+    registerConnectionWidget(editUserUsername);
+    registerConnectionWidget(editUserPassword);
+    registerConnectionWidget(cmbUserLevel);
+    registerConnectionWidget(btnAddUser);
+    registerConnectionWidget(btnUpdateUser);
+    registerConnectionWidget(btnDeleteUser);
+    registerConnectionWidget(btnRefreshUsers);
+
+    // Device Management: Network
+    registerConnectionWidget(chkNetEnabled);
+    registerConnectionWidget(chkNetDhcp);
+    registerConnectionWidget(editNetIp);
+    registerConnectionWidget(spinNetPrefix);
+    registerConnectionWidget(editNetGateway);
+    registerConnectionWidget(btnRefreshNetwork);
+    registerConnectionWidget(btnApplyNetwork);
+    registerConnectionWidget(chkDnsDhcp);
+    registerConnectionWidget(editDnsServers);
+    registerConnectionWidget(btnRefreshDns);
+    registerConnectionWidget(btnApplyDns);
+    registerConnectionWidget(chkNtpDhcp);
+    registerConnectionWidget(editNtpServers);
+    registerConnectionWidget(btnRefreshNtp);
+    registerConnectionWidget(btnApplyNtp);
+    registerConnectionWidget(btnSyncPcTime);
+    registerConnectionWidget(btnFactoryDefaultSoft);
+    registerConnectionWidget(btnFactoryDefaultHard);
+
+    // Maintenance Extensions
+    registerConnectionWidget(btnFetchSystemLog);
+    registerConnectionWidget(btnFetchAccessLog);
+    registerConnectionWidget(txtSystemLogs);
+    registerConnectionWidget(btnFetchSupportInfo);
+    registerConnectionWidget(btnDownloadBackup);
+    registerConnectionWidget(btnRestoreBackup);
+    registerConnectionWidget(editBackupPayload);
+    registerConnectionWidget(btnFetchEndpointRef);
+
+    // Relays & I/O
+    registerConnectionWidget(tableRelays);
+    registerConnectionWidget(editRelayToken);
+    registerConnectionWidget(cmbRelayMode);
+    registerConnectionWidget(spinRelayDelay);
+    registerConnectionWidget(cmbRelayIdleState);
+    registerConnectionWidget(btnRefreshRelays);
+    registerConnectionWidget(btnActivateRelay);
+    registerConnectionWidget(btnDeactivateRelay);
+    registerConnectionWidget(btnApplyRelaySettings);
+    registerConnectionWidget(tableDigitalInputs);
+    registerConnectionWidget(btnRefreshInputs);
+
+    // Metadata & Analytics
+    registerConnectionWidget(cmbMetaConfigs);
+    registerConnectionWidget(chkMetaPtzStatus);
+    registerConnectionWidget(chkMetaAnalytics);
+    registerConnectionWidget(chkMetaEvents);
+    registerConnectionWidget(chkMetaGeo);
+    registerConnectionWidget(btnRefreshMetaConfigs);
+    registerConnectionWidget(btnApplyMetaConfig);
+    registerConnectionWidget(btnToggleMetaStream);
+    registerConnectionWidget(btnPollMetaOnce);
+    registerConnectionWidget(tableMetaObjects);
+
+    // Analytics Rules
+    registerConnectionWidget(tableRules);
+    registerConnectionWidget(editRuleName);
+    registerConnectionWidget(cmbRuleType);
+    registerConnectionWidget(editRuleClasses);
+    registerConnectionWidget(spinRuleMinConf);
+    registerConnectionWidget(spinRuleDwellTime);
+    registerConnectionWidget(btnAddRule);
+    registerConnectionWidget(btnDeleteRule);
+    registerConnectionWidget(btnRefreshRules);
+
+    // PKI Certificates
+    registerConnectionWidget(tableCertificates);
+    registerConnectionWidget(btnRefreshCerts);
+    registerConnectionWidget(editNewCertId);
+    registerConnectionWidget(editNewCertSubject);
+    registerConnectionWidget(spinNewCertDays);
+    registerConnectionWidget(btnCreateSelfSignedCert);
+    registerConnectionWidget(btnGenerateCsr);
+    registerConnectionWidget(btnDeleteCert);
+    registerConnectionWidget(cmbClientCertMode);
+    registerConnectionWidget(btnApplyClientCertMode);
+
+    // Profile G: Recordings & Replay
+    registerConnectionWidget(btnRefreshRecordingSummary);
+    registerConnectionWidget(tableRecordings);
+    registerConnectionWidget(editNewRecordingSource);
+    registerConnectionWidget(editNewRecordingContent);
+    registerConnectionWidget(btnCreateRecording);
+    registerConnectionWidget(btnDeleteRecording);
+    registerConnectionWidget(btnRefreshRecordings);
+    registerConnectionWidget(cmbTrackType);
+    registerConnectionWidget(editTrackDesc);
+    registerConnectionWidget(btnCreateTrack);
+    registerConnectionWidget(btnDeleteTrack);
+    registerConnectionWidget(tableRecordingJobs);
+    registerConnectionWidget(editJobRecordingToken);
+    registerConnectionWidget(editJobSourceToken);
+    registerConnectionWidget(spinJobPriority);
+    registerConnectionWidget(cmbJobMode);
+    registerConnectionWidget(btnCreateJob);
+    registerConnectionWidget(btnToggleJobMode);
+    registerConnectionWidget(btnDeleteJob);
+    registerConnectionWidget(btnRefreshRecordingJobs);
+    registerConnectionWidget(editSearchScope);
+    registerConnectionWidget(btnFindRecordings);
+    registerConnectionWidget(tableSearchResults);
+    registerConnectionWidget(editEventStartUtc);
+    registerConnectionWidget(editEventEndUtc);
+    registerConnectionWidget(btnFindEvents);
+    registerConnectionWidget(tableEventSearchResults);
+    registerConnectionWidget(editReplayUri);
+    registerConnectionWidget(btnResolveReplayUri);
+    registerConnectionWidget(btnPlayReplayUri);
+
+    // Thermal & Radiometry
+    registerConnectionWidget(spinEmissivity);
+    registerConnectionWidget(spinTargetDistance);
+    registerConnectionWidget(spinReflectedTemp);
+    registerConnectionWidget(spinAtmosphericTemp);
+    registerConnectionWidget(spinRelativeHumidity);
+    registerConnectionWidget(spinWindowTransmission);
+    registerConnectionWidget(btnRefreshRadiometry);
+    registerConnectionWidget(btnApplyRadiometry);
+    registerConnectionWidget(cmbThermalPalettes);
+    registerConnectionWidget(btnSetPalette);
+    registerConnectionWidget(btnRefreshPalettes);
+    registerConnectionWidget(btnTriggerNuc);
+    registerConnectionWidget(tableRadiometry);
+    registerConnectionWidget(cmbRadType);
+    registerConnectionWidget(editRadToken);
+    registerConnectionWidget(editRadLabel);
+    registerConnectionWidget(spinRadX1);
+    registerConnectionWidget(spinRadY1);
+    registerConnectionWidget(spinRadX2);
+    registerConnectionWidget(spinRadY2);
+    registerConnectionWidget(btnAddMeasurement);
+    registerConnectionWidget(btnDeleteMeasurement);
+    registerConnectionWidget(btnRefreshMeasurements);
+    registerConnectionWidget(spinAlarmThreshold);
 }
 
 void OnvifCameraTab::updateConnectionUi(bool connected)
 {
     btnConnect->setEnabled(!connected);
     btnDisconnect->setEnabled(connected);
-    btnReboot->setEnabled(connected);
-    cmbProfiles->setEnabled(connected);
-    btnGotoHome->setEnabled(connected);
-    btnSetHome->setEnabled(connected);
-    btnRelMove->setEnabled(connected);
-    btnWiperOn->setEnabled(connected);
-    btnWiperOff->setEnabled(connected);
-    btnWasher->setEnabled(connected);
-    btnIrOn->setEnabled(connected);
-    btnIrOff->setEnabled(connected);
-    editCustomAux->setEnabled(connected);
-    btnSendAux->setEnabled(connected);
-    btnRefreshPresets->setEnabled(connected);
-    btnGotoPreset->setEnabled(connected);
-    btnSavePreset->setEnabled(connected);
-    btnDeletePreset->setEnabled(connected);
-    btnRefreshGeoLoc->setEnabled(connected);
-    btnSaveGeoLoc->setEnabled(connected);
-    btnExecuteGeoMove->setEnabled(connected);
-    btnExecuteSphericalMove->setEnabled(connected);
-
-    // Tour widgets
-    cmbPresetTours->setEnabled(connected);
-    btnRefreshTours->setEnabled(connected);
-    btnStartTour->setEnabled(connected);
-    btnPauseTour->setEnabled(connected);
-    btnStopTour->setEnabled(connected);
-    tableTourSpots->setEnabled(connected);
-    btnAddTourStep->setEnabled(connected);
-    btnRemoveTourStep->setEnabled(connected);
-    btnSaveTour->setEnabled(connected);
-
-    // Profile T widgets
-    sliderBrightness->setEnabled(connected);
-    sliderContrast->setEnabled(connected);
-    sliderSaturation->setEnabled(connected);
-    sliderSharpness->setEnabled(connected);
-    cmbIrFilter->setEnabled(connected);
-    chkBacklight->setEnabled(connected);
-    chkWdr->setEnabled(connected);
-    cmbAutoFocus->setEnabled(connected);
-    btnFocusNear->setEnabled(connected);
-    btnFocusFar->setEnabled(connected);
-    cmbImagingPresets->setEnabled(connected);
-    btnRecallImagingPreset->setEnabled(connected);
-    btnRefreshImaging->setEnabled(connected);
-    btnApplyImaging->setEnabled(connected);
-    btnToggleEvents->setEnabled(connected);
-    btnClearEvents->setEnabled(connected);
-
-    // Profile T OSD widgets
-    tableOsds->setEnabled(connected);
-    editOsdText->setEnabled(connected);
-    cmbOsdPosition->setEnabled(connected);
-    chkOsdDateTime->setEnabled(connected);
-    spinOsdFontSize->setEnabled(connected);
-    btnRefreshOsds->setEnabled(connected);
-    btnAddOsd->setEnabled(connected);
-    btnUpdateOsd->setEnabled(connected);
-    btnDeleteOsd->setEnabled(connected);
-
-    // Profile T: Privacy Masks widgets
-    tableMasks->setEnabled(connected);
-    editMaskToken->setEnabled(connected);
-    cmbMaskType->setEnabled(connected);
-    spinMaskColorR->setEnabled(connected);
-    spinMaskColorG->setEnabled(connected);
-    spinMaskColorB->setEnabled(connected);
-    chkMaskEnabled->setEnabled(connected);
-    btnRefreshMasks->setEnabled(connected);
-    btnAddMask->setEnabled(connected);
-    btnUpdateMask->setEnabled(connected);
-    btnDeleteMask->setEnabled(connected);
-
-    // Profile T: Video Source Modes widgets
-    cmbVideoSourceModes->setEnabled(connected);
-    btnRefreshVideoSourceModes->setEnabled(connected);
-    btnApplyVideoSourceMode->setEnabled(connected);
-
-    // Device Management: Users & Security widgets
-    tableUsers->setEnabled(connected);
-    editUserUsername->setEnabled(connected);
-    editUserPassword->setEnabled(connected);
-    cmbUserLevel->setEnabled(connected);
-    btnAddUser->setEnabled(connected);
-    btnUpdateUser->setEnabled(connected);
-    btnDeleteUser->setEnabled(connected);
-    btnRefreshUsers->setEnabled(connected);
-
-    // Device Management: Network & Maintenance widgets
-    chkNetEnabled->setEnabled(connected);
-    chkNetDhcp->setEnabled(connected);
-    editNetIp->setEnabled(connected);
-    spinNetPrefix->setEnabled(connected);
-    editNetGateway->setEnabled(connected);
-    btnRefreshNetwork->setEnabled(connected);
-    btnApplyNetwork->setEnabled(connected);
-
-    chkDnsDhcp->setEnabled(connected);
-    editDnsServers->setEnabled(connected);
-    btnRefreshDns->setEnabled(connected);
-    btnApplyDns->setEnabled(connected);
-
-    chkNtpDhcp->setEnabled(connected);
-    editNtpServers->setEnabled(connected);
-    btnRefreshNtp->setEnabled(connected);
-    btnApplyNtp->setEnabled(connected);
-
-    btnSyncPcTime->setEnabled(connected);
-    btnFactoryDefaultSoft->setEnabled(connected);
-    btnFactoryDefaultHard->setEnabled(connected);
-
-    // Maintenance Extensions widgets
-    btnFetchSystemLog->setEnabled(connected);
-    btnFetchAccessLog->setEnabled(connected);
-    txtSystemLogs->setEnabled(connected);
-    btnFetchSupportInfo->setEnabled(connected);
-    btnDownloadBackup->setEnabled(connected);
-    btnRestoreBackup->setEnabled(connected);
-    editBackupPayload->setEnabled(connected);
-    btnFetchEndpointRef->setEnabled(connected);
-
-    // Relay & I/O widgets
-    tableRelays->setEnabled(connected);
-    editRelayToken->setEnabled(connected);
-    cmbRelayMode->setEnabled(connected);
-    spinRelayDelay->setEnabled(connected);
-    cmbRelayIdleState->setEnabled(connected);
-    btnRefreshRelays->setEnabled(connected);
-    btnActivateRelay->setEnabled(connected);
-    btnDeactivateRelay->setEnabled(connected);
-    btnApplyRelaySettings->setEnabled(connected);
-    tableDigitalInputs->setEnabled(connected);
-    btnRefreshInputs->setEnabled(connected);
-
-    // Metadata & Analytics widgets
-    cmbMetaConfigs->setEnabled(connected);
-    chkMetaPtzStatus->setEnabled(connected);
-    chkMetaAnalytics->setEnabled(connected);
-    chkMetaEvents->setEnabled(connected);
-    chkMetaGeo->setEnabled(connected);
-    btnRefreshMetaConfigs->setEnabled(connected);
-    btnApplyMetaConfig->setEnabled(connected);
-    btnToggleMetaStream->setEnabled(connected);
-    btnPollMetaOnce->setEnabled(connected);
-    tableMetaObjects->setEnabled(connected);
-
-    // Profile M & T Analytics Rules widgets
-    tableRules->setEnabled(connected);
-    editRuleName->setEnabled(connected);
-    cmbRuleType->setEnabled(connected);
-    editRuleClasses->setEnabled(connected);
-    spinRuleMinConf->setEnabled(connected);
-    spinRuleDwellTime->setEnabled(connected);
-    btnAddRule->setEnabled(connected);
-    btnDeleteRule->setEnabled(connected);
-    btnRefreshRules->setEnabled(connected);
-
-    // PKI Certificates widgets
-    tableCertificates->setEnabled(connected);
-    btnRefreshCerts->setEnabled(connected);
-    editNewCertId->setEnabled(connected);
-    editNewCertSubject->setEnabled(connected);
-    spinNewCertDays->setEnabled(connected);
-    btnCreateSelfSignedCert->setEnabled(connected);
-    btnGenerateCsr->setEnabled(connected);
-    btnDeleteCert->setEnabled(connected);
-    cmbClientCertMode->setEnabled(connected);
-    btnApplyClientCertMode->setEnabled(connected);
-
-    // Profile G: Recordings & Replay widgets
-    btnRefreshRecordingSummary->setEnabled(connected);
-    tableRecordings->setEnabled(connected);
-    editNewRecordingSource->setEnabled(connected);
-    editNewRecordingContent->setEnabled(connected);
-    btnCreateRecording->setEnabled(connected);
-    btnDeleteRecording->setEnabled(connected);
-    btnRefreshRecordings->setEnabled(connected);
-    cmbTrackType->setEnabled(connected);
-    editTrackDesc->setEnabled(connected);
-    btnCreateTrack->setEnabled(connected);
-    btnDeleteTrack->setEnabled(connected);
-    tableRecordingJobs->setEnabled(connected);
-    editJobRecordingToken->setEnabled(connected);
-    editJobSourceToken->setEnabled(connected);
-    spinJobPriority->setEnabled(connected);
-    cmbJobMode->setEnabled(connected);
-    btnCreateJob->setEnabled(connected);
-    btnToggleJobMode->setEnabled(connected);
-    btnDeleteJob->setEnabled(connected);
-    btnRefreshRecordingJobs->setEnabled(connected);
-    editSearchScope->setEnabled(connected);
-    btnFindRecordings->setEnabled(connected);
-    tableSearchResults->setEnabled(connected);
-    editEventStartUtc->setEnabled(connected);
-    editEventEndUtc->setEnabled(connected);
-    btnFindEvents->setEnabled(connected);
-    tableEventSearchResults->setEnabled(connected);
-    editReplayUri->setEnabled(connected);
-    btnResolveReplayUri->setEnabled(connected);
-    btnPlayReplayUri->setEnabled(connected);
-
-    // Thermal & Radiometry widgets
-    spinEmissivity->setEnabled(connected);
-    spinTargetDistance->setEnabled(connected);
-    spinReflectedTemp->setEnabled(connected);
-    spinAtmosphericTemp->setEnabled(connected);
-    spinRelativeHumidity->setEnabled(connected);
-    spinWindowTransmission->setEnabled(connected);
-    btnRefreshRadiometry->setEnabled(connected);
-    btnApplyRadiometry->setEnabled(connected);
-    cmbThermalPalettes->setEnabled(connected);
-    btnSetPalette->setEnabled(connected);
-    btnRefreshPalettes->setEnabled(connected);
-    btnTriggerNuc->setEnabled(connected);
-    tableRadiometry->setEnabled(connected);
-    cmbRadType->setEnabled(connected);
-    editRadToken->setEnabled(connected);
-    editRadLabel->setEnabled(connected);
-    spinRadX1->setEnabled(connected);
-    spinRadY1->setEnabled(connected);
-    spinRadX2->setEnabled(connected);
-    spinRadY2->setEnabled(connected);
-    btnAddMeasurement->setEnabled(connected);
-    btnDeleteMeasurement->setEnabled(connected);
-    btnRefreshMeasurements->setEnabled(connected);
-    spinAlarmThreshold->setEnabled(connected);
+    for (QWidget* w : std::as_const(m_connectionWidgets)) {
+        w->setEnabled(connected);
+    }
 
     if (!connected && btnToggleMetaStream->isChecked()) {
         btnToggleMetaStream->setChecked(false);
@@ -2967,18 +2976,7 @@ void OnvifCameraTab::handleCreateOsd()
     osd.fontSize = static_cast<uint32_t>(spinOsdFontSize->value());
     osd.isDateAndTime = chkOsdDateTime->isChecked();
 
-    const int posIdx = cmbOsdPosition->currentIndex();
-    if (posIdx == 1) {
-        osd.position = PelcoD::Onvif::OsdPositionType::UpperRight;
-    } else if (posIdx == 2) {
-        osd.position = PelcoD::Onvif::OsdPositionType::LowerLeft;
-    } else if (posIdx == 3) {
-        osd.position = PelcoD::Onvif::OsdPositionType::LowerRight;
-    } else if (posIdx == 4) {
-        osd.position = PelcoD::Onvif::OsdPositionType::Custom;
-    } else {
-        osd.position = PelcoD::Onvif::OsdPositionType::UpperLeft;
-    }
+    osd.position = osdPositionFromIndex(cmbOsdPosition->currentIndex());
 
     m_onvifDevice->createOSD(osd);
 }
@@ -2999,18 +2997,7 @@ void OnvifCameraTab::handleSetOsd()
     osd.fontSize = static_cast<uint32_t>(spinOsdFontSize->value());
     osd.isDateAndTime = chkOsdDateTime->isChecked();
 
-    const int posIdx = cmbOsdPosition->currentIndex();
-    if (posIdx == 1) {
-        osd.position = PelcoD::Onvif::OsdPositionType::UpperRight;
-    } else if (posIdx == 2) {
-        osd.position = PelcoD::Onvif::OsdPositionType::LowerLeft;
-    } else if (posIdx == 3) {
-        osd.position = PelcoD::Onvif::OsdPositionType::LowerRight;
-    } else if (posIdx == 4) {
-        osd.position = PelcoD::Onvif::OsdPositionType::Custom;
-    } else {
-        osd.position = PelcoD::Onvif::OsdPositionType::UpperLeft;
-    }
+    osd.position = osdPositionFromIndex(cmbOsdPosition->currentIndex());
 
     m_onvifDevice->setOSD(osd);
 }
