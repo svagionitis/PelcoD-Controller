@@ -119,20 +119,7 @@ namespace {
 
         const auto polyNode = maskNode.select_node(".//*[local-name()='Polygon']").node();
         if (polyNode) {
-            for (const auto& ptNode : polyNode.children()) {
-                Point2D pt {};
-                if (ptNode.attribute("x")) {
-                    pt.x = ptNode.attribute("x").as_float(0.0f);
-                } else if (ptNode.attribute("X")) {
-                    pt.x = ptNode.attribute("X").as_float(0.0f);
-                }
-                if (ptNode.attribute("y")) {
-                    pt.y = ptNode.attribute("y").as_float(0.0f);
-                } else if (ptNode.attribute("Y")) {
-                    pt.y = ptNode.attribute("Y").as_float(0.0f);
-                }
-                mask.polygon.push_back(pt);
-            }
+            mask.polygon = Xml::parsePoint2DList(polyNode);
         }
 
         const auto typeNode = maskNode.select_node(".//*[local-name()='Type']").node();
@@ -245,10 +232,7 @@ namespace {
                     }
                 }
             }
-            std::vector<Point2D> pts;
-            for (auto pt : rNode.node().select_nodes(".//*[local-name()='Point']")) {
-                pts.push_back({ pt.node().attribute("x").as_float(), pt.node().attribute("y").as_float() });
-            }
+            const std::vector<Point2D> pts = Xml::parsePoint2DList(rNode.node());
             if (!pts.empty()) {
                 if (rule.type.find("Line") != std::string::npos && pts.size() >= 2) {
                     rule.lineStart = pts[0];
@@ -1790,8 +1774,9 @@ void OnvifServer::processOsdRequest(
             const pugi::xml_node posNode
                 = osdNode.select_node(".//*[local-name()='Position']/*[local-name()='Pos']").node();
             if (posNode) {
-                osd.customX = posNode.attribute("x").as_float(0.0f);
-                osd.customY = posNode.attribute("y").as_float(0.0f);
+                const auto pt = Xml::parsePoint2D(posNode);
+                osd.customX = pt.x;
+                osd.customY = pt.y;
             }
         } else {
             osd.position = OsdPositionType::UpperLeft;
@@ -4574,8 +4559,7 @@ void OnvifServer::handleThermalService(const httplib::Request& req, httplib::Res
             s.token = spotNode.node().attribute("token").as_string();
             const auto pos = spotNode.node().select_node(".//*[local-name()='Position']").node();
             if (pos) {
-                s.position.x = pos.attribute("x").as_float(0.5f);
-                s.position.y = pos.attribute("y").as_float(0.5f);
+                s.position = Xml::parsePoint2D(pos, 0.5f, 0.5f);
             }
             const auto lbl = spotNode.node().select_node(".//*[local-name()='Label']").node();
             if (lbl)
@@ -4627,13 +4611,11 @@ void OnvifServer::handleThermalService(const httplib::Request& req, httplib::Res
             b.token = boxNode.node().attribute("token").as_string();
             const auto tl = boxNode.node().select_node(".//*[local-name()='TopLeft']").node();
             if (tl) {
-                b.topLeft.x = tl.attribute("x").as_float(0.0f);
-                b.topLeft.y = tl.attribute("y").as_float(0.0f);
+                b.topLeft = Xml::parsePoint2D(tl, 0.0f, 0.0f);
             }
             const auto br = boxNode.node().select_node(".//*[local-name()='BottomRight']").node();
             if (br) {
-                b.bottomRight.x = br.attribute("x").as_float(1.0f);
-                b.bottomRight.y = br.attribute("y").as_float(1.0f);
+                b.bottomRight = Xml::parsePoint2D(br, 1.0f, 1.0f);
             }
             const auto lbl = boxNode.node().select_node(".//*[local-name()='Label']").node();
             if (lbl)

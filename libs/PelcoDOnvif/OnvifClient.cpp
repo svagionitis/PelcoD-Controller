@@ -2422,8 +2422,9 @@ namespace {
                 osd.position = OsdPositionType::Custom;
                 const auto pNode = findNodeWithSuffix(posNode, "Pos");
                 if (pNode) {
-                    osd.customX = pNode.attribute("x").as_float(0.0f);
-                    osd.customY = pNode.attribute("y").as_float(0.0f);
+                    const auto pt = Xml::parsePoint2D(pNode);
+                    osd.customX = pt.x;
+                    osd.customY = pt.y;
                 }
             } else {
                 osd.position = OsdPositionType::UpperLeft;
@@ -4180,18 +4181,13 @@ std::vector<AnalyticsRule> OnvifClient::parseRulesResponse(const std::string& xm
                 }
             }
 
-            std::vector<pugi::xml_node> points;
-            collectNodesWithSuffix(paramsNode, "Point", points);
+            const std::vector<Point2D> points = Xml::parsePoint2DList(paramsNode);
             if (!points.empty()) {
                 if (rule.type.find("Line") != std::string::npos && points.size() >= 2) {
-                    rule.lineStart.x = points[0].attribute("x").as_float();
-                    rule.lineStart.y = points[0].attribute("y").as_float();
-                    rule.lineEnd.x = points[1].attribute("x").as_float();
-                    rule.lineEnd.y = points[1].attribute("y").as_float();
+                    rule.lineStart = points[0];
+                    rule.lineEnd = points[1];
                 } else {
-                    for (const auto& pt : points) {
-                        rule.polygon.push_back({ pt.attribute("x").as_float(), pt.attribute("y").as_float() });
-                    }
+                    rule.polygon = points;
                 }
             }
         }
@@ -4399,25 +4395,7 @@ namespace {
         }
 
         if (polyNode) {
-            for (const auto& ptNode : polyNode.children()) {
-                const std::string ptName = ptNode.name();
-                const auto colonPos = ptName.find(':');
-                const std::string localPt = (colonPos != std::string::npos) ? ptName.substr(colonPos + 1) : ptName;
-                if (localPt == "Point") {
-                    Point2D pt {};
-                    if (ptNode.attribute("x")) {
-                        pt.x = ptNode.attribute("x").as_float(0.0f);
-                    } else if (ptNode.attribute("X")) {
-                        pt.x = ptNode.attribute("X").as_float(0.0f);
-                    }
-                    if (ptNode.attribute("y")) {
-                        pt.y = ptNode.attribute("y").as_float(0.0f);
-                    } else if (ptNode.attribute("Y")) {
-                        pt.y = ptNode.attribute("Y").as_float(0.0f);
-                    }
-                    mask.polygon.push_back(pt);
-                }
-            }
+            mask.polygon = Xml::parsePoint2DList(polyNode);
         }
 
         const auto typeNode = findNodeWithSuffix(maskNode, "Type");
@@ -5107,8 +5085,7 @@ std::vector<RadiometrySpot> OnvifClient::parseRadiometrySpotsResponse(const std:
 
         const auto posNode = findNodeWithSuffix(node, "Position");
         if (posNode) {
-            s.position.x = posNode.attribute("x").as_float(0.5f);
-            s.position.y = posNode.attribute("y").as_float(0.5f);
+            s.position = Xml::parsePoint2D(posNode, 0.5f, 0.5f);
         }
 
         const auto lbl = findNodeWithSuffix(node, "Label");
@@ -5150,14 +5127,12 @@ std::vector<RadiometryBox> OnvifClient::parseRadiometryBoxesResponse(const std::
 
         const auto tlNode = findNodeWithSuffix(node, "TopLeft");
         if (tlNode) {
-            b.topLeft.x = tlNode.attribute("x").as_float(0.0f);
-            b.topLeft.y = tlNode.attribute("y").as_float(0.0f);
+            b.topLeft = Xml::parsePoint2D(tlNode, 0.0f, 0.0f);
         }
 
         const auto brNode = findNodeWithSuffix(node, "BottomRight");
         if (brNode) {
-            b.bottomRight.x = brNode.attribute("x").as_float(1.0f);
-            b.bottomRight.y = brNode.attribute("y").as_float(1.0f);
+            b.bottomRight = Xml::parsePoint2D(brNode, 1.0f, 1.0f);
         }
 
         const auto lbl = findNodeWithSuffix(node, "Label");
