@@ -6,6 +6,8 @@
 #include "Canvas.h"
 #include "PelcoDDevice.h"
 #include "RttProfiler.h"
+#include "SpectrogramColorMap.h"
+#include "Stft.h"
 #include "Terminal.h"
 
 #include <cstdint>
@@ -26,11 +28,15 @@ public:
 
 private:
     void ensureProfilerConnected(PelcoD::PelcoDDevice& device);
+    void renderWaterfall(Canvas& canvas, int startX, int startY, int width, int height);
 
     std::string m_lastAction { "Ready" };
     PelcoD::RttProfiler m_profiler;
     PelcoD::ScopedConnection m_latencyConn;
     bool m_profilerConnected { false };
+
+    PelcoD::Stft m_stft {};
+    bool m_showWaterfall { false };
 };
 
 } // namespace PelcoDTui

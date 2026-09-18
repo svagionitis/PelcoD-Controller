@@ -116,9 +116,14 @@ Techniques from digital signal processing (DSP), system identification, and cont
 * **Goertzel Algorithm (Targeted Single-Frequency Monitoring)**:
   * Computes discrete Fourier transform power at a specific target frequency using a 2nd-order IIR filter with $O(N)$ efficiency, zero complex arithmetic in the inner loop, and no power-of-2 buffer sizing constraints.
   * Continuously monitors known pole resonance modes (e.g. 10 Hz mast buffeting) or hunting bands (e.g. 2 Hz limit cycles) on every incoming sample with near-zero CPU footprint.
-* **Short-Time Fourier Transform (STFT) & Real-Time Spectrogram**:
-  * Applies a sliding-window FFT over time to produce a 2D time-frequency energy distribution (spectrogram / waterfall).
-  * Render live vibration and hunting history in the TUI (`TrafficView`) or Qt GUI to visualize structural vibrations, motor gear degradation, or stability changes over minutes and hours.
+* **Short-Time Fourier Transform (STFT) & Real-Time Spectrogram (Completed)**:
+  * Pure C++17 sliding-window frequency-domain engine producing a 2D time-frequency energy distribution (spectrogram / waterfall matrix) without external dependencies.
+  * Streaming circular buffer ingestion with configurable window sizes ($N=32 \dots 1024$), hop sizes ($H \le N$), and spectral leakage windowing functions (Rectangular, Hann, Hamming, Blackman).
+  * Computes single-sided power spectral density (PSD) scaled to decibels (dB), tracking rolling peak frequency, spectral centroid (center of spectral mass), and spectral flatness (Wiener entropy) to reliably discriminate coherent limit-cycle PID hunting ($< 0.15$) from broadband measurement noise.
+  * Curated 24-bit RGB colormaps (`Inferno`, `Viridis`, `TacticalGreen`, `Jet`) with piecewise linear interpolation for spectral visualization.
+  * Multi-frontend integration:
+    * **Terminal TUI (`DiagnosticsView`)**: Real-time ANSI truecolor half-block (`▀` U+2580) waterfall rendering packing 2 frequency bins per character cell with live `[W]` toggle and statistics badge.
+    * **Qt GUI (`SpectrogramWidget` in `VideoStreamTab`)**: Interactive high-performance 2D waterfall canvas with time/frequency axes, live peak tracking ridge line, instantaneous slice power plot, colormap selection, and hunting alarm telemetry.
 * **Discrete Wavelet Transform (DWT / Haar / Daubechies)**:
   * Multi-resolution decomposition with flexible time-frequency localization.
   * Unlike Fourier transforms, wavelets excel at detecting **transient shocks, wind blast impulses, and vehicle jolts** without windowing smearing or edge artifacts.

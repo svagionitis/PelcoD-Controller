@@ -445,6 +445,61 @@ void VideoStreamTab::setupUi()
 
     trackTabLayout->addWidget(lockGroup);
 
+    // =========================================================================
+    // Real-Time STFT & Vibration Spectrogram Waterfall
+    // =========================================================================
+    auto* spectroGroup = new QGroupBox(tr("Vibration & Spectrogram Waterfall"));
+    auto* spectroLayout = new QVBoxLayout(spectroGroup);
+    spectroLayout->setSpacing(4);
+
+    auto* spectroHeader = new QHBoxLayout();
+    m_chkSpectrogram = new QCheckBox(tr("Live Spectrogram Waterfall"), spectroGroup);
+    m_chkSpectrogram->setToolTip(
+        tr("Computes real-time Short-Time Fourier Transform (STFT) of tracking error and motor dynamics"));
+
+    m_comboSpectrogramPalette = new QComboBox(spectroGroup);
+    m_comboSpectrogramPalette->addItem(
+        tr("Inferno"), static_cast<int>(PelcoD::SpectrogramColorMap::Preset::Inferno));
+    m_comboSpectrogramPalette->addItem(
+        tr("Viridis"), static_cast<int>(PelcoD::SpectrogramColorMap::Preset::Viridis));
+    m_comboSpectrogramPalette->addItem(
+        tr("Tactical Green"), static_cast<int>(PelcoD::SpectrogramColorMap::Preset::TacticalGreen));
+    m_comboSpectrogramPalette->addItem(
+        tr("Jet"), static_cast<int>(PelcoD::SpectrogramColorMap::Preset::Jet));
+    m_comboSpectrogramPalette->setToolTip(tr("Select spectral waterfall colormap"));
+
+    spectroHeader->addWidget(m_chkSpectrogram);
+    spectroHeader->addWidget(m_comboSpectrogramPalette);
+    spectroLayout->addLayout(spectroHeader);
+
+    m_spectrogramWidget = new SpectrogramWidget(spectroGroup);
+    m_spectrogramWidget->setVisible(false);
+    spectroLayout->addWidget(m_spectrogramWidget);
+
+    connect(m_chkSpectrogram, &QCheckBox::toggled, this, [this](bool checked) {
+        if (m_spectrogramWidget) {
+            m_spectrogramWidget->setVisible(checked);
+        }
+    });
+
+    connect(m_comboSpectrogramPalette, QOverload<int>::of(&QComboBox::currentIndexChanged), this,
+        [this](int /*index*/) {
+            if (m_spectrogramWidget && m_comboSpectrogramPalette) {
+                auto preset = static_cast<PelcoD::SpectrogramColorMap::Preset>(
+                    m_comboSpectrogramPalette->currentData().toInt());
+                m_spectrogramWidget->setColorPreset(preset);
+            }
+        });
+
+    PelcoD::StftConfig stftCfg {};
+    stftCfg.windowSize = 64U; // 64-point FFT
+    stftCfg.hopSize = 16U; // 25% hop (75% overlap)
+    stftCfg.sampleRateHz = 25.0; // 25 Hz update loop
+    stftCfg.maxHistoryFrames = 100U;
+    m_trackingStft = std::make_unique<PelcoD::Stft>(stftCfg);
+
+    trackTabLayout->addWidget(spectroGroup);
+
     auto* analyticsGroup = new QGroupBox(tr("Thermal & Motion Analytics"));
     auto* analyticsLayout = new QVBoxLayout(analyticsGroup);
     analyticsLayout->setSpacing(4);
@@ -1347,6 +1402,17 @@ void VideoStreamTab::onAutoFollowTick()
                     .arg(m_currentEstimatedLatencyMs, 0, 'f', 1)
                     .arg(m_latencyEstimator->getPeakCorrelation(), 0, 'f', 2));
             }
+        }
+    }
+
+    // Feed tracking dynamics into real-time STFT spectrogram
+    if (m_trackingStft) {
+        const double errorSignal = state.locked ? (state.predictedErrorX * 50.0) : 0.0;
+        m_trackingStft->addSample(errorSignal);
+
+        if (m_chkSpectrogram && m_chkSpectrogram->isChecked() && m_spectrogramWidget) {
+            m_spectrogramWidget->updateSpectrogram(
+                m_trackingStft->getHistory(), m_trackingStft->getFrequencyBinsHz());
         }
     }
 

@@ -38,6 +38,7 @@ add_pelco_test(TestPhaseCorrelation TestPhaseCorrelation.cpp)
 add_pelco_test(TestIntegralImage TestIntegralImage.cpp)
 add_pelco_test(TestDwt TestDwt.cpp)
 add_pelco_test(TestNonlinearKalman TestNonlinearKalman.cpp)
+add_pelco_test(TestStft TestStft.cpp)
 
 add_executable(TestConnectionModal
     TestConnectionModal.cpp

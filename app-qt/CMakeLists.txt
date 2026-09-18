@@ -8,6 +8,8 @@ add_executable(PelcoDAppQt
     widgets/TrafficInspectorWidget.cpp
     widgets/VideoOverlayWidget.h
     widgets/VideoOverlayWidget.cpp
+    widgets/SpectrogramWidget.h
+    widgets/SpectrogramWidget.cpp
     tabs/VideoStreamTab.h
     tabs/VideoStreamTab.cpp
     tabs/PtzControlTab.h

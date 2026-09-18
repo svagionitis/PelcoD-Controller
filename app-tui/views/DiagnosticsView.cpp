@@ -38,6 +38,13 @@ DiagnosticsView::DiagnosticsView()
     cfg.historyCapacity = 20U;
     cfg.mode = PelcoD::ProfilerMode::Passive;
     m_profiler.start(cfg);
+
+    PelcoD::StftConfig stftCfg {};
+    stftCfg.windowSize = 32U;
+    stftCfg.hopSize = 8U;
+    stftCfg.sampleRateHz = 20.0;
+    stftCfg.maxHistoryFrames = 40U;
+    m_stft.setConfig(stftCfg);
 }
 
 void DiagnosticsView::ensureProfilerConnected(PelcoD::PelcoDDevice& device)
@@ -148,18 +155,26 @@ void DiagnosticsView::render(Canvas& canvas, int startY, int width, int height, 
     hwOss << "HW / SW Type     : 0x" << std::hex << std::uppercase << static_cast<int>(info.hardwareType) << " / 0x"
           << static_cast<int>(info.softwareType) << std::dec;
     canvas.drawString(rightX + 3, rY, hwOss.str(), textStyle);
-    rY += 3;
+    rY += 2;
 
-    canvas.drawPanel(rightX + 3, rY, rightW - 6, panelHeight - (rY - startY) - 3, "Interactive Query Hotkeys",
-        borderStyle, labelStyle);
-    canvas.drawString(rightX + 5, rY + 2, "[Q]    Query Pan & Tilt Position", textStyle);
-    canvas.drawString(rightX + 5, rY + 3, "[Z]    Query Zoom Position", textStyle);
-    canvas.drawString(rightX + 5, rY + 4, "[M]    Query Magnification", textStyle);
-    canvas.drawString(rightX + 5, rY + 5, "[D]    Query Diagnostics (Temp/Sensor)", textStyle);
-    canvas.drawString(rightX + 5, rY + 6, "[A]    Query All Telemetry", textStyle);
-    canvas.drawString(rightX + 5, rY + 7, "[P]    Ping Burst (RTT & Jitter Profile)", actionStyle);
-    canvas.drawString(rightX + 5, rY + 8, "[R]    Reset Profiler Statistics", textStyle);
-    canvas.drawString(rightX + 5, rY + 9, "[X]    Remote Camera Reset", warnStyle);
+    // Feed telemetry into STFT observer
+    m_stft.addSample(status.panDegrees());
+
+    if (m_showWaterfall) {
+        renderWaterfall(canvas, rightX + 3, rY, rightW - 6, panelHeight - (rY - startY) - 3);
+    } else {
+        canvas.drawPanel(rightX + 3, rY, rightW - 6, panelHeight - (rY - startY) - 3, "Interactive Query Hotkeys",
+            borderStyle, labelStyle);
+        canvas.drawString(rightX + 5, rY + 2, "[Q]    Query Pan & Tilt Position", textStyle);
+        canvas.drawString(rightX + 5, rY + 3, "[Z]    Query Zoom Position", textStyle);
+        canvas.drawString(rightX + 5, rY + 4, "[M]    Query Magnification", textStyle);
+        canvas.drawString(rightX + 5, rY + 5, "[D]    Query Diagnostics (Temp/Sensor)", textStyle);
+        canvas.drawString(rightX + 5, rY + 6, "[A]    Query All Telemetry", textStyle);
+        canvas.drawString(rightX + 5, rY + 7, "[P]    Ping Burst (RTT & Jitter Profile)", actionStyle);
+        canvas.drawString(rightX + 5, rY + 8, "[R]    Reset Profiler Statistics", textStyle);
+        canvas.drawString(rightX + 5, rY + 9, "[W]    Open Spectrogram Waterfall", actionStyle);
+        canvas.drawString(rightX + 5, rY + 10, "[X]    Remote Camera Reset", warnStyle);
+    }
 
     // Bottom action summary
     const int bottomY = startY + panelHeight - 3;
@@ -168,10 +183,86 @@ void DiagnosticsView::render(Canvas& canvas, int startY, int width, int height, 
     canvas.drawString(12, bottomY + 1, m_lastAction, actionStyle);
 }
 
+void DiagnosticsView::renderWaterfall(Canvas& canvas, int startX, int startY, int width, int height)
+{
+    const Style& borderStyle = Styles::Border;
+    const Style& titleStyle = Styles::Title;
+    const Style& textStyle = Styles::Text;
+    const Style& highlightStyle = Styles::Highlight;
+
+    canvas.drawPanel(startX, startY, width, height, "Live STFT Waterfall [W: Hotkeys]", borderStyle, titleStyle);
+
+    const auto history = m_stft.getHistory();
+    const auto freqs = m_stft.getFrequencyBinsHz();
+
+    const int plotX = startX + 6;
+    const int plotY = startY + 2;
+    const int plotW = width - 8;
+    const int plotH = height - 4;
+
+    if (plotW <= 4 || plotH <= 2 || history.empty() || freqs.size() < 2) {
+        canvas.drawString(startX + 4, startY + 2, "Waiting for spectral history...", textStyle);
+        return;
+    }
+
+    // Y-Axis frequency labels
+    canvas.drawString(startX + 1, plotY, "10Hz", textStyle);
+    canvas.drawString(startX + 1, plotY + plotH / 2, " 5Hz", textStyle);
+    canvas.drawString(startX + 1, plotY + plotH - 1, " 0Hz", textStyle);
+
+    // Number of frames to render across available width
+    const int numFrames = std::min(plotW, static_cast<int>(history.size()));
+    const int startFrameIdx = static_cast<int>(history.size()) - numFrames;
+    const int totalBins = static_cast<int>(freqs.size());
+
+    // Each character row contains 2 vertical frequency sub-bins via Unicode half-block ▀
+    for (int col = 0; col < numFrames; ++col) {
+        const auto& frame = history[startFrameIdx + col];
+        const int px = plotX + col;
+
+        for (int row = 0; row < plotH; ++row) {
+            const int py = plotY + row;
+
+            // Row 0 is highest frequency, row plotH-1 is 0 Hz
+            const double fracTop = 1.0 - (static_cast<double>(row * 2) / (plotH * 2));
+            const double fracBot = 1.0 - (static_cast<double>(row * 2 + 1) / (plotH * 2));
+
+            const int binTop = std::clamp(static_cast<int>(fracTop * (totalBins - 1)), 0, totalBins - 1);
+            const int binBot = std::clamp(static_cast<int>(fracBot * (totalBins - 1)), 0, totalBins - 1);
+
+            const double dbTop = frame.dbSpectrum[binTop];
+            const double dbBot = frame.dbSpectrum[binBot];
+
+            const auto rgbTop = PelcoD::SpectrogramColorMap::mapDb(dbTop, -60.0, 0.0,
+                PelcoD::SpectrogramColorMap::Preset::Inferno);
+            const auto rgbBot = PelcoD::SpectrogramColorMap::mapDb(dbBot, -60.0, 0.0,
+                PelcoD::SpectrogramColorMap::Preset::Inferno);
+
+            Style s;
+            s.fg = Color::fromRgb(rgbTop.r, rgbTop.g, rgbTop.b);
+            s.bg = Color::fromRgb(rgbBot.r, rgbBot.g, rgbBot.b);
+
+            canvas.setCell(px, py, "▀", s);
+        }
+    }
+
+    // Bottom telemetry line inside panel
+    const auto latest = m_stft.getLatestFrame();
+    std::ostringstream oss;
+    oss << "Peak: " << std::fixed << std::setprecision(1) << latest.peakFrequencyHz << "Hz | Cent: "
+        << latest.spectralCentroidHz << "Hz | Flat: " << std::setprecision(2) << latest.spectralFlatness;
+    canvas.drawString(startX + 2, startY + height - 2, oss.str(), highlightStyle);
+}
+
 bool DiagnosticsView::handleInput(const InputEvent& event, PelcoD::PelcoDDevice& device)
 {
     ensureProfilerConnected(device);
 
+    if (event.ch == 'w' || event.ch == 'W') {
+        m_showWaterfall = !m_showWaterfall;
+        m_lastAction = m_showWaterfall ? "Toggled Spectrogram Waterfall" : "Toggled Query Hotkeys";
+        return true;
+    }
     if (event.ch == 'q' || event.ch == 'Q') {
         device.queryPan();
         device.queryTilt();

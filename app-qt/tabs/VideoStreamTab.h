@@ -11,6 +11,9 @@
 #include "PtzSphericalEstimator.h"
 #include "QPelcoDDevice.h"
 #include "QVideoStreamWorker.h"
+#include "SpectrogramColorMap.h"
+#include "Stft.h"
+#include "app-qt/widgets/SpectrogramWidget.h"
 #include "app-qt/widgets/VideoOverlayWidget.h"
 
 #include <QCheckBox>
@@ -170,6 +173,11 @@ private:
     std::shared_ptr<PelcoD::Video::CentroidTargetTrackerFilter> m_targetTracker;
     QComboBox* m_comboEstimatorType { nullptr };
     int m_lastZoomDirection { 0 };
+    // Real-Time Spectrogram & Vibration Waterfall
+    QCheckBox* m_chkSpectrogram { nullptr };
+    QComboBox* m_comboSpectrogramPalette { nullptr };
+    SpectrogramWidget* m_spectrogramWidget { nullptr };
+    std::unique_ptr<PelcoD::Stft> m_trackingStft;
     // Privacy & Operational Overlays Controls
     QCheckBox* m_chkPrivacyMask { nullptr };
     QComboBox* m_comboPrivacyMode { nullptr };

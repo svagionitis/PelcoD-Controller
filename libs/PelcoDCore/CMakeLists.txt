@@ -78,6 +78,10 @@ add_library(PelcoDCore STATIC
     UnscentedKalmanFilter.cpp
     PtzSphericalEstimator.h
     PtzSphericalEstimator.cpp
+    Stft.h
+    Stft.cpp
+    SpectrogramColorMap.h
+    SpectrogramColorMap.cpp
 )
 
 target_include_directories(PelcoDCore PUBLIC
