@@ -51,6 +51,10 @@ add_library(PelcoDCore STATIC
     NotchFilter.cpp
     OscillationDetector.h
     OscillationDetector.cpp
+    GoertzelFilter.h
+    GoertzelFilter.cpp
+    LatencyEstimator.h
+    LatencyEstimator.cpp
 )
 
 target_include_directories(PelcoDCore PUBLIC
