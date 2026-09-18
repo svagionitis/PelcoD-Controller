@@ -45,6 +45,12 @@ add_library(PelcoDCore STATIC
     PidController.cpp
     PtzAutoTracker.h
     PtzAutoTracker.cpp
+    Fft.h
+    Fft.cpp
+    NotchFilter.h
+    NotchFilter.cpp
+    OscillationDetector.h
+    OscillationDetector.cpp
 )
 
 target_include_directories(PelcoDCore PUBLIC
