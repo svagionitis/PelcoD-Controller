@@ -108,6 +108,55 @@ Here is a curated list of high-value features and enhancements that can be added
 
 ---
 
+### 7. Signal Processing, DSP & Advanced Control Tools
+
+Techniques from digital signal processing (DSP), system identification, and control theory that complement the FFT, Kalman Filter, and PID controller:
+
+#### A. Frequency-Domain & Spectral Tools
+* **Goertzel Algorithm (Targeted Single-Frequency Monitoring)**:
+  * Computes discrete Fourier transform power at a specific target frequency using a 2nd-order IIR filter with $O(N)$ efficiency, zero complex arithmetic in the inner loop, and no power-of-2 buffer sizing constraints.
+  * Continuously monitors known pole resonance modes (e.g. 10 Hz mast buffeting) or hunting bands (e.g. 2 Hz limit cycles) on every incoming sample with near-zero CPU footprint.
+* **Short-Time Fourier Transform (STFT) & Real-Time Spectrogram**:
+  * Applies a sliding-window FFT over time to produce a 2D time-frequency energy distribution (spectrogram / waterfall).
+  * Render live vibration and hunting history in the TUI (`TrafficView`) or Qt GUI to visualize structural vibrations, motor gear degradation, or stability changes over minutes and hours.
+* **Discrete Wavelet Transform (DWT / Haar / Daubechies)**:
+  * Multi-resolution decomposition with flexible time-frequency localization.
+  * Unlike Fourier transforms, wavelets excel at detecting **transient shocks, wind blast impulses, and vehicle jolts** without windowing smearing or edge artifacts.
+
+#### B. Time-Domain Filtering & State Estimation
+* **Cross-Correlation Latency Estimator**:
+  * Measures the lagged similarity between commanded PTZ motor velocities $u(t)$ and visual velocities $v(t)$ observed by optical flow:
+    $$R_{uv}(\tau) = \sum_{t} u(t) \cdot v(t + \tau)$$
+  * Discovers the exact empirical physical end-to-end latency $\Delta t_{\text{delay}}$ (combining RS-485 transmission, motor acceleration ramp, camera image sensor exposure, RTSP networking, and H.264 decoding) to dynamically tune Kalman lookahead prediction.
+* **LMS / RLS Adaptive Filter (Active Vibration Cancellation - AVC)**:
+  * Dynamically adapts FIR filter weights to cancel an interfering noise source in real time.
+  * Uses an external accelerometer / IMU reference mounted on the camera mast or vehicle to subtract structural vibration directly from tracking error signals or optical flow measurements.
+* **Savitzky-Golay Polynomial Smoothing Filter**:
+  * Fits local low-degree polynomials via moving convolution to smooth noisy optical flow centroids.
+  * Preserves peak heights, widths, and sharp maneuver inflection points without introducing the phase distortion and group delay caused by standard moving-average filters.
+* **Extended / Unscented Kalman Filter (EKF / UKF)**:
+  * Non-linear Bayesian state estimator upgrading the linear `PtzAutoTracker` Kalman filter.
+  * Models true 3D spherical kinematics, converting 2D pixel coordinates directly into pan/tilt angular rates while accounting for lens radial distortion, tilt elevation non-linearities, and dynamic focal length zoom projection.
+
+#### C. Video Domain Enhancements
+* **Discrete Cosine Transform (DCT) Auto-Focus Sharpness Metric**:
+  * Computes spatial frequency energy using real-valued DCT basis functions across 8x8 image blocks.
+  * Summing high-frequency AC coefficients yields a contrast-invariant, illumination-robust image sharpness score for driving high-speed motorized lens focus sweeps.
+* **Integral Images (Summed-Area Tables)**:
+  * Computes arbitrary rectangular pixel sums in $O(1)$ constant time regardless of bounding box dimensions.
+  * Powers real-time adaptive local thresholding, instant contrast normalization, and rapid bounding-box feature extraction for target trackers.
+* **Phase Correlation (2D FFT Global Motion Estimation)**:
+  * Estimates sub-pixel translational shifts between consecutive frames using the normalized cross-power spectrum:
+    $$R = \frac{F_1 \cdot F_2^*}{\|F_1 \cdot F_2^*\|}$$
+  * Complements sparse optical flow in `ImageStabilizationFilter` for robust global motion stabilization in featureless or low-texture environments (e.g. open ocean, haze, fog, overcast sky).
+
+#### D. Control System Identification
+* **Automated Chirp / Swept-Sine Plant Identification (Empirical Bode Plot)**:
+  * Drives the PTZ motors with a sweeping frequency chirp signal ($0.1 \to 20\text{ Hz}$) and computes the frequency response function $H(f) = Y(f) / X(f)$.
+  * Automatically measures physical motor inertia, gear backlash, and resonance modes to auto-tune optimal PID gains ($K_p, K_i, K_d$) for any connected third-party camera without trial-and-error manual tuning.
+
+---
+
 ### Recommendation
 
 If you want to stay in the **core architecture & communication layer**, the two best next steps are:
@@ -116,5 +165,6 @@ If you want to stay in the **core architecture & communication layer**, the two 
 
 If you want to advance **video analytics & autonomous PTZ tracking**, the highest-impact steps are:
 1. **Target Tracking Scale Adaptation & Appearance Fusion** (eliminating drift and allowing full zoom independence).
-2. **`LoiteringDetectorFilter`** (critical commercial/security surveillance analytics).
+2. **Cross-Correlation Latency Estimator** (empirically tuning lookahead compensation using real motor vs. video feedback).
 3. **Closed-Loop Auto-Zoom** (completing the full 3-axis autonomous tracking suite).
+4. **Goertzel Filter / Swept-Sine Auto-Tuning** (providing robust anti-hunting and zero-config PID auto-tuning for any camera).
