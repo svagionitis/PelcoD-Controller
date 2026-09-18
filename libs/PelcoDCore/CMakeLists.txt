@@ -63,6 +63,10 @@ add_library(PelcoDCore STATIC
     PhaseCorrelation.cpp
     IntegralImage.h
     IntegralImage.cpp
+    Dwt.h
+    Dwt.cpp
+    TransientShockDetector.h
+    TransientShockDetector.cpp
 )
 
 target_include_directories(PelcoDCore PUBLIC
