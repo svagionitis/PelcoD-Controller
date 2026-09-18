@@ -3,16 +3,19 @@
 /// @file VideoStreamTab.h
 /// @brief UI tab hosting live RTSP / video stream player with tactical HUD telemetry overlays and camera controls.
 
+#include "ChirpCalibrator.h"
 #include "DeviceStatus.h"
 #include "FujinonTypes.h"
 #include "LatencyCalibrator.h"
 #include "LatencyEstimator.h"
+#include "PlantIdentifier.h"
 #include "PtzAutoTracker.h"
 #include "PtzSphericalEstimator.h"
 #include "QPelcoDDevice.h"
 #include "QVideoStreamWorker.h"
 #include "SpectrogramColorMap.h"
 #include "Stft.h"
+#include "app-qt/widgets/BodePlotWidget.h"
 #include "app-qt/widgets/SpectrogramWidget.h"
 #include "app-qt/widgets/VideoOverlayWidget.h"
 
@@ -21,6 +24,7 @@
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QLineEdit>
+#include <QProgressBar>
 #include <QPushButton>
 #include <QSlider>
 #include <QTabWidget>
@@ -77,6 +81,10 @@ private slots:
     void onAutoFollowTick();
     void onCalibrateLatencyClicked();
     void onCalibratorTick();
+    void onStartChirpSweepClicked();
+    void onCancelChirpSweepClicked();
+    void onChirpSweepTick();
+    void onApplyPidGainsClicked();
 #endif
 
     // Interactive PTZ handling
@@ -178,6 +186,19 @@ private:
     QComboBox* m_comboSpectrogramPalette { nullptr };
     SpectrogramWidget* m_spectrogramWidget { nullptr };
     std::unique_ptr<PelcoD::Stft> m_trackingStft;
+    // Empirical Bode Plot & Plant Auto-Tune
+    QCheckBox* m_chkBodePlot { nullptr };
+    QComboBox* m_comboChirpAxis { nullptr };
+    QPushButton* m_btnStartChirpSweep { nullptr };
+    QPushButton* m_btnCancelChirpSweep { nullptr };
+    QProgressBar* m_progressChirpSweep { nullptr };
+    QLabel* m_lblPlantStatus { nullptr };
+    QComboBox* m_comboTuningRule { nullptr };
+    QPushButton* m_btnApplyPidGains { nullptr };
+    QLabel* m_lblMarginsBadge { nullptr };
+    PelcoD::BodePlotWidget* m_bodePlotWidget { nullptr };
+    std::unique_ptr<PelcoD::ChirpCalibrator> m_chirpCalibrator;
+    QTimer* m_chirpTimer { nullptr };
     // Privacy & Operational Overlays Controls
     QCheckBox* m_chkPrivacyMask { nullptr };
     QComboBox* m_comboPrivacyMode { nullptr };

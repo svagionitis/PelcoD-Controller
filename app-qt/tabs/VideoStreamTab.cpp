@@ -500,6 +500,89 @@ void VideoStreamTab::setupUi()
 
     trackTabLayout->addWidget(spectroGroup);
 
+    // =========================================================================
+    // Empirical Plant Identification & Bode Auto-Tune
+    // =========================================================================
+    auto* plantGroup = new QGroupBox(tr("Plant Identification & Auto-Tune"));
+    auto* plantLayout = new QVBoxLayout(plantGroup);
+    plantLayout->setSpacing(4);
+
+    auto* plantHeader = new QHBoxLayout();
+    m_chkBodePlot = new QCheckBox(tr("Empirical Bode Plot"), plantGroup);
+    m_chkBodePlot->setToolTip(tr("Measures camera frequency response via swept-sine excitation and auto-tunes PID"));
+
+    m_comboChirpAxis = new QComboBox(plantGroup);
+    m_comboChirpAxis->addItem(tr("Pan (Azimuth)"), static_cast<int>(PelcoD::CalibrationAxis::Pan));
+    m_comboChirpAxis->addItem(tr("Tilt (Elevation)"), static_cast<int>(PelcoD::CalibrationAxis::Tilt));
+
+    m_btnStartChirpSweep = new QPushButton(tr("Start Sweep"), plantGroup);
+    m_btnCancelChirpSweep = new QPushButton(tr("Cancel"), plantGroup);
+    m_btnCancelChirpSweep->setEnabled(false);
+
+    plantHeader->addWidget(m_chkBodePlot);
+    plantHeader->addWidget(m_comboChirpAxis);
+    plantHeader->addWidget(m_btnStartChirpSweep);
+    plantHeader->addWidget(m_btnCancelChirpSweep);
+    plantLayout->addLayout(plantHeader);
+
+    m_progressChirpSweep = new QProgressBar(plantGroup);
+    m_progressChirpSweep->setRange(0, 100);
+    m_progressChirpSweep->setValue(0);
+    m_progressChirpSweep->setTextVisible(true);
+    m_progressChirpSweep->setVisible(false);
+    plantLayout->addWidget(m_progressChirpSweep);
+
+    m_bodePlotWidget = new PelcoD::BodePlotWidget(plantGroup);
+    m_bodePlotWidget->setVisible(false);
+    m_bodePlotWidget->setFixedHeight(240);
+    plantLayout->addWidget(m_bodePlotWidget);
+
+    auto* tuningLayout = new QHBoxLayout();
+    m_comboTuningRule = new QComboBox(plantGroup);
+    m_comboTuningRule->addItem(tr("Tyreus-Luyben (Conservative)"), static_cast<int>(PelcoD::TuningRule::TyreusLuyben));
+    m_comboTuningRule->addItem(tr("Ziegler-Nichols (Aggressive)"), static_cast<int>(PelcoD::TuningRule::ZieglerNichols));
+    m_comboTuningRule->addItem(tr("AMIGO (Astrom-Hagglund)"), static_cast<int>(PelcoD::TuningRule::Amigo));
+    m_comboTuningRule->addItem(tr("IMC (Zero-Overshoot)"), static_cast<int>(PelcoD::TuningRule::Imc));
+
+    m_btnApplyPidGains = new QPushButton(tr("Apply PID Gains"), plantGroup);
+    m_btnApplyPidGains->setEnabled(false);
+
+    tuningLayout->addWidget(new QLabel(tr("Tuning:"), plantGroup));
+    tuningLayout->addWidget(m_comboTuningRule);
+    tuningLayout->addWidget(m_btnApplyPidGains);
+    plantLayout->addLayout(tuningLayout);
+
+    m_lblPlantStatus = new QLabel(tr("Status: Ready for plant sweep"), plantGroup);
+    m_lblPlantStatus->setStyleSheet("color: #8b949e; font-size: 11px;");
+    plantLayout->addWidget(m_lblPlantStatus);
+
+    m_lblMarginsBadge = new QLabel(tr("Margins: --"), plantGroup);
+    m_lblMarginsBadge->setStyleSheet("color: #58a6ff; font-weight: bold; font-size: 11px;");
+    plantLayout->addWidget(m_lblMarginsBadge);
+
+    connect(m_chkBodePlot, &QCheckBox::toggled, this, [this](bool checked) {
+        if (m_bodePlotWidget) {
+            m_bodePlotWidget->setVisible(checked);
+        }
+    });
+
+    connect(m_btnStartChirpSweep, &QPushButton::clicked, this, &VideoStreamTab::onStartChirpSweepClicked);
+    connect(m_btnCancelChirpSweep, &QPushButton::clicked, this, &VideoStreamTab::onCancelChirpSweepClicked);
+    connect(m_btnApplyPidGains, &QPushButton::clicked, this, &VideoStreamTab::onApplyPidGainsClicked);
+
+    PelcoD::ChirpConfig chirpCfg {};
+    chirpCfg.startFreqHz = 0.2;
+    chirpCfg.endFreqHz = 12.0;
+    chirpCfg.durationSec = 6.0;
+    chirpCfg.sampleRateHz = 50.0;
+    chirpCfg.type = PelcoD::ChirpType::Logarithmic;
+    m_chirpCalibrator = std::make_unique<PelcoD::ChirpCalibrator>(nullptr, chirpCfg);
+
+    m_chirpTimer = new QTimer(this);
+    connect(m_chirpTimer, &QTimer::timeout, this, &VideoStreamTab::onChirpSweepTick);
+
+    trackTabLayout->addWidget(plantGroup);
+
     auto* analyticsGroup = new QGroupBox(tr("Thermal & Motion Analytics"));
     auto* analyticsLayout = new QVBoxLayout(analyticsGroup);
     analyticsLayout->setSpacing(4);
@@ -1495,6 +1578,167 @@ void VideoStreamTab::onCalibratorTick()
                     .arg(QString::fromStdString(res.message)));
             }
         }
+    }
+}
+
+void VideoStreamTab::onStartChirpSweepClicked()
+{
+    if (!m_device || !m_chirpCalibrator) {
+        return;
+    }
+
+    // Halt auto follow if active
+    if (m_chkAutoFollowPtz && m_chkAutoFollowPtz->isChecked()) {
+        m_chkAutoFollowPtz->setChecked(false);
+    }
+
+    const auto axis = static_cast<PelcoD::CalibrationAxis>(
+        m_comboChirpAxis ? m_comboChirpAxis->currentData().toInt() : 0);
+
+    m_chirpCalibrator->setCommandCallback([this](int panDir, int panSpeed, int tiltDir, int tiltSpeed) {
+        if (m_device) {
+            if (panDir == 0 && tiltDir == 0 && panSpeed == 0 && tiltSpeed == 0) {
+                m_device->stopMotion();
+            } else {
+                m_device->move(panDir, panSpeed, tiltDir, tiltSpeed);
+            }
+        }
+    });
+
+    if (m_chirpCalibrator->start(axis, 25)) {
+        if (m_btnStartChirpSweep) {
+            m_btnStartChirpSweep->setEnabled(false);
+        }
+        if (m_btnCancelChirpSweep) {
+            m_btnCancelChirpSweep->setEnabled(true);
+        }
+        if (m_progressChirpSweep) {
+            m_progressChirpSweep->setValue(0);
+            m_progressChirpSweep->setVisible(true);
+        }
+        if (m_lblPlantStatus) {
+            m_lblPlantStatus->setText(tr("Sweeping (%1, 0.2 Hz -> 12 Hz)...")
+                .arg(axis == PelcoD::CalibrationAxis::Pan ? tr("Pan") : tr("Tilt")));
+        }
+        if (m_chkBodePlot && !m_chkBodePlot->isChecked()) {
+            m_chkBodePlot->setChecked(true);
+        }
+        if (m_chirpTimer) {
+            m_chirpTimer->start(20); // 50 Hz tick rate
+        }
+    }
+}
+
+void VideoStreamTab::onCancelChirpSweepClicked()
+{
+    if (m_chirpCalibrator) {
+        m_chirpCalibrator->cancel();
+    }
+    if (m_chirpTimer) {
+        m_chirpTimer->stop();
+    }
+    if (m_btnStartChirpSweep) {
+        m_btnStartChirpSweep->setEnabled(true);
+    }
+    if (m_btnCancelChirpSweep) {
+        m_btnCancelChirpSweep->setEnabled(false);
+    }
+    if (m_progressChirpSweep) {
+        m_progressChirpSweep->setVisible(false);
+    }
+    if (m_lblPlantStatus) {
+        m_lblPlantStatus->setText(tr("Sweep cancelled by operator."));
+    }
+}
+
+void VideoStreamTab::onChirpSweepTick()
+{
+    if (!m_chirpCalibrator) {
+        return;
+    }
+
+    const double nowSec = std::chrono::duration<double>(
+        std::chrono::steady_clock::now().time_since_epoch()).count();
+
+    m_chirpCalibrator->update(nowSec);
+
+    // Ingest motion feedback from target tracker if available
+    if (m_targetTracker && m_targetTracker->isTargetLocked()) {
+        const auto st = m_targetTracker->getTargetState(0.0);
+        m_chirpCalibrator->ingestVisualMotion(nowSec, -st.vx * 100.0, -st.vy * 100.0);
+    }
+
+    if (m_progressChirpSweep) {
+        m_progressChirpSweep->setValue(static_cast<int>(m_chirpCalibrator->getProgress() * 100.0));
+    }
+
+    if (!m_chirpCalibrator->isRunning()) {
+        if (m_chirpTimer) {
+            m_chirpTimer->stop();
+        }
+        if (m_btnStartChirpSweep) {
+            m_btnStartChirpSweep->setEnabled(true);
+        }
+        if (m_btnCancelChirpSweep) {
+            m_btnCancelChirpSweep->setEnabled(false);
+        }
+        if (m_progressChirpSweep) {
+            m_progressChirpSweep->setVisible(false);
+        }
+
+        const auto result = m_chirpCalibrator->getResult();
+        if (m_bodePlotWidget) {
+            m_bodePlotWidget->setIdentificationResult(result);
+        }
+
+        if (result.success) {
+            if (m_btnApplyPidGains) {
+                m_btnApplyPidGains->setEnabled(true);
+            }
+            if (m_lblPlantStatus) {
+                m_lblPlantStatus->setText(tr("Identification Complete: K=%1, Tau=%2s, Td=%3ms")
+                    .arg(result.fopdt.dcGainK, 0, 'f', 2)
+                    .arg(result.fopdt.timeConstantTauSec, 0, 'f', 3)
+                    .arg(result.fopdt.deadTimeTdSec * 1000.0, 0, 'f', 1));
+            }
+            if (m_lblMarginsBadge) {
+                m_lblMarginsBadge->setText(tr("Margins: Gm=%1 dB, Pm=%2° | Ku=%3, Tu=%4s")
+                    .arg(result.margins.hasPhaseCrossover ? QString::asprintf("%0.1f", result.margins.gainMarginDb) : "--")
+                    .arg(result.margins.hasGainCrossover ? QString::asprintf("%0.1f", result.margins.phaseMarginDeg) : "--")
+                    .arg(result.margins.hasPhaseCrossover ? QString::asprintf("%0.2f", result.margins.ultimateGainKu) : "--")
+                    .arg(result.margins.hasPhaseCrossover ? QString::asprintf("%0.2f", result.margins.ultimatePeriodTu) : "--"));
+            }
+        } else {
+            if (m_lblPlantStatus) {
+                m_lblPlantStatus->setText(tr("Identification Failed: %1").arg(QString::fromStdString(result.message)));
+            }
+        }
+    }
+}
+
+void VideoStreamTab::onApplyPidGainsClicked()
+{
+    if (!m_autoTracker || !m_chirpCalibrator) {
+        return;
+    }
+
+    const auto rule = static_cast<PelcoD::TuningRule>(
+        m_comboTuningRule ? m_comboTuningRule->currentData().toInt() : 0);
+
+    const auto tuned = m_chirpCalibrator->getIdentifier().computePidGains(rule);
+
+    if (m_chirpCalibrator->getAxis() == PelcoD::CalibrationAxis::Pan) {
+        m_autoTracker->setPanGains(tuned.kp, tuned.ki, tuned.kd, tuned.kff);
+    } else {
+        m_autoTracker->setTiltGains(tuned.kp, tuned.ki, tuned.kd, tuned.kff);
+    }
+
+    if (m_lblPlantStatus) {
+        m_lblPlantStatus->setText(tr("Applied %1: Kp=%2, Ki=%3, Kd=%4")
+            .arg(QString::fromStdString(tuned.ruleName))
+            .arg(tuned.kp, 0, 'f', 2)
+            .arg(tuned.ki, 0, 'f', 2)
+            .arg(tuned.kd, 0, 'f', 3));
     }
 }
 #endif

@@ -5,6 +5,7 @@
 
 #include "Canvas.h"
 #include "PelcoDDevice.h"
+#include "PlantIdentifier.h"
 #include "RttProfiler.h"
 #include "SpectrogramColorMap.h"
 #include "Stft.h"
@@ -37,6 +38,9 @@ private:
 
     PelcoD::Stft m_stft {};
     bool m_showWaterfall { false };
+
+    PelcoD::PlantIdentifier m_plantIdentifier {};
+    PelcoD::PlantIdentificationResult m_plantResult {};
 };
 
 } // namespace PelcoDTui

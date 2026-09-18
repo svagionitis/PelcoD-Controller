@@ -82,6 +82,10 @@ add_library(PelcoDCore STATIC
     Stft.cpp
     SpectrogramColorMap.h
     SpectrogramColorMap.cpp
+    PlantIdentifier.h
+    PlantIdentifier.cpp
+    ChirpCalibrator.h
+    ChirpCalibrator.cpp
 )
 
 target_include_directories(PelcoDCore PUBLIC

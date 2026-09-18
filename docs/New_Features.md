@@ -164,9 +164,16 @@ Techniques from digital signal processing (DSP), system identification, and cont
   * Complements sparse optical flow in `ImageStabilizationFilter` for robust global motion stabilization in featureless or low-texture environments (e.g. open ocean, haze, fog, overcast sky).
 
 #### D. Control System Identification
-* **Automated Chirp / Swept-Sine Plant Identification (Empirical Bode Plot)**:
-  * Drives the PTZ motors with a sweeping frequency chirp signal ($0.1 \to 20\text{ Hz}$) and computes the frequency response function $H(f) = Y(f) / X(f)$.
-  * Automatically measures physical motor inertia, gear backlash, and resonance modes to auto-tune optimal PID gains ($K_p, K_i, K_d$) for any connected third-party camera without trial-and-error manual tuning.
+* **Automated Chirp / Swept-Sine Plant Identification (Empirical Bode Plot) (Completed)**:
+  * Pure C++17 system identification engine (`PlantIdentifier`) and active physical sweep orchestrator (`ChirpCalibrator`) with zero external dependencies.
+  * Generates smooth linear and logarithmic frequency-swept excitation signals ($0.1 \to 15\text{ Hz}$) with raised-cosine edge tapering to eliminate mechanical shock.
+  * Estimates empirical Frequency Response Function (FRF) $\hat{H}(f) = S_{uy}(f) / S_{uu}(f)$ and spectral coherence $\gamma^2(f)$ using Welch's averaged cross-spectral density method via `Math::rfft`.
+  * Computes Gain Margin ($G_m$), Phase Margin ($P_m$), Gain Crossover ($f_{gc}$), Phase Crossover ($f_{180}$), Ultimate Gain ($K_u$), and Ultimate Period ($T_u$).
+  * Identifies structural resonance modes and fits an equivalent First-Order Plus Dead-Time (FOPDT) transfer function model ($K, \tau, \tau_d$).
+  * Multi-rule PID auto-tuning algorithms: Tyreus-Luyben (conservative anti-jitter), Ziegler-Nichols (fast response), AMIGO (Åström-Hägglund M-constrained optimization), and Internal Model Control (IMC).
+  * Multi-frontend integration:
+    * **Qt GUI (`BodePlotWidget` in `VideoStreamTab`)**: Dual-panel magnitude/phase canvas with coherence curve, stability margin markers, resonance mode flags, interactive crosshair tooltip, sweep progress bar, and one-click "Apply PID Gains" button to `PtzAutoTracker`.
+    * **Terminal TUI (`DiagnosticsView`)**: Real-time telemetry ingestion, diagnostic summary of FOPDT plant parameters, and `[B]` hotkey to compute Bode models and PID auto-tuning.
 
 ---
 

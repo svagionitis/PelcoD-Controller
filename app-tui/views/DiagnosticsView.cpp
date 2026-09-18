@@ -140,6 +140,23 @@ void DiagnosticsView::render(Canvas& canvas, int startY, int width, int height, 
 
     const std::string spark = generateSparkline(m_profiler.getHistory());
     canvas.drawString(leftX, curY, "RTT Trend Line   : [" + spark + "]", actionStyle);
+    curY += 2;
+
+    if (m_plantResult.success) {
+        std::ostringstream bodeOss;
+        bodeOss << "Bode Plant Model : K=" << std::fixed << std::setprecision(2) << m_plantResult.fopdt.dcGainK
+                << " Tau=" << std::setprecision(3) << m_plantResult.fopdt.timeConstantTauSec << "s Td="
+                << std::setprecision(1) << (m_plantResult.fopdt.deadTimeTdSec * 1000.0) << "ms";
+        canvas.drawString(leftX, curY, bodeOss.str(), textStyle);
+        curY += 1;
+
+        std::ostringstream pidOss;
+        pidOss << "PID Auto-Tuned   : Kp=" << std::fixed << std::setprecision(2) << m_plantResult.suggestedPid.kp
+               << " Ki=" << m_plantResult.suggestedPid.ki << " Kd=" << std::setprecision(3)
+               << m_plantResult.suggestedPid.kd << " (Tyreus-Luyben)";
+        canvas.drawString(leftX, curY, pidOss.str(), actionStyle);
+        curY += 1;
+    }
 
     // 2. Right Panel: Query Commands & Hardware Info
     const int rightX = halfW + 1;
@@ -157,8 +174,9 @@ void DiagnosticsView::render(Canvas& canvas, int startY, int width, int height, 
     canvas.drawString(rightX + 3, rY, hwOss.str(), textStyle);
     rY += 2;
 
-    // Feed telemetry into STFT observer
+    // Feed telemetry into STFT observer and Plant Identifier
     m_stft.addSample(status.panDegrees());
+    m_plantIdentifier.addSample(status.panDegrees(), status.panDegrees());
 
     if (m_showWaterfall) {
         renderWaterfall(canvas, rightX + 3, rY, rightW - 6, panelHeight - (rY - startY) - 3);
@@ -173,7 +191,8 @@ void DiagnosticsView::render(Canvas& canvas, int startY, int width, int height, 
         canvas.drawString(rightX + 5, rY + 7, "[P]    Ping Burst (RTT & Jitter Profile)", actionStyle);
         canvas.drawString(rightX + 5, rY + 8, "[R]    Reset Profiler Statistics", textStyle);
         canvas.drawString(rightX + 5, rY + 9, "[W]    Open Spectrogram Waterfall", actionStyle);
-        canvas.drawString(rightX + 5, rY + 10, "[X]    Remote Camera Reset", warnStyle);
+        canvas.drawString(rightX + 5, rY + 10, "[B]    Bode Plant Model & PID Auto-Tune", actionStyle);
+        canvas.drawString(rightX + 5, rY + 11, "[X]    Remote Camera Reset", warnStyle);
     }
 
     // Bottom action summary
@@ -299,6 +318,15 @@ bool DiagnosticsView::handleInput(const InputEvent& event, PelcoD::PelcoDDevice&
     if (event.ch == 'r' || event.ch == 'R') {
         m_profiler.reset();
         m_lastAction = "Reset RTT Profiler Statistics";
+        return true;
+    }
+    if (event.ch == 'b' || event.ch == 'B') {
+        m_plantResult = m_plantIdentifier.analyze();
+        if (m_plantResult.success) {
+            m_lastAction = "Computed Plant Bode & PID Auto-Tune (Tyreus-Luyben)";
+        } else {
+            m_lastAction = "Plant Identification: " + m_plantResult.message;
+        }
         return true;
     }
     if (event.ch == 'x' || event.ch == 'X') {

@@ -10,6 +10,8 @@ add_executable(PelcoDAppQt
     widgets/VideoOverlayWidget.cpp
     widgets/SpectrogramWidget.h
     widgets/SpectrogramWidget.cpp
+    widgets/BodePlotWidget.h
+    widgets/BodePlotWidget.cpp
     tabs/VideoStreamTab.h
     tabs/VideoStreamTab.cpp
     tabs/PtzControlTab.h
