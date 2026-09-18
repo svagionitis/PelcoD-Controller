@@ -61,6 +61,8 @@ add_library(PelcoDCore STATIC
     DctSharpnessEvaluator.cpp
     PhaseCorrelation.h
     PhaseCorrelation.cpp
+    IntegralImage.h
+    IntegralImage.cpp
 )
 
 target_include_directories(PelcoDCore PUBLIC
