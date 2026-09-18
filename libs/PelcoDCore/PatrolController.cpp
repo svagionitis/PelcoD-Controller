@@ -29,6 +29,22 @@ PatrolController::~PatrolController()
     }
 }
 
+void PatrolController::notifyStateChange(std::unique_lock<std::mutex>& lock, PatrolState state, bool relock)
+{
+    const auto stateCb = m_stateChangedCb;
+    m_cv.notify_all();
+
+    if (stateCb) {
+        lock.unlock();
+        stateCb(state);
+        if (relock) {
+            lock.lock();
+        }
+    } else if (!relock && lock.owns_lock()) {
+        lock.unlock();
+    }
+}
+
 bool PatrolController::start()
 {
     if (m_worker.joinable() && !m_workerRunning.load()) {
@@ -53,15 +69,7 @@ bool PatrolController::start()
     m_workerRunning.store(true);
     m_worker = std::thread(&PatrolController::workerLoop, this);
 
-    const auto stateCb = m_stateChangedCb;
-    m_cv.notify_all();
-
-    if (stateCb) {
-        lock.unlock();
-        stateCb(PatrolState::Running);
-        lock.lock();
-    }
-
+    notifyStateChange(lock, PatrolState::Running);
     return true;
 }
 
@@ -80,13 +88,7 @@ void PatrolController::stop()
         m_stepAdvanceRequested = false;
         m_stepAdvanceDelta = 0;
 
-        const auto stateCb = m_stateChangedCb;
-        m_cv.notify_all();
-
-        if (stateCb) {
-            lock.unlock();
-            stateCb(PatrolState::Idle);
-        }
+        notifyStateChange(lock, PatrolState::Idle, false);
     }
 
     if (m_worker.joinable() && std::this_thread::get_id() != m_worker.get_id()) {
@@ -102,14 +104,7 @@ void PatrolController::pause()
     }
 
     m_state.store(PatrolState::Paused);
-    const auto stateCb = m_stateChangedCb;
-    m_cv.notify_all();
-
-    if (stateCb) {
-        lock.unlock();
-        stateCb(PatrolState::Paused);
-        lock.lock();
-    }
+    notifyStateChange(lock, PatrolState::Paused);
 }
 
 void PatrolController::resume()
@@ -120,14 +115,7 @@ void PatrolController::resume()
     }
 
     m_state.store(PatrolState::Running);
-    const auto stateCb = m_stateChangedCb;
-    m_cv.notify_all();
-
-    if (stateCb) {
-        lock.unlock();
-        stateCb(PatrolState::Running);
-        lock.lock();
-    }
+    notifyStateChange(lock, PatrolState::Running);
 }
 
 void PatrolController::nextStep()

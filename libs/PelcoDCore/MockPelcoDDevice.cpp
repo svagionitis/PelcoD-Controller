@@ -515,6 +515,18 @@ void MockPelcoDDevice::processFrame(const std::vector<std::uint8_t>& frame)
     }
 }
 
+void MockPelcoDDevice::dispatchResponse(std::vector<std::uint8_t> response)
+{
+    DataReceivedCallback cb;
+    {
+        std::lock_guard<std::mutex> lock(m_callbackMutex);
+        cb = m_dataCallback;
+    }
+    if (cb) {
+        m_latency.enqueue(std::move(response), std::move(cb));
+    }
+}
+
 void MockPelcoDDevice::sendGeneralReply([[maybe_unused]] std::uint8_t cmdChecksum)
 {
     std::uint8_t alarms { 0x00U };
@@ -527,29 +539,12 @@ void MockPelcoDDevice::sendGeneralReply([[maybe_unused]] std::uint8_t cmdChecksu
     // Standard Pelco-D checksum = (addr + alarms) % 256
     const std::uint8_t replyCksm = static_cast<std::uint8_t>((m_address + alarms) & 0xFFU);
     std::vector<std::uint8_t> response { PelcoDFrame::SyncByte, m_address, alarms, replyCksm };
-
-    DataReceivedCallback cb;
-    {
-        std::lock_guard<std::mutex> lock(m_callbackMutex);
-        cb = m_dataCallback;
-    }
-    if (cb) {
-        m_latency.enqueue(std::move(response), std::move(cb));
-    }
+    dispatchResponse(std::move(response));
 }
 
 void MockPelcoDDevice::sendExtendedReply(std::uint8_t resp1, std::uint8_t resp2, std::uint8_t d1, std::uint8_t d2)
 {
-    std::vector<std::uint8_t> response = PelcoDFrame::createFrame(m_address, resp1, resp2, d1, d2);
-
-    DataReceivedCallback cb;
-    {
-        std::lock_guard<std::mutex> lock(m_callbackMutex);
-        cb = m_dataCallback;
-    }
-    if (cb) {
-        m_latency.enqueue(std::move(response), std::move(cb));
-    }
+    dispatchResponse(PelcoDFrame::createFrame(m_address, resp1, resp2, d1, d2));
 }
 
 void MockPelcoDDevice::sendQueryReply([[maybe_unused]] std::uint8_t cmdChecksum)
@@ -571,27 +566,12 @@ void MockPelcoDDevice::sendQueryReply([[maybe_unused]] std::uint8_t cmdChecksum)
 
     // Standard Pelco-D checksum = sum of bytes 1..16 % 256
     response[17] = PelcoDFrame::calculateChecksum(&response[1], 16U);
-
-    DataReceivedCallback cb;
-    {
-        std::lock_guard<std::mutex> lock(m_callbackMutex);
-        cb = m_dataCallback;
-    }
-    if (cb) {
-        m_latency.enqueue(std::move(response), std::move(cb));
-    }
+    dispatchResponse(std::move(response));
 }
 
 void MockPelcoDDevice::injectRxData(const std::vector<std::uint8_t>& data)
 {
-    DataReceivedCallback cb;
-    {
-        std::lock_guard<std::mutex> lock(m_callbackMutex);
-        cb = m_dataCallback;
-    }
-    if (cb) {
-        m_latency.enqueue(data, std::move(cb));
-    }
+    dispatchResponse(data);
 }
 
 } // namespace PelcoD

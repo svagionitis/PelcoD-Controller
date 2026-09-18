@@ -91,8 +91,8 @@ public:
     /// @return Connection object to manage the subscription.
     Connection addRetryCallback(RetryCallback cb);
 
-    using QueryLatencyCallback = std::function<void(
-        const std::string& queryTag, std::chrono::microseconds duration, bool success)>;
+    using QueryLatencyCallback
+        = std::function<void(const std::string& queryTag, std::chrono::microseconds duration, bool success)>;
 
     /// @brief Registers a callback for query round-trip latency and outcome notifications.
     /// @param[in] cb Callback receiving queryTag, microsecond duration, and success flag.
@@ -267,6 +267,8 @@ private:
         std::chrono::steady_clock::time_point earliestDispatchTime { std::chrono::steady_clock::now() };
     };
 
+    void scheduleCommandRetry(CommandItem item, const RetryConfig& retryCfg, std::string_view logReason);
+
     std::shared_ptr<ITransport> m_transport;
     std::atomic<std::uint8_t> m_address { 1U };
 
@@ -325,6 +327,27 @@ private:
             std::make_shared<const std::vector<CallbackEntry<QueryLatencyCallback>>>()
         };
 
+        template <typename CallbackT>
+        static bool removeCallbackEntry(
+            std::shared_ptr<const std::vector<CallbackEntry<CallbackT>>>& list, CallbackId id, std::mutex& mtx)
+        {
+            std::lock_guard<std::mutex> lock(mtx);
+            const auto& current = *list;
+            auto it = std::find_if(current.begin(), current.end(), [id](const auto& entry) { return entry.id == id; });
+            if (it == current.end()) {
+                return false;
+            }
+            auto nextList = std::make_shared<std::vector<CallbackEntry<CallbackT>>>();
+            nextList->reserve(current.size() - 1U);
+            for (const auto& entry : current) {
+                if (entry.id != id) {
+                    nextList->push_back(entry);
+                }
+            }
+            list = std::move(nextList);
+            return true;
+        }
+
         bool removeStatus(CallbackId id);
         bool removeTraffic(CallbackId id);
         bool removeTimeout(CallbackId id);
@@ -333,6 +356,10 @@ private:
         bool removeQueryLatency(CallbackId id);
         void clear();
     };
+
+    template <typename CallbackT, typename RemoveMemFn>
+    Connection registerCallbackHelper(CallbackT cb,
+        std::shared_ptr<const std::vector<CallbackEntry<CallbackT>>> CallbackState::*listMember, RemoveMemFn removeFn);
 
     std::shared_ptr<CallbackState> m_callbackState { std::make_shared<CallbackState>() };
 };

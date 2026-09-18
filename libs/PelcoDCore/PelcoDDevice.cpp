@@ -150,116 +150,32 @@ std::uint8_t PelcoDDevice::getAddress() const noexcept
 
 bool PelcoDDevice::CallbackState::removeStatus(CallbackId id)
 {
-    std::lock_guard<std::mutex> lock(mutex);
-    const auto& current = *statusCallbacks;
-    auto it = std::find_if(current.begin(), current.end(), [id](const auto& entry) { return entry.id == id; });
-    if (it == current.end()) {
-        return false;
-    }
-    auto nextList = std::make_shared<std::vector<CallbackEntry<StatusCallback>>>();
-    nextList->reserve(current.size() - 1U);
-    for (const auto& entry : current) {
-        if (entry.id != id) {
-            nextList->push_back(entry);
-        }
-    }
-    statusCallbacks = std::move(nextList);
-    return true;
+    return removeCallbackEntry(statusCallbacks, id, mutex);
 }
 
 bool PelcoDDevice::CallbackState::removeTraffic(CallbackId id)
 {
-    std::lock_guard<std::mutex> lock(mutex);
-    const auto& current = *trafficCallbacks;
-    auto it = std::find_if(current.begin(), current.end(), [id](const auto& entry) { return entry.id == id; });
-    if (it == current.end()) {
-        return false;
-    }
-    auto nextList = std::make_shared<std::vector<CallbackEntry<TrafficCallback>>>();
-    nextList->reserve(current.size() - 1U);
-    for (const auto& entry : current) {
-        if (entry.id != id) {
-            nextList->push_back(entry);
-        }
-    }
-    trafficCallbacks = std::move(nextList);
-    return true;
+    return removeCallbackEntry(trafficCallbacks, id, mutex);
 }
 
 bool PelcoDDevice::CallbackState::removeTimeout(CallbackId id)
 {
-    std::lock_guard<std::mutex> lock(mutex);
-    const auto& current = *timeoutCallbacks;
-    auto it = std::find_if(current.begin(), current.end(), [id](const auto& entry) { return entry.id == id; });
-    if (it == current.end()) {
-        return false;
-    }
-    auto nextList = std::make_shared<std::vector<CallbackEntry<TimeoutCallback>>>();
-    nextList->reserve(current.size() - 1U);
-    for (const auto& entry : current) {
-        if (entry.id != id) {
-            nextList->push_back(entry);
-        }
-    }
-    timeoutCallbacks = std::move(nextList);
-    return true;
+    return removeCallbackEntry(timeoutCallbacks, id, mutex);
 }
 
 bool PelcoDDevice::CallbackState::removeQueryCompleted(CallbackId id)
 {
-    std::lock_guard<std::mutex> lock(mutex);
-    const auto& current = *queryCompletedCallbacks;
-    auto it = std::find_if(current.begin(), current.end(), [id](const auto& entry) { return entry.id == id; });
-    if (it == current.end()) {
-        return false;
-    }
-    auto nextList = std::make_shared<std::vector<CallbackEntry<QueryCompletedCallback>>>();
-    nextList->reserve(current.size() - 1U);
-    for (const auto& entry : current) {
-        if (entry.id != id) {
-            nextList->push_back(entry);
-        }
-    }
-    queryCompletedCallbacks = std::move(nextList);
-    return true;
+    return removeCallbackEntry(queryCompletedCallbacks, id, mutex);
 }
 
 bool PelcoDDevice::CallbackState::removeRetry(CallbackId id)
 {
-    std::lock_guard<std::mutex> lock(mutex);
-    const auto& current = *retryCallbacks;
-    auto it = std::find_if(current.begin(), current.end(), [id](const auto& entry) { return entry.id == id; });
-    if (it == current.end()) {
-        return false;
-    }
-    auto nextList = std::make_shared<std::vector<CallbackEntry<RetryCallback>>>();
-    nextList->reserve(current.size() - 1U);
-    for (const auto& entry : current) {
-        if (entry.id != id) {
-            nextList->push_back(entry);
-        }
-    }
-    retryCallbacks = std::move(nextList);
-    return true;
+    return removeCallbackEntry(retryCallbacks, id, mutex);
 }
 
 bool PelcoDDevice::CallbackState::removeQueryLatency(CallbackId id)
 {
-    std::lock_guard<std::mutex> lock(mutex);
-    const auto& current = *queryLatencyCallbacks;
-    auto it = std::find_if(current.begin(), current.end(), [id](const auto& entry) { return entry.id == id; });
-    if (it == current.end()) {
-        return false;
-    }
-    auto nextList = std::make_shared<std::vector<CallbackEntry<QueryLatencyCallback>>>();
-    nextList->reserve(current.size() - 1U);
-    for (const auto& entry : current) {
-        if (entry.id != id) {
-            nextList->push_back(entry);
-        }
-    }
-    queryLatencyCallbacks = std::move(nextList);
-    return true;
+    return removeCallbackEntry(queryLatencyCallbacks, id, mutex);
 }
 
 void PelcoDDevice::CallbackState::clear()
@@ -273,7 +189,9 @@ void PelcoDDevice::CallbackState::clear()
     queryLatencyCallbacks = std::make_shared<const std::vector<CallbackEntry<QueryLatencyCallback>>>();
 }
 
-Connection PelcoDDevice::addStatusCallback(StatusCallback cb)
+template <typename CallbackT, typename RemoveMemFn>
+Connection PelcoDDevice::registerCallbackHelper(CallbackT cb,
+    std::shared_ptr<const std::vector<CallbackEntry<CallbackT>>> CallbackState::*listMember, RemoveMemFn removeFn)
 {
     if (!cb) {
         return Connection {};
@@ -281,37 +199,26 @@ Connection PelcoDDevice::addStatusCallback(StatusCallback cb)
     const CallbackId id = m_callbackState->nextId.fetch_add(1U, std::memory_order_relaxed);
     {
         std::lock_guard<std::mutex> lock(m_callbackState->mutex);
-        auto nextList = std::make_shared<std::vector<CallbackEntry<StatusCallback>>>(*m_callbackState->statusCallbacks);
+        auto nextList = std::make_shared<std::vector<CallbackEntry<CallbackT>>>(*(m_callbackState.get()->*listMember));
         nextList->push_back({ id, std::move(cb) });
-        m_callbackState->statusCallbacks = std::move(nextList);
+        m_callbackState.get()->*listMember = std::move(nextList);
     }
     std::weak_ptr<CallbackState> weakState = m_callbackState;
-    return Connection([weakState, id]() {
+    return Connection([weakState, id, removeFn]() {
         if (auto state = weakState.lock()) {
-            state->removeStatus(id);
+            (state.get()->*removeFn)(id);
         }
     });
 }
 
+Connection PelcoDDevice::addStatusCallback(StatusCallback cb)
+{
+    return registerCallbackHelper(std::move(cb), &CallbackState::statusCallbacks, &CallbackState::removeStatus);
+}
+
 Connection PelcoDDevice::addTrafficCallback(TrafficCallback cb)
 {
-    if (!cb) {
-        return Connection {};
-    }
-    const CallbackId id = m_callbackState->nextId.fetch_add(1U, std::memory_order_relaxed);
-    {
-        std::lock_guard<std::mutex> lock(m_callbackState->mutex);
-        auto nextList
-            = std::make_shared<std::vector<CallbackEntry<TrafficCallback>>>(*m_callbackState->trafficCallbacks);
-        nextList->push_back({ id, std::move(cb) });
-        m_callbackState->trafficCallbacks = std::move(nextList);
-    }
-    std::weak_ptr<CallbackState> weakState = m_callbackState;
-    return Connection([weakState, id]() {
-        if (auto state = weakState.lock()) {
-            state->removeTraffic(id);
-        }
-    });
+    return registerCallbackHelper(std::move(cb), &CallbackState::trafficCallbacks, &CallbackState::removeTraffic);
 }
 
 Connection PelcoDDevice::addTrafficCallback(TrafficCallback cb, bool notifyTx, bool notifyRx)
@@ -354,85 +261,24 @@ Connection PelcoDDevice::addTrafficCallback(
 
 Connection PelcoDDevice::addTimeoutCallback(TimeoutCallback cb)
 {
-    if (!cb) {
-        return Connection {};
-    }
-    const CallbackId id = m_callbackState->nextId.fetch_add(1U, std::memory_order_relaxed);
-    {
-        std::lock_guard<std::mutex> lock(m_callbackState->mutex);
-        auto nextList
-            = std::make_shared<std::vector<CallbackEntry<TimeoutCallback>>>(*m_callbackState->timeoutCallbacks);
-        nextList->push_back({ id, std::move(cb) });
-        m_callbackState->timeoutCallbacks = std::move(nextList);
-    }
-    std::weak_ptr<CallbackState> weakState = m_callbackState;
-    return Connection([weakState, id]() {
-        if (auto state = weakState.lock()) {
-            state->removeTimeout(id);
-        }
-    });
+    return registerCallbackHelper(std::move(cb), &CallbackState::timeoutCallbacks, &CallbackState::removeTimeout);
 }
 
 Connection PelcoDDevice::addQueryCompletedCallback(QueryCompletedCallback cb)
 {
-    if (!cb) {
-        return Connection {};
-    }
-    const CallbackId id = m_callbackState->nextId.fetch_add(1U, std::memory_order_relaxed);
-    {
-        std::lock_guard<std::mutex> lock(m_callbackState->mutex);
-        auto nextList = std::make_shared<std::vector<CallbackEntry<QueryCompletedCallback>>>(
-            *m_callbackState->queryCompletedCallbacks);
-        nextList->push_back({ id, std::move(cb) });
-        m_callbackState->queryCompletedCallbacks = std::move(nextList);
-    }
-    std::weak_ptr<CallbackState> weakState = m_callbackState;
-    return Connection([weakState, id]() {
-        if (auto state = weakState.lock()) {
-            state->removeQueryCompleted(id);
-        }
-    });
+    return registerCallbackHelper(
+        std::move(cb), &CallbackState::queryCompletedCallbacks, &CallbackState::removeQueryCompleted);
 }
 
 Connection PelcoDDevice::addRetryCallback(RetryCallback cb)
 {
-    if (!cb) {
-        return Connection {};
-    }
-    const CallbackId id = m_callbackState->nextId.fetch_add(1U, std::memory_order_relaxed);
-    {
-        std::lock_guard<std::mutex> lock(m_callbackState->mutex);
-        auto nextList = std::make_shared<std::vector<CallbackEntry<RetryCallback>>>(*m_callbackState->retryCallbacks);
-        nextList->push_back({ id, std::move(cb) });
-        m_callbackState->retryCallbacks = std::move(nextList);
-    }
-    std::weak_ptr<CallbackState> weakState = m_callbackState;
-    return Connection([weakState, id]() {
-        if (auto state = weakState.lock()) {
-            state->removeRetry(id);
-        }
-    });
+    return registerCallbackHelper(std::move(cb), &CallbackState::retryCallbacks, &CallbackState::removeRetry);
 }
 
 Connection PelcoDDevice::addQueryLatencyCallback(QueryLatencyCallback cb)
 {
-    if (!cb) {
-        return Connection {};
-    }
-    const CallbackId id = m_callbackState->nextId.fetch_add(1U, std::memory_order_relaxed);
-    {
-        std::lock_guard<std::mutex> lock(m_callbackState->mutex);
-        auto nextList = std::make_shared<std::vector<CallbackEntry<QueryLatencyCallback>>>(
-            *m_callbackState->queryLatencyCallbacks);
-        nextList->push_back({ id, std::move(cb) });
-        m_callbackState->queryLatencyCallbacks = std::move(nextList);
-    }
-    std::weak_ptr<CallbackState> weakState = m_callbackState;
-    return Connection([weakState, id]() {
-        if (auto state = weakState.lock()) {
-            state->removeQueryLatency(id);
-        }
-    });
+    return registerCallbackHelper(
+        std::move(cb), &CallbackState::queryLatencyCallbacks, &CallbackState::removeQueryLatency);
 }
 
 bool PelcoDDevice::removeStatusCallback(CallbackId id)
@@ -998,6 +844,34 @@ void PelcoDDevice::checkQueryTimeout()
     }
 }
 
+void PelcoDDevice::scheduleCommandRetry(CommandItem item, const RetryConfig& retryCfg, std::string_view logReason)
+{
+    item.retryCount++;
+    const auto backoffDelay = calculateBackoffDelay(retryCfg, item.retryCount);
+    item.earliestDispatchTime = std::chrono::steady_clock::now() + backoffDelay;
+
+    std::shared_ptr<const std::vector<CallbackEntry<RetryCallback>>> rcbs;
+    {
+        std::lock_guard<std::mutex> lock(m_callbackState->mutex);
+        rcbs = m_callbackState->retryCallbacks;
+    }
+    for (const auto& entry : *rcbs) {
+        if (entry.cb) {
+            entry.cb(
+                item.queryTag.empty() ? "Command" : item.queryTag, item.retryCount, retryCfg.maxRetries, backoffDelay);
+        }
+    }
+
+    LOG(INFO) << logReason << " (attempt " << item.retryCount << "/" << retryCfg.maxRetries << "). Retrying in "
+              << backoffDelay.count() << " ms";
+
+    {
+        std::lock_guard<std::mutex> lock(m_queueMutex);
+        m_commandQueue.push_back(std::move(item));
+    }
+    m_queueCv.notify_one();
+}
+
 void PelcoDDevice::workerLoop()
 {
     auto nextPollTime = std::chrono::steady_clock::now();
@@ -1140,32 +1014,9 @@ void PelcoDDevice::workerLoop()
                     retryCfg = m_retryConfig;
                 }
                 if (retryCfg.retryOnTransportError && item.retryCount < retryCfg.maxRetries) {
-                    item.retryCount++;
-                    const auto backoffDelay = calculateBackoffDelay(retryCfg, item.retryCount);
-                    item.earliestDispatchTime = std::chrono::steady_clock::now() + backoffDelay;
-
-                    std::shared_ptr<const std::vector<CallbackEntry<RetryCallback>>> rcbs;
-                    {
-                        std::lock_guard<std::mutex> lock(m_callbackState->mutex);
-                        rcbs = m_callbackState->retryCallbacks;
-                    }
-                    for (const auto& entry : *rcbs) {
-                        if (entry.cb) {
-                            entry.cb(item.queryTag.empty() ? "Command" : item.queryTag, item.retryCount,
-                                retryCfg.maxRetries, backoffDelay);
-                        }
-                    }
-
-                    LOG(INFO) << "Transport transmission failed for "
-                              << (item.queryTag.empty() ? "command" : "query '" + item.queryTag + "'") << " (attempt "
-                              << item.retryCount << "/" << retryCfg.maxRetries << "). Retrying in "
-                              << backoffDelay.count() << " ms";
-
-                    {
-                        std::lock_guard<std::mutex> lock(m_queueMutex);
-                        m_commandQueue.push_back(std::move(item));
-                    }
-                    m_queueCv.notify_one();
+                    const std::string reason = "Transport transmission failed for "
+                        + (item.queryTag.empty() ? "command" : "query '" + item.queryTag + "'");
+                    scheduleCommandRetry(std::move(item), retryCfg, reason);
                 } else if (!item.queryTag.empty() && retryCfg.maxRetries > 0U) {
                     DeviceStatus statusCopy;
                     {
@@ -1223,30 +1074,8 @@ void PelcoDDevice::workerLoop()
                                     m_awaitingResponse = false;
                                     m_pendingQueryTag.clear();
                                 }
-                                item.retryCount++;
-                                const auto backoffDelay = calculateBackoffDelay(retryCfg, item.retryCount);
-                                item.earliestDispatchTime = std::chrono::steady_clock::now() + backoffDelay;
-
-                                std::shared_ptr<const std::vector<CallbackEntry<RetryCallback>>> rcbs;
-                                {
-                                    std::lock_guard<std::mutex> lock(m_callbackState->mutex);
-                                    rcbs = m_callbackState->retryCallbacks;
-                                }
-                                for (const auto& entry : *rcbs) {
-                                    if (entry.cb) {
-                                        entry.cb(item.queryTag, item.retryCount, retryCfg.maxRetries, backoffDelay);
-                                    }
-                                }
-
-                                LOG(INFO)
-                                    << "Query '" << item.queryTag << "' timed out (attempt " << item.retryCount << "/"
-                                    << retryCfg.maxRetries << "). Retrying in " << backoffDelay.count() << " ms";
-
-                                {
-                                    std::lock_guard<std::mutex> lock(m_queueMutex);
-                                    m_commandQueue.push_back(std::move(item));
-                                }
-                                m_queueCv.notify_one();
+                                const std::string reason = "Query '" + item.queryTag + "' timed out";
+                                scheduleCommandRetry(std::move(item), retryCfg, reason);
                             } else {
                                 checkQueryTimeout();
                             }

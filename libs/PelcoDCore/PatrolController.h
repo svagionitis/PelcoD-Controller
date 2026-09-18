@@ -93,6 +93,7 @@ public:
 private:
     void workerLoop();
     void dispatchCurrentStep(std::unique_lock<std::mutex>& lock);
+    void notifyStateChange(std::unique_lock<std::mutex>& lock, PatrolState state, bool relock = true);
 
     mutable std::mutex m_mutex;
     std::condition_variable m_cv;

@@ -112,6 +112,7 @@ public:
 
 private:
     void processFrame(const std::vector<std::uint8_t>& frame);
+    void dispatchResponse(std::vector<std::uint8_t> response);
     void sendGeneralReply(std::uint8_t cmdChecksum);
     void sendExtendedReply(std::uint8_t resp1, std::uint8_t resp2, std::uint8_t d1, std::uint8_t d2);
     void sendQueryReply(std::uint8_t cmdChecksum);

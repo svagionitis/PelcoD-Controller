@@ -53,9 +53,9 @@ struct RttStatistics {
 /// @enum ProfilerMode
 /// @brief Operational strategy governing probe dispatch and telemetry collection.
 enum class ProfilerMode : std::uint8_t {
-    ActiveBurst,      ///< Dispatches a finite sequence of probes at periodic intervals.
+    ActiveBurst, ///< Dispatches a finite sequence of probes at periodic intervals.
     ActiveContinuous, ///< Periodically dispatches probes indefinitely until stopped.
-    Passive           ///< Observes normal controller telemetry queries without extra bus traffic.
+    Passive ///< Observes normal controller telemetry queries without extra bus traffic.
 };
 
 /// @struct RttProfilerConfig
@@ -170,6 +170,7 @@ private:
     void activeWorkerLoop(RttProfilerConfig config);
     void dispatchProbeCommand(const std::string& tag);
     void updatePercentilesLocked();
+    void resetStatisticsUnderLock() noexcept;
 
     mutable std::mutex m_mutex;
     std::shared_ptr<PelcoDDevice> m_device;

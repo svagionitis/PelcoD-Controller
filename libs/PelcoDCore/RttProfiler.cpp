@@ -62,20 +62,13 @@ bool RttProfiler::start(const RttProfilerConfig& config)
         m_running = true;
 
         // Reset statistics for new session
-        m_stats = RttStatistics {};
-        m_history.clear();
-        m_nextSeq = 1U;
-        m_welfordMean = 0.0;
-        m_welfordM2 = 0.0;
-        m_lastRttMs = 0.0;
-        m_jitterRfc3550Ms = 0.0;
+        resetStatisticsUnderLock();
     }
 
     if (dev) {
-        m_deviceLatencyConn = dev->addQueryLatencyCallback(
-            [this](const std::string& tag, std::chrono::microseconds duration, bool success) {
-                recordSample(duration, tag, success);
-            });
+        m_deviceLatencyConn
+            = dev->addQueryLatencyCallback([this](const std::string& tag, std::chrono::microseconds duration,
+                                               bool success) { recordSample(duration, tag, success); });
     }
 
     StateChangedCallback stateCb;
@@ -117,19 +110,24 @@ void RttProfiler::stop()
     }
 }
 
+void RttProfiler::resetStatisticsUnderLock() noexcept
+{
+    m_stats = RttStatistics {};
+    m_history.clear();
+    m_nextSeq = 1U;
+    m_welfordMean = 0.0;
+    m_welfordM2 = 0.0;
+    m_lastRttMs = 0.0;
+    m_jitterRfc3550Ms = 0.0;
+}
+
 void RttProfiler::reset()
 {
     StatisticsCallback statsCb;
     RttStatistics statsSnapshot;
     {
         std::lock_guard<std::mutex> lock(m_mutex);
-        m_stats = RttStatistics {};
-        m_history.clear();
-        m_nextSeq = 1U;
-        m_welfordMean = 0.0;
-        m_welfordM2 = 0.0;
-        m_lastRttMs = 0.0;
-        m_jitterRfc3550Ms = 0.0;
+        resetStatisticsUnderLock();
         statsSnapshot = m_stats;
         statsCb = m_statsCb;
     }
@@ -309,17 +307,14 @@ void RttProfiler::activeWorkerLoop(RttProfilerConfig config)
         }
 
         std::unique_lock<std::mutex> lock(m_mutex);
-        m_cv.wait_for(lock, std::chrono::milliseconds(config.intervalMs), [this] {
-            return m_stopRequested.load();
-        });
+        m_cv.wait_for(lock, std::chrono::milliseconds(config.intervalMs), [this] { return m_stopRequested.load(); });
     }
 
     // In burst mode, allow a brief settling time for final response to be received
     if (config.mode == ProfilerMode::ActiveBurst && !m_stopRequested.load()) {
         std::unique_lock<std::mutex> lock(m_mutex);
-        m_cv.wait_for(lock, std::chrono::milliseconds(std::min(config.timeoutMs, 500U)), [this] {
-            return m_stopRequested.load();
-        });
+        m_cv.wait_for(lock, std::chrono::milliseconds(std::min(config.timeoutMs, 500U)),
+            [this] { return m_stopRequested.load(); });
     }
 
     m_deviceLatencyConn.disconnect();
