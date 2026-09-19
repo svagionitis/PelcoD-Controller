@@ -86,6 +86,10 @@ add_library(PelcoDCore STATIC
     PlantIdentifier.cpp
     ChirpCalibrator.h
     ChirpCalibrator.cpp
+    MacroScript.h
+    MacroScript.cpp
+    MacroPlayer.h
+    MacroPlayer.cpp
 )
 
 target_include_directories(PelcoDCore PUBLIC

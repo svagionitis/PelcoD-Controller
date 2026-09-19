@@ -4,6 +4,7 @@
 #include "TrafficInspectorWidget.h"
 
 #include "PelcoDFrame.h"
+#include "app-qt/dialogs/MacroPlaybackDialog.h"
 
 #include <QDateTime>
 #include <QFont>
@@ -38,11 +39,14 @@ void TrafficInspectorWidget::setupUi()
     chkAutoScroll->setChecked(true);
 
     btnClear = new QPushButton(tr("Clear Log"), this);
+    btnMacros = new QPushButton(tr("Macros..."), this);
+    btnMacros->setToolTip(tr("Open Packet Macro Playback and Hex Scripting"));
 
     toolbarLayout->addWidget(lblFilter);
     toolbarLayout->addWidget(cmbFilter);
     toolbarLayout->addWidget(chkAutoScroll);
     toolbarLayout->addStretch();
+    toolbarLayout->addWidget(btnMacros);
     toolbarLayout->addWidget(btnClear);
 
     mainLayout->addLayout(toolbarLayout);
@@ -89,6 +93,7 @@ void TrafficInspectorWidget::setupUi()
 
     // Connections
     connect(btnClear, &QPushButton::clicked, this, &TrafficInspectorWidget::clearLog);
+    connect(btnMacros, &QPushButton::clicked, this, &TrafficInspectorWidget::handleOpenMacros);
     connect(btnSendRaw, &QPushButton::clicked, this, &TrafficInspectorWidget::handleSendClicked);
     connect(editRawHex, &QLineEdit::returnPressed, this, &TrafficInspectorWidget::handleSendClicked);
     connect(cmbFilter, QOverload<int>::of(&QComboBox::currentIndexChanged), this,
@@ -164,6 +169,42 @@ void TrafficInspectorWidget::handleSendClicked()
 void TrafficInspectorWidget::handleFilterChanged(int index)
 {
     filterMode = index;
+}
+
+void TrafficInspectorWidget::handleOpenMacros()
+{
+    auto* dialog = new MacroPlaybackDialog(this);
+    dialog->setAttribute(Qt::WA_DeleteOnClose);
+
+    // If there are captured TX frames in the log, offer to seed the macro with them
+    PelcoD::MacroSequence seq;
+    seq.name = "Traffic Log Export";
+    seq.description = "Captured frames from live traffic inspector";
+    seq.repeatCount = 1U;
+
+    for (int r = 0; r < tableInspector->rowCount(); ++r) {
+        auto* dirItem = tableInspector->item(r, 1);
+        auto* hexItem = tableInspector->item(r, 2);
+        auto* descItem = tableInspector->item(r, 3);
+        if (dirItem && dirItem->text() == "TX" && hexItem) {
+            PelcoD::MacroStep step;
+            step.frame = PelcoD::PelcoDFrame::fromHexString(hexItem->text().toStdString());
+            step.delayMs = 100U;
+            if (descItem) {
+                step.label = descItem->text().toStdString();
+            }
+            if (!step.frame.empty()) {
+                seq.steps.push_back(std::move(step));
+            }
+        }
+    }
+
+    if (!seq.steps.empty()) {
+        dialog->loadSequence(seq);
+    }
+
+    connect(dialog, &MacroPlaybackDialog::sendFrameRequested, this, &TrafficInspectorWidget::sendRawHexRequested);
+    dialog->show();
 }
 
 } // namespace PelcoDApp

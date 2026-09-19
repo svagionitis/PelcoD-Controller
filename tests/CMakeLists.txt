@@ -40,6 +40,7 @@ add_pelco_test(TestDwt TestDwt.cpp)
 add_pelco_test(TestNonlinearKalman TestNonlinearKalman.cpp)
 add_pelco_test(TestStft TestStft.cpp)
 add_pelco_test(TestPlantIdentifier TestPlantIdentifier.cpp)
+add_pelco_test(TestMacroPlayback TestMacroPlayback.cpp)
 
 add_executable(TestConnectionModal
     TestConnectionModal.cpp

@@ -34,6 +34,7 @@ public slots:
 private slots:
     void handleSendClicked();
     void handleFilterChanged(int index);
+    void handleOpenMacros();
 
 private:
     void setupUi();
@@ -42,6 +43,7 @@ private:
     QCheckBox* chkAutoScroll { nullptr };
     QComboBox* cmbFilter { nullptr };
     QPushButton* btnClear { nullptr };
+    QPushButton* btnMacros { nullptr };
 
     QLineEdit* editRawHex { nullptr };
     QPushButton* btnSendRaw { nullptr };

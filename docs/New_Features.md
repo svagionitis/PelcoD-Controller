@@ -26,12 +26,12 @@ Here is a curated list of high-value features and enhancements that can be added
 
 ---
 
-### 3. Traffic Inspection & Diagnostics
+### 3. Traffic Inspection & Diagnostics (Completed)
 
 * **Traffic Capture Export in Qt (`TrafficInspectorWidget`) (Completed)**:
   * Export captured traffic to **CSV**, **JSON Lines**, or **PCAP/Wireshark** format directly from `TrafficInspectorWidget` in the Qt GUI.
-* **Packet Macro Playback / Hex Scripting**:
-  * Allow operators to record a sequence of commands, save them as JSON/YAML, and play them back with millisecond timing control (useful for automated camera testing and repeatability benchmarks).
+* **Packet Macro Playback / Hex Scripting (Completed)**:
+  * Record, author, edit, import/export (JSON and line-based `.hex`/`.txt` scripts), and execute timed sequences of commands with millisecond scheduling, repeat loop rules, and live table visualization. Implemented in `MacroScript.h`, `MacroPlayer.h`, `MacroPlaybackDialog.h`, and integrated into `TrafficInspectorWidget`. Tested in `TestMacroPlayback.cpp`.
 * **Round-Trip-Time (RTT) & Jitter Profiler (Completed)**:
   * Real-time response latency profiler between query dispatch and response frame arrival, rendering live min/max/average RTT telemetry. Implemented in `RttProfiler.h` and `RttProfilerDialog.h`, tested in `TestRttProfiler.cpp`.
 

@@ -36,6 +36,8 @@ add_executable(PelcoDAppQt
     dialogs/RttProfilerDialog.cpp
     dialogs/TacticalOverlaysDialog.h
     dialogs/TacticalOverlaysDialog.cpp
+    dialogs/MacroPlaybackDialog.h
+    dialogs/MacroPlaybackDialog.cpp
     resources.qrc
 )
 
