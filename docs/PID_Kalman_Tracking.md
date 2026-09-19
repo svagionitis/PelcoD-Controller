@@ -22,7 +22,7 @@ Neither the Kalman filter nor the PID controller can do the other's job. Here is
 
 ## 1. Why We Need the Kalman Filter (The Observer)
 
-Optical flow and visual bounding boxes (from [CentroidTargetTrackerFilter](../libs/PelcoDVideo/VideoFilters.h#L320)) produce noisy, delayed, 2D pixel measurements. The Kalman filter (see [Kalman Filter 101](Kalman_Filter_101.md) for an intuitive ELI5 and technical guide) acts as the **state estimator**:
+Optical flow and visual bounding boxes (from [CentroidTargetTrackerFilter](../libs/PelcoDVideo/VideoFilters.h#L320)) produce noisy, delayed, 2D pixel measurements. The Kalman filter (see [Kalman Filter 101](technical/Kalman_Filter_101.md) for an intuitive ELI5 and technical guide) acts as the **state estimator**:
 
 ### A. Extracting Velocity from Position
 Computer vision only tells you where the target *is* ($x, y$), not how fast it is moving ($v_x, v_y$).
@@ -48,7 +48,7 @@ If a tracked person walks behind a lamppost, tree, or pillar, optical flow insta
 
 Even with an accurate Kalman-filtered target position, you cannot simply feed raw pixel errors directly to the camera motors. PTZ heads are physical mechanical systems subject to **inertia, mass, gear backlash, friction, and motor acceleration limits**.
 
-[PidController](../libs/PelcoDCore/PidController.h) (see [PID Controller 101](PID_Controller_101.md) for an intuitive ELI5 and technical reference) and [PtzAutoTracker](../libs/PelcoDCore/PtzAutoTracker.h) solve these physical control problems:
+[PidController](../libs/PelcoDCore/PidController.h) (see [PID Controller 101](technical/PID_Controller_101.md) for an intuitive ELI5 and technical reference) and [PtzAutoTracker](../libs/PelcoDCore/PtzAutoTracker.h) solve these physical control problems:
 
 ### A. Proportional Control ($K_p$): Scaling the Urgency
 - A target near the edge of the screen ($e = 0.9$) needs rapid panning to prevent it from escaping the frame.

@@ -154,7 +154,7 @@ This computation requires only **5 multiplications and 4 additions per sample**,
 
 ### Robert Bristow-Johnson Audio EQ Cookbook Formulas
 
-The standard, numerically stable coefficient derivation (used in [`NotchFilter.cpp`](../libs/PelcoDCore/NotchFilter.cpp)) is:
+The standard, numerically stable coefficient derivation (used in [`NotchFilter.cpp`](../../libs/PelcoDCore/NotchFilter.cpp)) is:
 
 1. **Normalized Angular Frequency:**
    $$\omega_0 = \frac{2\pi f_0}{f_s}$$
@@ -230,7 +230,7 @@ If the notch frequency $f_0$ is placed too close to the **control loop crossover
 Digital filters cannot operate at or above the Nyquist frequency ($f_0 \ge f_s / 2$).
 If an operator accidentally requests a $30\text{ Hz}$ notch on a camera telemetry stream sampled at $50\text{ Hz}$ (where Nyquist is $25\text{ Hz}$), naive math produces negative square roots or severe aliasing.
 
-In [`NotchFilter.cpp`](../libs/PelcoDCore/NotchFilter.cpp#L34), runtime boundary guarding automatically protects the system:
+In [`NotchFilter.cpp`](../../libs/PelcoDCore/NotchFilter.cpp#L34), runtime boundary guarding automatically protects the system:
 ```cpp
 const double nyquist = 0.5 * m_sampleRateHz;
 if (m_centerFreqHz <= 0.0 || m_centerFreqHz >= nyquist) {
@@ -282,7 +282,7 @@ Notch Output (High Q):
 
 ## 5. How the Notch Filter is Used in This Project (`PelcoD-Controller`)
 
-In the `PelcoD-Controller` repository, the [`NotchFilter`](../libs/PelcoDCore/NotchFilter.h) is an integral component of the active vibration suppression and mechanical protection pipeline:
+In the `PelcoD-Controller` repository, the [`NotchFilter`](../../libs/PelcoDCore/NotchFilter.h) is an integral component of the active vibration suppression and mechanical protection pipeline:
 
 ```mermaid
 flowchart LR
@@ -301,7 +301,7 @@ High-mast security cameras mounted on $15\text{--}30\text{ meter}$ poles suffer 
 ---
 
 ### 2. Hunting Suppression with `OscillationDetector`
-When [`OscillationDetector`](../libs/PelcoDCore/OscillationDetector.h) evaluates the tracking error using [`Math::computePsd`](../libs/PelcoDCore/Fft.h) and identifies persistent limit-cycle oscillations:
+When [`OscillationDetector`](../../libs/PelcoDCore/OscillationDetector.h) evaluates the tracking error using [`Math::computePsd`](../../libs/PelcoDCore/Fft.h) and identifies persistent limit-cycle oscillations:
 1. It calls `autoAttenuate()` to reduce PID proportional gain.
 2. It reconfigures `NotchFilter::setParameters(detectedFreq, sampleRate, 5.0)`.
 3. The notch filter immediately suppresses the hunting frequency from the motor command output, preventing gear tooth stripping and restoring smooth tracking.
@@ -343,11 +343,11 @@ The following standard reference texts, technical manuals, and seminal papers pr
    *(Covers loop shaping, resonant poles, and phase margin constraints).*
 
 5. **Related Documentation in This Repository:**  
-   - [`docs/Integral_Images_101.md`](Integral_Images_101.md): Complementary guide explaining Integral Images (Summed-Area Tables).
-   - [`docs/PID_Controller_101.md`](PID_Controller_101.md): Complementary guide explaining the PID controller.
-   - [`docs/Kalman_Filter_101.md`](Kalman_Filter_101.md): Complementary guide explaining the Kalman filter.
-   - [`docs/FFT_101.md`](FFT_101.md): Complementary guide explaining the Fast Fourier Transform (FFT).
-   - [`docs/DCT_101.md`](DCT_101.md): Complementary guide explaining the Discrete Cosine Transform (DCT).
-   - [`docs/DWT_101.md`](DWT_101.md): Complementary guide explaining the Discrete Wavelet Transform (DWT).
-   - [`libs/PelcoDCore/NotchFilter.h`](../libs/PelcoDCore/NotchFilter.h): Core C++17 NotchFilter implementation.
-   - [`libs/PelcoDCore/OscillationDetector.h`](../libs/PelcoDCore/OscillationDetector.h): Motor resonance and hunting detector.
+   - [`docs/technical/Integral_Images_101.md`](Integral_Images_101.md): Complementary guide explaining Integral Images (Summed-Area Tables).
+   - [`docs/technical/PID_Controller_101.md`](PID_Controller_101.md): Complementary guide explaining the PID controller.
+   - [`docs/technical/Kalman_Filter_101.md`](Kalman_Filter_101.md): Complementary guide explaining the Kalman filter.
+   - [`docs/technical/FFT_101.md`](FFT_101.md): Complementary guide explaining the Fast Fourier Transform (FFT).
+   - [`docs/technical/DCT_101.md`](DCT_101.md): Complementary guide explaining the Discrete Cosine Transform (DCT).
+   - [`docs/technical/DWT_101.md`](DWT_101.md): Complementary guide explaining the Discrete Wavelet Transform (DWT).
+   - [`libs/PelcoDCore/NotchFilter.h`](../../libs/PelcoDCore/NotchFilter.h): Core C++17 NotchFilter implementation.
+   - [`libs/PelcoDCore/OscillationDetector.h`](../../libs/PelcoDCore/OscillationDetector.h): Motor resonance and hunting detector.

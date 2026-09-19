@@ -402,7 +402,7 @@ flowchart LR
 
 ### Project-Specific Implementations and Features
 
-The controller is implemented in [`libs/PelcoDCore/PidController.h`](../libs/PelcoDCore/PidController.h) and [`libs/PelcoDCore/PidController.cpp`](../libs/PelcoDCore/PidController.cpp). Key engineering adaptations include:
+The controller is implemented in [`libs/PelcoDCore/PidController.h`](../../libs/PelcoDCore/PidController.h) and [`libs/PelcoDCore/PidController.cpp`](../../libs/PelcoDCore/PidController.cpp). Key engineering adaptations include:
 
 #### 1. Discrete Output Saturation to Pelco-D Speed Range
 The Pelco-D protocol defines pan and tilt speeds as 1-byte discrete values from `0x00` (stop) to `0x3F` (decimal 63, maximum speed):
@@ -444,12 +444,12 @@ if (std::abs(error) <= m_deadband && std::abs(ffTerm) < 1e-9) {
 
 #### 5. Zoom Gain Scheduling (`PtzAutoTracker`)
 When a telephoto lens (such as the Fujinon SX800) zooms from $1\times$ to $40\times$, the camera's field of view shrinks from $60^\circ$ to $1.5^\circ$. A 10-pixel error at full zoom represents a tiny fraction of a degree, whereas at wide zoom it represents a large physical angle.
-- In [`PtzAutoTracker`](../libs/PelcoDCore/PtzAutoTracker.h), gains are dynamically scaled with zoom ratio:
+- In [`PtzAutoTracker`](../../libs/PelcoDCore/PtzAutoTracker.h), gains are dynamically scaled with zoom ratio:
   $$K_{p,\text{effective}} = \frac{K_{p,\text{base}}}{\text{Zoom Factor}}$$
   This prevents high-speed oscillation when zoomed in on distant targets.
 
 #### 6. Automatic Oscillation Attenuation (`OscillationDetector`)
-If external vibration, wind, or improper gain tuning causes continuous sign-reversals in the control output, [`OscillationDetector`](../libs/PelcoDCore/OscillationDetector.h) flags resonance and calls:
+If external vibration, wind, or improper gain tuning causes continuous sign-reversals in the control output, [`OscillationDetector`](../../libs/PelcoDCore/OscillationDetector.h) flags resonance and calls:
 ```cpp
 oscillationDetector.autoAttenuate(m_panPid, 0.85);
 ```
@@ -486,11 +486,11 @@ The following standard reference texts, seminal papers, and official resources p
    *(Covers discrete-time sampling, z-transforms, and digital anti-windup strategies).*
 
 6. **Related Documentation in This Repository:**  
-   - [`docs/Integral_Images_101.md`](Integral_Images_101.md): Complementary guide explaining Integral Images (Summed-Area Tables).
-   - [`docs/Notch_Filter_101.md`](Notch_Filter_101.md): Complementary guide explaining the Digital Notch Filter.
-   - [`docs/Kalman_Filter_101.md`](Kalman_Filter_101.md): Complementary 101/ELI5 guide explaining the Kalman Filter.
-   - [`docs/FFT_101.md`](FFT_101.md): Complementary 101/ELI5 guide explaining the Fast Fourier Transform (FFT).
-   - [`docs/DCT_101.md`](DCT_101.md): Complementary 101/ELI5 guide explaining the Discrete Cosine Transform (DCT).
-   - [`docs/DWT_101.md`](DWT_101.md): Complementary 101/ELI5 guide explaining the Discrete Wavelet Transform (DWT).
-   - [`docs/PID_Kalman_Tracking.md`](PID_Kalman_Tracking.md): Architectural comparison between the Kalman filter (Observer) and PID controller (Actuator) in automated visual tracking.
-   - [`libs/PelcoDCore/PidController.h`](../libs/PelcoDCore/PidController.h): Core C++17 PID implementation.
+   - [`docs/technical/Integral_Images_101.md`](Integral_Images_101.md): Complementary guide explaining Integral Images (Summed-Area Tables).
+   - [`docs/technical/Notch_Filter_101.md`](Notch_Filter_101.md): Complementary guide explaining the Digital Notch Filter.
+   - [`docs/technical/Kalman_Filter_101.md`](Kalman_Filter_101.md): Complementary 101/ELI5 guide explaining the Kalman Filter.
+   - [`docs/technical/FFT_101.md`](FFT_101.md): Complementary 101/ELI5 guide explaining the Fast Fourier Transform (FFT).
+   - [`docs/technical/DCT_101.md`](DCT_101.md): Complementary 101/ELI5 guide explaining the Discrete Cosine Transform (DCT).
+   - [`docs/technical/DWT_101.md`](DWT_101.md): Complementary 101/ELI5 guide explaining the Discrete Wavelet Transform (DWT).
+   - [`docs/PID_Kalman_Tracking.md`](../PID_Kalman_Tracking.md): Architectural comparison between the Kalman filter (Observer) and PID controller (Actuator) in automated visual tracking.
+   - [`libs/PelcoDCore/PidController.h`](../../libs/PelcoDCore/PidController.h): Core C++17 PID implementation.
