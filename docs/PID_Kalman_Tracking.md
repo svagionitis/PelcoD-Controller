@@ -48,7 +48,7 @@ If a tracked person walks behind a lamppost, tree, or pillar, optical flow insta
 
 Even with an accurate Kalman-filtered target position, you cannot simply feed raw pixel errors directly to the camera motors. PTZ heads are physical mechanical systems subject to **inertia, mass, gear backlash, friction, and motor acceleration limits**.
 
-[PidController](../libs/PelcoDCore/PidController.h) and [PtzAutoTracker](../libs/PelcoDCore/PtzAutoTracker.h) solve these physical control problems:
+[PidController](../libs/PelcoDCore/PidController.h) (see [PID Controller 101](PID_Controller_101.md) for an intuitive ELI5 and technical reference) and [PtzAutoTracker](../libs/PelcoDCore/PtzAutoTracker.h) solve these physical control problems:
 
 ### A. Proportional Control ($K_p$): Scaling the Urgency
 - A target near the edge of the screen ($e = 0.9$) needs rapid panning to prevent it from escaping the frame.
