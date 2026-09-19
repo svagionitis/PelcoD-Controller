@@ -487,5 +487,6 @@ The following standard reference texts, seminal papers, and official resources p
 
 6. **Related Documentation in This Repository:**  
    - [`docs/Kalman_Filter_101.md`](Kalman_Filter_101.md): Complementary 101/ELI5 guide explaining the Kalman Filter.
+   - [`docs/FFT_101.md`](FFT_101.md): Complementary 101/ELI5 guide explaining the Fast Fourier Transform (FFT).
    - [`docs/PID_Kalman_Tracking.md`](PID_Kalman_Tracking.md): Architectural comparison between the Kalman filter (Observer) and PID controller (Actuator) in automated visual tracking.
    - [`libs/PelcoDCore/PidController.h`](../libs/PelcoDCore/PidController.h): Core C++17 PID implementation.

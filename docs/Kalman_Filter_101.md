@@ -460,6 +460,7 @@ The following standard reference texts, seminal papers, and academic resources p
 
 6. **Related Documentation in This Repository:**  
    - [`docs/PID_Controller_101.md`](PID_Controller_101.md): Complementary 101/ELI5 guide explaining the PID controller.
+   - [`docs/FFT_101.md`](FFT_101.md): Complementary 101/ELI5 guide explaining the Fast Fourier Transform (FFT).
    - [`docs/PID_Kalman_Tracking.md`](PID_Kalman_Tracking.md): Architectural analysis comparing the observer (Kalman) and actuator (PID) visual servoing duality.
    - [`libs/PelcoDCore/ExtendedKalmanFilter.h`](../libs/PelcoDCore/ExtendedKalmanFilter.h): C++17 Extended Kalman Filter implementation.
    - [`libs/PelcoDCore/UnscentedKalmanFilter.h`](../libs/PelcoDCore/UnscentedKalmanFilter.h): C++17 Unscented Kalman Filter implementation.
