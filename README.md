@@ -242,9 +242,17 @@ Specialized camera profiles ([`FujinonSX800Device`](libs/PelcoDCore/FujinonSX800
 ## Documentation
 
 - [C4 Architecture Models (ASCII & Mermaid)](docs/C4_Architecture.md)
-- [Pelco-D Specification (v5.0.1 PDF)](docs/DProtocol_Version_5_Revision_1.pdf)
-- [Fujinon SX800 / SX801 Protocol Specification v2.12.0 (PDF)](docs/pelco-d_protocol_specification_for_sx800_801_v2.12.0_en.pdf)
-- [Fujinon SX800 / SX801 Protocol Specification v2.51 (PDF)](docs/Pelco-D_Protocol_Specification_for_SX800_801_V.2.51_ENG.pdf)
+- [Visual Servoing & Tracking Architecture (Kalman + PID)](docs/PID_Kalman_Tracking.md)
+- [PID Controller 101 Guide](docs/PID_Controller_101.md)
+- [Kalman Filter 101 Guide](docs/Kalman_Filter_101.md)
+- [Fast Fourier Transform (FFT) 101 Guide](docs/FFT_101.md)
+- [Discrete Cosine Transform (DCT) 101 Guide](docs/DCT_101.md)
+- [Discrete Wavelet Transform (DWT) 101 Guide](docs/DWT_101.md)
+- [Notch Filter 101 Guide](docs/Notch_Filter_101.md)
+- [Integral Images 101 Guide](docs/Integral_Images_101.md)
+- [Pelco-D Specification (v5.0.1 PDF)](docs/protocols/DProtocol_Version_5_Revision_1.pdf)
+- [Fujinon SX800 / SX801 Protocol Specification v2.12.0 (PDF)](docs/protocols/pelco-d_protocol_specification_for_sx800_801_v2.12.0_en.pdf)
+- [Fujinon SX800 / SX801 Protocol Specification v2.51 (PDF)](docs/protocols/Pelco-D_Protocol_Specification_for_SX800_801_V.2.51_ENG.pdf)
 
 ---
 
