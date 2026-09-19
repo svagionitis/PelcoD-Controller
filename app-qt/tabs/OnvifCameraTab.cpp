@@ -3985,9 +3985,8 @@ void OnvifCameraTab::handleRulesUpdated(const std::vector<PelcoD::Onvif::Analyti
     }
 }
 
-void OnvifCameraTab::handleSupportedRulesUpdated(const std::vector<PelcoD::Onvif::AnalyticsRuleDescription>& rules)
+void OnvifCameraTab::handleSupportedRulesUpdated(const std::vector<PelcoD::Onvif::AnalyticsRuleDescription>& /*rules*/)
 {
-    (void)rules;
 }
 
 void OnvifCameraTab::handleRefreshAnalyticsModules()
@@ -3998,9 +3997,8 @@ void OnvifCameraTab::handleRefreshAnalyticsModules()
     }
 }
 
-void OnvifCameraTab::handleAnalyticsModulesUpdated(const std::vector<PelcoD::Onvif::AnalyticsModule>& modules)
+void OnvifCameraTab::handleAnalyticsModulesUpdated(const std::vector<PelcoD::Onvif::AnalyticsModule>& /*modules*/)
 {
-    (void)modules;
 }
 
 void OnvifCameraTab::handleFetchSystemLog()

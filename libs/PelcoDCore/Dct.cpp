@@ -35,7 +35,7 @@ namespace {
 
 } // namespace
 
-void dct8x8(const double input[8][8], double output[8][8]) noexcept
+void dct8x8(const DctMatrix8x8& input, DctMatrix8x8& output) noexcept
 {
     // Step 1: Intermediate row transform T = input * C^T
     double temp[8][8] {};
@@ -61,7 +61,7 @@ void dct8x8(const double input[8][8], double output[8][8]) noexcept
     }
 }
 
-void dct8x8(const std::uint8_t* block, int stride, double output[8][8]) noexcept
+void dct8x8(const std::uint8_t* block, int stride, DctMatrix8x8& output) noexcept
 {
     double spatial[8][8] {};
     for (int i = 0; i < 8; ++i) {
@@ -73,7 +73,7 @@ void dct8x8(const std::uint8_t* block, int stride, double output[8][8]) noexcept
     dct8x8(spatial, output);
 }
 
-void idct8x8(const double input[8][8], double output[8][8]) noexcept
+void idct8x8(const DctMatrix8x8& input, DctMatrix8x8& output) noexcept
 {
     // Inverse transform: output = C^T * input * C
     // Step 1: T = input * C

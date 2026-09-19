@@ -27,9 +27,8 @@ BrightnessContrastFilter::BrightnessContrastFilter(double alpha, int beta)
 {
 }
 
-void BrightnessContrastFilter::process(std::uint8_t* data, int width, int height, PixelFormat format)
+void BrightnessContrastFilter::process(std::uint8_t* data, int width, int height, PixelFormat /*format*/)
 {
-    (void)format;
     if (!data || width <= 0 || height <= 0) {
         return;
     }
@@ -43,9 +42,8 @@ GaussianBlurFilter::GaussianBlurFilter(int kernelSize)
 {
 }
 
-void GaussianBlurFilter::process(std::uint8_t* data, int width, int height, PixelFormat format)
+void GaussianBlurFilter::process(std::uint8_t* data, int width, int height, PixelFormat /*format*/)
 {
-    (void)format;
     if (!data || width <= 0 || height <= 0) {
         return;
     }
@@ -116,9 +114,8 @@ MirrorFilter::MirrorFilter(bool horizontal)
 {
 }
 
-void MirrorFilter::process(std::uint8_t* data, int width, int height, PixelFormat format)
+void MirrorFilter::process(std::uint8_t* data, int width, int height, PixelFormat /*format*/)
 {
-    (void)format;
     if (!data || width <= 0 || height <= 0) {
         return;
     }
@@ -127,9 +124,8 @@ void MirrorFilter::process(std::uint8_t* data, int width, int height, PixelForma
 }
 
 // --- InvertColorsFilter ---
-void InvertColorsFilter::process(std::uint8_t* data, int width, int height, PixelFormat format)
+void InvertColorsFilter::process(std::uint8_t* data, int width, int height, PixelFormat /*format*/)
 {
-    (void)format;
     if (!data || width <= 0 || height <= 0) {
         return;
     }
@@ -178,9 +174,8 @@ SharpenFilter::SharpenFilter(double strength, int radius)
 {
 }
 
-void SharpenFilter::process(std::uint8_t* data, int width, int height, PixelFormat format)
+void SharpenFilter::process(std::uint8_t* data, int width, int height, PixelFormat /*format*/)
 {
-    (void)format;
     if (!data || width <= 0 || height <= 0 || m_strength <= 0.0) {
         return;
     }
@@ -265,9 +260,8 @@ BilateralFilter::BilateralFilter(int d, double sigmaColor, double sigmaSpace)
 {
 }
 
-void BilateralFilter::process(std::uint8_t* data, int width, int height, PixelFormat format)
+void BilateralFilter::process(std::uint8_t* data, int width, int height, PixelFormat /*format*/)
 {
-    (void)format;
     if (!data || width <= 0 || height <= 0) {
         return;
     }
@@ -283,9 +277,8 @@ GammaCorrectionFilter::GammaCorrectionFilter(double gamma)
 {
 }
 
-void GammaCorrectionFilter::process(std::uint8_t* data, int width, int height, PixelFormat format)
+void GammaCorrectionFilter::process(std::uint8_t* data, int width, int height, PixelFormat /*format*/)
 {
-    (void)format;
     if (!data || width <= 0 || height <= 0 || m_gamma <= 0.0) {
         return;
     }
@@ -299,9 +292,8 @@ void GammaCorrectionFilter::process(std::uint8_t* data, int width, int height, P
 }
 
 // --- VignetteFilter ---
-void VignetteFilter::process(std::uint8_t* data, int width, int height, PixelFormat format)
+void VignetteFilter::process(std::uint8_t* data, int width, int height, PixelFormat /*format*/)
 {
-    (void)format;
     if (!data || width <= 0 || height <= 0) {
         return;
     }
@@ -337,9 +329,8 @@ MosaicFilter::MosaicFilter(int blockSize)
 {
 }
 
-void MosaicFilter::process(std::uint8_t* data, int width, int height, PixelFormat format)
+void MosaicFilter::process(std::uint8_t* data, int width, int height, PixelFormat /*format*/)
 {
-    (void)format;
     if (!data || width <= 0 || height <= 0 || m_blockSize <= 1) {
         return;
     }
@@ -409,9 +400,8 @@ void FalseColorFilter::setUserPalette(const std::vector<std::uint8_t>& lut256x3)
 }
 
 void FalseColorFilter::generateInterpolatedPalette(
-    const std::map<std::uint8_t, std::vector<std::uint8_t>>& controlPoints, bool smooth)
+    const std::map<std::uint8_t, std::vector<std::uint8_t>>& controlPoints, bool /*smooth*/)
 {
-    (void)smooth;
     if (controlPoints.empty()) {
         return;
     }
@@ -616,9 +606,8 @@ LocalAreaProcessingFilter::LocalAreaProcessingFilter(int strength, double blend,
 {
 }
 
-void LocalAreaProcessingFilter::process(std::uint8_t* data, int width, int height, PixelFormat format)
+void LocalAreaProcessingFilter::process(std::uint8_t* data, int width, int height, PixelFormat /*format*/)
 {
-    (void)format;
     if (!data || width <= 0 || height <= 0 || m_blend <= 0.0) {
         return;
     }
@@ -845,9 +834,8 @@ void CustomConvolutionFilter::setKernel(
     }
 }
 
-void CustomConvolutionFilter::process(std::uint8_t* data, int width, int height, PixelFormat format)
+void CustomConvolutionFilter::process(std::uint8_t* data, int width, int height, PixelFormat /*format*/)
 {
-    (void)format;
     if (!data || width <= 0 || height <= 0 || m_kernelData.empty() || m_rows <= 0 || m_cols <= 0) {
         return;
     }
@@ -880,9 +868,8 @@ void TemporalDenoiseFilter::reset()
     m_lastHeight = 0;
 }
 
-void TemporalDenoiseFilter::process(std::uint8_t* data, int width, int height, PixelFormat format)
+void TemporalDenoiseFilter::process(std::uint8_t* data, int width, int height, PixelFormat /*format*/)
 {
-    (void)format;
     if (!data || width <= 0 || height <= 0 || m_blendRate <= 0.0) {
         return;
     }
@@ -941,9 +928,8 @@ void LensDistortionFilter::setParameters(double k1, double k2, double centerOffs
     m_centerOffsetY = centerOffsetY;
 }
 
-void LensDistortionFilter::process(std::uint8_t* data, int width, int height, PixelFormat format)
+void LensDistortionFilter::process(std::uint8_t* data, int width, int height, PixelFormat /*format*/)
 {
-    (void)format;
     if (!data || width <= 0 || height <= 0 || (std::abs(m_k1) < 1e-6 && std::abs(m_k2) < 1e-6)) {
         return;
     }
@@ -987,9 +973,8 @@ DarkChannelDehazeFilter::DarkChannelDehazeFilter(double omega, int patchSize, do
 {
 }
 
-void DarkChannelDehazeFilter::process(std::uint8_t* data, int width, int height, PixelFormat format)
+void DarkChannelDehazeFilter::process(std::uint8_t* data, int width, int height, PixelFormat /*format*/)
 {
-    (void)format;
     if (!data || width <= 0 || height <= 0 || m_omega <= 0.0) {
         return;
     }
@@ -1237,9 +1222,8 @@ WhiteBalanceFilter::WhiteBalanceFilter(Mode mode, double strength)
 {
 }
 
-void WhiteBalanceFilter::process(std::uint8_t* data, int width, int height, PixelFormat format)
+void WhiteBalanceFilter::process(std::uint8_t* data, int width, int height, PixelFormat /*format*/)
 {
-    (void)format;
     if (!data || width <= 0 || height <= 0 || m_strength <= 0.0) {
         return;
     }

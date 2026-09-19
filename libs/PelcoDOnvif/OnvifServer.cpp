@@ -409,8 +409,7 @@ bool OnvifServer::start()
     }
 
     if (m_discoveryServer) {
-        const bool discStarted = m_discoveryServer->start();
-        (void)discStarted;
+        [[maybe_unused]] const bool discStarted = m_discoveryServer->start();
     }
 
     m_running = true;

@@ -565,8 +565,7 @@ void testPelcoDPtzAdapter()
     assert(std::abs(readSettings.brightness - 75.0f) < 0.1f);
     assert(readSettings.backlightCompensation == true);
 
-    const auto status = adapter.handleGetStatus();
-    (void)status;
+    [[maybe_unused]] const auto status = adapter.handleGetStatus();
 
     device->stop();
     std::cout << "[PASS] testPelcoDPtzAdapter" << std::endl;

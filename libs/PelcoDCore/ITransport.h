@@ -48,9 +48,8 @@ public:
     /// @brief Configures transport baud rate if supported by underlying channel.
     /// @param[in] baudRate Baud rate in bits per second.
     /// @return True if rate was supported and applied, false otherwise.
-    virtual bool setBaudRate(std::uint32_t baudRate)
+    virtual bool setBaudRate(std::uint32_t /*baudRate*/)
     {
-        (void)baudRate;
         return false;
     }
 

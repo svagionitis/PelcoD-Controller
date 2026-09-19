@@ -170,9 +170,8 @@ void LatencyCalibrator::update(double nowSec)
     m_estimator.addTimestampedReference(nowSec, m_lastCommandValue);
 }
 
-void LatencyCalibrator::ingestVisualMotion(double nowSec, double visualVelocityX, double visualVelocityY)
+void LatencyCalibrator::ingestVisualMotion(double nowSec, double visualVelocityX, double /*visualVelocityY*/)
 {
-    (void)visualVelocityY;
     std::lock_guard<std::mutex> lock(m_mutex);
     if (m_state != CalibrationState::Idle) {
         if (nowSec <= 0.0) {

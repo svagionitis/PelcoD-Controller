@@ -11,9 +11,8 @@ MockVideoDecoder::MockVideoDecoder()
 }
 
 bool MockVideoDecoder::initialize(
-    std::string_view source, PixelFormat format, int /*threadCount*/, DeviceType /*device*/)
+    std::string_view /*source*/, PixelFormat format, int /*threadCount*/, DeviceType /*device*/)
 {
-    (void)source;
     m_outputFormat = format;
     m_reportedDeviceType = DeviceType::CPU;
     m_isInitialized = true;

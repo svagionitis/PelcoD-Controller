@@ -842,9 +842,8 @@ public:
     /// @brief Retrieves all tracks associated with a recording.
     /// @param[in] recordingToken Recording token.
     /// @return Vector of RecordingTrack structures.
-    [[nodiscard]] virtual std::vector<RecordingTrack> handleGetTracks(const std::string& recordingToken)
+    [[nodiscard]] virtual std::vector<RecordingTrack> handleGetTracks(const std::string& /*recordingToken*/)
     {
-        (void)recordingToken;
         return {};
     }
 

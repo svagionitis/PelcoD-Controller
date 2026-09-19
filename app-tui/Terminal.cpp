@@ -189,8 +189,7 @@ void Terminal::writeRaw(const std::string& buffer)
 {
     if (!buffer.empty()) {
 #ifndef _WIN32
-        const ssize_t ret = ::write(STDOUT_FILENO, buffer.data(), buffer.size());
-        (void)ret;
+        [[maybe_unused]] const ssize_t ret = ::write(STDOUT_FILENO, buffer.data(), buffer.size());
 #else
         std::fwrite(buffer.data(), 1, buffer.size(), stdout);
 #endif
