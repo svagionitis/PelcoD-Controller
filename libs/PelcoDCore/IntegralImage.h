@@ -32,7 +32,7 @@ public:
     /// @param[in] height Frame height in pixels.
     /// @param[in] stride Row pitch in bytes (if 0 or negative, stride == width).
     /// @param[in] computeSquared If true, also calculates squared integral table for variance queries.
-    void compute(const uint8_t* pixels, int width, int height, int stride = 0, bool computeSquared = true);
+    void compute(const std::uint8_t* pixels, int width, int height, int stride = 0, bool computeSquared = true);
 
     /// @brief Checks if the integral image contains valid computed data.
     [[nodiscard]] bool isValid() const noexcept;
@@ -49,12 +49,12 @@ public:
     /// @param[in] w Rectangle width in pixels.
     /// @param[in] h Rectangle height in pixels.
     /// @return Sum of pixel values (clipped to image boundaries).
-    [[nodiscard]] uint64_t computeSum(int x, int y, int w, int h) const noexcept;
+    [[nodiscard]] std::uint64_t computeSum(int x, int y, int w, int h) const noexcept;
 
     /// @brief Computes sum using Rect structure.
     /// @param[in] rect Rectangle bounding box.
     /// @return Sum of pixel values.
-    [[nodiscard]] uint64_t computeSum(const Rect& rect) const noexcept;
+    [[nodiscard]] std::uint64_t computeSum(const Rect& rect) const noexcept;
 
     /// @brief Computes sum of squared pixel values within a rectangular region in O(1) time.
     /// @param[in] x Top-left column index.
@@ -62,12 +62,12 @@ public:
     /// @param[in] w Rectangle width in pixels.
     /// @param[in] h Rectangle height in pixels.
     /// @return Sum of squared pixel values (clipped to image boundaries).
-    [[nodiscard]] uint64_t computeSquaredSum(int x, int y, int w, int h) const noexcept;
+    [[nodiscard]] std::uint64_t computeSquaredSum(int x, int y, int w, int h) const noexcept;
 
     /// @brief Computes squared sum using Rect structure.
     /// @param[in] rect Rectangle bounding box.
     /// @return Sum of squared pixel values.
-    [[nodiscard]] uint64_t computeSquaredSum(const Rect& rect) const noexcept;
+    [[nodiscard]] std::uint64_t computeSquaredSum(const Rect& rect) const noexcept;
 
     /// @brief Computes the mean (average) pixel intensity within a rectangular region in O(1) time.
     /// @param[in] x Top-left column index.
@@ -111,21 +111,21 @@ public:
     /// @brief Fast O(1)-per-pixel box blur filter independent of kernel radius.
     /// @param[out] dst Output grayscale buffer (must be at least width * height bytes).
     /// @param[in] radius Kernel radius in pixels (filter diameter = 2 * radius + 1).
-    void boxBlur(uint8_t* dst, int radius) const;
+    void boxBlur(std::uint8_t* dst, int radius) const;
 
     /// @brief Bradley-Roth adaptive thresholding for illumination-invariant binarization.
     /// @param[out] dst Output binary mask buffer (0 or 255).
     /// @param[in] windowSize Size of sliding window in pixels (default 16).
     /// @param[in] thresholdFraction Percentage drop below local average to binarize (default 0.15 = 15%).
-    void adaptiveThreshold(uint8_t* dst, int windowSize = 16, double thresholdFraction = 0.15) const;
+    void adaptiveThreshold(std::uint8_t* dst, int windowSize = 16, double thresholdFraction = 0.15) const;
 
 private:
     int m_width { 0 };
     int m_height { 0 };
     bool m_hasSquared { false };
-    std::vector<uint64_t> m_sumTable;
-    std::vector<uint64_t> m_sqSumTable;
-    std::vector<uint8_t> m_sourcePixels;
+    std::vector<std::uint64_t> m_sumTable;
+    std::vector<std::uint64_t> m_sqSumTable;
+    std::vector<std::uint8_t> m_sourcePixels;
 };
 
 } // namespace PelcoD

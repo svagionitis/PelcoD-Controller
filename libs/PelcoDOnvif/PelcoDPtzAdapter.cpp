@@ -1064,7 +1064,7 @@ SystemSupportInfo PelcoDPtzAdapter::handleGetSystemSupportInformation()
     SystemSupportInfo info {};
     const auto uptime
         = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() - m_startTime).count();
-    info.uptimeSeconds = static_cast<uint64_t>(uptime);
+    info.uptimeSeconds = static_cast<std::uint64_t>(uptime);
     info.cpuLoadPercent = 5.0f;
     info.memoryUsedMb = 32;
     info.memoryTotalMb = 512;

@@ -27,7 +27,7 @@ BrightnessContrastFilter::BrightnessContrastFilter(double alpha, int beta)
 {
 }
 
-void BrightnessContrastFilter::process(uint8_t* data, int width, int height, PixelFormat format)
+void BrightnessContrastFilter::process(std::uint8_t* data, int width, int height, PixelFormat format)
 {
     (void)format;
     if (!data || width <= 0 || height <= 0) {
@@ -43,7 +43,7 @@ GaussianBlurFilter::GaussianBlurFilter(int kernelSize)
 {
 }
 
-void GaussianBlurFilter::process(uint8_t* data, int width, int height, PixelFormat format)
+void GaussianBlurFilter::process(std::uint8_t* data, int width, int height, PixelFormat format)
 {
     (void)format;
     if (!data || width <= 0 || height <= 0) {
@@ -67,7 +67,7 @@ EdgeDetectionFilter::EdgeDetectionFilter(double threshold1, double threshold2)
 {
 }
 
-void EdgeDetectionFilter::process(uint8_t* data, int width, int height, PixelFormat format)
+void EdgeDetectionFilter::process(std::uint8_t* data, int width, int height, PixelFormat format)
 {
     if (!data || width <= 0 || height <= 0) {
         return;
@@ -99,7 +99,7 @@ TextOverlayFilter::TextOverlayFilter(const std::string& text, int x, int y, doub
 {
 }
 
-void TextOverlayFilter::process(uint8_t* data, int width, int height, PixelFormat format)
+void TextOverlayFilter::process(std::uint8_t* data, int width, int height, PixelFormat format)
 {
     if (!data || width <= 0 || height <= 0) {
         return;
@@ -116,7 +116,7 @@ MirrorFilter::MirrorFilter(bool horizontal)
 {
 }
 
-void MirrorFilter::process(uint8_t* data, int width, int height, PixelFormat format)
+void MirrorFilter::process(std::uint8_t* data, int width, int height, PixelFormat format)
 {
     (void)format;
     if (!data || width <= 0 || height <= 0) {
@@ -127,7 +127,7 @@ void MirrorFilter::process(uint8_t* data, int width, int height, PixelFormat for
 }
 
 // --- InvertColorsFilter ---
-void InvertColorsFilter::process(uint8_t* data, int width, int height, PixelFormat format)
+void InvertColorsFilter::process(std::uint8_t* data, int width, int height, PixelFormat format)
 {
     (void)format;
     if (!data || width <= 0 || height <= 0) {
@@ -138,7 +138,7 @@ void InvertColorsFilter::process(uint8_t* data, int width, int height, PixelForm
 }
 
 // --- GrayscaleFilter ---
-void GrayscaleFilter::process(uint8_t* data, int width, int height, PixelFormat format)
+void GrayscaleFilter::process(std::uint8_t* data, int width, int height, PixelFormat format)
 {
     if (!data || width <= 0 || height <= 0) {
         return;
@@ -155,7 +155,7 @@ void GrayscaleFilter::process(uint8_t* data, int width, int height, PixelFormat 
 }
 
 // --- SepiaFilter ---
-void SepiaFilter::process(uint8_t* data, int width, int height, PixelFormat format)
+void SepiaFilter::process(std::uint8_t* data, int width, int height, PixelFormat format)
 {
     if (!data || width <= 0 || height <= 0) {
         return;
@@ -178,7 +178,7 @@ SharpenFilter::SharpenFilter(double strength, int radius)
 {
 }
 
-void SharpenFilter::process(uint8_t* data, int width, int height, PixelFormat format)
+void SharpenFilter::process(std::uint8_t* data, int width, int height, PixelFormat format)
 {
     (void)format;
     if (!data || width <= 0 || height <= 0 || m_strength <= 0.0) {
@@ -202,7 +202,7 @@ ColorTintFilter::ColorTintFilter(double rScale, double gScale, double bScale)
 {
 }
 
-void ColorTintFilter::process(uint8_t* data, int width, int height, PixelFormat format)
+void ColorTintFilter::process(std::uint8_t* data, int width, int height, PixelFormat format)
 {
     if (!data || width <= 0 || height <= 0) {
         return;
@@ -232,7 +232,7 @@ ClaheFilter::ClaheFilter(double clipLimit, int tileGridSize, double blend)
 {
 }
 
-void ClaheFilter::process(uint8_t* data, int width, int height, PixelFormat format)
+void ClaheFilter::process(std::uint8_t* data, int width, int height, PixelFormat format)
 {
     if (!data || width <= 0 || height <= 0 || m_blend <= 0.0) {
         return;
@@ -265,7 +265,7 @@ BilateralFilter::BilateralFilter(int d, double sigmaColor, double sigmaSpace)
 {
 }
 
-void BilateralFilter::process(uint8_t* data, int width, int height, PixelFormat format)
+void BilateralFilter::process(std::uint8_t* data, int width, int height, PixelFormat format)
 {
     (void)format;
     if (!data || width <= 0 || height <= 0) {
@@ -283,7 +283,7 @@ GammaCorrectionFilter::GammaCorrectionFilter(double gamma)
 {
 }
 
-void GammaCorrectionFilter::process(uint8_t* data, int width, int height, PixelFormat format)
+void GammaCorrectionFilter::process(std::uint8_t* data, int width, int height, PixelFormat format)
 {
     (void)format;
     if (!data || width <= 0 || height <= 0 || m_gamma <= 0.0) {
@@ -291,15 +291,15 @@ void GammaCorrectionFilter::process(uint8_t* data, int width, int height, PixelF
     }
     cv::Mat mat(height, width, CV_8UC3, data);
     cv::Mat lookUpTable(1, 256, CV_8U);
-    uint8_t* p = lookUpTable.ptr();
+    std::uint8_t* p = lookUpTable.ptr();
     for (int i = 0; i < 256; ++i) {
-        p[i] = cv::saturate_cast<uint8_t>(pow(i / 255.0, m_gamma) * 255.0);
+        p[i] = cv::saturate_cast<std::uint8_t>(pow(i / 255.0, m_gamma) * 255.0);
     }
     cv::LUT(mat, lookUpTable, mat);
 }
 
 // --- VignetteFilter ---
-void VignetteFilter::process(uint8_t* data, int width, int height, PixelFormat format)
+void VignetteFilter::process(std::uint8_t* data, int width, int height, PixelFormat format)
 {
     (void)format;
     if (!data || width <= 0 || height <= 0) {
@@ -337,7 +337,7 @@ MosaicFilter::MosaicFilter(int blockSize)
 {
 }
 
-void MosaicFilter::process(uint8_t* data, int width, int height, PixelFormat format)
+void MosaicFilter::process(std::uint8_t* data, int width, int height, PixelFormat format)
 {
     (void)format;
     if (!data || width <= 0 || height <= 0 || m_blockSize <= 1) {
@@ -357,7 +357,7 @@ ThresholdFilter::ThresholdFilter(double thresholdValue)
 {
 }
 
-void ThresholdFilter::process(uint8_t* data, int width, int height, PixelFormat format)
+void ThresholdFilter::process(std::uint8_t* data, int width, int height, PixelFormat format)
 {
     if (!data || width <= 0 || height <= 0) {
         return;
@@ -391,7 +391,7 @@ FalseColorFilter::FalseColorFilter(FalseColorPalette palette)
 void FalseColorFilter::initDefaultUserPalette()
 {
     // Initialize default Iron-like gradient user palette
-    std::map<uint8_t, std::vector<uint8_t>> controlPoints = {
+    std::map<std::uint8_t, std::vector<std::uint8_t>> controlPoints = {
         { 0, { 0, 0, 0 } }, // Black
         { 64, { 128, 0, 128 } }, // Purple
         { 128, { 255, 0, 0 } }, // Red
@@ -401,7 +401,7 @@ void FalseColorFilter::initDefaultUserPalette()
     generateInterpolatedPalette(controlPoints, true);
 }
 
-void FalseColorFilter::setUserPalette(const std::vector<uint8_t>& lut256x3)
+void FalseColorFilter::setUserPalette(const std::vector<std::uint8_t>& lut256x3)
 {
     if (lut256x3.size() == 768) {
         m_userPalette = lut256x3;
@@ -409,7 +409,7 @@ void FalseColorFilter::setUserPalette(const std::vector<uint8_t>& lut256x3)
 }
 
 void FalseColorFilter::generateInterpolatedPalette(
-    const std::map<uint8_t, std::vector<uint8_t>>& controlPoints, bool smooth)
+    const std::map<std::uint8_t, std::vector<std::uint8_t>>& controlPoints, bool smooth)
 {
     (void)smooth;
     if (controlPoints.empty()) {
@@ -420,7 +420,7 @@ void FalseColorFilter::generateInterpolatedPalette(
 
     auto it = controlPoints.begin();
     std::size_t prevIdx = it->first;
-    std::vector<uint8_t> prevColor = it->second;
+    std::vector<std::uint8_t> prevColor = it->second;
 
     for (std::size_t i = 0U; i <= prevIdx; ++i) {
         m_userPalette[i * 3U + 0U] = prevColor[0];
@@ -430,17 +430,17 @@ void FalseColorFilter::generateInterpolatedPalette(
 
     for (++it; it != controlPoints.end(); ++it) {
         std::size_t nextIdx = it->first;
-        std::vector<uint8_t> nextColor = it->second;
+        std::vector<std::uint8_t> nextColor = it->second;
 
         if (nextIdx > prevIdx) {
             float span = static_cast<float>(nextIdx - prevIdx);
             for (std::size_t i = prevIdx; i <= nextIdx; ++i) {
                 float t = static_cast<float>(i - prevIdx) / span;
-                m_userPalette[i * 3U + 0U] = static_cast<uint8_t>(
+                m_userPalette[i * 3U + 0U] = static_cast<std::uint8_t>(
                     static_cast<float>(prevColor[0]) + t * static_cast<float>(nextColor[0] - prevColor[0]));
-                m_userPalette[i * 3U + 1U] = static_cast<uint8_t>(
+                m_userPalette[i * 3U + 1U] = static_cast<std::uint8_t>(
                     static_cast<float>(prevColor[1]) + t * static_cast<float>(nextColor[1] - prevColor[1]));
-                m_userPalette[i * 3U + 2U] = static_cast<uint8_t>(
+                m_userPalette[i * 3U + 2U] = static_cast<std::uint8_t>(
                     static_cast<float>(prevColor[2]) + t * static_cast<float>(nextColor[2] - prevColor[2]));
             }
         }
@@ -462,7 +462,7 @@ bool FalseColorFilter::loadUserPaletteFromFile(const std::string& filepath, bool
         return false;
     }
 
-    std::vector<uint8_t> buffer(768);
+    std::vector<std::uint8_t> buffer(768);
     file.read(reinterpret_cast<char*>(buffer.data()), 768);
     if (file.gcount() != 768) {
         return false;
@@ -480,9 +480,9 @@ bool FalseColorFilter::loadUserPaletteFromFile(const std::string& filepath, bool
             double g = y - 0.39465 * u - 0.58060 * v;
             double b = y + 2.03211 * u;
 
-            m_userPalette[i * 3U + 0U] = cv::saturate_cast<uint8_t>(r);
-            m_userPalette[i * 3U + 1U] = cv::saturate_cast<uint8_t>(g);
-            m_userPalette[i * 3U + 2U] = cv::saturate_cast<uint8_t>(b);
+            m_userPalette[i * 3U + 0U] = cv::saturate_cast<std::uint8_t>(r);
+            m_userPalette[i * 3U + 1U] = cv::saturate_cast<std::uint8_t>(g);
+            m_userPalette[i * 3U + 2U] = cv::saturate_cast<std::uint8_t>(b);
         }
     } else {
         m_userPalette = std::move(buffer);
@@ -502,7 +502,7 @@ bool FalseColorFilter::saveUserPaletteToFile(const std::string& filepath, bool a
     }
 
     if (asYuv) {
-        std::vector<uint8_t> yuvBuffer(768);
+        std::vector<std::uint8_t> yuvBuffer(768);
         for (std::size_t i = 0U; i < 256U; ++i) {
             double r = m_userPalette[i * 3U + 0U];
             double g = m_userPalette[i * 3U + 1U];
@@ -512,9 +512,9 @@ bool FalseColorFilter::saveUserPaletteToFile(const std::string& filepath, bool a
             double u = -0.14713 * r - 0.28886 * g + 0.436 * b + 128.0;
             double v = 0.615 * r - 0.51499 * g - 0.10001 * b + 128.0;
 
-            yuvBuffer[i * 3U + 0U] = cv::saturate_cast<uint8_t>(y);
-            yuvBuffer[i * 3U + 1U] = cv::saturate_cast<uint8_t>(u);
-            yuvBuffer[i * 3U + 2U] = cv::saturate_cast<uint8_t>(v);
+            yuvBuffer[i * 3U + 0U] = cv::saturate_cast<std::uint8_t>(y);
+            yuvBuffer[i * 3U + 1U] = cv::saturate_cast<std::uint8_t>(u);
+            yuvBuffer[i * 3U + 2U] = cv::saturate_cast<std::uint8_t>(v);
         }
         file.write(reinterpret_cast<const char*>(yuvBuffer.data()), 768);
     } else {
@@ -523,7 +523,7 @@ bool FalseColorFilter::saveUserPaletteToFile(const std::string& filepath, bool a
     return file.good();
 }
 
-void FalseColorFilter::process(uint8_t* data, int width, int height, PixelFormat format)
+void FalseColorFilter::process(std::uint8_t* data, int width, int height, PixelFormat format)
 {
     if (!data || width <= 0 || height <= 0) {
         return;
@@ -616,7 +616,7 @@ LocalAreaProcessingFilter::LocalAreaProcessingFilter(int strength, double blend,
 {
 }
 
-void LocalAreaProcessingFilter::process(uint8_t* data, int width, int height, PixelFormat format)
+void LocalAreaProcessingFilter::process(std::uint8_t* data, int width, int height, PixelFormat format)
 {
     (void)format;
     if (!data || width <= 0 || height <= 0 || m_blend <= 0.0) {
@@ -678,7 +678,7 @@ void HistogramEqualizationFilter::resetTemporalMap()
     m_prevLut.clear();
 }
 
-void HistogramEqualizationFilter::process(uint8_t* data, int width, int height, PixelFormat format)
+void HistogramEqualizationFilter::process(std::uint8_t* data, int width, int height, PixelFormat format)
 {
     if (!data || width <= 0 || height <= 0 || m_blend <= 0.0) {
         return;
@@ -701,14 +701,14 @@ void HistogramEqualizationFilter::process(uint8_t* data, int width, int height, 
         cv::magnitude(gradX, gradY, gradMag);
 
         const float* pGrad = reinterpret_cast<const float*>(gradMag.data);
-        const uint8_t* pY = y.data;
+        const std::uint8_t* pY = y.data;
         const std::size_t totalPixels = static_cast<std::size_t>(width) * static_cast<std::size_t>(height);
         for (std::size_t i = 0U; i < totalPixels; ++i) {
             hist[pY[i]] += (static_cast<double>(pGrad[i]) + 1.0); // Base count + gradient energy
         }
     } else {
         // Standard intensity histogram
-        const uint8_t* pY = y.data;
+        const std::uint8_t* pY = y.data;
         const std::size_t totalPixels = static_cast<std::size_t>(width) * static_cast<std::size_t>(height);
         for (std::size_t i = 0U; i < totalPixels; ++i) {
             hist[pY[i]] += 1.0;
@@ -765,9 +765,9 @@ void HistogramEqualizationFilter::process(uint8_t* data, int width, int height, 
 
     // Apply LUT to intensity channel
     cv::Mat lutMat(1, 256, CV_8U);
-    uint8_t* pLut = lutMat.ptr();
+    std::uint8_t* pLut = lutMat.ptr();
     for (std::size_t i = 0U; i < 256U; ++i) {
-        pLut[i] = cv::saturate_cast<uint8_t>(currentLut[i]);
+        pLut[i] = cv::saturate_cast<std::uint8_t>(currentLut[i]);
     }
 
     cv::Mat equalizedY;
@@ -789,7 +789,7 @@ ColorEnhanceFilter::ColorEnhanceFilter(double factor)
 {
 }
 
-void ColorEnhanceFilter::process(uint8_t* data, int width, int height, PixelFormat format)
+void ColorEnhanceFilter::process(std::uint8_t* data, int width, int height, PixelFormat format)
 {
     if (!data || width <= 0 || height <= 0 || std::abs(m_factor - 1.0) < 1e-6) {
         return;
@@ -845,7 +845,7 @@ void CustomConvolutionFilter::setKernel(
     }
 }
 
-void CustomConvolutionFilter::process(uint8_t* data, int width, int height, PixelFormat format)
+void CustomConvolutionFilter::process(std::uint8_t* data, int width, int height, PixelFormat format)
 {
     (void)format;
     if (!data || width <= 0 || height <= 0 || m_kernelData.empty() || m_rows <= 0 || m_cols <= 0) {
@@ -880,7 +880,7 @@ void TemporalDenoiseFilter::reset()
     m_lastHeight = 0;
 }
 
-void TemporalDenoiseFilter::process(uint8_t* data, int width, int height, PixelFormat format)
+void TemporalDenoiseFilter::process(std::uint8_t* data, int width, int height, PixelFormat format)
 {
     (void)format;
     if (!data || width <= 0 || height <= 0 || m_blendRate <= 0.0) {
@@ -941,7 +941,7 @@ void LensDistortionFilter::setParameters(double k1, double k2, double centerOffs
     m_centerOffsetY = centerOffsetY;
 }
 
-void LensDistortionFilter::process(uint8_t* data, int width, int height, PixelFormat format)
+void LensDistortionFilter::process(std::uint8_t* data, int width, int height, PixelFormat format)
 {
     (void)format;
     if (!data || width <= 0 || height <= 0 || (std::abs(m_k1) < 1e-6 && std::abs(m_k2) < 1e-6)) {
@@ -987,7 +987,7 @@ DarkChannelDehazeFilter::DarkChannelDehazeFilter(double omega, int patchSize, do
 {
 }
 
-void DarkChannelDehazeFilter::process(uint8_t* data, int width, int height, PixelFormat format)
+void DarkChannelDehazeFilter::process(std::uint8_t* data, int width, int height, PixelFormat format)
 {
     (void)format;
     if (!data || width <= 0 || height <= 0 || m_omega <= 0.0) {
@@ -1120,7 +1120,7 @@ void ImageStabilizationFilter::reset()
     }
 }
 
-void ImageStabilizationFilter::process(uint8_t* data, int width, int height, PixelFormat format)
+void ImageStabilizationFilter::process(std::uint8_t* data, int width, int height, PixelFormat format)
 {
     if (!data || width <= 0 || height <= 0 || !m_impl) {
         return;
@@ -1237,7 +1237,7 @@ WhiteBalanceFilter::WhiteBalanceFilter(Mode mode, double strength)
 {
 }
 
-void WhiteBalanceFilter::process(uint8_t* data, int width, int height, PixelFormat format)
+void WhiteBalanceFilter::process(std::uint8_t* data, int width, int height, PixelFormat format)
 {
     (void)format;
     if (!data || width <= 0 || height <= 0 || m_strength <= 0.0) {
@@ -1292,7 +1292,7 @@ void ChromaticAberrationFilter::setParameters(
     m_centerOffsetY = centerOffsetY;
 }
 
-void ChromaticAberrationFilter::process(uint8_t* data, int width, int height, PixelFormat format)
+void ChromaticAberrationFilter::process(std::uint8_t* data, int width, int height, PixelFormat format)
 {
     if (!data || width <= 0 || height <= 0 || (std::abs(m_redCoeff) < 1e-6 && std::abs(m_blueCoeff) < 1e-6)) {
         return;
@@ -1379,7 +1379,7 @@ void IsothermFilter::setThresholds(int low, int high)
     m_highThreshold = std::max(m_lowThreshold, std::min(255, high));
 }
 
-void IsothermFilter::process(uint8_t* data, int width, int height, PixelFormat format)
+void IsothermFilter::process(std::uint8_t* data, int width, int height, PixelFormat format)
 {
     if (!data || width <= 0 || height <= 0) {
         return;
@@ -1388,9 +1388,9 @@ void IsothermFilter::process(uint8_t* data, int width, int height, PixelFormat f
     const int low = std::min(m_lowThreshold, m_highThreshold);
     const int high = std::max(m_lowThreshold, m_highThreshold);
 
-    uint8_t alertR = 255U;
-    uint8_t alertG = 0U;
-    uint8_t alertB = 0U;
+    std::uint8_t alertR = 255U;
+    std::uint8_t alertG = 0U;
+    std::uint8_t alertB = 0U;
     switch (m_color) {
     case HighlightColor::Amber:
         alertR = 255U;
@@ -1418,9 +1418,9 @@ void IsothermFilter::process(uint8_t* data, int width, int height, PixelFormat f
 
         for (std::size_t i = 0U; i < numPixels; ++i) {
             const std::size_t idx = i * 3U;
-            const uint8_t r = data[idx + rOff];
-            const uint8_t g = data[idx + gOff];
-            const uint8_t b = data[idx + bOff];
+            const std::uint8_t r = data[idx + rOff];
+            const std::uint8_t g = data[idx + gOff];
+            const std::uint8_t b = data[idx + bOff];
 
             const int luma = (299 * static_cast<int>(r) + 587 * static_cast<int>(g) + 114 * static_cast<int>(b)) / 1000;
 
@@ -1428,17 +1428,17 @@ void IsothermFilter::process(uint8_t* data, int width, int height, PixelFormat f
                 if (m_color == HighlightColor::Iron256) {
                     const double norm
                         = (high > low) ? static_cast<double>(luma - low) / static_cast<double>(high - low) : 0.5;
-                    data[idx + rOff] = static_cast<uint8_t>(std::min(255.0, norm * 2.0 * 255.0));
-                    data[idx + gOff] = static_cast<uint8_t>(std::min(255.0, std::max(0.0, (norm - 0.5) * 2.0 * 255.0)));
-                    data[idx + bOff] = static_cast<uint8_t>(std::max(0.0, (0.5 - norm) * 2.0 * 255.0));
+                    data[idx + rOff] = static_cast<std::uint8_t>(std::min(255.0, norm * 2.0 * 255.0));
+                    data[idx + gOff] = static_cast<std::uint8_t>(std::min(255.0, std::max(0.0, (norm - 0.5) * 2.0 * 255.0)));
+                    data[idx + bOff] = static_cast<std::uint8_t>(std::max(0.0, (0.5 - norm) * 2.0 * 255.0));
                 } else {
                     data[idx + rOff] = alertR;
                     data[idx + gOff] = alertG;
                     data[idx + bOff] = alertB;
                 }
             } else {
-                const uint8_t bgLuma
-                    = m_whiteHotBackground ? static_cast<uint8_t>(luma) : static_cast<uint8_t>(255 - luma);
+                const std::uint8_t bgLuma
+                    = m_whiteHotBackground ? static_cast<std::uint8_t>(luma) : static_cast<std::uint8_t>(255 - luma);
                 data[idx + 0U] = bgLuma;
                 data[idx + 1U] = bgLuma;
                 data[idx + 2U] = bgLuma;
@@ -1462,7 +1462,7 @@ HotspotTrackerFilter::RadiometryStats HotspotTrackerFilter::getStats() const
     return m_stats;
 }
 
-void HotspotTrackerFilter::process(uint8_t* data, int width, int height, PixelFormat format)
+void HotspotTrackerFilter::process(std::uint8_t* data, int width, int height, PixelFormat format)
 {
     if (!data || width <= 0 || height <= 0) {
         return;
@@ -1489,11 +1489,11 @@ void HotspotTrackerFilter::process(uint8_t* data, int width, int height, PixelFo
         std::lock_guard<std::mutex> lock(m_statsMutex);
         m_stats.hotX = maxLoc.x;
         m_stats.hotY = maxLoc.y;
-        m_stats.hotVal = static_cast<uint8_t>(std::max(0.0, std::min(255.0, maxVal)));
+        m_stats.hotVal = static_cast<std::uint8_t>(std::max(0.0, std::min(255.0, maxVal)));
         m_stats.coldX = minLoc.x;
         m_stats.coldY = minLoc.y;
-        m_stats.coldVal = static_cast<uint8_t>(std::max(0.0, std::min(255.0, minVal)));
-        m_stats.centerMean = static_cast<uint8_t>(std::max(0.0, std::min(255.0, centerMeanScalar[0])));
+        m_stats.coldVal = static_cast<std::uint8_t>(std::max(0.0, std::min(255.0, minVal)));
+        m_stats.centerMean = static_cast<std::uint8_t>(std::max(0.0, std::min(255.0, centerMeanScalar[0])));
     }
 
     if (!m_showOverlay || mat.channels() != 3) {
@@ -1578,7 +1578,7 @@ std::vector<MovingTargetIndicatorFilter::TargetBox> MovingTargetIndicatorFilter:
     return m_impl->targets;
 }
 
-void MovingTargetIndicatorFilter::process(uint8_t* data, int width, int height, PixelFormat format)
+void MovingTargetIndicatorFilter::process(std::uint8_t* data, int width, int height, PixelFormat format)
 {
     if (!data || width <= 0 || height <= 0 || !m_impl) {
         return;
@@ -1668,7 +1668,7 @@ TacticalReticleOverlayFilter::TacticalReticleOverlayFilter(Style style, Color co
 {
 }
 
-void TacticalReticleOverlayFilter::process(uint8_t* data, int width, int height, PixelFormat format)
+void TacticalReticleOverlayFilter::process(std::uint8_t* data, int width, int height, PixelFormat format)
 {
     if (!data || width <= 0 || height <= 0 || (format != PixelFormat::RGB24 && format != PixelFormat::BGR24)) {
         return;
@@ -1784,7 +1784,7 @@ void OpticalFlowFieldFilter::reset()
     }
 }
 
-void OpticalFlowFieldFilter::process(uint8_t* data, int width, int height, PixelFormat format)
+void OpticalFlowFieldFilter::process(std::uint8_t* data, int width, int height, PixelFormat format)
 {
     if (!data || width <= 0 || height <= 0 || !m_impl
         || (format != PixelFormat::RGB24 && format != PixelFormat::BGR24)) {
@@ -2307,7 +2307,7 @@ double CentroidTargetTrackerFilter::getAppearanceLearningRate() const noexcept
     return 0.02;
 }
 
-void CentroidTargetTrackerFilter::process(uint8_t* data, int width, int height, PixelFormat format)
+void CentroidTargetTrackerFilter::process(std::uint8_t* data, int width, int height, PixelFormat format)
 {
     if (!data || width <= 0 || height <= 0 || !m_impl
         || (format != PixelFormat::RGB24 && format != PixelFormat::BGR24)) {
@@ -2742,7 +2742,7 @@ static bool segmentsIntersect(
     return (((d1 > 0.0 && d2 < 0.0) || (d1 < 0.0 && d2 > 0.0)) && ((d3 > 0.0 && d4 < 0.0) || (d3 < 0.0 && d4 > 0.0)));
 }
 
-void PerimeterTripwireFilter::process(uint8_t* data, int width, int height, PixelFormat format)
+void PerimeterTripwireFilter::process(std::uint8_t* data, int width, int height, PixelFormat format)
 {
     if (!data || width <= 0 || height <= 0 || !m_impl
         || (format != PixelFormat::RGB24 && format != PixelFormat::BGR24)) {
@@ -2869,7 +2869,7 @@ void MotionHeatmapFilter::reset()
     }
 }
 
-void MotionHeatmapFilter::process(uint8_t* data, int width, int height, PixelFormat format)
+void MotionHeatmapFilter::process(std::uint8_t* data, int width, int height, PixelFormat format)
 {
     if (!data || width <= 0 || height <= 0 || !m_impl
         || (format != PixelFormat::RGB24 && format != PixelFormat::BGR24)) {
@@ -2920,7 +2920,7 @@ PrivacyMaskFilter::PrivacyMaskFilter(ConcealmentMode defaultMode)
 {
 }
 
-void PrivacyMaskFilter::setMaskColor(uint8_t r, uint8_t g, uint8_t b)
+void PrivacyMaskFilter::setMaskColor(std::uint8_t r, std::uint8_t g, std::uint8_t b)
 {
     std::lock_guard<std::mutex> lock(m_mutex);
     m_maskR = r;
@@ -2996,16 +2996,16 @@ std::vector<PrivacyMaskFilter::PrivacyZone> PrivacyMaskFilter::getZones() const
     return m_zones;
 }
 
-void PrivacyMaskFilter::process(uint8_t* data, int width, int height, PixelFormat format)
+void PrivacyMaskFilter::process(std::uint8_t* data, int width, int height, PixelFormat format)
 {
     if (!data || width <= 0 || height <= 0) {
         return;
     }
 
     std::vector<PrivacyZone> activeZones;
-    uint8_t mr = 0;
-    uint8_t mg = 0;
-    uint8_t mb = 0;
+    std::uint8_t mr = 0;
+    std::uint8_t mg = 0;
+    std::uint8_t mb = 0;
     int blurK = 25;
     int mosaicBlock = 16;
     {
@@ -3120,7 +3120,7 @@ bool TimestampWatermarkFilter::isUsingSystemClock() const
     return m_useSystemClock;
 }
 
-uint64_t TimestampWatermarkFilter::getFrameCounter() const
+std::uint64_t TimestampWatermarkFilter::getFrameCounter() const
 {
     std::lock_guard<std::mutex> lock(m_mutex);
     return m_frameCounter;
@@ -3132,7 +3132,7 @@ void TimestampWatermarkFilter::resetFrameCounter()
     m_frameCounter = 0;
 }
 
-void TimestampWatermarkFilter::process(uint8_t* data, int width, int height, PixelFormat format)
+void TimestampWatermarkFilter::process(std::uint8_t* data, int width, int height, PixelFormat format)
 {
     if (!data || width <= 0 || height <= 0) {
         return;
@@ -3150,7 +3150,7 @@ void TimestampWatermarkFilter::process(uint8_t* data, int width, int height, Pix
     std::string customTime;
     double scrimAlpha = 0.65;
     Color colorMode = Color::White;
-    uint64_t frameNum = 0;
+    std::uint64_t frameNum = 0;
 
     {
         std::lock_guard<std::mutex> lock(m_mutex);
@@ -3340,7 +3340,7 @@ std::string TelemetryOsdFilter::formatHeading(double azimuthDegrees)
     return CARDINALS[idx];
 }
 
-void TelemetryOsdFilter::process(uint8_t* data, int width, int height, PixelFormat format)
+void TelemetryOsdFilter::process(std::uint8_t* data, int width, int height, PixelFormat format)
 {
     if (!data || width <= 0 || height <= 0) {
         return;
@@ -3439,7 +3439,7 @@ PictureInPictureFilter::PictureInPictureFilter(Mode mode, Corner corner, double 
 {
 }
 
-void PictureInPictureFilter::setBorder(bool showBorder, uint8_t r, uint8_t g, uint8_t b, int thickness)
+void PictureInPictureFilter::setBorder(bool showBorder, std::uint8_t r, std::uint8_t g, std::uint8_t b, int thickness)
 {
     std::lock_guard<std::mutex> lock(m_mutex);
     m_showBorder = showBorder;
@@ -3449,7 +3449,7 @@ void PictureInPictureFilter::setBorder(bool showBorder, uint8_t r, uint8_t g, ui
     m_borderThickness = std::max(1, thickness);
 }
 
-void PictureInPictureFilter::setSecondaryFrame(const uint8_t* data, int width, int height, PixelFormat format)
+void PictureInPictureFilter::setSecondaryFrame(const std::uint8_t* data, int width, int height, PixelFormat format)
 {
     std::lock_guard<std::mutex> lock(m_mutex);
     if (!data || width <= 0 || height <= 0) {
@@ -3473,7 +3473,7 @@ void PictureInPictureFilter::clearSecondaryFrame()
     m_secondaryHeight = 0;
 }
 
-void PictureInPictureFilter::process(uint8_t* data, int width, int height, PixelFormat format)
+void PictureInPictureFilter::process(std::uint8_t* data, int width, int height, PixelFormat format)
 {
     if (!data || width <= 0 || height <= 0) {
         return;
@@ -3484,12 +3484,12 @@ void PictureInPictureFilter::process(uint8_t* data, int width, int height, Pixel
     double scaleR = 0.28;
     double zoomFactor = 2.0;
     bool showB = true;
-    uint8_t br = 0;
-    uint8_t bg = 255;
-    uint8_t bb = 64;
+    std::uint8_t br = 0;
+    std::uint8_t bg = 255;
+    std::uint8_t bb = 64;
     int bThick = 2;
     bool badge = true;
-    std::vector<uint8_t> secBuf;
+    std::vector<std::uint8_t> secBuf;
     int secW = 0;
     int secH = 0;
     PixelFormat secFmt = PixelFormat::RGB24;

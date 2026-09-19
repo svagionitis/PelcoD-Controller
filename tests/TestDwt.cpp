@@ -177,7 +177,7 @@ void testWaveletDenoiseVisuShrink()
     std::vector<double> clean(n);
     std::vector<double> noisy(n);
 
-    uint32_t seed = 9876U;
+    std::uint32_t seed = 9876U;
     auto prng = [&seed]() -> double {
         seed = seed * 1664525U + 1013904223U;
         return (static_cast<double>(seed & 0xFFFFU) / 32768.0) - 1.0;

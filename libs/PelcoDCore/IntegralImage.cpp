@@ -9,7 +9,7 @@
 
 namespace PelcoD {
 
-void IntegralImage::compute(const uint8_t* pixels, int width, int height, int stride, bool computeSquared)
+void IntegralImage::compute(const std::uint8_t* pixels, int width, int height, int stride, bool computeSquared)
 {
     if (pixels == nullptr || width <= 0 || height <= 0) {
         m_width = 0;
@@ -42,18 +42,18 @@ void IntegralImage::compute(const uint8_t* pixels, int width, int height, int st
 
     // Single-pass row cumulative summation
     for (std::size_t y = 0U; y < uHeight; ++y) {
-        const uint8_t* rowSrc = pixels + (y * actualStride);
-        uint8_t* rowDst = m_sourcePixels.data() + (y * uWidth);
+        const std::uint8_t* rowSrc = pixels + (y * actualStride);
+        std::uint8_t* rowDst = m_sourcePixels.data() + (y * uWidth);
         std::memcpy(rowDst, rowSrc, uWidth);
 
-        uint64_t rowSum = 0U;
-        uint64_t rowSqSum = 0U;
+        std::uint64_t rowSum = 0U;
+        std::uint64_t rowSqSum = 0U;
 
         const std::size_t prevTableRowOffset = y * tablePitch;
         const std::size_t currTableRowOffset = (y + 1U) * tablePitch;
 
         for (std::size_t x = 0U; x < uWidth; ++x) {
-            const uint64_t p = static_cast<uint64_t>(rowSrc[x]);
+            const std::uint64_t p = static_cast<std::uint64_t>(rowSrc[x]);
             rowSum += p;
             m_sumTable[currTableRowOffset + (x + 1U)] = m_sumTable[prevTableRowOffset + (x + 1U)] + rowSum;
 
@@ -80,7 +80,7 @@ int IntegralImage::getHeight() const noexcept
     return m_height;
 }
 
-uint64_t IntegralImage::computeSum(int x, int y, int w, int h) const noexcept
+std::uint64_t IntegralImage::computeSum(int x, int y, int w, int h) const noexcept
 {
     if (!isValid() || w <= 0 || h <= 0) {
         return 0U;
@@ -101,20 +101,20 @@ uint64_t IntegralImage::computeSum(int x, int y, int w, int h) const noexcept
     const auto ux1 = static_cast<std::size_t>(x1);
     const auto uy1 = static_cast<std::size_t>(y1);
 
-    const uint64_t br = m_sumTable[uy1 * tablePitch + ux1];
-    const uint64_t tr = m_sumTable[uy0 * tablePitch + ux1];
-    const uint64_t bl = m_sumTable[uy1 * tablePitch + ux0];
-    const uint64_t tl = m_sumTable[uy0 * tablePitch + ux0];
+    const std::uint64_t br = m_sumTable[uy1 * tablePitch + ux1];
+    const std::uint64_t tr = m_sumTable[uy0 * tablePitch + ux1];
+    const std::uint64_t bl = m_sumTable[uy1 * tablePitch + ux0];
+    const std::uint64_t tl = m_sumTable[uy0 * tablePitch + ux0];
 
     return (br + tl) - (tr + bl);
 }
 
-uint64_t IntegralImage::computeSum(const Rect& rect) const noexcept
+std::uint64_t IntegralImage::computeSum(const Rect& rect) const noexcept
 {
     return computeSum(rect.x, rect.y, rect.width, rect.height);
 }
 
-uint64_t IntegralImage::computeSquaredSum(int x, int y, int w, int h) const noexcept
+std::uint64_t IntegralImage::computeSquaredSum(int x, int y, int w, int h) const noexcept
 {
     if (!isValid() || !m_hasSquared || w <= 0 || h <= 0) {
         return 0U;
@@ -135,15 +135,15 @@ uint64_t IntegralImage::computeSquaredSum(int x, int y, int w, int h) const noex
     const auto ux1 = static_cast<std::size_t>(x1);
     const auto uy1 = static_cast<std::size_t>(y1);
 
-    const uint64_t br = m_sqSumTable[uy1 * tablePitch + ux1];
-    const uint64_t tr = m_sqSumTable[uy0 * tablePitch + ux1];
-    const uint64_t bl = m_sqSumTable[uy1 * tablePitch + ux0];
-    const uint64_t tl = m_sqSumTable[uy0 * tablePitch + ux0];
+    const std::uint64_t br = m_sqSumTable[uy1 * tablePitch + ux1];
+    const std::uint64_t tr = m_sqSumTable[uy0 * tablePitch + ux1];
+    const std::uint64_t bl = m_sqSumTable[uy1 * tablePitch + ux0];
+    const std::uint64_t tl = m_sqSumTable[uy0 * tablePitch + ux0];
 
     return (br + tl) - (tr + bl);
 }
 
-uint64_t IntegralImage::computeSquaredSum(const Rect& rect) const noexcept
+std::uint64_t IntegralImage::computeSquaredSum(const Rect& rect) const noexcept
 {
     return computeSquaredSum(rect.x, rect.y, rect.width, rect.height);
 }
@@ -216,7 +216,7 @@ double IntegralImage::computeStdDev(const Rect& rect) const noexcept
     return computeStdDev(rect.x, rect.y, rect.width, rect.height);
 }
 
-void IntegralImage::boxBlur(uint8_t* dst, int radius) const
+void IntegralImage::boxBlur(std::uint8_t* dst, int radius) const
 {
     if (!isValid() || dst == nullptr) {
         return;
@@ -238,12 +238,12 @@ void IntegralImage::boxBlur(uint8_t* dst, int radius) const
         for (std::size_t x = 0U; x < uWidth; ++x) {
             const int ix = static_cast<int>(x);
             const double mean = computeMean(ix - radius, iy - radius, winSize, winSize);
-            dst[rowOffset + x] = static_cast<uint8_t>(std::clamp(std::round(mean), 0.0, 255.0));
+            dst[rowOffset + x] = static_cast<std::uint8_t>(std::clamp(std::round(mean), 0.0, 255.0));
         }
     }
 }
 
-void IntegralImage::adaptiveThreshold(uint8_t* dst, int windowSize, double thresholdFraction) const
+void IntegralImage::adaptiveThreshold(std::uint8_t* dst, int windowSize, double thresholdFraction) const
 {
     if (!isValid() || dst == nullptr) {
         return;

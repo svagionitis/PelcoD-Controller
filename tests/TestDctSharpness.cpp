@@ -44,14 +44,14 @@ void testSingleBlockEvaluation()
     DctSharpnessEvaluator evaluator;
 
     // 1. Completely flat / untextured block (all pixels = 128)
-    uint8_t flatBlock[64] {};
-    std::fill(flatBlock, flatBlock + 64, static_cast<uint8_t>(128));
+    std::uint8_t flatBlock[64] {};
+    std::fill(flatBlock, flatBlock + 64, static_cast<std::uint8_t>(128));
     const double flatScore = evaluator.evaluateBlock(flatBlock, 8);
     std::cout << "  Flat block score: " << flatScore << " (expected ~0)\n";
     assert(flatScore < 1e-9);
 
     // 2. High-contrast sharp edge block (left half 20, right half 220)
-    uint8_t edgeBlock[64] {};
+    std::uint8_t edgeBlock[64] {};
     for (int y = 0; y < 8; ++y) {
         for (int x = 0; x < 8; ++x) {
             edgeBlock[y * 8 + x] = (x < 4) ? 20 : 220;
@@ -71,7 +71,7 @@ void testDefocusBlurMonotonicity()
     const std::size_t height = 64U;
 
     // Synthesize high-frequency checkerboard pattern
-    std::vector<uint8_t> sharpImage(width * height, 0);
+    std::vector<std::uint8_t> sharpImage(width * height, 0);
     for (std::size_t y = 0U; y < height; ++y) {
         for (std::size_t x = 0U; x < width; ++x) {
             const bool check = ((x / 4U) + (y / 4U)) % 2U == 0U;
@@ -80,7 +80,7 @@ void testDefocusBlurMonotonicity()
     }
 
     // Apply mild 3x3 box blur
-    std::vector<uint8_t> mildBlur(width * height, 0);
+    std::vector<std::uint8_t> mildBlur(width * height, 0);
     for (std::size_t y = 1U; y < height - 1U; ++y) {
         for (std::size_t x = 1U; x < width - 1U; ++x) {
             int sum = 0;
@@ -91,12 +91,12 @@ void testDefocusBlurMonotonicity()
                     sum += sharpImage[sy * width + sx];
                 }
             }
-            mildBlur[y * width + x] = static_cast<uint8_t>(sum / 9);
+            mildBlur[y * width + x] = static_cast<std::uint8_t>(sum / 9);
         }
     }
 
     // Apply heavy 7x7 box blur
-    std::vector<uint8_t> heavyBlur(width * height, 0);
+    std::vector<std::uint8_t> heavyBlur(width * height, 0);
     for (std::size_t y = 3U; y < height - 3U; ++y) {
         for (std::size_t x = 3U; x < width - 3U; ++x) {
             int sum = 0;
@@ -107,7 +107,7 @@ void testDefocusBlurMonotonicity()
                     sum += sharpImage[sy * width + sx];
                 }
             }
-            heavyBlur[y * width + x] = static_cast<uint8_t>(sum / 49);
+            heavyBlur[y * width + x] = static_cast<std::uint8_t>(sum / 49);
         }
     }
 
@@ -146,8 +146,8 @@ void testIlluminationInvariance()
     const std::size_t height = 32U;
 
     // Base pattern: checkerboard with amplitude 200
-    std::vector<uint8_t> bright(width * height, 0);
-    std::vector<uint8_t> dim(width * height, 0);
+    std::vector<std::uint8_t> bright(width * height, 0);
+    std::vector<std::uint8_t> dim(width * height, 0);
 
     for (std::size_t y = 0U; y < height; ++y) {
         for (std::size_t x = 0U; x < width; ++x) {
@@ -190,7 +190,7 @@ void testRoiTargeting()
     const std::size_t height = 64U;
 
     // Image where center is sharp pattern and background is uniform gray
-    std::vector<uint8_t> image(width * height, 128U);
+    std::vector<std::uint8_t> image(width * height, 128U);
     for (std::size_t y = 20U; y < 44U; ++y) {
         for (std::size_t x = 20U; x < 44U; ++x) {
             const bool check = ((x / 4U) + (y / 4U)) % 2U == 0U;

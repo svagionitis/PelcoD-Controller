@@ -53,13 +53,13 @@ public:
     /// @param[in] stride Row stride in bytes (if 0, assumes stride == width).
     /// @return SharpnessResult containing raw and normalized focus metrics.
     [[nodiscard]] SharpnessResult evaluate(
-        const uint8_t* grayPixels, int width, int height, int stride = 0) const noexcept;
+        const std::uint8_t* grayPixels, int width, int height, int stride = 0) const noexcept;
 
     /// @brief Evaluates a single isolated 8x8 pixel block.
     /// @param[in] block Pointer to top-left pixel of 8x8 block.
     /// @param[in] stride Row stride in bytes.
     /// @return Unnormalized high-frequency AC score for the block.
-    [[nodiscard]] double evaluateBlock(const uint8_t* block, int stride) const noexcept;
+    [[nodiscard]] double evaluateBlock(const std::uint8_t* block, int stride) const noexcept;
 
     /// @brief Reconfigures the sharpness evaluator.
     void setConfig(const DctSharpnessConfig& config) noexcept;

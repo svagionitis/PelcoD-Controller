@@ -61,11 +61,11 @@ void dct8x8(const double input[8][8], double output[8][8]) noexcept
     }
 }
 
-void dct8x8(const uint8_t* block, int stride, double output[8][8]) noexcept
+void dct8x8(const std::uint8_t* block, int stride, double output[8][8]) noexcept
 {
     double spatial[8][8] {};
     for (int i = 0; i < 8; ++i) {
-        const uint8_t* rowPtr = block + (i * stride);
+        const std::uint8_t* rowPtr = block + (i * stride);
         for (int j = 0; j < 8; ++j) {
             spatial[i][j] = static_cast<double>(rowPtr[j]);
         }

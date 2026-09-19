@@ -6,6 +6,7 @@
 #include "OnvifServerTypes.h"
 #include "WsDiscoveryServer.h"
 
+#include <cstdint>
 #include <httplib.h>
 #include <pugixml.hpp>
 
@@ -235,7 +236,7 @@ private:
     mutable std::mutex m_searchMutex {};
     std::map<std::string, std::vector<RecordingSearchResult>> m_recordingSearches {};
     std::map<std::string, std::vector<RecordedEventResult>> m_eventSearches {};
-    uint32_t m_nextSearchId { 1 };
+    std::uint32_t m_nextSearchId { 1 };
 
     mutable std::mutex m_analyticsMutex {};
     std::vector<AnalyticsRule> m_internalRules {};
@@ -249,12 +250,12 @@ private:
 
     mutable std::mutex m_osdMutex {};
     std::map<std::string, OsdConfig> m_internalOsds {};
-    uint32_t m_nextOsdId { 1 };
+    std::uint32_t m_nextOsdId { 1 };
 
     mutable std::mutex m_maskMutex {};
     std::vector<PrivacyMask> m_internalMasks {};
     MaskOptions m_internalMaskOptions {};
-    uint32_t m_nextMaskId { 1 };
+    std::uint32_t m_nextMaskId { 1 };
 
     mutable std::mutex m_videoSourceModeMutex {};
     std::vector<VideoSourceMode> m_internalVideoSourceModes {};
@@ -270,7 +271,7 @@ private:
     mutable std::mutex m_subMutex {};
     std::map<std::string, std::shared_ptr<PullPointSubscription>> m_subscriptions {};
     std::map<std::string, PushSubscription> m_pushSubscriptions {};
-    uint32_t m_nextSubId { 1 };
+    std::uint32_t m_nextSubId { 1 };
 
     std::atomic<bool> m_running { false };
     std::thread m_httpThread {};

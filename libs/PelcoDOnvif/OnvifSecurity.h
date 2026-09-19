@@ -37,7 +37,7 @@ class OnvifSecurity {
 public:
     /// @brief Generates random 16-byte nonce.
     /// @return 16 raw random bytes.
-    [[nodiscard]] static std::vector<uint8_t> generateNonce();
+    [[nodiscard]] static std::vector<std::uint8_t> generateNonce();
 
     /// @brief Formats current UTC timestamp in ISO-8601 format (YYYY-MM-DDTHH:MM:SSZ).
     /// @param[in] offset Optional clock offset to synchronize with camera clock.
@@ -50,12 +50,12 @@ public:
     /// @param[in] password Plaintext password.
     /// @return Base64-encoded SHA-1 digest.
     [[nodiscard]] static std::string computePasswordDigest(
-        const std::vector<uint8_t>& rawNonce, const std::string& createdUtc, const std::string& password);
+        const std::vector<std::uint8_t>& rawNonce, const std::string& createdUtc, const std::string& password);
 
     /// @brief Encodes raw byte buffer into Base64 string.
     /// @param[in] data Raw input bytes.
     /// @return Base64 encoded string.
-    [[nodiscard]] static std::string base64Encode(const std::vector<uint8_t>& data);
+    [[nodiscard]] static std::string base64Encode(const std::vector<std::uint8_t>& data);
 
     /// @brief Encodes string view into Base64 string.
     /// @param[in] text Plain text input.
@@ -65,7 +65,7 @@ public:
     /// @brief Decodes Base64 encoded string into raw bytes.
     /// @param[in] base64Text Base64 input string.
     /// @return Decoded byte vector.
-    [[nodiscard]] static std::vector<uint8_t> base64Decode(const std::string& base64Text);
+    [[nodiscard]] static std::vector<std::uint8_t> base64Decode(const std::string& base64Text);
 
     /// @brief Builds complete UsernameToken parameters for SOAP envelope.
     /// @param[in] credentials User credentials and clock offset.

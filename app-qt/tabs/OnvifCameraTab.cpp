@@ -2973,7 +2973,7 @@ void OnvifCameraTab::handleCreateOsd()
     }
     PelcoD::Onvif::OsdConfig osd;
     osd.plainText = editOsdText->text().toStdString();
-    osd.fontSize = static_cast<uint32_t>(spinOsdFontSize->value());
+    osd.fontSize = static_cast<std::uint32_t>(spinOsdFontSize->value());
     osd.isDateAndTime = chkOsdDateTime->isChecked();
 
     osd.position = osdPositionFromIndex(cmbOsdPosition->currentIndex());
@@ -2994,7 +2994,7 @@ void OnvifCameraTab::handleSetOsd()
     PelcoD::Onvif::OsdConfig osd;
     osd.token = token.toStdString();
     osd.plainText = editOsdText->text().toStdString();
-    osd.fontSize = static_cast<uint32_t>(spinOsdFontSize->value());
+    osd.fontSize = static_cast<std::uint32_t>(spinOsdFontSize->value());
     osd.isDateAndTime = chkOsdDateTime->isChecked();
 
     osd.position = osdPositionFromIndex(cmbOsdPosition->currentIndex());

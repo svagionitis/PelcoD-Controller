@@ -29,7 +29,7 @@ const DctSharpnessConfig& DctSharpnessEvaluator::getConfig() const noexcept
     return m_config;
 }
 
-double DctSharpnessEvaluator::evaluateBlock(const uint8_t* block, int stride) const noexcept
+double DctSharpnessEvaluator::evaluateBlock(const std::uint8_t* block, int stride) const noexcept
 {
     if (!block || stride < 8) {
         return 0.0;
@@ -71,7 +71,7 @@ double DctSharpnessEvaluator::evaluateBlock(const uint8_t* block, int stride) co
 }
 
 SharpnessResult DctSharpnessEvaluator::evaluate(
-    const uint8_t* grayPixels, int width, int height, int stride) const noexcept
+    const std::uint8_t* grayPixels, int width, int height, int stride) const noexcept
 {
     if (!grayPixels || width < 8 || height < 8) {
         return {};
@@ -94,7 +94,7 @@ SharpnessResult DctSharpnessEvaluator::evaluate(
 
     for (int y = roiY; y + 8 <= roiY + roiH; y += step) {
         for (int x = roiX; x + 8 <= roiX + roiW; x += step) {
-            const uint8_t* blockPtr = grayPixels + (y * stride) + x;
+            const std::uint8_t* blockPtr = grayPixels + (y * stride) + x;
             double dct[8][8] {};
             Math::dct8x8(blockPtr, stride, dct);
 

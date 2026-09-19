@@ -50,7 +50,7 @@ public:
      */
     BrightnessContrastFilter(double alpha = 1.0, int beta = 0);
 
-    void process(uint8_t* data, int width, int height, PixelFormat format) override;
+    void process(std::uint8_t* data, int width, int height, PixelFormat format) override;
 
     void setAlpha(double alpha)
     {
@@ -86,7 +86,7 @@ public:
      */
     GaussianBlurFilter(int kernelSize = 5);
 
-    void process(uint8_t* data, int width, int height, PixelFormat format) override;
+    void process(std::uint8_t* data, int width, int height, PixelFormat format) override;
 
     void setKernelSize(int kernelSize)
     {
@@ -114,7 +114,7 @@ public:
      */
     EdgeDetectionFilter(double threshold1 = 50.0, double threshold2 = 150.0);
 
-    void process(uint8_t* data, int width, int height, PixelFormat format) override;
+    void process(std::uint8_t* data, int width, int height, PixelFormat format) override;
 
     void setThresholds(double t1, double t2)
     {
@@ -150,7 +150,7 @@ public:
      */
     TextOverlayFilter(const std::string& text, int x = 10, int y = 30, double scale = 1.0);
 
-    void process(uint8_t* data, int width, int height, PixelFormat format) override;
+    void process(std::uint8_t* data, int width, int height, PixelFormat format) override;
 
     void setText(const std::string& text)
     {
@@ -180,7 +180,7 @@ public:
      */
     MirrorFilter(bool horizontal = true);
 
-    void process(uint8_t* data, int width, int height, PixelFormat format) override;
+    void process(std::uint8_t* data, int width, int height, PixelFormat format) override;
 
     void setHorizontal(bool horizontal)
     {
@@ -203,7 +203,7 @@ class VIDEOFILTERS_API InvertColorsFilter : public IFrameProcessor {
 public:
     InvertColorsFilter() = default;
 
-    void process(uint8_t* data, int width, int height, PixelFormat format) override;
+    void process(std::uint8_t* data, int width, int height, PixelFormat format) override;
 };
 
 /**
@@ -214,7 +214,7 @@ class VIDEOFILTERS_API GrayscaleFilter : public IFrameProcessor {
 public:
     GrayscaleFilter() = default;
 
-    void process(uint8_t* data, int width, int height, PixelFormat format) override;
+    void process(std::uint8_t* data, int width, int height, PixelFormat format) override;
 };
 
 /**
@@ -225,7 +225,7 @@ class VIDEOFILTERS_API SepiaFilter : public IFrameProcessor {
 public:
     SepiaFilter() = default;
 
-    void process(uint8_t* data, int width, int height, PixelFormat format) override;
+    void process(std::uint8_t* data, int width, int height, PixelFormat format) override;
 };
 
 /**
@@ -241,7 +241,7 @@ public:
      */
     SharpenFilter(double strength = 1.0, int radius = 1);
 
-    void process(uint8_t* data, int width, int height, PixelFormat format) override;
+    void process(std::uint8_t* data, int width, int height, PixelFormat format) override;
 
     void setStrength(double strength)
     {
@@ -279,7 +279,7 @@ public:
      */
     ColorTintFilter(double rScale = 1.0, double gScale = 1.0, double bScale = 1.0);
 
-    void process(uint8_t* data, int width, int height, PixelFormat format) override;
+    void process(std::uint8_t* data, int width, int height, PixelFormat format) override;
 
     void setScales(double r, double g, double b)
     {
@@ -308,7 +308,7 @@ public:
      */
     ClaheFilter(double clipLimit = 2.0, int tileGridSize = 8, double blend = 1.0);
 
-    void process(uint8_t* data, int width, int height, PixelFormat format) override;
+    void process(std::uint8_t* data, int width, int height, PixelFormat format) override;
 
     void setClipLimit(double clipLimit)
     {
@@ -355,7 +355,7 @@ public:
      */
     BilateralFilter(int d = 9, double sigmaColor = 75.0, double sigmaSpace = 75.0);
 
-    void process(uint8_t* data, int width, int height, PixelFormat format) override;
+    void process(std::uint8_t* data, int width, int height, PixelFormat format) override;
 
 private:
     int m_d;
@@ -375,7 +375,7 @@ public:
      */
     GammaCorrectionFilter(double gamma = 1.0);
 
-    void process(uint8_t* data, int width, int height, PixelFormat format) override;
+    void process(std::uint8_t* data, int width, int height, PixelFormat format) override;
 
     void setGamma(double gamma)
     {
@@ -398,7 +398,7 @@ class VIDEOFILTERS_API VignetteFilter : public IFrameProcessor {
 public:
     VignetteFilter() = default;
 
-    void process(uint8_t* data, int width, int height, PixelFormat format) override;
+    void process(std::uint8_t* data, int width, int height, PixelFormat format) override;
 };
 
 /**
@@ -413,7 +413,7 @@ public:
      */
     MosaicFilter(int blockSize = 8);
 
-    void process(uint8_t* data, int width, int height, PixelFormat format) override;
+    void process(std::uint8_t* data, int width, int height, PixelFormat format) override;
 
 private:
     int m_blockSize;
@@ -431,7 +431,7 @@ public:
      */
     ThresholdFilter(double thresholdValue = 127.0);
 
-    void process(uint8_t* data, int width, int height, PixelFormat format) override;
+    void process(std::uint8_t* data, int width, int height, PixelFormat format) override;
 
     void setThresholdValue(double val)
     {
@@ -480,7 +480,7 @@ public:
      */
     FalseColorFilter(FalseColorPalette palette = FalseColorPalette::Iron256);
 
-    void process(uint8_t* data, int width, int height, PixelFormat format) override;
+    void process(std::uint8_t* data, int width, int height, PixelFormat format) override;
 
     void setPalette(FalseColorPalette palette)
     {
@@ -494,8 +494,8 @@ public:
     /**
      * @brief Sets custom 256-entry RGB LUT (must contain 256 * 3 = 768 bytes).
      */
-    void setUserPalette(const std::vector<uint8_t>& lut256x3);
-    const std::vector<uint8_t>& getUserPalette() const
+    void setUserPalette(const std::vector<std::uint8_t>& lut256x3);
+    const std::vector<std::uint8_t>& getUserPalette() const
     {
         return m_userPalette;
     }
@@ -515,11 +515,11 @@ public:
      * @param controlPoints Map of intensity (0-255) to RGB triplet {R, G, B}.
      * @param smooth If true, applies smoothing across color bands.
      */
-    void generateInterpolatedPalette(const std::map<uint8_t, std::vector<uint8_t>>& controlPoints, bool smooth = true);
+    void generateInterpolatedPalette(const std::map<std::uint8_t, std::vector<std::uint8_t>>& controlPoints, bool smooth = true);
 
 private:
     FalseColorPalette m_palette;
-    std::vector<uint8_t> m_userPalette; // 768 bytes (256 * RGB)
+    std::vector<std::uint8_t> m_userPalette; // 768 bytes (256 * RGB)
     void initDefaultUserPalette();
 };
 
@@ -537,7 +537,7 @@ public:
      */
     LocalAreaProcessingFilter(int strength = 5, double blend = 0.5, double lapMinDiff = 5.0);
 
-    void process(uint8_t* data, int width, int height, PixelFormat format) override;
+    void process(std::uint8_t* data, int width, int height, PixelFormat format) override;
 
     void setStrength(int strength)
     {
@@ -598,7 +598,7 @@ public:
     HistogramEqualizationFilter(Mode mode = Mode::Standard, double blend = 1.0, double brightnessOffset = 0.0,
         double histAveRate = 0.0, double maxPercentBin = 1.0, double gamma = 1.0);
 
-    void process(uint8_t* data, int width, int height, PixelFormat format) override;
+    void process(std::uint8_t* data, int width, int height, PixelFormat format) override;
 
     void setMode(Mode mode)
     {
@@ -672,7 +672,7 @@ public:
      */
     ColorEnhanceFilter(double factor = 1.5);
 
-    void process(uint8_t* data, int width, int height, PixelFormat format) override;
+    void process(std::uint8_t* data, int width, int height, PixelFormat format) override;
 
     void setFactor(double factor)
     {
@@ -697,7 +697,7 @@ public:
     CustomConvolutionFilter(
         const std::vector<float>& kernel, int kernelRows, int kernelCols, bool normalize = false, double bias = 0.0);
 
-    void process(uint8_t* data, int width, int height, PixelFormat format) override;
+    void process(std::uint8_t* data, int width, int height, PixelFormat format) override;
 
     void setKernel(const std::vector<float>& kernel, int rows, int cols, bool normalize = false, double bias = 0.0);
     const std::vector<float>& getKernel() const
@@ -742,7 +742,7 @@ public:
      */
     TemporalDenoiseFilter(double blendRate = 0.5, double motionThreshold = 30.0);
 
-    void process(uint8_t* data, int width, int height, PixelFormat format) override;
+    void process(std::uint8_t* data, int width, int height, PixelFormat format) override;
 
     void setBlendRate(double rate)
     {
@@ -765,7 +765,7 @@ public:
 private:
     double m_blendRate;
     double m_motionThreshold;
-    std::vector<uint8_t> m_historyBuffer;
+    std::vector<std::uint8_t> m_historyBuffer;
     int m_lastWidth = 0;
     int m_lastHeight = 0;
 };
@@ -785,7 +785,7 @@ public:
      */
     LensDistortionFilter(double k1 = 0.05, double k2 = 0.0, double centerOffsetX = 0.0, double centerOffsetY = 0.0);
 
-    void process(uint8_t* data, int width, int height, PixelFormat format) override;
+    void process(std::uint8_t* data, int width, int height, PixelFormat format) override;
 
     void setParameters(double k1, double k2, double centerOffsetX = 0.0, double centerOffsetY = 0.0);
     double getK1() const
@@ -826,7 +826,7 @@ public:
      */
     DarkChannelDehazeFilter(double omega = 0.85, int patchSize = 9, double t0 = 0.1);
 
-    void process(uint8_t* data, int width, int height, PixelFormat format) override;
+    void process(std::uint8_t* data, int width, int height, PixelFormat format) override;
 
     void setOmega(double omega)
     {
@@ -881,7 +881,7 @@ public:
     ImageStabilizationFilter(ImageStabilizationFilter&&) noexcept;
     ImageStabilizationFilter& operator=(ImageStabilizationFilter&&) noexcept;
 
-    void process(uint8_t* data, int width, int height, PixelFormat format) override;
+    void process(std::uint8_t* data, int width, int height, PixelFormat format) override;
 
     void setSmoothingFactor(double factor)
     {
@@ -949,7 +949,7 @@ public:
      */
     WhiteBalanceFilter(Mode mode = Mode::GrayWorld, double strength = 1.0);
 
-    void process(uint8_t* data, int width, int height, PixelFormat format) override;
+    void process(std::uint8_t* data, int width, int height, PixelFormat format) override;
 
     void setMode(Mode mode)
     {
@@ -989,7 +989,7 @@ public:
     ChromaticAberrationFilter(
         double redCoeff = 0.005, double blueCoeff = -0.005, double centerOffsetX = 0.0, double centerOffsetY = 0.0);
 
-    void process(uint8_t* data, int width, int height, PixelFormat format) override;
+    void process(std::uint8_t* data, int width, int height, PixelFormat format) override;
 
     void setParameters(double redCoeff, double blueCoeff, double centerOffsetX = 0.0, double centerOffsetY = 0.0);
     double getRedCoeff() const
@@ -1038,7 +1038,7 @@ public:
     IsothermFilter(int lowThreshold = 140, int highThreshold = 180, HighlightColor color = HighlightColor::Red,
         bool whiteHotBackground = true);
 
-    void process(uint8_t* data, int width, int height, PixelFormat format) override;
+    void process(std::uint8_t* data, int width, int height, PixelFormat format) override;
 
     void setPreset(Preset preset);
     Preset getPreset() const
@@ -1091,16 +1091,16 @@ public:
     struct RadiometryStats {
         int hotX { 0 };
         int hotY { 0 };
-        uint8_t hotVal { 0 };
+        std::uint8_t hotVal { 0 };
         int coldX { 0 };
         int coldY { 0 };
-        uint8_t coldVal { 0 };
-        uint8_t centerMean { 0 };
+        std::uint8_t coldVal { 0 };
+        std::uint8_t centerMean { 0 };
     };
 
     HotspotTrackerFilter(bool showOverlay = true, int centerBoxSize = 32);
 
-    void process(uint8_t* data, int width, int height, PixelFormat format) override;
+    void process(std::uint8_t* data, int width, int height, PixelFormat format) override;
 
     void setShowOverlay(bool show)
     {
@@ -1151,7 +1151,7 @@ public:
     MovingTargetIndicatorFilter(MovingTargetIndicatorFilter&&) noexcept;
     MovingTargetIndicatorFilter& operator=(MovingTargetIndicatorFilter&&) noexcept;
 
-    void process(uint8_t* data, int width, int height, PixelFormat format) override;
+    void process(std::uint8_t* data, int width, int height, PixelFormat format) override;
 
     void setMinArea(int minArea)
     {
@@ -1217,7 +1217,7 @@ public:
     TacticalReticleOverlayFilter(Style style = Style::Crosshair, Color color = Color::TacticalGreen,
         int lineThickness = 1, int deadbandGap = 16);
 
-    void process(uint8_t* data, int width, int height, PixelFormat format) override;
+    void process(std::uint8_t* data, int width, int height, PixelFormat format) override;
 
     void setStyle(Style style)
     {
@@ -1282,7 +1282,7 @@ public:
     OpticalFlowFieldFilter(OpticalFlowFieldFilter&&) noexcept;
     OpticalFlowFieldFilter& operator=(OpticalFlowFieldFilter&&) noexcept;
 
-    void process(uint8_t* data, int width, int height, PixelFormat format) override;
+    void process(std::uint8_t* data, int width, int height, PixelFormat format) override;
 
     void setDisplayMode(DisplayMode mode)
     {
@@ -1368,7 +1368,7 @@ public:
     CentroidTargetTrackerFilter(CentroidTargetTrackerFilter&&) noexcept;
     CentroidTargetTrackerFilter& operator=(CentroidTargetTrackerFilter&&) noexcept;
 
-    void process(uint8_t* data, int width, int height, PixelFormat format) override;
+    void process(std::uint8_t* data, int width, int height, PixelFormat format) override;
 
     void setAutoAcquire(bool autoAcquire)
     {
@@ -1443,7 +1443,7 @@ public:
     PerimeterTripwireFilter(PerimeterTripwireFilter&&) noexcept;
     PerimeterTripwireFilter& operator=(PerimeterTripwireFilter&&) noexcept;
 
-    void process(uint8_t* data, int width, int height, PixelFormat format) override;
+    void process(std::uint8_t* data, int width, int height, PixelFormat format) override;
 
     void setTripwire(double x1Norm, double y1Norm, double x2Norm, double y2Norm);
     void getTripwire(double& x1Norm, double& y1Norm, double& x2Norm, double& y2Norm) const;
@@ -1486,7 +1486,7 @@ public:
     MotionHeatmapFilter(MotionHeatmapFilter&&) noexcept;
     MotionHeatmapFilter& operator=(MotionHeatmapFilter&&) noexcept;
 
-    void process(uint8_t* data, int width, int height, PixelFormat format) override;
+    void process(std::uint8_t* data, int width, int height, PixelFormat format) override;
 
     void setDecayFactor(double decay)
     {
@@ -1551,7 +1551,7 @@ public:
 
     PrivacyMaskFilter(ConcealmentMode defaultMode = ConcealmentMode::Blackout);
 
-    void process(uint8_t* data, int width, int height, PixelFormat format) override;
+    void process(std::uint8_t* data, int width, int height, PixelFormat format) override;
 
     int addZone(double xNorm, double yNorm, double widthNorm, double heightNorm,
         ConcealmentMode mode = ConcealmentMode::Blackout, const std::string& label = "");
@@ -1570,7 +1570,7 @@ public:
         return m_defaultMode;
     }
 
-    void setMaskColor(uint8_t r, uint8_t g, uint8_t b);
+    void setMaskColor(std::uint8_t r, std::uint8_t g, std::uint8_t b);
     void setBlurKernelSize(int ksize)
     {
         m_blurKernelSize = std::max(3, ksize);
@@ -1593,9 +1593,9 @@ private:
     std::vector<PrivacyZone> m_zones;
     int m_nextZoneId { 1 };
     ConcealmentMode m_defaultMode { ConcealmentMode::Blackout };
-    uint8_t m_maskR { 0 };
-    uint8_t m_maskG { 0 };
-    uint8_t m_maskB { 0 };
+    std::uint8_t m_maskR { 0 };
+    std::uint8_t m_maskG { 0 };
+    std::uint8_t m_maskB { 0 };
     int m_blurKernelSize { 25 };
     int m_mosaicBlockSize { 16 };
 };
@@ -1613,7 +1613,7 @@ public:
     TimestampWatermarkFilter(Position position = Position::TopLeft, const std::string& cameraName = "CAM-01",
         bool showTimestamp = true, bool showFrameCounter = true);
 
-    void process(uint8_t* data, int width, int height, PixelFormat format) override;
+    void process(std::uint8_t* data, int width, int height, PixelFormat format) override;
 
     void setPosition(Position pos)
     {
@@ -1670,7 +1670,7 @@ public:
         return m_color;
     }
 
-    uint64_t getFrameCounter() const;
+    std::uint64_t getFrameCounter() const;
     void resetFrameCounter();
 
 private:
@@ -1687,7 +1687,7 @@ private:
     std::string m_customTimestamp;
     double m_scrimOpacity { 0.65 };
     Color m_color { Color::White };
-    uint64_t m_frameCounter { 0 };
+    std::uint64_t m_frameCounter { 0 };
 };
 
 /**
@@ -1710,7 +1710,7 @@ public:
 
     TelemetryOsdFilter(Color color = Color::TacticalGreen, bool showCompass = true, bool showReticleAngles = true);
 
-    void process(uint8_t* data, int width, int height, PixelFormat format) override;
+    void process(std::uint8_t* data, int width, int height, PixelFormat format) override;
 
     void setTelemetry(const TelemetryData& data);
     TelemetryData getTelemetry() const;
@@ -1770,7 +1770,7 @@ public:
     PictureInPictureFilter(Mode mode = Mode::DigitalZoom, Corner corner = Corner::TopRight, double scaleRatio = 0.28,
         double digitalZoomFactor = 2.0);
 
-    void process(uint8_t* data, int width, int height, PixelFormat format) override;
+    void process(std::uint8_t* data, int width, int height, PixelFormat format) override;
 
     void setMode(Mode mode)
     {
@@ -1808,10 +1808,10 @@ public:
         return m_digitalZoomFactor;
     }
 
-    void setSecondaryFrame(const uint8_t* data, int width, int height, PixelFormat format);
+    void setSecondaryFrame(const std::uint8_t* data, int width, int height, PixelFormat format);
     void clearSecondaryFrame();
 
-    void setBorder(bool showBorder, uint8_t r = 0, uint8_t g = 255, uint8_t b = 64, int thickness = 2);
+    void setBorder(bool showBorder, std::uint8_t r = 0, std::uint8_t g = 255, std::uint8_t b = 64, int thickness = 2);
     void setShowBadge(bool show)
     {
         m_showBadge = show;
@@ -1828,13 +1828,13 @@ private:
     double m_scaleRatio;
     double m_digitalZoomFactor;
     bool m_showBorder { true };
-    uint8_t m_borderR { 0 };
-    uint8_t m_borderG { 255 };
-    uint8_t m_borderB { 64 };
+    std::uint8_t m_borderR { 0 };
+    std::uint8_t m_borderG { 255 };
+    std::uint8_t m_borderB { 64 };
     int m_borderThickness { 2 };
     bool m_showBadge { true };
 
-    std::vector<uint8_t> m_secondaryBuffer;
+    std::vector<std::uint8_t> m_secondaryBuffer;
     int m_secondaryWidth { 0 };
     int m_secondaryHeight { 0 };
     PixelFormat m_secondaryFormat { PixelFormat::RGB24 };

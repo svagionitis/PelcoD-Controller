@@ -1311,7 +1311,7 @@ void OnvifServer::handleDeviceService(const httplib::Request& req, httplib::Resp
             const auto uptime
                 = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() - m_startTime)
                       .count();
-            info.uptimeSeconds = static_cast<uint64_t>(uptime);
+            info.uptimeSeconds = static_cast<std::uint64_t>(uptime);
             info.storageState = "OK";
             std::ostringstream ss;
             ss << "ONVIF System Diagnostics & Support Information\n"

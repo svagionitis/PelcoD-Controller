@@ -23,9 +23,9 @@ void testKnownMatrixAnalytical()
     // 13 14 15 16
     const int width = 4;
     const int height = 4;
-    std::vector<uint8_t> pixels(16);
+    std::vector<std::uint8_t> pixels(16);
     for (std::size_t i = 0U; i < 16U; ++i) {
-        pixels[i] = static_cast<uint8_t>(i + 1U);
+        pixels[i] = static_cast<std::uint8_t>(i + 1U);
     }
 
     IntegralImage sat;
@@ -80,12 +80,12 @@ void testBruteForceRandomBoxes()
     const int width = 64;
     const int height = 48;
     const auto total = static_cast<std::size_t>(width * height);
-    std::vector<uint8_t> pixels(total);
+    std::vector<std::uint8_t> pixels(total);
 
-    uint32_t seed = 4242U;
-    auto lcg = [&seed]() -> uint8_t {
+    std::uint32_t seed = 4242U;
+    auto lcg = [&seed]() -> std::uint8_t {
         seed = seed * 1664525U + 1013904223U;
-        return static_cast<uint8_t>((seed >> 16U) & 0xFFU);
+        return static_cast<std::uint8_t>((seed >> 16U) & 0xFFU);
     };
 
     for (std::size_t i = 0U; i < total; ++i) {
@@ -102,18 +102,18 @@ void testBruteForceRandomBoxes()
         const int w = static_cast<int>(1 + (lcg() % (width - x)));
         const int h = static_cast<int>(1 + (lcg() % (height - y)));
 
-        uint64_t expectedSum = 0U;
-        uint64_t expectedSqSum = 0U;
+        std::uint64_t expectedSum = 0U;
+        std::uint64_t expectedSqSum = 0U;
         for (int r = y; r < y + h; ++r) {
             for (int c = x; c < x + w; ++c) {
-                const auto val = static_cast<uint64_t>(pixels[static_cast<std::size_t>(r * width + c)]);
+                const auto val = static_cast<std::uint64_t>(pixels[static_cast<std::size_t>(r * width + c)]);
                 expectedSum += val;
                 expectedSqSum += (val * val);
             }
         }
 
-        const uint64_t satSum = sat.computeSum(x, y, w, h);
-        const uint64_t satSqSum = sat.computeSquaredSum(x, y, w, h);
+        const std::uint64_t satSum = sat.computeSum(x, y, w, h);
+        const std::uint64_t satSqSum = sat.computeSquaredSum(x, y, w, h);
         assert(satSum == expectedSum);
         assert(satSqSum == expectedSqSum);
 
@@ -136,7 +136,7 @@ void testBoundaryClippingAndInvalidInputs()
     std::cout << "[Test] testBoundaryClippingAndInvalidInputs...\n";
     const int width = 10;
     const int height = 10;
-    std::vector<uint8_t> pixels(100, 10U); // Constant 10
+    std::vector<std::uint8_t> pixels(100, 10U); // Constant 10
 
     IntegralImage sat;
     sat.compute(pixels.data(), width, height);
@@ -172,16 +172,16 @@ void testBoxBlurEquivalence()
     const int width = 32;
     const int height = 32;
     const auto total = static_cast<std::size_t>(width * height);
-    std::vector<uint8_t> src(total);
+    std::vector<std::uint8_t> src(total);
     for (std::size_t i = 0U; i < total; ++i) {
-        src[i] = static_cast<uint8_t>((i * 7U + 13U) % 256U);
+        src[i] = static_cast<std::uint8_t>((i * 7U + 13U) % 256U);
     }
 
     IntegralImage sat;
     sat.compute(src.data(), width, height);
 
     const int radius = 2; // 5x5 box
-    std::vector<uint8_t> blurSat(total, 0U);
+    std::vector<std::uint8_t> blurSat(total, 0U);
     sat.boxBlur(blurSat.data(), radius);
 
     // Compare against naive direct 2D convolution
@@ -200,8 +200,8 @@ void testBoxBlurEquivalence()
                     ++count;
                 }
             }
-            const auto expected = static_cast<uint8_t>(std::round(sum / static_cast<double>(count)));
-            const uint8_t actual = blurSat[static_cast<std::size_t>(y * width + x)];
+            const auto expected = static_cast<std::uint8_t>(std::round(sum / static_cast<double>(count)));
+            const std::uint8_t actual = blurSat[static_cast<std::size_t>(y * width + x)];
             assert(actual == expected);
         }
     }
@@ -214,13 +214,13 @@ void testAdaptiveThresholdBradley()
     std::cout << "[Test] testAdaptiveThresholdBradley...\n";
     const int width = 64;
     const int height = 64;
-    std::vector<uint8_t> image(static_cast<std::size_t>(width * height));
+    std::vector<std::uint8_t> image(static_cast<std::size_t>(width * height));
 
     // Strong diagonal illumination gradient ramp: 20 to 200
     for (int y = 0; y < height; ++y) {
         for (int x = 0; x < width; ++x) {
             const double ramp = 20.0 + 180.0 * (static_cast<double>(x + y) / static_cast<double>(width + height));
-            image[static_cast<std::size_t>(y * width + x)] = static_cast<uint8_t>(ramp);
+            image[static_cast<std::size_t>(y * width + x)] = static_cast<std::uint8_t>(ramp);
         }
     }
 
@@ -242,7 +242,7 @@ void testAdaptiveThresholdBradley()
     IntegralImage sat;
     sat.compute(image.data(), width, height);
 
-    std::vector<uint8_t> binaryMask(static_cast<std::size_t>(width * height), 0U);
+    std::vector<std::uint8_t> binaryMask(static_cast<std::size_t>(width * height), 0U);
     sat.adaptiveThreshold(binaryMask.data(), 16, 0.15);
 
     // Both spots should be segmented as dark targets (0), while surrounding background is bright (255)
@@ -261,19 +261,19 @@ void testLarge4KOverflowPrevention()
     std::cout << "[Test] testLarge4KOverflowPrevention...\n";
     const int width = 3840;
     const int height = 2160;
-    const uint64_t totalPixels = static_cast<uint64_t>(width) * static_cast<uint64_t>(height); // 8,294,400
+    const std::uint64_t totalPixels = static_cast<std::uint64_t>(width) * static_cast<std::uint64_t>(height); // 8,294,400
 
     // Constant buffer of 255
-    std::vector<uint8_t> frame4k(static_cast<std::size_t>(totalPixels), 255U);
+    std::vector<std::uint8_t> frame4k(static_cast<std::size_t>(totalPixels), 255U);
 
     IntegralImage sat;
     sat.compute(frame4k.data(), width, height, width, true);
 
-    const uint64_t expectedTotalSum = totalPixels * 255ULL; // 2,115,072,000
-    const uint64_t expectedTotalSqSum = totalPixels * (255ULL * 255ULL); // 539,343,360,000
+    const std::uint64_t expectedTotalSum = totalPixels * 255ULL; // 2,115,072,000
+    const std::uint64_t expectedTotalSqSum = totalPixels * (255ULL * 255ULL); // 539,343,360,000
 
-    const uint64_t actualSum = sat.computeSum(0, 0, width, height);
-    const uint64_t actualSqSum = sat.computeSquaredSum(0, 0, width, height);
+    const std::uint64_t actualSum = sat.computeSum(0, 0, width, height);
+    const std::uint64_t actualSqSum = sat.computeSquaredSum(0, 0, width, height);
 
     assert(actualSum == expectedTotalSum);
     assert(actualSqSum == expectedTotalSqSum);

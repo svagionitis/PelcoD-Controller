@@ -24,10 +24,10 @@ namespace {
 
 } // namespace
 
-std::vector<uint8_t> OnvifSecurity::generateNonce()
+std::vector<std::uint8_t> OnvifSecurity::generateNonce()
 {
     constexpr size_t kNonceLength { 16 };
-    std::vector<uint8_t> nonce(kNonceLength, 0);
+    std::vector<std::uint8_t> nonce(kNonceLength, 0);
     RAND_bytes(nonce.data(), static_cast<int>(kNonceLength));
     return nonce;
 }
@@ -49,18 +49,18 @@ std::string OnvifSecurity::generateIsoTimestamp(std::chrono::seconds offset)
     return ss.str();
 }
 
-std::string OnvifSecurity::base64Encode(const std::vector<uint8_t>& data)
+std::string OnvifSecurity::base64Encode(const std::vector<std::uint8_t>& data)
 {
     std::string result {};
     result.reserve(((data.size() + 2) / 3) * 4);
 
     size_t i { 0 };
     while (i < data.size()) {
-        const uint32_t octetA = (i < data.size()) ? static_cast<uint8_t>(data[i++]) : 0;
-        const uint32_t octetB = (i < data.size()) ? static_cast<uint8_t>(data[i++]) : 0;
-        const uint32_t octetC = (i < data.size()) ? static_cast<uint8_t>(data[i++]) : 0;
+        const std::uint32_t octetA = (i < data.size()) ? static_cast<std::uint8_t>(data[i++]) : 0;
+        const std::uint32_t octetB = (i < data.size()) ? static_cast<std::uint8_t>(data[i++]) : 0;
+        const std::uint32_t octetC = (i < data.size()) ? static_cast<std::uint8_t>(data[i++]) : 0;
 
-        const uint32_t triple = (octetA << 16) + (octetB << 8) + octetC;
+        const std::uint32_t triple = (octetA << 16) + (octetB << 8) + octetC;
 
         result.push_back(kBase64Table[(triple >> 18) & 0x3F]);
         result.push_back(kBase64Table[(triple >> 12) & 0x3F]);
@@ -81,12 +81,12 @@ std::string OnvifSecurity::base64Encode(const std::vector<uint8_t>& data)
 
 std::string OnvifSecurity::base64Encode(const std::string& text)
 {
-    const std::vector<uint8_t> data(text.begin(), text.end());
+    const std::vector<std::uint8_t> data(text.begin(), text.end());
     return base64Encode(data);
 }
 
 std::string OnvifSecurity::computePasswordDigest(
-    const std::vector<uint8_t>& rawNonce, const std::string& createdUtc, const std::string& password)
+    const std::vector<std::uint8_t>& rawNonce, const std::string& createdUtc, const std::string& password)
 {
     EVP_MD_CTX* ctx = EVP_MD_CTX_new();
     if (!ctx) {
@@ -113,7 +113,7 @@ std::string OnvifSecurity::computePasswordDigest(
     EVP_DigestFinal_ex(ctx, md.data(), &mdLen);
     EVP_MD_CTX_free(ctx);
 
-    const std::vector<uint8_t> digestBytes(md.begin(), md.begin() + mdLen);
+    const std::vector<std::uint8_t> digestBytes(md.begin(), md.begin() + mdLen);
     return base64Encode(digestBytes);
 }
 
@@ -125,7 +125,7 @@ UsernameTokenData OnvifSecurity::createTokenData(const SecurityCredentials& cred
         return data;
     }
 
-    const std::vector<uint8_t> rawNonce = generateNonce();
+    const std::vector<std::uint8_t> rawNonce = generateNonce();
     data.nonceBase64 = base64Encode(rawNonce);
     data.createdUtc = generateIsoTimestamp(credentials.clockOffset);
     data.passwordDigest = computePasswordDigest(rawNonce, data.createdUtc, credentials.password);
@@ -160,9 +160,9 @@ std::string OnvifSecurity::buildSoapSecurityHeader(const SecurityCredentials& cr
     return ss.str();
 }
 
-std::vector<uint8_t> OnvifSecurity::base64Decode(const std::string& base64Text)
+std::vector<std::uint8_t> OnvifSecurity::base64Decode(const std::string& base64Text)
 {
-    std::vector<uint8_t> result;
+    std::vector<std::uint8_t> result;
     result.reserve((base64Text.size() * 3) / 4);
     std::vector<int> table(256, -1);
     for (int i = 0; i < 64; ++i) {
@@ -184,7 +184,7 @@ std::vector<uint8_t> OnvifSecurity::base64Decode(const std::string& base64Text)
         val = (val << 6) + table[c];
         valb += 6;
         if (valb >= 0) {
-            result.push_back(static_cast<uint8_t>((val >> valb) & 0xFF));
+            result.push_back(static_cast<std::uint8_t>((val >> valb) & 0xFF));
             valb -= 8;
         }
     }
@@ -238,7 +238,7 @@ OnvifCertificate OnvifSecurity::generateSelfSignedCertificate(
         unsigned char* der = nullptr;
         const int derLen = i2d_X509(x509, &der);
         if (derLen > 0 && der != nullptr) {
-            std::vector<uint8_t> derBytes(der, der + derLen);
+            std::vector<std::uint8_t> derBytes(der, der + derLen);
             cert.x509DerBase64 = base64Encode(derBytes);
             OPENSSL_free(der);
         }

@@ -47,7 +47,7 @@ public:
     /// @param[in] stride Row pitch in bytes (if 0 or negative, assumes stride == width).
     /// @return MotionResult with sub-pixel translation (deltaX, deltaY) and confidence.
     [[nodiscard]] MotionResult estimateMotion(
-        const uint8_t* refPixels, const uint8_t* curPixels, int width, int height, int stride = 0) const;
+        const std::uint8_t* refPixels, const std::uint8_t* curPixels, int width, int height, int stride = 0) const;
 
     /// @brief Updates estimator configuration.
     /// @param[in] config New configuration settings.

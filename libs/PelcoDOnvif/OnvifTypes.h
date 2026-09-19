@@ -3,6 +3,7 @@
 /// @file OnvifTypes.h
 /// @brief Common data structures, enums, and models for ONVIF Profile S client.
 
+#include <cstdint>
 #include <map>
 #include <optional>
 #include <string>
@@ -517,11 +518,11 @@ enum class SystemLogType : std::uint8_t { System, Access };
 /// @struct SystemSupportInfo
 /// @brief Diagnostics and performance telemetry for device support.
 struct SystemSupportInfo {
-    uint64_t uptimeSeconds { 0 }; ///< Device uptime in seconds
+    std::uint64_t uptimeSeconds { 0 }; ///< Device uptime in seconds
     float cpuLoadPercent { 0.0f }; ///< Current CPU load [0.0, 100.0]
-    uint32_t memoryUsedMb { 0 }; ///< Used RAM in megabytes
-    uint32_t memoryTotalMb { 0 }; ///< Total RAM in megabytes
-    uint32_t activeConnections { 0 }; ///< Number of open client connections
+    std::uint32_t memoryUsedMb { 0 }; ///< Used RAM in megabytes
+    std::uint32_t memoryTotalMb { 0 }; ///< Total RAM in megabytes
+    std::uint32_t activeConnections { 0 }; ///< Number of open client connections
     std::string storageState { "OK" }; ///< Storage / filesystem health
     std::string rawDiagnostics {}; ///< Text diagnostic dump
 };
@@ -592,7 +593,7 @@ struct RecordingSummary {
     std::string dataFrom {}; ///< Earliest recording timestamp (ISO 8601 UTC)
     std::string dataUntil {}; ///< Latest recording timestamp (ISO 8601 UTC)
     int numberRecordings { 0 }; ///< Total number of recording containers
-    uint64_t totalStorageBytes { 0 }; ///< Total disk bytes consumed
+    std::uint64_t totalStorageBytes { 0 }; ///< Total disk bytes consumed
 };
 
 /// @enum RecordingJobMode

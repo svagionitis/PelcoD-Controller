@@ -79,8 +79,8 @@ void testExactIntegerTranslation()
     std::cout << "[Test] testExactIntegerTranslation...\n";
     const int width = 128;
     const int height = 128;
-    std::vector<uint8_t> ref(static_cast<std::size_t>(width * height), 0U);
-    std::vector<uint8_t> cur(static_cast<std::size_t>(width * height), 0U);
+    std::vector<std::uint8_t> ref(static_cast<std::size_t>(width * height), 0U);
+    std::vector<std::uint8_t> cur(static_cast<std::size_t>(width * height), 0U);
 
     // Generate multi-frequency 2D texture pattern with broad spatial frequencies (no short repetition)
     auto textureFunc = [](double x, double y) -> double {
@@ -96,11 +96,11 @@ void testExactIntegerTranslation()
         for (int x = 0; x < width; ++x) {
             const auto uIdx = static_cast<std::size_t>(y * width + x);
             const double refVal = textureFunc(static_cast<double>(x), static_cast<double>(y));
-            ref[uIdx] = static_cast<uint8_t>(std::clamp(refVal, 0.0, 255.0));
+            ref[uIdx] = static_cast<std::uint8_t>(std::clamp(refVal, 0.0, 255.0));
 
             // Shifted image: cur(x, y) = ref(x - shiftX, y - shiftY)
             const double curVal = textureFunc(static_cast<double>(x - shiftX), static_cast<double>(y - shiftY));
-            cur[uIdx] = static_cast<uint8_t>(std::clamp(curVal, 0.0, 255.0));
+            cur[uIdx] = static_cast<std::uint8_t>(std::clamp(curVal, 0.0, 255.0));
         }
     }
 
@@ -132,7 +132,7 @@ void testSubPixelFractionalTranslation()
     std::vector<double> raw(uWidth * uHeight, 0.0);
 
     // Deterministic pseudo-random noise
-    uint32_t seed = 12345U;
+    std::uint32_t seed = 12345U;
     auto prng = [&seed]() -> double {
         seed = seed * 1664525U + 1013904223U;
         return static_cast<double>(seed & 0xFFFFU) / 65535.0;
@@ -170,15 +170,15 @@ void testSubPixelFractionalTranslation()
     };
 
     const auto filtered = boxFilter5(boxFilter5(raw));
-    std::vector<uint8_t> ref(uWidth * uHeight, 0U);
+    std::vector<std::uint8_t> ref(uWidth * uHeight, 0U);
     for (std::size_t i = 0U; i < uWidth * uHeight; ++i) {
-        ref[i] = static_cast<uint8_t>(std::clamp(filtered[i], 0.0, 255.0));
+        ref[i] = static_cast<std::uint8_t>(std::clamp(filtered[i], 0.0, 255.0));
     }
 
     const double trueShiftX = 3.4;
     const double trueShiftY = 2.6;
 
-    std::vector<uint8_t> cur(uWidth * uHeight, 0U);
+    std::vector<std::uint8_t> cur(uWidth * uHeight, 0U);
     for (std::size_t y = 0U; y < uHeight; ++y) {
         const double srcY = static_cast<double>(y) - trueShiftY;
         const double clampedY = std::clamp(srcY, 0.0, static_cast<double>(uHeight - 1U));
@@ -198,7 +198,7 @@ void testSubPixelFractionalTranslation()
                 + (1.0 - fx) * fy * static_cast<double>(ref[y1 * uWidth + x0])
                 + fx * fy * static_cast<double>(ref[y1 * uWidth + x1]);
 
-            cur[y * uWidth + x] = static_cast<uint8_t>(std::clamp(val, 0.0, 255.0));
+            cur[y * uWidth + x] = static_cast<std::uint8_t>(std::clamp(val, 0.0, 255.0));
         }
     }
 
@@ -225,8 +225,8 @@ void testIlluminationInvariance()
     std::cout << "[Test] testIlluminationInvariance...\n";
     const int width = 128;
     const int height = 128;
-    std::vector<uint8_t> ref(static_cast<std::size_t>(width * height), 0U);
-    std::vector<uint8_t> cur(static_cast<std::size_t>(width * height), 0U);
+    std::vector<std::uint8_t> ref(static_cast<std::size_t>(width * height), 0U);
+    std::vector<std::uint8_t> cur(static_cast<std::size_t>(width * height), 0U);
 
     auto textureFunc = [](double x, double y) -> double {
         const double v = std::sin(x * 0.06) * std::cos(y * 0.07) + std::sin(x * 0.13 + y * 0.11)
@@ -241,12 +241,12 @@ void testIlluminationInvariance()
         for (int x = 0; x < width; ++x) {
             const auto uIdx = static_cast<std::size_t>(y * width + x);
             const double refVal = textureFunc(static_cast<double>(x), static_cast<double>(y));
-            ref[uIdx] = static_cast<uint8_t>(std::clamp(refVal, 0.0, 255.0));
+            ref[uIdx] = static_cast<std::uint8_t>(std::clamp(refVal, 0.0, 255.0));
 
             // Drastic illumination change: halve contrast and add DC offset +60
             const double curVal
                 = 0.5 * textureFunc(static_cast<double>(x - shiftX), static_cast<double>(y - shiftY)) + 60.0;
-            cur[uIdx] = static_cast<uint8_t>(std::clamp(curVal, 0.0, 255.0));
+            cur[uIdx] = static_cast<std::uint8_t>(std::clamp(curVal, 0.0, 255.0));
         }
     }
 
@@ -269,15 +269,15 @@ void testUncorrelatedSceneRejection()
     std::cout << "[Test] testUncorrelatedSceneRejection...\n";
     const int width = 128;
     const int height = 128;
-    std::vector<uint8_t> ref(static_cast<std::size_t>(width * height), 0U);
-    std::vector<uint8_t> cur(static_cast<std::size_t>(width * height), 0U);
+    std::vector<std::uint8_t> ref(static_cast<std::size_t>(width * height), 0U);
+    std::vector<std::uint8_t> cur(static_cast<std::size_t>(width * height), 0U);
 
     // Two orthogonal frequency patterns with zero cross-correlation
     for (int y = 0; y < height; ++y) {
         for (int x = 0; x < width; ++x) {
             const auto uIdx = static_cast<std::size_t>(y * width + x);
-            ref[uIdx] = static_cast<uint8_t>(128.0 + 100.0 * std::sin(2.0 * M_PI * static_cast<double>(x) / 4.0));
-            cur[uIdx] = static_cast<uint8_t>(128.0 + 100.0 * std::sin(2.0 * M_PI * static_cast<double>(y) / 19.0));
+            ref[uIdx] = static_cast<std::uint8_t>(128.0 + 100.0 * std::sin(2.0 * M_PI * static_cast<double>(x) / 4.0));
+            cur[uIdx] = static_cast<std::uint8_t>(128.0 + 100.0 * std::sin(2.0 * M_PI * static_cast<double>(y) / 19.0));
         }
     }
 
@@ -300,7 +300,7 @@ void testNullOrInvalidInputs()
 {
     std::cout << "[Test] testNullOrInvalidInputs...\n";
     PhaseCorrelationEstimator estimator;
-    uint8_t dummy[16] { 0 };
+    std::uint8_t dummy[16] { 0 };
 
     const MotionResult res1 = estimator.estimateMotion(nullptr, dummy, 4, 4);
     assert(!res1.isConfident);

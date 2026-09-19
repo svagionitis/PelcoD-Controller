@@ -616,7 +616,7 @@ void TestVideoDecoder::testFalseColorThermalPalettes()
         std::vector<std::uint8_t> buf = origBuf;
         FalseColorFilter filter(FalseColorPalette::UserPalette);
 
-        std::map<uint8_t, std::vector<uint8_t>> controlPoints;
+        std::map<std::uint8_t, std::vector<std::uint8_t>> controlPoints;
         controlPoints[0] = { 0, 0, 255 }; // Blue cold
         controlPoints[128] = { 0, 255, 0 }; // Green mid
         controlPoints[255] = { 255, 0, 0 }; // Red hot

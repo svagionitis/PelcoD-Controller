@@ -210,16 +210,16 @@ bool VideoView::handleInput(const InputEvent& event, PelcoD::PelcoDDevice& devic
     // Speed controls
     if (event.ch == '[') {
         if (m_panSpeed > 4U)
-            m_panSpeed = static_cast<uint8_t>(m_panSpeed - 4U);
+            m_panSpeed = static_cast<std::uint8_t>(m_panSpeed - 4U);
         if (m_tiltSpeed > 4U)
-            m_tiltSpeed = static_cast<uint8_t>(m_tiltSpeed - 4U);
+            m_tiltSpeed = static_cast<std::uint8_t>(m_tiltSpeed - 4U);
         return true;
     }
     if (event.ch == ']') {
         if (m_panSpeed < 60U)
-            m_panSpeed = static_cast<uint8_t>(m_panSpeed + 4U);
+            m_panSpeed = static_cast<std::uint8_t>(m_panSpeed + 4U);
         if (m_tiltSpeed < 60U)
-            m_tiltSpeed = static_cast<uint8_t>(m_tiltSpeed + 4U);
+            m_tiltSpeed = static_cast<std::uint8_t>(m_tiltSpeed + 4U);
         return true;
     }
 

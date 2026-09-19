@@ -4,6 +4,7 @@
 /// @brief Adapter translating ONVIF PTZ and Imaging commands to PelcoDDevice hardware control.
 
 #include "OnvifServerTypes.h"
+#include <cstdint>
 #include <PelcoDCore/PatrolController.h>
 #include <PelcoDCore/PelcoDDevice.h>
 
@@ -286,9 +287,9 @@ private:
 
     mutable std::mutex m_mutex {};
     std::map<std::string, PtzPreset> m_presets {};
-    uint32_t m_nextPresetId { 1 };
+    std::uint32_t m_nextPresetId { 1 };
     std::map<std::string, PresetTour> m_tours {};
-    uint32_t m_nextTourId { 1 };
+    std::uint32_t m_nextTourId { 1 };
     std::string m_persistencePath { "onvif_tours.json" };
     std::atomic<bool> m_isMoving { false };
 
@@ -322,7 +323,7 @@ private:
     ReplayConfiguration m_replayConfig {};
     std::map<std::string, std::vector<RecordingSearchResult>> m_recordingSearches {};
     std::map<std::string, std::vector<RecordedEventResult>> m_eventSearches {};
-    uint32_t m_nextSearchSessionId { 1 };
+    std::uint32_t m_nextSearchSessionId { 1 };
 
     void evaluateRulesForObject(const AnalyticsObject& prevObj, const AnalyticsObject& currentObj);
     void evaluateRulesForFrame();
@@ -346,7 +347,7 @@ private:
           MaskType::Color, { 0, 0, 0, "RGB" }, true }
     };
     MaskOptions m_maskOptions {};
-    uint32_t m_nextMaskId { 2 };
+    std::uint32_t m_nextMaskId { 2 };
 
     mutable std::mutex m_videoSourceModeMutex {};
     std::vector<VideoSourceMode> m_videoSourceModes {};

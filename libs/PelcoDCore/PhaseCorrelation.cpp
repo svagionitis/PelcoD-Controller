@@ -25,7 +25,7 @@ const PhaseCorrelationConfig& PhaseCorrelationEstimator::getConfig() const noexc
 }
 
 MotionResult PhaseCorrelationEstimator::estimateMotion(
-    const uint8_t* refPixels, const uint8_t* curPixels, int width, int height, int stride) const
+    const std::uint8_t* refPixels, const std::uint8_t* curPixels, int width, int height, int stride) const
 {
     if (refPixels == nullptr || curPixels == nullptr || width <= 0 || height <= 0) {
         return MotionResult {};
