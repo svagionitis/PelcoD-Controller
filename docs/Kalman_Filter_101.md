@@ -459,6 +459,7 @@ The following standard reference texts, seminal papers, and academic resources p
    *(Practical guide covering discrete-time implementation, covariance stability, and GPS/INS integration).*
 
 6. **Related Documentation in This Repository:**  
+   - [`docs/Integral_Images_101.md`](Integral_Images_101.md): Complementary guide explaining Integral Images (Summed-Area Tables).
    - [`docs/Notch_Filter_101.md`](Notch_Filter_101.md): Complementary guide explaining the Digital Notch Filter.
    - [`docs/PID_Controller_101.md`](PID_Controller_101.md): Complementary 101/ELI5 guide explaining the PID controller.
    - [`docs/FFT_101.md`](FFT_101.md): Complementary 101/ELI5 guide explaining the Fast Fourier Transform (FFT).

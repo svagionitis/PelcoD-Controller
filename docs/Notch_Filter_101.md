@@ -343,6 +343,7 @@ The following standard reference texts, technical manuals, and seminal papers pr
    *(Covers loop shaping, resonant poles, and phase margin constraints).*
 
 5. **Related Documentation in This Repository:**  
+   - [`docs/Integral_Images_101.md`](Integral_Images_101.md): Complementary guide explaining Integral Images (Summed-Area Tables).
    - [`docs/PID_Controller_101.md`](PID_Controller_101.md): Complementary guide explaining the PID controller.
    - [`docs/Kalman_Filter_101.md`](Kalman_Filter_101.md): Complementary guide explaining the Kalman filter.
    - [`docs/FFT_101.md`](FFT_101.md): Complementary guide explaining the Fast Fourier Transform (FFT).
