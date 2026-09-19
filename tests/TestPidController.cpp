@@ -265,11 +265,18 @@ void testPredictiveLeadBoresight()
     const auto cmdWithLead = tracker.update(0.10, 0.0, 1.0, 0.0, true, false, 0.04);
     assert(cmdWithLead.panDirection == 1);
     assert(cmdWithLead.panSpeed > cmdNoLead.panSpeed);
+    assert(std::abs(tracker.getLastLeadOffsetX() - 0.10) < 1e-6);
+    assert(std::abs(tracker.getLastLeadOffsetY()) < 1e-6);
 
     // Test clamp: vx = 10.0 -> lead = 1.0 clamped to maxLead = 0.25 -> effective error = 0.10 + 0.25 = 0.35
     const auto cmdClamped = tracker.update(0.10, 0.0, 10.0, 0.0, true, false, 0.04);
     const auto cmdClamped2 = tracker.update(0.10, 0.0, 100.0, 0.0, true, false, 0.04);
     assert(cmdClamped.panSpeed == cmdClamped2.panSpeed);
+    assert(std::abs(tracker.getLastLeadOffsetX() - 0.25) < 1e-6);
+
+    tracker.reset();
+    assert(std::abs(tracker.getLastLeadOffsetX()) < 1e-6);
+    assert(std::abs(tracker.getLastLeadOffsetY()) < 1e-6);
 
     std::cout << "  -> PASSED\n";
 }

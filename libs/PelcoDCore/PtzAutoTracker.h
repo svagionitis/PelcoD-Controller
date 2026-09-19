@@ -173,6 +173,14 @@ public:
     {
         return m_estimatedLatencySeconds;
     }
+    [[nodiscard]] double getLastLeadOffsetX() const noexcept
+    {
+        return m_lastLeadOffsetX;
+    }
+    [[nodiscard]] double getLastLeadOffsetY() const noexcept
+    {
+        return m_lastLeadOffsetY;
+    }
 
 private:
     PidController m_panPid;
@@ -205,6 +213,8 @@ private:
     double m_maxLead { 0.25 };
     bool m_adaptiveLatencyEnabled { false };
     double m_estimatedLatencySeconds { 0.10 };
+    double m_lastLeadOffsetX { 0.0 };
+    double m_lastLeadOffsetY { 0.0 };
 
     // Zoom-Aware Gain Scheduling
     bool m_zoomGainSchedulingEnabled { true };

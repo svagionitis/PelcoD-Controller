@@ -23,6 +23,8 @@ void PtzAutoTracker::reset() noexcept
     m_lastPanDir = 0;
     m_lastTiltDir = 0;
     m_lastZoomDir = 0;
+    m_lastLeadOffsetX = 0.0;
+    m_lastLeadOffsetY = 0.0;
 }
 
 void PtzAutoTracker::setPanGains(double kp, double ki, double kd, double kff) noexcept
@@ -137,10 +139,13 @@ PtzAutoTracker::TrackingCommand PtzAutoTracker::update(double errorX, double err
     double effectiveErrorY = errorY;
     if (m_predictiveLeadEnabled) {
         const double effectiveLeadGain = m_adaptiveLatencyEnabled ? m_estimatedLatencySeconds : m_leadGain;
-        const double leadX = std::clamp(effectiveLeadGain * vx, -m_maxLead, m_maxLead);
-        const double leadY = std::clamp(effectiveLeadGain * vy, -m_maxLead, m_maxLead);
-        effectiveErrorX += leadX;
-        effectiveErrorY += leadY;
+        m_lastLeadOffsetX = std::clamp(effectiveLeadGain * vx, -m_maxLead, m_maxLead);
+        m_lastLeadOffsetY = std::clamp(effectiveLeadGain * vy, -m_maxLead, m_maxLead);
+        effectiveErrorX += m_lastLeadOffsetX;
+        effectiveErrorY += m_lastLeadOffsetY;
+    } else {
+        m_lastLeadOffsetX = 0.0;
+        m_lastLeadOffsetY = 0.0;
     }
 
     // 2. Zoom-Aware Adaptive Gain Scheduling
@@ -260,10 +265,13 @@ PtzAutoTracker::TrackingCommand PtzAutoTracker::updateAngular(double errorAzimut
         const double effectiveLeadGain = m_adaptiveLatencyEnabled ? m_estimatedLatencySeconds : m_leadGain;
         // Clamp lead to reasonable angular bounds (e.g. maxLead scaled by field of view / 10 degrees)
         const double maxAngleLead = m_maxLead * 20.0; // max angular deflection lead
-        const double leadAz = std::clamp(effectiveLeadGain * omegaAzimuthDegPerSec, -maxAngleLead, maxAngleLead);
-        const double leadEl = std::clamp(effectiveLeadGain * omegaElevationDegPerSec, -maxAngleLead, maxAngleLead);
-        effectiveAz += leadAz;
-        effectiveEl += leadEl;
+        m_lastLeadOffsetX = std::clamp(effectiveLeadGain * omegaAzimuthDegPerSec, -maxAngleLead, maxAngleLead);
+        m_lastLeadOffsetY = std::clamp(effectiveLeadGain * omegaElevationDegPerSec, -maxAngleLead, maxAngleLead);
+        effectiveAz += m_lastLeadOffsetX;
+        effectiveEl += m_lastLeadOffsetY;
+    } else {
+        m_lastLeadOffsetX = 0.0;
+        m_lastLeadOffsetY = 0.0;
     }
 
     // 2. Zoom-Aware Adaptive Gain Scheduling

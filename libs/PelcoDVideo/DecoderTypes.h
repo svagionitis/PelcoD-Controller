@@ -139,5 +139,25 @@ public:
     return SourceType::File;
 }
 
+/// @struct TrajectoryConfig
+/// @brief Configuration parameters for historical trajectory breadcrumb rendering.
+struct TrajectoryConfig {
+    bool enabled { true };
+    double maxDurationSec { 2.0 }; ///< Physical temporal duration window in seconds
+    int maxPoints { 60 }; ///< Maximum capacity for breadcrumb ring buffer
+    bool smoothSpline { true }; ///< Catmull-Rom spline interpolation between points
+    bool speedGradient { true }; ///< Speed-based thermal color gradient (green->yellow->red)
+};
+
+/// @struct PredictiveLeadConfig
+/// @brief Configuration parameters for forward-projecting predictive lead vector.
+struct PredictiveLeadConfig {
+    bool enabled { true };
+    double lookaheadSeconds { 1.5 }; ///< Forward projection horizon in seconds
+    bool curvilinearPrediction { true }; ///< Constant Turn Rate and Acceleration (CTRA) model
+    bool showUncertaintyEllipse { true }; ///< Kalman error covariance confidence ellipse
+    bool showBoresightLeadSetpoint { true }; ///< Visual PTZ camera lead deflection marker
+};
+
 } // namespace PelcoD::Video
 namespace videodecoder = PelcoD::Video;

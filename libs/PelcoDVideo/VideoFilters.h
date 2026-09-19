@@ -16,6 +16,7 @@
 #include <memory>
 #include <mutex>
 #include <string>
+#include <utility>
 #include <vector>
 
 // Visibility macros for shared library export/import
@@ -1358,7 +1359,17 @@ public:
         double appearanceScore { 1.0 }; ///< Appearance signature correlation score (0.0 to 1.0)
         double normalizedWidth { 0.0 }; ///< Target width normalized by viewport frame width [0.0 to 1.0]
         double normalizedHeight { 0.0 }; ///< Target height normalized by viewport frame height [0.0 to 1.0]
+        double turnRateRps { 0.0 }; ///< Estimated angular turn rate (rad/s)
+        double headingDeg { 0.0 }; ///< Heading angle in degrees [0, 360)
+        double predictedTargetX { 0.0 }; ///< Projected future X in pixels at lookahead horizon
+        double predictedTargetY { 0.0 }; ///< Projected future Y in pixels at lookahead horizon
+        double uncertaintyMajor { 0.0 }; ///< Kalman uncertainty semi-major axis (pixels)
+        double uncertaintyMinor { 0.0 }; ///< Kalman uncertainty semi-minor axis (pixels)
+        double uncertaintyAngleDeg { 0.0 }; ///< Kalman uncertainty orientation angle (degrees)
     };
+
+    using TrajectoryConfig = PelcoD::Video::TrajectoryConfig;
+    using PredictiveLeadConfig = PelcoD::Video::PredictiveLeadConfig;
 
     CentroidTargetTrackerFilter(bool autoAcquire = true, int targetWidth = 40, int targetHeight = 40);
     ~CentroidTargetTrackerFilter() override;
@@ -1412,6 +1423,23 @@ public:
     void setPredictiveVector(bool enabled, double lookaheadSeconds = 1.5) noexcept;
     bool isPredictiveVector() const noexcept;
     double getPredictiveVectorLookahead() const noexcept;
+
+    /// @brief Configure historical trajectory breadcrumbs parameters.
+    void setTrajectoryConfig(const TrajectoryConfig& config) noexcept;
+    /// @brief Get current historical trajectory breadcrumbs parameters.
+    [[nodiscard]] TrajectoryConfig getTrajectoryConfig() const noexcept;
+
+    /// @brief Configure predictive lead vector and interception reticle parameters.
+    void setPredictiveLeadConfig(const PredictiveLeadConfig& config) noexcept;
+    /// @brief Get current predictive lead vector and interception reticle parameters.
+    [[nodiscard]] PredictiveLeadConfig getPredictiveLeadConfig() const noexcept;
+
+    /// @brief Set current mechanical PTZ boresight lead offset for on-screen setpoint marker.
+    /// @param[in] leadX Normalized horizontal lead offset [-1.0, 1.0].
+    /// @param[in] leadY Normalized vertical lead offset [-1.0, 1.0].
+    void setBoresightLeadOffset(double leadX, double leadY) noexcept;
+    /// @brief Get current mechanical PTZ boresight lead offset.
+    [[nodiscard]] std::pair<double, double> getBoresightLeadOffset() const noexcept;
 
 private:
     bool m_autoAcquire;

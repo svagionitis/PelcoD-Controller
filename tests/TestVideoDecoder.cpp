@@ -1260,6 +1260,49 @@ void TestVideoDecoder::testCentroidTargetTrackerFilter()
     // Test quadratic lookahead prediction with acceleration
     auto stPred = tracker.getTargetState(0.10);
     QVERIFY(stPred.predictedErrorX > stAccel.errorX);
+
+    // Test extended TrajectoryConfig and PredictiveLeadConfig
+    PelcoD::Video::TrajectoryConfig trajCfg;
+    trajCfg.enabled = true;
+    trajCfg.maxDurationSec = 1.5;
+    trajCfg.maxPoints = 45;
+    trajCfg.smoothSpline = true;
+    trajCfg.speedGradient = true;
+    tracker.setTrajectoryConfig(trajCfg);
+
+    auto readTraj = tracker.getTrajectoryConfig();
+    QVERIFY(readTraj.enabled);
+    QVERIFY(qFuzzyCompare(readTraj.maxDurationSec, 1.5));
+    QCOMPARE(readTraj.maxPoints, 45);
+    QVERIFY(readTraj.smoothSpline);
+    QVERIFY(readTraj.speedGradient);
+
+    PelcoD::Video::PredictiveLeadConfig leadCfg;
+    leadCfg.enabled = true;
+    leadCfg.lookaheadSeconds = 1.8;
+    leadCfg.curvilinearPrediction = true;
+    leadCfg.showUncertaintyEllipse = true;
+    leadCfg.showBoresightLeadSetpoint = true;
+    tracker.setPredictiveLeadConfig(leadCfg);
+
+    auto readLead = tracker.getPredictiveLeadConfig();
+    QVERIFY(readLead.enabled);
+    QVERIFY(qFuzzyCompare(readLead.lookaheadSeconds, 1.8));
+    QVERIFY(readLead.curvilinearPrediction);
+    QVERIFY(readLead.showUncertaintyEllipse);
+    QVERIFY(readLead.showBoresightLeadSetpoint);
+
+    // Test Boresight Lead Offset
+    tracker.setBoresightLeadOffset(0.12, -0.08);
+    auto leadPair = tracker.getBoresightLeadOffset();
+    QVERIFY(qFuzzyCompare(leadPair.first, 0.12));
+    QVERIFY(qFuzzyCompare(leadPair.second, -0.08));
+
+    // Verify extended telemetry in stAccel
+    QVERIFY(stAccel.uncertaintyMajor > 0.0);
+    QVERIFY(stAccel.uncertaintyMinor > 0.0);
+    QVERIFY(stAccel.headingDeg >= 0.0 && stAccel.headingDeg <= 360.0);
+    QVERIFY(stAccel.predictedTargetX > 0.0);
 }
 
 void TestVideoDecoder::testPerimeterTripwireFilter()

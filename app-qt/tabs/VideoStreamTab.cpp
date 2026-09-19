@@ -15,6 +15,7 @@
 
 #if defined(PELCOD_HAS_FILTERS)
 #include "VideoFilters.h"
+#include "dialogs/TacticalOverlaysDialog.h"
 #endif
 
 namespace PelcoDApp {
@@ -385,6 +386,13 @@ void VideoStreamTab::setupUi()
     m_chkPredictiveVector->setChecked(true);
     m_chkPredictiveVector->setToolTip(tr("Projects future kinematic trajectory and interception reticle"));
     lockLayout->addWidget(m_chkPredictiveVector);
+
+    auto* overlaysBtnLayout = new QHBoxLayout();
+    m_btnTacticalOverlays = new QPushButton(tr("Tactical Overlays Config..."), lockGroup);
+    m_btnTacticalOverlays->setToolTip(tr("Configure trajectory breadcrumbs, spline smoothing, speed gradient, and predictive lead vector"));
+    overlaysBtnLayout->addSpacing(20);
+    overlaysBtnLayout->addWidget(m_btnTacticalOverlays);
+    lockLayout->addLayout(overlaysBtnLayout);
 
     m_chkAutoFollowPtz = new QCheckBox(tr("Auto-Follow PTZ (PID)"), lockGroup);
     m_chkAutoFollowPtz->setToolTip(tr("Enables closed-loop PID PTZ auto-tracking with Kalman motion estimation"));
@@ -852,14 +860,19 @@ void VideoStreamTab::setupConnections()
     });
     connect(m_chkTrajectoryTrail, &QCheckBox::toggled, this, [this](bool checked) {
         if (m_targetTracker) {
-            m_targetTracker->setTrajectoryTrail(checked);
+            auto cfg = m_targetTracker->getTrajectoryConfig();
+            cfg.enabled = checked;
+            m_targetTracker->setTrajectoryConfig(cfg);
         }
     });
     connect(m_chkPredictiveVector, &QCheckBox::toggled, this, [this](bool checked) {
         if (m_targetTracker) {
-            m_targetTracker->setPredictiveVector(checked);
+            auto cfg = m_targetTracker->getPredictiveLeadConfig();
+            cfg.enabled = checked;
+            m_targetTracker->setPredictiveLeadConfig(cfg);
         }
     });
+    connect(m_btnTacticalOverlays, &QPushButton::clicked, this, &VideoStreamTab::onTacticalOverlaysClicked);
     connect(m_chkAutoZoomFraming, &QCheckBox::toggled, this, [this](bool checked) {
         if (m_autoTracker) {
             m_autoTracker->setAutoZoomEnabled(checked);
@@ -1345,10 +1358,14 @@ void VideoStreamTab::onFilterConfigurationChanged()
             m_targetTracker->setAppearanceFusion(m_chkAppearanceFusion->isChecked());
         }
         if (m_chkTrajectoryTrail != nullptr) {
-            m_targetTracker->setTrajectoryTrail(m_chkTrajectoryTrail->isChecked());
+            auto cfg = m_targetTracker->getTrajectoryConfig();
+            cfg.enabled = m_chkTrajectoryTrail->isChecked();
+            m_targetTracker->setTrajectoryConfig(cfg);
         }
         if (m_chkPredictiveVector != nullptr) {
-            m_targetTracker->setPredictiveVector(m_chkPredictiveVector->isChecked());
+            auto cfg = m_targetTracker->getPredictiveLeadConfig();
+            cfg.enabled = m_chkPredictiveVector->isChecked();
+            m_targetTracker->setPredictiveLeadConfig(cfg);
         }
         m_worker->addFrameProcessor(m_targetTracker);
     } else {
@@ -1466,6 +1483,11 @@ void VideoStreamTab::onAutoFollowTick()
         m_device->move(cmd.panDirection, cmd.panSpeed, cmd.tiltDirection, cmd.tiltSpeed);
     } else if (cmd.state == PelcoD::PtzAutoTracker::TrackingState::Lost || !cmd.shouldMove) {
         m_device->stopMotion();
+    }
+
+    if (m_targetTracker && m_autoTracker) {
+        m_targetTracker->setBoresightLeadOffset(
+            m_autoTracker->getLastLeadOffsetX(), m_autoTracker->getLastLeadOffsetY());
     }
 
     // Feed real-time telemetry into online latency estimator
@@ -1739,6 +1761,49 @@ void VideoStreamTab::onApplyPidGainsClicked()
             .arg(tuned.kp, 0, 'f', 2)
             .arg(tuned.ki, 0, 'f', 2)
             .arg(tuned.kd, 0, 'f', 3));
+    }
+}
+
+void VideoStreamTab::onTacticalOverlaysClicked()
+{
+    TacticalOverlaysDialog dlg(this);
+    if (m_targetTracker) {
+        dlg.setTrajectoryConfig(m_targetTracker->getTrajectoryConfig());
+        dlg.setPredictiveLeadConfig(m_targetTracker->getPredictiveLeadConfig());
+    }
+
+    connect(&dlg, &TacticalOverlaysDialog::overlaysConfigChanged, this,
+        [this](const PelcoD::Video::CentroidTargetTrackerFilter::TrajectoryConfig& trajCfg,
+            const PelcoD::Video::CentroidTargetTrackerFilter::PredictiveLeadConfig& leadCfg) {
+            if (m_targetTracker) {
+                m_targetTracker->setTrajectoryConfig(trajCfg);
+                m_targetTracker->setPredictiveLeadConfig(leadCfg);
+            }
+            if (m_chkTrajectoryTrail) {
+                QSignalBlocker blocker(m_chkTrajectoryTrail);
+                m_chkTrajectoryTrail->setChecked(trajCfg.enabled);
+            }
+            if (m_chkPredictiveVector) {
+                QSignalBlocker blocker(m_chkPredictiveVector);
+                m_chkPredictiveVector->setChecked(leadCfg.enabled);
+            }
+        });
+
+    if (dlg.exec() == QDialog::Accepted) {
+        if (m_targetTracker) {
+            auto trajCfg = dlg.trajectoryConfig();
+            auto leadCfg = dlg.predictiveLeadConfig();
+            m_targetTracker->setTrajectoryConfig(trajCfg);
+            m_targetTracker->setPredictiveLeadConfig(leadCfg);
+            if (m_chkTrajectoryTrail) {
+                QSignalBlocker blocker(m_chkTrajectoryTrail);
+                m_chkTrajectoryTrail->setChecked(trajCfg.enabled);
+            }
+            if (m_chkPredictiveVector) {
+                QSignalBlocker blocker(m_chkPredictiveVector);
+                m_chkPredictiveVector->setChecked(leadCfg.enabled);
+            }
+        }
     }
 }
 #endif

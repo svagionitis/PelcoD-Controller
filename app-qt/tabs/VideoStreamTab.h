@@ -85,6 +85,7 @@ private slots:
     void onCancelChirpSweepClicked();
     void onChirpSweepTick();
     void onApplyPidGainsClicked();
+    void onTacticalOverlaysClicked();
 #endif
 
     // Interactive PTZ handling
@@ -162,6 +163,7 @@ private:
     QCheckBox* m_chkAppearanceFusion { nullptr };
     QCheckBox* m_chkTrajectoryTrail { nullptr };
     QCheckBox* m_chkPredictiveVector { nullptr };
+    QPushButton* m_btnTacticalOverlays { nullptr };
     QCheckBox* m_chkAutoFollowPtz { nullptr };
     QCheckBox* m_chkAutoZoomFraming { nullptr };
     QCheckBox* m_chkPredictiveLead { nullptr };

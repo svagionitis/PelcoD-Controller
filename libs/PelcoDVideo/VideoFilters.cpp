@@ -1865,10 +1865,22 @@ struct CentroidTargetTrackerFilter::Impl {
     double dynamicLookaheadLatency { 0.10 };
     cv::Mat modelHist;
 
-    bool trajectoryTrail { true };
-    int maxTrajectoryPoints { 30 };
-    std::deque<cv::Point2f> trajectoryHistory;
+    struct BreadcrumbPoint {
+        cv::Point2f position;
+        double speed { 0.0 }; ///< Speed in pixels/sec
+        std::chrono::steady_clock::time_point timestamp;
+    };
 
+    TrajectoryConfig trajectoryConfig;
+    PredictiveLeadConfig predictiveLeadConfig;
+    double boresightLeadOffsetX { 0.0 };
+    double boresightLeadOffsetY { 0.0 };
+    std::deque<BreadcrumbPoint> trajectoryHistory;
+    std::chrono::steady_clock::time_point lastProcessTime;
+    bool hasLastProcessTime { false };
+
+    bool trajectoryTrail { true };
+    int maxTrajectoryPoints { 60 };
     bool predictiveVector { true };
     double predictiveVectorLookahead { 1.5 };
 
@@ -2023,6 +2035,7 @@ void CentroidTargetTrackerFilter::acquireTarget(int x, int y, int width, int hei
     m_impl->modelHist.release();
     m_impl->trackedPoints.clear();
     m_impl->trajectoryHistory.clear();
+    m_impl->hasLastProcessTime = false;
     m_impl->lostFrames = 0;
     m_impl->state.locked = true;
     m_impl->state.isCoasting = false;
@@ -2057,6 +2070,7 @@ void CentroidTargetTrackerFilter::releaseTarget()
     m_impl->modelHist.release();
     m_impl->trackedPoints.clear();
     m_impl->trajectoryHistory.clear();
+    m_impl->hasLastProcessTime = false;
     m_impl->lostFrames = 0;
     m_impl->kalmanInitialized = false;
     m_impl->state = TargetState();
@@ -2188,7 +2202,9 @@ void CentroidTargetTrackerFilter::setTrajectoryTrail(bool enabled, int maxPoints
     if (m_impl) {
         std::lock_guard<std::mutex> lock(m_impl->stateMutex);
         m_impl->trajectoryTrail = enabled;
-        m_impl->maxTrajectoryPoints = std::clamp(maxPoints, 5, 200);
+        m_impl->trajectoryConfig.enabled = enabled;
+        m_impl->trajectoryConfig.maxPoints = std::clamp(maxPoints, 5, 200);
+        m_impl->maxTrajectoryPoints = m_impl->trajectoryConfig.maxPoints;
         if (!enabled) {
             m_impl->trajectoryHistory.clear();
         }
@@ -2199,7 +2215,7 @@ bool CentroidTargetTrackerFilter::isTrajectoryTrail() const noexcept
 {
     if (m_impl) {
         std::lock_guard<std::mutex> lock(m_impl->stateMutex);
-        return m_impl->trajectoryTrail;
+        return m_impl->trajectoryConfig.enabled;
     }
     return true;
 }
@@ -2208,9 +2224,9 @@ int CentroidTargetTrackerFilter::getTrajectoryMaxPoints() const noexcept
 {
     if (m_impl) {
         std::lock_guard<std::mutex> lock(m_impl->stateMutex);
-        return m_impl->maxTrajectoryPoints;
+        return m_impl->trajectoryConfig.maxPoints;
     }
-    return 30;
+    return 60;
 }
 
 void CentroidTargetTrackerFilter::setPredictiveVector(bool enabled, double lookaheadSeconds) noexcept
@@ -2218,7 +2234,9 @@ void CentroidTargetTrackerFilter::setPredictiveVector(bool enabled, double looka
     if (m_impl) {
         std::lock_guard<std::mutex> lock(m_impl->stateMutex);
         m_impl->predictiveVector = enabled;
-        m_impl->predictiveVectorLookahead = std::clamp(lookaheadSeconds, 0.1, 5.0);
+        m_impl->predictiveLeadConfig.enabled = enabled;
+        m_impl->predictiveLeadConfig.lookaheadSeconds = std::clamp(lookaheadSeconds, 0.1, 10.0);
+        m_impl->predictiveVectorLookahead = m_impl->predictiveLeadConfig.lookaheadSeconds;
     }
 }
 
@@ -2226,7 +2244,7 @@ bool CentroidTargetTrackerFilter::isPredictiveVector() const noexcept
 {
     if (m_impl) {
         std::lock_guard<std::mutex> lock(m_impl->stateMutex);
-        return m_impl->predictiveVector;
+        return m_impl->predictiveLeadConfig.enabled;
     }
     return true;
 }
@@ -2235,9 +2253,71 @@ double CentroidTargetTrackerFilter::getPredictiveVectorLookahead() const noexcep
 {
     if (m_impl) {
         std::lock_guard<std::mutex> lock(m_impl->stateMutex);
-        return m_impl->predictiveVectorLookahead;
+        return m_impl->predictiveLeadConfig.lookaheadSeconds;
     }
     return 1.5;
+}
+
+void CentroidTargetTrackerFilter::setTrajectoryConfig(const TrajectoryConfig& config) noexcept
+{
+    if (m_impl) {
+        std::lock_guard<std::mutex> lock(m_impl->stateMutex);
+        m_impl->trajectoryConfig = config;
+        m_impl->trajectoryConfig.maxDurationSec = std::clamp(config.maxDurationSec, 0.1, 30.0);
+        m_impl->trajectoryConfig.maxPoints = std::clamp(config.maxPoints, 5, 200);
+        m_impl->trajectoryTrail = config.enabled;
+        m_impl->maxTrajectoryPoints = m_impl->trajectoryConfig.maxPoints;
+        if (!config.enabled) {
+            m_impl->trajectoryHistory.clear();
+        }
+    }
+}
+
+CentroidTargetTrackerFilter::TrajectoryConfig CentroidTargetTrackerFilter::getTrajectoryConfig() const noexcept
+{
+    if (m_impl) {
+        std::lock_guard<std::mutex> lock(m_impl->stateMutex);
+        return m_impl->trajectoryConfig;
+    }
+    return {};
+}
+
+void CentroidTargetTrackerFilter::setPredictiveLeadConfig(const PredictiveLeadConfig& config) noexcept
+{
+    if (m_impl) {
+        std::lock_guard<std::mutex> lock(m_impl->stateMutex);
+        m_impl->predictiveLeadConfig = config;
+        m_impl->predictiveLeadConfig.lookaheadSeconds = std::clamp(config.lookaheadSeconds, 0.1, 10.0);
+        m_impl->predictiveVector = config.enabled;
+        m_impl->predictiveVectorLookahead = m_impl->predictiveLeadConfig.lookaheadSeconds;
+    }
+}
+
+CentroidTargetTrackerFilter::PredictiveLeadConfig CentroidTargetTrackerFilter::getPredictiveLeadConfig() const noexcept
+{
+    if (m_impl) {
+        std::lock_guard<std::mutex> lock(m_impl->stateMutex);
+        return m_impl->predictiveLeadConfig;
+    }
+    return {};
+}
+
+void CentroidTargetTrackerFilter::setBoresightLeadOffset(double leadX, double leadY) noexcept
+{
+    if (m_impl) {
+        std::lock_guard<std::mutex> lock(m_impl->stateMutex);
+        m_impl->boresightLeadOffsetX = std::clamp(leadX, -1.0, 1.0);
+        m_impl->boresightLeadOffsetY = std::clamp(leadY, -1.0, 1.0);
+    }
+}
+
+std::pair<double, double> CentroidTargetTrackerFilter::getBoresightLeadOffset() const noexcept
+{
+    if (m_impl) {
+        std::lock_guard<std::mutex> lock(m_impl->stateMutex);
+        return { m_impl->boresightLeadOffsetX, m_impl->boresightLeadOffsetY };
+    }
+    return { 0.0, 0.0 };
 }
 
 void CentroidTargetTrackerFilter::setScaleAdaptation(bool enabled) noexcept
@@ -2574,54 +2654,228 @@ void CentroidTargetTrackerFilter::process(std::uint8_t* data, int width, int hei
 
         const cv::Point centerPt(r.x + r.width / 2, r.y + r.height / 2);
 
+        // Compute delta time and velocity metrics
+        const auto now = std::chrono::steady_clock::now();
+        double dtSec = 0.0333; // Default 30 FPS
+        if (m_impl->hasLastProcessTime) {
+            const std::chrono::duration<double> elapsed = now - m_impl->lastProcessTime;
+            dtSec = std::clamp(elapsed.count(), 0.001, 0.5);
+        }
+        m_impl->lastProcessTime = now;
+        m_impl->hasLastProcessTime = true;
+
+        const double vx = m_impl->state.vx;
+        const double vy = m_impl->state.vy;
+        const double ax = m_impl->state.ax;
+        const double ay = m_impl->state.ay;
+        const double speedPxPerSec = std::sqrt(vx * vx + vy * vy) / dtSec;
+        const double vSq = vx * vx + vy * vy;
+
+        // Turn rate omega in rad/frame and heading in degrees
+        double omega = 0.0;
+        if (vSq > 1e-4) {
+            omega = (vx * ay - vy * ax) / vSq;
+        }
+        const double omegaRps = omega / dtSec;
+        double headingDeg = std::atan2(vy, vx) * 180.0 / 3.14159265358979323846;
+        if (headingDeg < 0.0) {
+            headingDeg += 360.0;
+        }
+        m_impl->state.turnRateRps = omegaRps;
+        m_impl->state.headingDeg = headingDeg;
+
         // Trajectory breadcrumbs path
-        if (m_impl->trajectoryTrail) {
-            m_impl->trajectoryHistory.push_back(
-                cv::Point2f(static_cast<float>(centerPt.x), static_cast<float>(centerPt.y)));
-            while (m_impl->trajectoryHistory.size() > static_cast<std::size_t>(m_impl->maxTrajectoryPoints)) {
-                m_impl->trajectoryHistory.pop_front();
+        if (m_impl->trajectoryConfig.enabled) {
+            m_impl->trajectoryHistory.push_back({ cv::Point2f(static_cast<float>(centerPt.x), static_cast<float>(centerPt.y)), speedPxPerSec, now });
+
+            // Decoupled physical time decay pruning
+            while (!m_impl->trajectoryHistory.empty()) {
+                const double ageSec = std::chrono::duration<double>(now - m_impl->trajectoryHistory.front().timestamp).count();
+                if (ageSec > m_impl->trajectoryConfig.maxDurationSec || m_impl->trajectoryHistory.size() > static_cast<std::size_t>(m_impl->trajectoryConfig.maxPoints)) {
+                    m_impl->trajectoryHistory.pop_front();
+                } else {
+                    break;
+                }
             }
 
             const std::size_t nPts = m_impl->trajectoryHistory.size();
-            for (std::size_t i = 1U; i < nPts; ++i) {
-                const double alpha = static_cast<double>(i) / static_cast<double>(nPts);
-                cv::Scalar segColor = lockColor * alpha;
-                cv::line(mat, cv::Point(m_impl->trajectoryHistory[i - 1]), cv::Point(m_impl->trajectoryHistory[i]),
-                    segColor, 1, cv::LINE_AA);
-                if (i % 3 == 0 || i == nPts - 1) {
-                    const int radius = std::max(1, static_cast<int>(std::round(1.0 + 2.0 * alpha)));
-                    cv::circle(mat, cv::Point(m_impl->trajectoryHistory[i]), radius, segColor, -1, cv::LINE_AA);
+            if (nPts >= 2) {
+                auto getColorForPoint = [&](const Impl::BreadcrumbPoint& pt, double alphaRatio) -> cv::Scalar {
+                    cv::Scalar base;
+                    if (m_impl->trajectoryConfig.speedGradient) {
+                        const double s = std::clamp(pt.speed / 300.0, 0.0, 1.0);
+                        if (s < 0.5) {
+                            const double t = s * 2.0;
+                            const double rC = 255.0 * t;
+                            const double gC = 255.0 - 55.0 * t;
+                            const double bC = 64.0 * (1.0 - t);
+                            base = (format == PixelFormat::RGB24) ? cv::Scalar(rC, gC, bC) : cv::Scalar(bC, gC, rC);
+                        } else {
+                            const double t = (s - 0.5) * 2.0;
+                            const double rC = 255.0;
+                            const double gC = 200.0 * (1.0 - t) + 40.0 * t;
+                            const double bC = 40.0 * t;
+                            base = (format == PixelFormat::RGB24) ? cv::Scalar(rC, gC, bC) : cv::Scalar(bC, gC, rC);
+                        }
+                    } else {
+                        base = lockColor;
+                    }
+                    const double effectiveAlpha = 0.25 + 0.75 * alphaRatio;
+                    return base * effectiveAlpha;
+                };
+
+                if (m_impl->trajectoryConfig.smoothSpline && nPts >= 4) {
+                    // Catmull-Rom spline interpolation between breadcrumb control points
+                    for (std::size_t i = 0; i < nPts - 1; ++i) {
+                        const cv::Point2f p0 = (i == 0) ? m_impl->trajectoryHistory[0].position : m_impl->trajectoryHistory[i - 1].position;
+                        const cv::Point2f p1 = m_impl->trajectoryHistory[i].position;
+                        const cv::Point2f p2 = m_impl->trajectoryHistory[i + 1].position;
+                        const cv::Point2f p3 = (i + 2 < nPts) ? m_impl->trajectoryHistory[i + 2].position : p2;
+
+                        const double u2 = static_cast<double>(i + 1) / static_cast<double>(nPts);
+                        const cv::Scalar segColor = getColorForPoint(m_impl->trajectoryHistory[i + 1], u2);
+
+                        constexpr int SUBDIVISIONS = 4;
+                        cv::Point2f prevSub = p1;
+                        for (int step = 1; step <= SUBDIVISIONS; ++step) {
+                            const float t = static_cast<float>(step) / static_cast<float>(SUBDIVISIONS);
+                            const float t2 = t * t;
+                            const float t3 = t2 * t;
+                            const cv::Point2f subPt = 0.5f * ((2.0f * p1) + (-p0 + p2) * t + (2.0f * p0 - 5.0f * p1 + 4.0f * p2 - p3) * t2 + (-p0 + 3.0f * p1 - 3.0f * p2 + p3) * t3);
+                            cv::line(mat, prevSub, subPt, segColor, 1, cv::LINE_AA);
+                            prevSub = subPt;
+                        }
+                    }
+                } else {
+                    for (std::size_t i = 1U; i < nPts; ++i) {
+                        const double alpha = static_cast<double>(i) / static_cast<double>(nPts);
+                        const cv::Scalar segColor = getColorForPoint(m_impl->trajectoryHistory[i], alpha);
+                        cv::line(mat, cv::Point(m_impl->trajectoryHistory[i - 1].position), cv::Point(m_impl->trajectoryHistory[i].position),
+                            segColor, 1, cv::LINE_AA);
+                    }
+                }
+
+                // Render breadcrumb dots with tapered radius
+                for (std::size_t i = 0; i < nPts; ++i) {
+                    if (i % 2 == 0 || i == nPts - 1) {
+                        const double alpha = static_cast<double>(i + 1) / static_cast<double>(nPts);
+                        const cv::Scalar dotColor = getColorForPoint(m_impl->trajectoryHistory[i], alpha);
+                        const int radius = std::max(1, static_cast<int>(std::round(1.0 + 2.5 * alpha)));
+                        cv::circle(mat, cv::Point(m_impl->trajectoryHistory[i].position), radius, dotColor, -1, cv::LINE_AA);
+                    }
                 }
             }
         }
 
         // Predictive lead vector & interception reticle projection
-        if (m_impl->predictiveVector && (std::abs(m_impl->state.vx) > 0.05 || std::abs(m_impl->state.vy) > 0.05)) {
+        if (m_impl->predictiveLeadConfig.enabled && (std::abs(vx) > 0.05 || std::abs(vy) > 0.05)) {
             const double fps = 30.0;
-            const double framesAhead = m_impl->predictiveVectorLookahead * fps;
-            const double predX = static_cast<double>(centerPt.x) + m_impl->state.vx * framesAhead
-                + 0.5 * m_impl->state.ax * framesAhead * framesAhead;
-            const double predY = static_cast<double>(centerPt.y) + m_impl->state.vy * framesAhead
-                + 0.5 * m_impl->state.ay * framesAhead * framesAhead;
-            const cv::Point futurePt(std::clamp(static_cast<int>(std::round(predX)), 0, width - 1),
-                std::clamp(static_cast<int>(std::round(predY)), 0, height - 1));
+            const double framesAhead = m_impl->predictiveLeadConfig.lookaheadSeconds * fps;
+            cv::Point futurePt;
 
-            // Forward-projecting vector arrow
-            cv::arrowedLine(mat, centerPt, futurePt, lockColor, 2, cv::LINE_AA, 0, 0.15);
+            if (m_impl->predictiveLeadConfig.curvilinearPrediction && std::abs(omega) > 0.005 && vSq > 0.05) {
+                // CTRA Curvilinear prediction arc
+                constexpr int ARC_STEPS = 8;
+                cv::Point prevArcPt = centerPt;
+                for (int s = 1; s <= ARC_STEPS; ++s) {
+                    const double kStep = framesAhead * (static_cast<double>(s) / static_cast<double>(ARC_STEPS));
+                    const double sinWk = std::sin(omega * kStep);
+                    const double cosWk = std::cos(omega * kStep);
+                    const double dX = (vx / omega) * sinWk - (vy / omega) * (1.0 - cosWk) + 0.5 * ax * kStep * kStep;
+                    const double dY = (vx / omega) * (1.0 - cosWk) + (vy / omega) * sinWk + 0.5 * ay * kStep * kStep;
+                    const cv::Point arcPt(std::clamp(static_cast<int>(std::round(static_cast<double>(centerPt.x) + dX)), 0, width - 1),
+                        std::clamp(static_cast<int>(std::round(static_cast<double>(centerPt.y) + dY)), 0, height - 1));
+                    cv::line(mat, prevArcPt, arcPt, lockColor, (s == ARC_STEPS ? 2 : 1), cv::LINE_AA);
+                    prevArcPt = arcPt;
+                }
+                futurePt = prevArcPt;
 
-            // Interception reticle and lookahead label
-            cv::circle(mat, futurePt, 5, lockColor, 1, cv::LINE_AA);
-            cv::drawMarker(mat, futurePt, lockColor, cv::MARKER_CROSS, 8, 1, cv::LINE_AA);
+                // Draw arrow tip on final tangent
+                const double sinWk = std::sin(omega * framesAhead);
+                const double cosWk = std::cos(omega * framesAhead);
+                const cv::Point arrowTip = futurePt;
+                const cv::Point arrowBase(
+                    std::clamp(static_cast<int>(std::round(futurePt.x - (vx * cosWk - vy * sinWk) * 2.0)), 0, width - 1),
+                    std::clamp(static_cast<int>(std::round(futurePt.y - (vx * sinWk + vy * cosWk) * 2.0)), 0, height - 1));
+                cv::arrowedLine(mat, arrowBase, arrowTip, lockColor, 2, cv::LINE_AA, 0, 0.4);
+            } else {
+                // Standard second-order quadratic CA model
+                const double predX = static_cast<double>(centerPt.x) + vx * framesAhead + 0.5 * ax * framesAhead * framesAhead;
+                const double predY = static_cast<double>(centerPt.y) + vy * framesAhead + 0.5 * ay * framesAhead * framesAhead;
+                futurePt = cv::Point(std::clamp(static_cast<int>(std::round(predX)), 0, width - 1),
+                    std::clamp(static_cast<int>(std::round(predY)), 0, height - 1));
+                cv::arrowedLine(mat, centerPt, futurePt, lockColor, 2, cv::LINE_AA, 0, 0.15);
+            }
 
-            char timeBuf[16];
-            std::snprintf(timeBuf, sizeof(timeBuf), "+%.1fs", m_impl->predictiveVectorLookahead);
-            cv::putText(mat, timeBuf, cv::Point(futurePt.x + 6, futurePt.y - 4), cv::FONT_HERSHEY_PLAIN, 0.8, lockColor,
-                1, cv::LINE_AA);
+            m_impl->state.predictedTargetX = futurePt.x;
+            m_impl->state.predictedTargetY = futurePt.y;
+
+            // Kalman Uncertainty Covariance Ellipse
+            if (m_impl->predictiveLeadConfig.showUncertaintyEllipse && m_impl->kalmanInitialized) {
+                const float k = static_cast<float>(framesAhead);
+                const float k2 = k * k;
+                const float k3 = k2 * k;
+                const float k4 = k2 * k2;
+
+                const cv::Mat& P = m_impl->kalman.errorCovPost;
+                const float p00 = P.at<float>(0, 0);
+                const float p11 = P.at<float>(1, 1);
+                const float p22 = P.at<float>(2, 2);
+                const float p33 = P.at<float>(3, 3);
+                const float p44 = P.at<float>(4, 4);
+                const float p55 = P.at<float>(5, 5);
+                const float p02 = P.at<float>(0, 2);
+                const float p13 = P.at<float>(1, 3);
+                const float p04 = P.at<float>(0, 4);
+                const float p15 = P.at<float>(1, 5);
+                const float p24 = P.at<float>(2, 4);
+                const float p35 = P.at<float>(3, 5);
+                const float p01 = P.at<float>(0, 1);
+
+                const double cxx = std::max(1.0, static_cast<double>(p00 + 2.0f * k * p02 + k2 * p22 + k2 * p04 + k3 * p24 + 0.25f * k4 * p44));
+                const double cyy = std::max(1.0, static_cast<double>(p11 + 2.0f * k * p13 + k2 * p33 + k2 * p15 + k3 * p35 + 0.25f * k4 * p55));
+                const double cxy = static_cast<double>(p01);
+
+                const double tr = cxx + cyy;
+                const double diff = cxx - cyy;
+                const double disc = std::sqrt(std::max(0.0, diff * diff + 4.0 * cxy * cxy));
+                const double l1 = std::max(1.0, 0.5 * (tr + disc));
+                const double l2 = std::max(1.0, 0.5 * (tr - disc));
+                const double semiMajor = std::clamp(2.0 * std::sqrt(l1), 4.0, 160.0);
+                const double semiMinor = std::clamp(2.0 * std::sqrt(l2), 3.0, 160.0);
+                const double angleDeg = 0.5 * std::atan2(2.0 * cxy, diff) * 180.0 / 3.14159265358979323846;
+
+                m_impl->state.uncertaintyMajor = semiMajor;
+                m_impl->state.uncertaintyMinor = semiMinor;
+                m_impl->state.uncertaintyAngleDeg = angleDeg;
+
+                const cv::Scalar ellipseColor = lockColor * 0.75;
+                cv::ellipse(mat, futurePt, cv::Size(static_cast<int>(std::round(semiMajor)), static_cast<int>(std::round(semiMinor))),
+                    angleDeg, 0.0, 360.0, ellipseColor, 1, cv::LINE_AA);
+            }
+
+            // Tactical Interception reticle and lookahead / heading label
+            cv::circle(mat, futurePt, 6, lockColor, 1, cv::LINE_AA);
+            cv::drawMarker(mat, futurePt, lockColor, cv::MARKER_CROSS, 10, 1, cv::LINE_AA);
+
+            char timeBuf[32];
+            std::snprintf(timeBuf, sizeof(timeBuf), "+%.1fs [%.0f°]", m_impl->predictiveLeadConfig.lookaheadSeconds, headingDeg);
+            cv::putText(mat, timeBuf, cv::Point(futurePt.x + 8, futurePt.y - 4), cv::FONT_HERSHEY_PLAIN, 0.8, lockColor, 1, cv::LINE_AA);
         } else {
             // Standard velocity vector projection
             const cv::Point arrowEnd(centerPt.x + static_cast<int>(std::round(m_impl->state.vx * 4.0)),
                 centerPt.y + static_cast<int>(std::round(m_impl->state.vy * 4.0)));
             cv::arrowedLine(mat, centerPt, arrowEnd, lockColor, 1, cv::LINE_AA, 0, 0.3);
+        }
+
+        // Boresight Lead Setpoint Marker (Visual PTZ Steering Setpoint)
+        if (m_impl->predictiveLeadConfig.showBoresightLeadSetpoint && (std::abs(m_impl->boresightLeadOffsetX) > 0.001 || std::abs(m_impl->boresightLeadOffsetY) > 0.001)) {
+            const int ptzX = std::clamp(static_cast<int>(std::round(halfW + m_impl->boresightLeadOffsetX * halfW)), 0, width - 1);
+            const int ptzY = std::clamp(static_cast<int>(std::round(halfH + m_impl->boresightLeadOffsetY * halfH)), 0, height - 1);
+            const cv::Scalar ptzLeadColor = (format == PixelFormat::RGB24) ? cv::Scalar(0, 220, 255) : cv::Scalar(255, 220, 0);
+            cv::drawMarker(mat, cv::Point(ptzX, ptzY), ptzLeadColor, cv::MARKER_DIAMOND, 14, 1, cv::LINE_AA);
+            cv::line(mat, cv::Point(static_cast<int>(halfW), static_cast<int>(halfH)), cv::Point(ptzX, ptzY), ptzLeadColor, 1, cv::LINE_AA);
+            cv::putText(mat, "PTZ LEAD", cv::Point(ptzX + 8, ptzY + 4), cv::FONT_HERSHEY_PLAIN, 0.75, ptzLeadColor, 1, cv::LINE_AA);
         }
 
         std::string tag;
