@@ -8,6 +8,10 @@
 
 namespace PelcoD {
 
+namespace {
+constexpr double kFloatEpsilon = 1e-6;
+} // namespace
+
 KinematicsSimulator::KinematicsSimulator()
     : m_lastUpdateTime(std::chrono::steady_clock::now())
     , m_hasTimestamp(true)
@@ -54,7 +58,9 @@ void KinematicsSimulator::setDirectionalMotion(double panFraction, double tiltFr
     const double maxZoomSpeed = fullZoomSpan / std::max(0.1, m_config.zoomTransitTimeSeconds);
     m_targetZoomVelocity = std::clamp(zoomFraction, -1.0, 1.0) * maxZoomSpeed;
 
-    if (m_mode == MotionMode::Stopped && (panFraction != 0.0 || tiltFraction != 0.0 || zoomFraction != 0.0)) {
+    if (m_mode == MotionMode::Stopped
+        && (std::abs(panFraction) > kFloatEpsilon || std::abs(tiltFraction) > kFloatEpsilon
+            || std::abs(zoomFraction) > kFloatEpsilon)) {
         m_mode = MotionMode::ManualVelocity;
     }
 
@@ -65,7 +71,8 @@ void KinematicsSimulator::setDirectionalMotion(double panFraction, double tiltFr
         m_zoomVelocity = m_targetZoomVelocity;
     }
 
-    if (panFraction == 0.0 && tiltFraction == 0.0 && zoomFraction == 0.0 && !m_config.enabled) {
+    if (std::abs(panFraction) <= kFloatEpsilon && std::abs(tiltFraction) <= kFloatEpsilon
+        && std::abs(zoomFraction) <= kFloatEpsilon && !m_config.enabled) {
         m_mode = MotionMode::Stopped;
     }
 
@@ -195,8 +202,9 @@ void KinematicsSimulator::update(std::chrono::steady_clock::time_point now)
             m_config.minTiltDeg, m_config.maxTiltDeg);
         m_currentZoom = std::clamp(m_currentZoom + m_zoomVelocity * dt, 1000.0, 65535.0);
 
-        if (m_targetPanVelocity == 0.0 && m_targetTiltVelocity == 0.0 && m_targetZoomVelocity == 0.0
-            && std::abs(m_panVelocity) < 0.01 && std::abs(m_tiltVelocity) < 0.01 && std::abs(m_zoomVelocity) < 0.01) {
+        if (std::abs(m_targetPanVelocity) <= kFloatEpsilon && std::abs(m_targetTiltVelocity) <= kFloatEpsilon
+            && std::abs(m_targetZoomVelocity) <= kFloatEpsilon && std::abs(m_panVelocity) < 0.01
+            && std::abs(m_tiltVelocity) < 0.01 && std::abs(m_zoomVelocity) < 0.01) {
             m_panVelocity = 0.0;
             m_tiltVelocity = 0.0;
             m_zoomVelocity = 0.0;

@@ -5,9 +5,14 @@
 #include "PelcoDFrame.h"
 
 #include <algorithm>
+#include <cmath>
 #include <cstring>
 
 namespace PelcoD {
+
+namespace {
+constexpr double kFloatEpsilon = 1e-6;
+} // namespace
 
 MockPelcoDDevice::MockPelcoDDevice(std::uint8_t address) noexcept
     : m_address { address }
@@ -190,7 +195,8 @@ void MockPelcoDDevice::processFrame(const std::vector<std::uint8_t>& frame)
                     zoomFraction = -1.0;
                 }
 
-                if (panFraction == 0.0 && tiltFraction == 0.0 && zoomFraction == 0.0) {
+                if (std::abs(panFraction) <= kFloatEpsilon && std::abs(tiltFraction) <= kFloatEpsilon
+                    && std::abs(zoomFraction) <= kFloatEpsilon) {
                     m_kinematics.stop();
                 } else {
                     m_kinematics.setDirectionalMotion(panFraction, tiltFraction, zoomFraction);

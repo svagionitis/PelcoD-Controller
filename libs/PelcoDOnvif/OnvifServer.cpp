@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <cmath>
 #include <ctime>
 #include <iomanip>
 #include <sstream>
@@ -2365,7 +2366,7 @@ std::string OnvifServer::generateMetadataStreamXml(const MetadataStreamPayload& 
                << "</tt:Likelihood>\r\n"
                << "            </tt:ClassCandidate>\r\n"
                << "          </tt:Class>\r\n";
-            if (obj.geoLocation.latitude != 0.0 || obj.geoLocation.longitude != 0.0) {
+            if (std::abs(obj.geoLocation.latitude) > 1e-7 || std::abs(obj.geoLocation.longitude) > 1e-7) {
                 ss << "          <tt:GeoLocation lat=\"" << std::fixed << std::setprecision(6)
                    << obj.geoLocation.latitude << "\" lon=\"" << std::fixed << std::setprecision(6)
                    << obj.geoLocation.longitude << "\" elevation=\"" << std::fixed << std::setprecision(2)

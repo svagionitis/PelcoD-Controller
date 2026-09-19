@@ -747,7 +747,7 @@ void HistogramEqualizationFilter::process(uint8_t* data, int width, int height, 
     std::vector<float> currentLut(256, 0.0f);
     for (std::size_t i = 0U; i < 256U; ++i) {
         double val = cdf[i];
-        if (m_gamma != 1.0) {
+        if (std::abs(m_gamma - 1.0) > 1e-6) {
             val = std::pow(val, m_gamma);
         }
         double mapped = val * 255.0 + m_brightnessOffset;
@@ -791,7 +791,7 @@ ColorEnhanceFilter::ColorEnhanceFilter(double factor)
 
 void ColorEnhanceFilter::process(uint8_t* data, int width, int height, PixelFormat format)
 {
-    if (!data || width <= 0 || height <= 0 || m_factor == 1.0) {
+    if (!data || width <= 0 || height <= 0 || std::abs(m_factor - 1.0) < 1e-6) {
         return;
     }
 
@@ -944,7 +944,7 @@ void LensDistortionFilter::setParameters(double k1, double k2, double centerOffs
 void LensDistortionFilter::process(uint8_t* data, int width, int height, PixelFormat format)
 {
     (void)format;
-    if (!data || width <= 0 || height <= 0 || (m_k1 == 0.0 && m_k2 == 0.0)) {
+    if (!data || width <= 0 || height <= 0 || (std::abs(m_k1) < 1e-6 && std::abs(m_k2) < 1e-6)) {
         return;
     }
 
@@ -1294,7 +1294,7 @@ void ChromaticAberrationFilter::setParameters(
 
 void ChromaticAberrationFilter::process(uint8_t* data, int width, int height, PixelFormat format)
 {
-    if (!data || width <= 0 || height <= 0 || (m_redCoeff == 0.0 && m_blueCoeff == 0.0)) {
+    if (!data || width <= 0 || height <= 0 || (std::abs(m_redCoeff) < 1e-6 && std::abs(m_blueCoeff) < 1e-6)) {
         return;
     }
 
