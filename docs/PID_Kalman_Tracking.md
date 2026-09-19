@@ -22,7 +22,7 @@ Neither the Kalman filter nor the PID controller can do the other's job. Here is
 
 ## 1. Why We Need the Kalman Filter (The Observer)
 
-Optical flow and visual bounding boxes (from [CentroidTargetTrackerFilter](../libs/PelcoDVideo/VideoFilters.h#L320)) produce noisy, delayed, 2D pixel measurements. The Kalman filter acts as the **state estimator**:
+Optical flow and visual bounding boxes (from [CentroidTargetTrackerFilter](../libs/PelcoDVideo/VideoFilters.h#L320)) produce noisy, delayed, 2D pixel measurements. The Kalman filter (see [Kalman Filter 101](Kalman_Filter_101.md) for an intuitive ELI5 and technical guide) acts as the **state estimator**:
 
 ### A. Extracting Velocity from Position
 Computer vision only tells you where the target *is* ($x, y$), not how fast it is moving ($v_x, v_y$).
