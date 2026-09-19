@@ -10,6 +10,7 @@
 #include <ctime>
 #include <iomanip>
 #include <sstream>
+#include <stdexcept>
 
 namespace PelcoD::Onvif {
 
@@ -77,6 +78,12 @@ namespace {
             try {
                 const int val = std::stoi(isoDuration.substr(posT + 1, posS - posT - 1));
                 return std::clamp(val, 0, 10);
+            } catch (const std::invalid_argument&) {
+                // Fallback
+            } catch (const std::out_of_range&) {
+                // Fallback
+            } catch (const std::exception&) {
+                // Fallback
             } catch (...) {
                 // Fallback
             }
@@ -209,16 +216,25 @@ namespace {
                 } else if (sName == "DwellTime") {
                     try {
                         rule.dwellTimeSeconds = std::stod(sVal);
+                    } catch (const std::invalid_argument&) {
+                    } catch (const std::out_of_range&) {
+                    } catch (const std::exception&) {
                     } catch (...) {
                     }
                 } else if (sName == "Sensitivity") {
                     try {
                         rule.sensitivity = std::stoi(sVal);
+                    } catch (const std::invalid_argument&) {
+                    } catch (const std::out_of_range&) {
+                    } catch (const std::exception&) {
                     } catch (...) {
                     }
                 } else if (sName == "MinConfidence") {
                     try {
                         rule.minConfidence = std::stof(sVal);
+                    } catch (const std::invalid_argument&) {
+                    } catch (const std::out_of_range&) {
+                    } catch (const std::exception&) {
                     } catch (...) {
                     }
                 } else if (sName == "Enabled") {
@@ -563,6 +579,8 @@ void OnvifServer::publishEvent(const OnvifEvent& event)
                         cli.set_read_timeout(1, 0);
                         cli.Post(path.c_str(), "<NotificationMessage/>", "application/soap+xml; charset=utf-8");
                     }
+                } catch (const std::exception&) {
+                    // Ignore client connection error on push notifications
                 } catch (...) {
                     // Ignore client connection error on push notifications
                 }

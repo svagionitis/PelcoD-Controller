@@ -21,6 +21,7 @@
 #include <iostream>
 #include <memory>
 #include <sstream>
+#include <stdexcept>
 #include <string>
 #include <string_view>
 #include <thread>
@@ -89,6 +90,12 @@ template <typename T> [[nodiscard]] bool parseInteger(std::string_view str, T& o
         const std::string s(str);
         outVal = std::stod(s, &idx);
         return (idx == s.size());
+    } catch (const std::invalid_argument&) {
+        return false;
+    } catch (const std::out_of_range&) {
+        return false;
+    } catch (const std::exception&) {
+        return false;
     } catch (...) {
         return false;
     }

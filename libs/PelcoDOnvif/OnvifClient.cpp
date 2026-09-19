@@ -8,6 +8,7 @@
 #include <ctime>
 #include <iomanip>
 #include <sstream>
+#include <stdexcept>
 
 namespace PelcoD::Onvif {
 
@@ -3139,6 +3140,9 @@ std::vector<RelayOutputConfig> OnvifClient::parseRelayOutputsResponse(const std:
                     if (posT != std::string::npos && posS != std::string::npos && posS > posT + 1) {
                         try {
                             r.delayTimeSeconds = std::stof(dt.substr(posT + 1, posS - posT - 1));
+                        } catch (const std::invalid_argument&) {
+                        } catch (const std::out_of_range&) {
+                        } catch (const std::exception&) {
                         } catch (...) {
                         }
                     }
@@ -4155,16 +4159,25 @@ std::vector<AnalyticsRule> OnvifClient::parseRulesResponse(const std::string& xm
                 } else if (name == "DwellTime") {
                     try {
                         rule.dwellTimeSeconds = std::stod(val);
+                    } catch (const std::invalid_argument&) {
+                    } catch (const std::out_of_range&) {
+                    } catch (const std::exception&) {
                     } catch (...) {
                     }
                 } else if (name == "Sensitivity") {
                     try {
                         rule.sensitivity = std::stoi(val);
+                    } catch (const std::invalid_argument&) {
+                    } catch (const std::out_of_range&) {
+                    } catch (const std::exception&) {
                     } catch (...) {
                     }
                 } else if (name == "MinConfidence") {
                     try {
                         rule.minConfidence = std::stof(val);
+                    } catch (const std::invalid_argument&) {
+                    } catch (const std::out_of_range&) {
+                    } catch (const std::exception&) {
                     } catch (...) {
                     }
                 } else if (name == "Enabled") {

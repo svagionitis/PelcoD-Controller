@@ -537,7 +537,12 @@ std::vector<std::string> SerialTransport::enumeratePorts()
                 }
             }
         }
+    } catch (const std::filesystem::filesystem_error& ex) {
+        LOG(WARNING) << "SerialTransport: failed to iterate /dev: " << ex.what();
+    } catch (const std::exception& ex) {
+        LOG(WARNING) << "SerialTransport: unexpected error during /dev scan: " << ex.what();
     } catch (...) {
+        LOG(WARNING) << "SerialTransport: unknown exception during /dev scan";
     }
 
 #elif defined(__APPLE__)
@@ -554,7 +559,12 @@ std::vector<std::string> SerialTransport::enumeratePorts()
                 }
             }
         }
+    } catch (const std::filesystem::filesystem_error& ex) {
+        LOG(WARNING) << "SerialTransport: failed to iterate /dev: " << ex.what();
+    } catch (const std::exception& ex) {
+        LOG(WARNING) << "SerialTransport: unexpected error during /dev scan: " << ex.what();
     } catch (...) {
+        LOG(WARNING) << "SerialTransport: unknown exception during /dev scan";
     }
 #endif
 

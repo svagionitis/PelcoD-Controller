@@ -8,6 +8,7 @@
 #include <cmath>
 #include <fstream>
 #include <sstream>
+#include <stdexcept>
 
 namespace PelcoD::Onvif {
 
@@ -251,8 +252,14 @@ std::string PelcoDPtzAdapter::handleSetPreset(const std::string& name, const std
         if (m_device && id >= 1 && id <= 255) {
             m_device->setPreset(static_cast<std::uint8_t>(id));
         }
-    } catch (...) {
+    } catch (const std::invalid_argument&) {
         // Non-integer token, ignore device preset index mapping
+    } catch (const std::out_of_range&) {
+        // Token value out of range for integer
+    } catch (const std::exception&) {
+        // General standard exception fallback
+    } catch (...) {
+        // Catch-all fallback
     }
 
     m_presets[assignedToken] = preset;
@@ -270,6 +277,12 @@ bool PelcoDPtzAdapter::handleGotoPreset(const std::string& token)
             m_device->goToPreset(static_cast<std::uint8_t>(id));
             dispatched = true;
         }
+    } catch (const std::invalid_argument&) {
+        // Fall through
+    } catch (const std::out_of_range&) {
+        // Fall through
+    } catch (const std::exception&) {
+        // Fall through
     } catch (...) {
         // Fall through
     }
@@ -300,6 +313,12 @@ bool PelcoDPtzAdapter::handleRemovePreset(const std::string& token)
         if (m_device && id >= 1 && id <= 255) {
             m_device->clearPreset(static_cast<std::uint8_t>(id));
         }
+    } catch (const std::invalid_argument&) {
+        // Fall through
+    } catch (const std::out_of_range&) {
+        // Fall through
+    } catch (const std::exception&) {
+        // Fall through
     } catch (...) {
         // Fall through
     }
@@ -415,6 +434,12 @@ bool PelcoDPtzAdapter::handleOperatePresetTour(const std::string& tourToken, Pre
                 PelcoD::PatrolStep step {};
                 try {
                     step.presetId = static_cast<std::uint8_t>(std::stoul(spot.presetToken));
+                } catch (const std::invalid_argument&) {
+                    step.presetId = 1U;
+                } catch (const std::out_of_range&) {
+                    step.presetId = 1U;
+                } catch (const std::exception&) {
+                    step.presetId = 1U;
                 } catch (...) {
                     step.presetId = 1U;
                 }
@@ -507,7 +532,14 @@ bool PelcoDPtzAdapter::handleGotoHomePosition(float /*speed*/)
                 m_device->goToPreset(presetId);
                 return true;
             }
+        } catch (const std::invalid_argument&) {
+            // Fall through
+        } catch (const std::out_of_range&) {
+            // Fall through
+        } catch (const std::exception&) {
+            // Fall through
         } catch (...) {
+            // Fall through
         }
     }
     handleAbsoluteMove(0.0f, 0.0f, 0.0f);
@@ -531,7 +563,14 @@ bool PelcoDPtzAdapter::handleSetHomePosition()
         if (presetId > 0U) {
             m_device->setPreset(presetId);
         }
+    } catch (const std::invalid_argument&) {
+        // Fall through
+    } catch (const std::out_of_range&) {
+        // Fall through
+    } catch (const std::exception&) {
+        // Fall through
     } catch (...) {
+        // Fall through
     }
     return true;
 }
@@ -846,6 +885,12 @@ bool PelcoDPtzAdapter::handleSetRelayOutputState(const std::string& token, Relay
             if (underPos != std::string::npos && underPos + 1 < token.length()) {
                 try {
                     auxId = static_cast<std::uint8_t>(std::stoi(token.substr(underPos + 1)));
+                } catch (const std::invalid_argument&) {
+                    auxId = 1U;
+                } catch (const std::out_of_range&) {
+                    auxId = 1U;
+                } catch (const std::exception&) {
+                    auxId = 1U;
                 } catch (...) {
                     auxId = 1U;
                 }

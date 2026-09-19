@@ -705,7 +705,12 @@ namespace {
                     try {
                         promise->set_exception(
                             std::make_exception_ptr(std::runtime_error("Query '" + queryTag + "' timed out")));
+                    } catch (const std::future_error& ex) {
+                        LOG(WARNING) << "PelcoDDevice: future error setting query timeout promise: " << ex.what();
+                    } catch (const std::exception& ex) {
+                        LOG(WARNING) << "PelcoDDevice: exception setting query timeout promise: " << ex.what();
                     } catch (...) {
+                        LOG(WARNING) << "PelcoDDevice: unknown exception setting query timeout promise";
                     }
                 }
             }).detach();
