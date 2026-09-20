@@ -106,6 +106,18 @@ Techniques from digital signal processing (DSP), system identification, and cont
   * Pure C++17 sliding-window frequency-domain engine producing a 2D time-frequency energy distribution (spectrogram / waterfall matrix) without external dependencies. Implemented in `Stft.h` and `SpectrogramWidget`.
 * **Discrete Wavelet Transform (DWT / Haar / Daubechies) (Completed)**:
   * Multi-resolution decomposition with flexible time-frequency localization for transient shocks and wind blast impulses. Implemented in `Dwt.h`, tested in `TestDwt.cpp`.
+* **Chirp Z-Transform (CZT / "Zoom-FFT")**:
+  * Evaluates the Z-transform along arbitrary contours and spiral arcs in the complex plane, enabling high-resolution spectral zoom into narrow frequency bands (e.g. motor resonance peaks) without massive FFT zero-padding.
+* **Fractional Fourier Transform (FrFT) & Chirplet Transform**:
+  * Generalizes the Fourier transform to fractional time-frequency rotation angles. Parameterizes signals by frequency, time duration, and chirp rate ($d\omega/dt$), providing optimal impulse concentration for linear frequency modulation (LFM) sweeps and accelerating PTZ motors.
+* **Cepstrum & Homomorphic Deconvolution**:
+  * Computes the inverse Fourier transform of the log magnitude spectrum ($\mathcal{F}^{-1}\{\log |\mathcal{F}\{x(t)\}|\}$) to separate convolved signals ($y = x * h \rightarrow \hat{y} = \hat{x} + \hat{h}$), enabling blind image motion blur PSF estimation and mechanical echo/latency detection.
+* **Hilbert Transform & Envelope Analysis (HHT / EMD)**:
+  * Forms the analytic signal to compute instantaneous amplitude and frequency without windowing artifacts, ideal for detecting PTZ gearbox teeth meshing faults, bearing wear, and motor hunting.
+* **Dual-Tree Complex Wavelet Transform (DTCWT)**:
+  * Dual-filter tree formulation providing near shift-invariance and 6 directional sub-bands ($\pm 15^\circ, \pm 45^\circ, \pm 75^\circ$) to eliminate the checkerboard and ringing artifacts of standard 2D DWT.
+* **Walsh-Hadamard Transform (WHT)**:
+  * Multiplication-free orthogonal transform ($O(N \log N)$ additions/subtractions only using $\pm 1$ square-wave basis functions) for ultra-fast embedded block matching, low-power microcontrollers, and binary feature projection.
 
 #### B. Time-Domain Filtering & State Estimation
 * **Cross-Correlation Latency Estimator (Completed)**:
@@ -113,9 +125,13 @@ Techniques from digital signal processing (DSP), system identification, and cont
 * **LMS / RLS Adaptive Filter (Active Vibration Cancellation - AVC)**:
   * Dynamically adapts FIR filter weights to cancel an interfering noise source in real time using IMU/accelerometer reference signals.
 * **Savitzky-Golay Polynomial Smoothing Filter**:
-  * Fits local low-degree polynomials via moving convolution to smooth noisy optical flow centroids without phase lag.
+  * Fits local low-degree polynomials via moving convolution to smooth noisy optical flow centroids and compute velocity/acceleration derivatives without group delay or phase lag.
 * **Extended / Unscented Kalman Filter (EKF / UKF) (Completed)**:
   * Non-linear Bayesian state estimator upgrading linear 2D tracker to true 3D spherical kinematics and pinhole camera projective geometry. Implemented in `ExtendedKalmanFilter.h` and `UnscentedKalmanFilter.h`.
+* **Particle Filter (Sequential Monte Carlo)**:
+  * Non-parametric Bayesian state estimator using sample particles to track non-linear, multi-modal probability distributions when targets undergo severe full occlusions or erratic maneuvers where Kalman assumptions fail.
+* **Robust PCA / Dynamic Mode Decomposition (DMD)**:
+  * Decomposes video streams into low-rank (static/periodic background like swaying trees or water waves) and sparse components (moving targets) for complex outdoor foreground extraction.
 
 #### C. Video Domain Enhancements
 * **Discrete Cosine Transform (DCT) Auto-Focus Sharpness Metric (Completed)**:
@@ -124,6 +140,18 @@ Techniques from digital signal processing (DSP), system identification, and cont
   * Computes arbitrary rectangular pixel sums in $O(1)$ constant time for adaptive local thresholding and contrast normalization. Implemented in `IntegralImage.h`, tested in `TestIntegralImage.cpp`.
 * **Phase Correlation (2D FFT Global Motion Estimation) (Completed)**:
   * Estimates sub-pixel translational shifts between frames using normalized cross-power spectrum for featureless environment stabilization. Implemented in `PhaseCorrelation.h`, tested in `TestPhaseCorrelation.cpp`.
+* **Fourier-Mellin Transform (Log-Polar Image Registration)**:
+  * Resamples frequency spectra or images into log-polar coordinates $(\ln r, \theta)$ before phase correlation, converting rotation and scale into planar translations for complete RST (Rotation, Scale, Translation) invariant video stabilization.
+* **Radon & Hough Transforms (Horizon Leveling & Motion Blur Angle Estimation)**:
+  * Standard/probabilistic Hough transforms detect lines, perimeter fences, and horizon boundaries for camera auto-leveling; Radon projections of frame spectra determine precise camera shake angle and blur length.
+* **Curvelet / Contourlet / Shearlet Transforms**:
+  * Multi-scale directional geometric transforms obeying parabolic scaling (`width ≈ length²`) that optimally represent anisotropic edges and curves, crucial for atmospheric turbulence and heat shimmer mitigation.
+* **Distance Transform & Chamfer Matching**:
+  * Computes exact Euclidean distance fields from binary edge maps in linear time for shape matching, silhouette re-identification, and framing constraint boundaries.
+* **Gabor Transform & Filterbanks**:
+  * Oriented Gaussian-windowed spatial-frequency bandpass filters for multi-angle sharpness assessment, texture analysis, and vehicle/pedestrian appearance modeling.
+* **Planar Homography & Perspective Rectification**:
+  * $3 \times 3$ projective matrix transformations for ground-plane projection, Birds-Eye-View (BEV) mapping, and ONVIF GeoMove coordinate conversions.
 
 #### D. Control System Identification
 * **Automated Chirp / Swept-Sine Plant Identification (Empirical Bode Plot) (Completed)**:
