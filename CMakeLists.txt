@@ -292,11 +292,13 @@ install(FILES
 install(FILES
     libs/PelcoDCore/DeviceStatus.h
     libs/PelcoDCore/ITransport.h
+    libs/PelcoDCore/PacedCommandQueue.h
     libs/PelcoDCore/PelcoDDevice.h
     libs/PelcoDCore/PelcoDFrame.h
     libs/PelcoDCore/PelcoDTypes.h
     libs/PelcoDCore/ProtocolBuilder.h
     libs/PelcoDCore/ProtocolParser.h
+    libs/PelcoDCore/RxStreamAccumulator.h
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/PelcoDCore
 )
 

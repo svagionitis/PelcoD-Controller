@@ -12,6 +12,10 @@ add_library(PelcoDCore STATIC
     ProtocolParser.cpp
     PelcoDDevice.h
     PelcoDDevice.cpp
+    PacedCommandQueue.h
+    PacedCommandQueue.cpp
+    RxStreamAccumulator.h
+    RxStreamAccumulator.cpp
     PatrolController.h
     PatrolController.cpp
     BusScanner.h

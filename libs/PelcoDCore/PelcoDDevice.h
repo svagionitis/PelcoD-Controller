@@ -6,10 +6,12 @@
 #include "Connection.h"
 #include "DeviceStatus.h"
 #include "ITransport.h"
+#include "PacedCommandQueue.h"
 #include "PelcoDTypes.h"
 #include "ProtocolBuilder.h"
 #include "ProtocolParser.h"
 #include "RetryPolicy.h"
+#include "RxStreamAccumulator.h"
 
 #include <atomic>
 #include <chrono>
@@ -259,16 +261,6 @@ private:
     void onDataReceived(const std::vector<std::uint8_t>& data);
     void checkQueryTimeout();
 
-    struct CommandItem {
-        std::vector<std::uint8_t> frame {};
-        std::string queryTag {};
-        CommandPriority priority { CommandPriority::Normal };
-        std::uint32_t retryCount { 0U };
-        std::chrono::steady_clock::time_point earliestDispatchTime { std::chrono::steady_clock::now() };
-    };
-
-    void scheduleCommandRetry(CommandItem item, const RetryConfig& retryCfg, std::string_view logReason);
-
     std::shared_ptr<ITransport> m_transport;
     std::atomic<std::uint8_t> m_address { 1U };
 
@@ -276,12 +268,8 @@ private:
     std::atomic<bool> m_running { false };
     std::thread m_workerThread;
 
-    std::mutex m_queueMutex;
-    std::condition_variable m_queueCv;
-    std::deque<CommandItem> m_commandQueue;
-
-    std::mutex m_rxMutex;
-    std::vector<std::uint8_t> m_rxBuffer;
+    PacedCommandQueue m_queue;
+    RxStreamAccumulator m_rxAccumulator;
 
     std::atomic<bool> m_telemetryPolling { false };
     std::atomic<std::uint32_t> m_pollIntervalMs { 1000U };

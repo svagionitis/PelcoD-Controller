@@ -41,6 +41,8 @@ add_pelco_test(TestNonlinearKalman TestNonlinearKalman.cpp)
 add_pelco_test(TestStft TestStft.cpp)
 add_pelco_test(TestPlantIdentifier TestPlantIdentifier.cpp)
 add_pelco_test(TestMacroPlayback TestMacroPlayback.cpp)
+add_pelco_test(TestStreamAccumulator TestStreamAccumulator.cpp)
+add_pelco_test(TestCommandQueue TestCommandQueue.cpp)
 
 add_executable(TestConnectionModal
     TestConnectionModal.cpp

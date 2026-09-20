@@ -236,10 +236,11 @@ C4Component
     title Component Diagram - PelcoDCore & Related Subsystems
 
     Container_Boundary(core, "PelcoDCore (Static Library)")
-        Component(device, "PelcoDDevice", "C++17 Class", "Main facade. Paced queue (~20ms), RX consumer thread, async queries (std::future), and telemetry polling.")
+        Component(device, "PelcoDDevice", "C++17 Class", "Main facade coordinating transport lifecycle, async queries (std::future), and telemetry polling.")
+        Component(cmdQueue, "PacedCommandQueue", "C++17 Class", "Thread-safe multi-priority command queue with exponential retry backoff and RS-485 timing pacing.")
+        Component(rxAcc, "RxStreamAccumulator", "C++17 Class", "Thread-safe stream accumulator seeking sync bytes (0xFF) and extracting complete verified Pelco-D frames.")
         Component(builder, "ProtocolBuilder", "C++17 Static Utility", "Constructs standard motion, speed clamping, presets, auxiliaries, zones, and query frames.")
         Component(frame, "PelcoDFrame", "C++17 Struct / Methods", "Validates 4, 7, and 18-byte frames, calculates modulo-256 checksums, splits bounded streams.")
-        Component(ring, "CircularByteRing", "C++17 SPSC Template", "Lock-free circular buffer with cacheline padding (64 bytes) for asynchronous RX ingestion.")
         Component(parser, "ProtocolParser", "C++17 Static Utility", "Parses general responses, pan/tilt/zoom telemetry, device type, and sanitized query text.")
         Component(busScan, "BusScanner", "C++17 Class", "Multi-baud (2400-115200) RS-485 bus address auto-discovery engine.")
         Component(rttProf, "RttProfiler", "C++17 Class", "High-precision latency and jitter profiler measuring query round-trip times.")
@@ -306,8 +307,9 @@ C4Component
     Rel(tcp, sockUtils, "Uses socket primitives")
     Rel(udp, sockUtils, "Uses socket primitives")
     Rel(itransport, device, "Notifies incoming raw bytes", "std::function callback")
-    Rel(device, ring, "Pushes bytes from transport", "writeExact")
-    Rel(device, frame, "Splits stream into frames", "splitStream")
+    Rel(device, rxAcc, "Pushes incoming bytes & receives frames", "RxStreamAccumulator::push")
+    Rel(rxAcc, frame, "Validates candidate frame checksums", "PelcoDFrame::isValidFrame")
+    Rel(device, cmdQueue, "Delegates prioritized commands & retries", "enqueue / popReady")
     Rel(device, parser, "Decodes received frames", "updateStatus")
     Rel(parser, status, "Updates telemetry state", "Direct mutation")
 ```

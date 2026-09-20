@@ -78,10 +78,7 @@ bool PelcoDDevice::start()
 
     LOG(INFO) << "Starting PelcoDDevice controller (address: " << static_cast<int>(m_address) << ")";
 
-    {
-        std::lock_guard<std::mutex> lock(m_rxMutex);
-        m_rxBuffer.clear();
-    }
+    m_rxAccumulator.clear();
     m_running = true;
     m_workerThread = std::thread(&PelcoDDevice::workerLoop, this);
 
@@ -105,16 +102,13 @@ void PelcoDDevice::stop()
     LOG(INFO) << "Stopping PelcoDDevice controller";
     m_running = false;
     m_abortQueryWait.store(true);
-    m_queueCv.notify_all();
+    m_queue.wakeAll();
     m_responseCv.notify_all();
 
     if (m_workerThread.joinable()) {
         m_workerThread.join();
     }
-    {
-        std::lock_guard<std::mutex> lock(m_rxMutex);
-        m_rxBuffer.clear();
-    }
+    m_rxAccumulator.clear();
     m_awaitingResponse = false;
 
     if (m_transport) {
@@ -332,7 +326,7 @@ void PelcoDDevice::setTelemetryPolling(bool enable, std::uint32_t intervalMs) no
 {
     m_telemetryPolling.store(enable);
     m_pollIntervalMs.store((intervalMs > 0U) ? intervalMs : 1000U);
-    m_queueCv.notify_all();
+    m_queue.wakeAll();
 }
 
 bool PelcoDDevice::getTelemetryPolling() const noexcept
@@ -759,41 +753,16 @@ void PelcoDDevice::sendQueryFrame(const std::vector<std::uint8_t>& frame, std::s
 void PelcoDDevice::enqueueCommand(
     const std::vector<std::uint8_t>& frame, std::string queryTag, CommandPriority priority)
 {
-    constexpr std::size_t MaxQueueSize = 256U;
-    {
-        std::lock_guard<std::mutex> lock(m_queueMutex);
-
-        // For Urgent commands (e.g. stopMotion), purge any pending Low-priority queries from the queue
-        if (priority == CommandPriority::Urgent) {
-            auto it = m_commandQueue.begin();
-            while (it != m_commandQueue.end()) {
-                if (it->priority == CommandPriority::Low) {
-                    it = m_commandQueue.erase(it);
-                } else {
-                    ++it;
-                }
-            }
-        }
-
-        if (m_commandQueue.size() >= MaxQueueSize) {
-            LOG(WARNING) << "PelcoDDevice command queue full (" << MaxQueueSize << " items), dropping oldest command";
-            m_commandQueue.pop_front();
-        }
-
-        if (priority == CommandPriority::Urgent) {
-            m_commandQueue.push_front({ frame, std::move(queryTag), priority, 0U, std::chrono::steady_clock::now() });
-        } else {
-            m_commandQueue.push_back({ frame, std::move(queryTag), priority, 0U, std::chrono::steady_clock::now() });
-        }
+    if (frame.empty()) {
+        return;
     }
+    m_queue.enqueue(frame, std::move(queryTag), priority);
 
     // If an urgent command arrives while waiting for a query response, abort the query wait immediately
     if (priority == CommandPriority::Urgent && m_awaitingResponse.load()) {
         m_abortQueryWait.store(true);
         m_responseCv.notify_all();
     }
-
-    m_queueCv.notify_one();
 }
 
 void PelcoDDevice::checkQueryTimeout()
@@ -849,34 +818,6 @@ void PelcoDDevice::checkQueryTimeout()
     }
 }
 
-void PelcoDDevice::scheduleCommandRetry(CommandItem item, const RetryConfig& retryCfg, std::string_view logReason)
-{
-    item.retryCount++;
-    const auto backoffDelay = calculateBackoffDelay(retryCfg, item.retryCount);
-    item.earliestDispatchTime = std::chrono::steady_clock::now() + backoffDelay;
-
-    std::shared_ptr<const std::vector<CallbackEntry<RetryCallback>>> rcbs;
-    {
-        std::lock_guard<std::mutex> lock(m_callbackState->mutex);
-        rcbs = m_callbackState->retryCallbacks;
-    }
-    for (const auto& entry : *rcbs) {
-        if (entry.cb) {
-            entry.cb(
-                item.queryTag.empty() ? "Command" : item.queryTag, item.retryCount, retryCfg.maxRetries, backoffDelay);
-        }
-    }
-
-    LOG(INFO) << logReason << " (attempt " << item.retryCount << "/" << retryCfg.maxRetries << "). Retrying in "
-              << backoffDelay.count() << " ms";
-
-    {
-        std::lock_guard<std::mutex> lock(m_queueMutex);
-        m_commandQueue.push_back(std::move(item));
-    }
-    m_queueCv.notify_one();
-}
-
 void PelcoDDevice::workerLoop()
 {
     auto nextPollTime = std::chrono::steady_clock::now();
@@ -893,18 +834,7 @@ void PelcoDDevice::workerLoop()
 
         const auto now = std::chrono::steady_clock::now();
         if (pollingEnabled && isConnected() && now >= nextPollTime) {
-            bool queriesAlreadyPending { false };
-            {
-                std::lock_guard<std::mutex> lock(m_queueMutex);
-                for (const auto& qItem : m_commandQueue) {
-                    if (qItem.priority == CommandPriority::Low) {
-                        queriesAlreadyPending = true;
-                        break;
-                    }
-                }
-            }
-
-            if (!queriesAlreadyPending) {
+            if (!m_queue.hasLowPriorityPending()) {
                 queryPan();
                 queryTilt();
                 queryZoom();
@@ -913,84 +843,16 @@ void PelcoDDevice::workerLoop()
         }
 
         CommandItem item;
-        {
-            std::unique_lock<std::mutex> lock(m_queueMutex);
-            const auto curNow = std::chrono::steady_clock::now();
+        const auto pollDeadline = (pollingEnabled && isConnected())
+            ? nextPollTime
+            : std::chrono::steady_clock::time_point::max();
 
-            auto readyIt = m_commandQueue.end();
-            auto earliestWait = std::chrono::steady_clock::time_point::max();
-
-            for (auto it = m_commandQueue.begin(); it != m_commandQueue.end(); ++it) {
-                if (it->earliestDispatchTime <= curNow) {
-                    readyIt = it;
-                    break;
-                }
-                if (it->earliestDispatchTime < earliestWait) {
-                    earliestWait = it->earliestDispatchTime;
-                }
-            }
-
-            if (readyIt != m_commandQueue.end()) {
-                item = std::move(*readyIt);
-                m_commandQueue.erase(readyIt);
-            } else {
-                if (pollingEnabled && isConnected()) {
-                    auto waitTime = (nextPollTime > curNow)
-                        ? std::chrono::duration_cast<std::chrono::milliseconds>(nextPollTime - curNow)
-                        : std::chrono::milliseconds(0);
-                    if (!m_commandQueue.empty() && earliestWait != std::chrono::steady_clock::time_point::max()) {
-                        const auto backoffDiff
-                            = std::chrono::duration_cast<std::chrono::milliseconds>(earliestWait - curNow);
-                        waitTime = std::min(waitTime, std::max(backoffDiff, std::chrono::milliseconds(1)));
-                    }
-                    if (waitTime.count() > 0) {
-                        m_queueCv.wait_for(lock, waitTime, [this, earliestWait] {
-                            if (!m_running) {
-                                return true;
-                            }
-                            const auto checkNow = std::chrono::steady_clock::now();
-                            if (!m_commandQueue.empty() && checkNow >= earliestWait) {
-                                return true;
-                            }
-                            for (const auto& q : m_commandQueue) {
-                                if (q.earliestDispatchTime <= checkNow) {
-                                    return true;
-                                }
-                            }
-                            return false;
-                        });
-                    }
-                } else {
-                    auto waitTime = std::chrono::milliseconds(100);
-                    if (!m_commandQueue.empty() && earliestWait != std::chrono::steady_clock::time_point::max()) {
-                        const auto backoffDiff
-                            = std::chrono::duration_cast<std::chrono::milliseconds>(earliestWait - curNow);
-                        waitTime = std::min(waitTime, std::max(backoffDiff, std::chrono::milliseconds(1)));
-                    }
-                    m_queueCv.wait_for(lock, waitTime, [this, earliestWait] {
-                        if (!m_running || (m_telemetryPolling.load() && isConnected())) {
-                            return true;
-                        }
-                        const auto checkNow = std::chrono::steady_clock::now();
-                        if (!m_commandQueue.empty() && checkNow >= earliestWait) {
-                            return true;
-                        }
-                        for (const auto& q : m_commandQueue) {
-                            if (q.earliestDispatchTime <= checkNow) {
-                                return true;
-                            }
-                        }
-                        return false;
-                    });
-                }
-            }
-
-            if (!m_running) {
-                break;
-            }
-            if (item.frame.empty()) {
-                continue;
-            }
+        const bool hasItem = m_queue.popReady(item, [this] { return !m_running.load(); }, pollDeadline);
+        if (!m_running) {
+            break;
+        }
+        if (!hasItem || item.frame.empty()) {
+            continue;
         }
 
         const auto sendStartTime = std::chrono::steady_clock::now();
@@ -1021,7 +883,18 @@ void PelcoDDevice::workerLoop()
                 if (retryCfg.retryOnTransportError && item.retryCount < retryCfg.maxRetries) {
                     const std::string reason = "Transport transmission failed for "
                         + (item.queryTag.empty() ? "command" : "query '" + item.queryTag + "'");
-                    scheduleCommandRetry(std::move(item), retryCfg, reason);
+                    const auto backoffDelay = m_queue.scheduleRetry(item, retryCfg, reason);
+                    std::shared_ptr<const std::vector<CallbackEntry<RetryCallback>>> rcbs;
+                    {
+                        std::lock_guard<std::mutex> lock(m_callbackState->mutex);
+                        rcbs = m_callbackState->retryCallbacks;
+                    }
+                    for (const auto& entry : *rcbs) {
+                        if (entry.cb) {
+                            entry.cb(item.queryTag.empty() ? "Command" : item.queryTag,
+                                item.retryCount + 1U, retryCfg.maxRetries, backoffDelay);
+                        }
+                    }
                 } else if (!item.queryTag.empty() && retryCfg.maxRetries > 0U) {
                     DeviceStatus statusCopy;
                     {
@@ -1080,7 +953,17 @@ void PelcoDDevice::workerLoop()
                                     m_pendingQueryTag.clear();
                                 }
                                 const std::string reason = "Query '" + item.queryTag + "' timed out";
-                                scheduleCommandRetry(std::move(item), retryCfg, reason);
+                                const auto backoffDelay = m_queue.scheduleRetry(item, retryCfg, reason);
+                                std::shared_ptr<const std::vector<CallbackEntry<RetryCallback>>> rcbs;
+                                {
+                                    std::lock_guard<std::mutex> lock(m_callbackState->mutex);
+                                    rcbs = m_callbackState->retryCallbacks;
+                                }
+                                for (const auto& entry : *rcbs) {
+                                    if (entry.cb) {
+                                        entry.cb(item.queryTag, item.retryCount + 1U, retryCfg.maxRetries, backoffDelay);
+                                    }
+                                }
                             } else {
                                 checkQueryTimeout();
                             }
@@ -1102,71 +985,8 @@ void PelcoDDevice::workerLoop()
 
 void PelcoDDevice::onDataReceived(const std::vector<std::uint8_t>& data)
 {
-    if (data.empty()) {
-        return;
-    }
-
-    std::vector<std::vector<std::uint8_t>> framesToDispatch;
-
-    {
-        std::lock_guard<std::mutex> lock(m_rxMutex);
-
-        constexpr std::size_t MaxRxBufferSize { 4096U };
-        if (m_rxBuffer.size() + data.size() > MaxRxBufferSize) {
-            LOG(WARNING) << "PelcoDDevice RX accumulator overflow: resetting buffer";
-            m_rxBuffer.clear();
-        }
-
-        m_rxBuffer.insert(m_rxBuffer.end(), data.begin(), data.end());
-
-        while (m_rxBuffer.size() >= PelcoDFrame::GeneralResponseSize) {
-            const auto syncIt = std::find(m_rxBuffer.begin(), m_rxBuffer.end(), PelcoDFrame::SyncByte);
-            if (syncIt == m_rxBuffer.end()) {
-                m_rxBuffer.clear();
-                break;
-            }
-
-            if (syncIt != m_rxBuffer.begin()) {
-                m_rxBuffer.erase(m_rxBuffer.begin(), syncIt);
-            }
-
-            const std::size_t available = m_rxBuffer.size();
-            if (available < PelcoDFrame::GeneralResponseSize) {
-                break;
-            }
-
-            constexpr std::size_t candidateSizes[]
-                = { PelcoDFrame::StandardFrameSize, PelcoDFrame::GeneralResponseSize, PelcoDFrame::QueryResponseSize };
-
-            bool frameExtracted = false;
-
-            for (const std::size_t candidateSize : candidateSizes) {
-                if (available >= candidateSize) {
-                    std::vector<std::uint8_t> frame(
-                        m_rxBuffer.begin(), m_rxBuffer.begin() + static_cast<std::ptrdiff_t>(candidateSize));
-                    if (PelcoDFrame::isValidFrame(frame)) {
-                        m_rxBuffer.erase(
-                            m_rxBuffer.begin(), m_rxBuffer.begin() + static_cast<std::ptrdiff_t>(candidateSize));
-                        framesToDispatch.push_back(std::move(frame));
-                        frameExtracted = true;
-                        break;
-                    }
-                }
-            }
-
-            if (!frameExtracted) {
-                const bool awaitingQuery = m_awaitingResponse.load();
-                const std::size_t maxExpectedSize
-                    = awaitingQuery ? PelcoDFrame::QueryResponseSize : PelcoDFrame::StandardFrameSize;
-                if (available < maxExpectedSize) {
-                    break;
-                }
-                m_rxBuffer.erase(m_rxBuffer.begin());
-            }
-        }
-    }
-
-    for (const auto& frame : framesToDispatch) {
+    const auto frames = m_rxAccumulator.push(data, m_awaitingResponse.load());
+    for (const auto& frame : frames) {
         dispatchFrame(frame);
     }
 }
