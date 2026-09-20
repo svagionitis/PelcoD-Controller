@@ -40,11 +40,13 @@ target_include_directories(PelcoDAppTui PRIVATE
     ${CMAKE_SOURCE_DIR}/libs
     ${CMAKE_SOURCE_DIR}/libs/PelcoDVideo
     ${CMAKE_SOURCE_DIR}/libs/PelcoDVideoFilters
+    ${CMAKE_SOURCE_DIR}/libs/PelcoDTracking
 )
 
 target_link_libraries(PelcoDAppTui PRIVATE
     PelcoDCore
     PelcoDTransport
+    PelcoDTracking
     PelcoDVideo
     Threads::Threads
 )

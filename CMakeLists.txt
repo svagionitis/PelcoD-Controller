@@ -212,7 +212,7 @@ include(GitHooks)
 # Target Installation
 # ==============================================================================
 
-set(PELCOD_INSTALL_TARGETS PelcoDAppQt PelcoDAppTui PelcoDCore PelcoDQt PelcoDMath PelcoDTransport)
+set(PELCOD_INSTALL_TARGETS PelcoDAppQt PelcoDAppTui PelcoDCore PelcoDQt PelcoDMath PelcoDTransport PelcoDTracking)
 if(PELCOD_ENABLE_ONVIF)
     list(APPEND PELCOD_INSTALL_TARGETS PelcoDOnvif)
 endif()
@@ -253,6 +253,23 @@ install(FILES
     libs/PelcoDTransport/UdpTransport.h
     libs/PelcoDTransport/SocketUtils.h
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/PelcoDTransport
+)
+
+install(FILES
+    libs/PelcoDTracking/ChirpCalibrator.h
+    libs/PelcoDTracking/ExtendedKalmanFilter.h
+    libs/PelcoDTracking/LatencyCalibrator.h
+    libs/PelcoDTracking/LatencyEstimator.h
+    libs/PelcoDTracking/OscillationDetector.h
+    libs/PelcoDTracking/PelcoDTracking.h
+    libs/PelcoDTracking/PidController.h
+    libs/PelcoDTracking/PlantIdentifier.h
+    libs/PelcoDTracking/PtzAutoTracker.h
+    libs/PelcoDTracking/PtzCameraModel.h
+    libs/PelcoDTracking/PtzSphericalEstimator.h
+    libs/PelcoDTracking/TransientShockDetector.h
+    libs/PelcoDTracking/UnscentedKalmanFilter.h
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/PelcoDTracking
 )
 
 install(FILES

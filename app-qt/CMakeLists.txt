@@ -47,6 +47,7 @@ target_include_directories(PelcoDAppQt PRIVATE
     ${CMAKE_SOURCE_DIR}/libs
     ${CMAKE_SOURCE_DIR}/libs/PelcoDVideo
     ${CMAKE_SOURCE_DIR}/libs/PelcoDVideoFilters
+    ${CMAKE_SOURCE_DIR}/libs/PelcoDTracking
 )
 
 if(PELCOD_ENABLE_ONVIF)
@@ -61,6 +62,7 @@ endif()
 
 target_link_libraries(PelcoDAppQt PRIVATE
     PelcoDQt
+    PelcoDTracking
     PelcoDVideo
     Qt6::Widgets
 )

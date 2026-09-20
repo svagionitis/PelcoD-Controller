@@ -1,6 +1,7 @@
 add_subdirectory(PelcoDMath)
 add_subdirectory(PelcoDCore)
 add_subdirectory(PelcoDTransport)
+add_subdirectory(PelcoDTracking)
 
 if(PELCOD_ENABLE_ONVIF)
     add_subdirectory(PelcoDOnvif)

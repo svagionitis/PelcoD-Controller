@@ -31,30 +31,6 @@ add_library(PelcoDCore STATIC
     FujinonParser.cpp
     FujinonSX800Device.h
     FujinonSX800Device.cpp
-    PidController.h
-    PidController.cpp
-    PtzAutoTracker.h
-    PtzAutoTracker.cpp
-    OscillationDetector.h
-    OscillationDetector.cpp
-    LatencyEstimator.h
-    LatencyEstimator.cpp
-    LatencyCalibrator.h
-    LatencyCalibrator.cpp
-    TransientShockDetector.h
-    TransientShockDetector.cpp
-    PtzCameraModel.h
-    PtzCameraModel.cpp
-    ExtendedKalmanFilter.h
-    ExtendedKalmanFilter.cpp
-    UnscentedKalmanFilter.h
-    UnscentedKalmanFilter.cpp
-    PtzSphericalEstimator.h
-    PtzSphericalEstimator.cpp
-    PlantIdentifier.h
-    PlantIdentifier.cpp
-    ChirpCalibrator.h
-    ChirpCalibrator.cpp
     MacroScript.h
     MacroScript.cpp
     MacroPlayer.h
@@ -68,7 +44,6 @@ target_include_directories(PelcoDCore PUBLIC
 )
 
 target_link_libraries(PelcoDCore PUBLIC
-    PelcoDMath
     Threads::Threads
     glog::glog
 )
