@@ -20,6 +20,7 @@ target_include_directories(PelcoDQt PUBLIC
 target_link_libraries(PelcoDQt PUBLIC
     PelcoDCore
     PelcoDTransport
+    PelcoDFujinon
     Qt6::Core
 )
 

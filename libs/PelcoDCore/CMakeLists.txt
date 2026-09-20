@@ -24,13 +24,6 @@ add_library(PelcoDCore STATIC
     KinematicsSimulator.cpp
     LatencyPipeline.h
     LatencyPipeline.cpp
-    FujinonTypes.h
-    FujinonBuilder.h
-    FujinonBuilder.cpp
-    FujinonParser.h
-    FujinonParser.cpp
-    FujinonSX800Device.h
-    FujinonSX800Device.cpp
     MacroScript.h
     MacroScript.cpp
     MacroPlayer.h

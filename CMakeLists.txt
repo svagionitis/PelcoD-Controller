@@ -212,7 +212,7 @@ include(GitHooks)
 # Target Installation
 # ==============================================================================
 
-set(PELCOD_INSTALL_TARGETS PelcoDAppQt PelcoDAppTui PelcoDCore PelcoDQt PelcoDMath PelcoDTransport PelcoDTracking)
+set(PELCOD_INSTALL_TARGETS PelcoDAppQt PelcoDAppTui PelcoDCore PelcoDQt PelcoDMath PelcoDTransport PelcoDTracking PelcoDFujinon)
 if(PELCOD_ENABLE_ONVIF)
     list(APPEND PELCOD_INSTALL_TARGETS PelcoDOnvif)
 endif()
@@ -270,6 +270,15 @@ install(FILES
     libs/PelcoDTracking/TransientShockDetector.h
     libs/PelcoDTracking/UnscentedKalmanFilter.h
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/PelcoDTracking
+)
+
+install(FILES
+    libs/PelcoDFujinon/FujinonBuilder.h
+    libs/PelcoDFujinon/FujinonParser.h
+    libs/PelcoDFujinon/FujinonSX800Device.h
+    libs/PelcoDFujinon/FujinonTypes.h
+    libs/PelcoDFujinon/PelcoDFujinon.h
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/PelcoDFujinon
 )
 
 install(FILES
