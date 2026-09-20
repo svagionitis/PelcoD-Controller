@@ -218,6 +218,9 @@ if(PELCOD_ENABLE_ONVIF)
 endif()
 if(PELCOD_ENABLE_VIDEO)
     list(APPEND PELCOD_INSTALL_TARGETS PelcoDVideo)
+    if(PELCOD_ENABLE_FILTERS AND OpenCV_FOUND)
+        list(APPEND PELCOD_INSTALL_TARGETS PelcoDVideoFilters)
+    endif()
 endif()
 
 install(TARGETS ${PELCOD_INSTALL_TARGETS}
@@ -268,6 +271,32 @@ install(FILES
     libs/PelcoDQt/QPelcoDDevice.h
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/PelcoDQt
 )
+
+if(PELCOD_ENABLE_VIDEO)
+    install(FILES
+        libs/PelcoDVideo/AtomicTripleBuffer.h
+        libs/PelcoDVideo/BaseVideoDecoder.h
+        libs/PelcoDVideo/BrailleRenderer.h
+        libs/PelcoDVideo/DecoderFactory.h
+        libs/PelcoDVideo/DecoderTypes.h
+        libs/PelcoDVideo/DeviceEnumerator.h
+        libs/PelcoDVideo/IVideoDecoder.h
+        libs/PelcoDVideo/MockVideoDecoder.h
+        DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/PelcoDVideo
+    )
+    if(PELCOD_ENABLE_FILTERS AND OpenCV_FOUND)
+        install(FILES
+            libs/PelcoDVideoFilters/ColorFilters.h
+            libs/PelcoDVideoFilters/SpatialFilters.h
+            libs/PelcoDVideoFilters/GeometricFilters.h
+            libs/PelcoDVideoFilters/ThermalFilters.h
+            libs/PelcoDVideoFilters/TrackingFilters.h
+            libs/PelcoDVideoFilters/OverlayFilters.h
+            libs/PelcoDVideoFilters/VideoFilters.h
+            DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/PelcoDVideoFilters
+        )
+    endif()
+endif()
 
 install(EXPORT PelcoDTargets
     FILE PelcoDTargets.cmake

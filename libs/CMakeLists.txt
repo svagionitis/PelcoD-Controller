@@ -10,4 +10,7 @@ add_subdirectory(PelcoDQt)
 
 if(PELCOD_ENABLE_VIDEO)
     add_subdirectory(PelcoDVideo)
+    if(PELCOD_ENABLE_FILTERS AND OpenCV_FOUND)
+        add_subdirectory(PelcoDVideoFilters)
+    endif()
 endif()

@@ -192,6 +192,7 @@ if(PELCOD_ENABLE_VIDEO)
     )
     target_include_directories(TestVideoDecoder PRIVATE
         ${CMAKE_SOURCE_DIR}/libs/PelcoDVideo
+        ${CMAKE_SOURCE_DIR}/libs/PelcoDVideoFilters
         ${CMAKE_SOURCE_DIR}/libs/PelcoDQt
     )
     target_link_libraries(TestVideoDecoder PRIVATE
@@ -201,6 +202,9 @@ if(PELCOD_ENABLE_VIDEO)
         Qt6::Gui
         Qt6::Test
     )
+    if(PELCOD_ENABLE_FILTERS AND OpenCV_FOUND)
+        target_link_libraries(TestVideoDecoder PRIVATE PelcoDVideoFilters)
+    endif()
     apply_compiler_flags(TestVideoDecoder)
     add_test(NAME TestVideoDecoder COMMAND TestVideoDecoder)
     if(WIN32)

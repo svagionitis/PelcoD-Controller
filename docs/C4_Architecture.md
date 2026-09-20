@@ -138,7 +138,8 @@ C4Container
     Container(coreLib, "PelcoDCore", "Pure C++17, Zero Qt/Socket", "Core domain library containing protocol framing, command pacing, abstract ITransport port, PtzAutoTracker (CA Kalman/PID), BusScanner, and RttProfiler.")
     Container(transLib, "PelcoDTransport", "Pure C++17, Zero Qt, Sockets/Serial", "Dedicated I/O transport layer implementing concrete adapters: SerialTransport (RS-485 via Win32/termios), TcpTransport, UdpTransport, BaseTransport, and SocketUtils.")
     Container(mathLib, "PelcoDMath", "Pure C++17, Zero External Dependencies", "Mathematical transforms (FFT, DCT, DWT, STFT), digital filters (NotchFilter), motion estimation (PhaseCorrelation), integral images, and matrix algebra.")
-    Container(videoLib, "PelcoDVideo", "Pure C++17, OpenCV, FFmpeg, GStreamer", "Video decoding pipeline with AtomicTripleBuffer, tactical filters (Dehaze, CLAHE, Shimmer, Thermal, LK), and BrailleRenderer.")
+    Container(videoLib, "PelcoDVideo", "Pure C++17, FFmpeg, GStreamer", "Lightweight video decoding pipeline with AtomicTripleBuffer, decoders, IFrameProcessor port, and BrailleRenderer. Zero OpenCV dependencies.")
+    Container(filtersLib, "PelcoDVideoFilters", "Pure C++17, OpenCV", "Standalone computer vision library implementing IFrameProcessor: Color, Spatial, Geometric, Thermal, Tracking, and Overlay filters.")
     Container(onvifLib, "PelcoDOnvif", "Pure C++17, libcurl, pugixml", "ONVIF Profile S and T SOAP client handling WS-Discovery, WS-Security, Media, PTZ, Imaging, and PullPoint event streams.")
 
     System_Ext(serialPort, "Serial Port (RS-485)", "Native POSIX termios or Win32 Comm API.")
@@ -150,6 +151,7 @@ C4Container
     Rel(user, appTui, "Interacts with TUI", "ANSI / Braille Console")
     Rel(appQt, qtAdapter, "Invokes methods, listens to signals", "Qt MetaObject API")
     Rel(appQt, videoLib, "Renders frames from AtomicTripleBuffer", "Direct C++ API")
+    Rel(appQt, filtersLib, "Applies OpenCV filter pipeline", "Direct C++ API")
     Rel(appTui, coreLib, "Invokes PTZ & bus scanner", "Direct C++ API")
     Rel(appTui, videoLib, "Renders Braille stream", "Direct C++ API")
     Rel(appTui, onvifLib, "Invokes CLI discovery & diagnostics", "Direct C++ API")
@@ -157,6 +159,7 @@ C4Container
     Rel(qtAdapter, onvifLib, "Dispatches SOAP calls asynchronously", "Direct C++ Call")
     Rel(coreLib, mathLib, "Invokes transforms & matrix math", "Direct C++ Call")
     Rel(videoLib, mathLib, "Utilizes phase correlation & focus metrics", "Direct C++ Call")
+    Rel(filtersLib, videoLib, "Processes decoded video frames", "IFrameProcessor port")
     Rel(coreLib, serialPort, "Reads/writes RS-485 frames", "termios / Win32 API")
     Rel(coreLib, tcpSocket, "Reads/writes raw TCP packets", "BSD Sockets / Winsock2")
     Rel(videoLib, rtspSource, "Demuxes and decodes video streams", "FFmpeg / GStreamer")
@@ -272,9 +275,9 @@ C4Component
 
 ---
 
-## 4. Level 3: Component Diagram (PelcoDVideo)
+## 4. Level 3: Component Diagram (PelcoDVideo & PelcoDVideoFilters)
 
-The Component diagram details the internal modular structure of `libs/PelcoDVideo`.
+The Component diagram details the decoupled architecture between `libs/PelcoDVideo` (video demuxing, decoding, and buffering) and `libs/PelcoDVideoFilters` (OpenCV computer vision processing).
 
 ### ASCII Diagram
 
@@ -283,37 +286,55 @@ The Component diagram details the internal modular structure of `libs/PelcoDVide
 |                                                  PelcoDVideo                                                  |
 |                                                                                                               |
 |  +---------------------------------------------------------------------------------------------------------+  |
-|  |                                            IDecoder (Interface)                                         |  |
+|  |                                       IVideoDecoder (Interface)                                         |  |
 |  +---------------------------------------------------------------------------------------------------------+  |
 |          ^                                           ^                                           ^            |
 |          | Implements                                | Implements                                | Implements |
 |  +-----------------------+               +-----------------------+               +-----------------------+    |
-|  |     FfmpegDecoder     |               |    GstreamerDecoder   |               |      MockDecoder      |    |
+|  |     FFmpegDecoder     |               |    GStreamerDecoder   |               |   MockVideoDecoder    |    |
 |  |  (libavcodec/swscale) |               |     (GstPipeline)     |               |     (SMPTE Pattern)   |    |
 |  +-----------------------+               +-----------------------+               +-----------------------+    |
 |          |                                           |                                           |            |
 |          +-------------------------------------------+-------------------------------------------+            |
-|                                                      | Writes decoded BGR24 frames                            |
+|                                                      | Writes decoded RGB24/BGR24 frames                      |
 |                                                      v                                                        |
 |  +---------------------------------------------------------------------------------------------------------+  |
 |  |                                            AtomicTripleBuffer                                           |  |
 |  |  - Wait-free, lock-free 3-slot buffer (WriteSlot, DirtySlot, ReadSlot)                                  |  |
 |  |  - std::atomic pointer exchange eliminates tearing and thread contention                               |  |
 |  +---------------------------------------------------------------------------------------------------------+  |
-|                                                      |                                                        |
-|                                                      | Reads latest frame                                     |
-|                                                      v                                                        |
-|  +---------------------------------------------------------------------------------------------------------+  |
-|  |                                      IFrameProcessor (Tactical Pipeline)                                |  |
-|  |  +------------------------+  +------------------------+  +------------------------+  +----------------+ |  |
-|  |  | DehazeFilter           |  | ClaheFilter            |  | HeatShimmerMitigation  |  | ThermalColor   | |  |
-|  |  | (Dark Channel Prior)   |  | (Local Adaptive Hist)  |  | (Temporal Multi-Frame) |  | (Ironbow/Rain) | |  |
-|  |  +------------------------+  +------------------------+  +------------------------+  +----------------+ |  |
-|  |  +------------------------+  +------------------------+  +------------------------+  +----------------+ |  |
-|  |  | MovingTargetIndicator  |  | CentroidTargetTracker  |  | TacticalOverlayFilter  |  | BrailleRenderer| |  |
-|  |  | (MOG2 Background Sub)  |  | (LK Optical Flow / CA) |  | (Reticles, Crosshairs) |  | (2x4 UTF-8)    | |  |
-|  |  +------------------------+  +------------------------+  +------------------------+  +----------------+ |  |
-|  +---------------------------------------------------------------------------------------------------------+  |
+|          |                                                                                   |                |
+|          | Reads latest frame for terminal                                                   | Reads frame    |
+|          v                                                                                   v                |
+|  +-----------------------+                                                       +-----------------------+    |
+|  |    BrailleRenderer    |                                                       |    IFrameProcessor    |    |
+|  | (2x4 UTF-8 Terminal)  |                                                       |    (Pure Interface)   |    |
+|  +-----------------------+                                                       +-----------------------+    |
++----------------------------------------------------------------------------------------------|----------------+
+                                                                                               |
+                                             +-------------------------------------------------+
+                                             | Implemented by OpenCV Filters
+                                             v
++---------------------------------------------------------------------------------------------------------------+
+|                                              PelcoDVideoFilters                                               |
+|                                                                                                               |
+|  +------------------------+  +------------------------+  +------------------------+                           |
+|  | ColorFilters           |  | SpatialFilters         |  | GeometricFilters       |                           |
+|  | - BrightnessContrast   |  | - GaussianBlur         |  | - MirrorFilter         |                           |
+|  | - ClaheFilter          |  | - SharpenFilter        |  | - MosaicFilter         |                           |
+|  | - HistogramEqualization|  | - DarkChannelDehaze    |  | - LocalAreaProcessing  |                           |
+|  | - WhiteBalance / Tint  |  | - TemporalDenoise      |  | - ImageStabilization   |                           |
+|  | - Threshold / Gamma    |  | - LensDistortion / CA  |  | - PictureInPicture     |                           |
+|  +------------------------+  +------------------------+  +------------------------+                           |
+|                                                                                                               |
+|  +------------------------+  +------------------------+  +------------------------+                           |
+|  | ThermalFilters         |  | TrackingFilters        |  | OverlayFilters         |                           |
+|  | - FalseColorFilter     |  | - MovingTargetIndicator|  | - TextOverlayFilter    |                           |
+|  | - IsothermFilter       |  | - OpticalFlowField     |  | - TacticalReticle      |                           |
+|  | - HotspotTracker       |  | - CentroidTargetTracker|  | - PrivacyMaskFilter    |                           |
+|  |                        |  | - PerimeterTripwire    |  | - TimestampWatermark   |                           |
+|  |                        |  | - MotionHeatmapFilter  |  | - TelemetryOsdFilter   |                           |
+|  +------------------------+  +------------------------+  +------------------------+                           |
 +---------------------------------------------------------------------------------------------------------------+
 ```
 
@@ -321,41 +342,42 @@ The Component diagram details the internal modular structure of `libs/PelcoDVide
 
 ```mermaid
 C4Component
-    title Component Diagram - PelcoDVideo Library
+    title Component Diagram - PelcoDVideo & PelcoDVideoFilters Libraries
 
-    Container_Boundary(video, "PelcoDVideo (Library)")
-        Component(idecoder, "IDecoder", "C++17 Interface", "Defines open, close, decodeFrame, and frame callbacks.")
-        Component(ffmpeg, "FfmpegDecoder", "C++17 Implementation", "Hardware-accelerated RTSP/RTMP/file decoding via libavcodec & libswscale.")
-        Component(gst, "GstreamerDecoder", "C++17 Implementation", "Ultra-low-latency pipeline integration with VAAPI/NVDEC.")
-        Component(mockDec, "MockDecoder", "C++17 Implementation", "Synthetic SMPTE color bars with moving target for unit testing.")
+    Container_Boundary(video, "PelcoDVideo (Library - Zero OpenCV)")
+        Component(idecoder, "IVideoDecoder", "C++17 Interface", "Defines open, close, decodeFrame, and frame callbacks.")
+        Component(ffmpeg, "FFmpegDecoder", "C++17 Implementation", "Hardware-accelerated RTSP/RTMP/file decoding via libavcodec & libswscale.")
+        Component(gst, "GStreamerDecoder", "C++17 Implementation", "Ultra-low-latency pipeline integration with VAAPI/NVDEC.")
+        Component(mockDec, "MockVideoDecoder", "C++17 Implementation", "Synthetic SMPTE color bars with moving target for unit testing.")
         Component(tripleBuf, "AtomicTripleBuffer", "C++17 Template", "Lock-free wait-free triple buffer with atomic pointer exchange.")
-        Component(iprocessor, "IFrameProcessor", "C++17 Interface", "Pure virtual processFrame(cv::Mat& frame) contract.")
-        Component(dehaze, "DehazeFilter", "C++17 Implementation", "Dark channel prior atmospheric defogging.")
-        Component(clahe, "ClaheFilter", "C++17 Implementation", "Contrast Limited Adaptive Histogram Equalization.")
-        Component(shimmer, "HeatShimmerMitigationFilter", "C++17 Implementation", "Multi-frame temporal fusion suppressing heat haze.")
-        Component(thermal, "ThermalColorFilter", "C++17 Implementation", "Pseudo-color mappings (Ironbow, White-Hot, Black-Hot, Rainbow).")
-        Component(mti, "MovingTargetIndicatorFilter", "C++17 Implementation", "MOG2 background subtraction with bounding boxes.")
-        Component(tracker, "CentroidTargetTrackerFilter", "C++17 Implementation", "Lucas-Kanade optical flow tracking with scale adaptation.")
-        Component(overlay, "TacticalOverlayFilter", "C++17 Implementation", "HUD reticles, azimuth ticks, boresight crosshairs.")
+        Component(iprocessor, "IFrameProcessor", "C++17 Port Interface", "Pure virtual process(data, width, height, format) contract.")
         Component(braille, "BrailleRenderer", "C++17 Implementation", "Downsamples video to UTF-8 Braille 2x4 cell glyphs for terminal.")
+    Container_Boundary_End()
+
+    Container_Boundary(filters, "PelcoDVideoFilters (OpenCV)")
+        Component(colorFilters, "ColorFilters", "C++17 / OpenCV", "CLAHE, HistogramEqualization, WhiteBalance, ColorEnhance, Tint, Threshold, Gamma.")
+        Component(spatialFilters, "SpatialFilters", "C++17 / OpenCV", "GaussianBlur, Sharpen, DarkChannelDehaze, TemporalDenoise, LensDistortion, ChromaticAberration, EdgeDetection.")
+        Component(geomFilters, "GeometricFilters", "C++17 / OpenCV", "Mirror, Mosaic, LocalAreaProcessing, ImageStabilization, PictureInPicture.")
+        Component(thermalFilters, "ThermalFilters", "C++17 / OpenCV", "FalseColor (Iron256/Jet/Turbo), Isotherm, HotspotTracker radiometry.")
+        Component(trackFilters, "TrackingFilters", "C++17 / OpenCV", "MovingTargetIndicator (MOG2), CentroidTargetTracker (Kalman / predictive lead), PerimeterTripwire, MotionHeatmap, OpticalFlow.")
+        Component(overlayFilters, "OverlayFilters", "C++17 / OpenCV", "TacticalReticleOverlay, PrivacyMask, TimestampWatermark, TelemetryOsd, TextOverlay.")
     Container_Boundary_End()
 
     Rel(idecoder, ffmpeg, "Implemented by")
     Rel(idecoder, gst, "Implemented by")
     Rel(idecoder, mockDec, "Implemented by")
-    Rel(ffmpeg, tripleBuf, "Writes decoded BGR frame", "produce()")
-    Rel(gst, tripleBuf, "Writes decoded BGR frame", "produce()")
-    Rel(mockDec, tripleBuf, "Writes decoded BGR frame", "produce()")
-    Rel(tripleBuf, iprocessor, "Provides frame to pipeline", "consume()")
-    Rel(iprocessor, dehaze, "Implemented by")
-    Rel(iprocessor, clahe, "Implemented by")
-    Rel(iprocessor, shimmer, "Implemented by")
-    Rel(iprocessor, thermal, "Implemented by")
-    Rel(iprocessor, mti, "Implemented by")
-    Rel(iprocessor, tracker, "Implemented by")
-    Rel(iprocessor, overlay, "Implemented by")
-    Rel(iprocessor, braille, "Invoked for terminal display")
-```
+    Rel(ffmpeg, tripleBuf, "Writes decoded frame", "produce()")
+    Rel(gst, tripleBuf, "Writes decoded frame", "produce()")
+    Rel(mockDec, tripleBuf, "Writes decoded frame", "produce()")
+    Rel(tripleBuf, braille, "Consumes frame for terminal viewport")
+    Rel(tripleBuf, iprocessor, "Provides decoded frame buffer")
+
+    Rel(iprocessor, colorFilters, "Implemented by")
+    Rel(iprocessor, spatialFilters, "Implemented by")
+    Rel(iprocessor, geomFilters, "Implemented by")
+    Rel(iprocessor, thermalFilters, "Implemented by")
+    Rel(iprocessor, trackFilters, "Implemented by")
+    Rel(iprocessor, overlayFilters, "Implemented by")
 
 ---
 

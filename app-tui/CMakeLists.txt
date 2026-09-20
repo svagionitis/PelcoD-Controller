@@ -39,6 +39,7 @@ target_include_directories(PelcoDAppTui PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_SOURCE_DIR}/libs
     ${CMAKE_SOURCE_DIR}/libs/PelcoDVideo
+    ${CMAKE_SOURCE_DIR}/libs/PelcoDVideoFilters
 )
 
 target_link_libraries(PelcoDAppTui PRIVATE
@@ -47,6 +48,10 @@ target_link_libraries(PelcoDAppTui PRIVATE
     PelcoDVideo
     Threads::Threads
 )
+
+if(PELCOD_ENABLE_FILTERS AND OpenCV_FOUND)
+    target_link_libraries(PelcoDAppTui PRIVATE PelcoDVideoFilters)
+endif()
 
 if(PELCOD_ENABLE_ONVIF)
     target_sources(PelcoDAppTui PRIVATE
