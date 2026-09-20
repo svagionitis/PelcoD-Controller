@@ -4,7 +4,7 @@
 /// @brief WS-Discovery multicast responder daemon for ONVIF device discovery.
 
 #include "OnvifServerTypes.h"
-#include <PelcoDCore/SocketUtils.h>
+#include <PelcoDTransport/SocketUtils.h>
 
 #include <atomic>
 #include <memory>

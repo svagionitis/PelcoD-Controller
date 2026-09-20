@@ -7,7 +7,7 @@
 #include <chrono>
 #include <glog/logging.h>
 
-namespace PelcoD {
+namespace PelcoD::Transport {
 
 UdpTransport::UdpTransport(std::string host, std::uint16_t port, std::uint16_t localPort)
     : m_host { std::move(host) }
@@ -269,4 +269,4 @@ void UdpTransport::readWorker()
     }
 }
 
-} // namespace PelcoD
+} // namespace PelcoD::Transport

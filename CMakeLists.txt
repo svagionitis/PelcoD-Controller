@@ -212,7 +212,7 @@ include(GitHooks)
 # Target Installation
 # ==============================================================================
 
-set(PELCOD_INSTALL_TARGETS PelcoDAppQt PelcoDAppTui PelcoDCore PelcoDQt PelcoDMath)
+set(PELCOD_INSTALL_TARGETS PelcoDAppQt PelcoDAppTui PelcoDCore PelcoDQt PelcoDMath PelcoDTransport)
 if(PELCOD_ENABLE_ONVIF)
     list(APPEND PELCOD_INSTALL_TARGETS PelcoDOnvif)
 endif()
@@ -244,17 +244,23 @@ install(FILES
 )
 
 install(FILES
+    libs/PelcoDTransport/BaseTransport.h
+    libs/PelcoDTransport/SerialTransport.h
+    libs/PelcoDTransport/TcpTransport.h
+    libs/PelcoDTransport/UdpTransport.h
+    libs/PelcoDTransport/SocketUtils.h
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/PelcoDTransport
+)
+
+install(FILES
     libs/PelcoDCore/DeviceStatus.h
     libs/PelcoDCore/ITransport.h
-    libs/PelcoDCore/BaseTransport.h
     libs/PelcoDCore/MockPelcoDDevice.h
     libs/PelcoDCore/PelcoDDevice.h
     libs/PelcoDCore/PelcoDFrame.h
     libs/PelcoDCore/PelcoDTypes.h
     libs/PelcoDCore/ProtocolBuilder.h
     libs/PelcoDCore/ProtocolParser.h
-    libs/PelcoDCore/SerialTransport.h
-    libs/PelcoDCore/TcpTransport.h
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/PelcoDCore
 )
 

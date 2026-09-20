@@ -43,6 +43,7 @@ target_include_directories(PelcoDAppTui PRIVATE
 
 target_link_libraries(PelcoDAppTui PRIVATE
     PelcoDCore
+    PelcoDTransport
     PelcoDVideo
     Threads::Threads
 )

@@ -1,7 +1,7 @@
 #include "WsDiscoveryServer.h"
 #include "WsDiscoveryCommon.h"
 
-#include <PelcoDCore/SocketUtils.h>
+#include <PelcoDTransport/SocketUtils.h>
 #include <pugixml.hpp>
 
 #include <array>

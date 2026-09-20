@@ -26,7 +26,7 @@ using SerialHandle = int;
 #define INVALID_SERIAL_HANDLE (-1)
 #endif
 
-namespace PelcoD {
+namespace PelcoD::Transport {
 
 /// @class SerialTransport
 /// @brief Cross-platform thread-safe serial transport (zero Qt dependency).
@@ -88,4 +88,8 @@ private:
     std::atomic<SerialHandle> m_handle { INVALID_SERIAL_HANDLE };
 };
 
+} // namespace PelcoD::Transport
+
+namespace PelcoD {
+using Transport::SerialTransport;
 } // namespace PelcoD

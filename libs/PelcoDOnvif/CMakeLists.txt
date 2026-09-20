@@ -66,6 +66,7 @@ target_link_libraries(PelcoDOnvif PUBLIC
     Threads::Threads
     ${HTTPLIB_TARGET}
     PelcoDCore
+    PelcoDTransport
 )
 
 if(WIN32)

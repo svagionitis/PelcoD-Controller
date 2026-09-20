@@ -4,18 +4,8 @@ add_library(PelcoDCore STATIC
     Connection.h
     DeviceStatus.h
     ITransport.h
-    BaseTransport.h
-    BaseTransport.cpp
     PelcoDFrame.h
     PelcoDFrame.cpp
-    SerialTransport.h
-    SerialTransport.cpp
-    SocketUtils.h
-    SocketUtils.cpp
-    TcpTransport.h
-    TcpTransport.cpp
-    UdpTransport.h
-    UdpTransport.cpp
     MockPelcoDDevice.h
     MockPelcoDDevice.cpp
     ProtocolBuilder.h
@@ -82,9 +72,5 @@ target_link_libraries(PelcoDCore PUBLIC
     Threads::Threads
     glog::glog
 )
-
-if(WIN32)
-    target_link_libraries(PelcoDCore PUBLIC ws2_32)
-endif()
 
 apply_compiler_flags(PelcoDCore)

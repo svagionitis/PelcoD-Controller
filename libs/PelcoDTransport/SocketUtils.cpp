@@ -3,7 +3,7 @@
 
 #include "SocketUtils.h"
 
-namespace PelcoD::Net {
+namespace PelcoD::Transport::Net {
 
 #ifdef _WIN32
 
@@ -122,4 +122,4 @@ int pollSockets(PollFd* fds, unsigned long nfds, int timeoutMs) noexcept
 
 #endif
 
-} // namespace PelcoD::Net
+} // namespace PelcoD::Transport::Net

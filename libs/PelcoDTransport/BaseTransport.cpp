@@ -3,7 +3,7 @@
 
 #include "BaseTransport.h"
 
-namespace PelcoD {
+namespace PelcoD::Transport {
 
 void BaseTransport::setDataCallback(DataReceivedCallback callback)
 {
@@ -49,4 +49,4 @@ void BaseTransport::stopReadThread()
     }
 }
 
-} // namespace PelcoD
+} // namespace PelcoD::Transport
