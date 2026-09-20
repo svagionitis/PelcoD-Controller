@@ -868,7 +868,7 @@ void TemporalDenoiseFilter::reset()
     m_lastHeight = 0;
 }
 
-void TemporalDenoiseFilter::process(std::uint8_t* data, int width, int height, PixelFormat /*format*/)
+void TemporalDenoiseFilter::process(std::uint8_t* data, int width, int height, PixelFormat format)
 {
     if (!data || width <= 0 || height <= 0 || m_blendRate <= 0.0) {
         return;

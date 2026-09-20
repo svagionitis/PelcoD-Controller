@@ -212,7 +212,7 @@ include(GitHooks)
 # Target Installation
 # ==============================================================================
 
-set(PELCOD_INSTALL_TARGETS PelcoDAppQt PelcoDAppTui PelcoDCore PelcoDQt)
+set(PELCOD_INSTALL_TARGETS PelcoDAppQt PelcoDAppTui PelcoDCore PelcoDQt PelcoDMath)
 if(PELCOD_ENABLE_ONVIF)
     list(APPEND PELCOD_INSTALL_TARGETS PelcoDOnvif)
 endif()
@@ -226,6 +226,21 @@ install(TARGETS ${PELCOD_INSTALL_TARGETS}
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
     ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
     INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+)
+
+install(FILES
+    libs/PelcoDMath/Dct.h
+    libs/PelcoDMath/DctSharpnessEvaluator.h
+    libs/PelcoDMath/Dwt.h
+    libs/PelcoDMath/Fft.h
+    libs/PelcoDMath/GoertzelFilter.h
+    libs/PelcoDMath/IntegralImage.h
+    libs/PelcoDMath/MatrixMath.h
+    libs/PelcoDMath/NotchFilter.h
+    libs/PelcoDMath/PhaseCorrelation.h
+    libs/PelcoDMath/SpectrogramColorMap.h
+    libs/PelcoDMath/Stft.h
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/PelcoDMath
 )
 
 install(FILES

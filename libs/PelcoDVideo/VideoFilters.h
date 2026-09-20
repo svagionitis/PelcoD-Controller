@@ -12,6 +12,7 @@
 
 #include "DecoderTypes.h"
 #include <cstdint>
+#include <functional>
 #include <map>
 #include <memory>
 #include <mutex>
@@ -19,19 +20,9 @@
 #include <utility>
 #include <vector>
 
-// Visibility macros for shared library export/import
-#if defined(_MSC_VER)
-#ifdef VIDEOFILTERS_EXPORTS
-#define VIDEOFILTERS_API __declspec(dllexport)
-#else
-#define VIDEOFILTERS_API __declspec(dllimport)
-#endif
-#else
-#ifdef VIDEOFILTERS_EXPORTS
-#define VIDEOFILTERS_API __attribute__((visibility("default")))
-#else
+// Visibility macro (empty for static library builds)
+#ifndef VIDEOFILTERS_API
 #define VIDEOFILTERS_API
-#endif
 #endif
 
 #if defined(PELCOD_HAS_FILTERS)

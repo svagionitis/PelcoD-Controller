@@ -136,6 +136,7 @@ C4Container
     Container(appTui, "PelcoDAppTui", "Pure C++17, termios / Win32", "Zero-dependency console application with double-buffered canvas, terminal Braille video playback, PTZ compass, and ONVIF CLI discovery tools.")
     Container(qtAdapter, "PelcoDQt", "C++17, Qt 6 Core", "Qt adapter layer wrapping core C++ objects (QPelcoDDevice, QVideoStreamWorker, QOnvifDevice, QRttProfiler).")
     Container(coreLib, "PelcoDCore", "Pure C++17, Zero Qt", "Core library containing protocol framing, command pacing, transports, PtzAutoTracker (CA Kalman/PID), BusScanner, and RttProfiler.")
+    Container(mathLib, "PelcoDMath", "Pure C++17, Zero External Dependencies", "Mathematical transforms (FFT, DCT, DWT, STFT), digital filters (NotchFilter), motion estimation (PhaseCorrelation), integral images, and matrix algebra.")
     Container(videoLib, "PelcoDVideo", "Pure C++17, OpenCV, FFmpeg, GStreamer", "Video decoding pipeline with AtomicTripleBuffer, tactical filters (Dehaze, CLAHE, Shimmer, Thermal, LK), and BrailleRenderer.")
     Container(onvifLib, "PelcoDOnvif", "Pure C++17, libcurl, pugixml", "ONVIF Profile S and T SOAP client handling WS-Discovery, WS-Security, Media, PTZ, Imaging, and PullPoint event streams.")
 
@@ -153,6 +154,8 @@ C4Container
     Rel(appTui, onvifLib, "Invokes CLI discovery & diagnostics", "Direct C++ API")
     Rel(qtAdapter, coreLib, "Calls API, forwards telemetry", "Direct C++ Call / std::function")
     Rel(qtAdapter, onvifLib, "Dispatches SOAP calls asynchronously", "Direct C++ Call")
+    Rel(coreLib, mathLib, "Invokes transforms & matrix math", "Direct C++ Call")
+    Rel(videoLib, mathLib, "Utilizes phase correlation & focus metrics", "Direct C++ Call")
     Rel(coreLib, serialPort, "Reads/writes RS-485 frames", "termios / Win32 API")
     Rel(coreLib, tcpSocket, "Reads/writes raw TCP packets", "BSD Sockets / Winsock2")
     Rel(videoLib, rtspSource, "Demuxes and decodes video streams", "FFmpeg / GStreamer")

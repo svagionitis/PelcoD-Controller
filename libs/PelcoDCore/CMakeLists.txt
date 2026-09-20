@@ -45,31 +45,14 @@ add_library(PelcoDCore STATIC
     PidController.cpp
     PtzAutoTracker.h
     PtzAutoTracker.cpp
-    Fft.h
-    Fft.cpp
-    NotchFilter.h
-    NotchFilter.cpp
     OscillationDetector.h
     OscillationDetector.cpp
-    GoertzelFilter.h
-    GoertzelFilter.cpp
     LatencyEstimator.h
     LatencyEstimator.cpp
     LatencyCalibrator.h
     LatencyCalibrator.cpp
-    Dct.h
-    Dct.cpp
-    DctSharpnessEvaluator.h
-    DctSharpnessEvaluator.cpp
-    PhaseCorrelation.h
-    PhaseCorrelation.cpp
-    IntegralImage.h
-    IntegralImage.cpp
-    Dwt.h
-    Dwt.cpp
     TransientShockDetector.h
     TransientShockDetector.cpp
-    MatrixMath.h
     PtzCameraModel.h
     PtzCameraModel.cpp
     ExtendedKalmanFilter.h
@@ -78,10 +61,6 @@ add_library(PelcoDCore STATIC
     UnscentedKalmanFilter.cpp
     PtzSphericalEstimator.h
     PtzSphericalEstimator.cpp
-    Stft.h
-    Stft.cpp
-    SpectrogramColorMap.h
-    SpectrogramColorMap.cpp
     PlantIdentifier.h
     PlantIdentifier.cpp
     ChirpCalibrator.h
@@ -99,6 +78,7 @@ target_include_directories(PelcoDCore PUBLIC
 )
 
 target_link_libraries(PelcoDCore PUBLIC
+    PelcoDMath
     Threads::Threads
     glog::glog
 )

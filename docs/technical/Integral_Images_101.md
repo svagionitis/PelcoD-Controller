@@ -241,7 +241,7 @@ When summing pixel brightness values ($0\text{--}255$) across millions of pixels
     $$\text{Max SumSq} = 2,073,600 \times 65,025 = 134,835,840,000 \gg 2^{32} - 1 \quad (\mathbf{\text{Catastrophic Overflow!}})$$
 
 ### The Solution: 64-bit Accumulators
-Inside [`IntegralImage.h`](../../libs/PelcoDCore/IntegralImage.h#L126), tables are strictly allocated with 64-bit integers:
+Inside [`IntegralImage.h`](../../libs/PelcoDMath/IntegralImage.h#L126), tables are strictly allocated with 64-bit integers:
 ```cpp
 std::vector<uint64_t> m_sumTable;    // Max 1.84 × 10¹⁹ (Immune to overflow)
 std::vector<uint64_t> m_sqSumTable;  // Max 1.84 × 10¹⁹ (Immune to overflow)
@@ -272,7 +272,7 @@ This guarantees safe computation for arbitrarily large 4K and 8K video streams.
 
 ## 6. How Integral Images are Used in This Project (`PelcoD-Controller`)
 
-In the `PelcoD-Controller` codebase, [`IntegralImage`](../../libs/PelcoDCore/IntegralImage.h) is implemented in pure C++17 to provide real-time frame analysis and illumination-invariant target tracking:
+In the `PelcoD-Controller` codebase, [`IntegralImage`](../../libs/PelcoDMath/IntegralImage.h) is implemented in pure C++17 to provide real-time frame analysis and illumination-invariant target tracking:
 
 ### 1. Zero-Copy Video Frame Ingestion
 - `compute(const uint8_t* pixels, int width, int height, int stride, bool computeSquared)`:
@@ -336,4 +336,4 @@ The following foundational papers and textbooks provide verified, authoritative 
    - [`docs/technical/PID_Controller_101.md`](PID_Controller_101.md): Complementary guide explaining the PID controller.
    - [`docs/technical/Kalman_Filter_101.md`](Kalman_Filter_101.md): Complementary guide explaining the Kalman filter.
    - [`docs/technical/Notch_Filter_101.md`](Notch_Filter_101.md): Complementary guide explaining the Digital Notch Filter.
-   - [`libs/PelcoDCore/IntegralImage.h`](../../libs/PelcoDCore/IntegralImage.h): Core C++17 IntegralImage implementation.
+   - [`libs/PelcoDMath/IntegralImage.h`](../../libs/PelcoDMath/IntegralImage.h): Core C++17 IntegralImage implementation.
