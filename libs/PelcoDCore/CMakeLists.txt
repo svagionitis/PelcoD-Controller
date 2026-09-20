@@ -6,8 +6,6 @@ add_library(PelcoDCore STATIC
     ITransport.h
     PelcoDFrame.h
     PelcoDFrame.cpp
-    MockPelcoDDevice.h
-    MockPelcoDDevice.cpp
     ProtocolBuilder.h
     ProtocolBuilder.cpp
     ProtocolParser.h
@@ -20,10 +18,6 @@ add_library(PelcoDCore STATIC
     BusScanner.cpp
     RttProfiler.h
     RttProfiler.cpp
-    KinematicsSimulator.h
-    KinematicsSimulator.cpp
-    LatencyPipeline.h
-    LatencyPipeline.cpp
     MacroScript.h
     MacroScript.cpp
     MacroPlayer.h

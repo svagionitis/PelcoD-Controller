@@ -1,4 +1,4 @@
-#include <PelcoDCore/MockPelcoDDevice.h>
+#include <PelcoDSim/MockPelcoDDevice.h>
 #include <PelcoDOnvif/OnvifClient.h>
 #include <PelcoDOnvif/OnvifServer.h>
 #include <PelcoDOnvif/PelcoDPtzAdapter.h>

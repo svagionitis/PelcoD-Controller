@@ -8,7 +8,7 @@ string(REPLACE "-DNDEBUG" "" CMAKE_CXX_FLAGS_MINSIZEREL "${CMAKE_CXX_FLAGS_MINSI
 
 function(add_pelco_test test_name test_source)
     add_executable(${test_name} ${test_source})
-    target_link_libraries(${test_name} PRIVATE PelcoDCore PelcoDTransport PelcoDTracking PelcoDFujinon PelcoDMath)
+    target_link_libraries(${test_name} PRIVATE PelcoDCore PelcoDTransport PelcoDTracking PelcoDFujinon PelcoDSim PelcoDMath)
     apply_compiler_flags(${test_name})
     add_test(NAME ${test_name} COMMAND ${test_name})
 endfunction()
@@ -51,8 +51,9 @@ add_executable(TestConnectionModal
 target_include_directories(TestConnectionModal PRIVATE
     ${CMAKE_SOURCE_DIR}/app-tui
     ${CMAKE_SOURCE_DIR}/libs/PelcoDCore
+    ${CMAKE_SOURCE_DIR}/libs/PelcoDSim
 )
-target_link_libraries(TestConnectionModal PRIVATE PelcoDCore PelcoDTransport Threads::Threads)
+target_link_libraries(TestConnectionModal PRIVATE PelcoDCore PelcoDTransport PelcoDSim Threads::Threads)
 apply_compiler_flags(TestConnectionModal)
 add_test(NAME TestConnectionModal COMMAND TestConnectionModal)
 
@@ -65,8 +66,9 @@ add_executable(TestTrafficView
 target_include_directories(TestTrafficView PRIVATE
     ${CMAKE_SOURCE_DIR}/app-tui
     ${CMAKE_SOURCE_DIR}/libs/PelcoDCore
+    ${CMAKE_SOURCE_DIR}/libs/PelcoDSim
 )
-target_link_libraries(TestTrafficView PRIVATE PelcoDCore PelcoDTransport Threads::Threads)
+target_link_libraries(TestTrafficView PRIVATE PelcoDCore PelcoDTransport PelcoDSim Threads::Threads)
 apply_compiler_flags(TestTrafficView)
 add_test(NAME TestTrafficView COMMAND TestTrafficView)
 
@@ -80,10 +82,12 @@ target_include_directories(TestAutoReconnect PRIVATE
     ${CMAKE_SOURCE_DIR}/app-qt
     ${CMAKE_SOURCE_DIR}/libs/PelcoDCore
     ${CMAKE_SOURCE_DIR}/libs/PelcoDQt
+    ${CMAKE_SOURCE_DIR}/libs/PelcoDSim
 )
 target_link_libraries(TestAutoReconnect PRIVATE
     PelcoDQt
     PelcoDCore
+    PelcoDSim
     Qt6::Core
     Qt6::Gui
     Qt6::Widgets
@@ -98,10 +102,12 @@ add_executable(TestQPelcoDDevice
 target_include_directories(TestQPelcoDDevice PRIVATE
     ${CMAKE_SOURCE_DIR}/libs/PelcoDCore
     ${CMAKE_SOURCE_DIR}/libs/PelcoDQt
+    ${CMAKE_SOURCE_DIR}/libs/PelcoDSim
 )
 target_link_libraries(TestQPelcoDDevice PRIVATE
     PelcoDQt
     PelcoDCore
+    PelcoDSim
     Qt6::Core
     Qt6::Test
 )
@@ -114,10 +120,12 @@ add_executable(TestRetryPolicy
 target_include_directories(TestRetryPolicy PRIVATE
     ${CMAKE_SOURCE_DIR}/libs/PelcoDCore
     ${CMAKE_SOURCE_DIR}/libs/PelcoDQt
+    ${CMAKE_SOURCE_DIR}/libs/PelcoDSim
 )
 target_link_libraries(TestRetryPolicy PRIVATE
     PelcoDQt
     PelcoDCore
+    PelcoDSim
     Qt6::Core
     Qt6::Test
 )
@@ -248,6 +256,7 @@ if(PELCOD_ENABLE_ONVIF)
     target_link_libraries(TestOnvifServer PRIVATE
         PelcoDOnvif
         PelcoDCore
+        PelcoDSim
     )
     apply_compiler_flags(TestOnvifServer)
     add_test(NAME TestOnvifServer COMMAND TestOnvifServer)

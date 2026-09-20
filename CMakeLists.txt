@@ -212,7 +212,7 @@ include(GitHooks)
 # Target Installation
 # ==============================================================================
 
-set(PELCOD_INSTALL_TARGETS PelcoDAppQt PelcoDAppTui PelcoDCore PelcoDQt PelcoDMath PelcoDTransport PelcoDTracking PelcoDFujinon)
+set(PELCOD_INSTALL_TARGETS PelcoDAppQt PelcoDAppTui PelcoDCore PelcoDQt PelcoDMath PelcoDTransport PelcoDTracking PelcoDFujinon PelcoDSim)
 if(PELCOD_ENABLE_ONVIF)
     list(APPEND PELCOD_INSTALL_TARGETS PelcoDOnvif)
 endif()
@@ -282,9 +282,16 @@ install(FILES
 )
 
 install(FILES
+    libs/PelcoDSim/KinematicsSimulator.h
+    libs/PelcoDSim/LatencyPipeline.h
+    libs/PelcoDSim/MockPelcoDDevice.h
+    libs/PelcoDSim/PelcoDSim.h
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/PelcoDSim
+)
+
+install(FILES
     libs/PelcoDCore/DeviceStatus.h
     libs/PelcoDCore/ITransport.h
-    libs/PelcoDCore/MockPelcoDDevice.h
     libs/PelcoDCore/PelcoDDevice.h
     libs/PelcoDCore/PelcoDFrame.h
     libs/PelcoDCore/PelcoDTypes.h

@@ -138,6 +138,7 @@ C4Container
     Container(coreLib, "PelcoDCore", "Pure C++17, Zero Qt/Socket/Math/Vendor", "Core domain library containing protocol framing, command pacing, abstract ITransport port, BusScanner, PatrolController, MacroPlayer, and RttProfiler.")
     Container(transLib, "PelcoDTransport", "Pure C++17, Zero Qt, Sockets/Serial", "Dedicated I/O transport layer implementing concrete adapters: SerialTransport (RS-485 via Win32/termios), TcpTransport, UdpTransport, BaseTransport, and SocketUtils.")
     Container(fujiLib, "PelcoDFujinon", "Pure C++17, Zero Qt", "Specialized camera protocol extensions for Fujinon SX800/SX801 series. Subclasses PelcoDDevice with proprietary packet encoders/decoders.")
+    Container(simLib, "PelcoDSim", "Pure C++17, Zero Qt", "Virtual device emulation and kinematics simulation. Implements MockPelcoDDevice (ITransport), KinematicsSimulator, and LatencyPipeline.")
     Container(trackLib, "PelcoDTracking", "Pure C++17, Zero Qt", "Closed-loop visual tracking, EKF/UKF spherical kinematic estimation, PtzCameraModel projective geometry, PID control, latency estimation, and plant identification.")
     Container(mathLib, "PelcoDMath", "Pure C++17, Zero External Dependencies", "Mathematical transforms (FFT, DCT, DWT, STFT), digital filters (NotchFilter), motion estimation (PhaseCorrelation), integral images, and matrix algebra.")
     Container(videoLib, "PelcoDVideo", "Pure C++17, FFmpeg, GStreamer", "Lightweight video decoding pipeline with AtomicTripleBuffer, decoders, IFrameProcessor port, and BrailleRenderer. Zero OpenCV dependencies.")
@@ -153,11 +154,13 @@ C4Container
     Rel(user, appTui, "Interacts with TUI", "ANSI / Braille Console")
     Rel(appQt, qtAdapter, "Invokes methods, listens to signals", "Qt MetaObject API")
     Rel(appQt, fujiLib, "Invokes Fujinon optics & OIS", "Direct C++ API")
+    Rel(appQt, simLib, "Controls virtual dynamics & presets", "Direct C++ API")
     Rel(appQt, trackLib, "Invokes auto-tracking & estimation", "Direct C++ API")
     Rel(appQt, videoLib, "Renders frames from AtomicTripleBuffer", "Direct C++ API")
     Rel(appQt, filtersLib, "Applies OpenCV filter pipeline", "Direct C++ API")
     Rel(appTui, coreLib, "Invokes PTZ & bus scanner", "Direct C++ API")
     Rel(appTui, fujiLib, "Invokes Fujinon controls", "Direct C++ API")
+    Rel(appTui, simLib, "Configures offline mock device", "Direct C++ API")
     Rel(appTui, trackLib, "Invokes plant diagnostics", "Direct C++ API")
     Rel(appTui, videoLib, "Renders Braille stream", "Direct C++ API")
     Rel(appTui, onvifLib, "Invokes CLI discovery & diagnostics", "Direct C++ API")
@@ -165,6 +168,7 @@ C4Container
     Rel(qtAdapter, fujiLib, "Wraps QFujinonSX800Device", "Direct C++ Call")
     Rel(qtAdapter, onvifLib, "Dispatches SOAP calls asynchronously", "Direct C++ Call")
     Rel(fujiLib, coreLib, "Subclasses PelcoDDevice & uses frames", "Inheritance / C++ API")
+    Rel(simLib, coreLib, "Implements ITransport & processes PelcoDFrames", "Interface implementation")
     Rel(trackLib, coreLib, "Steers camera via motor commands", "Direct C++ Call")
     Rel(trackLib, mathLib, "Invokes matrix math & DSP transforms", "Direct C++ Call")
     Rel(videoLib, mathLib, "Utilizes phase correlation & focus metrics", "Direct C++ Call")
@@ -179,7 +183,7 @@ C4Container
 
 ## 3. Level 3: Component Diagram (PelcoDCore)
 
-The Component diagram details the internal modular structure of `libs/PelcoDCore`.
+The Component diagram details the internal modular structure of `libs/PelcoDCore` and its relationships with `PelcoDTransport`, `PelcoDFujinon`, `PelcoDSim`, and `PelcoDTracking`.
 
 ### ASCII Diagram
 
@@ -194,24 +198,24 @@ The Component diagram details the internal modular structure of `libs/PelcoDCore
 |  |  - Non-blocking async queries (queryPanAsync, queryTiltAsync, queryZoomAsync with std::future)   |  |
 |  |  - Background telemetry polling loop & connection management (ScopedConnectionList)             |  |
 |  +-------------------------------------------------------------------------------------------------+  |
-|         |                     |                           |          |                     |          |
-|         | Uses                | Feeds RX bytes            | Parses   | Uses                | Guides   |
-|         v                     v                           v          |                     v          |
+|         |                     |                           |          |                                |
+|         | Uses                | Feeds RX bytes            | Parses   | Uses                           |
+|         v                     v                           v          |                                |
 |  +----------------+    +------------------+    +----------------+    |            +-----------------+ |
-|  |ProtocolBuilder |    | CircularByteRing |    | ProtocolParser |    |            | PtzAutoTracker  | |
-|  | - buildMotion  |    | - SPSC lock-free |    | - parseGeneral |    |            | - CA Kalman (6D)| |
-|  | - buildSetPan  |    | - alignas(64)    |    | - parsePan/Tilt|    |            | - Dual PID loop | |
-|  | - buildPreset  |    | - Zero-alloc     |    | - parseQuery   |    |            | - Dynamic Zoom  | |
-|  | - buildAux/Zone|    +------------------+    +----------------+    |            | - Predictive Lead|
-|  +----------------+             |                      ^             |            +-----------------+ |
-|         |                       | Reads frames         |             |                     |          |
-|         | Produces              +----------------------+             |                     v          |
-|         v                                                            |            +-----------------+ |
-|  +--------------------------------------------------------------+    |            | Diagnostics &   | |
-|  |                         PelcoDFrame                          |    |            | Discovery Tools | |
-|  |  - SyncByte (0xFF), Standard (7-byte), General (4-byte)      |    |            | - BusScanner    | |
-|  |  - Query (18-byte), Modulo-256 Checksum, Stream Framing      |    |            | - RttProfiler   | |
-|  +--------------------------------------------------------------+    |            +-----------------+ |
+|  |ProtocolBuilder |    | CircularByteRing |    | ProtocolParser |    |            | Diagnostics &   | |
+|  | - buildMotion  |    | - SPSC lock-free |    | - parseGeneral |    |            | Discovery Tools | |
+|  | - buildSetPan  |    | - alignas(64)    |    | - parsePan/Tilt|    |            | - BusScanner    | |
+|  | - buildPreset  |    | - Zero-alloc     |    | - parseQuery   |    |            | - RttProfiler   | |
+|  | - buildAux/Zone|    +------------------+    +----------------+    |            | - PatrolContr.  | |
+|  +----------------+             |                      ^             |            | - MacroPlayer   | |
+|         |                       | Reads frames         |             |            +-----------------+ |
+|         | Produces              +----------------------+             |                                |
+|         v                                                            |                                |
+|  +--------------------------------------------------------------+    |                                |
+|  |                         PelcoDFrame                          |    |                                |
+|  |  - SyncByte (0xFF), Standard (7-byte), General (4-byte)      |    |                                |
+|  |  - Query (18-byte), Modulo-256 Checksum, Stream Framing      |    |                                |
+|  +--------------------------------------------------------------+    |                                |
 |                                                                      |                                |
 |  +-------------------------------------------------------------------+-----------------------------+  |
 |  |                                   ITransport (Pure Interface)                                   |  |
@@ -220,7 +224,7 @@ The Component diagram details the internal modular structure of `libs/PelcoDCore
 |          | Implements                    | Implements             | Implements            | Implements|
 |  +--------------------+       +--------------------+    +------------------+    +------------------+  |
 |  |  SerialTransport   |       |    TcpTransport    |    |   UdpTransport   |    | MockPelcoDDevice |  |
-|  | (termios / Win32)  |       | (POSIX / Winsock2) |    | (POSIX / Winsock)|    | (Virtual Memory) |  |
+|  | (PelcoDTransport)  |       | (PelcoDTransport)  |    |(PelcoDTransport) |    |   (PelcoDSim)    |  |
 |  +--------------------+       +--------------------+    +------------------+    +------------------+  |
 +-------------------------------------------------------------------------------------------------------+
 ```
@@ -229,7 +233,7 @@ The Component diagram details the internal modular structure of `libs/PelcoDCore
 
 ```mermaid
 C4Component
-    title Component Diagram - PelcoDCore Library
+    title Component Diagram - PelcoDCore & Related Subsystems
 
     Container_Boundary(core, "PelcoDCore (Static Library)")
         Component(device, "PelcoDDevice", "C++17 Class", "Main facade. Paced queue (~20ms), RX consumer thread, async queries (std::future), and telemetry polling.")
@@ -240,8 +244,13 @@ C4Component
         Component(busScan, "BusScanner", "C++17 Class", "Multi-baud (2400-115200) RS-485 bus address auto-discovery engine.")
         Component(rttProf, "RttProfiler", "C++17 Class", "High-precision latency and jitter profiler measuring query round-trip times.")
         Component(itransport, "ITransport", "C++17 Pure Interface", "Defines open, close, sendData, and data/state callbacks.")
-        Component(mock, "MockPelcoDDevice", "C++17 In-Memory Emulator", "Simulates PTZ motors, angles, preset registers, and query replies in memory (implements ITransport).")
         Component(status, "DeviceStatus", "C++17 Data Structures", "Telemetry state holding coordinates, alarm flags, and preset states.")
+    Container_Boundary_End()
+
+    Container_Boundary(sim, "PelcoDSim (Static Library)")
+        Component(mock, "MockPelcoDDevice", "C++17 In-Memory Emulator", "Simulates PTZ motors, angles, preset registers, and query replies in memory (implements ITransport).")
+        Component(kinSim, "KinematicsSimulator", "C++17 Class", "Physical PTZ dynamics with max speeds, acceleration limits, slew target tracking.")
+        Component(latPipe, "LatencyPipeline", "C++17 Class", "Deterministic latency, jitter, and packet drop simulation pipeline.")
     Container_Boundary_End()
 
     Container_Boundary(fuji, "PelcoDFujinon (Static Library)")
