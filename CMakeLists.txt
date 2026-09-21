@@ -314,6 +314,21 @@ if(BUILD_TESTING)
             )
         endif()
     endfunction()
+
+    if(WIN32)
+        find_program(OPENCPPCOVERAGE_EXE NAMES OpenCppCoverage.exe PATHS "C:/Program Files/OpenCppCoverage")
+        if(OPENCPPCOVERAGE_EXE)
+            find_program(POWERSHELL_EXE NAMES pwsh powershell)
+            if(NOT POWERSHELL_EXE)
+                set(POWERSHELL_EXE powershell)
+            endif()
+            add_custom_target(coverage
+                COMMAND "${POWERSHELL_EXE}" -ExecutionPolicy Bypass -File "${CMAKE_SOURCE_DIR}/scripts/RunCoverage.ps1"
+                WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+                COMMENT "Generating unified code coverage report with OpenCppCoverage..."
+            )
+        endif()
+    endif()
 endif()
 
 
