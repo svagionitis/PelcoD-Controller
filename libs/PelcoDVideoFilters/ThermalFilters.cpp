@@ -25,13 +25,8 @@ FalseColorFilter::FalseColorFilter(FalseColorPalette palette)
 
 void FalseColorFilter::initDefaultUserPalette()
 {
-    std::map<std::uint8_t, std::vector<std::uint8_t>> controlPoints = {
-        { 0, { 0, 0, 0 } },
-        { 64, { 128, 0, 128 } },
-        { 128, { 255, 0, 0 } },
-        { 192, { 255, 255, 0 } },
-        { 255, { 255, 255, 255 } }
-    };
+    std::map<std::uint8_t, std::vector<std::uint8_t>> controlPoints = { { 0, { 0, 0, 0 } }, { 64, { 128, 0, 128 } },
+        { 128, { 255, 0, 0 } }, { 192, { 255, 255, 0 } }, { 255, { 255, 255, 255 } } };
     generateInterpolatedPalette(controlPoints, true);
 }
 
@@ -326,7 +321,8 @@ void IsothermFilter::process(std::uint8_t* data, int width, int height, PixelFor
                     const double norm
                         = (high > low) ? static_cast<double>(luma - low) / static_cast<double>(high - low) : 0.5;
                     data[idx + rOff] = static_cast<std::uint8_t>(std::min(255.0, norm * 2.0 * 255.0));
-                    data[idx + gOff] = static_cast<std::uint8_t>(std::min(255.0, std::max(0.0, (norm - 0.5) * 2.0 * 255.0)));
+                    data[idx + gOff]
+                        = static_cast<std::uint8_t>(std::min(255.0, std::max(0.0, (norm - 0.5) * 2.0 * 255.0)));
                     data[idx + bOff] = static_cast<std::uint8_t>(std::max(0.0, (0.5 - norm) * 2.0 * 255.0));
                 } else {
                     data[idx + rOff] = alertR;
@@ -403,7 +399,7 @@ void HotspotTrackerFilter::process(std::uint8_t* data, int width, int height, Pi
         const int r = 7;
         cv::circle(mat, pt, r, color, 1, cv::LINE_AA);
         cv::line(mat, cv::Point(pt.x - r - 4, pt.y), cv::Point(pt.x + r + 4, pt.y), color, 1, cv::LINE_AA);
-        cv::line(mat, cv::Point(pt.x, pt.y - r - 4, pt.y), cv::Point(pt.x, pt.y + r + 4), color, 1, cv::LINE_AA);
+        cv::line(mat, cv::Point(pt.x, pt.y - r - 4), cv::Point(pt.x, pt.y + r + 4), color, 1, cv::LINE_AA);
         const int textX = std::min(width - 60, std::max(4, pt.x + r + 4));
         const int textY = std::min(height - 4, std::max(12, pt.y - r));
         cv::putText(mat, label, cv::Point(textX, textY), cv::FONT_HERSHEY_PLAIN, 0.8, color, 1, cv::LINE_AA);
