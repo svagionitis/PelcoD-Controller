@@ -5,6 +5,7 @@
 
 #include "BaseTransport.h"
 #include "ITransport.h"
+#include "MockTransport.h"
 
 #include <atomic>
 #include <iostream>

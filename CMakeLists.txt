@@ -194,10 +194,67 @@ set(CMAKE_BUILD_WITH_INSTALL_RPATH TRUE)
 set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR};$ORIGIN/../lib")
 
 # ==============================================================================
-# Subdirectories
+# Testing & Code Coverage Configuration
 # ==============================================================================
 option(BUILD_TESTING "Build unit tests" ON)
-enable_testing()
+option(PELCOD_ENABLE_COVERAGE "Enable code coverage instrumentation (GCC/Clang)" OFF)
+
+if(PELCOD_ENABLE_COVERAGE)
+    if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+        message(STATUS "PelcoD: Code coverage enabled (--coverage -O0 -g)")
+        add_compile_options(--coverage -O0 -g)
+        add_link_options(--coverage)
+    else()
+        message(STATUS "PelcoD: PELCOD_ENABLE_COVERAGE active on MSVC. Use OpenCppCoverage for execution analysis.")
+    endif()
+endif()
+
+if(BUILD_TESTING)
+    enable_testing()
+    find_package(GTest CONFIG QUIET)
+    if(NOT GTest_FOUND)
+        message(STATUS "PelcoD: GTest not found in system/vcpkg. Fetching GoogleTest via FetchContent...")
+        include(FetchContent)
+        FetchContent_Declare(
+            googletest
+            GIT_REPOSITORY https://github.com/google/googletest.git
+            GIT_TAG v1.15.2
+        )
+        set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
+        set(BUILD_GMOCK ON CACHE BOOL "" FORCE)
+        set(INSTALL_GTEST OFF CACHE BOOL "" FORCE)
+        set(_PELCOD_SAVED_AUTOUIC ${CMAKE_AUTOUIC})
+        set(_PELCOD_SAVED_AUTOMOC ${CMAKE_AUTOMOC})
+        set(_PELCOD_SAVED_AUTORCC ${CMAKE_AUTORCC})
+        set(CMAKE_AUTOUIC OFF)
+        set(CMAKE_AUTOMOC OFF)
+        set(CMAKE_AUTORCC OFF)
+
+        FetchContent_MakeAvailable(googletest)
+
+        set(CMAKE_AUTOUIC ${_PELCOD_SAVED_AUTOUIC})
+        set(CMAKE_AUTOMOC ${_PELCOD_SAVED_AUTOMOC})
+        set(CMAKE_AUTORCC ${_PELCOD_SAVED_AUTORCC})
+
+        if(TARGET gtest)
+            set_target_properties(gtest PROPERTIES AUTOMOC OFF AUTOUIC OFF AUTORCC OFF)
+        endif()
+        if(TARGET gtest_main)
+            set_target_properties(gtest_main PROPERTIES AUTOMOC OFF AUTOUIC OFF AUTORCC OFF)
+        endif()
+        if(TARGET gmock)
+            set_target_properties(gmock PROPERTIES AUTOMOC OFF AUTOUIC OFF AUTORCC OFF)
+        endif()
+        if(TARGET gmock_main)
+            set_target_properties(gmock_main PROPERTIES AUTOMOC OFF AUTOUIC OFF AUTORCC OFF)
+        endif()
+    endif()
+    include(GoogleTest)
+endif()
+
+# ==============================================================================
+# Subdirectories
+# ==============================================================================
 add_subdirectory(libs)
 add_subdirectory(app-qt)
 add_subdirectory(app-tui)

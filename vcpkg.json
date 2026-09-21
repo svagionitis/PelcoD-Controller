@@ -22,6 +22,7 @@
     },
     "gflags",
     "glog",
+    "gtest",
     "pugixml",
     {
       "name": "gstreamer",
