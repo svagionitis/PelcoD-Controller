@@ -166,8 +166,8 @@ void testSecondOrderResonanceDetection()
     assert(!result.resonancePeaks.empty());
 
     const double detectedResFreq = result.resonancePeaks.front().frequencyHz;
-    std::cout << "  -> Detected Resonance Mode: " << detectedResFreq << " Hz (Expected ~ 4.0 Hz, Q="
-              << result.resonancePeaks.front().qFactor << ")\n";
+    std::cout << "  -> Detected Resonance Mode: " << detectedResFreq
+              << " Hz (Expected ~ 4.0 Hz, Q=" << result.resonancePeaks.front().qFactor << ")\n";
 
     assert(std::abs(detectedResFreq - fn) <= 0.6); // Within 0.6 Hz frequency resolution
 
@@ -252,7 +252,7 @@ void testPidAutoTuningRules()
     std::vector<double> u(totalSamples);
     std::vector<double> y(totalSamples);
     for (std::size_t k = 0; k < totalSamples; ++k) {
-        u[k] = identifier.generateChirpSample(k * dt);
+        u[k] = identifier.generateChirpSample(static_cast<double>(k) * dt);
         y[k] = 1.2 * u[k];
     }
     identifier.analyze(u, y);
