@@ -5,7 +5,7 @@
 #include "ExtendedKalmanFilter.h"
 #include "MatrixMath.h"
 
-#include <cassert>
+#include <gtest/gtest.h>
 #include <cmath>
 #include <iostream>
 
@@ -38,15 +38,15 @@ Matrix<2, 6> linearJacobian(const Vector<6>&)
 
 // ---------------------------------------------------------------------------
 
-void testNotInitializedByDefault()
+TEST(ExtendedKalmanFilterTest, NotInitializedByDefault)
 {
     std::cout << "[Test] testNotInitializedByDefault\n";
     ExtendedKalmanFilter ekf;
-    assert(!ekf.isInitialized());
+    EXPECT_TRUE(!ekf.isInitialized());
     std::cout << "  -> PASSED\n";
 }
 
-void testInitMarksInitialized()
+TEST(ExtendedKalmanFilterTest, InitMarksInitialized)
 {
     std::cout << "[Test] testInitMarksInitialized\n";
     ExtendedKalmanFilter ekf;
@@ -56,15 +56,15 @@ void testInitMarksInitialized()
         P0(i, i) = 1.0;
     }
     ekf.init(x0, P0);
-    assert(ekf.isInitialized());
+    EXPECT_TRUE(ekf.isInitialized());
     const auto& state = ekf.getState();
     for (int i = 0; i < 6; ++i) {
-        assert(near(state[static_cast<std::size_t>(i)], 0.0));
+        EXPECT_TRUE(near(state[static_cast<std::size_t>(i)], 0.0));
     }
     std::cout << "  -> PASSED\n";
 }
 
-void testPredictAdvancesState()
+TEST(ExtendedKalmanFilterTest, PredictAdvancesState)
 {
     std::cout << "[Test] testPredictAdvancesState\n";
     ExtendedKalmanFilter ekf;
@@ -84,11 +84,11 @@ void testPredictAdvancesState()
 
     const auto& s = ekf.getState();
     // Position should advance: x0 + vx*dt
-    assert(s[0] > 1.0);
+    EXPECT_TRUE(s[0] > 1.0);
     std::cout << "  -> PASSED\n";
 }
 
-void testUpdateReducesCovariance()
+TEST(ExtendedKalmanFilterTest, UpdateReducesCovariance)
 {
     std::cout << "[Test] testUpdateReducesCovariance\n";
     ExtendedKalmanFilter ekf;
@@ -116,11 +116,11 @@ void testUpdateReducesCovariance()
         traceAfter += ekf.getCovariance()(i, i);
     }
 
-    assert(traceAfter < traceBefore);
+    EXPECT_TRUE(traceAfter < traceBefore);
     std::cout << "  -> PASSED\n";
 }
 
-void testGetInnovationAfterUpdate()
+TEST(ExtendedKalmanFilterTest, GetInnovationAfterUpdate)
 {
     std::cout << "[Test] testGetInnovationAfterUpdate\n";
     ExtendedKalmanFilter ekf;
@@ -142,12 +142,12 @@ void testGetInnovationAfterUpdate()
 
     const auto& innov = ekf.getInnovation();
     // Innovation = z - h(x_prior) = [0.5, 0.5]
-    assert(near(innov[0], 0.5, 0.05));
-    assert(near(innov[1], 0.5, 0.05));
+    EXPECT_TRUE(near(innov[0], 0.5, 0.05));
+    EXPECT_TRUE(near(innov[1], 0.5, 0.05));
     std::cout << "  -> PASSED\n";
 }
 
-void testMahalanobisDistanceIsPositive()
+TEST(ExtendedKalmanFilterTest, MahalanobisDistanceIsPositive)
 {
     std::cout << "[Test] testMahalanobisDistanceIsPositive\n";
     ExtendedKalmanFilter ekf;
@@ -164,11 +164,11 @@ void testMahalanobisDistanceIsPositive()
     R(1, 1) = 0.1;
     ekf.update(z, linearH, linearJacobian, R);
 
-    assert(ekf.getMahalanobisDistance() >= 0.0);
+    EXPECT_TRUE(ekf.getMahalanobisDistance() >= 0.0);
     std::cout << "  -> PASSED\n";
 }
 
-void testResetClearsState()
+TEST(ExtendedKalmanFilterTest, ResetClearsState)
 {
     std::cout << "[Test] testResetClearsState\n";
     ExtendedKalmanFilter ekf;
@@ -179,14 +179,14 @@ void testResetClearsState()
         P0(i, i) = 1.0;
     }
     ekf.init(x0, P0);
-    assert(ekf.isInitialized());
+    EXPECT_TRUE(ekf.isInitialized());
 
     ekf.reset();
-    assert(!ekf.isInitialized());
+    EXPECT_TRUE(!ekf.isInitialized());
     std::cout << "  -> PASSED\n";
 }
 
-void testSetProcessNoise()
+TEST(ExtendedKalmanFilterTest, SetProcessNoise)
 {
     std::cout << "[Test] testSetProcessNoise\n";
     ExtendedKalmanFilter ekf;
@@ -201,12 +201,12 @@ void testSetProcessNoise()
     ekf.predict(0.1);
     const auto& s = ekf.getState();
     for (int i = 0; i < 6; ++i) {
-        assert(std::isfinite(s[static_cast<std::size_t>(i)]));
+        EXPECT_TRUE(std::isfinite(s[static_cast<std::size_t>(i)]));
     }
     std::cout << "  -> PASSED\n";
 }
 
-void testPredictUpdateCycleConverges()
+TEST(ExtendedKalmanFilterTest, PredictUpdateCycleConverges)
 {
     std::cout << "[Test] testPredictUpdateCycleConverges\n";
     ExtendedKalmanFilter ekf;
@@ -229,26 +229,11 @@ void testPredictUpdateCycleConverges()
     }
 
     const auto& s = ekf.getState();
-    assert(near(s[0], 1.0, 0.05));
-    assert(near(s[1], 2.0, 0.05));
+    EXPECT_TRUE(near(s[0], 1.0, 0.05));
+    EXPECT_TRUE(near(s[1], 2.0, 0.05));
     std::cout << "  State after 50 cycles: (" << s[0] << ", " << s[1] << ")\n";
     std::cout << "  -> PASSED\n";
 }
 
 } // namespace
 
-int main()
-{
-    std::cout << "Running TestExtendedKalmanFilter Test Suite\n";
-    testNotInitializedByDefault();
-    testInitMarksInitialized();
-    testPredictAdvancesState();
-    testUpdateReducesCovariance();
-    testGetInnovationAfterUpdate();
-    testMahalanobisDistanceIsPositive();
-    testResetClearsState();
-    testSetProcessNoise();
-    testPredictUpdateCycleConverges();
-    std::cout << "All TestExtendedKalmanFilter Tests Passed!\n";
-    return 0;
-}

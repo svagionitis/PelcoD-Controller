@@ -5,7 +5,7 @@
 #include "PhaseCorrelation.h"
 
 #include <algorithm>
-#include <cassert>
+#include <gtest/gtest.h>
 #include <cmath>
 #include <iostream>
 #include <vector>
@@ -19,7 +19,7 @@ using namespace PelcoD::Math;
 
 namespace {
 
-void testFft2DIdentity()
+TEST(PhaseCorrelationTest, Fft2DIdentity)
 {
     std::cout << "[Test] testFft2DIdentity...\n";
     const std::size_t rows = 32U;
@@ -50,11 +50,11 @@ void testFft2DIdentity()
     }
 
     std::cout << "  -> Max reconstruction error: " << maxError << "\n";
-    assert(maxError < 1e-9);
+    EXPECT_TRUE(maxError < 1e-9);
     std::cout << "  -> PASSED\n";
 }
 
-void testWindow2D()
+TEST(PhaseCorrelationTest, Window2D)
 {
     std::cout << "[Test] testWindow2D...\n";
     const std::size_t rows = 32U;
@@ -64,17 +64,17 @@ void testWindow2D()
     applyWindow2D(image, rows, cols, WindowType::Hann);
 
     // Hann window is 0.0 at borders (index 0 and N-1)
-    assert(std::abs(image[0]) < 1e-6);
-    assert(std::abs(image[rows * cols - 1U]) < 1e-6);
+    EXPECT_TRUE(std::abs(image[0]) < 1e-6);
+    EXPECT_TRUE(std::abs(image[rows * cols - 1U]) < 1e-6);
 
     // Center value should remain close to 100.0
     const double centerVal = image[(rows / 2U) * cols + (cols / 2U)];
-    assert(centerVal > 90.0);
+    EXPECT_TRUE(centerVal > 90.0);
 
     std::cout << "  -> PASSED\n";
 }
 
-void testExactIntegerTranslation()
+TEST(PhaseCorrelationTest, ExactIntegerTranslation)
 {
     std::cout << "[Test] testExactIntegerTranslation...\n";
     const int width = 128;
@@ -114,15 +114,15 @@ void testExactIntegerTranslation()
     std::cout << "  -> Detected shift: (" << result.deltaX << ", " << result.deltaY
               << "), Peak: " << result.peakCorrelation << ", Confident: " << result.isConfident << "\n";
 
-    assert(result.isConfident);
-    assert(std::abs(result.deltaX - static_cast<double>(shiftX)) < 0.15);
-    assert(std::abs(result.deltaY - static_cast<double>(shiftY)) < 0.15);
-    assert(result.peakCorrelation > 0.2);
+    EXPECT_TRUE(result.isConfident);
+    EXPECT_TRUE(std::abs(result.deltaX - static_cast<double>(shiftX)) < 0.15);
+    EXPECT_TRUE(std::abs(result.deltaY - static_cast<double>(shiftY)) < 0.15);
+    EXPECT_TRUE(result.peakCorrelation > 0.2);
 
     std::cout << "  -> PASSED\n";
 }
 
-void testSubPixelFractionalTranslation()
+TEST(PhaseCorrelationTest, SubPixelFractionalTranslation)
 {
     std::cout << "[Test] testSubPixelFractionalTranslation...\n";
     const int width = 128;
@@ -212,15 +212,15 @@ void testSubPixelFractionalTranslation()
     std::cout << "  -> Expected: (" << trueShiftX << ", " << trueShiftY << "), Detected: (" << result.deltaX << ", "
               << result.deltaY << "), Peak: " << result.peakCorrelation << "\n";
 
-    assert(result.isConfident);
-    assert(std::abs(result.deltaX - trueShiftX) < 0.35);
-    assert(std::abs(result.deltaY - trueShiftY) < 0.35);
-    assert(result.peakCorrelation > 0.3);
+    EXPECT_TRUE(result.isConfident);
+    EXPECT_TRUE(std::abs(result.deltaX - trueShiftX) < 0.35);
+    EXPECT_TRUE(std::abs(result.deltaY - trueShiftY) < 0.35);
+    EXPECT_TRUE(result.peakCorrelation > 0.3);
 
     std::cout << "  -> PASSED\n";
 }
 
-void testIlluminationInvariance()
+TEST(PhaseCorrelationTest, IlluminationInvariance)
 {
     std::cout << "[Test] testIlluminationInvariance...\n";
     const int width = 128;
@@ -256,15 +256,15 @@ void testIlluminationInvariance()
     std::cout << "  -> Detected with severe illumination change: (" << result.deltaX << ", " << result.deltaY
               << "), Peak: " << result.peakCorrelation << "\n";
 
-    assert(result.isConfident);
-    assert(std::abs(result.deltaX - static_cast<double>(shiftX)) < 0.2);
-    assert(std::abs(result.deltaY - static_cast<double>(shiftY)) < 0.2);
-    assert(result.peakCorrelation > 0.4);
+    EXPECT_TRUE(result.isConfident);
+    EXPECT_TRUE(std::abs(result.deltaX - static_cast<double>(shiftX)) < 0.2);
+    EXPECT_TRUE(std::abs(result.deltaY - static_cast<double>(shiftY)) < 0.2);
+    EXPECT_TRUE(result.peakCorrelation > 0.4);
 
     std::cout << "  -> PASSED\n";
 }
 
-void testUncorrelatedSceneRejection()
+TEST(PhaseCorrelationTest, UncorrelatedSceneRejection)
 {
     std::cout << "[Test] testUncorrelatedSceneRejection...\n";
     const int width = 128;
@@ -290,52 +290,33 @@ void testUncorrelatedSceneRejection()
     std::cout << "  -> Uncorrelated scene peak: " << result.peakCorrelation << ", isConfident: " << result.isConfident
               << "\n";
 
-    assert(!result.isConfident);
-    assert(result.peakCorrelation < 0.15);
+    EXPECT_TRUE(!result.isConfident);
+    EXPECT_TRUE(result.peakCorrelation < 0.15);
 
     std::cout << "  -> PASSED\n";
 }
 
-void testNullOrInvalidInputs()
+TEST(PhaseCorrelationTest, NullOrInvalidInputs)
 {
     std::cout << "[Test] testNullOrInvalidInputs...\n";
     PhaseCorrelationEstimator estimator;
     std::uint8_t dummy[16] { 0 };
 
     const MotionResult res1 = estimator.estimateMotion(nullptr, dummy, 4, 4);
-    assert(!res1.isConfident);
-    assert(res1.peakCorrelation == 0.0);
+    EXPECT_TRUE(!res1.isConfident);
+    EXPECT_TRUE(res1.peakCorrelation == 0.0);
 
     const MotionResult res2 = estimator.estimateMotion(dummy, nullptr, 4, 4);
-    assert(!res2.isConfident);
+    EXPECT_TRUE(!res2.isConfident);
 
     const MotionResult res3 = estimator.estimateMotion(dummy, dummy, 0, 4);
-    assert(!res3.isConfident);
+    EXPECT_TRUE(!res3.isConfident);
 
     const MotionResult res4 = estimator.estimateMotion(dummy, dummy, 4, -1);
-    assert(!res4.isConfident);
+    EXPECT_TRUE(!res4.isConfident);
 
     std::cout << "  -> PASSED\n";
 }
 
 } // namespace
 
-int main()
-{
-    std::cout << "========================================\n";
-    std::cout << "Running PhaseCorrelation Unit Tests\n";
-    std::cout << "========================================\n";
-
-    testFft2DIdentity();
-    testWindow2D();
-    testExactIntegerTranslation();
-    testSubPixelFractionalTranslation();
-    testIlluminationInvariance();
-    testUncorrelatedSceneRejection();
-    testNullOrInvalidInputs();
-
-    std::cout << "========================================\n";
-    std::cout << "ALL PHASE CORRELATION TESTS PASSED!\n";
-    std::cout << "========================================\n";
-    return 0;
-}

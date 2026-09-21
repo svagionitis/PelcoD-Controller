@@ -1,6 +1,5 @@
 /// @file TestProtocolCompleteness.cpp
 /// @brief TDD regression tests for protocol bug fixes and missing opcode coverage.
-///        All tests must FAIL before the fix is applied, then PASS after.
 
 #include "DeviceStatus.h"
 #include "PelcoDFrame.h"
@@ -9,15 +8,17 @@
 #include "ProtocolParser.h"
 #include "TestHelpers.h"
 
-#include <cassert>
+#include <gtest/gtest.h>
+
 #include <cstdint>
-#include <iostream>
 #include <vector>
+
+namespace {
 
 // ---------------------------------------------------------------------------
 // Bug 1: QueryMagnification response (0x63) silently discarded
 // ---------------------------------------------------------------------------
-static void testMagnificationResponseWired()
+TEST(ProtocolCompletenessTest, MagnificationResponseWired)
 {
     // Construct a valid 7-byte 0x63 Magnification response frame.
     // Frame: FF addr 00 0x63 msb lsb csum
@@ -33,44 +34,36 @@ static void testMagnificationResponseWired()
     PelcoD::DeviceInfo info {};
     const bool ok = PelcoD::ProtocolParser::updateStatus(frame, status, info);
 
-    assert(ok && "updateStatus must return true for valid 0x63 response");
-    assert(status.magnification == magValue && "magnification must be populated from 0x63 response");
-
-    std::cout << "  testMagnificationResponseWired: magnification=" << status.magnification << " — PASSED\n";
+    EXPECT_TRUE(ok);
+    EXPECT_EQ(status.magnification, magValue);
 }
 
 // ---------------------------------------------------------------------------
 // Bug 2: buildSetZeroPosition must emit opcode 0x49, not GoToPreset
 // ---------------------------------------------------------------------------
-static void testSetZeroPositionOpcode()
+TEST(ProtocolCompletenessTest, SetZeroPositionOpcode)
 {
     const auto frame = PelcoD::ProtocolBuilder::buildSetZeroPosition(0x01U);
-    assert(frame.size() == 7U && "frame must be 7 bytes");
+    ASSERT_EQ(frame.size(), 7U);
     // Byte [3] is cmd2 — must be 0x49
-    assert(frame[3] == 0x49U && "buildSetZeroPosition must emit opcode 0x49");
+    EXPECT_EQ(frame[3], 0x49U);
     // Must NOT be GoToPreset (0x07) with data2=0x22
-    assert(!(frame[3] == 0x07U && frame[5] == 0x22U) && "must not alias GoToPreset 0x22");
-
-    std::cout << "  testSetZeroPositionOpcode: opcode=0x" << std::hex << static_cast<int>(frame[3]) << std::dec
-              << " — PASSED\n";
+    EXPECT_FALSE(frame[3] == 0x07U && frame[5] == 0x22U);
 }
 
 // ---------------------------------------------------------------------------
 // Bug 3: Enum values for Download opcodes
 // ---------------------------------------------------------------------------
-static void testDownloadEnumValues()
+TEST(ProtocolCompletenessTest, DownloadEnumValues)
 {
-    assert(static_cast<std::uint8_t>(PelcoD::CommandOpcode::PrepareForDownload) == 0x57U
-        && "PrepareForDownload must be 0x57");
-    assert(static_cast<std::uint8_t>(PelcoD::CommandOpcode::StartDownload) == 0x69U && "StartDownload must be 0x69");
-
-    std::cout << "  testDownloadEnumValues — PASSED\n";
+    EXPECT_EQ(static_cast<std::uint8_t>(PelcoD::CommandOpcode::PrepareForDownload), 0x57U);
+    EXPECT_EQ(static_cast<std::uint8_t>(PelcoD::CommandOpcode::StartDownload), 0x69U);
 }
 
 // ---------------------------------------------------------------------------
 // ACK/NAK: Standard Extended Response (0x01) must be parsed
 // ---------------------------------------------------------------------------
-static void testAckNakParsed()
+TEST(ProtocolCompletenessTest, AckNakParsed)
 {
     // ACK frame: FF addr 00 0x01 opcode 0x00 csum  (resp_type=0x01 ACK)
     const std::uint8_t addr { 0x01U };
@@ -84,17 +77,15 @@ static void testAckNakParsed()
     PelcoD::DeviceInfo info {};
     const bool ok = PelcoD::ProtocolParser::updateStatus(frame, status, info);
 
-    assert(ok && "updateStatus must return true for valid 0x01 ACK response");
-    assert(status.lastAckOk && "lastAckOk must be true for ACK frame");
-    assert(status.lastAckOpcode == echoOpcode && "lastAckOpcode must reflect echoed opcode");
-
-    std::cout << "  testAckNakParsed — PASSED\n";
+    EXPECT_TRUE(ok);
+    EXPECT_TRUE(status.lastAckOk);
+    EXPECT_EQ(status.lastAckOpcode, echoOpcode);
 }
 
 // ---------------------------------------------------------------------------
 // New builders: verify opcode byte in position [3]
 // ---------------------------------------------------------------------------
-static void testNewBuilderOpcodes()
+TEST(ProtocolCompletenessTest, NewBuilderOpcodes)
 {
     struct Case {
         std::vector<std::uint8_t> frame;
@@ -114,17 +105,15 @@ static void testNewBuilderOpcodes()
     };
 
     for (const auto& c : cases) {
-        assert(c.frame.size() == 7U && "all frames must be 7 bytes");
-        assert(c.frame[3] == c.expectedOpcode && "opcode byte must match spec");
-        std::cout << "  testNewBuilderOpcodes [" << c.name << "]: opcode=0x" << std::hex << static_cast<int>(c.frame[3])
-                  << std::dec << " — PASSED\n";
+        ASSERT_EQ(c.frame.size(), 7U) << "Case: " << c.name;
+        EXPECT_EQ(c.frame[3], c.expectedOpcode) << "Case: " << c.name;
     }
 }
 
 // ---------------------------------------------------------------------------
 // Diagnostics response (0x71) must be parsed
 // ---------------------------------------------------------------------------
-static void testDiagnosticsResponseParsed()
+TEST(ProtocolCompletenessTest, DiagnosticsResponseParsed)
 {
     // 7-byte frame: FF addr 00 0x71 temp sensorId csum
     const std::uint8_t addr { 0x01U };
@@ -138,23 +127,9 @@ static void testDiagnosticsResponseParsed()
     PelcoD::DeviceInfo info {};
     const bool ok = PelcoD::ProtocolParser::updateStatus(frame, status, info);
 
-    assert(ok && "updateStatus must return true for valid 0x71 diagnostics response");
-    assert(status.diagnosticTemp == temp && "diagnosticTemp must be populated");
-    assert(status.diagnosticSensorId == sensorId && "diagnosticSensorId must be populated");
-
-    std::cout << "  testDiagnosticsResponseParsed — PASSED\n";
+    EXPECT_TRUE(ok);
+    EXPECT_EQ(status.diagnosticTemp, temp);
+    EXPECT_EQ(status.diagnosticSensorId, sensorId);
 }
 
-int main()
-{
-    PelcoDTest::initTestHarness();
-    std::cout << "[TestProtocolCompleteness] Running...\n";
-    testMagnificationResponseWired();
-    testSetZeroPositionOpcode();
-    testDownloadEnumValues();
-    testAckNakParsed();
-    testNewBuilderOpcodes();
-    testDiagnosticsResponseParsed();
-    std::cout << "[TestProtocolCompleteness] All tests passed.\n";
-    return 0;
-}
+} // namespace

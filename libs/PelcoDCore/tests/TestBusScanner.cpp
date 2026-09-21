@@ -4,49 +4,50 @@
 #include "BusScanner.h"
 #include "MockPelcoDDevice.h"
 
+#include <gtest/gtest.h>
+
 #include <atomic>
-#include <cassert>
 #include <chrono>
 #include <cstdint>
-#include <iostream>
 #include <memory>
+#include <mutex>
 #include <thread>
 #include <vector>
 
+namespace {
+
 /// @brief Verify validation of invalid address ranges.
-static void testRangeValidation()
+TEST(BusScannerTest, RangeValidation)
 {
     auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(1U);
     PelcoD::BusScanner scanner(mock);
 
-    assert(scanner.getState() == PelcoD::ScanState::Idle);
-    assert(!scanner.isScanning());
-    assert(!scanner.isPaused());
+    EXPECT_EQ(scanner.getState(), PelcoD::ScanState::Idle);
+    EXPECT_FALSE(scanner.isScanning());
+    EXPECT_FALSE(scanner.isPaused());
 
     // Invalid: start > end
     PelcoD::ScanConfig cfg1;
     cfg1.startAddress = 10U;
     cfg1.endAddress = 5U;
-    assert(!scanner.startScan(cfg1));
-    assert(scanner.getState() == PelcoD::ScanState::Idle);
+    EXPECT_FALSE(scanner.startScan(cfg1));
+    EXPECT_EQ(scanner.getState(), PelcoD::ScanState::Idle);
 
     // Invalid: start == 0
     PelcoD::ScanConfig cfg2;
     cfg2.startAddress = 0U;
     cfg2.endAddress = 10U;
-    assert(!scanner.startScan(cfg2));
+    EXPECT_FALSE(scanner.startScan(cfg2));
 
     // Invalid: end == 255 (valid range is 1-254)
     PelcoD::ScanConfig cfg3;
     cfg3.startAddress = 1U;
     cfg3.endAddress = 255U;
-    assert(!scanner.startScan(cfg3));
-
-    std::cout << "  testRangeValidation: PASSED\n";
+    EXPECT_FALSE(scanner.startScan(cfg3));
 }
 
 /// @brief Verify discovery of a mock device on an active address.
-static void testSingleDeviceDiscovery()
+TEST(BusScannerTest, SingleDeviceDiscovery)
 {
     const std::uint8_t targetAddr = 3U;
     auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(targetAddr);
@@ -83,38 +84,36 @@ static void testSingleDeviceDiscovery()
         totalFoundCount.store(devs.size());
     });
 
-    assert(scanner.startScan(cfg));
-    assert(scanner.isScanning());
+    ASSERT_TRUE(scanner.startScan(cfg));
+    EXPECT_TRUE(scanner.isScanning());
 
     // Wait for scan to complete (max 2 seconds)
     const auto startTime = std::chrono::steady_clock::now();
     while (scanner.isScanning() || !finished.load()) {
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
         if (std::chrono::steady_clock::now() - startTime > std::chrono::seconds(2)) {
-            assert(false && "Scan timed out waiting for completion");
+            FAIL() << "Scan timed out waiting for completion";
         }
     }
 
-    assert(scanner.getState() == PelcoD::ScanState::Idle);
-    assert(finished.load());
-    assert(totalFoundCount.load() == 1U);
+    EXPECT_EQ(scanner.getState(), PelcoD::ScanState::Idle);
+    EXPECT_TRUE(finished.load());
+    EXPECT_EQ(totalFoundCount.load(), 1U);
 
     const auto foundList = scanner.getDiscoveredDevices();
-    assert(foundList.size() == 1U);
-    assert(foundList[0].address == targetAddr);
-    assert(foundList[0].hasPanPosition);
-    assert(foundList[0].panCentidegrees == 9000);
+    ASSERT_EQ(foundList.size(), 1U);
+    EXPECT_EQ(foundList[0].address, targetAddr);
+    EXPECT_TRUE(foundList[0].hasPanPosition);
+    EXPECT_EQ(foundList[0].panCentidegrees, 9000);
 
-    assert(deviceFound.load());
-    assert(discoveredAddr.load() == targetAddr);
-    assert(hasPan.load());
-    assert(panAngle.load() == 9000);
-
-    std::cout << "  testSingleDeviceDiscovery: PASSED\n";
+    EXPECT_TRUE(deviceFound.load());
+    EXPECT_EQ(discoveredAddr.load(), targetAddr);
+    EXPECT_TRUE(hasPan.load());
+    EXPECT_EQ(panAngle.load(), 9000);
 }
 
 /// @brief Verify progress callbacks are reported for each address.
-static void testProgressCallbacks()
+TEST(BusScannerTest, ProgressCallbacks)
 {
     auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(1U);
     PelcoD::BusScanner scanner(mock);
@@ -137,27 +136,25 @@ static void testProgressCallbacks()
         callbackCount.fetch_add(1);
     });
 
-    assert(scanner.startScan(cfg));
+    ASSERT_TRUE(scanner.startScan(cfg));
     while (scanner.isScanning() || callbackCount.load() < 3U) {
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
 
     std::lock_guard<std::mutex> lock(cbMutex);
-    assert(reportedAddresses.size() == 3U);
-    assert(reportedAddresses[0] == 1U);
-    assert(reportedAddresses[1] == 2U);
-    assert(reportedAddresses[2] == 3U);
+    ASSERT_EQ(reportedAddresses.size(), 3U);
+    EXPECT_EQ(reportedAddresses[0], 1U);
+    EXPECT_EQ(reportedAddresses[1], 2U);
+    EXPECT_EQ(reportedAddresses[2], 3U);
 
-    assert(reportedCounts.size() == 3U);
-    assert(reportedCounts[0] == 1U);
-    assert(reportedCounts[1] == 2U);
-    assert(reportedCounts[2] == 3U);
-
-    std::cout << "  testProgressCallbacks: PASSED\n";
+    ASSERT_EQ(reportedCounts.size(), 3U);
+    EXPECT_EQ(reportedCounts[0], 1U);
+    EXPECT_EQ(reportedCounts[1], 2U);
+    EXPECT_EQ(reportedCounts[2], 3U);
 }
 
 /// @brief Verify stopScan aborts an active scan immediately.
-static void testStopScan()
+TEST(BusScannerTest, StopScan)
 {
     auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(200U);
     PelcoD::BusScanner scanner(mock);
@@ -172,7 +169,7 @@ static void testStopScan()
     scanner.setScanProgressCallback(
         [&](std::uint8_t /*curr*/, std::size_t scanned, std::size_t /*tot*/) { scannedCount.store(scanned); });
 
-    assert(scanner.startScan(cfg));
+    ASSERT_TRUE(scanner.startScan(cfg));
     // Wait until at least 1 address is scanned
     while (scannedCount.load() < 1U) {
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
@@ -185,19 +182,17 @@ static void testStopScan()
     while (scanner.getState() != PelcoD::ScanState::Idle) {
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
         if (std::chrono::steady_clock::now() - stopStart > std::chrono::milliseconds(500)) {
-            assert(false && "stopScan did not terminate in expected timeframe");
+            FAIL() << "stopScan did not terminate in expected timeframe";
         }
     }
 
-    assert(scanner.getState() == PelcoD::ScanState::Idle);
+    EXPECT_EQ(scanner.getState(), PelcoD::ScanState::Idle);
     // Should have stopped well before reaching address 20
-    assert(scannedCount.load() < 20U);
-
-    std::cout << "  testStopScan: PASSED\n";
+    EXPECT_LT(scannedCount.load(), 20U);
 }
 
 /// @brief Verify pause and resume operations.
-static void testPauseResume()
+TEST(BusScannerTest, PauseResume)
 {
     auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(1U);
     PelcoD::BusScanner scanner(mock);
@@ -208,32 +203,30 @@ static void testPauseResume()
     cfg.timeoutMs = 50U;
     cfg.interCommandDelayMs = 5U;
 
-    assert(scanner.startScan(cfg));
+    ASSERT_TRUE(scanner.startScan(cfg));
     std::this_thread::sleep_for(std::chrono::milliseconds(30));
 
     scanner.pauseScan();
-    assert(scanner.isPaused());
-    assert(scanner.getState() == PelcoD::ScanState::Paused);
+    EXPECT_TRUE(scanner.isPaused());
+    EXPECT_EQ(scanner.getState(), PelcoD::ScanState::Paused);
 
     // Sleep while paused
     std::this_thread::sleep_for(std::chrono::milliseconds(60));
-    assert(scanner.isPaused());
+    EXPECT_TRUE(scanner.isPaused());
 
     // Resume
     scanner.resumeScan();
-    assert(!scanner.isPaused());
+    EXPECT_FALSE(scanner.isPaused());
 
     while (scanner.isScanning()) {
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
 
-    assert(scanner.getState() == PelcoD::ScanState::Idle);
-
-    std::cout << "  testPauseResume: PASSED\n";
+    EXPECT_EQ(scanner.getState(), PelcoD::ScanState::Idle);
 }
 
 /// @brief Verify stopping an active scan while it is paused immediately wakes the condition variable.
-static void testStopWhilePaused()
+TEST(BusScannerTest, StopWhilePaused)
 {
     auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(1U);
     PelcoD::BusScanner scanner(mock);
@@ -244,12 +237,12 @@ static void testStopWhilePaused()
     cfg.timeoutMs = 100U;
     cfg.interCommandDelayMs = 10U;
 
-    assert(scanner.startScan(cfg));
+    ASSERT_TRUE(scanner.startScan(cfg));
     std::this_thread::sleep_for(std::chrono::milliseconds(20));
 
     scanner.pauseScan();
-    assert(scanner.isPaused());
-    assert(scanner.getState() == PelcoD::ScanState::Paused);
+    EXPECT_TRUE(scanner.isPaused());
+    EXPECT_EQ(scanner.getState(), PelcoD::ScanState::Paused);
 
     // Call stopScan while paused - must immediately notify m_pauseCv and join worker
     const auto stopStart = std::chrono::steady_clock::now();
@@ -257,16 +250,14 @@ static void testStopWhilePaused()
     const auto stopDuration
         = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - stopStart);
 
-    assert(!scanner.isScanning());
-    assert(!scanner.isPaused());
-    assert(scanner.getState() == PelcoD::ScanState::Idle);
-    assert(stopDuration < std::chrono::milliseconds(100) && "stopScan while paused took too long!");
-
-    std::cout << "  testStopWhilePaused: PASSED\n";
+    EXPECT_FALSE(scanner.isScanning());
+    EXPECT_FALSE(scanner.isPaused());
+    EXPECT_EQ(scanner.getState(), PelcoD::ScanState::Idle);
+    EXPECT_LT(stopDuration, std::chrono::milliseconds(100)) << "stopScan while paused took too long!";
 }
 
 /// @brief Verify multi-baud auto-discovery identifies device running at a non-default baud rate.
-static void testMultiBaudDiscovery()
+TEST(BusScannerTest, MultiBaudDiscovery)
 {
     const std::uint8_t targetAddr = 7U;
     auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(targetAddr);
@@ -315,50 +306,48 @@ static void testMultiBaudDiscovery()
         totalFoundCount.store(devs.size());
     });
 
-    assert(scanner.startScan(cfg));
-    assert(scanner.isScanning());
+    ASSERT_TRUE(scanner.startScan(cfg));
+    EXPECT_TRUE(scanner.isScanning());
 
     const auto startTime = std::chrono::steady_clock::now();
     while (scanner.isScanning() || !finished.load()) {
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
         if (std::chrono::steady_clock::now() - startTime > std::chrono::seconds(5)) {
-            assert(false && "Multi-baud scan timed out");
+            FAIL() << "Multi-baud scan timed out";
         }
     }
 
-    assert(scanner.getState() == PelcoD::ScanState::Idle);
-    assert(finished.load());
-    assert(totalFoundCount.load() == 1U);
-    assert(deviceFound.load());
-    assert(discoveredAddr.load() == targetAddr);
-    assert(discoveredBaud.load() == 19200U);
-    assert(panAngle.load() == 4500);
+    EXPECT_EQ(scanner.getState(), PelcoD::ScanState::Idle);
+    EXPECT_TRUE(finished.load());
+    EXPECT_EQ(totalFoundCount.load(), 1U);
+    EXPECT_TRUE(deviceFound.load());
+    EXPECT_EQ(discoveredAddr.load(), targetAddr);
+    EXPECT_EQ(discoveredBaud.load(), 19200U);
+    EXPECT_EQ(panAngle.load(), 4500);
 
     const auto foundList = scanner.getDiscoveredDevices();
-    assert(foundList.size() == 1U);
-    assert(foundList[0].address == targetAddr);
-    assert(foundList[0].baudRate == 19200U);
-    assert(foundList[0].hasPanPosition);
+    ASSERT_EQ(foundList.size(), 1U);
+    EXPECT_EQ(foundList[0].address, targetAddr);
+    EXPECT_EQ(foundList[0].baudRate, 19200U);
+    EXPECT_TRUE(foundList[0].hasPanPosition);
 
     // Verify all 5 baud rates were tested
     {
         std::lock_guard<std::mutex> lock(baudMutex);
-        assert(baudsVisited.size() == 5U);
-        assert(baudsVisited[0] == 2400U);
-        assert(baudsVisited[1] == 4800U);
-        assert(baudsVisited[2] == 9600U);
-        assert(baudsVisited[3] == 19200U);
-        assert(baudsVisited[4] == 38400U);
+        ASSERT_EQ(baudsVisited.size(), 5U);
+        EXPECT_EQ(baudsVisited[0], 2400U);
+        EXPECT_EQ(baudsVisited[1], 4800U);
+        EXPECT_EQ(baudsVisited[2], 9600U);
+        EXPECT_EQ(baudsVisited[3], 19200U);
+        EXPECT_EQ(baudsVisited[4], 38400U);
     }
 
     // Pre-scan baud rate (9600U) must be restored after scan finishes
-    assert(mock->getBaudRate() == 9600U);
-
-    std::cout << "  testMultiBaudDiscovery: PASSED\n";
+    EXPECT_EQ(mock->getBaudRate(), 9600U);
 }
 
 /// @brief Verify multi-baud progress reports correct total count and baud rates.
-static void testMultiBaudProgressAndCount()
+TEST(BusScannerTest, MultiBaudProgressAndCount)
 {
     auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(1U);
     PelcoD::BusScanner scanner(mock);
@@ -384,30 +373,29 @@ static void testMultiBaudProgressAndCount()
             reportedTotals.push_back(total);
         });
 
-    assert(scanner.startScan(cfg));
+    ASSERT_TRUE(scanner.startScan(cfg));
     while (scanner.isScanning()) {
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
 
     std::lock_guard<std::mutex> lock(cbMutex);
-    assert(reportedCounts.size() == 6U);
-    assert(reportedTotals.size() == 6U);
-    assert(reportedTotals[0] == 6U);
-    assert(reportedCounts.back() == 6U);
+    ASSERT_EQ(reportedCounts.size(), 6U);
+    ASSERT_EQ(reportedTotals.size(), 6U);
+    EXPECT_EQ(reportedTotals[0], 6U);
+    EXPECT_EQ(reportedCounts.back(), 6U);
 
     // 2 probes at 2400, 2 at 4800, 2 at 9600
-    assert(reportedBauds[0] == 2400U);
-    assert(reportedBauds[1] == 2400U);
-    assert(reportedBauds[2] == 4800U);
-    assert(reportedBauds[3] == 4800U);
-    assert(reportedBauds[4] == 9600U);
-    assert(reportedBauds[5] == 9600U);
-
-    std::cout << "  testMultiBaudProgressAndCount: PASSED\n";
+    ASSERT_EQ(reportedBauds.size(), 6U);
+    EXPECT_EQ(reportedBauds[0], 2400U);
+    EXPECT_EQ(reportedBauds[1], 2400U);
+    EXPECT_EQ(reportedBauds[2], 4800U);
+    EXPECT_EQ(reportedBauds[3], 4800U);
+    EXPECT_EQ(reportedBauds[4], 9600U);
+    EXPECT_EQ(reportedBauds[5], 9600U);
 }
 
 /// @brief Verify stopping an active multi-baud scan terminates immediately and restores baud rate.
-static void testMultiBaudStopScan()
+TEST(BusScannerTest, MultiBaudStopScan)
 {
     auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(1U);
     mock->setBaudRate(9600U);
@@ -424,7 +412,7 @@ static void testMultiBaudStopScan()
     scanner.setScanProgressCallback(
         [&](std::uint8_t /*curr*/, std::size_t scanned, std::size_t /*tot*/) { scannedCount.store(scanned); });
 
-    assert(scanner.startScan(cfg));
+    ASSERT_TRUE(scanner.startScan(cfg));
     while (scannedCount.load() < 2U) {
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
@@ -435,32 +423,14 @@ static void testMultiBaudStopScan()
     while (scanner.getState() != PelcoD::ScanState::Idle) {
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
         if (std::chrono::steady_clock::now() - stopStart > std::chrono::milliseconds(500)) {
-            assert(false && "stopScan did not terminate in expected timeframe");
+            FAIL() << "stopScan did not terminate in expected timeframe";
         }
     }
 
-    assert(scanner.getState() == PelcoD::ScanState::Idle);
-    assert(scannedCount.load() < 250U);
+    EXPECT_EQ(scanner.getState(), PelcoD::ScanState::Idle);
+    EXPECT_LT(scannedCount.load(), 250U);
     // Original baud rate (9600) must be restored
-    assert(mock->getBaudRate() == 9600U);
-
-    std::cout << "  testMultiBaudStopScan: PASSED\n";
+    EXPECT_EQ(mock->getBaudRate(), 9600U);
 }
 
-int main()
-{
-    std::cout << "Running TestBusScanner...\n";
-
-    testRangeValidation();
-    testSingleDeviceDiscovery();
-    testProgressCallbacks();
-    testStopScan();
-    testPauseResume();
-    testStopWhilePaused();
-    testMultiBaudDiscovery();
-    testMultiBaudProgressAndCount();
-    testMultiBaudStopScan();
-
-    std::cout << "All TestBusScanner tests PASSED!\n";
-    return 0;
-}
+} // namespace

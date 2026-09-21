@@ -4,7 +4,7 @@
 
 #include "NotchFilter.h"
 
-#include <cassert>
+#include <gtest/gtest.h>
 #include <cmath>
 #include <iostream>
 #include <vector>
@@ -38,69 +38,69 @@ double rms(const std::vector<double>& v, std::size_t skipSamples = 0U)
 
 // ---------------------------------------------------------------------------
 
-void testConstructorDefaults()
+TEST(NotchFilterTest, ConstructorDefaults)
 {
     std::cout << "[Test] testConstructorDefaults\n";
     PelcoD::NotchFilter f;
-    assert(f.getCenterFrequency() == 10.0);
-    assert(f.getSampleRate() == 50.0);
-    assert(f.getQFactor() == 5.0);
+    EXPECT_TRUE(f.getCenterFrequency() == 10.0);
+    EXPECT_TRUE(f.getSampleRate() == 50.0);
+    EXPECT_TRUE(f.getQFactor() == 5.0);
     std::cout << "  -> PASSED\n";
 }
 
-void testConstructorCustomParams()
+TEST(NotchFilterTest, ConstructorCustomParams)
 {
     std::cout << "[Test] testConstructorCustomParams\n";
     PelcoD::NotchFilter f { 20.0, 200.0, 8.0 };
-    assert(f.getCenterFrequency() == 20.0);
-    assert(f.getSampleRate() == 200.0);
-    assert(f.getQFactor() == 8.0);
+    EXPECT_TRUE(f.getCenterFrequency() == 20.0);
+    EXPECT_TRUE(f.getSampleRate() == 200.0);
+    EXPECT_TRUE(f.getQFactor() == 8.0);
     std::cout << "  -> PASSED\n";
 }
 
-void testQFactorClampedAtConstruction()
+TEST(NotchFilterTest, QFactorClampedAtConstruction)
 {
     std::cout << "[Test] testQFactorClampedAtConstruction\n";
     // Q <= 0 must be clamped to 0.1
     PelcoD::NotchFilter f { 10.0, 100.0, 0.0 };
-    assert(f.getQFactor() >= 0.1);
+    EXPECT_TRUE(f.getQFactor() >= 0.1);
     PelcoD::NotchFilter f2 { 10.0, 100.0, -5.0 };
-    assert(f2.getQFactor() >= 0.1);
+    EXPECT_TRUE(f2.getQFactor() >= 0.1);
     std::cout << "  -> PASSED\n";
 }
 
-void testSetParametersUpdatesGetters()
+TEST(NotchFilterTest, SetParametersUpdatesGetters)
 {
     std::cout << "[Test] testSetParametersUpdatesGetters\n";
     PelcoD::NotchFilter f;
     f.setParameters(25.0, 100.0, 3.0);
-    assert(f.getCenterFrequency() == 25.0);
-    assert(f.getSampleRate() == 100.0);
-    assert(f.getQFactor() == 3.0);
+    EXPECT_TRUE(f.getCenterFrequency() == 25.0);
+    EXPECT_TRUE(f.getSampleRate() == 100.0);
+    EXPECT_TRUE(f.getQFactor() == 3.0);
     std::cout << "  -> PASSED\n";
 }
 
-void testSetParametersQClamp()
+TEST(NotchFilterTest, SetParametersQClamp)
 {
     std::cout << "[Test] testSetParametersQClamp\n";
     PelcoD::NotchFilter f;
     f.setParameters(10.0, 100.0, -1.0);
-    assert(f.getQFactor() >= 0.1);
+    EXPECT_TRUE(f.getQFactor() >= 0.1);
     f.setParameters(10.0, 100.0, 0.0);
-    assert(f.getQFactor() >= 0.1);
+    EXPECT_TRUE(f.getQFactor() >= 0.1);
     std::cout << "  -> PASSED\n";
 }
 
-void testSetParametersSampleRateClamp()
+TEST(NotchFilterTest, SetParametersSampleRateClamp)
 {
     std::cout << "[Test] testSetParametersSampleRateClamp\n";
     PelcoD::NotchFilter f;
     f.setParameters(10.0, 0.0, 5.0); // sample rate clamped to 1 Hz
-    assert(f.getSampleRate() >= 1.0);
+    EXPECT_TRUE(f.getSampleRate() >= 1.0);
     std::cout << "  -> PASSED\n";
 }
 
-void testNotchFrequencyAttenuated()
+TEST(NotchFilterTest, NotchFrequencyAttenuated)
 {
     std::cout << "[Test] testNotchFrequencyAttenuated\n";
     const double centerHz = 50.0;
@@ -119,12 +119,12 @@ void testNotchFrequencyAttenuated()
     const double rmsIn = rms(signal, warmup);
     const double rmsOut = rms(out, warmup);
     // The notch should attenuate the center frequency significantly (> 20 dB = 10x power)
-    assert(rmsOut < rmsIn * 0.1);
+    EXPECT_TRUE(rmsOut < rmsIn * 0.1);
     std::cout << "  RMS in=" << rmsIn << " out=" << rmsOut << " ratio=" << (rmsOut / rmsIn) << "\n";
     std::cout << "  -> PASSED\n";
 }
 
-void testPassBandPreserved()
+TEST(NotchFilterTest, PassBandPreserved)
 {
     std::cout << "[Test] testPassBandPreserved\n";
     const double centerHz = 50.0;
@@ -143,12 +143,12 @@ void testPassBandPreserved()
     const double rmsIn = rms(signal, warmup);
     const double rmsOut = rms(out, warmup);
     // Pass-band should be within 10% of original amplitude
-    assert(rmsOut > rmsIn * 0.9);
+    EXPECT_TRUE(rmsOut > rmsIn * 0.9);
     std::cout << "  RMS in=" << rmsIn << " out=" << rmsOut << "\n";
     std::cout << "  -> PASSED\n";
 }
 
-void testResetClearsState()
+TEST(NotchFilterTest, ResetClearsState)
 {
     std::cout << "[Test] testResetClearsState\n";
     PelcoD::NotchFilter f { 50.0, 1000.0, 10.0 };
@@ -159,11 +159,11 @@ void testResetClearsState()
     f.reset();
     // After reset, filtering a zero input must produce zero output
     const double out = f.process(0.0);
-    assert(std::abs(out) < 1e-12);
+    EXPECT_TRUE(std::abs(out) < 1e-12);
     std::cout << "  -> PASSED\n";
 }
 
-void testFallbackPassThroughAboveNyquist()
+TEST(NotchFilterTest, FallbackPassThroughAboveNyquist)
 {
     std::cout << "[Test] testFallbackPassThroughAboveNyquist\n";
     // Center frequency >= Nyquist → filter falls back to all-pass identity
@@ -180,11 +180,11 @@ void testFallbackPassThroughAboveNyquist()
     for (int i = 0; i < 1000; ++i) {
         prev = f2.process(1.0);
     }
-    assert(std::abs(prev - 1.0) < 1e-9);
+    EXPECT_TRUE(std::abs(prev - 1.0) < 1e-9);
     std::cout << "  -> PASSED\n";
 }
 
-void testFallbackPassThroughBelowZero()
+TEST(NotchFilterTest, FallbackPassThroughBelowZero)
 {
     std::cout << "[Test] testFallbackPassThroughBelowZero\n";
     // Center frequency <= 0 → identity pass-through
@@ -193,30 +193,30 @@ void testFallbackPassThroughBelowZero()
     for (int i = 0; i < 1000; ++i) {
         prev = f.process(1.0);
     }
-    assert(std::abs(prev - 1.0) < 1e-9);
+    EXPECT_TRUE(std::abs(prev - 1.0) < 1e-9);
 
     PelcoD::NotchFilter f2 { -10.0, 1000.0, 5.0 };
     double prev2 = 0.0;
     for (int i = 0; i < 1000; ++i) {
         prev2 = f2.process(1.0);
     }
-    assert(std::abs(prev2 - 1.0) < 1e-9);
+    EXPECT_TRUE(std::abs(prev2 - 1.0) < 1e-9);
     std::cout << "  -> PASSED\n";
 }
 
-void testProcessZeroInputYieldsZero()
+TEST(NotchFilterTest, ProcessZeroInputYieldsZero)
 {
     std::cout << "[Test] testProcessZeroInputYieldsZero\n";
     PelcoD::NotchFilter f { 50.0, 1000.0, 5.0 };
     // All-zero input → all-zero output (filter is linear, no offset)
     for (int i = 0; i < 100; ++i) {
         const double out = f.process(0.0);
-        assert(std::abs(out) < 1e-12);
+        EXPECT_TRUE(std::abs(out) < 1e-12);
     }
     std::cout << "  -> PASSED\n";
 }
 
-void testReconfigureChangesAttenuation()
+TEST(NotchFilterTest, ReconfigureChangesAttenuation)
 {
     std::cout << "[Test] testReconfigureChangesAttenuation\n";
     // Configure notch at 100 Hz, then verify 100 Hz is attenuated; then move notch to 200 Hz
@@ -232,7 +232,7 @@ void testReconfigureChangesAttenuation()
         out1[i] = f.process(sig100[i]);
     }
     const double rmsAtt = rms(out1, warmup);
-    assert(rmsAtt < rms(sig100, warmup) * 0.1); // Should attenuate
+    EXPECT_TRUE(rmsAtt < rms(sig100, warmup) * 0.1); // Should attenuate
 
     f.reset();
     f.setParameters(200.0, sampleRateHz, 10.0); // Move notch to 200 Hz
@@ -241,28 +241,9 @@ void testReconfigureChangesAttenuation()
         out2[i] = f.process(sig100[i]);
     }
     const double rmsPass = rms(out2, warmup);
-    assert(rmsPass > rms(sig100, warmup) * 0.9); // Should now pass 100 Hz
+    EXPECT_TRUE(rmsPass > rms(sig100, warmup) * 0.9); // Should now pass 100 Hz
     std::cout << "  -> PASSED\n";
 }
 
 } // namespace
 
-int main()
-{
-    std::cout << "Running TestNotchFilter Test Suite\n";
-    testConstructorDefaults();
-    testConstructorCustomParams();
-    testQFactorClampedAtConstruction();
-    testSetParametersUpdatesGetters();
-    testSetParametersQClamp();
-    testSetParametersSampleRateClamp();
-    testNotchFrequencyAttenuated();
-    testPassBandPreserved();
-    testResetClearsState();
-    testFallbackPassThroughAboveNyquist();
-    testFallbackPassThroughBelowZero();
-    testProcessZeroInputYieldsZero();
-    testReconfigureChangesAttenuation();
-    std::cout << "All TestNotchFilter Tests Passed!\n";
-    return 0;
-}

@@ -3,7 +3,7 @@
 
 #include "Fft.h"
 
-#include <cassert>
+#include <gtest/gtest.h>
 #include <cmath>
 #include <iostream>
 #include <vector>
@@ -16,33 +16,33 @@ using namespace PelcoD::Math;
 
 namespace {
 
-void testPowerOfTwoUtilities()
+TEST(FftTest, PowerOfTwoUtilities)
 {
     std::cout << "[Test] testPowerOfTwoUtilities...\n";
-    assert(isPowerOfTwo(1));
-    assert(isPowerOfTwo(2));
-    assert(isPowerOfTwo(4));
-    assert(isPowerOfTwo(64));
-    assert(isPowerOfTwo(128));
-    assert(isPowerOfTwo(1024));
+    EXPECT_TRUE(isPowerOfTwo(1));
+    EXPECT_TRUE(isPowerOfTwo(2));
+    EXPECT_TRUE(isPowerOfTwo(4));
+    EXPECT_TRUE(isPowerOfTwo(64));
+    EXPECT_TRUE(isPowerOfTwo(128));
+    EXPECT_TRUE(isPowerOfTwo(1024));
 
-    assert(!isPowerOfTwo(0));
-    assert(!isPowerOfTwo(3));
-    assert(!isPowerOfTwo(5));
-    assert(!isPowerOfTwo(100));
+    EXPECT_TRUE(!isPowerOfTwo(0));
+    EXPECT_TRUE(!isPowerOfTwo(3));
+    EXPECT_TRUE(!isPowerOfTwo(5));
+    EXPECT_TRUE(!isPowerOfTwo(100));
 
-    assert(nextPowerOfTwo(0) == 1);
-    assert(nextPowerOfTwo(1) == 1);
-    assert(nextPowerOfTwo(2) == 2);
-    assert(nextPowerOfTwo(3) == 4);
-    assert(nextPowerOfTwo(15) == 16);
-    assert(nextPowerOfTwo(50) == 64);
-    assert(nextPowerOfTwo(64) == 64);
-    assert(nextPowerOfTwo(65) == 128);
+    EXPECT_TRUE(nextPowerOfTwo(0) == 1);
+    EXPECT_TRUE(nextPowerOfTwo(1) == 1);
+    EXPECT_TRUE(nextPowerOfTwo(2) == 2);
+    EXPECT_TRUE(nextPowerOfTwo(3) == 4);
+    EXPECT_TRUE(nextPowerOfTwo(15) == 16);
+    EXPECT_TRUE(nextPowerOfTwo(50) == 64);
+    EXPECT_TRUE(nextPowerOfTwo(64) == 64);
+    EXPECT_TRUE(nextPowerOfTwo(65) == 128);
     std::cout << "  -> PASSED\n";
 }
 
-void testFftIfftIdentity()
+TEST(FftTest, FftIfftIdentity)
 {
     std::cout << "[Test] testFftIfftIdentity...\n";
     const std::size_t n = 128U;
@@ -53,18 +53,18 @@ void testFftIfftIdentity()
     }
 
     const auto spectrum = rfft(original);
-    assert(spectrum.size() == n);
+    EXPECT_TRUE(spectrum.size() == n);
 
     const auto reconstructed = irfft(spectrum);
-    assert(reconstructed.size() == n);
+    EXPECT_TRUE(reconstructed.size() == n);
 
     for (std::size_t i = 0U; i < n; ++i) {
-        assert(std::abs(original[i] - reconstructed[i]) < 1e-10);
+        EXPECT_TRUE(std::abs(original[i] - reconstructed[i]) < 1e-10);
     }
     std::cout << "  -> PASSED\n";
 }
 
-void testImpulseResponse()
+TEST(FftTest, ImpulseResponse)
 {
     std::cout << "[Test] testImpulseResponse...\n";
     const std::size_t n = 64U;
@@ -75,13 +75,13 @@ void testImpulseResponse()
 
     // FFT of delta[n] is 1 for all frequencies
     for (std::size_t i = 0U; i < n; ++i) {
-        assert(std::abs(impulse[i].real() - 1.0) < 1e-10);
-        assert(std::abs(impulse[i].imag()) < 1e-10);
+        EXPECT_TRUE(std::abs(impulse[i].real() - 1.0) < 1e-10);
+        EXPECT_TRUE(std::abs(impulse[i].imag()) < 1e-10);
     }
     std::cout << "  -> PASSED\n";
 }
 
-void testSineWaveSpectralPeak()
+TEST(FftTest, SineWaveSpectralPeak)
 {
     std::cout << "[Test] testSineWaveSpectralPeak...\n";
     const double sampleRate = 100.0;
@@ -95,20 +95,20 @@ void testSineWaveSpectralPeak()
     }
 
     const auto peaks = computePsd(signal, sampleRate, WindowType::Hann);
-    assert(!peaks.empty());
+    EXPECT_TRUE(!peaks.empty());
 
     // Primary peak should be located at approximately 10 Hz
     const auto& topPeak = peaks.front();
-    assert(std::abs(topPeak.frequencyHz - targetFreq) <= (sampleRate / static_cast<double>(n)));
+    EXPECT_TRUE(std::abs(topPeak.frequencyHz - targetFreq) <= (sampleRate / static_cast<double>(n)));
     // Substantial concentration of spectral power in this peak
-    assert(topPeak.powerRatio > 0.4);
+    EXPECT_TRUE(topPeak.powerRatio > 0.4);
 
     std::cout << "  Detected peak at " << topPeak.frequencyHz << " Hz (expected " << targetFreq
               << " Hz), power ratio: " << topPeak.powerRatio << "\n";
     std::cout << "  -> PASSED\n";
 }
 
-void testWindowingFunctions()
+TEST(FftTest, WindowingFunctions)
 {
     std::cout << "[Test] testWindowingFunctions...\n";
     const std::size_t n = 64U;
@@ -116,56 +116,44 @@ void testWindowingFunctions()
     std::vector<double> hannSig(n, 1.0);
     applyWindow(hannSig, WindowType::Hann);
     // Endpoints for Hann must be close to zero
-    assert(std::abs(hannSig.front()) < 1e-10);
-    assert(std::abs(hannSig.back()) < 1e-10);
+    EXPECT_TRUE(std::abs(hannSig.front()) < 1e-10);
+    EXPECT_TRUE(std::abs(hannSig.back()) < 1e-10);
     // Center point must be close to 1.0
-    assert(std::abs(hannSig[n / 2U] - 1.0) < 0.05);
+    EXPECT_TRUE(std::abs(hannSig[n / 2U] - 1.0) < 0.05);
 
     std::vector<double> hammingSig(n, 1.0);
     applyWindow(hammingSig, WindowType::Hamming);
     // Hamming endpoints are ~0.08
-    assert(std::abs(hammingSig.front() - 0.08) < 0.01);
-    assert(std::abs(hammingSig.back() - 0.08) < 0.01);
+    EXPECT_TRUE(std::abs(hammingSig.front() - 0.08) < 0.01);
+    EXPECT_TRUE(std::abs(hammingSig.back() - 0.08) < 0.01);
 
     std::vector<double> blackmanSig(n, 1.0);
     applyWindow(blackmanSig, WindowType::Blackman);
-    assert(std::abs(blackmanSig.front()) < 0.01);
-    assert(std::abs(blackmanSig.back()) < 0.01);
+    EXPECT_TRUE(std::abs(blackmanSig.front()) < 0.01);
+    EXPECT_TRUE(std::abs(blackmanSig.back()) < 0.01);
 
     std::cout << "  -> PASSED\n";
 }
 
-void testNonPowerOfTwoZeroPadding()
+TEST(FftTest, NonPowerOfTwoZeroPadding)
 {
     std::cout << "[Test] testNonPowerOfTwoZeroPadding...\n";
     std::vector<double> unaligned(50U, 1.5);
     const auto spectrum = rfft(unaligned);
-    assert(spectrum.size() == 64U); // Padded to 64
+    EXPECT_TRUE(spectrum.size() == 64U); // Padded to 64
 
     const auto reconstructed = irfft(spectrum);
-    assert(reconstructed.size() == 64U);
+    EXPECT_TRUE(reconstructed.size() == 64U);
     // First 50 samples match input
     for (std::size_t i = 0U; i < 50U; ++i) {
-        assert(std::abs(reconstructed[i] - 1.5) < 1e-10);
+        EXPECT_TRUE(std::abs(reconstructed[i] - 1.5) < 1e-10);
     }
     // Remaining samples are zero
     for (std::size_t i = 50U; i < 64U; ++i) {
-        assert(std::abs(reconstructed[i]) < 1e-10);
+        EXPECT_TRUE(std::abs(reconstructed[i]) < 1e-10);
     }
     std::cout << "  -> PASSED\n";
 }
 
 } // namespace
 
-int main()
-{
-    std::cout << "Running TestFft Test Suite\n";
-    testPowerOfTwoUtilities();
-    testFftIfftIdentity();
-    testImpulseResponse();
-    testSineWaveSpectralPeak();
-    testWindowingFunctions();
-    testNonPowerOfTwoZeroPadding();
-    std::cout << "All TestFft Tests Passed!\n";
-    return 0;
-}

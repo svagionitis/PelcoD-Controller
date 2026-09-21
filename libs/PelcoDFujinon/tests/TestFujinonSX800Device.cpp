@@ -6,20 +6,23 @@
 #include "MockPelcoDDevice.h"
 #include "PelcoDFrame.h"
 
+#include <gtest/gtest.h>
+
 #include <atomic>
-#include <cassert>
 #include <chrono>
-#include <iostream>
 #include <memory>
 #include <thread>
+#include <vector>
 
-static void testFujinonDeviceLifecycleAndCommands()
+namespace {
+
+TEST(FujinonSX800DeviceTest, DeviceLifecycleAndCommands)
 {
     auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(1U);
     PelcoD::FujinonSX800Device device(mock, 1U);
 
-    assert(device.start());
-    assert(device.isConnected());
+    ASSERT_TRUE(device.start());
+    EXPECT_TRUE(device.isConnected());
 
     std::atomic<bool> statusReceived { false };
     std::atomic<std::uint16_t> reportedFocus { 0U };
@@ -104,26 +107,26 @@ static void testFujinonDeviceLifecycleAndCommands()
     while (!statusReceived.load()) {
         std::this_thread::sleep_for(std::chrono::milliseconds(5));
         if (std::chrono::steady_clock::now() - start > std::chrono::milliseconds(500)) {
-            assert(false && "Timeout waiting for Fujinon status callback!");
+            FAIL() << "Timeout waiting for Fujinon status callback!";
         }
     }
 
-    assert(reportedFocus.load() == 0x3456U);
-    assert(device.getFujinonStatus().absoluteFocusPosition == 0x3456U);
+    EXPECT_EQ(reportedFocus.load(), 0x3456U);
+    EXPECT_EQ(device.getFujinonStatus().absoluteFocusPosition, 0x3456U);
 
     // Inject an OIS setting response: FF 01 F0 1F 13 02 CKSM
     const auto oisResp = PelcoD::PelcoDFrame::createFrame(1U, 0xF0U, 0x1FU, 0x13U, 0x02U);
     mock->injectRxData(oisResp);
 
     std::this_thread::sleep_for(std::chrono::milliseconds(30));
-    assert(device.getFujinonStatus().oisMode == PelcoD::FujinonOISMode::OisOn);
+    EXPECT_EQ(device.getFujinonStatus().oisMode, PelcoD::FujinonOISMode::OisOn);
 
     // Inject a firmware version response: FF 01 00 8B 02 51 CKSM
     const auto fwResp = PelcoD::PelcoDFrame::createFrame(1U, 0x00U, 0x8BU, 0x02U, 0x51U);
     mock->injectRxData(fwResp);
 
     std::this_thread::sleep_for(std::chrono::milliseconds(30));
-    assert(device.getFujinonStatus().firmwareVersion == "v2.51");
+    EXPECT_EQ(device.getFujinonStatus().firmwareVersion, "v2.51");
 
     // Inject 18-byte Serial Number response
     std::vector<std::uint8_t> serialFrame { 0xFFU, 1U, 'S', 'X', '8', '0', '0', '0', '0', '1', 0x00U, 0x00U, 0x00U,
@@ -136,7 +139,7 @@ static void testFujinonDeviceLifecycleAndCommands()
     mock->injectRxData(serialFrame);
 
     std::this_thread::sleep_for(std::chrono::milliseconds(30));
-    assert(device.getFujinonStatus().serialNumber == "SX800001");
+    EXPECT_EQ(device.getFujinonStatus().serialNumber, "SX800001");
 
     // v2.12.0 Controls
     device.setBrightnessFine(80U);
@@ -180,33 +183,25 @@ static void testFujinonDeviceLifecycleAndCommands()
     mock->injectRxData(stdZoomResp);
 
     std::this_thread::sleep_for(std::chrono::milliseconds(30));
-    assert(device.getFujinonStatus().absoluteZoomPosition == 0x4000U);
-    assert(device.getFujinonStatus().focalLengthMm == 800.0);
+    EXPECT_EQ(device.getFujinonStatus().absoluteZoomPosition, 0x4000U);
+    EXPECT_DOUBLE_EQ(device.getFujinonStatus().focalLengthMm, 800.0);
 
     // Inject Fine Image Setting Response (0xF0 0xFF)
     const auto fineResp = PelcoD::PelcoDFrame::createFrame(1U, 0xF0U, 0xFFU, 0xEBU, 80U);
     mock->injectRxData(fineResp);
 
     std::this_thread::sleep_for(std::chrono::milliseconds(30));
-    assert(device.getFujinonStatus().fineImageSettings.brightness == 80U);
+    EXPECT_EQ(device.getFujinonStatus().fineImageSettings.brightness, 80U);
 
     // Inject Antialiasing Response (0xF0 0x55)
     const auto aaResp = PelcoD::PelcoDFrame::createFrame(1U, 0xF0U, 0x55U, 0x00U, 0x01U);
     mock->injectRxData(aaResp);
 
     std::this_thread::sleep_for(std::chrono::milliseconds(30));
-    assert(device.getFujinonStatus().antialiasing);
+    EXPECT_TRUE(device.getFujinonStatus().antialiasing);
 
     device.stop();
-    assert(!device.isConnected());
-
-    std::cout << "  testFujinonDeviceLifecycleAndCommands: PASSED\n";
+    EXPECT_FALSE(device.isConnected());
 }
 
-int main()
-{
-    std::cout << "Running TestFujinonSX800Device...\n";
-    testFujinonDeviceLifecycleAndCommands();
-    std::cout << "All TestFujinonSX800Device tests PASSED!\n";
-    return 0;
-}
+} // namespace

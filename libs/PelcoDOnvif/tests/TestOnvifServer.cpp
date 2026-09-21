@@ -6,7 +6,7 @@
 #include <httplib.h>
 #include <pugixml.hpp>
 
-#include <cassert>
+#include <gtest/gtest.h>
 #include <chrono>
 #include <cmath>
 #include <iostream>
@@ -127,7 +127,7 @@ public:
     int stopFocusCount { 0 };
 };
 
-void testWsDiscoveryPayloads()
+TEST(OnvifServerTest, WsDiscoveryPayloads)
 {
     std::cout << "[RUN] testWsDiscoveryPayloads..." << std::endl;
 
@@ -143,38 +143,38 @@ void testWsDiscoveryPayloads()
 
     pugi::xml_document doc;
     const auto res = doc.load_string(probeMatches.c_str());
-    assert(res);
+    EXPECT_TRUE(res);
 
     const pugi::xml_node relatesNode = doc.select_node("//*[local-name()='RelatesTo']").node();
-    assert(relatesNode);
-    assert(std::string(relatesNode.text().as_string()) == "urn:uuid:test-probe-1234");
+    EXPECT_TRUE(relatesNode);
+    EXPECT_TRUE(std::string(relatesNode.text().as_string()) == "urn:uuid:test-probe-1234");
 
     const pugi::xml_node xaddrsNode = doc.select_node("//*[local-name()='XAddrs']").node();
-    assert(xaddrsNode);
-    assert(std::string(xaddrsNode.text().as_string()).find("http://192.168.1.100:8080/onvif/device_service")
+    EXPECT_TRUE(xaddrsNode);
+    EXPECT_TRUE(std::string(xaddrsNode.text().as_string()).find("http://192.168.1.100:8080/onvif/device_service")
         != std::string::npos);
 
     // Verify Profile S & T in scopes
     const pugi::xml_node scopesNode = doc.select_node("//*[local-name()='Scopes']").node();
-    assert(scopesNode);
+    EXPECT_TRUE(scopesNode);
     const std::string scopesStr = scopesNode.text().as_string();
-    assert(scopesStr.find("onvif://www.onvif.org/Profile/S") != std::string::npos);
-    assert(scopesStr.find("onvif://www.onvif.org/Profile/T") != std::string::npos);
+    EXPECT_TRUE(scopesStr.find("onvif://www.onvif.org/Profile/S") != std::string::npos);
+    EXPECT_TRUE(scopesStr.find("onvif://www.onvif.org/Profile/T") != std::string::npos);
 
     const std::string hello = discServer.createHelloPayload("192.168.1.100");
-    assert(doc.load_string(hello.c_str()));
+    EXPECT_TRUE(doc.load_string(hello.c_str()));
     const pugi::xml_node helloNode = doc.select_node("//*[local-name()='Hello']").node();
-    assert(helloNode);
+    EXPECT_TRUE(helloNode);
 
     const std::string bye = discServer.createByePayload();
-    assert(doc.load_string(bye.c_str()));
+    EXPECT_TRUE(doc.load_string(bye.c_str()));
     const pugi::xml_node byeNode = doc.select_node("//*[local-name()='Bye']").node();
-    assert(byeNode);
+    EXPECT_TRUE(byeNode);
 
     std::cout << "[PASS] testWsDiscoveryPayloads" << std::endl;
 }
 
-void testHttpSoapEndpoints()
+TEST(OnvifServerTest, HttpSoapEndpoints)
 {
     std::cout << "[RUN] testHttpSoapEndpoints (Profile S)..." << std::endl;
 
@@ -189,8 +189,8 @@ void testHttpSoapEndpoints()
     auto mockHandler = std::make_shared<MockPtzHandler>();
     OnvifServer server(config, mockHandler);
 
-    assert(server.start());
-    assert(server.isRunning());
+    EXPECT_TRUE(server.start());
+    EXPECT_TRUE(server.isRunning());
 
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
@@ -209,12 +209,12 @@ void testHttpSoapEndpoints()
                                     "</SOAP-ENV:Envelope>";
 
         auto res = client.Post("/onvif/device_service", soapReq, "application/soap+xml; charset=utf-8");
-        assert(res && res->status == 200);
+        EXPECT_TRUE(res && res->status == 200);
 
         pugi::xml_document doc;
-        assert(doc.load_string(res->body.c_str()));
-        assert(doc.select_node("//*[local-name()='GetSystemDateAndTimeResponse']"));
-        assert(doc.select_node("//*[local-name()='UTCDateTime']"));
+        EXPECT_TRUE(doc.load_string(res->body.c_str()));
+        EXPECT_TRUE(doc.select_node("//*[local-name()='GetSystemDateAndTimeResponse']"));
+        EXPECT_TRUE(doc.select_node("//*[local-name()='UTCDateTime']"));
     }
 
     // 2. GetDeviceInformation
@@ -228,14 +228,14 @@ void testHttpSoapEndpoints()
                                     "</SOAP-ENV:Envelope>";
 
         auto res = client.Post("/onvif/device_service", soapReq, "application/soap+xml; charset=utf-8");
-        assert(res && res->status == 200);
+        EXPECT_TRUE(res && res->status == 200);
 
         pugi::xml_document doc;
-        assert(doc.load_string(res->body.c_str()));
+        EXPECT_TRUE(doc.load_string(res->body.c_str()));
         const auto mfgNode = doc.select_node("//*[local-name()='Manufacturer']").node();
-        assert(mfgNode && std::string(mfgNode.text().as_string()) == "PelcoD-Test");
+        EXPECT_TRUE(mfgNode && std::string(mfgNode.text().as_string()) == "PelcoD-Test");
         const auto modelNode = doc.select_node("//*[local-name()='Model']").node();
-        assert(modelNode && std::string(modelNode.text().as_string()) == "Model-XYZ");
+        EXPECT_TRUE(modelNode && std::string(modelNode.text().as_string()) == "Model-XYZ");
     }
 
     // 3. GetCapabilities (including Profile T Imaging and Events)
@@ -249,14 +249,14 @@ void testHttpSoapEndpoints()
                                     "</SOAP-ENV:Envelope>";
 
         auto res = client.Post("/onvif/device_service", soapReq, "application/soap+xml; charset=utf-8");
-        assert(res && res->status == 200);
+        EXPECT_TRUE(res && res->status == 200);
 
         pugi::xml_document doc;
-        assert(doc.load_string(res->body.c_str()));
-        assert(doc.select_node("//*[local-name()='PTZ']/*[local-name()='XAddr']"));
-        assert(doc.select_node("//*[local-name()='Media']/*[local-name()='XAddr']"));
-        assert(doc.select_node("//*[local-name()='Imaging']/*[local-name()='XAddr']"));
-        assert(doc.select_node("//*[local-name()='Events']/*[local-name()='XAddr']"));
+        EXPECT_TRUE(doc.load_string(res->body.c_str()));
+        EXPECT_TRUE(doc.select_node("//*[local-name()='PTZ']/*[local-name()='XAddr']"));
+        EXPECT_TRUE(doc.select_node("//*[local-name()='Media']/*[local-name()='XAddr']"));
+        EXPECT_TRUE(doc.select_node("//*[local-name()='Imaging']/*[local-name()='XAddr']"));
+        EXPECT_TRUE(doc.select_node("//*[local-name()='Events']/*[local-name()='XAddr']"));
     }
 
     // 4. Media GetProfiles & GetStreamUri
@@ -270,11 +270,11 @@ void testHttpSoapEndpoints()
                                         "</SOAP-ENV:Envelope>";
 
         auto resProfiles = client.Post("/onvif/media_service", profilesReq, "application/soap+xml; charset=utf-8");
-        assert(resProfiles && resProfiles->status == 200);
+        EXPECT_TRUE(resProfiles && resProfiles->status == 200);
 
         pugi::xml_document doc;
-        assert(doc.load_string(resProfiles->body.c_str()));
-        assert(doc.select_node("//*[local-name()='Profiles'][@token='ProfileToken_1']"));
+        EXPECT_TRUE(doc.load_string(resProfiles->body.c_str()));
+        EXPECT_TRUE(doc.select_node("//*[local-name()='Profiles'][@token='ProfileToken_1']"));
 
         const std::string streamReq = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
                                       "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
@@ -285,10 +285,10 @@ void testHttpSoapEndpoints()
                                       "</SOAP-ENV:Envelope>";
 
         auto resStream = client.Post("/onvif/media_service", streamReq, "application/soap+xml; charset=utf-8");
-        assert(resStream && resStream->status == 200);
-        assert(doc.load_string(resStream->body.c_str()));
+        EXPECT_TRUE(resStream && resStream->status == 200);
+        EXPECT_TRUE(doc.load_string(resStream->body.c_str()));
         const auto uriNode = doc.select_node("//*[local-name()='Uri']").node();
-        assert(uriNode && std::string(uriNode.text().as_string()) == "rtsp://127.0.0.1:8554/test_stream");
+        EXPECT_TRUE(uriNode && std::string(uriNode.text().as_string()) == "rtsp://127.0.0.1:8554/test_stream");
     }
 
     // 5. PTZ ContinuousMove & Stop
@@ -308,11 +308,11 @@ void testHttpSoapEndpoints()
                                     "</SOAP-ENV:Envelope>";
 
         auto resMove = client.Post("/onvif/ptz_service", moveReq, "application/soap+xml; charset=utf-8");
-        assert(resMove && resMove->status == 200);
-        assert(mockHandler->moveCount == 1);
-        assert(std::abs(mockHandler->lastPan - 0.75f) < 0.001f);
-        assert(std::abs(mockHandler->lastTilt - (-0.5f)) < 0.001f);
-        assert(std::abs(mockHandler->lastZoom - 0.2f) < 0.001f);
+        EXPECT_TRUE(resMove && resMove->status == 200);
+        EXPECT_TRUE(mockHandler->moveCount == 1);
+        EXPECT_TRUE(std::abs(mockHandler->lastPan - 0.75f) < 0.001f);
+        EXPECT_TRUE(std::abs(mockHandler->lastTilt - (-0.5f)) < 0.001f);
+        EXPECT_TRUE(std::abs(mockHandler->lastZoom - 0.2f) < 0.001f);
 
         const std::string stopReq = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
                                     "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
@@ -326,19 +326,19 @@ void testHttpSoapEndpoints()
                                     "</SOAP-ENV:Envelope>";
 
         auto resStop = client.Post("/onvif/ptz_service", stopReq, "application/soap+xml; charset=utf-8");
-        assert(resStop && resStop->status == 200);
-        assert(mockHandler->stopCount == 1);
-        assert(mockHandler->lastStopPt == true);
-        assert(mockHandler->lastStopZ == true);
+        EXPECT_TRUE(resStop && resStop->status == 200);
+        EXPECT_TRUE(mockHandler->stopCount == 1);
+        EXPECT_TRUE(mockHandler->lastStopPt == true);
+        EXPECT_TRUE(mockHandler->lastStopZ == true);
     }
 
     server.stop();
-    assert(!server.isRunning());
+    EXPECT_TRUE(!server.isRunning());
 
     std::cout << "[PASS] testHttpSoapEndpoints (Profile S)" << std::endl;
 }
 
-void testProfileTImagingAndEvents()
+TEST(OnvifServerTest, ProfileTImagingAndEvents)
 {
     std::cout << "[RUN] testProfileTImagingAndEvents..." << std::endl;
 
@@ -352,7 +352,7 @@ void testProfileTImagingAndEvents()
     mockImaging->settings.contrast = 70.0f;
 
     OnvifServer server(config, nullptr, mockImaging);
-    assert(server.start());
+    EXPECT_TRUE(server.start());
 
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
@@ -373,12 +373,12 @@ void testProfileTImagingAndEvents()
                                 "</SOAP-ENV:Envelope>";
 
         auto res = client.Post("/onvif/imaging_service", req, "application/soap+xml; charset=utf-8");
-        assert(res && res->status == 200);
+        EXPECT_TRUE(res && res->status == 200);
 
         pugi::xml_document doc;
-        assert(doc.load_string(res->body.c_str()));
+        EXPECT_TRUE(doc.load_string(res->body.c_str()));
         const auto bNode = doc.select_node("//*[local-name()='Brightness']").node();
-        assert(bNode && std::abs(bNode.text().as_float() - 60.0f) < 0.1f);
+        EXPECT_TRUE(bNode && std::abs(bNode.text().as_float() - 60.0f) < 0.1f);
     }
 
     // 2. SetImagingSettings
@@ -399,10 +399,10 @@ void testProfileTImagingAndEvents()
                                 "</SOAP-ENV:Envelope>";
 
         auto res = client.Post("/onvif/imaging_service", req, "application/soap+xml; charset=utf-8");
-        assert(res && res->status == 200);
-        assert(mockImaging->setSettingsCount == 1);
-        assert(std::abs(mockImaging->settings.brightness - 85.0f) < 0.1f);
-        assert(std::abs(mockImaging->settings.contrast - 45.0f) < 0.1f);
+        EXPECT_TRUE(res && res->status == 200);
+        EXPECT_TRUE(mockImaging->setSettingsCount == 1);
+        EXPECT_TRUE(std::abs(mockImaging->settings.brightness - 85.0f) < 0.1f);
+        EXPECT_TRUE(std::abs(mockImaging->settings.contrast - 45.0f) < 0.1f);
     }
 
     // 3. Move Focus & Stop Focus
@@ -422,9 +422,9 @@ void testProfileTImagingAndEvents()
                                     "</SOAP-ENV:Envelope>";
 
         auto resMove = client.Post("/onvif/imaging_service", moveReq, "application/soap+xml; charset=utf-8");
-        assert(resMove && resMove->status == 200);
-        assert(mockImaging->moveFocusCount == 1);
-        assert(std::abs(mockImaging->lastFocusSpeed - 0.8f) < 0.01f);
+        EXPECT_TRUE(resMove && resMove->status == 200);
+        EXPECT_TRUE(mockImaging->moveFocusCount == 1);
+        EXPECT_TRUE(std::abs(mockImaging->lastFocusSpeed - 0.8f) < 0.01f);
 
         const std::string stopReq = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
                                     "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
@@ -437,8 +437,8 @@ void testProfileTImagingAndEvents()
                                     "</SOAP-ENV:Envelope>";
 
         auto resStop = client.Post("/onvif/imaging_service", stopReq, "application/soap+xml; charset=utf-8");
-        assert(resStop && resStop->status == 200);
-        assert(mockImaging->stopFocusCount == 1);
+        EXPECT_TRUE(resStop && resStop->status == 200);
+        EXPECT_TRUE(mockImaging->stopFocusCount == 1);
     }
 
     // 4. Events: CreatePullPointSubscription, PublishEvent, PullMessages
@@ -452,14 +452,14 @@ void testProfileTImagingAndEvents()
                                    "</SOAP-ENV:Envelope>";
 
         auto resSub = client.Post("/onvif/event_service", subReq, "application/soap+xml; charset=utf-8");
-        assert(resSub && resSub->status == 200);
+        EXPECT_TRUE(resSub && resSub->status == 200);
 
         pugi::xml_document doc;
-        assert(doc.load_string(resSub->body.c_str()));
+        EXPECT_TRUE(doc.load_string(resSub->body.c_str()));
         const auto addrNode = doc.select_node("//*[local-name()='Address']").node();
-        assert(addrNode);
+        EXPECT_TRUE(addrNode);
         const std::string subUrl = addrNode.text().as_string();
-        assert(subUrl.find("/onvif/events/subscription/") != std::string::npos);
+        EXPECT_TRUE(subUrl.find("/onvif/events/subscription/") != std::string::npos);
 
         // Publish mock motion detection event
         OnvifEvent motionEv {};
@@ -486,15 +486,15 @@ void testProfileTImagingAndEvents()
         const std::string subPath = subUrl.substr(slashPos);
 
         auto resPull = client.Post(subPath.c_str(), pullReq, "application/soap+xml; charset=utf-8");
-        assert(resPull && resPull->status == 200);
+        EXPECT_TRUE(resPull && resPull->status == 200);
 
         pugi::xml_document pullDoc;
-        assert(pullDoc.load_string(resPull->body.c_str()));
+        EXPECT_TRUE(pullDoc.load_string(resPull->body.c_str()));
         const auto topicNode = pullDoc.select_node("//*[local-name()='Topic']").node();
-        assert(topicNode && std::string(topicNode.text().as_string()) == "tns1:RuleEngine/CellMotionDetector/Motion");
+        EXPECT_TRUE(topicNode && std::string(topicNode.text().as_string()) == "tns1:RuleEngine/CellMotionDetector/Motion");
 
         const auto dataNode = pullDoc.select_node("//*[local-name()='Data']/*[local-name()='SimpleItem']").node();
-        assert(dataNode && std::string(dataNode.attribute("Value").as_string()) == "true");
+        EXPECT_TRUE(dataNode && std::string(dataNode.attribute("Value").as_string()) == "true");
 
         // Unsubscribe
         const std::string unsubReq = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
@@ -506,21 +506,21 @@ void testProfileTImagingAndEvents()
                                      "</SOAP-ENV:Envelope>";
 
         auto resUnsub = client.Post(subPath.c_str(), unsubReq, "application/soap+xml; charset=utf-8");
-        assert(resUnsub && resUnsub->status == 200);
+        EXPECT_TRUE(resUnsub && resUnsub->status == 200);
     }
 
     server.stop();
-    assert(!server.isRunning());
+    EXPECT_TRUE(!server.isRunning());
     std::cout << "[PASS] testProfileTImagingAndEvents" << std::endl;
 }
 
-void testPelcoDPtzAdapter()
+TEST(OnvifServerTest, PelcoDPtzAdapter)
 {
     std::cout << "[RUN] testPelcoDPtzAdapter..." << std::endl;
 
     auto mockTransport = std::make_shared<PelcoD::MockPelcoDDevice>(1U);
     auto device = std::make_shared<PelcoD::PelcoDDevice>(mockTransport, 1U);
-    assert(device->start());
+    EXPECT_TRUE(device->start());
 
     PelcoDPtzAdapter adapter(device);
 
@@ -534,23 +534,23 @@ void testPelcoDPtzAdapter()
 
     // Presets
     const std::string tok = adapter.handleSetPreset("Preset A", "2");
-    assert(tok == "2");
+    EXPECT_TRUE(tok == "2");
 
     auto presets = adapter.handleGetPresets();
-    assert(presets.size() == 1);
-    assert(presets[0].token == "2");
+    EXPECT_TRUE(presets.size() == 1);
+    EXPECT_TRUE(presets[0].token == "2");
 
     // Test Profile T event emission on preset recall
     std::vector<OnvifEvent> capturedEvents;
     adapter.setEventPublisher([&capturedEvents](const OnvifEvent& ev) { capturedEvents.push_back(ev); });
 
-    assert(adapter.handleGotoPreset("2"));
-    assert(!capturedEvents.empty());
-    assert(capturedEvents.back().topic == "tns1:PTZController/PTZPresets/Reached");
-    assert(capturedEvents.back().sourceValue == "2");
+    EXPECT_TRUE(adapter.handleGotoPreset("2"));
+    EXPECT_TRUE(!capturedEvents.empty());
+    EXPECT_TRUE(capturedEvents.back().topic == "tns1:PTZController/PTZPresets/Reached");
+    EXPECT_TRUE(capturedEvents.back().sourceValue == "2");
 
-    assert(adapter.handleRemovePreset("2"));
-    assert(adapter.handleGetPresets().empty());
+    EXPECT_TRUE(adapter.handleRemovePreset("2"));
+    EXPECT_TRUE(adapter.handleGetPresets().empty());
 
     // Optical Focus (Profile T)
     adapter.handleMoveFocus("VideoSource_1", 1.0f);
@@ -560,10 +560,10 @@ void testPelcoDPtzAdapter()
     ImagingSettings imgSettings {};
     imgSettings.brightness = 75.0f;
     imgSettings.backlightCompensation = true;
-    assert(adapter.handleSetImagingSettings("VideoSource_1", imgSettings));
+    EXPECT_TRUE(adapter.handleSetImagingSettings("VideoSource_1", imgSettings));
     const auto readSettings = adapter.handleGetImagingSettings("VideoSource_1");
-    assert(std::abs(readSettings.brightness - 75.0f) < 0.1f);
-    assert(readSettings.backlightCompensation == true);
+    EXPECT_TRUE(std::abs(readSettings.brightness - 75.0f) < 0.1f);
+    EXPECT_TRUE(readSettings.backlightCompensation == true);
 
     [[maybe_unused]] const auto status = adapter.handleGetStatus();
 
@@ -571,13 +571,13 @@ void testPelcoDPtzAdapter()
     std::cout << "[PASS] testPelcoDPtzAdapter" << std::endl;
 }
 
-void testPresetToursServerAndAdapter()
+TEST(OnvifServerTest, PresetToursServerAndAdapter)
 {
     std::cout << "[RUN] testPresetToursServerAndAdapter..." << std::endl;
 
     auto mockTransport = std::make_shared<PelcoD::MockPelcoDDevice>(1U);
     auto device = std::make_shared<PelcoD::PelcoDDevice>(mockTransport, 1U);
-    assert(device->start());
+    EXPECT_TRUE(device->start());
 
     auto adapter = std::make_shared<PelcoDPtzAdapter>(device);
     const std::string testDbPath = "test_tours.json";
@@ -590,7 +590,7 @@ void testPresetToursServerAndAdapter()
     config.deviceName = "Preset Tour Test Camera";
 
     OnvifServer server(config, adapter, adapter);
-    assert(server.start());
+    EXPECT_TRUE(server.start());
 
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
@@ -611,12 +611,12 @@ void testPresetToursServerAndAdapter()
                                 "</SOAP-ENV:Envelope>";
 
         auto res = client.Post("/onvif/ptz_service", req, "application/soap+xml; charset=utf-8");
-        assert(res && res->status == 200);
+        EXPECT_TRUE(res && res->status == 200);
 
         pugi::xml_document doc;
-        assert(doc.load_string(res->body.c_str()));
-        assert(doc.select_node("//*[local-name()='GetPresetTourOptionsResponse']"));
-        assert(doc.select_node("//*[local-name()='Options']"));
+        EXPECT_TRUE(doc.load_string(res->body.c_str()));
+        EXPECT_TRUE(doc.select_node("//*[local-name()='GetPresetTourOptionsResponse']"));
+        EXPECT_TRUE(doc.select_node("//*[local-name()='Options']"));
     }
 
     // 2. CreatePresetTour
@@ -633,14 +633,14 @@ void testPresetToursServerAndAdapter()
                                 "</SOAP-ENV:Envelope>";
 
         auto res = client.Post("/onvif/ptz_service", req, "application/soap+xml; charset=utf-8");
-        assert(res && res->status == 200);
+        EXPECT_TRUE(res && res->status == 200);
 
         pugi::xml_document doc;
-        assert(doc.load_string(res->body.c_str()));
+        EXPECT_TRUE(doc.load_string(res->body.c_str()));
         const auto tokenNode = doc.select_node("//*[local-name()='PresetTourToken']").node();
-        assert(tokenNode);
+        EXPECT_TRUE(tokenNode);
         tourToken = tokenNode.text().as_string();
-        assert(!tourToken.empty());
+        EXPECT_TRUE(!tourToken.empty());
     }
 
     // 3. ModifyPresetTour
@@ -671,7 +671,7 @@ void testPresetToursServerAndAdapter()
               "</SOAP-ENV:Envelope>";
 
         auto res = client.Post("/onvif/ptz_service", req, "application/soap+xml; charset=utf-8");
-        assert(res && res->status == 200);
+        EXPECT_TRUE(res && res->status == 200);
     }
 
     // 4. GetPresetTours
@@ -687,15 +687,15 @@ void testPresetToursServerAndAdapter()
                                 "</SOAP-ENV:Envelope>";
 
         auto res = client.Post("/onvif/ptz_service", req, "application/soap+xml; charset=utf-8");
-        assert(res && res->status == 200);
+        EXPECT_TRUE(res && res->status == 200);
 
         pugi::xml_document doc;
-        assert(doc.load_string(res->body.c_str()));
+        EXPECT_TRUE(doc.load_string(res->body.c_str()));
         const auto tourNode = doc.select_node("//*[local-name()='PresetTour']").node();
-        assert(tourNode);
-        assert(std::string(tourNode.attribute("token").as_string()) == tourToken);
+        EXPECT_TRUE(tourNode);
+        EXPECT_TRUE(std::string(tourNode.attribute("token").as_string()) == tourToken);
         const auto nameNode = doc.select_node("//*[local-name()='Name']").node();
-        assert(nameNode && std::string(nameNode.text().as_string()) == "Perimeter Scan");
+        EXPECT_TRUE(nameNode && std::string(nameNode.text().as_string()) == "Perimeter Scan");
     }
 
     // 5. OperatePresetTour (Start, Pause, Stop)
@@ -717,7 +717,7 @@ void testPresetToursServerAndAdapter()
               "</SOAP-ENV:Envelope>";
 
         auto res = client.Post("/onvif/ptz_service", req, "application/soap+xml; charset=utf-8");
-        assert(res && res->status == 200);
+        EXPECT_TRUE(res && res->status == 200);
     }
 
     // 6. Test Persistence reload
@@ -725,12 +725,12 @@ void testPresetToursServerAndAdapter()
         PelcoDPtzAdapter adapterReloaded(device);
         adapterReloaded.setPersistencePath(testDbPath);
         const auto loadedTours = adapterReloaded.handleGetPresetTours();
-        assert(loadedTours.size() == 1);
-        assert(loadedTours[0].token == tourToken);
-        assert(loadedTours[0].name == "Perimeter Scan");
-        assert(loadedTours[0].spots.size() == 1);
-        assert(loadedTours[0].spots[0].presetToken == "1");
-        assert(loadedTours[0].spots[0].stayTimeSeconds == 5);
+        EXPECT_TRUE(loadedTours.size() == 1);
+        EXPECT_TRUE(loadedTours[0].token == tourToken);
+        EXPECT_TRUE(loadedTours[0].name == "Perimeter Scan");
+        EXPECT_TRUE(loadedTours[0].spots.size() == 1);
+        EXPECT_TRUE(loadedTours[0].spots[0].presetToken == "1");
+        EXPECT_TRUE(loadedTours[0].spots[0].stayTimeSeconds == 5);
     }
 
     // 7. RemovePresetTour
@@ -749,14 +749,14 @@ void testPresetToursServerAndAdapter()
               "</SOAP-ENV:Envelope>";
 
         auto res = client.Post("/onvif/ptz_service", req, "application/soap+xml; charset=utf-8");
-        assert(res && res->status == 200);
+        EXPECT_TRUE(res && res->status == 200);
 
         const auto remaining = adapter->handleGetPresetTours();
-        assert(remaining.empty());
+        EXPECT_TRUE(remaining.empty());
     }
 
     server.stop();
-    assert(!server.isRunning());
+    EXPECT_TRUE(!server.isRunning());
     device->stop();
 
     // Clean up test file
@@ -765,13 +765,13 @@ void testPresetToursServerAndAdapter()
     std::cout << "[PASS] testPresetToursServerAndAdapter" << std::endl;
 }
 
-void testPtzServiceExtensionsServerAndAdapter()
+TEST(OnvifServerTest, PtzServiceExtensionsServerAndAdapter)
 {
     std::cout << "[RUN] testPtzServiceExtensionsServerAndAdapter..." << std::endl;
 
     auto mockTransport = std::make_shared<PelcoD::MockPelcoDDevice>(1U);
     auto device = std::make_shared<PelcoD::PelcoDDevice>(mockTransport, 1U);
-    assert(device->start());
+    EXPECT_TRUE(device->start());
 
     auto adapter = std::make_shared<PelcoDPtzAdapter>(device);
 
@@ -781,7 +781,7 @@ void testPtzServiceExtensionsServerAndAdapter()
     config.deviceName = "PTZ Extensions Test Camera";
 
     OnvifServer server(config, adapter, adapter);
-    assert(server.start());
+    EXPECT_TRUE(server.start());
 
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
@@ -800,14 +800,14 @@ void testPtzServiceExtensionsServerAndAdapter()
                                 "</SOAP-ENV:Envelope>";
 
         auto res = client.Post("/onvif/ptz_service", req, "application/soap+xml; charset=utf-8");
-        assert(res && res->status == 200);
+        EXPECT_TRUE(res && res->status == 200);
 
         pugi::xml_document doc;
-        assert(doc.load_string(res->body.c_str()));
+        EXPECT_TRUE(doc.load_string(res->body.c_str()));
         const auto homeNode = doc.select_node("//*[local-name()='HomeSupported']").node();
-        assert(homeNode && homeNode.text().as_bool());
+        EXPECT_TRUE(homeNode && homeNode.text().as_bool());
         const auto auxNodes = doc.select_nodes("//*[local-name()='AuxiliaryCommands']");
-        assert(auxNodes.size() >= 4);
+        EXPECT_TRUE(auxNodes.size() >= 4);
     }
 
     // 2. Verify GetConfigurationOptions
@@ -823,13 +823,13 @@ void testPtzServiceExtensionsServerAndAdapter()
                                 "</SOAP-ENV:Envelope>";
 
         auto res = client.Post("/onvif/ptz_service", req, "application/soap+xml; charset=utf-8");
-        assert(res && res->status == 200);
+        EXPECT_TRUE(res && res->status == 200);
 
         pugi::xml_document doc;
-        assert(doc.load_string(res->body.c_str()));
-        assert(doc.select_node("//*[local-name()='GetConfigurationOptionsResponse']"));
-        assert(doc.select_node("//*[local-name()='PTZConfigurationOptions']"));
-        assert(doc.select_node("//*[local-name()='Spaces']"));
+        EXPECT_TRUE(doc.load_string(res->body.c_str()));
+        EXPECT_TRUE(doc.select_node("//*[local-name()='GetConfigurationOptionsResponse']"));
+        EXPECT_TRUE(doc.select_node("//*[local-name()='PTZConfigurationOptions']"));
+        EXPECT_TRUE(doc.select_node("//*[local-name()='Spaces']"));
     }
 
     // 3. Test RelativeMove
@@ -853,11 +853,11 @@ void testPtzServiceExtensionsServerAndAdapter()
               "</SOAP-ENV:Envelope>";
 
         auto res = client.Post("/onvif/ptz_service", req, "application/soap+xml; charset=utf-8");
-        assert(res && res->status == 200);
+        EXPECT_TRUE(res && res->status == 200);
 
         pugi::xml_document doc;
-        assert(doc.load_string(res->body.c_str()));
-        assert(doc.select_node("//*[local-name()='RelativeMoveResponse']"));
+        EXPECT_TRUE(doc.load_string(res->body.c_str()));
+        EXPECT_TRUE(doc.select_node("//*[local-name()='RelativeMoveResponse']"));
     }
 
     // 4. Test SetHomePosition and GotoHomePosition
@@ -873,11 +873,11 @@ void testPtzServiceExtensionsServerAndAdapter()
                                    "</SOAP-ENV:Envelope>";
 
         auto resSet = client.Post("/onvif/ptz_service", reqSet, "application/soap+xml; charset=utf-8");
-        assert(resSet && resSet->status == 200);
+        EXPECT_TRUE(resSet && resSet->status == 200);
 
         pugi::xml_document docSet;
-        assert(docSet.load_string(resSet->body.c_str()));
-        assert(docSet.select_node("//*[local-name()='SetHomePositionResponse']"));
+        EXPECT_TRUE(docSet.load_string(resSet->body.c_str()));
+        EXPECT_TRUE(docSet.select_node("//*[local-name()='SetHomePositionResponse']"));
 
         const std::string reqGoto = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
                                     "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
@@ -890,11 +890,11 @@ void testPtzServiceExtensionsServerAndAdapter()
                                     "</SOAP-ENV:Envelope>";
 
         auto resGoto = client.Post("/onvif/ptz_service", reqGoto, "application/soap+xml; charset=utf-8");
-        assert(resGoto && resGoto->status == 200);
+        EXPECT_TRUE(resGoto && resGoto->status == 200);
 
         pugi::xml_document docGoto;
-        assert(docGoto.load_string(resGoto->body.c_str()));
-        assert(docGoto.select_node("//*[local-name()='GotoHomePositionResponse']"));
+        EXPECT_TRUE(docGoto.load_string(resGoto->body.c_str()));
+        EXPECT_TRUE(docGoto.select_node("//*[local-name()='GotoHomePositionResponse']"));
     }
 
     // 5. Test SendAuxiliaryCommand
@@ -914,24 +914,24 @@ void testPtzServiceExtensionsServerAndAdapter()
                   "</SOAP-ENV:Envelope>";
 
             auto res = client.Post("/onvif/ptz_service", req, "application/soap+xml; charset=utf-8");
-            assert(res && res->status == 200);
+            EXPECT_TRUE(res && res->status == 200);
 
             pugi::xml_document doc;
-            assert(doc.load_string(res->body.c_str()));
+            EXPECT_TRUE(doc.load_string(res->body.c_str()));
             const auto respNode = doc.select_node("//*[local-name()='AuxiliaryResponse']").node();
-            assert(respNode);
-            assert(std::string(respNode.text().as_string()) == cmd);
+            EXPECT_TRUE(respNode);
+            EXPECT_TRUE(std::string(respNode.text().as_string()) == cmd);
         }
     }
 
     server.stop();
-    assert(!server.isRunning());
+    EXPECT_TRUE(!server.isRunning());
     device->stop();
 
     std::cout << "[PASS] testPtzServiceExtensionsServerAndAdapter" << std::endl;
 }
 
-void testMedia2OsdAndAnalytics()
+TEST(OnvifServerTest, Media2OsdAndAnalytics)
 {
     OnvifServerConfig config;
     config.port = 18588;
@@ -941,8 +941,8 @@ void testMedia2OsdAndAnalytics()
     config.rtspStreamUri = "rtsp://127.0.0.1:8554/live2";
 
     OnvifServer server(config);
-    assert(server.start());
-    assert(server.isRunning());
+    EXPECT_TRUE(server.start());
+    EXPECT_TRUE(server.isRunning());
 
     httplib::Client client("127.0.0.1", config.port);
     client.set_connection_timeout(2, 0);
@@ -958,11 +958,11 @@ void testMedia2OsdAndAnalytics()
               "tds:GetServices></SOAP-ENV:Body>\r\n"
               "</SOAP-ENV:Envelope>";
         auto res = client.Post("/onvif/device_service", req, "application/soap+xml; charset=utf-8");
-        assert(res && res->status == 200);
-        assert(res->body.find("http://www.onvif.org/ver20/media/wsdl") != std::string::npos);
-        assert(res->body.find("/onvif/media2_service") != std::string::npos);
-        assert(res->body.find("http://www.onvif.org/ver20/analytics/wsdl") != std::string::npos);
-        assert(res->body.find("/onvif/analytics_service") != std::string::npos);
+        EXPECT_TRUE(res && res->status == 200);
+        EXPECT_TRUE(res->body.find("http://www.onvif.org/ver20/media/wsdl") != std::string::npos);
+        EXPECT_TRUE(res->body.find("/onvif/media2_service") != std::string::npos);
+        EXPECT_TRUE(res->body.find("http://www.onvif.org/ver20/analytics/wsdl") != std::string::npos);
+        EXPECT_TRUE(res->body.find("/onvif/analytics_service") != std::string::npos);
     }
 
     // 2. Media2 Service (/onvif/media2_service)
@@ -974,12 +974,12 @@ void testMedia2OsdAndAnalytics()
                                     "  <SOAP-ENV:Body><tr2:GetProfiles/></SOAP-ENV:Body>\r\n"
                                     "</SOAP-ENV:Envelope>";
         auto resProf = client.Post("/onvif/media2_service", reqProf, "application/soap+xml; charset=utf-8");
-        assert(resProf && resProf->status == 200);
+        EXPECT_TRUE(resProf && resProf->status == 200);
         pugi::xml_document docProf;
-        assert(docProf.load_string(resProf->body.c_str()));
-        assert(docProf.select_node("//*[local-name()='GetProfilesResponse']"));
-        assert(docProf.select_node("//*[local-name()='Profiles']"));
-        assert(docProf.select_node("//*[local-name()='VideoEncoder']"));
+        EXPECT_TRUE(docProf.load_string(resProf->body.c_str()));
+        EXPECT_TRUE(docProf.select_node("//*[local-name()='GetProfilesResponse']"));
+        EXPECT_TRUE(docProf.select_node("//*[local-name()='Profiles']"));
+        EXPECT_TRUE(docProf.select_node("//*[local-name()='VideoEncoder']"));
 
         // GetStreamUri
         const std::string reqUri
@@ -990,8 +990,8 @@ void testMedia2OsdAndAnalytics()
               "tr2:GetStreamUri></SOAP-ENV:Body>\r\n"
               "</SOAP-ENV:Envelope>";
         auto resUri = client.Post("/onvif/media2_service", reqUri, "application/soap+xml; charset=utf-8");
-        assert(resUri && resUri->status == 200);
-        assert(resUri->body.find("rtsp://127.0.0.1:8554/live2") != std::string::npos);
+        EXPECT_TRUE(resUri && resUri->status == 200);
+        EXPECT_TRUE(resUri->body.find("rtsp://127.0.0.1:8554/live2") != std::string::npos);
 
         // GetVideoEncoderConfigurations
         const std::string reqEnc = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
@@ -1000,10 +1000,10 @@ void testMedia2OsdAndAnalytics()
                                    "  <SOAP-ENV:Body><tr2:GetVideoEncoderConfigurations/></SOAP-ENV:Body>\r\n"
                                    "</SOAP-ENV:Envelope>";
         auto resEnc = client.Post("/onvif/media2_service", reqEnc, "application/soap+xml; charset=utf-8");
-        assert(resEnc && resEnc->status == 200);
+        EXPECT_TRUE(resEnc && resEnc->status == 200);
         pugi::xml_document docEnc;
-        assert(docEnc.load_string(resEnc->body.c_str()));
-        assert(docEnc.select_node("//*[local-name()='Encoding']"));
+        EXPECT_TRUE(docEnc.load_string(resEnc->body.c_str()));
+        EXPECT_TRUE(docEnc.select_node("//*[local-name()='Encoding']"));
 
         // GetServiceCapabilities
         const std::string reqCap = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
@@ -1012,8 +1012,8 @@ void testMedia2OsdAndAnalytics()
                                    "  <SOAP-ENV:Body><tr2:GetServiceCapabilities/></SOAP-ENV:Body>\r\n"
                                    "</SOAP-ENV:Envelope>";
         auto resCap = client.Post("/onvif/media2_service", reqCap, "application/soap+xml; charset=utf-8");
-        assert(resCap && resCap->status == 200);
-        assert(resCap->body.find("OSD=\"true\"") != std::string::npos);
+        EXPECT_TRUE(resCap && resCap->status == 200);
+        EXPECT_TRUE(resCap->body.find("OSD=\"true\"") != std::string::npos);
     }
 
     // 3. OSD Management (/onvif/media_service & /onvif/media2_service)
@@ -1025,8 +1025,8 @@ void testMedia2OsdAndAnalytics()
                                    "  <SOAP-ENV:Body><trt:GetOSDOptions/></SOAP-ENV:Body>\r\n"
                                    "</SOAP-ENV:Envelope>";
         auto resOpt = client.Post("/onvif/media_service", reqOpt, "application/soap+xml; charset=utf-8");
-        assert(resOpt && resOpt->status == 200);
-        assert(resOpt->body.find("PositionOption") != std::string::npos);
+        EXPECT_TRUE(resOpt && resOpt->status == 200);
+        EXPECT_TRUE(resOpt->body.find("PositionOption") != std::string::npos);
 
         // GetOSDs (should include default OSD_1)
         const std::string reqList = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
@@ -1035,8 +1035,8 @@ void testMedia2OsdAndAnalytics()
                                     "  <SOAP-ENV:Body><trt:GetOSDs/></SOAP-ENV:Body>\r\n"
                                     "</SOAP-ENV:Envelope>";
         auto resList = client.Post("/onvif/media_service", reqList, "application/soap+xml; charset=utf-8");
-        assert(resList && resList->status == 200);
-        assert(resList->body.find("OSD_1") != std::string::npos);
+        EXPECT_TRUE(resList && resList->status == 200);
+        EXPECT_TRUE(resList->body.find("OSD_1") != std::string::npos);
 
         // CreateOSD
         const std::string reqCreate
@@ -1059,8 +1059,8 @@ void testMedia2OsdAndAnalytics()
               "  </SOAP-ENV:Body>\r\n"
               "</SOAP-ENV:Envelope>";
         auto resCreate = client.Post("/onvif/media_service", reqCreate, "application/soap+xml; charset=utf-8");
-        assert(resCreate && resCreate->status == 200);
-        assert(resCreate->body.find("OSD_TEST") != std::string::npos);
+        EXPECT_TRUE(resCreate && resCreate->status == 200);
+        EXPECT_TRUE(resCreate->body.find("OSD_TEST") != std::string::npos);
 
         // GetOSD
         const std::string reqGet
@@ -1070,9 +1070,9 @@ void testMedia2OsdAndAnalytics()
               "  <SOAP-ENV:Body><trt:GetOSD><trt:OSDToken>OSD_TEST</trt:OSDToken></trt:GetOSD></SOAP-ENV:Body>\r\n"
               "</SOAP-ENV:Envelope>";
         auto resGet = client.Post("/onvif/media_service", reqGet, "application/soap+xml; charset=utf-8");
-        assert(resGet && resGet->status == 200);
-        assert(resGet->body.find("East Gate") != std::string::npos);
-        assert(resGet->body.find("LowerRight") != std::string::npos);
+        EXPECT_TRUE(resGet && resGet->status == 200);
+        EXPECT_TRUE(resGet->body.find("East Gate") != std::string::npos);
+        EXPECT_TRUE(resGet->body.find("LowerRight") != std::string::npos);
 
         // SetOSD via Media2 endpoint
         const std::string reqSet
@@ -1095,7 +1095,7 @@ void testMedia2OsdAndAnalytics()
               "  </SOAP-ENV:Body>\r\n"
               "</SOAP-ENV:Envelope>";
         auto resSet = client.Post("/onvif/media2_service", reqSet, "application/soap+xml; charset=utf-8");
-        assert(resSet && resSet->status == 200);
+        EXPECT_TRUE(resSet && resSet->status == 200);
 
         // DeleteOSD
         const std::string reqDel
@@ -1106,7 +1106,7 @@ void testMedia2OsdAndAnalytics()
               "<SOAP-ENV:Body><trt:DeleteOSD><trt:OSDToken>OSD_TEST</trt:OSDToken></trt:DeleteOSD></SOAP-ENV:Body>\r\n"
               "</SOAP-ENV:Envelope>";
         auto resDel = client.Post("/onvif/media_service", reqDel, "application/soap+xml; charset=utf-8");
-        assert(resDel && resDel->status == 200);
+        EXPECT_TRUE(resDel && resDel->status == 200);
     }
 
     // 4. Analytics Service (/onvif/analytics_service)
@@ -1117,8 +1117,8 @@ void testMedia2OsdAndAnalytics()
                                    "  <SOAP-ENV:Body><tan:GetServiceCapabilities/></SOAP-ENV:Body>\r\n"
                                    "</SOAP-ENV:Envelope>";
         auto resCap = client.Post("/onvif/analytics_service", reqCap, "application/soap+xml; charset=utf-8");
-        assert(resCap && resCap->status == 200);
-        assert(resCap->body.find("RuleSupport=\"true\"") != std::string::npos);
+        EXPECT_TRUE(resCap && resCap->status == 200);
+        EXPECT_TRUE(resCap->body.find("RuleSupport=\"true\"") != std::string::npos);
 
         const std::string reqRules = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
                                      "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
@@ -1126,8 +1126,8 @@ void testMedia2OsdAndAnalytics()
                                      "  <SOAP-ENV:Body><tan:GetSupportedRules/></SOAP-ENV:Body>\r\n"
                                      "</SOAP-ENV:Envelope>";
         auto resRules = client.Post("/onvif/analytics_service", reqRules, "application/soap+xml; charset=utf-8");
-        assert(resRules && resRules->status == 200);
-        assert(resRules->body.find("CellMotionDetector") != std::string::npos);
+        EXPECT_TRUE(resRules && resRules->status == 200);
+        EXPECT_TRUE(resRules->body.find("CellMotionDetector") != std::string::npos);
     }
 
     // 5. Event Push Subscription (<wsnt:Subscribe>)
@@ -1145,9 +1145,9 @@ void testMedia2OsdAndAnalytics()
               "  </SOAP-ENV:Body>\r\n"
               "</SOAP-ENV:Envelope>";
         auto resSub = client.Post("/onvif/event_service", reqSub, "application/soap+xml; charset=utf-8");
-        assert(resSub && resSub->status == 200);
-        assert(resSub->body.find("SubscribeResponse") != std::string::npos);
-        assert(resSub->body.find("SubscriptionReference") != std::string::npos);
+        EXPECT_TRUE(resSub && resSub->status == 200);
+        EXPECT_TRUE(resSub->body.find("SubscribeResponse") != std::string::npos);
+        EXPECT_TRUE(resSub->body.find("SubscriptionReference") != std::string::npos);
 
         // Publish event to exercise push path
         OnvifEvent ev;
@@ -1158,11 +1158,11 @@ void testMedia2OsdAndAnalytics()
     }
 
     server.stop();
-    assert(!server.isRunning());
+    EXPECT_TRUE(!server.isRunning());
     std::cout << "[PASS] testMedia2OsdAndAnalytics" << std::endl;
 }
 
-void testDeviceManagementAndSecurity()
+TEST(OnvifServerTest, DeviceManagementAndSecurity)
 {
     std::cout << "[RUN] testDeviceManagementAndSecurity" << std::endl;
 
@@ -1171,8 +1171,8 @@ void testDeviceManagementAndSecurity()
     config.deviceName = "DeviceMgmtCamera";
 
     OnvifServer server(config);
-    assert(server.start());
-    assert(server.isRunning());
+    EXPECT_TRUE(server.start());
+    EXPECT_TRUE(server.isRunning());
 
     httplib::Client client("127.0.0.1", config.port);
     client.set_connection_timeout(std::chrono::seconds(2));
@@ -1188,11 +1188,11 @@ void testDeviceManagementAndSecurity()
                                 "  </SOAP-ENV:Body>\r\n"
                                 "</SOAP-ENV:Envelope>";
         auto res = client.Post("/onvif/device_service", req, "application/soap+xml; charset=utf-8");
-        assert(res && res->status == 200);
+        EXPECT_TRUE(res && res->status == 200);
         pugi::xml_document doc;
-        assert(doc.load_string(res->body.c_str()));
+        EXPECT_TRUE(doc.load_string(res->body.c_str()));
         const auto users = doc.select_nodes("//*[local-name()='User']");
-        assert(users.size() >= 2);
+        EXPECT_TRUE(users.size() >= 2);
     }
 
     // 2. CreateUsers
@@ -1212,8 +1212,8 @@ void testDeviceManagementAndSecurity()
                                 "  </SOAP-ENV:Body>\r\n"
                                 "</SOAP-ENV:Envelope>";
         auto res = client.Post("/onvif/device_service", req, "application/soap+xml; charset=utf-8");
-        assert(res && res->status == 200);
-        assert(res->body.find("CreateUsersResponse") != std::string::npos);
+        EXPECT_TRUE(res && res->status == 200);
+        EXPECT_TRUE(res->body.find("CreateUsersResponse") != std::string::npos);
     }
 
     // 3. Verify user created via GetUsers
@@ -1226,8 +1226,8 @@ void testDeviceManagementAndSecurity()
                                 "  </SOAP-ENV:Body>\r\n"
                                 "</SOAP-ENV:Envelope>";
         auto res = client.Post("/onvif/device_service", req, "application/soap+xml; charset=utf-8");
-        assert(res && res->status == 200);
-        assert(res->body.find("guard1") != std::string::npos);
+        EXPECT_TRUE(res && res->status == 200);
+        EXPECT_TRUE(res->body.find("guard1") != std::string::npos);
     }
 
     // 4. SetUser (update role)
@@ -1247,8 +1247,8 @@ void testDeviceManagementAndSecurity()
                                 "  </SOAP-ENV:Body>\r\n"
                                 "</SOAP-ENV:Envelope>";
         auto res = client.Post("/onvif/device_service", req, "application/soap+xml; charset=utf-8");
-        assert(res && res->status == 200);
-        assert(res->body.find("SetUserResponse") != std::string::npos);
+        EXPECT_TRUE(res && res->status == 200);
+        EXPECT_TRUE(res->body.find("SetUserResponse") != std::string::npos);
     }
 
     // 5. DeleteUsers
@@ -1263,8 +1263,8 @@ void testDeviceManagementAndSecurity()
                                 "  </SOAP-ENV:Body>\r\n"
                                 "</SOAP-ENV:Envelope>";
         auto res = client.Post("/onvif/device_service", req, "application/soap+xml; charset=utf-8");
-        assert(res && res->status == 200);
-        assert(res->body.find("DeleteUsersResponse") != std::string::npos);
+        EXPECT_TRUE(res && res->status == 200);
+        EXPECT_TRUE(res->body.find("DeleteUsersResponse") != std::string::npos);
     }
 
     // 6. Network Interfaces: Get and Set
@@ -1277,8 +1277,8 @@ void testDeviceManagementAndSecurity()
                                    "  </SOAP-ENV:Body>\r\n"
                                    "</SOAP-ENV:Envelope>";
         auto res = client.Post("/onvif/device_service", getReq, "application/soap+xml; charset=utf-8");
-        assert(res && res->status == 200);
-        assert(res->body.find("NetworkInterfaces token=\"eth0\"") != std::string::npos);
+        EXPECT_TRUE(res && res->status == 200);
+        EXPECT_TRUE(res->body.find("NetworkInterfaces token=\"eth0\"") != std::string::npos);
 
         const std::string setReq = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
                                    "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
@@ -1303,13 +1303,13 @@ void testDeviceManagementAndSecurity()
                                    "  </SOAP-ENV:Body>\r\n"
                                    "</SOAP-ENV:Envelope>";
         auto resSet = client.Post("/onvif/device_service", setReq, "application/soap+xml; charset=utf-8");
-        assert(resSet && resSet->status == 200);
-        assert(resSet->body.find("SetNetworkInterfacesResponse") != std::string::npos);
+        EXPECT_TRUE(resSet && resSet->status == 200);
+        EXPECT_TRUE(resSet->body.find("SetNetworkInterfacesResponse") != std::string::npos);
 
         auto resVerify = client.Post("/onvif/device_service", getReq, "application/soap+xml; charset=utf-8");
-        assert(resVerify && resVerify->status == 200);
-        assert(resVerify->body.find("<tt:MTU>1400</tt:MTU>") != std::string::npos);
-        assert(resVerify->body.find("<tt:Address>10.0.0.50</tt:Address>") != std::string::npos);
+        EXPECT_TRUE(resVerify && resVerify->status == 200);
+        EXPECT_TRUE(resVerify->body.find("<tt:MTU>1400</tt:MTU>") != std::string::npos);
+        EXPECT_TRUE(resVerify->body.find("<tt:Address>10.0.0.50</tt:Address>") != std::string::npos);
     }
 
     // 7. Default Gateway: Get and Set
@@ -1325,7 +1325,7 @@ void testDeviceManagementAndSecurity()
                                      "  </SOAP-ENV:Body>\r\n"
                                      "</SOAP-ENV:Envelope>";
         auto resGw = client.Post("/onvif/device_service", setGwReq, "application/soap+xml; charset=utf-8");
-        assert(resGw && resGw->status == 200);
+        EXPECT_TRUE(resGw && resGw->status == 200);
 
         const std::string getGwReq = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
                                      "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
@@ -1335,8 +1335,8 @@ void testDeviceManagementAndSecurity()
                                      "  </SOAP-ENV:Body>\r\n"
                                      "</SOAP-ENV:Envelope>";
         auto resGet = client.Post("/onvif/device_service", getGwReq, "application/soap+xml; charset=utf-8");
-        assert(resGet && resGet->status == 200);
-        assert(resGet->body.find("<tt:IPv4Address>10.0.0.1</tt:IPv4Address>") != std::string::npos);
+        EXPECT_TRUE(resGet && resGet->status == 200);
+        EXPECT_TRUE(resGet->body.find("<tt:IPv4Address>10.0.0.1</tt:IPv4Address>") != std::string::npos);
     }
 
     // 8. DNS & NTP: Get and Set
@@ -1352,7 +1352,7 @@ void testDeviceManagementAndSecurity()
                                    "  </SOAP-ENV:Body>\r\n"
                                    "</SOAP-ENV:Envelope>";
         auto resDns = client.Post("/onvif/device_service", setDns, "application/soap+xml; charset=utf-8");
-        assert(resDns && resDns->status == 200);
+        EXPECT_TRUE(resDns && resDns->status == 200);
 
         const std::string getDns = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
                                    "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
@@ -1362,8 +1362,8 @@ void testDeviceManagementAndSecurity()
                                    "  </SOAP-ENV:Body>\r\n"
                                    "</SOAP-ENV:Envelope>";
         auto resGetDns = client.Post("/onvif/device_service", getDns, "application/soap+xml; charset=utf-8");
-        assert(resGetDns && resGetDns->status == 200);
-        assert(resGetDns->body.find("9.9.9.9") != std::string::npos);
+        EXPECT_TRUE(resGetDns && resGetDns->status == 200);
+        EXPECT_TRUE(resGetDns->body.find("9.9.9.9") != std::string::npos);
 
         const std::string setNtp
             = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
@@ -1377,7 +1377,7 @@ void testDeviceManagementAndSecurity()
               "  </SOAP-ENV:Body>\r\n"
               "</SOAP-ENV:Envelope>";
         auto resNtp = client.Post("/onvif/device_service", setNtp, "application/soap+xml; charset=utf-8");
-        assert(resNtp && resNtp->status == 200);
+        EXPECT_TRUE(resNtp && resNtp->status == 200);
 
         const std::string getNtp = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
                                    "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
@@ -1387,8 +1387,8 @@ void testDeviceManagementAndSecurity()
                                    "  </SOAP-ENV:Body>\r\n"
                                    "</SOAP-ENV:Envelope>";
         auto resGetNtp = client.Post("/onvif/device_service", getNtp, "application/soap+xml; charset=utf-8");
-        assert(resGetNtp && resGetNtp->status == 200);
-        assert(resGetNtp->body.find("time.cloudflare.com") != std::string::npos);
+        EXPECT_TRUE(resGetNtp && resGetNtp->status == 200);
+        EXPECT_TRUE(resGetNtp->body.find("time.cloudflare.com") != std::string::npos);
     }
 
     // 9. Hostname: Get and Set
@@ -1401,7 +1401,7 @@ void testDeviceManagementAndSecurity()
                                   "  </SOAP-ENV:Body>\r\n"
                                   "</SOAP-ENV:Envelope>";
         auto resHn = client.Post("/onvif/device_service", setHn, "application/soap+xml; charset=utf-8");
-        assert(resHn && resHn->status == 200);
+        EXPECT_TRUE(resHn && resHn->status == 200);
 
         const std::string getHn = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
                                   "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
@@ -1411,8 +1411,8 @@ void testDeviceManagementAndSecurity()
                                   "  </SOAP-ENV:Body>\r\n"
                                   "</SOAP-ENV:Envelope>";
         auto resGetHn = client.Post("/onvif/device_service", getHn, "application/soap+xml; charset=utf-8");
-        assert(resGetHn && resGetHn->status == 200);
-        assert(resGetHn->body.find("PTZ-Camera-West") != std::string::npos);
+        EXPECT_TRUE(resGetHn && resGetHn->status == 200);
+        EXPECT_TRUE(resGetHn->body.find("PTZ-Camera-West") != std::string::npos);
     }
 
     // 10. Date & Time: SetSystemDateAndTime
@@ -1436,8 +1436,8 @@ void testDeviceManagementAndSecurity()
                                   "  </SOAP-ENV:Body>\r\n"
                                   "</SOAP-ENV:Envelope>";
         auto resDt = client.Post("/onvif/device_service", setDt, "application/soap+xml; charset=utf-8");
-        assert(resDt && resDt->status == 200);
-        assert(resDt->body.find("SetSystemDateAndTimeResponse") != std::string::npos);
+        EXPECT_TRUE(resDt && resDt->status == 200);
+        EXPECT_TRUE(resDt->body.find("SetSystemDateAndTimeResponse") != std::string::npos);
     }
 
     // 11. Scopes: AddScopes, RemoveScopes, SetScopes
@@ -1452,7 +1452,7 @@ void testDeviceManagementAndSecurity()
                                   "  </SOAP-ENV:Body>\r\n"
                                   "</SOAP-ENV:Envelope>";
         auto resAdd = client.Post("/onvif/device_service", addSc, "application/soap+xml; charset=utf-8");
-        assert(resAdd && resAdd->status == 200);
+        EXPECT_TRUE(resAdd && resAdd->status == 200);
 
         const std::string getSc = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
                                   "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
@@ -1462,8 +1462,8 @@ void testDeviceManagementAndSecurity()
                                   "  </SOAP-ENV:Body>\r\n"
                                   "</SOAP-ENV:Envelope>";
         auto resGet = client.Post("/onvif/device_service", getSc, "application/soap+xml; charset=utf-8");
-        assert(resGet && resGet->status == 200);
-        assert(resGet->body.find("Sector4") != std::string::npos);
+        EXPECT_TRUE(resGet && resGet->status == 200);
+        EXPECT_TRUE(resGet->body.find("Sector4") != std::string::npos);
 
         const std::string remSc = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
                                   "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
@@ -1475,7 +1475,7 @@ void testDeviceManagementAndSecurity()
                                   "  </SOAP-ENV:Body>\r\n"
                                   "</SOAP-ENV:Envelope>";
         auto resRem = client.Post("/onvif/device_service", remSc, "application/soap+xml; charset=utf-8");
-        assert(resRem && resRem->status == 200);
+        EXPECT_TRUE(resRem && resRem->status == 200);
     }
 
     // 12. SystemReboot & SetSystemFactoryDefault
@@ -1488,8 +1488,8 @@ void testDeviceManagementAndSecurity()
                                    "  </SOAP-ENV:Body>\r\n"
                                    "</SOAP-ENV:Envelope>";
         auto resReboot = client.Post("/onvif/device_service", reboot, "application/soap+xml; charset=utf-8");
-        assert(resReboot && resReboot->status == 200);
-        assert(resReboot->body.find("SystemRebootResponse") != std::string::npos);
+        EXPECT_TRUE(resReboot && resReboot->status == 200);
+        EXPECT_TRUE(resReboot->body.find("SystemRebootResponse") != std::string::npos);
 
         const std::string factory = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
                                     "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
@@ -1501,22 +1501,22 @@ void testDeviceManagementAndSecurity()
                                     "  </SOAP-ENV:Body>\r\n"
                                     "</SOAP-ENV:Envelope>";
         auto resFactory = client.Post("/onvif/device_service", factory, "application/soap+xml; charset=utf-8");
-        assert(resFactory && resFactory->status == 200);
-        assert(resFactory->body.find("SetSystemFactoryDefaultResponse") != std::string::npos);
+        EXPECT_TRUE(resFactory && resFactory->status == 200);
+        EXPECT_TRUE(resFactory->body.find("SetSystemFactoryDefaultResponse") != std::string::npos);
     }
 
     server.stop();
-    assert(!server.isRunning());
+    EXPECT_TRUE(!server.isRunning());
     std::cout << "[PASS] testDeviceManagementAndSecurity" << std::endl;
 }
 
-void testImagingExtensionsAndDeviceIo()
+TEST(OnvifServerTest, ImagingExtensionsAndDeviceIo)
 {
     std::cout << "[RUN] testImagingExtensionsAndDeviceIo..." << std::endl;
 
     auto mockTransport = std::make_shared<PelcoD::MockPelcoDDevice>(1U);
     auto device = std::make_shared<PelcoD::PelcoDDevice>(mockTransport, 1U);
-    assert(device->start());
+    EXPECT_TRUE(device->start());
 
     auto adapter = std::make_shared<PelcoDPtzAdapter>(device);
 
@@ -1527,8 +1527,8 @@ void testImagingExtensionsAndDeviceIo()
 
     OnvifServer server(config, adapter, adapter);
     server.setDeviceIoHandler(adapter);
-    assert(server.start());
-    assert(server.isRunning());
+    EXPECT_TRUE(server.start());
+    EXPECT_TRUE(server.isRunning());
 
     httplib::Client client("127.0.0.1", config.port);
     client.set_connection_timeout(std::chrono::seconds(2));
@@ -1542,9 +1542,9 @@ void testImagingExtensionsAndDeviceIo()
                                 "  <SOAP-ENV:Body><tds:GetCapabilities/></SOAP-ENV:Body>\r\n"
                                 "</SOAP-ENV:Envelope>";
         auto res = client.Post("/onvif/device_service", req, "application/soap+xml; charset=utf-8");
-        assert(res && res->status == 200);
-        assert(res->body.find("/onvif/imaging_service") != std::string::npos);
-        assert(res->body.find("/onvif/deviceio_service") != std::string::npos);
+        EXPECT_TRUE(res && res->status == 200);
+        EXPECT_TRUE(res->body.find("/onvif/imaging_service") != std::string::npos);
+        EXPECT_TRUE(res->body.find("/onvif/deviceio_service") != std::string::npos);
     }
 
     // 2. GetServices: check deviceIO and imaging
@@ -1555,9 +1555,9 @@ void testImagingExtensionsAndDeviceIo()
                                 "  <SOAP-ENV:Body><tds:GetServices/></SOAP-ENV:Body>\r\n"
                                 "</SOAP-ENV:Envelope>";
         auto res = client.Post("/onvif/device_service", req, "application/soap+xml; charset=utf-8");
-        assert(res && res->status == 200);
-        assert(res->body.find("http://www.onvif.org/ver10/deviceIO/wsdl") != std::string::npos);
-        assert(res->body.find("/onvif/deviceio_service") != std::string::npos);
+        EXPECT_TRUE(res && res->status == 200);
+        EXPECT_TRUE(res->body.find("http://www.onvif.org/ver10/deviceIO/wsdl") != std::string::npos);
+        EXPECT_TRUE(res->body.find("/onvif/deviceio_service") != std::string::npos);
     }
 
     // 3. Extended Imaging Service: GetStatus (FocusStatus20)
@@ -1572,11 +1572,11 @@ void testImagingExtensionsAndDeviceIo()
                                 "  </SOAP-ENV:Body>\r\n"
                                 "</SOAP-ENV:Envelope>";
         auto res = client.Post("/onvif/imaging_service", req, "application/soap+xml; charset=utf-8");
-        assert(res && res->status == 200);
+        EXPECT_TRUE(res && res->status == 200);
         pugi::xml_document doc;
-        assert(doc.load_string(res->body.c_str()));
-        assert(doc.select_node("//*[local-name()='FocusStatus20']"));
-        assert(doc.select_node("//*[local-name()='MoveStatus']"));
+        EXPECT_TRUE(doc.load_string(res->body.c_str()));
+        EXPECT_TRUE(doc.select_node("//*[local-name()='FocusStatus20']"));
+        EXPECT_TRUE(doc.select_node("//*[local-name()='MoveStatus']"));
     }
 
     // 4. Extended Imaging Service: Move (Continuous, Absolute, Relative) & Stop
@@ -1595,7 +1595,7 @@ void testImagingExtensionsAndDeviceIo()
                                     "  </SOAP-ENV:Body>\r\n"
                                     "</SOAP-ENV:Envelope>";
         auto resCont = client.Post("/onvif/imaging_service", reqCont, "application/soap+xml; charset=utf-8");
-        assert(resCont && resCont->status == 200);
+        EXPECT_TRUE(resCont && resCont->status == 200);
 
         const std::string reqAbs = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
                                    "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
@@ -1611,7 +1611,7 @@ void testImagingExtensionsAndDeviceIo()
                                    "  </SOAP-ENV:Body>\r\n"
                                    "</SOAP-ENV:Envelope>";
         auto resAbs = client.Post("/onvif/imaging_service", reqAbs, "application/soap+xml; charset=utf-8");
-        assert(resAbs && resAbs->status == 200);
+        EXPECT_TRUE(resAbs && resAbs->status == 200);
 
         const std::string reqStop = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
                                     "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
@@ -1623,7 +1623,7 @@ void testImagingExtensionsAndDeviceIo()
                                     "  </SOAP-ENV:Body>\r\n"
                                     "</SOAP-ENV:Envelope>";
         auto resStop = client.Post("/onvif/imaging_service", reqStop, "application/soap+xml; charset=utf-8");
-        assert(resStop && resStop->status == 200);
+        EXPECT_TRUE(resStop && resStop->status == 200);
     }
 
     // 5. Extended Imaging Service: GetPresets & SetCurrentPreset
@@ -1638,9 +1638,9 @@ void testImagingExtensionsAndDeviceIo()
                                    "  </SOAP-ENV:Body>\r\n"
                                    "</SOAP-ENV:Envelope>";
         auto resGet = client.Post("/onvif/imaging_service", reqGet, "application/soap+xml; charset=utf-8");
-        assert(resGet && resGet->status == 200);
-        assert(resGet->body.find("Preset_Clear") != std::string::npos);
-        assert(resGet->body.find("Preset_BW") != std::string::npos);
+        EXPECT_TRUE(resGet && resGet->status == 200);
+        EXPECT_TRUE(resGet->body.find("Preset_Clear") != std::string::npos);
+        EXPECT_TRUE(resGet->body.find("Preset_BW") != std::string::npos);
 
         const std::string reqSet = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
                                    "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
@@ -1653,7 +1653,7 @@ void testImagingExtensionsAndDeviceIo()
                                    "  </SOAP-ENV:Body>\r\n"
                                    "</SOAP-ENV:Envelope>";
         auto resSet = client.Post("/onvif/imaging_service", reqSet, "application/soap+xml; charset=utf-8");
-        assert(resSet && resSet->status == 200);
+        EXPECT_TRUE(resSet && resSet->status == 200);
     }
 
     // 6. DeviceIO Service: GetRelayOutputs
@@ -1664,9 +1664,9 @@ void testImagingExtensionsAndDeviceIo()
                                 "  <SOAP-ENV:Body><tmd:GetRelayOutputs/></SOAP-ENV:Body>\r\n"
                                 "</SOAP-ENV:Envelope>";
         auto res = client.Post("/onvif/deviceio_service", req, "application/soap+xml; charset=utf-8");
-        assert(res && res->status == 200);
-        assert(res->body.find("Relay_1") != std::string::npos);
-        assert(res->body.find("Relay_2") != std::string::npos);
+        EXPECT_TRUE(res && res->status == 200);
+        EXPECT_TRUE(res->body.find("Relay_1") != std::string::npos);
+        EXPECT_TRUE(res->body.find("Relay_2") != std::string::npos);
     }
 
     // 7. DeviceIO Service: SetRelayOutputState (active & inactive)
@@ -1682,10 +1682,10 @@ void testImagingExtensionsAndDeviceIo()
                                       "  </SOAP-ENV:Body>\r\n"
                                       "</SOAP-ENV:Envelope>";
         auto resActive = client.Post("/onvif/deviceio_service", reqActive, "application/soap+xml; charset=utf-8");
-        assert(resActive && resActive->status == 200);
+        EXPECT_TRUE(resActive && resActive->status == 200);
 
         const auto relaysAfterActive = adapter->handleGetRelayOutputs();
-        assert(!relaysAfterActive.empty() && relaysAfterActive[0].logicalState == RelayLogicalState::Active);
+        EXPECT_TRUE(!relaysAfterActive.empty() && relaysAfterActive[0].logicalState == RelayLogicalState::Active);
 
         const std::string reqInactive = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
                                         "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
@@ -1698,10 +1698,10 @@ void testImagingExtensionsAndDeviceIo()
                                         "  </SOAP-ENV:Body>\r\n"
                                         "</SOAP-ENV:Envelope>";
         auto resInactive = client.Post("/onvif/deviceio_service", reqInactive, "application/soap+xml; charset=utf-8");
-        assert(resInactive && resInactive->status == 200);
+        EXPECT_TRUE(resInactive && resInactive->status == 200);
 
         const auto relaysAfterInactive = adapter->handleGetRelayOutputs();
-        assert(!relaysAfterInactive.empty() && relaysAfterInactive[0].logicalState == RelayLogicalState::Inactive);
+        EXPECT_TRUE(!relaysAfterInactive.empty() && relaysAfterInactive[0].logicalState == RelayLogicalState::Inactive);
     }
 
     // 8. DeviceIO Service: SetRelayOutputSettings
@@ -1722,13 +1722,13 @@ void testImagingExtensionsAndDeviceIo()
                                 "  </SOAP-ENV:Body>\r\n"
                                 "</SOAP-ENV:Envelope>";
         auto res = client.Post("/onvif/deviceio_service", req, "application/soap+xml; charset=utf-8");
-        assert(res && res->status == 200);
+        EXPECT_TRUE(res && res->status == 200);
 
         const auto relays = adapter->handleGetRelayOutputs();
-        assert(!relays.empty());
-        assert(relays[0].mode == RelayMode::Monostable);
-        assert(std::abs(relays[0].delayTimeSeconds - 2.0f) < 0.1f);
-        assert(relays[0].idleState == RelayIdleState::Closed);
+        EXPECT_TRUE(!relays.empty());
+        EXPECT_TRUE(relays[0].mode == RelayMode::Monostable);
+        EXPECT_TRUE(std::abs(relays[0].delayTimeSeconds - 2.0f) < 0.1f);
+        EXPECT_TRUE(relays[0].idleState == RelayIdleState::Closed);
     }
 
     // 9. DeviceIO Service: GetDigitalInputs
@@ -1739,24 +1739,24 @@ void testImagingExtensionsAndDeviceIo()
                                 "  <SOAP-ENV:Body><tmd:GetDigitalInputs/></SOAP-ENV:Body>\r\n"
                                 "</SOAP-ENV:Envelope>";
         auto res = client.Post("/onvif/deviceio_service", req, "application/soap+xml; charset=utf-8");
-        assert(res && res->status == 200);
-        assert(res->body.find("Input_1") != std::string::npos);
+        EXPECT_TRUE(res && res->status == 200);
+        EXPECT_TRUE(res->body.find("Input_1") != std::string::npos);
     }
 
     server.stop();
-    assert(!server.isRunning());
+    EXPECT_TRUE(!server.isRunning());
     device->stop();
 
     std::cout << "[PASS] testImagingExtensionsAndDeviceIo" << std::endl;
 }
 
-void testMetadataStreamsAndMaintenanceExtensions()
+TEST(OnvifServerTest, MetadataStreamsAndMaintenanceExtensions)
 {
     std::cout << "[RUN] testMetadataStreamsAndMaintenanceExtensions" << std::endl;
 
     auto mockTransport = std::make_shared<PelcoD::MockPelcoDDevice>(1U);
     auto device = std::make_shared<PelcoD::PelcoDDevice>(mockTransport, 1U);
-    assert(device->start());
+    EXPECT_TRUE(device->start());
 
     auto adapter = std::make_shared<PelcoDPtzAdapter>(device);
 
@@ -1777,8 +1777,8 @@ void testMetadataStreamsAndMaintenanceExtensions()
     OnvifServer server(config, adapter, adapter);
     server.setMetadataHandler(adapter);
     server.setDeviceManagementHandler(adapter);
-    assert(server.start());
-    assert(server.isRunning());
+    EXPECT_TRUE(server.start());
+    EXPECT_TRUE(server.isRunning());
 
     httplib::Client client("127.0.0.1", config.port);
     client.set_connection_timeout(std::chrono::seconds(2));
@@ -1792,9 +1792,9 @@ void testMetadataStreamsAndMaintenanceExtensions()
                                 "  <SOAP-ENV:Body><trt:GetMetadataConfigurations/></SOAP-ENV:Body>\r\n"
                                 "</SOAP-ENV:Envelope>";
         auto res = client.Post("/onvif/media_service", req, "application/soap+xml; charset=utf-8");
-        assert(res && res->status == 200);
-        assert(res->body.find("GetMetadataConfigurationsResponse") != std::string::npos);
-        assert(res->body.find("MetadataConfig_1") != std::string::npos);
+        EXPECT_TRUE(res && res->status == 200);
+        EXPECT_TRUE(res->body.find("GetMetadataConfigurationsResponse") != std::string::npos);
+        EXPECT_TRUE(res->body.find("MetadataConfig_1") != std::string::npos);
     }
 
     // 2. SetMetadataConfiguration (Media Service)
@@ -1818,24 +1818,24 @@ void testMetadataStreamsAndMaintenanceExtensions()
                                 "  </SOAP-ENV:Body>\r\n"
                                 "</SOAP-ENV:Envelope>";
         auto res = client.Post("/onvif/media_service", req, "application/soap+xml; charset=utf-8");
-        assert(res && res->status == 200);
-        assert(res->body.find("SetMetadataConfigurationResponse") != std::string::npos);
+        EXPECT_TRUE(res && res->status == 200);
+        EXPECT_TRUE(res->body.find("SetMetadataConfigurationResponse") != std::string::npos);
 
         const auto cfg = adapter->handleGetMetadataConfiguration("MetadataConfig_1");
-        assert(cfg.has_value());
-        assert(cfg->name == "UpdatedMetadata");
-        assert(cfg->eventsEnabled == true);
+        EXPECT_TRUE(cfg.has_value());
+        EXPECT_TRUE(cfg->name == "UpdatedMetadata");
+        EXPECT_TRUE(cfg->eventsEnabled == true);
     }
 
     // 3. GET /onvif/metadata_stream
     {
         auto res = client.Get("/onvif/metadata_stream");
-        assert(res && res->status == 200);
-        assert(res->body.find("<tt:MetadataStream") != std::string::npos);
-        assert(res->body.find("<tt:PTZStatus>") != std::string::npos);
-        assert(res->body.find("<tt:VideoAnalytics>") != std::string::npos);
-        assert(res->body.find("ObjectId=\"101\"") != std::string::npos);
-        assert(res->body.find("Vehicle") != std::string::npos);
+        EXPECT_TRUE(res && res->status == 200);
+        EXPECT_TRUE(res->body.find("<tt:MetadataStream") != std::string::npos);
+        EXPECT_TRUE(res->body.find("<tt:PTZStatus>") != std::string::npos);
+        EXPECT_TRUE(res->body.find("<tt:VideoAnalytics>") != std::string::npos);
+        EXPECT_TRUE(res->body.find("ObjectId=\"101\"") != std::string::npos);
+        EXPECT_TRUE(res->body.find("Vehicle") != std::string::npos);
     }
 
     // 4. Device Management: GetSystemLog (System)
@@ -1850,9 +1850,9 @@ void testMetadataStreamsAndMaintenanceExtensions()
                                 "  </SOAP-ENV:Body>\r\n"
                                 "</SOAP-ENV:Envelope>";
         auto res = client.Post("/onvif/device_service", req, "application/soap+xml; charset=utf-8");
-        assert(res && res->status == 200);
-        assert(res->body.find("GetSystemLogResponse") != std::string::npos);
-        assert(res->body.find("SystemLog") != std::string::npos);
+        EXPECT_TRUE(res && res->status == 200);
+        EXPECT_TRUE(res->body.find("GetSystemLogResponse") != std::string::npos);
+        EXPECT_TRUE(res->body.find("SystemLog") != std::string::npos);
     }
 
     // 5. Device Management: GetSystemLog (Access)
@@ -1867,10 +1867,9 @@ void testMetadataStreamsAndMaintenanceExtensions()
                                 "  </SOAP-ENV:Body>\r\n"
                                 "</SOAP-ENV:Envelope>";
         auto res = client.Post("/onvif/device_service", req, "application/soap+xml; charset=utf-8");
-        assert(res && res->status == 200);
-        assert(res->body.find("GetSystemLogResponse") != std::string::npos);
-        assert(
-            res->body.find("DeviceService:") != std::string::npos || res->body.find("ACCESS LOG") != std::string::npos);
+        EXPECT_TRUE(res && res->status == 200);
+        EXPECT_TRUE(res->body.find("GetSystemLogResponse") != std::string::npos);
+        EXPECT_TRUE(res->body.find("DeviceService:") != std::string::npos || res->body.find("ACCESS LOG") != std::string::npos);
     }
 
     // 6. Device Management: GetSystemSupportInformation
@@ -1881,9 +1880,9 @@ void testMetadataStreamsAndMaintenanceExtensions()
                                 "  <SOAP-ENV:Body><tds:GetSystemSupportInformation/></SOAP-ENV:Body>\r\n"
                                 "</SOAP-ENV:Envelope>";
         auto res = client.Post("/onvif/device_service", req, "application/soap+xml; charset=utf-8");
-        assert(res && res->status == 200);
-        assert(res->body.find("GetSystemSupportInformationResponse") != std::string::npos);
-        assert(res->body.find("SupportInformation") != std::string::npos);
+        EXPECT_TRUE(res && res->status == 200);
+        EXPECT_TRUE(res->body.find("GetSystemSupportInformationResponse") != std::string::npos);
+        EXPECT_TRUE(res->body.find("SupportInformation") != std::string::npos);
     }
 
     // 7. Device Management: GetSystemBackup & RestoreSystem
@@ -1894,9 +1893,9 @@ void testMetadataStreamsAndMaintenanceExtensions()
                                       "  <SOAP-ENV:Body><tds:GetSystemBackup/></SOAP-ENV:Body>\r\n"
                                       "</SOAP-ENV:Envelope>";
         auto resBackup = client.Post("/onvif/device_service", reqBackup, "application/soap+xml; charset=utf-8");
-        assert(resBackup && resBackup->status == 200);
-        assert(resBackup->body.find("GetSystemBackupResponse") != std::string::npos);
-        assert(resBackup->body.find("BackupFiles") != std::string::npos);
+        EXPECT_TRUE(resBackup && resBackup->status == 200);
+        EXPECT_TRUE(resBackup->body.find("GetSystemBackupResponse") != std::string::npos);
+        EXPECT_TRUE(resBackup->body.find("BackupFiles") != std::string::npos);
 
         const std::string reqRestore
             = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
@@ -1910,8 +1909,8 @@ void testMetadataStreamsAndMaintenanceExtensions()
               "  </SOAP-ENV:Body>\r\n"
               "</SOAP-ENV:Envelope>";
         auto resRestore = client.Post("/onvif/device_service", reqRestore, "application/soap+xml; charset=utf-8");
-        assert(resRestore && resRestore->status == 200);
-        assert(resRestore->body.find("RestoreSystemResponse") != std::string::npos);
+        EXPECT_TRUE(resRestore && resRestore->status == 200);
+        EXPECT_TRUE(resRestore->body.find("RestoreSystemResponse") != std::string::npos);
     }
 
     // 8. Device Management: GetEndpointReference
@@ -1922,25 +1921,25 @@ void testMetadataStreamsAndMaintenanceExtensions()
                                 "  <SOAP-ENV:Body><tds:GetEndpointReference/></SOAP-ENV:Body>\r\n"
                                 "</SOAP-ENV:Envelope>";
         auto res = client.Post("/onvif/device_service", req, "application/soap+xml; charset=utf-8");
-        assert(res && res->status == 200);
-        assert(res->body.find("GetEndpointReferenceResponse") != std::string::npos);
-        assert(res->body.find("GUID") != std::string::npos);
+        EXPECT_TRUE(res && res->status == 200);
+        EXPECT_TRUE(res->body.find("GetEndpointReferenceResponse") != std::string::npos);
+        EXPECT_TRUE(res->body.find("GUID") != std::string::npos);
     }
 
     server.stop();
-    assert(!server.isRunning());
+    EXPECT_TRUE(!server.isRunning());
     device->stop();
 
     std::cout << "[PASS] testMetadataStreamsAndMaintenanceExtensions" << std::endl;
 }
 
-void testProfileGAndPkiCertificates()
+TEST(OnvifServerTest, ProfileGAndPkiCertificates)
 {
     std::cout << "[RUN] testProfileGAndPkiCertificates" << std::endl;
 
     auto mockTransport = std::make_shared<PelcoD::MockPelcoDDevice>(1U);
     auto device = std::make_shared<PelcoD::PelcoDDevice>(mockTransport, 1U);
-    assert(device->start());
+    EXPECT_TRUE(device->start());
 
     auto adapter = std::make_shared<PelcoDPtzAdapter>(device);
 
@@ -1954,8 +1953,8 @@ void testProfileGAndPkiCertificates()
     server.setRecordingHandler(adapter);
     server.setSearchHandler(adapter);
     server.setReplayHandler(adapter);
-    assert(server.start());
-    assert(server.isRunning());
+    EXPECT_TRUE(server.start());
+    EXPECT_TRUE(server.isRunning());
 
     httplib::Client client("127.0.0.1", config.port);
     client.set_connection_timeout(std::chrono::seconds(3));
@@ -1975,14 +1974,14 @@ void testProfileGAndPkiCertificates()
                                 "  </SOAP-ENV:Body>\r\n"
                                 "</SOAP-ENV:Envelope>";
         auto res = client.Post("/onvif/device_service", req, "application/soap+xml; charset=utf-8");
-        assert(res && res->status == 200);
-        assert(res->body.find("CreateCertificateResponse") != std::string::npos);
+        EXPECT_TRUE(res && res->status == 200);
+        EXPECT_TRUE(res->body.find("CreateCertificateResponse") != std::string::npos);
         pugi::xml_document doc;
-        assert(doc.load_string(res->body.c_str()));
+        EXPECT_TRUE(doc.load_string(res->body.c_str()));
         const pugi::xml_node idNode = doc.select_node("//*[local-name()='CertificateID']").node();
-        assert(idNode && std::string(idNode.text().as_string()) == "cert_pki_1");
+        EXPECT_TRUE(idNode && std::string(idNode.text().as_string()) == "cert_pki_1");
         const pugi::xml_node dataNode = doc.select_node("//*[local-name()='Data']").node();
-        assert(dataNode && !std::string(dataNode.text().as_string()).empty());
+        EXPECT_TRUE(dataNode && !std::string(dataNode.text().as_string()).empty());
     }
 
     // 2. Device Management: GetCertificates
@@ -1993,9 +1992,9 @@ void testProfileGAndPkiCertificates()
                                 "  <SOAP-ENV:Body><tds:GetCertificates/></SOAP-ENV:Body>\r\n"
                                 "</SOAP-ENV:Envelope>";
         auto res = client.Post("/onvif/device_service", req, "application/soap+xml; charset=utf-8");
-        assert(res && res->status == 200);
-        assert(res->body.find("GetCertificatesResponse") != std::string::npos);
-        assert(res->body.find("cert_pki_1") != std::string::npos);
+        EXPECT_TRUE(res && res->status == 200);
+        EXPECT_TRUE(res->body.find("GetCertificatesResponse") != std::string::npos);
+        EXPECT_TRUE(res->body.find("cert_pki_1") != std::string::npos);
     }
 
     // 3. Device Management: GetCertificateInformation
@@ -2010,9 +2009,9 @@ void testProfileGAndPkiCertificates()
                                 "  </SOAP-ENV:Body>\r\n"
                                 "</SOAP-ENV:Envelope>";
         auto res = client.Post("/onvif/device_service", req, "application/soap+xml; charset=utf-8");
-        assert(res && res->status == 200);
-        assert(res->body.find("GetCertificateInformationResponse") != std::string::npos);
-        assert(res->body.find("ProfileGCam") != std::string::npos);
+        EXPECT_TRUE(res && res->status == 200);
+        EXPECT_TRUE(res->body.find("GetCertificateInformationResponse") != std::string::npos);
+        EXPECT_TRUE(res->body.find("ProfileGCam") != std::string::npos);
     }
 
     // 4. Device Management: GetPkcs10Request
@@ -2028,9 +2027,9 @@ void testProfileGAndPkiCertificates()
                                 "  </SOAP-ENV:Body>\r\n"
                                 "</SOAP-ENV:Envelope>";
         auto res = client.Post("/onvif/device_service", req, "application/soap+xml; charset=utf-8");
-        assert(res && res->status == 200);
-        assert(res->body.find("GetPkcs10RequestResponse") != std::string::npos);
-        assert(res->body.find("Pkcs10Request") != std::string::npos);
+        EXPECT_TRUE(res && res->status == 200);
+        EXPECT_TRUE(res->body.find("GetPkcs10RequestResponse") != std::string::npos);
+        EXPECT_TRUE(res->body.find("Pkcs10Request") != std::string::npos);
     }
 
     // 5. Device Management: ClientCertificateMode (Get, Set, Get)
@@ -2041,8 +2040,8 @@ void testProfileGAndPkiCertificates()
                                    "  <SOAP-ENV:Body><tds:GetClientCertificateMode/></SOAP-ENV:Body>\r\n"
                                    "</SOAP-ENV:Envelope>";
         auto resGet = client.Post("/onvif/device_service", reqGet, "application/soap+xml; charset=utf-8");
-        assert(resGet && resGet->status == 200);
-        assert(resGet->body.find("GetClientCertificateModeResponse") != std::string::npos);
+        EXPECT_TRUE(resGet && resGet->status == 200);
+        EXPECT_TRUE(resGet->body.find("GetClientCertificateModeResponse") != std::string::npos);
 
         const std::string reqSet = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
                                    "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
@@ -2054,12 +2053,12 @@ void testProfileGAndPkiCertificates()
                                    "  </SOAP-ENV:Body>\r\n"
                                    "</SOAP-ENV:Envelope>";
         auto resSet = client.Post("/onvif/device_service", reqSet, "application/soap+xml; charset=utf-8");
-        assert(resSet && resSet->status == 200);
-        assert(resSet->body.find("SetClientCertificateModeResponse") != std::string::npos);
+        EXPECT_TRUE(resSet && resSet->status == 200);
+        EXPECT_TRUE(resSet->body.find("SetClientCertificateModeResponse") != std::string::npos);
 
         auto resGet2 = client.Post("/onvif/device_service", reqGet, "application/soap+xml; charset=utf-8");
-        assert(resGet2 && resGet2->status == 200);
-        assert(resGet2->body.find("Optional") != std::string::npos);
+        EXPECT_TRUE(resGet2 && resGet2->status == 200);
+        EXPECT_TRUE(resGet2->body.find("Optional") != std::string::npos);
     }
 
     // 6. Device Management: DeleteCertificates
@@ -2074,8 +2073,8 @@ void testProfileGAndPkiCertificates()
                                 "  </SOAP-ENV:Body>\r\n"
                                 "</SOAP-ENV:Envelope>";
         auto res = client.Post("/onvif/device_service", req, "application/soap+xml; charset=utf-8");
-        assert(res && res->status == 200);
-        assert(res->body.find("DeleteCertificatesResponse") != std::string::npos);
+        EXPECT_TRUE(res && res->status == 200);
+        EXPECT_TRUE(res->body.find("DeleteCertificatesResponse") != std::string::npos);
     }
 
     // 7. Recording Service: GetServiceCapabilities & CreateRecording
@@ -2087,9 +2086,9 @@ void testProfileGAndPkiCertificates()
                                     "  <SOAP-ENV:Body><trc:GetServiceCapabilities/></SOAP-ENV:Body>\r\n"
                                     "</SOAP-ENV:Envelope>";
         auto resCaps = client.Post("/onvif/recording_service", reqCaps, "application/soap+xml; charset=utf-8");
-        assert(resCaps && resCaps->status == 200);
-        assert(resCaps->body.find("GetServiceCapabilitiesResponse") != std::string::npos);
-        assert(resCaps->body.find("DynamicRecordings") != std::string::npos);
+        EXPECT_TRUE(resCaps && resCaps->status == 200);
+        EXPECT_TRUE(resCaps->body.find("GetServiceCapabilitiesResponse") != std::string::npos);
+        EXPECT_TRUE(resCaps->body.find("DynamicRecordings") != std::string::npos);
 
         const std::string reqCreate = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
                                       "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
@@ -2108,14 +2107,14 @@ void testProfileGAndPkiCertificates()
                                       "  </SOAP-ENV:Body>\r\n"
                                       "</SOAP-ENV:Envelope>";
         auto resCreate = client.Post("/onvif/recording_service", reqCreate, "application/soap+xml; charset=utf-8");
-        assert(resCreate && resCreate->status == 200);
-        assert(resCreate->body.find("CreateRecordingResponse") != std::string::npos);
+        EXPECT_TRUE(resCreate && resCreate->status == 200);
+        EXPECT_TRUE(resCreate->body.find("CreateRecordingResponse") != std::string::npos);
         pugi::xml_document doc;
-        assert(doc.load_string(resCreate->body.c_str()));
+        EXPECT_TRUE(doc.load_string(resCreate->body.c_str()));
         const pugi::xml_node tNode = doc.select_node("//*[local-name()='RecordingToken']").node();
-        assert(tNode);
+        EXPECT_TRUE(tNode);
         recToken = tNode.text().as_string();
-        assert(!recToken.empty());
+        EXPECT_TRUE(!recToken.empty());
     }
 
     // 8. Recording Service: GetRecordings & CreateTrack
@@ -2127,8 +2126,8 @@ void testProfileGAndPkiCertificates()
                                    "  <SOAP-ENV:Body><trc:GetRecordings/></SOAP-ENV:Body>\r\n"
                                    "</SOAP-ENV:Envelope>";
         auto resGet = client.Post("/onvif/recording_service", reqGet, "application/soap+xml; charset=utf-8");
-        assert(resGet && resGet->status == 200);
-        assert(resGet->body.find(recToken) != std::string::npos);
+        EXPECT_TRUE(resGet && resGet->status == 200);
+        EXPECT_TRUE(resGet->body.find(recToken) != std::string::npos);
 
         const std::string reqTrk = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
                                    "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
@@ -2147,14 +2146,14 @@ void testProfileGAndPkiCertificates()
               "  </SOAP-ENV:Body>\r\n"
               "</SOAP-ENV:Envelope>";
         auto resTrk = client.Post("/onvif/recording_service", reqTrk, "application/soap+xml; charset=utf-8");
-        assert(resTrk && resTrk->status == 200);
-        assert(resTrk->body.find("CreateTrackResponse") != std::string::npos);
+        EXPECT_TRUE(resTrk && resTrk->status == 200);
+        EXPECT_TRUE(resTrk->body.find("CreateTrackResponse") != std::string::npos);
         pugi::xml_document doc;
-        assert(doc.load_string(resTrk->body.c_str()));
+        EXPECT_TRUE(doc.load_string(resTrk->body.c_str()));
         const pugi::xml_node tNode = doc.select_node("//*[local-name()='TrackToken']").node();
-        assert(tNode);
+        EXPECT_TRUE(tNode);
         trkToken = tNode.text().as_string();
-        assert(!trkToken.empty());
+        EXPECT_TRUE(!trkToken.empty());
     }
 
     // 9. Recording Service: CreateRecordingJob, GetRecordingJobs, SetRecordingJobMode
@@ -2178,14 +2177,14 @@ void testProfileGAndPkiCertificates()
               "  </SOAP-ENV:Body>\r\n"
               "</SOAP-ENV:Envelope>";
         auto resJob = client.Post("/onvif/recording_service", reqJob, "application/soap+xml; charset=utf-8");
-        assert(resJob && resJob->status == 200);
-        assert(resJob->body.find("CreateRecordingJobResponse") != std::string::npos);
+        EXPECT_TRUE(resJob && resJob->status == 200);
+        EXPECT_TRUE(resJob->body.find("CreateRecordingJobResponse") != std::string::npos);
         pugi::xml_document doc;
-        assert(doc.load_string(resJob->body.c_str()));
+        EXPECT_TRUE(doc.load_string(resJob->body.c_str()));
         const pugi::xml_node tNode = doc.select_node("//*[local-name()='JobToken']").node();
-        assert(tNode);
+        EXPECT_TRUE(tNode);
         jobToken = tNode.text().as_string();
-        assert(!jobToken.empty());
+        EXPECT_TRUE(!jobToken.empty());
 
         const std::string reqGet = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
                                    "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
@@ -2193,8 +2192,8 @@ void testProfileGAndPkiCertificates()
                                    "  <SOAP-ENV:Body><trc:GetRecordingJobs/></SOAP-ENV:Body>\r\n"
                                    "</SOAP-ENV:Envelope>";
         auto resGet = client.Post("/onvif/recording_service", reqGet, "application/soap+xml; charset=utf-8");
-        assert(resGet && resGet->status == 200);
-        assert(resGet->body.find(jobToken) != std::string::npos);
+        EXPECT_TRUE(resGet && resGet->status == 200);
+        EXPECT_TRUE(resGet->body.find(jobToken) != std::string::npos);
 
         const std::string reqMode = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
                                     "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
@@ -2209,8 +2208,8 @@ void testProfileGAndPkiCertificates()
               "  </SOAP-ENV:Body>\r\n"
               "</SOAP-ENV:Envelope>";
         auto resMode = client.Post("/onvif/recording_service", reqMode, "application/soap+xml; charset=utf-8");
-        assert(resMode && resMode->status == 200);
-        assert(resMode->body.find("SetRecordingJobModeResponse") != std::string::npos);
+        EXPECT_TRUE(resMode && resMode->status == 200);
+        EXPECT_TRUE(resMode->body.find("SetRecordingJobModeResponse") != std::string::npos);
     }
 
     // 10. Recording Service: GetRecordingSummary
@@ -2221,9 +2220,9 @@ void testProfileGAndPkiCertificates()
                                 "  <SOAP-ENV:Body><trc:GetRecordingSummary/></SOAP-ENV:Body>\r\n"
                                 "</SOAP-ENV:Envelope>";
         auto res = client.Post("/onvif/recording_service", req, "application/soap+xml; charset=utf-8");
-        assert(res && res->status == 200);
-        assert(res->body.find("GetRecordingSummaryResponse") != std::string::npos);
-        assert(res->body.find("NumberRecordings") != std::string::npos);
+        EXPECT_TRUE(res && res->status == 200);
+        EXPECT_TRUE(res->body.find("GetRecordingSummaryResponse") != std::string::npos);
+        EXPECT_TRUE(res->body.find("NumberRecordings") != std::string::npos);
     }
 
     // 11. Search Service: GetServiceCapabilities, FindRecordings, GetRecordingSearchResults
@@ -2235,8 +2234,8 @@ void testProfileGAndPkiCertificates()
                                     "  <SOAP-ENV:Body><tse:GetServiceCapabilities/></SOAP-ENV:Body>\r\n"
                                     "</SOAP-ENV:Envelope>";
         auto resCaps = client.Post("/onvif/search_service", reqCaps, "application/soap+xml; charset=utf-8");
-        assert(resCaps && resCaps->status == 200);
-        assert(resCaps->body.find("GetServiceCapabilitiesResponse") != std::string::npos);
+        EXPECT_TRUE(resCaps && resCaps->status == 200);
+        EXPECT_TRUE(resCaps->body.find("GetServiceCapabilitiesResponse") != std::string::npos);
 
         const std::string reqFind = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
                                     "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
@@ -2248,14 +2247,14 @@ void testProfileGAndPkiCertificates()
                                     "  </SOAP-ENV:Body>\r\n"
                                     "</SOAP-ENV:Envelope>";
         auto resFind = client.Post("/onvif/search_service", reqFind, "application/soap+xml; charset=utf-8");
-        assert(resFind && resFind->status == 200);
-        assert(resFind->body.find("FindRecordingsResponse") != std::string::npos);
+        EXPECT_TRUE(resFind && resFind->status == 200);
+        EXPECT_TRUE(resFind->body.find("FindRecordingsResponse") != std::string::npos);
         pugi::xml_document doc;
-        assert(doc.load_string(resFind->body.c_str()));
+        EXPECT_TRUE(doc.load_string(resFind->body.c_str()));
         const pugi::xml_node tNode = doc.select_node("//*[local-name()='SearchToken']").node();
-        assert(tNode);
+        EXPECT_TRUE(tNode);
         recSearchToken = tNode.text().as_string();
-        assert(!recSearchToken.empty());
+        EXPECT_TRUE(!recSearchToken.empty());
 
         const std::string reqResults = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
                                        "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
@@ -2269,9 +2268,9 @@ void testProfileGAndPkiCertificates()
               "  </SOAP-ENV:Body>\r\n"
               "</SOAP-ENV:Envelope>";
         auto resResults = client.Post("/onvif/search_service", reqResults, "application/soap+xml; charset=utf-8");
-        assert(resResults && resResults->status == 200);
-        assert(resResults->body.find("GetRecordingSearchResultsResponse") != std::string::npos);
-        assert(resResults->body.find("ResultList") != std::string::npos);
+        EXPECT_TRUE(resResults && resResults->status == 200);
+        EXPECT_TRUE(resResults->body.find("GetRecordingSearchResultsResponse") != std::string::npos);
+        EXPECT_TRUE(resResults->body.find("ResultList") != std::string::npos);
     }
 
     // 12. Search Service: FindEvents, GetEventSearchResults, EndSearch
@@ -2287,14 +2286,14 @@ void testProfileGAndPkiCertificates()
                                     "  </SOAP-ENV:Body>\r\n"
                                     "</SOAP-ENV:Envelope>";
         auto resFind = client.Post("/onvif/search_service", reqFind, "application/soap+xml; charset=utf-8");
-        assert(resFind && resFind->status == 200);
-        assert(resFind->body.find("FindEventsResponse") != std::string::npos);
+        EXPECT_TRUE(resFind && resFind->status == 200);
+        EXPECT_TRUE(resFind->body.find("FindEventsResponse") != std::string::npos);
         pugi::xml_document doc;
-        assert(doc.load_string(resFind->body.c_str()));
+        EXPECT_TRUE(doc.load_string(resFind->body.c_str()));
         const pugi::xml_node tNode = doc.select_node("//*[local-name()='SearchToken']").node();
-        assert(tNode);
+        EXPECT_TRUE(tNode);
         const std::string evSearchToken = tNode.text().as_string();
-        assert(!evSearchToken.empty());
+        EXPECT_TRUE(!evSearchToken.empty());
 
         const std::string reqResults = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
                                        "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
@@ -2308,9 +2307,9 @@ void testProfileGAndPkiCertificates()
               "  </SOAP-ENV:Body>\r\n"
               "</SOAP-ENV:Envelope>";
         auto resResults = client.Post("/onvif/search_service", reqResults, "application/soap+xml; charset=utf-8");
-        assert(resResults && resResults->status == 200);
-        assert(resResults->body.find("GetEventSearchResultsResponse") != std::string::npos);
-        assert(resResults->body.find("ResultList") != std::string::npos);
+        EXPECT_TRUE(resResults && resResults->status == 200);
+        EXPECT_TRUE(resResults->body.find("GetEventSearchResultsResponse") != std::string::npos);
+        EXPECT_TRUE(resResults->body.find("ResultList") != std::string::npos);
 
         const std::string reqEnd = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
                                    "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
@@ -2324,8 +2323,8 @@ void testProfileGAndPkiCertificates()
               "  </SOAP-ENV:Body>\r\n"
               "</SOAP-ENV:Envelope>";
         auto resEnd = client.Post("/onvif/search_service", reqEnd, "application/soap+xml; charset=utf-8");
-        assert(resEnd && resEnd->status == 200);
-        assert(resEnd->body.find("EndSearchResponse") != std::string::npos);
+        EXPECT_TRUE(resEnd && resEnd->status == 200);
+        EXPECT_TRUE(resEnd->body.find("EndSearchResponse") != std::string::npos);
     }
 
     // 13. Replay Service: GetServiceCapabilities, GetReplayUri, Get/Set ReplayConfiguration
@@ -2336,9 +2335,9 @@ void testProfileGAndPkiCertificates()
                                     "  <SOAP-ENV:Body><trp:GetServiceCapabilities/></SOAP-ENV:Body>\r\n"
                                     "</SOAP-ENV:Envelope>";
         auto resCaps = client.Post("/onvif/replay_service", reqCaps, "application/soap+xml; charset=utf-8");
-        assert(resCaps && resCaps->status == 200);
-        assert(resCaps->body.find("GetServiceCapabilitiesResponse") != std::string::npos);
-        assert(resCaps->body.find("ReversePlayback") != std::string::npos);
+        EXPECT_TRUE(resCaps && resCaps->status == 200);
+        EXPECT_TRUE(resCaps->body.find("GetServiceCapabilitiesResponse") != std::string::npos);
+        EXPECT_TRUE(resCaps->body.find("ReversePlayback") != std::string::npos);
 
         const std::string reqUri = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
                                    "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
@@ -2352,9 +2351,9 @@ void testProfileGAndPkiCertificates()
               "  </SOAP-ENV:Body>\r\n"
               "</SOAP-ENV:Envelope>";
         auto resUri = client.Post("/onvif/replay_service", reqUri, "application/soap+xml; charset=utf-8");
-        assert(resUri && resUri->status == 200);
-        assert(resUri->body.find("GetReplayUriResponse") != std::string::npos);
-        assert(resUri->body.find("rtsp://") != std::string::npos);
+        EXPECT_TRUE(resUri && resUri->status == 200);
+        EXPECT_TRUE(resUri->body.find("GetReplayUriResponse") != std::string::npos);
+        EXPECT_TRUE(resUri->body.find("rtsp://") != std::string::npos);
 
         const std::string reqGetCfg = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
                                       "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
@@ -2362,8 +2361,8 @@ void testProfileGAndPkiCertificates()
                                       "  <SOAP-ENV:Body><trp:GetReplayConfiguration/></SOAP-ENV:Body>\r\n"
                                       "</SOAP-ENV:Envelope>";
         auto resGetCfg = client.Post("/onvif/replay_service", reqGetCfg, "application/soap+xml; charset=utf-8");
-        assert(resGetCfg && resGetCfg->status == 200);
-        assert(resGetCfg->body.find("GetReplayConfigurationResponse") != std::string::npos);
+        EXPECT_TRUE(resGetCfg && resGetCfg->status == 200);
+        EXPECT_TRUE(resGetCfg->body.find("GetReplayConfigurationResponse") != std::string::npos);
 
         const std::string reqSetCfg = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
                                       "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
@@ -2377,28 +2376,28 @@ void testProfileGAndPkiCertificates()
                                       "  </SOAP-ENV:Body>\r\n"
                                       "</SOAP-ENV:Envelope>";
         auto resSetCfg = client.Post("/onvif/replay_service", reqSetCfg, "application/soap+xml; charset=utf-8");
-        assert(resSetCfg && resSetCfg->status == 200);
-        assert(resSetCfg->body.find("SetReplayConfigurationResponse") != std::string::npos);
+        EXPECT_TRUE(resSetCfg && resSetCfg->status == 200);
+        EXPECT_TRUE(resSetCfg->body.find("SetReplayConfigurationResponse") != std::string::npos);
 
         auto resGetCfg2 = client.Post("/onvif/replay_service", reqGetCfg, "application/soap+xml; charset=utf-8");
-        assert(resGetCfg2 && resGetCfg2->status == 200);
-        assert(resGetCfg2->body.find("PT120S") != std::string::npos);
+        EXPECT_TRUE(resGetCfg2 && resGetCfg2->status == 200);
+        EXPECT_TRUE(resGetCfg2->body.find("PT120S") != std::string::npos);
     }
 
     server.stop();
-    assert(!server.isRunning());
+    EXPECT_TRUE(!server.isRunning());
     device->stop();
 
     std::cout << "[PASS] testProfileGAndPkiCertificates" << std::endl;
 }
 
-void testVideoAnalyticsRuleEngineAndEvaluation()
+TEST(OnvifServerTest, VideoAnalyticsRuleEngineAndEvaluation)
 {
     std::cout << "[RUN] testVideoAnalyticsRuleEngineAndEvaluation" << std::endl;
 
     auto mockTransport = std::make_shared<PelcoD::MockPelcoDDevice>(1U);
     auto device = std::make_shared<PelcoD::PelcoDDevice>(mockTransport, 1U);
-    assert(device->start());
+    EXPECT_TRUE(device->start());
     auto adapter = std::make_shared<PelcoDPtzAdapter>(device);
 
     OnvifServerConfig config;
@@ -2407,8 +2406,8 @@ void testVideoAnalyticsRuleEngineAndEvaluation()
 
     OnvifServer server(config, adapter, adapter);
     server.setAnalyticsHandler(adapter);
-    assert(server.start());
-    assert(server.isRunning());
+    EXPECT_TRUE(server.start());
+    EXPECT_TRUE(server.isRunning());
 
     httplib::Client client("127.0.0.1", 18090);
 
@@ -2420,9 +2419,9 @@ void testVideoAnalyticsRuleEngineAndEvaluation()
                                 "  <SOAP-ENV:Body><tan:GetServiceCapabilities/></SOAP-ENV:Body>\r\n"
                                 "</SOAP-ENV:Envelope>";
         auto res = client.Post("/onvif/analytics_service", req, "application/soap+xml; charset=utf-8");
-        assert(res && res->status == 200);
-        assert(res->body.find("RuleSupport=\"true\"") != std::string::npos);
-        assert(res->body.find("AnalyticsModuleSupport=\"true\"") != std::string::npos);
+        EXPECT_TRUE(res && res->status == 200);
+        EXPECT_TRUE(res->body.find("RuleSupport=\"true\"") != std::string::npos);
+        EXPECT_TRUE(res->body.find("AnalyticsModuleSupport=\"true\"") != std::string::npos);
     }
 
     // 2. GetSupportedRules
@@ -2433,10 +2432,10 @@ void testVideoAnalyticsRuleEngineAndEvaluation()
                                 "  <SOAP-ENV:Body><tan:GetSupportedRules/></SOAP-ENV:Body>\r\n"
                                 "</SOAP-ENV:Envelope>";
         auto res = client.Post("/onvif/analytics_service", req, "application/soap+xml; charset=utf-8");
-        assert(res && res->status == 200);
-        assert(res->body.find("tt:LineDetector") != std::string::npos);
-        assert(res->body.find("tt:FieldDetector") != std::string::npos);
-        assert(res->body.find("tt:LoiteringDetector") != std::string::npos);
+        EXPECT_TRUE(res && res->status == 200);
+        EXPECT_TRUE(res->body.find("tt:LineDetector") != std::string::npos);
+        EXPECT_TRUE(res->body.find("tt:FieldDetector") != std::string::npos);
+        EXPECT_TRUE(res->body.find("tt:LoiteringDetector") != std::string::npos);
     }
 
     // 3. CreateRules (Tripwire LineDetector + FieldDetector)
@@ -2477,8 +2476,8 @@ void testVideoAnalyticsRuleEngineAndEvaluation()
               "  </SOAP-ENV:Body>\r\n"
               "</SOAP-ENV:Envelope>";
         auto res = client.Post("/onvif/analytics_service", req, "application/soap+xml; charset=utf-8");
-        assert(res && res->status == 200);
-        assert(res->body.find("CreateRulesResponse") != std::string::npos);
+        EXPECT_TRUE(res && res->status == 200);
+        EXPECT_TRUE(res->body.find("CreateRulesResponse") != std::string::npos);
     }
 
     // 4. GetRules verify persistence
@@ -2489,9 +2488,9 @@ void testVideoAnalyticsRuleEngineAndEvaluation()
                                 "  <SOAP-ENV:Body><tan:GetRules/></SOAP-ENV:Body>\r\n"
                                 "</SOAP-ENV:Envelope>";
         auto res = client.Post("/onvif/analytics_service", req, "application/soap+xml; charset=utf-8");
-        assert(res && res->status == 200);
-        assert(res->body.find("PerimeterTripwire") != std::string::npos);
-        assert(res->body.find("ZoneIntrusion") != std::string::npos);
+        EXPECT_TRUE(res && res->status == 200);
+        EXPECT_TRUE(res->body.find("PerimeterTripwire") != std::string::npos);
+        EXPECT_TRUE(res->body.find("ZoneIntrusion") != std::string::npos);
     }
 
     // 5. Test Geometric Rule Evaluation via Adapter & Event Publishing
@@ -2510,14 +2509,14 @@ void testVideoAnalyticsRuleEngineAndEvaluation()
     adapter->setDetectedObjects({ obj1 });
 
     // Should trigger ZoneIntrusion event because center is inside polygon [0.2, 0.8]
-    assert(!emittedEvents.empty());
+    EXPECT_TRUE(!emittedEvents.empty());
     bool zoneTriggered = false;
     for (const auto& ev : emittedEvents) {
         if (ev.topic == "tns1:RuleEngine/FieldDetector/ObjectsInside" && ev.sourceValue == "ZoneIntrusion") {
             zoneTriggered = true;
         }
     }
-    assert(zoneTriggered);
+    EXPECT_TRUE(zoneTriggered);
     emittedEvents.clear();
 
     // Frame 2: Object 1 moves to x=0.70 (right of vertical line x=0.50) -> Crossing left-to-right!
@@ -2533,7 +2532,7 @@ void testVideoAnalyticsRuleEngineAndEvaluation()
             tripwireTriggered = true;
         }
     }
-    assert(tripwireTriggered);
+    EXPECT_TRUE(tripwireTriggered);
 
     // 6. DeleteRules
     {
@@ -2547,28 +2546,28 @@ void testVideoAnalyticsRuleEngineAndEvaluation()
                                 "  </SOAP-ENV:Body>\r\n"
                                 "</SOAP-ENV:Envelope>";
         auto res = client.Post("/onvif/analytics_service", req, "application/soap+xml; charset=utf-8");
-        assert(res && res->status == 200);
-        assert(res->body.find("DeleteRulesResponse") != std::string::npos);
+        EXPECT_TRUE(res && res->status == 200);
+        EXPECT_TRUE(res->body.find("DeleteRulesResponse") != std::string::npos);
 
         auto rulesRemaining = adapter->handleGetRules("");
-        assert(rulesRemaining.size() == 1U);
-        assert(rulesRemaining[0].name == "ZoneIntrusion");
+        EXPECT_TRUE(rulesRemaining.size() == 1U);
+        EXPECT_TRUE(rulesRemaining[0].name == "ZoneIntrusion");
     }
 
     server.stop();
-    assert(!server.isRunning());
+    EXPECT_TRUE(!server.isRunning());
     device->stop();
 
     std::cout << "[PASS] testVideoAnalyticsRuleEngineAndEvaluation" << std::endl;
 }
 
-void testPtzGeoMoveAndSphericalSpaces()
+TEST(OnvifServerTest, PtzGeoMoveAndSphericalSpaces)
 {
     std::cout << "[RUN] testPtzGeoMoveAndSphericalSpaces..." << std::endl;
 
     auto mockTransport = std::make_shared<PelcoD::MockPelcoDDevice>(1U);
     auto device = std::make_shared<PelcoD::PelcoDDevice>(mockTransport, 1U);
-    assert(device->start());
+    EXPECT_TRUE(device->start());
 
     auto adapter = std::make_shared<PelcoDPtzAdapter>(device);
 
@@ -2585,8 +2584,8 @@ void testPtzGeoMoveAndSphericalSpaces()
     adapter->setCameraLocation(config.defaultLocation);
     server.setPtzHandler(adapter);
     server.setDeviceManagementHandler(adapter);
-    assert(server.start());
-    assert(server.isRunning());
+    EXPECT_TRUE(server.start());
+    EXPECT_TRUE(server.isRunning());
 
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
@@ -2607,8 +2606,8 @@ void testPtzGeoMoveAndSphericalSpaces()
                                 "</SOAP-ENV:Envelope>";
 
         auto res = client.Post("/onvif/ptz_service", req, "application/soap+xml; charset=utf-8");
-        assert(res && res->status == 200);
-        assert(res->body.find("PositionSphericalSpace") != std::string::npos);
+        EXPECT_TRUE(res && res->status == 200);
+        EXPECT_TRUE(res->body.find("PositionSphericalSpace") != std::string::npos);
     }
 
     // 2. GetNodes - should advertise <tt:GeoMove>true</tt:GeoMove>
@@ -2622,8 +2621,8 @@ void testPtzGeoMoveAndSphericalSpaces()
                                 "</SOAP-ENV:Envelope>";
 
         auto res = client.Post("/onvif/ptz_service", req, "application/soap+xml; charset=utf-8");
-        assert(res && res->status == 200);
-        assert(res->body.find("<tt:GeoMove>true</tt:GeoMove>") != std::string::npos);
+        EXPECT_TRUE(res && res->status == 200);
+        EXPECT_TRUE(res->body.find("<tt:GeoMove>true</tt:GeoMove>") != std::string::npos);
     }
 
     // 3. GetGeoLocation - initial camera location
@@ -2637,9 +2636,9 @@ void testPtzGeoMoveAndSphericalSpaces()
                                 "</SOAP-ENV:Envelope>";
 
         auto res = client.Post("/onvif/device_service", req, "application/soap+xml; charset=utf-8");
-        assert(res && res->status == 200);
-        assert(res->body.find("37.9838") != std::string::npos);
-        assert(res->body.find("23.7275") != std::string::npos);
+        EXPECT_TRUE(res && res->status == 200);
+        EXPECT_TRUE(res->body.find("37.9838") != std::string::npos);
+        EXPECT_TRUE(res->body.find("23.7275") != std::string::npos);
     }
 
     // 4. SetGeoLocation - update camera location & mounting orientation
@@ -2659,13 +2658,13 @@ void testPtzGeoMoveAndSphericalSpaces()
                                 "</SOAP-ENV:Envelope>";
 
         auto res = client.Post("/onvif/device_service", req, "application/soap+xml; charset=utf-8");
-        assert(res && res->status == 200);
-        assert(res->body.find("SetGeoLocationResponse") != std::string::npos);
+        EXPECT_TRUE(res && res->status == 200);
+        EXPECT_TRUE(res->body.find("SetGeoLocationResponse") != std::string::npos);
 
         const auto camLoc = adapter->cameraLocation();
-        assert(std::fabs(camLoc.location.latitude - 38.0000) < 0.0001);
-        assert(std::fabs(camLoc.location.longitude - 23.8000) < 0.0001);
-        assert(std::fabs(camLoc.orientation.yaw - 90.0) < 0.01);
+        EXPECT_TRUE(std::fabs(camLoc.location.latitude - 38.0000) < 0.0001);
+        EXPECT_TRUE(std::fabs(camLoc.location.longitude - 23.8000) < 0.0001);
+        EXPECT_TRUE(std::fabs(camLoc.orientation.yaw - 90.0) < 0.01);
     }
 
     // 5. GeoMove - Target directly North of camera (lat: 38.01, lon: 23.80)
@@ -2685,14 +2684,14 @@ void testPtzGeoMoveAndSphericalSpaces()
                                 "</SOAP-ENV:Envelope>";
 
         auto res = client.Post("/onvif/ptz_service", req, "application/soap+xml; charset=utf-8");
-        assert(res && res->status == 200);
-        assert(res->body.find("GeoMoveResponse") != std::string::npos);
+        EXPECT_TRUE(res && res->status == 200);
+        EXPECT_TRUE(res->body.find("GeoMoveResponse") != std::string::npos);
 
         std::this_thread::sleep_for(std::chrono::milliseconds(150));
         const auto state = mockTransport->getInternalState();
         // 270 deg = 27000 centidegrees
-        assert(std::abs(static_cast<int>(state.panCentidegrees) - 27000) < 50);
-        assert(state.tiltCentidegrees == 0);
+        EXPECT_TRUE(std::abs(static_cast<int>(state.panCentidegrees) - 27000) < 50);
+        EXPECT_TRUE(state.tiltCentidegrees == 0);
     }
 
     // 6. AbsoluteMove with PositionSphericalSpace (Azimuth 180°, Elevation 30°)
@@ -2712,13 +2711,13 @@ void testPtzGeoMoveAndSphericalSpaces()
                                 "</SOAP-ENV:Envelope>";
 
         auto res = client.Post("/onvif/ptz_service", req, "application/soap+xml; charset=utf-8");
-        assert(res && res->status == 200);
-        assert(res->body.find("AbsoluteMoveResponse") != std::string::npos);
+        EXPECT_TRUE(res && res->status == 200);
+        EXPECT_TRUE(res->body.find("AbsoluteMoveResponse") != std::string::npos);
 
         std::this_thread::sleep_for(std::chrono::milliseconds(150));
         const auto state = mockTransport->getInternalState();
-        assert(state.panCentidegrees == 18000);
-        assert(state.tiltCentidegrees == 3000);
+        EXPECT_TRUE(state.panCentidegrees == 18000);
+        EXPECT_TRUE(state.tiltCentidegrees == 3000);
     }
 
     // 7. DeleteGeoLocation
@@ -2734,18 +2733,18 @@ void testPtzGeoMoveAndSphericalSpaces()
                                 "</SOAP-ENV:Envelope>";
 
         auto res = client.Post("/onvif/device_service", req, "application/soap+xml; charset=utf-8");
-        assert(res && res->status == 200);
-        assert(res->body.find("DeleteGeoLocationResponse") != std::string::npos);
+        EXPECT_TRUE(res && res->status == 200);
+        EXPECT_TRUE(res->body.find("DeleteGeoLocationResponse") != std::string::npos);
     }
 
     server.stop();
-    assert(!server.isRunning());
+    EXPECT_TRUE(!server.isRunning());
     device->stop();
 
     std::cout << "[PASS] testPtzGeoMoveAndSphericalSpaces" << std::endl;
 }
 
-void testProfileTPrivacyMasksAndVideoSourceModes()
+TEST(OnvifServerTest, ProfileTPrivacyMasksAndVideoSourceModes)
 {
     const int port = 18599;
     OnvifServerConfig config;
@@ -2754,14 +2753,14 @@ void testProfileTPrivacyMasksAndVideoSourceModes()
 
     auto mockTransport = std::make_shared<PelcoD::MockPelcoDDevice>();
     auto device = std::make_shared<PelcoD::PelcoDDevice>(mockTransport);
-    assert(device->start());
+    EXPECT_TRUE(device->start());
 
     auto adapter = std::make_shared<PelcoDPtzAdapter>(device);
 
     OnvifServer server(config, adapter, adapter);
     server.setMaskHandler(adapter);
     server.setVideoSourceModeHandler(adapter);
-    assert(server.start());
+    EXPECT_TRUE(server.start());
 
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
@@ -2777,8 +2776,8 @@ void testProfileTPrivacyMasksAndVideoSourceModes()
                                 "  <SOAP-ENV:Body><tr2:GetServiceCapabilities/></SOAP-ENV:Body>\r\n"
                                 "</SOAP-ENV:Envelope>";
         auto res = client.Post("/onvif/media2_service", req, "application/soap+xml; charset=utf-8");
-        assert(res && res->status == 200);
-        assert(res->body.find("Mask=\"true\"") != std::string::npos);
+        EXPECT_TRUE(res && res->status == 200);
+        EXPECT_TRUE(res->body.find("Mask=\"true\"") != std::string::npos);
     }
 
     // 2. GetMaskOptions
@@ -2793,10 +2792,10 @@ void testProfileTPrivacyMasksAndVideoSourceModes()
                                 "  </SOAP-ENV:Body>\r\n"
                                 "</SOAP-ENV:Envelope>";
         auto res = client.Post("/onvif/media2_service", req, "application/soap+xml; charset=utf-8");
-        assert(res && res->status == 200);
-        assert(res->body.find("GetMaskOptionsResponse") != std::string::npos);
-        assert(res->body.find("MaxMasks") != std::string::npos);
-        assert(res->body.find("Rectangle=\"true\"") != std::string::npos);
+        EXPECT_TRUE(res && res->status == 200);
+        EXPECT_TRUE(res->body.find("GetMaskOptionsResponse") != std::string::npos);
+        EXPECT_TRUE(res->body.find("MaxMasks") != std::string::npos);
+        EXPECT_TRUE(res->body.find("Rectangle=\"true\"") != std::string::npos);
     }
 
     // 3. GetMasks - check default mask Mask_1
@@ -2811,9 +2810,9 @@ void testProfileTPrivacyMasksAndVideoSourceModes()
                                 "  </SOAP-ENV:Body>\r\n"
                                 "</SOAP-ENV:Envelope>";
         auto res = client.Post("/onvif/media2_service", req, "application/soap+xml; charset=utf-8");
-        assert(res && res->status == 200);
-        assert(res->body.find("GetMasksResponse") != std::string::npos);
-        assert(res->body.find("Mask_1") != std::string::npos);
+        EXPECT_TRUE(res && res->status == 200);
+        EXPECT_TRUE(res->body.find("GetMasksResponse") != std::string::npos);
+        EXPECT_TRUE(res->body.find("Mask_1") != std::string::npos);
     }
 
     // 4. CreateMask - add a new mask Mask_New
@@ -2839,9 +2838,9 @@ void testProfileTPrivacyMasksAndVideoSourceModes()
                                 "  </SOAP-ENV:Body>\r\n"
                                 "</SOAP-ENV:Envelope>";
         auto res = client.Post("/onvif/media2_service", req, "application/soap+xml; charset=utf-8");
-        assert(res && res->status == 200);
-        assert(res->body.find("CreateMaskResponse") != std::string::npos);
-        assert(res->body.find("Mask_New") != std::string::npos);
+        EXPECT_TRUE(res && res->status == 200);
+        EXPECT_TRUE(res->body.find("CreateMaskResponse") != std::string::npos);
+        EXPECT_TRUE(res->body.find("Mask_New") != std::string::npos);
     }
 
     // 5. GetMask - retrieve Mask_New
@@ -2856,9 +2855,9 @@ void testProfileTPrivacyMasksAndVideoSourceModes()
                                 "  </SOAP-ENV:Body>\r\n"
                                 "</SOAP-ENV:Envelope>";
         auto res = client.Post("/onvif/media2_service", req, "application/soap+xml; charset=utf-8");
-        assert(res && res->status == 200);
-        assert(res->body.find("GetMaskResponse") != std::string::npos);
-        assert(res->body.find("Blurred") != std::string::npos);
+        EXPECT_TRUE(res && res->status == 200);
+        EXPECT_TRUE(res->body.find("GetMaskResponse") != std::string::npos);
+        EXPECT_TRUE(res->body.find("Blurred") != std::string::npos);
     }
 
     // 6. SetMask - modify Mask_New to Pixelated and disabled
@@ -2882,14 +2881,14 @@ void testProfileTPrivacyMasksAndVideoSourceModes()
                                 "  </SOAP-ENV:Body>\r\n"
                                 "</SOAP-ENV:Envelope>";
         auto res = client.Post("/onvif/media2_service", req, "application/soap+xml; charset=utf-8");
-        assert(res && res->status == 200);
-        assert(res->body.find("SetMaskResponse") != std::string::npos);
+        EXPECT_TRUE(res && res->status == 200);
+        EXPECT_TRUE(res->body.find("SetMaskResponse") != std::string::npos);
 
         // Verify changes took effect
         const auto maskOpt = adapter->handleGetMask("Mask_New");
-        assert(maskOpt.has_value());
-        assert(maskOpt->type == MaskType::Pixelated);
-        assert(maskOpt->enabled == false);
+        EXPECT_TRUE(maskOpt.has_value());
+        EXPECT_TRUE(maskOpt->type == MaskType::Pixelated);
+        EXPECT_TRUE(maskOpt->enabled == false);
     }
 
     // 7. DeleteMask - remove Mask_New
@@ -2904,10 +2903,10 @@ void testProfileTPrivacyMasksAndVideoSourceModes()
                                 "  </SOAP-ENV:Body>\r\n"
                                 "</SOAP-ENV:Envelope>";
         auto res = client.Post("/onvif/media2_service", req, "application/soap+xml; charset=utf-8");
-        assert(res && res->status == 200);
-        assert(res->body.find("DeleteMaskResponse") != std::string::npos);
+        EXPECT_TRUE(res && res->status == 200);
+        EXPECT_TRUE(res->body.find("DeleteMaskResponse") != std::string::npos);
 
-        assert(!adapter->handleGetMask("Mask_New").has_value());
+        EXPECT_TRUE(!adapter->handleGetMask("Mask_New").has_value());
     }
 
     // 8. VideoSourceModes - GetVideoSourceModes on /onvif/media2_service
@@ -2922,10 +2921,10 @@ void testProfileTPrivacyMasksAndVideoSourceModes()
                                 "  </SOAP-ENV:Body>\r\n"
                                 "</SOAP-ENV:Envelope>";
         auto res = client.Post("/onvif/media2_service", req, "application/soap+xml; charset=utf-8");
-        assert(res && res->status == 200);
-        assert(res->body.find("GetVideoSourceModesResponse") != std::string::npos);
-        assert(res->body.find("Mode_1080p60") != std::string::npos);
-        assert(res->body.find("Mode_4k30") != std::string::npos);
+        EXPECT_TRUE(res && res->status == 200);
+        EXPECT_TRUE(res->body.find("GetVideoSourceModesResponse") != std::string::npos);
+        EXPECT_TRUE(res->body.find("Mode_1080p60") != std::string::npos);
+        EXPECT_TRUE(res->body.find("Mode_4k30") != std::string::npos);
     }
 
     // 9. VideoSourceModes - GetVideoSourceModes on /onvif/device_service
@@ -2940,9 +2939,9 @@ void testProfileTPrivacyMasksAndVideoSourceModes()
                                 "  </SOAP-ENV:Body>\r\n"
                                 "</SOAP-ENV:Envelope>";
         auto res = client.Post("/onvif/device_service", req, "application/soap+xml; charset=utf-8");
-        assert(res && res->status == 200);
-        assert(res->body.find("GetVideoSourceModesResponse") != std::string::npos);
-        assert(res->body.find("Mode_1080p60") != std::string::npos);
+        EXPECT_TRUE(res && res->status == 200);
+        EXPECT_TRUE(res->body.find("GetVideoSourceModesResponse") != std::string::npos);
+        EXPECT_TRUE(res->body.find("Mode_1080p60") != std::string::npos);
     }
 
     // 10. SetVideoSourceMode - apply Mode_4k30 (triggers reboot flag)
@@ -2958,17 +2957,17 @@ void testProfileTPrivacyMasksAndVideoSourceModes()
                                 "  </SOAP-ENV:Body>\r\n"
                                 "</SOAP-ENV:Envelope>";
         auto res = client.Post("/onvif/media2_service", req, "application/soap+xml; charset=utf-8");
-        assert(res && res->status == 200);
-        assert(res->body.find("SetVideoSourceModeResponse") != std::string::npos);
-        assert(res->body.find("Reboot>true</") != std::string::npos);
+        EXPECT_TRUE(res && res->status == 200);
+        EXPECT_TRUE(res->body.find("SetVideoSourceModeResponse") != std::string::npos);
+        EXPECT_TRUE(res->body.find("Reboot>true</") != std::string::npos);
 
         // Verify active mode in adapter
         const auto modes = adapter->handleGetVideoSourceModes("VideoSource_1");
         for (const auto& m : modes) {
             if (m.token == "Mode_4k30") {
-                assert(m.enabled == true);
+                EXPECT_TRUE(m.enabled == true);
             } else {
-                assert(m.enabled == false);
+                EXPECT_TRUE(m.enabled == false);
             }
         }
     }
@@ -2976,15 +2975,15 @@ void testProfileTPrivacyMasksAndVideoSourceModes()
     // 11. End-to-end OnvifClient calls against the running server
     {
         OnvifClient onvifClient("http://127.0.0.1:" + std::to_string(port) + "/onvif/device_service");
-        assert(onvifClient.getCapabilities());
+        EXPECT_TRUE(onvifClient.getCapabilities());
 
         const auto opts = onvifClient.getMaskOptions("VideoSource_1");
-        assert(opts.has_value());
-        assert(opts->maxMasks == 8);
+        EXPECT_TRUE(opts.has_value());
+        EXPECT_TRUE(opts->maxMasks == 8);
 
         auto masks = onvifClient.getMasks("VideoSource_1");
-        assert(masks.size() == 1U);
-        assert(masks[0].token == "Mask_1");
+        EXPECT_TRUE(masks.size() == 1U);
+        EXPECT_TRUE(masks[0].token == "Mask_1");
 
         PrivacyMask clientMask {};
         clientMask.token = "Mask_Client";
@@ -2995,36 +2994,36 @@ void testProfileTPrivacyMasksAndVideoSourceModes()
         clientMask.polygon = { { 0.1f, 0.1f }, { 0.5f, 0.5f } };
 
         const std::string createdTok = onvifClient.createMask(clientMask);
-        assert(createdTok == "Mask_Client");
+        EXPECT_TRUE(createdTok == "Mask_Client");
 
         masks = onvifClient.getMasks("VideoSource_1");
-        assert(masks.size() == 2U);
+        EXPECT_TRUE(masks.size() == 2U);
 
         const auto singleMask = onvifClient.getMask("Mask_Client");
-        assert(singleMask.has_value());
-        assert(singleMask->token == "Mask_Client");
+        EXPECT_TRUE(singleMask.has_value());
+        EXPECT_TRUE(singleMask->token == "Mask_Client");
 
         clientMask.enabled = false;
-        assert(onvifClient.setMask(clientMask));
+        EXPECT_TRUE(onvifClient.setMask(clientMask));
 
-        assert(onvifClient.deleteMask("Mask_Client"));
+        EXPECT_TRUE(onvifClient.deleteMask("Mask_Client"));
         masks = onvifClient.getMasks("VideoSource_1");
-        assert(masks.size() == 1U);
+        EXPECT_TRUE(masks.size() == 1U);
 
         const auto modes = onvifClient.getVideoSourceModes("VideoSource_1");
-        assert(modes.size() == 2U);
+        EXPECT_TRUE(modes.size() == 2U);
 
-        assert(onvifClient.setVideoSourceMode("VideoSource_1", "Mode_1080p60"));
+        EXPECT_TRUE(onvifClient.setVideoSourceMode("VideoSource_1", "Mode_1080p60"));
     }
 
     server.stop();
-    assert(!server.isRunning());
+    EXPECT_TRUE(!server.isRunning());
     device->stop();
 
     std::cout << "[PASS] testProfileTPrivacyMasksAndVideoSourceModes" << std::endl;
 }
 
-void testThermalServiceAndRadiometry()
+TEST(OnvifServerTest, ThermalServiceAndRadiometry)
 {
     const int port = 18585;
     OnvifServerConfig config;
@@ -3033,7 +3032,7 @@ void testThermalServiceAndRadiometry()
 
     auto mockTransport = std::make_shared<PelcoD::MockPelcoDDevice>();
     auto device = std::make_shared<PelcoD::PelcoDDevice>(mockTransport);
-    assert(device->start());
+    EXPECT_TRUE(device->start());
 
     auto adapter = std::make_shared<PelcoDPtzAdapter>(device);
 
@@ -3045,8 +3044,8 @@ void testThermalServiceAndRadiometry()
     OnvifServer server(config, adapter, adapter);
     server.setThermalHandler(adapter);
 
-    assert(server.start());
-    assert(server.isRunning());
+    EXPECT_TRUE(server.start());
+    EXPECT_TRUE(server.isRunning());
 
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
@@ -3064,10 +3063,10 @@ void testThermalServiceAndRadiometry()
                                 "  </SOAP-ENV:Body>\r\n"
                                 "</SOAP-ENV:Envelope>";
         auto res = client.Post("/onvif/device_service", req, "application/soap+xml; charset=utf-8");
-        assert(res && res->status == 200);
-        assert(res->body.find("GetCapabilitiesResponse") != std::string::npos);
-        assert(res->body.find("<tt:Thermal>") != std::string::npos);
-        assert(res->body.find("/onvif/thermal_service") != std::string::npos);
+        EXPECT_TRUE(res && res->status == 200);
+        EXPECT_TRUE(res->body.find("GetCapabilitiesResponse") != std::string::npos);
+        EXPECT_TRUE(res->body.find("<tt:Thermal>") != std::string::npos);
+        EXPECT_TRUE(res->body.find("/onvif/thermal_service") != std::string::npos);
     }
 
     // 2. GetServices on /onvif/device_service - verify Thermal WSDL
@@ -3080,8 +3079,8 @@ void testThermalServiceAndRadiometry()
                                 "  </SOAP-ENV:Body>\r\n"
                                 "</SOAP-ENV:Envelope>";
         auto res = client.Post("/onvif/device_service", req, "application/soap+xml; charset=utf-8");
-        assert(res && res->status == 200);
-        assert(res->body.find("http://www.onvif.org/ver10/thermal/wsdl") != std::string::npos);
+        EXPECT_TRUE(res && res->status == 200);
+        EXPECT_TRUE(res->body.find("http://www.onvif.org/ver10/thermal/wsdl") != std::string::npos);
     }
 
     // 3. Thermal Service - GetServiceCapabilities
@@ -3094,11 +3093,11 @@ void testThermalServiceAndRadiometry()
                                 "  </SOAP-ENV:Body>\r\n"
                                 "</SOAP-ENV:Envelope>";
         auto res = client.Post("/onvif/thermal_service", req, "application/soap+xml; charset=utf-8");
-        assert(res && res->status == 200);
-        assert(res->body.find("GetServiceCapabilitiesResponse") != std::string::npos);
-        assert(res->body.find("Radiometry=\"true\"") != std::string::npos);
-        assert(res->body.find("ColorPalette=\"true\"") != std::string::npos);
-        assert(res->body.find("NUC=\"true\"") != std::string::npos);
+        EXPECT_TRUE(res && res->status == 200);
+        EXPECT_TRUE(res->body.find("GetServiceCapabilitiesResponse") != std::string::npos);
+        EXPECT_TRUE(res->body.find("Radiometry=\"true\"") != std::string::npos);
+        EXPECT_TRUE(res->body.find("ColorPalette=\"true\"") != std::string::npos);
+        EXPECT_TRUE(res->body.find("NUC=\"true\"") != std::string::npos);
     }
 
     // 4. Thermal Service - GetRadiometryConfiguration & SetRadiometryConfiguration
@@ -3113,9 +3112,9 @@ void testThermalServiceAndRadiometry()
                                    "  </SOAP-ENV:Body>\r\n"
                                    "</SOAP-ENV:Envelope>";
         auto res = client.Post("/onvif/thermal_service", getReq, "application/soap+xml; charset=utf-8");
-        assert(res && res->status == 200);
-        assert(res->body.find("GetRadiometryConfigurationResponse") != std::string::npos);
-        assert(res->body.find("<tth:Emissivity>") != std::string::npos);
+        EXPECT_TRUE(res && res->status == 200);
+        EXPECT_TRUE(res->body.find("GetRadiometryConfigurationResponse") != std::string::npos);
+        EXPECT_TRUE(res->body.find("<tth:Emissivity>") != std::string::npos);
 
         const std::string setReq = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
                                    "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
@@ -3135,12 +3134,12 @@ void testThermalServiceAndRadiometry()
                                    "  </SOAP-ENV:Body>\r\n"
                                    "</SOAP-ENV:Envelope>";
         auto setRes = client.Post("/onvif/thermal_service", setReq, "application/soap+xml; charset=utf-8");
-        assert(setRes && setRes->status == 200);
-        assert(setRes->body.find("SetRadiometryConfigurationResponse") != std::string::npos);
+        EXPECT_TRUE(setRes && setRes->status == 200);
+        EXPECT_TRUE(setRes->body.find("SetRadiometryConfigurationResponse") != std::string::npos);
 
         const auto cfg = adapter->handleGetRadiometryConfiguration("VideoSource_1");
-        assert(std::fabs(cfg.emissivity - 0.96f) < 0.001f);
-        assert(std::fabs(cfg.distance - 12.5f) < 0.001f);
+        EXPECT_TRUE(std::fabs(cfg.emissivity - 0.96f) < 0.001f);
+        EXPECT_TRUE(std::fabs(cfg.distance - 12.5f) < 0.001f);
     }
 
     // 5. Thermal Service - GetColorPalettes & SetColorPalette
@@ -3155,10 +3154,10 @@ void testThermalServiceAndRadiometry()
                                    "  </SOAP-ENV:Body>\r\n"
                                    "</SOAP-ENV:Envelope>";
         auto res = client.Post("/onvif/thermal_service", getReq, "application/soap+xml; charset=utf-8");
-        assert(res && res->status == 200);
-        assert(res->body.find("GetColorPalettesResponse") != std::string::npos);
-        assert(res->body.find("WhiteHot") != std::string::npos);
-        assert(res->body.find("Ironbow") != std::string::npos);
+        EXPECT_TRUE(res && res->status == 200);
+        EXPECT_TRUE(res->body.find("GetColorPalettesResponse") != std::string::npos);
+        EXPECT_TRUE(res->body.find("WhiteHot") != std::string::npos);
+        EXPECT_TRUE(res->body.find("Ironbow") != std::string::npos);
 
         const std::string setReq = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
                                    "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
@@ -3171,8 +3170,8 @@ void testThermalServiceAndRadiometry()
                                    "  </SOAP-ENV:Body>\r\n"
                                    "</SOAP-ENV:Envelope>";
         auto setRes = client.Post("/onvif/thermal_service", setReq, "application/soap+xml; charset=utf-8");
-        assert(setRes && setRes->status == 200);
-        assert(setRes->body.find("SetColorPaletteResponse") != std::string::npos);
+        EXPECT_TRUE(setRes && setRes->status == 200);
+        EXPECT_TRUE(setRes->body.find("SetColorPaletteResponse") != std::string::npos);
     }
 
     // 6. Thermal Service - TriggerNUC
@@ -3187,8 +3186,8 @@ void testThermalServiceAndRadiometry()
                                    "  </SOAP-ENV:Body>\r\n"
                                    "</SOAP-ENV:Envelope>";
         auto res = client.Post("/onvif/thermal_service", nucReq, "application/soap+xml; charset=utf-8");
-        assert(res && res->status == 200);
-        assert(res->body.find("TriggerNUCResponse") != std::string::npos);
+        EXPECT_TRUE(res && res->status == 200);
+        EXPECT_TRUE(res->body.find("TriggerNUCResponse") != std::string::npos);
     }
 
     // 7. Radiometry Alarm Threshold Event verification via SetRadiometryBoxes
@@ -3203,32 +3202,32 @@ void testThermalServiceAndRadiometry()
         testBox.bottomRight = { 0.5f, 0.5f };
 
         publishedEvents.clear();
-        assert(adapter->handleSetRadiometryBoxes("VideoSource_1", { testBox }));
+        EXPECT_TRUE(adapter->handleSetRadiometryBoxes("VideoSource_1", { testBox }));
         // Expect an alarm event was emitted because 85.0 >= 70.0
-        assert(!publishedEvents.empty());
-        assert(publishedEvents.back().topic.find("Thermal/Radiometry/HighTemperatureAlarm") != std::string::npos);
+        EXPECT_TRUE(!publishedEvents.empty());
+        EXPECT_TRUE(publishedEvents.back().topic.find("Thermal/Radiometry/HighTemperatureAlarm") != std::string::npos);
     }
 
     // 8. End-to-end OnvifClient calls against running server
     {
         OnvifClient onvifClient("http://127.0.0.1:" + std::to_string(port) + "/onvif/device_service");
         const auto caps = onvifClient.getCapabilities();
-        assert(caps.has_value());
-        assert(!caps->thermalXAddr.empty());
+        EXPECT_TRUE(caps.has_value());
+        EXPECT_TRUE(!caps->thermalXAddr.empty());
 
         // Radiometry config
         const auto radCfg = onvifClient.getRadiometryConfiguration("VideoSource_1");
-        assert(radCfg.has_value());
-        assert(std::fabs(radCfg->emissivity - 0.96f) < 0.001f);
+        EXPECT_TRUE(radCfg.has_value());
+        EXPECT_TRUE(std::fabs(radCfg->emissivity - 0.96f) < 0.001f);
 
         RadiometryConfig newCfg = *radCfg;
         newCfg.emissivity = 0.88f;
-        assert(onvifClient.setRadiometryConfiguration("VideoSource_1", newCfg));
+        EXPECT_TRUE(onvifClient.setRadiometryConfiguration("VideoSource_1", newCfg));
 
         // Color palettes
         const auto palettes = onvifClient.getColorPalettes("VideoSource_1");
-        assert(!palettes.empty());
-        assert(onvifClient.setColorPalette("VideoSource_1", "Rainbow"));
+        EXPECT_TRUE(!palettes.empty());
+        EXPECT_TRUE(onvifClient.setColorPalette("VideoSource_1", "Rainbow"));
 
         // Spots
         RadiometrySpot spot1 {};
@@ -3236,12 +3235,12 @@ void testThermalServiceAndRadiometry()
         spot1.label = "Bearing";
         spot1.position = { 0.4f, 0.6f };
         spot1.temperature = 41.5f;
-        assert(onvifClient.setRadiometrySpots("VideoSource_1", { spot1 }));
+        EXPECT_TRUE(onvifClient.setRadiometrySpots("VideoSource_1", { spot1 }));
 
         const auto spots = onvifClient.getRadiometrySpots("VideoSource_1");
-        assert(spots.size() == 1U);
-        assert(spots[0].token == "Spot_Client1");
-        assert(std::fabs(spots[0].temperature - 41.5f) < 0.001f);
+        EXPECT_TRUE(spots.size() == 1U);
+        EXPECT_TRUE(spots[0].token == "Spot_Client1");
+        EXPECT_TRUE(std::fabs(spots[0].temperature - 41.5f) < 0.001f);
 
         // Boxes
         RadiometryBox box1 {};
@@ -3252,41 +3251,19 @@ void testThermalServiceAndRadiometry()
         box1.minTemperature = 28.0f;
         box1.maxTemperature = 62.0f;
         box1.avgTemperature = 48.0f;
-        assert(onvifClient.setRadiometryBoxes("VideoSource_1", { box1 }));
+        EXPECT_TRUE(onvifClient.setRadiometryBoxes("VideoSource_1", { box1 }));
 
         const auto boxes = onvifClient.getRadiometryBoxes("VideoSource_1");
-        assert(boxes.size() == 1U);
-        assert(boxes[0].token == "Box_Client1");
+        EXPECT_TRUE(boxes.size() == 1U);
+        EXPECT_TRUE(boxes[0].token == "Box_Client1");
 
         // Trigger NUC
-        assert(onvifClient.triggerNuc("VideoSource_1"));
+        EXPECT_TRUE(onvifClient.triggerNuc("VideoSource_1"));
     }
 
     server.stop();
-    assert(!server.isRunning());
+    EXPECT_TRUE(!server.isRunning());
     device->stop();
 
     std::cout << "[PASS] testThermalServiceAndRadiometry" << std::endl;
-}
-
-int main()
-{
-    std::cout << "Starting TestOnvifServer test suite..." << std::endl;
-    testWsDiscoveryPayloads();
-    testHttpSoapEndpoints();
-    testProfileTImagingAndEvents();
-    testPelcoDPtzAdapter();
-    testPresetToursServerAndAdapter();
-    testPtzServiceExtensionsServerAndAdapter();
-    testMedia2OsdAndAnalytics();
-    testDeviceManagementAndSecurity();
-    testImagingExtensionsAndDeviceIo();
-    testMetadataStreamsAndMaintenanceExtensions();
-    testProfileGAndPkiCertificates();
-    testVideoAnalyticsRuleEngineAndEvaluation();
-    testPtzGeoMoveAndSphericalSpaces();
-    testProfileTPrivacyMasksAndVideoSourceModes();
-    testThermalServiceAndRadiometry();
-    std::cout << "All TestOnvifServer tests passed successfully!" << std::endl;
-    return 0;
 }

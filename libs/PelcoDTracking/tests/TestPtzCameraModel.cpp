@@ -5,7 +5,7 @@
 #include "MatrixMath.h"
 #include "PtzCameraModel.h"
 
-#include <cassert>
+#include <gtest/gtest.h>
 #include <cmath>
 #include <iostream>
 
@@ -28,21 +28,21 @@ bool near(double a, double b, double tol)
 
 // ---------------------------------------------------------------------------
 
-void testDefaultIntrinsics()
+TEST(PtzCameraModelTest, DefaultIntrinsics)
 {
     std::cout << "[Test] testDefaultIntrinsics\n";
     PtzCameraModel model;
     const auto& intr = model.getIntrinsics();
-    assert(intr.imageWidth == 1920);
-    assert(intr.imageHeight == 1080);
-    assert(near(intr.cx, 960.0, 1e-9));
-    assert(near(intr.cy, 540.0, 1e-9));
-    assert(near(intr.fx0, 1200.0, 1e-9));
-    assert(near(intr.fy0, 1200.0, 1e-9));
+    EXPECT_TRUE(intr.imageWidth == 1920);
+    EXPECT_TRUE(intr.imageHeight == 1080);
+    EXPECT_TRUE(near(intr.cx, 960.0, 1e-9));
+    EXPECT_TRUE(near(intr.cy, 540.0, 1e-9));
+    EXPECT_TRUE(near(intr.fx0, 1200.0, 1e-9));
+    EXPECT_TRUE(near(intr.fy0, 1200.0, 1e-9));
     std::cout << "  -> PASSED\n";
 }
 
-void testSetIntrinsics()
+TEST(PtzCameraModelTest, SetIntrinsics)
 {
     std::cout << "[Test] testSetIntrinsics\n";
     PtzCameraModel model;
@@ -56,13 +56,13 @@ void testSetIntrinsics()
     model.setIntrinsics(intr);
 
     const auto& got = model.getIntrinsics();
-    assert(got.imageWidth == 1280);
-    assert(got.imageHeight == 720);
-    assert(near(got.fx0, 800.0, 1e-9));
+    EXPECT_TRUE(got.imageWidth == 1280);
+    EXPECT_TRUE(got.imageHeight == 720);
+    EXPECT_TRUE(near(got.fx0, 800.0, 1e-9));
     std::cout << "  -> PASSED\n";
 }
 
-void testProjectBoresightToPrincipalPoint()
+TEST(PtzCameraModelTest, ProjectBoresightToPrincipalPoint)
 {
     std::cout << "[Test] testProjectBoresightToPrincipalPoint\n";
     PtzCameraModel model;
@@ -72,13 +72,13 @@ void testProjectBoresightToPrincipalPoint()
     const double tilt = 0.3;
     const auto uv = model.project(pan, tilt, pan, tilt, 1.0);
     const auto& intr = model.getIntrinsics();
-    assert(near(uv[0], intr.cx, TOL_PIX));
-    assert(near(uv[1], intr.cy, TOL_PIX));
+    EXPECT_TRUE(near(uv[0], intr.cx, TOL_PIX));
+    EXPECT_TRUE(near(uv[1], intr.cy, TOL_PIX));
     std::cout << "  uv=(" << uv[0] << ", " << uv[1] << ") principal=(" << intr.cx << ", " << intr.cy << ")\n";
     std::cout << "  -> PASSED\n";
 }
 
-void testProjectUnprojectRoundTrip()
+TEST(PtzCameraModelTest, ProjectUnprojectRoundTrip)
 {
     std::cout << "[Test] testProjectUnprojectRoundTrip\n";
     PtzCameraModel model;
@@ -93,14 +93,14 @@ void testProjectUnprojectRoundTrip()
     double azOut = 0.0;
     double elOut = 0.0;
     const bool ok = model.unproject(uv[0], uv[1], camPan, camTilt, zoom, azOut, elOut);
-    assert(ok);
-    assert(near(azOut, targetAz, TOL_RAD));
-    assert(near(elOut, targetEl, TOL_RAD));
+    EXPECT_TRUE(ok);
+    EXPECT_TRUE(near(azOut, targetAz, TOL_RAD));
+    EXPECT_TRUE(near(elOut, targetEl, TOL_RAD));
     std::cout << "  target=(" << targetAz << ", " << targetEl << ") recovered=(" << azOut << ", " << elOut << ")\n";
     std::cout << "  -> PASSED\n";
 }
 
-void testZoomScalesProjection()
+TEST(PtzCameraModelTest, ZoomScalesProjection)
 {
     std::cout << "[Test] testZoomScalesProjection\n";
     PtzCameraModel model;
@@ -115,26 +115,26 @@ void testZoomScalesProjection()
     const auto& intr = model.getIntrinsics();
     const double disp1x = uv1x[0] - intr.cx;
     const double disp2x = uv2x[0] - intr.cx;
-    assert(std::abs(disp2x) > std::abs(disp1x) * 1.5);
+    EXPECT_TRUE(std::abs(disp2x) > std::abs(disp1x) * 1.5);
     std::cout << "  disp1x=" << disp1x << " disp2x=" << disp2x << "\n";
     std::cout << "  -> PASSED\n";
 }
 
-void testComputeJacobianIsFinite()
+TEST(PtzCameraModelTest, ComputeJacobianIsFinite)
 {
     std::cout << "[Test] testComputeJacobianIsFinite\n";
     PtzCameraModel model;
     const auto J = model.computeJacobian(1.1, 0.2, 1.0, 0.0, 1.0);
     for (int r = 0; r < 2; ++r) {
         for (int c = 0; c < 2; ++c) {
-            assert(std::isfinite(J(static_cast<std::size_t>(r), static_cast<std::size_t>(c))));
+            EXPECT_TRUE(std::isfinite(J(static_cast<std::size_t>(r), static_cast<std::size_t>(c))));
         }
     }
     std::cout << "  J(0,0)=" << J(0, 0) << " J(1,1)=" << J(1, 1) << "\n";
     std::cout << "  -> PASSED\n";
 }
 
-void testUnprojectPrincipalPointReturnsBoresight()
+TEST(PtzCameraModelTest, UnprojectPrincipalPointReturnsBoresight)
 {
     std::cout << "[Test] testUnprojectPrincipalPointReturnsBoresight\n";
     PtzCameraModel model;
@@ -145,24 +145,11 @@ void testUnprojectPrincipalPointReturnsBoresight()
     double azOut = 0.0;
     double elOut = 0.0;
     const bool ok = model.unproject(intr.cx, intr.cy, camPan, camTilt, 1.0, azOut, elOut);
-    assert(ok);
-    assert(near(azOut, camPan, TOL_RAD));
-    assert(near(elOut, camTilt, TOL_RAD));
+    EXPECT_TRUE(ok);
+    EXPECT_TRUE(near(azOut, camPan, TOL_RAD));
+    EXPECT_TRUE(near(elOut, camTilt, TOL_RAD));
     std::cout << "  -> PASSED\n";
 }
 
 } // namespace
 
-int main()
-{
-    std::cout << "Running TestPtzCameraModel Test Suite\n";
-    testDefaultIntrinsics();
-    testSetIntrinsics();
-    testProjectBoresightToPrincipalPoint();
-    testProjectUnprojectRoundTrip();
-    testZoomScalesProjection();
-    testComputeJacobianIsFinite();
-    testUnprojectPrincipalPointReturnsBoresight();
-    std::cout << "All TestPtzCameraModel Tests Passed!\n";
-    return 0;
-}

@@ -8,7 +8,7 @@
 #include "TestHelpers.h"
 
 #include <atomic>
-#include <cassert>
+#include <gtest/gtest.h>
 #include <chrono>
 #include <cmath>
 #include <iostream>
@@ -20,68 +20,68 @@ using namespace PelcoDTest;
 
 namespace {
 
-void testInstantaneousDefault()
+TEST(MockKinematicsTest, InstantaneousDefault)
 {
     std::cout << "[Test] testInstantaneousDefault...\n";
     auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(1U);
-    assert(!mock->getKinematicsConfig().enabled);
-    assert(!mock->getLatencyConfig().enabled);
-    assert(!mock->isMoving());
+    EXPECT_TRUE(!mock->getKinematicsConfig().enabled);
+    EXPECT_TRUE(!mock->getLatencyConfig().enabled);
+    EXPECT_TRUE(!mock->isMoving());
 
     PelcoD::PelcoDDevice device(mock, 1U);
-    assert(device.start());
+    EXPECT_TRUE(device.start());
 
     // Instantaneous pan motion
     const auto st0 = mock->getInternalState();
     device.panRight(0x20U);
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
     const auto st1 = mock->getInternalState();
-    assert(st1.panCentidegrees > st0.panCentidegrees);
-    assert(!mock->isMoving()); // In instantaneous mode, isMoving remains false
+    EXPECT_TRUE(st1.panCentidegrees > st0.panCentidegrees);
+    EXPECT_TRUE(!mock->isMoving()); // In instantaneous mode, isMoving remains false
 
     // Instantaneous preset setting and recall
     device.setPreset(1U);
     device.zeroPan();
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
-    assert(mock->getInternalState().panCentidegrees == 0U);
+    EXPECT_TRUE(mock->getInternalState().panCentidegrees == 0U);
 
     device.goToPreset(1U);
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
     const auto st2 = mock->getInternalState();
-    assert(st2.panCentidegrees == st1.panCentidegrees);
-    assert(!mock->isMoving());
+    EXPECT_TRUE(st2.panCentidegrees == st1.panCentidegrees);
+    EXPECT_TRUE(!mock->isMoving());
 
     device.stop();
     std::cout << "  -> PASSED\n";
 }
 
-void testKinematicsShortestArcMath()
+TEST(MockKinematicsTest, KinematicsShortestArcMath)
 {
     std::cout << "[Test] testKinematicsShortestArcMath...\n";
     // 350 deg to 10 deg -> +20 deg (clockwise)
     double d1 = PelcoD::KinematicsSimulator::shortestAngularDelta(350.0, 10.0);
-    assert(std::abs(d1 - 20.0) < 1e-6);
+    EXPECT_TRUE(std::abs(d1 - 20.0) < 1e-6);
 
     // 10 deg to 350 deg -> -20 deg (counter-clockwise)
     double d2 = PelcoD::KinematicsSimulator::shortestAngularDelta(10.0, 350.0);
-    assert(std::abs(d2 - (-20.0)) < 1e-6);
+    EXPECT_TRUE(std::abs(d2 - (-20.0)) < 1e-6);
 
     // 0 deg to 180 deg -> +180 deg
     double d3 = PelcoD::KinematicsSimulator::shortestAngularDelta(0.0, 180.0);
-    assert(std::abs(std::abs(d3) - 180.0) < 1e-6);
+    EXPECT_TRUE(std::abs(std::abs(d3) - 180.0) < 1e-6);
 
     // 100 deg to 120 deg -> +20 deg
     double d4 = PelcoD::KinematicsSimulator::shortestAngularDelta(100.0, 120.0);
-    assert(std::abs(d4 - 20.0) < 1e-6);
+    EXPECT_TRUE(std::abs(d4 - 20.0) < 1e-6);
 
     // 120 deg to 100 deg -> -20 deg
     double d5 = PelcoD::KinematicsSimulator::shortestAngularDelta(120.0, 100.0);
-    assert(std::abs(d5 - (-20.0)) < 1e-6);
+    EXPECT_TRUE(std::abs(d5 - (-20.0)) < 1e-6);
 
     std::cout << "  -> PASSED\n";
 }
 
-void testContinuousVelocityMotion()
+TEST(MockKinematicsTest, ContinuousVelocityMotion)
 {
     std::cout << "[Test] testContinuousVelocityMotion...\n";
     PelcoD::KinematicsSimulator sim;
@@ -94,31 +94,31 @@ void testContinuousVelocityMotion()
 
     // Start moving pan right at full speed
     sim.setDirectionalMotion(1.0, 0.0);
-    assert(sim.isMoving());
+    EXPECT_TRUE(sim.isMoving());
 
     // Advance 100ms
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
     sim.update();
-    assert(sim.currentPanDeg() > 0.5); // Should have progressed several degrees
-    assert(sim.isMoving());
+    EXPECT_TRUE(sim.currentPanDeg() > 0.5); // Should have progressed several degrees
+    EXPECT_TRUE(sim.isMoving());
 
     // Stop motion
     sim.stop();
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
     sim.update();
     // Should decelerate to a stop
-    assert(!sim.isMoving());
+    EXPECT_TRUE(!sim.isMoving());
     const double finalPan = sim.currentPanDeg();
 
     // Further time advances should not change pan
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
     sim.update();
-    assert(std::abs(sim.currentPanDeg() - finalPan) < 1e-4);
+    EXPECT_TRUE(std::abs(sim.currentPanDeg() - finalPan) < 1e-4);
 
     std::cout << "  -> PASSED\n";
 }
 
-void testPresetSlewShortestArc()
+TEST(MockKinematicsTest, PresetSlewShortestArc)
 {
     std::cout << "[Test] testPresetSlewShortestArc...\n";
     PelcoD::KinematicsSimulator sim;
@@ -133,7 +133,7 @@ void testPresetSlewShortestArc()
 
     // Target: 10 deg (across zero boundary)
     sim.slewTo(10.0, 0.0);
-    assert(sim.isMoving());
+    EXPECT_TRUE(sim.isMoving());
 
     // Wait until slew finishes (should take ~0.15s)
     const auto startWait = std::chrono::steady_clock::now();
@@ -144,17 +144,17 @@ void testPresetSlewShortestArc()
         sim.update();
         if (!sim.isMoving()) {
             // Slew finished; target should be near 10 deg
-            assert(std::abs(sim.currentPanDeg() - 10.0) < 0.5);
+            EXPECT_TRUE(std::abs(sim.currentPanDeg() - 10.0) < 0.5);
             reached = true;
             break;
         }
     }
-    assert(reached);
+    EXPECT_TRUE(reached);
 
     std::cout << "  -> PASSED\n";
 }
 
-void testZoomTransitSimulation()
+TEST(MockKinematicsTest, ZoomTransitSimulation)
 {
     std::cout << "[Test] testZoomTransitSimulation...\n";
     PelcoD::KinematicsSimulator sim;
@@ -165,12 +165,12 @@ void testZoomTransitSimulation()
     sim.setPositionImmediate(0.0, 0.0, 1000.0);
 
     sim.slewZoomTo(30000.0);
-    assert(sim.isMoving());
+    EXPECT_TRUE(sim.isMoving());
 
     // Advance 100ms -> zoom should be moving up towards 30000
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
     sim.update();
-    assert(sim.currentZoom() > 1000.0);
+    EXPECT_TRUE(sim.currentZoom() > 1000.0);
 
     // Wait for zoom to reach target
     const auto startWait = std::chrono::steady_clock::now();
@@ -180,21 +180,21 @@ void testZoomTransitSimulation()
         std::this_thread::sleep_for(std::chrono::milliseconds(20));
         sim.update();
         if (!sim.isMoving()) {
-            assert(std::abs(sim.currentZoom() - 30000.0) < 1.0);
+            EXPECT_TRUE(std::abs(sim.currentZoom() - 30000.0) < 1.0);
             reached = true;
             break;
         }
     }
-    assert(reached);
+    EXPECT_TRUE(reached);
 
     std::cout << "  -> PASSED\n";
 }
 
-void testLatencyQueueTiming()
+TEST(MockKinematicsTest, LatencyQueueTiming)
 {
     std::cout << "[Test] testLatencyQueueTiming...\n";
     PelcoD::LatencyPipeline pipe;
-    assert(!pipe.isWorkerActive() && "LatencyPipeline thread started eagerly in constructor!");
+    EXPECT_TRUE(!pipe.isWorkerActive() && "LatencyPipeline thread started eagerly in constructor!");
 
     PelcoD::LatencyConfig cfg;
     cfg.enabled = true;
@@ -202,7 +202,7 @@ void testLatencyQueueTiming()
     cfg.jitterMs = 0U;
     cfg.packetDropPercent = 0.0;
     pipe.setConfig(cfg);
-    assert(pipe.isWorkerActive() && "LatencyPipeline thread not started when enabled!");
+    EXPECT_TRUE(pipe.isWorkerActive() && "LatencyPipeline thread not started when enabled!");
 
     std::atomic<bool> received { false };
     std::chrono::steady_clock::time_point sendTime;
@@ -224,16 +224,16 @@ void testLatencyQueueTiming()
         std::this_thread::sleep_for(std::chrono::milliseconds(5));
     }
 
-    assert(received.load());
+    EXPECT_TRUE(received.load());
     const auto elapsedMs = std::chrono::duration_cast<std::chrono::milliseconds>(recvTime - sendTime).count();
     // Verify delayed by at least ~45ms
-    assert(elapsedMs >= 45);
+    EXPECT_TRUE(elapsedMs >= 45);
 
     pipe.stop();
     std::cout << "  -> PASSED (elapsed: " << elapsedMs << " ms)\n";
 }
 
-void testPacketDropSimulation()
+TEST(MockKinematicsTest, PacketDropSimulation)
 {
     std::cout << "[Test] testPacketDropSimulation...\n";
     PelcoD::LatencyPipeline pipe;
@@ -252,7 +252,7 @@ void testPacketDropSimulation()
     }
 
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
-    assert(receivedCount.load() == 0); // All dropped
+    EXPECT_TRUE(receivedCount.load() == 0); // All dropped
 
     // Switch drop rate to 0%
     cfg.packetDropPercent = 0.0;
@@ -263,13 +263,13 @@ void testPacketDropSimulation()
     }
 
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
-    assert(receivedCount.load() == 10); // All 10 delivered
+    EXPECT_TRUE(receivedCount.load() == 10); // All 10 delivered
 
     pipe.stop();
     std::cout << "  -> PASSED\n";
 }
 
-void testMockDeviceWithKinematicsAndLatency()
+TEST(MockKinematicsTest, MockDeviceWithKinematicsAndLatency)
 {
     std::cout << "[Test] testMockDeviceWithKinematicsAndLatency...\n";
     auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(1U);
@@ -295,7 +295,7 @@ void testMockDeviceWithKinematicsAndLatency()
     mock->setLatencyConfig(lCfg);
 
     PelcoD::PelcoDDevice device(mock, 1U);
-    assert(device.start());
+    EXPECT_TRUE(device.start());
 
     // Command GoToPreset 1 (slew from 90 deg to 30 deg)
     device.goToPreset(1U);
@@ -312,7 +312,7 @@ void testMockDeviceWithKinematicsAndLatency()
         }
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
-    assert(startedMoving);
+    EXPECT_TRUE(startedMoving);
 
     // Wait until slew reaches preset 1
     const auto startWaitSettle = std::chrono::steady_clock::now();
@@ -326,9 +326,9 @@ void testMockDeviceWithKinematicsAndLatency()
             break;
         }
     }
-    assert(settled);
+    EXPECT_TRUE(settled);
     const auto endState = mock->getInternalState();
-    assert(std::abs(static_cast<int>(endState.panCentidegrees) - 3000) < 100);
+    EXPECT_TRUE(std::abs(static_cast<int>(endState.panCentidegrees) - 3000) < 100);
 
     device.stop();
     std::cout << "  -> PASSED\n";
@@ -336,26 +336,3 @@ void testMockDeviceWithKinematicsAndLatency()
 
 } // namespace
 
-int main()
-{
-    initTestHarness();
-
-    std::cout << "========================================\n";
-    std::cout << "Running Mock Kinematics & Latency Tests\n";
-    std::cout << "========================================\n";
-
-    testInstantaneousDefault();
-    testKinematicsShortestArcMath();
-    testContinuousVelocityMotion();
-    testPresetSlewShortestArc();
-    testZoomTransitSimulation();
-    testLatencyQueueTiming();
-    testPacketDropSimulation();
-    testMockDeviceWithKinematicsAndLatency();
-
-    std::cout << "========================================\n";
-    std::cout << "All Mock Kinematics Tests PASSED!\n";
-    std::cout << "========================================\n";
-
-    return 0;
-}

@@ -5,7 +5,7 @@
 #include "MatrixMath.h"
 #include "UnscentedKalmanFilter.h"
 
-#include <cassert>
+#include <gtest/gtest.h>
 #include <cmath>
 #include <iostream>
 
@@ -29,15 +29,15 @@ Vector<2> identityH(const Vector<6>& x)
 
 // ---------------------------------------------------------------------------
 
-void testNotInitializedByDefault()
+TEST(UnscentedKalmanFilterTest, NotInitializedByDefault)
 {
     std::cout << "[Test] testNotInitializedByDefault\n";
     UnscentedKalmanFilter ukf;
-    assert(!ukf.isInitialized());
+    EXPECT_TRUE(!ukf.isInitialized());
     std::cout << "  -> PASSED\n";
 }
 
-void testInitMarksInitialized()
+TEST(UnscentedKalmanFilterTest, InitMarksInitialized)
 {
     std::cout << "[Test] testInitMarksInitialized\n";
     UnscentedKalmanFilter ukf;
@@ -47,16 +47,16 @@ void testInitMarksInitialized()
         P0(i, i) = 1.0;
     }
     ukf.init(x0, P0);
-    assert(ukf.isInitialized());
+    EXPECT_TRUE(ukf.isInitialized());
 
     const auto& s = ukf.getState();
     for (std::size_t i = 0U; i < 6U; ++i) {
-        assert(near(s[i], 0.0));
+        EXPECT_TRUE(near(s[i], 0.0));
     }
     std::cout << "  -> PASSED\n";
 }
 
-void testPredictAdvancesPosition()
+TEST(UnscentedKalmanFilterTest, PredictAdvancesPosition)
 {
     std::cout << "[Test] testPredictAdvancesPosition\n";
     UnscentedKalmanFilter ukf;
@@ -74,11 +74,11 @@ void testPredictAdvancesPosition()
 
     const auto& s = ukf.getState();
     // Position advances by vx*dt = 0.05, so x > 1.0
-    assert(s[0] > 1.0);
+    EXPECT_TRUE(s[0] > 1.0);
     std::cout << "  -> PASSED\n";
 }
 
-void testUpdateReducesCovariance()
+TEST(UnscentedKalmanFilterTest, UpdateReducesCovariance)
 {
     std::cout << "[Test] testUpdateReducesCovariance\n";
     UnscentedKalmanFilter ukf;
@@ -105,11 +105,11 @@ void testUpdateReducesCovariance()
         traceAfter += ukf.getCovariance()(i, i);
     }
 
-    assert(traceAfter < traceBefore);
+    EXPECT_TRUE(traceAfter < traceBefore);
     std::cout << "  -> PASSED\n";
 }
 
-void testInnovationAfterUpdate()
+TEST(UnscentedKalmanFilterTest, InnovationAfterUpdate)
 {
     std::cout << "[Test] testInnovationAfterUpdate\n";
     UnscentedKalmanFilter ukf;
@@ -129,12 +129,12 @@ void testInnovationAfterUpdate()
     ukf.update(z, identityH, R);
 
     const auto& innov = ukf.getInnovation();
-    assert(near(innov[0], 0.5, 0.05));
-    assert(near(innov[1], 0.5, 0.05));
+    EXPECT_TRUE(near(innov[0], 0.5, 0.05));
+    EXPECT_TRUE(near(innov[1], 0.5, 0.05));
     std::cout << "  -> PASSED\n";
 }
 
-void testMahalanobisDistanceNonNegative()
+TEST(UnscentedKalmanFilterTest, MahalanobisDistanceNonNegative)
 {
     std::cout << "[Test] testMahalanobisDistanceNonNegative\n";
     UnscentedKalmanFilter ukf;
@@ -151,11 +151,11 @@ void testMahalanobisDistanceNonNegative()
     R(1, 1) = 0.1;
     ukf.update(z, identityH, R);
 
-    assert(ukf.getMahalanobisDistance() >= 0.0);
+    EXPECT_TRUE(ukf.getMahalanobisDistance() >= 0.0);
     std::cout << "  -> PASSED\n";
 }
 
-void testSetScalingParameters()
+TEST(UnscentedKalmanFilterTest, SetScalingParameters)
 {
     std::cout << "[Test] testSetScalingParameters\n";
     UnscentedKalmanFilter ukf;
@@ -170,12 +170,12 @@ void testSetScalingParameters()
     ukf.predict(0.01);
     const auto& s = ukf.getState();
     for (std::size_t i = 0U; i < 6U; ++i) {
-        assert(std::isfinite(s[i]));
+        EXPECT_TRUE(std::isfinite(s[i]));
     }
     std::cout << "  -> PASSED\n";
 }
 
-void testResetClearsState()
+TEST(UnscentedKalmanFilterTest, ResetClearsState)
 {
     std::cout << "[Test] testResetClearsState\n";
     UnscentedKalmanFilter ukf;
@@ -186,14 +186,14 @@ void testResetClearsState()
         P0(i, i) = 1.0;
     }
     ukf.init(x0, P0);
-    assert(ukf.isInitialized());
+    EXPECT_TRUE(ukf.isInitialized());
 
     ukf.reset();
-    assert(!ukf.isInitialized());
+    EXPECT_TRUE(!ukf.isInitialized());
     std::cout << "  -> PASSED\n";
 }
 
-void testPredictUpdateCycleConverges()
+TEST(UnscentedKalmanFilterTest, PredictUpdateCycleConverges)
 {
     std::cout << "[Test] testPredictUpdateCycleConverges\n";
     UnscentedKalmanFilter ukf;
@@ -216,26 +216,11 @@ void testPredictUpdateCycleConverges()
     }
 
     const auto& s = ukf.getState();
-    assert(near(s[0], 1.0, 0.1));
-    assert(near(s[1], 2.0, 0.1));
+    EXPECT_TRUE(near(s[0], 1.0, 0.1));
+    EXPECT_TRUE(near(s[1], 2.0, 0.1));
     std::cout << "  State after 50 cycles: (" << s[0] << ", " << s[1] << ")\n";
     std::cout << "  -> PASSED\n";
 }
 
 } // namespace
 
-int main()
-{
-    std::cout << "Running TestUnscentedKalmanFilter Test Suite\n";
-    testNotInitializedByDefault();
-    testInitMarksInitialized();
-    testPredictAdvancesPosition();
-    testUpdateReducesCovariance();
-    testInnovationAfterUpdate();
-    testMahalanobisDistanceNonNegative();
-    testSetScalingParameters();
-    testResetClearsState();
-    testPredictUpdateCycleConverges();
-    std::cout << "All TestUnscentedKalmanFilter Tests Passed!\n";
-    return 0;
-}

@@ -4,120 +4,100 @@
 #include "SerialTransport.h"
 #include "TestHelpers.h"
 
+#include <gtest/gtest.h>
+
 #include <algorithm>
-#include <cassert>
-#include <cstdlib>
-#include <iostream>
+#include <cstdint>
 #include <string>
 #include <vector>
 
+namespace {
+
 /// @brief Verify SerialTransport::enumeratePorts() returns valid, unique, and non-empty port names.
-static void testEnumeratePorts()
+TEST(SerialTransportTest, EnumeratePorts)
 {
     const std::vector<std::string> ports = PelcoD::SerialTransport::enumeratePorts();
 
     // Verify all returned port strings are non-empty and unique
     for (std::size_t i = 0; i < ports.size(); ++i) {
-        assert(!ports[i].empty() && "Port name must not be empty");
+        EXPECT_FALSE(ports[i].empty()) << "Port name must not be empty";
         for (std::size_t j = i + 1; j < ports.size(); ++j) {
-            assert(ports[i] != ports[j] && "Enumerated port names must be unique");
+            EXPECT_NE(ports[i], ports[j]) << "Enumerated port names must be unique";
         }
-    }
-
-    std::cout << "  testEnumeratePorts: discovered " << ports.size() << " port(s) - PASSED\n";
-    for (const auto& port : ports) {
-        std::cout << "    - " << port << "\n";
     }
 }
 
 /// @brief Verify SerialTransport constructor, accessors, and setters.
-static void testTransportAccessors()
+TEST(SerialTransportTest, TransportAccessors)
 {
     PelcoD::SerialTransport transport("COM3", 19200U);
 
-    assert(transport.getPortName() == "COM3");
-    assert(transport.getBaudRate() == 19200U);
-    assert(!transport.isOpen());
+    EXPECT_EQ(transport.getPortName(), "COM3");
+    EXPECT_EQ(transport.getBaudRate(), 19200U);
+    EXPECT_FALSE(transport.isOpen());
 
     transport.setPortName("COM7");
-    assert(transport.getPortName() == "COM7");
+    EXPECT_EQ(transport.getPortName(), "COM7");
 
     transport.setBaudRate(115200U);
-    assert(transport.getBaudRate() == 115200U);
+    EXPECT_EQ(transport.getBaudRate(), 115200U);
 
     // Closing an un-opened transport must be a safe no-op
     transport.close();
-    assert(!transport.isOpen());
-
-    std::cout << "  testTransportAccessors: PASSED\n";
+    EXPECT_FALSE(transport.isOpen());
 }
 
 /// @brief Verify StandardBaudRates definitions and isValidBaudRate() validation.
-static void testStandardBaudRates()
+TEST(SerialTransportTest, StandardBaudRates)
 {
     constexpr auto& bauds = PelcoD::SerialTransport::StandardBaudRates;
-    assert(bauds.size() == 7U);
+    ASSERT_EQ(bauds.size(), 7U);
 
     // Verify rates are in strictly ascending order
     for (std::size_t i { 1U }; i < bauds.size(); ++i) {
-        assert(bauds[i] > bauds[i - 1U] && "Baud rates must be sorted in strictly ascending order");
+        EXPECT_GT(bauds[i], bauds[i - 1U]) << "Baud rates must be sorted in strictly ascending order";
     }
 
     // Verify all defined rates pass validation
     for (const auto rate : bauds) {
-        assert(PelcoD::SerialTransport::isValidBaudRate(rate) && "Standard rate must be recognized");
+        EXPECT_TRUE(PelcoD::SerialTransport::isValidBaudRate(rate)) << "Standard rate must be recognized";
     }
 
     // Specific expected values
-    assert(bauds[0] == 2400U);
-    assert(bauds[1] == 4800U);
-    assert(bauds[2] == 9600U);
-    assert(bauds[3] == 19200U);
-    assert(bauds[4] == 38400U);
-    assert(bauds[5] == 57600U);
-    assert(bauds[6] == 115200U);
+    EXPECT_EQ(bauds[0], 2400U);
+    EXPECT_EQ(bauds[1], 4800U);
+    EXPECT_EQ(bauds[2], 9600U);
+    EXPECT_EQ(bauds[3], 19200U);
+    EXPECT_EQ(bauds[4], 38400U);
+    EXPECT_EQ(bauds[5], 57600U);
+    EXPECT_EQ(bauds[6], 115200U);
 
     // Verify non-standard rates are rejected
-    assert(!PelcoD::SerialTransport::isValidBaudRate(0U));
-    assert(!PelcoD::SerialTransport::isValidBaudRate(1200U));
-    assert(!PelcoD::SerialTransport::isValidBaudRate(14400U));
-    assert(!PelcoD::SerialTransport::isValidBaudRate(99999U));
-
-    std::cout << "  testStandardBaudRates: PASSED\n";
+    EXPECT_FALSE(PelcoD::SerialTransport::isValidBaudRate(0U));
+    EXPECT_FALSE(PelcoD::SerialTransport::isValidBaudRate(1200U));
+    EXPECT_FALSE(PelcoD::SerialTransport::isValidBaudRate(14400U));
+    EXPECT_FALSE(PelcoD::SerialTransport::isValidBaudRate(99999U));
 }
 
 /// @brief Verify that unopened or closed serial transport consistently rejects sendData and reports closed.
-static void testSerialClosedStateRejection()
+TEST(SerialTransportTest, SerialClosedStateRejection)
 {
     PelcoD::SerialTransport transport("NON_EXISTENT_PORT_12345", 9600U);
-    assert(!transport.isOpen());
+    EXPECT_FALSE(transport.isOpen());
 
     // sendData on closed transport must immediately return false
     const std::vector<std::uint8_t> frame { 0xFF, 0x01, 0x00, 0x00, 0x00, 0x00, 0x01 };
-    assert(!transport.sendData(frame));
+    EXPECT_FALSE(transport.sendData(frame));
 
     // open() to a non-existent port must return false
     const bool opened = transport.open();
-    assert(!opened);
-    assert(!transport.isOpen());
-    assert(!transport.sendData(frame));
+    EXPECT_FALSE(opened);
+    EXPECT_FALSE(transport.isOpen());
+    EXPECT_FALSE(transport.sendData(frame));
 
     transport.close();
-    assert(!transport.isOpen());
-    assert(!transport.sendData(frame));
-
-    std::cout << "  testSerialClosedStateRejection: PASSED\n";
+    EXPECT_FALSE(transport.isOpen());
+    EXPECT_FALSE(transport.sendData(frame));
 }
 
-int main()
-{
-    PelcoDTest::initTestHarness();
-
-    std::cout << "[TestSerialTransport] Running...\n";
-    testEnumeratePorts();
-    testTransportAccessors();
-    testStandardBaudRates();
-    testSerialClosedStateRejection();
-    std::cout << "[TestSerialTransport] All tests passed.\n";
-    return 0;
-}
+} // namespace

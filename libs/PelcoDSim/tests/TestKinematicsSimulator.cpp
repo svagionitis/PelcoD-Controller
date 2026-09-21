@@ -4,22 +4,16 @@
 
 #include "KinematicsSimulator.h"
 
-#include <cassert>
+#include <gtest/gtest.h>
+
 #include <chrono>
 #include <cmath>
-#include <iostream>
-#include <thread>
 
 using namespace PelcoD;
 
 namespace {
 
 constexpr double TOL = 0.1; // degrees
-
-bool near(double a, double b, double tol = TOL)
-{
-    return std::abs(a - b) <= tol;
-}
 
 /// @brief Advance the simulator by advancing steady_clock by approximately dtMs milliseconds.
 /// This calls update() multiple times with synthetic timestamps.
@@ -33,40 +27,31 @@ void advanceMs(KinematicsSimulator& sim, double totalMs, double stepMs = 10.0)
     }
 }
 
-// ---------------------------------------------------------------------------
-
-void testDefaultPosition()
+TEST(KinematicsSimulatorTest, DefaultPosition)
 {
-    std::cout << "[Test] testDefaultPosition\n";
     KinematicsSimulator sim;
-    assert(near(sim.currentPanDeg(), 0.0, 1e-9));
-    assert(near(sim.currentTiltDeg(), 0.0, 1e-9));
-    assert(sim.currentZoom() >= 1000.0);
-    std::cout << "  -> PASSED\n";
+    EXPECT_NEAR(sim.currentPanDeg(), 0.0, 1e-9);
+    EXPECT_NEAR(sim.currentTiltDeg(), 0.0, 1e-9);
+    EXPECT_GE(sim.currentZoom(), 1000.0);
 }
 
-void testSetPositionImmediate()
+TEST(KinematicsSimulatorTest, SetPositionImmediate)
 {
-    std::cout << "[Test] testSetPositionImmediate\n";
     KinematicsSimulator sim;
     sim.setPositionImmediate(180.0, 45.0, 8000.0);
-    assert(near(sim.currentPanDeg(), 180.0));
-    assert(near(sim.currentTiltDeg(), 45.0));
-    assert(near(sim.currentZoom(), 8000.0, 100.0));
-    std::cout << "  -> PASSED\n";
+    EXPECT_NEAR(sim.currentPanDeg(), 180.0, TOL);
+    EXPECT_NEAR(sim.currentTiltDeg(), 45.0, TOL);
+    EXPECT_NEAR(sim.currentZoom(), 8000.0, 100.0);
 }
 
-void testIsMovingInitiallyFalse()
+TEST(KinematicsSimulatorTest, IsMovingInitiallyFalse)
 {
-    std::cout << "[Test] testIsMovingInitiallyFalse\n";
     KinematicsSimulator sim;
-    assert(!sim.isMoving());
-    std::cout << "  -> PASSED\n";
+    EXPECT_FALSE(sim.isMoving());
 }
 
-void testDirectionalMotionCausesPanChange()
+TEST(KinematicsSimulatorTest, DirectionalMotionCausesPanChange)
 {
-    std::cout << "[Test] testDirectionalMotionCausesPanChange\n";
     KinematicsSimulator sim;
     KinematicsConfig cfg;
     cfg.enabled = true;
@@ -76,19 +61,16 @@ void testDirectionalMotionCausesPanChange()
 
     const double panBefore = sim.currentPanDeg();
     sim.setDirectionalMotion(1.0, 0.0, 0.0); // Pan right at full speed
-    assert(sim.isMoving());
+    EXPECT_TRUE(sim.isMoving());
 
     advanceMs(sim, 500.0); // 0.5 seconds → should have panned ~30 degrees
 
     const double panAfter = sim.currentPanDeg();
-    assert(panAfter > panBefore || (panAfter + 360.0) > panBefore); // Wrap-safe comparison
-    std::cout << "  pan: " << panBefore << " -> " << panAfter << "\n";
-    std::cout << "  -> PASSED\n";
+    EXPECT_TRUE(panAfter > panBefore || (panAfter + 360.0) > panBefore); // Wrap-safe comparison
 }
 
-void testStopHaltsMotion()
+TEST(KinematicsSimulatorTest, StopHaltsMotion)
 {
-    std::cout << "[Test] testStopHaltsMotion\n";
     KinematicsSimulator sim;
     KinematicsConfig cfg;
     cfg.enabled = true;
@@ -100,13 +82,11 @@ void testStopHaltsMotion()
     advanceMs(sim, 200.0);
     sim.stop();
     advanceMs(sim, 500.0);
-    assert(!sim.isMoving());
-    std::cout << "  -> PASSED\n";
+    EXPECT_FALSE(sim.isMoving());
 }
 
-void testSlewToReachesTarget()
+TEST(KinematicsSimulatorTest, SlewToReachesTarget)
 {
-    std::cout << "[Test] testSlewToReachesTarget\n";
     KinematicsSimulator sim;
     KinematicsConfig cfg;
     cfg.enabled = true;
@@ -121,51 +101,42 @@ void testSlewToReachesTarget()
     sim.slewTo(45.0, 15.0);
     advanceMs(sim, 3000.0, 20.0);
 
-    assert(near(sim.currentPanDeg(), 45.0, 2.0));
-    assert(near(sim.currentTiltDeg(), 15.0, 2.0));
-    std::cout << "  pan=" << sim.currentPanDeg() << " tilt=" << sim.currentTiltDeg() << "\n";
-    std::cout << "  -> PASSED\n";
+    EXPECT_NEAR(sim.currentPanDeg(), 45.0, 2.0);
+    EXPECT_NEAR(sim.currentTiltDeg(), 15.0, 2.0);
 }
 
-void testNormalizePanDeg()
+TEST(KinematicsSimulatorTest, NormalizePanDeg)
 {
-    std::cout << "[Test] testNormalizePanDeg\n";
-    assert(near(KinematicsSimulator::normalizePanDeg(0.0), 0.0, 1e-9));
-    assert(near(KinematicsSimulator::normalizePanDeg(360.0), 0.0, 1e-9));
-    assert(near(KinematicsSimulator::normalizePanDeg(720.0), 0.0, 1e-9));
-    assert(near(KinematicsSimulator::normalizePanDeg(-90.0), 270.0, 1e-9));
-    assert(near(KinematicsSimulator::normalizePanDeg(180.0), 180.0, 1e-9));
-    assert(near(KinematicsSimulator::normalizePanDeg(361.0), 1.0, 1e-6));
-    std::cout << "  -> PASSED\n";
+    EXPECT_NEAR(KinematicsSimulator::normalizePanDeg(0.0), 0.0, 1e-9);
+    EXPECT_NEAR(KinematicsSimulator::normalizePanDeg(360.0), 0.0, 1e-9);
+    EXPECT_NEAR(KinematicsSimulator::normalizePanDeg(720.0), 0.0, 1e-9);
+    EXPECT_NEAR(KinematicsSimulator::normalizePanDeg(-90.0), 270.0, 1e-9);
+    EXPECT_NEAR(KinematicsSimulator::normalizePanDeg(180.0), 180.0, 1e-9);
+    EXPECT_NEAR(KinematicsSimulator::normalizePanDeg(361.0), 1.0, 1e-6);
 }
 
-void testShortestAngularDelta()
+TEST(KinematicsSimulatorTest, ShortestAngularDelta)
 {
-    std::cout << "[Test] testShortestAngularDelta\n";
-    assert(near(KinematicsSimulator::shortestAngularDelta(0.0, 90.0), 90.0, 1e-9));
-    assert(near(KinematicsSimulator::shortestAngularDelta(0.0, 270.0), -90.0, 1e-9));
-    assert(near(KinematicsSimulator::shortestAngularDelta(350.0, 10.0), 20.0, 1e-9));
-    assert(near(KinematicsSimulator::shortestAngularDelta(10.0, 350.0), -20.0, 1e-9));
+    EXPECT_NEAR(KinematicsSimulator::shortestAngularDelta(0.0, 90.0), 90.0, 1e-9);
+    EXPECT_NEAR(KinematicsSimulator::shortestAngularDelta(0.0, 270.0), -90.0, 1e-9);
+    EXPECT_NEAR(KinematicsSimulator::shortestAngularDelta(350.0, 10.0), 20.0, 1e-9);
+    EXPECT_NEAR(KinematicsSimulator::shortestAngularDelta(10.0, 350.0), -20.0, 1e-9);
     // 180 degrees is equidistant — both +180 and -180 are valid
     const double delta180 = KinematicsSimulator::shortestAngularDelta(180.0, 0.0);
-    assert(near(std::abs(delta180), 180.0, 1e-9));
-    std::cout << "  -> PASSED\n";
+    EXPECT_NEAR(std::abs(delta180), 180.0, 1e-9);
 }
 
-void testCentidegreesConversion()
+TEST(KinematicsSimulatorTest, CentidegreesConversion)
 {
-    std::cout << "[Test] testCentidegreesConversion\n";
     KinematicsSimulator sim;
     sim.setPositionImmediate(180.0, 45.0, 5000.0);
-    assert(sim.currentPanCentidegrees() == 18000U);
-    assert(sim.currentTiltCentidegrees() == 4500U);
-    assert(sim.currentZoomInt() == 5000U);
-    std::cout << "  -> PASSED\n";
+    EXPECT_EQ(sim.currentPanCentidegrees(), 18000U);
+    EXPECT_EQ(sim.currentTiltCentidegrees(), 4500U);
+    EXPECT_EQ(sim.currentZoomInt(), 5000U);
 }
 
-void testConfigGetSet()
+TEST(KinematicsSimulatorTest, ConfigGetSet)
 {
-    std::cout << "[Test] testConfigGetSet\n";
     KinematicsSimulator sim;
     KinematicsConfig cfg;
     cfg.enabled = true;
@@ -173,14 +144,12 @@ void testConfigGetSet()
     sim.setConfig(cfg);
 
     const auto got = sim.getConfig();
-    assert(got.enabled);
-    assert(near(got.maxPanSpeedDegPerSec, 45.0, 1e-9));
-    std::cout << "  -> PASSED\n";
+    EXPECT_TRUE(got.enabled);
+    EXPECT_NEAR(got.maxPanSpeedDegPerSec, 45.0, 1e-9);
 }
 
-void testSlewZoomTo()
+TEST(KinematicsSimulatorTest, SlewZoomTo)
 {
-    std::cout << "[Test] testSlewZoomTo\n";
     KinematicsSimulator sim;
     KinematicsConfig cfg;
     cfg.enabled = true;
@@ -190,27 +159,7 @@ void testSlewZoomTo()
     sim.slewZoomTo(32767.0);
     advanceMs(sim, 2000.0, 20.0);
     // Zoom should have moved toward target
-    assert(sim.currentZoom() > 5000.0);
-    std::cout << "  zoom=" << sim.currentZoom() << "\n";
-    std::cout << "  -> PASSED\n";
+    EXPECT_GT(sim.currentZoom(), 5000.0);
 }
 
 } // namespace
-
-int main()
-{
-    std::cout << "Running TestKinematicsSimulator Test Suite\n";
-    testDefaultPosition();
-    testSetPositionImmediate();
-    testIsMovingInitiallyFalse();
-    testDirectionalMotionCausesPanChange();
-    testStopHaltsMotion();
-    testSlewToReachesTarget();
-    testNormalizePanDeg();
-    testShortestAngularDelta();
-    testCentidegreesConversion();
-    testConfigGetSet();
-    testSlewZoomTo();
-    std::cout << "All TestKinematicsSimulator Tests Passed!\n";
-    return 0;
-}

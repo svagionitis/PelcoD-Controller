@@ -3,16 +3,15 @@
 ///        indefinitely when the remote host is unreachable or refuses connection.
 
 #include "TcpTransport.h"
+#include "TestHelpers.h"
+
+#include <gtest/gtest.h>
 
 #include <atomic>
-#include <cassert>
 #include <chrono>
 #include <cstdint>
-#include <cstdlib>
-#include <iostream>
 #include <thread>
-
-#include "TestHelpers.h"
+#include <vector>
 
 #ifdef _WIN32
 #ifndef WIN32_LEAN_AND_MEAN
@@ -33,8 +32,10 @@ using TestSocket = int;
 constexpr TestSocket INVALID_SOCKET = -1;
 #endif
 
+namespace {
+
 /// @brief open() to an unreachable address must complete within timeout + margin.
-static void testConnectTimesOutFast()
+TEST(TcpTransportTimeoutTest, ConnectTimesOutFast)
 {
     // 198.51.100.0/24 is TEST-NET-2 (RFC 5737) — guaranteed not routable.
     PelcoD::TcpTransport transport("198.51.100.1", 9999U);
@@ -45,15 +46,13 @@ static void testConnectTimesOutFast()
     const auto elapsed
         = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - before);
 
-    assert(!ok && "open() must fail for unreachable host");
+    EXPECT_FALSE(ok) << "open() must fail for unreachable host";
     // Must complete within timeout + 2 s margin.
-    assert(elapsed.count() < 3000 && "open() must not block beyond timeout");
-
-    std::cout << "  testConnectTimesOutFast: elapsed=" << elapsed.count() << "ms — PASSED\n";
+    EXPECT_LT(elapsed.count(), 3000) << "open() must not block beyond timeout";
 }
 
 /// @brief open() to localhost on a port with no listener must fail quickly (ECONNREFUSED).
-static void testConnectRefusedFast()
+TEST(TcpTransportTimeoutTest, ConnectRefusedFast)
 {
     // Port 1 is almost never in use; kernel replies ECONNREFUSED immediately.
     PelcoD::TcpTransport transport("127.0.0.1", 1U);
@@ -64,20 +63,18 @@ static void testConnectRefusedFast()
     const auto elapsed
         = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - before);
 
-    assert(!ok && "open() must fail when connection is refused");
+    EXPECT_FALSE(ok) << "open() must fail when connection is refused";
 #ifdef _WIN32
     // Windows TCP/IP stack performs SYN retry backoff on closed loopback ports (~2 s)
-    assert(elapsed.count() < 3500 && "open() must return fast on ECONNREFUSED");
+    EXPECT_LT(elapsed.count(), 3500) << "open() must return fast on ECONNREFUSED";
 #else
     // ECONNREFUSED is immediate; allow 500 ms margin.
-    assert(elapsed.count() < 500 && "open() must return fast on ECONNREFUSED");
+    EXPECT_LT(elapsed.count(), 500) << "open() must return fast on ECONNREFUSED";
 #endif
-
-    std::cout << "  testConnectRefusedFast: elapsed=" << elapsed.count() << "ms — PASSED\n";
 }
 
 /// @brief open() to an invalid hostname must fail without hanging.
-static void testDnsFailureFast()
+TEST(TcpTransportTimeoutTest, DnsFailureFast)
 {
     PelcoD::TcpTransport transport("this.hostname.does.not.exist.invalid", 4001U);
     transport.setConnectTimeout(5000);
@@ -87,15 +84,13 @@ static void testDnsFailureFast()
     const auto elapsed
         = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - before);
 
-    assert(!ok && "open() must fail for unresolvable host");
+    EXPECT_FALSE(ok) << "open() must fail for unresolvable host";
     // DNS failure on most systems is fast; give 8 s worst-case.
-    assert(elapsed.count() < 8000 && "open() must not hang on DNS failure");
-
-    std::cout << "  testDnsFailureFast: elapsed=" << elapsed.count() << "ms — PASSED\n";
+    EXPECT_LT(elapsed.count(), 8000) << "open() must not hang on DNS failure";
 }
 
 /// @brief Remote socket closure must cause isOpen() to become false and fail subsequent writes.
-static void testTcpRemoteClosureReportsClosed()
+TEST(TcpTransportTimeoutTest, TcpRemoteClosureReportsClosed)
 {
 #ifdef _WIN32
     WSADATA wsaData {};
@@ -103,7 +98,7 @@ static void testTcpRemoteClosureReportsClosed()
 #endif
 
     const TestSocket listenSock = ::socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-    assert(listenSock != INVALID_SOCKET);
+    ASSERT_NE(listenSock, INVALID_SOCKET);
 
     sockaddr_in serverAddr {};
     serverAddr.sin_family = AF_INET;
@@ -111,10 +106,10 @@ static void testTcpRemoteClosureReportsClosed()
     serverAddr.sin_port = htons(0); // Ephemeral port
 
     const int bindRet = ::bind(listenSock, reinterpret_cast<sockaddr*>(&serverAddr), sizeof(serverAddr));
-    assert(bindRet == 0);
+    ASSERT_EQ(bindRet, 0);
 
     const int listenRet = ::listen(listenSock, 1);
-    assert(listenRet == 0);
+    ASSERT_EQ(listenRet, 0);
 
     sockaddr_in boundAddr {};
     socklen_t addrLen = sizeof(boundAddr);
@@ -140,14 +135,14 @@ static void testTcpRemoteClosureReportsClosed()
     });
 
     const bool connected = transport.open();
-    assert(connected);
-    assert(transport.isOpen());
+    ASSERT_TRUE(connected);
+    EXPECT_TRUE(transport.isOpen());
 
     if (serverThread.joinable()) {
         serverThread.join();
     }
     const TestSocket clientSock = acceptedClient.load();
-    assert(clientSock != INVALID_SOCKET);
+    ASSERT_NE(clientSock, INVALID_SOCKET);
 
     // Abruptly close client and listener on server side to induce EOF on client transport
     ::shutdown(clientSock, 2);
@@ -159,22 +154,20 @@ static void testTcpRemoteClosureReportsClosed()
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
 
-    assert(disconnectedNotified.load() && "Transport must notify Disconnected upon remote closure");
-    assert(!transport.isOpen() && "isOpen() must be false after remote closure");
-    assert(!transport.sendData({ 0xFF, 0x01, 0x00, 0x00, 0x00, 0x00, 0x01 }) && "sendData() must fail when socket is dead");
+    EXPECT_TRUE(disconnectedNotified.load()) << "Transport must notify Disconnected upon remote closure";
+    EXPECT_FALSE(transport.isOpen()) << "isOpen() must be false after remote closure";
+    EXPECT_FALSE(transport.sendData({ 0xFF, 0x01, 0x00, 0x00, 0x00, 0x00, 0x01 })) << "sendData() must fail when socket is dead";
 
     transport.close();
-    assert(!transport.isOpen());
+    EXPECT_FALSE(transport.isOpen());
 
 #ifdef _WIN32
     ::WSACleanup();
 #endif
-
-    std::cout << "  testTcpRemoteClosureReportsClosed: PASSED\n";
 }
 
 /// @brief Verify concurrent sendData() and close() do not race or crash.
-static void testConcurrentSendAndClose()
+TEST(TcpTransportTimeoutTest, ConcurrentSendAndClose)
 {
 #ifdef _WIN32
     WSADATA wsaData {};
@@ -182,7 +175,7 @@ static void testConcurrentSendAndClose()
 #endif
 
     const TestSocket listenSock = ::socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-    assert(listenSock != INVALID_SOCKET);
+    ASSERT_NE(listenSock, INVALID_SOCKET);
 
     sockaddr_in serverAddr {};
     serverAddr.sin_family = AF_INET;
@@ -190,8 +183,8 @@ static void testConcurrentSendAndClose()
     serverAddr.sin_port = htons(0);
 
     const int bindRet = ::bind(listenSock, reinterpret_cast<sockaddr*>(&serverAddr), sizeof(serverAddr));
-    assert(bindRet == 0);
-    assert(::listen(listenSock, 1) == 0);
+    ASSERT_EQ(bindRet, 0);
+    ASSERT_EQ(::listen(listenSock, 1), 0);
 
     sockaddr_in boundAddr {};
     socklen_t addrLen = sizeof(boundAddr);
@@ -208,14 +201,14 @@ static void testConcurrentSendAndClose()
 
     PelcoD::TcpTransport transport("127.0.0.1", port);
     transport.setConnectTimeout(3000);
-    assert(transport.open());
-    assert(transport.isOpen());
+    ASSERT_TRUE(transport.open());
+    EXPECT_TRUE(transport.isOpen());
 
     if (serverThread.joinable()) {
         serverThread.join();
     }
     const TestSocket clientSock = acceptedClient.load();
-    assert(clientSock != INVALID_SOCKET);
+    ASSERT_NE(clientSock, INVALID_SOCKET);
 
     // Launch concurrent sendData workers
     std::atomic<bool> stopSending { false };
@@ -243,8 +236,8 @@ static void testConcurrentSendAndClose()
         }
     }
 
-    assert(!transport.isOpen());
-    assert(!transport.sendData(frame));
+    EXPECT_FALSE(transport.isOpen());
+    EXPECT_FALSE(transport.sendData(frame));
 
     TEST_CLOSE_SOCKET(clientSock);
     TEST_CLOSE_SOCKET(listenSock);
@@ -252,20 +245,6 @@ static void testConcurrentSendAndClose()
 #ifdef _WIN32
     ::WSACleanup();
 #endif
-
-    std::cout << "  testConcurrentSendAndClose: PASSED\n";
 }
 
-int main()
-{
-    PelcoDTest::initTestHarness();
-
-    std::cout << "[TestTcpTransportTimeout] Running...\n";
-    testConnectRefusedFast();
-    testConnectTimesOutFast();
-    testDnsFailureFast();
-    testTcpRemoteClosureReportsClosed();
-    testConcurrentSendAndClose();
-    std::cout << "[TestTcpTransportTimeout] All tests passed.\n";
-    return 0;
-}
+} // namespace

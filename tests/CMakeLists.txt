@@ -23,8 +23,7 @@ target_include_directories(TestConnectionModal PRIVATE
     ${CMAKE_SOURCE_DIR}/libs/PelcoDSim
 )
 target_link_libraries(TestConnectionModal PRIVATE PelcoDCore PelcoDTransport PelcoDSim Threads::Threads)
-apply_compiler_flags(TestConnectionModal)
-add_test(NAME TestConnectionModal COMMAND TestConnectionModal)
+pelcod_register_gtest(TestConnectionModal)
 
 add_executable(TestTrafficView
     TestTrafficView.cpp
@@ -38,8 +37,7 @@ target_include_directories(TestTrafficView PRIVATE
     ${CMAKE_SOURCE_DIR}/libs/PelcoDSim
 )
 target_link_libraries(TestTrafficView PRIVATE PelcoDCore PelcoDTransport PelcoDSim Threads::Threads)
-apply_compiler_flags(TestTrafficView)
-add_test(NAME TestTrafficView COMMAND TestTrafficView)
+pelcod_register_gtest(TestTrafficView)
 
 add_executable(TestAutoReconnect
     TestAutoReconnect.cpp
@@ -62,20 +60,7 @@ target_link_libraries(TestAutoReconnect PRIVATE
     Qt6::Widgets
     Qt6::Test
 )
-apply_compiler_flags(TestAutoReconnect)
-add_test(NAME TestAutoReconnect COMMAND TestAutoReconnect)
-
-if(WIN32)
-    foreach(qt_test IN ITEMS TestAutoReconnect)
-        set_property(TEST ${qt_test} PROPERTY ENVIRONMENT_MODIFICATION
-            "PATH=path_list_prepend:$<TARGET_FILE_DIR:Qt6::Core>"
-            "PATH=path_list_prepend:${CMAKE_BINARY_DIR}/vcpkg_installed/x64-windows/debug/bin"
-            "PATH=path_list_prepend:${CMAKE_BINARY_DIR}/vcpkg_installed/x64-windows/bin"
-            "PATH=path_list_prepend:C:/vcpkg/installed/x64-windows/debug/bin"
-            "PATH=path_list_prepend:C:/vcpkg/installed/x64-windows/bin"
-        )
-    endforeach()
-endif()
+pelcod_register_gtest(TestAutoReconnect NO_MAIN)
 
 # ==============================================================================
 # CLI Argument Validation Tests (PelcoDAppTui)

@@ -5,7 +5,7 @@
 #include "TransientShockDetector.h"
 
 #include <algorithm>
-#include <cassert>
+#include <gtest/gtest.h>
 #include <cmath>
 #include <iostream>
 #include <vector>
@@ -19,7 +19,7 @@ using namespace PelcoD::Math;
 
 namespace {
 
-void testHaar1DRoundtripIdentity()
+TEST(DwtTest, Haar1DRoundtripIdentity)
 {
     std::cout << "[Test] testHaar1DRoundtripIdentity...\n";
     const std::size_t n = 32U;
@@ -33,11 +33,11 @@ void testHaar1DRoundtripIdentity()
     std::vector<double> cD;
     dwt1D(signal, cA, cD, WaveletType::Haar);
 
-    assert(cA.size() == n / 2U);
-    assert(cD.size() == n / 2U);
+    EXPECT_TRUE(cA.size() == n / 2U);
+    EXPECT_TRUE(cD.size() == n / 2U);
 
     const auto reconstructed = idwt1D(cA, cD, WaveletType::Haar);
-    assert(reconstructed.size() == n);
+    EXPECT_TRUE(reconstructed.size() == n);
 
     double maxError = 0.0;
     for (std::size_t i = 0U; i < n; ++i) {
@@ -48,11 +48,11 @@ void testHaar1DRoundtripIdentity()
     }
 
     std::cout << "  -> Haar 1D max error: " << maxError << "\n";
-    assert(maxError < 1e-11);
+    EXPECT_TRUE(maxError < 1e-11);
     std::cout << "  -> PASSED\n";
 }
 
-void testDb41DRoundtripIdentity()
+TEST(DwtTest, Db41DRoundtripIdentity)
 {
     std::cout << "[Test] testDb41DRoundtripIdentity...\n";
     const std::size_t n = 32U;
@@ -66,11 +66,11 @@ void testDb41DRoundtripIdentity()
     std::vector<double> cD;
     dwt1D(signal, cA, cD, WaveletType::Db4);
 
-    assert(cA.size() == n / 2U);
-    assert(cD.size() == n / 2U);
+    EXPECT_TRUE(cA.size() == n / 2U);
+    EXPECT_TRUE(cD.size() == n / 2U);
 
     const auto reconstructed = idwt1D(cA, cD, WaveletType::Db4);
-    assert(reconstructed.size() == n);
+    EXPECT_TRUE(reconstructed.size() == n);
 
     double maxError = 0.0;
     for (std::size_t i = 0U; i < n; ++i) {
@@ -81,11 +81,11 @@ void testDb41DRoundtripIdentity()
     }
 
     std::cout << "  -> Db4 1D max error: " << maxError << "\n";
-    assert(maxError < 1e-10);
+    EXPECT_TRUE(maxError < 1e-10);
     std::cout << "  -> PASSED\n";
 }
 
-void testMultiLevelWavedecWaverec()
+TEST(DwtTest, MultiLevelWavedecWaverec)
 {
     std::cout << "[Test] testMultiLevelWavedecWaverec...\n";
     const std::size_t n = 128U;
@@ -98,14 +98,14 @@ void testMultiLevelWavedecWaverec()
     const std::size_t levels = 3U;
     const auto decomp = wavedec(signal, levels, WaveletType::Db4);
 
-    assert(decomp.cD.size() == 3U);
-    assert(decomp.cD[0].size() == 64U); // Level 1 details
-    assert(decomp.cD[1].size() == 32U); // Level 2 details
-    assert(decomp.cD[2].size() == 16U); // Level 3 details
-    assert(decomp.cA.size() == 16U); // Level 3 approximation
+    EXPECT_TRUE(decomp.cD.size() == 3U);
+    EXPECT_TRUE(decomp.cD[0].size() == 64U); // Level 1 details
+    EXPECT_TRUE(decomp.cD[1].size() == 32U); // Level 2 details
+    EXPECT_TRUE(decomp.cD[2].size() == 16U); // Level 3 details
+    EXPECT_TRUE(decomp.cA.size() == 16U); // Level 3 approximation
 
     const auto reconstructed = waverec(decomp);
-    assert(reconstructed.size() == n);
+    EXPECT_TRUE(reconstructed.size() == n);
 
     double maxError = 0.0;
     for (std::size_t i = 0U; i < n; ++i) {
@@ -116,11 +116,11 @@ void testMultiLevelWavedecWaverec()
     }
 
     std::cout << "  -> Multi-level (3-level) waverec max error: " << maxError << "\n";
-    assert(maxError < 1e-10);
+    EXPECT_TRUE(maxError < 1e-10);
     std::cout << "  -> PASSED\n";
 }
 
-void test2DImageDwtRoundtrip()
+TEST(DwtTest, 2DImageDwtRoundtrip)
 {
     std::cout << "[Test] test2DImageDwtRoundtrip...\n";
     const std::size_t rows = 32U;
@@ -137,11 +137,11 @@ void test2DImageDwtRoundtrip()
 
     // Test Haar 2D
     const auto coeffsHaar = dwt2D(image, rows, cols, WaveletType::Haar);
-    assert(coeffsHaar.rows == rows / 2U);
-    assert(coeffsHaar.cols == cols / 2U);
+    EXPECT_TRUE(coeffsHaar.rows == rows / 2U);
+    EXPECT_TRUE(coeffsHaar.cols == cols / 2U);
 
     const auto recHaar = idwt2D(coeffsHaar, WaveletType::Haar);
-    assert(recHaar.size() == rows * cols);
+    EXPECT_TRUE(recHaar.size() == rows * cols);
 
     double maxErrHaar = 0.0;
     for (std::size_t i = 0U; i < rows * cols; ++i) {
@@ -151,12 +151,12 @@ void test2DImageDwtRoundtrip()
         }
     }
     std::cout << "  -> 2D Haar max error: " << maxErrHaar << "\n";
-    assert(maxErrHaar < 1e-10);
+    EXPECT_TRUE(maxErrHaar < 1e-10);
 
     // Test Db4 2D
     const auto coeffsDb4 = dwt2D(image, rows, cols, WaveletType::Db4);
     const auto recDb4 = idwt2D(coeffsDb4, WaveletType::Db4);
-    assert(recDb4.size() == rows * cols);
+    EXPECT_TRUE(recDb4.size() == rows * cols);
 
     double maxErrDb4 = 0.0;
     for (std::size_t i = 0U; i < rows * cols; ++i) {
@@ -166,11 +166,11 @@ void test2DImageDwtRoundtrip()
         }
     }
     std::cout << "  -> 2D Db4 max error: " << maxErrDb4 << "\n";
-    assert(maxErrDb4 < 1e-10);
+    EXPECT_TRUE(maxErrDb4 < 1e-10);
     std::cout << "  -> PASSED\n";
 }
 
-void testWaveletDenoiseVisuShrink()
+TEST(DwtTest, WaveletDenoiseVisuShrink)
 {
     std::cout << "[Test] testWaveletDenoiseVisuShrink...\n";
     const std::size_t n = 128U;
@@ -189,7 +189,7 @@ void testWaveletDenoiseVisuShrink()
     }
 
     const auto denoised = waveletDenoise(noisy, 3U, WaveletType::Db4);
-    assert(denoised.size() == n);
+    EXPECT_TRUE(denoised.size() == n);
 
     double noisyMse = 0.0;
     double denoisedMse = 0.0;
@@ -201,11 +201,11 @@ void testWaveletDenoiseVisuShrink()
     denoisedMse /= static_cast<double>(n);
 
     std::cout << "  -> Noisy MSE: " << noisyMse << ", Denoised MSE: " << denoisedMse << "\n";
-    assert(denoisedMse < noisyMse);
+    EXPECT_TRUE(denoisedMse < noisyMse);
     std::cout << "  -> PASSED\n";
 }
 
-void testTransientShockDetector()
+TEST(DwtTest, TransientShockDetector)
 {
     std::cout << "[Test] testTransientShockDetector...\n";
     ShockDetectorConfig config {};
@@ -226,16 +226,16 @@ void testTransientShockDetector()
             falseAlarm = true;
         }
     }
-    assert(!falseAlarm);
+    EXPECT_TRUE(!falseAlarm);
 
     // Phase 2: Inject sudden sharp shock impulse at sample 41
     const auto shockEvent = detector.addSample(25.0);
     std::cout << "  -> Shock event triggered: " << shockEvent.isShockDetected
               << ", magnitude: " << shockEvent.shockMagnitude << ", energyRatio: " << shockEvent.energyRatio << "\n";
 
-    assert(shockEvent.isShockDetected);
-    assert(shockEvent.shockMagnitude > 5.0);
-    assert(shockEvent.energyRatio > config.energyThresholdFactor);
+    EXPECT_TRUE(shockEvent.isShockDetected);
+    EXPECT_TRUE(shockEvent.shockMagnitude > 5.0);
+    EXPECT_TRUE(shockEvent.energyRatio > config.energyThresholdFactor);
 
     // Phase 3: Feed smooth baseline again and verify detector recovers
     bool recovered = false;
@@ -246,12 +246,12 @@ void testTransientShockDetector()
             recovered = true;
         }
     }
-    assert(recovered);
+    EXPECT_TRUE(recovered);
 
     std::cout << "  -> PASSED\n";
 }
 
-void testEdgeAndOddLengthCases()
+TEST(DwtTest, EdgeAndOddLengthCases)
 {
     std::cout << "[Test] testEdgeAndOddLengthCases...\n";
     // Odd length signal (e.g. 7 elements)
@@ -259,44 +259,25 @@ void testEdgeAndOddLengthCases()
     std::vector<double> cA;
     std::vector<double> cD;
     dwt1D(oddSignal, cA, cD, WaveletType::Haar);
-    assert(cA.size() == 4U);
+    EXPECT_TRUE(cA.size() == 4U);
 
     const auto rec = idwt1D(cA, cD, WaveletType::Haar, oddSignal.size());
-    assert(rec.size() == 7U);
+    EXPECT_TRUE(rec.size() == 7U);
     for (std::size_t i = 0U; i < 7U; ++i) {
-        assert(std::abs(rec[i] - oddSignal[i]) < 1e-10);
+        EXPECT_TRUE(std::abs(rec[i] - oddSignal[i]) < 1e-10);
     }
 
     // Empty inputs
     std::vector<double> emptyVec {};
     dwt1D(emptyVec, cA, cD);
-    assert(cA.empty());
-    assert(cD.empty());
+    EXPECT_TRUE(cA.empty());
+    EXPECT_TRUE(cD.empty());
 
     const auto recEmpty = idwt1D(cA, cD);
-    assert(recEmpty.empty());
+    EXPECT_TRUE(recEmpty.empty());
 
     std::cout << "  -> PASSED\n";
 }
 
 } // namespace
 
-int main()
-{
-    std::cout << "========================================\n";
-    std::cout << "Running Discrete Wavelet Transform Unit Tests\n";
-    std::cout << "========================================\n";
-
-    testHaar1DRoundtripIdentity();
-    testDb41DRoundtripIdentity();
-    testMultiLevelWavedecWaverec();
-    test2DImageDwtRoundtrip();
-    testWaveletDenoiseVisuShrink();
-    testTransientShockDetector();
-    testEdgeAndOddLengthCases();
-
-    std::cout << "========================================\n";
-    std::cout << "ALL DWT TESTS PASSED!\n";
-    std::cout << "========================================\n";
-    return 0;
-}

@@ -12,6 +12,7 @@
 #include "VideoFilters.h"
 #endif
 
+#include <gtest/gtest.h>
 #include <QCoreApplication>
 #include <QImage>
 #include <QSignalSpy>
@@ -25,105 +26,62 @@
 
 using namespace PelcoD::Video;
 
-class TestVideoDecoder : public QObject {
-    Q_OBJECT
 
-private slots:
-    void testMockDecoderLifecycle();
-    void testMockDecoderSeeking();
-    void testAtomicTripleBuffer();
-    void testDecoderFactory();
-    void testVideoStreamWorkerMockStream();
-    void testSourceTypeDetection();
-    void testDeviceEnumeration();
-    void testLoopPlaybackControl();
-    void testLetterboxMath();
-    void testCompassHeadingCalculations();
-    void testBrailleRendererUtf8();
-    void testBrailleRendererLumaAndPalette();
-    void testBrailleRendererGridRasterization();
-    void testFrameProcessorPipeline();
-#if defined(PELCOD_HAS_FILTERS)
-    void testVideoFiltersNullSafety();
-    void testFalseColorThermalPalettes();
-    void testLocalAreaProcessingAndClahe();
-    void testTemporalDenoise();
-    void testDarkChannelDehaze();
-    void testImageStabilizationEIS();
-    void testAutoWhiteBalance();
-    void testChromaticAberrationCorrection();
-    void testIsothermFilter();
-    void testHotspotTrackerFilter();
-    void testMovingTargetIndicatorFilter();
-    void testTacticalReticleOverlayFilter();
-    void testOpticalFlowFieldFilter();
-    void testCentroidTargetTrackerFilter();
-    void testPerimeterTripwireFilter();
-    void testMotionHeatmapFilter();
-    void testPrivacyMaskFilter();
-    void testTimestampWatermarkFilter();
-    void testTelemetryOsdFilter();
-    void testPictureInPictureFilter();
-    void testVideoFiltersPipelineIntegration();
-    void testConcurrentProcessorReconfiguration();
-#endif
-};
-
-void TestVideoDecoder::testMockDecoderLifecycle()
+TEST(VideoDecoderTest, MockDecoderLifecycle)
 {
     MockVideoDecoder decoder;
-    QVERIFY(!decoder.getPerformanceStats().totalDecodedFrames);
+    EXPECT_TRUE(!decoder.getPerformanceStats().totalDecodedFrames);
 
     const bool initOk = decoder.initialize("mock://test", PixelFormat::RGB24, 1, DeviceType::CPU);
-    QVERIFY(initOk);
+    EXPECT_TRUE(initOk);
 
     const VideoMetadata meta = decoder.getVideoMetadata();
-    QCOMPARE(meta.width, 640);
-    QCOMPARE(meta.height, 360);
-    QCOMPARE(meta.frameRate, 30.0);
-    QCOMPARE(meta.format, PixelFormat::RGB24);
+    EXPECT_EQ(meta.width, 640);
+    EXPECT_EQ(meta.height, 360);
+    EXPECT_EQ(meta.frameRate, 30.0);
+    EXPECT_EQ(meta.format, PixelFormat::RGB24);
 
     // Decode 5 consecutive frames
     double lastTimestamp = -1.0;
     for (int i = 0; i < 5; ++i) {
         const bool decoded = decoder.decodeNextFrame();
-        QVERIFY(decoded);
+        EXPECT_TRUE(decoded);
 
         const FrameInfo frame = decoder.getRawFrameData();
-        QVERIFY(frame.data != nullptr);
-        QCOMPARE(frame.width, 640);
-        QCOMPARE(frame.height, 360);
-        QCOMPARE(frame.size, static_cast<std::size_t>(640 * 360 * 3));
-        QVERIFY(frame.timestamp > lastTimestamp);
+        EXPECT_TRUE(frame.data != nullptr);
+        EXPECT_EQ(frame.width, 640);
+        EXPECT_EQ(frame.height, 360);
+        EXPECT_EQ(frame.size, static_cast<std::size_t>(640 * 360 * 3));
+        EXPECT_TRUE(frame.timestamp > lastTimestamp);
         lastTimestamp = frame.timestamp;
     }
 
     const DecoderPerformanceStats stats = decoder.getPerformanceStats();
-    QCOMPARE(stats.totalDecodedFrames, 5ULL);
-    QVERIFY(stats.averageDecodeTimeMs >= 0.0);
+    EXPECT_EQ(stats.totalDecodedFrames, 5ULL);
+    EXPECT_TRUE(stats.averageDecodeTimeMs >= 0.0);
 
     decoder.close();
 }
 
-void TestVideoDecoder::testMockDecoderSeeking()
+TEST(VideoDecoderTest, MockDecoderSeeking)
 {
     MockVideoDecoder decoder;
-    QVERIFY(decoder.initialize("mock://test", PixelFormat::RGB24));
+    EXPECT_TRUE(decoder.initialize("mock://test", PixelFormat::RGB24));
 
     // Seek to 3.5 seconds
-    QVERIFY(decoder.seek(3.5));
-    QVERIFY(decoder.decodeNextFrame());
+    EXPECT_TRUE(decoder.seek(3.5));
+    EXPECT_TRUE(decoder.decodeNextFrame());
 
     const FrameInfo frame = decoder.getRawFrameData();
-    QVERIFY(std::abs(frame.timestamp - 3.5) < 0.1);
+    EXPECT_TRUE(std::abs(frame.timestamp - 3.5) < 0.1);
 
     decoder.close();
 }
 
-void TestVideoDecoder::testAtomicTripleBuffer()
+TEST(VideoDecoderTest, AtomicTripleBuffer)
 {
     AtomicTripleBuffer<FrameBufferSlot> buffer;
-    QVERIFY(!buffer.hasNewFrame());
+    EXPECT_TRUE(!buffer.hasNewFrame());
 
     // Producer writes slot
     auto& writeSlot = buffer.getWriteBuffer();
@@ -133,46 +91,46 @@ void TestVideoDecoder::testAtomicTripleBuffer()
 
     // Publish
     buffer.publishWriteBuffer();
-    QVERIFY(buffer.hasNewFrame());
+    EXPECT_TRUE(buffer.hasNewFrame());
 
     // Consumer swaps
-    QVERIFY(buffer.swapReadBuffer());
+    EXPECT_TRUE(buffer.swapReadBuffer());
     const auto& readSlot = buffer.getReadBuffer();
-    QCOMPARE(readSlot.width, 1920);
-    QCOMPARE(readSlot.height, 1080);
-    QCOMPARE(readSlot.timestamp, 1.234);
+    EXPECT_EQ(readSlot.width, 1920);
+    EXPECT_EQ(readSlot.height, 1080);
+    EXPECT_EQ(readSlot.timestamp, 1.234);
 
     // Second swap should return false (no newer frame)
-    QVERIFY(!buffer.swapReadBuffer());
+    EXPECT_TRUE(!buffer.swapReadBuffer());
 }
 
-void TestVideoDecoder::testDecoderFactory()
+TEST(VideoDecoderTest, DecoderFactory)
 {
     const auto backends = DecoderFactory::availableBackends();
-    QVERIFY(!backends.empty());
+    EXPECT_TRUE(!backends.empty());
 
     // Mock is always present
-    QVERIFY(std::find(backends.begin(), backends.end(), BackendType::Mock) != backends.end());
+    EXPECT_TRUE(std::find(backends.begin(), backends.end(), BackendType::Mock) != backends.end());
 
     auto mock = DecoderFactory::create(BackendType::Mock);
-    QVERIFY(mock != nullptr);
-    QVERIFY(mock->initialize("mock://test"));
-    QCOMPARE(mock->getVideoMetadata().width, 640);
+    EXPECT_TRUE(mock != nullptr);
+    EXPECT_TRUE(mock->initialize("mock://test"));
+    EXPECT_EQ(mock->getVideoMetadata().width, 640);
 
 #if defined(PELCOD_HAS_FFMPEG)
-    QVERIFY(std::find(backends.begin(), backends.end(), BackendType::FFmpeg) != backends.end());
+    EXPECT_TRUE(std::find(backends.begin(), backends.end(), BackendType::FFmpeg) != backends.end());
     auto ffmpeg = DecoderFactory::create(BackendType::FFmpeg);
-    QVERIFY(ffmpeg != nullptr);
+    EXPECT_TRUE(ffmpeg != nullptr);
 #endif
 
 #if defined(PELCOD_HAS_GSTREAMER)
-    QVERIFY(std::find(backends.begin(), backends.end(), BackendType::GStreamer) != backends.end());
+    EXPECT_TRUE(std::find(backends.begin(), backends.end(), BackendType::GStreamer) != backends.end());
     auto gst = DecoderFactory::create(BackendType::GStreamer);
-    QVERIFY(gst != nullptr);
+    EXPECT_TRUE(gst != nullptr);
 #endif
 }
 
-void TestVideoDecoder::testVideoStreamWorkerMockStream()
+TEST(VideoDecoderTest, VideoStreamWorkerMockStream)
 {
     QVideoStreamWorker worker;
     QSignalSpy spyStatus(&worker, &QVideoStreamWorker::streamStatusChanged);
@@ -182,86 +140,86 @@ void TestVideoDecoder::testVideoStreamWorkerMockStream()
     worker.openStream("mock://test", BackendType::Mock);
 
     // Wait for worker to connect and start streaming
-    QVERIFY(spyStatus.wait(2000));
-    QVERIFY(worker.isStreaming() || worker.streamState() == StreamState::Connecting);
+    EXPECT_TRUE(spyStatus.wait(2000));
+    EXPECT_TRUE(worker.isStreaming() || worker.streamState() == StreamState::Connecting);
 
     // Wait for at least 3 decoded frames
     const bool gotFrames = QTest::qWaitFor([&]() { return spyFrames.count() >= 3; }, 2000);
 
-    QVERIFY(gotFrames);
-    QVERIFY(!spyMetadata.isEmpty());
+    EXPECT_TRUE(gotFrames);
+    EXPECT_TRUE(!spyMetadata.isEmpty());
 
     // Inspect emitted QImage
     const auto frameArgs = spyFrames.first();
     const auto image = frameArgs.at(0).value<QImage>();
-    QCOMPARE(image.width(), 640);
-    QCOMPARE(image.height(), 360);
-    QCOMPARE(image.format(), QImage::Format_RGB888);
+    EXPECT_EQ(image.width(), 640);
+    EXPECT_EQ(image.height(), 360);
+    EXPECT_EQ(image.format(), QImage::Format_RGB888);
 
     // Test pause / resume
     worker.pausePlayback();
-    QCOMPARE(worker.streamState(), StreamState::Paused);
+    EXPECT_EQ(worker.streamState(), StreamState::Paused);
 
     worker.resumePlayback();
-    QCOMPARE(worker.streamState(), StreamState::Streaming);
+    EXPECT_EQ(worker.streamState(), StreamState::Streaming);
 
     // Test clean stop
     worker.stopPlayback();
-    QCOMPARE(worker.streamState(), StreamState::Disconnected);
+    EXPECT_EQ(worker.streamState(), StreamState::Disconnected);
 }
 
-void TestVideoDecoder::testSourceTypeDetection()
+TEST(VideoDecoderTest, SourceTypeDetection)
 {
     // Test pattern URIs
-    QCOMPARE(detectSourceType("mock://smpte-bars"), SourceType::MockPattern);
-    QCOMPARE(detectSourceType("mock://test"), SourceType::MockPattern);
+    EXPECT_EQ(detectSourceType("mock://smpte-bars"), SourceType::MockPattern);
+    EXPECT_EQ(detectSourceType("mock://test"), SourceType::MockPattern);
 
     // Network / RTSP feeds
-    QCOMPARE(detectSourceType("rtsp://192.168.1.100:554/live"), SourceType::Rtsp);
-    QCOMPARE(detectSourceType("rtmp://stream.example.com/live/feed"), SourceType::Rtsp);
-    QCOMPARE(detectSourceType("http://192.168.1.100/video.mjpg"), SourceType::Rtsp);
-    QCOMPARE(detectSourceType("udp://239.255.0.1:1234"), SourceType::Rtsp);
-    QCOMPARE(detectSourceType("tcp://127.0.0.1:8000"), SourceType::Rtsp);
+    EXPECT_EQ(detectSourceType("rtsp://192.168.1.100:554/live"), SourceType::Rtsp);
+    EXPECT_EQ(detectSourceType("rtmp://stream.example.com/live/feed"), SourceType::Rtsp);
+    EXPECT_EQ(detectSourceType("http://192.168.1.100/video.mjpg"), SourceType::Rtsp);
+    EXPECT_EQ(detectSourceType("udp://239.255.0.1:1234"), SourceType::Rtsp);
+    EXPECT_EQ(detectSourceType("tcp://127.0.0.1:8000"), SourceType::Rtsp);
 
     // Hardware capture devices
-    QCOMPARE(detectSourceType("video=Integrated Camera"), SourceType::Device);
-    QCOMPARE(detectSourceType("video:0"), SourceType::Device);
-    QCOMPARE(detectSourceType("device://default"), SourceType::Device);
-    QCOMPARE(detectSourceType("dshow:video=USB Webcam"), SourceType::Device);
-    QCOMPARE(detectSourceType("/dev/video0"), SourceType::Device);
-    QCOMPARE(detectSourceType("/dev/video1"), SourceType::Device);
+    EXPECT_EQ(detectSourceType("video=Integrated Camera"), SourceType::Device);
+    EXPECT_EQ(detectSourceType("video:0"), SourceType::Device);
+    EXPECT_EQ(detectSourceType("device://default"), SourceType::Device);
+    EXPECT_EQ(detectSourceType("dshow:video=USB Webcam"), SourceType::Device);
+    EXPECT_EQ(detectSourceType("/dev/video0"), SourceType::Device);
+    EXPECT_EQ(detectSourceType("/dev/video1"), SourceType::Device);
 
     // Local multimedia files
-    QCOMPARE(detectSourceType("sample.mp4"), SourceType::File);
-    QCOMPARE(detectSourceType("C:/Videos/recording.mkv"), SourceType::File);
-    QCOMPARE(detectSourceType("test_clip.avi"), SourceType::File);
-    QCOMPARE(detectSourceType("/var/media/camera_dump.ts"), SourceType::File);
+    EXPECT_EQ(detectSourceType("sample.mp4"), SourceType::File);
+    EXPECT_EQ(detectSourceType("C:/Videos/recording.mkv"), SourceType::File);
+    EXPECT_EQ(detectSourceType("test_clip.avi"), SourceType::File);
+    EXPECT_EQ(detectSourceType("/var/media/camera_dump.ts"), SourceType::File);
 }
 
-void TestVideoDecoder::testDeviceEnumeration()
+TEST(VideoDecoderTest, DeviceEnumeration)
 {
     // Ensure hardware device enumeration runs safely without throwing or crashing
     const auto devices = PelcoD::Video::DeviceEnumerator::enumerateDevices();
     for (const auto& dev : devices) {
-        QVERIFY(!dev.name.empty());
-        QVERIFY(!dev.path.empty());
+        EXPECT_TRUE(!dev.name.empty());
+        EXPECT_TRUE(!dev.path.empty());
     }
 }
 
-void TestVideoDecoder::testLoopPlaybackControl()
+TEST(VideoDecoderTest, LoopPlaybackControl)
 {
     PelcoDQt::QVideoStreamWorker worker;
     // Verify default is loop = true
-    QVERIFY(worker.isLoopPlayback());
+    EXPECT_TRUE(worker.isLoopPlayback());
 
     worker.setLoopPlayback(false);
-    QVERIFY(!worker.isLoopPlayback());
+    EXPECT_TRUE(!worker.isLoopPlayback());
 
     worker.setLoopPlayback(true);
-    QVERIFY(worker.isLoopPlayback());
+    EXPECT_TRUE(worker.isLoopPlayback());
 }
 
-void TestVideoDecoder::testLetterboxMath()
+TEST(VideoDecoderTest, LetterboxMath)
 {
     // 16:9 video frame inside 4:3 display (800x600) -> should be letterboxed vertically
     const double videoW = 1920.0;
@@ -273,14 +231,14 @@ void TestVideoDecoder::testLetterboxMath()
     const double renderedW = videoW * scale;
     const double renderedH = videoH * scale;
 
-    QCOMPARE(renderedW, 800.0);
-    QVERIFY(renderedH < 600.0); // Vertical letterboxing bars present
+    EXPECT_EQ(renderedW, 800.0);
+    EXPECT_TRUE(renderedH < 600.0); // Vertical letterboxing bars present
 
     const double offsetY = (canvasH - renderedH) / 2.0;
-    QVERIFY(offsetY > 0.0);
+    EXPECT_TRUE(offsetY > 0.0);
 }
 
-void TestVideoDecoder::testCompassHeadingCalculations()
+TEST(VideoDecoderTest, CompassHeadingCalculations)
 {
     auto headingToCardinal = [](double deg) -> const char* {
         while (deg < 0.0)
@@ -292,68 +250,68 @@ void TestVideoDecoder::testCompassHeadingCalculations()
         return kCardinals[idx];
     };
 
-    QCOMPARE(headingToCardinal(0.0), "N");
-    QCOMPARE(headingToCardinal(45.0), "NE");
-    QCOMPARE(headingToCardinal(90.0), "E");
-    QCOMPARE(headingToCardinal(180.0), "S");
-    QCOMPARE(headingToCardinal(270.0), "W");
-    QCOMPARE(headingToCardinal(359.9), "N");
+    EXPECT_STREQ(headingToCardinal(0.0), "N");
+    EXPECT_STREQ(headingToCardinal(45.0), "NE");
+    EXPECT_STREQ(headingToCardinal(90.0), "E");
+    EXPECT_STREQ(headingToCardinal(180.0), "S");
+    EXPECT_STREQ(headingToCardinal(270.0), "W");
+    EXPECT_STREQ(headingToCardinal(359.9), "N");
 }
 
-void TestVideoDecoder::testBrailleRendererUtf8()
+TEST(VideoDecoderTest, BrailleRendererUtf8)
 {
     using videodecoder::BrailleRenderer;
 
     // Dot mask 0 should produce empty Braille pattern U+2800 (\xE2\xA0\x80)
     const std::string emptyBraille = BrailleRenderer::utf8BrailleChar(0x00);
-    QCOMPARE(emptyBraille, std::string("\xE2\xA0\x80"));
+    EXPECT_EQ(emptyBraille, std::string("\xE2\xA0\x80"));
 
     // Dot mask 0xFF should produce full 8-dot Braille pattern U+28FF (\xE2\xA3\xBF)
     const std::string fullBraille = BrailleRenderer::utf8BrailleChar(0xFF);
-    QCOMPARE(fullBraille, std::string("\xE2\xA3\xBF"));
+    EXPECT_EQ(fullBraille, std::string("\xE2\xA3\xBF"));
 
     // Dot 1 (bit 0) -> U+2801 (\xE2\xA0\x81)
-    QCOMPARE(BrailleRenderer::utf8BrailleChar(0x01), std::string("\xE2\xA0\x81"));
+    EXPECT_EQ(BrailleRenderer::utf8BrailleChar(0x01), std::string("\xE2\xA0\x81"));
 
     // Dot 8 (bit 7) -> U+2880 (\xE2\xA2\x80)
-    QCOMPARE(BrailleRenderer::utf8BrailleChar(0x80), std::string("\xE2\xA2\x80"));
+    EXPECT_EQ(BrailleRenderer::utf8BrailleChar(0x80), std::string("\xE2\xA2\x80"));
 }
 
-void TestVideoDecoder::testBrailleRendererLumaAndPalette()
+TEST(VideoDecoderTest, BrailleRendererLumaAndPalette)
 {
     using videodecoder::BrailleRenderer;
     using videodecoder::TuiColorPalette;
 
     // ITU-R BT.601 luminance checks
-    QCOMPARE(BrailleRenderer::calculateLuma(0, 0, 0), 0);
-    QCOMPARE(BrailleRenderer::calculateLuma(255, 255, 255), 255);
-    QCOMPARE(BrailleRenderer::calculateLuma(255, 0, 0), 76);
-    QCOMPARE(BrailleRenderer::calculateLuma(0, 255, 0), 149);
-    QCOMPARE(BrailleRenderer::calculateLuma(0, 0, 255), 29);
+    EXPECT_EQ(BrailleRenderer::calculateLuma(0, 0, 0), 0);
+    EXPECT_EQ(BrailleRenderer::calculateLuma(255, 255, 255), 255);
+    EXPECT_EQ(BrailleRenderer::calculateLuma(255, 0, 0), 76);
+    EXPECT_EQ(BrailleRenderer::calculateLuma(0, 255, 0), 149);
+    EXPECT_EQ(BrailleRenderer::calculateLuma(0, 0, 255), 29);
 
     // Color palette simulation
     std::uint8_t outR = 0, outG = 0, outB = 0;
 
     // TrueColor pass-through
     BrailleRenderer::applyPalette(TuiColorPalette::TrueColor, 100, 150, 200, outR, outG, outB);
-    QCOMPARE(outR, 100);
-    QCOMPARE(outG, 150);
-    QCOMPARE(outB, 200);
+    EXPECT_EQ(outR, 100);
+    EXPECT_EQ(outG, 150);
+    EXPECT_EQ(outB, 200);
 
     // Amber phosphor tint
     BrailleRenderer::applyPalette(TuiColorPalette::Amber, 255, 255, 255, outR, outG, outB);
-    QCOMPARE(outR, 255);
-    QCOMPARE(outG, 176);
-    QCOMPARE(outB, 0);
+    EXPECT_EQ(outR, 255);
+    EXPECT_EQ(outG, 176);
+    EXPECT_EQ(outB, 0);
 
     // Cyan HUD tint
     BrailleRenderer::applyPalette(TuiColorPalette::CyanHud, 255, 255, 255, outR, outG, outB);
-    QCOMPARE(outR, 0);
-    QCOMPARE(outG, 230);
-    QCOMPARE(outB, 255);
+    EXPECT_EQ(outR, 0);
+    EXPECT_EQ(outG, 230);
+    EXPECT_EQ(outB, 255);
 }
 
-void TestVideoDecoder::testBrailleRendererGridRasterization()
+TEST(VideoDecoderTest, BrailleRendererGridRasterization)
 {
     using videodecoder::BrailleRenderer;
     using videodecoder::BrailleRenderOptions;
@@ -380,19 +338,19 @@ void TestVideoDecoder::testBrailleRendererGridRasterization()
     opts.dither = DitherAlgorithm::Bayer4x4;
 
     BrailleRenderer::renderFrame(rgbData.data(), 20, 20, 10, 5, opts, cells);
-    QCOMPARE(static_cast<int>(cells.size()), 50);
+    EXPECT_EQ(static_cast<int>(cells.size()), 50);
 
     // Leftmost cell (pure black) should be empty Braille
-    QCOMPARE(cells[0].utf8Text, std::string("\xE2\xA0\x80"));
+    EXPECT_EQ(cells[0].utf8Text, std::string("\xE2\xA0\x80"));
     // Rightmost cell (pure white) should be full Braille
-    QCOMPARE(cells[9].utf8Text, std::string("\xE2\xA3\xBF"));
+    EXPECT_EQ(cells[9].utf8Text, std::string("\xE2\xA3\xBF"));
 
     // Test with Half-Block mode
     opts.mode = TuiRenderMode::HalfBlock;
     BrailleRenderer::renderFrame(rgbData.data(), 20, 20, 10, 5, opts, cells);
-    QCOMPARE(static_cast<int>(cells.size()), 50);
-    QVERIFY(cells[0].hasBg);
-    QCOMPARE(cells[0].utf8Text, std::string("\xE2\x96\x80"));
+    EXPECT_EQ(static_cast<int>(cells.size()), 50);
+    EXPECT_TRUE(cells[0].hasBg);
+    EXPECT_EQ(cells[0].utf8Text, std::string("\xE2\x96\x80"));
 }
 
 namespace {
@@ -430,14 +388,14 @@ private:
 
 } // namespace
 
-void TestVideoDecoder::testFrameProcessorPipeline()
+TEST(VideoDecoderTest, FrameProcessorPipeline)
 {
     MockVideoDecoder decoder;
-    QVERIFY(decoder.initialize("mock://test", PixelFormat::RGB24));
+    EXPECT_TRUE(decoder.initialize("mock://test", PixelFormat::RGB24));
 
     // Decode baseline frame 0 without processors
     decoder.seek(0.0);
-    QVERIFY(decoder.decodeNextFrame());
+    EXPECT_TRUE(decoder.decodeNextFrame());
     const FrameInfo raw0 = decoder.getRawFrameData();
     const std::uint8_t origR = raw0.data[0];
     const std::uint8_t origG = raw0.data[1];
@@ -448,30 +406,30 @@ void TestVideoDecoder::testFrameProcessorPipeline()
     decoder.addFrameProcessor(invertProc);
 
     decoder.seek(0.0);
-    QVERIFY(decoder.decodeNextFrame());
+    EXPECT_TRUE(decoder.decodeNextFrame());
     const FrameInfo raw1 = decoder.getRawFrameData();
-    QCOMPARE(raw1.data[0], static_cast<std::uint8_t>(255U - origR));
-    QCOMPARE(raw1.data[1], static_cast<std::uint8_t>(255U - origG));
-    QCOMPARE(raw1.data[2], static_cast<std::uint8_t>(255U - origB));
+    EXPECT_EQ(raw1.data[0], static_cast<std::uint8_t>(255U - origR));
+    EXPECT_EQ(raw1.data[1], static_cast<std::uint8_t>(255U - origG));
+    EXPECT_EQ(raw1.data[2], static_cast<std::uint8_t>(255U - origB));
 
     // Test sequential chaining: add brightness offset +10 and re-decode frame 0
     auto brightProc = std::make_shared<BrightnessOffsetTestProcessor>(10);
     decoder.addFrameProcessor(brightProc);
 
     decoder.seek(0.0);
-    QVERIFY(decoder.decodeNextFrame());
+    EXPECT_TRUE(decoder.decodeNextFrame());
     const FrameInfo raw2 = decoder.getRawFrameData();
     const std::uint8_t expectedR = static_cast<std::uint8_t>(std::clamp(static_cast<int>(255U - origR) + 10, 0, 255));
-    QCOMPARE(raw2.data[0], expectedR);
+    EXPECT_EQ(raw2.data[0], expectedR);
 
     // Clear processors and verify restoration of original values on frame 0
     decoder.clearFrameProcessors();
     decoder.seek(0.0);
-    QVERIFY(decoder.decodeNextFrame());
+    EXPECT_TRUE(decoder.decodeNextFrame());
     const FrameInfo raw3 = decoder.getRawFrameData();
-    QCOMPARE(raw3.data[0], origR);
-    QCOMPARE(raw3.data[1], origG);
-    QCOMPARE(raw3.data[2], origB);
+    EXPECT_EQ(raw3.data[0], origR);
+    EXPECT_EQ(raw3.data[1], origG);
+    EXPECT_EQ(raw3.data[2], origB);
 
     // Verify integration with QVideoStreamWorker
     QVideoStreamWorker worker;
@@ -479,13 +437,13 @@ void TestVideoDecoder::testFrameProcessorPipeline()
     QSignalSpy spyFrames(&worker, &QVideoStreamWorker::frameReady);
     worker.openStream("mock://test", BackendType::Mock);
 
-    QVERIFY(spyFrames.wait(2000));
-    QVERIFY(spyFrames.count() >= 1);
+    EXPECT_TRUE(spyFrames.wait(2000));
+    EXPECT_TRUE(spyFrames.count() >= 1);
     worker.stopPlayback();
 }
 
 #if defined(PELCOD_HAS_FILTERS)
-void TestVideoDecoder::testVideoFiltersNullSafety()
+TEST(VideoFiltersTest, VideoFiltersNullSafety)
 {
     BrightnessContrastFilter bcFilter;
     GaussianBlurFilter blurFilter;
@@ -570,10 +528,10 @@ void TestVideoDecoder::testVideoFiltersNullSafety()
     telemetryFilter.process(dummy.data(), -1, -1, PixelFormat::RGB24);
     pipFilter.process(dummy.data(), 0, 0, PixelFormat::RGB24);
 
-    QVERIFY(true);
+    EXPECT_TRUE(true);
 }
 
-void TestVideoDecoder::testFalseColorThermalPalettes()
+TEST(VideoFiltersTest, FalseColorThermalPalettes)
 {
     // Generate a 256x1 synthetic gray ramp (R=i, G=i, B=i)
     std::vector<std::uint8_t> origBuf(256U * 3U);
@@ -588,8 +546,8 @@ void TestVideoDecoder::testFalseColorThermalPalettes()
         std::vector<std::uint8_t> buf = origBuf;
         FalseColorFilter filter(FalseColorPalette::WhiteHot);
         filter.process(buf.data(), 256, 1, PixelFormat::RGB24);
-        QCOMPARE(buf[0], static_cast<std::uint8_t>(0));
-        QCOMPARE(buf[255U * 3U], static_cast<std::uint8_t>(255));
+        EXPECT_EQ(buf[0], static_cast<std::uint8_t>(0));
+        EXPECT_EQ(buf[255U * 3U], static_cast<std::uint8_t>(255));
     }
 
     // 2. BlackHot (grayscale inversion: 0 becomes 255, 255 becomes 0)
@@ -597,8 +555,8 @@ void TestVideoDecoder::testFalseColorThermalPalettes()
         std::vector<std::uint8_t> buf = origBuf;
         FalseColorFilter filter(FalseColorPalette::BlackHot);
         filter.process(buf.data(), 256, 1, PixelFormat::RGB24);
-        QCOMPARE(buf[0], static_cast<std::uint8_t>(255));
-        QCOMPARE(buf[255U * 3U], static_cast<std::uint8_t>(0));
+        EXPECT_EQ(buf[0], static_cast<std::uint8_t>(255));
+        EXPECT_EQ(buf[255U * 3U], static_cast<std::uint8_t>(0));
     }
 
     // 3. Iron256 colormap verification
@@ -608,7 +566,7 @@ void TestVideoDecoder::testFalseColorThermalPalettes()
         filter.process(buf.data(), 256, 1, PixelFormat::RGB24);
         const bool differentColors
             = (buf[0] != buf[255U * 3U] || buf[1] != buf[255U * 3U + 1U] || buf[2] != buf[255U * 3U + 2U]);
-        QVERIFY(differentColors);
+        EXPECT_TRUE(differentColors);
     }
 
     // 4. Custom User Palette via interpolation
@@ -624,17 +582,17 @@ void TestVideoDecoder::testFalseColorThermalPalettes()
 
         filter.process(buf.data(), 256, 1, PixelFormat::RGB24);
         // Pixel 0 should be blue
-        QCOMPARE(buf[0], static_cast<std::uint8_t>(0));
-        QCOMPARE(buf[1], static_cast<std::uint8_t>(0));
-        QCOMPARE(buf[2], static_cast<std::uint8_t>(255));
+        EXPECT_EQ(buf[0], static_cast<std::uint8_t>(0));
+        EXPECT_EQ(buf[1], static_cast<std::uint8_t>(0));
+        EXPECT_EQ(buf[2], static_cast<std::uint8_t>(255));
         // Pixel 255 should be red
-        QCOMPARE(buf[255U * 3U + 0U], static_cast<std::uint8_t>(255));
-        QCOMPARE(buf[255U * 3U + 1U], static_cast<std::uint8_t>(0));
-        QCOMPARE(buf[255U * 3U + 2U], static_cast<std::uint8_t>(0));
+        EXPECT_EQ(buf[255U * 3U + 0U], static_cast<std::uint8_t>(255));
+        EXPECT_EQ(buf[255U * 3U + 1U], static_cast<std::uint8_t>(0));
+        EXPECT_EQ(buf[255U * 3U + 2U], static_cast<std::uint8_t>(0));
     }
 }
 
-void TestVideoDecoder::testLocalAreaProcessingAndClahe()
+TEST(VideoFiltersTest, LocalAreaProcessingAndClahe)
 {
     // Generate low-contrast 64x64 synthetic image (values between 100 and 110)
     const int w = 64;
@@ -659,16 +617,16 @@ void TestVideoDecoder::testLocalAreaProcessingAndClahe()
         maxVal = std::max(maxVal, claheBuf[i]);
     }
     // Dynamic range should be wider than original [100, 110]
-    QVERIFY(minVal < 100 || maxVal > 110);
+    EXPECT_TRUE(minVal < 100 || maxVal > 110);
 
     // Test LAP: Local Area Processing executes cleanly
     std::vector<std::uint8_t> lapBuf = lowContrast;
     LocalAreaProcessingFilter lap(3, 0.7, 2.0);
     lap.process(lapBuf.data(), w, h, PixelFormat::RGB24);
-    QVERIFY(!lapBuf.empty());
+    EXPECT_TRUE(!lapBuf.empty());
 }
 
-void TestVideoDecoder::testTemporalDenoise()
+TEST(VideoFiltersTest, TemporalDenoise)
 {
     const int w = 32;
     const int h = 32;
@@ -679,14 +637,14 @@ void TestVideoDecoder::testTemporalDenoise()
     TemporalDenoiseFilter denoise(0.5, 30.0);
     denoise.process(frame1.data(), w, h, PixelFormat::RGB24);
     // History initialized to 128
-    QCOMPARE(frame1[0], static_cast<std::uint8_t>(128));
+    EXPECT_EQ(frame1[0], static_cast<std::uint8_t>(128));
 
     // Frame 2: small noise on pixel 0 (value 136, diff = 8 < threshold 30)
     std::vector<std::uint8_t> frame2(numBytes, 128U);
     frame2[0] = 136U;
     denoise.process(frame2.data(), w, h, PixelFormat::RGB24);
     // Should be averaged towards history: 0.5 * 128 + 0.5 * 136 = 132
-    QCOMPARE(frame2[0], static_cast<std::uint8_t>(132));
+    EXPECT_EQ(frame2[0], static_cast<std::uint8_t>(132));
 
     // Frame 3: large motion on pixel 0 (value 230, diff = 98 > threshold 30 across channels)
     std::vector<std::uint8_t> frame3(numBytes, 128U);
@@ -695,27 +653,27 @@ void TestVideoDecoder::testTemporalDenoise()
     frame3[2] = 230U;
     denoise.process(frame3.data(), w, h, PixelFormat::RGB24);
     // Motion thresholding keeps the new value without temporal blur
-    QCOMPARE(frame3[0], static_cast<std::uint8_t>(230));
-    QCOMPARE(frame3[1], static_cast<std::uint8_t>(230));
-    QCOMPARE(frame3[2], static_cast<std::uint8_t>(230));
+    EXPECT_EQ(frame3[0], static_cast<std::uint8_t>(230));
+    EXPECT_EQ(frame3[1], static_cast<std::uint8_t>(230));
+    EXPECT_EQ(frame3[2], static_cast<std::uint8_t>(230));
 
     // Test reset
     denoise.reset();
 }
 
-void TestVideoDecoder::testDarkChannelDehaze()
+TEST(VideoFiltersTest, DarkChannelDehaze)
 {
     DarkChannelDehazeFilter dehaze(0.90, 5, 0.15);
-    QVERIFY(qFuzzyCompare(dehaze.getOmega(), 0.90));
-    QCOMPARE(dehaze.getPatchSize(), 5);
-    QVERIFY(qFuzzyCompare(dehaze.getT0(), 0.15));
+    EXPECT_TRUE(qFuzzyCompare(dehaze.getOmega(), 0.90));
+    EXPECT_EQ(dehaze.getPatchSize(), 5);
+    EXPECT_TRUE(qFuzzyCompare(dehaze.getT0(), 0.15));
 
     dehaze.setOmega(0.85);
-    QVERIFY(qFuzzyCompare(dehaze.getOmega(), 0.85));
+    EXPECT_TRUE(qFuzzyCompare(dehaze.getOmega(), 0.85));
     dehaze.setPatchSize(7);
-    QCOMPARE(dehaze.getPatchSize(), 7);
+    EXPECT_EQ(dehaze.getPatchSize(), 7);
     dehaze.setT0(0.10);
-    QVERIFY(qFuzzyCompare(dehaze.getT0(), 0.10));
+    EXPECT_TRUE(qFuzzyCompare(dehaze.getT0(), 0.10));
 
     // Create a foggy synthetic image (high minimum luma, low contrast: values between 180 and 220)
     const int w = 64;
@@ -736,23 +694,23 @@ void TestVideoDecoder::testDarkChannelDehaze()
     }
 
     // Baseline minimum was 180; after dehazing minVal should drop significantly penetrating haze
-    QVERIFY(minVal < 160U);
-    QVERIFY(maxVal >= 180U);
+    EXPECT_TRUE(minVal < 160U);
+    EXPECT_TRUE(maxVal >= 180U);
 }
 
-void TestVideoDecoder::testImageStabilizationEIS()
+TEST(VideoFiltersTest, ImageStabilizationEIS)
 {
     ImageStabilizationFilter stab(0.85, 25.0, 0.05);
-    QVERIFY(qFuzzyCompare(stab.getSmoothingFactor(), 0.85));
-    QVERIFY(qFuzzyCompare(stab.getMaxJitterPixels(), 25.0));
-    QVERIFY(qFuzzyCompare(stab.getCropMarginPercent(), 0.05));
+    EXPECT_TRUE(qFuzzyCompare(stab.getSmoothingFactor(), 0.85));
+    EXPECT_TRUE(qFuzzyCompare(stab.getMaxJitterPixels(), 25.0));
+    EXPECT_TRUE(qFuzzyCompare(stab.getCropMarginPercent(), 0.05));
 
     stab.setSmoothingFactor(0.75);
-    QVERIFY(qFuzzyCompare(stab.getSmoothingFactor(), 0.75));
+    EXPECT_TRUE(qFuzzyCompare(stab.getSmoothingFactor(), 0.75));
     stab.setMaxJitterPixels(40.0);
-    QVERIFY(qFuzzyCompare(stab.getMaxJitterPixels(), 40.0));
+    EXPECT_TRUE(qFuzzyCompare(stab.getMaxJitterPixels(), 40.0));
     stab.setCropMarginPercent(0.06);
-    QVERIFY(qFuzzyCompare(stab.getCropMarginPercent(), 0.06));
+    EXPECT_TRUE(qFuzzyCompare(stab.getCropMarginPercent(), 0.06));
 
     const int w = 128;
     const int h = 128;
@@ -782,20 +740,20 @@ void TestVideoDecoder::testImageStabilizationEIS()
     std::vector<std::uint8_t> f3 = createPattern(-2, -1);
     stab.process(f3.data(), w, h, PixelFormat::RGB24);
 
-    QVERIFY(!f3.empty());
+    EXPECT_TRUE(!f3.empty());
     stab.reset();
 }
 
-void TestVideoDecoder::testAutoWhiteBalance()
+TEST(VideoFiltersTest, AutoWhiteBalance)
 {
     WhiteBalanceFilter wb(WhiteBalanceFilter::Mode::GrayWorld, 1.0);
-    QCOMPARE(wb.getMode(), WhiteBalanceFilter::Mode::GrayWorld);
-    QVERIFY(qFuzzyCompare(wb.getStrength(), 1.0));
+    EXPECT_EQ(wb.getMode(), WhiteBalanceFilter::Mode::GrayWorld);
+    EXPECT_TRUE(qFuzzyCompare(wb.getStrength(), 1.0));
 
     wb.setMode(WhiteBalanceFilter::Mode::WhitePatch);
-    QCOMPARE(wb.getMode(), WhiteBalanceFilter::Mode::WhitePatch);
+    EXPECT_EQ(wb.getMode(), WhiteBalanceFilter::Mode::WhitePatch);
     wb.setStrength(0.85);
-    QVERIFY(qFuzzyCompare(wb.getStrength(), 0.85));
+    EXPECT_TRUE(qFuzzyCompare(wb.getStrength(), 0.85));
 
     // Test GrayWorld with warm color tint (R=200, G=100, B=50)
     wb.setMode(WhiteBalanceFilter::Mode::GrayWorld);
@@ -813,8 +771,8 @@ void TestVideoDecoder::testAutoWhiteBalance()
     wb.process(tinted.data(), w, h, PixelFormat::RGB24);
 
     // After GrayWorld, R should decrease and B should increase
-    QVERIFY(tinted[0] < 200U);
-    QVERIFY(tinted[2] > 50U);
+    EXPECT_TRUE(tinted[0] < 200U);
+    EXPECT_TRUE(tinted[2] > 50U);
 
     // Test WhitePatch mode
     wb.setMode(WhiteBalanceFilter::Mode::WhitePatch);
@@ -825,22 +783,22 @@ void TestVideoDecoder::testAutoWhiteBalance()
         patchImg[i + 2U] = 120U;
     }
     wb.process(patchImg.data(), w, h, PixelFormat::RGB24);
-    QVERIFY(!patchImg.empty());
+    EXPECT_TRUE(!patchImg.empty());
 }
 
-void TestVideoDecoder::testChromaticAberrationCorrection()
+TEST(VideoFiltersTest, ChromaticAberrationCorrection)
 {
     ChromaticAberrationFilter ca(0.008, -0.008, 0.05, -0.05);
-    QVERIFY(qFuzzyCompare(ca.getRedCoeff(), 0.008));
-    QVERIFY(qFuzzyCompare(ca.getBlueCoeff(), -0.008));
-    QVERIFY(qFuzzyCompare(ca.getCenterOffsetX(), 0.05));
-    QVERIFY(qFuzzyCompare(ca.getCenterOffsetY(), -0.05));
+    EXPECT_TRUE(qFuzzyCompare(ca.getRedCoeff(), 0.008));
+    EXPECT_TRUE(qFuzzyCompare(ca.getBlueCoeff(), -0.008));
+    EXPECT_TRUE(qFuzzyCompare(ca.getCenterOffsetX(), 0.05));
+    EXPECT_TRUE(qFuzzyCompare(ca.getCenterOffsetY(), -0.05));
 
     ca.setParameters(0.003, -0.003, 0.0, 0.0);
-    QVERIFY(qFuzzyCompare(ca.getRedCoeff(), 0.003));
-    QVERIFY(qFuzzyCompare(ca.getBlueCoeff(), -0.003));
-    QVERIFY(qFuzzyCompare(ca.getCenterOffsetX(), 0.0));
-    QVERIFY(qFuzzyCompare(ca.getCenterOffsetY(), 0.0));
+    EXPECT_TRUE(qFuzzyCompare(ca.getRedCoeff(), 0.003));
+    EXPECT_TRUE(qFuzzyCompare(ca.getBlueCoeff(), -0.003));
+    EXPECT_TRUE(qFuzzyCompare(ca.getCenterOffsetX(), 0.0));
+    EXPECT_TRUE(qFuzzyCompare(ca.getCenterOffsetY(), 0.0));
 
     // Process a 64x64 checkerboard image
     const int w = 64;
@@ -860,37 +818,37 @@ void TestVideoDecoder::testChromaticAberrationCorrection()
     ca.setParameters(0.01, -0.01);
     ca.process(img.data(), w, h, PixelFormat::RGB24);
 
-    QVERIFY(!img.empty());
+    EXPECT_TRUE(!img.empty());
 }
 
-void TestVideoDecoder::testIsothermFilter()
+TEST(VideoFiltersTest, IsothermFilter)
 {
     IsothermFilter iso(140, 180, IsothermFilter::HighlightColor::Red, true);
-    QCOMPARE(iso.getLowThreshold(), 140);
-    QCOMPARE(iso.getHighThreshold(), 180);
-    QCOMPARE(iso.getHighlightColor(), IsothermFilter::HighlightColor::Red);
-    QVERIFY(iso.isWhiteHotBackground());
+    EXPECT_EQ(iso.getLowThreshold(), 140);
+    EXPECT_EQ(iso.getHighThreshold(), 180);
+    EXPECT_EQ(iso.getHighlightColor(), IsothermFilter::HighlightColor::Red);
+    EXPECT_TRUE(iso.isWhiteHotBackground());
 
     iso.setPreset(IsothermFilter::Preset::HumanBody);
-    QCOMPARE(iso.getPreset(), IsothermFilter::Preset::HumanBody);
-    QCOMPARE(iso.getLowThreshold(), 140);
-    QCOMPARE(iso.getHighThreshold(), 180);
-    QCOMPARE(iso.getHighlightColor(), IsothermFilter::HighlightColor::Amber);
+    EXPECT_EQ(iso.getPreset(), IsothermFilter::Preset::HumanBody);
+    EXPECT_EQ(iso.getLowThreshold(), 140);
+    EXPECT_EQ(iso.getHighThreshold(), 180);
+    EXPECT_EQ(iso.getHighlightColor(), IsothermFilter::HighlightColor::Amber);
 
     iso.setPreset(IsothermFilter::Preset::HighHeat);
-    QCOMPARE(iso.getPreset(), IsothermFilter::Preset::HighHeat);
-    QCOMPARE(iso.getLowThreshold(), 200);
-    QCOMPARE(iso.getHighThreshold(), 255);
-    QCOMPARE(iso.getHighlightColor(), IsothermFilter::HighlightColor::Red);
+    EXPECT_EQ(iso.getPreset(), IsothermFilter::Preset::HighHeat);
+    EXPECT_EQ(iso.getLowThreshold(), 200);
+    EXPECT_EQ(iso.getHighThreshold(), 255);
+    EXPECT_EQ(iso.getHighlightColor(), IsothermFilter::HighlightColor::Red);
 
     iso.setThresholds(100, 150);
-    QCOMPARE(iso.getPreset(), IsothermFilter::Preset::Custom);
-    QCOMPARE(iso.getLowThreshold(), 100);
-    QCOMPARE(iso.getHighThreshold(), 150);
+    EXPECT_EQ(iso.getPreset(), IsothermFilter::Preset::Custom);
+    EXPECT_EQ(iso.getLowThreshold(), 100);
+    EXPECT_EQ(iso.getHighThreshold(), 150);
     iso.setHighlightColor(IsothermFilter::HighlightColor::Cyan);
-    QCOMPARE(iso.getHighlightColor(), IsothermFilter::HighlightColor::Cyan);
+    EXPECT_EQ(iso.getHighlightColor(), IsothermFilter::HighlightColor::Cyan);
     iso.setWhiteHotBackground(false);
-    QVERIFY(!iso.isWhiteHotBackground());
+    EXPECT_TRUE(!iso.isWhiteHotBackground());
 
     // Process a 2x1 image: pixel 0 inside isotherm (luma 120), pixel 1 outside (luma 50)
     iso.setWhiteHotBackground(true);
@@ -902,25 +860,25 @@ void TestVideoDecoder::testIsothermFilter()
 
     iso.process(frame.data(), 2, 1, PixelFormat::RGB24);
     // Pixel 0 should be Red alert
-    QCOMPARE(frame[0], static_cast<std::uint8_t>(255));
-    QCOMPARE(frame[1], static_cast<std::uint8_t>(0));
-    QCOMPARE(frame[2], static_cast<std::uint8_t>(0));
+    EXPECT_EQ(frame[0], static_cast<std::uint8_t>(255));
+    EXPECT_EQ(frame[1], static_cast<std::uint8_t>(0));
+    EXPECT_EQ(frame[2], static_cast<std::uint8_t>(0));
     // Pixel 1 should be monochrome luma 50
-    QCOMPARE(frame[3], static_cast<std::uint8_t>(50));
-    QCOMPARE(frame[4], static_cast<std::uint8_t>(50));
-    QCOMPARE(frame[5], static_cast<std::uint8_t>(50));
+    EXPECT_EQ(frame[3], static_cast<std::uint8_t>(50));
+    EXPECT_EQ(frame[4], static_cast<std::uint8_t>(50));
+    EXPECT_EQ(frame[5], static_cast<std::uint8_t>(50));
 }
 
-void TestVideoDecoder::testHotspotTrackerFilter()
+TEST(VideoFiltersTest, HotspotTrackerFilter)
 {
     HotspotTrackerFilter tracker(true, 16);
-    QVERIFY(tracker.getShowOverlay());
-    QCOMPARE(tracker.getCenterBoxSize(), 16);
+    EXPECT_TRUE(tracker.getShowOverlay());
+    EXPECT_EQ(tracker.getCenterBoxSize(), 16);
 
     tracker.setShowOverlay(false);
-    QVERIFY(!tracker.getShowOverlay());
+    EXPECT_TRUE(!tracker.getShowOverlay());
     tracker.setCenterBoxSize(20);
-    QCOMPARE(tracker.getCenterBoxSize(), 20);
+    EXPECT_EQ(tracker.getCenterBoxSize(), 20);
 
     // Create 64x64 test image with uniform luma 100
     const int w = 64;
@@ -942,27 +900,27 @@ void TestVideoDecoder::testHotspotTrackerFilter()
     tracker.process(img.data(), w, h, PixelFormat::RGB24);
 
     const auto stats = tracker.getStats();
-    QCOMPARE(stats.hotX, 12);
-    QCOMPARE(stats.hotY, 18);
-    QCOMPARE(stats.hotVal, static_cast<std::uint8_t>(250));
-    QCOMPARE(stats.coldX, 45);
-    QCOMPARE(stats.coldY, 52);
-    QCOMPARE(stats.coldVal, static_cast<std::uint8_t>(10));
+    EXPECT_EQ(stats.hotX, 12);
+    EXPECT_EQ(stats.hotY, 18);
+    EXPECT_EQ(stats.hotVal, static_cast<std::uint8_t>(250));
+    EXPECT_EQ(stats.coldX, 45);
+    EXPECT_EQ(stats.coldY, 52);
+    EXPECT_EQ(stats.coldVal, static_cast<std::uint8_t>(10));
 }
 
-void TestVideoDecoder::testMovingTargetIndicatorFilter()
+TEST(VideoFiltersTest, MovingTargetIndicatorFilter)
 {
     MovingTargetIndicatorFilter mti(50, 10000, 8);
-    QCOMPARE(mti.getMinArea(), 50);
-    QCOMPARE(mti.getMaxArea(), 10000);
-    QCOMPARE(mti.getMaxTargets(), 8);
+    EXPECT_EQ(mti.getMinArea(), 50);
+    EXPECT_EQ(mti.getMaxArea(), 10000);
+    EXPECT_EQ(mti.getMaxTargets(), 8);
 
     mti.setMinArea(40);
-    QCOMPARE(mti.getMinArea(), 40);
+    EXPECT_EQ(mti.getMinArea(), 40);
     mti.setMaxArea(8000);
-    QCOMPARE(mti.getMaxArea(), 8000);
+    EXPECT_EQ(mti.getMaxArea(), 8000);
     mti.setMaxTargets(12);
-    QCOMPARE(mti.getMaxTargets(), 12);
+    EXPECT_EQ(mti.getMaxTargets(), 12);
 
     const int w = 128;
     const int h = 128;
@@ -986,34 +944,34 @@ void TestVideoDecoder::testMovingTargetIndicatorFilter()
     }
 
     mti.process(movingFrame.data(), w, h, PixelFormat::RGB24);
-    QVERIFY(mti.getTargetCount() >= 1U);
+    EXPECT_TRUE(mti.getTargetCount() >= 1U);
     const auto targets = mti.getTargets();
-    QVERIFY(!targets.empty());
-    QVERIFY(targets[0].width > 0);
-    QVERIFY(targets[0].height > 0);
+    EXPECT_TRUE(!targets.empty());
+    EXPECT_TRUE(targets[0].width > 0);
+    EXPECT_TRUE(targets[0].height > 0);
 
     mti.reset();
-    QCOMPARE(mti.getTargetCount(), 0ULL);
+    EXPECT_EQ(mti.getTargetCount(), 0ULL);
 }
 
-void TestVideoDecoder::testTacticalReticleOverlayFilter()
+TEST(VideoFiltersTest, TacticalReticleOverlayFilter)
 {
     TacticalReticleOverlayFilter reticle(
         TacticalReticleOverlayFilter::Style::Crosshair, TacticalReticleOverlayFilter::Color::TacticalGreen, 1, 12);
 
-    QCOMPARE(reticle.getStyle(), TacticalReticleOverlayFilter::Style::Crosshair);
-    QCOMPARE(reticle.getColor(), TacticalReticleOverlayFilter::Color::TacticalGreen);
-    QCOMPARE(reticle.getLineThickness(), 1);
-    QCOMPARE(reticle.getDeadbandGap(), 12);
+    EXPECT_EQ(reticle.getStyle(), TacticalReticleOverlayFilter::Style::Crosshair);
+    EXPECT_EQ(reticle.getColor(), TacticalReticleOverlayFilter::Color::TacticalGreen);
+    EXPECT_EQ(reticle.getLineThickness(), 1);
+    EXPECT_EQ(reticle.getDeadbandGap(), 12);
 
     reticle.setStyle(TacticalReticleOverlayFilter::Style::MilDot);
-    QCOMPARE(reticle.getStyle(), TacticalReticleOverlayFilter::Style::MilDot);
+    EXPECT_EQ(reticle.getStyle(), TacticalReticleOverlayFilter::Style::MilDot);
     reticle.setColor(TacticalReticleOverlayFilter::Color::Red);
-    QCOMPARE(reticle.getColor(), TacticalReticleOverlayFilter::Color::Red);
+    EXPECT_EQ(reticle.getColor(), TacticalReticleOverlayFilter::Color::Red);
     reticle.setLineThickness(2);
-    QCOMPARE(reticle.getLineThickness(), 2);
+    EXPECT_EQ(reticle.getLineThickness(), 2);
     reticle.setDeadbandGap(14);
-    QCOMPARE(reticle.getDeadbandGap(), 14);
+    EXPECT_EQ(reticle.getDeadbandGap(), 14);
 
     const int w = 64;
     const int h = 64;
@@ -1035,26 +993,26 @@ void TestVideoDecoder::testTacticalReticleOverlayFilter()
                 break;
             }
         }
-        QVERIFY(hasPixels);
+        EXPECT_TRUE(hasPixels);
     }
 }
 
-void TestVideoDecoder::testOpticalFlowFieldFilter()
+TEST(VideoFiltersTest, OpticalFlowFieldFilter)
 {
     OpticalFlowFieldFilter flow(OpticalFlowFieldFilter::DisplayMode::VectorArrows, 16, 1.5, 2.0);
-    QCOMPARE(flow.getDisplayMode(), OpticalFlowFieldFilter::DisplayMode::VectorArrows);
-    QCOMPARE(flow.getGridStep(), 16);
-    QVERIFY(qFuzzyCompare(flow.getMinVelocity(), 1.5));
-    QVERIFY(qFuzzyCompare(flow.getArrowScale(), 2.0));
+    EXPECT_EQ(flow.getDisplayMode(), OpticalFlowFieldFilter::DisplayMode::VectorArrows);
+    EXPECT_EQ(flow.getGridStep(), 16);
+    EXPECT_TRUE(qFuzzyCompare(flow.getMinVelocity(), 1.5));
+    EXPECT_TRUE(qFuzzyCompare(flow.getArrowScale(), 2.0));
 
     flow.setDisplayMode(OpticalFlowFieldFilter::DisplayMode::ColorFlow);
-    QCOMPARE(flow.getDisplayMode(), OpticalFlowFieldFilter::DisplayMode::ColorFlow);
+    EXPECT_EQ(flow.getDisplayMode(), OpticalFlowFieldFilter::DisplayMode::ColorFlow);
     flow.setGridStep(20);
-    QCOMPARE(flow.getGridStep(), 20);
+    EXPECT_EQ(flow.getGridStep(), 20);
     flow.setMinVelocity(2.0);
-    QVERIFY(qFuzzyCompare(flow.getMinVelocity(), 2.0));
+    EXPECT_TRUE(qFuzzyCompare(flow.getMinVelocity(), 2.0));
     flow.setArrowScale(1.5);
-    QVERIFY(qFuzzyCompare(flow.getArrowScale(), 1.5));
+    EXPECT_TRUE(qFuzzyCompare(flow.getArrowScale(), 1.5));
 
     const int w = 64;
     const int h = 64;
@@ -1082,28 +1040,28 @@ void TestVideoDecoder::testOpticalFlowFieldFilter()
     auto f3 = createMovingPattern(8);
     flow.process(f3.data(), w, h, PixelFormat::RGB24);
 
-    QVERIFY(!f3.empty());
+    EXPECT_TRUE(!f3.empty());
     flow.reset();
 }
 
-void TestVideoDecoder::testCentroidTargetTrackerFilter()
+TEST(VideoFiltersTest, CentroidTargetTrackerFilter)
 {
     CentroidTargetTrackerFilter tracker(true, 40, 40);
-    QVERIFY(tracker.isAutoAcquire());
+    EXPECT_TRUE(tracker.isAutoAcquire());
     tracker.setAutoAcquire(false);
-    QVERIFY(!tracker.isAutoAcquire());
+    EXPECT_TRUE(!tracker.isAutoAcquire());
 
     tracker.acquireTarget(20, 20, 30, 30);
-    QVERIFY(tracker.isTargetLocked());
+    EXPECT_TRUE(tracker.isTargetLocked());
     auto state = tracker.getTargetState();
-    QCOMPARE(state.x, 20);
-    QCOMPARE(state.y, 20);
-    QCOMPARE(state.width, 30);
-    QCOMPARE(state.height, 30);
-    QVERIFY(qFuzzyCompare(state.confidence, 1.0));
+    EXPECT_EQ(state.x, 20);
+    EXPECT_EQ(state.y, 20);
+    EXPECT_EQ(state.width, 30);
+    EXPECT_EQ(state.height, 30);
+    EXPECT_TRUE(qFuzzyCompare(state.confidence, 1.0));
 
     tracker.releaseTarget();
-    QVERIFY(!tracker.isTargetLocked());
+    EXPECT_TRUE(!tracker.isTargetLocked());
 
     const int w = 128;
     const int h = 128;
@@ -1122,7 +1080,7 @@ void TestVideoDecoder::testCentroidTargetTrackerFilter()
 
     tracker.setAutoAcquire(true);
     tracker.setMaxCoastFrames(15);
-    QCOMPARE(tracker.getMaxCoastFrames(), 15);
+    EXPECT_EQ(tracker.getMaxCoastFrames(), 15);
     tracker.setProcessNoise(0.01, 0.1);
     tracker.setMeasurementNoise(0.1);
 
@@ -1135,54 +1093,54 @@ void TestVideoDecoder::testCentroidTargetTrackerFilter()
     auto f3 = createFrameWithBox(32, 28);
     tracker.process(f3.data(), w, h, PixelFormat::RGB24);
 
-    QVERIFY(!f3.empty());
+    EXPECT_TRUE(!f3.empty());
     auto trackedState = tracker.getTargetState();
-    QVERIFY(trackedState.locked);
-    QVERIFY(!trackedState.isCoasting);
-    QVERIFY(trackedState.vx > 0.0);
-    QVERIFY(trackedState.vy > 0.0);
+    EXPECT_TRUE(trackedState.locked);
+    EXPECT_TRUE(!trackedState.isCoasting);
+    EXPECT_TRUE(trackedState.vx > 0.0);
+    EXPECT_TRUE(trackedState.vy > 0.0);
 
     // Test Latency Lookahead Prediction
     auto lookaheadState = tracker.getTargetState(0.10);
-    QVERIFY(lookaheadState.predictedErrorX > lookaheadState.errorX);
-    QVERIFY(lookaheadState.predictedErrorY > lookaheadState.errorY);
+    EXPECT_TRUE(lookaheadState.predictedErrorX > lookaheadState.errorX);
+    EXPECT_TRUE(lookaheadState.predictedErrorY > lookaheadState.errorY);
 
     // Test Occlusion Coasting: Target disappears behind obstacle
     std::vector<std::uint8_t> blankFrame(static_cast<std::size_t>(w * h * 3), 50U);
     tracker.process(blankFrame.data(), w, h, PixelFormat::RGB24);
 
     auto coastState = tracker.getTargetState();
-    QVERIFY(coastState.locked);
-    QVERIFY(coastState.isCoasting);
-    QVERIFY(coastState.x >= trackedState.x); // Kalman continues predictive trajectory
+    EXPECT_TRUE(coastState.locked);
+    EXPECT_TRUE(coastState.isCoasting);
+    EXPECT_TRUE(coastState.x >= trackedState.x); // Kalman continues predictive trajectory
 
     // Feed blank frames exceeding maxCoastFrames (15 frames) -> Lock must be gracefully released
     for (int i = 0; i < 20; ++i) {
         tracker.process(blankFrame.data(), w, h, PixelFormat::RGB24);
     }
-    QVERIFY(!tracker.isTargetLocked());
+    EXPECT_TRUE(!tracker.isTargetLocked());
 
     // Test Scale Adaptation & Appearance Fusion APIs and dynamics
     tracker.setScaleAdaptation(true);
-    QVERIFY(tracker.isScaleAdaptation());
+    EXPECT_TRUE(tracker.isScaleAdaptation());
     tracker.setScaleAdaptation(false);
-    QVERIFY(!tracker.isScaleAdaptation());
+    EXPECT_TRUE(!tracker.isScaleAdaptation());
     tracker.setScaleAdaptation(true);
 
     tracker.setAppearanceFusion(true);
-    QVERIFY(tracker.isAppearanceFusion());
+    EXPECT_TRUE(tracker.isAppearanceFusion());
     tracker.setAppearanceFusion(false);
-    QVERIFY(!tracker.isAppearanceFusion());
+    EXPECT_TRUE(!tracker.isAppearanceFusion());
     tracker.setAppearanceFusion(true);
 
     tracker.setAppearanceLearningRate(0.05);
-    QVERIFY(qFuzzyCompare(tracker.getAppearanceLearningRate(), 0.05));
+    EXPECT_TRUE(qFuzzyCompare(tracker.getAppearanceLearningRate(), 0.05));
 
     tracker.acquireTarget(10, 10, 20, 20);
     auto st0 = tracker.getTargetState();
-    QCOMPARE(st0.width, 20);
-    QCOMPARE(st0.height, 20);
-    QVERIFY(qFuzzyCompare(st0.scaleFactor, 1.0));
+    EXPECT_EQ(st0.width, 20);
+    EXPECT_EQ(st0.height, 20);
+    EXPECT_TRUE(qFuzzyCompare(st0.scaleFactor, 1.0));
 
     auto createSizedBox = [w, h](int bx, int by, int bw, int bh) {
         std::vector<std::uint8_t> frame(static_cast<std::size_t>(w * h * 3), 40U);
@@ -1207,31 +1165,31 @@ void TestVideoDecoder::testCentroidTargetTrackerFilter()
     tracker.process(fScale3.data(), w, h, PixelFormat::RGB24);
 
     auto stScaled = tracker.getTargetState();
-    QVERIFY(stScaled.locked);
-    QVERIFY(stScaled.scaleFactor >= 1.0);
-    QVERIFY(stScaled.width >= 20);
-    QVERIFY(stScaled.height >= 20);
-    QVERIFY(stScaled.appearanceScore > 0.0);
+    EXPECT_TRUE(stScaled.locked);
+    EXPECT_TRUE(stScaled.scaleFactor >= 1.0);
+    EXPECT_TRUE(stScaled.width >= 20);
+    EXPECT_TRUE(stScaled.height >= 20);
+    EXPECT_TRUE(stScaled.appearanceScore > 0.0);
 
     // Test Constant Acceleration (CA) Kinematic Model & Adaptive Noise
     tracker.setAdaptiveProcessNoiseEnabled(true);
-    QVERIFY(tracker.isAdaptiveProcessNoiseEnabled());
+    EXPECT_TRUE(tracker.isAdaptiveProcessNoiseEnabled());
     tracker.setAdaptiveProcessNoiseEnabled(false);
-    QVERIFY(!tracker.isAdaptiveProcessNoiseEnabled());
+    EXPECT_TRUE(!tracker.isAdaptiveProcessNoiseEnabled());
     tracker.setAdaptiveProcessNoiseEnabled(true);
 
     tracker.setTrajectoryTrail(true, 25);
-    QVERIFY(tracker.isTrajectoryTrail());
-    QCOMPARE(tracker.getTrajectoryMaxPoints(), 25);
+    EXPECT_TRUE(tracker.isTrajectoryTrail());
+    EXPECT_EQ(tracker.getTrajectoryMaxPoints(), 25);
     tracker.setTrajectoryTrail(false);
-    QVERIFY(!tracker.isTrajectoryTrail());
+    EXPECT_TRUE(!tracker.isTrajectoryTrail());
     tracker.setTrajectoryTrail(true, 20);
 
     tracker.setPredictiveVector(true, 1.2);
-    QVERIFY(tracker.isPredictiveVector());
-    QVERIFY(qFuzzyCompare(tracker.getPredictiveVectorLookahead(), 1.2));
+    EXPECT_TRUE(tracker.isPredictiveVector());
+    EXPECT_TRUE(qFuzzyCompare(tracker.getPredictiveVectorLookahead(), 1.2));
     tracker.setPredictiveVector(false);
-    QVERIFY(!tracker.isPredictiveVector());
+    EXPECT_TRUE(!tracker.isPredictiveVector());
     tracker.setPredictiveVector(true, 1.5);
 
     // Feed sequence of accelerated motion frames: position delta increases each frame
@@ -1253,13 +1211,13 @@ void TestVideoDecoder::testCentroidTargetTrackerFilter()
     tracker.process(fA4.data(), w, h, PixelFormat::RGB24);
 
     auto stAccel = tracker.getTargetState();
-    QVERIFY(stAccel.locked);
-    QVERIFY(stAccel.vx > 0.0);
-    QVERIFY(stAccel.ax > 0.0); // Positive acceleration along X detected by 6-state CA filter
+    EXPECT_TRUE(stAccel.locked);
+    EXPECT_TRUE(stAccel.vx > 0.0);
+    EXPECT_TRUE(stAccel.ax > 0.0); // Positive acceleration along X detected by 6-state CA filter
 
     // Test quadratic lookahead prediction with acceleration
     auto stPred = tracker.getTargetState(0.10);
-    QVERIFY(stPred.predictedErrorX > stAccel.errorX);
+    EXPECT_TRUE(stPred.predictedErrorX > stAccel.errorX);
 
     // Test extended TrajectoryConfig and PredictiveLeadConfig
     PelcoD::Video::TrajectoryConfig trajCfg;
@@ -1271,11 +1229,11 @@ void TestVideoDecoder::testCentroidTargetTrackerFilter()
     tracker.setTrajectoryConfig(trajCfg);
 
     auto readTraj = tracker.getTrajectoryConfig();
-    QVERIFY(readTraj.enabled);
-    QVERIFY(qFuzzyCompare(readTraj.maxDurationSec, 1.5));
-    QCOMPARE(readTraj.maxPoints, 45);
-    QVERIFY(readTraj.smoothSpline);
-    QVERIFY(readTraj.speedGradient);
+    EXPECT_TRUE(readTraj.enabled);
+    EXPECT_TRUE(qFuzzyCompare(readTraj.maxDurationSec, 1.5));
+    EXPECT_EQ(readTraj.maxPoints, 45);
+    EXPECT_TRUE(readTraj.smoothSpline);
+    EXPECT_TRUE(readTraj.speedGradient);
 
     PelcoD::Video::PredictiveLeadConfig leadCfg;
     leadCfg.enabled = true;
@@ -1286,41 +1244,41 @@ void TestVideoDecoder::testCentroidTargetTrackerFilter()
     tracker.setPredictiveLeadConfig(leadCfg);
 
     auto readLead = tracker.getPredictiveLeadConfig();
-    QVERIFY(readLead.enabled);
-    QVERIFY(qFuzzyCompare(readLead.lookaheadSeconds, 1.8));
-    QVERIFY(readLead.curvilinearPrediction);
-    QVERIFY(readLead.showUncertaintyEllipse);
-    QVERIFY(readLead.showBoresightLeadSetpoint);
+    EXPECT_TRUE(readLead.enabled);
+    EXPECT_TRUE(qFuzzyCompare(readLead.lookaheadSeconds, 1.8));
+    EXPECT_TRUE(readLead.curvilinearPrediction);
+    EXPECT_TRUE(readLead.showUncertaintyEllipse);
+    EXPECT_TRUE(readLead.showBoresightLeadSetpoint);
 
     // Test Boresight Lead Offset
     tracker.setBoresightLeadOffset(0.12, -0.08);
     auto leadPair = tracker.getBoresightLeadOffset();
-    QVERIFY(qFuzzyCompare(leadPair.first, 0.12));
-    QVERIFY(qFuzzyCompare(leadPair.second, -0.08));
+    EXPECT_TRUE(qFuzzyCompare(leadPair.first, 0.12));
+    EXPECT_TRUE(qFuzzyCompare(leadPair.second, -0.08));
 
     // Verify extended telemetry in stAccel
-    QVERIFY(stAccel.uncertaintyMajor > 0.0);
-    QVERIFY(stAccel.uncertaintyMinor > 0.0);
-    QVERIFY(stAccel.headingDeg >= 0.0 && stAccel.headingDeg <= 360.0);
-    QVERIFY(stAccel.predictedTargetX > 0.0);
+    EXPECT_TRUE(stAccel.uncertaintyMajor > 0.0);
+    EXPECT_TRUE(stAccel.uncertaintyMinor > 0.0);
+    EXPECT_TRUE(stAccel.headingDeg >= 0.0 && stAccel.headingDeg <= 360.0);
+    EXPECT_TRUE(stAccel.predictedTargetX > 0.0);
 }
 
-void TestVideoDecoder::testPerimeterTripwireFilter()
+TEST(VideoFiltersTest, PerimeterTripwireFilter)
 {
     PerimeterTripwireFilter trip(0.1, 0.5, 0.9, 0.5, PerimeterTripwireFilter::Direction::Bidirectional);
     double x1, y1, x2, y2;
     trip.getTripwire(x1, y1, x2, y2);
-    QVERIFY(qFuzzyCompare(x1, 0.1));
-    QVERIFY(qFuzzyCompare(y1, 0.5));
-    QVERIFY(qFuzzyCompare(x2, 0.9));
-    QVERIFY(qFuzzyCompare(y2, 0.5));
-    QCOMPARE(trip.getDirection(), PerimeterTripwireFilter::Direction::Bidirectional);
+    EXPECT_TRUE(qFuzzyCompare(x1, 0.1));
+    EXPECT_TRUE(qFuzzyCompare(y1, 0.5));
+    EXPECT_TRUE(qFuzzyCompare(x2, 0.9));
+    EXPECT_TRUE(qFuzzyCompare(y2, 0.5));
+    EXPECT_EQ(trip.getDirection(), PerimeterTripwireFilter::Direction::Bidirectional);
 
     trip.setTripwire(0.0, 0.5, 1.0, 0.5);
     trip.setDirection(PerimeterTripwireFilter::Direction::A_to_B);
-    QCOMPARE(trip.getDirection(), PerimeterTripwireFilter::Direction::A_to_B);
-    QCOMPARE(trip.getIntrusionCount(), 0ULL);
-    QVERIFY(!trip.hasAlarm());
+    EXPECT_EQ(trip.getDirection(), PerimeterTripwireFilter::Direction::A_to_B);
+    EXPECT_EQ(trip.getIntrusionCount(), 0ULL);
+    EXPECT_TRUE(!trip.hasAlarm());
 
     const int w = 128;
     const int h = 128;
@@ -1344,27 +1302,27 @@ void TestVideoDecoder::testPerimeterTripwireFilter()
     auto f2 = createTargetFrame(75);
     trip.process(f2.data(), w, h, PixelFormat::RGB24);
 
-    QVERIFY(trip.getIntrusionCount() >= 1ULL);
-    QVERIFY(trip.hasAlarm());
+    EXPECT_TRUE(trip.getIntrusionCount() >= 1ULL);
+    EXPECT_TRUE(trip.hasAlarm());
 
     trip.resetIntrusionCount();
-    QCOMPARE(trip.getIntrusionCount(), 0ULL);
-    QVERIFY(!trip.hasAlarm());
+    EXPECT_EQ(trip.getIntrusionCount(), 0ULL);
+    EXPECT_TRUE(!trip.hasAlarm());
 }
 
-void TestVideoDecoder::testMotionHeatmapFilter()
+TEST(VideoFiltersTest, MotionHeatmapFilter)
 {
     MotionHeatmapFilter heatmap(0.95, 0.40, 20);
-    QVERIFY(qFuzzyCompare(heatmap.getDecayFactor(), 0.95));
-    QVERIFY(qFuzzyCompare(heatmap.getOpacity(), 0.40));
-    QCOMPARE(heatmap.getThreshold(), 20);
+    EXPECT_TRUE(qFuzzyCompare(heatmap.getDecayFactor(), 0.95));
+    EXPECT_TRUE(qFuzzyCompare(heatmap.getOpacity(), 0.40));
+    EXPECT_EQ(heatmap.getThreshold(), 20);
 
     heatmap.setDecayFactor(0.90);
-    QVERIFY(qFuzzyCompare(heatmap.getDecayFactor(), 0.90));
+    EXPECT_TRUE(qFuzzyCompare(heatmap.getDecayFactor(), 0.90));
     heatmap.setOpacity(0.50);
-    QVERIFY(qFuzzyCompare(heatmap.getOpacity(), 0.50));
+    EXPECT_TRUE(qFuzzyCompare(heatmap.getOpacity(), 0.50));
     heatmap.setThreshold(25);
-    QCOMPARE(heatmap.getThreshold(), 25);
+    EXPECT_EQ(heatmap.getThreshold(), 25);
 
     const int w = 64;
     const int h = 64;
@@ -1382,11 +1340,11 @@ void TestVideoDecoder::testMotionHeatmapFilter()
     }
 
     heatmap.process(motionFrame.data(), w, h, PixelFormat::RGB24);
-    QVERIFY(!motionFrame.empty());
+    EXPECT_TRUE(!motionFrame.empty());
     heatmap.reset();
 }
 
-void TestVideoDecoder::testPrivacyMaskFilter()
+TEST(VideoFiltersTest, PrivacyMaskFilter)
 {
     const int w = 64;
     const int h = 64;
@@ -1396,33 +1354,33 @@ void TestVideoDecoder::testPrivacyMaskFilter()
     filter.setMaskColor(0U, 0U, 0U); // Black
     filter.setBlurKernelSize(25);
     filter.setMosaicBlockSize(8);
-    QCOMPARE(filter.getBlurKernelSize(), 25);
-    QCOMPARE(filter.getMosaicBlockSize(), 8);
+    EXPECT_EQ(filter.getBlurKernelSize(), 25);
+    EXPECT_EQ(filter.getMosaicBlockSize(), 8);
 
     // Add zone covering top-left quadrant [0..32, 0..32]
     int zoneId = filter.addZone(0.0, 0.0, 0.5, 0.5, PrivacyMaskFilter::ConcealmentMode::Blackout, "Zone1");
-    QVERIFY(zoneId > 0);
-    QCOMPARE(filter.getZones().size(), 1U);
+    EXPECT_TRUE(zoneId > 0);
+    EXPECT_EQ(filter.getZones().size(), 1U);
 
     filter.process(frame.data(), w, h, PixelFormat::RGB24);
 
     // Pixel inside zone (10, 10) must be black
     std::size_t insideIdx = static_cast<std::size_t>((10 * w + 10) * 3);
-    QCOMPARE(frame[insideIdx + 0U], 0U);
-    QCOMPARE(frame[insideIdx + 1U], 0U);
-    QCOMPARE(frame[insideIdx + 2U], 0U);
+    EXPECT_EQ(frame[insideIdx + 0U], 0U);
+    EXPECT_EQ(frame[insideIdx + 1U], 0U);
+    EXPECT_EQ(frame[insideIdx + 2U], 0U);
 
     // Pixel outside zone (50, 50) must remain white
     std::size_t outsideIdx = static_cast<std::size_t>((50 * w + 50) * 3);
-    QCOMPARE(frame[outsideIdx + 0U], 255U);
-    QCOMPARE(frame[outsideIdx + 1U], 255U);
-    QCOMPARE(frame[outsideIdx + 2U], 255U);
+    EXPECT_EQ(frame[outsideIdx + 0U], 255U);
+    EXPECT_EQ(frame[outsideIdx + 1U], 255U);
+    EXPECT_EQ(frame[outsideIdx + 2U], 255U);
 
     // Test zone disabling
     filter.setZoneEnabled(zoneId, false);
     std::fill(frame.begin(), frame.end(), 255U);
     filter.process(frame.data(), w, h, PixelFormat::RGB24);
-    QCOMPARE(frame[insideIdx + 0U], 255U);
+    EXPECT_EQ(frame[insideIdx + 0U], 255U);
 
     // Test Mosaic mode
     filter.setZoneEnabled(zoneId, true);
@@ -1436,18 +1394,18 @@ void TestVideoDecoder::testPrivacyMaskFilter()
     filter.clearZones();
     filter.addZone(z);
     filter.process(frame.data(), w, h, PixelFormat::RGB24);
-    QVERIFY(!frame.empty());
+    EXPECT_TRUE(!frame.empty());
 
     // Test Blur mode
     filter.setDefaultMode(PrivacyMaskFilter::ConcealmentMode::Blur);
-    QCOMPARE(filter.getDefaultMode(), PrivacyMaskFilter::ConcealmentMode::Blur);
+    EXPECT_EQ(filter.getDefaultMode(), PrivacyMaskFilter::ConcealmentMode::Blur);
 
     // Test remove zone
-    QVERIFY(filter.removeZone(z.id));
-    QVERIFY(filter.getZones().empty());
+    EXPECT_TRUE(filter.removeZone(z.id));
+    EXPECT_TRUE(filter.getZones().empty());
 }
 
-void TestVideoDecoder::testTimestampWatermarkFilter()
+TEST(VideoFiltersTest, TimestampWatermarkFilter)
 {
     const int w = 200;
     const int h = 100;
@@ -1456,12 +1414,12 @@ void TestVideoDecoder::testTimestampWatermarkFilter()
     TimestampWatermarkFilter filter(TimestampWatermarkFilter::Position::TopLeft, "TEST-CAM", true, true);
     filter.setCustomTimestamp("2026-09-16 14:00:00.000 UTC");
     filter.setUseSystemClock(false);
-    QVERIFY(!filter.isUsingSystemClock());
-    QCOMPARE(filter.getCameraName(), std::string("TEST-CAM"));
-    QCOMPARE(filter.getFrameCounter(), 0ULL);
+    EXPECT_TRUE(!filter.isUsingSystemClock());
+    EXPECT_EQ(filter.getCameraName(), std::string("TEST-CAM"));
+    EXPECT_EQ(filter.getFrameCounter(), 0ULL);
 
     filter.process(frame.data(), w, h, PixelFormat::RGB24);
-    QCOMPARE(filter.getFrameCounter(), 1ULL);
+    EXPECT_EQ(filter.getFrameCounter(), 1ULL);
 
     // Top-left area should have scrim / text drawn (pixels no longer 0)
     bool hasDrawn = false;
@@ -1474,46 +1432,46 @@ void TestVideoDecoder::testTimestampWatermarkFilter()
             }
         }
     }
-    QVERIFY(hasDrawn);
+    EXPECT_TRUE(hasDrawn);
 
     // Consecutive frames increment counter
     filter.process(frame.data(), w, h, PixelFormat::RGB24);
-    QCOMPARE(filter.getFrameCounter(), 2ULL);
+    EXPECT_EQ(filter.getFrameCounter(), 2ULL);
 
     filter.resetFrameCounter();
-    QCOMPARE(filter.getFrameCounter(), 0ULL);
+    EXPECT_EQ(filter.getFrameCounter(), 0ULL);
 
     // Test GPS coordinates and position
     filter.setGpsCoordinates(37.7749, -122.4194, 45.0, true);
     filter.setPosition(TimestampWatermarkFilter::Position::BottomRight);
-    QCOMPARE(filter.getPosition(), TimestampWatermarkFilter::Position::BottomRight);
+    EXPECT_EQ(filter.getPosition(), TimestampWatermarkFilter::Position::BottomRight);
     filter.setColor(TimestampWatermarkFilter::Color::Amber);
-    QCOMPARE(filter.getColor(), TimestampWatermarkFilter::Color::Amber);
+    EXPECT_EQ(filter.getColor(), TimestampWatermarkFilter::Color::Amber);
     filter.setScrimOpacity(0.5);
-    QCOMPARE(filter.getScrimOpacity(), 0.5);
+    EXPECT_EQ(filter.getScrimOpacity(), 0.5);
 
     filter.process(frame.data(), w, h, PixelFormat::BGR24);
-    QCOMPARE(filter.getFrameCounter(), 1ULL);
+    EXPECT_EQ(filter.getFrameCounter(), 1ULL);
     filter.clearGpsCoordinates();
 }
 
-void TestVideoDecoder::testTelemetryOsdFilter()
+TEST(VideoFiltersTest, TelemetryOsdFilter)
 {
     const int w = 320;
     const int h = 240;
     std::vector<std::uint8_t> frame(static_cast<std::size_t>(w * h * 3), 0U);
 
     TelemetryOsdFilter filter(TelemetryOsdFilter::Color::TacticalGreen, true, true);
-    QCOMPARE(filter.getColor(), TelemetryOsdFilter::Color::TacticalGreen);
-    QVERIFY(filter.getShowCompass());
-    QVERIFY(filter.getShowReticleAngles());
+    EXPECT_EQ(filter.getColor(), TelemetryOsdFilter::Color::TacticalGreen);
+    EXPECT_TRUE(filter.getShowCompass());
+    EXPECT_TRUE(filter.getShowReticleAngles());
 
     // Test heading cardinal formatting
-    QCOMPARE(TelemetryOsdFilter::formatHeading(0.0), std::string("N"));
-    QCOMPARE(TelemetryOsdFilter::formatHeading(90.0), std::string("E"));
-    QCOMPARE(TelemetryOsdFilter::formatHeading(180.0), std::string("S"));
-    QCOMPARE(TelemetryOsdFilter::formatHeading(270.0), std::string("W"));
-    QCOMPARE(TelemetryOsdFilter::formatHeading(45.0), std::string("NE"));
+    EXPECT_EQ(TelemetryOsdFilter::formatHeading(0.0), std::string("N"));
+    EXPECT_EQ(TelemetryOsdFilter::formatHeading(90.0), std::string("E"));
+    EXPECT_EQ(TelemetryOsdFilter::formatHeading(180.0), std::string("S"));
+    EXPECT_EQ(TelemetryOsdFilter::formatHeading(270.0), std::string("W"));
+    EXPECT_EQ(TelemetryOsdFilter::formatHeading(45.0), std::string("NE"));
 
     // Set telemetry data
     TelemetryOsdFilter::TelemetryData data;
@@ -1526,9 +1484,9 @@ void TestVideoDecoder::testTelemetryOsdFilter()
     filter.setTelemetry(data);
 
     TelemetryOsdFilter::TelemetryData retrieved = filter.getTelemetry();
-    QCOMPARE(retrieved.panDegrees, 135.0);
-    QCOMPARE(retrieved.tiltDegrees, -8.5);
-    QCOMPARE(retrieved.zoomMagnification, 12.0);
+    EXPECT_EQ(retrieved.panDegrees, 135.0);
+    EXPECT_EQ(retrieved.tiltDegrees, -8.5);
+    EXPECT_EQ(retrieved.zoomMagnification, 12.0);
 
     filter.process(frame.data(), w, h, PixelFormat::RGB24);
 
@@ -1543,19 +1501,19 @@ void TestVideoDecoder::testTelemetryOsdFilter()
             }
         }
     }
-    QVERIFY(hasCompass);
+    EXPECT_TRUE(hasCompass);
 
     filter.setPanTiltZoom(200.0, 15.0, 20.0);
-    QCOMPARE(filter.getTelemetry().panDegrees, 200.0);
+    EXPECT_EQ(filter.getTelemetry().panDegrees, 200.0);
 
     filter.setColor(TelemetryOsdFilter::Color::Cyan);
     filter.setShowCompass(false);
     filter.setShowReticleAngles(false);
-    QVERIFY(!filter.getShowCompass());
-    QVERIFY(!filter.getShowReticleAngles());
+    EXPECT_TRUE(!filter.getShowCompass());
+    EXPECT_TRUE(!filter.getShowReticleAngles());
 }
 
-void TestVideoDecoder::testPictureInPictureFilter()
+TEST(VideoFiltersTest, PictureInPictureFilter)
 {
     const int w = 200;
     const int h = 200;
@@ -1578,11 +1536,11 @@ void TestVideoDecoder::testPictureInPictureFilter()
 
     PictureInPictureFilter pip(
         PictureInPictureFilter::Mode::DigitalZoom, PictureInPictureFilter::Corner::TopRight, 0.30, 2.0);
-    QCOMPARE(pip.getMode(), PictureInPictureFilter::Mode::DigitalZoom);
-    QCOMPARE(pip.getCorner(), PictureInPictureFilter::Corner::TopRight);
-    QCOMPARE(pip.getScaleRatio(), 0.30);
-    QCOMPARE(pip.getDigitalZoomFactor(), 2.0);
-    QVERIFY(pip.getShowBadge());
+    EXPECT_EQ(pip.getMode(), PictureInPictureFilter::Mode::DigitalZoom);
+    EXPECT_EQ(pip.getCorner(), PictureInPictureFilter::Corner::TopRight);
+    EXPECT_EQ(pip.getScaleRatio(), 0.30);
+    EXPECT_EQ(pip.getDigitalZoomFactor(), 2.0);
+    EXPECT_TRUE(pip.getShowBadge());
 
     pip.process(frame.data(), w, h, PixelFormat::RGB24);
 
@@ -1597,7 +1555,7 @@ void TestVideoDecoder::testPictureInPictureFilter()
             }
         }
     }
-    QVERIFY(hasZoomedRed);
+    EXPECT_TRUE(hasZoomedRed);
 
     // Test SecondaryFeed mode
     std::vector<std::uint8_t> secFrame(static_cast<std::size_t>(50 * 50 * 3), 0U);
@@ -1622,18 +1580,18 @@ void TestVideoDecoder::testPictureInPictureFilter()
             }
         }
     }
-    QVERIFY(hasSecBlue);
+    EXPECT_TRUE(hasSecBlue);
     pip.clearSecondaryFrame();
 }
 
-void TestVideoDecoder::testVideoFiltersPipelineIntegration()
+TEST(VideoFiltersTest, VideoFiltersPipelineIntegration)
 {
     MockVideoDecoder decoder;
-    QVERIFY(decoder.initialize("mock://test", PixelFormat::RGB24));
+    EXPECT_TRUE(decoder.initialize("mock://test", PixelFormat::RGB24));
 
     // Decode baseline frame 0
     decoder.seek(0.0);
-    QVERIFY(decoder.decodeNextFrame());
+    EXPECT_TRUE(decoder.decodeNextFrame());
     const FrameInfo baseFrame = decoder.getRawFrameData();
     std::vector<std::uint8_t> baseBytes(baseFrame.data, baseFrame.data + baseFrame.size);
 
@@ -1642,7 +1600,7 @@ void TestVideoDecoder::testVideoFiltersPipelineIntegration()
     decoder.addFrameProcessor(falseColor);
 
     decoder.seek(0.0);
-    QVERIFY(decoder.decodeNextFrame());
+    EXPECT_TRUE(decoder.decodeNextFrame());
     const FrameInfo filteredFrame = decoder.getRawFrameData();
 
     bool hasDifference = false;
@@ -1652,15 +1610,15 @@ void TestVideoDecoder::testVideoFiltersPipelineIntegration()
             break;
         }
     }
-    QVERIFY(hasDifference);
+    EXPECT_TRUE(hasDifference);
 
     decoder.close();
 }
 
-void TestVideoDecoder::testConcurrentProcessorReconfiguration()
+TEST(VideoFiltersTest, ConcurrentProcessorReconfiguration)
 {
     MockVideoDecoder decoder;
-    QVERIFY(decoder.initialize("mock://test", PixelFormat::RGB24));
+    EXPECT_TRUE(decoder.initialize("mock://test", PixelFormat::RGB24));
 
     std::atomic<bool> running { true };
     std::atomic<int> framesDecoded { 0 };
@@ -1694,10 +1652,15 @@ void TestVideoDecoder::testConcurrentProcessorReconfiguration()
     running.store(false, std::memory_order_relaxed);
     decodeThread.join();
 
-    QVERIFY(framesDecoded.load() > 0);
+    EXPECT_TRUE(framesDecoded.load() > 0);
     decoder.close();
 }
 #endif
 
-QTEST_MAIN(TestVideoDecoder)
-#include "TestVideoDecoder.moc"
+int main(int argc, char* argv[])
+{
+    qputenv("QT_QPA_PLATFORM", "offscreen");
+    QCoreApplication app(argc, argv);
+    ::testing::InitGoogleTest(&argc, argv);
+    return RUN_ALL_TESTS();
+}

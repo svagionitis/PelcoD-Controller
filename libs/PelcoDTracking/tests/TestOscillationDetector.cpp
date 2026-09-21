@@ -5,7 +5,7 @@
 #include "OscillationDetector.h"
 #include "PidController.h"
 
-#include <cassert>
+#include <gtest/gtest.h>
 #include <cmath>
 #include <iostream>
 #include <random>
@@ -19,7 +19,7 @@ using namespace PelcoD;
 
 namespace {
 
-void testNotchFilterRejection()
+TEST(OscillationDetectorTest, NotchFilterRejection)
 {
     std::cout << "[Test] testNotchFilterRejection...\n";
     const double fs = 100.0;
@@ -37,7 +37,7 @@ void testNotchFilterRejection()
         }
     }
     // At notch frequency, amplitude should be severely reduced (< 0.2 of 1.0)
-    assert(maxAttenuated < 0.25);
+    EXPECT_TRUE(maxAttenuated < 0.25);
     std::cout << "  Notch frequency residual amplitude: " << maxAttenuated << " (attenuated from 1.0)\n";
 
     // 2. Pass off-notch frequency sine wave (2 Hz)
@@ -52,12 +52,12 @@ void testNotchFilterRejection()
         }
     }
     // Off-notch frequency should pass nearly intact (> 0.95 of 1.0)
-    assert(maxPassed > 0.9);
+    EXPECT_TRUE(maxPassed > 0.9);
     std::cout << "  Passband frequency transmission: " << maxPassed << " (near 1.0)\n";
     std::cout << "  -> PASSED\n";
 }
 
-void testOscillationDetectorHuntingTrigger()
+TEST(OscillationDetectorTest, OscillationDetectorHuntingTrigger)
 {
     std::cout << "[Test] testOscillationDetectorHuntingTrigger...\n";
     OscillationConfig cfg {};
@@ -69,7 +69,7 @@ void testOscillationDetectorHuntingTrigger()
     cfg.consecutiveThreshold = 2;
 
     OscillationDetector detector(cfg);
-    assert(!detector.isHunting());
+    EXPECT_TRUE(!detector.isHunting());
 
     // Feed a continuous 2.0 Hz oscillation (typical PID hunting limit cycle)
     const double huntingFreq = 2.0;
@@ -79,17 +79,17 @@ void testOscillationDetectorHuntingTrigger()
         detector.addSample(error);
     }
 
-    assert(detector.isHunting());
+    EXPECT_TRUE(detector.isHunting());
     const double detectedFreq = detector.getDominantFrequency();
-    assert(std::abs(detectedFreq - huntingFreq) < 0.6);
-    assert(detector.getOscillationRatio() > 0.3);
+    EXPECT_TRUE(std::abs(detectedFreq - huntingFreq) < 0.6);
+    EXPECT_TRUE(detector.getOscillationRatio() > 0.3);
 
     std::cout << "  Hunting confirmed: freq = " << detectedFreq
               << " Hz, power ratio = " << detector.getOscillationRatio() << "\n";
     std::cout << "  -> PASSED\n";
 }
 
-void testOscillationDetectorNoiseImmunity()
+TEST(OscillationDetectorTest, OscillationDetectorNoiseImmunity)
 {
     std::cout << "[Test] testOscillationDetectorNoiseImmunity...\n";
     OscillationConfig cfg {};
@@ -108,11 +108,11 @@ void testOscillationDetectorNoiseImmunity()
     }
 
     // White noise should have dispersed spectral energy, not triggering hunting
-    assert(!detector.isHunting());
+    EXPECT_TRUE(!detector.isHunting());
     std::cout << "  -> PASSED\n";
 }
 
-void testAutoAttenuatePidIntegration()
+TEST(OscillationDetectorTest, AutoAttenuatePidIntegration)
 {
     std::cout << "[Test] testAutoAttenuatePidIntegration...\n";
     OscillationConfig cfg {};
@@ -129,31 +129,21 @@ void testAutoAttenuatePidIntegration()
         detector.addSample(10.0 * std::sin(2.0 * M_PI * 1.5 * t));
     }
 
-    assert(detector.isHunting());
+    EXPECT_TRUE(detector.isHunting());
 
     // Auto attenuate gains by 20% (reduction factor 0.8)
     const bool attenuated = detector.autoAttenuate(pid, 0.8);
-    assert(attenuated);
-    assert(std::abs(pid.getKp() - 40.0) < 1e-6);
-    assert(std::abs(pid.getKd() - 4.0) < 1e-6);
-    assert(!detector.isHunting()); // Hunting state reset
+    EXPECT_TRUE(attenuated);
+    EXPECT_TRUE(std::abs(pid.getKp() - 40.0) < 1e-6);
+    EXPECT_TRUE(std::abs(pid.getKd() - 4.0) < 1e-6);
+    EXPECT_TRUE(!detector.isHunting()); // Hunting state reset
 
     // Second call without new hunting returns false
     const bool secondCall = detector.autoAttenuate(pid, 0.8);
-    assert(!secondCall);
+    EXPECT_TRUE(!secondCall);
 
     std::cout << "  -> PASSED\n";
 }
 
 } // namespace
 
-int main()
-{
-    std::cout << "Running TestOscillationDetector Test Suite\n";
-    testNotchFilterRejection();
-    testOscillationDetectorHuntingTrigger();
-    testOscillationDetectorNoiseImmunity();
-    testAutoAttenuatePidIntegration();
-    std::cout << "All TestOscillationDetector Tests Passed!\n";
-    return 0;
-}

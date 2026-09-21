@@ -4,7 +4,7 @@
 
 #include "PtzSphericalEstimator.h"
 
-#include <cassert>
+#include <gtest/gtest.h>
 #include <cmath>
 #include <iostream>
 
@@ -25,45 +25,45 @@ constexpr double TOL = 0.05; // 50 mrad / ~3 degrees tolerance
 
 // ---------------------------------------------------------------------------
 
-void testNotLockedByDefault()
+TEST(PtzSphericalEstimatorTest, NotLockedByDefault)
 {
     std::cout << "[Test] testNotLockedByDefault\n";
     PtzSphericalEstimator est;
-    assert(!est.isLocked());
+    EXPECT_TRUE(!est.isLocked());
     std::cout << "  -> PASSED\n";
 }
 
-void testInitSetsLocked()
+TEST(PtzSphericalEstimatorTest, InitSetsLocked)
 {
     std::cout << "[Test] testInitSetsLocked\n";
     PtzSphericalEstimator est;
     est.init(1.0, 0.2);
-    assert(est.isLocked());
+    EXPECT_TRUE(est.isLocked());
     std::cout << "  -> PASSED\n";
 }
 
-void testInitFromPixelSetsLocked()
+TEST(PtzSphericalEstimatorTest, InitFromPixelSetsLocked)
 {
     std::cout << "[Test] testInitFromPixelSetsLocked\n";
     PtzSphericalEstimator est;
     // Camera looking at 0 pan/tilt, target at principal point → boresight
     est.initFromPixel(960.0, 540.0, 0.0, 0.0, 1.0);
-    assert(est.isLocked());
+    EXPECT_TRUE(est.isLocked());
     std::cout << "  -> PASSED\n";
 }
 
-void testResetClearsLock()
+TEST(PtzSphericalEstimatorTest, ResetClearsLock)
 {
     std::cout << "[Test] testResetClearsLock\n";
     PtzSphericalEstimator est;
     est.init(1.0, 0.2);
-    assert(est.isLocked());
+    EXPECT_TRUE(est.isLocked());
     est.reset();
-    assert(!est.isLocked());
+    EXPECT_TRUE(!est.isLocked());
     std::cout << "  -> PASSED\n";
 }
 
-void testConfigGetSet()
+TEST(PtzSphericalEstimatorTest, ConfigGetSet)
 {
     std::cout << "[Test] testConfigGetSet\n";
     PtzSphericalEstimator est;
@@ -74,13 +74,13 @@ void testConfigGetSet()
     est.setConfig(cfg);
 
     const auto& got = est.getConfig();
-    assert(got.type == EstimatorType::UKF);
-    assert(std::abs(got.pixelNoiseStd - 5.0) < 1e-9);
-    assert(std::abs(got.mahalanobisGateThreshold - 9.99) < 1e-9);
+    EXPECT_TRUE(got.type == EstimatorType::UKF);
+    EXPECT_TRUE(std::abs(got.pixelNoiseStd - 5.0) < 1e-9);
+    EXPECT_TRUE(std::abs(got.mahalanobisGateThreshold - 9.99) < 1e-9);
     std::cout << "  -> PASSED\n";
 }
 
-void testSetTypeEKFAndUKF()
+TEST(PtzSphericalEstimatorTest, SetTypeEKFAndUKF)
 {
     std::cout << "[Test] testSetTypeEKFAndUKF\n";
     PtzSphericalEstimator est;
@@ -89,16 +89,16 @@ void testSetTypeEKFAndUKF()
     est.setType(EstimatorType::UKF);
     // Verify state is accessible and finite
     const auto s1 = est.getState();
-    assert(std::isfinite(s1.azimuthRad));
-    assert(std::isfinite(s1.elevationRad));
+    EXPECT_TRUE(std::isfinite(s1.azimuthRad));
+    EXPECT_TRUE(std::isfinite(s1.elevationRad));
 
     est.setType(EstimatorType::EKF);
     const auto s2 = est.getState();
-    assert(std::isfinite(s2.azimuthRad));
+    EXPECT_TRUE(std::isfinite(s2.azimuthRad));
     std::cout << "  -> PASSED\n";
 }
 
-void testGetStateFieldsAreSaneAfterInit()
+TEST(PtzSphericalEstimatorTest, GetStateFieldsAreSaneAfterInit)
 {
     std::cout << "[Test] testGetStateFieldsAreSaneAfterInit\n";
     PtzSphericalEstimator est;
@@ -107,30 +107,30 @@ void testGetStateFieldsAreSaneAfterInit()
     est.init(targetAz, targetEl);
 
     const auto s = est.getState(0.0, targetAz, targetEl);
-    assert(std::isfinite(s.azimuthRad));
-    assert(std::isfinite(s.elevationRad));
-    assert(std::isfinite(s.errorAzimuthDeg));
-    assert(std::isfinite(s.errorElevationDeg));
-    assert(s.locked);
+    EXPECT_TRUE(std::isfinite(s.azimuthRad));
+    EXPECT_TRUE(std::isfinite(s.elevationRad));
+    EXPECT_TRUE(std::isfinite(s.errorAzimuthDeg));
+    EXPECT_TRUE(std::isfinite(s.errorElevationDeg));
+    EXPECT_TRUE(s.locked);
     // When camera is pointed at target, error should be small
-    assert(std::abs(s.errorAzimuthDeg) < 1.0);
-    assert(std::abs(s.errorElevationDeg) < 1.0);
+    EXPECT_TRUE(std::abs(s.errorAzimuthDeg) < 1.0);
+    EXPECT_TRUE(std::abs(s.errorElevationDeg) < 1.0);
     std::cout << "  -> PASSED\n";
 }
 
-void testPredictDoesNotCrash()
+TEST(PtzSphericalEstimatorTest, PredictDoesNotCrash)
 {
     std::cout << "[Test] testPredictDoesNotCrash\n";
     PtzSphericalEstimator est;
     est.init(1.0, 0.1);
     est.predict(0.05);
     const auto s = est.getState();
-    assert(std::isfinite(s.azimuthRad));
-    assert(std::isfinite(s.elevationRad));
+    EXPECT_TRUE(std::isfinite(s.azimuthRad));
+    EXPECT_TRUE(std::isfinite(s.elevationRad));
     std::cout << "  -> PASSED\n";
 }
 
-void testUpdateWithMeasurementConverges()
+TEST(PtzSphericalEstimatorTest, UpdateWithMeasurementConverges)
 {
     std::cout << "[Test] testUpdateWithMeasurementConverges\n";
     PtzSphericalEstimator est;
@@ -147,12 +147,12 @@ void testUpdateWithMeasurementConverges()
     }
 
     const auto s = est.getState(0.0, camPan, camTilt);
-    assert(std::isfinite(s.azimuthRad));
-    assert(std::isfinite(s.elevationRad));
+    EXPECT_TRUE(std::isfinite(s.azimuthRad));
+    EXPECT_TRUE(std::isfinite(s.elevationRad));
     std::cout << "  -> PASSED\n";
 }
 
-void testUKFModeConverges()
+TEST(PtzSphericalEstimatorTest, UKFModeConverges)
 {
     std::cout << "[Test] testUKFModeConverges\n";
     SphericalEstimatorConfig cfg;
@@ -164,25 +164,9 @@ void testUKFModeConverges()
         est.update(960.0, 540.0, 0.0, 0.0, 1.0, 0.033);
     }
     const auto s = est.getState();
-    assert(std::isfinite(s.azimuthRad));
+    EXPECT_TRUE(std::isfinite(s.azimuthRad));
     std::cout << "  -> PASSED\n";
 }
 
 } // namespace
 
-int main()
-{
-    std::cout << "Running TestPtzSphericalEstimator Test Suite\n";
-    testNotLockedByDefault();
-    testInitSetsLocked();
-    testInitFromPixelSetsLocked();
-    testResetClearsLock();
-    testConfigGetSet();
-    testSetTypeEKFAndUKF();
-    testGetStateFieldsAreSaneAfterInit();
-    testPredictDoesNotCrash();
-    testUpdateWithMeasurementConverges();
-    testUKFModeConverges();
-    std::cout << "All TestPtzSphericalEstimator Tests Passed!\n";
-    return 0;
-}

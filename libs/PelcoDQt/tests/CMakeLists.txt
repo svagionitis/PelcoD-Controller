@@ -19,21 +19,8 @@ function(add_qt_test test_name test_source)
         Qt6::Core
         Qt6::Test
     )
-    apply_compiler_flags(${test_name})
-    add_test(NAME ${test_name} COMMAND ${test_name})
+    pelcod_register_gtest(${test_name} NO_MAIN)
 endfunction()
 
 add_qt_test(TestQPelcoDDevice TestQPelcoDDevice.cpp)
 add_qt_test(TestRetryPolicy   TestRetryPolicy.cpp)
-
-if(WIN32)
-    foreach(qt_test IN ITEMS TestQPelcoDDevice TestRetryPolicy)
-        set_property(TEST ${qt_test} PROPERTY ENVIRONMENT_MODIFICATION
-            "PATH=path_list_prepend:$<TARGET_FILE_DIR:Qt6::Core>"
-            "PATH=path_list_prepend:${CMAKE_BINARY_DIR}/vcpkg_installed/x64-windows/debug/bin"
-            "PATH=path_list_prepend:${CMAKE_BINARY_DIR}/vcpkg_installed/x64-windows/bin"
-            "PATH=path_list_prepend:C:/vcpkg/installed/x64-windows/debug/bin"
-            "PATH=path_list_prepend:C:/vcpkg/installed/x64-windows/bin"
-        )
-    endforeach()
-endif()

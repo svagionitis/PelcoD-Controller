@@ -5,7 +5,7 @@
 #include "ChirpCalibrator.h"
 
 #include <atomic>
-#include <cassert>
+#include <gtest/gtest.h>
 #include <cmath>
 #include <iostream>
 
@@ -13,74 +13,74 @@ using namespace PelcoD;
 
 namespace {
 
-void testIdleByDefault()
+TEST(ChirpCalibratorTest, IdleByDefault)
 {
     std::cout << "[Test] testIdleByDefault\n";
     ChirpCalibrator cal;
-    assert(cal.getState() == ChirpCalibratorState::Idle);
-    assert(!cal.isRunning());
-    assert(cal.getProgress() == 0.0);
+    EXPECT_TRUE(cal.getState() == ChirpCalibratorState::Idle);
+    EXPECT_TRUE(!cal.isRunning());
+    EXPECT_TRUE(cal.getProgress() == 0.0);
     std::cout << "  -> PASSED\n";
 }
 
-void testStartTransitionsSweeping()
+TEST(ChirpCalibratorTest, StartTransitionsSweeping)
 {
     std::cout << "[Test] testStartTransitionsSweeping\n";
     ChirpCalibrator cal;
     const bool started = cal.start(CalibrationAxis::Pan, 20, 0.0);
-    assert(started);
-    assert(cal.isRunning());
+    EXPECT_TRUE(started);
+    EXPECT_TRUE(cal.isRunning());
     // Immediately after start it should be in PreSettle or Sweeping
     const auto s = cal.getState();
-    assert(s == ChirpCalibratorState::PreSettle || s == ChirpCalibratorState::Sweeping);
+    EXPECT_TRUE(s == ChirpCalibratorState::PreSettle || s == ChirpCalibratorState::Sweeping);
     std::cout << "  -> PASSED\n";
 }
 
-void testDoubleStartReturnsFalse()
+TEST(ChirpCalibratorTest, DoubleStartReturnsFalse)
 {
     std::cout << "[Test] testDoubleStartReturnsFalse\n";
     ChirpCalibrator cal;
-    assert(cal.start(CalibrationAxis::Pan, 20, 0.0));
+    EXPECT_TRUE(cal.start(CalibrationAxis::Pan, 20, 0.0));
     const bool second = cal.start(CalibrationAxis::Tilt, 15, 0.0);
-    assert(!second); // Already running
+    EXPECT_TRUE(!second); // Already running
     std::cout << "  -> PASSED\n";
 }
 
-void testCancelFromRunning()
+TEST(ChirpCalibratorTest, CancelFromRunning)
 {
     std::cout << "[Test] testCancelFromRunning\n";
     std::atomic<int> calls { 0 };
     ChirpCalibrator cal { [&](int, int, int, int) { ++calls; } };
     cal.start(CalibrationAxis::Pan, 20, 0.0);
-    assert(cal.isRunning());
+    EXPECT_TRUE(cal.isRunning());
     cal.cancel();
-    assert(!cal.isRunning());
-    assert(cal.getState() == ChirpCalibratorState::Idle || cal.getState() == ChirpCalibratorState::Failed);
+    EXPECT_TRUE(!cal.isRunning());
+    EXPECT_TRUE(cal.getState() == ChirpCalibratorState::Idle || cal.getState() == ChirpCalibratorState::Failed);
     std::cout << "  -> PASSED\n";
 }
 
-void testCancelFromIdleIsNoOp()
+TEST(ChirpCalibratorTest, CancelFromIdleIsNoOp)
 {
     std::cout << "[Test] testCancelFromIdleIsNoOp\n";
     ChirpCalibrator cal;
     cal.cancel(); // Should not crash
-    assert(cal.getState() == ChirpCalibratorState::Idle);
+    EXPECT_TRUE(cal.getState() == ChirpCalibratorState::Idle);
     std::cout << "  -> PASSED\n";
 }
 
-void testAxisIsRecorded()
+TEST(ChirpCalibratorTest, AxisIsRecorded)
 {
     std::cout << "[Test] testAxisIsRecorded\n";
     ChirpCalibrator cal;
     cal.start(CalibrationAxis::Tilt, 20, 0.0);
-    assert(cal.getAxis() == CalibrationAxis::Tilt);
+    EXPECT_TRUE(cal.getAxis() == CalibrationAxis::Tilt);
     cal.cancel();
     cal.start(CalibrationAxis::Pan, 20, 0.0);
-    assert(cal.getAxis() == CalibrationAxis::Pan);
+    EXPECT_TRUE(cal.getAxis() == CalibrationAxis::Pan);
     std::cout << "  -> PASSED\n";
 }
 
-void testSetCommandCallbackIsUsed()
+TEST(ChirpCalibratorTest, SetCommandCallbackIsUsed)
 {
     std::cout << "[Test] testSetCommandCallbackIsUsed\n";
     std::atomic<int> cmdCount { 0 };
@@ -90,11 +90,11 @@ void testSetCommandCallbackIsUsed()
     // Advance time far past the whole chirp sequence
     cal.update(5.0);
     // At least one command should have been dispatched
-    assert(cmdCount.load() >= 0); // Non-crash assertion; dispatch may vary with state machine
+    EXPECT_TRUE(cmdCount.load() >= 0); // Non-crash assertion; dispatch may vary with state machine
     std::cout << "  -> PASSED\n";
 }
 
-void testUpdateAdvancesProgress()
+TEST(ChirpCalibratorTest, UpdateAdvancesProgress)
 {
     std::cout << "[Test] testUpdateAdvancesProgress\n";
     ChirpCalibrator cal;
@@ -102,12 +102,12 @@ void testUpdateAdvancesProgress()
     const double prog0 = cal.getProgress();
     cal.update(0.5);
     const double prog1 = cal.getProgress();
-    assert(prog1 >= prog0);
+    EXPECT_TRUE(prog1 >= prog0);
     std::cout << "  progress after 0.5s=" << prog1 << "\n";
     std::cout << "  -> PASSED\n";
 }
 
-void testGetIdentifierAccess()
+TEST(ChirpCalibratorTest, GetIdentifierAccess)
 {
     std::cout << "[Test] testGetIdentifierAccess\n";
     ChirpCalibrator cal;
@@ -121,33 +121,17 @@ void testGetIdentifierAccess()
     std::cout << "  -> PASSED\n";
 }
 
-void testProgressClampedTo1AfterCompletion()
+TEST(ChirpCalibratorTest, ProgressClampedTo1AfterCompletion)
 {
     std::cout << "[Test] testProgressClampedTo1AfterCompletion\n";
     ChirpCalibrator cal;
     cal.start(CalibrationAxis::Pan, 5, 0.0);
     // Advance well past all phases
     cal.update(10.0);
-    assert(cal.getProgress() <= 1.0);
-    assert(cal.getProgress() >= 0.0);
+    EXPECT_TRUE(cal.getProgress() <= 1.0);
+    EXPECT_TRUE(cal.getProgress() >= 0.0);
     std::cout << "  -> PASSED\n";
 }
 
 } // namespace
 
-int main()
-{
-    std::cout << "Running TestChirpCalibrator Test Suite\n";
-    testIdleByDefault();
-    testStartTransitionsSweeping();
-    testDoubleStartReturnsFalse();
-    testCancelFromRunning();
-    testCancelFromIdleIsNoOp();
-    testAxisIsRecorded();
-    testSetCommandCallbackIsUsed();
-    testUpdateAdvancesProgress();
-    testGetIdentifierAccess();
-    testProgressClampedTo1AfterCompletion();
-    std::cout << "All TestChirpCalibrator Tests Passed!\n";
-    return 0;
-}

@@ -4,7 +4,7 @@
 
 #include "TransientShockDetector.h"
 
-#include <cassert>
+#include <gtest/gtest.h>
 #include <cmath>
 #include <iostream>
 #include <vector>
@@ -13,19 +13,19 @@ using namespace PelcoD;
 
 namespace {
 
-void testDefaultConfigIsSane()
+TEST(TransientShockDetectorTest, DefaultConfigIsSane)
 {
     std::cout << "[Test] testDefaultConfigIsSane\n";
     TransientShockDetector det;
     const auto& cfg = det.getConfig();
-    assert(cfg.windowSize >= 16U);
-    assert(cfg.decompositionLevels >= 1U);
-    assert(cfg.energyThresholdFactor > 0.0);
-    assert(cfg.minShockEnergy >= 0.0);
+    EXPECT_TRUE(cfg.windowSize >= 16U);
+    EXPECT_TRUE(cfg.decompositionLevels >= 1U);
+    EXPECT_TRUE(cfg.energyThresholdFactor > 0.0);
+    EXPECT_TRUE(cfg.minShockEnergy >= 0.0);
     std::cout << "  -> PASSED\n";
 }
 
-void testQuietSignalNoShock()
+TEST(TransientShockDetectorTest, QuietSignalNoShock)
 {
     std::cout << "[Test] testQuietSignalNoShock\n";
     ShockDetectorConfig cfg;
@@ -41,11 +41,11 @@ void testQuietSignalNoShock()
     for (int i = 0; i < 2000; ++i) {
         evt = det.addSample(0.0);
     }
-    assert(!evt.isShockDetected);
+    EXPECT_TRUE(!evt.isShockDetected);
     std::cout << "  -> PASSED\n";
 }
 
-void testImpulseTriggersShock()
+TEST(TransientShockDetectorTest, ImpulseTriggersShock)
 {
     std::cout << "[Test] testImpulseTriggersShock\n";
     ShockDetectorConfig cfg;
@@ -69,12 +69,12 @@ void testImpulseTriggersShock()
 
     // At least one event during the impulse window should have detected a shock
     // (We check the last event and also confirm detection occurred at some point)
-    assert(evt.detailEnergy >= 0.0);
+    EXPECT_TRUE(evt.detailEnergy >= 0.0);
     std::cout << "  shockMagnitude=" << evt.shockMagnitude << " energyRatio=" << evt.energyRatio << "\n";
     std::cout << "  -> PASSED\n";
 }
 
-void testResetClearsState()
+TEST(TransientShockDetectorTest, ResetClearsState)
 {
     std::cout << "[Test] testResetClearsState\n";
     TransientShockDetector det;
@@ -84,11 +84,11 @@ void testResetClearsState()
     }
     det.reset();
     // After reset, baseline energy returns to initial (1.0)
-    assert(std::abs(det.getBaselineEnergy() - 1.0) < 1e-9);
+    EXPECT_TRUE(std::abs(det.getBaselineEnergy() - 1.0) < 1e-9);
     std::cout << "  -> PASSED\n";
 }
 
-void testGetBaselineEnergyIncreases()
+TEST(TransientShockDetectorTest, GetBaselineEnergyIncreases)
 {
     std::cout << "[Test] testGetBaselineEnergyIncreases\n";
     TransientShockDetector det;
@@ -98,13 +98,13 @@ void testGetBaselineEnergyIncreases()
     }
     // Baseline energy should have adapted away from its initial value of 1.0
     // For a near-zero signal, it converges toward a small value
-    assert(std::isfinite(det.getBaselineEnergy()));
-    assert(det.getBaselineEnergy() >= 0.0);
+    EXPECT_TRUE(std::isfinite(det.getBaselineEnergy()));
+    EXPECT_TRUE(det.getBaselineEnergy() >= 0.0);
     std::cout << "  baselineEnergy=" << det.getBaselineEnergy() << "\n";
     std::cout << "  -> PASSED\n";
 }
 
-void testSetConfig()
+TEST(TransientShockDetectorTest, SetConfig)
 {
     std::cout << "[Test] testSetConfig\n";
     TransientShockDetector det;
@@ -116,36 +116,23 @@ void testSetConfig()
 
     det.setConfig(cfg);
     const auto& got = det.getConfig();
-    assert(got.windowSize == 128U);
-    assert(got.decompositionLevels == 4U);
-    assert(std::abs(got.energyThresholdFactor - 6.0) < 1e-9);
-    assert(std::abs(got.minShockEnergy - 10.0) < 1e-9);
+    EXPECT_TRUE(got.windowSize == 128U);
+    EXPECT_TRUE(got.decompositionLevels == 4U);
+    EXPECT_TRUE(std::abs(got.energyThresholdFactor - 6.0) < 1e-9);
+    EXPECT_TRUE(std::abs(got.minShockEnergy - 10.0) < 1e-9);
     std::cout << "  -> PASSED\n";
 }
 
-void testShockEventFieldsAreSane()
+TEST(TransientShockDetectorTest, ShockEventFieldsAreSane)
 {
     std::cout << "[Test] testShockEventFieldsAreSane\n";
     TransientShockDetector det;
     const ShockEvent evt = det.addSample(1.0);
-    assert(evt.detailEnergy >= 0.0);
-    assert(evt.energyRatio >= 0.0);
-    assert(evt.shockMagnitude >= 0.0);
+    EXPECT_TRUE(evt.detailEnergy >= 0.0);
+    EXPECT_TRUE(evt.energyRatio >= 0.0);
+    EXPECT_TRUE(evt.shockMagnitude >= 0.0);
     std::cout << "  -> PASSED\n";
 }
 
 } // namespace
 
-int main()
-{
-    std::cout << "Running TestTransientShockDetector Test Suite\n";
-    testDefaultConfigIsSane();
-    testQuietSignalNoShock();
-    testImpulseTriggersShock();
-    testResetClearsState();
-    testGetBaselineEnergyIncreases();
-    testSetConfig();
-    testShockEventFieldsAreSane();
-    std::cout << "All TestTransientShockDetector Tests Passed!\n";
-    return 0;
-}

@@ -21,8 +21,7 @@ function(add_tracking_test test_name test_source)
         PelcoDTransport
         Threads::Threads
     )
-    apply_compiler_flags(${test_name})
-    add_test(NAME ${test_name} COMMAND ${test_name})
+    pelcod_register_gtest(${test_name})
 endfunction()
 
 add_tracking_test(TestPidController        TestPidController.cpp)

@@ -12,7 +12,7 @@
 #include <QSignalSpy>
 
 #include <atomic>
-#include <cassert>
+#include <gtest/gtest.h>
 #include <chrono>
 #include <cmath>
 #include <iostream>
@@ -85,40 +85,40 @@ private:
     std::vector<std::vector<std::uint8_t>> m_sentFrames;
 };
 
-void testBackoffCalculations()
+TEST(RetryPolicyTest, BackoffCalculations)
 {
     PelcoD::RetryConfig config;
     config.initialBackoff = std::chrono::milliseconds(50);
     config.maxBackoff = std::chrono::milliseconds(500);
 
     // Attempt 0 should always be 0ms
-    assert(PelcoD::calculateBackoffDelay(config, 0U).count() == 0);
+    EXPECT_TRUE(PelcoD::calculateBackoffDelay(config, 0U).count() == 0);
 
     // Fixed strategy
     config.strategy = PelcoD::BackoffStrategy::Fixed;
-    assert(PelcoD::calculateBackoffDelay(config, 1U).count() == 50);
-    assert(PelcoD::calculateBackoffDelay(config, 2U).count() == 50);
-    assert(PelcoD::calculateBackoffDelay(config, 5U).count() == 50);
+    EXPECT_TRUE(PelcoD::calculateBackoffDelay(config, 1U).count() == 50);
+    EXPECT_TRUE(PelcoD::calculateBackoffDelay(config, 2U).count() == 50);
+    EXPECT_TRUE(PelcoD::calculateBackoffDelay(config, 5U).count() == 50);
 
     // Linear strategy
     config.strategy = PelcoD::BackoffStrategy::Linear;
-    assert(PelcoD::calculateBackoffDelay(config, 1U).count() == 50);
-    assert(PelcoD::calculateBackoffDelay(config, 2U).count() == 100);
-    assert(PelcoD::calculateBackoffDelay(config, 3U).count() == 150);
-    assert(PelcoD::calculateBackoffDelay(config, 10U).count() == 500); // Clamped at maxBackoff (500)
-    assert(PelcoD::calculateBackoffDelay(config, 20U).count() == 500);
+    EXPECT_TRUE(PelcoD::calculateBackoffDelay(config, 1U).count() == 50);
+    EXPECT_TRUE(PelcoD::calculateBackoffDelay(config, 2U).count() == 100);
+    EXPECT_TRUE(PelcoD::calculateBackoffDelay(config, 3U).count() == 150);
+    EXPECT_TRUE(PelcoD::calculateBackoffDelay(config, 10U).count() == 500); // Clamped at maxBackoff (500)
+    EXPECT_TRUE(PelcoD::calculateBackoffDelay(config, 20U).count() == 500);
 
     // Exponential strategy
     config.strategy = PelcoD::BackoffStrategy::Exponential;
     config.backoffMultiplier = 2.0;
-    assert(PelcoD::calculateBackoffDelay(config, 1U).count() == 50); // 50 * (2^0) = 50
-    assert(PelcoD::calculateBackoffDelay(config, 2U).count() == 100); // 50 * (2^1) = 100
-    assert(PelcoD::calculateBackoffDelay(config, 3U).count() == 200); // 50 * (2^2) = 200
-    assert(PelcoD::calculateBackoffDelay(config, 4U).count() == 400); // 50 * (2^3) = 400
-    assert(PelcoD::calculateBackoffDelay(config, 5U).count() == 500); // Clamped at 500 (800 -> 500)
+    EXPECT_TRUE(PelcoD::calculateBackoffDelay(config, 1U).count() == 50); // 50 * (2^0) = 50
+    EXPECT_TRUE(PelcoD::calculateBackoffDelay(config, 2U).count() == 100); // 50 * (2^1) = 100
+    EXPECT_TRUE(PelcoD::calculateBackoffDelay(config, 3U).count() == 200); // 50 * (2^2) = 200
+    EXPECT_TRUE(PelcoD::calculateBackoffDelay(config, 4U).count() == 400); // 50 * (2^3) = 400
+    EXPECT_TRUE(PelcoD::calculateBackoffDelay(config, 5U).count() == 500); // Clamped at 500 (800 -> 500)
 }
 
-void testQuerySucceedsOnRetry()
+TEST(RetryPolicyTest, QuerySucceedsOnRetry)
 {
     auto transport = std::make_shared<FlakyTransport>();
     PelcoD::PelcoDDevice device(transport, 1U);
@@ -138,9 +138,9 @@ void testQuerySucceedsOnRetry()
         [&](const std::string& tag, std::uint32_t attempt, std::uint32_t maxRetries, std::chrono::milliseconds delay) {
             if (tag == "QueryPan") {
                 retryCount.fetch_add(1);
-                assert(attempt == 1U);
-                assert(maxRetries == 2U);
-                assert(delay.count() == 30);
+                EXPECT_TRUE(attempt == 1U);
+                EXPECT_TRUE(maxRetries == 2U);
+                EXPECT_TRUE(delay.count() == 30);
             }
         });
 
@@ -164,7 +164,7 @@ void testQuerySucceedsOnRetry()
         }
     });
 
-    assert(device.start());
+    EXPECT_TRUE(device.start());
 
     // Send query
     device.queryPan();
@@ -172,15 +172,15 @@ void testQuerySucceedsOnRetry()
     // Wait for attempt 0 to timeout (60ms) and retry attempt 1 to succeed
     std::this_thread::sleep_for(std::chrono::milliseconds(200));
 
-    assert(retryCount.load() == 1);
-    assert(querySuccess.load());
-    assert(!timeoutFired.load());
-    assert(device.getStatus().panCentidegrees == 5000U);
+    EXPECT_TRUE(retryCount.load() == 1);
+    EXPECT_TRUE(querySuccess.load());
+    EXPECT_TRUE(!timeoutFired.load());
+    EXPECT_TRUE(device.getStatus().panCentidegrees == 5000U);
 
     device.stop();
 }
 
-void testQueryExhaustionTriggersTimeout()
+TEST(RetryPolicyTest, QueryExhaustionTriggersTimeout)
 {
     auto transport = std::make_shared<FlakyTransport>();
     PelcoD::PelcoDDevice device(transport, 1U);
@@ -216,7 +216,7 @@ void testQueryExhaustionTriggersTimeout()
         }
     });
 
-    assert(device.start());
+    EXPECT_TRUE(device.start());
 
     device.queryTilt();
 
@@ -224,14 +224,14 @@ void testQueryExhaustionTriggersTimeout()
     // (50ms) = ~210ms
     std::this_thread::sleep_for(std::chrono::milliseconds(320));
 
-    assert(retryAttempts.load() == 2);
-    assert(timeoutFired.load());
-    assert(queryFailed.load());
+    EXPECT_TRUE(retryAttempts.load() == 2);
+    EXPECT_TRUE(timeoutFired.load());
+    EXPECT_TRUE(queryFailed.load());
 
     device.stop();
 }
 
-void testPriorityInversionAvoidance()
+TEST(RetryPolicyTest, PriorityInversionAvoidance)
 {
     auto transport = std::make_shared<FlakyTransport>();
     PelcoD::PelcoDDevice device(transport, 1U);
@@ -252,7 +252,7 @@ void testPriorityInversionAvoidance()
         }
     });
 
-    assert(device.start());
+    EXPECT_TRUE(device.start());
 
     // 1. Dispatch query (will fail attempt 0 at 40ms and schedule retry for +300ms)
     device.queryPan();
@@ -268,13 +268,13 @@ void testPriorityInversionAvoidance()
     const auto elapsedMs
         = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - stopStart).count();
 
-    assert(stopMotionSent.load());
-    assert(elapsedMs < 200); // Definitely didn't block on 300ms backoff
+    EXPECT_TRUE(stopMotionSent.load());
+    EXPECT_TRUE(elapsedMs < 200); // Definitely didn't block on 300ms backoff
 
     device.stop();
 }
 
-void testTransportErrorRetry()
+TEST(RetryPolicyTest, TransportErrorRetry)
 {
     auto transport = std::make_shared<FlakyTransport>();
     // Make first sendData fail, then succeed
@@ -298,21 +298,26 @@ void testTransportErrorRetry()
         }
     });
 
-    assert(device.start());
+    EXPECT_TRUE(device.start());
 
     device.panLeft(0x20U);
 
     // Initial send failed, retry after 25ms should succeed
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
-    assert(retriesFired.load() == 1);
-    assert(transport->getSentCount() >= 2U);
+    EXPECT_TRUE(retriesFired.load() == 1);
+    EXPECT_TRUE(transport->getSentCount() >= 2U);
 
     device.stop();
 }
 
-void testQPelcoDDeviceRetrySignals(int argc, char* argv[])
+TEST(RetryPolicyTest, QPelcoDDeviceRetrySignals)
 {
-    QCoreApplication app(argc, argv);
+    if (!QCoreApplication::instance()) {
+        static int dummy_argc = 1;
+        static char dummy_name[] = "TestRetryPolicy";
+        static char* dummy_argv[] = { dummy_name, nullptr };
+        new QCoreApplication(dummy_argc, dummy_argv);
+    }
 
     auto transport = std::make_shared<FlakyTransport>();
     PelcoDQt::QPelcoDDevice qdevice(transport, 1U);
@@ -320,14 +325,14 @@ void testQPelcoDDeviceRetrySignals(int argc, char* argv[])
 
     qdevice.setRetryConfig(2, 25, 500, 2.0, 0); // maxRetries=2, initial=25ms, Fixed
     const auto cfg = qdevice.retryConfig();
-    assert(cfg.maxRetries == 2U);
-    assert(cfg.initialBackoff.count() == 25);
-    assert(cfg.strategy == PelcoD::BackoffStrategy::Fixed);
+    EXPECT_TRUE(cfg.maxRetries == 2U);
+    EXPECT_TRUE(cfg.initialBackoff.count() == 25);
+    EXPECT_TRUE(cfg.strategy == PelcoD::BackoffStrategy::Fixed);
 
     QSignalSpy retrySpy(&qdevice, &PelcoDQt::QPelcoDDevice::queryRetryAttempted);
-    assert(retrySpy.isValid());
+    EXPECT_TRUE(retrySpy.isValid());
 
-    assert(qdevice.connectDevice());
+    EXPECT_TRUE(qdevice.connectDevice());
 
     qdevice.queryPan();
 
@@ -340,38 +345,20 @@ void testQPelcoDDeviceRetrySignals(int argc, char* argv[])
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
 
-    assert(retrySpy.count() >= 1);
+    EXPECT_TRUE(retrySpy.count() >= 1);
     const QList<QVariant> args = retrySpy.takeFirst();
-    assert(args.at(0).toString() == "QueryPan");
-    assert(args.at(1).toInt() == 1);
-    assert(args.at(2).toInt() == 2);
-    assert(args.at(3).toInt() == 25);
+    EXPECT_TRUE(args.at(0).toString() == "QueryPan");
+    EXPECT_TRUE(args.at(1).toInt() == 1);
+    EXPECT_TRUE(args.at(2).toInt() == 2);
+    EXPECT_TRUE(args.at(3).toInt() == 25);
 
     qdevice.disconnectDevice();
 }
 
 int main(int argc, char* argv[])
 {
-    initTestHarness();
-
-    std::cout << "[TestRetryPolicy] Starting backoff calculation tests...\n";
-    testBackoffCalculations();
-
-    std::cout << "[TestRetryPolicy] Starting query retry success tests...\n";
-    testQuerySucceedsOnRetry();
-
-    std::cout << "[TestRetryPolicy] Starting query retry exhaustion tests...\n";
-    testQueryExhaustionTriggersTimeout();
-
-    std::cout << "[TestRetryPolicy] Starting priority inversion avoidance tests...\n";
-    testPriorityInversionAvoidance();
-
-    std::cout << "[TestRetryPolicy] Starting transport error retry tests...\n";
-    testTransportErrorRetry();
-
-    std::cout << "[TestRetryPolicy] Starting Qt retry integration tests...\n";
-    testQPelcoDDeviceRetrySignals(argc, argv);
-
-    std::cout << "[TestRetryPolicy] All retry policy tests passed successfully!\n";
-    return 0;
+    PelcoDTest::initTestHarness();
+    QCoreApplication app(argc, argv);
+    ::testing::InitGoogleTest(&argc, argv);
+    return RUN_ALL_TESTS();
 }

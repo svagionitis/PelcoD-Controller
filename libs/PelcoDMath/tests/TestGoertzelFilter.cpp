@@ -3,7 +3,7 @@
 
 #include "GoertzelFilter.h"
 
-#include <cassert>
+#include <gtest/gtest.h>
 #include <cmath>
 #include <iostream>
 #include <vector>
@@ -16,7 +16,7 @@ using namespace PelcoD;
 
 namespace {
 
-void testTargetFrequencyDetection()
+TEST(GoertzelFilterTest, TargetFrequencyDetection)
 {
     std::cout << "[Test] testTargetFrequencyDetection...\n";
     const double fs = 100.0;
@@ -25,9 +25,9 @@ void testTargetFrequencyDetection()
     const double amplitude = 2.0;
 
     GoertzelFilter filter(f0, fs, n);
-    assert(filter.getTargetFrequency() == f0);
-    assert(filter.getSampleRate() == fs);
-    assert(filter.getBlockSize() == n);
+    EXPECT_TRUE(filter.getTargetFrequency() == f0);
+    EXPECT_TRUE(filter.getSampleRate() == fs);
+    EXPECT_TRUE(filter.getBlockSize() == n);
 
     bool blockFinished = false;
     for (std::size_t i = 0U; i < n; ++i) {
@@ -37,19 +37,19 @@ void testTargetFrequencyDetection()
             blockFinished = true;
         }
     }
-    assert(blockFinished);
+    EXPECT_TRUE(blockFinished);
 
     const double mag = filter.getMagnitude();
     std::cout << "  Detected magnitude: " << mag << " (expected: " << amplitude << ")\n";
-    assert(std::abs(mag - amplitude) < 0.05);
-    assert(std::abs(filter.getPower() - (amplitude * amplitude)) < 0.2);
-    assert(filter.hasDetected(1.5));
-    assert(!filter.hasDetected(2.5));
+    EXPECT_TRUE(std::abs(mag - amplitude) < 0.05);
+    EXPECT_TRUE(std::abs(filter.getPower() - (amplitude * amplitude)) < 0.2);
+    EXPECT_TRUE(filter.hasDetected(1.5));
+    EXPECT_TRUE(!filter.hasDetected(2.5));
 
     std::cout << "  -> PASSED\n";
 }
 
-void testOffTargetFrequencyRejection()
+TEST(GoertzelFilterTest, OffTargetFrequencyRejection)
 {
     std::cout << "[Test] testOffTargetFrequencyRejection...\n";
     const double fs = 100.0;
@@ -68,13 +68,13 @@ void testOffTargetFrequencyRejection()
 
     const double mag = filter.getMagnitude();
     std::cout << "  Off-target magnitude at 25 Hz: " << mag << " (rejected from " << amplitude << ")\n";
-    assert(mag < 0.1);
-    assert(!filter.hasDetected(0.5));
+    EXPECT_TRUE(mag < 0.1);
+    EXPECT_TRUE(!filter.hasDetected(0.5));
 
     std::cout << "  -> PASSED\n";
 }
 
-void testStreamingVsBatchEquivalence()
+TEST(GoertzelFilterTest, StreamingVsBatchEquivalence)
 {
     std::cout << "[Test] testStreamingVsBatchEquivalence...\n";
     const double fs = 100.0;
@@ -94,12 +94,12 @@ void testStreamingVsBatchEquivalence()
     const double batchMag = filter.computeMagnitude(samples.data(), samples.size());
 
     std::cout << "  Stream magnitude: " << streamMag << ", Batch magnitude: " << batchMag << "\n";
-    assert(std::abs(streamMag - batchMag) < 1e-10);
+    EXPECT_TRUE(std::abs(streamMag - batchMag) < 1e-10);
 
     std::cout << "  -> PASSED\n";
 }
 
-void testContinuousNonIntegerFrequency()
+TEST(GoertzelFilterTest, ContinuousNonIntegerFrequency)
 {
     std::cout << "[Test] testContinuousNonIntegerFrequency...\n";
     const double fs = 100.0;
@@ -116,20 +116,10 @@ void testContinuousNonIntegerFrequency()
 
     const double mag = filter.getMagnitude();
     std::cout << "  Non-integer frequency 12.35 Hz magnitude: " << mag << " (expected: " << amplitude << ")\n";
-    assert(std::abs(mag - amplitude) < 0.08);
+    EXPECT_TRUE(std::abs(mag - amplitude) < 0.08);
 
     std::cout << "  -> PASSED\n";
 }
 
 } // namespace
 
-int main()
-{
-    std::cout << "Running TestGoertzelFilter Test Suite\n";
-    testTargetFrequencyDetection();
-    testOffTargetFrequencyRejection();
-    testStreamingVsBatchEquivalence();
-    testContinuousNonIntegerFrequency();
-    std::cout << "All TestGoertzelFilter Tests Passed!\n";
-    return 0;
-}

@@ -8,8 +8,7 @@ function(add_math_test test_name test_source)
         ${CMAKE_CURRENT_SOURCE_DIR}/..
     )
     target_link_libraries(${test_name} PRIVATE PelcoDMath)
-    apply_compiler_flags(${test_name})
-    add_test(NAME ${test_name} COMMAND ${test_name})
+    pelcod_register_gtest(${test_name})
 endfunction()
 
 add_math_test(TestFft              TestFft.cpp)
@@ -29,5 +28,4 @@ target_include_directories(TestDwt PRIVATE
     ${CMAKE_SOURCE_DIR}/libs/PelcoDTracking
 )
 target_link_libraries(TestDwt PRIVATE PelcoDMath PelcoDTracking)
-apply_compiler_flags(TestDwt)
-add_test(NAME TestDwt COMMAND TestDwt)
+pelcod_register_gtest(TestDwt)

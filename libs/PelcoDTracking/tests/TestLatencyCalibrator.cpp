@@ -5,7 +5,7 @@
 #include "LatencyCalibrator.h"
 
 #include <atomic>
-#include <cassert>
+#include <gtest/gtest.h>
 #include <cmath>
 #include <iostream>
 
@@ -13,60 +13,60 @@ using namespace PelcoD;
 
 namespace {
 
-void testIdleByDefault()
+TEST(LatencyCalibratorTest, IdleByDefault)
 {
     std::cout << "[Test] testIdleByDefault\n";
     LatencyCalibrator cal;
-    assert(cal.getState() == CalibrationState::Idle);
-    assert(!cal.isRunning());
+    EXPECT_TRUE(cal.getState() == CalibrationState::Idle);
+    EXPECT_TRUE(!cal.isRunning());
     std::cout << "  -> PASSED\n";
 }
 
-void testStartTransitions()
+TEST(LatencyCalibratorTest, StartTransitions)
 {
     std::cout << "[Test] testStartTransitions\n";
     LatencyCalibrator cal;
     const bool ok = cal.start(25, 0, 0.0);
-    assert(ok);
-    assert(cal.isRunning());
+    EXPECT_TRUE(ok);
+    EXPECT_TRUE(cal.isRunning());
     const auto s = cal.getState();
     // Should be in PreSettle or PositivePulse phase immediately after start
-    assert(s != CalibrationState::Idle);
-    assert(s != CalibrationState::Completed);
-    assert(s != CalibrationState::Failed);
+    EXPECT_TRUE(s != CalibrationState::Idle);
+    EXPECT_TRUE(s != CalibrationState::Completed);
+    EXPECT_TRUE(s != CalibrationState::Failed);
     std::cout << "  -> PASSED\n";
 }
 
-void testDoubleStartReturnsFalse()
+TEST(LatencyCalibratorTest, DoubleStartReturnsFalse)
 {
     std::cout << "[Test] testDoubleStartReturnsFalse\n";
     LatencyCalibrator cal;
-    assert(cal.start(25, 0, 0.0));
-    assert(!cal.start(20, 0, 0.0)); // Already running
+    EXPECT_TRUE(cal.start(25, 0, 0.0));
+    EXPECT_TRUE(!cal.start(20, 0, 0.0)); // Already running
     std::cout << "  -> PASSED\n";
 }
 
-void testCancelResetsRunning()
+TEST(LatencyCalibratorTest, CancelResetsRunning)
 {
     std::cout << "[Test] testCancelResetsRunning\n";
     std::atomic<int> stops { 0 };
     LatencyCalibrator cal { [&](int, int, int, int) { ++stops; } };
     cal.start(20, 0, 0.0);
     cal.cancel();
-    assert(!cal.isRunning());
+    EXPECT_TRUE(!cal.isRunning());
     std::cout << "  -> PASSED\n";
 }
 
-void testCancelFromIdleIsNoOp()
+TEST(LatencyCalibratorTest, CancelFromIdleIsNoOp)
 {
     std::cout << "[Test] testCancelFromIdleIsNoOp\n";
     LatencyCalibrator cal;
     cal.cancel(); // Must not crash
-    assert(cal.getState() == CalibrationState::Idle);
+    EXPECT_TRUE(cal.getState() == CalibrationState::Idle);
     std::cout << "  -> PASSED\n";
 }
 
-void testCommandCallbackDispatched()
+TEST(LatencyCalibratorTest, CommandCallbackDispatched)
 {
     std::cout << "[Test] testCommandCallbackDispatched\n";
     std::atomic<int> calls { 0 };
@@ -75,11 +75,11 @@ void testCommandCallbackDispatched()
     // Advance through all phases
     cal.update(2.0);
     // At least the stop command should have been dispatched at some point
-    assert(calls.load() >= 0); // Non-crash; dispatch count varies
+    EXPECT_TRUE(calls.load() >= 0); // Non-crash; dispatch count varies
     std::cout << "  -> PASSED\n";
 }
 
-void testSetCommandCallbackBeforeStart()
+TEST(LatencyCalibratorTest, SetCommandCallbackBeforeStart)
 {
     std::cout << "[Test] testSetCommandCallbackBeforeStart\n";
     LatencyCalibrator cal;
@@ -90,7 +90,7 @@ void testSetCommandCallbackBeforeStart()
     std::cout << "  -> PASSED\n";
 }
 
-void testIngestVisualMotionDoesNotCrash()
+TEST(LatencyCalibratorTest, IngestVisualMotionDoesNotCrash)
 {
     std::cout << "[Test] testIngestVisualMotionDoesNotCrash\n";
     LatencyCalibrator cal;
@@ -103,7 +103,7 @@ void testIngestVisualMotionDoesNotCrash()
     std::cout << "  -> PASSED\n";
 }
 
-void testResultAfterCompletion()
+TEST(LatencyCalibratorTest, ResultAfterCompletion)
 {
     std::cout << "[Test] testResultAfterCompletion\n";
     LatencyCalibrator cal;
@@ -112,14 +112,14 @@ void testResultAfterCompletion()
     cal.update(5.0);
     const auto& result = cal.getResult();
     // Result struct must be valid regardless of success/failure
-    assert(std::isfinite(result.latencyMs));
-    assert(std::isfinite(result.latencySeconds));
-    assert(std::isfinite(result.correlation));
+    EXPECT_TRUE(std::isfinite(result.latencyMs));
+    EXPECT_TRUE(std::isfinite(result.latencySeconds));
+    EXPECT_TRUE(std::isfinite(result.correlation));
     std::cout << "  latencyMs=" << result.latencyMs << " success=" << result.success << "\n";
     std::cout << "  -> PASSED\n";
 }
 
-void testEstimatorAccess()
+TEST(LatencyCalibratorTest, EstimatorAccess)
 {
     std::cout << "[Test] testEstimatorAccess\n";
     LatencyCalibrator cal;
@@ -133,19 +133,3 @@ void testEstimatorAccess()
 
 } // namespace
 
-int main()
-{
-    std::cout << "Running TestLatencyCalibrator Test Suite\n";
-    testIdleByDefault();
-    testStartTransitions();
-    testDoubleStartReturnsFalse();
-    testCancelResetsRunning();
-    testCancelFromIdleIsNoOp();
-    testCommandCallbackDispatched();
-    testSetCommandCallbackBeforeStart();
-    testIngestVisualMotionDoesNotCrash();
-    testResultAfterCompletion();
-    testEstimatorAccess();
-    std::cout << "All TestLatencyCalibrator Tests Passed!\n";
-    return 0;
-}

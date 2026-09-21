@@ -4,7 +4,7 @@
 
 #include "Dct.h"
 
-#include <cassert>
+#include <gtest/gtest.h>
 #include <cmath>
 #include <cstdint>
 #include <iostream>
@@ -22,7 +22,7 @@ bool nearEqual(double a, double b, double tol = TOLERANCE)
 
 // ---------------------------------------------------------------------------
 
-void testDctIdctIdentityUniform()
+TEST(DctTest, DctIdctIdentityUniform)
 {
     std::cout << "[Test] testDctIdctIdentityUniform\n";
     DctMatrix8x8 input {};
@@ -41,13 +41,13 @@ void testDctIdctIdentityUniform()
 
     for (int y = 0; y < 8; ++y) {
         for (int x = 0; x < 8; ++x) {
-            assert(nearEqual(reconstructed[y][x], input[y][x], 1e-6));
+            EXPECT_TRUE(nearEqual(reconstructed[y][x], input[y][x], 1e-6));
         }
     }
     std::cout << "  -> PASSED\n";
 }
 
-void testDctIdctIdentityRamp()
+TEST(DctTest, DctIdctIdentityRamp)
 {
     std::cout << "[Test] testDctIdctIdentityRamp\n";
     DctMatrix8x8 input {};
@@ -65,13 +65,13 @@ void testDctIdctIdentityRamp()
 
     for (int y = 0; y < 8; ++y) {
         for (int x = 0; x < 8; ++x) {
-            assert(nearEqual(rec[y][x], input[y][x], 1e-6));
+            EXPECT_TRUE(nearEqual(rec[y][x], input[y][x], 1e-6));
         }
     }
     std::cout << "  -> PASSED\n";
 }
 
-void testDctZeroInputYieldsZeroOutput()
+TEST(DctTest, DctZeroInputYieldsZeroOutput)
 {
     std::cout << "[Test] testDctZeroInputYieldsZeroOutput\n";
     DctMatrix8x8 input {};
@@ -82,13 +82,13 @@ void testDctZeroInputYieldsZeroOutput()
 
     for (int y = 0; y < 8; ++y) {
         for (int x = 0; x < 8; ++x) {
-            assert(nearEqual(freq[y][x], 0.0));
+            EXPECT_TRUE(nearEqual(freq[y][x], 0.0));
         }
     }
     std::cout << "  -> PASSED\n";
 }
 
-void testDcCoefficientForConstantBlock()
+TEST(DctTest, DcCoefficientForConstantBlock)
 {
     std::cout << "[Test] testDcCoefficientForConstantBlock\n";
     // For a constant block of value V, the DC coefficient (0,0) should be:
@@ -107,7 +107,7 @@ void testDcCoefficientForConstantBlock()
 
     // DC coefficient
     const double expectedDC = 8.0 * V;
-    assert(nearEqual(freq[0][0], expectedDC, 1e-4));
+    EXPECT_TRUE(nearEqual(freq[0][0], expectedDC, 1e-4));
 
     // All AC coefficients should be zero for a constant block
     for (int y = 0; y < 8; ++y) {
@@ -115,13 +115,13 @@ void testDcCoefficientForConstantBlock()
             if (y == 0 && x == 0) {
                 continue;
             }
-            assert(nearEqual(freq[y][x], 0.0, 1e-6));
+            EXPECT_TRUE(nearEqual(freq[y][x], 0.0, 1e-6));
         }
     }
     std::cout << "  -> PASSED\n";
 }
 
-void testPixelBufferOverloadMatchesDctMatrix()
+TEST(DctTest, PixelBufferOverloadMatchesDctMatrix)
 {
     std::cout << "[Test] testPixelBufferOverloadMatchesDctMatrix\n";
     // Build an 8x8 pixel block and compare the two dct8x8 overloads
@@ -144,13 +144,13 @@ void testPixelBufferOverloadMatchesDctMatrix()
 
     for (int y = 0; y < 8; ++y) {
         for (int x = 0; x < 8; ++x) {
-            assert(nearEqual(freqFromPixels[y][x], freqFromDouble[y][x], 1e-6));
+            EXPECT_TRUE(nearEqual(freqFromPixels[y][x], freqFromDouble[y][x], 1e-6));
         }
     }
     std::cout << "  -> PASSED\n";
 }
 
-void testPixelBufferOverloadWithNonUnitStride()
+TEST(DctTest, PixelBufferOverloadWithNonUnitStride)
 {
     std::cout << "[Test] testPixelBufferOverloadWithNonUnitStride\n";
     // Simulate a wider row buffer with stride=16 (only 8 pixels used per row)
@@ -174,13 +174,13 @@ void testPixelBufferOverloadWithNonUnitStride()
 
     for (int y = 0; y < 8; ++y) {
         for (int x = 0; x < 8; ++x) {
-            assert(nearEqual(freqWide[y][x], freqDbl[y][x], 1e-6));
+            EXPECT_TRUE(nearEqual(freqWide[y][x], freqDbl[y][x], 1e-6));
         }
     }
     std::cout << "  -> PASSED\n";
 }
 
-void testDctLinearity()
+TEST(DctTest, DctLinearity)
 {
     std::cout << "[Test] testDctLinearity\n";
     // DCT is linear: DCT(a + b) == DCT(a) + DCT(b)
@@ -208,13 +208,13 @@ void testDctLinearity()
 
     for (int y = 0; y < 8; ++y) {
         for (int x = 0; x < 8; ++x) {
-            assert(nearEqual(f_sum[y][x], sum_f[y][x], 1e-6));
+            EXPECT_TRUE(nearEqual(f_sum[y][x], sum_f[y][x], 1e-6));
         }
     }
     std::cout << "  -> PASSED\n";
 }
 
-void testIdctZeroFrequencyDomainYieldsZeroSpatial()
+TEST(DctTest, IdctZeroFrequencyDomainYieldsZeroSpatial)
 {
     std::cout << "[Test] testIdctZeroFrequencyDomainYieldsZeroSpatial\n";
     DctMatrix8x8 freq {}; // all zeros
@@ -224,13 +224,13 @@ void testIdctZeroFrequencyDomainYieldsZeroSpatial()
 
     for (int y = 0; y < 8; ++y) {
         for (int x = 0; x < 8; ++x) {
-            assert(nearEqual(spatial[y][x], 0.0, 1e-9));
+            EXPECT_TRUE(nearEqual(spatial[y][x], 0.0, 1e-9));
         }
     }
     std::cout << "  -> PASSED\n";
 }
 
-void testDctOrthogonality()
+TEST(DctTest, DctOrthogonality)
 {
     std::cout << "[Test] testDctOrthogonality\n";
     // Parseval's theorem: sum(x^2) == sum(X^2) * (normalization factor)
@@ -257,24 +257,9 @@ void testDctOrthogonality()
         }
     }
     // Round-trip must preserve energy
-    assert(nearEqual(energyIn, energyRec, energyIn * 1e-5));
+    EXPECT_TRUE(nearEqual(energyIn, energyRec, energyIn * 1e-5));
     std::cout << "  -> PASSED\n";
 }
 
 } // namespace
 
-int main()
-{
-    std::cout << "Running TestDct Test Suite\n";
-    testDctIdctIdentityUniform();
-    testDctIdctIdentityRamp();
-    testDctZeroInputYieldsZeroOutput();
-    testDcCoefficientForConstantBlock();
-    testPixelBufferOverloadMatchesDctMatrix();
-    testPixelBufferOverloadWithNonUnitStride();
-    testDctLinearity();
-    testIdctZeroFrequencyDomainYieldsZeroSpatial();
-    testDctOrthogonality();
-    std::cout << "All TestDct Tests Passed!\n";
-    return 0;
-}

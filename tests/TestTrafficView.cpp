@@ -6,22 +6,22 @@
 #include "PelcoDDevice.h"
 #include "views/TrafficView.h"
 
-#include <cassert>
+#include <gtest/gtest.h>
 #include <cstdio>
 #include <fstream>
-#include <iostream>
 #include <string>
+#include <vector>
 
 using namespace PelcoDTui;
 
-static void testTrafficFiltering()
+TEST(TestTrafficView, TrafficFiltering)
 {
     TrafficView tv;
     auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(1U);
     PelcoD::PelcoDDevice dev(mock, 1U);
 
-    assert(tv.getFilter() == TrafficFilter::All);
-    assert(tv.getPacketCount() == 0);
+    EXPECT_EQ(tv.getFilter(), TrafficFilter::All);
+    EXPECT_EQ(tv.getPacketCount(), 0U);
 
     // Add TX packet (Pan Right)
     const std::vector<std::uint8_t> txPacket { 0xFF, 0x01, 0x00, 0x02, 0x20, 0x00, 0x23 };
@@ -35,28 +35,28 @@ static void testTrafficFiltering()
     const std::vector<std::uint8_t> txPacket2 { 0xFF, 0x01, 0x00, 0x00, 0x00, 0x00, 0x01 };
     tv.addPacket(true, txPacket2);
 
-    assert(tv.getPacketCount() == 3);
-    assert(tv.getFilteredPacketCount() == 3);
+    EXPECT_EQ(tv.getPacketCount(), 3U);
+    EXPECT_EQ(tv.getFilteredPacketCount(), 3U);
 
     // Press 'f' to switch to TxOnly
     InputEvent fEv { Key::Character, 'f', {} };
     tv.handleInput(fEv, dev);
-    assert(tv.getFilter() == TrafficFilter::TxOnly);
-    assert(tv.getFilteredPacketCount() == 2);
+    EXPECT_EQ(tv.getFilter(), TrafficFilter::TxOnly);
+    EXPECT_EQ(tv.getFilteredPacketCount(), 2U);
 
     // Press 'f' to switch to RxOnly
     tv.handleInput(fEv, dev);
-    assert(tv.getFilter() == TrafficFilter::RxOnly);
-    assert(tv.getFilteredPacketCount() == 1);
+    EXPECT_EQ(tv.getFilter(), TrafficFilter::RxOnly);
+    EXPECT_EQ(tv.getFilteredPacketCount(), 1U);
 
     // Press 'F' (uppercase) to cycle back to All
     InputEvent fUpperEv { Key::Character, 'F', {} };
     tv.handleInput(fUpperEv, dev);
-    assert(tv.getFilter() == TrafficFilter::All);
-    assert(tv.getFilteredPacketCount() == 3);
+    EXPECT_EQ(tv.getFilter(), TrafficFilter::All);
+    EXPECT_EQ(tv.getFilteredPacketCount(), 3U);
 }
 
-static void testTrafficExport()
+TEST(TestTrafficView, TrafficExport)
 {
     TrafficView tv;
 
@@ -70,35 +70,35 @@ static void testTrafficExport()
 
     // Export ALL
     tv.setFilter(TrafficFilter::All);
-    assert(tv.exportToFile(tmpLogPath));
+    EXPECT_TRUE(tv.exportToFile(tmpLogPath));
 
     // Verify file content
     {
         std::ifstream ifs(tmpLogPath);
-        assert(ifs.is_open());
+        ASSERT_TRUE(ifs.is_open());
         std::string content((std::istreambuf_iterator<char>(ifs)), std::istreambuf_iterator<char>());
-        assert(content.find("Pelco-D Controller - Traffic Capture Log") != std::string::npos);
-        assert(content.find("Filter Mode : ALL") != std::string::npos);
-        assert(content.find("TX") != std::string::npos);
-        assert(content.find("RX") != std::string::npos);
-        assert(content.find("Total records exported: 2") != std::string::npos);
+        EXPECT_NE(content.find("Pelco-D Controller - Traffic Capture Log"), std::string::npos);
+        EXPECT_NE(content.find("Filter Mode : ALL"), std::string::npos);
+        EXPECT_NE(content.find("TX"), std::string::npos);
+        EXPECT_NE(content.find("RX"), std::string::npos);
+        EXPECT_NE(content.find("Total records exported: 2"), std::string::npos);
     }
     std::remove(tmpLogPath.c_str());
 
     // Export TX ONLY
     tv.setFilter(TrafficFilter::TxOnly);
-    assert(tv.exportToFile(tmpLogPath));
+    EXPECT_TRUE(tv.exportToFile(tmpLogPath));
     {
         std::ifstream ifs(tmpLogPath);
-        assert(ifs.is_open());
+        ASSERT_TRUE(ifs.is_open());
         std::string content((std::istreambuf_iterator<char>(ifs)), std::istreambuf_iterator<char>());
-        assert(content.find("Filter Mode : TX ONLY") != std::string::npos);
-        assert(content.find("Total records exported: 1") != std::string::npos);
+        EXPECT_NE(content.find("Filter Mode : TX ONLY"), std::string::npos);
+        EXPECT_NE(content.find("Total records exported: 1"), std::string::npos);
     }
     std::remove(tmpLogPath.c_str());
 }
 
-static void testTrafficRenderingAndControls()
+TEST(TestTrafficView, TrafficRenderingAndControls)
 {
     TrafficView tv;
     auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(1U);
@@ -118,7 +118,7 @@ static void testTrafficRenderingAndControls()
     // Try adding a packet while paused - should not be added
     const std::vector<std::uint8_t> txPacket2 { 0xFF, 0x01, 0x00, 0x00, 0x00, 0x00, 0x01 };
     tv.addPacket(true, txPacket2);
-    assert(tv.getPacketCount() == 1);
+    EXPECT_EQ(tv.getPacketCount(), 1U);
 
     // Unpause
     tv.handleInput(pauseEv, dev);
@@ -126,15 +126,5 @@ static void testTrafficRenderingAndControls()
     // Clear
     InputEvent clearEv { Key::Character, 'c', {} };
     tv.handleInput(clearEv, dev);
-    assert(tv.getPacketCount() == 0);
-}
-
-int main()
-{
-    std::cout << "[TestTrafficView] Running tests..." << std::endl;
-    testTrafficFiltering();
-    testTrafficExport();
-    testTrafficRenderingAndControls();
-    std::cout << "[TestTrafficView] All tests passed successfully." << std::endl;
-    return 0;
+    EXPECT_EQ(tv.getPacketCount(), 0U);
 }

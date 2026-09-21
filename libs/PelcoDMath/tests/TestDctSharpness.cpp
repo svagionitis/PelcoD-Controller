@@ -5,7 +5,7 @@
 #include "DctSharpnessEvaluator.h"
 
 #include <algorithm>
-#include <cassert>
+#include <gtest/gtest.h>
 #include <cmath>
 #include <iostream>
 #include <vector>
@@ -14,7 +14,7 @@ using namespace PelcoD;
 
 namespace {
 
-void testDctIdctOrthogonality()
+TEST(DctSharpnessTest, DctIdctOrthogonality)
 {
     std::cout << "[Test] testDctIdctOrthogonality...\n";
     double original[8][8] {};
@@ -32,13 +32,13 @@ void testDctIdctOrthogonality()
 
     for (int i = 0; i < 8; ++i) {
         for (int j = 0; j < 8; ++j) {
-            assert(std::abs(original[i][j] - reconstructed[i][j]) < 1e-9);
+            EXPECT_TRUE(std::abs(original[i][j] - reconstructed[i][j]) < 1e-9);
         }
     }
     std::cout << "  -> PASSED\n";
 }
 
-void testSingleBlockEvaluation()
+TEST(DctSharpnessTest, SingleBlockEvaluation)
 {
     std::cout << "[Test] testSingleBlockEvaluation...\n";
     DctSharpnessEvaluator evaluator;
@@ -48,7 +48,7 @@ void testSingleBlockEvaluation()
     std::fill(flatBlock, flatBlock + 64, static_cast<std::uint8_t>(128));
     const double flatScore = evaluator.evaluateBlock(flatBlock, 8);
     std::cout << "  Flat block score: " << flatScore << " (expected ~0)\n";
-    assert(flatScore < 1e-9);
+    EXPECT_TRUE(flatScore < 1e-9);
 
     // 2. High-contrast sharp edge block (left half 20, right half 220)
     std::uint8_t edgeBlock[64] {};
@@ -59,12 +59,12 @@ void testSingleBlockEvaluation()
     }
     const double edgeScore = evaluator.evaluateBlock(edgeBlock, 8);
     std::cout << "  Sharp edge block score: " << edgeScore << " (expected high)\n";
-    assert(edgeScore > 100.0);
+    EXPECT_TRUE(edgeScore > 100.0);
 
     std::cout << "  -> PASSED\n";
 }
 
-void testDefocusBlurMonotonicity()
+TEST(DctSharpnessTest, DefocusBlurMonotonicity)
 {
     std::cout << "[Test] testDefocusBlurMonotonicity...\n";
     const std::size_t width = 64U;
@@ -132,14 +132,14 @@ void testDefocusBlurMonotonicity()
     std::cout << "  Heavy blur score: " << resHeavy.normalizedScore << "\n";
 
     // Strict monotonic decay as defocus blur increases
-    assert(resSharp.normalizedScore > resMild.normalizedScore);
-    assert(resMild.normalizedScore > resHeavy.normalizedScore);
-    assert(resSharp.normalizedScore > 2.0 * resHeavy.normalizedScore);
+    EXPECT_TRUE(resSharp.normalizedScore > resMild.normalizedScore);
+    EXPECT_TRUE(resMild.normalizedScore > resHeavy.normalizedScore);
+    EXPECT_TRUE(resSharp.normalizedScore > 2.0 * resHeavy.normalizedScore);
 
     std::cout << "  -> PASSED\n";
 }
 
-void testIlluminationInvariance()
+TEST(DctSharpnessTest, IlluminationInvariance)
 {
     std::cout << "[Test] testIlluminationInvariance...\n";
     const std::size_t width = 32U;
@@ -175,15 +175,15 @@ void testIlluminationInvariance()
     std::cout << "  Dim raw:    " << resDim.rawScore << ", norm: " << resDim.normalizedScore << "\n";
 
     // Raw score scales with brightness/contrast
-    assert(std::abs((resBright.rawScore / resDim.rawScore) - 2.0) < 0.1);
+    EXPECT_TRUE(std::abs((resBright.rawScore / resDim.rawScore) - 2.0) < 0.1);
 
     // Normalized score must remain invariant to illumination scaling
-    assert(std::abs(resBright.normalizedScore - resDim.normalizedScore) < 0.01);
+    EXPECT_TRUE(std::abs(resBright.normalizedScore - resDim.normalizedScore) < 0.01);
 
     std::cout << "  -> PASSED\n";
 }
 
-void testRoiTargeting()
+TEST(DctSharpnessTest, RoiTargeting)
 {
     std::cout << "[Test] testRoiTargeting...\n";
     const std::size_t width = 64U;
@@ -222,22 +222,11 @@ void testRoiTargeting()
     std::cout << "  Center target sharpness: " << centerRes.rawScore << "\n";
     std::cout << "  Corner background sharpness: " << cornerRes.rawScore << "\n";
 
-    assert(centerRes.rawScore > 10.0);
-    assert(cornerRes.rawScore < 1e-6);
+    EXPECT_TRUE(centerRes.rawScore > 10.0);
+    EXPECT_TRUE(cornerRes.rawScore < 1e-6);
 
     std::cout << "  -> PASSED\n";
 }
 
 } // namespace
 
-int main()
-{
-    std::cout << "Running TestDctSharpness Test Suite\n";
-    testDctIdctOrthogonality();
-    testSingleBlockEvaluation();
-    testDefocusBlurMonotonicity();
-    testIlluminationInvariance();
-    testRoiTargeting();
-    std::cout << "All TestDctSharpness Tests Passed!\n";
-    return 0;
-}

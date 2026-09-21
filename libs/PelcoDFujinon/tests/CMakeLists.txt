@@ -14,8 +14,7 @@ function(add_fujinon_test test_name test_source)
         PelcoDSim
         Threads::Threads
     )
-    apply_compiler_flags(${test_name})
-    add_test(NAME ${test_name} COMMAND ${test_name})
+    pelcod_register_gtest(${test_name})
 endfunction()
 
 add_fujinon_test(TestFujinonProtocol    TestFujinonProtocol.cpp)

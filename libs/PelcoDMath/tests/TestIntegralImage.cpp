@@ -4,7 +4,7 @@
 #include "IntegralImage.h"
 
 #include <algorithm>
-#include <cassert>
+#include <gtest/gtest.h>
 #include <cmath>
 #include <iostream>
 #include <vector>
@@ -13,7 +13,7 @@ using namespace PelcoD;
 
 namespace {
 
-void testKnownMatrixAnalytical()
+TEST(IntegralImageTest, KnownMatrixAnalytical)
 {
     std::cout << "[Test] testKnownMatrixAnalytical...\n";
     // 4x4 matrix:
@@ -31,50 +31,50 @@ void testKnownMatrixAnalytical()
     IntegralImage sat;
     sat.compute(pixels.data(), width, height, width, true);
 
-    assert(sat.isValid());
-    assert(sat.getWidth() == 4);
-    assert(sat.getHeight() == 4);
+    EXPECT_TRUE(sat.isValid());
+    EXPECT_TRUE(sat.getWidth() == 4);
+    EXPECT_TRUE(sat.getHeight() == 4);
 
     // Single pixel checks
-    assert(sat.computeSum(0, 0, 1, 1) == 1ULL);
-    assert(sat.computeSum(1, 1, 1, 1) == 6ULL);
-    assert(sat.computeSum(3, 3, 1, 1) == 16ULL);
+    EXPECT_TRUE(sat.computeSum(0, 0, 1, 1) == 1ULL);
+    EXPECT_TRUE(sat.computeSum(1, 1, 1, 1) == 6ULL);
+    EXPECT_TRUE(sat.computeSum(3, 3, 1, 1) == 16ULL);
 
     // 2x2 sub-block at (1, 1) with width 2, height 2:
     // 6  7
     // 10 11 -> sum = 34
-    assert(sat.computeSum(1, 1, 2, 2) == 34ULL);
-    assert(sat.computeMean(1, 1, 2, 2) == 8.5);
+    EXPECT_TRUE(sat.computeSum(1, 1, 2, 2) == 34ULL);
+    EXPECT_TRUE(sat.computeMean(1, 1, 2, 2) == 8.5);
 
     // Squared sum for 2x2 block: 6^2 + 7^2 + 10^2 + 11^2 = 36 + 49 + 100 + 121 = 306
-    assert(sat.computeSquaredSum(1, 1, 2, 2) == 306ULL);
+    EXPECT_TRUE(sat.computeSquaredSum(1, 1, 2, 2) == 306ULL);
 
     // Variance for 2x2 block: (306 / 4) - 8.5^2 = 76.5 - 72.25 = 4.25
-    assert(std::abs(sat.computeVariance(1, 1, 2, 2) - 4.25) < 1e-9);
-    assert(std::abs(sat.computeStdDev(1, 1, 2, 2) - std::sqrt(4.25)) < 1e-9);
+    EXPECT_TRUE(std::abs(sat.computeVariance(1, 1, 2, 2) - 4.25) < 1e-9);
+    EXPECT_TRUE(std::abs(sat.computeStdDev(1, 1, 2, 2) - std::sqrt(4.25)) < 1e-9);
 
     // Entire 4x4 image
     // Sum = 16 * 17 / 2 = 136
-    assert(sat.computeSum(0, 0, 4, 4) == 136ULL);
-    assert(sat.computeMean(0, 0, 4, 4) == 8.5);
+    EXPECT_TRUE(sat.computeSum(0, 0, 4, 4) == 136ULL);
+    EXPECT_TRUE(sat.computeMean(0, 0, 4, 4) == 8.5);
 
     // Squared sum = 16 * 17 * 33 / 6 = 1496
-    assert(sat.computeSquaredSum(0, 0, 4, 4) == 1496ULL);
+    EXPECT_TRUE(sat.computeSquaredSum(0, 0, 4, 4) == 1496ULL);
 
     // Variance = (1496 / 16) - (8.5)^2 = 93.5 - 72.25 = 21.25
-    assert(std::abs(sat.computeVariance(0, 0, 4, 4) - 21.25) < 1e-9);
+    EXPECT_TRUE(std::abs(sat.computeVariance(0, 0, 4, 4) - 21.25) < 1e-9);
 
     // Rect overload check
     const Rect r { 1, 1, 2, 2 };
-    assert(sat.computeSum(r) == 34ULL);
-    assert(sat.computeMean(r) == 8.5);
-    assert(sat.computeSquaredSum(r) == 306ULL);
-    assert(std::abs(sat.computeVariance(r) - 4.25) < 1e-9);
+    EXPECT_TRUE(sat.computeSum(r) == 34ULL);
+    EXPECT_TRUE(sat.computeMean(r) == 8.5);
+    EXPECT_TRUE(sat.computeSquaredSum(r) == 306ULL);
+    EXPECT_TRUE(std::abs(sat.computeVariance(r) - 4.25) < 1e-9);
 
     std::cout << "  -> PASSED\n";
 }
 
-void testBruteForceRandomBoxes()
+TEST(IntegralImageTest, BruteForceRandomBoxes)
 {
     std::cout << "[Test] testBruteForceRandomBoxes...\n";
     const int width = 64;
@@ -114,24 +114,24 @@ void testBruteForceRandomBoxes()
 
         const std::uint64_t satSum = sat.computeSum(x, y, w, h);
         const std::uint64_t satSqSum = sat.computeSquaredSum(x, y, w, h);
-        assert(satSum == expectedSum);
-        assert(satSqSum == expectedSqSum);
+        EXPECT_TRUE(satSum == expectedSum);
+        EXPECT_TRUE(satSqSum == expectedSqSum);
 
         const double count = static_cast<double>(w * h);
         const double expectedMean = static_cast<double>(expectedSum) / count;
         const double satMean = sat.computeMean(x, y, w, h);
-        assert(std::abs(satMean - expectedMean) < 1e-9);
+        EXPECT_TRUE(std::abs(satMean - expectedMean) < 1e-9);
 
         double expectedVar = (static_cast<double>(expectedSqSum) / count) - (expectedMean * expectedMean);
         expectedVar = std::max(0.0, expectedVar);
         const double satVar = sat.computeVariance(x, y, w, h);
-        assert(std::abs(satVar - expectedVar) < 1e-8);
+        EXPECT_TRUE(std::abs(satVar - expectedVar) < 1e-8);
     }
 
     std::cout << "  -> PASSED\n";
 }
 
-void testBoundaryClippingAndInvalidInputs()
+TEST(IntegralImageTest, BoundaryClippingAndInvalidInputs)
 {
     std::cout << "[Test] testBoundaryClippingAndInvalidInputs...\n";
     const int width = 10;
@@ -142,31 +142,31 @@ void testBoundaryClippingAndInvalidInputs()
     sat.compute(pixels.data(), width, height);
 
     // Box partially outside top-left: [-2, -2, 5, 5] -> intersects [0, 0, 3, 3] = 3x3 = 9 pixels
-    assert(sat.computeSum(-2, -2, 5, 5) == 90ULL);
-    assert(sat.computeMean(-2, -2, 5, 5) == 10.0);
+    EXPECT_TRUE(sat.computeSum(-2, -2, 5, 5) == 90ULL);
+    EXPECT_TRUE(sat.computeMean(-2, -2, 5, 5) == 10.0);
 
     // Box partially outside bottom-right: [8, 8, 5, 5] -> intersects [8, 8, 2, 2] = 2x2 = 4 pixels
-    assert(sat.computeSum(8, 8, 5, 5) == 40ULL);
-    assert(sat.computeMean(8, 8, 5, 5) == 10.0);
+    EXPECT_TRUE(sat.computeSum(8, 8, 5, 5) == 40ULL);
+    EXPECT_TRUE(sat.computeMean(8, 8, 5, 5) == 10.0);
 
     // Box completely outside: [-20, -20, 5, 5]
-    assert(sat.computeSum(-20, -20, 5, 5) == 0ULL);
-    assert(sat.computeMean(-20, -20, 5, 5) == 0.0);
+    EXPECT_TRUE(sat.computeSum(-20, -20, 5, 5) == 0ULL);
+    EXPECT_TRUE(sat.computeMean(-20, -20, 5, 5) == 0.0);
 
     // Degenerate zero or negative dimensions
-    assert(sat.computeSum(2, 2, 0, 5) == 0ULL);
-    assert(sat.computeSum(2, 2, 5, -1) == 0ULL);
+    EXPECT_TRUE(sat.computeSum(2, 2, 0, 5) == 0ULL);
+    EXPECT_TRUE(sat.computeSum(2, 2, 5, -1) == 0ULL);
 
     // Invalid uncomputed instance
     IntegralImage emptySat;
-    assert(!emptySat.isValid());
-    assert(emptySat.computeSum(0, 0, 5, 5) == 0ULL);
-    assert(emptySat.computeMean(0, 0, 5, 5) == 0.0);
+    EXPECT_TRUE(!emptySat.isValid());
+    EXPECT_TRUE(emptySat.computeSum(0, 0, 5, 5) == 0ULL);
+    EXPECT_TRUE(emptySat.computeMean(0, 0, 5, 5) == 0.0);
 
     std::cout << "  -> PASSED\n";
 }
 
-void testBoxBlurEquivalence()
+TEST(IntegralImageTest, BoxBlurEquivalence)
 {
     std::cout << "[Test] testBoxBlurEquivalence...\n";
     const int width = 32;
@@ -202,14 +202,14 @@ void testBoxBlurEquivalence()
             }
             const auto expected = static_cast<std::uint8_t>(std::round(sum / static_cast<double>(count)));
             const std::uint8_t actual = blurSat[static_cast<std::size_t>(y * width + x)];
-            assert(actual == expected);
+            EXPECT_TRUE(actual == expected);
         }
     }
 
     std::cout << "  -> PASSED\n";
 }
 
-void testAdaptiveThresholdBradley()
+TEST(IntegralImageTest, AdaptiveThresholdBradley)
 {
     std::cout << "[Test] testAdaptiveThresholdBradley...\n";
     const int width = 64;
@@ -246,17 +246,17 @@ void testAdaptiveThresholdBradley()
     sat.adaptiveThreshold(binaryMask.data(), 16, 0.15);
 
     // Both spots should be segmented as dark targets (0), while surrounding background is bright (255)
-    assert(binaryMask[10 * width + 10] == 0U);
-    assert(binaryMask[50 * width + 50] == 0U);
+    EXPECT_TRUE(binaryMask[10 * width + 10] == 0U);
+    EXPECT_TRUE(binaryMask[50 * width + 50] == 0U);
 
     // Background outside spots should be 255
-    assert(binaryMask[25 * width + 25] == 255U);
-    assert(binaryMask[60 * width + 60] == 255U);
+    EXPECT_TRUE(binaryMask[25 * width + 25] == 255U);
+    EXPECT_TRUE(binaryMask[60 * width + 60] == 255U);
 
     std::cout << "  -> PASSED\n";
 }
 
-void testLarge4KOverflowPrevention()
+TEST(IntegralImageTest, Large4KOverflowPrevention)
 {
     std::cout << "[Test] testLarge4KOverflowPrevention...\n";
     const int width = 3840;
@@ -275,11 +275,11 @@ void testLarge4KOverflowPrevention()
     const std::uint64_t actualSum = sat.computeSum(0, 0, width, height);
     const std::uint64_t actualSqSum = sat.computeSquaredSum(0, 0, width, height);
 
-    assert(actualSum == expectedTotalSum);
-    assert(actualSqSum == expectedTotalSqSum);
+    EXPECT_TRUE(actualSum == expectedTotalSum);
+    EXPECT_TRUE(actualSqSum == expectedTotalSqSum);
 
-    assert(std::abs(sat.computeMean(0, 0, width, height) - 255.0) < 1e-9);
-    assert(sat.computeVariance(0, 0, width, height) == 0.0);
+    EXPECT_TRUE(std::abs(sat.computeMean(0, 0, width, height) - 255.0) < 1e-9);
+    EXPECT_TRUE(sat.computeVariance(0, 0, width, height) == 0.0);
 
     std::cout << "  -> 4K Sum: " << actualSum << ", Squared Sum: " << actualSqSum << "\n";
     std::cout << "  -> PASSED\n";
@@ -287,21 +287,3 @@ void testLarge4KOverflowPrevention()
 
 } // namespace
 
-int main()
-{
-    std::cout << "========================================\n";
-    std::cout << "Running IntegralImage Unit Tests\n";
-    std::cout << "========================================\n";
-
-    testKnownMatrixAnalytical();
-    testBruteForceRandomBoxes();
-    testBoundaryClippingAndInvalidInputs();
-    testBoxBlurEquivalence();
-    testAdaptiveThresholdBradley();
-    testLarge4KOverflowPrevention();
-
-    std::cout << "========================================\n";
-    std::cout << "ALL INTEGRAL IMAGE TESTS PASSED!\n";
-    std::cout << "========================================\n";
-    return 0;
-}

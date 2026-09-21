@@ -6,6 +6,7 @@
 #include "BaseTransport.h"
 #include "ITransport.h"
 
+#if __has_include(<gmock/gmock.h>)
 #include <gmock/gmock.h>
 
 #include <cstdint>
@@ -75,3 +76,5 @@ public:
 };
 
 } // namespace PelcoDTest
+
+#endif // __has_include(<gmock/gmock.h>)

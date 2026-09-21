@@ -4,25 +4,28 @@
 #include "PelcoDFrame.h"
 #include "RxStreamAccumulator.h"
 
-#include <cassert>
-#include <iostream>
+#include <gtest/gtest.h>
+
+#include <cstdint>
 #include <vector>
 
-void testSingleFrame()
+namespace {
+
+TEST(StreamAccumulatorTest, SingleFrame)
 {
     PelcoD::RxStreamAccumulator acc;
-    assert(acc.size() == 0U);
+    EXPECT_EQ(acc.size(), 0U);
 
     const auto frame = PelcoD::PelcoDFrame::createFrame(1U, 0x00U, 0x02U, 0x20U, 0x00U);
-    assert(frame.size() == 7U);
+    ASSERT_EQ(frame.size(), 7U);
 
     const auto extracted = acc.push(frame);
-    assert(extracted.size() == 1U);
-    assert(extracted[0] == frame);
-    assert(acc.size() == 0U);
+    ASSERT_EQ(extracted.size(), 1U);
+    EXPECT_EQ(extracted[0], frame);
+    EXPECT_EQ(acc.size(), 0U);
 }
 
-void testFragmentedFrame()
+TEST(StreamAccumulatorTest, FragmentedFrame)
 {
     PelcoD::RxStreamAccumulator acc;
 
@@ -31,16 +34,16 @@ void testFragmentedFrame()
     const std::vector<std::uint8_t> chunk2(frame.begin() + 3, frame.end());
 
     auto res1 = acc.push(chunk1);
-    assert(res1.empty());
-    assert(acc.size() == 3U);
+    EXPECT_TRUE(res1.empty());
+    EXPECT_EQ(acc.size(), 3U);
 
     auto res2 = acc.push(chunk2);
-    assert(res2.size() == 1U);
-    assert(res2[0] == frame);
-    assert(acc.size() == 0U);
+    ASSERT_EQ(res2.size(), 1U);
+    EXPECT_EQ(res2[0], frame);
+    EXPECT_EQ(acc.size(), 0U);
 }
 
-void testMultipleFramesInOneChunk()
+TEST(StreamAccumulatorTest, MultipleFramesInOneChunk)
 {
     PelcoD::RxStreamAccumulator acc;
 
@@ -52,13 +55,13 @@ void testMultipleFramesInOneChunk()
     stream.insert(stream.end(), frame2.begin(), frame2.end());
 
     const auto extracted = acc.push(stream);
-    assert(extracted.size() == 2U);
-    assert(extracted[0] == frame1);
-    assert(extracted[1] == frame2);
-    assert(acc.size() == 0U);
+    ASSERT_EQ(extracted.size(), 2U);
+    EXPECT_EQ(extracted[0], frame1);
+    EXPECT_EQ(extracted[1], frame2);
+    EXPECT_EQ(acc.size(), 0U);
 }
 
-void testGarbagePreamble()
+TEST(StreamAccumulatorTest, GarbagePreamble)
 {
     PelcoD::RxStreamAccumulator acc;
 
@@ -67,35 +70,25 @@ void testGarbagePreamble()
     noisyData.insert(noisyData.end(), frame.begin(), frame.end());
 
     const auto extracted = acc.push(noisyData);
-    assert(extracted.size() == 1U);
-    assert(extracted[0] == frame);
-    assert(acc.size() == 0U);
+    ASSERT_EQ(extracted.size(), 1U);
+    EXPECT_EQ(extracted[0], frame);
+    EXPECT_EQ(acc.size(), 0U);
 }
 
-void testBufferOverflowReset()
+TEST(StreamAccumulatorTest, BufferOverflowReset)
 {
     PelcoD::RxStreamAccumulator acc(100U);
-    assert(acc.maxBufferSize() == 100U);
+    EXPECT_EQ(acc.maxBufferSize(), 100U);
 
     std::vector<std::uint8_t> garbage(120U, 0x11U);
     const auto extracted = acc.push(garbage);
-    assert(extracted.empty());
-    assert(acc.size() == 0U);
+    EXPECT_TRUE(extracted.empty());
+    EXPECT_EQ(acc.size(), 0U);
 
     const auto validFrame = PelcoD::PelcoDFrame::createFrame(1U, 0x00U, 0x08U, 0x00U, 0x00U);
     const auto extractedValid = acc.push(validFrame);
-    assert(extractedValid.size() == 1U);
-    assert(extractedValid[0] == validFrame);
+    ASSERT_EQ(extractedValid.size(), 1U);
+    EXPECT_EQ(extractedValid[0], validFrame);
 }
 
-int main()
-{
-    std::cout << "[TestStreamAccumulator] Running tests...\n";
-    testSingleFrame();
-    testFragmentedFrame();
-    testMultipleFramesInOneChunk();
-    testGarbagePreamble();
-    testBufferOverflowReset();
-    std::cout << "[TestStreamAccumulator] All tests passed successfully.\n";
-    return 0;
-}
+} // namespace

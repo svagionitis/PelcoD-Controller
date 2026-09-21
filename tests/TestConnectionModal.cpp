@@ -5,13 +5,12 @@
 #include "Terminal.h"
 #include "views/ConnectionModal.h"
 
-#include <cassert>
-#include <iostream>
+#include <gtest/gtest.h>
 #include <string>
 
 using namespace PelcoDTui;
 
-static void testTcpEditing()
+TEST(TestConnectionModal, TcpEditing)
 {
     ConnectionModal modal;
     ConnectionConfig initialCfg;
@@ -22,7 +21,7 @@ static void testTcpEditing()
 
     modal.setConfig(initialCfg);
     modal.setOpen(true);
-    assert(modal.isOpen());
+    EXPECT_TRUE(modal.isOpen());
 
     // Navigate to Field 2 (TCP Host)
     InputEvent downEv { Key::Down, '\0', {} };
@@ -41,7 +40,7 @@ static void testTcpEditing()
     modal.handleInput(InputEvent { Key::Character, '1', {} });
     modal.handleInput(InputEvent { Key::Character, '0', {} });
 
-    assert(modal.getConfig().tcpHost == "127.0.5.10");
+    EXPECT_EQ(modal.getConfig().tcpHost, "127.0.5.10");
 
     // Navigate to Field 3 (TCP Port)
     modal.handleInput(downEv);
@@ -64,13 +63,13 @@ static void testTcpEditing()
     InputEvent enterEv { Key::Enter, '\0', {} };
     modal.handleInput(enterEv);
 
-    assert(!modal.isOpen());
-    assert(modal.hasPendingConnect());
-    assert(modal.getConfig().tcpHost == "127.0.5.10");
-    assert(modal.getConfig().tcpPort == 4001U);
+    EXPECT_FALSE(modal.isOpen());
+    EXPECT_TRUE(modal.hasPendingConnect());
+    EXPECT_EQ(modal.getConfig().tcpHost, "127.0.5.10");
+    EXPECT_EQ(modal.getConfig().tcpPort, 4001U);
 }
 
-static void testUdpEditing()
+TEST(TestConnectionModal, UdpEditing)
 {
     ConnectionModal modal;
     ConnectionConfig initialCfg;
@@ -81,7 +80,7 @@ static void testUdpEditing()
 
     modal.setConfig(initialCfg);
     modal.setOpen(true);
-    assert(modal.isOpen());
+    EXPECT_TRUE(modal.isOpen());
 
     // Navigate to Field 2 (UDP Host)
     InputEvent downEv { Key::Down, '\0', {} };
@@ -100,7 +99,7 @@ static void testUdpEditing()
     modal.handleInput(InputEvent { Key::Character, '2', {} });
     modal.handleInput(InputEvent { Key::Character, '0', {} });
 
-    assert(modal.getConfig().udpHost == "127.0.8.20");
+    EXPECT_EQ(modal.getConfig().udpHost, "127.0.8.20");
 
     // Navigate to Field 3 (UDP Port)
     modal.handleInput(downEv);
@@ -120,13 +119,13 @@ static void testUdpEditing()
     InputEvent enterEv { Key::Enter, '\0', {} };
     modal.handleInput(enterEv);
 
-    assert(!modal.isOpen());
-    assert(modal.hasPendingConnect());
-    assert(modal.getConfig().udpHost == "127.0.8.20");
-    assert(modal.getConfig().udpPort == 5005U);
+    EXPECT_FALSE(modal.isOpen());
+    EXPECT_TRUE(modal.hasPendingConnect());
+    EXPECT_EQ(modal.getConfig().udpHost, "127.0.8.20");
+    EXPECT_EQ(modal.getConfig().udpPort, 5005U);
 }
 
-static void testSerialEditingAndHotkeys()
+TEST(TestConnectionModal, SerialEditingAndHotkeys)
 {
     ConnectionModal modal;
     ConnectionConfig cfg;
@@ -148,22 +147,22 @@ static void testSerialEditingAndHotkeys()
 
     // Type 'q' and '1' - 'q' should NOT quit modal while editing text!
     modal.handleInput(InputEvent { Key::Character, 'q', {} });
-    assert(modal.isOpen());
+    EXPECT_TRUE(modal.isOpen());
     modal.handleInput(bsEv);
 
     modal.handleInput(InputEvent { Key::Character, '1', {} });
-    assert(modal.getConfig().serialPort == "/dev/ttyUSB1");
+    EXPECT_EQ(modal.getConfig().serialPort, "/dev/ttyUSB1");
 
     // Press Enter
     InputEvent enterEv { Key::Enter, '\0', {} };
     modal.handleInput(enterEv);
 
-    assert(!modal.isOpen());
-    assert(modal.hasPendingConnect());
-    assert(modal.getConfig().serialPort == "/dev/ttyUSB1");
+    EXPECT_FALSE(modal.isOpen());
+    EXPECT_TRUE(modal.hasPendingConnect());
+    EXPECT_EQ(modal.getConfig().serialPort, "/dev/ttyUSB1");
 }
 
-static void testValidationAndRendering()
+TEST(TestConnectionModal, ValidationAndRendering)
 {
     ConnectionModal modal;
     ConnectionConfig cfg;
@@ -190,8 +189,8 @@ static void testValidationAndRendering()
     modal.handleInput(enterEv);
 
     // Should fail validation and remain open
-    assert(modal.isOpen());
-    assert(!modal.hasPendingConnect());
+    EXPECT_TRUE(modal.isOpen());
+    EXPECT_FALSE(modal.hasPendingConnect());
 
     // Render canvas
     Canvas canvas(80, 24);
@@ -200,10 +199,10 @@ static void testValidationAndRendering()
     // Close via Escape
     InputEvent escEv { Key::Escape, '\0', {} };
     modal.handleInput(escEv);
-    assert(!modal.isOpen());
+    EXPECT_FALSE(modal.isOpen());
 }
 
-static void testSerialPortCycling()
+TEST(TestConnectionModal, SerialPortCycling)
 {
     ConnectionModal modal;
     ConnectionConfig cfg;
@@ -223,22 +222,10 @@ static void testSerialPortCycling()
     InputEvent pgUp { Key::PageUp, '\0', {} };
     modal.handleInput(pgDn);
     modal.handleInput(pgUp);
-    assert(!modal.getConfig().serialPort.empty());
+    EXPECT_FALSE(modal.getConfig().serialPort.empty());
 
     // Close via Escape
     InputEvent escEv { Key::Escape, '\0', {} };
     modal.handleInput(escEv);
-    assert(!modal.isOpen());
-}
-
-int main()
-{
-    std::cout << "[TestConnectionModal] Running tests..." << std::endl;
-    testTcpEditing();
-    testUdpEditing();
-    testSerialEditingAndHotkeys();
-    testValidationAndRendering();
-    testSerialPortCycling();
-    std::cout << "[TestConnectionModal] All tests passed successfully." << std::endl;
-    return 0;
+    EXPECT_FALSE(modal.isOpen());
 }

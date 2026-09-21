@@ -4,7 +4,7 @@
 #include "SpectrogramColorMap.h"
 #include "Stft.h"
 
-#include <cassert>
+#include <gtest/gtest.h>
 #include <cmath>
 #include <iostream>
 #include <random>
@@ -23,7 +23,7 @@ bool approxEqual(double a, double b, double eps = TEST_EPSILON)
 // ============================================================================
 // 1. Single Stationary Tone Test
 // ============================================================================
-void testSingleStationaryTone()
+TEST(StftTest, SingleStationaryTone)
 {
     std::cout << "[Test] Single stationary tone tracking (5 Hz tone at 50 Hz sample rate)..." << std::endl;
 
@@ -35,7 +35,7 @@ void testSingleStationaryTone()
     config.detrend = true;
 
     PelcoD::Stft stft(config);
-    assert(!stft.hasFrames());
+    EXPECT_TRUE(!stft.hasFrames());
 
     const double f0 = 5.0; // 5 Hz
     const double dt = 1.0 / config.sampleRateHz;
@@ -47,15 +47,15 @@ void testSingleStationaryTone()
         stft.addSample(sample, t);
     }
 
-    assert(stft.hasFrames());
+    EXPECT_TRUE(stft.hasFrames());
     auto history = stft.getHistory();
-    assert(history.size() >= 4);
+    EXPECT_TRUE(history.size() >= 4);
 
     // Each frame should lock onto 5 Hz (within bin resolution df = 50 / 128 = 0.39 Hz)
     for (const auto& frame : history) {
-        assert(approxEqual(frame.peakFrequencyHz, f0, 0.45));
-        assert(frame.powerRatio > 0.60); // Over 60% of total energy in peak bin
-        assert(frame.spectralFlatness < 0.05); // Low flatness for pure harmonic tone
+        EXPECT_TRUE(approxEqual(frame.peakFrequencyHz, f0, 0.45));
+        EXPECT_TRUE(frame.powerRatio > 0.60); // Over 60% of total energy in peak bin
+        EXPECT_TRUE(frame.spectralFlatness < 0.05); // Low flatness for pure harmonic tone
     }
 
     std::cout << "  -> Passed!" << std::endl;
@@ -64,7 +64,7 @@ void testSingleStationaryTone()
 // ============================================================================
 // 2. Linear Frequency Chirp Sweep Test
 // ============================================================================
-void testLinearFrequencyChirp()
+TEST(StftTest, LinearFrequencyChirp)
 {
     std::cout << "[Test] Linear frequency chirp sweep (2 Hz to 18 Hz)..." << std::endl;
 
@@ -89,15 +89,15 @@ void testLinearFrequencyChirp()
     }
 
     auto history = stft.getHistory();
-    assert(history.size() >= 5);
+    EXPECT_TRUE(history.size() >= 5);
 
     // Initial frame should be near 2-4 Hz; final frame should be near 16-18 Hz
     double firstFreq = history.front().peakFrequencyHz;
     double lastFreq = history.back().peakFrequencyHz;
 
-    assert(firstFreq < 6.0);
-    assert(lastFreq > 14.0);
-    assert(lastFreq > firstFreq); // Monotonic increase
+    EXPECT_TRUE(firstFreq < 6.0);
+    EXPECT_TRUE(lastFreq > 14.0);
+    EXPECT_TRUE(lastFreq > firstFreq); // Monotonic increase
 
     std::cout << "  -> Passed! (First frame: " << firstFreq << " Hz, Last frame: " << lastFreq << " Hz)" << std::endl;
 }
@@ -105,7 +105,7 @@ void testLinearFrequencyChirp()
 // ============================================================================
 // 3. Two-Tone Resolution Test
 // ============================================================================
-void testTwoToneResolution()
+TEST(StftTest, TwoToneResolution)
 {
     std::cout << "[Test] Two-tone simultaneous frequency resolution..." << std::endl;
 
@@ -142,8 +142,8 @@ void testTwoToneResolution()
         }
     }
 
-    assert(powerAtF1 > 0.1);
-    assert(powerAtF2 > 0.1);
+    EXPECT_TRUE(powerAtF1 > 0.1);
+    EXPECT_TRUE(powerAtF2 > 0.1);
 
     std::cout << "  -> Passed!" << std::endl;
 }
@@ -151,7 +151,7 @@ void testTwoToneResolution()
 // ============================================================================
 // 4. Hop Size and Overlap Ratio Test
 // ============================================================================
-void testHopSizeAndOverlap()
+TEST(StftTest, HopSizeAndOverlap)
 {
     std::cout << "[Test] Hop size and overlap frame count verification..." << std::endl;
 
@@ -166,19 +166,19 @@ void testHopSizeAndOverlap()
     for (int i = 0; i < 64; ++i) {
         stft.addSample(1.0);
     }
-    assert(stft.getHistory().size() == 1);
+    EXPECT_TRUE(stft.getHistory().size() == 1);
 
     // Feeding next 32 samples (hop size) should produce 2nd frame
     for (int i = 0; i < 32; ++i) {
         stft.addSample(1.0);
     }
-    assert(stft.getHistory().size() == 2);
+    EXPECT_TRUE(stft.getHistory().size() == 2);
 
     // Feeding next 32 samples should produce 3rd frame
     for (int i = 0; i < 32; ++i) {
         stft.addSample(1.0);
     }
-    assert(stft.getHistory().size() == 3);
+    EXPECT_TRUE(stft.getHistory().size() == 3);
 
     std::cout << "  -> Passed!" << std::endl;
 }
@@ -186,7 +186,7 @@ void testHopSizeAndOverlap()
 // ============================================================================
 // 5. Spectral Flatness Test (Pure Tone vs White Noise)
 // ============================================================================
-void testSpectralFlatness()
+TEST(StftTest, SpectralFlatness)
 {
     std::cout << "[Test] Spectral flatness (Wiener entropy) discrimination..." << std::endl;
 
@@ -214,9 +214,9 @@ void testSpectralFlatness()
     }
     double noiseFlatness = stftNoise.getLatestFrame().spectralFlatness;
 
-    assert(toneFlatness < 0.05);
-    assert(noiseFlatness > 0.40);
-    assert(noiseFlatness > 8.0 * toneFlatness);
+    EXPECT_TRUE(toneFlatness < 0.05);
+    EXPECT_TRUE(noiseFlatness > 0.40);
+    EXPECT_TRUE(noiseFlatness > 8.0 * toneFlatness);
 
     std::cout << "  -> Passed! (Tone flatness: " << toneFlatness << ", Noise flatness: " << noiseFlatness << ")"
               << std::endl;
@@ -225,7 +225,7 @@ void testSpectralFlatness()
 // ============================================================================
 // 6. Colormap Mapping Test
 // ============================================================================
-void testColormaps()
+TEST(StftTest, Colormaps)
 {
     std::cout << "[Test] Colormap stop interpolation and ANSI escape generation..." << std::endl;
 
@@ -234,19 +234,19 @@ void testColormaps()
     // Boundary checks
     auto c0 = PelcoD::SpectrogramColorMap::mapNormalized(0.0, Preset::Inferno);
     auto c1 = PelcoD::SpectrogramColorMap::mapNormalized(1.0, Preset::Inferno);
-    assert(c0.r == 0 && c0.g == 0 && c0.b == 4);
-    assert(c1.r == 252 && c1.g == 255 && c1.b == 164);
+    EXPECT_TRUE(c0.r == 0 && c0.g == 0 && c0.b == 4);
+    EXPECT_TRUE(c1.r == 252 && c1.g == 255 && c1.b == 164);
 
     // Decibel mapping
     auto cMidDb = PelcoD::SpectrogramColorMap::mapDb(-30.0, -60.0, 0.0, Preset::Viridis);
     auto cMidNorm = PelcoD::SpectrogramColorMap::mapNormalized(0.5, Preset::Viridis);
-    assert(cMidDb == cMidNorm);
+    EXPECT_TRUE(cMidDb == cMidNorm);
 
     // ANSI half-block string generation
     std::string ansi = PelcoD::SpectrogramColorMap::mapHalfBlockAnsi(0.8, 0.2, Preset::TacticalGreen);
-    assert(ansi.find("\x1b[38;2;") != std::string::npos);
-    assert(ansi.find("\x1b[48;2;") != std::string::npos);
-    assert(ansi.find("\xE2\x96\x80") != std::string::npos);
+    EXPECT_TRUE(ansi.find("\x1b[38;2;") != std::string::npos);
+    EXPECT_TRUE(ansi.find("\x1b[48;2;") != std::string::npos);
+    EXPECT_TRUE(ansi.find("\xE2\x96\x80") != std::string::npos);
 
     std::cout << "  -> Passed!" << std::endl;
 }
@@ -254,7 +254,7 @@ void testColormaps()
 // ============================================================================
 // 7. Rolling History Retention Cap Test
 // ============================================================================
-void testHistoryCap()
+TEST(StftTest, HistoryCap)
 {
     std::cout << "[Test] Rolling history capacity cap enforcement..." << std::endl;
 
@@ -270,34 +270,14 @@ void testHistoryCap()
         stft.addSample(static_cast<double>(i));
     }
 
-    assert(stft.getHistory().size() == 10U);
+    EXPECT_TRUE(stft.getHistory().size() == 10U);
 
     stft.reset();
-    assert(!stft.hasFrames());
-    assert(stft.getHistory().empty());
+    EXPECT_TRUE(!stft.hasFrames());
+    EXPECT_TRUE(stft.getHistory().empty());
 
     std::cout << "  -> Passed!" << std::endl;
 }
 
 } // namespace
 
-int main()
-{
-    std::cout << "====================================================" << std::endl;
-    std::cout << "Starting Short-Time Fourier Transform (STFT) Tests" << std::endl;
-    std::cout << "====================================================" << std::endl;
-
-    testSingleStationaryTone();
-    testLinearFrequencyChirp();
-    testTwoToneResolution();
-    testHopSizeAndOverlap();
-    testSpectralFlatness();
-    testColormaps();
-    testHistoryCap();
-
-    std::cout << "====================================================" << std::endl;
-    std::cout << "ALL STFT & SPECTROGRAM TESTS PASSED SUCCESSFULLY!" << std::endl;
-    std::cout << "====================================================" << std::endl;
-
-    return 0;
-}

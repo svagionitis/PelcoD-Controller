@@ -4,7 +4,7 @@
 #include "ChirpCalibrator.h"
 #include "PlantIdentifier.h"
 
-#include <cassert>
+#include <gtest/gtest.h>
 #include <cmath>
 #include <iostream>
 #include <vector>
@@ -14,7 +14,7 @@ namespace {
 constexpr double PI { 3.14159265358979323846 };
 constexpr double TWO_PI { 2.0 * PI };
 
-void testChirpGeneration()
+TEST(PlantIdentifierTest, ChirpGeneration)
 {
     std::cout << "[Test] Chirp signal generation and envelope tapering...\n";
 
@@ -29,15 +29,15 @@ void testChirpGeneration()
     PelcoD::PlantIdentifier identifier(config);
 
     // Boundary conditions
-    assert(identifier.generateChirpSample(-0.1) == 0.0);
-    assert(identifier.generateChirpSample(4.1) == 0.0);
+    EXPECT_TRUE(identifier.generateChirpSample(-0.1) == 0.0);
+    EXPECT_TRUE(identifier.generateChirpSample(4.1) == 0.0);
 
     // Verify envelope smoothly tapers up from zero
     const double valStart = identifier.generateChirpSample(0.0);
-    assert(std::abs(valStart) < 1e-6);
+    EXPECT_TRUE(std::abs(valStart) < 1e-6);
 
     const double valEnd = identifier.generateChirpSample(4.0);
-    assert(std::abs(valEnd) < 1e-6);
+    EXPECT_TRUE(std::abs(valEnd) < 1e-6);
 
     // Logarithmic chirp
     config.type = PelcoD::ChirpType::Logarithmic;
@@ -49,7 +49,7 @@ void testChirpGeneration()
     for (std::size_t i = 0; i < numSamples; ++i) {
         const double t = static_cast<double>(i) / config.sampleRateHz;
         const double sample = identifier.generateChirpSample(t);
-        assert(std::abs(sample) <= 1.0001); // Clamped within peak amplitude
+        EXPECT_TRUE(std::abs(sample) <= 1.0001); // Clamped within peak amplitude
         if (sample > 0.2) {
             hasPositive = true;
         }
@@ -57,12 +57,12 @@ void testChirpGeneration()
             hasNegative = true;
         }
     }
-    assert(hasPositive && hasNegative);
+    EXPECT_TRUE(hasPositive && hasNegative);
 
     std::cout << "  -> Passed!\n";
 }
 
-void testFirstOrderPlantIdentification()
+TEST(PlantIdentifierTest, FirstOrderPlantIdentification)
 {
     std::cout << "[Test] First-order physical plant identification (K=2.0, Tau=0.1s)...\n";
 
@@ -98,25 +98,25 @@ void testFirstOrderPlantIdentification()
 
     const auto result = identifier.analyze(u, y);
 
-    assert(result.success);
-    assert(!result.bode.frequenciesHz.empty());
+    EXPECT_TRUE(result.success);
+    EXPECT_TRUE(!result.bode.frequenciesHz.empty());
 
     // DC gain K should be close to 2.0 (within 20% empirical tolerance)
     std::cout << "  -> Identified DC Gain K: " << result.fopdt.dcGainK << " (True: " << trueK << ")\n";
-    assert(std::abs(result.fopdt.dcGainK - trueK) < 0.4);
+    EXPECT_TRUE(std::abs(result.fopdt.dcGainK - trueK) < 0.4);
 
     // Verify low-pass roll-off: high-frequency magnitude should be significantly lower than DC
     const double dcMag = result.bode.magnitudeDb[1];
     const double hfMag = result.bode.magnitudeDb[result.bode.magnitudeDb.size() / 2];
-    assert(hfMag < (dcMag - 6.0)); // At least 6 dB attenuation at higher frequencies
+    EXPECT_TRUE(hfMag < (dcMag - 6.0)); // At least 6 dB attenuation at higher frequencies
 
     // Verify phase lag is negative
-    assert(result.bode.phaseDeg[result.bode.phaseDeg.size() / 2] < 0.0);
+    EXPECT_TRUE(result.bode.phaseDeg[result.bode.phaseDeg.size() / 2] < 0.0);
 
     std::cout << "  -> Passed!\n";
 }
 
-void testSecondOrderResonanceDetection()
+TEST(PlantIdentifierTest, SecondOrderResonanceDetection)
 {
     std::cout << "[Test] Second-order mechanical plant with structural resonance at 4.0 Hz...\n";
 
@@ -162,19 +162,19 @@ void testSecondOrderResonanceDetection()
 
     const auto result = identifier.analyze(u, y);
 
-    assert(result.success);
-    assert(!result.resonancePeaks.empty());
+    EXPECT_TRUE(result.success);
+    EXPECT_TRUE(!result.resonancePeaks.empty());
 
     const double detectedResFreq = result.resonancePeaks.front().frequencyHz;
     std::cout << "  -> Detected Resonance Mode: " << detectedResFreq
               << " Hz (Expected ~ 4.0 Hz, Q=" << result.resonancePeaks.front().qFactor << ")\n";
 
-    assert(std::abs(detectedResFreq - fn) <= 0.6); // Within 0.6 Hz frequency resolution
+    EXPECT_TRUE(std::abs(detectedResFreq - fn) <= 0.6); // Within 0.6 Hz frequency resolution
 
     std::cout << "  -> Passed!\n";
 }
 
-void testCoherenceEstimation()
+TEST(PlantIdentifierTest, CoherenceEstimation)
 {
     std::cout << "[Test] Spectral coherence under clean vs noisy measurements...\n";
 
@@ -205,7 +205,7 @@ void testCoherenceEstimation()
     }
 
     const auto resClean = identifier.analyze(u, yClean);
-    assert(resClean.success);
+    EXPECT_TRUE(resClean.success);
 
     // Coherence for clean linear system should be high (> 0.8) across in-band bins
     double meanCleanCoh = 0.0;
@@ -215,10 +215,10 @@ void testCoherenceEstimation()
         ++count;
     }
     meanCleanCoh /= static_cast<double>(count);
-    assert(meanCleanCoh > 0.85);
+    EXPECT_TRUE(meanCleanCoh > 0.85);
 
     const auto resNoisy = identifier.analyze(u, yNoisy);
-    assert(resNoisy.success);
+    EXPECT_TRUE(resNoisy.success);
 
     // Coherence under heavy noise should be lower
     double meanNoisyCoh = 0.0;
@@ -226,13 +226,13 @@ void testCoherenceEstimation()
         meanNoisyCoh += resNoisy.bode.coherence[i];
     }
     meanNoisyCoh /= static_cast<double>(count);
-    assert(meanNoisyCoh < meanCleanCoh);
+    EXPECT_TRUE(meanNoisyCoh < meanCleanCoh);
 
     std::cout << "  -> Clean Coherence: " << meanCleanCoh << ", Noisy Coherence: " << meanNoisyCoh << "\n";
     std::cout << "  -> Passed!\n";
 }
 
-void testPidAutoTuningRules()
+TEST(PlantIdentifierTest, PidAutoTuningRules)
 {
     std::cout << "[Test] PID auto-tuning algorithms (Tyreus-Luyben, ZN, AMIGO, IMC)...\n";
 
@@ -259,38 +259,38 @@ void testPidAutoTuningRules()
 
     // 1. Tyreus-Luyben
     const auto tl = identifier.computePidGains(PelcoD::TuningRule::TyreusLuyben);
-    assert(tl.kp > 0.0);
-    assert(tl.ki > 0.0);
-    assert(tl.kd > 0.0);
+    EXPECT_TRUE(tl.kp > 0.0);
+    EXPECT_TRUE(tl.ki > 0.0);
+    EXPECT_TRUE(tl.kd > 0.0);
     std::cout << "  -> Tyreus-Luyben: Kp=" << tl.kp << ", Ki=" << tl.ki << ", Kd=" << tl.kd << "\n";
 
     // 2. Ziegler-Nichols
     const auto zn = identifier.computePidGains(PelcoD::TuningRule::ZieglerNichols);
-    assert(zn.kp > 0.0);
-    assert(zn.ki > 0.0);
-    assert(zn.kd > 0.0);
+    EXPECT_TRUE(zn.kp > 0.0);
+    EXPECT_TRUE(zn.ki > 0.0);
+    EXPECT_TRUE(zn.kd > 0.0);
     // Tyreus-Luyben must be more conservative than Ziegler-Nichols (lower Kp)
-    assert(tl.kp < zn.kp);
+    EXPECT_TRUE(tl.kp < zn.kp);
     std::cout << "  -> Ziegler-Nichols: Kp=" << zn.kp << ", Ki=" << zn.ki << ", Kd=" << zn.kd << "\n";
 
     // 3. AMIGO
     const auto amigo = identifier.computePidGains(PelcoD::TuningRule::Amigo);
-    assert(amigo.kp > 0.0);
-    assert(amigo.ki > 0.0);
-    assert(amigo.kd >= 0.0);
+    EXPECT_TRUE(amigo.kp > 0.0);
+    EXPECT_TRUE(amigo.ki > 0.0);
+    EXPECT_TRUE(amigo.kd >= 0.0);
     std::cout << "  -> AMIGO: Kp=" << amigo.kp << ", Ki=" << amigo.ki << ", Kd=" << amigo.kd << "\n";
 
     // 4. IMC
     const auto imc = identifier.computePidGains(PelcoD::TuningRule::Imc);
-    assert(imc.kp > 0.0);
-    assert(imc.ki > 0.0);
-    assert(imc.kd >= 0.0);
+    EXPECT_TRUE(imc.kp > 0.0);
+    EXPECT_TRUE(imc.ki > 0.0);
+    EXPECT_TRUE(imc.kd >= 0.0);
     std::cout << "  -> IMC: Kp=" << imc.kp << ", Ki=" << imc.ki << ", Kd=" << imc.kd << "\n";
 
     std::cout << "  -> Passed!\n";
 }
 
-void testChirpCalibratorWorkflowAndCancel()
+TEST(PlantIdentifierTest, ChirpCalibratorWorkflowAndCancel)
 {
     std::cout << "[Test] ChirpCalibrator state progression, command dispatch, and cancellation...\n";
 
@@ -313,61 +313,43 @@ void testChirpCalibratorWorkflowAndCancel()
         },
         config);
 
-    assert(calibrator.getState() == PelcoD::ChirpCalibratorState::Idle);
+    EXPECT_TRUE(calibrator.getState() == PelcoD::ChirpCalibratorState::Idle);
 
     // Start calibration sweep on Pan axis with maxSpeed = 30
     const bool started = calibrator.start(PelcoD::CalibrationAxis::Pan, 30, 100.0);
-    assert(started);
-    assert(calibrator.isRunning());
-    assert(calibrator.getState() == PelcoD::ChirpCalibratorState::PreSettle);
+    EXPECT_TRUE(started);
+    EXPECT_TRUE(calibrator.isRunning());
+    EXPECT_TRUE(calibrator.getState() == PelcoD::ChirpCalibratorState::PreSettle);
 
     // During PreSettle, motor should be stopped
     calibrator.update(100.1);
-    assert(commandedPanSpeed == 0);
+    EXPECT_TRUE(commandedPanSpeed == 0);
 
     // Advance past PreSettle (0.40s) into Sweeping
     calibrator.update(100.5);
-    assert(calibrator.getState() == PelcoD::ChirpCalibratorState::Sweeping);
+    EXPECT_TRUE(calibrator.getState() == PelcoD::ChirpCalibratorState::Sweeping);
 
     // During sweeping, motor commands should be dispatched and bounded by maxSpeed 30
     bool commandedMotion = false;
     for (double t = 100.5; t < 102.5; t += 0.02) {
         calibrator.update(t);
         calibrator.ingestVisualMotion(t, 5.0, 0.0);
-        assert(commandedPanSpeed <= 30);
-        assert(commandedTiltSpeed == 0); // Only pan excited
+        EXPECT_TRUE(commandedPanSpeed <= 30);
+        EXPECT_TRUE(commandedTiltSpeed == 0); // Only pan excited
         if (commandedPanSpeed > 0) {
             commandedMotion = true;
         }
     }
-    assert(commandedMotion);
+    EXPECT_TRUE(commandedMotion);
 
     // Test cancellation halts motion and resets state
     calibrator.cancel();
-    assert(!calibrator.isRunning());
-    assert(calibrator.getState() == PelcoD::ChirpCalibratorState::Idle);
-    assert(commandedPanSpeed == 0 && commandedPanDir == 0);
+    EXPECT_TRUE(!calibrator.isRunning());
+    EXPECT_TRUE(calibrator.getState() == PelcoD::ChirpCalibratorState::Idle);
+    EXPECT_TRUE(commandedPanSpeed == 0 && commandedPanDir == 0);
 
     std::cout << "  -> Passed!\n";
 }
 
 } // namespace
 
-int main()
-{
-    std::cout << "====================================================\n";
-    std::cout << "Starting Plant Identifier & Bode Auto-Tune Tests\n";
-    std::cout << "====================================================\n";
-
-    testChirpGeneration();
-    testFirstOrderPlantIdentification();
-    testSecondOrderResonanceDetection();
-    testCoherenceEstimation();
-    testPidAutoTuningRules();
-    testChirpCalibratorWorkflowAndCancel();
-
-    std::cout << "====================================================\n";
-    std::cout << "ALL PLANT IDENTIFICATION & BODE TESTS PASSED!\n";
-    std::cout << "====================================================\n";
-    return 0;
-}

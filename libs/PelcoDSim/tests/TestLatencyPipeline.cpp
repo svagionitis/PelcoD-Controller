@@ -4,11 +4,11 @@
 
 #include "LatencyPipeline.h"
 
+#include <gtest/gtest.h>
+
 #include <atomic>
-#include <cassert>
 #include <chrono>
 #include <cstdint>
-#include <iostream>
 #include <thread>
 #include <vector>
 
@@ -21,23 +21,18 @@ void sleepMs(int ms)
     std::this_thread::sleep_for(std::chrono::milliseconds(ms));
 }
 
-// ---------------------------------------------------------------------------
-
-void testDefaultConfigDisabled()
+TEST(LatencyPipelineTest, DefaultConfigDisabled)
 {
-    std::cout << "[Test] testDefaultConfigDisabled\n";
     LatencyPipeline pipeline;
     const auto cfg = pipeline.getConfig();
-    assert(!cfg.enabled);
-    assert(cfg.baseLatencyMs == 0U);
-    assert(cfg.jitterMs == 0U);
-    assert(cfg.packetDropPercent == 0.0);
-    std::cout << "  -> PASSED\n";
+    EXPECT_FALSE(cfg.enabled);
+    EXPECT_EQ(cfg.baseLatencyMs, 0U);
+    EXPECT_EQ(cfg.jitterMs, 0U);
+    EXPECT_DOUBLE_EQ(cfg.packetDropPercent, 0.0);
 }
 
-void testSetAndGetConfig()
+TEST(LatencyPipelineTest, SetAndGetConfig)
 {
-    std::cout << "[Test] testSetAndGetConfig\n";
     LatencyPipeline pipeline;
     LatencyConfig cfg;
     cfg.enabled = true;
@@ -47,16 +42,14 @@ void testSetAndGetConfig()
     pipeline.setConfig(cfg);
 
     const auto got = pipeline.getConfig();
-    assert(got.enabled);
-    assert(got.baseLatencyMs == 50U);
-    assert(got.jitterMs == 10U);
-    assert(got.packetDropPercent == 5.0);
-    std::cout << "  -> PASSED\n";
+    EXPECT_TRUE(got.enabled);
+    EXPECT_EQ(got.baseLatencyMs, 50U);
+    EXPECT_EQ(got.jitterMs, 10U);
+    EXPECT_DOUBLE_EQ(got.packetDropPercent, 5.0);
 }
 
-void testEnqueueDeliveredWithZeroLatency()
+TEST(LatencyPipelineTest, EnqueueDeliveredWithZeroLatency)
 {
-    std::cout << "[Test] testEnqueueDeliveredWithZeroLatency\n";
     LatencyPipeline pipeline;
     LatencyConfig cfg;
     cfg.enabled = true;
@@ -69,19 +62,17 @@ void testEnqueueDeliveredWithZeroLatency()
     const std::vector<std::uint8_t> pkt { 0x01U, 0x02U, 0x03U };
 
     pipeline.enqueue(pkt, [&](const std::vector<std::uint8_t>& data) {
-        assert(data == pkt);
+        EXPECT_EQ(data, pkt);
         ++deliveries;
     });
 
     // With 0 latency, should deliver quickly
     sleepMs(100);
-    assert(deliveries.load() == 1);
-    std::cout << "  -> PASSED\n";
+    EXPECT_EQ(deliveries.load(), 1);
 }
 
-void testEnqueueMultiplePackets()
+TEST(LatencyPipelineTest, EnqueueMultiplePackets)
 {
-    std::cout << "[Test] testEnqueueMultiplePackets\n";
     LatencyPipeline pipeline;
     LatencyConfig cfg;
     cfg.enabled = true;
@@ -96,13 +87,11 @@ void testEnqueueMultiplePackets()
     }
 
     sleepMs(200);
-    assert(count.load() == N);
-    std::cout << "  -> PASSED\n";
+    EXPECT_EQ(count.load(), N);
 }
 
-void testFlushDiscardsPackets()
+TEST(LatencyPipelineTest, FlushDiscardsPackets)
 {
-    std::cout << "[Test] testFlushDiscardsPackets\n";
     LatencyPipeline pipeline;
     LatencyConfig cfg;
     cfg.enabled = true;
@@ -117,14 +106,11 @@ void testFlushDiscardsPackets()
     pipeline.flush();
     sleepMs(500);
     // After flush, delivered count should be < 5 (possibly 0)
-    assert(delivered.load() < 5);
-    std::cout << "  delivered after flush=" << delivered.load() << "\n";
-    std::cout << "  -> PASSED\n";
+    EXPECT_LT(delivered.load(), 5);
 }
 
-void testStopStopsWorker()
+TEST(LatencyPipelineTest, StopStopsWorker)
 {
-    std::cout << "[Test] testStopStopsWorker\n";
     LatencyPipeline pipeline;
     LatencyConfig cfg;
     cfg.enabled = true;
@@ -134,13 +120,11 @@ void testStopStopsWorker()
     pipeline.enqueue({ 0x01U }, [](const auto&) {});
     sleepMs(50);
     pipeline.stop();
-    assert(!pipeline.isWorkerActive());
-    std::cout << "  -> PASSED\n";
+    EXPECT_FALSE(pipeline.isWorkerActive());
 }
 
-void testWorkerActiveAfterEnqueue()
+TEST(LatencyPipelineTest, WorkerActiveAfterEnqueue)
 {
-    std::cout << "[Test] testWorkerActiveAfterEnqueue\n";
     LatencyPipeline pipeline;
     LatencyConfig cfg;
     cfg.enabled = true;
@@ -151,14 +135,12 @@ void testWorkerActiveAfterEnqueue()
     pipeline.enqueue({ 0xFFU }, [](const auto&) {});
     sleepMs(10);
     // Worker should be active while packet is pending
-    assert(pipeline.isWorkerActive());
+    EXPECT_TRUE(pipeline.isWorkerActive());
     sleepMs(200); // Wait for delivery
-    std::cout << "  -> PASSED\n";
 }
 
-void testPacketDropReducesDeliveries()
+TEST(LatencyPipelineTest, PacketDropReducesDeliveries)
 {
-    std::cout << "[Test] testPacketDropReducesDeliveries\n";
     LatencyPipeline pipeline;
     LatencyConfig cfg;
     cfg.enabled = true;
@@ -172,24 +154,7 @@ void testPacketDropReducesDeliveries()
     }
     sleepMs(300);
     // With 100% drop rate, zero packets should be delivered
-    assert(delivered.load() == 0);
-    std::cout << "  delivered=" << delivered.load() << " (expected 0)\n";
-    std::cout << "  -> PASSED\n";
+    EXPECT_EQ(delivered.load(), 0);
 }
 
 } // namespace
-
-int main()
-{
-    std::cout << "Running TestLatencyPipeline Test Suite\n";
-    testDefaultConfigDisabled();
-    testSetAndGetConfig();
-    testEnqueueDeliveredWithZeroLatency();
-    testEnqueueMultiplePackets();
-    testFlushDiscardsPackets();
-    testStopStopsWorker();
-    testWorkerActiveAfterEnqueue();
-    testPacketDropReducesDeliveries();
-    std::cout << "All TestLatencyPipeline Tests Passed!\n";
-    return 0;
-}

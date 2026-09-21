@@ -6,7 +6,7 @@
 
 #include <QCoreApplication>
 #include <QThread>
-#include <cassert>
+#include <gtest/gtest.h>
 #include <chrono>
 #include <iostream>
 #include <memory>
@@ -19,7 +19,7 @@
 
 using namespace PelcoDTest;
 
-static void testNoDuplicateSignalsOnReconnection()
+TEST(QPelcoDDeviceTest, NoDuplicateSignalsOnReconnection)
 {
     auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(1U);
     PelcoDQt::QPelcoDDevice device(mock, 1U);
@@ -33,8 +33,8 @@ static void testNoDuplicateSignalsOnReconnection()
         });
 
     // 1st Connection cycle
-    assert(device.connectDevice());
-    assert(device.isConnected());
+    EXPECT_TRUE(device.connectDevice());
+    EXPECT_TRUE(device.isConnected());
 
     device.panRight(20);
     for (int i = 0; i < 20; ++i) {
@@ -42,15 +42,15 @@ static void testNoDuplicateSignalsOnReconnection()
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
 
-    assert(txCount == 1);
+    EXPECT_TRUE(txCount == 1);
 
     // Disconnect
     device.disconnectDevice();
-    assert(!device.isConnected());
+    EXPECT_TRUE(!device.isConnected());
 
     // 2nd Connection cycle (reconnect on same instance)
-    assert(device.connectDevice());
-    assert(device.isConnected());
+    EXPECT_TRUE(device.connectDevice());
+    EXPECT_TRUE(device.isConnected());
 
     // Reset counter and send a second command
     txCount = 0;
@@ -62,11 +62,11 @@ static void testNoDuplicateSignalsOnReconnection()
     }
 
     // Must be emitted EXACTLY ONCE, not duplicated
-    assert(txCount == 1);
+    EXPECT_TRUE(txCount == 1);
 
     // 3rd Connection cycle
     device.disconnectDevice();
-    assert(device.connectDevice());
+    EXPECT_TRUE(device.connectDevice());
 
     txCount = 0;
     device.stopMotion();
@@ -76,12 +76,12 @@ static void testNoDuplicateSignalsOnReconnection()
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
 
-    assert(txCount == 1);
+    EXPECT_TRUE(txCount == 1);
 
     device.disconnectDevice();
 }
 
-static void testAsyncConnectSignalsEmittedOnMainThread()
+TEST(QPelcoDDeviceTest, AsyncConnectSignalsEmittedOnMainThread)
 {
     const auto* mainThread = QThread::currentThread();
 
@@ -111,20 +111,20 @@ static void testAsyncConnectSignalsEmittedOnMainThread()
             std::this_thread::sleep_for(std::chrono::milliseconds(10));
         }
 
-        assert(device.isConnected());
-        assert(connectingSignals.size() == 2U);
-        assert(connectingSignals[0].first == true);
-        assert(connectingSignals[0].second == mainThread);
-        assert(connectingSignals[1].first == false);
-        assert(connectingSignals[1].second == mainThread);
+        EXPECT_TRUE(device.isConnected());
+        EXPECT_TRUE(connectingSignals.size() == 2U);
+        EXPECT_TRUE(connectingSignals[0].first == true);
+        EXPECT_TRUE(connectingSignals[0].second == mainThread);
+        EXPECT_TRUE(connectingSignals[1].first == false);
+        EXPECT_TRUE(connectingSignals[1].second == mainThread);
 
         // Exactly one connectionStateChanged emission, on the main thread
-        assert(connectionSignals.size() == 1U);
-        assert(connectionSignals[0].first == true);
-        assert(connectionSignals[0].second == mainThread);
+        EXPECT_TRUE(connectionSignals.size() == 1U);
+        EXPECT_TRUE(connectionSignals[0].first == true);
+        EXPECT_TRUE(connectionSignals[0].second == mainThread);
 
         device.disconnectDevice();
-        assert(!device.isConnected());
+        EXPECT_TRUE(!device.isConnected());
     }
 
     // Scenario 2: Failed connection via FailingOpenTransport
@@ -152,27 +152,27 @@ static void testAsyncConnectSignalsEmittedOnMainThread()
             std::this_thread::sleep_for(std::chrono::milliseconds(10));
         }
 
-        assert(!device.isConnected());
-        assert(connectingSignals.size() == 2U);
-        assert(connectingSignals[0].first == true);
-        assert(connectingSignals[0].second == mainThread);
-        assert(connectingSignals[1].first == false);
-        assert(connectingSignals[1].second == mainThread);
+        EXPECT_TRUE(!device.isConnected());
+        EXPECT_TRUE(connectingSignals.size() == 2U);
+        EXPECT_TRUE(connectingSignals[0].first == true);
+        EXPECT_TRUE(connectingSignals[0].second == mainThread);
+        EXPECT_TRUE(connectingSignals[1].first == false);
+        EXPECT_TRUE(connectingSignals[1].second == mainThread);
 
         // Crucial: exactly ONE connectionStateChanged(false) emission, never duplicated, on main thread
-        assert(connectionSignals.size() == 1U);
-        assert(connectionSignals[0].first == false);
-        assert(connectionSignals[0].second == mainThread);
+        EXPECT_TRUE(connectionSignals.size() == 1U);
+        EXPECT_TRUE(connectionSignals[0].first == false);
+        EXPECT_TRUE(connectionSignals[0].second == mainThread);
     }
 }
 
-static void testInvokeCore()
+TEST(QPelcoDDeviceTest, InvokeCore)
 {
     // Scenario 1: Configured device executes member function and lambda
     {
         auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(1U);
         PelcoDQt::QPelcoDDevice device(mock, 1U);
-        assert(device.connectDevice());
+        EXPECT_TRUE(device.connectDevice());
 
         int txCount { 0 };
         QObject::connect(
@@ -188,15 +188,15 @@ static void testInvokeCore()
             QCoreApplication::processEvents();
             std::this_thread::sleep_for(std::chrono::milliseconds(10));
         }
-        assert(txCount == 1);
+        EXPECT_TRUE(txCount == 1);
 
         // Test lambda execution via std::invoke
         bool lambdaExecuted { false };
         device.invokeCore([&](PelcoD::PelcoDDevice* dev) {
-            assert(dev != nullptr);
+            EXPECT_TRUE(dev != nullptr);
             lambdaExecuted = true;
         });
-        assert(lambdaExecuted);
+        EXPECT_TRUE(lambdaExecuted);
 
         device.disconnectDevice();
     }
@@ -206,7 +206,7 @@ static void testInvokeCore()
         PelcoDQt::QPelcoDDevice unconfiguredDevice(nullptr);
         bool calledOnNull { false };
         unconfiguredDevice.invokeCore([&](PelcoD::PelcoDDevice*) { calledOnNull = true; });
-        assert(!calledOnNull);
+        EXPECT_TRUE(!calledOnNull);
 
         // Member function pointer invocation on null device is also safe
         unconfiguredDevice.invokeCore(&PelcoD::PelcoDDevice::stopMotion);
@@ -240,7 +240,7 @@ private:
     std::atomic<bool> m_open { false };
 };
 
-static void testDisconnectDoesNotBlockGuiThreadDuringConnect()
+TEST(QPelcoDDeviceTest, DisconnectDoesNotBlockGuiThreadDuringConnect)
 {
     auto slow = std::make_shared<SlowOpenTransport>();
     PelcoDQt::QPelcoDDevice device(slow, 1U);
@@ -255,10 +255,10 @@ static void testDisconnectDoesNotBlockGuiThreadDuringConnect()
         = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start).count();
 
     // With m_connectThread.join(), elapsedMs is ~270ms. With non-blocking disconnect, it must be < 50ms!
-    assert(elapsedMs < 50);
+    EXPECT_TRUE(elapsedMs < 50);
 }
 
-static void testDestructionDuringInFlightConnectDoesNotBlockOrCrash()
+TEST(QPelcoDDeviceTest, DestructionDuringInFlightConnectDoesNotBlockOrCrash)
 {
     auto slow = std::make_shared<SlowOpenTransport>();
     const auto start = std::chrono::steady_clock::now();
@@ -271,10 +271,10 @@ static void testDestructionDuringInFlightConnectDoesNotBlockOrCrash()
         = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start).count();
 
     // Destructor must NOT block waiting for the 300ms open() to finish!
-    assert(elapsedMs < 100);
+    EXPECT_TRUE(elapsedMs < 100);
 }
 
-static void testRapidConnectCallsDoNotBlock()
+TEST(QPelcoDDeviceTest, RapidConnectCallsDoNotBlock)
 {
     auto slow = std::make_shared<SlowOpenTransport>();
     PelcoDQt::QPelcoDDevice device(slow, 1U);
@@ -287,24 +287,14 @@ static void testRapidConnectCallsDoNotBlock()
     const auto elapsedMs
         = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start).count();
 
-    assert(elapsedMs < 100);
+    EXPECT_TRUE(elapsedMs < 100);
     device.disconnectDevice();
 }
 
 int main(int argc, char* argv[])
 {
     PelcoDTest::initTestHarness();
-
     QCoreApplication app(argc, argv);
-
-    std::cout << "[TestQPelcoDDevice] Running tests..." << std::endl;
-    testNoDuplicateSignalsOnReconnection();
-    testAsyncConnectSignalsEmittedOnMainThread();
-    testInvokeCore();
-    testDisconnectDoesNotBlockGuiThreadDuringConnect();
-    testDestructionDuringInFlightConnectDoesNotBlockOrCrash();
-    testRapidConnectCallsDoNotBlock();
-    std::cout << "[TestQPelcoDDevice] All tests passed successfully." << std::endl;
-
-    return 0;
+    ::testing::InitGoogleTest(&argc, argv);
+    return RUN_ALL_TESTS();
 }

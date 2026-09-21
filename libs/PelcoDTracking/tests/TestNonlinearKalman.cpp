@@ -7,7 +7,7 @@
 #include "PtzSphericalEstimator.h"
 #include "UnscentedKalmanFilter.h"
 
-#include <cassert>
+#include <gtest/gtest.h>
 #include <cmath>
 #include <iostream>
 #include <vector>
@@ -35,7 +35,7 @@ double radToDeg(double rad)
 // ============================================================================
 // 1. Matrix Math Tests
 // ============================================================================
-void testMatrixBasicOperations()
+TEST(NonlinearKalmanTest, MatrixBasicOperations)
 {
     std::cout << "[Test] Matrix basic operations (addition, multiplication, transpose)..." << std::endl;
 
@@ -52,38 +52,38 @@ void testMatrixBasicOperations()
     b(1, 1) = 8.0;
 
     auto c = a + b;
-    assert(approxEqual(c(0, 0), 6.0));
-    assert(approxEqual(c(0, 1), 8.0));
-    assert(approxEqual(c(1, 0), 10.0));
-    assert(approxEqual(c(1, 1), 12.0));
+    EXPECT_TRUE(approxEqual(c(0, 0), 6.0));
+    EXPECT_TRUE(approxEqual(c(0, 1), 8.0));
+    EXPECT_TRUE(approxEqual(c(1, 0), 10.0));
+    EXPECT_TRUE(approxEqual(c(1, 1), 12.0));
 
     auto prod = a * b;
     // [1*5 + 2*7, 1*6 + 2*8] = [19, 22]
     // [3*5 + 4*7, 3*6 + 4*8] = [43, 50]
-    assert(approxEqual(prod(0, 0), 19.0));
-    assert(approxEqual(prod(0, 1), 22.0));
-    assert(approxEqual(prod(1, 0), 43.0));
-    assert(approxEqual(prod(1, 1), 50.0));
+    EXPECT_TRUE(approxEqual(prod(0, 0), 19.0));
+    EXPECT_TRUE(approxEqual(prod(0, 1), 22.0));
+    EXPECT_TRUE(approxEqual(prod(1, 0), 43.0));
+    EXPECT_TRUE(approxEqual(prod(1, 1), 50.0));
 
     auto at = a.transpose();
-    assert(approxEqual(at(0, 0), 1.0));
-    assert(approxEqual(at(0, 1), 3.0));
-    assert(approxEqual(at(1, 0), 2.0));
-    assert(approxEqual(at(1, 1), 4.0));
+    EXPECT_TRUE(approxEqual(at(0, 0), 1.0));
+    EXPECT_TRUE(approxEqual(at(0, 1), 3.0));
+    EXPECT_TRUE(approxEqual(at(1, 0), 2.0));
+    EXPECT_TRUE(approxEqual(at(1, 1), 4.0));
 
     // Vector operations
     PelcoD::Vector<3> v1 { 1.0, 2.0, 3.0 };
     PelcoD::Vector<2> v2 { 4.0, 5.0 };
     auto outerMat = v1.outer(v2); // 3x2 matrix
-    assert(approxEqual(outerMat(0, 0), 4.0));
-    assert(approxEqual(outerMat(0, 1), 5.0));
-    assert(approxEqual(outerMat(2, 0), 12.0));
-    assert(approxEqual(outerMat(2, 1), 15.0));
+    EXPECT_TRUE(approxEqual(outerMat(0, 0), 4.0));
+    EXPECT_TRUE(approxEqual(outerMat(0, 1), 5.0));
+    EXPECT_TRUE(approxEqual(outerMat(2, 0), 12.0));
+    EXPECT_TRUE(approxEqual(outerMat(2, 1), 15.0));
 
     std::cout << "  -> Passed!" << std::endl;
 }
 
-void testMatrixInversion()
+TEST(NonlinearKalmanTest, MatrixInversion)
 {
     std::cout << "[Test] Matrix inversion with partial pivoting..." << std::endl;
 
@@ -104,14 +104,14 @@ void testMatrixInversion()
     for (std::size_t r = 0; r < 3; ++r) {
         for (std::size_t c = 0; c < 3; ++c) {
             double expected = (r == c) ? 1.0 : 0.0;
-            assert(approxEqual(identity(r, c), expected, 1e-5));
+            EXPECT_TRUE(approxEqual(identity(r, c), expected, 1e-5));
         }
     }
 
     std::cout << "  -> Passed!" << std::endl;
 }
 
-void testCholeskyDecomposition()
+TEST(NonlinearKalmanTest, CholeskyDecomposition)
 {
     std::cout << "[Test] Lower-triangular Cholesky decomposition..." << std::endl;
 
@@ -129,15 +129,15 @@ void testCholeskyDecomposition()
 
     auto l = a.cholesky();
     // Upper triangle must be 0
-    assert(approxEqual(l(0, 1), 0.0));
-    assert(approxEqual(l(0, 2), 0.0));
-    assert(approxEqual(l(1, 2), 0.0));
+    EXPECT_TRUE(approxEqual(l(0, 1), 0.0));
+    EXPECT_TRUE(approxEqual(l(0, 2), 0.0));
+    EXPECT_TRUE(approxEqual(l(1, 2), 0.0));
 
     // Reconstruct A = L * L^T
     auto recon = l * l.transpose();
     for (std::size_t r = 0; r < 3; ++r) {
         for (std::size_t c = 0; c < 3; ++c) {
-            assert(approxEqual(recon(r, c), a(r, c), 1e-5));
+            EXPECT_TRUE(approxEqual(recon(r, c), a(r, c), 1e-5));
         }
     }
 
@@ -147,7 +147,7 @@ void testCholeskyDecomposition()
 // ============================================================================
 // 2. PTZ Camera Model Tests
 // ============================================================================
-void testCameraModelProjectionAndUnprojection()
+TEST(NonlinearKalmanTest, CameraModelProjectionAndUnprojection)
 {
     std::cout << "[Test] Camera model projection and unprojection round-trip..." << std::endl;
 
@@ -165,8 +165,8 @@ void testCameraModelProjectionAndUnprojection()
 
     // 1. Center boresight should project exactly to principal point (960, 540)
     auto centerProj = model.project(0.0, 0.0, 0.0, 0.0, 1.0);
-    assert(approxEqual(centerProj[0], 960.0));
-    assert(approxEqual(centerProj[1], 540.0));
+    EXPECT_TRUE(approxEqual(centerProj[0], 960.0));
+    EXPECT_TRUE(approxEqual(centerProj[1], 540.0));
 
     // 2. Off-axis angle round-trip
     const std::vector<std::pair<double, double>> testAnglesDeg = {
@@ -182,22 +182,22 @@ void testCameraModelProjectionAndUnprojection()
 
         auto proj = model.project(azRad, elRad, 0.0, 0.0, 1.0);
         // Ensure projection falls inside frame
-        assert(proj[0] > 0.0 && proj[0] < 1920.0);
-        assert(proj[1] > 0.0 && proj[1] < 1080.0);
+        EXPECT_TRUE(proj[0] > 0.0 && proj[0] < 1920.0);
+        EXPECT_TRUE(proj[1] > 0.0 && proj[1] < 1080.0);
 
         double recAzRad = 0.0;
         double recElRad = 0.0;
         bool ok = model.unproject(proj[0], proj[1], 0.0, 0.0, 1.0, recAzRad, recElRad);
-        assert(ok);
+        EXPECT_TRUE(ok);
 
-        assert(approxEqual(radToDeg(recAzRad), azDeg, 1e-3));
-        assert(approxEqual(radToDeg(recElRad), elDeg, 1e-3));
+        EXPECT_TRUE(approxEqual(radToDeg(recAzRad), azDeg, 1e-3));
+        EXPECT_TRUE(approxEqual(radToDeg(recElRad), elDeg, 1e-3));
     }
 
     std::cout << "  -> Passed!" << std::endl;
 }
 
-void testCameraModelOpticalZoom()
+TEST(NonlinearKalmanTest, CameraModelOpticalZoom)
 {
     std::cout << "[Test] Camera model dynamic optical zoom scaling..." << std::endl;
 
@@ -215,12 +215,12 @@ void testCameraModelOpticalZoom()
 
     const double offset1x = p1x[0] - 960.0;
     const double offset5x = p5x[0] - 960.0;
-    assert(approxEqual(offset5x / offset1x, 5.0, 0.1));
+    EXPECT_TRUE(approxEqual(offset5x / offset1x, 5.0, 0.1));
 
     std::cout << "  -> Passed!" << std::endl;
 }
 
-void testCameraModelJacobian()
+TEST(NonlinearKalmanTest, CameraModelJacobian)
 {
     std::cout << "[Test] Camera model Jacobian matrix computation..." << std::endl;
 
@@ -230,12 +230,12 @@ void testCameraModelJacobian()
     auto H = model.computeJacobian(degToRad(4.0), degToRad(-3.0), 0.0, 0.0, 1.0);
 
     // H should be 2x2 with non-zero diagonal entries
-    assert(std::abs(H(0, 0)) > 10.0); // du/dtheta
-    assert(std::abs(H(1, 1)) > 10.0); // dv/dphi
+    EXPECT_TRUE(std::abs(H(0, 0)) > 10.0); // du/dtheta
+    EXPECT_TRUE(std::abs(H(1, 1)) > 10.0); // dv/dphi
 
     // Check determinant non-zero (full rank)
     double det = H(0, 0) * H(1, 1) - H(0, 1) * H(1, 0);
-    assert(std::abs(det) > 1.0);
+    EXPECT_TRUE(std::abs(det) > 1.0);
 
     std::cout << "  -> Passed!" << std::endl;
 }
@@ -243,7 +243,7 @@ void testCameraModelJacobian()
 // ============================================================================
 // 3. Extended Kalman Filter (EKF) Tests
 // ============================================================================
-void testEkfCircularTrajectoryHighElevation()
+TEST(NonlinearKalmanTest, EkfCircularTrajectoryHighElevation)
 {
     std::cout << "[Test] EKF tracking high-elevation circular trajectory (70 deg elevation)..." << std::endl;
 
@@ -293,13 +293,13 @@ void testEkfCircularTrajectoryHighElevation()
         }
     }
 
-    assert(maxAzError < 0.20); // Within 0.20 deg tracking accuracy
-    assert(maxElError < 0.20);
+    EXPECT_TRUE(maxAzError < 0.20); // Within 0.20 deg tracking accuracy
+    EXPECT_TRUE(maxElError < 0.20);
 
     std::cout << "  -> Passed! (Max error: az=" << maxAzError << " deg, el=" << maxElError << " deg)" << std::endl;
 }
 
-void testEkfMahalanobisOutlierGating()
+TEST(NonlinearKalmanTest, EkfMahalanobisOutlierGating)
 {
     std::cout << "[Test] EKF Mahalanobis distance outlier rejection..." << std::endl;
 
@@ -320,11 +320,11 @@ void testEkfMahalanobisOutlierGating()
 
     auto state = estimator.getState(0.0, 0.0, 0.0);
     // Outlier must be detected and rejected!
-    assert(state.isOutlierGated);
+    EXPECT_TRUE(state.isOutlierGated);
 
     // Filter state should not be corrupted by glitch
-    assert(std::abs(state.errorAzimuthDeg) < 0.5);
-    assert(std::abs(state.errorElevationDeg) < 0.5);
+    EXPECT_TRUE(std::abs(state.errorAzimuthDeg) < 0.5);
+    EXPECT_TRUE(std::abs(state.errorElevationDeg) < 0.5);
 
     std::cout << "  -> Passed!" << std::endl;
 }
@@ -332,7 +332,7 @@ void testEkfMahalanobisOutlierGating()
 // ============================================================================
 // 4. Unscented Kalman Filter (UKF) Tests
 // ============================================================================
-void testUkfTrackingUnderSevereRadialDistortion()
+TEST(NonlinearKalmanTest, UkfTrackingUnderSevereRadialDistortion)
 {
     std::cout << "[Test] UKF non-linear sigma-point tracking under severe lens distortion..." << std::endl;
 
@@ -366,9 +366,9 @@ void testUkfTrackingUnderSevereRadialDistortion()
     double finalElErr = std::abs(radToDeg(finalState.elevationRad) - trueElDeg);
     double finalVelAzErr = std::abs(finalState.omegaAzimuthDegPerSec - trueVelAz);
 
-    assert(finalAzErr < 0.15);
-    assert(finalElErr < 0.15);
-    assert(finalVelAzErr < 0.35);
+    EXPECT_TRUE(finalAzErr < 0.15);
+    EXPECT_TRUE(finalElErr < 0.15);
+    EXPECT_TRUE(finalVelAzErr < 0.35);
 
     std::cout << "  -> Passed! (Final UKF error: az=" << finalAzErr << " deg, el=" << finalElErr << " deg)" << std::endl;
 }
@@ -376,7 +376,7 @@ void testUkfTrackingUnderSevereRadialDistortion()
 // ============================================================================
 // 5. PtzSphericalEstimator System Tests
 // ============================================================================
-void testPtzSphericalEstimatorWorkflow()
+TEST(NonlinearKalmanTest, PtzSphericalEstimatorWorkflow)
 {
     std::cout << "[Test] PtzSphericalEstimator complete workflow (lock, lookahead, algo switch)..." << std::endl;
 
@@ -386,11 +386,11 @@ void testPtzSphericalEstimatorWorkflow()
     PelcoD::PtzSphericalEstimator estimator(config);
     PelcoD::PtzCameraModel model(config.intrinsics);
 
-    assert(!estimator.isLocked());
+    EXPECT_TRUE(!estimator.isLocked());
 
     // 1. Target acquisition
     estimator.initFromPixel(960.0, 540.0, 0.0, 0.0, 1.0);
-    assert(estimator.isLocked());
+    EXPECT_TRUE(estimator.isLocked());
 
     // 2. Feed moving target (pan velocity ~10 deg/s)
     const double dt = 0.04;
@@ -402,14 +402,14 @@ void testPtzSphericalEstimatorWorkflow()
     }
 
     auto state = estimator.getState(0.0, 0.0, 0.0);
-    assert(approxEqual(state.errorAzimuthDeg, currentAzDeg, 0.6));
-    assert(approxEqual(state.errorElevationDeg, 0.0, 0.3));
-    assert(approxEqual(state.omegaAzimuthDegPerSec, 10.0, 1.8));
+    EXPECT_TRUE(approxEqual(state.errorAzimuthDeg, currentAzDeg, 0.6));
+    EXPECT_TRUE(approxEqual(state.errorElevationDeg, 0.0, 0.3));
+    EXPECT_TRUE(approxEqual(state.omegaAzimuthDegPerSec, 10.0, 1.8));
 
     // 3. Test lookahead latency prediction
     auto lookaheadState = estimator.getState(0.20, 0.0, 0.0); // 200 ms forward lookahead
     // Predicted azimuth should be ~ currentAz + 10 deg/s * 0.20s = currentAz + 2.0 deg
-    assert(approxEqual(lookaheadState.predictedErrorAzimuthDeg, currentAzDeg + 2.0, 0.8));
+    EXPECT_TRUE(approxEqual(lookaheadState.predictedErrorAzimuthDeg, currentAzDeg + 2.0, 0.8));
 
     // 4. Switch algorithm to UKF on the fly
     estimator.setType(PelcoD::EstimatorType::UKF);
@@ -421,37 +421,14 @@ void testPtzSphericalEstimatorWorkflow()
     }
 
     auto ukfState = estimator.getState(0.0, 0.0, 0.0);
-    assert(approxEqual(ukfState.errorAzimuthDeg, currentAzDeg, 0.6));
+    EXPECT_TRUE(approxEqual(ukfState.errorAzimuthDeg, currentAzDeg, 0.6));
 
     // 5. Target release
     estimator.reset();
-    assert(!estimator.isLocked());
+    EXPECT_TRUE(!estimator.isLocked());
 
     std::cout << "  -> Passed!" << std::endl;
 }
 
 } // namespace
 
-int main()
-{
-    std::cout << "====================================================" << std::endl;
-    std::cout << "Starting Non-Linear Kalman Filter (EKF/UKF) Test Suite" << std::endl;
-    std::cout << "====================================================" << std::endl;
-
-    testMatrixBasicOperations();
-    testMatrixInversion();
-    testCholeskyDecomposition();
-    testCameraModelProjectionAndUnprojection();
-    testCameraModelOpticalZoom();
-    testCameraModelJacobian();
-    testEkfCircularTrajectoryHighElevation();
-    testEkfMahalanobisOutlierGating();
-    testUkfTrackingUnderSevereRadialDistortion();
-    testPtzSphericalEstimatorWorkflow();
-
-    std::cout << "====================================================" << std::endl;
-    std::cout << "ALL NON-LINEAR KALMAN TESTS PASSED SUCCESSFULLY!" << std::endl;
-    std::cout << "====================================================" << std::endl;
-
-    return 0;
-}

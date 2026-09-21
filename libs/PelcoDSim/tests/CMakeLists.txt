@@ -16,8 +16,7 @@ function(add_sim_test test_name test_source)
         PelcoDCore
         Threads::Threads
     )
-    apply_compiler_flags(${test_name})
-    add_test(NAME ${test_name} COMMAND ${test_name})
+    pelcod_register_gtest(${test_name})
 endfunction()
 
 add_sim_test(TestKinematicsSimulator TestKinematicsSimulator.cpp)

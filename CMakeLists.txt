@@ -250,7 +250,72 @@ if(BUILD_TESTING)
         endif()
     endif()
     include(GoogleTest)
+
+    function(pelcod_register_gtest target_name)
+        cmake_parse_arguments(ARG "NO_MAIN" "" "" ${ARGN})
+        if(ARG_NO_MAIN)
+            target_link_libraries(${target_name} PRIVATE GTest::gmock)
+        else()
+            target_link_libraries(${target_name} PRIVATE GTest::gmock_main)
+        endif()
+        apply_compiler_flags(${target_name})
+
+        if(WIN32)
+            if(TARGET Qt6::Core)
+                add_custom_command(TARGET ${target_name} POST_BUILD
+                    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                        "$<TARGET_FILE:Qt6::Core>"
+                        "$<TARGET_FILE_DIR:${target_name}>"
+                    COMMENT "Copying Qt6 Core DLL for ${target_name}"
+                )
+            endif()
+            if(TARGET Qt6::Gui)
+                add_custom_command(TARGET ${target_name} POST_BUILD
+                    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                        "$<TARGET_FILE:Qt6::Gui>"
+                        "$<TARGET_FILE_DIR:${target_name}>"
+                    COMMENT "Copying Qt6 Gui DLL for ${target_name}"
+                )
+            endif()
+            if(TARGET Qt6::Widgets)
+                add_custom_command(TARGET ${target_name} POST_BUILD
+                    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                        "$<TARGET_FILE:Qt6::Widgets>"
+                        "$<TARGET_FILE_DIR:${target_name}>"
+                    COMMENT "Copying Qt6 Widgets DLL for ${target_name}"
+                )
+            endif()
+            if(TARGET glog::glog)
+                add_custom_command(TARGET ${target_name} POST_BUILD
+                    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                        "$<TARGET_FILE:glog::glog>"
+                        "$<TARGET_FILE_DIR:${target_name}>"
+                    COMMENT "Copying glog DLL for ${target_name}"
+                )
+            endif()
+            find_file(_GFLAGS_DEBUG_DLL NAMES gflags_debug.dll gflags.dll
+                PATHS "C:/vcpkg/installed/x64-windows/debug/bin" "C:/vcpkg/installed/x64-windows/bin"
+            )
+            if(_GFLAGS_DEBUG_DLL)
+                add_custom_command(TARGET ${target_name} POST_BUILD
+                    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                        "${_GFLAGS_DEBUG_DLL}"
+                        "$<TARGET_FILE_DIR:${target_name}>"
+                    COMMENT "Copying gflags DLL for ${target_name}"
+                )
+            endif()
+            gtest_discover_tests(${target_name}
+                DISCOVERY_MODE PRE_TEST
+                PROPERTIES ENVIRONMENT "PATH=C:/Qt/6.6.1/msvc2019_64/bin\;C:/vcpkg/installed/x64-windows/debug/bin\;C:/vcpkg/installed/x64-windows/bin\;$ENV{PATH};QT_PLUGIN_PATH=C:/Qt/6.6.1/msvc2019_64/plugins;QT_QPA_PLATFORM=offscreen"
+            )
+        else()
+            gtest_discover_tests(${target_name}
+                DISCOVERY_MODE PRE_TEST
+            )
+        endif()
+    endfunction()
 endif()
+
 
 # ==============================================================================
 # Subdirectories

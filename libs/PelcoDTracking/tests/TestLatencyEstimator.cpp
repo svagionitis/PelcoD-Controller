@@ -3,7 +3,7 @@
 
 #include "LatencyEstimator.h"
 
-#include <cassert>
+#include <gtest/gtest.h>
 #include <cmath>
 #include <iostream>
 #include <random>
@@ -17,7 +17,7 @@ using namespace PelcoD;
 
 namespace {
 
-void testExactSampleDelayRecovery()
+TEST(LatencyEstimatorTest, ExactSampleDelayRecovery)
 {
     std::cout << "[Test] testExactSampleDelayRecovery...\n";
     const double fs = 100.0; // 10 ms per sample
@@ -50,22 +50,22 @@ void testExactSampleDelayRecovery()
     }
     estimator.update();
 
-    assert(estimator.isConfident());
+    EXPECT_TRUE(estimator.isConfident());
     const double estimated = estimator.getEstimatedLatencyMs();
     const double corr = estimator.getPeakCorrelation();
     std::cout << "  Estimated latency: " << estimated << " ms (expected: " << expectedLatencyMs
               << " ms), Peak corr: " << corr << "\n";
 
-    assert(std::abs(estimated - expectedLatencyMs) <= 1.0);
-    assert(corr > 0.95);
+    EXPECT_TRUE(std::abs(estimated - expectedLatencyMs) <= 1.0);
+    EXPECT_TRUE(corr > 0.95);
 
     const auto curve = estimator.getCorrelationCurve();
-    assert(!curve.empty());
+    EXPECT_TRUE(!curve.empty());
 
     std::cout << "  -> PASSED\n";
 }
 
-void testSubSampleParabolicInterpolation()
+TEST(LatencyEstimatorTest, SubSampleParabolicInterpolation)
 {
     std::cout << "[Test] testSubSampleParabolicInterpolation...\n";
     const double fs = 50.0; // 20 ms per sample
@@ -99,15 +99,15 @@ void testSubSampleParabolicInterpolation()
     }
     estimator.update();
 
-    assert(estimator.isConfident());
+    EXPECT_TRUE(estimator.isConfident());
     const double estimated = estimator.getEstimatedLatencyMs();
     std::cout << "  Sub-sample estimated latency: " << estimated << " ms (expected: " << expectedLatencyMs << " ms)\n";
-    assert(std::abs(estimated - expectedLatencyMs) < 4.0);
+    EXPECT_TRUE(std::abs(estimated - expectedLatencyMs) < 4.0);
 
     std::cout << "  -> PASSED\n";
 }
 
-void testUncorrelatedSignalsRejectConfidence()
+TEST(LatencyEstimatorTest, UncorrelatedSignalsRejectConfidence)
 {
     std::cout << "[Test] testUncorrelatedSignalsRejectConfidence...\n";
     LatencyEstimatorConfig cfg {};
@@ -128,13 +128,13 @@ void testUncorrelatedSignalsRejectConfidence()
     estimator.update();
 
     std::cout << "  Noise peak correlation: " << estimator.getPeakCorrelation() << "\n";
-    assert(!estimator.isConfident());
-    assert(estimator.getPeakCorrelation() < 0.6);
+    EXPECT_TRUE(!estimator.isConfident());
+    EXPECT_TRUE(estimator.getPeakCorrelation() < 0.6);
 
     std::cout << "  -> PASSED\n";
 }
 
-void testDynamicLatencyTracking()
+TEST(LatencyEstimatorTest, DynamicLatencyTracking)
 {
     std::cout << "[Test] testDynamicLatencyTracking...\n";
     const double fs = 100.0;
@@ -155,8 +155,8 @@ void testDynamicLatencyTracking()
         estimator.addSample(ref, resp);
     }
     estimator.update();
-    assert(estimator.isConfident());
-    assert(std::abs(estimator.getEstimatedLatencyMs() - 60.0) < 3.0);
+    EXPECT_TRUE(estimator.isConfident());
+    EXPECT_TRUE(std::abs(estimator.getEstimatedLatencyMs() - 60.0) < 3.0);
 
     // Second phase: delay shifts to 120 ms (12 samples)
     for (int i = 150; i < 350; ++i) {
@@ -165,14 +165,14 @@ void testDynamicLatencyTracking()
         estimator.addSample(ref, resp);
     }
     estimator.update();
-    assert(estimator.isConfident());
+    EXPECT_TRUE(estimator.isConfident());
     std::cout << "  Dynamically shifted latency: " << estimator.getEstimatedLatencyMs() << " ms (expected: 120 ms)\n";
-    assert(std::abs(estimator.getEstimatedLatencyMs() - 120.0) < 3.0);
+    EXPECT_TRUE(std::abs(estimator.getEstimatedLatencyMs() - 120.0) < 3.0);
 
     std::cout << "  -> PASSED\n";
 }
 
-void testInvertedNegativePolarity()
+TEST(LatencyEstimatorTest, InvertedNegativePolarity)
 {
     std::cout << "[Test] testInvertedNegativePolarity (Camera Pan vs Optical Flow)...\n";
     const double fs = 100.0;
@@ -199,21 +199,21 @@ void testInvertedNegativePolarity()
     }
     estimator.update();
 
-    assert(estimator.isConfident());
+    EXPECT_TRUE(estimator.isConfident());
     const double estimated = estimator.getEstimatedLatencyMs();
     const double corr = estimator.getPeakCorrelation();
     std::cout << "  Negative polarity estimated latency: " << estimated << " ms (expected: " << expectedLatencyMs
               << " ms), Peak corr: " << corr << "\n";
 
-    assert(corr < -0.90);
-    assert(std::abs(estimated - expectedLatencyMs) <= 1.0);
-    assert(std::abs(estimator.getEstimatedLatencySeconds() - 0.080) <= 0.002);
-    assert(estimator.getPeakCorrelationMagnitude() > 0.90);
+    EXPECT_TRUE(corr < -0.90);
+    EXPECT_TRUE(std::abs(estimated - expectedLatencyMs) <= 1.0);
+    EXPECT_TRUE(std::abs(estimator.getEstimatedLatencySeconds() - 0.080) <= 0.002);
+    EXPECT_TRUE(estimator.getPeakCorrelationMagnitude() > 0.90);
 
     std::cout << "  -> PASSED\n";
 }
 
-void testTimestampedAsynchronousResampling()
+TEST(LatencyEstimatorTest, TimestampedAsynchronousResampling)
 {
     std::cout << "[Test] testTimestampedAsynchronousResampling...\n";
     const double delaySec = 0.075; // 75 ms delay
@@ -246,15 +246,15 @@ void testTimestampedAsynchronousResampling()
     }
 
     estimator.update();
-    assert(estimator.isConfident());
+    EXPECT_TRUE(estimator.isConfident());
     const double estimated = estimator.getEstimatedLatencyMs();
     std::cout << "  Asynchronous resampled latency: " << estimated << " ms (expected: 75 ms)\n";
-    assert(std::abs(estimated - 75.0) < 5.0);
+    EXPECT_TRUE(std::abs(estimated - 75.0) < 5.0);
 
     std::cout << "  -> PASSED\n";
 }
 
-void testLowVarianceRejection()
+TEST(LatencyEstimatorTest, LowVarianceRejection)
 {
     std::cout << "[Test] testLowVarianceRejection...\n";
     LatencyEstimatorConfig cfg {};
@@ -269,8 +269,8 @@ void testLowVarianceRejection()
     }
     estimator.update();
 
-    assert(!estimator.isConfident());
-    assert(estimator.getReferenceVariance() < 1e-6);
+    EXPECT_TRUE(!estimator.isConfident());
+    EXPECT_TRUE(estimator.getReferenceVariance() < 1e-6);
 
     std::cout << "  -> PASSED\n";
 }
@@ -281,7 +281,7 @@ void testLowVarianceRejection()
 
 namespace {
 
-void testLatencyCalibratorDoubletSequence()
+TEST(LatencyEstimatorTest, LatencyCalibratorDoubletSequence)
 {
     std::cout << "[Test] testLatencyCalibratorDoubletSequence...\n";
     double simulatedPanSpeed = 0.0;
@@ -291,8 +291,8 @@ void testLatencyCalibratorDoubletSequence()
 
     const double trueDelaySec = 0.100; // 100 ms latency
     double now = 1000.0;
-    assert(calibrator.start(30, 0, now));
-    assert(calibrator.isRunning());
+    EXPECT_TRUE(calibrator.start(30, 0, now));
+    EXPECT_TRUE(calibrator.isRunning());
 
     std::deque<std::pair<double, double>> simulatedHistory;
 
@@ -330,32 +330,18 @@ void testLatencyCalibratorDoubletSequence()
         calibrator.ingestVisualMotion(now, opticalFlowX);
     }
 
-    assert(!calibrator.isRunning());
+    EXPECT_TRUE(!calibrator.isRunning());
     const auto result = calibrator.getResult();
     std::cout << "  Calibrator result: success=" << result.success << ", latency=" << result.latencyMs
               << " ms, corr=" << result.correlation << "\n"
               << std::flush;
 
-    assert(result.success);
-    assert(std::abs(result.latencyMs - 100.0) < 6.0);
-    assert(result.correlation < -0.80);
+    EXPECT_TRUE(result.success);
+    EXPECT_TRUE(std::abs(result.latencyMs - 100.0) < 6.0);
+    EXPECT_TRUE(result.correlation < -0.80);
 
     std::cout << "  -> PASSED\n";
 }
 
 } // namespace
 
-int main()
-{
-    std::cout << "Running TestLatencyEstimator Test Suite\n";
-    testExactSampleDelayRecovery();
-    testSubSampleParabolicInterpolation();
-    testUncorrelatedSignalsRejectConfidence();
-    testDynamicLatencyTracking();
-    testInvertedNegativePolarity();
-    testTimestampedAsynchronousResampling();
-    testLowVarianceRejection();
-    testLatencyCalibratorDoubletSequence();
-    std::cout << "All TestLatencyEstimator Tests Passed!\n";
-    return 0;
-}

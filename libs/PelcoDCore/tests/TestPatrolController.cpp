@@ -4,62 +4,66 @@
 #include "PatrolController.h"
 #include "TestHelpers.h"
 
+#include <gtest/gtest.h>
+
 #include <atomic>
-#include <cassert>
 #include <chrono>
 #include <condition_variable>
 #include <cstdint>
-#include <iostream>
 #include <mutex>
 #include <thread>
 #include <vector>
 
+namespace {
+
 /// @brief Verify CRUD operations on patrol steps and default state.
-static void testStepManagement()
+TEST(PatrolControllerTest, StepManagement)
 {
     PelcoD::PatrolController controller;
 
-    assert(controller.stepCount() == 0U);
-    assert(!controller.isRunning());
-    assert(!controller.isPaused());
-    assert(controller.getState() == PelcoD::PatrolState::Idle);
+    EXPECT_EQ(controller.stepCount(), 0U);
+    EXPECT_FALSE(controller.isRunning());
+    EXPECT_FALSE(controller.isPaused());
+    EXPECT_EQ(controller.getState(), PelcoD::PatrolState::Idle);
 
     // Starting an empty tour must safely fail
-    assert(!controller.start());
+    EXPECT_FALSE(controller.start());
 
     // Add steps
     controller.addStep(PelcoD::PatrolStep { 10U, 5U, "Gate", 0U });
     controller.addStep(PelcoD::PatrolStep { 20U, 10U, "Fence", 0U });
-    assert(controller.stepCount() == 2U);
+    EXPECT_EQ(controller.stepCount(), 2U);
 
     // Insert step
     controller.insertStep(1U, PelcoD::PatrolStep { 15U, 7U, "Middle", 0U });
-    assert(controller.stepCount() == 3U);
+    EXPECT_EQ(controller.stepCount(), 3U);
 
     const auto steps = controller.getSteps();
-    assert(steps[0].presetId == 10U && steps[0].name == "Gate");
-    assert(steps[1].presetId == 15U && steps[1].name == "Middle");
-    assert(steps[2].presetId == 20U && steps[2].name == "Fence");
+    ASSERT_EQ(steps.size(), 3U);
+    EXPECT_EQ(steps[0].presetId, 10U);
+    EXPECT_EQ(steps[0].name, "Gate");
+    EXPECT_EQ(steps[1].presetId, 15U);
+    EXPECT_EQ(steps[1].name, "Middle");
+    EXPECT_EQ(steps[2].presetId, 20U);
+    EXPECT_EQ(steps[2].name, "Fence");
 
     // Update step
     PelcoD::PatrolStep updatedStep { 16U, 8U, "Updated Middle", 0U };
-    assert(controller.setStep(1U, updatedStep));
-    assert(controller.getSteps()[1].presetId == 16U);
+    EXPECT_TRUE(controller.setStep(1U, updatedStep));
+    EXPECT_EQ(controller.getSteps()[1].presetId, 16U);
 
     // Remove step
-    assert(controller.removeStep(1U));
-    assert(controller.stepCount() == 2U);
-    assert(controller.getSteps()[1].presetId == 20U);
+    EXPECT_TRUE(controller.removeStep(1U));
+    EXPECT_EQ(controller.stepCount(), 2U);
+    EXPECT_EQ(controller.getSteps()[1].presetId, 20U);
 
     // Clear steps
     controller.clearSteps();
-    assert(controller.stepCount() == 0U);
-
-    std::cout << "  testStepManagement: PASSED\n";
+    EXPECT_EQ(controller.stepCount(), 0U);
 }
 
 /// @brief Verify full sequence execution across presets with dwell expiration.
-static void testTourExecutionAndAdvancement()
+TEST(PatrolControllerTest, TourExecutionAndAdvancement)
 {
     std::mutex mtx;
     std::condition_variable cv;
@@ -82,58 +86,55 @@ static void testTourExecutionAndAdvancement()
     controller.addStep(PelcoD::PatrolStep { 3U, 1U, "Preset 3", 0U });
     controller.setLoop(false);
 
-    assert(controller.start());
-    assert(controller.isRunning());
+    ASSERT_TRUE(controller.start());
+    EXPECT_TRUE(controller.isRunning());
 
     {
         std::unique_lock<std::mutex> lock(mtx);
         const bool completed = cv.wait_for(lock, std::chrono::seconds(6), [&]() { return finished; });
-        assert(completed && "Tour failed to finish in expected duration");
-        assert(dispatchedPresets.size() == 3U);
-        assert(dispatchedPresets[0] == 1U);
-        assert(dispatchedPresets[1] == 2U);
-        assert(dispatchedPresets[2] == 3U);
+        ASSERT_TRUE(completed) << "Tour failed to finish in expected duration";
+        ASSERT_EQ(dispatchedPresets.size(), 3U);
+        EXPECT_EQ(dispatchedPresets[0], 1U);
+        EXPECT_EQ(dispatchedPresets[1], 2U);
+        EXPECT_EQ(dispatchedPresets[2], 3U);
     }
 
-    assert(controller.getState() == PelcoD::PatrolState::Idle);
-    std::cout << "  testTourExecutionAndAdvancement: PASSED\n";
+    EXPECT_EQ(controller.getState(), PelcoD::PatrolState::Idle);
 }
 
 /// @brief Verify pause and resume preserving remaining dwell time.
-static void testPauseAndResume()
+TEST(PatrolControllerTest, PauseAndResume)
 {
     PelcoD::PatrolController controller;
     controller.addStep(PelcoD::PatrolStep { 5U, 4U, "Hold Step", 0U });
 
-    assert(controller.start());
-    assert(controller.isRunning());
+    ASSERT_TRUE(controller.start());
+    EXPECT_TRUE(controller.isRunning());
 
     // Wait ~1.2s
     std::this_thread::sleep_for(std::chrono::milliseconds(1200));
 
     controller.pause();
-    assert(controller.isPaused());
-    assert(controller.getState() == PelcoD::PatrolState::Paused);
+    EXPECT_TRUE(controller.isPaused());
+    EXPECT_EQ(controller.getState(), PelcoD::PatrolState::Paused);
 
     const auto pausedRemaining = controller.getRemainingDwellSeconds();
-    assert(pausedRemaining <= 3U);
+    EXPECT_LE(pausedRemaining, 3U);
 
     // Wait another second while paused
     std::this_thread::sleep_for(std::chrono::milliseconds(1000));
-    assert(controller.getRemainingDwellSeconds() == pausedRemaining && "Dwell time ticked while paused");
+    EXPECT_EQ(controller.getRemainingDwellSeconds(), pausedRemaining) << "Dwell time ticked while paused";
 
     controller.resume();
-    assert(controller.isRunning());
+    EXPECT_TRUE(controller.isRunning());
 
     controller.stop();
-    assert(!controller.isRunning());
-    assert(controller.getState() == PelcoD::PatrolState::Idle);
-
-    std::cout << "  testPauseAndResume: PASSED\n";
+    EXPECT_FALSE(controller.isRunning());
+    EXPECT_EQ(controller.getState(), PelcoD::PatrolState::Idle);
 }
 
 /// @brief Verify manual step skipping via nextStep and previousStep.
-static void testManualSkip()
+TEST(PatrolControllerTest, ManualSkip)
 {
     std::mutex mtx;
     std::condition_variable cv;
@@ -149,72 +150,59 @@ static void testManualSkip()
     controller.addStep(PelcoD::PatrolStep { 2U, 20U, "Step 2", 0U });
     controller.addStep(PelcoD::PatrolStep { 3U, 20U, "Step 3", 0U });
 
-    assert(controller.start());
+    ASSERT_TRUE(controller.start());
 
     // First step dispatched
     {
         std::unique_lock<std::mutex> lock(mtx);
-        cv.wait_for(lock, std::chrono::seconds(1), [&]() { return !dispatchedPresets.empty(); });
-        assert(dispatchedPresets.back() == 1U);
+        bool ok = cv.wait_for(lock, std::chrono::seconds(1), [&]() { return !dispatchedPresets.empty(); });
+        ASSERT_TRUE(ok);
+        EXPECT_EQ(dispatchedPresets.back(), 1U);
     }
 
     // Skip to next step
     controller.nextStep();
     {
         std::unique_lock<std::mutex> lock(mtx);
-        cv.wait_for(lock, std::chrono::seconds(1), [&]() { return dispatchedPresets.size() >= 2U; });
-        assert(dispatchedPresets.back() == 2U);
+        bool ok = cv.wait_for(lock, std::chrono::seconds(1), [&]() { return dispatchedPresets.size() >= 2U; });
+        ASSERT_TRUE(ok);
+        EXPECT_EQ(dispatchedPresets.back(), 2U);
     }
 
     // Skip back to previous step
     controller.previousStep();
     {
         std::unique_lock<std::mutex> lock(mtx);
-        cv.wait_for(lock, std::chrono::seconds(1), [&]() { return dispatchedPresets.size() >= 3U; });
-        assert(dispatchedPresets.back() == 1U);
+        bool ok = cv.wait_for(lock, std::chrono::seconds(1), [&]() { return dispatchedPresets.size() >= 3U; });
+        ASSERT_TRUE(ok);
+        EXPECT_EQ(dispatchedPresets.back(), 1U);
     }
 
     controller.stop();
-    assert(!controller.isRunning());
-
-    std::cout << "  testManualSkip: PASSED\n";
+    EXPECT_FALSE(controller.isRunning());
 }
 
 /// @brief Verify background thread is NOT spawned until start() and terminates on stop().
-static void testLazyThreadLifecycle()
+TEST(PatrolControllerTest, LazyThreadLifecycle)
 {
     PelcoD::PatrolController controller;
-    assert(!controller.isWorkerActive() && "Worker thread spawned eagerly in constructor!");
+    EXPECT_FALSE(controller.isWorkerActive()) << "Worker thread spawned eagerly in constructor!";
 
     controller.addStep(PelcoD::PatrolStep { 1U, 5U, "Gate", 0U });
-    assert(!controller.isWorkerActive() && "Worker thread spawned before start()!");
+    EXPECT_FALSE(controller.isWorkerActive()) << "Worker thread spawned before start()!";
 
-    assert(controller.start());
-    assert(controller.isWorkerActive() && "Worker thread not active after start()!");
+    ASSERT_TRUE(controller.start());
+    EXPECT_TRUE(controller.isWorkerActive()) << "Worker thread not active after start()!";
 
     controller.stop();
-    assert(!controller.isWorkerActive() && "Worker thread remained active after stop()!");
+    EXPECT_FALSE(controller.isWorkerActive()) << "Worker thread remained active after stop()!";
 
     // Restart sequence to verify thread can cleanly re-spawn
-    assert(controller.start());
-    assert(controller.isWorkerActive() && "Worker thread not active after second start()!");
+    ASSERT_TRUE(controller.start());
+    EXPECT_TRUE(controller.isWorkerActive()) << "Worker thread not active after second start()!";
 
     controller.stop();
-    assert(!controller.isWorkerActive() && "Worker thread active after second stop()!");
-
-    std::cout << "  testLazyThreadLifecycle: PASSED\n";
+    EXPECT_FALSE(controller.isWorkerActive()) << "Worker thread active after second stop()!";
 }
 
-int main()
-{
-    PelcoDTest::initTestHarness();
-
-    std::cout << "[TestPatrolController] Running...\n";
-    testStepManagement();
-    testTourExecutionAndAdvancement();
-    testPauseAndResume();
-    testManualSkip();
-    testLazyThreadLifecycle();
-    std::cout << "[TestPatrolController] All tests passed.\n";
-    return 0;
-}
+} // namespace
