@@ -3,9 +3,9 @@
 
 #include "SpectrogramWidget.h"
 
+#include <QFont>
 #include <QPainter>
 #include <QPen>
-#include <QFont>
 #include <algorithm>
 #include <cmath>
 
@@ -32,8 +32,8 @@ PelcoD::SpectrogramColorMap::Preset SpectrogramWidget::colorPreset() const noexc
     return m_preset;
 }
 
-void SpectrogramWidget::updateSpectrogram(const std::vector<PelcoD::SpectrogramFrame>& frames,
-    const std::vector<double>& freqs)
+void SpectrogramWidget::updateSpectrogram(
+    const std::vector<PelcoD::SpectrogramFrame>& frames, const std::vector<double>& freqs)
 {
     QMutexLocker locker(&m_mutex);
     m_frames = frames;
@@ -125,11 +125,13 @@ void SpectrogramWidget::renderWaterfall(QPainter& painter, const QRect& rect)
     QImage img(timeCols, freqRows, QImage::Format_RGB32);
 
     for (int c = 0; c < timeCols; ++c) {
-        const auto& frame = m_frames[c];
+        const auto& frame = m_frames[static_cast<std::size_t>(c)];
         for (int r = 0; r < freqRows; ++r) {
             // Row 0 in QImage is top (highest frequency), Row freqRows-1 is bottom (0 Hz)
             const int binIdx = (freqRows - 1) - r;
-            const double db = (binIdx < static_cast<int>(frame.dbSpectrum.size())) ? frame.dbSpectrum[binIdx] : m_minDb;
+            const double db = (binIdx < static_cast<int>(frame.dbSpectrum.size()))
+                ? frame.dbSpectrum[static_cast<std::size_t>(binIdx)]
+                : m_minDb;
             const auto rgb = PelcoD::SpectrogramColorMap::mapDb(db, m_minDb, m_maxDb, m_preset);
             img.setPixel(c, r, qRgb(rgb.r, rgb.g, rgb.b));
         }
@@ -169,7 +171,7 @@ void SpectrogramWidget::renderWaterfall(QPainter& painter, const QRect& rect)
 
         QPoint prevPt;
         for (int c = 0; c < timeCols; ++c) {
-            double normF = std::clamp(m_frames[c].peakFrequencyHz / maxFreq, 0.0, 1.0);
+            double normF = std::clamp(m_frames[static_cast<std::size_t>(c)].peakFrequencyHz / maxFreq, 0.0, 1.0);
             int px = rect.left() + static_cast<int>((static_cast<double>(c) / (timeCols - 1)) * rect.width());
             int py = rect.bottom() - static_cast<int>(normF * rect.height());
 
@@ -206,7 +208,9 @@ void SpectrogramWidget::renderSlice(QPainter& painter, const QRect& rect)
     poly.reserve(freqRows);
 
     for (int r = 0; r < freqRows; ++r) {
-        const double db = (r < static_cast<int>(latest.dbSpectrum.size())) ? latest.dbSpectrum[r] : m_minDb;
+        const double db = (r < static_cast<int>(latest.dbSpectrum.size()))
+            ? latest.dbSpectrum[static_cast<std::size_t>(r)]
+            : m_minDb;
         const double normDb = std::clamp((db - m_minDb) / dbSpan, 0.0, 1.0);
 
         const double y = rect.bottom() - (static_cast<double>(r) / (freqRows - 1)) * rect.height();
