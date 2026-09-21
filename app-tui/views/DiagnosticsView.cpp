@@ -145,8 +145,8 @@ void DiagnosticsView::render(Canvas& canvas, int startY, int width, int height, 
     if (m_plantResult.success) {
         std::ostringstream bodeOss;
         bodeOss << "Bode Plant Model : K=" << std::fixed << std::setprecision(2) << m_plantResult.fopdt.dcGainK
-                << " Tau=" << std::setprecision(3) << m_plantResult.fopdt.timeConstantTauSec << "s Td="
-                << std::setprecision(1) << (m_plantResult.fopdt.deadTimeTdSec * 1000.0) << "ms";
+                << " Tau=" << std::setprecision(3) << m_plantResult.fopdt.timeConstantTauSec
+                << "s Td=" << std::setprecision(1) << (m_plantResult.fopdt.deadTimeTdSec * 1000.0) << "ms";
         canvas.drawString(leftX, curY, bodeOss.str(), textStyle);
         curY += 1;
 
@@ -236,7 +236,7 @@ void DiagnosticsView::renderWaterfall(Canvas& canvas, int startX, int startY, in
 
     // Each character row contains 2 vertical frequency sub-bins via Unicode half-block ▀
     for (int col = 0; col < numFrames; ++col) {
-        const auto& frame = history[startFrameIdx + col];
+        const auto& frame = history[static_cast<std::size_t>(startFrameIdx + col)];
         const int px = plotX + col;
 
         for (int row = 0; row < plotH; ++row) {
@@ -249,13 +249,13 @@ void DiagnosticsView::renderWaterfall(Canvas& canvas, int startX, int startY, in
             const int binTop = std::clamp(static_cast<int>(fracTop * (totalBins - 1)), 0, totalBins - 1);
             const int binBot = std::clamp(static_cast<int>(fracBot * (totalBins - 1)), 0, totalBins - 1);
 
-            const double dbTop = frame.dbSpectrum[binTop];
-            const double dbBot = frame.dbSpectrum[binBot];
+            const double dbTop = frame.dbSpectrum[static_cast<std::size_t>(binTop)];
+            const double dbBot = frame.dbSpectrum[static_cast<std::size_t>(binBot)];
 
-            const auto rgbTop = PelcoD::SpectrogramColorMap::mapDb(dbTop, -60.0, 0.0,
-                PelcoD::SpectrogramColorMap::Preset::Inferno);
-            const auto rgbBot = PelcoD::SpectrogramColorMap::mapDb(dbBot, -60.0, 0.0,
-                PelcoD::SpectrogramColorMap::Preset::Inferno);
+            const auto rgbTop
+                = PelcoD::SpectrogramColorMap::mapDb(dbTop, -60.0, 0.0, PelcoD::SpectrogramColorMap::Preset::Inferno);
+            const auto rgbBot
+                = PelcoD::SpectrogramColorMap::mapDb(dbBot, -60.0, 0.0, PelcoD::SpectrogramColorMap::Preset::Inferno);
 
             Style s;
             s.fg = Color::fromRgb(rgbTop.r, rgbTop.g, rgbTop.b);
@@ -268,8 +268,9 @@ void DiagnosticsView::renderWaterfall(Canvas& canvas, int startX, int startY, in
     // Bottom telemetry line inside panel
     const auto latest = m_stft.getLatestFrame();
     std::ostringstream oss;
-    oss << "Peak: " << std::fixed << std::setprecision(1) << latest.peakFrequencyHz << "Hz | Cent: "
-        << latest.spectralCentroidHz << "Hz | Flat: " << std::setprecision(2) << latest.spectralFlatness;
+    oss << "Peak: " << std::fixed << std::setprecision(1) << latest.peakFrequencyHz
+        << "Hz | Cent: " << latest.spectralCentroidHz << "Hz | Flat: " << std::setprecision(2)
+        << latest.spectralFlatness;
     canvas.drawString(startX + 2, startY + height - 2, oss.str(), highlightStyle);
 }
 
