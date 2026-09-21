@@ -15,6 +15,7 @@
 #include "QVideoStreamWorker.h"
 #include "SpectrogramColorMap.h"
 #include "Stft.h"
+#include "TrackingFilters.h"
 #include "app-qt/widgets/BodePlotWidget.h"
 #include "app-qt/widgets/SpectrogramWidget.h"
 #include "app-qt/widgets/VideoOverlayWidget.h"
@@ -31,10 +32,6 @@
 #include <QTimer>
 #include <QVBoxLayout>
 #include <QWidget>
-
-namespace PelcoD::Video {
-class CentroidTargetTrackerFilter;
-}
 
 namespace PelcoDApp {
 
