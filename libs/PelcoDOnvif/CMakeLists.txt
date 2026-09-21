@@ -74,3 +74,7 @@ if(WIN32)
 endif()
 
 apply_compiler_flags(PelcoDOnvif)
+
+if(BUILD_TESTING)
+    add_subdirectory(tests)
+endif()

@@ -196,11 +196,12 @@ set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR};$ORIGIN
 # ==============================================================================
 # Subdirectories
 # ==============================================================================
+option(BUILD_TESTING "Build unit tests" ON)
+enable_testing()
 add_subdirectory(libs)
 add_subdirectory(app-qt)
 add_subdirectory(app-tui)
 
-enable_testing()
 add_subdirectory(tests)
 
 # ==============================================================================

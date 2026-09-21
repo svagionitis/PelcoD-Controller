@@ -49,3 +49,7 @@ if(PELCOD_ENABLE_ONVIF)
 endif()
 
 apply_compiler_flags(PelcoDQt)
+
+if(BUILD_TESTING)
+    add_subdirectory(tests)
+endif()

@@ -22,3 +22,7 @@ target_link_libraries(PelcoDFujinon PUBLIC
 )
 
 apply_compiler_flags(PelcoDFujinon)
+
+if(BUILD_TESTING)
+    add_subdirectory(tests)
+endif()

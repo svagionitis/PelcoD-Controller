@@ -40,3 +40,7 @@ target_link_libraries(PelcoDTracking PUBLIC
 )
 
 apply_compiler_flags(PelcoDTracking)
+
+if(BUILD_TESTING)
+    add_subdirectory(tests)
+endif()

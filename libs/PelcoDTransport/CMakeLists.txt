@@ -28,3 +28,7 @@ if(WIN32)
 endif()
 
 apply_compiler_flags(PelcoDTransport)
+
+if(BUILD_TESTING)
+    add_subdirectory(tests)
+endif()

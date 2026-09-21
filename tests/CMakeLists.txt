@@ -6,43 +6,10 @@ string(REPLACE "-DNDEBUG" "" CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_R
 string(REPLACE "/DNDEBUG" "" CMAKE_CXX_FLAGS_MINSIZEREL "${CMAKE_CXX_FLAGS_MINSIZEREL}")
 string(REPLACE "-DNDEBUG" "" CMAKE_CXX_FLAGS_MINSIZEREL "${CMAKE_CXX_FLAGS_MINSIZEREL}")
 
-function(add_pelco_test test_name test_source)
-    add_executable(${test_name} ${test_source})
-    target_link_libraries(${test_name} PRIVATE PelcoDCore PelcoDTransport PelcoDTracking PelcoDFujinon PelcoDSim PelcoDMath)
-    apply_compiler_flags(${test_name})
-    add_test(NAME ${test_name} COMMAND ${test_name})
-endfunction()
-
-add_pelco_test(TestPelcoDFrame TestPelcoDFrame.cpp)
-add_pelco_test(TestProtocolBuilder TestProtocolBuilder.cpp)
-add_pelco_test(TestProtocolParser TestProtocolParser.cpp)
-add_pelco_test(TestMockDevice TestMockDevice.cpp)
-add_pelco_test(TestTcpTransportTimeout TestTcpTransportTimeout.cpp)
-add_pelco_test(TestProtocolCompleteness TestProtocolCompleteness.cpp)
-add_pelco_test(TestSerialTransport TestSerialTransport.cpp)
-add_pelco_test(TestUdpTransport TestUdpTransport.cpp)
-add_pelco_test(TestPatrolController TestPatrolController.cpp)
-add_pelco_test(TestBusScanner TestBusScanner.cpp)
-add_pelco_test(TestMockKinematics TestMockKinematics.cpp)
-add_pelco_test(TestFujinonProtocol TestFujinonProtocol.cpp)
-add_pelco_test(TestFujinonSX800Device TestFujinonSX800Device.cpp)
-add_pelco_test(TestConnection TestConnection.cpp)
-add_pelco_test(TestRttProfiler TestRttProfiler.cpp)
-add_pelco_test(TestPidController TestPidController.cpp)
-add_pelco_test(TestFft TestFft.cpp)
-add_pelco_test(TestOscillationDetector TestOscillationDetector.cpp)
-add_pelco_test(TestGoertzelFilter TestGoertzelFilter.cpp)
-add_pelco_test(TestLatencyEstimator TestLatencyEstimator.cpp)
-add_pelco_test(TestDctSharpness TestDctSharpness.cpp)
-add_pelco_test(TestPhaseCorrelation TestPhaseCorrelation.cpp)
-add_pelco_test(TestIntegralImage TestIntegralImage.cpp)
-add_pelco_test(TestDwt TestDwt.cpp)
-add_pelco_test(TestNonlinearKalman TestNonlinearKalman.cpp)
-add_pelco_test(TestStft TestStft.cpp)
-add_pelco_test(TestPlantIdentifier TestPlantIdentifier.cpp)
-add_pelco_test(TestMacroPlayback TestMacroPlayback.cpp)
-add_pelco_test(TestStreamAccumulator TestStreamAccumulator.cpp)
-add_pelco_test(TestCommandQueue TestCommandQueue.cpp)
+# ==============================================================================
+# Application-level Tests (TUI Widget / Qt Widget / CLI Argument Validation)
+# NOTE: All library-level unit tests now live under libs/<LibName>/tests/
+# ==============================================================================
 
 add_executable(TestConnectionModal
     TestConnectionModal.cpp
@@ -98,49 +65,8 @@ target_link_libraries(TestAutoReconnect PRIVATE
 apply_compiler_flags(TestAutoReconnect)
 add_test(NAME TestAutoReconnect COMMAND TestAutoReconnect)
 
-add_executable(TestQPelcoDDevice
-    TestQPelcoDDevice.cpp
-)
-target_include_directories(TestQPelcoDDevice PRIVATE
-    ${CMAKE_SOURCE_DIR}/libs/PelcoDCore
-    ${CMAKE_SOURCE_DIR}/libs/PelcoDQt
-    ${CMAKE_SOURCE_DIR}/libs/PelcoDSim
-)
-target_link_libraries(TestQPelcoDDevice PRIVATE
-    PelcoDQt
-    PelcoDCore
-    PelcoDSim
-    Qt6::Core
-    Qt6::Test
-)
-apply_compiler_flags(TestQPelcoDDevice)
-add_test(NAME TestQPelcoDDevice COMMAND TestQPelcoDDevice)
-
-add_executable(TestRetryPolicy
-    TestRetryPolicy.cpp
-)
-target_include_directories(TestRetryPolicy PRIVATE
-    ${CMAKE_SOURCE_DIR}/libs/PelcoDCore
-    ${CMAKE_SOURCE_DIR}/libs/PelcoDQt
-    ${CMAKE_SOURCE_DIR}/libs/PelcoDSim
-)
-target_link_libraries(TestRetryPolicy PRIVATE
-    PelcoDQt
-    PelcoDCore
-    PelcoDSim
-    Qt6::Core
-    Qt6::Test
-)
-apply_compiler_flags(TestRetryPolicy)
-add_test(NAME TestRetryPolicy COMMAND TestRetryPolicy)
-
 if(WIN32)
-    set(QT_DEVICE_TESTS
-        TestAutoReconnect
-        TestQPelcoDDevice
-        TestRetryPolicy
-    )
-    foreach(qt_test IN LISTS QT_DEVICE_TESTS)
+    foreach(qt_test IN ITEMS TestAutoReconnect)
         set_property(TEST ${qt_test} PROPERTY ENVIRONMENT_MODIFICATION
             "PATH=path_list_prepend:$<TARGET_FILE_DIR:Qt6::Core>"
             "PATH=path_list_prepend:${CMAKE_BINARY_DIR}/vcpkg_installed/x64-windows/debug/bin"
@@ -194,80 +120,4 @@ if(WIN32)
             "PATH=path_list_prepend:C:/vcpkg/installed/x64-windows/bin"
         )
     endforeach()
-endif()
-
-if(PELCOD_ENABLE_VIDEO)
-    add_executable(TestVideoDecoder
-        TestVideoDecoder.cpp
-    )
-    target_include_directories(TestVideoDecoder PRIVATE
-        ${CMAKE_SOURCE_DIR}/libs/PelcoDVideo
-        ${CMAKE_SOURCE_DIR}/libs/PelcoDVideoFilters
-        ${CMAKE_SOURCE_DIR}/libs/PelcoDQt
-    )
-    target_link_libraries(TestVideoDecoder PRIVATE
-        PelcoDQt
-        PelcoDVideo
-        Qt6::Core
-        Qt6::Gui
-        Qt6::Test
-    )
-    if(PELCOD_ENABLE_FILTERS AND OpenCV_FOUND)
-        target_link_libraries(TestVideoDecoder PRIVATE PelcoDVideoFilters)
-    endif()
-    apply_compiler_flags(TestVideoDecoder)
-    add_test(NAME TestVideoDecoder COMMAND TestVideoDecoder)
-    if(WIN32)
-        set_property(TEST TestVideoDecoder PROPERTY ENVIRONMENT_MODIFICATION
-            "PATH=path_list_prepend:$<TARGET_FILE_DIR:Qt6::Core>"
-            "PATH=path_list_prepend:${CMAKE_BINARY_DIR}/vcpkg_installed/x64-windows/debug/bin"
-            "PATH=path_list_prepend:${CMAKE_BINARY_DIR}/vcpkg_installed/x64-windows/bin"
-            "PATH=path_list_prepend:C:/vcpkg/installed/x64-windows/debug/bin"
-            "PATH=path_list_prepend:C:/vcpkg/installed/x64-windows/bin"
-        )
-    endif()
-endif()
-
-if(PELCOD_ENABLE_ONVIF)
-    add_executable(TestPelcoDOnvif
-        TestPelcoDOnvif.cpp
-    )
-    target_include_directories(TestPelcoDOnvif PRIVATE
-        ${CMAKE_SOURCE_DIR}/libs
-    )
-    target_link_libraries(TestPelcoDOnvif PRIVATE
-        PelcoDOnvif
-    )
-    apply_compiler_flags(TestPelcoDOnvif)
-    add_test(NAME TestPelcoDOnvif COMMAND TestPelcoDOnvif)
-    if(WIN32)
-        set_property(TEST TestPelcoDOnvif PROPERTY ENVIRONMENT_MODIFICATION
-            "PATH=path_list_prepend:${CMAKE_BINARY_DIR}/vcpkg_installed/x64-windows/debug/bin"
-            "PATH=path_list_prepend:${CMAKE_BINARY_DIR}/vcpkg_installed/x64-windows/bin"
-            "PATH=path_list_prepend:C:/vcpkg/installed/x64-windows/debug/bin"
-            "PATH=path_list_prepend:C:/vcpkg/installed/x64-windows/bin"
-        )
-    endif()
-
-    add_executable(TestOnvifServer
-        TestOnvifServer.cpp
-    )
-    target_include_directories(TestOnvifServer PRIVATE
-        ${CMAKE_SOURCE_DIR}/libs
-    )
-    target_link_libraries(TestOnvifServer PRIVATE
-        PelcoDOnvif
-        PelcoDCore
-        PelcoDSim
-    )
-    apply_compiler_flags(TestOnvifServer)
-    add_test(NAME TestOnvifServer COMMAND TestOnvifServer)
-    if(WIN32)
-        set_property(TEST TestOnvifServer PROPERTY ENVIRONMENT_MODIFICATION
-            "PATH=path_list_prepend:${CMAKE_BINARY_DIR}/vcpkg_installed/x64-windows/debug/bin"
-            "PATH=path_list_prepend:${CMAKE_BINARY_DIR}/vcpkg_installed/x64-windows/bin"
-            "PATH=path_list_prepend:C:/vcpkg/installed/x64-windows/debug/bin"
-            "PATH=path_list_prepend:C:/vcpkg/installed/x64-windows/bin"
-        )
-    endif()
 endif()

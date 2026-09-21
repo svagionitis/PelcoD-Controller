@@ -21,3 +21,7 @@ target_link_libraries(PelcoDSim PUBLIC
 )
 
 apply_compiler_flags(PelcoDSim)
+
+if(BUILD_TESTING)
+    add_subdirectory(tests)
+endif()

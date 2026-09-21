@@ -33,3 +33,7 @@ target_link_libraries(PelcoDMath PUBLIC
 )
 
 apply_compiler_flags(PelcoDMath)
+
+if(BUILD_TESTING)
+    add_subdirectory(tests)
+endif()

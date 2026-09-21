@@ -40,3 +40,7 @@ target_link_libraries(PelcoDCore PUBLIC
 )
 
 apply_compiler_flags(PelcoDCore)
+
+if(BUILD_TESTING)
+    add_subdirectory(tests)
+endif()

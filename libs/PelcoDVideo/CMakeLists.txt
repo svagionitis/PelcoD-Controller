@@ -57,3 +57,7 @@ if(PELCOD_ENABLE_GSTREAMER AND GSTREAMER_FOUND)
 endif()
 
 apply_compiler_flags(PelcoDVideo)
+
+if(BUILD_TESTING)
+    add_subdirectory(tests)
+endif()
