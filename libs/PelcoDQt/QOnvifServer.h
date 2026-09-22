@@ -3,9 +3,9 @@
 /// @file QOnvifServer.h
 /// @brief Qt 6 QObject adapter wrapping OnvifServer and PelcoDPtzAdapter for GUI/application management.
 
-#include "PelcoDOnvif/OnvifServer.h"
-#include "PelcoDOnvif/OnvifServerTypes.h"
-#include "PelcoDOnvif/PelcoDPtzAdapter.h"
+#include "Onvif/OnvifServer.h"
+#include "Onvif/OnvifServerTypes.h"
+#include "Onvif/PelcoDPtzAdapter.h"
 #include "QPelcoDDevice.h"
 
 #include <QObject>

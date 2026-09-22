@@ -3,7 +3,7 @@
 
 #include "OnvifCameraTab.h"
 #include "VideoStreamTab.h"
-#include <PelcoDOnvif/GeodesyUtils.h>
+#include <Onvif/GeodesyUtils.h>
 #include <algorithm>
 
 #include <QApplication>

@@ -24,9 +24,9 @@ The System Context diagram outlines the Pelco-D Controller boundary, its human o
 |  - Desktop GUI Application (PelcoDAppQt): Video, HUD, D-Pad, Presets, ONVIF Tab, RTT Profiler     |
 |  - Zero-Dependency Terminal Client (PelcoDAppTui): Braille Video, PTZ Compass, ONVIF CLI Tools   |
 |  - Qt 6 Asynchronous Signal/Slot Adapter (PelcoDQt)                                               |
-|  - Tactical Video Streaming (PelcoDVideo) & OpenCV Vision Pipeline (PelcoDVideoFilters)           |
-|  - Standalone ONVIF Profile S & T Client Engine (PelcoDOnvif)                                     |
-|  - Pure C++17 Core Protocol (PelcoDCore), Transports, Optics, Sim, Math & Tracking Subsystems   |
+|  - Tactical Video Streaming (Video) & OpenCV Vision Pipeline (VideoFilters)                       |
+|  - Standalone ONVIF Profile S & T Client Engine (Onvif)                                           |
+|  - Pure C++17 Core Protocol (PelcoDCore), Transports, Optics, Sim, Math & Tracking Subsystems     |
 +---------------------------------------------------------------------------------------------------+
          |                       |                     |                     |               |
          | RS-485                | TCP/IP (Raw Socket) | HTTP SOAP / WS-Sec  | RTSP / RTP    | Direct Memory
@@ -125,7 +125,7 @@ The Container diagram illustrates the high-level software containers that form t
 |  |         [ PelcoDCore ]                       +---------------------[ PelcoDVideo ] <---------------------+                  |  |
 |  |                                                                                                                             |  |
 |  |  +-----------------------------------------------------------------------------------------------------------------------+  |  |
-|  |  | PelcoDOnvif                                                                                                           |  |  |
+|  |  | Onvif                                                                                                                  |  |  |
 |  |  | Technology: Pure C++17, libcurl, pugixml, Zero Qt                                                                     |  |  |
 |  |  | Features: WS-Discovery (Multicast), WS-Security (SHA-1), Profile S (PTZ/Media), Profile T (Imaging/PullPoint Events)  |  |  |
 |  |  +-----------------------------------------------------------------------------------------------------------------------+  |  |
@@ -159,11 +159,11 @@ C4Container
     Container(transLib, "PelcoDTransport", "Pure C++17, Zero Qt, Sockets/Serial", "Dedicated I/O transport layer implementing concrete adapters: SerialTransport (RS-485 via Win32/termios), TcpTransport, UdpTransport, BaseTransport, and SocketUtils.")
     Container(fujiLib, "PelcoDFujinon", "Pure C++17, Zero Qt", "Specialized camera protocol extensions for Fujinon SX800/SX801 series. Subclasses PelcoDDevice with proprietary packet encoders/decoders.")
     Container(simLib, "PelcoDSim", "Pure C++17, Zero Qt", "Virtual device emulation and kinematics simulation. Implements MockPelcoDDevice (ITransport), KinematicsSimulator, and LatencyPipeline.")
-    Container(trackLib, "PelcoDTracking", "Pure C++17, Zero Qt", "Closed-loop visual tracking, EKF/UKF spherical kinematic estimation, PtzCameraModel projective geometry, PID control, latency estimation, and plant identification.")
-    Container(mathLib, "PelcoDMath", "Pure C++17, Zero External Dependencies", "Mathematical transforms (FFT, DCT, DWT, STFT), digital filters (NotchFilter), motion estimation (PhaseCorrelation), integral images, and matrix algebra.")
-    Container(videoLib, "PelcoDVideo", "Pure C++17, FFmpeg, GStreamer", "Lightweight video decoding pipeline with AtomicTripleBuffer, decoders, IFrameProcessor port, and BrailleRenderer. Zero OpenCV dependencies.")
-    Container(filtersLib, "PelcoDVideoFilters", "Pure C++17, OpenCV", "Standalone computer vision library implementing IFrameProcessor: Color, Spatial, Geometric, Thermal, Tracking, and Overlay filters.")
-    Container(onvifLib, "PelcoDOnvif", "Pure C++17, libcurl, pugixml", "ONVIF Profile S and T SOAP client handling WS-Discovery, WS-Security, Media, PTZ, Imaging, and PullPoint event streams.")
+    Container(trackLib, "Tracking", "Pure C++17, Zero Qt", "Closed-loop visual tracking, EKF/UKF spherical kinematic estimation, PtzCameraModel projective geometry, PID control, latency estimation, and plant identification.")
+    Container(mathLib, "Math", "Pure C++17, Zero External Dependencies", "Mathematical transforms (FFT, DCT, DWT, STFT), digital filters (NotchFilter), motion estimation (PhaseCorrelation), integral images, and matrix algebra.")
+    Container(videoLib, "Video", "Pure C++17, FFmpeg, GStreamer", "Lightweight video decoding pipeline with AtomicTripleBuffer, decoders, IFrameProcessor port, and BrailleRenderer. Zero OpenCV dependencies.")
+    Container(filtersLib, "VideoFilters", "Pure C++17, OpenCV", "Standalone computer vision library implementing IFrameProcessor: Color, Spatial, Geometric, Thermal, Tracking, and Overlay filters.")
+    Container(onvifLib, "Onvif", "Pure C++17, libcurl, pugixml", "ONVIF Profile S and T SOAP client/server handling WS-Discovery, WS-Security, Media, PTZ, Imaging, thermal radiometry, and PullPoint event streams. Contains protocol adapters in adapters/.")
 
     System_Ext(serialPort, "Serial Port (RS-485)", "Native POSIX termios or Win32 Comm API.")
     System_Ext(tcpSocket, "Ethernet Serial Server", "Raw TCP/IP stream forwarding Pelco-D frames.")
@@ -483,15 +483,15 @@ C4Component
 
 ---
 
-## 5. Level 3: Component Diagram (PelcoDOnvif)
+## 5. Level 3: Component Diagram (Onvif)
 
-The Component diagram details the internal modular structure of `libs/PelcoDOnvif`.
+The Component diagram details the internal modular structure of `libs/Onvif`.
 
 ### ASCII Diagram
 
 ```text
 +---------------------------------------------------------------------------------------------------------------+
-|                                                  PelcoDOnvif                                                  |
+|                                                     Onvif                                                     |
 |                                                                                                               |
 |  +---------------------------------------------------------------------------------------------------------+  |
 |  |                                                OnvifClient                                              |  |
@@ -527,9 +527,9 @@ The Component diagram details the internal modular structure of `libs/PelcoDOnvi
 
 ```mermaid
 C4Component
-    title Component Diagram - PelcoDOnvif Library
+    title Component Diagram - Onvif Library
 
-    Container_Boundary(onvif, "PelcoDOnvif (Library)")
+    Container_Boundary(onvif, "Onvif (Library)")
         Component(client, "OnvifClient", "C++17 Class", "Main coordinator. Dispatches Profile S (PTZ, Media) and Profile T (Imaging, PullPoint) commands.")
         Component(discovery, "OnvifDiscovery", "C++17 Class", "Multicast UDP WS-Discovery probe (239.255.255.250:3702) parser.")
         Component(security, "OnvifSecurity", "C++17 Class", "Generates WS-Security UsernameToken with Nonce, Created timestamp, and SHA-1 password digest.")
@@ -590,7 +590,7 @@ The Component diagram details the GUI layer (`app-qt`) and its bridge (`PelcoDQt
 |  +-----------------------+  +-----------------------+  +-----------------------+  +------------------------+  |
 |             |                           |                          |                          |               |
 |             v                           v                          v                          v               |
-|  [ PelcoDCore::PelcoDDevice ] [ FujinonSX800Device ]    [ PelcoDVideo::IDecoder ]    [ PelcoDOnvif::Client ]  |
+|  [ PelcoDCore::PelcoDDevice ] [ FujinonSX800Device ]    [ Video::IDecoder ]          [ Onvif::Client ]        |
 +---------------------------------------------------------------------------------------------------------------+
 ```
 
@@ -688,7 +688,7 @@ The Component diagram details the zero-dependency Terminal User Interface and CL
 +-----------------------------------------------------------|---------------------------------------------------+
                                                             | Direct C++ API Calls & Callbacks
                                                             v
-                                            [ PelcoDCore ] & [ PelcoDOnvif ]
+                                            [ PelcoDCore ] & [ Onvif ]
 ```
 
 ### Mermaid Diagram

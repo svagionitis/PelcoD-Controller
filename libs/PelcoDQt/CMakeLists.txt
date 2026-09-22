@@ -43,7 +43,7 @@ if(PELCOD_ENABLE_ONVIF)
         QOnvifServer.cpp
     )
     target_link_libraries(PelcoDQt PUBLIC
-        PelcoDOnvif
+        Onvif
     )
     target_compile_definitions(PelcoDQt PUBLIC PELCOD_ENABLE_ONVIF=1)
 endif()

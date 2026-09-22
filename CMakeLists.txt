@@ -351,9 +351,9 @@ include(GitHooks)
 # Target Installation
 # ==============================================================================
 
-set(PELCOD_INSTALL_TARGETS PelcoDAppQt ViscaAppQt PelcoDAppTui PelcoDCore PelcoDQt Math Transport ViscaCore ViscaSony PelcoDTracking PelcoDFujinon PelcoDSim)
+set(PELCOD_INSTALL_TARGETS PelcoDAppQt ViscaAppQt PelcoDAppTui PelcoDCore PelcoDQt Math Transport ViscaCore ViscaSony Tracking PelcoDFujinon PelcoDSim)
 if(PELCOD_ENABLE_ONVIF)
-    list(APPEND PELCOD_INSTALL_TARGETS PelcoDOnvif)
+    list(APPEND PELCOD_INSTALL_TARGETS Onvif)
 endif()
 if(PELCOD_ENABLE_VIDEO)
     list(APPEND PELCOD_INSTALL_TARGETS Video)
@@ -397,21 +397,45 @@ install(FILES
 )
 
 install(FILES
-    libs/PelcoDTracking/ChirpCalibrator.h
-    libs/PelcoDTracking/ExtendedKalmanFilter.h
-    libs/PelcoDTracking/LatencyCalibrator.h
-    libs/PelcoDTracking/LatencyEstimator.h
-    libs/PelcoDTracking/OscillationDetector.h
-    libs/PelcoDTracking/PelcoDTracking.h
-    libs/PelcoDTracking/PidController.h
-    libs/PelcoDTracking/PlantIdentifier.h
-    libs/PelcoDTracking/PtzAutoTracker.h
-    libs/PelcoDTracking/PtzCameraModel.h
-    libs/PelcoDTracking/PtzSphericalEstimator.h
-    libs/PelcoDTracking/TransientShockDetector.h
-    libs/PelcoDTracking/UnscentedKalmanFilter.h
-    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/PelcoDTracking
+    libs/Tracking/ChirpCalibrator.h
+    libs/Tracking/ExtendedKalmanFilter.h
+    libs/Tracking/LatencyCalibrator.h
+    libs/Tracking/LatencyEstimator.h
+    libs/Tracking/OscillationDetector.h
+    libs/Tracking/PelcoDTracking.h
+    libs/Tracking/PidController.h
+    libs/Tracking/PlantIdentifier.h
+    libs/Tracking/PtzAutoTracker.h
+    libs/Tracking/PtzCameraModel.h
+    libs/Tracking/PtzSphericalEstimator.h
+    libs/Tracking/Tracking.h
+    libs/Tracking/TransientShockDetector.h
+    libs/Tracking/UnscentedKalmanFilter.h
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/Tracking
 )
+
+if(PELCOD_ENABLE_ONVIF)
+    install(FILES
+        libs/Onvif/GeodesyUtils.h
+        libs/Onvif/Onvif.h
+        libs/Onvif/OnvifClient.h
+        libs/Onvif/OnvifDiscovery.h
+        libs/Onvif/OnvifHttpClient.h
+        libs/Onvif/OnvifSecurity.h
+        libs/Onvif/OnvifServer.h
+        libs/Onvif/OnvifServerTypes.h
+        libs/Onvif/OnvifTypes.h
+        libs/Onvif/PelcoDPtzAdapter.h
+        libs/Onvif/WsDiscoveryCommon.h
+        libs/Onvif/WsDiscoveryServer.h
+        libs/Onvif/XmlUtils.h
+        DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/Onvif
+    )
+    install(FILES
+        libs/Onvif/adapters/PelcoDPtzAdapter.h
+        DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/Onvif/adapters
+    )
+endif()
 
 install(FILES
     libs/PelcoDFujinon/FujinonBuilder.h

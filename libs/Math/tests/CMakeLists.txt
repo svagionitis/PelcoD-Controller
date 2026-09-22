@@ -21,11 +21,11 @@ add_math_test(TestNotchFilter      TestNotchFilter.cpp)
 add_math_test(TestSpectrogramColorMap TestSpectrogramColorMap.cpp)
 add_math_test(TestDct              TestDct.cpp)
 
-# TestDwt.cpp also exercises TransientShockDetector (from PelcoDTracking)
+# TestDwt.cpp also exercises TransientShockDetector (from Tracking)
 add_executable(TestDwt TestDwt.cpp)
 target_include_directories(TestDwt PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/..
-    ${CMAKE_SOURCE_DIR}/libs/PelcoDTracking
+    ${CMAKE_SOURCE_DIR}/libs/Tracking
 )
-target_link_libraries(TestDwt PRIVATE Math PelcoDTracking)
+target_link_libraries(TestDwt PRIVATE Math Tracking)
 pelcod_register_gtest(TestDwt)

@@ -3,9 +3,9 @@
 /// @file QOnvifDevice.h
 /// @brief Qt QObject adapter bridging ONVIF Profile S IP camera client.
 
-#include "PelcoDOnvif/OnvifClient.h"
-#include "PelcoDOnvif/OnvifDiscovery.h"
-#include "PelcoDOnvif/OnvifTypes.h"
+#include "Onvif/OnvifClient.h"
+#include "Onvif/OnvifDiscovery.h"
+#include "Onvif/OnvifTypes.h"
 
 #include <QList>
 #include <QObject>
@@ -291,8 +291,8 @@ public Q_SLOTS:
     /// @param[in] speed Optional speed ratio [0.0, 1.0].
     /// @param[in] areaWidth Optional target framing width in meters.
     /// @param[in] areaHeight Optional target framing height in meters.
-    void geoMove(double lat, double lon, double elevation, double speed = 1.0,
-        double areaWidth = 0.0, double areaHeight = 0.0);
+    void geoMove(
+        double lat, double lon, double elevation, double speed = 1.0, double areaWidth = 0.0, double areaHeight = 0.0);
 
     /// @brief Queries camera installation geographic location and mounting orientation.
     void refreshGeoLocation();

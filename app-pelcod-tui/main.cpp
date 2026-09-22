@@ -8,9 +8,9 @@
 #include "views/ConnectionModal.h"
 
 #if defined(PELCOD_ENABLE_ONVIF)
-#include "PelcoDOnvif/OnvifClient.h"
-#include "PelcoDOnvif/OnvifDiscovery.h"
-#include "PelcoDOnvif/OnvifTypes.h"
+#include "Onvif/OnvifClient.h"
+#include "Onvif/OnvifDiscovery.h"
+#include "Onvif/OnvifTypes.h"
 #endif
 
 #include <charconv>

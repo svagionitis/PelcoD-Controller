@@ -40,16 +40,16 @@ target_include_directories(PelcoDAppTui PRIVATE
     ${CMAKE_SOURCE_DIR}/libs
     ${CMAKE_SOURCE_DIR}/libs/Video
     ${CMAKE_SOURCE_DIR}/libs/VideoFilters
-    ${CMAKE_SOURCE_DIR}/libs/PelcoDTracking
+    ${CMAKE_SOURCE_DIR}/libs/Tracking
     ${CMAKE_SOURCE_DIR}/libs/PelcoDFujinon
     ${CMAKE_SOURCE_DIR}/libs/PelcoDSim
 )
 
 target_link_libraries(PelcoDAppTui PRIVATE
     PelcoDCore
-    PelcoDTransport
+    Transport
     PelcoDSim
-    PelcoDTracking
+    Tracking
     PelcoDFujinon
     Video
     Threads::Threads
@@ -65,7 +65,7 @@ if(PELCOD_ENABLE_ONVIF)
         views/OnvifServerView.cpp
     )
     target_link_libraries(PelcoDAppTui PRIVATE
-        PelcoDOnvif
+        Onvif
     )
     target_compile_definitions(PelcoDAppTui PRIVATE PELCOD_ENABLE_ONVIF=1)
 endif()

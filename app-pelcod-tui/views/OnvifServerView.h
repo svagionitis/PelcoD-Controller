@@ -8,9 +8,9 @@
 #include "Terminal.h"
 
 #if defined(PELCOD_ENABLE_ONVIF)
-#include "PelcoDOnvif/OnvifServer.h"
-#include "PelcoDOnvif/OnvifServerTypes.h"
-#include "PelcoDOnvif/PelcoDPtzAdapter.h"
+#include "Onvif/OnvifServer.h"
+#include "Onvif/OnvifServerTypes.h"
+#include "Onvif/PelcoDPtzAdapter.h"
 #endif
 
 #include <deque>
