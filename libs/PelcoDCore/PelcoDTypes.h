@@ -3,6 +3,7 @@
 /// @file PelcoDTypes.h
 /// @brief Type definitions, enumerations, and constants for Pelco-D protocol.
 
+#include <Transport/TransportTypes.h>
 #include <cstdint>
 #include <string>
 
@@ -106,9 +107,8 @@ enum class AutoMode : std::uint8_t { Off = 0x00U, On = 0x01U, Auto = 0x02U };
 /// @brief Binary switch state.
 enum class SwitchState : std::uint8_t { Off = 0x00U, On = 0x01U };
 
-/// @enum TransportState
 /// @brief Operational state of communication transport.
-enum class TransportState : std::uint8_t { Disconnected = 0x00U, Connecting = 0x01U, Connected = 0x02U, Error = 0x03U };
+using TransportState = ::Transport::TransportState;
 
 /// @enum CommandPriority
 /// @brief Priority levels for command execution in PelcoDDevice.

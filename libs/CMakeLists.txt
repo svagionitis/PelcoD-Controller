@@ -1,6 +1,6 @@
+add_subdirectory(Transport)
 add_subdirectory(PelcoDMath)
 add_subdirectory(PelcoDCore)
-add_subdirectory(PelcoDTransport)
 if(BUILD_TESTING)
     add_subdirectory(TestSupport)
 endif()

@@ -1,4 +1,6 @@
-add_library(PelcoDTransport STATIC
+add_library(Transport STATIC
+    ITransport.h
+    TransportTypes.h
     BaseTransport.h
     BaseTransport.cpp
     SerialTransport.h
@@ -11,23 +13,24 @@ add_library(PelcoDTransport STATIC
     SocketUtils.cpp
 )
 
-target_include_directories(PelcoDTransport PUBLIC
+add_library(PelcoDTransport ALIAS Transport)
+
+target_include_directories(Transport PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/..>
     $<INSTALL_INTERFACE:include>
 )
 
-target_link_libraries(PelcoDTransport PUBLIC
-    PelcoDCore
+target_link_libraries(Transport PUBLIC
     Threads::Threads
     glog::glog
 )
 
 if(WIN32)
-    target_link_libraries(PelcoDTransport PUBLIC ws2_32)
+    target_link_libraries(Transport PUBLIC ws2_32)
 endif()
 
-apply_compiler_flags(PelcoDTransport)
+apply_compiler_flags(Transport)
 
 if(BUILD_TESTING)
     add_subdirectory(tests)

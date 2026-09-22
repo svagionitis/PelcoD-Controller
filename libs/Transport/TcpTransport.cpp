@@ -7,7 +7,7 @@
 #include <chrono>
 #include <glog/logging.h>
 
-namespace PelcoD::Transport {
+namespace Transport {
 
 TcpTransport::TcpTransport(std::string host, std::uint16_t port)
     : m_host { std::move(host) }
@@ -270,4 +270,4 @@ void TcpTransport::readWorker()
     }
 }
 
-} // namespace PelcoD::Transport
+} // namespace Transport

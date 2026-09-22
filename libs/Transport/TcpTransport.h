@@ -11,7 +11,7 @@
 #include <string>
 #include <vector>
 
-namespace PelcoD::Transport {
+namespace Transport {
 
 /// @class TcpTransport
 /// @brief Standard TCP client socket implementation of ITransport (zero Qt dependency).
@@ -56,8 +56,9 @@ private:
     std::atomic<SocketHandle> m_sockfd { InvalidSocket };
 };
 
-} // namespace PelcoD::Transport
+} // namespace Transport
 
 namespace PelcoD {
-using Transport::TcpTransport;
+namespace Transport = ::Transport;
+using ::Transport::TcpTransport;
 } // namespace PelcoD

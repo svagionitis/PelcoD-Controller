@@ -21,7 +21,7 @@
 #include <filesystem>
 #include <glog/logging.h>
 
-namespace PelcoD::Transport {
+namespace Transport {
 
 namespace {
 
@@ -572,4 +572,4 @@ std::vector<std::string> SerialTransport::enumeratePorts()
     return ports;
 }
 
-} // namespace PelcoD::Transport
+} // namespace Transport

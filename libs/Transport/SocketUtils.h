@@ -30,7 +30,7 @@
 #include <cstdint>
 #include <string>
 
-namespace PelcoD::Transport::Net {
+namespace Transport::Net {
 
 #ifdef _WIN32
 using SocketHandle = SOCKET;
@@ -81,8 +81,9 @@ bool setNonBlocking(SocketHandle s, bool nonBlocking) noexcept;
 /// @return Number of ready descriptors, 0 on timeout, or negative on error.
 int pollSockets(PollFd* fds, unsigned long nfds, int timeoutMs) noexcept;
 
-} // namespace PelcoD::Transport::Net
+} // namespace Transport::Net
 
-namespace PelcoD::Net {
-using namespace Transport::Net;
-} // namespace PelcoD::Net
+namespace PelcoD {
+namespace Transport = ::Transport;
+namespace Net = ::Transport::Net;
+} // namespace PelcoD

@@ -35,6 +35,7 @@ target_include_directories(PelcoDCore PUBLIC
 )
 
 target_link_libraries(PelcoDCore PUBLIC
+    Transport
     Threads::Threads
     glog::glog
 )

@@ -11,7 +11,7 @@
 #include <thread>
 #include <vector>
 
-namespace PelcoD::Transport {
+namespace Transport {
 
 /// @class BaseTransport
 /// @brief Abstract base class implementing callback storage, thread synchronization, and worker lifecycle.
@@ -59,8 +59,9 @@ protected:
     StateChangedCallback m_stateCallback;
 };
 
-} // namespace PelcoD::Transport
+} // namespace Transport
 
 namespace PelcoD {
-using Transport::BaseTransport;
+namespace Transport = ::Transport;
+using ::Transport::BaseTransport;
 } // namespace PelcoD

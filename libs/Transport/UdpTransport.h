@@ -11,7 +11,7 @@
 #include <string>
 #include <vector>
 
-namespace PelcoD::Transport {
+namespace Transport {
 
 /// @class UdpTransport
 /// @brief Standard UDP socket implementation of ITransport (zero Qt dependency).
@@ -54,8 +54,9 @@ private:
     std::atomic<SocketHandle> m_sockfd { InvalidSocket };
 };
 
-} // namespace PelcoD::Transport
+} // namespace Transport
 
 namespace PelcoD {
-using Transport::UdpTransport;
+namespace Transport = ::Transport;
+using ::Transport::UdpTransport;
 } // namespace PelcoD
