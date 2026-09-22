@@ -189,4 +189,50 @@ std::string ViscaFrame::toHexString() const
     return oss.str();
 }
 
+namespace {
+
+constexpr int hexCharToNibble(char c) noexcept
+{
+    if (c >= '0' && c <= '9') {
+        return c - '0';
+    }
+    if (c >= 'a' && c <= 'f') {
+        return c - 'a' + 10;
+    }
+    if (c >= 'A' && c <= 'F') {
+        return c - 'A' + 10;
+    }
+    return -1;
+}
+
+} // namespace
+
+ViscaFrame ViscaFrame::fromHexString(std::string_view hexStr)
+{
+    std::vector<uint8_t> bytes {};
+    int highNibble = -1;
+
+    for (size_t i = 0; i < hexStr.size(); ++i) {
+        const char c = hexStr[i];
+        if (c == '0' && (i + 1 < hexStr.size()) && (hexStr[i + 1] == 'x' || hexStr[i + 1] == 'X')) {
+            ++i;
+            continue;
+        }
+
+        const int val = hexCharToNibble(c);
+        if (val < 0) {
+            continue;
+        }
+
+        if (highNibble < 0) {
+            highNibble = val;
+        } else {
+            bytes.push_back(static_cast<uint8_t>((highNibble << 4) | val));
+            highNibble = -1;
+        }
+    }
+
+    return ViscaFrame(std::move(bytes));
+}
+
 } // namespace Visca

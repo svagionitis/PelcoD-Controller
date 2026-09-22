@@ -254,12 +254,12 @@ void ViscaDevice::onFrameReceived(const ViscaFrame& frame)
         else if (frame.isError()) {
             const ViscaSocket sock = frame.socket();
             const ViscaErrorCode code = frame.errorCode();
-            const std::string errStr(errorCodeToString(code));
+            const std::string_view errStr = errorCodeToString(code);
 
             if (auto* slot = findSocketSlot(sock); slot && slot->state != SocketState::Idle) {
                 slot->state = SocketState::Idle;
                 cmdCallback = std::move(slot->command.callback);
-                cmdRes = CommandResult { false, slot->id, code, errStr };
+                cmdRes = CommandResult { false, slot->id, code, std::string(errStr) };
                 slot->command = {};
                 collectFramesToSendLocked(framesToSend);
                 m_cv.notify_all();
@@ -268,7 +268,7 @@ void ViscaDevice::onFrameReceived(const ViscaFrame& frame)
                 InFlightInquiry inq = std::move(m_inquiryQueue.front());
                 m_inquiryQueue.pop_front();
                 inqCallback = std::move(inq.callback);
-                inqRes = InquiryResult { false, frame, errStr };
+                inqRes = InquiryResult { false, frame, std::string(errStr) };
                 m_cv.notify_all();
             }
         }

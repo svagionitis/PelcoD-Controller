@@ -172,3 +172,22 @@ TEST(TestViscaFrame, HexStringFormatting)
     ViscaFrame empty;
     EXPECT_TRUE(empty.toHexString().empty());
 }
+
+/// @brief Validates hexadecimal string parsing into ViscaFrame.
+TEST(TestViscaFrame, FromHexStringParsing)
+{
+    const ViscaFrame expected { 0x81, 0x01, 0x04, 0x00, 0x02, 0xFF };
+
+    // Standard spaced string
+    EXPECT_EQ(ViscaFrame::fromHexString("81 01 04 00 02 FF"), expected);
+
+    // Continuous string
+    EXPECT_EQ(ViscaFrame::fromHexString("8101040002ff"), expected);
+
+    // Delimited with colons and '0x' prefixes
+    EXPECT_EQ(ViscaFrame::fromHexString("0x81:0x01:0x04:0x00:0x02:0xFF"), expected);
+
+    // Empty and whitespace strings
+    EXPECT_TRUE(ViscaFrame::fromHexString("").empty());
+    EXPECT_TRUE(ViscaFrame::fromHexString("   \t\r\n").empty());
+}

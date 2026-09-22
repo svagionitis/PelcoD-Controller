@@ -120,14 +120,14 @@ void QViscaSonyDevice::setTransport(std::shared_ptr<::Transport::ITransport> tra
         disconnectDevice();
     }
 
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     m_transport = std::move(transport);
     m_cameraAddress = cameraAddress;
 }
 
 std::shared_ptr<::Transport::ITransport> QViscaSonyDevice::transport() const noexcept
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     return m_transport;
 }
 
@@ -201,7 +201,7 @@ bool QViscaSonyDevice::connectDevice()
     std::shared_ptr<::Transport::ITransport> trans;
     uint8_t addr = 1;
     {
-        std::lock_guard<std::mutex> lock(m_mutex);
+        std::scoped_lock lock(m_mutex);
         trans = m_transport;
         addr = m_cameraAddress;
     }
@@ -268,7 +268,7 @@ void QViscaSonyDevice::disconnectDevice()
 
     std::shared_ptr<::Transport::ITransport> trans;
     {
-        std::lock_guard<std::mutex> lock(m_mutex);
+        std::scoped_lock lock(m_mutex);
         trans = m_transport;
         m_fcbDevice.reset();
         m_connected = false;

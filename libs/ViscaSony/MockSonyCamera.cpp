@@ -44,13 +44,13 @@ bool MockSonyCamera::sendData(const std::vector<uint8_t>& data)
 
 void MockSonyCamera::setDataCallback(DataReceivedCallback callback)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     m_dataCallback = std::move(callback);
 }
 
 void MockSonyCamera::setStateCallback(StateChangedCallback callback)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     m_stateCallback = std::move(callback);
 }
 
@@ -67,91 +67,91 @@ uint32_t MockSonyCamera::getBaudRate() const noexcept
 
 void MockSonyCamera::setModelType(SonyCameraModelType model)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     m_modelType = model;
 }
 
 SonyCameraModelType MockSonyCamera::modelType() const noexcept
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     return m_modelType;
 }
 
 void MockSonyCamera::setCameraAddress(uint8_t address) noexcept
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     m_address = address;
 }
 
 uint8_t MockSonyCamera::cameraAddress() const noexcept
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     return m_address;
 }
 
 uint16_t MockSonyCamera::zoomPosition() const noexcept
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     return m_zoomPosition;
 }
 
 void MockSonyCamera::setZoomPosition(uint16_t pos) noexcept
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     m_zoomPosition = pos;
 }
 
 uint16_t MockSonyCamera::focusPosition() const noexcept
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     return m_focusPosition;
 }
 
 void MockSonyCamera::setFocusPosition(uint16_t pos) noexcept
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     m_focusPosition = pos;
 }
 
 uint8_t MockSonyCamera::registerValue(uint8_t reg) const noexcept
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     return m_registers[reg & 0x7F];
 }
 
 void MockSonyCamera::setRegisterValue(uint8_t reg, uint8_t val) noexcept
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     m_registers[reg & 0x7F] = val;
 }
 
 SonyExposureMode MockSonyCamera::exposureMode() const noexcept
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     return m_exposureMode;
 }
 
 SonyWhiteBalanceMode MockSonyCamera::wbMode() const noexcept
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     return m_wbMode;
 }
 
 SonyStabilizerMode MockSonyCamera::stabilizerMode() const noexcept
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     return m_stabilizerMode;
 }
 
 SonyDefogMode MockSonyCamera::defogMode() const noexcept
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     return m_defogMode;
 }
 
 void MockSonyCamera::injectNextError(ViscaErrorCode code) noexcept
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     m_injectedError = code;
 }
 
@@ -164,7 +164,7 @@ void MockSonyCamera::sendResponse(const ViscaFrame& frame)
 
 void MockSonyCamera::processIncomingFrame(const ViscaFrame& frame)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
 
     // AddressSet broadcast (88 30 01 FF)
     if (frame.size() == 4 && frame[0] == 0x88 && frame[1] == 0x30 && frame[2] == 0x01) {

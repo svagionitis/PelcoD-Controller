@@ -7,6 +7,7 @@
 #include <functional>
 #include <memory>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace Visca {
@@ -25,8 +26,27 @@ enum class ScanError {
 
 /// @brief Converts a @ref ScanError enum value to a human-readable diagnostic string.
 /// @param[in] err Scan error enum value.
-/// @return Null-terminated string describing the error.
-[[nodiscard]] const char* scanErrorToString(ScanError err) noexcept;
+/// @return String view describing the error.
+[[nodiscard]] constexpr std::string_view scanErrorToString(ScanError err) noexcept
+{
+    switch (err) {
+    case ScanError::None:
+        return "None";
+    case ScanError::TransportNotOpen:
+        return "TransportNotOpen";
+    case ScanError::AddressSetSendFailed:
+        return "AddressSetSendFailed";
+    case ScanError::AddressSetTimeout:
+        return "AddressSetTimeout";
+    case ScanError::VersionInquirySendFailed:
+        return "VersionInquirySendFailed";
+    case ScanError::VersionInquiryTimeout:
+        return "VersionInquiryTimeout";
+    case ScanError::Cancelled:
+        return "Cancelled";
+    }
+    return "Unknown";
+}
 
 /// @struct DiscoveredCamera
 /// @brief Raw camera identification retrieved during VISCA bus enumeration.
@@ -51,7 +71,7 @@ public:
     using CameraDiscoveredCallback = std::function<void(const DiscoveredCamera& camera)>;
 
     /// @brief Callback reporting non-fatal or fatal scan errors and diagnostic warnings.
-    using ErrorCallback = std::function<void(ScanError error, const std::string& message)>;
+    using ErrorCallback = std::function<void(ScanError error, std::string_view message)>;
 
     /// @brief Predicate queried to determine if the scan should be aborted early.
     using CancellationPredicate = std::function<bool()>;

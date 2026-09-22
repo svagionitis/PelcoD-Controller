@@ -7,6 +7,7 @@
 
 #include <memory>
 #include <string>
+#include <string_view>
 #include <vector>
 
 using namespace Visca;
@@ -52,9 +53,9 @@ TEST(TestViscaBusScanner, ClosedTransportReportsError)
     const auto cameras = scanner.scanBus(
         nullptr,
         nullptr,
-        [&](ScanError err, const std::string& msg) {
+        [&](ScanError err, std::string_view msg) {
             reportedError = err;
-            reportedMsg = msg;
+            reportedMsg = std::string(msg);
         });
 
     EXPECT_TRUE(cameras.empty());
@@ -77,9 +78,9 @@ TEST(TestViscaBusScanner, SendFailureReportsError)
     const auto cameras = scanner.scanBus(
         nullptr,
         nullptr,
-        [&](ScanError err, const std::string& msg) {
+        [&](ScanError err, std::string_view msg) {
             reportedError = err;
-            reportedMsg = msg;
+            reportedMsg = std::string(msg);
         });
 
     EXPECT_TRUE(cameras.empty());
@@ -101,7 +102,7 @@ TEST(TestViscaBusScanner, AddressSetTimeoutFallback)
     const auto cameras = scanner.scanBus(
         nullptr,
         nullptr,
-        [&](ScanError err, const std::string& /*msg*/) {
+        [&](ScanError err, std::string_view /*msg*/) {
             if (err == ScanError::AddressSetTimeout) {
                 receivedTimeout = true;
             }
@@ -126,7 +127,7 @@ TEST(TestViscaBusScanner, CancellationAbortsEarly)
     const auto cameras = scanner.scanBus(
         nullptr,
         nullptr,
-        [&](ScanError err, const std::string& /*msg*/) {
+        [&](ScanError err, std::string_view /*msg*/) {
             if (err == ScanError::Cancelled) {
                 cancelledReported = true;
             }
@@ -140,11 +141,11 @@ TEST(TestViscaBusScanner, CancellationAbortsEarly)
 /// @brief Verifies error string utility conversions.
 TEST(TestViscaBusScanner, ScanErrorToStringConversion)
 {
-    EXPECT_STREQ(scanErrorToString(ScanError::None), "None");
-    EXPECT_STREQ(scanErrorToString(ScanError::TransportNotOpen), "TransportNotOpen");
-    EXPECT_STREQ(scanErrorToString(ScanError::AddressSetSendFailed), "AddressSetSendFailed");
-    EXPECT_STREQ(scanErrorToString(ScanError::AddressSetTimeout), "AddressSetTimeout");
-    EXPECT_STREQ(scanErrorToString(ScanError::VersionInquirySendFailed), "VersionInquirySendFailed");
-    EXPECT_STREQ(scanErrorToString(ScanError::VersionInquiryTimeout), "VersionInquiryTimeout");
-    EXPECT_STREQ(scanErrorToString(ScanError::Cancelled), "Cancelled");
+    EXPECT_EQ(scanErrorToString(ScanError::None), "None");
+    EXPECT_EQ(scanErrorToString(ScanError::TransportNotOpen), "TransportNotOpen");
+    EXPECT_EQ(scanErrorToString(ScanError::AddressSetSendFailed), "AddressSetSendFailed");
+    EXPECT_EQ(scanErrorToString(ScanError::AddressSetTimeout), "AddressSetTimeout");
+    EXPECT_EQ(scanErrorToString(ScanError::VersionInquirySendFailed), "VersionInquirySendFailed");
+    EXPECT_EQ(scanErrorToString(ScanError::VersionInquiryTimeout), "VersionInquiryTimeout");
+    EXPECT_EQ(scanErrorToString(ScanError::Cancelled), "Cancelled");
 }

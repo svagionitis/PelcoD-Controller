@@ -65,13 +65,13 @@ public:
 
     void setDataCallback(DataReceivedCallback callback) override
     {
-        std::lock_guard<std::mutex> lock(m_mutex);
+        std::scoped_lock lock(m_mutex);
         m_dataCallback = std::move(callback);
     }
 
     void setStateCallback(StateChangedCallback callback) override
     {
-        std::lock_guard<std::mutex> lock(m_mutex);
+        std::scoped_lock lock(m_mutex);
         m_stateCallback = std::move(callback);
     }
 
@@ -96,7 +96,7 @@ private:
 
     void handleFrame(const ViscaFrame& frame)
     {
-        std::lock_guard<std::mutex> lock(m_mutex);
+        std::scoped_lock lock(m_mutex);
 
         // AddressSet broadcast (88 30 01 FF)
         if (frame.size() == 4 && frame[0] == 0x88 && frame[1] == 0x30 && frame[2] == 0x01) {

@@ -12,26 +12,7 @@
 
 namespace Visca {
 
-const char* scanErrorToString(ScanError err) noexcept
-{
-    switch (err) {
-    case ScanError::None:
-        return "None";
-    case ScanError::TransportNotOpen:
-        return "TransportNotOpen";
-    case ScanError::AddressSetSendFailed:
-        return "AddressSetSendFailed";
-    case ScanError::AddressSetTimeout:
-        return "AddressSetTimeout";
-    case ScanError::VersionInquirySendFailed:
-        return "VersionInquirySendFailed";
-    case ScanError::VersionInquiryTimeout:
-        return "VersionInquiryTimeout";
-    case ScanError::Cancelled:
-        return "Cancelled";
-    }
-    return "Unknown";
-}
+using namespace std::string_view_literals;
 
 ViscaBusScanner::ViscaBusScanner(std::shared_ptr<::Transport::ITransport> transport)
     : m_transport(std::move(transport))
@@ -49,7 +30,7 @@ std::vector<DiscoveredCamera> ViscaBusScanner::scanBus(
     LOG(INFO) << "ViscaBusScanner: Starting daisy-chain bus scan...";
 
     if (isCancelled && isCancelled()) {
-        const std::string cancelMsg = "Scan cancelled before start.";
+        constexpr auto cancelMsg = "Scan cancelled before start."sv;
         LOG(INFO) << "ViscaBusScanner: " << cancelMsg;
         if (onError) {
             onError(ScanError::Cancelled, cancelMsg);
@@ -58,7 +39,7 @@ std::vector<DiscoveredCamera> ViscaBusScanner::scanBus(
     }
 
     if (!m_transport || !m_transport->isOpen()) {
-        const std::string err = "Transport interface is not configured or not open.";
+        constexpr auto err = "Transport interface is not configured or not open."sv;
         LOG(ERROR) << "ViscaBusScanner: " << err;
         if (onError) {
             onError(ScanError::TransportNotOpen, err);
@@ -104,7 +85,7 @@ std::vector<DiscoveredCamera> ViscaBusScanner::scanBus(
     const ViscaFrame addrSet = ViscaBuilder::addressSet();
     LOG(INFO) << "ViscaBusScanner: Broadcasting AddressSet (88 30 01 FF)...";
     if (!m_transport->sendData(addrSet.bytes())) {
-        const std::string err = "Failed to transmit AddressSet broadcast frame.";
+        constexpr auto err = "Failed to transmit AddressSet broadcast frame."sv;
         LOG(ERROR) << "ViscaBusScanner: " << err;
         if (onError) {
             onError(ScanError::AddressSetSendFailed, err);
@@ -125,9 +106,10 @@ std::vector<DiscoveredCamera> ViscaBusScanner::scanBus(
 
     // Fallback: If address set didn't report count, test at least camera 1
     if (detectedCameras == 0) {
+        constexpr auto timeoutMsg = "AddressSet response timeout; falling back to address 1."sv;
         LOG(WARNING) << "ViscaBusScanner: Timeout or unparsed response for AddressSet; falling back to probing address 1.";
         if (onError) {
-            onError(ScanError::AddressSetTimeout, "AddressSet response timeout; falling back to address 1.");
+            onError(ScanError::AddressSetTimeout, timeoutMsg);
         }
         detectedCameras = 1;
     }

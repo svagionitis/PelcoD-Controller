@@ -6,7 +6,7 @@ namespace Visca {
 
 void ViscaRxAccumulator::setFrameCallback(FrameCallback callback)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     m_callback = std::move(callback);
 }
 
@@ -16,10 +16,10 @@ void ViscaRxAccumulator::addData(const uint8_t* data, size_t length)
         return;
     }
 
-    std::vector<ViscaFrame> framesToNotify;
+    std::vector<ViscaFrame> framesToNotify {};
 
     {
-        std::lock_guard<std::mutex> lock(m_mutex);
+        std::scoped_lock lock(m_mutex);
         m_buffer.insert(m_buffer.end(), data, data + length);
         processBufferLocked();
 
@@ -46,7 +46,7 @@ void ViscaRxAccumulator::addData(const std::vector<uint8_t>& data)
 
 std::optional<ViscaFrame> ViscaRxAccumulator::popFrame()
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     if (m_frameQueue.empty()) {
         return std::nullopt;
     }
@@ -57,19 +57,19 @@ std::optional<ViscaFrame> ViscaRxAccumulator::popFrame()
 
 bool ViscaRxAccumulator::hasFrames() const
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     return !m_frameQueue.empty();
 }
 
 size_t ViscaRxAccumulator::pendingFrameCount() const
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     return m_frameQueue.size();
 }
 
 void ViscaRxAccumulator::clear()
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     m_buffer.clear();
     m_frameQueue.clear();
 }

@@ -147,6 +147,12 @@ public:
     /// @return Formatted hex string.
     [[nodiscard]] std::string toHexString() const;
 
+    /// @brief Parses a spaced or delimiter-separated hexadecimal string into a ViscaFrame.
+    /// @details Supports whitespace, colons, hyphens, and optional "0x" prefixes.
+    /// @param[in] hexStr Hexadecimal string representation (e.g. "81 01 04 00 02 FF" or "0x81:0x01...").
+    /// @return ViscaFrame containing parsed bytes, or empty frame if invalid.
+    [[nodiscard]] static ViscaFrame fromHexString(std::string_view hexStr);
+
     /// @brief Equality comparison operator.
     [[nodiscard]] bool operator==(const ViscaFrame& other) const noexcept
     {

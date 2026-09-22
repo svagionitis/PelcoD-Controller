@@ -67,14 +67,15 @@ bool QViscaBusScanner::startScan()
         };
 
         bool fatalError = false;
-        auto errorCb = [this, &fatalError](Visca::ScanError err, const std::string& msg) {
+        auto errorCb = [this, &fatalError](Visca::ScanError err, std::string_view msg) {
             if (err == Visca::ScanError::TransportNotOpen || err == Visca::ScanError::AddressSetSendFailed) {
                 fatalError = true;
+                const QString errText = QString::fromUtf8(msg.data(), static_cast<qsizetype>(msg.size()));
                 QMetaObject::invokeMethod(
                     this,
-                    [this, msg]() {
+                    [this, errText]() {
                         m_scanning.store(false);
-                        emit scanFailed(QString::fromStdString(msg));
+                        emit scanFailed(errText);
                     },
                     Qt::QueuedConnection);
             }

@@ -43,7 +43,7 @@ const CameraCapabilities& SonyFCBDevice::capabilities() const noexcept
 
 SonyFCBStatus SonyFCBDevice::status() const noexcept
 {
-    std::lock_guard<std::mutex> lock(m_statusMutex);
+    std::scoped_lock lock(m_statusMutex);
     return m_status;
 }
 
@@ -63,7 +63,7 @@ bool SonyFCBDevice::pollStatus()
     }
 
     {
-        std::lock_guard<std::mutex> lock(m_statusMutex);
+        std::scoped_lock lock(m_statusMutex);
         m_status = tempStatus;
     }
     return allSuccess;

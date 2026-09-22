@@ -44,7 +44,7 @@ TEST(TestViscaDevice, TwoSocketConcurrencyAndQueuePacing)
     std::mutex resMutex;
 
     auto onComplete = [&](const CommandResult& res) {
-        std::lock_guard<std::mutex> lock(resMutex);
+        std::scoped_lock lock(resMutex);
         results.push_back(res);
     };
 
@@ -60,7 +60,7 @@ TEST(TestViscaDevice, TwoSocketConcurrencyAndQueuePacing)
     // Give asynchronous queue a moment to drain
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
 
-    std::lock_guard<std::mutex> lock(resMutex);
+    std::scoped_lock lock(resMutex);
     EXPECT_EQ(results.size(), 3U);
     for (const auto& r : results) {
         EXPECT_TRUE(r.success);
