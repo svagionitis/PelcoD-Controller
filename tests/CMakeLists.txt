@@ -124,19 +124,19 @@ if(WIN32)
         TestTuiInvalidScanRange
         TestTuiScanMock
     )
+    set(_TUI_ENV_MOD
+        "PATH=path_list_prepend:${_PELCOD_QT_BIN_DIR}"
+    )
+    foreach(_vcpkg_dir IN LISTS _PELCOD_VCPKG_BIN_DIRS)
+        list(APPEND _TUI_ENV_MOD "PATH=path_list_prepend:${_vcpkg_dir}")
+    endforeach()
+    list(APPEND _TUI_ENV_MOD
+        "PATH=path_list_prepend:${CMAKE_BINARY_DIR}/lib/$<CONFIG>"
+        "PATH=path_list_prepend:${CMAKE_BINARY_DIR}/lib"
+        "PATH=path_list_prepend:${CMAKE_BINARY_DIR}/app-pelcod-tui/$<CONFIG>"
+        "PATH=path_list_prepend:${CMAKE_BINARY_DIR}/app-pelcod-tui"
+    )
     foreach(tui_t IN LISTS TUI_CLI_TESTS)
-        set_property(TEST ${tui_t} PROPERTY ENVIRONMENT_MODIFICATION
-            "PATH=path_list_prepend:${_PELCOD_QT_BIN_DIR}"
-            "PATH=path_list_prepend:${CMAKE_SOURCE_DIR}/vcpkg_installed/x64-windows/debug/bin"
-            "PATH=path_list_prepend:${CMAKE_SOURCE_DIR}/vcpkg_installed/x64-windows/bin"
-            "PATH=path_list_prepend:${CMAKE_BINARY_DIR}/vcpkg_installed/x64-windows/debug/bin"
-            "PATH=path_list_prepend:${CMAKE_BINARY_DIR}/vcpkg_installed/x64-windows/bin"
-            "PATH=path_list_prepend:C:/vcpkg/installed/x64-windows/debug/bin"
-            "PATH=path_list_prepend:C:/vcpkg/installed/x64-windows/bin"
-            "PATH=path_list_prepend:${CMAKE_BINARY_DIR}/lib/$<CONFIG>"
-            "PATH=path_list_prepend:${CMAKE_BINARY_DIR}/lib"
-            "PATH=path_list_prepend:${CMAKE_BINARY_DIR}/app-pelcod-tui/$<CONFIG>"
-            "PATH=path_list_prepend:${CMAKE_BINARY_DIR}/app-pelcod-tui"
-        )
+        set_property(TEST ${tui_t} PROPERTY ENVIRONMENT_MODIFICATION ${_TUI_ENV_MOD})
     endforeach()
 endif()
