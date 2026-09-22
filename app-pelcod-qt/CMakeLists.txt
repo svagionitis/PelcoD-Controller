@@ -45,8 +45,8 @@ target_include_directories(PelcoDAppQt PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}/..
     ${CMAKE_SOURCE_DIR}/libs
-    ${CMAKE_SOURCE_DIR}/libs/PelcoDVideo
-    ${CMAKE_SOURCE_DIR}/libs/PelcoDVideoFilters
+    ${CMAKE_SOURCE_DIR}/libs/Video
+    ${CMAKE_SOURCE_DIR}/libs/VideoFilters
     ${CMAKE_SOURCE_DIR}/libs/PelcoDTracking
     ${CMAKE_SOURCE_DIR}/libs/PelcoDFujinon
     ${CMAKE_SOURCE_DIR}/libs/PelcoDSim
@@ -67,12 +67,12 @@ target_link_libraries(PelcoDAppQt PRIVATE
     PelcoDFujinon
     PelcoDSim
     PelcoDTracking
-    PelcoDVideo
+    Video
     Qt6::Widgets
 )
 
 if(PELCOD_ENABLE_FILTERS AND OpenCV_FOUND)
-    target_link_libraries(PelcoDAppQt PRIVATE PelcoDVideoFilters)
+    target_link_libraries(PelcoDAppQt PRIVATE VideoFilters)
 endif()
 
 apply_compiler_flags(PelcoDAppQt)

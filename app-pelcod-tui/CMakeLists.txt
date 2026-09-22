@@ -38,8 +38,8 @@ add_executable(PelcoDAppTui
 target_include_directories(PelcoDAppTui PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_SOURCE_DIR}/libs
-    ${CMAKE_SOURCE_DIR}/libs/PelcoDVideo
-    ${CMAKE_SOURCE_DIR}/libs/PelcoDVideoFilters
+    ${CMAKE_SOURCE_DIR}/libs/Video
+    ${CMAKE_SOURCE_DIR}/libs/VideoFilters
     ${CMAKE_SOURCE_DIR}/libs/PelcoDTracking
     ${CMAKE_SOURCE_DIR}/libs/PelcoDFujinon
     ${CMAKE_SOURCE_DIR}/libs/PelcoDSim
@@ -51,12 +51,12 @@ target_link_libraries(PelcoDAppTui PRIVATE
     PelcoDSim
     PelcoDTracking
     PelcoDFujinon
-    PelcoDVideo
+    Video
     Threads::Threads
 )
 
 if(PELCOD_ENABLE_FILTERS AND OpenCV_FOUND)
-    target_link_libraries(PelcoDAppTui PRIVATE PelcoDVideoFilters)
+    target_link_libraries(PelcoDAppTui PRIVATE VideoFilters)
 endif()
 
 if(PELCOD_ENABLE_ONVIF)

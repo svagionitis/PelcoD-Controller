@@ -123,6 +123,6 @@ private:
 
 } // namespace PelcoDQt
 
-namespace PelcoD::Video {
+namespace Video {
 using QVideoStreamWorker = PelcoDQt::QVideoStreamWorker;
 }

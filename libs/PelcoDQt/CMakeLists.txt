@@ -30,7 +30,7 @@ if(PELCOD_ENABLE_VIDEO)
         QVideoStreamWorker.cpp
     )
     target_link_libraries(PelcoDQt PUBLIC
-        PelcoDVideo
+        Video
         Qt6::Gui
     )
 endif()

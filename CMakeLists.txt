@@ -356,9 +356,9 @@ if(PELCOD_ENABLE_ONVIF)
     list(APPEND PELCOD_INSTALL_TARGETS PelcoDOnvif)
 endif()
 if(PELCOD_ENABLE_VIDEO)
-    list(APPEND PELCOD_INSTALL_TARGETS PelcoDVideo)
+    list(APPEND PELCOD_INSTALL_TARGETS Video)
     if(PELCOD_ENABLE_FILTERS AND OpenCV_FOUND)
-        list(APPEND PELCOD_INSTALL_TARGETS PelcoDVideoFilters)
+        list(APPEND PELCOD_INSTALL_TARGETS VideoFilters)
     endif()
 endif()
 
@@ -450,26 +450,26 @@ install(FILES
 
 if(PELCOD_ENABLE_VIDEO)
     install(FILES
-        libs/PelcoDVideo/AtomicTripleBuffer.h
-        libs/PelcoDVideo/BaseVideoDecoder.h
-        libs/PelcoDVideo/BrailleRenderer.h
-        libs/PelcoDVideo/DecoderFactory.h
-        libs/PelcoDVideo/DecoderTypes.h
-        libs/PelcoDVideo/DeviceEnumerator.h
-        libs/PelcoDVideo/IVideoDecoder.h
-        libs/PelcoDVideo/MockVideoDecoder.h
-        DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/PelcoDVideo
+        libs/Video/AtomicTripleBuffer.h
+        libs/Video/BaseVideoDecoder.h
+        libs/Video/BrailleRenderer.h
+        libs/Video/DecoderFactory.h
+        libs/Video/DecoderTypes.h
+        libs/Video/DeviceEnumerator.h
+        libs/Video/IVideoDecoder.h
+        libs/Video/MockVideoDecoder.h
+        DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/Video
     )
     if(PELCOD_ENABLE_FILTERS AND OpenCV_FOUND)
         install(FILES
-            libs/PelcoDVideoFilters/ColorFilters.h
-            libs/PelcoDVideoFilters/SpatialFilters.h
-            libs/PelcoDVideoFilters/GeometricFilters.h
-            libs/PelcoDVideoFilters/ThermalFilters.h
-            libs/PelcoDVideoFilters/TrackingFilters.h
-            libs/PelcoDVideoFilters/OverlayFilters.h
-            libs/PelcoDVideoFilters/VideoFilters.h
-            DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/PelcoDVideoFilters
+            libs/VideoFilters/ColorFilters.h
+            libs/VideoFilters/SpatialFilters.h
+            libs/VideoFilters/GeometricFilters.h
+            libs/VideoFilters/ThermalFilters.h
+            libs/VideoFilters/TrackingFilters.h
+            libs/VideoFilters/OverlayFilters.h
+            libs/VideoFilters/VideoFilters.h
+            DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/VideoFilters
         )
     endif()
 endif()
