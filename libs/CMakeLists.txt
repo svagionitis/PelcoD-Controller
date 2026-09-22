@@ -1,6 +1,8 @@
 add_subdirectory(Transport)
 add_subdirectory(PelcoDMath)
 add_subdirectory(PelcoDCore)
+add_subdirectory(ViscaCore)
+add_subdirectory(ViscaSony)
 if(BUILD_TESTING)
     add_subdirectory(TestSupport)
 endif()
