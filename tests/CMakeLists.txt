@@ -62,6 +62,33 @@ target_link_libraries(TestAutoReconnect PRIVATE
 )
 pelcod_register_gtest(TestAutoReconnect NO_MAIN)
 
+add_executable(TestViscaAppQt
+    TestViscaAppQt.cpp
+    ${CMAKE_SOURCE_DIR}/app-visca-qt/QViscaSonyDevice.cpp
+    ${CMAKE_SOURCE_DIR}/app-visca-qt/QViscaBusScanner.cpp
+    ${CMAKE_SOURCE_DIR}/app-visca-qt/widgets/ViscaConnectionWidget.cpp
+    ${CMAKE_SOURCE_DIR}/app-visca-qt/widgets/ViscaTrafficInspectorWidget.cpp
+    ${CMAKE_SOURCE_DIR}/app-visca-qt/dialogs/ViscaBusScanDialog.cpp
+)
+target_include_directories(TestViscaAppQt PRIVATE
+    ${CMAKE_SOURCE_DIR}
+    ${CMAKE_SOURCE_DIR}/app-visca-qt
+    ${CMAKE_SOURCE_DIR}/libs/ViscaCore
+    ${CMAKE_SOURCE_DIR}/libs/ViscaSony
+    ${CMAKE_SOURCE_DIR}/libs/Transport
+)
+target_link_libraries(TestViscaAppQt PRIVATE
+    ViscaSony
+    ViscaCore
+    Transport
+    Qt6::Core
+    Qt6::Gui
+    Qt6::Widgets
+    Qt6::Test
+    glog::glog
+)
+pelcod_register_gtest(TestViscaAppQt NO_MAIN)
+
 # ==============================================================================
 # CLI Argument Validation Tests (PelcoDAppTui)
 # ==============================================================================

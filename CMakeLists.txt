@@ -337,6 +337,7 @@ endif()
 # ==============================================================================
 add_subdirectory(libs)
 add_subdirectory(app-pelcod-qt)
+add_subdirectory(app-visca-qt)
 add_subdirectory(app-pelcod-tui)
 
 add_subdirectory(tests)
@@ -350,7 +351,7 @@ include(GitHooks)
 # Target Installation
 # ==============================================================================
 
-set(PELCOD_INSTALL_TARGETS PelcoDAppQt PelcoDAppTui PelcoDCore PelcoDQt PelcoDMath Transport PelcoDTracking PelcoDFujinon PelcoDSim)
+set(PELCOD_INSTALL_TARGETS PelcoDAppQt ViscaAppQt PelcoDAppTui PelcoDCore PelcoDQt PelcoDMath Transport ViscaCore ViscaSony PelcoDTracking PelcoDFujinon PelcoDSim)
 if(PELCOD_ENABLE_ONVIF)
     list(APPEND PELCOD_INSTALL_TARGETS PelcoDOnvif)
 endif()
