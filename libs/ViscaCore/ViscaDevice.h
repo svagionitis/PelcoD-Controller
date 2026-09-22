@@ -5,6 +5,7 @@
 #include "ViscaTypes.h"
 #include <Transport/ITransport.h>
 
+#include <array>
 #include <chrono>
 #include <condition_variable>
 #include <deque>
@@ -123,11 +124,37 @@ private:
         std::function<void(const CommandResult&)> callback { nullptr };
     };
 
+    struct SocketSlot {
+        ViscaSocket id { ViscaSocket::None };
+        SocketState state { SocketState::Idle };
+        InFlightCommand command {};
+    };
+
     struct InFlightInquiry {
         ViscaFrame inquiryFrame {};
         std::chrono::steady_clock::time_point sendTime {};
         std::function<void(const InquiryResult&)> callback { nullptr };
     };
+
+    [[nodiscard]] SocketSlot* findSocketSlot(ViscaSocket socket) noexcept
+    {
+        for (auto& slot : m_sockets) {
+            if (slot.id == socket) {
+                return &slot;
+            }
+        }
+        return nullptr;
+    }
+
+    [[nodiscard]] SocketSlot* findActiveSocketSlot() noexcept
+    {
+        for (auto& slot : m_sockets) {
+            if (slot.state != SocketState::Idle) {
+                return &slot;
+            }
+        }
+        return nullptr;
+    }
 
     void collectFramesToSendLocked(std::vector<ViscaFrame>& outFrames);
     void sendFrameUnlocked(const ViscaFrame& frame);
@@ -140,10 +167,11 @@ private:
 
     ViscaRxAccumulator m_accumulator {};
 
-    SocketState m_socket1State { SocketState::Idle };
-    SocketState m_socket2State { SocketState::Idle };
-    InFlightCommand m_socket1Command {};
-    InFlightCommand m_socket2Command {};
+    static constexpr size_t kSocketCount { 2 };
+    std::array<SocketSlot, kSocketCount> m_sockets {{
+        { ViscaSocket::Socket1, SocketState::Idle, {} },
+        { ViscaSocket::Socket2, SocketState::Idle, {} }
+    }};
 
     std::deque<InFlightCommand> m_commandQueue {};
     std::deque<InFlightInquiry> m_inquiryQueue {};

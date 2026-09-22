@@ -16,7 +16,7 @@ ViscaDevice::ViscaDevice(std::shared_ptr<::Transport::ITransport> transport, uin
 
 ViscaDevice::~ViscaDevice()
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     // Drain pending queues
     for (auto& cmd : m_commandQueue) {
         if (cmd.callback) {
@@ -25,6 +25,18 @@ ViscaDevice::~ViscaDevice()
         }
     }
     m_commandQueue.clear();
+
+    // Drain active socket commands
+    for (auto& slot : m_sockets) {
+        if (slot.state != SocketState::Idle) {
+            if (slot.command.callback) {
+                slot.command.callback(
+                    CommandResult { false, slot.id, ViscaErrorCode::CommandCanceled, "Device destroying" });
+            }
+            slot.state = SocketState::Idle;
+            slot.command = {};
+        }
+    }
 
     for (auto& inq : m_inquiryQueue) {
         if (inq.callback) {
@@ -36,19 +48,19 @@ ViscaDevice::~ViscaDevice()
 
 void ViscaDevice::setCameraAddress(uint8_t address) noexcept
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     m_cameraAddress = address;
 }
 
 uint8_t ViscaDevice::cameraAddress() const noexcept
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     return m_cameraAddress;
 }
 
 void ViscaDevice::setTrafficCallback(TrafficCallback callback)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     m_trafficCallback = std::move(callback);
 }
 
@@ -71,15 +83,14 @@ CommandResult ViscaDevice::sendCommandSync(const ViscaFrame& command, std::chron
     // Timed out: release assigned socket so subsequent commands are not blocked
     std::vector<ViscaFrame> framesToSend;
     {
-        std::lock_guard<std::mutex> lock(m_mutex);
-        if (m_socket1State != SocketState::Idle && m_socket1Command.frame == command) {
-            m_socket1State = SocketState::Idle;
-            m_socket1Command = InFlightCommand {};
-            collectFramesToSendLocked(framesToSend);
-        } else if (m_socket2State != SocketState::Idle && m_socket2Command.frame == command) {
-            m_socket2State = SocketState::Idle;
-            m_socket2Command = InFlightCommand {};
-            collectFramesToSendLocked(framesToSend);
+        std::scoped_lock lock(m_mutex);
+        for (auto& slot : m_sockets) {
+            if (slot.state != SocketState::Idle && slot.command.frame == command) {
+                slot.state = SocketState::Idle;
+                slot.command = InFlightCommand {};
+                collectFramesToSendLocked(framesToSend);
+                break;
+            }
         }
     }
     for (const auto& f : framesToSend) {
@@ -99,7 +110,7 @@ void ViscaDevice::sendCommandAsync(const ViscaFrame& command, std::function<void
 
     std::vector<ViscaFrame> framesToSend;
     {
-        std::lock_guard<std::mutex> lock(m_mutex);
+        std::scoped_lock lock(m_mutex);
         m_commandQueue.push_back(std::move(inflight));
         collectFramesToSendLocked(framesToSend);
     }
@@ -131,7 +142,7 @@ void ViscaDevice::sendInquiryAsync(const ViscaFrame& inquiry, std::function<void
     inflight.callback = std::move(onComplete);
 
     {
-        std::lock_guard<std::mutex> lock(m_mutex);
+        std::scoped_lock lock(m_mutex);
         m_inquiryQueue.push_back(std::move(inflight));
     }
     sendFrameUnlocked(inquiry);
@@ -158,15 +169,16 @@ void ViscaDevice::sendFrameUnlocked(const ViscaFrame& frame)
     std::shared_ptr<::Transport::ITransport> trans;
     TrafficCallback cb { nullptr };
     {
-        std::lock_guard<std::mutex> lock(m_mutex);
+        std::scoped_lock lock(m_mutex);
         trans = m_transport;
         cb = m_trafficCallback;
     }
 
+    bool sent = false;
     if (trans && trans->isOpen()) {
-        static_cast<void>(trans->sendData(frame.bytes()));
+        sent = trans->sendData(frame.bytes());
     }
-    if (cb) {
+    if (cb && sent) {
         cb(frame, true);
     }
 }
@@ -174,22 +186,23 @@ void ViscaDevice::sendFrameUnlocked(const ViscaFrame& frame)
 void ViscaDevice::collectFramesToSendLocked(std::vector<ViscaFrame>& outFrames)
 {
     while (!m_commandQueue.empty()) {
-        if (m_socket1State == SocketState::Idle) {
-            m_socket1Command = std::move(m_commandQueue.front());
-            m_commandQueue.pop_front();
-            m_socket1Command.assignedSocket = ViscaSocket::Socket1;
-            m_socket1State = SocketState::AwaitingAck;
-            outFrames.push_back(m_socket1Command.frame);
-        } else if (m_socket2State == SocketState::Idle) {
-            m_socket2Command = std::move(m_commandQueue.front());
-            m_commandQueue.pop_front();
-            m_socket2Command.assignedSocket = ViscaSocket::Socket2;
-            m_socket2State = SocketState::AwaitingAck;
-            outFrames.push_back(m_socket2Command.frame);
-        } else {
-            // Both sockets are occupied
+        SocketSlot* idleSlot = nullptr;
+        for (auto& slot : m_sockets) {
+            if (slot.state == SocketState::Idle) {
+                idleSlot = &slot;
+                break;
+            }
+        }
+        if (!idleSlot) {
+            // All sockets are occupied
             break;
         }
+
+        idleSlot->command = std::move(m_commandQueue.front());
+        m_commandQueue.pop_front();
+        idleSlot->command.assignedSocket = idleSlot->id;
+        idleSlot->state = SocketState::AwaitingAck;
+        outFrames.push_back(idleSlot->command.frame);
     }
 }
 
@@ -203,48 +216,28 @@ void ViscaDevice::onFrameReceived(const ViscaFrame& frame)
     std::vector<ViscaFrame> framesToSend;
 
     {
-        std::lock_guard<std::mutex> lock(m_mutex);
+        std::scoped_lock lock(m_mutex);
         trafficCb = m_trafficCallback;
 
         // Check if frame is ACK (y0 4s FF)
         if (frame.isAck()) {
-            const ViscaSocket sock = frame.socket();
-            if (sock == ViscaSocket::Socket1 && m_socket1State == SocketState::AwaitingAck) {
-                m_socket1State = SocketState::Executing;
-            } else if (sock == ViscaSocket::Socket2 && m_socket2State == SocketState::AwaitingAck) {
-                m_socket2State = SocketState::Executing;
+            if (auto* slot = findSocketSlot(frame.socket())) {
+                if (slot->state == SocketState::AwaitingAck) {
+                    slot->state = SocketState::Executing;
+                }
             }
         }
         // Check if frame is Command Completion (y0 5s FF, size == 3)
         else if (frame.isCompletion() && frame.size() == 3) {
             const ViscaSocket sock = frame.socket();
-            if (sock == ViscaSocket::Socket1 && m_socket1State != SocketState::Idle) {
-                m_socket1State = SocketState::Idle;
-                cmdCallback = std::move(m_socket1Command.callback);
-                cmdRes = CommandResult { true, ViscaSocket::Socket1, ViscaErrorCode::None, "" };
+            SocketSlot* slot = (sock != ViscaSocket::None) ? findSocketSlot(sock) : findActiveSocketSlot();
+            if (slot && slot->state != SocketState::Idle) {
+                slot->state = SocketState::Idle;
+                cmdCallback = std::move(slot->command.callback);
+                cmdRes = CommandResult { true, slot->id, ViscaErrorCode::None, "" };
+                slot->command = {};
                 collectFramesToSendLocked(framesToSend);
                 m_cv.notify_all();
-            } else if (sock == ViscaSocket::Socket2 && m_socket2State != SocketState::Idle) {
-                m_socket2State = SocketState::Idle;
-                cmdCallback = std::move(m_socket2Command.callback);
-                cmdRes = CommandResult { true, ViscaSocket::Socket2, ViscaErrorCode::None, "" };
-                collectFramesToSendLocked(framesToSend);
-                m_cv.notify_all();
-            } else if (sock == ViscaSocket::None) {
-                // Sockets not distinguished (e.g. IF_Clear completion y0 50 FF)
-                if (m_socket1State != SocketState::Idle) {
-                    m_socket1State = SocketState::Idle;
-                    cmdCallback = std::move(m_socket1Command.callback);
-                    cmdRes = CommandResult { true, ViscaSocket::Socket1, ViscaErrorCode::None, "" };
-                    collectFramesToSendLocked(framesToSend);
-                    m_cv.notify_all();
-                } else if (m_socket2State != SocketState::Idle) {
-                    m_socket2State = SocketState::Idle;
-                    cmdCallback = std::move(m_socket2Command.callback);
-                    cmdRes = CommandResult { true, ViscaSocket::Socket2, ViscaErrorCode::None, "" };
-                    collectFramesToSendLocked(framesToSend);
-                    m_cv.notify_all();
-                }
             }
         }
         // Check if frame is Inquiry Response (y0 50 ... FF, size >= 4)
@@ -263,16 +256,11 @@ void ViscaDevice::onFrameReceived(const ViscaFrame& frame)
             const ViscaErrorCode code = frame.errorCode();
             const std::string errStr(errorCodeToString(code));
 
-            if (sock == ViscaSocket::Socket1 && m_socket1State != SocketState::Idle) {
-                m_socket1State = SocketState::Idle;
-                cmdCallback = std::move(m_socket1Command.callback);
-                cmdRes = CommandResult { false, ViscaSocket::Socket1, code, errStr };
-                collectFramesToSendLocked(framesToSend);
-                m_cv.notify_all();
-            } else if (sock == ViscaSocket::Socket2 && m_socket2State != SocketState::Idle) {
-                m_socket2State = SocketState::Idle;
-                cmdCallback = std::move(m_socket2Command.callback);
-                cmdRes = CommandResult { false, ViscaSocket::Socket2, code, errStr };
+            if (auto* slot = findSocketSlot(sock); slot && slot->state != SocketState::Idle) {
+                slot->state = SocketState::Idle;
+                cmdCallback = std::move(slot->command.callback);
+                cmdRes = CommandResult { false, slot->id, code, errStr };
+                slot->command = {};
                 collectFramesToSendLocked(framesToSend);
                 m_cv.notify_all();
             } else if (!m_inquiryQueue.empty()) {
