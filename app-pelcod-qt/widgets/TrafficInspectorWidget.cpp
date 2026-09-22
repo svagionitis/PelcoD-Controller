@@ -4,7 +4,7 @@
 #include "TrafficInspectorWidget.h"
 
 #include "PelcoDFrame.h"
-#include "app-qt/dialogs/MacroPlaybackDialog.h"
+#include "app-pelcod-qt/dialogs/MacroPlaybackDialog.h"
 
 #include <QDateTime>
 #include <QFont>

@@ -13,12 +13,12 @@ string(REPLACE "-DNDEBUG" "" CMAKE_CXX_FLAGS_MINSIZEREL "${CMAKE_CXX_FLAGS_MINSI
 
 add_executable(TestConnectionModal
     TestConnectionModal.cpp
-    ${CMAKE_SOURCE_DIR}/app-tui/views/ConnectionModal.cpp
-    ${CMAKE_SOURCE_DIR}/app-tui/Canvas.cpp
-    ${CMAKE_SOURCE_DIR}/app-tui/Terminal.cpp
+    ${CMAKE_SOURCE_DIR}/app-pelcod-tui/views/ConnectionModal.cpp
+    ${CMAKE_SOURCE_DIR}/app-pelcod-tui/Canvas.cpp
+    ${CMAKE_SOURCE_DIR}/app-pelcod-tui/Terminal.cpp
 )
 target_include_directories(TestConnectionModal PRIVATE
-    ${CMAKE_SOURCE_DIR}/app-tui
+    ${CMAKE_SOURCE_DIR}/app-pelcod-tui
     ${CMAKE_SOURCE_DIR}/libs/PelcoDCore
     ${CMAKE_SOURCE_DIR}/libs/PelcoDSim
 )
@@ -27,12 +27,12 @@ pelcod_register_gtest(TestConnectionModal)
 
 add_executable(TestTrafficView
     TestTrafficView.cpp
-    ${CMAKE_SOURCE_DIR}/app-tui/views/TrafficView.cpp
-    ${CMAKE_SOURCE_DIR}/app-tui/Canvas.cpp
-    ${CMAKE_SOURCE_DIR}/app-tui/Terminal.cpp
+    ${CMAKE_SOURCE_DIR}/app-pelcod-tui/views/TrafficView.cpp
+    ${CMAKE_SOURCE_DIR}/app-pelcod-tui/Canvas.cpp
+    ${CMAKE_SOURCE_DIR}/app-pelcod-tui/Terminal.cpp
 )
 target_include_directories(TestTrafficView PRIVATE
-    ${CMAKE_SOURCE_DIR}/app-tui
+    ${CMAKE_SOURCE_DIR}/app-pelcod-tui
     ${CMAKE_SOURCE_DIR}/libs/PelcoDCore
     ${CMAKE_SOURCE_DIR}/libs/PelcoDSim
 )
@@ -41,12 +41,12 @@ pelcod_register_gtest(TestTrafficView)
 
 add_executable(TestAutoReconnect
     TestAutoReconnect.cpp
-    ${CMAKE_SOURCE_DIR}/app-qt/widgets/ConnectionWidget.cpp
-    ${CMAKE_SOURCE_DIR}/app-qt/dialogs/BusScanDialog.cpp
-    ${CMAKE_SOURCE_DIR}/app-qt/dialogs/MockDynamicsDialog.cpp
+    ${CMAKE_SOURCE_DIR}/app-pelcod-qt/widgets/ConnectionWidget.cpp
+    ${CMAKE_SOURCE_DIR}/app-pelcod-qt/dialogs/BusScanDialog.cpp
+    ${CMAKE_SOURCE_DIR}/app-pelcod-qt/dialogs/MockDynamicsDialog.cpp
 )
 target_include_directories(TestAutoReconnect PRIVATE
-    ${CMAKE_SOURCE_DIR}/app-qt
+    ${CMAKE_SOURCE_DIR}/app-pelcod-qt
     ${CMAKE_SOURCE_DIR}/libs/PelcoDCore
     ${CMAKE_SOURCE_DIR}/libs/PelcoDQt
     ${CMAKE_SOURCE_DIR}/libs/PelcoDSim

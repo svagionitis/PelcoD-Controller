@@ -16,9 +16,9 @@
 #include "SpectrogramColorMap.h"
 #include "Stft.h"
 #include "TrackingFilters.h"
-#include "app-qt/widgets/BodePlotWidget.h"
-#include "app-qt/widgets/SpectrogramWidget.h"
-#include "app-qt/widgets/VideoOverlayWidget.h"
+#include "app-pelcod-qt/widgets/BodePlotWidget.h"
+#include "app-pelcod-qt/widgets/SpectrogramWidget.h"
+#include "app-pelcod-qt/widgets/VideoOverlayWidget.h"
 
 #include <QCheckBox>
 #include <QComboBox>

@@ -336,8 +336,8 @@ endif()
 # Subdirectories
 # ==============================================================================
 add_subdirectory(libs)
-add_subdirectory(app-qt)
-add_subdirectory(app-tui)
+add_subdirectory(app-pelcod-qt)
+add_subdirectory(app-pelcod-tui)
 
 add_subdirectory(tests)
 

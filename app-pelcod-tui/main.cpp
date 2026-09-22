@@ -145,7 +145,7 @@ template <typename T> [[nodiscard]] bool parseInteger(std::string_view str, T& o
 /// @param progName Executable name invoked in the shell.
 void printUsage(std::string_view progName)
 {
-    std::cout << "Pelco-D Controller Terminal User Interface (app-tui)\n\n"
+    std::cout << "Pelco-D Controller Terminal User Interface (app-pelcod-tui)\n\n"
               << "Usage: " << progName << " [options]\n\n"
               << "Options:\n"
               << "  --mock                      Start in standalone Mock simulator mode (default)\n"

@@ -2,7 +2,7 @@
 /// @brief Implementation of device diagnostic queries and polling tab.
 
 #include "SystemTab.h"
-#include "app-qt/dialogs/RttProfilerDialog.h"
+#include "app-pelcod-qt/dialogs/RttProfilerDialog.h"
 
 namespace PelcoDApp {
 

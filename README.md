@@ -18,8 +18,8 @@ A production-grade, cross-platform C++17 library and modern Qt 6 desktop client 
   9. [`libs/PelcoDOnvif/`](libs/PelcoDOnvif/): Standalone ONVIF Profile S and Profile T client library (zero Qt dependencies). Implements WS-Discovery multicast scanning, WS-Security password digest generation, Device Management, Media Streaming (RTSP & Snapshot URIs), PTZ controls (continuous, relative, absolute, home position, presets), Optical & Imaging Service (brightness, contrast, saturation, sharpness, IR cut filter, WDR, BLC, focus), and PullPoint Event Service (real-time motion/tamper notifications).
   10. [`libs/PelcoDQt/`](libs/PelcoDQt/): Qt 6 adapter layer exposing asynchronous signals and slots for UI integration (`QPelcoDDevice`, `QFujinonSX800Device`, `QRttProfiler`, `QPatrolController`, `QBusScanner`, `QVideoStreamWorker`, `QOnvifDevice`).
   11. User Applications:
-      - [`app-qt/`](app-qt/): Modern dark-themed Qt 6 desktop dashboard with live RTSP video streaming, tactical HUD overlays, compass jog controls, preset sequence manager, Fujinon optics, ONVIF Profile S/T camera control tab, RTT profiler, bus scanner, and traffic inspector.
-      - [`app-tui/`](app-tui/): Zero-dependency UTF-8 terminal interface featuring ASCII/Braille live video playback, interactive PTZ compass, traffic inspection, bus scan, and ONVIF discovery CLI tools.
+      - [`app-pelcod-qt/`](app-pelcod-qt/): Modern dark-themed Qt 6 desktop dashboard with live RTSP video streaming, tactical HUD overlays, compass jog controls, preset sequence manager, Fujinon optics, ONVIF Profile S/T camera control tab, RTT profiler, bus scanner, and traffic inspector.
+      - [`app-pelcod-tui/`](app-pelcod-tui/): Zero-dependency UTF-8 terminal interface featuring ASCII/Braille live video playback, interactive PTZ compass, traffic inspection, bus scan, and ONVIF discovery CLI tools.
 - **Direct Real-Time RX Stream Framing:**
   - Inbound byte streams are framed and validated directly inside the transport callback (`onDataReceived`) using a bounded accumulator, delivering sub-microsecond frame dispatch without thread sprawl.
 - **Paced Command Queue:**
@@ -114,29 +114,29 @@ cmake --build build --target format-check
 
 ### Launching the Applications
 
-#### Desktop GUI Client (`app-qt`)
+#### Desktop GUI Client (`app-pelcod-qt`)
 ```bash
-./build/app-qt/PelcoDAppQt
+./build/app-pelcod-qt/PelcoDAppQt
 # Windows:
-# .\build\app-qt\Release\PelcoDAppQt.exe
+# .\build\app-pelcod-qt\Release\PelcoDAppQt.exe
 ```
 
-#### Zero-Dependency Terminal Client & CLI Tools (`app-tui`)
+#### Zero-Dependency Terminal Client & CLI Tools (`app-pelcod-tui`)
 ```bash
 # Launch interactive terminal UI (ASCII/Braille video, PTZ compass, traffic)
-./build/app-tui/PelcoDAppTui
+./build/app-pelcod-tui/PelcoDAppTui
 
 # Discover ONVIF cameras on the local network (WS-Discovery)
-./build/app-tui/PelcoDAppTui --onvif-discover
+./build/app-pelcod-tui/PelcoDAppTui --onvif-discover
 
 # Inspect device information and services
-./build/app-tui/PelcoDAppTui --onvif-info http://192.168.1.100/onvif/device_service -u admin -p secret
+./build/app-pelcod-tui/PelcoDAppTui --onvif-info http://192.168.1.100/onvif/device_service -u admin -p secret
 
 # Query and adjust imaging / optical parameters
-./build/app-tui/PelcoDAppTui --onvif-imaging http://192.168.1.100/onvif/device_service -u admin -p secret
+./build/app-pelcod-tui/PelcoDAppTui --onvif-imaging http://192.168.1.100/onvif/device_service -u admin -p secret
 
 # Monitor real-time PullPoint security events (motion, tamper alarms)
-./build/app-tui/PelcoDAppTui --onvif-events http://192.168.1.100/onvif/device_service -u admin -p secret
+./build/app-pelcod-tui/PelcoDAppTui --onvif-events http://192.168.1.100/onvif/device_service -u admin -p secret
 ```
 
 ---
