@@ -255,6 +255,38 @@ if(BUILD_TESTING)
     endif()
     include(GoogleTest)
 
+    # Determine Qt and vcpkg runtime paths for test execution and discovery
+    if(WIN32)
+        if(TARGET Qt6::Core)
+            get_filename_component(_PELCOD_QT_BIN_DIR "${Qt6_DIR}/../../../bin" ABSOLUTE)
+            get_filename_component(_PELCOD_QT_PLUGINS_DIR "${Qt6_DIR}/../../../plugins" ABSOLUTE)
+        else()
+            set(_PELCOD_QT_BIN_DIR "")
+            set(_PELCOD_QT_PLUGINS_DIR "")
+        endif()
+
+        set(_PELCOD_VCPKG_BIN_DIRS "")
+        if(DEFINED VCPKG_INSTALLED_DIR AND DEFINED VCPKG_TARGET_TRIPLET)
+            list(APPEND _PELCOD_VCPKG_BIN_DIRS
+                "${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/debug/bin"
+                "${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/bin"
+            )
+        endif()
+        list(APPEND _PELCOD_VCPKG_BIN_DIRS
+            "${CMAKE_SOURCE_DIR}/vcpkg_installed/x64-windows/debug/bin"
+            "${CMAKE_SOURCE_DIR}/vcpkg_installed/x64-windows/bin"
+            "${CMAKE_BINARY_DIR}/vcpkg_installed/x64-windows/debug/bin"
+            "${CMAKE_BINARY_DIR}/vcpkg_installed/x64-windows/bin"
+            "C:/vcpkg/installed/x64-windows/debug/bin"
+            "C:/vcpkg/installed/x64-windows/bin"
+        )
+        list(REMOVE_DUPLICATES _PELCOD_VCPKG_BIN_DIRS)
+
+        find_file(_GFLAGS_DEBUG_DLL NAMES gflags_debug.dll gflags.dll
+            PATHS ${_PELCOD_VCPKG_BIN_DIRS}
+        )
+    endif()
+
     function(pelcod_register_gtest target_name)
         cmake_parse_arguments(ARG "NO_MAIN" "" "" ${ARGN})
         if(ARG_NO_MAIN)
@@ -297,9 +329,6 @@ if(BUILD_TESTING)
                     COMMENT "Copying glog DLL for ${target_name}"
                 )
             endif()
-            find_file(_GFLAGS_DEBUG_DLL NAMES gflags_debug.dll gflags.dll
-                PATHS "C:/vcpkg/installed/x64-windows/debug/bin" "C:/vcpkg/installed/x64-windows/bin"
-            )
             if(_GFLAGS_DEBUG_DLL)
                 add_custom_command(TARGET ${target_name} POST_BUILD
                     COMMAND ${CMAKE_COMMAND} -E copy_if_different
@@ -308,13 +337,97 @@ if(BUILD_TESTING)
                     COMMENT "Copying gflags DLL for ${target_name}"
                 )
             endif()
+
+            string(JOIN ";" _TARGET_SEARCH_PATHS
+                "${_PELCOD_QT_BIN_DIR}"
+                ${_PELCOD_VCPKG_BIN_DIRS}
+                "$<TARGET_FILE_DIR:${target_name}>"
+                "${CMAKE_BINARY_DIR}/lib/$<CONFIG>"
+                "${CMAKE_BINARY_DIR}/lib"
+            )
+
+            set(_RUNNER_SCRIPT "${CMAKE_CURRENT_BINARY_DIR}/${target_name}_runner_$<CONFIG>.cmake")
+            file(GENERATE OUTPUT "${_RUNNER_SCRIPT}" CONTENT
+"# Auto-generated test runner for ${target_name}
+set(ENV{PATH} \"${_TARGET_SEARCH_PATHS};\$ENV{PATH}\")
+if(NOT \"${_PELCOD_QT_PLUGINS_DIR}\" STREQUAL \"\")
+    set(ENV{QT_PLUGIN_PATH} \"${_PELCOD_QT_PLUGINS_DIR}\")
+endif()
+set(ENV{QT_QPA_PLATFORM} \"offscreen\")
+
+set(cmd \"\")
+set(found_delim FALSE)
+math(EXPR last_idx \"\${CMAKE_ARGC} - 1\")
+foreach(i RANGE 0 \${last_idx})
+    set(arg \"\${CMAKE_ARGV\${i}}\")
+    if(found_delim)
+        list(APPEND cmd \"\${arg}\")
+    elseif(arg STREQUAL \"--\")
+        set(found_delim TRUE)
+    endif()
+endforeach()
+
+execute_process(
+    COMMAND \${cmd}
+    RESULT_VARIABLE res
+)
+if(NOT res EQUAL 0)
+    if(res MATCHES \"^[0-9]+$\")
+        cmake_language(EXIT \${res})
+    else()
+        message(FATAL_ERROR \"Execution failed: \${res}\")
+    endif()
+endif()
+")
+
+            set_target_properties(${target_name} PROPERTIES
+                TEST_LAUNCHER "${CMAKE_COMMAND};-P;${_RUNNER_SCRIPT};--"
+            )
+
             gtest_discover_tests(${target_name}
                 DISCOVERY_MODE PRE_TEST
-                PROPERTIES ENVIRONMENT "PATH=C:/Qt/6.6.1/msvc2019_64/bin\;C:/vcpkg/installed/x64-windows/debug/bin\;C:/vcpkg/installed/x64-windows/bin\;$ENV{PATH};QT_PLUGIN_PATH=C:/Qt/6.6.1/msvc2019_64/plugins;QT_QPA_PLATFORM=offscreen"
+                PROPERTIES
+                    ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
             )
         else()
+            set(_RUNNER_SCRIPT "${CMAKE_CURRENT_BINARY_DIR}/${target_name}_runner_$<CONFIG>.cmake")
+            file(GENERATE OUTPUT "${_RUNNER_SCRIPT}" CONTENT
+"# Auto-generated test runner for ${target_name}
+set(ENV{QT_QPA_PLATFORM} \"offscreen\")
+
+set(cmd \"\")
+set(found_delim FALSE)
+math(EXPR last_idx \"\${CMAKE_ARGC} - 1\")
+foreach(i RANGE 0 \${last_idx})
+    set(arg \"\${CMAKE_ARGV\${i}}\")
+    if(found_delim)
+        list(APPEND cmd \"\${arg}\")
+    elseif(arg STREQUAL \"--\")
+        set(found_delim TRUE)
+    endif()
+endforeach()
+
+execute_process(
+    COMMAND \${cmd}
+    RESULT_VARIABLE res
+)
+if(NOT res EQUAL 0)
+    if(res MATCHES \"^[0-9]+$\")
+        cmake_language(EXIT \${res})
+    else()
+        message(FATAL_ERROR \"Execution failed: \${res}\")
+    endif()
+endif()
+")
+
+            set_target_properties(${target_name} PROPERTIES
+                TEST_LAUNCHER "${CMAKE_COMMAND};-P;${_RUNNER_SCRIPT};--"
+            )
+
             gtest_discover_tests(${target_name}
                 DISCOVERY_MODE PRE_TEST
+                PROPERTIES
+                    ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
             )
         endif()
     endfunction()

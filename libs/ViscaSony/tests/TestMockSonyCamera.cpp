@@ -65,7 +65,7 @@ TEST(TestMockSonyCamera, InjectedErrors)
     mock.injectNextError(ViscaErrorCode::CommandNotExecutable);
 
     const ViscaFrame zoomCmd = SonyViscaBuilder::zoomTele(1);
-    mock.sendData(zoomCmd.bytes());
+    EXPECT_TRUE(mock.sendData(zoomCmd.bytes()));
 
     ASSERT_EQ(rxFrames.size(), 1U);
     EXPECT_TRUE(rxFrames[0].isError());
@@ -85,7 +85,7 @@ TEST(TestMockSonyCamera, CommandCancelHandling)
     mock.setDataCallback([&](const std::vector<uint8_t>& data) { acc.addData(data); });
 
     const ViscaFrame cancelCmd = ViscaBuilder::commandCancel(1, ViscaSocket::Socket1);
-    mock.sendData(cancelCmd.bytes());
+    EXPECT_TRUE(mock.sendData(cancelCmd.bytes()));
 
     ASSERT_EQ(rxFrames.size(), 1U);
     EXPECT_TRUE(rxFrames[0].isError());

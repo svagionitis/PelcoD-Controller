@@ -58,7 +58,9 @@ std::vector<DiscoveredCamera> ViscaBusScanner::scanBus(ProgressCallback onProgre
         rxFrames.clear();
     }
     const ViscaFrame addrSet = ViscaBuilder::addressSet();
-    m_transport->sendData(addrSet.bytes());
+    if (!m_transport->sendData(addrSet.bytes())) {
+        return discovered;
+    }
 
     uint8_t detectedCameras = 0;
     const auto addrResp = waitForFrame(std::chrono::milliseconds(1000));
@@ -90,7 +92,9 @@ std::vector<DiscoveredCamera> ViscaBusScanner::scanBus(ProgressCallback onProgre
         }
 
         const ViscaFrame verInq = ViscaBuilder::versionInquiry(addr);
-        m_transport->sendData(verInq.bytes());
+        if (!m_transport->sendData(verInq.bytes())) {
+            continue;
+        }
 
         const auto verResp = waitForFrame(std::chrono::milliseconds(1000));
         if (verResp.has_value()) {

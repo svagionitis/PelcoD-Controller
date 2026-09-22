@@ -164,7 +164,7 @@ void ViscaDevice::sendFrameUnlocked(const ViscaFrame& frame)
     }
 
     if (trans && trans->isOpen()) {
-        trans->sendData(frame.bytes());
+        static_cast<void>(trans->sendData(frame.bytes()));
     }
     if (cb) {
         cb(frame, true);

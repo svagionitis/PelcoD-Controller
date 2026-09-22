@@ -126,10 +126,17 @@ if(WIN32)
     )
     foreach(tui_t IN LISTS TUI_CLI_TESTS)
         set_property(TEST ${tui_t} PROPERTY ENVIRONMENT_MODIFICATION
+            "PATH=path_list_prepend:${_PELCOD_QT_BIN_DIR}"
+            "PATH=path_list_prepend:${CMAKE_SOURCE_DIR}/vcpkg_installed/x64-windows/debug/bin"
+            "PATH=path_list_prepend:${CMAKE_SOURCE_DIR}/vcpkg_installed/x64-windows/bin"
             "PATH=path_list_prepend:${CMAKE_BINARY_DIR}/vcpkg_installed/x64-windows/debug/bin"
             "PATH=path_list_prepend:${CMAKE_BINARY_DIR}/vcpkg_installed/x64-windows/bin"
             "PATH=path_list_prepend:C:/vcpkg/installed/x64-windows/debug/bin"
             "PATH=path_list_prepend:C:/vcpkg/installed/x64-windows/bin"
+            "PATH=path_list_prepend:${CMAKE_BINARY_DIR}/lib/$<CONFIG>"
+            "PATH=path_list_prepend:${CMAKE_BINARY_DIR}/lib"
+            "PATH=path_list_prepend:${CMAKE_BINARY_DIR}/app-pelcod-tui/$<CONFIG>"
+            "PATH=path_list_prepend:${CMAKE_BINARY_DIR}/app-pelcod-tui"
         )
     endforeach()
 endif()
