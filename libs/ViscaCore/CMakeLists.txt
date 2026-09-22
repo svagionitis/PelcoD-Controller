@@ -23,6 +23,7 @@ target_include_directories(ViscaCore PUBLIC
 target_link_libraries(ViscaCore PUBLIC
     Transport
     Threads::Threads
+    glog::glog
 )
 
 apply_compiler_flags(ViscaCore)

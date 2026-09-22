@@ -137,6 +137,32 @@ TEST_F(ViscaAppQtTest, BusScannerAsynchronousDiscovery)
     EXPECT_GE(discSpy.count(), 1);
 }
 
+TEST_F(ViscaAppQtTest, BusScannerFailurePropagation)
+{
+    ViscaApp::QViscaBusScanner scanner(nullptr);
+
+    QSignalSpy failedSpy(&scanner, &ViscaApp::QViscaBusScanner::scanFailed);
+
+    const bool started = scanner.startScan();
+    EXPECT_FALSE(started);
+    EXPECT_EQ(failedSpy.count(), 1);
+}
+
+TEST_F(ViscaAppQtTest, BusScannerCancellation)
+{
+    auto mock = std::make_shared<Visca::Sony::MockSonyCamera>(Visca::Sony::SonyCameraModelType::FCB_EV9520L, 1);
+    ViscaApp::QViscaBusScanner scanner(mock);
+
+    QSignalSpy startedSpy(&scanner, &ViscaApp::QViscaBusScanner::scanStarted);
+    QSignalSpy finishedSpy(&scanner, &ViscaApp::QViscaBusScanner::scanFinished);
+
+    const bool started = scanner.startScan();
+    EXPECT_TRUE(started);
+    scanner.cancelScan();
+
+    EXPECT_TRUE(finishedSpy.wait(3000));
+}
+
 int main(int argc, char** argv)
 {
     QApplication app(argc, argv);

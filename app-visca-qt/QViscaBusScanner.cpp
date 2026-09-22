@@ -66,16 +66,36 @@ bool QViscaBusScanner::startScan()
                 this, [this, cam]() { emit deviceDiscovered(cam); }, Qt::QueuedConnection);
         };
 
-        const auto found = scanner.scanBus(progressCb, foundCb);
+        bool fatalError = false;
+        auto errorCb = [this, &fatalError](Visca::ScanError err, const std::string& msg) {
+            if (err == Visca::ScanError::TransportNotOpen || err == Visca::ScanError::AddressSetSendFailed) {
+                fatalError = true;
+                QMetaObject::invokeMethod(
+                    this,
+                    [this, msg]() {
+                        m_scanning.store(false);
+                        emit scanFailed(QString::fromStdString(msg));
+                    },
+                    Qt::QueuedConnection);
+            }
+        };
+
+        auto isCancelled = [this]() -> bool {
+            return m_cancelRequested.load();
+        };
+
+        const auto found = scanner.scanBus(progressCb, foundCb, errorCb, isCancelled);
         const int totalCount = static_cast<int>(found.size());
 
-        QMetaObject::invokeMethod(
-            this,
-            [this, totalCount]() {
-                m_scanning.store(false);
-                emit scanFinished(totalCount);
-            },
-            Qt::QueuedConnection);
+        if (!fatalError) {
+            QMetaObject::invokeMethod(
+                this,
+                [this, totalCount]() {
+                    m_scanning.store(false);
+                    emit scanFinished(totalCount);
+                },
+                Qt::QueuedConnection);
+        }
     });
 
     return true;

@@ -44,9 +44,19 @@ public:
         return m_open.load();
     }
 
+    void setSendFailure(bool fail) noexcept
+    {
+        m_sendFailure.store(fail);
+    }
+
+    void setDropAddressSet(bool drop) noexcept
+    {
+        m_dropAddressSet.store(drop);
+    }
+
     bool sendData(const std::vector<uint8_t>& data) override
     {
-        if (!m_open.load()) {
+        if (!m_open.load() || m_sendFailure.load()) {
             return false;
         }
         m_accumulator.addData(data);
@@ -90,7 +100,9 @@ private:
 
         // AddressSet broadcast (88 30 01 FF)
         if (frame.size() == 4 && frame[0] == 0x88 && frame[1] == 0x30 && frame[2] == 0x01) {
-            sendResponse(ViscaFrame { 0x88, 0x30, static_cast<uint8_t>(m_address + 1), kViscaTerminator });
+            if (!m_dropAddressSet.load()) {
+                sendResponse(ViscaFrame { 0x88, 0x30, static_cast<uint8_t>(m_address + 1), kViscaTerminator });
+            }
             return;
         }
 
@@ -167,6 +179,8 @@ private:
 
     bool m_socket1Busy { false };
     bool m_socket2Busy { false };
+    std::atomic<bool> m_sendFailure { false };
+    std::atomic<bool> m_dropAddressSet { false };
 };
 
 } // namespace Visca::Testing
