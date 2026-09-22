@@ -7,7 +7,7 @@
 #include <array>
 #include <cmath>
 
-namespace PelcoD {
+namespace Math {
 
 namespace {
 
@@ -142,4 +142,4 @@ std::string SpectrogramColorMap::mapHalfBlockAnsi(double normTop, double normBot
     return out;
 }
 
-} // namespace PelcoD
+} // namespace Math

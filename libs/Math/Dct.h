@@ -6,7 +6,7 @@
 #include <cstddef>
 #include <cstdint>
 
-namespace PelcoD::Math {
+namespace Math {
 
 /// @brief 8x8 matrix type for Discrete Cosine Transform operations.
 using DctMatrix8x8 = double[8][8];
@@ -32,4 +32,8 @@ void dct8x8(const std::uint8_t* block, int stride, DctMatrix8x8& output) noexcep
 /// @note Thread-safe with zero heap allocations.
 void idct8x8(const DctMatrix8x8& input, DctMatrix8x8& output) noexcept;
 
-} // namespace PelcoD::Math
+} // namespace Math
+
+namespace PelcoD {
+namespace Math = ::Math;
+} // namespace PelcoD

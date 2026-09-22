@@ -1,5 +1,5 @@
 # ==============================================================================
-# PelcoDMath Unit Tests
+# Math Unit Tests
 # ==============================================================================
 
 function(add_math_test test_name test_source)
@@ -7,7 +7,7 @@ function(add_math_test test_name test_source)
     target_include_directories(${test_name} PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/..
     )
-    target_link_libraries(${test_name} PRIVATE PelcoDMath)
+    target_link_libraries(${test_name} PRIVATE Math)
     pelcod_register_gtest(${test_name})
 endfunction()
 
@@ -27,5 +27,5 @@ target_include_directories(TestDwt PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/..
     ${CMAKE_SOURCE_DIR}/libs/PelcoDTracking
 )
-target_link_libraries(TestDwt PRIVATE PelcoDMath PelcoDTracking)
+target_link_libraries(TestDwt PRIVATE Math PelcoDTracking)
 pelcod_register_gtest(TestDwt)

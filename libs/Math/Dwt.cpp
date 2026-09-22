@@ -6,7 +6,7 @@
 #include <algorithm>
 #include <cmath>
 
-namespace PelcoD::Math {
+namespace Math {
 
 namespace {
 
@@ -345,4 +345,4 @@ std::vector<double> idwt2D(const WaveletCoefficients2D& coeffs, WaveletType wave
     return result;
 }
 
-} // namespace PelcoD::Math
+} // namespace Math

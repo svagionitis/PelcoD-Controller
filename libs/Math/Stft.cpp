@@ -7,7 +7,7 @@
 #include <cmath>
 #include <numeric>
 
-namespace PelcoD {
+namespace Math {
 
 Stft::Stft(StftConfig config)
 {
@@ -20,8 +20,8 @@ void Stft::setConfig(const StftConfig& config)
     m_config = config;
 
     // Window size must be a valid power of 2 (minimum 16)
-    if (!Math::isPowerOfTwo(m_config.windowSize) || m_config.windowSize < 16U) {
-        m_config.windowSize = std::max<std::size_t>(16U, Math::nextPowerOfTwo(m_config.windowSize));
+    if (!isPowerOfTwo(m_config.windowSize) || m_config.windowSize < 16U) {
+        m_config.windowSize = std::max<std::size_t>(16U, nextPowerOfTwo(m_config.windowSize));
     }
 
     // Hop size clamped to [1, windowSize]
@@ -148,10 +148,10 @@ void Stft::processWindow(double windowEndTime)
     }
 
     // 2. Apply window function (Hann, Hamming, Blackman, etc.)
-    Math::applyWindow(windowData, m_config.windowType);
+    applyWindow(windowData, m_config.windowType);
 
     // 3. Compute forward FFT
-    const auto complexSpectrum = Math::rfft(windowData);
+    const auto complexSpectrum = rfft(windowData);
 
     // 4. Compute single-sided power spectrum and dB spectrum
     SpectrogramFrame frame;
@@ -231,4 +231,4 @@ void Stft::processWindow(double windowEndTime)
     }
 }
 
-} // namespace PelcoD
+} // namespace Math

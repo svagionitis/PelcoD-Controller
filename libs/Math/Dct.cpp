@@ -9,7 +9,7 @@
 #define M_PI 3.14159265358979323846
 #endif
 
-namespace PelcoD::Math {
+namespace Math {
 
 namespace {
 
@@ -100,4 +100,4 @@ void idct8x8(const DctMatrix8x8& input, DctMatrix8x8& output) noexcept
     }
 }
 
-} // namespace PelcoD::Math
+} // namespace Math

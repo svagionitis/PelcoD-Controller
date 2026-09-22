@@ -7,7 +7,7 @@
 #include <cstddef>
 #include <vector>
 
-namespace PelcoD::Math {
+namespace Math {
 
 using Complex = std::complex<double>;
 
@@ -95,4 +95,8 @@ void applyWindow2D(std::vector<double>& image, std::size_t rows, std::size_t col
 /// @return True if n > 0 and n is a power of 2, false otherwise.
 [[nodiscard]] bool isPowerOfTwo(std::size_t n) noexcept;
 
-} // namespace PelcoD::Math
+} // namespace Math
+
+namespace PelcoD {
+namespace Math = ::Math;
+} // namespace PelcoD

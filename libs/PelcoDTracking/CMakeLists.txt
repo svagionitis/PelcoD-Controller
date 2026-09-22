@@ -34,7 +34,7 @@ target_include_directories(PelcoDTracking PUBLIC
 
 target_link_libraries(PelcoDTracking PUBLIC
     PelcoDCore
-    PelcoDMath
+    Math
     Threads::Threads
     glog::glog
 )

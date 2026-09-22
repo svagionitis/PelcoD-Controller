@@ -10,7 +10,7 @@
 #include <mutex>
 #include <vector>
 
-namespace PelcoD {
+namespace Math {
 
 /// @struct StftConfig
 /// @brief Configuration settings for Short-Time Fourier Transform analysis and history buffering.
@@ -18,7 +18,7 @@ struct StftConfig {
     std::size_t windowSize { 128U }; ///< FFT window size (must be power of two: 32, 64, 128, 256, 512).
     std::size_t hopSize { 64U }; ///< Advance step between successive FFT windows (e.g. windowSize / 2 for 50% overlap).
     double sampleRateHz { 50.0 }; ///< Sampling rate of the incoming signal in Hertz.
-    Math::WindowType windowType { Math::WindowType::Hann }; ///< Window function to suppress spectral leakage.
+    WindowType windowType { WindowType::Hann }; ///< Window function to suppress spectral leakage.
     std::size_t maxHistoryFrames { 100U }; ///< Maximum number of historical time slices to retain in memory.
     double minDb { -60.0 }; ///< Lower decibel floor for log-magnitude dynamic range clamping.
     double maxDb { 0.0 }; ///< Upper decibel ceiling for log-magnitude scaling.
@@ -98,4 +98,11 @@ private:
     std::deque<SpectrogramFrame> m_history {};
 };
 
+} // namespace Math
+
+namespace PelcoD {
+namespace Math = ::Math;
+using StftConfig = ::Math::StftConfig;
+using SpectrogramFrame = ::Math::SpectrogramFrame;
+using Stft = ::Math::Stft;
 } // namespace PelcoD

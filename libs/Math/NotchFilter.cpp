@@ -10,7 +10,7 @@
 #define M_PI 3.14159265358979323846
 #endif
 
-namespace PelcoD {
+namespace Math {
 
 NotchFilter::NotchFilter(double centerFreqHz, double sampleRateHz, double qFactor)
     : m_centerFreqHz(centerFreqHz)
@@ -85,4 +85,4 @@ void NotchFilter::reset() noexcept
     m_y2 = 0.0;
 }
 
-} // namespace PelcoD
+} // namespace Math

@@ -5,7 +5,7 @@
 
 #include <cstddef>
 
-namespace PelcoD {
+namespace Math {
 
 /// @class GoertzelFilter
 /// @brief Real-time single-bin discrete Fourier transform evaluator.
@@ -87,4 +87,9 @@ private:
     double m_latchedPower { 0.0 };
 };
 
+} // namespace Math
+
+namespace PelcoD {
+namespace Math = ::Math;
+using GoertzelFilter = ::Math::GoertzelFilter;
 } // namespace PelcoD

@@ -8,14 +8,14 @@
 #include <cstddef>
 #include <cstdint>
 
-namespace PelcoD {
+namespace Math {
 
 /// @struct PhaseCorrelationConfig
 /// @brief Configuration parameters for PhaseCorrelationEstimator.
 struct PhaseCorrelationConfig {
     std::size_t gridWidth { 128U }; ///< Internal processing grid width (power of 2: 64, 128, 256).
     std::size_t gridHeight { 128U }; ///< Internal processing grid height (power of 2: 64, 128, 256).
-    Math::WindowType windowType { Math::WindowType::Hann }; ///< 2D window to eliminate periodic boundary wraparound.
+    WindowType windowType { WindowType::Hann }; ///< 2D window to eliminate periodic boundary wraparound.
     double confidenceThreshold { 0.15 }; ///< Minimum normalized peak height to consider motion valid [0.0, 1.0].
     double maxTranslationFraction { 0.35 }; ///< Maximum allowable shift as fraction of frame dimensions.
 };
@@ -61,4 +61,11 @@ private:
     PhaseCorrelationConfig m_config;
 };
 
+} // namespace Math
+
+namespace PelcoD {
+namespace Math = ::Math;
+using PhaseCorrelationConfig = ::Math::PhaseCorrelationConfig;
+using MotionResult = ::Math::MotionResult;
+using PhaseCorrelationEstimator = ::Math::PhaseCorrelationEstimator;
 } // namespace PelcoD

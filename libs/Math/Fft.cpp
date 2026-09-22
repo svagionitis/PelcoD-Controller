@@ -10,7 +10,7 @@
 #define M_PI 3.14159265358979323846
 #endif
 
-namespace PelcoD::Math {
+namespace Math {
 
 bool isPowerOfTwo(std::size_t n) noexcept
 {
@@ -251,4 +251,4 @@ void applyWindow2D(std::vector<double>& image, std::size_t rows, std::size_t col
     }
 }
 
-} // namespace PelcoD::Math
+} // namespace Math

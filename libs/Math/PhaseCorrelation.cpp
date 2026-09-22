@@ -7,7 +7,7 @@
 #include <cmath>
 #include <vector>
 
-namespace PelcoD {
+namespace Math {
 
 PhaseCorrelationEstimator::PhaseCorrelationEstimator(PhaseCorrelationConfig config)
     : m_config(std::move(config))
@@ -36,9 +36,9 @@ MotionResult PhaseCorrelationEstimator::estimateMotion(
     const std::size_t actualStride = (stride > 0) ? static_cast<std::size_t>(stride) : uWidth;
 
     std::size_t gw
-        = Math::isPowerOfTwo(m_config.gridWidth) ? m_config.gridWidth : Math::nextPowerOfTwo(m_config.gridWidth);
+        = isPowerOfTwo(m_config.gridWidth) ? m_config.gridWidth : nextPowerOfTwo(m_config.gridWidth);
     std::size_t gh
-        = Math::isPowerOfTwo(m_config.gridHeight) ? m_config.gridHeight : Math::nextPowerOfTwo(m_config.gridHeight);
+        = isPowerOfTwo(m_config.gridHeight) ? m_config.gridHeight : nextPowerOfTwo(m_config.gridHeight);
     if (gw < 2U) {
         gw = 64U;
     }
@@ -91,31 +91,31 @@ MotionResult PhaseCorrelationEstimator::estimateMotion(
     }
 
     // Apply 2D window to eliminate edge boundary wrap-around leakage
-    Math::applyWindow2D(refGrid, gh, gw, m_config.windowType);
-    Math::applyWindow2D(curGrid, gh, gw, m_config.windowType);
+    applyWindow2D(refGrid, gh, gw, m_config.windowType);
+    applyWindow2D(curGrid, gh, gw, m_config.windowType);
 
-    std::vector<Math::Complex> fRef(gridTotal);
-    std::vector<Math::Complex> fCur(gridTotal);
+    std::vector<Complex> fRef(gridTotal);
+    std::vector<Complex> fCur(gridTotal);
     for (std::size_t i = 0U; i < gridTotal; ++i) {
-        fRef[i] = Math::Complex { refGrid[i], 0.0 };
-        fCur[i] = Math::Complex { curGrid[i], 0.0 };
+        fRef[i] = Complex { refGrid[i], 0.0 };
+        fCur[i] = Complex { curGrid[i], 0.0 };
     }
 
     // 2D Forward FFT
-    Math::fft2D(fRef, gh, gw, false);
-    Math::fft2D(fCur, gh, gw, false);
+    fft2D(fRef, gh, gw, false);
+    fft2D(fCur, gh, gw, false);
 
     // Compute normalized cross-power spectrum: R = (F_cur * conj(F_ref)) / (|F_cur * conj(F_ref)| + eps)
-    std::vector<Math::Complex> crossSpectrum(gridTotal);
+    std::vector<Complex> crossSpectrum(gridTotal);
     constexpr double eps = 1e-12;
     for (std::size_t i = 0U; i < gridTotal; ++i) {
-        const Math::Complex prod = fCur[i] * std::conj(fRef[i]);
+        const Complex prod = fCur[i] * std::conj(fRef[i]);
         const double mag = std::abs(prod);
         crossSpectrum[i] = prod / (mag + eps);
     }
 
     // 2D Inverse FFT to spatial domain impulse surface
-    Math::fft2D(crossSpectrum, gh, gw, true);
+    fft2D(crossSpectrum, gh, gw, true);
 
     // Locate impulse peak
     double maxVal = -1.0;
@@ -192,4 +192,4 @@ MotionResult PhaseCorrelationEstimator::estimateMotion(
     return result;
 }
 
-} // namespace PelcoD
+} // namespace Math

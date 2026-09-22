@@ -1,5 +1,5 @@
 add_subdirectory(Transport)
-add_subdirectory(PelcoDMath)
+add_subdirectory(Math)
 add_subdirectory(PelcoDCore)
 add_subdirectory(ViscaCore)
 add_subdirectory(ViscaSony)

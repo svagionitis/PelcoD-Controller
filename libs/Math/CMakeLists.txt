@@ -1,4 +1,4 @@
-add_library(PelcoDMath STATIC
+add_library(Math STATIC
     Dct.h
     Dct.cpp
     DctSharpnessEvaluator.h
@@ -22,17 +22,19 @@ add_library(PelcoDMath STATIC
     Stft.cpp
 )
 
-target_include_directories(PelcoDMath PUBLIC
+add_library(PelcoDMath ALIAS Math)
+
+target_include_directories(Math PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/..>
     $<INSTALL_INTERFACE:include>
 )
 
-target_link_libraries(PelcoDMath PUBLIC
+target_link_libraries(Math PUBLIC
     Threads::Threads
 )
 
-apply_compiler_flags(PelcoDMath)
+apply_compiler_flags(Math)
 
 if(BUILD_TESTING)
     add_subdirectory(tests)

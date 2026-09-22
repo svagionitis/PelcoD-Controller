@@ -3,7 +3,7 @@
 /// @file NotchFilter.h
 /// @brief Digital 2nd-order IIR biquad notch filter for mechanical resonance and mast vibration rejection.
 
-namespace PelcoD {
+namespace Math {
 
 /// @class NotchFilter
 /// @brief 2nd-order digital IIR biquad notch filter.
@@ -68,4 +68,9 @@ private:
     double m_y2 { 0.0 };
 };
 
+} // namespace Math
+
+namespace PelcoD {
+namespace Math = ::Math;
+using NotchFilter = ::Math::NotchFilter;
 } // namespace PelcoD

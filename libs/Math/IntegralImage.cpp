@@ -7,7 +7,7 @@
 #include <cmath>
 #include <cstring>
 
-namespace PelcoD {
+namespace Math {
 
 void IntegralImage::compute(const std::uint8_t* pixels, int width, int height, int stride, bool computeSquared)
 {
@@ -269,4 +269,4 @@ void IntegralImage::adaptiveThreshold(std::uint8_t* dst, int windowSize, double 
     }
 }
 
-} // namespace PelcoD
+} // namespace Math

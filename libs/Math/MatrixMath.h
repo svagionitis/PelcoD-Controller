@@ -10,7 +10,7 @@
 #include <initializer_list>
 #include <stdexcept>
 
-namespace PelcoD::Math {
+namespace Math {
 
 /// @class Matrix
 /// @brief Fixed-size Rows x Cols matrix template with zero dynamic heap allocation.
@@ -333,9 +333,10 @@ template <std::size_t Rows, std::size_t Cols>
     return mat * scalar;
 }
 
-} // namespace PelcoD::Math
+} // namespace Math
 
 namespace PelcoD {
-using Math::Matrix;
-using Math::Vector;
+namespace Math = ::Math;
+using ::Math::Matrix;
+using ::Math::Vector;
 } // namespace PelcoD

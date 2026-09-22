@@ -7,7 +7,7 @@
 #include <string>
 #include <tuple>
 
-namespace PelcoD {
+namespace Math {
 
 /// @struct RgbColor
 /// @brief 24-bit RGB color representation.
@@ -61,4 +61,10 @@ public:
         Preset preset = Preset::Inferno);
 };
 
+} // namespace Math
+
+namespace PelcoD {
+namespace Math = ::Math;
+using RgbColor = ::Math::RgbColor;
+using SpectrogramColorMap = ::Math::SpectrogramColorMap;
 } // namespace PelcoD

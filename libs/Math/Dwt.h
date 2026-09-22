@@ -6,7 +6,7 @@
 #include <cstddef>
 #include <vector>
 
-namespace PelcoD::Math {
+namespace Math {
 
 /// @enum WaveletType
 /// @brief Wavelet family types supported by the transform engine.
@@ -88,4 +88,8 @@ void dwt1D(const std::vector<double>& signal, std::vector<double>& cA, std::vect
 /// @return Reconstructed row-major image of size (2*rows) * (2*cols).
 [[nodiscard]] std::vector<double> idwt2D(const WaveletCoefficients2D& coeffs, WaveletType wavelet = WaveletType::Haar);
 
-} // namespace PelcoD::Math
+} // namespace Math
+
+namespace PelcoD {
+namespace Math = ::Math;
+} // namespace PelcoD

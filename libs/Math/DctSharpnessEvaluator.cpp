@@ -6,7 +6,7 @@
 #include <algorithm>
 #include <cmath>
 
-namespace PelcoD {
+namespace Math {
 
 DctSharpnessEvaluator::DctSharpnessEvaluator(DctSharpnessConfig config)
 {
@@ -153,4 +153,4 @@ SharpnessResult DctSharpnessEvaluator::evaluate(
     return result;
 }
 
-} // namespace PelcoD
+} // namespace Math

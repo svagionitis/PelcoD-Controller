@@ -10,7 +10,7 @@
 #define M_PI 3.14159265358979323846
 #endif
 
-namespace PelcoD {
+namespace Math {
 
 GoertzelFilter::GoertzelFilter(double targetFreqHz, double sampleRateHz, std::size_t blockSize)
     : m_targetFreqHz(targetFreqHz)
@@ -139,4 +139,4 @@ std::size_t GoertzelFilter::getBlockSize() const noexcept
     return m_blockSize;
 }
 
-} // namespace PelcoD
+} // namespace Math

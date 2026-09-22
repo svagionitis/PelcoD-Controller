@@ -351,7 +351,7 @@ include(GitHooks)
 # Target Installation
 # ==============================================================================
 
-set(PELCOD_INSTALL_TARGETS PelcoDAppQt ViscaAppQt PelcoDAppTui PelcoDCore PelcoDQt PelcoDMath Transport ViscaCore ViscaSony PelcoDTracking PelcoDFujinon PelcoDSim)
+set(PELCOD_INSTALL_TARGETS PelcoDAppQt ViscaAppQt PelcoDAppTui PelcoDCore PelcoDQt Math Transport ViscaCore ViscaSony PelcoDTracking PelcoDFujinon PelcoDSim)
 if(PELCOD_ENABLE_ONVIF)
     list(APPEND PELCOD_INSTALL_TARGETS PelcoDOnvif)
 endif()
@@ -371,18 +371,18 @@ install(TARGETS ${PELCOD_INSTALL_TARGETS}
 )
 
 install(FILES
-    libs/PelcoDMath/Dct.h
-    libs/PelcoDMath/DctSharpnessEvaluator.h
-    libs/PelcoDMath/Dwt.h
-    libs/PelcoDMath/Fft.h
-    libs/PelcoDMath/GoertzelFilter.h
-    libs/PelcoDMath/IntegralImage.h
-    libs/PelcoDMath/MatrixMath.h
-    libs/PelcoDMath/NotchFilter.h
-    libs/PelcoDMath/PhaseCorrelation.h
-    libs/PelcoDMath/SpectrogramColorMap.h
-    libs/PelcoDMath/Stft.h
-    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/PelcoDMath
+    libs/Math/Dct.h
+    libs/Math/DctSharpnessEvaluator.h
+    libs/Math/Dwt.h
+    libs/Math/Fft.h
+    libs/Math/GoertzelFilter.h
+    libs/Math/IntegralImage.h
+    libs/Math/MatrixMath.h
+    libs/Math/NotchFilter.h
+    libs/Math/PhaseCorrelation.h
+    libs/Math/SpectrogramColorMap.h
+    libs/Math/Stft.h
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/Math
 )
 
 install(FILES

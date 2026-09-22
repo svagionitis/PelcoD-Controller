@@ -7,7 +7,7 @@
 #include <cstddef>
 #include <cstdint>
 
-namespace PelcoD {
+namespace Math {
 
 /// @enum DctMetricMode
 /// @brief Frequency accumulation mode for DCT focus score calculation.
@@ -71,4 +71,12 @@ private:
     DctSharpnessConfig m_config {};
 };
 
+} // namespace Math
+
+namespace PelcoD {
+namespace Math = ::Math;
+using DctMetricMode = ::Math::DctMetricMode;
+using DctSharpnessConfig = ::Math::DctSharpnessConfig;
+using SharpnessResult = ::Math::SharpnessResult;
+using DctSharpnessEvaluator = ::Math::DctSharpnessEvaluator;
 } // namespace PelcoD

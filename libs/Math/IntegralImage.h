@@ -7,7 +7,7 @@
 #include <cstdint>
 #include <vector>
 
-namespace PelcoD {
+namespace Math {
 
 /// @struct Rect
 /// @brief 2D rectangle specification for bounding box queries.
@@ -128,4 +128,10 @@ private:
     std::vector<std::uint8_t> m_sourcePixels;
 };
 
+} // namespace Math
+
+namespace PelcoD {
+namespace Math = ::Math;
+using Rect = ::Math::Rect;
+using IntegralImage = ::Math::IntegralImage;
 } // namespace PelcoD
