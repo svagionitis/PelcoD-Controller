@@ -15,7 +15,7 @@ namespace PelcoDTui {
 
 ConnectionModal::ConnectionModal()
 {
-    m_detectedPorts = PelcoD::SerialTransport::enumeratePorts();
+    m_detectedPorts = Transport::SerialTransport::enumeratePorts();
     if (!m_detectedPorts.empty()) {
         m_config.serialPort = m_detectedPorts.front();
     }
@@ -25,7 +25,7 @@ void ConnectionModal::setOpen(bool open) noexcept
 {
     m_isOpen = open;
     if (open) {
-        m_detectedPorts = PelcoD::SerialTransport::enumeratePorts();
+        m_detectedPorts = Transport::SerialTransport::enumeratePorts();
         if (m_config.type == TransportType::Serial && !m_detectedPorts.empty() && m_config.serialPort.empty()) {
             m_config.serialPort = m_detectedPorts.front();
         }
@@ -51,7 +51,7 @@ bool ConnectionModal::hasPendingConnect() noexcept
     return res;
 }
 
-std::shared_ptr<PelcoD::ITransport> ConnectionModal::createTransport(const ConnectionConfig& config)
+std::shared_ptr<Transport::ITransport> ConnectionModal::createTransport(const ConnectionConfig& config)
 {
     switch (config.type) {
     case TransportType::Mock: {
@@ -61,11 +61,11 @@ std::shared_ptr<PelcoD::ITransport> ConnectionModal::createTransport(const Conne
         return mock;
     }
     case TransportType::Tcp:
-        return std::make_shared<PelcoD::TcpTransport>(config.tcpHost, config.tcpPort);
+        return std::make_shared<Transport::TcpTransport>(config.tcpHost, config.tcpPort);
     case TransportType::Udp:
-        return std::make_shared<PelcoD::UdpTransport>(config.udpHost, config.udpPort, config.udpLocalPort);
+        return std::make_shared<Transport::UdpTransport>(config.udpHost, config.udpPort, config.udpLocalPort);
     case TransportType::Serial:
-        return std::make_shared<PelcoD::SerialTransport>(config.serialPort, config.serialBaud);
+        return std::make_shared<Transport::SerialTransport>(config.serialPort, config.serialBaud);
     default: {
         auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(config.address);
         mock->setKinematicsConfig(config.kinematicsConfig);
@@ -393,7 +393,7 @@ bool ConnectionModal::handleInput(const InputEvent& event)
 
         // Field 3: Baud rate if Serial
         if (m_selectedField == 3 && m_config.type == TransportType::Serial && (isLeft || isRight)) {
-            constexpr auto& bauds = PelcoD::SerialTransport::StandardBaudRates;
+            constexpr auto& bauds = Transport::SerialTransport::StandardBaudRates;
             constexpr int numBauds = static_cast<int>(bauds.size());
             int curIdx = 2;
             for (int i = 0; i < numBauds; ++i) {

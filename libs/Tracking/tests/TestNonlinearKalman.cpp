@@ -7,12 +7,15 @@
 #include "PtzSphericalEstimator.h"
 #include "UnscentedKalmanFilter.h"
 
-#include <gtest/gtest.h>
 #include <cmath>
+#include <gtest/gtest.h>
 #include <iostream>
 #include <vector>
 
 namespace {
+
+using namespace Tracking;
+using namespace Math;
 
 constexpr double TEST_EPSILON = 1e-4;
 constexpr double PI = 3.14159265358979323846;
@@ -39,13 +42,13 @@ TEST(NonlinearKalmanTest, MatrixBasicOperations)
 {
     std::cout << "[Test] Matrix basic operations (addition, multiplication, transpose)..." << std::endl;
 
-    PelcoD::Matrix<2, 2> a {};
+    Matrix<2, 2> a {};
     a(0, 0) = 1.0;
     a(0, 1) = 2.0;
     a(1, 0) = 3.0;
     a(1, 1) = 4.0;
 
-    PelcoD::Matrix<2, 2> b {};
+    Matrix<2, 2> b {};
     b(0, 0) = 5.0;
     b(0, 1) = 6.0;
     b(1, 0) = 7.0;
@@ -72,8 +75,8 @@ TEST(NonlinearKalmanTest, MatrixBasicOperations)
     EXPECT_TRUE(approxEqual(at(1, 1), 4.0));
 
     // Vector operations
-    PelcoD::Vector<3> v1 { 1.0, 2.0, 3.0 };
-    PelcoD::Vector<2> v2 { 4.0, 5.0 };
+    Vector<3> v1 { 1.0, 2.0, 3.0 };
+    Vector<2> v2 { 4.0, 5.0 };
     auto outerMat = v1.outer(v2); // 3x2 matrix
     EXPECT_TRUE(approxEqual(outerMat(0, 0), 4.0));
     EXPECT_TRUE(approxEqual(outerMat(0, 1), 5.0));
@@ -87,7 +90,7 @@ TEST(NonlinearKalmanTest, MatrixInversion)
 {
     std::cout << "[Test] Matrix inversion with partial pivoting..." << std::endl;
 
-    PelcoD::Matrix<3, 3> m {};
+    Matrix<3, 3> m {};
     m(0, 0) = 2.0;
     m(0, 1) = 1.0;
     m(0, 2) = 1.0;
@@ -116,7 +119,7 @@ TEST(NonlinearKalmanTest, CholeskyDecomposition)
     std::cout << "[Test] Lower-triangular Cholesky decomposition..." << std::endl;
 
     // Symmetric positive-definite matrix
-    PelcoD::Matrix<3, 3> a {};
+    Matrix<3, 3> a {};
     a(0, 0) = 4.0;
     a(0, 1) = 12.0;
     a(0, 2) = -16.0;
@@ -151,7 +154,7 @@ TEST(NonlinearKalmanTest, CameraModelProjectionAndUnprojection)
 {
     std::cout << "[Test] Camera model projection and unprojection round-trip..." << std::endl;
 
-    PelcoD::CameraIntrinsics intr {};
+    CameraIntrinsics intr {};
     intr.imageWidth = 1920;
     intr.imageHeight = 1080;
     intr.cx = 960.0;
@@ -161,7 +164,7 @@ TEST(NonlinearKalmanTest, CameraModelProjectionAndUnprojection)
     intr.k1 = -0.10; // Mild barrel distortion
     intr.k2 = 0.02;
 
-    PelcoD::PtzCameraModel model(intr);
+    PtzCameraModel model(intr);
 
     // 1. Center boresight should project exactly to principal point (960, 540)
     auto centerProj = model.project(0.0, 0.0, 0.0, 0.0, 1.0);
@@ -169,12 +172,8 @@ TEST(NonlinearKalmanTest, CameraModelProjectionAndUnprojection)
     EXPECT_TRUE(approxEqual(centerProj[1], 540.0));
 
     // 2. Off-axis angle round-trip
-    const std::vector<std::pair<double, double>> testAnglesDeg = {
-        { 5.0, 3.0 },
-        { -8.0, 6.0 },
-        { 12.0, -9.0 },
-        { -15.0, -10.0 }
-    };
+    const std::vector<std::pair<double, double>> testAnglesDeg
+        = { { 5.0, 3.0 }, { -8.0, 6.0 }, { 12.0, -9.0 }, { -15.0, -10.0 } };
 
     for (const auto& [azDeg, elDeg] : testAnglesDeg) {
         const double azRad = degToRad(azDeg);
@@ -201,13 +200,13 @@ TEST(NonlinearKalmanTest, CameraModelOpticalZoom)
 {
     std::cout << "[Test] Camera model dynamic optical zoom scaling..." << std::endl;
 
-    PelcoD::CameraIntrinsics intr {};
+    CameraIntrinsics intr {};
     intr.fx0 = 1000.0;
     intr.fy0 = 1000.0;
     intr.cx = 960.0;
     intr.cy = 540.0;
 
-    PelcoD::PtzCameraModel model(intr);
+    PtzCameraModel model(intr);
 
     const double azRad = degToRad(2.0); // 2 degrees off boresight
     auto p1x = model.project(azRad, 0.0, 0.0, 0.0, 1.0);
@@ -224,8 +223,8 @@ TEST(NonlinearKalmanTest, CameraModelJacobian)
 {
     std::cout << "[Test] Camera model Jacobian matrix computation..." << std::endl;
 
-    PelcoD::CameraIntrinsics intr {};
-    PelcoD::PtzCameraModel model(intr);
+    CameraIntrinsics intr {};
+    PtzCameraModel model(intr);
 
     auto H = model.computeJacobian(degToRad(4.0), degToRad(-3.0), 0.0, 0.0, 1.0);
 
@@ -247,16 +246,16 @@ TEST(NonlinearKalmanTest, EkfCircularTrajectoryHighElevation)
 {
     std::cout << "[Test] EKF tracking high-elevation circular trajectory (70 deg elevation)..." << std::endl;
 
-    PelcoD::SphericalEstimatorConfig config {};
-    config.type = PelcoD::EstimatorType::EKF;
+    SphericalEstimatorConfig config {};
+    config.type = EstimatorType::EKF;
     config.pixelNoiseStd = 1.0;
     config.intrinsics.imageWidth = 1920;
     config.intrinsics.imageHeight = 1080;
     config.intrinsics.fx0 = 1200.0;
     config.intrinsics.fy0 = 1200.0;
 
-    PelcoD::PtzSphericalEstimator estimator(config);
-    PelcoD::PtzCameraModel model(config.intrinsics);
+    PtzSphericalEstimator estimator(config);
+    PtzCameraModel model(config.intrinsics);
 
     // Target orbits at elevation 70 degrees with radius 2 degrees in azimuth
     const double baseElDeg = 70.0;
@@ -303,11 +302,11 @@ TEST(NonlinearKalmanTest, EkfMahalanobisOutlierGating)
 {
     std::cout << "[Test] EKF Mahalanobis distance outlier rejection..." << std::endl;
 
-    PelcoD::SphericalEstimatorConfig config {};
-    config.type = PelcoD::EstimatorType::EKF;
+    SphericalEstimatorConfig config {};
+    config.type = EstimatorType::EKF;
     config.mahalanobisGateThreshold = 9.21; // 99% Chi-square threshold for 2 DOF
 
-    PelcoD::PtzSphericalEstimator estimator(config);
+    PtzSphericalEstimator estimator(config);
     estimator.initFromPixel(960.0, 540.0, 0.0, 0.0, 1.0);
 
     // Warm-up with normal measurements
@@ -336,13 +335,13 @@ TEST(NonlinearKalmanTest, UkfTrackingUnderSevereRadialDistortion)
 {
     std::cout << "[Test] UKF non-linear sigma-point tracking under severe lens distortion..." << std::endl;
 
-    PelcoD::SphericalEstimatorConfig config {};
-    config.type = PelcoD::EstimatorType::UKF;
+    SphericalEstimatorConfig config {};
+    config.type = EstimatorType::UKF;
     config.intrinsics.k1 = -0.35; // Severe wide-angle barrel distortion
     config.intrinsics.k2 = 0.12;
 
-    PelcoD::PtzSphericalEstimator ukf(config);
-    PelcoD::PtzCameraModel model(config.intrinsics);
+    PtzSphericalEstimator ukf(config);
+    PtzCameraModel model(config.intrinsics);
 
     ukf.init(degToRad(-5.0), degToRad(2.0));
 
@@ -370,7 +369,8 @@ TEST(NonlinearKalmanTest, UkfTrackingUnderSevereRadialDistortion)
     EXPECT_TRUE(finalElErr < 0.15);
     EXPECT_TRUE(finalVelAzErr < 0.35);
 
-    std::cout << "  -> Passed! (Final UKF error: az=" << finalAzErr << " deg, el=" << finalElErr << " deg)" << std::endl;
+    std::cout << "  -> Passed! (Final UKF error: az=" << finalAzErr << " deg, el=" << finalElErr << " deg)"
+              << std::endl;
 }
 
 // ============================================================================
@@ -380,11 +380,11 @@ TEST(NonlinearKalmanTest, PtzSphericalEstimatorWorkflow)
 {
     std::cout << "[Test] PtzSphericalEstimator complete workflow (lock, lookahead, algo switch)..." << std::endl;
 
-    PelcoD::SphericalEstimatorConfig config {};
-    config.type = PelcoD::EstimatorType::EKF;
+    SphericalEstimatorConfig config {};
+    config.type = EstimatorType::EKF;
 
-    PelcoD::PtzSphericalEstimator estimator(config);
-    PelcoD::PtzCameraModel model(config.intrinsics);
+    PtzSphericalEstimator estimator(config);
+    PtzCameraModel model(config.intrinsics);
 
     EXPECT_TRUE(!estimator.isLocked());
 
@@ -412,7 +412,7 @@ TEST(NonlinearKalmanTest, PtzSphericalEstimatorWorkflow)
     EXPECT_TRUE(approxEqual(lookaheadState.predictedErrorAzimuthDeg, currentAzDeg + 2.0, 0.8));
 
     // 4. Switch algorithm to UKF on the fly
-    estimator.setType(PelcoD::EstimatorType::UKF);
+    estimator.setType(EstimatorType::UKF);
 
     for (int i = 0; i < 15; ++i) {
         currentAzDeg += 10.0 * dt;
@@ -431,4 +431,3 @@ TEST(NonlinearKalmanTest, PtzSphericalEstimatorWorkflow)
 }
 
 } // namespace
-

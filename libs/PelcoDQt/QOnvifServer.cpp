@@ -2,7 +2,7 @@
 
 namespace PelcoD::Qt {
 
-QOnvifServer::QOnvifServer(PelcoD::Onvif::OnvifServerConfig config, QObject* parent)
+QOnvifServer::QOnvifServer(Onvif::OnvifServerConfig config, QObject* parent)
     : QObject(parent)
     , m_config(std::move(config))
 {
@@ -19,13 +19,13 @@ bool QOnvifServer::isRunning() const noexcept
     return m_server != nullptr && m_server->isRunning();
 }
 
-PelcoD::Onvif::OnvifServerConfig QOnvifServer::config() const
+Onvif::OnvifServerConfig QOnvifServer::config() const
 {
     std::lock_guard<std::mutex> lock(m_mutex);
     return m_config;
 }
 
-void QOnvifServer::setConfig(const PelcoD::Onvif::OnvifServerConfig& config)
+void QOnvifServer::setConfig(const Onvif::OnvifServerConfig& config)
 {
     std::lock_guard<std::mutex> lock(m_mutex);
     m_config = config;
@@ -35,7 +35,7 @@ void QOnvifServer::bindDevice(PelcoDQt::QPelcoDDevice* device)
 {
     std::lock_guard<std::mutex> lock(m_mutex);
     if (device != nullptr && device->sharedCoreDevice() != nullptr) {
-        m_ptzAdapter = std::make_shared<PelcoD::Onvif::PelcoDPtzAdapter>(device->sharedCoreDevice());
+        m_ptzAdapter = std::make_shared<Onvif::PelcoDPtzAdapter>(device->sharedCoreDevice());
         if (m_patrolController != nullptr) {
             m_ptzAdapter->setPatrolController(m_patrolController);
         }
@@ -82,7 +82,7 @@ bool QOnvifServer::start()
     }
 
     try {
-        m_server = std::make_unique<PelcoD::Onvif::OnvifServer>(m_config, m_ptzAdapter, m_ptzAdapter);
+        m_server = std::make_unique<Onvif::OnvifServer>(m_config, m_ptzAdapter, m_ptzAdapter);
         m_server->setRequestLogCallback(
             [this](const std::string& service, const std::string& action, const std::string& clientIp) {
                 emit requestLogged(
@@ -109,7 +109,7 @@ bool QOnvifServer::start()
 
 void QOnvifServer::stop()
 {
-    std::unique_ptr<PelcoD::Onvif::OnvifServer> toStop;
+    std::unique_ptr<Onvif::OnvifServer> toStop;
     {
         std::lock_guard<std::mutex> lock(m_mutex);
         if (m_server == nullptr) {

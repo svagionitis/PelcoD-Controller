@@ -103,8 +103,8 @@ inline bool computeTargetAzimuthElevation(const GeoLocation& cameraLoc, const Ge
 /// @param[in] hfovWideDeg Horizontal field of view at wide zoom (default: 60.0°).
 /// @param[in] hfovTeleDeg Horizontal field of view at full tele zoom (default: 2.0°).
 /// @return Normalized zoom position [0.0 (wide) to 1.0 (tele)].
-[[nodiscard]] inline double computeZoomFromTargetArea(double targetSpanMeters, double slantRangeMeters,
-    double hfovWideDeg = 60.0, double hfovTeleDeg = 2.0) noexcept
+[[nodiscard]] inline double computeZoomFromTargetArea(
+    double targetSpanMeters, double slantRangeMeters, double hfovWideDeg = 60.0, double hfovTeleDeg = 2.0) noexcept
 {
     if (slantRangeMeters <= 1e-3 || targetSpanMeters <= 1e-3) {
         return 0.0;
@@ -140,7 +140,3 @@ inline void anglesToPelcoCentidegrees(
 }
 
 } // namespace Onvif::Geodesy
- 
-namespace PelcoD {
-namespace Onvif = ::Onvif;
-} // namespace PelcoD

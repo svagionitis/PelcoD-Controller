@@ -19,7 +19,3 @@ inline constexpr std::uint16_t kMulticastPort { 3702 };
 [[nodiscard]] std::string generateRandomUuid();
 
 } // namespace Onvif
-
-namespace PelcoD {
-namespace Onvif = ::Onvif;
-} // namespace PelcoD

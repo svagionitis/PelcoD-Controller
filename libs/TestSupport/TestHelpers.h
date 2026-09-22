@@ -37,7 +37,7 @@ inline void initTestHarness()
 
 /// @class ControlledTransport
 /// @brief Controllable transport for testing frame transmission, injection, and state changes.
-class ControlledTransport final : public PelcoD::BaseTransport {
+class ControlledTransport final : public Transport::BaseTransport {
 public:
     bool open() override
     {
@@ -80,7 +80,7 @@ public:
         return static_cast<bool>(m_stateCallback);
     }
 
-    void triggerState(PelcoD::TransportState state, const std::string& errorMsg)
+    void triggerState(Transport::TransportState state, const std::string& errorMsg)
     {
         notifyState(state, errorMsg);
     }
@@ -99,12 +99,23 @@ private:
 
 /// @class FailingOpenTransport
 /// @brief Mock transport whose open() always fails.
-class FailingOpenTransport final : public PelcoD::BaseTransport {
+class FailingOpenTransport final : public Transport::BaseTransport {
 public:
-    bool open() override { return false; }
-    void close() override {}
-    [[nodiscard]] bool isOpen() const noexcept override { return false; }
-    [[nodiscard]] bool sendData([[maybe_unused]] const std::vector<std::uint8_t>& data) override { return false; }
+    bool open() override
+    {
+        return false;
+    }
+    void close() override
+    {
+    }
+    [[nodiscard]] bool isOpen() const noexcept override
+    {
+        return false;
+    }
+    [[nodiscard]] bool sendData([[maybe_unused]] const std::vector<std::uint8_t>& data) override
+    {
+        return false;
+    }
 
     [[nodiscard]] bool hasDataCallback() const
     {
@@ -121,12 +132,25 @@ public:
 
 /// @class FailingSendTransport
 /// @brief Mock transport that opens successfully but fails all sendData() calls.
-class FailingSendTransport final : public PelcoD::BaseTransport {
+class FailingSendTransport final : public Transport::BaseTransport {
 public:
-    bool open() override { m_open.store(true); return true; }
-    void close() override { m_open.store(false); }
-    [[nodiscard]] bool isOpen() const noexcept override { return m_open.load(); }
-    [[nodiscard]] bool sendData([[maybe_unused]] const std::vector<std::uint8_t>& data) override { return false; }
+    bool open() override
+    {
+        m_open.store(true);
+        return true;
+    }
+    void close() override
+    {
+        m_open.store(false);
+    }
+    [[nodiscard]] bool isOpen() const noexcept override
+    {
+        return m_open.load();
+    }
+    [[nodiscard]] bool sendData([[maybe_unused]] const std::vector<std::uint8_t>& data) override
+    {
+        return false;
+    }
 
 private:
     std::atomic<bool> m_open { false };

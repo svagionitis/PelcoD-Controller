@@ -22,7 +22,7 @@ target_include_directories(TestConnectionModal PRIVATE
     ${CMAKE_SOURCE_DIR}/libs/PelcoDCore
     ${CMAKE_SOURCE_DIR}/libs/PelcoDSim
 )
-target_link_libraries(TestConnectionModal PRIVATE PelcoDCore PelcoDTransport PelcoDSim Threads::Threads)
+target_link_libraries(TestConnectionModal PRIVATE PelcoDCore Transport PelcoDSim Threads::Threads)
 pelcod_register_gtest(TestConnectionModal)
 
 add_executable(TestTrafficView
@@ -36,7 +36,7 @@ target_include_directories(TestTrafficView PRIVATE
     ${CMAKE_SOURCE_DIR}/libs/PelcoDCore
     ${CMAKE_SOURCE_DIR}/libs/PelcoDSim
 )
-target_link_libraries(TestTrafficView PRIVATE PelcoDCore PelcoDTransport PelcoDSim Threads::Threads)
+target_link_libraries(TestTrafficView PRIVATE PelcoDCore Transport PelcoDSim Threads::Threads)
 pelcod_register_gtest(TestTrafficView)
 
 add_executable(TestAutoReconnect

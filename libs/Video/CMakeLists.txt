@@ -29,7 +29,6 @@ if(PELCOD_ENABLE_GSTREAMER AND GSTREAMER_FOUND)
 endif()
 
 add_library(Video STATIC ${PELCOD_VIDEO_SOURCES})
-add_library(PelcoDVideo ALIAS Video)
 
 target_include_directories(Video PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>

@@ -9,14 +9,14 @@ function(add_core_test test_name test_source)
     target_include_directories(${test_name} PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/..
         ${CMAKE_SOURCE_DIR}/libs/PelcoDSim
-        ${CMAKE_SOURCE_DIR}/libs/PelcoDTransport
+        ${CMAKE_SOURCE_DIR}/libs/Transport
         ${CMAKE_SOURCE_DIR}/libs/PelcoDFujinon
         ${PELCOD_TEST_SUPPORT_DIR}
     )
     target_link_libraries(${test_name} PRIVATE
         PelcoDCore
         PelcoDSim
-        PelcoDTransport
+        Transport
         PelcoDFujinon
         PelcoDTestSupport
         Threads::Threads

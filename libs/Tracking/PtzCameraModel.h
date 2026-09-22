@@ -71,9 +71,3 @@ private:
 };
 
 } // namespace Tracking
-
-namespace PelcoD {
-namespace Tracking = ::Tracking;
-using CameraIntrinsics = ::Tracking::CameraIntrinsics;
-using PtzCameraModel = ::Tracking::PtzCameraModel;
-} // namespace PelcoD

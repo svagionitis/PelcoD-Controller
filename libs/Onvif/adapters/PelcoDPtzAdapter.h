@@ -258,22 +258,16 @@ public:
     // IThermalHandler Implementation (ver10/thermal/wsdl)
     // =========================================================================
 
-    [[nodiscard]] RadiometryConfig handleGetRadiometryConfiguration(
-        const std::string& videoSourceToken) override;
-    bool handleSetRadiometryConfiguration(
-        const std::string& videoSourceToken, const RadiometryConfig& config) override;
-    [[nodiscard]] std::vector<RadiometrySpot> handleGetRadiometrySpots(
-        const std::string& videoSourceToken) override;
+    [[nodiscard]] RadiometryConfig handleGetRadiometryConfiguration(const std::string& videoSourceToken) override;
+    bool handleSetRadiometryConfiguration(const std::string& videoSourceToken, const RadiometryConfig& config) override;
+    [[nodiscard]] std::vector<RadiometrySpot> handleGetRadiometrySpots(const std::string& videoSourceToken) override;
     bool handleSetRadiometrySpots(
         const std::string& videoSourceToken, const std::vector<RadiometrySpot>& spots) override;
-    [[nodiscard]] std::vector<RadiometryBox> handleGetRadiometryBoxes(
-        const std::string& videoSourceToken) override;
+    [[nodiscard]] std::vector<RadiometryBox> handleGetRadiometryBoxes(const std::string& videoSourceToken) override;
     bool handleSetRadiometryBoxes(
         const std::string& videoSourceToken, const std::vector<RadiometryBox>& boxes) override;
-    [[nodiscard]] std::vector<ColorPalette> handleGetColorPalettes(
-        const std::string& videoSourceToken) override;
-    bool handleSetColorPalette(
-        const std::string& videoSourceToken, const std::string& paletteToken) override;
+    [[nodiscard]] std::vector<ColorPalette> handleGetColorPalettes(const std::string& videoSourceToken) override;
+    bool handleSetColorPalette(const std::string& videoSourceToken, const std::string& paletteToken) override;
     bool handleTriggerNuc(const std::string& videoSourceToken) override;
 
 private:
@@ -342,10 +336,9 @@ private:
     LocationEntity m_cameraLocation { "Device", "Location_1", true, { 37.7749, -122.4194, 10.0 }, { 0.0, 0.0, 0.0 } };
 
     mutable std::mutex m_maskMutex {};
-    std::vector<PrivacyMask> m_masks {
-        { "Mask_1", "VideoSource_1", { { 0.1f, 0.1f }, { 0.3f, 0.1f }, { 0.3f, 0.3f }, { 0.1f, 0.3f } },
-          MaskType::Color, { 0, 0, 0, "RGB" }, true }
-    };
+    std::vector<PrivacyMask> m_masks { { "Mask_1", "VideoSource_1",
+        { { 0.1f, 0.1f }, { 0.3f, 0.1f }, { 0.3f, 0.3f }, { 0.1f, 0.3f } }, MaskType::Color, { 0, 0, 0, "RGB" },
+        true } };
     MaskOptions m_maskOptions {};
     std::uint32_t m_nextMaskId { 2 };
 
@@ -354,28 +347,15 @@ private:
 
     mutable std::mutex m_thermalMutex {};
     RadiometryConfig m_radiometryConfig {};
-    std::vector<RadiometrySpot> m_radiometrySpots {
-        { "Spot_1", { 0.5f, 0.5f }, "Center Spot", 24.5f }
-    };
-    std::vector<RadiometryBox> m_radiometryBoxes {
-        { "Box_1", { 0.2f, 0.2f }, { 0.8f, 0.8f }, "Central Target Zone", 21.0f, 36.8f, 28.4f }
-    };
-    std::vector<RadiometryAlarmConfig> m_radiometryAlarms {
-        { "Box_1", 50.0f, 2.0f, RadiometryAlarmType::HighTemperature, true }
-    };
-    std::vector<ColorPalette> m_colorPalettes {
-        { "WhiteHot", "White Hot", true },
-        { "BlackHot", "Black Hot", false },
-        { "Ironbow", "Ironbow", false },
-        { "Rainbow", "Rainbow", false },
-        { "Sepia", "Sepia", false },
-        { "Fire", "Fire", false }
-    };
+    std::vector<RadiometrySpot> m_radiometrySpots { { "Spot_1", { 0.5f, 0.5f }, "Center Spot", 24.5f } };
+    std::vector<RadiometryBox> m_radiometryBoxes { { "Box_1", { 0.2f, 0.2f }, { 0.8f, 0.8f }, "Central Target Zone",
+        21.0f, 36.8f, 28.4f } };
+    std::vector<RadiometryAlarmConfig> m_radiometryAlarms { { "Box_1", 50.0f, 2.0f,
+        RadiometryAlarmType::HighTemperature, true } };
+    std::vector<ColorPalette> m_colorPalettes { { "WhiteHot", "White Hot", true }, { "BlackHot", "Black Hot", false },
+        { "Ironbow", "Ironbow", false }, { "Rainbow", "Rainbow", false }, { "Sepia", "Sepia", false },
+        { "Fire", "Fire", false } };
     std::string m_activeColorPalette { "WhiteHot" };
 };
 
 } // namespace Onvif
- 
-namespace PelcoD {
-namespace Onvif = ::Onvif;
-} // namespace PelcoD

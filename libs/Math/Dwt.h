@@ -89,7 +89,3 @@ void dwt1D(const std::vector<double>& signal, std::vector<double>& cA, std::vect
 [[nodiscard]] std::vector<double> idwt2D(const WaveletCoefficients2D& coeffs, WaveletType wavelet = WaveletType::Haar);
 
 } // namespace Math
-
-namespace PelcoD {
-namespace Math = ::Math;
-} // namespace PelcoD

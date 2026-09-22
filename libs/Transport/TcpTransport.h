@@ -57,8 +57,3 @@ private:
 };
 
 } // namespace Transport
-
-namespace PelcoD {
-namespace Transport = ::Transport;
-using ::Transport::TcpTransport;
-} // namespace PelcoD

@@ -50,12 +50,14 @@ void TacticalOverlaysDialog::setupUi()
 
     chkSmoothSpline = new QCheckBox(tr("Catmull-Rom Spline Smoothing"), grpBreadcrumbs);
     chkSmoothSpline->setChecked(true);
-    chkSmoothSpline->setToolTip(tr("Interpolates curved motion path between points to eliminate pixel quantization jitter"));
+    chkSmoothSpline->setToolTip(
+        tr("Interpolates curved motion path between points to eliminate pixel quantization jitter"));
     breadcrumbsForm->addRow(QString(), chkSmoothSpline);
 
     chkSpeedGradient = new QCheckBox(tr("Speed-Based Thermal Gradient"), grpBreadcrumbs);
     chkSpeedGradient->setChecked(true);
-    chkSpeedGradient->setToolTip(tr("Renders color gradient from green (cruising) through amber to red (accelerating)"));
+    chkSpeedGradient->setToolTip(
+        tr("Renders color gradient from green (cruising) through amber to red (accelerating)"));
     breadcrumbsForm->addRow(QString(), chkSpeedGradient);
 
     mainLayout->addWidget(grpBreadcrumbs);
@@ -72,7 +74,8 @@ void TacticalOverlaysDialog::setupUi()
     spinLookaheadHorizon->setSingleStep(0.1);
     spinLookaheadHorizon->setValue(1.5);
     spinLookaheadHorizon->setSuffix(tr(" s"));
-    spinLookaheadHorizon->setToolTip(tr("Forward time horizon for kinematic trajectory projection and interception reticle"));
+    spinLookaheadHorizon->setToolTip(
+        tr("Forward time horizon for kinematic trajectory projection and interception reticle"));
     leadForm->addRow(tr("Lookahead Horizon:"), spinLookaheadHorizon);
 
     chkCurvilinear = new QCheckBox(tr("CTRA Curvilinear Turn Prediction"), grpPredictiveLead);
@@ -82,7 +85,8 @@ void TacticalOverlaysDialog::setupUi()
 
     chkUncertaintyEllipse = new QCheckBox(tr("Kalman Uncertainty Covariance Ellipse (2σ)"), grpPredictiveLead);
     chkUncertaintyEllipse->setChecked(true);
-    chkUncertaintyEllipse->setToolTip(tr("Renders 95% confidence covariance error ellipse around predicted interception reticle"));
+    chkUncertaintyEllipse->setToolTip(
+        tr("Renders 95% confidence covariance error ellipse around predicted interception reticle"));
     leadForm->addRow(QString(), chkUncertaintyEllipse);
 
     chkBoresightLeadMarker = new QCheckBox(tr("Show Mechanical PTZ Boresight Lead Marker"), grpPredictiveLead);
@@ -119,8 +123,7 @@ void TacticalOverlaysDialog::setupUi()
     connect(btnCancel, &QPushButton::clicked, this, &QDialog::reject);
 }
 
-void TacticalOverlaysDialog::setTrajectoryConfig(
-    const PelcoD::Video::TrajectoryConfig& config)
+void TacticalOverlaysDialog::setTrajectoryConfig(const Video::TrajectoryConfig& config)
 {
     grpBreadcrumbs->setChecked(config.enabled);
     spinDurationSec->setValue(config.maxDurationSec);
@@ -129,9 +132,9 @@ void TacticalOverlaysDialog::setTrajectoryConfig(
     chkSpeedGradient->setChecked(config.speedGradient);
 }
 
-PelcoD::Video::TrajectoryConfig TacticalOverlaysDialog::trajectoryConfig() const
+Video::TrajectoryConfig TacticalOverlaysDialog::trajectoryConfig() const
 {
-    PelcoD::Video::TrajectoryConfig cfg;
+    Video::TrajectoryConfig cfg;
     cfg.enabled = grpBreadcrumbs->isChecked();
     cfg.maxDurationSec = spinDurationSec->value();
     cfg.maxPoints = spinMaxCapacity->value();
@@ -140,8 +143,7 @@ PelcoD::Video::TrajectoryConfig TacticalOverlaysDialog::trajectoryConfig() const
     return cfg;
 }
 
-void TacticalOverlaysDialog::setPredictiveLeadConfig(
-    const PelcoD::Video::PredictiveLeadConfig& config)
+void TacticalOverlaysDialog::setPredictiveLeadConfig(const Video::PredictiveLeadConfig& config)
 {
     grpPredictiveLead->setChecked(config.enabled);
     spinLookaheadHorizon->setValue(config.lookaheadSeconds);
@@ -150,9 +152,9 @@ void TacticalOverlaysDialog::setPredictiveLeadConfig(
     chkBoresightLeadMarker->setChecked(config.showBoresightLeadSetpoint);
 }
 
-PelcoD::Video::PredictiveLeadConfig TacticalOverlaysDialog::predictiveLeadConfig() const
+Video::PredictiveLeadConfig TacticalOverlaysDialog::predictiveLeadConfig() const
 {
-    PelcoD::Video::PredictiveLeadConfig cfg;
+    Video::PredictiveLeadConfig cfg;
     cfg.enabled = grpPredictiveLead->isChecked();
     cfg.lookaheadSeconds = spinLookaheadHorizon->value();
     cfg.curvilinearPrediction = chkCurvilinear->isChecked();

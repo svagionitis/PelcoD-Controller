@@ -10,7 +10,8 @@
 namespace Tracking {
 
 /// @class UnscentedKalmanFilter
-/// @brief 6-State, 2-measurement Unscented Kalman Filter propagating 13 sigma points through exact non-linear functions.
+/// @brief 6-State, 2-measurement Unscented Kalman Filter propagating 13 sigma points through exact non-linear
+/// functions.
 class UnscentedKalmanFilter {
 public:
     using MeasurementFn = std::function<Math::Vector<2>(const Math::Vector<6>& state)>;
@@ -90,8 +91,3 @@ private:
 };
 
 } // namespace Tracking
-
-namespace PelcoD {
-namespace Tracking = ::Tracking;
-using UnscentedKalmanFilter = ::Tracking::UnscentedKalmanFilter;
-} // namespace PelcoD

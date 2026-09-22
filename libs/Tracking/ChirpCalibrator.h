@@ -120,10 +120,3 @@ private:
 };
 
 } // namespace Tracking
-
-namespace PelcoD {
-namespace Tracking = ::Tracking;
-using CalibrationAxis = ::Tracking::CalibrationAxis;
-using ChirpCalibratorState = ::Tracking::ChirpCalibratorState;
-using ChirpCalibrator = ::Tracking::ChirpCalibrator;
-} // namespace PelcoD

@@ -129,9 +129,3 @@ private:
 };
 
 } // namespace Math
-
-namespace PelcoD {
-namespace Math = ::Math;
-using Rect = ::Math::Rect;
-using IntegralImage = ::Math::IntegralImage;
-} // namespace PelcoD

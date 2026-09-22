@@ -33,7 +33,3 @@ void dct8x8(const std::uint8_t* block, int stride, DctMatrix8x8& output) noexcep
 void idct8x8(const DctMatrix8x8& input, DctMatrix8x8& output) noexcept;
 
 } // namespace Math
-
-namespace PelcoD {
-namespace Math = ::Math;
-} // namespace PelcoD

@@ -36,11 +36,11 @@ private:
     PelcoD::ScopedConnection m_latencyConn;
     bool m_profilerConnected { false };
 
-    PelcoD::Stft m_stft {};
+    Math::Stft m_stft {};
     bool m_showWaterfall { false };
 
-    PelcoD::PlantIdentifier m_plantIdentifier {};
-    PelcoD::PlantIdentificationResult m_plantResult {};
+    Tracking::PlantIdentifier m_plantIdentifier {};
+    Tracking::PlantIdentificationResult m_plantResult {};
 };
 
 } // namespace PelcoDTui

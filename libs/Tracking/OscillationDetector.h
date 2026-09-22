@@ -92,9 +92,3 @@ private:
 };
 
 } // namespace Tracking
-
-namespace PelcoD {
-namespace Tracking = ::Tracking;
-using OscillationConfig = ::Tracking::OscillationConfig;
-using OscillationDetector = ::Tracking::OscillationDetector;
-} // namespace PelcoD

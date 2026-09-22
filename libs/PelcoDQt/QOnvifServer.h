@@ -5,7 +5,7 @@
 
 #include "Onvif/OnvifServer.h"
 #include "Onvif/OnvifServerTypes.h"
-#include "Onvif/PelcoDPtzAdapter.h"
+#include "Onvif/adapters/PelcoDPtzAdapter.h"
 #include "QPelcoDDevice.h"
 
 #include <QObject>
@@ -30,7 +30,7 @@ public:
     /// @brief Constructs QOnvifServer with default or provided configuration.
     /// @param[in] config Initial server network and identity configuration.
     /// @param[in] parent Optional parent QObject.
-    explicit QOnvifServer(PelcoD::Onvif::OnvifServerConfig config = {}, QObject* parent = nullptr);
+    explicit QOnvifServer(Onvif::OnvifServerConfig config = {}, QObject* parent = nullptr);
 
     /// @brief Destructor ensures background server threads are gracefully stopped.
     ~QOnvifServer() override;
@@ -47,11 +47,11 @@ public:
 
     /// @brief Retrieves the active server configuration.
     /// @return Active OnvifServerConfig.
-    [[nodiscard]] PelcoD::Onvif::OnvifServerConfig config() const;
+    [[nodiscard]] Onvif::OnvifServerConfig config() const;
 
     /// @brief Updates server configuration (requires restart if server is running).
     /// @param[in] config Updated configuration settings.
-    void setConfig(const PelcoD::Onvif::OnvifServerConfig& config);
+    void setConfig(const Onvif::OnvifServerConfig& config);
 
     /// @brief Binds a QPelcoDDevice instance to forward incoming ONVIF PTZ commands.
     /// @param[in] device Pointer to QPelcoDDevice (can be nullptr to disable PTZ bridging).
@@ -96,10 +96,10 @@ signals:
     void requestLogged(const QString& service, const QString& action, const QString& clientIp);
 
 private:
-    PelcoD::Onvif::OnvifServerConfig m_config {};
-    std::shared_ptr<PelcoD::Onvif::PelcoDPtzAdapter> m_ptzAdapter { nullptr };
+    Onvif::OnvifServerConfig m_config {};
+    std::shared_ptr<Onvif::PelcoDPtzAdapter> m_ptzAdapter { nullptr };
     PelcoD::PatrolController* m_patrolController { nullptr };
-    std::unique_ptr<PelcoD::Onvif::OnvifServer> m_server { nullptr };
+    std::unique_ptr<Onvif::OnvifServer> m_server { nullptr };
     mutable std::mutex m_mutex {};
 };
 

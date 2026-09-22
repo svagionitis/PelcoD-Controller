@@ -51,12 +51,9 @@ add_library(Onvif STATIC
     OnvifServer.h
     OnvifServer.cpp
     GeodesyUtils.h
-    PelcoDPtzAdapter.h
     adapters/PelcoDPtzAdapter.h
     adapters/PelcoDPtzAdapter.cpp
 )
-
-add_library(PelcoDOnvif ALIAS Onvif)
 
 target_include_directories(Onvif PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
@@ -72,7 +69,7 @@ target_link_libraries(Onvif PUBLIC
     Threads::Threads
     ${HTTPLIB_TARGET}
     PelcoDCore
-    PelcoDTransport
+    Transport
 )
 
 if(WIN32)

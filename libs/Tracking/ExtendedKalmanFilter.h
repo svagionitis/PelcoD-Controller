@@ -35,8 +35,7 @@ public:
     /// @param[in] h Measurement function converting state vector to predicted measurement.
     /// @param[in] H Measurement Jacobian matrix dh/dx (2x6).
     /// @param[in] R Measurement noise covariance matrix (2x2).
-    void update(const Math::Vector<2>& z, const MeasurementFn& h, const JacobianFn& H,
-        const Math::Matrix<2, 2>& R);
+    void update(const Math::Vector<2>& z, const MeasurementFn& h, const JacobianFn& H, const Math::Matrix<2, 2>& R);
 
     /// @brief Retrieves the estimated 6-state vector.
     [[nodiscard]] const Math::Vector<6>& getState() const noexcept;
@@ -75,8 +74,3 @@ private:
 };
 
 } // namespace Tracking
-
-namespace PelcoD {
-namespace Tracking = ::Tracking;
-using ExtendedKalmanFilter = ::Tracking::ExtendedKalmanFilter;
-} // namespace PelcoD

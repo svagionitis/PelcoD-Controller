@@ -1153,7 +1153,3 @@ private:
 };
 
 } // namespace Onvif
- 
-namespace PelcoD {
-namespace Onvif = ::Onvif;
-} // namespace PelcoD

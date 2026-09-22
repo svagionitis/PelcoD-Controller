@@ -4,12 +4,12 @@
 
 #include "TransientShockDetector.h"
 
-#include <gtest/gtest.h>
 #include <cmath>
+#include <gtest/gtest.h>
 #include <iostream>
 #include <vector>
 
-using namespace PelcoD;
+using namespace Tracking;
 
 namespace {
 
@@ -135,4 +135,3 @@ TEST(TransientShockDetectorTest, ShockEventFieldsAreSane)
 }
 
 } // namespace
-

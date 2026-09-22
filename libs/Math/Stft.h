@@ -99,10 +99,3 @@ private:
 };
 
 } // namespace Math
-
-namespace PelcoD {
-namespace Math = ::Math;
-using StftConfig = ::Math::StftConfig;
-using SpectrogramFrame = ::Math::SpectrogramFrame;
-using Stft = ::Math::Stft;
-} // namespace PelcoD

@@ -43,7 +43,7 @@ signals:
 private slots:
     // Discovery & Connection
     void handleStartDiscovery();
-    void handleDiscoveryFinished(const QList<PelcoD::Onvif::DiscoveredDevice>& devices);
+    void handleDiscoveryFinished(const QList<Onvif::DiscoveredDevice>& devices);
     void handleSelectDiscovered(int index);
     void handleConnect();
     void handleDisconnect();
@@ -76,14 +76,14 @@ private slots:
     void handleGotoPreset();
     void handleSavePreset();
     void handleDeletePreset();
-    void handlePresetsUpdated(const std::vector<PelcoD::Onvif::PtzPreset>& presets);
-    void handleStatusUpdated(const PelcoD::Onvif::PtzStatus& status);
+    void handlePresetsUpdated(const std::vector<Onvif::PtzPreset>& presets);
+    void handleStatusUpdated(const Onvif::PtzStatus& status);
     void handleRefreshGeoLocation();
     void handleSaveGeoLocation();
     void handleExecuteGeoMove();
     void handleExecuteAbsoluteSpherical();
     void handleUpdateLiveGeoTargetReadout();
-    void handleGeoLocationUpdated(const PelcoD::Onvif::LocationEntity& location);
+    void handleGeoLocationUpdated(const Onvif::LocationEntity& location);
     void handleGeoMoveCompleted(bool success);
 
     // Preset Tours / Patrols
@@ -95,7 +95,7 @@ private slots:
     void handleAddTourStep();
     void handleRemoveTourStep();
     void handleSaveTour();
-    void handleToursUpdated(const std::vector<PelcoD::Onvif::PresetTour>& tours);
+    void handleToursUpdated(const std::vector<Onvif::PresetTour>& tours);
 
     // Maintenance
     void handleRebootCamera();
@@ -109,15 +109,15 @@ private slots:
     void handleFocusStop();
     void handleToggleEvents(bool enable);
     void handleClearEvents();
-    void handleImagingSettingsUpdated(const PelcoD::Onvif::ImagingSettings& settings);
-    void handleEventReceived(const PelcoD::Onvif::OnvifEvent& event);
+    void handleImagingSettingsUpdated(const Onvif::ImagingSettings& settings);
+    void handleEventReceived(const Onvif::OnvifEvent& event);
 
     // Profile T: On-Screen Display (OSD)
     void handleRefreshOsds();
     void handleCreateOsd();
     void handleSetOsd();
     void handleDeleteOsd();
-    void handleOsdsUpdated(const std::vector<PelcoD::Onvif::OsdConfig>& osds);
+    void handleOsdsUpdated(const std::vector<Onvif::OsdConfig>& osds);
     void handleOsdSelectionChanged();
 
     // Profile T: Privacy Masks
@@ -125,13 +125,13 @@ private slots:
     void handleAddMask();
     void handleUpdateMask();
     void handleDeleteMask();
-    void handleMasksUpdated(const std::vector<PelcoD::Onvif::PrivacyMask>& masks);
+    void handleMasksUpdated(const std::vector<Onvif::PrivacyMask>& masks);
     void handleMaskSelectionChanged();
 
     // Profile T: Video Source Modes
     void handleRefreshVideoSourceModes();
     void handleApplyVideoSourceMode();
-    void handleVideoSourceModesUpdated(const std::vector<PelcoD::Onvif::VideoSourceMode>& modes);
+    void handleVideoSourceModesUpdated(const std::vector<Onvif::VideoSourceMode>& modes);
     void handleVideoSourceModeChanged(const QString& modeToken, bool rebootRequired);
 
     // Device Management: Users & Security
@@ -139,7 +139,7 @@ private slots:
     void handleAddUser();
     void handleUpdateUser();
     void handleDeleteUser();
-    void handleUsersUpdated(const std::vector<PelcoD::Onvif::OnvifUser>& users);
+    void handleUsersUpdated(const std::vector<Onvif::OnvifUser>& users);
     void handleUserSelectionChanged();
 
     // Device Management: Network & System
@@ -152,16 +152,16 @@ private slots:
     void handleSyncPcTime();
     void handleFactoryDefaultSoft();
     void handleFactoryDefaultHard();
-    void handleNetworkUpdated(const std::vector<PelcoD::Onvif::NetworkInterfaceConfig>& ifaces);
+    void handleNetworkUpdated(const std::vector<Onvif::NetworkInterfaceConfig>& ifaces);
     void handleGatewayUpdated(const QString& gateway);
-    void handleDnsUpdated(const PelcoD::Onvif::DnsConfig& dns);
-    void handleNtpUpdated(const PelcoD::Onvif::NtpConfig& ntp);
+    void handleDnsUpdated(const Onvif::DnsConfig& dns);
+    void handleNtpUpdated(const Onvif::NtpConfig& ntp);
     void handleFactoryDefaultCompleted(bool success);
 
     // Profile T: Imaging Presets & Focus Status
     void handleRecallImagingPreset();
-    void handleFocusStatusUpdated(const PelcoD::Onvif::FocusStatus20& status);
-    void handleImagingPresetsUpdated(const std::vector<PelcoD::Onvif::ImagingPreset>& presets);
+    void handleFocusStatusUpdated(const Onvif::FocusStatus20& status);
+    void handleImagingPresetsUpdated(const std::vector<Onvif::ImagingPreset>& presets);
 
     // Profile S/T: Device I/O & Relay Outputs
     void handleRefreshRelays();
@@ -169,8 +169,8 @@ private slots:
     void handleDeactivateRelay();
     void handleApplyRelaySettings();
     void handleRefreshInputs();
-    void handleRelaysUpdated(const std::vector<PelcoD::Onvif::RelayOutputConfig>& relays);
-    void handleDigitalInputsUpdated(const std::vector<PelcoD::Onvif::DigitalInputConfig>& inputs);
+    void handleRelaysUpdated(const std::vector<Onvif::RelayOutputConfig>& relays);
+    void handleDigitalInputsUpdated(const std::vector<Onvif::DigitalInputConfig>& inputs);
     void handleRelaySelectionChanged();
 
     // Profile T & M: Metadata & Analytics
@@ -178,24 +178,24 @@ private slots:
     void handleApplyMetadataConfig();
     void handleToggleMetadataStream(bool start);
     void handlePollMetadataOnce();
-    void handleMetadataConfigsUpdated(const std::vector<PelcoD::Onvif::MetadataConfiguration>& configs);
-    void handleMetadataReceived(const PelcoD::Onvif::MetadataStreamPayload& payload);
+    void handleMetadataConfigsUpdated(const std::vector<Onvif::MetadataConfiguration>& configs);
+    void handleMetadataReceived(const Onvif::MetadataStreamPayload& payload);
 
     // Profile M & T: Video Analytics Rule Engine & Modules
     void handleRefreshRules();
     void handleAddRule();
     void handleDeleteRule();
-    void handleRulesUpdated(const std::vector<PelcoD::Onvif::AnalyticsRule>& rules);
-    void handleSupportedRulesUpdated(const std::vector<PelcoD::Onvif::AnalyticsRuleDescription>& rules);
+    void handleRulesUpdated(const std::vector<Onvif::AnalyticsRule>& rules);
+    void handleSupportedRulesUpdated(const std::vector<Onvif::AnalyticsRuleDescription>& rules);
     void handleRefreshAnalyticsModules();
-    void handleAnalyticsModulesUpdated(const std::vector<PelcoD::Onvif::AnalyticsModule>& modules);
+    void handleAnalyticsModulesUpdated(const std::vector<Onvif::AnalyticsModule>& modules);
 
     // Maintenance & System Logs Extensions
     void handleFetchSystemLog();
     void handleFetchAccessLog();
-    void handleSystemLogReceived(PelcoD::Onvif::SystemLogType logType, const QString& logData);
+    void handleSystemLogReceived(Onvif::SystemLogType logType, const QString& logData);
     void handleFetchSupportInfo();
-    void handleSystemSupportInfoReceived(const PelcoD::Onvif::SystemSupportInfo& info);
+    void handleSystemSupportInfoReceived(const Onvif::SystemSupportInfo& info);
     void handleDownloadBackup();
     void handleSystemBackupReceived(const QString& backupData);
     void handleRestoreBackup();
@@ -218,13 +218,13 @@ private slots:
     void handleFindEvents();
     void handleResolveReplayUri();
     void handlePlayInVideoStreamTab();
-    void handleRecordingsUpdated(const std::vector<PelcoD::Onvif::RecordingConfig>& recordings);
-    void handleRecordingJobsUpdated(const std::vector<PelcoD::Onvif::RecordingJob>& jobs);
-    void handleRecordingSummaryUpdated(const PelcoD::Onvif::RecordingSummary& summary);
+    void handleRecordingsUpdated(const std::vector<Onvif::RecordingConfig>& recordings);
+    void handleRecordingJobsUpdated(const std::vector<Onvif::RecordingJob>& jobs);
+    void handleRecordingSummaryUpdated(const Onvif::RecordingSummary& summary);
     void handleRecordingSearchResultsReceived(
-        const QString& searchToken, const std::vector<PelcoD::Onvif::RecordingSearchResult>& results);
+        const QString& searchToken, const std::vector<Onvif::RecordingSearchResult>& results);
     void handleEventSearchResultsReceived(
-        const QString& searchToken, const std::vector<PelcoD::Onvif::RecordedEventResult>& results);
+        const QString& searchToken, const std::vector<Onvif::RecordedEventResult>& results);
     void handleReplayUriResolved(const QString& recordingToken, const QString& uri);
 
     // PKI Certificates & HTTPS/TLS Security
@@ -233,10 +233,10 @@ private slots:
     void handleGenerateCsr();
     void handleDeleteCertificate();
     void handleApplyClientCertMode();
-    void handleCertificatesUpdated(const std::vector<PelcoD::Onvif::OnvifCertificate>& certs);
-    void handleCertificateInfoReceived(const PelcoD::Onvif::CertificateInformation& info);
-    void handlePkcs10CsrReceived(const PelcoD::Onvif::Pkcs10Request& csr);
-    void handleClientCertModeUpdated(PelcoD::Onvif::ClientCertificateMode mode);
+    void handleCertificatesUpdated(const std::vector<Onvif::OnvifCertificate>& certs);
+    void handleCertificateInfoReceived(const Onvif::CertificateInformation& info);
+    void handlePkcs10CsrReceived(const Onvif::Pkcs10Request& csr);
+    void handleClientCertModeUpdated(Onvif::ClientCertificateMode mode);
 
     // Thermal & Radiometry Service
     void handleRefreshRadiometry();
@@ -247,10 +247,10 @@ private slots:
     void handleRefreshMeasurements();
     void handleAddMeasurement();
     void handleDeleteMeasurement();
-    void handleRadiometryConfigUpdated(const PelcoD::Onvif::RadiometryConfig& config);
-    void handleRadiometrySpotsUpdated(const std::vector<PelcoD::Onvif::RadiometrySpot>& spots);
-    void handleRadiometryBoxesUpdated(const std::vector<PelcoD::Onvif::RadiometryBox>& boxes);
-    void handleColorPalettesUpdated(const std::vector<PelcoD::Onvif::ColorPalette>& palettes);
+    void handleRadiometryConfigUpdated(const Onvif::RadiometryConfig& config);
+    void handleRadiometrySpotsUpdated(const std::vector<Onvif::RadiometrySpot>& spots);
+    void handleRadiometryBoxesUpdated(const std::vector<Onvif::RadiometryBox>& boxes);
+    void handleColorPalettesUpdated(const std::vector<Onvif::ColorPalette>& palettes);
     void handleNucTriggered(bool success);
 
 private:
@@ -269,11 +269,11 @@ private:
     static void configureTable(QTableWidget* table, const QStringList& headers);
 
     /// @brief Maps a cmbOsdPosition combo index to the corresponding OsdPositionType enum value.
-    [[nodiscard]] static PelcoD::Onvif::OsdPositionType osdPositionFromIndex(int index) noexcept;
+    [[nodiscard]] static Onvif::OsdPositionType osdPositionFromIndex(int index) noexcept;
 
     PelcoD::Qt::QOnvifDevice* m_onvifDevice { nullptr };
     VideoStreamTab* m_videoTab { nullptr };
-    QList<PelcoD::Onvif::DiscoveredDevice> m_discoveredList {};
+    QList<Onvif::DiscoveredDevice> m_discoveredList {};
 
     QList<QWidget*> m_connectionWidgets;
 

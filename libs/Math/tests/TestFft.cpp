@@ -3,8 +3,8 @@
 
 #include "Fft.h"
 
-#include <gtest/gtest.h>
 #include <cmath>
+#include <gtest/gtest.h>
 #include <iostream>
 #include <vector>
 
@@ -12,7 +12,7 @@
 #define M_PI 3.14159265358979323846
 #endif
 
-using namespace PelcoD::Math;
+using namespace Math;
 
 namespace {
 
@@ -156,4 +156,3 @@ TEST(FftTest, NonPowerOfTwoZeroPadding)
 }
 
 } // namespace
-

@@ -44,7 +44,7 @@ struct ParseResult {
     std::uint8_t scanEnd { 32U };
     std::uint32_t scanTimeoutMs { 150U };
     std::string videoSource { "mock:smpte" };
-    PelcoD::Video::BackendType videoBackend { PelcoD::Video::BackendType::Mock };
+    Video::BackendType videoBackend { Video::BackendType::Mock };
 #if defined(PELCOD_ENABLE_ONVIF)
     bool onvifDiscover { false };
     std::uint32_t onvifTimeoutMs { 2000U };
@@ -417,11 +417,11 @@ void printUsage(std::string_view progName)
             }
             const std::string_view beStr = argv[++i];
             if (beStr == "mock") {
-                result.videoBackend = PelcoD::Video::BackendType::Mock;
+                result.videoBackend = Video::BackendType::Mock;
             } else if (beStr == "ffmpeg") {
-                result.videoBackend = PelcoD::Video::BackendType::FFmpeg;
+                result.videoBackend = Video::BackendType::FFmpeg;
             } else if (beStr == "gstreamer") {
-                result.videoBackend = PelcoD::Video::BackendType::GStreamer;
+                result.videoBackend = Video::BackendType::GStreamer;
             } else {
                 result.status = ParseStatus::Error;
                 result.errorMessage
@@ -559,7 +559,7 @@ int main(int argc, char* argv[])
         std::cout << "Starting WS-Discovery multicast probe on LAN (timeout: " << parseResult.onvifTimeoutMs
                   << " ms)...\n";
         const auto devices
-            = PelcoD::Onvif::OnvifDiscovery::discoverDevices(std::chrono::milliseconds(parseResult.onvifTimeoutMs));
+            = Onvif::OnvifDiscovery::discoverDevices(std::chrono::milliseconds(parseResult.onvifTimeoutMs));
         std::cout << "Discovery completed. Total ONVIF devices detected: " << devices.size() << "\n";
         if (!devices.empty()) {
             std::cout << "--------------------------------------------------------------------------------\n";
@@ -580,11 +580,11 @@ int main(int argc, char* argv[])
 
     if (parseResult.onvifInfo) {
         std::cout << "Connecting to ONVIF camera: " << parseResult.onvifEndpoint << "...\n";
-        PelcoD::Onvif::SecurityCredentials creds {};
+        Onvif::SecurityCredentials creds {};
         creds.username = parseResult.onvifUser;
         creds.password = parseResult.onvifPass;
 
-        PelcoD::Onvif::OnvifClient client(parseResult.onvifEndpoint, creds);
+        Onvif::OnvifClient client(parseResult.onvifEndpoint, creds);
         const auto caps = client.getCapabilities();
         if (!caps) {
             std::cerr << "Error: Failed to query capabilities from " << parseResult.onvifEndpoint << "\n";
@@ -633,11 +633,11 @@ int main(int argc, char* argv[])
 
     if (parseResult.onvifImaging) {
         std::cout << "Connecting to ONVIF camera: " << parseResult.onvifEndpoint << "...\n";
-        PelcoD::Onvif::SecurityCredentials creds {};
+        Onvif::SecurityCredentials creds {};
         creds.username = parseResult.onvifUser;
         creds.password = parseResult.onvifPass;
 
-        PelcoD::Onvif::OnvifClient client(parseResult.onvifEndpoint, creds);
+        Onvif::OnvifClient client(parseResult.onvifEndpoint, creds);
         const auto caps = client.getCapabilities();
         if (!caps || caps->imagingXAddr.empty()) {
             std::cerr << "Error: Camera does not report an ONVIF Imaging Service endpoint.\n";
@@ -674,11 +674,11 @@ int main(int argc, char* argv[])
 
     if (parseResult.onvifEvents) {
         std::cout << "Connecting to ONVIF camera: " << parseResult.onvifEndpoint << "...\n";
-        PelcoD::Onvif::SecurityCredentials creds {};
+        Onvif::SecurityCredentials creds {};
         creds.username = parseResult.onvifUser;
         creds.password = parseResult.onvifPass;
 
-        PelcoD::Onvif::OnvifClient client(parseResult.onvifEndpoint, creds);
+        Onvif::OnvifClient client(parseResult.onvifEndpoint, creds);
         const auto caps = client.getCapabilities();
         if (!caps || caps->eventsXAddr.empty()) {
             std::cerr << "Error: Camera does not report an ONVIF Events Service endpoint.\n";

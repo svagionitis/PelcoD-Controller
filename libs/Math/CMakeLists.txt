@@ -22,8 +22,6 @@ add_library(Math STATIC
     Stft.cpp
 )
 
-add_library(PelcoDMath ALIAS Math)
-
 target_include_directories(Math PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/..>

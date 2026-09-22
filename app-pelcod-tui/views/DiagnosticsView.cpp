@@ -39,7 +39,7 @@ DiagnosticsView::DiagnosticsView()
     cfg.mode = PelcoD::ProfilerMode::Passive;
     m_profiler.start(cfg);
 
-    PelcoD::StftConfig stftCfg {};
+    Math::StftConfig stftCfg {};
     stftCfg.windowSize = 32U;
     stftCfg.hopSize = 8U;
     stftCfg.sampleRateHz = 20.0;
@@ -253,9 +253,9 @@ void DiagnosticsView::renderWaterfall(Canvas& canvas, int startX, int startY, in
             const double dbBot = frame.dbSpectrum[static_cast<std::size_t>(binBot)];
 
             const auto rgbTop
-                = PelcoD::SpectrogramColorMap::mapDb(dbTop, -60.0, 0.0, PelcoD::SpectrogramColorMap::Preset::Inferno);
+                = Math::SpectrogramColorMap::mapDb(dbTop, -60.0, 0.0, Math::SpectrogramColorMap::Preset::Inferno);
             const auto rgbBot
-                = PelcoD::SpectrogramColorMap::mapDb(dbBot, -60.0, 0.0, PelcoD::SpectrogramColorMap::Preset::Inferno);
+                = Math::SpectrogramColorMap::mapDb(dbBot, -60.0, 0.0, Math::SpectrogramColorMap::Preset::Inferno);
 
             Style s;
             s.fg = Color::fromRgb(rgbTop.r, rgbTop.g, rgbTop.b);

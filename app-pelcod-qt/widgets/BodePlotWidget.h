@@ -27,7 +27,7 @@ public:
 
     /// @brief Update widget with complete plant identification results.
     /// @param[in] result Outcome containing Bode vectors, stability margins, and resonance peaks.
-    void setIdentificationResult(const PlantIdentificationResult& result);
+    void setIdentificationResult(const Tracking::PlantIdentificationResult& result);
 
     /// @brief Clear plots and reset to idle state.
     void clear();
@@ -53,7 +53,7 @@ private:
     [[nodiscard]] double xToFreq(int x, const QRect& plotRect) const;
     [[nodiscard]] int freqToX(double f, const QRect& plotRect) const;
 
-    PlantIdentificationResult m_result {};
+    Tracking::PlantIdentificationResult m_result {};
     bool m_hasData { false };
 
     // Mouse hover inspection cursor

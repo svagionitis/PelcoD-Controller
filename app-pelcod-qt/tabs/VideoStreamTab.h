@@ -71,7 +71,7 @@ private slots:
     void onDisconnectClicked();
     void onSnapshotClicked();
     void onColorSchemeChanged(int index);
-    void onWorkerStatusChanged(PelcoD::Video::StreamState state, const QString& message);
+    void onWorkerStatusChanged(Video::StreamState state, const QString& message);
     void onWorkerStatsUpdated(double fps, double avgDecodeMs);
 #if defined(PELCOD_HAS_FILTERS)
     void onFilterConfigurationChanged();
@@ -96,7 +96,7 @@ private:
     void populateCaptureDevices();
 
     PelcoDQt::QPelcoDDevice* m_device { nullptr };
-    PelcoD::Video::QVideoStreamWorker* m_worker { nullptr };
+    PelcoDQt::QVideoStreamWorker* m_worker { nullptr };
 
     // UI Widgets
     VideoOverlayWidget* m_overlayWidget { nullptr };
@@ -169,22 +169,22 @@ private:
     QLabel* m_lblLatencyBadge { nullptr };
     QTimer* m_calibratorTimer { nullptr };
     double m_currentEstimatedLatencyMs { 100.0 };
-    std::unique_ptr<PelcoD::LatencyEstimator> m_latencyEstimator;
-    std::unique_ptr<PelcoD::LatencyCalibrator> m_latencyCalibrator;
+    std::unique_ptr<Tracking::LatencyEstimator> m_latencyEstimator;
+    std::unique_ptr<Tracking::LatencyCalibrator> m_latencyCalibrator;
     QCheckBox* m_chkTripwire { nullptr };
     QComboBox* m_comboTripwireDir { nullptr };
     QCheckBox* m_chkHeatmap { nullptr };
     QTimer* m_autoFollowTimer { nullptr };
-    std::unique_ptr<PelcoD::PtzAutoTracker> m_autoTracker;
-    std::unique_ptr<PelcoD::PtzSphericalEstimator> m_sphericalEstimator;
-    std::shared_ptr<PelcoD::Video::CentroidTargetTrackerFilter> m_targetTracker;
+    std::unique_ptr<Tracking::PtzAutoTracker> m_autoTracker;
+    std::unique_ptr<Tracking::PtzSphericalEstimator> m_sphericalEstimator;
+    std::shared_ptr<Video::CentroidTargetTrackerFilter> m_targetTracker;
     QComboBox* m_comboEstimatorType { nullptr };
     int m_lastZoomDirection { 0 };
     // Real-Time Spectrogram & Vibration Waterfall
     QCheckBox* m_chkSpectrogram { nullptr };
     QComboBox* m_comboSpectrogramPalette { nullptr };
     SpectrogramWidget* m_spectrogramWidget { nullptr };
-    std::unique_ptr<PelcoD::Stft> m_trackingStft;
+    std::unique_ptr<Math::Stft> m_trackingStft;
     // Empirical Bode Plot & Plant Auto-Tune
     QCheckBox* m_chkBodePlot { nullptr };
     QComboBox* m_comboChirpAxis { nullptr };
@@ -196,7 +196,7 @@ private:
     QPushButton* m_btnApplyPidGains { nullptr };
     QLabel* m_lblMarginsBadge { nullptr };
     PelcoD::BodePlotWidget* m_bodePlotWidget { nullptr };
-    std::unique_ptr<PelcoD::ChirpCalibrator> m_chirpCalibrator;
+    std::unique_ptr<Tracking::ChirpCalibrator> m_chirpCalibrator;
     QTimer* m_chirpTimer { nullptr };
     // Privacy & Operational Overlays Controls
     QCheckBox* m_chkPrivacyMask { nullptr };

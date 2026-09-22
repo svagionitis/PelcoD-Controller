@@ -23,7 +23,7 @@ namespace PelcoDApp {
 VideoStreamTab::VideoStreamTab(PelcoDQt::QPelcoDDevice* device, QWidget* parent)
     : QWidget(parent)
     , m_device(device)
-    , m_worker(new PelcoD::Video::QVideoStreamWorker(this))
+    , m_worker(new PelcoDQt::QVideoStreamWorker(this))
 {
     setupUi();
     setupConnections();
@@ -108,16 +108,16 @@ void VideoStreamTab::setupUi()
 
     topLayout->addWidget(new QLabel(tr("Backend:"), this));
     m_backendCombo = new QComboBox(this);
-    const auto backends = PelcoD::Video::DecoderFactory::availableBackends();
+    const auto backends = Video::DecoderFactory::availableBackends();
     for (const auto b : backends) {
         switch (b) {
-        case PelcoD::Video::BackendType::FFmpeg:
+        case Video::BackendType::FFmpeg:
             m_backendCombo->addItem(tr("FFmpeg (RTSP/HW)"), static_cast<int>(b));
             break;
-        case PelcoD::Video::BackendType::GStreamer:
+        case Video::BackendType::GStreamer:
             m_backendCombo->addItem(tr("GStreamer (Playbin)"), static_cast<int>(b));
             break;
-        case PelcoD::Video::BackendType::Mock:
+        case Video::BackendType::Mock:
             m_backendCombo->addItem(tr("Mock Synthetic"), static_cast<int>(b));
             break;
         }
@@ -307,16 +307,15 @@ void VideoStreamTab::setupUi()
     atmosLayout->addWidget(new QLabel(tr("Thermal / False Color:"), atmosGroup));
     m_comboPalette = new QComboBox(atmosGroup);
     m_comboPalette->addItem(tr("Off (Natural Colors)"), -1);
-    m_comboPalette->addItem(tr("White Hot (Grayscale)"), static_cast<int>(PelcoD::Video::FalseColorPalette::WhiteHot));
-    m_comboPalette->addItem(tr("Black Hot (Inverted)"), static_cast<int>(PelcoD::Video::FalseColorPalette::BlackHot));
-    m_comboPalette->addItem(tr("Iron256 (Thermal Iron)"), static_cast<int>(PelcoD::Video::FalseColorPalette::Iron256));
-    m_comboPalette->addItem(tr("Jet (Rainbow Spectrum)"), static_cast<int>(PelcoD::Video::FalseColorPalette::Jet));
-    m_comboPalette->addItem(
-        tr("Turbo (High Dynamic Range)"), static_cast<int>(PelcoD::Video::FalseColorPalette::Turbo));
-    m_comboPalette->addItem(tr("Rainbow"), static_cast<int>(PelcoD::Video::FalseColorPalette::Rainbow));
-    m_comboPalette->addItem(tr("Hot-Cold"), static_cast<int>(PelcoD::Video::FalseColorPalette::HotCold));
-    m_comboPalette->addItem(tr("Ice-Fire"), static_cast<int>(PelcoD::Video::FalseColorPalette::IceFire));
-    m_comboPalette->addItem(tr("Bone"), static_cast<int>(PelcoD::Video::FalseColorPalette::Bone));
+    m_comboPalette->addItem(tr("White Hot (Grayscale)"), static_cast<int>(Video::FalseColorPalette::WhiteHot));
+    m_comboPalette->addItem(tr("Black Hot (Inverted)"), static_cast<int>(Video::FalseColorPalette::BlackHot));
+    m_comboPalette->addItem(tr("Iron256 (Thermal Iron)"), static_cast<int>(Video::FalseColorPalette::Iron256));
+    m_comboPalette->addItem(tr("Jet (Rainbow Spectrum)"), static_cast<int>(Video::FalseColorPalette::Jet));
+    m_comboPalette->addItem(tr("Turbo (High Dynamic Range)"), static_cast<int>(Video::FalseColorPalette::Turbo));
+    m_comboPalette->addItem(tr("Rainbow"), static_cast<int>(Video::FalseColorPalette::Rainbow));
+    m_comboPalette->addItem(tr("Hot-Cold"), static_cast<int>(Video::FalseColorPalette::HotCold));
+    m_comboPalette->addItem(tr("Ice-Fire"), static_cast<int>(Video::FalseColorPalette::IceFire));
+    m_comboPalette->addItem(tr("Bone"), static_cast<int>(Video::FalseColorPalette::Bone));
     atmosLayout->addWidget(m_comboPalette);
 
     m_chkDcpDehaze = new QCheckBox(tr("Atmospheric Dehaze (DCP)"), atmosGroup);
@@ -389,7 +388,8 @@ void VideoStreamTab::setupUi()
 
     auto* overlaysBtnLayout = new QHBoxLayout();
     m_btnTacticalOverlays = new QPushButton(tr("Tactical Overlays Config..."), lockGroup);
-    m_btnTacticalOverlays->setToolTip(tr("Configure trajectory breadcrumbs, spline smoothing, speed gradient, and predictive lead vector"));
+    m_btnTacticalOverlays->setToolTip(
+        tr("Configure trajectory breadcrumbs, spline smoothing, speed gradient, and predictive lead vector"));
     overlaysBtnLayout->addSpacing(20);
     overlaysBtnLayout->addWidget(m_btnTacticalOverlays);
     lockLayout->addLayout(overlaysBtnLayout);
@@ -428,27 +428,28 @@ void VideoStreamTab::setupUi()
     m_comboEstimatorType->addItem(tr("Linear Kalman (2D)"), 0);
     m_comboEstimatorType->addItem(tr("Extended Kalman (EKF)"), 1);
     m_comboEstimatorType->addItem(tr("Unscented Kalman (UKF)"), 2);
-    m_comboEstimatorType->setToolTip(tr("Select state estimation algorithm: standard 2D Cartesian Kalman, or non-linear EKF/UKF with spherical kinematics and lens projection"));
+    m_comboEstimatorType->setToolTip(tr("Select state estimation algorithm: standard 2D Cartesian Kalman, or "
+                                        "non-linear EKF/UKF with spherical kinematics and lens projection"));
     estLayout->addWidget(lblEstimator);
     estLayout->addWidget(m_comboEstimatorType);
     lockLayout->addLayout(estLayout);
 
-    m_autoTracker = std::make_unique<PelcoD::PtzAutoTracker>();
+    m_autoTracker = std::make_unique<Tracking::PtzAutoTracker>();
     m_autoFollowTimer = new QTimer(this);
 
-    PelcoD::SphericalEstimatorConfig sphConfig {};
+    Tracking::SphericalEstimatorConfig sphConfig {};
     sphConfig.intrinsics.imageWidth = 1920;
     sphConfig.intrinsics.imageHeight = 1080;
-    m_sphericalEstimator = std::make_unique<PelcoD::PtzSphericalEstimator>(sphConfig);
+    m_sphericalEstimator = std::make_unique<Tracking::PtzSphericalEstimator>(sphConfig);
 
-    m_latencyEstimator = std::make_unique<PelcoD::LatencyEstimator>();
-    PelcoD::LatencyEstimatorConfig estCfg {};
-    estCfg.polarity = PelcoD::PeakPolarity::Negative;
+    m_latencyEstimator = std::make_unique<Tracking::LatencyEstimator>();
+    Tracking::LatencyEstimatorConfig estCfg {};
+    estCfg.polarity = Tracking::PeakPolarity::Negative;
     estCfg.confidenceThreshold = 0.55;
     estCfg.smoothingAlpha = 0.25;
     m_latencyEstimator->setConfig(estCfg);
 
-    m_latencyCalibrator = std::make_unique<PelcoD::LatencyCalibrator>();
+    m_latencyCalibrator = std::make_unique<Tracking::LatencyCalibrator>();
     m_calibratorTimer = new QTimer(this);
 
     trackTabLayout->addWidget(lockGroup);
@@ -466,14 +467,11 @@ void VideoStreamTab::setupUi()
         tr("Computes real-time Short-Time Fourier Transform (STFT) of tracking error and motor dynamics"));
 
     m_comboSpectrogramPalette = new QComboBox(spectroGroup);
+    m_comboSpectrogramPalette->addItem(tr("Inferno"), static_cast<int>(Math::SpectrogramColorMap::Preset::Inferno));
+    m_comboSpectrogramPalette->addItem(tr("Viridis"), static_cast<int>(Math::SpectrogramColorMap::Preset::Viridis));
     m_comboSpectrogramPalette->addItem(
-        tr("Inferno"), static_cast<int>(PelcoD::SpectrogramColorMap::Preset::Inferno));
-    m_comboSpectrogramPalette->addItem(
-        tr("Viridis"), static_cast<int>(PelcoD::SpectrogramColorMap::Preset::Viridis));
-    m_comboSpectrogramPalette->addItem(
-        tr("Tactical Green"), static_cast<int>(PelcoD::SpectrogramColorMap::Preset::TacticalGreen));
-    m_comboSpectrogramPalette->addItem(
-        tr("Jet"), static_cast<int>(PelcoD::SpectrogramColorMap::Preset::Jet));
+        tr("Tactical Green"), static_cast<int>(Math::SpectrogramColorMap::Preset::TacticalGreen));
+    m_comboSpectrogramPalette->addItem(tr("Jet"), static_cast<int>(Math::SpectrogramColorMap::Preset::Jet));
     m_comboSpectrogramPalette->setToolTip(tr("Select spectral waterfall colormap"));
 
     spectroHeader->addWidget(m_chkSpectrogram);
@@ -490,21 +488,21 @@ void VideoStreamTab::setupUi()
         }
     });
 
-    connect(m_comboSpectrogramPalette, QOverload<int>::of(&QComboBox::currentIndexChanged), this,
-        [this](int /*index*/) {
+    connect(
+        m_comboSpectrogramPalette, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this](int /*index*/) {
             if (m_spectrogramWidget && m_comboSpectrogramPalette) {
-                auto preset = static_cast<PelcoD::SpectrogramColorMap::Preset>(
-                    m_comboSpectrogramPalette->currentData().toInt());
+                auto preset
+                    = static_cast<Math::SpectrogramColorMap::Preset>(m_comboSpectrogramPalette->currentData().toInt());
                 m_spectrogramWidget->setColorPreset(preset);
             }
         });
 
-    PelcoD::StftConfig stftCfg {};
+    Math::StftConfig stftCfg {};
     stftCfg.windowSize = 64U; // 64-point FFT
     stftCfg.hopSize = 16U; // 25% hop (75% overlap)
     stftCfg.sampleRateHz = 25.0; // 25 Hz update loop
     stftCfg.maxHistoryFrames = 100U;
-    m_trackingStft = std::make_unique<PelcoD::Stft>(stftCfg);
+    m_trackingStft = std::make_unique<Math::Stft>(stftCfg);
 
     trackTabLayout->addWidget(spectroGroup);
 
@@ -520,8 +518,8 @@ void VideoStreamTab::setupUi()
     m_chkBodePlot->setToolTip(tr("Measures camera frequency response via swept-sine excitation and auto-tunes PID"));
 
     m_comboChirpAxis = new QComboBox(plantGroup);
-    m_comboChirpAxis->addItem(tr("Pan (Azimuth)"), static_cast<int>(PelcoD::CalibrationAxis::Pan));
-    m_comboChirpAxis->addItem(tr("Tilt (Elevation)"), static_cast<int>(PelcoD::CalibrationAxis::Tilt));
+    m_comboChirpAxis->addItem(tr("Pan (Azimuth)"), static_cast<int>(Tracking::CalibrationAxis::Pan));
+    m_comboChirpAxis->addItem(tr("Tilt (Elevation)"), static_cast<int>(Tracking::CalibrationAxis::Tilt));
 
     m_btnStartChirpSweep = new QPushButton(tr("Start Sweep"), plantGroup);
     m_btnCancelChirpSweep = new QPushButton(tr("Cancel"), plantGroup);
@@ -547,10 +545,12 @@ void VideoStreamTab::setupUi()
 
     auto* tuningLayout = new QHBoxLayout();
     m_comboTuningRule = new QComboBox(plantGroup);
-    m_comboTuningRule->addItem(tr("Tyreus-Luyben (Conservative)"), static_cast<int>(PelcoD::TuningRule::TyreusLuyben));
-    m_comboTuningRule->addItem(tr("Ziegler-Nichols (Aggressive)"), static_cast<int>(PelcoD::TuningRule::ZieglerNichols));
-    m_comboTuningRule->addItem(tr("AMIGO (Astrom-Hagglund)"), static_cast<int>(PelcoD::TuningRule::Amigo));
-    m_comboTuningRule->addItem(tr("IMC (Zero-Overshoot)"), static_cast<int>(PelcoD::TuningRule::Imc));
+    m_comboTuningRule->addItem(
+        tr("Tyreus-Luyben (Conservative)"), static_cast<int>(Tracking::TuningRule::TyreusLuyben));
+    m_comboTuningRule->addItem(
+        tr("Ziegler-Nichols (Aggressive)"), static_cast<int>(Tracking::TuningRule::ZieglerNichols));
+    m_comboTuningRule->addItem(tr("AMIGO (Astrom-Hagglund)"), static_cast<int>(Tracking::TuningRule::Amigo));
+    m_comboTuningRule->addItem(tr("IMC (Zero-Overshoot)"), static_cast<int>(Tracking::TuningRule::Imc));
 
     m_btnApplyPidGains = new QPushButton(tr("Apply PID Gains"), plantGroup);
     m_btnApplyPidGains->setEnabled(false);
@@ -578,13 +578,13 @@ void VideoStreamTab::setupUi()
     connect(m_btnCancelChirpSweep, &QPushButton::clicked, this, &VideoStreamTab::onCancelChirpSweepClicked);
     connect(m_btnApplyPidGains, &QPushButton::clicked, this, &VideoStreamTab::onApplyPidGainsClicked);
 
-    PelcoD::ChirpConfig chirpCfg {};
+    Tracking::ChirpConfig chirpCfg {};
     chirpCfg.startFreqHz = 0.2;
     chirpCfg.endFreqHz = 12.0;
     chirpCfg.durationSec = 6.0;
     chirpCfg.sampleRateHz = 50.0;
-    chirpCfg.type = PelcoD::ChirpType::Logarithmic;
-    m_chirpCalibrator = std::make_unique<PelcoD::ChirpCalibrator>(nullptr, chirpCfg);
+    chirpCfg.type = Tracking::ChirpType::Logarithmic;
+    m_chirpCalibrator = std::make_unique<Tracking::ChirpCalibrator>(nullptr, chirpCfg);
 
     m_chirpTimer = new QTimer(this);
     connect(m_chirpTimer, &QTimer::timeout, this, &VideoStreamTab::onChirpSweepTick);
@@ -601,10 +601,9 @@ void VideoStreamTab::setupUi()
     auto* isoLayout = new QHBoxLayout();
     m_chkIsotherm = new QCheckBox(tr("Isotherm"), analyticsGroup);
     m_comboIsothermPreset = new QComboBox(analyticsGroup);
-    m_comboIsothermPreset->addItem(tr("Body Heat"), static_cast<int>(PelcoD::Video::IsothermFilter::Preset::HumanBody));
-    m_comboIsothermPreset->addItem(tr("High Heat"), static_cast<int>(PelcoD::Video::IsothermFilter::Preset::HighHeat));
-    m_comboIsothermPreset->addItem(
-        tr("Custom (140-180)"), static_cast<int>(PelcoD::Video::IsothermFilter::Preset::Custom));
+    m_comboIsothermPreset->addItem(tr("Body Heat"), static_cast<int>(Video::IsothermFilter::Preset::HumanBody));
+    m_comboIsothermPreset->addItem(tr("High Heat"), static_cast<int>(Video::IsothermFilter::Preset::HighHeat));
+    m_comboIsothermPreset->addItem(tr("Custom (140-180)"), static_cast<int>(Video::IsothermFilter::Preset::Custom));
     isoLayout->addWidget(m_chkIsotherm);
     isoLayout->addWidget(m_comboIsothermPreset);
     analyticsLayout->addLayout(isoLayout);
@@ -619,9 +618,8 @@ void VideoStreamTab::setupUi()
     m_chkOpticalFlow = new QCheckBox(tr("Motion Flow"), analyticsGroup);
     m_comboFlowMode = new QComboBox(analyticsGroup);
     m_comboFlowMode->addItem(
-        tr("Vector Arrows"), static_cast<int>(PelcoD::Video::OpticalFlowFieldFilter::DisplayMode::VectorArrows));
-    m_comboFlowMode->addItem(
-        tr("Color Flow"), static_cast<int>(PelcoD::Video::OpticalFlowFieldFilter::DisplayMode::ColorFlow));
+        tr("Vector Arrows"), static_cast<int>(Video::OpticalFlowFieldFilter::DisplayMode::VectorArrows));
+    m_comboFlowMode->addItem(tr("Color Flow"), static_cast<int>(Video::OpticalFlowFieldFilter::DisplayMode::ColorFlow));
     flowLayout->addWidget(m_chkOpticalFlow);
     flowLayout->addWidget(m_comboFlowMode);
     analyticsLayout->addLayout(flowLayout);
@@ -630,11 +628,9 @@ void VideoStreamTab::setupUi()
     m_chkTripwire = new QCheckBox(tr("Perimeter Tripwire"), analyticsGroup);
     m_comboTripwireDir = new QComboBox(analyticsGroup);
     m_comboTripwireDir->addItem(
-        tr("Bi-directional"), static_cast<int>(PelcoD::Video::PerimeterTripwireFilter::Direction::Bidirectional));
-    m_comboTripwireDir->addItem(
-        tr("A -> B"), static_cast<int>(PelcoD::Video::PerimeterTripwireFilter::Direction::A_to_B));
-    m_comboTripwireDir->addItem(
-        tr("B -> A"), static_cast<int>(PelcoD::Video::PerimeterTripwireFilter::Direction::B_to_A));
+        tr("Bi-directional"), static_cast<int>(Video::PerimeterTripwireFilter::Direction::Bidirectional));
+    m_comboTripwireDir->addItem(tr("A -> B"), static_cast<int>(Video::PerimeterTripwireFilter::Direction::A_to_B));
+    m_comboTripwireDir->addItem(tr("B -> A"), static_cast<int>(Video::PerimeterTripwireFilter::Direction::B_to_A));
     tripLayout->addWidget(m_chkTripwire);
     tripLayout->addWidget(m_comboTripwireDir);
     analyticsLayout->addLayout(tripLayout);
@@ -655,13 +651,12 @@ void VideoStreamTab::setupUi()
     m_chkReticleHud = new QCheckBox(tr("Reticle HUD"), reticleGroup);
     m_comboReticleStyle = new QComboBox(reticleGroup);
     m_comboReticleStyle->addItem(
-        tr("Crosshair"), static_cast<int>(PelcoD::Video::TacticalReticleOverlayFilter::Style::Crosshair));
+        tr("Crosshair"), static_cast<int>(Video::TacticalReticleOverlayFilter::Style::Crosshair));
+    m_comboReticleStyle->addItem(tr("Mil-Dot"), static_cast<int>(Video::TacticalReticleOverlayFilter::Style::MilDot));
     m_comboReticleStyle->addItem(
-        tr("Mil-Dot"), static_cast<int>(PelcoD::Video::TacticalReticleOverlayFilter::Style::MilDot));
+        tr("Stadiametric"), static_cast<int>(Video::TacticalReticleOverlayFilter::Style::Stadiametric));
     m_comboReticleStyle->addItem(
-        tr("Stadiametric"), static_cast<int>(PelcoD::Video::TacticalReticleOverlayFilter::Style::Stadiametric));
-    m_comboReticleStyle->addItem(
-        tr("Corner Brackets"), static_cast<int>(PelcoD::Video::TacticalReticleOverlayFilter::Style::CornerBrackets));
+        tr("Corner Brackets"), static_cast<int>(Video::TacticalReticleOverlayFilter::Style::CornerBrackets));
     reticleLayout->addWidget(m_chkReticleHud);
     reticleLayout->addWidget(m_comboReticleStyle);
     reticleGroupLayout->addLayout(reticleLayout);
@@ -674,11 +669,9 @@ void VideoStreamTab::setupUi()
     auto* privLayout = new QHBoxLayout();
     m_chkPrivacyMask = new QCheckBox(tr("Privacy Mask"), privGroup);
     m_comboPrivacyMode = new QComboBox(privGroup);
-    m_comboPrivacyMode->addItem(
-        tr("Blackout"), static_cast<int>(PelcoD::Video::PrivacyMaskFilter::ConcealmentMode::Blackout));
-    m_comboPrivacyMode->addItem(tr("Blur"), static_cast<int>(PelcoD::Video::PrivacyMaskFilter::ConcealmentMode::Blur));
-    m_comboPrivacyMode->addItem(
-        tr("Mosaic"), static_cast<int>(PelcoD::Video::PrivacyMaskFilter::ConcealmentMode::Mosaic));
+    m_comboPrivacyMode->addItem(tr("Blackout"), static_cast<int>(Video::PrivacyMaskFilter::ConcealmentMode::Blackout));
+    m_comboPrivacyMode->addItem(tr("Blur"), static_cast<int>(Video::PrivacyMaskFilter::ConcealmentMode::Blur));
+    m_comboPrivacyMode->addItem(tr("Mosaic"), static_cast<int>(Video::PrivacyMaskFilter::ConcealmentMode::Mosaic));
     privLayout->addWidget(m_chkPrivacyMask);
     privLayout->addWidget(m_comboPrivacyMode);
     privGroupLayout->addLayout(privLayout);
@@ -693,9 +686,8 @@ void VideoStreamTab::setupUi()
     m_chkPictureInPicture = new QCheckBox(tr("Picture-in-Picture"), privGroup);
     m_comboPipMode = new QComboBox(privGroup);
     m_comboPipMode->addItem(
-        tr("Digital Zoom (2x)"), static_cast<int>(PelcoD::Video::PictureInPictureFilter::Mode::DigitalZoom));
-    m_comboPipMode->addItem(
-        tr("Aux Feed"), static_cast<int>(PelcoD::Video::PictureInPictureFilter::Mode::SecondaryFeed));
+        tr("Digital Zoom (2x)"), static_cast<int>(Video::PictureInPictureFilter::Mode::DigitalZoom));
+    m_comboPipMode->addItem(tr("Aux Feed"), static_cast<int>(Video::PictureInPictureFilter::Mode::SecondaryFeed));
     pipLayout->addWidget(m_chkPictureInPicture);
     pipLayout->addWidget(m_comboPipMode);
     privGroupLayout->addLayout(pipLayout);
@@ -935,11 +927,9 @@ void VideoStreamTab::setupConnections()
 #endif
 
     // Worker signals to Overlay Widget
-    connect(
-        m_worker, &PelcoD::Video::QVideoStreamWorker::frameReady, m_overlayWidget, &VideoOverlayWidget::updateFrame);
-    connect(m_worker, &PelcoD::Video::QVideoStreamWorker::streamStatusChanged, this,
-        &VideoStreamTab::onWorkerStatusChanged);
-    connect(m_worker, &PelcoD::Video::QVideoStreamWorker::statsUpdated, this, &VideoStreamTab::onWorkerStatsUpdated);
+    connect(m_worker, &PelcoDQt::QVideoStreamWorker::frameReady, m_overlayWidget, &VideoOverlayWidget::updateFrame);
+    connect(m_worker, &PelcoDQt::QVideoStreamWorker::streamStatusChanged, this, &VideoStreamTab::onWorkerStatusChanged);
+    connect(m_worker, &PelcoDQt::QVideoStreamWorker::statsUpdated, this, &VideoStreamTab::onWorkerStatsUpdated);
 
     // Interactive Joystick signals from Overlay to Device
     connect(
@@ -980,7 +970,7 @@ void VideoStreamTab::onLoopFileToggled(bool checked)
 void VideoStreamTab::populateCaptureDevices()
 {
     m_deviceCombo->clear();
-    const auto devices = PelcoD::Video::DeviceEnumerator::enumerateDevices();
+    const auto devices = Video::DeviceEnumerator::enumerateDevices();
     for (const auto& dev : devices) {
         m_deviceCombo->addItem(QString::fromStdString(dev.name), QString::fromStdString(dev.path));
     }
@@ -1027,7 +1017,7 @@ void VideoStreamTab::onConnectClicked()
         source = QStringLiteral("mock://smpte-bars");
     }
 
-    const auto backend = static_cast<PelcoD::Video::BackendType>(m_backendCombo->currentData().toInt());
+    const auto backend = static_cast<Video::BackendType>(m_backendCombo->currentData().toInt());
 
     m_btnConnect->setEnabled(false);
     m_btnDisconnect->setEnabled(true);
@@ -1040,7 +1030,7 @@ void VideoStreamTab::onConnectClicked()
     m_backendCombo->setEnabled(false);
 
     m_worker->setLoopPlayback(m_chkLoopFile->isChecked());
-    m_worker->openStream(source, backend, PelcoD::Video::DeviceType::CPU);
+    m_worker->openStream(source, backend, Video::DeviceType::CPU);
 #if defined(PELCOD_HAS_FILTERS)
     onFilterConfigurationChanged();
 #endif
@@ -1091,16 +1081,16 @@ void VideoStreamTab::onColorSchemeChanged(int index)
     m_overlayWidget->setHudColor(color);
 }
 
-void VideoStreamTab::onWorkerStatusChanged(PelcoD::Video::StreamState state, const QString& message)
+void VideoStreamTab::onWorkerStatusChanged(Video::StreamState state, const QString& message)
 {
     m_statusLabel->setText(tr("Stream: %1").arg(message));
 
-    if (state == PelcoD::Video::StreamState::Disconnected || state == PelcoD::Video::StreamState::Error) {
+    if (state == Video::StreamState::Disconnected || state == Video::StreamState::Error) {
         m_btnConnect->setEnabled(true);
         m_btnDisconnect->setEnabled(false);
         m_sourceCombo->setEnabled(true);
         m_backendCombo->setEnabled(true);
-    } else if (state == PelcoD::Video::StreamState::Streaming) {
+    } else if (state == Video::StreamState::Streaming) {
         m_btnConnect->setEnabled(false);
         m_btnDisconnect->setEnabled(true);
     }
@@ -1251,56 +1241,56 @@ void VideoStreamTab::onFilterConfigurationChanged()
 
     // 0. Electronic Image Stabilization (EIS) - applied first on incoming raw frame
     if (m_chkStabilizer != nullptr && m_chkStabilizer->isChecked()) {
-        m_worker->addFrameProcessor(std::make_shared<PelcoD::Video::ImageStabilizationFilter>(0.8, 30.0, 0.04));
+        m_worker->addFrameProcessor(std::make_shared<Video::ImageStabilizationFilter>(0.8, 30.0, 0.04));
     }
 
     // 1. Denoise to suppress scintillation before edge/contrast amplification
     if (m_chkDenoise != nullptr && m_chkDenoise->isChecked()) {
-        m_worker->addFrameProcessor(std::make_shared<PelcoD::Video::TemporalDenoiseFilter>(0.5, 30.0));
+        m_worker->addFrameProcessor(std::make_shared<Video::TemporalDenoiseFilter>(0.5, 30.0));
     }
 
     // 2. Dark Channel Prior (DCP) Dehaze - removes atmospheric haze/fog
     if (m_chkDcpDehaze != nullptr && m_chkDcpDehaze->isChecked()) {
-        m_worker->addFrameProcessor(std::make_shared<PelcoD::Video::DarkChannelDehazeFilter>(0.85, 9, 0.1));
+        m_worker->addFrameProcessor(std::make_shared<Video::DarkChannelDehazeFilter>(0.85, 9, 0.1));
     }
 
     // 3. Auto White Balance (AWB) - corrects illumination color casts
     if (m_chkWhiteBalance != nullptr && m_chkWhiteBalance->isChecked()) {
-        m_worker->addFrameProcessor(std::make_shared<PelcoD::Video::WhiteBalanceFilter>(
-            PelcoD::Video::WhiteBalanceFilter::Mode::GrayWorld, 1.0));
+        m_worker->addFrameProcessor(
+            std::make_shared<Video::WhiteBalanceFilter>(Video::WhiteBalanceFilter::Mode::GrayWorld, 1.0));
     }
 
     // 4. Chromatic Aberration Correction - fixes radial color fringing at extreme zoom
     if (m_chkChromaticAberration != nullptr && m_chkChromaticAberration->isChecked()) {
-        m_worker->addFrameProcessor(std::make_shared<PelcoD::Video::ChromaticAberrationFilter>(0.005, -0.005));
+        m_worker->addFrameProcessor(std::make_shared<Video::ChromaticAberrationFilter>(0.005, -0.005));
     }
 
     // 5. Atmospheric Penetration / LAP
     if (m_chkLapHaze != nullptr && m_chkLapHaze->isChecked()) {
-        m_worker->addFrameProcessor(std::make_shared<PelcoD::Video::LocalAreaProcessingFilter>(5, 0.6, 5.0));
+        m_worker->addFrameProcessor(std::make_shared<Video::LocalAreaProcessingFilter>(5, 0.6, 5.0));
     }
 
     // 6. CLAHE Adaptive Contrast
     if (m_chkClahe != nullptr && m_chkClahe->isChecked()) {
-        m_worker->addFrameProcessor(std::make_shared<PelcoD::Video::ClaheFilter>(2.5, 8, 1.0));
+        m_worker->addFrameProcessor(std::make_shared<Video::ClaheFilter>(2.5, 8, 1.0));
     }
 
     // 7. Optical Acuity Sharpening
     if (m_chkSharpen != nullptr && m_chkSharpen->isChecked()) {
-        m_worker->addFrameProcessor(std::make_shared<PelcoD::Video::SharpenFilter>(1.2, 3));
+        m_worker->addFrameProcessor(std::make_shared<Video::SharpenFilter>(1.2, 3));
     }
 
     // 8. Canny Edge Outlines
     if (m_chkEdgeDetect != nullptr && m_chkEdgeDetect->isChecked()) {
-        m_worker->addFrameProcessor(std::make_shared<PelcoD::Video::EdgeDetectionFilter>(50.0, 150.0));
+        m_worker->addFrameProcessor(std::make_shared<Video::EdgeDetectionFilter>(50.0, 150.0));
     }
 
     // 9. Isotherm Thermal Slicing
     if (m_chkIsotherm != nullptr && m_chkIsotherm->isChecked()) {
-        auto iso = std::make_shared<PelcoD::Video::IsothermFilter>();
+        auto iso = std::make_shared<Video::IsothermFilter>();
         if (m_comboIsothermPreset != nullptr) {
             const auto preset
-                = static_cast<PelcoD::Video::IsothermFilter::Preset>(m_comboIsothermPreset->currentData().toInt());
+                = static_cast<Video::IsothermFilter::Preset>(m_comboIsothermPreset->currentData().toInt());
             iso->setPreset(preset);
         }
         m_worker->addFrameProcessor(iso);
@@ -1308,49 +1298,47 @@ void VideoStreamTab::onFilterConfigurationChanged()
 
     // 10. Thermal / False Color Palette (applied across color mapped result)
     if (m_comboPalette != nullptr && m_comboPalette->currentIndex() > 0) {
-        const auto palette = static_cast<PelcoD::Video::FalseColorPalette>(m_comboPalette->currentData().toInt());
-        m_worker->addFrameProcessor(std::make_shared<PelcoD::Video::FalseColorFilter>(palette));
+        const auto palette = static_cast<Video::FalseColorPalette>(m_comboPalette->currentData().toInt());
+        m_worker->addFrameProcessor(std::make_shared<Video::FalseColorFilter>(palette));
     }
 
     // 11. Moving Target Indication (MTI) - target acquisition brackets
     if (m_chkMtiMotion != nullptr && m_chkMtiMotion->isChecked()) {
-        m_worker->addFrameProcessor(std::make_shared<PelcoD::Video::MovingTargetIndicatorFilter>(80, 50000, 16));
+        m_worker->addFrameProcessor(std::make_shared<Video::MovingTargetIndicatorFilter>(80, 50000, 16));
     }
 
     // 12. Hotspot & Spot Radiometry Tracker
     if (m_chkHotspotTracker != nullptr && m_chkHotspotTracker->isChecked()) {
-        m_worker->addFrameProcessor(std::make_shared<PelcoD::Video::HotspotTrackerFilter>(true, 32));
+        m_worker->addFrameProcessor(std::make_shared<Video::HotspotTrackerFilter>(true, 32));
     }
 
     // 13. Tactical Reticle HUD Overlay (drawn on top of all image layers)
     if (m_chkReticleHud != nullptr && m_chkReticleHud->isChecked()) {
-        auto style = PelcoD::Video::TacticalReticleOverlayFilter::Style::Crosshair;
+        auto style = Video::TacticalReticleOverlayFilter::Style::Crosshair;
         if (m_comboReticleStyle != nullptr) {
-            style = static_cast<PelcoD::Video::TacticalReticleOverlayFilter::Style>(
-                m_comboReticleStyle->currentData().toInt());
+            style = static_cast<Video::TacticalReticleOverlayFilter::Style>(m_comboReticleStyle->currentData().toInt());
         }
-        m_worker->addFrameProcessor(std::make_shared<PelcoD::Video::TacticalReticleOverlayFilter>(
-            style, PelcoD::Video::TacticalReticleOverlayFilter::Color::TacticalGreen, 1, 14));
+        m_worker->addFrameProcessor(std::make_shared<Video::TacticalReticleOverlayFilter>(
+            style, Video::TacticalReticleOverlayFilter::Color::TacticalGreen, 1, 14));
     }
 
     // 14. Motion Activity Heatmap
     if (m_chkHeatmap != nullptr && m_chkHeatmap->isChecked()) {
-        m_worker->addFrameProcessor(std::make_shared<PelcoD::Video::MotionHeatmapFilter>(0.95, 0.40, 20));
+        m_worker->addFrameProcessor(std::make_shared<Video::MotionHeatmapFilter>(0.95, 0.40, 20));
     }
 
     // 15. Optical Flow Motion Field
     if (m_chkOpticalFlow != nullptr && m_chkOpticalFlow->isChecked()) {
-        auto mode = PelcoD::Video::OpticalFlowFieldFilter::DisplayMode::VectorArrows;
+        auto mode = Video::OpticalFlowFieldFilter::DisplayMode::VectorArrows;
         if (m_comboFlowMode != nullptr) {
-            mode = static_cast<PelcoD::Video::OpticalFlowFieldFilter::DisplayMode>(
-                m_comboFlowMode->currentData().toInt());
+            mode = static_cast<Video::OpticalFlowFieldFilter::DisplayMode>(m_comboFlowMode->currentData().toInt());
         }
-        m_worker->addFrameProcessor(std::make_shared<PelcoD::Video::OpticalFlowFieldFilter>(mode, 16, 1.5, 2.0));
+        m_worker->addFrameProcessor(std::make_shared<Video::OpticalFlowFieldFilter>(mode, 16, 1.5, 2.0));
     }
 
     // 16. Visual Target Lock-On & Boresight Offset Tracker (Kalman State Estimation)
     if (m_chkTargetLock != nullptr && m_chkTargetLock->isChecked()) {
-        m_targetTracker = std::make_shared<PelcoD::Video::CentroidTargetTrackerFilter>(true, 40, 40);
+        m_targetTracker = std::make_shared<Video::CentroidTargetTrackerFilter>(true, 40, 40);
         if (m_chkScaleAdaptation != nullptr) {
             m_targetTracker->setScaleAdaptation(m_chkScaleAdaptation->isChecked());
         }
@@ -1377,22 +1365,20 @@ void VideoStreamTab::onFilterConfigurationChanged()
 
     // 17. Perimeter Tripwire Intrusion Detection
     if (m_chkTripwire != nullptr && m_chkTripwire->isChecked()) {
-        auto dir = PelcoD::Video::PerimeterTripwireFilter::Direction::Bidirectional;
+        auto dir = Video::PerimeterTripwireFilter::Direction::Bidirectional;
         if (m_comboTripwireDir != nullptr) {
-            dir = static_cast<PelcoD::Video::PerimeterTripwireFilter::Direction>(
-                m_comboTripwireDir->currentData().toInt());
+            dir = static_cast<Video::PerimeterTripwireFilter::Direction>(m_comboTripwireDir->currentData().toInt());
         }
-        m_worker->addFrameProcessor(std::make_shared<PelcoD::Video::PerimeterTripwireFilter>(0.1, 0.5, 0.9, 0.5, dir));
+        m_worker->addFrameProcessor(std::make_shared<Video::PerimeterTripwireFilter>(0.1, 0.5, 0.9, 0.5, dir));
     }
 
     // 18. Privacy Masking (censors private property / windows before operational HUD)
     if (m_chkPrivacyMask != nullptr && m_chkPrivacyMask->isChecked()) {
-        auto mode = PelcoD::Video::PrivacyMaskFilter::ConcealmentMode::Blackout;
+        auto mode = Video::PrivacyMaskFilter::ConcealmentMode::Blackout;
         if (m_comboPrivacyMode != nullptr) {
-            mode = static_cast<PelcoD::Video::PrivacyMaskFilter::ConcealmentMode>(
-                m_comboPrivacyMode->currentData().toInt());
+            mode = static_cast<Video::PrivacyMaskFilter::ConcealmentMode>(m_comboPrivacyMode->currentData().toInt());
         }
-        auto privacy = std::make_shared<PelcoD::Video::PrivacyMaskFilter>(mode);
+        auto privacy = std::make_shared<Video::PrivacyMaskFilter>(mode);
         privacy->addZone(0.05, 0.05, 0.25, 0.20, mode, "Restricted Zone 1");
         privacy->addZone(0.70, 0.10, 0.22, 0.25, mode, "Restricted Zone 2");
         m_worker->addFrameProcessor(privacy);
@@ -1400,19 +1386,19 @@ void VideoStreamTab::onFilterConfigurationChanged()
 
     // 19. Picture-in-Picture (PiP) Inset (Electronic Zoom or Secondary Feed)
     if (m_chkPictureInPicture != nullptr && m_chkPictureInPicture->isChecked()) {
-        auto mode = PelcoD::Video::PictureInPictureFilter::Mode::DigitalZoom;
+        auto mode = Video::PictureInPictureFilter::Mode::DigitalZoom;
         if (m_comboPipMode != nullptr) {
-            mode = static_cast<PelcoD::Video::PictureInPictureFilter::Mode>(m_comboPipMode->currentData().toInt());
+            mode = static_cast<Video::PictureInPictureFilter::Mode>(m_comboPipMode->currentData().toInt());
         }
-        m_worker->addFrameProcessor(std::make_shared<PelcoD::Video::PictureInPictureFilter>(
-            mode, PelcoD::Video::PictureInPictureFilter::Corner::TopRight, 0.28, 2.0));
+        m_worker->addFrameProcessor(std::make_shared<Video::PictureInPictureFilter>(
+            mode, Video::PictureInPictureFilter::Corner::TopRight, 0.28, 2.0));
     }
 
     // 20. Operational Telemetry OSD (PTZ angles, compass heading, FOV)
     if (m_chkTelemetryOsd != nullptr && m_chkTelemetryOsd->isChecked()) {
-        auto telem = std::make_shared<PelcoD::Video::TelemetryOsdFilter>(
-            PelcoD::Video::TelemetryOsdFilter::Color::TacticalGreen, true, true);
-        PelcoD::Video::TelemetryOsdFilter::TelemetryData telemData;
+        auto telem
+            = std::make_shared<Video::TelemetryOsdFilter>(Video::TelemetryOsdFilter::Color::TacticalGreen, true, true);
+        Video::TelemetryOsdFilter::TelemetryData telemData;
         telemData.panDegrees = 184.5;
         telemData.tiltDegrees = -12.3;
         telemData.zoomMagnification = 25.0;
@@ -1425,8 +1411,8 @@ void VideoStreamTab::onFilterConfigurationChanged()
 
     // 21. Forensic Timestamp & Evidentiary Watermark (burned into top layer)
     if (m_chkForensicWatermark != nullptr && m_chkForensicWatermark->isChecked()) {
-        m_worker->addFrameProcessor(std::make_shared<PelcoD::Video::TimestampWatermarkFilter>(
-            PelcoD::Video::TimestampWatermarkFilter::Position::TopLeft, "CAM-01 [PTZ]", true, true));
+        m_worker->addFrameProcessor(std::make_shared<Video::TimestampWatermarkFilter>(
+            Video::TimestampWatermarkFilter::Position::TopLeft, "CAM-01 [PTZ]", true, true));
     }
 }
 
@@ -1456,10 +1442,10 @@ void VideoStreamTab::onAutoFollowTick()
     const auto state = m_targetTracker->getTargetState(lookahead);
     const double dt = 0.04; // 25 Hz update rate (40 ms)
 
-    PelcoD::PtzAutoTracker::TrackingCommand cmd;
+    Tracking::PtzAutoTracker::TrackingCommand cmd;
     const int estimatorIdx = m_comboEstimatorType ? m_comboEstimatorType->currentIndex() : 0;
     if (estimatorIdx > 0 && m_sphericalEstimator) {
-        m_sphericalEstimator->setType(estimatorIdx == 2 ? PelcoD::EstimatorType::UKF : PelcoD::EstimatorType::EKF);
+        m_sphericalEstimator->setType(estimatorIdx == 2 ? Tracking::EstimatorType::UKF : Tracking::EstimatorType::EKF);
 
         if (state.locked) {
             const double targetPixelU = static_cast<double>(state.x + state.width / 2.0);
@@ -1472,16 +1458,16 @@ void VideoStreamTab::onAutoFollowTick()
         const auto sphState = m_sphericalEstimator->getState(lookahead, 0.0, 0.0);
 
         cmd = m_autoTracker->updateAngular(sphState.errorAzimuthDeg, sphState.errorElevationDeg,
-            sphState.omegaAzimuthDegPerSec, sphState.omegaElevationDegPerSec,
-            state.locked, state.isCoasting, dt, state.normalizedHeight, 1.0);
+            sphState.omegaAzimuthDegPerSec, sphState.omegaElevationDegPerSec, state.locked, state.isCoasting, dt,
+            state.normalizedHeight, 1.0);
     } else {
-        cmd = m_autoTracker->update(state.predictedErrorX, state.predictedErrorY, state.vx, state.vy,
-            state.locked, state.isCoasting, dt, state.normalizedHeight, 1.0);
+        cmd = m_autoTracker->update(state.predictedErrorX, state.predictedErrorY, state.vx, state.vy, state.locked,
+            state.isCoasting, dt, state.normalizedHeight, 1.0);
     }
 
     if (cmd.shouldMove) {
         m_device->move(cmd.panDirection, cmd.panSpeed, cmd.tiltDirection, cmd.tiltSpeed);
-    } else if (cmd.state == PelcoD::PtzAutoTracker::TrackingState::Lost || !cmd.shouldMove) {
+    } else if (cmd.state == Tracking::PtzAutoTracker::TrackingState::Lost || !cmd.shouldMove) {
         m_device->stopMotion();
     }
 
@@ -1492,8 +1478,8 @@ void VideoStreamTab::onAutoFollowTick()
 
     // Feed real-time telemetry into online latency estimator
     if (m_latencyEstimator && state.locked) {
-        const double nowSec = std::chrono::duration<double>(
-            std::chrono::steady_clock::now().time_since_epoch()).count();
+        const double nowSec
+            = std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count();
         const double commandedPan = static_cast<double>(cmd.panDirection * cmd.panSpeed);
         m_latencyEstimator->addTimestampedReference(nowSec, commandedPan);
         // Optical flow / target velocity is inverted relative to camera pan
@@ -1504,8 +1490,8 @@ void VideoStreamTab::onAutoFollowTick()
             m_currentEstimatedLatencyMs = m_latencyEstimator->getEstimatedLatencyMs();
             if (m_lblLatencyBadge) {
                 m_lblLatencyBadge->setText(tr("Latency: %1 ms [r=%2, Locked]")
-                    .arg(m_currentEstimatedLatencyMs, 0, 'f', 1)
-                    .arg(m_latencyEstimator->getPeakCorrelation(), 0, 'f', 2));
+                                               .arg(m_currentEstimatedLatencyMs, 0, 'f', 1)
+                                               .arg(m_latencyEstimator->getPeakCorrelation(), 0, 'f', 2));
             }
         }
     }
@@ -1516,8 +1502,7 @@ void VideoStreamTab::onAutoFollowTick()
         m_trackingStft->addSample(errorSignal);
 
         if (m_chkSpectrogram && m_chkSpectrogram->isChecked() && m_spectrogramWidget) {
-            m_spectrogramWidget->updateSpectrogram(
-                m_trackingStft->getHistory(), m_trackingStft->getFrequencyBinsHz());
+            m_spectrogramWidget->updateSpectrogram(m_trackingStft->getHistory(), m_trackingStft->getFrequencyBinsHz());
         }
     }
 
@@ -1571,8 +1556,7 @@ void VideoStreamTab::onCalibratorTick()
         return;
     }
 
-    const double nowSec = std::chrono::duration<double>(
-        std::chrono::steady_clock::now().time_since_epoch()).count();
+    const double nowSec = std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count();
 
     m_latencyCalibrator->update(nowSec);
 
@@ -1590,14 +1574,12 @@ void VideoStreamTab::onCalibratorTick()
         if (res.success) {
             m_currentEstimatedLatencyMs = res.latencyMs;
             if (m_lblLatencyBadge) {
-                m_lblLatencyBadge->setText(tr("Calibrated: %1 ms [r=%2, OK]")
-                    .arg(res.latencyMs, 0, 'f', 1)
-                    .arg(res.correlation, 0, 'f', 2));
+                m_lblLatencyBadge->setText(
+                    tr("Calibrated: %1 ms [r=%2, OK]").arg(res.latencyMs, 0, 'f', 1).arg(res.correlation, 0, 'f', 2));
             }
         } else {
             if (m_lblLatencyBadge) {
-                m_lblLatencyBadge->setText(tr("Calibration failed (%1)")
-                    .arg(QString::fromStdString(res.message)));
+                m_lblLatencyBadge->setText(tr("Calibration failed (%1)").arg(QString::fromStdString(res.message)));
             }
         }
     }
@@ -1614,8 +1596,8 @@ void VideoStreamTab::onStartChirpSweepClicked()
         m_chkAutoFollowPtz->setChecked(false);
     }
 
-    const auto axis = static_cast<PelcoD::CalibrationAxis>(
-        m_comboChirpAxis ? m_comboChirpAxis->currentData().toInt() : 0);
+    const auto axis
+        = static_cast<Tracking::CalibrationAxis>(m_comboChirpAxis ? m_comboChirpAxis->currentData().toInt() : 0);
 
     m_chirpCalibrator->setCommandCallback([this](int panDir, int panSpeed, int tiltDir, int tiltSpeed) {
         if (m_device) {
@@ -1640,7 +1622,7 @@ void VideoStreamTab::onStartChirpSweepClicked()
         }
         if (m_lblPlantStatus) {
             m_lblPlantStatus->setText(tr("Sweeping (%1, 0.2 Hz -> 12 Hz)...")
-                .arg(axis == PelcoD::CalibrationAxis::Pan ? tr("Pan") : tr("Tilt")));
+                                          .arg(axis == Tracking::CalibrationAxis::Pan ? tr("Pan") : tr("Tilt")));
         }
         if (m_chkBodePlot && !m_chkBodePlot->isChecked()) {
             m_chkBodePlot->setChecked(true);
@@ -1679,8 +1661,7 @@ void VideoStreamTab::onChirpSweepTick()
         return;
     }
 
-    const double nowSec = std::chrono::duration<double>(
-        std::chrono::steady_clock::now().time_since_epoch()).count();
+    const double nowSec = std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count();
 
     m_chirpCalibrator->update(nowSec);
 
@@ -1719,16 +1700,23 @@ void VideoStreamTab::onChirpSweepTick()
             }
             if (m_lblPlantStatus) {
                 m_lblPlantStatus->setText(tr("Identification Complete: K=%1, Tau=%2s, Td=%3ms")
-                    .arg(result.fopdt.dcGainK, 0, 'f', 2)
-                    .arg(result.fopdt.timeConstantTauSec, 0, 'f', 3)
-                    .arg(result.fopdt.deadTimeTdSec * 1000.0, 0, 'f', 1));
+                                              .arg(result.fopdt.dcGainK, 0, 'f', 2)
+                                              .arg(result.fopdt.timeConstantTauSec, 0, 'f', 3)
+                                              .arg(result.fopdt.deadTimeTdSec * 1000.0, 0, 'f', 1));
             }
             if (m_lblMarginsBadge) {
-                m_lblMarginsBadge->setText(tr("Margins: Gm=%1 dB, Pm=%2° | Ku=%3, Tu=%4s")
-                    .arg(result.margins.hasPhaseCrossover ? QString::asprintf("%0.1f", result.margins.gainMarginDb) : "--")
-                    .arg(result.margins.hasGainCrossover ? QString::asprintf("%0.1f", result.margins.phaseMarginDeg) : "--")
-                    .arg(result.margins.hasPhaseCrossover ? QString::asprintf("%0.2f", result.margins.ultimateGainKu) : "--")
-                    .arg(result.margins.hasPhaseCrossover ? QString::asprintf("%0.2f", result.margins.ultimatePeriodTu) : "--"));
+                m_lblMarginsBadge->setText(
+                    tr("Margins: Gm=%1 dB, Pm=%2° | Ku=%3, Tu=%4s")
+                        .arg(result.margins.hasPhaseCrossover ? QString::asprintf("%0.1f", result.margins.gainMarginDb)
+                                                              : "--")
+                        .arg(result.margins.hasGainCrossover ? QString::asprintf("%0.1f", result.margins.phaseMarginDeg)
+                                                             : "--")
+                        .arg(result.margins.hasPhaseCrossover
+                                ? QString::asprintf("%0.2f", result.margins.ultimateGainKu)
+                                : "--")
+                        .arg(result.margins.hasPhaseCrossover
+                                ? QString::asprintf("%0.2f", result.margins.ultimatePeriodTu)
+                                : "--"));
             }
         } else {
             if (m_lblPlantStatus) {
@@ -1744,12 +1732,12 @@ void VideoStreamTab::onApplyPidGainsClicked()
         return;
     }
 
-    const auto rule = static_cast<PelcoD::TuningRule>(
-        m_comboTuningRule ? m_comboTuningRule->currentData().toInt() : 0);
+    const auto rule
+        = static_cast<Tracking::TuningRule>(m_comboTuningRule ? m_comboTuningRule->currentData().toInt() : 0);
 
     const auto tuned = m_chirpCalibrator->getIdentifier().computePidGains(rule);
 
-    if (m_chirpCalibrator->getAxis() == PelcoD::CalibrationAxis::Pan) {
+    if (m_chirpCalibrator->getAxis() == Tracking::CalibrationAxis::Pan) {
         m_autoTracker->setPanGains(tuned.kp, tuned.ki, tuned.kd, tuned.kff);
     } else {
         m_autoTracker->setTiltGains(tuned.kp, tuned.ki, tuned.kd, tuned.kff);
@@ -1757,10 +1745,10 @@ void VideoStreamTab::onApplyPidGainsClicked()
 
     if (m_lblPlantStatus) {
         m_lblPlantStatus->setText(tr("Applied %1: Kp=%2, Ki=%3, Kd=%4")
-            .arg(QString::fromStdString(tuned.ruleName))
-            .arg(tuned.kp, 0, 'f', 2)
-            .arg(tuned.ki, 0, 'f', 2)
-            .arg(tuned.kd, 0, 'f', 3));
+                                      .arg(QString::fromStdString(tuned.ruleName))
+                                      .arg(tuned.kp, 0, 'f', 2)
+                                      .arg(tuned.ki, 0, 'f', 2)
+                                      .arg(tuned.kd, 0, 'f', 3));
     }
 }
 
@@ -1773,8 +1761,8 @@ void VideoStreamTab::onTacticalOverlaysClicked()
     }
 
     connect(&dlg, &TacticalOverlaysDialog::overlaysConfigChanged, this,
-        [this](const PelcoD::Video::CentroidTargetTrackerFilter::TrajectoryConfig& trajCfg,
-            const PelcoD::Video::CentroidTargetTrackerFilter::PredictiveLeadConfig& leadCfg) {
+        [this](const Video::CentroidTargetTrackerFilter::TrajectoryConfig& trajCfg,
+            const Video::CentroidTargetTrackerFilter::PredictiveLeadConfig& leadCfg) {
             if (m_targetTracker) {
                 m_targetTracker->setTrajectoryConfig(trajCfg);
                 m_targetTracker->setPredictiveLeadConfig(leadCfg);

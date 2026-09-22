@@ -34,26 +34,26 @@ QString QOnvifDevice::snapshotUri() const
     return m_snapshotUri;
 }
 
-std::vector<PelcoD::Onvif::MediaProfile> QOnvifDevice::profiles() const
+std::vector<Onvif::MediaProfile> QOnvifDevice::profiles() const
 {
     return m_profiles;
 }
 
-std::vector<PelcoD::Onvif::PtzPreset> QOnvifDevice::presets() const
+std::vector<Onvif::PtzPreset> QOnvifDevice::presets() const
 {
     return m_presets;
 }
 
-PelcoD::Onvif::DeviceInformation QOnvifDevice::deviceInformation() const
+Onvif::DeviceInformation QOnvifDevice::deviceInformation() const
 {
     return m_deviceInfo;
 }
 
-QList<PelcoD::Onvif::DiscoveredDevice> QOnvifDevice::discoverCameras(int timeoutMs)
+QList<Onvif::DiscoveredDevice> QOnvifDevice::discoverCameras(int timeoutMs)
 {
-    const auto stdList = PelcoD::Onvif::OnvifDiscovery::discoverDevices(std::chrono::milliseconds(timeoutMs));
+    const auto stdList = Onvif::OnvifDiscovery::discoverDevices(std::chrono::milliseconds(timeoutMs));
 
-    QList<PelcoD::Onvif::DiscoveredDevice> qList {};
+    QList<Onvif::DiscoveredDevice> qList {};
     qList.reserve(static_cast<qsizetype>(stdList.size()));
     for (const auto& dev : stdList) {
         qList.append(dev);
@@ -77,11 +77,11 @@ bool QOnvifDevice::connectToCamera(const QString& endpoint, const QString& usern
 {
     disconnectFromCamera();
 
-    PelcoD::Onvif::SecurityCredentials creds {};
+    Onvif::SecurityCredentials creds {};
     creds.username = username.toStdString();
     creds.password = password.toStdString();
 
-    m_client = std::make_unique<PelcoD::Onvif::OnvifClient>(endpoint.toStdString(), creds);
+    m_client = std::make_unique<Onvif::OnvifClient>(endpoint.toStdString(), creds);
 
     // Synchronize camera clock
     m_client->synchronizeSystemTime();
@@ -163,7 +163,7 @@ void QOnvifDevice::disconnectFromCamera()
     m_digitalInputs.clear();
     m_metadataConfigs.clear();
     m_certificates.clear();
-    m_clientCertMode = PelcoD::Onvif::ClientCertificateMode::Off;
+    m_clientCertMode = Onvif::ClientCertificateMode::Off;
     m_recordings.clear();
     m_recordingJobs.clear();
     m_recordingSummary.reset();
@@ -258,7 +258,7 @@ void QOnvifDevice::geoMove(double lat, double lon, double elevation, double spee
         return;
     }
 
-    PelcoD::Onvif::GeoLocation target { lat, lon, elevation };
+    Onvif::GeoLocation target { lat, lon, elevation };
     std::optional<float> sp = (speed > 0.0) ? std::optional<float>(static_cast<float>(speed)) : std::nullopt;
     std::optional<float> w = (areaWidth > 0.0) ? std::optional<float>(static_cast<float>(areaWidth)) : std::nullopt;
     std::optional<float> h = (areaHeight > 0.0) ? std::optional<float>(static_cast<float>(areaHeight)) : std::nullopt;
@@ -279,7 +279,7 @@ void QOnvifDevice::refreshGeoLocation()
     }
 }
 
-void QOnvifDevice::updateGeoLocation(const PelcoD::Onvif::LocationEntity& location)
+void QOnvifDevice::updateGeoLocation(const Onvif::LocationEntity& location)
 {
     if (!m_client) {
         return;
@@ -379,7 +379,7 @@ void QOnvifDevice::refreshPresetTours()
     emit presetToursUpdated(m_presetTours);
 }
 
-bool QOnvifDevice::operatePresetTour(const QString& tourToken, PelcoD::Onvif::PresetTourOperation operation)
+bool QOnvifDevice::operatePresetTour(const QString& tourToken, Onvif::PresetTourOperation operation)
 {
     if (!m_client || m_activeProfileToken.isEmpty()) {
         return false;
@@ -391,16 +391,16 @@ bool QOnvifDevice::operatePresetTour(const QString& tourToken, PelcoD::Onvif::Pr
 
 bool QOnvifDevice::operatePresetTour(const QString& tourToken, const QString& operation)
 {
-    PelcoD::Onvif::PresetTourOperation op = PelcoD::Onvif::PresetTourOperation::Start;
+    Onvif::PresetTourOperation op = Onvif::PresetTourOperation::Start;
     if (operation.compare("Stop", ::Qt::CaseInsensitive) == 0) {
-        op = PelcoD::Onvif::PresetTourOperation::Stop;
+        op = Onvif::PresetTourOperation::Stop;
     } else if (operation.compare("Pause", ::Qt::CaseInsensitive) == 0) {
-        op = PelcoD::Onvif::PresetTourOperation::Pause;
+        op = Onvif::PresetTourOperation::Pause;
     }
     return operatePresetTour(tourToken, op);
 }
 
-bool QOnvifDevice::modifyPresetTour(const PelcoD::Onvif::PresetTour& tour)
+bool QOnvifDevice::modifyPresetTour(const Onvif::PresetTour& tour)
 {
     if (!m_client || m_activeProfileToken.isEmpty()) {
         return false;
@@ -477,7 +477,7 @@ void QOnvifDevice::refreshImagingSettings(const QString& videoSourceToken)
     }
 }
 
-bool QOnvifDevice::setImagingSettings(const PelcoD::Onvif::ImagingSettings& settings, const QString& videoSourceToken)
+bool QOnvifDevice::setImagingSettings(const Onvif::ImagingSettings& settings, const QString& videoSourceToken)
 {
     if (!m_client) {
         return false;
@@ -671,12 +671,12 @@ void QOnvifDevice::refreshOSDs()
     emit osdsUpdated(m_osds);
 }
 
-QString QOnvifDevice::createOSD(const PelcoD::Onvif::OsdConfig& osd)
+QString QOnvifDevice::createOSD(const Onvif::OsdConfig& osd)
 {
     if (!m_client) {
         return QString();
     }
-    PelcoD::Onvif::OsdConfig cfg = osd;
+    Onvif::OsdConfig cfg = osd;
     if (cfg.videoSourceToken.empty() && !m_activeVideoSourceToken.isEmpty()) {
         cfg.videoSourceToken = m_activeVideoSourceToken.toStdString();
     }
@@ -688,12 +688,12 @@ QString QOnvifDevice::createOSD(const PelcoD::Onvif::OsdConfig& osd)
     return QString();
 }
 
-bool QOnvifDevice::setOSD(const PelcoD::Onvif::OsdConfig& osd)
+bool QOnvifDevice::setOSD(const Onvif::OsdConfig& osd)
 {
     if (!m_client) {
         return false;
     }
-    PelcoD::Onvif::OsdConfig cfg = osd;
+    Onvif::OsdConfig cfg = osd;
     if (cfg.videoSourceToken.empty() && !m_activeVideoSourceToken.isEmpty()) {
         cfg.videoSourceToken = m_activeVideoSourceToken.toStdString();
     }
@@ -725,7 +725,7 @@ void QOnvifDevice::refreshUsers()
     emit usersUpdated(m_users);
 }
 
-bool QOnvifDevice::createUser(const PelcoD::Onvif::OnvifUser& user)
+bool QOnvifDevice::createUser(const Onvif::OnvifUser& user)
 {
     if (!m_client) {
         return false;
@@ -737,7 +737,7 @@ bool QOnvifDevice::createUser(const PelcoD::Onvif::OnvifUser& user)
     return ok;
 }
 
-bool QOnvifDevice::setUser(const PelcoD::Onvif::OnvifUser& user)
+bool QOnvifDevice::setUser(const Onvif::OnvifUser& user)
 {
     if (!m_client) {
         return false;
@@ -770,7 +770,7 @@ void QOnvifDevice::refreshNetworkInterfaces()
     emit networkInterfacesUpdated(m_networkInterfaces);
 }
 
-bool QOnvifDevice::setNetworkInterface(const PelcoD::Onvif::NetworkInterfaceConfig& config)
+bool QOnvifDevice::setNetworkInterface(const Onvif::NetworkInterfaceConfig& config)
 {
     if (!m_client) {
         return false;
@@ -815,7 +815,7 @@ void QOnvifDevice::refreshDNS()
     }
 }
 
-bool QOnvifDevice::setDNS(const PelcoD::Onvif::DnsConfig& dns)
+bool QOnvifDevice::setDNS(const Onvif::DnsConfig& dns)
 {
     if (!m_client) {
         return false;
@@ -839,7 +839,7 @@ void QOnvifDevice::refreshNTP()
     }
 }
 
-bool QOnvifDevice::setNTP(const PelcoD::Onvif::NtpConfig& ntp)
+bool QOnvifDevice::setNTP(const Onvif::NtpConfig& ntp)
 {
     if (!m_client) {
         return false;
@@ -851,7 +851,7 @@ bool QOnvifDevice::setNTP(const PelcoD::Onvif::NtpConfig& ntp)
     return ok;
 }
 
-bool QOnvifDevice::setSystemDateAndTime(const PelcoD::Onvif::SystemDateTimeConfig& dt)
+bool QOnvifDevice::setSystemDateAndTime(const Onvif::SystemDateTimeConfig& dt)
 {
     if (!m_client) {
         return false;
@@ -864,8 +864,8 @@ bool QOnvifDevice::setSystemFactoryDefault(bool hard)
     if (!m_client) {
         return false;
     }
-    const bool ok = m_client->setSystemFactoryDefault(
-        hard ? PelcoD::Onvif::FactoryDefaultType::Hard : PelcoD::Onvif::FactoryDefaultType::Soft);
+    const bool ok
+        = m_client->setSystemFactoryDefault(hard ? Onvif::FactoryDefaultType::Hard : Onvif::FactoryDefaultType::Soft);
     emit factoryDefaultCompleted(ok);
     return ok;
 }
@@ -886,7 +886,7 @@ bool QOnvifDevice::setRelayOutputState(const QString& relayToken, bool active)
         return false;
     }
 
-    const auto state = active ? PelcoD::Onvif::RelayLogicalState::Active : PelcoD::Onvif::RelayLogicalState::Inactive;
+    const auto state = active ? Onvif::RelayLogicalState::Active : Onvif::RelayLogicalState::Inactive;
     const bool ok = m_client->setRelayOutputState(relayToken.toStdString(), state);
     if (ok) {
         refreshRelayOutputs();
@@ -894,7 +894,7 @@ bool QOnvifDevice::setRelayOutputState(const QString& relayToken, bool active)
     return ok;
 }
 
-bool QOnvifDevice::setRelayOutputSettings(const QString& relayToken, const PelcoD::Onvif::RelayOutputConfig& settings)
+bool QOnvifDevice::setRelayOutputSettings(const QString& relayToken, const Onvif::RelayOutputConfig& settings)
 {
     if (!m_client) {
         return false;
@@ -926,7 +926,7 @@ void QOnvifDevice::refreshMetadataConfigurations()
     emit metadataConfigurationsUpdated(m_metadataConfigs);
 }
 
-bool QOnvifDevice::setMetadataConfiguration(const PelcoD::Onvif::MetadataConfiguration& config)
+bool QOnvifDevice::setMetadataConfiguration(const Onvif::MetadataConfiguration& config)
 {
     if (!m_client) {
         return false;
@@ -986,7 +986,7 @@ void QOnvifDevice::pollMetadata()
     pollCurrentMetadata();
 }
 
-void QOnvifDevice::fetchSystemLog(PelcoD::Onvif::SystemLogType logType)
+void QOnvifDevice::fetchSystemLog(Onvif::SystemLogType logType)
 {
     if (!m_client) {
         return;
@@ -1090,7 +1090,7 @@ bool QOnvifDevice::createPkcs10Csr(const QString& certificateId, const QString& 
     return false;
 }
 
-bool QOnvifDevice::loadCertificates(const std::vector<PelcoD::Onvif::OnvifCertificate>& certificates)
+bool QOnvifDevice::loadCertificates(const std::vector<Onvif::OnvifCertificate>& certificates)
 {
     if (!m_client) {
         return false;
@@ -1131,7 +1131,7 @@ void QOnvifDevice::refreshClientCertificateMode()
     }
 }
 
-bool QOnvifDevice::setClientCertificateMode(PelcoD::Onvif::ClientCertificateMode mode)
+bool QOnvifDevice::setClientCertificateMode(Onvif::ClientCertificateMode mode)
 {
     if (!m_client) {
         return false;
@@ -1157,7 +1157,7 @@ void QOnvifDevice::refreshRecordings()
     emit recordingsUpdated(m_recordings);
 }
 
-QString QOnvifDevice::createRecording(const PelcoD::Onvif::RecordingConfig& config)
+QString QOnvifDevice::createRecording(const Onvif::RecordingConfig& config)
 {
     if (!m_client) {
         return {};
@@ -1170,7 +1170,7 @@ QString QOnvifDevice::createRecording(const PelcoD::Onvif::RecordingConfig& conf
     return {};
 }
 
-bool QOnvifDevice::setRecordingConfiguration(const PelcoD::Onvif::RecordingConfig& config)
+bool QOnvifDevice::setRecordingConfiguration(const Onvif::RecordingConfig& config)
 {
     if (!m_client) {
         return false;
@@ -1194,7 +1194,7 @@ bool QOnvifDevice::deleteRecording(const QString& recordingToken)
     return ok;
 }
 
-QString QOnvifDevice::createTrack(const QString& recordingToken, const PelcoD::Onvif::RecordingTrack& track)
+QString QOnvifDevice::createTrack(const QString& recordingToken, const Onvif::RecordingTrack& track)
 {
     if (!m_client) {
         return {};
@@ -1228,7 +1228,7 @@ void QOnvifDevice::refreshRecordingJobs()
     emit recordingJobsUpdated(m_recordingJobs);
 }
 
-QString QOnvifDevice::createRecordingJob(const PelcoD::Onvif::RecordingJob& job)
+QString QOnvifDevice::createRecordingJob(const Onvif::RecordingJob& job)
 {
     if (!m_client) {
         return {};
@@ -1241,7 +1241,7 @@ QString QOnvifDevice::createRecordingJob(const PelcoD::Onvif::RecordingJob& job)
     return {};
 }
 
-bool QOnvifDevice::setRecordingJobMode(const QString& jobToken, PelcoD::Onvif::RecordingJobMode mode)
+bool QOnvifDevice::setRecordingJobMode(const QString& jobToken, Onvif::RecordingJobMode mode)
 {
     if (!m_client) {
         return false;
@@ -1356,7 +1356,7 @@ void QOnvifDevice::refreshReplayConfiguration()
     }
 }
 
-bool QOnvifDevice::setReplayConfiguration(const PelcoD::Onvif::ReplayConfiguration& config)
+bool QOnvifDevice::setReplayConfiguration(const Onvif::ReplayConfiguration& config)
 {
     if (!m_client) {
         return false;
@@ -1393,7 +1393,7 @@ void QOnvifDevice::refreshRules()
     emit rulesUpdated(m_rules);
 }
 
-bool QOnvifDevice::createRules(const std::vector<PelcoD::Onvif::AnalyticsRule>& rules)
+bool QOnvifDevice::createRules(const std::vector<Onvif::AnalyticsRule>& rules)
 {
     if (!m_client) {
         return false;
@@ -1406,7 +1406,7 @@ bool QOnvifDevice::createRules(const std::vector<PelcoD::Onvif::AnalyticsRule>& 
     return ok;
 }
 
-bool QOnvifDevice::modifyRules(const std::vector<PelcoD::Onvif::AnalyticsRule>& rules)
+bool QOnvifDevice::modifyRules(const std::vector<Onvif::AnalyticsRule>& rules)
 {
     if (!m_client) {
         return false;
@@ -1457,7 +1457,7 @@ void QOnvifDevice::refreshAnalyticsModules()
     emit analyticsModulesUpdated(m_analyticsModules);
 }
 
-bool QOnvifDevice::createAnalyticsModules(const std::vector<PelcoD::Onvif::AnalyticsModule>& modules)
+bool QOnvifDevice::createAnalyticsModules(const std::vector<Onvif::AnalyticsModule>& modules)
 {
     if (!m_client) {
         return false;
@@ -1470,7 +1470,7 @@ bool QOnvifDevice::createAnalyticsModules(const std::vector<PelcoD::Onvif::Analy
     return ok;
 }
 
-bool QOnvifDevice::modifyAnalyticsModules(const std::vector<PelcoD::Onvif::AnalyticsModule>& modules)
+bool QOnvifDevice::modifyAnalyticsModules(const std::vector<Onvif::AnalyticsModule>& modules)
 {
     if (!m_client) {
         return false;
@@ -1528,7 +1528,7 @@ void QOnvifDevice::refreshMaskOptions(const QString& configToken)
     }
 }
 
-QString QOnvifDevice::createMask(const PelcoD::Onvif::PrivacyMask& mask)
+QString QOnvifDevice::createMask(const Onvif::PrivacyMask& mask)
 {
     if (!m_client) {
         return QString();
@@ -1540,7 +1540,7 @@ QString QOnvifDevice::createMask(const PelcoD::Onvif::PrivacyMask& mask)
     return QString::fromStdString(token);
 }
 
-bool QOnvifDevice::setMask(const PelcoD::Onvif::PrivacyMask& mask)
+bool QOnvifDevice::setMask(const Onvif::PrivacyMask& mask)
 {
     if (!m_client) {
         return false;
@@ -1608,8 +1608,7 @@ void QOnvifDevice::refreshRadiometryConfiguration(const QString& videoSourceToke
     }
 }
 
-bool QOnvifDevice::setRadiometryConfiguration(
-    const QString& videoSourceToken, const PelcoD::Onvif::RadiometryConfig& config)
+bool QOnvifDevice::setRadiometryConfiguration(const QString& videoSourceToken, const Onvif::RadiometryConfig& config)
 {
     if (!m_client) {
         return false;
@@ -1635,8 +1634,7 @@ void QOnvifDevice::refreshRadiometryMeasurements(const QString& videoSourceToken
     emit radiometryBoxesUpdated(m_radiometryBoxes);
 }
 
-bool QOnvifDevice::setRadiometrySpots(
-    const QString& videoSourceToken, const std::vector<PelcoD::Onvif::RadiometrySpot>& spots)
+bool QOnvifDevice::setRadiometrySpots(const QString& videoSourceToken, const std::vector<Onvif::RadiometrySpot>& spots)
 {
     if (!m_client) {
         return false;
@@ -1650,8 +1648,7 @@ bool QOnvifDevice::setRadiometrySpots(
     return ok;
 }
 
-bool QOnvifDevice::setRadiometryBoxes(
-    const QString& videoSourceToken, const std::vector<PelcoD::Onvif::RadiometryBox>& boxes)
+bool QOnvifDevice::setRadiometryBoxes(const QString& videoSourceToken, const std::vector<Onvif::RadiometryBox>& boxes)
 {
     if (!m_client) {
         return false;

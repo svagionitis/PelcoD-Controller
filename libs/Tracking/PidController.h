@@ -105,8 +105,3 @@ private:
 };
 
 } // namespace Tracking
-
-namespace PelcoD {
-namespace Tracking = ::Tracking;
-using PidController = ::Tracking::PidController;
-} // namespace PelcoD

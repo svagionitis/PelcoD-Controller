@@ -17,7 +17,7 @@ namespace Tracking {
 /// @brief Non-linear estimation algorithm type.
 enum class EstimatorType : std::uint8_t {
     EKF, ///< Extended Kalman Filter (analytical Jacobian linearization, lowest CPU).
-    UKF  ///< Unscented Kalman Filter (deterministic sigma points, higher-order non-linear accuracy).
+    UKF ///< Unscented Kalman Filter (deterministic sigma points, higher-order non-linear accuracy).
 };
 
 /// @struct SphericalTargetState
@@ -92,8 +92,8 @@ public:
     /// @param[in] lookaheadLatencySeconds Forward projection lookahead time in seconds.
     /// @param[in] camPanRad Camera current pan angle in radians.
     /// @param[in] camTiltRad Camera current tilt angle in radians.
-    [[nodiscard]] SphericalTargetState getState(double lookaheadLatencySeconds = 0.0,
-        double camPanRad = 0.0, double camTiltRad = 0.0) const noexcept;
+    [[nodiscard]] SphericalTargetState getState(
+        double lookaheadLatencySeconds = 0.0, double camPanRad = 0.0, double camTiltRad = 0.0) const noexcept;
 
     /// @brief Sets active estimation algorithm (EKF or UKF).
     void setType(EstimatorType type);
@@ -125,11 +125,3 @@ private:
 };
 
 } // namespace Tracking
-
-namespace PelcoD {
-namespace Tracking = ::Tracking;
-using EstimatorType = ::Tracking::EstimatorType;
-using SphericalEstimatorConfig = ::Tracking::SphericalEstimatorConfig;
-using SphericalTargetState = ::Tracking::SphericalTargetState;
-using PtzSphericalEstimator = ::Tracking::PtzSphericalEstimator;
-} // namespace PelcoD

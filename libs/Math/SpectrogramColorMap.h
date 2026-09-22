@@ -29,7 +29,8 @@ public:
     /// @enum Preset
     /// @brief Curated visual color palettes.
     enum class Preset : std::uint8_t {
-        Inferno, ///< Perceptually uniform dark-purple -> red-orange -> bright yellow (industry thermal/spectral standard).
+        Inferno, ///< Perceptually uniform dark-purple -> red-orange -> bright yellow (industry thermal/spectral
+                 ///< standard).
         Viridis, ///< Perceptually uniform deep-purple -> teal -> emerald -> yellow.
         TacticalGreen, ///< Tactical monochrome phosphor HUD green gradient (black -> dark green -> neon mint).
         Jet ///< Classic rainbow spectrum (blue -> cyan -> green -> yellow -> red).
@@ -47,8 +48,8 @@ public:
     /// @param[in] maxDb Ceiling decibel cutoff (mapped to 1.0).
     /// @param[in] preset Colormap palette.
     /// @return 24-bit RgbColor triplet.
-    [[nodiscard]] static RgbColor mapDb(double db, double minDb = -60.0, double maxDb = 0.0,
-        Preset preset = Preset::Inferno) noexcept;
+    [[nodiscard]] static RgbColor mapDb(
+        double db, double minDb = -60.0, double maxDb = 0.0, Preset preset = Preset::Inferno) noexcept;
 
     /// @brief Generates an ANSI 24-bit truecolor escape sequence rendering two vertical bins in one character cell.
     /// @details Uses the Unicode upper half-block glyph (▀): the top half is colored with normTop (foreground),
@@ -57,14 +58,8 @@ public:
     /// @param[in] normBottom Normalized intensity for bottom frequency bin [0.0, 1.0].
     /// @param[in] preset Colormap palette.
     /// @return String containing ANSI color escape sequences and upper half-block character.
-    [[nodiscard]] static std::string mapHalfBlockAnsi(double normTop, double normBottom,
-        Preset preset = Preset::Inferno);
+    [[nodiscard]] static std::string mapHalfBlockAnsi(
+        double normTop, double normBottom, Preset preset = Preset::Inferno);
 };
 
 } // namespace Math
-
-namespace PelcoD {
-namespace Math = ::Math;
-using RgbColor = ::Math::RgbColor;
-using SpectrogramColorMap = ::Math::SpectrogramColorMap;
-} // namespace PelcoD

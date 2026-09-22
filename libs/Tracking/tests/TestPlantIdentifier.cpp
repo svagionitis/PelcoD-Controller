@@ -4,12 +4,14 @@
 #include "ChirpCalibrator.h"
 #include "PlantIdentifier.h"
 
-#include <gtest/gtest.h>
 #include <cmath>
+#include <gtest/gtest.h>
 #include <iostream>
 #include <vector>
 
 namespace {
+
+using namespace Tracking;
 
 constexpr double PI { 3.14159265358979323846 };
 constexpr double TWO_PI { 2.0 * PI };
@@ -18,15 +20,15 @@ TEST(PlantIdentifierTest, ChirpGeneration)
 {
     std::cout << "[Test] Chirp signal generation and envelope tapering...\n";
 
-    PelcoD::ChirpConfig config {};
+    ChirpConfig config {};
     config.startFreqHz = 0.5;
     config.endFreqHz = 10.0;
     config.durationSec = 4.0;
     config.sampleRateHz = 50.0;
     config.amplitude = 1.0;
-    config.type = PelcoD::ChirpType::Linear;
+    config.type = ChirpType::Linear;
 
-    PelcoD::PlantIdentifier identifier(config);
+    PlantIdentifier identifier(config);
 
     // Boundary conditions
     EXPECT_TRUE(identifier.generateChirpSample(-0.1) == 0.0);
@@ -40,7 +42,7 @@ TEST(PlantIdentifierTest, ChirpGeneration)
     EXPECT_TRUE(std::abs(valEnd) < 1e-6);
 
     // Logarithmic chirp
-    config.type = PelcoD::ChirpType::Logarithmic;
+    config.type = ChirpType::Logarithmic;
     identifier.setConfig(config);
 
     bool hasPositive = false;
@@ -66,16 +68,16 @@ TEST(PlantIdentifierTest, FirstOrderPlantIdentification)
 {
     std::cout << "[Test] First-order physical plant identification (K=2.0, Tau=0.1s)...\n";
 
-    PelcoD::ChirpConfig config {};
+    ChirpConfig config {};
     config.startFreqHz = 0.2;
     config.endFreqHz = 10.0;
     config.durationSec = 8.0;
     config.sampleRateHz = 50.0;
     config.segmentSize = 128U;
     config.overlapRatio = 0.5;
-    config.type = PelcoD::ChirpType::Logarithmic;
+    config.type = ChirpType::Logarithmic;
 
-    PelcoD::PlantIdentifier identifier(config);
+    PlantIdentifier identifier(config);
 
     const double dt = 1.0 / config.sampleRateHz;
     const std::size_t totalSamples = static_cast<std::size_t>(config.durationSec * config.sampleRateHz);
@@ -120,15 +122,15 @@ TEST(PlantIdentifierTest, SecondOrderResonanceDetection)
 {
     std::cout << "[Test] Second-order mechanical plant with structural resonance at 4.0 Hz...\n";
 
-    PelcoD::ChirpConfig config {};
+    ChirpConfig config {};
     config.startFreqHz = 0.2;
     config.endFreqHz = 12.0;
     config.durationSec = 10.0;
     config.sampleRateHz = 50.0;
     config.segmentSize = 128U;
-    config.type = PelcoD::ChirpType::Linear;
+    config.type = ChirpType::Linear;
 
-    PelcoD::PlantIdentifier identifier(config);
+    PlantIdentifier identifier(config);
 
     const double dt = 1.0 / config.sampleRateHz;
     const std::size_t totalSamples = static_cast<std::size_t>(config.durationSec * config.sampleRateHz);
@@ -178,14 +180,14 @@ TEST(PlantIdentifierTest, CoherenceEstimation)
 {
     std::cout << "[Test] Spectral coherence under clean vs noisy measurements...\n";
 
-    PelcoD::ChirpConfig config {};
+    ChirpConfig config {};
     config.startFreqHz = 0.5;
     config.endFreqHz = 8.0;
     config.durationSec = 6.0;
     config.sampleRateHz = 50.0;
     config.segmentSize = 64U;
 
-    PelcoD::PlantIdentifier identifier(config);
+    PlantIdentifier identifier(config);
 
     const double dt = 1.0 / config.sampleRateHz;
     const std::size_t totalSamples = static_cast<std::size_t>(config.durationSec * config.sampleRateHz);
@@ -236,10 +238,10 @@ TEST(PlantIdentifierTest, PidAutoTuningRules)
 {
     std::cout << "[Test] PID auto-tuning algorithms (Tyreus-Luyben, ZN, AMIGO, IMC)...\n";
 
-    PelcoD::PlantIdentifier identifier;
+    PlantIdentifier identifier;
 
     // Simulate an identification result with Ku = 10.0, Tu = 0.5s, K=1.5, Tau=0.2s, Td=0.05s
-    PelcoD::ChirpConfig config {};
+    ChirpConfig config {};
     config.startFreqHz = 0.2;
     config.endFreqHz = 10.0;
     config.durationSec = 6.0;
@@ -258,14 +260,14 @@ TEST(PlantIdentifierTest, PidAutoTuningRules)
     identifier.analyze(u, y);
 
     // 1. Tyreus-Luyben
-    const auto tl = identifier.computePidGains(PelcoD::TuningRule::TyreusLuyben);
+    const auto tl = identifier.computePidGains(TuningRule::TyreusLuyben);
     EXPECT_TRUE(tl.kp > 0.0);
     EXPECT_TRUE(tl.ki > 0.0);
     EXPECT_TRUE(tl.kd > 0.0);
     std::cout << "  -> Tyreus-Luyben: Kp=" << tl.kp << ", Ki=" << tl.ki << ", Kd=" << tl.kd << "\n";
 
     // 2. Ziegler-Nichols
-    const auto zn = identifier.computePidGains(PelcoD::TuningRule::ZieglerNichols);
+    const auto zn = identifier.computePidGains(TuningRule::ZieglerNichols);
     EXPECT_TRUE(zn.kp > 0.0);
     EXPECT_TRUE(zn.ki > 0.0);
     EXPECT_TRUE(zn.kd > 0.0);
@@ -274,14 +276,14 @@ TEST(PlantIdentifierTest, PidAutoTuningRules)
     std::cout << "  -> Ziegler-Nichols: Kp=" << zn.kp << ", Ki=" << zn.ki << ", Kd=" << zn.kd << "\n";
 
     // 3. AMIGO
-    const auto amigo = identifier.computePidGains(PelcoD::TuningRule::Amigo);
+    const auto amigo = identifier.computePidGains(TuningRule::Amigo);
     EXPECT_TRUE(amigo.kp > 0.0);
     EXPECT_TRUE(amigo.ki > 0.0);
     EXPECT_TRUE(amigo.kd >= 0.0);
     std::cout << "  -> AMIGO: Kp=" << amigo.kp << ", Ki=" << amigo.ki << ", Kd=" << amigo.kd << "\n";
 
     // 4. IMC
-    const auto imc = identifier.computePidGains(PelcoD::TuningRule::Imc);
+    const auto imc = identifier.computePidGains(TuningRule::Imc);
     EXPECT_TRUE(imc.kp > 0.0);
     EXPECT_TRUE(imc.ki > 0.0);
     EXPECT_TRUE(imc.kd >= 0.0);
@@ -299,12 +301,12 @@ TEST(PlantIdentifierTest, ChirpCalibratorWorkflowAndCancel)
     int commandedTiltDir = 0;
     int commandedTiltSpeed = 0;
 
-    PelcoD::ChirpConfig config {};
+    ChirpConfig config {};
     config.durationSec = 2.0;
     config.sampleRateHz = 50.0;
     config.segmentSize = 64U;
 
-    PelcoD::ChirpCalibrator calibrator(
+    ChirpCalibrator calibrator(
         [&](int pDir, int pSpeed, int tDir, int tSpeed) {
             commandedPanDir = pDir;
             commandedPanSpeed = pSpeed;
@@ -313,13 +315,13 @@ TEST(PlantIdentifierTest, ChirpCalibratorWorkflowAndCancel)
         },
         config);
 
-    EXPECT_TRUE(calibrator.getState() == PelcoD::ChirpCalibratorState::Idle);
+    EXPECT_TRUE(calibrator.getState() == ChirpCalibratorState::Idle);
 
     // Start calibration sweep on Pan axis with maxSpeed = 30
-    const bool started = calibrator.start(PelcoD::CalibrationAxis::Pan, 30, 100.0);
+    const bool started = calibrator.start(CalibrationAxis::Pan, 30, 100.0);
     EXPECT_TRUE(started);
     EXPECT_TRUE(calibrator.isRunning());
-    EXPECT_TRUE(calibrator.getState() == PelcoD::ChirpCalibratorState::PreSettle);
+    EXPECT_TRUE(calibrator.getState() == ChirpCalibratorState::PreSettle);
 
     // During PreSettle, motor should be stopped
     calibrator.update(100.1);
@@ -327,7 +329,7 @@ TEST(PlantIdentifierTest, ChirpCalibratorWorkflowAndCancel)
 
     // Advance past PreSettle (0.40s) into Sweeping
     calibrator.update(100.5);
-    EXPECT_TRUE(calibrator.getState() == PelcoD::ChirpCalibratorState::Sweeping);
+    EXPECT_TRUE(calibrator.getState() == ChirpCalibratorState::Sweeping);
 
     // During sweeping, motor commands should be dispatched and bounded by maxSpeed 30
     bool commandedMotion = false;
@@ -345,11 +347,10 @@ TEST(PlantIdentifierTest, ChirpCalibratorWorkflowAndCancel)
     // Test cancellation halts motion and resets state
     calibrator.cancel();
     EXPECT_TRUE(!calibrator.isRunning());
-    EXPECT_TRUE(calibrator.getState() == PelcoD::ChirpCalibratorState::Idle);
+    EXPECT_TRUE(calibrator.getState() == ChirpCalibratorState::Idle);
     EXPECT_TRUE(commandedPanSpeed == 0 && commandedPanDir == 0);
 
     std::cout << "  -> Passed!\n";
 }
 
 } // namespace
-

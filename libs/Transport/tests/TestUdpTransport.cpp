@@ -16,10 +16,12 @@
 
 namespace {
 
+using namespace Transport;
+
 /// @brief Verify UdpTransport constructors, accessors, and configuration setters.
 TEST(UdpTransportTest, AccessorsAndDefaults)
 {
-    PelcoD::UdpTransport transport("127.0.0.1", 8080U, 8081U);
+    UdpTransport transport("127.0.0.1", 8080U, 8081U);
 
     EXPECT_EQ(transport.getHost(), "127.0.0.1");
     EXPECT_EQ(transport.getPort(), 8080U);
@@ -50,8 +52,8 @@ TEST(UdpTransportTest, LoopbackCommunication)
     constexpr std::uint16_t portA { 28881U };
     constexpr std::uint16_t portB { 28882U };
 
-    PelcoD::UdpTransport peerA("127.0.0.1", portB, portA);
-    PelcoD::UdpTransport peerB("127.0.0.1", portA, portB);
+    UdpTransport peerA("127.0.0.1", portB, portA);
+    UdpTransport peerB("127.0.0.1", portA, portB);
 
     std::mutex mtxA;
     std::condition_variable cvA;
@@ -87,9 +89,8 @@ TEST(UdpTransportTest, LoopbackCommunication)
 
     {
         std::unique_lock<std::mutex> lock(mtxB);
-        const bool received = cvB.wait_for(lock, std::chrono::seconds(2), [&]() {
-            return receivedB.size() >= frameAtoB.size();
-        });
+        const bool received
+            = cvB.wait_for(lock, std::chrono::seconds(2), [&]() { return receivedB.size() >= frameAtoB.size(); });
         ASSERT_TRUE(received) << "Peer B timed out waiting for datagram from Peer A";
         EXPECT_EQ(receivedB, frameAtoB) << "Peer B received payload does not match sent frame";
     }
@@ -100,9 +101,8 @@ TEST(UdpTransportTest, LoopbackCommunication)
 
     {
         std::unique_lock<std::mutex> lock(mtxA);
-        const bool received = cvA.wait_for(lock, std::chrono::seconds(2), [&]() {
-            return receivedA.size() >= frameBtoA.size();
-        });
+        const bool received
+            = cvA.wait_for(lock, std::chrono::seconds(2), [&]() { return receivedA.size() >= frameBtoA.size(); });
         ASSERT_TRUE(received) << "Peer A timed out waiting for datagram from Peer B";
         EXPECT_EQ(receivedA, frameBtoA) << "Peer A received payload does not match sent frame";
     }
@@ -122,21 +122,21 @@ TEST(UdpTransportTest, ErrorHandling)
 {
     // Empty host address
     {
-        PelcoD::UdpTransport transport("", 9000U);
+        UdpTransport transport("", 9000U);
         EXPECT_FALSE(transport.open());
         EXPECT_FALSE(transport.isOpen());
     }
 
     // Zero destination port
     {
-        PelcoD::UdpTransport transport("127.0.0.1", 0U);
+        UdpTransport transport("127.0.0.1", 0U);
         EXPECT_FALSE(transport.open());
         EXPECT_FALSE(transport.isOpen());
     }
 
     // Unresolvable hostname
     {
-        PelcoD::UdpTransport transport("invalid.domain.that.cannot.exist.test", 9000U);
+        UdpTransport transport("invalid.domain.that.cannot.exist.test", 9000U);
         EXPECT_FALSE(transport.open());
         EXPECT_FALSE(transport.isOpen());
     }

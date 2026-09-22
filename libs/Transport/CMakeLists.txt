@@ -13,8 +13,6 @@ add_library(Transport STATIC
     SocketUtils.cpp
 )
 
-add_library(PelcoDTransport ALIAS Transport)
-
 target_include_directories(Transport PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/..>

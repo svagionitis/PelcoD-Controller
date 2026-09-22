@@ -5,12 +5,12 @@
 #include "ExtendedKalmanFilter.h"
 #include "MatrixMath.h"
 
-#include <gtest/gtest.h>
 #include <cmath>
+#include <gtest/gtest.h>
 #include <iostream>
 
-using namespace PelcoD;
-using namespace PelcoD::Math;
+using namespace Tracking;
+using namespace Math;
 
 namespace {
 
@@ -236,4 +236,3 @@ TEST(ExtendedKalmanFilterTest, PredictUpdateCycleConverges)
 }
 
 } // namespace
-

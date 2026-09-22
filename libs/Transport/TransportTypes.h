@@ -12,7 +12,3 @@ namespace Transport {
 enum class TransportState : std::uint8_t { Disconnected = 0x00U, Connecting = 0x01U, Connected = 0x02U, Error = 0x03U };
 
 } // namespace Transport
-
-namespace PelcoD {
-using Transport::TransportState;
-} // namespace PelcoD

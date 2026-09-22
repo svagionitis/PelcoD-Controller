@@ -113,39 +113,29 @@ struct OnvifServerConfig {
     MaskOptions defaultMaskOptions {};
 
     /// @brief Default video source capture modes (Profile T / Media2).
-    std::vector<VideoSourceMode> defaultVideoSourceModes {
-        { "Mode_1080p60", true, 60.0f, 1920, 1080, { "H264", "H265" }, false, "1080p 60fps Standard" },
+    std::vector<VideoSourceMode> defaultVideoSourceModes { { "Mode_1080p60", true, 60.0f, 1920, 1080,
+                                                               { "H264", "H265" }, false, "1080p 60fps Standard" },
         { "Mode_4K30", false, 30.0f, 3840, 2160, { "H264", "H265" }, true, "4K Ultra HD 30fps" },
-        { "Mode_720p120", false, 120.0f, 1280, 720, { "H264", "H265" }, true, "720p 120fps High Speed" }
-    };
+        { "Mode_720p120", false, 120.0f, 1280, 720, { "H264", "H265" }, true, "720p 120fps High Speed" } };
 
     /// @brief Default radiometric compensation parameters (ONVIF Thermal Service).
     RadiometryConfig defaultRadiometryConfig {};
 
     /// @brief Default radiometric spot meters.
-    std::vector<RadiometrySpot> defaultRadiometrySpots {
-        { "Spot_1", { 0.5f, 0.5f }, "Center Spot", 24.5f }
-    };
+    std::vector<RadiometrySpot> defaultRadiometrySpots { { "Spot_1", { 0.5f, 0.5f }, "Center Spot", 24.5f } };
 
     /// @brief Default radiometric measurement boxes.
-    std::vector<RadiometryBox> defaultRadiometryBoxes {
-        { "Box_1", { 0.2f, 0.2f }, { 0.8f, 0.8f }, "Central Target Zone", 21.0f, 36.8f, 28.4f }
-    };
+    std::vector<RadiometryBox> defaultRadiometryBoxes { { "Box_1", { 0.2f, 0.2f }, { 0.8f, 0.8f },
+        "Central Target Zone", 21.0f, 36.8f, 28.4f } };
 
     /// @brief Default radiometric temperature alarm configurations.
-    std::vector<RadiometryAlarmConfig> defaultRadiometryAlarms {
-        { "Box_1", 50.0f, 2.0f, RadiometryAlarmType::HighTemperature, true }
-    };
+    std::vector<RadiometryAlarmConfig> defaultRadiometryAlarms { { "Box_1", 50.0f, 2.0f,
+        RadiometryAlarmType::HighTemperature, true } };
 
     /// @brief Default thermal false-color palettes.
-    std::vector<ColorPalette> defaultColorPalettes {
-        { "WhiteHot", "White Hot", true },
-        { "BlackHot", "Black Hot", false },
-        { "Ironbow", "Ironbow", false },
-        { "Rainbow", "Rainbow", false },
-        { "Sepia", "Sepia", false },
-        { "Fire", "Fire", false }
-    };
+    std::vector<ColorPalette> defaultColorPalettes { { "WhiteHot", "White Hot", true },
+        { "BlackHot", "Black Hot", false }, { "Ironbow", "Ironbow", false }, { "Rainbow", "Rainbow", false },
+        { "Sepia", "Sepia", false }, { "Fire", "Fire", false } };
 
     /// @brief Default thermal service capabilities.
     ThermalCapabilities defaultThermalCapabilities {};
@@ -173,9 +163,7 @@ public:
     /// @param[in] videoSourceToken Video source token.
     /// @param[in] settings New imaging parameters.
     /// @return True if settings were successfully applied.
-    virtual bool handleSetImagingSettings(
-        const std::string& videoSourceToken, const ImagingSettings& settings)
-        = 0;
+    virtual bool handleSetImagingSettings(const std::string& videoSourceToken, const ImagingSettings& settings) = 0;
 
     /// @brief Starts continuous optical focus movement.
     /// @param[in] videoSourceToken Video source token.
@@ -248,8 +236,7 @@ public:
     /// @param[in] token Relay token.
     /// @param[in] settings Updated configuration parameters.
     /// @return True if configuration was applied.
-    virtual bool handleSetRelayOutputSettings(const std::string& token, const RelayOutputConfig& settings)
-        = 0;
+    virtual bool handleSetRelayOutputSettings(const std::string& token, const RelayOutputConfig& settings) = 0;
 
     /// @brief Changes the logical state (Active/Inactive) of a relay.
     /// @param[in] token Relay token.
@@ -811,9 +798,7 @@ public:
     /// @param[in] recordingToken Recording token.
     /// @param[in] config Updated configuration.
     /// @return True on success.
-    virtual bool handleSetRecordingConfiguration(
-        const std::string& recordingToken, const RecordingConfig& config)
-        = 0;
+    virtual bool handleSetRecordingConfiguration(const std::string& recordingToken, const RecordingConfig& config) = 0;
 
     /// @brief Retrieves aggregated storage volume and time window metrics.
     /// @return RecordingSummary structure.
@@ -955,8 +940,7 @@ public:
     /// @param[in] configToken VideoAnalyticsConfiguration token.
     /// @param[in] rules Rules to create.
     /// @return True on success.
-    virtual bool handleCreateRules(
-        const std::string& /*configToken*/, const std::vector<AnalyticsRule>& /*rules*/)
+    virtual bool handleCreateRules(const std::string& /*configToken*/, const std::vector<AnalyticsRule>& /*rules*/)
     {
         return true;
     }
@@ -965,8 +949,7 @@ public:
     /// @param[in] configToken VideoAnalyticsConfiguration token.
     /// @param[in] rules Updated rules.
     /// @return True on success.
-    virtual bool handleModifyRules(
-        const std::string& /*configToken*/, const std::vector<AnalyticsRule>& /*rules*/)
+    virtual bool handleModifyRules(const std::string& /*configToken*/, const std::vector<AnalyticsRule>& /*rules*/)
     {
         return true;
     }
@@ -975,8 +958,7 @@ public:
     /// @param[in] configToken VideoAnalyticsConfiguration token.
     /// @param[in] ruleNames Names of rules to delete.
     /// @return True on success.
-    virtual bool handleDeleteRules(
-        const std::string& /*configToken*/, const std::vector<std::string>& /*ruleNames*/)
+    virtual bool handleDeleteRules(const std::string& /*configToken*/, const std::vector<std::string>& /*ruleNames*/)
     {
         return true;
     }
@@ -1121,8 +1103,7 @@ public:
     /// @brief Retrieves radiometric parameters for a video source.
     /// @param[in] videoSourceToken Video source token.
     /// @return RadiometryConfig structure.
-    [[nodiscard]] virtual RadiometryConfig handleGetRadiometryConfiguration(
-        const std::string& /*videoSourceToken*/)
+    [[nodiscard]] virtual RadiometryConfig handleGetRadiometryConfiguration(const std::string& /*videoSourceToken*/)
     {
         return {};
     }
@@ -1140,8 +1121,7 @@ public:
     /// @brief Retrieves radiometric spot meters.
     /// @param[in] videoSourceToken Video source token.
     /// @return Vector of RadiometrySpot.
-    [[nodiscard]] virtual std::vector<RadiometrySpot> handleGetRadiometrySpots(
-        const std::string& /*videoSourceToken*/)
+    [[nodiscard]] virtual std::vector<RadiometrySpot> handleGetRadiometrySpots(const std::string& /*videoSourceToken*/)
     {
         return {};
     }
@@ -1159,8 +1139,7 @@ public:
     /// @brief Retrieves radiometric measurement boxes.
     /// @param[in] videoSourceToken Video source token.
     /// @return Vector of RadiometryBox.
-    [[nodiscard]] virtual std::vector<RadiometryBox> handleGetRadiometryBoxes(
-        const std::string& /*videoSourceToken*/)
+    [[nodiscard]] virtual std::vector<RadiometryBox> handleGetRadiometryBoxes(const std::string& /*videoSourceToken*/)
     {
         return {};
     }
@@ -1178,8 +1157,7 @@ public:
     /// @brief Retrieves available thermal false-color palettes.
     /// @param[in] videoSourceToken Video source token.
     /// @return Vector of ColorPalette.
-    [[nodiscard]] virtual std::vector<ColorPalette> handleGetColorPalettes(
-        const std::string& /*videoSourceToken*/)
+    [[nodiscard]] virtual std::vector<ColorPalette> handleGetColorPalettes(const std::string& /*videoSourceToken*/)
     {
         return {};
     }
@@ -1188,8 +1166,7 @@ public:
     /// @param[in] videoSourceToken Video source token.
     /// @param[in] paletteToken Desired palette token (e.g. "Ironbow").
     /// @return True on success.
-    virtual bool handleSetColorPalette(
-        const std::string& /*videoSourceToken*/, const std::string& /*paletteToken*/)
+    virtual bool handleSetColorPalette(const std::string& /*videoSourceToken*/, const std::string& /*paletteToken*/)
     {
         return false;
     }
@@ -1204,7 +1181,3 @@ public:
 };
 
 } // namespace Onvif
- 
-namespace PelcoD {
-namespace Onvif = ::Onvif;
-} // namespace PelcoD

@@ -402,7 +402,6 @@ install(FILES
     libs/Tracking/LatencyCalibrator.h
     libs/Tracking/LatencyEstimator.h
     libs/Tracking/OscillationDetector.h
-    libs/Tracking/PelcoDTracking.h
     libs/Tracking/PidController.h
     libs/Tracking/PlantIdentifier.h
     libs/Tracking/PtzAutoTracker.h
@@ -425,7 +424,6 @@ if(PELCOD_ENABLE_ONVIF)
         libs/Onvif/OnvifServer.h
         libs/Onvif/OnvifServerTypes.h
         libs/Onvif/OnvifTypes.h
-        libs/Onvif/PelcoDPtzAdapter.h
         libs/Onvif/WsDiscoveryCommon.h
         libs/Onvif/WsDiscoveryServer.h
         libs/Onvif/XmlUtils.h

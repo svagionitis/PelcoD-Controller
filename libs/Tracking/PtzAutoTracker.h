@@ -67,10 +67,9 @@ public:
     /// @param[in] targetNormHeight Optional normalized target height [0.0 to 1.0] for auto-framing zoom.
     /// @param[in] currentZoom Current optical/sensor magnification factor (>= 1.0) for gain scheduling.
     /// @return Actionable TrackingCommand with discrete pan/tilt/zoom directions and speeds.
-    TrackingCommand updateAngular(double errorAzimuthDeg, double errorElevationDeg,
-        double omegaAzimuthDegPerSec, double omegaElevationDegPerSec,
-        bool isLocked, bool isCoasting, double dt,
-        double targetNormHeight = 0.0, double currentZoom = 1.0);
+    TrackingCommand updateAngular(double errorAzimuthDeg, double errorElevationDeg, double omegaAzimuthDegPerSec,
+        double omegaElevationDegPerSec, bool isLocked, bool isCoasting, double dt, double targetNormHeight = 0.0,
+        double currentZoom = 1.0);
 
     /// @brief Reset axis controllers, framing state, and set state to Idle.
     void reset() noexcept;
@@ -228,8 +227,3 @@ private:
 };
 
 } // namespace Tracking
-
-namespace PelcoD {
-namespace Tracking = ::Tracking;
-using PtzAutoTracker = ::Tracking::PtzAutoTracker;
-} // namespace PelcoD

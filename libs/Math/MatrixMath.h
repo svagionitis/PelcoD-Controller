@@ -14,8 +14,7 @@ namespace Math {
 
 /// @class Matrix
 /// @brief Fixed-size Rows x Cols matrix template with zero dynamic heap allocation.
-template <std::size_t Rows, std::size_t Cols>
-class Matrix {
+template <std::size_t Rows, std::size_t Cols> class Matrix {
 public:
     static constexpr std::size_t RowCount = Rows;
     static constexpr std::size_t ColCount = Cols;
@@ -234,8 +233,7 @@ private:
 
 /// @class Vector
 /// @brief Specialization of Matrix as a column vector (Dim x 1).
-template <std::size_t Dim>
-class Vector : public Matrix<Dim, 1> {
+template <std::size_t Dim> class Vector : public Matrix<Dim, 1> {
 public:
     /// @brief Default constructor zero-initializing all components.
     constexpr Vector() noexcept
@@ -334,9 +332,3 @@ template <std::size_t Rows, std::size_t Cols>
 }
 
 } // namespace Math
-
-namespace PelcoD {
-namespace Math = ::Math;
-using ::Math::Matrix;
-using ::Math::Vector;
-} // namespace PelcoD

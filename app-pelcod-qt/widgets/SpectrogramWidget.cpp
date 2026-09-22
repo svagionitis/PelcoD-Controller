@@ -19,21 +19,21 @@ SpectrogramWidget::SpectrogramWidget(QWidget* parent)
     setAttribute(Qt::WA_OpaquePaintEvent);
 }
 
-void SpectrogramWidget::setColorPreset(PelcoD::SpectrogramColorMap::Preset preset)
+void SpectrogramWidget::setColorPreset(Math::SpectrogramColorMap::Preset preset)
 {
     QMutexLocker locker(&m_mutex);
     m_preset = preset;
     update();
 }
 
-PelcoD::SpectrogramColorMap::Preset SpectrogramWidget::colorPreset() const noexcept
+Math::SpectrogramColorMap::Preset SpectrogramWidget::colorPreset() const noexcept
 {
     QMutexLocker locker(&m_mutex);
     return m_preset;
 }
 
 void SpectrogramWidget::updateSpectrogram(
-    const std::vector<PelcoD::SpectrogramFrame>& frames, const std::vector<double>& freqs)
+    const std::vector<Math::SpectrogramFrame>& frames, const std::vector<double>& freqs)
 {
     QMutexLocker locker(&m_mutex);
     m_frames = frames;
@@ -132,7 +132,7 @@ void SpectrogramWidget::renderWaterfall(QPainter& painter, const QRect& rect)
             const double db = (binIdx < static_cast<int>(frame.dbSpectrum.size()))
                 ? frame.dbSpectrum[static_cast<std::size_t>(binIdx)]
                 : m_minDb;
-            const auto rgb = PelcoD::SpectrogramColorMap::mapDb(db, m_minDb, m_maxDb, m_preset);
+            const auto rgb = Math::SpectrogramColorMap::mapDb(db, m_minDb, m_maxDb, m_preset);
             img.setPixel(c, r, qRgb(rgb.r, rgb.g, rgb.b));
         }
     }

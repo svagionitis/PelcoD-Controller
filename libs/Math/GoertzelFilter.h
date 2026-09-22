@@ -88,8 +88,3 @@ private:
 };
 
 } // namespace Math
-
-namespace PelcoD {
-namespace Math = ::Math;
-using GoertzelFilter = ::Math::GoertzelFilter;
-} // namespace PelcoD

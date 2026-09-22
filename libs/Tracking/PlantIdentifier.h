@@ -164,8 +164,7 @@ public:
     [[nodiscard]] std::size_t getSampleCount() const noexcept;
 
 private:
-    void computeWelchEstimates(const std::vector<double>& u, const std::vector<double>& y,
-        double fs, BodeData& bode);
+    void computeWelchEstimates(const std::vector<double>& u, const std::vector<double>& y, double fs, BodeData& bode);
     void extractStabilityMargins(const BodeData& bode, StabilityMargins& margins);
     void detectResonancePeaks(const BodeData& bode, std::vector<ResonancePeak>& peaks);
     void fitFopdtModel(const BodeData& bode, const StabilityMargins& margins, FopdtModel& model);
@@ -177,17 +176,3 @@ private:
 };
 
 } // namespace Tracking
-
-namespace PelcoD {
-namespace Tracking = ::Tracking;
-using ChirpType = ::Tracking::ChirpType;
-using TuningRule = ::Tracking::TuningRule;
-using ChirpConfig = ::Tracking::ChirpConfig;
-using BodeData = ::Tracking::BodeData;
-using StabilityMargins = ::Tracking::StabilityMargins;
-using ResonancePeak = ::Tracking::ResonancePeak;
-using FopdtModel = ::Tracking::FopdtModel;
-using PidTuningResult = ::Tracking::PidTuningResult;
-using PlantIdentificationResult = ::Tracking::PlantIdentificationResult;
-using PlantIdentifier = ::Tracking::PlantIdentifier;
-} // namespace PelcoD

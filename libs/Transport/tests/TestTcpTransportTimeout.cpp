@@ -34,11 +34,13 @@ constexpr TestSocket INVALID_SOCKET = -1;
 
 namespace {
 
+using namespace Transport;
+
 /// @brief open() to an unreachable address must complete within timeout + margin.
 TEST(TcpTransportTimeoutTest, ConnectTimesOutFast)
 {
     // 198.51.100.0/24 is TEST-NET-2 (RFC 5737) — guaranteed not routable.
-    PelcoD::TcpTransport transport("198.51.100.1", 9999U);
+    TcpTransport transport("198.51.100.1", 9999U);
     transport.setConnectTimeout(1000); // 1 s for a fast test
 
     const auto before = std::chrono::steady_clock::now();
@@ -55,7 +57,7 @@ TEST(TcpTransportTimeoutTest, ConnectTimesOutFast)
 TEST(TcpTransportTimeoutTest, ConnectRefusedFast)
 {
     // Port 1 is almost never in use; kernel replies ECONNREFUSED immediately.
-    PelcoD::TcpTransport transport("127.0.0.1", 1U);
+    TcpTransport transport("127.0.0.1", 1U);
     transport.setConnectTimeout(5000);
 
     const auto before = std::chrono::steady_clock::now();
@@ -76,7 +78,7 @@ TEST(TcpTransportTimeoutTest, ConnectRefusedFast)
 /// @brief open() to an invalid hostname must fail without hanging.
 TEST(TcpTransportTimeoutTest, DnsFailureFast)
 {
-    PelcoD::TcpTransport transport("this.hostname.does.not.exist.invalid", 4001U);
+    TcpTransport transport("this.hostname.does.not.exist.invalid", 4001U);
     transport.setConnectTimeout(5000);
 
     const auto before = std::chrono::steady_clock::now();
@@ -124,12 +126,12 @@ TEST(TcpTransportTimeoutTest, TcpRemoteClosureReportsClosed)
         acceptedClient.store(client);
     });
 
-    PelcoD::TcpTransport transport("127.0.0.1", port);
+    TcpTransport transport("127.0.0.1", port);
     transport.setConnectTimeout(3000);
 
     std::atomic<bool> disconnectedNotified { false };
-    transport.setStateCallback([&](PelcoD::TransportState state, const std::string&) {
-        if (state == PelcoD::TransportState::Disconnected) {
+    transport.setStateCallback([&](TransportState state, const std::string&) {
+        if (state == TransportState::Disconnected) {
             disconnectedNotified.store(true);
         }
     });
@@ -156,7 +158,8 @@ TEST(TcpTransportTimeoutTest, TcpRemoteClosureReportsClosed)
 
     EXPECT_TRUE(disconnectedNotified.load()) << "Transport must notify Disconnected upon remote closure";
     EXPECT_FALSE(transport.isOpen()) << "isOpen() must be false after remote closure";
-    EXPECT_FALSE(transport.sendData({ 0xFF, 0x01, 0x00, 0x00, 0x00, 0x00, 0x01 })) << "sendData() must fail when socket is dead";
+    EXPECT_FALSE(transport.sendData({ 0xFF, 0x01, 0x00, 0x00, 0x00, 0x00, 0x01 }))
+        << "sendData() must fail when socket is dead";
 
     transport.close();
     EXPECT_FALSE(transport.isOpen());
@@ -199,7 +202,7 @@ TEST(TcpTransportTimeoutTest, ConcurrentSendAndClose)
         acceptedClient.store(client);
     });
 
-    PelcoD::TcpTransport transport("127.0.0.1", port);
+    TcpTransport transport("127.0.0.1", port);
     transport.setConnectTimeout(3000);
     ASSERT_TRUE(transport.open());
     EXPECT_TRUE(transport.isOpen());

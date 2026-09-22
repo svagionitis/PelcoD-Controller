@@ -72,11 +72,3 @@ private:
 };
 
 } // namespace Math
-
-namespace PelcoD {
-namespace Math = ::Math;
-using DctMetricMode = ::Math::DctMetricMode;
-using DctSharpnessConfig = ::Math::DctSharpnessConfig;
-using SharpnessResult = ::Math::SharpnessResult;
-using DctSharpnessEvaluator = ::Math::DctSharpnessEvaluator;
-} // namespace PelcoD

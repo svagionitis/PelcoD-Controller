@@ -717,60 +717,66 @@ enum class ClientCertificateMode : std::uint8_t { Off, Optional, Required };
 /// @namespace CoordinateSpace
 /// @brief Standard ONVIF PTZ coordinate space URI identifiers.
 namespace CoordinateSpace {
-    inline constexpr const char* PositionGenericSpace = "http://www.onvif.org/ver10/tptz/PanTiltSpaces/PositionGenericSpace";
-    inline constexpr const char* PositionSphericalSpace = "http://www.onvif.org/ver10/tptz/PanTiltSpaces/PositionSphericalSpace";
-    inline constexpr const char* VelocityGenericSpace = "http://www.onvif.org/ver10/tptz/PanTiltSpaces/VelocityGenericSpace";
-    inline constexpr const char* TranslationGenericSpace = "http://www.onvif.org/ver10/tptz/PanTiltSpaces/TranslationGenericSpace";
+    inline constexpr const char* PositionGenericSpace
+        = "http://www.onvif.org/ver10/tptz/PanTiltSpaces/PositionGenericSpace";
+    inline constexpr const char* PositionSphericalSpace
+        = "http://www.onvif.org/ver10/tptz/PanTiltSpaces/PositionSphericalSpace";
+    inline constexpr const char* VelocityGenericSpace
+        = "http://www.onvif.org/ver10/tptz/PanTiltSpaces/VelocityGenericSpace";
+    inline constexpr const char* TranslationGenericSpace
+        = "http://www.onvif.org/ver10/tptz/PanTiltSpaces/TranslationGenericSpace";
 } // namespace CoordinateSpace
 
 /// @struct GeoOrientation
 /// @brief Spatial orientation angles relative to Earth (ONVIF Profile M / Core).
 struct GeoOrientation {
-    double yaw { 0.0 };    ///< Azimuth heading clockwise from True North [0.0, 360.0)
-    double pitch { 0.0 };  ///< Elevation tilt angle [-90.0, +90.0] (positive = up)
-    double roll { 0.0 };   ///< Bank rotation angle [-180.0, +180.0]
+    double yaw { 0.0 }; ///< Azimuth heading clockwise from True North [0.0, 360.0)
+    double pitch { 0.0 }; ///< Elevation tilt angle [-90.0, +90.0] (positive = up)
+    double roll { 0.0 }; ///< Bank rotation angle [-180.0, +180.0]
 };
 
 /// @struct LocationEntity
 /// @brief Geolocation container for a device or video source entity (ONVIF Device Management).
 struct LocationEntity {
     std::string entity { "Device" }; ///< Entity type ("Device", "VideoSource")
-    std::string token {};            ///< Entity token identifier
-    bool fixed { true };             ///< True if coordinates are statically configured
-    GeoLocation location {};         ///< WGS84 coordinates
-    GeoOrientation orientation {};   ///< 3-axis mounting orientation
+    std::string token {}; ///< Entity token identifier
+    bool fixed { true }; ///< True if coordinates are statically configured
+    GeoLocation location {}; ///< WGS84 coordinates
+    GeoOrientation orientation {}; ///< 3-axis mounting orientation
 };
 
 /// @struct GeoMoveTarget
 /// @brief Parameters for directing PTZ camera toward a geographic location (ONVIF PTZ GeoMove).
 struct GeoMoveTarget {
-    GeoLocation targetGeo {};               ///< Target WGS84 coordinate
-    std::optional<float> speed {};          ///< PTZ movement speed ratio [0.0, 1.0]
-    std::optional<float> areaWidth {};      ///< Target framing area width in meters (for auto-zoom)
-    std::optional<float> areaHeight {};     ///< Target framing area height in meters (for auto-zoom)
+    GeoLocation targetGeo {}; ///< Target WGS84 coordinate
+    std::optional<float> speed {}; ///< PTZ movement speed ratio [0.0, 1.0]
+    std::optional<float> areaWidth {}; ///< Target framing area width in meters (for auto-zoom)
+    std::optional<float> areaHeight {}; ///< Target framing area height in meters (for auto-zoom)
 };
 
 /// @struct SphericalPosition
 /// @brief Pan/tilt angles in standard spherical degrees (ONVIF PositionSphericalSpace).
 struct SphericalPosition {
-    double azimuthDegrees { 0.0 };   ///< Azimuth angle [0.0, 360.0) degrees
+    double azimuthDegrees { 0.0 }; ///< Azimuth angle [0.0, 360.0) degrees
     double elevationDegrees { 0.0 }; ///< Elevation angle [-90.0, +90.0] degrees
 };
 
 /// @enum MaskType
 /// @brief Visual obfuscation appearance for ONVIF Privacy Masks (Profile T).
 enum class MaskType {
-    Color,     ///< Solid opaque color rectangle or polygon
+    Color, ///< Solid opaque color rectangle or polygon
     Pixelated, ///< Mosaic / pixelated blur effect
-    Blurred    ///< Gaussian blur effect
+    Blurred ///< Gaussian blur effect
 };
 
 /// @brief Converts MaskType enum to ONVIF string representation.
 inline std::string maskTypeToString(MaskType type)
 {
     switch (type) {
-    case MaskType::Pixelated: return "Pixelated";
-    case MaskType::Blurred: return "Blurred";
+    case MaskType::Pixelated:
+        return "Pixelated";
+    case MaskType::Blurred:
+        return "Blurred";
     case MaskType::Color:
     default:
         return "Color";
@@ -780,126 +786,122 @@ inline std::string maskTypeToString(MaskType type)
 /// @brief Converts ONVIF string representation to MaskType enum.
 inline MaskType stringToMaskType(const std::string& str)
 {
-    if (str == "Pixelated") return MaskType::Pixelated;
-    if (str == "Blurred") return MaskType::Blurred;
+    if (str == "Pixelated")
+        return MaskType::Pixelated;
+    if (str == "Blurred")
+        return MaskType::Blurred;
     return MaskType::Color;
 }
-
 
 /// @struct MaskColor
 /// @brief Color specification for solid color privacy masks.
 struct MaskColor {
-    int x { 0 };                     ///< Color coordinate X (e.g. Red in RGB, Y in YUV) [0..255]
-    int y { 0 };                     ///< Color coordinate Y (e.g. Green in RGB, U in YUV) [0..255]
-    int z { 0 };                     ///< Color coordinate Z (e.g. Blue in RGB, V in YUV) [0..255]
-    std::string colorspace { "RGB" };///< Color space ("RGB", "YUV")
+    int x { 0 }; ///< Color coordinate X (e.g. Red in RGB, Y in YUV) [0..255]
+    int y { 0 }; ///< Color coordinate Y (e.g. Green in RGB, U in YUV) [0..255]
+    int z { 0 }; ///< Color coordinate Z (e.g. Blue in RGB, V in YUV) [0..255]
+    std::string colorspace { "RGB" }; ///< Color space ("RGB", "YUV")
 };
 
 /// @struct PrivacyMask
 /// @brief Privacy exclusion mask definition (ONVIF Profile T / Media2).
 struct PrivacyMask {
-    std::string token {};                   ///< Unique mask identifier (e.g. "Mask_1")
-    std::string configurationToken {};      ///< Associated VideoSourceConfiguration token
-    std::vector<Point2D> polygon {};        ///< Geometric vertices in normalized coordinates [0.0, 1.0]
-    MaskType type { MaskType::Color };      ///< Mask type (Color, Pixelated, Blurred)
-    MaskColor color {};                     ///< Fill color for MaskType::Color
-    bool enabled { true };                  ///< Whether mask is actively rendered
+    std::string token {}; ///< Unique mask identifier (e.g. "Mask_1")
+    std::string configurationToken {}; ///< Associated VideoSourceConfiguration token
+    std::vector<Point2D> polygon {}; ///< Geometric vertices in normalized coordinates [0.0, 1.0]
+    MaskType type { MaskType::Color }; ///< Mask type (Color, Pixelated, Blurred)
+    MaskColor color {}; ///< Fill color for MaskType::Color
+    bool enabled { true }; ///< Whether mask is actively rendered
 };
 
 /// @struct MaskOptions
 /// @brief Privacy mask capabilities and limits supported by device (Media2 GetMaskOptions).
 struct MaskOptions {
-    int maxMasks { 8 };                                   ///< Maximum simultaneous masks
-    int maxPoints { 8 };                                  ///< Maximum vertices per polygon mask
-    std::vector<MaskType> supportedTypes {
-        MaskType::Color, MaskType::Pixelated, MaskType::Blurred
-    };                                                    ///< Supported visual mask styles
+    int maxMasks { 8 }; ///< Maximum simultaneous masks
+    int maxPoints { 8 }; ///< Maximum vertices per polygon mask
+    std::vector<MaskType> supportedTypes { MaskType::Color, MaskType::Pixelated,
+        MaskType::Blurred }; ///< Supported visual mask styles
     std::vector<std::string> supportedColorSpaces { "RGB" }; ///< Supported color spaces
-    bool rectangleSupported { true };                     ///< Rectangle masks supported
-    bool polygonSupported { true };                       ///< Polygonal masks supported
+    bool rectangleSupported { true }; ///< Rectangle masks supported
+    bool polygonSupported { true }; ///< Polygonal masks supported
 };
 
 /// @struct VideoSourceMode
 /// @brief Sensor capture resolution and framerate mode (ONVIF Profile T / Media2).
 struct VideoSourceMode {
-    std::string token {};                   ///< Mode identifier (e.g. "Mode_1080p60", "Mode_4K30")
-    bool enabled { false };                 ///< True if this mode is currently active
-    float maxFramerate { 30.0f };           ///< Maximum framerate supported in this mode
-    int width { 1920 };                     ///< Maximum image width in pixels
-    int height { 1080 };                    ///< Maximum image height in pixels
+    std::string token {}; ///< Mode identifier (e.g. "Mode_1080p60", "Mode_4K30")
+    bool enabled { false }; ///< True if this mode is currently active
+    float maxFramerate { 30.0f }; ///< Maximum framerate supported in this mode
+    int width { 1920 }; ///< Maximum image width in pixels
+    int height { 1080 }; ///< Maximum image height in pixels
     std::vector<std::string> encodings { "H264", "H265" }; ///< Supported video encodings
-    bool reboot { false };                  ///< True if applying mode triggers hardware reboot
-    std::string description {};             ///< Human-readable mode label
+    bool reboot { false }; ///< True if applying mode triggers hardware reboot
+    std::string description {}; ///< Human-readable mode label
 };
 
 /// @enum RadiometryAlarmType
 /// @brief Type of radiometric temperature threshold alarm.
 enum class RadiometryAlarmType {
-    HighTemperature,    ///< Triggered when temperature rises above threshold
-    LowTemperature      ///< Triggered when temperature falls below threshold
+    HighTemperature, ///< Triggered when temperature rises above threshold
+    LowTemperature ///< Triggered when temperature falls below threshold
 };
 
 /// @struct RadiometryConfig
 /// @brief Radiometric compensation parameters for temperature calculation (ONVIF Thermal Service).
 struct RadiometryConfig {
-    float emissivity { 0.95f };              ///< Surface emissivity [0.01, 1.00] (0.95 for human skin/matte)
-    float distance { 5.0f };                 ///< Distance to target in meters
-    float reflectedTemperature { 20.0f };    ///< Ambient reflected temperature in Celsius
-    float atmosphericTemperature { 20.0f };  ///< Ambient atmospheric temperature in Celsius
-    float relativeHumidity { 50.0f };        ///< Relative humidity percentage [0.0, 100.0]
-    float windowTransmission { 1.0f };       ///< Window/optics transmission factor [0.01, 1.00]
+    float emissivity { 0.95f }; ///< Surface emissivity [0.01, 1.00] (0.95 for human skin/matte)
+    float distance { 5.0f }; ///< Distance to target in meters
+    float reflectedTemperature { 20.0f }; ///< Ambient reflected temperature in Celsius
+    float atmosphericTemperature { 20.0f }; ///< Ambient atmospheric temperature in Celsius
+    float relativeHumidity { 50.0f }; ///< Relative humidity percentage [0.0, 100.0]
+    float windowTransmission { 1.0f }; ///< Window/optics transmission factor [0.01, 1.00]
 };
 
 /// @struct RadiometrySpot
 /// @brief Single point spotmeter temperature measurement (ONVIF Thermal Service).
 struct RadiometrySpot {
-    std::string token {};                    ///< Unique spot token (e.g. "Spot_1")
-    Point2D position { 0.5f, 0.5f };         ///< Normalized coordinates [0.0, 1.0]
-    std::string label { "Spot 1" };          ///< Human-readable label
-    float temperature { 25.0f };             ///< Measured temperature in Celsius
+    std::string token {}; ///< Unique spot token (e.g. "Spot_1")
+    Point2D position { 0.5f, 0.5f }; ///< Normalized coordinates [0.0, 1.0]
+    std::string label { "Spot 1" }; ///< Human-readable label
+    float temperature { 25.0f }; ///< Measured temperature in Celsius
 };
 
 /// @struct RadiometryBox
 /// @brief Rectangular area temperature measurement zone (ONVIF Thermal Service).
 struct RadiometryBox {
-    std::string token {};                    ///< Unique box token (e.g. "Box_1")
-    Point2D topLeft { 0.25f, 0.25f };        ///< Normalized top-left coordinates [0.0, 1.0]
-    Point2D bottomRight { 0.75f, 0.75f };    ///< Normalized bottom-right coordinates [0.0, 1.0]
-    std::string label { "Area 1" };          ///< Human-readable label
-    float minTemperature { 22.0f };          ///< Minimum measured temperature in Celsius
-    float maxTemperature { 38.5f };          ///< Maximum measured temperature in Celsius
-    float avgTemperature { 30.2f };          ///< Average measured temperature in Celsius
+    std::string token {}; ///< Unique box token (e.g. "Box_1")
+    Point2D topLeft { 0.25f, 0.25f }; ///< Normalized top-left coordinates [0.0, 1.0]
+    Point2D bottomRight { 0.75f, 0.75f }; ///< Normalized bottom-right coordinates [0.0, 1.0]
+    std::string label { "Area 1" }; ///< Human-readable label
+    float minTemperature { 22.0f }; ///< Minimum measured temperature in Celsius
+    float maxTemperature { 38.5f }; ///< Maximum measured temperature in Celsius
+    float avgTemperature { 30.2f }; ///< Average measured temperature in Celsius
 };
 
 /// @struct RadiometryAlarmConfig
 /// @brief Radiometric temperature threshold alarm configuration (ONVIF Thermal Service).
 struct RadiometryAlarmConfig {
-    std::string token {};                    ///< Associated spot or box token
-    float thresholdTemperature { 50.0f };    ///< Alarm temperature threshold in Celsius
-    float hysteresis { 2.0f };               ///< Alarm hysteresis in Celsius
+    std::string token {}; ///< Associated spot or box token
+    float thresholdTemperature { 50.0f }; ///< Alarm temperature threshold in Celsius
+    float hysteresis { 2.0f }; ///< Alarm hysteresis in Celsius
     RadiometryAlarmType alarmType { RadiometryAlarmType::HighTemperature }; ///< High or Low alarm
-    bool enabled { true };                   ///< Whether alarm evaluation is active
+    bool enabled { true }; ///< Whether alarm evaluation is active
 };
 
 /// @struct ColorPalette
 /// @brief Thermal false-color visualization palette (ONVIF Thermal Service).
 struct ColorPalette {
-    std::string token {};                    ///< Palette token (e.g. "WhiteHot", "Ironbow")
-    std::string name {};                     ///< Display name
-    bool isDefault { false };                ///< Whether this is the camera's default palette
+    std::string token {}; ///< Palette token (e.g. "WhiteHot", "Ironbow")
+    std::string name {}; ///< Display name
+    bool isDefault { false }; ///< Whether this is the camera's default palette
 };
 
 /// @struct ThermalCapabilities
 /// @brief Device capabilities supported by the ONVIF Thermal Service.
 struct ThermalCapabilities {
-    bool radiometry { true };                ///< Radiometric temperature measurement supported
-    bool colorPalette { true };              ///< False-color palette selection supported
-    bool nuc { true };                       ///< Non-Uniformity Correction (shutter) supported
-    bool cooler { false };                   ///< Stirling or pulse-tube cooler supported
+    bool radiometry { true }; ///< Radiometric temperature measurement supported
+    bool colorPalette { true }; ///< False-color palette selection supported
+    bool nuc { true }; ///< Non-Uniformity Correction (shutter) supported
+    bool cooler { false }; ///< Stirling or pulse-tube cooler supported
 };
 
 } // namespace Onvif
-
-namespace PelcoD {
-namespace Onvif = ::Onvif;
-} // namespace PelcoD

@@ -60,8 +60,3 @@ protected:
 };
 
 } // namespace Transport
-
-namespace PelcoD {
-namespace Transport = ::Transport;
-using ::Transport::BaseTransport;
-} // namespace PelcoD

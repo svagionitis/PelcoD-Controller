@@ -48,50 +48,50 @@ public:
 
     /// @brief Gets discovered media profiles.
     /// @return List of MediaProfile records.
-    [[nodiscard]] std::vector<PelcoD::Onvif::MediaProfile> profiles() const;
+    [[nodiscard]] std::vector<Onvif::MediaProfile> profiles() const;
 
     /// @brief Gets cached PTZ presets for current profile.
     /// @return List of PtzPreset records.
-    [[nodiscard]] std::vector<PelcoD::Onvif::PtzPreset> presets() const;
+    [[nodiscard]] std::vector<Onvif::PtzPreset> presets() const;
 
     /// @brief Gets cached preset tours for current profile.
     /// @return List of PresetTour records.
-    [[nodiscard]] std::vector<PelcoD::Onvif::PresetTour> presetTours() const
+    [[nodiscard]] std::vector<Onvif::PresetTour> presetTours() const
     {
         return m_presetTours;
     }
 
     /// @brief Gets cached OSD overlays for active video source.
     /// @return List of OsdConfig records.
-    [[nodiscard]] std::vector<PelcoD::Onvif::OsdConfig> osds() const
+    [[nodiscard]] std::vector<Onvif::OsdConfig> osds() const
     {
         return m_osds;
     }
 
     /// @brief Gets cached ONVIF user accounts.
     /// @return List of OnvifUser records.
-    [[nodiscard]] std::vector<PelcoD::Onvif::OnvifUser> users() const
+    [[nodiscard]] std::vector<Onvif::OnvifUser> users() const
     {
         return m_users;
     }
 
     /// @brief Gets cached network interface configurations.
     /// @return List of NetworkInterfaceConfig records.
-    [[nodiscard]] std::vector<PelcoD::Onvif::NetworkInterfaceConfig> networkInterfaces() const
+    [[nodiscard]] std::vector<Onvif::NetworkInterfaceConfig> networkInterfaces() const
     {
         return m_networkInterfaces;
     }
 
     /// @brief Gets cached DNS configuration.
     /// @return DnsConfig struct.
-    [[nodiscard]] PelcoD::Onvif::DnsConfig dnsConfig() const
+    [[nodiscard]] Onvif::DnsConfig dnsConfig() const
     {
         return m_dnsConfig;
     }
 
     /// @brief Gets cached NTP configuration.
     /// @return NtpConfig struct.
-    [[nodiscard]] PelcoD::Onvif::NtpConfig ntpConfig() const
+    [[nodiscard]] Onvif::NtpConfig ntpConfig() const
     {
         return m_ntpConfig;
     }
@@ -105,136 +105,136 @@ public:
 
     /// @brief Gets cached optical focus status.
     /// @return FocusStatus20 struct.
-    [[nodiscard]] PelcoD::Onvif::FocusStatus20 focusStatus() const
+    [[nodiscard]] Onvif::FocusStatus20 focusStatus() const
     {
         return m_focusStatus;
     }
 
     /// @brief Gets cached imaging presets.
     /// @return Vector of ImagingPreset.
-    [[nodiscard]] std::vector<PelcoD::Onvif::ImagingPreset> imagingPresets() const
+    [[nodiscard]] std::vector<Onvif::ImagingPreset> imagingPresets() const
     {
         return m_imagingPresets;
     }
 
     /// @brief Gets cached relay outputs.
     /// @return Vector of RelayOutputConfig.
-    [[nodiscard]] std::vector<PelcoD::Onvif::RelayOutputConfig> relayOutputs() const
+    [[nodiscard]] std::vector<Onvif::RelayOutputConfig> relayOutputs() const
     {
         return m_relayOutputs;
     }
 
     /// @brief Gets cached digital inputs.
     /// @return Vector of DigitalInputConfig.
-    [[nodiscard]] std::vector<PelcoD::Onvif::DigitalInputConfig> digitalInputs() const
+    [[nodiscard]] std::vector<Onvif::DigitalInputConfig> digitalInputs() const
     {
         return m_digitalInputs;
     }
 
     /// @brief Gets cached installed X.509 certificates.
-    [[nodiscard]] std::vector<PelcoD::Onvif::OnvifCertificate> certificates() const
+    [[nodiscard]] std::vector<Onvif::OnvifCertificate> certificates() const
     {
         return m_certificates;
     }
 
     /// @brief Gets cached recordings list (Profile G).
-    [[nodiscard]] std::vector<PelcoD::Onvif::RecordingConfig> recordings() const
+    [[nodiscard]] std::vector<Onvif::RecordingConfig> recordings() const
     {
         return m_recordings;
     }
 
     /// @brief Gets cached recording jobs list (Profile G).
-    [[nodiscard]] std::vector<PelcoD::Onvif::RecordingJob> recordingJobs() const
+    [[nodiscard]] std::vector<Onvif::RecordingJob> recordingJobs() const
     {
         return m_recordingJobs;
     }
 
     /// @brief Gets cached recording summary (Profile G).
-    [[nodiscard]] std::optional<PelcoD::Onvif::RecordingSummary> recordingSummary() const
+    [[nodiscard]] std::optional<Onvif::RecordingSummary> recordingSummary() const
     {
         return m_recordingSummary;
     }
 
     /// @brief Gets cached replay configuration (Profile G).
-    [[nodiscard]] std::optional<PelcoD::Onvif::ReplayConfiguration> replayConfiguration() const
+    [[nodiscard]] std::optional<Onvif::ReplayConfiguration> replayConfiguration() const
     {
         return m_replayConfig;
     }
 
     /// @brief Gets cached video analytics rules (Profile M & T).
-    [[nodiscard]] std::vector<PelcoD::Onvif::AnalyticsRule> rules() const
+    [[nodiscard]] std::vector<Onvif::AnalyticsRule> rules() const
     {
         return m_rules;
     }
 
     /// @brief Gets cached supported video analytics rules descriptions.
-    [[nodiscard]] std::vector<PelcoD::Onvif::AnalyticsRuleDescription> supportedRules() const
+    [[nodiscard]] std::vector<Onvif::AnalyticsRuleDescription> supportedRules() const
     {
         return m_supportedRules;
     }
 
     /// @brief Gets cached video analytics modules.
-    [[nodiscard]] std::vector<PelcoD::Onvif::AnalyticsModule> analyticsModules() const
+    [[nodiscard]] std::vector<Onvif::AnalyticsModule> analyticsModules() const
     {
         return m_analyticsModules;
     }
 
     /// @brief Gets cached camera geographic location and mounting orientation.
-    [[nodiscard]] std::optional<PelcoD::Onvif::LocationEntity> geoLocation() const
+    [[nodiscard]] std::optional<Onvif::LocationEntity> geoLocation() const
     {
         return m_geoLocation;
     }
 
     /// @brief Gets cached privacy masks (Profile T / Media2).
-    [[nodiscard]] std::vector<PelcoD::Onvif::PrivacyMask> masks() const
+    [[nodiscard]] std::vector<Onvif::PrivacyMask> masks() const
     {
         return m_masks;
     }
 
     /// @brief Gets cached privacy mask options (Profile T / Media2).
-    [[nodiscard]] std::optional<PelcoD::Onvif::MaskOptions> maskOptions() const
+    [[nodiscard]] std::optional<Onvif::MaskOptions> maskOptions() const
     {
         return m_maskOptions;
     }
 
     /// @brief Gets cached video source modes (Profile T / Media2).
-    [[nodiscard]] std::vector<PelcoD::Onvif::VideoSourceMode> videoSourceModes() const
+    [[nodiscard]] std::vector<Onvif::VideoSourceMode> videoSourceModes() const
     {
         return m_videoSourceModes;
     }
 
     /// @brief Gets cached radiometric environmental configuration.
-    [[nodiscard]] PelcoD::Onvif::RadiometryConfig radiometryConfig() const
+    [[nodiscard]] Onvif::RadiometryConfig radiometryConfig() const
     {
         return m_radiometryConfig;
     }
 
     /// @brief Gets cached spotmeter measurements.
-    [[nodiscard]] std::vector<PelcoD::Onvif::RadiometrySpot> radiometrySpots() const
+    [[nodiscard]] std::vector<Onvif::RadiometrySpot> radiometrySpots() const
     {
         return m_radiometrySpots;
     }
 
     /// @brief Gets cached radiometric zone/box measurements.
-    [[nodiscard]] std::vector<PelcoD::Onvif::RadiometryBox> radiometryBoxes() const
+    [[nodiscard]] std::vector<Onvif::RadiometryBox> radiometryBoxes() const
     {
         return m_radiometryBoxes;
     }
 
     /// @brief Gets cached thermal color palettes.
-    [[nodiscard]] std::vector<PelcoD::Onvif::ColorPalette> colorPalettes() const
+    [[nodiscard]] std::vector<Onvif::ColorPalette> colorPalettes() const
     {
         return m_colorPalettes;
     }
 
     /// @brief Gets camera hardware identification metadata.
     /// @return DeviceInformation struct.
-    [[nodiscard]] PelcoD::Onvif::DeviceInformation deviceInformation() const;
+    [[nodiscard]] Onvif::DeviceInformation deviceInformation() const;
 
     /// @brief Executes synchronous discovery of ONVIF cameras on LAN.
     /// @param[in] timeoutMs Multicast listening timeout in milliseconds.
     /// @return List of discovered cameras.
-    [[nodiscard]] static QList<PelcoD::Onvif::DiscoveredDevice> discoverCameras(int timeoutMs = 2000);
+    [[nodiscard]] static QList<Onvif::DiscoveredDevice> discoverCameras(int timeoutMs = 2000);
 
     /// @brief Starts asynchronous discovery of ONVIF cameras on a worker thread.
     /// @param[in] timeoutMs Multicast listening timeout in milliseconds.
@@ -299,7 +299,7 @@ public Q_SLOTS:
 
     /// @brief Updates camera installation geographic location and mounting orientation.
     /// @param[in] location Updated LocationEntity.
-    void updateGeoLocation(const PelcoD::Onvif::LocationEntity& location);
+    void updateGeoLocation(const Onvif::LocationEntity& location);
 
     /// @brief Moves PTZ head relatively by translation offset delta.
     /// @param[in] pan Pan step delta [-1.0, 1.0].
@@ -351,12 +351,12 @@ public Q_SLOTS:
     /// @param[in] tourToken Tour identifier token.
     /// @param[in] operation PresetTourOperation enum.
     /// @return True on success.
-    bool operatePresetTour(const QString& tourToken, PelcoD::Onvif::PresetTourOperation operation);
+    bool operatePresetTour(const QString& tourToken, Onvif::PresetTourOperation operation);
 
     /// @brief Modifies a preset tour sequence.
     /// @param[in] tour Preset tour details and spots.
     /// @return True on success.
-    bool modifyPresetTour(const PelcoD::Onvif::PresetTour& tour);
+    bool modifyPresetTour(const Onvif::PresetTour& tour);
 
     /// @brief Deletes a preset tour.
     /// @param[in] tourToken Tour identifier token.
@@ -386,8 +386,7 @@ public Q_SLOTS:
     /// @param[in] settings Updated imaging parameters.
     /// @param[in] videoSourceToken Optional token (defaults to active profile's video source).
     /// @return True on success.
-    bool setImagingSettings(
-        const PelcoD::Onvif::ImagingSettings& settings, const QString& videoSourceToken = QString());
+    bool setImagingSettings(const Onvif::ImagingSettings& settings, const QString& videoSourceToken = QString());
 
     /// @brief Starts continuous motorized optical focus movement.
     /// @param[in] speed Normalized speed [-1.0 (near) to +1.0 (far)].
@@ -448,12 +447,12 @@ public Q_SLOTS:
     /// @brief Creates a new OSD overlay configuration on camera.
     /// @param[in] osd OSD configuration parameters.
     /// @return Assigned token or empty on failure.
-    QString createOSD(const PelcoD::Onvif::OsdConfig& osd);
+    QString createOSD(const Onvif::OsdConfig& osd);
 
     /// @brief Modifies an existing OSD overlay.
     /// @param[in] osd Updated OSD configuration.
     /// @return True on success.
-    bool setOSD(const PelcoD::Onvif::OsdConfig& osd);
+    bool setOSD(const Onvif::OsdConfig& osd);
 
     /// @brief Deletes an OSD overlay.
     /// @param[in] osdToken Token of the OSD to delete.
@@ -470,12 +469,12 @@ public Q_SLOTS:
     /// @brief Creates new ONVIF user account on camera.
     /// @param[in] user New user parameters.
     /// @return True on success.
-    bool createUser(const PelcoD::Onvif::OnvifUser& user);
+    bool createUser(const Onvif::OnvifUser& user);
 
     /// @brief Updates an existing ONVIF user's password and/or role.
     /// @param[in] user Updated user parameters.
     /// @return True on success.
-    bool setUser(const PelcoD::Onvif::OnvifUser& user);
+    bool setUser(const Onvif::OnvifUser& user);
 
     /// @brief Deletes ONVIF user account by username.
     /// @param[in] username Username to delete.
@@ -488,7 +487,7 @@ public Q_SLOTS:
     /// @brief Updates network interface configuration.
     /// @param[in] config Updated interface settings.
     /// @return True on success.
-    bool setNetworkInterface(const PelcoD::Onvif::NetworkInterfaceConfig& config);
+    bool setNetworkInterface(const Onvif::NetworkInterfaceConfig& config);
 
     /// @brief Queries default gateway IP.
     void refreshNetworkGateway();
@@ -504,7 +503,7 @@ public Q_SLOTS:
     /// @brief Sets DNS server configuration.
     /// @param[in] dns Updated DNS settings.
     /// @return True on success.
-    bool setDNS(const PelcoD::Onvif::DnsConfig& dns);
+    bool setDNS(const Onvif::DnsConfig& dns);
 
     /// @brief Queries NTP server configuration.
     void refreshNTP();
@@ -512,12 +511,12 @@ public Q_SLOTS:
     /// @brief Sets NTP server configuration.
     /// @param[in] ntp Updated NTP settings.
     /// @return True on success.
-    bool setNTP(const PelcoD::Onvif::NtpConfig& ntp);
+    bool setNTP(const Onvif::NtpConfig& ntp);
 
     /// @brief Updates camera system date, time, and timezone.
     /// @param[in] dt Date/time parameters.
     /// @return True on success.
-    bool setSystemDateAndTime(const PelcoD::Onvif::SystemDateTimeConfig& dt);
+    bool setSystemDateAndTime(const Onvif::SystemDateTimeConfig& dt);
 
     /// @brief Resets device to factory default settings.
     /// @param[in] hard True for hard reset, false for soft.
@@ -541,7 +540,7 @@ public Q_SLOTS:
     /// @param[in] relayToken Relay token.
     /// @param[in] settings Updated relay configuration.
     /// @return True on success.
-    bool setRelayOutputSettings(const QString& relayToken, const PelcoD::Onvif::RelayOutputConfig& settings);
+    bool setRelayOutputSettings(const QString& relayToken, const Onvif::RelayOutputConfig& settings);
 
     /// @brief Queries list of configured digital inputs from camera.
     void refreshDigitalInputs();
@@ -556,7 +555,7 @@ public Q_SLOTS:
     /// @brief Modifies an existing metadata configuration.
     /// @param[in] config Updated configuration.
     /// @return True on success.
-    bool setMetadataConfiguration(const PelcoD::Onvif::MetadataConfiguration& config);
+    bool setMetadataConfiguration(const Onvif::MetadataConfiguration& config);
 
     /// @brief Starts background metadata polling/streaming loop.
     /// @param[in] intervalMs Polling interval in milliseconds.
@@ -577,7 +576,7 @@ public Q_SLOTS:
 
     /// @brief Queries system or access logs from camera.
     /// @param[in] logType Log type (System or Access).
-    void fetchSystemLog(PelcoD::Onvif::SystemLogType logType = PelcoD::Onvif::SystemLogType::System);
+    void fetchSystemLog(Onvif::SystemLogType logType = Onvif::SystemLogType::System);
 
     /// @brief Queries detailed system diagnostics and support information.
     void fetchSystemSupportInformation();
@@ -620,7 +619,7 @@ public Q_SLOTS:
     /// @brief Uploads signed X.509 certificates to camera.
     /// @param[in] certificates List of certificates.
     /// @return True on success.
-    bool loadCertificates(const std::vector<PelcoD::Onvif::OnvifCertificate>& certificates);
+    bool loadCertificates(const std::vector<Onvif::OnvifCertificate>& certificates);
 
     /// @brief Deletes certificates from camera by token IDs.
     /// @param[in] certificateIds List of certificate IDs.
@@ -633,7 +632,7 @@ public Q_SLOTS:
     /// @brief Sets TLS client certificate authentication mode.
     /// @param[in] mode Desired ClientCertificateMode.
     /// @return True on success.
-    bool setClientCertificateMode(PelcoD::Onvif::ClientCertificateMode mode);
+    bool setClientCertificateMode(Onvif::ClientCertificateMode mode);
 
     // =========================================================================
     // Profile G: Recording Service
@@ -645,12 +644,12 @@ public Q_SLOTS:
     /// @brief Creates a new recording storage container on camera.
     /// @param[in] config Recording container configuration.
     /// @return Assigned recordingToken or empty on failure.
-    QString createRecording(const PelcoD::Onvif::RecordingConfig& config);
+    QString createRecording(const Onvif::RecordingConfig& config);
 
     /// @brief Updates configuration of an existing recording container.
     /// @param[in] config Updated recording configuration.
     /// @return True on success.
-    bool setRecordingConfiguration(const PelcoD::Onvif::RecordingConfig& config);
+    bool setRecordingConfiguration(const Onvif::RecordingConfig& config);
 
     /// @brief Deletes a recording container and its stored data.
     /// @param[in] recordingToken Target recording token.
@@ -661,7 +660,7 @@ public Q_SLOTS:
     /// @param[in] recordingToken Parent recording token.
     /// @param[in] track Track parameters.
     /// @return Assigned trackToken or empty on failure.
-    QString createTrack(const QString& recordingToken, const PelcoD::Onvif::RecordingTrack& track);
+    QString createTrack(const QString& recordingToken, const Onvif::RecordingTrack& track);
 
     /// @brief Deletes a track from a recording container.
     /// @param[in] recordingToken Parent recording token.
@@ -675,13 +674,13 @@ public Q_SLOTS:
     /// @brief Creates an automated recording job binding a source to a recording.
     /// @param[in] job Job configuration.
     /// @return Assigned jobToken or empty on failure.
-    QString createRecordingJob(const PelcoD::Onvif::RecordingJob& job);
+    QString createRecordingJob(const Onvif::RecordingJob& job);
 
     /// @brief Sets the operational mode of a recording job (Active vs Idle).
     /// @param[in] jobToken Target job token.
     /// @param[in] mode Desired RecordingJobMode.
     /// @return True on success.
-    bool setRecordingJobMode(const QString& jobToken, PelcoD::Onvif::RecordingJobMode mode);
+    bool setRecordingJobMode(const QString& jobToken, Onvif::RecordingJobMode mode);
 
     /// @brief Deletes a recording job.
     /// @param[in] jobToken Target job token.
@@ -736,7 +735,7 @@ public Q_SLOTS:
     /// @brief Configures replay session timeouts.
     /// @param[in] config Desired replay configuration.
     /// @return True on success.
-    bool setReplayConfiguration(const PelcoD::Onvif::ReplayConfiguration& config);
+    bool setReplayConfiguration(const Onvif::ReplayConfiguration& config);
 
     // =========================================================================
     // Profile M & Profile T: Video Analytics Rule Engine & Modules
@@ -751,12 +750,12 @@ public Q_SLOTS:
     /// @brief Creates new video analytics rules.
     /// @param[in] rules List of rules to create.
     /// @return True on success.
-    bool createRules(const std::vector<PelcoD::Onvif::AnalyticsRule>& rules);
+    bool createRules(const std::vector<Onvif::AnalyticsRule>& rules);
 
     /// @brief Modifies existing video analytics rules.
     /// @param[in] rules List of updated rules.
     /// @return True on success.
-    bool modifyRules(const std::vector<PelcoD::Onvif::AnalyticsRule>& rules);
+    bool modifyRules(const std::vector<Onvif::AnalyticsRule>& rules);
 
     /// @brief Deletes video analytics rules by name.
     /// @param[in] ruleNames List of rule names to delete.
@@ -772,12 +771,12 @@ public Q_SLOTS:
     /// @brief Creates new video analytics modules.
     /// @param[in] modules List of modules to create.
     /// @return True on success.
-    bool createAnalyticsModules(const std::vector<PelcoD::Onvif::AnalyticsModule>& modules);
+    bool createAnalyticsModules(const std::vector<Onvif::AnalyticsModule>& modules);
 
     /// @brief Modifies existing video analytics modules.
     /// @param[in] modules List of updated modules.
     /// @return True on success.
-    bool modifyAnalyticsModules(const std::vector<PelcoD::Onvif::AnalyticsModule>& modules);
+    bool modifyAnalyticsModules(const std::vector<Onvif::AnalyticsModule>& modules);
 
     /// @brief Deletes video analytics modules by name.
     /// @param[in] moduleNames List of module names to delete.
@@ -799,12 +798,12 @@ public Q_SLOTS:
     /// @brief Creates a new privacy mask on the camera.
     /// @param[in] mask Privacy mask definition.
     /// @return Created mask token on success, empty on failure.
-    QString createMask(const PelcoD::Onvif::PrivacyMask& mask);
+    QString createMask(const Onvif::PrivacyMask& mask);
 
     /// @brief Updates an existing privacy mask on the camera.
     /// @param[in] mask Updated mask definition.
     /// @return True on success.
-    bool setMask(const PelcoD::Onvif::PrivacyMask& mask);
+    bool setMask(const Onvif::PrivacyMask& mask);
 
     /// @brief Deletes a privacy mask by token.
     /// @param[in] maskToken Mask identifier token.
@@ -829,8 +828,8 @@ public Q_SLOTS:
     /// @param[in] videoSourceToken Video source token.
     /// @param[in] config Updated configuration.
     /// @return True on success.
-    bool setRadiometryConfiguration(const QString& videoSourceToken, const PelcoD::Onvif::RadiometryConfig& config);
-    bool setRadiometryConfiguration(const PelcoD::Onvif::RadiometryConfig& config)
+    bool setRadiometryConfiguration(const QString& videoSourceToken, const Onvif::RadiometryConfig& config);
+    bool setRadiometryConfiguration(const Onvif::RadiometryConfig& config)
     {
         return setRadiometryConfiguration("VideoSource_1", config);
     }
@@ -843,8 +842,8 @@ public Q_SLOTS:
     /// @param[in] videoSourceToken Video source token.
     /// @param[in] spots Vector of spots.
     /// @return True on success.
-    bool setRadiometrySpots(const QString& videoSourceToken, const std::vector<PelcoD::Onvif::RadiometrySpot>& spots);
-    bool setRadiometrySpots(const std::vector<PelcoD::Onvif::RadiometrySpot>& spots)
+    bool setRadiometrySpots(const QString& videoSourceToken, const std::vector<Onvif::RadiometrySpot>& spots);
+    bool setRadiometrySpots(const std::vector<Onvif::RadiometrySpot>& spots)
     {
         return setRadiometrySpots("VideoSource_1", spots);
     }
@@ -853,8 +852,8 @@ public Q_SLOTS:
     /// @param[in] videoSourceToken Video source token.
     /// @param[in] boxes Vector of boxes.
     /// @return True on success.
-    bool setRadiometryBoxes(const QString& videoSourceToken, const std::vector<PelcoD::Onvif::RadiometryBox>& boxes);
-    bool setRadiometryBoxes(const std::vector<PelcoD::Onvif::RadiometryBox>& boxes)
+    bool setRadiometryBoxes(const QString& videoSourceToken, const std::vector<Onvif::RadiometryBox>& boxes);
+    bool setRadiometryBoxes(const std::vector<Onvif::RadiometryBox>& boxes)
     {
         return setRadiometryBoxes("VideoSource_1", boxes);
     }
@@ -897,15 +896,15 @@ Q_SIGNALS:
 
     /// @brief Emitted when PTZ position/status is refreshed.
     /// @param[in] status Current kinematics state.
-    void statusUpdated(const PelcoD::Onvif::PtzStatus& status);
+    void statusUpdated(const Onvif::PtzStatus& status);
 
     /// @brief Emitted when preset list is refreshed.
     /// @param[in] presets List of camera presets.
-    void presetsUpdated(const std::vector<PelcoD::Onvif::PtzPreset>& presets);
+    void presetsUpdated(const std::vector<Onvif::PtzPreset>& presets);
 
     /// @brief Emitted when camera geographic location/orientation is retrieved.
     /// @param[in] location Configured LocationEntity.
-    void geoLocationUpdated(const PelcoD::Onvif::LocationEntity& location);
+    void geoLocationUpdated(const Onvif::LocationEntity& location);
 
     /// @brief Emitted when GeoMove command completes.
     /// @param[in] success True if command acknowledged.
@@ -913,7 +912,7 @@ Q_SIGNALS:
 
     /// @brief Emitted when preset tours list is refreshed.
     /// @param[in] tours List of camera preset tours.
-    void presetToursUpdated(const std::vector<PelcoD::Onvif::PresetTour>& tours);
+    void presetToursUpdated(const std::vector<Onvif::PresetTour>& tours);
 
     /// @brief Emitted when reboot request completes.
     /// @param[in] success True if reboot was accepted.
@@ -921,7 +920,7 @@ Q_SIGNALS:
 
     /// @brief Emitted when optical imaging settings are refreshed.
     /// @param[in] settings Current camera imaging settings.
-    void imagingSettingsUpdated(const PelcoD::Onvif::ImagingSettings& settings);
+    void imagingSettingsUpdated(const Onvif::ImagingSettings& settings);
 
     /// @brief Emitted when an auxiliary command finishes.
     /// @param[in] success True if accepted.
@@ -930,19 +929,19 @@ Q_SIGNALS:
 
     /// @brief Emitted when an event notification message is pulled.
     /// @param[in] event Event notification details.
-    void eventReceived(const PelcoD::Onvif::OnvifEvent& event);
+    void eventReceived(const Onvif::OnvifEvent& event);
 
     /// @brief Emitted when OSD overlay configuration list is refreshed.
     /// @param[in] osds List of camera OSD configurations.
-    void osdsUpdated(const std::vector<PelcoD::Onvif::OsdConfig>& osds);
+    void osdsUpdated(const std::vector<Onvif::OsdConfig>& osds);
 
     /// @brief Emitted when ONVIF users list is refreshed.
     /// @param[in] users List of camera user accounts.
-    void usersUpdated(const std::vector<PelcoD::Onvif::OnvifUser>& users);
+    void usersUpdated(const std::vector<Onvif::OnvifUser>& users);
 
     /// @brief Emitted when network interface configuration is refreshed.
     /// @param[in] ifaces List of network interface configs.
-    void networkInterfacesUpdated(const std::vector<PelcoD::Onvif::NetworkInterfaceConfig>& ifaces);
+    void networkInterfacesUpdated(const std::vector<Onvif::NetworkInterfaceConfig>& ifaces);
 
     /// @brief Emitted when default gateway is refreshed.
     /// @param[in] gateway Gateway address string.
@@ -950,11 +949,11 @@ Q_SIGNALS:
 
     /// @brief Emitted when DNS configuration is refreshed.
     /// @param[in] dns Current DNS settings.
-    void dnsUpdated(const PelcoD::Onvif::DnsConfig& dns);
+    void dnsUpdated(const Onvif::DnsConfig& dns);
 
     /// @brief Emitted when NTP configuration is refreshed.
     /// @param[in] ntp Current NTP settings.
-    void ntpUpdated(const PelcoD::Onvif::NtpConfig& ntp);
+    void ntpUpdated(const Onvif::NtpConfig& ntp);
 
     /// @brief Emitted when factory default reset command finishes.
     /// @param[in] success True if accepted.
@@ -962,36 +961,36 @@ Q_SIGNALS:
 
     /// @brief Emitted when optical focus status is refreshed.
     /// @param[in] status Current focus status.
-    void focusStatusUpdated(const PelcoD::Onvif::FocusStatus20& status);
+    void focusStatusUpdated(const Onvif::FocusStatus20& status);
 
     /// @brief Emitted when optical imaging presets are refreshed.
     /// @param[in] presets List of camera imaging presets.
-    void imagingPresetsUpdated(const std::vector<PelcoD::Onvif::ImagingPreset>& presets);
+    void imagingPresetsUpdated(const std::vector<Onvif::ImagingPreset>& presets);
 
     /// @brief Emitted when relay outputs list is refreshed.
     /// @param[in] relays List of camera relay outputs.
-    void relayOutputsUpdated(const std::vector<PelcoD::Onvif::RelayOutputConfig>& relays);
+    void relayOutputsUpdated(const std::vector<Onvif::RelayOutputConfig>& relays);
 
     /// @brief Emitted when digital inputs list is refreshed.
     /// @param[in] inputs List of camera digital inputs.
-    void digitalInputsUpdated(const std::vector<PelcoD::Onvif::DigitalInputConfig>& inputs);
+    void digitalInputsUpdated(const std::vector<Onvif::DigitalInputConfig>& inputs);
 
     /// @brief Emitted when metadata configurations list is refreshed.
     /// @param[in] configs List of metadata configurations.
-    void metadataConfigurationsUpdated(const std::vector<PelcoD::Onvif::MetadataConfiguration>& configs);
+    void metadataConfigurationsUpdated(const std::vector<Onvif::MetadataConfiguration>& configs);
 
     /// @brief Emitted when a metadata stream packet (Profile T/M) is received.
     /// @param[in] payload Metadata stream payload.
-    void metadataReceived(const PelcoD::Onvif::MetadataStreamPayload& payload);
+    void metadataReceived(const Onvif::MetadataStreamPayload& payload);
 
     /// @brief Emitted when system or access log content is retrieved.
     /// @param[in] logType Log type.
     /// @param[in] logData Text content of log.
-    void systemLogReceived(PelcoD::Onvif::SystemLogType logType, const QString& logData);
+    void systemLogReceived(Onvif::SystemLogType logType, const QString& logData);
 
     /// @brief Emitted when system support information is retrieved.
     /// @param[in] info Diagnostics support structure.
-    void systemSupportInfoReceived(const PelcoD::Onvif::SystemSupportInfo& info);
+    void systemSupportInfoReceived(const Onvif::SystemSupportInfo& info);
 
     /// @brief Emitted when system backup archive is retrieved.
     /// @param[in] backupData Backup archive payload.
@@ -1007,43 +1006,42 @@ Q_SIGNALS:
 
     /// @brief Emitted when X.509 certificates list is refreshed.
     /// @param[in] certs List of certificates.
-    void certificatesUpdated(const std::vector<PelcoD::Onvif::OnvifCertificate>& certs);
+    void certificatesUpdated(const std::vector<Onvif::OnvifCertificate>& certs);
 
     /// @brief Emitted when detailed certificate information is retrieved.
     /// @param[in] info Certificate information.
-    void certificateInfoReceived(const PelcoD::Onvif::CertificateInformation& info);
+    void certificateInfoReceived(const Onvif::CertificateInformation& info);
 
     /// @brief Emitted when a PKCS#10 CSR is generated.
     /// @param[in] csr PKCS#10 CSR request object.
-    void pkcs10CsrReceived(const PelcoD::Onvif::Pkcs10Request& csr);
+    void pkcs10CsrReceived(const Onvif::Pkcs10Request& csr);
 
     /// @brief Emitted when client certificate authentication mode is updated.
     /// @param[in] mode Current ClientCertificateMode.
-    void clientCertificateModeUpdated(PelcoD::Onvif::ClientCertificateMode mode);
+    void clientCertificateModeUpdated(Onvif::ClientCertificateMode mode);
 
     /// @brief Emitted when edge recordings list is refreshed.
     /// @param[in] recordings List of recordings.
-    void recordingsUpdated(const std::vector<PelcoD::Onvif::RecordingConfig>& recordings);
+    void recordingsUpdated(const std::vector<Onvif::RecordingConfig>& recordings);
 
     /// @brief Emitted when recording jobs list is refreshed.
     /// @param[in] jobs List of recording jobs.
-    void recordingJobsUpdated(const std::vector<PelcoD::Onvif::RecordingJob>& jobs);
+    void recordingJobsUpdated(const std::vector<Onvif::RecordingJob>& jobs);
 
     /// @brief Emitted when recording storage summary is refreshed.
     /// @param[in] summary Recording summary structure.
-    void recordingSummaryUpdated(const PelcoD::Onvif::RecordingSummary& summary);
+    void recordingSummaryUpdated(const Onvif::RecordingSummary& summary);
 
     /// @brief Emitted when recording search query results are retrieved.
     /// @param[in] searchToken Search session token.
     /// @param[in] results Vector of search results.
     void recordingSearchResultsReceived(
-        const QString& searchToken, const std::vector<PelcoD::Onvif::RecordingSearchResult>& results);
+        const QString& searchToken, const std::vector<Onvif::RecordingSearchResult>& results);
 
     /// @brief Emitted when recorded event search query results are retrieved.
     /// @param[in] searchToken Search session token.
     /// @param[in] results Vector of event search results.
-    void eventSearchResultsReceived(
-        const QString& searchToken, const std::vector<PelcoD::Onvif::RecordedEventResult>& results);
+    void eventSearchResultsReceived(const QString& searchToken, const std::vector<Onvif::RecordedEventResult>& results);
 
     /// @brief Emitted when RTSP replay URI is resolved.
     /// @param[in] recordingToken Recording token.
@@ -1052,35 +1050,35 @@ Q_SIGNALS:
 
     /// @brief Emitted when replay configuration is updated.
     /// @param[in] config Replay configuration.
-    void replayConfigurationUpdated(const PelcoD::Onvif::ReplayConfiguration& config);
+    void replayConfigurationUpdated(const Onvif::ReplayConfiguration& config);
 
     /// @brief Emitted when video analytics rules list is refreshed.
     /// @param[in] rules List of rules.
-    void rulesUpdated(const std::vector<PelcoD::Onvif::AnalyticsRule>& rules);
+    void rulesUpdated(const std::vector<Onvif::AnalyticsRule>& rules);
 
     /// @brief Emitted when supported video analytics rules are refreshed.
     /// @param[in] rules List of supported rule descriptions.
-    void supportedRulesUpdated(const std::vector<PelcoD::Onvif::AnalyticsRuleDescription>& rules);
+    void supportedRulesUpdated(const std::vector<Onvif::AnalyticsRuleDescription>& rules);
 
     /// @brief Emitted when video analytics modules list is refreshed.
     /// @param[in] modules List of modules.
-    void analyticsModulesUpdated(const std::vector<PelcoD::Onvif::AnalyticsModule>& modules);
+    void analyticsModulesUpdated(const std::vector<Onvif::AnalyticsModule>& modules);
 
     /// @brief Emitted when supported video analytics modules are refreshed.
     /// @param[in] modules List of supported module descriptions.
-    void supportedAnalyticsModulesUpdated(const std::vector<PelcoD::Onvif::AnalyticsModuleDescription>& modules);
+    void supportedAnalyticsModulesUpdated(const std::vector<Onvif::AnalyticsModuleDescription>& modules);
 
     /// @brief Emitted when privacy masks list is refreshed.
     /// @param[in] masks List of configured privacy masks.
-    void masksUpdated(const std::vector<PelcoD::Onvif::PrivacyMask>& masks);
+    void masksUpdated(const std::vector<Onvif::PrivacyMask>& masks);
 
     /// @brief Emitted when privacy mask options are retrieved.
     /// @param[in] options Supported mask limits and features.
-    void maskOptionsUpdated(const PelcoD::Onvif::MaskOptions& options);
+    void maskOptionsUpdated(const Onvif::MaskOptions& options);
 
     /// @brief Emitted when video source capture modes list is refreshed.
     /// @param[in] modes List of video source capture modes.
-    void videoSourceModesUpdated(const std::vector<PelcoD::Onvif::VideoSourceMode>& modes);
+    void videoSourceModesUpdated(const std::vector<Onvif::VideoSourceMode>& modes);
 
     /// @brief Emitted when a video source mode switch completes.
     /// @param[in] modeToken Activated mode token.
@@ -1089,19 +1087,19 @@ Q_SIGNALS:
 
     /// @brief Emitted when radiometric configuration is retrieved.
     /// @param[in] config Radiometric compensation configuration.
-    void radiometryConfigurationUpdated(const PelcoD::Onvif::RadiometryConfig& config);
+    void radiometryConfigurationUpdated(const Onvif::RadiometryConfig& config);
 
     /// @brief Emitted when radiometric spotmeters list is refreshed.
     /// @param[in] spots List of spotmeters.
-    void radiometrySpotsUpdated(const std::vector<PelcoD::Onvif::RadiometrySpot>& spots);
+    void radiometrySpotsUpdated(const std::vector<Onvif::RadiometrySpot>& spots);
 
     /// @brief Emitted when radiometric measurement boxes list is refreshed.
     /// @param[in] boxes List of measurement boxes.
-    void radiometryBoxesUpdated(const std::vector<PelcoD::Onvif::RadiometryBox>& boxes);
+    void radiometryBoxesUpdated(const std::vector<Onvif::RadiometryBox>& boxes);
 
     /// @brief Emitted when false-color palettes are refreshed.
     /// @param[in] palettes Available palettes.
-    void colorPalettesUpdated(const std::vector<PelcoD::Onvif::ColorPalette>& palettes);
+    void colorPalettesUpdated(const std::vector<Onvif::ColorPalette>& palettes);
 
     /// @brief Emitted when NUC shutter calibration completes.
     /// @param[in] success True if command succeeded.
@@ -1113,58 +1111,58 @@ Q_SIGNALS:
 
     /// @brief Emitted when asynchronous discovery finishes.
     /// @param[in] devices List of discovered cameras.
-    void discoveryFinished(const QList<PelcoD::Onvif::DiscoveredDevice>& devices);
+    void discoveryFinished(const QList<Onvif::DiscoveredDevice>& devices);
 
 private:
     void pollEvents();
     void pollMetadata();
 
-    std::unique_ptr<PelcoD::Onvif::OnvifClient> m_client {};
+    std::unique_ptr<Onvif::OnvifClient> m_client {};
     bool m_connected { false };
     QString m_endpoint {};
     QString m_activeProfileToken {};
     QString m_activeVideoSourceToken {};
     QString m_rtspStreamUri {};
     QString m_snapshotUri {};
-    std::vector<PelcoD::Onvif::MediaProfile> m_profiles {};
-    std::vector<PelcoD::Onvif::PtzPreset> m_presets {};
-    std::vector<PelcoD::Onvif::PresetTour> m_presetTours {};
-    std::vector<PelcoD::Onvif::OsdConfig> m_osds {};
-    std::vector<PelcoD::Onvif::OnvifUser> m_users {};
-    std::vector<PelcoD::Onvif::NetworkInterfaceConfig> m_networkInterfaces {};
+    std::vector<Onvif::MediaProfile> m_profiles {};
+    std::vector<Onvif::PtzPreset> m_presets {};
+    std::vector<Onvif::PresetTour> m_presetTours {};
+    std::vector<Onvif::OsdConfig> m_osds {};
+    std::vector<Onvif::OnvifUser> m_users {};
+    std::vector<Onvif::NetworkInterfaceConfig> m_networkInterfaces {};
     QString m_networkGateway {};
-    PelcoD::Onvif::DnsConfig m_dnsConfig {};
-    PelcoD::Onvif::NtpConfig m_ntpConfig {};
-    PelcoD::Onvif::DeviceInformation m_deviceInfo {};
-    PelcoD::Onvif::ImagingSettings m_imagingSettings {};
-    PelcoD::Onvif::FocusStatus20 m_focusStatus {};
-    std::vector<PelcoD::Onvif::ImagingPreset> m_imagingPresets {};
-    std::vector<PelcoD::Onvif::RelayOutputConfig> m_relayOutputs {};
-    std::vector<PelcoD::Onvif::DigitalInputConfig> m_digitalInputs {};
+    Onvif::DnsConfig m_dnsConfig {};
+    Onvif::NtpConfig m_ntpConfig {};
+    Onvif::DeviceInformation m_deviceInfo {};
+    Onvif::ImagingSettings m_imagingSettings {};
+    Onvif::FocusStatus20 m_focusStatus {};
+    std::vector<Onvif::ImagingPreset> m_imagingPresets {};
+    std::vector<Onvif::RelayOutputConfig> m_relayOutputs {};
+    std::vector<Onvif::DigitalInputConfig> m_digitalInputs {};
     QString m_eventSubscriptionUrl {};
     bool m_eventSubActive { false };
-    std::vector<PelcoD::Onvif::MetadataConfiguration> m_metadataConfigs {};
+    std::vector<Onvif::MetadataConfiguration> m_metadataConfigs {};
     bool m_metadataStreamingActive { false };
-    std::vector<PelcoD::Onvif::OnvifCertificate> m_certificates {};
-    PelcoD::Onvif::ClientCertificateMode m_clientCertMode { PelcoD::Onvif::ClientCertificateMode::Off };
-    std::vector<PelcoD::Onvif::RecordingConfig> m_recordings {};
-    std::vector<PelcoD::Onvif::RecordingJob> m_recordingJobs {};
-    std::optional<PelcoD::Onvif::RecordingSummary> m_recordingSummary {};
-    std::optional<PelcoD::Onvif::ReplayConfiguration> m_replayConfig {};
-    std::vector<PelcoD::Onvif::AnalyticsRule> m_rules {};
-    std::vector<PelcoD::Onvif::AnalyticsRuleDescription> m_supportedRules {};
-    std::vector<PelcoD::Onvif::AnalyticsModule> m_analyticsModules {};
-    std::vector<PelcoD::Onvif::AnalyticsModuleDescription> m_supportedModules {};
-    std::optional<PelcoD::Onvif::LocationEntity> m_geoLocation {};
+    std::vector<Onvif::OnvifCertificate> m_certificates {};
+    Onvif::ClientCertificateMode m_clientCertMode { Onvif::ClientCertificateMode::Off };
+    std::vector<Onvif::RecordingConfig> m_recordings {};
+    std::vector<Onvif::RecordingJob> m_recordingJobs {};
+    std::optional<Onvif::RecordingSummary> m_recordingSummary {};
+    std::optional<Onvif::ReplayConfiguration> m_replayConfig {};
+    std::vector<Onvif::AnalyticsRule> m_rules {};
+    std::vector<Onvif::AnalyticsRuleDescription> m_supportedRules {};
+    std::vector<Onvif::AnalyticsModule> m_analyticsModules {};
+    std::vector<Onvif::AnalyticsModuleDescription> m_supportedModules {};
+    std::optional<Onvif::LocationEntity> m_geoLocation {};
 
-    std::vector<PelcoD::Onvif::PrivacyMask> m_masks {};
-    std::optional<PelcoD::Onvif::MaskOptions> m_maskOptions {};
-    std::vector<PelcoD::Onvif::VideoSourceMode> m_videoSourceModes {};
+    std::vector<Onvif::PrivacyMask> m_masks {};
+    std::optional<Onvif::MaskOptions> m_maskOptions {};
+    std::vector<Onvif::VideoSourceMode> m_videoSourceModes {};
 
-    PelcoD::Onvif::RadiometryConfig m_radiometryConfig {};
-    std::vector<PelcoD::Onvif::RadiometrySpot> m_radiometrySpots {};
-    std::vector<PelcoD::Onvif::RadiometryBox> m_radiometryBoxes {};
-    std::vector<PelcoD::Onvif::ColorPalette> m_colorPalettes {};
+    Onvif::RadiometryConfig m_radiometryConfig {};
+    std::vector<Onvif::RadiometrySpot> m_radiometrySpots {};
+    std::vector<Onvif::RadiometryBox> m_radiometryBoxes {};
+    std::vector<Onvif::ColorPalette> m_colorPalettes {};
 };
 
 } // namespace PelcoD::Qt

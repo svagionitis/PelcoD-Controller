@@ -32,8 +32,8 @@ public:
     /// @param[in] source URL (RTSP, file, or mock pattern).
     /// @param[in] backend Requested decoding backend.
     /// @param[in] device Hardware acceleration device.
-    void openStream(const QString& source, PelcoD::Video::BackendType backend = PelcoD::Video::BackendType::FFmpeg,
-        PelcoD::Video::DeviceType device = PelcoD::Video::DeviceType::CPU);
+    void openStream(const QString& source, Video::BackendType backend = Video::BackendType::FFmpeg,
+        Video::DeviceType device = Video::DeviceType::CPU);
 
     /// @brief Stops decoding and terminates worker loop.
     void stopPlayback();
@@ -50,7 +50,7 @@ public:
 
     /// @brief Gets active stream state.
     /// @return Current StreamState.
-    [[nodiscard]] PelcoD::Video::StreamState streamState() const;
+    [[nodiscard]] Video::StreamState streamState() const;
 
     /// @brief Enables or disables looping for finite file playback.
     /// @param[in] loop True to loop playback continuously upon reaching EOF.
@@ -66,7 +66,7 @@ public:
 
     /// @brief Adds a post-processing frame processor to the active decoder pipeline.
     /// @param[in] processor Shared pointer to frame processor.
-    void addFrameProcessor(std::shared_ptr<PelcoD::Video::IFrameProcessor> processor);
+    void addFrameProcessor(std::shared_ptr<Video::IFrameProcessor> processor);
 
     /// @brief Clears all registered frame processors.
     void clearFrameProcessors();
@@ -81,7 +81,7 @@ signals:
     /// @brief Emitted when the stream connection lifecycle state changes.
     /// @param state New stream state.
     /// @param message Descriptive status message.
-    void streamStatusChanged(PelcoD::Video::StreamState state, const QString& message);
+    void streamStatusChanged(Video::StreamState state, const QString& message);
 
     /// @brief Emitted once stream properties are parsed.
     /// @param width Frame width in pixels.
@@ -108,17 +108,17 @@ private:
     QWaitCondition m_condition;
 
     QString m_source;
-    PelcoD::Video::BackendType m_backend { PelcoD::Video::BackendType::FFmpeg };
-    PelcoD::Video::DeviceType m_device { PelcoD::Video::DeviceType::CPU };
+    Video::BackendType m_backend { Video::BackendType::FFmpeg };
+    Video::DeviceType m_device { Video::DeviceType::CPU };
 
-    std::unique_ptr<PelcoD::Video::IVideoDecoder> m_decoder;
+    std::unique_ptr<Video::IVideoDecoder> m_decoder;
 
-    PelcoD::Video::StreamState m_state { PelcoD::Video::StreamState::Disconnected };
+    Video::StreamState m_state { Video::StreamState::Disconnected };
     bool m_stopRequested { false };
     bool m_pauseRequested { false };
     bool m_loopPlayback { true };
     double m_requestedSeekPos { -1.0 };
-    std::vector<std::shared_ptr<PelcoD::Video::IFrameProcessor>> m_processors;
+    std::vector<std::shared_ptr<Video::IFrameProcessor>> m_processors;
 };
 
 } // namespace PelcoDQt

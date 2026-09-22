@@ -4,13 +4,15 @@
 #include "SpectrogramColorMap.h"
 #include "Stft.h"
 
-#include <gtest/gtest.h>
 #include <cmath>
+#include <gtest/gtest.h>
 #include <iostream>
 #include <random>
 #include <vector>
 
 namespace {
+
+using namespace Math;
 
 constexpr double TEST_EPSILON = 1e-4;
 constexpr double PI = 3.14159265358979323846;
@@ -27,14 +29,14 @@ TEST(StftTest, SingleStationaryTone)
 {
     std::cout << "[Test] Single stationary tone tracking (5 Hz tone at 50 Hz sample rate)..." << std::endl;
 
-    PelcoD::StftConfig config {};
+    StftConfig config {};
     config.windowSize = 128U;
     config.hopSize = 32U;
     config.sampleRateHz = 50.0;
-    config.windowType = PelcoD::Math::WindowType::Hann;
+    config.windowType = WindowType::Hann;
     config.detrend = true;
 
-    PelcoD::Stft stft(config);
+    Stft stft(config);
     EXPECT_TRUE(!stft.hasFrames());
 
     const double f0 = 5.0; // 5 Hz
@@ -68,12 +70,12 @@ TEST(StftTest, LinearFrequencyChirp)
 {
     std::cout << "[Test] Linear frequency chirp sweep (2 Hz to 18 Hz)..." << std::endl;
 
-    PelcoD::StftConfig config {};
+    StftConfig config {};
     config.windowSize = 64U;
     config.hopSize = 16U;
     config.sampleRateHz = 50.0;
 
-    PelcoD::Stft stft(config);
+    Stft stft(config);
 
     const double fStart = 2.0;
     const double fEnd = 18.0;
@@ -109,12 +111,12 @@ TEST(StftTest, TwoToneResolution)
 {
     std::cout << "[Test] Two-tone simultaneous frequency resolution..." << std::endl;
 
-    PelcoD::StftConfig config {};
+    StftConfig config {};
     config.windowSize = 128U;
     config.hopSize = 64U;
     config.sampleRateHz = 50.0;
 
-    PelcoD::Stft stft(config);
+    Stft stft(config);
 
     const double f1 = 4.0;
     const double f2 = 15.0;
@@ -155,12 +157,12 @@ TEST(StftTest, HopSizeAndOverlap)
 {
     std::cout << "[Test] Hop size and overlap frame count verification..." << std::endl;
 
-    PelcoD::StftConfig config {};
+    StftConfig config {};
     config.windowSize = 64U;
     config.hopSize = 32U; // 50% overlap
     config.sampleRateHz = 100.0;
 
-    PelcoD::Stft stft(config);
+    Stft stft(config);
 
     // Feeding exactly 64 samples should produce 1 frame
     for (int i = 0; i < 64; ++i) {
@@ -190,13 +192,13 @@ TEST(StftTest, SpectralFlatness)
 {
     std::cout << "[Test] Spectral flatness (Wiener entropy) discrimination..." << std::endl;
 
-    PelcoD::StftConfig config {};
+    StftConfig config {};
     config.windowSize = 128U;
     config.hopSize = 64U;
     config.sampleRateHz = 100.0;
 
-    PelcoD::Stft stftTone(config);
-    PelcoD::Stft stftNoise(config);
+    Stft stftTone(config);
+    Stft stftNoise(config);
 
     // 1. Pure tone
     for (int i = 0; i < 150; ++i) {
@@ -229,21 +231,21 @@ TEST(StftTest, Colormaps)
 {
     std::cout << "[Test] Colormap stop interpolation and ANSI escape generation..." << std::endl;
 
-    using Preset = PelcoD::SpectrogramColorMap::Preset;
+    using Preset = SpectrogramColorMap::Preset;
 
     // Boundary checks
-    auto c0 = PelcoD::SpectrogramColorMap::mapNormalized(0.0, Preset::Inferno);
-    auto c1 = PelcoD::SpectrogramColorMap::mapNormalized(1.0, Preset::Inferno);
+    auto c0 = SpectrogramColorMap::mapNormalized(0.0, Preset::Inferno);
+    auto c1 = SpectrogramColorMap::mapNormalized(1.0, Preset::Inferno);
     EXPECT_TRUE(c0.r == 0 && c0.g == 0 && c0.b == 4);
     EXPECT_TRUE(c1.r == 252 && c1.g == 255 && c1.b == 164);
 
     // Decibel mapping
-    auto cMidDb = PelcoD::SpectrogramColorMap::mapDb(-30.0, -60.0, 0.0, Preset::Viridis);
-    auto cMidNorm = PelcoD::SpectrogramColorMap::mapNormalized(0.5, Preset::Viridis);
+    auto cMidDb = SpectrogramColorMap::mapDb(-30.0, -60.0, 0.0, Preset::Viridis);
+    auto cMidNorm = SpectrogramColorMap::mapNormalized(0.5, Preset::Viridis);
     EXPECT_TRUE(cMidDb == cMidNorm);
 
     // ANSI half-block string generation
-    std::string ansi = PelcoD::SpectrogramColorMap::mapHalfBlockAnsi(0.8, 0.2, Preset::TacticalGreen);
+    std::string ansi = SpectrogramColorMap::mapHalfBlockAnsi(0.8, 0.2, Preset::TacticalGreen);
     EXPECT_TRUE(ansi.find("\x1b[38;2;") != std::string::npos);
     EXPECT_TRUE(ansi.find("\x1b[48;2;") != std::string::npos);
     EXPECT_TRUE(ansi.find("\xE2\x96\x80") != std::string::npos);
@@ -258,12 +260,12 @@ TEST(StftTest, HistoryCap)
 {
     std::cout << "[Test] Rolling history capacity cap enforcement..." << std::endl;
 
-    PelcoD::StftConfig config {};
+    StftConfig config {};
     config.windowSize = 32U;
     config.hopSize = 16U;
     config.maxHistoryFrames = 10U;
 
-    PelcoD::Stft stft(config);
+    Stft stft(config);
 
     // Feed 500 samples (would generate > 25 frames if uncapped)
     for (int i = 0; i < 500; ++i) {
@@ -280,4 +282,3 @@ TEST(StftTest, HistoryCap)
 }
 
 } // namespace
-

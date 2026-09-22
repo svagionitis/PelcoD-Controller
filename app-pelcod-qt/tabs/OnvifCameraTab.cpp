@@ -1196,9 +1196,9 @@ void OnvifCameraTab::setupUi()
     auto* modeLayout = new QHBoxLayout();
     modeLayout->addWidget(new QLabel(tr("TLS Client Certificate Authentication:"), groupCerts));
     cmbClientCertMode = new QComboBox(groupCerts);
-    cmbClientCertMode->addItem(tr("Off / Disabled"), static_cast<int>(PelcoD::Onvif::ClientCertificateMode::Off));
-    cmbClientCertMode->addItem(tr("Optional"), static_cast<int>(PelcoD::Onvif::ClientCertificateMode::Optional));
-    cmbClientCertMode->addItem(tr("Required (mTLS)"), static_cast<int>(PelcoD::Onvif::ClientCertificateMode::Required));
+    cmbClientCertMode->addItem(tr("Off / Disabled"), static_cast<int>(Onvif::ClientCertificateMode::Off));
+    cmbClientCertMode->addItem(tr("Optional"), static_cast<int>(Onvif::ClientCertificateMode::Optional));
+    cmbClientCertMode->addItem(tr("Required (mTLS)"), static_cast<int>(Onvif::ClientCertificateMode::Required));
     btnApplyClientCertMode = new QPushButton(tr("Apply Mode"), groupCerts);
     modeLayout->addWidget(cmbClientCertMode);
     modeLayout->addWidget(btnApplyClientCertMode);
@@ -1438,9 +1438,9 @@ void OnvifCameraTab::setupUi()
     // Track Management
     auto* trackActionLayout = new QHBoxLayout();
     cmbTrackType = new QComboBox(groupRecordings);
-    cmbTrackType->addItem(tr("Video"), static_cast<int>(PelcoD::Onvif::RecordingTrackType::Video));
-    cmbTrackType->addItem(tr("Audio"), static_cast<int>(PelcoD::Onvif::RecordingTrackType::Audio));
-    cmbTrackType->addItem(tr("Metadata"), static_cast<int>(PelcoD::Onvif::RecordingTrackType::Metadata));
+    cmbTrackType->addItem(tr("Video"), static_cast<int>(Onvif::RecordingTrackType::Video));
+    cmbTrackType->addItem(tr("Audio"), static_cast<int>(Onvif::RecordingTrackType::Audio));
+    cmbTrackType->addItem(tr("Metadata"), static_cast<int>(Onvif::RecordingTrackType::Metadata));
     editTrackDesc = new QLineEdit(groupRecordings);
     editTrackDesc->setPlaceholderText(tr("Track Description"));
     btnCreateTrack = new QPushButton(tr("➕ Add Track"), groupRecordings);
@@ -1475,8 +1475,8 @@ void OnvifCameraTab::setupUi()
     spinJobPriority->setRange(1, 10);
     spinJobPriority->setValue(5);
     cmbJobMode = new QComboBox(groupJobs);
-    cmbJobMode->addItem(tr("Active"), static_cast<int>(PelcoD::Onvif::RecordingJobMode::Active));
-    cmbJobMode->addItem(tr("Idle"), static_cast<int>(PelcoD::Onvif::RecordingJobMode::Idle));
+    cmbJobMode->addItem(tr("Active"), static_cast<int>(Onvif::RecordingJobMode::Active));
+    cmbJobMode->addItem(tr("Idle"), static_cast<int>(Onvif::RecordingJobMode::Idle));
 
     btnCreateJob = new QPushButton(tr("➕ Create Job"), groupJobs);
     btnToggleJobMode = new QPushButton(tr("⚡ Toggle Active/Idle"), groupJobs);
@@ -1853,19 +1853,19 @@ void OnvifCameraTab::configureTable(QTableWidget* table, const QStringList& head
 // ---------------------------------------------------------------------------
 // Helper: osdPositionFromIndex
 // ---------------------------------------------------------------------------
-PelcoD::Onvif::OsdPositionType OnvifCameraTab::osdPositionFromIndex(int index) noexcept
+Onvif::OsdPositionType OnvifCameraTab::osdPositionFromIndex(int index) noexcept
 {
     switch (index) {
     case 1:
-        return PelcoD::Onvif::OsdPositionType::UpperRight;
+        return Onvif::OsdPositionType::UpperRight;
     case 2:
-        return PelcoD::Onvif::OsdPositionType::LowerLeft;
+        return Onvif::OsdPositionType::LowerLeft;
     case 3:
-        return PelcoD::Onvif::OsdPositionType::LowerRight;
+        return Onvif::OsdPositionType::LowerRight;
     case 4:
-        return PelcoD::Onvif::OsdPositionType::Custom;
+        return Onvif::OsdPositionType::Custom;
     default:
-        return PelcoD::Onvif::OsdPositionType::UpperLeft;
+        return Onvif::OsdPositionType::UpperLeft;
     }
 }
 
@@ -2198,7 +2198,7 @@ void OnvifCameraTab::handleStartDiscovery()
     m_onvifDevice->discoverCamerasAsync(2000);
 }
 
-void OnvifCameraTab::handleDiscoveryFinished(const QList<PelcoD::Onvif::DiscoveredDevice>& devices)
+void OnvifCameraTab::handleDiscoveryFinished(const QList<Onvif::DiscoveredDevice>& devices)
 {
     btnDiscover->setEnabled(true);
     btnDiscover->setText(tr("🔍 Discover Cameras"));
@@ -2476,7 +2476,7 @@ void OnvifCameraTab::handleSaveGeoLocation()
     if (m_onvifDevice == nullptr) {
         return;
     }
-    PelcoD::Onvif::LocationEntity loc {};
+    Onvif::LocationEntity loc {};
     loc.entity = "Device";
     loc.token = "Location_1";
     loc.fixed = true;
@@ -2518,21 +2518,21 @@ void OnvifCameraTab::handleUpdateLiveGeoTargetReadout()
     if (!spinCameraLat || !spinTargetLat || !lblComputedGeoBearing) {
         return;
     }
-    PelcoD::Onvif::GeoLocation camLoc { spinCameraLat->value(), spinCameraLon->value(), spinCameraElev->value() };
-    PelcoD::Onvif::GeoOrientation camOri { spinCameraYaw->value(), spinCameraPitch->value(), 0.0 };
-    PelcoD::Onvif::GeoLocation tgtLoc { spinTargetLat->value(), spinTargetLon->value(), spinTargetElev->value() };
+    Onvif::GeoLocation camLoc { spinCameraLat->value(), spinCameraLon->value(), spinCameraElev->value() };
+    Onvif::GeoOrientation camOri { spinCameraYaw->value(), spinCameraPitch->value(), 0.0 };
+    Onvif::GeoLocation tgtLoc { spinTargetLat->value(), spinTargetLon->value(), spinTargetElev->value() };
 
     double pan = 0.0;
     double tilt = 0.0;
     double dist = 0.0;
-    PelcoD::Onvif::Geodesy::computeTargetAzimuthElevation(camLoc, camOri, tgtLoc, pan, tilt, dist);
+    Onvif::Geodesy::computeTargetAzimuthElevation(camLoc, camOri, tgtLoc, pan, tilt, dist);
 
     lblComputedGeoBearing->setText(tr("Bearing: %1°").arg(QString::number(pan, 'f', 2)));
     lblComputedGeoTilt->setText(tr("Tilt: %1°").arg(QString::number(tilt, 'f', 2)));
     lblComputedGeoDistance->setText(tr("Slant Dist: %1 m").arg(QString::number(dist, 'f', 1)));
 }
 
-void OnvifCameraTab::handleGeoLocationUpdated(const PelcoD::Onvif::LocationEntity& location)
+void OnvifCameraTab::handleGeoLocationUpdated(const Onvif::LocationEntity& location)
 {
     if (spinCameraLat && spinCameraLon && spinCameraElev && spinCameraYaw && spinCameraPitch) {
         const QSignalBlocker b1(spinCameraLat);
@@ -2596,7 +2596,7 @@ void OnvifCameraTab::handleDeletePreset()
     }
 }
 
-void OnvifCameraTab::handlePresetsUpdated(const std::vector<PelcoD::Onvif::PtzPreset>& presets)
+void OnvifCameraTab::handlePresetsUpdated(const std::vector<Onvif::PtzPreset>& presets)
 {
     tablePresets->setRowCount(static_cast<int>(presets.size()));
     for (size_t i = 0; i < presets.size(); ++i) {
@@ -2638,10 +2638,10 @@ void OnvifCameraTab::handleTourSelected(int index)
 
             QString statusStr = tr("Idle");
             QString colorStr = "#8b949e";
-            if (tour.status == PelcoD::Onvif::PresetTourState::Touring) {
+            if (tour.status == Onvif::PresetTourState::Touring) {
                 statusStr = tr("Touring");
                 colorStr = "#7ee787";
-            } else if (tour.status == PelcoD::Onvif::PresetTourState::Paused) {
+            } else if (tour.status == Onvif::PresetTourState::Paused) {
                 statusStr = tr("Paused");
                 colorStr = "#d29922";
             }
@@ -2659,7 +2659,7 @@ void OnvifCameraTab::handleStartTour()
     }
     const QString token = cmbPresetTours->currentData().toString();
     if (!token.isEmpty()) {
-        m_onvifDevice->operatePresetTour(token, PelcoD::Onvif::PresetTourOperation::Start);
+        m_onvifDevice->operatePresetTour(token, Onvif::PresetTourOperation::Start);
         lblTourStatus->setText(tr("Status: Touring"));
         lblTourStatus->setStyleSheet("font-weight: bold; color: #7ee787;");
     }
@@ -2672,7 +2672,7 @@ void OnvifCameraTab::handlePauseTour()
     }
     const QString token = cmbPresetTours->currentData().toString();
     if (!token.isEmpty()) {
-        m_onvifDevice->operatePresetTour(token, PelcoD::Onvif::PresetTourOperation::Pause);
+        m_onvifDevice->operatePresetTour(token, Onvif::PresetTourOperation::Pause);
         lblTourStatus->setText(tr("Status: Paused"));
         lblTourStatus->setStyleSheet("font-weight: bold; color: #d29922;");
     }
@@ -2685,7 +2685,7 @@ void OnvifCameraTab::handleStopTour()
     }
     const QString token = cmbPresetTours->currentData().toString();
     if (!token.isEmpty()) {
-        m_onvifDevice->operatePresetTour(token, PelcoD::Onvif::PresetTourOperation::Stop);
+        m_onvifDevice->operatePresetTour(token, Onvif::PresetTourOperation::Stop);
         lblTourStatus->setText(tr("Status: Idle"));
         lblTourStatus->setStyleSheet("font-weight: bold; color: #8b949e;");
     }
@@ -2733,12 +2733,12 @@ void OnvifCameraTab::handleSaveTour()
         return;
     }
 
-    PelcoD::Onvif::PresetTour tour;
+    Onvif::PresetTour tour;
     tour.token = token.toStdString();
     tour.name = cmbPresetTours->currentText().toStdString();
 
     for (int r = 0; r < tableTourSpots->rowCount(); ++r) {
-        PelcoD::Onvif::PresetTourSpot spot;
+        Onvif::PresetTourSpot spot;
         if (tableTourSpots->item(r, 0) != nullptr) {
             spot.presetToken = tableTourSpots->item(r, 0)->text().trimmed().toStdString();
         }
@@ -2758,7 +2758,7 @@ void OnvifCameraTab::handleSaveTour()
         this, tr("Tour Saved"), tr("Preset tour '%1' updated successfully.").arg(QString::fromStdString(tour.name)));
 }
 
-void OnvifCameraTab::handleToursUpdated(const std::vector<PelcoD::Onvif::PresetTour>& tours)
+void OnvifCameraTab::handleToursUpdated(const std::vector<Onvif::PresetTour>& tours)
 {
     if (cmbPresetTours == nullptr) {
         return;
@@ -2790,7 +2790,7 @@ void OnvifCameraTab::handleToursUpdated(const std::vector<PelcoD::Onvif::PresetT
     }
 }
 
-void OnvifCameraTab::handleStatusUpdated(const PelcoD::Onvif::PtzStatus& status)
+void OnvifCameraTab::handleStatusUpdated(const Onvif::PtzStatus& status)
 {
     lblTelemetryPanTilt->setText(
         tr("Pan/Tilt: (%1, %2)").arg(QString::number(status.pan, 'f', 2)).arg(QString::number(status.tilt, 'f', 2)));
@@ -2837,7 +2837,7 @@ void OnvifCameraTab::handleApplyImaging()
         return;
     }
 
-    PelcoD::Onvif::ImagingSettings settings {};
+    Onvif::ImagingSettings settings {};
     settings.brightness = static_cast<float>(sliderBrightness->value());
     settings.contrast = static_cast<float>(sliderContrast->value());
     settings.colorSaturation = static_cast<float>(sliderSaturation->value());
@@ -2898,7 +2898,7 @@ void OnvifCameraTab::handleClearEvents()
     }
 }
 
-void OnvifCameraTab::handleImagingSettingsUpdated(const PelcoD::Onvif::ImagingSettings& settings)
+void OnvifCameraTab::handleImagingSettingsUpdated(const Onvif::ImagingSettings& settings)
 {
     const QSignalBlocker b1(sliderBrightness);
     const QSignalBlocker b2(sliderContrast);
@@ -2935,7 +2935,7 @@ void OnvifCameraTab::handleImagingSettingsUpdated(const PelcoD::Onvif::ImagingSe
     }
 }
 
-void OnvifCameraTab::handleEventReceived(const PelcoD::Onvif::OnvifEvent& event)
+void OnvifCameraTab::handleEventReceived(const Onvif::OnvifEvent& event)
 {
     if (tableEvents == nullptr) {
         return;
@@ -2971,7 +2971,7 @@ void OnvifCameraTab::handleCreateOsd()
     if (!m_onvifDevice) {
         return;
     }
-    PelcoD::Onvif::OsdConfig osd;
+    Onvif::OsdConfig osd;
     osd.plainText = editOsdText->text().toStdString();
     osd.fontSize = static_cast<std::uint32_t>(spinOsdFontSize->value());
     osd.isDateAndTime = chkOsdDateTime->isChecked();
@@ -2991,7 +2991,7 @@ void OnvifCameraTab::handleSetOsd()
         return;
     }
     const QString token = tableOsds->item(row, 0)->text();
-    PelcoD::Onvif::OsdConfig osd;
+    Onvif::OsdConfig osd;
     osd.token = token.toStdString();
     osd.plainText = editOsdText->text().toStdString();
     osd.fontSize = static_cast<std::uint32_t>(spinOsdFontSize->value());
@@ -3015,7 +3015,7 @@ void OnvifCameraTab::handleDeleteOsd()
     m_onvifDevice->deleteOSD(token);
 }
 
-void OnvifCameraTab::handleOsdsUpdated(const std::vector<PelcoD::Onvif::OsdConfig>& osds)
+void OnvifCameraTab::handleOsdsUpdated(const std::vector<Onvif::OsdConfig>& osds)
 {
     if (tableOsds == nullptr) {
         return;
@@ -3028,13 +3028,13 @@ void OnvifCameraTab::handleOsdsUpdated(const std::vector<PelcoD::Onvif::OsdConfi
         tableOsds->setItem(row, 1, new QTableWidgetItem(osd.isDateAndTime ? tr("Date/Time") : tr("Plain Text")));
 
         QString posStr = tr("UpperLeft");
-        if (osd.position == PelcoD::Onvif::OsdPositionType::UpperRight) {
+        if (osd.position == Onvif::OsdPositionType::UpperRight) {
             posStr = tr("UpperRight");
-        } else if (osd.position == PelcoD::Onvif::OsdPositionType::LowerLeft) {
+        } else if (osd.position == Onvif::OsdPositionType::LowerLeft) {
             posStr = tr("LowerLeft");
-        } else if (osd.position == PelcoD::Onvif::OsdPositionType::LowerRight) {
+        } else if (osd.position == Onvif::OsdPositionType::LowerRight) {
             posStr = tr("LowerRight");
-        } else if (osd.position == PelcoD::Onvif::OsdPositionType::Custom) {
+        } else if (osd.position == Onvif::OsdPositionType::Custom) {
             posStr = tr("Custom");
         }
         tableOsds->setItem(row, 2, new QTableWidgetItem(posStr));
@@ -3086,17 +3086,17 @@ void OnvifCameraTab::handleAddMask()
     if (!m_onvifDevice) {
         return;
     }
-    PelcoD::Onvif::PrivacyMask mask;
+    Onvif::PrivacyMask mask;
     mask.token = editMaskToken->text().trimmed().toStdString();
     mask.configurationToken = "VideoSourceConfig_1";
 
     const int typeIdx = cmbMaskType->currentIndex();
     if (typeIdx == 1) {
-        mask.type = PelcoD::Onvif::MaskType::Pixelated;
+        mask.type = Onvif::MaskType::Pixelated;
     } else if (typeIdx == 2) {
-        mask.type = PelcoD::Onvif::MaskType::Blurred;
+        mask.type = Onvif::MaskType::Blurred;
     } else {
-        mask.type = PelcoD::Onvif::MaskType::Color;
+        mask.type = Onvif::MaskType::Color;
     }
 
     mask.color.x = spinMaskColorR->value();
@@ -3121,18 +3121,18 @@ void OnvifCameraTab::handleUpdateMask()
         return;
     }
     const QString token = tableMasks->item(row, 0)->text();
-    PelcoD::Onvif::PrivacyMask mask;
+    Onvif::PrivacyMask mask;
     mask.token = token.toStdString();
     mask.configurationToken
         = tableMasks->item(row, 1) ? tableMasks->item(row, 1)->text().toStdString() : "VideoSourceConfig_1";
 
     const int typeIdx = cmbMaskType->currentIndex();
     if (typeIdx == 1) {
-        mask.type = PelcoD::Onvif::MaskType::Pixelated;
+        mask.type = Onvif::MaskType::Pixelated;
     } else if (typeIdx == 2) {
-        mask.type = PelcoD::Onvif::MaskType::Blurred;
+        mask.type = Onvif::MaskType::Blurred;
     } else {
-        mask.type = PelcoD::Onvif::MaskType::Color;
+        mask.type = Onvif::MaskType::Color;
     }
 
     mask.color.x = spinMaskColorR->value();
@@ -3158,7 +3158,7 @@ void OnvifCameraTab::handleDeleteMask()
     m_onvifDevice->deleteMask(token);
 }
 
-void OnvifCameraTab::handleMasksUpdated(const std::vector<PelcoD::Onvif::PrivacyMask>& masks)
+void OnvifCameraTab::handleMasksUpdated(const std::vector<Onvif::PrivacyMask>& masks)
 {
     if (tableMasks == nullptr) {
         return;
@@ -3169,8 +3169,7 @@ void OnvifCameraTab::handleMasksUpdated(const std::vector<PelcoD::Onvif::Privacy
         tableMasks->insertRow(row);
         tableMasks->setItem(row, 0, new QTableWidgetItem(QString::fromStdString(mask.token)));
         tableMasks->setItem(row, 1, new QTableWidgetItem(QString::fromStdString(mask.configurationToken)));
-        tableMasks->setItem(
-            row, 2, new QTableWidgetItem(QString::fromStdString(PelcoD::Onvif::maskTypeToString(mask.type))));
+        tableMasks->setItem(row, 2, new QTableWidgetItem(QString::fromStdString(Onvif::maskTypeToString(mask.type))));
         tableMasks->setItem(row, 3,
             new QTableWidgetItem(QString("R:%1 G:%2 B:%3").arg(mask.color.x).arg(mask.color.y).arg(mask.color.z)));
         tableMasks->setItem(row, 4, new QTableWidgetItem(mask.enabled ? tr("Enabled") : tr("Disabled")));
@@ -3220,7 +3219,7 @@ void OnvifCameraTab::handleApplyVideoSourceMode()
     m_onvifDevice->setVideoSourceMode("VideoSource_1", modeToken);
 }
 
-void OnvifCameraTab::handleVideoSourceModesUpdated(const std::vector<PelcoD::Onvif::VideoSourceMode>& modes)
+void OnvifCameraTab::handleVideoSourceModesUpdated(const std::vector<Onvif::VideoSourceMode>& modes)
 {
     if (cmbVideoSourceModes == nullptr) {
         return;
@@ -3281,10 +3280,10 @@ void OnvifCameraTab::handleAddUser()
         return;
     }
 
-    PelcoD::Onvif::OnvifUser user {};
+    Onvif::OnvifUser user {};
     user.username = username.toStdString();
     user.password = password.toStdString();
-    user.level = PelcoD::Onvif::userLevelFromString(cmbUserLevel->currentText().toStdString());
+    user.level = Onvif::userLevelFromString(cmbUserLevel->currentText().toStdString());
 
     if (m_onvifDevice->createUser(user)) {
         editUserUsername->clear();
@@ -3306,10 +3305,10 @@ void OnvifCameraTab::handleUpdateUser()
         return;
     }
 
-    PelcoD::Onvif::OnvifUser user {};
+    Onvif::OnvifUser user {};
     user.username = username.toStdString();
     user.password = password.toStdString();
-    user.level = PelcoD::Onvif::userLevelFromString(cmbUserLevel->currentText().toStdString());
+    user.level = Onvif::userLevelFromString(cmbUserLevel->currentText().toStdString());
 
     if (!m_onvifDevice->setUser(user)) {
         QMessageBox::critical(this, tr("User Management"), tr("Failed to update user."));
@@ -3341,15 +3340,14 @@ void OnvifCameraTab::handleDeleteUser()
     }
 }
 
-void OnvifCameraTab::handleUsersUpdated(const std::vector<PelcoD::Onvif::OnvifUser>& users)
+void OnvifCameraTab::handleUsersUpdated(const std::vector<Onvif::OnvifUser>& users)
 {
     tableUsers->setRowCount(0);
     for (const auto& u : users) {
         const int row = tableUsers->rowCount();
         tableUsers->insertRow(row);
         tableUsers->setItem(row, 0, new QTableWidgetItem(QString::fromStdString(u.username)));
-        tableUsers->setItem(
-            row, 1, new QTableWidgetItem(QString::fromStdString(PelcoD::Onvif::userLevelToString(u.level))));
+        tableUsers->setItem(row, 1, new QTableWidgetItem(QString::fromStdString(Onvif::userLevelToString(u.level))));
         tableUsers->setItem(
             row, 2, new QTableWidgetItem(u.password.empty() ? tr("Not Set / Hidden") : tr("Configured")));
     }
@@ -3382,7 +3380,7 @@ void OnvifCameraTab::handleApplyNetwork()
     if (m_onvifDevice == nullptr) {
         return;
     }
-    PelcoD::Onvif::NetworkInterfaceConfig cfg {};
+    Onvif::NetworkInterfaceConfig cfg {};
     cfg.token = editNetToken->text().isEmpty() ? "eth0" : editNetToken->text().toStdString();
     cfg.enabled = chkNetEnabled->isChecked();
     cfg.ipv4.enabled = chkNetEnabled->isChecked();
@@ -3415,7 +3413,7 @@ void OnvifCameraTab::handleApplyDns()
     if (m_onvifDevice == nullptr) {
         return;
     }
-    PelcoD::Onvif::DnsConfig dns {};
+    Onvif::DnsConfig dns {};
     dns.fromDhcp = chkDnsDhcp->isChecked();
     const QStringList parts = editDnsServers->text().split(',', Qt::SkipEmptyParts);
     for (const auto& p : parts) {
@@ -3440,7 +3438,7 @@ void OnvifCameraTab::handleApplyNtp()
     if (m_onvifDevice == nullptr) {
         return;
     }
-    PelcoD::Onvif::NtpConfig ntp {};
+    Onvif::NtpConfig ntp {};
     ntp.fromDhcp = chkNtpDhcp->isChecked();
     const QStringList parts = editNtpServers->text().split(',', Qt::SkipEmptyParts);
     for (const auto& p : parts) {
@@ -3462,7 +3460,7 @@ void OnvifCameraTab::handleSyncPcTime()
     const auto dt = utcNow.date();
     const auto tm = utcNow.time();
 
-    PelcoD::Onvif::SystemDateTimeConfig cfg {};
+    Onvif::SystemDateTimeConfig cfg {};
     cfg.dateTimeType = "Manual";
     cfg.daylightSavings = false;
     cfg.timeZone = "UTC";
@@ -3509,7 +3507,7 @@ void OnvifCameraTab::handleFactoryDefaultHard()
     m_onvifDevice->setSystemFactoryDefault(true);
 }
 
-void OnvifCameraTab::handleNetworkUpdated(const std::vector<PelcoD::Onvif::NetworkInterfaceConfig>& ifaces)
+void OnvifCameraTab::handleNetworkUpdated(const std::vector<Onvif::NetworkInterfaceConfig>& ifaces)
 {
     if (ifaces.empty()) {
         return;
@@ -3527,7 +3525,7 @@ void OnvifCameraTab::handleGatewayUpdated(const QString& gateway)
     editNetGateway->setText(gateway);
 }
 
-void OnvifCameraTab::handleDnsUpdated(const PelcoD::Onvif::DnsConfig& dns)
+void OnvifCameraTab::handleDnsUpdated(const Onvif::DnsConfig& dns)
 {
     chkDnsDhcp->setChecked(dns.fromDhcp);
     QStringList servers {};
@@ -3537,7 +3535,7 @@ void OnvifCameraTab::handleDnsUpdated(const PelcoD::Onvif::DnsConfig& dns)
     editDnsServers->setText(servers.join(QStringLiteral(", ")));
 }
 
-void OnvifCameraTab::handleNtpUpdated(const PelcoD::Onvif::NtpConfig& ntp)
+void OnvifCameraTab::handleNtpUpdated(const Onvif::NtpConfig& ntp)
 {
     chkNtpDhcp->setChecked(ntp.fromDhcp);
     QStringList servers {};
@@ -3567,7 +3565,7 @@ void OnvifCameraTab::handleRecallImagingPreset()
     }
 }
 
-void OnvifCameraTab::handleFocusStatusUpdated(const PelcoD::Onvif::FocusStatus20& status)
+void OnvifCameraTab::handleFocusStatusUpdated(const Onvif::FocusStatus20& status)
 {
     if (lblFocusStatus == nullptr) {
         return;
@@ -3579,7 +3577,7 @@ void OnvifCameraTab::handleFocusStatusUpdated(const PelcoD::Onvif::FocusStatus20
     lblFocusStatus->setStyleSheet(QString("font-weight: bold; color: %1;").arg(color));
 }
 
-void OnvifCameraTab::handleImagingPresetsUpdated(const std::vector<PelcoD::Onvif::ImagingPreset>& presets)
+void OnvifCameraTab::handleImagingPresetsUpdated(const std::vector<Onvif::ImagingPreset>& presets)
 {
     if (cmbImagingPresets == nullptr) {
         return;
@@ -3642,11 +3640,11 @@ void OnvifCameraTab::handleApplyRelaySettings()
         QMessageBox::warning(this, tr("Relay Settings"), tr("Please select or enter a relay token."));
         return;
     }
-    PelcoD::Onvif::RelayOutputConfig cfg {};
+    Onvif::RelayOutputConfig cfg {};
     cfg.token = token.toStdString();
-    cfg.mode = PelcoD::Onvif::relayModeFromString(cmbRelayMode->currentText().toStdString());
+    cfg.mode = Onvif::relayModeFromString(cmbRelayMode->currentText().toStdString());
     cfg.delayTimeSeconds = static_cast<float>(spinRelayDelay->value());
-    cfg.idleState = PelcoD::Onvif::relayIdleStateFromString(cmbRelayIdleState->currentText().toStdString());
+    cfg.idleState = Onvif::relayIdleStateFromString(cmbRelayIdleState->currentText().toStdString());
 
     if (m_onvifDevice->setRelayOutputSettings(token, cfg)) {
         QMessageBox::information(this, tr("Relay Settings"), tr("Relay settings updated successfully."));
@@ -3662,7 +3660,7 @@ void OnvifCameraTab::handleRefreshInputs()
     }
 }
 
-void OnvifCameraTab::handleRelaysUpdated(const std::vector<PelcoD::Onvif::RelayOutputConfig>& relays)
+void OnvifCameraTab::handleRelaysUpdated(const std::vector<Onvif::RelayOutputConfig>& relays)
 {
     if (tableRelays == nullptr) {
         return;
@@ -3672,14 +3670,13 @@ void OnvifCameraTab::handleRelaysUpdated(const std::vector<PelcoD::Onvif::RelayO
         const int row = tableRelays->rowCount();
         tableRelays->insertRow(row);
         tableRelays->setItem(row, 0, new QTableWidgetItem(QString::fromStdString(r.token)));
-        tableRelays->setItem(
-            row, 1, new QTableWidgetItem(QString::fromStdString(PelcoD::Onvif::relayModeToString(r.mode))));
+        tableRelays->setItem(row, 1, new QTableWidgetItem(QString::fromStdString(Onvif::relayModeToString(r.mode))));
         tableRelays->setItem(row, 2, new QTableWidgetItem(QString::number(r.delayTimeSeconds, 'f', 1)));
         tableRelays->setItem(
-            row, 3, new QTableWidgetItem(QString::fromStdString(PelcoD::Onvif::relayIdleStateToString(r.idleState))));
-        const QString stateStr = QString::fromStdString(PelcoD::Onvif::relayLogicalStateToString(r.logicalState));
+            row, 3, new QTableWidgetItem(QString::fromStdString(Onvif::relayIdleStateToString(r.idleState))));
+        const QString stateStr = QString::fromStdString(Onvif::relayLogicalStateToString(r.logicalState));
         auto* itemState = new QTableWidgetItem(stateStr);
-        if (r.logicalState == PelcoD::Onvif::RelayLogicalState::Active) {
+        if (r.logicalState == Onvif::RelayLogicalState::Active) {
             itemState->setForeground(QBrush(QColor("#7ee787")));
         } else {
             itemState->setForeground(QBrush(QColor("#8b949e")));
@@ -3688,7 +3685,7 @@ void OnvifCameraTab::handleRelaysUpdated(const std::vector<PelcoD::Onvif::RelayO
     }
 }
 
-void OnvifCameraTab::handleDigitalInputsUpdated(const std::vector<PelcoD::Onvif::DigitalInputConfig>& inputs)
+void OnvifCameraTab::handleDigitalInputsUpdated(const std::vector<Onvif::DigitalInputConfig>& inputs)
 {
     if (tableDigitalInputs == nullptr) {
         return;
@@ -3699,7 +3696,7 @@ void OnvifCameraTab::handleDigitalInputsUpdated(const std::vector<PelcoD::Onvif:
         tableDigitalInputs->insertRow(row);
         tableDigitalInputs->setItem(row, 0, new QTableWidgetItem(QString::fromStdString(in.token)));
         tableDigitalInputs->setItem(
-            row, 1, new QTableWidgetItem(QString::fromStdString(PelcoD::Onvif::relayIdleStateToString(in.idleState))));
+            row, 1, new QTableWidgetItem(QString::fromStdString(Onvif::relayIdleStateToString(in.idleState))));
         tableDigitalInputs->setItem(row, 2, new QTableWidgetItem(in.active ? tr("Active") : tr("Inactive")));
     }
 }
@@ -3751,7 +3748,7 @@ void OnvifCameraTab::handleApplyMetadataConfig()
         return;
     }
 
-    PelcoD::Onvif::MetadataConfiguration cfg {};
+    Onvif::MetadataConfiguration cfg {};
     cfg.token = token.toStdString();
     cfg.name = cmbMetaConfigs->currentText().toStdString();
     cfg.ptzStatusEnabled = chkMetaPtzStatus != nullptr && chkMetaPtzStatus->isChecked();
@@ -3787,7 +3784,7 @@ void OnvifCameraTab::handlePollMetadataOnce()
     }
 }
 
-void OnvifCameraTab::handleMetadataConfigsUpdated(const std::vector<PelcoD::Onvif::MetadataConfiguration>& configs)
+void OnvifCameraTab::handleMetadataConfigsUpdated(const std::vector<Onvif::MetadataConfiguration>& configs)
 {
     if (cmbMetaConfigs == nullptr) {
         return;
@@ -3813,7 +3810,7 @@ void OnvifCameraTab::handleMetadataConfigsUpdated(const std::vector<PelcoD::Onvi
     }
 }
 
-void OnvifCameraTab::handleMetadataReceived(const PelcoD::Onvif::MetadataStreamPayload& payload)
+void OnvifCameraTab::handleMetadataReceived(const Onvif::MetadataStreamPayload& payload)
 {
     if (lblMetaTelemetry != nullptr) {
         QString text = QStringLiteral("PTZ: ");
@@ -3886,7 +3883,7 @@ void OnvifCameraTab::handleAddRule()
         return;
     }
 
-    PelcoD::Onvif::AnalyticsRule rule;
+    Onvif::AnalyticsRule rule;
     rule.name = name.toStdString();
     rule.type = cmbRuleType->currentData().toString().toStdString();
     rule.enabled = true;
@@ -3942,7 +3939,7 @@ void OnvifCameraTab::handleDeleteRule()
     m_onvifDevice->deleteRules({ item->text() });
 }
 
-void OnvifCameraTab::handleRulesUpdated(const std::vector<PelcoD::Onvif::AnalyticsRule>& rules)
+void OnvifCameraTab::handleRulesUpdated(const std::vector<Onvif::AnalyticsRule>& rules)
 {
     if (tableRules == nullptr) {
         return;
@@ -3985,7 +3982,7 @@ void OnvifCameraTab::handleRulesUpdated(const std::vector<PelcoD::Onvif::Analyti
     }
 }
 
-void OnvifCameraTab::handleSupportedRulesUpdated(const std::vector<PelcoD::Onvif::AnalyticsRuleDescription>& /*rules*/)
+void OnvifCameraTab::handleSupportedRulesUpdated(const std::vector<Onvif::AnalyticsRuleDescription>& /*rules*/)
 {
 }
 
@@ -3997,31 +3994,31 @@ void OnvifCameraTab::handleRefreshAnalyticsModules()
     }
 }
 
-void OnvifCameraTab::handleAnalyticsModulesUpdated(const std::vector<PelcoD::Onvif::AnalyticsModule>& /*modules*/)
+void OnvifCameraTab::handleAnalyticsModulesUpdated(const std::vector<Onvif::AnalyticsModule>& /*modules*/)
 {
 }
 
 void OnvifCameraTab::handleFetchSystemLog()
 {
     if (m_onvifDevice != nullptr) {
-        m_onvifDevice->fetchSystemLog(PelcoD::Onvif::SystemLogType::System);
+        m_onvifDevice->fetchSystemLog(Onvif::SystemLogType::System);
     }
 }
 
 void OnvifCameraTab::handleFetchAccessLog()
 {
     if (m_onvifDevice != nullptr) {
-        m_onvifDevice->fetchSystemLog(PelcoD::Onvif::SystemLogType::Access);
+        m_onvifDevice->fetchSystemLog(Onvif::SystemLogType::Access);
     }
 }
 
-void OnvifCameraTab::handleSystemLogReceived(PelcoD::Onvif::SystemLogType logType, const QString& logData)
+void OnvifCameraTab::handleSystemLogReceived(Onvif::SystemLogType logType, const QString& logData)
 {
     if (txtSystemLogs == nullptr) {
         return;
     }
-    const QString typeName = (logType == PelcoD::Onvif::SystemLogType::System) ? QStringLiteral("=== SYSTEM LOG ===")
-                                                                               : QStringLiteral("=== ACCESS LOG ===");
+    const QString typeName = (logType == Onvif::SystemLogType::System) ? QStringLiteral("=== SYSTEM LOG ===")
+                                                                       : QStringLiteral("=== ACCESS LOG ===");
     txtSystemLogs->append(typeName);
     txtSystemLogs->append(logData);
     txtSystemLogs->append(QStringLiteral(""));
@@ -4034,7 +4031,7 @@ void OnvifCameraTab::handleFetchSupportInfo()
     }
 }
 
-void OnvifCameraTab::handleSystemSupportInfoReceived(const PelcoD::Onvif::SystemSupportInfo& info)
+void OnvifCameraTab::handleSystemSupportInfoReceived(const Onvif::SystemSupportInfo& info)
 {
     if (txtSystemLogs == nullptr) {
         return;
@@ -4119,7 +4116,7 @@ void OnvifCameraTab::handleCreateRecording()
 {
     if (m_onvifDevice == nullptr)
         return;
-    PelcoD::Onvif::RecordingConfig cfg;
+    Onvif::RecordingConfig cfg;
     cfg.sourceToken = editNewRecordingSource->text().trimmed().toStdString();
     if (cfg.sourceToken.empty())
         cfg.sourceToken = "VideoSource_1";
@@ -4165,8 +4162,8 @@ void OnvifCameraTab::handleCreateTrack()
         return;
     }
     const QString recToken = tableRecordings->item(row, 0)->text();
-    PelcoD::Onvif::RecordingTrack trk;
-    trk.trackType = static_cast<PelcoD::Onvif::RecordingTrackType>(cmbTrackType->currentData().toInt());
+    Onvif::RecordingTrack trk;
+    trk.trackType = static_cast<Onvif::RecordingTrackType>(cmbTrackType->currentData().toInt());
     trk.description = editTrackDesc->text().trimmed().toStdString();
     if (trk.description.empty())
         trk.description = "PrimaryTrack";
@@ -4214,7 +4211,7 @@ void OnvifCameraTab::handleCreateRecordingJob()
 {
     if (m_onvifDevice == nullptr)
         return;
-    PelcoD::Onvif::RecordingJob job;
+    Onvif::RecordingJob job;
     job.recordingToken = editJobRecordingToken->text().trimmed().toStdString();
     job.sourceToken = editJobSourceToken->text().trimmed().toStdString();
     if (job.recordingToken.empty() || job.sourceToken.empty()) {
@@ -4222,7 +4219,7 @@ void OnvifCameraTab::handleCreateRecordingJob()
         return;
     }
     job.priority = spinJobPriority->value();
-    job.mode = static_cast<PelcoD::Onvif::RecordingJobMode>(cmbJobMode->currentData().toInt());
+    job.mode = static_cast<Onvif::RecordingJobMode>(cmbJobMode->currentData().toInt());
 
     const QString jobToken = m_onvifDevice->createRecordingJob(job);
     if (!jobToken.isEmpty()) {
@@ -4245,8 +4242,7 @@ void OnvifCameraTab::handleToggleJobMode()
     }
     const QString jobToken = tableRecordingJobs->item(row, 0)->text();
     const QString curMode = tableRecordingJobs->item(row, 4)->text();
-    const auto newMode
-        = (curMode == "Active") ? PelcoD::Onvif::RecordingJobMode::Idle : PelcoD::Onvif::RecordingJobMode::Active;
+    const auto newMode = (curMode == "Active") ? Onvif::RecordingJobMode::Idle : Onvif::RecordingJobMode::Active;
     if (m_onvifDevice->setRecordingJobMode(jobToken, newMode)) {
         QMessageBox::information(this, tr("Toggle Job"), tr("Job %1 mode changed.").arg(jobToken));
     }
@@ -4325,7 +4321,7 @@ void OnvifCameraTab::handlePlayInVideoStreamTab()
     }
 }
 
-void OnvifCameraTab::handleRecordingsUpdated(const std::vector<PelcoD::Onvif::RecordingConfig>& recordings)
+void OnvifCameraTab::handleRecordingsUpdated(const std::vector<Onvif::RecordingConfig>& recordings)
 {
     tableRecordings->setRowCount(0);
     for (const auto& r : recordings) {
@@ -4344,7 +4340,7 @@ void OnvifCameraTab::handleRecordingsUpdated(const std::vector<PelcoD::Onvif::Re
     }
 }
 
-void OnvifCameraTab::handleRecordingJobsUpdated(const std::vector<PelcoD::Onvif::RecordingJob>& jobs)
+void OnvifCameraTab::handleRecordingJobsUpdated(const std::vector<Onvif::RecordingJob>& jobs)
 {
     tableRecordingJobs->setRowCount(0);
     for (const auto& j : jobs) {
@@ -4355,11 +4351,11 @@ void OnvifCameraTab::handleRecordingJobsUpdated(const std::vector<PelcoD::Onvif:
         tableRecordingJobs->setItem(row, 2, new QTableWidgetItem(QString::fromStdString(j.sourceToken)));
         tableRecordingJobs->setItem(row, 3, new QTableWidgetItem(QString::number(j.priority)));
         tableRecordingJobs->setItem(
-            row, 4, new QTableWidgetItem(QString::fromStdString(PelcoD::Onvif::recordingJobModeToString(j.mode))));
+            row, 4, new QTableWidgetItem(QString::fromStdString(Onvif::recordingJobModeToString(j.mode))));
     }
 }
 
-void OnvifCameraTab::handleRecordingSummaryUpdated(const PelcoD::Onvif::RecordingSummary& summary)
+void OnvifCameraTab::handleRecordingSummaryUpdated(const Onvif::RecordingSummary& summary)
 {
     lblRecordingSummary->setText(tr("Storage Summary: %1 recordings | Earliest: %2 | Latest: %3 | Total Size: %4 MB")
                                      .arg(summary.numberRecordings)
@@ -4369,7 +4365,7 @@ void OnvifCameraTab::handleRecordingSummaryUpdated(const PelcoD::Onvif::Recordin
 }
 
 void OnvifCameraTab::handleRecordingSearchResultsReceived(
-    const QString& /*searchToken*/, const std::vector<PelcoD::Onvif::RecordingSearchResult>& results)
+    const QString& /*searchToken*/, const std::vector<Onvif::RecordingSearchResult>& results)
 {
     tableSearchResults->setRowCount(0);
     for (const auto& r : results) {
@@ -4384,7 +4380,7 @@ void OnvifCameraTab::handleRecordingSearchResultsReceived(
 }
 
 void OnvifCameraTab::handleEventSearchResultsReceived(
-    const QString& /*searchToken*/, const std::vector<PelcoD::Onvif::RecordedEventResult>& results)
+    const QString& /*searchToken*/, const std::vector<Onvif::RecordedEventResult>& results)
 {
     tableEventSearchResults->setRowCount(0);
     for (const auto& e : results) {
@@ -4474,7 +4470,7 @@ void OnvifCameraTab::handleApplyClientCertMode()
 {
     if (m_onvifDevice == nullptr)
         return;
-    const auto mode = static_cast<PelcoD::Onvif::ClientCertificateMode>(cmbClientCertMode->currentData().toInt());
+    const auto mode = static_cast<Onvif::ClientCertificateMode>(cmbClientCertMode->currentData().toInt());
     if (m_onvifDevice->setClientCertificateMode(mode)) {
         QMessageBox::information(
             this, tr("Client Certificate Mode"), tr("Client certificate authentication mode applied."));
@@ -4483,7 +4479,7 @@ void OnvifCameraTab::handleApplyClientCertMode()
     }
 }
 
-void OnvifCameraTab::handleCertificatesUpdated(const std::vector<PelcoD::Onvif::OnvifCertificate>& certs)
+void OnvifCameraTab::handleCertificatesUpdated(const std::vector<Onvif::OnvifCertificate>& certs)
 {
     tableCertificates->setRowCount(0);
     for (const auto& c : certs) {
@@ -4498,7 +4494,7 @@ void OnvifCameraTab::handleCertificatesUpdated(const std::vector<PelcoD::Onvif::
     }
 }
 
-void OnvifCameraTab::handleCertificateInfoReceived(const PelcoD::Onvif::CertificateInformation& info)
+void OnvifCameraTab::handleCertificateInfoReceived(const Onvif::CertificateInformation& info)
 {
     QMessageBox::information(this, tr("Certificate Information"),
         tr("Certificate ID: %1\nSubject: %2\nIssuer: %3\nValid From: %4\nValid Until: %5\nKey Usage: %6")
@@ -4510,7 +4506,7 @@ void OnvifCameraTab::handleCertificateInfoReceived(const PelcoD::Onvif::Certific
             .arg(QString::fromStdString(info.keyAlgorithm)));
 }
 
-void OnvifCameraTab::handlePkcs10CsrReceived(const PelcoD::Onvif::Pkcs10Request& csr)
+void OnvifCameraTab::handlePkcs10CsrReceived(const Onvif::Pkcs10Request& csr)
 {
     QMessageBox msgBox(this);
     msgBox.setWindowTitle(tr("PKCS#10 CSR Generated"));
@@ -4519,7 +4515,7 @@ void OnvifCameraTab::handlePkcs10CsrReceived(const PelcoD::Onvif::Pkcs10Request&
     msgBox.exec();
 }
 
-void OnvifCameraTab::handleClientCertModeUpdated(PelcoD::Onvif::ClientCertificateMode mode)
+void OnvifCameraTab::handleClientCertModeUpdated(Onvif::ClientCertificateMode mode)
 {
     const int idx = cmbClientCertMode->findData(static_cast<int>(mode));
     if (idx >= 0) {
@@ -4539,7 +4535,7 @@ void OnvifCameraTab::handleApplyRadiometry()
     if (m_onvifDevice == nullptr) {
         return;
     }
-    PelcoD::Onvif::RadiometryConfig cfg;
+    Onvif::RadiometryConfig cfg;
     cfg.emissivity = static_cast<float>(spinEmissivity->value());
     cfg.distance = static_cast<float>(spinTargetDistance->value());
     cfg.reflectedTemperature = static_cast<float>(spinReflectedTemp->value());
@@ -4596,7 +4592,7 @@ void OnvifCameraTab::handleAddMeasurement()
     const QString label = editRadLabel->text().trimmed();
 
     if (type == QStringLiteral("Spot")) {
-        PelcoD::Onvif::RadiometrySpot spot;
+        Onvif::RadiometrySpot spot;
         spot.token = token.toStdString();
         spot.label = label.toStdString();
         spot.position.x = static_cast<float>(spinRadX1->value());
@@ -4617,7 +4613,7 @@ void OnvifCameraTab::handleAddMeasurement()
         }
         m_onvifDevice->setRadiometrySpots(spots);
     } else {
-        PelcoD::Onvif::RadiometryBox box;
+        Onvif::RadiometryBox box;
         box.token = token.toStdString();
         box.label = label.toStdString();
         box.topLeft.x = static_cast<float>(spinRadX1->value());
@@ -4659,19 +4655,19 @@ void OnvifCameraTab::handleDeleteMeasurement()
     if (type.contains(QStringLiteral("Spot"), Qt::CaseInsensitive)) {
         auto spots = m_onvifDevice->radiometrySpots();
         spots.erase(std::remove_if(spots.begin(), spots.end(),
-                        [&](const PelcoD::Onvif::RadiometrySpot& s) { return s.token == token.toStdString(); }),
+                        [&](const Onvif::RadiometrySpot& s) { return s.token == token.toStdString(); }),
             spots.end());
         m_onvifDevice->setRadiometrySpots(spots);
     } else {
         auto boxes = m_onvifDevice->radiometryBoxes();
         boxes.erase(std::remove_if(boxes.begin(), boxes.end(),
-                        [&](const PelcoD::Onvif::RadiometryBox& b) { return b.token == token.toStdString(); }),
+                        [&](const Onvif::RadiometryBox& b) { return b.token == token.toStdString(); }),
             boxes.end());
         m_onvifDevice->setRadiometryBoxes(boxes);
     }
 }
 
-void OnvifCameraTab::handleRadiometryConfigUpdated(const PelcoD::Onvif::RadiometryConfig& config)
+void OnvifCameraTab::handleRadiometryConfigUpdated(const Onvif::RadiometryConfig& config)
 {
     QSignalBlocker b1(spinEmissivity);
     QSignalBlocker b2(spinTargetDistance);
@@ -4688,7 +4684,7 @@ void OnvifCameraTab::handleRadiometryConfigUpdated(const PelcoD::Onvif::Radiomet
     spinWindowTransmission->setValue(config.windowTransmission);
 }
 
-void OnvifCameraTab::handleRadiometrySpotsUpdated(const std::vector<PelcoD::Onvif::RadiometrySpot>& spots)
+void OnvifCameraTab::handleRadiometrySpotsUpdated(const std::vector<Onvif::RadiometrySpot>& spots)
 {
     tableRadiometry->setRowCount(0);
     for (const auto& s : spots) {
@@ -4733,7 +4729,7 @@ void OnvifCameraTab::handleRadiometrySpotsUpdated(const std::vector<PelcoD::Onvi
     }
 }
 
-void OnvifCameraTab::handleRadiometryBoxesUpdated(const std::vector<PelcoD::Onvif::RadiometryBox>& boxes)
+void OnvifCameraTab::handleRadiometryBoxesUpdated(const std::vector<Onvif::RadiometryBox>& boxes)
 {
     tableRadiometry->setRowCount(0);
     if (m_onvifDevice != nullptr) {
@@ -4789,7 +4785,7 @@ void OnvifCameraTab::handleRadiometryBoxesUpdated(const std::vector<PelcoD::Onvi
     }
 }
 
-void OnvifCameraTab::handleColorPalettesUpdated(const std::vector<PelcoD::Onvif::ColorPalette>& palettes)
+void OnvifCameraTab::handleColorPalettesUpdated(const std::vector<Onvif::ColorPalette>& palettes)
 {
     cmbThermalPalettes->clear();
     for (const auto& p : palettes) {

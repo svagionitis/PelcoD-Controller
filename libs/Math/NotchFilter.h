@@ -69,8 +69,3 @@ private:
 };
 
 } // namespace Math
-
-namespace PelcoD {
-namespace Math = ::Math;
-using NotchFilter = ::Math::NotchFilter;
-} // namespace PelcoD

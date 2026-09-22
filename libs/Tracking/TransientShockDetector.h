@@ -62,10 +62,3 @@ private:
 };
 
 } // namespace Tracking
-
-namespace PelcoD {
-namespace Tracking = ::Tracking;
-using ShockDetectorConfig = ::Tracking::ShockDetectorConfig;
-using ShockEvent = ::Tracking::ShockEvent;
-using TransientShockDetector = ::Tracking::TransientShockDetector;
-} // namespace PelcoD

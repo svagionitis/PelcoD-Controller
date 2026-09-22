@@ -88,7 +88,7 @@ void ConnectionWidget::setupUi()
 
     auto* lblBaud = new QLabel(tr("Baud:"), pageSerial);
     cmbBaudRate = new QComboBox(pageSerial);
-    for (const auto baud : PelcoD::SerialTransport::StandardBaudRates) {
+    for (const auto baud : Transport::SerialTransport::StandardBaudRates) {
         cmbBaudRate->addItem(QString::number(baud));
     }
     cmbBaudRate->setCurrentText("2400");
@@ -239,7 +239,7 @@ QStringList ConnectionWidget::displayedSerialPorts() const
 QStringList ConnectionWidget::enumerateSerialPorts()
 {
     QStringList ports;
-    for (const auto& port : PelcoD::SerialTransport::enumeratePorts()) {
+    for (const auto& port : Transport::SerialTransport::enumeratePorts()) {
         ports.append(QString::fromStdString(port));
     }
     return ports;
@@ -287,7 +287,7 @@ void ConnectionWidget::handleConnectClicked()
     triggerConnect();
 }
 
-std::shared_ptr<PelcoD::ITransport> ConnectionWidget::createConfiguredTransport() const
+std::shared_ptr<Transport::ITransport> ConnectionWidget::createConfiguredTransport() const
 {
     const auto address = static_cast<std::uint8_t>(spinAddress->value());
     const int mode = cmbMode->currentIndex();
@@ -306,20 +306,20 @@ std::shared_ptr<PelcoD::ITransport> ConnectionWidget::createConfiguredTransport(
             portPath = cmbSerialPort->currentText();
         }
         const qint32 baud = cmbBaudRate->currentText().toInt();
-        return std::make_shared<PelcoD::SerialTransport>(portPath.toStdString(), static_cast<std::uint32_t>(baud));
+        return std::make_shared<Transport::SerialTransport>(portPath.toStdString(), static_cast<std::uint32_t>(baud));
     }
     if (mode == 2) {
         // TCP Socket
         const QString host = editTcpHost->text();
         const auto port = static_cast<quint16>(spinTcpPort->value());
-        return std::make_shared<PelcoD::TcpTransport>(host.toStdString(), static_cast<std::uint16_t>(port));
+        return std::make_shared<Transport::TcpTransport>(host.toStdString(), static_cast<std::uint16_t>(port));
     }
     if (mode == 3) {
         // UDP Socket
         const QString host = editUdpHost->text();
         const auto port = static_cast<quint16>(spinUdpPort->value());
         const auto localPort = static_cast<quint16>(spinUdpLocalPort->value());
-        return std::make_shared<PelcoD::UdpTransport>(
+        return std::make_shared<Transport::UdpTransport>(
             host.toStdString(), static_cast<std::uint16_t>(port), static_cast<std::uint16_t>(localPort));
     }
     return nullptr;

@@ -12,7 +12,7 @@ function(add_transport_test test_name test_source)
         ${PELCOD_TEST_SUPPORT_DIR}
     )
     target_link_libraries(${test_name} PRIVATE
-        PelcoDTransport
+        Transport
         PelcoDCore
         Threads::Threads
     )

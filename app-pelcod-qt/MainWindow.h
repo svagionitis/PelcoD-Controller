@@ -40,7 +40,7 @@ public:
     ~MainWindow() override = default;
 
 private slots:
-    void handleConnect(std::shared_ptr<PelcoD::ITransport> transport, std::uint8_t address);
+    void handleConnect(std::shared_ptr<Transport::ITransport> transport, std::uint8_t address);
     void handleDisconnect();
     void handleStatusUpdated(const PelcoD::DeviceStatus& status);
     void handleFujinonStatusUpdated(const PelcoD::FujinonStatus& status);

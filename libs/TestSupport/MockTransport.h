@@ -19,7 +19,7 @@ namespace PelcoDTest {
 /// @brief Google Mock transport implementation inheriting BaseTransport.
 /// @details Enables precise mock expectations (EXPECT_CALL) on frame transmission, channel lifecycle,
 ///          and deterministic injection of simulated incoming bytes or connection state changes.
-class MockTransport : public PelcoD::BaseTransport {
+class MockTransport : public Transport::BaseTransport {
 public:
     MockTransport() = default;
     ~MockTransport() override = default;
@@ -47,7 +47,7 @@ public:
     /// @brief Simulates a transport connection state transition.
     /// @param[in] state Target transport state (e.g. Connected, Disconnected, Error).
     /// @param[in] errorMsg Diagnostic message associated with the state change.
-    void simulateStateChange(PelcoD::TransportState state, const std::string& errorMsg = {})
+    void simulateStateChange(Transport::TransportState state, const std::string& errorMsg = {})
     {
         notifyState(state, errorMsg);
     }
@@ -55,7 +55,7 @@ public:
 
 /// @class MockITransport
 /// @brief Pure virtual Google Mock implementation of the ITransport interface.
-class MockITransport : public PelcoD::ITransport {
+class MockITransport : public Transport::ITransport {
 public:
     MockITransport() = default;
     ~MockITransport() override = default;

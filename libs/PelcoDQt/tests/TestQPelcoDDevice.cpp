@@ -1,13 +1,14 @@
 /// @file TestQPelcoDDevice.cpp
 /// @brief Unit test verifying QPelcoDDevice callback registration and reconnection lifecycle.
 
+#include "BaseTransport.h"
 #include "MockPelcoDDevice.h"
 #include "QPelcoDDevice.h"
 
 #include <QCoreApplication>
 #include <QThread>
-#include <gtest/gtest.h>
 #include <chrono>
+#include <gtest/gtest.h>
 #include <iostream>
 #include <memory>
 #include <mutex>
@@ -215,7 +216,7 @@ TEST(QPelcoDDeviceTest, InvokeCore)
 
 /// @class SlowOpenTransport
 /// @brief Mock transport with simulated connection latency in open().
-class SlowOpenTransport final : public PelcoD::BaseTransport {
+class SlowOpenTransport final : public Transport::BaseTransport {
 public:
     bool open() override
     {

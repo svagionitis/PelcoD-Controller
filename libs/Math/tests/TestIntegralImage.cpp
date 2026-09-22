@@ -4,12 +4,12 @@
 #include "IntegralImage.h"
 
 #include <algorithm>
-#include <gtest/gtest.h>
 #include <cmath>
+#include <gtest/gtest.h>
 #include <iostream>
 #include <vector>
 
-using namespace PelcoD;
+using namespace Math;
 
 namespace {
 
@@ -261,7 +261,8 @@ TEST(IntegralImageTest, Large4KOverflowPrevention)
     std::cout << "[Test] testLarge4KOverflowPrevention...\n";
     const int width = 3840;
     const int height = 2160;
-    const std::uint64_t totalPixels = static_cast<std::uint64_t>(width) * static_cast<std::uint64_t>(height); // 8,294,400
+    const std::uint64_t totalPixels
+        = static_cast<std::uint64_t>(width) * static_cast<std::uint64_t>(height); // 8,294,400
 
     // Constant buffer of 255
     std::vector<std::uint8_t> frame4k(static_cast<std::size_t>(totalPixels), 255U);
@@ -286,4 +287,3 @@ TEST(IntegralImageTest, Large4KOverflowPrevention)
 }
 
 } // namespace
-

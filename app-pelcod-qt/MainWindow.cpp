@@ -117,7 +117,7 @@ void MainWindow::setupConnections()
         [this](const QString& tag) { statusBar()->showMessage(tr("Warning: Query '%1' timed out").arg(tag), 3000); });
 }
 
-void MainWindow::handleConnect(std::shared_ptr<PelcoD::ITransport> transport, std::uint8_t address)
+void MainWindow::handleConnect(std::shared_ptr<Transport::ITransport> transport, std::uint8_t address)
 {
     m_device->setTransport(std::move(transport), address);
     statusBar()->showMessage(tr("Connecting…"));

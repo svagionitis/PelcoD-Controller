@@ -58,7 +58,7 @@ public:
     [[nodiscard]] QStringList displayedSerialPorts() const;
 
 signals:
-    void connectRequested(std::shared_ptr<PelcoD::ITransport> transport, std::uint8_t address);
+    void connectRequested(std::shared_ptr<Transport::ITransport> transport, std::uint8_t address);
     void disconnectRequested();
     void refreshPortsRequested();
 
@@ -67,7 +67,7 @@ public slots:
     void setConnecting(bool connecting);
     void refreshSerialPorts();
 
-    [[nodiscard]] std::shared_ptr<PelcoD::ITransport> createConfiguredTransport() const;
+    [[nodiscard]] std::shared_ptr<Transport::ITransport> createConfiguredTransport() const;
 
 private slots:
     void handleConnectClicked();

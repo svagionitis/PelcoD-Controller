@@ -96,7 +96,3 @@ void applyWindow2D(std::vector<double>& image, std::size_t rows, std::size_t col
 [[nodiscard]] bool isPowerOfTwo(std::size_t n) noexcept;
 
 } // namespace Math
-
-namespace PelcoD {
-namespace Math = ::Math;
-} // namespace PelcoD

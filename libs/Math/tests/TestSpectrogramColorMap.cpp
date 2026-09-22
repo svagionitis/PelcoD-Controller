@@ -3,12 +3,12 @@
 
 #include "SpectrogramColorMap.h"
 
-#include <gtest/gtest.h>
 #include <cstdint>
+#include <gtest/gtest.h>
 #include <iostream>
 #include <string>
 
-using namespace PelcoD;
+using namespace Math;
 
 namespace {
 
@@ -191,4 +191,3 @@ TEST(SpectrogramColorMapTest, MapHalfBlockAnsiExtremes)
 }
 
 } // namespace
-

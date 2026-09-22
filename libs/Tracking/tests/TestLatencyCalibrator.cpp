@@ -5,11 +5,11 @@
 #include "LatencyCalibrator.h"
 
 #include <atomic>
-#include <gtest/gtest.h>
 #include <cmath>
+#include <gtest/gtest.h>
 #include <iostream>
 
-using namespace PelcoD;
+using namespace Tracking;
 
 namespace {
 
@@ -132,4 +132,3 @@ TEST(LatencyCalibratorTest, EstimatorAccess)
 }
 
 } // namespace
-

@@ -7,8 +7,8 @@
 #include "Onvif/OnvifSecurity.h"
 #include "Onvif/OnvifTypes.h"
 
-#include <gtest/gtest.h>
 #include <cmath>
+#include <gtest/gtest.h>
 #include <iostream>
 #include <string>
 #include <vector>
@@ -18,22 +18,24 @@
 #include <cstdlib>
 #endif
 
+using namespace Onvif;
+
 TEST(PelcoDOnvifTest, SecurityHeaderGeneration)
 {
     // 1. Empty credentials should yield empty security header
     {
-        PelcoD::Onvif::SecurityCredentials creds {};
-        const std::string header = PelcoD::Onvif::OnvifSecurity::buildSoapSecurityHeader(creds);
+        Onvif::SecurityCredentials creds {};
+        const std::string header = Onvif::OnvifSecurity::buildSoapSecurityHeader(creds);
         EXPECT_TRUE(header.empty());
     }
 
     // 2. Populated credentials should produce valid WS-Security UsernameToken header
     {
-        PelcoD::Onvif::SecurityCredentials creds {};
+        Onvif::SecurityCredentials creds {};
         creds.username = "admin";
         creds.password = "secretPass123";
 
-        const std::string header = PelcoD::Onvif::OnvifSecurity::buildSoapSecurityHeader(creds);
+        const std::string header = Onvif::OnvifSecurity::buildSoapSecurityHeader(creds);
         EXPECT_TRUE(!header.empty());
         EXPECT_TRUE(header.find("wsse:Security") != std::string::npos);
         EXPECT_TRUE(header.find("wsse:UsernameToken") != std::string::npos);
@@ -47,7 +49,7 @@ TEST(PelcoDOnvifTest, SecurityHeaderGeneration)
 TEST(PelcoDOnvifTest, DiscoveryProbeGenerationAndParsing)
 {
     // 1. Probe payload generation
-    const std::string probe = PelcoD::Onvif::OnvifDiscovery::createProbePayload("test-uuid-1234");
+    const std::string probe = Onvif::OnvifDiscovery::createProbePayload("test-uuid-1234");
     EXPECT_TRUE(probe.find(":Action>") != std::string::npos);
     EXPECT_TRUE(probe.find("http://schemas.xmlsoap.org/ws/2005/04/discovery/Probe") != std::string::npos);
     EXPECT_TRUE(probe.find("test-uuid-1234") != std::string::npos);
@@ -93,7 +95,7 @@ TEST(PelcoDOnvifTest, DiscoveryProbeGenerationAndParsing)
           "  </soap:Body>\n"
           "</soap:Envelope>";
 
-    const auto devices = PelcoD::Onvif::OnvifDiscovery::parseProbeMatches(probeMatchesXml, "192.168.1.50");
+    const auto devices = Onvif::OnvifDiscovery::parseProbeMatches(probeMatchesXml, "192.168.1.50");
     EXPECT_TRUE(devices.size() == 2U);
 
     // Verify Device 1
@@ -139,7 +141,7 @@ TEST(PelcoDOnvifTest, CapabilitiesParsing)
                             "  </SOAP-ENV:Body>\n"
                             "</SOAP-ENV:Envelope>";
 
-    const auto caps = PelcoD::Onvif::OnvifClient::parseCapabilitiesResponse(xml);
+    const auto caps = Onvif::OnvifClient::parseCapabilitiesResponse(xml);
     EXPECT_TRUE(caps.has_value());
     EXPECT_TRUE(caps->deviceXAddr == "http://192.168.1.100/onvif/device_service");
     EXPECT_TRUE(caps->mediaXAddr == "http://192.168.1.100/onvif/media_service");
@@ -148,7 +150,7 @@ TEST(PelcoDOnvifTest, CapabilitiesParsing)
     EXPECT_TRUE(caps->imagingXAddr == "http://192.168.1.100/onvif/imaging_service");
 
     // Invalid XML test
-    EXPECT_TRUE(!PelcoD::Onvif::OnvifClient::parseCapabilitiesResponse("<invalid>xml").has_value());
+    EXPECT_TRUE(!Onvif::OnvifClient::parseCapabilitiesResponse("<invalid>xml").has_value());
 }
 
 TEST(PelcoDOnvifTest, DeviceInformationParsing)
@@ -166,7 +168,7 @@ TEST(PelcoDOnvifTest, DeviceInformationParsing)
                             "  </SOAP-ENV:Body>\n"
                             "</SOAP-ENV:Envelope>";
 
-    const auto info = PelcoD::Onvif::OnvifClient::parseDeviceInformationResponse(xml);
+    const auto info = Onvif::OnvifClient::parseDeviceInformationResponse(xml);
     EXPECT_TRUE(info.has_value());
     EXPECT_TRUE(info->manufacturer == "Pelco");
     EXPECT_TRUE(info->model == "Esprit HD PTZ");
@@ -206,7 +208,7 @@ TEST(PelcoDOnvifTest, ProfilesParsing)
                             "  </SOAP-ENV:Body>\n"
                             "</SOAP-ENV:Envelope>";
 
-    const auto profiles = PelcoD::Onvif::OnvifClient::parseProfilesResponse(xml);
+    const auto profiles = Onvif::OnvifClient::parseProfilesResponse(xml);
     EXPECT_TRUE(profiles.size() == 2U);
 
     EXPECT_TRUE(profiles[0].token == "Profile_1");
@@ -239,7 +241,7 @@ TEST(PelcoDOnvifTest, StreamUriParsing)
                             "  </SOAP-ENV:Body>\n"
                             "</SOAP-ENV:Envelope>";
 
-    const auto uriInfo = PelcoD::Onvif::OnvifClient::parseStreamUriResponse(xml);
+    const auto uriInfo = Onvif::OnvifClient::parseStreamUriResponse(xml);
     EXPECT_TRUE(uriInfo.has_value());
     EXPECT_TRUE(uriInfo->uri == "rtsp://192.168.1.100:554/live/ch0");
     EXPECT_TRUE(!uriInfo->invalidAfterConnect);
@@ -262,7 +264,7 @@ TEST(PelcoDOnvifTest, SnapshotUriParsing)
                             "  </SOAP-ENV:Body>\n"
                             "</SOAP-ENV:Envelope>";
 
-    const auto snapUri = PelcoD::Onvif::OnvifClient::parseSnapshotUriResponse(xml);
+    const auto snapUri = Onvif::OnvifClient::parseSnapshotUriResponse(xml);
     EXPECT_TRUE(snapUri.has_value());
     EXPECT_TRUE(*snapUri == "http://192.168.1.100/onvif/snapshot/view.jpg");
 }
@@ -289,7 +291,7 @@ TEST(PelcoDOnvifTest, PtzStatusParsing)
                             "  </SOAP-ENV:Body>\n"
                             "</SOAP-ENV:Envelope>";
 
-    const auto status = PelcoD::Onvif::OnvifClient::parsePtzStatusResponse(xml);
+    const auto status = Onvif::OnvifClient::parsePtzStatusResponse(xml);
     EXPECT_TRUE(status.has_value());
     EXPECT_TRUE(status->pan > 0.349 && status->pan < 0.351);
     EXPECT_TRUE(status->tilt < -0.199 && status->tilt > -0.201);
@@ -324,7 +326,7 @@ TEST(PelcoDOnvifTest, PresetsParsing)
                                       "  </SOAP-ENV:Body>\n"
                                       "</SOAP-ENV:Envelope>";
 
-    const auto presets = PelcoD::Onvif::OnvifClient::parsePresetsResponse(getPresetsXml);
+    const auto presets = Onvif::OnvifClient::parsePresetsResponse(getPresetsXml);
     EXPECT_TRUE(presets.size() == 2U);
     EXPECT_TRUE(presets[0].token == "1");
     EXPECT_TRUE(presets[0].name == "Gate Entrance");
@@ -346,7 +348,7 @@ TEST(PelcoDOnvifTest, PresetsParsing)
                                      "  </SOAP-ENV:Body>\n"
                                      "</SOAP-ENV:Envelope>";
 
-    const auto assignedToken = PelcoD::Onvif::OnvifClient::parseSetPresetResponse(setPresetXml);
+    const auto assignedToken = Onvif::OnvifClient::parseSetPresetResponse(setPresetXml);
     EXPECT_TRUE(assignedToken.has_value());
     EXPECT_TRUE(*assignedToken == "preset_token_99");
 }
@@ -386,11 +388,11 @@ TEST(PelcoDOnvifTest, PresetToursParsing)
                                  "  </SOAP-ENV:Body>\n"
                                  "</SOAP-ENV:Envelope>";
 
-    const auto tours = PelcoD::Onvif::OnvifClient::parsePresetToursResponse(toursXml);
+    const auto tours = Onvif::OnvifClient::parsePresetToursResponse(toursXml);
     EXPECT_TRUE(tours.size() == 1);
     EXPECT_TRUE(tours[0].token == "Tour_1");
     EXPECT_TRUE(tours[0].name == "Perimeter Patrol");
-    EXPECT_TRUE(tours[0].status == PelcoD::Onvif::PresetTourState::Touring);
+    EXPECT_TRUE(tours[0].status == Onvif::PresetTourState::Touring);
     EXPECT_TRUE(tours[0].spots.size() == 2);
     EXPECT_TRUE(tours[0].spots[0].presetToken == "1");
     EXPECT_TRUE(std::abs(tours[0].spots[0].speed - 0.8f) < 0.01f);
@@ -408,7 +410,7 @@ TEST(PelcoDOnvifTest, PresetToursParsing)
                                   "  </SOAP-ENV:Body>\n"
                                   "</SOAP-ENV:Envelope>";
 
-    const auto createdToken = PelcoD::Onvif::OnvifClient::parseCreatePresetTourResponse(createXml);
+    const auto createdToken = Onvif::OnvifClient::parseCreatePresetTourResponse(createXml);
     EXPECT_TRUE(createdToken.has_value());
     EXPECT_TRUE(*createdToken == "Tour_99");
 }
@@ -424,18 +426,18 @@ TEST(PelcoDOnvifTest, SystemRebootParsing)
                             "  </SOAP-ENV:Body>\n"
                             "</SOAP-ENV:Envelope>";
 
-    const auto rebootMsg = PelcoD::Onvif::OnvifClient::parseSystemRebootResponse(xml);
+    const auto rebootMsg = Onvif::OnvifClient::parseSystemRebootResponse(xml);
     EXPECT_TRUE(rebootMsg.has_value());
     EXPECT_TRUE(*rebootMsg == "Device rebooting in 5 seconds");
 }
 
 TEST(PelcoDOnvifTest, SoapEnvelopeWrapping)
 {
-    PelcoD::Onvif::SecurityCredentials creds {};
+    Onvif::SecurityCredentials creds {};
     creds.username = "operator";
     creds.password = "pass456";
 
-    PelcoD::Onvif::OnvifClient client("http://192.168.1.100/onvif/device_service", creds);
+    Onvif::OnvifClient client("http://192.168.1.100/onvif/device_service", creds);
     const std::string body = "<tds:GetDeviceInformation/>";
     const std::string env = client.wrapSoapEnvelope(body);
 
@@ -475,7 +477,7 @@ TEST(PelcoDOnvifTest, ImagingSettingsParsing)
                             "  </SOAP-ENV:Body>\n"
                             "</SOAP-ENV:Envelope>";
 
-    const auto settings = PelcoD::Onvif::OnvifClient::parseImagingSettingsResponse(xml);
+    const auto settings = Onvif::OnvifClient::parseImagingSettingsResponse(xml);
     EXPECT_TRUE(settings.has_value());
     EXPECT_TRUE(settings->brightness == 65.0f);
     EXPECT_TRUE(settings->colorSaturation == 75.0f);
@@ -506,7 +508,7 @@ TEST(PelcoDOnvifTest, PullPointEventsParsing)
           "  </SOAP-ENV:Body>\n"
           "</SOAP-ENV:Envelope>";
 
-    const auto subUrl = PelcoD::Onvif::OnvifClient::parseCreatePullPointSubscriptionResponse(subXml);
+    const auto subUrl = Onvif::OnvifClient::parseCreatePullPointSubscriptionResponse(subXml);
     EXPECT_TRUE(subUrl.has_value());
     EXPECT_TRUE(*subUrl == "http://192.168.1.100:8080/onvif/Subscription?idx=42");
 
@@ -544,7 +546,7 @@ TEST(PelcoDOnvifTest, PullPointEventsParsing)
           "  </SOAP-ENV:Body>\n"
           "</SOAP-ENV:Envelope>";
 
-    const auto events = PelcoD::Onvif::OnvifClient::parsePullMessagesResponse(pullXml);
+    const auto events = Onvif::OnvifClient::parsePullMessagesResponse(pullXml);
     EXPECT_TRUE(events.size() == 2U);
     EXPECT_TRUE(events[0].topic == "tns1:RuleEngine/CellMotionDetector/Motion");
     EXPECT_TRUE(events[0].sourceName == "VideoSourceConfigurationToken");
@@ -569,7 +571,7 @@ TEST(PelcoDOnvifTest, SendAuxiliaryCommandParsing)
                                         "  </SOAP-ENV:Body>\n"
                                         "</SOAP-ENV:Envelope>";
 
-    const auto resp1 = PelcoD::Onvif::OnvifClient::parseSendAuxiliaryCommandResponse(xmlWithResponse);
+    const auto resp1 = Onvif::OnvifClient::parseSendAuxiliaryCommandResponse(xmlWithResponse);
     EXPECT_TRUE(resp1.has_value());
     EXPECT_TRUE(*resp1 == "tt:Wiper|On");
 
@@ -581,12 +583,12 @@ TEST(PelcoDOnvifTest, SendAuxiliaryCommandParsing)
           "  </SOAP-ENV:Body>\n"
           "</SOAP-ENV:Envelope>";
 
-    const auto resp2 = PelcoD::Onvif::OnvifClient::parseSendAuxiliaryCommandResponse(xmlEmptyResponse);
+    const auto resp2 = Onvif::OnvifClient::parseSendAuxiliaryCommandResponse(xmlEmptyResponse);
     EXPECT_TRUE(resp2.has_value());
     EXPECT_TRUE(resp2->empty());
 
     const std::string xmlInvalid = "<InvalidXml>";
-    const auto resp3 = PelcoD::Onvif::OnvifClient::parseSendAuxiliaryCommandResponse(xmlInvalid);
+    const auto resp3 = Onvif::OnvifClient::parseSendAuxiliaryCommandResponse(xmlInvalid);
     EXPECT_TRUE(!resp3.has_value());
 }
 
@@ -628,17 +630,17 @@ TEST(PelcoDOnvifTest, OsdParsing)
           "  </SOAP-ENV:Body>\r\n"
           "</SOAP-ENV:Envelope>";
 
-    const auto osds = PelcoD::Onvif::OnvifClient::parseOsdListResponse(osdListXml);
+    const auto osds = Onvif::OnvifClient::parseOsdListResponse(osdListXml);
     EXPECT_TRUE(osds.size() == 2);
     EXPECT_TRUE(osds[0].token == "OSD_1");
     EXPECT_TRUE(osds[0].videoSourceToken == "VideoSourceConfig_1");
-    EXPECT_TRUE(osds[0].position == PelcoD::Onvif::OsdPositionType::UpperLeft);
+    EXPECT_TRUE(osds[0].position == Onvif::OsdPositionType::UpperLeft);
     EXPECT_TRUE(!osds[0].isDateAndTime);
     EXPECT_TRUE(osds[0].plainText == "Entrance Gate");
     EXPECT_TRUE(osds[0].fontSize == 28);
 
     EXPECT_TRUE(osds[1].token == "OSD_2");
-    EXPECT_TRUE(osds[1].position == PelcoD::Onvif::OsdPositionType::Custom);
+    EXPECT_TRUE(osds[1].position == Onvif::OsdPositionType::Custom);
     EXPECT_TRUE(std::abs(osds[1].customX - 0.5f) < 0.001f);
     EXPECT_TRUE(std::abs(osds[1].customY - 0.5f) < 0.001f);
     EXPECT_TRUE(osds[1].isDateAndTime);
@@ -669,10 +671,10 @@ TEST(PelcoDOnvifTest, OsdParsing)
           "  </SOAP-ENV:Body>\r\n"
           "</SOAP-ENV:Envelope>";
 
-    const auto singleOsd = PelcoD::Onvif::OnvifClient::parseOsdResponse(singleOsdXml);
+    const auto singleOsd = Onvif::OnvifClient::parseOsdResponse(singleOsdXml);
     EXPECT_TRUE(singleOsd.has_value());
     EXPECT_TRUE(singleOsd->token == "OSD_99");
-    EXPECT_TRUE(singleOsd->position == PelcoD::Onvif::OsdPositionType::LowerRight);
+    EXPECT_TRUE(singleOsd->position == Onvif::OsdPositionType::LowerRight);
     EXPECT_TRUE(singleOsd->plainText == "Perimeter North");
 
     // Test CreateOSD response parser
@@ -686,7 +688,7 @@ TEST(PelcoDOnvifTest, OsdParsing)
                                      "  </SOAP-ENV:Body>\r\n"
                                      "</SOAP-ENV:Envelope>";
 
-    const auto createdToken = PelcoD::Onvif::OnvifClient::parseCreateOsdResponse(createOsdXml);
+    const auto createdToken = Onvif::OnvifClient::parseCreateOsdResponse(createOsdXml);
     EXPECT_TRUE(createdToken.has_value());
     EXPECT_TRUE(*createdToken == "OSD_CREATED_42");
 }
@@ -717,15 +719,15 @@ TEST(PelcoDOnvifTest, DeviceUsersParsing)
                             "  </SOAP-ENV:Body>\r\n"
                             "</SOAP-ENV:Envelope>";
 
-    const auto users = PelcoD::Onvif::OnvifClient::parseUsersResponse(xml);
+    const auto users = Onvif::OnvifClient::parseUsersResponse(xml);
     EXPECT_TRUE(users.size() == 3);
     EXPECT_TRUE(users[0].username == "admin");
-    EXPECT_TRUE(users[0].level == PelcoD::Onvif::OnvifUserLevel::Administrator);
+    EXPECT_TRUE(users[0].level == Onvif::OnvifUserLevel::Administrator);
     EXPECT_TRUE(users[1].username == "operator1");
     EXPECT_TRUE(users[1].password == "secretpass");
-    EXPECT_TRUE(users[1].level == PelcoD::Onvif::OnvifUserLevel::Operator);
+    EXPECT_TRUE(users[1].level == Onvif::OnvifUserLevel::Operator);
     EXPECT_TRUE(users[2].username == "guest");
-    EXPECT_TRUE(users[2].level == PelcoD::Onvif::OnvifUserLevel::User);
+    EXPECT_TRUE(users[2].level == Onvif::OnvifUserLevel::User);
 }
 
 TEST(PelcoDOnvifTest, DeviceNetworkInterfacesParsing)
@@ -758,7 +760,7 @@ TEST(PelcoDOnvifTest, DeviceNetworkInterfacesParsing)
                             "  </SOAP-ENV:Body>\r\n"
                             "</SOAP-ENV:Envelope>";
 
-    const auto ifaces = PelcoD::Onvif::OnvifClient::parseNetworkInterfacesResponse(xml);
+    const auto ifaces = Onvif::OnvifClient::parseNetworkInterfacesResponse(xml);
     EXPECT_TRUE(ifaces.size() == 1);
     EXPECT_TRUE(ifaces[0].token == "eth0");
     EXPECT_TRUE(ifaces[0].enabled == true);
@@ -795,7 +797,7 @@ TEST(PelcoDOnvifTest, DeviceDnsNtpParsing)
                                "  </SOAP-ENV:Body>\r\n"
                                "</SOAP-ENV:Envelope>";
 
-    const auto dns = PelcoD::Onvif::OnvifClient::parseDnsResponse(dnsXml);
+    const auto dns = Onvif::OnvifClient::parseDnsResponse(dnsXml);
     EXPECT_TRUE(dns.has_value());
     EXPECT_TRUE(dns->fromDhcp == false);
     EXPECT_TRUE(dns->searchDomains.size() == 1 && dns->searchDomains[0] == "lan");
@@ -818,7 +820,7 @@ TEST(PelcoDOnvifTest, DeviceDnsNtpParsing)
                                "  </SOAP-ENV:Body>\r\n"
                                "</SOAP-ENV:Envelope>";
 
-    const auto ntp = PelcoD::Onvif::OnvifClient::parseNtpResponse(ntpXml);
+    const auto ntp = Onvif::OnvifClient::parseNtpResponse(ntpXml);
     EXPECT_TRUE(ntp.has_value());
     EXPECT_TRUE(ntp->fromDhcp == true);
     EXPECT_TRUE(ntp->manualServers.size() == 1 && ntp->manualServers[0] == "time.google.com");
@@ -831,14 +833,14 @@ TEST(PelcoDOnvifTest, DeviceGatewayAndHostnameParsing)
           "xmlns:tt=\"http://www.onvif.org/ver10/schema\">"
           "<tds:NetworkGateway><tt:IPv4Address>192.168.1.254</tt:IPv4Address></tds:NetworkGateway>"
           "</tds:GetNetworkDefaultGatewayResponse>";
-    const std::string gw = PelcoD::Onvif::OnvifClient::parseNetworkDefaultGatewayResponse(gwXml);
+    const std::string gw = Onvif::OnvifClient::parseNetworkDefaultGatewayResponse(gwXml);
     EXPECT_TRUE(gw == "192.168.1.254");
 
     const std::string hnXml = "<tds:GetHostnameResponse xmlns:tds=\"http://www.onvif.org/ver10/device/wsdl\" "
                               "xmlns:tt=\"http://www.onvif.org/ver10/schema\">"
                               "<tds:HostnameInformation><tt:Name>CamFrontGate</tt:Name></tds:HostnameInformation>"
                               "</tds:GetHostnameResponse>";
-    const std::string hn = PelcoD::Onvif::OnvifClient::parseHostnameResponse(hnXml);
+    const std::string hn = Onvif::OnvifClient::parseHostnameResponse(hnXml);
     EXPECT_TRUE(hn == "CamFrontGate");
 
     const std::string scXml = "<tds:GetScopesResponse xmlns:tds=\"http://www.onvif.org/ver10/device/wsdl\" "
@@ -846,7 +848,7 @@ TEST(PelcoDOnvifTest, DeviceGatewayAndHostnameParsing)
                               "<tds:Scopes><tt:ScopeItem>onvif://www.onvif.org/type/ptz</tt:ScopeItem></tds:Scopes>"
                               "<tds:Scopes><tt:ScopeItem>onvif://www.onvif.org/name/Cam1</tt:ScopeItem></tds:Scopes>"
                               "</tds:GetScopesResponse>";
-    const auto scopes = PelcoD::Onvif::OnvifClient::parseScopesResponse(scXml);
+    const auto scopes = Onvif::OnvifClient::parseScopesResponse(scXml);
     EXPECT_TRUE(scopes.size() == 2);
     EXPECT_TRUE(scopes[0] == "onvif://www.onvif.org/type/ptz");
     EXPECT_TRUE(scopes[1] == "onvif://www.onvif.org/name/Cam1");
@@ -870,7 +872,7 @@ TEST(PelcoDOnvifTest, FocusStatusParsing)
                             "  </SOAP-ENV:Body>\r\n"
                             "</SOAP-ENV:Envelope>";
 
-    const auto status = PelcoD::Onvif::OnvifClient::parseFocusStatusResponse(xml);
+    const auto status = Onvif::OnvifClient::parseFocusStatusResponse(xml);
     EXPECT_TRUE(status.has_value());
     EXPECT_TRUE(std::abs(status->position - 0.75f) < 0.01f);
     EXPECT_TRUE(status->moveStatus == "IDLE");
@@ -894,7 +896,7 @@ TEST(PelcoDOnvifTest, ImagingPresetsParsing)
                             "  </SOAP-ENV:Body>\r\n"
                             "</SOAP-ENV:Envelope>";
 
-    const auto presets = PelcoD::Onvif::OnvifClient::parseImagingPresetsResponse(xml);
+    const auto presets = Onvif::OnvifClient::parseImagingPresetsResponse(xml);
     EXPECT_TRUE(presets.size() == 2);
     EXPECT_TRUE(presets[0].token == "Preset_Day");
     EXPECT_TRUE(presets[0].name == "Day Outdoor");
@@ -931,18 +933,18 @@ TEST(PelcoDOnvifTest, RelayOutputsParsing)
                             "  </SOAP-ENV:Body>\r\n"
                             "</SOAP-ENV:Envelope>";
 
-    const auto relays = PelcoD::Onvif::OnvifClient::parseRelayOutputsResponse(xml);
+    const auto relays = Onvif::OnvifClient::parseRelayOutputsResponse(xml);
     EXPECT_TRUE(relays.size() == 2);
     EXPECT_TRUE(relays[0].token == "Relay_1");
-    EXPECT_TRUE(relays[0].mode == PelcoD::Onvif::RelayMode::Bistable);
-    EXPECT_TRUE(relays[0].idleState == PelcoD::Onvif::RelayIdleState::Open);
-    EXPECT_TRUE(relays[0].logicalState == PelcoD::Onvif::RelayLogicalState::Active);
+    EXPECT_TRUE(relays[0].mode == Onvif::RelayMode::Bistable);
+    EXPECT_TRUE(relays[0].idleState == Onvif::RelayIdleState::Open);
+    EXPECT_TRUE(relays[0].logicalState == Onvif::RelayLogicalState::Active);
 
     EXPECT_TRUE(relays[1].token == "Relay_2");
-    EXPECT_TRUE(relays[1].mode == PelcoD::Onvif::RelayMode::Monostable);
+    EXPECT_TRUE(relays[1].mode == Onvif::RelayMode::Monostable);
     EXPECT_TRUE(std::abs(relays[1].delayTimeSeconds - 5.0f) < 0.01f);
-    EXPECT_TRUE(relays[1].idleState == PelcoD::Onvif::RelayIdleState::Closed);
-    EXPECT_TRUE(relays[1].logicalState == PelcoD::Onvif::RelayLogicalState::Inactive);
+    EXPECT_TRUE(relays[1].idleState == Onvif::RelayIdleState::Closed);
+    EXPECT_TRUE(relays[1].logicalState == Onvif::RelayLogicalState::Inactive);
 }
 
 TEST(PelcoDOnvifTest, DigitalInputsParsing)
@@ -960,10 +962,10 @@ TEST(PelcoDOnvifTest, DigitalInputsParsing)
                             "  </SOAP-ENV:Body>\r\n"
                             "</SOAP-ENV:Envelope>";
 
-    const auto inputs = PelcoD::Onvif::OnvifClient::parseDigitalInputsResponse(xml);
+    const auto inputs = Onvif::OnvifClient::parseDigitalInputsResponse(xml);
     EXPECT_TRUE(inputs.size() == 1);
     EXPECT_TRUE(inputs[0].token == "Input_1");
-    EXPECT_TRUE(inputs[0].idleState == PelcoD::Onvif::RelayIdleState::Open);
+    EXPECT_TRUE(inputs[0].idleState == Onvif::RelayIdleState::Open);
 }
 
 TEST(PelcoDOnvifTest, MetadataConfigurationsParsing)
@@ -987,7 +989,7 @@ TEST(PelcoDOnvifTest, MetadataConfigurationsParsing)
                             "  </SOAP-ENV:Body>\r\n"
                             "</SOAP-ENV:Envelope>";
 
-    const auto configs = PelcoD::Onvif::OnvifClient::parseMetadataConfigurationsResponse(xml);
+    const auto configs = Onvif::OnvifClient::parseMetadataConfigurationsResponse(xml);
     EXPECT_TRUE(configs.size() == 1);
     EXPECT_TRUE(configs[0].token == "Meta_1");
     EXPECT_TRUE(configs[0].name == "MainMetadata");
@@ -1013,7 +1015,7 @@ TEST(PelcoDOnvifTest, MetadataConfigurationOptionsParsing)
                             "  </SOAP-ENV:Body>\r\n"
                             "</SOAP-ENV:Envelope>";
 
-    const auto opts = PelcoD::Onvif::OnvifClient::parseMetadataConfigurationOptionsResponse(xml);
+    const auto opts = Onvif::OnvifClient::parseMetadataConfigurationOptionsResponse(xml);
     EXPECT_TRUE(opts.has_value());
     EXPECT_TRUE(opts->ptzStatusSupported == true);
     EXPECT_TRUE(opts->analyticsSupported == true);
@@ -1050,7 +1052,7 @@ TEST(PelcoDOnvifTest, MetadataStreamParsing)
                             "  </tt:VideoAnalytics>\r\n"
                             "</tt:MetadataStream>";
 
-    const auto payload = PelcoD::Onvif::OnvifClient::parseMetadataStreamResponse(xml);
+    const auto payload = Onvif::OnvifClient::parseMetadataStreamResponse(xml);
     EXPECT_TRUE(payload.has_value());
     EXPECT_TRUE(payload->ptzStatus.has_value());
     EXPECT_TRUE(std::abs(payload->ptzStatus->pan - 0.55) < 0.001);
@@ -1083,7 +1085,7 @@ TEST(PelcoDOnvifTest, SystemLogsParsing)
                             "  </SOAP-ENV:Body>\r\n"
                             "</SOAP-ENV:Envelope>";
 
-    const auto logData = PelcoD::Onvif::OnvifClient::parseSystemLogResponse(xml);
+    const auto logData = Onvif::OnvifClient::parseSystemLogResponse(xml);
     EXPECT_TRUE(logData.has_value());
     EXPECT_TRUE(logData->find("System boot completed") != std::string::npos);
 }
@@ -1103,7 +1105,7 @@ TEST(PelcoDOnvifTest, SystemSupportInfoAndBackupParsing)
                                    "  </SOAP-ENV:Body>\r\n"
                                    "</SOAP-ENV:Envelope>";
 
-    const auto info = PelcoD::Onvif::OnvifClient::parseSystemSupportInformationResponse(supportXml);
+    const auto info = Onvif::OnvifClient::parseSystemSupportInformationResponse(supportXml);
     EXPECT_TRUE(info.has_value());
     EXPECT_TRUE(info->rawDiagnostics.find("CPU: 12.5%") != std::string::npos);
 
@@ -1120,7 +1122,7 @@ TEST(PelcoDOnvifTest, SystemSupportInfoAndBackupParsing)
                                   "  </SOAP-ENV:Body>\r\n"
                                   "</SOAP-ENV:Envelope>";
 
-    const auto backupData = PelcoD::Onvif::OnvifClient::parseSystemBackupResponse(backupXml);
+    const auto backupData = Onvif::OnvifClient::parseSystemBackupResponse(backupXml);
     EXPECT_TRUE(backupData.has_value());
     EXPECT_TRUE(*backupData == "BASE64BACKUPDATA12345");
 
@@ -1135,7 +1137,7 @@ TEST(PelcoDOnvifTest, SystemSupportInfoAndBackupParsing)
                                  "  </SOAP-ENV:Body>\r\n"
                                  "</SOAP-ENV:Envelope>";
 
-    const auto guid = PelcoD::Onvif::OnvifClient::parseEndpointReferenceResponse(epRefXml);
+    const auto guid = Onvif::OnvifClient::parseEndpointReferenceResponse(epRefXml);
     EXPECT_TRUE(guid.has_value());
     EXPECT_TRUE(guid->find("11223344-5566-7788-99aa-bbccddeeff00") != std::string::npos);
 }
@@ -1144,7 +1146,7 @@ TEST(PelcoDOnvifTest, PkiSecurityAndCrypto)
 {
     // 1. Test generateSelfSignedCertificate
     const auto cert
-        = PelcoD::Onvif::OnvifSecurity::generateSelfSignedCertificate("Cert_Test", "CN=TestCamera, O=Security", 365);
+        = Onvif::OnvifSecurity::generateSelfSignedCertificate("Cert_Test", "CN=TestCamera, O=Security", 365);
     EXPECT_TRUE(cert.certificateId == "Cert_Test");
     EXPECT_TRUE(!cert.x509DerBase64.empty());
     EXPECT_TRUE(cert.info.subject.find("TestCamera") != std::string::npos);
@@ -1152,12 +1154,12 @@ TEST(PelcoDOnvifTest, PkiSecurityAndCrypto)
     EXPECT_TRUE(!cert.info.validNotAfter.empty());
 
     // 2. Test parseCertificateInfo
-    const auto info = PelcoD::Onvif::OnvifSecurity::parseCertificateInfo("Cert_Test", cert.x509DerBase64);
+    const auto info = Onvif::OnvifSecurity::parseCertificateInfo("Cert_Test", cert.x509DerBase64);
     EXPECT_TRUE(info.certificateId == "Cert_Test");
     EXPECT_TRUE(info.subject.find("TestCamera") != std::string::npos);
 
     // 3. Test generatePkcs10Csr
-    const auto csr = PelcoD::Onvif::OnvifSecurity::generatePkcs10Csr("Cert_Test", "CN=TestCamera, O=Security");
+    const auto csr = Onvif::OnvifSecurity::generatePkcs10Csr("Cert_Test", "CN=TestCamera, O=Security");
     EXPECT_TRUE(csr.certificateId == "Cert_Test");
     EXPECT_TRUE(!csr.csrBase64.empty());
     EXPECT_TRUE(csr.subject.find("TestCamera") != std::string::npos);
@@ -1182,7 +1184,7 @@ TEST(PelcoDOnvifTest, PkiXmlParsing)
                                  "  </SOAP-ENV:Body>\r\n"
                                  "</SOAP-ENV:Envelope>";
 
-    const auto certList = PelcoD::Onvif::OnvifClient::parseCertificatesResponse(certsXml);
+    const auto certList = Onvif::OnvifClient::parseCertificatesResponse(certsXml);
     EXPECT_TRUE(certList.size() == 1U);
     EXPECT_TRUE(certList[0].certificateId == "Cert_Main");
     EXPECT_TRUE(certList[0].x509DerBase64 == "MIIBjjCCATSgAwIBAgIU...");
@@ -1210,7 +1212,7 @@ TEST(PelcoDOnvifTest, PkiXmlParsing)
                                 "  </SOAP-ENV:Body>\r\n"
                                 "</SOAP-ENV:Envelope>";
 
-    const auto infoOpt = PelcoD::Onvif::OnvifClient::parseCertificateInformationResponse(infoXml);
+    const auto infoOpt = Onvif::OnvifClient::parseCertificateInformationResponse(infoXml);
     EXPECT_TRUE(infoOpt.has_value());
     EXPECT_TRUE(infoOpt->certificateId == "Cert_Main");
     EXPECT_TRUE(infoOpt->issuer == "CN=RootCA");
@@ -1230,7 +1232,7 @@ TEST(PelcoDOnvifTest, PkiXmlParsing)
                                "  </SOAP-ENV:Body>\r\n"
                                "</SOAP-ENV:Envelope>";
 
-    const auto csrOpt = PelcoD::Onvif::OnvifClient::parsePkcs10RequestResponse(csrXml);
+    const auto csrOpt = Onvif::OnvifClient::parsePkcs10RequestResponse(csrXml);
     EXPECT_TRUE(csrOpt.has_value());
     EXPECT_TRUE(csrOpt->csrBase64 == "MIICvDCCAaQCAQAw");
 
@@ -1245,9 +1247,9 @@ TEST(PelcoDOnvifTest, PkiXmlParsing)
                                 "  </SOAP-ENV:Body>\r\n"
                                 "</SOAP-ENV:Envelope>";
 
-    const auto modeOpt = PelcoD::Onvif::OnvifClient::parseClientCertificateModeResponse(modeXml);
+    const auto modeOpt = Onvif::OnvifClient::parseClientCertificateModeResponse(modeXml);
     EXPECT_TRUE(modeOpt.has_value());
-    EXPECT_TRUE(*modeOpt == PelcoD::Onvif::ClientCertificateMode::Required);
+    EXPECT_TRUE(*modeOpt == Onvif::ClientCertificateMode::Required);
 }
 
 TEST(PelcoDOnvifTest, ProfileGRecordingXmlParsing)
@@ -1282,7 +1284,7 @@ TEST(PelcoDOnvifTest, ProfileGRecordingXmlParsing)
                                 "  </SOAP-ENV:Body>\r\n"
                                 "</SOAP-ENV:Envelope>";
 
-    const auto recs = PelcoD::Onvif::OnvifClient::parseRecordingsResponse(recsXml);
+    const auto recs = Onvif::OnvifClient::parseRecordingsResponse(recsXml);
     EXPECT_TRUE(recs.size() == 1U);
     EXPECT_TRUE(recs[0].recordingToken == "Rec_Main");
     EXPECT_TRUE(recs[0].sourceToken == "VideoSource_1");
@@ -1290,14 +1292,14 @@ TEST(PelcoDOnvifTest, ProfileGRecordingXmlParsing)
     EXPECT_TRUE(recs[0].maximumRetentionTime == "P30D");
     EXPECT_TRUE(recs[0].tracks.size() == 1U);
     EXPECT_TRUE(recs[0].tracks[0].trackToken == "Track_Video_1");
-    EXPECT_TRUE(recs[0].tracks[0].trackType == PelcoD::Onvif::RecordingTrackType::Video);
+    EXPECT_TRUE(recs[0].tracks[0].trackType == Onvif::RecordingTrackType::Video);
 
     // 2. CreateRecording response
     const std::string createRecXml
         = "<trc:CreateRecordingResponse xmlns:trc=\"http://www.onvif.org/ver10/recording/wsdl\">"
           "<trc:RecordingToken>Rec_New_1</trc:RecordingToken>"
           "</trc:CreateRecordingResponse>";
-    const auto createdRecTok = PelcoD::Onvif::OnvifClient::parseCreateRecordingResponse(createRecXml);
+    const auto createdRecTok = Onvif::OnvifClient::parseCreateRecordingResponse(createRecXml);
     EXPECT_TRUE(createdRecTok.has_value());
     EXPECT_TRUE(*createdRecTok == "Rec_New_1");
 
@@ -1323,11 +1325,11 @@ TEST(PelcoDOnvifTest, ProfileGRecordingXmlParsing)
                                 "  </SOAP-ENV:Body>\r\n"
                                 "</SOAP-ENV:Envelope>";
 
-    const auto jobs = PelcoD::Onvif::OnvifClient::parseRecordingJobsResponse(jobsXml);
+    const auto jobs = Onvif::OnvifClient::parseRecordingJobsResponse(jobsXml);
     EXPECT_TRUE(jobs.size() == 1U);
     EXPECT_TRUE(jobs[0].jobToken == "Job_1");
     EXPECT_TRUE(jobs[0].recordingToken == "Rec_Main");
-    EXPECT_TRUE(jobs[0].mode == PelcoD::Onvif::RecordingJobMode::Active);
+    EXPECT_TRUE(jobs[0].mode == Onvif::RecordingJobMode::Active);
     EXPECT_TRUE(jobs[0].priority == 5);
     EXPECT_TRUE(jobs[0].sourceToken == "VideoSource_1");
 
@@ -1347,7 +1349,7 @@ TEST(PelcoDOnvifTest, ProfileGRecordingXmlParsing)
                                "  </SOAP-ENV:Body>\r\n"
                                "</SOAP-ENV:Envelope>";
 
-    const auto sumOpt = PelcoD::Onvif::OnvifClient::parseRecordingSummaryResponse(sumXml);
+    const auto sumOpt = Onvif::OnvifClient::parseRecordingSummaryResponse(sumXml);
     EXPECT_TRUE(sumOpt.has_value());
     EXPECT_TRUE(sumOpt->dataFrom == "2026-01-01T00:00:00Z");
     EXPECT_TRUE(sumOpt->dataUntil == "2026-09-17T00:00:00Z");
@@ -1360,7 +1362,7 @@ TEST(PelcoDOnvifTest, ProfileGSearchAndReplayXmlParsing)
     const std::string findRecXml = "<tse:FindRecordingsResponse xmlns:tse=\"http://www.onvif.org/ver10/search/wsdl\">"
                                    "<tse:SearchToken>Search_Rec_Session_1</tse:SearchToken>"
                                    "</tse:FindRecordingsResponse>";
-    const auto searchTok = PelcoD::Onvif::OnvifClient::parseFindRecordingsResponse(findRecXml);
+    const auto searchTok = Onvif::OnvifClient::parseFindRecordingsResponse(findRecXml);
     EXPECT_TRUE(searchTok.has_value());
     EXPECT_TRUE(*searchTok == "Search_Rec_Session_1");
 
@@ -1384,7 +1386,7 @@ TEST(PelcoDOnvifTest, ProfileGSearchAndReplayXmlParsing)
                                      "  </SOAP-ENV:Body>\r\n"
                                      "</SOAP-ENV:Envelope>";
 
-    const auto searchResults = PelcoD::Onvif::OnvifClient::parseRecordingSearchResultsResponse(searchResXml);
+    const auto searchResults = Onvif::OnvifClient::parseRecordingSearchResultsResponse(searchResXml);
     EXPECT_TRUE(searchResults.size() == 1U);
     EXPECT_TRUE(searchResults[0].recordingToken == "Rec_Main");
     EXPECT_TRUE(searchResults[0].trackToken == "Track_Video_1");
@@ -1412,7 +1414,7 @@ TEST(PelcoDOnvifTest, ProfileGSearchAndReplayXmlParsing)
                                     "  </SOAP-ENV:Body>\r\n"
                                     "</SOAP-ENV:Envelope>";
 
-    const auto eventResults = PelcoD::Onvif::OnvifClient::parseEventSearchResultsResponse(eventResXml);
+    const auto eventResults = Onvif::OnvifClient::parseEventSearchResultsResponse(eventResXml);
     EXPECT_TRUE(eventResults.size() == 1U);
     EXPECT_TRUE(eventResults[0].recordingToken == "Rec_Main");
     EXPECT_TRUE(eventResults[0].eventTime == "2026-09-17T12:00:00Z");
@@ -1424,7 +1426,7 @@ TEST(PelcoDOnvifTest, ProfileGSearchAndReplayXmlParsing)
     const std::string replayUriXml = "<trp:GetReplayUriResponse xmlns:trp=\"http://www.onvif.org/ver10/replay/wsdl\">"
                                      "<trp:Uri>rtsp://192.168.1.50:8554/replay?recording=Rec_Main</trp:Uri>"
                                      "</trp:GetReplayUriResponse>";
-    const auto replayUri = PelcoD::Onvif::OnvifClient::parseReplayUriResponse(replayUriXml);
+    const auto replayUri = Onvif::OnvifClient::parseReplayUriResponse(replayUriXml);
     EXPECT_TRUE(replayUri.has_value());
     EXPECT_TRUE(*replayUri == "rtsp://192.168.1.50:8554/replay?recording=Rec_Main");
 
@@ -1442,7 +1444,7 @@ TEST(PelcoDOnvifTest, ProfileGSearchAndReplayXmlParsing)
                                      "  </SOAP-ENV:Body>\r\n"
                                      "</SOAP-ENV:Envelope>";
 
-    const auto replayCfg = PelcoD::Onvif::OnvifClient::parseReplayConfigurationResponse(replayCfgXml);
+    const auto replayCfg = Onvif::OnvifClient::parseReplayConfigurationResponse(replayCfgXml);
     EXPECT_TRUE(replayCfg.has_value());
     EXPECT_TRUE(replayCfg->sessionTimeout == "PT60S");
 }
@@ -1450,31 +1452,30 @@ TEST(PelcoDOnvifTest, ProfileGSearchAndReplayXmlParsing)
 TEST(PelcoDOnvifTest, VideoAnalyticsRulesAndModulesParsing)
 {
     // 1. Parse GetSupportedRulesResponse
-    const std::string suppRulesXml
-        = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
-          "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
-          "xmlns:tan=\"http://www.onvif.org/ver20/analytics/wsdl\" "
-          "xmlns:tt=\"http://www.onvif.org/ver10/schema\">\r\n"
-          "  <SOAP-ENV:Body>\r\n"
-          "    <tan:GetSupportedRulesResponse>\r\n"
-          "      <tan:SupportedRules>\r\n"
-          "        <tan:RuleDescription Name=\"tt:LineDetector\">\r\n"
-          "          <tan:Parameters>\r\n"
-          "            <tt:SimpleItemDescription Name=\"Direction\" Type=\"xs:string\"/>\r\n"
-          "            <tt:SimpleItemDescription Name=\"Classes\" Type=\"xs:string\"/>\r\n"
-          "          </tan:Parameters>\r\n"
-          "        </tan:RuleDescription>\r\n"
-          "        <tan:RuleDescription Name=\"tt:FieldDetector\">\r\n"
-          "          <tan:Parameters>\r\n"
-          "            <tt:SimpleItemDescription Name=\"Field\" Type=\"xs:string\"/>\r\n"
-          "          </tan:Parameters>\r\n"
-          "        </tan:RuleDescription>\r\n"
-          "      </tan:SupportedRules>\r\n"
-          "    </tan:GetSupportedRulesResponse>\r\n"
-          "  </SOAP-ENV:Body>\r\n"
-          "</SOAP-ENV:Envelope>";
+    const std::string suppRulesXml = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+                                     "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                     "xmlns:tan=\"http://www.onvif.org/ver20/analytics/wsdl\" "
+                                     "xmlns:tt=\"http://www.onvif.org/ver10/schema\">\r\n"
+                                     "  <SOAP-ENV:Body>\r\n"
+                                     "    <tan:GetSupportedRulesResponse>\r\n"
+                                     "      <tan:SupportedRules>\r\n"
+                                     "        <tan:RuleDescription Name=\"tt:LineDetector\">\r\n"
+                                     "          <tan:Parameters>\r\n"
+                                     "            <tt:SimpleItemDescription Name=\"Direction\" Type=\"xs:string\"/>\r\n"
+                                     "            <tt:SimpleItemDescription Name=\"Classes\" Type=\"xs:string\"/>\r\n"
+                                     "          </tan:Parameters>\r\n"
+                                     "        </tan:RuleDescription>\r\n"
+                                     "        <tan:RuleDescription Name=\"tt:FieldDetector\">\r\n"
+                                     "          <tan:Parameters>\r\n"
+                                     "            <tt:SimpleItemDescription Name=\"Field\" Type=\"xs:string\"/>\r\n"
+                                     "          </tan:Parameters>\r\n"
+                                     "        </tan:RuleDescription>\r\n"
+                                     "      </tan:SupportedRules>\r\n"
+                                     "    </tan:GetSupportedRulesResponse>\r\n"
+                                     "  </SOAP-ENV:Body>\r\n"
+                                     "</SOAP-ENV:Envelope>";
 
-    const auto suppRules = PelcoD::Onvif::OnvifClient::parseSupportedRulesResponse(suppRulesXml);
+    const auto suppRules = Onvif::OnvifClient::parseSupportedRulesResponse(suppRulesXml);
     EXPECT_TRUE(suppRules.size() == 2U);
     EXPECT_TRUE(suppRules[0].ruleType == "tt:LineDetector");
     EXPECT_TRUE(suppRules[0].supportedParameters.size() == 2U);
@@ -1483,45 +1484,44 @@ TEST(PelcoDOnvifTest, VideoAnalyticsRulesAndModulesParsing)
     EXPECT_TRUE(suppRules[1].ruleType == "tt:FieldDetector");
 
     // 2. Parse GetRulesResponse
-    const std::string rulesXml
-        = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
-          "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
-          "xmlns:tan=\"http://www.onvif.org/ver20/analytics/wsdl\" "
-          "xmlns:tt=\"http://www.onvif.org/ver10/schema\">\r\n"
-          "  <SOAP-ENV:Body>\r\n"
-          "    <tan:GetRulesResponse>\r\n"
-          "      <tan:Rule Name=\"PerimeterTripwire\" Type=\"tt:LineDetector\">\r\n"
-          "        <tan:Parameters>\r\n"
-          "          <tt:SimpleItem Name=\"Direction\" Value=\"LeftToRight\"/>\r\n"
-          "          <tt:SimpleItem Name=\"Classes\" Value=\"Human,Vehicle\"/>\r\n"
-          "          <tt:SimpleItem Name=\"MinConfidence\" Value=\"0.60\"/>\r\n"
-          "          <tt:SimpleItem Name=\"Enabled\" Value=\"true\"/>\r\n"
-          "          <tt:ElementItem Name=\"Segment\">\r\n"
-          "            <tt:Point x=\"0.1000\" y=\"0.5000\"/>\r\n"
-          "            <tt:Point x=\"0.9000\" y=\"0.5000\"/>\r\n"
-          "          </tt:ElementItem>\r\n"
-          "        </tan:Parameters>\r\n"
-          "      </tan:Rule>\r\n"
-          "      <tan:Rule Name=\"CourtyardLoiter\" Type=\"tt:LoiteringDetector\">\r\n"
-          "        <tan:Parameters>\r\n"
-          "          <tt:SimpleItem Name=\"DwellTime\" Value=\"10.50\"/>\r\n"
-          "          <tt:SimpleItem Name=\"Classes\" Value=\"Human\"/>\r\n"
-          "          <tt:SimpleItem Name=\"Enabled\" Value=\"true\"/>\r\n"
-          "          <tt:ElementItem Name=\"Field\">\r\n"
-          "            <tt:Polygon>\r\n"
-          "              <tt:Point x=\"0.2000\" y=\"0.2000\"/>\r\n"
-          "              <tt:Point x=\"0.8000\" y=\"0.2000\"/>\r\n"
-          "              <tt:Point x=\"0.8000\" y=\"0.8000\"/>\r\n"
-          "              <tt:Point x=\"0.2000\" y=\"0.8000\"/>\r\n"
-          "            </tt:Polygon>\r\n"
-          "          </tt:ElementItem>\r\n"
-          "        </tan:Parameters>\r\n"
-          "      </tan:Rule>\r\n"
-          "    </tan:GetRulesResponse>\r\n"
-          "  </SOAP-ENV:Body>\r\n"
-          "</SOAP-ENV:Envelope>";
+    const std::string rulesXml = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+                                 "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                 "xmlns:tan=\"http://www.onvif.org/ver20/analytics/wsdl\" "
+                                 "xmlns:tt=\"http://www.onvif.org/ver10/schema\">\r\n"
+                                 "  <SOAP-ENV:Body>\r\n"
+                                 "    <tan:GetRulesResponse>\r\n"
+                                 "      <tan:Rule Name=\"PerimeterTripwire\" Type=\"tt:LineDetector\">\r\n"
+                                 "        <tan:Parameters>\r\n"
+                                 "          <tt:SimpleItem Name=\"Direction\" Value=\"LeftToRight\"/>\r\n"
+                                 "          <tt:SimpleItem Name=\"Classes\" Value=\"Human,Vehicle\"/>\r\n"
+                                 "          <tt:SimpleItem Name=\"MinConfidence\" Value=\"0.60\"/>\r\n"
+                                 "          <tt:SimpleItem Name=\"Enabled\" Value=\"true\"/>\r\n"
+                                 "          <tt:ElementItem Name=\"Segment\">\r\n"
+                                 "            <tt:Point x=\"0.1000\" y=\"0.5000\"/>\r\n"
+                                 "            <tt:Point x=\"0.9000\" y=\"0.5000\"/>\r\n"
+                                 "          </tt:ElementItem>\r\n"
+                                 "        </tan:Parameters>\r\n"
+                                 "      </tan:Rule>\r\n"
+                                 "      <tan:Rule Name=\"CourtyardLoiter\" Type=\"tt:LoiteringDetector\">\r\n"
+                                 "        <tan:Parameters>\r\n"
+                                 "          <tt:SimpleItem Name=\"DwellTime\" Value=\"10.50\"/>\r\n"
+                                 "          <tt:SimpleItem Name=\"Classes\" Value=\"Human\"/>\r\n"
+                                 "          <tt:SimpleItem Name=\"Enabled\" Value=\"true\"/>\r\n"
+                                 "          <tt:ElementItem Name=\"Field\">\r\n"
+                                 "            <tt:Polygon>\r\n"
+                                 "              <tt:Point x=\"0.2000\" y=\"0.2000\"/>\r\n"
+                                 "              <tt:Point x=\"0.8000\" y=\"0.2000\"/>\r\n"
+                                 "              <tt:Point x=\"0.8000\" y=\"0.8000\"/>\r\n"
+                                 "              <tt:Point x=\"0.2000\" y=\"0.8000\"/>\r\n"
+                                 "            </tt:Polygon>\r\n"
+                                 "          </tt:ElementItem>\r\n"
+                                 "        </tan:Parameters>\r\n"
+                                 "      </tan:Rule>\r\n"
+                                 "    </tan:GetRulesResponse>\r\n"
+                                 "  </SOAP-ENV:Body>\r\n"
+                                 "</SOAP-ENV:Envelope>";
 
-    const auto rules = PelcoD::Onvif::OnvifClient::parseRulesResponse(rulesXml);
+    const auto rules = Onvif::OnvifClient::parseRulesResponse(rulesXml);
     EXPECT_TRUE(rules.size() == 2U);
 
     // Rule 1: Tripwire
@@ -1567,7 +1567,7 @@ TEST(PelcoDOnvifTest, VideoAnalyticsRulesAndModulesParsing)
           "  </SOAP-ENV:Body>\r\n"
           "</SOAP-ENV:Envelope>";
 
-    const auto suppMods = PelcoD::Onvif::OnvifClient::parseSupportedAnalyticsModulesResponse(suppModsXml);
+    const auto suppMods = Onvif::OnvifClient::parseSupportedAnalyticsModulesResponse(suppModsXml);
     EXPECT_TRUE(suppMods.size() == 1U);
     EXPECT_TRUE(suppMods[0].moduleType == "tt:ObjectClassificationModule");
     EXPECT_TRUE(suppMods[0].supportedParameters.size() == 1U);
@@ -1591,7 +1591,7 @@ TEST(PelcoDOnvifTest, VideoAnalyticsRulesAndModulesParsing)
           "  </SOAP-ENV:Body>\r\n"
           "</SOAP-ENV:Envelope>";
 
-    const auto mods = PelcoD::Onvif::OnvifClient::parseAnalyticsModulesResponse(modsXml);
+    const auto mods = Onvif::OnvifClient::parseAnalyticsModulesResponse(modsXml);
     EXPECT_TRUE(mods.size() == 1U);
     EXPECT_TRUE(mods[0].name == "Classifier_1");
     EXPECT_TRUE(mods[0].type == "tt:ObjectClassificationModule");
@@ -1601,13 +1601,13 @@ TEST(PelcoDOnvifTest, VideoAnalyticsRulesAndModulesParsing)
 
 TEST(PelcoDOnvifTest, GeodesyAndGeoMoveParsing)
 {
-    using namespace PelcoD::Onvif;
+    using namespace Onvif;
 
     // 1. Test Geodesy Azimuth / Elevation calculation
     // Camera at equator/prime meridian (0, 0, 0), Target slightly north (0.01, 0, 0)
-    GeoLocation camLoc {0.0, 0.0, 0.0};
-    GeoOrientation camOri {0.0, 0.0, 0.0}; // Pointing true North
-    GeoLocation targetNorth {0.01, 0.0, 0.0}; // ~1111 meters North
+    GeoLocation camLoc { 0.0, 0.0, 0.0 };
+    GeoOrientation camOri { 0.0, 0.0, 0.0 }; // Pointing true North
+    GeoLocation targetNorth { 0.01, 0.0, 0.0 }; // ~1111 meters North
 
     double pan = 0.0;
     double tilt = 0.0;
@@ -1620,22 +1620,22 @@ TEST(PelcoDOnvifTest, GeodesyAndGeoMoveParsing)
     EXPECT_TRUE(std::fabs(tilt) < 1.0);
 
     // Target directly East (0, 0.01, 0)
-    GeoLocation targetEast {0.0, 0.01, 0.0};
+    GeoLocation targetEast { 0.0, 0.01, 0.0 };
     ok = Geodesy::computeTargetAzimuthElevation(camLoc, camOri, targetEast, pan, tilt, slant);
     EXPECT_TRUE(ok);
     EXPECT_TRUE(std::fabs(pan - 90.0) < 0.5);
 
     // Camera with yaw = 90.0 (camera base mounted pointing East)
     // Target North should now have relative azimuth of 270 degrees (counter-clockwise or 360 - 90)
-    GeoOrientation camOriEast {90.0, 0.0, 0.0};
+    GeoOrientation camOriEast { 90.0, 0.0, 0.0 };
     ok = Geodesy::computeTargetAzimuthElevation(camLoc, camOriEast, targetNorth, pan, tilt, slant);
     EXPECT_TRUE(ok);
     EXPECT_TRUE(std::fabs(pan - 270.0) < 0.5);
 
     // Camera at 100m elevation, target at 0m elevation directly 100m away ground distance
     // ground distance = 100m => lat ~ 100 / 111319.5 ~ 0.0008983 deg
-    GeoLocation camHigh {0.0, 0.0, 100.0};
-    GeoLocation targetGround {0.0008983, 0.0, 0.0};
+    GeoLocation camHigh { 0.0, 0.0, 100.0 };
+    GeoLocation targetGround { 0.0008983, 0.0, 0.0 };
     ok = Geodesy::computeTargetAzimuthElevation(camHigh, camOri, targetGround, pan, tilt, slant);
     EXPECT_TRUE(ok);
     // Elevation should be approximately -45 degrees (downward)
@@ -1692,7 +1692,7 @@ TEST(PelcoDOnvifTest, GeodesyAndGeoMoveParsing)
 
 TEST(PelcoDOnvifTest, PrivacyMasksAndVideoSourceModesParsing)
 {
-    using namespace PelcoD::Onvif;
+    using namespace Onvif;
 
     // 1. Enum string conversions
     EXPECT_TRUE(maskTypeToString(MaskType::Color) == "Color");
@@ -1705,22 +1705,22 @@ TEST(PelcoDOnvifTest, PrivacyMasksAndVideoSourceModesParsing)
 
     // 2. parseMaskOptionsResponse
     {
-        const std::string xml =
-            "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n"
-            "<soap:Envelope xmlns:soap=\"http://www.w3.org/2003/05/soap-envelope\" xmlns:tr2=\"http://www.onvif.org/ver20/media/wsdl\">\n"
-            "  <soap:Body>\n"
-            "    <tr2:GetMaskOptionsResponse>\n"
-            "      <tr2:Options Rectangle=\"true\" Polygon=\"false\" SingleRule=\"false\">\n"
-            "        <tr2:MaxMasks>8</tr2:MaxMasks>\n"
-            "        <tr2:MaxPoints>4</tr2:MaxPoints>\n"
-            "        <tr2:Types>Color</tr2:Types>\n"
-            "        <tr2:Types>Pixelated</tr2:Types>\n"
-            "        <tr2:Types>Blurred</tr2:Types>\n"
-            "        <tr2:Color Supported=\"true\"/>\n"
-            "      </tr2:Options>\n"
-            "    </tr2:GetMaskOptionsResponse>\n"
-            "  </soap:Body>\n"
-            "</soap:Envelope>";
+        const std::string xml = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n"
+                                "<soap:Envelope xmlns:soap=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                "xmlns:tr2=\"http://www.onvif.org/ver20/media/wsdl\">\n"
+                                "  <soap:Body>\n"
+                                "    <tr2:GetMaskOptionsResponse>\n"
+                                "      <tr2:Options Rectangle=\"true\" Polygon=\"false\" SingleRule=\"false\">\n"
+                                "        <tr2:MaxMasks>8</tr2:MaxMasks>\n"
+                                "        <tr2:MaxPoints>4</tr2:MaxPoints>\n"
+                                "        <tr2:Types>Color</tr2:Types>\n"
+                                "        <tr2:Types>Pixelated</tr2:Types>\n"
+                                "        <tr2:Types>Blurred</tr2:Types>\n"
+                                "        <tr2:Color Supported=\"true\"/>\n"
+                                "      </tr2:Options>\n"
+                                "    </tr2:GetMaskOptionsResponse>\n"
+                                "  </soap:Body>\n"
+                                "</soap:Envelope>";
 
         const auto opt = OnvifClient::parseMaskOptionsResponse(xml);
         EXPECT_TRUE(opt.has_value());
@@ -1736,33 +1736,33 @@ TEST(PelcoDOnvifTest, PrivacyMasksAndVideoSourceModesParsing)
 
     // 3. parseMasksResponse
     {
-        const std::string xml =
-            "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n"
-            "<soap:Envelope xmlns:soap=\"http://www.w3.org/2003/05/soap-envelope\" xmlns:tr2=\"http://www.onvif.org/ver20/media/wsdl\">\n"
-            "  <soap:Body>\n"
-            "    <tr2:GetMasksResponse>\n"
-            "      <tr2:Mask token=\"Mask_1\" Enabled=\"true\" Type=\"Color\">\n"
-            "        <tr2:Configuration token=\"Mask_1\">\n"
-            "          <tr2:Polygon>\n"
-            "            <tr2:Point x=\"0.1\" y=\"0.2\"/>\n"
-            "            <tr2:Point x=\"0.5\" y=\"0.2\"/>\n"
-            "            <tr2:Point x=\"0.5\" y=\"0.6\"/>\n"
-            "            <tr2:Point x=\"0.1\" y=\"0.6\"/>\n"
-            "          </tr2:Polygon>\n"
-            "          <tr2:Color X=\"128\" Y=\"64\" Z=\"32\"/>\n"
-            "        </tr2:Configuration>\n"
-            "      </tr2:Mask>\n"
-            "      <tr2:Mask token=\"Mask_2\" Enabled=\"false\" Type=\"Blurred\">\n"
-            "        <tr2:Configuration token=\"Mask_2\">\n"
-            "          <tr2:Polygon>\n"
-            "            <tr2:Point x=\"0.6\" y=\"0.6\"/>\n"
-            "            <tr2:Point x=\"0.9\" y=\"0.9\"/>\n"
-            "          </tr2:Polygon>\n"
-            "        </tr2:Configuration>\n"
-            "      </tr2:Mask>\n"
-            "    </tr2:GetMasksResponse>\n"
-            "  </soap:Body>\n"
-            "</soap:Envelope>";
+        const std::string xml = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n"
+                                "<soap:Envelope xmlns:soap=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                "xmlns:tr2=\"http://www.onvif.org/ver20/media/wsdl\">\n"
+                                "  <soap:Body>\n"
+                                "    <tr2:GetMasksResponse>\n"
+                                "      <tr2:Mask token=\"Mask_1\" Enabled=\"true\" Type=\"Color\">\n"
+                                "        <tr2:Configuration token=\"Mask_1\">\n"
+                                "          <tr2:Polygon>\n"
+                                "            <tr2:Point x=\"0.1\" y=\"0.2\"/>\n"
+                                "            <tr2:Point x=\"0.5\" y=\"0.2\"/>\n"
+                                "            <tr2:Point x=\"0.5\" y=\"0.6\"/>\n"
+                                "            <tr2:Point x=\"0.1\" y=\"0.6\"/>\n"
+                                "          </tr2:Polygon>\n"
+                                "          <tr2:Color X=\"128\" Y=\"64\" Z=\"32\"/>\n"
+                                "        </tr2:Configuration>\n"
+                                "      </tr2:Mask>\n"
+                                "      <tr2:Mask token=\"Mask_2\" Enabled=\"false\" Type=\"Blurred\">\n"
+                                "        <tr2:Configuration token=\"Mask_2\">\n"
+                                "          <tr2:Polygon>\n"
+                                "            <tr2:Point x=\"0.6\" y=\"0.6\"/>\n"
+                                "            <tr2:Point x=\"0.9\" y=\"0.9\"/>\n"
+                                "          </tr2:Polygon>\n"
+                                "        </tr2:Configuration>\n"
+                                "      </tr2:Mask>\n"
+                                "    </tr2:GetMasksResponse>\n"
+                                "  </soap:Body>\n"
+                                "</soap:Envelope>";
 
         const auto masks = OnvifClient::parseMasksResponse(xml);
         EXPECT_TRUE(masks.size() == 2U);
@@ -1784,22 +1784,22 @@ TEST(PelcoDOnvifTest, PrivacyMasksAndVideoSourceModesParsing)
 
     // 4. parseMaskResponse
     {
-        const std::string xml =
-            "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n"
-            "<soap:Envelope xmlns:soap=\"http://www.w3.org/2003/05/soap-envelope\" xmlns:tr2=\"http://www.onvif.org/ver20/media/wsdl\">\n"
-            "  <soap:Body>\n"
-            "    <tr2:GetMaskResponse>\n"
-            "      <tr2:Mask token=\"Mask_Single\" Enabled=\"true\" Type=\"Pixelated\">\n"
-            "        <tr2:Configuration token=\"Mask_Single\">\n"
-            "          <tr2:Polygon>\n"
-            "            <tr2:Point x=\"0.2\" y=\"0.2\"/>\n"
-            "            <tr2:Point x=\"0.4\" y=\"0.4\"/>\n"
-            "          </tr2:Polygon>\n"
-            "        </tr2:Configuration>\n"
-            "      </tr2:Mask>\n"
-            "    </tr2:GetMaskResponse>\n"
-            "  </soap:Body>\n"
-            "</soap:Envelope>";
+        const std::string xml = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n"
+                                "<soap:Envelope xmlns:soap=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                "xmlns:tr2=\"http://www.onvif.org/ver20/media/wsdl\">\n"
+                                "  <soap:Body>\n"
+                                "    <tr2:GetMaskResponse>\n"
+                                "      <tr2:Mask token=\"Mask_Single\" Enabled=\"true\" Type=\"Pixelated\">\n"
+                                "        <tr2:Configuration token=\"Mask_Single\">\n"
+                                "          <tr2:Polygon>\n"
+                                "            <tr2:Point x=\"0.2\" y=\"0.2\"/>\n"
+                                "            <tr2:Point x=\"0.4\" y=\"0.4\"/>\n"
+                                "          </tr2:Polygon>\n"
+                                "        </tr2:Configuration>\n"
+                                "      </tr2:Mask>\n"
+                                "    </tr2:GetMaskResponse>\n"
+                                "  </soap:Body>\n"
+                                "</soap:Envelope>";
 
         const auto mask = OnvifClient::parseMaskResponse(xml);
         EXPECT_TRUE(mask.has_value());
@@ -1811,15 +1811,15 @@ TEST(PelcoDOnvifTest, PrivacyMasksAndVideoSourceModesParsing)
 
     // 5. parseCreateMaskResponse
     {
-        const std::string xml =
-            "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n"
-            "<soap:Envelope xmlns:soap=\"http://www.w3.org/2003/05/soap-envelope\" xmlns:tr2=\"http://www.onvif.org/ver20/media/wsdl\">\n"
-            "  <soap:Body>\n"
-            "    <tr2:CreateMaskResponse>\n"
-            "      <tr2:Token>Created_Mask_999</tr2:Token>\n"
-            "    </tr2:CreateMaskResponse>\n"
-            "  </soap:Body>\n"
-            "</soap:Envelope>";
+        const std::string xml = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n"
+                                "<soap:Envelope xmlns:soap=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                "xmlns:tr2=\"http://www.onvif.org/ver20/media/wsdl\">\n"
+                                "  <soap:Body>\n"
+                                "    <tr2:CreateMaskResponse>\n"
+                                "      <tr2:Token>Created_Mask_999</tr2:Token>\n"
+                                "    </tr2:CreateMaskResponse>\n"
+                                "  </soap:Body>\n"
+                                "</soap:Envelope>";
 
         const auto token = OnvifClient::parseCreateMaskResponse(xml);
         EXPECT_TRUE(token.has_value());
@@ -1828,26 +1828,26 @@ TEST(PelcoDOnvifTest, PrivacyMasksAndVideoSourceModesParsing)
 
     // 6. parseVideoSourceModesResponse
     {
-        const std::string xml =
-            "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n"
-            "<soap:Envelope xmlns:soap=\"http://www.w3.org/2003/05/soap-envelope\" xmlns:tr2=\"http://www.onvif.org/ver20/media/wsdl\">\n"
-            "  <soap:Body>\n"
-            "    <tr2:GetVideoSourceModesResponse>\n"
-            "      <tr2:VideoSourceModes token=\"Mode_1080p60\" Enabled=\"true\">\n"
-            "        <tr2:MaxFramerate>60.0</tr2:MaxFramerate>\n"
-            "        <tr2:MaxResolution Width=\"1920\" Height=\"1080\"/>\n"
-            "        <tr2:Encodings>H264 H265</tr2:Encodings>\n"
-            "        <tr2:Description>1080p 60fps Mode</tr2:Description>\n"
-            "      </tr2:VideoSourceModes>\n"
-            "      <tr2:VideoSourceModes token=\"Mode_4k30\" Enabled=\"false\">\n"
-            "        <tr2:MaxFramerate>30.0</tr2:MaxFramerate>\n"
-            "        <tr2:MaxResolution Width=\"3840\" Height=\"2160\"/>\n"
-            "        <tr2:Encodings>H265</tr2:Encodings>\n"
-            "        <tr2:Description>4K 30fps Mode</tr2:Description>\n"
-            "      </tr2:VideoSourceModes>\n"
-            "    </tr2:GetVideoSourceModesResponse>\n"
-            "  </soap:Body>\n"
-            "</soap:Envelope>";
+        const std::string xml = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n"
+                                "<soap:Envelope xmlns:soap=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                "xmlns:tr2=\"http://www.onvif.org/ver20/media/wsdl\">\n"
+                                "  <soap:Body>\n"
+                                "    <tr2:GetVideoSourceModesResponse>\n"
+                                "      <tr2:VideoSourceModes token=\"Mode_1080p60\" Enabled=\"true\">\n"
+                                "        <tr2:MaxFramerate>60.0</tr2:MaxFramerate>\n"
+                                "        <tr2:MaxResolution Width=\"1920\" Height=\"1080\"/>\n"
+                                "        <tr2:Encodings>H264 H265</tr2:Encodings>\n"
+                                "        <tr2:Description>1080p 60fps Mode</tr2:Description>\n"
+                                "      </tr2:VideoSourceModes>\n"
+                                "      <tr2:VideoSourceModes token=\"Mode_4k30\" Enabled=\"false\">\n"
+                                "        <tr2:MaxFramerate>30.0</tr2:MaxFramerate>\n"
+                                "        <tr2:MaxResolution Width=\"3840\" Height=\"2160\"/>\n"
+                                "        <tr2:Encodings>H265</tr2:Encodings>\n"
+                                "        <tr2:Description>4K 30fps Mode</tr2:Description>\n"
+                                "      </tr2:VideoSourceModes>\n"
+                                "    </tr2:GetVideoSourceModesResponse>\n"
+                                "  </soap:Body>\n"
+                                "</soap:Envelope>";
 
         const auto modes = OnvifClient::parseVideoSourceModesResponse(xml);
         EXPECT_TRUE(modes.size() == 2U);
@@ -1873,29 +1873,29 @@ TEST(PelcoDOnvifTest, PrivacyMasksAndVideoSourceModesParsing)
 
     // 7. parseSetVideoSourceModeResponse
     {
-        const std::string xmlWithReboot =
-            "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n"
-            "<soap:Envelope xmlns:soap=\"http://www.w3.org/2003/05/soap-envelope\" xmlns:tr2=\"http://www.onvif.org/ver20/media/wsdl\">\n"
-            "  <soap:Body>\n"
-            "    <tr2:SetVideoSourceModeResponse>\n"
-            "      <tr2:Reboot>true</tr2:Reboot>\n"
-            "    </tr2:SetVideoSourceModeResponse>\n"
-            "  </soap:Body>\n"
-            "</soap:Envelope>";
+        const std::string xmlWithReboot = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n"
+                                          "<soap:Envelope xmlns:soap=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                          "xmlns:tr2=\"http://www.onvif.org/ver20/media/wsdl\">\n"
+                                          "  <soap:Body>\n"
+                                          "    <tr2:SetVideoSourceModeResponse>\n"
+                                          "      <tr2:Reboot>true</tr2:Reboot>\n"
+                                          "    </tr2:SetVideoSourceModeResponse>\n"
+                                          "  </soap:Body>\n"
+                                          "</soap:Envelope>";
 
         const auto reboot1 = OnvifClient::parseSetVideoSourceModeResponse(xmlWithReboot);
         EXPECT_TRUE(reboot1.has_value());
         EXPECT_TRUE(*reboot1 == true);
 
-        const std::string xmlNoReboot =
-            "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n"
-            "<soap:Envelope xmlns:soap=\"http://www.w3.org/2003/05/soap-envelope\" xmlns:tr2=\"http://www.onvif.org/ver20/media/wsdl\">\n"
-            "  <soap:Body>\n"
-            "    <tr2:SetVideoSourceModeResponse>\n"
-            "      <tr2:Reboot>false</tr2:Reboot>\n"
-            "    </tr2:SetVideoSourceModeResponse>\n"
-            "  </soap:Body>\n"
-            "</soap:Envelope>";
+        const std::string xmlNoReboot = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n"
+                                        "<soap:Envelope xmlns:soap=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                        "xmlns:tr2=\"http://www.onvif.org/ver20/media/wsdl\">\n"
+                                        "  <soap:Body>\n"
+                                        "    <tr2:SetVideoSourceModeResponse>\n"
+                                        "      <tr2:Reboot>false</tr2:Reboot>\n"
+                                        "    </tr2:SetVideoSourceModeResponse>\n"
+                                        "  </soap:Body>\n"
+                                        "</soap:Envelope>";
 
         const auto reboot2 = OnvifClient::parseSetVideoSourceModeResponse(xmlNoReboot);
         EXPECT_TRUE(reboot2.has_value());
@@ -1905,25 +1905,25 @@ TEST(PelcoDOnvifTest, PrivacyMasksAndVideoSourceModesParsing)
 
 TEST(PelcoDOnvifTest, ThermalAndRadiometryParsing)
 {
-    using namespace PelcoD::Onvif;
+    using namespace Onvif;
 
     // 1. parseCapabilitiesResponse with Thermal extension
     {
-        const std::string xml =
-            "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n"
-            "<soap:Envelope xmlns:soap=\"http://www.w3.org/2003/05/soap-envelope\" xmlns:tt=\"http://www.onvif.org/ver10/schema\">\n"
-            "  <soap:Body>\n"
-            "    <tt:GetCapabilitiesResponse>\n"
-            "      <tt:Capabilities>\n"
-            "        <tt:Extension>\n"
-            "          <tt:Thermal>\n"
-            "            <tt:XAddr>http://192.168.1.100/onvif/thermal_service</tt:XAddr>\n"
-            "          </tt:Thermal>\n"
-            "        </tt:Extension>\n"
-            "      </tt:Capabilities>\n"
-            "    </tt:GetCapabilitiesResponse>\n"
-            "  </soap:Body>\n"
-            "</soap:Envelope>";
+        const std::string xml = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n"
+                                "<soap:Envelope xmlns:soap=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                "xmlns:tt=\"http://www.onvif.org/ver10/schema\">\n"
+                                "  <soap:Body>\n"
+                                "    <tt:GetCapabilitiesResponse>\n"
+                                "      <tt:Capabilities>\n"
+                                "        <tt:Extension>\n"
+                                "          <tt:Thermal>\n"
+                                "            <tt:XAddr>http://192.168.1.100/onvif/thermal_service</tt:XAddr>\n"
+                                "          </tt:Thermal>\n"
+                                "        </tt:Extension>\n"
+                                "      </tt:Capabilities>\n"
+                                "    </tt:GetCapabilitiesResponse>\n"
+                                "  </soap:Body>\n"
+                                "</soap:Envelope>";
 
         const auto caps = OnvifClient::parseCapabilitiesResponse(xml);
         EXPECT_TRUE(caps.has_value());
@@ -1932,22 +1932,22 @@ TEST(PelcoDOnvifTest, ThermalAndRadiometryParsing)
 
     // 2. parseRadiometryConfigurationResponse
     {
-        const std::string xml =
-            "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n"
-            "<soap:Envelope xmlns:soap=\"http://www.w3.org/2003/05/soap-envelope\" xmlns:tth=\"http://www.onvif.org/ver10/thermal/wsdl\">\n"
-            "  <soap:Body>\n"
-            "    <tth:GetRadiometryConfigurationResponse>\n"
-            "      <tth:Configuration>\n"
-            "        <tth:Emissivity>0.92</tth:Emissivity>\n"
-            "        <tth:Distance>7.5</tth:Distance>\n"
-            "        <tth:ReflectedTemperature>22.0</tth:ReflectedTemperature>\n"
-            "        <tth:AtmosphericTemperature>21.5</tth:AtmosphericTemperature>\n"
-            "        <tth:RelativeHumidity>45.0</tth:RelativeHumidity>\n"
-            "        <tth:WindowTransmission>0.98</tth:WindowTransmission>\n"
-            "      </tth:Configuration>\n"
-            "    </tth:GetRadiometryConfigurationResponse>\n"
-            "  </soap:Body>\n"
-            "</soap:Envelope>";
+        const std::string xml = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n"
+                                "<soap:Envelope xmlns:soap=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                "xmlns:tth=\"http://www.onvif.org/ver10/thermal/wsdl\">\n"
+                                "  <soap:Body>\n"
+                                "    <tth:GetRadiometryConfigurationResponse>\n"
+                                "      <tth:Configuration>\n"
+                                "        <tth:Emissivity>0.92</tth:Emissivity>\n"
+                                "        <tth:Distance>7.5</tth:Distance>\n"
+                                "        <tth:ReflectedTemperature>22.0</tth:ReflectedTemperature>\n"
+                                "        <tth:AtmosphericTemperature>21.5</tth:AtmosphericTemperature>\n"
+                                "        <tth:RelativeHumidity>45.0</tth:RelativeHumidity>\n"
+                                "        <tth:WindowTransmission>0.98</tth:WindowTransmission>\n"
+                                "      </tth:Configuration>\n"
+                                "    </tth:GetRadiometryConfigurationResponse>\n"
+                                "  </soap:Body>\n"
+                                "</soap:Envelope>";
 
         const auto cfg = OnvifClient::parseRadiometryConfigurationResponse(xml);
         EXPECT_TRUE(cfg.has_value());
@@ -1961,19 +1961,19 @@ TEST(PelcoDOnvifTest, ThermalAndRadiometryParsing)
 
     // 3. parseRadiometrySpotsResponse
     {
-        const std::string xml =
-            "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n"
-            "<soap:Envelope xmlns:soap=\"http://www.w3.org/2003/05/soap-envelope\" xmlns:tth=\"http://www.onvif.org/ver10/thermal/wsdl\">\n"
-            "  <soap:Body>\n"
-            "    <tth:GetRadiometrySpotsResponse>\n"
-            "      <tth:Spot token=\"Spot_1\">\n"
-            "        <tth:Position x=\"0.35\" y=\"0.45\"/>\n"
-            "        <tth:Label>Target Spot</tth:Label>\n"
-            "        <tth:Temperature>37.2</tth:Temperature>\n"
-            "      </tth:Spot>\n"
-            "    </tth:GetRadiometrySpotsResponse>\n"
-            "  </soap:Body>\n"
-            "</soap:Envelope>";
+        const std::string xml = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n"
+                                "<soap:Envelope xmlns:soap=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                "xmlns:tth=\"http://www.onvif.org/ver10/thermal/wsdl\">\n"
+                                "  <soap:Body>\n"
+                                "    <tth:GetRadiometrySpotsResponse>\n"
+                                "      <tth:Spot token=\"Spot_1\">\n"
+                                "        <tth:Position x=\"0.35\" y=\"0.45\"/>\n"
+                                "        <tth:Label>Target Spot</tth:Label>\n"
+                                "        <tth:Temperature>37.2</tth:Temperature>\n"
+                                "      </tth:Spot>\n"
+                                "    </tth:GetRadiometrySpotsResponse>\n"
+                                "  </soap:Body>\n"
+                                "</soap:Envelope>";
 
         const auto spots = OnvifClient::parseRadiometrySpotsResponse(xml);
         EXPECT_TRUE(spots.size() == 1U);
@@ -1986,22 +1986,22 @@ TEST(PelcoDOnvifTest, ThermalAndRadiometryParsing)
 
     // 4. parseRadiometryBoxesResponse
     {
-        const std::string xml =
-            "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n"
-            "<soap:Envelope xmlns:soap=\"http://www.w3.org/2003/05/soap-envelope\" xmlns:tth=\"http://www.onvif.org/ver10/thermal/wsdl\">\n"
-            "  <soap:Body>\n"
-            "    <tth:GetRadiometryBoxesResponse>\n"
-            "      <tth:Box token=\"Box_1\">\n"
-            "        <tth:TopLeft x=\"0.2\" y=\"0.3\"/>\n"
-            "        <tth:BottomRight x=\"0.6\" y=\"0.8\"/>\n"
-            "        <tth:Label>Engine Zone</tth:Label>\n"
-            "        <tth:MinTemperature>25.0</tth:MinTemperature>\n"
-            "        <tth:MaxTemperature>85.4</tth:MaxTemperature>\n"
-            "        <tth:AvgTemperature>54.2</tth:AvgTemperature>\n"
-            "      </tth:Box>\n"
-            "    </tth:GetRadiometryBoxesResponse>\n"
-            "  </soap:Body>\n"
-            "</soap:Envelope>";
+        const std::string xml = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n"
+                                "<soap:Envelope xmlns:soap=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                "xmlns:tth=\"http://www.onvif.org/ver10/thermal/wsdl\">\n"
+                                "  <soap:Body>\n"
+                                "    <tth:GetRadiometryBoxesResponse>\n"
+                                "      <tth:Box token=\"Box_1\">\n"
+                                "        <tth:TopLeft x=\"0.2\" y=\"0.3\"/>\n"
+                                "        <tth:BottomRight x=\"0.6\" y=\"0.8\"/>\n"
+                                "        <tth:Label>Engine Zone</tth:Label>\n"
+                                "        <tth:MinTemperature>25.0</tth:MinTemperature>\n"
+                                "        <tth:MaxTemperature>85.4</tth:MaxTemperature>\n"
+                                "        <tth:AvgTemperature>54.2</tth:AvgTemperature>\n"
+                                "      </tth:Box>\n"
+                                "    </tth:GetRadiometryBoxesResponse>\n"
+                                "  </soap:Body>\n"
+                                "</soap:Envelope>";
 
         const auto boxes = OnvifClient::parseRadiometryBoxesResponse(xml);
         EXPECT_TRUE(boxes.size() == 1U);
@@ -2018,20 +2018,20 @@ TEST(PelcoDOnvifTest, ThermalAndRadiometryParsing)
 
     // 5. parseColorPalettesResponse
     {
-        const std::string xml =
-            "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n"
-            "<soap:Envelope xmlns:soap=\"http://www.w3.org/2003/05/soap-envelope\" xmlns:tth=\"http://www.onvif.org/ver10/thermal/wsdl\">\n"
-            "  <soap:Body>\n"
-            "    <tth:GetColorPalettesResponse>\n"
-            "      <tth:ColorPalette token=\"Ironbow\">\n"
-            "        <tth:Name>Ironbow</tth:Name>\n"
-            "      </tth:ColorPalette>\n"
-            "      <tth:ColorPalette token=\"WhiteHot\">\n"
-            "        <tth:Name>White Hot</tth:Name>\n"
-            "      </tth:ColorPalette>\n"
-            "    </tth:GetColorPalettesResponse>\n"
-            "  </soap:Body>\n"
-            "</soap:Envelope>";
+        const std::string xml = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n"
+                                "<soap:Envelope xmlns:soap=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                "xmlns:tth=\"http://www.onvif.org/ver10/thermal/wsdl\">\n"
+                                "  <soap:Body>\n"
+                                "    <tth:GetColorPalettesResponse>\n"
+                                "      <tth:ColorPalette token=\"Ironbow\">\n"
+                                "        <tth:Name>Ironbow</tth:Name>\n"
+                                "      </tth:ColorPalette>\n"
+                                "      <tth:ColorPalette token=\"WhiteHot\">\n"
+                                "        <tth:Name>White Hot</tth:Name>\n"
+                                "      </tth:ColorPalette>\n"
+                                "    </tth:GetColorPalettesResponse>\n"
+                                "  </soap:Body>\n"
+                                "</soap:Envelope>";
 
         const auto palettes = OnvifClient::parseColorPalettesResponse(xml);
         EXPECT_TRUE(palettes.size() == 2U);

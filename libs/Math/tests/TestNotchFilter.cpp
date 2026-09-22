@@ -4,8 +4,8 @@
 
 #include "NotchFilter.h"
 
-#include <gtest/gtest.h>
 #include <cmath>
+#include <gtest/gtest.h>
 #include <iostream>
 #include <vector>
 
@@ -41,7 +41,7 @@ double rms(const std::vector<double>& v, std::size_t skipSamples = 0U)
 TEST(NotchFilterTest, ConstructorDefaults)
 {
     std::cout << "[Test] testConstructorDefaults\n";
-    PelcoD::NotchFilter f;
+    Math::NotchFilter f;
     EXPECT_TRUE(f.getCenterFrequency() == 10.0);
     EXPECT_TRUE(f.getSampleRate() == 50.0);
     EXPECT_TRUE(f.getQFactor() == 5.0);
@@ -51,7 +51,7 @@ TEST(NotchFilterTest, ConstructorDefaults)
 TEST(NotchFilterTest, ConstructorCustomParams)
 {
     std::cout << "[Test] testConstructorCustomParams\n";
-    PelcoD::NotchFilter f { 20.0, 200.0, 8.0 };
+    Math::NotchFilter f { 20.0, 200.0, 8.0 };
     EXPECT_TRUE(f.getCenterFrequency() == 20.0);
     EXPECT_TRUE(f.getSampleRate() == 200.0);
     EXPECT_TRUE(f.getQFactor() == 8.0);
@@ -62,9 +62,9 @@ TEST(NotchFilterTest, QFactorClampedAtConstruction)
 {
     std::cout << "[Test] testQFactorClampedAtConstruction\n";
     // Q <= 0 must be clamped to 0.1
-    PelcoD::NotchFilter f { 10.0, 100.0, 0.0 };
+    Math::NotchFilter f { 10.0, 100.0, 0.0 };
     EXPECT_TRUE(f.getQFactor() >= 0.1);
-    PelcoD::NotchFilter f2 { 10.0, 100.0, -5.0 };
+    Math::NotchFilter f2 { 10.0, 100.0, -5.0 };
     EXPECT_TRUE(f2.getQFactor() >= 0.1);
     std::cout << "  -> PASSED\n";
 }
@@ -72,7 +72,7 @@ TEST(NotchFilterTest, QFactorClampedAtConstruction)
 TEST(NotchFilterTest, SetParametersUpdatesGetters)
 {
     std::cout << "[Test] testSetParametersUpdatesGetters\n";
-    PelcoD::NotchFilter f;
+    Math::NotchFilter f;
     f.setParameters(25.0, 100.0, 3.0);
     EXPECT_TRUE(f.getCenterFrequency() == 25.0);
     EXPECT_TRUE(f.getSampleRate() == 100.0);
@@ -83,7 +83,7 @@ TEST(NotchFilterTest, SetParametersUpdatesGetters)
 TEST(NotchFilterTest, SetParametersQClamp)
 {
     std::cout << "[Test] testSetParametersQClamp\n";
-    PelcoD::NotchFilter f;
+    Math::NotchFilter f;
     f.setParameters(10.0, 100.0, -1.0);
     EXPECT_TRUE(f.getQFactor() >= 0.1);
     f.setParameters(10.0, 100.0, 0.0);
@@ -94,7 +94,7 @@ TEST(NotchFilterTest, SetParametersQClamp)
 TEST(NotchFilterTest, SetParametersSampleRateClamp)
 {
     std::cout << "[Test] testSetParametersSampleRateClamp\n";
-    PelcoD::NotchFilter f;
+    Math::NotchFilter f;
     f.setParameters(10.0, 0.0, 5.0); // sample rate clamped to 1 Hz
     EXPECT_TRUE(f.getSampleRate() >= 1.0);
     std::cout << "  -> PASSED\n";
@@ -109,7 +109,7 @@ TEST(NotchFilterTest, NotchFrequencyAttenuated)
     const std::size_t N = 4000U;
     const std::size_t warmup = 500U;
 
-    PelcoD::NotchFilter f { centerHz, sampleRateHz, qFactor };
+    Math::NotchFilter f { centerHz, sampleRateHz, qFactor };
     const auto signal = makeSine(centerHz, sampleRateHz, N);
     std::vector<double> out(N);
     for (std::size_t i = 0U; i < N; ++i) {
@@ -133,7 +133,7 @@ TEST(NotchFilterTest, PassBandPreserved)
     const std::size_t N = 4000U;
     const std::size_t warmup = 200U;
 
-    PelcoD::NotchFilter f { centerHz, sampleRateHz, 10.0 };
+    Math::NotchFilter f { centerHz, sampleRateHz, 10.0 };
     const auto signal = makeSine(passFreq, sampleRateHz, N);
     std::vector<double> out(N);
     for (std::size_t i = 0U; i < N; ++i) {
@@ -151,7 +151,7 @@ TEST(NotchFilterTest, PassBandPreserved)
 TEST(NotchFilterTest, ResetClearsState)
 {
     std::cout << "[Test] testResetClearsState\n";
-    PelcoD::NotchFilter f { 50.0, 1000.0, 10.0 };
+    Math::NotchFilter f { 50.0, 1000.0, 10.0 };
     // Push some samples through to warm up the delay line
     for (int i = 0; i < 200; ++i) {
         (void)f.process(1.0);
@@ -167,7 +167,7 @@ TEST(NotchFilterTest, FallbackPassThroughAboveNyquist)
 {
     std::cout << "[Test] testFallbackPassThroughAboveNyquist\n";
     // Center frequency >= Nyquist → filter falls back to all-pass identity
-    PelcoD::NotchFilter f { 600.0, 1000.0, 5.0 }; // Nyquist = 500 Hz; center = 600 > Nyquist
+    Math::NotchFilter f { 600.0, 1000.0, 5.0 }; // Nyquist = 500 Hz; center = 600 > Nyquist
     for (int i = 0; i < 100; ++i) {
         const double in = static_cast<double>(i) * 0.01;
         const double out = f.process(in);
@@ -175,7 +175,7 @@ TEST(NotchFilterTest, FallbackPassThroughAboveNyquist)
         (void)out;
     }
     // Simple sanity: a constant-1 signal through an identity filter → constant 1
-    PelcoD::NotchFilter f2 { 999.0, 1000.0, 5.0 };
+    Math::NotchFilter f2 { 999.0, 1000.0, 5.0 };
     double prev = 0.0;
     for (int i = 0; i < 1000; ++i) {
         prev = f2.process(1.0);
@@ -188,14 +188,14 @@ TEST(NotchFilterTest, FallbackPassThroughBelowZero)
 {
     std::cout << "[Test] testFallbackPassThroughBelowZero\n";
     // Center frequency <= 0 → identity pass-through
-    PelcoD::NotchFilter f { 0.0, 1000.0, 5.0 };
+    Math::NotchFilter f { 0.0, 1000.0, 5.0 };
     double prev = 0.0;
     for (int i = 0; i < 1000; ++i) {
         prev = f.process(1.0);
     }
     EXPECT_TRUE(std::abs(prev - 1.0) < 1e-9);
 
-    PelcoD::NotchFilter f2 { -10.0, 1000.0, 5.0 };
+    Math::NotchFilter f2 { -10.0, 1000.0, 5.0 };
     double prev2 = 0.0;
     for (int i = 0; i < 1000; ++i) {
         prev2 = f2.process(1.0);
@@ -207,7 +207,7 @@ TEST(NotchFilterTest, FallbackPassThroughBelowZero)
 TEST(NotchFilterTest, ProcessZeroInputYieldsZero)
 {
     std::cout << "[Test] testProcessZeroInputYieldsZero\n";
-    PelcoD::NotchFilter f { 50.0, 1000.0, 5.0 };
+    Math::NotchFilter f { 50.0, 1000.0, 5.0 };
     // All-zero input → all-zero output (filter is linear, no offset)
     for (int i = 0; i < 100; ++i) {
         const double out = f.process(0.0);
@@ -225,7 +225,7 @@ TEST(NotchFilterTest, ReconfigureChangesAttenuation)
     const std::size_t N = 5000U;
     const std::size_t warmup = 1000U;
 
-    PelcoD::NotchFilter f { 100.0, sampleRateHz, 10.0 };
+    Math::NotchFilter f { 100.0, sampleRateHz, 10.0 };
     const auto sig100 = makeSine(100.0, sampleRateHz, N);
     std::vector<double> out1(N);
     for (std::size_t i = 0U; i < N; ++i) {
@@ -246,4 +246,3 @@ TEST(NotchFilterTest, ReconfigureChangesAttenuation)
 }
 
 } // namespace
-

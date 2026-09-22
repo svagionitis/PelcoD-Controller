@@ -5,12 +5,12 @@
 #include "DctSharpnessEvaluator.h"
 
 #include <algorithm>
-#include <gtest/gtest.h>
 #include <cmath>
+#include <gtest/gtest.h>
 #include <iostream>
 #include <vector>
 
-using namespace PelcoD;
+using namespace Math;
 
 namespace {
 
@@ -229,4 +229,3 @@ TEST(DctSharpnessTest, RoiTargeting)
 }
 
 } // namespace
-

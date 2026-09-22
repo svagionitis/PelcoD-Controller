@@ -4,11 +4,11 @@
 
 #include "PtzSphericalEstimator.h"
 
-#include <gtest/gtest.h>
 #include <cmath>
+#include <gtest/gtest.h>
 #include <iostream>
 
-using namespace PelcoD;
+using namespace Tracking;
 
 namespace {
 
@@ -169,4 +169,3 @@ TEST(PtzSphericalEstimatorTest, UKFModeConverges)
 }
 
 } // namespace
-

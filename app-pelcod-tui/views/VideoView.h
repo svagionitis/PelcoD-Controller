@@ -21,7 +21,7 @@
 
 namespace PelcoDTui {
 
-using namespace PelcoD::Video;
+using namespace Video;
 
 /// @class VideoView
 /// @brief Interactive TUI view rendering live video frames in Braille with tactical PTZ telemetry.
@@ -107,7 +107,7 @@ private:
 
 #if defined(PELCOD_HAS_FILTERS)
     int m_tacticalPaletteIndex { 0 };
-    std::unique_ptr<PelcoD::Video::FalseColorFilter> m_falseColorFilter {};
+    std::unique_ptr<Video::FalseColorFilter> m_falseColorFilter {};
 #endif
 };
 

@@ -119,10 +119,3 @@ private:
 };
 
 } // namespace Tracking
-
-namespace PelcoD {
-namespace Tracking = ::Tracking;
-using CalibrationResult = ::Tracking::CalibrationResult;
-using CalibrationState = ::Tracking::CalibrationState;
-using LatencyCalibrator = ::Tracking::LatencyCalibrator;
-} // namespace PelcoD

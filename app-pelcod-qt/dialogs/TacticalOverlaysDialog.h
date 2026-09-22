@@ -25,26 +25,25 @@ public:
 
     /// @brief Set the initial trajectory configuration.
     /// @param[in] config Trajectory breadcrumbs configuration.
-    void setTrajectoryConfig(const PelcoD::Video::TrajectoryConfig& config);
+    void setTrajectoryConfig(const Video::TrajectoryConfig& config);
 
     /// @brief Retrieve the configured trajectory settings.
     /// @return TrajectoryConfig descriptor.
-    [[nodiscard]] PelcoD::Video::TrajectoryConfig trajectoryConfig() const;
+    [[nodiscard]] Video::TrajectoryConfig trajectoryConfig() const;
 
     /// @brief Set the initial predictive lead configuration.
     /// @param[in] config Predictive lead vector configuration.
-    void setPredictiveLeadConfig(const PelcoD::Video::PredictiveLeadConfig& config);
+    void setPredictiveLeadConfig(const Video::PredictiveLeadConfig& config);
 
     /// @brief Retrieve the configured predictive lead settings.
     /// @return PredictiveLeadConfig descriptor.
-    [[nodiscard]] PelcoD::Video::PredictiveLeadConfig predictiveLeadConfig() const;
+    [[nodiscard]] Video::PredictiveLeadConfig predictiveLeadConfig() const;
 
 signals:
     /// @brief Emitted when the user applies overlay settings.
     /// @param[in] trajCfg Updated trajectory settings.
     /// @param[in] leadCfg Updated predictive lead settings.
-    void overlaysConfigChanged(const PelcoD::Video::TrajectoryConfig& trajCfg,
-        const PelcoD::Video::PredictiveLeadConfig& leadCfg);
+    void overlaysConfigChanged(const Video::TrajectoryConfig& trajCfg, const Video::PredictiveLeadConfig& leadCfg);
 
 private slots:
     void onResetToDefaults();

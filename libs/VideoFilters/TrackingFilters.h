@@ -1,6 +1,7 @@
 /**
  * @file TrackingFilters.h
- * @brief Video filters for motion detection, target tracking, kinematics estimation, tripwire intrusion detection, and optical flow fields.
+ * @brief Video filters for motion detection, target tracking, kinematics estimation, tripwire intrusion detection, and
+ * optical flow fields.
  */
 
 #pragma once
@@ -193,8 +194,8 @@ public:
         double uncertaintyAngleDeg { 0.0 }; ///< Kalman uncertainty orientation angle (degrees)
     };
 
-    using TrajectoryConfig = PelcoD::Video::TrajectoryConfig;
-    using PredictiveLeadConfig = PelcoD::Video::PredictiveLeadConfig;
+    using TrajectoryConfig = Video::TrajectoryConfig;
+    using PredictiveLeadConfig = Video::PredictiveLeadConfig;
 
     CentroidTargetTrackerFilter(bool autoAcquire = true, int targetWidth = 40, int targetHeight = 40);
     ~CentroidTargetTrackerFilter() override;

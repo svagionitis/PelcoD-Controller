@@ -5,8 +5,8 @@
 #include "OscillationDetector.h"
 #include "PidController.h"
 
-#include <gtest/gtest.h>
 #include <cmath>
+#include <gtest/gtest.h>
 #include <iostream>
 #include <random>
 #include <vector>
@@ -15,7 +15,8 @@
 #define M_PI 3.14159265358979323846
 #endif
 
-using namespace PelcoD;
+using namespace Tracking;
+using namespace Math;
 
 namespace {
 
@@ -146,4 +147,3 @@ TEST(OscillationDetectorTest, AutoAttenuatePidIntegration)
 }
 
 } // namespace
-

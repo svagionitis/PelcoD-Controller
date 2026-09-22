@@ -82,8 +82,3 @@ bool setNonBlocking(SocketHandle s, bool nonBlocking) noexcept;
 int pollSockets(PollFd* fds, unsigned long nfds, int timeoutMs) noexcept;
 
 } // namespace Transport::Net
-
-namespace PelcoD {
-namespace Transport = ::Transport;
-namespace Net = ::Transport::Net;
-} // namespace PelcoD

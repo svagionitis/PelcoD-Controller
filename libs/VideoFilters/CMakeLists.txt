@@ -15,7 +15,6 @@ set(PELCOD_VIDEO_FILTERS_SOURCES
 )
 
 add_library(VideoFilters STATIC ${PELCOD_VIDEO_FILTERS_SOURCES})
-add_library(PelcoDVideoFilters ALIAS VideoFilters)
 
 target_include_directories(VideoFilters PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>

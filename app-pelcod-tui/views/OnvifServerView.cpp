@@ -28,7 +28,7 @@ void OnvifServerView::bindDevice(PelcoD::PelcoDDevice* device, PelcoD::PatrolCon
     m_patrol = patrol;
     if (m_device != nullptr && m_ptzBridgeEnabled) {
         auto nonOwning = std::shared_ptr<PelcoD::PelcoDDevice>(m_device, [](PelcoD::PelcoDDevice*) {});
-        m_ptzAdapter = std::make_shared<PelcoD::Onvif::PelcoDPtzAdapter>(nonOwning);
+        m_ptzAdapter = std::make_shared<Onvif::PelcoDPtzAdapter>(nonOwning);
         if (m_patrol != nullptr) {
             m_ptzAdapter->setPatrolController(m_patrol);
         }
@@ -51,14 +51,14 @@ bool OnvifServerView::startServer()
 
     if (m_ptzBridgeEnabled && m_device != nullptr && m_ptzAdapter == nullptr) {
         auto nonOwning = std::shared_ptr<PelcoD::PelcoDDevice>(m_device, [](PelcoD::PelcoDDevice*) {});
-        m_ptzAdapter = std::make_shared<PelcoD::Onvif::PelcoDPtzAdapter>(nonOwning);
+        m_ptzAdapter = std::make_shared<Onvif::PelcoDPtzAdapter>(nonOwning);
         if (m_patrol != nullptr) {
             m_ptzAdapter->setPatrolController(m_patrol);
         }
     }
 
     try {
-        m_server = std::make_unique<PelcoD::Onvif::OnvifServer>(m_config, m_ptzAdapter, m_ptzAdapter);
+        m_server = std::make_unique<Onvif::OnvifServer>(m_config, m_ptzAdapter, m_ptzAdapter);
         m_server->setRequestLogCallback(
             [this](const std::string& service, const std::string& action, const std::string& clientIp) {
                 const auto now = std::chrono::system_clock::now();

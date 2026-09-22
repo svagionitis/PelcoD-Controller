@@ -4,11 +4,11 @@
 #include "PidController.h"
 #include "PtzAutoTracker.h"
 
-#include <gtest/gtest.h>
 #include <cmath>
+#include <gtest/gtest.h>
 #include <iostream>
 
-using namespace PelcoD;
+using namespace Tracking;
 
 namespace {
 
@@ -305,4 +305,3 @@ TEST(PidControllerTest, ZoomAwareGainScheduling)
 }
 
 } // namespace
-

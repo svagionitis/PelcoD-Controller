@@ -6,14 +6,14 @@
 
 namespace PelcoDQt {
 
-using PelcoD::Video::BackendType;
-using PelcoD::Video::DecoderFactory;
-using PelcoD::Video::DecoderPerformanceStats;
-using PelcoD::Video::DeviceType;
-using PelcoD::Video::FrameInfo;
-using PelcoD::Video::PixelFormat;
-using PelcoD::Video::StreamState;
-using PelcoD::Video::VideoMetadata;
+using Video::BackendType;
+using Video::DecoderFactory;
+using Video::DecoderPerformanceStats;
+using Video::DeviceType;
+using Video::FrameInfo;
+using Video::PixelFormat;
+using Video::StreamState;
+using Video::VideoMetadata;
 
 QVideoStreamWorker::QVideoStreamWorker(QObject* parent)
     : QThread(parent)
@@ -104,7 +104,7 @@ void QVideoStreamWorker::seekTo(double timestampSeconds)
     m_condition.wakeAll();
 }
 
-void QVideoStreamWorker::addFrameProcessor(std::shared_ptr<PelcoD::Video::IFrameProcessor> processor)
+void QVideoStreamWorker::addFrameProcessor(std::shared_ptr<Video::IFrameProcessor> processor)
 {
     QMutexLocker locker(&m_mutex);
     if (processor) {

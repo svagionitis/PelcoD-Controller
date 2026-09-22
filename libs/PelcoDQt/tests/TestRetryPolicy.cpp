@@ -11,10 +11,11 @@
 #include <QCoreApplication>
 #include <QSignalSpy>
 
+#include "BaseTransport.h"
 #include <atomic>
-#include <gtest/gtest.h>
 #include <chrono>
 #include <cmath>
+#include <gtest/gtest.h>
 #include <iostream>
 #include <memory>
 #include <mutex>
@@ -24,7 +25,7 @@
 using namespace PelcoDTest;
 
 // Custom transport for simulating dropped responses or transient transmit failures
-class FlakyTransport final : public PelcoD::BaseTransport {
+class FlakyTransport final : public Transport::BaseTransport {
 public:
     bool open() override
     {

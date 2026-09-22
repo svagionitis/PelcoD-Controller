@@ -62,10 +62,3 @@ private:
 };
 
 } // namespace Math
-
-namespace PelcoD {
-namespace Math = ::Math;
-using PhaseCorrelationConfig = ::Math::PhaseCorrelationConfig;
-using MotionResult = ::Math::MotionResult;
-using PhaseCorrelationEstimator = ::Math::PhaseCorrelationEstimator;
-} // namespace PelcoD

@@ -1,21 +1,21 @@
-#include <PelcoDSim/MockPelcoDDevice.h>
 #include <Onvif/OnvifClient.h>
 #include <Onvif/OnvifServer.h>
-#include <Onvif/PelcoDPtzAdapter.h>
+#include <Onvif/adapters/PelcoDPtzAdapter.h>
+#include <PelcoDSim/MockPelcoDDevice.h>
 
 #include <httplib.h>
 #include <pugixml.hpp>
 
-#include <gtest/gtest.h>
 #include <chrono>
 #include <cmath>
+#include <gtest/gtest.h>
 #include <iostream>
 #include <memory>
 #include <string>
 #include <thread>
 #include <vector>
 
-using namespace PelcoD::Onvif;
+using namespace Onvif;
 
 class MockPtzHandler : public IPtzHandler {
 public:
@@ -491,7 +491,8 @@ TEST(OnvifServerTest, ProfileTImagingAndEvents)
         pugi::xml_document pullDoc;
         EXPECT_TRUE(pullDoc.load_string(resPull->body.c_str()));
         const auto topicNode = pullDoc.select_node("//*[local-name()='Topic']").node();
-        EXPECT_TRUE(topicNode && std::string(topicNode.text().as_string()) == "tns1:RuleEngine/CellMotionDetector/Motion");
+        EXPECT_TRUE(
+            topicNode && std::string(topicNode.text().as_string()) == "tns1:RuleEngine/CellMotionDetector/Motion");
 
         const auto dataNode = pullDoc.select_node("//*[local-name()='Data']/*[local-name()='SimpleItem']").node();
         EXPECT_TRUE(dataNode && std::string(dataNode.attribute("Value").as_string()) == "true");
@@ -1869,7 +1870,8 @@ TEST(OnvifServerTest, MetadataStreamsAndMaintenanceExtensions)
         auto res = client.Post("/onvif/device_service", req, "application/soap+xml; charset=utf-8");
         EXPECT_TRUE(res && res->status == 200);
         EXPECT_TRUE(res->body.find("GetSystemLogResponse") != std::string::npos);
-        EXPECT_TRUE(res->body.find("DeviceService:") != std::string::npos || res->body.find("ACCESS LOG") != std::string::npos);
+        EXPECT_TRUE(
+            res->body.find("DeviceService:") != std::string::npos || res->body.find("ACCESS LOG") != std::string::npos);
     }
 
     // 6. Device Management: GetSystemSupportInformation
@@ -2440,41 +2442,40 @@ TEST(OnvifServerTest, VideoAnalyticsRuleEngineAndEvaluation)
 
     // 3. CreateRules (Tripwire LineDetector + FieldDetector)
     {
-        const std::string req
-            = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
-              "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
-              "xmlns:tan=\"http://www.onvif.org/ver20/analytics/wsdl\" "
-              "xmlns:tt=\"http://www.onvif.org/ver10/schema\">\r\n"
-              "  <SOAP-ENV:Body>\r\n"
-              "    <tan:CreateRules>\r\n"
-              "      <tan:ConfigurationToken>VideoAnalytics_1</tan:ConfigurationToken>\r\n"
-              "      <tan:Rule Name=\"PerimeterTripwire\" Type=\"tt:LineDetector\">\r\n"
-              "        <tan:Parameters>\r\n"
-              "          <tt:SimpleItem Name=\"Direction\" Value=\"LeftToRight\"/>\r\n"
-              "          <tt:SimpleItem Name=\"Classes\" Value=\"Human,Vehicle\"/>\r\n"
-              "          <tt:SimpleItem Name=\"MinConfidence\" Value=\"0.50\"/>\r\n"
-              "          <tt:ElementItem Name=\"Segment\">\r\n"
-              "            <tt:Point x=\"0.5000\" y=\"0.0000\"/>\r\n"
-              "            <tt:Point x=\"0.5000\" y=\"1.0000\"/>\r\n"
-              "          </tt:ElementItem>\r\n"
-              "        </tan:Parameters>\r\n"
-              "      </tan:Rule>\r\n"
-              "      <tan:Rule Name=\"ZoneIntrusion\" Type=\"tt:FieldDetector\">\r\n"
-              "        <tan:Parameters>\r\n"
-              "          <tt:SimpleItem Name=\"Classes\" Value=\"Human\"/>\r\n"
-              "          <tt:ElementItem Name=\"Field\">\r\n"
-              "            <tt:Polygon>\r\n"
-              "              <tt:Point x=\"0.2000\" y=\"0.2000\"/>\r\n"
-              "              <tt:Point x=\"0.8000\" y=\"0.2000\"/>\r\n"
-              "              <tt:Point x=\"0.8000\" y=\"0.8000\"/>\r\n"
-              "              <tt:Point x=\"0.2000\" y=\"0.8000\"/>\r\n"
-              "            </tt:Polygon>\r\n"
-              "          </tt:ElementItem>\r\n"
-              "        </tan:Parameters>\r\n"
-              "      </tan:Rule>\r\n"
-              "    </tan:CreateRules>\r\n"
-              "  </SOAP-ENV:Body>\r\n"
-              "</SOAP-ENV:Envelope>";
+        const std::string req = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+                                "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+                                "xmlns:tan=\"http://www.onvif.org/ver20/analytics/wsdl\" "
+                                "xmlns:tt=\"http://www.onvif.org/ver10/schema\">\r\n"
+                                "  <SOAP-ENV:Body>\r\n"
+                                "    <tan:CreateRules>\r\n"
+                                "      <tan:ConfigurationToken>VideoAnalytics_1</tan:ConfigurationToken>\r\n"
+                                "      <tan:Rule Name=\"PerimeterTripwire\" Type=\"tt:LineDetector\">\r\n"
+                                "        <tan:Parameters>\r\n"
+                                "          <tt:SimpleItem Name=\"Direction\" Value=\"LeftToRight\"/>\r\n"
+                                "          <tt:SimpleItem Name=\"Classes\" Value=\"Human,Vehicle\"/>\r\n"
+                                "          <tt:SimpleItem Name=\"MinConfidence\" Value=\"0.50\"/>\r\n"
+                                "          <tt:ElementItem Name=\"Segment\">\r\n"
+                                "            <tt:Point x=\"0.5000\" y=\"0.0000\"/>\r\n"
+                                "            <tt:Point x=\"0.5000\" y=\"1.0000\"/>\r\n"
+                                "          </tt:ElementItem>\r\n"
+                                "        </tan:Parameters>\r\n"
+                                "      </tan:Rule>\r\n"
+                                "      <tan:Rule Name=\"ZoneIntrusion\" Type=\"tt:FieldDetector\">\r\n"
+                                "        <tan:Parameters>\r\n"
+                                "          <tt:SimpleItem Name=\"Classes\" Value=\"Human\"/>\r\n"
+                                "          <tt:ElementItem Name=\"Field\">\r\n"
+                                "            <tt:Polygon>\r\n"
+                                "              <tt:Point x=\"0.2000\" y=\"0.2000\"/>\r\n"
+                                "              <tt:Point x=\"0.8000\" y=\"0.2000\"/>\r\n"
+                                "              <tt:Point x=\"0.8000\" y=\"0.8000\"/>\r\n"
+                                "              <tt:Point x=\"0.2000\" y=\"0.8000\"/>\r\n"
+                                "            </tt:Polygon>\r\n"
+                                "          </tt:ElementItem>\r\n"
+                                "        </tan:Parameters>\r\n"
+                                "      </tan:Rule>\r\n"
+                                "    </tan:CreateRules>\r\n"
+                                "  </SOAP-ENV:Body>\r\n"
+                                "</SOAP-ENV:Envelope>";
         auto res = client.Post("/onvif/analytics_service", req, "application/soap+xml; charset=utf-8");
         EXPECT_TRUE(res && res->status == 200);
         EXPECT_TRUE(res->body.find("CreateRulesResponse") != std::string::npos);
@@ -2495,9 +2496,7 @@ TEST(OnvifServerTest, VideoAnalyticsRuleEngineAndEvaluation)
 
     // 5. Test Geometric Rule Evaluation via Adapter & Event Publishing
     std::vector<OnvifEvent> emittedEvents;
-    adapter->setEventPublisher([&emittedEvents](const OnvifEvent& ev) {
-        emittedEvents.push_back(ev);
-    });
+    adapter->setEventPublisher([&emittedEvents](const OnvifEvent& ev) { emittedEvents.push_back(ev); });
 
     // Frame 1: Object 1 (Human) at x=0.30 (left of vertical line x=0.50, inside zone [0.2, 0.8])
     AnalyticsObject obj1;
@@ -2704,7 +2703,8 @@ TEST(OnvifServerTest, PtzGeoMoveAndSphericalSpaces)
                                 "    <tptz:AbsoluteMove>\r\n"
                                 "      <tptz:ProfileToken>ProfileToken_1</tptz:ProfileToken>\r\n"
                                 "      <tptz:Position>\r\n"
-                                "        <tt:PanTilt x=\"180.0\" y=\"30.0\" space=\"http://www.onvif.org/ver10/tptz/PanTiltSpaces/PositionSphericalSpace\"/>\r\n"
+                                "        <tt:PanTilt x=\"180.0\" y=\"30.0\" "
+                                "space=\"http://www.onvif.org/ver10/tptz/PanTiltSpaces/PositionSphericalSpace\"/>\r\n"
                                 "      </tptz:Position>\r\n"
                                 "    </tptz:AbsoluteMove>\r\n"
                                 "  </SOAP-ENV:Body>\r\n"
@@ -3037,9 +3037,7 @@ TEST(OnvifServerTest, ThermalServiceAndRadiometry)
     auto adapter = std::make_shared<PelcoDPtzAdapter>(device);
 
     std::vector<OnvifEvent> publishedEvents;
-    adapter->setEventPublisher([&](const OnvifEvent& ev) {
-        publishedEvents.push_back(ev);
-    });
+    adapter->setEventPublisher([&](const OnvifEvent& ev) { publishedEvents.push_back(ev); });
 
     OnvifServer server(config, adapter, adapter);
     server.setThermalHandler(adapter);

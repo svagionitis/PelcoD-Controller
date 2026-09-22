@@ -89,8 +89,3 @@ private:
 };
 
 } // namespace Transport
-
-namespace PelcoD {
-namespace Transport = ::Transport;
-using ::Transport::SerialTransport;
-} // namespace PelcoD

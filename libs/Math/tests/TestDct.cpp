@@ -4,12 +4,12 @@
 
 #include "Dct.h"
 
-#include <gtest/gtest.h>
 #include <cmath>
 #include <cstdint>
+#include <gtest/gtest.h>
 #include <iostream>
 
-using namespace PelcoD::Math;
+using namespace Math;
 
 namespace {
 
@@ -262,4 +262,3 @@ TEST(DctTest, DctOrthogonality)
 }
 
 } // namespace
-

@@ -10,7 +10,7 @@
 #if defined(PELCOD_ENABLE_ONVIF)
 #include "Onvif/OnvifServer.h"
 #include "Onvif/OnvifServerTypes.h"
-#include "Onvif/PelcoDPtzAdapter.h"
+#include "Onvif/adapters/PelcoDPtzAdapter.h"
 #endif
 
 #include <deque>
@@ -54,13 +54,13 @@ public:
     [[nodiscard]] bool isRunning() const noexcept;
 
     /// @brief Accesses mutable server configuration.
-    [[nodiscard]] PelcoD::Onvif::OnvifServerConfig& config() noexcept
+    [[nodiscard]] Onvif::OnvifServerConfig& config() noexcept
     {
         return m_config;
     }
 
     /// @brief Accesses const server configuration.
-    [[nodiscard]] const PelcoD::Onvif::OnvifServerConfig& config() const noexcept
+    [[nodiscard]] const Onvif::OnvifServerConfig& config() const noexcept
     {
         return m_config;
     }
@@ -87,11 +87,11 @@ private:
     };
 
 #if defined(PELCOD_ENABLE_ONVIF)
-    PelcoD::Onvif::OnvifServerConfig m_config {};
+    Onvif::OnvifServerConfig m_config {};
     PelcoD::PelcoDDevice* m_device { nullptr };
     PelcoD::PatrolController* m_patrol { nullptr };
-    std::shared_ptr<PelcoD::Onvif::PelcoDPtzAdapter> m_ptzAdapter { nullptr };
-    std::unique_ptr<PelcoD::Onvif::OnvifServer> m_server { nullptr };
+    std::shared_ptr<Onvif::PelcoDPtzAdapter> m_ptzAdapter { nullptr };
+    std::unique_ptr<Onvif::OnvifServer> m_server { nullptr };
 #endif
 
     mutable std::mutex m_logMutex {};

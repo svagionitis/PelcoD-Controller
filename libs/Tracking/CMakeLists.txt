@@ -24,10 +24,7 @@ add_library(Tracking STATIC
     TransientShockDetector.h
     TransientShockDetector.cpp
     Tracking.h
-    PelcoDTracking.h
 )
-
-add_library(PelcoDTracking ALIAS Tracking)
 
 target_include_directories(Tracking PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>

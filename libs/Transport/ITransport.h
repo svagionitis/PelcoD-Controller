@@ -62,7 +62,3 @@ public:
 };
 
 } // namespace Transport
-
-namespace PelcoD {
-using Transport::ITransport;
-} // namespace PelcoD

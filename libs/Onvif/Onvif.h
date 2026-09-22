@@ -11,11 +11,7 @@
 #include "OnvifServer.h"
 #include "OnvifServerTypes.h"
 #include "OnvifTypes.h"
-#include "PelcoDPtzAdapter.h"
 #include "WsDiscoveryCommon.h"
 #include "WsDiscoveryServer.h"
 #include "XmlUtils.h"
-
-namespace PelcoD {
-namespace Onvif = ::Onvif;
-} // namespace PelcoD
+#include "adapters/PelcoDPtzAdapter.h"

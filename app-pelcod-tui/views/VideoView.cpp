@@ -9,7 +9,7 @@
 
 namespace PelcoDTui {
 
-using namespace PelcoD::Video;
+using namespace Video;
 
 namespace {
 
@@ -129,22 +129,19 @@ void VideoView::cycleTacticalFilter() noexcept
     m_tacticalPaletteIndex = (m_tacticalPaletteIndex + 1) % 6;
     switch (m_tacticalPaletteIndex) {
     case 1:
-        m_falseColorFilter
-            = std::make_unique<PelcoD::Video::FalseColorFilter>(PelcoD::Video::FalseColorPalette::Iron256);
+        m_falseColorFilter = std::make_unique<Video::FalseColorFilter>(Video::FalseColorPalette::Iron256);
         break;
     case 2:
-        m_falseColorFilter = std::make_unique<PelcoD::Video::FalseColorFilter>(PelcoD::Video::FalseColorPalette::Jet);
+        m_falseColorFilter = std::make_unique<Video::FalseColorFilter>(Video::FalseColorPalette::Jet);
         break;
     case 3:
-        m_falseColorFilter = std::make_unique<PelcoD::Video::FalseColorFilter>(PelcoD::Video::FalseColorPalette::Turbo);
+        m_falseColorFilter = std::make_unique<Video::FalseColorFilter>(Video::FalseColorPalette::Turbo);
         break;
     case 4:
-        m_falseColorFilter
-            = std::make_unique<PelcoD::Video::FalseColorFilter>(PelcoD::Video::FalseColorPalette::WhiteHot);
+        m_falseColorFilter = std::make_unique<Video::FalseColorFilter>(Video::FalseColorPalette::WhiteHot);
         break;
     case 5:
-        m_falseColorFilter
-            = std::make_unique<PelcoD::Video::FalseColorFilter>(PelcoD::Video::FalseColorPalette::BlackHot);
+        m_falseColorFilter = std::make_unique<Video::FalseColorFilter>(Video::FalseColorPalette::BlackHot);
         break;
     case 0:
     default:

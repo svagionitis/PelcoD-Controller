@@ -12,7 +12,6 @@
 #include "VideoFilters.h"
 #endif
 
-#include <gtest/gtest.h>
 #include <QCoreApplication>
 #include <QImage>
 #include <QSignalSpy>
@@ -21,11 +20,11 @@
 #include <atomic>
 #include <cassert>
 #include <cmath>
+#include <gtest/gtest.h>
 #include <iostream>
 #include <thread>
 
 using namespace Video;
-
 
 TEST(VideoDecoderTest, MockDecoderLifecycle)
 {
@@ -199,7 +198,7 @@ TEST(VideoDecoderTest, SourceTypeDetection)
 TEST(VideoDecoderTest, DeviceEnumeration)
 {
     // Ensure hardware device enumeration runs safely without throwing or crashing
-    const auto devices = PelcoD::Video::DeviceEnumerator::enumerateDevices();
+    const auto devices = DeviceEnumerator::enumerateDevices();
     for (const auto& dev : devices) {
         EXPECT_TRUE(!dev.name.empty());
         EXPECT_TRUE(!dev.path.empty());
@@ -1220,7 +1219,7 @@ TEST(VideoFiltersTest, CentroidTargetTrackerFilter)
     EXPECT_TRUE(stPred.predictedErrorX > stAccel.errorX);
 
     // Test extended TrajectoryConfig and PredictiveLeadConfig
-    PelcoD::Video::TrajectoryConfig trajCfg;
+    TrajectoryConfig trajCfg;
     trajCfg.enabled = true;
     trajCfg.maxDurationSec = 1.5;
     trajCfg.maxPoints = 45;
@@ -1235,7 +1234,7 @@ TEST(VideoFiltersTest, CentroidTargetTrackerFilter)
     EXPECT_TRUE(readTraj.smoothSpline);
     EXPECT_TRUE(readTraj.speedGradient);
 
-    PelcoD::Video::PredictiveLeadConfig leadCfg;
+    PredictiveLeadConfig leadCfg;
     leadCfg.enabled = true;
     leadCfg.lookaheadSeconds = 1.8;
     leadCfg.curvilinearPrediction = true;

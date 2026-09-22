@@ -31,15 +31,15 @@ public:
     ~SpectrogramWidget() override = default;
 
     /// @brief Updates the active colormap preset.
-    void setColorPreset(PelcoD::SpectrogramColorMap::Preset preset);
+    void setColorPreset(Math::SpectrogramColorMap::Preset preset);
 
     /// @brief Retrieves the active colormap preset.
-    [[nodiscard]] PelcoD::SpectrogramColorMap::Preset colorPreset() const noexcept;
+    [[nodiscard]] Math::SpectrogramColorMap::Preset colorPreset() const noexcept;
 
     /// @brief Updates the display with the latest STFT frame history.
     /// @param[in] frames Chronological list of spectrogram frames.
     /// @param[in] freqs Center frequencies for each bin in Hertz.
-    void updateSpectrogram(const std::vector<PelcoD::SpectrogramFrame>& frames, const std::vector<double>& freqs);
+    void updateSpectrogram(const std::vector<Math::SpectrogramFrame>& frames, const std::vector<double>& freqs);
 
 protected:
     void paintEvent(QPaintEvent* event) override;
@@ -50,9 +50,9 @@ private:
     void renderBadges(QPainter& painter, const QRect& rect);
 
     mutable QMutex m_mutex;
-    PelcoD::SpectrogramColorMap::Preset m_preset { PelcoD::SpectrogramColorMap::Preset::Inferno };
+    Math::SpectrogramColorMap::Preset m_preset { Math::SpectrogramColorMap::Preset::Inferno };
 
-    std::vector<PelcoD::SpectrogramFrame> m_frames {};
+    std::vector<Math::SpectrogramFrame> m_frames {};
     std::vector<double> m_freqs {};
 
     QImage m_waterfallImage {};

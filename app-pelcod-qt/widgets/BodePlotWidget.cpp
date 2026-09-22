@@ -21,7 +21,7 @@ BodePlotWidget::BodePlotWidget(QWidget* parent)
     setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
 }
 
-void BodePlotWidget::setIdentificationResult(const PlantIdentificationResult& result)
+void BodePlotWidget::setIdentificationResult(const Tracking::PlantIdentificationResult& result)
 {
     m_result = result;
     m_hasData = result.success && !result.bode.frequenciesHz.empty();
@@ -64,8 +64,9 @@ void BodePlotWidget::setIdentificationResult(const PlantIdentificationResult& re
 
 void BodePlotWidget::clear()
 {
-    m_result = PlantIdentificationResult {};
+    m_result = Tracking::PlantIdentificationResult {};
     m_hasData = false;
+    m_cursorActive = false;
     update();
 }
 
@@ -97,8 +98,8 @@ double BodePlotWidget::xToFreq(int x, const QRect& plotRect) const
     if (plotRect.width() <= 0) {
         return m_minFreqHz;
     }
-    const double ratio = std::clamp(
-        static_cast<double>(x - plotRect.left()) / static_cast<double>(plotRect.width()), 0.0, 1.0);
+    const double ratio
+        = std::clamp(static_cast<double>(x - plotRect.left()) / static_cast<double>(plotRect.width()), 0.0, 1.0);
     return m_minFreqHz + ratio * (m_maxFreqHz - m_minFreqHz);
 }
 
@@ -218,18 +219,16 @@ void BodePlotWidget::drawGridAndAxes(QPainter& painter, const QRect& magRect, co
         painter.drawLine(x, phaseRect.top(), x, phaseRect.bottom());
 
         painter.setPen(textPen);
-        painter.drawText(QRect(x - 20, phaseRect.bottom() + 4, 40, 16), Qt::AlignCenter,
-            QString::asprintf("%0.0f Hz", f));
+        painter.drawText(
+            QRect(x - 20, phaseRect.bottom() + 4, 40, 16), Qt::AlignCenter, QString::asprintf("%0.0f Hz", f));
     }
 
     // Panel titles
     painter.setPen(QColor(88, 166, 255));
-    painter.drawText(QRect(magRect.left() + 6, magRect.top() + 4, 200, 16), Qt::AlignLeft,
-        tr("Magnitude |H(f)| [dB]"));
+    painter.drawText(QRect(magRect.left() + 6, magRect.top() + 4, 200, 16), Qt::AlignLeft, tr("Magnitude |H(f)| [dB]"));
 
     painter.setPen(QColor(255, 166, 87));
-    painter.drawText(QRect(phaseRect.left() + 6, phaseRect.top() + 4, 200, 16), Qt::AlignLeft,
-        tr("Phase ∠H(f) [deg]"));
+    painter.drawText(QRect(phaseRect.left() + 6, phaseRect.top() + 4, 200, 16), Qt::AlignLeft, tr("Phase ∠H(f) [deg]"));
 }
 
 void BodePlotWidget::drawMagnitudeResponse(QPainter& painter, const QRect& magRect)
@@ -369,8 +368,8 @@ void BodePlotWidget::drawStabilityAnnotations(QPainter& painter, const QRect& ma
             painter.setBrush(QColor(255, 235, 59));
             painter.drawEllipse(QPoint(x, y), 3, 3);
 
-            painter.drawText(QRect(x - 40, y - 18, 80, 14), Qt::AlignCenter,
-                QString::asprintf("Res %0.1fHz", peak.frequencyHz));
+            painter.drawText(
+                QRect(x - 40, y - 18, 80, 14), Qt::AlignCenter, QString::asprintf("Res %0.1fHz", peak.frequencyHz));
         }
     }
 }

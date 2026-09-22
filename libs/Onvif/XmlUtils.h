@@ -53,7 +53,3 @@ void collectNodesWithSuffix(
 [[nodiscard]] std::vector<Point2D> parsePoint2DList(const pugi::xml_node& parent);
 
 } // namespace Onvif::Xml
-
-namespace PelcoD {
-namespace Onvif = ::Onvif;
-} // namespace PelcoD

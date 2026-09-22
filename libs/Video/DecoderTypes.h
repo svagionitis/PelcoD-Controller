@@ -161,7 +161,3 @@ struct PredictiveLeadConfig {
 
 } // namespace Video
 namespace videodecoder = Video;
-
-namespace PelcoD {
-namespace Video = ::Video;
-}

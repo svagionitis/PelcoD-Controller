@@ -127,10 +127,3 @@ private:
 };
 
 } // namespace Tracking
-
-namespace PelcoD {
-namespace Tracking = ::Tracking;
-using PeakPolarity = ::Tracking::PeakPolarity;
-using LatencyEstimatorConfig = ::Tracking::LatencyEstimatorConfig;
-using LatencyEstimator = ::Tracking::LatencyEstimator;
-} // namespace PelcoD

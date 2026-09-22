@@ -508,7 +508,7 @@ TEST(MockDeviceTest, TransportCallbackDeregistration)
 
         // Invocations after stop must be safe no-ops and not crash
         transport->inject({ 0xFF, 0x01, 0x00, 0x00, 0x00, 0x00, 0x01 });
-        transport->triggerState(PelcoD::TransportState::Disconnected, "Closed");
+        transport->triggerState(Transport::TransportState::Disconnected, "Closed");
     }
 
     // Scenario 2: Callbacks are unregistered upon destruction without prior explicit stop()
@@ -526,7 +526,7 @@ TEST(MockDeviceTest, TransportCallbackDeregistration)
 
         // Invocations after destruction must not dereference dangling pointers
         transport->inject({ 0xFF, 0x01, 0x00, 0x00, 0x00, 0x00, 0x01 });
-        transport->triggerState(PelcoD::TransportState::Disconnected, "Closed");
+        transport->triggerState(Transport::TransportState::Disconnected, "Closed");
     }
 
     // Scenario 3: Callbacks are cleared if start() fails during open()
