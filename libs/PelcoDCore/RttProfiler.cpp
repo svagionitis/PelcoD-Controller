@@ -24,13 +24,13 @@ RttProfiler::~RttProfiler()
 void RttProfiler::setDevice(std::shared_ptr<PelcoDDevice> device)
 {
     stop();
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     m_device = std::move(device);
 }
 
 std::shared_ptr<PelcoDDevice> RttProfiler::getDevice() const
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     return m_device;
 }
 
@@ -45,7 +45,7 @@ bool RttProfiler::start(const RttProfilerConfig& config)
 
     std::shared_ptr<PelcoDDevice> dev;
     {
-        std::lock_guard<std::mutex> lock(m_mutex);
+        std::scoped_lock lock(m_mutex);
         if (m_running.load()) {
             return false;
         }
@@ -73,7 +73,7 @@ bool RttProfiler::start(const RttProfilerConfig& config)
 
     StateChangedCallback stateCb;
     {
-        std::lock_guard<std::mutex> lock(m_mutex);
+        std::scoped_lock lock(m_mutex);
         stateCb = m_stateCb;
     }
     if (stateCb) {
@@ -101,7 +101,7 @@ void RttProfiler::stop()
     if (wasRunning) {
         StateChangedCallback stateCb;
         {
-            std::lock_guard<std::mutex> lock(m_mutex);
+            std::scoped_lock lock(m_mutex);
             stateCb = m_stateCb;
         }
         if (stateCb) {
@@ -126,7 +126,7 @@ void RttProfiler::reset()
     StatisticsCallback statsCb;
     RttStatistics statsSnapshot;
     {
-        std::lock_guard<std::mutex> lock(m_mutex);
+        std::scoped_lock lock(m_mutex);
         resetStatisticsUnderLock();
         statsSnapshot = m_stats;
         statsCb = m_statsCb;
@@ -150,7 +150,7 @@ void RttProfiler::recordSampleMs(double rttMs, const std::string& queryTag, bool
     StatisticsCallback statsCb;
 
     {
-        std::lock_guard<std::mutex> lock(m_mutex);
+        std::scoped_lock lock(m_mutex);
 
         sample.sequenceNumber = m_nextSeq++;
         sample.timestamp = std::chrono::steady_clock::now();
@@ -254,43 +254,43 @@ bool RttProfiler::isRunning() const noexcept
 
 RttProfilerConfig RttProfiler::getConfig() const
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     return m_config;
 }
 
 RttStatistics RttProfiler::getStatistics() const
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     return m_stats;
 }
 
 std::vector<RttSample> RttProfiler::getHistory() const
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     return { m_history.begin(), m_history.end() };
 }
 
 void RttProfiler::setSampleCallback(SampleCallback cb)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     m_sampleCb = std::move(cb);
 }
 
 void RttProfiler::setStatisticsCallback(StatisticsCallback cb)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     m_statsCb = std::move(cb);
 }
 
 void RttProfiler::setStateChangedCallback(StateChangedCallback cb)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     m_stateCb = std::move(cb);
 }
 
 void RttProfiler::setFinishedCallback(FinishedCallback cb)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     m_finishedCb = std::move(cb);
 }
 
@@ -324,7 +324,7 @@ void RttProfiler::activeWorkerLoop(RttProfilerConfig config)
     StateChangedCallback stateCb;
     RttStatistics finalStats;
     {
-        std::lock_guard<std::mutex> lock(m_mutex);
+        std::scoped_lock lock(m_mutex);
         finishCb = m_finishedCb;
         stateCb = m_stateCb;
         finalStats = m_stats;
@@ -342,7 +342,7 @@ void RttProfiler::dispatchProbeCommand(const std::string& tag)
 {
     std::shared_ptr<PelcoDDevice> dev;
     {
-        std::lock_guard<std::mutex> lock(m_mutex);
+        std::scoped_lock lock(m_mutex);
         dev = m_device;
     }
 
@@ -367,7 +367,7 @@ void RttProfiler::dispatchProbeCommand(const std::string& tag)
 
 bool RttProfiler::exportCsv(std::ostream& os) const
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     if (!os.good()) {
         return false;
     }
@@ -383,7 +383,7 @@ bool RttProfiler::exportCsv(std::ostream& os) const
 
 bool RttProfiler::exportJson(std::ostream& os) const
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     if (!os.good()) {
         return false;
     }

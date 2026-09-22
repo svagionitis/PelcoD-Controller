@@ -75,12 +75,12 @@ TEST(PatrolControllerTest, TourExecutionAndAdvancement)
     bool finished = false;
 
     PelcoD::PatrolController controller([&](std::uint8_t presetId) {
-        std::lock_guard<std::mutex> lock(mtx);
+        std::scoped_lock lock(mtx);
         dispatchedPresets.push_back(presetId);
     });
 
     controller.setTourFinishedCallback([&]() {
-        std::lock_guard<std::mutex> lock(mtx);
+        std::scoped_lock lock(mtx);
         finished = true;
         cv.notify_all();
     });
@@ -149,7 +149,7 @@ TEST(PatrolControllerTest, ManualSkip)
     std::vector<std::uint8_t> dispatchedPresets;
 
     PelcoD::PatrolController controller([&](std::uint8_t presetId) {
-        std::lock_guard<std::mutex> lock(mtx);
+        std::scoped_lock lock(mtx);
         dispatchedPresets.push_back(presetId);
         cv.notify_all();
     });
@@ -224,7 +224,7 @@ TEST(PatrolControllerTest, PatrolTourLooping)
     std::vector<std::uint8_t> dispatched;
 
     PelcoD::PatrolController controller([&](std::uint8_t presetId) {
-        std::lock_guard<std::mutex> lock(mtx);
+        std::scoped_lock lock(mtx);
         dispatched.push_back(presetId);
         cv.notify_all();
     });

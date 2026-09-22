@@ -17,7 +17,7 @@ PacedCommandQueue::PacedCommandQueue(std::size_t maxCapacity)
 
 void PacedCommandQueue::enqueue(CommandItem item)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
 
     if (m_queue.size() >= m_maxCapacity) {
         LOG(WARNING) << "PacedCommandQueue capacity reached (" << m_queue.size() << "/" << m_maxCapacity
@@ -165,7 +165,7 @@ bool PacedCommandQueue::popReady(CommandItem& outItem, const std::function<bool(
 
 bool PacedCommandQueue::hasLowPriorityPending() const
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     for (const auto& item : m_queue) {
         if (item.priority == CommandPriority::Low) {
             return true;
@@ -181,19 +181,19 @@ void PacedCommandQueue::wakeAll()
 
 void PacedCommandQueue::clear()
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     m_queue.clear();
 }
 
 std::size_t PacedCommandQueue::size() const
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     return m_queue.size();
 }
 
 bool PacedCommandQueue::empty() const
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     return m_queue.empty();
 }
 

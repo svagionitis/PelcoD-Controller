@@ -120,7 +120,7 @@ void PatrolController::resume()
 
 void PatrolController::nextStep()
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     if (m_state.load() == PatrolState::Idle || m_steps.empty()) {
         return;
     }
@@ -131,7 +131,7 @@ void PatrolController::nextStep()
 
 void PatrolController::previousStep()
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     if (m_state.load() == PatrolState::Idle || m_steps.empty()) {
         return;
     }
@@ -162,13 +162,13 @@ bool PatrolController::isWorkerActive() const noexcept
 
 void PatrolController::addStep(const PatrolStep& step)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     m_steps.push_back(step);
 }
 
 void PatrolController::insertStep(std::size_t index, const PatrolStep& step)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     if (index >= m_steps.size()) {
         m_steps.push_back(step);
     } else {
@@ -178,7 +178,7 @@ void PatrolController::insertStep(std::size_t index, const PatrolStep& step)
 
 bool PatrolController::removeStep(std::size_t index)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     if (index >= m_steps.size()) {
         return false;
     }
@@ -191,7 +191,7 @@ bool PatrolController::removeStep(std::size_t index)
 
 bool PatrolController::setStep(std::size_t index, const PatrolStep& step)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     if (index >= m_steps.size()) {
         return false;
     }
@@ -201,7 +201,7 @@ bool PatrolController::setStep(std::size_t index, const PatrolStep& step)
 
 void PatrolController::clearSteps()
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     m_steps.clear();
     m_currentStepIndex = 0U;
     m_remainingDwellSeconds = 0U;
@@ -209,13 +209,13 @@ void PatrolController::clearSteps()
 
 std::vector<PatrolStep> PatrolController::getSteps() const
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     return m_steps;
 }
 
 void PatrolController::setSteps(const std::vector<PatrolStep>& steps)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     m_steps = steps;
     m_currentStepIndex = 0U;
     m_remainingDwellSeconds = 0U;
@@ -223,19 +223,19 @@ void PatrolController::setSteps(const std::vector<PatrolStep>& steps)
 
 std::size_t PatrolController::stepCount() const
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     return m_steps.size();
 }
 
 std::size_t PatrolController::getCurrentStepIndex() const
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     return m_currentStepIndex;
 }
 
 std::uint32_t PatrolController::getRemainingDwellSeconds() const
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     return m_remainingDwellSeconds;
 }
 
@@ -251,7 +251,7 @@ bool PatrolController::isLooping() const noexcept
 
 void PatrolController::setDevice(PelcoDDevice* device)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     if (device != nullptr) {
         m_dispatcher = [device](std::uint8_t presetId) { device->goToPreset(presetId); };
     } else {
@@ -261,31 +261,31 @@ void PatrolController::setDevice(PelcoDDevice* device)
 
 void PatrolController::setCommandDispatcher(GoToPresetCallback dispatcher)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     m_dispatcher = std::move(dispatcher);
 }
 
 void PatrolController::setStepChangedCallback(StepChangedCallback cb)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     m_stepChangedCb = std::move(cb);
 }
 
 void PatrolController::setStateChangedCallback(StateChangedCallback cb)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     m_stateChangedCb = std::move(cb);
 }
 
 void PatrolController::setDwellTickCallback(DwellTickCallback cb)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     m_dwellTickCb = std::move(cb);
 }
 
 void PatrolController::setTourFinishedCallback(TourFinishedCallback cb)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     m_tourFinishedCb = std::move(cb);
 }
 

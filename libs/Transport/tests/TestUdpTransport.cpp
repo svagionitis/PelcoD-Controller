@@ -64,13 +64,13 @@ TEST(UdpTransportTest, LoopbackCommunication)
     std::vector<std::uint8_t> receivedB;
 
     peerA.setDataCallback([&](const std::vector<std::uint8_t>& data) {
-        std::lock_guard<std::mutex> lock(mtxA);
+        std::scoped_lock lock(mtxA);
         receivedA.insert(receivedA.end(), data.begin(), data.end());
         cvA.notify_all();
     });
 
     peerB.setDataCallback([&](const std::vector<std::uint8_t>& data) {
-        std::lock_guard<std::mutex> lock(mtxB);
+        std::scoped_lock lock(mtxB);
         receivedB.insert(receivedB.end(), data.begin(), data.end());
         cvB.notify_all();
     });

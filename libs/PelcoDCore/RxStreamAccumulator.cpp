@@ -28,7 +28,7 @@ std::vector<std::vector<std::uint8_t>> RxStreamAccumulator::push(
 
     std::vector<std::vector<std::uint8_t>> framesToDispatch;
 
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
 
     if (m_buffer.size() + size > m_maxBufferSize) {
         LOG(WARNING) << "RxStreamAccumulator overflow (" << (m_buffer.size() + size) << " > "
@@ -91,13 +91,13 @@ std::vector<std::vector<std::uint8_t>> RxStreamAccumulator::push(
 
 void RxStreamAccumulator::clear()
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     m_buffer.clear();
 }
 
 std::size_t RxStreamAccumulator::size() const
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     return m_buffer.size();
 }
 

@@ -24,7 +24,7 @@ PelcoDDevice::~PelcoDDevice()
 
 bool PelcoDDevice::start()
 {
-    std::lock_guard<std::recursive_mutex> lifecycleLock(m_lifecycleMutex);
+    std::scoped_lock lifecycleLock(m_lifecycleMutex);
     if (m_running.load()) {
         return true;
     }
@@ -39,19 +39,19 @@ bool PelcoDDevice::start()
             LOG(WARNING) << "Transport disconnected or error: " << msg;
             bool wasConn = false;
             {
-                std::lock_guard<std::mutex> lock(m_statusMutex);
+                std::scoped_lock lock(m_statusMutex);
                 wasConn = m_status.connected;
                 m_status.connected = false;
             }
             if (wasConn) {
                 std::shared_ptr<const std::vector<CallbackEntry<StatusCallback>>> sbs;
                 {
-                    std::lock_guard<std::mutex> lock(m_callbackState->mutex);
+                    std::scoped_lock lock(m_callbackState->mutex);
                     sbs = m_callbackState->statusCallbacks;
                 }
                 DeviceStatus copy;
                 {
-                    std::lock_guard<std::mutex> lock(m_statusMutex);
+                    std::scoped_lock lock(m_statusMutex);
                     copy = m_status;
                 }
                 for (const auto& entry : *sbs) {
@@ -72,7 +72,7 @@ bool PelcoDDevice::start()
     }
 
     {
-        std::lock_guard<std::mutex> lock(m_statusMutex);
+        std::scoped_lock lock(m_statusMutex);
         m_status.connected = true;
     }
 
@@ -87,7 +87,7 @@ bool PelcoDDevice::start()
 
 void PelcoDDevice::stop()
 {
-    std::lock_guard<std::recursive_mutex> lifecycleLock(m_lifecycleMutex);
+    std::scoped_lock lifecycleLock(m_lifecycleMutex);
     if (!m_running.load() && !m_workerThread.joinable()) {
         if (m_transport) {
             if (m_transport->isOpen()) {
@@ -120,7 +120,7 @@ void PelcoDDevice::stop()
     }
 
     {
-        std::lock_guard<std::mutex> lock(m_statusMutex);
+        std::scoped_lock lock(m_statusMutex);
         m_status.connected = false;
     }
 }
@@ -133,7 +133,7 @@ bool PelcoDDevice::isConnected() const noexcept
 void PelcoDDevice::setAddress(std::uint8_t address)
 {
     m_address = address;
-    std::lock_guard<std::mutex> lock(m_statusMutex);
+    std::scoped_lock lock(m_statusMutex);
     m_status.address = address;
 }
 
@@ -174,7 +174,7 @@ bool PelcoDDevice::CallbackState::removeQueryLatency(CallbackId id)
 
 void PelcoDDevice::CallbackState::clear()
 {
-    std::lock_guard<std::mutex> lock(mutex);
+    std::scoped_lock lock(mutex);
     statusCallbacks = std::make_shared<const std::vector<CallbackEntry<StatusCallback>>>();
     trafficCallbacks = std::make_shared<const std::vector<CallbackEntry<TrafficCallback>>>();
     timeoutCallbacks = std::make_shared<const std::vector<CallbackEntry<TimeoutCallback>>>();
@@ -192,7 +192,7 @@ Connection PelcoDDevice::registerCallbackHelper(CallbackT cb,
     }
     const CallbackId id = m_callbackState->nextId.fetch_add(1U, std::memory_order_relaxed);
     {
-        std::lock_guard<std::mutex> lock(m_callbackState->mutex);
+        std::scoped_lock lock(m_callbackState->mutex);
         auto nextList = std::make_shared<std::vector<CallbackEntry<CallbackT>>>(*(m_callbackState.get()->*listMember));
         nextList->push_back({ id, std::move(cb) });
         m_callbackState.get()->*listMember = std::move(nextList);
@@ -312,13 +312,13 @@ void PelcoDDevice::clearCallbacks()
 
 DeviceStatus PelcoDDevice::getStatus() const
 {
-    std::lock_guard<std::mutex> lock(m_statusMutex);
+    std::scoped_lock lock(m_statusMutex);
     return m_status;
 }
 
 DeviceInfo PelcoDDevice::getInfo() const
 {
-    std::lock_guard<std::mutex> lock(m_statusMutex);
+    std::scoped_lock lock(m_statusMutex);
     return m_info;
 }
 
@@ -346,13 +346,13 @@ std::uint32_t PelcoDDevice::getQueryTimeoutMs() const noexcept
 
 void PelcoDDevice::setRetryConfig(const RetryConfig& config) noexcept
 {
-    std::lock_guard<std::mutex> lock(m_retryMutex);
+    std::scoped_lock lock(m_retryMutex);
     m_retryConfig = config;
 }
 
 RetryConfig PelcoDDevice::getRetryConfig() const noexcept
 {
-    std::lock_guard<std::mutex> lock(m_retryMutex);
+    std::scoped_lock lock(m_retryMutex);
     return m_retryConfig;
 }
 
@@ -779,7 +779,7 @@ void PelcoDDevice::checkQueryTimeout()
         m_responseCv.notify_all();
         std::string tag;
         {
-            std::lock_guard<std::mutex> lock(m_statusMutex);
+            std::scoped_lock lock(m_statusMutex);
             tag = m_pendingQueryTag;
         }
 
@@ -789,7 +789,7 @@ void PelcoDDevice::checkQueryTimeout()
         std::shared_ptr<const std::vector<CallbackEntry<QueryCompletedCallback>>> qcbs;
         std::shared_ptr<const std::vector<CallbackEntry<QueryLatencyCallback>>> lcbs;
         {
-            std::lock_guard<std::mutex> lock(m_callbackState->mutex);
+            std::scoped_lock lock(m_callbackState->mutex);
             cbs = m_callbackState->timeoutCallbacks;
             qcbs = m_callbackState->queryCompletedCallbacks;
             lcbs = m_callbackState->queryLatencyCallbacks;
@@ -801,7 +801,7 @@ void PelcoDDevice::checkQueryTimeout()
         }
         DeviceStatus statusCopy;
         {
-            std::lock_guard<std::mutex> lock(m_statusMutex);
+            std::scoped_lock lock(m_statusMutex);
             statusCopy = m_status;
         }
         for (const auto& entry : *qcbs) {
@@ -858,7 +858,7 @@ void PelcoDDevice::workerLoop()
         const auto sendStartTime = std::chrono::steady_clock::now();
         if (m_transport && m_transport->isOpen() && !item.frame.empty()) {
             if (!item.queryTag.empty()) {
-                std::lock_guard<std::mutex> lock(m_statusMutex);
+                std::scoped_lock lock(m_statusMutex);
                 m_abortQueryWait.store(false);
                 m_pendingQueryTag = item.queryTag;
                 m_querySentTime = sendStartTime;
@@ -870,14 +870,14 @@ void PelcoDDevice::workerLoop()
             if (!sendSuccess) {
                 LOG(WARNING) << "Failed to transmit frame across transport.";
                 if (!item.queryTag.empty()) {
-                    std::lock_guard<std::mutex> lock(m_statusMutex);
+                    std::scoped_lock lock(m_statusMutex);
                     m_awaitingResponse = false;
                     m_pendingQueryTag.clear();
                 }
 
                 RetryConfig retryCfg;
                 {
-                    std::lock_guard<std::mutex> rLock(m_retryMutex);
+                    std::scoped_lock rLock(m_retryMutex);
                     retryCfg = m_retryConfig;
                 }
                 if (retryCfg.retryOnTransportError && item.retryCount < retryCfg.maxRetries) {
@@ -886,7 +886,7 @@ void PelcoDDevice::workerLoop()
                     const auto backoffDelay = m_queue.scheduleRetry(item, retryCfg, reason);
                     std::shared_ptr<const std::vector<CallbackEntry<RetryCallback>>> rcbs;
                     {
-                        std::lock_guard<std::mutex> lock(m_callbackState->mutex);
+                        std::scoped_lock lock(m_callbackState->mutex);
                         rcbs = m_callbackState->retryCallbacks;
                     }
                     for (const auto& entry : *rcbs) {
@@ -898,12 +898,12 @@ void PelcoDDevice::workerLoop()
                 } else if (!item.queryTag.empty() && retryCfg.maxRetries > 0U) {
                     DeviceStatus statusCopy;
                     {
-                        std::lock_guard<std::mutex> lock(m_statusMutex);
+                        std::scoped_lock lock(m_statusMutex);
                         statusCopy = m_status;
                     }
                     std::shared_ptr<const std::vector<CallbackEntry<QueryCompletedCallback>>> qcbs;
                     {
-                        std::lock_guard<std::mutex> lock(m_callbackState->mutex);
+                        std::scoped_lock lock(m_callbackState->mutex);
                         qcbs = m_callbackState->queryCompletedCallbacks;
                     }
                     for (const auto& entry : *qcbs) {
@@ -916,7 +916,7 @@ void PelcoDDevice::workerLoop()
                 // Dispatch TX traffic callbacks using copy-on-write snapshot (zero heap allocation)
                 std::shared_ptr<const std::vector<CallbackEntry<TrafficCallback>>> tbs;
                 {
-                    std::lock_guard<std::mutex> lock(m_callbackState->mutex);
+                    std::scoped_lock lock(m_callbackState->mutex);
                     tbs = m_callbackState->trafficCallbacks;
                 }
                 for (const auto& entry : *tbs) {
@@ -943,12 +943,12 @@ void PelcoDDevice::workerLoop()
                         if (m_awaitingResponse.load()) {
                             RetryConfig retryCfg;
                             {
-                                std::lock_guard<std::mutex> rLock(m_retryMutex);
+                                std::scoped_lock rLock(m_retryMutex);
                                 retryCfg = m_retryConfig;
                             }
                             if (item.retryCount < retryCfg.maxRetries) {
                                 {
-                                    std::lock_guard<std::mutex> lock(m_statusMutex);
+                                    std::scoped_lock lock(m_statusMutex);
                                     m_awaitingResponse = false;
                                     m_pendingQueryTag.clear();
                                 }
@@ -956,7 +956,7 @@ void PelcoDDevice::workerLoop()
                                 const auto backoffDelay = m_queue.scheduleRetry(item, retryCfg, reason);
                                 std::shared_ptr<const std::vector<CallbackEntry<RetryCallback>>> rcbs;
                                 {
-                                    std::lock_guard<std::mutex> lock(m_callbackState->mutex);
+                                    std::scoped_lock lock(m_callbackState->mutex);
                                     rcbs = m_callbackState->retryCallbacks;
                                 }
                                 for (const auto& entry : *rcbs) {
@@ -1000,7 +1000,7 @@ bool PelcoDDevice::isResponseMatchingQuery(
 void PelcoDDevice::resolveQueryWait()
 {
     {
-        std::lock_guard<std::mutex> lock(m_statusMutex);
+        std::scoped_lock lock(m_statusMutex);
         m_awaitingResponse = false;
         m_pendingQueryTag.clear();
     }
@@ -1013,7 +1013,7 @@ void PelcoDDevice::dispatchFrame(const std::vector<std::uint8_t>& frame)
     std::shared_ptr<const std::vector<CallbackEntry<TrafficCallback>>> tbs;
     std::shared_ptr<const std::vector<CallbackEntry<StatusCallback>>> sbs;
     {
-        std::lock_guard<std::mutex> lock(m_callbackState->mutex);
+        std::scoped_lock lock(m_callbackState->mutex);
         tbs = m_callbackState->trafficCallbacks;
         sbs = m_callbackState->statusCallbacks;
     }
@@ -1032,7 +1032,7 @@ void PelcoDDevice::dispatchFrame(const std::vector<std::uint8_t>& frame)
     bool awaitingQuery { false };
     std::string pendingQueryTag;
     {
-        std::lock_guard<std::mutex> lock(m_statusMutex);
+        std::scoped_lock lock(m_statusMutex);
         awaitingQuery = m_awaitingResponse.load();
         pendingQueryTag = m_pendingQueryTag;
     }
@@ -1043,7 +1043,7 @@ void PelcoDDevice::dispatchFrame(const std::vector<std::uint8_t>& frame)
     DeviceStatus currentStatus;
     DeviceInfo currentInfo;
     {
-        std::lock_guard<std::mutex> lock(m_statusMutex);
+        std::scoped_lock lock(m_statusMutex);
         currentStatus = m_status;
         currentInfo = m_info;
     }
@@ -1052,7 +1052,7 @@ void PelcoDDevice::dispatchFrame(const std::vector<std::uint8_t>& frame)
         bool querySatisfied = false;
         std::string satisfiedTag;
         {
-            std::lock_guard<std::mutex> lock(m_statusMutex);
+            std::scoped_lock lock(m_statusMutex);
             if (m_awaitingResponse.load() && isResponseMatchingQuery(m_pendingQueryTag, frame)) {
                 satisfiedTag = m_pendingQueryTag;
                 m_awaitingResponse = false;
@@ -1070,7 +1070,7 @@ void PelcoDDevice::dispatchFrame(const std::vector<std::uint8_t>& frame)
             std::shared_ptr<const std::vector<CallbackEntry<QueryCompletedCallback>>> qcbs;
             std::shared_ptr<const std::vector<CallbackEntry<QueryLatencyCallback>>> lcbs;
             {
-                std::lock_guard<std::mutex> lock(m_callbackState->mutex);
+                std::scoped_lock lock(m_callbackState->mutex);
                 qcbs = m_callbackState->queryCompletedCallbacks;
                 lcbs = m_callbackState->queryLatencyCallbacks;
             }

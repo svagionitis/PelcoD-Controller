@@ -19,26 +19,26 @@ MacroPlayer::~MacroPlayer()
 
 void MacroPlayer::setDispatchCallback(FrameDispatchCallback cb)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     m_dispatchCb = std::move(cb);
 }
 
 void MacroPlayer::setStepCallback(StepCallback cb)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     m_stepCb = std::move(cb);
 }
 
 void MacroPlayer::setStateCallback(StateCallback cb)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     m_stateCb = std::move(cb);
 }
 
 void MacroPlayer::loadSequence(MacroSequence sequence)
 {
     stop();
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     m_sequence = std::move(sequence);
     m_currentStep = 0U;
     m_currentLoop = 1U;
@@ -47,14 +47,14 @@ void MacroPlayer::loadSequence(MacroSequence sequence)
 
 const MacroSequence& MacroPlayer::sequence() const noexcept
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     return m_sequence;
 }
 
 bool MacroPlayer::start()
 {
     {
-        std::lock_guard<std::mutex> lock(m_mutex);
+        std::scoped_lock lock(m_mutex);
         if (m_sequence.steps.empty()) {
             return false;
         }
@@ -88,7 +88,7 @@ bool MacroPlayer::start()
 
 void MacroPlayer::pause()
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     if (m_state == MacroPlayerState::Playing) {
         setState(MacroPlayerState::Paused);
         m_cv.notify_all();
@@ -97,7 +97,7 @@ void MacroPlayer::pause()
 
 void MacroPlayer::resume()
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     if (m_state == MacroPlayerState::Paused) {
         setState(MacroPlayerState::Playing);
         m_cv.notify_all();
@@ -107,7 +107,7 @@ void MacroPlayer::resume()
 void MacroPlayer::stop()
 {
     {
-        std::lock_guard<std::mutex> lock(m_mutex);
+        std::scoped_lock lock(m_mutex);
         m_stopRequested = true;
         setState(MacroPlayerState::Stopped);
         m_cv.notify_all();
@@ -117,14 +117,14 @@ void MacroPlayer::stop()
         m_worker.join();
     }
 
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     m_currentStep = 0U;
     m_currentLoop = 1U;
 }
 
 bool MacroPlayer::stepNext()
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     if (m_sequence.steps.empty()) {
         return false;
     }

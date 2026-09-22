@@ -7,13 +7,13 @@ namespace Transport {
 
 void BaseTransport::setDataCallback(DataReceivedCallback callback)
 {
-    std::lock_guard<std::mutex> lock(m_callbackMutex);
+    std::scoped_lock lock(m_callbackMutex);
     m_dataCallback = std::move(callback);
 }
 
 void BaseTransport::setStateCallback(StateChangedCallback callback)
 {
-    std::lock_guard<std::mutex> lock(m_callbackMutex);
+    std::scoped_lock lock(m_callbackMutex);
     m_stateCallback = std::move(callback);
 }
 
@@ -21,7 +21,7 @@ void BaseTransport::notifyState(TransportState state, const std::string& errorMs
 {
     StateChangedCallback callback;
     {
-        std::lock_guard<std::mutex> lock(m_callbackMutex);
+        std::scoped_lock lock(m_callbackMutex);
         callback = m_stateCallback;
     }
     if (callback) {
@@ -33,7 +33,7 @@ void BaseTransport::invokeDataCallback(const std::vector<std::uint8_t>& data)
 {
     DataReceivedCallback callback;
     {
-        std::lock_guard<std::mutex> lock(m_callbackMutex);
+        std::scoped_lock lock(m_callbackMutex);
         callback = m_dataCallback;
     }
     if (callback) {

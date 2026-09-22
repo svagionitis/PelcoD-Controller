@@ -20,7 +20,7 @@ BusScanner::~BusScanner()
 
 void BusScanner::setTransport(std::shared_ptr<ITransport> transport)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     if (m_state.load() != ScanState::Idle) {
         return;
     }
@@ -29,7 +29,7 @@ void BusScanner::setTransport(std::shared_ptr<ITransport> transport)
 
 std::shared_ptr<ITransport> BusScanner::getTransport() const
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     return m_transport;
 }
 
@@ -40,7 +40,7 @@ bool BusScanner::startScan(const ScanConfig& config)
         return false;
     }
 
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     if (m_state.load() != ScanState::Idle || !m_transport) {
         return false;
     }
@@ -86,7 +86,7 @@ void BusScanner::stopScan()
         m_state.store(ScanState::Idle);
         ScanStateChangedCallback stateCb;
         {
-            std::lock_guard<std::mutex> lock(m_mutex);
+            std::scoped_lock lock(m_mutex);
             stateCb = m_stateCb;
         }
         if (stateCb) {
@@ -102,7 +102,7 @@ void BusScanner::pauseScan()
         m_state.store(ScanState::Paused);
         ScanStateChangedCallback stateCb;
         {
-            std::lock_guard<std::mutex> lock(m_mutex);
+            std::scoped_lock lock(m_mutex);
             stateCb = m_stateCb;
         }
         if (stateCb) {
@@ -119,7 +119,7 @@ void BusScanner::resumeScan()
         m_pauseCv.notify_all();
         ScanStateChangedCallback stateCb;
         {
-            std::lock_guard<std::mutex> lock(m_mutex);
+            std::scoped_lock lock(m_mutex);
             stateCb = m_stateCb;
         }
         if (stateCb) {
@@ -145,43 +145,43 @@ ScanState BusScanner::getState() const noexcept
 
 std::vector<DiscoveredDevice> BusScanner::getDiscoveredDevices() const
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     return m_discoveredDevices;
 }
 
 void BusScanner::setDeviceDiscoveredCallback(DeviceDiscoveredCallback cb)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     m_discoveredCb = std::move(cb);
 }
 
 void BusScanner::setScanProgressCallback(ScanProgressCallback cb)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     m_progressCb = std::move(cb);
 }
 
 void BusScanner::setBaudRateChangedCallback(BaudRateChangedCallback cb)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     m_baudRateCb = std::move(cb);
 }
 
 void BusScanner::setMultiBaudProgressCallback(MultiBaudProgressCallback cb)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     m_multiBaudProgressCb = std::move(cb);
 }
 
 void BusScanner::setScanStateChangedCallback(ScanStateChangedCallback cb)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     m_stateCb = std::move(cb);
 }
 
 void BusScanner::setScanFinishedCallback(ScanFinishedCallback cb)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     m_finishedCb = std::move(cb);
 }
 
@@ -191,7 +191,7 @@ void BusScanner::onDataReceived(const std::vector<std::uint8_t>& data)
         return;
     }
 
-    std::lock_guard<std::mutex> lock(m_rxMutex);
+    std::scoped_lock lock(m_rxMutex);
     m_rxBuffer.insert(m_rxBuffer.end(), data.begin(), data.end());
 
     const auto frames = PelcoDFrame::splitStream(m_rxBuffer);
@@ -219,7 +219,7 @@ void BusScanner::scanWorker(ScanConfig config)
 
     std::shared_ptr<ITransport> trans;
     {
-        std::lock_guard<std::mutex> lock(m_mutex);
+        std::scoped_lock lock(m_mutex);
         trans = m_transport;
     }
 
@@ -235,7 +235,7 @@ void BusScanner::scanWorker(ScanConfig config)
     std::size_t scannedCount = 0U;
 
     {
-        std::lock_guard<std::mutex> lock(m_mutex);
+        std::scoped_lock lock(m_mutex);
         m_discoveredDevices.clear();
     }
 
@@ -250,7 +250,7 @@ void BusScanner::scanWorker(ScanConfig config)
 
         BaudRateChangedCallback baudCb;
         {
-            std::lock_guard<std::mutex> lock(m_mutex);
+            std::scoped_lock lock(m_mutex);
             baudCb = m_baudRateCb;
         }
         if (baudCb) {
@@ -286,7 +286,7 @@ void BusScanner::scanWorker(ScanConfig config)
             ScanProgressCallback progCb;
             MultiBaudProgressCallback multiProgCb;
             {
-                std::lock_guard<std::mutex> lock(m_mutex);
+                std::scoped_lock lock(m_mutex);
                 progCb = m_progressCb;
                 multiProgCb = m_multiBaudProgressCb;
             }
@@ -298,7 +298,7 @@ void BusScanner::scanWorker(ScanConfig config)
             }
 
             {
-                std::lock_guard<std::mutex> rxLock(m_rxMutex);
+                std::scoped_lock rxLock(m_rxMutex);
                 m_rxBuffer.clear();
                 m_currentProbeAddress = targetAddr;
                 m_foundResponse = false;
@@ -310,7 +310,7 @@ void BusScanner::scanWorker(ScanConfig config)
 
             std::shared_ptr<ITransport> activeTrans;
             {
-                std::lock_guard<std::mutex> lock(m_mutex);
+                std::scoped_lock lock(m_mutex);
                 activeTrans = m_transport;
             }
 
@@ -345,7 +345,7 @@ void BusScanner::scanWorker(ScanConfig config)
 
                 DeviceDiscoveredCallback discCb;
                 {
-                    std::lock_guard<std::mutex> lock(m_mutex);
+                    std::scoped_lock lock(m_mutex);
                     m_discoveredDevices.push_back(dev);
                     discCb = m_discoveredCb;
                 }
@@ -372,7 +372,7 @@ void BusScanner::scanWorker(ScanConfig config)
     ScanStateChangedCallback stateCb;
     ScanFinishedCallback finCb;
     {
-        std::lock_guard<std::mutex> lock(m_mutex);
+        std::scoped_lock lock(m_mutex);
         results = m_discoveredDevices;
         stateCb = m_stateCb;
         finCb = m_finishedCb;

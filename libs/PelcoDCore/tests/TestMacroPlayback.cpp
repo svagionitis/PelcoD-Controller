@@ -123,7 +123,7 @@ TEST(MacroPlaybackTest, MacroPlayerExecution)
     auto completedFuture = completedPromise.get_future();
 
     PelcoD::MacroPlayer player([&](const std::vector<std::uint8_t>& frame) {
-        std::lock_guard<std::mutex> lock(mtx);
+        std::scoped_lock lock(mtx);
         dispatchedFrames.push_back(frame);
     });
 
@@ -143,7 +143,7 @@ TEST(MacroPlaybackTest, MacroPlayerExecution)
     ASSERT_TRUE(status == std::future_status::ready);
 
     {
-        std::lock_guard<std::mutex> lock(mtx);
+        std::scoped_lock lock(mtx);
         ASSERT_EQ(dispatchedFrames.size(), 4U);
         EXPECT_EQ(dispatchedFrames[0], step1.frame);
         EXPECT_EQ(dispatchedFrames[1], step2.frame);

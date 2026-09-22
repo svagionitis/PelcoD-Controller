@@ -319,7 +319,7 @@ private:
         static bool removeCallbackEntry(
             std::shared_ptr<const std::vector<CallbackEntry<CallbackT>>>& list, CallbackId id, std::mutex& mtx)
         {
-            std::lock_guard<std::mutex> lock(mtx);
+            std::scoped_lock lock(mtx);
             const auto& current = *list;
             auto it = std::find_if(current.begin(), current.end(), [id](const auto& entry) { return entry.id == id; });
             if (it == current.end()) {

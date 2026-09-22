@@ -200,7 +200,7 @@ bool UdpTransport::sendData(const std::vector<std::uint8_t>& data)
         return false;
     }
 
-    std::lock_guard<std::mutex> lock(m_writeMutex);
+    std::scoped_lock lock(m_writeMutex);
     const auto sock = m_sockfd.load();
     if (sock == InvalidSocket) {
         return false;

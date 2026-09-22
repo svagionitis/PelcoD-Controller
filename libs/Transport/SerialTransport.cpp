@@ -80,13 +80,13 @@ SerialTransport::~SerialTransport()
 
 void SerialTransport::setPortName(const std::string& portName)
 {
-    std::lock_guard<std::mutex> lock(m_writeMutex);
+    std::scoped_lock lock(m_writeMutex);
     m_portName = portName;
 }
 
 std::string SerialTransport::getPortName() const
 {
-    std::lock_guard<std::mutex> lock(m_writeMutex);
+    std::scoped_lock lock(m_writeMutex);
     return m_portName;
 }
 
@@ -98,7 +98,7 @@ bool SerialTransport::setBaudRate(std::uint32_t baudRate)
     }
 
     {
-        std::lock_guard<std::mutex> lock(m_writeMutex);
+        std::scoped_lock lock(m_writeMutex);
         m_baudRate.store(baudRate);
     }
 
@@ -119,7 +119,7 @@ bool SerialTransport::open()
 
     std::string port;
     {
-        std::lock_guard<std::mutex> lock(m_writeMutex);
+        std::scoped_lock lock(m_writeMutex);
         port = m_portName;
     }
 
@@ -184,7 +184,7 @@ bool SerialTransport::configurePort()
 {
     std::uint32_t baud { 9600U };
     {
-        std::lock_guard<std::mutex> lock(m_writeMutex);
+        std::scoped_lock lock(m_writeMutex);
         baud = m_baudRate;
     }
 
@@ -281,7 +281,7 @@ void SerialTransport::close()
 
     bool wasClosed { false };
     {
-        std::lock_guard<std::mutex> lock(m_writeMutex);
+        std::scoped_lock lock(m_writeMutex);
         const SerialHandle handle = m_handle.exchange(INVALID_SERIAL_HANDLE);
         if (handle != INVALID_SERIAL_HANDLE) {
             LOG(INFO) << "Closing serial port";
@@ -310,7 +310,7 @@ bool SerialTransport::sendData(const std::vector<std::uint8_t>& data)
         return false;
     }
 
-    std::lock_guard<std::mutex> lock(m_writeMutex);
+    std::scoped_lock lock(m_writeMutex);
     const SerialHandle handle = m_handle.load();
     if (handle == INVALID_SERIAL_HANDLE || !m_running.load()) {
         return false;
@@ -417,7 +417,7 @@ void SerialTransport::readWorker()
 #endif
 
     if (unrecoverableError) {
-        std::lock_guard<std::mutex> lock(m_writeMutex);
+        std::scoped_lock lock(m_writeMutex);
         const SerialHandle handle = m_handle.exchange(INVALID_SERIAL_HANDLE);
         if (handle != INVALID_SERIAL_HANDLE) {
 #ifdef _WIN32

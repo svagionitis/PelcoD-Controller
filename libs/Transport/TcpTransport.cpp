@@ -23,19 +23,19 @@ TcpTransport::~TcpTransport()
 
 void TcpTransport::setHost(const std::string& host)
 {
-    std::lock_guard<std::mutex> lock(m_writeMutex);
+    std::scoped_lock lock(m_writeMutex);
     m_host = host;
 }
 
 std::string TcpTransport::getHost() const
 {
-    std::lock_guard<std::mutex> lock(m_writeMutex);
+    std::scoped_lock lock(m_writeMutex);
     return m_host;
 }
 
 void TcpTransport::setPort(std::uint16_t port)
 {
-    std::lock_guard<std::mutex> lock(m_writeMutex);
+    std::scoped_lock lock(m_writeMutex);
     m_port = port;
 }
 
@@ -64,7 +64,7 @@ bool TcpTransport::open()
     std::uint16_t port { 4001U };
     int timeoutMs { 5000 };
     {
-        std::lock_guard<std::mutex> lock(m_writeMutex);
+        std::scoped_lock lock(m_writeMutex);
         host = m_host;
         port = m_port;
         timeoutMs = m_connectTimeoutMs;
@@ -172,7 +172,7 @@ void TcpTransport::close()
 
     bool wasClosed { false };
     {
-        std::lock_guard<std::mutex> lock(m_writeMutex);
+        std::scoped_lock lock(m_writeMutex);
         const SocketHandle sock = m_sockfd.exchange(InvalidSocket);
         if (sock != InvalidSocket) {
             LOG(INFO) << "Closing TCP socket";
@@ -197,7 +197,7 @@ bool TcpTransport::sendData(const std::vector<std::uint8_t>& data)
         return false;
     }
 
-    std::lock_guard<std::mutex> lock(m_writeMutex);
+    std::scoped_lock lock(m_writeMutex);
     const SocketHandle sock = m_sockfd.load();
     if (sock == InvalidSocket || !m_running.load()) {
         return false;
@@ -262,7 +262,7 @@ void TcpTransport::readWorker()
     }
 
     if (unrecoverableError) {
-        std::lock_guard<std::mutex> lock(m_writeMutex);
+        std::scoped_lock lock(m_writeMutex);
         const SocketHandle sock = m_sockfd.exchange(InvalidSocket);
         if (sock != InvalidSocket) {
             Net::closeSocket(sock);

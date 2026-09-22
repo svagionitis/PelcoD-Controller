@@ -134,7 +134,7 @@ TEST(BusScannerTest, ProgressCallbacks)
     std::atomic<std::size_t> callbackCount { 0 };
 
     scanner.setScanProgressCallback([&](std::uint8_t current, std::size_t scanned, std::size_t /*total*/) {
-        std::lock_guard<std::mutex> lock(cbMutex);
+        std::scoped_lock lock(cbMutex);
         reportedAddresses.push_back(current);
         reportedCounts.push_back(scanned);
         callbackCount.fetch_add(1);
@@ -145,7 +145,7 @@ TEST(BusScannerTest, ProgressCallbacks)
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
 
-    std::lock_guard<std::mutex> lock(cbMutex);
+    std::scoped_lock lock(cbMutex);
     ASSERT_EQ(reportedAddresses.size(), 3U);
     EXPECT_EQ(reportedAddresses[0], 1U);
     EXPECT_EQ(reportedAddresses[1], 2U);
@@ -303,7 +303,7 @@ TEST(BusScannerTest, MultiBaudDiscovery)
     std::vector<std::uint32_t> baudsVisited;
     std::mutex baudMutex;
     scanner.setBaudRateChangedCallback([&](std::uint32_t baud) {
-        std::lock_guard<std::mutex> lock(baudMutex);
+        std::scoped_lock lock(baudMutex);
         baudsVisited.push_back(baud);
     });
 
@@ -341,7 +341,7 @@ TEST(BusScannerTest, MultiBaudDiscovery)
 
     // Verify all 5 baud rates were tested
     {
-        std::lock_guard<std::mutex> lock(baudMutex);
+        std::scoped_lock lock(baudMutex);
         ASSERT_EQ(baudsVisited.size(), 5U);
         EXPECT_EQ(baudsVisited[0], 2400U);
         EXPECT_EQ(baudsVisited[1], 4800U);
@@ -376,7 +376,7 @@ TEST(BusScannerTest, MultiBaudProgressAndCount)
 
     scanner.setMultiBaudProgressCallback(
         [&](std::uint32_t baud, std::uint8_t /*current*/, std::size_t scanned, std::size_t total) {
-            std::lock_guard<std::mutex> lock(cbMutex);
+            std::scoped_lock lock(cbMutex);
             reportedBauds.push_back(baud);
             reportedCounts.push_back(scanned);
             reportedTotals.push_back(total);
@@ -387,7 +387,7 @@ TEST(BusScannerTest, MultiBaudProgressAndCount)
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
 
-    std::lock_guard<std::mutex> lock(cbMutex);
+    std::scoped_lock lock(cbMutex);
     ASSERT_EQ(reportedCounts.size(), 6U);
     ASSERT_EQ(reportedTotals.size(), 6U);
     EXPECT_EQ(reportedTotals[0], 6U);
