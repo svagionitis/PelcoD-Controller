@@ -63,6 +63,10 @@ option(PELCOD_ENABLE_GSTREAMER "Enable GStreamer decoder backend in PelcoDVideo"
 option(PELCOD_ENABLE_FILTERS "Enable OpenCV video enhancement filters in PelcoDVideo" ON)
 
 if(PELCOD_ENABLE_VIDEO)
+    find_package(Qt6 COMPONENTS Qml Quick QuickControls2)
+endif()
+
+if(PELCOD_ENABLE_VIDEO)
     # FFmpeg components
     if(PELCOD_ENABLE_FFMPEG)
         find_package(FFmpeg COMPONENTS avcodec avformat avutil swscale QUIET)
@@ -339,6 +343,14 @@ add_subdirectory(libs)
 add_subdirectory(app-pelcod-qt)
 add_subdirectory(app-visca-qt)
 add_subdirectory(app-pelcod-tui)
+if(PELCOD_ENABLE_VIDEO)
+    if(TARGET Qt6::Quick AND TARGET Qt6::Qml AND TARGET Qt6::QuickControls2)
+        add_subdirectory(app-video-qt)
+        message(STATUS "PelcoD: VideoAppQt (app-video-qt) enabled")
+    else()
+        message(STATUS "PelcoD: VideoAppQt (app-video-qt) disabled (requires Qt6 Quick, Qml, and QuickControls2)")
+    endif()
+endif()
 
 add_subdirectory(tests)
 
@@ -359,6 +371,9 @@ if(PELCOD_ENABLE_VIDEO)
     list(APPEND PELCOD_INSTALL_TARGETS Video)
     if(PELCOD_ENABLE_FILTERS AND OpenCV_FOUND)
         list(APPEND PELCOD_INSTALL_TARGETS VideoFilters)
+    endif()
+    if(TARGET VideoAppQt)
+        list(APPEND PELCOD_INSTALL_TARGETS VideoAppQt)
     endif()
 endif()
 
