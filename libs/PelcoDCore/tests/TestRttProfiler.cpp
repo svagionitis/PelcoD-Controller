@@ -18,6 +18,8 @@
 namespace {
 
 /// @brief Verify Welford algorithm accuracy for mean, variance, and standard deviation.
+/// @details Feeds a fixed sample vector (10, 20, 30, 40, 50) and checks average, min, max,
+///          sample standard deviation, and sample counts.
 TEST(RttProfilerTest, WelfordStatistics)
 {
     PelcoD::RttProfiler profiler;
@@ -48,6 +50,7 @@ TEST(RttProfilerTest, WelfordStatistics)
 }
 
 /// @brief Verify RFC 3550 inter-arrival packet delay variation filter.
+/// @details Records sequence of samples (10, 26, 42) and checks recursive jitter estimates.
 TEST(RttProfilerTest, Rfc3550Jitter)
 {
     PelcoD::RttProfiler profiler;
@@ -70,6 +73,7 @@ TEST(RttProfilerTest, Rfc3550Jitter)
 }
 
 /// @brief Verify packet loss and timeout metric tracking.
+/// @details Records 4 successful samples and 1 failed timeout probe, validating loss percent is 20%.
 TEST(RttProfilerTest, PacketLossMetrics)
 {
     PelcoD::RttProfiler profiler;
@@ -93,6 +97,8 @@ TEST(RttProfilerTest, PacketLossMetrics)
 }
 
 /// @brief Verify circular ring buffer capacity capping and percentile calculations.
+/// @details Feeds 10 samples into a buffer capped at 5, verifying older entries are dropped
+///          and median (p50) reflects the current window.
 TEST(RttProfilerTest, RingBufferAndPercentiles)
 {
     PelcoD::RttProfiler profiler;
@@ -120,6 +126,7 @@ TEST(RttProfilerTest, RingBufferAndPercentiles)
 }
 
 /// @brief Verify CSV and JSON serialization output streams.
+/// @details Ensures exportCsv and exportJson generate expected headers, fields, and values.
 TEST(RttProfilerTest, ExportCsvAndJson)
 {
     PelcoD::RttProfiler profiler;
@@ -150,6 +157,7 @@ TEST(RttProfilerTest, ExportCsvAndJson)
 }
 
 /// @brief Verify active burst probing against MockPelcoDDevice with LatencyPipeline.
+/// @details Probes mock device configured with simulated latency, checking average RTT reflects simulated delay.
 TEST(RttProfilerTest, ActiveBurstWithMockDevice)
 {
     auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(1U);
@@ -172,9 +180,7 @@ TEST(RttProfilerTest, ActiveBurstWithMockDevice)
     cfg.probeQueryTag = "QueryPan";
 
     std::atomic<bool> finished { false };
-    profiler.setFinishedCallback([&finished](const PelcoD::RttStatistics&) {
-        finished.store(true);
-    });
+    profiler.setFinishedCallback([&finished](const PelcoD::RttStatistics&) { finished.store(true); });
 
     ASSERT_TRUE(profiler.start(cfg));
 
@@ -194,6 +200,71 @@ TEST(RttProfilerTest, ActiveBurstWithMockDevice)
     EXPECT_GE(stats.avgRttMs, 15.0);
 
     device->stop();
+}
+
+/// @brief Verify statistics calculations on zero and single sample inputs.
+/// @details Ensures stddev is 0.0, avg equals the single sample, and no division by zero occurs.
+TEST(RttProfilerTest, WelfordZeroAndSingleSample)
+{
+    PelcoD::RttProfiler profiler;
+    PelcoD::RttProfilerConfig cfg;
+    cfg.mode = PelcoD::ProfilerMode::Passive;
+    ASSERT_TRUE(profiler.start(cfg));
+
+    // Zero samples
+    const auto zeroStats = profiler.getStatistics();
+    EXPECT_EQ(zeroStats.totalProbes, 0U);
+    EXPECT_DOUBLE_EQ(zeroStats.avgRttMs, 0.0);
+    EXPECT_DOUBLE_EQ(zeroStats.stdDevMs, 0.0);
+
+    // Single sample
+    profiler.recordSampleMs(12.5, "QueryPan", true);
+    const auto singleStats = profiler.getStatistics();
+    EXPECT_EQ(singleStats.totalProbes, 1U);
+    EXPECT_EQ(singleStats.successfulProbes, 1U);
+    EXPECT_DOUBLE_EQ(singleStats.minRttMs, 12.5);
+    EXPECT_DOUBLE_EQ(singleStats.maxRttMs, 12.5);
+    EXPECT_DOUBLE_EQ(singleStats.avgRttMs, 12.5);
+    EXPECT_DOUBLE_EQ(singleStats.stdDevMs, 0.0);
+}
+
+/// @brief Verify percentile computation when all recorded samples are identical.
+/// @details Validates p50, p95, and p99 when 5 identical values of 20ms are recorded.
+TEST(RttProfilerTest, PercentileEdgeCases)
+{
+    PelcoD::RttProfiler profiler;
+    PelcoD::RttProfilerConfig cfg;
+    cfg.mode = PelcoD::ProfilerMode::Passive;
+    cfg.historyCapacity = 10U;
+    ASSERT_TRUE(profiler.start(cfg));
+
+    for (int i = 0; i < 5; ++i) {
+        profiler.recordSampleMs(20.0, "QueryPan", true);
+    }
+
+    const auto stats = profiler.getStatistics();
+    EXPECT_NEAR(stats.p50RttMs, 20.0, 1e-5);
+    EXPECT_NEAR(stats.p95RttMs, 20.0, 1e-5);
+    EXPECT_NEAR(stats.p99RttMs, 20.0, 1e-5);
+}
+
+/// @brief Verify reset() clears all statistics, history, and active metrics.
+/// @details Populates sample data, invokes reset(), and verifies that all counts and history return to zero.
+TEST(RttProfilerTest, ResetProfiler)
+{
+    PelcoD::RttProfiler profiler;
+    PelcoD::RttProfilerConfig cfg;
+    cfg.mode = PelcoD::ProfilerMode::Passive;
+    ASSERT_TRUE(profiler.start(cfg));
+
+    profiler.recordSampleMs(30.0, "QueryPan", true);
+    profiler.recordSampleMs(40.0, "QueryTilt", true);
+    EXPECT_EQ(profiler.getStatistics().totalProbes, 2U);
+    EXPECT_FALSE(profiler.getHistory().empty());
+
+    profiler.reset();
+    EXPECT_EQ(profiler.getStatistics().totalProbes, 0U);
+    EXPECT_TRUE(profiler.getHistory().empty());
 }
 
 } // namespace

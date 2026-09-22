@@ -16,7 +16,8 @@
 
 namespace {
 
-/// @brief Verify validation of invalid address ranges.
+/// @brief Verify validation of invalid address ranges in scan configuration.
+/// @details Ensures startScan returns false when start > end, start == 0, or end == 255.
 TEST(BusScannerTest, RangeValidation)
 {
     auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(1U);
@@ -47,6 +48,8 @@ TEST(BusScannerTest, RangeValidation)
 }
 
 /// @brief Verify discovery of a mock device on an active address.
+/// @details Probes addresses 1 through 4 with mock responding at address 3,
+///          verifying that the device is detected, telemetry populated, and callbacks invoked.
 TEST(BusScannerTest, SingleDeviceDiscovery)
 {
     const std::uint8_t targetAddr = 3U;
@@ -113,6 +116,7 @@ TEST(BusScannerTest, SingleDeviceDiscovery)
 }
 
 /// @brief Verify progress callbacks are reported for each address.
+/// @details Checks scanProgressCallback firing with correct current address and scanned count for all targets.
 TEST(BusScannerTest, ProgressCallbacks)
 {
     auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(1U);
@@ -154,6 +158,7 @@ TEST(BusScannerTest, ProgressCallbacks)
 }
 
 /// @brief Verify stopScan aborts an active scan immediately.
+/// @details Initiates scan over 20 addresses, calls stopScan after first response, and verifies prompt return to Idle.
 TEST(BusScannerTest, StopScan)
 {
     auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(200U);
@@ -192,6 +197,7 @@ TEST(BusScannerTest, StopScan)
 }
 
 /// @brief Verify pause and resume operations.
+/// @details Checks scan pausing at an intermediate state and resuming successfully to completion.
 TEST(BusScannerTest, PauseResume)
 {
     auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(1U);
@@ -226,6 +232,7 @@ TEST(BusScannerTest, PauseResume)
 }
 
 /// @brief Verify stopping an active scan while it is paused immediately wakes the condition variable.
+/// @details Calls stopScan while scan is paused, verifying prompt unblocking and worker join.
 TEST(BusScannerTest, StopWhilePaused)
 {
     auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(1U);
@@ -257,6 +264,7 @@ TEST(BusScannerTest, StopWhilePaused)
 }
 
 /// @brief Verify multi-baud auto-discovery identifies device running at a non-default baud rate.
+/// @details Tests scanning across multiple baud rates to locate a device communicating at 19200 baud.
 TEST(BusScannerTest, MultiBaudDiscovery)
 {
     const std::uint8_t targetAddr = 7U;
@@ -347,6 +355,7 @@ TEST(BusScannerTest, MultiBaudDiscovery)
 }
 
 /// @brief Verify multi-baud progress reports correct total count and baud rates.
+/// @details Checks callback progression through configured baud list.
 TEST(BusScannerTest, MultiBaudProgressAndCount)
 {
     auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(1U);
@@ -395,6 +404,7 @@ TEST(BusScannerTest, MultiBaudProgressAndCount)
 }
 
 /// @brief Verify stopping an active multi-baud scan terminates immediately and restores baud rate.
+/// @details Verifies early termination cleanly restores pre-scan baud rate.
 TEST(BusScannerTest, MultiBaudStopScan)
 {
     auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(1U);
@@ -431,6 +441,32 @@ TEST(BusScannerTest, MultiBaudStopScan)
     EXPECT_LT(scannedCount.load(), 250U);
     // Original baud rate (9600) must be restored
     EXPECT_EQ(mock->getBaudRate(), 9600U);
+}
+
+/// @brief Verify scanner behavior when transport returns no responses.
+/// @details Probes an address range where no device is present, verifying scanner completes
+///          with 0 discovered devices.
+TEST(BusScannerTest, ScanTimeoutBehavior)
+{
+    // Mock device is configured on address 50
+    auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(50U);
+    PelcoD::BusScanner scanner(mock);
+
+    PelcoD::ScanConfig cfg;
+    cfg.startAddress = 1U;
+    cfg.endAddress = 3U; // None of these match 50
+    cfg.timeoutMs = 15U;
+    cfg.interCommandDelayMs = 2U;
+
+    std::atomic<bool> finished { false };
+    scanner.setScanFinishedCallback([&](const std::vector<PelcoD::DiscoveredDevice>&) { finished.store(true); });
+
+    ASSERT_TRUE(scanner.startScan(cfg));
+    while (scanner.isScanning() || !finished.load()) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+
+    EXPECT_TRUE(scanner.getDiscoveredDevices().empty());
 }
 
 } // namespace

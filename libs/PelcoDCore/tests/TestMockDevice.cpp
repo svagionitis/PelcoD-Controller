@@ -19,6 +19,9 @@ using namespace PelcoDTest;
 
 namespace {
 
+/// @brief Verify full end-to-end communication between PelcoDDevice and MockPelcoDDevice.
+/// @details Tests pan, tilt, preset store/recall, zero pan, zero position calibration,
+///          magnification, diagnostics, and general query responses.
 TEST(MockDeviceTest, EndToEnd)
 {
     auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(1U);
@@ -111,6 +114,9 @@ TEST(MockDeviceTest, EndToEnd)
     EXPECT_FALSE(device.isConnected());
 }
 
+/// @brief Verify copy-on-write thread safety when callbacks add other callbacks.
+/// @details Ensures mutating callback subscriptions from inside a callback execution does not
+///          deadlock or cause iterator invalidation.
 TEST(MockDeviceTest, CopyOnWriteCallbacks)
 {
     auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(1U);
@@ -153,6 +159,8 @@ TEST(MockDeviceTest, CopyOnWriteCallbacks)
     device.stop();
 }
 
+/// @brief Verify batch ingestion of multiple consecutive frames in one buffer.
+/// @details Injects 3 batched frames into mock RX and verifies all are parsed and update status.
 TEST(MockDeviceTest, BurstTelemetryReception)
 {
     auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(1U);
@@ -195,6 +203,8 @@ TEST(MockDeviceTest, BurstTelemetryReception)
     device.stop();
 }
 
+/// @brief Verify dynamic enabling and disabling of background telemetry polling.
+/// @details Starts and stops periodic polling queries, verifying outbound query rate changes.
 TEST(MockDeviceTest, DynamicTelemetryPollingLifecycle)
 {
     auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(1U);
@@ -271,6 +281,8 @@ TEST(MockDeviceTest, DynamicTelemetryPollingLifecycle)
     devicePre.stop();
 }
 
+/// @brief Verify clearCallbacks() removes all traffic, status, and timeout subscriptions.
+/// @details Ensures no callbacks fire after clearCallbacks() is invoked.
 TEST(MockDeviceTest, ClearCallbacks)
 {
     auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(1U);
@@ -303,6 +315,8 @@ TEST(MockDeviceTest, ClearCallbacks)
     device.stop();
 }
 
+/// @brief Verify reentrant and concurrent start() and stop() calls on PelcoDDevice.
+/// @details Tests idempotent sequential start calls, restart cycles, and concurrent multi-threaded starts.
 TEST(MockDeviceTest, ReentrantStart)
 {
     auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(1U);
@@ -366,6 +380,8 @@ TEST(MockDeviceTest, ReentrantStart)
     concurrentDevice.stop();
 }
 
+/// @brief Verify shared bus device filtering ignores responses intended for other addresses.
+/// @details Sniffs all traffic on the bus while ensuring device internal status only updates for matching address.
 TEST(MockDeviceTest, SharedBusDeviceFiltering)
 {
     auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(1U);
@@ -406,6 +422,8 @@ TEST(MockDeviceTest, SharedBusDeviceFiltering)
     device.stop();
 }
 
+/// @brief Verify query response correlation filters out mismatched or interleaved packets.
+/// @details Ensures queryPan only completes when a matching Pan response is received, ignoring general or tilt packets.
 TEST(MockDeviceTest, QueryResponseCorrelation)
 {
     auto transport = std::make_shared<ControlledTransport>();
@@ -472,6 +490,8 @@ TEST(MockDeviceTest, QueryResponseCorrelation)
     device.stop();
 }
 
+/// @brief Verify transport callbacks are cleanly unregistered upon device stop or destruction.
+/// @details Ensures no dangling callback pointers remain on the underlying transport.
 TEST(MockDeviceTest, TransportCallbackDeregistration)
 {
     // Scenario 1: Callbacks are unregistered on explicit stop()
@@ -520,6 +540,8 @@ TEST(MockDeviceTest, TransportCallbackDeregistration)
     }
 }
 
+/// @brief Verify concurrent query timeout and address updates while streaming commands.
+/// @details Concurrently modifies query timeout and device address while dispatching pan and query commands.
 TEST(MockDeviceTest, ConcurrentQueryTimeoutAndAddressUpdates)
 {
     auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(1U);
@@ -563,6 +585,8 @@ TEST(MockDeviceTest, ConcurrentQueryTimeoutAndAddressUpdates)
     device.stop();
 }
 
+/// @brief Verify failed transport sendData does not fire TX callback or wait for query timeout.
+/// @details Tests graceful early return when transport cannot send packet.
 TEST(MockDeviceTest, FailedSendDoesNotTriggerTxCallbackOrTimeoutWait)
 {
     auto transport = std::make_shared<FailingSendTransport>();
@@ -607,6 +631,8 @@ TEST(MockDeviceTest, FailedSendDoesNotTriggerTxCallbackOrTimeoutWait)
     device.stop();
 }
 
+/// @brief Verify safety-critical stopMotion preempts pending queries in the queue.
+/// @details Ensures stop command is prioritized ahead of outstanding query timeouts.
 TEST(MockDeviceTest, StopMotionPreemptsQueries)
 {
     auto transport = std::make_shared<ControlledTransport>();
@@ -655,6 +681,8 @@ TEST(MockDeviceTest, StopMotionPreemptsQueries)
     EXPECT_LT(elapsedMs, 150);
 }
 
+/// @brief Verify byte-stream defragmentation, noise preamble skipping, and overflow reset.
+/// @details Feeds fragmented frames, noisy streams, and oversized buffers into device RX stream.
 TEST(MockDeviceTest, StreamingFramingAndFragmentation)
 {
     auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(1U);
@@ -737,6 +765,59 @@ TEST(MockDeviceTest, StreamingFramingAndFragmentation)
     std::this_thread::sleep_for(std::chrono::milliseconds(20));
     EXPECT_EQ(rxPacketCount.load(), 6);
     EXPECT_EQ(device.getStatus().zoomPosition, 3500U);
+
+    device.stop();
+}
+
+/// @brief Verify auxiliary activation, auxiliary clearing, and pattern control end-to-end.
+/// @details Sends auxiliary set/clear commands and pattern record/stop/run commands via PelcoDDevice,
+///          verifying MockPelcoDDevice tracks auxiliary states accurately.
+TEST(MockDeviceTest, AuxiliaryAndPatternControl)
+{
+    auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(1U);
+    PelcoD::PelcoDDevice device(mock, 1U);
+    ASSERT_TRUE(device.start());
+
+    // 1. Auxiliary control
+    device.setAuxiliary(1U);
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    EXPECT_TRUE(mock->getInternalState().auxStates[0]);
+
+    device.clearAuxiliary(1U);
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    EXPECT_FALSE(mock->getInternalState().auxStates[0]);
+
+    // 2. Pattern recording
+    device.recordPatternStart(1U);
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    device.recordPatternStop();
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    device.runPattern(1U);
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+    device.stop();
+}
+
+/// @brief Verify end-to-end absolute pan, tilt, and zoom positioning.
+/// @details Sets pan angle to 180.00° (18000 cdeg), tilt to 45.00° (4500 cdeg), and zoom position to 2500,
+///          verifying MockPelcoDDevice internal state updates to these exact coordinates.
+TEST(MockDeviceTest, AbsolutePositioningEndToEnd)
+{
+    auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(1U);
+    PelcoD::PelcoDDevice device(mock, 1U);
+    ASSERT_TRUE(device.start());
+
+    device.setPanAngle(18000U);
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    EXPECT_EQ(mock->getInternalState().panCentidegrees, 18000U);
+
+    device.setTiltAngle(4500U);
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    EXPECT_EQ(mock->getInternalState().tiltCentidegrees, 4500U);
+
+    device.setZoomPosition(2500U);
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    EXPECT_EQ(mock->getInternalState().zoomPosition, 2500U);
 
     device.stop();
 }

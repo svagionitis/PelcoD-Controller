@@ -13,6 +13,9 @@
 
 namespace {
 
+/// @brief Verify protocol frame construction for basic motion commands.
+/// @details Checks pan left, stop, diagonal motion (up-right), and zoom tele commands
+///          for valid byte structures and correct checksums.
 TEST(ProtocolBuilderTest, MotionCommands)
 {
     // Pan Left: Addr 2, speed 0x20
@@ -46,6 +49,9 @@ TEST(ProtocolBuilderTest, MotionCommands)
     EXPECT_TRUE(PelcoD::PelcoDFrame::isValidFrame(tele));
 }
 
+/// @brief Verify preset management commands including Set, Go To, and Flip 180.
+/// @details Validates opcode assignment in command 2, preset identifiers in data 2,
+///          and correct checksum computation for preset transactions.
 TEST(ProtocolBuilderTest, Presets)
 {
     // Set Preset 5
@@ -67,6 +73,8 @@ TEST(ProtocolBuilderTest, Presets)
     EXPECT_EQ(flip[5], 0x21U);
 }
 
+/// @brief Verify absolute positioning commands for pan and tilt angles in centidegrees.
+/// @details Checks encoding of 16-bit centidegrees into MSB and LSB data bytes for opcodes 0x4B and 0x4D.
 TEST(ProtocolBuilderTest, AbsolutePositioning)
 {
     // Set Pan to 180.00 degrees (18000 centidegrees = 0x4650)
@@ -84,6 +92,8 @@ TEST(ProtocolBuilderTest, AbsolutePositioning)
     EXPECT_TRUE(PelcoD::PelcoDFrame::isValidFrame(tiltPos));
 }
 
+/// @brief Verify query command frame generation for pan, tilt, zoom, and device type.
+/// @details Validates standard query opcodes: 0x51 (pan), 0x53 (tilt), 0x55 (zoom), and 0x6B (dev type).
 TEST(ProtocolBuilderTest, Queries)
 {
     const auto qPan = PelcoD::ProtocolBuilder::buildQueryPan(1U);
@@ -103,6 +113,9 @@ TEST(ProtocolBuilderTest, Queries)
     EXPECT_TRUE(PelcoD::PelcoDFrame::isValidFrame(qDev));
 }
 
+/// @brief Verify camera configuration commands and speed setting frames.
+/// @details Tests zoom speed, focus speed, auto-focus, auto-iris, AGC, backlight compensation,
+///          white balance, and reset commands.
 TEST(ProtocolBuilderTest, ConfigurationAndSpeeds)
 {
     // Zoom speed (max 3)
@@ -157,6 +170,9 @@ TEST(ProtocolBuilderTest, ConfigurationAndSpeeds)
     EXPECT_TRUE(PelcoD::PelcoDFrame::isValidFrame(rRem));
 }
 
+/// @brief Verify pattern record/play and zone scan configuration commands.
+/// @details Checks opcode encoding for Pattern Start (0x1F), Pattern Stop (0x21),
+///          Run Pattern (0x23), Set Zone Start (0x11), Set Zone End (0x13), and Zone Scan (0x1B/0x1D).
 TEST(ProtocolBuilderTest, PatternsAndZones)
 {
     // Pattern Start, Stop, Run
@@ -195,6 +211,9 @@ TEST(ProtocolBuilderTest, PatternsAndZones)
     EXPECT_TRUE(PelcoD::PelcoDFrame::isValidFrame(zScanOff));
 }
 
+/// @brief Verify 16-bit extended configuration commands.
+/// @details Validates two-byte data payload splitting into MSB and LSB for shutter speed (0x37),
+///          gain (0x3F), white balance R/B (0x3B), and white balance M/G (0x3D).
 TEST(ProtocolBuilderTest, SixteenBitCommands)
 {
     // Shutter Speed: 0x0120 -> msb 0x01, lsb 0x20
@@ -226,6 +245,9 @@ TEST(ProtocolBuilderTest, SixteenBitCommands)
     EXPECT_TRUE(PelcoD::PelcoDFrame::isValidFrame(wbMG));
 }
 
+/// @brief Verify on-screen display character writing, screen clear, and alarm acknowledge.
+/// @details Tests Write Character (0x15) column/ASCII encoding, Clear Screen (0x17),
+///          and Alarm Acknowledge (0x19).
 TEST(ProtocolBuilderTest, OsdAndAlarms)
 {
     // Write Character 'A' at column 5
@@ -245,6 +267,166 @@ TEST(ProtocolBuilderTest, OsdAndAlarms)
     EXPECT_EQ(ack[3], 0x19U);
     EXPECT_EQ(ack[5], 0x04U);
     EXPECT_TRUE(PelcoD::PelcoDFrame::isValidFrame(ack));
+}
+
+/// @brief Verify auxiliary power and scan commands.
+/// @details Tests buildPower on/off, buildScan auto/manual, and buildSetAux / buildClearAux opcodes.
+TEST(ProtocolBuilderTest, AuxiliaryAndPowerCommands)
+{
+    // Power On & Off: cmd1 (byte 2) has DeviceOn (0x88) or DeviceOff (0x08)
+    const auto pwrOn = PelcoD::ProtocolBuilder::buildPower(1U, true);
+    EXPECT_EQ(pwrOn[2], 0x88U);
+    EXPECT_EQ(pwrOn[3], 0x00U);
+    EXPECT_TRUE(PelcoD::PelcoDFrame::isValidFrame(pwrOn));
+
+    const auto pwrOff = PelcoD::ProtocolBuilder::buildPower(1U, false);
+    EXPECT_EQ(pwrOff[2], 0x08U);
+    EXPECT_EQ(pwrOff[3], 0x00U);
+    EXPECT_TRUE(PelcoD::PelcoDFrame::isValidFrame(pwrOff));
+
+    // Auto Scan & Manual Scan
+    const auto autoScan = PelcoD::ProtocolBuilder::buildScan(1U, true);
+    EXPECT_TRUE(PelcoD::PelcoDFrame::isValidFrame(autoScan));
+    const auto manualScan = PelcoD::ProtocolBuilder::buildScan(1U, false);
+    EXPECT_TRUE(PelcoD::PelcoDFrame::isValidFrame(manualScan));
+
+    // Set Auxiliary 3 (opcode 0x09)
+    const auto setAux = PelcoD::ProtocolBuilder::buildSetAux(1U, 3U);
+    EXPECT_EQ(setAux[3], 0x09U);
+    EXPECT_EQ(setAux[5], 0x03U);
+    EXPECT_TRUE(PelcoD::PelcoDFrame::isValidFrame(setAux));
+
+    // Clear Auxiliary 3 (opcode 0x0B)
+    const auto clrAux = PelcoD::ProtocolBuilder::buildClearAux(1U, 3U);
+    EXPECT_EQ(clrAux[3], 0x0BU);
+    EXPECT_EQ(clrAux[5], 0x03U);
+    EXPECT_TRUE(PelcoD::PelcoDFrame::isValidFrame(clrAux));
+}
+
+/// @brief Verify zero-pan and hardware azimuth zeroing command frames.
+/// @details Checks buildZeroPan (opcode 0x07 with data2=0x22 or buildZeroPan opcode)
+///          and buildSetZeroPosition (opcode 0x49).
+TEST(ProtocolBuilderTest, ZeroPanAndAzimuthCommands)
+{
+    const auto zeroPan = PelcoD::ProtocolBuilder::buildZeroPan(1U);
+    EXPECT_TRUE(PelcoD::PelcoDFrame::isValidFrame(zeroPan));
+
+    const auto setZeroPos = PelcoD::ProtocolBuilder::buildSetZeroPosition(1U);
+    EXPECT_EQ(setZeroPos[3], 0x49U);
+    EXPECT_TRUE(PelcoD::PelcoDFrame::isValidFrame(setZeroPos));
+}
+
+/// @brief Verify auto-iris levels, peak settings, and phase delay commands.
+/// @details Tests buildAutoIrisLevel, buildAutoIrisPeak, buildPhaseDelayMode, and buildLineLockDelay.
+TEST(ProtocolBuilderTest, AutoIrisAndExposureControls)
+{
+    // Auto Iris Level (opcode 0x41, data2 = level)
+    const auto irisLevel = PelcoD::ProtocolBuilder::buildAutoIrisLevel(1U, 0x1AU);
+    EXPECT_EQ(irisLevel[3], 0x41U);
+    EXPECT_EQ(irisLevel[5], 0x1AU);
+    EXPECT_TRUE(PelcoD::PelcoDFrame::isValidFrame(irisLevel));
+
+    // Auto Iris Peak (opcode 0x43, data2 = peak)
+    const auto irisPeak = PelcoD::ProtocolBuilder::buildAutoIrisPeak(1U, 0x05U);
+    EXPECT_EQ(irisPeak[3], 0x43U);
+    EXPECT_EQ(irisPeak[5], 0x05U);
+    EXPECT_TRUE(PelcoD::PelcoDFrame::isValidFrame(irisPeak));
+
+    // Phase Delay Mode (opcode 0x35)
+    const auto phaseDelay = PelcoD::ProtocolBuilder::buildPhaseDelayMode(1U, PelcoD::SwitchState::On);
+    EXPECT_EQ(phaseDelay[3], 0x35U);
+    EXPECT_TRUE(PelcoD::PelcoDFrame::isValidFrame(phaseDelay));
+
+    // Line Lock Delay (opcode 0x39, 16-bit centidegrees)
+    const auto lineLock = PelcoD::ProtocolBuilder::buildLineLockDelay(1U, 1200U);
+    EXPECT_EQ(lineLock[3], 0x39U);
+    EXPECT_EQ(lineLock[4], static_cast<std::uint8_t>(1200U >> 8U));
+    EXPECT_EQ(lineLock[5], static_cast<std::uint8_t>(1200U & 0xFFU));
+    EXPECT_TRUE(PelcoD::PelcoDFrame::isValidFrame(lineLock));
+}
+
+/// @brief Verify optical magnification and remote baud rate configuration builders.
+/// @details Checks absolute and relative magnification (opcode 0x5F) and remote baud rate (opcode 0x67).
+TEST(ProtocolBuilderTest, MagnificationAndBaudRate)
+{
+    // Absolute magnification: data1 = 0x00 (abs), data2 = lsb
+    const auto absMag = PelcoD::ProtocolBuilder::buildSetMagnification(1U, 0x0250U, false);
+    EXPECT_EQ(absMag[3], 0x5FU);
+    EXPECT_EQ(absMag[4], 0x00U);
+    EXPECT_EQ(absMag[5], 0x50U);
+    EXPECT_TRUE(PelcoD::PelcoDFrame::isValidFrame(absMag));
+
+    // Relative magnification: data1 = 0x01 (rel), data2 = lsb
+    const auto relMag = PelcoD::ProtocolBuilder::buildSetMagnification(1U, 0x0050U, true);
+    EXPECT_EQ(relMag[3], 0x5FU);
+    EXPECT_EQ(relMag[4], 0x01U);
+    EXPECT_EQ(relMag[5], 0x50U);
+    EXPECT_TRUE(PelcoD::PelcoDFrame::isValidFrame(relMag));
+
+    // Remote baud rate 9600 (code 0x02)
+    const auto baud9600 = PelcoD::ProtocolBuilder::buildSetBaudRate(1U, 9600U);
+    EXPECT_EQ(baud9600[3], 0x67U);
+    EXPECT_EQ(baud9600[5], 0x02U);
+    EXPECT_TRUE(PelcoD::PelcoDFrame::isValidFrame(baud9600));
+
+    // Remote baud rate 2400 (code 0x00)
+    const auto baud2400 = PelcoD::ProtocolBuilder::buildSetBaudRate(1U, 2400U);
+    EXPECT_EQ(baud2400[3], 0x67U);
+    EXPECT_EQ(baud2400[5], 0x00U);
+    EXPECT_TRUE(PelcoD::PelcoDFrame::isValidFrame(baud2400));
+}
+
+/// @brief Verify builder methods for all supported query types.
+/// @details Tests buildQueryPan, buildQueryTilt, buildQueryZoom, buildQueryMag,
+///          buildQueryDevType, buildQueryGeneral, and buildQueryDiagnostics.
+TEST(ProtocolBuilderTest, AllQueryVariants)
+{
+    const auto qPan = PelcoD::ProtocolBuilder::buildQueryPan(2U);
+    EXPECT_EQ(qPan[1], 0x02U);
+    EXPECT_EQ(qPan[3], 0x51U);
+    EXPECT_TRUE(PelcoD::PelcoDFrame::isValidFrame(qPan));
+
+    const auto qTilt = PelcoD::ProtocolBuilder::buildQueryTilt(2U);
+    EXPECT_EQ(qTilt[1], 0x02U);
+    EXPECT_EQ(qTilt[3], 0x53U);
+    EXPECT_TRUE(PelcoD::PelcoDFrame::isValidFrame(qTilt));
+
+    const auto qZoom = PelcoD::ProtocolBuilder::buildQueryZoom(2U);
+    EXPECT_EQ(qZoom[1], 0x02U);
+    EXPECT_EQ(qZoom[3], 0x55U);
+    EXPECT_TRUE(PelcoD::PelcoDFrame::isValidFrame(qZoom));
+
+    const auto qMag = PelcoD::ProtocolBuilder::buildQueryMag(2U);
+    EXPECT_EQ(qMag[1], 0x02U);
+    EXPECT_EQ(qMag[3], 0x61U);
+    EXPECT_TRUE(PelcoD::PelcoDFrame::isValidFrame(qMag));
+
+    const auto qGeneral = PelcoD::ProtocolBuilder::buildQueryGeneral(2U);
+    EXPECT_EQ(qGeneral[1], 0x02U);
+    EXPECT_TRUE(PelcoD::PelcoDFrame::isValidFrame(qGeneral));
+
+    const auto qDiag = PelcoD::ProtocolBuilder::buildQueryDiagnostics(2U);
+    EXPECT_EQ(qDiag[1], 0x02U);
+    EXPECT_EQ(qDiag[3], 0x6FU);
+    EXPECT_TRUE(PelcoD::PelcoDFrame::isValidFrame(qDiag));
+}
+
+/// @brief Verify buildMotion combining multiple simultaneous actions in one frame.
+/// @details Tests simultaneous Pan Left, Tilt Down, Zoom Tele, Focus Far, and Iris Open.
+TEST(ProtocolBuilderTest, CombinedMotionMultiAction)
+{
+    const auto multi
+        = PelcoD::ProtocolBuilder::buildMotion(1U, PelcoD::PanDirection::Left, 0x25U, PelcoD::TiltDirection::Down,
+            0x1AU, PelcoD::ZoomAction::Tele, PelcoD::FocusAction::Far, PelcoD::IrisAction::Open);
+
+    ASSERT_EQ(multi.size(), 7U);
+    EXPECT_EQ(multi[0], 0xFFU);
+    EXPECT_EQ(multi[1], 0x01U);
+    // Pan Left is 0x04 in cmd2; Tilt Down is 0x10 in cmd2
+    // Zoom Tele is 0x20 in cmd2; Focus Far is 0x80 in cmd1 or cmd2; Iris Open is 0x02 in cmd1
+    EXPECT_EQ(multi[4], 0x25U); // pan speed
+    EXPECT_EQ(multi[5], 0x1AU); // tilt speed
+    EXPECT_TRUE(PelcoD::PelcoDFrame::isValidFrame(multi));
 }
 
 } // namespace

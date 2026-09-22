@@ -13,6 +13,9 @@
 
 namespace {
 
+/// @brief Verify Pelco-D 8-bit modulo 256 checksum calculation for various payload scenarios.
+/// @details Tests canonical messages from the Pelco-D specification (Page 18) including camera motion,
+///          stop commands, combined pan/tilt, and modulo 256 overflow wraparound.
 TEST(PelcoDFrameTest, ChecksumCalculation)
 {
     // Spec Page 18: Message 1 (Camera 2, Pan Left)
@@ -35,6 +38,9 @@ TEST(PelcoDFrameTest, ChecksumCalculation)
     EXPECT_EQ(PelcoD::PelcoDFrame::calculateChecksum(overflow), 0x01U);
 }
 
+/// @brief Verify assembly and byte layout of standard 7-byte Pelco-D frames.
+/// @details Tests that createFrame produces a correctly formatted 7-byte packet starting with 0xFF
+///          sync byte, correct address, command 1, command 2, data 1, data 2, and trailing checksum.
 TEST(PelcoDFrameTest, CreateFrame)
 {
     const auto frame = PelcoD::PelcoDFrame::createFrame(0x02U, 0x00U, 0x04U, 0x20U, 0x00U);
@@ -48,6 +54,9 @@ TEST(PelcoDFrameTest, CreateFrame)
     EXPECT_EQ(frame[6], 0x26U);
 }
 
+/// @brief Verify validation logic for standard 4-byte, 7-byte, and 18-byte Pelco-D frames.
+/// @details Checks validation across valid packets and corruptions, including sync byte mismatches,
+///          checksum errors, non-printable control characters, and null termination in query replies.
 TEST(PelcoDFrameTest, FrameValidation)
 {
     // Valid 4-byte general response
@@ -91,7 +100,7 @@ TEST(PelcoDFrameTest, FrameValidation)
     // Invalid 18-byte query response: character after null terminator
     auto bad18AfterNull = valid18Text;
     bad18AfterNull[6] = 0x00U; // Null terminator
-    bad18AfterNull[7] = 'X';   // Stray char after null
+    bad18AfterNull[7] = 'X'; // Stray char after null
     EXPECT_FALSE(PelcoD::PelcoDFrame::isValidFrame(bad18AfterNull));
 
     // Invalid 18-byte query response: corrupted checksum at byte 17
@@ -100,6 +109,78 @@ TEST(PelcoDFrameTest, FrameValidation)
     EXPECT_FALSE(PelcoD::PelcoDFrame::isValidFrame(bad18Cksm));
 }
 
+/// @brief Verify frame validation boundary cases and non-standard buffer lengths.
+/// @details Validates that inputs with invalid lengths (0, 1, 2, 3, 5, 6, 8, 17, 19 bytes)
+///          or bad sync headers are rejected.
+TEST(PelcoDFrameTest, FrameValidationExtendedEdgeCases)
+{
+    // Empty buffer
+    EXPECT_FALSE(PelcoD::PelcoDFrame::isValidFrame(std::vector<std::uint8_t> {}));
+
+    // Truncated buffers
+    EXPECT_FALSE(PelcoD::PelcoDFrame::isValidFrame(std::vector<std::uint8_t> { 0xFFU }));
+    EXPECT_FALSE(PelcoD::PelcoDFrame::isValidFrame(std::vector<std::uint8_t> { 0xFFU, 0x01U }));
+    EXPECT_FALSE(PelcoD::PelcoDFrame::isValidFrame(std::vector<std::uint8_t> { 0xFFU, 0x01U, 0x00U }));
+
+    // Non-standard lengths (5, 6, 8, 17, 19)
+    const std::vector<std::uint8_t> len5 { 0xFFU, 0x01U, 0x00U, 0x00U, 0x01U };
+    EXPECT_FALSE(PelcoD::PelcoDFrame::isValidFrame(len5));
+
+    const std::vector<std::uint8_t> len6 { 0xFFU, 0x01U, 0x00U, 0x00U, 0x00U, 0x01U };
+    EXPECT_FALSE(PelcoD::PelcoDFrame::isValidFrame(len6));
+
+    const std::vector<std::uint8_t> len8 { 0xFFU, 0x01U, 0x00U, 0x04U, 0x20U, 0x00U, 0x25U, 0x00U };
+    EXPECT_FALSE(PelcoD::PelcoDFrame::isValidFrame(len8));
+
+    std::vector<std::uint8_t> len17(17U, 0x00U);
+    len17[0] = 0xFFU;
+    EXPECT_FALSE(PelcoD::PelcoDFrame::isValidFrame(len17));
+
+    std::vector<std::uint8_t> len19(19U, 0x00U);
+    len19[0] = 0xFFU;
+    EXPECT_FALSE(PelcoD::PelcoDFrame::isValidFrame(len19));
+
+    // Valid length but non-0xFF sync header
+    const std::vector<std::uint8_t> badSync4 { 0xFEU, 0x01U, 0x00U, 0x01U };
+    EXPECT_FALSE(PelcoD::PelcoDFrame::isValidFrame(badSync4));
+
+    const std::vector<std::uint8_t> badSync7 { 0xAAU, 0x01U, 0x00U, 0x04U, 0x20U, 0x00U, 0x25U };
+    EXPECT_FALSE(PelcoD::PelcoDFrame::isValidFrame(badSync7));
+}
+
+/// @brief Verify checksum calculation safety with boundary inputs and pointer overloads.
+/// @details Ensures nullptr with 0 length returns 0 safely, empty containers return 0,
+///          and multi-byte accumulations with values near 255 wrap cleanly.
+TEST(PelcoDFrameTest, ChecksumEdgeCases)
+{
+    // Null pointer with zero length
+    EXPECT_EQ(PelcoD::PelcoDFrame::calculateChecksum(nullptr, 0U), 0x00U);
+
+    // Empty vector
+    const std::vector<std::uint8_t> emptyVec {};
+    EXPECT_EQ(PelcoD::PelcoDFrame::calculateChecksum(emptyVec), 0x00U);
+
+    // Single byte
+    const std::vector<std::uint8_t> singleByte { 0x42U };
+    EXPECT_EQ(PelcoD::PelcoDFrame::calculateChecksum(singleByte), 0x42U);
+
+    // Boundary byte value 0xFF
+    const std::vector<std::uint8_t> ffByte { 0xFFU };
+    EXPECT_EQ(PelcoD::PelcoDFrame::calculateChecksum(ffByte), 0xFFU);
+
+    // Sum wrapping exactly to 256 (0x100 -> 0x00)
+    const std::vector<std::uint8_t> wrapToZero { 0x80U, 0x80U };
+    EXPECT_EQ(PelcoD::PelcoDFrame::calculateChecksum(wrapToZero), 0x00U);
+
+    // Multiple 0xFF bytes
+    const std::vector<std::uint8_t> threeFF { 0xFFU, 0xFFU, 0xFFU };
+    // 255 * 3 = 765; 765 % 256 = 253 (0xFD)
+    EXPECT_EQ(PelcoD::PelcoDFrame::calculateChecksum(threeFF), 0xFDU);
+}
+
+/// @brief Verify stream splitting and frame extraction from contiguous byte streams.
+/// @details Tests splitting streams containing noise prefixes, concatenated 7-byte frames,
+///          interleaved 4-byte responses, and 18-byte query responses.
 TEST(PelcoDFrameTest, StreamSplitting)
 {
     // Stream with noise bytes preceding a valid 7-byte frame, followed by a valid 4-byte reply
@@ -158,6 +239,38 @@ TEST(PelcoDFrameTest, StreamSplitting)
     EXPECT_TRUE(badQFrames.empty());
 }
 
+/// @brief Verify stream splitting resilience under consecutive sync bytes and trailing partial frames.
+/// @details Ensures splitStream correctly resynchronizes when encountering duplicate 0xFF sync bytes,
+///          ignores trailing truncated fragments, and handles purely noisy buffers.
+TEST(PelcoDFrameTest, StreamSplittingComplexCases)
+{
+    // Stream with consecutive 0xFF sync bytes before a valid frame
+    const auto validFrame = PelcoD::PelcoDFrame::createFrame(0x02U, 0x00U, 0x04U, 0x20U, 0x00U);
+    std::vector<std::uint8_t> doubleSync { 0xFFU };
+    doubleSync.insert(doubleSync.end(), validFrame.begin(), validFrame.end());
+
+    const auto resDouble = PelcoD::PelcoDFrame::splitStream(doubleSync);
+    ASSERT_EQ(resDouble.size(), 1U);
+    EXPECT_EQ(resDouble[0], validFrame);
+
+    // Valid frame followed by incomplete trailing fragment
+    auto streamWithTrailing = validFrame;
+    streamWithTrailing.push_back(0xFFU);
+    streamWithTrailing.push_back(0x02U);
+    streamWithTrailing.push_back(0x00U);
+
+    const auto resTrailing = PelcoD::PelcoDFrame::splitStream(streamWithTrailing);
+    ASSERT_EQ(resTrailing.size(), 1U);
+    EXPECT_EQ(resTrailing[0], validFrame);
+
+    // Pure noise without any valid frames
+    const std::vector<std::uint8_t> pureNoise { 0x00U, 0x11U, 0x22U, 0x33U, 0x44U, 0x55U };
+    const auto resNoise = PelcoD::PelcoDFrame::splitStream(pureNoise);
+    EXPECT_TRUE(resNoise.empty());
+}
+
+/// @brief Verify serialization of raw Pelco-D byte frames to human-readable hex strings.
+/// @details Validates default space delimiters, custom delimiters, empty buffers, and raw pointer overloads.
 TEST(PelcoDFrameTest, ToHexString)
 {
     const std::vector<std::uint8_t> frame { 0xFFU, 0x01U, 0x00U, 0x04U, 0x20U, 0x00U, 0x25U };
@@ -179,6 +292,9 @@ TEST(PelcoDFrameTest, ToHexString)
     EXPECT_TRUE(PelcoD::PelcoDFrame::toHexString(nullptr, 0U).empty());
 }
 
+/// @brief Verify parsing and decoding of hex strings into byte vectors.
+/// @details Tests standard formats, unspaced representations, lowercase characters, custom delimiters,
+///          hex prefixes (0x), whitespace stripping, and round-trip consistency.
 TEST(PelcoDFrameTest, FromHexString)
 {
     const std::vector<std::uint8_t> expected { 0xFFU, 0x01U, 0x00U, 0x04U, 0x20U, 0x00U, 0x25U };
@@ -216,6 +332,26 @@ TEST(PelcoDFrameTest, FromHexString)
     // Round-trip test
     const auto serialized = PelcoD::PelcoDFrame::toHexString(expected);
     EXPECT_EQ(PelcoD::PelcoDFrame::fromHexString(serialized), expected);
+}
+
+/// @brief Verify hex string conversion corner cases and format resiliency.
+/// @details Validates handling of odd length strings, lowercase mixed characters, and raw pointer overloads.
+TEST(PelcoDFrameTest, HexConversionEdgeCases)
+{
+    // Single nibble produces empty byte vector
+    EXPECT_TRUE(PelcoD::PelcoDFrame::fromHexString("A").empty());
+
+    // Three nibbles produce single byte
+    const std::vector<std::uint8_t> oneByte { 0xABU };
+    EXPECT_EQ(PelcoD::PelcoDFrame::fromHexString("ABC"), oneByte);
+
+    // Mixed cases with prefix
+    const std::vector<std::uint8_t> mixedExpected { 0x0AU, 0xBCU, 0xDEU, 0xF0U };
+    EXPECT_EQ(PelcoD::PelcoDFrame::fromHexString("0x0a:bC:dE:F0"), mixedExpected);
+
+    // toHexString with large single-byte vector
+    const std::vector<std::uint8_t> singleByte { 0x05U };
+    EXPECT_EQ(PelcoD::PelcoDFrame::toHexString(singleByte), "05");
 }
 
 } // namespace

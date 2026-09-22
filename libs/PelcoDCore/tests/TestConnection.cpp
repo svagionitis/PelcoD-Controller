@@ -23,8 +23,7 @@ using namespace PelcoDTest;
 
 namespace {
 
-template <typename Predicate>
-[[nodiscard]] bool waitFor(Predicate pred, int timeoutMs = 2000)
+template <typename Predicate> [[nodiscard]] bool waitFor(Predicate pred, int timeoutMs = 2000)
 {
     const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(timeoutMs);
     while (std::chrono::steady_clock::now() < deadline) {
@@ -36,6 +35,9 @@ template <typename Predicate>
     return pred();
 }
 
+/// @brief Verify basic Connection construction, disconnection idempotence, and move semantics.
+/// @details Checks default construction, calling disconnect on empty connection, disconnecting active
+///          connection, idempotent secondary disconnect, and move assignment.
 TEST(ConnectionTest, BasicConnectionLifecycle)
 {
     PelcoD::Connection connDefault;
@@ -69,6 +71,9 @@ TEST(ConnectionTest, BasicConnectionLifecycle)
     }
 }
 
+/// @brief Verify ScopedConnection RAII automatic disconnection upon destruction.
+/// @details Validates automatic disconnect on scope exit, manual disconnect before scope exit,
+///          ownership release via release(), and move assignment between scoped connections.
 TEST(ConnectionTest, ScopedConnectionLifecycle)
 {
     bool disconnected { false };
@@ -122,6 +127,9 @@ TEST(ConnectionTest, ScopedConnectionLifecycle)
     EXPECT_TRUE(disc2);
 }
 
+/// @brief Verify ScopedConnectionList container lifecycle, addition, and bulk disconnection.
+/// @details Tests adding connections via operator+= and add(), disconnectAll(), clear(),
+///          and move semantics.
 TEST(ConnectionTest, ScopedConnectionList)
 {
     PelcoD::ScopedConnectionList list;
@@ -157,6 +165,9 @@ TEST(ConnectionTest, ScopedConnectionList)
     EXPECT_TRUE(disc3);
 }
 
+/// @brief Verify selective callback deregistration on PelcoDDevice without affecting others.
+/// @details Registers two traffic callbacks, disconnects one, and verifies only the remaining callback
+///          continues to receive events.
 TEST(ConnectionTest, PelcoDDeviceSelectiveDisconnection)
 {
     auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(1U);
@@ -202,6 +213,9 @@ TEST(ConnectionTest, PelcoDDeviceSelectiveDisconnection)
     device.stop();
 }
 
+/// @brief Verify safe disconnect invocation after the underlying PelcoDDevice is destroyed.
+/// @details Ensures orphaned Connection objects can be safely disconnected or destroyed
+///          without crashing or accessing invalid memory.
 TEST(ConnectionTest, DisconnectAfterDeviceDestruction)
 {
     PelcoD::Connection orphanedTraffic;
@@ -223,6 +237,9 @@ TEST(ConnectionTest, DisconnectAfterDeviceDestruction)
     EXPECT_FALSE(orphanedTraffic.isConnected());
 }
 
+/// @brief Verify callback lifecycle and clearCallbacks on FujinonSX800Device.
+/// @details Tests that Fujinon status callbacks and base traffic callbacks are registered and cleanly
+///          cleared by clearCallbacks().
 TEST(ConnectionTest, FujinonSX800DeviceConnection)
 {
     auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(1U);
@@ -257,6 +274,8 @@ TEST(ConnectionTest, FujinonSX800DeviceConnection)
     fujinonDevice.stop();
 }
 
+/// @brief Verify filtered traffic callbacks honoring direction and address filters.
+/// @details Validates TX-only, RX-only, and address-specific traffic callback filters on PelcoDDevice.
 TEST(ConnectionTest, FilteredTrafficCallbacks)
 {
     auto transport = std::make_shared<ControlledTransport>();
@@ -285,8 +304,8 @@ TEST(ConnectionTest, FilteredTrafficCallbacks)
     const bool txReceived = waitFor([&] { return txOnlyCount.load() >= 1; }, 2000);
     EXPECT_TRUE(txReceived);
     EXPECT_EQ(rxOnlyCount.load(), 0); // RX only must NOT receive TX
-    EXPECT_GE(addr1Count.load(), 1);  // Addr 1 received TX
-    EXPECT_EQ(addr2Count.load(), 0);  // Addr 2 must NOT receive Addr 1
+    EXPECT_GE(addr1Count.load(), 1); // Addr 1 received TX
+    EXPECT_EQ(addr2Count.load(), 0); // Addr 2 must NOT receive Addr 1
 
     // Inject RX frame for Address 2
     const std::vector<std::uint8_t> frameAddr2 = { 0xFF, 0x02, 0x00, 0x00, 0x00, 0x00, 0x02 };
@@ -299,6 +318,9 @@ TEST(ConnectionTest, FilteredTrafficCallbacks)
     device.stop();
 }
 
+/// @brief Verify asynchronous query execution and future fulfillment or timeout failure.
+/// @details Checks queryPanAsync and queryStatusAsync fulfilling futures on live device,
+///          immediate exception on stopped device, and timeout failure on silent transport.
 TEST(ConnectionTest, AsyncQueries)
 {
     auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(1U);
@@ -337,6 +359,63 @@ TEST(ConnectionTest, AsyncQueries)
 
     silentDevice.stop();
     device.stop();
+}
+
+/// @brief Verify multiple concurrent connections and non-interfering disconnections.
+/// @details Registers multiple connections and disconnects them in reverse/arbitrary order,
+///          ensuring each invocation occurs independently.
+TEST(ConnectionTest, MultipleConcurrentConnections)
+{
+    std::atomic<int> disconnectFlags { 0 };
+    PelcoD::Connection c1([&]() { disconnectFlags.fetch_or(1); });
+    PelcoD::Connection c2([&]() { disconnectFlags.fetch_or(2); });
+    PelcoD::Connection c3([&]() { disconnectFlags.fetch_or(4); });
+
+    EXPECT_TRUE(c1.isConnected());
+    EXPECT_TRUE(c2.isConnected());
+    EXPECT_TRUE(c3.isConnected());
+
+    // Disconnect middle first
+    c2.disconnect();
+    EXPECT_EQ(disconnectFlags.load(), 2);
+    EXPECT_FALSE(c2.isConnected());
+    EXPECT_TRUE(c1.isConnected());
+    EXPECT_TRUE(c3.isConnected());
+
+    // Disconnect first
+    c1.disconnect();
+    EXPECT_EQ(disconnectFlags.load(), 3);
+    EXPECT_FALSE(c1.isConnected());
+    EXPECT_TRUE(c3.isConnected());
+
+    // Disconnect last
+    c3.disconnect();
+    EXPECT_EQ(disconnectFlags.load(), 7);
+    EXPECT_FALSE(c3.isConnected());
+}
+
+/// @brief Verify ScopedConnection assignment to rebind active connections.
+/// @details Assigns a new Connection to an active ScopedConnection, ensuring the previous
+///          connection is automatically disconnected and the new one takes over.
+TEST(ConnectionTest, ConnectionRebind)
+{
+    bool firstDisconnected = false;
+    bool secondDisconnected = false;
+
+    {
+        PelcoD::ScopedConnection scoped(PelcoD::Connection([&]() { firstDisconnected = true; }));
+        EXPECT_TRUE(scoped.isConnected());
+        EXPECT_FALSE(firstDisconnected);
+
+        // Reassign new connection: previous must disconnect immediately
+        scoped = PelcoD::Connection([&]() { secondDisconnected = true; });
+        EXPECT_TRUE(firstDisconnected);
+        EXPECT_FALSE(secondDisconnected);
+        EXPECT_TRUE(scoped.isConnected());
+    }
+
+    // Leaving scope: second must now disconnect
+    EXPECT_TRUE(secondDisconnected);
 }
 
 } // namespace

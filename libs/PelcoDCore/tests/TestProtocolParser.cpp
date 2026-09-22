@@ -15,6 +15,9 @@
 
 namespace {
 
+/// @brief Verify parsing of 4-byte general response frames into address and alarm bitmask.
+/// @details Checks parseGeneral and updateStatus behavior when consuming 4-byte ACK/Alarm responses,
+///          verifying active alarm flags are accurately reflected in DeviceStatus.
 TEST(ProtocolParserTest, ParseGeneral)
 {
     // 4-byte general reply: 0xFF, Addr 1, Alarms 0x05, Checksum 0x06
@@ -36,6 +39,9 @@ TEST(ProtocolParserTest, ParseGeneral)
     EXPECT_TRUE(status.isAlarmActive(3));
 }
 
+/// @brief Verify decoding of 7-byte extended telemetry responses for pan, tilt, zoom, and devtype.
+/// @details Checks parsePan (0x59), parseTilt (0x5B), parseZoom (0x5D), and parseDevType (0x6D),
+///          along with DeviceStatus telemetry updates.
 TEST(ProtocolParserTest, ParseExtended)
 {
     // Pan response (Opcode 0x59): Pan = 123.45 deg = 12345 = 0x3039
@@ -73,6 +79,8 @@ TEST(ProtocolParserTest, ParseExtended)
     EXPECT_EQ(status.tiltCentidegrees, 4567U);
 }
 
+/// @brief Verify decoding of 18-byte extended query replies and device model identification.
+/// @details Checks parsing ASCII payloads, trimming trailing null characters, and updating DeviceInfo.
 TEST(ProtocolParserTest, ParseQuery)
 {
     // 18-byte query reply
@@ -101,6 +109,9 @@ TEST(ProtocolParserTest, ParseQuery)
     EXPECT_FALSE(PelcoD::ProtocolParser::updateStatus(badQFrame, status, info));
 }
 
+/// @brief Verify human-readable description strings generated for transmit and receive frames.
+/// @details Validates describeFrame on empty frames, 4-byte general replies, 18-byte query replies,
+///          standard PTZ motion frames, extended commands, and telemetry responses.
 TEST(ProtocolParserTest, DescribeFrame)
 {
     using PelcoD::PelcoDFrame;
@@ -170,6 +181,8 @@ TEST(ProtocolParserTest, DescribeFrame)
     EXPECT_EQ(ProtocolParser::describeFrame(false, diagFrame), "Diagnostics Response: Temp=35°C Sensor=0x01");
 }
 
+/// @brief Verify response categorization into General, StandardExtendedAckNak, ExtendedTelemetry, or QueryReply.
+/// @details Checks classifyResponse on all supported packet types and unknown/corrupted packets.
 TEST(ProtocolParserTest, ResponseClassification)
 {
     // General 4-byte response
@@ -178,7 +191,8 @@ TEST(ProtocolParserTest, ResponseClassification)
 
     // Standard Extended ACK/NAK (opcode 0x01)
     const auto ackFrame = PelcoD::PelcoDFrame::createFrame(0x01U, 0x00U, 0x01U, 0x51U, 0x01U);
-    EXPECT_EQ(PelcoD::ProtocolParser::classifyResponse(ackFrame), PelcoD::ResponseClassification::StandardExtendedAckNak);
+    EXPECT_EQ(
+        PelcoD::ProtocolParser::classifyResponse(ackFrame), PelcoD::ResponseClassification::StandardExtendedAckNak);
 
     // Extended Telemetry (0x59, 0x5B, 0x5D, 0x63, 0x6D, 0x71)
     const auto panFrame = PelcoD::PelcoDFrame::createFrame(0x01U, 0x00U, 0x59U, 0x10U, 0x20U);
@@ -213,6 +227,9 @@ TEST(ProtocolParserTest, ResponseClassification)
     EXPECT_EQ(PelcoD::ProtocolParser::classifyResponse(unknownOp), PelcoD::ResponseClassification::Unknown);
 }
 
+/// @brief Verify response correlation logic linking incoming response packets to outstanding query tags.
+/// @details Tests matching logic across QueryPan, QueryTilt, QueryZoom, QueryMagnification,
+///          QueryDeviceType, QueryDiagnostics, QueryGeneral, and generic fallbacks.
 TEST(ProtocolParserTest, QueryMatching)
 {
     const auto panFrame = PelcoD::PelcoDFrame::createFrame(0x01U, 0x00U, 0x59U, 0x10U, 0x20U);
@@ -255,6 +272,99 @@ TEST(ProtocolParserTest, QueryMatching)
     const auto nonTelemetry = PelcoD::PelcoDFrame::createFrame(0x01U, 0x00U, 0x03U, 0x00U, 0x01U);
     EXPECT_FALSE(PelcoD::ProtocolParser::isResponseMatchingQuery("GenericQuery", nonTelemetry));
     EXPECT_FALSE(PelcoD::ProtocolParser::isResponseMatchingQuery("QueryPan", {}));
+}
+
+/// @brief Verify parser rejection of corrupted frames and invalid structures.
+/// @details Ensures updateStatus, parsePan, parseTilt, parseZoom, and parseQuery safely fail
+///          when presented with bad checksums, mismatched opcodes, or corrupted sync bytes.
+TEST(ProtocolParserTest, ParseCorruptedFrames)
+{
+    // Valid 7-byte pan frame corrupted by checksum: updateStatus must reject it
+    auto corruptedPan = PelcoD::PelcoDFrame::createFrame(0x01U, 0x00U, 0x59U, 0x10U, 0x20U);
+    corruptedPan[6] ^= 0xAAU;
+
+    PelcoD::DeviceStatus status;
+    PelcoD::DeviceInfo info;
+    EXPECT_FALSE(PelcoD::ProtocolParser::updateStatus(corruptedPan, status, info));
+
+    // parsePan fails if sync byte is wrong
+    corruptedPan[0] = 0xAAU;
+    std::uint16_t panVal { 0U };
+    EXPECT_FALSE(PelcoD::ProtocolParser::parsePan(corruptedPan, panVal));
+
+    // parsePan fails if opcode is not QueryPan (e.g. Tilt response 0x5B)
+    const auto tiltFrame = PelcoD::PelcoDFrame::createFrame(0x01U, 0x00U, 0x5BU, 0x10U, 0x20U);
+    EXPECT_FALSE(PelcoD::ProtocolParser::parsePan(tiltFrame, panVal));
+
+    // Truncated pan frame fails parsePan
+    const std::vector<std::uint8_t> truncPan { corruptedPan.begin(), corruptedPan.begin() + 5 };
+    EXPECT_FALSE(PelcoD::ProtocolParser::parsePan(truncPan, panVal));
+
+    // Corrupted 4-byte general frame: updateStatus must reject it due to checksum
+    const std::vector<std::uint8_t> corrupted4 { 0xFFU, 0x01U, 0x05U, 0x99U };
+    EXPECT_FALSE(PelcoD::ProtocolParser::updateStatus(corrupted4, status, info));
+
+    // Non-sync byte header in query frame
+    std::vector<std::uint8_t> badSync18(18U, 0x00U);
+    badSync18[0] = 0xEEU;
+    std::string qPayload;
+    EXPECT_FALSE(PelcoD::ProtocolParser::parseQuery(badSync18, qPayload));
+}
+
+/// @brief Verify describeFrame outputs for motion directions and various camera commands.
+/// @details Validates descriptive text for Left, Right, Up, Down, Focus Far, Iris Open/Close,
+///          and unknown opcodes.
+TEST(ProtocolParserTest, DescribeFrameComprehensive)
+{
+    using PelcoD::PelcoDFrame;
+    using PelcoD::ProtocolParser;
+
+    // Pan Left
+    const auto panLeft = PelcoDFrame::createFrame(1U, 0x00U, 0x04U, 0x1EU, 0x00U);
+    EXPECT_EQ(ProtocolParser::describeFrame(true, panLeft), "PTZ: Left(spd 30)");
+
+    // Tilt Down
+    const auto tiltDown = PelcoDFrame::createFrame(1U, 0x00U, 0x10U, 0x00U, 0x14U);
+    EXPECT_EQ(ProtocolParser::describeFrame(true, tiltDown), "PTZ: Down(spd 20)");
+
+    // Focus Far (cmd2 bit 7 = 0x80) and Iris Open (cmd1 bit 3 = 0x08)
+    const auto focusIris = PelcoDFrame::createFrame(1U, 0x08U, 0x80U, 0x00U, 0x00U);
+    EXPECT_EQ(ProtocolParser::describeFrame(true, focusIris), "PTZ: FocusFar, IrisOpen");
+
+    // Iris Close (cmd1 bit 2 = 0x04)
+    const auto irisClose = PelcoDFrame::createFrame(1U, 0x04U, 0x00U, 0x00U, 0x00U);
+    EXPECT_EQ(ProtocolParser::describeFrame(true, irisClose), "PTZ: IrisClose");
+
+    // Extended command with unrecognized odd opcode (e.g. 0xEF)
+    const auto unknownExtCmd = PelcoDFrame::createFrame(1U, 0x00U, 0xEFU, 0x00U, 0x00U);
+    EXPECT_EQ(ProtocolParser::describeFrame(true, unknownExtCmd), "Extended Command (Cmd2=0xEF)");
+}
+
+/// @brief Verify comprehensive state and device info updates across status fields.
+/// @details Validates updating magnification, diagnostic telemetry, and alarms in DeviceStatus.
+TEST(ProtocolParserTest, UpdateStatusComprehensive)
+{
+    PelcoD::DeviceStatus status;
+    PelcoD::DeviceInfo info;
+
+    // Magnification update (0x63)
+    const auto magFrame = PelcoD::PelcoDFrame::createFrame(0x01U, 0x00U, 0x63U, 0x00U, 0x20U);
+    ASSERT_TRUE(PelcoD::ProtocolParser::updateStatus(magFrame, status, info));
+    EXPECT_EQ(status.magnification, 0x0020U);
+
+    // Diagnostics update (0x71): temp 45°C, sensor 2
+    const auto diagFrame = PelcoD::PelcoDFrame::createFrame(0x01U, 0x00U, 0x71U, 45U, 2U);
+    ASSERT_TRUE(PelcoD::ProtocolParser::updateStatus(diagFrame, status, info));
+    EXPECT_EQ(status.diagnosticTemp, 45U);
+    EXPECT_EQ(status.diagnosticSensorId, 2U);
+
+    // Alarms 1 through 8 in general response
+    const std::vector<std::uint8_t> allAlarms { 0xFFU, 0x01U, 0xFFU, 0x00U }; // csum (1 + 255) % 256 = 0
+    ASSERT_TRUE(PelcoD::ProtocolParser::updateStatus(allAlarms, status, info));
+    EXPECT_EQ(status.alarms, 0xFFU);
+    for (std::uint8_t i = 1U; i <= 8U; ++i) {
+        EXPECT_TRUE(status.isAlarmActive(i));
+    }
 }
 
 } // namespace
