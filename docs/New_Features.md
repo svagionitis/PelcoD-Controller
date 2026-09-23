@@ -152,6 +152,16 @@ Techniques from digital signal processing (DSP), system identification, and cont
   * Oriented Gaussian-windowed spatial-frequency bandpass filters for multi-angle sharpness assessment, directional motion blur estimation, texture analysis, and vehicle/pedestrian appearance modeling. Implemented in `Gabor.h` and `GaborFilter`, tested in `TestGabor.cpp`.
 * **Planar Homography & Perspective Rectification**:
   * $3 \times 3$ projective matrix transformations for ground-plane projection, Birds-Eye-View (BEV) mapping, and ONVIF GeoMove coordinate conversions.
+* **Direct Encoder Latency & SEI Metadata Extractor (`SeiTimecodeExtractor`)**:
+  * Extracts H.264/HEVC SEI (Supplemental Enhancement Information) NALUs (such as `user_data_unregistered`, SMPTE 12M-2, or ONVIF UTC timecodes) directly during decoding to compute true camera-to-display latency ($\Delta t = T_{\text{local}} - T_{\text{capture}}$) without external sensors.
+* **Stream Health & Freeze / Signal-Loss Monitor (`StreamHealthMonitor`)**:
+  * Automatically detects frozen frames (via consecutive perceptual hashing or MSE differentials), physical lens blackouts, and frame delivery jitter, triggering proactive auto-reconnect or failsafe PTZ homing before complete socket timeouts.
+* **Pre-Event Rolling Incident Buffer & Video Recorder (`VideoRecorder`)**:
+  * Maintains an in-memory ring buffer (e.g. 5–15 seconds) of decoded frames or raw NALUs, enabling automated post-incident and pre-alarm clip export to MP4/MKV when perimeter tripwires or target trackers trigger.
+* **Hardware Latency Optical Test Pattern Generator (`MockVideoDecoder`)**:
+  * Extends synthetic test generation with high-contrast digital millisecond stopwatches, binary optical barcodes, and sweeping sinusoidal bars synchronized with PTZ motor commands for bench-testing glass-to-glass latency estimators without physical hardware.
+* **Multi-Resolution Sub-Stream Scaler & ROI Cropper (`FrameScaler`)**:
+  * Provides high-performance SIMD/OpenCV downsampling and bounding-box ROI cropping (e.g. 640×360 or 128×128 target patches) to feed optical flow and Gabor feature analyzers with minimal CPU/GPU overhead while maintaining full 1080p/4K resolution for operator display.
 
 #### D. Control System Identification
 * **Automated Chirp / Swept-Sine Plant Identification (Empirical Bode Plot) (Completed)**:
