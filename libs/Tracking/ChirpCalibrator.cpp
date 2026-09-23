@@ -21,7 +21,7 @@ ChirpCalibrator::~ChirpCalibrator()
 
 void ChirpCalibrator::setCommandCallback(CommandCallback cmdCb)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     m_cmdCb = std::move(cmdCb);
 }
 
@@ -32,7 +32,7 @@ double ChirpCalibrator::getMonotonicNowSeconds() noexcept
 
 bool ChirpCalibrator::start(CalibrationAxis axis, int maxSpeed, double nowSec)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
 
     if (m_state != ChirpCalibratorState::Idle && m_state != ChirpCalibratorState::Completed
         && m_state != ChirpCalibratorState::Failed) {
@@ -56,7 +56,7 @@ bool ChirpCalibrator::start(CalibrationAxis axis, int maxSpeed, double nowSec)
 
 void ChirpCalibrator::cancel()
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     if (m_state != ChirpCalibratorState::Idle && m_state != ChirpCalibratorState::Completed
         && m_state != ChirpCalibratorState::Failed) {
         dispatchStopLocked();
@@ -82,7 +82,7 @@ void ChirpCalibrator::dispatchCommandLocked(int panDir, int panSpeed, int tiltDi
 
 void ChirpCalibrator::update(double nowSec)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
 
     if (m_state == ChirpCalibratorState::Idle || m_state == ChirpCalibratorState::Completed
         || m_state == ChirpCalibratorState::Failed) {
@@ -152,7 +152,7 @@ void ChirpCalibrator::update(double nowSec)
 
 void ChirpCalibrator::ingestVisualMotion(double /*nowSec*/, double visualVelocityX, double visualVelocityY)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
 
     if (m_state != ChirpCalibratorState::Sweeping && m_state != ChirpCalibratorState::PostSettle) {
         return;
@@ -164,32 +164,32 @@ void ChirpCalibrator::ingestVisualMotion(double /*nowSec*/, double visualVelocit
 
 bool ChirpCalibrator::isRunning() const noexcept
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     return (m_state == ChirpCalibratorState::PreSettle || m_state == ChirpCalibratorState::Sweeping
         || m_state == ChirpCalibratorState::PostSettle || m_state == ChirpCalibratorState::Analyzing);
 }
 
 ChirpCalibratorState ChirpCalibrator::getState() const noexcept
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     return m_state;
 }
 
 double ChirpCalibrator::getProgress() const noexcept
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     return m_progress;
 }
 
 CalibrationAxis ChirpCalibrator::getAxis() const noexcept
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     return m_axis;
 }
 
 PlantIdentificationResult ChirpCalibrator::getResult() const
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     return m_result;
 }
 

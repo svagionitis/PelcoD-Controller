@@ -438,9 +438,9 @@ void OnvifServer::stop()
     m_running = false;
 
     {
-        std::lock_guard<std::mutex> lock(m_subMutex);
+        std::scoped_lock lock(m_subMutex);
         for (auto& [id, sub] : m_subscriptions) {
-            std::lock_guard<std::mutex> subLock(sub->mutex);
+            std::scoped_lock subLock(sub->mutex);
             sub->cv.notify_all();
         }
     }
@@ -530,7 +530,7 @@ void OnvifServer::setThermalHandler(std::shared_ptr<IThermalHandler> handler)
 
 void OnvifServer::logSystemMessage(const std::string& level, const std::string& msg)
 {
-    std::lock_guard<std::mutex> lock(m_logMutex);
+    std::scoped_lock lock(m_logMutex);
     const std::string timestamp = formatIso8601Utc(std::chrono::system_clock::now());
     std::ostringstream ss;
     ss << "[" << timestamp << "] [" << level << "] " << msg;
@@ -549,9 +549,9 @@ void OnvifServer::publishEvent(const OnvifEvent& event)
 
     std::vector<std::string> pushUrls;
     {
-        std::lock_guard<std::mutex> lock(m_subMutex);
+        std::scoped_lock lock(m_subMutex);
         for (auto& [id, sub] : m_subscriptions) {
-            std::lock_guard<std::mutex> subLock(sub->mutex);
+            std::scoped_lock subLock(sub->mutex);
             sub->queue.push_back(ev);
             sub->cv.notify_one();
         }
@@ -685,7 +685,7 @@ std::optional<OnvifServer::SoapRequest> OnvifServer::parseSoapRequest(
 void OnvifServer::appendAccessLog(
     std::string_view serviceName, const std::string& opName, const std::string& remoteAddr)
 {
-    std::lock_guard<std::mutex> lock(m_logMutex);
+    std::scoped_lock lock(m_logMutex);
     const std::string timestamp = formatIso8601Utc(std::chrono::system_clock::now());
     std::ostringstream entry;
     entry << "[" << timestamp << "] [" << remoteAddr << "] " << serviceName << "Service: " << opName;
@@ -725,7 +725,7 @@ void OnvifServer::handleDeviceService(const httplib::Request& req, httplib::Resp
 #else
         gmtime_r(&nowTime, &utcTm);
 #endif
-        std::lock_guard<std::mutex> lock(m_deviceMutex);
+        std::scoped_lock lock(m_deviceMutex);
         const std::string dtType = m_internalDateTime.dateTimeType.empty() ? "Manual" : m_internalDateTime.dateTimeType;
         const std::string tzStr = m_internalDateTime.timeZone.empty() ? "UTC" : m_internalDateTime.timeZone;
         const bool dst = m_internalDateTime.daylightSavings;
@@ -794,7 +794,7 @@ void OnvifServer::handleDeviceService(const httplib::Request& req, httplib::Resp
             m_deviceHandler->handleSetSystemDateAndTime(dt);
         }
         {
-            std::lock_guard<std::mutex> lock(m_deviceMutex);
+            std::scoped_lock lock(m_deviceMutex);
             m_internalDateTime = dt;
         }
         body << "    <tds:SetSystemDateAndTimeResponse/>\r\n";
@@ -809,7 +809,7 @@ void OnvifServer::handleDeviceService(const httplib::Request& req, httplib::Resp
     } else if (isOp(opName, "GetCapabilities")) {
         size_t numRelays = 0;
         {
-            std::lock_guard<std::mutex> lock(m_deviceIoMutex);
+            std::scoped_lock lock(m_deviceIoMutex);
             numRelays = m_internalRelayOutputs.size();
         }
 
@@ -967,7 +967,7 @@ void OnvifServer::handleDeviceService(const httplib::Request& req, httplib::Resp
         if (m_deviceHandler) {
             users = m_deviceHandler->handleGetUsers();
         } else {
-            std::lock_guard<std::mutex> lock(m_deviceMutex);
+            std::scoped_lock lock(m_deviceMutex);
             users = m_internalUsers;
         }
         body << "    <tds:GetUsersResponse>\r\n";
@@ -991,7 +991,7 @@ void OnvifServer::handleDeviceService(const httplib::Request& req, httplib::Resp
             m_deviceHandler->handleCreateUsers(newUsers);
         }
         {
-            std::lock_guard<std::mutex> lock(m_deviceMutex);
+            std::scoped_lock lock(m_deviceMutex);
             for (const auto& nu : newUsers) {
                 auto it = std::find_if(m_internalUsers.begin(), m_internalUsers.end(),
                     [&](const OnvifUser& existing) { return existing.username == nu.username; });
@@ -1011,7 +1011,7 @@ void OnvifServer::handleDeviceService(const httplib::Request& req, httplib::Resp
                 if (m_deviceHandler) {
                     m_deviceHandler->handleSetUser(u);
                 }
-                std::lock_guard<std::mutex> lock(m_deviceMutex);
+                std::scoped_lock lock(m_deviceMutex);
                 auto it = std::find_if(m_internalUsers.begin(), m_internalUsers.end(),
                     [&](const OnvifUser& existing) { return existing.username == u.username; });
                 if (it != m_internalUsers.end()) {
@@ -1032,7 +1032,7 @@ void OnvifServer::handleDeviceService(const httplib::Request& req, httplib::Resp
             m_deviceHandler->handleDeleteUsers(names);
         }
         {
-            std::lock_guard<std::mutex> lock(m_deviceMutex);
+            std::scoped_lock lock(m_deviceMutex);
             for (const auto& name : names) {
                 m_internalUsers.erase(std::remove_if(m_internalUsers.begin(), m_internalUsers.end(),
                                           [&](const OnvifUser& u) { return u.username == name; }),
@@ -1045,7 +1045,7 @@ void OnvifServer::handleDeviceService(const httplib::Request& req, httplib::Resp
         if (m_deviceHandler) {
             ifaces = m_deviceHandler->handleGetNetworkInterfaces();
         } else {
-            std::lock_guard<std::mutex> lock(m_deviceMutex);
+            std::scoped_lock lock(m_deviceMutex);
             ifaces = m_internalNetworkInterfaces;
         }
         body << "    <tds:GetNetworkInterfacesResponse>\r\n";
@@ -1105,7 +1105,7 @@ void OnvifServer::handleDeviceService(const httplib::Request& req, httplib::Resp
             m_deviceHandler->handleSetNetworkInterfaces(iface);
         }
         {
-            std::lock_guard<std::mutex> lock(m_deviceMutex);
+            std::scoped_lock lock(m_deviceMutex);
             auto it = std::find_if(m_internalNetworkInterfaces.begin(), m_internalNetworkInterfaces.end(),
                 [&](const NetworkInterfaceConfig& c) { return c.token == iface.token; });
             if (it != m_internalNetworkInterfaces.end()) {
@@ -1122,7 +1122,7 @@ void OnvifServer::handleDeviceService(const httplib::Request& req, httplib::Resp
         if (m_deviceHandler) {
             gw = m_deviceHandler->handleGetNetworkDefaultGateway();
         } else {
-            std::lock_guard<std::mutex> lock(m_deviceMutex);
+            std::scoped_lock lock(m_deviceMutex);
             gw = m_internalGateway;
         }
         body << "    <tds:GetNetworkDefaultGatewayResponse>\r\n"
@@ -1137,7 +1137,7 @@ void OnvifServer::handleDeviceService(const httplib::Request& req, httplib::Resp
             m_deviceHandler->handleSetNetworkDefaultGateway(gw);
         }
         {
-            std::lock_guard<std::mutex> lock(m_deviceMutex);
+            std::scoped_lock lock(m_deviceMutex);
             m_internalGateway = gw;
         }
         body << "    <tds:SetNetworkDefaultGatewayResponse/>\r\n";
@@ -1146,7 +1146,7 @@ void OnvifServer::handleDeviceService(const httplib::Request& req, httplib::Resp
         if (m_deviceHandler) {
             dns = m_deviceHandler->handleGetDNS();
         } else {
-            std::lock_guard<std::mutex> lock(m_deviceMutex);
+            std::scoped_lock lock(m_deviceMutex);
             dns = m_internalDns;
         }
         body << "    <tds:GetDNSResponse>\r\n"
@@ -1181,7 +1181,7 @@ void OnvifServer::handleDeviceService(const httplib::Request& req, httplib::Resp
             m_deviceHandler->handleSetDNS(dns);
         }
         {
-            std::lock_guard<std::mutex> lock(m_deviceMutex);
+            std::scoped_lock lock(m_deviceMutex);
             m_internalDns = dns;
         }
         body << "    <tds:SetDNSResponse/>\r\n";
@@ -1190,7 +1190,7 @@ void OnvifServer::handleDeviceService(const httplib::Request& req, httplib::Resp
         if (m_deviceHandler) {
             ntp = m_deviceHandler->handleGetNTP();
         } else {
-            std::lock_guard<std::mutex> lock(m_deviceMutex);
+            std::scoped_lock lock(m_deviceMutex);
             ntp = m_internalNtp;
         }
         body << "    <tds:GetNTPResponse>\r\n"
@@ -1222,7 +1222,7 @@ void OnvifServer::handleDeviceService(const httplib::Request& req, httplib::Resp
             m_deviceHandler->handleSetNTP(ntp);
         }
         {
-            std::lock_guard<std::mutex> lock(m_deviceMutex);
+            std::scoped_lock lock(m_deviceMutex);
             m_internalNtp = ntp;
         }
         body << "    <tds:SetNTPResponse/>\r\n";
@@ -1231,7 +1231,7 @@ void OnvifServer::handleDeviceService(const httplib::Request& req, httplib::Resp
         if (m_deviceHandler) {
             hn = m_deviceHandler->handleGetHostname();
         } else {
-            std::lock_guard<std::mutex> lock(m_deviceMutex);
+            std::scoped_lock lock(m_deviceMutex);
             hn = m_internalHostname;
         }
         body << "    <tds:GetHostnameResponse>\r\n"
@@ -1247,7 +1247,7 @@ void OnvifServer::handleDeviceService(const httplib::Request& req, httplib::Resp
             m_deviceHandler->handleSetHostname(hn);
         }
         {
-            std::lock_guard<std::mutex> lock(m_deviceMutex);
+            std::scoped_lock lock(m_deviceMutex);
             m_internalHostname = hn;
         }
         body << "    <tds:SetHostnameResponse/>\r\n";
@@ -1259,7 +1259,7 @@ void OnvifServer::handleDeviceService(const httplib::Request& req, httplib::Resp
             m_deviceHandler->handleSetSystemFactoryDefault(type);
         }
         {
-            std::lock_guard<std::mutex> lock(m_deviceMutex);
+            std::scoped_lock lock(m_deviceMutex);
             m_internalUsers = m_config.defaultUsers;
             m_internalNetworkInterfaces = m_config.defaultNetworkInterfaces;
             m_internalGateway = m_config.defaultGateway;
@@ -1285,7 +1285,7 @@ void OnvifServer::handleDeviceService(const httplib::Request& req, httplib::Resp
             logData = m_deviceHandler->handleGetSystemLog(logType);
         }
         {
-            std::lock_guard<std::mutex> lock(m_logMutex);
+            std::scoped_lock lock(m_logMutex);
             const auto& logs = (logType == SystemLogType::Access) ? m_accessLogs : m_systemLogs;
             std::ostringstream ss;
             if (!logData.empty()) {
@@ -1379,7 +1379,7 @@ void OnvifServer::handleDeviceService(const httplib::Request& req, httplib::Resp
             certs = m_deviceHandler->handleGetCertificates();
         }
         if (certs.empty()) {
-            std::lock_guard<std::mutex> lock(m_certMutex);
+            std::scoped_lock lock(m_certMutex);
             certs = m_internalCertificates;
         }
         body << "    <tds:GetCertificatesResponse>\r\n";
@@ -1405,7 +1405,7 @@ void OnvifServer::handleDeviceService(const httplib::Request& req, httplib::Resp
             }
         }
         if (!found) {
-            std::lock_guard<std::mutex> lock(m_certMutex);
+            std::scoped_lock lock(m_certMutex);
             for (const auto& c : m_internalCertificates) {
                 if (c.certificateId == certId) {
                     if (!c.info.certificateId.empty()) {
@@ -1449,7 +1449,7 @@ void OnvifServer::handleDeviceService(const httplib::Request& req, httplib::Resp
             newCert = OnvifSecurity::generateSelfSignedCertificate(certId, subj, 365);
         }
         {
-            std::lock_guard<std::mutex> lock(m_certMutex);
+            std::scoped_lock lock(m_certMutex);
             auto it = std::find_if(m_internalCertificates.begin(), m_internalCertificates.end(),
                 [&certId](const OnvifCertificate& c) { return c.certificateId == certId; });
             if (it != m_internalCertificates.end()) {
@@ -1502,7 +1502,7 @@ void OnvifServer::handleDeviceService(const httplib::Request& req, httplib::Resp
             m_deviceHandler->handleLoadCertificates(certsToLoad);
         }
         {
-            std::lock_guard<std::mutex> lock(m_certMutex);
+            std::scoped_lock lock(m_certMutex);
             for (const auto& c : certsToLoad) {
                 auto it = std::find_if(m_internalCertificates.begin(), m_internalCertificates.end(),
                     [&c](const OnvifCertificate& item) { return item.certificateId == c.certificateId; });
@@ -1527,7 +1527,7 @@ void OnvifServer::handleDeviceService(const httplib::Request& req, httplib::Resp
             }
         }
         {
-            std::lock_guard<std::mutex> lock(m_certMutex);
+            std::scoped_lock lock(m_certMutex);
             for (const auto& id : ids) {
                 m_internalCertificates.erase(
                     std::remove_if(m_internalCertificates.begin(), m_internalCertificates.end(),
@@ -1554,7 +1554,7 @@ void OnvifServer::handleDeviceService(const httplib::Request& req, httplib::Resp
             m_deviceHandler->handleSetClientCertificateMode(mode);
         }
         {
-            std::lock_guard<std::mutex> lock(m_certMutex);
+            std::scoped_lock lock(m_certMutex);
             m_internalClientCertMode = mode;
         }
         logSystemMessage("INFO", "Set ClientCertificateMode to " + modeStr);
@@ -1860,7 +1860,7 @@ void OnvifServer::processOsdRequest(
             osds = m_osdHandler->handleGetOSDs(vsToken);
         }
         if (osds.empty()) {
-            std::lock_guard<std::mutex> lock(m_osdMutex);
+            std::scoped_lock lock(m_osdMutex);
             for (const auto& [tok, osd] : m_internalOsds) {
                 if (vsToken.empty() || osd.videoSourceToken == vsToken) {
                     osds.push_back(osd);
@@ -1882,7 +1882,7 @@ void OnvifServer::processOsdRequest(
             found = m_osdHandler->handleGetOSD(token);
         }
         if (!found) {
-            std::lock_guard<std::mutex> lock(m_osdMutex);
+            std::scoped_lock lock(m_osdMutex);
             const auto it = m_internalOsds.find(token);
             if (it != m_internalOsds.end()) {
                 found = it->second;
@@ -1903,7 +1903,7 @@ void OnvifServer::processOsdRequest(
             assignedToken = m_osdHandler->handleCreateOSD(osd);
         }
         if (assignedToken.empty()) {
-            std::lock_guard<std::mutex> lock(m_osdMutex);
+            std::scoped_lock lock(m_osdMutex);
             if (osd.token.empty()) {
                 osd.token = "OSD_" + std::to_string(m_nextOsdId++);
             }
@@ -1923,7 +1923,7 @@ void OnvifServer::processOsdRequest(
             ok = m_osdHandler->handleSetOSD(osd);
         }
         if (!ok) {
-            std::lock_guard<std::mutex> lock(m_osdMutex);
+            std::scoped_lock lock(m_osdMutex);
             if (!osd.token.empty()) {
                 m_internalOsds[osd.token] = osd;
             }
@@ -1939,7 +1939,7 @@ void OnvifServer::processOsdRequest(
             ok = m_osdHandler->handleDeleteOSD(token);
         }
         if (!ok) {
-            std::lock_guard<std::mutex> lock(m_osdMutex);
+            std::scoped_lock lock(m_osdMutex);
             m_internalOsds.erase(token);
         }
 
@@ -1973,7 +1973,7 @@ void OnvifServer::processMetadataRequest(
         if (m_metadataHandler) {
             configs = m_metadataHandler->handleGetMetadataConfigurations();
         } else {
-            std::lock_guard<std::mutex> lock(m_metadataMutex);
+            std::scoped_lock lock(m_metadataMutex);
             configs = m_internalMetadataConfigs;
         }
 
@@ -1997,7 +1997,7 @@ void OnvifServer::processMetadataRequest(
             }
         }
         if (!hasFound) {
-            std::lock_guard<std::mutex> lock(m_metadataMutex);
+            std::scoped_lock lock(m_metadataMutex);
             const auto it = std::find_if(m_internalMetadataConfigs.begin(), m_internalMetadataConfigs.end(),
                 [&](const auto& c) { return c.token == token; });
             if (it != m_internalMetadataConfigs.end()) {
@@ -2052,7 +2052,7 @@ void OnvifServer::processMetadataRequest(
             ok = m_metadataHandler->handleSetMetadataConfiguration(cfg);
         }
         if (!ok) {
-            std::lock_guard<std::mutex> lock(m_metadataMutex);
+            std::scoped_lock lock(m_metadataMutex);
             const auto it = std::find_if(m_internalMetadataConfigs.begin(), m_internalMetadataConfigs.end(),
                 [&](const auto& c) { return c.token == cfg.token; });
             if (it != m_internalMetadataConfigs.end()) {
@@ -2122,7 +2122,7 @@ void OnvifServer::processMaskRequest(
         if (m_maskHandler) {
             opts = m_maskHandler->handleGetMaskOptions(cfgToken);
         } else {
-            std::lock_guard<std::mutex> lock(m_maskMutex);
+            std::scoped_lock lock(m_maskMutex);
             opts = m_internalMaskOptions;
         }
 
@@ -2154,7 +2154,7 @@ void OnvifServer::processMaskRequest(
         if (m_maskHandler) {
             masks = m_maskHandler->handleGetMasks(cfgToken);
         } else {
-            std::lock_guard<std::mutex> lock(m_maskMutex);
+            std::scoped_lock lock(m_maskMutex);
             if (cfgToken.empty()) {
                 masks = m_internalMasks;
             } else {
@@ -2180,7 +2180,7 @@ void OnvifServer::processMaskRequest(
         if (m_maskHandler) {
             opt = m_maskHandler->handleGetMask(token);
         } else {
-            std::lock_guard<std::mutex> lock(m_maskMutex);
+            std::scoped_lock lock(m_maskMutex);
             const auto it = std::find_if(m_internalMasks.begin(), m_internalMasks.end(),
                 [&token](const PrivacyMask& m) { return m.token == token; });
             if (it != m_internalMasks.end()) {
@@ -2200,7 +2200,7 @@ void OnvifServer::processMaskRequest(
 
         std::string assignedToken = mask.token;
         if (assignedToken.empty()) {
-            std::lock_guard<std::mutex> lock(m_maskMutex);
+            std::scoped_lock lock(m_maskMutex);
             assignedToken = "Mask_" + std::to_string(m_nextMaskId++);
             mask.token = assignedToken;
         }
@@ -2211,7 +2211,7 @@ void OnvifServer::processMaskRequest(
                 assignedToken = mask.token;
             }
         } else {
-            std::lock_guard<std::mutex> lock(m_maskMutex);
+            std::scoped_lock lock(m_maskMutex);
             m_internalMasks.push_back(mask);
         }
 
@@ -2228,7 +2228,7 @@ void OnvifServer::processMaskRequest(
             ok = m_maskHandler->handleSetMask(mask);
         }
         if (!ok) {
-            std::lock_guard<std::mutex> lock(m_maskMutex);
+            std::scoped_lock lock(m_maskMutex);
             const auto it = std::find_if(m_internalMasks.begin(), m_internalMasks.end(),
                 [&mask](const PrivacyMask& m) { return m.token == mask.token; });
             if (it != m_internalMasks.end()) {
@@ -2249,7 +2249,7 @@ void OnvifServer::processMaskRequest(
             ok = m_maskHandler->handleDeleteMask(token);
         }
         if (!ok) {
-            std::lock_guard<std::mutex> lock(m_maskMutex);
+            std::scoped_lock lock(m_maskMutex);
             m_internalMasks.erase(std::remove_if(m_internalMasks.begin(), m_internalMasks.end(),
                                       [&token](const PrivacyMask& m) { return m.token == token; }),
                 m_internalMasks.end());
@@ -2270,7 +2270,7 @@ void OnvifServer::processVideoSourceModeRequest(
         if (m_videoSourceModeHandler) {
             modes = m_videoSourceModeHandler->handleGetVideoSourceModes(vsToken);
         } else {
-            std::lock_guard<std::mutex> lock(m_videoSourceModeMutex);
+            std::scoped_lock lock(m_videoSourceModeMutex);
             modes = m_internalVideoSourceModes;
         }
 
@@ -2311,7 +2311,7 @@ void OnvifServer::processVideoSourceModeRequest(
         if (m_videoSourceModeHandler) {
             static_cast<void>(m_videoSourceModeHandler->handleSetVideoSourceMode(vsToken, modeToken, rebootRequired));
         } else {
-            std::lock_guard<std::mutex> lock(m_videoSourceModeMutex);
+            std::scoped_lock lock(m_videoSourceModeMutex);
             for (auto& m : m_internalVideoSourceModes) {
                 if (m.token == modeToken) {
                     m.enabled = true;
@@ -3094,7 +3094,7 @@ void OnvifServer::handleImagingService(const httplib::Request& req, httplib::Res
         if (m_imagingHandler) {
             status = m_imagingHandler->handleGetFocusStatus(videoSourceToken);
         } else {
-            std::lock_guard<std::mutex> lock(m_imagingMutex);
+            std::scoped_lock lock(m_imagingMutex);
             status = m_internalFocusStatus;
         }
 
@@ -3137,7 +3137,7 @@ void OnvifServer::handleImagingService(const httplib::Request& req, httplib::Res
         if (m_imagingHandler) {
             m_imagingHandler->handleMoveFocusAdvanced(videoSourceToken, move);
         } else {
-            std::lock_guard<std::mutex> lock(m_imagingMutex);
+            std::scoped_lock lock(m_imagingMutex);
             m_internalFocusStatus.moveStatus = "MOVING";
             if (move.mode == FocusMoveMode::Absolute) {
                 m_internalFocusStatus.position = std::clamp(move.absolutePosition, 0.0f, 1.0f);
@@ -3152,7 +3152,7 @@ void OnvifServer::handleImagingService(const httplib::Request& req, httplib::Res
         if (m_imagingHandler) {
             m_imagingHandler->handleStopFocus(videoSourceToken);
         } else {
-            std::lock_guard<std::mutex> lock(m_imagingMutex);
+            std::scoped_lock lock(m_imagingMutex);
             m_internalFocusStatus.moveStatus = "IDLE";
         }
 
@@ -3198,7 +3198,7 @@ void OnvifServer::handleImagingService(const httplib::Request& req, httplib::Res
         if (m_imagingHandler) {
             presets = m_imagingHandler->handleGetImagingPresets(videoSourceToken);
         } else {
-            std::lock_guard<std::mutex> lock(m_imagingMutex);
+            std::scoped_lock lock(m_imagingMutex);
             presets = m_internalImagingPresets;
         }
 
@@ -3212,7 +3212,7 @@ void OnvifServer::handleImagingService(const httplib::Request& req, httplib::Res
     } else if (isOp(opName, "GetCurrentPreset")) {
         std::string currentToken;
         {
-            std::lock_guard<std::mutex> lock(m_imagingMutex);
+            std::scoped_lock lock(m_imagingMutex);
             currentToken = m_currentImagingPresetToken;
         }
         body << "    <timg:GetCurrentPresetResponse>\r\n"
@@ -3227,7 +3227,7 @@ void OnvifServer::handleImagingService(const httplib::Request& req, httplib::Res
             m_imagingHandler->handleSetCurrentImagingPreset(videoSourceToken, token);
         }
         {
-            std::lock_guard<std::mutex> lock(m_imagingMutex);
+            std::scoped_lock lock(m_imagingMutex);
             m_currentImagingPresetToken = token;
         }
         body << "    <timg:SetCurrentPresetResponse/>\r\n";
@@ -3254,7 +3254,7 @@ void OnvifServer::handleDeviceIoService(const httplib::Request& req, httplib::Re
         if (m_deviceIoHandler) {
             relays = m_deviceIoHandler->handleGetRelayOutputs();
         } else {
-            std::lock_guard<std::mutex> lock(m_deviceIoMutex);
+            std::scoped_lock lock(m_deviceIoMutex);
             relays = m_internalRelayOutputs;
         }
 
@@ -3311,7 +3311,7 @@ void OnvifServer::handleDeviceIoService(const httplib::Request& req, httplib::Re
             m_deviceIoHandler->handleSetRelayOutputSettings(token, updated);
         }
         {
-            std::lock_guard<std::mutex> lock(m_deviceIoMutex);
+            std::scoped_lock lock(m_deviceIoMutex);
             for (auto& r : m_internalRelayOutputs) {
                 if (r.token == token) {
                     r.mode = updated.mode;
@@ -3335,7 +3335,7 @@ void OnvifServer::handleDeviceIoService(const httplib::Request& req, httplib::Re
             m_deviceIoHandler->handleSetRelayOutputState(token, state);
         }
         {
-            std::lock_guard<std::mutex> lock(m_deviceIoMutex);
+            std::scoped_lock lock(m_deviceIoMutex);
             for (auto& r : m_internalRelayOutputs) {
                 if (r.token == token) {
                     r.logicalState = state;
@@ -3350,7 +3350,7 @@ void OnvifServer::handleDeviceIoService(const httplib::Request& req, httplib::Re
         if (m_deviceIoHandler) {
             inputs = m_deviceIoHandler->handleGetDigitalInputs();
         } else {
-            std::lock_guard<std::mutex> lock(m_deviceIoMutex);
+            std::scoped_lock lock(m_deviceIoMutex);
             inputs = m_internalDigitalInputs;
         }
 
@@ -3409,7 +3409,7 @@ void OnvifServer::handleEventService(const httplib::Request& req, httplib::Respo
         std::string subId;
         std::shared_ptr<PullPointSubscription> sub;
         {
-            std::lock_guard<std::mutex> lock(m_subMutex);
+            std::scoped_lock lock(m_subMutex);
             subId = std::to_string(m_nextSubId++);
             sub = std::make_shared<PullPointSubscription>();
             sub->id = subId;
@@ -3436,7 +3436,7 @@ void OnvifServer::handleEventService(const httplib::Request& req, httplib::Respo
 
         std::string subId;
         {
-            std::lock_guard<std::mutex> lock(m_subMutex);
+            std::scoped_lock lock(m_subMutex);
             subId = std::to_string(m_nextSubId++);
             PushSubscription pushSub;
             pushSub.id = subId;
@@ -3500,7 +3500,7 @@ void OnvifServer::handleSubscriptionService(const httplib::Request& req, httplib
 
     std::shared_ptr<PullPointSubscription> sub;
     {
-        std::lock_guard<std::mutex> lock(m_subMutex);
+        std::scoped_lock lock(m_subMutex);
         if (!subId.empty()) {
             const auto it = m_subscriptions.find(subId);
             if (it != m_subscriptions.end()) {
@@ -3514,7 +3514,7 @@ void OnvifServer::handleSubscriptionService(const httplib::Request& req, httplib
 
     if (!sub) {
         // Auto-create implicit subscription if none exists
-        std::lock_guard<std::mutex> lock(m_subMutex);
+        std::scoped_lock lock(m_subMutex);
         subId = std::to_string(m_nextSubId++);
         sub = std::make_shared<PullPointSubscription>();
         sub->id = subId;
@@ -3581,7 +3581,7 @@ void OnvifServer::handleSubscriptionService(const httplib::Request& req, httplib
         body << "    </tev:PullMessagesResponse>\r\n";
     } else if (opName.find("Unsubscribe") != std::string::npos) {
         {
-            std::lock_guard<std::mutex> lock(m_subMutex);
+            std::scoped_lock lock(m_subMutex);
             if (!subId.empty()) {
                 m_subscriptions.erase(subId);
                 m_pushSubscriptions.erase(subId);
@@ -3722,7 +3722,7 @@ void OnvifServer::handleAnalyticsService(const httplib::Request& req, httplib::R
         if (m_analyticsHandler) {
             rules = m_analyticsHandler->handleGetRules(configToken);
         } else {
-            std::lock_guard<std::mutex> lock(m_analyticsMutex);
+            std::scoped_lock lock(m_analyticsMutex);
             rules = m_internalRules;
         }
         body << "    <tan:GetRulesResponse>\r\n";
@@ -3737,7 +3737,7 @@ void OnvifServer::handleAnalyticsService(const httplib::Request& req, httplib::R
         if (m_analyticsHandler) {
             m_analyticsHandler->handleCreateRules(configToken, newRules);
         } else {
-            std::lock_guard<std::mutex> lock(m_analyticsMutex);
+            std::scoped_lock lock(m_analyticsMutex);
             for (auto& r : newRules) {
                 m_internalRules.push_back(r);
             }
@@ -3750,7 +3750,7 @@ void OnvifServer::handleAnalyticsService(const httplib::Request& req, httplib::R
         if (m_analyticsHandler) {
             m_analyticsHandler->handleModifyRules(configToken, modRules);
         } else {
-            std::lock_guard<std::mutex> lock(m_analyticsMutex);
+            std::scoped_lock lock(m_analyticsMutex);
             for (const auto& mr : modRules) {
                 for (auto& ir : m_internalRules) {
                     if (ir.name == mr.name) {
@@ -3771,7 +3771,7 @@ void OnvifServer::handleAnalyticsService(const httplib::Request& req, httplib::R
         if (m_analyticsHandler) {
             m_analyticsHandler->handleDeleteRules(configToken, delNames);
         } else {
-            std::lock_guard<std::mutex> lock(m_analyticsMutex);
+            std::scoped_lock lock(m_analyticsMutex);
             m_internalRules.erase(std::remove_if(m_internalRules.begin(), m_internalRules.end(),
                                       [&](const AnalyticsRule& r) {
                                           return std::find(delNames.begin(), delNames.end(), r.name) != delNames.end();
@@ -3812,7 +3812,7 @@ void OnvifServer::handleAnalyticsService(const httplib::Request& req, httplib::R
         if (m_analyticsHandler) {
             mods = m_analyticsHandler->handleGetAnalyticsModules(configToken);
         } else {
-            std::lock_guard<std::mutex> lock(m_analyticsMutex);
+            std::scoped_lock lock(m_analyticsMutex);
             mods = m_internalModules;
         }
         body << "    <tan:GetAnalyticsModulesResponse>\r\n";
@@ -3836,7 +3836,7 @@ void OnvifServer::handleAnalyticsService(const httplib::Request& req, httplib::R
         if (m_analyticsHandler) {
             m_analyticsHandler->handleCreateAnalyticsModules(configToken, newMods);
         } else {
-            std::lock_guard<std::mutex> lock(m_analyticsMutex);
+            std::scoped_lock lock(m_analyticsMutex);
             for (auto& m : newMods) {
                 m_internalModules.push_back(m);
             }
@@ -3858,7 +3858,7 @@ void OnvifServer::handleAnalyticsService(const httplib::Request& req, httplib::R
         if (m_analyticsHandler) {
             m_analyticsHandler->handleModifyAnalyticsModules(configToken, modMods);
         } else {
-            std::lock_guard<std::mutex> lock(m_analyticsMutex);
+            std::scoped_lock lock(m_analyticsMutex);
             for (const auto& mm : modMods) {
                 for (auto& im : m_internalModules) {
                     if (im.name == mm.name) {
@@ -3879,7 +3879,7 @@ void OnvifServer::handleAnalyticsService(const httplib::Request& req, httplib::R
         if (m_analyticsHandler) {
             m_analyticsHandler->handleDeleteAnalyticsModules(configToken, delNames);
         } else {
-            std::lock_guard<std::mutex> lock(m_analyticsMutex);
+            std::scoped_lock lock(m_analyticsMutex);
             m_internalModules.erase(std::remove_if(m_internalModules.begin(), m_internalModules.end(),
                                         [&](const AnalyticsModule& m) {
                                             return std::find(delNames.begin(), delNames.end(), m.name)
@@ -3935,7 +3935,7 @@ void OnvifServer::handleRecordingService(const httplib::Request& req, httplib::R
             recToken = m_recordingHandler->handleCreateRecording(config);
         }
         if (recToken.empty()) {
-            std::lock_guard<std::mutex> lock(m_recordingMutex);
+            std::scoped_lock lock(m_recordingMutex);
             recToken = "Rec_" + std::to_string(m_internalRecordings.size() + 1);
             config.recordingToken = recToken;
             m_internalRecordings.push_back(config);
@@ -3950,7 +3950,7 @@ void OnvifServer::handleRecordingService(const httplib::Request& req, httplib::R
             recs = m_recordingHandler->handleGetRecordings();
         }
         if (recs.empty()) {
-            std::lock_guard<std::mutex> lock(m_recordingMutex);
+            std::scoped_lock lock(m_recordingMutex);
             recs = m_internalRecordings;
         }
         body << "    <trc:GetRecordingsResponse>\r\n";
@@ -3994,7 +3994,7 @@ void OnvifServer::handleRecordingService(const httplib::Request& req, httplib::R
             }
         }
         if (!found) {
-            std::lock_guard<std::mutex> lock(m_recordingMutex);
+            std::scoped_lock lock(m_recordingMutex);
             for (const auto& r : m_internalRecordings) {
                 if (r.recordingToken == token) {
                     rec = r;
@@ -4037,7 +4037,7 @@ void OnvifServer::handleRecordingService(const httplib::Request& req, httplib::R
             m_recordingHandler->handleSetRecordingConfiguration(token, rec);
         }
         {
-            std::lock_guard<std::mutex> lock(m_recordingMutex);
+            std::scoped_lock lock(m_recordingMutex);
             for (auto& r : m_internalRecordings) {
                 if (r.recordingToken == token) {
                     r.sourceToken = rec.sourceToken;
@@ -4055,7 +4055,7 @@ void OnvifServer::handleRecordingService(const httplib::Request& req, httplib::R
             m_recordingHandler->handleDeleteRecording(token);
         }
         {
-            std::lock_guard<std::mutex> lock(m_recordingMutex);
+            std::scoped_lock lock(m_recordingMutex);
             m_internalRecordings.erase(std::remove_if(m_internalRecordings.begin(), m_internalRecordings.end(),
                                            [&token](const RecordingConfig& r) { return r.recordingToken == token; }),
                 m_internalRecordings.end());
@@ -4080,7 +4080,7 @@ void OnvifServer::handleRecordingService(const httplib::Request& req, httplib::R
             trkToken = m_recordingHandler->handleCreateTrack(recToken, trk);
         }
         if (trkToken.empty()) {
-            std::lock_guard<std::mutex> lock(m_recordingMutex);
+            std::scoped_lock lock(m_recordingMutex);
             for (auto& r : m_internalRecordings) {
                 if (r.recordingToken == recToken) {
                     trkToken = "Track_" + std::to_string(r.tracks.size() + 1);
@@ -4100,7 +4100,7 @@ void OnvifServer::handleRecordingService(const httplib::Request& req, httplib::R
         const std::string trkToken = trkNode ? trkNode.text().as_string() : "";
         RecordingTrack trk;
         {
-            std::lock_guard<std::mutex> lock(m_recordingMutex);
+            std::scoped_lock lock(m_recordingMutex);
             for (const auto& r : m_internalRecordings) {
                 if (r.recordingToken == recToken) {
                     for (const auto& t : r.tracks) {
@@ -4127,7 +4127,7 @@ void OnvifServer::handleRecordingService(const httplib::Request& req, httplib::R
             m_recordingHandler->handleDeleteTrack(recToken, trkToken);
         }
         {
-            std::lock_guard<std::mutex> lock(m_recordingMutex);
+            std::scoped_lock lock(m_recordingMutex);
             for (auto& r : m_internalRecordings) {
                 if (r.recordingToken == recToken) {
                     r.tracks.erase(std::remove_if(r.tracks.begin(), r.tracks.end(),
@@ -4144,7 +4144,7 @@ void OnvifServer::handleRecordingService(const httplib::Request& req, httplib::R
             jobs = m_recordingHandler->handleGetRecordingJobs();
         }
         if (jobs.empty()) {
-            std::lock_guard<std::mutex> lock(m_recordingMutex);
+            std::scoped_lock lock(m_recordingMutex);
             jobs = m_internalRecordingJobs;
         }
         body << "    <trc:GetRecordingJobsResponse>\r\n";
@@ -4184,7 +4184,7 @@ void OnvifServer::handleRecordingService(const httplib::Request& req, httplib::R
             jobToken = m_recordingHandler->handleCreateRecordingJob(job);
         }
         if (jobToken.empty()) {
-            std::lock_guard<std::mutex> lock(m_recordingMutex);
+            std::scoped_lock lock(m_recordingMutex);
             jobToken = "Job_" + std::to_string(m_internalRecordingJobs.size() + 1);
             job.jobToken = jobToken;
             m_internalRecordingJobs.push_back(job);
@@ -4202,7 +4202,7 @@ void OnvifServer::handleRecordingService(const httplib::Request& req, httplib::R
             m_recordingHandler->handleSetRecordingJobMode(jobToken, mode);
         }
         {
-            std::lock_guard<std::mutex> lock(m_recordingMutex);
+            std::scoped_lock lock(m_recordingMutex);
             for (auto& j : m_internalRecordingJobs) {
                 if (j.jobToken == jobToken) {
                     j.mode = mode;
@@ -4219,7 +4219,7 @@ void OnvifServer::handleRecordingService(const httplib::Request& req, httplib::R
             m_recordingHandler->handleDeleteRecordingJob(jobToken);
         }
         {
-            std::lock_guard<std::mutex> lock(m_recordingMutex);
+            std::scoped_lock lock(m_recordingMutex);
             m_internalRecordingJobs.erase(std::remove_if(m_internalRecordingJobs.begin(), m_internalRecordingJobs.end(),
                                               [&jobToken](const RecordingJob& j) { return j.jobToken == jobToken; }),
                 m_internalRecordingJobs.end());
@@ -4230,7 +4230,7 @@ void OnvifServer::handleRecordingService(const httplib::Request& req, httplib::R
         if (m_recordingHandler) {
             sum = m_recordingHandler->handleGetRecordingSummary();
         } else {
-            std::lock_guard<std::mutex> lock(m_recordingMutex);
+            std::scoped_lock lock(m_recordingMutex);
             sum.numberRecordings = static_cast<int>(m_internalRecordings.size());
             sum.dataFrom = "2026-01-01T00:00:00Z";
             sum.dataUntil = formatIso8601Utc(std::chrono::system_clock::now());
@@ -4273,9 +4273,9 @@ void OnvifServer::handleSearchService(const httplib::Request& req, httplib::Resp
             results = m_searchHandler->handleGetRecordingSearchResults(searchToken);
         }
         if (searchToken.empty()) {
-            std::lock_guard<std::mutex> lock(m_searchMutex);
+            std::scoped_lock lock(m_searchMutex);
             searchToken = "SearchSession_" + std::to_string(m_nextSearchId++);
-            std::lock_guard<std::mutex> recLock(m_recordingMutex);
+            std::scoped_lock recLock(m_recordingMutex);
             for (const auto& r : m_internalRecordings) {
                 for (const auto& trk : r.tracks) {
                     RecordingSearchResult resItem;
@@ -4301,7 +4301,7 @@ void OnvifServer::handleSearchService(const httplib::Request& req, httplib::Resp
             results = m_searchHandler->handleGetRecordingSearchResults(searchToken);
         }
         if (results.empty()) {
-            std::lock_guard<std::mutex> lock(m_searchMutex);
+            std::scoped_lock lock(m_searchMutex);
             auto it = m_recordingSearches.find(searchToken);
             if (it != m_recordingSearches.end()) {
                 results = it->second;
@@ -4330,7 +4330,7 @@ void OnvifServer::handleSearchService(const httplib::Request& req, httplib::Resp
             searchToken = m_searchHandler->handleFindEvents(startPt, endPt, 10);
         }
         if (searchToken.empty()) {
-            std::lock_guard<std::mutex> lock(m_searchMutex);
+            std::scoped_lock lock(m_searchMutex);
             searchToken = "EventSearch_" + std::to_string(m_nextSearchId++);
             std::vector<RecordedEventResult> evResults;
             RecordedEventResult ev1;
@@ -4353,7 +4353,7 @@ void OnvifServer::handleSearchService(const httplib::Request& req, httplib::Resp
             events = m_searchHandler->handleGetEventSearchResults(searchToken);
         }
         if (events.empty()) {
-            std::lock_guard<std::mutex> lock(m_searchMutex);
+            std::scoped_lock lock(m_searchMutex);
             auto it = m_eventSearches.find(searchToken);
             if (it != m_eventSearches.end()) {
                 events = it->second;
@@ -4379,7 +4379,7 @@ void OnvifServer::handleSearchService(const httplib::Request& req, httplib::Resp
             m_searchHandler->handleEndSearch(searchToken);
         }
         {
-            std::lock_guard<std::mutex> lock(m_searchMutex);
+            std::scoped_lock lock(m_searchMutex);
             m_recordingSearches.erase(searchToken);
             m_eventSearches.erase(searchToken);
         }
@@ -4430,7 +4430,7 @@ void OnvifServer::handleReplayService(const httplib::Request& req, httplib::Resp
         if (m_replayHandler) {
             cfg = m_replayHandler->handleGetReplayConfiguration();
         } else {
-            std::lock_guard<std::mutex> lock(m_recordingMutex);
+            std::scoped_lock lock(m_recordingMutex);
             cfg = m_internalReplayConfig;
         }
         body << "    <trp:GetReplayConfigurationResponse>\r\n"
@@ -4447,7 +4447,7 @@ void OnvifServer::handleReplayService(const httplib::Request& req, httplib::Resp
             m_replayHandler->handleSetReplayConfiguration(cfg);
         }
         {
-            std::lock_guard<std::mutex> lock(m_recordingMutex);
+            std::scoped_lock lock(m_recordingMutex);
             m_internalReplayConfig.sessionTimeout = timeoutStr;
         }
         body << "    <trp:SetReplayConfigurationResponse/>\r\n";
@@ -4492,7 +4492,7 @@ void OnvifServer::handleThermalService(const httplib::Request& req, httplib::Res
         if (m_thermalHandler) {
             cfg = m_thermalHandler->handleGetRadiometryConfiguration(tok);
         } else {
-            std::lock_guard<std::mutex> lock(m_thermalMutex);
+            std::scoped_lock lock(m_thermalMutex);
             cfg = m_internalRadiometryConfig;
         }
         body << "    <tth:GetRadiometryConfigurationResponse>\r\n"
@@ -4543,7 +4543,7 @@ void OnvifServer::handleThermalService(const httplib::Request& req, httplib::Res
             m_thermalHandler->handleSetRadiometryConfiguration(tok, cfg);
         }
         {
-            std::lock_guard<std::mutex> lock(m_thermalMutex);
+            std::scoped_lock lock(m_thermalMutex);
             m_internalRadiometryConfig = cfg;
         }
         body << "    <tth:SetRadiometryConfigurationResponse/>\r\n";
@@ -4554,7 +4554,7 @@ void OnvifServer::handleThermalService(const httplib::Request& req, httplib::Res
         if (m_thermalHandler) {
             spots = m_thermalHandler->handleGetRadiometrySpots(tok);
         } else {
-            std::lock_guard<std::mutex> lock(m_thermalMutex);
+            std::scoped_lock lock(m_thermalMutex);
             spots = m_internalRadiometrySpots;
         }
         body << "    <tth:GetRadiometrySpotsResponse>\r\n";
@@ -4592,7 +4592,7 @@ void OnvifServer::handleThermalService(const httplib::Request& req, httplib::Res
             m_thermalHandler->handleSetRadiometrySpots(tok, spots);
         }
         {
-            std::lock_guard<std::mutex> lock(m_thermalMutex);
+            std::scoped_lock lock(m_thermalMutex);
             m_internalRadiometrySpots = spots;
         }
         body << "    <tth:SetRadiometrySpotsResponse/>\r\n";
@@ -4603,7 +4603,7 @@ void OnvifServer::handleThermalService(const httplib::Request& req, httplib::Res
         if (m_thermalHandler) {
             boxes = m_thermalHandler->handleGetRadiometryBoxes(tok);
         } else {
-            std::lock_guard<std::mutex> lock(m_thermalMutex);
+            std::scoped_lock lock(m_thermalMutex);
             boxes = m_internalRadiometryBoxes;
         }
         body << "    <tth:GetRadiometryBoxesResponse>\r\n";
@@ -4654,7 +4654,7 @@ void OnvifServer::handleThermalService(const httplib::Request& req, httplib::Res
             m_thermalHandler->handleSetRadiometryBoxes(tok, boxes);
         }
         {
-            std::lock_guard<std::mutex> lock(m_thermalMutex);
+            std::scoped_lock lock(m_thermalMutex);
             m_internalRadiometryBoxes = boxes;
         }
         body << "    <tth:SetRadiometryBoxesResponse/>\r\n";
@@ -4665,7 +4665,7 @@ void OnvifServer::handleThermalService(const httplib::Request& req, httplib::Res
         if (m_thermalHandler) {
             palettes = m_thermalHandler->handleGetColorPalettes(tok);
         } else {
-            std::lock_guard<std::mutex> lock(m_thermalMutex);
+            std::scoped_lock lock(m_thermalMutex);
             palettes = m_internalColorPalettes;
         }
         body << "    <tth:GetColorPalettesResponse>\r\n";
@@ -4685,7 +4685,7 @@ void OnvifServer::handleThermalService(const httplib::Request& req, httplib::Res
             m_thermalHandler->handleSetColorPalette(tok, pal);
         }
         {
-            std::lock_guard<std::mutex> lock(m_thermalMutex);
+            std::scoped_lock lock(m_thermalMutex);
             m_internalActiveColorPalette = pal;
         }
         body << "    <tth:SetColorPaletteResponse/>\r\n";

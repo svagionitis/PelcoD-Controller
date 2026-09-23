@@ -21,7 +21,7 @@ PtzSphericalEstimator::PtzSphericalEstimator(SphericalEstimatorConfig config)
 
 void PtzSphericalEstimator::setConfig(const SphericalEstimatorConfig& config)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     m_config = config;
     m_cameraModel.setIntrinsics(config.intrinsics);
 
@@ -31,19 +31,19 @@ void PtzSphericalEstimator::setConfig(const SphericalEstimatorConfig& config)
 
 const SphericalEstimatorConfig& PtzSphericalEstimator::getConfig() const noexcept
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     return m_config;
 }
 
 void PtzSphericalEstimator::setType(EstimatorType type)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     m_config.type = type;
 }
 
 void PtzSphericalEstimator::reset() noexcept
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     m_ekf.reset();
     m_ukf.reset();
     m_locked = false;
@@ -54,13 +54,13 @@ void PtzSphericalEstimator::reset() noexcept
 
 bool PtzSphericalEstimator::isLocked() const noexcept
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     return m_locked;
 }
 
 void PtzSphericalEstimator::init(double targetAzimuthRad, double targetElevationRad)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     Math::Vector<6> x0;
     x0[0] = targetAzimuthRad;
     x0[1] = targetElevationRad;
@@ -96,7 +96,7 @@ void PtzSphericalEstimator::initFromPixel(double u, double v, double camPanRad, 
 
 void PtzSphericalEstimator::predict(double dt)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     if (!m_locked) {
         return;
     }
@@ -110,7 +110,7 @@ void PtzSphericalEstimator::predict(double dt)
 
 void PtzSphericalEstimator::update(double u, double v, double camPanRad, double camTiltRad, double zoom, double dt)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     m_lastCamPanRad = camPanRad;
     m_lastCamTiltRad = camTiltRad;
 
@@ -139,8 +139,7 @@ void PtzSphericalEstimator::update(double u, double v, double camPanRad, double 
 
     if (m_config.type == EstimatorType::EKF) {
         auto H_func = [this, camPanRad, camTiltRad, zoom](const Math::Vector<6>& state) -> Math::Matrix<2, 6> {
-            const Math::Matrix<2, 2> J = m_cameraModel.computeJacobian(
-                state[0], state[1], camPanRad, camTiltRad, zoom);
+            const Math::Matrix<2, 2> J = m_cameraModel.computeJacobian(state[0], state[1], camPanRad, camTiltRad, zoom);
             Math::Matrix<2, 6> H;
             H(0, 0) = J(0, 0);
             H(0, 1) = J(0, 1);
@@ -156,8 +155,8 @@ void PtzSphericalEstimator::update(double u, double v, double camPanRad, double 
         const Math::Matrix<2, 2> S = H * m_ekf.getCovariance() * H.transpose() + R;
         const Math::Matrix<2, 2> S_inv = S.inverse();
 
-        const double mahalSq = y[0] * (S_inv(0, 0) * y[0] + S_inv(0, 1) * y[1])
-            + y[1] * (S_inv(1, 0) * y[0] + S_inv(1, 1) * y[1]);
+        const double mahalSq
+            = y[0] * (S_inv(0, 0) * y[0] + S_inv(0, 1) * y[1]) + y[1] * (S_inv(1, 0) * y[0] + S_inv(1, 1) * y[1]);
 
         if (mahalSq > (m_config.mahalanobisGateThreshold * m_config.mahalanobisGateThreshold)) {
             // Outlier rejected; coast on prediction
@@ -174,10 +173,10 @@ void PtzSphericalEstimator::update(double u, double v, double camPanRad, double 
     }
 }
 
-SphericalTargetState PtzSphericalEstimator::getState(double lookaheadLatencySeconds,
-    double camPanRad, double camTiltRad) const noexcept
+SphericalTargetState PtzSphericalEstimator::getState(
+    double lookaheadLatencySeconds, double camPanRad, double camTiltRad) const noexcept
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     SphericalTargetState out {};
     if (!m_locked) {
         return out;
@@ -228,9 +227,8 @@ SphericalTargetState PtzSphericalEstimator::getState(double lookaheadLatencySeco
         out.predictedErrorElevationDeg = out.errorElevationDeg;
     }
 
-    out.mahalanobisDistance = (m_config.type == EstimatorType::EKF)
-        ? m_ekf.getMahalanobisDistance()
-        : m_ukf.getMahalanobisDistance();
+    out.mahalanobisDistance
+        = (m_config.type == EstimatorType::EKF) ? m_ekf.getMahalanobisDistance() : m_ukf.getMahalanobisDistance();
     out.locked = m_locked;
     out.isOutlierGated = m_lastOutlierGated;
     return out;

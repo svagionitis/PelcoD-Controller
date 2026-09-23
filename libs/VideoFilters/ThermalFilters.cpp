@@ -349,7 +349,7 @@ HotspotTrackerFilter::HotspotTrackerFilter(bool showOverlay, int centerBoxSize)
 
 HotspotTrackerFilter::RadiometryStats HotspotTrackerFilter::getStats() const
 {
-    std::lock_guard<std::mutex> lock(m_statsMutex);
+    std::scoped_lock lock(m_statsMutex);
     return m_stats;
 }
 
@@ -377,7 +377,7 @@ void HotspotTrackerFilter::process(std::uint8_t* data, int width, int height, Pi
     cv::Scalar centerMeanScalar = cv::mean(gray(centerRect));
 
     {
-        std::lock_guard<std::mutex> lock(m_statsMutex);
+        std::scoped_lock lock(m_statsMutex);
         m_stats.hotX = maxLoc.x;
         m_stats.hotY = maxLoc.y;
         m_stats.hotVal = static_cast<std::uint8_t>(std::max(0.0, std::min(255.0, maxVal)));

@@ -16,7 +16,7 @@ LatencyEstimator::LatencyEstimator(LatencyEstimatorConfig config)
 
 void LatencyEstimator::setConfig(const LatencyEstimatorConfig& config)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     m_config = config;
     m_config.bufferCapacity = std::max<std::size_t>(32U, m_config.bufferCapacity);
     m_config.sampleRateHz = std::max(1.0, m_config.sampleRateHz);
@@ -42,7 +42,7 @@ void LatencyEstimator::setConfig(const LatencyEstimatorConfig& config)
 
 void LatencyEstimator::reset() noexcept
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     m_refBuffer.clear();
     m_respBuffer.clear();
     m_refQueue.clear();
@@ -59,7 +59,7 @@ void LatencyEstimator::reset() noexcept
 
 void LatencyEstimator::addSample(double reference, double response)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     m_refBuffer.push_back(reference);
     m_respBuffer.push_back(response);
     ++m_count;
@@ -204,21 +204,21 @@ void LatencyEstimator::addSample(double reference, double response)
 
 void LatencyEstimator::addTimestampedReference(double timestampSec, double reference)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     m_refQueue.emplace_back(timestampSec, reference);
     processTimestampedQueuesLocked();
 }
 
 void LatencyEstimator::addTimestampedResponse(double timestampSec, double response)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     m_respQueue.emplace_back(timestampSec, response);
     processTimestampedQueuesLocked();
 }
 
 void LatencyEstimator::addTimestampedSample(double timestampSec, double reference, double response)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     m_refQueue.emplace_back(timestampSec, reference);
     m_respQueue.emplace_back(timestampSec, response);
     processTimestampedQueuesLocked();
@@ -291,7 +291,7 @@ void LatencyEstimator::processTimestampedQueuesLocked()
 
 void LatencyEstimator::update()
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     const std::size_t n = m_refBuffer.size();
     if (n < 16U) {
         return;
@@ -431,55 +431,55 @@ void LatencyEstimator::update()
 
 double LatencyEstimator::getEstimatedLatencyMs() const noexcept
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     return m_estimatedLatencyMs;
 }
 
 double LatencyEstimator::getEstimatedLatencySeconds() const noexcept
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     return m_estimatedLatencyMs / 1000.0;
 }
 
 double LatencyEstimator::getPeakCorrelation() const noexcept
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     return m_peakCorrelation;
 }
 
 double LatencyEstimator::getPeakCorrelationMagnitude() const noexcept
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     return std::abs(m_peakCorrelation);
 }
 
 bool LatencyEstimator::isConfident() const noexcept
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     return m_isConfident;
 }
 
 std::vector<double> LatencyEstimator::getCorrelationCurve() const
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     return m_latestCorrelationCurve;
 }
 
 double LatencyEstimator::getReferenceVariance() const noexcept
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     return m_lastVarRef;
 }
 
 double LatencyEstimator::getResponseVariance() const noexcept
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     return m_lastVarResp;
 }
 
 const LatencyEstimatorConfig& LatencyEstimator::getConfig() const noexcept
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     return m_config;
 }
 

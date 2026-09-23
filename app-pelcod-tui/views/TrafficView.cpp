@@ -61,7 +61,7 @@ void TrafficView::addPacket(bool isTx, const std::vector<std::uint8_t>& frame)
     rec.hexStr = PelcoD::PelcoDFrame::toHexString(frame, ' ');
     rec.decoded = decodeFrame(isTx, frame);
 
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     if (!m_paused) {
         m_packets.push_back(rec);
         if (m_packets.size() > kMaxPackets) {
@@ -72,13 +72,13 @@ void TrafficView::addPacket(bool isTx, const std::vector<std::uint8_t>& frame)
 
 std::size_t TrafficView::getPacketCount() const noexcept
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     return m_packets.size();
 }
 
 std::size_t TrafficView::getFilteredPacketCount() const noexcept
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     if (m_filter == TrafficFilter::All) {
         return m_packets.size();
     }
@@ -95,7 +95,7 @@ std::size_t TrafficView::getFilteredPacketCount() const noexcept
 
 bool TrafficView::exportToFile(const std::string& filename) const
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     if (m_packets.empty()) {
         return false;
     }
@@ -173,7 +173,7 @@ void TrafficView::render(Canvas& canvas, int startY, int width, int height)
     canvas.drawString(50, headerY, "PROTOCOL DECODING", labelStyle);
     canvas.drawHLine(2, headerY + 1, width - 4, Symbols::BoxHoriz, borderStyle);
 
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     const int visibleRows = panelHeight - 4;
 
     std::vector<const PacketRecord*> visiblePackets;
@@ -274,7 +274,7 @@ bool TrafficView::handleInput(const InputEvent& event, [[maybe_unused]] PelcoD::
         return true;
     }
     if (event.ch == 'c' || event.ch == 'C') {
-        std::lock_guard<std::mutex> lock(m_mutex);
+        std::scoped_lock lock(m_mutex);
         m_packets.clear();
         m_scrollOffset = 0;
         return true;

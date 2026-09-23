@@ -15,25 +15,25 @@ QOnvifServer::~QOnvifServer()
 
 bool QOnvifServer::isRunning() const noexcept
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     return m_server != nullptr && m_server->isRunning();
 }
 
 Onvif::OnvifServerConfig QOnvifServer::config() const
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     return m_config;
 }
 
 void QOnvifServer::setConfig(const Onvif::OnvifServerConfig& config)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     m_config = config;
 }
 
 void QOnvifServer::bindDevice(PelcoDQt::QPelcoDDevice* device)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     if (device != nullptr && device->sharedCoreDevice() != nullptr) {
         m_ptzAdapter = std::make_shared<Onvif::PelcoDPtzAdapter>(device->sharedCoreDevice());
         if (m_patrolController != nullptr) {
@@ -51,7 +51,7 @@ void QOnvifServer::bindDevice(PelcoDQt::QPelcoDDevice* device)
 
 void QOnvifServer::bindPatrolController(PelcoD::PatrolController* patrol)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     m_patrolController = patrol;
     if (m_ptzAdapter != nullptr) {
         m_ptzAdapter->setPatrolController(m_patrolController);
@@ -63,7 +63,7 @@ QString QOnvifServer::endpointUrl() const
     QString host;
     int portNum = 8080;
     {
-        std::lock_guard<std::mutex> lock(m_mutex);
+        std::scoped_lock lock(m_mutex);
         host = QString::fromStdString(m_config.bindAddress);
         portNum = m_config.port;
     }
@@ -76,7 +76,7 @@ QString QOnvifServer::endpointUrl() const
 
 bool QOnvifServer::start()
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     if (m_server != nullptr && m_server->isRunning()) {
         return true;
     }
@@ -111,7 +111,7 @@ void QOnvifServer::stop()
 {
     std::unique_ptr<Onvif::OnvifServer> toStop;
     {
-        std::lock_guard<std::mutex> lock(m_mutex);
+        std::scoped_lock lock(m_mutex);
         if (m_server == nullptr) {
             return;
         }

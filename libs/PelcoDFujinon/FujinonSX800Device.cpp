@@ -15,7 +15,7 @@ FujinonSX800Device::FujinonSX800Device(std::shared_ptr<ITransport> transport, st
 
 FujinonStatus FujinonSX800Device::getFujinonStatus() const
 {
-    std::lock_guard<std::mutex> lock(m_fujinonMutex);
+    std::scoped_lock lock(m_fujinonMutex);
     auto status = m_fujinonStatus;
     status.baseStatus = getStatus();
     return status;
@@ -23,7 +23,7 @@ FujinonStatus FujinonSX800Device::getFujinonStatus() const
 
 bool FujinonSX800Device::FujinonCallbackState::remove(CallbackId id)
 {
-    std::lock_guard<std::mutex> lock(mutex);
+    std::scoped_lock lock(mutex);
     const auto& current = *callbacks;
     auto it = std::find_if(current.begin(), current.end(), [id](const auto& entry) { return entry.id == id; });
     if (it == current.end()) {
@@ -42,7 +42,7 @@ bool FujinonSX800Device::FujinonCallbackState::remove(CallbackId id)
 
 void FujinonSX800Device::FujinonCallbackState::clear()
 {
-    std::lock_guard<std::mutex> lock(mutex);
+    std::scoped_lock lock(mutex);
     callbacks = std::make_shared<const std::vector<FujinonCallbackEntry>>();
 }
 
@@ -53,7 +53,7 @@ Connection FujinonSX800Device::addFujinonStatusCallback(FujinonStatusCallback cb
     }
     const CallbackId id = m_fujinonCallbackState->nextId.fetch_add(1U, std::memory_order_relaxed);
     {
-        std::lock_guard<std::mutex> lock(m_fujinonCallbackState->mutex);
+        std::scoped_lock lock(m_fujinonCallbackState->mutex);
         auto nextList = std::make_shared<std::vector<FujinonCallbackEntry>>(*m_fujinonCallbackState->callbacks);
         nextList->push_back({ id, std::move(cb) });
         m_fujinonCallbackState->callbacks = std::move(nextList);
@@ -529,12 +529,12 @@ void FujinonSX800Device::dispatchFrame(const std::vector<std::uint8_t>& frame)
     std::shared_ptr<const std::vector<FujinonCallbackEntry>> callbacks;
 
     {
-        std::lock_guard<std::mutex> lock(m_fujinonMutex);
+        std::scoped_lock lock(m_fujinonMutex);
         if (FujinonParser::updateFujinonStatus(frame, m_fujinonStatus)) {
             updated = true;
             currentStatus = m_fujinonStatus;
             {
-                std::lock_guard<std::mutex> cbLock(m_fujinonCallbackState->mutex);
+                std::scoped_lock cbLock(m_fujinonCallbackState->mutex);
                 callbacks = m_fujinonCallbackState->callbacks;
             }
         }

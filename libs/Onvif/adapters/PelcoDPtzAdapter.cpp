@@ -11,7 +11,7 @@
 #include <stdexcept>
 
 namespace Onvif {
- 
+
 using namespace PelcoD;
 
 PelcoDPtzAdapter::PelcoDPtzAdapter(std::shared_ptr<PelcoD::PelcoDDevice> device)
@@ -84,7 +84,7 @@ PelcoDPtzAdapter::~PelcoDPtzAdapter()
 
 void PelcoDPtzAdapter::setEventPublisher(EventCallback publisher)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     m_eventPublisher = std::move(publisher);
 }
 
@@ -189,7 +189,7 @@ bool PelcoDPtzAdapter::handleGeoMove(const std::string& /*profileToken*/, const 
 
     LocationEntity currentLoc;
     {
-        std::lock_guard<std::mutex> lock(m_mutex);
+        std::scoped_lock lock(m_mutex);
         currentLoc = m_cameraLocation;
     }
 
@@ -238,7 +238,7 @@ void PelcoDPtzAdapter::handleStop(bool stopPanTilt, bool stopZoom)
 
 std::string PelcoDPtzAdapter::handleSetPreset(const std::string& name, const std::string& token)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
 
     std::string assignedToken = token;
     if (assignedToken.empty()) {
@@ -270,7 +270,7 @@ std::string PelcoDPtzAdapter::handleSetPreset(const std::string& name, const std
 
 bool PelcoDPtzAdapter::handleGotoPreset(const std::string& token)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
 
     bool dispatched = false;
     try {
@@ -308,7 +308,7 @@ bool PelcoDPtzAdapter::handleGotoPreset(const std::string& token)
 
 bool PelcoDPtzAdapter::handleRemovePreset(const std::string& token)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
 
     try {
         const int id = std::stoi(token);
@@ -330,7 +330,7 @@ bool PelcoDPtzAdapter::handleRemovePreset(const std::string& token)
 
 std::vector<PtzPreset> PelcoDPtzAdapter::handleGetPresets()
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     std::vector<PtzPreset> result {};
     result.reserve(m_presets.size());
     for (const auto& [tok, preset] : m_presets) {
@@ -356,27 +356,27 @@ PtzStatus PelcoDPtzAdapter::handleGetStatus()
 
 void PelcoDPtzAdapter::setPatrolController(std::shared_ptr<PelcoD::PatrolController> patrol)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     m_sharedPatrol = std::move(patrol);
     m_patrol = m_sharedPatrol.get();
 }
 
 void PelcoDPtzAdapter::setPatrolController(PelcoD::PatrolController* patrol)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     m_patrol = patrol;
 }
 
 void PelcoDPtzAdapter::setPersistencePath(const std::string& path)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     m_persistencePath = path;
     loadTours();
 }
 
 std::vector<PresetTour> PelcoDPtzAdapter::handleGetPresetTours()
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     std::vector<PresetTour> result {};
     result.reserve(m_tours.size());
     for (const auto& [tok, tour] : m_tours) {
@@ -387,7 +387,7 @@ std::vector<PresetTour> PelcoDPtzAdapter::handleGetPresetTours()
 
 std::optional<PresetTour> PelcoDPtzAdapter::handleGetPresetTour(const std::string& tourToken)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     const auto it = m_tours.find(tourToken);
     if (it != m_tours.end()) {
         return it->second;
@@ -397,7 +397,7 @@ std::optional<PresetTour> PelcoDPtzAdapter::handleGetPresetTour(const std::strin
 
 std::string PelcoDPtzAdapter::handleCreatePresetTour()
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     std::string token = "Tour_" + std::to_string(m_nextTourId++);
     PresetTour tour {};
     tour.token = token;
@@ -411,7 +411,7 @@ std::string PelcoDPtzAdapter::handleCreatePresetTour()
 
 bool PelcoDPtzAdapter::handleModifyPresetTour(const PresetTour& tour)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     m_tours[tour.token] = tour;
     saveTours();
     return true;
@@ -419,7 +419,7 @@ bool PelcoDPtzAdapter::handleModifyPresetTour(const PresetTour& tour)
 
 bool PelcoDPtzAdapter::handleOperatePresetTour(const std::string& tourToken, PresetTourOperation op)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     auto it = m_tours.find(tourToken);
     if (it == m_tours.end()) {
         return false;
@@ -474,7 +474,7 @@ bool PelcoDPtzAdapter::handleOperatePresetTour(const std::string& tourToken, Pre
 
 bool PelcoDPtzAdapter::handleRemovePresetTour(const std::string& tourToken)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     const bool removed = m_tours.erase(tourToken) > 0;
     if (removed) {
         saveTours();
@@ -522,7 +522,7 @@ bool PelcoDPtzAdapter::handleGotoHomePosition(float /*speed*/)
     if (!m_device) {
         return false;
     }
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     if (m_hasHomeCoordinates) {
         handleAbsoluteMove(m_homePan, m_homeTilt, m_homeZoom);
         return true;
@@ -553,7 +553,7 @@ bool PelcoDPtzAdapter::handleSetHomePosition()
     if (!m_device) {
         return false;
     }
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     const auto status = m_device->getStatus();
     m_homePan = static_cast<float>(status.panDegrees());
     m_homeTilt = static_cast<float>(status.tiltDegrees());
@@ -755,14 +755,14 @@ void PelcoDPtzAdapter::loadTours()
 
 ImagingSettings PelcoDPtzAdapter::handleGetImagingSettings(const std::string& /*videoSourceToken*/)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     return m_imagingSettings;
 }
 
 bool PelcoDPtzAdapter::handleSetImagingSettings(
     const std::string& /*videoSourceToken*/, const ImagingSettings& settings)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     m_imagingSettings = settings;
 
     if (m_device) {
@@ -788,7 +788,7 @@ void PelcoDPtzAdapter::handleMoveFocus(const std::string& /*videoSourceToken*/, 
 
 void PelcoDPtzAdapter::handleStopFocus(const std::string& /*videoSourceToken*/)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     m_focusStatus.moveStatus = "IDLE";
     if (m_device) {
         m_device->focusStop();
@@ -797,13 +797,13 @@ void PelcoDPtzAdapter::handleStopFocus(const std::string& /*videoSourceToken*/)
 
 FocusStatus20 PelcoDPtzAdapter::handleGetFocusStatus(const std::string& /*videoSourceToken*/)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     return m_focusStatus;
 }
 
 bool PelcoDPtzAdapter::handleMoveFocusAdvanced(const std::string& videoSourceToken, const FocusMove& move)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     m_focusStatus.moveStatus = "MOVING";
 
     if (move.mode == FocusMoveMode::Continuous) {
@@ -832,14 +832,14 @@ bool PelcoDPtzAdapter::handleMoveFocusAdvanced(const std::string& videoSourceTok
 
 std::vector<ImagingPreset> PelcoDPtzAdapter::handleGetImagingPresets(const std::string& /*videoSourceToken*/)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     return m_imagingPresets;
 }
 
 bool PelcoDPtzAdapter::handleSetCurrentImagingPreset(
     const std::string& /*videoSourceToken*/, const std::string& presetToken)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     for (const auto& p : m_imagingPresets) {
         if (p.token == presetToken) {
             m_currentImagingPresetToken = presetToken;
@@ -851,7 +851,7 @@ bool PelcoDPtzAdapter::handleSetCurrentImagingPreset(
 
 std::vector<RelayOutputConfig> PelcoDPtzAdapter::handleGetRelayOutputs()
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     return m_relays;
 }
 
@@ -862,7 +862,7 @@ std::vector<std::string> PelcoDPtzAdapter::handleGetRelayOutputOptions(const std
 
 bool PelcoDPtzAdapter::handleSetRelayOutputSettings(const std::string& token, const RelayOutputConfig& settings)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     for (auto& r : m_relays) {
         if (r.token == token) {
             r.mode = settings.mode;
@@ -876,7 +876,7 @@ bool PelcoDPtzAdapter::handleSetRelayOutputSettings(const std::string& token, co
 
 bool PelcoDPtzAdapter::handleSetRelayOutputState(const std::string& token, RelayLogicalState state)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     for (auto& r : m_relays) {
         if (r.token == token) {
             r.logicalState = state;
@@ -912,7 +912,7 @@ bool PelcoDPtzAdapter::handleSetRelayOutputState(const std::string& token, Relay
                 std::thread([this, token, auxId, delayMs]() {
                     std::this_thread::sleep_for(std::chrono::milliseconds(delayMs));
                     {
-                        std::lock_guard<std::mutex> lk(m_mutex);
+                        std::scoped_lock lk(m_mutex);
                         for (auto& rel : m_relays) {
                             if (rel.token == token) {
                                 rel.logicalState = RelayLogicalState::Inactive;
@@ -934,13 +934,13 @@ bool PelcoDPtzAdapter::handleSetRelayOutputState(const std::string& token, Relay
 
 std::vector<DigitalInputConfig> PelcoDPtzAdapter::handleGetDigitalInputs()
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     return m_digitalInputs;
 }
 
 void PelcoDPtzAdapter::onDeviceStatusUpdated(const PelcoD::DeviceStatus& status)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     if (!m_eventPublisher) {
         return;
     }
@@ -970,13 +970,13 @@ void PelcoDPtzAdapter::onDeviceStatusUpdated(const PelcoD::DeviceStatus& status)
 
 std::vector<MetadataConfiguration> PelcoDPtzAdapter::handleGetMetadataConfigurations()
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     return m_metadataConfigs;
 }
 
 std::optional<MetadataConfiguration> PelcoDPtzAdapter::handleGetMetadataConfiguration(const std::string& token)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     for (const auto& cfg : m_metadataConfigs) {
         if (cfg.token == token) {
             return cfg;
@@ -987,7 +987,7 @@ std::optional<MetadataConfiguration> PelcoDPtzAdapter::handleGetMetadataConfigur
 
 bool PelcoDPtzAdapter::handleSetMetadataConfiguration(const MetadataConfiguration& config)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     for (auto& cfg : m_metadataConfigs) {
         if (cfg.token == config.token) {
             cfg = config;
@@ -1010,7 +1010,7 @@ MetadataConfigurationOptions PelcoDPtzAdapter::handleGetMetadataConfigurationOpt
 
 MetadataStreamPayload PelcoDPtzAdapter::handleGetCurrentMetadata(const std::string& /*profileToken*/)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     MetadataStreamPayload payload {};
     payload.ptzStatus = handleGetStatus();
 
@@ -1023,21 +1023,21 @@ MetadataStreamPayload PelcoDPtzAdapter::handleGetCurrentMetadata(const std::stri
 
 void PelcoDPtzAdapter::setDetectedObjects(std::vector<AnalyticsObject> objects)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     m_detectedObjects = std::move(objects);
     evaluateRulesForFrame();
 }
 
 void PelcoDPtzAdapter::addDetectedObject(const AnalyticsObject& object)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     m_detectedObjects.push_back(object);
     evaluateRulesForFrame();
 }
 
 void PelcoDPtzAdapter::clearDetectedObjects()
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     m_detectedObjects.clear();
     m_objectTracks.clear();
 }
@@ -1048,7 +1048,7 @@ void PelcoDPtzAdapter::clearDetectedObjects()
 
 std::string PelcoDPtzAdapter::handleGetSystemLog(SystemLogType logType)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     std::ostringstream ss;
     if (logType == SystemLogType::Access) {
         ss << "[ACCESS LOG] Pelco-D PTZ Adapter active\n";
@@ -1062,7 +1062,7 @@ std::string PelcoDPtzAdapter::handleGetSystemLog(SystemLogType logType)
 
 SystemSupportInfo PelcoDPtzAdapter::handleGetSystemSupportInformation()
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     SystemSupportInfo info {};
     const auto uptime
         = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() - m_startTime).count();
@@ -1088,7 +1088,7 @@ SystemSupportInfo PelcoDPtzAdapter::handleGetSystemSupportInformation()
 
 std::string PelcoDPtzAdapter::handleGetSystemBackup()
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     std::ostringstream ss;
     ss << "{\n"
        << "  \"presets_count\": " << m_presets.size() << ",\n"
@@ -1104,7 +1104,7 @@ std::string PelcoDPtzAdapter::handleGetSystemBackup()
 
 bool PelcoDPtzAdapter::handleRestoreSystem(const std::string& backupData)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     return !backupData.empty();
 }
 
@@ -1115,14 +1115,14 @@ std::string PelcoDPtzAdapter::handleGetEndpointReference()
 
 std::vector<OnvifCertificate> PelcoDPtzAdapter::handleGetCertificates()
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     return m_certificates;
 }
 
 std::optional<CertificateInformation> PelcoDPtzAdapter::handleGetCertificateInformation(
     const std::string& certificateId)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     for (const auto& cert : m_certificates) {
         if (cert.certificateId == certificateId) {
             return cert.info;
@@ -1134,7 +1134,7 @@ std::optional<CertificateInformation> PelcoDPtzAdapter::handleGetCertificateInfo
 OnvifCertificate PelcoDPtzAdapter::handleCreateCertificate(
     const std::string& certificateId, const std::string& subject, int daysValid)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     auto cert = OnvifSecurity::generateSelfSignedCertificate(certificateId, subject, daysValid);
     auto it = std::find_if(m_certificates.begin(), m_certificates.end(),
         [&certificateId](const OnvifCertificate& c) { return c.certificateId == certificateId; });
@@ -1148,13 +1148,13 @@ OnvifCertificate PelcoDPtzAdapter::handleCreateCertificate(
 
 Pkcs10Request PelcoDPtzAdapter::handleGetPkcs10Request(const std::string& certificateId, const std::string& subject)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     return OnvifSecurity::generatePkcs10Csr(certificateId, subject);
 }
 
 bool PelcoDPtzAdapter::handleLoadCertificates(const std::vector<OnvifCertificate>& certificates)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     for (const auto& cert : certificates) {
         auto it = std::find_if(m_certificates.begin(), m_certificates.end(),
             [&cert](const OnvifCertificate& c) { return c.certificateId == cert.certificateId; });
@@ -1169,7 +1169,7 @@ bool PelcoDPtzAdapter::handleLoadCertificates(const std::vector<OnvifCertificate
 
 bool PelcoDPtzAdapter::handleDeleteCertificate(const std::string& certificateId)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     const auto origSize = m_certificates.size();
     m_certificates.erase(std::remove_if(m_certificates.begin(), m_certificates.end(),
                              [&certificateId](const OnvifCertificate& c) { return c.certificateId == certificateId; }),
@@ -1179,20 +1179,20 @@ bool PelcoDPtzAdapter::handleDeleteCertificate(const std::string& certificateId)
 
 ClientCertificateMode PelcoDPtzAdapter::handleGetClientCertificateMode()
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     return m_clientCertMode;
 }
 
 bool PelcoDPtzAdapter::handleSetClientCertificateMode(ClientCertificateMode mode)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     m_clientCertMode = mode;
     return true;
 }
 
 std::string PelcoDPtzAdapter::handleCreateRecording(const RecordingConfig& config)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     RecordingConfig rec = config;
     if (rec.recordingToken.empty()) {
         rec.recordingToken = "Rec_" + std::to_string(m_recordings.size() + 1);
@@ -1203,13 +1203,13 @@ std::string PelcoDPtzAdapter::handleCreateRecording(const RecordingConfig& confi
 
 std::vector<RecordingConfig> PelcoDPtzAdapter::handleGetRecordings()
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     return m_recordings;
 }
 
 std::optional<RecordingConfig> PelcoDPtzAdapter::handleGetRecordingConfiguration(const std::string& recordingToken)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     for (const auto& r : m_recordings) {
         if (r.recordingToken == recordingToken) {
             return r;
@@ -1220,7 +1220,7 @@ std::optional<RecordingConfig> PelcoDPtzAdapter::handleGetRecordingConfiguration
 
 bool PelcoDPtzAdapter::handleSetRecordingConfiguration(const std::string& recordingToken, const RecordingConfig& config)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     for (auto& r : m_recordings) {
         if (r.recordingToken == recordingToken) {
             r.sourceToken = config.sourceToken;
@@ -1234,7 +1234,7 @@ bool PelcoDPtzAdapter::handleSetRecordingConfiguration(const std::string& record
 
 bool PelcoDPtzAdapter::handleDeleteRecording(const std::string& recordingToken)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     const auto origSize = m_recordings.size();
     m_recordings.erase(std::remove_if(m_recordings.begin(), m_recordings.end(),
                            [&recordingToken](const RecordingConfig& r) { return r.recordingToken == recordingToken; }),
@@ -1244,13 +1244,13 @@ bool PelcoDPtzAdapter::handleDeleteRecording(const std::string& recordingToken)
 
 std::vector<RecordingJob> PelcoDPtzAdapter::handleGetRecordingJobs()
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     return m_recordingJobs;
 }
 
 std::string PelcoDPtzAdapter::handleCreateRecordingJob(const RecordingJob& job)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     RecordingJob j = job;
     if (j.jobToken.empty()) {
         j.jobToken = "Job_" + std::to_string(m_recordingJobs.size() + 1);
@@ -1261,7 +1261,7 @@ std::string PelcoDPtzAdapter::handleCreateRecordingJob(const RecordingJob& job)
 
 bool PelcoDPtzAdapter::handleSetRecordingJobMode(const std::string& jobToken, RecordingJobMode mode)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     for (auto& j : m_recordingJobs) {
         if (j.jobToken == jobToken) {
             j.mode = mode;
@@ -1273,7 +1273,7 @@ bool PelcoDPtzAdapter::handleSetRecordingJobMode(const std::string& jobToken, Re
 
 bool PelcoDPtzAdapter::handleDeleteRecordingJob(const std::string& jobToken)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     const auto origSize = m_recordingJobs.size();
     m_recordingJobs.erase(std::remove_if(m_recordingJobs.begin(), m_recordingJobs.end(),
                               [&jobToken](const RecordingJob& j) { return j.jobToken == jobToken; }),
@@ -1283,7 +1283,7 @@ bool PelcoDPtzAdapter::handleDeleteRecordingJob(const std::string& jobToken)
 
 RecordingSummary PelcoDPtzAdapter::handleGetRecordingSummary()
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     RecordingSummary sum {};
     sum.numberRecordings = static_cast<int>(m_recordings.size());
     sum.dataFrom = "2026-01-01T00:00:00Z";
@@ -1294,7 +1294,7 @@ RecordingSummary PelcoDPtzAdapter::handleGetRecordingSummary()
 
 std::vector<RecordingTrack> PelcoDPtzAdapter::handleGetTracks(const std::string& recordingToken)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     for (const auto& r : m_recordings) {
         if (r.recordingToken == recordingToken) {
             return r.tracks;
@@ -1305,7 +1305,7 @@ std::vector<RecordingTrack> PelcoDPtzAdapter::handleGetTracks(const std::string&
 
 std::string PelcoDPtzAdapter::handleCreateTrack(const std::string& recordingToken, const RecordingTrack& track)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     for (auto& r : m_recordings) {
         if (r.recordingToken == recordingToken) {
             RecordingTrack t = track;
@@ -1321,7 +1321,7 @@ std::string PelcoDPtzAdapter::handleCreateTrack(const std::string& recordingToke
 
 bool PelcoDPtzAdapter::handleDeleteTrack(const std::string& recordingToken, const std::string& trackToken)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     for (auto& r : m_recordings) {
         if (r.recordingToken == recordingToken) {
             const auto origSize = r.tracks.size();
@@ -1337,7 +1337,7 @@ bool PelcoDPtzAdapter::handleDeleteTrack(const std::string& recordingToken, cons
 std::string PelcoDPtzAdapter::handleFindRecordings(
     const std::string& /*scope*/, int /*maxMatches*/, const std::string& /*keepAliveTime*/)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     const std::string token = "SearchSession_" + std::to_string(m_nextSearchSessionId++);
     std::vector<RecordingSearchResult> results;
     for (const auto& r : m_recordings) {
@@ -1357,7 +1357,7 @@ std::string PelcoDPtzAdapter::handleFindRecordings(
 
 std::vector<RecordingSearchResult> PelcoDPtzAdapter::handleGetRecordingSearchResults(const std::string& searchToken)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     auto it = m_recordingSearches.find(searchToken);
     if (it != m_recordingSearches.end()) {
         return it->second;
@@ -1368,7 +1368,7 @@ std::vector<RecordingSearchResult> PelcoDPtzAdapter::handleGetRecordingSearchRes
 std::string PelcoDPtzAdapter::handleFindEvents(
     const std::string& startUtc, const std::string& /*endUtc*/, int /*maxMatches*/)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     const std::string token = "EventSearch_" + std::to_string(m_nextSearchSessionId++);
     std::vector<RecordedEventResult> events;
     RecordedEventResult ev;
@@ -1384,7 +1384,7 @@ std::string PelcoDPtzAdapter::handleFindEvents(
 
 std::vector<RecordedEventResult> PelcoDPtzAdapter::handleGetEventSearchResults(const std::string& searchToken)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     auto it = m_eventSearches.find(searchToken);
     if (it != m_eventSearches.end()) {
         return it->second;
@@ -1394,7 +1394,7 @@ std::vector<RecordedEventResult> PelcoDPtzAdapter::handleGetEventSearchResults(c
 
 bool PelcoDPtzAdapter::handleEndSearch(const std::string& searchToken)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     m_recordingSearches.erase(searchToken);
     m_eventSearches.erase(searchToken);
     return true;
@@ -1407,13 +1407,13 @@ std::string PelcoDPtzAdapter::handleGetReplayUri(const std::string& recordingTok
 
 ReplayConfiguration PelcoDPtzAdapter::handleGetReplayConfiguration()
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     return m_replayConfig;
 }
 
 bool PelcoDPtzAdapter::handleSetReplayConfiguration(const ReplayConfiguration& config)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     m_replayConfig = config;
     return true;
 }
@@ -1434,13 +1434,13 @@ std::vector<AnalyticsRuleDescription> PelcoDPtzAdapter::handleGetSupportedRules(
 
 std::vector<AnalyticsRule> PelcoDPtzAdapter::handleGetRules(const std::string& /*configToken*/)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     return m_rules;
 }
 
 bool PelcoDPtzAdapter::handleCreateRules(const std::string& /*configToken*/, const std::vector<AnalyticsRule>& rules)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     for (const auto& r : rules) {
         m_rules.push_back(r);
     }
@@ -1449,7 +1449,7 @@ bool PelcoDPtzAdapter::handleCreateRules(const std::string& /*configToken*/, con
 
 bool PelcoDPtzAdapter::handleModifyRules(const std::string& /*configToken*/, const std::vector<AnalyticsRule>& rules)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     for (const auto& r : rules) {
         for (auto& existing : m_rules) {
             if (existing.name == r.name) {
@@ -1463,7 +1463,7 @@ bool PelcoDPtzAdapter::handleModifyRules(const std::string& /*configToken*/, con
 
 bool PelcoDPtzAdapter::handleDeleteRules(const std::string& /*configToken*/, const std::vector<std::string>& ruleNames)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     m_rules.erase(std::remove_if(m_rules.begin(), m_rules.end(),
                       [&](const AnalyticsRule& r) {
                           return std::find(ruleNames.begin(), ruleNames.end(), r.name) != ruleNames.end();
@@ -1483,14 +1483,14 @@ std::vector<AnalyticsModuleDescription> PelcoDPtzAdapter::handleGetSupportedAnal
 
 std::vector<AnalyticsModule> PelcoDPtzAdapter::handleGetAnalyticsModules(const std::string& /*configToken*/)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     return m_analyticsModules;
 }
 
 bool PelcoDPtzAdapter::handleCreateAnalyticsModules(
     const std::string& /*configToken*/, const std::vector<AnalyticsModule>& modules)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     for (const auto& m : modules) {
         m_analyticsModules.push_back(m);
     }
@@ -1500,7 +1500,7 @@ bool PelcoDPtzAdapter::handleCreateAnalyticsModules(
 bool PelcoDPtzAdapter::handleModifyAnalyticsModules(
     const std::string& /*configToken*/, const std::vector<AnalyticsModule>& modules)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     for (const auto& m : modules) {
         for (auto& existing : m_analyticsModules) {
             if (existing.name == m.name) {
@@ -1515,7 +1515,7 @@ bool PelcoDPtzAdapter::handleModifyAnalyticsModules(
 bool PelcoDPtzAdapter::handleDeleteAnalyticsModules(
     const std::string& /*configToken*/, const std::vector<std::string>& moduleNames)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     m_analyticsModules.erase(std::remove_if(m_analyticsModules.begin(), m_analyticsModules.end(),
                                  [&](const AnalyticsModule& m) {
                                      return std::find(moduleNames.begin(), moduleNames.end(), m.name)
@@ -1709,32 +1709,32 @@ void PelcoDPtzAdapter::evaluateRulesForFrame()
 
 LocationEntity PelcoDPtzAdapter::cameraLocation() const
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     return m_cameraLocation;
 }
 
 void PelcoDPtzAdapter::setCameraLocation(const LocationEntity& location)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     m_cameraLocation = location;
 }
 
 std::optional<LocationEntity> PelcoDPtzAdapter::handleGetGeoLocation(const std::string& /*entityToken*/)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     return m_cameraLocation;
 }
 
 bool PelcoDPtzAdapter::handleSetGeoLocation(const LocationEntity& location)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     m_cameraLocation = location;
     return true;
 }
 
 bool PelcoDPtzAdapter::handleDeleteGeoLocation(const std::string& /*entityToken*/)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     m_cameraLocation = LocationEntity {};
     return true;
 }
@@ -1745,13 +1745,13 @@ bool PelcoDPtzAdapter::handleDeleteGeoLocation(const std::string& /*entityToken*
 
 MaskOptions PelcoDPtzAdapter::handleGetMaskOptions(const std::string& /*configToken*/)
 {
-    std::lock_guard<std::mutex> lock(m_maskMutex);
+    std::scoped_lock lock(m_maskMutex);
     return m_maskOptions;
 }
 
 std::vector<PrivacyMask> PelcoDPtzAdapter::handleGetMasks(const std::string& configToken)
 {
-    std::lock_guard<std::mutex> lock(m_maskMutex);
+    std::scoped_lock lock(m_maskMutex);
     if (configToken.empty()) {
         return m_masks;
     }
@@ -1766,7 +1766,7 @@ std::vector<PrivacyMask> PelcoDPtzAdapter::handleGetMasks(const std::string& con
 
 std::optional<PrivacyMask> PelcoDPtzAdapter::handleGetMask(const std::string& maskToken)
 {
-    std::lock_guard<std::mutex> lock(m_maskMutex);
+    std::scoped_lock lock(m_maskMutex);
     const auto it = std::find_if(
         m_masks.begin(), m_masks.end(), [&maskToken](const PrivacyMask& m) { return m.token == maskToken; });
     if (it != m_masks.end()) {
@@ -1777,7 +1777,7 @@ std::optional<PrivacyMask> PelcoDPtzAdapter::handleGetMask(const std::string& ma
 
 bool PelcoDPtzAdapter::handleSetMask(const PrivacyMask& mask)
 {
-    std::lock_guard<std::mutex> lock(m_maskMutex);
+    std::scoped_lock lock(m_maskMutex);
     const auto it
         = std::find_if(m_masks.begin(), m_masks.end(), [&mask](const PrivacyMask& m) { return m.token == mask.token; });
     if (it != m_masks.end()) {
@@ -1790,7 +1790,7 @@ bool PelcoDPtzAdapter::handleSetMask(const PrivacyMask& mask)
 
 std::string PelcoDPtzAdapter::handleCreateMask(const PrivacyMask& mask)
 {
-    std::lock_guard<std::mutex> lock(m_maskMutex);
+    std::scoped_lock lock(m_maskMutex);
     PrivacyMask created = mask;
     if (created.token.empty()) {
         created.token = "Mask_" + std::to_string(m_nextMaskId++);
@@ -1801,7 +1801,7 @@ std::string PelcoDPtzAdapter::handleCreateMask(const PrivacyMask& mask)
 
 bool PelcoDPtzAdapter::handleDeleteMask(const std::string& maskToken)
 {
-    std::lock_guard<std::mutex> lock(m_maskMutex);
+    std::scoped_lock lock(m_maskMutex);
     const auto it = std::find_if(
         m_masks.begin(), m_masks.end(), [&maskToken](const PrivacyMask& m) { return m.token == maskToken; });
     if (it != m_masks.end()) {
@@ -1817,14 +1817,14 @@ bool PelcoDPtzAdapter::handleDeleteMask(const std::string& maskToken)
 
 std::vector<VideoSourceMode> PelcoDPtzAdapter::handleGetVideoSourceModes(const std::string& /*videoSourceToken*/)
 {
-    std::lock_guard<std::mutex> lock(m_videoSourceModeMutex);
+    std::scoped_lock lock(m_videoSourceModeMutex);
     return m_videoSourceModes;
 }
 
 bool PelcoDPtzAdapter::handleSetVideoSourceMode(
     const std::string& /*videoSourceToken*/, const std::string& modeToken, bool& outRebootNeeded)
 {
-    std::lock_guard<std::mutex> lock(m_videoSourceModeMutex);
+    std::scoped_lock lock(m_videoSourceModeMutex);
     bool found = false;
     outRebootNeeded = false;
     for (auto& mode : m_videoSourceModes) {
@@ -1841,48 +1841,48 @@ bool PelcoDPtzAdapter::handleSetVideoSourceMode(
 
 RadiometryConfig PelcoDPtzAdapter::handleGetRadiometryConfiguration(const std::string& /*videoSourceToken*/)
 {
-    std::lock_guard<std::mutex> lock(m_thermalMutex);
+    std::scoped_lock lock(m_thermalMutex);
     return m_radiometryConfig;
 }
 
 bool PelcoDPtzAdapter::handleSetRadiometryConfiguration(
     const std::string& /*videoSourceToken*/, const RadiometryConfig& config)
 {
-    std::lock_guard<std::mutex> lock(m_thermalMutex);
+    std::scoped_lock lock(m_thermalMutex);
     m_radiometryConfig = config;
     return true;
 }
 
 std::vector<RadiometrySpot> PelcoDPtzAdapter::handleGetRadiometrySpots(const std::string& /*videoSourceToken*/)
 {
-    std::lock_guard<std::mutex> lock(m_thermalMutex);
+    std::scoped_lock lock(m_thermalMutex);
     return m_radiometrySpots;
 }
 
 bool PelcoDPtzAdapter::handleSetRadiometrySpots(
     const std::string& /*videoSourceToken*/, const std::vector<RadiometrySpot>& spots)
 {
-    std::lock_guard<std::mutex> lock(m_thermalMutex);
+    std::scoped_lock lock(m_thermalMutex);
     m_radiometrySpots = spots;
     return true;
 }
 
 std::vector<RadiometryBox> PelcoDPtzAdapter::handleGetRadiometryBoxes(const std::string& /*videoSourceToken*/)
 {
-    std::lock_guard<std::mutex> lock(m_thermalMutex);
+    std::scoped_lock lock(m_thermalMutex);
     return m_radiometryBoxes;
 }
 
 bool PelcoDPtzAdapter::handleSetRadiometryBoxes(
     const std::string& /*videoSourceToken*/, const std::vector<RadiometryBox>& boxes)
 {
-    std::lock_guard<std::mutex> lock(m_thermalMutex);
+    std::scoped_lock lock(m_thermalMutex);
     m_radiometryBoxes = boxes;
 
     // Check high temperature alarms against configured thresholds
     EventCallback publisher {};
     {
-        std::lock_guard<std::mutex> lockPub(m_mutex);
+        std::scoped_lock lockPub(m_mutex);
         publisher = m_eventPublisher;
     }
 
@@ -1909,13 +1909,13 @@ bool PelcoDPtzAdapter::handleSetRadiometryBoxes(
 
 std::vector<ColorPalette> PelcoDPtzAdapter::handleGetColorPalettes(const std::string& /*videoSourceToken*/)
 {
-    std::lock_guard<std::mutex> lock(m_thermalMutex);
+    std::scoped_lock lock(m_thermalMutex);
     return m_colorPalettes;
 }
 
 bool PelcoDPtzAdapter::handleSetColorPalette(const std::string& /*videoSourceToken*/, const std::string& paletteToken)
 {
-    std::lock_guard<std::mutex> lock(m_thermalMutex);
+    std::scoped_lock lock(m_thermalMutex);
     bool found = false;
     for (auto& pal : m_colorPalettes) {
         if (pal.token == paletteToken) {

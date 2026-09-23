@@ -23,7 +23,7 @@ void LatencyPipeline::setConfig(const LatencyConfig& config)
         m_worker.join();
     }
 
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     m_config = config;
     if (m_config.enabled
         && (m_config.baseLatencyMs > 0U || m_config.jitterMs > 0U || m_config.packetDropPercent > 0.0)) {
@@ -35,7 +35,7 @@ void LatencyPipeline::setConfig(const LatencyConfig& config)
 
 LatencyConfig LatencyPipeline::getConfig() const
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     return m_config;
 }
 
@@ -95,7 +95,7 @@ void LatencyPipeline::enqueue(std::vector<std::uint8_t> data, Callback callback)
 
 void LatencyPipeline::flush()
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     m_queue.clear();
     m_cv.notify_all();
 }
@@ -103,7 +103,7 @@ void LatencyPipeline::flush()
 void LatencyPipeline::stop()
 {
     {
-        std::lock_guard<std::mutex> lock(m_mutex);
+        std::scoped_lock lock(m_mutex);
         m_running.store(false);
         m_queue.clear();
         m_cv.notify_all();

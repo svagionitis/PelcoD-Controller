@@ -285,7 +285,7 @@ PictureInPictureFilter::PictureInPictureFilter(Mode mode, Corner corner, double 
 
 void PictureInPictureFilter::setBorder(bool showBorder, std::uint8_t r, std::uint8_t g, std::uint8_t b, int thickness)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     m_showBorder = showBorder;
     m_borderR = r;
     m_borderG = g;
@@ -295,7 +295,7 @@ void PictureInPictureFilter::setBorder(bool showBorder, std::uint8_t r, std::uin
 
 void PictureInPictureFilter::setSecondaryFrame(const std::uint8_t* data, int width, int height, PixelFormat format)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     if (!data || width <= 0 || height <= 0) {
         m_secondaryBuffer.clear();
         m_secondaryWidth = 0;
@@ -311,7 +311,7 @@ void PictureInPictureFilter::setSecondaryFrame(const std::uint8_t* data, int wid
 
 void PictureInPictureFilter::clearSecondaryFrame()
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     m_secondaryBuffer.clear();
     m_secondaryWidth = 0;
     m_secondaryHeight = 0;
@@ -339,7 +339,7 @@ void PictureInPictureFilter::process(std::uint8_t* data, int width, int height, 
     PixelFormat secFmt = PixelFormat::RGB24;
 
     {
-        std::lock_guard<std::mutex> lock(m_mutex);
+        std::scoped_lock lock(m_mutex);
         mode = m_mode;
         corner = m_corner;
         scaleR = m_scaleRatio;

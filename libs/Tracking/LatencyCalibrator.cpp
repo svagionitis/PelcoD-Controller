@@ -31,7 +31,7 @@ LatencyCalibrator::~LatencyCalibrator()
 
 void LatencyCalibrator::setCommandCallback(CommandCallback cmdCb)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     m_cmdCb = std::move(cmdCb);
 }
 
@@ -43,7 +43,7 @@ double LatencyCalibrator::getMonotonicNowSeconds() noexcept
 
 bool LatencyCalibrator::start(int panPulseSpeed, int tiltPulseSpeed, double nowSec)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     if (m_state != CalibrationState::Idle && m_state != CalibrationState::Completed
         && m_state != CalibrationState::Failed) {
         return false;
@@ -67,7 +67,7 @@ bool LatencyCalibrator::start(int panPulseSpeed, int tiltPulseSpeed, double nowS
 
 void LatencyCalibrator::cancel()
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     if (m_state != CalibrationState::Idle) {
         m_state = CalibrationState::Idle;
         dispatchStopLocked();
@@ -92,7 +92,7 @@ void LatencyCalibrator::dispatchCommandLocked(int panDir, int panSpeed, int tilt
 
 void LatencyCalibrator::update(double nowSec)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     if (m_state == CalibrationState::Idle || m_state == CalibrationState::Completed
         || m_state == CalibrationState::Failed) {
         return;
@@ -172,7 +172,7 @@ void LatencyCalibrator::update(double nowSec)
 
 void LatencyCalibrator::ingestVisualMotion(double nowSec, double visualVelocityX, double /*visualVelocityY*/)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     if (m_state != CalibrationState::Idle) {
         if (nowSec <= 0.0) {
             nowSec = getMonotonicNowSeconds();
@@ -183,20 +183,20 @@ void LatencyCalibrator::ingestVisualMotion(double nowSec, double visualVelocityX
 
 bool LatencyCalibrator::isRunning() const noexcept
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     return (m_state != CalibrationState::Idle && m_state != CalibrationState::Completed
         && m_state != CalibrationState::Failed);
 }
 
 CalibrationState LatencyCalibrator::getState() const noexcept
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     return m_state;
 }
 
 CalibrationResult LatencyCalibrator::getResult() const noexcept
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     return m_result;
 }
 

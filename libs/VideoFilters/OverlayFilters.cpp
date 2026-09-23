@@ -37,7 +37,6 @@ void TextOverlayFilter::process(std::uint8_t* data, int width, int height, Pixel
     cv::putText(mat, m_text, cv::Point(m_x, m_y), cv::FONT_HERSHEY_SIMPLEX, m_scale, color, 2);
 }
 
-
 // -----------------------------------------------------------------------------
 // TacticalReticleOverlayFilter Implementation
 // -----------------------------------------------------------------------------
@@ -138,7 +137,6 @@ void TacticalReticleOverlayFilter::process(std::uint8_t* data, int width, int he
     }
 }
 
-
 // --- PrivacyMaskFilter ---
 PrivacyMaskFilter::PrivacyMaskFilter(ConcealmentMode defaultMode)
     : m_defaultMode(defaultMode)
@@ -147,7 +145,7 @@ PrivacyMaskFilter::PrivacyMaskFilter(ConcealmentMode defaultMode)
 
 void PrivacyMaskFilter::setMaskColor(std::uint8_t r, std::uint8_t g, std::uint8_t b)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     m_maskR = r;
     m_maskG = g;
     m_maskB = b;
@@ -156,7 +154,7 @@ void PrivacyMaskFilter::setMaskColor(std::uint8_t r, std::uint8_t g, std::uint8_
 int PrivacyMaskFilter::addZone(
     double xNorm, double yNorm, double widthNorm, double heightNorm, ConcealmentMode mode, const std::string& label)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     PrivacyZone zone;
     zone.id = m_nextZoneId++;
     zone.xNorm = std::max(0.0, std::min(1.0, xNorm));
@@ -172,7 +170,7 @@ int PrivacyMaskFilter::addZone(
 
 int PrivacyMaskFilter::addZone(const PrivacyZone& zone)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     PrivacyZone z = zone;
     if (z.id <= 0) {
         z.id = m_nextZoneId++;
@@ -189,7 +187,7 @@ int PrivacyMaskFilter::addZone(const PrivacyZone& zone)
 
 bool PrivacyMaskFilter::removeZone(int id)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     auto it = std::remove_if(m_zones.begin(), m_zones.end(), [id](const PrivacyZone& z) { return z.id == id; });
     if (it != m_zones.end()) {
         m_zones.erase(it, m_zones.end());
@@ -200,13 +198,13 @@ bool PrivacyMaskFilter::removeZone(int id)
 
 void PrivacyMaskFilter::clearZones()
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     m_zones.clear();
 }
 
 void PrivacyMaskFilter::setZoneEnabled(int id, bool enabled)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     for (auto& z : m_zones) {
         if (z.id == id) {
             z.enabled = enabled;
@@ -217,7 +215,7 @@ void PrivacyMaskFilter::setZoneEnabled(int id, bool enabled)
 
 std::vector<PrivacyMaskFilter::PrivacyZone> PrivacyMaskFilter::getZones() const
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     return m_zones;
 }
 
@@ -234,7 +232,7 @@ void PrivacyMaskFilter::process(std::uint8_t* data, int width, int height, Pixel
     int blurK = 25;
     int mosaicBlock = 16;
     {
-        std::lock_guard<std::mutex> lock(m_mutex);
+        std::scoped_lock lock(m_mutex);
         if (m_zones.empty()) {
             return;
         }
@@ -302,19 +300,19 @@ TimestampWatermarkFilter::TimestampWatermarkFilter(
 
 void TimestampWatermarkFilter::setCameraName(const std::string& name)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     m_cameraName = name;
 }
 
 std::string TimestampWatermarkFilter::getCameraName() const
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     return m_cameraName;
 }
 
 void TimestampWatermarkFilter::setGpsCoordinates(double latitude, double longitude, double altitudeMeters, bool enabled)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     m_latitude = latitude;
     m_longitude = longitude;
     m_altitudeMeters = altitudeMeters;
@@ -323,37 +321,37 @@ void TimestampWatermarkFilter::setGpsCoordinates(double latitude, double longitu
 
 void TimestampWatermarkFilter::clearGpsCoordinates()
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     m_showGps = false;
 }
 
 void TimestampWatermarkFilter::setCustomTimestamp(const std::string& isoString)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     m_customTimestamp = isoString;
 }
 
 void TimestampWatermarkFilter::setUseSystemClock(bool useSystem)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     m_useSystemClock = useSystem;
 }
 
 bool TimestampWatermarkFilter::isUsingSystemClock() const
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     return m_useSystemClock;
 }
 
 std::uint64_t TimestampWatermarkFilter::getFrameCounter() const
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     return m_frameCounter;
 }
 
 void TimestampWatermarkFilter::resetFrameCounter()
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     m_frameCounter = 0;
 }
 
@@ -378,7 +376,7 @@ void TimestampWatermarkFilter::process(std::uint8_t* data, int width, int height
     std::uint64_t frameNum = 0;
 
     {
-        std::lock_guard<std::mutex> lock(m_mutex);
+        std::scoped_lock lock(m_mutex);
         m_frameCounter++;
         frameNum = m_frameCounter;
         pos = m_position;
@@ -535,19 +533,19 @@ TelemetryOsdFilter::TelemetryOsdFilter(Color color, bool showCompass, bool showR
 
 void TelemetryOsdFilter::setTelemetry(const TelemetryData& data)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     m_telemetry = data;
 }
 
 TelemetryOsdFilter::TelemetryData TelemetryOsdFilter::getTelemetry() const
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     return m_telemetry;
 }
 
 void TelemetryOsdFilter::setPanTiltZoom(double panDegrees, double tiltDegrees, double zoomMagnification)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     m_telemetry.panDegrees = panDegrees;
     m_telemetry.tiltDegrees = tiltDegrees;
     m_telemetry.zoomMagnification = zoomMagnification;
@@ -577,7 +575,7 @@ void TelemetryOsdFilter::process(std::uint8_t* data, int width, int height, Pixe
     bool showRA = false;
 
     {
-        std::lock_guard<std::mutex> lock(m_mutex);
+        std::scoped_lock lock(m_mutex);
         telem = m_telemetry;
         col = m_color;
         showC = m_showCompass;
@@ -654,7 +652,6 @@ void TelemetryOsdFilter::process(std::uint8_t* data, int width, int height, Pixe
         }
     }
 }
-
 
 } // namespace Video::Filters
 

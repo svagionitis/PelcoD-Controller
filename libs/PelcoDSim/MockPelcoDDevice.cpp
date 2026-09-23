@@ -11,7 +11,7 @@
 namespace PelcoD {
 
 namespace {
-constexpr double kFloatEpsilon = 1e-6;
+    constexpr double kFloatEpsilon = 1e-6;
 } // namespace
 
 MockPelcoDDevice::MockPelcoDDevice(std::uint8_t address) noexcept
@@ -21,7 +21,7 @@ MockPelcoDDevice::MockPelcoDDevice(std::uint8_t address) noexcept
 
 MockDeviceState MockPelcoDDevice::getInternalState() const
 {
-    std::lock_guard<std::mutex> lock(m_stateMutex);
+    std::scoped_lock lock(m_stateMutex);
     if (m_kinematics.getConfig().enabled) {
         m_kinematics.update(std::chrono::steady_clock::now());
         m_state.panCentidegrees = m_kinematics.currentPanCentidegrees();
@@ -33,7 +33,7 @@ MockDeviceState MockPelcoDDevice::getInternalState() const
 
 void MockPelcoDDevice::setInternalState(const MockDeviceState& state)
 {
-    std::lock_guard<std::mutex> lock(m_stateMutex);
+    std::scoped_lock lock(m_stateMutex);
     m_state = state;
     m_kinematics.setPositionImmediate(
         state.panCentidegrees / 100.0, state.tiltCentidegrees / 100.0, static_cast<double>(state.zoomPosition));
@@ -41,7 +41,7 @@ void MockPelcoDDevice::setInternalState(const MockDeviceState& state)
 
 void MockPelcoDDevice::setKinematicsConfig(const KinematicsConfig& config)
 {
-    std::lock_guard<std::mutex> lock(m_stateMutex);
+    std::scoped_lock lock(m_stateMutex);
     m_kinematics.setConfig(config);
     m_kinematics.setPositionImmediate(
         m_state.panCentidegrees / 100.0, m_state.tiltCentidegrees / 100.0, static_cast<double>(m_state.zoomPosition));
@@ -64,7 +64,7 @@ LatencyConfig MockPelcoDDevice::getLatencyConfig() const
 
 bool MockPelcoDDevice::isMoving() const
 {
-    std::lock_guard<std::mutex> lock(m_stateMutex);
+    std::scoped_lock lock(m_stateMutex);
     if (m_kinematics.getConfig().enabled) {
         m_kinematics.update(std::chrono::steady_clock::now());
         return m_kinematics.isMoving();
@@ -77,7 +77,7 @@ bool MockPelcoDDevice::open()
     m_open.store(true);
     StateChangedCallback cb;
     {
-        std::lock_guard<std::mutex> lock(m_callbackMutex);
+        std::scoped_lock lock(m_callbackMutex);
         cb = m_stateCallback;
     }
     if (cb) {
@@ -93,7 +93,7 @@ void MockPelcoDDevice::close()
     m_kinematics.stop();
     StateChangedCallback cb;
     {
-        std::lock_guard<std::mutex> lock(m_callbackMutex);
+        std::scoped_lock lock(m_callbackMutex);
         cb = m_stateCallback;
     }
     if (cb) {
@@ -121,13 +121,13 @@ bool MockPelcoDDevice::sendData(const std::vector<std::uint8_t>& data)
 
 void MockPelcoDDevice::setDataCallback(DataReceivedCallback callback)
 {
-    std::lock_guard<std::mutex> lock(m_callbackMutex);
+    std::scoped_lock lock(m_callbackMutex);
     m_dataCallback = std::move(callback);
 }
 
 void MockPelcoDDevice::setStateCallback(StateChangedCallback callback)
 {
-    std::lock_guard<std::mutex> lock(m_callbackMutex);
+    std::scoped_lock lock(m_callbackMutex);
     m_stateCallback = std::move(callback);
 }
 
@@ -149,7 +149,7 @@ void MockPelcoDDevice::processFrame(const std::vector<std::uint8_t>& frame)
     }
 
     {
-        std::lock_guard<std::mutex> lock(m_stateMutex);
+        std::scoped_lock lock(m_stateMutex);
         if (m_state.filterByBaudRate && m_currentBaudRate.load() != m_state.baudRate) {
             return;
         }
@@ -169,7 +169,7 @@ void MockPelcoDDevice::processFrame(const std::vector<std::uint8_t>& frame)
     // Standard Command: bit 0 of cmd2 is 0
     if ((cmd2 & 0x01U) == 0U) {
         {
-            std::lock_guard<std::mutex> lock(m_stateMutex);
+            std::scoped_lock lock(m_stateMutex);
 
             if (m_kinematics.getConfig().enabled) {
                 double panFraction = 0.0;
@@ -269,7 +269,7 @@ void MockPelcoDDevice::processFrame(const std::vector<std::uint8_t>& frame)
     switch (opcode) {
     case CommandOpcode::SetPreset: {
         {
-            std::lock_guard<std::mutex> lock(m_stateMutex);
+            std::scoped_lock lock(m_stateMutex);
             m_state.presets[data2]
                 = PresetPosition { m_state.panCentidegrees, m_state.tiltCentidegrees, m_state.zoomPosition };
         }
@@ -279,7 +279,7 @@ void MockPelcoDDevice::processFrame(const std::vector<std::uint8_t>& frame)
 
     case CommandOpcode::ClearPreset: {
         {
-            std::lock_guard<std::mutex> lock(m_stateMutex);
+            std::scoped_lock lock(m_stateMutex);
             m_state.presets.erase(data2);
         }
         sendGeneralReply(cksm);
@@ -288,7 +288,7 @@ void MockPelcoDDevice::processFrame(const std::vector<std::uint8_t>& frame)
 
     case CommandOpcode::GoToPreset: {
         {
-            std::lock_guard<std::mutex> lock(m_stateMutex);
+            std::scoped_lock lock(m_stateMutex);
             if (data2 == 0x21U) {
                 // Flip 180 deg
                 if (m_kinematics.getConfig().enabled) {
@@ -331,7 +331,7 @@ void MockPelcoDDevice::processFrame(const std::vector<std::uint8_t>& frame)
 
     case CommandOpcode::SetAuxiliary: {
         {
-            std::lock_guard<std::mutex> lock(m_stateMutex);
+            std::scoped_lock lock(m_stateMutex);
             if (data2 >= 1U && data2 <= 8U) {
                 m_state.auxStates[data2 - 1U] = true;
             }
@@ -342,7 +342,7 @@ void MockPelcoDDevice::processFrame(const std::vector<std::uint8_t>& frame)
 
     case CommandOpcode::ClearAuxiliary: {
         {
-            std::lock_guard<std::mutex> lock(m_stateMutex);
+            std::scoped_lock lock(m_stateMutex);
             if (data2 >= 1U && data2 <= 8U) {
                 m_state.auxStates[data2 - 1U] = false;
             }
@@ -353,7 +353,7 @@ void MockPelcoDDevice::processFrame(const std::vector<std::uint8_t>& frame)
 
     case CommandOpcode::SetPanPosition: {
         {
-            std::lock_guard<std::mutex> lock(m_stateMutex);
+            std::scoped_lock lock(m_stateMutex);
             const std::uint16_t pan = static_cast<std::uint16_t>((data1 << 8U) | data2);
             m_state.panCentidegrees = static_cast<std::uint16_t>(pan % 36000U);
             if (m_kinematics.getConfig().enabled) {
@@ -369,7 +369,7 @@ void MockPelcoDDevice::processFrame(const std::vector<std::uint8_t>& frame)
 
     case CommandOpcode::SetTiltPosition: {
         {
-            std::lock_guard<std::mutex> lock(m_stateMutex);
+            std::scoped_lock lock(m_stateMutex);
             const std::uint16_t tilt = static_cast<std::uint16_t>((data1 << 8U) | data2);
             m_state.tiltCentidegrees = static_cast<std::uint16_t>(tilt % 36000U);
             if (m_kinematics.getConfig().enabled) {
@@ -385,7 +385,7 @@ void MockPelcoDDevice::processFrame(const std::vector<std::uint8_t>& frame)
 
     case CommandOpcode::SetZoomPosition: {
         {
-            std::lock_guard<std::mutex> lock(m_stateMutex);
+            std::scoped_lock lock(m_stateMutex);
             const std::uint16_t zoom = static_cast<std::uint16_t>((data1 << 8U) | data2);
             m_state.zoomPosition = zoom;
             if (m_kinematics.getConfig().enabled) {
@@ -401,7 +401,7 @@ void MockPelcoDDevice::processFrame(const std::vector<std::uint8_t>& frame)
 
     case CommandOpcode::SetZeroPosition: {
         {
-            std::lock_guard<std::mutex> lock(m_stateMutex);
+            std::scoped_lock lock(m_stateMutex);
             m_state.panCentidegrees = 0U;
             m_kinematics.setPositionImmediate(0.0, m_kinematics.currentTiltDeg(), m_kinematics.currentZoom());
         }
@@ -412,7 +412,7 @@ void MockPelcoDDevice::processFrame(const std::vector<std::uint8_t>& frame)
 
     case CommandOpcode::SetMagnification: {
         {
-            std::lock_guard<std::mutex> lock(m_stateMutex);
+            std::scoped_lock lock(m_stateMutex);
             m_state.magnification = static_cast<std::uint16_t>((data1 << 8U) | data2);
         }
         sendExtendedReply(0x00U, static_cast<std::uint8_t>(ResponseOpcode::StandardExtended),
@@ -423,7 +423,7 @@ void MockPelcoDDevice::processFrame(const std::vector<std::uint8_t>& frame)
     case CommandOpcode::QueryMagnification: {
         std::uint16_t mag { 0U };
         {
-            std::lock_guard<std::mutex> lock(m_stateMutex);
+            std::scoped_lock lock(m_stateMutex);
             mag = m_state.magnification;
         }
         const std::uint8_t msb = static_cast<std::uint8_t>((mag >> 8U) & 0xFFU);
@@ -436,7 +436,7 @@ void MockPelcoDDevice::processFrame(const std::vector<std::uint8_t>& frame)
         std::uint8_t temp { 0U };
         std::uint8_t sensor { 0U };
         {
-            std::lock_guard<std::mutex> lock(m_stateMutex);
+            std::scoped_lock lock(m_stateMutex);
             temp = m_state.diagnosticTemp;
             sensor = m_state.diagnosticSensorId;
         }
@@ -447,7 +447,7 @@ void MockPelcoDDevice::processFrame(const std::vector<std::uint8_t>& frame)
     case CommandOpcode::QueryPanPosition: {
         std::uint16_t pan { 0U };
         {
-            std::lock_guard<std::mutex> lock(m_stateMutex);
+            std::scoped_lock lock(m_stateMutex);
             if (m_kinematics.getConfig().enabled) {
                 m_kinematics.update(std::chrono::steady_clock::now());
                 pan = m_kinematics.currentPanCentidegrees();
@@ -465,7 +465,7 @@ void MockPelcoDDevice::processFrame(const std::vector<std::uint8_t>& frame)
     case CommandOpcode::QueryTiltPosition: {
         std::uint16_t tilt { 0U };
         {
-            std::lock_guard<std::mutex> lock(m_stateMutex);
+            std::scoped_lock lock(m_stateMutex);
             if (m_kinematics.getConfig().enabled) {
                 m_kinematics.update(std::chrono::steady_clock::now());
                 tilt = m_kinematics.currentTiltCentidegrees();
@@ -483,7 +483,7 @@ void MockPelcoDDevice::processFrame(const std::vector<std::uint8_t>& frame)
     case CommandOpcode::QueryZoomPosition: {
         std::uint16_t zoom { 0U };
         {
-            std::lock_guard<std::mutex> lock(m_stateMutex);
+            std::scoped_lock lock(m_stateMutex);
             if (m_kinematics.getConfig().enabled) {
                 m_kinematics.update(std::chrono::steady_clock::now());
                 zoom = m_kinematics.currentZoomInt();
@@ -502,7 +502,7 @@ void MockPelcoDDevice::processFrame(const std::vector<std::uint8_t>& frame)
         std::uint8_t sw { 0x05U };
         std::uint8_t hw { 0x01U };
         {
-            std::lock_guard<std::mutex> lock(m_stateMutex);
+            std::scoped_lock lock(m_stateMutex);
             sw = m_state.swType;
             hw = m_state.hwType;
         }
@@ -525,7 +525,7 @@ void MockPelcoDDevice::dispatchResponse(std::vector<std::uint8_t> response)
 {
     DataReceivedCallback cb;
     {
-        std::lock_guard<std::mutex> lock(m_callbackMutex);
+        std::scoped_lock lock(m_callbackMutex);
         cb = m_dataCallback;
     }
     if (cb) {
@@ -537,7 +537,7 @@ void MockPelcoDDevice::sendGeneralReply([[maybe_unused]] std::uint8_t cmdChecksu
 {
     std::uint8_t alarms { 0x00U };
     {
-        std::lock_guard<std::mutex> lock(m_stateMutex);
+        std::scoped_lock lock(m_stateMutex);
         alarms = m_state.alarms;
     }
 
@@ -561,7 +561,7 @@ void MockPelcoDDevice::sendQueryReply([[maybe_unused]] std::uint8_t cmdChecksum)
 
     std::string model;
     {
-        std::lock_guard<std::mutex> lock(m_stateMutex);
+        std::scoped_lock lock(m_stateMutex);
         model = m_state.modelName;
     }
 

@@ -12,6 +12,7 @@
 #include <cmath>
 #include <deque>
 #include <iomanip>
+#include <mutex>
 #include <numeric>
 #include <opencv2/opencv.hpp>
 #include <sstream>
@@ -48,7 +49,7 @@ MovingTargetIndicatorFilter& MovingTargetIndicatorFilter::operator=(MovingTarget
 void MovingTargetIndicatorFilter::reset()
 {
     if (m_impl) {
-        std::lock_guard<std::mutex> lock(m_impl->targetsMutex);
+        std::scoped_lock lock(m_impl->targetsMutex);
         m_impl->bgSubtractor = cv::createBackgroundSubtractorMOG2(50, 16.0, false);
         m_impl->targets.clear();
         m_impl->frameCounter = 0;
@@ -60,7 +61,7 @@ std::size_t MovingTargetIndicatorFilter::getTargetCount() const
     if (!m_impl) {
         return 0U;
     }
-    std::lock_guard<std::mutex> lock(m_impl->targetsMutex);
+    std::scoped_lock lock(m_impl->targetsMutex);
     return m_impl->targets.size();
 }
 
@@ -69,7 +70,7 @@ std::vector<MovingTargetIndicatorFilter::TargetBox> MovingTargetIndicatorFilter:
     if (!m_impl) {
         return {};
     }
-    std::lock_guard<std::mutex> lock(m_impl->targetsMutex);
+    std::scoped_lock lock(m_impl->targetsMutex);
     return m_impl->targets;
 }
 
@@ -89,7 +90,7 @@ void MovingTargetIndicatorFilter::process(std::uint8_t* data, int width, int hei
     m_impl->frameCounter++;
 
     if (m_impl->frameCounter < 3) {
-        std::lock_guard<std::mutex> lock(m_impl->targetsMutex);
+        std::scoped_lock lock(m_impl->targetsMutex);
         m_impl->targets.clear();
         return;
     }
@@ -147,11 +148,10 @@ void MovingTargetIndicatorFilter::process(std::uint8_t* data, int width, int hei
     }
 
     {
-        std::lock_guard<std::mutex> lock(m_impl->targetsMutex);
+        std::scoped_lock lock(m_impl->targetsMutex);
         m_impl->targets = std::move(newTargets);
     }
 }
-
 
 // -----------------------------------------------------------------------------
 // OpticalFlowFieldFilter Implementation
@@ -440,7 +440,7 @@ void CentroidTargetTrackerFilter::acquireTarget(int x, int y, int width, int hei
     if (!m_impl) {
         return;
     }
-    std::lock_guard<std::mutex> lock(m_impl->stateMutex);
+    std::scoped_lock lock(m_impl->stateMutex);
     m_impl->targetRect = cv::Rect(x, y, std::max(10, width), std::max(10, height));
     m_impl->initialWidth = static_cast<double>(m_impl->targetRect.width);
     m_impl->initialHeight = static_cast<double>(m_impl->targetRect.height);
@@ -477,7 +477,7 @@ void CentroidTargetTrackerFilter::releaseTarget()
     if (!m_impl) {
         return;
     }
-    std::lock_guard<std::mutex> lock(m_impl->stateMutex);
+    std::scoped_lock lock(m_impl->stateMutex);
     m_impl->targetRect = cv::Rect();
     m_impl->modelHist.release();
     m_impl->trackedPoints.clear();
@@ -493,7 +493,7 @@ bool CentroidTargetTrackerFilter::isTargetLocked() const
     if (!m_impl) {
         return false;
     }
-    std::lock_guard<std::mutex> lock(m_impl->stateMutex);
+    std::scoped_lock lock(m_impl->stateMutex);
     return m_impl->state.locked;
 }
 
@@ -503,7 +503,7 @@ CentroidTargetTrackerFilter::TargetState CentroidTargetTrackerFilter::getTargetS
     if (!m_impl) {
         return {};
     }
-    std::lock_guard<std::mutex> lock(m_impl->stateMutex);
+    std::scoped_lock lock(m_impl->stateMutex);
     TargetState copy = m_impl->state;
 
     const double effectiveLookahead
@@ -535,7 +535,7 @@ CentroidTargetTrackerFilter::TargetState CentroidTargetTrackerFilter::getTargetS
 void CentroidTargetTrackerFilter::setDynamicLookaheadLatency(double seconds) noexcept
 {
     if (m_impl) {
-        std::lock_guard<std::mutex> lock(m_impl->stateMutex);
+        std::scoped_lock lock(m_impl->stateMutex);
         m_impl->dynamicLookaheadLatency = std::clamp(seconds, 0.0, 1.0);
     }
 }
@@ -543,7 +543,7 @@ void CentroidTargetTrackerFilter::setDynamicLookaheadLatency(double seconds) noe
 double CentroidTargetTrackerFilter::getDynamicLookaheadLatency() const noexcept
 {
     if (m_impl) {
-        std::lock_guard<std::mutex> lock(m_impl->stateMutex);
+        std::scoped_lock lock(m_impl->stateMutex);
         return m_impl->dynamicLookaheadLatency;
     }
     return 0.10;
@@ -552,7 +552,7 @@ double CentroidTargetTrackerFilter::getDynamicLookaheadLatency() const noexcept
 void CentroidTargetTrackerFilter::setMaxCoastFrames(int frames) noexcept
 {
     if (m_impl) {
-        std::lock_guard<std::mutex> lock(m_impl->stateMutex);
+        std::scoped_lock lock(m_impl->stateMutex);
         m_impl->maxCoastFrames = std::max(0, frames);
     }
 }
@@ -560,7 +560,7 @@ void CentroidTargetTrackerFilter::setMaxCoastFrames(int frames) noexcept
 int CentroidTargetTrackerFilter::getMaxCoastFrames() const noexcept
 {
     if (m_impl) {
-        std::lock_guard<std::mutex> lock(m_impl->stateMutex);
+        std::scoped_lock lock(m_impl->stateMutex);
         return m_impl->maxCoastFrames;
     }
     return 30;
@@ -569,7 +569,7 @@ int CentroidTargetTrackerFilter::getMaxCoastFrames() const noexcept
 void CentroidTargetTrackerFilter::setProcessNoise(double qPos, double qVel, double qAcc) noexcept
 {
     if (m_impl) {
-        std::lock_guard<std::mutex> lock(m_impl->stateMutex);
+        std::scoped_lock lock(m_impl->stateMutex);
         m_impl->qPos = static_cast<float>(std::max(1e-6, qPos));
         m_impl->qVel = static_cast<float>(std::max(1e-6, qVel));
         m_impl->qAcc = static_cast<float>(std::max(1e-6, qAcc));
@@ -587,7 +587,7 @@ void CentroidTargetTrackerFilter::setProcessNoise(double qPos, double qVel, doub
 void CentroidTargetTrackerFilter::setMeasurementNoise(double rPos) noexcept
 {
     if (m_impl) {
-        std::lock_guard<std::mutex> lock(m_impl->stateMutex);
+        std::scoped_lock lock(m_impl->stateMutex);
         m_impl->rPos = static_cast<float>(std::max(1e-6, rPos));
     }
 }
@@ -595,7 +595,7 @@ void CentroidTargetTrackerFilter::setMeasurementNoise(double rPos) noexcept
 void CentroidTargetTrackerFilter::setAdaptiveProcessNoiseEnabled(bool enabled) noexcept
 {
     if (m_impl) {
-        std::lock_guard<std::mutex> lock(m_impl->stateMutex);
+        std::scoped_lock lock(m_impl->stateMutex);
         m_impl->adaptiveNoise = enabled;
     }
 }
@@ -603,7 +603,7 @@ void CentroidTargetTrackerFilter::setAdaptiveProcessNoiseEnabled(bool enabled) n
 bool CentroidTargetTrackerFilter::isAdaptiveProcessNoiseEnabled() const noexcept
 {
     if (m_impl) {
-        std::lock_guard<std::mutex> lock(m_impl->stateMutex);
+        std::scoped_lock lock(m_impl->stateMutex);
         return m_impl->adaptiveNoise;
     }
     return true;
@@ -612,7 +612,7 @@ bool CentroidTargetTrackerFilter::isAdaptiveProcessNoiseEnabled() const noexcept
 void CentroidTargetTrackerFilter::setTrajectoryTrail(bool enabled, int maxPoints) noexcept
 {
     if (m_impl) {
-        std::lock_guard<std::mutex> lock(m_impl->stateMutex);
+        std::scoped_lock lock(m_impl->stateMutex);
         m_impl->trajectoryTrail = enabled;
         m_impl->trajectoryConfig.enabled = enabled;
         m_impl->trajectoryConfig.maxPoints = std::clamp(maxPoints, 5, 200);
@@ -626,7 +626,7 @@ void CentroidTargetTrackerFilter::setTrajectoryTrail(bool enabled, int maxPoints
 bool CentroidTargetTrackerFilter::isTrajectoryTrail() const noexcept
 {
     if (m_impl) {
-        std::lock_guard<std::mutex> lock(m_impl->stateMutex);
+        std::scoped_lock lock(m_impl->stateMutex);
         return m_impl->trajectoryConfig.enabled;
     }
     return true;
@@ -635,7 +635,7 @@ bool CentroidTargetTrackerFilter::isTrajectoryTrail() const noexcept
 int CentroidTargetTrackerFilter::getTrajectoryMaxPoints() const noexcept
 {
     if (m_impl) {
-        std::lock_guard<std::mutex> lock(m_impl->stateMutex);
+        std::scoped_lock lock(m_impl->stateMutex);
         return m_impl->trajectoryConfig.maxPoints;
     }
     return 60;
@@ -644,7 +644,7 @@ int CentroidTargetTrackerFilter::getTrajectoryMaxPoints() const noexcept
 void CentroidTargetTrackerFilter::setPredictiveVector(bool enabled, double lookaheadSeconds) noexcept
 {
     if (m_impl) {
-        std::lock_guard<std::mutex> lock(m_impl->stateMutex);
+        std::scoped_lock lock(m_impl->stateMutex);
         m_impl->predictiveVector = enabled;
         m_impl->predictiveLeadConfig.enabled = enabled;
         m_impl->predictiveLeadConfig.lookaheadSeconds = std::clamp(lookaheadSeconds, 0.1, 10.0);
@@ -655,7 +655,7 @@ void CentroidTargetTrackerFilter::setPredictiveVector(bool enabled, double looka
 bool CentroidTargetTrackerFilter::isPredictiveVector() const noexcept
 {
     if (m_impl) {
-        std::lock_guard<std::mutex> lock(m_impl->stateMutex);
+        std::scoped_lock lock(m_impl->stateMutex);
         return m_impl->predictiveLeadConfig.enabled;
     }
     return true;
@@ -664,7 +664,7 @@ bool CentroidTargetTrackerFilter::isPredictiveVector() const noexcept
 double CentroidTargetTrackerFilter::getPredictiveVectorLookahead() const noexcept
 {
     if (m_impl) {
-        std::lock_guard<std::mutex> lock(m_impl->stateMutex);
+        std::scoped_lock lock(m_impl->stateMutex);
         return m_impl->predictiveLeadConfig.lookaheadSeconds;
     }
     return 1.5;
@@ -673,7 +673,7 @@ double CentroidTargetTrackerFilter::getPredictiveVectorLookahead() const noexcep
 void CentroidTargetTrackerFilter::setTrajectoryConfig(const TrajectoryConfig& config) noexcept
 {
     if (m_impl) {
-        std::lock_guard<std::mutex> lock(m_impl->stateMutex);
+        std::scoped_lock lock(m_impl->stateMutex);
         m_impl->trajectoryConfig = config;
         m_impl->trajectoryConfig.maxDurationSec = std::clamp(config.maxDurationSec, 0.1, 30.0);
         m_impl->trajectoryConfig.maxPoints = std::clamp(config.maxPoints, 5, 200);
@@ -688,7 +688,7 @@ void CentroidTargetTrackerFilter::setTrajectoryConfig(const TrajectoryConfig& co
 CentroidTargetTrackerFilter::TrajectoryConfig CentroidTargetTrackerFilter::getTrajectoryConfig() const noexcept
 {
     if (m_impl) {
-        std::lock_guard<std::mutex> lock(m_impl->stateMutex);
+        std::scoped_lock lock(m_impl->stateMutex);
         return m_impl->trajectoryConfig;
     }
     return {};
@@ -697,7 +697,7 @@ CentroidTargetTrackerFilter::TrajectoryConfig CentroidTargetTrackerFilter::getTr
 void CentroidTargetTrackerFilter::setPredictiveLeadConfig(const PredictiveLeadConfig& config) noexcept
 {
     if (m_impl) {
-        std::lock_guard<std::mutex> lock(m_impl->stateMutex);
+        std::scoped_lock lock(m_impl->stateMutex);
         m_impl->predictiveLeadConfig = config;
         m_impl->predictiveLeadConfig.lookaheadSeconds = std::clamp(config.lookaheadSeconds, 0.1, 10.0);
         m_impl->predictiveVector = config.enabled;
@@ -708,7 +708,7 @@ void CentroidTargetTrackerFilter::setPredictiveLeadConfig(const PredictiveLeadCo
 CentroidTargetTrackerFilter::PredictiveLeadConfig CentroidTargetTrackerFilter::getPredictiveLeadConfig() const noexcept
 {
     if (m_impl) {
-        std::lock_guard<std::mutex> lock(m_impl->stateMutex);
+        std::scoped_lock lock(m_impl->stateMutex);
         return m_impl->predictiveLeadConfig;
     }
     return {};
@@ -717,7 +717,7 @@ CentroidTargetTrackerFilter::PredictiveLeadConfig CentroidTargetTrackerFilter::g
 void CentroidTargetTrackerFilter::setBoresightLeadOffset(double leadX, double leadY) noexcept
 {
     if (m_impl) {
-        std::lock_guard<std::mutex> lock(m_impl->stateMutex);
+        std::scoped_lock lock(m_impl->stateMutex);
         m_impl->boresightLeadOffsetX = std::clamp(leadX, -1.0, 1.0);
         m_impl->boresightLeadOffsetY = std::clamp(leadY, -1.0, 1.0);
     }
@@ -726,7 +726,7 @@ void CentroidTargetTrackerFilter::setBoresightLeadOffset(double leadX, double le
 std::pair<double, double> CentroidTargetTrackerFilter::getBoresightLeadOffset() const noexcept
 {
     if (m_impl) {
-        std::lock_guard<std::mutex> lock(m_impl->stateMutex);
+        std::scoped_lock lock(m_impl->stateMutex);
         return { m_impl->boresightLeadOffsetX, m_impl->boresightLeadOffsetY };
     }
     return { 0.0, 0.0 };
@@ -735,7 +735,7 @@ std::pair<double, double> CentroidTargetTrackerFilter::getBoresightLeadOffset() 
 void CentroidTargetTrackerFilter::setScaleAdaptation(bool enabled) noexcept
 {
     if (m_impl) {
-        std::lock_guard<std::mutex> lock(m_impl->stateMutex);
+        std::scoped_lock lock(m_impl->stateMutex);
         m_impl->scaleAdaptation = enabled;
     }
 }
@@ -743,7 +743,7 @@ void CentroidTargetTrackerFilter::setScaleAdaptation(bool enabled) noexcept
 bool CentroidTargetTrackerFilter::isScaleAdaptation() const noexcept
 {
     if (m_impl) {
-        std::lock_guard<std::mutex> lock(m_impl->stateMutex);
+        std::scoped_lock lock(m_impl->stateMutex);
         return m_impl->scaleAdaptation;
     }
     return true;
@@ -752,7 +752,7 @@ bool CentroidTargetTrackerFilter::isScaleAdaptation() const noexcept
 void CentroidTargetTrackerFilter::setAppearanceFusion(bool enabled) noexcept
 {
     if (m_impl) {
-        std::lock_guard<std::mutex> lock(m_impl->stateMutex);
+        std::scoped_lock lock(m_impl->stateMutex);
         m_impl->appearanceFusion = enabled;
     }
 }
@@ -760,7 +760,7 @@ void CentroidTargetTrackerFilter::setAppearanceFusion(bool enabled) noexcept
 bool CentroidTargetTrackerFilter::isAppearanceFusion() const noexcept
 {
     if (m_impl) {
-        std::lock_guard<std::mutex> lock(m_impl->stateMutex);
+        std::scoped_lock lock(m_impl->stateMutex);
         return m_impl->appearanceFusion;
     }
     return true;
@@ -769,7 +769,7 @@ bool CentroidTargetTrackerFilter::isAppearanceFusion() const noexcept
 void CentroidTargetTrackerFilter::setAppearanceLearningRate(double rate) noexcept
 {
     if (m_impl) {
-        std::lock_guard<std::mutex> lock(m_impl->stateMutex);
+        std::scoped_lock lock(m_impl->stateMutex);
         m_impl->appearanceLearningRate = std::clamp(rate, 0.0, 1.0);
     }
 }
@@ -777,7 +777,7 @@ void CentroidTargetTrackerFilter::setAppearanceLearningRate(double rate) noexcep
 double CentroidTargetTrackerFilter::getAppearanceLearningRate() const noexcept
 {
     if (m_impl) {
-        std::lock_guard<std::mutex> lock(m_impl->stateMutex);
+        std::scoped_lock lock(m_impl->stateMutex);
         return m_impl->appearanceLearningRate;
     }
     return 0.02;
@@ -795,7 +795,7 @@ void CentroidTargetTrackerFilter::process(std::uint8_t* data, int width, int hei
     const int convCode = (format == PixelFormat::RGB24) ? cv::COLOR_RGB2GRAY : cv::COLOR_BGR2GRAY;
     cv::cvtColor(mat, gray, convCode);
 
-    std::lock_guard<std::mutex> lock(m_impl->stateMutex);
+    std::scoped_lock lock(m_impl->stateMutex);
     m_impl->lastWidth = width;
     m_impl->lastHeight = height;
 
@@ -1098,12 +1098,16 @@ void CentroidTargetTrackerFilter::process(std::uint8_t* data, int width, int hei
 
         // Trajectory breadcrumbs path
         if (m_impl->trajectoryConfig.enabled) {
-            m_impl->trajectoryHistory.push_back({ cv::Point2f(static_cast<float>(centerPt.x), static_cast<float>(centerPt.y)), speedPxPerSec, now });
+            m_impl->trajectoryHistory.push_back(
+                { cv::Point2f(static_cast<float>(centerPt.x), static_cast<float>(centerPt.y)), speedPxPerSec, now });
 
             // Decoupled physical time decay pruning
             while (!m_impl->trajectoryHistory.empty()) {
-                const double ageSec = std::chrono::duration<double>(now - m_impl->trajectoryHistory.front().timestamp).count();
-                if (ageSec > m_impl->trajectoryConfig.maxDurationSec || m_impl->trajectoryHistory.size() > static_cast<std::size_t>(m_impl->trajectoryConfig.maxPoints)) {
+                const double ageSec
+                    = std::chrono::duration<double>(now - m_impl->trajectoryHistory.front().timestamp).count();
+                if (ageSec > m_impl->trajectoryConfig.maxDurationSec
+                    || m_impl->trajectoryHistory.size()
+                        > static_cast<std::size_t>(m_impl->trajectoryConfig.maxPoints)) {
                     m_impl->trajectoryHistory.pop_front();
                 } else {
                     break;
@@ -1139,7 +1143,8 @@ void CentroidTargetTrackerFilter::process(std::uint8_t* data, int width, int hei
                 if (m_impl->trajectoryConfig.smoothSpline && nPts >= 4) {
                     // Catmull-Rom spline interpolation between breadcrumb control points
                     for (std::size_t i = 0; i < nPts - 1; ++i) {
-                        const cv::Point2f p0 = (i == 0) ? m_impl->trajectoryHistory[0].position : m_impl->trajectoryHistory[i - 1].position;
+                        const cv::Point2f p0 = (i == 0) ? m_impl->trajectoryHistory[0].position
+                                                        : m_impl->trajectoryHistory[i - 1].position;
                         const cv::Point2f p1 = m_impl->trajectoryHistory[i].position;
                         const cv::Point2f p2 = m_impl->trajectoryHistory[i + 1].position;
                         const cv::Point2f p3 = (i + 2 < nPts) ? m_impl->trajectoryHistory[i + 2].position : p2;
@@ -1153,7 +1158,9 @@ void CentroidTargetTrackerFilter::process(std::uint8_t* data, int width, int hei
                             const float t = static_cast<float>(step) / static_cast<float>(SUBDIVISIONS);
                             const float t2 = t * t;
                             const float t3 = t2 * t;
-                            const cv::Point2f subPt = 0.5f * ((2.0f * p1) + (-p0 + p2) * t + (2.0f * p0 - 5.0f * p1 + 4.0f * p2 - p3) * t2 + (-p0 + 3.0f * p1 - 3.0f * p2 + p3) * t3);
+                            const cv::Point2f subPt = 0.5f
+                                * ((2.0f * p1) + (-p0 + p2) * t + (2.0f * p0 - 5.0f * p1 + 4.0f * p2 - p3) * t2
+                                    + (-p0 + 3.0f * p1 - 3.0f * p2 + p3) * t3);
                             cv::line(mat, prevSub, subPt, segColor, 1, cv::LINE_AA);
                             prevSub = subPt;
                         }
@@ -1162,8 +1169,8 @@ void CentroidTargetTrackerFilter::process(std::uint8_t* data, int width, int hei
                     for (std::size_t i = 1U; i < nPts; ++i) {
                         const double alpha = static_cast<double>(i) / static_cast<double>(nPts);
                         const cv::Scalar segColor = getColorForPoint(m_impl->trajectoryHistory[i], alpha);
-                        cv::line(mat, cv::Point(m_impl->trajectoryHistory[i - 1].position), cv::Point(m_impl->trajectoryHistory[i].position),
-                            segColor, 1, cv::LINE_AA);
+                        cv::line(mat, cv::Point(m_impl->trajectoryHistory[i - 1].position),
+                            cv::Point(m_impl->trajectoryHistory[i].position), segColor, 1, cv::LINE_AA);
                     }
                 }
 
@@ -1173,7 +1180,8 @@ void CentroidTargetTrackerFilter::process(std::uint8_t* data, int width, int hei
                         const double alpha = static_cast<double>(i + 1) / static_cast<double>(nPts);
                         const cv::Scalar dotColor = getColorForPoint(m_impl->trajectoryHistory[i], alpha);
                         const int radius = std::max(1, static_cast<int>(std::round(1.0 + 2.5 * alpha)));
-                        cv::circle(mat, cv::Point(m_impl->trajectoryHistory[i].position), radius, dotColor, -1, cv::LINE_AA);
+                        cv::circle(
+                            mat, cv::Point(m_impl->trajectoryHistory[i].position), radius, dotColor, -1, cv::LINE_AA);
                     }
                 }
             }
@@ -1195,7 +1203,8 @@ void CentroidTargetTrackerFilter::process(std::uint8_t* data, int width, int hei
                     const double cosWk = std::cos(omega * kStep);
                     const double dX = (vx / omega) * sinWk - (vy / omega) * (1.0 - cosWk) + 0.5 * ax * kStep * kStep;
                     const double dY = (vx / omega) * (1.0 - cosWk) + (vy / omega) * sinWk + 0.5 * ay * kStep * kStep;
-                    const cv::Point arcPt(std::clamp(static_cast<int>(std::round(static_cast<double>(centerPt.x) + dX)), 0, width - 1),
+                    const cv::Point arcPt(
+                        std::clamp(static_cast<int>(std::round(static_cast<double>(centerPt.x) + dX)), 0, width - 1),
                         std::clamp(static_cast<int>(std::round(static_cast<double>(centerPt.y) + dY)), 0, height - 1));
                     cv::line(mat, prevArcPt, arcPt, lockColor, (s == ARC_STEPS ? 2 : 1), cv::LINE_AA);
                     prevArcPt = arcPt;
@@ -1207,13 +1216,17 @@ void CentroidTargetTrackerFilter::process(std::uint8_t* data, int width, int hei
                 const double cosWk = std::cos(omega * framesAhead);
                 const cv::Point arrowTip = futurePt;
                 const cv::Point arrowBase(
-                    std::clamp(static_cast<int>(std::round(futurePt.x - (vx * cosWk - vy * sinWk) * 2.0)), 0, width - 1),
-                    std::clamp(static_cast<int>(std::round(futurePt.y - (vx * sinWk + vy * cosWk) * 2.0)), 0, height - 1));
+                    std::clamp(
+                        static_cast<int>(std::round(futurePt.x - (vx * cosWk - vy * sinWk) * 2.0)), 0, width - 1),
+                    std::clamp(
+                        static_cast<int>(std::round(futurePt.y - (vx * sinWk + vy * cosWk) * 2.0)), 0, height - 1));
                 cv::arrowedLine(mat, arrowBase, arrowTip, lockColor, 2, cv::LINE_AA, 0, 0.4);
             } else {
                 // Standard second-order quadratic CA model
-                const double predX = static_cast<double>(centerPt.x) + vx * framesAhead + 0.5 * ax * framesAhead * framesAhead;
-                const double predY = static_cast<double>(centerPt.y) + vy * framesAhead + 0.5 * ay * framesAhead * framesAhead;
+                const double predX
+                    = static_cast<double>(centerPt.x) + vx * framesAhead + 0.5 * ax * framesAhead * framesAhead;
+                const double predY
+                    = static_cast<double>(centerPt.y) + vy * framesAhead + 0.5 * ay * framesAhead * framesAhead;
                 futurePt = cv::Point(std::clamp(static_cast<int>(std::round(predX)), 0, width - 1),
                     std::clamp(static_cast<int>(std::round(predY)), 0, height - 1));
                 cv::arrowedLine(mat, centerPt, futurePt, lockColor, 2, cv::LINE_AA, 0, 0.15);
@@ -1244,8 +1257,10 @@ void CentroidTargetTrackerFilter::process(std::uint8_t* data, int width, int hei
                 const float p35 = P.at<float>(3, 5);
                 const float p01 = P.at<float>(0, 1);
 
-                const double cxx = std::max(1.0, static_cast<double>(p00 + 2.0f * k * p02 + k2 * p22 + k2 * p04 + k3 * p24 + 0.25f * k4 * p44));
-                const double cyy = std::max(1.0, static_cast<double>(p11 + 2.0f * k * p13 + k2 * p33 + k2 * p15 + k3 * p35 + 0.25f * k4 * p55));
+                const double cxx = std::max(
+                    1.0, static_cast<double>(p00 + 2.0f * k * p02 + k2 * p22 + k2 * p04 + k3 * p24 + 0.25f * k4 * p44));
+                const double cyy = std::max(
+                    1.0, static_cast<double>(p11 + 2.0f * k * p13 + k2 * p33 + k2 * p15 + k3 * p35 + 0.25f * k4 * p55));
                 const double cxy = static_cast<double>(p01);
 
                 const double tr = cxx + cyy;
@@ -1262,7 +1277,8 @@ void CentroidTargetTrackerFilter::process(std::uint8_t* data, int width, int hei
                 m_impl->state.uncertaintyAngleDeg = angleDeg;
 
                 const cv::Scalar ellipseColor = lockColor * 0.75;
-                cv::ellipse(mat, futurePt, cv::Size(static_cast<int>(std::round(semiMajor)), static_cast<int>(std::round(semiMinor))),
+                cv::ellipse(mat, futurePt,
+                    cv::Size(static_cast<int>(std::round(semiMajor)), static_cast<int>(std::round(semiMinor))),
                     angleDeg, 0.0, 360.0, ellipseColor, 1, cv::LINE_AA);
             }
 
@@ -1271,8 +1287,10 @@ void CentroidTargetTrackerFilter::process(std::uint8_t* data, int width, int hei
             cv::drawMarker(mat, futurePt, lockColor, cv::MARKER_CROSS, 10, 1, cv::LINE_AA);
 
             char timeBuf[32];
-            std::snprintf(timeBuf, sizeof(timeBuf), "+%.1fs [%.0f°]", m_impl->predictiveLeadConfig.lookaheadSeconds, headingDeg);
-            cv::putText(mat, timeBuf, cv::Point(futurePt.x + 8, futurePt.y - 4), cv::FONT_HERSHEY_PLAIN, 0.8, lockColor, 1, cv::LINE_AA);
+            std::snprintf(
+                timeBuf, sizeof(timeBuf), "+%.1fs [%.0f°]", m_impl->predictiveLeadConfig.lookaheadSeconds, headingDeg);
+            cv::putText(mat, timeBuf, cv::Point(futurePt.x + 8, futurePt.y - 4), cv::FONT_HERSHEY_PLAIN, 0.8, lockColor,
+                1, cv::LINE_AA);
         } else {
             // Standard velocity vector projection
             const cv::Point arrowEnd(centerPt.x + static_cast<int>(std::round(m_impl->state.vx * 4.0)),
@@ -1281,13 +1299,19 @@ void CentroidTargetTrackerFilter::process(std::uint8_t* data, int width, int hei
         }
 
         // Boresight Lead Setpoint Marker (Visual PTZ Steering Setpoint)
-        if (m_impl->predictiveLeadConfig.showBoresightLeadSetpoint && (std::abs(m_impl->boresightLeadOffsetX) > 0.001 || std::abs(m_impl->boresightLeadOffsetY) > 0.001)) {
-            const int ptzX = std::clamp(static_cast<int>(std::round(halfW + m_impl->boresightLeadOffsetX * halfW)), 0, width - 1);
-            const int ptzY = std::clamp(static_cast<int>(std::round(halfH + m_impl->boresightLeadOffsetY * halfH)), 0, height - 1);
-            const cv::Scalar ptzLeadColor = (format == PixelFormat::RGB24) ? cv::Scalar(0, 220, 255) : cv::Scalar(255, 220, 0);
+        if (m_impl->predictiveLeadConfig.showBoresightLeadSetpoint
+            && (std::abs(m_impl->boresightLeadOffsetX) > 0.001 || std::abs(m_impl->boresightLeadOffsetY) > 0.001)) {
+            const int ptzX
+                = std::clamp(static_cast<int>(std::round(halfW + m_impl->boresightLeadOffsetX * halfW)), 0, width - 1);
+            const int ptzY
+                = std::clamp(static_cast<int>(std::round(halfH + m_impl->boresightLeadOffsetY * halfH)), 0, height - 1);
+            const cv::Scalar ptzLeadColor
+                = (format == PixelFormat::RGB24) ? cv::Scalar(0, 220, 255) : cv::Scalar(255, 220, 0);
             cv::drawMarker(mat, cv::Point(ptzX, ptzY), ptzLeadColor, cv::MARKER_DIAMOND, 14, 1, cv::LINE_AA);
-            cv::line(mat, cv::Point(static_cast<int>(halfW), static_cast<int>(halfH)), cv::Point(ptzX, ptzY), ptzLeadColor, 1, cv::LINE_AA);
-            cv::putText(mat, "PTZ LEAD", cv::Point(ptzX + 8, ptzY + 4), cv::FONT_HERSHEY_PLAIN, 0.75, ptzLeadColor, 1, cv::LINE_AA);
+            cv::line(mat, cv::Point(static_cast<int>(halfW), static_cast<int>(halfH)), cv::Point(ptzX, ptzY),
+                ptzLeadColor, 1, cv::LINE_AA);
+            cv::putText(mat, "PTZ LEAD", cv::Point(ptzX + 8, ptzY + 4), cv::FONT_HERSHEY_PLAIN, 0.75, ptzLeadColor, 1,
+                cv::LINE_AA);
         }
 
         std::string tag;
@@ -1353,7 +1377,7 @@ bool PerimeterTripwireFilter::hasAlarm() const
     if (!m_impl) {
         return false;
     }
-    std::lock_guard<std::mutex> lock(m_impl->mutex);
+    std::scoped_lock lock(m_impl->mutex);
     return m_impl->alarmFrames > 0;
 }
 
@@ -1362,7 +1386,7 @@ std::size_t PerimeterTripwireFilter::getIntrusionCount() const
     if (!m_impl) {
         return 0U;
     }
-    std::lock_guard<std::mutex> lock(m_impl->mutex);
+    std::scoped_lock lock(m_impl->mutex);
     return m_impl->intrusionCount;
 }
 
@@ -1371,7 +1395,7 @@ void PerimeterTripwireFilter::resetIntrusionCount()
     if (!m_impl) {
         return;
     }
-    std::lock_guard<std::mutex> lock(m_impl->mutex);
+    std::scoped_lock lock(m_impl->mutex);
     m_impl->intrusionCount = 0U;
     m_impl->alarmFrames = 0;
 }
@@ -1404,7 +1428,7 @@ void PerimeterTripwireFilter::process(std::uint8_t* data, int width, int height,
     const int convCode = (format == PixelFormat::RGB24) ? cv::COLOR_RGB2GRAY : cv::COLOR_BGR2GRAY;
     cv::cvtColor(mat, gray, convCode);
 
-    std::lock_guard<std::mutex> lock(m_impl->mutex);
+    std::scoped_lock lock(m_impl->mutex);
 
     const cv::Point2f tripA(static_cast<float>(m_x1Norm * static_cast<double>(width)),
         static_cast<float>(m_y1Norm * static_cast<double>(height)));
@@ -1513,7 +1537,7 @@ MotionHeatmapFilter& MotionHeatmapFilter::operator=(MotionHeatmapFilter&&) noexc
 void MotionHeatmapFilter::reset()
 {
     if (m_impl) {
-        std::lock_guard<std::mutex> lock(m_impl->mutex);
+        std::scoped_lock lock(m_impl->mutex);
         m_impl->prevGray.release();
         m_impl->accumHeatmap.release();
     }
@@ -1531,7 +1555,7 @@ void MotionHeatmapFilter::process(std::uint8_t* data, int width, int height, Pix
     const int convCode = (format == PixelFormat::RGB24) ? cv::COLOR_RGB2GRAY : cv::COLOR_BGR2GRAY;
     cv::cvtColor(mat, gray, convCode);
 
-    std::lock_guard<std::mutex> lock(m_impl->mutex);
+    std::scoped_lock lock(m_impl->mutex);
 
     if (m_impl->prevGray.empty() || m_impl->prevGray.size() != gray.size()) {
         m_impl->prevGray = gray.clone();
@@ -1563,7 +1587,6 @@ void MotionHeatmapFilter::process(std::uint8_t* data, int width, int height, Pix
 
     cv::addWeighted(mat, 1.0 - m_opacity, colorHeatmap, m_opacity, 0.0, mat);
 }
-
 
 } // namespace Video::Filters
 

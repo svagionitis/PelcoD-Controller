@@ -72,7 +72,7 @@ bool OnvifServerView::startServer()
                 char timeStr[16];
                 std::strftime(timeStr, sizeof(timeStr), "%H:%M:%S", &tmBuf);
 
-                std::lock_guard<std::mutex> lock(m_logMutex);
+                std::scoped_lock lock(m_logMutex);
                 ++m_totalRequests;
                 m_logs.push_back(LogEntry { timeStr, service, action, clientIp });
                 if (m_logs.size() > 50) {
@@ -189,7 +189,7 @@ void OnvifServerView::render(Canvas& canvas, int startY, int width, int height)
         Style { Colors::DarkGray, Colors::PanelBg, true, false, false, false, false });
 
     {
-        std::lock_guard<std::mutex> lock(m_logMutex);
+        std::scoped_lock lock(m_logMutex);
         const int maxRows = panelH - 5;
         int count = 0;
         for (auto it = m_logs.rbegin(); it != m_logs.rend() && count < maxRows; ++it, ++count) {
@@ -256,7 +256,7 @@ bool OnvifServerView::handleInput(const InputEvent& event)
 #endif
 
     if (ch == 'c' || ch == 'C') {
-        std::lock_guard<std::mutex> lock(m_logMutex);
+        std::scoped_lock lock(m_logMutex);
         m_logs.clear();
         m_totalRequests = 0;
         m_lastMessage = "Request log cleared.";

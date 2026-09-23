@@ -43,7 +43,7 @@ void VideoView::updateFrame(const std::uint8_t* data, int width, int height, dou
         return;
     }
 
-    std::lock_guard<std::mutex> lock(m_frameMutex);
+    std::scoped_lock lock(m_frameMutex);
     const std::size_t size = static_cast<std::size_t>(width * height * 3);
     m_frameBuffer.assign(data, data + size);
     m_frameWidth = width;
@@ -61,7 +61,7 @@ void VideoView::updateFrame(const std::uint8_t* data, int width, int height, dou
 void VideoView::setStreamInfo(
     videodecoder::StreamState state, const std::string& source, const std::string& backend, double fps)
 {
-    std::lock_guard<std::mutex> lock(m_frameMutex);
+    std::scoped_lock lock(m_frameMutex);
     m_streamState = state;
     m_sourceName = source;
     m_backendName = backend;
@@ -290,7 +290,7 @@ void VideoView::renderHudBar(Canvas& canvas, int y, int width, const PelcoD::Dev
     // 3. Diagnostics & Stream Badges (right aligned)
     std::string diagBadge;
     {
-        std::lock_guard<std::mutex> lock(m_frameMutex);
+        std::scoped_lock lock(m_frameMutex);
         std::ostringstream oss;
         if (m_streamState == videodecoder::StreamState::Streaming) {
             oss << Symbols::CircleFilled << " LIVE [" << m_backendName << "] ";
@@ -381,7 +381,7 @@ void VideoView::render(Canvas& canvas, int startY, int width, int height, const 
     int frameW = 0, frameH = 0;
     videodecoder::StreamState curState;
     {
-        std::lock_guard<std::mutex> lock(m_frameMutex);
+        std::scoped_lock lock(m_frameMutex);
         frameCopy = m_frameBuffer;
         frameW = m_frameWidth;
         frameH = m_frameHeight;

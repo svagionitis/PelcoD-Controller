@@ -61,14 +61,14 @@ bool BaseVideoDecoder::isTripleBufferingEnabled() const
 void BaseVideoDecoder::addFrameProcessor(std::shared_ptr<IFrameProcessor> processor)
 {
     if (processor) {
-        std::lock_guard<std::mutex> lock(m_processorMutex);
+        std::scoped_lock lock(m_processorMutex);
         m_processors.push_back(std::move(processor));
     }
 }
 
 void BaseVideoDecoder::clearFrameProcessors()
 {
-    std::lock_guard<std::mutex> lock(m_processorMutex);
+    std::scoped_lock lock(m_processorMutex);
     m_processors.clear();
 }
 
@@ -92,7 +92,7 @@ void BaseVideoDecoder::dispatchFrameProcessors(std::uint8_t* data, int w, int h,
 {
     std::vector<std::shared_ptr<IFrameProcessor>> processors;
     {
-        std::lock_guard<std::mutex> lock(m_processorMutex);
+        std::scoped_lock lock(m_processorMutex);
         processors = m_processors;
     }
     for (auto& processor : processors) {

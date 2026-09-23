@@ -58,7 +58,7 @@ public:
 
     [[nodiscard]] bool sendData(const std::vector<std::uint8_t>& data) override
     {
-        std::lock_guard<std::mutex> lock(m_mutex);
+        std::scoped_lock lock(m_mutex);
         m_sentFrames.push_back(data);
         return m_open.load();
     }
@@ -70,13 +70,13 @@ public:
 
     [[nodiscard]] bool hasDataCallback() const
     {
-        std::lock_guard<std::mutex> lock(m_callbackMutex);
+        std::scoped_lock lock(m_callbackMutex);
         return static_cast<bool>(m_dataCallback);
     }
 
     [[nodiscard]] bool hasStateCallback() const
     {
-        std::lock_guard<std::mutex> lock(m_callbackMutex);
+        std::scoped_lock lock(m_callbackMutex);
         return static_cast<bool>(m_stateCallback);
     }
 
@@ -87,7 +87,7 @@ public:
 
     [[nodiscard]] std::vector<std::vector<std::uint8_t>> getSentFrames() const
     {
-        std::lock_guard<std::mutex> lock(m_mutex);
+        std::scoped_lock lock(m_mutex);
         return m_sentFrames;
     }
 
@@ -119,13 +119,13 @@ public:
 
     [[nodiscard]] bool hasDataCallback() const
     {
-        std::lock_guard<std::mutex> lock(m_callbackMutex);
+        std::scoped_lock lock(m_callbackMutex);
         return static_cast<bool>(m_dataCallback);
     }
 
     [[nodiscard]] bool hasStateCallback() const
     {
-        std::lock_guard<std::mutex> lock(m_callbackMutex);
+        std::scoped_lock lock(m_callbackMutex);
         return static_cast<bool>(m_stateCallback);
     }
 };

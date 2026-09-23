@@ -9,7 +9,7 @@
 namespace PelcoD {
 
 namespace {
-constexpr double kFloatEpsilon = 1e-6;
+    constexpr double kFloatEpsilon = 1e-6;
 } // namespace
 
 KinematicsSimulator::KinematicsSimulator()
@@ -20,19 +20,19 @@ KinematicsSimulator::KinematicsSimulator()
 
 void KinematicsSimulator::setConfig(const KinematicsConfig& config)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     m_config = config;
 }
 
 KinematicsConfig KinematicsSimulator::getConfig() const
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     return m_config;
 }
 
 void KinematicsSimulator::setPositionImmediate(double panDeg, double tiltDeg, double zoom)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     m_currentPanDeg = normalizePanDeg(panDeg);
     m_currentTiltDeg = std::clamp(tiltDeg, m_config.minTiltDeg, m_config.maxTiltDeg);
     m_currentZoom = std::clamp(zoom, 1000.0, 65535.0);
@@ -48,7 +48,7 @@ void KinematicsSimulator::setPositionImmediate(double panDeg, double tiltDeg, do
 
 void KinematicsSimulator::setDirectionalMotion(double panFraction, double tiltFraction, double zoomFraction)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     const auto now = std::chrono::steady_clock::now();
 
     m_targetPanVelocity = std::clamp(panFraction, -1.0, 1.0) * m_config.maxPanSpeedDegPerSec;
@@ -82,7 +82,7 @@ void KinematicsSimulator::setDirectionalMotion(double panFraction, double tiltFr
 
 void KinematicsSimulator::slewTo(double targetPanDeg, double targetTiltDeg)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     m_targetPanDeg = normalizePanDeg(targetPanDeg);
     m_targetTiltDeg = std::clamp(targetTiltDeg, m_config.minTiltDeg, m_config.maxTiltDeg);
 
@@ -102,7 +102,7 @@ void KinematicsSimulator::slewTo(double targetPanDeg, double targetTiltDeg)
 
 void KinematicsSimulator::slewZoomTo(double targetZoom)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     m_targetZoom = std::clamp(targetZoom, 1000.0, 65535.0);
 
     if (!m_config.enabled) {
@@ -118,7 +118,7 @@ void KinematicsSimulator::slewZoomTo(double targetZoom)
 
 void KinematicsSimulator::stop()
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     m_targetPanVelocity = 0.0;
     m_targetTiltVelocity = 0.0;
     m_targetZoomVelocity = 0.0;
@@ -138,7 +138,7 @@ void KinematicsSimulator::stop()
 
 void KinematicsSimulator::update(std::chrono::steady_clock::time_point now)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     if (!m_hasTimestamp) {
         m_lastUpdateTime = now;
         m_hasTimestamp = true;
@@ -166,8 +166,8 @@ void KinematicsSimulator::update(std::chrono::steady_clock::time_point now)
     if (!m_config.enabled) {
         if (m_mode == MotionMode::ManualVelocity) {
             m_currentPanDeg = normalizePanDeg(m_currentPanDeg + m_targetPanVelocity * dt);
-            m_currentTiltDeg = std::clamp(m_currentTiltDeg + m_targetTiltVelocity * dt,
-                m_config.minTiltDeg, m_config.maxTiltDeg);
+            m_currentTiltDeg
+                = std::clamp(m_currentTiltDeg + m_targetTiltVelocity * dt, m_config.minTiltDeg, m_config.maxTiltDeg);
             m_currentZoom = std::clamp(m_currentZoom + m_targetZoomVelocity * dt, 1000.0, 65535.0);
         } else if (m_mode == MotionMode::SlewingToTarget) {
             m_currentPanDeg = m_targetPanDeg;
@@ -198,8 +198,7 @@ void KinematicsSimulator::update(std::chrono::steady_clock::time_point now)
         m_zoomVelocity = stepVelocity(m_zoomVelocity, m_targetZoomVelocity, zoomAccel, dt);
 
         m_currentPanDeg = normalizePanDeg(m_currentPanDeg + m_panVelocity * dt);
-        m_currentTiltDeg = std::clamp(m_currentTiltDeg + m_tiltVelocity * dt,
-            m_config.minTiltDeg, m_config.maxTiltDeg);
+        m_currentTiltDeg = std::clamp(m_currentTiltDeg + m_tiltVelocity * dt, m_config.minTiltDeg, m_config.maxTiltDeg);
         m_currentZoom = std::clamp(m_currentZoom + m_zoomVelocity * dt, 1000.0, 65535.0);
 
         if (std::abs(m_targetPanVelocity) <= kFloatEpsilon && std::abs(m_targetTiltVelocity) <= kFloatEpsilon
@@ -280,8 +279,7 @@ void KinematicsSimulator::update(std::chrono::steady_clock::time_point now)
                 m_tiltVelocity = 0.0;
                 tiltArrived = true;
             } else {
-                m_currentTiltDeg = std::clamp(m_currentTiltDeg + step,
-                    m_config.minTiltDeg, m_config.maxTiltDeg);
+                m_currentTiltDeg = std::clamp(m_currentTiltDeg + step, m_config.minTiltDeg, m_config.maxTiltDeg);
             }
         }
 
@@ -295,8 +293,7 @@ void KinematicsSimulator::update(std::chrono::steady_clock::time_point now)
             m_zoomVelocity = 0.0;
             zoomArrived = true;
         } else {
-            m_currentZoom = std::clamp(m_currentZoom + std::copysign(step, zoomDiff),
-                1000.0, 65535.0);
+            m_currentZoom = std::clamp(m_currentZoom + std::copysign(step, zoomDiff), 1000.0, 65535.0);
         }
 
         if (panArrived && tiltArrived && zoomArrived) {
@@ -307,31 +304,31 @@ void KinematicsSimulator::update(std::chrono::steady_clock::time_point now)
 
 bool KinematicsSimulator::isMoving() const
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     return m_mode != MotionMode::Stopped || std::abs(m_panVelocity) > 0.01 || std::abs(m_tiltVelocity) > 0.01;
 }
 
 double KinematicsSimulator::currentPanDeg() const
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     return m_currentPanDeg;
 }
 
 double KinematicsSimulator::currentTiltDeg() const
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     return m_currentTiltDeg;
 }
 
 double KinematicsSimulator::currentZoom() const
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     return m_currentZoom;
 }
 
 std::uint16_t KinematicsSimulator::currentPanCentidegrees() const
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     const double rounded = std::round(m_currentPanDeg * 100.0);
     const auto intVal = static_cast<long long>(rounded);
     return static_cast<std::uint16_t>((intVal % 36000 + 36000) % 36000);
@@ -339,7 +336,7 @@ std::uint16_t KinematicsSimulator::currentPanCentidegrees() const
 
 std::uint16_t KinematicsSimulator::currentTiltCentidegrees() const
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     const double rounded = std::round(m_currentTiltDeg * 100.0);
     const auto intVal = static_cast<long long>(rounded);
     return static_cast<std::uint16_t>((intVal % 36000 + 36000) % 36000);
@@ -347,7 +344,7 @@ std::uint16_t KinematicsSimulator::currentTiltCentidegrees() const
 
 std::uint16_t KinematicsSimulator::currentZoomInt() const
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     return static_cast<std::uint16_t>(std::clamp(std::round(m_currentZoom), 1000.0, 65535.0));
 }
 

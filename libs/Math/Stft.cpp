@@ -16,7 +16,7 @@ Stft::Stft(StftConfig config)
 
 void Stft::setConfig(const StftConfig& config)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     m_config = config;
 
     // Window size must be a valid power of 2 (minimum 16)
@@ -45,13 +45,13 @@ void Stft::setConfig(const StftConfig& config)
 
 StftConfig Stft::getConfig() const noexcept
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     return m_config;
 }
 
 void Stft::addSample(double sample, double timestamp)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
 
     if (timestamp >= 0.0) {
         m_currentTimestamp = timestamp;
@@ -89,19 +89,19 @@ void Stft::addSamples(const std::vector<double>& samples, double startTime)
 
 std::vector<SpectrogramFrame> Stft::getHistory() const
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     return { m_history.begin(), m_history.end() };
 }
 
 bool Stft::hasFrames() const noexcept
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     return !m_history.empty();
 }
 
 SpectrogramFrame Stft::getLatestFrame() const
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     if (m_history.empty()) {
         return SpectrogramFrame {};
     }
@@ -110,7 +110,7 @@ SpectrogramFrame Stft::getLatestFrame() const
 
 std::vector<double> Stft::getFrequencyBinsHz() const
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     const std::size_t numBins = m_config.windowSize / 2U + 1U;
     const double binWidthHz = m_config.sampleRateHz / static_cast<double>(m_config.windowSize);
 
@@ -123,7 +123,7 @@ std::vector<double> Stft::getFrequencyBinsHz() const
 
 void Stft::reset() noexcept
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    std::scoped_lock lock(m_mutex);
     m_sampleBuffer.clear();
     m_samplesSinceLastHop = 0U;
     m_currentTimestamp = 0.0;
@@ -140,8 +140,8 @@ void Stft::processWindow(double windowEndTime)
 
     // 1. Detrend / mean subtraction to suppress 0 Hz DC spike
     if (m_config.detrend && !windowData.empty()) {
-        const double mean = std::accumulate(windowData.begin(), windowData.end(), 0.0)
-            / static_cast<double>(windowData.size());
+        const double mean
+            = std::accumulate(windowData.begin(), windowData.end(), 0.0) / static_cast<double>(windowData.size());
         for (auto& v : windowData) {
             v -= mean;
         }

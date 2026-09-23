@@ -46,7 +46,7 @@ public:
 
     [[nodiscard]] bool sendData(const std::vector<std::uint8_t>& data) override
     {
-        std::lock_guard<std::mutex> lock(m_mutex);
+        std::scoped_lock lock(m_mutex);
         m_sentFrames.push_back(data);
 
         if (m_failSendCount > 0U) {
@@ -63,19 +63,19 @@ public:
 
     void setFailSendCount(std::uint32_t count)
     {
-        std::lock_guard<std::mutex> lock(m_mutex);
+        std::scoped_lock lock(m_mutex);
         m_failSendCount = count;
     }
 
     [[nodiscard]] std::size_t getSentCount() const
     {
-        std::lock_guard<std::mutex> lock(m_mutex);
+        std::scoped_lock lock(m_mutex);
         return m_sentFrames.size();
     }
 
     [[nodiscard]] std::vector<std::vector<std::uint8_t>> getSentFrames() const
     {
-        std::lock_guard<std::mutex> lock(m_mutex);
+        std::scoped_lock lock(m_mutex);
         return m_sentFrames;
     }
 
