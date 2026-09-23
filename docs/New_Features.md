@@ -154,8 +154,8 @@ Techniques from digital signal processing (DSP), system identification, and cont
   * $3 \times 3$ projective matrix transformations for ground-plane projection, Birds-Eye-View (BEV) mapping, and ONVIF GeoMove coordinate conversions.
 * **Direct Encoder Latency & SEI Metadata Extractor (`SeiTimecodeExtractor`)**:
   * Extracts H.264/HEVC SEI (Supplemental Enhancement Information) NALUs (such as `user_data_unregistered`, SMPTE 12M-2, or ONVIF UTC timecodes) directly during decoding to compute true camera-to-display latency ($\Delta t = T_{\text{local}} - T_{\text{capture}}$) without external sensors.
-* **Stream Health & Freeze / Signal-Loss Monitor (`StreamHealthMonitor`)**:
-  * Automatically detects frozen frames (via consecutive perceptual hashing or MSE differentials), physical lens blackouts, and frame delivery jitter, triggering proactive auto-reconnect or failsafe PTZ homing before complete socket timeouts.
+* **Stream Health & Freeze / Signal-Loss Monitor (`StreamHealthMonitor`) (Completed)**:
+  * Diagnostic state machine and anomaly detection engine operating as an `IFrameProcessor` in `libs/Video`. Analyzes sub-sampled grids (<0.05 ms overhead) to detect frozen frames, signal-loss timeouts, physical lens blackouts, whiteouts, and degraded FPS, triggering proactive state callbacks and automated stream reconnection. Implemented in `StreamHealthMonitor.h` and `StreamHealthMonitor.cpp`, tested in `TestStreamHealthMonitor.cpp`.
 * **Pre-Event Rolling Incident Buffer & Video Recorder (`VideoRecorder`)**:
   * Maintains an in-memory ring buffer (e.g. 5–15 seconds) of decoded frames or raw NALUs, enabling automated post-incident and pre-alarm clip export to MP4/MKV when perimeter tripwires or target trackers trigger.
 * **Hardware Latency Optical Test Pattern Generator (`MockVideoDecoder`)**:
