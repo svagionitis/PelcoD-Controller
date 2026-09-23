@@ -7,6 +7,7 @@ target_include_directories(TestVideoDecoder PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/..
     ${CMAKE_SOURCE_DIR}/libs/VideoFilters
     ${CMAKE_SOURCE_DIR}/libs/PelcoDQt
+    ${CMAKE_SOURCE_DIR}/libs/Klv
 )
 target_link_libraries(TestVideoDecoder PRIVATE
     PelcoDQt

@@ -13,6 +13,8 @@ set(PELCOD_VIDEO_FILTERS_SOURCES
     OverlayFilters.cpp
     StreamHealthOsdFilter.h
     StreamHealthOsdFilter.cpp
+    TacticalHudFilter.h
+    TacticalHudFilter.cpp
     VideoFilters.h
 )
 
@@ -34,6 +36,7 @@ target_include_directories(VideoFilters SYSTEM PUBLIC ${OpenCV_INCLUDE_DIRS})
 target_link_libraries(VideoFilters PUBLIC
     Video
     Math
+    Klv
     Threads::Threads
     glog::glog
     ${OpenCV_LIBS}

@@ -389,6 +389,8 @@ if(PELCOD_ENABLE_VIDEO)
             libs/VideoFilters/ThermalFilters.h
             libs/VideoFilters/TrackingFilters.h
             libs/VideoFilters/OverlayFilters.h
+            libs/VideoFilters/StreamHealthOsdFilter.h
+            libs/VideoFilters/TacticalHudFilter.h
             libs/VideoFilters/VideoFilters.h
             DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/VideoFilters
         )

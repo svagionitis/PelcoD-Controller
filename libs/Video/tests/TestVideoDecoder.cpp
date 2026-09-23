@@ -1858,6 +1858,91 @@ TEST(VideoFiltersTest, StreamHealthOsdFilterExclusionZoneOverlay)
     osdFilter.process(frame.data(), w, h, PixelFormat::RGB24);
     EXPECT_NE(frame, cleanFrame);
 }
+
+TEST(VideoFiltersTest, TacticalHudFilterPropertiesAndConfiguration)
+{
+    TacticalHudFilter hud(TacticalHudFilter::HudMode::Standard, TacticalHudFilter::ColorPalette::TacticalGreen);
+    EXPECT_EQ(hud.getMode(), TacticalHudFilter::HudMode::Standard);
+    EXPECT_EQ(hud.getColorPalette(), TacticalHudFilter::ColorPalette::TacticalGreen);
+
+    hud.setMode(TacticalHudFilter::HudMode::FullTactical);
+    EXPECT_EQ(hud.getMode(), TacticalHudFilter::HudMode::FullTactical);
+
+    hud.setColorPalette(TacticalHudFilter::ColorPalette::Amber);
+    EXPECT_EQ(hud.getColorPalette(), TacticalHudFilter::ColorPalette::Amber);
+
+    hud.setCoordinateFormat(TacticalHudFilter::CoordinateFormat::DecimalDeg);
+    EXPECT_EQ(hud.getCoordinateFormat(), TacticalHudFilter::CoordinateFormat::DecimalDeg);
+
+    hud.setShowHorizon(false);
+    EXPECT_FALSE(hud.getShowHorizon());
+
+    hud.setShowCompassTape(false);
+    EXPECT_FALSE(hud.getShowCompassTape());
+
+    hud.setShowSecurityBanners(false);
+    EXPECT_FALSE(hud.getShowSecurityBanners());
+}
+
+TEST(VideoFiltersTest, TacticalHudFilterKlvTelemetryBindingAndRendering)
+{
+    TacticalHudFilter hud(TacticalHudFilter::HudMode::Standard, TacticalHudFilter::ColorPalette::TacticalGreen);
+
+    Klv::UasDatalinkMessage msg;
+    msg.platformHeadingDeg = 145.0;
+    msg.platformPitchDeg = -5.0;
+    msg.platformRollDeg = 2.0;
+    msg.sensorRelAzimuthDeg = 30.0;
+    msg.sensorRelElevationDeg = -12.0;
+    msg.sensorHfovDeg = 45.0;
+    msg.sensorVfovDeg = 28.0;
+    msg.sensorLatitudeDeg = 37.7749;
+    msg.sensorLongitudeDeg = -122.4194;
+    msg.sensorTrueAltitudeM = 1200.0;
+    msg.frameCenterLatDeg = 37.8012;
+    msg.frameCenterLonDeg = -122.3987;
+    msg.frameCenterElevM = 20.0;
+    msg.slantRangeM = 3500.0;
+    msg.targetWidthM = 80.0;
+
+    Klv::SecurityMetadata sec;
+    sec.classification = Klv::SecurityClassification::Secret;
+    sec.classifyingCountry = "NATO";
+    sec.caveats = "REL TO NATO";
+    msg.security = sec;
+
+    hud.updateTelemetry(msg);
+
+    const int w = 320;
+    const int h = 240;
+    std::vector<std::uint8_t> rgbFrame(static_cast<std::size_t>(w * h * 3), 40U);
+    const std::vector<std::uint8_t> cleanRgb = rgbFrame;
+
+    hud.process(rgbFrame.data(), w, h, PixelFormat::RGB24);
+    EXPECT_NE(rgbFrame, cleanRgb);
+
+    // Test BGR24 rendering in FullTactical mode
+    hud.setMode(TacticalHudFilter::HudMode::FullTactical);
+    std::vector<std::uint8_t> bgrFrame(static_cast<std::size_t>(w * h * 3), 40U);
+    const std::vector<std::uint8_t> cleanBgr = bgrFrame;
+
+    hud.process(bgrFrame.data(), w, h, PixelFormat::BGR24);
+    EXPECT_NE(bgrFrame, cleanBgr);
+}
+
+TEST(VideoFiltersTest, TacticalHudFilterMinimalMode)
+{
+    TacticalHudFilter hud(TacticalHudFilter::HudMode::Minimal, TacticalHudFilter::ColorPalette::ElectricCyan);
+    hud.setSensorOrientation(90.0, -10.0, 60.0, 2.0);
+
+    const int w = 320;
+    const int h = 240;
+    std::vector<std::uint8_t> frame(static_cast<std::size_t>(w * h * 3), 100U);
+    const std::vector<std::uint8_t> clean = frame;
+
+    hud.process(frame.data(), w, h, PixelFormat::RGB24);
+    EXPECT_NE(frame, clean);
+}
 #endif
 
 int main(int argc, char* argv[])
