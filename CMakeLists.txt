@@ -235,7 +235,7 @@ include(GitHooks)
 # Target Installation
 # ==============================================================================
 
-set(PELCOD_INSTALL_TARGETS PelcoDAppQt ViscaAppQt PelcoDAppTui PelcoDCore PelcoDQt Math Transport ViscaCore ViscaSony Tracking PelcoDFujinon PelcoDSim)
+set(PELCOD_INSTALL_TARGETS PelcoDAppQt ViscaAppQt PelcoDAppTui PelcoDCore PelcoDQt Math Transport ViscaCore ViscaSony Tracking Klv PelcoDFujinon PelcoDSim)
 if(PELCOD_ENABLE_ONVIF)
     list(APPEND PELCOD_INSTALL_TARGETS Onvif)
 endif()
@@ -298,6 +298,18 @@ install(FILES
     libs/Tracking/TransientShockDetector.h
     libs/Tracking/UnscentedKalmanFilter.h
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/Tracking
+)
+
+install(FILES
+    libs/Klv/KlvTypes.h
+    libs/Klv/KlvBer.h
+    libs/Klv/KlvCrc.h
+    libs/Klv/KlvEncoder.h
+    libs/Klv/KlvParser.h
+    libs/Klv/KlvStreamScanner.h
+    libs/Klv/MpegTsKlvExtractor.h
+    libs/Klv/KlvGeodesy.h
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/Klv
 )
 
 if(PELCOD_ENABLE_ONVIF)
