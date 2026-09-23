@@ -162,6 +162,8 @@ Techniques from digital signal processing (DSP), system identification, and cont
   * Extends synthetic test generation with high-contrast digital millisecond stopwatches, binary optical barcodes, and sweeping sinusoidal bars synchronized with PTZ motor commands for bench-testing glass-to-glass latency estimators without physical hardware.
 * **Multi-Resolution Sub-Stream Scaler & ROI Cropper (`FrameScaler`)**:
   * Provides high-performance SIMD/OpenCV downsampling and bounding-box ROI cropping (e.g. 640×360 or 128×128 target patches) to feed optical flow and Gabor feature analyzers with minimal CPU/GPU overhead while maintaining full 1080p/4K resolution for operator display.
+* **STANAG 4609 / MISB ST 0601 KLV Metadata Engine (`KlvParser` / `KlvEncoder`)**:
+  * Lightweight, zero-dependency C++17 telemetry encoder and parser implementing the SMPTE 336M / MISB ST 0601 UAS Datalink Local Set standard. Synchronizes camera pan/tilt angles, optical FOV, platform GPS coordinates (latitude, longitude, altitude), and slant range frame-by-frame with RTSP and MPEG-TS video streams. Enables moving map integration (ATAK / WinTAK sensor footprint frustums), geo-pointing target coordinate calculations, and lossless forensic metadata recording without altering video pixels.
 
 #### D. Control System Identification
 * **Automated Chirp / Swept-Sine Plant Identification (Empirical Bode Plot) (Completed)**:
