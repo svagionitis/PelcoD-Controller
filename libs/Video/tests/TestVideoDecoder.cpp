@@ -1654,6 +1654,52 @@ TEST(VideoFiltersTest, ConcurrentProcessorReconfiguration)
     EXPECT_TRUE(framesDecoded.load() > 0);
     decoder.close();
 }
+
+TEST(VideoFiltersTest, GaborFilterProcessing)
+{
+    const int w = 32;
+    const int h = 32;
+    std::vector<std::uint8_t> frame(static_cast<std::size_t>(w * h * 3), 128U);
+
+    // Create a vertical edge pattern (left dark, right light)
+    for (int y = 0; y < h; ++y) {
+        for (int x = 0; x < w; ++x) {
+            const auto val = static_cast<std::uint8_t>((x < w / 2) ? 40 : 210);
+            const std::size_t idx = static_cast<std::size_t>((y * w + x) * 3);
+            frame[idx + 0] = val;
+            frame[idx + 1] = val;
+            frame[idx + 2] = val;
+        }
+    }
+
+    // Energy mode
+    GaborFilter energyFilter(8.0, 0.0, GaborFilterMode::Energy);
+    EXPECT_DOUBLE_EQ(energyFilter.getWavelength(), 8.0);
+    EXPECT_DOUBLE_EQ(energyFilter.getOrientation(), 0.0);
+    EXPECT_EQ(energyFilter.getMode(), GaborFilterMode::Energy);
+
+    std::vector<std::uint8_t> energyBuf = frame;
+    energyFilter.process(energyBuf.data(), w, h, PixelFormat::RGB24);
+    EXPECT_FALSE(energyBuf.empty());
+
+    // Real component mode
+    GaborFilter realFilter(8.0, 0.0, GaborFilterMode::RealComponent);
+    std::vector<std::uint8_t> realBuf = frame;
+    realFilter.process(realBuf.data(), w, h, PixelFormat::BGR24);
+    EXPECT_FALSE(realBuf.empty());
+
+    // Imag component mode
+    GaborFilter imagFilter(8.0, 0.0, GaborFilterMode::ImagComponent);
+    std::vector<std::uint8_t> imagBuf = frame;
+    imagFilter.process(imagBuf.data(), w, h, PixelFormat::RGB24);
+    EXPECT_FALSE(imagBuf.empty());
+
+    // Overlay mode
+    GaborFilter overlayFilter(8.0, 0.0, GaborFilterMode::Overlay);
+    std::vector<std::uint8_t> overlayBuf = frame;
+    overlayFilter.process(overlayBuf.data(), w, h, PixelFormat::RGB24);
+    EXPECT_FALSE(overlayBuf.empty());
+}
 #endif
 
 int main(int argc, char* argv[])

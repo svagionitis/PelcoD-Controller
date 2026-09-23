@@ -357,6 +357,67 @@ private:
     double m_centerOffsetY;
 };
 
+/**
+ * @enum GaborFilterMode
+ * @brief Visualization and processing modes for the Gabor spatial filter.
+ */
+enum class GaborFilterMode {
+    Energy, ///< Complex quadrature energy: sqrt(real^2 + imag^2).
+    RealComponent, ///< Real (even symmetric cosine) response.
+    ImagComponent, ///< Imaginary (odd antisymmetric sine) response.
+    Overlay ///< Blend energy response over original video frame.
+};
+
+/**
+ * @class GaborFilter
+ * @brief Directional spatial-frequency bandpass filter for multi-angle sharpness, texture, and edge enhancement.
+ */
+class VIDEOFILTERS_API GaborFilter : public IFrameProcessor {
+public:
+    /**
+     * @brief Constructor.
+     * @param wavelength Wavelength lambda in pixels (default 8.0).
+     * @param orientationRad Orientation angle theta in radians (default 0.0).
+     * @param mode Visualization mode (default Energy).
+     */
+    explicit GaborFilter(
+        double wavelength = 8.0, double orientationRad = 0.0, GaborFilterMode mode = GaborFilterMode::Energy);
+
+    void process(std::uint8_t* data, int width, int height, PixelFormat format) override;
+
+    void setWavelength(double lambda)
+    {
+        m_wavelength = lambda;
+    }
+    [[nodiscard]] double getWavelength() const noexcept
+    {
+        return m_wavelength;
+    }
+
+    void setOrientation(double thetaRad)
+    {
+        m_orientationRad = thetaRad;
+    }
+    [[nodiscard]] double getOrientation() const noexcept
+    {
+        return m_orientationRad;
+    }
+
+    void setMode(GaborFilterMode mode)
+    {
+        m_mode = mode;
+    }
+    [[nodiscard]] GaborFilterMode getMode() const noexcept
+    {
+        return m_mode;
+    }
+
+private:
+    double m_wavelength;
+    double m_orientationRad;
+    GaborFilterMode m_mode;
+};
+
 } // namespace Video::Filters
 
 namespace Video {
@@ -365,6 +426,8 @@ using Filters::ChromaticAberrationFilter;
 using Filters::CustomConvolutionFilter;
 using Filters::DarkChannelDehazeFilter;
 using Filters::EdgeDetectionFilter;
+using Filters::GaborFilter;
+using Filters::GaborFilterMode;
 using Filters::GaussianBlurFilter;
 using Filters::LensDistortionFilter;
 using Filters::SharpenFilter;

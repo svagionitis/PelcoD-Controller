@@ -7,6 +7,8 @@ add_library(Math STATIC
     Dwt.cpp
     Fft.h
     Fft.cpp
+    Gabor.h
+    Gabor.cpp
     GoertzelFilter.h
     GoertzelFilter.cpp
     IntegralImage.h

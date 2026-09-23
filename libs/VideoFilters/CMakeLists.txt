@@ -31,6 +31,7 @@ target_include_directories(VideoFilters SYSTEM PUBLIC ${OpenCV_INCLUDE_DIRS})
 
 target_link_libraries(VideoFilters PUBLIC
     Video
+    Math
     Threads::Threads
     glog::glog
     ${OpenCV_LIBS}

@@ -148,8 +148,8 @@ Techniques from digital signal processing (DSP), system identification, and cont
   * Multi-scale directional geometric transforms obeying parabolic scaling (`width ≈ length²`) that optimally represent anisotropic edges and curves, crucial for atmospheric turbulence and heat shimmer mitigation.
 * **Distance Transform & Chamfer Matching**:
   * Computes exact Euclidean distance fields from binary edge maps in linear time for shape matching, silhouette re-identification, and framing constraint boundaries.
-* **Gabor Transform & Filterbanks**:
-  * Oriented Gaussian-windowed spatial-frequency bandpass filters for multi-angle sharpness assessment, texture analysis, and vehicle/pedestrian appearance modeling.
+* **Gabor Transform & Filterbanks (Completed)**:
+  * Oriented Gaussian-windowed spatial-frequency bandpass filters for multi-angle sharpness assessment, directional motion blur estimation, texture analysis, and vehicle/pedestrian appearance modeling. Implemented in `Gabor.h` and `GaborFilter`, tested in `TestGabor.cpp`.
 * **Planar Homography & Perspective Rectification**:
   * $3 \times 3$ projective matrix transformations for ground-plane projection, Birds-Eye-View (BEV) mapping, and ONVIF GeoMove coordinate conversions.
 

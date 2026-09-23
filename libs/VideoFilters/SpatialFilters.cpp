@@ -1,12 +1,14 @@
 /**
  * @file SpatialFilters.cpp
- * @brief Implementations of spatial filters including blur, sharpen, convolutions, denoise, dehaze, and lens corrections.
+ * @brief Implementations of spatial filters including blur, sharpen, convolutions, denoise, dehaze, and lens
+ * corrections.
  */
 
 #include "SpatialFilters.h"
 
 #if defined(PELCOD_HAS_FILTERS)
 
+#include "Math/Gabor.h"
 #include <algorithm>
 #include <cmath>
 #include <cstring>
@@ -399,6 +401,85 @@ void ChromaticAberrationFilter::process(std::uint8_t* data, int width, int heigh
     warpChannel(channels[bIdx], m_blueCoeff);
 
     cv::merge(channels, mat);
+}
+
+// --- GaborFilter ---
+GaborFilter::GaborFilter(double wavelength, double orientationRad, GaborFilterMode mode)
+    : m_wavelength(wavelength)
+    , m_orientationRad(orientationRad)
+    , m_mode(mode)
+{
+}
+
+void GaborFilter::process(std::uint8_t* data, int width, int height, PixelFormat format)
+{
+    if (!data || width <= 0 || height <= 0) {
+        return;
+    }
+
+    cv::Mat mat(height, width, CV_8UC3, data);
+    cv::Mat gray;
+    if (format == PixelFormat::BGR24) {
+        cv::cvtColor(mat, gray, cv::COLOR_BGR2GRAY);
+    } else {
+        cv::cvtColor(mat, gray, cv::COLOR_RGB2GRAY);
+    }
+
+    Math::Gabor2DConfig cfg {};
+    cfg.wavelength = (m_wavelength > 0.0) ? m_wavelength : 8.0;
+    cfg.orientationRad = m_orientationRad;
+    cfg.sigma = cfg.wavelength * 0.56;
+    cfg.spatialAspectRatio = 0.5;
+    cfg.kernelSize = 21;
+    cfg.removeDc = true;
+
+    const Math::GaborKernel2D kernel = Math::createGaborKernel2D(cfg);
+
+    const std::vector<double> realResp
+        = Math::convolve2D(gray.data, width, height, static_cast<int>(gray.step), kernel.realPart, kernel.kernelSize);
+    const std::vector<double> imagResp
+        = Math::convolve2D(gray.data, width, height, static_cast<int>(gray.step), kernel.imagPart, kernel.kernelSize);
+
+    const std::size_t totalPixels = static_cast<std::size_t>(width * height);
+
+    if (m_mode == GaborFilterMode::Energy) {
+        for (std::size_t i = 0U; i < totalPixels; ++i) {
+            const double r = realResp[i];
+            const double im = imagResp[i];
+            const double energy = std::sqrt(r * r + im * im) * 4.0;
+            const auto val = static_cast<std::uint8_t>(std::clamp(static_cast<int>(energy), 0, 255));
+            data[i * 3 + 0] = val;
+            data[i * 3 + 1] = val;
+            data[i * 3 + 2] = val;
+        }
+    } else if (m_mode == GaborFilterMode::RealComponent) {
+        for (std::size_t i = 0U; i < totalPixels; ++i) {
+            const double r = realResp[i] * 4.0 + 128.0;
+            const auto val = static_cast<std::uint8_t>(std::clamp(static_cast<int>(r), 0, 255));
+            data[i * 3 + 0] = val;
+            data[i * 3 + 1] = val;
+            data[i * 3 + 2] = val;
+        }
+    } else if (m_mode == GaborFilterMode::ImagComponent) {
+        for (std::size_t i = 0U; i < totalPixels; ++i) {
+            const double im = imagResp[i] * 4.0 + 128.0;
+            const auto val = static_cast<std::uint8_t>(std::clamp(static_cast<int>(im), 0, 255));
+            data[i * 3 + 0] = val;
+            data[i * 3 + 1] = val;
+            data[i * 3 + 2] = val;
+        }
+    } else if (m_mode == GaborFilterMode::Overlay) {
+        for (std::size_t i = 0U; i < totalPixels; ++i) {
+            const double r = realResp[i];
+            const double im = imagResp[i];
+            const double energy = std::sqrt(r * r + im * im) * 4.0;
+            const int enInt = std::clamp(static_cast<int>(energy), 0, 255);
+            // Blend green highlight over original frame
+            const int gIdx = (format == PixelFormat::BGR24) ? 1 : 1;
+            const int origG = data[i * 3 + gIdx];
+            data[i * 3 + gIdx] = static_cast<std::uint8_t>(std::min(255, origG + enInt));
+        }
+    }
 }
 
 } // namespace Video::Filters

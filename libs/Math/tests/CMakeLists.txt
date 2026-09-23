@@ -20,6 +20,7 @@ add_math_test(TestStft             TestStft.cpp)
 add_math_test(TestNotchFilter      TestNotchFilter.cpp)
 add_math_test(TestSpectrogramColorMap TestSpectrogramColorMap.cpp)
 add_math_test(TestDct              TestDct.cpp)
+add_math_test(TestGabor            TestGabor.cpp)
 
 # TestDwt.cpp also exercises TransientShockDetector (from Tracking)
 add_executable(TestDwt TestDwt.cpp)
