@@ -10,11 +10,20 @@ MockVideoDecoder::MockVideoDecoder()
 {
 }
 
-bool MockVideoDecoder::initialize(
-    std::string_view /*source*/, PixelFormat format, int /*threadCount*/, DeviceType /*device*/)
+bool MockVideoDecoder::initialize(std::string_view source, PixelFormat format, int threadCount, DeviceType device)
 {
+    m_filePath = std::string(source);
+    m_threadCount = threadCount;
+    m_deviceType = device;
     m_outputFormat = format;
     m_reportedDeviceType = DeviceType::CPU;
+    m_isLiveStream = true;
+
+    if (m_simulatedConnectionLoss) {
+        m_isInitialized = false;
+        return false;
+    }
+
     m_isInitialized = true;
     m_frameIndex = 0U;
     m_currentTimeSec = 0.0;
@@ -23,6 +32,7 @@ bool MockVideoDecoder::initialize(
     m_width = 640;
     m_height = 360;
     m_frameRate = 30.0;
+    m_duration = 0.0; // Live stream
 
     const std::size_t frameBytes = static_cast<std::size_t>(m_width * m_height * 3);
     m_frameBuffer.resize(frameBytes);
@@ -36,8 +46,26 @@ bool MockVideoDecoder::initialize(
 
 bool MockVideoDecoder::decodeNextFrame()
 {
-    if (!m_isInitialized) {
+    if (m_simulatedConnectionLoss) {
+        m_isInitialized = false;
         return false;
+    }
+
+    if (!m_isInitialized) {
+        if (m_autoReconnect && (m_duration <= 0.0 || m_isLiveStream)) {
+            const auto now = std::chrono::steady_clock::now();
+            const auto elapsedMs
+                = std::chrono::duration_cast<std::chrono::milliseconds>(now - m_lastReconnectAttempt).count();
+            if (elapsedMs >= m_reconnectIntervalMs) {
+                if (!reconnect()) {
+                    return false;
+                }
+            } else {
+                return false;
+            }
+        } else {
+            return false;
+        }
     }
 
     const auto t0 = std::chrono::steady_clock::now();
@@ -83,6 +111,19 @@ void MockVideoDecoder::close()
     m_frameIndex = 0U;
     m_currentTimeSec = 0.0;
     m_frameBuffer.clear();
+}
+
+void MockVideoDecoder::setSimulatedConnectionLoss(bool loss)
+{
+    m_simulatedConnectionLoss = loss;
+    if (loss) {
+        m_isInitialized = false;
+    }
+}
+
+bool MockVideoDecoder::isSimulatedConnectionLoss() const noexcept
+{
+    return m_simulatedConnectionLoss;
 }
 
 void MockVideoDecoder::renderTestPattern(std::uint8_t* buffer)

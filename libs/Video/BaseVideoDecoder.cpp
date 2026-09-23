@@ -122,15 +122,40 @@ void BaseVideoDecoder::publishToTripleBuffer(
     m_tripleBuffer.publishWriteBuffer();
 }
 
+bool BaseVideoDecoder::isInitialized() const
+{
+    return m_isInitialized;
+}
+
+void BaseVideoDecoder::setAutoReconnect(bool enable, int retryIntervalMs)
+{
+    m_autoReconnect = enable;
+    m_reconnectIntervalMs = std::max(100, retryIntervalMs);
+}
+
+bool BaseVideoDecoder::isAutoReconnectEnabled() const
+{
+    return m_autoReconnect;
+}
+
 bool BaseVideoDecoder::reconnect()
 {
+    m_lastReconnectAttempt = std::chrono::steady_clock::now();
     const std::string cachedPath = m_filePath;
     const PixelFormat cachedFormat = m_outputFormat;
     const int cachedThreads = m_threadCount;
     const DeviceType cachedDevice = m_deviceType;
 
     close();
-    return initialize(cachedPath, cachedFormat, cachedThreads, cachedDevice);
+    const bool ok = initialize(cachedPath, cachedFormat, cachedThreads, cachedDevice);
+    if (!ok) {
+        // Retain cached parameters so subsequent reconnect attempts can succeed once network restores
+        m_filePath = cachedPath;
+        m_outputFormat = cachedFormat;
+        m_threadCount = cachedThreads;
+        m_deviceType = cachedDevice;
+    }
+    return ok;
 }
 
 } // namespace Video

@@ -213,9 +213,24 @@ void QVideoStreamWorker::run()
 
         const bool ok = m_decoder->decodeNextFrame();
         if (!ok) {
-            if (shouldLoop && (meta.duration > 0.0 || currentBackend == BackendType::Mock)) {
+            if (shouldLoop && (meta.duration > 0.0)) {
                 // Loop finite video back to start
                 m_decoder->seek(0.0);
+                continue;
+            }
+
+            // For live streams (RTSP or duration <= 0), enter reconnecting state rather than terminating
+            const bool isLive = (meta.duration <= 0.0 || m_source.startsWith("rtsp://", Qt::CaseInsensitive));
+            if (isLive) {
+                QMutexLocker locker(&m_mutex);
+                if (m_stopRequested) {
+                    break;
+                }
+                if (m_state != StreamState::Reconnecting) {
+                    m_state = StreamState::Reconnecting;
+                    emit streamStatusChanged(StreamState::Reconnecting, tr("Connection lost. Reconnecting..."));
+                }
+                msleep(50);
                 continue;
             }
 
@@ -226,6 +241,14 @@ void QVideoStreamWorker::run()
             m_state = StreamState::Disconnected;
             emit streamStatusChanged(StreamState::Disconnected, tr("Stream disconnected or reached EOF"));
             break;
+        }
+
+        {
+            QMutexLocker locker(&m_mutex);
+            if (m_state != StreamState::Streaming) {
+                m_state = StreamState::Streaming;
+                emit streamStatusChanged(StreamState::Streaming, tr("Stream active"));
+            }
         }
 
         const FrameInfo frame = m_decoder->getRawFrameData();

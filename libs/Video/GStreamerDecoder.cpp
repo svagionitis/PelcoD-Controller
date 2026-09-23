@@ -186,6 +186,8 @@ bool GStreamerDecoder::initialize(std::string_view source, PixelFormat format, i
     } else {
         m_duration = 0.0; // Live stream
     }
+    m_isLiveStream = (m_duration <= 0.0 || detectSourceType(m_filePath) == SourceType::Rtsp
+        || detectSourceType(m_filePath) == SourceType::Device);
 
     m_isInitialized = true;
     const auto end = std::chrono::steady_clock::now();
@@ -197,7 +199,27 @@ bool GStreamerDecoder::initialize(std::string_view source, PixelFormat format, i
 bool GStreamerDecoder::decodeNextFrame()
 {
     if (!m_isInitialized || !m_sink) {
-        return false;
+        const bool isLive = (m_duration <= 0.0 || m_isLiveStream || detectSourceType(m_filePath) == SourceType::Rtsp);
+        if (m_autoReconnect && isLive && !m_filePath.empty()) {
+            const auto now = std::chrono::steady_clock::now();
+            const auto elapsedMs
+                = std::chrono::duration_cast<std::chrono::milliseconds>(now - m_lastReconnectAttempt).count();
+            if (elapsedMs >= m_reconnectIntervalMs) {
+                LOG(INFO) << "GStreamerDecoder: Attempting background live stream reconnection ("
+                          << m_reconnectAttempts + 1 << ")...";
+                ++m_reconnectAttempts;
+                if (reconnect()) {
+                    LOG(INFO) << "GStreamerDecoder: Stream successfully reconnected! Resuming playback.";
+                    m_reconnectAttempts = 0;
+                } else {
+                    return false;
+                }
+            } else {
+                return false;
+            }
+        } else {
+            return false;
+        }
     }
 
     const auto start = std::chrono::steady_clock::now();
@@ -205,20 +227,33 @@ bool GStreamerDecoder::decodeNextFrame()
     GstSample* sample = gst_app_sink_pull_sample(GST_APP_SINK(m_sink));
     if (!sample) {
         if (gst_app_sink_is_eos(GST_APP_SINK(m_sink))) {
+            const bool isLive
+                = (m_duration <= 0.0 || m_isLiveStream || detectSourceType(m_filePath) == SourceType::Rtsp);
+            if (isLive && m_autoReconnect) {
+                LOG(WARNING) << "GStreamerDecoder: Unexpected EOS on live stream. Triggering reconnection...";
+                m_isInitialized = false;
+                if (reconnect()) {
+                    m_reconnectAttempts = 0;
+                    return decodeNextFrame();
+                }
+                return false;
+            }
             m_reachedEof = true;
             return false;
         }
 
         // Potential live stream drop -> auto-reconnect
-        if (m_duration <= 0.0 && m_reconnectAttempts < 3) {
-            LOG(WARNING) << "GStreamerDecoder: Stream sample timeout. Reconnecting (" << m_reconnectAttempts + 1
-                         << "/3)...";
+        const bool isLive = (m_duration <= 0.0 || m_isLiveStream || detectSourceType(m_filePath) == SourceType::Rtsp);
+        if (isLive && m_autoReconnect) {
+            LOG(WARNING) << "GStreamerDecoder: Stream sample timeout. Reconnecting...";
             ++m_reconnectAttempts;
-            std::this_thread::sleep_for(std::chrono::milliseconds(500));
+            m_isInitialized = false;
+            std::this_thread::sleep_for(std::chrono::milliseconds(200));
             if (reconnect()) {
                 m_reconnectAttempts = 0;
                 return decodeNextFrame();
             }
+            return false;
         }
         return false;
     }

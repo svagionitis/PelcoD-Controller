@@ -68,6 +68,25 @@ public:
     /// @note Thread-safe.
     void clearFrameProcessors() override;
 
+    /// @brief Checks whether the decoder is actively initialized and connected.
+    /// @return True if initialized and ready to decode.
+    [[nodiscard]] bool isInitialized() const override;
+
+    /// @brief Re-initializes the decoder by caching parameters, closing, and re-opening.
+    /// @details Shared implementation for FFmpegDecoder and GStreamerDecoder live-stream
+    ///          reconnection. Relies on the virtual initialize() being overridden.
+    /// @return True if re-initialization succeeded.
+    bool reconnect() override;
+
+    /// @brief Configures auto-reconnect behavior for live streams upon connection drop.
+    /// @param[in] enable True to enable automatic background reconnection.
+    /// @param[in] retryIntervalMs Interval in milliseconds between reconnection attempts.
+    void setAutoReconnect(bool enable, int retryIntervalMs = 1500) override;
+
+    /// @brief Checks whether auto-reconnect is enabled.
+    /// @return True if auto-reconnect is enabled.
+    [[nodiscard]] bool isAutoReconnectEnabled() const override;
+
 protected:
     // -----------------------------------------------------------------------
     // Helpers for concrete decoders to call during their operation
@@ -103,12 +122,6 @@ protected:
     void publishToTripleBuffer(
         const std::uint8_t* src, int w, int h, std::size_t bytes, double ts, double decodeMs, PixelFormat fmt);
 
-    /// @brief Re-initializes the decoder by caching parameters, closing, and re-opening.
-    /// @details Shared implementation for FFmpegDecoder and GStreamerDecoder live-stream
-    ///          reconnection. Relies on the virtual initialize() being overridden.
-    /// @return True if re-initialization succeeded.
-    bool reconnect();
-
     // -----------------------------------------------------------------------
     // Shared state — written by concrete decoders, read by base implementations
     // -----------------------------------------------------------------------
@@ -142,6 +155,10 @@ protected:
     DeviceType m_deviceType { DeviceType::CPU }; ///< Requested hardware device type.
 
     bool m_isInitialized { false }; ///< True if the decoder is open and ready.
+    bool m_autoReconnect { true }; ///< Automatically reconnect on live stream drops.
+    int m_reconnectIntervalMs { 1500 }; ///< Milliseconds between reconnection retries.
+    std::chrono::steady_clock::time_point m_lastReconnectAttempt {}; ///< Timestamp of last reconnect attempt.
+    bool m_isLiveStream { false }; ///< Flag indicating live stream (RTSP/device) vs finite file.
 
     bool m_tripleBufferingEnabled { false }; ///< Whether triple buffering is active.
     mutable AtomicTripleBuffer<FrameBufferSlot> m_tripleBuffer; ///< Lock-free triple buffer.

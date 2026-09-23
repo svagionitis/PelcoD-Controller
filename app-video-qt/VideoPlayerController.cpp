@@ -830,8 +830,25 @@ void VideoPlayerController::workerLoop()
                 QThread::msleep(10);
                 continue;
             }
+
+            // Live stream packet starvation or disconnect -> update health watchdog and UI status
+            if (!m_isSeekable) {
+                if (m_streamHealthMonitor) {
+                    m_streamHealthMonitor->checkTimeout();
+                }
+                if (m_statusMessage != tr("Reconnecting to stream...")) {
+                    m_statusMessage = tr("Reconnecting to stream...");
+                    emit statusMessageChanged();
+                }
+            }
+
             QThread::msleep(15);
             continue;
+        }
+
+        if (!m_isSeekable && m_statusMessage == tr("Reconnecting to stream...")) {
+            m_statusMessage = tr("Streaming");
+            emit statusMessageChanged();
         }
 
         if (frameInfo.data != nullptr && frameInfo.width > 0 && frameInfo.height > 0) {
@@ -1013,7 +1030,12 @@ void VideoPlayerController::configureFilterPipeline(Video::IVideoDecoder* decode
         if (!m_streamHealthMonitor) {
             Video::StreamHealthConfig cfg {};
             cfg.nominalFps = 30.0;
+            cfg.autoReconnectOnFailure = true;
             m_streamHealthMonitor = std::make_shared<Video::StreamHealthMonitor>(cfg);
+            m_streamHealthMonitor->setReconnectCallback([this]() {
+                QMutexLocker locker(&m_decoderMutex);
+                return m_decoder ? m_decoder->reconnect() : false;
+            });
         }
         decoder->addFrameProcessor(m_streamHealthMonitor);
 

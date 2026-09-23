@@ -5,6 +5,8 @@
 
 #include "BaseVideoDecoder.h"
 
+#include <atomic>
+#include <chrono>
 #include <memory>
 #include <string>
 
@@ -17,6 +19,14 @@ extern "C" {
 }
 
 namespace Video {
+
+/// @struct FFmpegInterruptContext
+/// @brief Watchdog context to interrupt blocking FFmpeg network calls (av_read_frame, avformat_open_input).
+struct FFmpegInterruptContext {
+    std::atomic<bool> interrupted { false };
+    std::chrono::steady_clock::time_point lastActivity { std::chrono::steady_clock::now() };
+    int timeoutMs { 3000 };
+};
 
 /// @struct AVFormatContextDeleter
 struct AVFormatContextDeleter {
@@ -107,6 +117,7 @@ private:
 
     DeviceType m_actualDeviceType { DeviceType::CPU };
     AVBufferRef* m_hwDeviceCtx { nullptr };
+    FFmpegInterruptContext m_interruptCtx {};
 };
 
 } // namespace Video

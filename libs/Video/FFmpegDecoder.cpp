@@ -18,6 +18,25 @@
 
 namespace Video {
 
+static int ffmpegInterruptCallback(void* opaque)
+{
+    if (opaque == nullptr) {
+        return 0;
+    }
+    auto* ctx = static_cast<FFmpegInterruptContext*>(opaque);
+    if (ctx->interrupted.load(std::memory_order_relaxed)) {
+        return 1;
+    }
+    const auto now = std::chrono::steady_clock::now();
+    const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - ctx->lastActivity).count();
+    if (elapsed > ctx->timeoutMs) {
+        LOG(WARNING) << "FFmpegDecoder: Network I/O timed out after " << elapsed
+                     << "ms of inactivity. Aborting operation.";
+        return 1;
+    }
+    return 0;
+}
+
 FFmpegDecoder::FFmpegDecoder()
 {
 }
@@ -29,6 +48,7 @@ FFmpegDecoder::~FFmpegDecoder()
 
 void FFmpegDecoder::close()
 {
+    m_interruptCtx.interrupted.store(true, std::memory_order_relaxed);
     m_isInitialized = false;
     m_swsCtx.reset();
     m_rawFrame.reset();
@@ -50,7 +70,6 @@ void FFmpegDecoder::close()
     m_codecName.clear();
     m_frameBuffer.clear();
     m_reachedEof = false;
-    m_reconnectAttempts = 0;
 }
 
 bool FFmpegDecoder::initialize(std::string_view source, PixelFormat format, int threadCount, DeviceType device)
@@ -64,17 +83,26 @@ bool FFmpegDecoder::initialize(std::string_view source, PixelFormat format, int 
     m_deviceType = device;
     m_actualDeviceType = DeviceType::CPU;
 
-    AVFormatContext* formatCtxRaw = nullptr;
-    AVDictionary* options = nullptr;
-
     const SourceType srcType = detectSourceType(m_filePath);
+    m_isLiveStream = (srcType == SourceType::Rtsp || srcType == SourceType::Device);
+
+    m_interruptCtx.interrupted.store(false, std::memory_order_relaxed);
+    m_interruptCtx.lastActivity = std::chrono::steady_clock::now();
+    m_interruptCtx.timeoutMs = (srcType == SourceType::Rtsp) ? 8000 : 10000;
+
+    AVFormatContext* formatCtxRaw = avformat_alloc_context();
+    if (formatCtxRaw != nullptr) {
+        formatCtxRaw->interrupt_callback.callback = ffmpegInterruptCallback;
+        formatCtxRaw->interrupt_callback.opaque = &m_interruptCtx;
+    }
+
+    AVDictionary* options = nullptr;
     const AVInputFormat* iformat = nullptr;
     std::string openPath = m_filePath;
 
     if (srcType == SourceType::Rtsp) {
-        // Sub-second RTSP/network timeouts
-        av_dict_set(&options, "stimeout", "1000000", 0);
-        av_dict_set(&options, "rw_timeout", "1000000", 0);
+        // RTSP network socket timeout in microseconds (5 seconds)
+        av_dict_set(&options, "stimeout", "5000000", 0);
         if (m_filePath.rfind("rtsp://", 0) == 0) {
             av_dict_set(&options, "rtsp_transport", "tcp", 0);
         }
@@ -109,6 +137,7 @@ bool FFmpegDecoder::initialize(std::string_view source, PixelFormat format, int 
     }
     m_formatCtx.reset(formatCtxRaw);
 
+    m_interruptCtx.lastActivity = std::chrono::steady_clock::now();
     ret = avformat_find_stream_info(m_formatCtx.get(), nullptr);
     if (ret < 0) {
         LOG(ERROR) << "FFmpegDecoder: Failed to find stream info for: " << m_filePath;
@@ -208,6 +237,7 @@ bool FFmpegDecoder::initialize(std::string_view source, PixelFormat format, int 
     }
 
     m_isInitialized = true;
+    m_interruptCtx.timeoutMs = 5000;
     const auto end = std::chrono::steady_clock::now();
     m_initTimeMs = std::chrono::duration<double, std::milli>(end - start).count();
 
@@ -217,7 +247,27 @@ bool FFmpegDecoder::initialize(std::string_view source, PixelFormat format, int 
 bool FFmpegDecoder::decodeNextFrame()
 {
     if (!m_isInitialized) {
-        return false;
+        const bool isLive = (m_duration <= 0.0 || m_isLiveStream || detectSourceType(m_filePath) == SourceType::Rtsp);
+        if (m_autoReconnect && isLive && !m_filePath.empty()) {
+            const auto now = std::chrono::steady_clock::now();
+            const auto elapsedMs
+                = std::chrono::duration_cast<std::chrono::milliseconds>(now - m_lastReconnectAttempt).count();
+            if (elapsedMs >= m_reconnectIntervalMs) {
+                LOG(INFO) << "FFmpegDecoder: Attempting background live stream reconnection ("
+                          << m_reconnectAttempts + 1 << ")...";
+                ++m_reconnectAttempts;
+                if (reconnect()) {
+                    LOG(INFO) << "FFmpegDecoder: Stream successfully reconnected! Resuming playback.";
+                    m_reconnectAttempts = 0;
+                } else {
+                    return false;
+                }
+            } else {
+                return false;
+            }
+        } else {
+            return false;
+        }
     }
 
     const auto decodeStart = std::chrono::steady_clock::now();
@@ -225,6 +275,8 @@ bool FFmpegDecoder::decodeNextFrame()
     while (true) {
         int ret = avcodec_receive_frame(m_codecCtx.get(), m_rawFrame.get());
         if (ret >= 0) {
+            m_interruptCtx.lastActivity = std::chrono::steady_clock::now();
+
             // Frame received — handle resolution change
             if (m_rawFrame->width != m_width || m_rawFrame->height != m_height) {
                 m_width = m_rawFrame->width;
@@ -279,8 +331,10 @@ bool FFmpegDecoder::decodeNextFrame()
 
         if (ret == AVERROR(EAGAIN)) {
             // Need more packets
+            m_interruptCtx.lastActivity = std::chrono::steady_clock::now();
             int readRet = av_read_frame(m_formatCtx.get(), m_packet.get());
             if (readRet >= 0) {
+                m_interruptCtx.lastActivity = std::chrono::steady_clock::now();
                 if (m_packet->stream_index == m_videoStreamIndex) {
                     int sendRet = avcodec_send_packet(m_codecCtx.get(), m_packet.get());
                     av_packet_unref(m_packet.get());
@@ -292,20 +346,33 @@ bool FFmpegDecoder::decodeNextFrame()
                     av_packet_unref(m_packet.get());
                 }
             } else if (readRet == AVERROR_EOF) {
-                m_reachedEof = true;
-                avcodec_send_packet(m_codecCtx.get(), nullptr);
-            } else {
-                // Read failed on live stream -> auto-reconnect
-                const bool isLive = (m_duration <= 0.0);
-                if (isLive && m_reconnectAttempts < 3) {
-                    LOG(WARNING) << "FFmpegDecoder: Live stream packet error. Reconnecting (" << m_reconnectAttempts + 1
-                                 << "/3)...";
-                    ++m_reconnectAttempts;
-                    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+                const bool isLive
+                    = (m_duration <= 0.0 || m_isLiveStream || detectSourceType(m_filePath) == SourceType::Rtsp);
+                if (isLive && m_autoReconnect) {
+                    LOG(WARNING) << "FFmpegDecoder: Unexpected EOF on live stream. Triggering reconnection...";
+                    m_isInitialized = false;
                     if (reconnect()) {
                         m_reconnectAttempts = 0;
                         continue;
                     }
+                    return false;
+                }
+                m_reachedEof = true;
+                avcodec_send_packet(m_codecCtx.get(), nullptr);
+            } else {
+                // Read failed on live stream -> auto-reconnect
+                const bool isLive
+                    = (m_duration <= 0.0 || m_isLiveStream || detectSourceType(m_filePath) == SourceType::Rtsp);
+                if (isLive && m_autoReconnect) {
+                    LOG(WARNING) << "FFmpegDecoder: Live stream packet error (" << readRet << "). Reconnecting...";
+                    ++m_reconnectAttempts;
+                    m_isInitialized = false;
+                    std::this_thread::sleep_for(std::chrono::milliseconds(200));
+                    if (reconnect()) {
+                        m_reconnectAttempts = 0;
+                        continue;
+                    }
+                    return false;
                 }
                 LOG(ERROR) << "FFmpegDecoder: Error reading packet (" << readRet << ")";
                 return false;

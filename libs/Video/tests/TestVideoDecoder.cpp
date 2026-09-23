@@ -62,6 +62,55 @@ TEST(VideoDecoderTest, MockDecoderLifecycle)
     decoder.close();
 }
 
+TEST(VideoDecoderTest, LiveStreamAutoReconnectAfterOutage)
+{
+    MockVideoDecoder decoder;
+    EXPECT_TRUE(decoder.initialize("mock://live_feed", PixelFormat::RGB24));
+    EXPECT_TRUE(decoder.isInitialized());
+    EXPECT_TRUE(decoder.isAutoReconnectEnabled());
+    decoder.setAutoReconnect(true, 50); // 50ms interval for fast test
+
+    EXPECT_TRUE(decoder.decodeNextFrame());
+
+    // 1. Simulate network drop
+    decoder.setSimulatedConnectionLoss(true);
+    EXPECT_FALSE(decoder.decodeNextFrame());
+    EXPECT_FALSE(decoder.isInitialized());
+
+    // 2. Network connection is restored!
+    decoder.setSimulatedConnectionLoss(false);
+
+    // Sleep briefly to satisfy retry interval
+    std::this_thread::sleep_for(std::chrono::milliseconds(60));
+
+    // Under bugged behavior, decodeNextFrame() returns false because !m_isInitialized
+    // and never reconnects, keeping the stream frozen!
+    // Under corrected behavior, decodeNextFrame() automatically reconnects and decodes!
+    EXPECT_TRUE(decoder.decodeNextFrame());
+    EXPECT_TRUE(decoder.isInitialized());
+
+    const FrameInfo frame = decoder.getRawFrameData();
+    EXPECT_TRUE(frame.data != nullptr);
+    EXPECT_EQ(frame.width, 640);
+    EXPECT_EQ(frame.height, 360);
+}
+
+TEST(VideoDecoderTest, ManualReconnectRestoresStream)
+{
+    MockVideoDecoder decoder;
+    EXPECT_TRUE(decoder.initialize("mock://live_feed", PixelFormat::RGB24));
+    EXPECT_TRUE(decoder.isInitialized());
+
+    decoder.setSimulatedConnectionLoss(true);
+    EXPECT_FALSE(decoder.decodeNextFrame());
+    EXPECT_FALSE(decoder.isInitialized());
+
+    decoder.setSimulatedConnectionLoss(false);
+    EXPECT_TRUE(decoder.reconnect());
+    EXPECT_TRUE(decoder.isInitialized());
+    EXPECT_TRUE(decoder.decodeNextFrame());
+}
+
 TEST(VideoDecoderTest, MockDecoderSeeking)
 {
     MockVideoDecoder decoder;

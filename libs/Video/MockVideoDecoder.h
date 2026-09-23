@@ -31,6 +31,14 @@ public:
 
     void close() override;
 
+    /// @brief Simulates network connection loss for outage testing.
+    /// @param[in] loss True to simulate severed connection, false to simulate restored link.
+    void setSimulatedConnectionLoss(bool loss);
+
+    /// @brief Checks whether connection loss simulation is active.
+    /// @return True if connection is simulated as lost.
+    [[nodiscard]] bool isSimulatedConnectionLoss() const noexcept;
+
 private:
     void renderTestPattern(std::uint8_t* buffer);
 
@@ -38,6 +46,7 @@ private:
     double m_currentTimeSec { 0.0 };
 
     std::chrono::steady_clock::time_point m_initTime {};
+    bool m_simulatedConnectionLoss { false };
 };
 
 } // namespace Video

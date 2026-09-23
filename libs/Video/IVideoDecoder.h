@@ -64,6 +64,23 @@ public:
     /// @brief Clears all registered post-processing frame processors.
     virtual void clearFrameProcessors() = 0;
 
+    /// @brief Checks whether the decoder is actively initialized and connected.
+    /// @return True if initialized and ready to decode.
+    [[nodiscard]] virtual bool isInitialized() const = 0;
+
+    /// @brief Reconnects the decoder to the source using cached parameters.
+    /// @return True if reconnection succeeded.
+    virtual bool reconnect() = 0;
+
+    /// @brief Configures auto-reconnect behavior for live streams upon connection drop.
+    /// @param[in] enable True to enable automatic periodic reconnection.
+    /// @param[in] retryIntervalMs Interval in milliseconds between reconnection attempts.
+    virtual void setAutoReconnect(bool enable, int retryIntervalMs = 1500) = 0;
+
+    /// @brief Checks whether auto-reconnect is enabled.
+    /// @return True if auto-reconnect is enabled.
+    [[nodiscard]] virtual bool isAutoReconnectEnabled() const = 0;
+
     /// @brief Closes the video stream and releases decoder resources.
     virtual void close() = 0;
 };
