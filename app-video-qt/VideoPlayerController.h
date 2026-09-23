@@ -7,6 +7,7 @@
 #include "DecoderTypes.h"
 #include "DeviceEnumerator.h"
 #include "IVideoDecoder.h"
+#include "StreamHealthMonitor.h"
 
 #include <QImage>
 #include <QMutex>
@@ -67,21 +68,44 @@ class VideoPlayerController : public QObject {
     Q_PROPERTY(bool edgeDetectEnabled READ edgeDetectEnabled WRITE setEdgeDetectEnabled NOTIFY filterConfigChanged)
     Q_PROPERTY(int whiteBalanceMode READ whiteBalanceMode WRITE setWhiteBalanceMode NOTIFY filterConfigChanged)
 
+    // Color & Tonal Controls
+    Q_PROPERTY(int brightness READ brightness WRITE setBrightness NOTIFY filterConfigChanged)
+    Q_PROPERTY(double contrast READ contrast WRITE setContrast NOTIFY filterConfigChanged)
+    Q_PROPERTY(double gamma READ gamma WRITE setGamma NOTIFY filterConfigChanged)
+    Q_PROPERTY(int colorToneMode READ colorToneMode WRITE setColorToneMode NOTIFY filterConfigChanged)
+    Q_PROPERTY(int colorTintPreset READ colorTintPreset WRITE setColorTintPreset NOTIFY filterConfigChanged)
+    Q_PROPERTY(double colorEnhanceFactor READ colorEnhanceFactor WRITE setColorEnhanceFactor NOTIFY filterConfigChanged)
+    Q_PROPERTY(int histogramEqMode READ histogramEqMode WRITE setHistogramEqMode NOTIFY filterConfigChanged)
+    Q_PROPERTY(bool vignetteEnabled READ vignetteEnabled WRITE setVignetteEnabled NOTIFY filterConfigChanged)
+    Q_PROPERTY(bool thresholdEnabled READ thresholdEnabled WRITE setThresholdEnabled NOTIFY filterConfigChanged)
+    Q_PROPERTY(double thresholdValue READ thresholdValue WRITE setThresholdValue NOTIFY filterConfigChanged)
+
+    // Thermal Controls
     Q_PROPERTY(int falseColorPalette READ falseColorPalette WRITE setFalseColorPalette NOTIFY filterConfigChanged)
     Q_PROPERTY(int isothermPreset READ isothermPreset WRITE setIsothermPreset NOTIFY filterConfigChanged)
     Q_PROPERTY(
         bool hotspotTrackerEnabled READ hotspotTrackerEnabled WRITE setHotspotTrackerEnabled NOTIFY filterConfigChanged)
 
+    // Motion Analytics
     Q_PROPERTY(bool mtiMotionEnabled READ mtiMotionEnabled WRITE setMtiMotionEnabled NOTIFY filterConfigChanged)
     Q_PROPERTY(int opticalFlowMode READ opticalFlowMode WRITE setOpticalFlowMode NOTIFY filterConfigChanged)
     Q_PROPERTY(bool heatmapEnabled READ heatmapEnabled WRITE setHeatmapEnabled NOTIFY filterConfigChanged)
 
+    // Tactical Overlays & OSD Controls
     Q_PROPERTY(int reticleStyle READ reticleStyle WRITE setReticleStyle NOTIFY filterConfigChanged)
     Q_PROPERTY(bool tripwireEnabled READ tripwireEnabled WRITE setTripwireEnabled NOTIFY filterConfigChanged)
     Q_PROPERTY(int privacyMaskMode READ privacyMaskMode WRITE setPrivacyMaskMode NOTIFY filterConfigChanged)
     Q_PROPERTY(bool watermarkEnabled READ watermarkEnabled WRITE setWatermarkEnabled NOTIFY filterConfigChanged)
     Q_PROPERTY(
         bool telemetryOsdEnabled READ telemetryOsdEnabled WRITE setTelemetryOsdEnabled NOTIFY filterConfigChanged)
+    Q_PROPERTY(bool streamHealthOsdEnabled READ streamHealthOsdEnabled WRITE setStreamHealthOsdEnabled NOTIFY
+            filterConfigChanged)
+    Q_PROPERTY(
+        int streamHealthOsdStyle READ streamHealthOsdStyle WRITE setStreamHealthOsdStyle NOTIFY filterConfigChanged)
+    Q_PROPERTY(int streamHealthOsdPosition READ streamHealthOsdPosition WRITE setStreamHealthOsdPosition NOTIFY
+            filterConfigChanged)
+    Q_PROPERTY(bool textOverlayEnabled READ textOverlayEnabled WRITE setTextOverlayEnabled NOTIFY filterConfigChanged)
+    Q_PROPERTY(QString textOverlayString READ textOverlayString WRITE setTextOverlayString NOTIFY filterConfigChanged)
 
 public:
     /// @enum PlaybackState
@@ -145,6 +169,28 @@ public:
     [[nodiscard]] int whiteBalanceMode() const noexcept;
     void setWhiteBalanceMode(int v);
 
+    // Color & Tonal
+    [[nodiscard]] int brightness() const noexcept;
+    void setBrightness(int v);
+    [[nodiscard]] double contrast() const noexcept;
+    void setContrast(double v);
+    [[nodiscard]] double gamma() const noexcept;
+    void setGamma(double v);
+    [[nodiscard]] int colorToneMode() const noexcept;
+    void setColorToneMode(int v);
+    [[nodiscard]] int colorTintPreset() const noexcept;
+    void setColorTintPreset(int v);
+    [[nodiscard]] double colorEnhanceFactor() const noexcept;
+    void setColorEnhanceFactor(double v);
+    [[nodiscard]] int histogramEqMode() const noexcept;
+    void setHistogramEqMode(int v);
+    [[nodiscard]] bool vignetteEnabled() const noexcept;
+    void setVignetteEnabled(bool v);
+    [[nodiscard]] bool thresholdEnabled() const noexcept;
+    void setThresholdEnabled(bool v);
+    [[nodiscard]] double thresholdValue() const noexcept;
+    void setThresholdValue(double v);
+
     [[nodiscard]] int falseColorPalette() const noexcept;
     void setFalseColorPalette(int v);
     [[nodiscard]] int isothermPreset() const noexcept;
@@ -169,6 +215,18 @@ public:
     void setWatermarkEnabled(bool v);
     [[nodiscard]] bool telemetryOsdEnabled() const noexcept;
     void setTelemetryOsdEnabled(bool v);
+
+    // Remaining OSD
+    [[nodiscard]] bool streamHealthOsdEnabled() const noexcept;
+    void setStreamHealthOsdEnabled(bool v);
+    [[nodiscard]] int streamHealthOsdStyle() const noexcept;
+    void setStreamHealthOsdStyle(int v);
+    [[nodiscard]] int streamHealthOsdPosition() const noexcept;
+    void setStreamHealthOsdPosition(int v);
+    [[nodiscard]] bool textOverlayEnabled() const noexcept;
+    void setTextOverlayEnabled(bool v);
+    [[nodiscard]] QString textOverlayString() const;
+    void setTextOverlayString(const QString& v);
 
 public slots:
     /// @brief Starts video playback using configured source, backend, and hardware device.
@@ -264,6 +322,27 @@ private:
     int m_privacyMode { 0 }; // 0: None, 1: Blackout, 2: Blur, 3: Mosaic
     bool m_watermark { false };
     bool m_telemetryOsd { false };
+
+    // Remaining Color & Tonal members
+    int m_brightness { 0 }; // -100 to +100
+    double m_contrast { 1.0 }; // 0.2 to 3.0
+    double m_gamma { 1.0 }; // 0.2 to 3.0
+    int m_colorToneMode { 0 }; // 0: Normal, 1: Grayscale, 2: Inverted, 3: Sepia
+    int m_colorTintPreset { 0 }; // 0: None, 1: NVG Green, 2: Marine Blue, 3: Tactical Amber
+    double m_colorEnhanceFactor { 1.0 }; // 0.0 to 3.0
+    int m_histogramEqMode { 0 }; // 0: None, 1: Standard, 2: SquareRoot, 3: FeatureBased
+    bool m_vignette { false };
+    bool m_threshold { false };
+    double m_thresholdValue { 128.0 };
+
+    // Remaining OSD members
+    bool m_streamHealthOsd { false };
+    int m_streamHealthOsdStyle { 0 }; // 0: TacticalPill, 1: MinimalBeacon, 2: FullTelemetry
+    int m_streamHealthOsdPosition { 1 }; // 0: TopLeft, 1: TopRight, 2: BottomLeft, 3: BottomRight
+    bool m_textOverlay { false };
+    QString m_textOverlayString { "TACTICAL FEED" };
+
+    std::shared_ptr<Video::StreamHealthMonitor> m_streamHealthMonitor { nullptr };
 
     std::atomic<bool> m_running { false };
     std::atomic<bool> m_paused { false };

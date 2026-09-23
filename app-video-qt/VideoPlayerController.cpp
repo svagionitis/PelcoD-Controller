@@ -269,6 +269,136 @@ void VideoPlayerController::setWhiteBalanceMode(int v)
     }
 }
 
+int VideoPlayerController::brightness() const noexcept
+{
+    return m_brightness;
+}
+void VideoPlayerController::setBrightness(int v)
+{
+    if (m_brightness != v) {
+        m_brightness = v;
+        m_filtersDirty.store(true);
+        emit filterConfigChanged();
+    }
+}
+
+double VideoPlayerController::contrast() const noexcept
+{
+    return m_contrast;
+}
+void VideoPlayerController::setContrast(double v)
+{
+    if (std::abs(m_contrast - v) > 0.001) {
+        m_contrast = v;
+        m_filtersDirty.store(true);
+        emit filterConfigChanged();
+    }
+}
+
+double VideoPlayerController::gamma() const noexcept
+{
+    return m_gamma;
+}
+void VideoPlayerController::setGamma(double v)
+{
+    if (std::abs(m_gamma - v) > 0.001) {
+        m_gamma = v;
+        m_filtersDirty.store(true);
+        emit filterConfigChanged();
+    }
+}
+
+int VideoPlayerController::colorToneMode() const noexcept
+{
+    return m_colorToneMode;
+}
+void VideoPlayerController::setColorToneMode(int v)
+{
+    if (m_colorToneMode != v) {
+        m_colorToneMode = v;
+        m_filtersDirty.store(true);
+        emit filterConfigChanged();
+    }
+}
+
+int VideoPlayerController::colorTintPreset() const noexcept
+{
+    return m_colorTintPreset;
+}
+void VideoPlayerController::setColorTintPreset(int v)
+{
+    if (m_colorTintPreset != v) {
+        m_colorTintPreset = v;
+        m_filtersDirty.store(true);
+        emit filterConfigChanged();
+    }
+}
+
+double VideoPlayerController::colorEnhanceFactor() const noexcept
+{
+    return m_colorEnhanceFactor;
+}
+void VideoPlayerController::setColorEnhanceFactor(double v)
+{
+    if (std::abs(m_colorEnhanceFactor - v) > 0.001) {
+        m_colorEnhanceFactor = v;
+        m_filtersDirty.store(true);
+        emit filterConfigChanged();
+    }
+}
+
+int VideoPlayerController::histogramEqMode() const noexcept
+{
+    return m_histogramEqMode;
+}
+void VideoPlayerController::setHistogramEqMode(int v)
+{
+    if (m_histogramEqMode != v) {
+        m_histogramEqMode = v;
+        m_filtersDirty.store(true);
+        emit filterConfigChanged();
+    }
+}
+
+bool VideoPlayerController::vignetteEnabled() const noexcept
+{
+    return m_vignette;
+}
+void VideoPlayerController::setVignetteEnabled(bool v)
+{
+    if (m_vignette != v) {
+        m_vignette = v;
+        m_filtersDirty.store(true);
+        emit filterConfigChanged();
+    }
+}
+
+bool VideoPlayerController::thresholdEnabled() const noexcept
+{
+    return m_threshold;
+}
+void VideoPlayerController::setThresholdEnabled(bool v)
+{
+    if (m_threshold != v) {
+        m_threshold = v;
+        m_filtersDirty.store(true);
+        emit filterConfigChanged();
+    }
+}
+
+double VideoPlayerController::thresholdValue() const noexcept
+{
+    return m_thresholdValue;
+}
+void VideoPlayerController::setThresholdValue(double v)
+{
+    if (std::abs(m_thresholdValue - v) > 0.001) {
+        m_thresholdValue = v;
+        m_filtersDirty.store(true);
+        emit filterConfigChanged();
+    }
+}
+
 int VideoPlayerController::falseColorPalette() const noexcept
 {
     return m_falseColor;
@@ -407,6 +537,71 @@ void VideoPlayerController::setTelemetryOsdEnabled(bool v)
 {
     if (m_telemetryOsd != v) {
         m_telemetryOsd = v;
+        m_filtersDirty.store(true);
+        emit filterConfigChanged();
+    }
+}
+
+bool VideoPlayerController::streamHealthOsdEnabled() const noexcept
+{
+    return m_streamHealthOsd;
+}
+void VideoPlayerController::setStreamHealthOsdEnabled(bool v)
+{
+    if (m_streamHealthOsd != v) {
+        m_streamHealthOsd = v;
+        m_filtersDirty.store(true);
+        emit filterConfigChanged();
+    }
+}
+
+int VideoPlayerController::streamHealthOsdStyle() const noexcept
+{
+    return m_streamHealthOsdStyle;
+}
+void VideoPlayerController::setStreamHealthOsdStyle(int v)
+{
+    if (m_streamHealthOsdStyle != v) {
+        m_streamHealthOsdStyle = v;
+        m_filtersDirty.store(true);
+        emit filterConfigChanged();
+    }
+}
+
+int VideoPlayerController::streamHealthOsdPosition() const noexcept
+{
+    return m_streamHealthOsdPosition;
+}
+void VideoPlayerController::setStreamHealthOsdPosition(int v)
+{
+    if (m_streamHealthOsdPosition != v) {
+        m_streamHealthOsdPosition = v;
+        m_filtersDirty.store(true);
+        emit filterConfigChanged();
+    }
+}
+
+bool VideoPlayerController::textOverlayEnabled() const noexcept
+{
+    return m_textOverlay;
+}
+void VideoPlayerController::setTextOverlayEnabled(bool v)
+{
+    if (m_textOverlay != v) {
+        m_textOverlay = v;
+        m_filtersDirty.store(true);
+        emit filterConfigChanged();
+    }
+}
+
+QString VideoPlayerController::textOverlayString() const
+{
+    return m_textOverlayString;
+}
+void VideoPlayerController::setTextOverlayString(const QString& v)
+{
+    if (m_textOverlayString != v) {
+        m_textOverlayString = v;
         m_filtersDirty.store(true);
         emit filterConfigChanged();
     }
@@ -700,7 +895,7 @@ void VideoPlayerController::configureFilterPipeline(Video::IVideoDecoder* decode
         decoder->addFrameProcessor(std::make_shared<Video::TemporalDenoiseFilter>(0.5, 30.0));
     }
 
-    // 2. Optical Enhancements
+    // 2. Optical & Tonal Enhancements
     if (m_dehaze) {
         decoder->addFrameProcessor(std::make_shared<Video::DarkChannelDehazeFilter>(0.85, 9, 0.1));
     }
@@ -719,6 +914,48 @@ void VideoPlayerController::configureFilterPipeline(Video::IVideoDecoder* decode
     }
     if (m_edgeDetect) {
         decoder->addFrameProcessor(std::make_shared<Video::EdgeDetectionFilter>(50.0, 150.0));
+    }
+
+    // Brightness & Contrast
+    if (m_brightness != 0 || std::abs(m_contrast - 1.0) > 0.01) {
+        decoder->addFrameProcessor(std::make_shared<Video::BrightnessContrastFilter>(m_contrast, m_brightness));
+    }
+    // Gamma Correction
+    if (std::abs(m_gamma - 1.0) > 0.01) {
+        decoder->addFrameProcessor(std::make_shared<Video::GammaCorrectionFilter>(m_gamma));
+    }
+    // Color Saturation Boost
+    if (std::abs(m_colorEnhanceFactor - 1.0) > 0.05) {
+        decoder->addFrameProcessor(std::make_shared<Video::ColorEnhanceFilter>(m_colorEnhanceFactor));
+    }
+    // Color Tone Modes (0: Normal, 1: Grayscale, 2: Inverted Negative, 3: Sepia)
+    if (m_colorToneMode == 1) {
+        decoder->addFrameProcessor(std::make_shared<Video::GrayscaleFilter>());
+    } else if (m_colorToneMode == 2) {
+        decoder->addFrameProcessor(std::make_shared<Video::InvertColorsFilter>());
+    } else if (m_colorToneMode == 3) {
+        decoder->addFrameProcessor(std::make_shared<Video::SepiaFilter>());
+    }
+    // Color Tint Presets (0: None, 1: NVG Green, 2: Marine Blue, 3: Tactical Amber)
+    if (m_colorTintPreset == 1) {
+        decoder->addFrameProcessor(std::make_shared<Video::ColorTintFilter>(0.2, 1.4, 0.2));
+    } else if (m_colorTintPreset == 2) {
+        decoder->addFrameProcessor(std::make_shared<Video::ColorTintFilter>(0.2, 0.6, 1.5));
+    } else if (m_colorTintPreset == 3) {
+        decoder->addFrameProcessor(std::make_shared<Video::ColorTintFilter>(1.4, 1.0, 0.3));
+    }
+    // Adaptive Histogram Equalization
+    if (m_histogramEqMode > 0) {
+        const auto mode = static_cast<Video::HistogramEqualizationFilter::Mode>(m_histogramEqMode - 1);
+        decoder->addFrameProcessor(std::make_shared<Video::HistogramEqualizationFilter>(mode));
+    }
+    // Vignette
+    if (m_vignette) {
+        decoder->addFrameProcessor(std::make_shared<Video::VignetteFilter>());
+    }
+    // Binary Threshold
+    if (m_threshold) {
+        decoder->addFrameProcessor(std::make_shared<Video::ThresholdFilter>(m_thresholdValue));
     }
 
     // 3. Thermal Analytics
@@ -749,7 +986,7 @@ void VideoPlayerController::configureFilterPipeline(Video::IVideoDecoder* decode
         decoder->addFrameProcessor(std::make_shared<Video::MotionHeatmapFilter>(0.05, 0.96));
     }
 
-    // 5. Tactical Overlays
+    // 5. Tactical Overlays & OSD
     if (m_reticleStyle > 0) {
         const auto s = static_cast<Video::TacticalReticleOverlayFilter::Style>(m_reticleStyle - 1);
         decoder->addFrameProcessor(std::make_shared<Video::TacticalReticleOverlayFilter>(
@@ -769,6 +1006,28 @@ void VideoPlayerController::configureFilterPipeline(Video::IVideoDecoder* decode
     }
     if (m_telemetryOsd) {
         decoder->addFrameProcessor(std::make_shared<Video::TelemetryOsdFilter>());
+    }
+
+    // Stream Health OSD & Monitor Watchdog
+    if (m_streamHealthOsd) {
+        if (!m_streamHealthMonitor) {
+            Video::StreamHealthConfig cfg {};
+            cfg.nominalFps = 30.0;
+            m_streamHealthMonitor = std::make_shared<Video::StreamHealthMonitor>(cfg);
+        }
+        decoder->addFrameProcessor(m_streamHealthMonitor);
+
+        const auto style = static_cast<Video::StreamHealthOsdFilter::Style>(std::clamp(m_streamHealthOsdStyle, 0, 2));
+        const auto pos
+            = static_cast<Video::StreamHealthOsdFilter::Position>(std::clamp(m_streamHealthOsdPosition, 0, 3));
+        auto healthOsd = std::make_shared<Video::StreamHealthOsdFilter>(pos, style);
+        healthOsd->bindMonitor(m_streamHealthMonitor);
+        decoder->addFrameProcessor(healthOsd);
+    }
+    // Custom Text Overlay Banner
+    if (m_textOverlay && !m_textOverlayString.isEmpty()) {
+        decoder->addFrameProcessor(
+            std::make_shared<Video::TextOverlayFilter>(m_textOverlayString.toStdString(), 24, 40, 1.0));
     }
 #endif
 }
