@@ -146,53 +146,122 @@ The video pipeline operates in a multithreaded architecture where frames are dec
 
 ---
 
+## On-Camera Clock Vulnerability & Exclusion Zones (Ignored ROIs)
+
+### The False-Negative Trap
+Many commercial security cameras and IP encoders burn in an on-screen digital clock or timecode (e.g. in the top-right corner) at the hardware sensor or DSP level. 
+
+If the camera's optical sensor or video capture hardware completely locks up while the internal clock DSP continues ticking:
+- The clock digits change every second, producing a non-zero inter-frame difference $\Delta F > 0$.
+- A naive global frame difference detector is fooled into believing the scene is moving!
+- The operator and system remain unaware that the actual physical surveillance feed is frozen.
+
+```
++--------------------------------------------------------------+
+| CAMERA FEED                                [ 14:52:08 ] ◄───+ Ticking Clock (Changes every frame)
+|                                            (Exclusion Zone)  | (MASKED OUT FROM ANALYSIS)
+|                                                              |
+|                     [ FROZEN SCENE ]                         |
+|               (Evaluated for freeze detection)               |
+|                                                              |
++--------------------------------------------------------------+
+```
+
+### ExclusionZone Mathematical Formulation
+An exclusion zone is defined by bounding parameters in either absolute pixel coordinates or normalized ratios $[0.0, 1.0]$:
+
+$$\mathbf{Z} = \{ (x, y) \mid x_{\text{min}} \le x < x_{\text{min}} + W, \quad y_{\text{min}} \le y < y_{\text{min}} + H \}$$
+
+When normalized coordinates are used:
+$$x_{\text{min}} = \text{normX} \cdot W_{\text{frame}}, \quad y_{\text{min}} = \text{normY} \cdot H_{\text{frame}}$$
+
+During grid sampling in `StreamHealthMonitor::ingestFrame()`, any grid coordinate $(x_c, y_r) \in \bigcup \mathbf{Z}_k$ is discarded before fingerprint aggregation. The background freeze is detected accurately with zero false negatives!
+
+---
+
+## Tactical Live Status Designator (`StreamHealthOsdFilter`)
+
+### The "Empty Hallway" Problem
+At night in a secured facility, an empty corridor has zero pixel movement. An operator watching the video stream cannot distinguish whether the camera is live or if the RTSP decoder crashed 20 minutes ago.
+
+The **`StreamHealthOsdFilter`** provides an in-frame visual designator badge with an animated heartbeat beacon:
+1. **Dynamic Breathing/Pulsing Dot (`●`):**
+   - **Healthy:** Smooth sinusoidal breathing ($\tau \approx 1.0\text{ s}$ period, brightness $0.65 \dots 1.0$).
+   - **Degraded:** Rapid pulse ($\tau \approx 0.7\text{ s}$) in tactical amber.
+   - **Frozen / SignalLoss:** High-urgency strobe blinking ($2\text{ Hz}$) in alert red.
+2. **Color-Coded Status Pill:**
+   - 🟢 `● LIVE  29.9 FPS` (Healthy)
+   - 🟡 `▲ DEGRADED  11.4 FPS` (Degraded)
+   - 🔴 `❄ FROZEN (3.2s)  0.0 FPS` (Frozen)
+   - ❌ `✖ NO SIGNAL (4.5s)` (Signal Loss)
+   - ⬛ `■ OCCLUDED` (Blackout)
+   - ✦ `✦ OPTICAL GLOSS` (Whiteout)
+3. **Forensic Separation of Concerns:**
+   - `StreamHealthMonitor` remains **read-only** (zero frame buffer mutation, preserving cryptographic hash and chain of custody for evidentiary recordings).
+   - `StreamHealthOsdFilter` is applied **downstream** on the display output pipeline.
+
+---
+
 ## C++17 Implementation & API Reference
 
-### 1. Basic Ingestion Example
+### 1. Monitor Setup with Exclusion Zones & Auto-Reconnect
 
 ```cpp
 #include "StreamHealthMonitor.h"
+#include "StreamHealthOsdFilter.h"
 
-// 1. Instantiate monitor with tailored thresholds
+// 1. Configure monitor with tailored thresholds and clock masking
 Video::StreamHealthConfig config {};
 config.nominalFps = 30.0;
 config.freezeDurationThresholdSec = 2.0; // 2 seconds static image = freeze
-config.signalLossTimeoutSec = 1.0;       // 1 second no packets = signal loss
+config.signalLossTimeoutSec = 1.5;       // 1.5s no packets = signal loss
 config.autoReconnectOnFailure = true;
 
-Video::StreamHealthMonitor monitor(config);
+// Mask out the top-right corner where camera burns its timestamp (e.g. 20% width, 10% height)
+Video::ExclusionZone clockZone {};
+clockZone.normX = 0.80;
+clockZone.normY = 0.00;
+clockZone.normWidth = 0.20;
+clockZone.normHeight = 0.10;
+clockZone.isNormalized = true;
+config.exclusionZones.push_back(clockZone);
 
-// 2. Attach state transition listener
-monitor.setHealthCallback([](Video::StreamHealthState oldState, 
-                             Video::StreamHealthState newState, 
-                             const Video::StreamHealthMetrics& metrics) {
-    std::cout << "[HEALTH] Transitioned from " 
-              << Video::StreamHealthMonitor::stateToString(oldState)
-              << " to " 
-              << Video::StreamHealthMonitor::stateToString(newState)
-              << " | Measured FPS: " << metrics.measuredFps
-              << " | Luminance: " << metrics.meanLuminance << std::endl;
-});
+auto monitor = std::make_shared<Video::StreamHealthMonitor>(config);
 
-// 3. Attach auto-reconnection trigger
-monitor.setReconnectCallback([&]() -> bool {
-    std::cout << "[WATCHDOG] Triggering RTSP pipeline reconnection..." << std::endl;
-    // Call network layer reconnect
+// 2. Attach proactive auto-reconnect handler
+monitor->setReconnectCallback([&]() -> bool {
+    std::cout << "[WATCHDOG] Anomaly persistent. Triggering RTSP pipeline reconnect..." << std::endl;
     return true;
 });
-
-// 4. Ingest frames from decoder thread (or register as IFrameProcessor)
-// monitor.process(rgbBuffer, 1920, 1080, Video::PixelFormat::RGB24);
 ```
 
-### 2. Periodic Signal Loss Polling
-
-While frame anomalies (Frozen, Blackout, Whiteout) are detected passively as frames arrive in `ingestFrame`, complete signal loss (when the camera stops sending entirely) is detected via periodic heartbeat polling:
+### 2. Attaching the Dedicated StreamHealthOsdFilter
 
 ```cpp
-// Called periodically from a 50 ms timer or watchdog thread
+// 3. Create tactical OSD display filter and bind the monitor
+auto osdFilter = std::make_shared<Video::Filters::StreamHealthOsdFilter>(
+    Video::Filters::StreamHealthOsdFilter::Position::TopRight,
+    Video::Filters::StreamHealthOsdFilter::Style::TacticalPill
+);
+
+osdFilter->bindMonitor(monitor);
+osdFilter->setCustomLabel("CAM-01");
+osdFilter->setShowFps(true);
+osdFilter->setShowFreezeTimer(true);
+osdFilter->setPulseAnimation(true);
+
+// 4. In video pipeline:
+// monitor->ingestFrame(rgbBuffer, 1920, 1080, Video::PixelFormat::RGB24, frameTimestamp);
+// osdFilter->process(displayBuffer, 1920, 1080, Video::PixelFormat::RGB24);
+```
+
+### 3. Periodic Signal Loss Polling
+
+While frame anomalies (Frozen, Blackout, Whiteout) are evaluated on frame arrival in `ingestFrame`, complete packet starvation is detected via periodic heartbeat polling:
+
+```cpp
 void onWatchdogTimer() {
-    monitor.checkTimeout(); // Uses monotonic clock internally
+    monitor->checkTimeout(); // Compares against monotonic clock internally
 }
 ```
 
@@ -200,7 +269,7 @@ void onWatchdogTimer() {
 
 ## Verification & Unit Testing
 
-The test suite in `libs/Video/tests/TestStreamHealthMonitor.cpp` exercises all failure modes:
+The test suites in `libs/Video/tests/TestStreamHealthMonitor.cpp` and `libs/Video/tests/TestVideoDecoder.cpp` exercise all diagnostic and presentation capabilities:
 1. **`InitialStateAndConfig`**: Verifies defaults and dynamic configuration mutators.
 2. **`HealthyDynamicStreaming`**: Confirms full-rate dynamic streaming produces healthy states and accurate measured FPS.
 3. **`FreezeDetectionAndRecovery`**: Asserts identical frames transition to `Frozen` precisely at the threshold deadline and recover immediately upon scene motion.
@@ -211,3 +280,8 @@ The test suite in `libs/Video/tests/TestStreamHealthMonitor.cpp` exercises all f
 8. **`StateTransitionCallbacksAndAutoReconnect`**: Asserts invocation of user callbacks and watchdog reconnection triggers.
 9. **`IFrameProcessorIntegration`**: Confirms in-place safety without image buffer alteration.
 10. **`StateToString`**: Validates enum-to-string serializers.
+11. **`ExclusionZoneBounds`**: Verifies pixel and normalized boundary containment calculations.
+12. **`ExclusionZoneMasksTickingClock`**: Validates that an exclusion zone successfully masks a ticking on-camera clock, allowing frozen background detection.
+13. **`StreamHealthOsdFilterPropertiesAndRendering`**: Validates OSD badge placement, styles, scrim rendering, and color buffers in RGB24/BGR24.
+14. **`StreamHealthOsdFilterStateColorsAndBinding`**: Tests dynamic color transitions across all 6 health states and live monitor binding.
+15. **`StreamHealthOsdFilterExclusionZoneOverlay`**: Validates visual wireframe rendering for active exclusion zones.

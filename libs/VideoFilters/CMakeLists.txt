@@ -11,6 +11,8 @@ set(PELCOD_VIDEO_FILTERS_SOURCES
     TrackingFilters.cpp
     OverlayFilters.h
     OverlayFilters.cpp
+    StreamHealthOsdFilter.h
+    StreamHealthOsdFilter.cpp
     VideoFilters.h
 )
 

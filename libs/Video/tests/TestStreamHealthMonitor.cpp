@@ -257,3 +257,103 @@ TEST(TestStreamHealthMonitor, StateToString)
     EXPECT_EQ(Video::StreamHealthMonitor::stateToString(Video::StreamHealthState::Blackout), "Blackout");
     EXPECT_EQ(Video::StreamHealthMonitor::stateToString(Video::StreamHealthState::Whiteout), "Whiteout");
 }
+
+TEST(TestStreamHealthMonitor, ExclusionZoneBounds)
+{
+    // Absolute pixel zone
+    Video::ExclusionZone pixelZone {};
+    pixelZone.x = 10;
+    pixelZone.y = 20;
+    pixelZone.width = 30;
+    pixelZone.height = 40;
+    pixelZone.isNormalized = false;
+
+    EXPECT_TRUE(pixelZone.contains(10, 20, 100, 100));
+    EXPECT_TRUE(pixelZone.contains(39, 59, 100, 100));
+    EXPECT_FALSE(pixelZone.contains(9, 20, 100, 100));
+    EXPECT_FALSE(pixelZone.contains(40, 59, 100, 100));
+    EXPECT_FALSE(pixelZone.contains(10, 60, 100, 100));
+
+    // Normalized zone (0.5 to 1.0 horizontally, 0.0 to 0.2 vertically)
+    Video::ExclusionZone normZone {};
+    normZone.normX = 0.5;
+    normZone.normY = 0.0;
+    normZone.normWidth = 0.5;
+    normZone.normHeight = 0.2;
+    normZone.isNormalized = true;
+
+    EXPECT_TRUE(normZone.contains(100, 10, 200, 100));
+    EXPECT_TRUE(normZone.contains(199, 19, 200, 100));
+    EXPECT_FALSE(normZone.contains(99, 10, 200, 100));
+    EXPECT_FALSE(normZone.contains(100, 21, 200, 100));
+}
+
+TEST(TestStreamHealthMonitor, ExclusionZoneMasksTickingClock)
+{
+    const int W = 64;
+    const int H = 48;
+
+    // Helper to generate a frame with static background and a ticking clock in top-right (x: 48..63, y: 0..15)
+    auto createFrameWithClock = [&](int tick) {
+        std::vector<std::uint8_t> frame(static_cast<std::size_t>(W * H * 3), 120U);
+        for (int y = 0; y < 16; ++y) {
+            for (int x = 48; x < W; ++x) {
+                const auto val = static_cast<std::uint8_t>((tick * 47 + x * 3 + y * 7) % 256);
+                const std::size_t idx = static_cast<std::size_t>((y * W + x) * 3);
+                frame[idx + 0] = val;
+                frame[idx + 1] = val;
+                frame[idx + 2] = val;
+            }
+        }
+        return frame;
+    };
+
+    // Case A: Without exclusion zone, the ticking clock fools the monitor into thinking stream is moving
+    {
+        Video::StreamHealthConfig cfg {};
+        cfg.freezeDurationThresholdSec = 0.5;
+        Video::StreamHealthMonitor monitor(cfg);
+
+        double t = 0.0;
+        for (int i = 0; i < 30; ++i) {
+            const std::vector<std::uint8_t> frame = createFrameWithClock(i);
+            monitor.ingestFrame(frame.data(), W, H, Video::PixelFormat::RGB24, t);
+            t += 0.033;
+        }
+
+        // Ticking clock created continuous inter-frame differences
+        EXPECT_GT(monitor.getMetrics().frameDifference, 0.5);
+        EXPECT_EQ(monitor.getState(), Video::StreamHealthState::Healthy);
+    }
+
+    // Case B: With exclusion zone masking out the clock, background is detected as frozen
+    {
+        Video::StreamHealthConfig cfg {};
+        cfg.freezeDurationThresholdSec = 0.5;
+        Video::ExclusionZone clockZone {};
+        clockZone.x = 48;
+        clockZone.y = 0;
+        clockZone.width = 16;
+        clockZone.height = 16;
+        clockZone.isNormalized = false;
+        cfg.exclusionZones.push_back(clockZone);
+
+        Video::StreamHealthMonitor monitor(cfg);
+        EXPECT_EQ(monitor.getExclusionZones().size(), 1U);
+
+        double t = 0.0;
+        for (int i = 0; i < 30; ++i) {
+            const std::vector<std::uint8_t> frame = createFrameWithClock(i);
+            monitor.ingestFrame(frame.data(), W, H, Video::PixelFormat::RGB24, t);
+            t += 0.033;
+        }
+
+        // With clock excluded, identical static background triggers freeze state
+        EXPECT_DOUBLE_EQ(monitor.getMetrics().frameDifference, 0.0);
+        EXPECT_EQ(monitor.getState(), Video::StreamHealthState::Frozen);
+
+        // Test clearing exclusion zones
+        monitor.clearExclusionZones();
+        EXPECT_TRUE(monitor.getExclusionZones().empty());
+    }
+}

@@ -6,11 +6,12 @@
 #pragma once
 
 #include "ColorFilters.h"
-#include "SpatialFilters.h"
 #include "GeometricFilters.h"
+#include "OverlayFilters.h"
+#include "SpatialFilters.h"
+#include "StreamHealthOsdFilter.h"
 #include "ThermalFilters.h"
 #include "TrackingFilters.h"
-#include "OverlayFilters.h"
 
 #if defined(PELCOD_HAS_FILTERS)
 

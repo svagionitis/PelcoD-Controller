@@ -50,27 +50,45 @@ void StreamHealthMonitor::ingestFrame(
 
     const double nowSec = (timestampSec >= 0.0) ? timestampSec : getSteadyNowSeconds();
 
-    const std::size_t gridStep = (m_config.sampleGridStep > 0U) ? m_config.sampleGridStep : 8U;
+    std::size_t gridStep = 8U;
+    std::vector<ExclusionZone> activeZones {};
+    {
+        std::scoped_lock lock(m_mutex);
+        gridStep = (m_config.sampleGridStep > 0U) ? m_config.sampleGridStep : 8U;
+        activeZones = m_config.exclusionZones;
+    }
+
     const int bpp = bytesPerPixel(format);
     const int pitch = width * bpp;
 
     const int sampleCols = (width + static_cast<int>(gridStep) - 1) / static_cast<int>(gridStep);
     const int sampleRows = (height + static_cast<int>(gridStep) - 1) / static_cast<int>(gridStep);
-    const std::size_t sampleCount = static_cast<std::size_t>(sampleCols * sampleRows);
+    const std::size_t maxSampleCount = static_cast<std::size_t>(sampleCols * sampleRows);
 
-    std::vector<std::uint8_t> currentFingerprint(sampleCount, 0U);
+    std::vector<std::uint8_t> currentFingerprint;
+    currentFingerprint.reserve(maxSampleCount);
 
     double sumLuminance = 0.0;
     double sumSqLuminance = 0.0;
     std::size_t saturatedCount = 0U;
     double totalDiff = 0.0;
 
-    std::size_t sIdx = 0U;
     for (int y = 0; y < height; y += static_cast<int>(gridStep)) {
         const std::uint8_t* rowPtr = data + y * pitch;
         for (int x = 0; x < width; x += static_cast<int>(gridStep)) {
+            bool excluded = false;
+            for (const auto& zone : activeZones) {
+                if (zone.contains(x, y, width, height)) {
+                    excluded = true;
+                    break;
+                }
+            }
+            if (excluded) {
+                continue;
+            }
+
             const std::uint8_t lum = extractLuminance(rowPtr + x * bpp, format);
-            currentFingerprint[sIdx++] = lum;
+            currentFingerprint.push_back(lum);
 
             const double lumD = static_cast<double>(lum);
             sumLuminance += lumD;
@@ -90,6 +108,7 @@ void StreamHealthMonitor::ingestFrame(
     {
         std::scoped_lock lock(m_mutex);
 
+        const std::size_t sampleCount = currentFingerprint.size();
         const double countD = static_cast<double>(sampleCount);
         const double meanLum = (countD > 0.0) ? (sumLuminance / countD) : 0.0;
         const double varLum = (countD > 1.0)
@@ -110,7 +129,7 @@ void StreamHealthMonitor::ingestFrame(
             }
             meanDiff = (countD > 0.0) ? (totalDiff / countD) : 0.0;
         } else {
-            meanDiff = 255.0; // First frame or size changed
+            meanDiff = 255.0; // First frame or size/zones changed
         }
         m_metrics.frameDifference = meanDiff;
 
@@ -300,6 +319,24 @@ StreamHealthConfig StreamHealthMonitor::getConfig() const
 {
     std::scoped_lock lock(m_mutex);
     return m_config;
+}
+
+void StreamHealthMonitor::addExclusionZone(const ExclusionZone& zone)
+{
+    std::scoped_lock lock(m_mutex);
+    m_config.exclusionZones.push_back(zone);
+}
+
+void StreamHealthMonitor::clearExclusionZones()
+{
+    std::scoped_lock lock(m_mutex);
+    m_config.exclusionZones.clear();
+}
+
+std::vector<ExclusionZone> StreamHealthMonitor::getExclusionZones() const
+{
+    std::scoped_lock lock(m_mutex);
+    return m_config.exclusionZones;
 }
 
 void StreamHealthMonitor::setHealthCallback(HealthCallback callback)

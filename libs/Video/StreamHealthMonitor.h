@@ -26,6 +26,39 @@ enum class StreamHealthState : std::uint8_t {
     Whiteout ///< Mean frame luminance is near 255 with extreme saturation (direct laser glare or overexposure).
 };
 
+/// @struct ExclusionZone
+/// @brief Region of interest (ROI) to be excluded from health, freeze, and luminance analysis.
+/// Useful for masking out on-camera burned-in clocks, dynamic watermarks, or PTZ telemetry OSDs.
+struct ExclusionZone {
+    int x { 0 }; ///< Horizontal offset (left bound) in pixels.
+    int y { 0 }; ///< Vertical offset (top bound) in pixels.
+    int width { 0 }; ///< Width in pixels.
+    int height { 0 }; ///< Height in pixels.
+    double normX { 0.0 }; ///< Normalized [0.0, 1.0] left bound.
+    double normY { 0.0 }; ///< Normalized [0.0, 1.0] top bound.
+    double normWidth { 0.0 }; ///< Normalized [0.0, 1.0] width.
+    double normHeight { 0.0 }; ///< Normalized [0.0, 1.0] height.
+    bool isNormalized { false }; ///< When true, uses normalized coordinates scaled to frame size.
+
+    /// @brief Checks if a pixel point falls within the exclusion zone.
+    /// @param[in] px X coordinate in pixels.
+    /// @param[in] py Y coordinate in pixels.
+    /// @param[in] frameWidth Width of the frame in pixels.
+    /// @param[in] frameHeight Height of the frame in pixels.
+    /// @return True if (px, py) is inside the exclusion zone.
+    [[nodiscard]] bool contains(int px, int py, int frameWidth, int frameHeight) const noexcept
+    {
+        if (isNormalized) {
+            const double fw = static_cast<double>(frameWidth > 0 ? frameWidth : 1);
+            const double fh = static_cast<double>(frameHeight > 0 ? frameHeight : 1);
+            const double nx = static_cast<double>(px) / fw;
+            const double ny = static_cast<double>(py) / fh;
+            return nx >= normX && nx < (normX + normWidth) && ny >= normY && ny < (normY + normHeight);
+        }
+        return px >= x && px < (x + width) && py >= y && py < (y + height);
+    }
+};
+
 /// @struct StreamHealthConfig
 /// @brief Thresholds and tuning parameters for stream health analysis.
 struct StreamHealthConfig {
@@ -42,6 +75,8 @@ struct StreamHealthConfig {
     double degradedFpsRatio { 0.5 }; ///< Fraction of nominalFps below which stream is flagged as Degraded.
     std::size_t sampleGridStep { 8U }; ///< Sub-sampling stride in pixels for lightweight frame analysis.
     bool autoReconnectOnFailure { false }; ///< Automatically invoke reconnect callback when failure states persist.
+    std::vector<ExclusionZone>
+        exclusionZones {}; ///< ROIs ignored during freeze & luminance analysis (e.g. camera clocks).
 };
 
 /// @struct StreamHealthMetrics
@@ -118,6 +153,17 @@ public:
 
     /// @brief Retrieves the active configuration.
     [[nodiscard]] StreamHealthConfig getConfig() const;
+
+    /// @brief Adds an exclusion zone (ROI) to be ignored during freeze and luminance analysis.
+    /// @param[in] zone Exclusion region.
+    void addExclusionZone(const ExclusionZone& zone);
+
+    /// @brief Clears all configured exclusion zones.
+    void clearExclusionZones();
+
+    /// @brief Retrieves currently configured exclusion zones.
+    /// @return Vector of active exclusion zones.
+    [[nodiscard]] std::vector<ExclusionZone> getExclusionZones() const;
 
     /// @brief Registers a callback for state transition notifications.
     /// @param[in] callback State change callback function.

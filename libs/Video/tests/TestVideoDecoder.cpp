@@ -1700,6 +1700,115 @@ TEST(VideoFiltersTest, GaborFilterProcessing)
     overlayFilter.process(overlayBuf.data(), w, h, PixelFormat::RGB24);
     EXPECT_FALSE(overlayBuf.empty());
 }
+
+TEST(VideoFiltersTest, StreamHealthOsdFilterPropertiesAndRendering)
+{
+    StreamHealthOsdFilter osdFilter(
+        StreamHealthOsdFilter::Position::TopRight, StreamHealthOsdFilter::Style::TacticalPill);
+
+    EXPECT_EQ(osdFilter.getPosition(), StreamHealthOsdFilter::Position::TopRight);
+    EXPECT_EQ(osdFilter.getStyle(), StreamHealthOsdFilter::Style::TacticalPill);
+
+    osdFilter.setPosition(StreamHealthOsdFilter::Position::BottomLeft);
+    EXPECT_EQ(osdFilter.getPosition(), StreamHealthOsdFilter::Position::BottomLeft);
+
+    osdFilter.setStyle(StreamHealthOsdFilter::Style::FullTelemetry);
+    EXPECT_EQ(osdFilter.getStyle(), StreamHealthOsdFilter::Style::FullTelemetry);
+
+    osdFilter.setCustomLabel("CAM-FRONT");
+    EXPECT_EQ(osdFilter.getCustomLabel(), "CAM-FRONT");
+
+    osdFilter.setShowFps(true);
+    EXPECT_TRUE(osdFilter.getShowFps());
+
+    osdFilter.setShowFreezeTimer(true);
+    EXPECT_TRUE(osdFilter.getShowFreezeTimer());
+
+    osdFilter.setPulseAnimation(false);
+    EXPECT_FALSE(osdFilter.isPulseAnimationEnabled());
+
+    osdFilter.setScrimOpacity(0.5);
+    EXPECT_DOUBLE_EQ(osdFilter.getScrimOpacity(), 0.5);
+
+    // Process a frame in RGB24
+    const int w = 160;
+    const int h = 120;
+    std::vector<std::uint8_t> rgbFrame(static_cast<std::size_t>(w * h * 3), 100U);
+    const std::vector<std::uint8_t> original = rgbFrame;
+
+    osdFilter.process(rgbFrame.data(), w, h, PixelFormat::RGB24);
+    EXPECT_NE(rgbFrame, original); // OSD elements were rendered
+
+    // Process a frame in BGR24
+    std::vector<std::uint8_t> bgrFrame(static_cast<std::size_t>(w * h * 3), 100U);
+    osdFilter.process(bgrFrame.data(), w, h, PixelFormat::BGR24);
+    EXPECT_NE(bgrFrame, original);
+}
+
+TEST(VideoFiltersTest, StreamHealthOsdFilterStateColorsAndBinding)
+{
+    StreamHealthOsdFilter osdFilter;
+    const int w = 160;
+    const int h = 120;
+
+    // Test direct update of all health states
+    const std::vector<StreamHealthState> states
+        = { StreamHealthState::Healthy, StreamHealthState::Degraded, StreamHealthState::Frozen,
+              StreamHealthState::SignalLoss, StreamHealthState::Blackout, StreamHealthState::Whiteout };
+
+    for (const auto state : states) {
+        StreamHealthMetrics metrics {};
+        metrics.measuredFps = 25.0;
+        metrics.frozenDurationSec = 3.5;
+        metrics.secondsSinceLastFrame = 2.0;
+
+        osdFilter.updateHealth(state, metrics);
+        EXPECT_EQ(osdFilter.getHealthState(), state);
+
+        std::vector<std::uint8_t> frame(static_cast<std::size_t>(w * h * 3), 80U);
+        osdFilter.process(frame.data(), w, h, PixelFormat::RGB24);
+    }
+
+    // Test monitor binding
+    auto monitor = std::make_shared<StreamHealthMonitor>();
+    osdFilter.bindMonitor(monitor);
+    EXPECT_EQ(osdFilter.getHealthState(), StreamHealthState::Healthy);
+
+    // Ingest frames to monitor
+    const std::vector<std::uint8_t> testFrame(static_cast<std::size_t>(w * h * 3), 128U);
+    monitor->ingestFrame(testFrame.data(), w, h, PixelFormat::RGB24, 0.0);
+
+    // Filter now reflects monitor state and metrics
+    EXPECT_EQ(osdFilter.getHealthState(), monitor->getState());
+    EXPECT_EQ(osdFilter.getHealthMetrics().totalFramesAnalyzed, 1U);
+
+    osdFilter.unbindMonitor();
+}
+
+TEST(VideoFiltersTest, StreamHealthOsdFilterExclusionZoneOverlay)
+{
+    StreamHealthOsdFilter osdFilter;
+    auto monitor = std::make_shared<StreamHealthMonitor>();
+
+    ExclusionZone zone {};
+    zone.x = 20;
+    zone.y = 10;
+    zone.width = 40;
+    zone.height = 30;
+    monitor->addExclusionZone(zone);
+
+    osdFilter.bindMonitor(monitor);
+    osdFilter.setShowExclusionZones(true);
+    EXPECT_TRUE(osdFilter.getShowExclusionZones());
+
+    const int w = 160;
+    const int h = 120;
+    std::vector<std::uint8_t> frame(static_cast<std::size_t>(w * h * 3), 50U);
+    const std::vector<std::uint8_t> cleanFrame = frame;
+
+    osdFilter.process(frame.data(), w, h, PixelFormat::RGB24);
+    EXPECT_NE(frame, cleanFrame);
+}
 #endif
 
 int main(int argc, char* argv[])
