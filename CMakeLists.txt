@@ -162,7 +162,10 @@ if(PELCOD_ENABLE_VIDEO)
 
     # OpenCV video enhancement filters
     if(PELCOD_ENABLE_FILTERS)
-        find_package(OpenCV COMPONENTS core imgproc video calib3d QUIET)
+        find_package(OpenCV COMPONENTS core imgproc video calib3d PATHS "${CMAKE_SOURCE_DIR}/vcpkg_installed/x64-windows/share/opencv4" QUIET)
+        if(OpenCV_FOUND AND NOT OpenCV_LIBS)
+            set(OpenCV_LIBS ${OpenCV_LIBRARIES})
+        endif()
         if(NOT OpenCV_FOUND)
             find_package(PkgConfig QUIET)
             if(PKG_CONFIG_FOUND)
@@ -235,7 +238,7 @@ include(GitHooks)
 # Target Installation
 # ==============================================================================
 
-set(PELCOD_INSTALL_TARGETS PelcoDAppQt ViscaAppQt PelcoDAppTui PelcoDCore PelcoDQt Math Transport ViscaCore ViscaSony Tracking Klv PelcoDFujinon PelcoDSim)
+set(PELCOD_INSTALL_TARGETS PelcoDAppQt ViscaAppQt PelcoDAppTui PelcoDCore PelcoDQt Math Transport ViscaCore ViscaSony Tracking Klv Mapping MappingQt PelcoDFujinon PelcoDSim)
 if(PELCOD_ENABLE_ONVIF)
     list(APPEND PELCOD_INSTALL_TARGETS Onvif)
 endif()

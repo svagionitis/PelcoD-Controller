@@ -15,6 +15,8 @@ set(PELCOD_VIDEO_FILTERS_SOURCES
     StreamHealthOsdFilter.cpp
     TacticalHudFilter.h
     TacticalHudFilter.cpp
+    MapRasterizerFilter.h
+    MapRasterizerFilter.cpp
     VideoFilters.h
 )
 
@@ -27,19 +29,20 @@ target_include_directories(VideoFilters PUBLIC
 )
 
 target_compile_definitions(VideoFilters PUBLIC PELCOD_HAS_FILTERS)
-if(MSVC)
-    target_compile_definitions(VideoFilters PUBLIC CV_IGNORE_DEBUG_BUILD_GUARD)
-endif()
 
-target_include_directories(VideoFilters SYSTEM PUBLIC ${OpenCV_INCLUDE_DIRS})
+target_include_directories(VideoFilters SYSTEM PUBLIC $<BUILD_INTERFACE:${OpenCV_INCLUDE_DIRS}>)
 
 target_link_libraries(VideoFilters PUBLIC
     Video
     Math
     Klv
+    Mapping
     Threads::Threads
     glog::glog
-    ${OpenCV_LIBS}
+    opencv_core
+    opencv_imgproc
+    opencv_video
+    opencv_calib3d
 )
 
 apply_compiler_flags(VideoFilters)

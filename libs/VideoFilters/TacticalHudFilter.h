@@ -16,13 +16,7 @@
 
 #if defined(PELCOD_HAS_FILTERS)
 
-#if defined(_WIN32)
-#if defined(VideoFilters_EXPORTS)
-#define VIDEOFILTERS_API __declspec(dllexport)
-#else
-#define VIDEOFILTERS_API __declspec(dllimport)
-#endif
-#else
+#ifndef VIDEOFILTERS_API
 #define VIDEOFILTERS_API
 #endif
 

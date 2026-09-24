@@ -17,6 +17,7 @@ if(PELCOD_ENABLE_ONVIF)
 endif()
 
 add_subdirectory(PelcoDQt)
+add_subdirectory(MappingQt)
 
 if(PELCOD_ENABLE_VIDEO)
     add_subdirectory(Video)

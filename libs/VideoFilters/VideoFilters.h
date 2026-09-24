@@ -11,6 +11,7 @@
 #include "SpatialFilters.h"
 #include "StreamHealthOsdFilter.h"
 #include "TacticalHudFilter.h"
+#include "MapRasterizerFilter.h"
 #include "ThermalFilters.h"
 #include "TrackingFilters.h"
 

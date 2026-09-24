@@ -30,3 +30,22 @@ target_link_libraries(TestStreamHealthMonitor PRIVATE
     GTest::gtest_main
 )
 pelcod_register_gtest(TestStreamHealthMonitor)
+
+if(PELCOD_ENABLE_FILTERS AND OpenCV_FOUND)
+    add_executable(TestMapRasterizerFilter TestMapRasterizerFilter.cpp)
+    target_include_directories(TestMapRasterizerFilter PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/..
+        ${CMAKE_SOURCE_DIR}/libs/VideoFilters
+        ${CMAKE_SOURCE_DIR}/libs/Mapping
+        ${CMAKE_SOURCE_DIR}/libs/Klv
+    )
+    target_link_libraries(TestMapRasterizerFilter PRIVATE
+        VideoFilters
+        Video
+        Mapping
+        Klv
+        opencv_core
+        opencv_imgproc
+    )
+    pelcod_register_gtest(TestMapRasterizerFilter)
+endif()
