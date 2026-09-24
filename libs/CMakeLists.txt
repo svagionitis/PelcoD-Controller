@@ -8,6 +8,7 @@ if(BUILD_TESTING)
 endif()
 add_subdirectory(Tracking)
 add_subdirectory(Klv)
+add_subdirectory(Mapping)
 add_subdirectory(PelcoDFujinon)
 add_subdirectory(PelcoDSim)
 
