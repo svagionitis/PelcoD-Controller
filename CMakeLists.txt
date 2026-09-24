@@ -238,7 +238,7 @@ include(GitHooks)
 # Target Installation
 # ==============================================================================
 
-set(PELCOD_INSTALL_TARGETS PelcoDAppQt ViscaAppQt PelcoDAppTui PelcoDCore PelcoDQt Math Transport ViscaCore ViscaSony Tracking Klv Mapping MappingQt PelcoDFujinon PelcoDSim)
+set(PELCOD_INSTALL_TARGETS PelcoDAppQt ViscaAppQt PelcoDAppTui PelcoDCore PelcoDQt Math Transport ViscaCore ViscaSony Tracking Klv Mapping MappingQt PayloadHal PelcoDFujinon PelcoDSim)
 if(PELCOD_ENABLE_ONVIF)
     list(APPEND PELCOD_INSTALL_TARGETS Onvif)
 endif()
@@ -336,6 +336,31 @@ if(PELCOD_ENABLE_ONVIF)
         DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/Onvif/adapters
     )
 endif()
+
+install(FILES
+    libs/PayloadHal/PayloadTypes.h
+    libs/PayloadHal/IDevice.h
+    libs/PayloadHal/IPanTiltUnit.h
+    libs/PayloadHal/ILaserRangeFinder.h
+    libs/PayloadHal/ICameraPayload.h
+    libs/PayloadHal/IPayload.h
+    libs/PayloadHal/GeoreferenceUtils.h
+    libs/PayloadHal/PayloadFactory.h
+    libs/PayloadHal/PayloadHal.h
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/PayloadHal
+)
+
+install(FILES
+    libs/PayloadHal/adapters/PelcoDPtzAdapter.h
+    libs/PayloadHal/adapters/PelcoDFujinonPayloadAdapter.h
+    libs/PayloadHal/adapters/ViscaSonyAdapter.h
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/PayloadHal/adapters
+)
+
+install(FILES
+    libs/PayloadHal/sim/SimulatedPayload.h
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/PayloadHal/sim
+)
 
 install(FILES
     libs/PelcoDFujinon/FujinonBuilder.h

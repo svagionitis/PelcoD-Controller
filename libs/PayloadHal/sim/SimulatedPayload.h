@@ -1,0 +1,62 @@
+#pragma once
+
+/// @file SimulatedPayload.h
+/// @brief Multi-sensor simulated payload station for testing and offline development.
+
+#include "ICameraPayload.h"
+#include "ILaserRangeFinder.h"
+#include "IPanTiltUnit.h"
+#include "IPayload.h"
+
+#include <atomic>
+#include <memory>
+#include <mutex>
+
+namespace PayloadHal {
+
+/// @class SimulatedPayload
+/// @brief Fully software-simulated multi-sensor electro-optical/infrared payload station
+///        integrating a gyro-stabilized gimbal, daylight EO, thermal LWIR, and an eye-safe LRF.
+class SimulatedPayload : public IPayload {
+public:
+    SimulatedPayload();
+    ~SimulatedPayload() override;
+
+    // --- IDevice Lifecycle ---
+    bool connect() override;
+    void disconnect() override;
+    [[nodiscard]] bool isConnected() const noexcept override;
+    [[nodiscard]] DeviceState state() const noexcept override;
+    [[nodiscard]] DeviceInfo info() const noexcept override;
+    void registerStateCallback(StateCallback cb) override;
+
+    // --- IPayload Accessors ---
+    [[nodiscard]] std::shared_ptr<IPanTiltUnit> panTilt() const noexcept override;
+    [[nodiscard]] std::shared_ptr<ICameraPayload> primaryCamera() const noexcept override;
+    [[nodiscard]] std::shared_ptr<ICameraPayload> secondaryCamera() const noexcept override;
+    [[nodiscard]] std::shared_ptr<ILaserRangeFinder> lrf() const noexcept override;
+
+    [[nodiscard]] std::optional<Klv::GeoPoint2D> calculateTargetCoordinates(
+        const Klv::GeoPoint2D& platformGps, double platformHeadingDeg, double platformAltMeters) const override;
+
+    // Simulation helpers
+    void setSimulatedSlantRange(double rangeMeters);
+    void setSimulatedGroundElevation(double groundElevationM);
+
+private:
+    class SimPtu;
+    class SimCamera;
+    class SimLrf;
+
+    std::shared_ptr<SimPtu> m_ptu;
+    std::shared_ptr<SimCamera> m_daylightCamera;
+    std::shared_ptr<SimCamera> m_thermalCamera;
+    std::shared_ptr<SimLrf> m_lrf;
+
+    mutable std::mutex m_mutex;
+    StateCallback m_stateCallback {};
+    std::atomic<bool> m_connected { false };
+    double m_simGroundElevation { 0.0 };
+};
+
+} // namespace PayloadHal

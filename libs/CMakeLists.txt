@@ -11,6 +11,7 @@ add_subdirectory(Klv)
 add_subdirectory(Mapping)
 add_subdirectory(PelcoDFujinon)
 add_subdirectory(PelcoDSim)
+add_subdirectory(PayloadHal)
 
 if(PELCOD_ENABLE_ONVIF)
     add_subdirectory(Onvif)
