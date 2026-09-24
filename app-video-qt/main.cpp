@@ -1,3 +1,4 @@
+#include "TacticalMapQuickItem.h"
 #include "VideoPlayerController.h"
 #include "VideoQuickItem.h"
 
@@ -18,6 +19,7 @@ int main(int argc, char* argv[])
 
     QQuickStyle::setStyle(QStringLiteral("Fusion"));
 
+    MappingQt::registerQmlTypes();
     qmlRegisterType<VideoApp::VideoQuickItem>("VideoApp", 1, 0, "VideoItem");
     qmlRegisterType<VideoApp::VideoPlayerController>("VideoApp", 1, 0, "VideoPlayerController");
 

@@ -107,6 +107,21 @@ class VideoPlayerController : public QObject {
     Q_PROPERTY(bool textOverlayEnabled READ textOverlayEnabled WRITE setTextOverlayEnabled NOTIFY filterConfigChanged)
     Q_PROPERTY(QString textOverlayString READ textOverlayString WRITE setTextOverlayString NOTIFY filterConfigChanged)
 
+    // Mini-Map Tactical Inset Rasterizer
+    Q_PROPERTY(bool mapRasterizerEnabled READ mapRasterizerEnabled WRITE setMapRasterizerEnabled NOTIFY filterConfigChanged)
+    Q_PROPERTY(int mapRasterizerCorner READ mapRasterizerCorner WRITE setMapRasterizerCorner NOTIFY filterConfigChanged)
+    Q_PROPERTY(qreal mapRasterizerOpacity READ mapRasterizerOpacity WRITE setMapRasterizerOpacity NOTIFY filterConfigChanged)
+    Q_PROPERTY(int mapRasterizerZoom READ mapRasterizerZoom WRITE setMapRasterizerZoom NOTIFY filterConfigChanged)
+    Q_PROPERTY(int mapRasterizerWidth READ mapRasterizerWidth WRITE setMapRasterizerWidth NOTIFY filterConfigChanged)
+    Q_PROPERTY(int mapRasterizerHeight READ mapRasterizerHeight WRITE setMapRasterizerHeight NOTIFY filterConfigChanged)
+    Q_PROPERTY(bool mapRasterizerShowFrustum READ mapRasterizerShowFrustum WRITE setMapRasterizerShowFrustum NOTIFY filterConfigChanged)
+    Q_PROPERTY(bool mapRasterizerShowHeading READ mapRasterizerShowHeading WRITE setMapRasterizerShowHeading NOTIFY filterConfigChanged)
+
+    // Platform Tactical Telemetry
+    Q_PROPERTY(qreal platformLatitude READ platformLatitude WRITE setPlatformLatitude NOTIFY telemetryChanged)
+    Q_PROPERTY(qreal platformLongitude READ platformLongitude WRITE setPlatformLongitude NOTIFY telemetryChanged)
+    Q_PROPERTY(qreal platformHeading READ platformHeading WRITE setPlatformHeading NOTIFY telemetryChanged)
+
 public:
     /// @enum PlaybackState
     /// @brief Operational state of the video playback controller.
@@ -228,6 +243,32 @@ public:
     [[nodiscard]] QString textOverlayString() const;
     void setTextOverlayString(const QString& v);
 
+    // Mini-Map Rasterizer Inset
+    [[nodiscard]] bool mapRasterizerEnabled() const noexcept;
+    void setMapRasterizerEnabled(bool v);
+    [[nodiscard]] int mapRasterizerCorner() const noexcept;
+    void setMapRasterizerCorner(int v);
+    [[nodiscard]] qreal mapRasterizerOpacity() const noexcept;
+    void setMapRasterizerOpacity(qreal v);
+    [[nodiscard]] int mapRasterizerZoom() const noexcept;
+    void setMapRasterizerZoom(int v);
+    [[nodiscard]] int mapRasterizerWidth() const noexcept;
+    void setMapRasterizerWidth(int v);
+    [[nodiscard]] int mapRasterizerHeight() const noexcept;
+    void setMapRasterizerHeight(int v);
+    [[nodiscard]] bool mapRasterizerShowFrustum() const noexcept;
+    void setMapRasterizerShowFrustum(bool v);
+    [[nodiscard]] bool mapRasterizerShowHeading() const noexcept;
+    void setMapRasterizerShowHeading(bool v);
+
+    // Platform Tactical Telemetry
+    [[nodiscard]] qreal platformLatitude() const noexcept;
+    void setPlatformLatitude(qreal v);
+    [[nodiscard]] qreal platformLongitude() const noexcept;
+    void setPlatformLongitude(qreal v);
+    [[nodiscard]] qreal platformHeading() const noexcept;
+    void setPlatformHeading(qreal v);
+
 public slots:
     /// @brief Starts video playback using configured source, backend, and hardware device.
     void startPlayback();
@@ -257,6 +298,9 @@ public slots:
     /// @return Saved image filepath, or empty string on failure.
     QString takeSnapshot(const QString& filePath = QString());
 
+    /// @brief Updates the tactical platform telemetry coordinates and heading.
+    void setPlatformTelemetry(double lat, double lon, double heading);
+
 signals:
     void playbackStateChanged();
     void sourceUriChanged();
@@ -270,6 +314,8 @@ signals:
     void isSeekableChanged();
     void statsUpdated();
     void filterConfigChanged();
+    void telemetryChanged();
+    void coordinateTargetPicked(double lat, double lon);
     void frameDecoded(const QImage& frame);
 
 private:
@@ -341,6 +387,21 @@ private:
     int m_streamHealthOsdPosition { 1 }; // 0: TopLeft, 1: TopRight, 2: BottomLeft, 3: BottomRight
     bool m_textOverlay { false };
     QString m_textOverlayString { "TACTICAL FEED" };
+
+    // Mini-Map Rasterizer Inset
+    bool m_mapRasterizerEnabled { false };
+    int m_mapRasterizerCorner { 0 }; // 0: BottomRight, 1: BottomLeft, 2: TopRight, 3: TopLeft
+    qreal m_mapRasterizerOpacity { 0.85 };
+    int m_mapRasterizerZoom { 13 };
+    int m_mapRasterizerWidth { 240 };
+    int m_mapRasterizerHeight { 180 };
+    bool m_mapRasterizerShowFrustum { true };
+    bool m_mapRasterizerShowHeading { true };
+
+    // Platform Tactical Telemetry
+    qreal m_platformLatitude { 37.7749 };
+    qreal m_platformLongitude { -122.4194 };
+    qreal m_platformHeading { 45.0 };
 
     std::shared_ptr<Video::StreamHealthMonitor> m_streamHealthMonitor { nullptr };
 

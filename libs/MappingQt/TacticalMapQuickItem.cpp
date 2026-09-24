@@ -359,7 +359,10 @@ void TacticalMapQuickItem::paint(QPainter* painter) {
     }
 }
 
-void TacticalMapQuickItem::registerQmlTypes() {
+void registerQmlTypes() {
+    qmlRegisterType<TacticalMapQuickItem>("PelcoD.Mapping", 1, 0, "TacticalMap");
+    qmlRegisterType<TacticalMapQuickItem>("PelcoD.Mapping", 1, 0, "TacticalMapQuickItem");
+    qmlRegisterType<TacticalMapQuickItem>("MappingQt", 1, 0, "TacticalMap");
     qmlRegisterType<TacticalMapQuickItem>("MappingQt", 1, 0, "TacticalMapQuickItem");
 }
 

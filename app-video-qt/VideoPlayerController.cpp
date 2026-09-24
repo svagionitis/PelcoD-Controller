@@ -607,6 +607,169 @@ void VideoPlayerController::setTextOverlayString(const QString& v)
     }
 }
 
+bool VideoPlayerController::mapRasterizerEnabled() const noexcept
+{
+    return m_mapRasterizerEnabled;
+}
+
+void VideoPlayerController::setMapRasterizerEnabled(bool v)
+{
+    if (m_mapRasterizerEnabled != v) {
+        m_mapRasterizerEnabled = v;
+        m_filtersDirty.store(true);
+        emit filterConfigChanged();
+    }
+}
+
+int VideoPlayerController::mapRasterizerCorner() const noexcept
+{
+    return m_mapRasterizerCorner;
+}
+
+void VideoPlayerController::setMapRasterizerCorner(int v)
+{
+    if (m_mapRasterizerCorner != v) {
+        m_mapRasterizerCorner = v;
+        m_filtersDirty.store(true);
+        emit filterConfigChanged();
+    }
+}
+
+qreal VideoPlayerController::mapRasterizerOpacity() const noexcept
+{
+    return m_mapRasterizerOpacity;
+}
+
+void VideoPlayerController::setMapRasterizerOpacity(qreal v)
+{
+    if (!qFuzzyCompare(m_mapRasterizerOpacity, v)) {
+        m_mapRasterizerOpacity = std::clamp(v, 0.05, 1.0);
+        m_filtersDirty.store(true);
+        emit filterConfigChanged();
+    }
+}
+
+int VideoPlayerController::mapRasterizerZoom() const noexcept
+{
+    return m_mapRasterizerZoom;
+}
+
+void VideoPlayerController::setMapRasterizerZoom(int v)
+{
+    if (m_mapRasterizerZoom != v) {
+        m_mapRasterizerZoom = std::clamp(v, 1, 19);
+        m_filtersDirty.store(true);
+        emit filterConfigChanged();
+    }
+}
+
+int VideoPlayerController::mapRasterizerWidth() const noexcept
+{
+    return m_mapRasterizerWidth;
+}
+
+void VideoPlayerController::setMapRasterizerWidth(int v)
+{
+    if (m_mapRasterizerWidth != v) {
+        m_mapRasterizerWidth = std::clamp(v, 100, 1920);
+        m_filtersDirty.store(true);
+        emit filterConfigChanged();
+    }
+}
+
+int VideoPlayerController::mapRasterizerHeight() const noexcept
+{
+    return m_mapRasterizerHeight;
+}
+
+void VideoPlayerController::setMapRasterizerHeight(int v)
+{
+    if (m_mapRasterizerHeight != v) {
+        m_mapRasterizerHeight = std::clamp(v, 100, 1080);
+        m_filtersDirty.store(true);
+        emit filterConfigChanged();
+    }
+}
+
+bool VideoPlayerController::mapRasterizerShowFrustum() const noexcept
+{
+    return m_mapRasterizerShowFrustum;
+}
+
+void VideoPlayerController::setMapRasterizerShowFrustum(bool v)
+{
+    if (m_mapRasterizerShowFrustum != v) {
+        m_mapRasterizerShowFrustum = v;
+        m_filtersDirty.store(true);
+        emit filterConfigChanged();
+    }
+}
+
+bool VideoPlayerController::mapRasterizerShowHeading() const noexcept
+{
+    return m_mapRasterizerShowHeading;
+}
+
+void VideoPlayerController::setMapRasterizerShowHeading(bool v)
+{
+    if (m_mapRasterizerShowHeading != v) {
+        m_mapRasterizerShowHeading = v;
+        m_filtersDirty.store(true);
+        emit filterConfigChanged();
+    }
+}
+
+qreal VideoPlayerController::platformLatitude() const noexcept
+{
+    return m_platformLatitude;
+}
+
+void VideoPlayerController::setPlatformLatitude(qreal v)
+{
+    if (!qFuzzyCompare(m_platformLatitude, v)) {
+        m_platformLatitude = std::clamp(v, -85.0511, 85.0511);
+        m_filtersDirty.store(true);
+        emit telemetryChanged();
+    }
+}
+
+qreal VideoPlayerController::platformLongitude() const noexcept
+{
+    return m_platformLongitude;
+}
+
+void VideoPlayerController::setPlatformLongitude(qreal v)
+{
+    if (!qFuzzyCompare(m_platformLongitude, v)) {
+        m_platformLongitude = v;
+        m_filtersDirty.store(true);
+        emit telemetryChanged();
+    }
+}
+
+qreal VideoPlayerController::platformHeading() const noexcept
+{
+    return m_platformHeading;
+}
+
+void VideoPlayerController::setPlatformHeading(qreal v)
+{
+    if (!qFuzzyCompare(m_platformHeading, v)) {
+        m_platformHeading = v;
+        m_filtersDirty.store(true);
+        emit telemetryChanged();
+    }
+}
+
+void VideoPlayerController::setPlatformTelemetry(double lat, double lon, double heading)
+{
+    m_platformLatitude = std::clamp(lat, -85.0511, 85.0511);
+    m_platformLongitude = lon;
+    m_platformHeading = heading;
+    m_filtersDirty.store(true);
+    emit telemetryChanged();
+}
+
 void VideoPlayerController::refreshDevices()
 {
     m_devicesList.clear();
@@ -1050,6 +1213,19 @@ void VideoPlayerController::configureFilterPipeline(Video::IVideoDecoder* decode
     if (m_textOverlay && !m_textOverlayString.isEmpty()) {
         decoder->addFrameProcessor(
             std::make_shared<Video::TextOverlayFilter>(m_textOverlayString.toStdString(), 24, 40, 1.0));
+    }
+
+    // 6. Tactical Mini-Map Inset Rasterizer
+    if (m_mapRasterizerEnabled) {
+        const auto corner = static_cast<Video::Filters::MapRasterizerFilter::InsetCorner>(
+            std::clamp(m_mapRasterizerCorner, 0, 4));
+        auto mapFilter = std::make_shared<Video::Filters::MapRasterizerFilter>(
+            m_mapRasterizerWidth, m_mapRasterizerHeight);
+        mapFilter->setCorner(corner);
+        mapFilter->setOpacity(m_mapRasterizerOpacity);
+        mapFilter->setZoom(static_cast<double>(m_mapRasterizerZoom));
+        mapFilter->setPlatformTelemetry({ m_platformLatitude, m_platformLongitude }, m_platformHeading);
+        decoder->addFrameProcessor(mapFilter);
     }
 #endif
 }

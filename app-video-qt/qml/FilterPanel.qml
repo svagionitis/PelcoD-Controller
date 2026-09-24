@@ -602,6 +602,100 @@ ScrollView {
                     }
                     Text { text: "Tactical Telemetry OSD Header"; color: "#f0f4fc"; font.pixelSize: 12 }
                 }
+
+                // Tactical Mini-Map Inset (OpenCV Rasterizer)
+                ColumnLayout {
+                    Layout.fillWidth: true
+                    spacing: 6
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        Switch {
+                            checked: controller.mapRasterizerEnabled
+                            onToggled: controller.mapRasterizerEnabled = checked
+                        }
+                        Text { text: "Tactical Mini-Map / Radar Inset"; color: "#00e5ff"; font.pixelSize: 12; font.bold: true }
+                    }
+
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        Layout.leftMargin: 12
+                        visible: controller.mapRasterizerEnabled
+                        spacing: 8
+
+                        RowLayout {
+                            Layout.fillWidth: true
+                            ColumnLayout {
+                                Layout.fillWidth: true
+                                Text { text: "Corner Placement"; color: "#8894ab"; font.pixelSize: 10 }
+                                ComboBox {
+                                    Layout.fillWidth: true
+                                    model: ["Bottom Right", "Bottom Left", "Top Right", "Top Left"]
+                                    currentIndex: controller.mapRasterizerCorner
+                                    onActivated: function(index) {
+                                        controller.mapRasterizerCorner = index;
+                                    }
+                                }
+                            }
+                        }
+
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            spacing: 2
+                            RowLayout {
+                                Layout.fillWidth: true
+                                Text { text: "Inset Opacity"; color: "#8894ab"; font.pixelSize: 10 }
+                                Item { Layout.fillWidth: true }
+                                Text { text: Math.round(controller.mapRasterizerOpacity * 100) + "%"; color: "#00e5ff"; font.pixelSize: 10; font.family: "Monospace" }
+                            }
+                            Slider {
+                                Layout.fillWidth: true
+                                from: 0.1
+                                to: 1.0
+                                stepSize: 0.05
+                                value: controller.mapRasterizerOpacity
+                                onMoved: controller.mapRasterizerOpacity = value
+                            }
+                        }
+
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            spacing: 2
+                            RowLayout {
+                                Layout.fillWidth: true
+                                Text { text: "Map Zoom Level"; color: "#8894ab"; font.pixelSize: 10 }
+                                Item { Layout.fillWidth: true }
+                                Text { text: "Z" + controller.mapRasterizerZoom; color: "#00e5ff"; font.pixelSize: 10; font.family: "Monospace" }
+                            }
+                            Slider {
+                                Layout.fillWidth: true
+                                from: 1
+                                to: 18
+                                stepSize: 1
+                                value: controller.mapRasterizerZoom
+                                onMoved: controller.mapRasterizerZoom = Math.round(value)
+                            }
+                        }
+
+                        RowLayout {
+                            Layout.fillWidth: true
+                            CheckBox {
+                                checked: controller.mapRasterizerShowFrustum
+                                onToggled: controller.mapRasterizerShowFrustum = checked
+                                contentItem: Text { text: "Show Optical Frustum Footprint"; color: "#f0f4fc"; font.pixelSize: 11; leftPadding: 24 }
+                            }
+                        }
+
+                        RowLayout {
+                            Layout.fillWidth: true
+                            CheckBox {
+                                checked: controller.mapRasterizerShowHeading
+                                onToggled: controller.mapRasterizerShowHeading = checked
+                                contentItem: Text { text: "Show Platform Heading Vector"; color: "#f0f4fc"; font.pixelSize: 11; leftPadding: 24 }
+                            }
+                        }
+                    }
+                }
             }
         }
     }

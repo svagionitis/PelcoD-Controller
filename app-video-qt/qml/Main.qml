@@ -3,6 +3,7 @@ import QtQuick.Controls
 import QtQuick.Layouts
 import QtQuick.Window
 import VideoApp 1.0
+import PelcoD.Mapping 1.0
 
 ApplicationWindow {
     id: root
@@ -102,6 +103,28 @@ ApplicationWindow {
                 }
             }
 
+            // Toggle PIP Map Button
+            Button {
+                id: pipMapToggleBtn
+                checkable: true
+                checked: false
+                Layout.preferredHeight: 32
+                contentItem: RowLayout {
+                    spacing: 6
+                    Text {
+                        text: pipMapToggleBtn.checked ? "HIDE PIP MAP" : "SHOW PIP MAP"
+                        color: pipMapToggleBtn.checked ? "#00e676" : "#00e5ff"
+                        font.pixelSize: 11
+                        font.bold: true
+                    }
+                }
+                background: Rectangle {
+                    color: parent.hovered ? "#243248" : "#1b202e"
+                    radius: 4
+                    border.color: pipMapToggleBtn.checked ? "#00e676" : "#2a2f40"
+                }
+            }
+
             // Toggle Sidebar Button
             Button {
                 id: drawerToggleBtn
@@ -168,6 +191,88 @@ ApplicationWindow {
                 Rectangle { anchors.bottom: parent.bottom; anchors.right: parent.right; width: 2; height: 24; color: "#00e5ff" }
             }
 
+            // Interactive Floating Picture-in-Picture Map
+            Rectangle {
+                id: pipMapContainer
+                visible: pipMapToggleBtn.checked
+                width: 320
+                height: 240
+                anchors.bottom: controlsBar.top
+                anchors.left: parent.left
+                anchors.margins: 16
+                color: "#0a0c10ee"
+                radius: 6
+                border.color: "#00e5ff"
+                border.width: 1
+                clip: true
+
+                // Drag handler to reposition PIP freely across video
+                DragHandler {
+                    target: pipMapContainer
+                }
+
+                ColumnLayout {
+                    anchors.fill: parent
+                    spacing: 0
+
+                    // PIP Header Bar
+                    Rectangle {
+                        Layout.fillWidth: true
+                        height: 26
+                        color: "#141720ee"
+                        border.color: "#242938"
+
+                        RowLayout {
+                            anchors.fill: parent
+                            anchors.leftMargin: 8
+                            anchors.rightMargin: 8
+                            spacing: 6
+
+                            Text {
+                                text: "TACTICAL PIP MAP"
+                                color: "#00e5ff"
+                                font.pixelSize: 10
+                                font.bold: true
+                                font.letterSpacing: 1.0
+                            }
+
+                            Item { Layout.fillWidth: true }
+
+                            Text {
+                                text: "✕"
+                                color: "#8894ab"
+                                font.pixelSize: 11
+                                font.bold: true
+                                MouseArea {
+                                    anchors.fill: parent
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: pipMapToggleBtn.checked = false
+                                }
+                            }
+                        }
+                    }
+
+                    TacticalMap {
+                        id: pipTacticalMap
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        centerLatitude: controller.platformLatitude
+                        centerLongitude: controller.platformLongitude
+                        zoom: 13
+                        offlineOnly: false
+                        showFrustum: true
+                        showHeading: true
+                        platformLatitude: controller.platformLatitude
+                        platformLongitude: controller.platformLongitude
+                        platformHeading: controller.platformHeading
+
+                        onCoordinateClicked: function(lat, lon) {
+                            controller.coordinateTargetPicked(lat, lon);
+                        }
+                    }
+                }
+            }
+
             // Bottom Transport Controls Bar
             ControlsBar {
                 id: controlsBar
@@ -220,7 +325,7 @@ ApplicationWindow {
                         spacing: 0
 
                         Repeater {
-                            model: ["Source", "Filters", "Stats"]
+                            model: ["Source", "Filters", "Stats", "Map"]
                             delegate: Rectangle {
                                 Layout.fillWidth: true
                                 Layout.fillHeight: true
@@ -268,6 +373,10 @@ ApplicationWindow {
                     }
 
                     StatsPanel {
+                        controller: controller
+                    }
+
+                    TacticalMapPanel {
                         controller: controller
                     }
                 }

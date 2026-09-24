@@ -13,10 +13,16 @@ target_include_directories(VideoAppQt PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_SOURCE_DIR}/libs/Video
     ${CMAKE_SOURCE_DIR}/libs/VideoFilters
+    ${CMAKE_SOURCE_DIR}/libs/Mapping
+    ${CMAKE_SOURCE_DIR}/libs/MappingQt
+    ${CMAKE_SOURCE_DIR}/libs/Klv
 )
 
 target_link_libraries(VideoAppQt PRIVATE
     Video
+    Mapping
+    MappingQt
+    Klv
     Qt6::Core
     Qt6::Gui
     Qt6::Qml

@@ -4,6 +4,7 @@
         <file>qml/SourcePanel.qml</file>
         <file>qml/FilterPanel.qml</file>
         <file>qml/StatsPanel.qml</file>
+        <file>qml/TacticalMapPanel.qml</file>
         <file>qml/ControlsBar.qml</file>
     </qresource>
 </RCC>

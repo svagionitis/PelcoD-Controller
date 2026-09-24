@@ -155,4 +155,7 @@ private:
     QPointF m_lastMousePos {};
 };
 
+/// @brief Registers all MappingQt QML types with the Qt QML type system.
+void registerQmlTypes();
+
 } // namespace MappingQt
