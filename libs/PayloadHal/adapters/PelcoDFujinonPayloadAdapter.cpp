@@ -284,12 +284,75 @@ public:
         return false;
     }
 
+    bool focusContinuous(float velocity) override
+    {
+        if (!m_device)
+            return false;
+        if (velocity > 0.05f) {
+            m_device->focusFar();
+        } else if (velocity < -0.05f) {
+            m_device->focusNear();
+        } else {
+            m_device->focusStop();
+        }
+        return true;
+    }
+
+    bool focusStop() override
+    {
+        if (!m_device)
+            return false;
+        m_device->focusStop();
+        return true;
+    }
+
     bool triggerOnePushFocus() override
     {
         if (!m_device)
             return false;
         m_device->focusNear();
         m_device->focusStop();
+        return true;
+    }
+
+    bool setIrisAuto(bool enable) override
+    {
+        if (!m_device)
+            return false;
+        m_device->setAutoIris(enable ? PelcoD::AutoMode::Auto : PelcoD::AutoMode::Off);
+        return true;
+    }
+
+    bool setIrisNormalized(double iris01) override
+    {
+        if (!m_device)
+            return false;
+        const double clamped = std::clamp(iris01, 0.0, 1.0);
+        // Fujinon SX800 manual iris 0 (closed) to 15 (open)
+        const auto val = static_cast<std::uint8_t>(clamped * 15.0);
+        m_device->setManualIris(val);
+        return true;
+    }
+
+    bool irisContinuous(float velocity) override
+    {
+        if (!m_device)
+            return false;
+        if (velocity > 0.05f) {
+            m_device->irisOpen();
+        } else if (velocity < -0.05f) {
+            m_device->irisClose();
+        } else {
+            m_device->irisStop();
+        }
+        return true;
+    }
+
+    bool irisStop() override
+    {
+        if (!m_device)
+            return false;
+        m_device->irisStop();
         return true;
     }
 
@@ -331,6 +394,8 @@ public:
         telem.opticalZoomFactor = std::clamp(mag, 1.0, 40.0);
         telem.normalizedZoom = (telem.opticalZoomFactor - 1.0) / 39.0;
         telem.autoFocusActive = (status.autoFocus == PelcoD::AutoMode::Auto);
+        telem.irisNormalized = std::clamp(static_cast<double>(fujinonStatus.manualIris) / 15.0, 0.0, 1.0);
+        telem.autoIrisActive = (status.autoIris == PelcoD::AutoMode::Auto);
         telem.dayNightIcrActive = fujinonStatus.vlcFilter;
 
         // Calculate HFOV from magnification: SX800 has ~60° wide HFOV

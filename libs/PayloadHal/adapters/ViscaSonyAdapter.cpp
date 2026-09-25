@@ -148,12 +148,88 @@ bool ViscaSonyAdapter::setFocusNormalized(double focus01)
     return m_device->setFocusDirect(pos);
 }
 
+bool ViscaSonyAdapter::focusContinuous(float velocity)
+{
+    if (!m_device) {
+        return false;
+    }
+    if (velocity > 0.05f) {
+        const auto spd = static_cast<std::uint8_t>(std::clamp(velocity * 7.0f, 1.0f, 7.0f));
+        return m_device->focusFar(spd);
+    }
+    if (velocity < -0.05f) {
+        const auto spd = static_cast<std::uint8_t>(std::clamp(-velocity * 7.0f, 1.0f, 7.0f));
+        return m_device->focusNear(spd);
+    }
+    return m_device->focusStop();
+}
+
+bool ViscaSonyAdapter::focusStop()
+{
+    if (!m_device) {
+        return false;
+    }
+    return m_device->focusStop();
+}
+
 bool ViscaSonyAdapter::triggerOnePushFocus()
 {
     if (!m_device) {
         return false;
     }
     return m_device->focusOnePush();
+}
+
+bool ViscaSonyAdapter::setIrisAuto(bool enable)
+{
+    if (!m_device) {
+        return false;
+    }
+    const bool ok = m_device->setExposureMode(
+        enable ? Visca::Sony::SonyExposureMode::FullAuto : Visca::Sony::SonyExposureMode::Manual);
+    if (ok) {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        m_telemetry.autoIrisActive = enable;
+    }
+    return ok;
+}
+
+bool ViscaSonyAdapter::setIrisNormalized(double iris01)
+{
+    if (!m_device) {
+        return false;
+    }
+    const double clamped = std::clamp(iris01, 0.0, 1.0);
+    const auto step = static_cast<std::uint8_t>(clamped * 0x15);
+    const bool ok = m_device->setIris(step);
+    if (ok) {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        m_telemetry.irisNormalized = clamped;
+        m_telemetry.autoIrisActive = false;
+    }
+    return ok;
+}
+
+bool ViscaSonyAdapter::irisContinuous(float velocity)
+{
+    if (!m_device) {
+        return false;
+    }
+    std::lock_guard<std::mutex> lock(m_mutex);
+    if (std::abs(velocity) <= 0.05f) {
+        return true;
+    }
+    const double stepDelta = (velocity > 0.0f ? 1.0 : -1.0) / 21.0;
+    const double newIris = std::clamp(m_telemetry.irisNormalized + stepDelta, 0.0, 1.0);
+    m_telemetry.irisNormalized = newIris;
+    m_telemetry.autoIrisActive = false;
+    const auto step = static_cast<std::uint8_t>(newIris * 0x15);
+    return m_device->setIris(step);
+}
+
+bool ViscaSonyAdapter::irisStop()
+{
+    return m_device != nullptr;
 }
 
 bool ViscaSonyAdapter::setDayNightIcr(bool nightMode)
@@ -215,6 +291,8 @@ void ViscaSonyAdapter::updateTelemetry()
     telem.focusDistanceNormalized
         = std::clamp(static_cast<double>(st.focusPosition) / static_cast<double>(0xF000), 0.0, 1.0);
     telem.autoFocusActive = st.focusAuto;
+    telem.irisNormalized = std::clamp(static_cast<double>(st.irisPosition) / static_cast<double>(0x15), 0.0, 1.0);
+    telem.autoIrisActive = (st.exposureMode == Visca::Sony::SonyExposureMode::FullAuto);
     telem.dayNightIcrActive = st.icrOn;
 
     // Sony FCB HFOV: ~63.7° at wide, ~2.3° at 30x tele

@@ -122,10 +122,38 @@ struct CameraTelemetry {
     double normalizedZoom { 0.0 }; ///< Normalized zoom range (0.0 = Wide, 1.0 = Tele)
     double focusDistanceNormalized { 0.0 }; ///< Normalized focus position (0.0 = Near, 1.0 = Infinity)
     bool autoFocusActive { true }; ///< True if continuous autofocus algorithm is engaged
+    double irisNormalized { 0.0 }; ///< Normalized aperture (0.0 = Closed, 1.0 = Fully Open)
+    bool autoIrisActive { true }; ///< True if auto-iris / auto-exposure is engaged
     bool dayNightIcrActive { false }; ///< True if mechanical IR-cut filter is retracted (night mode)
     double horizontalFovDeg { 60.0 }; ///< Calculated Horizontal Field-of-View in degrees
     double verticalFovDeg { 36.0 }; ///< Calculated Vertical Field-of-View in degrees
     std::chrono::system_clock::time_point timestamp {}; ///< Telemetry timestamp
+};
+
+// =============================================================================
+// Laser Pointer & Illuminator Types
+// =============================================================================
+
+/// @enum IlluminatorMode
+/// @brief Emission operation mode for laser illuminator / tactical pointer.
+enum class IlluminatorMode : std::uint8_t {
+    Standby, ///< Diode uncharged, emissions disabled
+    Continuous, ///< Constant continuous-wave (CW) emission
+    Pulsed, ///< Repetitive pulsing at designated frequency (target tagging / NVG)
+    Strobe ///< Rapid strobe signaling / emergency flash
+};
+
+/// @struct IlluminatorTelemetry
+/// @brief Live operational status and safety telemetry for laser illuminator.
+struct IlluminatorTelemetry {
+    bool isArmed { false }; ///< True if safety interlock is armed
+    bool isEmitting { false }; ///< True if laser diode is actively firing
+    IlluminatorMode mode { IlluminatorMode::Standby }; ///< Active emission profile
+    double powerNormalized { 0.0 }; ///< Output power ratio [0.0 to 1.0]
+    double pulseFrequencyHz { 0.0 }; ///< Pulse frequency in Hz (for Pulsed/Strobe modes)
+    double beamDivergenceNormalized { 0.0 }; ///< Beam spread [0.0 = Collimated spot pointer, 1.0 = Wide flood]
+    double diodeTemperatureC { 0.0 }; ///< Diode junction temperature in Celsius
+    std::chrono::system_clock::time_point timestamp {}; ///< Telemetry acquisition time
 };
 
 } // namespace PayloadHal

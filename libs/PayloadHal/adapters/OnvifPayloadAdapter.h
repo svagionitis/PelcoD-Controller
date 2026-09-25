@@ -109,7 +109,14 @@ public:
 
     bool setFocusAuto(bool enable) override;
     bool setFocusNormalized(double focus01) override;
+    bool focusContinuous(float velocity) override;
+    bool focusStop() override;
     bool triggerOnePushFocus() override;
+
+    bool setIrisAuto(bool enable) override;
+    bool setIrisNormalized(double iris01) override;
+    bool irisContinuous(float velocity) override;
+    bool irisStop() override;
 
     bool setDayNightIcr(bool nightMode) override;
     bool setDefog(bool enable) override;

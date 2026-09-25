@@ -105,6 +105,24 @@ bool SonyFCBDevice::setFocusDirect(uint16_t position)
     return m_device.sendCommandSync(cmd).success;
 }
 
+bool SonyFCBDevice::focusFar(uint8_t speed)
+{
+    const ViscaFrame cmd = SonyViscaBuilder::focusFarVariable(m_device.cameraAddress(), speed);
+    return m_device.sendCommandSync(cmd).success;
+}
+
+bool SonyFCBDevice::focusNear(uint8_t speed)
+{
+    const ViscaFrame cmd = SonyViscaBuilder::focusNearVariable(m_device.cameraAddress(), speed);
+    return m_device.sendCommandSync(cmd).success;
+}
+
+bool SonyFCBDevice::focusStop()
+{
+    const ViscaFrame cmd = SonyViscaBuilder::focusStop(m_device.cameraAddress());
+    return m_device.sendCommandSync(cmd).success;
+}
+
 bool SonyFCBDevice::focusOnePush()
 {
     const ViscaFrame cmd = SonyViscaBuilder::focusOnePush(m_device.cameraAddress());

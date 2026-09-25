@@ -259,6 +259,27 @@ namespace {
         EXPECT_FALSE(camera.currentTelemetry().autoFocusActive);
         EXPECT_EQ(m_imagingHandler->settings.autoFocusMode, "MANUAL");
 
+        // Continuous focus
+        EXPECT_TRUE(camera.focusContinuous(0.8f));
+        EXPECT_TRUE(camera.focusContinuous(-0.8f));
+        EXPECT_TRUE(camera.focusStop());
+
+        // Iris controls
+        EXPECT_TRUE(camera.setIrisAuto(false));
+        EXPECT_FALSE(camera.currentTelemetry().autoIrisActive);
+        EXPECT_EQ(m_imagingHandler->settings.exposure.mode, "MANUAL");
+
+        EXPECT_TRUE(camera.setIrisNormalized(0.7));
+        EXPECT_NEAR(camera.currentTelemetry().irisNormalized, 0.7, 0.01);
+        EXPECT_NEAR(m_imagingHandler->settings.exposure.iris, 70.0f, 0.1f);
+
+        EXPECT_TRUE(camera.irisContinuous(0.5f));
+        EXPECT_TRUE(camera.irisStop());
+
+        EXPECT_TRUE(camera.setIrisAuto(true));
+        EXPECT_TRUE(camera.currentTelemetry().autoIrisActive);
+        EXPECT_EQ(m_imagingHandler->settings.exposure.mode, "AUTO");
+
         // Day/Night ICR filter
         EXPECT_TRUE(camera.setDayNightIcr(true));
         EXPECT_TRUE(camera.currentTelemetry().dayNightIcrActive);

@@ -47,6 +47,17 @@ namespace {
         // Autofocus
         EXPECT_TRUE(cam->setFocusAuto(true));
         EXPECT_TRUE(cam->triggerOnePushFocus());
+        EXPECT_TRUE(cam->focusContinuous(0.6f));
+        EXPECT_TRUE(cam->focusContinuous(-0.6f));
+        EXPECT_TRUE(cam->focusStop());
+
+        // Iris controls
+        EXPECT_TRUE(cam->setIrisAuto(true));
+        EXPECT_TRUE(cam->setIrisAuto(false));
+        EXPECT_TRUE(cam->setIrisNormalized(0.7));
+        EXPECT_TRUE(cam->irisContinuous(0.5f));
+        EXPECT_TRUE(cam->irisContinuous(-0.5f));
+        EXPECT_TRUE(cam->irisStop());
 
         // Extended Fujinon enhancements
         EXPECT_TRUE(adapter.setOISMode(PelcoD::FujinonOISMode::OisOn));

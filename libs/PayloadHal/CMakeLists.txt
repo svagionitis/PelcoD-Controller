@@ -3,6 +3,7 @@ add_library(PayloadHal STATIC
     IDevice.h
     IPanTiltUnit.h
     ILaserRangeFinder.h
+    ILaserIlluminator.h
     ICameraPayload.h
     IPayload.h
     GeoreferenceUtils.h

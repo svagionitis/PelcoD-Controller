@@ -265,7 +265,58 @@ public:
         return true;
     }
 
+    bool focusContinuous(float velocity) override
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        const double delta = static_cast<double>(velocity) * 0.05;
+        m_telemetry.focusDistanceNormalized = std::clamp(m_telemetry.focusDistanceNormalized + delta, 0.0, 1.0);
+        m_telemetry.autoFocusActive = false;
+        m_telemetry.timestamp = std::chrono::system_clock::now();
+        dispatchTelemetry();
+        return true;
+    }
+
+    bool focusStop() override
+    {
+        return true;
+    }
+
     bool triggerOnePushFocus() override
+    {
+        return true;
+    }
+
+    bool setIrisAuto(bool enable) override
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        m_telemetry.autoIrisActive = enable;
+        m_telemetry.timestamp = std::chrono::system_clock::now();
+        dispatchTelemetry();
+        return true;
+    }
+
+    bool setIrisNormalized(double iris01) override
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        m_telemetry.irisNormalized = std::clamp(iris01, 0.0, 1.0);
+        m_telemetry.autoIrisActive = false;
+        m_telemetry.timestamp = std::chrono::system_clock::now();
+        dispatchTelemetry();
+        return true;
+    }
+
+    bool irisContinuous(float velocity) override
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        const double delta = static_cast<double>(velocity) * 0.05;
+        m_telemetry.irisNormalized = std::clamp(m_telemetry.irisNormalized + delta, 0.0, 1.0);
+        m_telemetry.autoIrisActive = false;
+        m_telemetry.timestamp = std::chrono::system_clock::now();
+        dispatchTelemetry();
+        return true;
+    }
+
+    bool irisStop() override
     {
         return true;
     }
@@ -497,6 +548,195 @@ private:
 };
 
 // =============================================================================
+// Simulated Laser Pointer / Illuminator
+// =============================================================================
+
+class SimulatedPayload::SimIlluminator : public ILaserIlluminator {
+public:
+    SimIlluminator()
+    {
+        m_telemetry.mode = IlluminatorMode::Standby;
+        m_telemetry.powerNormalized = 0.5;
+        m_telemetry.pulseFrequencyHz = 5.0;
+        m_telemetry.beamDivergenceNormalized = 0.2;
+        m_telemetry.diodeTemperatureC = 25.0;
+        m_telemetry.timestamp = std::chrono::system_clock::now();
+    }
+
+    bool connect() override
+    {
+        m_connected = true;
+        return true;
+    }
+
+    void disconnect() override
+    {
+        m_connected = false;
+        disarmLaser();
+    }
+
+    bool isConnected() const noexcept override
+    {
+        return m_connected;
+    }
+
+    DeviceState state() const noexcept override
+    {
+        return m_connected ? DeviceState::Ready : DeviceState::Disconnected;
+    }
+
+    DeviceInfo info() const noexcept override
+    {
+        DeviceInfo d {};
+        d.manufacturer = "Simulated";
+        d.model = "Virtual Tactical 850nm NIR Illuminator / Pointer";
+        d.firmwareVersion = "1.0.0-sim";
+        return d;
+    }
+
+    void registerStateCallback(StateCallback cb) override
+    {
+        m_stateCb = std::move(cb);
+    }
+
+    bool armLaser() override
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        m_armed = true;
+        m_telemetry.isArmed = true;
+        m_telemetry.timestamp = std::chrono::system_clock::now();
+        dispatchTelemetry();
+        return true;
+    }
+
+    bool disarmLaser() override
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        m_armed = false;
+        m_emitting = false;
+        m_telemetry.isArmed = false;
+        m_telemetry.isEmitting = false;
+        m_telemetry.timestamp = std::chrono::system_clock::now();
+        dispatchTelemetry();
+        return true;
+    }
+
+    bool isArmed() const noexcept override
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        return m_armed;
+    }
+
+    bool startEmission() override
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        if (!m_armed) {
+            // Safety interlock: cannot fire laser if disarmed!
+            return false;
+        }
+        m_emitting = true;
+        m_telemetry.isEmitting = true;
+        m_telemetry.diodeTemperatureC = 25.0 + m_telemetry.powerNormalized * 15.0;
+        m_telemetry.timestamp = std::chrono::system_clock::now();
+        dispatchTelemetry();
+        return true;
+    }
+
+    bool stopEmission() override
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        m_emitting = false;
+        m_telemetry.isEmitting = false;
+        m_telemetry.diodeTemperatureC = 25.0;
+        m_telemetry.timestamp = std::chrono::system_clock::now();
+        dispatchTelemetry();
+        return true;
+    }
+
+    bool isEmitting() const noexcept override
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        return m_emitting;
+    }
+
+    bool setMode(IlluminatorMode mode) override
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        m_mode = mode;
+        m_telemetry.mode = mode;
+        m_telemetry.timestamp = std::chrono::system_clock::now();
+        dispatchTelemetry();
+        return true;
+    }
+
+    IlluminatorMode mode() const noexcept override
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        return m_mode;
+    }
+
+    bool setPowerNormalized(double power01) override
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        const double clamped = std::clamp(power01, 0.0, 1.0);
+        m_telemetry.powerNormalized = clamped;
+        if (m_emitting) {
+            m_telemetry.diodeTemperatureC = 25.0 + clamped * 15.0;
+        }
+        m_telemetry.timestamp = std::chrono::system_clock::now();
+        dispatchTelemetry();
+        return true;
+    }
+
+    bool setPulseFrequency(double frequencyHz) override
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        m_telemetry.pulseFrequencyHz = std::max(0.0, frequencyHz);
+        m_telemetry.timestamp = std::chrono::system_clock::now();
+        dispatchTelemetry();
+        return true;
+    }
+
+    bool setBeamDivergenceNormalized(double divergence01) override
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        m_telemetry.beamDivergenceNormalized = std::clamp(divergence01, 0.0, 1.0);
+        m_telemetry.timestamp = std::chrono::system_clock::now();
+        dispatchTelemetry();
+        return true;
+    }
+
+    void registerTelemetryCallback(TelemetryCallback cb) override
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        m_telemetryCb = std::move(cb);
+    }
+
+    IlluminatorTelemetry currentTelemetry() const override
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        return m_telemetry;
+    }
+
+private:
+    void dispatchTelemetry()
+    {
+        if (m_telemetryCb) {
+            m_telemetryCb(m_telemetry);
+        }
+    }
+
+    mutable std::mutex m_mutex;
+    bool m_connected { true };
+    bool m_armed { false };
+    bool m_emitting { false };
+    IlluminatorMode m_mode { IlluminatorMode::Standby };
+    IlluminatorTelemetry m_telemetry {};
+    TelemetryCallback m_telemetryCb {};
+    StateCallback m_stateCb {};
+};
+
+// =============================================================================
 // SimulatedPayload Implementation
 // =============================================================================
 
@@ -505,6 +745,7 @@ SimulatedPayload::SimulatedPayload()
     , m_daylightCamera(std::make_shared<SimCamera>(CameraSpectrum::DaylightVisible))
     , m_thermalCamera(std::make_shared<SimCamera>(CameraSpectrum::ThermalLWIR))
     , m_lrf(std::make_shared<SimLrf>())
+    , m_illuminator(std::make_shared<SimIlluminator>())
     , m_connected(true)
 {
 }
@@ -521,6 +762,7 @@ bool SimulatedPayload::connect()
     m_daylightCamera->connect();
     m_thermalCamera->connect();
     m_lrf->connect();
+    m_illuminator->connect();
     std::lock_guard<std::mutex> lock(m_mutex);
     if (m_stateCallback) {
         m_stateCallback(DeviceState::Ready, "Simulated Payload Online");
@@ -535,6 +777,7 @@ void SimulatedPayload::disconnect()
     m_daylightCamera->disconnect();
     m_thermalCamera->disconnect();
     m_lrf->disconnect();
+    m_illuminator->disconnect();
     std::lock_guard<std::mutex> lock(m_mutex);
     if (m_stateCallback) {
         m_stateCallback(DeviceState::Disconnected, "Simulated Payload Offline");
@@ -584,6 +827,11 @@ std::shared_ptr<ICameraPayload> SimulatedPayload::secondaryCamera() const noexce
 std::shared_ptr<ILaserRangeFinder> SimulatedPayload::lrf() const noexcept
 {
     return m_lrf;
+}
+
+std::shared_ptr<ILaserIlluminator> SimulatedPayload::illuminator() const noexcept
+{
+    return m_illuminator;
 }
 
 std::optional<Klv::GeoPoint2D> SimulatedPayload::calculateTargetCoordinates(

@@ -7,6 +7,7 @@
 #include "GeoreferenceUtils.h"
 #include "ICameraPayload.h"
 #include "IDevice.h"
+#include "ILaserIlluminator.h"
 #include "ILaserRangeFinder.h"
 #include "IPanTiltUnit.h"
 #include "IPayload.h"

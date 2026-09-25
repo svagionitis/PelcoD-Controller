@@ -59,6 +59,9 @@ public:
 
     bool setFocusAuto(bool autoMode);
     bool setFocusDirect(uint16_t position);
+    bool focusFar(uint8_t speed = 4);
+    bool focusNear(uint8_t speed = 4);
+    bool focusStop();
     bool focusOnePush();
     bool setFocusNearLimit(uint16_t limit);
 

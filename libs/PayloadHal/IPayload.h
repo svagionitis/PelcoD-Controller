@@ -6,6 +6,7 @@
 #include "GeoreferenceUtils.h"
 #include "ICameraPayload.h"
 #include "IDevice.h"
+#include "ILaserIlluminator.h"
 #include "ILaserRangeFinder.h"
 #include "IPanTiltUnit.h"
 #include "Klv/KlvTypes.h"
@@ -19,7 +20,7 @@ namespace PayloadHal {
 
 /// @class IPayload
 /// @brief Composite payload station binding Pan-Tilt Unit, Primary/Secondary cameras,
-///        and Laser Range Finder into a unified synchronized station.
+///        Laser Range Finder, and Laser Illuminator into a unified synchronized station.
 class IPayload : public virtual IDevice {
 public:
     ~IPayload() override = default;
@@ -39,6 +40,13 @@ public:
     /// @brief Accesses the Laser Range Finder sensor subsystem.
     /// @return Shared pointer to LRF interface, or nullptr if not equipped.
     [[nodiscard]] virtual std::shared_ptr<ILaserRangeFinder> lrf() const noexcept = 0;
+
+    /// @brief Accesses the Laser Pointer / Illuminator subsystem.
+    /// @return Shared pointer to illuminator interface, or nullptr if not equipped.
+    [[nodiscard]] virtual std::shared_ptr<ILaserIlluminator> illuminator() const noexcept
+    {
+        return nullptr;
+    }
 
     /// @brief Calculates geodetic 2D target coordinate on the Earth surface using platform GPS, heading,
     ///        gimbal orientation, and LRF range or ground projection.

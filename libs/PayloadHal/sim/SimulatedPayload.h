@@ -4,6 +4,7 @@
 /// @brief Multi-sensor simulated payload station for testing and offline development.
 
 #include "ICameraPayload.h"
+#include "ILaserIlluminator.h"
 #include "ILaserRangeFinder.h"
 #include "IPanTiltUnit.h"
 #include "IPayload.h"
@@ -16,7 +17,7 @@ namespace PayloadHal {
 
 /// @class SimulatedPayload
 /// @brief Fully software-simulated multi-sensor electro-optical/infrared payload station
-///        integrating a gyro-stabilized gimbal, daylight EO, thermal LWIR, and an eye-safe LRF.
+///        integrating a gyro-stabilized gimbal, daylight EO, thermal LWIR, eye-safe LRF, and tactical illuminator.
 class SimulatedPayload : public IPayload {
 public:
     SimulatedPayload();
@@ -35,6 +36,7 @@ public:
     [[nodiscard]] std::shared_ptr<ICameraPayload> primaryCamera() const noexcept override;
     [[nodiscard]] std::shared_ptr<ICameraPayload> secondaryCamera() const noexcept override;
     [[nodiscard]] std::shared_ptr<ILaserRangeFinder> lrf() const noexcept override;
+    [[nodiscard]] std::shared_ptr<ILaserIlluminator> illuminator() const noexcept override;
 
     [[nodiscard]] std::optional<Klv::GeoPoint2D> calculateTargetCoordinates(
         const Klv::GeoPoint2D& platformGps, double platformHeadingDeg, double platformAltMeters) const override;
@@ -47,11 +49,13 @@ private:
     class SimPtu;
     class SimCamera;
     class SimLrf;
+    class SimIlluminator;
 
     std::shared_ptr<SimPtu> m_ptu;
     std::shared_ptr<SimCamera> m_daylightCamera;
     std::shared_ptr<SimCamera> m_thermalCamera;
     std::shared_ptr<SimLrf> m_lrf;
+    std::shared_ptr<SimIlluminator> m_illuminator;
 
     mutable std::mutex m_mutex;
     StateCallback m_stateCallback {};

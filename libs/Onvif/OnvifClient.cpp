@@ -1465,6 +1465,18 @@ std::optional<ImagingSettings> OnvifClient::parseImagingSettingsResponse(const s
         }
     }
 
+    const auto expNode = findNodeWithSuffix(imgSettingsNode, "Exposure");
+    if (expNode) {
+        const auto modeNode = findNodeWithSuffix(expNode, "Mode");
+        if (modeNode) {
+            settings.exposure.mode = modeNode.text().as_string("AUTO");
+        }
+        const auto irisNode = findNodeWithSuffix(expNode, "Iris");
+        if (irisNode) {
+            settings.exposure.iris = irisNode.text().as_float(50.0f);
+        }
+    }
+
     return settings;
 }
 
@@ -1515,6 +1527,10 @@ bool OnvifClient::setImagingSettings(
        << "    <tt:Focus>\n"
        << "      <tt:AutoFocusMode>" << settings.autoFocusMode << "</tt:AutoFocusMode>\n"
        << "    </tt:Focus>\n"
+       << "    <tt:Exposure>\n"
+       << "      <tt:Mode>" << settings.exposure.mode << "</tt:Mode>\n"
+       << "      <tt:Iris>" << settings.exposure.iris << "</tt:Iris>\n"
+       << "    </tt:Exposure>\n"
        << "  </timg:ImagingSettings>\n"
        << "  <timg:ForcePersistence>" << (forcePersistence ? "true" : "false") << "</timg:ForcePersistence>\n"
        << "</timg:SetImagingSettings>";

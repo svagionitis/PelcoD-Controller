@@ -532,12 +532,89 @@ bool OnvifCameraAdapter::setFocusNormalized(double focus01)
     return ok;
 }
 
+bool OnvifCameraAdapter::focusContinuous(float velocity)
+{
+    if (!m_client || m_videoSourceToken.empty()) {
+        return false;
+    }
+    const float clampedVel = std::clamp(velocity, -1.0f, 1.0f);
+    return m_client->moveFocusContinuous(m_videoSourceToken, clampedVel);
+}
+
+bool OnvifCameraAdapter::focusStop()
+{
+    if (!m_client || m_videoSourceToken.empty()) {
+        return false;
+    }
+    return m_client->stopFocus(m_videoSourceToken);
+}
+
 bool OnvifCameraAdapter::triggerOnePushFocus()
 {
     if (!m_client) {
         return false;
     }
     return m_client->moveFocus(m_videoSourceToken, 0.0f);
+}
+
+bool OnvifCameraAdapter::setIrisAuto(bool enable)
+{
+    if (!m_client || m_videoSourceToken.empty()) {
+        return false;
+    }
+    Onvif::ImagingSettings settings {};
+    settings.exposure.mode = enable ? "AUTO" : "MANUAL";
+    const bool ok = m_client->setImagingSettings(m_videoSourceToken, settings);
+    if (ok) {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        m_telemetry.autoIrisActive = enable;
+        m_telemetry.timestamp = std::chrono::system_clock::now();
+    }
+    return ok;
+}
+
+bool OnvifCameraAdapter::setIrisNormalized(double iris01)
+{
+    if (!m_client || m_videoSourceToken.empty()) {
+        return false;
+    }
+    const double clamped = std::clamp(iris01, 0.0, 1.0);
+    Onvif::ImagingSettings settings {};
+    settings.exposure.mode = "MANUAL";
+    settings.exposure.iris = static_cast<float>(clamped * 100.0);
+    const bool ok = m_client->setImagingSettings(m_videoSourceToken, settings);
+    if (ok) {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        m_telemetry.irisNormalized = clamped;
+        m_telemetry.autoIrisActive = false;
+        m_telemetry.timestamp = std::chrono::system_clock::now();
+    }
+    return ok;
+}
+
+bool OnvifCameraAdapter::irisContinuous(float velocity)
+{
+    if (!m_client || m_videoSourceToken.empty()) {
+        return false;
+    }
+    std::lock_guard<std::mutex> lock(m_mutex);
+    if (std::abs(velocity) <= 0.05f) {
+        return true;
+    }
+    const double stepDelta = (velocity > 0.0f ? 0.05 : -0.05);
+    const double newIris = std::clamp(m_telemetry.irisNormalized + stepDelta, 0.0, 1.0);
+    m_telemetry.irisNormalized = newIris;
+    m_telemetry.autoIrisActive = false;
+    m_telemetry.timestamp = std::chrono::system_clock::now();
+    Onvif::ImagingSettings settings {};
+    settings.exposure.mode = "MANUAL";
+    settings.exposure.iris = static_cast<float>(newIris * 100.0);
+    return m_client->setImagingSettings(m_videoSourceToken, settings);
+}
+
+bool OnvifCameraAdapter::irisStop()
+{
+    return m_client != nullptr;
 }
 
 bool OnvifCameraAdapter::setDayNightIcr(bool nightMode)
@@ -620,6 +697,8 @@ void OnvifCameraAdapter::updateTelemetry()
         if (imgSt.has_value()) {
             std::lock_guard<std::mutex> lock(m_mutex);
             m_telemetry.autoFocusActive = (imgSt->autoFocusMode == "AUTO");
+            m_telemetry.autoIrisActive = (imgSt->exposure.mode == "AUTO");
+            m_telemetry.irisNormalized = std::clamp(static_cast<double>(imgSt->exposure.iris) / 100.0, 0.0, 1.0);
             m_telemetry.dayNightIcrActive = (imgSt->irCutFilter == "OFF");
             m_telemetry.timestamp = std::chrono::system_clock::now();
         }

@@ -3043,6 +3043,10 @@ void OnvifServer::handleImagingService(const httplib::Request& req, httplib::Res
              << "        <tt:Focus>\r\n"
              << "          <tt:AutoFocusMode>" << settings.autoFocusMode << "</tt:AutoFocusMode>\r\n"
              << "        </tt:Focus>\r\n"
+             << "        <tt:Exposure>\r\n"
+             << "          <tt:Mode>" << settings.exposure.mode << "</tt:Mode>\r\n"
+             << "          <tt:Iris>" << settings.exposure.iris << "</tt:Iris>\r\n"
+             << "        </tt:Exposure>\r\n"
              << "      </timg:ImagingSettings>\r\n"
              << "    </timg:GetImagingSettingsResponse>\r\n";
     } else if (opName.find("SetImagingSettings") != std::string::npos) {
@@ -3095,6 +3099,18 @@ void OnvifServer::handleImagingService(const httplib::Request& req, httplib::Res
         const pugi::xml_node afNode = doc.select_node("//*[local-name()='AutoFocusMode']").node();
         if (afNode) {
             settings.autoFocusMode = afNode.text().as_string(settings.autoFocusMode.c_str());
+        }
+
+        const pugi::xml_node expNode = doc.select_node("//*[local-name()='Exposure']").node();
+        if (expNode) {
+            const pugi::xml_node expMode = expNode.select_node(".//*[local-name()='Mode']").node();
+            if (expMode) {
+                settings.exposure.mode = expMode.text().as_string(settings.exposure.mode.c_str());
+            }
+            const pugi::xml_node expIris = expNode.select_node(".//*[local-name()='Iris']").node();
+            if (expIris) {
+                settings.exposure.iris = expIris.text().as_float(settings.exposure.iris);
+            }
         }
 
         if (m_imagingHandler) {

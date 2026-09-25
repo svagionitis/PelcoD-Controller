@@ -105,12 +105,69 @@ namespace {
             return false;
         }
 
+        bool focusContinuous(float velocity) override
+        {
+            if (!m_device)
+                return false;
+            if (velocity > 0.05f) {
+                m_device->focusFar();
+            } else if (velocity < -0.05f) {
+                m_device->focusNear();
+            } else {
+                m_device->focusStop();
+            }
+            return true;
+        }
+
+        bool focusStop() override
+        {
+            if (!m_device)
+                return false;
+            m_device->focusStop();
+            return true;
+        }
+
         bool triggerOnePushFocus() override
         {
             if (!m_device)
                 return false;
             m_device->focusNear();
             m_device->focusStop();
+            return true;
+        }
+
+        bool setIrisAuto(bool enable) override
+        {
+            if (!m_device)
+                return false;
+            m_device->setAutoIris(enable ? PelcoD::AutoMode::Auto : PelcoD::AutoMode::Off);
+            return true;
+        }
+
+        bool setIrisNormalized(double /*iris01*/) override
+        {
+            return false;
+        }
+
+        bool irisContinuous(float velocity) override
+        {
+            if (!m_device)
+                return false;
+            if (velocity > 0.05f) {
+                m_device->irisOpen();
+            } else if (velocity < -0.05f) {
+                m_device->irisClose();
+            } else {
+                m_device->irisStop();
+            }
+            return true;
+        }
+
+        bool irisStop() override
+        {
+            if (!m_device)
+                return false;
+            m_device->irisStop();
             return true;
         }
 

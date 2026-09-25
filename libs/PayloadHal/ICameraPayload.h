@@ -48,9 +48,40 @@ public:
     /// @return True if direct focus command was accepted.
     virtual bool setFocusNormalized(double focus01) = 0;
 
+    /// @brief Commands continuous motorized optical focus motion at designated velocity.
+    /// @details Slews focus group towards Near limit (negative velocity) or Far limit (positive velocity).
+    /// @param[in] velocity Normalized velocity [-1.0 .. +1.0] (-1.0 = Max Near, +1.0 = Max Far, 0.0 = Stop).
+    /// @return True if focus movement command was accepted.
+    virtual bool focusContinuous(float velocity) = 0;
+
+    /// @brief Halts active continuous optical focus motion immediately.
+    /// @return True if focus motor was stopped.
+    virtual bool focusStop() = 0;
+
     /// @brief Triggers a one-push automatic focus convergence cycle.
     /// @return True if one-push focus cycle was initiated.
     virtual bool triggerOnePushFocus() = 0;
+
+    // --- Iris & Exposure Controls ---
+
+    /// @brief Toggles continuous automatic iris / aperture adjustment algorithm.
+    /// @param[in] enable True for auto-iris, false for manual iris hold.
+    /// @return True if iris mode was updated.
+    virtual bool setIrisAuto(bool enable) = 0;
+
+    /// @brief Drives lens iris aperture to a normalized position.
+    /// @param[in] iris01 Normalized iris position (0.0 = Closed, 1.0 = Max Open).
+    /// @return True if direct iris command was accepted.
+    virtual bool setIrisNormalized(double iris01) = 0;
+
+    /// @brief Commands continuous manual iris aperture adjustment (e.g. from physical joystick).
+    /// @param[in] velocity Normalized velocity [-1.0 .. +1.0] (-1.0 = Close, +1.0 = Open, 0.0 = Stop).
+    /// @return True if command was dispatched.
+    virtual bool irisContinuous(float velocity) = 0;
+
+    /// @brief Halts active motorized iris motion immediately.
+    /// @return True if iris motor was stopped.
+    virtual bool irisStop() = 0;
 
     // --- Sensor Processing & Enhancement ---
 

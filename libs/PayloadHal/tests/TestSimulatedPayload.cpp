@@ -113,5 +113,38 @@ namespace {
         EXPECT_GE(lrfResult->pulseCounter, 1U);
     }
 
+    TEST(TestSimulatedPayload, ContinuousFocusAndIrisControls)
+    {
+        auto simPayload = std::dynamic_pointer_cast<SimulatedPayload>(PayloadFactory::createSimulatedPayload());
+        ASSERT_NE(simPayload, nullptr);
+        ASSERT_TRUE(simPayload->connect());
+
+        auto cam = simPayload->primaryCamera();
+        ASSERT_NE(cam, nullptr);
+
+        // Continuous focus
+        EXPECT_TRUE(cam->setFocusNormalized(0.2));
+        EXPECT_NEAR(cam->currentTelemetry().focusDistanceNormalized, 0.2, 1e-3);
+        EXPECT_TRUE(cam->focusContinuous(0.8f));
+        EXPECT_GT(cam->currentTelemetry().focusDistanceNormalized, 0.2);
+        EXPECT_TRUE(cam->focusStop());
+
+        // Iris controls
+        EXPECT_TRUE(cam->setIrisAuto(true));
+        EXPECT_TRUE(cam->currentTelemetry().autoIrisActive);
+        EXPECT_TRUE(cam->setIrisNormalized(0.65));
+        EXPECT_FALSE(cam->currentTelemetry().autoIrisActive);
+        EXPECT_NEAR(cam->currentTelemetry().irisNormalized, 0.65, 1e-3);
+        EXPECT_TRUE(cam->irisContinuous(0.5f));
+        EXPECT_GT(cam->currentTelemetry().irisNormalized, 0.65);
+        EXPECT_TRUE(cam->irisStop());
+
+        // Illuminator access
+        auto illuminator = simPayload->illuminator();
+        ASSERT_NE(illuminator, nullptr);
+        EXPECT_TRUE(illuminator->armLaser());
+        EXPECT_TRUE(illuminator->isArmed());
+    }
+
 } // namespace
 } // namespace PayloadHal

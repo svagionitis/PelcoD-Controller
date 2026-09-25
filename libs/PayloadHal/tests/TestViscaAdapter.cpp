@@ -37,7 +37,17 @@ namespace {
         EXPECT_TRUE(adapter.setFocusAuto(true));
         EXPECT_TRUE(adapter.setFocusAuto(false));
         EXPECT_TRUE(adapter.setFocusNormalized(0.8));
+        EXPECT_TRUE(adapter.focusContinuous(0.8f));
+        EXPECT_TRUE(adapter.focusContinuous(-0.8f));
+        EXPECT_TRUE(adapter.focusStop());
         EXPECT_TRUE(adapter.triggerOnePushFocus());
+
+        // Iris controls
+        EXPECT_TRUE(adapter.setIrisAuto(false));
+        EXPECT_TRUE(adapter.setIrisNormalized(0.6));
+        EXPECT_TRUE(adapter.irisContinuous(0.5f));
+        EXPECT_TRUE(adapter.irisStop());
+        EXPECT_TRUE(adapter.setIrisAuto(true));
 
         // ICR Day/Night, Defog, Image Stabilizer
         EXPECT_TRUE(adapter.setDayNightIcr(true));
