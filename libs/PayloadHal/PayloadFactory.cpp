@@ -1,12 +1,20 @@
 #include "PayloadFactory.h"
 #include "GeoreferenceUtils.h"
+#include "Transport/ITransport.h"
+#include "Transport/SerialTransport.h"
+#include "Transport/TcpTransport.h"
+#include "Transport/UdpTransport.h"
 #include "adapters/OnvifPayloadAdapter.h"
 #include "adapters/PelcoDFujinonPayloadAdapter.h"
 #include "adapters/PelcoDPtzAdapter.h"
+#include "adapters/PelcoDViscaCompositePayload.h"
+#include "adapters/ViscaSonyAdapter.h"
 #include "sim/SimulatedPayload.h"
 
 #include <algorithm>
+#include <cctype>
 #include <cmath>
+#include <unordered_map>
 
 namespace PayloadHal {
 
@@ -225,44 +233,358 @@ namespace {
         std::shared_ptr<PelcoDCameraUnit> m_camera;
     };
 
+    struct ParsedUri {
+        std::string scheme;
+        std::string username;
+        std::string password;
+        std::string host;
+        int port { -1 };
+        std::string path;
+        std::unordered_map<std::string, std::string> query;
+
+        [[nodiscard]] std::string getQuery(const std::string& key, const std::string& defaultVal = "") const
+        {
+            const auto it = query.find(key);
+            return (it != query.end()) ? it->second : defaultVal;
+        }
+
+        [[nodiscard]] int getIntQuery(const std::string& key, int defaultVal) const
+        {
+            const auto it = query.find(key);
+            if (it != query.end()) {
+                try {
+                    return std::stoi(it->second);
+                } catch (...) {
+                    return defaultVal;
+                }
+            }
+            return defaultVal;
+        }
+    };
+
+    ParsedUri parseUriString(const std::string& uriString)
+    {
+        ParsedUri result {};
+        if (uriString.empty()) {
+            return result;
+        }
+        if (uriString == "sim") {
+            result.scheme = "sim";
+            return result;
+        }
+
+        const auto schemeEnd = uriString.find("://");
+        if (schemeEnd == std::string::npos) {
+            return result;
+        }
+
+        result.scheme = uriString.substr(0, schemeEnd);
+        std::transform(result.scheme.begin(), result.scheme.end(), result.scheme.begin(),
+            [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+
+        std::string rest = uriString.substr(schemeEnd + 3);
+
+        const auto qPos = rest.find('?');
+        if (qPos != std::string::npos) {
+            const std::string queryStr = rest.substr(qPos + 1);
+            rest = rest.substr(0, qPos);
+
+            std::size_t start = 0;
+            while (start < queryStr.length()) {
+                const auto ampPos = queryStr.find('&', start);
+                const std::string param
+                    = (ampPos == std::string::npos) ? queryStr.substr(start) : queryStr.substr(start, ampPos - start);
+                const auto eqPos = param.find('=');
+                if (eqPos != std::string::npos) {
+                    result.query[param.substr(0, eqPos)] = param.substr(eqPos + 1);
+                } else if (!param.empty()) {
+                    result.query[param] = "";
+                }
+                if (ampPos == std::string::npos) {
+                    break;
+                }
+                start = ampPos + 1;
+            }
+        }
+
+        if (!rest.empty() && rest.front() == '/') {
+            result.path = rest;
+            return result;
+        }
+
+        const auto slashPos = rest.find('/');
+        std::string authority {};
+        if (slashPos != std::string::npos) {
+            authority = rest.substr(0, slashPos);
+            result.path = rest.substr(slashPos);
+        } else {
+            authority = rest;
+        }
+
+        const auto atPos = authority.find('@');
+        std::string hostPort = authority;
+        if (atPos != std::string::npos) {
+            const std::string userInfo = authority.substr(0, atPos);
+            hostPort = authority.substr(atPos + 1);
+            const auto colonPos = userInfo.find(':');
+            if (colonPos != std::string::npos) {
+                result.username = userInfo.substr(0, colonPos);
+                result.password = userInfo.substr(colonPos + 1);
+            } else {
+                result.username = userInfo;
+            }
+        }
+
+        if (!hostPort.empty() && hostPort.front() == '[') {
+            const auto closeBracket = hostPort.find(']');
+            if (closeBracket != std::string::npos) {
+                result.host = hostPort.substr(1, closeBracket - 1);
+                if (closeBracket + 1 < hostPort.length() && hostPort[closeBracket + 1] == ':') {
+                    try {
+                        result.port = std::stoi(hostPort.substr(closeBracket + 2));
+                    } catch (...) {
+                        result.port = -1;
+                    }
+                }
+                return result;
+            }
+        }
+
+        const auto colonPos = hostPort.rfind(':');
+        if (colonPos != std::string::npos) {
+            result.host = hostPort.substr(0, colonPos);
+            try {
+                result.port = std::stoi(hostPort.substr(colonPos + 1));
+            } catch (...) {
+                result.port = -1;
+            }
+        } else {
+            result.host = hostPort;
+        }
+
+        return result;
+    }
+
+    std::shared_ptr<::Transport::ITransport> createTransportFromEndpoint(
+        const std::string& hostOrPath, int port, const std::string& proto, int baudRate)
+    {
+        if (hostOrPath.rfind("/dev/", 0) == 0 || hostOrPath.rfind("COM", 0) == 0
+            || hostOrPath.rfind("\\\\.\\COM", 0) == 0 || baudRate > 0) {
+            const auto baud = (baudRate > 0) ? static_cast<std::uint32_t>(baudRate) : 9600U;
+            if (!::Transport::SerialTransport::isValidBaudRate(baud)) {
+                return nullptr;
+            }
+            return std::make_shared<::Transport::SerialTransport>(hostOrPath, baud);
+        }
+
+        if (hostOrPath.empty()) {
+            return nullptr;
+        }
+
+        const auto socketPort
+            = (port > 0 && port <= 65535) ? static_cast<std::uint16_t>(port) : static_cast<std::uint16_t>(4001U);
+        if (proto == "udp") {
+            return std::make_shared<::Transport::UdpTransport>(hostOrPath, socketPort);
+        }
+        return std::make_shared<::Transport::TcpTransport>(hostOrPath, socketPort);
+    }
+
 } // namespace
 
 std::shared_ptr<IPayload> PayloadFactory::createFromUri(const std::string& uri)
 {
-    if (uri.rfind("sim://", 0) == 0 || uri == "sim") {
+    const ParsedUri parsed = parseUriString(uri);
+
+    if (parsed.scheme == "sim") {
         return createSimulatedPayload();
     }
-    if (uri.rfind("onvif://", 0) == 0) {
-        std::string remainder = uri.substr(8);
-        Onvif::SecurityCredentials creds {};
-        const auto atPos = remainder.find('@');
-        if (atPos != std::string::npos) {
-            const std::string auth = remainder.substr(0, atPos);
-            remainder = remainder.substr(atPos + 1);
-            const auto colonPos = auth.find(':');
-            if (colonPos != std::string::npos) {
-                creds.username = auth.substr(0, colonPos);
-                creds.password = auth.substr(colonPos + 1);
-            } else {
-                creds.username = auth;
-            }
-        }
-        std::string hostPort {};
-        std::string path { "/onvif/device_service" };
-        const auto slashPos = remainder.find('/');
-        if (slashPos != std::string::npos) {
-            hostPort = remainder.substr(0, slashPos);
-            const std::string customPath = remainder.substr(slashPos);
-            if (customPath.length() > 1) {
-                path = customPath;
-            }
-        } else {
-            hostPort = remainder;
-        }
 
+    if (parsed.scheme == "onvif") {
+        std::string hostPort = parsed.host;
+        if (parsed.port > 0) {
+            hostPort += ":" + std::to_string(parsed.port);
+        }
+        const std::string path = parsed.path.empty() ? "/onvif/device_service" : parsed.path;
         const std::string endpoint = "http://" + hostPort + path;
+        Onvif::SecurityCredentials creds {};
+        creds.username = parsed.username;
+        creds.password = parsed.password;
         return createOnvifPayload(endpoint, creds);
     }
+
+    if (parsed.scheme == "pelcod") {
+        const int addr = parsed.getIntQuery("addr", 1);
+        if (addr < 1 || addr > 255) {
+            return nullptr;
+        }
+
+        if (!parsed.path.empty()) {
+            const int baud = parsed.getIntQuery("baud", 9600);
+            auto transport = createTransportFromEndpoint(parsed.path, -1, "", baud);
+            if (!transport) {
+                return nullptr;
+            }
+            auto dev = std::make_shared<PelcoD::PelcoDDevice>(std::move(transport), static_cast<std::uint8_t>(addr));
+            return createPelcoDPayload(std::move(dev));
+        }
+
+        if (!parsed.host.empty()) {
+            const int port = parsed.port > 0 ? parsed.port : 4001;
+            const std::string proto = parsed.getQuery("proto", "tcp");
+            auto transport = createTransportFromEndpoint(parsed.host, port, proto, 0);
+            if (!transport) {
+                return nullptr;
+            }
+            auto dev = std::make_shared<PelcoD::PelcoDDevice>(std::move(transport), static_cast<std::uint8_t>(addr));
+            return createPelcoDPayload(std::move(dev));
+        }
+        return nullptr;
+    }
+
+    if (parsed.scheme == "serial") {
+        const std::string devPath = !parsed.path.empty() ? parsed.path : parsed.host;
+        if (devPath.empty()) {
+            return nullptr;
+        }
+        const int baud = parsed.getIntQuery("baud", 9600);
+        const int addr = parsed.getIntQuery("addr", 1);
+        if (addr < 1 || addr > 255) {
+            return nullptr;
+        }
+        const std::string protocol = parsed.getQuery("protocol", "pelcod");
+        auto transport = createTransportFromEndpoint(devPath, -1, "", baud);
+        if (!transport) {
+            return nullptr;
+        }
+        if (protocol == "pelcod") {
+            auto dev = std::make_shared<PelcoD::PelcoDDevice>(std::move(transport), static_cast<std::uint8_t>(addr));
+            return createPelcoDPayload(std::move(dev));
+        }
+        if (protocol == "fujinon") {
+            auto dev
+                = std::make_shared<PelcoD::FujinonSX800Device>(std::move(transport), static_cast<std::uint8_t>(addr));
+            return createFujinonPayload(std::move(dev));
+        }
+        return nullptr;
+    }
+
+    if (parsed.scheme == "tcp" || parsed.scheme == "udp") {
+        if (parsed.host.empty()) {
+            return nullptr;
+        }
+        const int port = parsed.port > 0 ? parsed.port : 4001;
+        const int addr = parsed.getIntQuery("addr", 1);
+        if (addr < 1 || addr > 255) {
+            return nullptr;
+        }
+        const std::string protocol = parsed.getQuery("protocol", "pelcod");
+        auto transport = createTransportFromEndpoint(parsed.host, port, parsed.scheme, 0);
+        if (!transport) {
+            return nullptr;
+        }
+        if (protocol == "pelcod") {
+            auto dev = std::make_shared<PelcoD::PelcoDDevice>(std::move(transport), static_cast<std::uint8_t>(addr));
+            return createPelcoDPayload(std::move(dev));
+        }
+        if (protocol == "fujinon") {
+            auto dev
+                = std::make_shared<PelcoD::FujinonSX800Device>(std::move(transport), static_cast<std::uint8_t>(addr));
+            return createFujinonPayload(std::move(dev));
+        }
+        return nullptr;
+    }
+
+    if (parsed.scheme == "fujinon") {
+        const int addr = parsed.getIntQuery("addr", 1);
+        if (addr < 1 || addr > 31) {
+            return nullptr;
+        }
+        if (!parsed.path.empty()) {
+            const int baud = parsed.getIntQuery("baud", 9600);
+            auto transport = createTransportFromEndpoint(parsed.path, -1, "", baud);
+            if (!transport) {
+                return nullptr;
+            }
+            auto dev
+                = std::make_shared<PelcoD::FujinonSX800Device>(std::move(transport), static_cast<std::uint8_t>(addr));
+            return createFujinonPayload(std::move(dev));
+        }
+        if (!parsed.host.empty()) {
+            const int port = parsed.port > 0 ? parsed.port : 4001;
+            const std::string proto = parsed.getQuery("proto", "tcp");
+            auto transport = createTransportFromEndpoint(parsed.host, port, proto, 0);
+            if (!transport) {
+                return nullptr;
+            }
+            auto dev
+                = std::make_shared<PelcoD::FujinonSX800Device>(std::move(transport), static_cast<std::uint8_t>(addr));
+            return createFujinonPayload(std::move(dev));
+        }
+        return nullptr;
+    }
+
+    if (parsed.scheme == "pelcod-visca") {
+        std::string ptzDev = parsed.getQuery("ptz_dev", "");
+        if (ptzDev.empty() && !parsed.path.empty()) {
+            ptzDev = parsed.path;
+        }
+        if (ptzDev.empty() && parsed.getQuery("ptz_port", "").rfind("/dev/", 0) == 0) {
+            ptzDev = parsed.getQuery("ptz_port");
+        }
+        std::string camDev = parsed.getQuery("cam_dev", "");
+        if (camDev.empty() && parsed.getQuery("cam_port", "").rfind("/dev/", 0) == 0) {
+            camDev = parsed.getQuery("cam_port");
+        }
+
+        if (!ptzDev.empty() || !camDev.empty()) {
+            if (ptzDev.empty() || camDev.empty()) {
+                return nullptr;
+            }
+            const int defaultBaud = parsed.getIntQuery("baud", 9600);
+            const int ptzBaud = parsed.getIntQuery("ptz_baud", defaultBaud);
+            const int camBaud = parsed.getIntQuery("cam_baud", defaultBaud);
+            const int ptzAddr = parsed.getIntQuery("ptz_addr", parsed.getIntQuery("addr", 1));
+            const int camAddr = parsed.getIntQuery("cam_addr", 1);
+            if (ptzAddr < 1 || ptzAddr > 255 || camAddr < 1 || camAddr > 7) {
+                return nullptr;
+            }
+            auto ptzTrans = createTransportFromEndpoint(ptzDev, -1, "", ptzBaud);
+            auto camTrans = createTransportFromEndpoint(camDev, -1, "", camBaud);
+            if (!ptzTrans || !camTrans) {
+                return nullptr;
+            }
+            auto ptzDevice
+                = std::make_shared<PelcoD::PelcoDDevice>(std::move(ptzTrans), static_cast<std::uint8_t>(ptzAddr));
+            auto camDevice
+                = std::make_shared<Visca::Sony::SonyFCBDevice>(std::move(camTrans), static_cast<std::uint8_t>(camAddr));
+            return createPelcoDViscaPayload(std::move(ptzDevice), std::move(camDevice));
+        }
+
+        std::string ptzHost = parsed.getQuery("ptz_host", parsed.host);
+        if (ptzHost.empty()) {
+            return nullptr;
+        }
+        const int ptzPort = parsed.getIntQuery("ptz_port", parsed.port > 0 ? parsed.port : 4001);
+        std::string camHost = parsed.getQuery("cam_host", ptzHost);
+        const int camPort = parsed.getIntQuery("cam_port", 4002);
+        const int ptzAddr = parsed.getIntQuery("ptz_addr", parsed.getIntQuery("addr", 1));
+        const int camAddr = parsed.getIntQuery("cam_addr", 1);
+        if (ptzAddr < 1 || ptzAddr > 255 || camAddr < 1 || camAddr > 7) {
+            return nullptr;
+        }
+        const std::string proto = parsed.getQuery("proto", "tcp");
+        auto ptzTrans = createTransportFromEndpoint(ptzHost, ptzPort, proto, 0);
+        auto camTrans = createTransportFromEndpoint(camHost, camPort, proto, 0);
+        if (!ptzTrans || !camTrans) {
+            return nullptr;
+        }
+        auto ptzDevice
+            = std::make_shared<PelcoD::PelcoDDevice>(std::move(ptzTrans), static_cast<std::uint8_t>(ptzAddr));
+        auto camDevice
+            = std::make_shared<Visca::Sony::SonyFCBDevice>(std::move(camTrans), static_cast<std::uint8_t>(camAddr));
+        return createPelcoDViscaPayload(std::move(ptzDevice), std::move(camDevice));
+    }
+
     return nullptr;
 }
 
@@ -283,6 +605,24 @@ std::shared_ptr<IPayload> PayloadFactory::createFujinonPayload(std::shared_ptr<P
     if (!device)
         return nullptr;
     return std::make_shared<PelcoDFujinonPayloadAdapter>(std::move(device));
+}
+
+std::shared_ptr<IPayload> PayloadFactory::createPelcoDViscaPayload(
+    std::shared_ptr<PelcoD::PelcoDDevice> ptzDevice, std::shared_ptr<Visca::Sony::SonyFCBDevice> cameraDevice)
+{
+    if (!ptzDevice && !cameraDevice) {
+        return nullptr;
+    }
+    return std::make_shared<PelcoDViscaCompositePayload>(std::move(ptzDevice), std::move(cameraDevice));
+}
+
+std::shared_ptr<IPayload> PayloadFactory::createPelcoDViscaPayload(
+    std::shared_ptr<IPanTiltUnit> ptu, std::shared_ptr<ICameraPayload> camera)
+{
+    if (!ptu && !camera) {
+        return nullptr;
+    }
+    return std::make_shared<PelcoDViscaCompositePayload>(std::move(ptu), std::move(camera));
 }
 
 std::shared_ptr<IPayload> PayloadFactory::createOnvifPayload(

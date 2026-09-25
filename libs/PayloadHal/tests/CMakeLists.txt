@@ -30,6 +30,8 @@ add_payload_hal_test(TestLrfSafetyInterlock       TestLrfSafetyInterlock.cpp)
 add_payload_hal_test(TestPelcoDAdapter            TestPelcoDAdapter.cpp)
 add_payload_hal_test(TestPelcoDFujinonAdapter     TestPelcoDFujinonAdapter.cpp)
 add_payload_hal_test(TestViscaAdapter             TestViscaAdapter.cpp)
+add_payload_hal_test(TestPelcoDViscaAdapter        TestPelcoDViscaAdapter.cpp)
 add_payload_hal_test(TestSimulatedPayload         TestSimulatedPayload.cpp)
 add_payload_hal_test(TestOnvifAdapter             TestOnvifAdapter.cpp)
+add_payload_hal_test(TestPayloadFactoryUri        TestPayloadFactoryUri.cpp)
 

@@ -16,6 +16,8 @@ add_library(PayloadHal STATIC
     adapters/PelcoDFujinonPayloadAdapter.cpp
     adapters/ViscaSonyAdapter.h
     adapters/ViscaSonyAdapter.cpp
+    adapters/PelcoDViscaCompositePayload.h
+    adapters/PelcoDViscaCompositePayload.cpp
     adapters/OnvifPayloadAdapter.h
     adapters/OnvifPayloadAdapter.cpp
     sim/SimulatedPayload.h
