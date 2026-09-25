@@ -150,13 +150,13 @@ This compact $24$-element or $32$-element vector uniquely characterizes target t
 The codebase provides both pure standard library core math and OpenCV real-time video pipeline integration:
 
 1. **`libs/Math/Gabor.h` & `libs/Math/Gabor.cpp`**:
-   - [`createGaborKernel1D()`](file:///home/theon/Development/PelcoD-Controller/libs/Math/Gabor.h#L78): Generates complex 1D analytic impulse responses.
-   - [`createGaborKernel2D()`](file:///home/theon/Development/PelcoD-Controller/libs/Math/Gabor.h#L84): Generates 2D quadrature kernel pairs with DC bias removal.
-   - [`convolve2D()`](file:///home/theon/Development/PelcoD-Controller/libs/Math/Gabor.h#L95): High-performance clamped 2D convolution.
-   - [`GaborFilterBank`](file:///home/theon/Development/PelcoD-Controller/libs/Math/Gabor.h#L115): Multi-scale, multi-orientation filterbank with ROI sharpness and feature extraction.
+   - [`createGaborKernel1D()`](../../libs/Math/Gabor.h#L78): Generates complex 1D analytic impulse responses.
+   - [`createGaborKernel2D()`](../../libs/Math/Gabor.h#L84): Generates 2D quadrature kernel pairs with DC bias removal.
+   - [`convolve2D()`](../../libs/Math/Gabor.h#L95): High-performance clamped 2D convolution.
+   - [`GaborFilterBank`](../../libs/Math/Gabor.h#L115): Multi-scale, multi-orientation filterbank with ROI sharpness and feature extraction.
 
 2. **`libs/VideoFilters/SpatialFilters.h` & `libs/VideoFilters/SpatialFilters.cpp`**:
-   - [`GaborFilter`](file:///home/theon/Development/PelcoD-Controller/libs/VideoFilters/SpatialFilters.h#L374): Real-time frame processor with `Energy`, `RealComponent`, `ImagComponent`, and `Overlay` visualization modes.
+   - [`GaborFilter`](../../libs/VideoFilters/SpatialFilters.h#L374): Real-time frame processor with `Energy`, `RealComponent`, `ImagComponent`, and `Overlay` visualization modes.
 
 ### Code Example: Evaluating Directional Sharpness
 
