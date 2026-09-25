@@ -5,56 +5,65 @@
 
 namespace Mapping {
 
-MapViewport::MapViewport(const Klv::GeoPoint2D& center,
-                         double zoom,
-                         double width,
-                         double height) noexcept
+MapViewport::MapViewport(const Klv::GeoPoint2D& center, double zoom, double width, double height) noexcept
     : m_center(center)
     , m_zoom(std::clamp(zoom, 0.0, 22.0))
     , m_width(std::max(1.0, width))
-    , m_height(std::max(1.0, height)) {}
+    , m_height(std::max(1.0, height))
+{
+}
 
-void MapViewport::setCenter(const Klv::GeoPoint2D& center) noexcept {
+void MapViewport::setCenter(const Klv::GeoPoint2D& center) noexcept
+{
     m_center.latitudeDeg = MercatorProjection::clampLatitude(center.latitudeDeg);
     m_center.longitudeDeg = MercatorProjection::normalizeLongitude(center.longitudeDeg);
 }
 
-Klv::GeoPoint2D MapViewport::center() const noexcept {
+Klv::GeoPoint2D MapViewport::center() const noexcept
+{
     return m_center;
 }
 
-void MapViewport::setZoom(double zoom) noexcept {
+void MapViewport::setZoom(double zoom) noexcept
+{
     m_zoom = std::clamp(zoom, 0.0, 22.0);
 }
 
-double MapViewport::zoom() const noexcept {
+double MapViewport::zoom() const noexcept
+{
     return m_zoom;
 }
 
-void MapViewport::setSize(double width, double height) noexcept {
+void MapViewport::setSize(double width, double height) noexcept
+{
     m_width = std::max(1.0, width);
     m_height = std::max(1.0, height);
 }
 
-double MapViewport::width() const noexcept {
+double MapViewport::width() const noexcept
+{
     return m_width;
 }
 
-double MapViewport::height() const noexcept {
+double MapViewport::height() const noexcept
+{
     return m_height;
 }
 
-void MapViewport::setTileSize(int tileSize) noexcept {
+void MapViewport::setTileSize(int tileSize) noexcept
+{
     if (tileSize > 0) {
         m_tileSize = tileSize;
     }
 }
 
-int MapViewport::tileSize() const noexcept {
+int MapViewport::tileSize() const noexcept
+{
     return m_tileSize;
 }
 
-ScreenPoint MapViewport::geoToScreen(const Klv::GeoPoint2D& geo) const noexcept {
+ScreenPoint MapViewport::geoToScreen(const Klv::GeoPoint2D& geo) const noexcept
+{
     const ScreenPoint centerGlobal = MercatorProjection::latLonToGlobalPixel(m_center, m_zoom, m_tileSize);
     const ScreenPoint targetGlobal = MercatorProjection::latLonToGlobalPixel(geo, m_zoom, m_tileSize);
 
@@ -76,7 +85,8 @@ ScreenPoint MapViewport::geoToScreen(const Klv::GeoPoint2D& geo) const noexcept 
     return ScreenPoint { screenX, screenY };
 }
 
-Klv::GeoPoint2D MapViewport::screenToGeo(const ScreenPoint& screen) const noexcept {
+Klv::GeoPoint2D MapViewport::screenToGeo(const ScreenPoint& screen) const noexcept
+{
     const ScreenPoint centerGlobal = MercatorProjection::latLonToGlobalPixel(m_center, m_zoom, m_tileSize);
 
     const double globalX = centerGlobal.x + (screen.x - (m_width * 0.5));
@@ -85,16 +95,15 @@ Klv::GeoPoint2D MapViewport::screenToGeo(const ScreenPoint& screen) const noexce
     return MercatorProjection::globalPixelToLatLon(ScreenPoint { globalX, globalY }, m_zoom, m_tileSize);
 }
 
-void MapViewport::pan(double deltaPixelsX, double deltaPixelsY) noexcept {
+void MapViewport::pan(double deltaPixelsX, double deltaPixelsY) noexcept
+{
     // Shifting view by deltaPixels moves center in opposite direction in screen space
-    const ScreenPoint targetScreen {
-        (m_width * 0.5) - deltaPixelsX,
-        (m_height * 0.5) - deltaPixelsY
-    };
+    const ScreenPoint targetScreen { (m_width * 0.5) - deltaPixelsX, (m_height * 0.5) - deltaPixelsY };
     setCenter(screenToGeo(targetScreen));
 }
 
-void MapViewport::zoomBy(double deltaZoom, const ScreenPoint& pivot) noexcept {
+void MapViewport::zoomBy(double deltaZoom, const ScreenPoint& pivot) noexcept
+{
     // Record geographical coordinate anchored under the pivot
     const Klv::GeoPoint2D pivotGeo = screenToGeo(pivot);
 
@@ -108,19 +117,21 @@ void MapViewport::zoomBy(double deltaZoom, const ScreenPoint& pivot) noexcept {
     pan(pivot.x - newScreen.x, pivot.y - newScreen.y);
 }
 
-BoundingBox MapViewport::visibleBoundingBox() const noexcept {
+BoundingBox MapViewport::visibleBoundingBox() const noexcept
+{
     const Klv::GeoPoint2D topLeft = screenToGeo(ScreenPoint { 0.0, 0.0 });
     const Klv::GeoPoint2D bottomRight = screenToGeo(ScreenPoint { m_width, m_height });
 
     return BoundingBox {
-        topLeft.latitudeDeg,      // North
-        bottomRight.latitudeDeg,  // South
+        topLeft.latitudeDeg, // North
+        bottomRight.latitudeDeg, // South
         bottomRight.longitudeDeg, // East
-        topLeft.longitudeDeg      // West
+        topLeft.longitudeDeg // West
     };
 }
 
-std::vector<VisibleTile> MapViewport::calculateVisibleTiles(int paddingTiles) const {
+std::vector<VisibleTile> MapViewport::calculateVisibleTiles(int paddingTiles) const
+{
     std::vector<VisibleTile> tiles;
 
     const int baseZoom = static_cast<int>(std::floor(m_zoom));
@@ -143,7 +154,9 @@ std::vector<VisibleTile> MapViewport::calculateVisibleTiles(int paddingTiles) co
     maxTileY = std::clamp(maxTileY, 0, totalTiles - 1);
 
     const int estimatedCount = (maxTileX - minTileX + 1) * (maxTileY - minTileY + 1);
-    tiles.reserve(std::max(0, estimatedCount));
+    if (estimatedCount > 0) {
+        tiles.reserve(static_cast<std::size_t>(estimatedCount));
+    }
 
     for (int y = minTileY; y <= maxTileY; ++y) {
         for (int x = minTileX; x <= maxTileX; ++x) {
@@ -153,10 +166,8 @@ std::vector<VisibleTile> MapViewport::calculateVisibleTiles(int paddingTiles) co
             const double tileScreenX = static_cast<double>(x) * scaledTileSize - tlGlobalX;
             const double tileScreenY = static_cast<double>(y) * scaledTileSize - tlGlobalY;
 
-            tiles.push_back(VisibleTile {
-                TileCoord { wrappedX, y, baseZoom },
-                ScreenRect { tileScreenX, tileScreenY, scaledTileSize, scaledTileSize }
-            });
+            tiles.push_back(VisibleTile { TileCoord { wrappedX, y, baseZoom },
+                ScreenRect { tileScreenX, tileScreenY, scaledTileSize, scaledTileSize } });
         }
     }
 

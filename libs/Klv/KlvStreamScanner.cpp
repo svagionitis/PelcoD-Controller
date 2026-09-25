@@ -6,27 +6,33 @@
 
 namespace Klv {
 
-void KlvStreamScanner::setRawPacketCallback(RawPacketCallback callback) {
+void KlvStreamScanner::setRawPacketCallback(RawPacketCallback callback)
+{
     m_rawPacketCallback = std::move(callback);
 }
 
-void KlvStreamScanner::setMessageCallback(MessageCallback callback) {
+void KlvStreamScanner::setMessageCallback(MessageCallback callback)
+{
     m_messageCallback = std::move(callback);
 }
 
-void KlvStreamScanner::setMaxBufferSize(std::size_t maxBytes) noexcept {
+void KlvStreamScanner::setMaxBufferSize(std::size_t maxBytes) noexcept
+{
     m_maxBufferSize = std::max(maxBytes, static_cast<std::size_t>(4096U));
 }
 
-void KlvStreamScanner::reset() {
+void KlvStreamScanner::reset()
+{
     m_buffer.clear();
 }
 
-std::size_t KlvStreamScanner::bufferedBytes() const noexcept {
+std::size_t KlvStreamScanner::bufferedBytes() const noexcept
+{
     return m_buffer.size();
 }
 
-std::size_t KlvStreamScanner::processBytes(const std::uint8_t* data, std::size_t size) {
+std::size_t KlvStreamScanner::processBytes(const std::uint8_t* data, std::size_t size)
+{
     if (data == nullptr || size == 0U) {
         return 0U;
     }
@@ -36,26 +42,26 @@ std::size_t KlvStreamScanner::processBytes(const std::uint8_t* data, std::size_t
     if (m_buffer.size() > m_maxBufferSize) {
         // Prune the older half of the buffer to protect against unbounded growth
         const std::size_t keepSize = m_maxBufferSize / 2U;
-        m_buffer.erase(m_buffer.begin(), m_buffer.end() - keepSize);
+        m_buffer.erase(m_buffer.begin(), m_buffer.end() - static_cast<std::ptrdiff_t>(keepSize));
     }
 
     return scanAndDispatch();
 }
 
-std::size_t KlvStreamScanner::scanAndDispatch() {
+std::size_t KlvStreamScanner::scanAndDispatch()
+{
     std::size_t packetsDispatched = 0U;
 
     while (m_buffer.size() >= kUniversalLabelSize + 2U) {
         // Find Universal Label prefix (first 12 bytes)
-        auto it = std::search(m_buffer.begin(), m_buffer.end(),
-                              kMisb0601UniversalLabel.begin(),
-                              kMisb0601UniversalLabel.begin() + kMisb0601PrefixSize);
+        auto it = std::search(m_buffer.begin(), m_buffer.end(), kMisb0601UniversalLabel.begin(),
+            kMisb0601UniversalLabel.begin() + kMisb0601PrefixSize);
 
         if (it == m_buffer.end()) {
             // No UL found. Preserve at most 15 trailing bytes to handle boundary overlap
             if (m_buffer.size() >= kUniversalLabelSize) {
                 const std::size_t discardCount = m_buffer.size() - (kUniversalLabelSize - 1U);
-                m_buffer.erase(m_buffer.begin(), m_buffer.begin() + discardCount);
+                m_buffer.erase(m_buffer.begin(), m_buffer.begin() + static_cast<std::ptrdiff_t>(discardCount));
             }
             break;
         }
@@ -108,7 +114,7 @@ std::size_t KlvStreamScanner::scanAndDispatch() {
             }
 
             packetsDispatched++;
-            m_buffer.erase(m_buffer.begin(), m_buffer.begin() + totalPacketSize);
+            m_buffer.erase(m_buffer.begin(), m_buffer.begin() + static_cast<std::ptrdiff_t>(totalPacketSize));
         } else {
             // CRC mismatch: false positive header or corrupted packet; advance by 1 byte
             m_buffer.erase(m_buffer.begin());
