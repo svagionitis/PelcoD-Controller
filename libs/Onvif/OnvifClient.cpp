@@ -1049,7 +1049,10 @@ std::optional<std::string> OnvifClient::parseSetPresetResponse(const std::string
         return std::nullopt;
     }
 
-    const auto tokNode = findNodeWithSuffix(respNode, "PresetToken");
+    auto tokNode = findNodeWithSuffix(respNode, "PTZPresetToken");
+    if (!tokNode) {
+        tokNode = findNodeWithSuffix(respNode, "PresetToken");
+    }
     if (tokNode) {
         return tokNode.text().as_string();
     }

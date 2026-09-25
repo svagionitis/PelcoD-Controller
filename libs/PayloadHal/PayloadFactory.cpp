@@ -1,5 +1,6 @@
 #include "PayloadFactory.h"
 #include "GeoreferenceUtils.h"
+#include "adapters/OnvifPayloadAdapter.h"
 #include "adapters/PelcoDFujinonPayloadAdapter.h"
 #include "adapters/PelcoDPtzAdapter.h"
 #include "sim/SimulatedPayload.h"
@@ -231,6 +232,37 @@ std::shared_ptr<IPayload> PayloadFactory::createFromUri(const std::string& uri)
     if (uri.rfind("sim://", 0) == 0 || uri == "sim") {
         return createSimulatedPayload();
     }
+    if (uri.rfind("onvif://", 0) == 0) {
+        std::string remainder = uri.substr(8);
+        Onvif::SecurityCredentials creds {};
+        const auto atPos = remainder.find('@');
+        if (atPos != std::string::npos) {
+            const std::string auth = remainder.substr(0, atPos);
+            remainder = remainder.substr(atPos + 1);
+            const auto colonPos = auth.find(':');
+            if (colonPos != std::string::npos) {
+                creds.username = auth.substr(0, colonPos);
+                creds.password = auth.substr(colonPos + 1);
+            } else {
+                creds.username = auth;
+            }
+        }
+        std::string hostPort {};
+        std::string path { "/onvif/device_service" };
+        const auto slashPos = remainder.find('/');
+        if (slashPos != std::string::npos) {
+            hostPort = remainder.substr(0, slashPos);
+            const std::string customPath = remainder.substr(slashPos);
+            if (customPath.length() > 1) {
+                path = customPath;
+            }
+        } else {
+            hostPort = remainder;
+        }
+
+        const std::string endpoint = "http://" + hostPort + path;
+        return createOnvifPayload(endpoint, creds);
+    }
     return nullptr;
 }
 
@@ -251,6 +283,23 @@ std::shared_ptr<IPayload> PayloadFactory::createFujinonPayload(std::shared_ptr<P
     if (!device)
         return nullptr;
     return std::make_shared<PelcoDFujinonPayloadAdapter>(std::move(device));
+}
+
+std::shared_ptr<IPayload> PayloadFactory::createOnvifPayload(
+    std::shared_ptr<Onvif::OnvifClient> client, const std::string& profileToken)
+{
+    if (!client)
+        return nullptr;
+    return std::make_shared<OnvifPayloadAdapter>(std::move(client), profileToken);
+}
+
+std::shared_ptr<IPayload> PayloadFactory::createOnvifPayload(
+    const std::string& deviceEndpoint, const Onvif::SecurityCredentials& credentials, const std::string& profileToken)
+{
+    if (deviceEndpoint.empty())
+        return nullptr;
+    auto client = std::make_shared<Onvif::OnvifClient>(deviceEndpoint, credentials);
+    return std::make_shared<OnvifPayloadAdapter>(std::move(client), profileToken);
 }
 
 } // namespace PayloadHal

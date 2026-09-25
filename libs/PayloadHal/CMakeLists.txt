@@ -16,6 +16,8 @@ add_library(PayloadHal STATIC
     adapters/PelcoDFujinonPayloadAdapter.cpp
     adapters/ViscaSonyAdapter.h
     adapters/ViscaSonyAdapter.cpp
+    adapters/OnvifPayloadAdapter.h
+    adapters/OnvifPayloadAdapter.cpp
     sim/SimulatedPayload.h
     sim/SimulatedPayload.cpp
 )
@@ -24,6 +26,7 @@ target_include_directories(PayloadHal PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/..>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../ViscaSony>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../Onvif>
     $<INSTALL_INTERFACE:include>
 )
 
@@ -33,6 +36,7 @@ target_link_libraries(PayloadHal PUBLIC
     PelcoDCore
     PelcoDFujinon
     ViscaSony
+    Onvif
     Transport
 )
 

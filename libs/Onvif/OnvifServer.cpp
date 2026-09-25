@@ -3084,6 +3084,19 @@ void OnvifServer::handleImagingService(const httplib::Request& req, httplib::Res
             }
         }
 
+        const pugi::xml_node wdrNode = doc.select_node("//*[local-name()='WideDynamicRange']").node();
+        if (wdrNode) {
+            const pugi::xml_node mode = wdrNode.child("tt:Mode") ? wdrNode.child("tt:Mode") : wdrNode.first_child();
+            if (mode) {
+                settings.wideDynamicRange = (std::string(mode.text().as_string()) == "ON");
+            }
+        }
+
+        const pugi::xml_node afNode = doc.select_node("//*[local-name()='AutoFocusMode']").node();
+        if (afNode) {
+            settings.autoFocusMode = afNode.text().as_string(settings.autoFocusMode.c_str());
+        }
+
         if (m_imagingHandler) {
             m_imagingHandler->handleSetImagingSettings(videoSourceToken, settings);
         }
