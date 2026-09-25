@@ -7,6 +7,8 @@ add_library(PayloadHal STATIC
     IPayload.h
     GeoreferenceUtils.h
     GeoreferenceUtils.cpp
+    GeoLockController.h
+    GeoLockController.cpp
     PayloadHal.h
     PayloadFactory.h
     PayloadFactory.cpp

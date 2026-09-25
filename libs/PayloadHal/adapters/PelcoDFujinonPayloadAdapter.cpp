@@ -337,6 +337,8 @@ public:
         constexpr double kWideHfovRad { 60.0 * 3.14159265358979323846 / 180.0 };
         const double currentHfovRad = 2.0 * std::atan(std::tan(kWideHfovRad / 2.0) / telem.opticalZoomFactor);
         telem.horizontalFovDeg = currentHfovRad * (180.0 / 3.14159265358979323846);
+        const double currentVfovRad = 2.0 * std::atan(std::tan(currentHfovRad / 2.0) * (9.0 / 16.0));
+        telem.verticalFovDeg = currentVfovRad * (180.0 / 3.14159265358979323846);
         telem.timestamp = std::chrono::system_clock::now();
 
         TelemetryCallback cbCopy {};

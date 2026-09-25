@@ -34,4 +34,6 @@ add_payload_hal_test(TestPelcoDViscaAdapter        TestPelcoDViscaAdapter.cpp)
 add_payload_hal_test(TestSimulatedPayload         TestSimulatedPayload.cpp)
 add_payload_hal_test(TestOnvifAdapter             TestOnvifAdapter.cpp)
 add_payload_hal_test(TestPayloadFactoryUri        TestPayloadFactoryUri.cpp)
+add_payload_hal_test(TestGeoreferenceFrustum      TestGeoreferenceFrustum.cpp)
+add_payload_hal_test(TestGeoLockController        TestGeoLockController.cpp)
 

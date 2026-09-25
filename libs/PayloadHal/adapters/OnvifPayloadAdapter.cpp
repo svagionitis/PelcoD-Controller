@@ -19,6 +19,13 @@ namespace {
         return currentHfovRad * (180.0 / kPi);
     }
 
+    inline double calculateVfov(double hfovDeg) noexcept
+    {
+        const double hfovRad = hfovDeg * (kPi / 180.0);
+        const double vfovRad = 2.0 * std::atan(std::tan(hfovRad / 2.0) * (9.0 / 16.0));
+        return vfovRad * (180.0 / kPi);
+    }
+
 } // namespace
 
 // =============================================================================
@@ -352,6 +359,7 @@ OnvifCameraAdapter::OnvifCameraAdapter(
 {
     m_telemetry.opticalZoomFactor = 1.0;
     m_telemetry.horizontalFovDeg = kWideHfovDeg;
+    m_telemetry.verticalFovDeg = calculateVfov(kWideHfovDeg);
 }
 
 bool OnvifCameraAdapter::connect()
@@ -464,6 +472,7 @@ bool OnvifCameraAdapter::setZoomNormalized(double zoom01)
             m_telemetry.normalizedZoom = clampedZoom;
             m_telemetry.opticalZoomFactor = 1.0 + clampedZoom * 29.0;
             m_telemetry.horizontalFovDeg = calculateHfov(m_telemetry.opticalZoomFactor);
+            m_telemetry.verticalFovDeg = calculateVfov(m_telemetry.horizontalFovDeg);
             m_telemetry.timestamp = std::chrono::system_clock::now();
             telem = m_telemetry;
             cbCopy = m_telemetryCallback;
@@ -602,6 +611,7 @@ void OnvifCameraAdapter::updateTelemetry()
             m_telemetry.normalizedZoom = std::clamp(ptzSt->zoom, 0.0, 1.0);
             m_telemetry.opticalZoomFactor = 1.0 + m_telemetry.normalizedZoom * 29.0;
             m_telemetry.horizontalFovDeg = calculateHfov(m_telemetry.opticalZoomFactor);
+            m_telemetry.verticalFovDeg = calculateVfov(m_telemetry.horizontalFovDeg);
             m_telemetry.timestamp = std::chrono::system_clock::now();
         }
     }

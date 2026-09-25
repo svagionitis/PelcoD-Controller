@@ -319,6 +319,8 @@ private:
         constexpr double kWideHfovRad { 60.0 * 3.14159265358979323846 / 180.0 };
         const double currentHfovRad = 2.0 * std::atan(std::tan(kWideHfovRad / 2.0) / m_telemetry.opticalZoomFactor);
         m_telemetry.horizontalFovDeg = currentHfovRad * (180.0 / 3.14159265358979323846);
+        const double currentVfovRad = 2.0 * std::atan(std::tan(currentHfovRad / 2.0) * (9.0 / 16.0));
+        m_telemetry.verticalFovDeg = currentVfovRad * (180.0 / 3.14159265358979323846);
     }
 
     void dispatchTelemetry()
