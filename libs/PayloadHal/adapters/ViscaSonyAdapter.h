@@ -44,11 +44,13 @@ public:
     bool setStabilizer(bool enable) override;
 
     void registerTelemetryCallback(TelemetryCallback cb) override;
+    [[nodiscard]] CameraTelemetry currentTelemetry() const override;
 
     /// @brief Polls device status and updates internal telemetry.
     void updateTelemetry();
 
-    [[nodiscard]] std::shared_ptr<Visca::Sony::SonyFCBDevice> underlyingDevice() const noexcept {
+    [[nodiscard]] std::shared_ptr<Visca::Sony::SonyFCBDevice> underlyingDevice() const noexcept
+    {
         return m_device;
     }
 

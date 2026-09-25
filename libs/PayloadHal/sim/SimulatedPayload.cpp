@@ -152,7 +152,7 @@ public:
         m_telemetryCb = std::move(cb);
     }
 
-    [[nodiscard]] GimbalTelemetry currentTelemetry() const
+    [[nodiscard]] GimbalTelemetry currentTelemetry() const override
     {
         std::lock_guard<std::mutex> lock(m_mutex);
         return m_telemetry;
@@ -307,7 +307,7 @@ public:
         m_telemetryCb = std::move(cb);
     }
 
-    [[nodiscard]] CameraTelemetry currentTelemetry() const
+    [[nodiscard]] CameraTelemetry currentTelemetry() const override
     {
         std::lock_guard<std::mutex> lock(m_mutex);
         return m_telemetry;
@@ -453,9 +453,12 @@ public:
         m_simRangeMeters = rangeMeters;
     }
 
-    [[nodiscard]] LrfTargetMeasurement lastMeasurement() const
+    [[nodiscard]] std::optional<LrfTargetMeasurement> lastMeasurement() const override
     {
         std::lock_guard<std::mutex> lock(m_mutex);
+        if (!m_hasMeasurement) {
+            return std::nullopt;
+        }
         return m_lastMeasurement;
     }
 
@@ -470,6 +473,7 @@ private:
         m.pulseCounter = m_pulseCount;
         m.timestamp = std::chrono::system_clock::now();
         m_lastMeasurement = m;
+        m_hasMeasurement = true;
 
         if (m_measurementCb) {
             m_measurementCb(m);
@@ -484,6 +488,7 @@ private:
     double m_gateMin { 50.0 };
     double m_gateMax { 10000.0 };
     uint32_t m_pulseCount { 0U };
+    bool m_hasMeasurement { false };
     LrfTargetMeasurement m_lastMeasurement {};
     MeasurementCallback m_measurementCb {};
     StateCallback m_stateCb {};
@@ -585,10 +590,10 @@ std::optional<Klv::GeoPoint2D> SimulatedPayload::calculateTargetCoordinates(
     const GimbalTelemetry ptuTelem = m_ptu->currentTelemetry();
     const Klv::GeoPoint3D platform3D { platformGps.latitudeDeg, platformGps.longitudeDeg, platformAltMeters };
 
-    const LrfTargetMeasurement lrfMeas = m_lrf->lastMeasurement();
-    if (lrfMeas.valid && lrfMeas.slantRangeMeters > 0.0) {
+    const auto lrfMeas = m_lrf->lastMeasurement();
+    if (lrfMeas.has_value() && lrfMeas->valid && lrfMeas->slantRangeMeters > 0.0) {
         auto target3D = GeoreferenceUtils::computeTargetFromSlantRange(
-            platform3D, platformHeadingDeg, ptuTelem.panAngleDeg, ptuTelem.tiltAngleDeg, lrfMeas.slantRangeMeters);
+            platform3D, platformHeadingDeg, ptuTelem.panAngleDeg, ptuTelem.tiltAngleDeg, lrfMeas->slantRangeMeters);
         if (target3D.has_value()) {
             return Klv::GeoPoint2D { target3D->latitudeDeg, target3D->longitudeDeg };
         }

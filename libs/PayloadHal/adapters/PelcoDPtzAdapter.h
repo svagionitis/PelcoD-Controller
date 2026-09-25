@@ -45,9 +45,11 @@ public:
     bool recallPreset(uint8_t presetId) override;
 
     void registerTelemetryCallback(TelemetryCallback cb) override;
+    [[nodiscard]] GimbalTelemetry currentTelemetry() const override;
 
     /// @brief Provides access to the underlying PelcoDDevice.
-    [[nodiscard]] std::shared_ptr<PelcoD::PelcoDDevice> underlyingDevice() const noexcept {
+    [[nodiscard]] std::shared_ptr<PelcoD::PelcoDDevice> underlyingDevice() const noexcept
+    {
         return m_device;
     }
 

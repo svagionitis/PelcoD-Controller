@@ -62,6 +62,10 @@ public:
     /// @brief Registers an observer callback for acquired range returns.
     /// @param[in] cb Callable receiving LrfTargetMeasurement records.
     virtual void registerMeasurementCallback(MeasurementCallback cb) = 0;
+
+    /// @brief Retrieves the most recent laser range return measurement if one has been acquired.
+    /// @return Acquired target measurement or std::nullopt if no valid pulse echo exists.
+    [[nodiscard]] virtual std::optional<LrfTargetMeasurement> lastMeasurement() const = 0;
 };
 
 } // namespace PayloadHal

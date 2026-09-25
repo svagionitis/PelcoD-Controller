@@ -6,19 +6,21 @@
 namespace PayloadHal {
 
 PelcoDPtzAdapter::PelcoDPtzAdapter(std::shared_ptr<PelcoD::PelcoDDevice> device)
-    : m_device(std::move(device)) {
+    : m_device(std::move(device))
+{
     if (m_device) {
-        m_statusConnection = m_device->addStatusCallback([this](const PelcoD::DeviceStatus& status) {
-            handleDeviceStatus(status);
-        });
+        m_statusConnection
+            = m_device->addStatusCallback([this](const PelcoD::DeviceStatus& status) { handleDeviceStatus(status); });
     }
 }
 
-PelcoDPtzAdapter::~PelcoDPtzAdapter() {
+PelcoDPtzAdapter::~PelcoDPtzAdapter()
+{
     m_statusConnection.disconnect();
 }
 
-bool PelcoDPtzAdapter::connect() {
+bool PelcoDPtzAdapter::connect()
+{
     if (!m_device) {
         return false;
     }
@@ -33,7 +35,8 @@ bool PelcoDPtzAdapter::connect() {
     return ok;
 }
 
-void PelcoDPtzAdapter::disconnect() {
+void PelcoDPtzAdapter::disconnect()
+{
     if (m_device) {
         m_device->stop();
     }
@@ -44,11 +47,13 @@ void PelcoDPtzAdapter::disconnect() {
     }
 }
 
-bool PelcoDPtzAdapter::isConnected() const noexcept {
+bool PelcoDPtzAdapter::isConnected() const noexcept
+{
     return m_device && m_device->isConnected();
 }
 
-DeviceState PelcoDPtzAdapter::state() const noexcept {
+DeviceState PelcoDPtzAdapter::state() const noexcept
+{
     std::lock_guard<std::mutex> lock(m_mutex);
     if (!m_device) {
         return DeviceState::Fault;
@@ -56,7 +61,8 @@ DeviceState PelcoDPtzAdapter::state() const noexcept {
     return m_device->isConnected() ? DeviceState::Ready : DeviceState::Disconnected;
 }
 
-DeviceInfo PelcoDPtzAdapter::info() const noexcept {
+DeviceInfo PelcoDPtzAdapter::info() const noexcept
+{
     DeviceInfo dev {};
     dev.manufacturer = "Pelco";
     dev.model = "Pelco-D PTZ Unit";
@@ -64,12 +70,14 @@ DeviceInfo PelcoDPtzAdapter::info() const noexcept {
     return dev;
 }
 
-void PelcoDPtzAdapter::registerStateCallback(StateCallback cb) {
+void PelcoDPtzAdapter::registerStateCallback(StateCallback cb)
+{
     std::lock_guard<std::mutex> lock(m_mutex);
     m_stateCallback = std::move(cb);
 }
 
-bool PelcoDPtzAdapter::setRate(double panDegPerSec, double tiltDegPerSec) {
+bool PelcoDPtzAdapter::setRate(double panDegPerSec, double tiltDegPerSec)
+{
     // Normalizing assuming max pan speed of 60 deg/sec and max tilt speed of 30 deg/sec
     constexpr double kMaxPanRateDegSec { 60.0 };
     constexpr double kMaxTiltRateDegSec { 30.0 };
@@ -79,7 +87,8 @@ bool PelcoDPtzAdapter::setRate(double panDegPerSec, double tiltDegPerSec) {
     return setNormalizedVelocity(normPan, normTilt);
 }
 
-bool PelcoDPtzAdapter::setNormalizedVelocity(float panVel, float tiltVel) {
+bool PelcoDPtzAdapter::setNormalizedVelocity(float panVel, float tiltVel)
+{
     if (!m_device) {
         return false;
     }
@@ -108,7 +117,8 @@ bool PelcoDPtzAdapter::setNormalizedVelocity(float panVel, float tiltVel) {
     return true;
 }
 
-bool PelcoDPtzAdapter::setAbsoluteAngles(double panDeg, double tiltDeg) {
+bool PelcoDPtzAdapter::setAbsoluteAngles(double panDeg, double tiltDeg)
+{
     if (!m_device) {
         return false;
     }
@@ -140,7 +150,8 @@ bool PelcoDPtzAdapter::setAbsoluteAngles(double panDeg, double tiltDeg) {
     return true;
 }
 
-bool PelcoDPtzAdapter::setRelativeNudge(double deltaPanDeg, double deltaTiltDeg) {
+bool PelcoDPtzAdapter::setRelativeNudge(double deltaPanDeg, double deltaTiltDeg)
+{
     double currentPan { 0.0 };
     double currentTilt { 0.0 };
     {
@@ -151,7 +162,8 @@ bool PelcoDPtzAdapter::setRelativeNudge(double deltaPanDeg, double deltaTiltDeg)
     return setAbsoluteAngles(currentPan + deltaPanDeg, currentTilt + deltaTiltDeg);
 }
 
-bool PelcoDPtzAdapter::stopMotion() {
+bool PelcoDPtzAdapter::stopMotion()
+{
     if (!m_device) {
         return false;
     }
@@ -159,23 +171,28 @@ bool PelcoDPtzAdapter::stopMotion() {
     return true;
 }
 
-bool PelcoDPtzAdapter::supportsStabilization() const noexcept {
+bool PelcoDPtzAdapter::supportsStabilization() const noexcept
+{
     return false; // Pelco-D heads are unstabilized mounts
 }
 
-bool PelcoDPtzAdapter::setStabilizationMode(StabilizationMode mode) {
+bool PelcoDPtzAdapter::setStabilizationMode(StabilizationMode mode)
+{
     return mode == StabilizationMode::Disabled;
 }
 
-StabilizationMode PelcoDPtzAdapter::stabilizationMode() const noexcept {
+StabilizationMode PelcoDPtzAdapter::stabilizationMode() const noexcept
+{
     return StabilizationMode::Disabled;
 }
 
-bool PelcoDPtzAdapter::zeroGyroDrift() {
+bool PelcoDPtzAdapter::zeroGyroDrift()
+{
     return false; // Unsupported on unstabilized mounts
 }
 
-bool PelcoDPtzAdapter::getLimits(double& minPan, double& maxPan, double& minTilt, double& maxTilt) const {
+bool PelcoDPtzAdapter::getLimits(double& minPan, double& maxPan, double& minTilt, double& maxTilt) const
+{
     minPan = 0.0;
     maxPan = 360.0;
     minTilt = -90.0;
@@ -183,7 +200,8 @@ bool PelcoDPtzAdapter::getLimits(double& minPan, double& maxPan, double& minTilt
     return true;
 }
 
-bool PelcoDPtzAdapter::savePreset(uint8_t presetId, const std::string& /*name*/) {
+bool PelcoDPtzAdapter::savePreset(uint8_t presetId, const std::string& /*name*/)
+{
     if (!m_device) {
         return false;
     }
@@ -191,7 +209,8 @@ bool PelcoDPtzAdapter::savePreset(uint8_t presetId, const std::string& /*name*/)
     return true;
 }
 
-bool PelcoDPtzAdapter::recallPreset(uint8_t presetId) {
+bool PelcoDPtzAdapter::recallPreset(uint8_t presetId)
+{
     if (!m_device) {
         return false;
     }
@@ -199,12 +218,20 @@ bool PelcoDPtzAdapter::recallPreset(uint8_t presetId) {
     return true;
 }
 
-void PelcoDPtzAdapter::registerTelemetryCallback(TelemetryCallback cb) {
+void PelcoDPtzAdapter::registerTelemetryCallback(TelemetryCallback cb)
+{
     std::lock_guard<std::mutex> lock(m_mutex);
     m_telemetryCallback = std::move(cb);
 }
 
-void PelcoDPtzAdapter::handleDeviceStatus(const PelcoD::DeviceStatus& status) {
+GimbalTelemetry PelcoDPtzAdapter::currentTelemetry() const
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    return m_lastTelemetry;
+}
+
+void PelcoDPtzAdapter::handleDeviceStatus(const PelcoD::DeviceStatus& status)
+{
     GimbalTelemetry telem {};
     telem.panAngleDeg = status.panDegrees();
     // Pelco tilt conversion back to elevation: elevation = -tilt if downwards

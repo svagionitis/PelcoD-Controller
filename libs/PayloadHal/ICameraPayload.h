@@ -74,11 +74,18 @@ public:
     /// @brief Configures false-color palette / polarity for thermal sensors.
     /// @param[in] polarity Target palette (WhiteHot, BlackHot, FusionColor, Rainbow).
     /// @return True if applied, false if unsupported or daylight sensor.
-    virtual bool setThermalPolarity(ThermalPolarity polarity) { (void)polarity; return false; }
+    virtual bool setThermalPolarity(ThermalPolarity polarity)
+    {
+        (void)polarity;
+        return false;
+    }
 
     /// @brief Actuates mechanical calibration flag for Non-Uniformity Correction (NUC).
     /// @return True if calibration cycle was initiated, false if unsupported.
-    virtual bool triggerNucCalibration() { return false; }
+    virtual bool triggerNucCalibration()
+    {
+        return false;
+    }
 
     // --- Telemetry Callback ---
 
@@ -88,6 +95,10 @@ public:
     /// @brief Registers an observer callback for live optical telemetry updates.
     /// @param[in] cb Callable receiving CameraTelemetry records.
     virtual void registerTelemetryCallback(TelemetryCallback cb) = 0;
+
+    /// @brief Retrieves the latest cached optical magnification, focus, and FOV telemetry synchronously.
+    /// @return Current CameraTelemetry snapshot.
+    [[nodiscard]] virtual CameraTelemetry currentTelemetry() const = 0;
 };
 
 } // namespace PayloadHal

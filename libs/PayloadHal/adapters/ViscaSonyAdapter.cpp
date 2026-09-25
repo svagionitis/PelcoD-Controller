@@ -6,9 +6,12 @@
 namespace PayloadHal {
 
 ViscaSonyAdapter::ViscaSonyAdapter(std::shared_ptr<Visca::Sony::SonyFCBDevice> device)
-    : m_device(std::move(device)) {}
+    : m_device(std::move(device))
+{
+}
 
-bool ViscaSonyAdapter::connect() {
+bool ViscaSonyAdapter::connect()
+{
     if (!m_device) {
         return false;
     }
@@ -17,8 +20,8 @@ bool ViscaSonyAdapter::connect() {
         std::lock_guard<std::mutex> lock(m_mutex);
         m_connected = ok;
         if (m_stateCallback) {
-            m_stateCallback(ok ? DeviceState::Ready : DeviceState::Fault,
-                            ok ? "Sony FCB Connected" : "Sony FCB Init Failed");
+            m_stateCallback(
+                ok ? DeviceState::Ready : DeviceState::Fault, ok ? "Sony FCB Connected" : "Sony FCB Init Failed");
         }
     }
     if (ok) {
@@ -27,7 +30,8 @@ bool ViscaSonyAdapter::connect() {
     return ok;
 }
 
-void ViscaSonyAdapter::disconnect() {
+void ViscaSonyAdapter::disconnect()
+{
     std::lock_guard<std::mutex> lock(m_mutex);
     m_connected = false;
     if (m_stateCallback) {
@@ -35,12 +39,14 @@ void ViscaSonyAdapter::disconnect() {
     }
 }
 
-bool ViscaSonyAdapter::isConnected() const noexcept {
+bool ViscaSonyAdapter::isConnected() const noexcept
+{
     std::lock_guard<std::mutex> lock(m_mutex);
     return m_connected;
 }
 
-DeviceState ViscaSonyAdapter::state() const noexcept {
+DeviceState ViscaSonyAdapter::state() const noexcept
+{
     std::lock_guard<std::mutex> lock(m_mutex);
     if (!m_device) {
         return DeviceState::Fault;
@@ -48,7 +54,8 @@ DeviceState ViscaSonyAdapter::state() const noexcept {
     return m_connected ? DeviceState::Ready : DeviceState::Disconnected;
 }
 
-DeviceInfo ViscaSonyAdapter::info() const noexcept {
+DeviceInfo ViscaSonyAdapter::info() const noexcept
+{
     DeviceInfo d {};
     d.manufacturer = "Sony";
     if (m_device) {
@@ -61,26 +68,40 @@ DeviceInfo ViscaSonyAdapter::info() const noexcept {
     return d;
 }
 
-void ViscaSonyAdapter::registerStateCallback(StateCallback cb) {
+void ViscaSonyAdapter::registerStateCallback(StateCallback cb)
+{
     std::lock_guard<std::mutex> lock(m_mutex);
     m_stateCallback = std::move(cb);
 }
 
-CameraSpectrum ViscaSonyAdapter::spectrum() const noexcept {
+CameraSpectrum ViscaSonyAdapter::spectrum() const noexcept
+{
     return CameraSpectrum::DaylightVisible;
 }
 
-bool ViscaSonyAdapter::setZoomNormalized(double zoom01) {
+bool ViscaSonyAdapter::setZoomNormalized(double zoom01)
+{
     if (!m_device) {
         return false;
     }
     const double clamped = std::clamp(zoom01, 0.0, 1.0);
     // Sony optical zoom: 0x0000 (wide) to 0x4000 (tele)
     const auto pos = static_cast<std::uint16_t>(clamped * 0x4000);
-    return m_device->setZoomDirect(pos);
+    const bool ok = m_device->setZoomDirect(pos);
+    if (ok) {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        m_telemetry.normalizedZoom = clamped;
+        m_telemetry.opticalZoomFactor = 1.0 + clamped * 29.0;
+        constexpr double kWideHfovRad { 63.7 * 3.14159265358979323846 / 180.0 };
+        const double currentHfovRad = 2.0 * std::atan(std::tan(kWideHfovRad / 2.0) / m_telemetry.opticalZoomFactor);
+        m_telemetry.horizontalFovDeg = currentHfovRad * (180.0 / 3.14159265358979323846);
+        m_telemetry.timestamp = std::chrono::system_clock::now();
+    }
+    return ok;
 }
 
-bool ViscaSonyAdapter::zoomContinuous(float velocity) {
+bool ViscaSonyAdapter::zoomContinuous(float velocity)
+{
     if (!m_device) {
         return false;
     }
@@ -95,21 +116,29 @@ bool ViscaSonyAdapter::zoomContinuous(float velocity) {
     return m_device->zoomStop();
 }
 
-bool ViscaSonyAdapter::zoomStop() {
+bool ViscaSonyAdapter::zoomStop()
+{
     if (!m_device) {
         return false;
     }
     return m_device->zoomStop();
 }
 
-bool ViscaSonyAdapter::setFocusAuto(bool enable) {
+bool ViscaSonyAdapter::setFocusAuto(bool enable)
+{
     if (!m_device) {
         return false;
     }
-    return m_device->setFocusAuto(enable);
+    const bool ok = m_device->setFocusAuto(enable);
+    if (ok) {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        m_telemetry.autoFocusActive = enable;
+    }
+    return ok;
 }
 
-bool ViscaSonyAdapter::setFocusNormalized(double focus01) {
+bool ViscaSonyAdapter::setFocusNormalized(double focus01)
+{
     if (!m_device) {
         return false;
     }
@@ -119,40 +148,59 @@ bool ViscaSonyAdapter::setFocusNormalized(double focus01) {
     return m_device->setFocusDirect(pos);
 }
 
-bool ViscaSonyAdapter::triggerOnePushFocus() {
+bool ViscaSonyAdapter::triggerOnePushFocus()
+{
     if (!m_device) {
         return false;
     }
     return m_device->focusOnePush();
 }
 
-bool ViscaSonyAdapter::setDayNightIcr(bool nightMode) {
+bool ViscaSonyAdapter::setDayNightIcr(bool nightMode)
+{
     if (!m_device) {
         return false;
     }
-    return m_device->setIcr(nightMode);
+    const bool ok = m_device->setIcr(nightMode);
+    if (ok) {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        m_telemetry.dayNightIcrActive = nightMode;
+        m_telemetry.timestamp = std::chrono::system_clock::now();
+    }
+    return ok;
 }
 
-bool ViscaSonyAdapter::setDefog(bool enable) {
+bool ViscaSonyAdapter::setDefog(bool enable)
+{
     if (!m_device) {
         return false;
     }
     return m_device->setDefog(enable ? Visca::Sony::SonyDefogMode::Mid : Visca::Sony::SonyDefogMode::Off);
 }
 
-bool ViscaSonyAdapter::setStabilizer(bool enable) {
+bool ViscaSonyAdapter::setStabilizer(bool enable)
+{
     if (!m_device) {
         return false;
     }
-    return m_device->setStabilizer(enable ? Visca::Sony::SonyStabilizerMode::Super : Visca::Sony::SonyStabilizerMode::Off);
+    return m_device->setStabilizer(
+        enable ? Visca::Sony::SonyStabilizerMode::Super : Visca::Sony::SonyStabilizerMode::Off);
 }
 
-void ViscaSonyAdapter::registerTelemetryCallback(TelemetryCallback cb) {
+void ViscaSonyAdapter::registerTelemetryCallback(TelemetryCallback cb)
+{
     std::lock_guard<std::mutex> lock(m_mutex);
     m_telemetryCallback = std::move(cb);
 }
 
-void ViscaSonyAdapter::updateTelemetry() {
+CameraTelemetry ViscaSonyAdapter::currentTelemetry() const
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    return m_telemetry;
+}
+
+void ViscaSonyAdapter::updateTelemetry()
+{
     if (!m_device) {
         return;
     }
@@ -164,7 +212,8 @@ void ViscaSonyAdapter::updateTelemetry() {
     const double normZoom = std::clamp(static_cast<double>(st.zoomPosition) / static_cast<double>(0x4000), 0.0, 1.0);
     telem.normalizedZoom = normZoom;
     telem.opticalZoomFactor = 1.0 + normZoom * 29.0; // 30x optical zoom block
-    telem.focusDistanceNormalized = std::clamp(static_cast<double>(st.focusPosition) / static_cast<double>(0xF000), 0.0, 1.0);
+    telem.focusDistanceNormalized
+        = std::clamp(static_cast<double>(st.focusPosition) / static_cast<double>(0xF000), 0.0, 1.0);
     telem.autoFocusActive = st.focusAuto;
     telem.dayNightIcrActive = st.icrOn;
 

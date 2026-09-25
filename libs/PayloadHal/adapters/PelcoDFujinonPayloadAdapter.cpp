@@ -13,51 +13,75 @@ namespace PayloadHal {
 class PelcoDFujinonPayloadAdapter::FujinonPtuUnit : public IPanTiltUnit {
 public:
     explicit FujinonPtuUnit(std::shared_ptr<PelcoD::FujinonSX800Device> device)
-        : m_device(std::move(device)) {}
+        : m_device(std::move(device))
+    {
+    }
 
-    bool connect() override { return m_device && m_device->start(); }
-    void disconnect() override { if (m_device) m_device->stop(); }
-    bool isConnected() const noexcept override { return m_device && m_device->isConnected(); }
-    DeviceState state() const noexcept override {
+    bool connect() override
+    {
+        return m_device && m_device->start();
+    }
+    void disconnect() override
+    {
+        if (m_device)
+            m_device->stop();
+    }
+    bool isConnected() const noexcept override
+    {
+        return m_device && m_device->isConnected();
+    }
+    DeviceState state() const noexcept override
+    {
         return (m_device && m_device->isConnected()) ? DeviceState::Ready : DeviceState::Disconnected;
     }
-    DeviceInfo info() const noexcept override {
+    DeviceInfo info() const noexcept override
+    {
         DeviceInfo d {};
         d.manufacturer = "Fujinon / Pelco";
         d.model = "SX800 Integrated PTZ Head";
         d.firmwareVersion = "2.4.0";
         return d;
     }
-    void registerStateCallback(StateCallback cb) override {
+    void registerStateCallback(StateCallback cb) override
+    {
         m_stateCb = std::move(cb);
     }
 
-    bool setRate(double panDegPerSec, double tiltDegPerSec) override {
+    bool setRate(double panDegPerSec, double tiltDegPerSec) override
+    {
         const float normPan = static_cast<float>(std::clamp(panDegPerSec / 60.0, -1.0, 1.0));
         const float normTilt = static_cast<float>(std::clamp(tiltDegPerSec / 30.0, -1.0, 1.0));
         return setNormalizedVelocity(normPan, normTilt);
     }
 
-    bool setNormalizedVelocity(float panVel, float tiltVel) override {
-        if (!m_device) return false;
+    bool setNormalizedVelocity(float panVel, float tiltVel) override
+    {
+        if (!m_device)
+            return false;
         const auto panSpeed = static_cast<std::uint8_t>(std::clamp(std::abs(panVel) * 63.0f, 0.0f, 63.0f));
         const auto tiltSpeed = static_cast<std::uint8_t>(std::clamp(std::abs(tiltVel) * 63.0f, 0.0f, 63.0f));
 
-        PelcoD::PanDirection panDir = (panVel > 0.02f) ? PelcoD::PanDirection::Right :
-                                      ((panVel < -0.02f) ? PelcoD::PanDirection::Left : PelcoD::PanDirection::Stop);
-        PelcoD::TiltDirection tiltDir = (tiltVel > 0.02f) ? PelcoD::TiltDirection::Up :
-                                        ((tiltVel < -0.02f) ? PelcoD::TiltDirection::Down : PelcoD::TiltDirection::Stop);
+        PelcoD::PanDirection panDir = (panVel > 0.02f)
+            ? PelcoD::PanDirection::Right
+            : ((panVel < -0.02f) ? PelcoD::PanDirection::Left : PelcoD::PanDirection::Stop);
+        PelcoD::TiltDirection tiltDir = (tiltVel > 0.02f)
+            ? PelcoD::TiltDirection::Up
+            : ((tiltVel < -0.02f) ? PelcoD::TiltDirection::Down : PelcoD::TiltDirection::Stop);
         m_device->move(panDir, panSpeed, tiltDir, tiltSpeed);
         return true;
     }
 
-    bool setAbsoluteAngles(double panDeg, double tiltDeg) override {
-        if (!m_device) return false;
+    bool setAbsoluteAngles(double panDeg, double tiltDeg) override
+    {
+        if (!m_device)
+            return false;
         double normPan = std::fmod(panDeg, 360.0);
-        if (normPan < 0.0) normPan += 360.0;
+        if (normPan < 0.0)
+            normPan += 360.0;
         double pelcoTilt = (tiltDeg < 0.0) ? -tiltDeg : (360.0 - tiltDeg);
         pelcoTilt = std::fmod(pelcoTilt, 360.0);
-        if (pelcoTilt < 0.0) pelcoTilt += 360.0;
+        if (pelcoTilt < 0.0)
+            pelcoTilt += 360.0;
 
         {
             std::lock_guard<std::mutex> lock(m_mutex);
@@ -71,7 +95,8 @@ public:
         return true;
     }
 
-    bool setRelativeNudge(double deltaPanDeg, double deltaTiltDeg) override {
+    bool setRelativeNudge(double deltaPanDeg, double deltaTiltDeg) override
+    {
         double currentPan { 0.0 };
         double currentTilt { 0.0 };
         {
@@ -82,18 +107,33 @@ public:
         return setAbsoluteAngles(currentPan + deltaPanDeg, currentTilt + deltaTiltDeg);
     }
 
-    bool stopMotion() override {
-        if (!m_device) return false;
+    bool stopMotion() override
+    {
+        if (!m_device)
+            return false;
         m_device->stopMotion();
         return true;
     }
 
-    bool supportsStabilization() const noexcept override { return false; }
-    bool setStabilizationMode(StabilizationMode mode) override { return mode == StabilizationMode::Disabled; }
-    StabilizationMode stabilizationMode() const noexcept override { return StabilizationMode::Disabled; }
-    bool zeroGyroDrift() override { return false; }
+    bool supportsStabilization() const noexcept override
+    {
+        return false;
+    }
+    bool setStabilizationMode(StabilizationMode mode) override
+    {
+        return mode == StabilizationMode::Disabled;
+    }
+    StabilizationMode stabilizationMode() const noexcept override
+    {
+        return StabilizationMode::Disabled;
+    }
+    bool zeroGyroDrift() override
+    {
+        return false;
+    }
 
-    bool getLimits(double& minPan, double& maxPan, double& minTilt, double& maxTilt) const override {
+    bool getLimits(double& minPan, double& maxPan, double& minTilt, double& maxTilt) const override
+    {
         minPan = 0.0;
         maxPan = 360.0;
         minTilt = -90.0;
@@ -101,24 +141,30 @@ public:
         return true;
     }
 
-    bool savePreset(uint8_t presetId, const std::string& /*name*/) override {
-        if (!m_device) return false;
+    bool savePreset(uint8_t presetId, const std::string& /*name*/) override
+    {
+        if (!m_device)
+            return false;
         m_device->setPreset(presetId);
         return true;
     }
 
-    bool recallPreset(uint8_t presetId) override {
-        if (!m_device) return false;
+    bool recallPreset(uint8_t presetId) override
+    {
+        if (!m_device)
+            return false;
         m_device->goToPreset(presetId);
         return true;
     }
 
-    void registerTelemetryCallback(TelemetryCallback cb) override {
+    void registerTelemetryCallback(TelemetryCallback cb) override
+    {
         std::lock_guard<std::mutex> lock(m_mutex);
         m_telemetryCb = std::move(cb);
     }
 
-    void updateTelemetry(const PelcoD::DeviceStatus& status) {
+    void updateTelemetry(const PelcoD::DeviceStatus& status)
+    {
         GimbalTelemetry telem {};
         telem.panAngleDeg = status.panDegrees();
         const double rawTilt = status.tiltDegrees();
@@ -136,7 +182,8 @@ public:
         }
     }
 
-    [[nodiscard]] GimbalTelemetry currentTelemetry() const {
+    [[nodiscard]] GimbalTelemetry currentTelemetry() const override
+    {
         std::lock_guard<std::mutex> lock(m_mutex);
         return m_telemetry;
     }
@@ -152,31 +199,49 @@ private:
 class PelcoDFujinonPayloadAdapter::FujinonCameraUnit : public ICameraPayload {
 public:
     explicit FujinonCameraUnit(std::shared_ptr<PelcoD::FujinonSX800Device> device)
-        : m_device(std::move(device)) {}
+        : m_device(std::move(device))
+    {
+    }
 
-    bool connect() override { return m_device && m_device->start(); }
-    void disconnect() override { if (m_device) m_device->stop(); }
-    bool isConnected() const noexcept override { return m_device && m_device->isConnected(); }
-    DeviceState state() const noexcept override {
+    bool connect() override
+    {
+        return m_device && m_device->start();
+    }
+    void disconnect() override
+    {
+        if (m_device)
+            m_device->stop();
+    }
+    bool isConnected() const noexcept override
+    {
+        return m_device && m_device->isConnected();
+    }
+    DeviceState state() const noexcept override
+    {
         return (m_device && m_device->isConnected()) ? DeviceState::Ready : DeviceState::Disconnected;
     }
-    DeviceInfo info() const noexcept override {
+    DeviceInfo info() const noexcept override
+    {
         DeviceInfo d {};
         d.manufacturer = "Fujifilm / Fujinon";
         d.model = "SX800 Long-Range Surveillance Camera";
         d.firmwareVersion = "2.4.0";
         return d;
     }
-    void registerStateCallback(StateCallback cb) override {
+    void registerStateCallback(StateCallback cb) override
+    {
         m_stateCb = std::move(cb);
     }
 
-    CameraSpectrum spectrum() const noexcept override {
+    CameraSpectrum spectrum() const noexcept override
+    {
         return CameraSpectrum::DaylightVisible;
     }
 
-    bool setZoomNormalized(double zoom01) override {
-        if (!m_device) return false;
+    bool setZoomNormalized(double zoom01) override
+    {
+        if (!m_device)
+            return false;
         const double clampedZoom = std::clamp(zoom01, 0.0, 1.0);
         // Fujinon SX800 has 40x optical zoom. Centivalues range from 100 (1.0x) to 4000 (40.0x)
         const auto centiMag = static_cast<std::uint16_t>(100.0 + clampedZoom * 3900.0);
@@ -184,8 +249,10 @@ public:
         return true;
     }
 
-    bool zoomContinuous(float velocity) override {
-        if (!m_device) return false;
+    bool zoomContinuous(float velocity) override
+    {
+        if (!m_device)
+            return false;
         if (velocity > 0.05f) {
             m_device->zoomTele();
         } else if (velocity < -0.05f) {
@@ -196,53 +263,68 @@ public:
         return true;
     }
 
-    bool zoomStop() override {
-        if (!m_device) return false;
+    bool zoomStop() override
+    {
+        if (!m_device)
+            return false;
         m_device->zoomStop();
         return true;
     }
 
-    bool setFocusAuto(bool enable) override {
-        if (!m_device) return false;
+    bool setFocusAuto(bool enable) override
+    {
+        if (!m_device)
+            return false;
         m_device->setAutoFocus(enable ? PelcoD::AutoMode::Auto : PelcoD::AutoMode::Off);
         return true;
     }
 
-    bool setFocusNormalized(double /*focus01*/) override {
+    bool setFocusNormalized(double /*focus01*/) override
+    {
         return false;
     }
 
-    bool triggerOnePushFocus() override {
-        if (!m_device) return false;
+    bool triggerOnePushFocus() override
+    {
+        if (!m_device)
+            return false;
         m_device->focusNear();
         m_device->focusStop();
         return true;
     }
 
-    bool setDayNightIcr(bool nightMode) override {
-        if (!m_device) return false;
+    bool setDayNightIcr(bool nightMode) override
+    {
+        if (!m_device)
+            return false;
         m_device->setVLCFilter(nightMode);
         return true;
     }
 
-    bool setDefog(bool enable) override {
-        if (!m_device) return false;
+    bool setDefog(bool enable) override
+    {
+        if (!m_device)
+            return false;
         m_device->setDefog(enable ? PelcoD::FujinonDefogLevel::Level2 : PelcoD::FujinonDefogLevel::Off);
         return true;
     }
 
-    bool setStabilizer(bool enable) override {
-        if (!m_device) return false;
+    bool setStabilizer(bool enable) override
+    {
+        if (!m_device)
+            return false;
         m_device->setOISMode(enable ? PelcoD::FujinonOISMode::OisOn : PelcoD::FujinonOISMode::Off);
         return true;
     }
 
-    void registerTelemetryCallback(TelemetryCallback cb) override {
+    void registerTelemetryCallback(TelemetryCallback cb) override
+    {
         std::lock_guard<std::mutex> lock(m_mutex);
         m_telemetryCb = std::move(cb);
     }
 
-    void updateTelemetry(const PelcoD::DeviceStatus& status, const PelcoD::FujinonStatus& fujinonStatus) {
+    void updateTelemetry(const PelcoD::DeviceStatus& status, const PelcoD::FujinonStatus& fujinonStatus)
+    {
         CameraTelemetry telem {};
         // SX800 magnification centivalue
         const double mag = (status.magnification > 0U) ? (static_cast<double>(status.magnification) / 100.0) : 1.0;
@@ -268,6 +350,12 @@ public:
         }
     }
 
+    [[nodiscard]] CameraTelemetry currentTelemetry() const override
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        return m_telemetry;
+    }
+
 private:
     std::shared_ptr<PelcoD::FujinonSX800Device> m_device;
     mutable std::mutex m_mutex;
@@ -281,9 +369,10 @@ private:
 // =============================================================================
 
 PelcoDFujinonPayloadAdapter::PelcoDFujinonPayloadAdapter(std::shared_ptr<PelcoD::FujinonSX800Device> device)
-    : m_device(std::move(device)),
-      m_ptu(std::make_shared<FujinonPtuUnit>(m_device)),
-      m_camera(std::make_shared<FujinonCameraUnit>(m_device)) {
+    : m_device(std::move(device))
+    , m_ptu(std::make_shared<FujinonPtuUnit>(m_device))
+    , m_camera(std::make_shared<FujinonCameraUnit>(m_device))
+{
     if (m_device) {
         m_device->addStatusCallback([this](const PelcoD::DeviceStatus& status) {
             if (m_ptu) {
@@ -298,12 +387,15 @@ PelcoDFujinonPayloadAdapter::PelcoDFujinonPayloadAdapter(std::shared_ptr<PelcoD:
     }
 }
 
-PelcoDFujinonPayloadAdapter::~PelcoDFujinonPayloadAdapter() {
+PelcoDFujinonPayloadAdapter::~PelcoDFujinonPayloadAdapter()
+{
     disconnect();
 }
 
-bool PelcoDFujinonPayloadAdapter::connect() {
-    if (!m_device) return false;
+bool PelcoDFujinonPayloadAdapter::connect()
+{
+    if (!m_device)
+        return false;
     const bool ok = m_device->start();
     if (ok) {
         std::lock_guard<std::mutex> lock(m_mutex);
@@ -314,7 +406,8 @@ bool PelcoDFujinonPayloadAdapter::connect() {
     return ok;
 }
 
-void PelcoDFujinonPayloadAdapter::disconnect() {
+void PelcoDFujinonPayloadAdapter::disconnect()
+{
     if (m_device) {
         m_device->stop();
     }
@@ -324,16 +417,20 @@ void PelcoDFujinonPayloadAdapter::disconnect() {
     }
 }
 
-bool PelcoDFujinonPayloadAdapter::isConnected() const noexcept {
+bool PelcoDFujinonPayloadAdapter::isConnected() const noexcept
+{
     return m_device && m_device->isConnected();
 }
 
-DeviceState PelcoDFujinonPayloadAdapter::state() const noexcept {
-    if (!m_device) return DeviceState::Fault;
+DeviceState PelcoDFujinonPayloadAdapter::state() const noexcept
+{
+    if (!m_device)
+        return DeviceState::Fault;
     return m_device->isConnected() ? DeviceState::Ready : DeviceState::Disconnected;
 }
 
-DeviceInfo PelcoDFujinonPayloadAdapter::info() const noexcept {
+DeviceInfo PelcoDFujinonPayloadAdapter::info() const noexcept
+{
     DeviceInfo d {};
     d.manufacturer = "Fujifilm / Fujinon";
     d.model = "SX800 Composite Station";
@@ -341,29 +438,35 @@ DeviceInfo PelcoDFujinonPayloadAdapter::info() const noexcept {
     return d;
 }
 
-void PelcoDFujinonPayloadAdapter::registerStateCallback(StateCallback cb) {
+void PelcoDFujinonPayloadAdapter::registerStateCallback(StateCallback cb)
+{
     std::lock_guard<std::mutex> lock(m_mutex);
     m_stateCallback = std::move(cb);
 }
 
-std::shared_ptr<IPanTiltUnit> PelcoDFujinonPayloadAdapter::panTilt() const noexcept {
+std::shared_ptr<IPanTiltUnit> PelcoDFujinonPayloadAdapter::panTilt() const noexcept
+{
     return m_ptu;
 }
 
-std::shared_ptr<ICameraPayload> PelcoDFujinonPayloadAdapter::primaryCamera() const noexcept {
+std::shared_ptr<ICameraPayload> PelcoDFujinonPayloadAdapter::primaryCamera() const noexcept
+{
     return m_camera;
 }
 
-std::shared_ptr<ICameraPayload> PelcoDFujinonPayloadAdapter::secondaryCamera() const noexcept {
+std::shared_ptr<ICameraPayload> PelcoDFujinonPayloadAdapter::secondaryCamera() const noexcept
+{
     return nullptr;
 }
 
-std::shared_ptr<ILaserRangeFinder> PelcoDFujinonPayloadAdapter::lrf() const noexcept {
+std::shared_ptr<ILaserRangeFinder> PelcoDFujinonPayloadAdapter::lrf() const noexcept
+{
     return nullptr;
 }
 
 std::optional<Klv::GeoPoint2D> PelcoDFujinonPayloadAdapter::calculateTargetCoordinates(
-    const Klv::GeoPoint2D& platformGps, double platformHeadingDeg, double platformAltMeters) const {
+    const Klv::GeoPoint2D& platformGps, double platformHeadingDeg, double platformAltMeters) const
+{
     if (!m_ptu) {
         return std::nullopt;
     }
@@ -379,32 +482,42 @@ std::optional<Klv::GeoPoint2D> PelcoDFujinonPayloadAdapter::calculateTargetCoord
     return Klv::GeoPoint2D { target3D->latitudeDeg, target3D->longitudeDeg };
 }
 
-bool PelcoDFujinonPayloadAdapter::setOISMode(PelcoD::FujinonOISMode mode) {
-    if (!m_device) return false;
+bool PelcoDFujinonPayloadAdapter::setOISMode(PelcoD::FujinonOISMode mode)
+{
+    if (!m_device)
+        return false;
     m_device->setOISMode(mode);
     return true;
 }
 
-bool PelcoDFujinonPayloadAdapter::setDefogLevel(PelcoD::FujinonDefogLevel level) {
-    if (!m_device) return false;
+bool PelcoDFujinonPayloadAdapter::setDefogLevel(PelcoD::FujinonDefogLevel level)
+{
+    if (!m_device)
+        return false;
     m_device->setDefog(level);
     return true;
 }
 
-bool PelcoDFujinonPayloadAdapter::setHeatHaze(PelcoD::FujinonHeatHazeLevel level) {
-    if (!m_device) return false;
+bool PelcoDFujinonPayloadAdapter::setHeatHaze(PelcoD::FujinonHeatHazeLevel level)
+{
+    if (!m_device)
+        return false;
     m_device->setHeatHaze(level);
     return true;
 }
 
-bool PelcoDFujinonPayloadAdapter::setWDR(PelcoD::FujinonWDRLevel level) {
-    if (!m_device) return false;
+bool PelcoDFujinonPayloadAdapter::setWDR(PelcoD::FujinonWDRLevel level)
+{
+    if (!m_device)
+        return false;
     m_device->setWDR(level);
     return true;
 }
 
-bool PelcoDFujinonPayloadAdapter::setVLCFilter(bool enable) {
-    if (!m_device) return false;
+bool PelcoDFujinonPayloadAdapter::setVLCFilter(bool enable)
+{
+    if (!m_device)
+        return false;
     m_device->setVLCFilter(enable);
     return true;
 }

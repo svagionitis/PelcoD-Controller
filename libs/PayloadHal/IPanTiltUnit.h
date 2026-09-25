@@ -94,6 +94,10 @@ public:
     /// @brief Registers an observer for live orientation telemetry updates.
     /// @param[in] cb Callable receiving GimbalTelemetry snapshots.
     virtual void registerTelemetryCallback(TelemetryCallback cb) = 0;
+
+    /// @brief Retrieves the latest cached orientation, rate, and status telemetry synchronously.
+    /// @return Current GimbalTelemetry snapshot.
+    [[nodiscard]] virtual GimbalTelemetry currentTelemetry() const = 0;
 };
 
 } // namespace PayloadHal
