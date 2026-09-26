@@ -142,13 +142,15 @@ Klv::UasDatalinkMessage PayloadKlvGenerator::buildMessage(
     // Pan-Tilt Gimbal Telemetry
     double panDeg = 0.0;
     double tiltDeg = 0.0;
+    double rollDeg = 0.0;
     if (m_payload && m_payload->panTilt()) {
         const auto ptuTelem = m_payload->panTilt()->currentTelemetry();
         panDeg = ptuTelem.panAngleDeg;
         tiltDeg = ptuTelem.tiltAngleDeg;
+        rollDeg = ptuTelem.rollAngleDeg;
         msg.sensorRelAzimuthDeg = normalize360(panDeg);
         msg.sensorRelElevationDeg = tiltDeg;
-        msg.sensorRelRollDeg = 0.0;
+        msg.sensorRelRollDeg = normalize360(rollDeg);
     }
 
     const auto dem = (m_config.demProvider ? m_config.demProvider : (m_payload ? m_payload->demProvider() : nullptr));
@@ -216,7 +218,7 @@ Klv::UasDatalinkMessage PayloadKlvGenerator::buildMessage(
     if (m_config.enableFrustumCorners && cam && tiltDeg < 0.0 && hfovDeg > 0.0) {
         if (dem) {
             const auto corners = GeoreferenceUtils::computeFrustumCorners(
-                *dem, nav.position, nav.headingDeg, panDeg, tiltDeg, hfovDeg, vfovDeg);
+                *dem, nav.position, nav.headingDeg, panDeg, tiltDeg, hfovDeg, vfovDeg, rollDeg);
             if (corners) {
                 msg.cornerCoordinates = corners;
             }

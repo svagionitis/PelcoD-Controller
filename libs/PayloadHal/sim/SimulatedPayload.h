@@ -44,6 +44,7 @@ public:
     // Simulation helpers
     void setSimulatedSlantRange(double rangeMeters);
     void setSimulatedGroundElevation(double groundElevationM);
+    void setSimulatedPlatformAttitude(double pitchDeg, double rollDeg, double headingDeg = 0.0);
 
 private:
     class SimPtu;

@@ -170,7 +170,8 @@ SynchronizedVideoFrame CameraStreamBinder::bindFrame(RawVideoFrame frame) const
             syncd.frustumCorners = GeoreferenceUtils::computeFrustumCorners(
                 *dem, *platformPos, platformHeading,
                 syncd.gimbalTelemetry.panAngleDeg, syncd.gimbalTelemetry.tiltAngleDeg,
-                syncd.cameraTelemetry.horizontalFovDeg, syncd.cameraTelemetry.verticalFovDeg);
+                syncd.cameraTelemetry.horizontalFovDeg, syncd.cameraTelemetry.verticalFovDeg,
+                syncd.gimbalTelemetry.rollAngleDeg);
         } else {
             syncd.targetGroundIntersection = GeoreferenceUtils::computeTargetFromGroundIntersection(
                 *platformPos, platformHeading,
@@ -178,7 +179,8 @@ SynchronizedVideoFrame CameraStreamBinder::bindFrame(RawVideoFrame frame) const
             syncd.frustumCorners = GeoreferenceUtils::computeFrustumCorners(
                 *platformPos, platformHeading,
                 syncd.gimbalTelemetry.panAngleDeg, syncd.gimbalTelemetry.tiltAngleDeg,
-                syncd.cameraTelemetry.horizontalFovDeg, syncd.cameraTelemetry.verticalFovDeg, 0.0);
+                syncd.cameraTelemetry.horizontalFovDeg, syncd.cameraTelemetry.verticalFovDeg, 0.0,
+                syncd.gimbalTelemetry.rollAngleDeg);
         }
     }
 
@@ -318,8 +320,11 @@ GimbalTelemetry CameraStreamBinder::findMatchingGimbalTelemetry(
     result.panAngleDeg = pan;
 
     result.tiltAngleDeg = s1.tiltAngleDeg + alpha * (s2.tiltAngleDeg - s1.tiltAngleDeg);
+    result.rollAngleDeg = s1.rollAngleDeg + alpha * (s2.rollAngleDeg - s1.rollAngleDeg);
     result.panRateDegPerSec = s1.panRateDegPerSec + alpha * (s2.panRateDegPerSec - s1.panRateDegPerSec);
     result.tiltRateDegPerSec = s1.tiltRateDegPerSec + alpha * (s2.tiltRateDegPerSec - s1.tiltRateDegPerSec);
+    result.rollRateDegPerSec = s1.rollRateDegPerSec + alpha * (s2.rollRateDegPerSec - s1.rollRateDegPerSec);
+    result.isHorizonLeveled = (alpha >= 0.5 ? s2.isHorizonLeveled : s1.isHorizonLeveled);
     result.timestamp = timestamp;
     return result;
 }

@@ -42,4 +42,5 @@ add_payload_hal_test(TestPayloadAutoTrackerBridge TestPayloadAutoTrackerBridge.c
 add_payload_hal_test(TestPayloadKlvGenerator      TestPayloadKlvGenerator.cpp)
 add_payload_hal_test(TestDemRayCaster             TestDemRayCaster.cpp)
 add_payload_hal_test(TestVideoStreamBinding       TestVideoStreamBinding.cpp)
+add_payload_hal_test(TestGimbalRollAndHorizonLeveling TestGimbalRollAndHorizonLeveling.cpp)
 

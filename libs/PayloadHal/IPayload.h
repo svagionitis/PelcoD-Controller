@@ -139,11 +139,13 @@ public:
         const auto dem = demProvider();
         if (dem) {
             return GeoreferenceUtils::computeFrustumCorners(*dem, platformPos, platformHeadingDeg,
-                ptuTelem.panAngleDeg, ptuTelem.tiltAngleDeg, camTelem.horizontalFovDeg, camTelem.verticalFovDeg);
+                ptuTelem.panAngleDeg, ptuTelem.tiltAngleDeg, camTelem.horizontalFovDeg, camTelem.verticalFovDeg,
+                ptuTelem.rollAngleDeg);
         }
 
         return GeoreferenceUtils::computeFrustumCorners(platformPos, platformHeadingDeg, ptuTelem.panAngleDeg,
-            ptuTelem.tiltAngleDeg, camTelem.horizontalFovDeg, camTelem.verticalFovDeg, groundElevationM);
+            ptuTelem.tiltAngleDeg, camTelem.horizontalFovDeg, camTelem.verticalFovDeg, groundElevationM,
+            ptuTelem.rollAngleDeg);
     }
 
     /// @brief Computes the 4-corner ground projection footprint frustum polygon for the primary camera.

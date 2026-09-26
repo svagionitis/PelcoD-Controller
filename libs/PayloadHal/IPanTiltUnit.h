@@ -48,6 +48,83 @@ public:
     /// @return True if stop command was accepted.
     virtual bool stopMotion() = 0;
 
+    // --- 3-Axis & Roll Control ---
+
+    /// @brief Checks whether the gimbal possesses a controllable physical roll axis.
+    /// @return True if 3-axis gimbal with roll axis, false for traditional 2-axis PTU.
+    [[nodiscard]] virtual bool hasRollAxis() const noexcept { return false; }
+
+    /// @brief Checks whether the gimbal supports automatic horizon leveling stabilization.
+    [[nodiscard]] virtual bool supportsHorizonLeveling() const noexcept { return false; }
+
+    /// @brief Commands the roll axis to slew to an absolute angle.
+    /// @param[in] rollDeg Target roll angle in degrees.
+    /// @return True if roll command was accepted, false if unsupported or out of limits.
+    virtual bool setRollAngle(double rollDeg) { (void)rollDeg; return false; }
+
+    /// @brief Drives the roll axis at physical angular velocity.
+    /// @param[in] rollDegPerSec Roll velocity in degrees/second.
+    /// @return True if rate command was accepted, false if unsupported.
+    virtual bool setRollRate(double rollDegPerSec) { (void)rollDegPerSec; return false; }
+
+    /// @brief Commands 3-axis gimbal to slew to absolute azimuth, elevation, and roll angles.
+    /// @param[in] panDeg Target azimuth angle in degrees.
+    /// @param[in] tiltDeg Target elevation angle in degrees.
+    /// @param[in] rollDeg Target roll angle in degrees.
+    /// @return True if target orientation was accepted.
+    virtual bool setAbsoluteAngles3Axis(double panDeg, double tiltDeg, double rollDeg)
+    {
+        if (!hasRollAxis()) {
+            return (rollDeg == 0.0) && setAbsoluteAngles(panDeg, tiltDeg);
+        }
+        return false;
+    }
+
+    /// @brief Drives all 3 axes at physical angular velocities simultaneously.
+    /// @param[in] panDegPerSec Azimuth velocity in degrees/second.
+    /// @param[in] tiltDegPerSec Elevation velocity in degrees/second.
+    /// @param[in] rollDegPerSec Roll velocity in degrees/second.
+    /// @return True if rate commands were accepted.
+    virtual bool setRate3Axis(double panDegPerSec, double tiltDegPerSec, double rollDegPerSec)
+    {
+        if (!hasRollAxis()) {
+            return (rollDegPerSec == 0.0) && setRate(panDegPerSec, tiltDegPerSec);
+        }
+        return false;
+    }
+
+    /// @brief Queries mechanical / software angular travel limits for the roll axis.
+    /// @param[out] minRoll Minimum roll travel angle in degrees.
+    /// @param[out] maxRoll Maximum roll travel angle in degrees.
+    /// @return True if roll limits are available, false otherwise.
+    virtual bool getRollLimits(double& minRoll, double& maxRoll) const
+    {
+        (void)minRoll;
+        (void)maxRoll;
+        return false;
+    }
+
+    /// @brief Enables or disables automatic optical horizon leveling.
+    /// @param[in] enable True to enable horizon leveling mode, false to disable.
+    /// @return True if the request was accepted.
+    virtual bool setHorizonLeveling(bool enable) { (void)enable; return false; }
+
+    /// @brief Checks whether automatic horizon leveling is currently enabled.
+    [[nodiscard]] virtual bool isHorizonLevelingEnabled() const noexcept { return false; }
+
+    /// @brief Ingests host platform attitude to compute and apply horizon counter-roll.
+    /// @param[in] platformRollDeg Platform roll / bank angle in degrees.
+    /// @param[in] platformPitchDeg Platform pitch angle in degrees.
+    /// @param[in] headingDeg Platform heading angle in degrees (default 0.0).
+    /// @return True if compensation was updated, false if horizon leveling is inactive or unsupported.
+    virtual bool updateHorizonLeveling(double platformRollDeg, double platformPitchDeg, double headingDeg = 0.0)
+    {
+        (void)platformRollDeg;
+        (void)platformPitchDeg;
+        (void)headingDeg;
+        return false;
+    }
+
     // --- Gyro Stabilization & Modes ---
 
     /// @brief Indicates whether this unit features active inertial gyro stabilization.

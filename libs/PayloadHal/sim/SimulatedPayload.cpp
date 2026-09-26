@@ -91,7 +91,109 @@ public:
         std::lock_guard<std::mutex> lock(m_mutex);
         m_telemetry.panRateDegPerSec = 0.0;
         m_telemetry.tiltRateDegPerSec = 0.0;
+        m_telemetry.rollRateDegPerSec = 0.0;
         m_telemetry.isMoving = false;
+        dispatchTelemetry();
+        return true;
+    }
+
+    bool hasRollAxis() const noexcept override
+    {
+        return true;
+    }
+
+    bool supportsHorizonLeveling() const noexcept override
+    {
+        return true;
+    }
+
+    bool setRollAngle(double rollDeg) override
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        m_telemetry.rollAngleDeg = std::clamp(rollDeg, -60.0, 60.0);
+        m_telemetry.rollRateDegPerSec = 0.0;
+        m_telemetry.isMoving = false;
+        dispatchTelemetry();
+        return true;
+    }
+
+    bool setRollRate(double rollDegPerSec) override
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        m_telemetry.rollRateDegPerSec = std::clamp(rollDegPerSec, -30.0, 30.0);
+        m_telemetry.isMoving = (std::abs(m_telemetry.panRateDegPerSec) > 0.01 ||
+                                std::abs(m_telemetry.tiltRateDegPerSec) > 0.01 ||
+                                std::abs(m_telemetry.rollRateDegPerSec) > 0.01);
+        dispatchTelemetry();
+        return true;
+    }
+
+    bool setAbsoluteAngles3Axis(double panDeg, double tiltDeg, double rollDeg) override
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        double normPan = std::fmod(panDeg, 360.0);
+        if (normPan < 0.0)
+            normPan += 360.0;
+        m_telemetry.panAngleDeg = normPan;
+        m_telemetry.tiltAngleDeg = std::clamp(tiltDeg, -90.0, 90.0);
+        m_telemetry.rollAngleDeg = std::clamp(rollDeg, -60.0, 60.0);
+        m_telemetry.isMoving = false;
+        dispatchTelemetry();
+        return true;
+    }
+
+    bool setRate3Axis(double panDegPerSec, double tiltDegPerSec, double rollDegPerSec) override
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        m_telemetry.panRateDegPerSec = panDegPerSec;
+        m_telemetry.tiltRateDegPerSec = tiltDegPerSec;
+        m_telemetry.rollRateDegPerSec = std::clamp(rollDegPerSec, -30.0, 30.0);
+        m_telemetry.isMoving = (std::abs(panDegPerSec) > 0.01 ||
+                                std::abs(tiltDegPerSec) > 0.01 ||
+                                std::abs(rollDegPerSec) > 0.01);
+        dispatchTelemetry();
+        return true;
+    }
+
+    bool getRollLimits(double& minRoll, double& maxRoll) const override
+    {
+        minRoll = -60.0;
+        maxRoll = 60.0;
+        return true;
+    }
+
+    bool setHorizonLeveling(bool enable) override
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        m_horizonLevelingActive = enable;
+        m_telemetry.isHorizonLeveled = enable;
+        if (enable) {
+            m_stabMode = StabilizationMode::HorizonLevel;
+            m_telemetry.isStabilized = true;
+        } else if (m_stabMode == StabilizationMode::HorizonLevel) {
+            m_stabMode = StabilizationMode::RateStabilized;
+        }
+        dispatchTelemetry();
+        return true;
+    }
+
+    bool isHorizonLevelingEnabled() const noexcept override
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        return m_horizonLevelingActive;
+    }
+
+    bool updateHorizonLeveling(double platformRollDeg, double platformPitchDeg, double headingDeg = 0.0) override
+    {
+        (void)headingDeg;
+        std::lock_guard<std::mutex> lock(m_mutex);
+        if (!m_horizonLevelingActive) {
+            return false;
+        }
+        const double levelRoll = GeoreferenceUtils::computeLevelingRoll(
+            platformRollDeg, platformPitchDeg, m_telemetry.panAngleDeg, m_telemetry.tiltAngleDeg);
+        m_telemetry.rollAngleDeg = std::clamp(levelRoll, -60.0, 60.0);
+        m_telemetry.isHorizonLeveled = true;
         dispatchTelemetry();
         return true;
     }
@@ -105,6 +207,8 @@ public:
         std::lock_guard<std::mutex> lock(m_mutex);
         m_stabMode = mode;
         m_telemetry.isStabilized = (mode != StabilizationMode::Disabled);
+        m_horizonLevelingActive = (mode == StabilizationMode::HorizonLevel);
+        m_telemetry.isHorizonLeveled = m_horizonLevelingActive;
         dispatchTelemetry();
         return true;
     }
@@ -171,6 +275,7 @@ private:
     mutable std::mutex m_mutex;
     bool m_connected { true };
     StabilizationMode m_stabMode { StabilizationMode::RateStabilized };
+    bool m_horizonLevelingActive { false };
     GimbalTelemetry m_telemetry {};
     TelemetryCallback m_telemetryCb {};
     StateCallback m_stateCb {};
@@ -948,6 +1053,13 @@ void SimulatedPayload::setSimulatedSlantRange(double rangeMeters)
 void SimulatedPayload::setSimulatedGroundElevation(double groundElevationM)
 {
     m_simGroundElevation = groundElevationM;
+}
+
+void SimulatedPayload::setSimulatedPlatformAttitude(double pitchDeg, double rollDeg, double headingDeg)
+{
+    if (m_ptu) {
+        m_ptu->updateHorizonLeveling(rollDeg, pitchDeg, headingDeg);
+    }
 }
 
 } // namespace PayloadHal
