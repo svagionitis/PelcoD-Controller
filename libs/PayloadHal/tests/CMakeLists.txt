@@ -59,4 +59,5 @@ add_payload_hal_test(TestPayloadSlavingCoordinator     TestPayloadSlavingCoordin
 add_payload_hal_test(TestSensorFusionManager          TestSensorFusionManager.cpp)
 add_payload_hal_test(TestPayloadStowController         TestPayloadStowController.cpp)
 add_payload_hal_test(TestTacticalHudRenderer           TestTacticalHudRenderer.cpp)
+add_payload_hal_test(TestStadiametricRanger          TestStadiametricRanger.cpp)
 

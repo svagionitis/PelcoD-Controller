@@ -34,6 +34,7 @@ class PayloadSlavingCoordinator;
 class SensorFusionManager;
 class PayloadStowController;
 class TacticalHudRenderer;
+class StadiametricRanger;
 
 /// @class IPayload
 /// @brief Composite payload station binding Pan-Tilt Unit, Primary/Secondary cameras,
@@ -159,6 +160,13 @@ public:
     /// @brief Accesses the Tactical Heads-Up Display (HUD) & Symbology Renderer.
     /// @return Shared pointer to HUD renderer, or nullptr if unsupported.
     [[nodiscard]] virtual std::shared_ptr<TacticalHudRenderer> hudRenderer() const noexcept
+    {
+        return nullptr;
+    }
+
+    /// @brief Accesses the Passive Stadiametric & Kinematic Triangulation Range Estimator.
+    /// @return Shared pointer to stadiametric ranger, or nullptr if unsupported.
+    [[nodiscard]] virtual std::shared_ptr<StadiametricRanger> stadiametricRanger() const noexcept
     {
         return nullptr;
     }

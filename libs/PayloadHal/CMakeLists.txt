@@ -34,6 +34,8 @@ add_library(PayloadHal STATIC
     PayloadStowController.cpp
     TacticalHudRenderer.h
     TacticalHudRenderer.cpp
+    StadiametricRanger.h
+    StadiametricRanger.cpp
     IPayload.h
     GeoreferenceUtils.h
     GeoreferenceUtils.cpp

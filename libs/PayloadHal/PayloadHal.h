@@ -30,6 +30,7 @@
 #include "SensorFusionManager.h"
 #include "PayloadStowController.h"
 #include "TacticalHudRenderer.h"
+#include "StadiametricRanger.h"
 #include "PayloadAutoTrackerBridge.h"
 #include "PayloadFactory.h"
 #include "PayloadKlvGenerator.h"
