@@ -26,6 +26,7 @@ class TacticalSearchEngine;
 class SensorParallaxCompensator;
 class PlatformLeverArmCompensator;
 class GimbalSectorBlanking;
+class PayloadHealthMonitor;
 
 /// @class IPayload
 /// @brief Composite payload station binding Pan-Tilt Unit, Primary/Secondary cameras,
@@ -95,6 +96,13 @@ public:
     /// @brief Accesses the Spatial Sector Blanking & Laser Safety Keep-Out Zones subsystem.
     /// @return Shared pointer to sector blanking engine, or nullptr if unsupported.
     [[nodiscard]] virtual std::shared_ptr<GimbalSectorBlanking> sectorBlanking() const noexcept
+    {
+        return nullptr;
+    }
+
+    /// @brief Accesses the Built-In-Test & Health Monitoring Subsystem.
+    /// @return Shared pointer to health monitor, or nullptr if unsupported.
+    [[nodiscard]] virtual std::shared_ptr<PayloadHealthMonitor> healthMonitor() const noexcept
     {
         return nullptr;
     }

@@ -108,8 +108,10 @@ The [PayloadHal](../libs/PayloadHal/PayloadHal.h) library provides a unified Har
   - Inverse kinematics: `computeLookAnglesToTarget` resolving gimbal pan/tilt look angles from the true physical sensor position.
   - Support for `Upright` (pedestal/mast), `Inverted` (aircraft/drone belly mount), and `Custom` 3D Euler mounting orientations.
   - Integrated into [IPayload](../libs/PayloadHal/IPayload.h) (`leverArmCompensator()`) and [SimulatedPayload](../libs/PayloadHal/sim/SimulatedPayload.h). Verified with comprehensive unit test coverage in [TestPlatformLeverArmCompensator.cpp](../libs/PayloadHal/tests/TestPlatformLeverArmCompensator.cpp).
-- **Built-In-Test & Health Monitoring Subsystem (`PayloadHealthMonitor` / BIT)**:
-  - Standardized diagnostic telemetry: Power-On BIT (PBIT), Continuous BIT (CBIT - motor currents, temperatures, transport packet health), and Initiated BIT (IBIT - limit sweeps, optical cycling).
+- **Built-In-Test & Health Monitoring Subsystem (`PayloadHealthMonitor` / BIT)** *(Completed)*:
+  - Standardized diagnostic telemetry: Power-On BIT (PBIT - boot integrity, hardware loopbacks, calibration tables), Continuous BIT (CBIT - background periodic thread tracking motor currents, stall detection, temperatures, thermal throttling at 60°C/75°C, transport packet drop counts), and Initiated BIT (IBIT - operator-triggered multi-stage diagnostic routine with monotonic progress reporting 0.0 to 1.0 and operator abort capability).
+  - Telemetry structures: `DiagnosticFaultRecord`, `DiagnosticFaultCode`, `BitSeverity` (`Info`, `Warning`, `Critical`, `Fatal`), `SystemHealthReport`, and automatic device state escalation (`Ready` -> `Degraded` -> `Fault`).
+  - Integrated into [IPayload](../libs/PayloadHal/IPayload.h) (`healthMonitor()`) and [SimulatedPayload](../libs/PayloadHal/sim/SimulatedPayload.h) with automatic PBIT run and CBIT thread lifecycle management upon `connect()`/`disconnect()`. Verified with 100% test coverage in [TestPayloadHealthMonitor.cpp](../libs/PayloadHal/tests/TestPayloadHealthMonitor.cpp).
 
 ---
 
@@ -132,4 +134,4 @@ The [PayloadHal](../libs/PayloadHal/PayloadHal.h) library provides a unified Har
 | **P4** | Dual-Sensor Parallax & Boresight Alignment (`SensorParallaxCompensator`) *(Completed)* | `SensorParallaxCompensator.h/.cpp`, `IPayload.h`, `SimulatedPayload.h/.cpp` | Range-dependent angular alignment, reticle convergence, and bounding box transfer between Daylight EO and Thermal IR. |
 | **P4** | Tactical Search Patterns & Slew-to-Cue Engine (`TacticalSearchEngine`) *(Completed)* | `TacticalSearchEngine.h/.cpp`, `IPayload.h`, `SimulatedPayload.h/.cpp` | Automated wide-area search sweeps (Sector, Expanding Square, Spiral, Creeping Line) and prioritized Radar/AIS/Acoustic cueing with auto-resume. |
 | **P4** | Platform Lever-Arm & Coordinate Frame Transformations *(Completed)* | `PlatformLeverArmCompensator.h/.cpp`, `IPayload.h`, `SimulatedPayload.h/.cpp` | Offsets GPS antenna, gimbal pivot, and optical center for high-precision georeferencing under dynamic vehicle roll/pitch. |
-| **P4** | Built-In-Test & Health Monitoring Subsystem | `PayloadHealthMonitor.h/.cpp`, `PayloadHal.h` | PBIT/CBIT/IBIT diagnostics, motor stall detection, and thermal throttling alerts. |
+| **P4** | Built-In-Test & Health Monitoring Subsystem *(Completed)* | `PayloadHealthMonitor.h/.cpp`, `IPayload.h`, `SimulatedPayload.h/.cpp`, `PayloadHal.h` | Three pillars of BIT (PBIT/CBIT/IBIT), motor stall detection, thermal throttling alerts, and health-based state escalation. |

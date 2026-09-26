@@ -6,6 +6,7 @@
 #include "SensorParallaxCompensator.h"
 #include "PlatformLeverArmCompensator.h"
 #include "GimbalSectorBlanking.h"
+#include "PayloadHealthMonitor.h"
 
 #include <algorithm>
 #include <cmath>
@@ -1004,6 +1005,7 @@ SimulatedPayload::SimulatedPayload()
     , m_leverArmCompensator(std::make_shared<PlatformLeverArmCompensator>(
           PlatformLeverArmConfig { Vector3D { 0.0, 0.0, 5.0 }, Vector3D { 0.0, 0.0, 0.0 }, GimbalMountingType::Upright, {} }))
     , m_sectorBlanking(std::make_shared<GimbalSectorBlanking>())
+    , m_healthMonitor(std::make_shared<PayloadHealthMonitor>())
     , m_connected(true)
 {
     m_ptu->setSectorBlanking(m_sectorBlanking);
@@ -1035,6 +1037,10 @@ bool SimulatedPayload::connect()
     m_thermalCamera->connect();
     m_lrf->connect();
     m_illuminator->connect();
+    if (m_healthMonitor) {
+        m_healthMonitor->runPbit();
+        m_healthMonitor->startCbit(std::chrono::milliseconds(200));
+    }
     std::lock_guard<std::mutex> lock(m_mutex);
     if (m_stateCallback) {
         m_stateCallback(DeviceState::Ready, "Simulated Payload Online");
@@ -1045,6 +1051,9 @@ bool SimulatedPayload::connect()
 void SimulatedPayload::disconnect()
 {
     m_connected = false;
+    if (m_healthMonitor) {
+        m_healthMonitor->stopCbit();
+    }
     m_ptu->disconnect();
     m_daylightCamera->disconnect();
     m_thermalCamera->disconnect();
@@ -1063,7 +1072,13 @@ bool SimulatedPayload::isConnected() const noexcept
 
 DeviceState SimulatedPayload::state() const noexcept
 {
-    return m_connected ? DeviceState::Ready : DeviceState::Disconnected;
+    if (!m_connected) {
+        return DeviceState::Disconnected;
+    }
+    if (m_healthMonitor) {
+        return m_healthMonitor->healthReport().overallState;
+    }
+    return DeviceState::Ready;
 }
 
 DeviceInfo SimulatedPayload::info() const noexcept
@@ -1134,6 +1149,11 @@ std::shared_ptr<PlatformLeverArmCompensator> SimulatedPayload::leverArmCompensat
 std::shared_ptr<GimbalSectorBlanking> SimulatedPayload::sectorBlanking() const noexcept
 {
     return m_sectorBlanking;
+}
+
+std::shared_ptr<PayloadHealthMonitor> SimulatedPayload::healthMonitor() const noexcept
+{
+    return m_healthMonitor;
 }
 
 std::optional<Klv::GeoPoint2D> SimulatedPayload::calculateTargetCoordinates(

@@ -18,6 +18,8 @@ add_library(PayloadHal STATIC
     PlatformLeverArmCompensator.cpp
     GimbalSectorBlanking.h
     GimbalSectorBlanking.cpp
+    PayloadHealthMonitor.h
+    PayloadHealthMonitor.cpp
     IPayload.h
     GeoreferenceUtils.h
     GeoreferenceUtils.cpp

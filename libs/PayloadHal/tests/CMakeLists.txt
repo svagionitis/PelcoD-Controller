@@ -51,4 +51,5 @@ add_payload_hal_test(TestTacticalSearchEngine         TestTacticalSearchEngine.c
 add_payload_hal_test(TestSensorParallaxCompensator    TestSensorParallaxCompensator.cpp)
 add_payload_hal_test(TestPlatformLeverArmCompensator TestPlatformLeverArmCompensator.cpp)
 add_payload_hal_test(TestGimbalSectorBlanking       TestGimbalSectorBlanking.cpp)
+add_payload_hal_test(TestPayloadHealthMonitor       TestPayloadHealthMonitor.cpp)
 
