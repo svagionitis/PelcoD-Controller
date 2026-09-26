@@ -10,6 +10,7 @@
 #include "GimbalMotionProfiler.h"
 #include "TargetKinematicsFilter.h"
 #include "AtmosphericRefractionCompensator.h"
+#include "PayloadSlavingCoordinator.h"
 
 #include <algorithm>
 #include <cmath>
@@ -1012,6 +1013,7 @@ SimulatedPayload::SimulatedPayload()
     , m_motionProfiler(std::make_shared<GimbalMotionProfiler>())
     , m_targetKinematics(std::make_shared<TargetKinematicsFilter>())
     , m_atmosphericCompensator(std::make_shared<AtmosphericRefractionCompensator>())
+    , m_slavingCoordinator(std::make_shared<PayloadSlavingCoordinator>())
     , m_connected(true)
 {
     m_ptu->setSectorBlanking(m_sectorBlanking);
@@ -1175,6 +1177,11 @@ std::shared_ptr<TargetKinematicsFilter> SimulatedPayload::targetKinematics() con
 std::shared_ptr<AtmosphericRefractionCompensator> SimulatedPayload::atmosphericCompensator() const noexcept
 {
     return m_atmosphericCompensator;
+}
+
+std::shared_ptr<PayloadSlavingCoordinator> SimulatedPayload::slavingCoordinator() const noexcept
+{
+    return m_slavingCoordinator;
 }
 
 std::optional<Klv::GeoPoint2D> SimulatedPayload::calculateTargetCoordinates(

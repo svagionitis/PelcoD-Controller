@@ -30,6 +30,7 @@ class PayloadHealthMonitor;
 class GimbalMotionProfiler;
 class TargetKinematicsFilter;
 class AtmosphericRefractionCompensator;
+class PayloadSlavingCoordinator;
 
 /// @class IPayload
 /// @brief Composite payload station binding Pan-Tilt Unit, Primary/Secondary cameras,
@@ -127,6 +128,13 @@ public:
     /// @brief Accesses the Atmospheric Refraction & Earth Curvature Optical Compensator.
     /// @return Shared pointer to atmospheric compensator, or nullptr if unsupported.
     [[nodiscard]] virtual std::shared_ptr<AtmosphericRefractionCompensator> atmosphericCompensator() const noexcept
+    {
+        return nullptr;
+    }
+
+    /// @brief Accesses the Multi-Payload Slaving & Blind-Zone Handover coordinator.
+    /// @return Shared pointer to slaving coordinator, or nullptr if unsupported.
+    [[nodiscard]] virtual std::shared_ptr<PayloadSlavingCoordinator> slavingCoordinator() const noexcept
     {
         return nullptr;
     }

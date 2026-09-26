@@ -26,6 +26,8 @@ add_library(PayloadHal STATIC
     TargetKinematicsFilter.cpp
     AtmosphericRefractionCompensator.h
     AtmosphericRefractionCompensator.cpp
+    PayloadSlavingCoordinator.h
+    PayloadSlavingCoordinator.cpp
     IPayload.h
     GeoreferenceUtils.h
     GeoreferenceUtils.cpp

@@ -132,9 +132,12 @@ The [PayloadHal](../libs/PayloadHal/PayloadHal.h) library provides a unified Har
   - Forward and inverse elevation corrections: `apparentToTrueElevation` and `trueToApparentElevation` with iterative convergence.
   - Optical horizon distance ($d_{\text{horizon}} = \sqrt{2 k R_E h_{\text{obs}}} + \sqrt{2 k R_E h_{\text{tgt}}}$) and over-the-horizon occlusion detection.
   - Integrated into [IPayload](../libs/PayloadHal/IPayload.h) (`atmosphericCompensator()`) and [SimulatedPayload](../libs/PayloadHal/sim/SimulatedPayload.h). Verified with 100% test coverage in [TestAtmosphericRefractionCompensator.cpp](../libs/PayloadHal/tests/TestAtmosphericRefractionCompensator.cpp).
-- **Multi-Payload Master/Slave Slaving & Blind-Zone Handover (`PayloadSlavingCoordinator`)**:
-  - Real-time line-of-sight slaving: Station B mirrors Station A's target point in 3D geodetic space (automatically compensating for inter-station baseline lever-arm and parallax).
-  - Blind-Zone Handover: Automatic handoff protocol transferring active target track and cueing Station B when Station A approaches its sector blanking limit or gimbal mechanical stop.
+- **Multi-Payload Master/Slave Slaving & Blind-Zone Handover (`PayloadSlavingCoordinator`)** *(Completed)*:
+  - Real-time line-of-sight slaving: Station B mirrors Station A's target point in 3D space with rigid-body baseline translation parallax compensation ($\Delta \mathbf{L} = \mathbf{L}_M - \mathbf{L}_S$) and canted mount orientation transforms.
+  - Optical infinity / collimated line-of-sight fallback for passive long-range bearing tracking.
+  - Predictive blind-zone monitoring continuously evaluating `GimbalSectorBlanking` keep-out sectors and physical mechanical travel stops with pre-warning buffers.
+  - Autonomous multi-station handover protocol (`Idle` -> `Tracking` -> `ApproachingBlindZone` -> `CandidateSelected` -> `CueingSlave` -> `SlaveConverging` -> `TransferringControl` -> `HandoverComplete`) with atomic Master promotion and operator override.
+  - Integrated into [IPayload](../libs/PayloadHal/IPayload.h) (`slavingCoordinator()`) and [SimulatedPayload](../libs/PayloadHal/sim/SimulatedPayload.h). Verified with 100% test coverage in [TestPayloadSlavingCoordinator.cpp](../libs/PayloadHal/tests/TestPayloadSlavingCoordinator.cpp).
 - **Optical Sensor Switching, Digital Match-Zoom & Fusion Manager (`SensorFusionManager`)**:
   - Digital Match-Zoom: Automatically matches instantaneous horizontal FOV when switching between Daylight visible and Thermal IR cameras.
   - Optical color-palette & LUT management (White-Hot, Black-Hot, Ironbow, Rainbow, Haze-Penetration).
@@ -169,6 +172,6 @@ The [PayloadHal](../libs/PayloadHal/PayloadHal.h) library provides a unified Har
 | **P5** | Gimbal S-Curve Motion Profiler & Jerk-Limited Kinematics *(Completed)* | [GimbalMotionProfiler.h](../libs/PayloadHal/GimbalMotionProfiler.h), [IPayload.h](../libs/PayloadHal/IPayload.h), [SimulatedPayload.h](../libs/PayloadHal/sim/SimulatedPayload.h) | Prevents mechanical shock, eliminates motor overcurrent spikes, and provides cinema-smooth tracking. |
 | **P5** | Target Kinematics & Predictive Lead-Angle Slaving *(Completed)* | [TargetKinematicsFilter.h](../libs/PayloadHal/TargetKinematicsFilter.h), [IPayload.h](../libs/PayloadHal/IPayload.h), [SimulatedPayload.h](../libs/PayloadHal/sim/SimulatedPayload.h) | Real-time target velocity estimation, lead angle pointing, and occlusion coasting. |
 | **P5** | Atmospheric Refraction & Earth Curvature Compensator *(Completed)* | [AtmosphericRefractionCompensator.h](../libs/PayloadHal/AtmosphericRefractionCompensator.h), [IPayload.h](../libs/PayloadHal/IPayload.h), [SimulatedPayload.h](../libs/PayloadHal/sim/SimulatedPayload.h) | High-fidelity long-range over-the-horizon elevation and wavelength-dependent refractivity compensation. |
-| **P5** | Multi-Payload Master/Slave Coordinator & Handover | `PayloadSlavingCoordinator.h/.cpp`, `IPayload.h` | Multi-turret LOS slaving and automated blind-zone handover. |
+| **P5** | Multi-Payload Master/Slave Coordinator & Handover *(Completed)* | [PayloadSlavingCoordinator.h](../libs/PayloadHal/PayloadSlavingCoordinator.h), [IPayload.h](../libs/PayloadHal/IPayload.h), [SimulatedPayload.h](../libs/PayloadHal/sim/SimulatedPayload.h) | Multi-turret LOS slaving with 3D baseline parallax compensation and automated blind-zone handover. |
 | **P5** | Optical Sensor Switching & Digital Match-Zoom | `SensorFusionManager.h/.cpp`, `ICameraPayload.h` | Seamless FOV match-zoom, color palettes, and day/thermal auto-handoff. |
 | **P5** | Payload Stow, Environmental De-Ice & Emergency Park | `PayloadStowController.h/.cpp`, `IPayload.h` | Safe transport stowing, lens de-icing, and emergency zeroization. |
