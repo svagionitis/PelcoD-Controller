@@ -8,6 +8,11 @@ add_library(PayloadHal STATIC
     IPayload.h
     GeoreferenceUtils.h
     GeoreferenceUtils.cpp
+    IDemProvider.h
+    GridDemProvider.h
+    GridDemProvider.cpp
+    DemRayCaster.h
+    DemRayCaster.cpp
     GeoLockController.h
     GeoLockController.cpp
     PayloadAutoTrackerBridge.h

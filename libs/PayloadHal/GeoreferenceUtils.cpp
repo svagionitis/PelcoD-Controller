@@ -110,6 +110,18 @@ std::optional<Klv::GeoPoint3D> GeoreferenceUtils::computeTargetFromGroundInterse
     return Klv::GeoPoint3D { currentTarget->latitudeDeg, currentTarget->longitudeDeg, currentElev };
 }
 
+std::optional<Klv::GeoPoint3D> GeoreferenceUtils::computeTargetFromDem(
+    const IDemProvider& dem, const Klv::GeoPoint3D& platformPos, double platformHeadingDeg,
+    double gimbalPanDeg, double gimbalTiltDeg, const DemRayConfig& config) noexcept
+{
+    const auto result = DemRayCaster::intersect(
+        dem, platformPos, platformHeadingDeg, gimbalPanDeg, gimbalTiltDeg, config);
+    if (!result) {
+        return std::nullopt;
+    }
+    return result->targetPosition;
+}
+
 std::optional<Klv::FrustumCorners> GeoreferenceUtils::computeFrustumCorners(const Klv::GeoPoint3D& platformPos,
     double platformHeadingDeg, double gimbalPanDeg, double gimbalTiltDeg, double hfovDeg, double vfovDeg,
     double groundElevationM) noexcept
@@ -128,6 +140,45 @@ std::optional<Klv::FrustumCorners> GeoreferenceUtils::computeFrustumCorners(cons
 
     return Klv::KlvGeodesy::computeFrustum(
         platformPos, platformHeadingDeg, gimbalPanDeg, gimbalTiltDeg, hfovDeg, effectiveVfov, groundElevationM);
+}
+
+std::optional<Klv::FrustumCorners> GeoreferenceUtils::computeFrustumCorners(
+    const IDemProvider& dem, const Klv::GeoPoint3D& platformPos,
+    double platformHeadingDeg, double gimbalPanDeg, double gimbalTiltDeg,
+    double hfovDeg, double vfovDeg, const DemRayConfig& config) noexcept
+{
+    if (hfovDeg <= 0.0 || gimbalTiltDeg >= -0.01) {
+        return std::nullopt;
+    }
+
+    double effectiveVfov = vfovDeg;
+    if (effectiveVfov <= 0.0) {
+        effectiveVfov = 2.0 * rad2deg(std::atan(std::tan(deg2rad(hfovDeg / 2.0)) * (9.0 / 16.0)));
+    }
+
+    const double halfH = hfovDeg * 0.5;
+    const double halfV = effectiveVfov * 0.5;
+
+    const auto tlRes = DemRayCaster::intersect(
+        dem, platformPos, platformHeadingDeg, gimbalPanDeg - halfH, gimbalTiltDeg + halfV, config);
+    const auto trRes = DemRayCaster::intersect(
+        dem, platformPos, platformHeadingDeg, gimbalPanDeg + halfH, gimbalTiltDeg + halfV, config);
+    const auto brRes = DemRayCaster::intersect(
+        dem, platformPos, platformHeadingDeg, gimbalPanDeg + halfH, gimbalTiltDeg - halfV, config);
+    const auto blRes = DemRayCaster::intersect(
+        dem, platformPos, platformHeadingDeg, gimbalPanDeg - halfH, gimbalTiltDeg - halfV, config);
+
+    if (!tlRes || !trRes || !brRes || !blRes) {
+        return std::nullopt;
+    }
+
+    Klv::FrustumCorners corners;
+    corners.topLeft = { tlRes->targetPosition.latitudeDeg, tlRes->targetPosition.longitudeDeg };
+    corners.topRight = { trRes->targetPosition.latitudeDeg, trRes->targetPosition.longitudeDeg };
+    corners.bottomRight = { brRes->targetPosition.latitudeDeg, brRes->targetPosition.longitudeDeg };
+    corners.bottomLeft = { blRes->targetPosition.latitudeDeg, blRes->targetPosition.longitudeDeg };
+
+    return corners;
 }
 
 GimbalLookAngles GeoreferenceUtils::computeLookAnglesToTarget(

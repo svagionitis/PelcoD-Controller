@@ -3,6 +3,8 @@
 /// @file GeoreferenceUtils.h
 /// @brief Geodetic coordinate calculations, target projection, and click-to-slew geometry.
 
+#include "DemRayCaster.h"
+#include "IDemProvider.h"
 #include "Klv/KlvTypes.h"
 #include <functional>
 #include <optional>
@@ -62,6 +64,19 @@ public:
         const Klv::GeoPoint3D& platformPos, double platformHeadingDeg, double gimbalPanDeg, double gimbalTiltDeg,
         const ElevationLookupFn& elevationLookup, double fallbackGroundElevationM = 0.0) noexcept;
 
+    /// @brief Computes 3D target intersection coordinate with a Digital Elevation Model (DEM)
+    ///        using numerical 2-phase ray-marching with foreground occlusion handling.
+    /// @param[in] dem Reference to digital elevation model provider.
+    /// @param[in] platformPos Platform 3D coordinate (latitude, longitude, altitude MSL in meters).
+    /// @param[in] platformHeadingDeg Platform true heading in degrees [0.0, 360.0).
+    /// @param[in] gimbalPanDeg Gimbal azimuth relative to platform in degrees.
+    /// @param[in] gimbalTiltDeg Gimbal elevation in degrees (must be < 0 for ground intersection).
+    /// @param[in] config Numerical parameters for ray search.
+    /// @return Geodetic 3D coordinate of ground intersection, or std::nullopt if looking above horizon.
+    [[nodiscard]] static std::optional<Klv::GeoPoint3D> computeTargetFromDem(
+        const IDemProvider& dem, const Klv::GeoPoint3D& platformPos, double platformHeadingDeg,
+        double gimbalPanDeg, double gimbalTiltDeg, const DemRayConfig& config = {}) noexcept;
+
     /// @brief Computes the 4-corner ground projection footprint frustum polygon on the WGS-84 ellipsoid.
     /// @details If vfovDeg is <= 0.0, vertical FOV is automatically derived from hfovDeg assuming standard 16:9 aspect
     /// ratio.
@@ -76,6 +91,21 @@ public:
     [[nodiscard]] static std::optional<Klv::FrustumCorners> computeFrustumCorners(const Klv::GeoPoint3D& platformPos,
         double platformHeadingDeg, double gimbalPanDeg, double gimbalTiltDeg, double hfovDeg, double vfovDeg = 0.0,
         double groundElevationM = 0.0) noexcept;
+
+    /// @brief Computes the 4-corner ground footprint frustum polygon projected onto a Digital Elevation Model.
+    /// @param[in] dem Reference to digital elevation model.
+    /// @param[in] platformPos Platform 3D coordinate (latitude, longitude, altitude MSL in meters).
+    /// @param[in] platformHeadingDeg Platform true compass heading in degrees [0.0, 360.0).
+    /// @param[in] gimbalPanDeg Gimbal azimuth relative to platform in degrees.
+    /// @param[in] gimbalTiltDeg Gimbal elevation in degrees (negative = downwards).
+    /// @param[in] hfovDeg Horizontal field of view in degrees (> 0.0).
+    /// @param[in] vfovDeg Vertical field of view in degrees (if <= 0.0, derived from 16:9 aspect ratio).
+    /// @param[in] config Ray-casting configuration parameters.
+    /// @return FrustumCorners containing 4 geodetic coordinates, or std::nullopt if any corner looks at or above horizon.
+    [[nodiscard]] static std::optional<Klv::FrustumCorners> computeFrustumCorners(
+        const IDemProvider& dem, const Klv::GeoPoint3D& platformPos,
+        double platformHeadingDeg, double gimbalPanDeg, double gimbalTiltDeg,
+        double hfovDeg, double vfovDeg = 0.0, const DemRayConfig& config = {}) noexcept;
 
     /// @brief Calculates the gimbal pan and tilt look angles required to point at a geographic target.
     /// @param[in] platformPos Platform 3D position (latitude, longitude, altitude MSL in meters).

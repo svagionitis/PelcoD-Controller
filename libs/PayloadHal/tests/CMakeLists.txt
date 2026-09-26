@@ -40,4 +40,5 @@ add_payload_hal_test(TestGeoLockController        TestGeoLockController.cpp)
 add_payload_hal_test(TestLaserIlluminator         TestLaserIlluminator.cpp)
 add_payload_hal_test(TestPayloadAutoTrackerBridge TestPayloadAutoTrackerBridge.cpp)
 add_payload_hal_test(TestPayloadKlvGenerator      TestPayloadKlvGenerator.cpp)
+add_payload_hal_test(TestDemRayCaster             TestDemRayCaster.cpp)
 

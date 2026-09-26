@@ -46,8 +46,9 @@ The [PayloadHal](../libs/PayloadHal/PayloadHal.h) library provides a unified Har
 - **Ground Sensor Footprint (Frustum) Georeferencing**:
   - [GeoreferenceUtils](../libs/PayloadHal/GeoreferenceUtils.h) calculates frame center, but does not compute the 4-corner ground projection quadrilateral ([Klv::FrustumCorners](../libs/Mapping/TacticalOverlay.h#L38)).
   - Adding `computeFrustumCorners(...)` in [GeoreferenceUtils](../libs/PayloadHal/GeoreferenceUtils.h) bridges camera HFOV/VFOV and gimbal orientation directly with [TacticalOverlay](../libs/Mapping/TacticalOverlay.h) in `libs/Mapping`.
-- **Digital Elevation Model (DEM) Ray Intersection**:
-  - Upgrade [GeoreferenceUtils::computeTargetFromGroundIntersection](../libs/PayloadHal/GeoreferenceUtils.h#L48) to support ray-casting against a DEM elevation grid instead of assuming a flat plane.
+- **Digital Elevation Model (DEM) Ray Intersection** *(Completed)*:
+  - Added [IDemProvider](../libs/PayloadHal/IDemProvider.h), [GridDemProvider](../libs/PayloadHal/GridDemProvider.h), and [DemRayCaster](../libs/PayloadHal/DemRayCaster.h) implementing 2-phase numerical ray-marching with Illinois secant root refinement and foreground occlusion handling.
+  - Upgraded [GeoreferenceUtils](../libs/PayloadHal/GeoreferenceUtils.h), [IPayload](../libs/PayloadHal/IPayload.h), and [PayloadKlvGenerator](../libs/PayloadHal/PayloadKlvGenerator.h) to support high-fidelity terrain ray intersection.
 
 #### 3. New Adapters & Factory URIs
 - **ONVIF Client Adapter (`OnvifPayloadAdapter`)**:
@@ -86,3 +87,4 @@ The [PayloadHal](../libs/PayloadHal/PayloadHal.h) library provides a unified Har
 | **P2** | Add `computeFrustumCorners` & Click-to-Point / Geo-Lock *(Completed)* | [GeoreferenceUtils.h](../libs/PayloadHal/GeoreferenceUtils.h), [IPayload.h](../libs/PayloadHal/IPayload.h), `libs/PayloadHal/GeoLockController.h/.cpp` | Connects directly to [TacticalOverlay](../libs/Mapping/TacticalOverlay.h) for map projection, closed-loop tracking, and click-to-point. |
 | **P3** | Continuous manual focus, Iris controls, and `ILaserIlluminator` *(Completed)* | [ICameraPayload.h](../libs/PayloadHal/ICameraPayload.h), [ILaserIlluminator.h](../libs/PayloadHal/ILaserIlluminator.h), [IPayload.h](../libs/PayloadHal/IPayload.h) | Complete tactical camera control set and tactical laser pointer/illuminator subsystem. |
 | **P3** | `PayloadAutoTrackerBridge` & KLV telemetry generator (`PayloadKlvGenerator`) *(Completed)* | [PayloadAutoTrackerBridge.h](../libs/PayloadHal/PayloadAutoTrackerBridge.h), [PayloadKlvGenerator.h](../libs/PayloadHal/PayloadKlvGenerator.h), `libs/PayloadHal/` | Unifies `libs/Tracking` and `libs/Klv` under the HAL. |
+| **P3** | Digital Elevation Model (DEM) Ray Intersection *(Completed)* | [IDemProvider.h](../libs/PayloadHal/IDemProvider.h), [GridDemProvider.h](../libs/PayloadHal/GridDemProvider.h), [DemRayCaster.h](../libs/PayloadHal/DemRayCaster.h), [GeoreferenceUtils.h](../libs/PayloadHal/GeoreferenceUtils.h) | Exact terrain target georeferencing and occlusion detection without LRF. |

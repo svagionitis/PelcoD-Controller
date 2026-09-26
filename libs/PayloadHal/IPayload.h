@@ -6,6 +6,7 @@
 #include "GeoreferenceUtils.h"
 #include "ICameraPayload.h"
 #include "IDevice.h"
+#include "IDemProvider.h"
 #include "ILaserIlluminator.h"
 #include "ILaserRangeFinder.h"
 #include "IPanTiltUnit.h"
@@ -48,6 +49,22 @@ public:
         return nullptr;
     }
 
+    /// @brief Configures a Digital Elevation Model (DEM) provider for terrain ray intersection.
+    /// @param[in] dem Shared pointer to DEM provider.
+    virtual void setDemProvider(std::shared_ptr<IDemProvider> dem) noexcept
+    {
+        std::lock_guard<std::mutex> lock(m_demMutex);
+        m_dem = std::move(dem);
+    }
+
+    /// @brief Accesses the active Digital Elevation Model (DEM) provider, if any.
+    /// @return Shared pointer to DEM provider, or nullptr.
+    [[nodiscard]] virtual std::shared_ptr<IDemProvider> demProvider() const noexcept
+    {
+        std::lock_guard<std::mutex> lock(m_demMutex);
+        return m_dem;
+    }
+
     /// @brief Calculates geodetic 2D target coordinate on the Earth surface using platform GPS, heading,
     ///        gimbal orientation, and LRF range or ground projection.
     /// @param[in] platformGps Host platform latitude/longitude in degrees.
@@ -73,6 +90,13 @@ public:
         }
         const auto ptuTelem = ptu->currentTelemetry();
         const auto camTelem = camera->currentTelemetry();
+
+        const auto dem = demProvider();
+        if (dem) {
+            return GeoreferenceUtils::computeFrustumCorners(*dem, platformPos, platformHeadingDeg,
+                ptuTelem.panAngleDeg, ptuTelem.tiltAngleDeg, camTelem.horizontalFovDeg, camTelem.verticalFovDeg);
+        }
+
         return GeoreferenceUtils::computeFrustumCorners(platformPos, platformHeadingDeg, ptuTelem.panAngleDeg,
             ptuTelem.tiltAngleDeg, camTelem.horizontalFovDeg, camTelem.verticalFovDeg, groundElevationM);
     }
@@ -163,6 +187,9 @@ protected:
     mutable std::mutex m_geoLockMutex;
     std::optional<Klv::GeoPoint3D> m_geoLockTarget {};
     bool m_geoLockActive { false };
+
+    mutable std::mutex m_demMutex;
+    std::shared_ptr<IDemProvider> m_dem {};
 };
 
 } // namespace PayloadHal

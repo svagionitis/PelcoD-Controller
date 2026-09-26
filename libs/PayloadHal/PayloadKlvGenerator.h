@@ -3,6 +3,7 @@
 /// @file PayloadKlvGenerator.h
 /// @brief STANAG 4609 / MISB ST 0601 KLV telemetry metadata generator for PayloadHal.
 
+#include "IDemProvider.h"
 #include "ICameraPayload.h"
 #include "IPayload.h"
 #include "Klv/KlvEncoder.h"
@@ -40,6 +41,7 @@ struct PayloadKlvConfig {
     std::uint8_t uasLsVersion { 12U };                         ///< Tag 65: MISB ST 0601 version number
     bool enableFrustumCorners { true };                        ///< True to calculate 4-corner footprint (Tags 26-33)
     double fallbackGroundElevationM { 0.0 };                   ///< Fallback ground plane elevation MSL in meters
+    std::shared_ptr<IDemProvider> demProvider {};              ///< Optional Digital Elevation Model provider
 };
 
 /// @class PayloadKlvGenerator
@@ -72,6 +74,14 @@ public:
     /// @brief Retrieves the currently selected active camera payload.
     /// @return Shared pointer to active camera, or nullptr if none set.
     [[nodiscard]] std::shared_ptr<ICameraPayload> activeCamera() const;
+
+    /// @brief Configures the Digital Elevation Model (DEM) provider for terrain ray intersection.
+    /// @param[in] dem Shared pointer to DEM provider.
+    void setDemProvider(std::shared_ptr<IDemProvider> dem);
+
+    /// @brief Accesses the active DEM provider, checking config and IPayload fallback.
+    /// @return Shared pointer to DEM provider, or nullptr.
+    [[nodiscard]] std::shared_ptr<IDemProvider> demProvider() const;
 
     /// @brief Builds a strongly typed UasDatalinkMessage snapshot without serializing to bytes.
     /// @param[in] nav Platform navigation state.

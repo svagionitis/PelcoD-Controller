@@ -3,9 +3,12 @@
 /// @file PayloadHal.h
 /// @brief Master aggregate header for the Payload Hardware Abstraction Layer (PayloadHal).
 
+#include "DemRayCaster.h"
 #include "GeoLockController.h"
 #include "GeoreferenceUtils.h"
+#include "GridDemProvider.h"
 #include "ICameraPayload.h"
+#include "IDemProvider.h"
 #include "IDevice.h"
 #include "ILaserIlluminator.h"
 #include "ILaserRangeFinder.h"
