@@ -10,6 +10,10 @@ add_library(PayloadHal STATIC
     GeoreferenceUtils.cpp
     GeoLockController.h
     GeoLockController.cpp
+    PayloadAutoTrackerBridge.h
+    PayloadAutoTrackerBridge.cpp
+    PayloadKlvGenerator.h
+    PayloadKlvGenerator.cpp
     PayloadHal.h
     PayloadFactory.h
     PayloadFactory.cpp
@@ -43,6 +47,7 @@ target_link_libraries(PayloadHal PUBLIC
     ViscaSony
     Onvif
     Transport
+    Tracking
 )
 
 apply_compiler_flags(PayloadHal)

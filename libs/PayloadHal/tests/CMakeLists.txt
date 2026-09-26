@@ -19,6 +19,7 @@ function(add_payload_hal_test test_name test_source)
         ViscaSony
         Onvif
         Transport
+        Tracking
         Threads::Threads
     )
     pelcod_register_gtest(${test_name})
@@ -37,4 +38,6 @@ add_payload_hal_test(TestPayloadFactoryUri        TestPayloadFactoryUri.cpp)
 add_payload_hal_test(TestGeoreferenceFrustum      TestGeoreferenceFrustum.cpp)
 add_payload_hal_test(TestGeoLockController        TestGeoLockController.cpp)
 add_payload_hal_test(TestLaserIlluminator         TestLaserIlluminator.cpp)
+add_payload_hal_test(TestPayloadAutoTrackerBridge TestPayloadAutoTrackerBridge.cpp)
+add_payload_hal_test(TestPayloadKlvGenerator      TestPayloadKlvGenerator.cpp)
 
