@@ -2,6 +2,7 @@
 #include "GeoreferenceUtils.h"
 #include "LocalPresetManager.h"
 #include "TourEngine.h"
+#include "TacticalSearchEngine.h"
 
 #include <algorithm>
 #include <cmath>
@@ -936,6 +937,7 @@ SimulatedPayload::SimulatedPayload()
     , m_illuminator(std::make_shared<SimIlluminator>())
     , m_presetMgr(std::make_shared<LocalPresetManager>(m_ptu, m_daylightCamera))
     , m_tourEngine(std::make_shared<TourEngine>(m_ptu, m_daylightCamera, m_presetMgr))
+    , m_tacticalEngine(std::make_shared<TacticalSearchEngine>(m_ptu, m_daylightCamera, m_lrf))
     , m_connected(true)
 {
 }
@@ -1032,6 +1034,11 @@ std::shared_ptr<IPtzPresetManager> SimulatedPayload::presetManager() const noexc
 std::shared_ptr<TourEngine> SimulatedPayload::tourEngine() const noexcept
 {
     return m_tourEngine;
+}
+
+std::shared_ptr<TacticalSearchEngine> SimulatedPayload::tacticalSearch() const noexcept
+{
+    return m_tacticalEngine;
 }
 
 std::optional<Klv::GeoPoint2D> SimulatedPayload::calculateTargetCoordinates(

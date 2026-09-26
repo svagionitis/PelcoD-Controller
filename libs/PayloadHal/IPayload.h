@@ -22,6 +22,7 @@ namespace PayloadHal {
 
 class IPtzPresetManager;
 class TourEngine;
+class TacticalSearchEngine;
 
 /// @class IPayload
 /// @brief Composite payload station binding Pan-Tilt Unit, Primary/Secondary cameras,
@@ -63,6 +64,13 @@ public:
     /// @brief Accesses the autonomous Tour / Patrol Engine subsystem.
     /// @return Shared pointer to tour engine, or nullptr if unsupported.
     [[nodiscard]] virtual std::shared_ptr<TourEngine> tourEngine() const noexcept
+    {
+        return nullptr;
+    }
+
+    /// @brief Accesses the Tactical Search Patterns & Slew-to-Cue subsystem.
+    /// @return Shared pointer to tactical search engine, or nullptr if unsupported.
+    [[nodiscard]] virtual std::shared_ptr<TacticalSearchEngine> tacticalSearch() const noexcept
     {
         return nullptr;
     }

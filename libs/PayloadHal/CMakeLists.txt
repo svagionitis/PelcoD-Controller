@@ -10,6 +10,8 @@ add_library(PayloadHal STATIC
     LocalPresetManager.cpp
     TourEngine.h
     TourEngine.cpp
+    TacticalSearchEngine.h
+    TacticalSearchEngine.cpp
     IPayload.h
     GeoreferenceUtils.h
     GeoreferenceUtils.cpp

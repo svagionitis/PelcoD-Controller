@@ -18,6 +18,7 @@
 #include "IPtzPresetManager.h"
 #include "LocalPresetManager.h"
 #include "TourEngine.h"
+#include "TacticalSearchEngine.h"
 #include "PayloadAutoTrackerBridge.h"
 #include "PayloadFactory.h"
 #include "PayloadKlvGenerator.h"

@@ -47,4 +47,5 @@ add_payload_hal_test(TestLrfProtocols                 TestLrfProtocols.cpp)
 add_payload_hal_test(TestSerialLrfAdapter             TestSerialLrfAdapter.cpp)
 add_payload_hal_test(TestPtzPresetManager             TestPtzPresetManager.cpp)
 add_payload_hal_test(TestTourEngine                   TestTourEngine.cpp)
+add_payload_hal_test(TestTacticalSearchEngine         TestTacticalSearchEngine.cpp)
 

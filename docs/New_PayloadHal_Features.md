@@ -92,9 +92,11 @@ The [PayloadHal](../libs/PayloadHal/PayloadHal.h) library provides a unified Har
 - **Dual-Sensor Parallax & Boresight Alignment (`SensorParallaxCompensator`)**:
   - Angular boresight and baseline parallax correction between side-by-side Daylight Visible (EO) and Thermal (LWIR/MWIR) optical sensors as a function of LRF slant range or DEM terrain distance ($\Delta \theta = \arctan(\text{baseline} / \text{range})$).
   - Crosshair, reticle, and auto-tracker bounding box alignment across multi-spectrum video feeds.
-- **Tactical Search Patterns & Slew-to-Cue Engine (`TacticalSearchPatterns`)**:
-  - Automated wide-area scanning routines: Sector Scan (back-and-forth oscillation), Expanding Square (SAR datum search), Creeping Line, and Spiral Search.
-  - Slew-to-Cue priority queue integrating external target tracks (Radar, ADS-B, AIS transponders, acoustic gunshot detectors) with operator override.
+- **Tactical Search Patterns & Slew-to-Cue Engine (`TacticalSearchEngine`)** *(Completed)*:
+  - Automated wide-area scanning routines: Sector Scan (back-and-forth oscillation with elevation stepped rasters), Expanding Square (IAMSAR datum search with adaptive FOV overlap), Creeping Line (parallel cross-track sweeps), and Archimedean Spiral Search.
+  - Slew-to-Cue priority queue integrating external target tracks (Radar, ADS-B, AIS transponders, acoustic gunshot detectors) with strict preemption (`Flash` > `Immediate` > `Priority` > `Routine`).
+  - Arrival tolerance verification, observation dwell hold, automatic target acquisition callbacks (handing off to auto-tracker or rangefinders), and seamless auto-resumption of interrupted search patterns.
+  - Integrated into [IPayload](../libs/PayloadHal/IPayload.h) (`tacticalSearch()`) and [SimulatedPayload](../libs/PayloadHal/sim/SimulatedPayload.h). Verified with 100% test coverage in [TestTacticalSearchEngine.cpp](../libs/PayloadHal/tests/TestTacticalSearchEngine.cpp).
 - **Platform Lever-Arm & Coordinate Frame Transformations (`PlatformLeverArmCompensator`)**:
   - Rigid-body translations accounting for physical distances between GPS/INS antenna, gimbal pivot base, and sensor nodal points ($\mathbf{P}_{\text{optical}} = \mathbf{P}_{\text{GPS}} + \mathbf{R}_{\text{body}}(\mathbf{L}_{\text{leverarm}}) + \mathbf{R}_{\text{gimbal}}(\mathbf{L}_{\text{sensor}})$) for sub-meter geodetic targeting precision.
 - **Built-In-Test & Health Monitoring Subsystem (`PayloadHealthMonitor` / BIT)**:
@@ -119,6 +121,6 @@ The [PayloadHal](../libs/PayloadHal/PayloadHal.h) library provides a unified Har
 | **P4** | Preset & Automated Patrol/Tour Engine (`IPtzPresetManager` / `TourEngine`) *(Completed)* | `IPtzPresetManager.h`, `LocalPresetManager.h/.cpp`, `TourEngine.h/.cpp`, `IPayload.h`, `SimulatedPayload.h/.cpp` | Unified spatial/optical preset storage, recall, and cyclical automated guard patrol routes. |
 | **P4** | Spatial Sector Blanking & Laser Safety Keep-Out Zones | `GimbalSectorBlanking.h/.cpp`, `IPanTiltUnit.h`, `SerialLrfAdapter.h` | Prevents mechanical vehicle collisions and inhibits laser emission into hazard sectors. |
 | **P4** | Dual-Sensor Parallax & Boresight Alignment | `SensorParallaxCompensator.h/.cpp`, `CameraStreamBinder.h` | Range-dependent angular alignment between Daylight EO and Thermal IR reticles. |
-| **P4** | Tactical Search Patterns & Slew-to-Cue Engine | `TacticalSearchPatterns.h/.cpp`, `IPayload.h` | Automated search sweeps (Sector, Expanding Square, Spiral) and radar/AIS cueing. |
+| **P4** | Tactical Search Patterns & Slew-to-Cue Engine (`TacticalSearchEngine`) *(Completed)* | `TacticalSearchEngine.h/.cpp`, `IPayload.h`, `SimulatedPayload.h/.cpp` | Automated wide-area search sweeps (Sector, Expanding Square, Spiral, Creeping Line) and prioritized Radar/AIS/Acoustic cueing with auto-resume. |
 | **P4** | Platform Lever-Arm & Coordinate Frame Transformations | `LeverArmCompensator.h/.cpp`, `GeoreferenceUtils.h` | Offsets GPS antenna, gimbal pivot, and optical center for high-precision georeferencing. |
 | **P4** | Built-In-Test & Health Monitoring Subsystem | `PayloadHealthMonitor.h/.cpp`, `PayloadHal.h` | PBIT/CBIT/IBIT diagnostics, motor stall detection, and thermal throttling alerts. |
