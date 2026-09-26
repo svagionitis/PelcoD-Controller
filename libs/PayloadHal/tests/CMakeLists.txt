@@ -54,4 +54,5 @@ add_payload_hal_test(TestGimbalSectorBlanking       TestGimbalSectorBlanking.cpp
 add_payload_hal_test(TestPayloadHealthMonitor       TestPayloadHealthMonitor.cpp)
 add_payload_hal_test(TestGimbalMotionProfiler       TestGimbalMotionProfiler.cpp)
 add_payload_hal_test(TestTargetKinematicsFilter     TestTargetKinematicsFilter.cpp)
+add_payload_hal_test(TestAtmosphericRefractionCompensator TestAtmosphericRefractionCompensator.cpp)
 

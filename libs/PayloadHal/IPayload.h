@@ -29,6 +29,7 @@ class GimbalSectorBlanking;
 class PayloadHealthMonitor;
 class GimbalMotionProfiler;
 class TargetKinematicsFilter;
+class AtmosphericRefractionCompensator;
 
 /// @class IPayload
 /// @brief Composite payload station binding Pan-Tilt Unit, Primary/Secondary cameras,
@@ -119,6 +120,13 @@ public:
     /// @brief Accesses the Target Kinematics Estimator & Predictive Lead-Angle subsystem.
     /// @return Shared pointer to target kinematics filter, or nullptr if unsupported.
     [[nodiscard]] virtual std::shared_ptr<TargetKinematicsFilter> targetKinematics() const noexcept
+    {
+        return nullptr;
+    }
+
+    /// @brief Accesses the Atmospheric Refraction & Earth Curvature Optical Compensator.
+    /// @return Shared pointer to atmospheric compensator, or nullptr if unsupported.
+    [[nodiscard]] virtual std::shared_ptr<AtmosphericRefractionCompensator> atmosphericCompensator() const noexcept
     {
         return nullptr;
     }

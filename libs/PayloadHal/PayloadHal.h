@@ -25,6 +25,7 @@
 #include "PayloadHealthMonitor.h"
 #include "GimbalMotionProfiler.h"
 #include "TargetKinematicsFilter.h"
+#include "AtmosphericRefractionCompensator.h"
 #include "PayloadAutoTrackerBridge.h"
 #include "PayloadFactory.h"
 #include "PayloadKlvGenerator.h"

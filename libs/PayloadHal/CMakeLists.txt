@@ -24,6 +24,8 @@ add_library(PayloadHal STATIC
     GimbalMotionProfiler.cpp
     TargetKinematicsFilter.h
     TargetKinematicsFilter.cpp
+    AtmosphericRefractionCompensator.h
+    AtmosphericRefractionCompensator.cpp
     IPayload.h
     GeoreferenceUtils.h
     GeoreferenceUtils.cpp

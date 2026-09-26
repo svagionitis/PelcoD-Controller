@@ -125,10 +125,13 @@ The [PayloadHal](../libs/PayloadHal/PayloadHal.h) library provides a unified Har
   - Predictive time-of-flight ($\text{TOF}$) lead solver and system latency compensation for laser designator slaving, weapon fire control, and fast drone / boat tracking.
   - Occlusion coasting state machine (`Unacquired` -> `Acquiring` -> `Tracking` -> `Coasting` -> `Lost`) maintaining predictive trajectory for up to $T_{\text{coast}}$ seconds with gated innovation reacquisition.
   - Integrated into [IPayload](../libs/PayloadHal/IPayload.h) (`targetKinematics()`) and [SimulatedPayload](../libs/PayloadHal/sim/SimulatedPayload.h). Verified with 100% test coverage in [TestTargetKinematicsFilter.cpp](../libs/PayloadHal/tests/TestTargetKinematicsFilter.cpp).
-- **Atmospheric Refraction & Earth Curvature Optical Compensator (`AtmosphericRefractionCompensator`)**:
+- **Atmospheric Refraction & Earth Curvature Optical Compensator (`AtmosphericRefractionCompensator`)** *(Completed)*:
   - Corrects long-range line-of-sight elevation angles and DEM target ray intersections beyond $5\,\text{km}$ up to $40\,\text{km}$.
-  - Effective Earth Radius ($4/3 R_E$) and ITU-R P.834 / Edlén index of refraction $n(z)$ modeling pressure, temperature, humidity, and wavelength (Visible, SWIR, MWIR, LWIR).
-  - True vs Apparent Target Elevation Angle correction for both forward georeferencing and inverse look-angle calculation.
+  - WGS-84 Earth curvature calculation ($h_{\text{drop}} = d^2 / (2 R_E)$) and combined effective drop ($h_{\text{eff}} = d^2 / (2 k R_E)$).
+  - Wavelength-dependent atmospheric refractivity ($N$) and ray bending ($k$-factor) across 6 optical bands (`Visible`, `Swir`, `Mwir`, `Lwir`, `Lrf1064nm`, `Lrf1550nm`) utilizing Edlén / Ciddor dispersion and Magnus-Tetens humidity formulas.
+  - Forward and inverse elevation corrections: `apparentToTrueElevation` and `trueToApparentElevation` with iterative convergence.
+  - Optical horizon distance ($d_{\text{horizon}} = \sqrt{2 k R_E h_{\text{obs}}} + \sqrt{2 k R_E h_{\text{tgt}}}$) and over-the-horizon occlusion detection.
+  - Integrated into [IPayload](../libs/PayloadHal/IPayload.h) (`atmosphericCompensator()`) and [SimulatedPayload](../libs/PayloadHal/sim/SimulatedPayload.h). Verified with 100% test coverage in [TestAtmosphericRefractionCompensator.cpp](../libs/PayloadHal/tests/TestAtmosphericRefractionCompensator.cpp).
 - **Multi-Payload Master/Slave Slaving & Blind-Zone Handover (`PayloadSlavingCoordinator`)**:
   - Real-time line-of-sight slaving: Station B mirrors Station A's target point in 3D geodetic space (automatically compensating for inter-station baseline lever-arm and parallax).
   - Blind-Zone Handover: Automatic handoff protocol transferring active target track and cueing Station B when Station A approaches its sector blanking limit or gimbal mechanical stop.
@@ -165,7 +168,7 @@ The [PayloadHal](../libs/PayloadHal/PayloadHal.h) library provides a unified Har
 | **P4** | Built-In-Test & Health Monitoring Subsystem *(Completed)* | `PayloadHealthMonitor.h/.cpp`, `IPayload.h`, `SimulatedPayload.h/.cpp`, `PayloadHal.h` | Three pillars of BIT (PBIT/CBIT/IBIT), motor stall detection, thermal throttling alerts, and health-based state escalation. |
 | **P5** | Gimbal S-Curve Motion Profiler & Jerk-Limited Kinematics *(Completed)* | [GimbalMotionProfiler.h](../libs/PayloadHal/GimbalMotionProfiler.h), [IPayload.h](../libs/PayloadHal/IPayload.h), [SimulatedPayload.h](../libs/PayloadHal/sim/SimulatedPayload.h) | Prevents mechanical shock, eliminates motor overcurrent spikes, and provides cinema-smooth tracking. |
 | **P5** | Target Kinematics & Predictive Lead-Angle Slaving *(Completed)* | [TargetKinematicsFilter.h](../libs/PayloadHal/TargetKinematicsFilter.h), [IPayload.h](../libs/PayloadHal/IPayload.h), [SimulatedPayload.h](../libs/PayloadHal/sim/SimulatedPayload.h) | Real-time target velocity estimation, lead angle pointing, and occlusion coasting. |
-| **P5** | Atmospheric Refraction & Earth Curvature Compensator | `AtmosphericRefractionCompensator.h/.cpp`, `GeoreferenceUtils.h` | High-fidelity long-range over-the-horizon elevation and DEM georeferencing. |
+| **P5** | Atmospheric Refraction & Earth Curvature Compensator *(Completed)* | [AtmosphericRefractionCompensator.h](../libs/PayloadHal/AtmosphericRefractionCompensator.h), [IPayload.h](../libs/PayloadHal/IPayload.h), [SimulatedPayload.h](../libs/PayloadHal/sim/SimulatedPayload.h) | High-fidelity long-range over-the-horizon elevation and wavelength-dependent refractivity compensation. |
 | **P5** | Multi-Payload Master/Slave Coordinator & Handover | `PayloadSlavingCoordinator.h/.cpp`, `IPayload.h` | Multi-turret LOS slaving and automated blind-zone handover. |
 | **P5** | Optical Sensor Switching & Digital Match-Zoom | `SensorFusionManager.h/.cpp`, `ICameraPayload.h` | Seamless FOV match-zoom, color palettes, and day/thermal auto-handoff. |
 | **P5** | Payload Stow, Environmental De-Ice & Emergency Park | `PayloadStowController.h/.cpp`, `IPayload.h` | Safe transport stowing, lens de-icing, and emergency zeroization. |
