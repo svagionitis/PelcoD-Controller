@@ -25,6 +25,7 @@ class TourEngine;
 class TacticalSearchEngine;
 class SensorParallaxCompensator;
 class PlatformLeverArmCompensator;
+class GimbalSectorBlanking;
 
 /// @class IPayload
 /// @brief Composite payload station binding Pan-Tilt Unit, Primary/Secondary cameras,
@@ -87,6 +88,13 @@ public:
     /// @brief Accesses the Platform Lever-Arm & Coordinate Frame Transformations subsystem.
     /// @return Shared pointer to lever-arm compensator, or nullptr if unsupported.
     [[nodiscard]] virtual std::shared_ptr<PlatformLeverArmCompensator> leverArmCompensator() const noexcept
+    {
+        return nullptr;
+    }
+
+    /// @brief Accesses the Spatial Sector Blanking & Laser Safety Keep-Out Zones subsystem.
+    /// @return Shared pointer to sector blanking engine, or nullptr if unsupported.
+    [[nodiscard]] virtual std::shared_ptr<GimbalSectorBlanking> sectorBlanking() const noexcept
     {
         return nullptr;
     }

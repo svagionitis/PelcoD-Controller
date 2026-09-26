@@ -5,6 +5,7 @@
 #include "TacticalSearchEngine.h"
 #include "SensorParallaxCompensator.h"
 #include "PlatformLeverArmCompensator.h"
+#include "GimbalSectorBlanking.h"
 
 #include <algorithm>
 #include <cmath>
@@ -66,9 +67,27 @@ public:
         return true;
     }
 
+    void setSectorBlanking(std::shared_ptr<GimbalSectorBlanking> blanking)
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        m_sectorBlanking = std::move(blanking);
+    }
+
     bool setAbsoluteAngles(double panDeg, double tiltDeg) override
     {
         std::lock_guard<std::mutex> lock(m_mutex);
+        if (m_sectorBlanking) {
+            const auto validation = m_sectorBlanking->validatePath(
+                m_telemetry.panAngleDeg, m_telemetry.tiltAngleDeg, panDeg, tiltDeg, SectorZoneType::MechanicalKeepOut);
+            if (!validation.pathClear) {
+                if (validation.clamped) {
+                    panDeg = validation.safeTargetAzDeg;
+                    tiltDeg = validation.safeTargetElDeg;
+                } else {
+                    return false;
+                }
+            }
+        }
         double normPan = std::fmod(panDeg, 360.0);
         if (normPan < 0.0)
             normPan += 360.0;
@@ -76,6 +95,9 @@ public:
         m_telemetry.tiltAngleDeg = std::clamp(tiltDeg, -90.0, 90.0);
         m_telemetry.isMoving = false;
         dispatchTelemetry();
+        if (m_sectorBlanking) {
+            (void)m_sectorBlanking->evaluate(m_telemetry.panAngleDeg, m_telemetry.tiltAngleDeg);
+        }
         return true;
     }
 
@@ -285,6 +307,7 @@ private:
     TelemetryCallback m_telemetryCb {};
     StateCallback m_stateCb {};
     std::unordered_map<uint8_t, std::pair<double, double>> m_presets {};
+    std::shared_ptr<GimbalSectorBlanking> m_sectorBlanking {};
 };
 
 // =============================================================================
@@ -644,12 +667,25 @@ public:
         return m_armed;
     }
 
+    void setSectorBlanking(std::shared_ptr<GimbalSectorBlanking> blanking, std::shared_ptr<SimPtu> ptu)
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        m_sectorBlanking = std::move(blanking);
+        m_ptu = std::move(ptu);
+    }
+
     bool triggerSingleMeasurement() override
     {
         std::lock_guard<std::mutex> lock(m_mutex);
         if (!m_armed) {
             // Safety interlock: cannot fire laser if disarmed!
             return false;
+        }
+        if (m_sectorBlanking && m_ptu) {
+            const auto telem = m_ptu->currentTelemetry();
+            if (!m_sectorBlanking->isLaserAllowed(telem.panAngleDeg, telem.tiltAngleDeg)) {
+                return false;
+            }
         }
         m_pulseCount++;
         emitMeasurement(m_simRangeMeters);
@@ -661,6 +697,12 @@ public:
         std::lock_guard<std::mutex> lock(m_mutex);
         if (!m_armed && mode != LrfMode::Standby) {
             return false;
+        }
+        if (mode != LrfMode::Standby && m_sectorBlanking && m_ptu) {
+            const auto telem = m_ptu->currentTelemetry();
+            if (!m_sectorBlanking->isLaserAllowed(telem.panAngleDeg, telem.tiltAngleDeg)) {
+                return false;
+            }
         }
         m_mode = mode;
         if (mode != LrfMode::Standby) {
@@ -736,6 +778,8 @@ private:
     LrfTargetMeasurement m_lastMeasurement {};
     MeasurementCallback m_measurementCb {};
     StateCallback m_stateCb {};
+    std::shared_ptr<GimbalSectorBlanking> m_sectorBlanking {};
+    std::shared_ptr<SimPtu> m_ptu {};
 };
 
 // =============================================================================
@@ -818,12 +862,25 @@ public:
         return m_armed;
     }
 
+    void setSectorBlanking(std::shared_ptr<GimbalSectorBlanking> blanking, std::shared_ptr<SimPtu> ptu)
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        m_sectorBlanking = std::move(blanking);
+        m_ptu = std::move(ptu);
+    }
+
     bool startEmission() override
     {
         std::lock_guard<std::mutex> lock(m_mutex);
         if (!m_armed) {
             // Safety interlock: cannot fire laser if disarmed!
             return false;
+        }
+        if (m_sectorBlanking && m_ptu) {
+            const auto telem = m_ptu->currentTelemetry();
+            if (!m_sectorBlanking->isLaserAllowed(telem.panAngleDeg, telem.tiltAngleDeg)) {
+                return false;
+            }
         }
         m_emitting = true;
         m_telemetry.isEmitting = true;
@@ -925,6 +982,8 @@ private:
     IlluminatorTelemetry m_telemetry {};
     TelemetryCallback m_telemetryCb {};
     StateCallback m_stateCb {};
+    std::shared_ptr<GimbalSectorBlanking> m_sectorBlanking {};
+    std::shared_ptr<SimPtu> m_ptu {};
 };
 
 // =============================================================================
@@ -944,8 +1003,23 @@ SimulatedPayload::SimulatedPayload()
           SensorOffset3D { 0.15, 0.0, 0.0 }, BoresightCalibration { 0.0, 0.0, 0.0 }))
     , m_leverArmCompensator(std::make_shared<PlatformLeverArmCompensator>(
           PlatformLeverArmConfig { Vector3D { 0.0, 0.0, 5.0 }, Vector3D { 0.0, 0.0, 0.0 }, GimbalMountingType::Upright, {} }))
+    , m_sectorBlanking(std::make_shared<GimbalSectorBlanking>())
     , m_connected(true)
 {
+    m_ptu->setSectorBlanking(m_sectorBlanking);
+    m_lrf->setSectorBlanking(m_sectorBlanking, m_ptu);
+    m_illuminator->setSectorBlanking(m_sectorBlanking, m_ptu);
+
+    m_sectorBlanking->registerInterlockCallback([this](bool allowed, const std::string&) {
+        if (!allowed) {
+            if (m_lrf) {
+                m_lrf->stopRanging();
+            }
+            if (m_illuminator) {
+                m_illuminator->stopEmission();
+            }
+        }
+    });
 }
 
 SimulatedPayload::~SimulatedPayload()
@@ -1055,6 +1129,11 @@ std::shared_ptr<SensorParallaxCompensator> SimulatedPayload::parallaxCompensator
 std::shared_ptr<PlatformLeverArmCompensator> SimulatedPayload::leverArmCompensator() const noexcept
 {
     return m_leverArmCompensator;
+}
+
+std::shared_ptr<GimbalSectorBlanking> SimulatedPayload::sectorBlanking() const noexcept
+{
+    return m_sectorBlanking;
 }
 
 std::optional<Klv::GeoPoint2D> SimulatedPayload::calculateTargetCoordinates(

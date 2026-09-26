@@ -21,6 +21,7 @@
 #include "TacticalSearchEngine.h"
 #include "SensorParallaxCompensator.h"
 #include "PlatformLeverArmCompensator.h"
+#include "GimbalSectorBlanking.h"
 #include "PayloadAutoTrackerBridge.h"
 #include "PayloadFactory.h"
 #include "PayloadKlvGenerator.h"

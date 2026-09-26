@@ -16,6 +16,8 @@ add_library(PayloadHal STATIC
     SensorParallaxCompensator.cpp
     PlatformLeverArmCompensator.h
     PlatformLeverArmCompensator.cpp
+    GimbalSectorBlanking.h
+    GimbalSectorBlanking.cpp
     IPayload.h
     GeoreferenceUtils.h
     GeoreferenceUtils.cpp

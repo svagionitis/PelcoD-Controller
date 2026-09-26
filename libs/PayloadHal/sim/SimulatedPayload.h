@@ -42,6 +42,7 @@ public:
     [[nodiscard]] std::shared_ptr<TacticalSearchEngine> tacticalSearch() const noexcept override;
     [[nodiscard]] std::shared_ptr<SensorParallaxCompensator> parallaxCompensator() const noexcept override;
     [[nodiscard]] std::shared_ptr<PlatformLeverArmCompensator> leverArmCompensator() const noexcept override;
+    [[nodiscard]] std::shared_ptr<GimbalSectorBlanking> sectorBlanking() const noexcept override;
 
     [[nodiscard]] std::optional<Klv::GeoPoint2D> calculateTargetCoordinates(
         const Klv::GeoPoint2D& platformGps, double platformHeadingDeg, double platformAltMeters) const override;
@@ -67,6 +68,7 @@ private:
     std::shared_ptr<TacticalSearchEngine> m_tacticalEngine;
     std::shared_ptr<SensorParallaxCompensator> m_parallaxCompensator;
     std::shared_ptr<PlatformLeverArmCompensator> m_leverArmCompensator;
+    std::shared_ptr<GimbalSectorBlanking> m_sectorBlanking;
 
     mutable std::mutex m_mutex;
     StateCallback m_stateCallback {};
