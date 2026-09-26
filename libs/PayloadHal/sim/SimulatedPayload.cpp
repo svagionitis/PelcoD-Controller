@@ -11,6 +11,7 @@
 #include "TargetKinematicsFilter.h"
 #include "AtmosphericRefractionCompensator.h"
 #include "PayloadSlavingCoordinator.h"
+#include "SensorFusionManager.h"
 
 #include <algorithm>
 #include <cmath>
@@ -1014,6 +1015,7 @@ SimulatedPayload::SimulatedPayload()
     , m_targetKinematics(std::make_shared<TargetKinematicsFilter>())
     , m_atmosphericCompensator(std::make_shared<AtmosphericRefractionCompensator>())
     , m_slavingCoordinator(std::make_shared<PayloadSlavingCoordinator>())
+    , m_sensorFusion(std::make_shared<SensorFusionManager>(m_daylightCamera, m_thermalCamera))
     , m_connected(true)
 {
     m_ptu->setSectorBlanking(m_sectorBlanking);
@@ -1182,6 +1184,11 @@ std::shared_ptr<AtmosphericRefractionCompensator> SimulatedPayload::atmosphericC
 std::shared_ptr<PayloadSlavingCoordinator> SimulatedPayload::slavingCoordinator() const noexcept
 {
     return m_slavingCoordinator;
+}
+
+std::shared_ptr<SensorFusionManager> SimulatedPayload::sensorFusion() const noexcept
+{
+    return m_sensorFusion;
 }
 
 std::optional<Klv::GeoPoint2D> SimulatedPayload::calculateTargetCoordinates(

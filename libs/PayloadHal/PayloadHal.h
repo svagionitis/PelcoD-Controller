@@ -27,6 +27,7 @@
 #include "TargetKinematicsFilter.h"
 #include "AtmosphericRefractionCompensator.h"
 #include "PayloadSlavingCoordinator.h"
+#include "SensorFusionManager.h"
 #include "PayloadAutoTrackerBridge.h"
 #include "PayloadFactory.h"
 #include "PayloadKlvGenerator.h"

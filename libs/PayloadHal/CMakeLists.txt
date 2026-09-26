@@ -28,6 +28,8 @@ add_library(PayloadHal STATIC
     AtmosphericRefractionCompensator.cpp
     PayloadSlavingCoordinator.h
     PayloadSlavingCoordinator.cpp
+    SensorFusionManager.h
+    SensorFusionManager.cpp
     IPayload.h
     GeoreferenceUtils.h
     GeoreferenceUtils.cpp

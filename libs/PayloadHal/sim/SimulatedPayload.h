@@ -16,6 +16,7 @@
 namespace PayloadHal {
 
 class PayloadSlavingCoordinator;
+class SensorFusionManager;
 
 /// @class SimulatedPayload
 /// @brief Fully software-simulated multi-sensor electro-optical/infrared payload station
@@ -50,6 +51,7 @@ public:
     [[nodiscard]] std::shared_ptr<TargetKinematicsFilter> targetKinematics() const noexcept override;
     [[nodiscard]] std::shared_ptr<AtmosphericRefractionCompensator> atmosphericCompensator() const noexcept override;
     [[nodiscard]] std::shared_ptr<PayloadSlavingCoordinator> slavingCoordinator() const noexcept override;
+    [[nodiscard]] std::shared_ptr<SensorFusionManager> sensorFusion() const noexcept override;
 
     [[nodiscard]] std::optional<Klv::GeoPoint2D> calculateTargetCoordinates(
         const Klv::GeoPoint2D& platformGps, double platformHeadingDeg, double platformAltMeters) const override;
@@ -81,6 +83,7 @@ private:
     std::shared_ptr<TargetKinematicsFilter> m_targetKinematics;
     std::shared_ptr<AtmosphericRefractionCompensator> m_atmosphericCompensator;
     std::shared_ptr<PayloadSlavingCoordinator> m_slavingCoordinator;
+    std::shared_ptr<SensorFusionManager> m_sensorFusion;
 
     mutable std::mutex m_mutex;
     StateCallback m_stateCallback {};
