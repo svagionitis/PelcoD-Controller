@@ -4,6 +4,7 @@
 #include "TourEngine.h"
 #include "TacticalSearchEngine.h"
 #include "SensorParallaxCompensator.h"
+#include "PlatformLeverArmCompensator.h"
 
 #include <algorithm>
 #include <cmath>
@@ -941,6 +942,8 @@ SimulatedPayload::SimulatedPayload()
     , m_tacticalEngine(std::make_shared<TacticalSearchEngine>(m_ptu, m_daylightCamera, m_lrf))
     , m_parallaxCompensator(std::make_shared<SensorParallaxCompensator>(
           SensorOffset3D { 0.15, 0.0, 0.0 }, BoresightCalibration { 0.0, 0.0, 0.0 }))
+    , m_leverArmCompensator(std::make_shared<PlatformLeverArmCompensator>(
+          PlatformLeverArmConfig { Vector3D { 0.0, 0.0, 5.0 }, Vector3D { 0.0, 0.0, 0.0 }, GimbalMountingType::Upright, {} }))
     , m_connected(true)
 {
 }
@@ -1047,6 +1050,11 @@ std::shared_ptr<TacticalSearchEngine> SimulatedPayload::tacticalSearch() const n
 std::shared_ptr<SensorParallaxCompensator> SimulatedPayload::parallaxCompensator() const noexcept
 {
     return m_parallaxCompensator;
+}
+
+std::shared_ptr<PlatformLeverArmCompensator> SimulatedPayload::leverArmCompensator() const noexcept
+{
+    return m_leverArmCompensator;
 }
 
 std::optional<Klv::GeoPoint2D> SimulatedPayload::calculateTargetCoordinates(

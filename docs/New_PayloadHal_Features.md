@@ -99,8 +99,12 @@ The [PayloadHal](../libs/PayloadHal/PayloadHal.h) library provides a unified Har
   - Slew-to-Cue priority queue integrating external target tracks (Radar, ADS-B, AIS transponders, acoustic gunshot detectors) with strict preemption (`Flash` > `Immediate` > `Priority` > `Routine`).
   - Arrival tolerance verification, observation dwell hold, automatic target acquisition callbacks (handing off to auto-tracker or rangefinders), and seamless auto-resumption of interrupted search patterns.
   - Integrated into [IPayload](../libs/PayloadHal/IPayload.h) (`tacticalSearch()`) and [SimulatedPayload](../libs/PayloadHal/sim/SimulatedPayload.h). Verified with 100% test coverage in [TestTacticalSearchEngine.cpp](../libs/PayloadHal/tests/TestTacticalSearchEngine.cpp).
-- **Platform Lever-Arm & Coordinate Frame Transformations (`PlatformLeverArmCompensator`)**:
-  - Rigid-body translations accounting for physical distances between GPS/INS antenna, gimbal pivot base, and sensor nodal points ($\mathbf{P}_{\text{optical}} = \mathbf{P}_{\text{GPS}} + \mathbf{R}_{\text{body}}(\mathbf{L}_{\text{leverarm}}) + \mathbf{R}_{\text{gimbal}}(\mathbf{L}_{\text{sensor}})$) for sub-meter geodetic targeting precision.
+- **Platform Lever-Arm & Coordinate Frame Transformations (`PlatformLeverArmCompensator`)** *(Completed)*:
+  - Rigid-body translations accounting for physical distances between GPS/INS antenna, gimbal pivot base, and sensor nodal points ($\mathbf{P}_{\text{optical}} = \mathbf{P}_{\text{GPS}} + \mathbf{R}_{\text{body}}(\mathbf{L}_{\text{leverarm}}) + \mathbf{R}_{\text{gimbal}}(\mathbf{L}_{\text{sensor}})$) for sub-millimeter geodetic targeting precision.
+  - Forward kinematics: `computeSensorPosition`, `computeSensorPositionNed`, `computeLineOfSightNed`, `computeTargetFromSlantRange`, and `computeTargetFromGroundIntersection`.
+  - Inverse kinematics: `computeLookAnglesToTarget` resolving gimbal pan/tilt look angles from the true physical sensor position.
+  - Support for `Upright` (pedestal/mast), `Inverted` (aircraft/drone belly mount), and `Custom` 3D Euler mounting orientations.
+  - Integrated into [IPayload](../libs/PayloadHal/IPayload.h) (`leverArmCompensator()`) and [SimulatedPayload](../libs/PayloadHal/sim/SimulatedPayload.h). Verified with comprehensive unit test coverage in [TestPlatformLeverArmCompensator.cpp](../libs/PayloadHal/tests/TestPlatformLeverArmCompensator.cpp).
 - **Built-In-Test & Health Monitoring Subsystem (`PayloadHealthMonitor` / BIT)**:
   - Standardized diagnostic telemetry: Power-On BIT (PBIT), Continuous BIT (CBIT - motor currents, temperatures, transport packet health), and Initiated BIT (IBIT - limit sweeps, optical cycling).
 
@@ -124,5 +128,5 @@ The [PayloadHal](../libs/PayloadHal/PayloadHal.h) library provides a unified Har
 | **P4** | Spatial Sector Blanking & Laser Safety Keep-Out Zones | `GimbalSectorBlanking.h/.cpp`, `IPanTiltUnit.h`, `SerialLrfAdapter.h` | Prevents mechanical vehicle collisions and inhibits laser emission into hazard sectors. |
 | **P4** | Dual-Sensor Parallax & Boresight Alignment (`SensorParallaxCompensator`) *(Completed)* | `SensorParallaxCompensator.h/.cpp`, `IPayload.h`, `SimulatedPayload.h/.cpp` | Range-dependent angular alignment, reticle convergence, and bounding box transfer between Daylight EO and Thermal IR. |
 | **P4** | Tactical Search Patterns & Slew-to-Cue Engine (`TacticalSearchEngine`) *(Completed)* | `TacticalSearchEngine.h/.cpp`, `IPayload.h`, `SimulatedPayload.h/.cpp` | Automated wide-area search sweeps (Sector, Expanding Square, Spiral, Creeping Line) and prioritized Radar/AIS/Acoustic cueing with auto-resume. |
-| **P4** | Platform Lever-Arm & Coordinate Frame Transformations | `LeverArmCompensator.h/.cpp`, `GeoreferenceUtils.h` | Offsets GPS antenna, gimbal pivot, and optical center for high-precision georeferencing. |
+| **P4** | Platform Lever-Arm & Coordinate Frame Transformations *(Completed)* | `PlatformLeverArmCompensator.h/.cpp`, `IPayload.h`, `SimulatedPayload.h/.cpp` | Offsets GPS antenna, gimbal pivot, and optical center for high-precision georeferencing under dynamic vehicle roll/pitch. |
 | **P4** | Built-In-Test & Health Monitoring Subsystem | `PayloadHealthMonitor.h/.cpp`, `PayloadHal.h` | PBIT/CBIT/IBIT diagnostics, motor stall detection, and thermal throttling alerts. |

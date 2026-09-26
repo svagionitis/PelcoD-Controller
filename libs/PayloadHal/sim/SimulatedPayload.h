@@ -41,6 +41,7 @@ public:
     [[nodiscard]] std::shared_ptr<TourEngine> tourEngine() const noexcept override;
     [[nodiscard]] std::shared_ptr<TacticalSearchEngine> tacticalSearch() const noexcept override;
     [[nodiscard]] std::shared_ptr<SensorParallaxCompensator> parallaxCompensator() const noexcept override;
+    [[nodiscard]] std::shared_ptr<PlatformLeverArmCompensator> leverArmCompensator() const noexcept override;
 
     [[nodiscard]] std::optional<Klv::GeoPoint2D> calculateTargetCoordinates(
         const Klv::GeoPoint2D& platformGps, double platformHeadingDeg, double platformAltMeters) const override;
@@ -65,6 +66,7 @@ private:
     std::shared_ptr<TourEngine> m_tourEngine;
     std::shared_ptr<TacticalSearchEngine> m_tacticalEngine;
     std::shared_ptr<SensorParallaxCompensator> m_parallaxCompensator;
+    std::shared_ptr<PlatformLeverArmCompensator> m_leverArmCompensator;
 
     mutable std::mutex m_mutex;
     StateCallback m_stateCallback {};

@@ -24,6 +24,7 @@ class IPtzPresetManager;
 class TourEngine;
 class TacticalSearchEngine;
 class SensorParallaxCompensator;
+class PlatformLeverArmCompensator;
 
 /// @class IPayload
 /// @brief Composite payload station binding Pan-Tilt Unit, Primary/Secondary cameras,
@@ -79,6 +80,13 @@ public:
     /// @brief Accesses the Dual-Sensor Parallax & Boresight Compensator subsystem.
     /// @return Shared pointer to parallax compensator, or nullptr if single-sensor or unsupported.
     [[nodiscard]] virtual std::shared_ptr<SensorParallaxCompensator> parallaxCompensator() const noexcept
+    {
+        return nullptr;
+    }
+
+    /// @brief Accesses the Platform Lever-Arm & Coordinate Frame Transformations subsystem.
+    /// @return Shared pointer to lever-arm compensator, or nullptr if unsupported.
+    [[nodiscard]] virtual std::shared_ptr<PlatformLeverArmCompensator> leverArmCompensator() const noexcept
     {
         return nullptr;
     }

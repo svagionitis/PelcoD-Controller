@@ -20,6 +20,7 @@
 #include "TourEngine.h"
 #include "TacticalSearchEngine.h"
 #include "SensorParallaxCompensator.h"
+#include "PlatformLeverArmCompensator.h"
 #include "PayloadAutoTrackerBridge.h"
 #include "PayloadFactory.h"
 #include "PayloadKlvGenerator.h"

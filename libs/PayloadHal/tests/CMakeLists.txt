@@ -49,4 +49,5 @@ add_payload_hal_test(TestPtzPresetManager             TestPtzPresetManager.cpp)
 add_payload_hal_test(TestTourEngine                   TestTourEngine.cpp)
 add_payload_hal_test(TestTacticalSearchEngine         TestTacticalSearchEngine.cpp)
 add_payload_hal_test(TestSensorParallaxCompensator    TestSensorParallaxCompensator.cpp)
+add_payload_hal_test(TestPlatformLeverArmCompensator TestPlatformLeverArmCompensator.cpp)
 
