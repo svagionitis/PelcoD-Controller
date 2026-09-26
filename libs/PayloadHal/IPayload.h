@@ -16,6 +16,7 @@
 #include <memory>
 #include <mutex>
 #include <optional>
+#include <vector>
 
 namespace PayloadHal {
 
@@ -73,6 +74,50 @@ public:
     /// @return Geodetic 2D coordinates of target if calculation succeeds, std::nullopt otherwise.
     [[nodiscard]] virtual std::optional<Klv::GeoPoint2D> calculateTargetCoordinates(
         const Klv::GeoPoint2D& platformGps, double platformHeadingDeg, double platformAltMeters) const = 0;
+
+    // --- Video Stream Convenience Shortcuts ---
+
+    /// @brief Retrieves the video stream URI for the designated profile from the primary or secondary camera.
+    /// @param[in] profile Profile to query (default Primary).
+    /// @return Stream URI string, or empty if unavailable.
+    [[nodiscard]] virtual std::string videoStreamUri(VideoStreamProfile profile = VideoStreamProfile::Primary) const
+    {
+        if (profile == VideoStreamProfile::Thermal) {
+            const auto sec = secondaryCamera();
+            if (sec) {
+                return sec->videoStreamUri(profile);
+            }
+        }
+        const auto prim = primaryCamera();
+        if (prim) {
+            return prim->videoStreamUri(profile);
+        }
+        const auto sec = secondaryCamera();
+        return sec ? sec->videoStreamUri(profile) : std::string {};
+    }
+
+    /// @brief Convenience accessor for thermal video stream URI.
+    /// @return Thermal stream URI string, or empty if unavailable.
+    [[nodiscard]] virtual std::string thermalVideoStreamUri() const
+    {
+        return videoStreamUri(VideoStreamProfile::Thermal);
+    }
+
+    /// @brief Collects all available video streams across all equipped cameras.
+    /// @return Vector of VideoStreamDescriptor records.
+    [[nodiscard]] virtual std::vector<VideoStreamDescriptor> allVideoStreams() const
+    {
+        std::vector<VideoStreamDescriptor> streams;
+        if (const auto prim = primaryCamera()) {
+            const auto primStreams = prim->availableStreams();
+            streams.insert(streams.end(), primStreams.begin(), primStreams.end());
+        }
+        if (const auto sec = secondaryCamera()) {
+            const auto secStreams = sec->availableStreams();
+            streams.insert(streams.end(), secStreams.begin(), secStreams.end());
+        }
+        return streams;
+    }
 
     /// @brief Computes the 4-corner ground projection footprint frustum polygon for the specified camera.
     /// @param[in] camera Camera payload interface to query FOV from.

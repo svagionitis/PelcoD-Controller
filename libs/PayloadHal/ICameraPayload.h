@@ -5,8 +5,12 @@
 
 #include "IDevice.h"
 #include "PayloadTypes.h"
+#include "VideoStreamTypes.h"
 
 #include <functional>
+#include <optional>
+#include <string>
+#include <vector>
 
 namespace PayloadHal {
 
@@ -130,6 +134,57 @@ public:
     /// @brief Retrieves the latest cached optical magnification, focus, and FOV telemetry synchronously.
     /// @return Current CameraTelemetry snapshot.
     [[nodiscard]] virtual CameraTelemetry currentTelemetry() const = 0;
+
+    // --- Video Streaming Binding ---
+
+    /// @brief Retrieves the video streaming connection URI for the designated profile.
+    /// @param[in] profile Video stream profile (Primary, Secondary, Thermal, Snapshot).
+    /// @return Stream URI string, or empty if unconfigured/unsupported.
+    [[nodiscard]] virtual std::string videoStreamUri(VideoStreamProfile profile = VideoStreamProfile::Primary) const
+    {
+        (void)profile;
+        return {};
+    }
+
+    /// @brief Configures or overrides the video streaming connection URI for the designated profile.
+    /// @param[in] uri Connection URI (e.g. "rtsp://...", "sim://...", "v4l2://...").
+    /// @param[in] profile Target profile.
+    /// @return True if updated, false if unsupported.
+    virtual bool setVideoStreamUri(const std::string& uri, VideoStreamProfile profile = VideoStreamProfile::Primary)
+    {
+        (void)uri;
+        (void)profile;
+        return false;
+    }
+
+    /// @brief Queries all video stream descriptors exposed by this camera payload.
+    /// @return Vector of VideoStreamDescriptor records.
+    [[nodiscard]] virtual std::vector<VideoStreamDescriptor> availableStreams() const
+    {
+        std::vector<VideoStreamDescriptor> list;
+        const auto primary = videoStreamUri(VideoStreamProfile::Primary);
+        if (!primary.empty()) {
+            list.push_back(VideoStreamDescriptor {
+                primary, VideoStreamProfile::Primary, deduceTransportProtocol(primary),
+                1920, 1080, 30.0, "H264", true
+            });
+        }
+        return list;
+    }
+
+    /// @brief Finds the stream descriptor for the requested profile.
+    /// @param[in] profile Target profile.
+    /// @return Descriptor if found, std::nullopt otherwise.
+    [[nodiscard]] virtual std::optional<VideoStreamDescriptor> streamDescriptor(
+        VideoStreamProfile profile = VideoStreamProfile::Primary) const
+    {
+        for (const auto& s : availableStreams()) {
+            if (s.profile == profile) {
+                return s;
+            }
+        }
+        return std::nullopt;
+    }
 };
 
 } // namespace PayloadHal

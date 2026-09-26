@@ -14,6 +14,7 @@
 #include <algorithm>
 #include <cctype>
 #include <cmath>
+#include <map>
 #include <unordered_map>
 
 namespace PayloadHal {
@@ -208,10 +209,71 @@ namespace {
             return telem;
         }
 
+        std::string videoStreamUri(VideoStreamProfile profile = VideoStreamProfile::Primary) const override
+        {
+            std::lock_guard<std::mutex> lock(m_mutex);
+            auto it = m_streamUris.find(profile);
+            if (it != m_streamUris.end() && !it->second.empty()) {
+                return it->second;
+            }
+            if (profile == VideoStreamProfile::Secondary) {
+                auto primIt = m_streamUris.find(VideoStreamProfile::Primary);
+                if (primIt != m_streamUris.end()) {
+                    return primIt->second;
+                }
+            }
+            return {};
+        }
+
+        bool setVideoStreamUri(const std::string& uri, VideoStreamProfile profile = VideoStreamProfile::Primary) override
+        {
+            std::lock_guard<std::mutex> lock(m_mutex);
+            m_streamUris[profile] = uri;
+            return true;
+        }
+
+        std::vector<VideoStreamDescriptor> availableStreams() const override
+        {
+            std::lock_guard<std::mutex> lock(m_mutex);
+            std::vector<VideoStreamDescriptor> list;
+            for (const auto& [prof, uri] : m_streamUris) {
+                if (uri.empty()) {
+                    continue;
+                }
+                VideoStreamDescriptor desc;
+                desc.uri = uri;
+                desc.profile = prof;
+                desc.transport = deduceTransportProtocol(uri);
+                if (prof == VideoStreamProfile::Primary) {
+                    desc.width = 1920;
+                    desc.height = 1080;
+                    desc.framerateFps = 30.0;
+                    desc.encoding = "H264";
+                    desc.isDefault = true;
+                } else if (prof == VideoStreamProfile::Secondary) {
+                    desc.width = 1280;
+                    desc.height = 720;
+                    desc.framerateFps = 30.0;
+                    desc.encoding = "H264";
+                    desc.isDefault = false;
+                } else if (prof == VideoStreamProfile::Snapshot) {
+                    desc.width = 1920;
+                    desc.height = 1080;
+                    desc.framerateFps = 0.0;
+                    desc.encoding = "JPEG";
+                    desc.isDefault = false;
+                }
+                list.push_back(desc);
+            }
+            return list;
+        }
+
     private:
         std::shared_ptr<PelcoD::PelcoDDevice> m_device;
+        mutable std::mutex m_mutex;
         TelemetryCallback m_telemCb {};
         StateCallback m_stateCb {};
+        std::map<VideoStreamProfile, std::string> m_streamUris {};
     };
 
     class PelcoDCompositePayload : public IPayload {
@@ -454,8 +516,37 @@ std::shared_ptr<IPayload> PayloadFactory::createFromUri(const std::string& uri)
 {
     const ParsedUri parsed = parseUriString(uri);
 
+    auto applyStreamParams = [&parsed](std::shared_ptr<IPayload> payload) -> std::shared_ptr<IPayload> {
+        if (!payload) {
+            return nullptr;
+        }
+        const std::string videoUri = parsed.getQuery("video", parsed.getQuery("stream", ""));
+        const std::string substreamUri = parsed.getQuery("substream", "");
+        const std::string thermalUri = parsed.getQuery("thermal", "");
+        const std::string snapshotUri = parsed.getQuery("snapshot", "");
+
+        if (auto prim = payload->primaryCamera()) {
+            if (!videoUri.empty()) {
+                prim->setVideoStreamUri(videoUri, VideoStreamProfile::Primary);
+            }
+            if (!substreamUri.empty()) {
+                prim->setVideoStreamUri(substreamUri, VideoStreamProfile::Secondary);
+            }
+            if (!snapshotUri.empty()) {
+                prim->setVideoStreamUri(snapshotUri, VideoStreamProfile::Snapshot);
+            }
+        }
+        if (auto sec = payload->secondaryCamera()) {
+            if (!thermalUri.empty()) {
+                sec->setVideoStreamUri(thermalUri, VideoStreamProfile::Thermal);
+                sec->setVideoStreamUri(thermalUri, VideoStreamProfile::Primary);
+            }
+        }
+        return payload;
+    };
+
     if (parsed.scheme == "sim") {
-        return createSimulatedPayload();
+        return applyStreamParams(createSimulatedPayload());
     }
 
     if (parsed.scheme == "onvif") {
@@ -468,7 +559,7 @@ std::shared_ptr<IPayload> PayloadFactory::createFromUri(const std::string& uri)
         Onvif::SecurityCredentials creds {};
         creds.username = parsed.username;
         creds.password = parsed.password;
-        return createOnvifPayload(endpoint, creds);
+        return applyStreamParams(createOnvifPayload(endpoint, creds));
     }
 
     if (parsed.scheme == "pelcod") {
@@ -484,7 +575,7 @@ std::shared_ptr<IPayload> PayloadFactory::createFromUri(const std::string& uri)
                 return nullptr;
             }
             auto dev = std::make_shared<PelcoD::PelcoDDevice>(std::move(transport), static_cast<std::uint8_t>(addr));
-            return createPelcoDPayload(std::move(dev));
+            return applyStreamParams(createPelcoDPayload(std::move(dev)));
         }
 
         if (!parsed.host.empty()) {
@@ -495,7 +586,7 @@ std::shared_ptr<IPayload> PayloadFactory::createFromUri(const std::string& uri)
                 return nullptr;
             }
             auto dev = std::make_shared<PelcoD::PelcoDDevice>(std::move(transport), static_cast<std::uint8_t>(addr));
-            return createPelcoDPayload(std::move(dev));
+            return applyStreamParams(createPelcoDPayload(std::move(dev)));
         }
         return nullptr;
     }
@@ -517,12 +608,12 @@ std::shared_ptr<IPayload> PayloadFactory::createFromUri(const std::string& uri)
         }
         if (protocol == "pelcod") {
             auto dev = std::make_shared<PelcoD::PelcoDDevice>(std::move(transport), static_cast<std::uint8_t>(addr));
-            return createPelcoDPayload(std::move(dev));
+            return applyStreamParams(createPelcoDPayload(std::move(dev)));
         }
         if (protocol == "fujinon") {
             auto dev
                 = std::make_shared<PelcoD::FujinonSX800Device>(std::move(transport), static_cast<std::uint8_t>(addr));
-            return createFujinonPayload(std::move(dev));
+            return applyStreamParams(createFujinonPayload(std::move(dev)));
         }
         return nullptr;
     }
@@ -543,12 +634,12 @@ std::shared_ptr<IPayload> PayloadFactory::createFromUri(const std::string& uri)
         }
         if (protocol == "pelcod") {
             auto dev = std::make_shared<PelcoD::PelcoDDevice>(std::move(transport), static_cast<std::uint8_t>(addr));
-            return createPelcoDPayload(std::move(dev));
+            return applyStreamParams(createPelcoDPayload(std::move(dev)));
         }
         if (protocol == "fujinon") {
             auto dev
                 = std::make_shared<PelcoD::FujinonSX800Device>(std::move(transport), static_cast<std::uint8_t>(addr));
-            return createFujinonPayload(std::move(dev));
+            return applyStreamParams(createFujinonPayload(std::move(dev)));
         }
         return nullptr;
     }
@@ -566,7 +657,7 @@ std::shared_ptr<IPayload> PayloadFactory::createFromUri(const std::string& uri)
             }
             auto dev
                 = std::make_shared<PelcoD::FujinonSX800Device>(std::move(transport), static_cast<std::uint8_t>(addr));
-            return createFujinonPayload(std::move(dev));
+            return applyStreamParams(createFujinonPayload(std::move(dev)));
         }
         if (!parsed.host.empty()) {
             const int port = parsed.port > 0 ? parsed.port : 4001;
@@ -577,7 +668,7 @@ std::shared_ptr<IPayload> PayloadFactory::createFromUri(const std::string& uri)
             }
             auto dev
                 = std::make_shared<PelcoD::FujinonSX800Device>(std::move(transport), static_cast<std::uint8_t>(addr));
-            return createFujinonPayload(std::move(dev));
+            return applyStreamParams(createFujinonPayload(std::move(dev)));
         }
         return nullptr;
     }
@@ -616,7 +707,7 @@ std::shared_ptr<IPayload> PayloadFactory::createFromUri(const std::string& uri)
                 = std::make_shared<PelcoD::PelcoDDevice>(std::move(ptzTrans), static_cast<std::uint8_t>(ptzAddr));
             auto camDevice
                 = std::make_shared<Visca::Sony::SonyFCBDevice>(std::move(camTrans), static_cast<std::uint8_t>(camAddr));
-            return createPelcoDViscaPayload(std::move(ptzDevice), std::move(camDevice));
+            return applyStreamParams(createPelcoDViscaPayload(std::move(ptzDevice), std::move(camDevice)));
         }
 
         std::string ptzHost = parsed.getQuery("ptz_host", parsed.host);
@@ -641,7 +732,7 @@ std::shared_ptr<IPayload> PayloadFactory::createFromUri(const std::string& uri)
             = std::make_shared<PelcoD::PelcoDDevice>(std::move(ptzTrans), static_cast<std::uint8_t>(ptzAddr));
         auto camDevice
             = std::make_shared<Visca::Sony::SonyFCBDevice>(std::move(camTrans), static_cast<std::uint8_t>(camAddr));
-        return createPelcoDViscaPayload(std::move(ptzDevice), std::move(camDevice));
+        return applyStreamParams(createPelcoDViscaPayload(std::move(ptzDevice), std::move(camDevice)));
     }
 
     return nullptr;

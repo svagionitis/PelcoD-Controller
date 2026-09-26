@@ -8,6 +8,7 @@
 #include "IPayload.h"
 #include "Onvif/OnvifClient.h"
 
+#include <map>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -125,9 +126,20 @@ public:
     void registerTelemetryCallback(TelemetryCallback cb) override;
     [[nodiscard]] CameraTelemetry currentTelemetry() const override;
 
-    /// @brief Retrieves the live RTSP streaming URI.
-    /// @return Full RTSP stream URL.
-    [[nodiscard]] std::string videoStreamUri() const;
+    /// @brief Retrieves the live streaming URI for the specified profile.
+    /// @param[in] profile Target profile (Primary RTSP, Secondary, Snapshot, etc.).
+    /// @return Stream URI.
+    [[nodiscard]] std::string videoStreamUri(VideoStreamProfile profile = VideoStreamProfile::Primary) const override;
+
+    /// @brief Configures or overrides the video streaming URI for the designated profile.
+    /// @param[in] uri Connection URI.
+    /// @param[in] profile Target profile.
+    /// @return True if stored.
+    bool setVideoStreamUri(const std::string& uri, VideoStreamProfile profile = VideoStreamProfile::Primary) override;
+
+    /// @brief Queries all video stream descriptors exposed by this camera payload.
+    /// @return Vector of VideoStreamDescriptor records.
+    [[nodiscard]] std::vector<VideoStreamDescriptor> availableStreams() const override;
 
     /// @brief Polls camera for optical and imaging settings and updates internal telemetry.
     void updateTelemetry();
@@ -164,6 +176,7 @@ private:
     TelemetryCallback m_telemetryCallback {};
     CameraTelemetry m_telemetry {};
     mutable std::string m_streamUri {};
+    mutable std::map<VideoStreamProfile, std::string> m_profileUris {};
     bool m_connected { false };
 };
 
@@ -201,8 +214,9 @@ public:
         const Klv::GeoPoint2D& platformGps, double platformHeadingDeg, double platformAltMeters) const override;
 
     /// @brief Convenience accessor for RTSP video stream URI from primary camera.
+    /// @param[in] profile Target profile (default Primary).
     /// @return RTSP stream URL string.
-    [[nodiscard]] std::string videoStreamUri() const;
+    [[nodiscard]] std::string videoStreamUri(VideoStreamProfile profile = VideoStreamProfile::Primary) const override;
 
     /// @brief Accesses underlying OnvifClient.
     /// @return Shared pointer to OnvifClient.

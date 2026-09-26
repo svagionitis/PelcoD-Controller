@@ -19,6 +19,9 @@ add_library(PayloadHal STATIC
     PayloadAutoTrackerBridge.cpp
     PayloadKlvGenerator.h
     PayloadKlvGenerator.cpp
+    VideoStreamTypes.h
+    CameraStreamBinder.h
+    CameraStreamBinder.cpp
     PayloadHal.h
     PayloadFactory.h
     PayloadFactory.cpp

@@ -314,4 +314,63 @@ void ViscaSonyAdapter::updateTelemetry()
     }
 }
 
+std::string ViscaSonyAdapter::videoStreamUri(VideoStreamProfile profile) const
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    auto it = m_streamUris.find(profile);
+    if (it != m_streamUris.end() && !it->second.empty()) {
+        return it->second;
+    }
+    if (profile == VideoStreamProfile::Secondary) {
+        auto primIt = m_streamUris.find(VideoStreamProfile::Primary);
+        if (primIt != m_streamUris.end()) {
+            return primIt->second;
+        }
+    }
+    return {};
+}
+
+bool ViscaSonyAdapter::setVideoStreamUri(const std::string& uri, VideoStreamProfile profile)
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    m_streamUris[profile] = uri;
+    return true;
+}
+
+std::vector<VideoStreamDescriptor> ViscaSonyAdapter::availableStreams() const
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    std::vector<VideoStreamDescriptor> list;
+    for (const auto& [prof, uri] : m_streamUris) {
+        if (uri.empty()) {
+            continue;
+        }
+        VideoStreamDescriptor desc;
+        desc.uri = uri;
+        desc.profile = prof;
+        desc.transport = deduceTransportProtocol(uri);
+        if (prof == VideoStreamProfile::Primary) {
+            desc.width = 1920;
+            desc.height = 1080;
+            desc.framerateFps = 60.0;
+            desc.encoding = "H264";
+            desc.isDefault = true;
+        } else if (prof == VideoStreamProfile::Secondary) {
+            desc.width = 1280;
+            desc.height = 720;
+            desc.framerateFps = 30.0;
+            desc.encoding = "H264";
+            desc.isDefault = false;
+        } else if (prof == VideoStreamProfile::Snapshot) {
+            desc.width = 1920;
+            desc.height = 1080;
+            desc.framerateFps = 0.0;
+            desc.encoding = "JPEG";
+            desc.isDefault = false;
+        }
+        list.push_back(desc);
+    }
+    return list;
+}
+
 } // namespace PayloadHal

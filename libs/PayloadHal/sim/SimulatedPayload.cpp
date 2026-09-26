@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <map>
 #include <unordered_map>
 
 namespace PayloadHal {
@@ -185,6 +186,14 @@ public:
     explicit SimCamera(CameraSpectrum spec)
         : m_spectrum(spec)
     {
+        if (m_spectrum == CameraSpectrum::DaylightVisible) {
+            m_streamUris[VideoStreamProfile::Primary] = "sim://daylight";
+            m_streamUris[VideoStreamProfile::Secondary] = "sim://daylight-sub";
+            m_streamUris[VideoStreamProfile::Snapshot] = "sim://daylight/snapshot.jpg";
+        } else {
+            m_streamUris[VideoStreamProfile::Thermal] = "sim://thermal";
+            m_streamUris[VideoStreamProfile::Snapshot] = "sim://thermal/snapshot.jpg";
+        }
         updateFov();
     }
 
@@ -364,6 +373,77 @@ public:
         return m_telemetry;
     }
 
+    std::string videoStreamUri(VideoStreamProfile profile = VideoStreamProfile::Primary) const override
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        auto it = m_streamUris.find(profile);
+        if (it != m_streamUris.end() && !it->second.empty()) {
+            return it->second;
+        }
+        if (profile == VideoStreamProfile::Primary && m_spectrum != CameraSpectrum::DaylightVisible) {
+            auto thermIt = m_streamUris.find(VideoStreamProfile::Thermal);
+            if (thermIt != m_streamUris.end()) {
+                return thermIt->second;
+            }
+        }
+        if (profile == VideoStreamProfile::Secondary) {
+            auto primIt = m_streamUris.find(VideoStreamProfile::Primary);
+            if (primIt != m_streamUris.end()) {
+                return primIt->second;
+            }
+        }
+        return {};
+    }
+
+    bool setVideoStreamUri(const std::string& uri, VideoStreamProfile profile = VideoStreamProfile::Primary) override
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        m_streamUris[profile] = uri;
+        return true;
+    }
+
+    std::vector<VideoStreamDescriptor> availableStreams() const override
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        std::vector<VideoStreamDescriptor> list;
+        for (const auto& [prof, uri] : m_streamUris) {
+            if (uri.empty()) {
+                continue;
+            }
+            VideoStreamDescriptor desc;
+            desc.uri = uri;
+            desc.profile = prof;
+            desc.transport = deduceTransportProtocol(uri);
+            if (prof == VideoStreamProfile::Primary) {
+                desc.width = 1920;
+                desc.height = 1080;
+                desc.framerateFps = 30.0;
+                desc.encoding = "H264";
+                desc.isDefault = true;
+            } else if (prof == VideoStreamProfile::Secondary) {
+                desc.width = 1280;
+                desc.height = 720;
+                desc.framerateFps = 30.0;
+                desc.encoding = "H264";
+                desc.isDefault = false;
+            } else if (prof == VideoStreamProfile::Thermal) {
+                desc.width = 640;
+                desc.height = 512;
+                desc.framerateFps = 25.0;
+                desc.encoding = "RAW";
+                desc.isDefault = true;
+            } else if (prof == VideoStreamProfile::Snapshot) {
+                desc.width = (m_spectrum != CameraSpectrum::DaylightVisible) ? 640 : 1920;
+                desc.height = (m_spectrum != CameraSpectrum::DaylightVisible) ? 512 : 1080;
+                desc.framerateFps = 0.0;
+                desc.encoding = "JPEG";
+                desc.isDefault = false;
+            }
+            list.push_back(desc);
+        }
+        return list;
+    }
+
 private:
     void updateFov()
     {
@@ -391,6 +471,7 @@ private:
     CameraTelemetry m_telemetry {};
     TelemetryCallback m_telemetryCb {};
     StateCallback m_stateCb {};
+    std::map<VideoStreamProfile, std::string> m_streamUris {};
 };
 
 // =============================================================================

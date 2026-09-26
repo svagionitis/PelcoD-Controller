@@ -6,6 +6,7 @@
 #include "ICameraPayload.h"
 #include "SonyFCBDevice.h"
 
+#include <map>
 #include <memory>
 #include <mutex>
 
@@ -53,6 +54,10 @@ public:
     void registerTelemetryCallback(TelemetryCallback cb) override;
     [[nodiscard]] CameraTelemetry currentTelemetry() const override;
 
+    [[nodiscard]] std::string videoStreamUri(VideoStreamProfile profile = VideoStreamProfile::Primary) const override;
+    bool setVideoStreamUri(const std::string& uri, VideoStreamProfile profile = VideoStreamProfile::Primary) override;
+    [[nodiscard]] std::vector<VideoStreamDescriptor> availableStreams() const override;
+
     /// @brief Polls device status and updates internal telemetry.
     void updateTelemetry();
 
@@ -68,6 +73,7 @@ private:
     TelemetryCallback m_telemetryCallback {};
     CameraTelemetry m_telemetry {};
     bool m_connected { false };
+    std::map<VideoStreamProfile, std::string> m_streamUris {};
 };
 
 } // namespace PayloadHal

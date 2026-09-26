@@ -3,6 +3,7 @@
 /// @file PayloadHal.h
 /// @brief Master aggregate header for the Payload Hardware Abstraction Layer (PayloadHal).
 
+#include "CameraStreamBinder.h"
 #include "DemRayCaster.h"
 #include "GeoLockController.h"
 #include "GeoreferenceUtils.h"
@@ -18,6 +19,7 @@
 #include "PayloadFactory.h"
 #include "PayloadKlvGenerator.h"
 #include "PayloadTypes.h"
+#include "VideoStreamTypes.h"
 #include "adapters/OnvifPayloadAdapter.h"
 #include "adapters/PelcoDFujinonPayloadAdapter.h"
 #include "adapters/PelcoDPtzAdapter.h"

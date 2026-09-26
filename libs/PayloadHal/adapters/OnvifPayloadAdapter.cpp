@@ -660,20 +660,73 @@ CameraTelemetry OnvifCameraAdapter::currentTelemetry() const
     return m_telemetry;
 }
 
-std::string OnvifCameraAdapter::videoStreamUri() const
+std::string OnvifCameraAdapter::videoStreamUri(VideoStreamProfile profile) const
 {
     std::lock_guard<std::mutex> lock(m_mutex);
-    if (!m_streamUri.empty()) {
-        return m_streamUri;
+    auto it = m_profileUris.find(profile);
+    if (it != m_profileUris.end() && !it->second.empty()) {
+        return it->second;
     }
-    if (m_client && !m_profileToken.empty()) {
-        const auto uri = m_client->getStreamUri(m_profileToken);
-        if (uri.has_value()) {
-            m_streamUri = uri->uri;
+
+    if (profile == VideoStreamProfile::Primary) {
+        if (!m_streamUri.empty()) {
             return m_streamUri;
+        }
+        if (m_client && !m_profileToken.empty()) {
+            const auto uri = m_client->getStreamUri(m_profileToken);
+            if (uri.has_value()) {
+                m_streamUri = uri->uri;
+                m_profileUris[VideoStreamProfile::Primary] = m_streamUri;
+                return m_streamUri;
+            }
+        }
+    } else if (profile == VideoStreamProfile::Snapshot) {
+        if (m_client && !m_profileToken.empty()) {
+            const auto snap = m_client->getSnapshotUri(m_profileToken, true);
+            if (snap.has_value()) {
+                m_profileUris[VideoStreamProfile::Snapshot] = *snap;
+                return *snap;
+            }
         }
     }
     return {};
+}
+
+bool OnvifCameraAdapter::setVideoStreamUri(const std::string& uri, VideoStreamProfile profile)
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    m_profileUris[profile] = uri;
+    if (profile == VideoStreamProfile::Primary) {
+        m_streamUri = uri;
+    }
+    return true;
+}
+
+std::vector<VideoStreamDescriptor> OnvifCameraAdapter::availableStreams() const
+{
+    std::vector<VideoStreamDescriptor> list;
+    const auto primary = videoStreamUri(VideoStreamProfile::Primary);
+    if (!primary.empty()) {
+        list.push_back(VideoStreamDescriptor {
+            primary, VideoStreamProfile::Primary, deduceTransportProtocol(primary),
+            1920, 1080, 30.0, "H264", true
+        });
+    }
+    const auto sub = videoStreamUri(VideoStreamProfile::Secondary);
+    if (!sub.empty()) {
+        list.push_back(VideoStreamDescriptor {
+            sub, VideoStreamProfile::Secondary, deduceTransportProtocol(sub),
+            1280, 720, 30.0, "H264", false
+        });
+    }
+    const auto snap = videoStreamUri(VideoStreamProfile::Snapshot);
+    if (!snap.empty()) {
+        list.push_back(VideoStreamDescriptor {
+            snap, VideoStreamProfile::Snapshot, deduceTransportProtocol(snap),
+            1920, 1080, 0.0, "JPEG", false
+        });
+    }
+    return list;
 }
 
 void OnvifCameraAdapter::updateTelemetry()
@@ -857,9 +910,9 @@ std::optional<Klv::GeoPoint2D> OnvifPayloadAdapter::calculateTargetCoordinates(
     return std::nullopt;
 }
 
-std::string OnvifPayloadAdapter::videoStreamUri() const
+std::string OnvifPayloadAdapter::videoStreamUri(VideoStreamProfile profile) const
 {
-    return m_camera ? m_camera->videoStreamUri() : std::string {};
+    return m_camera ? m_camera->videoStreamUri(profile) : std::string {};
 }
 
 } // namespace PayloadHal
