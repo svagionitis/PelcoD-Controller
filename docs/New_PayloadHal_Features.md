@@ -81,6 +81,25 @@ The [PayloadHal](../libs/PayloadHal/PayloadHal.h) library provides a unified Har
 - **STANAG 4609 / MISB ST 0601 Metadata Generator** *(Completed)*:
   - Implemented [PayloadKlvGenerator](../libs/PayloadHal/PayloadKlvGenerator.h) serializing platform navigation, [GimbalTelemetry](../libs/PayloadHal/PayloadTypes.h) (including Tag 20 Roll), [CameraTelemetry](../libs/PayloadHal/PayloadTypes.h), LRF slant range echo, DEM terrain line-of-sight ray intersection, and 4-corner frustum footprints into standard MISB KLV packets using `libs/Klv`.
 
+#### 5. Advanced Next-Generation Capabilities & Roadmap
+- **Preset & Automated Patrol/Tour Engine (`IPtzPresetManager` / `TourEngine`)** *(Completed)*:
+  - Unified preset storage, recall, and management across Pan-Tilt heads, optical zoom, and focus (`savePreset`, `recallPreset`, `clearPreset`, `listPresets`) via [IPtzPresetManager](../libs/PayloadHal/IPtzPresetManager.h) and [LocalPresetManager](../libs/PayloadHal/LocalPresetManager.h).
+  - Automated cyclical guard tour / patrol engine ([TourEngine](../libs/PayloadHal/TourEngine.h)) with configurable dwell times, slew velocities, angle arrival tolerance checking, pause/resume on user intervention or auto-tracker engagement, and return-to-home fail-safes.
+  - Integrated into [IPayload](../libs/PayloadHal/IPayload.h) (`presetManager()`, `tourEngine()`) and fully supported in [SimulatedPayload](../libs/PayloadHal/sim/SimulatedPayload.h). Verified with comprehensive unit test coverage in [TestPtzPresetManager.cpp](../libs/PayloadHal/tests/TestPtzPresetManager.cpp) and [TestTourEngine.cpp](../libs/PayloadHal/tests/TestTourEngine.cpp).
+- **Spatial Sector Blanking & Laser Safety Keep-Out Zones (`GimbalSectorBlanking`)**:
+  - 3D angular exclusion polygons and soft mechanical limit masking preventing gimbal collisions with host platform structures (cabin, masts, antennas, rotor blades).
+  - Software laser interlock inhibiting LRF pulses and tactical laser illuminators when pointing into personnel zones or restricted azimuth/elevation sectors.
+- **Dual-Sensor Parallax & Boresight Alignment (`SensorParallaxCompensator`)**:
+  - Angular boresight and baseline parallax correction between side-by-side Daylight Visible (EO) and Thermal (LWIR/MWIR) optical sensors as a function of LRF slant range or DEM terrain distance ($\Delta \theta = \arctan(\text{baseline} / \text{range})$).
+  - Crosshair, reticle, and auto-tracker bounding box alignment across multi-spectrum video feeds.
+- **Tactical Search Patterns & Slew-to-Cue Engine (`TacticalSearchPatterns`)**:
+  - Automated wide-area scanning routines: Sector Scan (back-and-forth oscillation), Expanding Square (SAR datum search), Creeping Line, and Spiral Search.
+  - Slew-to-Cue priority queue integrating external target tracks (Radar, ADS-B, AIS transponders, acoustic gunshot detectors) with operator override.
+- **Platform Lever-Arm & Coordinate Frame Transformations (`PlatformLeverArmCompensator`)**:
+  - Rigid-body translations accounting for physical distances between GPS/INS antenna, gimbal pivot base, and sensor nodal points ($\mathbf{P}_{\text{optical}} = \mathbf{P}_{\text{GPS}} + \mathbf{R}_{\text{body}}(\mathbf{L}_{\text{leverarm}}) + \mathbf{R}_{\text{gimbal}}(\mathbf{L}_{\text{sensor}})$) for sub-meter geodetic targeting precision.
+- **Built-In-Test & Health Monitoring Subsystem (`PayloadHealthMonitor` / BIT)**:
+  - Standardized diagnostic telemetry: Power-On BIT (PBIT), Continuous BIT (CBIT - motor currents, temperatures, transport packet health), and Initiated BIT (IBIT - limit sweeps, optical cycling).
+
 ---
 
 ### Suggested Prioritized Roadmap
@@ -97,3 +116,9 @@ The [PayloadHal](../libs/PayloadHal/PayloadHal.h) library provides a unified Har
 | **P3** | Video Stream Binding & Frame Synchronization *(Completed)* | [VideoStreamTypes.h](../libs/PayloadHal/VideoStreamTypes.h), [CameraStreamBinder.h](../libs/PayloadHal/CameraStreamBinder.h), [ICameraPayload.h](../libs/PayloadHal/ICameraPayload.h), [IPayload.h](../libs/PayloadHal/IPayload.h) | Ties video frames with live camera telemetry and line-of-sight georeferencing. |
 | **P3** | 3-Axis Gimbal Support & Horizon Leveling *(Completed)* | [IPanTiltUnit.h](../libs/PayloadHal/IPanTiltUnit.h), [PayloadTypes.h](../libs/PayloadHal/PayloadTypes.h), [GeoreferenceUtils.h](../libs/PayloadHal/GeoreferenceUtils.h), [SimulatedPayload.h](../libs/PayloadHal/sim/SimulatedPayload.h) | Full roll axis control, automatic horizon counter-roll kinematics, roll-aware frustum footprints, and MISB Tag 20 telemetry. |
 | **P3** | Physical Serial LRF Driver (`SerialLrfAdapter`) *(Completed)* | [SerialLrfAdapter.h](../libs/PayloadHal/adapters/SerialLrfAdapter.h), [LrfProtocols.h](../libs/PayloadHal/adapters/LrfProtocols.h), [PayloadFactory.h](../libs/PayloadHal/PayloadFactory.h) | Multi-protocol physical LRF support (NMEA, ASCII, Binary), eye-safety interlocks, and 3D slant-range georeferencing. |
+| **P4** | Preset & Automated Patrol/Tour Engine (`IPtzPresetManager` / `TourEngine`) *(Completed)* | `IPtzPresetManager.h`, `LocalPresetManager.h/.cpp`, `TourEngine.h/.cpp`, `IPayload.h`, `SimulatedPayload.h/.cpp` | Unified spatial/optical preset storage, recall, and cyclical automated guard patrol routes. |
+| **P4** | Spatial Sector Blanking & Laser Safety Keep-Out Zones | `GimbalSectorBlanking.h/.cpp`, `IPanTiltUnit.h`, `SerialLrfAdapter.h` | Prevents mechanical vehicle collisions and inhibits laser emission into hazard sectors. |
+| **P4** | Dual-Sensor Parallax & Boresight Alignment | `SensorParallaxCompensator.h/.cpp`, `CameraStreamBinder.h` | Range-dependent angular alignment between Daylight EO and Thermal IR reticles. |
+| **P4** | Tactical Search Patterns & Slew-to-Cue Engine | `TacticalSearchPatterns.h/.cpp`, `IPayload.h` | Automated search sweeps (Sector, Expanding Square, Spiral) and radar/AIS cueing. |
+| **P4** | Platform Lever-Arm & Coordinate Frame Transformations | `LeverArmCompensator.h/.cpp`, `GeoreferenceUtils.h` | Offsets GPS antenna, gimbal pivot, and optical center for high-precision georeferencing. |
+| **P4** | Built-In-Test & Health Monitoring Subsystem | `PayloadHealthMonitor.h/.cpp`, `PayloadHal.h` | PBIT/CBIT/IBIT diagnostics, motor stall detection, and thermal throttling alerts. |

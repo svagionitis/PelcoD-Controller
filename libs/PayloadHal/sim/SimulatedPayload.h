@@ -37,6 +37,8 @@ public:
     [[nodiscard]] std::shared_ptr<ICameraPayload> secondaryCamera() const noexcept override;
     [[nodiscard]] std::shared_ptr<ILaserRangeFinder> lrf() const noexcept override;
     [[nodiscard]] std::shared_ptr<ILaserIlluminator> illuminator() const noexcept override;
+    [[nodiscard]] std::shared_ptr<IPtzPresetManager> presetManager() const noexcept override;
+    [[nodiscard]] std::shared_ptr<TourEngine> tourEngine() const noexcept override;
 
     [[nodiscard]] std::optional<Klv::GeoPoint2D> calculateTargetCoordinates(
         const Klv::GeoPoint2D& platformGps, double platformHeadingDeg, double platformAltMeters) const override;
@@ -57,6 +59,8 @@ private:
     std::shared_ptr<SimCamera> m_thermalCamera;
     std::shared_ptr<SimLrf> m_lrf;
     std::shared_ptr<SimIlluminator> m_illuminator;
+    std::shared_ptr<IPtzPresetManager> m_presetMgr;
+    std::shared_ptr<TourEngine> m_tourEngine;
 
     mutable std::mutex m_mutex;
     StateCallback m_stateCallback {};

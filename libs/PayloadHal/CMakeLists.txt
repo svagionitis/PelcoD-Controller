@@ -5,6 +5,11 @@ add_library(PayloadHal STATIC
     ILaserRangeFinder.h
     ILaserIlluminator.h
     ICameraPayload.h
+    IPtzPresetManager.h
+    LocalPresetManager.h
+    LocalPresetManager.cpp
+    TourEngine.h
+    TourEngine.cpp
     IPayload.h
     GeoreferenceUtils.h
     GeoreferenceUtils.cpp

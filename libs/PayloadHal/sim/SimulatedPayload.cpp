@@ -1,5 +1,7 @@
 #include "SimulatedPayload.h"
 #include "GeoreferenceUtils.h"
+#include "LocalPresetManager.h"
+#include "TourEngine.h"
 
 #include <algorithm>
 #include <cmath>
@@ -932,6 +934,8 @@ SimulatedPayload::SimulatedPayload()
     , m_thermalCamera(std::make_shared<SimCamera>(CameraSpectrum::ThermalLWIR))
     , m_lrf(std::make_shared<SimLrf>())
     , m_illuminator(std::make_shared<SimIlluminator>())
+    , m_presetMgr(std::make_shared<LocalPresetManager>(m_ptu, m_daylightCamera))
+    , m_tourEngine(std::make_shared<TourEngine>(m_ptu, m_daylightCamera, m_presetMgr))
     , m_connected(true)
 {
 }
@@ -1018,6 +1022,16 @@ std::shared_ptr<ILaserRangeFinder> SimulatedPayload::lrf() const noexcept
 std::shared_ptr<ILaserIlluminator> SimulatedPayload::illuminator() const noexcept
 {
     return m_illuminator;
+}
+
+std::shared_ptr<IPtzPresetManager> SimulatedPayload::presetManager() const noexcept
+{
+    return m_presetMgr;
+}
+
+std::shared_ptr<TourEngine> SimulatedPayload::tourEngine() const noexcept
+{
+    return m_tourEngine;
 }
 
 std::optional<Klv::GeoPoint2D> SimulatedPayload::calculateTargetCoordinates(

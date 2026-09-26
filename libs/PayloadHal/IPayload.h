@@ -20,6 +20,9 @@
 
 namespace PayloadHal {
 
+class IPtzPresetManager;
+class TourEngine;
+
 /// @class IPayload
 /// @brief Composite payload station binding Pan-Tilt Unit, Primary/Secondary cameras,
 ///        Laser Range Finder, and Laser Illuminator into a unified synchronized station.
@@ -46,6 +49,20 @@ public:
     /// @brief Accesses the Laser Pointer / Illuminator subsystem.
     /// @return Shared pointer to illuminator interface, or nullptr if not equipped.
     [[nodiscard]] virtual std::shared_ptr<ILaserIlluminator> illuminator() const noexcept
+    {
+        return nullptr;
+    }
+
+    /// @brief Accesses the PTZ Preset Manager subsystem.
+    /// @return Shared pointer to preset manager, or nullptr if unsupported.
+    [[nodiscard]] virtual std::shared_ptr<IPtzPresetManager> presetManager() const noexcept
+    {
+        return nullptr;
+    }
+
+    /// @brief Accesses the autonomous Tour / Patrol Engine subsystem.
+    /// @return Shared pointer to tour engine, or nullptr if unsupported.
+    [[nodiscard]] virtual std::shared_ptr<TourEngine> tourEngine() const noexcept
     {
         return nullptr;
     }
