@@ -27,6 +27,7 @@ class SensorParallaxCompensator;
 class PlatformLeverArmCompensator;
 class GimbalSectorBlanking;
 class PayloadHealthMonitor;
+class GimbalMotionProfiler;
 
 /// @class IPayload
 /// @brief Composite payload station binding Pan-Tilt Unit, Primary/Secondary cameras,
@@ -103,6 +104,13 @@ public:
     /// @brief Accesses the Built-In-Test & Health Monitoring Subsystem.
     /// @return Shared pointer to health monitor, or nullptr if unsupported.
     [[nodiscard]] virtual std::shared_ptr<PayloadHealthMonitor> healthMonitor() const noexcept
+    {
+        return nullptr;
+    }
+
+    /// @brief Accesses the Gimbal S-Curve Motion Profiler & Kinematics subsystem.
+    /// @return Shared pointer to motion profiler, or nullptr if unsupported.
+    [[nodiscard]] virtual std::shared_ptr<GimbalMotionProfiler> motionProfiler() const noexcept
     {
         return nullptr;
     }

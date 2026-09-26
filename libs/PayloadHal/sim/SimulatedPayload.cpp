@@ -7,6 +7,7 @@
 #include "PlatformLeverArmCompensator.h"
 #include "GimbalSectorBlanking.h"
 #include "PayloadHealthMonitor.h"
+#include "GimbalMotionProfiler.h"
 
 #include <algorithm>
 #include <cmath>
@@ -1006,6 +1007,7 @@ SimulatedPayload::SimulatedPayload()
           PlatformLeverArmConfig { Vector3D { 0.0, 0.0, 5.0 }, Vector3D { 0.0, 0.0, 0.0 }, GimbalMountingType::Upright, {} }))
     , m_sectorBlanking(std::make_shared<GimbalSectorBlanking>())
     , m_healthMonitor(std::make_shared<PayloadHealthMonitor>())
+    , m_motionProfiler(std::make_shared<GimbalMotionProfiler>())
     , m_connected(true)
 {
     m_ptu->setSectorBlanking(m_sectorBlanking);
@@ -1154,6 +1156,11 @@ std::shared_ptr<GimbalSectorBlanking> SimulatedPayload::sectorBlanking() const n
 std::shared_ptr<PayloadHealthMonitor> SimulatedPayload::healthMonitor() const noexcept
 {
     return m_healthMonitor;
+}
+
+std::shared_ptr<GimbalMotionProfiler> SimulatedPayload::motionProfiler() const noexcept
+{
+    return m_motionProfiler;
 }
 
 std::optional<Klv::GeoPoint2D> SimulatedPayload::calculateTargetCoordinates(

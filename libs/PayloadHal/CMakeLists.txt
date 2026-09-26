@@ -20,6 +20,8 @@ add_library(PayloadHal STATIC
     GimbalSectorBlanking.cpp
     PayloadHealthMonitor.h
     PayloadHealthMonitor.cpp
+    GimbalMotionProfiler.h
+    GimbalMotionProfiler.cpp
     IPayload.h
     GeoreferenceUtils.h
     GeoreferenceUtils.cpp

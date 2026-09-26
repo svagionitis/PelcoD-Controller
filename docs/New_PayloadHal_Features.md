@@ -112,6 +112,32 @@ The [PayloadHal](../libs/PayloadHal/PayloadHal.h) library provides a unified Har
   - Standardized diagnostic telemetry: Power-On BIT (PBIT - boot integrity, hardware loopbacks, calibration tables), Continuous BIT (CBIT - background periodic thread tracking motor currents, stall detection, temperatures, thermal throttling at 60°C/75°C, transport packet drop counts), and Initiated BIT (IBIT - operator-triggered multi-stage diagnostic routine with monotonic progress reporting 0.0 to 1.0 and operator abort capability).
   - Telemetry structures: `DiagnosticFaultRecord`, `DiagnosticFaultCode`, `BitSeverity` (`Info`, `Warning`, `Critical`, `Fatal`), `SystemHealthReport`, and automatic device state escalation (`Ready` -> `Degraded` -> `Fault`).
   - Integrated into [IPayload](../libs/PayloadHal/IPayload.h) (`healthMonitor()`) and [SimulatedPayload](../libs/PayloadHal/sim/SimulatedPayload.h) with automatic PBIT run and CBIT thread lifecycle management upon `connect()`/`disconnect()`. Verified with 100% test coverage in [TestPayloadHealthMonitor.cpp](../libs/PayloadHal/tests/TestPayloadHealthMonitor.cpp).
+- **Gimbal S-Curve Motion Profiler & Jerk-Limited Kinematics (`GimbalMotionProfiler`)** *(Completed)*:
+  - Analytical 7-segment S-curve (jerk-limited) and trapezoidal velocity profile generator preventing infinite jerk and mechanical gear shock.
+  - Axis-independent limits ($\omega_{\max}$, $\alpha_{\max}$, $j_{\max}$) for Pan, Tilt, and Roll.
+  - Smooth acceleration ramp-up, constant velocity cruise, and deceleration braking into target angles and presets.
+  - Multi-axis arrival duration synchronization ($T_{\text{master}} = \max(T_{\text{pan}}, T_{\text{tilt}}, T_{\text{roll}})$) eliminating asymmetric dog-leg sweeps.
+  - Real-time streaming kinematics filter smoothing manual joystick inputs and auto-tracker velocity feeds.
+  - Integrated into [IPayload](../libs/PayloadHal/IPayload.h) (`motionProfiler()`) and [SimulatedPayload](../libs/PayloadHal/sim/SimulatedPayload.h). Verified with 100% test coverage in [TestGimbalMotionProfiler.cpp](../libs/PayloadHal/tests/TestGimbalMotionProfiler.cpp).
+- **Target Kinematics Estimator & Predictive Lead-Angle Slaving (`TargetKinematicsFilter`)**:
+  - Extended Kalman Filter (EKF) / $\alpha$-$\beta$-$\gamma$ filter estimating target 3D velocity ($\mathbf{v}_t$) and acceleration ($\mathbf{a}_t$) from periodic LRF range echoes, target pixel centroids, and gimbal angles.
+  - Predictive time-of-flight lead-angle computation for laser designator slaving or weapon fire-control integration.
+  - Coasting mode holding target trajectory through temporary optical occlusions (passing behind trees, buildings, clouds).
+- **Atmospheric Refraction & Earth Curvature Optical Compensator (`AtmosphericRefractionCompensator`)**:
+  - Corrects long-range line-of-sight elevation angles and DEM target ray intersections beyond $5\,\text{km}$ up to $40\,\text{km}$.
+  - Effective Earth Radius ($4/3 R_E$) and ITU-R P.834 / Edlén index of refraction $n(z)$ modeling pressure, temperature, humidity, and wavelength (Visible, SWIR, MWIR, LWIR).
+  - True vs Apparent Target Elevation Angle correction for both forward georeferencing and inverse look-angle calculation.
+- **Multi-Payload Master/Slave Slaving & Blind-Zone Handover (`PayloadSlavingCoordinator`)**:
+  - Real-time line-of-sight slaving: Station B mirrors Station A's target point in 3D geodetic space (automatically compensating for inter-station baseline lever-arm and parallax).
+  - Blind-Zone Handover: Automatic handoff protocol transferring active target track and cueing Station B when Station A approaches its sector blanking limit or gimbal mechanical stop.
+- **Optical Sensor Switching, Digital Match-Zoom & Fusion Manager (`SensorFusionManager`)**:
+  - Digital Match-Zoom: Automatically matches instantaneous horizontal FOV when switching between Daylight visible and Thermal IR cameras.
+  - Optical color-palette & LUT management (White-Hot, Black-Hot, Ironbow, Rainbow, Haze-Penetration).
+  - Environmental auto-switch: Automatic day-to-thermal handoff triggered by ambient scene luminance drops or low optical contrast.
+- **Payload Stow, De-Ice/Wiper Routine & Emergency Park Controller (`PayloadStowController`)**:
+  - Configurable `Stow`, `Deploy`, and `Maintenance` orientation states with interlocks preventing vehicle motion while unstowed.
+  - Autonomous lens de-icing, heater, and wiper/washer sequence automation.
+  - Emergency Park / Zeroization routine: drives gimbal to safe stow position and purges sensitive mission preset coordinates upon tamper alert.
 
 ---
 
@@ -135,3 +161,9 @@ The [PayloadHal](../libs/PayloadHal/PayloadHal.h) library provides a unified Har
 | **P4** | Tactical Search Patterns & Slew-to-Cue Engine (`TacticalSearchEngine`) *(Completed)* | `TacticalSearchEngine.h/.cpp`, `IPayload.h`, `SimulatedPayload.h/.cpp` | Automated wide-area search sweeps (Sector, Expanding Square, Spiral, Creeping Line) and prioritized Radar/AIS/Acoustic cueing with auto-resume. |
 | **P4** | Platform Lever-Arm & Coordinate Frame Transformations *(Completed)* | `PlatformLeverArmCompensator.h/.cpp`, `IPayload.h`, `SimulatedPayload.h/.cpp` | Offsets GPS antenna, gimbal pivot, and optical center for high-precision georeferencing under dynamic vehicle roll/pitch. |
 | **P4** | Built-In-Test & Health Monitoring Subsystem *(Completed)* | `PayloadHealthMonitor.h/.cpp`, `IPayload.h`, `SimulatedPayload.h/.cpp`, `PayloadHal.h` | Three pillars of BIT (PBIT/CBIT/IBIT), motor stall detection, thermal throttling alerts, and health-based state escalation. |
+| **P5** | Gimbal S-Curve Motion Profiler & Jerk-Limited Kinematics *(Completed)* | [GimbalMotionProfiler.h](../libs/PayloadHal/GimbalMotionProfiler.h), [IPayload.h](../libs/PayloadHal/IPayload.h), [SimulatedPayload.h](../libs/PayloadHal/sim/SimulatedPayload.h) | Prevents mechanical shock, eliminates motor overcurrent spikes, and provides cinema-smooth tracking. |
+| **P5** | Target Kinematics & Predictive Lead-Angle Slaving | `TargetKinematicsFilter.h/.cpp`, `IPayload.h` | Real-time target velocity estimation, lead angle pointing, and occlusion coasting. |
+| **P5** | Atmospheric Refraction & Earth Curvature Compensator | `AtmosphericRefractionCompensator.h/.cpp`, `GeoreferenceUtils.h` | High-fidelity long-range over-the-horizon elevation and DEM georeferencing. |
+| **P5** | Multi-Payload Master/Slave Coordinator & Handover | `PayloadSlavingCoordinator.h/.cpp`, `IPayload.h` | Multi-turret LOS slaving and automated blind-zone handover. |
+| **P5** | Optical Sensor Switching & Digital Match-Zoom | `SensorFusionManager.h/.cpp`, `ICameraPayload.h` | Seamless FOV match-zoom, color palettes, and day/thermal auto-handoff. |
+| **P5** | Payload Stow, Environmental De-Ice & Emergency Park | `PayloadStowController.h/.cpp`, `IPayload.h` | Safe transport stowing, lens de-icing, and emergency zeroization. |

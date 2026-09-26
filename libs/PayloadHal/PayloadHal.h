@@ -23,6 +23,7 @@
 #include "PlatformLeverArmCompensator.h"
 #include "GimbalSectorBlanking.h"
 #include "PayloadHealthMonitor.h"
+#include "GimbalMotionProfiler.h"
 #include "PayloadAutoTrackerBridge.h"
 #include "PayloadFactory.h"
 #include "PayloadKlvGenerator.h"
