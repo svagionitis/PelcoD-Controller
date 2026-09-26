@@ -144,10 +144,12 @@ The [PayloadHal](../libs/PayloadHal/PayloadHal.h) library provides a unified Har
   - Environmental auto-switch engine: Autonomous Day-to-Night and low-contrast/obscurant handoff with dual-threshold hysteresis ($L_{\text{night}} \le 1.5\,\text{Lux}$, $L_{\text{day}} \ge 5.0\,\text{Lux}$) and cooldown/persistence filtering.
   - Multi-channel display layout modes: SingleChannel, PictureInPicture, SideBySideSplit, TopBottomSplit, and AlphaBlend.
   - Integrated into [IPayload](../libs/PayloadHal/IPayload.h) (`sensorFusion()`) and [SimulatedPayload](../libs/PayloadHal/sim/SimulatedPayload.h). Verified with 100% test coverage in [TestSensorFusionManager.cpp](../libs/PayloadHal/tests/TestSensorFusionManager.cpp).
-- **Payload Stow, De-Ice/Wiper Routine & Emergency Park Controller (`PayloadStowController`)**:
-  - Configurable `Stow`, `Deploy`, and `Maintenance` orientation states with interlocks preventing vehicle motion while unstowed.
-  - Autonomous lens de-icing, heater, and wiper/washer sequence automation.
-  - Emergency Park / Zeroization routine: drives gimbal to safe stow position and purges sensitive mission preset coordinates upon tamper alert.
+- **Payload Stow, De-Ice/Wiper Routine & Emergency Park Controller (`PayloadStowController`)** *(Completed)*:
+  - Configurable `Stow`, `Deploy`, and `Maintenance` orientation states with optical zoom retraction, arrival tolerance detection, and mechanical gimbal lock/brake simulation.
+  - Vehicle motion safety interlocks (`isSafeForVehicleMotion()`, `setVehicleMotionActive()`, `autoStowOnVehicleMotion`) preventing vehicle transit while unstowed and inhibiting deploy commands while in motion.
+  - Environmental optical window servicing: window de-ice heating with `AutoThermostat` thresholding and safety run-time cutoffs; single-stroke, continuous, and interval wiper routines; coordinated pressurized washer fluid injection cycles (`Spraying` $\to$ `Soaking` $\to$ `ClearingWipes` $\to$ `Parked`) with reservoir fluid level tracking.
+  - Emergency Park and Anti-Tamper Zeroization: immediate high-rate slew to protective stow bay and mission-critical coordinate purge (wiping all PTZ presets from `IPtzPresetManager`, resetting active tracks, and locking device).
+  - Integrated into [IPayload](../libs/PayloadHal/IPayload.h) (`stowController()`) and [SimulatedPayload](../libs/PayloadHal/sim/SimulatedPayload.h). Verified with 100% test coverage in [TestPayloadStowController.cpp](../libs/PayloadHal/tests/TestPayloadStowController.cpp).
 
 ---
 
@@ -176,4 +178,4 @@ The [PayloadHal](../libs/PayloadHal/PayloadHal.h) library provides a unified Har
 | **P5** | Atmospheric Refraction & Earth Curvature Compensator *(Completed)* | [AtmosphericRefractionCompensator.h](../libs/PayloadHal/AtmosphericRefractionCompensator.h), [IPayload.h](../libs/PayloadHal/IPayload.h), [SimulatedPayload.h](../libs/PayloadHal/sim/SimulatedPayload.h) | High-fidelity long-range over-the-horizon elevation and wavelength-dependent refractivity compensation. |
 | **P5** | Multi-Payload Master/Slave Coordinator & Handover *(Completed)* | [PayloadSlavingCoordinator.h](../libs/PayloadHal/PayloadSlavingCoordinator.h), [IPayload.h](../libs/PayloadHal/IPayload.h), [SimulatedPayload.h](../libs/PayloadHal/sim/SimulatedPayload.h) | Multi-turret LOS slaving with 3D baseline parallax compensation and automated blind-zone handover. |
 | **P5** | Optical Sensor Switching, Digital Match-Zoom & Fusion Manager *(Completed)* | [SensorFusionManager.h](../libs/PayloadHal/SensorFusionManager.h), [IPayload.h](../libs/PayloadHal/IPayload.h), [SimulatedPayload.h](../libs/PayloadHal/sim/SimulatedPayload.h) | Seamless FOV match-zoom, color palettes, isotherm highlighting, display layouts, and day/thermal auto-handoff. |
-| **P5** | Payload Stow, Environmental De-Ice & Emergency Park | `PayloadStowController.h/.cpp`, `IPayload.h` | Safe transport stowing, lens de-icing, and emergency zeroization. |
+| **P5** | Payload Stow, Environmental De-Ice & Emergency Park *(Completed)* | [PayloadStowController.h](../libs/PayloadHal/PayloadStowController.h), [IPayload.h](../libs/PayloadHal/IPayload.h), [SimulatedPayload.h](../libs/PayloadHal/sim/SimulatedPayload.h) | Safe transport stowing, vehicle interlocks, window de-icing, wipers, washers, and anti-tamper zeroization. |

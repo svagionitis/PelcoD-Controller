@@ -32,6 +32,7 @@ class TargetKinematicsFilter;
 class AtmosphericRefractionCompensator;
 class PayloadSlavingCoordinator;
 class SensorFusionManager;
+class PayloadStowController;
 
 /// @class IPayload
 /// @brief Composite payload station binding Pan-Tilt Unit, Primary/Secondary cameras,
@@ -143,6 +144,13 @@ public:
     /// @brief Accesses the Optical Sensor Switching, Digital Match-Zoom & Fusion Manager.
     /// @return Shared pointer to sensor fusion manager, or nullptr if unsupported.
     [[nodiscard]] virtual std::shared_ptr<SensorFusionManager> sensorFusion() const noexcept
+    {
+        return nullptr;
+    }
+
+    /// @brief Accesses the Payload Stow, De-Ice/Wiper Routine & Emergency Park Controller.
+    /// @return Shared pointer to stow controller, or nullptr if unsupported.
+    [[nodiscard]] virtual std::shared_ptr<PayloadStowController> stowController() const noexcept
     {
         return nullptr;
     }

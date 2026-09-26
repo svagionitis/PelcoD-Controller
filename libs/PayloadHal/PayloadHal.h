@@ -28,6 +28,7 @@
 #include "AtmosphericRefractionCompensator.h"
 #include "PayloadSlavingCoordinator.h"
 #include "SensorFusionManager.h"
+#include "PayloadStowController.h"
 #include "PayloadAutoTrackerBridge.h"
 #include "PayloadFactory.h"
 #include "PayloadKlvGenerator.h"

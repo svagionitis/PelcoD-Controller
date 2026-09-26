@@ -30,6 +30,8 @@ add_library(PayloadHal STATIC
     PayloadSlavingCoordinator.cpp
     SensorFusionManager.h
     SensorFusionManager.cpp
+    PayloadStowController.h
+    PayloadStowController.cpp
     IPayload.h
     GeoreferenceUtils.h
     GeoreferenceUtils.cpp
