@@ -89,9 +89,11 @@ The [PayloadHal](../libs/PayloadHal/PayloadHal.h) library provides a unified Har
 - **Spatial Sector Blanking & Laser Safety Keep-Out Zones (`GimbalSectorBlanking`)**:
   - 3D angular exclusion polygons and soft mechanical limit masking preventing gimbal collisions with host platform structures (cabin, masts, antennas, rotor blades).
   - Software laser interlock inhibiting LRF pulses and tactical laser illuminators when pointing into personnel zones or restricted azimuth/elevation sectors.
-- **Dual-Sensor Parallax & Boresight Alignment (`SensorParallaxCompensator`)**:
-  - Angular boresight and baseline parallax correction between side-by-side Daylight Visible (EO) and Thermal (LWIR/MWIR) optical sensors as a function of LRF slant range or DEM terrain distance ($\Delta \theta = \arctan(\text{baseline} / \text{range})$).
-  - Crosshair, reticle, and auto-tracker bounding box alignment across multi-spectrum video feeds.
+- **Dual-Sensor Parallax & Boresight Alignment (`SensorParallaxCompensator`)** *(Completed)*:
+  - 3D physical baseline modeling ($b_x, b_y, b_z$) and static boresight calibration ($\Delta \text{Az}_0, \Delta \text{El}_0, \Delta \text{Roll}_0$) between Daylight Visible, Thermal LWIR/MWIR, and LRF optical axes.
+  - Range-dependent angular disparity ($\Delta \theta = \arctan(b / (R + b_z))$) and normalized screen/pixel displacement as a function of LRF slant range or DEM terrain distance.
+  - Dynamic crosshair and reticle convergence offsets, cross-spectrum visual tracking bounding box transfer with optical FOV scaling, and LRF beam convergence angles.
+  - Integrated into [IPayload](../libs/PayloadHal/IPayload.h) (`parallaxCompensator()`) and [SimulatedPayload](../libs/PayloadHal/sim/SimulatedPayload.h). Verified with comprehensive unit test coverage in [TestSensorParallaxCompensator.cpp](../libs/PayloadHal/tests/TestSensorParallaxCompensator.cpp).
 - **Tactical Search Patterns & Slew-to-Cue Engine (`TacticalSearchEngine`)** *(Completed)*:
   - Automated wide-area scanning routines: Sector Scan (back-and-forth oscillation with elevation stepped rasters), Expanding Square (IAMSAR datum search with adaptive FOV overlap), Creeping Line (parallel cross-track sweeps), and Archimedean Spiral Search.
   - Slew-to-Cue priority queue integrating external target tracks (Radar, ADS-B, AIS transponders, acoustic gunshot detectors) with strict preemption (`Flash` > `Immediate` > `Priority` > `Routine`).
@@ -120,7 +122,7 @@ The [PayloadHal](../libs/PayloadHal/PayloadHal.h) library provides a unified Har
 | **P3** | Physical Serial LRF Driver (`SerialLrfAdapter`) *(Completed)* | [SerialLrfAdapter.h](../libs/PayloadHal/adapters/SerialLrfAdapter.h), [LrfProtocols.h](../libs/PayloadHal/adapters/LrfProtocols.h), [PayloadFactory.h](../libs/PayloadHal/PayloadFactory.h) | Multi-protocol physical LRF support (NMEA, ASCII, Binary), eye-safety interlocks, and 3D slant-range georeferencing. |
 | **P4** | Preset & Automated Patrol/Tour Engine (`IPtzPresetManager` / `TourEngine`) *(Completed)* | `IPtzPresetManager.h`, `LocalPresetManager.h/.cpp`, `TourEngine.h/.cpp`, `IPayload.h`, `SimulatedPayload.h/.cpp` | Unified spatial/optical preset storage, recall, and cyclical automated guard patrol routes. |
 | **P4** | Spatial Sector Blanking & Laser Safety Keep-Out Zones | `GimbalSectorBlanking.h/.cpp`, `IPanTiltUnit.h`, `SerialLrfAdapter.h` | Prevents mechanical vehicle collisions and inhibits laser emission into hazard sectors. |
-| **P4** | Dual-Sensor Parallax & Boresight Alignment | `SensorParallaxCompensator.h/.cpp`, `CameraStreamBinder.h` | Range-dependent angular alignment between Daylight EO and Thermal IR reticles. |
+| **P4** | Dual-Sensor Parallax & Boresight Alignment (`SensorParallaxCompensator`) *(Completed)* | `SensorParallaxCompensator.h/.cpp`, `IPayload.h`, `SimulatedPayload.h/.cpp` | Range-dependent angular alignment, reticle convergence, and bounding box transfer between Daylight EO and Thermal IR. |
 | **P4** | Tactical Search Patterns & Slew-to-Cue Engine (`TacticalSearchEngine`) *(Completed)* | `TacticalSearchEngine.h/.cpp`, `IPayload.h`, `SimulatedPayload.h/.cpp` | Automated wide-area search sweeps (Sector, Expanding Square, Spiral, Creeping Line) and prioritized Radar/AIS/Acoustic cueing with auto-resume. |
 | **P4** | Platform Lever-Arm & Coordinate Frame Transformations | `LeverArmCompensator.h/.cpp`, `GeoreferenceUtils.h` | Offsets GPS antenna, gimbal pivot, and optical center for high-precision georeferencing. |
 | **P4** | Built-In-Test & Health Monitoring Subsystem | `PayloadHealthMonitor.h/.cpp`, `PayloadHal.h` | PBIT/CBIT/IBIT diagnostics, motor stall detection, and thermal throttling alerts. |

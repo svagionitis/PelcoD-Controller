@@ -19,6 +19,7 @@
 #include "LocalPresetManager.h"
 #include "TourEngine.h"
 #include "TacticalSearchEngine.h"
+#include "SensorParallaxCompensator.h"
 #include "PayloadAutoTrackerBridge.h"
 #include "PayloadFactory.h"
 #include "PayloadKlvGenerator.h"

@@ -12,6 +12,8 @@ add_library(PayloadHal STATIC
     TourEngine.cpp
     TacticalSearchEngine.h
     TacticalSearchEngine.cpp
+    SensorParallaxCompensator.h
+    SensorParallaxCompensator.cpp
     IPayload.h
     GeoreferenceUtils.h
     GeoreferenceUtils.cpp

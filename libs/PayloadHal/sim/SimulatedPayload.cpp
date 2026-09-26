@@ -3,6 +3,7 @@
 #include "LocalPresetManager.h"
 #include "TourEngine.h"
 #include "TacticalSearchEngine.h"
+#include "SensorParallaxCompensator.h"
 
 #include <algorithm>
 #include <cmath>
@@ -938,6 +939,8 @@ SimulatedPayload::SimulatedPayload()
     , m_presetMgr(std::make_shared<LocalPresetManager>(m_ptu, m_daylightCamera))
     , m_tourEngine(std::make_shared<TourEngine>(m_ptu, m_daylightCamera, m_presetMgr))
     , m_tacticalEngine(std::make_shared<TacticalSearchEngine>(m_ptu, m_daylightCamera, m_lrf))
+    , m_parallaxCompensator(std::make_shared<SensorParallaxCompensator>(
+          SensorOffset3D { 0.15, 0.0, 0.0 }, BoresightCalibration { 0.0, 0.0, 0.0 }))
     , m_connected(true)
 {
 }
@@ -1039,6 +1042,11 @@ std::shared_ptr<TourEngine> SimulatedPayload::tourEngine() const noexcept
 std::shared_ptr<TacticalSearchEngine> SimulatedPayload::tacticalSearch() const noexcept
 {
     return m_tacticalEngine;
+}
+
+std::shared_ptr<SensorParallaxCompensator> SimulatedPayload::parallaxCompensator() const noexcept
+{
+    return m_parallaxCompensator;
 }
 
 std::optional<Klv::GeoPoint2D> SimulatedPayload::calculateTargetCoordinates(

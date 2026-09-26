@@ -23,6 +23,7 @@ namespace PayloadHal {
 class IPtzPresetManager;
 class TourEngine;
 class TacticalSearchEngine;
+class SensorParallaxCompensator;
 
 /// @class IPayload
 /// @brief Composite payload station binding Pan-Tilt Unit, Primary/Secondary cameras,
@@ -71,6 +72,13 @@ public:
     /// @brief Accesses the Tactical Search Patterns & Slew-to-Cue subsystem.
     /// @return Shared pointer to tactical search engine, or nullptr if unsupported.
     [[nodiscard]] virtual std::shared_ptr<TacticalSearchEngine> tacticalSearch() const noexcept
+    {
+        return nullptr;
+    }
+
+    /// @brief Accesses the Dual-Sensor Parallax & Boresight Compensator subsystem.
+    /// @return Shared pointer to parallax compensator, or nullptr if single-sensor or unsupported.
+    [[nodiscard]] virtual std::shared_ptr<SensorParallaxCompensator> parallaxCompensator() const noexcept
     {
         return nullptr;
     }
