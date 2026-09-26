@@ -53,6 +53,7 @@ public:
     [[nodiscard]] std::shared_ptr<PayloadSlavingCoordinator> slavingCoordinator() const noexcept override;
     [[nodiscard]] std::shared_ptr<SensorFusionManager> sensorFusion() const noexcept override;
     [[nodiscard]] std::shared_ptr<PayloadStowController> stowController() const noexcept override;
+    [[nodiscard]] std::shared_ptr<TacticalHudRenderer> hudRenderer() const noexcept override;
 
     [[nodiscard]] std::optional<Klv::GeoPoint2D> calculateTargetCoordinates(
         const Klv::GeoPoint2D& platformGps, double platformHeadingDeg, double platformAltMeters) const override;
@@ -86,6 +87,7 @@ private:
     std::shared_ptr<PayloadSlavingCoordinator> m_slavingCoordinator;
     std::shared_ptr<SensorFusionManager> m_sensorFusion;
     std::shared_ptr<PayloadStowController> m_stowController;
+    std::shared_ptr<TacticalHudRenderer> m_hudRenderer;
 
     mutable std::mutex m_mutex;
     StateCallback m_stateCallback {};

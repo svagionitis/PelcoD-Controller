@@ -33,6 +33,7 @@ class AtmosphericRefractionCompensator;
 class PayloadSlavingCoordinator;
 class SensorFusionManager;
 class PayloadStowController;
+class TacticalHudRenderer;
 
 /// @class IPayload
 /// @brief Composite payload station binding Pan-Tilt Unit, Primary/Secondary cameras,
@@ -151,6 +152,13 @@ public:
     /// @brief Accesses the Payload Stow, De-Ice/Wiper Routine & Emergency Park Controller.
     /// @return Shared pointer to stow controller, or nullptr if unsupported.
     [[nodiscard]] virtual std::shared_ptr<PayloadStowController> stowController() const noexcept
+    {
+        return nullptr;
+    }
+
+    /// @brief Accesses the Tactical Heads-Up Display (HUD) & Symbology Renderer.
+    /// @return Shared pointer to HUD renderer, or nullptr if unsupported.
+    [[nodiscard]] virtual std::shared_ptr<TacticalHudRenderer> hudRenderer() const noexcept
     {
         return nullptr;
     }

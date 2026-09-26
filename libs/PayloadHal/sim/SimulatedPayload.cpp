@@ -13,6 +13,7 @@
 #include "PayloadSlavingCoordinator.h"
 #include "SensorFusionManager.h"
 #include "PayloadStowController.h"
+#include "TacticalHudRenderer.h"
 
 #include <algorithm>
 #include <cmath>
@@ -1018,6 +1019,7 @@ SimulatedPayload::SimulatedPayload()
     , m_slavingCoordinator(std::make_shared<PayloadSlavingCoordinator>())
     , m_sensorFusion(std::make_shared<SensorFusionManager>(m_daylightCamera, m_thermalCamera))
     , m_stowController(std::make_shared<PayloadStowController>(m_ptu, m_presetMgr, m_daylightCamera))
+    , m_hudRenderer(std::make_shared<TacticalHudRenderer>())
     , m_connected(true)
 {
     m_ptu->setSectorBlanking(m_sectorBlanking);
@@ -1196,6 +1198,11 @@ std::shared_ptr<SensorFusionManager> SimulatedPayload::sensorFusion() const noex
 std::shared_ptr<PayloadStowController> SimulatedPayload::stowController() const noexcept
 {
     return m_stowController;
+}
+
+std::shared_ptr<TacticalHudRenderer> SimulatedPayload::hudRenderer() const noexcept
+{
+    return m_hudRenderer;
 }
 
 std::optional<Klv::GeoPoint2D> SimulatedPayload::calculateTargetCoordinates(

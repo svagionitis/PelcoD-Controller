@@ -151,6 +151,33 @@ The [PayloadHal](../libs/PayloadHal/PayloadHal.h) library provides a unified Har
   - Emergency Park and Anti-Tamper Zeroization: immediate high-rate slew to protective stow bay and mission-critical coordinate purge (wiping all PTZ presets from `IPtzPresetManager`, resetting active tracks, and locking device).
   - Integrated into [IPayload](../libs/PayloadHal/IPayload.h) (`stowController()`) and [SimulatedPayload](../libs/PayloadHal/sim/SimulatedPayload.h). Verified with 100% test coverage in [TestPayloadStowController.cpp](../libs/PayloadHal/tests/TestPayloadStowController.cpp).
 
+#### 6. Tactical Mission, Fire Control & Display Capabilities
+- **Tactical Heads-Up Display (HUD) & Symbology Renderer (`TacticalHudRenderer`)** *(Completed)*:
+  - Renders MIL-STD-2525 / STANAG compliant tactical Heads-Up Display (HUD) overlays and electronic reticles directly over the video stream or in overlay graphics.
+  - Generates decoupled normalized 2D vector primitives (`HudDrawList`) for lines, circles, boxes, and text labels, plus a direct 32-bit RGBA software rasterizer with an embedded 5x7 font for raw video burn-in.
+  - Electronic crosshairs and dynamic reticles (`Crosshair`, `MilDotLadder` with stadiametric milliradian ticks, `CircleDot`, `BoxReticle`, `BoresightPlus`).
+  - Azimuth heading tape ribbon with cardinal ticks ($0^\circ - 360^\circ$, `N`, `NE`, `E`, `SE`, `S`, `SW`, `W`, `NW`) and pitch ladder with roll-stabilized artificial horizon line.
+  - Target tracking gate / bounding box overlay with velocity lead vector pip and estimated range readout.
+  - Real-time tactical info blocks: MGRS / Lat-Lon / UTM target coordinates, LRF slant range readout, laser armed/firing indicators, eye-safety keep-out warnings, and optical/digital magnification indicators.
+  - Multi-palette rendering (`TacticalGreen`, `AviationWhite`, `HighContrastAmber`, `ThermalRed`, `Cyan`, custom RGBA) and 4 declutter presets (`Full`, `Standard`, `Minimal`, `DeCluttered`).
+  - Integrated into [IPayload](../libs/PayloadHal/IPayload.h) (`hudRenderer()`) and [SimulatedPayload](../libs/PayloadHal/sim/SimulatedPayload.h). Verified with 100% test coverage across 10 unit test cases in [TestTacticalHudRenderer.cpp](../libs/PayloadHal/tests/TestTacticalHudRenderer.cpp).
+- **Passive Stadiametric & Kinematic Triangulation Range Estimator (`StadiametricRanger`)**:
+  - Passive range estimation without emitting detectable laser radiation when LRF is inhibited, eye-safety restricted, or jammed.
+  - Subtended angular pixel height calculation using calibrated vertical FOV and focal length against NATO standard target dimension libraries (MBT, APC, Personnel, Patrol Vessel, Helicopter).
+  - Kinematic multi-observation triangulation intersecting bearing rays across platform GPS displacements ($\Delta \mathbf{P}_{\text{platform}}$) with statistical uncertainty / covariance estimation ($\pm \sigma_R$).
+- **STANAG 4586 Tactical UAV / C2 DLI Interoperability Bridge (`Stanag4586Bridge`)**:
+  - Native NATO STANAG 4586 Data Link Interface (DLI) message ingestion and serialization (Messages #2000, #2001, #2002, #2003, #2004).
+  - Translates external tactical C2 and Ground Control Station (GCS) telemetry directly into the polymorphic `IPayload` HAL.
+- **Laser Target Designator (LTD) & Spot Tracker Coordinator (`LaserDesignatorCoordinator`)**:
+  - STANAG 3733 PRF code management (NATO Band I / Band II, codes 1111–1788).
+  - Thermal duty cycle management: capacitor bank charging, diode thermal dissipation model, and enforced cool-down intervals to prevent diode burn-out.
+  - Laser hazard fan & safety footprint calculation on terrain.
+  - Laser Spot Tracker (LST) quadrant sensor coordination and auto-cueing.
+- **Terrain-Aware Polygonal Geo-Survey & Search Grid Engine (`GeoSurveyGridEngine`)**:
+  - Automated wide-area reconnaissance across arbitrary convex/concave WGS-84 boundary polygons.
+  - Serpentine / lawnmower sweep trajectory generation with adaptive GSD and configurable forward/side footprint overlap.
+  - Discretized coverage grid tracking surveyed areas, blind zones, and terrain shadows in real time.
+
 ---
 
 ### Suggested Prioritized Roadmap
@@ -179,3 +206,8 @@ The [PayloadHal](../libs/PayloadHal/PayloadHal.h) library provides a unified Har
 | **P5** | Multi-Payload Master/Slave Coordinator & Handover *(Completed)* | [PayloadSlavingCoordinator.h](../libs/PayloadHal/PayloadSlavingCoordinator.h), [IPayload.h](../libs/PayloadHal/IPayload.h), [SimulatedPayload.h](../libs/PayloadHal/sim/SimulatedPayload.h) | Multi-turret LOS slaving with 3D baseline parallax compensation and automated blind-zone handover. |
 | **P5** | Optical Sensor Switching, Digital Match-Zoom & Fusion Manager *(Completed)* | [SensorFusionManager.h](../libs/PayloadHal/SensorFusionManager.h), [IPayload.h](../libs/PayloadHal/IPayload.h), [SimulatedPayload.h](../libs/PayloadHal/sim/SimulatedPayload.h) | Seamless FOV match-zoom, color palettes, isotherm highlighting, display layouts, and day/thermal auto-handoff. |
 | **P5** | Payload Stow, Environmental De-Ice & Emergency Park *(Completed)* | [PayloadStowController.h](../libs/PayloadHal/PayloadStowController.h), [IPayload.h](../libs/PayloadHal/IPayload.h), [SimulatedPayload.h](../libs/PayloadHal/sim/SimulatedPayload.h) | Safe transport stowing, vehicle interlocks, window de-icing, wipers, washers, and anti-tamper zeroization. |
+| **P6** | Tactical Heads-Up Display (HUD) & Symbology Renderer *(Completed)* | [TacticalHudRenderer.h](../libs/PayloadHal/TacticalHudRenderer.h), [IPayload.h](../libs/PayloadHal/IPayload.h), [SimulatedPayload.h](../libs/PayloadHal/sim/SimulatedPayload.h) | Electronic reticles, compass/pitch tapes, tracking lead pips, MGRS coordinates, direct RGBA rasterization, and laser warning overlays. |
+| **P6** | Passive Stadiametric & Kinematic Triangulation Range Estimator | `StadiametricRanger.h/.cpp`, `IPayload.h` | Covert passive target range estimation from optical subtended angles and kinematic baseline triangulation. |
+| **P6** | STANAG 4586 Tactical UAV / C2 DLI Interoperability Bridge | `Stanag4586Bridge.h/.cpp`, `IPayload.h` | Ingests and generates standard NATO STANAG 4586 DLI messages (#2000–#2004) for direct C2 integration. |
+| **P6** | Laser Target Designator (LTD) & Spot Tracker Coordinator | `LaserDesignatorCoordinator.h/.cpp`, `IPayload.h` | STANAG 3733 PRF code generation, diode thermal budget modeling, laser hazard fans, and LST seeker slaving. |
+| **P6** | Terrain-Aware Polygonal Geo-Survey & Search Grid Engine | `GeoSurveyGridEngine.h/.cpp`, `IPayload.h` | Automated area reconnaissance, orthorectified lawnmower sweeps, and real-time coverage map tracking. |

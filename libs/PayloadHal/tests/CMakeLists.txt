@@ -58,4 +58,5 @@ add_payload_hal_test(TestAtmosphericRefractionCompensator TestAtmosphericRefract
 add_payload_hal_test(TestPayloadSlavingCoordinator     TestPayloadSlavingCoordinator.cpp)
 add_payload_hal_test(TestSensorFusionManager          TestSensorFusionManager.cpp)
 add_payload_hal_test(TestPayloadStowController         TestPayloadStowController.cpp)
+add_payload_hal_test(TestTacticalHudRenderer           TestTacticalHudRenderer.cpp)
 
