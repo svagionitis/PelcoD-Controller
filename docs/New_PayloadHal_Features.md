@@ -119,10 +119,12 @@ The [PayloadHal](../libs/PayloadHal/PayloadHal.h) library provides a unified Har
   - Multi-axis arrival duration synchronization ($T_{\text{master}} = \max(T_{\text{pan}}, T_{\text{tilt}}, T_{\text{roll}})$) eliminating asymmetric dog-leg sweeps.
   - Real-time streaming kinematics filter smoothing manual joystick inputs and auto-tracker velocity feeds.
   - Integrated into [IPayload](../libs/PayloadHal/IPayload.h) (`motionProfiler()`) and [SimulatedPayload](../libs/PayloadHal/sim/SimulatedPayload.h). Verified with 100% test coverage in [TestGimbalMotionProfiler.cpp](../libs/PayloadHal/tests/TestGimbalMotionProfiler.cpp).
-- **Target Kinematics Estimator & Predictive Lead-Angle Slaving (`TargetKinematicsFilter`)**:
-  - Extended Kalman Filter (EKF) / $\alpha$-$\beta$-$\gamma$ filter estimating target 3D velocity ($\mathbf{v}_t$) and acceleration ($\mathbf{a}_t$) from periodic LRF range echoes, target pixel centroids, and gimbal angles.
-  - Predictive time-of-flight lead-angle computation for laser designator slaving or weapon fire-control integration.
-  - Coasting mode holding target trajectory through temporary optical occlusions (passing behind trees, buildings, clouds).
+- **Target Kinematics Estimator & Predictive Lead-Angle Slaving (`TargetKinematicsFilter`)** *(Completed)*:
+  - 9-state 3D Cartesian Kalman filter ($p, v, a$) in local NED coordinates with Singer acceleration dynamics and spherical-to-Cartesian Jacobian measurement covariance projection.
+  - Multi-sensor ingestion: Full 3D observation (Bearing + Slant Range / DEM) and passive Bearing-Only tracking (synthesized range with cross-track / along-track uncertainty).
+  - Predictive time-of-flight ($\text{TOF}$) lead solver and system latency compensation for laser designator slaving, weapon fire control, and fast drone / boat tracking.
+  - Occlusion coasting state machine (`Unacquired` -> `Acquiring` -> `Tracking` -> `Coasting` -> `Lost`) maintaining predictive trajectory for up to $T_{\text{coast}}$ seconds with gated innovation reacquisition.
+  - Integrated into [IPayload](../libs/PayloadHal/IPayload.h) (`targetKinematics()`) and [SimulatedPayload](../libs/PayloadHal/sim/SimulatedPayload.h). Verified with 100% test coverage in [TestTargetKinematicsFilter.cpp](../libs/PayloadHal/tests/TestTargetKinematicsFilter.cpp).
 - **Atmospheric Refraction & Earth Curvature Optical Compensator (`AtmosphericRefractionCompensator`)**:
   - Corrects long-range line-of-sight elevation angles and DEM target ray intersections beyond $5\,\text{km}$ up to $40\,\text{km}$.
   - Effective Earth Radius ($4/3 R_E$) and ITU-R P.834 / Edlén index of refraction $n(z)$ modeling pressure, temperature, humidity, and wavelength (Visible, SWIR, MWIR, LWIR).
@@ -162,7 +164,7 @@ The [PayloadHal](../libs/PayloadHal/PayloadHal.h) library provides a unified Har
 | **P4** | Platform Lever-Arm & Coordinate Frame Transformations *(Completed)* | `PlatformLeverArmCompensator.h/.cpp`, `IPayload.h`, `SimulatedPayload.h/.cpp` | Offsets GPS antenna, gimbal pivot, and optical center for high-precision georeferencing under dynamic vehicle roll/pitch. |
 | **P4** | Built-In-Test & Health Monitoring Subsystem *(Completed)* | `PayloadHealthMonitor.h/.cpp`, `IPayload.h`, `SimulatedPayload.h/.cpp`, `PayloadHal.h` | Three pillars of BIT (PBIT/CBIT/IBIT), motor stall detection, thermal throttling alerts, and health-based state escalation. |
 | **P5** | Gimbal S-Curve Motion Profiler & Jerk-Limited Kinematics *(Completed)* | [GimbalMotionProfiler.h](../libs/PayloadHal/GimbalMotionProfiler.h), [IPayload.h](../libs/PayloadHal/IPayload.h), [SimulatedPayload.h](../libs/PayloadHal/sim/SimulatedPayload.h) | Prevents mechanical shock, eliminates motor overcurrent spikes, and provides cinema-smooth tracking. |
-| **P5** | Target Kinematics & Predictive Lead-Angle Slaving | `TargetKinematicsFilter.h/.cpp`, `IPayload.h` | Real-time target velocity estimation, lead angle pointing, and occlusion coasting. |
+| **P5** | Target Kinematics & Predictive Lead-Angle Slaving *(Completed)* | [TargetKinematicsFilter.h](../libs/PayloadHal/TargetKinematicsFilter.h), [IPayload.h](../libs/PayloadHal/IPayload.h), [SimulatedPayload.h](../libs/PayloadHal/sim/SimulatedPayload.h) | Real-time target velocity estimation, lead angle pointing, and occlusion coasting. |
 | **P5** | Atmospheric Refraction & Earth Curvature Compensator | `AtmosphericRefractionCompensator.h/.cpp`, `GeoreferenceUtils.h` | High-fidelity long-range over-the-horizon elevation and DEM georeferencing. |
 | **P5** | Multi-Payload Master/Slave Coordinator & Handover | `PayloadSlavingCoordinator.h/.cpp`, `IPayload.h` | Multi-turret LOS slaving and automated blind-zone handover. |
 | **P5** | Optical Sensor Switching & Digital Match-Zoom | `SensorFusionManager.h/.cpp`, `ICameraPayload.h` | Seamless FOV match-zoom, color palettes, and day/thermal auto-handoff. |

@@ -8,6 +8,7 @@
 #include "GimbalSectorBlanking.h"
 #include "PayloadHealthMonitor.h"
 #include "GimbalMotionProfiler.h"
+#include "TargetKinematicsFilter.h"
 
 #include <algorithm>
 #include <cmath>
@@ -1008,6 +1009,7 @@ SimulatedPayload::SimulatedPayload()
     , m_sectorBlanking(std::make_shared<GimbalSectorBlanking>())
     , m_healthMonitor(std::make_shared<PayloadHealthMonitor>())
     , m_motionProfiler(std::make_shared<GimbalMotionProfiler>())
+    , m_targetKinematics(std::make_shared<TargetKinematicsFilter>())
     , m_connected(true)
 {
     m_ptu->setSectorBlanking(m_sectorBlanking);
@@ -1161,6 +1163,11 @@ std::shared_ptr<PayloadHealthMonitor> SimulatedPayload::healthMonitor() const no
 std::shared_ptr<GimbalMotionProfiler> SimulatedPayload::motionProfiler() const noexcept
 {
     return m_motionProfiler;
+}
+
+std::shared_ptr<TargetKinematicsFilter> SimulatedPayload::targetKinematics() const noexcept
+{
+    return m_targetKinematics;
 }
 
 std::optional<Klv::GeoPoint2D> SimulatedPayload::calculateTargetCoordinates(

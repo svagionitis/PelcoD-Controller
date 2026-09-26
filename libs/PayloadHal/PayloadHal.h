@@ -24,6 +24,7 @@
 #include "GimbalSectorBlanking.h"
 #include "PayloadHealthMonitor.h"
 #include "GimbalMotionProfiler.h"
+#include "TargetKinematicsFilter.h"
 #include "PayloadAutoTrackerBridge.h"
 #include "PayloadFactory.h"
 #include "PayloadKlvGenerator.h"
