@@ -209,6 +209,7 @@ public:
     [[nodiscard]] std::shared_ptr<ICameraPayload> primaryCamera() const noexcept override;
     [[nodiscard]] std::shared_ptr<ICameraPayload> secondaryCamera() const noexcept override;
     [[nodiscard]] std::shared_ptr<ILaserRangeFinder> lrf() const noexcept override;
+    void setLrf(std::shared_ptr<ILaserRangeFinder> lrf) noexcept;
 
     [[nodiscard]] std::optional<Klv::GeoPoint2D> calculateTargetCoordinates(
         const Klv::GeoPoint2D& platformGps, double platformHeadingDeg, double platformAltMeters) const override;
@@ -229,6 +230,7 @@ private:
     std::shared_ptr<Onvif::OnvifClient> m_client;
     std::shared_ptr<OnvifPtuAdapter> m_ptu;
     std::shared_ptr<OnvifCameraAdapter> m_camera;
+    std::shared_ptr<ILaserRangeFinder> m_lrf {};
     mutable std::mutex m_mutex;
     StateCallback m_stateCallback {};
 };

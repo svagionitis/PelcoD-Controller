@@ -12,34 +12,35 @@ The [PayloadHal](../libs/PayloadHal/PayloadHal.h) library provides a unified Har
 
 ---
 
-### Key Shortcomings in the Current Implementation
+### Key Shortcomings in the Original Implementation (Status)
 
-1. **Missing Synchronous State & Telemetry Getters across Interfaces**:
-   - [IPanTiltUnit](../libs/PayloadHal/IPanTiltUnit.h), [ICameraPayload](../libs/PayloadHal/ICameraPayload.h), and [ILaserRangeFinder](../libs/PayloadHal/ILaserRangeFinder.h) provide push callbacks (`registerTelemetryCallback`, `registerMeasurementCallback`), but **no synchronous snapshot getters** (`currentTelemetry()` or `lastMeasurement()`).
-   - Consequently, in [PelcoDCompositePayload::calculateTargetCoordinates](../libs/PayloadHal/PayloadFactory.cpp#L116-L131), gimbal angles were **hardcoded to `pan = 0.0°, tilt = -10.0°`** because it could not query [PelcoDPtzAdapter](../libs/PayloadHal/adapters/PelcoDPtzAdapter.h) directly.
-2. **Incomplete Adapter Ecosystem**:
-   - [ViscaSonyAdapter](../libs/PayloadHal/adapters/ViscaSonyAdapter.h) exists, but there is no composite payload binding a Sony FCB camera to a pan-tilt head (e.g. `PelcoDViscaCompositePayload`).
-   - [PayloadFactory::createFromUri](../libs/PayloadHal/PayloadFactory.cpp#L141-L146) only handles `"sim://"`. URI parsing for serial, TCP, ONVIF, or Pelco-D is unimplemented.
-   - [SimulatedPayload::SimLrf](../libs/PayloadHal/sim/SimulatedPayload.cpp#L347) is the only LRF implementation; there is no physical LRF hardware driver (e.g., NMEA/ASCII or binary serial).
+1. **Missing Synchronous State & Telemetry Getters across Interfaces** *(Resolved)*:
+   - Added `currentTelemetry()` to [IPanTiltUnit](../libs/PayloadHal/IPanTiltUnit.h) and [ICameraPayload](../libs/PayloadHal/ICameraPayload.h), and `lastMeasurement()` to [ILaserRangeFinder](../libs/PayloadHal/ILaserRangeFinder.h).
+   - Fixed [PelcoDCompositePayload::calculateTargetCoordinates](../libs/PayloadHal/PayloadFactory.cpp) to query live PTU pan/tilt angles directly.
+2. **Adapter Ecosystem & URI Resolution** *(Resolved)*:
+   - Implemented [OnvifPayloadAdapter](../libs/PayloadHal/adapters/OnvifPayloadAdapter.h) and [PelcoDViscaCompositePayload](../libs/PayloadHal/adapters/PelcoDViscaCompositePayload.h).
+   - Implemented physical serial/stream LRF hardware driver [SerialLrfAdapter](../libs/PayloadHal/adapters/SerialLrfAdapter.h) with multi-protocol support (NMEA, ASCII, Binary), eye-safety interlocks, and auto-disarm watchdog timer.
+   - Upgraded [PayloadFactory::createFromUri](../libs/PayloadHal/PayloadFactory.cpp) to resolve `sim://`, `onvif://`, `pelcod://`, `serial://`, `tcp://`, `udp://`, `fujinon://`, `pelcod-visca://`, and `lrf://` with streaming query parameters and `?lrf=` composite parameter binding.
 
 ---
 
 ### What Is Missing and Can Be Added
 
 #### 1. Core Interface & Telemetry Enhancements
-- **Synchronous Telemetry Access**:
-  - Add `[[nodiscard]] virtual GimbalTelemetry currentTelemetry() const noexcept = 0;` to [IPanTiltUnit](../libs/PayloadHal/IPanTiltUnit.h).
-  - Add `[[nodiscard]] virtual CameraTelemetry currentTelemetry() const noexcept = 0;` to [ICameraPayload](../libs/PayloadHal/ICameraPayload.h).
-  - Add `[[nodiscard]] virtual std::optional<LrfTargetMeasurement> lastMeasurement() const noexcept = 0;` to [ILaserRangeFinder](../libs/PayloadHal/ILaserRangeFinder.h).
+- **Synchronous Telemetry Access** *(Completed)*:
+  - Added `[[nodiscard]] virtual GimbalTelemetry currentTelemetry() const = 0;` to [IPanTiltUnit](../libs/PayloadHal/IPanTiltUnit.h).
+  - Added `[[nodiscard]] virtual CameraTelemetry currentTelemetry() const = 0;` to [ICameraPayload](../libs/PayloadHal/ICameraPayload.h).
+  - Added `[[nodiscard]] virtual std::optional<LrfTargetMeasurement> lastMeasurement() const = 0;` to [ILaserRangeFinder](../libs/PayloadHal/ILaserRangeFinder.h).
+  - Fixed `PelcoDCompositePayload::calculateTargetCoordinates` to query live PTU pan and tilt angles synchronously instead of hardcoded defaults.
 - **3-Axis Gimbal Support (Roll Axis & Horizon Leveling)** *(Completed)*:
   - Added 3-axis attitude data structures (`GimbalAttitude3D`, `GimbalAxisCapabilities`, `StabilizationMode::HorizonLevel`) and expanded [GimbalTelemetry](../libs/PayloadHal/PayloadTypes.h) with `rollAngleDeg`, `rollRateDegPerSec`, and `isHorizonLeveled`.
   - Added 3-axis roll motion, limits, and horizon leveling control methods to [IPanTiltUnit](../libs/PayloadHal/IPanTiltUnit.h) with backward-compatible defaults.
   - Implemented analytical horizon counter-roll kinematics (`computeLevelingRoll`) and roll-aware sensor frustum rotation in [GeoreferenceUtils](../libs/PayloadHal/GeoreferenceUtils.h).
   - Upgraded [SimulatedPayload](../libs/PayloadHal/sim/SimulatedPayload.h) with 3-axis gimbal dynamics, $\pm 60^\circ$ physical roll limits, and closed-loop horizon leveling under platform bank/pitch angles.
   - Integrated roll telemetry into MISB ST 0601 Tag 20 (`SensorRelativeRoll`) in [PayloadKlvGenerator](../libs/PayloadHal/PayloadKlvGenerator.h) and temporal roll interpolation in [CameraStreamBinder](../libs/PayloadHal/CameraStreamBinder.h).
-- **Continuous Focus & Exposure / Iris Controls**:
-  - Add `focusContinuous(float velocity)` and `focusStop()` to [ICameraPayload](../libs/PayloadHal/ICameraPayload.h) for continuous Near/Far joystick slewing (supported by Pelco-D and VISCA).
-  - Add Iris/Exposure controls (`setIrisAuto(bool)`, `setIrisNormalized(double)`, exposure compensation).
+- **Continuous Focus & Exposure / Iris Controls** *(Completed)*:
+  - Added `focusContinuous(float velocity)`, `focusStop()`, and `triggerOnePushFocus()` to [ICameraPayload](../libs/PayloadHal/ICameraPayload.h) for motorized manual and one-push focus slewing.
+  - Added `setIrisAuto(bool)`, `setIrisNormalized(double)`, `irisContinuous(float velocity)`, and `irisStop()` to [ICameraPayload](../libs/PayloadHal/ICameraPayload.h) for exposure and aperture adjustment across optical sensors.
 - **Video Stream Binding & Frame Synchronization** *(Completed)*:
   - Added [VideoStreamTypes.h](../libs/PayloadHal/VideoStreamTypes.h) with `VideoStreamProfile` (Primary, Secondary, Thermal, Snapshot), `StreamTransportProtocol` (RTSP, V4L2, DirectShow, UDP/MPEG-TS, WebRTC, Simulated), and `VideoStreamDescriptor`.
   - Added video streaming methods (`videoStreamUri()`, `setVideoStreamUri()`, `availableStreams()`, `streamDescriptor()`) to [ICameraPayload](../libs/PayloadHal/ICameraPayload.h) and convenience shortcuts to [IPayload](../libs/PayloadHal/IPayload.h).
@@ -47,40 +48,38 @@ The [PayloadHal](../libs/PayloadHal/PayloadHal.h) library provides a unified Har
   - Implemented [CameraStreamBinder](../libs/PayloadHal/CameraStreamBinder.h) for pairing raw/decoded video frames with live camera optics, gimbal orientation, and ground georeferencing/DEM projections.
 
 #### 2. Tactical & Subsystem Additions
-- **Laser Pointer / Illuminator Subsystem (`ILaserIlluminator`)**:
-  - Tactical payloads have near-infrared target pointers / illuminators (830nm/850nm/1064nm).
-  - Add an interface with safety interlock arming, continuous/pulsed/strobe modes, and power level adjustments.
-- **Ground Sensor Footprint (Frustum) Georeferencing**:
-  - [GeoreferenceUtils](../libs/PayloadHal/GeoreferenceUtils.h) calculates frame center, but does not compute the 4-corner ground projection quadrilateral ([Klv::FrustumCorners](../libs/Mapping/TacticalOverlay.h#L38)).
-  - Adding `computeFrustumCorners(...)` in [GeoreferenceUtils](../libs/PayloadHal/GeoreferenceUtils.h) bridges camera HFOV/VFOV and gimbal orientation directly with [TacticalOverlay](../libs/Mapping/TacticalOverlay.h) in `libs/Mapping`.
+- **Laser Pointer / Illuminator Subsystem (`ILaserIlluminator`)** *(Completed)*:
+  - Implemented [ILaserIlluminator](../libs/PayloadHal/ILaserIlluminator.h) with dual-action safety interlock arming, continuous/pulsed/strobe firing modes, adjustable duty cycles/frequencies, and optical power percentage controls.
+  - Fully implemented in [SimulatedPayload](../libs/PayloadHal/sim/SimulatedPayload.h) and verified with unit tests in [TestLaserIlluminator.cpp](../libs/PayloadHal/tests/TestLaserIlluminator.cpp).
+- **Ground Sensor Footprint (Frustum) Georeferencing** *(Completed)*:
+  - Implemented `computeFrustumCorners(...)` in [GeoreferenceUtils](../libs/PayloadHal/GeoreferenceUtils.h) projecting 4-corner ground polygons on the WGS-84 ellipsoid and DEM terrain meshes.
+  - Bridges camera HFOV/VFOV, gimbal azimuth, elevation, and roll directly with [TacticalOverlay](../libs/Mapping/TacticalOverlay.h) in `libs/Mapping`.
 - **Digital Elevation Model (DEM) Ray Intersection** *(Completed)*:
   - Added [IDemProvider](../libs/PayloadHal/IDemProvider.h), [GridDemProvider](../libs/PayloadHal/GridDemProvider.h), and [DemRayCaster](../libs/PayloadHal/DemRayCaster.h) implementing 2-phase numerical ray-marching with Illinois secant root refinement and foreground occlusion handling.
   - Upgraded [GeoreferenceUtils](../libs/PayloadHal/GeoreferenceUtils.h), [IPayload](../libs/PayloadHal/IPayload.h), and [PayloadKlvGenerator](../libs/PayloadHal/PayloadKlvGenerator.h) to support high-fidelity terrain ray intersection.
 
 #### 3. New Adapters & Factory URIs
-- **ONVIF Client Adapter (`OnvifPayloadAdapter`)**:
-  - The repo contains an extensive ONVIF client in [OnvifClient.h](../libs/Onvif/OnvifClient.h).
-  - Create an adapter mapping `OnvifClient` into [IPanTiltUnit](../libs/PayloadHal/IPanTiltUnit.h) and [ICameraPayload](../libs/PayloadHal/ICameraPayload.h), enabling any Profile S/T/G network camera to be driven by `PayloadHal`.
-- **Sony FCB + Pelco-D Composite Adapter**:
-  - Combine [PelcoDPtzAdapter](../libs/PayloadHal/adapters/PelcoDPtzAdapter.h) and [ViscaSonyAdapter](../libs/PayloadHal/adapters/ViscaSonyAdapter.h) into `PelcoDViscaCompositePayload` in [PayloadFactory](../libs/PayloadHal/PayloadFactory.h).
-- **Physical Serial LRF Driver (`SerialLrfAdapter`)**:
-  - Support common rangefinder protocols (e.g. NMEA 0183 `$GPLRF`, Vectronix LDM, or ASCII serial) communicating over [libs/Transport](../libs/Transport).
-- **Extended URI Schemes in `PayloadFactory::createFromUri`**:
-  - Support `onvif://user:pass@host:port`, `pelcod://host:port?addr=1`, and `serial:///dev/ttyUSB0?baud=9600&protocol=pelcod`.
+- **ONVIF Client Adapter (`OnvifPayloadAdapter`)** *(Completed)*:
+  - Implemented [OnvifPayloadAdapter](../libs/PayloadHal/adapters/OnvifPayloadAdapter.h) mapping `libs/Onvif` ([OnvifClient](../libs/Onvif/OnvifClient.h)) into [IPanTiltUnit](../libs/PayloadHal/IPanTiltUnit.h) and [ICameraPayload](../libs/PayloadHal/ICameraPayload.h), enabling any Profile S/T/G network camera to be driven by `PayloadHal`.
+- **Sony FCB + Pelco-D Composite Adapter** *(Completed)*:
+  - Implemented [PelcoDViscaCompositePayload](../libs/PayloadHal/adapters/PelcoDViscaCompositePayload.h) combining [PelcoDPtzAdapter](../libs/PayloadHal/adapters/PelcoDPtzAdapter.h) and [ViscaSonyAdapter](../libs/PayloadHal/adapters/ViscaSonyAdapter.h) in [PayloadFactory](../libs/PayloadHal/PayloadFactory.h).
+- **Extended URI Schemes in `PayloadFactory::createFromUri`** *(Completed)*:
+  - Supported `sim://`, `onvif://user:pass@host:port`, `pelcod://host:port?addr=1`, `serial:///dev/ttyUSB0?baud=9600&protocol=pelcod`, `tcp://`, `udp://`, `fujinon://`, and `pelcod-visca://` with streaming query parameters.
+- **Physical Serial LRF Driver (`SerialLrfAdapter`)** *(Completed)*:
+  - Implemented [SerialLrfAdapter](../libs/PayloadHal/adapters/SerialLrfAdapter.h) over `libs/Transport` with [LrfProtocols](../libs/PayloadHal/adapters/LrfProtocols.h) supporting NMEA-0183 (`$GPLRF`, `$PLRF` with XOR checksums), ASCII delimited (`R: <dist>`, `DIST: <dist>`), and Binary framed (`0xAA 0x55` sync, command ID, payload, CRC-16 CCITT).
+  - Enforced ANSI Z136 eye-safety interlocks: strict disarmed default state, guarded pulse emission (rejection when disarmed), inactivity auto-disarm watchdog timer, and immediate disarm on link failure/disconnect.
+  - Implemented configurable range gating (`minRangeMeters`, `maxRangeMeters`) to filter near-field atmospheric clutter and backscatter.
+  - Upgraded [PayloadFactory](../libs/PayloadHal/PayloadFactory.h) with `createLrfFromUri` (`lrf://serial/COM3...`, `lrf://tcp/...`, `lrf://sim`) and dynamic `?lrf=` composite query parameter binding across all composite adapters (`PelcoDCompositePayload`, `PelcoDFujinonPayloadAdapter`, `PelcoDViscaCompositePayload`, `OnvifPayloadAdapter`), unlocking precise 3D slant-range target georeferencing via [GeoreferenceUtils](../libs/PayloadHal/GeoreferenceUtils.h) and MISB Tag 21 telemetry.
 
 #### 4. Subsystem Integrations
-- **Click-to-Point / Geo-Lock Controller**:
-  - Add a high-level command to [IPayload](../libs/PayloadHal/IPayload.h):
-    ```cpp
-    virtual bool slewToGeoTarget(const Klv::GeoPoint3D& platformPos,
-                                 double platformHeadingDeg,
-                                 const Klv::GeoPoint3D& targetPos) = 0;
-    ```
-  - Provide an active **GeoHold tracking loop** that automatically compensates for platform movement to keep the payload pointed at fixed coordinates.
-- **Auto-Tracker Bridge with `libs/Tracking`**:
-  - Connect [PtzAutoTracker](../libs/Tracking/PtzAutoTracker.h) directly to [IPanTiltUnit::setRate](../libs/PayloadHal/IPanTiltUnit.h#L27) and [ICameraPayload::zoomContinuous](../libs/PayloadHal/ICameraPayload.h#L33) for automated visual target tracking.
-- **STANAG 4609 / MISB ST 0601 Metadata Generator**:
-  - Create a utility in `PayloadHal` that serializes current platform GPS, [GimbalTelemetry](../libs/PayloadHal/PayloadTypes.h#L58), [CameraTelemetry](../libs/PayloadHal/PayloadTypes.h#L119), and [LrfTargetMeasurement](../libs/PayloadHal/PayloadTypes.h#L86) into MISB KLV packets using `libs/Klv`.
+- **Click-to-Point / Geo-Lock Controller** *(Completed)*:
+  - Added high-level command [`slewToGeoTarget`](../libs/PayloadHal/IPayload.h) and full Geo-Lock management (`engageGeoLock`, `disengageGeoLock`, `isGeoLocked`, `geoLockTarget`, `updateGeoLock`) in [IPayload](../libs/PayloadHal/IPayload.h).
+  - Implemented [GeoLockController](../libs/PayloadHal/GeoLockController.h) with active background thread tracking and deadband-filtered slew loop holding stationary geodetic coordinates under dynamic host platform motion.
+- **Auto-Tracker Bridge with `libs/Tracking`** *(Completed)*:
+  - Implemented [PayloadAutoTrackerBridge](../libs/PayloadHal/PayloadAutoTrackerBridge.h) bridging [Tracking::PtzAutoTracker](../libs/Tracking/PtzAutoTracker.h) directly to [IPanTiltUnit](../libs/PayloadHal/IPanTiltUnit.h) motion commands (`setNormalizedVelocity` or `setRate`) and [ICameraPayload](../libs/PayloadHal/ICameraPayload.h) optical zoom framing.
+  - Supports normalized error ingestion (`updateVisual`), bounding-box ingestion (`updateBoundingBox`), spherical angular tracking (`updateAngular`), adaptive optical zoom gain scheduling, deadband filtering, and autonomous threaded tracking loops.
+- **STANAG 4609 / MISB ST 0601 Metadata Generator** *(Completed)*:
+  - Implemented [PayloadKlvGenerator](../libs/PayloadHal/PayloadKlvGenerator.h) serializing platform navigation, [GimbalTelemetry](../libs/PayloadHal/PayloadTypes.h) (including Tag 20 Roll), [CameraTelemetry](../libs/PayloadHal/PayloadTypes.h), LRF slant range echo, DEM terrain line-of-sight ray intersection, and 4-corner frustum footprints into standard MISB KLV packets using `libs/Klv`.
 
 ---
 
@@ -97,3 +96,4 @@ The [PayloadHal](../libs/PayloadHal/PayloadHal.h) library provides a unified Har
 | **P3** | Digital Elevation Model (DEM) Ray Intersection *(Completed)* | [IDemProvider.h](../libs/PayloadHal/IDemProvider.h), [GridDemProvider.h](../libs/PayloadHal/GridDemProvider.h), [DemRayCaster.h](../libs/PayloadHal/DemRayCaster.h), [GeoreferenceUtils.h](../libs/PayloadHal/GeoreferenceUtils.h) | Exact terrain target georeferencing and occlusion detection without LRF. |
 | **P3** | Video Stream Binding & Frame Synchronization *(Completed)* | [VideoStreamTypes.h](../libs/PayloadHal/VideoStreamTypes.h), [CameraStreamBinder.h](../libs/PayloadHal/CameraStreamBinder.h), [ICameraPayload.h](../libs/PayloadHal/ICameraPayload.h), [IPayload.h](../libs/PayloadHal/IPayload.h) | Ties video frames with live camera telemetry and line-of-sight georeferencing. |
 | **P3** | 3-Axis Gimbal Support & Horizon Leveling *(Completed)* | [IPanTiltUnit.h](../libs/PayloadHal/IPanTiltUnit.h), [PayloadTypes.h](../libs/PayloadHal/PayloadTypes.h), [GeoreferenceUtils.h](../libs/PayloadHal/GeoreferenceUtils.h), [SimulatedPayload.h](../libs/PayloadHal/sim/SimulatedPayload.h) | Full roll axis control, automatic horizon counter-roll kinematics, roll-aware frustum footprints, and MISB Tag 20 telemetry. |
+| **P3** | Physical Serial LRF Driver (`SerialLrfAdapter`) *(Completed)* | [SerialLrfAdapter.h](../libs/PayloadHal/adapters/SerialLrfAdapter.h), [LrfProtocols.h](../libs/PayloadHal/adapters/LrfProtocols.h), [PayloadFactory.h](../libs/PayloadHal/PayloadFactory.h) | Multi-protocol physical LRF support (NMEA, ASCII, Binary), eye-safety interlocks, and 3D slant-range georeferencing. |

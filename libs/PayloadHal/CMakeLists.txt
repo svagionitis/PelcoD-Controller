@@ -35,6 +35,10 @@ add_library(PayloadHal STATIC
     adapters/PelcoDViscaCompositePayload.cpp
     adapters/OnvifPayloadAdapter.h
     adapters/OnvifPayloadAdapter.cpp
+    adapters/LrfProtocols.h
+    adapters/LrfProtocols.cpp
+    adapters/SerialLrfAdapter.h
+    adapters/SerialLrfAdapter.cpp
     sim/SimulatedPayload.h
     sim/SimulatedPayload.cpp
 )

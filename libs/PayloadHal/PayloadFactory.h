@@ -76,6 +76,16 @@ public:
     /// @return Shared pointer to OnvifPayloadAdapter.
     [[nodiscard]] static std::shared_ptr<IPayload> createOnvifPayload(const std::string& deviceEndpoint,
         const Onvif::SecurityCredentials& credentials = {}, const std::string& profileToken = "");
+
+    /// @brief Creates an ILaserRangeFinder instance from a connection URI.
+    /// @details Supported formats:
+    ///          - "lrf://serial/COM3?baud=115200&proto=nmea"
+    ///          - "lrf://tcp/192.168.1.100:4001?proto=ascii"
+    ///          - "lrf://udp/192.168.1.100:4001?proto=binary"
+    ///          - "lrf://sim": Simulated LRF
+    /// @param[in] uri LRF connection URI string.
+    /// @return Shared pointer to ILaserRangeFinder, or nullptr if unsupported/malformed.
+    [[nodiscard]] static std::shared_ptr<ILaserRangeFinder> createLrfFromUri(const std::string& uri);
 };
 
 } // namespace PayloadHal

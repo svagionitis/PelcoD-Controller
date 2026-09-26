@@ -587,9 +587,16 @@ std::shared_ptr<ICameraPayload> PelcoDFujinonPayloadAdapter::secondaryCamera() c
     return nullptr;
 }
 
+void PelcoDFujinonPayloadAdapter::setLrf(std::shared_ptr<ILaserRangeFinder> lrf) noexcept
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    m_lrf = std::move(lrf);
+}
+
 std::shared_ptr<ILaserRangeFinder> PelcoDFujinonPayloadAdapter::lrf() const noexcept
 {
-    return nullptr;
+    std::lock_guard<std::mutex> lock(m_mutex);
+    return m_lrf;
 }
 
 std::optional<Klv::GeoPoint2D> PelcoDFujinonPayloadAdapter::calculateTargetCoordinates(
@@ -601,6 +608,23 @@ std::optional<Klv::GeoPoint2D> PelcoDFujinonPayloadAdapter::calculateTargetCoord
     const GimbalTelemetry telem = m_ptu->currentTelemetry();
     const Klv::GeoPoint3D platform3D { platformGps.latitudeDeg, platformGps.longitudeDeg, platformAltMeters };
 
+    // 1. Prefer precise slant range calculation if LRF return exists
+    std::shared_ptr<ILaserRangeFinder> currentLrf;
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        currentLrf = m_lrf;
+    }
+    if (currentLrf) {
+        if (const auto meas = currentLrf->lastMeasurement(); meas && meas->valid && meas->slantRangeMeters > 0.0) {
+            const auto targetSlant = GeoreferenceUtils::computeTargetFromSlantRange(
+                platform3D, platformHeadingDeg, telem.panAngleDeg, telem.tiltAngleDeg, meas->slantRangeMeters);
+            if (targetSlant.has_value()) {
+                return Klv::GeoPoint2D { targetSlant->latitudeDeg, targetSlant->longitudeDeg };
+            }
+        }
+    }
+
+    // 2. Fallback to ground plane intersection
     const auto target3D = GeoreferenceUtils::computeTargetFromGroundIntersection(
         platform3D, platformHeadingDeg, telem.panAngleDeg, telem.tiltAngleDeg, 0.0);
 

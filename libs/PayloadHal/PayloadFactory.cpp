@@ -5,10 +5,12 @@
 #include "Transport/TcpTransport.h"
 #include "Transport/UdpTransport.h"
 #include "adapters/OnvifPayloadAdapter.h"
-#include "adapters/PelcoDFujinonPayloadAdapter.h"
 #include "adapters/PelcoDPtzAdapter.h"
+#include "adapters/PelcoDFujinonPayloadAdapter.h"
 #include "adapters/PelcoDViscaCompositePayload.h"
 #include "adapters/ViscaSonyAdapter.h"
+#include "adapters/LrfProtocols.h"
+#include "adapters/SerialLrfAdapter.h"
 #include "sim/SimulatedPayload.h"
 
 #include <algorithm>
@@ -327,9 +329,14 @@ namespace {
         {
             return nullptr;
         }
+        void setLrf(std::shared_ptr<ILaserRangeFinder> lrf) noexcept
+        {
+            m_lrf = std::move(lrf);
+        }
+
         [[nodiscard]] std::shared_ptr<ILaserRangeFinder> lrf() const noexcept override
         {
-            return nullptr;
+            return m_lrf;
         }
 
         [[nodiscard]] std::optional<Klv::GeoPoint2D> calculateTargetCoordinates(
@@ -340,6 +347,19 @@ namespace {
             }
             const GimbalTelemetry telem = m_ptu->currentTelemetry();
             const Klv::GeoPoint3D platform3D { platformGps.latitudeDeg, platformGps.longitudeDeg, platformAltMeters };
+
+            // 1. Prefer precise slant range calculation if LRF return exists
+            if (m_lrf) {
+                if (const auto meas = m_lrf->lastMeasurement(); meas && meas->valid && meas->slantRangeMeters > 0.0) {
+                    const auto targetSlant = GeoreferenceUtils::computeTargetFromSlantRange(
+                        platform3D, platformHeadingDeg, telem.panAngleDeg, telem.tiltAngleDeg, meas->slantRangeMeters);
+                    if (targetSlant.has_value()) {
+                        return Klv::GeoPoint2D { targetSlant->latitudeDeg, targetSlant->longitudeDeg };
+                    }
+                }
+            }
+
+            // 2. Fallback to ground plane intersection
             auto target3D = GeoreferenceUtils::computeTargetFromGroundIntersection(
                 platform3D, platformHeadingDeg, telem.panAngleDeg, telem.tiltAngleDeg, 0.0);
             if (target3D.has_value()) {
@@ -352,6 +372,7 @@ namespace {
         std::shared_ptr<PelcoD::PelcoDDevice> m_device;
         std::shared_ptr<PelcoDPtzAdapter> m_ptu;
         std::shared_ptr<PelcoDCameraUnit> m_camera;
+        std::shared_ptr<ILaserRangeFinder> m_lrf {};
     };
 
     struct ParsedUri {
@@ -542,6 +563,33 @@ std::shared_ptr<IPayload> PayloadFactory::createFromUri(const std::string& uri)
                 sec->setVideoStreamUri(thermalUri, VideoStreamProfile::Primary);
             }
         }
+
+        // Bind optional physical or virtual LRF from query parameters
+        const std::string lrfUri = parsed.getQuery("lrf", "");
+        if (!lrfUri.empty()) {
+            std::shared_ptr<ILaserRangeFinder> lrf;
+            if (lrfUri.find("://") != std::string::npos || lrfUri == "sim") {
+                lrf = createLrfFromUri(lrfUri);
+            } else {
+                std::string fullUri = "lrf://" + lrfUri;
+                const std::string lrfProto = parsed.getQuery("lrf_proto", "nmea");
+                const int lrfBaud = parsed.getIntQuery("lrf_baud", 9600);
+                fullUri += "?proto=" + lrfProto + "&baud=" + std::to_string(lrfBaud);
+                lrf = createLrfFromUri(fullUri);
+            }
+            if (lrf) {
+                if (auto comp = std::dynamic_pointer_cast<PelcoDCompositePayload>(payload)) {
+                    comp->setLrf(lrf);
+                } else if (auto fuj = std::dynamic_pointer_cast<PelcoDFujinonPayloadAdapter>(payload)) {
+                    fuj->setLrf(lrf);
+                } else if (auto vis = std::dynamic_pointer_cast<PelcoDViscaCompositePayload>(payload)) {
+                    vis->setLrf(lrf);
+                } else if (auto onv = std::dynamic_pointer_cast<OnvifPayloadAdapter>(payload)) {
+                    onv->setLrf(lrf);
+                }
+            }
+        }
+
         return payload;
     };
 
@@ -790,6 +838,62 @@ std::shared_ptr<IPayload> PayloadFactory::createOnvifPayload(
         return nullptr;
     auto client = std::make_shared<Onvif::OnvifClient>(deviceEndpoint, credentials);
     return std::make_shared<OnvifPayloadAdapter>(std::move(client), profileToken);
+}
+
+std::shared_ptr<ILaserRangeFinder> PayloadFactory::createLrfFromUri(const std::string& uri)
+{
+    if (uri.empty()) {
+        return nullptr;
+    }
+    if (uri == "sim" || uri == "lrf://sim") {
+        auto sim = createSimulatedPayload();
+        return sim ? sim->lrf() : nullptr;
+    }
+
+    const ParsedUri parsed = parseUriString(uri);
+    if (parsed.scheme == "sim" || (parsed.scheme == "lrf" && (parsed.host == "sim" || parsed.path == "sim"))) {
+        auto sim = createSimulatedPayload();
+        return sim ? sim->lrf() : nullptr;
+    }
+
+    std::string hostOrPath = parsed.host;
+    if (parsed.host == "serial" && !parsed.path.empty()) {
+        hostOrPath = (parsed.path[0] == '/' && parsed.path.size() > 1 && parsed.path[1] != '/')
+            ? parsed.path.substr(1)
+            : parsed.path;
+    } else if (parsed.host == "tcp" || parsed.host == "udp") {
+        if (!parsed.path.empty()) {
+            hostOrPath = (parsed.path[0] == '/') ? parsed.path.substr(1) : parsed.path;
+        }
+    } else if (!parsed.path.empty() && hostOrPath.empty()) {
+        hostOrPath = (parsed.path[0] == '/' && parsed.path.size() > 1 && parsed.path[1] != '/')
+            ? parsed.path.substr(1)
+            : parsed.path;
+    }
+
+    const int port = parsed.port;
+    const std::string proto = parsed.getQuery("proto", parsed.getQuery("transport", ""));
+    const int baudRate = parsed.getIntQuery("baud", 9600);
+
+    auto transport = createTransportFromEndpoint(hostOrPath, port, proto, baudRate);
+    if (!transport) {
+        return nullptr;
+    }
+
+    SerialLrfConfig cfg {};
+    const std::string lrfProto = parsed.getQuery("proto", parsed.getQuery("lrf_proto", "nmea"));
+    if (lrfProto == "ascii") {
+        cfg.protocolType = LrfProtocolType::Ascii;
+    } else if (lrfProto == "binary" || lrfProto == "bin") {
+        cfg.protocolType = LrfProtocolType::Binary;
+    } else {
+        cfg.protocolType = LrfProtocolType::Nmea;
+    }
+
+    const int autoDisarmSec = parsed.getIntQuery("autodisarm", 30);
+    cfg.autoDisarmTimeout = std::chrono::seconds(autoDisarmSec);
+
+    return std::make_shared<SerialLrfAdapter>(std::move(transport), cfg);
 }
 
 } // namespace PayloadHal

@@ -77,9 +77,13 @@ public:
     /// @return nullptr.
     [[nodiscard]] std::shared_ptr<ICameraPayload> secondaryCamera() const noexcept override;
 
-    /// @brief Retrieves the laser rangefinder subsystem (none in baseline composite).
-    /// @return nullptr.
+    /// @brief Retrieves the laser rangefinder subsystem.
+    /// @return Shared pointer to ILaserRangeFinder or nullptr if unequipped.
     [[nodiscard]] std::shared_ptr<ILaserRangeFinder> lrf() const noexcept override;
+
+    /// @brief Attaches a laser rangefinder sensor to the composite payload.
+    /// @param[in] lrf Shared pointer to ILaserRangeFinder instance.
+    void setLrf(std::shared_ptr<ILaserRangeFinder> lrf) noexcept;
 
     // --- Target Georeferencing ---
 
@@ -105,6 +109,7 @@ private:
 
     std::shared_ptr<IPanTiltUnit> m_ptu {};
     std::shared_ptr<ICameraPayload> m_camera {};
+    std::shared_ptr<ILaserRangeFinder> m_lrf {};
     std::shared_ptr<PelcoD::PelcoDDevice> m_pelcoDevice {};
     std::shared_ptr<Visca::Sony::SonyFCBDevice> m_sonyDevice {};
 
