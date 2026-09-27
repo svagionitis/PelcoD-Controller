@@ -33,6 +33,8 @@
 #include "StadiametricRanger.h"
 #include "Stanag4586Types.h"
 #include "Stanag4586Bridge.h"
+#include "LaserDesignatorTypes.h"
+#include "LaserDesignatorCoordinator.h"
 #include "PayloadAutoTrackerBridge.h"
 #include "PayloadFactory.h"
 #include "PayloadKlvGenerator.h"

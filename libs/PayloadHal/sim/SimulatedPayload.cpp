@@ -16,6 +16,7 @@
 #include "TacticalHudRenderer.h"
 #include "StadiametricRanger.h"
 #include "Stanag4586Bridge.h"
+#include "LaserDesignatorCoordinator.h"
 
 #include <algorithm>
 #include <cmath>
@@ -1023,6 +1024,7 @@ SimulatedPayload::SimulatedPayload()
     , m_stowController(std::make_shared<PayloadStowController>(m_ptu, m_presetMgr, m_daylightCamera))
     , m_hudRenderer(std::make_shared<TacticalHudRenderer>())
     , m_stadiametricRanger(std::make_shared<StadiametricRanger>())
+    , m_laserDesignator(std::make_shared<LaserDesignatorCoordinator>(m_ptu, nullptr, m_sectorBlanking))
     , m_connected(true)
 {
     m_ptu->setSectorBlanking(m_sectorBlanking);
@@ -1225,6 +1227,11 @@ std::shared_ptr<Stanag4586Bridge> SimulatedPayload::stanagBridge() const noexcep
         }
     }
     return m_stanagBridge;
+}
+
+std::shared_ptr<LaserDesignatorCoordinator> SimulatedPayload::laserDesignator() const noexcept
+{
+    return m_laserDesignator;
 }
 
 std::optional<Klv::GeoPoint2D> SimulatedPayload::calculateTargetCoordinates(

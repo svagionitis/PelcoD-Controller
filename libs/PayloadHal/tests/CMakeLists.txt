@@ -61,4 +61,5 @@ add_payload_hal_test(TestPayloadStowController         TestPayloadStowController
 add_payload_hal_test(TestTacticalHudRenderer           TestTacticalHudRenderer.cpp)
 add_payload_hal_test(TestStadiametricRanger          TestStadiametricRanger.cpp)
 add_payload_hal_test(TestStanag4586Bridge            TestStanag4586Bridge.cpp)
+add_payload_hal_test(TestLaserDesignatorCoordinator    TestLaserDesignatorCoordinator.cpp)
 

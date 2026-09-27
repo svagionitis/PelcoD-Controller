@@ -39,6 +39,9 @@ add_library(PayloadHal STATIC
     Stanag4586Types.h
     Stanag4586Bridge.h
     Stanag4586Bridge.cpp
+    LaserDesignatorTypes.h
+    LaserDesignatorCoordinator.h
+    LaserDesignatorCoordinator.cpp
     IPayload.h
     GeoreferenceUtils.h
     GeoreferenceUtils.cpp

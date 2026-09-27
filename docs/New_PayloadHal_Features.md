@@ -173,11 +173,13 @@ The [PayloadHal](../libs/PayloadHal/PayloadHal.h) library provides a unified Har
   - Translates external tactical C2 and Ground Control Station (GCS) commands into polymorphic `IPayload` actions (pan/tilt steering, rate control, geodetic Geo-Lock, focus/iris, laser arm/disarm/fire, and window de-icing).
   - High-cadence periodic telemetry loop emitting Message #2002 reports with live gimbal orientation, active sensor selection, optical FOV, laser states, BIT diagnostics, and ground target intersections.
   - Integrated into [IPayload](../libs/PayloadHal/IPayload.h) (`stanagBridge()`) and [SimulatedPayload](../libs/PayloadHal/sim/SimulatedPayload.h). Verified with 100% test coverage across 10 unit test cases in [TestStanag4586Bridge.cpp](../libs/PayloadHal/tests/TestStanag4586Bridge.cpp).
-- **Laser Target Designator (LTD) & Spot Tracker Coordinator (`LaserDesignatorCoordinator`)**:
-  - STANAG 3733 PRF code management (NATO Band I / Band II, codes 1111–1788).
-  - Thermal duty cycle management: capacitor bank charging, diode thermal dissipation model, and enforced cool-down intervals to prevent diode burn-out.
-  - Laser hazard fan & safety footprint calculation on terrain.
-  - Laser Spot Tracker (LST) quadrant sensor coordination and auto-cueing.
+- **Laser Target Designator (LTD) & Spot Tracker Coordinator (`LaserDesignatorCoordinator`)** *(Completed)*:
+  - NATO STANAG 3733 PRF code validation (Band I: 1111–1488, Band II: 1511–1788) with exact PRI and optical frequency computation.
+  - Lumped capacitance diode/rod thermal dissipation model ($dT/dt = (P_{\text{in}} - P_{\text{diss}})/C_{\text{th}}$) with enforced burst durations, over-temperature emergency cutoff ($> 65^\circ\text{C}$), and proportional cooldown dwell times.
+  - High-voltage capacitor bank charging simulation with minimum firing voltage thresholding and emergency bleed dump resistor.
+  - MIL-HDBK-828 Laser Hazard Fan computation (NOHD, ENOHD, buffer angles, terrain surface ground hazard footprint polygons, and safe attack corridors).
+  - 4-quadrant Laser Spot Tracker (LST) optical energy discriminator, PRF code matching, seeker state machine (Searching $\to$ Acquired $\to$ Tracking $\to$ Coasting $\to$ Lost), and closed-loop PTU auto-cueing.
+  - Integrated into [IPayload](../libs/PayloadHal/IPayload.h) (`laserDesignator()`) and [SimulatedPayload](../libs/PayloadHal/sim/SimulatedPayload.h). Verified with 100% test pass rate across 10 unit tests in [TestLaserDesignatorCoordinator.cpp](../libs/PayloadHal/tests/TestLaserDesignatorCoordinator.cpp).
 - **Terrain-Aware Polygonal Geo-Survey & Search Grid Engine (`GeoSurveyGridEngine`)**:
   - Automated wide-area reconnaissance across arbitrary convex/concave WGS-84 boundary polygons.
   - Serpentine / lawnmower sweep trajectory generation with adaptive GSD and configurable forward/side footprint overlap.
@@ -214,5 +216,5 @@ The [PayloadHal](../libs/PayloadHal/PayloadHal.h) library provides a unified Har
 | **P6** | Tactical Heads-Up Display (HUD) & Symbology Renderer *(Completed)* | [TacticalHudRenderer.h](../libs/PayloadHal/TacticalHudRenderer.h), [IPayload.h](../libs/PayloadHal/IPayload.h), [SimulatedPayload.h](../libs/PayloadHal/sim/SimulatedPayload.h) | Electronic reticles, compass/pitch tapes, tracking lead pips, MGRS coordinates, direct RGBA rasterization, and laser warning overlays. |
 | **P6** | Passive Stadiametric & Kinematic Triangulation Range Estimator *(Completed)* | [StadiametricRanger.h](../libs/PayloadHal/StadiametricRanger.h), [IPayload.h](../libs/PayloadHal/IPayload.h), [SimulatedPayload.h](../libs/PayloadHal/sim/SimulatedPayload.h) | Covert passive target range estimation from optical subtended angles and kinematic baseline triangulation. |
 | **P6** | STANAG 4586 Tactical UAV / C2 DLI Interoperability Bridge *(Completed)* | [Stanag4586Bridge.h](../libs/PayloadHal/Stanag4586Bridge.h), [Stanag4586Types.h](../libs/PayloadHal/Stanag4586Types.h), [IPayload.h](../libs/PayloadHal/IPayload.h), [SimulatedPayload.h](../libs/PayloadHal/sim/SimulatedPayload.h) | Ingests and generates standard NATO STANAG 4586 DLI messages (#2000–#2004) for direct C2 integration. |
-| **P6** | Laser Target Designator (LTD) & Spot Tracker Coordinator | `LaserDesignatorCoordinator.h/.cpp`, `IPayload.h` | STANAG 3733 PRF code generation, diode thermal budget modeling, laser hazard fans, and LST seeker slaving. |
+| **P6** | Laser Target Designator (LTD) & Spot Tracker Coordinator *(Completed)* | [LaserDesignatorCoordinator.h](../libs/PayloadHal/LaserDesignatorCoordinator.h), [LaserDesignatorTypes.h](../libs/PayloadHal/LaserDesignatorTypes.h), [IPayload.h](../libs/PayloadHal/IPayload.h), [SimulatedPayload.h](../libs/PayloadHal/sim/SimulatedPayload.h) | NATO STANAG 3733 PRF code validation, capacitor/thermal duty cycle simulation, MIL-HDBK-828 hazard fan ground footprint, and 4-quadrant LST seeker auto-cueing. |
 | **P6** | Terrain-Aware Polygonal Geo-Survey & Search Grid Engine | `GeoSurveyGridEngine.h/.cpp`, `IPayload.h` | Automated area reconnaissance, orthorectified lawnmower sweeps, and real-time coverage map tracking. |

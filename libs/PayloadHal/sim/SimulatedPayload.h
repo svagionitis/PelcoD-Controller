@@ -18,6 +18,7 @@ namespace PayloadHal {
 class PayloadSlavingCoordinator;
 class SensorFusionManager;
 class Stanag4586Bridge;
+class LaserDesignatorCoordinator;
 
 /// @class SimulatedPayload
 /// @brief Fully software-simulated multi-sensor electro-optical/infrared payload station
@@ -57,6 +58,7 @@ public:
     [[nodiscard]] std::shared_ptr<TacticalHudRenderer> hudRenderer() const noexcept override;
     [[nodiscard]] std::shared_ptr<StadiametricRanger> stadiametricRanger() const noexcept override;
     [[nodiscard]] std::shared_ptr<Stanag4586Bridge> stanagBridge() const noexcept override;
+    [[nodiscard]] std::shared_ptr<LaserDesignatorCoordinator> laserDesignator() const noexcept override;
 
     [[nodiscard]] std::optional<Klv::GeoPoint2D> calculateTargetCoordinates(
         const Klv::GeoPoint2D& platformGps, double platformHeadingDeg, double platformAltMeters) const override;
@@ -93,6 +95,7 @@ private:
     std::shared_ptr<TacticalHudRenderer> m_hudRenderer;
     std::shared_ptr<StadiametricRanger> m_stadiametricRanger;
     mutable std::shared_ptr<Stanag4586Bridge> m_stanagBridge;
+    std::shared_ptr<LaserDesignatorCoordinator> m_laserDesignator;
 
     mutable std::mutex m_mutex;
     StateCallback m_stateCallback {};

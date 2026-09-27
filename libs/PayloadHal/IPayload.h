@@ -36,6 +36,7 @@ class PayloadStowController;
 class TacticalHudRenderer;
 class StadiametricRanger;
 class Stanag4586Bridge;
+class LaserDesignatorCoordinator;
 
 /// @class IPayload
 /// @brief Composite payload station binding Pan-Tilt Unit, Primary/Secondary cameras,
@@ -175,6 +176,13 @@ public:
     /// @brief Accesses the NATO STANAG 4586 Tactical UAV / C2 DLI Interoperability Bridge.
     /// @return Shared pointer to stanag bridge, or nullptr if unsupported.
     [[nodiscard]] virtual std::shared_ptr<Stanag4586Bridge> stanagBridge() const noexcept
+    {
+        return nullptr;
+    }
+
+    /// @brief Accesses the Laser Target Designator (LTD) & Spot Tracker Coordinator subsystem.
+    /// @return Shared pointer to coordinator, or nullptr if unsupported.
+    [[nodiscard]] virtual std::shared_ptr<LaserDesignatorCoordinator> laserDesignator() const noexcept
     {
         return nullptr;
     }
