@@ -188,6 +188,38 @@ The [PayloadHal](../libs/PayloadHal/PayloadHal.h) library provides a unified Har
   - Real-time discrete 2D occupancy grid (`SurveyOccupancyGrid`) with dynamic frustum stamping, cell state tracking (`Unsurveyed`, `Surveyed`, `OccludedTerrainShadow`), and live statistical coverage metrics (`CoverageMetrics`).
   - Integrated into [IPayload](../libs/PayloadHal/IPayload.h) (`geoSurveyGridEngine()`) and [SimulatedPayload](../libs/PayloadHal/sim/SimulatedPayload.h). Verified with 100% test pass rate across 10 unit tests in [TestGeoSurveyGridEngine.cpp](../libs/PayloadHal/tests/TestGeoSurveyGridEngine.cpp).
 
+#### 7. Next-Generation Tactical, Fire-Control & Environmental Enhancements
+- **Target Location Error (TLE) & CE90/LE90 Covariance Estimator (`TargetLocationErrorEstimator`)**:
+  - Closed-form 3D error covariance propagation via perturbation Jacobian mapping host platform navigation noise, sensor resolver uncertainty, range error, and DEM vertical inaccuracies:
+    $$\mathbf{\Sigma}_{\text{target}} = \mathbf{J}_{\mathbf{p}} \mathbf{\Sigma}_{\text{platform}} \mathbf{J}_{\mathbf{p}}^T + \mathbf{J}_{\mathbf{\theta}} \mathbf{\Sigma}_{\text{gimbal}} \mathbf{J}_{\mathbf{\theta}}^T + \mathbf{J}_R \sigma_R^2 \mathbf{J}_R^T + \mathbf{\Sigma}_{\text{DEM}}$$
+  - NATO Target Location Error (TLE) standard classification: Category I ($\text{CE90} \le 6\,\text{m}$), Category II ($7-15\,\text{m}$), Category III ($16-30\,\text{m}$), Category IV ($31-60\,\text{m}$), Category V ($61-120\,\text{m}$), and Category VI ($> 120\,\text{m}$).
+  - Statistical confidence metric calculation: Circular Error Probable ($\text{CE90}$), Linear Error Probable ($\text{LE90}$), and Spherical Error Probable ($\text{SE90}$) error ellipsoids.
+  - Serialization into standard MISB ST 0601 Covariance Tags (Tags 97–103) for precision air-to-ground strike coordination and joint fire integration.
+- **LOS Rate-Gyro Decoupling & Disturbance Rejection Loop (`GimbalStabilizationLoop`)**:
+  - High-rate inertial line-of-sight stabilization decoupled from dynamic host vehicle attitude rates ($\mathbf{\omega}_{\text{base}}$) on turbulent UAVs, high-speed maritime craft, and off-road ground vehicles:
+    $$\mathbf{\omega}_{\text{motor}} = -\mathbf{\omega}_{\text{base}} + \mathbf{\omega}_{\text{slew}}$$
+  - Cascaded dual-loop control architecture: inner high-cadence torque/rate loop ($>500\,\text{Hz}$) with rate-gyro feedback and outer position tracking loop.
+  - Quantified residual stabilization jitter reporting (RMS jitter in micro-radians $\mu\text{rad}$).
+  - Dynamic torque disturbance simulation modeling platform vibration harmonics, mass imbalance, bearing friction hysteresis, and aerodynamic wind buffeting.
+- **Atmospheric DRI (Detection / Recognition / Identification) Range Predictor (`AtmosphericTransmissionModel`)**:
+  - Real-time electro-optical / infrared performance evaluation implementing Johnson's Criteria ($N_{\text{detect}} \approx 1.5$, $N_{\text{recognize}} \approx 6.0$, $N_{\text{identify}} \approx 12.0$ line-pairs on target).
+  - Wavelength-dependent atmospheric transmission and extinction modeling across Daylight Visible, SWIR, MWIR, and LWIR bands utilizing the Beer-Lambert attenuation law:
+    $$\tau(\lambda, R) = \exp(-\gamma(\lambda) \cdot R)$$
+  - Meteorological weather condition profiles: Clear, Haze, Light Fog, Dense Fog, Rain, and Sandstorm with visibility parameterization.
+  - Target characteristic library (NATO Standard Tank, APC, Light Tactical Vehicle, Personnel, Fast Patrol Craft) with critical dimension and thermal contrast ($\Delta T$) profiles.
+  - Live operator feedback alerting tactical C2 when atmospheric obscurants degrade sensor ranges below minimum operational safety thresholds.
+- **Panoramic Step-and-Stare Mosaic Coordinator (`PanoramicMosaicCoordinator`)**:
+  - Automated wide-area cylindrical and spherical panoramic image acquisition routines maximizing situational awareness.
+  - Station trajectory generator computing raster grids with user-configurable optical overlap ($15\% - 30\%$) based on live sensor HFOV/VFOV.
+  - Coordinated step-and-stare timing: rapid slew, settling hold, camera exposure trigger synchronization, and next-station stepping.
+  - Georeferenced equirectangular projection mapping: clicking any coordinate on the stitched panorama returns the precise WGS-84 location and automatically cues the high-magnification narrow-FOV sensor to that position.
+- **Counter-UAS (C-UAS) & Drone Intercept Predictor (`DroneInterceptPredictor`)**:
+  - Specialized engagement director for asymmetric low-altitude airborne threats (micro-UAVs, commercial quadcopters, FPV attack drones).
+  - High-cadence target acceleration filtering and ballistic / directed-energy lead solution solver.
+  - Time-to-Intercept ($\text{TTI}$) and Closest Point of Approach ($\text{CPA}$) calculation for predictive point defense.
+  - Pedestal-mounted effector footprint modeling: directional RF jammer conical coverage bounds ($D = 2 R \tan(\theta_{\text{half}})$) and optical dazzler line-of-sight maintenance.
+  - Multi-threat priority queue ranking incoming drones by kinematic trajectory, velocity vector, and projected impact time.
+
 ---
 
 ### Suggested Prioritized Roadmap
@@ -221,3 +253,8 @@ The [PayloadHal](../libs/PayloadHal/PayloadHal.h) library provides a unified Har
 | **P6** | STANAG 4586 Tactical UAV / C2 DLI Interoperability Bridge *(Completed)* | [Stanag4586Bridge.h](../libs/PayloadHal/Stanag4586Bridge.h), [Stanag4586Types.h](../libs/PayloadHal/Stanag4586Types.h), [IPayload.h](../libs/PayloadHal/IPayload.h), [SimulatedPayload.h](../libs/PayloadHal/sim/SimulatedPayload.h) | Ingests and generates standard NATO STANAG 4586 DLI messages (#2000–#2004) for direct C2 integration. |
 | **P6** | Laser Target Designator (LTD) & Spot Tracker Coordinator *(Completed)* | [LaserDesignatorCoordinator.h](../libs/PayloadHal/LaserDesignatorCoordinator.h), [LaserDesignatorTypes.h](../libs/PayloadHal/LaserDesignatorTypes.h), [IPayload.h](../libs/PayloadHal/IPayload.h), [SimulatedPayload.h](../libs/PayloadHal/sim/SimulatedPayload.h) | NATO STANAG 3733 PRF code validation, capacitor/thermal duty cycle simulation, MIL-HDBK-828 hazard fan ground footprint, and 4-quadrant LST seeker auto-cueing. |
 | **P6** | Terrain-Aware Polygonal Geo-Survey & Search Grid Engine *(Completed)* | [GeoSurveyGridEngine.h](../libs/PayloadHal/GeoSurveyGridEngine.h), [GeoSurveyGridTypes.h](../libs/PayloadHal/GeoSurveyGridTypes.h), [IPayload.h](../libs/PayloadHal/IPayload.h), [SimulatedPayload.h](../libs/PayloadHal/sim/SimulatedPayload.h) | Automated area reconnaissance, OMBB-aligned Boustrophedon sweeps, adaptive GSD, DEM terrain ray casting, and real-time discrete occupancy grid tracking. |
+| **P7** | Target Location Error (TLE / CE90 / LE90) Covariance Estimator | `TargetLocationErrorEstimator.h/.cpp`, `IPayload.h` | Analytical 3D error ellipsoid covariance propagation, NATO TLE Category I–VI rating, and MISB ST 0601 Tags 97–103 export. |
+| **P7** | LOS Rate-Gyro Decoupling & Disturbance Rejection Loop | `GimbalStabilizationLoop.h/.cpp`, `IPanTiltUnit.h` | High-cadence inertial LOS rate decoupling from base motion, dual-loop torque control, and residual jitter analysis. |
+| **P7** | Atmospheric DRI Range Predictor & Transmission Model | `AtmosphericTransmissionModel.h/.cpp`, `ICameraPayload.h` | Johnson Criteria DRI ranges across optical bands (Visible, SWIR, MWIR, LWIR) under variable meteorological weather conditions. |
+| **P7** | Panoramic Step-and-Stare Mosaic Coordinator | `PanoramicMosaicCoordinator.h/.cpp`, `IPayload.h` | Automated high-speed cylindrical/spherical panorama sweeps with georeferenced click-to-cue coordinates. |
+| **P7** | Counter-UAS (C-UAS) & Drone Intercept Predictor | `DroneInterceptPredictor.h/.cpp`, `IPayload.h` | Rapid drone intercept fire-control, RF jamming cone coverage, and multi-threat intercept prioritization. |
