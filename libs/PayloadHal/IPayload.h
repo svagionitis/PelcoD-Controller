@@ -35,6 +35,7 @@ class SensorFusionManager;
 class PayloadStowController;
 class TacticalHudRenderer;
 class StadiametricRanger;
+class Stanag4586Bridge;
 
 /// @class IPayload
 /// @brief Composite payload station binding Pan-Tilt Unit, Primary/Secondary cameras,
@@ -167,6 +168,13 @@ public:
     /// @brief Accesses the Passive Stadiametric & Kinematic Triangulation Range Estimator.
     /// @return Shared pointer to stadiametric ranger, or nullptr if unsupported.
     [[nodiscard]] virtual std::shared_ptr<StadiametricRanger> stadiametricRanger() const noexcept
+    {
+        return nullptr;
+    }
+
+    /// @brief Accesses the NATO STANAG 4586 Tactical UAV / C2 DLI Interoperability Bridge.
+    /// @return Shared pointer to stanag bridge, or nullptr if unsupported.
+    [[nodiscard]] virtual std::shared_ptr<Stanag4586Bridge> stanagBridge() const noexcept
     {
         return nullptr;
     }

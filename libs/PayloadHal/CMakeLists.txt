@@ -36,6 +36,9 @@ add_library(PayloadHal STATIC
     TacticalHudRenderer.cpp
     StadiametricRanger.h
     StadiametricRanger.cpp
+    Stanag4586Types.h
+    Stanag4586Bridge.h
+    Stanag4586Bridge.cpp
     IPayload.h
     GeoreferenceUtils.h
     GeoreferenceUtils.cpp

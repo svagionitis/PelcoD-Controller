@@ -17,11 +17,12 @@ namespace PayloadHal {
 
 class PayloadSlavingCoordinator;
 class SensorFusionManager;
+class Stanag4586Bridge;
 
 /// @class SimulatedPayload
 /// @brief Fully software-simulated multi-sensor electro-optical/infrared payload station
 ///        integrating a gyro-stabilized gimbal, daylight EO, thermal LWIR, eye-safe LRF, and tactical illuminator.
-class SimulatedPayload : public IPayload {
+class SimulatedPayload : public IPayload, public std::enable_shared_from_this<SimulatedPayload> {
 public:
     SimulatedPayload();
     ~SimulatedPayload() override;
@@ -55,6 +56,7 @@ public:
     [[nodiscard]] std::shared_ptr<PayloadStowController> stowController() const noexcept override;
     [[nodiscard]] std::shared_ptr<TacticalHudRenderer> hudRenderer() const noexcept override;
     [[nodiscard]] std::shared_ptr<StadiametricRanger> stadiametricRanger() const noexcept override;
+    [[nodiscard]] std::shared_ptr<Stanag4586Bridge> stanagBridge() const noexcept override;
 
     [[nodiscard]] std::optional<Klv::GeoPoint2D> calculateTargetCoordinates(
         const Klv::GeoPoint2D& platformGps, double platformHeadingDeg, double platformAltMeters) const override;
@@ -90,6 +92,7 @@ private:
     std::shared_ptr<PayloadStowController> m_stowController;
     std::shared_ptr<TacticalHudRenderer> m_hudRenderer;
     std::shared_ptr<StadiametricRanger> m_stadiametricRanger;
+    mutable std::shared_ptr<Stanag4586Bridge> m_stanagBridge;
 
     mutable std::mutex m_mutex;
     StateCallback m_stateCallback {};

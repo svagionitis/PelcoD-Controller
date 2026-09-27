@@ -60,4 +60,5 @@ add_payload_hal_test(TestSensorFusionManager          TestSensorFusionManager.cp
 add_payload_hal_test(TestPayloadStowController         TestPayloadStowController.cpp)
 add_payload_hal_test(TestTacticalHudRenderer           TestTacticalHudRenderer.cpp)
 add_payload_hal_test(TestStadiametricRanger          TestStadiametricRanger.cpp)
+add_payload_hal_test(TestStanag4586Bridge            TestStanag4586Bridge.cpp)
 

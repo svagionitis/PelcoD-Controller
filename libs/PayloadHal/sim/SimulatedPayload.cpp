@@ -15,6 +15,7 @@
 #include "PayloadStowController.h"
 #include "TacticalHudRenderer.h"
 #include "StadiametricRanger.h"
+#include "Stanag4586Bridge.h"
 
 #include <algorithm>
 #include <cmath>
@@ -1210,6 +1211,20 @@ std::shared_ptr<TacticalHudRenderer> SimulatedPayload::hudRenderer() const noexc
 std::shared_ptr<StadiametricRanger> SimulatedPayload::stadiametricRanger() const noexcept
 {
     return m_stadiametricRanger;
+}
+
+std::shared_ptr<Stanag4586Bridge> SimulatedPayload::stanagBridge() const noexcept
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    if (!m_stanagBridge) {
+        try {
+            auto self = const_cast<SimulatedPayload*>(this)->shared_from_this();
+            m_stanagBridge = std::make_shared<Stanag4586Bridge>(self);
+        } catch (...) {
+            m_stanagBridge = std::make_shared<Stanag4586Bridge>(nullptr);
+        }
+    }
+    return m_stanagBridge;
 }
 
 std::optional<Klv::GeoPoint2D> SimulatedPayload::calculateTargetCoordinates(

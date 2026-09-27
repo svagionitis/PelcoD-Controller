@@ -31,6 +31,8 @@
 #include "PayloadStowController.h"
 #include "TacticalHudRenderer.h"
 #include "StadiametricRanger.h"
+#include "Stanag4586Types.h"
+#include "Stanag4586Bridge.h"
 #include "PayloadAutoTrackerBridge.h"
 #include "PayloadFactory.h"
 #include "PayloadKlvGenerator.h"
