@@ -35,6 +35,8 @@
 #include "Stanag4586Bridge.h"
 #include "LaserDesignatorTypes.h"
 #include "LaserDesignatorCoordinator.h"
+#include "GeoSurveyGridTypes.h"
+#include "GeoSurveyGridEngine.h"
 #include "PayloadAutoTrackerBridge.h"
 #include "PayloadFactory.h"
 #include "PayloadKlvGenerator.h"

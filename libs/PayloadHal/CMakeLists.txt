@@ -42,6 +42,9 @@ add_library(PayloadHal STATIC
     LaserDesignatorTypes.h
     LaserDesignatorCoordinator.h
     LaserDesignatorCoordinator.cpp
+    GeoSurveyGridTypes.h
+    GeoSurveyGridEngine.h
+    GeoSurveyGridEngine.cpp
     IPayload.h
     GeoreferenceUtils.h
     GeoreferenceUtils.cpp

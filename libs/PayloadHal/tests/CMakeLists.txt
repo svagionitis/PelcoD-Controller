@@ -62,4 +62,5 @@ add_payload_hal_test(TestTacticalHudRenderer           TestTacticalHudRenderer.c
 add_payload_hal_test(TestStadiametricRanger          TestStadiametricRanger.cpp)
 add_payload_hal_test(TestStanag4586Bridge            TestStanag4586Bridge.cpp)
 add_payload_hal_test(TestLaserDesignatorCoordinator    TestLaserDesignatorCoordinator.cpp)
+add_payload_hal_test(TestGeoSurveyGridEngine          TestGeoSurveyGridEngine.cpp)
 

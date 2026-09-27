@@ -37,6 +37,7 @@ class TacticalHudRenderer;
 class StadiametricRanger;
 class Stanag4586Bridge;
 class LaserDesignatorCoordinator;
+class GeoSurveyGridEngine;
 
 /// @class IPayload
 /// @brief Composite payload station binding Pan-Tilt Unit, Primary/Secondary cameras,
@@ -183,6 +184,13 @@ public:
     /// @brief Accesses the Laser Target Designator (LTD) & Spot Tracker Coordinator subsystem.
     /// @return Shared pointer to coordinator, or nullptr if unsupported.
     [[nodiscard]] virtual std::shared_ptr<LaserDesignatorCoordinator> laserDesignator() const noexcept
+    {
+        return nullptr;
+    }
+
+    /// @brief Accesses the Terrain-Aware Polygonal Geo-Survey & Search Grid Engine subsystem.
+    /// @return Shared pointer to survey engine, or nullptr if unsupported.
+    [[nodiscard]] virtual std::shared_ptr<GeoSurveyGridEngine> geoSurveyGridEngine() const noexcept
     {
         return nullptr;
     }

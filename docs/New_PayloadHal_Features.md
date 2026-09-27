@@ -180,10 +180,13 @@ The [PayloadHal](../libs/PayloadHal/PayloadHal.h) library provides a unified Har
   - MIL-HDBK-828 Laser Hazard Fan computation (NOHD, ENOHD, buffer angles, terrain surface ground hazard footprint polygons, and safe attack corridors).
   - 4-quadrant Laser Spot Tracker (LST) optical energy discriminator, PRF code matching, seeker state machine (Searching $\to$ Acquired $\to$ Tracking $\to$ Coasting $\to$ Lost), and closed-loop PTU auto-cueing.
   - Integrated into [IPayload](../libs/PayloadHal/IPayload.h) (`laserDesignator()`) and [SimulatedPayload](../libs/PayloadHal/sim/SimulatedPayload.h). Verified with 100% test pass rate across 10 unit tests in [TestLaserDesignatorCoordinator.cpp](../libs/PayloadHal/tests/TestLaserDesignatorCoordinator.cpp).
-- **Terrain-Aware Polygonal Geo-Survey & Search Grid Engine (`GeoSurveyGridEngine`)**:
-  - Automated wide-area reconnaissance across arbitrary convex/concave WGS-84 boundary polygons.
-  - Serpentine / lawnmower sweep trajectory generation with adaptive GSD and configurable forward/side footprint overlap.
-  - Discretized coverage grid tracking surveyed areas, blind zones, and terrain shadows in real time.
+- **Terrain-Aware Polygonal Geo-Survey & Search Grid Engine (`GeoSurveyGridEngine`)** *(Completed)*:
+  - Automated wide-area aerial survey and reconnaissance across arbitrary convex and concave WGS-84 boundary polygons.
+  - Principal Axis alignment via Oriented Minimum Bounding Box (OMBB) rotating calipers, minimizing required cross-track turns.
+  - Boustrophedon (serpentine) and unidirectional sweep trajectory generation with adaptive Ground Sampling Distance (GSD), configurable forward/side overlap, and waypoint dwell hold.
+  - Integration with Digital Elevation Models (`IDemProvider`) for 3D terrain profile extraction, target ground elevation sampling, and line-of-sight terrain shadow occlusion ray casting.
+  - Real-time discrete 2D occupancy grid (`SurveyOccupancyGrid`) with dynamic frustum stamping, cell state tracking (`Unsurveyed`, `Surveyed`, `OccludedTerrainShadow`), and live statistical coverage metrics (`CoverageMetrics`).
+  - Integrated into [IPayload](../libs/PayloadHal/IPayload.h) (`geoSurveyGridEngine()`) and [SimulatedPayload](../libs/PayloadHal/sim/SimulatedPayload.h). Verified with 100% test pass rate across 10 unit tests in [TestGeoSurveyGridEngine.cpp](../libs/PayloadHal/tests/TestGeoSurveyGridEngine.cpp).
 
 ---
 
@@ -217,4 +220,4 @@ The [PayloadHal](../libs/PayloadHal/PayloadHal.h) library provides a unified Har
 | **P6** | Passive Stadiametric & Kinematic Triangulation Range Estimator *(Completed)* | [StadiametricRanger.h](../libs/PayloadHal/StadiametricRanger.h), [IPayload.h](../libs/PayloadHal/IPayload.h), [SimulatedPayload.h](../libs/PayloadHal/sim/SimulatedPayload.h) | Covert passive target range estimation from optical subtended angles and kinematic baseline triangulation. |
 | **P6** | STANAG 4586 Tactical UAV / C2 DLI Interoperability Bridge *(Completed)* | [Stanag4586Bridge.h](../libs/PayloadHal/Stanag4586Bridge.h), [Stanag4586Types.h](../libs/PayloadHal/Stanag4586Types.h), [IPayload.h](../libs/PayloadHal/IPayload.h), [SimulatedPayload.h](../libs/PayloadHal/sim/SimulatedPayload.h) | Ingests and generates standard NATO STANAG 4586 DLI messages (#2000–#2004) for direct C2 integration. |
 | **P6** | Laser Target Designator (LTD) & Spot Tracker Coordinator *(Completed)* | [LaserDesignatorCoordinator.h](../libs/PayloadHal/LaserDesignatorCoordinator.h), [LaserDesignatorTypes.h](../libs/PayloadHal/LaserDesignatorTypes.h), [IPayload.h](../libs/PayloadHal/IPayload.h), [SimulatedPayload.h](../libs/PayloadHal/sim/SimulatedPayload.h) | NATO STANAG 3733 PRF code validation, capacitor/thermal duty cycle simulation, MIL-HDBK-828 hazard fan ground footprint, and 4-quadrant LST seeker auto-cueing. |
-| **P6** | Terrain-Aware Polygonal Geo-Survey & Search Grid Engine | `GeoSurveyGridEngine.h/.cpp`, `IPayload.h` | Automated area reconnaissance, orthorectified lawnmower sweeps, and real-time coverage map tracking. |
+| **P6** | Terrain-Aware Polygonal Geo-Survey & Search Grid Engine *(Completed)* | [GeoSurveyGridEngine.h](../libs/PayloadHal/GeoSurveyGridEngine.h), [GeoSurveyGridTypes.h](../libs/PayloadHal/GeoSurveyGridTypes.h), [IPayload.h](../libs/PayloadHal/IPayload.h), [SimulatedPayload.h](../libs/PayloadHal/sim/SimulatedPayload.h) | Automated area reconnaissance, OMBB-aligned Boustrophedon sweeps, adaptive GSD, DEM terrain ray casting, and real-time discrete occupancy grid tracking. |
