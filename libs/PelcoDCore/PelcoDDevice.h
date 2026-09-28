@@ -251,6 +251,46 @@ public:
     /// @param[in] relative If true, move is relative to current screen position; if false, absolute.
     void screenMove(std::int8_t panPercent, std::int8_t tiltPercent, bool relative = false);
 
+    /// @brief Sends a query to request the camera's application software version (opcode 0x73, sub 0x00).
+    void querySoftwareVersion();
+
+    /// @brief Sends a query to request the camera's software build number (opcode 0x73, sub 0x02).
+    void queryBuildNumber();
+
+    /// @brief Sets device clock seconds and synchronizes (opcode 0x77, sub 0x00).
+    /// @param[in] seconds Seconds (0-59).
+    void setSeconds(std::uint8_t seconds);
+
+    /// @brief Sets device clock hour and minute (opcode 0x77, sub 0x02).
+    /// @param[in] hour Hour in 24-hour format (0-23).
+    /// @param[in] minute Minute (0-59).
+    void setHourMinute(std::uint8_t hour, std::uint8_t minute);
+
+    /// @brief Sets device calendar month and day (opcode 0x77, sub 0x04).
+    /// @param[in] month Month (1-12).
+    /// @param[in] day Day of month (1-31).
+    void setMonthDay(std::uint8_t month, std::uint8_t day);
+
+    /// @brief Sets device calendar year (opcode 0x77, sub 0x06).
+    /// @param[in] year Full year (e.g. 2026).
+    void setYear(std::uint16_t year);
+
+    /// @brief Synchronizes device time by sending hour/minute followed by seconds (opcode 0x77).
+    /// @param[in] hour Hour in 24-hour format (0-23).
+    /// @param[in] minute Minute (0-59).
+    /// @param[in] second Second (0-59).
+    void setTime(std::uint8_t hour, std::uint8_t minute, std::uint8_t second);
+
+    /// @brief Sets device calendar date by sending month/day followed by year (opcode 0x77).
+    /// @param[in] year Full year (e.g. 2026).
+    /// @param[in] month Month (1-12).
+    /// @param[in] day Day of month (1-31).
+    void setDate(std::uint16_t year, std::uint8_t month, std::uint8_t day);
+
+    /// @brief Requests time or date component from device (opcode 0x77, odd sub-opcodes).
+    /// @param[in] queryType ReportSeconds (0x01), ReportHourMinute (0x03), ReportMonthDay (0x05), or ReportYear (0x07).
+    void queryTime(TimeSubOpcode queryType);
+
     /// @brief Asynchronously queries current pan angle with timeout.
     /// @param[in] timeout Maximum wait duration.
     /// @return Future resolving to pan angle in centidegrees, or throwing std::runtime_error on failure/timeout.
@@ -273,6 +313,18 @@ public:
     /// @param[in] timeout Maximum wait duration.
     /// @return Future resolving to updated DeviceStatus, or throwing std::runtime_error on failure/timeout.
     [[nodiscard]] std::future<DeviceStatus> queryStatusAsync(
+        std::chrono::milliseconds timeout = std::chrono::milliseconds(1000));
+
+    /// @brief Asynchronously queries application software version with timeout.
+    /// @param[in] timeout Maximum wait duration.
+    /// @return Future resolving to pair of {major, minor} version bytes, or throwing std::runtime_error on failure/timeout.
+    [[nodiscard]] std::future<std::pair<std::uint8_t, std::uint8_t>> querySoftwareVersionAsync(
+        std::chrono::milliseconds timeout = std::chrono::milliseconds(1000));
+
+    /// @brief Asynchronously queries firmware build number with timeout.
+    /// @param[in] timeout Maximum wait duration.
+    /// @return Future resolving to 16-bit build number, or throwing std::runtime_error on failure/timeout.
+    [[nodiscard]] std::future<std::uint16_t> queryBuildNumberAsync(
         std::chrono::milliseconds timeout = std::chrono::milliseconds(1000));
 
     void sendRawFrame(const std::vector<std::uint8_t>& frame);

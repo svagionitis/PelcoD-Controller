@@ -111,6 +111,36 @@ bool ProtocolParser::parseDiagnostics(
     return true;
 }
 
+bool ProtocolParser::parseVersionInfo(const std::vector<std::uint8_t>& frame,
+    VersionInfoSubOpcode& subOpcode, std::uint8_t& data1, std::uint8_t& data2) noexcept
+{
+    if (frame.size() != PelcoDFrame::StandardFrameSize || frame[0] != PelcoDFrame::SyncByte) {
+        return false;
+    }
+    if (frame[3] != static_cast<std::uint8_t>(ResponseOpcode::VersionInfo)) {
+        return false;
+    }
+    subOpcode = static_cast<VersionInfoSubOpcode>(frame[2]);
+    data1 = frame[4];
+    data2 = frame[5];
+    return true;
+}
+
+bool ProtocolParser::parseTimeResponse(const std::vector<std::uint8_t>& frame,
+    TimeSubOpcode& subOpcode, std::uint8_t& data1, std::uint8_t& data2) noexcept
+{
+    if (frame.size() != PelcoDFrame::StandardFrameSize || frame[0] != PelcoDFrame::SyncByte) {
+        return false;
+    }
+    if (frame[3] != static_cast<std::uint8_t>(ResponseOpcode::TimeMacro)) {
+        return false;
+    }
+    subOpcode = static_cast<TimeSubOpcode>(frame[2]);
+    data1 = frame[4];
+    data2 = frame[5];
+    return true;
+}
+
 bool ProtocolParser::parseQuery(const std::vector<std::uint8_t>& frame, std::string& payload)
 {
     if (frame.size() != PelcoDFrame::QueryResponseSize || frame[0] != PelcoDFrame::SyncByte) {
@@ -177,6 +207,27 @@ bool ProtocolParser::updateStatus(const std::vector<std::uint8_t>& frame, Device
 
         case ResponseOpcode::QueryDiagnostics:
             return parseDiagnostics(frame, status.diagnosticTemp, status.diagnosticSensorId);
+
+        case ResponseOpcode::VersionInfo: {
+            VersionInfoSubOpcode sub { VersionInfoSubOpcode::RequestSoftwareVersion };
+            std::uint8_t d1 { 0U };
+            std::uint8_t d2 { 0U };
+            if (parseVersionInfo(frame, sub, d1, d2)) {
+                if (sub == VersionInfoSubOpcode::SoftwareVersionResponse) {
+                    info.softwareMajor = d1;
+                    info.softwareMinor = d2;
+                    return true;
+                }
+                if (sub == VersionInfoSubOpcode::BuildNumberResponse) {
+                    info.buildNumber = static_cast<std::uint16_t>((static_cast<std::uint16_t>(d1) << 8U) | d2);
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        case ResponseOpcode::TimeMacro:
+            return true;
 
         default:
             return false;
@@ -317,6 +368,39 @@ std::string ProtocolParser::describeFrame(bool isTx, const std::vector<std::uint
                 return "Set Baud Rate";
             case 0x6FU:
                 return "Query Diagnostics";
+            case 0x73U: {
+                if (cmd1 == 0x00U) {
+                    return "Query Software Version";
+                }
+                if (cmd1 == 0x02U) {
+                    return "Query Build Number";
+                }
+                return "Version Info Macro (Sub 0x" + toHexByte(cmd1) + ")";
+            }
+            case 0x77U: {
+                switch (cmd1) {
+                case 0x00U:
+                    return "Set Seconds (" + std::to_string(d2) + "s)";
+                case 0x01U:
+                    return "Query Seconds";
+                case 0x02U:
+                    return "Set Hour/Minute (" + std::to_string(d1) + ":" + std::to_string(d2) + ")";
+                case 0x03U:
+                    return "Query Hour/Minute";
+                case 0x04U:
+                    return "Set Month/Day (" + std::to_string(d1) + "/" + std::to_string(d2) + ")";
+                case 0x05U:
+                    return "Query Month/Day";
+                case 0x06U: {
+                    const auto yr = static_cast<std::uint16_t>((static_cast<std::uint16_t>(d1) << 8U) | d2);
+                    return "Set Year (" + std::to_string(yr) + ")";
+                }
+                case 0x07U:
+                    return "Query Year";
+                default:
+                    return "Time Command (Sub 0x" + toHexByte(cmd1) + ")";
+                }
+            }
             case 0x0FU:
                 return "Remote Reset";
             default:
@@ -356,6 +440,32 @@ std::string ProtocolParser::describeFrame(bool isTx, const std::vector<std::uint
         if (cmd2 == static_cast<std::uint8_t>(ResponseOpcode::QueryDiagnostics)) {
             const auto temp = static_cast<int>(static_cast<std::int8_t>(d1));
             return "Diagnostics Response: Temp=" + std::to_string(temp) + "°C Sensor=0x" + toHexByte(d2);
+        }
+        if (cmd2 == static_cast<std::uint8_t>(ResponseOpcode::VersionInfo)) {
+            if (cmd1 == 0x01U) {
+                return "Software Version Response: " + std::to_string(d1) + "." + std::to_string(d2);
+            }
+            if (cmd1 == 0x03U) {
+                const auto build = static_cast<std::uint16_t>((static_cast<std::uint16_t>(d1) << 8U) | d2);
+                return "Build Number Response: " + std::to_string(build);
+            }
+            return "Version Info Response (Sub 0x" + toHexByte(cmd1) + ")";
+        }
+        if (cmd2 == static_cast<std::uint8_t>(ResponseOpcode::TimeMacro)) {
+            switch (cmd1) {
+            case 0x01U:
+                return "Seconds Response: " + std::to_string(d2) + "s";
+            case 0x03U:
+                return "Hour/Minute Response: " + std::to_string(d1) + ":" + std::to_string(d2);
+            case 0x05U:
+                return "Month/Day Response: " + std::to_string(d1) + "/" + std::to_string(d2);
+            case 0x07U: {
+                const auto yr = static_cast<std::uint16_t>((static_cast<std::uint16_t>(d1) << 8U) | d2);
+                return "Year Response: " + std::to_string(yr);
+            }
+            default:
+                return "Time Response (Sub 0x" + toHexByte(cmd1) + ")";
+            }
         }
 
         return "Response (Opcode 0x" + toHexByte(cmd2) + ")";
@@ -426,6 +536,20 @@ bool ProtocolParser::isResponseMatchingQuery(
     if (queryTag == "QueryDiagnostics") {
         return frame.size() == PelcoDFrame::StandardFrameSize
             && frame[3] == static_cast<std::uint8_t>(ResponseOpcode::QueryDiagnostics);
+    }
+    if (queryTag == "QuerySoftwareVersion") {
+        return frame.size() == PelcoDFrame::StandardFrameSize
+            && frame[3] == static_cast<std::uint8_t>(ResponseOpcode::VersionInfo)
+            && frame[2] == static_cast<std::uint8_t>(VersionInfoSubOpcode::SoftwareVersionResponse);
+    }
+    if (queryTag == "QueryBuildNumber") {
+        return frame.size() == PelcoDFrame::StandardFrameSize
+            && frame[3] == static_cast<std::uint8_t>(ResponseOpcode::VersionInfo)
+            && frame[2] == static_cast<std::uint8_t>(VersionInfoSubOpcode::BuildNumberResponse);
+    }
+    if (queryTag == "QueryTime") {
+        return frame.size() == PelcoDFrame::StandardFrameSize
+            && frame[3] == static_cast<std::uint8_t>(ResponseOpcode::TimeMacro);
     }
     if (queryTag == "QueryGeneral") {
         return frame.size() == PelcoDFrame::QueryResponseSize;

@@ -381,4 +381,271 @@ TEST(ProtocolCompletenessTest, PelcoDDevicePhase2Wrappers)
     EXPECT_EQ(static_cast<std::int8_t>(sentFrames[1][5]), 75);
 }
 
+/// @brief Verify builder and disassembly for Phase 3 commands: Version Info (0x73) and Time Macro (0x77).
+TEST(ProtocolCompletenessTest, Phase3BuildersAndDisassembly)
+{
+    const std::uint8_t addr { 0x01U };
+
+    // 1. Version Info Queries (0x73)
+    const auto qSw = PelcoD::ProtocolBuilder::buildQuerySoftwareVersion(addr);
+    ASSERT_TRUE(PelcoD::PelcoDFrame::isValidFrame(qSw));
+    EXPECT_EQ(qSw[1], addr);
+    EXPECT_EQ(qSw[2], static_cast<std::uint8_t>(PelcoD::VersionInfoSubOpcode::RequestSoftwareVersion));
+    EXPECT_EQ(qSw[3], static_cast<std::uint8_t>(PelcoD::CommandOpcode::VersionInfo));
+    EXPECT_NE(PelcoD::ProtocolParser::describeFrame(true, qSw).find("Query Software Version"), std::string::npos);
+
+    const auto qBuild = PelcoD::ProtocolBuilder::buildQueryBuildNumber(addr);
+    ASSERT_TRUE(PelcoD::PelcoDFrame::isValidFrame(qBuild));
+    EXPECT_EQ(qBuild[1], addr);
+    EXPECT_EQ(qBuild[2], static_cast<std::uint8_t>(PelcoD::VersionInfoSubOpcode::RequestBuildNumber));
+    EXPECT_EQ(qBuild[3], static_cast<std::uint8_t>(PelcoD::CommandOpcode::VersionInfo));
+    EXPECT_NE(PelcoD::ProtocolParser::describeFrame(true, qBuild).find("Query Build Number"), std::string::npos);
+
+    // 2. Time Macro Sets (0x77)
+    const auto setSec = PelcoD::ProtocolBuilder::buildSetSeconds(addr, 45U);
+    ASSERT_TRUE(PelcoD::PelcoDFrame::isValidFrame(setSec));
+    EXPECT_EQ(setSec[2], static_cast<std::uint8_t>(PelcoD::TimeSubOpcode::SetSeconds));
+    EXPECT_EQ(setSec[3], static_cast<std::uint8_t>(PelcoD::CommandOpcode::TimeMacro));
+    EXPECT_EQ(setSec[5], 45U);
+    EXPECT_NE(PelcoD::ProtocolParser::describeFrame(true, setSec).find("Set Seconds (45s)"), std::string::npos);
+
+    const auto setHm = PelcoD::ProtocolBuilder::buildSetHourMinute(addr, 14U, 30U);
+    ASSERT_TRUE(PelcoD::PelcoDFrame::isValidFrame(setHm));
+    EXPECT_EQ(setHm[2], static_cast<std::uint8_t>(PelcoD::TimeSubOpcode::SetHourMinute));
+    EXPECT_EQ(setHm[3], static_cast<std::uint8_t>(PelcoD::CommandOpcode::TimeMacro));
+    EXPECT_EQ(setHm[4], 14U);
+    EXPECT_EQ(setHm[5], 30U);
+    EXPECT_NE(PelcoD::ProtocolParser::describeFrame(true, setHm).find("Set Hour/Minute (14:30)"), std::string::npos);
+
+    const auto setMd = PelcoD::ProtocolBuilder::buildSetMonthDay(addr, 9U, 28U);
+    ASSERT_TRUE(PelcoD::PelcoDFrame::isValidFrame(setMd));
+    EXPECT_EQ(setMd[2], static_cast<std::uint8_t>(PelcoD::TimeSubOpcode::SetMonthDay));
+    EXPECT_EQ(setMd[3], static_cast<std::uint8_t>(PelcoD::CommandOpcode::TimeMacro));
+    EXPECT_EQ(setMd[4], 9U);
+    EXPECT_EQ(setMd[5], 28U);
+    EXPECT_NE(PelcoD::ProtocolParser::describeFrame(true, setMd).find("Set Month/Day (9/28)"), std::string::npos);
+
+    const auto setYr = PelcoD::ProtocolBuilder::buildSetYear(addr, 2026U);
+    ASSERT_TRUE(PelcoD::PelcoDFrame::isValidFrame(setYr));
+    EXPECT_EQ(setYr[2], static_cast<std::uint8_t>(PelcoD::TimeSubOpcode::SetYear));
+    EXPECT_EQ(setYr[3], static_cast<std::uint8_t>(PelcoD::CommandOpcode::TimeMacro));
+    EXPECT_EQ(setYr[4], static_cast<std::uint8_t>(2026U >> 8U));
+    EXPECT_EQ(setYr[5], static_cast<std::uint8_t>(2026U & 0xFFU));
+    EXPECT_NE(PelcoD::ProtocolParser::describeFrame(true, setYr).find("Set Year (2026)"), std::string::npos);
+
+    // 3. Time Macro Queries (0x77 odd sub-opcodes)
+    const auto qSec = PelcoD::ProtocolBuilder::buildQueryTime(addr, PelcoD::TimeSubOpcode::ReportSeconds);
+    EXPECT_EQ(qSec[2], 0x01U);
+    EXPECT_NE(PelcoD::ProtocolParser::describeFrame(true, qSec).find("Query Seconds"), std::string::npos);
+
+    const auto qHm = PelcoD::ProtocolBuilder::buildQueryTime(addr, PelcoD::TimeSubOpcode::ReportHourMinute);
+    EXPECT_EQ(qHm[2], 0x03U);
+    EXPECT_NE(PelcoD::ProtocolParser::describeFrame(true, qHm).find("Query Hour/Minute"), std::string::npos);
+
+    const auto qMd = PelcoD::ProtocolBuilder::buildQueryTime(addr, PelcoD::TimeSubOpcode::ReportMonthDay);
+    EXPECT_EQ(qMd[2], 0x05U);
+    EXPECT_NE(PelcoD::ProtocolParser::describeFrame(true, qMd).find("Query Month/Day"), std::string::npos);
+
+    const auto qYr = PelcoD::ProtocolBuilder::buildQueryTime(addr, PelcoD::TimeSubOpcode::ReportYear);
+    EXPECT_EQ(qYr[2], 0x07U);
+    EXPECT_NE(PelcoD::ProtocolParser::describeFrame(true, qYr).find("Query Year"), std::string::npos);
+}
+
+/// @brief Verify Phase 3 response parsing, telemetry updates, and query matching.
+TEST(ProtocolCompletenessTest, Phase3ResponsesAndParsing)
+{
+    const std::uint8_t addr { 0x01U };
+
+    // 1. Software Version Response (0x73, sub 0x01): major=2, minor=5 -> "2.5"
+    const auto swResp = PelcoD::PelcoDFrame::createFrame(addr,
+        static_cast<std::uint8_t>(PelcoD::VersionInfoSubOpcode::SoftwareVersionResponse),
+        static_cast<std::uint8_t>(PelcoD::ResponseOpcode::VersionInfo), 2U, 5U);
+    ASSERT_TRUE(PelcoD::PelcoDFrame::isValidFrame(swResp));
+    EXPECT_TRUE(PelcoD::ProtocolParser::isResponseMatchingQuery("QuerySoftwareVersion", swResp));
+    EXPECT_FALSE(PelcoD::ProtocolParser::isResponseMatchingQuery("QueryBuildNumber", swResp));
+
+    PelcoD::VersionInfoSubOpcode verSub {};
+    std::uint8_t d1 { 0U };
+    std::uint8_t d2 { 0U };
+    ASSERT_TRUE(PelcoD::ProtocolParser::parseVersionInfo(swResp, verSub, d1, d2));
+    EXPECT_EQ(verSub, PelcoD::VersionInfoSubOpcode::SoftwareVersionResponse);
+    EXPECT_EQ(d1, 2U);
+    EXPECT_EQ(d2, 5U);
+    EXPECT_NE(PelcoD::ProtocolParser::describeFrame(false, swResp).find("Software Version Response: 2.5"), std::string::npos);
+
+    PelcoD::DeviceStatus status {};
+    PelcoD::DeviceInfo info {};
+    EXPECT_TRUE(PelcoD::ProtocolParser::updateStatus(swResp, status, info));
+    EXPECT_EQ(info.softwareMajor, 2U);
+    EXPECT_EQ(info.softwareMinor, 5U);
+
+    // 2. Build Number Response (0x73, sub 0x03): build 1234 (0x04D2)
+    const auto buildResp = PelcoD::PelcoDFrame::createFrame(addr,
+        static_cast<std::uint8_t>(PelcoD::VersionInfoSubOpcode::BuildNumberResponse),
+        static_cast<std::uint8_t>(PelcoD::ResponseOpcode::VersionInfo), 0x04U, 0xD2U);
+    ASSERT_TRUE(PelcoD::PelcoDFrame::isValidFrame(buildResp));
+    EXPECT_TRUE(PelcoD::ProtocolParser::isResponseMatchingQuery("QueryBuildNumber", buildResp));
+    EXPECT_FALSE(PelcoD::ProtocolParser::isResponseMatchingQuery("QuerySoftwareVersion", buildResp));
+
+    ASSERT_TRUE(PelcoD::ProtocolParser::parseVersionInfo(buildResp, verSub, d1, d2));
+    EXPECT_EQ(verSub, PelcoD::VersionInfoSubOpcode::BuildNumberResponse);
+    EXPECT_EQ(d1, 0x04U);
+    EXPECT_EQ(d2, 0xD2U);
+    EXPECT_NE(PelcoD::ProtocolParser::describeFrame(false, buildResp).find("Build Number Response: 1234"), std::string::npos);
+
+    EXPECT_TRUE(PelcoD::ProtocolParser::updateStatus(buildResp, status, info));
+    EXPECT_EQ(info.buildNumber, 1234U);
+
+    // 3. Time Responses (0x77, odd subs)
+    PelcoD::TimeSubOpcode timeSub {};
+    const auto timeSecResp = PelcoD::PelcoDFrame::createFrame(addr,
+        static_cast<std::uint8_t>(PelcoD::TimeSubOpcode::ReportSeconds),
+        static_cast<std::uint8_t>(PelcoD::ResponseOpcode::TimeMacro), 0x00U, 45U);
+    ASSERT_TRUE(PelcoD::ProtocolParser::parseTimeResponse(timeSecResp, timeSub, d1, d2));
+    EXPECT_EQ(timeSub, PelcoD::TimeSubOpcode::ReportSeconds);
+    EXPECT_EQ(d2, 45U);
+    EXPECT_TRUE(PelcoD::ProtocolParser::isResponseMatchingQuery("QueryTime", timeSecResp));
+    EXPECT_NE(PelcoD::ProtocolParser::describeFrame(false, timeSecResp).find("Seconds Response: 45s"), std::string::npos);
+
+    const auto timeHmResp = PelcoD::PelcoDFrame::createFrame(addr,
+        static_cast<std::uint8_t>(PelcoD::TimeSubOpcode::ReportHourMinute),
+        static_cast<std::uint8_t>(PelcoD::ResponseOpcode::TimeMacro), 14U, 30U);
+    ASSERT_TRUE(PelcoD::ProtocolParser::parseTimeResponse(timeHmResp, timeSub, d1, d2));
+    EXPECT_EQ(timeSub, PelcoD::TimeSubOpcode::ReportHourMinute);
+    EXPECT_EQ(d1, 14U);
+    EXPECT_EQ(d2, 30U);
+    EXPECT_NE(PelcoD::ProtocolParser::describeFrame(false, timeHmResp).find("Hour/Minute Response: 14:30"), std::string::npos);
+
+    const auto timeMdResp = PelcoD::PelcoDFrame::createFrame(addr,
+        static_cast<std::uint8_t>(PelcoD::TimeSubOpcode::ReportMonthDay),
+        static_cast<std::uint8_t>(PelcoD::ResponseOpcode::TimeMacro), 9U, 28U);
+    ASSERT_TRUE(PelcoD::ProtocolParser::parseTimeResponse(timeMdResp, timeSub, d1, d2));
+    EXPECT_EQ(timeSub, PelcoD::TimeSubOpcode::ReportMonthDay);
+    EXPECT_EQ(d1, 9U);
+    EXPECT_EQ(d2, 28U);
+    EXPECT_NE(PelcoD::ProtocolParser::describeFrame(false, timeMdResp).find("Month/Day Response: 9/28"), std::string::npos);
+
+    const auto timeYrResp = PelcoD::PelcoDFrame::createFrame(addr,
+        static_cast<std::uint8_t>(PelcoD::TimeSubOpcode::ReportYear),
+        static_cast<std::uint8_t>(PelcoD::ResponseOpcode::TimeMacro), 0x07U, 0xEAU);
+    ASSERT_TRUE(PelcoD::ProtocolParser::parseTimeResponse(timeYrResp, timeSub, d1, d2));
+    EXPECT_EQ(timeSub, PelcoD::TimeSubOpcode::ReportYear);
+    const auto yr = static_cast<std::uint16_t>((static_cast<std::uint16_t>(d1) << 8U) | d2);
+    EXPECT_EQ(yr, 2026U);
+    EXPECT_NE(PelcoD::ProtocolParser::describeFrame(false, timeYrResp).find("Year Response: 2026"), std::string::npos);
+}
+
+/// @brief Verify PelcoDDevice high-level wrappers for Phase 3 Version Info and Time macro commands.
+TEST(ProtocolCompletenessTest, PelcoDDevicePhase3Wrappers)
+{
+    auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(1U);
+    PelcoD::PelcoDDevice device(mock, 1U);
+
+    std::vector<std::vector<std::uint8_t>> sentFrames;
+    std::mutex mtx;
+    device.addTrafficCallback([&](bool isTx, const std::vector<std::uint8_t>& frame) {
+        if (isTx) {
+            std::scoped_lock lock(mtx);
+            sentFrames.push_back(frame);
+        }
+    });
+
+    ASSERT_TRUE(device.start());
+
+    device.querySoftwareVersion();
+    device.queryBuildNumber();
+    device.setSeconds(15U);
+    device.setHourMinute(10U, 45U);
+    device.setMonthDay(11U, 20U);
+    device.setYear(2025U);
+    device.setTime(8U, 30U, 0U);
+    device.setDate(2026U, 7U, 4U);
+    device.queryTime(PelcoD::TimeSubOpcode::ReportHourMinute);
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    device.stop();
+
+    std::scoped_lock lock(mtx);
+    ASSERT_GE(sentFrames.size(), 11U);
+
+    // Frame 0: QuerySoftwareVersion (0x73, sub 0x00)
+    EXPECT_EQ(sentFrames[0][2], 0x00U);
+    EXPECT_EQ(sentFrames[0][3], static_cast<std::uint8_t>(PelcoD::CommandOpcode::VersionInfo));
+
+    // Frame 1: QueryBuildNumber (0x73, sub 0x02)
+    EXPECT_EQ(sentFrames[1][2], 0x02U);
+    EXPECT_EQ(sentFrames[1][3], static_cast<std::uint8_t>(PelcoD::CommandOpcode::VersionInfo));
+
+    // Frame 2: setSeconds(15) -> 0x77 sub 0x00, d2=15
+    EXPECT_EQ(sentFrames[2][2], 0x00U);
+    EXPECT_EQ(sentFrames[2][3], static_cast<std::uint8_t>(PelcoD::CommandOpcode::TimeMacro));
+    EXPECT_EQ(sentFrames[2][5], 15U);
+
+    // Frame 3: setHourMinute(10, 45) -> 0x77 sub 0x02, d1=10, d2=45
+    EXPECT_EQ(sentFrames[3][2], 0x02U);
+    EXPECT_EQ(sentFrames[3][3], static_cast<std::uint8_t>(PelcoD::CommandOpcode::TimeMacro));
+    EXPECT_EQ(sentFrames[3][4], 10U);
+    EXPECT_EQ(sentFrames[3][5], 45U);
+
+    // Frame 4: setMonthDay(11, 20) -> 0x77 sub 0x04, d1=11, d2=20
+    EXPECT_EQ(sentFrames[4][2], 0x04U);
+    EXPECT_EQ(sentFrames[4][3], static_cast<std::uint8_t>(PelcoD::CommandOpcode::TimeMacro));
+    EXPECT_EQ(sentFrames[4][4], 11U);
+    EXPECT_EQ(sentFrames[4][5], 20U);
+
+    // Frame 5: setYear(2025) -> 0x77 sub 0x06
+    EXPECT_EQ(sentFrames[5][2], 0x06U);
+    EXPECT_EQ(sentFrames[5][3], static_cast<std::uint8_t>(PelcoD::CommandOpcode::TimeMacro));
+    const auto yr2025 = static_cast<std::uint16_t>((static_cast<std::uint16_t>(sentFrames[5][4]) << 8U) | sentFrames[5][5]);
+    EXPECT_EQ(yr2025, 2025U);
+
+    // Frame 6 & 7: setTime(8, 30, 0) -> setHourMinute then setSeconds
+    EXPECT_EQ(sentFrames[6][2], 0x02U);
+    EXPECT_EQ(sentFrames[6][4], 8U);
+    EXPECT_EQ(sentFrames[6][5], 30U);
+    EXPECT_EQ(sentFrames[7][2], 0x00U);
+    EXPECT_EQ(sentFrames[7][5], 0U);
+
+    // Frame 8 & 9: setDate(2026, 7, 4) -> setMonthDay then setYear
+    EXPECT_EQ(sentFrames[8][2], 0x04U);
+    EXPECT_EQ(sentFrames[8][4], 7U);
+    EXPECT_EQ(sentFrames[8][5], 4U);
+    EXPECT_EQ(sentFrames[9][2], 0x06U);
+    const auto yr2026 = static_cast<std::uint16_t>((static_cast<std::uint16_t>(sentFrames[9][4]) << 8U) | sentFrames[9][5]);
+    EXPECT_EQ(yr2026, 2026U);
+
+    // Frame 10: queryTime(ReportHourMinute) -> 0x77 sub 0x03
+    EXPECT_EQ(sentFrames[10][2], 0x03U);
+    EXPECT_EQ(sentFrames[10][3], static_cast<std::uint8_t>(PelcoD::CommandOpcode::TimeMacro));
+
+    const auto info = device.getInfo();
+    EXPECT_EQ(info.softwareMajor, 1U);
+    EXPECT_EQ(info.softwareMinor, 2U);
+    EXPECT_EQ(info.buildNumber, 345U);
+}
+
+/// @brief Verify asynchronous futures for software version and build number queries.
+TEST(ProtocolCompletenessTest, PelcoDDevicePhase3AsyncQueries)
+{
+    auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(1U);
+    PelcoD::PelcoDDevice device(mock, 1U);
+
+    ASSERT_TRUE(device.start());
+
+    auto verFuture = device.querySoftwareVersionAsync(std::chrono::milliseconds(2000));
+    ASSERT_EQ(verFuture.wait_for(std::chrono::milliseconds(1500)), std::future_status::ready);
+    const auto [maj, min] = verFuture.get();
+    EXPECT_EQ(maj, 1U);
+    EXPECT_EQ(min, 2U);
+
+    auto buildFuture = device.queryBuildNumberAsync(std::chrono::milliseconds(2000));
+    ASSERT_EQ(buildFuture.wait_for(std::chrono::milliseconds(1500)), std::future_status::ready);
+    const auto build = buildFuture.get();
+    EXPECT_EQ(build, 345U);
+
+    device.stop();
+}
+
 } // namespace
+
+

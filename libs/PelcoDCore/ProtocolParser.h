@@ -86,6 +86,24 @@ public:
     [[nodiscard]] static bool parseDiagnostics(
         const std::vector<std::uint8_t>& frame, std::uint8_t& temp, std::uint8_t& sensorId) noexcept;
 
+    /// @brief Decodes 7-byte Version Information response (opcode 0x73).
+    /// @param[in] frame Raw response frame.
+    /// @param[out] subOpcode Sub-opcode (0x01 = Software version, 0x03 = Build number).
+    /// @param[out] data1 First data byte (Major version or Build MSB).
+    /// @param[out] data2 Second data byte (Minor version or Build LSB).
+    /// @return True if opcode is 0x73 and frame is valid.
+    [[nodiscard]] static bool parseVersionInfo(const std::vector<std::uint8_t>& frame,
+        VersionInfoSubOpcode& subOpcode, std::uint8_t& data1, std::uint8_t& data2) noexcept;
+
+    /// @brief Decodes 7-byte Time Commands Macro response (opcode 0x77).
+    /// @param[in] frame Raw response frame.
+    /// @param[out] subOpcode Sub-opcode (0x01, 0x03, 0x05, 0x07).
+    /// @param[out] data1 First data byte.
+    /// @param[out] data2 Second data byte.
+    /// @return True if opcode is 0x77 and frame is valid.
+    [[nodiscard]] static bool parseTimeResponse(const std::vector<std::uint8_t>& frame,
+        TimeSubOpcode& subOpcode, std::uint8_t& data1, std::uint8_t& data2) noexcept;
+
     /// @brief Decodes 18-byte Query response packet.
     /// @param[in] frame Raw response frame.
     /// @param[out] payload Extracted text payload string.

@@ -696,6 +696,53 @@ void PelcoDDevice::screenMove(std::int8_t panPercent, std::int8_t tiltPercent, b
     enqueueCommand(ProtocolBuilder::buildScreenMove(m_address, panPercent, tiltPercent, relative));
 }
 
+void PelcoDDevice::querySoftwareVersion()
+{
+    sendQueryFrame(ProtocolBuilder::buildQuerySoftwareVersion(m_address), "QuerySoftwareVersion");
+}
+
+void PelcoDDevice::queryBuildNumber()
+{
+    sendQueryFrame(ProtocolBuilder::buildQueryBuildNumber(m_address), "QueryBuildNumber");
+}
+
+void PelcoDDevice::setSeconds(std::uint8_t seconds)
+{
+    enqueueCommand(ProtocolBuilder::buildSetSeconds(m_address, seconds));
+}
+
+void PelcoDDevice::setHourMinute(std::uint8_t hour, std::uint8_t minute)
+{
+    enqueueCommand(ProtocolBuilder::buildSetHourMinute(m_address, hour, minute));
+}
+
+void PelcoDDevice::setMonthDay(std::uint8_t month, std::uint8_t day)
+{
+    enqueueCommand(ProtocolBuilder::buildSetMonthDay(m_address, month, day));
+}
+
+void PelcoDDevice::setYear(std::uint16_t year)
+{
+    enqueueCommand(ProtocolBuilder::buildSetYear(m_address, year));
+}
+
+void PelcoDDevice::setTime(std::uint8_t hour, std::uint8_t minute, std::uint8_t second)
+{
+    setHourMinute(hour, minute);
+    setSeconds(second);
+}
+
+void PelcoDDevice::setDate(std::uint16_t year, std::uint8_t month, std::uint8_t day)
+{
+    setMonthDay(month, day);
+    setYear(year);
+}
+
+void PelcoDDevice::queryTime(TimeSubOpcode queryType)
+{
+    sendQueryFrame(ProtocolBuilder::buildQueryTime(m_address, queryType), "QueryTime");
+}
+
 namespace {
 
     template <typename ResultT, typename Extractor>
@@ -778,6 +825,25 @@ std::future<DeviceStatus> PelcoDDevice::queryStatusAsync(std::chrono::millisecon
 {
     return executeAsyncQuery<DeviceStatus>(
         this, "QueryPan", [this] { queryPan(); }, [](const DeviceStatus& s) { return s; }, timeout);
+}
+
+std::future<std::pair<std::uint8_t, std::uint8_t>> PelcoDDevice::querySoftwareVersionAsync(
+    std::chrono::milliseconds timeout)
+{
+    return executeAsyncQuery<std::pair<std::uint8_t, std::uint8_t>>(
+        this, "QuerySoftwareVersion", [this] { querySoftwareVersion(); },
+        [this](const DeviceStatus&) {
+            const auto info = getInfo();
+            return std::make_pair(info.softwareMajor, info.softwareMinor);
+        },
+        timeout);
+}
+
+std::future<std::uint16_t> PelcoDDevice::queryBuildNumberAsync(std::chrono::milliseconds timeout)
+{
+    return executeAsyncQuery<std::uint16_t>(
+        this, "QueryBuildNumber", [this] { queryBuildNumber(); },
+        [this](const DeviceStatus&) { return getInfo().buildNumber; }, timeout);
 }
 
 void PelcoDDevice::sendRawFrame(const std::vector<std::uint8_t>& frame)

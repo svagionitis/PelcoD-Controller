@@ -515,6 +515,84 @@ void MockPelcoDDevice::processFrame(const std::vector<std::uint8_t>& frame)
         break;
     }
 
+    case CommandOpcode::VersionInfo: {
+        const auto sub = static_cast<VersionInfoSubOpcode>(cmd1);
+        if (sub == VersionInfoSubOpcode::RequestSoftwareVersion) {
+            std::uint8_t major { 1U };
+            std::uint8_t minor { 2U };
+            {
+                std::scoped_lock lock(m_stateMutex);
+                major = m_state.swMajor;
+                minor = m_state.swMinor;
+            }
+            sendExtendedReply(static_cast<std::uint8_t>(VersionInfoSubOpcode::SoftwareVersionResponse),
+                static_cast<std::uint8_t>(ResponseOpcode::VersionInfo), major, minor);
+        } else if (sub == VersionInfoSubOpcode::RequestBuildNumber) {
+            std::uint16_t build { 345U };
+            {
+                std::scoped_lock lock(m_stateMutex);
+                build = m_state.buildNumber;
+            }
+            const auto msb = static_cast<std::uint8_t>((build >> 8U) & 0xFFU);
+            const auto lsb = static_cast<std::uint8_t>(build & 0xFFU);
+            sendExtendedReply(static_cast<std::uint8_t>(VersionInfoSubOpcode::BuildNumberResponse),
+                static_cast<std::uint8_t>(ResponseOpcode::VersionInfo), msb, lsb);
+        } else {
+            sendGeneralReply(cksm);
+        }
+        break;
+    }
+
+    case CommandOpcode::TimeMacro: {
+        const auto sub = static_cast<TimeSubOpcode>(cmd1);
+        const bool isQuery = ((cmd1 & 0x01U) != 0U);
+        std::uint8_t d1Out { 0U };
+        std::uint8_t d2Out { 0U };
+        {
+            std::scoped_lock lock(m_stateMutex);
+            switch (sub) {
+            case TimeSubOpcode::SetSeconds:
+                m_state.deviceTime.second = data2;
+                break;
+            case TimeSubOpcode::ReportSeconds:
+                d2Out = m_state.deviceTime.second;
+                break;
+            case TimeSubOpcode::SetHourMinute:
+                m_state.deviceTime.hour = data1;
+                m_state.deviceTime.minute = data2;
+                break;
+            case TimeSubOpcode::ReportHourMinute:
+                d1Out = m_state.deviceTime.hour;
+                d2Out = m_state.deviceTime.minute;
+                break;
+            case TimeSubOpcode::SetMonthDay:
+                m_state.deviceTime.month = data1;
+                m_state.deviceTime.day = data2;
+                break;
+            case TimeSubOpcode::ReportMonthDay:
+                d1Out = m_state.deviceTime.month;
+                d2Out = m_state.deviceTime.day;
+                break;
+            case TimeSubOpcode::SetYear:
+                m_state.deviceTime.year = static_cast<std::uint16_t>((static_cast<std::uint16_t>(data1) << 8U) | data2);
+                break;
+            case TimeSubOpcode::ReportYear: {
+                d1Out = static_cast<std::uint8_t>((m_state.deviceTime.year >> 8U) & 0xFFU);
+                d2Out = static_cast<std::uint8_t>(m_state.deviceTime.year & 0xFFU);
+                break;
+            }
+            default:
+                break;
+            }
+        }
+        if (isQuery) {
+            sendExtendedReply(cmd1, static_cast<std::uint8_t>(ResponseOpcode::TimeMacro), d1Out, d2Out);
+        } else {
+            sendGeneralReply(cksm);
+        }
+        break;
+    }
+
     default:
         sendGeneralReply(cksm);
         break;

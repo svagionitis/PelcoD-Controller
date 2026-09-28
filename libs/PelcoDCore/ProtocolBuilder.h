@@ -182,6 +182,52 @@ public:
     /// @return 7-byte Pelco-D formatted vector.
     [[nodiscard]] static std::vector<std::uint8_t> buildScreenMove(
         std::uint8_t address, std::int8_t panPercent, std::int8_t tiltPercent, bool relative = false);
+
+    // Version Information Macro (opcode 0x73)
+    /// @brief Requests software application version from device (opcode 0x73, sub 0x00).
+    /// @param[in] address Device bus address (1-255).
+    /// @return 7-byte Pelco-D formatted vector.
+    [[nodiscard]] static std::vector<std::uint8_t> buildQuerySoftwareVersion(std::uint8_t address);
+
+    /// @brief Requests build number from device (opcode 0x73, sub 0x02).
+    /// @param[in] address Device bus address (1-255).
+    /// @return 7-byte Pelco-D formatted vector.
+    [[nodiscard]] static std::vector<std::uint8_t> buildQueryBuildNumber(std::uint8_t address);
+
+    // Time Commands Macro (opcode 0x77)
+    /// @brief Sets device clock seconds and synchronizes (opcode 0x77, sub 0x00).
+    /// @param[in] address Device bus address (1-255).
+    /// @param[in] seconds Seconds (0-59).
+    /// @return 7-byte Pelco-D formatted vector.
+    [[nodiscard]] static std::vector<std::uint8_t> buildSetSeconds(std::uint8_t address, std::uint8_t seconds);
+
+    /// @brief Sets device clock hour and minute (opcode 0x77, sub 0x02).
+    /// @param[in] address Device bus address (1-255).
+    /// @param[in] hour Hour in 24-hour format (0-23).
+    /// @param[in] minute Minute (0-59).
+    /// @return 7-byte Pelco-D formatted vector.
+    [[nodiscard]] static std::vector<std::uint8_t> buildSetHourMinute(
+        std::uint8_t address, std::uint8_t hour, std::uint8_t minute);
+
+    /// @brief Sets device calendar month and day (opcode 0x77, sub 0x04).
+    /// @param[in] address Device bus address (1-255).
+    /// @param[in] month Month (1-12).
+    /// @param[in] day Day of month (1-31).
+    /// @return 7-byte Pelco-D formatted vector.
+    [[nodiscard]] static std::vector<std::uint8_t> buildSetMonthDay(
+        std::uint8_t address, std::uint8_t month, std::uint8_t day);
+
+    /// @brief Sets device calendar year (opcode 0x77, sub 0x06).
+    /// @param[in] address Device bus address (1-255).
+    /// @param[in] year Full year (e.g. 2026).
+    /// @return 7-byte Pelco-D formatted vector.
+    [[nodiscard]] static std::vector<std::uint8_t> buildSetYear(std::uint8_t address, std::uint16_t year);
+
+    /// @brief Requests time or date component from device (opcode 0x77, odd sub-opcodes).
+    /// @param[in] address Device bus address (1-255).
+    /// @param[in] queryType ReportSeconds (0x01), ReportHourMinute (0x03), ReportMonthDay (0x05), or ReportYear (0x07).
+    /// @return 7-byte Pelco-D formatted vector.
+    [[nodiscard]] static std::vector<std::uint8_t> buildQueryTime(std::uint8_t address, TimeSubOpcode queryType);
 };
 
 } // namespace PelcoD

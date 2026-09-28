@@ -51,6 +51,10 @@ struct MockDeviceState {
     std::uint8_t swType { 0x05U };
     std::uint8_t hwType { 0x01U };
     std::string modelName { "PELCO-D-SIM" };
+    std::uint8_t swMajor { 1U };
+    std::uint8_t swMinor { 2U };
+    std::uint16_t buildNumber { 345U };
+    PelcoDTime deviceTime {};
 
     std::map<std::uint8_t, PresetPosition> presets {};
     std::array<bool, 8> auxStates { false, false, false, false, false, false, false, false };

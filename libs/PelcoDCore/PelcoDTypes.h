@@ -86,6 +86,8 @@ enum class CommandOpcode : std::uint8_t {
     StartDownload = 0x69U,
     QueryDeviceType = 0x6BU,
     QueryDiagnostics = 0x6FU,
+    VersionInfo = 0x73U,
+    TimeMacro = 0x77U,
     ScreenMove = 0x79U
 };
 
@@ -98,7 +100,42 @@ enum class ResponseOpcode : std::uint8_t {
     QueryZoom = 0x5DU,
     QueryMagnification = 0x63U,
     QueryDeviceType = 0x6DU,
-    QueryDiagnostics = 0x71U
+    QueryDiagnostics = 0x71U,
+    VersionInfo = 0x73U,
+    TimeMacro = 0x77U
+};
+
+/// @enum VersionInfoSubOpcode
+/// @brief Sub-opcodes for Version Information Macro (opcode 0x73, Command 1 byte).
+enum class VersionInfoSubOpcode : std::uint8_t {
+    RequestSoftwareVersion = 0x00U,
+    SoftwareVersionResponse = 0x01U,
+    RequestBuildNumber = 0x02U,
+    BuildNumberResponse = 0x03U
+};
+
+/// @enum TimeSubOpcode
+/// @brief Sub-opcodes for Time Commands Macro (opcode 0x77, Command 1 byte).
+enum class TimeSubOpcode : std::uint8_t {
+    SetSeconds = 0x00U,
+    ReportSeconds = 0x01U,
+    SetHourMinute = 0x02U,
+    ReportHourMinute = 0x03U,
+    SetMonthDay = 0x04U,
+    ReportMonthDay = 0x05U,
+    SetYear = 0x06U,
+    ReportYear = 0x07U
+};
+
+/// @struct PelcoDTime
+/// @brief Date and time container for Pelco-D clock synchronization (opcode 0x77).
+struct PelcoDTime {
+    std::uint8_t hour { 0U };
+    std::uint8_t minute { 0U };
+    std::uint8_t second { 0U };
+    std::uint8_t month { 0U };
+    std::uint8_t day { 0U };
+    std::uint16_t year { 0U };
 };
 
 /// @enum AutoMode
@@ -127,6 +164,9 @@ struct DeviceInfo {
     std::uint8_t hardwareType { 0x00U };
     std::string modelName {};
     std::string serialNumber {};
+    std::uint8_t softwareMajor { 0x00U };
+    std::uint8_t softwareMinor { 0x00U };
+    std::uint16_t buildNumber { 0x0000U };
 };
 
 } // namespace PelcoD

@@ -399,4 +399,50 @@ std::vector<std::uint8_t> ProtocolBuilder::buildScreenMove(
     return PelcoDFrame::createFrame(address, cmd1, static_cast<std::uint8_t>(CommandOpcode::ScreenMove), d1, d2);
 }
 
+std::vector<std::uint8_t> ProtocolBuilder::buildQuerySoftwareVersion(std::uint8_t address)
+{
+    return PelcoDFrame::createFrame(address, static_cast<std::uint8_t>(VersionInfoSubOpcode::RequestSoftwareVersion),
+        static_cast<std::uint8_t>(CommandOpcode::VersionInfo), 0x00U, 0x00U);
+}
+
+std::vector<std::uint8_t> ProtocolBuilder::buildQueryBuildNumber(std::uint8_t address)
+{
+    return PelcoDFrame::createFrame(address, static_cast<std::uint8_t>(VersionInfoSubOpcode::RequestBuildNumber),
+        static_cast<std::uint8_t>(CommandOpcode::VersionInfo), 0x00U, 0x00U);
+}
+
+std::vector<std::uint8_t> ProtocolBuilder::buildSetSeconds(std::uint8_t address, std::uint8_t seconds)
+{
+    return PelcoDFrame::createFrame(address, static_cast<std::uint8_t>(TimeSubOpcode::SetSeconds),
+        static_cast<std::uint8_t>(CommandOpcode::TimeMacro), 0x00U, seconds);
+}
+
+std::vector<std::uint8_t> ProtocolBuilder::buildSetHourMinute(
+    std::uint8_t address, std::uint8_t hour, std::uint8_t minute)
+{
+    return PelcoDFrame::createFrame(address, static_cast<std::uint8_t>(TimeSubOpcode::SetHourMinute),
+        static_cast<std::uint8_t>(CommandOpcode::TimeMacro), hour, minute);
+}
+
+std::vector<std::uint8_t> ProtocolBuilder::buildSetMonthDay(
+    std::uint8_t address, std::uint8_t month, std::uint8_t day)
+{
+    return PelcoDFrame::createFrame(address, static_cast<std::uint8_t>(TimeSubOpcode::SetMonthDay),
+        static_cast<std::uint8_t>(CommandOpcode::TimeMacro), month, day);
+}
+
+std::vector<std::uint8_t> ProtocolBuilder::buildSetYear(std::uint8_t address, std::uint16_t year)
+{
+    const auto msb = static_cast<std::uint8_t>((year >> 8U) & 0xFFU);
+    const auto lsb = static_cast<std::uint8_t>(year & 0xFFU);
+    return PelcoDFrame::createFrame(address, static_cast<std::uint8_t>(TimeSubOpcode::SetYear),
+        static_cast<std::uint8_t>(CommandOpcode::TimeMacro), msb, lsb);
+}
+
+std::vector<std::uint8_t> ProtocolBuilder::buildQueryTime(std::uint8_t address, TimeSubOpcode queryType)
+{
+    return PelcoDFrame::createFrame(address, static_cast<std::uint8_t>(queryType),
+        static_cast<std::uint8_t>(CommandOpcode::TimeMacro), 0x00U, 0x00U);
+}
+
 } // namespace PelcoD
