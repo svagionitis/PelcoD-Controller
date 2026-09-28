@@ -119,6 +119,20 @@ std::vector<LrfTargetMeasurement> NmeaLrfParser::parseIncomingBytes(const std::u
         return results;
     }
 
+    if (m_rxBuffer.size() + length > kMaxRxBufferSize) {
+        const auto lastDollar = m_rxBuffer.rfind('$');
+        if (lastDollar != std::string::npos && lastDollar > 0) {
+            m_rxBuffer.erase(0, lastDollar);
+        }
+        if (m_rxBuffer.size() + length > kMaxRxBufferSize) {
+            m_rxBuffer.clear();
+        }
+    }
+    if (length > kMaxRxBufferSize) {
+        data += (length - kMaxRxBufferSize);
+        length = kMaxRxBufferSize;
+    }
+
     m_rxBuffer.append(reinterpret_cast<const char*>(data), length);
 
     std::size_t newlinePos = 0;
@@ -218,6 +232,11 @@ void NmeaLrfParser::reset()
     m_rxBuffer.clear();
 }
 
+std::size_t NmeaLrfParser::getRxBufferSize() const noexcept
+{
+    return m_rxBuffer.size();
+}
+
 std::vector<std::uint8_t> NmeaLrfParser::buildArmCommand()
 {
     const std::string cmd = formatNmeaSentence("GPLRF,ARM");
@@ -268,6 +287,20 @@ std::vector<LrfTargetMeasurement> AsciiLrfParser::parseIncomingBytes(const std::
     std::vector<LrfTargetMeasurement> results;
     if (data == nullptr || length == 0) {
         return results;
+    }
+
+    if (m_rxBuffer.size() + length > kMaxRxBufferSize) {
+        const auto lastNewline = m_rxBuffer.rfind('\n');
+        if (lastNewline != std::string::npos) {
+            m_rxBuffer.erase(0, lastNewline + 1);
+        }
+        if (m_rxBuffer.size() + length > kMaxRxBufferSize) {
+            m_rxBuffer.clear();
+        }
+    }
+    if (length > kMaxRxBufferSize) {
+        data += (length - kMaxRxBufferSize);
+        length = kMaxRxBufferSize;
     }
 
     m_rxBuffer.append(reinterpret_cast<const char*>(data), length);
@@ -329,6 +362,11 @@ std::vector<LrfTargetMeasurement> AsciiLrfParser::parseIncomingBytes(const std::
 void AsciiLrfParser::reset()
 {
     m_rxBuffer.clear();
+}
+
+std::size_t AsciiLrfParser::getRxBufferSize() const noexcept
+{
+    return m_rxBuffer.size();
 }
 
 std::vector<std::uint8_t> AsciiLrfParser::buildArmCommand()
@@ -436,6 +474,21 @@ std::vector<LrfTargetMeasurement> BinaryLrfParser::parseIncomingBytes(const std:
         return results;
     }
 
+    if (m_rxBuffer.size() + length > kMaxRxBufferSize) {
+        auto it = std::adjacent_find(m_rxBuffer.begin(), m_rxBuffer.end(),
+            [](std::uint8_t a, std::uint8_t b) { return a == kSyncByte1 && b == kSyncByte2; });
+        if (it != m_rxBuffer.end() && it != m_rxBuffer.begin()) {
+            m_rxBuffer.erase(m_rxBuffer.begin(), it);
+        }
+        if (m_rxBuffer.size() + length > kMaxRxBufferSize) {
+            m_rxBuffer.clear();
+        }
+    }
+    if (length > kMaxRxBufferSize) {
+        data += (length - kMaxRxBufferSize);
+        length = kMaxRxBufferSize;
+    }
+
     m_rxBuffer.insert(m_rxBuffer.end(), data, data + length);
 
     while (m_rxBuffer.size() >= 6) {
@@ -447,6 +500,14 @@ std::vector<LrfTargetMeasurement> BinaryLrfParser::parseIncomingBytes(const std:
 
         const std::uint8_t msgId = m_rxBuffer[2];
         const std::uint8_t payloadLen = m_rxBuffer[3];
+
+        if (msgId == kMsgEchoReport
+            && (payloadLen < kMinEchoReportPayloadLength || payloadLen > kMaxEchoReportPayloadLength)) {
+            // Invalid EchoReport payload length: drop first sync byte to re-sync
+            m_rxBuffer.erase(m_rxBuffer.begin());
+            continue;
+        }
+
         const std::size_t totalFrameLen = 4 + payloadLen + 2;
 
         if (m_rxBuffer.size() < totalFrameLen) {
@@ -500,6 +561,11 @@ std::vector<LrfTargetMeasurement> BinaryLrfParser::parseIncomingBytes(const std:
 void BinaryLrfParser::reset()
 {
     m_rxBuffer.clear();
+}
+
+std::size_t BinaryLrfParser::getRxBufferSize() const noexcept
+{
+    return m_rxBuffer.size();
 }
 
 std::vector<std::uint8_t> BinaryLrfParser::buildArmCommand()

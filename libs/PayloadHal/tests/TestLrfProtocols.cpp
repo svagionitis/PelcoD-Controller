@@ -387,3 +387,72 @@ TEST(TestLrfProtocols, BinaryPayloadLengthValidation)
     auto resultsTrunc = parser.parseIncomingBytes(truncatedEcho.data(), truncatedEcho.size());
     EXPECT_TRUE(resultsTrunc.empty());
 }
+
+TEST(TestLrfProtocols, NmeaBufferGrowthBoundedUnderCorruptedStream)
+{
+    NmeaLrfParser parser;
+    // Feed 10,000 bytes of stream noise with no newline character
+    const std::string noise(10000, 'X');
+    const auto noiseResults = parser.parseIncomingBytes(reinterpret_cast<const uint8_t*>(noise.data()), noise.size());
+    EXPECT_TRUE(noiseResults.empty());
+
+    // Buffer size must be strictly bounded by kMaxRxBufferSize to prevent DoS / memory exhaustion
+    EXPECT_LE(parser.getRxBufferSize(), ILrfProtocolParser::kMaxRxBufferSize);
+
+    // Stream recovery: after corrupted stream overflow, incoming valid sentence must parse successfully
+    const std::string validSentence = NmeaLrfParser::formatNmeaSentence("GPLRF,1850.50,M,OK");
+    auto results
+        = parser.parseIncomingBytes(reinterpret_cast<const uint8_t*>(validSentence.data()), validSentence.size());
+    ASSERT_EQ(results.size(), 1U);
+    EXPECT_TRUE(results[0].valid);
+    EXPECT_NEAR(results[0].slantRangeMeters, 1850.50, 0.001);
+}
+
+TEST(TestLrfProtocols, AsciiBufferGrowthBoundedUnderCorruptedStream)
+{
+    AsciiLrfParser parser;
+    // Feed 10,000 bytes of non-delimited noise
+    const std::string noise(10000, 'A');
+    const auto noiseResults = parser.parseIncomingBytes(reinterpret_cast<const uint8_t*>(noise.data()), noise.size());
+    EXPECT_TRUE(noiseResults.empty());
+
+    EXPECT_LE(parser.getRxBufferSize(), ILrfProtocolParser::kMaxRxBufferSize);
+
+    // Verify recovery with valid reading
+    const std::string validReading = "R: 2450.25\r\n";
+    auto results
+        = parser.parseIncomingBytes(reinterpret_cast<const uint8_t*>(validReading.data()), validReading.size());
+    ASSERT_EQ(results.size(), 1U);
+    EXPECT_TRUE(results[0].valid);
+    EXPECT_NEAR(results[0].slantRangeMeters, 2450.25, 0.001);
+}
+
+TEST(TestLrfProtocols, BinaryBufferGrowthBoundedUnderCorruptedStream)
+{
+    BinaryLrfParser parser;
+    // Feed stream noise containing false sync markers with oversized expected lengths that stall parsing
+    std::vector<uint8_t> noise;
+    for (int i = 0; i < 40; ++i) {
+        noise.push_back(BinaryLrfParser::kSyncByte1);
+        noise.push_back(BinaryLrfParser::kSyncByte2);
+        noise.push_back(0x10);
+        noise.push_back(255); // payloadLen = 255, expecting 261 bytes
+        noise.insert(noise.end(), 200, 0xEE); // only 204 bytes provided -> stalls waiting for frame
+    }
+    // Total bytes = 40 * 204 = 8,160 bytes (> kMaxRxBufferSize of 4,096)
+    const auto noiseResults = parser.parseIncomingBytes(noise.data(), noise.size());
+    EXPECT_TRUE(noiseResults.empty());
+
+    EXPECT_LE(parser.getRxBufferSize(), ILrfProtocolParser::kMaxRxBufferSize);
+
+    // Verify subsequent valid packet parses cleanly
+    std::vector<uint8_t> frame = { 0xAA, 0x55, 0x10, 0x07, 0x00, 0x00, 0x03, 0xE8, 0x00, 200, 22 };
+    const uint16_t crc = BinaryLrfParser::computeCrc16(frame.data(), frame.size());
+    frame.push_back(static_cast<uint8_t>((crc >> 8) & 0xFF));
+    frame.push_back(static_cast<uint8_t>(crc & 0xFF));
+
+    auto results = parser.parseIncomingBytes(frame.data(), frame.size());
+    ASSERT_EQ(results.size(), 1U);
+    EXPECT_TRUE(results[0].valid);
+    EXPECT_NEAR(results[0].slantRangeMeters, 256.0, 0.001);
+}

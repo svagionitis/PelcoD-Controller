@@ -82,6 +82,12 @@ public:
     /// @brief Generates wire command bytes to halt active pulse emissions.
     /// @return Byte vector ready for transport transmission.
     [[nodiscard]] virtual std::vector<std::uint8_t> buildStopCommand() = 0;
+
+    /// @brief Maximum internal receive buffer capacity to guard against unbounded memory growth (DoS protection).
+    static constexpr std::size_t kMaxRxBufferSize { 4096U };
+
+    /// @brief Gets the number of unparsed bytes currently held in the internal receive buffer.
+    [[nodiscard]] virtual std::size_t getRxBufferSize() const noexcept = 0;
 };
 
 /// @class NmeaLrfParser
@@ -95,6 +101,8 @@ public:
         const std::uint8_t* data, std::size_t length) override;
 
     void reset() override;
+
+    [[nodiscard]] std::size_t getRxBufferSize() const noexcept override;
 
     [[nodiscard]] std::vector<std::uint8_t> buildArmCommand() override;
     [[nodiscard]] virtual std::vector<std::uint8_t> buildDisarmCommand() override;
@@ -131,6 +139,8 @@ public:
 
     void reset() override;
 
+    [[nodiscard]] std::size_t getRxBufferSize() const noexcept override;
+
     [[nodiscard]] std::vector<std::uint8_t> buildArmCommand() override;
     [[nodiscard]] std::vector<std::uint8_t> buildDisarmCommand() override;
     [[nodiscard]] std::vector<std::uint8_t> buildFireCommand() override;
@@ -154,6 +164,8 @@ public:
         const std::uint8_t* data, std::size_t length) override;
 
     void reset() override;
+
+    [[nodiscard]] std::size_t getRxBufferSize() const noexcept override;
 
     [[nodiscard]] std::vector<std::uint8_t> buildArmCommand() override;
     [[nodiscard]] std::vector<std::uint8_t> buildDisarmCommand() override;
@@ -179,6 +191,9 @@ public:
 
     /// @brief Minimum payload length for EchoReport message (status + 4-byte distance).
     static constexpr std::size_t kMinEchoReportPayloadLength { 5U };
+
+    /// @brief Maximum expected payload length for EchoReport message (status + dist + quality + temp + opt).
+    static constexpr std::size_t kMaxEchoReportPayloadLength { 16U };
 
     /// @brief Builds a framed binary packet with sync header, command ID, length, payload, and CRC-16.
     /// @param[in] cmd Command or message ID.
