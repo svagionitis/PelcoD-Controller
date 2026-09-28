@@ -111,7 +111,7 @@ public:
     [[nodiscard]] virtual std::vector<std::uint8_t> buildStopCommand() override;
 
     /// @brief Calculates 8-bit XOR checksum over string excluding leading '$' and trailing '*'.
-    [[nodiscard]] static std::uint8_t computeNmeaChecksum(const std::string& sentence);
+    [[nodiscard]] static std::uint8_t computeNmeaChecksum(std::string_view sentence);
 
     /// @brief Formats a complete NMEA sentence with leading '$', trailing '*', two hex checksum chars, and CRLF.
     [[nodiscard]] static std::string formatNmeaSentence(const std::string& body);

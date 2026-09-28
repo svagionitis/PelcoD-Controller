@@ -13,14 +13,19 @@ namespace PayloadHal {
 
 namespace {
 
-    std::string trimString(std::string_view str)
+    std::string_view trimStringView(std::string_view str) noexcept
     {
         const auto first = str.find_first_not_of(" \t\r\n");
         if (first == std::string_view::npos) {
             return {};
         }
         const auto last = str.find_last_not_of(" \t\r\n");
-        return std::string(str.substr(first, (last - first + 1)));
+        return str.substr(first, (last - first + 1));
+    }
+
+    std::string trimString(std::string_view str)
+    {
+        return std::string(trimStringView(str));
     }
 
     std::vector<std::string> splitTokens(std::string_view str, char delim)
@@ -76,7 +81,7 @@ namespace {
 // NMEA-0183 LRF Parser
 // =============================================================================
 
-std::uint8_t NmeaLrfParser::computeNmeaChecksum(const std::string& sentence)
+std::uint8_t NmeaLrfParser::computeNmeaChecksum(std::string_view sentence)
 {
     std::uint8_t cs { 0 };
     std::size_t start = 0;
@@ -135,24 +140,25 @@ std::vector<LrfTargetMeasurement> NmeaLrfParser::parseIncomingBytes(const std::u
 
     m_rxBuffer.append(reinterpret_cast<const char*>(data), length);
 
+    std::size_t processedUpTo = 0;
     std::size_t newlinePos = 0;
-    while ((newlinePos = m_rxBuffer.find('\n')) != std::string::npos) {
-        std::string line = m_rxBuffer.substr(0, newlinePos);
-        m_rxBuffer.erase(0, newlinePos + 1);
+    while ((newlinePos = m_rxBuffer.find('\n', processedUpTo)) != std::string::npos) {
+        const std::string_view rawLine(m_rxBuffer.data() + processedUpTo, newlinePos - processedUpTo);
+        processedUpTo = newlinePos + 1;
 
-        line = trimString(line);
+        const std::string_view line = trimStringView(rawLine);
         if (line.empty()) {
             continue;
         }
 
         const auto dollarPos = line.find('$');
         const auto starPos = line.rfind('*');
-        if (dollarPos == std::string::npos || starPos == std::string::npos || starPos <= dollarPos) {
+        if (dollarPos == std::string_view::npos || starPos == std::string_view::npos || starPos <= dollarPos) {
             continue;
         }
 
-        const std::string body = line.substr(dollarPos + 1, starPos - dollarPos - 1);
-        const std::string csStr = line.substr(starPos + 1, 2);
+        const std::string_view body = line.substr(dollarPos + 1, starPos - dollarPos - 1);
+        const std::string_view csStr = line.substr(starPos + 1, 2);
         if (csStr.size() < 2) {
             continue;
         }
@@ -222,6 +228,10 @@ std::vector<LrfTargetMeasurement> NmeaLrfParser::parseIncomingBytes(const std::u
         meas.timestamp = std::chrono::system_clock::now();
 
         results.push_back(meas);
+    }
+
+    if (processedUpTo > 0) {
+        m_rxBuffer.erase(0, processedUpTo);
     }
 
     return results;
@@ -305,12 +315,13 @@ std::vector<LrfTargetMeasurement> AsciiLrfParser::parseIncomingBytes(const std::
 
     m_rxBuffer.append(reinterpret_cast<const char*>(data), length);
 
+    std::size_t processedUpTo = 0;
     std::size_t newlinePos = 0;
-    while ((newlinePos = m_rxBuffer.find('\n')) != std::string::npos) {
-        std::string line = m_rxBuffer.substr(0, newlinePos);
-        m_rxBuffer.erase(0, newlinePos + 1);
+    while ((newlinePos = m_rxBuffer.find('\n', processedUpTo)) != std::string::npos) {
+        const std::string_view rawLine(m_rxBuffer.data() + processedUpTo, newlinePos - processedUpTo);
+        processedUpTo = newlinePos + 1;
 
-        line = trimString(line);
+        const std::string_view line = trimStringView(rawLine);
         if (line.empty()) {
             continue;
         }
@@ -325,19 +336,19 @@ std::vector<LrfTargetMeasurement> AsciiLrfParser::parseIncomingBytes(const std::
             valid = false;
         } else {
             // Check for prefix "R:", "DIST:", "D,", etc.
-            std::string numPart = line;
+            std::string_view numPart = line;
             if (upperLine.rfind("DIST:", 0) == 0) {
-                numPart = trimString(line.substr(5));
+                numPart = trimStringView(line.substr(5));
             } else if (upperLine.rfind("R:", 0) == 0) {
-                numPart = trimString(line.substr(2));
+                numPart = trimStringView(line.substr(2));
             } else if (upperLine.rfind("D,", 0) == 0) {
-                numPart = trimString(line.substr(2));
+                numPart = trimStringView(line.substr(2));
             }
 
             // Remove trailing 'm' or 'M'
             if (!numPart.empty() && (numPart.back() == 'm' || numPart.back() == 'M')) {
-                numPart.pop_back();
-                numPart = trimString(numPart);
+                numPart.remove_suffix(1);
+                numPart = trimStringView(numPart);
             }
 
             if (parseDoubleLocaleIndependent(numPart, distanceMeters)) {
@@ -354,6 +365,10 @@ std::vector<LrfTargetMeasurement> AsciiLrfParser::parseIncomingBytes(const std::
         meas.timestamp = std::chrono::system_clock::now();
 
         results.push_back(meas);
+    }
+
+    if (processedUpTo > 0) {
+        m_rxBuffer.erase(0, processedUpTo);
     }
 
     return results;
@@ -491,54 +506,68 @@ std::vector<LrfTargetMeasurement> BinaryLrfParser::parseIncomingBytes(const std:
 
     m_rxBuffer.insert(m_rxBuffer.end(), data, data + length);
 
-    while (m_rxBuffer.size() >= 6) {
-        // Sync search
-        if (m_rxBuffer[0] != kSyncByte1 || m_rxBuffer[1] != kSyncByte2) {
-            m_rxBuffer.erase(m_rxBuffer.begin());
-            continue;
+    std::size_t offset = 0;
+    while (m_rxBuffer.size() - offset >= 6) {
+        // Fast-forward to sync marker using adjacent_find
+        if (m_rxBuffer[offset] != kSyncByte1 || m_rxBuffer[offset + 1] != kSyncByte2) {
+            auto it = std::adjacent_find(m_rxBuffer.begin() + static_cast<std::ptrdiff_t>(offset), m_rxBuffer.end(),
+                [](std::uint8_t a, std::uint8_t b) { return a == kSyncByte1 && b == kSyncByte2; });
+            if (it == m_rxBuffer.end()) {
+                if (m_rxBuffer.back() == kSyncByte1) {
+                    offset = m_rxBuffer.size() - 1;
+                } else {
+                    offset = m_rxBuffer.size();
+                }
+                break;
+            }
+            offset = static_cast<std::size_t>(std::distance(m_rxBuffer.begin(), it));
+            if (m_rxBuffer.size() - offset < 6) {
+                break;
+            }
         }
 
-        const std::uint8_t msgId = m_rxBuffer[2];
-        const std::uint8_t payloadLen = m_rxBuffer[3];
+        const std::uint8_t msgId = m_rxBuffer[offset + 2];
+        const std::uint8_t payloadLen = m_rxBuffer[offset + 3];
 
         if (msgId == kMsgEchoReport
             && (payloadLen < kMinEchoReportPayloadLength || payloadLen > kMaxEchoReportPayloadLength)) {
-            // Invalid EchoReport payload length: drop first sync byte to re-sync
-            m_rxBuffer.erase(m_rxBuffer.begin());
+            // Invalid EchoReport payload length: skip first sync byte and continue searching
+            ++offset;
             continue;
         }
 
         const std::size_t totalFrameLen = 4 + payloadLen + 2;
 
-        if (m_rxBuffer.size() < totalFrameLen) {
+        if (m_rxBuffer.size() - offset < totalFrameLen) {
             break; // Await more incoming stream bytes
         }
 
-        const std::uint16_t expectedCrc = (static_cast<std::uint16_t>(m_rxBuffer[4 + payloadLen]) << 8)
-            | static_cast<std::uint16_t>(m_rxBuffer[5 + payloadLen]);
+        const std::uint16_t expectedCrc = (static_cast<std::uint16_t>(m_rxBuffer[offset + 4 + payloadLen]) << 8)
+            | static_cast<std::uint16_t>(m_rxBuffer[offset + 5 + payloadLen]);
 
-        const std::uint16_t computedCrc = computeCrc16(m_rxBuffer.data(), 4 + payloadLen);
+        const std::uint16_t computedCrc = computeCrc16(m_rxBuffer.data() + offset, 4 + payloadLen);
         if (computedCrc != expectedCrc) {
-            // CRC mismatch: drop first sync byte to re-sync
-            m_rxBuffer.erase(m_rxBuffer.begin());
+            // CRC mismatch: skip first sync byte to re-sync
+            ++offset;
             continue;
         }
 
         // Valid frame!
         if (msgId == kMsgEchoReport && payloadLen >= kMinEchoReportPayloadLength) {
-            const std::uint8_t status = m_rxBuffer[4];
-            const std::uint32_t distMm = (static_cast<std::uint32_t>(m_rxBuffer[5]) << 24)
-                | (static_cast<std::uint32_t>(m_rxBuffer[6]) << 16) | (static_cast<std::uint32_t>(m_rxBuffer[7]) << 8)
-                | static_cast<std::uint32_t>(m_rxBuffer[8]);
+            const std::uint8_t status = m_rxBuffer[offset + 4];
+            const std::uint32_t distMm = (static_cast<std::uint32_t>(m_rxBuffer[offset + 5]) << 24)
+                | (static_cast<std::uint32_t>(m_rxBuffer[offset + 6]) << 16)
+                | (static_cast<std::uint32_t>(m_rxBuffer[offset + 7]) << 8)
+                | static_cast<std::uint32_t>(m_rxBuffer[offset + 8]);
 
             double quality = 0.95;
             if (payloadLen >= 6) {
-                quality = static_cast<double>(m_rxBuffer[9]) / 255.0;
+                quality = static_cast<double>(m_rxBuffer[offset + 9]) / 255.0;
             }
 
             double tempC = 25.0;
             if (payloadLen >= 7) {
-                tempC = static_cast<double>(static_cast<std::int8_t>(m_rxBuffer[10]));
+                tempC = static_cast<double>(static_cast<std::int8_t>(m_rxBuffer[offset + 10]));
             }
 
             LrfTargetMeasurement meas {};
@@ -552,7 +581,11 @@ std::vector<LrfTargetMeasurement> BinaryLrfParser::parseIncomingBytes(const std:
             results.push_back(meas);
         }
 
-        m_rxBuffer.erase(m_rxBuffer.begin(), m_rxBuffer.begin() + static_cast<std::ptrdiff_t>(totalFrameLen));
+        offset += totalFrameLen;
+    }
+
+    if (offset > 0) {
+        m_rxBuffer.erase(m_rxBuffer.begin(), m_rxBuffer.begin() + static_cast<std::ptrdiff_t>(offset));
     }
 
     return results;

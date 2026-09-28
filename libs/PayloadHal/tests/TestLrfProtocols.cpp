@@ -456,3 +456,105 @@ TEST(TestLrfProtocols, BinaryBufferGrowthBoundedUnderCorruptedStream)
     EXPECT_TRUE(results[0].valid);
     EXPECT_NEAR(results[0].slantRangeMeters, 256.0, 0.001);
 }
+
+TEST(TestLrfProtocols, BinaryBatchParsingWithInterleavedNoise)
+{
+    BinaryLrfParser parser;
+
+    auto makeFrame = [](uint32_t distMm) {
+        std::vector<uint8_t> f = { 0xAA, 0x55, 0x10, 0x07, 0x00, static_cast<uint8_t>((distMm >> 24) & 0xFF),
+            static_cast<uint8_t>((distMm >> 16) & 0xFF), static_cast<uint8_t>((distMm >> 8) & 0xFF),
+            static_cast<uint8_t>(distMm & 0xFF), 220, 25 };
+        const uint16_t c = BinaryLrfParser::computeCrc16(f.data(), f.size());
+        f.push_back(static_cast<uint8_t>((c >> 8) & 0xFF));
+        f.push_back(static_cast<uint8_t>(c & 0xFF));
+        return f;
+    };
+
+    std::vector<uint8_t> batch;
+    // 1. Noise chunk (500 bytes with no sync pattern)
+    for (int i = 0; i < 500; ++i) {
+        batch.push_back(static_cast<uint8_t>((i * 7) & 0xFF));
+    }
+    // 2. Frame 1 (1200.0 m)
+    const auto f1 = makeFrame(1200000);
+    batch.insert(batch.end(), f1.begin(), f1.end());
+    // 3. Noise chunk with solitary 0xAA
+    batch.insert(batch.end(), { 0xAA, 0x12, 0x34, 0x56 });
+    // 4. Frame 2 (3500.0 m)
+    const auto f2 = makeFrame(3500000);
+    batch.insert(batch.end(), f2.begin(), f2.end());
+    // 5. Trailing incomplete sync byte (0xAA)
+    batch.push_back(BinaryLrfParser::kSyncByte1);
+
+    auto results = parser.parseIncomingBytes(batch.data(), batch.size());
+    ASSERT_EQ(results.size(), 2U);
+    EXPECT_TRUE(results[0].valid);
+    EXPECT_NEAR(results[0].slantRangeMeters, 1200.0, 0.001);
+    EXPECT_TRUE(results[1].valid);
+    EXPECT_NEAR(results[1].slantRangeMeters, 3500.0, 0.001);
+
+    // Trailing sync byte 0xAA must be preserved in buffer waiting for 0x55
+    EXPECT_EQ(parser.getRxBufferSize(), 1U);
+
+    // Feed the second sync byte (0x55) and the rest of Frame 3 (500.0 m)
+    auto f3 = makeFrame(500000);
+    f3.erase(f3.begin()); // Drop leading 0xAA already buffered
+    auto res3 = parser.parseIncomingBytes(f3.data(), f3.size());
+    ASSERT_EQ(res3.size(), 1U);
+    EXPECT_TRUE(res3[0].valid);
+    EXPECT_NEAR(res3[0].slantRangeMeters, 500.0, 0.001);
+    EXPECT_EQ(parser.getRxBufferSize(), 0U);
+}
+
+TEST(TestLrfProtocols, NmeaBatchParsingWithMultipleSentences)
+{
+    NmeaLrfParser parser;
+    std::string batch;
+    for (int i = 1; i <= 20; ++i) {
+        batch += NmeaLrfParser::formatNmeaSentence("GPLRF," + std::to_string(i * 100) + ".0,M,OK");
+    }
+    batch += "$GPLRF,9999."; // trailing incomplete fragment
+
+    auto results = parser.parseIncomingBytes(reinterpret_cast<const uint8_t*>(batch.data()), batch.size());
+    ASSERT_EQ(results.size(), 20U);
+    for (std::size_t i = 0; i < 20U; ++i) {
+        EXPECT_TRUE(results[i].valid);
+        EXPECT_NEAR(results[i].slantRangeMeters, static_cast<double>(i + 1) * 100.0, 0.001);
+    }
+    EXPECT_EQ(parser.getRxBufferSize(), std::string("$GPLRF,9999.").size());
+
+    // Complete the trailing fragment
+    const std::string full = NmeaLrfParser::formatNmeaSentence("GPLRF,9999.50,M,OK");
+    const std::string rem = full.substr(std::string("$GPLRF,9999.").size());
+    auto resFinal = parser.parseIncomingBytes(reinterpret_cast<const uint8_t*>(rem.data()), rem.size());
+    ASSERT_EQ(resFinal.size(), 1U);
+    EXPECT_TRUE(resFinal[0].valid);
+    EXPECT_NEAR(resFinal[0].slantRangeMeters, 9999.50, 0.001);
+    EXPECT_EQ(parser.getRxBufferSize(), 0U);
+}
+
+TEST(TestLrfProtocols, AsciiBatchParsingWithMultipleLines)
+{
+    AsciiLrfParser parser;
+    std::string batch;
+    for (int i = 1; i <= 20; ++i) {
+        batch += "R: " + std::to_string(i * 50) + ".25\r\n";
+    }
+    batch += "R: 777"; // trailing incomplete
+
+    auto results = parser.parseIncomingBytes(reinterpret_cast<const uint8_t*>(batch.data()), batch.size());
+    ASSERT_EQ(results.size(), 20U);
+    for (std::size_t i = 0; i < 20U; ++i) {
+        EXPECT_TRUE(results[i].valid);
+        EXPECT_NEAR(results[i].slantRangeMeters, static_cast<double>(i + 1) * 50.0 + 0.25, 0.001);
+    }
+    EXPECT_EQ(parser.getRxBufferSize(), std::string("R: 777").size());
+
+    const std::string rem = ".50\r\n";
+    auto resFinal = parser.parseIncomingBytes(reinterpret_cast<const uint8_t*>(rem.data()), rem.size());
+    ASSERT_EQ(resFinal.size(), 1U);
+    EXPECT_TRUE(resFinal[0].valid);
+    EXPECT_NEAR(resFinal[0].slantRangeMeters, 777.50, 0.001);
+    EXPECT_EQ(parser.getRxBufferSize(), 0U);
+}
