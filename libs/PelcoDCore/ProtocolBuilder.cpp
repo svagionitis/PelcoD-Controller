@@ -207,6 +207,11 @@ std::vector<std::uint8_t> ProtocolBuilder::buildRemoteReset(std::uint8_t address
     return buildStandardCmd(address, CommandOpcode::RemoteReset);
 }
 
+std::vector<std::uint8_t> ProtocolBuilder::buildDummy(std::uint8_t address)
+{
+    return buildStandardCmd(address, CommandOpcode::Dummy);
+}
+
 std::vector<std::uint8_t> ProtocolBuilder::buildAutoFocus(std::uint8_t address, AutoMode mode)
 {
     return buildStandardCmd(address, CommandOpcode::AutoFocus, 0x00U, static_cast<std::uint8_t>(mode));
@@ -383,6 +388,15 @@ std::vector<std::uint8_t> ProtocolBuilder::buildStartDownload(std::uint8_t addre
 std::vector<std::uint8_t> ProtocolBuilder::buildEchoMode(std::uint8_t address)
 {
     return buildStandardCmd(address, CommandOpcode::EchoMode);
+}
+
+std::vector<std::uint8_t> ProtocolBuilder::buildScreenMove(
+    std::uint8_t address, std::int8_t panPercent, std::int8_t tiltPercent, bool relative)
+{
+    const std::uint8_t cmd1 = relative ? 0x01U : 0x00U;
+    const auto d1 = static_cast<std::uint8_t>(panPercent);
+    const auto d2 = static_cast<std::uint8_t>(tiltPercent);
+    return PelcoDFrame::createFrame(address, cmd1, static_cast<std::uint8_t>(CommandOpcode::ScreenMove), d1, d2);
 }
 
 } // namespace PelcoD

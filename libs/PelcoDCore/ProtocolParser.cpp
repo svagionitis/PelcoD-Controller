@@ -304,6 +304,15 @@ std::string ProtocolParser::describeFrame(bool isTx, const std::vector<std::uint
                 return std::string("Write Char '") + static_cast<char>(d2) + "' at Col " + std::to_string(d1);
             case 0x17U:
                 return "Clear Screen";
+            case 0x0DU:
+                return "Dummy / Ping";
+            case 0x79U: {
+                const auto panVal = static_cast<int>(static_cast<std::int8_t>(d1));
+                const auto tiltVal = static_cast<int>(static_cast<std::int8_t>(d2));
+                const std::string modeStr = (cmd1 == 0x01U) ? "Rel" : "Abs";
+                return "Screen Move (" + modeStr + ", Pan " + std::to_string(panVal) + "%, Tilt "
+                    + std::to_string(tiltVal) + "%)";
+            }
             case 0x67U:
                 return "Set Baud Rate";
             case 0x6FU:

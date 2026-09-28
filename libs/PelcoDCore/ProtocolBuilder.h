@@ -83,6 +83,11 @@ public:
 
     [[nodiscard]] static std::vector<std::uint8_t> buildRemoteReset(std::uint8_t address);
 
+    /// @brief Sends a dummy keep-alive NOP packet to the device (opcode 0x0D).
+    /// @param[in] address Device bus address (1-255).
+    /// @return 7-byte Pelco-D formatted vector.
+    [[nodiscard]] static std::vector<std::uint8_t> buildDummy(std::uint8_t address);
+
     [[nodiscard]] static std::vector<std::uint8_t> buildAutoFocus(std::uint8_t address, AutoMode mode);
 
     [[nodiscard]] static std::vector<std::uint8_t> buildAutoIris(std::uint8_t address, AutoMode mode);
@@ -165,6 +170,18 @@ public:
     /// @param[in] address Device bus address (1-255).
     /// @return 7-byte Pelco-D formatted vector.
     [[nodiscard]] static std::vector<std::uint8_t> buildEchoMode(std::uint8_t address);
+
+    /// @brief Commands screen coordinate repositioning (opcode 0x79).
+    /// @details Byte 3 holds 0x00 for absolute or 0x01 for relative screen moves.
+    ///          Bytes 5 and 6 contain signed 8-bit percentages (-100 to +100) from screen center.
+    ///          Positive values are right for pan and up for tilt per spec §5.61.
+    /// @param[in] address Device bus address (1-255).
+    /// @param[in] panPercent Signed percentage from center (-100 to 100, positive = right).
+    /// @param[in] tiltPercent Signed percentage from center (-100 to 100, positive = up).
+    /// @param[in] relative If true, move is relative to current screen position; if false, absolute.
+    /// @return 7-byte Pelco-D formatted vector.
+    [[nodiscard]] static std::vector<std::uint8_t> buildScreenMove(
+        std::uint8_t address, std::int8_t panPercent, std::int8_t tiltPercent, bool relative = false);
 };
 
 } // namespace PelcoD

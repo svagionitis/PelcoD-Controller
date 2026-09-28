@@ -41,6 +41,7 @@ enum class CommandOpcode : std::uint8_t {
     GoToPreset = 0x07U,
     SetAuxiliary = 0x09U,
     ClearAuxiliary = 0x0BU,
+    Dummy = 0x0DU,
     RemoteReset = 0x0FU,
     SetZoneStart = 0x11U,
     SetZoneEnd = 0x13U,
@@ -84,7 +85,8 @@ enum class CommandOpcode : std::uint8_t {
     SetBaudRate = 0x67U,
     StartDownload = 0x69U,
     QueryDeviceType = 0x6BU,
-    QueryDiagnostics = 0x6FU
+    QueryDiagnostics = 0x6FU,
+    ScreenMove = 0x79U
 };
 
 /// @enum ResponseOpcode

@@ -306,4 +306,79 @@ TEST(ProtocolCompletenessTest, PelcoDDevicePhase1Wrappers)
     EXPECT_EQ(sentFrames[5][3], static_cast<std::uint8_t>(PelcoD::CommandOpcode::ClearScreen));
 }
 
+/// @brief Verify builder and disassembly for Phase 2 standalone commands: Dummy (0x0D) and ScreenMove (0x79).
+TEST(ProtocolCompletenessTest, Phase2BuildersAndDisassembly)
+{
+    const std::uint8_t addr { 0x03U };
+
+    // 1. Dummy (opcode 0x0D)
+    const auto dummyFrame = PelcoD::ProtocolBuilder::buildDummy(addr);
+    ASSERT_TRUE(PelcoD::PelcoDFrame::isValidFrame(dummyFrame));
+    EXPECT_EQ(dummyFrame[1], addr);
+    EXPECT_EQ(dummyFrame[2], 0x00U);
+    EXPECT_EQ(dummyFrame[3], static_cast<std::uint8_t>(PelcoD::CommandOpcode::Dummy));
+    EXPECT_EQ(dummyFrame[4], 0x00U);
+    EXPECT_EQ(dummyFrame[5], 0x00U);
+    const std::string descDummy = PelcoD::ProtocolParser::describeFrame(true, dummyFrame);
+    EXPECT_NE(descDummy.find("Dummy / Ping"), std::string::npos) << "Got: " << descDummy;
+
+    // 2. ScreenMove Absolute (opcode 0x79, cmd1=0x00)
+    const auto screenAbs = PelcoD::ProtocolBuilder::buildScreenMove(addr, 50, -30, false);
+    ASSERT_TRUE(PelcoD::PelcoDFrame::isValidFrame(screenAbs));
+    EXPECT_EQ(screenAbs[1], addr);
+    EXPECT_EQ(screenAbs[2], 0x00U); // Abs
+    EXPECT_EQ(screenAbs[3], static_cast<std::uint8_t>(PelcoD::CommandOpcode::ScreenMove));
+    EXPECT_EQ(static_cast<std::int8_t>(screenAbs[4]), 50);
+    EXPECT_EQ(static_cast<std::int8_t>(screenAbs[5]), -30);
+    const std::string descAbs = PelcoD::ProtocolParser::describeFrame(true, screenAbs);
+    EXPECT_NE(descAbs.find("Screen Move (Abs, Pan 50%, Tilt -30%)"), std::string::npos) << "Got: " << descAbs;
+
+    // 3. ScreenMove Relative (opcode 0x79, cmd1=0x01)
+    const auto screenRel = PelcoD::ProtocolBuilder::buildScreenMove(addr, -25, 40, true);
+    ASSERT_TRUE(PelcoD::PelcoDFrame::isValidFrame(screenRel));
+    EXPECT_EQ(screenRel[1], addr);
+    EXPECT_EQ(screenRel[2], 0x01U); // Rel
+    EXPECT_EQ(screenRel[3], static_cast<std::uint8_t>(PelcoD::CommandOpcode::ScreenMove));
+    EXPECT_EQ(static_cast<std::int8_t>(screenRel[4]), -25);
+    EXPECT_EQ(static_cast<std::int8_t>(screenRel[5]), 40);
+    const std::string descRel = PelcoD::ProtocolParser::describeFrame(true, screenRel);
+    EXPECT_NE(descRel.find("Screen Move (Rel, Pan -25%, Tilt 40%)"), std::string::npos) << "Got: " << descRel;
+}
+
+/// @brief Verify PelcoDDevice high-level wrappers for Phase 2 commands.
+TEST(ProtocolCompletenessTest, PelcoDDevicePhase2Wrappers)
+{
+    auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(1U);
+    PelcoD::PelcoDDevice device(mock, 1U);
+
+    std::vector<std::vector<std::uint8_t>> sentFrames;
+    std::mutex mtx;
+    device.addTrafficCallback([&](bool isTx, const std::vector<std::uint8_t>& frame) {
+        if (isTx) {
+            std::scoped_lock lock(mtx);
+            sentFrames.push_back(frame);
+        }
+    });
+
+    ASSERT_TRUE(device.start());
+
+    device.sendDummy();
+    device.screenMove(-50, 75, true);
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(150));
+    device.stop();
+
+    std::scoped_lock lock(mtx);
+    ASSERT_GE(sentFrames.size(), 2U);
+
+    // Frame 0: Dummy (0x0D)
+    EXPECT_EQ(sentFrames[0][3], static_cast<std::uint8_t>(PelcoD::CommandOpcode::Dummy));
+
+    // Frame 1: Screen Move (0x79, cmd1=0x01 rel)
+    EXPECT_EQ(sentFrames[1][2], 0x01U);
+    EXPECT_EQ(sentFrames[1][3], static_cast<std::uint8_t>(PelcoD::CommandOpcode::ScreenMove));
+    EXPECT_EQ(static_cast<std::int8_t>(sentFrames[1][4]), -50);
+    EXPECT_EQ(static_cast<std::int8_t>(sentFrames[1][5]), 75);
+}
+
 } // namespace

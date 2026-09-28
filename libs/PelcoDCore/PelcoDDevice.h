@@ -242,6 +242,15 @@ public:
     /// @brief Clears on-screen display characters (opcode 0x17).
     void clearScreen();
 
+    /// @brief Sends a dummy keep-alive NOP packet to the device (opcode 0x0D).
+    void sendDummy();
+
+    /// @brief Commands screen coordinate repositioning (opcode 0x79).
+    /// @param[in] panPercent Signed percentage from center (-100 to 100, positive = right).
+    /// @param[in] tiltPercent Signed percentage from center (-100 to 100, positive = up).
+    /// @param[in] relative If true, move is relative to current screen position; if false, absolute.
+    void screenMove(std::int8_t panPercent, std::int8_t tiltPercent, bool relative = false);
+
     /// @brief Asynchronously queries current pan angle with timeout.
     /// @param[in] timeout Maximum wait duration.
     /// @return Future resolving to pan angle in centidegrees, or throwing std::runtime_error on failure/timeout.

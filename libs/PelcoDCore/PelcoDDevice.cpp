@@ -686,6 +686,16 @@ void PelcoDDevice::clearScreen()
     enqueueCommand(ProtocolBuilder::buildClearScreen(m_address));
 }
 
+void PelcoDDevice::sendDummy()
+{
+    enqueueCommand(ProtocolBuilder::buildDummy(m_address));
+}
+
+void PelcoDDevice::screenMove(std::int8_t panPercent, std::int8_t tiltPercent, bool relative)
+{
+    enqueueCommand(ProtocolBuilder::buildScreenMove(m_address, panPercent, tiltPercent, relative));
+}
+
 namespace {
 
     template <typename ResultT, typename Extractor>
