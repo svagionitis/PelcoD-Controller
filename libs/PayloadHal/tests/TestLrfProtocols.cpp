@@ -2,6 +2,7 @@
 /// @brief Unit tests for NMEA, ASCII, and Binary LRF wire protocol parsers.
 
 #include "adapters/LrfProtocols.h"
+#include <clocale>
 #include <gtest/gtest.h>
 
 using namespace PayloadHal;
@@ -174,10 +175,7 @@ TEST(TestLrfProtocols, BinaryParseEchoReport)
     // Dist: 1500000 mm = 1500.0 m (0x0016E360)
     // Quality: 240
     // Temp: 28 C
-    std::vector<uint8_t> frame = {
-        0xAA, 0x55, 0x10, 0x07,
-        0x00, 0x00, 0x16, 0xE3, 0x60, 240, 28
-    };
+    std::vector<uint8_t> frame = { 0xAA, 0x55, 0x10, 0x07, 0x00, 0x00, 0x16, 0xE3, 0x60, 240, 28 };
     const uint16_t crc = BinaryLrfParser::computeCrc16(frame.data(), frame.size());
     frame.push_back(static_cast<uint8_t>((crc >> 8) & 0xFF));
     frame.push_back(static_cast<uint8_t>(crc & 0xFF));
@@ -194,9 +192,7 @@ TEST(TestLrfProtocols, BinaryCrcCorruptionRejection)
 {
     BinaryLrfParser parser;
     std::vector<uint8_t> frame = {
-        0xAA, 0x55, 0x10, 0x07,
-        0x00, 0x00, 0x16, 0xE3, 0x60, 240, 28,
-        0xDE, 0xAD // Invalid CRC
+        0xAA, 0x55, 0x10, 0x07, 0x00, 0x00, 0x16, 0xE3, 0x60, 240, 28, 0xDE, 0xAD // Invalid CRC
     };
 
     auto results = parser.parseIncomingBytes(frame.data(), frame.size());
@@ -223,4 +219,43 @@ TEST(TestLrfProtocols, BinaryCommands)
     EXPECT_EQ(cont[2], BinaryLrfParser::kCmdContinuous);
     EXPECT_EQ(cont[3], 1);
     EXPECT_EQ(cont[4], 10);
+}
+
+TEST(TestLrfProtocols, LocaleIndependenceUnderCommaDecimalPoint)
+{
+    // Save current locale
+    const char* originalLocale = std::setlocale(LC_ALL, nullptr);
+    std::string savedLocale = originalLocale ? originalLocale : "C";
+
+    // Set locale where decimal separator is ',' (e.g. Greek, German)
+    if (std::setlocale(LC_ALL, "el_GR.utf8") == nullptr) {
+        GTEST_SKIP() << "el_GR.utf8 locale not available on system, skipping test";
+    }
+
+    struct LocaleGuard {
+        std::string loc;
+        ~LocaleGuard()
+        {
+            std::setlocale(LC_ALL, loc.c_str());
+        }
+    } guard { savedLocale };
+
+    // 1. Test NMEA parsing under comma locale
+    NmeaLrfParser nmeaParser;
+    const std::string nmeaMsg = NmeaLrfParser::formatNmeaSentence("GPLRF,1250.50,M,OK");
+    auto nmeaResults = nmeaParser.parseIncomingBytes(reinterpret_cast<const uint8_t*>(nmeaMsg.data()), nmeaMsg.size());
+
+    ASSERT_EQ(nmeaResults.size(), 1U);
+    EXPECT_TRUE(nmeaResults[0].valid);
+    EXPECT_NEAR(nmeaResults[0].slantRangeMeters, 1250.50, 0.001);
+
+    // 2. Test ASCII parsing under comma locale
+    AsciiLrfParser asciiParser;
+    const std::string asciiMsg = "R: 1420.75\r\n";
+    auto asciiResults
+        = asciiParser.parseIncomingBytes(reinterpret_cast<const uint8_t*>(asciiMsg.data()), asciiMsg.size());
+
+    ASSERT_EQ(asciiResults.size(), 1U);
+    EXPECT_TRUE(asciiResults[0].valid);
+    EXPECT_NEAR(asciiResults[0].slantRangeMeters, 1420.75, 0.001);
 }

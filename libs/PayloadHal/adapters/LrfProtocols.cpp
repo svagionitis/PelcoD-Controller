@@ -5,8 +5,8 @@
 
 #include <algorithm>
 #include <cctype>
-#include <iomanip>
-#include <sstream>
+#include <charconv>
+#include <string_view>
 
 namespace PayloadHal {
 
@@ -25,12 +25,37 @@ namespace {
     std::vector<std::string> splitTokens(const std::string& str, char delim)
     {
         std::vector<std::string> tokens;
-        std::stringstream ss(str);
-        std::string item;
-        while (std::getline(ss, item, delim)) {
-            tokens.push_back(trimString(item));
+        std::size_t start = 0;
+        while (start <= str.size()) {
+            const auto end = str.find(delim, start);
+            if (end == std::string::npos) {
+                tokens.push_back(trimString(str.substr(start)));
+                break;
+            }
+            tokens.push_back(trimString(str.substr(start, end - start)));
+            start = end + 1;
         }
         return tokens;
+    }
+
+    bool parseDoubleLocaleIndependent(std::string_view str, double& outVal) noexcept
+    {
+        const auto first = str.find_first_not_of(" \t\r\n");
+        if (first == std::string_view::npos) {
+            return false;
+        }
+        const auto last = str.find_last_not_of(" \t\r\n");
+        str = str.substr(first, last - first + 1);
+
+        if (!str.empty() && str.front() == '+') {
+            str.remove_prefix(1);
+        }
+        if (str.empty()) {
+            return false;
+        }
+
+        auto [ptr, ec] = std::from_chars(str.data(), str.data() + str.size(), outVal);
+        return (ec == std::errc {} && ptr == str.data() + str.size());
     }
 
 } // namespace
@@ -58,10 +83,16 @@ std::uint8_t NmeaLrfParser::computeNmeaChecksum(const std::string& sentence)
 std::string NmeaLrfParser::formatNmeaSentence(const std::string& body)
 {
     const std::uint8_t cs = computeNmeaChecksum(body);
-    std::ostringstream ss;
-    ss << "$" << body << "*" << std::uppercase << std::hex << std::setfill('0') << std::setw(2) << static_cast<int>(cs)
-       << "\r\n";
-    return ss.str();
+    constexpr char kHexDigits[] = "0123456789ABCDEF";
+    std::string result;
+    result.reserve(1 + body.size() + 1 + 2 + 2);
+    result.push_back('$');
+    result.append(body);
+    result.push_back('*');
+    result.push_back(kHexDigits[(cs >> 4) & 0x0F]);
+    result.push_back(kHexDigits[cs & 0x0F]);
+    result.append("\r\n");
+    return result;
 }
 
 std::vector<LrfTargetMeasurement> NmeaLrfParser::parseIncomingBytes(const std::uint8_t* data, std::size_t length)
@@ -95,15 +126,14 @@ std::vector<LrfTargetMeasurement> NmeaLrfParser::parseIncomingBytes(const std::u
             continue;
         }
 
-        int expectedCs = 0;
-        try {
-            expectedCs = std::stoi(csStr, nullptr, 16);
-        } catch (...) {
+        std::uint8_t expectedCs = 0;
+        const auto [pCs, ecCs] = std::from_chars(csStr.data(), csStr.data() + csStr.size(), expectedCs, 16);
+        if (ecCs != std::errc {} || pCs != csStr.data() + csStr.size()) {
             continue;
         }
 
         const std::uint8_t calculatedCs = computeNmeaChecksum(body);
-        if (calculatedCs != static_cast<std::uint8_t>(expectedCs)) {
+        if (calculatedCs != expectedCs) {
             continue; // Checksum failure
         }
 
@@ -123,8 +153,7 @@ std::vector<LrfTargetMeasurement> NmeaLrfParser::parseIncomingBytes(const std::u
         // Pattern 1: $GPLRF,<dist>,<unit>,<status>
         // e.g. $GPLRF,1250.50,M,OK*2C
         if (tokens.size() >= 3 && (tokens[2] == "M" || tokens[2] == "FT" || tokens[2] == "m")) {
-            try {
-                distanceMeters = std::stod(tokens[1]);
+            if (parseDoubleLocaleIndependent(tokens[1], distanceMeters)) {
                 if (tokens[2] == "FT") {
                     distanceMeters *= 0.3048;
                 }
@@ -132,26 +161,18 @@ std::vector<LrfTargetMeasurement> NmeaLrfParser::parseIncomingBytes(const std::u
                 if (tokens.size() >= 4 && (tokens[3] == "FAIL" || tokens[3] == "ERR" || tokens[3] == "NO_TARGET")) {
                     valid = false;
                 }
-            } catch (...) {
-                valid = false;
             }
         }
         // Pattern 2: $PLRF,D,<dist>
         else if (tokens.size() >= 3 && tokens[1] == "D") {
-            try {
-                distanceMeters = std::stod(tokens[2]);
+            if (parseDoubleLocaleIndependent(tokens[2], distanceMeters)) {
                 valid = (distanceMeters > 0.0);
-            } catch (...) {
-                valid = false;
             }
         }
         // Pattern 3: $GPLRF,<dist>
         else if (tokens.size() >= 2) {
-            try {
-                distanceMeters = std::stod(tokens[1]);
+            if (parseDoubleLocaleIndependent(tokens[1], distanceMeters)) {
                 valid = (distanceMeters > 0.0);
-            } catch (...) {
-                valid = false;
             }
         }
 
@@ -239,7 +260,8 @@ std::vector<LrfTargetMeasurement> AsciiLrfParser::parseIncomingBytes(const std::
         }
 
         std::string upperLine = line;
-        std::transform(upperLine.begin(), upperLine.end(), upperLine.begin(), ::toupper);
+        std::transform(upperLine.begin(), upperLine.end(), upperLine.begin(),
+            [](unsigned char c) { return static_cast<char>(std::toupper(c)); });
 
         bool valid = false;
         double distanceMeters = 0.0;
@@ -264,11 +286,8 @@ std::vector<LrfTargetMeasurement> AsciiLrfParser::parseIncomingBytes(const std::
                 numPart = trimString(numPart);
             }
 
-            try {
-                distanceMeters = std::stod(numPart);
+            if (parseDoubleLocaleIndependent(numPart, distanceMeters)) {
                 valid = (distanceMeters > 0.0);
-            } catch (...) {
-                valid = false;
             }
         }
 
@@ -348,6 +367,7 @@ std::uint16_t BinaryLrfParser::computeCrc16(const std::uint8_t* data, std::size_
 }
 
 namespace {
+
     std::vector<std::uint8_t> buildBinaryPacket(std::uint8_t cmd, const std::vector<std::uint8_t>& payload)
     {
         std::vector<std::uint8_t> packet;
@@ -363,6 +383,7 @@ namespace {
         packet.push_back(static_cast<std::uint8_t>(crc & 0xFF));
         return packet;
     }
+
 } // namespace
 
 std::vector<LrfTargetMeasurement> BinaryLrfParser::parseIncomingBytes(const std::uint8_t* data, std::size_t length)
