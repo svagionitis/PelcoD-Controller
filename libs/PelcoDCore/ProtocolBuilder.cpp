@@ -141,6 +141,11 @@ std::vector<std::uint8_t> ProtocolBuilder::buildZeroPan(std::uint8_t address)
     return buildGoToPreset(address, 0x22U);
 }
 
+std::vector<std::uint8_t> ProtocolBuilder::buildPresetScan(std::uint8_t address, std::uint8_t dwellSeconds)
+{
+    return buildStandardCmd(address, CommandOpcode::PresetScan, 0x00U, dwellSeconds);
+}
+
 std::vector<std::uint8_t> ProtocolBuilder::buildSetAux(std::uint8_t address, std::uint8_t auxId)
 {
     return buildStandardCmd(address, CommandOpcode::SetAuxiliary, 0x00U, auxId);
@@ -363,6 +368,21 @@ std::vector<std::uint8_t> ProtocolBuilder::buildAlarmAck(std::uint8_t address, s
 std::vector<std::uint8_t> ProtocolBuilder::buildQueryDiagnostics(std::uint8_t address)
 {
     return buildStandardCmd(address, CommandOpcode::QueryDiagnostics);
+}
+
+std::vector<std::uint8_t> ProtocolBuilder::buildPrepareForDownload(std::uint8_t address)
+{
+    return buildStandardCmd(address, CommandOpcode::PrepareForDownload);
+}
+
+std::vector<std::uint8_t> ProtocolBuilder::buildStartDownload(std::uint8_t address)
+{
+    return buildStandardCmd(address, CommandOpcode::StartDownload);
+}
+
+std::vector<std::uint8_t> ProtocolBuilder::buildEchoMode(std::uint8_t address)
+{
+    return buildStandardCmd(address, CommandOpcode::EchoMode);
 }
 
 } // namespace PelcoD

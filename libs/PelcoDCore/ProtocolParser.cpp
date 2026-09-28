@@ -251,7 +251,7 @@ std::string ProtocolParser::describeFrame(bool isTx, const std::vector<std::uint
                 if ((cmd2 & 0x80U) != 0U) {
                     acts.push_back("FocusFar");
                 }
-                if ((cmd1 & 0x08U) != 0U) {
+                if ((cmd1 & 0x02U) != 0U) {
                     acts.push_back("IrisOpen");
                 }
                 if ((cmd1 & 0x04U) != 0U) {
@@ -292,6 +292,18 @@ std::string ProtocolParser::describeFrame(bool isTx, const std::vector<std::uint
                 return "Query Zoom Position";
             case 0x61U:
                 return "Query Magnification";
+            case 0x47U:
+                return "Preset Scan (Dwell " + std::to_string(d2) + "s)";
+            case 0x57U:
+                return "Prepare For Download";
+            case 0x65U:
+                return "Activate Echo Mode";
+            case 0x69U:
+                return "Start Download";
+            case 0x15U:
+                return std::string("Write Char '") + static_cast<char>(d2) + "' at Col " + std::to_string(d1);
+            case 0x17U:
+                return "Clear Screen";
             case 0x67U:
                 return "Set Baud Rate";
             case 0x6FU:

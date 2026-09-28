@@ -471,6 +471,11 @@ void PelcoDDevice::zeroPan()
     enqueueCommand(ProtocolBuilder::buildZeroPan(m_address));
 }
 
+void PelcoDDevice::presetScan(std::uint8_t dwellSeconds)
+{
+    enqueueCommand(ProtocolBuilder::buildPresetScan(m_address, dwellSeconds));
+}
+
 void PelcoDDevice::setAuxiliary(std::uint8_t auxId)
 {
     enqueueCommand(ProtocolBuilder::buildSetAux(m_address, auxId));
@@ -654,6 +659,31 @@ void PelcoDDevice::queryAll()
     queryMagnification();
     queryDeviceType();
     queryGeneral();
+}
+
+void PelcoDDevice::activateEchoMode()
+{
+    enqueueCommand(ProtocolBuilder::buildEchoMode(m_address));
+}
+
+void PelcoDDevice::prepareForDownload()
+{
+    enqueueCommand(ProtocolBuilder::buildPrepareForDownload(m_address));
+}
+
+void PelcoDDevice::startDownload()
+{
+    enqueueCommand(ProtocolBuilder::buildStartDownload(m_address));
+}
+
+void PelcoDDevice::writeCharacter(std::uint8_t column, char asciiChar)
+{
+    enqueueCommand(ProtocolBuilder::buildWriteChar(m_address, column, asciiChar));
+}
+
+void PelcoDDevice::clearScreen()
+{
+    enqueueCommand(ProtocolBuilder::buildClearScreen(m_address));
 }
 
 namespace {

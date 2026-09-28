@@ -177,6 +177,10 @@ public:
     void flip180();
     void zeroPan();
 
+    /// @brief Initiates a preset scan touring defined presets with dwell time (opcode 0x47).
+    /// @param[in] dwellSeconds Time in seconds to dwell at each visited preset.
+    void presetScan(std::uint8_t dwellSeconds);
+
     // Auxiliaries & Zones
     void setAuxiliary(std::uint8_t auxId);
     void clearAuxiliary(std::uint8_t auxId);
@@ -220,6 +224,23 @@ public:
     void queryGeneral();
     void queryDiagnostics();
     void queryAll();
+
+    /// @brief Activates RS-485 loopback echo mode for diagnostic testing (opcode 0x65).
+    void activateEchoMode();
+
+    /// @brief Prepares the remote device for firmware download (opcode 0x57).
+    void prepareForDownload();
+
+    /// @brief Instructs the remote device to start firmware download data reception (opcode 0x69).
+    void startDownload();
+
+    /// @brief Writes a single ASCII character to the on-screen display (opcode 0x15).
+    /// @param[in] column Screen column index (0-39).
+    /// @param[in] asciiChar Printable ASCII character.
+    void writeCharacter(std::uint8_t column, char asciiChar);
+
+    /// @brief Clears on-screen display characters (opcode 0x17).
+    void clearScreen();
 
     /// @brief Asynchronously queries current pan angle with timeout.
     /// @param[in] timeout Maximum wait duration.

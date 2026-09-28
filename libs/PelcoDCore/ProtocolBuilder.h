@@ -50,6 +50,12 @@ public:
 
     [[nodiscard]] static std::vector<std::uint8_t> buildZeroPan(std::uint8_t address);
 
+    /// @brief Initiates a preset scan touring defined presets with dwell time (opcode 0x47).
+    /// @param[in] address Device bus address (1-255).
+    /// @param[in] dwellSeconds Time in seconds to dwell at each visited preset.
+    /// @return 7-byte Pelco-D formatted vector.
+    [[nodiscard]] static std::vector<std::uint8_t> buildPresetScan(std::uint8_t address, std::uint8_t dwellSeconds);
+
     // Auxiliaries & Zones
     [[nodiscard]] static std::vector<std::uint8_t> buildSetAux(std::uint8_t address, std::uint8_t auxId);
 
@@ -144,6 +150,21 @@ public:
 
     /// @brief Requests diagnostic information from device (opcode 0x6F).
     [[nodiscard]] static std::vector<std::uint8_t> buildQueryDiagnostics(std::uint8_t address);
+
+    /// @brief Prepares device to receive a firmware download (opcode 0x57).
+    /// @param[in] address Device bus address (1-255).
+    /// @return 7-byte Pelco-D formatted vector.
+    [[nodiscard]] static std::vector<std::uint8_t> buildPrepareForDownload(std::uint8_t address);
+
+    /// @brief Instructs device to start firmware download data reception (opcode 0x69).
+    /// @param[in] address Device bus address (1-255).
+    /// @return 7-byte Pelco-D formatted vector.
+    [[nodiscard]] static std::vector<std::uint8_t> buildStartDownload(std::uint8_t address);
+
+    /// @brief Activates RS-485 loopback echo mode for diagnostic testing (opcode 0x65).
+    /// @param[in] address Device bus address (1-255).
+    /// @return 7-byte Pelco-D formatted vector.
+    [[nodiscard]] static std::vector<std::uint8_t> buildEchoMode(std::uint8_t address);
 };
 
 } // namespace PelcoD

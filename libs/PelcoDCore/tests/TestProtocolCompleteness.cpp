@@ -4,6 +4,8 @@
 #include "DeviceStatus.h"
 #include "PelcoDFrame.h"
 #include "PelcoDTypes.h"
+#include "PelcoDDevice.h"
+#include "MockPelcoDDevice.h"
 #include "ProtocolBuilder.h"
 #include "ProtocolParser.h"
 #include "TestHelpers.h"
@@ -194,6 +196,114 @@ TEST(ProtocolCompletenessTest, DeviceStatusAlarmBits)
 
     status.tiltCentidegrees = 1234U;
     EXPECT_DOUBLE_EQ(status.tiltDegrees(), 12.34);
+}
+
+/// @brief Verify describeFrame correctly parses IrisOpen and IrisClose actions.
+/// @details TDD regression test exposing bug where IrisOpen bit was tested with 0x08 instead of 0x02.
+TEST(ProtocolCompletenessTest, DescribeFrameIrisOpenAndClose)
+{
+    const auto openFrame = PelcoD::ProtocolBuilder::buildIris(1U, PelcoD::IrisAction::Open);
+    const auto closeFrame = PelcoD::ProtocolBuilder::buildIris(1U, PelcoD::IrisAction::Close);
+
+    const std::string descOpen = PelcoD::ProtocolParser::describeFrame(true, openFrame);
+    const std::string descClose = PelcoD::ProtocolParser::describeFrame(true, closeFrame);
+
+    EXPECT_NE(descOpen.find("IrisOpen"), std::string::npos) << "Got: " << descOpen;
+    EXPECT_NE(descClose.find("IrisClose"), std::string::npos) << "Got: " << descClose;
+}
+
+/// @brief Verify builder and disassembly for Phase 1 extended commands: PresetScan, Download, EchoMode.
+TEST(ProtocolCompletenessTest, Phase1BuildersAndDisassembly)
+{
+    const std::uint8_t addr { 0x02U };
+
+    // 1. PresetScan (opcode 0x47, data2 = dwell)
+    const auto scanFrame = PelcoD::ProtocolBuilder::buildPresetScan(addr, 5U);
+    ASSERT_TRUE(PelcoD::PelcoDFrame::isValidFrame(scanFrame));
+    EXPECT_EQ(scanFrame[1], addr);
+    EXPECT_EQ(scanFrame[2], 0x00U);
+    EXPECT_EQ(scanFrame[3], static_cast<std::uint8_t>(PelcoD::CommandOpcode::PresetScan));
+    EXPECT_EQ(scanFrame[4], 0x00U);
+    EXPECT_EQ(scanFrame[5], 5U);
+    const std::string descScan = PelcoD::ProtocolParser::describeFrame(true, scanFrame);
+    EXPECT_NE(descScan.find("Preset Scan"), std::string::npos) << "Got: " << descScan;
+    EXPECT_NE(descScan.find("5s"), std::string::npos) << "Got: " << descScan;
+
+    // 2. PrepareForDownload (opcode 0x57)
+    const auto prepFrame = PelcoD::ProtocolBuilder::buildPrepareForDownload(addr);
+    ASSERT_TRUE(PelcoD::PelcoDFrame::isValidFrame(prepFrame));
+    EXPECT_EQ(prepFrame[3], static_cast<std::uint8_t>(PelcoD::CommandOpcode::PrepareForDownload));
+    const std::string descPrep = PelcoD::ProtocolParser::describeFrame(true, prepFrame);
+    EXPECT_NE(descPrep.find("Prepare For Download"), std::string::npos) << "Got: " << descPrep;
+
+    // 3. StartDownload (opcode 0x69)
+    const auto startFrame = PelcoD::ProtocolBuilder::buildStartDownload(addr);
+    ASSERT_TRUE(PelcoD::PelcoDFrame::isValidFrame(startFrame));
+    EXPECT_EQ(startFrame[3], static_cast<std::uint8_t>(PelcoD::CommandOpcode::StartDownload));
+    const std::string descStart = PelcoD::ProtocolParser::describeFrame(true, startFrame);
+    EXPECT_NE(descStart.find("Start Download"), std::string::npos) << "Got: " << descStart;
+
+    // 4. EchoMode (opcode 0x65)
+    const auto echoFrame = PelcoD::ProtocolBuilder::buildEchoMode(addr);
+    ASSERT_TRUE(PelcoD::PelcoDFrame::isValidFrame(echoFrame));
+    EXPECT_EQ(echoFrame[3], static_cast<std::uint8_t>(PelcoD::CommandOpcode::EchoMode));
+    const std::string descEcho = PelcoD::ProtocolParser::describeFrame(true, echoFrame);
+    EXPECT_NE(descEcho.find("Activate Echo Mode"), std::string::npos) << "Got: " << descEcho;
+
+    // 5. OSD WriteChar and ClearScreen disassembly
+    const auto writeCharFrame = PelcoD::ProtocolBuilder::buildWriteChar(addr, 10U, 'A');
+    ASSERT_TRUE(PelcoD::PelcoDFrame::isValidFrame(writeCharFrame));
+    const std::string descChar = PelcoD::ProtocolParser::describeFrame(true, writeCharFrame);
+    EXPECT_NE(descChar.find("Write Char 'A' at Col 10"), std::string::npos) << "Got: " << descChar;
+
+    const auto clearScreenFrame = PelcoD::ProtocolBuilder::buildClearScreen(addr);
+    ASSERT_TRUE(PelcoD::PelcoDFrame::isValidFrame(clearScreenFrame));
+    const std::string descClear = PelcoD::ProtocolParser::describeFrame(true, clearScreenFrame);
+    EXPECT_NE(descClear.find("Clear Screen"), std::string::npos) << "Got: " << descClear;
+}
+
+/// @brief Verify PelcoDDevice high-level wrappers for Phase 1 commands.
+TEST(ProtocolCompletenessTest, PelcoDDevicePhase1Wrappers)
+{
+    auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(1U);
+    PelcoD::PelcoDDevice device(mock, 1U);
+
+    std::vector<std::vector<std::uint8_t>> sentFrames;
+    std::mutex mtx;
+    device.addTrafficCallback([&](bool isTx, const std::vector<std::uint8_t>& frame) {
+        if (isTx) {
+            std::scoped_lock lock(mtx);
+            sentFrames.push_back(frame);
+        }
+    });
+
+    ASSERT_TRUE(device.start());
+
+    device.presetScan(10U);
+    device.prepareForDownload();
+    device.startDownload();
+    device.activateEchoMode();
+    device.writeCharacter(5U, 'X');
+    device.clearScreen();
+
+    // Allow queue to dispatch commands
+    std::this_thread::sleep_for(std::chrono::milliseconds(250));
+
+    device.stop();
+
+    std::scoped_lock lock(mtx);
+    ASSERT_GE(sentFrames.size(), 6U);
+
+    // Verify opcodes of the sent frames
+    EXPECT_EQ(sentFrames[0][3], static_cast<std::uint8_t>(PelcoD::CommandOpcode::PresetScan));
+    EXPECT_EQ(sentFrames[0][5], 10U);
+    EXPECT_EQ(sentFrames[1][3], static_cast<std::uint8_t>(PelcoD::CommandOpcode::PrepareForDownload));
+    EXPECT_EQ(sentFrames[2][3], static_cast<std::uint8_t>(PelcoD::CommandOpcode::StartDownload));
+    EXPECT_EQ(sentFrames[3][3], static_cast<std::uint8_t>(PelcoD::CommandOpcode::EchoMode));
+    EXPECT_EQ(sentFrames[4][3], static_cast<std::uint8_t>(PelcoD::CommandOpcode::WriteCharacter));
+    EXPECT_EQ(sentFrames[4][4], 5U);
+    EXPECT_EQ(sentFrames[4][5], static_cast<std::uint8_t>('X'));
+    EXPECT_EQ(sentFrames[5][3], static_cast<std::uint8_t>(PelcoD::CommandOpcode::ClearScreen));
 }
 
 } // namespace
