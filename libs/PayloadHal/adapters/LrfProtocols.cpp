@@ -12,23 +12,26 @@ namespace PayloadHal {
 
 namespace {
 
-    std::string trimString(const std::string& str)
+    std::string trimString(std::string_view str)
     {
         const auto first = str.find_first_not_of(" \t\r\n");
-        if (first == std::string::npos) {
+        if (first == std::string_view::npos) {
             return {};
         }
         const auto last = str.find_last_not_of(" \t\r\n");
-        return str.substr(first, (last - first + 1));
+        return std::string(str.substr(first, (last - first + 1)));
     }
 
-    std::vector<std::string> splitTokens(const std::string& str, char delim)
+    std::vector<std::string> splitTokens(std::string_view str, char delim)
     {
         std::vector<std::string> tokens;
+        if (str.empty()) {
+            return tokens;
+        }
         std::size_t start = 0;
         while (start <= str.size()) {
             const auto end = str.find(delim, start);
-            if (end == std::string::npos) {
+            if (end == std::string_view::npos) {
                 tokens.push_back(trimString(str.substr(start)));
                 break;
             }
@@ -95,6 +98,11 @@ std::string NmeaLrfParser::formatNmeaSentence(const std::string& body)
     return result;
 }
 
+std::vector<std::string> NmeaLrfParser::splitTokens(std::string_view str, char delim)
+{
+    return ::PayloadHal::splitTokens(str, delim);
+}
+
 std::vector<LrfTargetMeasurement> NmeaLrfParser::parseIncomingBytes(const std::uint8_t* data, std::size_t length)
 {
     std::vector<LrfTargetMeasurement> results;
@@ -150,29 +158,35 @@ std::vector<LrfTargetMeasurement> NmeaLrfParser::parseIncomingBytes(const std::u
         double distanceMeters = 0.0;
         bool valid = false;
 
+        // Check if any subsequent token indicates failure or error status
+        bool hasError = false;
+        for (std::size_t i = 1; i < tokens.size(); ++i) {
+            if (tokens[i] == "FAIL" || tokens[i] == "ERR" || tokens[i] == "NO_TARGET") {
+                hasError = true;
+                break;
+            }
+        }
+
         // Pattern 1: $GPLRF,<dist>,<unit>,<status>
-        // e.g. $GPLRF,1250.50,M,OK*2C
+        // e.g. $GPLRF,1250.50,M,OK*2C or $GPLRF,1250.50,M,*2C
         if (tokens.size() >= 3 && (tokens[2] == "M" || tokens[2] == "FT" || tokens[2] == "m")) {
             if (parseDoubleLocaleIndependent(tokens[1], distanceMeters)) {
                 if (tokens[2] == "FT") {
                     distanceMeters *= 0.3048;
                 }
-                valid = (distanceMeters > 0.0);
-                if (tokens.size() >= 4 && (tokens[3] == "FAIL" || tokens[3] == "ERR" || tokens[3] == "NO_TARGET")) {
-                    valid = false;
-                }
+                valid = (distanceMeters > 0.0 && !hasError);
             }
         }
         // Pattern 2: $PLRF,D,<dist>
         else if (tokens.size() >= 3 && tokens[1] == "D") {
             if (parseDoubleLocaleIndependent(tokens[2], distanceMeters)) {
-                valid = (distanceMeters > 0.0);
+                valid = (distanceMeters > 0.0 && !hasError);
             }
         }
-        // Pattern 3: $GPLRF,<dist>
+        // Pattern 3: $GPLRF,<dist> (or $GPLRF,<dist>,,<status>)
         else if (tokens.size() >= 2) {
             if (parseDoubleLocaleIndependent(tokens[1], distanceMeters)) {
-                valid = (distanceMeters > 0.0);
+                valid = (distanceMeters > 0.0 && !hasError);
             }
         }
 

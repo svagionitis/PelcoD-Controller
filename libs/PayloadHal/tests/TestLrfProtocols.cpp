@@ -259,3 +259,66 @@ TEST(TestLrfProtocols, LocaleIndependenceUnderCommaDecimalPoint)
     EXPECT_TRUE(asciiResults[0].valid);
     EXPECT_NEAR(asciiResults[0].slantRangeMeters, 1420.75, 0.001);
 }
+
+TEST(TestLrfProtocols, SplitTokensEmptyFieldHandling)
+{
+    // Empty input string must yield an empty vector of tokens
+    EXPECT_TRUE(NmeaLrfParser::splitTokens("", ',').empty());
+
+    // Single delimiter yields two empty fields
+    const auto twoEmpty = NmeaLrfParser::splitTokens(",", ',');
+    ASSERT_EQ(twoEmpty.size(), 2U);
+    EXPECT_EQ(twoEmpty[0], "");
+    EXPECT_EQ(twoEmpty[1], "");
+
+    // Multiple consecutive delimiters preserve empty fields
+    const auto threeEmpty = NmeaLrfParser::splitTokens(",,", ',');
+    ASSERT_EQ(threeEmpty.size(), 3U);
+    EXPECT_EQ(threeEmpty[0], "");
+    EXPECT_EQ(threeEmpty[1], "");
+    EXPECT_EQ(threeEmpty[2], "");
+
+    // Leading and trailing empty fields
+    const auto edgeTokens = NmeaLrfParser::splitTokens(",1250.50,", ',');
+    ASSERT_EQ(edgeTokens.size(), 3U);
+    EXPECT_EQ(edgeTokens[0], "");
+    EXPECT_EQ(edgeTokens[1], "1250.50");
+    EXPECT_EQ(edgeTokens[2], "");
+
+    // Intermediate empty and whitespace-only fields trimmed to empty
+    const auto tokens = NmeaLrfParser::splitTokens("GPLRF, 1250.50 ,   , M , ", ',');
+    ASSERT_EQ(tokens.size(), 5U);
+    EXPECT_EQ(tokens[0], "GPLRF");
+    EXPECT_EQ(tokens[1], "1250.50");
+    EXPECT_EQ(tokens[2], "");
+    EXPECT_EQ(tokens[3], "M");
+    EXPECT_EQ(tokens[4], "");
+}
+
+TEST(TestLrfProtocols, NmeaParseOmittedFields)
+{
+    NmeaLrfParser parser;
+
+    // 1. Trailing comma with status omitted: should still succeed and parse range
+    const std::string msgWithTrailingComma = NmeaLrfParser::formatNmeaSentence("GPLRF,1250.50,M,");
+    auto res1 = parser.parseIncomingBytes(
+        reinterpret_cast<const uint8_t*>(msgWithTrailingComma.data()), msgWithTrailingComma.size());
+    ASSERT_EQ(res1.size(), 1U);
+    EXPECT_TRUE(res1[0].valid);
+    EXPECT_NEAR(res1[0].slantRangeMeters, 1250.50, 0.001);
+
+    // 2. Empty distance with error status: should produce valid=false measurement
+    const std::string msgEmptyDist = NmeaLrfParser::formatNmeaSentence("GPLRF,,M,ERR");
+    auto res2 = parser.parseIncomingBytes(reinterpret_cast<const uint8_t*>(msgEmptyDist.data()), msgEmptyDist.size());
+    ASSERT_EQ(res2.size(), 1U);
+    EXPECT_FALSE(res2[0].valid);
+    EXPECT_EQ(res2[0].slantRangeMeters, 0.0);
+
+    // 3. Unit omitted: should fall back and still parse distance
+    const std::string msgOmittedUnit = NmeaLrfParser::formatNmeaSentence("GPLRF,800.25,,OK");
+    auto res3
+        = parser.parseIncomingBytes(reinterpret_cast<const uint8_t*>(msgOmittedUnit.data()), msgOmittedUnit.size());
+    ASSERT_EQ(res3.size(), 1U);
+    EXPECT_TRUE(res3[0].valid);
+    EXPECT_NEAR(res3[0].slantRangeMeters, 800.25, 0.001);
+}

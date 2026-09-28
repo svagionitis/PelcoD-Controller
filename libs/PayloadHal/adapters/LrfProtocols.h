@@ -10,6 +10,7 @@
 #include <cstdint>
 #include <memory>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace PayloadHal {
@@ -17,9 +18,9 @@ namespace PayloadHal {
 /// @enum LrfProtocolType
 /// @brief Supported hardware framing protocols for serial/stream Laser Range Finders.
 enum class LrfProtocolType : std::uint8_t {
-    Nmea,   ///< NMEA-0183 ASCII standard ($GPLRF, $PLRF sentences with checksum)
-    Ascii,  ///< Delimited human-readable ASCII text (e.g. "R: 1250.5\r\n")
-    Binary  ///< Framed binary packet with header, length, payload, and CRC-16
+    Nmea, ///< NMEA-0183 ASCII standard ($GPLRF, $PLRF sentences with checksum)
+    Ascii, ///< Delimited human-readable ASCII text (e.g. "R: 1250.5\r\n")
+    Binary ///< Framed binary packet with header, length, payload, and CRC-16
 };
 
 /// @struct SerialLrfConfig
@@ -29,19 +30,19 @@ struct SerialLrfConfig {
 
     // --- Safety Interlocks & Watchdog ---
     std::chrono::milliseconds autoDisarmTimeout { 30000 }; ///< Inactivity timeout to auto-disarm (ANSI Z136 eye-safety)
-    bool enforceArmingInterlock { true };                  ///< If true, reject fire commands when !isArmed()
+    bool enforceArmingInterlock { true }; ///< If true, reject fire commands when !isArmed()
 
     // --- Range Gating Filters ---
-    double minRangeMeters { 0.5 };     ///< Minimum distance threshold (meters) to reject near-field backscatter
+    double minRangeMeters { 0.5 }; ///< Minimum distance threshold (meters) to reject near-field backscatter
     double maxRangeMeters { 30000.0 }; ///< Maximum operational range threshold (meters)
 
     // --- Continuous Triggering ---
-    double continuousRateHz { 1.0 };   ///< Default pulse repetition rate in continuous mode (1.0 to 10.0 Hz)
+    double continuousRateHz { 1.0 }; ///< Default pulse repetition rate in continuous mode (1.0 to 10.0 Hz)
 
     // --- Custom Protocol Overrides ---
-    std::string customFireCmd {};      ///< Custom fire command string (for Ascii protocol)
-    std::string customArmCmd {};       ///< Custom arm command string (for Ascii protocol)
-    std::string customDisarmCmd {};    ///< Custom disarm command string (for Ascii protocol)
+    std::string customFireCmd {}; ///< Custom fire command string (for Ascii protocol)
+    std::string customArmCmd {}; ///< Custom arm command string (for Ascii protocol)
+    std::string customDisarmCmd {}; ///< Custom disarm command string (for Ascii protocol)
 };
 
 /// @class ILrfProtocolParser
@@ -55,7 +56,8 @@ public:
     /// @param[in] length Number of bytes available.
     /// @return List of parsed target measurement records.
     [[nodiscard]] virtual std::vector<LrfTargetMeasurement> parseIncomingBytes(
-        const std::uint8_t* data, std::size_t length) = 0;
+        const std::uint8_t* data, std::size_t length)
+        = 0;
 
     /// @brief Clears any internal partial receive buffers.
     virtual void reset() = 0;
@@ -105,6 +107,12 @@ public:
 
     /// @brief Formats a complete NMEA sentence with leading '$', trailing '*', two hex checksum chars, and CRLF.
     [[nodiscard]] static std::string formatNmeaSentence(const std::string& body);
+
+    /// @brief Splits delimited tokens, preserving empty fields between delimiters.
+    /// @param[in] str Input string view to tokenize.
+    /// @param[in] delim Delimiter character.
+    /// @return List of tokens with surrounding whitespace trimmed.
+    [[nodiscard]] static std::vector<std::string> splitTokens(std::string_view str, char delim);
 
 private:
     std::string m_rxBuffer {};
