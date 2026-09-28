@@ -35,13 +35,10 @@ bool SerialLrfAdapter::connect()
         trans = m_transport;
     }
 
-    trans->setDataCallback([this](const std::vector<std::uint8_t>& data) {
-        handleIncomingBytes(data);
-    });
+    trans->setDataCallback([this](const std::vector<std::uint8_t>& data) { handleIncomingBytes(data); });
 
-    trans->setStateCallback([this](Transport::TransportState st, const std::string& err) {
-        handleTransportState(st, err);
-    });
+    trans->setStateCallback(
+        [this](Transport::TransportState st, const std::string& err) { handleTransportState(st, err); });
 
     if (!trans->isOpen()) {
         if (!trans->open()) {
@@ -321,7 +318,8 @@ void SerialLrfAdapter::handleTransportState(Transport::TransportState state, con
     }
 
     if (cb) {
-        const auto devState = (state == Transport::TransportState::Connected) ? DeviceState::Ready : DeviceState::Disconnected;
+        const auto devState
+            = (state == Transport::TransportState::Connected) ? DeviceState::Ready : DeviceState::Disconnected;
         cb(devState, errorMsg);
     }
 }
@@ -330,9 +328,7 @@ void SerialLrfAdapter::workerLoop()
 {
     while (m_running) {
         std::unique_lock<std::mutex> lock(m_mutex);
-        m_cv.wait_for(lock, std::chrono::milliseconds(50), [this] {
-            return !m_running;
-        });
+        m_cv.wait_for(lock, std::chrono::milliseconds(50), [this] { return !m_running; });
 
         if (!m_running) {
             break;
@@ -367,7 +363,8 @@ void SerialLrfAdapter::workerLoop()
                 periodMs = std::chrono::milliseconds(100);
             }
 
-            const auto elapsedPulse = std::chrono::duration_cast<std::chrono::milliseconds>(now - m_lastContinuousPulseTime);
+            const auto elapsedPulse
+                = std::chrono::duration_cast<std::chrono::milliseconds>(now - m_lastContinuousPulseTime);
             if (elapsedPulse >= periodMs) {
                 m_lastContinuousPulseTime = now;
                 m_lastActivityTime = now;
