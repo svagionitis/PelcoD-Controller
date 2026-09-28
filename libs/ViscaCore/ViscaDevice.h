@@ -101,6 +101,96 @@ public:
     /// @return CommandResult status.
     [[nodiscard]] CommandResult ifClear();
 
+    // --- Pan/Tilt Drive Control (Opcode 0x06) ---
+
+    /// @brief Drives pan and tilt axes with independent speeds and directions.
+    /// @param[in] panSpeed Pan speed index (0x01..0x18).
+    /// @param[in] tiltSpeed Tilt speed index (0x01..0x14).
+    /// @param[in] panDir Pan motion direction.
+    /// @param[in] tiltDir Tilt motion direction.
+    /// @return @ref CommandResult containing execution status.
+    [[nodiscard]] CommandResult panTiltDrive(uint8_t panSpeed, uint8_t tiltSpeed,
+        ViscaPanDirection panDir, ViscaTiltDirection tiltDir);
+
+    /// @brief Halts pan and tilt axis motion.
+    /// @param[in] panSpeed Optional deceleration speed. Defaults to 0.
+    /// @param[in] tiltSpeed Optional deceleration speed. Defaults to 0.
+    /// @return @ref CommandResult containing execution status.
+    [[nodiscard]] CommandResult panTiltStop(uint8_t panSpeed = 0, uint8_t tiltSpeed = 0);
+
+    /// @brief Drives tilt axis upwards.
+    /// @param[in] tiltSpeed Tilt speed index (0x01..0x14).
+    /// @return @ref CommandResult.
+    [[nodiscard]] CommandResult panTiltUp(uint8_t tiltSpeed);
+
+    /// @brief Drives tilt axis downwards.
+    /// @param[in] tiltSpeed Tilt speed index (0x01..0x14).
+    /// @return @ref CommandResult.
+    [[nodiscard]] CommandResult panTiltDown(uint8_t tiltSpeed);
+
+    /// @brief Drives pan axis leftwards.
+    /// @param[in] panSpeed Pan speed index (0x01..0x18).
+    /// @return @ref CommandResult.
+    [[nodiscard]] CommandResult panTiltLeft(uint8_t panSpeed);
+
+    /// @brief Drives pan axis rightwards.
+    /// @param[in] panSpeed Pan speed index (0x01..0x18).
+    /// @return @ref CommandResult.
+    [[nodiscard]] CommandResult panTiltRight(uint8_t panSpeed);
+
+    /// @brief Slews pan and tilt to absolute step coordinates.
+    /// @param[in] panSpeed Pan speed index (0x01..0x18).
+    /// @param[in] tiltSpeed Tilt speed index (0x01..0x14).
+    /// @param[in] panPos Signed 16-bit Pan target step coordinate.
+    /// @param[in] tiltPos Signed 16-bit Tilt target step coordinate.
+    /// @return @ref CommandResult containing execution status.
+    [[nodiscard]] CommandResult panTiltAbsolute(
+        uint8_t panSpeed, uint8_t tiltSpeed, int16_t panPos, int16_t tiltPos);
+
+    /// @brief Applies a relative step offset displacement to pan and tilt.
+    /// @param[in] panSpeed Pan speed index (0x01..0x18).
+    /// @param[in] tiltSpeed Tilt speed index (0x01..0x14).
+    /// @param[in] deltaPan Signed 16-bit Pan step offset.
+    /// @param[in] deltaTilt Signed 16-bit Tilt step offset.
+    /// @return @ref CommandResult containing execution status.
+    [[nodiscard]] CommandResult panTiltRelative(
+        uint8_t panSpeed, uint8_t tiltSpeed, int16_t deltaPan, int16_t deltaTilt);
+
+    /// @brief Returns the pan/tilt mechanism to home origin (0, 0).
+    /// @return @ref CommandResult containing execution status.
+    [[nodiscard]] CommandResult panTiltHome();
+
+    /// @brief Re-initializes pan/tilt mechanism motors.
+    /// @return @ref CommandResult containing execution status.
+    [[nodiscard]] CommandResult panTiltReset();
+
+    /// @brief Configures mechanical boundary limit coordinates.
+    /// @param[in] corner Boundary corner (DownLeft or UpRight).
+    /// @param[in] panPos Signed 16-bit Pan boundary coordinate.
+    /// @param[in] tiltPos Signed 16-bit Tilt boundary coordinate.
+    /// @return @ref CommandResult containing execution status.
+    [[nodiscard]] CommandResult panTiltLimitSet(
+        ViscaPanTiltCorner corner, int16_t panPos, int16_t tiltPos);
+
+    /// @brief Clears software boundary limits.
+    /// @param[in] corner Boundary corner to clear.
+    /// @return @ref CommandResult containing execution status.
+    [[nodiscard]] CommandResult panTiltLimitClear(ViscaPanTiltCorner corner);
+
+    // --- Pan/Tilt Inquiries ---
+
+    /// @brief Queries current 16-bit signed Pan and Tilt coordinates.
+    /// @param[in] timeout Maximum wait duration.
+    /// @return Optional @ref ViscaPanTiltPosition if inquiry succeeded, std::nullopt otherwise.
+    [[nodiscard]] std::optional<ViscaPanTiltPosition> queryPanTiltPosition(
+        std::chrono::milliseconds timeout = std::chrono::milliseconds(2000));
+
+    /// @brief Queries current Pan/Tilt status telemetry and limit flags.
+    /// @param[in] timeout Maximum wait duration.
+    /// @return Optional @ref ViscaPanTiltStatus if inquiry succeeded, std::nullopt otherwise.
+    [[nodiscard]] std::optional<ViscaPanTiltStatus> queryPanTiltStatus(
+        std::chrono::milliseconds timeout = std::chrono::milliseconds(2000));
+
     /// @brief Checks if the underlying transport is currently open.
     [[nodiscard]] bool isConnected() const noexcept;
 

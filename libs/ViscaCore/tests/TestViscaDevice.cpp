@@ -99,3 +99,46 @@ TEST(TestViscaDevice, TimeoutDetection)
 
     EXPECT_FALSE(result.success);
 }
+
+/// @brief Tests Pan/Tilt drive commands and position inquiry tracking through ViscaDevice.
+TEST(TestViscaDevice, PanTiltDriveAndInquiries)
+{
+    auto mockCamera = std::make_shared<MockViscaTransport>(1);
+    mockCamera->open();
+
+    ViscaDevice device(mockCamera, 1);
+
+    // Continuous drive
+    const auto driveRes = device.panTiltDrive(0x10, 0x0C, ViscaPanDirection::Right, ViscaTiltDirection::Up);
+    EXPECT_TRUE(driveRes.success);
+
+    // Stop
+    const auto stopRes = device.panTiltStop();
+    EXPECT_TRUE(stopRes.success);
+
+    // Absolute Position Move (Pan = 1000, Tilt = -500)
+    const auto absRes = device.panTiltAbsolute(0x14, 0x0A, 1000, -500);
+    EXPECT_TRUE(absRes.success);
+
+    // Query position
+    const auto pos = device.queryPanTiltPosition();
+    ASSERT_TRUE(pos.has_value());
+    EXPECT_EQ(pos->panPosition, 1000);
+    EXPECT_EQ(pos->tiltPosition, -500);
+
+    // Home
+    const auto homeRes = device.panTiltHome();
+    EXPECT_TRUE(homeRes.success);
+
+    const auto homePos = device.queryPanTiltPosition();
+    ASSERT_TRUE(homePos.has_value());
+    EXPECT_EQ(homePos->panPosition, 0);
+    EXPECT_EQ(homePos->tiltPosition, 0);
+
+    // Query status
+    const auto status = device.queryPanTiltStatus();
+    ASSERT_TRUE(status.has_value());
+    EXPECT_EQ(status->panSpeed, 0x10);
+    EXPECT_EQ(status->tiltSpeed, 0x0A);
+}
+

@@ -142,6 +142,36 @@ private:
             return;
         }
 
+        // Pan_TiltPosInq (8x 09 06 12 FF)
+        if (frame.size() == 5 && frame[1] == 0x09 && frame[2] == 0x06 && frame[3] == 0x12) {
+            const auto pNibbles = ViscaFrame::packWordNibbles(static_cast<uint16_t>(m_panPos));
+            const auto tNibbles = ViscaFrame::packWordNibbles(static_cast<uint16_t>(m_tiltPos));
+            sendResponse(ViscaFrame { respHdr, 0x50, pNibbles[0], pNibbles[1], pNibbles[2], pNibbles[3],
+                tNibbles[0], tNibbles[1], tNibbles[2], tNibbles[3], kViscaTerminator });
+            return;
+        }
+
+        // Pan_TiltStatusInq (8x 09 06 10 FF)
+        if (frame.size() == 5 && frame[1] == 0x09 && frame[2] == 0x06 && frame[3] == 0x10) {
+            sendResponse(ViscaFrame { respHdr, 0x50, 0x10, 0x0A, 0x00, 0x00, kViscaTerminator });
+            return;
+        }
+
+        // Update simulated Pan/Tilt state for commands
+        if (frame.size() == 15 && frame[1] == 0x01 && frame[2] == 0x06 && frame[3] == 0x02) {
+            // Absolute position
+            m_panPos = static_cast<int16_t>(ViscaFrame::unpackWordNibbles(frame.data() + 6));
+            m_tiltPos = static_cast<int16_t>(ViscaFrame::unpackWordNibbles(frame.data() + 10));
+        } else if (frame.size() == 15 && frame[1] == 0x01 && frame[2] == 0x06 && frame[3] == 0x03) {
+            // Relative position
+            m_panPos = static_cast<int16_t>(m_panPos + static_cast<int16_t>(ViscaFrame::unpackWordNibbles(frame.data() + 6)));
+            m_tiltPos = static_cast<int16_t>(m_tiltPos + static_cast<int16_t>(ViscaFrame::unpackWordNibbles(frame.data() + 10)));
+        } else if (frame.size() == 5 && frame[1] == 0x01 && frame[2] == 0x06 && (frame[3] == 0x04 || frame[3] == 0x05)) {
+            // Home / Reset
+            m_panPos = 0;
+            m_tiltPos = 0;
+        }
+
         // Standard commands
         ViscaSocket sock = ViscaSocket::None;
         if (!m_socket1Busy) {
@@ -181,6 +211,10 @@ private:
     bool m_socket2Busy { false };
     std::atomic<bool> m_sendFailure { false };
     std::atomic<bool> m_dropAddressSet { false };
+
+    int16_t m_panPos { 0 };
+    int16_t m_tiltPos { 0 };
 };
 
 } // namespace Visca::Testing
+

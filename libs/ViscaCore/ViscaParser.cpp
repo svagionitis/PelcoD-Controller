@@ -75,4 +75,36 @@ std::optional<bool> ViscaParser::parsePowerInquiry(const ViscaFrame& frame) noex
     return std::nullopt;
 }
 
+std::optional<ViscaPanTiltPosition> ViscaParser::parsePanTiltPosition(const ViscaFrame& frame) noexcept
+{
+    if (frame.size() != 11 || frame[1] != 0x50 || frame[10] != kViscaTerminator) {
+        return std::nullopt;
+    }
+    ViscaPanTiltPosition pos;
+    pos.cameraAddress = frame.sourceAddress();
+    pos.panPosition = static_cast<int16_t>(ViscaFrame::unpackWordNibbles(frame.data() + 2));
+    pos.tiltPosition = static_cast<int16_t>(ViscaFrame::unpackWordNibbles(frame.data() + 6));
+    return pos;
+}
+
+std::optional<ViscaPanTiltStatus> ViscaParser::parsePanTiltStatus(const ViscaFrame& frame) noexcept
+{
+    if (frame.size() < 7 || frame[1] != 0x50 || frame.bytes().back() != kViscaTerminator) {
+        return std::nullopt;
+    }
+    ViscaPanTiltStatus status;
+    status.cameraAddress = frame.sourceAddress();
+    status.panSpeed = static_cast<uint8_t>(frame[2] & 0x7F);
+    status.tiltSpeed = static_cast<uint8_t>(frame[3] & 0x7F);
+    const uint8_t limitsByte = frame[4];
+    status.panLeftLimit = (limitsByte & 0x01) != 0;
+    status.panRightLimit = (limitsByte & 0x02) != 0;
+    status.tiltUpLimit = (limitsByte & 0x04) != 0;
+    status.tiltDownLimit = (limitsByte & 0x08) != 0;
+    const uint8_t motionByte = frame[5];
+    status.moving = (motionByte & 0x01) != 0;
+    return status;
+}
+
 } // namespace Visca
+

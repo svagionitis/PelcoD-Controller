@@ -109,4 +109,46 @@ enum class ViscaErrorCode : uint8_t {
     }
 }
 
+/// @brief Pan movement direction for Pan_TiltDrive commands (opcode 0x06 0x01).
+enum class ViscaPanDirection : uint8_t {
+    Stop = 0x03,
+    Left = 0x01,
+    Right = 0x02
+};
+
+/// @brief Tilt movement direction for Pan_TiltDrive commands (opcode 0x06 0x01).
+enum class ViscaTiltDirection : uint8_t {
+    Stop = 0x03,
+    Up = 0x01,
+    Down = 0x02
+};
+
+/// @brief Corner limit boundary identifier for Pan_TiltLimitSet (opcode 0x06 0x07).
+enum class ViscaPanTiltCorner : uint8_t {
+    DownLeft = 0x00,
+    UpRight = 0x01
+};
+
+/// @struct ViscaPanTiltPosition
+/// @brief Represents 16-bit signed Pan and Tilt coordinates from Pan_TiltPosInq.
+struct ViscaPanTiltPosition {
+    uint8_t cameraAddress { 0 }; ///< Responding camera ID (1..7)
+    int16_t panPosition { 0 };   ///< 16-bit signed Pan step position
+    int16_t tiltPosition { 0 };  ///< 16-bit signed Tilt step position
+};
+
+/// @struct ViscaPanTiltStatus
+/// @brief Status telemetry decoded from Pan_TiltStatusInq (y0 50 ... FF).
+struct ViscaPanTiltStatus {
+    uint8_t cameraAddress { 0 };  ///< Responding camera ID
+    uint8_t panSpeed { 0 };       ///< Current pan speed
+    uint8_t tiltSpeed { 0 };      ///< Current tilt speed
+    bool panLeftLimit { false };  ///< True if Pan Left limit reached
+    bool panRightLimit { false }; ///< True if Pan Right limit reached
+    bool tiltUpLimit { false };   ///< True if Tilt Up limit reached
+    bool tiltDownLimit { false }; ///< True if Tilt Down limit reached
+    bool moving { false };        ///< True if Pan/Tilt mechanism is in motion
+};
+
 } // namespace Visca
+

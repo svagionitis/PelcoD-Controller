@@ -85,3 +85,38 @@ TEST(TestViscaParser, PowerInquiryParsing)
     ASSERT_TRUE(offRes.has_value());
     EXPECT_FALSE(*offRes);
 }
+
+/// @brief Tests Pan/Tilt response parsing (Pan_TiltPosInq and Pan_TiltStatusInq).
+TEST(TestViscaParser, PanTiltResponseParsing)
+{
+    // Pan/Tilt Position: Pan = 0x1234, Tilt = -0x0567 = 0xFA99
+    // 90 50 01 02 03 04 0F 0A 09 09 FF
+    const ViscaFrame posFrame { 0x90, 0x50, 0x01, 0x02, 0x03, 0x04, 0x0F, 0x0A, 0x09, 0x09, 0xFF };
+    const auto posRes = ViscaParser::parsePanTiltPosition(posFrame);
+    ASSERT_TRUE(posRes.has_value());
+    EXPECT_EQ(posRes->cameraAddress, 1U);
+    EXPECT_EQ(posRes->panPosition, 0x1234);
+    EXPECT_EQ(posRes->tiltPosition, static_cast<int16_t>(0xFA99));
+
+    // Invalid length or terminator
+    const ViscaFrame invalidPosLen { 0x90, 0x50, 0x01, 0x02, 0x03, 0x04, 0xFF };
+    EXPECT_FALSE(ViscaParser::parsePanTiltPosition(invalidPosLen).has_value());
+
+    const ViscaFrame invalidPosTerm { 0x90, 0x50, 0x01, 0x02, 0x03, 0x04, 0x0F, 0x0A, 0x09, 0x09, 0x00 };
+    EXPECT_FALSE(ViscaParser::parsePanTiltPosition(invalidPosTerm).has_value());
+
+    // Pan/Tilt Status: Pan speed = 0x14, Tilt speed = 0x0E,
+    // limits = 0x05 (Bit 0 = PanLeft, Bit 2 = TiltUp), motion = 0x01 (moving)
+    const ViscaFrame statusFrame { 0x90, 0x50, 0x14, 0x0E, 0x05, 0x01, 0xFF };
+    const auto statusRes = ViscaParser::parsePanTiltStatus(statusFrame);
+    ASSERT_TRUE(statusRes.has_value());
+    EXPECT_EQ(statusRes->cameraAddress, 1U);
+    EXPECT_EQ(statusRes->panSpeed, 0x14);
+    EXPECT_EQ(statusRes->tiltSpeed, 0x0E);
+    EXPECT_TRUE(statusRes->panLeftLimit);
+    EXPECT_FALSE(statusRes->panRightLimit);
+    EXPECT_TRUE(statusRes->tiltUpLimit);
+    EXPECT_FALSE(statusRes->tiltDownLimit);
+    EXPECT_TRUE(statusRes->moving);
+}
+

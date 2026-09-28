@@ -86,6 +86,16 @@ public:
     /// @param[in] frame Raw frame to inspect.
     /// @return Optional bool (true for power on, false for standby/off), std::nullopt if invalid.
     [[nodiscard]] static std::optional<bool> parsePowerInquiry(const ViscaFrame& frame) noexcept;
+
+    /// @brief Parses a Pan_TiltPosInq response packet (y0 50 0w 0w 0w 0w 0z 0z 0z 0z FF).
+    /// @param[in] frame Raw frame to inspect (11 bytes).
+    /// @return Optional @ref ViscaPanTiltPosition if frame is valid, std::nullopt otherwise.
+    [[nodiscard]] static std::optional<ViscaPanTiltPosition> parsePanTiltPosition(const ViscaFrame& frame) noexcept;
+
+    /// @brief Parses a Pan_TiltStatusInq response packet (y0 50 ... FF).
+    /// @param[in] frame Raw frame to inspect.
+    /// @return Optional @ref ViscaPanTiltStatus if frame is valid, std::nullopt otherwise.
+    [[nodiscard]] static std::optional<ViscaPanTiltStatus> parsePanTiltStatus(const ViscaFrame& frame) noexcept;
 };
 
 } // namespace Visca

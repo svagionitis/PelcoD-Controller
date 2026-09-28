@@ -289,4 +289,101 @@ void ViscaDevice::onFrameReceived(const ViscaFrame& frame)
     }
 }
 
+CommandResult ViscaDevice::panTiltDrive(uint8_t panSpeed, uint8_t tiltSpeed,
+    ViscaPanDirection panDir, ViscaTiltDirection tiltDir)
+{
+    const ViscaFrame cmd = ViscaBuilder::panTiltDrive(cameraAddress(), panSpeed, tiltSpeed, panDir, tiltDir);
+    return sendCommandSync(cmd);
+}
+
+CommandResult ViscaDevice::panTiltStop(uint8_t panSpeed, uint8_t tiltSpeed)
+{
+    const ViscaFrame cmd = ViscaBuilder::panTiltStop(cameraAddress(), panSpeed, tiltSpeed);
+    return sendCommandSync(cmd);
+}
+
+CommandResult ViscaDevice::panTiltUp(uint8_t tiltSpeed)
+{
+    const ViscaFrame cmd = ViscaBuilder::panTiltUp(cameraAddress(), tiltSpeed);
+    return sendCommandSync(cmd);
+}
+
+CommandResult ViscaDevice::panTiltDown(uint8_t tiltSpeed)
+{
+    const ViscaFrame cmd = ViscaBuilder::panTiltDown(cameraAddress(), tiltSpeed);
+    return sendCommandSync(cmd);
+}
+
+CommandResult ViscaDevice::panTiltLeft(uint8_t panSpeed)
+{
+    const ViscaFrame cmd = ViscaBuilder::panTiltLeft(cameraAddress(), panSpeed);
+    return sendCommandSync(cmd);
+}
+
+CommandResult ViscaDevice::panTiltRight(uint8_t panSpeed)
+{
+    const ViscaFrame cmd = ViscaBuilder::panTiltRight(cameraAddress(), panSpeed);
+    return sendCommandSync(cmd);
+}
+
+CommandResult ViscaDevice::panTiltAbsolute(
+    uint8_t panSpeed, uint8_t tiltSpeed, int16_t panPos, int16_t tiltPos)
+{
+    const ViscaFrame cmd = ViscaBuilder::panTiltAbsolute(cameraAddress(), panSpeed, tiltSpeed, panPos, tiltPos);
+    return sendCommandSync(cmd);
+}
+
+CommandResult ViscaDevice::panTiltRelative(
+    uint8_t panSpeed, uint8_t tiltSpeed, int16_t deltaPan, int16_t deltaTilt)
+{
+    const ViscaFrame cmd = ViscaBuilder::panTiltRelative(cameraAddress(), panSpeed, tiltSpeed, deltaPan, deltaTilt);
+    return sendCommandSync(cmd);
+}
+
+CommandResult ViscaDevice::panTiltHome()
+{
+    const ViscaFrame cmd = ViscaBuilder::panTiltHome(cameraAddress());
+    return sendCommandSync(cmd);
+}
+
+CommandResult ViscaDevice::panTiltReset()
+{
+    const ViscaFrame cmd = ViscaBuilder::panTiltReset(cameraAddress());
+    return sendCommandSync(cmd);
+}
+
+CommandResult ViscaDevice::panTiltLimitSet(
+    ViscaPanTiltCorner corner, int16_t panPos, int16_t tiltPos)
+{
+    const ViscaFrame cmd = ViscaBuilder::panTiltLimitSet(cameraAddress(), corner, panPos, tiltPos);
+    return sendCommandSync(cmd);
+}
+
+CommandResult ViscaDevice::panTiltLimitClear(ViscaPanTiltCorner corner)
+{
+    const ViscaFrame cmd = ViscaBuilder::panTiltLimitClear(cameraAddress(), corner);
+    return sendCommandSync(cmd);
+}
+
+std::optional<ViscaPanTiltPosition> ViscaDevice::queryPanTiltPosition(std::chrono::milliseconds timeout)
+{
+    const ViscaFrame inq = ViscaBuilder::panTiltPositionInquiry(cameraAddress());
+    const InquiryResult res = sendInquirySync(inq, timeout);
+    if (!res.success) {
+        return std::nullopt;
+    }
+    return ViscaParser::parsePanTiltPosition(res.responseFrame);
+}
+
+std::optional<ViscaPanTiltStatus> ViscaDevice::queryPanTiltStatus(std::chrono::milliseconds timeout)
+{
+    const ViscaFrame inq = ViscaBuilder::panTiltStatusInquiry(cameraAddress());
+    const InquiryResult res = sendInquirySync(inq, timeout);
+    if (!res.success) {
+        return std::nullopt;
+    }
+    return ViscaParser::parsePanTiltStatus(res.responseFrame);
+}
+
 } // namespace Visca
+
