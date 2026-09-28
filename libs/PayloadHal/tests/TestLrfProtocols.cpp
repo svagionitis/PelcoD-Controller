@@ -199,6 +199,27 @@ TEST(TestLrfProtocols, BinaryCrcCorruptionRejection)
     EXPECT_TRUE(results.empty());
 }
 
+TEST(TestLrfProtocols, BinaryCrc16StandardVectors)
+{
+    // 1. Standard CCITT-FALSE test vector "123456789" -> 0x29B1
+    const std::string standardVector = "123456789";
+    const auto crc1
+        = BinaryLrfParser::computeCrc16(reinterpret_cast<const uint8_t*>(standardVector.data()), standardVector.size());
+    EXPECT_EQ(crc1, 0x29B1U);
+
+    // 2. Empty input / null pointer safety
+    EXPECT_EQ(BinaryLrfParser::computeCrc16(nullptr, 0), 0xFFFFU);
+    EXPECT_EQ(BinaryLrfParser::computeCrc16(nullptr, 100), 0xFFFFU);
+
+    const std::uint8_t dummy = 0xAA;
+    EXPECT_EQ(BinaryLrfParser::computeCrc16(&dummy, 0), 0xFFFFU);
+
+    // 3. Known packet CRC
+    const std::vector<uint8_t> syncPacket = { 0xAA, 0x55, 0x01, 0x00 };
+    const auto crc2 = BinaryLrfParser::computeCrc16(syncPacket.data(), syncPacket.size());
+    EXPECT_EQ(crc2, 0x8012U);
+}
+
 TEST(TestLrfProtocols, BinaryCommands)
 {
     BinaryLrfParser parser;

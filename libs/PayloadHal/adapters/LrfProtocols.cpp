@@ -4,6 +4,7 @@
 #include "LrfProtocols.h"
 
 #include <algorithm>
+#include <array>
 #include <cctype>
 #include <charconv>
 #include <string_view>
@@ -370,18 +371,40 @@ std::vector<std::uint8_t> AsciiLrfParser::buildStopCommand()
 // Binary Framed LRF Parser
 // =============================================================================
 
+namespace {
+
+    constexpr std::array<std::uint16_t, 256> generateCrc16CcittTable() noexcept
+    {
+        std::array<std::uint16_t, 256> table {};
+        for (std::uint32_t i = 0; i < 256; ++i) {
+            std::uint16_t cur = static_cast<std::uint16_t>(i << 8U);
+            for (int bit = 0; bit < 8; ++bit) {
+                if ((cur & 0x8000U) != 0U) {
+                    cur = static_cast<std::uint16_t>((cur << 1U) ^ 0x1021U);
+                } else {
+                    cur = static_cast<std::uint16_t>(cur << 1U);
+                }
+            }
+            table[i] = cur;
+        }
+        return table;
+    }
+
+    constexpr auto kCrc16CcittTable = generateCrc16CcittTable();
+
+} // namespace
+
 std::uint16_t BinaryLrfParser::computeCrc16(const std::uint8_t* data, std::size_t length) noexcept
 {
-    std::uint16_t crc = 0xFFFF;
+    if (data == nullptr || length == 0) {
+        return 0xFFFFU;
+    }
+
+    std::uint16_t crc = 0xFFFFU;
     for (std::size_t i = 0; i < length; ++i) {
-        crc ^= static_cast<std::uint16_t>(data[i]) << 8;
-        for (int b = 0; b < 8; ++b) {
-            if ((crc & 0x8000) != 0) {
-                crc = (crc << 1) ^ 0x1021;
-            } else {
-                crc <<= 1;
-            }
-        }
+        const std::uint8_t byte = data[i];
+        const std::uint8_t tableIdx = static_cast<std::uint8_t>((crc >> 8U) ^ byte);
+        crc = static_cast<std::uint16_t>((crc << 8U) ^ kCrc16CcittTable[tableIdx]);
     }
     return crc;
 }
