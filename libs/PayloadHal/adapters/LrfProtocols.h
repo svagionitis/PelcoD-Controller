@@ -174,6 +174,19 @@ public:
     static constexpr std::uint8_t kCmdStop { 0x07 };
     static constexpr std::uint8_t kMsgEchoReport { 0x10 };
 
+    /// @brief Maximum payload length supported by binary protocol frame (1-byte length field: 255).
+    static constexpr std::size_t kMaxPayloadLength { 255U };
+
+    /// @brief Minimum payload length for EchoReport message (status + 4-byte distance).
+    static constexpr std::size_t kMinEchoReportPayloadLength { 5U };
+
+    /// @brief Builds a framed binary packet with sync header, command ID, length, payload, and CRC-16.
+    /// @param[in] cmd Command or message ID.
+    /// @param[in] payload Byte vector containing payload.
+    /// @return Formatted binary packet, or empty vector if payload exceeds kMaxPayloadLength.
+    [[nodiscard]] static std::vector<std::uint8_t> buildBinaryPacket(
+        std::uint8_t cmd, const std::vector<std::uint8_t>& payload);
+
 private:
     std::vector<std::uint8_t> m_rxBuffer {};
     std::uint32_t m_pulseCounter { 0U };

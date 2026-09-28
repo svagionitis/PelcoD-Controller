@@ -409,25 +409,25 @@ std::uint16_t BinaryLrfParser::computeCrc16(const std::uint8_t* data, std::size_
     return crc;
 }
 
-namespace {
-
-    std::vector<std::uint8_t> buildBinaryPacket(std::uint8_t cmd, const std::vector<std::uint8_t>& payload)
-    {
-        std::vector<std::uint8_t> packet;
-        packet.reserve(6 + payload.size());
-        packet.push_back(BinaryLrfParser::kSyncByte1);
-        packet.push_back(BinaryLrfParser::kSyncByte2);
-        packet.push_back(cmd);
-        packet.push_back(static_cast<std::uint8_t>(payload.size()));
-        packet.insert(packet.end(), payload.begin(), payload.end());
-
-        const std::uint16_t crc = BinaryLrfParser::computeCrc16(packet.data(), packet.size());
-        packet.push_back(static_cast<std::uint8_t>((crc >> 8) & 0xFF));
-        packet.push_back(static_cast<std::uint8_t>(crc & 0xFF));
-        return packet;
+std::vector<std::uint8_t> BinaryLrfParser::buildBinaryPacket(std::uint8_t cmd, const std::vector<std::uint8_t>& payload)
+{
+    if (payload.size() > kMaxPayloadLength) {
+        return {};
     }
 
-} // namespace
+    std::vector<std::uint8_t> packet;
+    packet.reserve(6 + payload.size());
+    packet.push_back(BinaryLrfParser::kSyncByte1);
+    packet.push_back(BinaryLrfParser::kSyncByte2);
+    packet.push_back(cmd);
+    packet.push_back(static_cast<std::uint8_t>(payload.size()));
+    packet.insert(packet.end(), payload.begin(), payload.end());
+
+    const std::uint16_t crc = BinaryLrfParser::computeCrc16(packet.data(), packet.size());
+    packet.push_back(static_cast<std::uint8_t>((crc >> 8) & 0xFF));
+    packet.push_back(static_cast<std::uint8_t>(crc & 0xFF));
+    return packet;
+}
 
 std::vector<LrfTargetMeasurement> BinaryLrfParser::parseIncomingBytes(const std::uint8_t* data, std::size_t length)
 {
@@ -464,7 +464,7 @@ std::vector<LrfTargetMeasurement> BinaryLrfParser::parseIncomingBytes(const std:
         }
 
         // Valid frame!
-        if (msgId == kMsgEchoReport && payloadLen >= 5) {
+        if (msgId == kMsgEchoReport && payloadLen >= kMinEchoReportPayloadLength) {
             const std::uint8_t status = m_rxBuffer[4];
             const std::uint32_t distMm = (static_cast<std::uint32_t>(m_rxBuffer[5]) << 24)
                 | (static_cast<std::uint32_t>(m_rxBuffer[6]) << 16) | (static_cast<std::uint32_t>(m_rxBuffer[7]) << 8)

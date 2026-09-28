@@ -360,3 +360,30 @@ TEST(TestLrfProtocols, AsciiParseSignedCharNoise)
     EXPECT_TRUE(results[2].valid); // Subsequent valid reading parses correctly
     EXPECT_NEAR(results[2].slantRangeMeters, 1650.25, 0.001);
 }
+
+TEST(TestLrfProtocols, BinaryPayloadLengthValidation)
+{
+    // 1. Oversized payload (> 255 bytes) must be rejected to prevent silent truncation of the 1-byte length field
+    std::vector<uint8_t> oversizedPayload(256, 0x42);
+    const auto oversizedPacket = BinaryLrfParser::buildBinaryPacket(0x01, oversizedPayload);
+    EXPECT_TRUE(oversizedPacket.empty());
+
+    // 2. Maximum supported payload (exactly 255 bytes) should be constructed cleanly
+    std::vector<uint8_t> maxPayload(255, 0x7E);
+    const auto validMaxPacket = BinaryLrfParser::buildBinaryPacket(0x02, maxPayload);
+    ASSERT_EQ(validMaxPacket.size(), 6U + 255U);
+    EXPECT_EQ(validMaxPacket[0], BinaryLrfParser::kSyncByte1);
+    EXPECT_EQ(validMaxPacket[1], BinaryLrfParser::kSyncByte2);
+    EXPECT_EQ(validMaxPacket[2], 0x02);
+    EXPECT_EQ(validMaxPacket[3], 255U);
+
+    // 3. Incoming malformed EchoReport with payloadLen < 5 must not produce any measurements
+    BinaryLrfParser parser;
+    std::vector<uint8_t> truncatedEcho = { 0xAA, 0x55, 0x10, 0x03, 0x00, 0x01, 0x02 };
+    const uint16_t crcTrunc = BinaryLrfParser::computeCrc16(truncatedEcho.data(), truncatedEcho.size());
+    truncatedEcho.push_back(static_cast<uint8_t>((crcTrunc >> 8) & 0xFF));
+    truncatedEcho.push_back(static_cast<uint8_t>(crcTrunc & 0xFF));
+
+    auto resultsTrunc = parser.parseIncomingBytes(truncatedEcho.data(), truncatedEcho.size());
+    EXPECT_TRUE(resultsTrunc.empty());
+}
