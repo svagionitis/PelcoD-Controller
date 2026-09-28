@@ -1,9 +1,9 @@
 /// @file TestSerialLrfAdapter.cpp
 /// @brief Comprehensive unit tests for the physical SerialLrfAdapter driver and safety interlocks.
 
-#include "adapters/SerialLrfAdapter.h"
 #include "GeoreferenceUtils.h"
 #include "PayloadFactory.h"
+#include "adapters/SerialLrfAdapter.h"
 #include <gtest/gtest.h>
 
 #include <chrono>
@@ -212,9 +212,7 @@ TEST(TestSerialLrfAdapter, ReceiveNmeaMeasurement)
     EXPECT_TRUE(adapter->armLaser());
 
     std::optional<LrfTargetMeasurement> receivedMeas;
-    adapter->registerMeasurementCallback([&](const LrfTargetMeasurement& m) {
-        receivedMeas = m;
-    });
+    adapter->registerMeasurementCallback([&](const LrfTargetMeasurement& m) { receivedMeas = m; });
 
     const std::string echo = NmeaLrfParser::formatNmeaSentence("GPLRF,1780.25,M,OK");
     mockTransport->injectData({ echo.begin(), echo.end() });
@@ -271,10 +269,7 @@ TEST(TestSerialLrfAdapter, BinaryProtocolIngestion)
     EXPECT_TRUE(adapter->armLaser());
 
     // 2500.0 meters = 2500000 mm = 0x002625A0
-    std::vector<uint8_t> frame = {
-        0xAA, 0x55, 0x10, 0x07,
-        0x00, 0x00, 0x26, 0x25, 0xA0, 250, 24
-    };
+    std::vector<uint8_t> frame = { 0xAA, 0x55, 0x10, 0x07, 0x00, 0x00, 0x26, 0x25, 0xA0, 250, 24 };
     const uint16_t crc = BinaryLrfParser::computeCrc16(frame.data(), frame.size());
     frame.push_back(static_cast<uint8_t>((crc >> 8) & 0xFF));
     frame.push_back(static_cast<uint8_t>(crc & 0xFF));
@@ -339,3 +334,66 @@ TEST(TestSerialLrfAdapter, FactoryCompositeWithLrfBinding)
     EXPECT_NE(payload->lrf(), nullptr);
 }
 
+TEST(TestSerialLrfAdapter, ConcurrentOperationsThreadSafety)
+{
+    auto mockTransport = std::make_shared<MockTransport>();
+    SerialLrfConfig cfg;
+    cfg.autoDisarmTimeout = std::chrono::milliseconds(500);
+    cfg.continuousRateHz = 10.0;
+    auto adapter = std::make_shared<SerialLrfAdapter>(mockTransport, cfg);
+
+    ASSERT_TRUE(adapter->connect());
+    ASSERT_TRUE(adapter->armLaser());
+
+    std::atomic<bool> stop { false };
+    std::atomic<int> measurementsReceived { 0 };
+
+    adapter->registerMeasurementCallback([&](const LrfTargetMeasurement& m) {
+        if (m.valid) {
+            measurementsReceived++;
+        }
+    });
+
+    // Thread 1: Ingesting data concurrently
+    std::thread ingestionThread([&] {
+        const std::string sentence = NmeaLrfParser::formatNmeaSentence("GPLRF,1500.0,M,OK");
+        const std::vector<uint8_t> data(sentence.begin(), sentence.end());
+        while (!stop.load()) {
+            mockTransport->injectData(data);
+            std::this_thread::yield();
+        }
+    });
+
+    // Thread 2: Firing and setting continuous mode
+    std::thread commandThread([&] {
+        while (!stop.load()) {
+            (void)adapter->triggerSingleMeasurement();
+            (void)adapter->setContinuousMode(LrfMode::Continuous5Hz);
+            (void)adapter->stopRanging();
+            std::this_thread::yield();
+        }
+    });
+
+    // Thread 3: Arming, disarming, querying state
+    std::thread stateThread([&] {
+        while (!stop.load()) {
+            (void)adapter->isArmed();
+            (void)adapter->lastMeasurement();
+            (void)adapter->rangeGate();
+            (void)adapter->armLaser();
+            (void)adapter->disarmLaser();
+            (void)adapter->armLaser();
+            std::this_thread::yield();
+        }
+    });
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    stop.store(true);
+
+    ingestionThread.join();
+    commandThread.join();
+    stateThread.join();
+
+    EXPECT_GT(measurementsReceived.load(), 0);
+    adapter->disconnect();
+}

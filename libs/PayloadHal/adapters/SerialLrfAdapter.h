@@ -21,14 +21,17 @@ namespace PayloadHal {
 /// @brief Hardware adapter implementing the ILaserRangeFinder interface over any Transport::ITransport,
 ///        featuring ANSI Z136 eye-safety interlocks, inactivity watchdog auto-disarm, multi-protocol
 ///        framing (NMEA, ASCII, Binary), and range gating.
-class SerialLrfAdapter : public ILaserRangeFinder,
-                         public std::enable_shared_from_this<SerialLrfAdapter> {
+/// @details Bridges asynchronous stream I/O from ITransport to ILaserRangeFinder. Manages stateful
+///          ILrfProtocolParser instances, synchronizing all incoming frame decoding, command dispatch,
+///          and watchdog evaluations.
+/// @note **Threading Model**: Fully thread-safe. All public methods and incoming data callbacks synchronize
+///       access to driver state and the underlying protocol parser using an internal mutex (`m_mutex`).
+class SerialLrfAdapter : public ILaserRangeFinder, public std::enable_shared_from_this<SerialLrfAdapter> {
 public:
     /// @brief Constructs adapter wrapping a physical or virtual stream transport.
     /// @param[in] transport Shared pointer to underlying ITransport channel.
     /// @param[in] config Operational, safety, and protocol configuration.
-    explicit SerialLrfAdapter(
-        std::shared_ptr<Transport::ITransport> transport, SerialLrfConfig config = {});
+    explicit SerialLrfAdapter(std::shared_ptr<Transport::ITransport> transport, SerialLrfConfig config = {});
 
     ~SerialLrfAdapter() override;
 

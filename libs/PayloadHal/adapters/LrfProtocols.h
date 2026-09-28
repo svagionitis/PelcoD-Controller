@@ -58,6 +58,14 @@ struct SerialLrfConfig {
 
 /// @class ILrfProtocolParser
 /// @brief Abstract interface for parsing raw incoming stream bytes and constructing outgoing LRF commands.
+/// @details Decouples physical transport byte framing from higher-level Laser Range Finder (LRF) handling.
+/// @note **Threading Model**: Parser instances maintain internal receive buffering (`m_rxBuffer`) and
+///       sequence state (`m_pulseCounter`) and are **not thread-safe**. Concurrent calls to parseIncomingBytes(),
+///       reset(), or command builders on the same parser instance from multiple threads must be externally
+///       synchronized. In production HAL deployments, synchronization is provided by SerialLrfAdapter via an
+///       internal mutex. Independent parser instances operating on distinct stream channels share no mutable
+///       state and may execute concurrently on separate threads. Static utility methods are pure, reentrant,
+///       and thread-safe.
 class ILrfProtocolParser {
 public:
     virtual ~ILrfProtocolParser() = default;
@@ -66,11 +74,13 @@ public:
     /// @param[in] data Pointer to raw byte buffer.
     /// @param[in] length Number of bytes available.
     /// @return List of parsed target measurement records.
+    /// @note Not thread-safe; requires external synchronization when accessed concurrently.
     [[nodiscard]] virtual std::vector<LrfTargetMeasurement> parseIncomingBytes(
         const std::uint8_t* data, std::size_t length)
         = 0;
 
     /// @brief Clears any internal partial receive buffers.
+    /// @note Not thread-safe; requires external synchronization when accessed concurrently.
     virtual void reset() = 0;
 
     /// @brief Generates wire command bytes to arm the laser transmitter.
@@ -103,6 +113,10 @@ public:
 
 /// @class NmeaLrfParser
 /// @brief NMEA-0183 protocol parser validating XOR checksums on $GPLRF and $PLRF sentences.
+/// @details Ingests CR/LF-delimited ASCII sentences and validates standard NMEA 8-bit XOR checksums.
+/// @note **Threading Model**: Single-instance stateful; not thread-safe. Concurrent access must be
+///       externally synchronized. Static helper methods (computeNmeaChecksum, formatNmeaSentence,
+///       splitTokens) are stateless, pure, and thread-safe.
 class NmeaLrfParser : public ILrfProtocolParser {
 public:
     NmeaLrfParser() = default;
@@ -140,6 +154,9 @@ private:
 
 /// @class AsciiLrfParser
 /// @brief Delimited ASCII text protocol parser for standard OEM modules.
+/// @details Decodes newline-delimited ASCII responses (e.g. "R: 1250.5\r\n") and formats custom commands.
+/// @note **Threading Model**: Single-instance stateful; not thread-safe. Concurrent invocations must be
+///       externally synchronized (e.g. via SerialLrfAdapter).
 class AsciiLrfParser : public ILrfProtocolParser {
 public:
     /// @brief Constructs an ASCII LRF parser with protocol-specific command configuration.
@@ -176,6 +193,10 @@ private:
 
 /// @class BinaryLrfParser
 /// @brief Framed binary protocol parser with sync header (0xAA 0x55) and CRC-16 CCITT validation.
+/// @details Ingests binary packets with sync markers, length checks, and CRC-16 CCITT-FALSE verification.
+/// @note **Threading Model**: Single-instance stateful; not thread-safe. Concurrent invocations must be
+///       externally synchronized (e.g. via SerialLrfAdapter). Static helper methods (computeCrc16,
+///       buildBinaryPacket) are stateless, pure, and thread-safe.
 class BinaryLrfParser : public ILrfProtocolParser {
 public:
     BinaryLrfParser() = default;
@@ -229,6 +250,9 @@ private:
 };
 
 /// @brief Factory function creating an ILrfProtocolParser for the given configuration.
+/// @param[in] config Operational, safety, and protocol configuration.
+/// @return Unique pointer to the instantiated concrete protocol parser.
+/// @note Reentrant and thread-safe.
 [[nodiscard]] std::unique_ptr<ILrfProtocolParser> createLrfParser(const SerialLrfConfig& config);
 
 } // namespace PayloadHal
