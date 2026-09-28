@@ -445,4 +445,106 @@ std::vector<std::uint8_t> ProtocolBuilder::buildQueryTime(std::uint8_t address, 
         static_cast<std::uint8_t>(CommandOpcode::TimeMacro), 0x00U, 0x00U);
 }
 
+std::vector<std::uint8_t> ProtocolBuilder::buildSetAuxLed(
+    std::uint8_t address, std::uint8_t ledIdOrColor, std::uint8_t onTimeTenths)
+{
+    return PelcoDFrame::createFrame(address, static_cast<std::uint8_t>(AuxSubOpcode::Led),
+        static_cast<std::uint8_t>(CommandOpcode::SetAuxiliary), onTimeTenths, ledIdOrColor);
+}
+
+std::vector<std::uint8_t> ProtocolBuilder::buildClearAuxLed(
+    std::uint8_t address, std::uint8_t ledIdOrColor, std::uint8_t offTimeTenths)
+{
+    return PelcoDFrame::createFrame(address, static_cast<std::uint8_t>(AuxSubOpcode::Led),
+        static_cast<std::uint8_t>(CommandOpcode::ClearAuxiliary), offTimeTenths, ledIdOrColor);
+}
+
+std::vector<std::uint8_t> ProtocolBuilder::buildQueryAzimuthZero(std::uint8_t address)
+{
+    return PelcoDFrame::createFrame(address, static_cast<std::uint8_t>(EverestSubOpcode::QueryAzimuthZero),
+        static_cast<std::uint8_t>(CommandOpcode::Everest), 0x00U, 0x00U);
+}
+
+std::vector<std::uint8_t> ProtocolBuilder::buildSetZoomLimit(std::uint8_t address, std::uint16_t limitHundredths)
+{
+    const auto msb = static_cast<std::uint8_t>((limitHundredths >> 8U) & 0xFFU);
+    const auto lsb = static_cast<std::uint8_t>(limitHundredths & 0xFFU);
+    return PelcoDFrame::createFrame(address, static_cast<std::uint8_t>(EverestSubOpcode::SetZoomLimit),
+        static_cast<std::uint8_t>(CommandOpcode::Everest), msb, lsb);
+}
+
+std::vector<std::uint8_t> ProtocolBuilder::buildQueryZoomLimit(std::uint8_t address)
+{
+    return PelcoDFrame::createFrame(address, static_cast<std::uint8_t>(EverestSubOpcode::QueryZoomLimit),
+        static_cast<std::uint8_t>(CommandOpcode::Everest), 0x00U, 0x00U);
+}
+
+std::vector<std::uint8_t> ProtocolBuilder::buildQueryEverestAlarms(std::uint8_t address)
+{
+    return PelcoDFrame::createFrame(address, static_cast<std::uint8_t>(EverestSubOpcode::QueryAlarms),
+        static_cast<std::uint8_t>(CommandOpcode::Everest), 0x00U, 0x00U);
+}
+
+std::vector<std::uint8_t> ProtocolBuilder::buildDeletePattern(std::uint8_t address, std::uint8_t patternId)
+{
+    return PelcoDFrame::createFrame(address, static_cast<std::uint8_t>(EverestSubOpcode::DeletePattern),
+        static_cast<std::uint8_t>(CommandOpcode::Everest), 0x00U, patternId);
+}
+
+std::vector<std::uint8_t> ProtocolBuilder::buildSetManualLeftPanLimit(std::uint8_t address, std::uint16_t centidegrees)
+{
+    const auto msb = static_cast<std::uint8_t>((centidegrees >> 8U) & 0xFFU);
+    const auto lsb = static_cast<std::uint8_t>(centidegrees & 0xFFU);
+    return PelcoDFrame::createFrame(address, static_cast<std::uint8_t>(EverestSubOpcode::SetManualLeftPanLimit),
+        static_cast<std::uint8_t>(CommandOpcode::Everest), msb, lsb);
+}
+
+std::vector<std::uint8_t> ProtocolBuilder::buildSetManualRightPanLimit(std::uint8_t address, std::uint16_t centidegrees)
+{
+    const auto msb = static_cast<std::uint8_t>((centidegrees >> 8U) & 0xFFU);
+    const auto lsb = static_cast<std::uint8_t>(centidegrees & 0xFFU);
+    return PelcoDFrame::createFrame(address, static_cast<std::uint8_t>(EverestSubOpcode::SetManualRightPanLimit),
+        static_cast<std::uint8_t>(CommandOpcode::Everest), msb, lsb);
+}
+
+std::vector<std::uint8_t> ProtocolBuilder::buildSetScanLeftPanLimit(std::uint8_t address, std::uint16_t centidegrees)
+{
+    const auto msb = static_cast<std::uint8_t>((centidegrees >> 8U) & 0xFFU);
+    const auto lsb = static_cast<std::uint8_t>(centidegrees & 0xFFU);
+    return PelcoDFrame::createFrame(address, static_cast<std::uint8_t>(EverestSubOpcode::SetScanLeftPanLimit),
+        static_cast<std::uint8_t>(CommandOpcode::Everest), msb, lsb);
+}
+
+std::vector<std::uint8_t> ProtocolBuilder::buildSetScanRightPanLimit(std::uint8_t address, std::uint16_t centidegrees)
+{
+    const auto msb = static_cast<std::uint8_t>((centidegrees >> 8U) & 0xFFU);
+    const auto lsb = static_cast<std::uint8_t>(centidegrees & 0xFFU);
+    return PelcoDFrame::createFrame(address, static_cast<std::uint8_t>(EverestSubOpcode::SetScanRightPanLimit),
+        static_cast<std::uint8_t>(CommandOpcode::Everest), msb, lsb);
+}
+
+std::vector<std::uint8_t> ProtocolBuilder::buildQueryLimit(std::uint8_t address, EverestLimitId limitId)
+{
+    return PelcoDFrame::createFrame(address, static_cast<std::uint8_t>(EverestSubOpcode::QueryLimit),
+        static_cast<std::uint8_t>(CommandOpcode::Everest), 0x00U, static_cast<std::uint8_t>(limitId));
+}
+
+std::vector<std::uint8_t> ProtocolBuilder::buildEnableLimits(std::uint8_t address, bool enable)
+{
+    return PelcoDFrame::createFrame(address, static_cast<std::uint8_t>(EverestSubOpcode::EnableLimits),
+        static_cast<std::uint8_t>(CommandOpcode::Everest), 0x00U, enable ? 0x01U : 0x00U);
+}
+
+std::vector<std::uint8_t> ProtocolBuilder::buildQueryDefinedPresets(std::uint8_t address, std::uint8_t group)
+{
+    return PelcoDFrame::createFrame(address, static_cast<std::uint8_t>(EverestSubOpcode::QueryDefinedPresets),
+        static_cast<std::uint8_t>(CommandOpcode::Everest), 0x00U, group);
+}
+
+std::vector<std::uint8_t> ProtocolBuilder::buildQueryDefinedPatterns(std::uint8_t address, std::uint8_t group)
+{
+    return PelcoDFrame::createFrame(address, static_cast<std::uint8_t>(EverestSubOpcode::QueryDefinedPatterns),
+        static_cast<std::uint8_t>(CommandOpcode::Everest), 0x00U, group);
+}
+
 } // namespace PelcoD

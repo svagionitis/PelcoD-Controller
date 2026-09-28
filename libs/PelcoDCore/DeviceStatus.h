@@ -53,6 +53,16 @@ struct DeviceStatus {
     std::uint8_t diagnosticTemp { 0U };
     std::uint8_t diagnosticSensorId { 0U };
 
+    // Everest macro telemetry (from 0x75 response)
+    std::uint16_t azimuthZeroOffsetCentidegrees { 0U };
+    std::uint16_t zoomLimit { 0U };
+    std::uint16_t manualLeftLimitCentidegrees { 0U };
+    std::uint16_t manualRightLimitCentidegrees { 0U };
+    std::uint16_t scanLeftLimitCentidegrees { 0U };
+    std::uint16_t scanRightLimitCentidegrees { 0U };
+    std::uint16_t definedPresetsMask { 0U };
+    std::uint16_t definedPatternsMask { 0U };
+
     // Timestamp of last received message
     std::chrono::steady_clock::time_point lastRxTime {};
 

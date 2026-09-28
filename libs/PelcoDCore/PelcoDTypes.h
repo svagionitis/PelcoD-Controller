@@ -87,6 +87,7 @@ enum class CommandOpcode : std::uint8_t {
     QueryDeviceType = 0x6BU,
     QueryDiagnostics = 0x6FU,
     VersionInfo = 0x73U,
+    Everest = 0x75U,
     TimeMacro = 0x77U,
     ScreenMove = 0x79U
 };
@@ -102,7 +103,57 @@ enum class ResponseOpcode : std::uint8_t {
     QueryDeviceType = 0x6DU,
     QueryDiagnostics = 0x71U,
     VersionInfo = 0x73U,
+    Everest = 0x75U,
     TimeMacro = 0x77U
+};
+
+/// @enum AuxSubOpcode
+/// @brief Sub-opcodes for Auxiliary commands (opcodes 0x09/0x0B, Command 1 byte).
+enum class AuxSubOpcode : std::uint8_t {
+    Relay = 0x00U,
+    Led = 0x01U
+};
+
+/// @enum AuxLedColor
+/// @brief Spectra IV two-color indicator LED color codes (opcode 0x09/0x0B with sub 0x01).
+enum class AuxLedColor : std::uint8_t {
+    Off = 0x00U,
+    Amber = 0xFCU,
+    Red = 0xFDU,
+    Green = 0xFEU
+};
+
+/// @enum EverestSubOpcode
+/// @brief Sub-opcodes for Everest Macro (opcode 0x75, Command 1 byte).
+enum class EverestSubOpcode : std::uint8_t {
+    QueryAzimuthZero = 0x00U,
+    AzimuthZeroResponse = 0x01U,
+    SetZoomLimit = 0x02U,
+    QueryZoomLimit = 0x03U,
+    ZoomLimitResponse = 0x04U,
+    QueryAlarms = 0x05U,
+    AlarmsResponse = 0x06U,
+    DeletePattern = 0x07U,
+    SetManualLeftPanLimit = 0x08U,
+    SetManualRightPanLimit = 0x09U,
+    SetScanLeftPanLimit = 0x0AU,
+    SetScanRightPanLimit = 0x0BU,
+    QueryLimit = 0x0CU,
+    LimitResponse = 0x0DU,
+    EnableLimits = 0x0EU,
+    QueryDefinedPresets = 0x0FU,
+    DefinedPresetsResponse = 0x10U,
+    QueryDefinedPatterns = 0x11U,
+    DefinedPatternsResponse = 0x12U
+};
+
+/// @enum EverestLimitId
+/// @brief Limit identifier for Everest limit query (opcode 0x75, sub 0x0C).
+enum class EverestLimitId : std::uint8_t {
+    ManualLeftPan = 0x00U,
+    ManualRightPan = 0x01U,
+    ScanLeftPan = 0x02U,
+    ScanRightPan = 0x03U
 };
 
 /// @enum VersionInfoSubOpcode

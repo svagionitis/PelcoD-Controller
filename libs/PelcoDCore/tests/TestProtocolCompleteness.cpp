@@ -646,6 +646,216 @@ TEST(ProtocolCompletenessTest, PelcoDDevicePhase3AsyncQueries)
     device.stop();
 }
 
+/// @brief Verify Auxiliary Indicator LED and Everest macro frame builders and disassembler.
+TEST(ProtocolCompletenessTest, Phase4BuildersAndDisassembly)
+{
+    // Aux Indicator LED: Set
+    const auto setAuxLedFrame = PelcoD::ProtocolBuilder::buildSetAuxLed(
+        1U, PelcoD::AuxLedColor::Amber, 25U);
+    ASSERT_EQ(setAuxLedFrame.size(), 7U);
+    EXPECT_EQ(setAuxLedFrame[2], static_cast<std::uint8_t>(PelcoD::AuxSubOpcode::Led));
+    EXPECT_EQ(setAuxLedFrame[3], static_cast<std::uint8_t>(PelcoD::CommandOpcode::SetAuxiliary));
+    EXPECT_EQ(setAuxLedFrame[4], 25U);
+    EXPECT_EQ(setAuxLedFrame[5], static_cast<std::uint8_t>(PelcoD::AuxLedColor::Amber));
+    const auto descSetLed = PelcoD::ProtocolParser::describeFrame(true, setAuxLedFrame);
+    EXPECT_NE(descSetLed.find("Set Aux LED"), std::string::npos);
+
+    // Aux Indicator LED: Clear
+    const auto clearAuxLedFrame = PelcoD::ProtocolBuilder::buildClearAuxLed(
+        1U, PelcoD::AuxLedColor::Red, 10U);
+    ASSERT_EQ(clearAuxLedFrame.size(), 7U);
+    EXPECT_EQ(clearAuxLedFrame[2], static_cast<std::uint8_t>(PelcoD::AuxSubOpcode::Led));
+    EXPECT_EQ(clearAuxLedFrame[3], static_cast<std::uint8_t>(PelcoD::CommandOpcode::ClearAuxiliary));
+    EXPECT_EQ(clearAuxLedFrame[4], 10U);
+    EXPECT_EQ(clearAuxLedFrame[5], static_cast<std::uint8_t>(PelcoD::AuxLedColor::Red));
+    const auto descClearLed = PelcoD::ProtocolParser::describeFrame(true, clearAuxLedFrame);
+    EXPECT_NE(descClearLed.find("Clear Aux LED"), std::string::npos);
+
+    // Everest: QueryAzimuthZero
+    const auto qAzZero = PelcoD::ProtocolBuilder::buildQueryAzimuthZero(1U);
+    ASSERT_EQ(qAzZero.size(), 7U);
+    EXPECT_EQ(qAzZero[2], static_cast<std::uint8_t>(PelcoD::EverestSubOpcode::QueryAzimuthZero));
+    EXPECT_EQ(qAzZero[3], static_cast<std::uint8_t>(PelcoD::CommandOpcode::Everest));
+
+    // Everest: SetZoomLimit
+    const auto setZoomLim = PelcoD::ProtocolBuilder::buildSetZoomLimit(1U, 24000U);
+    ASSERT_EQ(setZoomLim.size(), 7U);
+    EXPECT_EQ(setZoomLim[2], static_cast<std::uint8_t>(PelcoD::EverestSubOpcode::SetZoomLimit));
+    EXPECT_EQ(setZoomLim[3], static_cast<std::uint8_t>(PelcoD::CommandOpcode::Everest));
+    EXPECT_EQ(setZoomLim[4], static_cast<std::uint8_t>((24000U >> 8U) & 0xFFU));
+    EXPECT_EQ(setZoomLim[5], static_cast<std::uint8_t>(24000U & 0xFFU));
+
+    // Everest: QueryZoomLimit
+    const auto qZoomLim = PelcoD::ProtocolBuilder::buildQueryZoomLimit(1U);
+    EXPECT_EQ(qZoomLim[2], static_cast<std::uint8_t>(PelcoD::EverestSubOpcode::QueryZoomLimit));
+    EXPECT_EQ(qZoomLim[3], static_cast<std::uint8_t>(PelcoD::CommandOpcode::Everest));
+
+    // Everest: QueryAlarms
+    const auto qAlarms = PelcoD::ProtocolBuilder::buildQueryEverestAlarms(1U);
+    EXPECT_EQ(qAlarms[2], static_cast<std::uint8_t>(PelcoD::EverestSubOpcode::QueryAlarms));
+    EXPECT_EQ(qAlarms[3], static_cast<std::uint8_t>(PelcoD::CommandOpcode::Everest));
+
+    // Everest: DeletePattern
+    const auto delPat = PelcoD::ProtocolBuilder::buildDeletePattern(1U, 4U);
+    EXPECT_EQ(delPat[2], static_cast<std::uint8_t>(PelcoD::EverestSubOpcode::DeletePattern));
+    EXPECT_EQ(delPat[3], static_cast<std::uint8_t>(PelcoD::CommandOpcode::Everest));
+    EXPECT_EQ(delPat[5], 4U);
+
+    // Everest: SetManualLeftPanLimit & SetManualRightPanLimit
+    const auto setManL = PelcoD::ProtocolBuilder::buildSetManualLeftPanLimit(1U, 1500U);
+    EXPECT_EQ(setManL[2], static_cast<std::uint8_t>(PelcoD::EverestSubOpcode::SetManualLeftPanLimit));
+    EXPECT_EQ(setManL[3], static_cast<std::uint8_t>(PelcoD::CommandOpcode::Everest));
+    const auto setManR = PelcoD::ProtocolBuilder::buildSetManualRightPanLimit(1U, 34500U);
+    EXPECT_EQ(setManR[2], static_cast<std::uint8_t>(PelcoD::EverestSubOpcode::SetManualRightPanLimit));
+
+    // Everest: SetScanLeftPanLimit & SetScanRightPanLimit
+    const auto setScanL = PelcoD::ProtocolBuilder::buildSetScanLeftPanLimit(1U, 2500U);
+    EXPECT_EQ(setScanL[2], static_cast<std::uint8_t>(PelcoD::EverestSubOpcode::SetScanLeftPanLimit));
+    const auto setScanR = PelcoD::ProtocolBuilder::buildSetScanRightPanLimit(1U, 33500U);
+    EXPECT_EQ(setScanR[2], static_cast<std::uint8_t>(PelcoD::EverestSubOpcode::SetScanRightPanLimit));
+
+    // Everest: QueryLimit
+    const auto qLim = PelcoD::ProtocolBuilder::buildQueryLimit(1U, PelcoD::EverestLimitId::ScanRightPan);
+    EXPECT_EQ(qLim[2], static_cast<std::uint8_t>(PelcoD::EverestSubOpcode::QueryLimit));
+    EXPECT_EQ(qLim[5], static_cast<std::uint8_t>(PelcoD::EverestLimitId::ScanRightPan));
+
+    // Everest: EnableLimits
+    const auto enLim = PelcoD::ProtocolBuilder::buildEnableLimits(1U, true);
+    EXPECT_EQ(enLim[2], static_cast<std::uint8_t>(PelcoD::EverestSubOpcode::EnableLimits));
+    EXPECT_EQ(enLim[5], 0x01U);
+
+    // Everest: QueryDefinedPresets & QueryDefinedPatterns
+    const auto qPresets = PelcoD::ProtocolBuilder::buildQueryDefinedPresets(1U);
+    EXPECT_EQ(qPresets[2], static_cast<std::uint8_t>(PelcoD::EverestSubOpcode::QueryDefinedPresets));
+    const auto qPatterns = PelcoD::ProtocolBuilder::buildQueryDefinedPatterns(1U);
+    EXPECT_EQ(qPatterns[2], static_cast<std::uint8_t>(PelcoD::EverestSubOpcode::QueryDefinedPatterns));
+}
+
+/// @brief Verify parsing and status updating for Everest responses.
+TEST(ProtocolCompletenessTest, Phase4ResponsesAndParsing)
+{
+    // Everest AzimuthZeroResponse: val = 18000 = 0x4650
+    const std::vector<std::uint8_t> azFrame = PelcoD::PelcoDFrame::createFrame(
+        1U,
+        static_cast<std::uint8_t>(PelcoD::EverestSubOpcode::AzimuthZeroResponse),
+        static_cast<std::uint8_t>(PelcoD::ResponseOpcode::Everest),
+        0x46U, 0x50U);
+
+    PelcoD::DeviceStatus status {};
+    PelcoD::DeviceInfo info {};
+    ASSERT_TRUE(PelcoD::ProtocolParser::updateStatus(azFrame, status, info));
+    EXPECT_EQ(status.azimuthZeroOffsetCentidegrees, 18000U);
+
+    // Everest ZoomLimitResponse: val = 20000 = 0x4E20
+    const std::vector<std::uint8_t> zlFrame = PelcoD::PelcoDFrame::createFrame(
+        1U,
+        static_cast<std::uint8_t>(PelcoD::EverestSubOpcode::ZoomLimitResponse),
+        static_cast<std::uint8_t>(PelcoD::ResponseOpcode::Everest),
+        0x4EU, 0x20U);
+    ASSERT_TRUE(PelcoD::ProtocolParser::updateStatus(zlFrame, status, info));
+    EXPECT_EQ(status.zoomLimit, 20000U);
+
+    // Everest AlarmsResponse: data2 = 0x0F
+    const std::vector<std::uint8_t> almFrame = PelcoD::PelcoDFrame::createFrame(
+        1U,
+        static_cast<std::uint8_t>(PelcoD::EverestSubOpcode::AlarmsResponse),
+        static_cast<std::uint8_t>(PelcoD::ResponseOpcode::Everest),
+        0x00U, 0x0FU);
+    ASSERT_TRUE(PelcoD::ProtocolParser::updateStatus(almFrame, status, info));
+    EXPECT_EQ(status.alarms, 0x0FU);
+
+    // Everest DefinedPresetsResponse: mask = 0x0055
+    const std::vector<std::uint8_t> dpFrame = PelcoD::PelcoDFrame::createFrame(
+        1U,
+        static_cast<std::uint8_t>(PelcoD::EverestSubOpcode::DefinedPresetsResponse),
+        static_cast<std::uint8_t>(PelcoD::ResponseOpcode::Everest),
+        0x00U, 0x55U);
+    ASSERT_TRUE(PelcoD::ProtocolParser::updateStatus(dpFrame, status, info));
+    EXPECT_EQ(status.definedPresetsMask, 0x0055U);
+
+    // Everest DefinedPatternsResponse: mask = 0x000F
+    const std::vector<std::uint8_t> patFrame = PelcoD::PelcoDFrame::createFrame(
+        1U,
+        static_cast<std::uint8_t>(PelcoD::EverestSubOpcode::DefinedPatternsResponse),
+        static_cast<std::uint8_t>(PelcoD::ResponseOpcode::Everest),
+        0x00U, 0x0FU);
+    ASSERT_TRUE(PelcoD::ProtocolParser::updateStatus(patFrame, status, info));
+    EXPECT_EQ(status.definedPatternsMask, 0x000FU);
+
+    // Classification test
+    EXPECT_EQ(PelcoD::ProtocolParser::classifyResponse(azFrame),
+        PelcoD::ResponseClassification::ExtendedTelemetry);
+}
+
+/// @brief Verify high-level PelcoDDevice methods for Phase 4 Aux LED and Everest commands.
+TEST(ProtocolCompletenessTest, PelcoDDevicePhase4Wrappers)
+{
+    auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(1U);
+    PelcoD::PelcoDDevice device(mock, 1U);
+
+    std::mutex mtx;
+    std::vector<std::vector<std::uint8_t>> sentFrames;
+
+    device.addTrafficCallback([&](bool isTx, const std::vector<std::uint8_t>& frame) {
+        if (isTx) {
+            std::scoped_lock lock(mtx);
+            sentFrames.push_back(frame);
+        }
+    });
+
+    ASSERT_TRUE(device.start());
+
+    device.setAuxLed(PelcoD::AuxLedColor::Amber, 20U);
+    device.clearAuxLed(PelcoD::AuxLedColor::Red, 0U);
+    device.queryAzimuthZero();
+    device.setZoomLimit(22000U);
+    device.queryZoomLimit();
+    device.queryEverestAlarms();
+    device.deletePattern(2U);
+    device.setManualLeftPanLimit(1100U);
+    device.setManualRightPanLimit(34900U);
+    device.setScanLeftPanLimit(2100U);
+    device.setScanRightPanLimit(33900U);
+    device.queryLimit(PelcoD::EverestLimitId::ScanLeftPan);
+    device.enableLimits(true);
+    device.queryDefinedPresets();
+    device.queryDefinedPatterns();
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    device.stop();
+
+    std::scoped_lock lock(mtx);
+    ASSERT_GE(sentFrames.size(), 15U);
+
+    // Verify status updated from replies received from mock device
+    const auto status = device.getStatus();
+    EXPECT_EQ(status.azimuthZeroOffsetCentidegrees, 500U); // default mock offset
+    EXPECT_EQ(status.zoomLimit, 22000U); // updated by setZoomLimit
+    EXPECT_EQ(status.definedPresetsMask, 0x0007U); // default mock mask
+    EXPECT_EQ(status.definedPatternsMask, 0x0001U); // 0x0003 with pattern 2 deleted
+}
+
+/// @brief Verify asynchronous futures for Everest queries.
+TEST(ProtocolCompletenessTest, PelcoDDevicePhase4AsyncQueries)
+{
+    auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(1U);
+    PelcoD::PelcoDDevice device(mock, 1U);
+
+    ASSERT_TRUE(device.start());
+
+    auto azFuture = device.queryAzimuthZeroAsync(std::chrono::milliseconds(2000));
+    ASSERT_EQ(azFuture.wait_for(std::chrono::milliseconds(1500)), std::future_status::ready);
+    const auto azOffset = azFuture.get();
+    EXPECT_EQ(azOffset, 500U);
+
+    auto zlFuture = device.queryZoomLimitAsync(std::chrono::milliseconds(2000));
+    ASSERT_EQ(zlFuture.wait_for(std::chrono::milliseconds(1500)), std::future_status::ready);
+    const auto zl = zlFuture.get();
+    EXPECT_EQ(zl, 18400U);
+
+    device.stop();
+}
+
 } // namespace
 
 

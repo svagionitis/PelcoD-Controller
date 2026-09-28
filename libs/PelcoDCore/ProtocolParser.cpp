@@ -141,6 +141,21 @@ bool ProtocolParser::parseTimeResponse(const std::vector<std::uint8_t>& frame,
     return true;
 }
 
+bool ProtocolParser::parseEverestResponse(const std::vector<std::uint8_t>& frame,
+    EverestSubOpcode& subOpcode, std::uint8_t& data1, std::uint8_t& data2) noexcept
+{
+    if (frame.size() != PelcoDFrame::StandardFrameSize || frame[0] != PelcoDFrame::SyncByte) {
+        return false;
+    }
+    if (frame[3] != static_cast<std::uint8_t>(ResponseOpcode::Everest)) {
+        return false;
+    }
+    subOpcode = static_cast<EverestSubOpcode>(frame[2]);
+    data1 = frame[4];
+    data2 = frame[5];
+    return true;
+}
+
 bool ProtocolParser::parseQuery(const std::vector<std::uint8_t>& frame, std::string& payload)
 {
     if (frame.size() != PelcoDFrame::QueryResponseSize || frame[0] != PelcoDFrame::SyncByte) {
@@ -228,6 +243,37 @@ bool ProtocolParser::updateStatus(const std::vector<std::uint8_t>& frame, Device
 
         case ResponseOpcode::TimeMacro:
             return true;
+
+        case ResponseOpcode::Everest: {
+            EverestSubOpcode sub {};
+            std::uint8_t d1 { 0U };
+            std::uint8_t d2 { 0U };
+            if (parseEverestResponse(frame, sub, d1, d2)) {
+                const auto val16 = static_cast<std::uint16_t>((static_cast<std::uint16_t>(d1) << 8U) | d2);
+                switch (sub) {
+                case EverestSubOpcode::AzimuthZeroResponse:
+                    status.azimuthZeroOffsetCentidegrees = val16;
+                    return true;
+                case EverestSubOpcode::ZoomLimitResponse:
+                    status.zoomLimit = val16;
+                    return true;
+                case EverestSubOpcode::AlarmsResponse:
+                    status.alarms = d2;
+                    return true;
+                case EverestSubOpcode::LimitResponse:
+                    return true;
+                case EverestSubOpcode::DefinedPresetsResponse:
+                    status.definedPresetsMask = val16;
+                    return true;
+                case EverestSubOpcode::DefinedPatternsResponse:
+                    status.definedPatternsMask = val16;
+                    return true;
+                default:
+                    return true;
+                }
+            }
+            return false;
+        }
 
         default:
             return false;
@@ -330,8 +376,14 @@ std::string ProtocolParser::describeFrame(bool isTx, const std::vector<std::uint
             case 0x07U:
                 return "GoTo Preset " + std::to_string(d2);
             case 0x09U:
+                if (cmd1 == static_cast<std::uint8_t>(AuxSubOpcode::Led)) {
+                    return "Set Aux LED (ID/Color=0x" + toHexByte(d2) + ", Rate=" + std::to_string(d1) + ")";
+                }
                 return "Set Aux " + std::to_string(d2) + " ON";
             case 0x0BU:
+                if (cmd1 == static_cast<std::uint8_t>(AuxSubOpcode::Led)) {
+                    return "Clear Aux LED (ID/Color=0x" + toHexByte(d2) + ", Rate=" + std::to_string(d1) + ")";
+                }
                 return "Clear Aux " + std::to_string(d2) + " OFF";
             case 0x49U:
                 return "Set Zero Position";
@@ -401,6 +453,39 @@ std::string ProtocolParser::describeFrame(bool isTx, const std::vector<std::uint
                     return "Time Command (Sub 0x" + toHexByte(cmd1) + ")";
                 }
             }
+            case 0x75U: {
+                const auto val16 = static_cast<std::uint16_t>((static_cast<std::uint16_t>(d1) << 8U) | d2);
+                switch (cmd1) {
+                case 0x00U:
+                    return "Query Azimuth Zero Offset";
+                case 0x02U:
+                    return "Set Zoom Limit (" + std::to_string(val16) + ")";
+                case 0x03U:
+                    return "Query Zoom Limit";
+                case 0x05U:
+                    return "Query Alarms (Everest)";
+                case 0x07U:
+                    return "Delete Pattern " + std::to_string(d2);
+                case 0x08U:
+                    return "Set Manual Left Pan Limit (" + std::to_string(val16) + ")";
+                case 0x09U:
+                    return "Set Manual Right Pan Limit (" + std::to_string(val16) + ")";
+                case 0x0AU:
+                    return "Set Scan Left Pan Limit (" + std::to_string(val16) + ")";
+                case 0x0BU:
+                    return "Set Scan Right Pan Limit (" + std::to_string(val16) + ")";
+                case 0x0CU:
+                    return "Query Limit (ID=" + std::to_string(d2) + ")";
+                case 0x0EU:
+                    return "Set Limits " + std::string(d2 == 1U ? "Enabled" : "Disabled");
+                case 0x0FU:
+                    return "Query Defined Presets (Group " + std::to_string(d2) + ")";
+                case 0x11U:
+                    return "Query Defined Patterns (Group " + std::to_string(d2) + ")";
+                default:
+                    return "Everest Macro (Sub 0x" + toHexByte(cmd1) + ")";
+                }
+            }
             case 0x0FU:
                 return "Remote Reset";
             default:
@@ -467,6 +552,25 @@ std::string ProtocolParser::describeFrame(bool isTx, const std::vector<std::uint
                 return "Time Response (Sub 0x" + toHexByte(cmd1) + ")";
             }
         }
+        if (cmd2 == static_cast<std::uint8_t>(ResponseOpcode::Everest)) {
+            const auto val16 = static_cast<std::uint16_t>((static_cast<std::uint16_t>(d1) << 8U) | d2);
+            switch (cmd1) {
+            case 0x01U:
+                return "Azimuth Zero Offset Response: " + std::to_string(val16) + " centidegrees";
+            case 0x04U:
+                return "Zoom Limit Response: " + std::to_string(val16);
+            case 0x06U:
+                return "Alarms Response (Everest): Mask=0x" + toHexByte(d2);
+            case 0x0DU:
+                return "Limit Response: " + std::to_string(val16) + " centidegrees";
+            case 0x10U:
+                return "Defined Presets Response: Mask=0x" + toHexByte(d1) + toHexByte(d2);
+            case 0x12U:
+                return "Defined Patterns Response: Mask=0x" + toHexByte(d1) + toHexByte(d2);
+            default:
+                return "Everest Response (Sub 0x" + toHexByte(cmd1) + ")";
+            }
+        }
 
         return "Response (Opcode 0x" + toHexByte(cmd2) + ")";
     }
@@ -498,7 +602,10 @@ ResponseClassification ProtocolParser::classifyResponse(const std::vector<std::u
             || op == static_cast<std::uint8_t>(ResponseOpcode::QueryZoom)
             || op == static_cast<std::uint8_t>(ResponseOpcode::QueryMagnification)
             || op == static_cast<std::uint8_t>(ResponseOpcode::QueryDeviceType)
-            || op == static_cast<std::uint8_t>(ResponseOpcode::QueryDiagnostics)) {
+            || op == static_cast<std::uint8_t>(ResponseOpcode::QueryDiagnostics)
+            || op == static_cast<std::uint8_t>(ResponseOpcode::VersionInfo)
+            || op == static_cast<std::uint8_t>(ResponseOpcode::TimeMacro)
+            || op == static_cast<std::uint8_t>(ResponseOpcode::Everest)) {
             return ResponseClassification::ExtendedTelemetry;
         }
     }
@@ -551,6 +658,40 @@ bool ProtocolParser::isResponseMatchingQuery(
         return frame.size() == PelcoDFrame::StandardFrameSize
             && frame[3] == static_cast<std::uint8_t>(ResponseOpcode::TimeMacro);
     }
+    if (queryTag == "QueryAzimuthZero") {
+        return frame.size() == PelcoDFrame::StandardFrameSize
+            && frame[3] == static_cast<std::uint8_t>(ResponseOpcode::Everest)
+            && frame[2] == static_cast<std::uint8_t>(EverestSubOpcode::AzimuthZeroResponse);
+    }
+    if (queryTag == "QueryZoomLimit") {
+        return frame.size() == PelcoDFrame::StandardFrameSize
+            && frame[3] == static_cast<std::uint8_t>(ResponseOpcode::Everest)
+            && frame[2] == static_cast<std::uint8_t>(EverestSubOpcode::ZoomLimitResponse);
+    }
+    if (queryTag == "QueryEverestAlarms") {
+        return frame.size() == PelcoDFrame::StandardFrameSize
+            && frame[3] == static_cast<std::uint8_t>(ResponseOpcode::Everest)
+            && frame[2] == static_cast<std::uint8_t>(EverestSubOpcode::AlarmsResponse);
+    }
+    if (queryTag == "QueryLimit") {
+        return frame.size() == PelcoDFrame::StandardFrameSize
+            && frame[3] == static_cast<std::uint8_t>(ResponseOpcode::Everest)
+            && frame[2] == static_cast<std::uint8_t>(EverestSubOpcode::LimitResponse);
+    }
+    if (queryTag == "QueryDefinedPresets") {
+        return frame.size() == PelcoDFrame::StandardFrameSize
+            && frame[3] == static_cast<std::uint8_t>(ResponseOpcode::Everest)
+            && frame[2] == static_cast<std::uint8_t>(EverestSubOpcode::DefinedPresetsResponse);
+    }
+    if (queryTag == "QueryDefinedPatterns") {
+        return frame.size() == PelcoDFrame::StandardFrameSize
+            && frame[3] == static_cast<std::uint8_t>(ResponseOpcode::Everest)
+            && frame[2] == static_cast<std::uint8_t>(EverestSubOpcode::DefinedPatternsResponse);
+    }
+    if (queryTag == "QueryEverest") {
+        return frame.size() == PelcoDFrame::StandardFrameSize
+            && frame[3] == static_cast<std::uint8_t>(ResponseOpcode::Everest);
+    }
     if (queryTag == "QueryGeneral") {
         return frame.size() == PelcoDFrame::QueryResponseSize;
     }
@@ -563,7 +704,10 @@ bool ProtocolParser::isResponseMatchingQuery(
             || op == static_cast<std::uint8_t>(ResponseOpcode::QueryZoom)
             || op == static_cast<std::uint8_t>(ResponseOpcode::QueryMagnification)
             || op == static_cast<std::uint8_t>(ResponseOpcode::QueryDeviceType)
-            || op == static_cast<std::uint8_t>(ResponseOpcode::QueryDiagnostics);
+            || op == static_cast<std::uint8_t>(ResponseOpcode::QueryDiagnostics)
+            || op == static_cast<std::uint8_t>(ResponseOpcode::VersionInfo)
+            || op == static_cast<std::uint8_t>(ResponseOpcode::TimeMacro)
+            || op == static_cast<std::uint8_t>(ResponseOpcode::Everest);
     }
     if (frame.size() == PelcoDFrame::QueryResponseSize) {
         return true;

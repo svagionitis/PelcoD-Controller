@@ -104,6 +104,15 @@ public:
     [[nodiscard]] static bool parseTimeResponse(const std::vector<std::uint8_t>& frame,
         TimeSubOpcode& subOpcode, std::uint8_t& data1, std::uint8_t& data2) noexcept;
 
+    /// @brief Decodes 7-byte Everest Macro response (opcode 0x75).
+    /// @param[in] frame Raw response frame.
+    /// @param[out] subOpcode Sub-opcode (0x01, 0x04, 0x06, 0x0D, 0x10, 0x12).
+    /// @param[out] data1 First data byte.
+    /// @param[out] data2 Second data byte.
+    /// @return True if opcode is 0x75 and frame is valid.
+    [[nodiscard]] static bool parseEverestResponse(const std::vector<std::uint8_t>& frame,
+        EverestSubOpcode& subOpcode, std::uint8_t& data1, std::uint8_t& data2) noexcept;
+
     /// @brief Decodes 18-byte Query response packet.
     /// @param[in] frame Raw response frame.
     /// @param[out] payload Extracted text payload string.

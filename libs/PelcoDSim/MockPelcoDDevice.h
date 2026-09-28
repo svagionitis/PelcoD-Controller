@@ -59,6 +59,19 @@ struct MockDeviceState {
     std::map<std::uint8_t, PresetPosition> presets {};
     std::array<bool, 8> auxStates { false, false, false, false, false, false, false, false };
 
+    std::uint8_t auxLedColor { 0U };
+    std::uint8_t auxLedRate { 0U };
+
+    std::uint16_t azimuthZeroOffset { 500U };
+    std::uint16_t zoomLimit { 18400U };
+    std::uint16_t manualLeftPanLimit { 1000U };
+    std::uint16_t manualRightPanLimit { 35000U };
+    std::uint16_t scanLeftPanLimit { 2000U };
+    std::uint16_t scanRightPanLimit { 34000U };
+    bool limitsEnabled { false };
+    std::uint16_t definedPresetsMask { 0x0007U };
+    std::uint16_t definedPatternsMask { 0x0003U };
+
     std::uint32_t baudRate { 9600U };
     bool filterByBaudRate { false };
 };

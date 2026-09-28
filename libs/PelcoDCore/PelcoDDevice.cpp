@@ -743,6 +743,81 @@ void PelcoDDevice::queryTime(TimeSubOpcode queryType)
     sendQueryFrame(ProtocolBuilder::buildQueryTime(m_address, queryType), "QueryTime");
 }
 
+void PelcoDDevice::setAuxLed(std::uint8_t ledIdOrColor, std::uint8_t onTimeTenths)
+{
+    enqueueCommand(ProtocolBuilder::buildSetAuxLed(m_address, ledIdOrColor, onTimeTenths));
+}
+
+void PelcoDDevice::clearAuxLed(std::uint8_t ledIdOrColor, std::uint8_t offTimeTenths)
+{
+    enqueueCommand(ProtocolBuilder::buildClearAuxLed(m_address, ledIdOrColor, offTimeTenths));
+}
+
+void PelcoDDevice::queryAzimuthZero()
+{
+    sendQueryFrame(ProtocolBuilder::buildQueryAzimuthZero(m_address), "QueryAzimuthZero");
+}
+
+void PelcoDDevice::setZoomLimit(std::uint16_t limitHundredths)
+{
+    enqueueCommand(ProtocolBuilder::buildSetZoomLimit(m_address, limitHundredths));
+}
+
+void PelcoDDevice::queryZoomLimit()
+{
+    sendQueryFrame(ProtocolBuilder::buildQueryZoomLimit(m_address), "QueryZoomLimit");
+}
+
+void PelcoDDevice::queryEverestAlarms()
+{
+    sendQueryFrame(ProtocolBuilder::buildQueryEverestAlarms(m_address), "QueryEverestAlarms");
+}
+
+void PelcoDDevice::deletePattern(std::uint8_t patternId)
+{
+    enqueueCommand(ProtocolBuilder::buildDeletePattern(m_address, patternId));
+}
+
+void PelcoDDevice::setManualLeftPanLimit(std::uint16_t centidegrees)
+{
+    enqueueCommand(ProtocolBuilder::buildSetManualLeftPanLimit(m_address, centidegrees));
+}
+
+void PelcoDDevice::setManualRightPanLimit(std::uint16_t centidegrees)
+{
+    enqueueCommand(ProtocolBuilder::buildSetManualRightPanLimit(m_address, centidegrees));
+}
+
+void PelcoDDevice::setScanLeftPanLimit(std::uint16_t centidegrees)
+{
+    enqueueCommand(ProtocolBuilder::buildSetScanLeftPanLimit(m_address, centidegrees));
+}
+
+void PelcoDDevice::setScanRightPanLimit(std::uint16_t centidegrees)
+{
+    enqueueCommand(ProtocolBuilder::buildSetScanRightPanLimit(m_address, centidegrees));
+}
+
+void PelcoDDevice::queryLimit(EverestLimitId limitId)
+{
+    sendQueryFrame(ProtocolBuilder::buildQueryLimit(m_address, limitId), "QueryLimit");
+}
+
+void PelcoDDevice::enableLimits(bool enable)
+{
+    enqueueCommand(ProtocolBuilder::buildEnableLimits(m_address, enable));
+}
+
+void PelcoDDevice::queryDefinedPresets(std::uint8_t group)
+{
+    sendQueryFrame(ProtocolBuilder::buildQueryDefinedPresets(m_address, group), "QueryDefinedPresets");
+}
+
+void PelcoDDevice::queryDefinedPatterns(std::uint8_t group)
+{
+    sendQueryFrame(ProtocolBuilder::buildQueryDefinedPatterns(m_address, group), "QueryDefinedPatterns");
+}
+
 namespace {
 
     template <typename ResultT, typename Extractor>
@@ -844,6 +919,20 @@ std::future<std::uint16_t> PelcoDDevice::queryBuildNumberAsync(std::chrono::mill
     return executeAsyncQuery<std::uint16_t>(
         this, "QueryBuildNumber", [this] { queryBuildNumber(); },
         [this](const DeviceStatus&) { return getInfo().buildNumber; }, timeout);
+}
+
+std::future<std::uint16_t> PelcoDDevice::queryAzimuthZeroAsync(std::chrono::milliseconds timeout)
+{
+    return executeAsyncQuery<std::uint16_t>(
+        this, "QueryAzimuthZero", [this] { queryAzimuthZero(); },
+        [](const DeviceStatus& s) { return s.azimuthZeroOffsetCentidegrees; }, timeout);
+}
+
+std::future<std::uint16_t> PelcoDDevice::queryZoomLimitAsync(std::chrono::milliseconds timeout)
+{
+    return executeAsyncQuery<std::uint16_t>(
+        this, "QueryZoomLimit", [this] { queryZoomLimit(); },
+        [](const DeviceStatus& s) { return s.zoomLimit; }, timeout);
 }
 
 void PelcoDDevice::sendRawFrame(const std::vector<std::uint8_t>& frame)

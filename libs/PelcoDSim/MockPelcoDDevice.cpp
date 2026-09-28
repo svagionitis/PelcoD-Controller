@@ -332,7 +332,10 @@ void MockPelcoDDevice::processFrame(const std::vector<std::uint8_t>& frame)
     case CommandOpcode::SetAuxiliary: {
         {
             std::scoped_lock lock(m_stateMutex);
-            if (data2 >= 1U && data2 <= 8U) {
+            if (cmd1 == static_cast<std::uint8_t>(AuxSubOpcode::Led)) {
+                m_state.auxLedRate = data1;
+                m_state.auxLedColor = data2;
+            } else if (data2 >= 1U && data2 <= 8U) {
                 m_state.auxStates[data2 - 1U] = true;
             }
         }
@@ -343,7 +346,10 @@ void MockPelcoDDevice::processFrame(const std::vector<std::uint8_t>& frame)
     case CommandOpcode::ClearAuxiliary: {
         {
             std::scoped_lock lock(m_stateMutex);
-            if (data2 >= 1U && data2 <= 8U) {
+            if (cmd1 == static_cast<std::uint8_t>(AuxSubOpcode::Led)) {
+                m_state.auxLedRate = data1;
+                m_state.auxLedColor = 0U;
+            } else if (data2 >= 1U && data2 <= 8U) {
                 m_state.auxStates[data2 - 1U] = false;
             }
         }
@@ -587,6 +593,123 @@ void MockPelcoDDevice::processFrame(const std::vector<std::uint8_t>& frame)
         }
         if (isQuery) {
             sendExtendedReply(cmd1, static_cast<std::uint8_t>(ResponseOpcode::TimeMacro), d1Out, d2Out);
+        } else {
+            sendGeneralReply(cksm);
+        }
+        break;
+    }
+
+    case CommandOpcode::Everest: {
+        const auto sub = static_cast<EverestSubOpcode>(cmd1);
+        std::uint8_t d1Out { 0U };
+        std::uint8_t d2Out { 0U };
+        bool sendExtended { false };
+        EverestSubOpcode respSub { EverestSubOpcode::QueryAzimuthZero };
+
+        {
+            std::scoped_lock lock(m_stateMutex);
+            switch (sub) {
+            case EverestSubOpcode::QueryAzimuthZero: {
+                sendExtended = true;
+                respSub = EverestSubOpcode::AzimuthZeroResponse;
+                d1Out = static_cast<std::uint8_t>((m_state.azimuthZeroOffset >> 8U) & 0xFFU);
+                d2Out = static_cast<std::uint8_t>(m_state.azimuthZeroOffset & 0xFFU);
+                break;
+            }
+            case EverestSubOpcode::SetZoomLimit: {
+                m_state.zoomLimit = static_cast<std::uint16_t>((static_cast<std::uint16_t>(data1) << 8U) | data2);
+                break;
+            }
+            case EverestSubOpcode::QueryZoomLimit: {
+                sendExtended = true;
+                respSub = EverestSubOpcode::ZoomLimitResponse;
+                d1Out = static_cast<std::uint8_t>((m_state.zoomLimit >> 8U) & 0xFFU);
+                d2Out = static_cast<std::uint8_t>(m_state.zoomLimit & 0xFFU);
+                break;
+            }
+            case EverestSubOpcode::QueryAlarms: {
+                sendExtended = true;
+                respSub = EverestSubOpcode::AlarmsResponse;
+                d1Out = 0x00U;
+                d2Out = m_state.alarms;
+                break;
+            }
+            case EverestSubOpcode::DeletePattern: {
+                if (data2 >= 1U && data2 <= 16U) {
+                    m_state.definedPatternsMask = static_cast<std::uint16_t>(
+                        m_state.definedPatternsMask & ~static_cast<std::uint16_t>(1U << (data2 - 1U)));
+                }
+                break;
+            }
+            case EverestSubOpcode::SetManualLeftPanLimit: {
+                m_state.manualLeftPanLimit
+                    = static_cast<std::uint16_t>((static_cast<std::uint16_t>(data1) << 8U) | data2);
+                break;
+            }
+            case EverestSubOpcode::SetManualRightPanLimit: {
+                m_state.manualRightPanLimit
+                    = static_cast<std::uint16_t>((static_cast<std::uint16_t>(data1) << 8U) | data2);
+                break;
+            }
+            case EverestSubOpcode::SetScanLeftPanLimit: {
+                m_state.scanLeftPanLimit
+                    = static_cast<std::uint16_t>((static_cast<std::uint16_t>(data1) << 8U) | data2);
+                break;
+            }
+            case EverestSubOpcode::SetScanRightPanLimit: {
+                m_state.scanRightPanLimit
+                    = static_cast<std::uint16_t>((static_cast<std::uint16_t>(data1) << 8U) | data2);
+                break;
+            }
+            case EverestSubOpcode::QueryLimit: {
+                sendExtended = true;
+                respSub = EverestSubOpcode::LimitResponse;
+                std::uint16_t limitVal { 0U };
+                const auto limitId = static_cast<EverestLimitId>(data2);
+                switch (limitId) {
+                case EverestLimitId::ManualLeftPan:
+                    limitVal = m_state.manualLeftPanLimit;
+                    break;
+                case EverestLimitId::ManualRightPan:
+                    limitVal = m_state.manualRightPanLimit;
+                    break;
+                case EverestLimitId::ScanLeftPan:
+                    limitVal = m_state.scanLeftPanLimit;
+                    break;
+                case EverestLimitId::ScanRightPan:
+                    limitVal = m_state.scanRightPanLimit;
+                    break;
+                }
+                d1Out = static_cast<std::uint8_t>((limitVal >> 8U) & 0xFFU);
+                d2Out = static_cast<std::uint8_t>(limitVal & 0xFFU);
+                break;
+            }
+            case EverestSubOpcode::EnableLimits: {
+                m_state.limitsEnabled = (data2 != 0x00U);
+                break;
+            }
+            case EverestSubOpcode::QueryDefinedPresets: {
+                sendExtended = true;
+                respSub = EverestSubOpcode::DefinedPresetsResponse;
+                d1Out = static_cast<std::uint8_t>((m_state.definedPresetsMask >> 8U) & 0xFFU);
+                d2Out = static_cast<std::uint8_t>(m_state.definedPresetsMask & 0xFFU);
+                break;
+            }
+            case EverestSubOpcode::QueryDefinedPatterns: {
+                sendExtended = true;
+                respSub = EverestSubOpcode::DefinedPatternsResponse;
+                d1Out = static_cast<std::uint8_t>((m_state.definedPatternsMask >> 8U) & 0xFFU);
+                d2Out = static_cast<std::uint8_t>(m_state.definedPatternsMask & 0xFFU);
+                break;
+            }
+            default:
+                break;
+            }
+        }
+
+        if (sendExtended) {
+            sendExtendedReply(static_cast<std::uint8_t>(respSub),
+                static_cast<std::uint8_t>(ResponseOpcode::Everest), d1Out, d2Out);
         } else {
             sendGeneralReply(cksm);
         }

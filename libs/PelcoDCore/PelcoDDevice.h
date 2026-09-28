@@ -291,6 +291,81 @@ public:
     /// @param[in] queryType ReportSeconds (0x01), ReportHourMinute (0x03), ReportMonthDay (0x05), or ReportYear (0x07).
     void queryTime(TimeSubOpcode queryType);
 
+    /// @brief Turns on or blinks an indicator LED via Auxiliary Set (opcode 0x09, sub 0x01).
+    /// @param[in] ledIdOrColor Target LED ID or color code (0xFE Green, 0xFD Red, 0xFC Amber).
+    /// @param[in] onTimeTenths Duration in tenths of seconds (0 = permanently ON).
+    void setAuxLed(std::uint8_t ledIdOrColor, std::uint8_t onTimeTenths = 0U);
+
+    /// @brief Turns on or blinks an indicator LED via Auxiliary Set (opcode 0x09, sub 0x01).
+    /// @param[in] ledColor Target LED color enum.
+    /// @param[in] onTimeTenths Duration in tenths of seconds (0 = permanently ON).
+    void setAuxLed(AuxLedColor ledColor, std::uint8_t onTimeTenths = 0U)
+    {
+        setAuxLed(static_cast<std::uint8_t>(ledColor), onTimeTenths);
+    }
+
+    /// @brief Clears or blinks off indicator LED via Auxiliary Clear (opcode 0x0B, sub 0x01).
+    /// @param[in] ledIdOrColor Target LED ID or color code.
+    /// @param[in] offTimeTenths Duration in tenths of seconds (0 = permanently OFF).
+    void clearAuxLed(std::uint8_t ledIdOrColor, std::uint8_t offTimeTenths = 0U);
+
+    /// @brief Clears or blinks off indicator LED via Auxiliary Clear (opcode 0x0B, sub 0x01).
+    /// @param[in] ledColor Target LED color enum.
+    /// @param[in] offTimeTenths Duration in tenths of seconds (0 = permanently OFF).
+    void clearAuxLed(AuxLedColor ledColor, std::uint8_t offTimeTenths = 0U)
+    {
+        clearAuxLed(static_cast<std::uint8_t>(ledColor), offTimeTenths);
+    }
+
+    /// @brief Queries azimuth zero offset via Everest macro (opcode 0x75, sub 0x00).
+    void queryAzimuthZero();
+
+    /// @brief Sets maximum zoom limit on device via Everest macro (opcode 0x75, sub 0x02).
+    /// @param[in] limitHundredths Zoom magnification limit in hundredths (e.g. 18400 = 184x).
+    void setZoomLimit(std::uint16_t limitHundredths);
+
+    /// @brief Queries maximum zoom limit from device via Everest macro (opcode 0x75, sub 0x03).
+    void queryZoomLimit();
+
+    /// @brief Queries alarm bitmask from device via Everest macro (opcode 0x75, sub 0x05).
+    void queryEverestAlarms();
+
+    /// @brief Deletes a recorded pattern by ID via Everest macro (opcode 0x75, sub 0x07).
+    /// @param[in] patternId Pattern identifier (1-8).
+    void deletePattern(std::uint8_t patternId);
+
+    /// @brief Sets manual left pan limit in centidegrees via Everest macro (opcode 0x75, sub 0x08).
+    /// @param[in] centidegrees Left limit angle in hundredths of degrees (0-35999).
+    void setManualLeftPanLimit(std::uint16_t centidegrees);
+
+    /// @brief Sets manual right pan limit in centidegrees via Everest macro (opcode 0x75, sub 0x09).
+    /// @param[in] centidegrees Right limit angle in hundredths of degrees (0-35999).
+    void setManualRightPanLimit(std::uint16_t centidegrees);
+
+    /// @brief Sets scan left pan limit in centidegrees via Everest macro (opcode 0x75, sub 0x0A).
+    /// @param[in] centidegrees Scan left limit angle in hundredths of degrees (0-35999).
+    void setScanLeftPanLimit(std::uint16_t centidegrees);
+
+    /// @brief Sets scan right pan limit in centidegrees via Everest macro (opcode 0x75, sub 0x0B).
+    /// @param[in] centidegrees Scan right limit angle in hundredths of degrees (0-35999).
+    void setScanRightPanLimit(std::uint16_t centidegrees);
+
+    /// @brief Queries pan or scan limit value by ID via Everest macro (opcode 0x75, sub 0x0C).
+    /// @param[in] limitId Limit identifier (ManualLeftPan, ManualRightPan, ScanLeftPan, ScanRightPan).
+    void queryLimit(EverestLimitId limitId);
+
+    /// @brief Enables or disables manual and scan limits via Everest macro (opcode 0x75, sub 0x0E).
+    /// @param[in] enable True to enable limits, false to disable.
+    void enableLimits(bool enable);
+
+    /// @brief Queries defined presets bitmask for a group of 16 presets via Everest macro (opcode 0x75, sub 0x0F).
+    /// @param[in] group Preset group index (0-15).
+    void queryDefinedPresets(std::uint8_t group = 0U);
+
+    /// @brief Queries defined patterns bitmask for a group of 16 patterns via Everest macro (opcode 0x75, sub 0x11).
+    /// @param[in] group Pattern group index (0-15).
+    void queryDefinedPatterns(std::uint8_t group = 0U);
+
     /// @brief Asynchronously queries current pan angle with timeout.
     /// @param[in] timeout Maximum wait duration.
     /// @return Future resolving to pan angle in centidegrees, or throwing std::runtime_error on failure/timeout.
@@ -325,6 +400,18 @@ public:
     /// @param[in] timeout Maximum wait duration.
     /// @return Future resolving to 16-bit build number, or throwing std::runtime_error on failure/timeout.
     [[nodiscard]] std::future<std::uint16_t> queryBuildNumberAsync(
+        std::chrono::milliseconds timeout = std::chrono::milliseconds(1000));
+
+    /// @brief Asynchronously queries azimuth zero offset via Everest macro with timeout.
+    /// @param[in] timeout Maximum wait duration.
+    /// @return Future resolving to azimuth zero offset in centidegrees.
+    [[nodiscard]] std::future<std::uint16_t> queryAzimuthZeroAsync(
+        std::chrono::milliseconds timeout = std::chrono::milliseconds(1000));
+
+    /// @brief Asynchronously queries maximum zoom limit via Everest macro with timeout.
+    /// @param[in] timeout Maximum wait duration.
+    /// @return Future resolving to zoom magnification limit in hundredths.
+    [[nodiscard]] std::future<std::uint16_t> queryZoomLimitAsync(
         std::chrono::milliseconds timeout = std::chrono::milliseconds(1000));
 
     void sendRawFrame(const std::vector<std::uint8_t>& frame);

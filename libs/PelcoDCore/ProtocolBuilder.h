@@ -228,6 +228,128 @@ public:
     /// @param[in] queryType ReportSeconds (0x01), ReportHourMinute (0x03), ReportMonthDay (0x05), or ReportYear (0x07).
     /// @return 7-byte Pelco-D formatted vector.
     [[nodiscard]] static std::vector<std::uint8_t> buildQueryTime(std::uint8_t address, TimeSubOpcode queryType);
+
+    // Auxiliary LED Control (opcodes 0x09/0x0B with sub 0x01)
+    /// @brief Controls indicator LED via Auxiliary Set (opcode 0x09, sub 0x01).
+    /// @param[in] address Device bus address (1-255).
+    /// @param[in] ledIdOrColor Target LED ID or color code (0xFE Green, 0xFD Red, 0xFC Amber).
+    /// @param[in] onTimeTenths Duration in tenths of seconds (0 = permanently ON).
+    /// @return 7-byte Pelco-D formatted vector.
+    [[nodiscard]] static std::vector<std::uint8_t> buildSetAuxLed(
+        std::uint8_t address, std::uint8_t ledIdOrColor, std::uint8_t onTimeTenths = 0U);
+
+    /// @brief Turns on or blinks an indicator LED via Auxiliary Set (opcode 0x09, sub 0x01).
+    /// @param[in] address Device bus address (1-255).
+    /// @param[in] ledColor Target LED color enum.
+    /// @param[in] onTimeTenths Duration in tenths of seconds (0 = permanently ON).
+    /// @return 7-byte Pelco-D formatted vector.
+    [[nodiscard]] static inline std::vector<std::uint8_t> buildSetAuxLed(
+        std::uint8_t address, AuxLedColor ledColor, std::uint8_t onTimeTenths = 0U)
+    {
+        return buildSetAuxLed(address, static_cast<std::uint8_t>(ledColor), onTimeTenths);
+    }
+
+    /// @brief Clears or blinks off indicator LED via Auxiliary Clear (opcode 0x0B, sub 0x01).
+    /// @param[in] address Device bus address (1-255).
+    /// @param[in] ledIdOrColor Target LED ID or color code.
+    /// @param[in] offTimeTenths Duration in tenths of seconds (0 = permanently OFF).
+    /// @return 7-byte Pelco-D formatted vector.
+    [[nodiscard]] static std::vector<std::uint8_t> buildClearAuxLed(
+        std::uint8_t address, std::uint8_t ledIdOrColor, std::uint8_t offTimeTenths = 0U);
+
+    /// @brief Clears or blinks off indicator LED via Auxiliary Clear (opcode 0x0B, sub 0x01).
+    /// @param[in] address Device bus address (1-255).
+    /// @param[in] ledColor Target LED color enum.
+    /// @param[in] offTimeTenths Duration in tenths of seconds (0 = permanently OFF).
+    /// @return 7-byte Pelco-D formatted vector.
+    [[nodiscard]] static inline std::vector<std::uint8_t> buildClearAuxLed(
+        std::uint8_t address, AuxLedColor ledColor, std::uint8_t offTimeTenths = 0U)
+    {
+        return buildClearAuxLed(address, static_cast<std::uint8_t>(ledColor), offTimeTenths);
+    }
+
+    // Everest Macro (opcode 0x75)
+    /// @brief Queries azimuth zero offset from device (opcode 0x75, sub 0x00).
+    /// @param[in] address Device bus address (1-255).
+    /// @return 7-byte Pelco-D formatted vector.
+    [[nodiscard]] static std::vector<std::uint8_t> buildQueryAzimuthZero(std::uint8_t address);
+
+    /// @brief Sets maximum zoom limit on device (opcode 0x75, sub 0x02).
+    /// @param[in] address Device bus address (1-255).
+    /// @param[in] limitHundredths Zoom magnification limit in hundredths (e.g. 18400 = 184x).
+    /// @return 7-byte Pelco-D formatted vector.
+    [[nodiscard]] static std::vector<std::uint8_t> buildSetZoomLimit(
+        std::uint8_t address, std::uint16_t limitHundredths);
+
+    /// @brief Queries maximum zoom limit from device (opcode 0x75, sub 0x03).
+    /// @param[in] address Device bus address (1-255).
+    /// @return 7-byte Pelco-D formatted vector.
+    [[nodiscard]] static std::vector<std::uint8_t> buildQueryZoomLimit(std::uint8_t address);
+
+    /// @brief Queries alarm bitmask from device via Everest macro (opcode 0x75, sub 0x05).
+    /// @param[in] address Device bus address (1-255).
+    /// @return 7-byte Pelco-D formatted vector.
+    [[nodiscard]] static std::vector<std::uint8_t> buildQueryEverestAlarms(std::uint8_t address);
+
+    /// @brief Deletes a recorded pattern by ID (opcode 0x75, sub 0x07).
+    /// @param[in] address Device bus address (1-255).
+    /// @param[in] patternId Pattern identifier (1-8).
+    /// @return 7-byte Pelco-D formatted vector.
+    [[nodiscard]] static std::vector<std::uint8_t> buildDeletePattern(std::uint8_t address, std::uint8_t patternId);
+
+    /// @brief Sets manual left pan limit in centidegrees (opcode 0x75, sub 0x08).
+    /// @param[in] address Device bus address (1-255).
+    /// @param[in] centidegrees Left limit angle in hundredths of degrees (0-35999).
+    /// @return 7-byte Pelco-D formatted vector.
+    [[nodiscard]] static std::vector<std::uint8_t> buildSetManualLeftPanLimit(
+        std::uint8_t address, std::uint16_t centidegrees);
+
+    /// @brief Sets manual right pan limit in centidegrees (opcode 0x75, sub 0x09).
+    /// @param[in] address Device bus address (1-255).
+    /// @param[in] centidegrees Right limit angle in hundredths of degrees (0-35999).
+    /// @return 7-byte Pelco-D formatted vector.
+    [[nodiscard]] static std::vector<std::uint8_t> buildSetManualRightPanLimit(
+        std::uint8_t address, std::uint16_t centidegrees);
+
+    /// @brief Sets scan left pan limit in centidegrees (opcode 0x75, sub 0x0A).
+    /// @param[in] address Device bus address (1-255).
+    /// @param[in] centidegrees Scan left limit angle in hundredths of degrees (0-35999).
+    /// @return 7-byte Pelco-D formatted vector.
+    [[nodiscard]] static std::vector<std::uint8_t> buildSetScanLeftPanLimit(
+        std::uint8_t address, std::uint16_t centidegrees);
+
+    /// @brief Sets scan right pan limit in centidegrees (opcode 0x75, sub 0x0B).
+    /// @param[in] address Device bus address (1-255).
+    /// @param[in] centidegrees Scan right limit angle in hundredths of degrees (0-35999).
+    /// @return 7-byte Pelco-D formatted vector.
+    [[nodiscard]] static std::vector<std::uint8_t> buildSetScanRightPanLimit(
+        std::uint8_t address, std::uint16_t centidegrees);
+
+    /// @brief Queries pan or scan limit value by ID (opcode 0x75, sub 0x0C).
+    /// @param[in] address Device bus address (1-255).
+    /// @param[in] limitId Limit identifier (ManualLeftPan, ManualRightPan, ScanLeftPan, ScanRightPan).
+    /// @return 7-byte Pelco-D formatted vector.
+    [[nodiscard]] static std::vector<std::uint8_t> buildQueryLimit(std::uint8_t address, EverestLimitId limitId);
+
+    /// @brief Enables or disables manual and scan limits (opcode 0x75, sub 0x0E).
+    /// @param[in] address Device bus address (1-255).
+    /// @param[in] enable True to enable limits, false to disable.
+    /// @return 7-byte Pelco-D formatted vector.
+    [[nodiscard]] static std::vector<std::uint8_t> buildEnableLimits(std::uint8_t address, bool enable);
+
+    /// @brief Queries defined presets bitmask for a group of 16 presets (opcode 0x75, sub 0x0F).
+    /// @param[in] address Device bus address (1-255).
+    /// @param[in] group Preset group index (0-15; group 0 covers 1-16, group 1 covers 17-32).
+    /// @return 7-byte Pelco-D formatted vector.
+    [[nodiscard]] static std::vector<std::uint8_t> buildQueryDefinedPresets(
+        std::uint8_t address, std::uint8_t group = 0U);
+
+    /// @brief Queries defined patterns bitmask for a group of 16 patterns (opcode 0x75, sub 0x11).
+    /// @param[in] address Device bus address (1-255).
+    /// @param[in] group Pattern group index (0-15).
+    /// @return 7-byte Pelco-D formatted vector.
+    [[nodiscard]] static std::vector<std::uint8_t> buildQueryDefinedPatterns(
+        std::uint8_t address, std::uint8_t group = 0U);
 };
 
 } // namespace PelcoD
