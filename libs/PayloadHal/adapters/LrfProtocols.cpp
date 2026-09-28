@@ -222,8 +222,8 @@ std::vector<LrfTargetMeasurement> NmeaLrfParser::parseIncomingBytes(const std::u
         LrfTargetMeasurement meas {};
         meas.valid = valid;
         meas.slantRangeMeters = valid ? distanceMeters : 0.0;
-        meas.signalQualityRatio = valid ? 0.95 : 0.0;
-        meas.diodeTemperatureC = 25.0;
+        meas.signalQualityRatio = std::nullopt;
+        meas.diodeTemperatureC = std::nullopt;
         meas.pulseCounter = ++m_pulseCounter;
         meas.timestamp = std::chrono::system_clock::now();
 
@@ -378,8 +378,8 @@ std::vector<LrfTargetMeasurement> AsciiLrfParser::parseIncomingBytes(const std::
         LrfTargetMeasurement meas {};
         meas.valid = valid;
         meas.slantRangeMeters = valid ? distanceMeters : 0.0;
-        meas.signalQualityRatio = valid ? 0.90 : 0.0;
-        meas.diodeTemperatureC = 25.0;
+        meas.signalQualityRatio = std::nullopt;
+        meas.diodeTemperatureC = std::nullopt;
         meas.pulseCounter = ++m_pulseCounter;
         meas.timestamp = std::chrono::system_clock::now();
 
@@ -579,12 +579,12 @@ std::vector<LrfTargetMeasurement> BinaryLrfParser::parseIncomingBytes(const std:
                 | (static_cast<std::uint32_t>(m_rxBuffer[offset + 7]) << 8)
                 | static_cast<std::uint32_t>(m_rxBuffer[offset + 8]);
 
-            double quality = 0.95;
+            std::optional<double> quality = std::nullopt;
             if (payloadLen >= 6) {
                 quality = static_cast<double>(m_rxBuffer[offset + 9]) / 255.0;
             }
 
-            double tempC = 25.0;
+            std::optional<double> tempC = std::nullopt;
             if (payloadLen >= 7) {
                 tempC = static_cast<double>(static_cast<std::int8_t>(m_rxBuffer[offset + 10]));
             }
@@ -592,7 +592,7 @@ std::vector<LrfTargetMeasurement> BinaryLrfParser::parseIncomingBytes(const std:
             LrfTargetMeasurement meas {};
             meas.valid = (status == 0 && distMm > 0);
             meas.slantRangeMeters = meas.valid ? (static_cast<double>(distMm) / 1000.0) : 0.0;
-            meas.signalQualityRatio = meas.valid ? quality : 0.0;
+            meas.signalQualityRatio = meas.valid ? quality : std::nullopt;
             meas.diodeTemperatureC = tempC;
             meas.pulseCounter = ++m_pulseCounter;
             meas.timestamp = std::chrono::system_clock::now();

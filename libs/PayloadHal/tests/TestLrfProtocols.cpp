@@ -31,7 +31,8 @@ TEST(TestLrfProtocols, NmeaParseValidSentence)
     ASSERT_EQ(results.size(), 1U);
     EXPECT_TRUE(results[0].valid);
     EXPECT_NEAR(results[0].slantRangeMeters, 1250.50, 0.001);
-    EXPECT_GT(results[0].signalQualityRatio, 0.9);
+    EXPECT_FALSE(results[0].signalQualityRatio.has_value());
+    EXPECT_FALSE(results[0].diodeTemperatureC.has_value());
 }
 
 TEST(TestLrfProtocols, NmeaParseFeetConversion)
@@ -227,8 +228,46 @@ TEST(TestLrfProtocols, BinaryParseEchoReport)
     ASSERT_EQ(results.size(), 1U);
     EXPECT_TRUE(results[0].valid);
     EXPECT_NEAR(results[0].slantRangeMeters, 1500.0, 0.001);
-    EXPECT_NEAR(results[0].signalQualityRatio, 240.0 / 255.0, 0.01);
-    EXPECT_NEAR(results[0].diodeTemperatureC, 28.0, 0.01);
+    ASSERT_TRUE(results[0].signalQualityRatio.has_value());
+    EXPECT_NEAR(*results[0].signalQualityRatio, 240.0 / 255.0, 0.01);
+    ASSERT_TRUE(results[0].diodeTemperatureC.has_value());
+    EXPECT_NEAR(*results[0].diodeTemperatureC, 28.0, 0.01);
+}
+
+TEST(TestLrfProtocols, BinaryParseEchoReportMinimalPayload)
+{
+    BinaryLrfParser parser;
+
+    // Build minimal binary echo report with only status (1 byte) + dist (4 bytes), payload length = 5:
+    // Sync: 0xAA 0x55
+    // MsgId: 0x10
+    // Len: 5
+    // Status: 0x00
+    // Dist: 1500000 mm = 1500.0 m (0x0016E360)
+    std::vector<uint8_t> frame = { 0xAA, 0x55, 0x10, 0x05, 0x00, 0x00, 0x16, 0xE3, 0x60 };
+    const uint16_t crc = BinaryLrfParser::computeCrc16(frame.data(), frame.size());
+    frame.push_back(static_cast<uint8_t>((crc >> 8) & 0xFF));
+    frame.push_back(static_cast<uint8_t>(crc & 0xFF));
+
+    auto results = parser.parseIncomingBytes(frame.data(), frame.size());
+    ASSERT_EQ(results.size(), 1U);
+    EXPECT_TRUE(results[0].valid);
+    EXPECT_NEAR(results[0].slantRangeMeters, 1500.0, 0.001);
+    EXPECT_FALSE(results[0].signalQualityRatio.has_value());
+    EXPECT_FALSE(results[0].diodeTemperatureC.has_value());
+}
+
+TEST(TestLrfProtocols, AsciiParseNoSyntheticTelemetry)
+{
+    AsciiLrfParser parser;
+    const std::string msg = "R: 1250.5\r\n";
+    auto results = parser.parseIncomingBytes(reinterpret_cast<const uint8_t*>(msg.data()), msg.size());
+
+    ASSERT_EQ(results.size(), 1U);
+    EXPECT_TRUE(results[0].valid);
+    EXPECT_NEAR(results[0].slantRangeMeters, 1250.5, 0.001);
+    EXPECT_FALSE(results[0].signalQualityRatio.has_value());
+    EXPECT_FALSE(results[0].diodeTemperatureC.has_value());
 }
 
 TEST(TestLrfProtocols, BinaryCrcCorruptionRejection)
