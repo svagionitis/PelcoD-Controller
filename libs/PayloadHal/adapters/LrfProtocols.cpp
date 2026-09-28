@@ -61,6 +61,14 @@ namespace {
         return (ec == std::errc {} && ptr == str.data() + str.size());
     }
 
+    std::string toUpperSafe(std::string_view str)
+    {
+        std::string upper(str);
+        std::transform(upper.begin(), upper.end(), upper.begin(),
+            [](unsigned char c) { return static_cast<char>(std::toupper(c)); });
+        return upper;
+    }
+
 } // namespace
 
 // =============================================================================
@@ -273,9 +281,7 @@ std::vector<LrfTargetMeasurement> AsciiLrfParser::parseIncomingBytes(const std::
             continue;
         }
 
-        std::string upperLine = line;
-        std::transform(upperLine.begin(), upperLine.end(), upperLine.begin(),
-            [](unsigned char c) { return static_cast<char>(std::toupper(c)); });
+        const std::string upperLine = toUpperSafe(line);
 
         bool valid = false;
         double distanceMeters = 0.0;

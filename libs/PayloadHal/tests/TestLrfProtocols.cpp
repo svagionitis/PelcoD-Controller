@@ -322,3 +322,20 @@ TEST(TestLrfProtocols, NmeaParseOmittedFields)
     EXPECT_TRUE(res3[0].valid);
     EXPECT_NEAR(res3[0].slantRangeMeters, 800.25, 0.001);
 }
+
+TEST(TestLrfProtocols, AsciiParseSignedCharNoise)
+{
+    AsciiLrfParser parser;
+
+    // Stream noise containing characters where static_cast<char> has negative sign (0x80..0xFF)
+    // std::toupper with raw negative char invokes undefined behavior; toUpperSafe casts to unsigned char.
+    const std::string noiseAndValid = "\x80\xFF\xFE\r\nERROR: \x80\r\nR: 1650.25\r\n";
+    auto results
+        = parser.parseIncomingBytes(reinterpret_cast<const uint8_t*>(noiseAndValid.data()), noiseAndValid.size());
+
+    ASSERT_EQ(results.size(), 3U);
+    EXPECT_FALSE(results[0].valid); // Pure noise line is rejected
+    EXPECT_FALSE(results[1].valid); // Error string with high-bit chars is rejected safely
+    EXPECT_TRUE(results[2].valid); // Subsequent valid reading parses correctly
+    EXPECT_NEAR(results[2].slantRangeMeters, 1650.25, 0.001);
+}
