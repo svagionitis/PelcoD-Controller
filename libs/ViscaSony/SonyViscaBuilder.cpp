@@ -200,6 +200,181 @@ ViscaFrame SonyViscaBuilder::autoIcr(uint8_t cameraAddress, bool on)
     return ViscaFrame { makeHeader(cameraAddress), 0x01, 0x04, 0x51, val, kViscaTerminator };
 }
 
+ViscaFrame SonyViscaBuilder::apertureReset(uint8_t cameraAddress)
+{
+    return ViscaFrame { makeHeader(cameraAddress), 0x01, 0x04, 0x02, 0x00, kViscaTerminator };
+}
+
+ViscaFrame SonyViscaBuilder::apertureUp(uint8_t cameraAddress)
+{
+    return ViscaFrame { makeHeader(cameraAddress), 0x01, 0x04, 0x02, 0x02, kViscaTerminator };
+}
+
+ViscaFrame SonyViscaBuilder::apertureDown(uint8_t cameraAddress)
+{
+    return ViscaFrame { makeHeader(cameraAddress), 0x01, 0x04, 0x02, 0x03, kViscaTerminator };
+}
+
+ViscaFrame SonyViscaBuilder::apertureDirect(uint8_t cameraAddress, uint8_t level)
+{
+    const auto nibbles = ViscaFrame::packByteNibbles(static_cast<uint8_t>(level & 0x0FU));
+    return ViscaFrame { makeHeader(cameraAddress), 0x01, 0x04, 0x42, 0x00, 0x00, nibbles[0], nibbles[1],
+        kViscaTerminator };
+}
+
+ViscaFrame SonyViscaBuilder::apertureInquiry(uint8_t cameraAddress)
+{
+    return ViscaFrame { makeHeader(cameraAddress), 0x09, 0x04, 0x42, kViscaTerminator };
+}
+
+ViscaFrame SonyViscaBuilder::backlight(uint8_t cameraAddress, bool on)
+{
+    const uint8_t val = on ? 0x02 : 0x03;
+    return ViscaFrame { makeHeader(cameraAddress), 0x01, 0x04, 0x33, val, kViscaTerminator };
+}
+
+ViscaFrame SonyViscaBuilder::backlightInquiry(uint8_t cameraAddress)
+{
+    return ViscaFrame { makeHeader(cameraAddress), 0x09, 0x04, 0x33, kViscaTerminator };
+}
+
+ViscaFrame SonyViscaBuilder::autoSlowShutter(uint8_t cameraAddress, bool on)
+{
+    const uint8_t val = on ? 0x02 : 0x03;
+    return ViscaFrame { makeHeader(cameraAddress), 0x01, 0x04, 0x5A, val, kViscaTerminator };
+}
+
+ViscaFrame SonyViscaBuilder::autoSlowShutterInquiry(uint8_t cameraAddress)
+{
+    return ViscaFrame { makeHeader(cameraAddress), 0x09, 0x04, 0x5A, kViscaTerminator };
+}
+
+ViscaFrame SonyViscaBuilder::highSensitivity(uint8_t cameraAddress, bool on)
+{
+    const uint8_t val = on ? 0x02 : 0x03;
+    return ViscaFrame { makeHeader(cameraAddress), 0x01, 0x04, 0x5E, val, kViscaTerminator };
+}
+
+ViscaFrame SonyViscaBuilder::highSensitivityInquiry(uint8_t cameraAddress)
+{
+    return ViscaFrame { makeHeader(cameraAddress), 0x09, 0x04, 0x5E, kViscaTerminator };
+}
+
+ViscaFrame SonyViscaBuilder::noiseReduction2D(uint8_t cameraAddress, uint8_t level)
+{
+    const uint8_t val = static_cast<uint8_t>(level & 0x07U);
+    return ViscaFrame { makeHeader(cameraAddress), 0x01, 0x04, 0x53, val, kViscaTerminator };
+}
+
+ViscaFrame SonyViscaBuilder::noiseReduction2DInquiry(uint8_t cameraAddress)
+{
+    return ViscaFrame { makeHeader(cameraAddress), 0x09, 0x04, 0x53, kViscaTerminator };
+}
+
+ViscaFrame SonyViscaBuilder::noiseReduction3D(uint8_t cameraAddress, uint8_t level)
+{
+    const uint8_t val = static_cast<uint8_t>(level & 0x07U);
+    return ViscaFrame { makeHeader(cameraAddress), 0x01, 0x04, 0x54, val, kViscaTerminator };
+}
+
+ViscaFrame SonyViscaBuilder::noiseReduction3DInquiry(uint8_t cameraAddress)
+{
+    return ViscaFrame { makeHeader(cameraAddress), 0x09, 0x04, 0x54, kViscaTerminator };
+}
+
+ViscaFrame SonyViscaBuilder::wideD(uint8_t cameraAddress, SonyWideDMode mode)
+{
+    uint8_t modeByte = 0x03; // Off
+    if (mode == SonyWideDMode::WideD) {
+        modeByte = 0x02; // Wide-D On
+    } else if (mode == SonyWideDMode::VisibilityEnhancer) {
+        modeByte = 0x06; // VE On
+    }
+    return ViscaFrame { makeHeader(cameraAddress), 0x01, 0x04, 0x3D, modeByte, kViscaTerminator };
+}
+
+ViscaFrame SonyViscaBuilder::wideDInquiry(uint8_t cameraAddress)
+{
+    return ViscaFrame { makeHeader(cameraAddress), 0x09, 0x04, 0x3D, kViscaTerminator };
+}
+
+ViscaFrame SonyViscaBuilder::freeze(uint8_t cameraAddress, bool on)
+{
+    const uint8_t val = on ? 0x02 : 0x03;
+    return ViscaFrame { makeHeader(cameraAddress), 0x01, 0x04, 0x62, val, kViscaTerminator };
+}
+
+ViscaFrame SonyViscaBuilder::freezeInquiry(uint8_t cameraAddress)
+{
+    return ViscaFrame { makeHeader(cameraAddress), 0x09, 0x04, 0x62, kViscaTerminator };
+}
+
+ViscaFrame SonyViscaBuilder::pictureFlip(uint8_t cameraAddress, bool on)
+{
+    const uint8_t val = on ? 0x02 : 0x03;
+    return ViscaFrame { makeHeader(cameraAddress), 0x01, 0x04, 0x66, val, kViscaTerminator };
+}
+
+ViscaFrame SonyViscaBuilder::pictureFlipInquiry(uint8_t cameraAddress)
+{
+    return ViscaFrame { makeHeader(cameraAddress), 0x09, 0x04, 0x66, kViscaTerminator };
+}
+
+ViscaFrame SonyViscaBuilder::lrReverse(uint8_t cameraAddress, bool on)
+{
+    const uint8_t val = on ? 0x02 : 0x03;
+    return ViscaFrame { makeHeader(cameraAddress), 0x01, 0x04, 0x61, val, kViscaTerminator };
+}
+
+ViscaFrame SonyViscaBuilder::lrReverseInquiry(uint8_t cameraAddress)
+{
+    return ViscaFrame { makeHeader(cameraAddress), 0x09, 0x04, 0x61, kViscaTerminator };
+}
+
+ViscaFrame SonyViscaBuilder::colorGain(uint8_t cameraAddress, uint8_t gain)
+{
+    const uint8_t val = static_cast<uint8_t>(gain & 0x0FU);
+    return ViscaFrame { makeHeader(cameraAddress), 0x01, 0x04, 0x49, 0x00, 0x00, 0x00, val, kViscaTerminator };
+}
+
+ViscaFrame SonyViscaBuilder::colorGainInquiry(uint8_t cameraAddress)
+{
+    return ViscaFrame { makeHeader(cameraAddress), 0x09, 0x04, 0x49, kViscaTerminator };
+}
+
+ViscaFrame SonyViscaBuilder::colorHue(uint8_t cameraAddress, uint8_t hue)
+{
+    const uint8_t val = static_cast<uint8_t>(hue & 0x0FU);
+    return ViscaFrame { makeHeader(cameraAddress), 0x01, 0x04, 0x4F, 0x00, 0x00, 0x00, val, kViscaTerminator };
+}
+
+ViscaFrame SonyViscaBuilder::colorHueInquiry(uint8_t cameraAddress)
+{
+    return ViscaFrame { makeHeader(cameraAddress), 0x09, 0x04, 0x4F, kViscaTerminator };
+}
+
+ViscaFrame SonyViscaBuilder::chromaSuppress(uint8_t cameraAddress, uint8_t level)
+{
+    const uint8_t val = static_cast<uint8_t>(level & 0x03U);
+    return ViscaFrame { makeHeader(cameraAddress), 0x01, 0x04, 0x5F, val, kViscaTerminator };
+}
+
+ViscaFrame SonyViscaBuilder::chromaSuppressInquiry(uint8_t cameraAddress)
+{
+    return ViscaFrame { makeHeader(cameraAddress), 0x09, 0x04, 0x5F, kViscaTerminator };
+}
+
+ViscaFrame SonyViscaBuilder::gamma(uint8_t cameraAddress, uint8_t mode)
+{
+    const uint8_t val = static_cast<uint8_t>(mode & 0x07U);
+    return ViscaFrame { makeHeader(cameraAddress), 0x01, 0x04, 0x5B, val, kViscaTerminator };
+}
+
+ViscaFrame SonyViscaBuilder::gammaInquiry(uint8_t cameraAddress)
+{
+    return ViscaFrame { makeHeader(cameraAddress), 0x09, 0x04, 0x5B, kViscaTerminator };
+}
+
 ViscaFrame SonyViscaBuilder::writeRegister(uint8_t cameraAddress, uint8_t reg, uint8_t value)
 {
     const auto nibbles = ViscaFrame::packByteNibbles(value);

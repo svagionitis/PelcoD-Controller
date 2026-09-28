@@ -220,6 +220,108 @@ bool SonyFCBDevice::setAutoIcr(bool on)
     return m_device.sendCommandSync(cmd).success;
 }
 
+bool SonyFCBDevice::setAperture(uint8_t level)
+{
+    const ViscaFrame cmd = SonyViscaBuilder::apertureDirect(m_device.cameraAddress(), level);
+    return m_device.sendCommandSync(cmd).success;
+}
+
+bool SonyFCBDevice::apertureReset()
+{
+    const ViscaFrame cmd = SonyViscaBuilder::apertureReset(m_device.cameraAddress());
+    return m_device.sendCommandSync(cmd).success;
+}
+
+bool SonyFCBDevice::apertureUp()
+{
+    const ViscaFrame cmd = SonyViscaBuilder::apertureUp(m_device.cameraAddress());
+    return m_device.sendCommandSync(cmd).success;
+}
+
+bool SonyFCBDevice::apertureDown()
+{
+    const ViscaFrame cmd = SonyViscaBuilder::apertureDown(m_device.cameraAddress());
+    return m_device.sendCommandSync(cmd).success;
+}
+
+bool SonyFCBDevice::setBacklight(bool on)
+{
+    const ViscaFrame cmd = SonyViscaBuilder::backlight(m_device.cameraAddress(), on);
+    return m_device.sendCommandSync(cmd).success;
+}
+
+bool SonyFCBDevice::setAutoSlowShutter(bool on)
+{
+    const ViscaFrame cmd = SonyViscaBuilder::autoSlowShutter(m_device.cameraAddress(), on);
+    return m_device.sendCommandSync(cmd).success;
+}
+
+bool SonyFCBDevice::setHighSensitivity(bool on)
+{
+    const ViscaFrame cmd = SonyViscaBuilder::highSensitivity(m_device.cameraAddress(), on);
+    return m_device.sendCommandSync(cmd).success;
+}
+
+bool SonyFCBDevice::setNoiseReduction2D(uint8_t level)
+{
+    const ViscaFrame cmd = SonyViscaBuilder::noiseReduction2D(m_device.cameraAddress(), level);
+    return m_device.sendCommandSync(cmd).success;
+}
+
+bool SonyFCBDevice::setNoiseReduction3D(uint8_t level)
+{
+    const ViscaFrame cmd = SonyViscaBuilder::noiseReduction3D(m_device.cameraAddress(), level);
+    return m_device.sendCommandSync(cmd).success;
+}
+
+bool SonyFCBDevice::setWideD(SonyWideDMode mode)
+{
+    const ViscaFrame cmd = SonyViscaBuilder::wideD(m_device.cameraAddress(), mode);
+    return m_device.sendCommandSync(cmd).success;
+}
+
+bool SonyFCBDevice::setFreeze(bool on)
+{
+    const ViscaFrame cmd = SonyViscaBuilder::freeze(m_device.cameraAddress(), on);
+    return m_device.sendCommandSync(cmd).success;
+}
+
+bool SonyFCBDevice::setPictureFlip(bool on)
+{
+    const ViscaFrame cmd = SonyViscaBuilder::pictureFlip(m_device.cameraAddress(), on);
+    return m_device.sendCommandSync(cmd).success;
+}
+
+bool SonyFCBDevice::setLrReverse(bool on)
+{
+    const ViscaFrame cmd = SonyViscaBuilder::lrReverse(m_device.cameraAddress(), on);
+    return m_device.sendCommandSync(cmd).success;
+}
+
+bool SonyFCBDevice::setColorGain(uint8_t gain)
+{
+    const ViscaFrame cmd = SonyViscaBuilder::colorGain(m_device.cameraAddress(), gain);
+    return m_device.sendCommandSync(cmd).success;
+}
+
+bool SonyFCBDevice::setColorHue(uint8_t hue)
+{
+    const ViscaFrame cmd = SonyViscaBuilder::colorHue(m_device.cameraAddress(), hue);
+    return m_device.sendCommandSync(cmd).success;
+}
+
+bool SonyFCBDevice::setChromaSuppress(uint8_t level)
+{
+    const ViscaFrame cmd = SonyViscaBuilder::chromaSuppress(m_device.cameraAddress(), level);
+    return m_device.sendCommandSync(cmd).success;
+}
+
+bool SonyFCBDevice::setGamma(uint8_t mode)
+{
+    const ViscaFrame cmd = SonyViscaBuilder::gamma(m_device.cameraAddress(), mode);
+    return m_device.sendCommandSync(cmd).success;
+}
+
 bool SonyFCBDevice::setDistortionCompensation(bool on)
 {
     if (!m_capabilities.supportsDistortionCompensation) {

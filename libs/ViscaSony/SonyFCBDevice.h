@@ -84,6 +84,33 @@ public:
     bool setIcr(bool on);
     bool setAutoIcr(bool on);
 
+    // --- Picture & Sharpness Controls ---
+    bool setAperture(uint8_t level);
+    bool apertureReset();
+    bool apertureUp();
+    bool apertureDown();
+
+    // --- Exposure & Sensitivity Enhancements ---
+    bool setBacklight(bool on);
+    bool setAutoSlowShutter(bool on);
+    bool setHighSensitivity(bool on);
+
+    // --- Noise Reduction ---
+    bool setNoiseReduction2D(uint8_t level);
+    bool setNoiseReduction3D(uint8_t level);
+
+    // --- Dynamic Range & Effects ---
+    bool setWideD(SonyWideDMode mode);
+    bool setFreeze(bool on);
+    bool setPictureFlip(bool on);
+    bool setLrReverse(bool on);
+
+    // --- Color & Gamma Adjustments ---
+    bool setColorGain(uint8_t gain);
+    bool setColorHue(uint8_t hue);
+    bool setChromaSuppress(uint8_t level);
+    bool setGamma(uint8_t mode);
+
     // --- Hardware Gated Controls ---
 
     /// @brief Enables or disables lens distortion compensation (Register 0x57).

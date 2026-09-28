@@ -53,6 +53,47 @@ public:
     [[nodiscard]] static ViscaFrame icr(uint8_t cameraAddress, bool on);
     [[nodiscard]] static ViscaFrame autoIcr(uint8_t cameraAddress, bool on);
 
+    // --- Picture & Sharpness Controls ---
+    [[nodiscard]] static ViscaFrame apertureReset(uint8_t cameraAddress = 1);
+    [[nodiscard]] static ViscaFrame apertureUp(uint8_t cameraAddress = 1);
+    [[nodiscard]] static ViscaFrame apertureDown(uint8_t cameraAddress = 1);
+    [[nodiscard]] static ViscaFrame apertureDirect(uint8_t cameraAddress, uint8_t level);
+    [[nodiscard]] static ViscaFrame apertureInquiry(uint8_t cameraAddress = 1);
+
+    // --- Exposure & Sensitivity Controls ---
+    [[nodiscard]] static ViscaFrame backlight(uint8_t cameraAddress, bool on);
+    [[nodiscard]] static ViscaFrame backlightInquiry(uint8_t cameraAddress = 1);
+    [[nodiscard]] static ViscaFrame autoSlowShutter(uint8_t cameraAddress, bool on);
+    [[nodiscard]] static ViscaFrame autoSlowShutterInquiry(uint8_t cameraAddress = 1);
+    [[nodiscard]] static ViscaFrame highSensitivity(uint8_t cameraAddress, bool on);
+    [[nodiscard]] static ViscaFrame highSensitivityInquiry(uint8_t cameraAddress = 1);
+
+    // --- Noise Reduction ---
+    [[nodiscard]] static ViscaFrame noiseReduction2D(uint8_t cameraAddress, uint8_t level);
+    [[nodiscard]] static ViscaFrame noiseReduction2DInquiry(uint8_t cameraAddress = 1);
+    [[nodiscard]] static ViscaFrame noiseReduction3D(uint8_t cameraAddress, uint8_t level);
+    [[nodiscard]] static ViscaFrame noiseReduction3DInquiry(uint8_t cameraAddress = 1);
+
+    // --- Dynamic Range & Effects ---
+    [[nodiscard]] static ViscaFrame wideD(uint8_t cameraAddress, SonyWideDMode mode);
+    [[nodiscard]] static ViscaFrame wideDInquiry(uint8_t cameraAddress = 1);
+    [[nodiscard]] static ViscaFrame freeze(uint8_t cameraAddress, bool on);
+    [[nodiscard]] static ViscaFrame freezeInquiry(uint8_t cameraAddress = 1);
+    [[nodiscard]] static ViscaFrame pictureFlip(uint8_t cameraAddress, bool on);
+    [[nodiscard]] static ViscaFrame pictureFlipInquiry(uint8_t cameraAddress = 1);
+    [[nodiscard]] static ViscaFrame lrReverse(uint8_t cameraAddress, bool on);
+    [[nodiscard]] static ViscaFrame lrReverseInquiry(uint8_t cameraAddress = 1);
+
+    // --- Color Adjustments ---
+    [[nodiscard]] static ViscaFrame colorGain(uint8_t cameraAddress, uint8_t gain);
+    [[nodiscard]] static ViscaFrame colorGainInquiry(uint8_t cameraAddress = 1);
+    [[nodiscard]] static ViscaFrame colorHue(uint8_t cameraAddress, uint8_t hue);
+    [[nodiscard]] static ViscaFrame colorHueInquiry(uint8_t cameraAddress = 1);
+    [[nodiscard]] static ViscaFrame chromaSuppress(uint8_t cameraAddress, uint8_t level);
+    [[nodiscard]] static ViscaFrame chromaSuppressInquiry(uint8_t cameraAddress = 1);
+    [[nodiscard]] static ViscaFrame gamma(uint8_t cameraAddress, uint8_t mode);
+    [[nodiscard]] static ViscaFrame gammaInquiry(uint8_t cameraAddress = 1);
+
     // --- Registers & Configuration ---
     [[nodiscard]] static ViscaFrame writeRegister(uint8_t cameraAddress, uint8_t reg, uint8_t value);
     [[nodiscard]] static ViscaFrame registerInquiry(uint8_t cameraAddress, uint8_t reg);

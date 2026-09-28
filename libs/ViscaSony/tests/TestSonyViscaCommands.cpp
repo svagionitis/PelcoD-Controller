@@ -97,3 +97,107 @@ TEST(TestSonyViscaCommands, Block01Decode)
     EXPECT_EQ(status.irisPosition, 0x0E);
     EXPECT_EQ(status.gainPosition, 0x08);
 }
+
+/// @brief Tests Sony FCB aperture and sharpness commands.
+TEST(TestSonyViscaCommands, ApertureCommands)
+{
+    EXPECT_EQ(SonyViscaBuilder::apertureReset(1).bytes(),
+        (std::vector<uint8_t> { 0x81, 0x01, 0x04, 0x02, 0x00, 0xFF }));
+    EXPECT_EQ(SonyViscaBuilder::apertureUp(1).bytes(),
+        (std::vector<uint8_t> { 0x81, 0x01, 0x04, 0x02, 0x02, 0xFF }));
+    EXPECT_EQ(SonyViscaBuilder::apertureDown(1).bytes(),
+        (std::vector<uint8_t> { 0x81, 0x01, 0x04, 0x02, 0x03, 0xFF }));
+    EXPECT_EQ(SonyViscaBuilder::apertureDirect(1, 0x0A).bytes(),
+        (std::vector<uint8_t> { 0x81, 0x01, 0x04, 0x42, 0x00, 0x00, 0x00, 0x0A, 0xFF }));
+    EXPECT_EQ(SonyViscaBuilder::apertureInquiry(1).bytes(),
+        (std::vector<uint8_t> { 0x81, 0x09, 0x04, 0x42, 0xFF }));
+}
+
+/// @brief Tests Sony FCB backlight, slow shutter, and high sensitivity controls.
+TEST(TestSonyViscaCommands, BacklightAndSensitivity)
+{
+    EXPECT_EQ(SonyViscaBuilder::backlight(1, true).bytes(),
+        (std::vector<uint8_t> { 0x81, 0x01, 0x04, 0x33, 0x02, 0xFF }));
+    EXPECT_EQ(SonyViscaBuilder::backlight(1, false).bytes(),
+        (std::vector<uint8_t> { 0x81, 0x01, 0x04, 0x33, 0x03, 0xFF }));
+    EXPECT_EQ(SonyViscaBuilder::backlightInquiry(1).bytes(),
+        (std::vector<uint8_t> { 0x81, 0x09, 0x04, 0x33, 0xFF }));
+
+    EXPECT_EQ(SonyViscaBuilder::autoSlowShutter(1, true).bytes(),
+        (std::vector<uint8_t> { 0x81, 0x01, 0x04, 0x5A, 0x02, 0xFF }));
+    EXPECT_EQ(SonyViscaBuilder::autoSlowShutterInquiry(1).bytes(),
+        (std::vector<uint8_t> { 0x81, 0x09, 0x04, 0x5A, 0xFF }));
+
+    EXPECT_EQ(SonyViscaBuilder::highSensitivity(1, true).bytes(),
+        (std::vector<uint8_t> { 0x81, 0x01, 0x04, 0x5E, 0x02, 0xFF }));
+    EXPECT_EQ(SonyViscaBuilder::highSensitivityInquiry(1).bytes(),
+        (std::vector<uint8_t> { 0x81, 0x09, 0x04, 0x5E, 0xFF }));
+}
+
+/// @brief Tests Sony FCB 2D and 3D noise reduction commands.
+TEST(TestSonyViscaCommands, NoiseReductionCommands)
+{
+    EXPECT_EQ(SonyViscaBuilder::noiseReduction2D(1, 3).bytes(),
+        (std::vector<uint8_t> { 0x81, 0x01, 0x04, 0x53, 0x03, 0xFF }));
+    EXPECT_EQ(SonyViscaBuilder::noiseReduction2DInquiry(1).bytes(),
+        (std::vector<uint8_t> { 0x81, 0x09, 0x04, 0x53, 0xFF }));
+
+    EXPECT_EQ(SonyViscaBuilder::noiseReduction3D(1, 4).bytes(),
+        (std::vector<uint8_t> { 0x81, 0x01, 0x04, 0x54, 0x04, 0xFF }));
+    EXPECT_EQ(SonyViscaBuilder::noiseReduction3DInquiry(1).bytes(),
+        (std::vector<uint8_t> { 0x81, 0x09, 0x04, 0x54, 0xFF }));
+}
+
+/// @brief Tests Sony FCB Wide-D, freeze, picture flip, and LR reverse commands.
+TEST(TestSonyViscaCommands, EffectsAndFlip)
+{
+    EXPECT_EQ(SonyViscaBuilder::wideD(1, SonyWideDMode::WideD).bytes(),
+        (std::vector<uint8_t> { 0x81, 0x01, 0x04, 0x3D, 0x02, 0xFF }));
+    EXPECT_EQ(SonyViscaBuilder::wideD(1, SonyWideDMode::Off).bytes(),
+        (std::vector<uint8_t> { 0x81, 0x01, 0x04, 0x3D, 0x03, 0xFF }));
+    EXPECT_EQ(SonyViscaBuilder::wideD(1, SonyWideDMode::VisibilityEnhancer).bytes(),
+        (std::vector<uint8_t> { 0x81, 0x01, 0x04, 0x3D, 0x06, 0xFF }));
+    EXPECT_EQ(SonyViscaBuilder::wideDInquiry(1).bytes(),
+        (std::vector<uint8_t> { 0x81, 0x09, 0x04, 0x3D, 0xFF }));
+
+    EXPECT_EQ(SonyViscaBuilder::freeze(1, true).bytes(),
+        (std::vector<uint8_t> { 0x81, 0x01, 0x04, 0x62, 0x02, 0xFF }));
+    EXPECT_EQ(SonyViscaBuilder::freeze(1, false).bytes(),
+        (std::vector<uint8_t> { 0x81, 0x01, 0x04, 0x62, 0x03, 0xFF }));
+    EXPECT_EQ(SonyViscaBuilder::freezeInquiry(1).bytes(),
+        (std::vector<uint8_t> { 0x81, 0x09, 0x04, 0x62, 0xFF }));
+
+    EXPECT_EQ(SonyViscaBuilder::pictureFlip(1, true).bytes(),
+        (std::vector<uint8_t> { 0x81, 0x01, 0x04, 0x66, 0x02, 0xFF }));
+    EXPECT_EQ(SonyViscaBuilder::pictureFlipInquiry(1).bytes(),
+        (std::vector<uint8_t> { 0x81, 0x09, 0x04, 0x66, 0xFF }));
+
+    EXPECT_EQ(SonyViscaBuilder::lrReverse(1, true).bytes(),
+        (std::vector<uint8_t> { 0x81, 0x01, 0x04, 0x61, 0x02, 0xFF }));
+    EXPECT_EQ(SonyViscaBuilder::lrReverseInquiry(1).bytes(),
+        (std::vector<uint8_t> { 0x81, 0x09, 0x04, 0x61, 0xFF }));
+}
+
+/// @brief Tests Sony FCB color gain, color hue, chroma suppress, and gamma controls.
+TEST(TestSonyViscaCommands, ColorAndGamma)
+{
+    EXPECT_EQ(SonyViscaBuilder::colorGain(1, 8).bytes(),
+        (std::vector<uint8_t> { 0x81, 0x01, 0x04, 0x49, 0x00, 0x00, 0x00, 0x08, 0xFF }));
+    EXPECT_EQ(SonyViscaBuilder::colorGainInquiry(1).bytes(),
+        (std::vector<uint8_t> { 0x81, 0x09, 0x04, 0x49, 0xFF }));
+
+    EXPECT_EQ(SonyViscaBuilder::colorHue(1, 6).bytes(),
+        (std::vector<uint8_t> { 0x81, 0x01, 0x04, 0x4F, 0x00, 0x00, 0x00, 0x06, 0xFF }));
+    EXPECT_EQ(SonyViscaBuilder::colorHueInquiry(1).bytes(),
+        (std::vector<uint8_t> { 0x81, 0x09, 0x04, 0x4F, 0xFF }));
+
+    EXPECT_EQ(SonyViscaBuilder::chromaSuppress(1, 2).bytes(),
+        (std::vector<uint8_t> { 0x81, 0x01, 0x04, 0x5F, 0x02, 0xFF }));
+    EXPECT_EQ(SonyViscaBuilder::chromaSuppressInquiry(1).bytes(),
+        (std::vector<uint8_t> { 0x81, 0x09, 0x04, 0x5F, 0xFF }));
+
+    EXPECT_EQ(SonyViscaBuilder::gamma(1, 1).bytes(),
+        (std::vector<uint8_t> { 0x81, 0x01, 0x04, 0x5B, 0x01, 0xFF }));
+    EXPECT_EQ(SonyViscaBuilder::gammaInquiry(1).bytes(),
+        (std::vector<uint8_t> { 0x81, 0x09, 0x04, 0x5B, 0xFF }));
+}
