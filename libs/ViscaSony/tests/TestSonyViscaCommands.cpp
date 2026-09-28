@@ -201,3 +201,42 @@ TEST(TestSonyViscaCommands, ColorAndGamma)
     EXPECT_EQ(SonyViscaBuilder::gammaInquiry(1).bytes(),
         (std::vector<uint8_t> { 0x81, 0x09, 0x04, 0x5B, 0xFF }));
 }
+
+/// @brief Tests Sony FCB preset memory commands (Set, Recall, Reset, Inq).
+TEST(TestSonyViscaCommands, PresetMemoryCommands)
+{
+    EXPECT_EQ(SonyViscaBuilder::memorySet(1, 3).bytes(),
+        (std::vector<uint8_t> { 0x81, 0x01, 0x04, 0x3F, 0x01, 0x03, 0xFF }));
+    EXPECT_EQ(SonyViscaBuilder::memoryRecall(1, 5).bytes(),
+        (std::vector<uint8_t> { 0x81, 0x01, 0x04, 0x3F, 0x02, 0x05, 0xFF }));
+    EXPECT_EQ(SonyViscaBuilder::memoryReset(1, 2).bytes(),
+        (std::vector<uint8_t> { 0x81, 0x01, 0x04, 0x3F, 0x00, 0x02, 0xFF }));
+    EXPECT_EQ(SonyViscaBuilder::memoryInquiry(1).bytes(),
+        (std::vector<uint8_t> { 0x81, 0x09, 0x04, 0x3F, 0xFF }));
+}
+
+/// @brief Tests Sony FCB Spot AE, Spot Focus, and Spot AWB coordinate controls.
+TEST(TestSonyViscaCommands, SpotControls)
+{
+    EXPECT_EQ(SonyViscaBuilder::spotAe(1, true).bytes(),
+        (std::vector<uint8_t> { 0x81, 0x01, 0x04, 0x59, 0x02, 0xFF }));
+    EXPECT_EQ(SonyViscaBuilder::spotAe(1, false).bytes(),
+        (std::vector<uint8_t> { 0x81, 0x01, 0x04, 0x59, 0x03, 0xFF }));
+    EXPECT_EQ(SonyViscaBuilder::spotAeInquiry(1).bytes(),
+        (std::vector<uint8_t> { 0x81, 0x09, 0x04, 0x59, 0xFF }));
+
+    EXPECT_EQ(SonyViscaBuilder::spotAePosition(1, 7, 9).bytes(),
+        (std::vector<uint8_t> { 0x81, 0x01, 0x04, 0x29, 0x00, 0x07, 0x00, 0x09, 0xFF }));
+    EXPECT_EQ(SonyViscaBuilder::spotAePositionInquiry(1).bytes(),
+        (std::vector<uint8_t> { 0x81, 0x09, 0x04, 0x29, 0xFF }));
+
+    EXPECT_EQ(SonyViscaBuilder::spotFocusPosition(1, 4, 12).bytes(),
+        (std::vector<uint8_t> { 0x81, 0x01, 0x04, 0x2A, 0x00, 0x04, 0x00, 0x0C, 0xFF }));
+    EXPECT_EQ(SonyViscaBuilder::spotFocusPositionInquiry(1).bytes(),
+        (std::vector<uint8_t> { 0x81, 0x09, 0x04, 0x2A, 0xFF }));
+
+    EXPECT_EQ(SonyViscaBuilder::spotAwbPosition(1, 8, 8).bytes(),
+        (std::vector<uint8_t> { 0x81, 0x01, 0x04, 0x2B, 0x00, 0x08, 0x00, 0x08, 0xFF }));
+    EXPECT_EQ(SonyViscaBuilder::spotAwbPositionInquiry(1).bytes(),
+        (std::vector<uint8_t> { 0x81, 0x09, 0x04, 0x2B, 0xFF }));
+}

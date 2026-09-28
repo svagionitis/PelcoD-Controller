@@ -322,6 +322,76 @@ bool SonyFCBDevice::setGamma(uint8_t mode)
     return m_device.sendCommandSync(cmd).success;
 }
 
+bool SonyFCBDevice::memorySet(uint8_t channel)
+{
+    const ViscaFrame cmd = SonyViscaBuilder::memorySet(m_device.cameraAddress(), channel);
+    return m_device.sendCommandSync(cmd).success;
+}
+
+bool SonyFCBDevice::memoryRecall(uint8_t channel)
+{
+    const ViscaFrame cmd = SonyViscaBuilder::memoryRecall(m_device.cameraAddress(), channel);
+    const bool ok = m_device.sendCommandSync(cmd).success;
+    if (ok) {
+        std::lock_guard<std::mutex> lock(m_statusMutex);
+        m_status.lastMemoryChannel = channel;
+    }
+    return ok;
+}
+
+bool SonyFCBDevice::memoryReset(uint8_t channel)
+{
+    const ViscaFrame cmd = SonyViscaBuilder::memoryReset(m_device.cameraAddress(), channel);
+    return m_device.sendCommandSync(cmd).success;
+}
+
+bool SonyFCBDevice::setSpotAe(bool on)
+{
+    const ViscaFrame cmd = SonyViscaBuilder::spotAe(m_device.cameraAddress(), on);
+    const bool ok = m_device.sendCommandSync(cmd).success;
+    if (ok) {
+        std::lock_guard<std::mutex> lock(m_statusMutex);
+        m_status.spotAeOn = on;
+    }
+    return ok;
+}
+
+bool SonyFCBDevice::setSpotAePosition(uint8_t x, uint8_t y)
+{
+    const ViscaFrame cmd = SonyViscaBuilder::spotAePosition(m_device.cameraAddress(), x, y);
+    const bool ok = m_device.sendCommandSync(cmd).success;
+    if (ok) {
+        std::lock_guard<std::mutex> lock(m_statusMutex);
+        m_status.spotAeX = x;
+        m_status.spotAeY = y;
+    }
+    return ok;
+}
+
+bool SonyFCBDevice::setSpotFocusPosition(uint8_t x, uint8_t y)
+{
+    const ViscaFrame cmd = SonyViscaBuilder::spotFocusPosition(m_device.cameraAddress(), x, y);
+    const bool ok = m_device.sendCommandSync(cmd).success;
+    if (ok) {
+        std::lock_guard<std::mutex> lock(m_statusMutex);
+        m_status.spotFocusX = x;
+        m_status.spotFocusY = y;
+    }
+    return ok;
+}
+
+bool SonyFCBDevice::setSpotAwbPosition(uint8_t x, uint8_t y)
+{
+    const ViscaFrame cmd = SonyViscaBuilder::spotAwbPosition(m_device.cameraAddress(), x, y);
+    const bool ok = m_device.sendCommandSync(cmd).success;
+    if (ok) {
+        std::lock_guard<std::mutex> lock(m_statusMutex);
+        m_status.spotAwbX = x;
+        m_status.spotAwbY = y;
+    }
+    return ok;
+}
+
 bool SonyFCBDevice::setDistortionCompensation(bool on)
 {
     if (!m_capabilities.supportsDistortionCompensation) {

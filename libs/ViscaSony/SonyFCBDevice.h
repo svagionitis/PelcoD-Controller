@@ -111,6 +111,17 @@ public:
     bool setChromaSuppress(uint8_t level);
     bool setGamma(uint8_t mode);
 
+    // --- Preset Memory Controls ---
+    bool memorySet(uint8_t channel);
+    bool memoryRecall(uint8_t channel);
+    bool memoryReset(uint8_t channel);
+
+    // --- Spot Controls ---
+    bool setSpotAe(bool on);
+    bool setSpotAePosition(uint8_t x, uint8_t y);
+    bool setSpotFocusPosition(uint8_t x, uint8_t y);
+    bool setSpotAwbPosition(uint8_t x, uint8_t y);
+
     // --- Hardware Gated Controls ---
 
     /// @brief Enables or disables lens distortion compensation (Register 0x57).

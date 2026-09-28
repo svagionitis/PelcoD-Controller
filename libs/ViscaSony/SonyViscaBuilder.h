@@ -94,6 +94,25 @@ public:
     [[nodiscard]] static ViscaFrame gamma(uint8_t cameraAddress, uint8_t mode);
     [[nodiscard]] static ViscaFrame gammaInquiry(uint8_t cameraAddress = 1);
 
+    // --- Preset Memory (CAM_Memory) ---
+    [[nodiscard]] static ViscaFrame memory(uint8_t cameraAddress, SonyMemoryAction action, uint8_t channel);
+    [[nodiscard]] static ViscaFrame memorySet(uint8_t cameraAddress, uint8_t channel);
+    [[nodiscard]] static ViscaFrame memoryRecall(uint8_t cameraAddress, uint8_t channel);
+    [[nodiscard]] static ViscaFrame memoryReset(uint8_t cameraAddress, uint8_t channel);
+    [[nodiscard]] static ViscaFrame memoryInquiry(uint8_t cameraAddress = 1);
+
+    // --- Spot Control (AE, Focus, AWB) ---
+    [[nodiscard]] static ViscaFrame spotAe(uint8_t cameraAddress, bool on);
+    [[nodiscard]] static ViscaFrame spotAePosition(uint8_t cameraAddress, uint8_t x, uint8_t y);
+    [[nodiscard]] static ViscaFrame spotAeInquiry(uint8_t cameraAddress = 1);
+    [[nodiscard]] static ViscaFrame spotAePositionInquiry(uint8_t cameraAddress = 1);
+
+    [[nodiscard]] static ViscaFrame spotFocusPosition(uint8_t cameraAddress, uint8_t x, uint8_t y);
+    [[nodiscard]] static ViscaFrame spotFocusPositionInquiry(uint8_t cameraAddress = 1);
+
+    [[nodiscard]] static ViscaFrame spotAwbPosition(uint8_t cameraAddress, uint8_t x, uint8_t y);
+    [[nodiscard]] static ViscaFrame spotAwbPositionInquiry(uint8_t cameraAddress = 1);
+
     // --- Registers & Configuration ---
     [[nodiscard]] static ViscaFrame writeRegister(uint8_t cameraAddress, uint8_t reg, uint8_t value);
     [[nodiscard]] static ViscaFrame registerInquiry(uint8_t cameraAddress, uint8_t reg);

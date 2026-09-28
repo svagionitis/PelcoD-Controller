@@ -45,6 +45,13 @@ enum class SonyWideDMode : uint8_t {
 /// @brief Defog processing intensity levels.
 enum class SonyDefogMode : uint8_t { Off = 0x00, Low = 0x01, Mid = 0x02, High = 0x03 };
 
+/// @brief Sony FCB camera preset memory operations.
+enum class SonyMemoryAction : uint8_t {
+    Reset = 0x00, ///< Clear stored preset memory
+    Set = 0x01, ///< Store current settings to preset memory
+    Recall = 0x02 ///< Restore settings from preset memory
+};
+
 /// @brief Sony FCB internal register addresses.
 namespace Register {
     inline constexpr uint8_t kBaudRate { 0x00 }; ///< Serial Baud Rate (9600..115200)
@@ -111,6 +118,15 @@ struct SonyFCBStatus {
     SonyWideDMode wideDMode { SonyWideDMode::Off }; ///< Dynamic range mode
     uint8_t veCompensationLevel { 0 }; ///< VE compensation level (0: Low, 1: Mid, 2: High)
     uint8_t veBrightnessCompensation { 0 }; ///< VE brightness compensation selection
+
+    // --- Preset & Spot Tracking ---
+    uint8_t lastMemoryChannel { 0 }; ///< Last recalled preset memory channel (0..15)
+    uint8_t spotAeX { 0 }; ///< Spot AE coordinate X (0..15)
+    uint8_t spotAeY { 0 }; ///< Spot AE coordinate Y (0..15)
+    uint8_t spotFocusX { 0 }; ///< Spot Focus coordinate X (0..15)
+    uint8_t spotFocusY { 0 }; ///< Spot Focus coordinate Y (0..15)
+    uint8_t spotAwbX { 0 }; ///< Spot AWB coordinate X (0..15)
+    uint8_t spotAwbY { 0 }; ///< Spot AWB coordinate Y (0..15)
 };
 
 } // namespace Visca::Sony

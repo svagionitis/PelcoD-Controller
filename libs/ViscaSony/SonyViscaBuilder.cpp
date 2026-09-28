@@ -375,6 +375,83 @@ ViscaFrame SonyViscaBuilder::gammaInquiry(uint8_t cameraAddress)
     return ViscaFrame { makeHeader(cameraAddress), 0x09, 0x04, 0x5B, kViscaTerminator };
 }
 
+ViscaFrame SonyViscaBuilder::memory(uint8_t cameraAddress, SonyMemoryAction action, uint8_t channel)
+{
+    const uint8_t ch = static_cast<uint8_t>(channel & 0x0FU);
+    return ViscaFrame { makeHeader(cameraAddress), 0x01, 0x04, 0x3F, static_cast<uint8_t>(action), ch,
+        kViscaTerminator };
+}
+
+ViscaFrame SonyViscaBuilder::memorySet(uint8_t cameraAddress, uint8_t channel)
+{
+    return memory(cameraAddress, SonyMemoryAction::Set, channel);
+}
+
+ViscaFrame SonyViscaBuilder::memoryRecall(uint8_t cameraAddress, uint8_t channel)
+{
+    return memory(cameraAddress, SonyMemoryAction::Recall, channel);
+}
+
+ViscaFrame SonyViscaBuilder::memoryReset(uint8_t cameraAddress, uint8_t channel)
+{
+    return memory(cameraAddress, SonyMemoryAction::Reset, channel);
+}
+
+ViscaFrame SonyViscaBuilder::memoryInquiry(uint8_t cameraAddress)
+{
+    return ViscaFrame { makeHeader(cameraAddress), 0x09, 0x04, 0x3F, kViscaTerminator };
+}
+
+ViscaFrame SonyViscaBuilder::spotAe(uint8_t cameraAddress, bool on)
+{
+    const uint8_t val = on ? 0x02 : 0x03;
+    return ViscaFrame { makeHeader(cameraAddress), 0x01, 0x04, 0x59, val, kViscaTerminator };
+}
+
+ViscaFrame SonyViscaBuilder::spotAePosition(uint8_t cameraAddress, uint8_t x, uint8_t y)
+{
+    const auto xNib = ViscaFrame::packByteNibbles(static_cast<uint8_t>(x & 0x0FU));
+    const auto yNib = ViscaFrame::packByteNibbles(static_cast<uint8_t>(y & 0x0FU));
+    return ViscaFrame { makeHeader(cameraAddress), 0x01, 0x04, 0x29, xNib[0], xNib[1], yNib[0], yNib[1],
+        kViscaTerminator };
+}
+
+ViscaFrame SonyViscaBuilder::spotAeInquiry(uint8_t cameraAddress)
+{
+    return ViscaFrame { makeHeader(cameraAddress), 0x09, 0x04, 0x59, kViscaTerminator };
+}
+
+ViscaFrame SonyViscaBuilder::spotAePositionInquiry(uint8_t cameraAddress)
+{
+    return ViscaFrame { makeHeader(cameraAddress), 0x09, 0x04, 0x29, kViscaTerminator };
+}
+
+ViscaFrame SonyViscaBuilder::spotFocusPosition(uint8_t cameraAddress, uint8_t x, uint8_t y)
+{
+    const auto xNib = ViscaFrame::packByteNibbles(static_cast<uint8_t>(x & 0x0FU));
+    const auto yNib = ViscaFrame::packByteNibbles(static_cast<uint8_t>(y & 0x0FU));
+    return ViscaFrame { makeHeader(cameraAddress), 0x01, 0x04, 0x2A, xNib[0], xNib[1], yNib[0], yNib[1],
+        kViscaTerminator };
+}
+
+ViscaFrame SonyViscaBuilder::spotFocusPositionInquiry(uint8_t cameraAddress)
+{
+    return ViscaFrame { makeHeader(cameraAddress), 0x09, 0x04, 0x2A, kViscaTerminator };
+}
+
+ViscaFrame SonyViscaBuilder::spotAwbPosition(uint8_t cameraAddress, uint8_t x, uint8_t y)
+{
+    const auto xNib = ViscaFrame::packByteNibbles(static_cast<uint8_t>(x & 0x0FU));
+    const auto yNib = ViscaFrame::packByteNibbles(static_cast<uint8_t>(y & 0x0FU));
+    return ViscaFrame { makeHeader(cameraAddress), 0x01, 0x04, 0x2B, xNib[0], xNib[1], yNib[0], yNib[1],
+        kViscaTerminator };
+}
+
+ViscaFrame SonyViscaBuilder::spotAwbPositionInquiry(uint8_t cameraAddress)
+{
+    return ViscaFrame { makeHeader(cameraAddress), 0x09, 0x04, 0x2B, kViscaTerminator };
+}
+
 ViscaFrame SonyViscaBuilder::writeRegister(uint8_t cameraAddress, uint8_t reg, uint8_t value)
 {
     const auto nibbles = ViscaFrame::packByteNibbles(value);
