@@ -159,6 +159,49 @@ TEST(TestLrfProtocols, AsciiCommands)
     EXPECT_EQ(std::string(fire.begin(), fire.end()), "FIRE\r\n");
 }
 
+TEST(TestLrfProtocols, AsciiDecoupledConfig)
+{
+    // Interface Segregation Principle test:
+    // AsciiLrfParser can be configured directly with AsciiProtocolConfig
+    // without needing any monolithic SerialLrfConfig dependency.
+    AsciiProtocolConfig customConfig;
+    customConfig.customArmCmd = "CUSTOM_ARM\r\n";
+    customConfig.customDisarmCmd = "CUSTOM_DISARM\r\n";
+    customConfig.customFireCmd = "CUSTOM_FIRE\r\n";
+
+    AsciiLrfParser parser(customConfig);
+    EXPECT_EQ(parser.config().customArmCmd, "CUSTOM_ARM\r\n");
+    EXPECT_EQ(parser.config().customDisarmCmd, "CUSTOM_DISARM\r\n");
+    EXPECT_EQ(parser.config().customFireCmd, "CUSTOM_FIRE\r\n");
+
+    const auto arm = parser.buildArmCommand();
+    EXPECT_EQ(std::string(arm.begin(), arm.end()), "CUSTOM_ARM\r\n");
+
+    const auto disarm = parser.buildDisarmCommand();
+    EXPECT_EQ(std::string(disarm.begin(), disarm.end()), "CUSTOM_DISARM\r\n");
+
+    const auto fire = parser.buildFireCommand();
+    EXPECT_EQ(std::string(fire.begin(), fire.end()), "CUSTOM_FIRE\r\n");
+
+    // Also verify default-constructed parser uses standard defaults
+    AsciiLrfParser defaultParser;
+    const auto defArm = defaultParser.buildArmCommand();
+    EXPECT_EQ(std::string(defArm.begin(), defArm.end()), "ARM\r\n");
+    const auto defDisarm = defaultParser.buildDisarmCommand();
+    EXPECT_EQ(std::string(defDisarm.begin(), defDisarm.end()), "DISARM\r\n");
+    const auto defFire = defaultParser.buildFireCommand();
+    EXPECT_EQ(std::string(defFire.begin(), defFire.end()), "FIRE\r\n");
+
+    // Verify factory creation using SerialLrfConfig with nested AsciiProtocolConfig
+    SerialLrfConfig serialCfg;
+    serialCfg.protocolType = LrfProtocolType::Ascii;
+    serialCfg.asciiConfig.customArmCmd = "NESTED_ARM\r\n";
+    auto factoryParser = createLrfParser(serialCfg);
+    ASSERT_NE(factoryParser, nullptr);
+    const auto factoryArm = factoryParser->buildArmCommand();
+    EXPECT_EQ(std::string(factoryArm.begin(), factoryArm.end()), "NESTED_ARM\r\n");
+}
+
 // =============================================================================
 // Binary Protocol Parser Tests
 // =============================================================================

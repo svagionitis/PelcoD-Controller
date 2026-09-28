@@ -287,9 +287,28 @@ std::vector<std::uint8_t> NmeaLrfParser::buildStopCommand()
 // ASCII Delimited LRF Parser
 // =============================================================================
 
-AsciiLrfParser::AsciiLrfParser(SerialLrfConfig config)
+AsciiLrfParser::AsciiLrfParser(AsciiProtocolConfig config)
     : m_config(std::move(config))
 {
+}
+
+AsciiLrfParser::AsciiLrfParser(const SerialLrfConfig& config)
+    : m_config(config.asciiConfig)
+{
+    if (!config.customArmCmd.empty()) {
+        m_config.customArmCmd = config.customArmCmd;
+    }
+    if (!config.customDisarmCmd.empty()) {
+        m_config.customDisarmCmd = config.customDisarmCmd;
+    }
+    if (!config.customFireCmd.empty()) {
+        m_config.customFireCmd = config.customFireCmd;
+    }
+}
+
+const AsciiProtocolConfig& AsciiLrfParser::config() const noexcept
+{
+    return m_config;
 }
 
 std::vector<LrfTargetMeasurement> AsciiLrfParser::parseIncomingBytes(const std::uint8_t* data, std::size_t length)

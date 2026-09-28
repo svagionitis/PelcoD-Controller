@@ -23,6 +23,14 @@ enum class LrfProtocolType : std::uint8_t {
     Binary ///< Framed binary packet with header, length, payload, and CRC-16
 };
 
+/// @struct AsciiProtocolConfig
+/// @brief Command customization parameters for ASCII delimited LRF wire protocols.
+struct AsciiProtocolConfig {
+    std::string customArmCmd {}; ///< Custom command string to arm laser (default: "ARM\r\n")
+    std::string customDisarmCmd {}; ///< Custom command string to disarm laser (default: "DISARM\r\n")
+    std::string customFireCmd {}; ///< Custom command string to fire single pulse (default: "FIRE\r\n")
+};
+
 /// @struct SerialLrfConfig
 /// @brief Operational and safety configuration parameters for serial LRF hardware.
 struct SerialLrfConfig {
@@ -39,10 +47,13 @@ struct SerialLrfConfig {
     // --- Continuous Triggering ---
     double continuousRateHz { 1.0 }; ///< Default pulse repetition rate in continuous mode (1.0 to 10.0 Hz)
 
-    // --- Custom Protocol Overrides ---
-    std::string customFireCmd {}; ///< Custom fire command string (for Ascii protocol)
-    std::string customArmCmd {}; ///< Custom arm command string (for Ascii protocol)
-    std::string customDisarmCmd {}; ///< Custom disarm command string (for Ascii protocol)
+    // --- ASCII Protocol Specific Configuration ---
+    AsciiProtocolConfig asciiConfig {}; ///< Configuration specific to ASCII delimited wire protocol
+
+    // --- Custom Protocol Overrides (Legacy Compatibility) ---
+    std::string customFireCmd {}; ///< Custom fire command string (for Ascii protocol; legacy alias)
+    std::string customArmCmd {}; ///< Custom arm command string (for Ascii protocol; legacy alias)
+    std::string customDisarmCmd {}; ///< Custom disarm command string (for Ascii protocol; legacy alias)
 };
 
 /// @class ILrfProtocolParser
@@ -131,7 +142,14 @@ private:
 /// @brief Delimited ASCII text protocol parser for standard OEM modules.
 class AsciiLrfParser : public ILrfProtocolParser {
 public:
-    explicit AsciiLrfParser(SerialLrfConfig config = {});
+    /// @brief Constructs an ASCII LRF parser with protocol-specific command configuration.
+    /// @param[in] config ASCII command customization options.
+    explicit AsciiLrfParser(AsciiProtocolConfig config = {});
+
+    /// @brief Backwards-compatible convenience constructor extracting ASCII parameters from SerialLrfConfig.
+    /// @param[in] config Monolithic serial LRF configuration.
+    explicit AsciiLrfParser(const SerialLrfConfig& config);
+
     ~AsciiLrfParser() override = default;
 
     [[nodiscard]] std::vector<LrfTargetMeasurement> parseIncomingBytes(
@@ -147,8 +165,11 @@ public:
     [[nodiscard]] std::vector<std::uint8_t> buildContinuousCommand(LrfMode mode) override;
     [[nodiscard]] std::vector<std::uint8_t> buildStopCommand() override;
 
+    /// @brief Retrieves the active ASCII protocol configuration.
+    [[nodiscard]] const AsciiProtocolConfig& config() const noexcept;
+
 private:
-    SerialLrfConfig m_config {};
+    AsciiProtocolConfig m_config {};
     std::string m_rxBuffer {};
     std::uint32_t m_pulseCounter { 0U };
 };
