@@ -27,12 +27,12 @@ namespace PayloadHal {
 /// @struct RawVideoFrame
 /// @brief Ingested video frame container holding raw or decoded pixel buffers and timing metadata.
 struct RawVideoFrame {
-    std::vector<std::uint8_t> data {};                            ///< Pixel buffer (e.g. BGR24, RGB24, NV12)
-    int width { 0 };                                              ///< Image width in pixels
-    int height { 0 };                                             ///< Image height in pixels
-    std::string pixelFormat { "BGR24" };                          ///< Pixel format identifier ("BGR24", "RGB24", "NV12", "YUV420P")
-    std::uint64_t frameNumber { 0 };                              ///< Monotonically increasing frame sequence index
-    std::chrono::system_clock::time_point timestamp {             ///< Frame capture / arrival timestamp
+    std::vector<std::uint8_t> data {}; ///< Pixel buffer (e.g. BGR24, RGB24, NV12)
+    int width { 0 }; ///< Image width in pixels
+    int height { 0 }; ///< Image height in pixels
+    std::string pixelFormat { "BGR24" }; ///< Pixel format identifier ("BGR24", "RGB24", "NV12", "YUV420P")
+    std::uint64_t frameNumber { 0 }; ///< Monotonically increasing frame sequence index
+    std::chrono::system_clock::time_point timestamp { ///< Frame capture / arrival timestamp
         std::chrono::system_clock::now()
     };
 };
@@ -40,12 +40,14 @@ struct RawVideoFrame {
 /// @struct SynchronizedVideoFrame
 /// @brief Bound video frame container paired with exact optical FOV, gimbal orientation, and ground geometry.
 struct SynchronizedVideoFrame {
-    RawVideoFrame frame {};                                       ///< Video pixel data and metadata
-    CameraTelemetry cameraTelemetry {};                           ///< Paired optical zoom, magnification, and FOV
-    GimbalTelemetry gimbalTelemetry {};                           ///< Paired gimbal pan/tilt orientation and rates
-    VideoStreamDescriptor streamDescriptor {};                    ///< Stream profile and transport connection info
-    std::optional<Klv::GeoPoint3D> targetGroundIntersection {};  ///< Computed boresight ground intercept, if platform state set
-    std::optional<Klv::FrustumCorners> frustumCorners {};         ///< Computed 4-corner ground projection polygon, if platform state set
+    RawVideoFrame frame {}; ///< Video pixel data and metadata
+    CameraTelemetry cameraTelemetry {}; ///< Paired optical zoom, magnification, and FOV
+    GimbalTelemetry gimbalTelemetry {}; ///< Paired gimbal pan/tilt orientation and rates
+    VideoStreamDescriptor streamDescriptor {}; ///< Stream profile and transport connection info
+    std::optional<Klv::GeoPoint3D>
+        targetGroundIntersection {}; ///< Computed boresight ground intercept, if platform state set
+    std::optional<Klv::FrustumCorners>
+        frustumCorners {}; ///< Computed 4-corner ground projection polygon, if platform state set
 };
 
 /// @class CameraStreamBinder
@@ -60,16 +62,15 @@ public:
     /// @brief Constructs a stream binder attached to an IPayload composite station.
     /// @param[in] payload Shared pointer to composite payload station.
     /// @param[in] profile Stream profile to bind against (defaults to Primary).
-    explicit CameraStreamBinder(std::shared_ptr<IPayload> payload,
-        VideoStreamProfile profile = VideoStreamProfile::Primary);
+    explicit CameraStreamBinder(
+        std::shared_ptr<IPayload> payload, VideoStreamProfile profile = VideoStreamProfile::Primary);
 
     /// @brief Constructs a stream binder directly from camera and pan-tilt units.
     /// @param[in] camera Camera payload subsystem.
     /// @param[in] ptu Pan-Tilt gimbal subsystem (optional).
     /// @param[in] descriptor Video stream descriptor.
-    CameraStreamBinder(std::shared_ptr<ICameraPayload> camera,
-        std::shared_ptr<IPanTiltUnit> ptu,
-        VideoStreamDescriptor descriptor);
+    CameraStreamBinder(
+        std::shared_ptr<ICameraPayload> camera, std::shared_ptr<IPanTiltUnit> ptu, VideoStreamDescriptor descriptor);
 
     ~CameraStreamBinder();
 
@@ -122,18 +123,16 @@ public:
 
 private:
     struct SharedBuffer;
-    std::shared_ptr<SharedBuffer> m_buffer {};
 
-    [[nodiscard]] CameraTelemetry findMatchingCameraTelemetry(
-        std::chrono::system_clock::time_point timestamp) const;
+    [[nodiscard]] CameraTelemetry findMatchingCameraTelemetry(std::chrono::system_clock::time_point timestamp) const;
 
-    [[nodiscard]] GimbalTelemetry findMatchingGimbalTelemetry(
-        std::chrono::system_clock::time_point timestamp) const;
+    [[nodiscard]] GimbalTelemetry findMatchingGimbalTelemetry(std::chrono::system_clock::time_point timestamp) const;
 
     std::shared_ptr<IPayload> m_payload {};
     std::shared_ptr<ICameraPayload> m_camera {};
     std::shared_ptr<IPanTiltUnit> m_ptu {};
     VideoStreamDescriptor m_descriptor {};
+    std::shared_ptr<SharedBuffer> m_buffer {};
 
     mutable std::mutex m_mutex;
     FrameCallback m_frameCallback {};

@@ -8,23 +8,17 @@
 
 namespace PayloadHal {
 
-GridDemProvider::GridDemProvider(double minLatDeg, double maxLatDeg,
-                                 double minLonDeg, double maxLonDeg,
-                                 std::size_t rows, std::size_t cols,
-                                 std::vector<float> elevations,
-                                 float noDataValue) noexcept
+GridDemProvider::GridDemProvider(double minLatDeg, double maxLatDeg, double minLonDeg, double maxLonDeg,
+    std::size_t rows, std::size_t cols, std::vector<float> elevations, float noDataValue) noexcept
 {
     loadData(minLatDeg, maxLatDeg, minLonDeg, maxLonDeg, rows, cols, std::move(elevations), noDataValue);
 }
 
-bool GridDemProvider::loadData(double minLatDeg, double maxLatDeg,
-                               double minLonDeg, double maxLonDeg,
-                               std::size_t rows, std::size_t cols,
-                               std::vector<float> elevations,
-                               float noDataValue) noexcept
+bool GridDemProvider::loadData(double minLatDeg, double maxLatDeg, double minLonDeg, double maxLonDeg, std::size_t rows,
+    std::size_t cols, std::vector<float> elevations, float noDataValue) noexcept
 {
-    if (rows < 2 || cols < 2 || elevations.size() != (rows * cols) ||
-        maxLatDeg <= minLatDeg || maxLonDeg <= minLonDeg) {
+    if (rows < 2 || cols < 2 || elevations.size() != (rows * cols) || maxLatDeg <= minLatDeg
+        || maxLonDeg <= minLonDeg) {
         m_valid = false;
         return false;
     }
@@ -67,8 +61,7 @@ bool GridDemProvider::hasCoverage(double latDeg, double lonDeg) const noexcept
     if (!m_valid) {
         return false;
     }
-    return (latDeg >= m_minLat && latDeg <= m_maxLat &&
-            lonDeg >= m_minLon && lonDeg <= m_maxLon);
+    return (latDeg >= m_minLat && latDeg <= m_maxLat && lonDeg >= m_minLon && lonDeg <= m_maxLon);
 }
 
 std::optional<double> GridDemProvider::getElevationM(double latDeg, double lonDeg) const noexcept
@@ -94,9 +87,7 @@ std::optional<double> GridDemProvider::getElevationM(double latDeg, double lonDe
     const float h10 = m_data[r1 * m_cols + c0];
     const float h11 = m_data[r1 * m_cols + c1];
 
-    const auto isNoData = [this](float val) {
-        return (std::abs(val - m_noDataValue) < 0.001f || std::isnan(val));
-    };
+    const auto isNoData = [this](float val) { return (std::abs(val - m_noDataValue) < 0.001f || std::isnan(val)); };
 
     const bool nd00 = isNoData(h00);
     const bool nd01 = isNoData(h01);
@@ -108,14 +99,13 @@ std::optional<double> GridDemProvider::getElevationM(double latDeg, double lonDe
     }
 
     // If some corners are nodata, replace them with the nearest valid corner
-    float v00 = nd00 ? (nd01 ? (nd10 ? h11 : h10) : h01) : h00;
-    float v01 = nd01 ? (nd00 ? (nd11 ? h10 : h11) : h00) : h01;
-    float v10 = nd10 ? (nd11 ? (nd00 ? h01 : h00) : h11) : h10;
-    float v11 = nd11 ? (nd10 ? (nd01 ? h00 : h01) : h10) : h11;
+    const double v00 = static_cast<double>(nd00 ? (nd01 ? (nd10 ? h11 : h10) : h01) : h00);
+    const double v01 = static_cast<double>(nd01 ? (nd00 ? (nd11 ? h10 : h11) : h00) : h01);
+    const double v10 = static_cast<double>(nd10 ? (nd11 ? (nd00 ? h01 : h00) : h11) : h10);
+    const double v11 = static_cast<double>(nd11 ? (nd10 ? (nd01 ? h00 : h01) : h10) : h11);
 
     // Bilinear interpolation
-    const double h = (1.0 - u) * ((1.0 - v) * v00 + v * v01) +
-                     u * ((1.0 - v) * v10 + v * v11);
+    const double h = (1.0 - u) * ((1.0 - v) * v00 + v * v01) + u * ((1.0 - v) * v10 + v * v11);
 
     return h;
 }
@@ -134,10 +124,8 @@ double GridDemProvider::maxElevationM() const noexcept
 // ProceduralDemProvider Implementation
 // =============================================================================
 
-ProceduralDemProvider::ProceduralDemProvider(ElevationFunc func,
-                                             double minElev, double maxElev,
-                                             double minLat, double maxLat,
-                                             double minLon, double maxLon) noexcept
+ProceduralDemProvider::ProceduralDemProvider(ElevationFunc func, double minElev, double maxElev, double minLat,
+    double maxLat, double minLon, double maxLon) noexcept
     : m_func(std::move(func))
     , m_minElev(minElev)
     , m_maxElev(maxElev)
@@ -150,9 +138,7 @@ ProceduralDemProvider::ProceduralDemProvider(ElevationFunc func,
 
 bool ProceduralDemProvider::hasCoverage(double latDeg, double lonDeg) const noexcept
 {
-    return (m_func &&
-            latDeg >= m_minLat && latDeg <= m_maxLat &&
-            lonDeg >= m_minLon && lonDeg <= m_maxLon);
+    return (m_func && latDeg >= m_minLat && latDeg <= m_maxLat && lonDeg >= m_minLon && lonDeg <= m_maxLon);
 }
 
 std::optional<double> ProceduralDemProvider::getElevationM(double latDeg, double lonDeg) const noexcept

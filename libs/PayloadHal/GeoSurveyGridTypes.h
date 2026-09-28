@@ -19,38 +19,38 @@ namespace PayloadHal {
 /// @enum SurveyState
 /// @brief Operational state of the polygonal geo-survey engine.
 enum class SurveyState : std::uint8_t {
-    Idle,       ///< No active survey plan; engine standing by
-    Planning,   ///< Generating survey transects and sampling terrain
-    Executing,  ///< Actively driving gimbal / tracking survey waypoints
-    Paused,     ///< Execution suspended; gimbal holding orientation
-    Completed,  ///< All survey transects and waypoints successfully covered
-    Aborted     ///< Survey cancelled by operator or safety interlock
+    Idle, ///< No active survey plan; engine standing by
+    Planning, ///< Generating survey transects and sampling terrain
+    Executing, ///< Actively driving gimbal / tracking survey waypoints
+    Paused, ///< Execution suspended; gimbal holding orientation
+    Completed, ///< All survey transects and waypoints successfully covered
+    Aborted ///< Survey cancelled by operator or safety interlock
 };
 
 /// @enum SweepPatternType
 /// @brief Aerial sweep trajectory routing pattern.
 enum class SweepPatternType : std::uint8_t {
-    Boustrophedon,  ///< Serpentine back-and-forth sweep lines (alternating directions)
-    Unidirectional  ///< Parallel raster tracks in same direction with repositioning
+    Boustrophedon, ///< Serpentine back-and-forth sweep lines (alternating directions)
+    Unidirectional ///< Parallel raster tracks in same direction with repositioning
 };
 
 /// @enum GridCellState
 /// @brief Status of an individual discrete survey coverage cell.
 enum class GridCellState : std::uint8_t {
-    OutsidePolygon,         ///< Outside survey boundary perimeter
-    Unsurveyed,             ///< Inside perimeter; not yet observed
-    Surveyed,               ///< Imaged with clear line of sight
-    OccludedTerrainShadow   ///< Within sensor frustum but blocked by foreground terrain
+    OutsidePolygon, ///< Outside survey boundary perimeter
+    Unsurveyed, ///< Inside perimeter; not yet observed
+    Surveyed, ///< Imaged with clear line of sight
+    OccludedTerrainShadow ///< Within sensor frustum but blocked by foreground terrain
 };
 
 /// @struct SurveyWaypoint
 /// @brief Discrete geodetic observation station along a survey track.
 struct SurveyWaypoint {
     Klv::GeoPoint3D targetGroundPos {}; ///< Ground intersection point on terrain
-    double commandedPanDeg { 0.0 };     ///< Required gimbal pan angle
-    double commandedTiltDeg { 0.0 };    ///< Required gimbal tilt angle
-    double expectedGsdMeters { 0.05 };  ///< Calculated Ground Sampling Distance
-    double dwellTimeSec { 0.25 };       ///< Exposure/stabilization dwell duration
+    double commandedPanDeg { 0.0 }; ///< Required gimbal pan angle
+    double commandedTiltDeg { 0.0 }; ///< Required gimbal tilt angle
+    double expectedGsdMeters { 0.05 }; ///< Calculated Ground Sampling Distance
+    double dwellTimeSec { 0.25 }; ///< Exposure/stabilization dwell duration
     std::uint32_t transectIndex { 0U }; ///< Parent transect line index
     std::uint32_t waypointIndex { 0U }; ///< Index within transect
 };
@@ -70,33 +70,33 @@ struct SurveyTransect {
 /// @brief Parameters defining the survey boundary, optical constraints, and overlap.
 struct SurveyPlanConfig {
     std::vector<Klv::GeoPoint2D> boundaryPolygon {}; ///< Ordered WGS-84 boundary vertices
-    double surveyAltitudeAglMeters { 200.0 };        ///< Target survey altitude AGL in meters
-    std::optional<double> sweepAngleDeg {};          ///< Sweep heading (nullopt = auto-align with OMBB)
-    double forwardOverlapRatio { 0.70 };             ///< Forward (along-track) overlap [0.10 .. 0.90]
-    double sideOverlapRatio { 0.50 };                ///< Side (cross-track) overlap [0.10 .. 0.85]
-    double cameraHfovDeg { 45.0 };                   ///< Horizontal FOV in degrees
-    double cameraVfovDeg { 25.3 };                   ///< Vertical FOV in degrees
-    std::uint32_t sensorWidthPixels { 3840U };       ///< Optical sensor horizontal resolution
-    std::uint32_t sensorHeightPixels { 2160U };      ///< Optical sensor vertical resolution
-    double gridResolutionMeters { 10.0 };            ///< Discretized coverage matrix cell size in meters
-    double waypointDwellSec { 0.25 };                ///< Station stabilization dwell time in seconds
-    double slewSpeedDegPerSec { 20.0 };              ///< Gimbal slew velocity between stations
+    double surveyAltitudeAglMeters { 200.0 }; ///< Target survey altitude AGL in meters
+    std::optional<double> sweepAngleDeg {}; ///< Sweep heading (nullopt = auto-align with OMBB)
+    double forwardOverlapRatio { 0.70 }; ///< Forward (along-track) overlap [0.10 .. 0.90]
+    double sideOverlapRatio { 0.50 }; ///< Side (cross-track) overlap [0.10 .. 0.85]
+    double cameraHfovDeg { 45.0 }; ///< Horizontal FOV in degrees
+    double cameraVfovDeg { 25.3 }; ///< Vertical FOV in degrees
+    std::uint32_t sensorWidthPixels { 3840U }; ///< Optical sensor horizontal resolution
+    std::uint32_t sensorHeightPixels { 2160U }; ///< Optical sensor vertical resolution
+    double gridResolutionMeters { 10.0 }; ///< Discretized coverage matrix cell size in meters
+    double waypointDwellSec { 0.25 }; ///< Station stabilization dwell time in seconds
+    double slewSpeedDegPerSec { 20.0 }; ///< Gimbal slew velocity between stations
     SweepPatternType patternType { SweepPatternType::Boustrophedon };
 };
 
 /// @struct CoverageMetrics
 /// @brief Real-time statistical metrics of the survey execution.
 struct CoverageMetrics {
-    double totalPolygonAreaM2 { 0.0 };               ///< Total area of the surveyed boundary polygon
-    double surveyedAreaM2 { 0.0 };                   ///< Area covered and imaged without terrain shadow
-    double occludedShadowAreaM2 { 0.0 };             ///< Area within sensor frustum blocked by terrain
-    double coveragePercentage { 0.0 };               ///< Ratio of surveyed area to total polygon area [0 .. 100%]
-    std::uint32_t totalTransects { 0U };             ///< Total count of sweep lines
-    std::uint32_t completedTransects { 0U };         ///< Finished sweep lines
-    std::uint32_t totalWaypoints { 0U };             ///< Total waypoint observation stations
-    std::uint32_t completedWaypoints { 0U };         ///< Completed observation stations
-    double elapsedTimeSec { 0.0 };                   ///< Active survey execution duration
-    double estimatedTimeRemainingSec { 0.0 };        ///< Estimated Time Remaining based on remaining stations
+    double totalPolygonAreaM2 { 0.0 }; ///< Total area of the surveyed boundary polygon
+    double surveyedAreaM2 { 0.0 }; ///< Area covered and imaged without terrain shadow
+    double occludedShadowAreaM2 { 0.0 }; ///< Area within sensor frustum blocked by terrain
+    double coveragePercentage { 0.0 }; ///< Ratio of surveyed area to total polygon area [0 .. 100%]
+    std::uint32_t totalTransects { 0U }; ///< Total count of sweep lines
+    std::uint32_t completedTransects { 0U }; ///< Finished sweep lines
+    std::uint32_t totalWaypoints { 0U }; ///< Total waypoint observation stations
+    std::uint32_t completedWaypoints { 0U }; ///< Completed observation stations
+    double elapsedTimeSec { 0.0 }; ///< Active survey execution duration
+    double estimatedTimeRemainingSec { 0.0 }; ///< Estimated Time Remaining based on remaining stations
 };
 
 /// @struct SurveyOccupancyGrid
@@ -128,8 +128,8 @@ struct SurveyOccupancyGrid {
         }
         const double normRow = (lat - minLat) / dLat;
         const double normCol = (lon - minLon) / dLon;
-        row = std::min(rows - 1, static_cast<std::size_t>(normRow * rows));
-        col = std::min(cols - 1, static_cast<std::size_t>(normCol * cols));
+        row = std::min(rows - 1, static_cast<std::size_t>(normRow * static_cast<double>(rows)));
+        col = std::min(cols - 1, static_cast<std::size_t>(normCol * static_cast<double>(cols)));
         return true;
     }
 

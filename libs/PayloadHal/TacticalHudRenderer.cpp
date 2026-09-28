@@ -21,219 +21,222 @@ namespace PayloadHal {
 
 namespace {
 
-constexpr double kPi = 3.14159265358979323846;
-constexpr double kDegToRad = kPi / 180.0;
+    constexpr double kPi = 3.14159265358979323846;
+    constexpr double kDegToRad = kPi / 180.0;
 
-double normalizeHeading360(double deg) noexcept
-{
-    while (deg < 0.0) {
-        deg += 360.0;
-    }
-    while (deg >= 360.0) {
-        deg -= 360.0;
-    }
-    return deg;
-}
-
-// Minimal 5x7 ASCII bitmap font covering printable ASCII [32..126]
-// Each glyph is 5 columns wide, 7 rows high, stored as 5 bytes (each byte = 1 column, LSB at top)
-const std::uint8_t kFont5x7[][5] = {
-    { 0x00, 0x00, 0x00, 0x00, 0x00 }, // ' ' (32)
-    { 0x00, 0x00, 0x5F, 0x00, 0x00 }, // '!'
-    { 0x00, 0x07, 0x00, 0x07, 0x00 }, // '"'
-    { 0x14, 0x7F, 0x14, 0x7F, 0x14 }, // '#'
-    { 0x24, 0x2A, 0x7F, 0x2A, 0x12 }, // '$'
-    { 0x23, 0x13, 0x08, 0x64, 0x62 }, // '%'
-    { 0x36, 0x49, 0x55, 0x22, 0x50 }, // '&'
-    { 0x00, 0x05, 0x03, 0x00, 0x00 }, // '''
-    { 0x00, 0x1C, 0x22, 0x41, 0x00 }, // '('
-    { 0x00, 0x41, 0x22, 0x1C, 0x00 }, // ')'
-    { 0x14, 0x08, 0x3E, 0x08, 0x14 }, // '*'
-    { 0x08, 0x08, 0x3E, 0x08, 0x08 }, // '+'
-    { 0x00, 0x50, 0x30, 0x00, 0x00 }, // ','
-    { 0x08, 0x08, 0x08, 0x08, 0x08 }, // '-'
-    { 0x00, 0x60, 0x60, 0x00, 0x00 }, // '.'
-    { 0x20, 0x10, 0x08, 0x04, 0x02 }, // '/'
-    { 0x3E, 0x51, 0x49, 0x45, 0x3E }, // '0' (48)
-    { 0x00, 0x42, 0x7F, 0x40, 0x00 }, // '1'
-    { 0x42, 0x61, 0x51, 0x49, 0x46 }, // '2'
-    { 0x21, 0x41, 0x45, 0x4B, 0x31 }, // '3'
-    { 0x18, 0x14, 0x12, 0x7F, 0x10 }, // '4'
-    { 0x27, 0x45, 0x45, 0x45, 0x39 }, // '5'
-    { 0x3C, 0x4A, 0x49, 0x49, 0x30 }, // '6'
-    { 0x01, 0x71, 0x09, 0x05, 0x03 }, // '7'
-    { 0x36, 0x49, 0x49, 0x49, 0x36 }, // '8'
-    { 0x06, 0x49, 0x49, 0x29, 0x1E }, // '9'
-    { 0x00, 0x36, 0x36, 0x00, 0x00 }, // ':' (58)
-    { 0x00, 0x56, 0x36, 0x00, 0x00 }, // ';'
-    { 0x08, 0x14, 0x22, 0x41, 0x00 }, // '<'
-    { 0x14, 0x14, 0x14, 0x14, 0x14 }, // '='
-    { 0x00, 0x41, 0x22, 0x14, 0x08 }, // '>'
-    { 0x02, 0x01, 0x51, 0x09, 0x06 }, // '?'
-    { 0x32, 0x49, 0x79, 0x41, 0x3E }, // '@'
-    { 0x7E, 0x11, 0x11, 0x11, 0x7E }, // 'A' (65)
-    { 0x7F, 0x49, 0x49, 0x49, 0x36 }, // 'B'
-    { 0x3E, 0x41, 0x41, 0x41, 0x22 }, // 'C'
-    { 0x7F, 0x41, 0x41, 0x22, 0x1C }, // 'D'
-    { 0x7F, 0x49, 0x49, 0x49, 0x41 }, // 'E'
-    { 0x7F, 0x09, 0x09, 0x09, 0x01 }, // 'F'
-    { 0x3E, 0x41, 0x49, 0x49, 0x7A }, // 'G'
-    { 0x7F, 0x08, 0x08, 0x08, 0x7F }, // 'H'
-    { 0x00, 0x41, 0x7F, 0x41, 0x00 }, // 'I'
-    { 0x20, 0x40, 0x41, 0x3F, 0x01 }, // 'J'
-    { 0x7F, 0x08, 0x14, 0x22, 0x41 }, // 'K'
-    { 0x7F, 0x40, 0x40, 0x40, 0x40 }, // 'L'
-    { 0x7F, 0x02, 0x0C, 0x02, 0x7F }, // 'M'
-    { 0x7F, 0x04, 0x08, 0x10, 0x7F }, // 'N'
-    { 0x3E, 0x41, 0x41, 0x41, 0x3E }, // 'O'
-    { 0x7F, 0x09, 0x09, 0x09, 0x06 }, // 'P'
-    { 0x3E, 0x41, 0x51, 0x21, 0x5E }, // 'Q'
-    { 0x7F, 0x09, 0x19, 0x29, 0x46 }, // 'R'
-    { 0x46, 0x49, 0x49, 0x49, 0x31 }, // 'S'
-    { 0x01, 0x01, 0x7F, 0x01, 0x01 }, // 'T'
-    { 0x3F, 0x40, 0x40, 0x40, 0x3F }, // 'U'
-    { 0x1F, 0x20, 0x40, 0x20, 0x1F }, // 'V'
-    { 0x7F, 0x20, 0x18, 0x20, 0x7F }, // 'W'
-    { 0x63, 0x14, 0x08, 0x14, 0x63 }, // 'X'
-    { 0x07, 0x08, 0x70, 0x08, 0x07 }, // 'Y'
-    { 0x61, 0x51, 0x49, 0x45, 0x43 }, // 'Z' (90)
-    { 0x00, 0x7F, 0x41, 0x41, 0x00 }, // '['
-    { 0x02, 0x04, 0x08, 0x10, 0x20 }, // '\'
-    { 0x00, 0x41, 0x41, 0x7F, 0x00 }, // ']'
-    { 0x04, 0x02, 0x01, 0x02, 0x04 }, // '^'
-    { 0x40, 0x40, 0x40, 0x40, 0x40 }, // '_'
-    { 0x00, 0x01, 0x02, 0x04, 0x00 }, // '`'
-    { 0x20, 0x54, 0x54, 0x54, 0x78 }, // 'a' (97)
-    { 0x7F, 0x48, 0x44, 0x44, 0x38 }, // 'b'
-    { 0x38, 0x44, 0x44, 0x44, 0x20 }, // 'c'
-    { 0x38, 0x44, 0x44, 0x48, 0x7F }, // 'd'
-    { 0x38, 0x54, 0x54, 0x54, 0x18 }, // 'e'
-    { 0x08, 0x7E, 0x09, 0x01, 0x02 }, // 'f'
-    { 0x0C, 0x52, 0x52, 0x52, 0x3E }, // 'g'
-    { 0x7F, 0x08, 0x04, 0x04, 0x78 }, // 'h'
-    { 0x00, 0x44, 0x7D, 0x40, 0x00 }, // 'i'
-    { 0x20, 0x40, 0x44, 0x3D, 0x00 }, // 'j'
-    { 0x7F, 0x10, 0x28, 0x44, 0x00 }, // 'k'
-    { 0x00, 0x41, 0x7F, 0x40, 0x00 }, // 'l'
-    { 0x7C, 0x04, 0x18, 0x04, 0x78 }, // 'm'
-    { 0x7C, 0x08, 0x04, 0x04, 0x78 }, // 'n'
-    { 0x38, 0x44, 0x44, 0x44, 0x38 }, // 'o'
-    { 0x7C, 0x14, 0x14, 0x14, 0x08 }, // 'p'
-    { 0x08, 0x14, 0x14, 0x18, 0x7C }, // 'q'
-    { 0x7C, 0x08, 0x04, 0x04, 0x08 }, // 'r'
-    { 0x48, 0x54, 0x54, 0x54, 0x20 }, // 's'
-    { 0x04, 0x3F, 0x44, 0x40, 0x20 }, // 't'
-    { 0x3C, 0x40, 0x40, 0x20, 0x7C }, // 'u'
-    { 0x1C, 0x20, 0x40, 0x20, 0x1C }, // 'v'
-    { 0x3C, 0x40, 0x30, 0x40, 0x3C }, // 'w'
-    { 0x44, 0x28, 0x10, 0x28, 0x44 }, // 'x'
-    { 0x0C, 0x50, 0x50, 0x50, 0x3C }, // 'y'
-    { 0x44, 0x64, 0x54, 0x4C, 0x44 }, // 'z'
-    { 0x00, 0x08, 0x36, 0x41, 0x00 }, // '{'
-    { 0x00, 0x00, 0x7F, 0x00, 0x00 }, // '|'
-    { 0x00, 0x41, 0x36, 0x08, 0x00 }, // '}'
-    { 0x08, 0x08, 0x2A, 0x1C, 0x08 }  // '~'
-};
-
-void drawPixelRgba(std::uint8_t* buf, int w, int h, int stride, int x, int y, const HudColor& c)
-{
-    if (x < 0 || x >= w || y < 0 || y >= h) {
-        return;
-    }
-    const int idx = y * stride + x * 4;
-    const float alpha = std::clamp(c.a, 0.0f, 1.0f);
-    const float invAlpha = 1.0f - alpha;
-
-    buf[idx + 0] = static_cast<std::uint8_t>(c.r * 255.0f * alpha + buf[idx + 0] * invAlpha);
-    buf[idx + 1] = static_cast<std::uint8_t>(c.g * 255.0f * alpha + buf[idx + 1] * invAlpha);
-    buf[idx + 2] = static_cast<std::uint8_t>(c.b * 255.0f * alpha + buf[idx + 2] * invAlpha);
-    buf[idx + 3] = static_cast<std::uint8_t>(std::min(255.0f, alpha * 255.0f + buf[idx + 3] * invAlpha));
-}
-
-void drawLineBresenham(std::uint8_t* buf, int w, int h, int stride, int x0, int y0, int x1, int y1, const HudColor& c)
-{
-    int dx = std::abs(x1 - x0);
-    int dy = std::abs(y1 - y0);
-    int sx = (x0 < x1) ? 1 : -1;
-    int sy = (y0 < y1) ? 1 : -1;
-    int err = dx - dy;
-
-    while (true) {
-        drawPixelRgba(buf, w, h, stride, x0, y0, c);
-        if (x0 == x1 && y0 == y1) {
-            break;
+    double normalizeHeading360(double deg) noexcept
+    {
+        while (deg < 0.0) {
+            deg += 360.0;
         }
-        int e2 = 2 * err;
-        if (e2 > -dy) {
-            err -= dy;
-            x0 += sx;
+        while (deg >= 360.0) {
+            deg -= 360.0;
         }
-        if (e2 < dx) {
-            err += dx;
-            y0 += sy;
-        }
+        return deg;
     }
-}
 
-void drawCircleMidpoint(std::uint8_t* buf, int w, int h, int stride, int xc, int yc, int r, const HudColor& c)
-{
-    int x = 0;
-    int y = r;
-    int d = 3 - 2 * r;
-
-    auto plot8 = [&](int cx, int cy, int px, int py) {
-        drawPixelRgba(buf, w, h, stride, cx + px, cy + py, c);
-        drawPixelRgba(buf, w, h, stride, cx - px, cy + py, c);
-        drawPixelRgba(buf, w, h, stride, cx + px, cy - py, c);
-        drawPixelRgba(buf, w, h, stride, cx - px, cy - py, c);
-        drawPixelRgba(buf, w, h, stride, cx + py, cy + px, c);
-        drawPixelRgba(buf, w, h, stride, cx - py, cy + px, c);
-        drawPixelRgba(buf, w, h, stride, cx + py, cy - px, c);
-        drawPixelRgba(buf, w, h, stride, cx - py, cy - px, c);
+    // Minimal 5x7 ASCII bitmap font covering printable ASCII [32..126]
+    // Each glyph is 5 columns wide, 7 rows high, stored as 5 bytes (each byte = 1 column, LSB at top)
+    const std::uint8_t kFont5x7[][5] = {
+        { 0x00, 0x00, 0x00, 0x00, 0x00 }, // ' ' (32)
+        { 0x00, 0x00, 0x5F, 0x00, 0x00 }, // '!'
+        { 0x00, 0x07, 0x00, 0x07, 0x00 }, // '"'
+        { 0x14, 0x7F, 0x14, 0x7F, 0x14 }, // '#'
+        { 0x24, 0x2A, 0x7F, 0x2A, 0x12 }, // '$'
+        { 0x23, 0x13, 0x08, 0x64, 0x62 }, // '%'
+        { 0x36, 0x49, 0x55, 0x22, 0x50 }, // '&'
+        { 0x00, 0x05, 0x03, 0x00, 0x00 }, // '''
+        { 0x00, 0x1C, 0x22, 0x41, 0x00 }, // '('
+        { 0x00, 0x41, 0x22, 0x1C, 0x00 }, // ')'
+        { 0x14, 0x08, 0x3E, 0x08, 0x14 }, // '*'
+        { 0x08, 0x08, 0x3E, 0x08, 0x08 }, // '+'
+        { 0x00, 0x50, 0x30, 0x00, 0x00 }, // ','
+        { 0x08, 0x08, 0x08, 0x08, 0x08 }, // '-'
+        { 0x00, 0x60, 0x60, 0x00, 0x00 }, // '.'
+        { 0x20, 0x10, 0x08, 0x04, 0x02 }, // '/'
+        { 0x3E, 0x51, 0x49, 0x45, 0x3E }, // '0' (48)
+        { 0x00, 0x42, 0x7F, 0x40, 0x00 }, // '1'
+        { 0x42, 0x61, 0x51, 0x49, 0x46 }, // '2'
+        { 0x21, 0x41, 0x45, 0x4B, 0x31 }, // '3'
+        { 0x18, 0x14, 0x12, 0x7F, 0x10 }, // '4'
+        { 0x27, 0x45, 0x45, 0x45, 0x39 }, // '5'
+        { 0x3C, 0x4A, 0x49, 0x49, 0x30 }, // '6'
+        { 0x01, 0x71, 0x09, 0x05, 0x03 }, // '7'
+        { 0x36, 0x49, 0x49, 0x49, 0x36 }, // '8'
+        { 0x06, 0x49, 0x49, 0x29, 0x1E }, // '9'
+        { 0x00, 0x36, 0x36, 0x00, 0x00 }, // ':' (58)
+        { 0x00, 0x56, 0x36, 0x00, 0x00 }, // ';'
+        { 0x08, 0x14, 0x22, 0x41, 0x00 }, // '<'
+        { 0x14, 0x14, 0x14, 0x14, 0x14 }, // '='
+        { 0x00, 0x41, 0x22, 0x14, 0x08 }, // '>'
+        { 0x02, 0x01, 0x51, 0x09, 0x06 }, // '?'
+        { 0x32, 0x49, 0x79, 0x41, 0x3E }, // '@'
+        { 0x7E, 0x11, 0x11, 0x11, 0x7E }, // 'A' (65)
+        { 0x7F, 0x49, 0x49, 0x49, 0x36 }, // 'B'
+        { 0x3E, 0x41, 0x41, 0x41, 0x22 }, // 'C'
+        { 0x7F, 0x41, 0x41, 0x22, 0x1C }, // 'D'
+        { 0x7F, 0x49, 0x49, 0x49, 0x41 }, // 'E'
+        { 0x7F, 0x09, 0x09, 0x09, 0x01 }, // 'F'
+        { 0x3E, 0x41, 0x49, 0x49, 0x7A }, // 'G'
+        { 0x7F, 0x08, 0x08, 0x08, 0x7F }, // 'H'
+        { 0x00, 0x41, 0x7F, 0x41, 0x00 }, // 'I'
+        { 0x20, 0x40, 0x41, 0x3F, 0x01 }, // 'J'
+        { 0x7F, 0x08, 0x14, 0x22, 0x41 }, // 'K'
+        { 0x7F, 0x40, 0x40, 0x40, 0x40 }, // 'L'
+        { 0x7F, 0x02, 0x0C, 0x02, 0x7F }, // 'M'
+        { 0x7F, 0x04, 0x08, 0x10, 0x7F }, // 'N'
+        { 0x3E, 0x41, 0x41, 0x41, 0x3E }, // 'O'
+        { 0x7F, 0x09, 0x09, 0x09, 0x06 }, // 'P'
+        { 0x3E, 0x41, 0x51, 0x21, 0x5E }, // 'Q'
+        { 0x7F, 0x09, 0x19, 0x29, 0x46 }, // 'R'
+        { 0x46, 0x49, 0x49, 0x49, 0x31 }, // 'S'
+        { 0x01, 0x01, 0x7F, 0x01, 0x01 }, // 'T'
+        { 0x3F, 0x40, 0x40, 0x40, 0x3F }, // 'U'
+        { 0x1F, 0x20, 0x40, 0x20, 0x1F }, // 'V'
+        { 0x7F, 0x20, 0x18, 0x20, 0x7F }, // 'W'
+        { 0x63, 0x14, 0x08, 0x14, 0x63 }, // 'X'
+        { 0x07, 0x08, 0x70, 0x08, 0x07 }, // 'Y'
+        { 0x61, 0x51, 0x49, 0x45, 0x43 }, // 'Z' (90)
+        { 0x00, 0x7F, 0x41, 0x41, 0x00 }, // '['
+        { 0x02, 0x04, 0x08, 0x10, 0x20 }, // '\'
+        { 0x00, 0x41, 0x41, 0x7F, 0x00 }, // ']'
+        { 0x04, 0x02, 0x01, 0x02, 0x04 }, // '^'
+        { 0x40, 0x40, 0x40, 0x40, 0x40 }, // '_'
+        { 0x00, 0x01, 0x02, 0x04, 0x00 }, // '`'
+        { 0x20, 0x54, 0x54, 0x54, 0x78 }, // 'a' (97)
+        { 0x7F, 0x48, 0x44, 0x44, 0x38 }, // 'b'
+        { 0x38, 0x44, 0x44, 0x44, 0x20 }, // 'c'
+        { 0x38, 0x44, 0x44, 0x48, 0x7F }, // 'd'
+        { 0x38, 0x54, 0x54, 0x54, 0x18 }, // 'e'
+        { 0x08, 0x7E, 0x09, 0x01, 0x02 }, // 'f'
+        { 0x0C, 0x52, 0x52, 0x52, 0x3E }, // 'g'
+        { 0x7F, 0x08, 0x04, 0x04, 0x78 }, // 'h'
+        { 0x00, 0x44, 0x7D, 0x40, 0x00 }, // 'i'
+        { 0x20, 0x40, 0x44, 0x3D, 0x00 }, // 'j'
+        { 0x7F, 0x10, 0x28, 0x44, 0x00 }, // 'k'
+        { 0x00, 0x41, 0x7F, 0x40, 0x00 }, // 'l'
+        { 0x7C, 0x04, 0x18, 0x04, 0x78 }, // 'm'
+        { 0x7C, 0x08, 0x04, 0x04, 0x78 }, // 'n'
+        { 0x38, 0x44, 0x44, 0x44, 0x38 }, // 'o'
+        { 0x7C, 0x14, 0x14, 0x14, 0x08 }, // 'p'
+        { 0x08, 0x14, 0x14, 0x18, 0x7C }, // 'q'
+        { 0x7C, 0x08, 0x04, 0x04, 0x08 }, // 'r'
+        { 0x48, 0x54, 0x54, 0x54, 0x20 }, // 's'
+        { 0x04, 0x3F, 0x44, 0x40, 0x20 }, // 't'
+        { 0x3C, 0x40, 0x40, 0x20, 0x7C }, // 'u'
+        { 0x1C, 0x20, 0x40, 0x20, 0x1C }, // 'v'
+        { 0x3C, 0x40, 0x30, 0x40, 0x3C }, // 'w'
+        { 0x44, 0x28, 0x10, 0x28, 0x44 }, // 'x'
+        { 0x0C, 0x50, 0x50, 0x50, 0x3C }, // 'y'
+        { 0x44, 0x64, 0x54, 0x4C, 0x44 }, // 'z'
+        { 0x00, 0x08, 0x36, 0x41, 0x00 }, // '{'
+        { 0x00, 0x00, 0x7F, 0x00, 0x00 }, // '|'
+        { 0x00, 0x41, 0x36, 0x08, 0x00 }, // '}'
+        { 0x08, 0x08, 0x2A, 0x1C, 0x08 } // '~'
     };
 
-    plot8(xc, yc, x, y);
-    while (y >= x) {
-        x++;
-        if (d > 0) {
-            y--;
-            d = d + 4 * (x - y) + 10;
-        } else {
-            d = d + 4 * x + 6;
+    void drawPixelRgba(std::uint8_t* buf, int w, int h, int stride, int x, int y, const HudColor& c)
+    {
+        if (x < 0 || x >= w || y < 0 || y >= h) {
+            return;
         }
+        const int idx = y * stride + x * 4;
+        const float alpha = std::clamp(c.a, 0.0f, 1.0f);
+        const float invAlpha = 1.0f - alpha;
+
+        buf[idx + 0] = static_cast<std::uint8_t>(c.r * 255.0f * alpha + buf[idx + 0] * invAlpha);
+        buf[idx + 1] = static_cast<std::uint8_t>(c.g * 255.0f * alpha + buf[idx + 1] * invAlpha);
+        buf[idx + 2] = static_cast<std::uint8_t>(c.b * 255.0f * alpha + buf[idx + 2] * invAlpha);
+        buf[idx + 3] = static_cast<std::uint8_t>(std::min(255.0f, alpha * 255.0f + buf[idx + 3] * invAlpha));
+    }
+
+    void drawLineBresenham(
+        std::uint8_t* buf, int w, int h, int stride, int x0, int y0, int x1, int y1, const HudColor& c)
+    {
+        int dx = std::abs(x1 - x0);
+        int dy = std::abs(y1 - y0);
+        int sx = (x0 < x1) ? 1 : -1;
+        int sy = (y0 < y1) ? 1 : -1;
+        int err = dx - dy;
+
+        while (true) {
+            drawPixelRgba(buf, w, h, stride, x0, y0, c);
+            if (x0 == x1 && y0 == y1) {
+                break;
+            }
+            int e2 = 2 * err;
+            if (e2 > -dy) {
+                err -= dy;
+                x0 += sx;
+            }
+            if (e2 < dx) {
+                err += dx;
+                y0 += sy;
+            }
+        }
+    }
+
+    void drawCircleMidpoint(std::uint8_t* buf, int w, int h, int stride, int xc, int yc, int r, const HudColor& c)
+    {
+        int x = 0;
+        int y = r;
+        int d = 3 - 2 * r;
+
+        auto plot8 = [&](int cx, int cy, int px, int py) {
+            drawPixelRgba(buf, w, h, stride, cx + px, cy + py, c);
+            drawPixelRgba(buf, w, h, stride, cx - px, cy + py, c);
+            drawPixelRgba(buf, w, h, stride, cx + px, cy - py, c);
+            drawPixelRgba(buf, w, h, stride, cx - px, cy - py, c);
+            drawPixelRgba(buf, w, h, stride, cx + py, cy + px, c);
+            drawPixelRgba(buf, w, h, stride, cx - py, cy + px, c);
+            drawPixelRgba(buf, w, h, stride, cx + py, cy - px, c);
+            drawPixelRgba(buf, w, h, stride, cx - py, cy - px, c);
+        };
+
         plot8(xc, yc, x, y);
+        while (y >= x) {
+            x++;
+            if (d > 0) {
+                y--;
+                d = d + 4 * (x - y) + 10;
+            } else {
+                d = d + 4 * x + 6;
+            }
+            plot8(xc, yc, x, y);
+        }
     }
-}
 
-void drawChar5x7(std::uint8_t* buf, int w, int h, int stride, int x, int y, char ch, const HudColor& c, int scale = 1)
-{
-    if (ch < 32 || ch > 126) {
-        ch = '?';
-    }
-    const auto& glyph = kFont5x7[ch - 32];
+    void drawChar5x7(
+        std::uint8_t* buf, int w, int h, int stride, int x, int y, char ch, const HudColor& c, int scale = 1)
+    {
+        if (ch < 32 || ch > 126) {
+            ch = '?';
+        }
+        const auto& glyph = kFont5x7[ch - 32];
 
-    for (int col = 0; col < 5; ++col) {
-        std::uint8_t line = glyph[col];
-        for (int row = 0; row < 7; ++row) {
-            if ((line >> row) & 1) {
-                for (int sx = 0; sx < scale; ++sx) {
-                    for (int sy = 0; sy < scale; ++sy) {
-                        drawPixelRgba(buf, w, h, stride, x + col * scale + sx, y + row * scale + sy, c);
+        for (int col = 0; col < 5; ++col) {
+            std::uint8_t line = glyph[col];
+            for (int row = 0; row < 7; ++row) {
+                if ((line >> row) & 1) {
+                    for (int sx = 0; sx < scale; ++sx) {
+                        for (int sy = 0; sy < scale; ++sy) {
+                            drawPixelRgba(buf, w, h, stride, x + col * scale + sx, y + row * scale + sy, c);
+                        }
                     }
                 }
             }
         }
     }
-}
 
-void drawStringRgba(std::uint8_t* buf, int w, int h, int stride, int x, int y, const std::string& str, const HudColor& c, int scale = 1)
-{
-    int curX = x;
-    for (char ch : str) {
-        drawChar5x7(buf, w, h, stride, curX, y, ch, c, scale);
-        curX += (5 + 1) * scale;
+    void drawStringRgba(std::uint8_t* buf, int w, int h, int stride, int x, int y, const std::string& str,
+        const HudColor& c, int scale = 1)
+    {
+        int curX = x;
+        for (char ch : str) {
+            drawChar5x7(buf, w, h, stride, curX, y, ch, c, scale);
+            curX += (5 + 1) * scale;
+        }
     }
-}
 
 } // namespace
 
@@ -536,7 +539,8 @@ void TacticalHudRenderer::buildReticle(HudDrawList& drawList) const
     }
     case ReticleType::BoxReticle: {
         const float halfBox = 0.035f * scale;
-        drawList.rectangles.push_back({ { cx - halfBox, cy - halfBox }, halfBox * 2.0f, halfBox * 2.0f, m_currentColor, sw, false, {} });
+        drawList.rectangles.push_back(
+            { { cx - halfBox, cy - halfBox }, halfBox * 2.0f, halfBox * 2.0f, m_currentColor, sw, false, {} });
         drawList.lines.push_back({ { cx - 0.01f * scale, cy }, { cx + 0.01f * scale, cy }, m_currentColor, sw });
         drawList.lines.push_back({ { cx, cy - 0.01f * scale }, { cx, cy + 0.01f * scale }, m_currentColor, sw });
         break;
@@ -596,20 +600,29 @@ void TacticalHudRenderer::buildHeadingTape(HudDrawList& drawList) const
 
         if (isMajor) {
             std::string lbl;
-            if (normAngle == 0) lbl = "N";
-            else if (normAngle == 45) lbl = "NE";
-            else if (normAngle == 90) lbl = "E";
-            else if (normAngle == 135) lbl = "SE";
-            else if (normAngle == 180) lbl = "S";
-            else if (normAngle == 225) lbl = "SW";
-            else if (normAngle == 270) lbl = "W";
-            else if (normAngle == 315) lbl = "NW";
+            if (normAngle == 0)
+                lbl = "N";
+            else if (normAngle == 45)
+                lbl = "NE";
+            else if (normAngle == 90)
+                lbl = "E";
+            else if (normAngle == 135)
+                lbl = "SE";
+            else if (normAngle == 180)
+                lbl = "S";
+            else if (normAngle == 225)
+                lbl = "SW";
+            else if (normAngle == 270)
+                lbl = "W";
+            else if (normAngle == 315)
+                lbl = "NW";
             else {
                 char buf[16];
                 std::snprintf(buf, sizeof(buf), "%02d", normAngle / 10);
                 lbl = buf;
             }
-            drawList.textLabels.push_back({ lbl, { normX, yRibbon - tickLen - 0.012f }, m_currentColor, 11.0f, false, true });
+            drawList.textLabels.push_back(
+                { lbl, { normX, yRibbon - tickLen - 0.012f }, m_currentColor, 11.0f, false, true });
         }
     }
 }
@@ -644,16 +657,19 @@ void TacticalHudRenderer::buildPitchLadder(HudDrawList& drawList) const
 
         // Left ladder bar
         drawList.lines.push_back({ { cx - ladderHalfWidth, normY }, { cx - gap, normY }, m_currentColor, sw });
-        drawList.lines.push_back({ { cx - ladderHalfWidth, normY }, { cx - ladderHalfWidth, normY + endTickH }, m_currentColor, sw });
+        drawList.lines.push_back(
+            { { cx - ladderHalfWidth, normY }, { cx - ladderHalfWidth, normY + endTickH }, m_currentColor, sw });
 
         // Right ladder bar
         drawList.lines.push_back({ { cx + gap, normY }, { cx + ladderHalfWidth, normY }, m_currentColor, sw });
-        drawList.lines.push_back({ { cx + ladderHalfWidth, normY }, { cx + ladderHalfWidth, normY + endTickH }, m_currentColor, sw });
+        drawList.lines.push_back(
+            { { cx + ladderHalfWidth, normY }, { cx + ladderHalfWidth, normY + endTickH }, m_currentColor, sw });
 
         // Pitch text label
         char pStr[16];
         std::snprintf(pStr, sizeof(pStr), "%+d", pDeg);
-        drawList.textLabels.push_back({ pStr, { cx - ladderHalfWidth - 0.025f, normY }, m_currentColor, 11.0f, false, true });
+        drawList.textLabels.push_back(
+            { pStr, { cx - ladderHalfWidth - 0.025f, normY }, m_currentColor, 11.0f, false, true });
     }
 }
 
@@ -718,7 +734,8 @@ void TacticalHudRenderer::buildTrackingGate(HudDrawList& drawList) const
     drawList.lines.push_back({ { cx + hw, cy + hh }, { cx + hw, cy + hh - cornerLen }, m_currentColor, sw });
 
     // Status banner
-    drawList.textLabels.push_back({ m_telemetry.trackerStatus, { cx, cy - hh - 0.015f }, m_currentColor, 12.0f, true, true });
+    drawList.textLabels.push_back(
+        { m_telemetry.trackerStatus, { cx, cy - hh - 0.015f }, m_currentColor, 12.0f, true, true });
 
     // Lead vector pip
     if (m_config.showVelocityLeadPip && m_telemetry.hasLeadVector) {
@@ -760,11 +777,13 @@ void TacticalHudRenderer::buildSensorTelemetry(HudDrawList& drawList) const
     float y = 0.08f;
     const float lineSpacing = 0.026f;
 
-    drawList.textLabels.push_back({ "SENSOR: " + m_telemetry.opticalChannelName, { x, y }, m_currentColor, 12.0f, true, false });
+    drawList.textLabels.push_back(
+        { "SENSOR: " + m_telemetry.opticalChannelName, { x, y }, m_currentColor, 12.0f, true, false });
     y += lineSpacing;
 
     char zoomStr[64];
-    std::snprintf(zoomStr, sizeof(zoomStr), "ZOOM: %.1fx (DIG: %.1fx)", m_telemetry.opticalZoomFactor, m_telemetry.digitalCropFactor);
+    std::snprintf(zoomStr, sizeof(zoomStr), "ZOOM: %.1fx (DIG: %.1fx)", m_telemetry.opticalZoomFactor,
+        m_telemetry.digitalCropFactor);
     drawList.textLabels.push_back({ zoomStr, { x, y }, m_currentColor, 12.0f, false, false });
     y += lineSpacing;
 
@@ -809,7 +828,8 @@ void TacticalHudRenderer::buildWarningBanners(HudDrawList& drawList) const
     }
 
     if (!m_telemetry.systemHealth.empty()) {
-        drawList.textLabels.push_back({ m_telemetry.systemHealth, { 0.5f, 0.94f }, m_currentColor, 12.0f, false, true });
+        drawList.textLabels.push_back(
+            { m_telemetry.systemHealth, { 0.5f, 0.94f }, m_currentColor, 12.0f, false, true });
     }
 }
 
@@ -821,13 +841,15 @@ bool TacticalHudRenderer::renderRgba(std::uint8_t* rgbaBuffer, int width, int he
 
     const int stride = (strideBytes > 0) ? strideBytes : (width * 4);
     const auto drawList = generateDrawList();
+    const float fWidth = static_cast<float>(width);
+    const float fHeight = static_cast<float>(height);
 
     // 1. Render rectangles
     for (const auto& r : drawList.rectangles) {
-        const int rx0 = static_cast<int>(r.topLeft.x * width);
-        const int ry0 = static_cast<int>(r.topLeft.y * height);
-        const int rw = static_cast<int>(r.width * width);
-        const int rh = static_cast<int>(r.height * height);
+        const int rx0 = static_cast<int>(r.topLeft.x * fWidth);
+        const int ry0 = static_cast<int>(r.topLeft.y * fHeight);
+        const int rw = static_cast<int>(r.width * fWidth);
+        const int rh = static_cast<int>(r.height * fHeight);
 
         if (r.filled) {
             for (int y = ry0; y < ry0 + rh; ++y) {
@@ -846,29 +868,30 @@ bool TacticalHudRenderer::renderRgba(std::uint8_t* rgbaBuffer, int width, int he
 
     // 2. Render circles
     for (const auto& c : drawList.circles) {
-        const int xc = static_cast<int>(c.center.x * width);
-        const int yc = static_cast<int>(c.center.y * height);
-        const int radius = static_cast<int>(c.radius * height);
+        const int xc = static_cast<int>(c.center.x * fWidth);
+        const int yc = static_cast<int>(c.center.y * fHeight);
+        const int radius = static_cast<int>(c.radius * fHeight);
         drawCircleMidpoint(rgbaBuffer, width, height, stride, xc, yc, std::max(1, radius), c.color);
     }
 
     // 3. Render lines
     for (const auto& line : drawList.lines) {
-        const int x0 = static_cast<int>(line.start.x * width);
-        const int y0 = static_cast<int>(line.start.y * height);
-        const int x1 = static_cast<int>(line.end.x * width);
-        const int y1 = static_cast<int>(line.end.y * height);
+        const int x0 = static_cast<int>(line.start.x * fWidth);
+        const int y0 = static_cast<int>(line.start.y * fHeight);
+        const int x1 = static_cast<int>(line.end.x * fWidth);
+        const int y1 = static_cast<int>(line.end.y * fHeight);
         drawLineBresenham(rgbaBuffer, width, height, stride, x0, y0, x1, y1, line.color);
     }
 
     // 4. Render text labels
     for (const auto& txt : drawList.textLabels) {
-        int x = static_cast<int>(txt.position.x * width);
-        const int y = static_cast<int>(txt.position.y * height);
+        int x = static_cast<int>(txt.position.x * fWidth);
+        const int y = static_cast<int>(txt.position.y * fHeight);
         const int scale = txt.bold ? 2 : 1;
 
         if (txt.centerAligned) {
-            const int textWidth = static_cast<int>(txt.text.length() * 6 * scale);
+            const int textWidth
+                = static_cast<int>(txt.text.length() * std::size_t { 6 } * static_cast<std::size_t>(scale));
             x -= textWidth / 2;
         }
 

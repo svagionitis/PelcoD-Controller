@@ -5,18 +5,6 @@
 
 namespace PayloadHal {
 
-namespace {
-
-constexpr double PI = 3.14159265358979323846;
-
-double angularDifferenceDeg(double aDeg, double bDeg)
-{
-    double diff = std::fmod(std::abs(aDeg - bDeg), 360.0);
-    return diff > 180.0 ? 360.0 - diff : diff;
-}
-
-} // namespace
-
 GimbalSectorBlanking::GimbalSectorBlanking(std::vector<BlankingZone> initialZones)
     : m_zones(std::move(initialZones))
 {
@@ -61,8 +49,8 @@ bool GimbalSectorBlanking::updateZone(const BlankingZone& zone)
 bool GimbalSectorBlanking::removeZone(const std::string& zoneId)
 {
     std::lock_guard<std::mutex> lock(m_mutex);
-    const auto it = std::remove_if(m_zones.begin(), m_zones.end(),
-        [&zoneId](const BlankingZone& z) { return z.id == zoneId; });
+    const auto it
+        = std::remove_if(m_zones.begin(), m_zones.end(), [&zoneId](const BlankingZone& z) { return z.id == zoneId; });
     if (it != m_zones.end()) {
         m_zones.erase(it, m_zones.end());
         return true;
@@ -132,13 +120,17 @@ bool GimbalSectorBlanking::isPointInZone(const BlankingZone& zone, double azDeg,
                 const double dEl = vjEl - viEl;
                 if (std::abs(dEl) > 1e-9) {
                     double dAz = vjAz - viAz;
-                    if (dAz > 180.0) dAz -= 360.0;
-                    else if (dAz < -180.0) dAz += 360.0;
+                    if (dAz > 180.0)
+                        dAz -= 360.0;
+                    else if (dAz < -180.0)
+                        dAz += 360.0;
 
                     const double intersectAz = viAz + (elDeg - viEl) * dAz / dEl;
                     double diff = azNorm - intersectAz;
-                    if (diff < -180.0) diff += 360.0;
-                    else if (diff > 180.0) diff -= 360.0;
+                    if (diff < -180.0)
+                        diff += 360.0;
+                    else if (diff > 180.0)
+                        diff -= 360.0;
 
                     if (diff < 0.0) {
                         inside = !inside;
@@ -205,8 +197,7 @@ double GimbalSectorBlanking::distanceToZone(const BlankingZone& zone, double azD
     return std::sqrt(dAz * dAz + dEl * dEl);
 }
 
-SectorEvaluationResult GimbalSectorBlanking::evaluate(
-    double azDeg, double elDeg, SectorReferenceFrame frame) const
+SectorEvaluationResult GimbalSectorBlanking::evaluate(double azDeg, double elDeg, SectorReferenceFrame frame) const
 {
     std::lock_guard<std::mutex> lock(m_mutex);
 
@@ -277,11 +268,8 @@ bool GimbalSectorBlanking::isVideoBlanked(double azDeg, double elDeg, SectorRefe
     return eval.videoBlanked;
 }
 
-PathValidationResult GimbalSectorBlanking::validatePath(
-    double fromAzDeg, double fromElDeg,
-    double toAzDeg, double toElDeg,
-    SectorZoneType checkType,
-    SectorReferenceFrame frame) const
+PathValidationResult GimbalSectorBlanking::validatePath(double fromAzDeg, double fromElDeg, double toAzDeg,
+    double toElDeg, SectorZoneType checkType, SectorReferenceFrame frame) const
 {
     std::lock_guard<std::mutex> lock(m_mutex);
 
@@ -293,8 +281,10 @@ PathValidationResult GimbalSectorBlanking::validatePath(
 
     // Discretize path into sample segments (at least 1 step per degree)
     double deltaAz = toAzDeg - fromAzDeg;
-    if (deltaAz > 180.0) deltaAz -= 360.0;
-    else if (deltaAz < -180.0) deltaAz += 360.0;
+    if (deltaAz > 180.0)
+        deltaAz -= 360.0;
+    else if (deltaAz < -180.0)
+        deltaAz += 360.0;
 
     const double deltaEl = toElDeg - fromElDeg;
     const double angularDistance = std::sqrt(deltaAz * deltaAz + deltaEl * deltaEl);
@@ -310,9 +300,9 @@ PathValidationResult GimbalSectorBlanking::validatePath(
                 continue;
             }
 
-            const bool matchesType = (z.type == checkType) ||
-                                     (checkType == SectorZoneType::MechanicalKeepOut && z.type == SectorZoneType::TotalExclusion) ||
-                                     (checkType == SectorZoneType::LaserInhibit && z.type == SectorZoneType::TotalExclusion);
+            const bool matchesType = (z.type == checkType)
+                || (checkType == SectorZoneType::MechanicalKeepOut && z.type == SectorZoneType::TotalExclusion)
+                || (checkType == SectorZoneType::LaserInhibit && z.type == SectorZoneType::TotalExclusion);
 
             if (matchesType && isPointInZone(z, curAz, curEl)) {
                 result.pathClear = false;

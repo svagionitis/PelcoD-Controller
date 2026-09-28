@@ -12,26 +12,26 @@ namespace PayloadHal {
 
 namespace {
 
-std::string trimString(const std::string& str)
-{
-    const auto first = str.find_first_not_of(" \t\r\n");
-    if (first == std::string::npos) {
-        return {};
+    std::string trimString(const std::string& str)
+    {
+        const auto first = str.find_first_not_of(" \t\r\n");
+        if (first == std::string::npos) {
+            return {};
+        }
+        const auto last = str.find_last_not_of(" \t\r\n");
+        return str.substr(first, (last - first + 1));
     }
-    const auto last = str.find_last_not_of(" \t\r\n");
-    return str.substr(first, (last - first + 1));
-}
 
-std::vector<std::string> splitTokens(const std::string& str, char delim)
-{
-    std::vector<std::string> tokens;
-    std::stringstream ss(str);
-    std::string item;
-    while (std::getline(ss, item, delim)) {
-        tokens.push_back(trimString(item));
+    std::vector<std::string> splitTokens(const std::string& str, char delim)
+    {
+        std::vector<std::string> tokens;
+        std::stringstream ss(str);
+        std::string item;
+        while (std::getline(ss, item, delim)) {
+            tokens.push_back(trimString(item));
+        }
+        return tokens;
     }
-    return tokens;
-}
 
 } // namespace
 
@@ -59,8 +59,8 @@ std::string NmeaLrfParser::formatNmeaSentence(const std::string& body)
 {
     const std::uint8_t cs = computeNmeaChecksum(body);
     std::ostringstream ss;
-    ss << "$" << body << "*" << std::uppercase << std::hex << std::setfill('0') << std::setw(2)
-       << static_cast<int>(cs) << "\r\n";
+    ss << "$" << body << "*" << std::uppercase << std::hex << std::setfill('0') << std::setw(2) << static_cast<int>(cs)
+       << "\r\n";
     return ss.str();
 }
 
@@ -348,21 +348,21 @@ std::uint16_t BinaryLrfParser::computeCrc16(const std::uint8_t* data, std::size_
 }
 
 namespace {
-std::vector<std::uint8_t> buildBinaryPacket(std::uint8_t cmd, const std::vector<std::uint8_t>& payload)
-{
-    std::vector<std::uint8_t> packet;
-    packet.reserve(6 + payload.size());
-    packet.push_back(BinaryLrfParser::kSyncByte1);
-    packet.push_back(BinaryLrfParser::kSyncByte2);
-    packet.push_back(cmd);
-    packet.push_back(static_cast<std::uint8_t>(payload.size()));
-    packet.insert(packet.end(), payload.begin(), payload.end());
+    std::vector<std::uint8_t> buildBinaryPacket(std::uint8_t cmd, const std::vector<std::uint8_t>& payload)
+    {
+        std::vector<std::uint8_t> packet;
+        packet.reserve(6 + payload.size());
+        packet.push_back(BinaryLrfParser::kSyncByte1);
+        packet.push_back(BinaryLrfParser::kSyncByte2);
+        packet.push_back(cmd);
+        packet.push_back(static_cast<std::uint8_t>(payload.size()));
+        packet.insert(packet.end(), payload.begin(), payload.end());
 
-    const std::uint16_t crc = BinaryLrfParser::computeCrc16(packet.data(), packet.size());
-    packet.push_back(static_cast<std::uint8_t>((crc >> 8) & 0xFF));
-    packet.push_back(static_cast<std::uint8_t>(crc & 0xFF));
-    return packet;
-}
+        const std::uint16_t crc = BinaryLrfParser::computeCrc16(packet.data(), packet.size());
+        packet.push_back(static_cast<std::uint8_t>((crc >> 8) & 0xFF));
+        packet.push_back(static_cast<std::uint8_t>(crc & 0xFF));
+        return packet;
+    }
 } // namespace
 
 std::vector<LrfTargetMeasurement> BinaryLrfParser::parseIncomingBytes(const std::uint8_t* data, std::size_t length)
@@ -427,7 +427,7 @@ std::vector<LrfTargetMeasurement> BinaryLrfParser::parseIncomingBytes(const std:
             results.push_back(meas);
         }
 
-        m_rxBuffer.erase(m_rxBuffer.begin(), m_rxBuffer.begin() + totalFrameLen);
+        m_rxBuffer.erase(m_rxBuffer.begin(), m_rxBuffer.begin() + static_cast<std::ptrdiff_t>(totalFrameLen));
     }
 
     return results;

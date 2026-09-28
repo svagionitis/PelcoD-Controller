@@ -10,30 +10,23 @@ namespace PayloadHal {
 
 namespace {
 
-constexpr double kPi = 3.14159265358979323846;
-constexpr double kDegToRad = kPi / 180.0;
-constexpr double kRadToDeg = 180.0 / kPi;
-constexpr double kWideHfovDeg = 60.0;
-constexpr double kMaxOpticalZoom = 30.0; // 30x optical zoom ratio
-constexpr double kEpsilon = 1e-6;
+    constexpr double kPi = 3.14159265358979323846;
+    constexpr double kDegToRad = kPi / 180.0;
+    constexpr double kWideHfovDeg = 60.0;
+    constexpr double kMaxOpticalZoom = 30.0; // 30x optical zoom ratio
+    constexpr double kEpsilon = 1e-6;
 
-double degToRad(double deg) noexcept
-{
-    return deg * kDegToRad;
-}
-
-double radToDeg(double rad) noexcept
-{
-    return rad * kRadToDeg;
-}
+    double degToRad(double deg) noexcept
+    {
+        return deg * kDegToRad;
+    }
 
 } // namespace
 
 SensorFusionManager::SensorFusionManager() = default;
 
 SensorFusionManager::SensorFusionManager(
-    std::shared_ptr<ICameraPayload> primaryCam,
-    std::shared_ptr<ICameraPayload> secondaryCam)
+    std::shared_ptr<ICameraPayload> primaryCam, std::shared_ptr<ICameraPayload> secondaryCam)
     : m_primaryCam(std::move(primaryCam))
     , m_secondaryCam(std::move(secondaryCam))
 {
@@ -42,8 +35,7 @@ SensorFusionManager::SensorFusionManager(
 SensorFusionManager::~SensorFusionManager() = default;
 
 void SensorFusionManager::setCameras(
-    std::shared_ptr<ICameraPayload> primaryCam,
-    std::shared_ptr<ICameraPayload> secondaryCam) noexcept
+    std::shared_ptr<ICameraPayload> primaryCam, std::shared_ptr<ICameraPayload> secondaryCam) noexcept
 {
     std::lock_guard<std::mutex> lock(m_mutex);
     m_primaryCam = std::move(primaryCam);
@@ -142,9 +134,7 @@ bool SensorFusionManager::isMatchZoomEnabled() const noexcept
     return m_matchZoomEnabled;
 }
 
-MatchZoomResult SensorFusionManager::computeMatchZoom(
-    OpticalChannel sourceChannel,
-    OpticalChannel targetChannel) const
+MatchZoomResult SensorFusionManager::computeMatchZoom(OpticalChannel sourceChannel, OpticalChannel targetChannel) const
 {
     std::shared_ptr<ICameraPayload> srcCam;
     std::shared_ptr<ICameraPayload> tgtCam;
@@ -157,8 +147,7 @@ MatchZoomResult SensorFusionManager::computeMatchZoom(
 }
 
 MatchZoomResult SensorFusionManager::computeMatchZoomInternal(
-    const std::shared_ptr<ICameraPayload>& srcCam,
-    const std::shared_ptr<ICameraPayload>& tgtCam)
+    const std::shared_ptr<ICameraPayload>& srcCam, const std::shared_ptr<ICameraPayload>& tgtCam)
 {
     MatchZoomResult result {};
     if (!srcCam || !tgtCam) {
@@ -401,8 +390,8 @@ void SensorFusionManager::update(double dtSeconds)
         if (m_activeChannel == OpticalChannel::Primary) {
             // Check for transition to Thermal (night / low contrast / smoke)
             const bool isLowLight = (m_sceneMetrics.ambientIlluminanceLux < m_autoConfig.lowLightThresholdLux);
-            const bool isLowContrast = (m_sceneMetrics.sceneContrastRatio < m_autoConfig.lowContrastThreshold ||
-                                       m_sceneMetrics.isObscuredBySmokeHaze);
+            const bool isLowContrast = (m_sceneMetrics.sceneContrastRatio < m_autoConfig.lowContrastThreshold
+                || m_sceneMetrics.isObscuredBySmokeHaze);
 
             if (isLowLight || isLowContrast) {
                 if (m_pendingSwitchChannel != OpticalChannel::Secondary) {
@@ -433,9 +422,10 @@ void SensorFusionManager::update(double dtSeconds)
             }
         } else if (m_activeChannel == OpticalChannel::Secondary) {
             // Check for return to Daylight Visible
-            const bool isDaylightRestored = (m_sceneMetrics.ambientIlluminanceLux >= m_autoConfig.daylightReturnThresholdLux &&
-                                            m_sceneMetrics.sceneContrastRatio >= m_autoConfig.lowContrastThreshold &&
-                                            !m_sceneMetrics.isObscuredBySmokeHaze);
+            const bool isDaylightRestored
+                = (m_sceneMetrics.ambientIlluminanceLux >= m_autoConfig.daylightReturnThresholdLux
+                    && m_sceneMetrics.sceneContrastRatio >= m_autoConfig.lowContrastThreshold
+                    && !m_sceneMetrics.isObscuredBySmokeHaze);
 
             if (isDaylightRestored) {
                 if (m_pendingSwitchChannel != OpticalChannel::Primary) {
