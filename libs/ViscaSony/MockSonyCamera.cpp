@@ -237,6 +237,65 @@ void MockSonyCamera::handleInquiry(const ViscaFrame& frame)
         return;
     }
 
+    // CAM_ZoomPosInq (8x 09 04 47 FF)
+    if (frame.size() == 5 && frame[2] == 0x04 && frame[3] == 0x47) {
+        const auto zNibbles = ViscaFrame::packWordNibbles(m_zoomPosition);
+        sendResponse(ViscaFrame { respHdr, 0x50, zNibbles[0], zNibbles[1], zNibbles[2], zNibbles[3], kViscaTerminator });
+        return;
+    }
+
+    // CAM_FocusPosInq (8x 09 04 48 FF)
+    if (frame.size() == 5 && frame[2] == 0x04 && frame[3] == 0x48) {
+        const auto fNibbles = ViscaFrame::packWordNibbles(m_focusPosition);
+        sendResponse(ViscaFrame { respHdr, 0x50, fNibbles[0], fNibbles[1], fNibbles[2], fNibbles[3], kViscaTerminator });
+        return;
+    }
+
+    // CAM_ExpModeInq (8x 09 04 39 FF)
+    if (frame.size() == 5 && frame[2] == 0x04 && frame[3] == 0x39) {
+        sendResponse(ViscaFrame { respHdr, 0x50, static_cast<uint8_t>(m_exposureMode), kViscaTerminator });
+        return;
+    }
+
+    // CAM_ShutterPosInq (8x 09 04 4A FF)
+    if (frame.size() == 5 && frame[2] == 0x04 && frame[3] == 0x4A) {
+        const auto nibbles = ViscaFrame::packByteNibbles(m_shutterPosition);
+        sendResponse(ViscaFrame { respHdr, 0x50, 0x00, 0x00, nibbles[0], nibbles[1], kViscaTerminator });
+        return;
+    }
+
+    // CAM_IrisPosInq (8x 09 04 4B FF)
+    if (frame.size() == 5 && frame[2] == 0x04 && frame[3] == 0x4B) {
+        const auto nibbles = ViscaFrame::packByteNibbles(m_irisPosition);
+        sendResponse(ViscaFrame { respHdr, 0x50, 0x00, 0x00, nibbles[0], nibbles[1], kViscaTerminator });
+        return;
+    }
+
+    // CAM_GainPosInq (8x 09 04 4C FF)
+    if (frame.size() == 5 && frame[2] == 0x04 && frame[3] == 0x4C) {
+        const auto nibbles = ViscaFrame::packByteNibbles(m_gainPosition);
+        sendResponse(ViscaFrame { respHdr, 0x50, 0x00, 0x00, nibbles[0], nibbles[1], kViscaTerminator });
+        return;
+    }
+
+    // CAM_WBModeInq (8x 09 04 35 FF)
+    if (frame.size() == 5 && frame[2] == 0x04 && frame[3] == 0x35) {
+        sendResponse(ViscaFrame { respHdr, 0x50, static_cast<uint8_t>(m_wbMode), kViscaTerminator });
+        return;
+    }
+
+    // CAM_ApertureInq (8x 09 04 42 FF)
+    if (frame.size() == 5 && frame[2] == 0x04 && frame[3] == 0x42) {
+        sendResponse(ViscaFrame { respHdr, 0x50, 0x00, 0x00, 0x00, 0x05, kViscaTerminator });
+        return;
+    }
+
+    // CAM_MemoryInq (8x 09 04 3F FF)
+    if (frame.size() == 5 && frame[2] == 0x04 && frame[3] == 0x3F) {
+        sendResponse(ViscaFrame { respHdr, 0x50, 0x01, kViscaTerminator });
+        return;
+    }
+
     // Register Inquiry (8x 09 04 24 mm FF)
     if (frame.size() == 6 && frame[2] == 0x04 && frame[3] == 0x24) {
         const uint8_t reg = static_cast<uint8_t>(frame[4] & 0x7F);

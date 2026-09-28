@@ -138,4 +138,61 @@ bool SonyViscaParser::parseRegisterInquiry(const ViscaFrame& frame, uint8_t& out
     return true;
 }
 
+bool SonyViscaParser::parseWordInquiry(const ViscaFrame& frame, uint16_t& outValue) noexcept
+{
+    if (frame.size() != 7 || frame[1] != 0x50 || frame[6] != kViscaTerminator) {
+        return false;
+    }
+    outValue = ViscaFrame::unpackWordNibbles(frame.data() + 2);
+    return true;
+}
+
+bool SonyViscaParser::parseByteInquiry(const ViscaFrame& frame, uint8_t& outValue) noexcept
+{
+    if (frame.size() == 7 && frame[1] == 0x50 && frame[6] == kViscaTerminator) {
+        outValue = ViscaFrame::unpackByteNibbles(frame.data() + 4);
+        return true;
+    }
+    if (frame.size() == 5 && frame[1] == 0x50 && frame[4] == kViscaTerminator) {
+        outValue = ViscaFrame::unpackByteNibbles(frame.data() + 2);
+        return true;
+    }
+    return false;
+}
+
+bool SonyViscaParser::parseBoolInquiry(const ViscaFrame& frame, bool& outState) noexcept
+{
+    if (frame.size() != 4 || frame[1] != 0x50 || frame[3] != kViscaTerminator) {
+        return false;
+    }
+    if (frame[2] == 0x02) {
+        outState = true;
+        return true;
+    }
+    if (frame[2] == 0x03) {
+        outState = false;
+        return true;
+    }
+    return false;
+}
+
+bool SonyViscaParser::parseModeInquiry(const ViscaFrame& frame, uint8_t& outMode) noexcept
+{
+    if (frame.size() != 4 || frame[1] != 0x50 || frame[3] != kViscaTerminator) {
+        return false;
+    }
+    outMode = static_cast<uint8_t>(frame[2] & 0x0FU);
+    return true;
+}
+
+bool SonyViscaParser::parseSpotPosition(const ViscaFrame& frame, uint8_t& outX, uint8_t& outY) noexcept
+{
+    if (frame.size() != 7 || frame[1] != 0x50 || frame[6] != kViscaTerminator) {
+        return false;
+    }
+    outX = ViscaFrame::unpackByteNibbles(frame.data() + 2);
+    outY = ViscaFrame::unpackByteNibbles(frame.data() + 4);
+    return true;
+}
+
 } // namespace Visca::Sony

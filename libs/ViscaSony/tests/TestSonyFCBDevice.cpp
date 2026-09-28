@@ -119,3 +119,60 @@ TEST(TestSonyFCBDevice, BlockInquiryStatusPolling)
     EXPECT_TRUE(status.focusAuto);
     EXPECT_TRUE(status.powerOn);
 }
+
+/// @brief Tests individual fast-path parameter queries and internal status synchronization.
+/// @details Verifies that queryZoomPosition(), queryFocusPosition(), etc. update SonyFCBStatus.
+TEST(TestSonyFCBDevice, IndividualFastPathQueries)
+{
+    auto mockCamera = std::make_shared<MockSonyCamera>(SonyCameraModelType::FCB_EV9520L, 1);
+    mockCamera->open();
+
+    mockCamera->setZoomPosition(0x3210);
+    mockCamera->setFocusPosition(0x6543);
+
+    SonyFCBDevice camera(mockCamera, 1);
+    ASSERT_TRUE(camera.initialize());
+
+    const auto zoom = camera.queryZoomPosition();
+    ASSERT_TRUE(zoom.has_value());
+    EXPECT_EQ(*zoom, 0x3210);
+    EXPECT_EQ(camera.status().zoomPosition, 0x3210);
+
+    const auto focus = camera.queryFocusPosition();
+    ASSERT_TRUE(focus.has_value());
+    EXPECT_EQ(*focus, 0x6543);
+    EXPECT_EQ(camera.status().focusPosition, 0x6543);
+
+    const auto expMode = camera.queryExposureMode();
+    ASSERT_TRUE(expMode.has_value());
+    EXPECT_EQ(*expMode, SonyExposureMode::FullAuto);
+    EXPECT_EQ(camera.status().exposureMode, SonyExposureMode::FullAuto);
+
+    const auto shutter = camera.queryShutterPosition();
+    ASSERT_TRUE(shutter.has_value());
+    EXPECT_EQ(camera.status().shutterPosition, *shutter);
+
+    const auto iris = camera.queryIrisPosition();
+    ASSERT_TRUE(iris.has_value());
+    EXPECT_EQ(camera.status().irisPosition, *iris);
+
+    const auto gain = camera.queryGainPosition();
+    ASSERT_TRUE(gain.has_value());
+    EXPECT_EQ(camera.status().gainPosition, *gain);
+
+    const auto wb = camera.queryWhiteBalanceMode();
+    ASSERT_TRUE(wb.has_value());
+    EXPECT_EQ(*wb, SonyWhiteBalanceMode::Auto);
+    EXPECT_EQ(camera.status().wbMode, SonyWhiteBalanceMode::Auto);
+
+    const auto aperture = camera.queryAperture();
+    ASSERT_TRUE(aperture.has_value());
+    EXPECT_EQ(*aperture, 0x05);
+    EXPECT_EQ(camera.status().apertureGain, 0x05);
+
+    const auto mem = camera.queryLastMemoryChannel();
+    ASSERT_TRUE(mem.has_value());
+    EXPECT_EQ(*mem, 0x01);
+    EXPECT_EQ(camera.status().lastMemoryChannel, 0x01);
+}
+

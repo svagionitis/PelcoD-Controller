@@ -54,6 +54,37 @@ public:
     /// @param[out] outValue Reconstructed 8-bit register value.
     /// @return True if response is valid, false otherwise.
     static bool parseRegisterInquiry(const ViscaFrame& frame, uint8_t& outValue) noexcept;
+
+    /// @brief Decodes a 16-bit word inquiry response (y0 50 0p 0q 0r 0s FF).
+    /// @param[in] frame Inquiry response frame (7 bytes).
+    /// @param[out] outValue Reconstructed 16-bit word.
+    /// @return True on success, false if format is invalid.
+    static bool parseWordInquiry(const ViscaFrame& frame, uint16_t& outValue) noexcept;
+
+    /// @brief Decodes an 8-bit byte inquiry response (y0 50 00 00 0p 0q FF or y0 50 0p 0q FF).
+    /// @param[in] frame Inquiry response frame.
+    /// @param[out] outValue Reconstructed 8-bit byte.
+    /// @return True on success, false if format is invalid.
+    static bool parseByteInquiry(const ViscaFrame& frame, uint8_t& outValue) noexcept;
+
+    /// @brief Decodes a boolean on/off inquiry response (y0 50 02/03 FF).
+    /// @param[in] frame Inquiry response frame (4 bytes).
+    /// @param[out] outState True for 0x02 (On), false for 0x03 (Off).
+    /// @return True on success, false if format is invalid.
+    static bool parseBoolInquiry(const ViscaFrame& frame, bool& outState) noexcept;
+
+    /// @brief Decodes a 4-bit mode / channel inquiry response (y0 50 0p FF).
+    /// @param[in] frame Inquiry response frame (4 bytes).
+    /// @param[out] outMode Extracted nibble value.
+    /// @return True on success, false if format is invalid.
+    static bool parseModeInquiry(const ViscaFrame& frame, uint8_t& outMode) noexcept;
+
+    /// @brief Decodes a 2D coordinate spot inquiry response (y0 50 00 0x 00 0y FF).
+    /// @param[in] frame Inquiry response frame (7 bytes).
+    /// @param[out] outX Extracted X coordinate.
+    /// @param[out] outY Extracted Y coordinate.
+    /// @return True on success, false if format is invalid.
+    static bool parseSpotPosition(const ViscaFrame& frame, uint8_t& outX, uint8_t& outY) noexcept;
 };
 
 } // namespace Visca::Sony

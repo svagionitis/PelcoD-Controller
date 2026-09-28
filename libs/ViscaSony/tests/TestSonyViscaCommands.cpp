@@ -240,3 +240,110 @@ TEST(TestSonyViscaCommands, SpotControls)
     EXPECT_EQ(SonyViscaBuilder::spotAwbPositionInquiry(1).bytes(),
         (std::vector<uint8_t> { 0x81, 0x09, 0x04, 0x2B, 0xFF }));
 }
+
+/// @brief Tests Sony FCB individual parameter inquiry frame generation.
+TEST(TestSonyViscaCommands, IndividualInquiries)
+{
+    EXPECT_EQ(SonyViscaBuilder::zoomPositionInquiry(1).bytes(),
+        (std::vector<uint8_t> { 0x81, 0x09, 0x04, 0x47, 0xFF }));
+    EXPECT_EQ(SonyViscaBuilder::dzoomModeInquiry(1).bytes(),
+        (std::vector<uint8_t> { 0x81, 0x09, 0x04, 0x06, 0xFF }));
+
+    EXPECT_EQ(SonyViscaBuilder::focusPositionInquiry(1).bytes(),
+        (std::vector<uint8_t> { 0x81, 0x09, 0x04, 0x48, 0xFF }));
+    EXPECT_EQ(SonyViscaBuilder::focusModeInquiry(1).bytes(),
+        (std::vector<uint8_t> { 0x81, 0x09, 0x04, 0x38, 0xFF }));
+    EXPECT_EQ(SonyViscaBuilder::focusNearLimitInquiry(1).bytes(),
+        (std::vector<uint8_t> { 0x81, 0x09, 0x04, 0x28, 0xFF }));
+
+    EXPECT_EQ(SonyViscaBuilder::exposureModeInquiry(1).bytes(),
+        (std::vector<uint8_t> { 0x81, 0x09, 0x04, 0x39, 0xFF }));
+    EXPECT_EQ(SonyViscaBuilder::shutterPositionInquiry(1).bytes(),
+        (std::vector<uint8_t> { 0x81, 0x09, 0x04, 0x4A, 0xFF }));
+    EXPECT_EQ(SonyViscaBuilder::irisPositionInquiry(1).bytes(),
+        (std::vector<uint8_t> { 0x81, 0x09, 0x04, 0x4B, 0xFF }));
+    EXPECT_EQ(SonyViscaBuilder::gainPositionInquiry(1).bytes(),
+        (std::vector<uint8_t> { 0x81, 0x09, 0x04, 0x4C, 0xFF }));
+    EXPECT_EQ(SonyViscaBuilder::exposureCompModeInquiry(1).bytes(),
+        (std::vector<uint8_t> { 0x81, 0x09, 0x04, 0x3E, 0xFF }));
+    EXPECT_EQ(SonyViscaBuilder::exposureCompPositionInquiry(1).bytes(),
+        (std::vector<uint8_t> { 0x81, 0x09, 0x04, 0x4E, 0xFF }));
+
+    EXPECT_EQ(SonyViscaBuilder::wbModeInquiry(1).bytes(),
+        (std::vector<uint8_t> { 0x81, 0x09, 0x04, 0x35, 0xFF }));
+    EXPECT_EQ(SonyViscaBuilder::rGainInquiry(1).bytes(),
+        (std::vector<uint8_t> { 0x81, 0x09, 0x04, 0x43, 0xFF }));
+    EXPECT_EQ(SonyViscaBuilder::bGainInquiry(1).bytes(),
+        (std::vector<uint8_t> { 0x81, 0x09, 0x04, 0x44, 0xFF }));
+
+    EXPECT_EQ(SonyViscaBuilder::stabilizerModeInquiry(1).bytes(),
+        (std::vector<uint8_t> { 0x81, 0x09, 0x04, 0x34, 0xFF }));
+    EXPECT_EQ(SonyViscaBuilder::defogModeInquiry(1).bytes(),
+        (std::vector<uint8_t> { 0x81, 0x09, 0x04, 0x37, 0xFF }));
+    EXPECT_EQ(SonyViscaBuilder::icrModeInquiry(1).bytes(),
+        (std::vector<uint8_t> { 0x81, 0x09, 0x04, 0x01, 0xFF }));
+    EXPECT_EQ(SonyViscaBuilder::autoIcrModeInquiry(1).bytes(),
+        (std::vector<uint8_t> { 0x81, 0x09, 0x04, 0x51, 0xFF }));
+    EXPECT_EQ(SonyViscaBuilder::cameraIdInquiry(1).bytes(),
+        (std::vector<uint8_t> { 0x81, 0x09, 0x04, 0x22, 0xFF }));
+}
+
+/// @brief Tests decoding of individual inquiry responses (words, bytes, booleans, modes, spots).
+TEST(TestSonyViscaCommands, InquiryParsers)
+{
+    // Word inquiry (16-bit)
+    uint16_t wordVal { 0 };
+    const ViscaFrame validWord { 0x90, 0x50, 0x01, 0x02, 0x03, 0x04, 0xFF };
+    EXPECT_TRUE(SonyViscaParser::parseWordInquiry(validWord, wordVal));
+    EXPECT_EQ(wordVal, 0x1234);
+
+    const ViscaFrame invalidWordLen { 0x90, 0x50, 0x01, 0x02, 0xFF };
+    EXPECT_FALSE(SonyViscaParser::parseWordInquiry(invalidWordLen, wordVal));
+
+    const ViscaFrame invalidWordHdr { 0x90, 0x40, 0x01, 0x02, 0x03, 0x04, 0xFF };
+    EXPECT_FALSE(SonyViscaParser::parseWordInquiry(invalidWordHdr, wordVal));
+
+    // Byte inquiry (8-bit)
+    uint8_t byteVal { 0 };
+    const ViscaFrame validByte7 { 0x90, 0x50, 0x00, 0x00, 0x01, 0x0A, 0xFF };
+    EXPECT_TRUE(SonyViscaParser::parseByteInquiry(validByte7, byteVal));
+    EXPECT_EQ(byteVal, 0x1A);
+
+    const ViscaFrame validByte5 { 0x90, 0x50, 0x02, 0x0B, 0xFF };
+    EXPECT_TRUE(SonyViscaParser::parseByteInquiry(validByte5, byteVal));
+    EXPECT_EQ(byteVal, 0x2B);
+
+    const ViscaFrame invalidByte { 0x90, 0x50, 0x01, 0xFF };
+    EXPECT_FALSE(SonyViscaParser::parseByteInquiry(invalidByte, byteVal));
+
+    // Bool inquiry (0x02 = On/True, 0x03 = Off/False)
+    bool boolVal { false };
+    const ViscaFrame boolOn { 0x90, 0x50, 0x02, 0xFF };
+    EXPECT_TRUE(SonyViscaParser::parseBoolInquiry(boolOn, boolVal));
+    EXPECT_TRUE(boolVal);
+
+    const ViscaFrame boolOff { 0x90, 0x50, 0x03, 0xFF };
+    EXPECT_TRUE(SonyViscaParser::parseBoolInquiry(boolOff, boolVal));
+    EXPECT_FALSE(boolVal);
+
+    const ViscaFrame boolInvalid { 0x90, 0x50, 0x00, 0xFF };
+    EXPECT_FALSE(SonyViscaParser::parseBoolInquiry(boolInvalid, boolVal));
+
+    // Mode inquiry (0x0p)
+    uint8_t modeVal { 0 };
+    const ViscaFrame modeFrame { 0x90, 0x50, 0x04, 0xFF };
+    EXPECT_TRUE(SonyViscaParser::parseModeInquiry(modeFrame, modeVal));
+    EXPECT_EQ(modeVal, 0x04);
+
+    // Spot position inquiry (X, Y)
+    uint8_t spotX { 0 };
+    uint8_t spotY { 0 };
+    const ViscaFrame spotFrame { 0x90, 0x50, 0x00, 0x07, 0x00, 0x0C, 0xFF };
+    EXPECT_TRUE(SonyViscaParser::parseSpotPosition(spotFrame, spotX, spotY));
+    EXPECT_EQ(spotX, 7);
+    EXPECT_EQ(spotY, 12);
+
+    const ViscaFrame invalidSpot { 0x90, 0x50, 0x00, 0x07, 0xFF };
+    EXPECT_FALSE(SonyViscaParser::parseSpotPosition(invalidSpot, spotX, spotY));
+}
+

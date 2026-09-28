@@ -22,6 +22,8 @@ public:
 
     [[nodiscard]] static ViscaFrame dzoomOn(uint8_t cameraAddress, bool on);
     [[nodiscard]] static ViscaFrame dzoomMode(uint8_t cameraAddress, bool combine);
+    [[nodiscard]] static ViscaFrame zoomPositionInquiry(uint8_t cameraAddress = 1);
+    [[nodiscard]] static ViscaFrame dzoomModeInquiry(uint8_t cameraAddress = 1);
 
     [[nodiscard]] static ViscaFrame focusStop(uint8_t cameraAddress = 1);
     [[nodiscard]] static ViscaFrame focusFar(uint8_t cameraAddress = 1);
@@ -32,6 +34,9 @@ public:
     [[nodiscard]] static ViscaFrame focusAuto(uint8_t cameraAddress, bool autoMode);
     [[nodiscard]] static ViscaFrame focusOnePush(uint8_t cameraAddress = 1);
     [[nodiscard]] static ViscaFrame focusNearLimit(uint8_t cameraAddress, uint16_t limit);
+    [[nodiscard]] static ViscaFrame focusPositionInquiry(uint8_t cameraAddress = 1);
+    [[nodiscard]] static ViscaFrame focusModeInquiry(uint8_t cameraAddress = 1);
+    [[nodiscard]] static ViscaFrame focusNearLimitInquiry(uint8_t cameraAddress = 1);
 
     // --- Exposure Commands ---
     [[nodiscard]] static ViscaFrame exposureMode(uint8_t cameraAddress, SonyExposureMode mode);
@@ -40,18 +45,32 @@ public:
     [[nodiscard]] static ViscaFrame gainDirect(uint8_t cameraAddress, uint8_t position);
     [[nodiscard]] static ViscaFrame exposureComp(uint8_t cameraAddress, bool on);
     [[nodiscard]] static ViscaFrame exposureCompDirect(uint8_t cameraAddress, uint8_t position);
+    [[nodiscard]] static ViscaFrame exposureModeInquiry(uint8_t cameraAddress = 1);
+    [[nodiscard]] static ViscaFrame shutterPositionInquiry(uint8_t cameraAddress = 1);
+    [[nodiscard]] static ViscaFrame irisPositionInquiry(uint8_t cameraAddress = 1);
+    [[nodiscard]] static ViscaFrame gainPositionInquiry(uint8_t cameraAddress = 1);
+    [[nodiscard]] static ViscaFrame exposureCompModeInquiry(uint8_t cameraAddress = 1);
+    [[nodiscard]] static ViscaFrame exposureCompPositionInquiry(uint8_t cameraAddress = 1);
 
     // --- White Balance Commands ---
     [[nodiscard]] static ViscaFrame wbMode(uint8_t cameraAddress, SonyWhiteBalanceMode mode);
     [[nodiscard]] static ViscaFrame wbOnePushTrigger(uint8_t cameraAddress = 1);
     [[nodiscard]] static ViscaFrame rGainDirect(uint8_t cameraAddress, uint8_t position);
     [[nodiscard]] static ViscaFrame bGainDirect(uint8_t cameraAddress, uint8_t position);
+    [[nodiscard]] static ViscaFrame wbModeInquiry(uint8_t cameraAddress = 1);
+    [[nodiscard]] static ViscaFrame rGainInquiry(uint8_t cameraAddress = 1);
+    [[nodiscard]] static ViscaFrame bGainInquiry(uint8_t cameraAddress = 1);
 
     // --- Enhancement Commands ---
     [[nodiscard]] static ViscaFrame stabilizer(uint8_t cameraAddress, SonyStabilizerMode mode);
     [[nodiscard]] static ViscaFrame defog(uint8_t cameraAddress, SonyDefogMode mode);
     [[nodiscard]] static ViscaFrame icr(uint8_t cameraAddress, bool on);
     [[nodiscard]] static ViscaFrame autoIcr(uint8_t cameraAddress, bool on);
+    [[nodiscard]] static ViscaFrame stabilizerModeInquiry(uint8_t cameraAddress = 1);
+    [[nodiscard]] static ViscaFrame defogModeInquiry(uint8_t cameraAddress = 1);
+    [[nodiscard]] static ViscaFrame icrModeInquiry(uint8_t cameraAddress = 1);
+    [[nodiscard]] static ViscaFrame autoIcrModeInquiry(uint8_t cameraAddress = 1);
+    [[nodiscard]] static ViscaFrame cameraIdInquiry(uint8_t cameraAddress = 1);
 
     // --- Picture & Sharpness Controls ---
     [[nodiscard]] static ViscaFrame apertureReset(uint8_t cameraAddress = 1);

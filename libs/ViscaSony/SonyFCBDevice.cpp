@@ -392,6 +392,152 @@ bool SonyFCBDevice::setSpotAwbPosition(uint8_t x, uint8_t y)
     return ok;
 }
 
+std::optional<uint16_t> SonyFCBDevice::queryZoomPosition()
+{
+    const ViscaFrame inq = SonyViscaBuilder::zoomPositionInquiry(m_device.cameraAddress());
+    const auto res = m_device.sendInquirySync(inq);
+    if (!res.success) {
+        return std::nullopt;
+    }
+    uint16_t val { 0 };
+    if (SonyViscaParser::parseWordInquiry(res.responseFrame, val)) {
+        std::lock_guard<std::mutex> lock(m_statusMutex);
+        m_status.zoomPosition = val;
+        return val;
+    }
+    return std::nullopt;
+}
+
+std::optional<uint16_t> SonyFCBDevice::queryFocusPosition()
+{
+    const ViscaFrame inq = SonyViscaBuilder::focusPositionInquiry(m_device.cameraAddress());
+    const auto res = m_device.sendInquirySync(inq);
+    if (!res.success) {
+        return std::nullopt;
+    }
+    uint16_t val { 0 };
+    if (SonyViscaParser::parseWordInquiry(res.responseFrame, val)) {
+        std::lock_guard<std::mutex> lock(m_statusMutex);
+        m_status.focusPosition = val;
+        return val;
+    }
+    return std::nullopt;
+}
+
+std::optional<SonyExposureMode> SonyFCBDevice::queryExposureMode()
+{
+    const ViscaFrame inq = SonyViscaBuilder::exposureModeInquiry(m_device.cameraAddress());
+    const auto res = m_device.sendInquirySync(inq);
+    if (!res.success) {
+        return std::nullopt;
+    }
+    uint8_t mode { 0 };
+    if (SonyViscaParser::parseModeInquiry(res.responseFrame, mode)) {
+        const auto expMode = static_cast<SonyExposureMode>(mode);
+        std::lock_guard<std::mutex> lock(m_statusMutex);
+        m_status.exposureMode = expMode;
+        return expMode;
+    }
+    return std::nullopt;
+}
+
+std::optional<uint8_t> SonyFCBDevice::queryShutterPosition()
+{
+    const ViscaFrame inq = SonyViscaBuilder::shutterPositionInquiry(m_device.cameraAddress());
+    const auto res = m_device.sendInquirySync(inq);
+    if (!res.success) {
+        return std::nullopt;
+    }
+    uint8_t val { 0 };
+    if (SonyViscaParser::parseByteInquiry(res.responseFrame, val)) {
+        std::lock_guard<std::mutex> lock(m_statusMutex);
+        m_status.shutterPosition = val;
+        return val;
+    }
+    return std::nullopt;
+}
+
+std::optional<uint8_t> SonyFCBDevice::queryIrisPosition()
+{
+    const ViscaFrame inq = SonyViscaBuilder::irisPositionInquiry(m_device.cameraAddress());
+    const auto res = m_device.sendInquirySync(inq);
+    if (!res.success) {
+        return std::nullopt;
+    }
+    uint8_t val { 0 };
+    if (SonyViscaParser::parseByteInquiry(res.responseFrame, val)) {
+        std::lock_guard<std::mutex> lock(m_statusMutex);
+        m_status.irisPosition = val;
+        return val;
+    }
+    return std::nullopt;
+}
+
+std::optional<uint8_t> SonyFCBDevice::queryGainPosition()
+{
+    const ViscaFrame inq = SonyViscaBuilder::gainPositionInquiry(m_device.cameraAddress());
+    const auto res = m_device.sendInquirySync(inq);
+    if (!res.success) {
+        return std::nullopt;
+    }
+    uint8_t val { 0 };
+    if (SonyViscaParser::parseByteInquiry(res.responseFrame, val)) {
+        std::lock_guard<std::mutex> lock(m_statusMutex);
+        m_status.gainPosition = val;
+        return val;
+    }
+    return std::nullopt;
+}
+
+std::optional<SonyWhiteBalanceMode> SonyFCBDevice::queryWhiteBalanceMode()
+{
+    const ViscaFrame inq = SonyViscaBuilder::wbModeInquiry(m_device.cameraAddress());
+    const auto res = m_device.sendInquirySync(inq);
+    if (!res.success) {
+        return std::nullopt;
+    }
+    uint8_t mode { 0 };
+    if (SonyViscaParser::parseModeInquiry(res.responseFrame, mode)) {
+        const auto wb = static_cast<SonyWhiteBalanceMode>(mode);
+        std::lock_guard<std::mutex> lock(m_statusMutex);
+        m_status.wbMode = wb;
+        return wb;
+    }
+    return std::nullopt;
+}
+
+std::optional<uint8_t> SonyFCBDevice::queryAperture()
+{
+    const ViscaFrame inq = SonyViscaBuilder::apertureInquiry(m_device.cameraAddress());
+    const auto res = m_device.sendInquirySync(inq);
+    if (!res.success) {
+        return std::nullopt;
+    }
+    uint8_t val { 0 };
+    if (SonyViscaParser::parseByteInquiry(res.responseFrame, val)) {
+        std::lock_guard<std::mutex> lock(m_statusMutex);
+        m_status.apertureGain = val;
+        return val;
+    }
+    return std::nullopt;
+}
+
+std::optional<uint8_t> SonyFCBDevice::queryLastMemoryChannel()
+{
+    const ViscaFrame inq = SonyViscaBuilder::memoryInquiry(m_device.cameraAddress());
+    const auto res = m_device.sendInquirySync(inq);
+    if (!res.success) {
+        return std::nullopt;
+    }
+    uint8_t val { 0 };
+    if (SonyViscaParser::parseModeInquiry(res.responseFrame, val)) {
+        std::lock_guard<std::mutex> lock(m_statusMutex);
+        m_status.lastMemoryChannel = val;
+        return val;
+    }
+    return std::nullopt;
+}
+
 bool SonyFCBDevice::setDistortionCompensation(bool on)
 {
     if (!m_capabilities.supportsDistortionCompensation) {

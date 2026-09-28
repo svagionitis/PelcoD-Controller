@@ -200,6 +200,101 @@ ViscaFrame SonyViscaBuilder::autoIcr(uint8_t cameraAddress, bool on)
     return ViscaFrame { makeHeader(cameraAddress), 0x01, 0x04, 0x51, val, kViscaTerminator };
 }
 
+ViscaFrame SonyViscaBuilder::zoomPositionInquiry(uint8_t cameraAddress)
+{
+    return ViscaFrame { makeHeader(cameraAddress), 0x09, 0x04, 0x47, kViscaTerminator };
+}
+
+ViscaFrame SonyViscaBuilder::dzoomModeInquiry(uint8_t cameraAddress)
+{
+    return ViscaFrame { makeHeader(cameraAddress), 0x09, 0x04, 0x06, kViscaTerminator };
+}
+
+ViscaFrame SonyViscaBuilder::focusPositionInquiry(uint8_t cameraAddress)
+{
+    return ViscaFrame { makeHeader(cameraAddress), 0x09, 0x04, 0x48, kViscaTerminator };
+}
+
+ViscaFrame SonyViscaBuilder::focusModeInquiry(uint8_t cameraAddress)
+{
+    return ViscaFrame { makeHeader(cameraAddress), 0x09, 0x04, 0x38, kViscaTerminator };
+}
+
+ViscaFrame SonyViscaBuilder::focusNearLimitInquiry(uint8_t cameraAddress)
+{
+    return ViscaFrame { makeHeader(cameraAddress), 0x09, 0x04, 0x28, kViscaTerminator };
+}
+
+ViscaFrame SonyViscaBuilder::exposureModeInquiry(uint8_t cameraAddress)
+{
+    return ViscaFrame { makeHeader(cameraAddress), 0x09, 0x04, 0x39, kViscaTerminator };
+}
+
+ViscaFrame SonyViscaBuilder::shutterPositionInquiry(uint8_t cameraAddress)
+{
+    return ViscaFrame { makeHeader(cameraAddress), 0x09, 0x04, 0x4A, kViscaTerminator };
+}
+
+ViscaFrame SonyViscaBuilder::irisPositionInquiry(uint8_t cameraAddress)
+{
+    return ViscaFrame { makeHeader(cameraAddress), 0x09, 0x04, 0x4B, kViscaTerminator };
+}
+
+ViscaFrame SonyViscaBuilder::gainPositionInquiry(uint8_t cameraAddress)
+{
+    return ViscaFrame { makeHeader(cameraAddress), 0x09, 0x04, 0x4C, kViscaTerminator };
+}
+
+ViscaFrame SonyViscaBuilder::exposureCompModeInquiry(uint8_t cameraAddress)
+{
+    return ViscaFrame { makeHeader(cameraAddress), 0x09, 0x04, 0x3E, kViscaTerminator };
+}
+
+ViscaFrame SonyViscaBuilder::exposureCompPositionInquiry(uint8_t cameraAddress)
+{
+    return ViscaFrame { makeHeader(cameraAddress), 0x09, 0x04, 0x4E, kViscaTerminator };
+}
+
+ViscaFrame SonyViscaBuilder::wbModeInquiry(uint8_t cameraAddress)
+{
+    return ViscaFrame { makeHeader(cameraAddress), 0x09, 0x04, 0x35, kViscaTerminator };
+}
+
+ViscaFrame SonyViscaBuilder::rGainInquiry(uint8_t cameraAddress)
+{
+    return ViscaFrame { makeHeader(cameraAddress), 0x09, 0x04, 0x43, kViscaTerminator };
+}
+
+ViscaFrame SonyViscaBuilder::bGainInquiry(uint8_t cameraAddress)
+{
+    return ViscaFrame { makeHeader(cameraAddress), 0x09, 0x04, 0x44, kViscaTerminator };
+}
+
+ViscaFrame SonyViscaBuilder::stabilizerModeInquiry(uint8_t cameraAddress)
+{
+    return ViscaFrame { makeHeader(cameraAddress), 0x09, 0x04, 0x34, kViscaTerminator };
+}
+
+ViscaFrame SonyViscaBuilder::defogModeInquiry(uint8_t cameraAddress)
+{
+    return ViscaFrame { makeHeader(cameraAddress), 0x09, 0x04, 0x37, kViscaTerminator };
+}
+
+ViscaFrame SonyViscaBuilder::icrModeInquiry(uint8_t cameraAddress)
+{
+    return ViscaFrame { makeHeader(cameraAddress), 0x09, 0x04, 0x01, kViscaTerminator };
+}
+
+ViscaFrame SonyViscaBuilder::autoIcrModeInquiry(uint8_t cameraAddress)
+{
+    return ViscaFrame { makeHeader(cameraAddress), 0x09, 0x04, 0x51, kViscaTerminator };
+}
+
+ViscaFrame SonyViscaBuilder::cameraIdInquiry(uint8_t cameraAddress)
+{
+    return ViscaFrame { makeHeader(cameraAddress), 0x09, 0x04, 0x22, kViscaTerminator };
+}
+
 ViscaFrame SonyViscaBuilder::apertureReset(uint8_t cameraAddress)
 {
     return ViscaFrame { makeHeader(cameraAddress), 0x01, 0x04, 0x02, 0x00, kViscaTerminator };

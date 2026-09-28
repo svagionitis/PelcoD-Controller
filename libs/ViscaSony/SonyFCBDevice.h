@@ -122,6 +122,44 @@ public:
     bool setSpotFocusPosition(uint8_t x, uint8_t y);
     bool setSpotAwbPosition(uint8_t x, uint8_t y);
 
+    // --- Individual Fast-Path Parameter Queries ---
+
+    /// @brief Queries current optical zoom position directly via CAM_ZoomPosInq.
+    /// @return Current 16-bit zoom position, or std::nullopt on communication failure.
+    [[nodiscard]] std::optional<uint16_t> queryZoomPosition();
+
+    /// @brief Queries current focus position directly via CAM_FocusPosInq.
+    /// @return Current 16-bit focus position, or std::nullopt on communication failure.
+    [[nodiscard]] std::optional<uint16_t> queryFocusPosition();
+
+    /// @brief Queries active exposure control mode directly via CAM_ExpModeInq.
+    /// @return Active SonyExposureMode, or std::nullopt on communication failure.
+    [[nodiscard]] std::optional<SonyExposureMode> queryExposureMode();
+
+    /// @brief Queries current shutter speed position directly via CAM_ShutterPosInq.
+    /// @return 8-bit shutter speed index, or std::nullopt on communication failure.
+    [[nodiscard]] std::optional<uint8_t> queryShutterPosition();
+
+    /// @brief Queries current iris step position directly via CAM_IrisPosInq.
+    /// @return 8-bit iris step index, or std::nullopt on communication failure.
+    [[nodiscard]] std::optional<uint8_t> queryIrisPosition();
+
+    /// @brief Queries current analog gain position directly via CAM_GainPosInq.
+    /// @return 8-bit gain step index, or std::nullopt on communication failure.
+    [[nodiscard]] std::optional<uint8_t> queryGainPosition();
+
+    /// @brief Queries current white balance mode directly via CAM_WBModeInq.
+    /// @return Active SonyWhiteBalanceMode, or std::nullopt on communication failure.
+    [[nodiscard]] std::optional<SonyWhiteBalanceMode> queryWhiteBalanceMode();
+
+    /// @brief Queries current aperture sharpness level directly via CAM_ApertureInq.
+    /// @return 8-bit aperture level, or std::nullopt on communication failure.
+    [[nodiscard]] std::optional<uint8_t> queryAperture();
+
+    /// @brief Queries last recalled preset memory channel directly via CAM_MemoryInq.
+    /// @return Preset channel number (0..15), or std::nullopt on communication failure.
+    [[nodiscard]] std::optional<uint8_t> queryLastMemoryChannel();
+
     // --- Hardware Gated Controls ---
 
     /// @brief Enables or disables lens distortion compensation (Register 0x57).
