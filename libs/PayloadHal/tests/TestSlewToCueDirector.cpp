@@ -216,5 +216,75 @@ namespace {
         EXPECT_FALSE(director.isCueingActive());
     }
 
+    TEST(TestSlewToCueDirector, ZoomConvergenceTrackingHandover)
+    {
+        auto payload = std::make_shared<SimulatedPayload>();
+        ASSERT_TRUE(payload->connect());
+
+        auto geoLock = std::make_shared<GeoLockController>(payload);
+        auto transport = std::make_shared<MockTransport>();
+        auto nmeaDevice = std::make_shared<Nmea::NmeaDevice>(transport);
+        ASSERT_TRUE(nmeaDevice->start());
+
+        auto slavingBridge = std::make_shared<NmeaSlavingBridge>(nmeaDevice, geoLock);
+        auto threatEvaluator = std::make_shared<TargetThreatEvaluator>();
+
+        AutoFramingConfig frameCfg {};
+        frameCfg.maxZoomVelocityPerSec = 0.20; // 20% per second slew
+        auto framing = std::make_shared<AutoFramingController>(frameCfg);
+
+        auto autoTracker = std::make_shared<PayloadAutoTrackerBridge>(payload);
+        auto camera = payload->primaryCamera();
+
+        SlewToCueConfig cfg {};
+        cfg.autonomousEngagement = true;
+        cfg.waitForZoomConvergence = true;
+        cfg.maxFramingDuration = std::chrono::milliseconds(3000);
+        cfg.opticalAcquisitionTimeout = std::chrono::milliseconds(50);
+        cfg.inspectionDwellDuration = std::chrono::milliseconds(50);
+
+        auto director = std::make_shared<SlewToCueDirector>(
+            threatEvaluator, slavingBridge, framing, autoTracker, camera, geoLock, cfg);
+
+        // Inject own-ship position and heading
+        const std::string gga
+            = Nmea::NmeaChecksum::frameSentence("GPGGA,120000,3700.000,N,12200.000,W,1,08,1.0,0.0,M,0.0,M,,");
+        const std::string hdt = Nmea::NmeaChecksum::frameSentence("HEHDT,000.0,T");
+        transport->injectString(gga);
+        transport->injectString(hdt);
+
+        // Inject radar target at 1.5 NM
+        const std::string ttm
+            = Nmea::NmeaChecksum::frameSentence("RATTM,22,1.5,045.0,T,20.0,225.0,T,0.0,3.0,K,FAST_PATROL,T,,120000,A");
+        transport->injectString(ttm);
+
+        const auto snap = nmeaDevice->navSnapshot();
+        threatEvaluator->evaluate(snap, nmeaDevice->activeRadarTargets(), nmeaDevice->activeAisTargets());
+
+        // Update 1: SlewingToTarget
+        director->update();
+        EXPECT_EQ(director->status().state, CueingState::SlewingToTarget);
+
+        // Update 2: Gimbal converges, transitions to FramingTarget
+        director->update();
+        EXPECT_EQ(director->status().state, CueingState::FramingTarget);
+        EXPECT_FALSE(framing->isZoomConverged());
+
+        // Small time step: zoom is still traveling -> state MUST remain FramingTarget
+        std::this_thread::sleep_for(std::chrono::milliseconds(20));
+        director->update();
+        EXPECT_EQ(director->status().state, CueingState::FramingTarget);
+        EXPECT_FALSE(autoTracker->isEngaged());
+
+        // Settle zoom by stepping framing controller forward (1.0 travel at 0.20/s needs >= 5000ms)
+        framing->update(*camera, std::chrono::milliseconds(6000));
+        EXPECT_TRUE(framing->isZoomConverged());
+
+        // Now director update detects zoom convergence -> transitions to AcquiringOpticalLock and engages tracker
+        director->update();
+        EXPECT_EQ(director->status().state, CueingState::AcquiringOpticalLock);
+        EXPECT_TRUE(autoTracker->isEngaged());
+    }
+
 } // namespace
 } // namespace PayloadHal

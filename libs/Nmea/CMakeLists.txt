@@ -66,6 +66,10 @@ target_link_libraries(Nmea PUBLIC
     glog::glog
 )
 
+if(WIN32)
+    target_compile_definitions(Nmea PRIVATE _WINSOCK_DEPRECATED_NO_WARNINGS)
+endif()
+
 apply_compiler_flags(Nmea)
 
 if(BUILD_TESTING)

@@ -480,7 +480,11 @@ std::optional<std::chrono::system_clock::time_point> NmeaReplayTransport::extrac
                     tm.tm_sec = sec;
                     tm.tm_isdst = 0;
 
+#if defined(_WIN32)
+                    const std::time_t epochSec = _mkgmtime(&tm);
+#else
                     const std::time_t epochSec = timegm(&tm);
+#endif
                     if (epochSec != static_cast<std::time_t>(-1)) {
                         int millisec { 0 };
                         if (dateStr.size() >= 23U && (dateStr[19] == '.' || dateStr[19] == ',')) {

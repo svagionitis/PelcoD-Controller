@@ -48,6 +48,8 @@ struct SlewToCueConfig {
     std::chrono::milliseconds inspectionDwellDuration { 15000 }; ///< Time to inspect target before next
     bool allowPreemptionByHigherThreat { true }; ///< True to pre-empt active target if higher threat appears
     double preemptionScoreDelta { 25.0 }; ///< Score delta required to pre-empt an active target
+    bool waitForZoomConvergence { false }; ///< True to wait for zoom profiler convergence before tracker handover
+    std::chrono::milliseconds maxFramingDuration { 4000 }; ///< Timeout waiting for zoom convergence
 };
 
 /// @struct SlewToCueStatus
@@ -169,11 +171,15 @@ private:
     TargetTrackSource m_activeTargetSource { TargetTrackSource::None };
     std::string m_activeTargetName {};
     double m_activeTargetLengthMeters { 20.0 };
+    double m_activeTargetBeamMeters { 6.0 };
+    double m_activeTargetHeightMeters { 4.0 };
+    double m_activeTargetCogDeg { 0.0 };
     double m_activeThreatScore { 0.0 };
     bool m_isEmergencyTarget { false };
 
     std::chrono::steady_clock::time_point m_stateEntryTime {};
     std::chrono::steady_clock::time_point m_dwellStartTime {};
+    std::chrono::steady_clock::time_point m_lastUpdateTick {};
 
     StateChangeCallback m_stateChangeCb {};
     StatusCallback m_statusCb {};

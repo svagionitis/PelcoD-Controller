@@ -180,13 +180,17 @@ stateDiagram-v2
   2. Implement radar-to-AIS target correlation (associating TTM track numbers with AIS MMSIs based on spatial proximity $\le 150\,\text{m}$ and velocity difference $\le 2\,\text{knots}$).
   3. Implement configurable threat scoring matrix and priority queue.
 
-### Phase 2: Range-Adaptive Framing & Zoom Scheduling
+### Phase 2: Range-Adaptive Framing & Zoom Scheduling (Completed)
 * **Files**:
-  * New: [AutoFramingController.h](../libs/PayloadHal/AutoFramingController.h) & [AutoFramingController.cpp](../libs/PayloadHal/AutoFramingController.cpp)
-  * New: [TestAutoFramingController.cpp](../libs/PayloadHal/tests/TestAutoFramingController.cpp)
-* **Tasks**:
-  1. Implement HFOV calculation from slant range and target profile dimensions.
-  2. Bind to [ICameraPayload](../libs/PayloadHal/ICameraPayload.h) to drive optical zoom while taking into account lens focal length limits and zoom velocity profiler.
+  * [AutoFramingController.h](../libs/PayloadHal/AutoFramingController.h) & [AutoFramingController.cpp](../libs/PayloadHal/AutoFramingController.cpp)
+  * [SlewToCueDirector.h](../libs/PayloadHal/SlewToCueDirector.h) & [SlewToCueDirector.cpp](../libs/PayloadHal/SlewToCueDirector.cpp)
+  * [TestAutoFramingController.cpp](../libs/PayloadHal/tests/TestAutoFramingController.cpp) & [TestSlewToCueDirector.cpp](../libs/PayloadHal/tests/TestSlewToCueDirector.cpp)
+* **Tasks Completed**:
+  1. Implemented aspect-aware apparent target geometry ($W_{\text{apparent}} = L \cdot |\sin\alpha| + B \cdot |\cos\alpha|$) and height-constrained HFOV framing.
+  2. Implemented optical lens curve models (Logarithmic Focal Length and Linear HFOV) mapping FOV to normalized zoom coordinate $[0.0 .. 1.0]$.
+  3. Implemented AIS ship type envelope estimation (Cargo, Tanker, Fishing, Tug, High Speed Craft, Passenger, SAR/Pilot).
+  4. Implemented rate-limited zoom velocity profiler, range/zoom deadband hysteresis filtering, and one-push autofocus trigger on convergence.
+  5. Integrated asynchronous zoom convergence monitoring into [SlewToCueDirector](../libs/PayloadHal/SlewToCueDirector.h) ensuring line-of-sight stabilization before video tracker handover.
 
 ### Phase 3: Slew-to-Cue Director & Optical Tracker Handover
 * **Files**:

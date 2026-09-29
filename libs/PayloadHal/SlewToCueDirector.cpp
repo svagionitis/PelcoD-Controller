@@ -78,6 +78,17 @@ bool SlewToCueDirector::cueTarget(const EvaluatedTarget& target)
     m_activeThreatScore = target.threatScore;
     m_isEmergencyTarget = target.isEmergency;
     m_activeTargetLengthMeters = 20.0; // Standard default
+    m_activeTargetBeamMeters = 6.0;
+    m_activeTargetHeightMeters = 4.0;
+    m_activeTargetCogDeg = target.cogDegrees;
+
+    if (m_autoFraming) {
+        Nmea::AisDimensions dims {};
+        const auto env = m_autoFraming->estimateTargetEnvelope(dims);
+        m_activeTargetLengthMeters = env.lengthMeters;
+        m_activeTargetBeamMeters = env.beamMeters;
+        m_activeTargetHeightMeters = env.heightMeters;
+    }
 
     if (!m_slavingBridge) {
         return false;
@@ -196,7 +207,21 @@ bool SlewToCueDirector::checkGimbalConvergence() const noexcept
 void SlewToCueDirector::executeAutoFraming(double rangeMeters, double targetLengthMeters)
 {
     if (m_config.autoFraming && m_autoFraming && m_camera) {
-        (void)m_autoFraming->frameTarget(*m_camera, rangeMeters, targetLengthMeters);
+        TargetPhysicalEnvelope env {};
+        env.lengthMeters = targetLengthMeters;
+        env.beamMeters = m_activeTargetBeamMeters;
+        env.heightMeters = m_activeTargetHeightMeters;
+
+        double bearingDeg { 0.0 };
+        if (m_slavingBridge) {
+            bearingDeg = m_slavingBridge->status().trueBearingDeg;
+        }
+
+        if (m_config.waitForZoomConvergence) {
+            (void)m_autoFraming->scheduleFraming(*m_camera, rangeMeters, env, m_activeTargetCogDeg, bearingDeg);
+        } else {
+            (void)m_autoFraming->frameTarget(*m_camera, rangeMeters, targetLengthMeters);
+        }
     }
 }
 
@@ -254,20 +279,46 @@ void SlewToCueDirector::update()
 
         if (converged || elapsed >= m_config.maxSlewWaitTimeout) {
             transitionTo(CueingState::FramingTarget);
+            if (m_config.waitForZoomConvergence) {
+                double rangeMeters { 1000.0 };
+                if (m_slavingBridge) {
+                    const auto slavingStatus = m_slavingBridge->status();
+                    if (slavingStatus.slantRangeMeters > 0.0) {
+                        rangeMeters = slavingStatus.slantRangeMeters;
+                    }
+                }
+                executeAutoFraming(rangeMeters, m_activeTargetLengthMeters);
+            }
         }
         break;
     }
 
     case CueingState::FramingTarget: {
-        double rangeMeters { 1000.0 };
-        if (m_slavingBridge) {
-            const auto slavingStatus = m_slavingBridge->status();
-            if (slavingStatus.slantRangeMeters > 0.0) {
-                rangeMeters = slavingStatus.slantRangeMeters;
-            }
-        }
+        const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - m_stateEntryTime);
 
-        executeAutoFraming(rangeMeters, m_activeTargetLengthMeters);
+        if (m_config.waitForZoomConvergence && m_config.autoFraming && m_autoFraming && m_camera) {
+            const auto dt = (m_lastUpdateTick.time_since_epoch().count() > 0)
+                ? std::chrono::duration_cast<std::chrono::milliseconds>(now - m_lastUpdateTick)
+                : std::chrono::milliseconds(50);
+            m_autoFraming->update(*m_camera, dt);
+
+            const bool converged = m_autoFraming->isZoomConverged();
+            const bool timedOut = (elapsed >= m_config.maxFramingDuration);
+
+            if (!converged && !timedOut) {
+                break; // Still converging; remain in FramingTarget
+            }
+        } else {
+            // Immediate framing mode
+            double rangeMeters { 1000.0 };
+            if (m_slavingBridge) {
+                const auto slavingStatus = m_slavingBridge->status();
+                if (slavingStatus.slantRangeMeters > 0.0) {
+                    rangeMeters = slavingStatus.slantRangeMeters;
+                }
+            }
+            executeAutoFraming(rangeMeters, m_activeTargetLengthMeters);
+        }
 
         if (m_config.autoOpticalHandover && m_autoTracker) {
             transitionTo(CueingState::AcquiringOpticalLock);
@@ -321,6 +372,8 @@ void SlewToCueDirector::update()
         break;
     }
     }
+
+    m_lastUpdateTick = now;
 
     // 3. Emit status callback
     StatusCallback cbCopy = m_statusCb;
