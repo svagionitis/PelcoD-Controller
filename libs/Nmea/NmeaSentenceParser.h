@@ -117,6 +117,24 @@ public:
     [[nodiscard]] static bool parsePfecPos(
         std::string_view sentence, PfecGimbalPosition& outPos, bool verifyChecksum = true) noexcept;
 
+    /// @brief Parses $PASHR inertial attitude sentence.
+    /// @details Extracts UTC time, heading, roll, pitch, heave, and accuracy statistics.
+    /// @param[in] sentence Raw or tokenized sentence string.
+    /// @param[out] outData Deserialized PashrData struct.
+    /// @param[in] verifyChecksum True to enforce checksum validation.
+    /// @return True if valid PASHR sentence.
+    [[nodiscard]] static bool parsePashr(
+        std::string_view sentence, PashrData& outData, bool verifyChecksum = true) noexcept;
+
+    /// @brief Parses FLIR $PFEC,GPatt proprietary vessel attitude report sentence.
+    /// @details Extracts yaw, pitch, and roll angular orientation.
+    /// @param[in] sentence Raw or tokenized sentence string.
+    /// @param[out] outAtt Deserialized PfecAttitudeData struct.
+    /// @param[in] verifyChecksum True to enforce checksum validation.
+    /// @return True if valid PFEC GPatt sentence.
+    [[nodiscard]] static bool parsePfecAtt(
+        std::string_view sentence, PfecAttitudeData& outAtt, bool verifyChecksum = true) noexcept;
+
     /// @brief Parses $--RSD Radar System Data (radar cursor) sentence.
     /// @param[in] sentence Raw or tokenized sentence.
     /// @param[out] outData Deserialized RsdData struct.

@@ -69,4 +69,6 @@ add_payload_hal_test(TestNmeaSlavingBridge             TestNmeaSlavingBridge.cpp
 add_payload_hal_test(TestTargetThreatEvaluator         TestTargetThreatEvaluator.cpp)
 add_payload_hal_test(TestAutoFramingController         TestAutoFramingController.cpp)
 add_payload_hal_test(TestSlewToCueDirector             TestSlewToCueDirector.cpp)
+add_payload_hal_test(TestVesselAttitudeCompensator     TestVesselAttitudeCompensator.cpp)
+
 

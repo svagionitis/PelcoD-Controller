@@ -24,6 +24,8 @@ NmeaSlavingBridge::NmeaSlavingBridge(std::shared_ptr<Nmea::NmeaDevice> nmeaDevic
             = m_nmeaDevice->addAisCallback([this](const Nmea::AisVesselTarget& target) { handleAisUpdate(target); });
         m_emergencySubId = m_nmeaDevice->addEmergencyBeaconCallback(
             [this](const Nmea::AisEmergencyAlert& alert) { handleEmergencyBeacon(alert); });
+        m_attitudeSubId = m_nmeaDevice->addAttitudeCallback(
+            [this](const Nmea::AttitudeData& att) { handleAttitudeUpdate(att); });
 
         // Query initial nav snapshot if available
         const auto snap = m_nmeaDevice->navSnapshot();
@@ -59,6 +61,9 @@ NmeaSlavingBridge::~NmeaSlavingBridge()
         }
         if (m_emergencySubId != 0U) {
             m_nmeaDevice->removeEmergencyBeaconCallback(m_emergencySubId);
+        }
+        if (m_attitudeSubId != 0U) {
+            m_nmeaDevice->removeAttitudeCallback(m_attitudeSubId);
         }
     }
 }
@@ -497,6 +502,27 @@ bool NmeaSlavingBridge::isTargetLocked() const
     return lockStatus().isTargetLocked;
 }
 
+void NmeaSlavingBridge::setAttitudeCompensator(std::shared_ptr<VesselAttitudeCompensator> compensator)
+{
+    std::lock_guard<std::mutex> lock(m_stateMutex);
+    m_attitudeCompensator = std::move(compensator);
+    if (m_geoLockController) {
+        m_geoLockController->setAttitudeCompensator(m_attitudeCompensator);
+    }
+}
+
+std::shared_ptr<VesselAttitudeCompensator> NmeaSlavingBridge::attitudeCompensator() const
+{
+    std::lock_guard<std::mutex> lock(m_stateMutex);
+    return m_attitudeCompensator;
+}
+
+bool NmeaSlavingBridge::isAttitudeStabilized() const
+{
+    std::lock_guard<std::mutex> lock(m_stateMutex);
+    return m_attitudeCompensator && m_attitudeCompensator->hasValidAttitude();
+}
+
 std::size_t NmeaSlavingBridge::addTargetLockCallback(TargetLockCallback cb)
 {
     std::lock_guard<std::mutex> lock(m_callbackMutex);
@@ -741,7 +767,27 @@ void NmeaSlavingBridge::handleNavUpdate(const Nmea::NmeaNavSnapshot& snap)
     m_hasPlatformNav = snap.hasPosition && snap.hasHeading;
 
     if (m_hasPlatformNav && m_geoLockController) {
-        (void)m_geoLockController->updatePlatform(m_platformPos, m_platformHeadingDeg);
+        if (snap.hasAttitude) {
+            (void)m_geoLockController->updatePlatform(
+                m_platformPos, m_platformHeadingDeg, snap.pitchDegrees, snap.rollDegrees);
+        } else {
+            (void)m_geoLockController->updatePlatform(m_platformPos, m_platformHeadingDeg);
+        }
+    }
+}
+
+void NmeaSlavingBridge::handleAttitudeUpdate(const Nmea::AttitudeData& att)
+{
+    std::lock_guard<std::mutex> lock(m_stateMutex);
+    if (m_attitudeCompensator) {
+        m_attitudeCompensator->updateFromAttitude(att);
+    }
+    if (att.hasHeading) {
+        m_platformHeadingDeg = att.headingDegrees;
+    }
+    if (m_hasPlatformNav && m_geoLockController) {
+        (void)m_geoLockController->updatePlatform(
+            m_platformPos, m_platformHeadingDeg, att.pitchDegrees, att.rollDegrees);
     }
 }
 

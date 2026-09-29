@@ -386,6 +386,16 @@ void NmeaDevice::removeThermalAdviceCallback(std::size_t id)
     removeCallbackInternal(m_thermalAdviceCallbacks, m_callbackMutex, id);
 }
 
+std::size_t NmeaDevice::addAttitudeCallback(AttitudeCallback cb)
+{
+    return addCallbackInternal(m_attitudeCallbacks, m_callbackMutex, std::move(cb));
+}
+
+void NmeaDevice::removeAttitudeCallback(std::size_t id)
+{
+    removeCallbackInternal(m_attitudeCallbacks, m_callbackMutex, id);
+}
+
 std::shared_ptr<NmeaRouteManager> NmeaDevice::routeManager() const noexcept
 {
     return m_routeManager;
@@ -433,6 +443,12 @@ std::optional<MdaData> NmeaDevice::lastMda() const
 {
     std::lock_guard<std::mutex> lock(m_maritimeMutex);
     return m_lastMda;
+}
+
+std::optional<AttitudeData> NmeaDevice::lastAttitude() const
+{
+    std::lock_guard<std::mutex> lock(m_navMutex);
+    return m_lastAttitude;
 }
 
 void NmeaDevice::feedRawBytes(const std::vector<std::uint8_t>& rawData)
@@ -545,22 +561,138 @@ void NmeaDevice::processSentence(std::string_view sentence)
     case NmeaSentenceId::XDR: {
         XdrData xdr {};
         if (NmeaSentenceParser::parseXdr(sentence, xdr, true)) {
-            std::lock_guard<std::mutex> lock(m_navMutex);
-            for (const auto& tr : xdr.transducers) {
-                if (tr.id == "PITCH") {
-                    m_navSnapshot.pitchDegrees = tr.measurement;
-                    m_navSnapshot.hasAttitude = true;
-                } else if (tr.id == "ROLL") {
-                    m_navSnapshot.rollDegrees = tr.measurement;
-                    m_navSnapshot.hasAttitude = true;
+            bool attChanged { false };
+            AttitudeData attData {};
+            {
+                std::lock_guard<std::mutex> lock(m_navMutex);
+                for (const auto& tr : xdr.transducers) {
+                    std::string idUpper;
+                    idUpper.reserve(tr.id.size());
+                    for (const char c : tr.id) {
+                        idUpper.push_back(static_cast<char>(std::toupper(static_cast<unsigned char>(c))));
+                    }
+                    if (idUpper == "PITCH" || idUpper == "PTCH") {
+                        m_navSnapshot.pitchDegrees = tr.measurement;
+                        m_navSnapshot.hasAttitude = true;
+                        attChanged = true;
+                    } else if (idUpper == "ROLL" || idUpper == "RL") {
+                        m_navSnapshot.rollDegrees = tr.measurement;
+                        m_navSnapshot.hasAttitude = true;
+                        attChanged = true;
+                    }
+                }
+                if (attChanged) {
+                    m_navSnapshot.timestamp = now;
+                    currentNav = m_navSnapshot;
+                    navUpdated = true;
+                    attData.pitchDegrees = m_navSnapshot.pitchDegrees;
+                    attData.rollDegrees = m_navSnapshot.rollDegrees;
+                    attData.headingDegrees = m_navSnapshot.trueHeadingDegrees;
+                    attData.hasHeading = m_navSnapshot.hasHeading;
+                    attData.valid = true;
+                    m_lastAttitude = attData;
                 }
             }
-            m_navSnapshot.timestamp = now;
-            currentNav = m_navSnapshot;
-            navUpdated = true;
-            if (m_arbiter && m_navSnapshot.hasAttitude) {
+            if (m_arbiter && attChanged) {
                 m_arbiter->updateAttitude(
                     Arbiter::HeadingSourceId::Primary, m_navSnapshot.pitchDegrees, m_navSnapshot.rollDegrees);
+            }
+            if (attChanged) {
+                std::shared_ptr<const std::vector<std::pair<std::size_t, AttitudeCallback>>> attCbs;
+                {
+                    std::lock_guard<std::mutex> cbLock(m_callbackMutex);
+                    attCbs = m_attitudeCallbacks.entries;
+                }
+                for (const auto& item : *attCbs) {
+                    if (item.second) {
+                        item.second(attData);
+                    }
+                }
+            }
+        }
+        break;
+    }
+    case NmeaSentenceId::PASHR: {
+        PashrData pashr {};
+        if (NmeaSentenceParser::parsePashr(sentence, pashr, true)) {
+            AttitudeData attData {};
+            {
+                std::lock_guard<std::mutex> lock(m_navMutex);
+                m_navSnapshot.pitchDegrees = pashr.pitchDegrees;
+                m_navSnapshot.rollDegrees = pashr.rollDegrees;
+                m_navSnapshot.hasAttitude = true;
+                if (pashr.isTrueHeading) {
+                    m_navSnapshot.trueHeadingDegrees = pashr.headingDegrees;
+                    m_navSnapshot.hasHeading = true;
+                }
+                m_navSnapshot.timestamp = now;
+                currentNav = m_navSnapshot;
+                navUpdated = true;
+
+                attData.pitchDegrees = pashr.pitchDegrees;
+                attData.rollDegrees = pashr.rollDegrees;
+                attData.headingDegrees = pashr.headingDegrees;
+                attData.heaveMeters = pashr.heaveMeters;
+                attData.hasHeading = pashr.isTrueHeading;
+                attData.valid = true;
+                m_lastAttitude = attData;
+            }
+            if (m_arbiter) {
+                m_arbiter->updateAttitude(
+                    Arbiter::HeadingSourceId::Primary, pashr.pitchDegrees, pashr.rollDegrees);
+                if (pashr.isTrueHeading) {
+                    m_arbiter->updateHeading(Arbiter::HeadingSourceId::Primary, pashr.headingDegrees);
+                }
+            }
+            std::shared_ptr<const std::vector<std::pair<std::size_t, AttitudeCallback>>> attCbs;
+            {
+                std::lock_guard<std::mutex> cbLock(m_callbackMutex);
+                attCbs = m_attitudeCallbacks.entries;
+            }
+            for (const auto& item : *attCbs) {
+                if (item.second) {
+                    item.second(attData);
+                }
+            }
+        }
+        break;
+    }
+    case NmeaSentenceId::PFEC: {
+        PfecAttitudeData pfecAtt {};
+        if (NmeaSentenceParser::parsePfecAtt(sentence, pfecAtt, true)) {
+            AttitudeData attData {};
+            {
+                std::lock_guard<std::mutex> lock(m_navMutex);
+                m_navSnapshot.pitchDegrees = pfecAtt.pitchDegrees;
+                m_navSnapshot.rollDegrees = pfecAtt.rollDegrees;
+                m_navSnapshot.trueHeadingDegrees = pfecAtt.yawDegrees;
+                m_navSnapshot.hasHeading = true;
+                m_navSnapshot.hasAttitude = true;
+                m_navSnapshot.timestamp = now;
+                currentNav = m_navSnapshot;
+                navUpdated = true;
+
+                attData.pitchDegrees = pfecAtt.pitchDegrees;
+                attData.rollDegrees = pfecAtt.rollDegrees;
+                attData.headingDegrees = pfecAtt.yawDegrees;
+                attData.hasHeading = true;
+                attData.valid = true;
+                m_lastAttitude = attData;
+            }
+            if (m_arbiter) {
+                m_arbiter->updateAttitude(
+                    Arbiter::HeadingSourceId::Primary, pfecAtt.pitchDegrees, pfecAtt.rollDegrees);
+                m_arbiter->updateHeading(Arbiter::HeadingSourceId::Primary, pfecAtt.yawDegrees);
+            }
+            std::shared_ptr<const std::vector<std::pair<std::size_t, AttitudeCallback>>> attCbs;
+            {
+                std::lock_guard<std::mutex> cbLock(m_callbackMutex);
+                attCbs = m_attitudeCallbacks.entries;
+            }
+            for (const auto& item : *attCbs) {
+                if (item.second) {
+                    item.second(attData);
+                }
             }
         }
         break;

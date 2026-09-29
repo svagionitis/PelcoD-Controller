@@ -5,6 +5,7 @@
 
 #include "IPayload.h"
 #include "Klv/KlvTypes.h"
+#include "PlatformLeverArmCompensator.h"
 
 #include <atomic>
 #include <chrono>
@@ -16,6 +17,8 @@
 #include <thread>
 
 namespace PayloadHal {
+
+class VesselAttitudeCompensator;
 
 /// @struct GeoLockStatus
 /// @brief Telemetry snapshot of active Geo-Lock tracking state.
@@ -88,6 +91,43 @@ public:
     /// @return true if update succeeded, false if not engaged or command failed.
     bool updatePlatform(const Klv::GeoPoint3D& platformPos, double platformHeadingDeg);
 
+    /// @brief Updates tracking line-of-sight based on host platform position, heading, pitch, and roll.
+    /// @param[in] platformPos Platform 3D coordinate (latitude, longitude, altitude MSL in meters).
+    /// @param[in] platformHeadingDeg Platform true compass heading in degrees [0.0, 360.0).
+    /// @param[in] platformPitchDeg Platform pitch in degrees (positive = bow up).
+    /// @param[in] platformRollDeg Platform roll in degrees (positive = starboard down).
+    /// @return True if update succeeded, false if not engaged or command failed.
+    bool updatePlatform(
+        const Klv::GeoPoint3D& platformPos,
+        double platformHeadingDeg,
+        double platformPitchDeg,
+        double platformRollDeg);
+
+    /// @brief Updates tracking line-of-sight using platform navigation pose.
+    /// @param[in] pose Platform 3D navigation pose.
+    /// @return True if update succeeded, false if not engaged or command failed.
+    bool updatePlatform(const PlatformPose& pose);
+
+    /// @brief Sets the dynamic vessel attitude compensator.
+    /// @param[in] compensator Shared pointer to VesselAttitudeCompensator.
+    void setAttitudeCompensator(std::shared_ptr<VesselAttitudeCompensator> compensator) noexcept;
+
+    /// @brief Gets the configured attitude compensator.
+    /// @return Shared pointer to VesselAttitudeCompensator, or nullptr.
+    [[nodiscard]] std::shared_ptr<VesselAttitudeCompensator> attitudeCompensator() const noexcept;
+
+    /// @brief Sets the gimbal lever arm mounting configuration.
+    /// @param[in] config Lever arm configuration.
+    void setLeverArmConfig(const PlatformLeverArmConfig& config) noexcept;
+
+    /// @brief Gets the current lever arm configuration.
+    /// @return Lever arm configuration.
+    [[nodiscard]] PlatformLeverArmConfig leverArmConfig() const noexcept;
+
+    /// @brief Checks whether dynamic attitude stabilization is currently active.
+    /// @return True if attitude compensator is set and telemetry is valid.
+    [[nodiscard]] bool isAttitudeStabilized() const noexcept;
+
     /// @brief Starts an internal background tracking thread updating line-of-sight at rateHz.
     /// @details Requires a valid PlatformNavProvider to be set via setPlatformNavProvider.
     /// @param[in] rateHz Update frequency in Hertz (default 20.0 Hz).
@@ -130,6 +170,9 @@ private:
     std::condition_variable m_cv;
     std::atomic<bool> m_loopRunning { false };
     std::atomic<bool> m_stopRequested { false };
+
+    std::shared_ptr<VesselAttitudeCompensator> m_attitudeCompensator {};
+    PlatformLeverArmConfig m_leverArmConfig {};
 };
 
 } // namespace PayloadHal

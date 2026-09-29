@@ -123,6 +123,11 @@ NmeaSentenceId NmeaSentenceParser::identifySentence(std::string_view sentence) n
         return NmeaSentenceId::PFEC;
     }
 
+    // Check Ashtech/Applanix PASHR
+    if (header == "PASHR" || (header.size() >= 5U && header.substr(header.size() - 5U) == "PASHR")) {
+        return NmeaSentenceId::PASHR;
+    }
+
     // Standard talker + 3-char mnemonic (e.g. GPGGA, GPRMC, HEHDT, RATTM)
     if (header.size() >= 5U) {
         const auto mnemonic = header.substr(header.size() - 3U);
@@ -625,6 +630,92 @@ bool NmeaSentenceParser::parsePfecPos(
 
     outPos.timestamp = std::chrono::steady_clock::now();
     outPos.valid = true;
+    return true;
+}
+
+bool NmeaSentenceParser::parsePashr(
+    std::string_view sentence, PashrData& outData, bool verifyChecksum) noexcept
+{
+    outData = PashrData {};
+    if (verifyChecksum && !NmeaChecksum::validate(sentence)) {
+        return false;
+    }
+
+    std::vector<std::string_view> tokens {};
+    tokenize(sentence, tokens);
+
+    // Format: $PASHR,hhmmss.ss,hhh.hh,T,rrr.rr,ppp.pp,hhh.hh,r.rrr,p.ppp,h.hhh,q,a
+    if (tokens.size() < 6U) {
+        return false;
+    }
+
+    const auto header = tokens[0];
+    if (header != "PASHR" && (header.size() < 5U || header.substr(header.size() - 5U) != "PASHR")) {
+        return false;
+    }
+
+    static_cast<void>(parseUtcTime(tokens[1], outData.utcTime));
+    parseDouble(tokens[2], outData.headingDegrees);
+    outData.isTrueHeading = (tokens[3] != "M" && tokens[3] != "m");
+    parseDouble(tokens[4], outData.rollDegrees);
+    parseDouble(tokens[5], outData.pitchDegrees);
+
+    if (tokens.size() > 6U) {
+        parseDouble(tokens[6], outData.heaveMeters);
+    }
+    if (tokens.size() > 7U) {
+        parseDouble(tokens[7], outData.rollAccuracyDeg);
+    }
+    if (tokens.size() > 8U) {
+        parseDouble(tokens[8], outData.pitchAccuracyDeg);
+    }
+    if (tokens.size() > 9U) {
+        parseDouble(tokens[9], outData.headingAccuracyDeg);
+    }
+    if (tokens.size() > 10U) {
+        unsigned int q { 0U };
+        if (parseUInt(tokens[10], q)) {
+            outData.gpsQualityFlag = static_cast<std::uint8_t>(q);
+        }
+    }
+    if (tokens.size() > 11U) {
+        unsigned int imu { 0U };
+        if (parseUInt(tokens[11], imu)) {
+            outData.imuStatusFlag = static_cast<std::uint8_t>(imu);
+        }
+    }
+
+    outData.valid = true;
+    return true;
+}
+
+bool NmeaSentenceParser::parsePfecAtt(
+    std::string_view sentence, PfecAttitudeData& outAtt, bool verifyChecksum) noexcept
+{
+    outAtt = PfecAttitudeData {};
+    if (verifyChecksum && !NmeaChecksum::validate(sentence)) {
+        return false;
+    }
+
+    std::vector<std::string_view> tokens {};
+    tokenize(sentence, tokens);
+
+    // Format: $PFEC,GPatt,yaw,pitch,roll
+    if (tokens.size() < 5U) {
+        return false;
+    }
+
+    if (tokens[0] != "PFEC" || tokens[1] != "GPatt") {
+        return false;
+    }
+
+    if (!parseDouble(tokens[2], outAtt.yawDegrees)
+        || !parseDouble(tokens[3], outAtt.pitchDegrees)
+        || !parseDouble(tokens[4], outAtt.rollDegrees)) {
+        return false;
+    }
+
+    outAtt.valid = true;
     return true;
 }
 

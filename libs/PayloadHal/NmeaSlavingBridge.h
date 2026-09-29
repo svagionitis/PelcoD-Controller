@@ -10,6 +10,7 @@
 #include "Nmea/NmeaDevice.h"
 #include "Nmea/NmeaTypes.h"
 #include "PlatformLeverArmCompensator.h"
+#include "VesselAttitudeCompensator.h"
 
 #include <atomic>
 #include <chrono>
@@ -195,6 +196,16 @@ public:
     /// @brief Checks whether the gimbal boresight is currently locked on the target.
     [[nodiscard]] bool isTargetLocked() const;
 
+    /// @brief Configures dynamic vessel attitude compensator for wave stabilization.
+    /// @param[in] compensator Shared pointer to VesselAttitudeCompensator.
+    void setAttitudeCompensator(std::shared_ptr<VesselAttitudeCompensator> compensator);
+
+    /// @brief Retrieves the active vessel attitude compensator.
+    [[nodiscard]] std::shared_ptr<VesselAttitudeCompensator> attitudeCompensator() const;
+
+    /// @brief Checks whether attitude wave stabilization is actively running.
+    [[nodiscard]] bool isAttitudeStabilized() const;
+
     /// @brief Subscribes to target lock state changes.
     std::size_t addTargetLockCallback(TargetLockCallback cb);
 
@@ -229,6 +240,7 @@ private:
     void handleRadarUpdate(const Nmea::TtmData& ttm);
     void handleAisUpdate(const Nmea::AisVesselTarget& target);
     void handleEmergencyBeacon(const Nmea::AisEmergencyAlert& alert);
+    void handleAttitudeUpdate(const Nmea::AttitudeData& att);
     void workerLoop();
     [[nodiscard]] MarineSlavingStatus statusLocked() const;
 
@@ -245,11 +257,13 @@ private:
     std::shared_ptr<Nmea::NmeaDevice> m_nmeaDevice;
     std::shared_ptr<GeoLockController> m_geoLockController;
     std::shared_ptr<PlatformLeverArmCompensator> m_compensator;
+    std::shared_ptr<VesselAttitudeCompensator> m_attitudeCompensator {};
 
     std::size_t m_navSubId { 0U };
     std::size_t m_radarSubId { 0U };
     std::size_t m_aisSubId { 0U };
     std::size_t m_emergencySubId { 0U };
+    std::size_t m_attitudeSubId { 0U };
 
     mutable std::mutex m_stateMutex;
     MarineTargetType m_targetType { MarineTargetType::None };

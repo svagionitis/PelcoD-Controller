@@ -16,6 +16,7 @@ namespace {
         EXPECT_EQ(NmeaSentenceParser::identifySentence("$IIXDR,A,1.2,D,PITCH*00"), NmeaSentenceId::XDR);
         EXPECT_EQ(NmeaSentenceParser::identifySentence("!AIVDM,1,1,,B*00"), NmeaSentenceId::VDM);
         EXPECT_EQ(NmeaSentenceParser::identifySentence("$PFEC,GPcmd,1,2*00"), NmeaSentenceId::PFEC);
+        EXPECT_EQ(NmeaSentenceParser::identifySentence("$PASHR,120000.00,045.2,T*00"), NmeaSentenceId::PASHR);
 
         EXPECT_EQ(NmeaSentenceParser::extractTalkerId("$GPGGA,..."), "GP");
         EXPECT_EQ(NmeaSentenceParser::extractTalkerId("$HEHDT,..."), "HE");
@@ -192,6 +193,46 @@ namespace {
         EXPECT_NEAR(xdr.transducers[1].measurement, 1.80, 1e-2);
         EXPECT_EQ(xdr.transducers[1].units, 'D');
         EXPECT_EQ(xdr.transducers[1].id, "ROLL");
+    }
+
+    TEST(TestNmeaSentenceParser, ParsePashrAttitude)
+    {
+        // $PASHR,120000.00,045.20,T,+03.50,-02.10,+0.12,0.05,0.05,0.10,2,1
+        const std::string raw = "PASHR,120000.00,045.20,T,+03.50,-02.10,+0.12,0.05,0.05,0.10,2,1";
+        const std::string sentence = NmeaChecksum::frameSentence(raw);
+
+        PashrData pashr {};
+        ASSERT_TRUE(NmeaSentenceParser::parsePashr(sentence, pashr, true));
+
+        EXPECT_TRUE(pashr.valid);
+        EXPECT_EQ(pashr.utcTime.hour, 12U);
+        EXPECT_EQ(pashr.utcTime.minute, 0U);
+        EXPECT_EQ(pashr.utcTime.second, 0U);
+        EXPECT_NEAR(pashr.headingDegrees, 45.2, 1e-2);
+        EXPECT_TRUE(pashr.isTrueHeading);
+        EXPECT_NEAR(pashr.rollDegrees, 3.5, 1e-2);
+        EXPECT_NEAR(pashr.pitchDegrees, -2.1, 1e-2);
+        EXPECT_NEAR(pashr.heaveMeters, 0.12, 1e-2);
+        EXPECT_NEAR(pashr.rollAccuracyDeg, 0.05, 1e-3);
+        EXPECT_NEAR(pashr.pitchAccuracyDeg, 0.05, 1e-3);
+        EXPECT_NEAR(pashr.headingAccuracyDeg, 0.10, 1e-3);
+        EXPECT_EQ(pashr.gpsQualityFlag, 2U);
+        EXPECT_EQ(pashr.imuStatusFlag, 1U);
+    }
+
+    TEST(TestNmeaSentenceParser, ParsePfecAttitude)
+    {
+        // $PFEC,GPatt,180.50,-04.20,+08.10
+        const std::string raw = "PFEC,GPatt,180.50,-04.20,+08.10";
+        const std::string sentence = NmeaChecksum::frameSentence(raw);
+
+        PfecAttitudeData pfec {};
+        ASSERT_TRUE(NmeaSentenceParser::parsePfecAtt(sentence, pfec, true));
+
+        EXPECT_TRUE(pfec.valid);
+        EXPECT_NEAR(pfec.yawDegrees, 180.5, 1e-2);
+        EXPECT_NEAR(pfec.pitchDegrees, -4.2, 1e-2);
+        EXPECT_NEAR(pfec.rollDegrees, 8.1, 1e-2);
     }
 
 } // namespace

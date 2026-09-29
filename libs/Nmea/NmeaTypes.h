@@ -37,7 +37,8 @@ enum class NmeaSentenceId : std::uint8_t {
     WPL, ///< Waypoint Location (lat, lon, waypoint ID)
     MTW, ///< Mean Water Temperature (Celsius)
     MDA, ///< Meteorological Composite Data (pressure, temp, humidity, wind)
-    MMB ///< Barometric Pressure (inHg and bar)
+    MMB, ///< Barometric Pressure (inHg and bar)
+    PASHR ///< Ashtech / Applanix Inertial Attitude (pitch, roll, heading, heave)
 };
 
 /// @enum NmeaFixQuality
@@ -195,6 +196,43 @@ struct XdrTransducer {
 /// @brief Transducer telemetry unpacked from $--XDR sentence.
 struct XdrData {
     std::vector<XdrTransducer> transducers {};
+    bool valid { false };
+};
+
+/// @struct PashrData
+/// @brief RT300 / Applanix / Ashtech inertial attitude telemetry unpacked from $PASHR sentence.
+struct PashrData {
+    NmeaUtcTime utcTime {};
+    double headingDegrees { 0.0 };     ///< Vessel heading in degrees [0.0 .. 360.0)
+    bool isTrueHeading { true };        ///< True if 'T', False if 'M'
+    double rollDegrees { 0.0 };         ///< Vessel roll in degrees (starboard down positive)
+    double pitchDegrees { 0.0 };        ///< Vessel pitch in degrees (bow up positive)
+    double heaveMeters { 0.0 };         ///< Vessel heave in meters
+    double rollAccuracyDeg { 0.0 };     ///< Roll standard deviation / accuracy
+    double pitchAccuracyDeg { 0.0 };    ///< Pitch standard deviation / accuracy
+    double headingAccuracyDeg { 0.0 };  ///< Heading standard deviation / accuracy
+    std::uint8_t gpsQualityFlag { 0U }; ///< GPS fix quality flag
+    std::uint8_t imuStatusFlag { 0U };  ///< Inertial / IMU status flag
+    bool valid { false };
+};
+
+/// @struct PfecAttitudeData
+/// @brief Vessel attitude (yaw, pitch, roll) unpacked from FLIR $PFEC,GPatt sentence.
+struct PfecAttitudeData {
+    double yawDegrees { 0.0 };   ///< Vessel yaw / heading in degrees [0.0 .. 360.0)
+    double pitchDegrees { 0.0 }; ///< Vessel pitch in degrees (bow up positive)
+    double rollDegrees { 0.0 };  ///< Vessel roll in degrees (starboard down positive)
+    bool valid { false };
+};
+
+/// @struct AttitudeData
+/// @brief Unified vessel attitude report containing pitch, roll, heading, and heave.
+struct AttitudeData {
+    double pitchDegrees { 0.0 };   ///< Pitch in degrees (bow up positive)
+    double rollDegrees { 0.0 };    ///< Roll in degrees (starboard down positive)
+    double headingDegrees { 0.0 }; ///< Heading / yaw in degrees [0.0 .. 360.0)
+    double heaveMeters { 0.0 };    ///< Heave in meters
+    bool hasHeading { false };
     bool valid { false };
 };
 

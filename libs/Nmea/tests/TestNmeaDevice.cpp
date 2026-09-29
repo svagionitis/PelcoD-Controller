@@ -149,6 +149,58 @@ namespace {
         EXPECT_NEAR(snap.rollDegrees, -0.50, 1e-2);
     }
 
+    TEST(TestNmeaDevice, AttitudeObserverAndSentences)
+    {
+        auto transport = std::make_shared<MockTestTransport>();
+        NmeaDevice device(transport);
+        ASSERT_TRUE(device.start());
+
+        std::atomic<std::size_t> attCount { 0U };
+        AttitudeData lastAtt {};
+        const auto subId = device.addAttitudeCallback([&](const AttitudeData& att) {
+            lastAtt = att;
+            attCount++;
+        });
+
+        // 1. Test PASHR sentence
+        const std::string pashr = NmeaChecksum::frameSentence("PASHR,120000.00,045.20,T,+03.50,-02.10,+0.12,0.05,0.05,0.10,2,1");
+        transport->injectString(pashr);
+
+        EXPECT_EQ(attCount.load(), 1U);
+        EXPECT_TRUE(lastAtt.valid);
+        EXPECT_TRUE(lastAtt.hasHeading);
+        EXPECT_NEAR(lastAtt.headingDegrees, 45.2, 1e-2);
+        EXPECT_NEAR(lastAtt.pitchDegrees, -2.1, 1e-2);
+        EXPECT_NEAR(lastAtt.rollDegrees, 3.5, 1e-2);
+        EXPECT_NEAR(lastAtt.heaveMeters, 0.12, 1e-2);
+
+        auto optAtt = device.lastAttitude();
+        ASSERT_TRUE(optAtt.has_value());
+        EXPECT_NEAR(optAtt->pitchDegrees, -2.1, 1e-2);
+
+        // 2. Test PFEC GPatt sentence
+        const std::string pfec = NmeaChecksum::frameSentence("PFEC,GPatt,180.50,-04.20,+08.10");
+        transport->injectString(pfec);
+
+        EXPECT_EQ(attCount.load(), 2U);
+        EXPECT_NEAR(lastAtt.headingDegrees, 180.5, 1e-2);
+        EXPECT_NEAR(lastAtt.pitchDegrees, -4.2, 1e-2);
+        EXPECT_NEAR(lastAtt.rollDegrees, 8.1, 1e-2);
+
+        // 3. Test XDR with aliases "PTCH" and "RL"
+        const std::string xdr = NmeaChecksum::frameSentence("IIXDR,A,0.75,D,ptch,A,-1.20,D,rl");
+        transport->injectString(xdr);
+
+        EXPECT_EQ(attCount.load(), 3U);
+        EXPECT_NEAR(lastAtt.pitchDegrees, 0.75, 1e-2);
+        EXPECT_NEAR(lastAtt.rollDegrees, -1.20, 1e-2);
+
+        // 4. Test unsubscribe
+        device.removeAttitudeCallback(subId);
+        transport->injectString(pfec);
+        EXPECT_EQ(attCount.load(), 3U);
+    }
+
     TEST(TestNmeaDevice, ArpaRadarTargetManagement)
     {
         auto transport = std::make_shared<MockTestTransport>();

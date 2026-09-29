@@ -89,6 +89,8 @@ add_library(PayloadHal STATIC
     AutoFramingController.cpp
     SlewToCueDirector.h
     SlewToCueDirector.cpp
+    VesselAttitudeCompensator.h
+    VesselAttitudeCompensator.cpp
     sim/SimulatedPayload.h
     sim/SimulatedPayload.cpp
 )

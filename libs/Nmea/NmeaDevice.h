@@ -49,6 +49,7 @@ public:
     using MdaCallback = std::function<void(const MdaData&)>;
     using EnvironmentCallback = std::function<void(const NmeaEnvironmentSnapshot&)>;
     using ThermalAdviceCallback = std::function<void(const ThermalTuningAdvice&)>;
+    using AttitudeCallback = std::function<void(const AttitudeData&)>;
 
     /// @brief Constructs an NmeaDevice wrapping the given physical or network transport.
     /// @param[in] transport Shared pointer to underlying transport (Serial, UDP, TCP).
@@ -224,6 +225,15 @@ public:
     std::size_t addThermalAdviceCallback(ThermalAdviceCallback cb);
     void removeThermalAdviceCallback(std::size_t id);
 
+    /// @brief Registers a subscriber callback for dynamic vessel attitude updates.
+    /// @param[in] cb Callback invoked on PASHR, PFEC GPatt, or XDR attitude sentences.
+    /// @return Unique subscription ID for unregistering.
+    std::size_t addAttitudeCallback(AttitudeCallback cb);
+
+    /// @brief Unregisters an attitude subscriber callback.
+    /// @param[in] id Subscription ID returned by addAttitudeCallback.
+    void removeAttitudeCallback(std::size_t id);
+
     /// @brief Retrieves the shared route manager.
     [[nodiscard]] std::shared_ptr<NmeaRouteManager> routeManager() const noexcept;
 
@@ -250,6 +260,9 @@ public:
 
     /// @brief Retrieves the latest meteorological composite data.
     [[nodiscard]] std::optional<MdaData> lastMda() const;
+
+    /// @brief Retrieves the latest vessel attitude telemetry.
+    [[nodiscard]] std::optional<AttitudeData> lastAttitude() const;
 
     /// @brief Ingests simulated or raw sentences directly into the accumulator.
     /// @param[in] rawData Raw byte data.
@@ -301,6 +314,7 @@ private:
     // Navigation snapshot state
     mutable std::mutex m_navMutex;
     NmeaNavSnapshot m_navSnapshot {};
+    std::optional<AttitudeData> m_lastAttitude {};
 
     // Target state
     struct RadarTrackEntry {
@@ -351,6 +365,7 @@ private:
     CallbackList<MdaCallback> m_mdaCallbacks {};
     CallbackList<EnvironmentCallback> m_envCallbacks {};
     CallbackList<ThermalAdviceCallback> m_thermalAdviceCallbacks {};
+    CallbackList<AttitudeCallback> m_attitudeCallbacks {};
 };
 
 } // namespace Nmea

@@ -140,12 +140,83 @@ Computes required camera optical magnification and sensor Field of View (HFOV) s
 * Translates desired HFOV into camera continuous zoom or discrete optical magnification steps via [ICameraPayload](../libs/PayloadHal/ICameraPayload.h).
 
 ### Module C: `VesselAttitudeCompensator` (Wave Motion / Pitch & Roll Stabilization)
-*Location: `libs/PayloadHal/marine/VesselAttitudeCompensator.h/.cpp`*
+*Location: [VesselAttitudeCompensator.h](../libs/PayloadHal/VesselAttitudeCompensator.h) / [VesselAttitudeCompensator.cpp](../libs/PayloadHal/VesselAttitudeCompensator.cpp)*
 
 * Ingests high-frequency attitude data:
-  * NMEA 0183: `$xxXDR` (transducers), `$PASHR` (inertial attitude: pitch, roll, heading).
+  * NMEA 0183: `$xxXDR` (transducers: pitch/roll), `$PASHR` (inertial attitude: pitch, roll, heading, heave), `$PFEC,GPatt` (Furuno/FLIR attitude).
   * NMEA 2000: **PGN 127257** (Attitude: Yaw, Pitch, Roll at 10–20 Hz).
-* Projects the gimbal line-of-sight vector from NED (North-East-Down) frame through the platform's time-varying body rotation matrix $\mathbf{R}_{\text{body\_to\_ned}}(\psi, \theta, \phi)$ so wave motion does not induce camera horizon tilt or point-of-interest drift.
+* Projects the gimbal line-of-sight vector from NED (North-East-Down) frame through the platform's time-varying body rotation matrix $\mathbf{R}_{\text{NED} \to \text{Body}}(\psi, \theta, \phi)$ so wave motion does not induce camera horizon tilt or point-of-interest drift.
+* Computes active 3-axis horizon counter-roll angle to level the camera sensor on compliant PTUs.
+
+### Dynamic Attitude Transformation Pipeline
+
+#### ASCII Diagram
+```
+  +-------------------------------------------------------------------+
+  |                  Attitude Telemetry Streams                       |
+  |  - NMEA 2000 PGN 127257 (Attitude: Yaw, Pitch, Roll)              |
+  |  - NMEA 0183 $PASHR (Heading, Roll, Pitch, Heave)                 |
+  |  - NMEA 0183 $PFEC,GPatt (Roll, Pitch)                            |
+  |  - NMEA 0183 $xxXDR (Transducer: PITCH, ROLL)                     |
+  +---------------------------------+---------------------------------+
+                                    |
+                                    v
+  +---------------------------------+---------------------------------+
+  |                  VesselAttitudeCompensator                        |
+  |  - Exponential Moving Average (EMA) rate calculation              |
+  |  - Direction Cosine Matrix (DCM): R_NED_to_Body(yaw, pitch, roll) |
+  |  - Heartbeat / Timeout watchdog (fall back to 2D level model)     |
+  +-----------------+-------------------------------+-----------------+
+                    |                               |
+          Line-of-Sight Az/El               Counter-Roll
+                    v                               v
+  +-----------------+---------------+ +-------------+-----------------+
+  |        GeoLockController        | |       Horizon Leveling        |
+  |  Compensates Pan & Tilt to      | |  Computes PTU Roll angle to   |
+  |  counter vessel pitch & roll    | |  keep horizon horizontal      |
+  +-----------------+---------------+ +-------------+-----------------+
+                    |                               |
+                    +---------------+---------------+
+                                    |
+                                    v
+                    +---------------+---------------+
+                    |  IPanTiltUnit (2-Axis/3-Axis) |
+                    +-------------------------------+
+```
+
+#### Mermaid Diagram
+```mermaid
+flowchart TD
+    subgraph Inputs ["Attitude Telemetry Ingestion"]
+        N2K["NMEA 2000 PGN 127257\n(Yaw, Pitch, Roll)"]
+        PASHR["NMEA 0183 $PASHR\n(Heading, Roll, Pitch, Heave)"]
+        PFEC["NMEA 0183 $PFEC,GPatt\n(Roll, Pitch)"]
+        XDR["NMEA 0183 $xxXDR\n(Transducer PITCH/ROLL)"]
+    end
+
+    subgraph Compensator ["VesselAttitudeCompensator"]
+        EMA["EMA Smoothing & Angular Rates\n(omega_roll, omega_pitch, omega_yaw)"]
+        DCM["Direction Cosine Matrix\nR_NED_to_Body(psi, theta, phi)"]
+        Watchdog["Timeout Watchdog\n(Smooth Fallback to 2D Level)"]
+    end
+
+    subgraph Actuation ["Gimbal Kinematics & Actuation"]
+        GeoLock["GeoLockController\n(True NED Az/El -> Platform Pan/Tilt)"]
+        CounterRoll["Horizon Counter-Roll\n(Phi_gimbal for 3-Axis Leveling)"]
+        PTU["IPanTiltUnit / IPayload\n(Pan, Tilt, Roll Commands)"]
+    end
+
+    N2K --> EMA
+    PASHR --> EMA
+    PFEC --> EMA
+    XDR --> EMA
+    EMA --> DCM
+    Watchdog -.->|Timeout Check| DCM
+    DCM -->|Compensated Az/El| GeoLock
+    DCM -->|Horizon Roll Angle| CounterRoll
+    GeoLock --> PTU
+    CounterRoll --> PTU
+```
 
 ### Module D: `SlewToCueDirector` (Automated Workflow State Machine)
 *Location: [SlewToCueDirector.h](../libs/PayloadHal/SlewToCueDirector.h) / [SlewToCueDirector.cpp](../libs/PayloadHal/SlewToCueDirector.cpp)*
@@ -206,14 +277,21 @@ stateDiagram-v2
   5. Implemented geodetic fallback resilience: if visual lock fails or drops during dwell, the director seamlessly transitions to geodetic coasting on SOG/COG without aborting inspection.
   6. Added manual inspection controls (`extendDwell`, `pause`, `resume`, `dismissActiveTarget`).
 
-### Phase 4: Dynamic Attitude Stabilization Integration
+### Phase 4: Dynamic Attitude Stabilization Integration (Completed)
 * **Files**:
-  * Updates: [N2kDecoder](../libs/Nmea/n2k/N2kDecoder.h) & [N2kTypes](../libs/Nmea/n2k/N2kTypes.h) (support PGN 127257 Attitude)
-  * Updates: [NmeaSentenceParser](../libs/Nmea/NmeaSentenceParser.h) (parse `$PASHR` / `$PFEC,GPatt` / `$xxXDR`)
-  * New: `libs/PayloadHal/marine/VesselAttitudeCompensator.h` & `.cpp`
-* **Tasks**:
-  1. Decode PGN 127257 (Pitch, Roll, Yaw) and XDR/PASHR sentences.
-  2. Apply rotational transform in [GeoLockController](../libs/PayloadHal/GeoLockController.h) to eliminate wave-induced gimbal pointing errors.
+  * [NmeaTypes.h](../libs/Nmea/NmeaTypes.h) (added `PashrData`, `PfecAttitudeData`, `AttitudeData`, `NmeaSentenceId::PASHR`)
+  * [NmeaSentenceParser.h](../libs/Nmea/NmeaSentenceParser.h) & [NmeaSentenceParser.cpp](../libs/Nmea/NmeaSentenceParser.cpp) (implemented `parsePashr`, `parsePfecAtt`)
+  * [NmeaDevice.h](../libs/Nmea/NmeaDevice.h) & [NmeaDevice.cpp](../libs/Nmea/NmeaDevice.cpp) (attitude callbacks, XDR pitch/roll transducer parsing, multi-protocol dispatch)
+  * [VesselAttitudeCompensator.h](../libs/PayloadHal/VesselAttitudeCompensator.h) & [VesselAttitudeCompensator.cpp](../libs/PayloadHal/VesselAttitudeCompensator.cpp) (new dynamic attitude compensator)
+  * [GeoLockController.h](../libs/PayloadHal/GeoLockController.h) & [GeoLockController.cpp](../libs/PayloadHal/GeoLockController.cpp) (wave-stabilized kinematics & active horizon counter-roll)
+  * [NmeaSlavingBridge.h](../libs/PayloadHal/NmeaSlavingBridge.h) & [NmeaSlavingBridge.cpp](../libs/PayloadHal/NmeaSlavingBridge.cpp) (attitude compensator binding and real-time attitude forwarding)
+  * Tests: [TestNmeaSentenceParser.cpp](../libs/Nmea/tests/TestNmeaSentenceParser.cpp), [TestNmeaDevice.cpp](../libs/Nmea/tests/TestNmeaDevice.cpp), [TestVesselAttitudeCompensator.cpp](../libs/PayloadHal/tests/TestVesselAttitudeCompensator.cpp)
+* **Delivered Capabilities**:
+  1. Multi-protocol attitude telemetry ingestion covering NMEA 2000 PGN 127257 (Attitude), NMEA 0183 `$PASHR` (inertial), Furuno/FLIR `$PFEC,GPatt`, and standard `$xxXDR` transducers.
+  2. Complete 3D line-of-sight stabilization using Direction Cosine Matrix ($\mathbf{R}_{\text{NED} \to \text{Body}}$) transformation, converting geodetic target bearing and elevation into platform-relative pan/tilt angles that counteract instantaneous vessel pitch and roll in high sea states.
+  3. Active 3-axis horizon counter-roll calculation ($\Phi_{\text{gimbal}} = -\phi_{\text{vessel}} \cdot \cos(\text{pan}) + \theta_{\text{vessel}} \cdot \sin(\text{pan})$) with automated PTU actuation for gimbals equipped with an active roll axis.
+  4. Real-time rate estimation ($\omega_{\text{roll}}, \omega_{\text{pitch}}, \omega_{\text{yaw}}$) with configurable Exponential Moving Average (EMA) smoothing for predictive look-ahead and damping.
+  5. Timeout expiration and degradation management: automatically falls back to a 2D level deck model when telemetry drops, ensuring continuous, glitch-free tracking.
 
 ### Phase 5: Verification & End-to-End Simulation
 * **Files**:

@@ -3,6 +3,7 @@
 
 #include "GeoLockController.h"
 #include "GeoreferenceUtils.h"
+#include "VesselAttitudeCompensator.h"
 
 #include <algorithm>
 #include <cmath>
@@ -76,9 +77,29 @@ std::optional<Klv::GeoPoint3D> GeoLockController::currentTarget() const noexcept
 
 bool GeoLockController::updatePlatform(const Klv::GeoPoint3D& platformPos, double platformHeadingDeg)
 {
+    std::shared_ptr<VesselAttitudeCompensator> attComp;
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        attComp = m_attitudeCompensator;
+    }
+    if (attComp && attComp->hasValidAttitude()) {
+        const auto att = attComp->attitudeState();
+        return updatePlatform(platformPos, platformHeadingDeg, att.pitchDeg, att.rollDeg);
+    }
+    return updatePlatform(platformPos, platformHeadingDeg, 0.0, 0.0);
+}
+
+bool GeoLockController::updatePlatform(
+    const Klv::GeoPoint3D& platformPos,
+    double platformHeadingDeg,
+    double platformPitchDeg,
+    double platformRollDeg)
+{
     Klv::GeoPoint3D target;
     double deadband = 0.0;
     std::shared_ptr<IPayload> payload;
+    std::shared_ptr<VesselAttitudeCompensator> attComp;
+    PlatformLeverArmConfig leverCfg;
     {
         std::lock_guard<std::mutex> lock(m_mutex);
         if (!m_engaged || !m_target || !m_payload) {
@@ -87,6 +108,8 @@ bool GeoLockController::updatePlatform(const Klv::GeoPoint3D& platformPos, doubl
         target = *m_target;
         deadband = m_deadbandDeg;
         payload = m_payload;
+        attComp = m_attitudeCompensator;
+        leverCfg = m_leverArmConfig;
     }
 
     const auto ptu = payload->panTilt();
@@ -94,7 +117,25 @@ bool GeoLockController::updatePlatform(const Klv::GeoPoint3D& platformPos, doubl
         return false;
     }
 
-    const auto look = GeoreferenceUtils::computeLookAnglesToTarget(platformPos, platformHeadingDeg, target);
+    GimbalLookAngles look {};
+    if (attComp && attComp->hasValidAttitude()) {
+        look = attComp->compensateLookAngles(platformPos, target, leverCfg);
+    } else if (std::abs(platformPitchDeg) > 1e-4 || std::abs(platformRollDeg) > 1e-4) {
+        PlatformPose pose {};
+        pose.gpsPosition = platformPos;
+        pose.headingDeg = platformHeadingDeg;
+        pose.pitchDeg = platformPitchDeg;
+        pose.rollDeg = platformRollDeg;
+        PlatformLeverArmCompensator compensator(leverCfg);
+        look = compensator.computeLookAnglesToTarget(pose, target);
+    } else {
+        look = GeoreferenceUtils::computeLookAnglesToTarget(platformPos, platformHeadingDeg, target);
+    }
+
+    // Active 3-axis horizon leveling if supported by PTU
+    if (ptu->supportsHorizonLeveling()) {
+        ptu->updateHorizonLeveling(platformRollDeg, platformPitchDeg, platformHeadingDeg);
+    }
 
     bool shouldCommand = false;
     {
@@ -144,6 +185,41 @@ bool GeoLockController::updatePlatform(const Klv::GeoPoint3D& platformPos, doubl
     }
 
     return true;
+}
+
+bool GeoLockController::updatePlatform(const PlatformPose& pose)
+{
+    return updatePlatform(pose.gpsPosition, pose.headingDeg, pose.pitchDeg, pose.rollDeg);
+}
+
+void GeoLockController::setAttitudeCompensator(std::shared_ptr<VesselAttitudeCompensator> compensator) noexcept
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    m_attitudeCompensator = std::move(compensator);
+}
+
+std::shared_ptr<VesselAttitudeCompensator> GeoLockController::attitudeCompensator() const noexcept
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    return m_attitudeCompensator;
+}
+
+void GeoLockController::setLeverArmConfig(const PlatformLeverArmConfig& config) noexcept
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    m_leverArmConfig = config;
+}
+
+PlatformLeverArmConfig GeoLockController::leverArmConfig() const noexcept
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    return m_leverArmConfig;
+}
+
+bool GeoLockController::isAttitudeStabilized() const noexcept
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    return m_attitudeCompensator && m_attitudeCompensator->hasValidAttitude();
 }
 
 bool GeoLockController::startTrackingLoop(double rateHz)
