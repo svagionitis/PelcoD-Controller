@@ -454,11 +454,80 @@ bool NmeaSlavingBridge::isSlaving() const noexcept
     return (m_targetType != MarineTargetType::None);
 }
 
+void NmeaSlavingBridge::setLockToleranceDeg(double toleranceDeg) noexcept
+{
+    std::lock_guard<std::mutex> lock(m_stateMutex);
+    m_lockToleranceDeg = std::max(toleranceDeg, 0.05);
+}
+
+double NmeaSlavingBridge::lockToleranceDeg() const noexcept
+{
+    std::lock_guard<std::mutex> lock(m_stateMutex);
+    return m_lockToleranceDeg;
+}
+
+SlavingLockStatus NmeaSlavingBridge::lockStatus() const
+{
+    std::lock_guard<std::mutex> lock(m_stateMutex);
+    SlavingLockStatus st {};
+    st.isSlaved = (m_targetType != MarineTargetType::None);
+
+    if (st.isSlaved && m_geoLockController) {
+        const auto geoSt = m_geoLockController->status();
+        st.angularErrorDeg = geoSt.trackingErrorDeg;
+        st.isTargetLocked = geoSt.engaged && (geoSt.trackingErrorDeg <= m_lockToleranceDeg);
+        st.slantRangeMeters = geoSt.slantRangeMeters;
+
+        if (m_hasPlatformNav) {
+            const auto lookAngles = GeoreferenceUtils::computeLookAnglesToTarget(
+                m_platformPos, m_platformHeadingDeg, m_lastKnownTargetPos);
+            st.trueBearingDeg = lookAngles.trueBearingDeg;
+        }
+
+        const auto now = std::chrono::steady_clock::now();
+        const auto elapsed = now - m_lastContactTime;
+        st.isCoasting = (elapsed > std::chrono::seconds(1));
+    }
+
+    return st;
+}
+
+bool NmeaSlavingBridge::isTargetLocked() const
+{
+    return lockStatus().isTargetLocked;
+}
+
+std::size_t NmeaSlavingBridge::addTargetLockCallback(TargetLockCallback cb)
+{
+    std::lock_guard<std::mutex> lock(m_callbackMutex);
+    const std::size_t id = m_nextCallbackId++;
+    auto newEntries = std::make_shared<std::vector<std::pair<std::size_t, TargetLockCallback>>>(*m_lockCallbacks);
+    newEntries->emplace_back(id, std::move(cb));
+    m_lockCallbacks = newEntries;
+    return id;
+}
+
+void NmeaSlavingBridge::removeTargetLockCallback(std::size_t id)
+{
+    std::lock_guard<std::mutex> lock(m_callbackMutex);
+    auto newEntries = std::make_shared<std::vector<std::pair<std::size_t, TargetLockCallback>>>();
+    newEntries->reserve(m_lockCallbacks->size());
+    for (const auto& item : *m_lockCallbacks) {
+        if (item.first != id) {
+            newEntries->push_back(item);
+        }
+    }
+    m_lockCallbacks = newEntries;
+}
+
 void NmeaSlavingBridge::update()
 {
     MarineSlavingStatus currentStatus {};
     bool notifyStatus { false };
     bool targetLost { false };
+    bool notifyLockChange { false };
+    bool currentLocked { false };
+    double currentLockError { 0.0 };
     MarineTargetType lostType { MarineTargetType::None };
     std::uint32_t lostId { 0U };
 
@@ -514,6 +583,16 @@ void NmeaSlavingBridge::update()
             }
         }
 
+        if (m_geoLockController) {
+            const auto geoSt = m_geoLockController->status();
+            currentLocked = geoSt.engaged && (geoSt.trackingErrorDeg <= m_lockToleranceDeg);
+            currentLockError = geoSt.trackingErrorDeg;
+            if (currentLocked != m_wasLocked) {
+                m_wasLocked = currentLocked;
+                notifyLockChange = true;
+            }
+        }
+
         currentStatus = statusLocked();
         notifyStatus = true;
     }
@@ -540,6 +619,19 @@ void NmeaSlavingBridge::update()
         for (const auto& item : *statusCbs) {
             if (item.second) {
                 item.second(currentStatus);
+            }
+        }
+    }
+
+    if (notifyLockChange) {
+        std::shared_ptr<const std::vector<std::pair<std::size_t, TargetLockCallback>>> lockCbs;
+        {
+            std::lock_guard<std::mutex> cbLock(m_callbackMutex);
+            lockCbs = m_lockCallbacks;
+        }
+        for (const auto& item : *lockCbs) {
+            if (item.second) {
+                item.second(currentLocked, currentLockError);
             }
         }
     }

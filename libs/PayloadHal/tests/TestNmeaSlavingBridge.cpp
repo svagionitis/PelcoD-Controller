@@ -495,5 +495,66 @@ namespace {
         EXPECT_NEAR(geoLock->currentTarget()->latitudeDeg, 37.1, 1e-4);
     }
 
+    TEST(TestNmeaSlavingBridge, BoresightLockDetectionAndTolerance)
+    {
+        auto payload = std::make_shared<SimulatedPayload>();
+        ASSERT_TRUE(payload->connect());
+
+        auto geoLock = std::make_shared<GeoLockController>(payload);
+        auto transport = std::make_shared<MockNmeaTransport>();
+        auto nmeaDevice = std::make_shared<Nmea::NmeaDevice>(transport);
+        ASSERT_TRUE(nmeaDevice->start());
+
+        NmeaSlavingBridge bridge(nmeaDevice, geoLock);
+        bridge.setLockToleranceDeg(1.5);
+        EXPECT_DOUBLE_EQ(bridge.lockToleranceDeg(), 1.5);
+
+        bool lockNotified { false };
+        bool lastLockState { false };
+        double lastErrorDeg { 0.0 };
+        const auto cbId = bridge.addTargetLockCallback([&](bool locked, double errorDeg) {
+            lockNotified = true;
+            lastLockState = locked;
+            lastErrorDeg = errorDeg;
+        });
+
+        // Unslaved initially
+        auto lockSt = bridge.lockStatus();
+        EXPECT_FALSE(lockSt.isSlaved);
+        EXPECT_FALSE(lockSt.isTargetLocked);
+        EXPECT_FALSE(bridge.isTargetLocked());
+
+        // Inject own-ship position
+        const std::string gga
+            = Nmea::NmeaChecksum::frameSentence("GPGGA,120000,3700.000,N,12200.000,W,1,08,1.0,0.0,M,0.0,M,,");
+        const std::string hdt = Nmea::NmeaChecksum::frameSentence("HEHDT,000.0,T");
+        transport->injectString(gga);
+        transport->injectString(hdt);
+
+        // Slave to geodetic target
+        Klv::GeoPoint3D target { 37.05, -122.0, 0.0 };
+        EXPECT_TRUE(bridge.slaveToGeodeticTarget(target));
+
+        lockSt = bridge.lockStatus();
+        EXPECT_TRUE(lockSt.isSlaved);
+
+        // Run update cycles on bridge
+        for (int i = 0; i < 50; ++i) {
+            bridge.update();
+            if (bridge.isTargetLocked()) {
+                break;
+            }
+            std::this_thread::sleep_for(std::chrono::milliseconds(5));
+        }
+
+        EXPECT_TRUE(bridge.isTargetLocked());
+        EXPECT_TRUE(bridge.lockStatus().isTargetLocked);
+        EXPECT_TRUE(lockNotified);
+        EXPECT_TRUE(lastLockState);
+        EXPECT_LE(lastErrorDeg, 1.5);
+
+        bridge.removeTargetLockCallback(cbId);
+    }
+
 } // namespace
 } // namespace PayloadHal

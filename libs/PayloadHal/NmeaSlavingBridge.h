@@ -63,6 +63,17 @@ struct MarineSlavingStatus {
     Nmea::AisBeaconType emergencyType { Nmea::AisBeaconType::None };
 };
 
+/// @struct SlavingLockStatus
+/// @brief Telemetry snapshot of target line-of-sight acquisition and boresight alignment.
+struct SlavingLockStatus {
+    bool isSlaved { false };                ///< Slaving bridge actively driving gimbal
+    bool isTargetLocked { false };          ///< Gimbal boresight within lock tolerance
+    double angularErrorDeg { 0.0 };         ///< Absolute angular difference between gimbal and target LOS
+    double slantRangeMeters { 0.0 };        ///< Slant range to target
+    double trueBearingDeg { 0.0 };          ///< True geographic bearing to target
+    bool isCoasting { false };              ///< Target telemetry aged; dead-reckoning on SOG/COG
+};
+
 /// @class NmeaSlavingBridge
 /// @brief Tactical bridge coordinating ARPA radar contacts and AIS vessels to GeoLockController.
 class NmeaSlavingBridge {
@@ -70,6 +81,7 @@ public:
     using StatusCallback = std::function<void(const MarineSlavingStatus&)>;
     using TargetLostCallback = std::function<void(MarineTargetType type, std::uint32_t targetId)>;
     using EmergencySlewCallback = std::function<void(const Nmea::AisEmergencyAlert&)>;
+    using TargetLockCallback = std::function<void(bool locked, double errorDeg)>;
 
     /// @brief Constructs a slaving bridge connecting NmeaDevice to GeoLockController.
     /// @param[in] nmeaDevice Shared pointer to active NmeaDevice controller.
@@ -170,6 +182,25 @@ public:
     /// @brief Checks whether active target slaving is currently engaged.
     [[nodiscard]] bool isSlaving() const noexcept;
 
+    /// @brief Configures angular boresight lock tolerance in degrees.
+    /// @param[in] toleranceDeg Maximum angular error considered locked.
+    void setLockToleranceDeg(double toleranceDeg) noexcept;
+
+    /// @brief Queries current angular boresight lock tolerance in degrees.
+    [[nodiscard]] double lockToleranceDeg() const noexcept;
+
+    /// @brief Queries real-time slaving lock and boresight convergence status.
+    [[nodiscard]] SlavingLockStatus lockStatus() const;
+
+    /// @brief Checks whether the gimbal boresight is currently locked on the target.
+    [[nodiscard]] bool isTargetLocked() const;
+
+    /// @brief Subscribes to target lock state changes.
+    std::size_t addTargetLockCallback(TargetLockCallback cb);
+
+    /// @brief Unsubscribes a target lock callback.
+    void removeTargetLockCallback(std::size_t id);
+
     /// @brief Executes a single update cycle (dead reckoning, timeout check, GeoLock update).
     void update();
 
@@ -266,6 +297,11 @@ private:
     };
     std::shared_ptr<const std::vector<std::pair<std::size_t, EmergencySlewCallback>>> m_emergencySlewCallbacks {
         std::make_shared<std::vector<std::pair<std::size_t, EmergencySlewCallback>>>()
+    };
+    double m_lockToleranceDeg { 1.5 };
+    bool m_wasLocked { false };
+    std::shared_ptr<const std::vector<std::pair<std::size_t, TargetLockCallback>>> m_lockCallbacks {
+        std::make_shared<std::vector<std::pair<std::size_t, TargetLockCallback>>>()
     };
 };
 

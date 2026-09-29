@@ -192,16 +192,19 @@ stateDiagram-v2
   4. Implemented rate-limited zoom velocity profiler, range/zoom deadband hysteresis filtering, and one-push autofocus trigger on convergence.
   5. Integrated asynchronous zoom convergence monitoring into [SlewToCueDirector](../libs/PayloadHal/SlewToCueDirector.h) ensuring line-of-sight stabilization before video tracker handover.
 
-### Phase 3: Slew-to-Cue Director & Optical Tracker Handover
+### Phase 3: Slew-to-Cue Director & Optical Tracker Handover (Completed)
 * **Files**:
-  * New: [SlewToCueDirector.h](../libs/PayloadHal/SlewToCueDirector.h) & [SlewToCueDirector.cpp](../libs/PayloadHal/SlewToCueDirector.cpp)
-  * Updates: [NmeaSlavingBridge.h](../libs/PayloadHal/NmeaSlavingBridge.h) (expose cue hooks and lock-status queries)
-  * New: [TestSlewToCueDirector.cpp](../libs/PayloadHal/tests/TestSlewToCueDirector.cpp)
-* **Tasks**:
-  1. Implement the autonomous state machine (`SlewToCueDirector`).
-  2. Wire candidate selection to [NmeaSlavingBridge::slaveToRadarTarget](../libs/PayloadHal/NmeaSlavingBridge.h#L93) and [slaveToAisVessel](../libs/PayloadHal/NmeaSlavingBridge.h#L98).
-  3. Connect handoff trigger to [PayloadAutoTrackerBridge::engage](../libs/PayloadHal/PayloadAutoTrackerBridge.h#L92) upon spatial convergence.
-  4. Implement dwell timer (e.g. inspect target for 15 seconds) and resume previous mode ([TourEngine](../libs/PayloadHal/TourEngine.h) or stationary watch).
+  * [SlewToCueDirector.h](../libs/PayloadHal/SlewToCueDirector.h) & [SlewToCueDirector.cpp](../libs/PayloadHal/SlewToCueDirector.cpp)
+  * Updates: [NmeaSlavingBridge.h](../libs/PayloadHal/NmeaSlavingBridge.h) & [NmeaSlavingBridge.cpp](../libs/PayloadHal/NmeaSlavingBridge.cpp) (boresight lock tolerance, lock query, and `TargetLockCallback` notifications)
+  * Updates: [TargetThreatEvaluator.h](../libs/PayloadHal/TargetThreatEvaluator.h) & [TargetThreatEvaluator.cpp](../libs/PayloadHal/TargetThreatEvaluator.cpp) (target inspection cooldown management, `InspectedTargetRecord`, `getNextUninspectedCandidate`)
+  * Tests: [TestSlewToCueDirector.cpp](../libs/PayloadHal/tests/TestSlewToCueDirector.cpp), [TestNmeaSlavingBridge.cpp](../libs/PayloadHal/tests/TestNmeaSlavingBridge.cpp), [TestTargetThreatEvaluator.cpp](../libs/PayloadHal/tests/TestTargetThreatEvaluator.cpp)
+* **Delivered Capabilities**:
+  1. Implemented the complete autonomous lifecycle state machine (`SlewToCueDirector`), covering `Idle`, `SlewingToTarget`, `FramingTarget`, `AcquiringOpticalLock`, `OpticalTracking`, `GeodeticTrackingFallback`, `DwellInspection`, and `TargetCompleted`.
+  2. Integrated boresight lock detection with configurable angular tolerance (`setLockToleranceDeg`) and state change callbacks in `NmeaSlavingBridge`.
+  3. Integrated target dwell cooldown tracking (`markTargetInspected`, `isTargetInCooldown`, `cleanupExpiredCooldowns`, `getNextUninspectedCandidate`) in `TargetThreatEvaluator` to prevent inspection loops.
+  4. Wired background patrol interlock with [TourEngine](../libs/PayloadHal/TourEngine.h): active patrols automatically pause on target cueing and resume once the candidate queue is exhausted.
+  5. Implemented geodetic fallback resilience: if visual lock fails or drops during dwell, the director seamlessly transitions to geodetic coasting on SOG/COG without aborting inspection.
+  6. Added manual inspection controls (`extendDwell`, `pause`, `resume`, `dismissActiveTarget`).
 
 ### Phase 4: Dynamic Attitude Stabilization Integration
 * **Files**:

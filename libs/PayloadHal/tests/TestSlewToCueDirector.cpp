@@ -1,11 +1,13 @@
 #include "AutoFramingController.h"
 #include "GeoLockController.h"
+#include "LocalPresetManager.h"
 #include "Nmea/NmeaChecksum.h"
 #include "Nmea/NmeaDevice.h"
 #include "NmeaSlavingBridge.h"
 #include "PayloadAutoTrackerBridge.h"
 #include "SlewToCueDirector.h"
 #include "TargetThreatEvaluator.h"
+#include "TourEngine.h"
 #include "Transport/BaseTransport.h"
 #include "sim/SimulatedPayload.h"
 
@@ -284,6 +286,207 @@ namespace {
         director->update();
         EXPECT_EQ(director->status().state, CueingState::AcquiringOpticalLock);
         EXPECT_TRUE(autoTracker->isEngaged());
+    }
+
+    TEST(TestSlewToCueDirector, TourEngineInterlockSuspensionAndResumption)
+    {
+        auto payload = std::make_shared<SimulatedPayload>();
+        ASSERT_TRUE(payload->connect());
+
+        auto ptu = payload->panTilt();
+        auto camera = payload->primaryCamera();
+        auto presetMgr = std::make_shared<LocalPresetManager>(ptu, camera);
+
+        PtzPreset p1 {};
+        p1.id = 1;
+        p1.panAngleDeg = 10.0;
+        p1.tiltAngleDeg = -5.0;
+        presetMgr->savePreset(p1);
+
+        PtzPreset p2 {};
+        p2.id = 2;
+        p2.panAngleDeg = 20.0;
+        p2.tiltAngleDeg = -10.0;
+        presetMgr->savePreset(p2);
+
+        auto tourEngine = std::make_shared<TourEngine>(ptu, camera, presetMgr);
+        TourDefinition tour {};
+        tour.tourId = "guard_route";
+        tour.name = "Guard Route";
+        tour.loop = true;
+        tour.waypoints = {
+            { 1, std::chrono::milliseconds(500), 1.0f },
+            { 2, std::chrono::milliseconds(500), 1.0f }
+        };
+        ASSERT_TRUE(tourEngine->registerTour(tour));
+        ASSERT_TRUE(tourEngine->startTour("guard_route"));
+        EXPECT_NE(tourEngine->status().state, TourState::Idle);
+
+        auto geoLock = std::make_shared<GeoLockController>(payload);
+        auto transport = std::make_shared<MockTransport>();
+        auto nmeaDevice = std::make_shared<Nmea::NmeaDevice>(transport);
+        ASSERT_TRUE(nmeaDevice->start());
+
+        auto slavingBridge = std::make_shared<NmeaSlavingBridge>(nmeaDevice, geoLock);
+        auto threatEvaluator = std::make_shared<TargetThreatEvaluator>();
+
+        SlewToCueConfig cfg;
+        cfg.autonomousEngagement = true;
+        cfg.minThreatScoreToCue = 30.0;
+        cfg.inspectionDwellDuration = std::chrono::milliseconds(50);
+
+        auto director = std::make_shared<SlewToCueDirector>(
+            threatEvaluator, slavingBridge, nullptr, nullptr, camera, geoLock, tourEngine, cfg);
+
+        EXPECT_FALSE(director->isTourSuspended());
+
+        // Inject own-ship position
+        const std::string gga
+            = Nmea::NmeaChecksum::frameSentence("GPGGA,120000,3700.000,N,12200.000,W,1,08,1.0,0.0,M,0.0,M,,");
+        const std::string hdt = Nmea::NmeaChecksum::frameSentence("HEHDT,000.0,T");
+        transport->injectString(gga);
+        transport->injectString(hdt);
+
+        // Inject high threat radar contact
+        const std::string ttm
+            = Nmea::NmeaChecksum::frameSentence("RATTM,31,0.8,010.0,T,25.0,190.0,T,0.0,2.0,K,FAST_INTRUDER,T,,120000,A");
+        transport->injectString(ttm);
+
+        threatEvaluator->evaluate(
+            nmeaDevice->navSnapshot(), nmeaDevice->activeRadarTargets(), nmeaDevice->activeAisTargets());
+
+        // Autonomous cueing triggers -> tour must be suspended
+        director->update();
+        EXPECT_TRUE(director->isCueingActive());
+        EXPECT_TRUE(director->isTourSuspended());
+        EXPECT_TRUE(director->status().isTourSuspended);
+        EXPECT_EQ(tourEngine->status().state, TourState::Paused);
+
+        // Dismiss target to finish inspection
+        director->dismissActiveTarget();
+        EXPECT_EQ(director->status().state, CueingState::TargetCompleted);
+
+        // Update advances completed target -> tour must be resumed!
+        director->update();
+        EXPECT_EQ(director->status().state, CueingState::Idle);
+        EXPECT_FALSE(director->isTourSuspended());
+        EXPECT_NE(tourEngine->status().state, TourState::Paused);
+
+        tourEngine->stopTour();
+    }
+
+    TEST(TestSlewToCueDirector, GeodeticTrackingFallbackResilience)
+    {
+        auto payload = std::make_shared<SimulatedPayload>();
+        ASSERT_TRUE(payload->connect());
+
+        auto geoLock = std::make_shared<GeoLockController>(payload);
+        auto transport = std::make_shared<MockTransport>();
+        auto nmeaDevice = std::make_shared<Nmea::NmeaDevice>(transport);
+        ASSERT_TRUE(nmeaDevice->start());
+
+        auto slavingBridge = std::make_shared<NmeaSlavingBridge>(nmeaDevice, geoLock);
+        auto threatEvaluator = std::make_shared<TargetThreatEvaluator>();
+        auto autoTracker = std::make_shared<PayloadAutoTrackerBridge>(payload);
+        auto camera = payload->primaryCamera();
+
+        SlewToCueConfig cfg;
+        cfg.autonomousEngagement = false;
+        cfg.autoOpticalHandover = true;
+        cfg.opticalAcquisitionTimeout = std::chrono::milliseconds(20);
+        cfg.inspectionDwellDuration = std::chrono::milliseconds(50);
+
+        auto director = std::make_shared<SlewToCueDirector>(
+            threatEvaluator, slavingBridge, nullptr, autoTracker, camera, geoLock, cfg);
+
+        // Inject own ship
+        const std::string gga
+            = Nmea::NmeaChecksum::frameSentence("GPGGA,120000,3700.000,N,12200.000,W,1,08,1.0,0.0,M,0.0,M,,");
+        transport->injectString(gga);
+
+        // Manual cue radar target
+        ASSERT_TRUE(director->cueRadarTarget(5));
+        EXPECT_EQ(director->status().state, CueingState::SlewingToTarget);
+
+        // Step to FramingTarget
+        director->update();
+        EXPECT_EQ(director->status().state, CueingState::FramingTarget);
+
+        // Step to AcquiringOpticalLock
+        director->update();
+        EXPECT_EQ(director->status().state, CueingState::AcquiringOpticalLock);
+
+        // Tracker does not lock; sleep exceeding timeout
+        std::this_thread::sleep_for(std::chrono::milliseconds(30));
+
+        // Update transitions via GeodeticTrackingFallback into DwellInspection
+        director->update();
+        EXPECT_EQ(director->status().state, CueingState::DwellInspection);
+        EXPECT_TRUE(director->isGeodeticFallback());
+        EXPECT_TRUE(director->status().isGeodeticFallback);
+
+        // Wait for dwell completion
+        std::this_thread::sleep_for(std::chrono::milliseconds(70));
+        director->update(); // TargetCompleted
+        director->update(); // Idle
+
+        EXPECT_EQ(director->status().state, CueingState::Idle);
+        EXPECT_FALSE(director->isGeodeticFallback());
+    }
+
+    TEST(TestSlewToCueDirector, DwellExtensionAndPauseResume)
+    {
+        auto payload = std::make_shared<SimulatedPayload>();
+        ASSERT_TRUE(payload->connect());
+
+        auto geoLock = std::make_shared<GeoLockController>(payload);
+        auto transport = std::make_shared<MockTransport>();
+        auto nmeaDevice = std::make_shared<Nmea::NmeaDevice>(transport);
+        ASSERT_TRUE(nmeaDevice->start());
+
+        auto slavingBridge = std::make_shared<NmeaSlavingBridge>(nmeaDevice, geoLock);
+        auto threatEvaluator = std::make_shared<TargetThreatEvaluator>();
+        auto camera = payload->primaryCamera();
+
+        SlewToCueConfig cfg;
+        cfg.autonomousEngagement = false;
+        cfg.autoOpticalHandover = false;
+        cfg.inspectionDwellDuration = std::chrono::milliseconds(100);
+
+        auto director = std::make_shared<SlewToCueDirector>(
+            threatEvaluator, slavingBridge, nullptr, nullptr, camera, geoLock, cfg);
+
+        // Inject own-ship position
+        const std::string gga
+            = Nmea::NmeaChecksum::frameSentence("GPGGA,120000,3700.000,N,12200.000,W,1,08,1.0,0.0,M,0.0,M,,");
+        transport->injectString(gga);
+
+        ASSERT_TRUE(director->cueRadarTarget(7));
+        director->update(); // FramingTarget
+        director->update(); // DwellInspection
+
+        EXPECT_EQ(director->status().state, CueingState::DwellInspection);
+        const auto remainingInitial = director->status().dwellRemaining;
+
+        // Extend dwell by 200ms
+        director->extendDwell(std::chrono::milliseconds(200));
+        const auto remainingExtended = director->status().dwellRemaining;
+        EXPECT_GE(remainingExtended.count(), remainingInitial.count() + 150);
+
+        // Test Pause and Resume
+        EXPECT_FALSE(director->isPaused());
+        director->pause();
+        EXPECT_TRUE(director->isPaused());
+        EXPECT_TRUE(director->status().isPaused);
+
+        // During pause, updates must not progress or change state
+        std::this_thread::sleep_for(std::chrono::milliseconds(30));
+        director->update();
+        EXPECT_EQ(director->status().state, CueingState::DwellInspection);
+
+        director->resume();
+        EXPECT_FALSE(director->isPaused());
+        EXPECT_FALSE(director->status().isPaused);
     }
 
 } // namespace

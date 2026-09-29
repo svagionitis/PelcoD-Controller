@@ -8,13 +8,25 @@ SlewToCueDirector::SlewToCueDirector(std::shared_ptr<TargetThreatEvaluator> thre
     std::shared_ptr<NmeaSlavingBridge> slavingBridge, std::shared_ptr<AutoFramingController> autoFraming,
     std::shared_ptr<PayloadAutoTrackerBridge> autoTracker, std::shared_ptr<ICameraPayload> camera,
     std::shared_ptr<GeoLockController> geoLock, const SlewToCueConfig& config)
+    : SlewToCueDirector(std::move(threatEvaluator), std::move(slavingBridge), std::move(autoFraming),
+          std::move(autoTracker), std::move(camera), std::move(geoLock), nullptr, config)
+{
+}
+
+SlewToCueDirector::SlewToCueDirector(std::shared_ptr<TargetThreatEvaluator> threatEvaluator,
+    std::shared_ptr<NmeaSlavingBridge> slavingBridge, std::shared_ptr<AutoFramingController> autoFraming,
+    std::shared_ptr<PayloadAutoTrackerBridge> autoTracker, std::shared_ptr<ICameraPayload> camera,
+    std::shared_ptr<GeoLockController> geoLock, std::shared_ptr<TourEngine> tourEngine,
+    const SlewToCueConfig& config)
     : m_threatEvaluator(std::move(threatEvaluator))
     , m_slavingBridge(std::move(slavingBridge))
     , m_autoFraming(std::move(autoFraming))
     , m_autoTracker(std::move(autoTracker))
     , m_camera(std::move(camera))
     , m_geoLock(std::move(geoLock))
+    , m_tourEngine(std::move(tourEngine))
     , m_config(config)
+    , m_activeDwellDuration(config.inspectionDwellDuration)
     , m_stateEntryTime(std::chrono::steady_clock::now())
 {
 }
@@ -28,12 +40,70 @@ void SlewToCueDirector::setConfig(const SlewToCueConfig& config)
 {
     std::lock_guard<std::recursive_mutex> lock(m_mutex);
     m_config = config;
+    m_activeDwellDuration = config.inspectionDwellDuration;
 }
 
 SlewToCueConfig SlewToCueDirector::config() const
 {
     std::lock_guard<std::recursive_mutex> lock(m_mutex);
     return m_config;
+}
+
+void SlewToCueDirector::setTourEngine(std::shared_ptr<TourEngine> tourEngine)
+{
+    std::lock_guard<std::recursive_mutex> lock(m_mutex);
+    m_tourEngine = std::move(tourEngine);
+}
+
+std::shared_ptr<TourEngine> SlewToCueDirector::tourEngine() const
+{
+    std::lock_guard<std::recursive_mutex> lock(m_mutex);
+    return m_tourEngine;
+}
+
+bool SlewToCueDirector::isTourSuspended() const noexcept
+{
+    std::lock_guard<std::recursive_mutex> lock(m_mutex);
+    return m_wasTourRunning;
+}
+
+bool SlewToCueDirector::isGeodeticFallback() const noexcept
+{
+    std::lock_guard<std::recursive_mutex> lock(m_mutex);
+    return m_state == CueingState::GeodeticTrackingFallback || m_isGeodeticFallbackActive;
+}
+
+void SlewToCueDirector::extendDwell(std::chrono::milliseconds duration)
+{
+    std::lock_guard<std::recursive_mutex> lock(m_mutex);
+    m_activeDwellDuration += duration;
+}
+
+void SlewToCueDirector::pause()
+{
+    std::lock_guard<std::recursive_mutex> lock(m_mutex);
+    if (!m_isPaused) {
+        m_isPaused = true;
+        m_pauseStartTime = std::chrono::steady_clock::now();
+    }
+}
+
+void SlewToCueDirector::resume()
+{
+    std::lock_guard<std::recursive_mutex> lock(m_mutex);
+    if (m_isPaused) {
+        m_isPaused = false;
+        const auto pauseDuration = std::chrono::duration_cast<std::chrono::milliseconds>(
+            std::chrono::steady_clock::now() - m_pauseStartTime);
+        m_dwellStartTime += pauseDuration;
+        m_stateEntryTime += pauseDuration;
+    }
+}
+
+bool SlewToCueDirector::isPaused() const noexcept
+{
+    std::lock_guard<std::recursive_mutex> lock(m_mutex);
+    return m_isPaused;
 }
 
 void SlewToCueDirector::setStateChangeCallback(StateChangeCallback cb)
@@ -72,6 +142,15 @@ bool SlewToCueDirector::cueTarget(const EvaluatedTarget& target)
 {
     std::lock_guard<std::recursive_mutex> lock(m_mutex);
 
+    // If background tour is running, pause it and record suspension
+    if (m_tourEngine) {
+        const auto tourSt = m_tourEngine->status();
+        if (tourSt.state != TourState::Idle && tourSt.state != TourState::Paused) {
+            m_tourEngine->pauseTour();
+            m_wasTourRunning = true;
+        }
+    }
+
     m_activeTargetId = target.targetId;
     m_activeTargetSource = target.source;
     m_activeTargetName = target.targetName;
@@ -81,6 +160,8 @@ bool SlewToCueDirector::cueTarget(const EvaluatedTarget& target)
     m_activeTargetBeamMeters = 6.0;
     m_activeTargetHeightMeters = 4.0;
     m_activeTargetCogDeg = target.cogDegrees;
+    m_isGeodeticFallbackActive = false;
+    m_activeDwellDuration = m_config.inspectionDwellDuration;
 
     if (m_autoFraming) {
         Nmea::AisDimensions dims {};
@@ -123,11 +204,21 @@ bool SlewToCueDirector::cueRadarTarget(std::uint32_t targetId)
     }
 
     std::lock_guard<std::recursive_mutex> lock(m_mutex);
+    if (m_tourEngine) {
+        const auto tourSt = m_tourEngine->status();
+        if (tourSt.state != TourState::Idle && tourSt.state != TourState::Paused) {
+            m_tourEngine->pauseTour();
+            m_wasTourRunning = true;
+        }
+    }
+
     m_activeTargetId = targetId;
     m_activeTargetSource = TargetTrackSource::RadarArpa;
     m_activeTargetName = "RADAR_" + std::to_string(targetId);
     m_activeThreatScore = 50.0;
     m_isEmergencyTarget = false;
+    m_isGeodeticFallbackActive = false;
+    m_activeDwellDuration = m_config.inspectionDwellDuration;
 
     if (m_slavingBridge && m_slavingBridge->slaveToRadarTarget(targetId)) {
         transitionTo(CueingState::SlewingToTarget);
@@ -146,17 +237,68 @@ bool SlewToCueDirector::cueAisTarget(std::uint32_t mmsi)
     }
 
     std::lock_guard<std::recursive_mutex> lock(m_mutex);
+    if (m_tourEngine) {
+        const auto tourSt = m_tourEngine->status();
+        if (tourSt.state != TourState::Idle && tourSt.state != TourState::Paused) {
+            m_tourEngine->pauseTour();
+            m_wasTourRunning = true;
+        }
+    }
+
     m_activeTargetId = mmsi;
     m_activeTargetSource = TargetTrackSource::Ais;
     m_activeTargetName = "MMSI_" + std::to_string(mmsi);
     m_activeThreatScore = 50.0;
     m_isEmergencyTarget = false;
+    m_isGeodeticFallbackActive = false;
+    m_activeDwellDuration = m_config.inspectionDwellDuration;
 
     if (m_slavingBridge && m_slavingBridge->slaveToAisVessel(mmsi)) {
         transitionTo(CueingState::SlewingToTarget);
         return true;
     }
     return false;
+}
+
+void SlewToCueDirector::handleTargetFinished()
+{
+    // 1. Mark target inspected to enforce dwell cooldown
+    if (m_threatEvaluator && m_activeTargetId != 0U) {
+        m_threatEvaluator->markTargetInspected(
+            m_activeTargetId, m_activeTargetSource, m_config.targetCooldownDuration);
+    }
+
+    // 2. Disengage optical tracker
+    if (m_autoTracker && m_autoTracker->isEngaged()) {
+        m_autoTracker->disengage();
+    }
+
+    // 3. Reset active target properties
+    m_activeTargetId = 0U;
+    m_activeTargetSource = TargetTrackSource::None;
+    m_activeTargetName.clear();
+    m_activeThreatScore = 0.0;
+    m_isEmergencyTarget = false;
+    m_isGeodeticFallbackActive = false;
+
+    // 4. Query next uninspected candidate from evaluator
+    std::optional<EvaluatedTarget> nextCandidate { std::nullopt };
+    if (m_config.autonomousEngagement && m_threatEvaluator) {
+        nextCandidate = m_threatEvaluator->getNextUninspectedCandidate(m_config.minThreatScoreToCue);
+    }
+
+    if (nextCandidate.has_value()) {
+        (void)cueTarget(*nextCandidate);
+    } else {
+        if (m_slavingBridge) {
+            m_slavingBridge->disengage();
+        }
+        if (m_wasTourRunning && m_tourEngine) {
+            m_tourEngine->resumeTour();
+            m_wasTourRunning = false;
+        }
+        transitionTo(CueingState::Idle);
+    }
 }
 
 void SlewToCueDirector::dismissActiveTarget()
@@ -177,11 +319,16 @@ void SlewToCueDirector::disengage()
     if (m_slavingBridge) {
         m_slavingBridge->disengage();
     }
+    if (m_wasTourRunning && m_tourEngine) {
+        m_tourEngine->resumeTour();
+        m_wasTourRunning = false;
+    }
     m_activeTargetId = 0U;
     m_activeTargetSource = TargetTrackSource::None;
     m_activeTargetName.clear();
     m_activeThreatScore = 0.0;
     m_isEmergencyTarget = false;
+    m_isGeodeticFallbackActive = false;
     transitionTo(CueingState::Idle);
 }
 
@@ -228,6 +375,9 @@ void SlewToCueDirector::executeAutoFraming(double rangeMeters, double targetLeng
 void SlewToCueDirector::update()
 {
     std::unique_lock<std::recursive_mutex> lock(m_mutex);
+    if (m_isPaused) {
+        return;
+    }
     const auto now = std::chrono::steady_clock::now();
 
     // 1. Check for autonomous threat pre-emption
@@ -259,7 +409,7 @@ void SlewToCueDirector::update()
     switch (m_state) {
     case CueingState::Idle: {
         if (m_config.autonomousEngagement && m_threatEvaluator) {
-            const auto candidateOpt = m_threatEvaluator->getHighestThreatTarget();
+            const auto candidateOpt = m_threatEvaluator->getNextUninspectedCandidate(m_config.minThreatScoreToCue);
             if (candidateOpt.has_value()) {
                 const auto& cand = *candidateOpt;
                 if (cand.threatScore >= m_config.minThreatScoreToCue || cand.threatLevel == ThreatLevel::Critical
@@ -335,40 +485,50 @@ void SlewToCueDirector::update()
         if (m_autoTracker && m_autoTracker->isEngaged()) {
             const auto trkStatus = m_autoTracker->status();
             if (trkStatus.trackingState == Tracking::PtzAutoTracker::TrackingState::Tracking) {
+                m_isGeodeticFallbackActive = false;
+                transitionTo(CueingState::OpticalTracking);
                 transitionTo(CueingState::DwellInspection);
                 break;
             }
         }
 
         if (elapsed >= m_config.opticalAcquisitionTimeout) {
-            // Visual tracker failed to acquire; fallback to geodetic slaving and proceed with dwell
+            // Visual tracker failed to acquire; fallback to geodetic slaving and dwell
+            m_isGeodeticFallbackActive = true;
+            transitionTo(CueingState::GeodeticTrackingFallback);
             transitionTo(CueingState::DwellInspection);
         }
         break;
     }
 
-    case CueingState::OpticalTracking:
     case CueingState::GeodeticTrackingFallback: {
+        m_isGeodeticFallbackActive = true;
+        transitionTo(CueingState::DwellInspection);
+        break;
+    }
+
+    case CueingState::OpticalTracking: {
         transitionTo(CueingState::DwellInspection);
         break;
     }
 
     case CueingState::DwellInspection: {
+        // If tracker lost visual lock during dwell, seamlessly fall back to geodetic coasting
+        if (m_autoTracker && m_autoTracker->isEngaged()) {
+            if (m_autoTracker->status().trackingState != Tracking::PtzAutoTracker::TrackingState::Tracking) {
+                m_isGeodeticFallbackActive = true;
+            }
+        }
+
         const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - m_dwellStartTime);
-        if (elapsed >= m_config.inspectionDwellDuration) {
-            dismissActiveTarget();
+        if (elapsed >= m_activeDwellDuration) {
+            transitionTo(CueingState::TargetCompleted);
         }
         break;
     }
 
     case CueingState::TargetCompleted: {
-        // Reset active target and return to Idle
-        m_activeTargetId = 0U;
-        m_activeTargetSource = TargetTrackSource::None;
-        m_activeTargetName.clear();
-        m_activeThreatScore = 0.0;
-        m_isEmergencyTarget = false;
-        transitionTo(CueingState::Idle);
+        handleTargetFinished();
         break;
     }
     }
@@ -392,6 +552,9 @@ SlewToCueStatus SlewToCueDirector::status() const
     st.activeTargetName = m_activeTargetName;
     st.activeThreatScore = m_activeThreatScore;
     st.isEmergencyTarget = m_isEmergencyTarget;
+    st.isTourSuspended = m_wasTourRunning;
+    st.isGeodeticFallback = (m_state == CueingState::GeodeticTrackingFallback || m_isGeodeticFallbackActive);
+    st.isPaused = m_isPaused;
 
     if (m_slavingBridge) {
         const auto slavingSt = m_slavingBridge->status();
@@ -411,8 +574,8 @@ SlewToCueStatus SlewToCueDirector::status() const
     const auto now = std::chrono::steady_clock::now();
     if (m_state == CueingState::DwellInspection) {
         st.dwellElapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - m_dwellStartTime);
-        if (st.dwellElapsed < m_config.inspectionDwellDuration) {
-            st.dwellRemaining = m_config.inspectionDwellDuration - st.dwellElapsed;
+        if (st.dwellElapsed < m_activeDwellDuration) {
+            st.dwellRemaining = m_activeDwellDuration - st.dwellElapsed;
         } else {
             st.dwellRemaining = std::chrono::milliseconds(0);
         }

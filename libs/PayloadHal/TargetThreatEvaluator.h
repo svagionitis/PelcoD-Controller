@@ -80,6 +80,15 @@ struct EvaluatedTarget {
     std::chrono::steady_clock::time_point lastUpdate {}; ///< Timestamp of latest telemetry update
 };
 
+/// @struct InspectedTargetRecord
+/// @brief Historical record of a target inspection to enforce dwell cooldowns.
+struct InspectedTargetRecord {
+    std::uint32_t targetId { 0U }; ///< Target identifier (radar track ID or AIS MMSI)
+    TargetTrackSource source { TargetTrackSource::None }; ///< Sensor source
+    std::chrono::steady_clock::time_point inspectedAt {}; ///< Timestamp when inspection completed
+    std::chrono::milliseconds cooldownDuration { 60000 }; ///< Duration before target can be re-cued
+};
+
 /// @class TargetThreatEvaluator
 /// @brief Analyzes marine targets from radar and AIS, calculates CPA/TCPA, correlates contacts, and ranks threats.
 /// @details Thread-safe engine that ingests navigation telemetry and outputs a prioritized candidate list
@@ -131,6 +140,35 @@ public:
     /// @return EvaluatedTarget struct if present, std::nullopt otherwise.
     [[nodiscard]] std::optional<EvaluatedTarget> getTarget(std::uint32_t targetId, TargetTrackSource source) const;
 
+    /// @brief Marks a target as recently inspected to prevent immediate re-cueing.
+    /// @param[in] targetId Target identifier (radar ID or AIS MMSI).
+    /// @param[in] source Target sensor source.
+    /// @param[in] cooldown Duration before target can be re-inspected.
+    void markTargetInspected(std::uint32_t targetId, TargetTrackSource source,
+        std::chrono::milliseconds cooldown = std::chrono::milliseconds(60000));
+
+    /// @brief Checks whether a target is currently within its inspection cooldown window.
+    /// @param[in] targetId Target identifier.
+    /// @param[in] source Sensor track source.
+    /// @param[in] now Current time point for cooldown evaluation.
+    /// @return True if target is in cooldown, false otherwise.
+    [[nodiscard]] bool isTargetInCooldown(std::uint32_t targetId, TargetTrackSource source,
+        std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now()) const;
+
+    /// @brief Retrieves the next highest-threat target that is not currently in cooldown.
+    /// @param[in] minScore Minimum threat score required for candidacy.
+    /// @param[in] now Current time point for cooldown evaluation.
+    /// @return Highest threat uninspected target, or std::nullopt if none qualify.
+    [[nodiscard]] std::optional<EvaluatedTarget> getNextUninspectedCandidate(double minScore = 30.0,
+        std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now()) const;
+
+    /// @brief Clears all target cooldown records.
+    void clearCooldownHistory();
+
+    /// @brief Removes expired records from cooldown history.
+    /// @param[in] now Current time point for evaluation.
+    void cleanupExpiredCooldowns(std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now());
+
     /// @brief Clears all cached evaluated targets.
     void clear();
 
@@ -162,6 +200,7 @@ private:
     mutable std::mutex m_mutex {};
     ThreatAssessmentConfig m_config {};
     std::vector<EvaluatedTarget> m_evaluatedTargets {};
+    std::vector<InspectedTargetRecord> m_inspectedTargets {};
     ThreatAlertCallback m_alertCallback {};
 };
 

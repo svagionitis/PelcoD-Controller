@@ -10,6 +10,7 @@
 #include "NmeaSlavingBridge.h"
 #include "PayloadAutoTrackerBridge.h"
 #include "TargetThreatEvaluator.h"
+#include "TourEngine.h"
 
 #include <atomic>
 #include <chrono>
@@ -50,6 +51,7 @@ struct SlewToCueConfig {
     double preemptionScoreDelta { 25.0 }; ///< Score delta required to pre-empt an active target
     bool waitForZoomConvergence { false }; ///< True to wait for zoom profiler convergence before tracker handover
     std::chrono::milliseconds maxFramingDuration { 4000 }; ///< Timeout waiting for zoom convergence
+    std::chrono::milliseconds targetCooldownDuration { 60000 }; ///< Cooldown before completed target can be re-cued
 };
 
 /// @struct SlewToCueStatus
@@ -65,6 +67,9 @@ struct SlewToCueStatus {
     double currentHfovDeg { 60.0 };
     bool isOpticalTrackerLocked { false };
     bool isEmergencyTarget { false };
+    bool isTourSuspended { false };
+    bool isGeodeticFallback { false };
+    bool isPaused { false };
     double activeThreatScore { 0.0 };
     std::chrono::milliseconds dwellElapsed { 0 };
     std::chrono::milliseconds dwellRemaining { 0 };
@@ -93,6 +98,22 @@ public:
         std::shared_ptr<ICameraPayload> camera = nullptr, std::shared_ptr<GeoLockController> geoLock = nullptr,
         const SlewToCueConfig& config = {});
 
+    /// @brief Constructs a SlewToCueDirector with TourEngine integration.
+    /// @param[in] threatEvaluator Shared pointer to TargetThreatEvaluator.
+    /// @param[in] slavingBridge Shared pointer to active NmeaSlavingBridge.
+    /// @param[in] autoFraming Shared pointer to AutoFramingController (optional).
+    /// @param[in] autoTracker Shared pointer to PayloadAutoTrackerBridge (optional).
+    /// @param[in] camera Shared pointer to ICameraPayload for optical zoom (optional).
+    /// @param[in] geoLock Shared pointer to GeoLockController (optional).
+    /// @param[in] tourEngine Shared pointer to TourEngine (optional).
+    /// @param[in] config Initial configuration parameters.
+    SlewToCueDirector(std::shared_ptr<TargetThreatEvaluator> threatEvaluator,
+        std::shared_ptr<NmeaSlavingBridge> slavingBridge, std::shared_ptr<AutoFramingController> autoFraming,
+        std::shared_ptr<PayloadAutoTrackerBridge> autoTracker,
+        std::shared_ptr<ICameraPayload> camera, std::shared_ptr<GeoLockController> geoLock,
+        std::shared_ptr<TourEngine> tourEngine,
+        const SlewToCueConfig& config = {});
+
     virtual ~SlewToCueDirector();
 
     // Non-copyable, non-movable
@@ -108,6 +129,36 @@ public:
     /// @brief Retrieves the active configuration.
     /// @return Current SlewToCueConfig snapshot.
     [[nodiscard]] SlewToCueConfig config() const;
+
+    /// @brief Sets the TourEngine instance for background patrol suspension and resumption.
+    /// @param[in] tourEngine Shared pointer to TourEngine.
+    void setTourEngine(std::shared_ptr<TourEngine> tourEngine);
+
+    /// @brief Retrieves the assigned TourEngine instance.
+    /// @return Shared pointer to TourEngine, or nullptr if none assigned.
+    [[nodiscard]] std::shared_ptr<TourEngine> tourEngine() const;
+
+    /// @brief Checks whether a background patrol tour was suspended and awaits resumption.
+    /// @return True if a tour is currently paused awaiting cue completion.
+    [[nodiscard]] bool isTourSuspended() const noexcept;
+
+    /// @brief Checks whether the system is actively operating in geodetic fallback mode.
+    /// @return True if tracking via geodetic coasting/slaving rather than optical lock.
+    [[nodiscard]] bool isGeodeticFallback() const noexcept;
+
+    /// @brief Extends the inspection dwell duration for the active target.
+    /// @param[in] duration Additional time to remain locked on the target.
+    void extendDwell(std::chrono::milliseconds duration);
+
+    /// @brief Temporarily pauses active cueing and dwell countdown.
+    void pause();
+
+    /// @brief Resumes paused cueing and dwell countdown.
+    void resume();
+
+    /// @brief Checks whether cueing operations are temporarily paused.
+    /// @return True if currently paused.
+    [[nodiscard]] bool isPaused() const noexcept;
 
     /// @brief Manually commands the director to slew to and track an evaluated target.
     /// @param[in] target Target evaluation record.
@@ -155,6 +206,7 @@ private:
     void transitionTo(CueingState newState);
     [[nodiscard]] bool checkGimbalConvergence() const noexcept;
     void executeAutoFraming(double rangeMeters, double targetLengthMeters);
+    void handleTargetFinished();
 
     std::shared_ptr<TargetThreatEvaluator> m_threatEvaluator;
     std::shared_ptr<NmeaSlavingBridge> m_slavingBridge;
@@ -162,6 +214,7 @@ private:
     std::shared_ptr<PayloadAutoTrackerBridge> m_autoTracker;
     std::shared_ptr<ICameraPayload> m_camera;
     std::shared_ptr<GeoLockController> m_geoLock;
+    std::shared_ptr<TourEngine> m_tourEngine { nullptr };
 
     mutable std::recursive_mutex m_mutex {};
     SlewToCueConfig m_config {};
@@ -176,6 +229,12 @@ private:
     double m_activeTargetCogDeg { 0.0 };
     double m_activeThreatScore { 0.0 };
     bool m_isEmergencyTarget { false };
+
+    bool m_wasTourRunning { false };
+    bool m_isGeodeticFallbackActive { false };
+    bool m_isPaused { false };
+    std::chrono::milliseconds m_activeDwellDuration { 15000 };
+    std::chrono::steady_clock::time_point m_pauseStartTime {};
 
     std::chrono::steady_clock::time_point m_stateEntryTime {};
     std::chrono::steady_clock::time_point m_dwellStartTime {};

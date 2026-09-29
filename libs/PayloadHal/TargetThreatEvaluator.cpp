@@ -375,4 +375,87 @@ std::optional<EvaluatedTarget> TargetThreatEvaluator::getTarget(std::uint32_t ta
     return std::nullopt;
 }
 
+void TargetThreatEvaluator::markTargetInspected(std::uint32_t targetId, TargetTrackSource source,
+    std::chrono::milliseconds cooldown)
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    const auto now = std::chrono::steady_clock::now();
+    for (auto& rec : m_inspectedTargets) {
+        if (rec.targetId == targetId && (source == TargetTrackSource::None || rec.source == TargetTrackSource::None || rec.source == source)) {
+            rec.inspectedAt = now;
+            rec.cooldownDuration = cooldown;
+            return;
+        }
+    }
+    m_inspectedTargets.push_back({ targetId, source, now, cooldown });
+}
+
+bool TargetThreatEvaluator::isTargetInCooldown(std::uint32_t targetId, TargetTrackSource source,
+    std::chrono::steady_clock::time_point now) const
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    for (const auto& rec : m_inspectedTargets) {
+        if (rec.targetId == targetId && (source == TargetTrackSource::None || rec.source == TargetTrackSource::None || rec.source == source)) {
+            const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - rec.inspectedAt);
+            if (elapsed < rec.cooldownDuration) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+std::optional<EvaluatedTarget> TargetThreatEvaluator::getNextUninspectedCandidate(double minScore,
+    std::chrono::steady_clock::time_point now) const
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    for (const auto& target : m_evaluatedTargets) {
+        if (target.threatScore < minScore) {
+            continue;
+        }
+        bool inCooldown = false;
+        for (const auto& rec : m_inspectedTargets) {
+            bool matches = false;
+            if (rec.targetId == target.targetId && (rec.source == TargetTrackSource::None || target.source == TargetTrackSource::None || rec.source == target.source)) {
+                matches = true;
+            } else if (target.associatedRadarId && rec.targetId == *target.associatedRadarId && (rec.source == TargetTrackSource::RadarArpa || rec.source == TargetTrackSource::None)) {
+                matches = true;
+            } else if (target.associatedAisMmsi && rec.targetId == *target.associatedAisMmsi && (rec.source == TargetTrackSource::Ais || rec.source == TargetTrackSource::None)) {
+                matches = true;
+            }
+
+            if (matches) {
+                const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - rec.inspectedAt);
+                if (elapsed < rec.cooldownDuration) {
+                    inCooldown = true;
+                    break;
+                }
+            }
+        }
+        if (!inCooldown) {
+            return target;
+        }
+    }
+    return std::nullopt;
+}
+
+void TargetThreatEvaluator::clearCooldownHistory()
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    m_inspectedTargets.clear();
+}
+
+void TargetThreatEvaluator::cleanupExpiredCooldowns(std::chrono::steady_clock::time_point now)
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    m_inspectedTargets.erase(
+        std::remove_if(m_inspectedTargets.begin(), m_inspectedTargets.end(),
+            [&now](const InspectedTargetRecord& rec) {
+                const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - rec.inspectedAt);
+                return elapsed >= rec.cooldownDuration;
+            }),
+        m_inspectedTargets.end());
+}
+
 } // namespace PayloadHal
+

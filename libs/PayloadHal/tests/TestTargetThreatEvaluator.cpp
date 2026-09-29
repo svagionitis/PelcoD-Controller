@@ -225,5 +225,76 @@ namespace {
         EXPECT_TRUE(alertFired);
     }
 
+    TEST(TestTargetThreatEvaluator, TargetInspectionCooldownAndQueueAdvancement)
+    {
+        TargetThreatEvaluator evaluator;
+
+        Nmea::NmeaNavSnapshot ownNav;
+        ownNav.hasPosition = true;
+        ownNav.position.latitudeDeg = 37.0;
+        ownNav.position.longitudeDeg = -122.0;
+
+        // Radar Target #1 (imminent collision, higher threat)
+        Nmea::TtmData radarTarget1;
+        radarTarget1.targetNumber = 10;
+        radarTarget1.targetDistanceNmi = 0.5;
+        radarTarget1.bearingDegrees = 0.0;
+        radarTarget1.bearingReference = Nmea::TtmReference::True;
+        radarTarget1.targetSpeedKnots = 20.0;
+        radarTarget1.targetCourseDegrees = 180.0;
+        radarTarget1.status = Nmea::TtmTargetStatus::Tracking;
+
+        // Radar Target #2 (crossing, lower threat)
+        Nmea::TtmData radarTarget2;
+        radarTarget2.targetNumber = 20;
+        radarTarget2.targetDistanceNmi = 1.5;
+        radarTarget2.bearingDegrees = 45.0;
+        radarTarget2.bearingReference = Nmea::TtmReference::True;
+        radarTarget2.targetSpeedKnots = 10.0;
+        radarTarget2.targetCourseDegrees = 270.0;
+        radarTarget2.status = Nmea::TtmTargetStatus::Tracking;
+
+        evaluator.evaluate(ownNav, { radarTarget1, radarTarget2 }, {});
+
+        const auto now = std::chrono::steady_clock::now();
+
+        // Initially Target #10 is highest candidate
+        auto cand1 = evaluator.getNextUninspectedCandidate(30.0, now);
+        ASSERT_TRUE(cand1.has_value());
+        EXPECT_EQ(cand1->targetId, 10U);
+
+        // Mark Target #10 as inspected with 60-second cooldown
+        evaluator.markTargetInspected(10U, TargetTrackSource::RadarArpa, std::chrono::milliseconds(60000));
+        EXPECT_TRUE(evaluator.isTargetInCooldown(10U, TargetTrackSource::RadarArpa, now));
+        EXPECT_FALSE(evaluator.isTargetInCooldown(20U, TargetTrackSource::RadarArpa, now));
+
+        // Next candidate must advance to Target #20
+        auto cand2 = evaluator.getNextUninspectedCandidate(30.0, now);
+        ASSERT_TRUE(cand2.has_value());
+        EXPECT_EQ(cand2->targetId, 20U);
+
+        // Mark Target #20 as inspected
+        evaluator.markTargetInspected(20U, TargetTrackSource::RadarArpa, std::chrono::milliseconds(60000));
+
+        // Queue exhausted for uninspected candidates
+        auto candNone = evaluator.getNextUninspectedCandidate(30.0, now);
+        EXPECT_FALSE(candNone.has_value());
+
+        // Fast forward 65 seconds into future
+        const auto futureTime = now + std::chrono::seconds(65);
+        EXPECT_FALSE(evaluator.isTargetInCooldown(10U, TargetTrackSource::RadarArpa, futureTime));
+        EXPECT_FALSE(evaluator.isTargetInCooldown(20U, TargetTrackSource::RadarArpa, futureTime));
+
+        // Target #10 becomes available again after cooldown
+        auto candReactivated = evaluator.getNextUninspectedCandidate(30.0, futureTime);
+        ASSERT_TRUE(candReactivated.has_value());
+        EXPECT_EQ(candReactivated->targetId, 10U);
+
+        // Cleanup expired cooldowns
+        evaluator.cleanupExpiredCooldowns(futureTime);
+        evaluator.clearCooldownHistory();
+        EXPECT_FALSE(evaluator.isTargetInCooldown(10U, TargetTrackSource::RadarArpa, now));
+    }
+
 } // namespace
 } // namespace PayloadHal
