@@ -194,6 +194,9 @@ public:
     /// @brief Builds an $--DBT sentence from depth below transducer.
     [[nodiscard]] static std::string buildDbt(const DbtData& data, std::string_view talkerId = "SD");
 
+    /// @brief Builds an $--RSA sentence from rudder sensor angle.
+    [[nodiscard]] static std::string buildRsa(const RsaData& data, std::string_view talkerId = "RA");
+
     /// @brief Builds an $--ALF alert sentence (IEC 62923 BAM).
     [[nodiscard]] static std::string buildAlf(const Bam::AlfData& data, std::string_view talkerId = "BN");
 

@@ -1498,6 +1498,39 @@ bool NmeaSentenceParser::parseDbt(std::string_view sentence, DbtData& outData, b
     return true;
 }
 
+bool NmeaSentenceParser::parseRsa(std::string_view sentence, RsaData& outData, bool verifyChecksum) noexcept
+{
+    outData = RsaData {};
+    if (verifyChecksum && !NmeaChecksum::validate(sentence)) {
+        return false;
+    }
+
+    std::vector<std::string_view> tokens {};
+    tokenize(sentence, tokens);
+
+    // Format: $--RSA,starboardAngle,starboardStatus,portAngle,portStatus
+    if (tokens.size() < 3U) {
+        return false;
+    }
+
+    if (parseDouble(tokens[1], outData.starboardRudderAngleDeg)) {
+        if (tokens.size() > 2U && !tokens[2].empty() && tokens[2][0] == 'A') {
+            outData.starboardValid = true;
+        }
+    }
+
+    if (tokens.size() >= 5U) {
+        if (parseDouble(tokens[3], outData.portRudderAngleDeg)) {
+            if (!tokens[4].empty() && tokens[4][0] == 'A') {
+                outData.portValid = true;
+            }
+        }
+    }
+
+    outData.valid = outData.starboardValid || outData.portValid;
+    return outData.valid;
+}
+
 bool NmeaSentenceParser::parseAlf(
     std::string_view sentence, Bam::AlfData& outData, bool verifyChecksum) noexcept
 {

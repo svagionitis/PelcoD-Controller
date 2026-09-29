@@ -288,6 +288,14 @@ public:
     [[nodiscard]] static bool parseDbt(
         std::string_view sentence, DbtData& outData, bool verifyChecksum = true) noexcept;
 
+    /// @brief Parses $--RSA Rudder Sensor Angle sentence.
+    /// @param[in] sentence Raw or tokenized sentence.
+    /// @param[out] outData Deserialized RsaData struct.
+    /// @param[in] verifyChecksum True to enforce checksum validation.
+    /// @return True if valid RSA sentence.
+    [[nodiscard]] static bool parseRsa(
+        std::string_view sentence, RsaData& outData, bool verifyChecksum = true) noexcept;
+
     /// @brief Parses $--ALF Alert sentence (IEC 62923 BAM).
     /// @param[in] sentence Raw or tokenized sentence.
     /// @param[out] outData Deserialized AlfData struct.

@@ -109,6 +109,9 @@ public:
     [[nodiscard]] std::optional<N2k::VesselHeading> lastHeading() const;
     [[nodiscard]] std::optional<N2k::Attitude> lastAttitude() const;
     [[nodiscard]] std::optional<N2k::WindData> lastWind() const;
+    [[nodiscard]] std::optional<N2k::RudderData> lastRudder() const;
+    [[nodiscard]] std::optional<N2k::MagneticVariation> lastMagVariation() const;
+    [[nodiscard]] std::optional<N2k::SystemTimeData> lastSystemTime() const;
 
     /// @brief Retrieves traffic and conversion statistics.
     [[nodiscard]] GatewayStats stats() const;
@@ -136,6 +139,9 @@ private:
     std::optional<N2k::VesselHeading> m_lastHeading {};
     std::optional<N2k::Attitude> m_lastAttitude {};
     std::optional<N2k::WindData> m_lastWind {};
+    std::optional<N2k::RudderData> m_lastRudder {};
+    std::optional<N2k::MagneticVariation> m_lastMagVariation {};
+    std::optional<N2k::SystemTimeData> m_lastSystemTime {};
 
     // Rate decimation tracking
     std::unordered_map<std::uint32_t, std::chrono::milliseconds> m_pgnIntervals {};

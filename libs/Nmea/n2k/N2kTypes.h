@@ -67,11 +67,18 @@ struct N2kHeader {
 
 /// @brief Common NMEA 2000 Parameter Group Numbers (PGNs).
 enum class Pgn : std::uint32_t {
+    IsoRequest = 59904U,
+    IsoAddressClaim = 60928U,
+    IsoCommandedAddress = 65240U,
+    TransmitReceivePgnList = 126464U,
     SystemTime = 126992U,
+    Heartbeat = 126993U,
     ProductInformation = 126996U,
+    Rudder = 127245U,
     VesselHeading = 127250U,
     RateOfTurn = 127251U,
     Attitude = 127257U,
+    MagneticVariation = 127258U,
     PositionRapidUpdate = 129025U,
     CogSogRapidUpdate = 129026U,
     GnssPositionData = 129029U,
@@ -176,6 +183,72 @@ struct WindData {
     WindReference reference { WindReference::Apparent };
     bool hasWindSpeed { false };
     bool hasWindAngle { false };
+};
+
+/// @brief Direction order requested for rudder motion.
+enum class RudderDirectionOrder : std::uint8_t {
+    NoOrder = 0U,
+    MoveToPort = 1U,
+    MoveToStarboard = 2U,
+    Unavailable = 7U
+};
+
+/// @brief PGN 127245: Rudder (8 bytes single frame).
+struct RudderData {
+    std::uint8_t instance { 0U };                      ///< Rudder instance (0..252)
+    RudderDirectionOrder directionOrder { RudderDirectionOrder::NoOrder };
+    double positionDegrees { 0.0 };                   ///< Current rudder angle (positive = starboard)
+    double angleOrderDegrees { 0.0 };                 ///< Commanded rudder angle
+    bool hasPosition { false };
+    bool hasAngleOrder { false };
+};
+
+/// @brief Source model used for magnetic variation calculation.
+enum class VariationSource : std::uint8_t {
+    Manual = 0U,
+    Chart = 1U,
+    Table = 2U,
+    Calculation = 3U,
+    WMM2000 = 4U,
+    WMM2005 = 5U,
+    WMM2010 = 6U,
+    WMM2015 = 7U,
+    WMM2020 = 8U,
+    Unavailable = 15U
+};
+
+/// @brief PGN 127258: Magnetic Variation (8 bytes single frame).
+struct MagneticVariation {
+    std::uint8_t sid { 0U };                          ///< Sequence ID
+    VariationSource source { VariationSource::Calculation };
+    std::uint16_t ageOfServiceDays { 0U };            ///< Days since 1970-01-01
+    double variationDegrees { 0.0 };                  ///< Positive = East, Negative = West
+    bool hasVariation { false };
+};
+
+/// @brief PGN 126992: System Time (8 bytes single frame).
+struct SystemTimeData {
+    std::uint8_t sid { 0U };                          ///< Sequence ID
+    std::uint8_t timeSource { 0U };                   ///< 0=GPS, 1=GLONASS, 2=Radio, 3=Local
+    std::uint16_t systemDateDays { 0U };              ///< Days since 1970-01-01
+    double secondsSinceMidnight { 0.0 };              ///< Seconds since midnight (100 us resolution)
+    bool hasDate { false };
+    bool hasTime { false };
+};
+
+/// @brief PGN 126993: Heartbeat (8 bytes single frame).
+struct HeartbeatData {
+    std::uint16_t transmitIntervalMs { 60000U };      ///< Transmit interval in milliseconds
+    std::uint8_t sequenceCounter { 0U };              ///< Sequence counter [0..255]
+    std::uint8_t controllerState { 0U };              ///< 0=OK, 1=Warning, 2=Error
+    std::uint8_t equipmentStatus { 0U };
+    bool valid { false };
+};
+
+/// @brief PGN 126464: Transmit / Receive PGN List (Fast Packet).
+struct PgnListData {
+    bool isTransmitList { false };                    ///< False = Receive list, True = Transmit list
+    std::vector<std::uint32_t> pgnList {};            ///< Array of 24-bit PGNs
 };
 
 /// @brief Reassembled NMEA 2000 message containing complete PGN payload.

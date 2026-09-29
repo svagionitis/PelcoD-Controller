@@ -323,4 +323,80 @@ std::vector<CanFrame> N2kEncoder::encodeAisClassBPosition(
     return N2kDecoder::splitFastPacket(hdr, payload.data(), payload.size(), seqCounter);
 }
 
+CanFrame N2kEncoder::encodeRudder(const RudderData& rudder, std::uint8_t srcAddr, std::uint8_t priority) noexcept
+{
+    N2kHeader hdr {};
+    hdr.priority = priority & 0x07U;
+    hdr.pgn = static_cast<std::uint32_t>(Pgn::Rudder);
+    hdr.sourceAddress = srcAddr;
+    hdr.destinationAddress = 0xFFU;
+
+    CanFrame frame {};
+    frame.id = hdr.toCanId();
+    frame.dlc = 8U;
+    const auto payload = N2kDecoder::encodePgn127245(rudder);
+    std::memcpy(frame.data.data(), payload.data(), 8U);
+    return frame;
+}
+
+CanFrame N2kEncoder::encodeMagneticVariation(const MagneticVariation& var, std::uint8_t srcAddr, std::uint8_t priority) noexcept
+{
+    N2kHeader hdr {};
+    hdr.priority = priority & 0x07U;
+    hdr.pgn = static_cast<std::uint32_t>(Pgn::MagneticVariation);
+    hdr.sourceAddress = srcAddr;
+    hdr.destinationAddress = 0xFFU;
+
+    CanFrame frame {};
+    frame.id = hdr.toCanId();
+    frame.dlc = 8U;
+    const auto payload = N2kDecoder::encodePgn127258(var);
+    std::memcpy(frame.data.data(), payload.data(), 8U);
+    return frame;
+}
+
+CanFrame N2kEncoder::encodeSystemTime(const SystemTimeData& time, std::uint8_t srcAddr, std::uint8_t priority) noexcept
+{
+    N2kHeader hdr {};
+    hdr.priority = priority & 0x07U;
+    hdr.pgn = static_cast<std::uint32_t>(Pgn::SystemTime);
+    hdr.sourceAddress = srcAddr;
+    hdr.destinationAddress = 0xFFU;
+
+    CanFrame frame {};
+    frame.id = hdr.toCanId();
+    frame.dlc = 8U;
+    const auto payload = N2kDecoder::encodePgn126992(time);
+    std::memcpy(frame.data.data(), payload.data(), 8U);
+    return frame;
+}
+
+CanFrame N2kEncoder::encodeHeartbeat(const HeartbeatData& hb, std::uint8_t srcAddr, std::uint8_t priority) noexcept
+{
+    N2kHeader hdr {};
+    hdr.priority = priority & 0x07U;
+    hdr.pgn = static_cast<std::uint32_t>(Pgn::Heartbeat);
+    hdr.sourceAddress = srcAddr;
+    hdr.destinationAddress = 0xFFU;
+
+    CanFrame frame {};
+    frame.id = hdr.toCanId();
+    frame.dlc = 8U;
+    const auto payload = N2kDecoder::encodePgn126993(hb);
+    std::memcpy(frame.data.data(), payload.data(), 8U);
+    return frame;
+}
+
+std::vector<CanFrame> N2kEncoder::encodePgnList(const PgnListData& list, std::uint8_t srcAddr, std::uint8_t seqCounter)
+{
+    N2kHeader hdr {};
+    hdr.priority = 6U;
+    hdr.pgn = static_cast<std::uint32_t>(Pgn::TransmitReceivePgnList);
+    hdr.sourceAddress = srcAddr;
+    hdr.destinationAddress = 0xFFU;
+
+    const auto payload = N2kDecoder::encodePgn126464(list);
+    return N2kDecoder::splitFastPacket(hdr, payload.data(), payload.size(), seqCounter);
+}
+
 } // namespace Nmea::N2k

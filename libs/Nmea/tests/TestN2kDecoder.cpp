@@ -200,4 +200,109 @@ TEST(TestN2kDecoder, SplitAndReassembleFastPacket)
     EXPECT_EQ(reassembled->payload, payload);
 }
 
+TEST(TestN2kDecoder, Pgn127245Rudder)
+{
+    RudderData in {};
+    in.instance = 0U;
+    in.directionOrder = RudderDirectionOrder::MoveToStarboard;
+    in.positionDegrees = 15.5;
+    in.angleOrderDegrees = 16.0;
+    in.hasPosition = true;
+    in.hasAngleOrder = true;
+
+    const auto encoded = N2kDecoder::encodePgn127245(in);
+    ASSERT_EQ(encoded.size(), 8U);
+
+    RudderData out {};
+    ASSERT_TRUE(N2kDecoder::parsePgn127245(encoded.data(), encoded.size(), out));
+    EXPECT_EQ(out.instance, 0U);
+    EXPECT_EQ(out.directionOrder, RudderDirectionOrder::MoveToStarboard);
+    EXPECT_TRUE(out.hasPosition);
+    EXPECT_TRUE(out.hasAngleOrder);
+    EXPECT_NEAR(out.positionDegrees, 15.5, 0.05);
+    EXPECT_NEAR(out.angleOrderDegrees, 16.0, 0.05);
+}
+
+TEST(TestN2kDecoder, Pgn127258MagneticVariation)
+{
+    MagneticVariation in {};
+    in.sid = 1U;
+    in.source = VariationSource::Calculation;
+    in.ageOfServiceDays = 1500U;
+    in.variationDegrees = -4.5; // 4.5 West
+    in.hasVariation = true;
+
+    const auto encoded = N2kDecoder::encodePgn127258(in);
+    ASSERT_EQ(encoded.size(), 8U);
+
+    MagneticVariation out {};
+    ASSERT_TRUE(N2kDecoder::parsePgn127258(encoded.data(), encoded.size(), out));
+    EXPECT_EQ(out.sid, 1U);
+    EXPECT_EQ(out.source, VariationSource::Calculation);
+    EXPECT_EQ(out.ageOfServiceDays, 1500U);
+    EXPECT_TRUE(out.hasVariation);
+    EXPECT_NEAR(out.variationDegrees, -4.5, 0.05);
+}
+
+TEST(TestN2kDecoder, Pgn126992SystemTime)
+{
+    SystemTimeData in {};
+    in.sid = 42U;
+    in.timeSource = 0U;
+    in.systemDateDays = 20350U;
+    in.secondsSinceMidnight = 43200.5; // 12:00:00.5
+    in.hasTime = true;
+    in.hasDate = true;
+
+    const auto encoded = N2kDecoder::encodePgn126992(in);
+    ASSERT_EQ(encoded.size(), 8U);
+
+    SystemTimeData out {};
+    ASSERT_TRUE(N2kDecoder::parsePgn126992(encoded.data(), encoded.size(), out));
+    EXPECT_EQ(out.sid, 42U);
+    EXPECT_EQ(out.timeSource, 0U);
+    EXPECT_TRUE(out.hasTime);
+    EXPECT_TRUE(out.hasDate);
+    EXPECT_EQ(out.systemDateDays, 20350U);
+    EXPECT_NEAR(out.secondsSinceMidnight, 43200.5, 0.01);
+}
+
+TEST(TestN2kDecoder, Pgn126993Heartbeat)
+{
+    HeartbeatData in {};
+    in.transmitIntervalMs = 1000U;
+    in.sequenceCounter = 55U;
+    in.equipmentStatus = 0U;
+    in.valid = true;
+
+    const auto encoded = N2kDecoder::encodePgn126993(in);
+    ASSERT_EQ(encoded.size(), 8U);
+
+    HeartbeatData out {};
+    ASSERT_TRUE(N2kDecoder::parsePgn126993(encoded.data(), encoded.size(), out));
+    EXPECT_EQ(out.transmitIntervalMs, 1000U);
+    EXPECT_EQ(out.sequenceCounter, 55U);
+    EXPECT_EQ(out.equipmentStatus, 0U);
+}
+
+TEST(TestN2kDecoder, Pgn126464PgnList)
+{
+    PgnListData in {};
+    in.isTransmitList = true;
+    in.pgnList = { 129025U, 129026U, 127250U, 127257U, 127245U };
+
+    const auto encoded = N2kDecoder::encodePgn126464(in);
+    ASSERT_EQ(encoded.size(), 1U + 5U * 3U);
+
+    PgnListData out {};
+    ASSERT_TRUE(N2kDecoder::parsePgn126464(encoded.data(), encoded.size(), out));
+    EXPECT_TRUE(out.isTransmitList);
+    ASSERT_EQ(out.pgnList.size(), 5U);
+    EXPECT_EQ(out.pgnList[0], 129025U);
+    EXPECT_EQ(out.pgnList[1], 129026U);
+    EXPECT_EQ(out.pgnList[2], 127250U);
+    EXPECT_EQ(out.pgnList[3], 127257U);
+    EXPECT_EQ(out.pgnList[4], 127245U);
+}
+
 } // namespace Nmea::N2k

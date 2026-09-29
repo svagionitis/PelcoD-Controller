@@ -12,7 +12,8 @@ namespace {
     }
 } // namespace
 
-N2kDevice::N2kDevice()
+N2kDevice::N2kDevice(std::uint64_t name, std::uint8_t preferredAddress)
+    : m_addressClaimer(name, preferredAddress)
 {
     m_posCallbacks = std::make_shared<std::vector<std::pair<std::size_t, PositionCallback>>>();
     m_cogSogCallbacks = std::make_shared<std::vector<std::pair<std::size_t, CogSogCallback>>>();
@@ -21,11 +22,16 @@ N2kDevice::N2kDevice()
     m_aisACallbacks = std::make_shared<std::vector<std::pair<std::size_t, AisClassACallback>>>();
     m_aisBCallbacks = std::make_shared<std::vector<std::pair<std::size_t, AisClassBCallback>>>();
     m_windCallbacks = std::make_shared<std::vector<std::pair<std::size_t, WindCallback>>>();
+    m_rudderCallbacks = std::make_shared<std::vector<std::pair<std::size_t, RudderCallback>>>();
+    m_magVarCallbacks = std::make_shared<std::vector<std::pair<std::size_t, MagVariationCallback>>>();
+    m_systemTimeCallbacks = std::make_shared<std::vector<std::pair<std::size_t, SystemTimeCallback>>>();
+    m_heartbeatCallbacks = std::make_shared<std::vector<std::pair<std::size_t, HeartbeatCallback>>>();
     m_pgnCallbacks = std::make_shared<std::vector<PgnSubscription>>();
 }
 
 void N2kDevice::onCanFrame(const CanFrame& frame)
 {
+    m_addressClaimer.processCanFrame(frame);
     auto maybeMsg = m_assembler.processCanFrame(frame);
     if (maybeMsg.has_value()) {
         onN2kMessage(*maybeMsg);
@@ -204,6 +210,78 @@ void N2kDevice::onN2kMessage(const N2kMessage& msg)
             }
             for (const auto& item : *subs) {
                 item.second(wind);
+            }
+        }
+        break;
+    }
+    case Pgn::Rudder: {
+        RudderData rudder {};
+        if (N2kDecoder::parsePgn127245(msg.payload.data(), msg.payload.size(), rudder)) {
+            {
+                std::lock_guard<std::mutex> lock(m_stateMutex);
+                m_latestRudder = rudder;
+            }
+            CallbackList<RudderCallback> subs;
+            {
+                std::lock_guard<std::mutex> lock(m_callbackMutex);
+                subs = m_rudderCallbacks;
+            }
+            for (const auto& item : *subs) {
+                item.second(rudder);
+            }
+        }
+        break;
+    }
+    case Pgn::MagneticVariation: {
+        MagneticVariation magVar {};
+        if (N2kDecoder::parsePgn127258(msg.payload.data(), msg.payload.size(), magVar)) {
+            {
+                std::lock_guard<std::mutex> lock(m_stateMutex);
+                m_latestMagVariation = magVar;
+            }
+            CallbackList<MagVariationCallback> subs;
+            {
+                std::lock_guard<std::mutex> lock(m_callbackMutex);
+                subs = m_magVarCallbacks;
+            }
+            for (const auto& item : *subs) {
+                item.second(magVar);
+            }
+        }
+        break;
+    }
+    case Pgn::SystemTime: {
+        SystemTimeData sysTime {};
+        if (N2kDecoder::parsePgn126992(msg.payload.data(), msg.payload.size(), sysTime)) {
+            {
+                std::lock_guard<std::mutex> lock(m_stateMutex);
+                m_latestSystemTime = sysTime;
+            }
+            CallbackList<SystemTimeCallback> subs;
+            {
+                std::lock_guard<std::mutex> lock(m_callbackMutex);
+                subs = m_systemTimeCallbacks;
+            }
+            for (const auto& item : *subs) {
+                item.second(sysTime);
+            }
+        }
+        break;
+    }
+    case Pgn::Heartbeat: {
+        HeartbeatData hb {};
+        if (N2kDecoder::parsePgn126993(msg.payload.data(), msg.payload.size(), hb)) {
+            {
+                std::lock_guard<std::mutex> lock(m_stateMutex);
+                m_latestHeartbeat = hb;
+            }
+            CallbackList<HeartbeatCallback> subs;
+            {
+                std::lock_guard<std::mutex> lock(m_callbackMutex);
+                subs = m_heartbeatCallbacks;
+            }
+            for (const auto& item : *subs) {
+                item.second(hb);
             }
         }
         break;
@@ -409,6 +487,70 @@ void N2kDevice::pruneAisTargets(std::chrono::seconds ttl)
             ++it;
         }
     }
+}
+
+std::size_t N2kDevice::addRudderCallback(RudderCallback cb)
+{
+    return registerCallback(m_rudderCallbacks, std::move(cb));
+}
+
+void N2kDevice::removeRudderCallback(std::size_t id)
+{
+    unregisterCallback(m_rudderCallbacks, id);
+}
+
+std::size_t N2kDevice::addMagVariationCallback(MagVariationCallback cb)
+{
+    return registerCallback(m_magVarCallbacks, std::move(cb));
+}
+
+void N2kDevice::removeMagVariationCallback(std::size_t id)
+{
+    unregisterCallback(m_magVarCallbacks, id);
+}
+
+std::size_t N2kDevice::addSystemTimeCallback(SystemTimeCallback cb)
+{
+    return registerCallback(m_systemTimeCallbacks, std::move(cb));
+}
+
+void N2kDevice::removeSystemTimeCallback(std::size_t id)
+{
+    unregisterCallback(m_systemTimeCallbacks, id);
+}
+
+std::size_t N2kDevice::addHeartbeatCallback(HeartbeatCallback cb)
+{
+    return registerCallback(m_heartbeatCallbacks, std::move(cb));
+}
+
+void N2kDevice::removeHeartbeatCallback(std::size_t id)
+{
+    unregisterCallback(m_heartbeatCallbacks, id);
+}
+
+std::optional<RudderData> N2kDevice::rudder() const
+{
+    std::lock_guard<std::mutex> lock(m_stateMutex);
+    return m_latestRudder;
+}
+
+std::optional<MagneticVariation> N2kDevice::magneticVariation() const
+{
+    std::lock_guard<std::mutex> lock(m_stateMutex);
+    return m_latestMagVariation;
+}
+
+std::optional<SystemTimeData> N2kDevice::systemTime() const
+{
+    std::lock_guard<std::mutex> lock(m_stateMutex);
+    return m_latestSystemTime;
+}
+
+std::optional<HeartbeatData> N2kDevice::heartbeat() const
+{
+    std::lock_guard<std::mutex> lock(m_stateMutex);
+    return m_latestHeartbeat;
 }
 
 } // namespace Nmea::N2k

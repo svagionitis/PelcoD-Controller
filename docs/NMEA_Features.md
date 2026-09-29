@@ -112,17 +112,102 @@ stateDiagram-v2
 ---
 
 ### 3. NMEA 2000 (N2K) / CAN Network Features
-*Expanding [N2kDevice](../libs/Nmea/n2k/N2kDevice.h), [N2kDecoder](../libs/Nmea/n2k/N2kDecoder.h), and [NmeaGateway](../libs/Nmea/gateway/NmeaGateway.h)*
+*Expanding [N2kDevice](../libs/Nmea/n2k/N2kDevice.h), [N2kDecoder](../libs/Nmea/n2k/N2kDecoder.h), [N2kEncoder](../libs/Nmea/n2k/N2kEncoder.h), [N2kAddressClaimer](../libs/Nmea/n2k/N2kAddressClaimer.h), and [NmeaGateway](../libs/Nmea/gateway/NmeaGateway.h)*
 
-* **ISO 11783-5 / J1939 Dynamic Address Claiming (PGN 60928)**:
-  * Full network node claiming with NAME field (device class, function, manufacturer code) and address contention handling so the device behaves as a certified N2K bus participant.
-* **Additional PGNs**:
-  * **PGN 127257 (Attitude)**: Vessel yaw, pitch, and roll angles.
-  * **PGN 127245 (Rudder)**: Rudder position angle and direction order.
-  * **PGN 127258 (Magnetic Variation)**.
-  * **PGN 126992 (System Time)** & **PGN 126993 (Heartbeat)**.
-* **Diagnostic & Network Management PGNs**:
-  * PGN 126464 (Transmit/Receive PGN List) and PGN 65240 (ISO Commanded Address).
+#### Network Architecture & Address Claiming
+
+##### ASCII Architecture Diagram
+
+```
++---------------------------------------------------------------------------------------------------------+
+|                                    NMEA 2000 (CAN Bus) Network Stack                                    |
++---------------------------------------------------------------------------------------------------------+
+|                                                                                                         |
+|   +--------------------------+                                      +-------------------------------+   |
+|   | SocketCAN / Hardware Bus | <-----------------+                  |  Dynamic Address Claimer      |   |
+|   | 29-bit CAN Identifier    |                   |                  |  (ISO 11783-5 / SAE J1939-81) |   |
+|   +------------+-------------+                   |                  +---------------+---------------+   |
+|                | Inbound                         | Outbound Frames                  |                   |
+|                v                                 +----------------------------------+                   |
+|   +-----------------------------------------------------------------------------+   |                   |
+|   |                          N2kDevice CAN Controller                           |   |                   |
+|   |  - Fast Packet Multi-Frame Reassembly (N2kFastPacketAssembler)              |   |                   |
+|   |  - Dynamic Address Claiming & ISO Request / Commanded Handler               |   |                   |
+|   |  - Telemetry Decoding (N2kDecoder) & Cache Storage                          |   |                   |
+|   |  - Copy-On-Write Deadlock-Free Callback Dispatching                         |   |                   |
+|   +--------------------------------------+--------------------------------------+   |                   |
+|                                          |                                              |                   |
+|                +-------------------------+-------------------------+                    |                   |
+|                |                                                   |                    |                   |
+|                v                                                   v                    |                   |
+|   +---------------------------+                       +-----------------------------+   |                   |
+|   | Telemetry Subscribers     |                       | NmeaGateway Bridging        |   |                   |
+|   | - Position Rapid (129025) |                       | - PGN 127245 <-> $xxRSA     |   |                   |
+|   | - COG / SOG (129026)      |                       | - PGN 126992 <-> $xxZDA     |   |                   |
+|   | - Heading (127250)        |                       | - PGN 127258 <-> $xxHDG     |   |                   |
+|   | - Attitude (127257)       |                       | - PGN 127257 <-> $xxXDR     |   |                   |
+|   | - Wind (130306)           |                       | - Rate Decimation Limiter   |   |                   |
+|   | - Rudder (127245)         |                       +--------------+--------------+   |                   |
+|   | - Mag Variation (127258)  |                                      |                  |                   |
+|   | - System Time (126992)    |                                      v                  |                   |
+|   | - Heartbeat (126993)      |                       +-----------------------------+   |                   |
+|   | - PGN List (126464)       |                       | NMEA 0183 Serial / Network  |   |                   |
+|   +---------------------------+                       +-----------------------------+   |                   |
++-----------------------------------------------------------------------------------------+
+```
+
+##### Mermaid Address Claiming State Machine
+
+```mermaid
+stateDiagram-v2
+    [*] --> Unclaimed
+    Unclaimed --> WaitingForClaim : startClaiming() / Broadcast PGN 60928
+    WaitingForClaim --> Claimed : 250ms Contention Timer Elapsed (No Conflict)
+    WaitingForClaim --> WaitingForClaim : Address Contention Won (Lower NAME Re-asserts Claim)
+    WaitingForClaim --> WaitingForClaim : Address Contention Lost (Arbitrary Capable -> Next Addr 128..247)
+    WaitingForClaim --> CannotClaim : Address Contention Lost (Non-Arbitrary or Addrs Exhausted)
+    Claimed --> Claimed : Address Contention Won (Broadcast Defense Claim)
+    Claimed --> WaitingForClaim : Address Contention Lost (Yield & Claim Next Addr)
+    Claimed --> WaitingForClaim : ISO Commanded Address (PGN 65240)
+    Claimed --> Claimed : ISO Request (PGN 59904) -> Transmit Claim Response
+    CannotClaim --> WaitingForClaim : ISO Commanded Address / Manual Reset
+```
+
+* **ISO 11783-5 / SAE J1939-81 Dynamic Address Claiming Engine**:
+  * Managed by [N2kAddressClaimer](../libs/Nmea/n2k/N2kAddressClaimer.h).
+  * **64-bit NAME Field Bit-Packing**: Encodes Unique Identity (bits 0..20), Manufacturer Code (bits 21..31), ECU Instance (bits 32..34), Function Instance (bits 35..39), Function (bits 40..47), Vehicle System (bits 49..55), Industry Group (bits 60..62 = 4 for Marine), and Arbitrary Address Capable flag (bit 63).
+  * **Contention Arbitration**: Resolves address collisions according to ISO 11783-5 rules where lower numeric 64-bit NAME takes priority. If an inbound claim arrives for the same address with higher numerical priority (lower NAME), the node yields and claims the next available candidate in the 128..247 range. If lower priority, the node re-asserts its claim.
+  * **Contention Window Timer**: Non-blocking `pollTimer` enforces the standard 250ms dispute silence period before transitioning to the `Claimed` operational state.
+  * **ISO Protocol Support**: Inbound ISO Request (PGN 59904) for PGN 60928 immediately triggers address claim transmission; ISO Commanded Address (PGN 65240) reassigns the node's CAN address.
+
+* **Marine Telemetry PGN Decoders & Encoders**:
+  * Implemented in [N2kDecoder](../libs/Nmea/n2k/N2kDecoder.h) and [N2kEncoder](../libs/Nmea/n2k/N2kEncoder.h).
+  * **PGN 127245 (Rudder)**: Decodes and encodes rudder instance, direction order (`MoveToPort`, `MoveToStarboard`), physical rudder position angle, and commanded angle order.
+  * **PGN 127258 (Magnetic Variation)**: Decodes and encodes magnetic variation angle, model calculation source (WMM/Calculation/Chart/Manual), and age of service in days.
+  * **PGN 126992 (System Time)**: Decodes and encodes time source (GPS/GLONASS), calendar date (days since 1970-01-01), and high-resolution time of day (seconds since midnight with 100 µs resolution).
+  * **PGN 126993 (Heartbeat)**: Decodes and encodes cyclic transmit interval (ms), 8-bit rolling sequence counter, controller state, and equipment operational status.
+  * **PGN 126464 (Transmit / Receive PGN List)**: Decodes and encodes Fast Packet transmission groups containing the complete list of 24-bit PGNs supported for transmission or reception.
+  * **PGN 127257 (Attitude)**: Pitch, roll, and yaw telemetry with 0.0001 radian resolution for gimbal stabilization.
+
+* **N2kDevice Telemetry Cache & Dispatching**:
+  * Managed by [N2kDevice](../libs/Nmea/n2k/N2kDevice.h).
+  * Integrated [N2kAddressClaimer](../libs/Nmea/n2k/N2kAddressClaimer.h) instance for autonomous CAN bus arbitration.
+  * Copy-on-write subscription callbacks and thread-safe telemetry caching for `position()`, `cogSog()`, `heading()`, `attitude()`, `wind()`, `rudder()`, `magneticVariation()`, `systemTime()`, and `heartbeat()`.
+
+* **Bidirectional NMEA 0183 $\leftrightarrow$ N2K Gateway Integration**:
+  * Handled by [NmeaGateway](../libs/Nmea/gateway/NmeaGateway.h).
+  * **Rudder Sensor Angle**: Translates PGN 127245 (Rudder) $\longleftrightarrow$ `$xxRSA` sentences.
+  * **System Time & Date**: Translates PGN 126992 (System Time) $\longleftrightarrow$ `$xxZDA` sentences with civil calendar conversion.
+  * **Magnetic Variation**: Translates PGN 127258 (Magnetic Variation) $\longleftrightarrow$ `$xxHDG` / `$xxRMC` variation fields.
+  * **Attitude**: Translates PGN 127257 (Attitude) $\longleftrightarrow$ `$xxXDR` transducer pitch and roll measurements.
+  * Configurable sliding-window rate decimation preventing buffer overrun on legacy 4800/38400 baud serial connections.
+
+* **Unit Tests & Verification**:
+  * [TestN2kAddressClaimer.cpp](../libs/Nmea/tests/TestN2kAddressClaimer.cpp): 64-bit NAME composition, normal claim sequence, 250ms contention timing, contention arbitration win/loss, ISO Request handling, and ISO Commanded Address reassignment.
+  * [TestN2kDecoder.cpp](../libs/Nmea/tests/TestN2kDecoder.cpp): Fast Packet reassembly and roundtrip parsing/encoding of PGN 129025, 129026, 127250, 127257, 130306, 129038, 127245, 127258, 126992, 126993, and 126464.
+  * [TestN2kDevice.cpp](../libs/Nmea/tests/TestN2kDevice.cpp): Thread-safe callback dispatch, address claimer integration, telemetry caching, and target pruning.
+  * [TestNmeaGateway.cpp](../libs/Nmea/tests/TestNmeaGateway.cpp): Bidirectional translation between N2K PGNs and NMEA 0183 sentences (`RSA`, `ZDA`, `HDG`, `XDR`, `GGA`, `RMC`, `HDT`, `MWV`) and rate decimation throttling.
+
 
 ---
 

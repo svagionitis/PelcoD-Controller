@@ -27,6 +27,8 @@ add_library(Nmea STATIC
     n2k/N2kDecoder.cpp
     n2k/N2kDevice.h
     n2k/N2kDevice.cpp
+    n2k/N2kAddressClaimer.h
+    n2k/N2kAddressClaimer.cpp
     lwe/LweTypes.h
     lwe/LweMulticastTransport.h
     lwe/LweMulticastTransport.cpp

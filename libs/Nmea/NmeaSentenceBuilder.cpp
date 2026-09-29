@@ -525,6 +525,24 @@ std::string NmeaSentenceBuilder::buildDbt(const DbtData& data, std::string_view 
     return NmeaChecksum::frameSentence(buf);
 }
 
+std::string NmeaSentenceBuilder::buildRsa(const RsaData& data, std::string_view talkerId)
+{
+    char buf[64] {};
+    if (data.starboardValid && data.portValid) {
+        std::snprintf(buf, sizeof(buf), "%sRSA,%.1f,A,%.1f,A",
+            std::string(talkerId).c_str(), data.starboardRudderAngleDeg, data.portRudderAngleDeg);
+    } else if (data.starboardValid) {
+        std::snprintf(buf, sizeof(buf), "%sRSA,%.1f,A,,V",
+            std::string(talkerId).c_str(), data.starboardRudderAngleDeg);
+    } else if (data.portValid) {
+        std::snprintf(buf, sizeof(buf), "%sRSA,,V,%.1f,A",
+            std::string(talkerId).c_str(), data.portRudderAngleDeg);
+    } else {
+        std::snprintf(buf, sizeof(buf), "%sRSA,,V,,V", std::string(talkerId).c_str());
+    }
+    return NmeaChecksum::frameSentence(buf);
+}
+
 std::string NmeaSentenceBuilder::buildAlf(const Bam::AlfData& data, std::string_view talkerId)
 {
     char buf[160] {};

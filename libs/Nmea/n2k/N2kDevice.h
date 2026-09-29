@@ -1,5 +1,6 @@
 #pragma once
 
+#include "N2kAddressClaimer.h"
 #include "N2kDecoder.h"
 #include "N2kFastPacketAssembler.h"
 #include "N2kTypes.h"
@@ -30,10 +31,17 @@ public:
     using AisClassACallback = std::function<void(const AisClassAPosition&)>;
     using AisClassBCallback = std::function<void(const AisClassBPosition&)>;
     using WindCallback = std::function<void(const WindData&)>;
+    using RudderCallback = std::function<void(const RudderData&)>;
+    using MagVariationCallback = std::function<void(const MagneticVariation&)>;
+    using SystemTimeCallback = std::function<void(const SystemTimeData&)>;
+    using HeartbeatCallback = std::function<void(const HeartbeatData&)>;
     using RawPgnCallback = std::function<void(const N2kMessage&)>;
 
-    /// @brief Constructs an N2kDevice controller.
-    N2kDevice();
+    /// @brief Constructs an N2kDevice controller with optional address claim configuration.
+    /// @param[in] name 64-bit ISO/J1939 NAME.
+    /// @param[in] preferredAddress Desired node address on CAN bus (default 0x23 / 35).
+    explicit N2kDevice(std::uint64_t name = 0xC0002046000003E9ULL,
+                       std::uint8_t preferredAddress = 0x23U);
 
     /// @brief Destructor.
     virtual ~N2kDevice() = default;
@@ -94,6 +102,22 @@ public:
     [[nodiscard]] std::size_t addWindCallback(WindCallback cb);
     void removeWindCallback(std::size_t id);
 
+    /// @brief Subscribes to PGN 127245 Rudder updates.
+    [[nodiscard]] std::size_t addRudderCallback(RudderCallback cb);
+    void removeRudderCallback(std::size_t id);
+
+    /// @brief Subscribes to PGN 127258 Magnetic Variation updates.
+    [[nodiscard]] std::size_t addMagVariationCallback(MagVariationCallback cb);
+    void removeMagVariationCallback(std::size_t id);
+
+    /// @brief Subscribes to PGN 126992 System Time updates.
+    [[nodiscard]] std::size_t addSystemTimeCallback(SystemTimeCallback cb);
+    void removeSystemTimeCallback(std::size_t id);
+
+    /// @brief Subscribes to PGN 126993 Heartbeat updates.
+    [[nodiscard]] std::size_t addHeartbeatCallback(HeartbeatCallback cb);
+    void removeHeartbeatCallback(std::size_t id);
+
     /// @brief Subscribes to arbitrary raw PGN messages.
     [[nodiscard]] std::size_t addPgnCallback(std::uint32_t pgn, RawPgnCallback cb);
     void removePgnCallback(std::size_t id);
@@ -105,6 +129,10 @@ public:
     [[nodiscard]] std::optional<VesselHeading> heading() const;
     [[nodiscard]] std::optional<Attitude> attitude() const;
     [[nodiscard]] std::optional<WindData> wind() const;
+    [[nodiscard]] std::optional<RudderData> rudder() const;
+    [[nodiscard]] std::optional<MagneticVariation> magneticVariation() const;
+    [[nodiscard]] std::optional<SystemTimeData> systemTime() const;
+    [[nodiscard]] std::optional<HeartbeatData> heartbeat() const;
     [[nodiscard]] std::optional<AisClassAPosition> aisClassATarget(std::uint32_t mmsi) const;
     [[nodiscard]] std::optional<AisClassBPosition> aisClassBTarget(std::uint32_t mmsi) const;
 
@@ -120,6 +148,24 @@ public:
         return m_assembler;
     }
 
+    /// @brief Returns mutable reference to internal address claimer.
+    [[nodiscard]] N2kAddressClaimer& addressClaimer() noexcept
+    {
+        return m_addressClaimer;
+    }
+
+    /// @brief Returns const reference to internal address claimer.
+    [[nodiscard]] const N2kAddressClaimer& addressClaimer() const noexcept
+    {
+        return m_addressClaimer;
+    }
+
+    /// @brief Returns active claimed address on CAN bus.
+    [[nodiscard]] std::uint8_t claimedAddress() const noexcept
+    {
+        return m_addressClaimer.claimedAddress();
+    }
+
 private:
     template <typename T> using CallbackList = std::shared_ptr<const std::vector<std::pair<std::size_t, T>>>;
 
@@ -128,6 +174,7 @@ private:
     template <typename T> void unregisterCallback(CallbackList<T>& list, std::size_t id);
 
     N2kFastPacketAssembler m_assembler {};
+    N2kAddressClaimer m_addressClaimer {};
 
     // Telemetry state mutex
     mutable std::mutex m_stateMutex {};
@@ -136,6 +183,10 @@ private:
     std::optional<VesselHeading> m_latestHeading {};
     std::optional<Attitude> m_latestAttitude {};
     std::optional<WindData> m_latestWind {};
+    std::optional<RudderData> m_latestRudder {};
+    std::optional<MagneticVariation> m_latestMagVariation {};
+    std::optional<SystemTimeData> m_latestSystemTime {};
+    std::optional<HeartbeatData> m_latestHeartbeat {};
 
     struct TrackedAisA {
         AisClassAPosition data {};
@@ -158,6 +209,10 @@ private:
     CallbackList<AisClassACallback> m_aisACallbacks {};
     CallbackList<AisClassBCallback> m_aisBCallbacks {};
     CallbackList<WindCallback> m_windCallbacks {};
+    CallbackList<RudderCallback> m_rudderCallbacks {};
+    CallbackList<MagVariationCallback> m_magVarCallbacks {};
+    CallbackList<SystemTimeCallback> m_systemTimeCallbacks {};
+    CallbackList<HeartbeatCallback> m_heartbeatCallbacks {};
 
     struct PgnSubscription {
         std::size_t id { 0U };

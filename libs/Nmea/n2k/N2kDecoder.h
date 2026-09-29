@@ -66,6 +66,24 @@ public:
     /// @return True if parsing succeeded, false if buffer truncated.
     [[nodiscard]] static bool parsePgn130306(const std::uint8_t* data, std::size_t len, WindData& out) noexcept;
 
+    /// @brief Decodes PGN 127245 (Rudder).
+    [[nodiscard]] static bool parsePgn127245(const std::uint8_t* data, std::size_t len, RudderData& out) noexcept;
+
+    /// @brief Decodes PGN 127258 (Magnetic Variation).
+    [[nodiscard]] static bool parsePgn127258(
+        const std::uint8_t* data, std::size_t len, MagneticVariation& out) noexcept;
+
+    /// @brief Decodes PGN 126992 (System Time).
+    [[nodiscard]] static bool parsePgn126992(
+        const std::uint8_t* data, std::size_t len, SystemTimeData& out) noexcept;
+
+    /// @brief Decodes PGN 126993 (Heartbeat).
+    [[nodiscard]] static bool parsePgn126993(
+        const std::uint8_t* data, std::size_t len, HeartbeatData& out) noexcept;
+
+    /// @brief Decodes PGN 126464 (Transmit / Receive PGN List).
+    [[nodiscard]] static bool parsePgn126464(const std::uint8_t* data, std::size_t len, PgnListData& out);
+
     // --- Encoders ---
 
     /// @brief Encodes PGN 129025 (Position, Rapid Update) into 8 bytes.
@@ -82,6 +100,21 @@ public:
 
     /// @brief Encodes PGN 130306 (Wind Data) into 6 bytes.
     [[nodiscard]] static std::vector<std::uint8_t> encodePgn130306(const WindData& wind);
+
+    /// @brief Encodes PGN 127245 (Rudder) into 8 bytes.
+    [[nodiscard]] static std::vector<std::uint8_t> encodePgn127245(const RudderData& rudder);
+
+    /// @brief Encodes PGN 127258 (Magnetic Variation) into 8 bytes.
+    [[nodiscard]] static std::vector<std::uint8_t> encodePgn127258(const MagneticVariation& var);
+
+    /// @brief Encodes PGN 126992 (System Time) into 8 bytes.
+    [[nodiscard]] static std::vector<std::uint8_t> encodePgn126992(const SystemTimeData& time);
+
+    /// @brief Encodes PGN 126993 (Heartbeat) into 8 bytes.
+    [[nodiscard]] static std::vector<std::uint8_t> encodePgn126993(const HeartbeatData& hb);
+
+    /// @brief Encodes PGN 126464 (PGN List) into raw payload bytes.
+    [[nodiscard]] static std::vector<std::uint8_t> encodePgn126464(const PgnListData& list);
 
     /// @brief Splits an arbitrary multi-frame payload into a sequence of Fast Packet CAN frames.
     /// @param[in] header N2K header for the frames.

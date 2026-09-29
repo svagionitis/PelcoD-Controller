@@ -535,4 +535,14 @@ struct DbtData {
     bool valid { false };
 };
 
+/// @struct RsaData
+/// @brief Rudder sensor angle telemetry unpacked from $--RSA sentence.
+struct RsaData {
+    double starboardRudderAngleDeg { 0.0 }; ///< Starboard rudder sensor angle in degrees (- = port)
+    bool starboardValid { false };          ///< Starboard sensor valid ('A') or invalid ('V')
+    double portRudderAngleDeg { 0.0 };      ///< Port rudder sensor angle in degrees (- = port)
+    bool portValid { false };               ///< Port sensor valid ('A') or invalid ('V')
+    bool valid { false };                   ///< Overall sentence validity
+};
+
 } // namespace Nmea

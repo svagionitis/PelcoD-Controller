@@ -54,6 +54,26 @@ public:
     [[nodiscard]] static CanFrame encodeWindData(
         const WindData& wind, std::uint8_t srcAddr = 0x23U, std::uint8_t priority = 3U) noexcept;
 
+    /// @brief Encodes PGN 127245 (Rudder) into a single 8-byte CAN frame.
+    [[nodiscard]] static CanFrame encodeRudder(
+        const RudderData& rudder, std::uint8_t srcAddr = 0x23U, std::uint8_t priority = 2U) noexcept;
+
+    /// @brief Encodes PGN 127258 (Magnetic Variation) into a single 8-byte CAN frame.
+    [[nodiscard]] static CanFrame encodeMagneticVariation(
+        const MagneticVariation& var, std::uint8_t srcAddr = 0x23U, std::uint8_t priority = 6U) noexcept;
+
+    /// @brief Encodes PGN 126992 (System Time) into a single 8-byte CAN frame.
+    [[nodiscard]] static CanFrame encodeSystemTime(
+        const SystemTimeData& time, std::uint8_t srcAddr = 0x23U, std::uint8_t priority = 3U) noexcept;
+
+    /// @brief Encodes PGN 126993 (Heartbeat) into a single 8-byte CAN frame.
+    [[nodiscard]] static CanFrame encodeHeartbeat(
+        const HeartbeatData& hb, std::uint8_t srcAddr = 0x23U, std::uint8_t priority = 6U) noexcept;
+
+    /// @brief Encodes PGN 126464 (PGN List) into Fast Packet CAN frames.
+    [[nodiscard]] static std::vector<CanFrame> encodePgnList(
+        const PgnListData& list, std::uint8_t srcAddr = 0x23U, std::uint8_t seqCounter = 0U);
+
     /// @brief Encodes PGN 129038 (AIS Class A Position Report) raw payload buffer (28 bytes).
     /// @param[in] ais AIS Class A position report.
     /// @return 28-byte raw payload vector.

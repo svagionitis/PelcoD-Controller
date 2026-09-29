@@ -183,4 +183,93 @@ TEST(TestNmeaGateway, RateDecimationThrottling)
     EXPECT_EQ(gateway.stats().sentencesEmitted, 1U);
 }
 
+TEST(TestNmeaGateway, N2kToNmea0183RudderAndSystemTime)
+{
+    GatewayConfig cfg {};
+    cfg.enableN2kTo0183 = true;
+    cfg.defaultDecimationInterval = std::chrono::milliseconds(0);
+
+    NmeaGateway gateway(cfg);
+    std::vector<std::string> emitted {};
+    gateway.setSentenceOutputCallback([&](std::string_view s) { emitted.emplace_back(s); });
+
+    // 1. Rudder PGN 127245
+    N2k::RudderData rudder {};
+    rudder.positionDegrees = -8.5;
+    rudder.hasPosition = true;
+    gateway.onCanFrame(N2k::N2kEncoder::encodeRudder(rudder));
+
+    ASSERT_FALSE(emitted.empty());
+    EXPECT_NE(emitted.back().find("RSA"), std::string::npos);
+    EXPECT_TRUE(NmeaChecksum::validate(emitted.back()));
+    ASSERT_TRUE(gateway.lastRudder().has_value());
+    EXPECT_NEAR(gateway.lastRudder()->positionDegrees, -8.5, 0.05);
+
+    // 2. System Time PGN 126992
+    emitted.clear();
+    N2k::SystemTimeData sysTime {};
+    sysTime.systemDateDays = 20614U; // 2026-06-10
+    sysTime.secondsSinceMidnight = 57612.0; // 16:00:12
+    sysTime.hasDate = true;
+    sysTime.hasTime = true;
+    gateway.onCanFrame(N2k::N2kEncoder::encodeSystemTime(sysTime));
+
+    ASSERT_FALSE(emitted.empty());
+    EXPECT_NE(emitted.back().find("ZDA"), std::string::npos);
+    EXPECT_TRUE(NmeaChecksum::validate(emitted.back()));
+    ASSERT_TRUE(gateway.lastSystemTime().has_value());
+    EXPECT_EQ(gateway.lastSystemTime()->systemDateDays, 20614U);
+
+    // 3. Mag Variation PGN 127258
+    emitted.clear();
+    N2k::MagneticVariation magVar {};
+    magVar.variationDegrees = -2.5;
+    magVar.hasVariation = true;
+    gateway.onCanFrame(N2k::N2kEncoder::encodeMagneticVariation(magVar));
+
+    ASSERT_FALSE(emitted.empty());
+    EXPECT_NE(emitted.back().find("HDG"), std::string::npos);
+    EXPECT_TRUE(NmeaChecksum::validate(emitted.back()));
+    ASSERT_TRUE(gateway.lastMagVariation().has_value());
+    EXPECT_NEAR(gateway.lastMagVariation()->variationDegrees, -2.5, 0.05);
+}
+
+TEST(TestNmeaGateway, Nmea0183ToN2kRudderAndSystemTime)
+{
+    GatewayConfig cfg {};
+    cfg.enable0183ToN2k = true;
+    cfg.defaultDecimationInterval = std::chrono::milliseconds(0);
+
+    NmeaGateway gateway(cfg);
+    std::vector<N2k::CanFrame> emitted {};
+    gateway.setCanFrameOutputCallback([&](const N2k::CanFrame& f) { emitted.push_back(f); });
+
+    // 1. Feed RSA
+    const auto rsaStr = NmeaChecksum::frameSentence("IIRSA,12.5,A,,V");
+    gateway.onSentence(rsaStr);
+
+    ASSERT_FALSE(emitted.empty());
+    auto hdr = N2k::N2kHeader::fromCanId(emitted.back().id);
+    EXPECT_EQ(hdr.pgn, static_cast<std::uint32_t>(N2k::Pgn::Rudder));
+
+    N2k::RudderData rOut {};
+    ASSERT_TRUE(N2k::N2kDecoder::parsePgn127245(emitted.back().data.data(), emitted.back().dlc, rOut));
+    EXPECT_TRUE(rOut.hasPosition);
+    EXPECT_NEAR(rOut.positionDegrees, 12.5, 0.05);
+
+    // 2. Feed ZDA
+    emitted.clear();
+    const auto zdaStr = NmeaChecksum::frameSentence("GPZDA,123000.00,15,08,2026,00,00");
+    gateway.onSentence(zdaStr);
+
+    ASSERT_FALSE(emitted.empty());
+    hdr = N2k::N2kHeader::fromCanId(emitted.back().id);
+    EXPECT_EQ(hdr.pgn, static_cast<std::uint32_t>(N2k::Pgn::SystemTime));
+
+    N2k::SystemTimeData tOut {};
+    ASSERT_TRUE(N2k::N2kDecoder::parsePgn126992(emitted.back().data.data(), emitted.back().dlc, tOut));
+    EXPECT_TRUE(tOut.hasTime);
+    EXPECT_TRUE(tOut.hasDate);
+    EXPECT_NEAR(tOut.secondsSinceMidnight, 12.0 * 3600.0 + 30.0 * 60.0, 0.5);
+}
 } // namespace Nmea::Gateway

@@ -283,4 +283,151 @@ TEST(TestN2kDevice, MultithreadedSubscriptionSafety)
     EXPECT_GT(counter.load(), 0);
 }
 
+TEST(TestN2kDevice, RudderAndMagVarDispatch)
+{
+    N2kDevice device;
+
+    std::atomic<bool> rudderCalled { false };
+    RudderData rxRudder {};
+    const auto rSub = device.addRudderCallback([&](const RudderData& r) {
+        rxRudder = r;
+        rudderCalled = true;
+    });
+    (void)rSub;
+
+    std::atomic<bool> magVarCalled { false };
+    MagneticVariation rxMagVar {};
+    const auto mSub = device.addMagVariationCallback([&](const MagneticVariation& m) {
+        rxMagVar = m;
+        magVarCalled = true;
+    });
+    (void)mSub;
+
+    // 1. Send Rudder
+    RudderData rIn {};
+    rIn.instance = 0U;
+    rIn.positionDegrees = -12.5;
+    rIn.hasPosition = true;
+
+    N2kHeader rHdr {};
+    rHdr.pgn = static_cast<std::uint32_t>(Pgn::Rudder);
+    rHdr.sourceAddress = 40U;
+
+    CanFrame rFrame {};
+    rFrame.id = rHdr.toCanId();
+    rFrame.dlc = 8U;
+    const auto rBytes = N2kDecoder::encodePgn127245(rIn);
+    std::memcpy(rFrame.data.data(), rBytes.data(), 8U);
+
+    device.onCanFrame(rFrame);
+
+    EXPECT_TRUE(rudderCalled.load());
+    EXPECT_NEAR(rxRudder.positionDegrees, -12.5, 0.05);
+    ASSERT_TRUE(device.rudder().has_value());
+    EXPECT_NEAR(device.rudder()->positionDegrees, -12.5, 0.05);
+
+    // 2. Send MagVar
+    MagneticVariation mIn {};
+    mIn.variationDegrees = 3.8;
+    mIn.hasVariation = true;
+
+    N2kHeader mHdr {};
+    mHdr.pgn = static_cast<std::uint32_t>(Pgn::MagneticVariation);
+    mHdr.sourceAddress = 40U;
+
+    CanFrame mFrame {};
+    mFrame.id = mHdr.toCanId();
+    mFrame.dlc = 8U;
+    const auto mBytes = N2kDecoder::encodePgn127258(mIn);
+    std::memcpy(mFrame.data.data(), mBytes.data(), 8U);
+
+    device.onCanFrame(mFrame);
+
+    EXPECT_TRUE(magVarCalled.load());
+    EXPECT_NEAR(rxMagVar.variationDegrees, 3.8, 0.05);
+    ASSERT_TRUE(device.magneticVariation().has_value());
+    EXPECT_NEAR(device.magneticVariation()->variationDegrees, 3.8, 0.05);
+}
+
+TEST(TestN2kDevice, SystemTimeAndHeartbeatDispatch)
+{
+    N2kDevice device;
+
+    std::atomic<bool> timeCalled { false };
+    SystemTimeData rxTime {};
+    const auto tSub = device.addSystemTimeCallback([&](const SystemTimeData& t) {
+        rxTime = t;
+        timeCalled = true;
+    });
+    (void)tSub;
+
+    std::atomic<bool> hbCalled { false };
+    HeartbeatData rxHb {};
+    const auto hbSub = device.addHeartbeatCallback([&](const HeartbeatData& h) {
+        rxHb = h;
+        hbCalled = true;
+    });
+    (void)hbSub;
+
+    // 1. Send System Time
+    SystemTimeData tIn {};
+    tIn.systemDateDays = 20000U;
+    tIn.secondsSinceMidnight = 36000.0;
+    tIn.hasTime = true;
+    tIn.hasDate = true;
+
+    N2kHeader tHdr {};
+    tHdr.pgn = static_cast<std::uint32_t>(Pgn::SystemTime);
+    tHdr.sourceAddress = 50U;
+
+    CanFrame tFrame {};
+    tFrame.id = tHdr.toCanId();
+    tFrame.dlc = 8U;
+    const auto tBytes = N2kDecoder::encodePgn126992(tIn);
+    std::memcpy(tFrame.data.data(), tBytes.data(), 8U);
+
+    device.onCanFrame(tFrame);
+
+    EXPECT_TRUE(timeCalled.load());
+    EXPECT_EQ(rxTime.systemDateDays, 20000U);
+    ASSERT_TRUE(device.systemTime().has_value());
+    EXPECT_EQ(device.systemTime()->systemDateDays, 20000U);
+
+    // 2. Send Heartbeat
+    HeartbeatData hIn {};
+    hIn.transmitIntervalMs = 500U;
+    hIn.sequenceCounter = 12U;
+    hIn.valid = true;
+
+    N2kHeader hHdr {};
+    hHdr.pgn = static_cast<std::uint32_t>(Pgn::Heartbeat);
+    hHdr.sourceAddress = 50U;
+
+    CanFrame hFrame {};
+    hFrame.id = hHdr.toCanId();
+    hFrame.dlc = 8U;
+    const auto hBytes = N2kDecoder::encodePgn126993(hIn);
+    std::memcpy(hFrame.data.data(), hBytes.data(), 8U);
+
+    device.onCanFrame(hFrame);
+
+    EXPECT_TRUE(hbCalled.load());
+    EXPECT_EQ(rxHb.transmitIntervalMs, 500U);
+    ASSERT_TRUE(device.heartbeat().has_value());
+    EXPECT_EQ(device.heartbeat()->transmitIntervalMs, 500U);
+}
+
+TEST(TestN2kDevice, AddressClaimerIntegration)
+{
+    N2kDevice device(0xC0002046000003E9ULL, 0x28U);
+    EXPECT_EQ(device.claimedAddress(), 254U); // Unclaimed initially
+
+    device.addressClaimer().startClaiming();
+    EXPECT_EQ(device.addressClaimer().claimState(), AddressClaimState::WaitingForClaim);
+
+    // Poll timer to claim address
+    const auto t0 = std::chrono::steady_clock::now();
+    device.addressClaimer().pollTimer(t0 + std::chrono::milliseconds(260));
+    EXPECT_EQ(device.claimedAddress(), 0x28U);
+}
 } // namespace Nmea::N2k

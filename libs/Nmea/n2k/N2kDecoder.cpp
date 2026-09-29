@@ -450,6 +450,168 @@ std::vector<std::uint8_t> N2kDecoder::encodePgn130306(const WindData& wind)
     return buf;
 }
 
+bool N2kDecoder::parsePgn127245(const std::uint8_t* data, std::size_t len, RudderData& out) noexcept
+{
+    if (data == nullptr || len < 6U) {
+        return false;
+    }
+    out.instance = data[0];
+    out.directionOrder = static_cast<RudderDirectionOrder>(data[1] & 0x07U);
+
+    const auto rawOrder = readI16LE(data + 2);
+    if (rawOrder != Sentinels::kUnavailableInt16) {
+        out.angleOrderDegrees = static_cast<double>(rawOrder) * 0.0001 * kRadToDeg;
+        out.hasAngleOrder = true;
+    }
+    const auto rawPos = readI16LE(data + 4);
+    if (rawPos != Sentinels::kUnavailableInt16) {
+        out.positionDegrees = static_cast<double>(rawPos) * 0.0001 * kRadToDeg;
+        out.hasPosition = true;
+    }
+    return true;
+}
+
+bool N2kDecoder::parsePgn127258(const std::uint8_t* data, std::size_t len, MagneticVariation& out) noexcept
+{
+    if (data == nullptr || len < 6U) {
+        return false;
+    }
+    out.sid = data[0];
+    out.source = static_cast<VariationSource>(data[1] & 0x0FU);
+    out.ageOfServiceDays = readU16LE(data + 2);
+
+    const auto rawVar = readI16LE(data + 4);
+    if (rawVar != Sentinels::kUnavailableInt16) {
+        out.variationDegrees = static_cast<double>(rawVar) * 0.0001 * kRadToDeg;
+        out.hasVariation = true;
+    }
+    return true;
+}
+
+bool N2kDecoder::parsePgn126992(const std::uint8_t* data, std::size_t len, SystemTimeData& out) noexcept
+{
+    if (data == nullptr || len < 8U) {
+        return false;
+    }
+    out.sid = data[0];
+    out.timeSource = data[1] & 0x0FU;
+
+    const auto rawDays = readU16LE(data + 2);
+    if (rawDays != Sentinels::kUnavailableUInt16) {
+        out.systemDateDays = rawDays;
+        out.hasDate = true;
+    }
+    const auto rawTime = readU32LE(data + 4);
+    if (rawTime != Sentinels::kUnavailableUInt32) {
+        out.secondsSinceMidnight = static_cast<double>(rawTime) * 0.0001;
+        out.hasTime = true;
+    }
+    return true;
+}
+
+bool N2kDecoder::parsePgn126993(const std::uint8_t* data, std::size_t len, HeartbeatData& out) noexcept
+{
+    if (data == nullptr || len < 4U) {
+        return false;
+    }
+    out.transmitIntervalMs = readU16LE(data);
+    out.sequenceCounter = data[2];
+    out.controllerState = data[3] & 0x03U;
+    out.equipmentStatus = (data[3] >> 2U) & 0x03U;
+    out.valid = true;
+    return true;
+}
+
+bool N2kDecoder::parsePgn126464(const std::uint8_t* data, std::size_t len, PgnListData& out)
+{
+    if (data == nullptr || len < 1U) {
+        return false;
+    }
+    out.isTransmitList = (data[0] == 0U);
+    out.pgnList.clear();
+
+    for (std::size_t i { 1U }; i + 3U <= len; i += 3U) {
+        const auto b0 = static_cast<std::uint32_t>(data[i]);
+        const auto b1 = static_cast<std::uint32_t>(data[i + 1U]);
+        const auto b2 = static_cast<std::uint32_t>(data[i + 2U]);
+        out.pgnList.push_back(b0 | (b1 << 8U) | (b2 << 16U));
+    }
+    return true;
+}
+
+std::vector<std::uint8_t> N2kDecoder::encodePgn127245(const RudderData& rudder)
+{
+    std::vector<std::uint8_t> buf(8U, 0xFFU);
+    buf[0] = rudder.instance;
+    buf[1] = static_cast<std::uint8_t>(rudder.directionOrder) | 0xF8U;
+
+    if (rudder.hasAngleOrder) {
+        const double rad = rudder.angleOrderDegrees * kDegToRad;
+        const auto raw = static_cast<std::int16_t>(std::round(rad / 0.0001));
+        writeI16LE(buf.data() + 2, raw);
+    }
+    if (rudder.hasPosition) {
+        const double rad = rudder.positionDegrees * kDegToRad;
+        const auto raw = static_cast<std::int16_t>(std::round(rad / 0.0001));
+        writeI16LE(buf.data() + 4, raw);
+    }
+    return buf;
+}
+
+std::vector<std::uint8_t> N2kDecoder::encodePgn127258(const MagneticVariation& var)
+{
+    std::vector<std::uint8_t> buf(8U, 0xFFU);
+    buf[0] = var.sid;
+    buf[1] = static_cast<std::uint8_t>(var.source) | 0xF0U;
+    writeU16LE(buf.data() + 2, var.ageOfServiceDays);
+
+    if (var.hasVariation) {
+        const double rad = var.variationDegrees * kDegToRad;
+        const auto raw = static_cast<std::int16_t>(std::round(rad / 0.0001));
+        writeI16LE(buf.data() + 4, raw);
+    }
+    return buf;
+}
+
+std::vector<std::uint8_t> N2kDecoder::encodePgn126992(const SystemTimeData& time)
+{
+    std::vector<std::uint8_t> buf(8U, 0xFFU);
+    buf[0] = time.sid;
+    buf[1] = (time.timeSource & 0x0FU) | 0xF0U;
+
+    if (time.hasDate) {
+        writeU16LE(buf.data() + 2, time.systemDateDays);
+    }
+    if (time.hasTime) {
+        const auto raw = static_cast<std::uint32_t>(std::round(time.secondsSinceMidnight / 0.0001));
+        writeU32LE(buf.data() + 4, raw);
+    }
+    return buf;
+}
+
+std::vector<std::uint8_t> N2kDecoder::encodePgn126993(const HeartbeatData& hb)
+{
+    std::vector<std::uint8_t> buf(8U, 0xFFU);
+    writeU16LE(buf.data(), hb.transmitIntervalMs);
+    buf[2] = hb.sequenceCounter;
+    buf[3] = (hb.controllerState & 0x03U) | static_cast<std::uint8_t>((hb.equipmentStatus & 0x03U) << 2U) | 0xF0U;
+    return buf;
+}
+
+std::vector<std::uint8_t> N2kDecoder::encodePgn126464(const PgnListData& list)
+{
+    std::vector<std::uint8_t> buf {};
+    buf.reserve(1U + list.pgnList.size() * 3U);
+    buf.push_back(list.isTransmitList ? 0U : 1U);
+
+    for (const auto pgn : list.pgnList) {
+        buf.push_back(static_cast<std::uint8_t>(pgn & 0xFFU));
+        buf.push_back(static_cast<std::uint8_t>((pgn >> 8U) & 0xFFU));
+        buf.push_back(static_cast<std::uint8_t>((pgn >> 16U) & 0xFFU));
+    }
+    return buf;
+}
+
 std::vector<CanFrame> N2kDecoder::splitFastPacket(
     const N2kHeader& header, const std::uint8_t* data, std::size_t len, std::uint8_t seqCounter)
 {
