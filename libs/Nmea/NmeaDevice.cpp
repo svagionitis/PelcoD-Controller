@@ -396,6 +396,11 @@ std::shared_ptr<ThermalTuningAdvisor> NmeaDevice::thermalAdvisor() const noexcep
     return m_thermalAdvisor;
 }
 
+std::shared_ptr<Arbiter::NmeaSensorArbiter> NmeaDevice::arbiter() const noexcept
+{
+    return m_arbiter;
+}
+
 NmeaEnvironmentSnapshot NmeaDevice::environmentSnapshot() const
 {
     return m_thermalAdvisor ? m_thermalAdvisor->snapshot() : NmeaEnvironmentSnapshot {};
@@ -484,6 +489,9 @@ void NmeaDevice::processSentence(std::string_view sentence)
             m_navSnapshot.timestamp = now;
             currentNav = m_navSnapshot;
             navUpdated = true;
+            if (m_arbiter) {
+                m_arbiter->updateGps(Arbiter::GpsSourceId::Primary, gga);
+            }
         }
         break;
     }
@@ -498,6 +506,9 @@ void NmeaDevice::processSentence(std::string_view sentence)
             m_navSnapshot.timestamp = now;
             currentNav = m_navSnapshot;
             navUpdated = true;
+            if (m_arbiter) {
+                m_arbiter->updateGps(Arbiter::GpsSourceId::Primary, rmc);
+            }
         }
         break;
     }
@@ -510,6 +521,9 @@ void NmeaDevice::processSentence(std::string_view sentence)
             m_navSnapshot.timestamp = now;
             currentNav = m_navSnapshot;
             navUpdated = true;
+            if (m_arbiter) {
+                m_arbiter->updateHeading(Arbiter::HeadingSourceId::Primary, hdt.headingDegrees);
+            }
         }
         break;
     }
@@ -522,6 +536,9 @@ void NmeaDevice::processSentence(std::string_view sentence)
             m_navSnapshot.timestamp = now;
             currentNav = m_navSnapshot;
             navUpdated = true;
+            if (m_arbiter) {
+                m_arbiter->updateHeading(Arbiter::HeadingSourceId::Primary, ths.headingDegrees);
+            }
         }
         break;
     }
@@ -541,6 +558,10 @@ void NmeaDevice::processSentence(std::string_view sentence)
             m_navSnapshot.timestamp = now;
             currentNav = m_navSnapshot;
             navUpdated = true;
+            if (m_arbiter && m_navSnapshot.hasAttitude) {
+                m_arbiter->updateAttitude(
+                    Arbiter::HeadingSourceId::Primary, m_navSnapshot.pitchDegrees, m_navSnapshot.rollDegrees);
+            }
         }
         break;
     }

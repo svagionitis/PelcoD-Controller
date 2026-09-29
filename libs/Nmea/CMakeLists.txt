@@ -39,6 +39,12 @@ add_library(Nmea STATIC
     route/NmeaRouteManager.cpp
     environment/ThermalTuningAdvisor.h
     environment/ThermalTuningAdvisor.cpp
+    n2k/N2kEncoder.h
+    n2k/N2kEncoder.cpp
+    gateway/NmeaGateway.h
+    gateway/NmeaGateway.cpp
+    arbiter/NmeaSensorArbiter.h
+    arbiter/NmeaSensorArbiter.cpp
 )
 
 target_include_directories(Nmea PUBLIC
@@ -48,6 +54,8 @@ target_include_directories(Nmea PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/replay>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/route>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/environment>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/gateway>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/arbiter>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/..>
     $<INSTALL_INTERFACE:include>
 )

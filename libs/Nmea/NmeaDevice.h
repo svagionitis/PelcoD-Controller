@@ -9,6 +9,7 @@
 #include "NmeaStreamAccumulator.h"
 #include "NmeaTypes.h"
 #include "Transport/ITransport.h"
+#include "arbiter/NmeaSensorArbiter.h"
 #include "environment/ThermalTuningAdvisor.h"
 #include "route/NmeaRouteManager.h"
 
@@ -229,6 +230,9 @@ public:
     /// @brief Retrieves the shared thermal tuning advisor.
     [[nodiscard]] std::shared_ptr<ThermalTuningAdvisor> thermalAdvisor() const noexcept;
 
+    /// @brief Retrieves the shared sensor redundancy and failover arbiter.
+    [[nodiscard]] std::shared_ptr<Arbiter::NmeaSensorArbiter> arbiter() const noexcept;
+
     /// @brief Retrieves the current environmental snapshot.
     [[nodiscard]] NmeaEnvironmentSnapshot environmentSnapshot() const;
 
@@ -326,6 +330,7 @@ private:
 
     std::shared_ptr<NmeaRouteManager> m_routeManager { std::make_shared<NmeaRouteManager>() };
     std::shared_ptr<ThermalTuningAdvisor> m_thermalAdvisor { std::make_shared<ThermalTuningAdvisor>() };
+    std::shared_ptr<Arbiter::NmeaSensorArbiter> m_arbiter { std::make_shared<Arbiter::NmeaSensorArbiter>() };
 
     // Subscriptions
     mutable std::mutex m_callbackMutex;
