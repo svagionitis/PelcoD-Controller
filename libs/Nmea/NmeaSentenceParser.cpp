@@ -1,0 +1,528 @@
+/// @file NmeaSentenceParser.cpp
+/// @brief Implementation of NMEA 0183 tokenizer and sentence parser.
+
+#include "NmeaSentenceParser.h"
+
+#include <algorithm>
+#include <charconv>
+#include <cmath>
+#include <cstdlib>
+#include <string>
+
+namespace Nmea {
+
+namespace {
+
+    bool parseDouble(std::string_view sv, double& outVal) noexcept
+    {
+        if (sv.empty()) {
+            return false;
+        }
+        // std::from_chars for double is available in modern GCC/Clang, or fallback to strtod with null-terminated copy
+        char buf[64] {};
+        if (sv.size() >= sizeof(buf)) {
+            return false;
+        }
+        for (std::size_t i { 0U }; i < sv.size(); ++i) {
+            buf[i] = sv[i];
+        }
+        buf[sv.size()] = '\0';
+
+        char* endPtr { nullptr };
+        const double val { std::strtod(buf, &endPtr) };
+        if (endPtr == buf) {
+            return false;
+        }
+        outVal = val;
+        return true;
+    }
+
+    bool parseUInt(std::string_view sv, unsigned int& outVal) noexcept
+    {
+        if (sv.empty()) {
+            return false;
+        }
+        unsigned int val { 0U };
+        const auto res = std::from_chars(sv.data(), sv.data() + sv.size(), val);
+        if (res.ec != std::errc {}) {
+            return false;
+        }
+        outVal = val;
+        return true;
+    }
+
+} // namespace
+
+void NmeaSentenceParser::tokenize(std::string_view sentence, std::vector<std::string_view>& outTokens)
+{
+    outTokens.clear();
+
+    // Strip leading $/!
+    if (!sentence.empty() && (sentence.front() == '$' || sentence.front() == '!')) {
+        sentence.remove_prefix(1U);
+    }
+
+    // Strip trailing checksum *HH and whitespace
+    const auto starPos = sentence.find('*');
+    if (starPos != std::string_view::npos) {
+        sentence = sentence.substr(0U, starPos);
+    }
+    while (!sentence.empty() && (sentence.back() == '\r' || sentence.back() == '\n' || sentence.back() == ' ')) {
+        sentence.remove_suffix(1U);
+    }
+
+    std::size_t start { 0U };
+    while (start <= sentence.size()) {
+        const auto commaPos = sentence.find(',', start);
+        if (commaPos == std::string_view::npos) {
+            outTokens.push_back(sentence.substr(start));
+            break;
+        }
+        outTokens.push_back(sentence.substr(start, commaPos - start));
+        start = commaPos + 1U;
+    }
+}
+
+NmeaSentenceId NmeaSentenceParser::identifySentence(std::string_view sentence) noexcept
+{
+    if (sentence.empty()) {
+        return NmeaSentenceId::Unknown;
+    }
+    if (sentence.front() == '$' || sentence.front() == '!') {
+        sentence.remove_prefix(1U);
+    }
+
+    const auto commaPos = sentence.find(',');
+    const auto header = (commaPos != std::string_view::npos) ? sentence.substr(0U, commaPos) : sentence;
+
+    // Check proprietary PFEC
+    if (header.size() >= 4U && header.substr(0U, 4U) == "PFEC") {
+        return NmeaSentenceId::PFEC;
+    }
+
+    // Standard talker + 3-char mnemonic (e.g. GPGGA, GPRMC, HEHDT, RATTM)
+    if (header.size() >= 5U) {
+        const auto mnemonic = header.substr(header.size() - 3U);
+        if (mnemonic == "GGA") {
+            return NmeaSentenceId::GGA;
+        }
+        if (mnemonic == "RMC") {
+            return NmeaSentenceId::RMC;
+        }
+        if (mnemonic == "HDT") {
+            return NmeaSentenceId::HDT;
+        }
+        if (mnemonic == "THS") {
+            return NmeaSentenceId::THS;
+        }
+        if (mnemonic == "TTM") {
+            return NmeaSentenceId::TTM;
+        }
+        if (mnemonic == "TLL") {
+            return NmeaSentenceId::TLL;
+        }
+        if (mnemonic == "XDR") {
+            return NmeaSentenceId::XDR;
+        }
+        if (mnemonic == "VDM") {
+            return NmeaSentenceId::VDM;
+        }
+        if (mnemonic == "VDO") {
+            return NmeaSentenceId::VDO;
+        }
+    }
+
+    return NmeaSentenceId::Unknown;
+}
+
+std::string_view NmeaSentenceParser::extractTalkerId(std::string_view sentence) noexcept
+{
+    if (sentence.empty()) {
+        return {};
+    }
+    if (sentence.front() == '$' || sentence.front() == '!') {
+        sentence.remove_prefix(1U);
+    }
+    const auto commaPos = sentence.find(',');
+    const auto header = (commaPos != std::string_view::npos) ? sentence.substr(0U, commaPos) : sentence;
+    if (header.size() == 5U) {
+        return header.substr(0U, 2U);
+    }
+    return {};
+}
+
+bool NmeaSentenceParser::parseCoordinate(
+    std::string_view coordStr, std::string_view hemiStr, double& outDegrees) noexcept
+{
+    if (coordStr.empty() || hemiStr.empty()) {
+        return false;
+    }
+
+    const auto dotPos = coordStr.find('.');
+    if (dotPos == std::string_view::npos || dotPos < 2U) {
+        return false;
+    }
+
+    // Minutes are the 2 digits before the dot plus everything after
+    const auto minStartPos = dotPos - 2U;
+    const auto degStr = coordStr.substr(0U, minStartPos);
+    const auto minStr = coordStr.substr(minStartPos);
+
+    unsigned int degreesInt { 0U };
+    if (!parseUInt(degStr, degreesInt)) {
+        return false;
+    }
+
+    double minutes { 0.0 };
+    if (!parseDouble(minStr, minutes)) {
+        return false;
+    }
+
+    double deg = static_cast<double>(degreesInt) + (minutes / 60.0);
+    const char hemi = hemiStr.front();
+    if (hemi == 'S' || hemi == 's' || hemi == 'W' || hemi == 'w') {
+        deg = -deg;
+    } else if (hemi != 'N' && hemi != 'n' && hemi != 'E' && hemi != 'e') {
+        return false;
+    }
+
+    outDegrees = deg;
+    return true;
+}
+
+bool NmeaSentenceParser::parseUtcTime(std::string_view timeStr, NmeaUtcTime& outTime) noexcept
+{
+    if (timeStr.size() < 6U) {
+        return false;
+    }
+
+    unsigned int hh { 0U };
+    unsigned int mm { 0U };
+    unsigned int ss { 0U };
+
+    if (!parseUInt(timeStr.substr(0U, 2U), hh) || hh > 23U) {
+        return false;
+    }
+    if (!parseUInt(timeStr.substr(2U, 2U), mm) || mm > 59U) {
+        return false;
+    }
+    if (!parseUInt(timeStr.substr(4U, 2U), ss) || ss > 60U) { // 60 for leap second
+        return false;
+    }
+
+    std::uint16_t ms { 0U };
+    if (timeStr.size() > 6U && timeStr[6U] == '.') {
+        double frac { 0.0 };
+        if (parseDouble(timeStr.substr(6U), frac)) {
+            ms = static_cast<std::uint16_t>(std::clamp(frac * 1000.0, 0.0, 999.0));
+        }
+    }
+
+    outTime.hour = static_cast<std::uint8_t>(hh);
+    outTime.minute = static_cast<std::uint8_t>(mm);
+    outTime.second = static_cast<std::uint8_t>(ss);
+    outTime.millisecond = ms;
+    return true;
+}
+
+bool NmeaSentenceParser::parseDate(std::string_view dateStr, NmeaDate& outDate) noexcept
+{
+    if (dateStr.size() < 6U) {
+        return false;
+    }
+
+    unsigned int dd { 0U };
+    unsigned int mm { 0U };
+    unsigned int yy { 0U };
+
+    if (!parseUInt(dateStr.substr(0U, 2U), dd) || dd < 1U || dd > 31U) {
+        return false;
+    }
+    if (!parseUInt(dateStr.substr(2U, 2U), mm) || mm < 1U || mm > 12U) {
+        return false;
+    }
+    if (!parseUInt(dateStr.substr(4U, 2U), yy)) {
+        return false;
+    }
+
+    // 2-digit to 4-digit year mapping per NMEA standard
+    const std::uint16_t fullYear = static_cast<std::uint16_t>((yy < 70U) ? (2000U + yy) : (1900U + yy));
+
+    outDate.day = static_cast<std::uint8_t>(dd);
+    outDate.month = static_cast<std::uint8_t>(mm);
+    outDate.year = fullYear;
+    return true;
+}
+
+bool NmeaSentenceParser::parseGga(std::string_view sentence, GgaData& outData, bool verifyChecksum) noexcept
+{
+    outData = GgaData {};
+    if (verifyChecksum && !NmeaChecksum::validate(sentence)) {
+        return false;
+    }
+
+    std::vector<std::string_view> tokens {};
+    tokenize(sentence, tokens);
+
+    // Format: $--GGA,hhmmss.ss,llll.ll,a,yyyyy.yy,a,x,xx,x.x,x.x,M,x.x,M,x.x,xxxx
+    if (tokens.size() < 15U) {
+        return false;
+    }
+
+    static_cast<void>(parseUtcTime(tokens[1], outData.utcTime));
+
+    if (!parseCoordinate(tokens[2], tokens[3], outData.coordinates.latitudeDeg)
+        || !parseCoordinate(tokens[4], tokens[5], outData.coordinates.longitudeDeg)) {
+        return false;
+    }
+
+    unsigned int fixQ { 0U };
+    if (parseUInt(tokens[6], fixQ)) {
+        outData.fixQuality = static_cast<NmeaFixQuality>(std::clamp(fixQ, 0U, 8U));
+    }
+
+    unsigned int sats { 0U };
+    if (parseUInt(tokens[7], sats)) {
+        outData.numSatellites = static_cast<std::uint8_t>(sats);
+    }
+
+    parseDouble(tokens[8], outData.hdop);
+    parseDouble(tokens[9], outData.altitudeMeters);
+    parseDouble(tokens[11], outData.geoidalSeparationMeters);
+    parseDouble(tokens[13], outData.dgpsAgeSeconds);
+
+    unsigned int stnId { 0U };
+    if (parseUInt(tokens[14], stnId)) {
+        outData.dgpsStationId = static_cast<std::uint16_t>(stnId);
+    }
+
+    outData.valid = (outData.fixQuality != NmeaFixQuality::Invalid);
+    return true;
+}
+
+bool NmeaSentenceParser::parseRmc(std::string_view sentence, RmcData& outData, bool verifyChecksum) noexcept
+{
+    outData = RmcData {};
+    if (verifyChecksum && !NmeaChecksum::validate(sentence)) {
+        return false;
+    }
+
+    std::vector<std::string_view> tokens {};
+    tokenize(sentence, tokens);
+
+    // Format: $--RMC,hhmmss.ss,A,llll.ll,a,yyyyy.yy,a,x.x,x.x,ddmmyy,x.x,a,m
+    if (tokens.size() < 10U) {
+        return false;
+    }
+
+    static_cast<void>(parseUtcTime(tokens[1], outData.utcTime));
+
+    outData.statusActive = (!tokens[2].empty() && tokens[2].front() == 'A');
+
+    if (!parseCoordinate(tokens[3], tokens[4], outData.coordinates.latitudeDeg)
+        || !parseCoordinate(tokens[5], tokens[6], outData.coordinates.longitudeDeg)) {
+        return false;
+    }
+
+    parseDouble(tokens[7], outData.speedOverGroundKnots);
+    parseDouble(tokens[8], outData.courseOverGroundDegrees);
+    static_cast<void>(parseDate(tokens[9], outData.date));
+
+    if (tokens.size() > 11U) {
+        double magVar { 0.0 };
+        if (parseDouble(tokens[10], magVar)) {
+            if (!tokens[11].empty() && (tokens[11].front() == 'W' || tokens[11].front() == 'w')) {
+                magVar = -magVar;
+            }
+            outData.magneticVariationDegrees = magVar;
+        }
+    }
+
+    if (tokens.size() > 12U && !tokens[12].empty()) {
+        outData.faaMode = static_cast<NmeaFaaMode>(tokens[12].front());
+    }
+
+    outData.valid = outData.statusActive;
+    return true;
+}
+
+bool NmeaSentenceParser::parseHdt(std::string_view sentence, HdtData& outData, bool verifyChecksum) noexcept
+{
+    outData = HdtData {};
+    if (verifyChecksum && !NmeaChecksum::validate(sentence)) {
+        return false;
+    }
+
+    std::vector<std::string_view> tokens {};
+    tokenize(sentence, tokens);
+
+    // Format: $--HDT,x.x,T
+    if (tokens.size() < 3U) {
+        return false;
+    }
+
+    if (!parseDouble(tokens[1], outData.headingDegrees)) {
+        return false;
+    }
+
+    outData.valid = (tokens[2] == "T" && outData.headingDegrees >= 0.0 && outData.headingDegrees < 360.0);
+    return outData.valid;
+}
+
+bool NmeaSentenceParser::parseThs(std::string_view sentence, ThsData& outData, bool verifyChecksum) noexcept
+{
+    outData = ThsData {};
+    if (verifyChecksum && !NmeaChecksum::validate(sentence)) {
+        return false;
+    }
+
+    std::vector<std::string_view> tokens {};
+    tokenize(sentence, tokens);
+
+    // Format: $--THS,x.x,a
+    if (tokens.size() < 3U) {
+        return false;
+    }
+
+    if (!parseDouble(tokens[1], outData.headingDegrees)) {
+        return false;
+    }
+
+    if (!tokens[2].empty()) {
+        outData.mode = static_cast<NmeaFaaMode>(tokens[2].front());
+    }
+
+    outData.valid = (outData.mode == NmeaFaaMode::Autonomous || outData.mode == NmeaFaaMode::Differential);
+    return true;
+}
+
+bool NmeaSentenceParser::parseTtm(std::string_view sentence, TtmData& outData, bool verifyChecksum) noexcept
+{
+    outData = TtmData {};
+    if (verifyChecksum && !NmeaChecksum::validate(sentence)) {
+        return false;
+    }
+
+    std::vector<std::string_view> tokens {};
+    tokenize(sentence, tokens);
+
+    // Format: $--TTM,xx,x.x,x.x,a,x.x,x.x,a,x.x,x.x,a,c--c,a,a,hhmmss.ss,a
+    if (tokens.size() < 15U) {
+        return false;
+    }
+
+    unsigned int targetNum { 0U };
+    if (!parseUInt(tokens[1], targetNum)) {
+        return false;
+    }
+    outData.targetNumber = targetNum;
+
+    parseDouble(tokens[2], outData.targetDistanceNmi);
+    parseDouble(tokens[3], outData.bearingDegrees);
+    outData.bearingReference
+        = (!tokens[4].empty() && tokens[4].front() == 'R') ? TtmReference::Relative : TtmReference::True;
+
+    parseDouble(tokens[5], outData.targetSpeedKnots);
+    parseDouble(tokens[6], outData.targetCourseDegrees);
+    outData.courseReference
+        = (!tokens[7].empty() && tokens[7].front() == 'R') ? TtmReference::Relative : TtmReference::True;
+
+    parseDouble(tokens[8], outData.distanceCpaNmi);
+    parseDouble(tokens[9], outData.timeCpaMinutes);
+
+    if (!tokens[10].empty()) {
+        outData.speedDistanceUnits = tokens[10].front();
+    }
+
+    outData.targetName = std::string(tokens[11]);
+
+    if (!tokens[12].empty()) {
+        outData.status = static_cast<TtmTargetStatus>(tokens[12].front());
+    }
+
+    outData.referenceTarget = (!tokens[13].empty() && tokens[13].front() == 'R');
+    static_cast<void>(parseUtcTime(tokens[14], outData.utcTimeTag));
+
+    if (tokens.size() > 15U && !tokens[15].empty()) {
+        outData.acquisitionType = tokens[15].front();
+    }
+
+    outData.valid = (outData.status != TtmTargetStatus::Lost);
+    return true;
+}
+
+bool NmeaSentenceParser::parseTll(std::string_view sentence, TllData& outData, bool verifyChecksum) noexcept
+{
+    outData = TllData {};
+    if (verifyChecksum && !NmeaChecksum::validate(sentence)) {
+        return false;
+    }
+
+    std::vector<std::string_view> tokens {};
+    tokenize(sentence, tokens);
+
+    // Format: $--TLL,xx,llll.ll,a,yyyyy.yy,a,c--c,hhmmss.ss,a,a
+    if (tokens.size() < 9U) {
+        return false;
+    }
+
+    unsigned int targetNum { 0U };
+    if (parseUInt(tokens[1], targetNum)) {
+        outData.targetNumber = targetNum;
+    }
+
+    if (!parseCoordinate(tokens[2], tokens[3], outData.coordinates.latitudeDeg)
+        || !parseCoordinate(tokens[4], tokens[5], outData.coordinates.longitudeDeg)) {
+        return false;
+    }
+
+    outData.targetName = std::string(tokens[6]);
+    static_cast<void>(parseUtcTime(tokens[7], outData.utcTimeTag));
+
+    if (!tokens[8].empty()) {
+        outData.status = static_cast<TtmTargetStatus>(tokens[8].front());
+    }
+
+    if (tokens.size() > 9U && !tokens[9].empty()) {
+        outData.referenceTarget = (tokens[9].front() == 'R');
+    }
+
+    outData.valid = (outData.status != TtmTargetStatus::Lost);
+    return true;
+}
+
+bool NmeaSentenceParser::parseXdr(std::string_view sentence, XdrData& outData, bool verifyChecksum) noexcept
+{
+    outData = XdrData {};
+    if (verifyChecksum && !NmeaChecksum::validate(sentence)) {
+        return false;
+    }
+
+    std::vector<std::string_view> tokens {};
+    tokenize(sentence, tokens);
+
+    // Format: $--XDR,a,x.x,a,c--c,... (repeating groups of 4 fields)
+    if (tokens.size() < 5U) {
+        return false;
+    }
+
+    std::size_t idx { 1U };
+    while (idx + 3U < tokens.size()) {
+        XdrTransducer tr {};
+        if (!tokens[idx].empty()) {
+            tr.type = tokens[idx].front();
+        }
+        parseDouble(tokens[idx + 1U], tr.measurement);
+        if (!tokens[idx + 2U].empty()) {
+            tr.units = tokens[idx + 2U].front();
+        }
+        tr.id = std::string(tokens[idx + 3U]);
+        outData.transducers.push_back(std::move(tr));
+        idx += 4U;
+    }
+
+    outData.valid = !outData.transducers.empty();
+    return outData.valid;
+}
+
+} // namespace Nmea
