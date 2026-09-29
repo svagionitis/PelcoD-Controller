@@ -2,6 +2,7 @@
 /// @brief Implementation of thread-safe NMEA stream accumulator.
 
 #include "NmeaStreamAccumulator.h"
+#include "NmeaTagBlockParser.h"
 
 #include <algorithm>
 
@@ -27,6 +28,26 @@ std::vector<std::string> NmeaStreamAccumulator::push(const std::uint8_t* data, s
     return push(sv, validateChecksum);
 }
 
+namespace {
+
+    bool isValidCandidate(const std::string& candidate)
+    {
+        if (candidate.empty()) {
+            return false;
+        }
+        if (candidate.front() == '\\') {
+            NmeaTagBlock tb {};
+            std::string_view remainder {};
+            if (!NmeaTagBlockParser::parse(candidate, tb, remainder)) {
+                return false;
+            }
+            return NmeaChecksum::validate(remainder);
+        }
+        return NmeaChecksum::validate(candidate);
+    }
+
+} // namespace
+
 std::vector<std::string> NmeaStreamAccumulator::push(std::string_view text, bool validateChecksum)
 {
     std::scoped_lock lock(m_mutex);
@@ -36,7 +57,7 @@ std::vector<std::string> NmeaStreamAccumulator::push(std::string_view text, bool
 
     // Overflow protection: if no start delimiter or no end delimiter within max size, discard oldest bytes
     if (m_buffer.size() > m_maxBufferSize) {
-        const auto start = m_buffer.find_first_of("$!");
+        const auto start = m_buffer.find_first_of("$!\\");
         if (start != std::string::npos && start > 0U) {
             m_buffer.erase(0U, start);
         } else if (start == std::string::npos) {
@@ -49,7 +70,7 @@ std::vector<std::string> NmeaStreamAccumulator::push(std::string_view text, bool
     }
 
     while (!m_buffer.empty()) {
-        const auto start = m_buffer.find_first_of("$!");
+        const auto start = m_buffer.find_first_of("$!\\");
         if (start == std::string::npos) {
             m_buffer.clear();
             break;
@@ -68,7 +89,7 @@ std::vector<std::string> NmeaStreamAccumulator::push(std::string_view text, bool
         std::string candidate = m_buffer.substr(0U, newline + 1U);
         m_buffer.erase(0U, newline + 1U);
 
-        if (!validateChecksum || NmeaChecksum::validate(candidate)) {
+        if (!validateChecksum || isValidCandidate(candidate)) {
             sentences.push_back(std::move(candidate));
         }
     }

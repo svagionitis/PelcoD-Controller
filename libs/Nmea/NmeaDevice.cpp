@@ -211,6 +211,70 @@ void NmeaDevice::removeRawCallback(std::size_t id)
     removeCallbackInternal(m_rawCallbacks, m_callbackMutex, id);
 }
 
+std::size_t NmeaDevice::addRsdCallback(RsdCallback cb)
+{
+    return addCallbackInternal(m_rsdCallbacks, m_callbackMutex, std::move(cb));
+}
+
+void NmeaDevice::removeRsdCallback(std::size_t id)
+{
+    removeCallbackInternal(m_rsdCallbacks, m_callbackMutex, id);
+}
+
+std::size_t NmeaDevice::addApbCallback(ApbCallback cb)
+{
+    return addCallbackInternal(m_apbCallbacks, m_callbackMutex, std::move(cb));
+}
+
+void NmeaDevice::removeApbCallback(std::size_t id)
+{
+    removeCallbackInternal(m_apbCallbacks, m_callbackMutex, id);
+}
+
+std::size_t NmeaDevice::addMwvCallback(MwvCallback cb)
+{
+    return addCallbackInternal(m_mwvCallbacks, m_callbackMutex, std::move(cb));
+}
+
+void NmeaDevice::removeMwvCallback(std::size_t id)
+{
+    removeCallbackInternal(m_mwvCallbacks, m_callbackMutex, id);
+}
+
+std::size_t NmeaDevice::addHdgCallback(HdgCallback cb)
+{
+    return addCallbackInternal(m_hdgCallbacks, m_callbackMutex, std::move(cb));
+}
+
+void NmeaDevice::removeHdgCallback(std::size_t id)
+{
+    removeCallbackInternal(m_hdgCallbacks, m_callbackMutex, id);
+}
+
+std::optional<RsdData> NmeaDevice::lastRsd() const
+{
+    std::lock_guard<std::mutex> lock(m_maritimeMutex);
+    return m_lastRsd;
+}
+
+std::optional<ApbData> NmeaDevice::lastApb() const
+{
+    std::lock_guard<std::mutex> lock(m_maritimeMutex);
+    return m_lastApb;
+}
+
+std::optional<MwvData> NmeaDevice::lastMwv() const
+{
+    std::lock_guard<std::mutex> lock(m_maritimeMutex);
+    return m_lastMwv;
+}
+
+std::optional<HdgData> NmeaDevice::lastHdg() const
+{
+    std::lock_guard<std::mutex> lock(m_maritimeMutex);
+    return m_lastHdg;
+}
+
 void NmeaDevice::feedRawBytes(const std::vector<std::uint8_t>& rawData)
 {
     handleIncomingBytes(rawData);
@@ -389,6 +453,106 @@ void NmeaDevice::processSentence(std::string_view sentence)
             for (const auto& item : *aisCbs) {
                 if (item.second) {
                     item.second(aisTarget);
+                }
+            }
+        }
+        break;
+    }
+    case NmeaSentenceId::RSD: {
+        RsdData rsd {};
+        if (NmeaSentenceParser::parseRsd(sentence, rsd, true)) {
+            {
+                std::lock_guard<std::mutex> lock(m_maritimeMutex);
+                m_lastRsd = rsd;
+            }
+            std::shared_ptr<const std::vector<std::pair<std::size_t, RsdCallback>>> rsdCbs;
+            {
+                std::lock_guard<std::mutex> cbLock(m_callbackMutex);
+                rsdCbs = m_rsdCallbacks.entries;
+            }
+            for (const auto& item : *rsdCbs) {
+                if (item.second) {
+                    item.second(rsd);
+                }
+            }
+        }
+        break;
+    }
+    case NmeaSentenceId::APB: {
+        ApbData apb {};
+        if (NmeaSentenceParser::parseApb(sentence, apb, true)) {
+            {
+                std::lock_guard<std::mutex> lock(m_maritimeMutex);
+                m_lastApb = apb;
+            }
+            std::shared_ptr<const std::vector<std::pair<std::size_t, ApbCallback>>> apbCbs;
+            {
+                std::lock_guard<std::mutex> cbLock(m_callbackMutex);
+                apbCbs = m_apbCallbacks.entries;
+            }
+            for (const auto& item : *apbCbs) {
+                if (item.second) {
+                    item.second(apb);
+                }
+            }
+        }
+        break;
+    }
+    case NmeaSentenceId::MWV: {
+        MwvData mwv {};
+        if (NmeaSentenceParser::parseMwv(sentence, mwv, true)) {
+            {
+                std::lock_guard<std::mutex> lock(m_maritimeMutex);
+                m_lastMwv = mwv;
+            }
+            std::shared_ptr<const std::vector<std::pair<std::size_t, MwvCallback>>> mwvCbs;
+            {
+                std::lock_guard<std::mutex> cbLock(m_callbackMutex);
+                mwvCbs = m_mwvCallbacks.entries;
+            }
+            for (const auto& item : *mwvCbs) {
+                if (item.second) {
+                    item.second(mwv);
+                }
+            }
+        }
+        break;
+    }
+    case NmeaSentenceId::HDG: {
+        HdgData hdg {};
+        if (NmeaSentenceParser::parseHdg(sentence, hdg, true)) {
+            {
+                std::lock_guard<std::mutex> lock(m_maritimeMutex);
+                m_lastHdg = hdg;
+            }
+            {
+                std::lock_guard<std::mutex> lock(m_navMutex);
+                if (!m_navSnapshot.hasHeading) {
+                    double trueHdg = hdg.magneticHeadingDeg;
+                    if (hdg.hasVariation) {
+                        trueHdg += hdg.magneticVariationDeg;
+                        if (trueHdg < 0.0) {
+                            trueHdg += 360.0;
+                        }
+                        if (trueHdg >= 360.0) {
+                            trueHdg -= 360.0;
+                        }
+                    }
+                    m_navSnapshot.trueHeadingDegrees = trueHdg;
+                    m_navSnapshot.hasHeading = true;
+                    m_navSnapshot.timestamp = now;
+                    currentNav = m_navSnapshot;
+                    navUpdated = true;
+                }
+            }
+            std::shared_ptr<const std::vector<std::pair<std::size_t, HdgCallback>>> hdgCbs;
+            {
+                std::lock_guard<std::mutex> cbLock(m_callbackMutex);
+                hdgCbs = m_hdgCallbacks.entries;
+            }
+            for (const auto& item : *hdgCbs) {
+                if (item.second) {
+                    item.second(hdg);
                 }
             }
         }

@@ -27,7 +27,7 @@ namespace PayloadHal {
 
 /// @enum MarineTargetType
 /// @brief Type of active target being tracked by the slaving bridge.
-enum class MarineTargetType : std::uint8_t { None = 0, RadarArpa, AisVessel, GeodeticManual };
+enum class MarineTargetType : std::uint8_t { None = 0, RadarArpa, AisVessel, GeodeticManual, RadarCursor, Waypoint };
 
 /// @enum TargetLossPolicy
 /// @brief Action taken when a tracked target ceases reporting telemetry beyond the timeout threshold.
@@ -88,6 +88,16 @@ public:
     /// @param[in] target 3D coordinate (latitude, longitude, altitude).
     /// @return True if target coordinate was accepted.
     bool slaveToGeodeticTarget(const Klv::GeoPoint3D& target);
+
+    /// @brief Slaves gimbal line-of-sight to the active radar cursor ($--RSD).
+    /// @param[in] rsd Radar System Data containing cursor range and bearing.
+    /// @return True if cursor position was successfully projected and slaved.
+    bool slaveToRadarCursor(const Nmea::RsdData& rsd);
+
+    /// @brief Slaves gimbal line-of-sight to a navigation route waypoint ($--BWC).
+    /// @param[in] bwc Bearing and Distance to Waypoint data.
+    /// @return True if waypoint coordinates were valid and slaved.
+    bool slaveToWaypoint(const Nmea::BwcData& bwc);
 
     /// @brief Disengages target slaving and releases GeoLockController.
     void disengage();

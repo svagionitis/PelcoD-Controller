@@ -23,7 +23,14 @@ enum class NmeaSentenceId : std::uint8_t {
     XDR, ///< Transducer Measurement (pitch, roll, environmental)
     VDM, ///< AIS VHF Data-link Message
     VDO, ///< AIS VHF Own-vessel Data-link Message
-    PFEC ///< FLIR Marine proprietary PTZ camera dialect
+    PFEC, ///< FLIR Marine proprietary PTZ camera dialect
+    RSD, ///< Radar System Data (radar cursor range & bearing)
+    OSD, ///< Own Ship Data (heading, course, speed)
+    APB, ///< Autopilot Sentence "B" (cross-track error, steer heading)
+    BWC, ///< Bearing and Distance to Waypoint (Great Circle)
+    BWR, ///< Bearing and Distance to Waypoint (Rhumb Line)
+    MWV, ///< Wind Speed and Angle
+    HDG ///< Heading, Deviation & Variation
 };
 
 /// @enum NmeaFixQuality
@@ -199,6 +206,98 @@ struct NmeaNavSnapshot {
     bool hasPosition { false };
     bool hasHeading { false };
     bool hasAttitude { false };
+};
+
+/// @struct NmeaTagBlock
+/// @brief Metadata parsed from NMEA 0183 v4.00+ / IEC 61162-1 tag blocks (\s:...,c:...*hh\).
+struct NmeaTagBlock {
+    std::string sourceId {}; ///< Station / talker identifier ('s:')
+    std::uint64_t timestampEpochSec { 0ULL }; ///< UNIX epoch timestamp in seconds ('c:')
+    std::string grouping {}; ///< Multi-sentence grouping ('g:', e.g. "1-2-1234")
+    std::uint32_t lineCount { 0U }; ///< Line sequence number ('n:')
+    std::string destinationId {}; ///< Destination system identifier ('d:')
+    std::string text {}; ///< Free text / remark ('t:')
+    bool valid { false };
+};
+
+/// @struct RsdData
+/// @brief Radar cursor and system telemetry unpacked from $--RSD sentence.
+struct RsdData {
+    double cursorRangeNmi { 0.0 }; ///< Distance from own ship to active cursor in nautical miles
+    double cursorBearingDeg { 0.0 }; ///< Bearing from own ship to active cursor [0.0 .. 360.0)
+    double rangeScaleNmi { 0.0 }; ///< Display range scale in nautical miles
+    char displayRotation { 'N' }; ///< 'C'=Course-up, 'H'=Head-up, 'N'=North-up
+    bool valid { false };
+};
+
+/// @struct OsdData
+/// @brief Own ship navigation data unpacked from $--OSD sentence.
+struct OsdData {
+    double headingDegrees { 0.0 }; ///< Heading in degrees [0.0 .. 360.0)
+    bool headingValid { false }; ///< True if 'A', False if 'V'
+    double courseDegrees { 0.0 }; ///< Course in degrees [0.0 .. 360.0)
+    char courseReference { 'B' }; ///< 'B'=Bottom, 'M'=Manually, 'W'=Water, 'R'=Radar, 'P'=Positioning
+    double vesselSpeed { 0.0 }; ///< Vessel speed
+    char speedReference { 'B' };
+    double vesselSetDeg { 0.0 }; ///< Set direction
+    double vesselDriftSpeed { 0.0 }; ///< Drift speed
+    char speedUnits { 'N' }; ///< 'K'=km/h, 'N'=knots, 'S'=statute miles/h
+    bool valid { false };
+};
+
+/// @struct ApbData
+/// @brief Autopilot sentence "B" unpacked from $--APB sentence.
+struct ApbData {
+    bool generalWarning { false }; ///< True if status1 is 'V'
+    bool cycleLockWarning { false }; ///< True if status2 is 'V'
+    double crossTrackErrorNmi { 0.0 }; ///< Magnitude of cross track error
+    char directionToSteer { 'L' }; ///< 'L' or 'R'
+    char xteUnits { 'N' }; ///< 'N'=Nautical Miles, 'K'=Kilometers
+    bool arrivalCircleEntered { false }; ///< True if 'A'
+    bool perpendicularPassed { false }; ///< True if 'A'
+    double bearingOriginToDestDeg { 0.0 }; ///< Bearing origin to destination [0.0 .. 360.0)
+    char bearingOriginRef { 'T' }; ///< 'M'=Magnetic, 'T'=True
+    std::string destWaypointId {}; ///< Destination waypoint name/identifier
+    double bearingPresentToDestDeg { 0.0 }; ///< Bearing present position to destination
+    char bearingPresentRef { 'T' };
+    double headingToSteerDeg { 0.0 }; ///< Commanded heading to steer to waypoint
+    char headingToSteerRef { 'T' };
+    NmeaFaaMode faaMode { NmeaFaaMode::Autonomous };
+    bool valid { false };
+};
+
+/// @struct BwcData
+/// @brief Bearing and distance to waypoint unpacked from $--BWC sentence.
+struct BwcData {
+    NmeaUtcTime utcTime {};
+    NmeaCoordinates waypointCoordinates {};
+    double bearingTrueDeg { 0.0 };
+    double bearingMagneticDeg { 0.0 };
+    double distanceNmi { 0.0 };
+    std::string waypointId {};
+    NmeaFaaMode faaMode { NmeaFaaMode::Autonomous };
+    bool valid { false };
+};
+
+/// @struct MwvData
+/// @brief Wind speed and angle telemetry unpacked from $--MWV sentence.
+struct MwvData {
+    double windAngleDeg { 0.0 }; ///< Wind angle [0.0 .. 359.0]
+    char reference { 'R' }; ///< 'R'=Relative/Apparent, 'T'=Theoretical/True
+    double windSpeed { 0.0 }; ///< Wind speed magnitude
+    char speedUnits { 'N' }; ///< 'K'=km/h, 'M'=m/s, 'N'=knots
+    bool valid { false };
+};
+
+/// @struct HdgData
+/// @brief Heading, deviation and variation unpacked from $--HDG sentence.
+struct HdgData {
+    double magneticHeadingDeg { 0.0 }; ///< Sensor magnetic heading [0.0 .. 360.0)
+    double magneticDeviationDeg { 0.0 }; ///< Magnetic deviation (positive East, negative West)
+    double magneticVariationDeg { 0.0 }; ///< Magnetic variation (positive East, negative West)
+    bool hasDeviation { false };
+    bool hasVariation { false };
+    bool valid { false };
 };
 
 } // namespace Nmea

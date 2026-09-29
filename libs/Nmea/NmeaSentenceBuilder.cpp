@@ -138,6 +138,88 @@ std::string NmeaSentenceBuilder::buildXdrPitchRoll(double pitchDeg, double rollD
     return NmeaChecksum::frameSentence(buf);
 }
 
+std::string NmeaSentenceBuilder::buildRsd(const RsdData& data, std::string_view talkerId)
+{
+    char buf[128] {};
+    std::snprintf(buf, sizeof(buf), "%.*sRSD,,,,,,,,,%.2f,%.1f,%.2f,%c", static_cast<int>(talkerId.size()),
+        talkerId.data(), data.cursorRangeNmi, data.cursorBearingDeg, data.rangeScaleNmi, data.displayRotation);
+    return NmeaChecksum::frameSentence(buf);
+}
+
+std::string NmeaSentenceBuilder::buildOsd(const OsdData& data, std::string_view talkerId)
+{
+    char buf[128] {};
+    std::snprintf(buf, sizeof(buf), "%.*sOSD,%.1f,%c,%.1f,%c,%.1f,%c,%.1f,%.1f,%c", static_cast<int>(talkerId.size()),
+        talkerId.data(), data.headingDegrees, data.headingValid ? 'A' : 'V', data.courseDegrees, data.courseReference,
+        data.vesselSpeed, data.speedReference, data.vesselSetDeg, data.vesselDriftSpeed, data.speedUnits);
+    return NmeaChecksum::frameSentence(buf);
+}
+
+std::string NmeaSentenceBuilder::buildApb(const ApbData& data, std::string_view talkerId)
+{
+    char buf[160] {};
+    std::snprintf(buf, sizeof(buf), "%.*sAPB,%c,%c,%.3f,%c,%c,%c,%c,%.1f,%c,%s,%.1f,%c,%.1f,%c,%c",
+        static_cast<int>(talkerId.size()), talkerId.data(), data.generalWarning ? 'V' : 'A',
+        data.cycleLockWarning ? 'V' : 'A', data.crossTrackErrorNmi, data.directionToSteer, data.xteUnits,
+        data.arrivalCircleEntered ? 'A' : 'V', data.perpendicularPassed ? 'A' : 'V', data.bearingOriginToDestDeg,
+        data.bearingOriginRef, data.destWaypointId.c_str(), data.bearingPresentToDestDeg, data.bearingPresentRef,
+        data.headingToSteerDeg, data.headingToSteerRef, static_cast<char>(data.faaMode));
+    return NmeaChecksum::frameSentence(buf);
+}
+
+std::string NmeaSentenceBuilder::buildBwc(const BwcData& data, std::string_view talkerId)
+{
+    std::string latStr {};
+    std::string lonStr {};
+    char latHemi { 'N' };
+    char lonHemi { 'E' };
+
+    formatCoordinate(data.waypointCoordinates.latitudeDeg, true, latStr, latHemi);
+    formatCoordinate(data.waypointCoordinates.longitudeDeg, false, lonStr, lonHemi);
+
+    char buf[160] {};
+    std::snprintf(buf, sizeof(buf), "%.*sBWC,%02u%02u%02u,%s,%c,%s,%c,%.1f,T,%.1f,M,%.1f,N,%s,%c",
+        static_cast<int>(talkerId.size()), talkerId.data(), static_cast<unsigned int>(data.utcTime.hour),
+        static_cast<unsigned int>(data.utcTime.minute), static_cast<unsigned int>(data.utcTime.second), latStr.c_str(),
+        latHemi, lonStr.c_str(), lonHemi, data.bearingTrueDeg, data.bearingMagneticDeg, data.distanceNmi,
+        data.waypointId.c_str(), static_cast<char>(data.faaMode));
+    return NmeaChecksum::frameSentence(buf);
+}
+
+std::string NmeaSentenceBuilder::buildMwv(const MwvData& data, std::string_view talkerId)
+{
+    char buf[64] {};
+    std::snprintf(buf, sizeof(buf), "%.*sMWV,%.1f,%c,%.1f,%c,%c", static_cast<int>(talkerId.size()), talkerId.data(),
+        data.windAngleDeg, data.reference, data.windSpeed, data.speedUnits, data.valid ? 'A' : 'V');
+    return NmeaChecksum::frameSentence(buf);
+}
+
+std::string NmeaSentenceBuilder::buildHdg(const HdgData& data, std::string_view talkerId)
+{
+    std::string devStr {};
+    std::string devDirStr {};
+    if (data.hasDeviation) {
+        char buf[32] {};
+        std::snprintf(buf, sizeof(buf), "%.1f", std::abs(data.magneticDeviationDeg));
+        devStr = buf;
+        devDirStr = (data.magneticDeviationDeg >= 0.0) ? "E" : "W";
+    }
+
+    std::string varStr {};
+    std::string varDirStr {};
+    if (data.hasVariation) {
+        char buf[32] {};
+        std::snprintf(buf, sizeof(buf), "%.1f", std::abs(data.magneticVariationDeg));
+        varStr = buf;
+        varDirStr = (data.magneticVariationDeg >= 0.0) ? "E" : "W";
+    }
+
+    char buf[128] {};
+    std::snprintf(buf, sizeof(buf), "%.*sHDG,%.1f,%s,%s,%s,%s", static_cast<int>(talkerId.size()), talkerId.data(),
+        data.magneticHeadingDeg, devStr.c_str(), devDirStr.c_str(), varStr.c_str(), varDirStr.c_str());
+    return NmeaChecksum::frameSentence(buf);
+}
+
 std::string NmeaSentenceBuilder::buildPfecVelocity(int panSpeed, int tiltSpeed)
 {
     char buf[64] {};

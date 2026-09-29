@@ -64,6 +64,7 @@ bool NmeaSlavingBridge::slaveToRadarTarget(std::uint32_t targetNumber)
     m_targetType = MarineTargetType::RadarArpa;
     m_targetId = targetNumber;
     m_targetName.clear();
+    m_lastContactTime = std::chrono::steady_clock::now();
 
     if (m_nmeaDevice) {
         const auto targetOpt = m_nmeaDevice->radarTarget(targetNumber);
@@ -72,7 +73,6 @@ bool NmeaSlavingBridge::slaveToRadarTarget(std::uint32_t targetNumber)
             m_targetName = ttm.targetName;
             m_targetSogKnots = ttm.targetSpeedKnots;
             m_targetCogDegrees = ttm.targetCourseDegrees;
-            m_lastContactTime = std::chrono::steady_clock::now();
 
             if (m_hasPlatformNav && m_geoLockController) {
                 double trueBearing = ttm.bearingDegrees;
@@ -98,6 +98,7 @@ bool NmeaSlavingBridge::slaveToAisVessel(std::uint32_t mmsi)
     m_targetType = MarineTargetType::AisVessel;
     m_targetId = mmsi;
     m_targetName.clear();
+    m_lastContactTime = std::chrono::steady_clock::now();
 
     if (m_nmeaDevice) {
         const auto targetOpt = m_nmeaDevice->aisTarget(mmsi);
@@ -106,7 +107,6 @@ bool NmeaSlavingBridge::slaveToAisVessel(std::uint32_t mmsi)
             m_targetName = ais.vesselName.empty() ? ais.callSign : ais.vesselName;
             m_targetSogKnots = ais.speedOverGroundKnots;
             m_targetCogDegrees = ais.courseOverGroundDegrees;
-            m_lastContactTime = std::chrono::steady_clock::now();
 
             if (ais.positionValid && m_geoLockController) {
                 m_lastKnownTargetPos.latitudeDeg = ais.coordinates.latitudeDeg;
@@ -133,6 +133,60 @@ bool NmeaSlavingBridge::slaveToGeodeticTarget(const Klv::GeoPoint3D& target)
 
     if (m_geoLockController) {
         return m_geoLockController->engage(target);
+    }
+    return false;
+}
+
+bool NmeaSlavingBridge::slaveToRadarCursor(const Nmea::RsdData& rsd)
+{
+    if (!rsd.valid) {
+        return false;
+    }
+
+    std::lock_guard<std::mutex> lock(m_stateMutex);
+    if (!m_hasPlatformNav) {
+        return false;
+    }
+
+    const double rangeMeters = rsd.cursorRangeNmi * 1852.0;
+    const auto targetPos = projectTargetFromRadar(m_platformPos, rangeMeters, rsd.cursorBearingDeg);
+
+    m_targetType = MarineTargetType::RadarCursor;
+    m_targetId = 0U;
+    m_targetName = "Radar Cursor";
+    m_lastKnownTargetPos = targetPos;
+    m_lastContactTime = std::chrono::steady_clock::now();
+    m_targetSogKnots = 0.0;
+    m_targetCogDegrees = 0.0;
+
+    if (m_geoLockController) {
+        return m_geoLockController->engage(targetPos);
+    }
+    return false;
+}
+
+bool NmeaSlavingBridge::slaveToWaypoint(const Nmea::BwcData& bwc)
+{
+    if (!bwc.valid) {
+        return false;
+    }
+
+    std::lock_guard<std::mutex> lock(m_stateMutex);
+    Klv::GeoPoint3D targetPos {};
+    targetPos.latitudeDeg = bwc.waypointCoordinates.latitudeDeg;
+    targetPos.longitudeDeg = bwc.waypointCoordinates.longitudeDeg;
+    targetPos.altitudeM = 0.0;
+
+    m_targetType = MarineTargetType::Waypoint;
+    m_targetId = 0U;
+    m_targetName = bwc.waypointId.empty() ? "Waypoint" : bwc.waypointId;
+    m_lastKnownTargetPos = targetPos;
+    m_lastContactTime = std::chrono::steady_clock::now();
+    m_targetSogKnots = 0.0;
+    m_targetCogDegrees = 0.0;
+
+    if (m_geoLockController) {
+        return m_geoLockController->engage(targetPos);
     }
     return false;
 }

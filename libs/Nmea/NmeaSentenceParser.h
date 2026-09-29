@@ -116,6 +116,54 @@ public:
     /// @return True if valid PFEC GPpos sentence.
     [[nodiscard]] static bool parsePfecPos(
         std::string_view sentence, PfecGimbalPosition& outPos, bool verifyChecksum = true) noexcept;
+
+    /// @brief Parses $--RSD Radar System Data (radar cursor) sentence.
+    /// @param[in] sentence Raw or tokenized sentence.
+    /// @param[out] outData Deserialized RsdData struct.
+    /// @param[in] verifyChecksum True to enforce checksum validation.
+    /// @return True if valid RSD sentence.
+    [[nodiscard]] static bool parseRsd(
+        std::string_view sentence, RsdData& outData, bool verifyChecksum = true) noexcept;
+
+    /// @brief Parses $--OSD Own Ship Data sentence.
+    /// @param[in] sentence Raw or tokenized sentence.
+    /// @param[out] outData Deserialized OsdData struct.
+    /// @param[in] verifyChecksum True to enforce checksum validation.
+    /// @return True if valid OSD sentence.
+    [[nodiscard]] static bool parseOsd(
+        std::string_view sentence, OsdData& outData, bool verifyChecksum = true) noexcept;
+
+    /// @brief Parses $--APB Autopilot Sentence "B".
+    /// @param[in] sentence Raw or tokenized sentence.
+    /// @param[out] outData Deserialized ApbData struct.
+    /// @param[in] verifyChecksum True to enforce checksum validation.
+    /// @return True if valid APB sentence.
+    [[nodiscard]] static bool parseApb(
+        std::string_view sentence, ApbData& outData, bool verifyChecksum = true) noexcept;
+
+    /// @brief Parses $--BWC Bearing and Distance to Waypoint (Great Circle) sentence.
+    /// @param[in] sentence Raw or tokenized sentence.
+    /// @param[out] outData Deserialized BwcData struct.
+    /// @param[in] verifyChecksum True to enforce checksum validation.
+    /// @return True if valid BWC sentence.
+    [[nodiscard]] static bool parseBwc(
+        std::string_view sentence, BwcData& outData, bool verifyChecksum = true) noexcept;
+
+    /// @brief Parses $--MWV Wind Speed and Angle sentence.
+    /// @param[in] sentence Raw or tokenized sentence.
+    /// @param[out] outData Deserialized MwvData struct.
+    /// @param[in] verifyChecksum True to enforce checksum validation.
+    /// @return True if valid MWV sentence.
+    [[nodiscard]] static bool parseMwv(
+        std::string_view sentence, MwvData& outData, bool verifyChecksum = true) noexcept;
+
+    /// @brief Parses $--HDG Heading, Deviation & Variation sentence.
+    /// @param[in] sentence Raw or tokenized sentence.
+    /// @param[out] outData Deserialized HdgData struct.
+    /// @param[in] verifyChecksum True to enforce checksum validation.
+    /// @return True if valid HDG sentence.
+    [[nodiscard]] static bool parseHdg(
+        std::string_view sentence, HdgData& outData, bool verifyChecksum = true) noexcept;
 };
 
 } // namespace Nmea

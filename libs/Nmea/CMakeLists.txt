@@ -7,6 +7,10 @@ add_library(Nmea STATIC
     NmeaSentenceBuilder.cpp
     NmeaStreamAccumulator.h
     NmeaStreamAccumulator.cpp
+    NmeaTagBlockParser.h
+    NmeaTagBlockParser.cpp
+    NmeaTagBlockBuilder.h
+    NmeaTagBlockBuilder.cpp
     AisTypes.h
     AisBitReader.h
     AisDecoder.h
@@ -16,10 +20,18 @@ add_library(Nmea STATIC
     NmeaDevice.cpp
     FlirPfecDevice.h
     FlirPfecDevice.cpp
+    n2k/N2kTypes.h
+    n2k/N2kFastPacketAssembler.h
+    n2k/N2kFastPacketAssembler.cpp
+    n2k/N2kDecoder.h
+    n2k/N2kDecoder.cpp
+    n2k/N2kDevice.h
+    n2k/N2kDevice.cpp
 )
 
 target_include_directories(Nmea PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/n2k>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/..>
     $<INSTALL_INTERFACE:include>
 )

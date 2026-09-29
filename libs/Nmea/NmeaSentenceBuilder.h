@@ -61,6 +61,42 @@ public:
     [[nodiscard]] static std::string buildXdrPitchRoll(
         double pitchDeg, double rollDeg, std::string_view talkerId = "II");
 
+    /// @brief Builds an $--RSD sentence for radar system data and cursor.
+    /// @param[in] data RsdData struct.
+    /// @param[in] talkerId 2-character talker ID (default "RA").
+    /// @return Formatted NMEA sentence string.
+    [[nodiscard]] static std::string buildRsd(const RsdData& data, std::string_view talkerId = "RA");
+
+    /// @brief Builds an $--OSD sentence for own ship data.
+    /// @param[in] data OsdData struct.
+    /// @param[in] talkerId 2-character talker ID (default "RA").
+    /// @return Formatted NMEA sentence string.
+    [[nodiscard]] static std::string buildOsd(const OsdData& data, std::string_view talkerId = "RA");
+
+    /// @brief Builds an $--APB sentence for autopilot route navigation.
+    /// @param[in] data ApbData struct.
+    /// @param[in] talkerId 2-character talker ID (default "AP").
+    /// @return Formatted NMEA sentence string.
+    [[nodiscard]] static std::string buildApb(const ApbData& data, std::string_view talkerId = "AP");
+
+    /// @brief Builds an $--BWC sentence for bearing and distance to waypoint.
+    /// @param[in] data BwcData struct.
+    /// @param[in] talkerId 2-character talker ID (default "GP").
+    /// @return Formatted NMEA sentence string.
+    [[nodiscard]] static std::string buildBwc(const BwcData& data, std::string_view talkerId = "GP");
+
+    /// @brief Builds an $--MWV sentence for wind speed and angle.
+    /// @param[in] data MwvData struct.
+    /// @param[in] talkerId 2-character talker ID (default "WI").
+    /// @return Formatted NMEA sentence string.
+    [[nodiscard]] static std::string buildMwv(const MwvData& data, std::string_view talkerId = "WI");
+
+    /// @brief Builds an $--HDG sentence for magnetic heading, deviation and variation.
+    /// @param[in] data HdgData struct.
+    /// @param[in] talkerId 2-character talker ID (default "HC").
+    /// @return Formatted NMEA sentence string.
+    [[nodiscard]] static std::string buildHdg(const HdgData& data, std::string_view talkerId = "HC");
+
     /// @brief Builds a $PFEC,GPcmd,p pan/tilt velocity drive command.
     /// @param[in] panSpeed Pan speed [-100 .. 100].
     /// @param[in] tiltSpeed Tilt speed [-100 .. 100].

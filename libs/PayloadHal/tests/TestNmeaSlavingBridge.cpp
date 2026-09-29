@@ -227,11 +227,11 @@ namespace {
             = Nmea::NmeaChecksum::frameSentence("GPGGA,123519,3700.000,N,12200.000,W,1,08,0.9,10.0,M,0.0,M,,");
         transport->injectString(gga);
 
-        ASSERT_TRUE(bridge.slaveToRadarTarget(8U));
         const std::string ttm
             = Nmea::NmeaChecksum::frameSentence("RATTM,08,1.0,000.0,T,10.0,000.0,T,0.0,0.0,K,PATROL,T,,123519,A");
         transport->injectString(ttm);
 
+        ASSERT_TRUE(bridge.slaveToRadarTarget(8U));
         EXPECT_TRUE(bridge.isSlaving());
 
         // Wait beyond target timeout
@@ -241,6 +241,68 @@ namespace {
         EXPECT_TRUE(lostCallbackFired.load());
         EXPECT_FALSE(bridge.isSlaving());
         EXPECT_FALSE(geoLock->isEngaged());
+    }
+
+    TEST(TestNmeaSlavingBridge, RadarCursorSlaving)
+    {
+        auto payload = std::make_shared<SimulatedPayload>();
+        ASSERT_TRUE(payload->connect());
+
+        auto geoLock = std::make_shared<GeoLockController>(payload);
+        auto transport = std::make_shared<MockNmeaTransport>();
+        auto nmeaDevice = std::make_shared<Nmea::NmeaDevice>(transport);
+        ASSERT_TRUE(nmeaDevice->start());
+
+        NmeaSlavingBridge bridge(nmeaDevice, geoLock);
+
+        // Own ship at (37.0, -122.0)
+        const std::string gga
+            = Nmea::NmeaChecksum::frameSentence("GPGGA,123519,3700.000,N,12200.000,W,1,08,0.9,10.0,M,0.0,M,,");
+        transport->injectString(gga);
+        const std::string hdt = Nmea::NmeaChecksum::frameSentence("HEHDT,000.0,T");
+        transport->injectString(hdt);
+
+        Nmea::RsdData rsd {};
+        rsd.cursorRangeNmi = 2.0; // 2 Nautical Miles North
+        rsd.cursorBearingDeg = 0.0;
+        rsd.valid = true;
+
+        EXPECT_TRUE(bridge.slaveToRadarCursor(rsd));
+        EXPECT_TRUE(bridge.isSlaving());
+        EXPECT_EQ(bridge.status().targetType, MarineTargetType::RadarCursor);
+
+        const auto target = geoLock->currentTarget();
+        ASSERT_TRUE(target.has_value());
+        EXPECT_GT(target->latitudeDeg, 37.0);
+        EXPECT_NEAR(target->longitudeDeg, -122.0, 1e-4);
+    }
+
+    TEST(TestNmeaSlavingBridge, WaypointSlaving)
+    {
+        auto payload = std::make_shared<SimulatedPayload>();
+        ASSERT_TRUE(payload->connect());
+
+        auto geoLock = std::make_shared<GeoLockController>(payload);
+        auto transport = std::make_shared<MockNmeaTransport>();
+        auto nmeaDevice = std::make_shared<Nmea::NmeaDevice>(transport);
+        ASSERT_TRUE(nmeaDevice->start());
+
+        NmeaSlavingBridge bridge(nmeaDevice, geoLock);
+
+        Nmea::BwcData bwc {};
+        bwc.waypointCoordinates = { 36.5, -121.8 };
+        bwc.waypointId = "MONTEREY_BUOY";
+        bwc.valid = true;
+
+        EXPECT_TRUE(bridge.slaveToWaypoint(bwc));
+        EXPECT_TRUE(bridge.isSlaving());
+        EXPECT_EQ(bridge.status().targetType, MarineTargetType::Waypoint);
+        EXPECT_EQ(bridge.status().targetName, "MONTEREY_BUOY");
+
+        const auto target = geoLock->currentTarget();
+        ASSERT_TRUE(target.has_value());
+        EXPECT_DOUBLE_EQ(target->latitudeDeg, 36.5);
+        EXPECT_DOUBLE_EQ(target->longitudeDeg, -121.8);
     }
 
 } // namespace

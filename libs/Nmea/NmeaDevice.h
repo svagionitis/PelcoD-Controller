@@ -34,6 +34,10 @@ public:
     using RadarCallback = std::function<void(const TtmData&)>;
     using AisCallback = std::function<void(const AisVesselTarget&)>;
     using RawSentenceCallback = std::function<void(std::string_view sentence, bool isTx)>;
+    using RsdCallback = std::function<void(const RsdData&)>;
+    using ApbCallback = std::function<void(const ApbData&)>;
+    using MwvCallback = std::function<void(const MwvData&)>;
+    using HdgCallback = std::function<void(const HdgData&)>;
 
     /// @brief Constructs an NmeaDevice wrapping the given physical or network transport.
     /// @param[in] transport Shared pointer to underlying transport (Serial, UDP, TCP).
@@ -132,6 +136,34 @@ public:
     /// @param[in] id Subscription ID returned by addRawCallback.
     void removeRawCallback(std::size_t id);
 
+    /// @brief Registers a subscriber callback for radar system data / cursor (RSD).
+    std::size_t addRsdCallback(RsdCallback cb);
+    void removeRsdCallback(std::size_t id);
+
+    /// @brief Registers a subscriber callback for autopilot route navigation (APB).
+    std::size_t addApbCallback(ApbCallback cb);
+    void removeApbCallback(std::size_t id);
+
+    /// @brief Registers a subscriber callback for wind speed and angle (MWV).
+    std::size_t addMwvCallback(MwvCallback cb);
+    void removeMwvCallback(std::size_t id);
+
+    /// @brief Registers a subscriber callback for heading, deviation and variation (HDG).
+    std::size_t addHdgCallback(HdgCallback cb);
+    void removeHdgCallback(std::size_t id);
+
+    /// @brief Retrieves the latest radar system data / cursor telemetry.
+    [[nodiscard]] std::optional<RsdData> lastRsd() const;
+
+    /// @brief Retrieves the latest autopilot route navigation telemetry.
+    [[nodiscard]] std::optional<ApbData> lastApb() const;
+
+    /// @brief Retrieves the latest wind speed and angle telemetry.
+    [[nodiscard]] std::optional<MwvData> lastMwv() const;
+
+    /// @brief Retrieves the latest heading, deviation and variation telemetry.
+    [[nodiscard]] std::optional<HdgData> lastHdg() const;
+
     /// @brief Ingests simulated or raw sentences directly into the accumulator.
     /// @param[in] rawData Raw byte data.
     void feedRawBytes(const std::vector<std::uint8_t>& rawData);
@@ -196,12 +228,23 @@ private:
     std::map<std::uint32_t, RadarTrackEntry> m_radarTargets {};
     std::map<std::uint32_t, AisTrackEntry> m_aisTargets {};
 
+    // Maritime sentence state
+    mutable std::mutex m_maritimeMutex;
+    std::optional<RsdData> m_lastRsd {};
+    std::optional<ApbData> m_lastApb {};
+    std::optional<MwvData> m_lastMwv {};
+    std::optional<HdgData> m_lastHdg {};
+
     // Subscriptions
     mutable std::mutex m_callbackMutex;
     CallbackList<NavCallback> m_navCallbacks {};
     CallbackList<RadarCallback> m_radarCallbacks {};
     CallbackList<AisCallback> m_aisCallbacks {};
     CallbackList<RawSentenceCallback> m_rawCallbacks {};
+    CallbackList<RsdCallback> m_rsdCallbacks {};
+    CallbackList<ApbCallback> m_apbCallbacks {};
+    CallbackList<MwvCallback> m_mwvCallbacks {};
+    CallbackList<HdgCallback> m_hdgCallbacks {};
 };
 
 } // namespace Nmea

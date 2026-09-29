@@ -64,11 +64,21 @@ public:
     }
 
     /// @brief Validates an NMEA sentence against its trailing *HH checksum.
-    /// @param[in] sentence Complete NMEA sentence, e.g. "$GPGGA,...*4F\r\n".
+    /// @param[in] sentence Complete NMEA sentence, e.g. "$GPGGA,...*4F\r\n" or "\\s:...*hh\\$GPGGA,...*4F\r\n".
     /// @return True if sentence possesses a valid asterisk followed by matching two-digit hex checksum.
     [[nodiscard]] static constexpr bool validate(std::string_view sentence) noexcept
     {
-        const auto starPos = sentence.find('*');
+        if (!sentence.empty() && sentence.front() == '\\') {
+            const auto secondBackslash = sentence.find('\\', 1U);
+            if (secondBackslash != std::string_view::npos) {
+                sentence = sentence.substr(secondBackslash + 1U);
+                while (!sentence.empty() && (sentence.front() == ' ' || sentence.front() == '\t')) {
+                    sentence.remove_prefix(1U);
+                }
+            }
+        }
+
+        const auto starPos = sentence.rfind('*');
         if (starPos == std::string_view::npos || starPos + 2U >= sentence.size()) {
             return false;
         }

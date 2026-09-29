@@ -57,6 +57,17 @@ void NmeaSentenceParser::tokenize(std::string_view sentence, std::vector<std::st
 {
     outTokens.clear();
 
+    // Strip optional leading tag block
+    if (!sentence.empty() && sentence.front() == '\\') {
+        const auto secondBackslash = sentence.find('\\', 1U);
+        if (secondBackslash != std::string_view::npos) {
+            sentence = sentence.substr(secondBackslash + 1U);
+            while (!sentence.empty() && (sentence.front() == ' ' || sentence.front() == '\t')) {
+                sentence.remove_prefix(1U);
+            }
+        }
+    }
+
     // Strip leading $/!
     if (!sentence.empty() && (sentence.front() == '$' || sentence.front() == '!')) {
         sentence.remove_prefix(1U);
@@ -88,6 +99,18 @@ NmeaSentenceId NmeaSentenceParser::identifySentence(std::string_view sentence) n
     if (sentence.empty()) {
         return NmeaSentenceId::Unknown;
     }
+
+    // Strip optional leading tag block
+    if (sentence.front() == '\\') {
+        const auto secondBackslash = sentence.find('\\', 1U);
+        if (secondBackslash != std::string_view::npos) {
+            sentence = sentence.substr(secondBackslash + 1U);
+            while (!sentence.empty() && (sentence.front() == ' ' || sentence.front() == '\t')) {
+                sentence.remove_prefix(1U);
+            }
+        }
+    }
+
     if (sentence.front() == '$' || sentence.front() == '!') {
         sentence.remove_prefix(1U);
     }
@@ -130,6 +153,27 @@ NmeaSentenceId NmeaSentenceParser::identifySentence(std::string_view sentence) n
         if (mnemonic == "VDO") {
             return NmeaSentenceId::VDO;
         }
+        if (mnemonic == "RSD") {
+            return NmeaSentenceId::RSD;
+        }
+        if (mnemonic == "OSD") {
+            return NmeaSentenceId::OSD;
+        }
+        if (mnemonic == "APB") {
+            return NmeaSentenceId::APB;
+        }
+        if (mnemonic == "BWC") {
+            return NmeaSentenceId::BWC;
+        }
+        if (mnemonic == "BWR") {
+            return NmeaSentenceId::BWR;
+        }
+        if (mnemonic == "MWV") {
+            return NmeaSentenceId::MWV;
+        }
+        if (mnemonic == "HDG") {
+            return NmeaSentenceId::HDG;
+        }
     }
 
     return NmeaSentenceId::Unknown;
@@ -140,6 +184,18 @@ std::string_view NmeaSentenceParser::extractTalkerId(std::string_view sentence) 
     if (sentence.empty()) {
         return {};
     }
+
+    // Strip optional leading tag block
+    if (sentence.front() == '\\') {
+        const auto secondBackslash = sentence.find('\\', 1U);
+        if (secondBackslash != std::string_view::npos) {
+            sentence = sentence.substr(secondBackslash + 1U);
+            while (!sentence.empty() && (sentence.front() == ' ' || sentence.front() == '\t')) {
+                sentence.remove_prefix(1U);
+            }
+        }
+    }
+
     if (sentence.front() == '$' || sentence.front() == '!') {
         sentence.remove_prefix(1U);
     }
@@ -551,6 +607,214 @@ bool NmeaSentenceParser::parsePfecPos(
 
     outPos.timestamp = std::chrono::steady_clock::now();
     outPos.valid = true;
+    return true;
+}
+
+bool NmeaSentenceParser::parseRsd(std::string_view sentence, RsdData& outData, bool verifyChecksum) noexcept
+{
+    outData = RsdData {};
+    if (verifyChecksum && !NmeaChecksum::validate(sentence)) {
+        return false;
+    }
+
+    std::vector<std::string_view> tokens {};
+    tokenize(sentence, tokens);
+
+    // Format: $--RSD,d1,b1,d2,b2,d3,b3,d4,b4,cursorRange,cursorBearing,rangeScale,rotation
+    if (tokens.size() < 13U) {
+        return false;
+    }
+
+    parseDouble(tokens[9], outData.cursorRangeNmi);
+    parseDouble(tokens[10], outData.cursorBearingDeg);
+    parseDouble(tokens[11], outData.rangeScaleNmi);
+    if (!tokens[12].empty()) {
+        outData.displayRotation = tokens[12].front();
+    }
+    outData.valid = true;
+    return true;
+}
+
+bool NmeaSentenceParser::parseOsd(std::string_view sentence, OsdData& outData, bool verifyChecksum) noexcept
+{
+    outData = OsdData {};
+    if (verifyChecksum && !NmeaChecksum::validate(sentence)) {
+        return false;
+    }
+
+    std::vector<std::string_view> tokens {};
+    tokenize(sentence, tokens);
+
+    // Format: $--OSD,heading,headingStatus,course,courseRef,speed,speedRef,set,drift,speedUnits
+    if (tokens.size() < 10U) {
+        return false;
+    }
+
+    parseDouble(tokens[1], outData.headingDegrees);
+    outData.headingValid = (!tokens[2].empty() && tokens[2].front() == 'A');
+    parseDouble(tokens[3], outData.courseDegrees);
+    if (!tokens[4].empty()) {
+        outData.courseReference = tokens[4].front();
+    }
+    parseDouble(tokens[5], outData.vesselSpeed);
+    if (!tokens[6].empty()) {
+        outData.speedReference = tokens[6].front();
+    }
+    parseDouble(tokens[7], outData.vesselSetDeg);
+    parseDouble(tokens[8], outData.vesselDriftSpeed);
+    if (!tokens[9].empty()) {
+        outData.speedUnits = tokens[9].front();
+    }
+
+    outData.valid = outData.headingValid;
+    return true;
+}
+
+bool NmeaSentenceParser::parseApb(std::string_view sentence, ApbData& outData, bool verifyChecksum) noexcept
+{
+    outData = ApbData {};
+    if (verifyChecksum && !NmeaChecksum::validate(sentence)) {
+        return false;
+    }
+
+    std::vector<std::string_view> tokens {};
+    tokenize(sentence, tokens);
+
+    // Format:
+    // $--APB,status1,status2,xte,steerDir,xteUnits,arrCircle,perpPassed,brgOrigDest,brgOrigRef,destWpt,brgPresDest,brgPresRef,headingSteer,headingSteerRef,faaMode
+    if (tokens.size() < 15U) {
+        return false;
+    }
+
+    outData.generalWarning = (!tokens[1].empty() && tokens[1].front() == 'V');
+    outData.cycleLockWarning = (!tokens[2].empty() && tokens[2].front() == 'V');
+    parseDouble(tokens[3], outData.crossTrackErrorNmi);
+    if (!tokens[4].empty()) {
+        outData.directionToSteer = tokens[4].front();
+    }
+    if (!tokens[5].empty()) {
+        outData.xteUnits = tokens[5].front();
+    }
+    outData.arrivalCircleEntered = (!tokens[6].empty() && tokens[6].front() == 'A');
+    outData.perpendicularPassed = (!tokens[7].empty() && tokens[7].front() == 'A');
+    parseDouble(tokens[8], outData.bearingOriginToDestDeg);
+    if (!tokens[9].empty()) {
+        outData.bearingOriginRef = tokens[9].front();
+    }
+    outData.destWaypointId = std::string(tokens[10]);
+    parseDouble(tokens[11], outData.bearingPresentToDestDeg);
+    if (!tokens[12].empty()) {
+        outData.bearingPresentRef = tokens[12].front();
+    }
+    parseDouble(tokens[13], outData.headingToSteerDeg);
+    if (!tokens[14].empty()) {
+        outData.headingToSteerRef = tokens[14].front();
+    }
+    if (tokens.size() > 15U && !tokens[15].empty()) {
+        outData.faaMode = static_cast<NmeaFaaMode>(tokens[15].front());
+    }
+
+    outData.valid = !outData.generalWarning;
+    return true;
+}
+
+bool NmeaSentenceParser::parseBwc(std::string_view sentence, BwcData& outData, bool verifyChecksum) noexcept
+{
+    outData = BwcData {};
+    if (verifyChecksum && !NmeaChecksum::validate(sentence)) {
+        return false;
+    }
+
+    std::vector<std::string_view> tokens {};
+    tokenize(sentence, tokens);
+
+    // Format: $--BWC,utcTime,lat,N/S,lon,E/W,brgTrue,T,brgMag,M,dist,N,wptId,faaMode
+    if (tokens.size() < 13U) {
+        return false;
+    }
+
+    (void)parseUtcTime(tokens[1], outData.utcTime);
+    if (!parseCoordinate(tokens[2], tokens[3], outData.waypointCoordinates.latitudeDeg)
+        || !parseCoordinate(tokens[4], tokens[5], outData.waypointCoordinates.longitudeDeg)) {
+        return false;
+    }
+    parseDouble(tokens[6], outData.bearingTrueDeg);
+    parseDouble(tokens[8], outData.bearingMagneticDeg);
+    parseDouble(tokens[10], outData.distanceNmi);
+    outData.waypointId = std::string(tokens[12]);
+    if (tokens.size() > 13U && !tokens[13].empty()) {
+        outData.faaMode = static_cast<NmeaFaaMode>(tokens[13].front());
+    }
+
+    outData.valid = true;
+    return true;
+}
+
+bool NmeaSentenceParser::parseMwv(std::string_view sentence, MwvData& outData, bool verifyChecksum) noexcept
+{
+    outData = MwvData {};
+    if (verifyChecksum && !NmeaChecksum::validate(sentence)) {
+        return false;
+    }
+
+    std::vector<std::string_view> tokens {};
+    tokenize(sentence, tokens);
+
+    // Format: $--MWV,windAngle,ref,windSpeed,speedUnits,status
+    if (tokens.size() < 6U) {
+        return false;
+    }
+
+    parseDouble(tokens[1], outData.windAngleDeg);
+    if (!tokens[2].empty()) {
+        outData.reference = tokens[2].front();
+    }
+    parseDouble(tokens[3], outData.windSpeed);
+    if (!tokens[4].empty()) {
+        outData.speedUnits = tokens[4].front();
+    }
+    const bool statusValid = (!tokens[5].empty() && tokens[5].front() == 'A');
+
+    outData.valid = statusValid;
+    return outData.valid;
+}
+
+bool NmeaSentenceParser::parseHdg(std::string_view sentence, HdgData& outData, bool verifyChecksum) noexcept
+{
+    outData = HdgData {};
+    if (verifyChecksum && !NmeaChecksum::validate(sentence)) {
+        return false;
+    }
+
+    std::vector<std::string_view> tokens {};
+    tokenize(sentence, tokens);
+
+    // Format: $--HDG,magHeading,magDev,devDir,magVar,varDir
+    if (tokens.size() < 2U) {
+        return false;
+    }
+
+    if (!parseDouble(tokens[1], outData.magneticHeadingDeg)) {
+        return false;
+    }
+
+    if (tokens.size() >= 4U && !tokens[2].empty()) {
+        double devVal { 0.0 };
+        if (parseDouble(tokens[2], devVal)) {
+            outData.hasDeviation = true;
+            outData.magneticDeviationDeg = (!tokens[3].empty() && tokens[3].front() == 'W') ? -devVal : devVal;
+        }
+    }
+
+    if (tokens.size() >= 6U && !tokens[4].empty()) {
+        double varVal { 0.0 };
+        if (parseDouble(tokens[4], varVal)) {
+            outData.hasVariation = true;
+            outData.magneticVariationDeg = (!tokens[5].empty() && tokens[5].front() == 'W') ? -varVal : varVal;
+        }
+    }
+
+    outData.valid = true;
     return true;
 }
 
