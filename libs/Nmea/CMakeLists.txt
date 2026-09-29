@@ -27,11 +27,17 @@ add_library(Nmea STATIC
     n2k/N2kDecoder.cpp
     n2k/N2kDevice.h
     n2k/N2kDevice.cpp
+    lwe/LweTypes.h
+    lwe/LweMulticastTransport.h
+    lwe/LweMulticastTransport.cpp
+    lwe/LweChannelManager.h
+    lwe/LweChannelManager.cpp
 )
 
 target_include_directories(Nmea PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/n2k>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/lwe>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/..>
     $<INSTALL_INTERFACE:include>
 )
