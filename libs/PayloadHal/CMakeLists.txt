@@ -83,6 +83,12 @@ add_library(PayloadHal STATIC
     adapters/FlirPfecPtzAdapter.cpp
     NmeaSlavingBridge.h
     NmeaSlavingBridge.cpp
+    TargetThreatEvaluator.h
+    TargetThreatEvaluator.cpp
+    AutoFramingController.h
+    AutoFramingController.cpp
+    SlewToCueDirector.h
+    SlewToCueDirector.cpp
     sim/SimulatedPayload.h
     sim/SimulatedPayload.cpp
 )

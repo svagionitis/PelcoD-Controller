@@ -66,4 +66,7 @@ add_payload_hal_test(TestLaserDesignatorCoordinator    TestLaserDesignatorCoordi
 add_payload_hal_test(TestGeoSurveyGridEngine          TestGeoSurveyGridEngine.cpp)
 add_payload_hal_test(TestFlirPfecPtzAdapter            TestFlirPfecPtzAdapter.cpp)
 add_payload_hal_test(TestNmeaSlavingBridge             TestNmeaSlavingBridge.cpp)
+add_payload_hal_test(TestTargetThreatEvaluator         TestTargetThreatEvaluator.cpp)
+add_payload_hal_test(TestAutoFramingController         TestAutoFramingController.cpp)
+add_payload_hal_test(TestSlewToCueDirector             TestSlewToCueDirector.cpp)
 
