@@ -3,6 +3,7 @@
 /// @file NmeaTypes.h
 /// @brief Strongly-typed data models and enums for NMEA 0183 / IEC 61162-1 navigation and tracking sentences.
 
+#include <chrono>
 #include <cstdint>
 #include <string>
 #include <vector>
@@ -181,6 +182,23 @@ struct XdrTransducer {
 struct XdrData {
     std::vector<XdrTransducer> transducers {};
     bool valid { false };
+};
+
+/// @struct NmeaNavSnapshot
+/// @brief Unified own-ship navigation snapshot synthesized from GPS, gyro, and transducer sentences.
+struct NmeaNavSnapshot {
+    NmeaCoordinates position {};
+    double altitudeMeters { 0.0 };
+    double trueHeadingDegrees { 0.0 };
+    double sogKnots { 0.0 };
+    double cogDegrees { 0.0 };
+    double pitchDegrees { 0.0 };
+    double rollDegrees { 0.0 };
+    NmeaFixQuality fixQuality { NmeaFixQuality::Invalid };
+    std::chrono::steady_clock::time_point timestamp {};
+    bool hasPosition { false };
+    bool hasHeading { false };
+    bool hasAttitude { false };
 };
 
 } // namespace Nmea

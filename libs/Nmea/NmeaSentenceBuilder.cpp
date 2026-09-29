@@ -138,4 +138,51 @@ std::string NmeaSentenceBuilder::buildXdrPitchRoll(double pitchDeg, double rollD
     return NmeaChecksum::frameSentence(buf);
 }
 
+std::string NmeaSentenceBuilder::buildPfecVelocity(int panSpeed, int tiltSpeed)
+{
+    char buf[64] {};
+    std::snprintf(buf, sizeof(buf), "PFEC,GPcmd,p,%d,%d", panSpeed, tiltSpeed);
+    return NmeaChecksum::frameSentence(buf);
+}
+
+std::string NmeaSentenceBuilder::buildPfecAbsolute(double panDeg, double tiltDeg)
+{
+    char buf[64] {};
+    std::snprintf(buf, sizeof(buf), "PFEC,GPcmd,a,%.1f,%.1f", panDeg, tiltDeg);
+    return NmeaChecksum::frameSentence(buf);
+}
+
+std::string NmeaSentenceBuilder::buildPfecPreset(char action, std::uint8_t presetId)
+{
+    char buf[64] {};
+    std::snprintf(buf, sizeof(buf), "PFEC,GPcmd,%c,%u", action, static_cast<unsigned int>(presetId));
+    return NmeaChecksum::frameSentence(buf);
+}
+
+std::string NmeaSentenceBuilder::buildPfecZoom(int speed)
+{
+    char buf[64] {};
+    std::snprintf(buf, sizeof(buf), "PFEC,GPcmd,z,%d", speed);
+    return NmeaChecksum::frameSentence(buf);
+}
+
+std::string NmeaSentenceBuilder::buildPfecQueryPos()
+{
+    return NmeaChecksum::frameSentence("PFEC,GPpos");
+}
+
+std::string NmeaSentenceBuilder::buildPfecPosReport(double panDeg, double tiltDeg)
+{
+    char buf[64] {};
+    std::snprintf(buf, sizeof(buf), "PFEC,GPpos,%.1f,%.1f", panDeg, tiltDeg);
+    return NmeaChecksum::frameSentence(buf);
+}
+
+std::string NmeaSentenceBuilder::buildPfecCameraCommand(std::string_view command)
+{
+    char buf[64] {};
+    std::snprintf(buf, sizeof(buf), "PFEC,GPcam,%.*s", static_cast<int>(command.size()), command.data());
+    return NmeaChecksum::frameSentence(buf);
+}
+
 } // namespace Nmea

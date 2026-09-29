@@ -11,6 +11,11 @@ add_library(Nmea STATIC
     AisBitReader.h
     AisDecoder.h
     AisDecoder.cpp
+    PfecTypes.h
+    NmeaDevice.h
+    NmeaDevice.cpp
+    FlirPfecDevice.h
+    FlirPfecDevice.cpp
 )
 
 target_include_directories(Nmea PUBLIC
@@ -20,6 +25,7 @@ target_include_directories(Nmea PUBLIC
 )
 
 target_link_libraries(Nmea PUBLIC
+    Transport
     Threads::Threads
     glog::glog
 )

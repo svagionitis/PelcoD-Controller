@@ -61,6 +61,44 @@ public:
     [[nodiscard]] static std::string buildXdrPitchRoll(
         double pitchDeg, double rollDeg, std::string_view talkerId = "II");
 
+    /// @brief Builds a $PFEC,GPcmd,p pan/tilt velocity drive command.
+    /// @param[in] panSpeed Pan speed [-100 .. 100].
+    /// @param[in] tiltSpeed Tilt speed [-100 .. 100].
+    /// @return Formatted NMEA sentence string with checksum.
+    [[nodiscard]] static std::string buildPfecVelocity(int panSpeed, int tiltSpeed);
+
+    /// @brief Builds a $PFEC,GPcmd,a absolute slew angle command.
+    /// @param[in] panDeg Target azimuth angle [0.0 .. 360.0).
+    /// @param[in] tiltDeg Target elevation angle [-90.0 .. +90.0].
+    /// @return Formatted NMEA sentence string with checksum.
+    [[nodiscard]] static std::string buildPfecAbsolute(double panDeg, double tiltDeg);
+
+    /// @brief Builds a $PFEC,GPcmd preset store ('s') or goto ('g') command.
+    /// @param[in] action 's' for save, 'g' for goto.
+    /// @param[in] presetId Preset number [1 .. 255].
+    /// @return Formatted NMEA sentence string with checksum.
+    [[nodiscard]] static std::string buildPfecPreset(char action, std::uint8_t presetId);
+
+    /// @brief Builds a $PFEC,GPcmd,z zoom speed command.
+    /// @param[in] speed Zoom velocity [-100 .. 100].
+    /// @return Formatted NMEA sentence string with checksum.
+    [[nodiscard]] static std::string buildPfecZoom(int speed);
+
+    /// @brief Builds a $PFEC,GPpos gimbal position query command.
+    /// @return Formatted NMEA sentence string "$PFEC,GPpos*5B\r\n".
+    [[nodiscard]] static std::string buildPfecQueryPos();
+
+    /// @brief Builds a $PFEC,GPpos position report sentence.
+    /// @param[in] panDeg Current pan angle.
+    /// @param[in] tiltDeg Current tilt angle.
+    /// @return Formatted NMEA sentence string with checksum.
+    [[nodiscard]] static std::string buildPfecPosReport(double panDeg, double tiltDeg);
+
+    /// @brief Builds a $PFEC,GPcam sensor/palette command.
+    /// @param[in] command Parameter string (e.g. "c,vis", "c,ir", "p,1", "nuc").
+    /// @return Formatted NMEA sentence string with checksum.
+    [[nodiscard]] static std::string buildPfecCameraCommand(std::string_view command);
+
     /// @brief Helper to format decimal degrees to NMEA coordinate strings.
     /// @param[in] deg Decimal degrees.
     /// @param[in] isLatitude True for latitude (ddmm.mmmm), false for longitude (dddmm.mmmm).

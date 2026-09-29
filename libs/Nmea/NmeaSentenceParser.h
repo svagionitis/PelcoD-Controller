@@ -5,6 +5,7 @@
 
 #include "NmeaChecksum.h"
 #include "NmeaTypes.h"
+#include "PfecTypes.h"
 
 #include <cstdint>
 #include <string_view>
@@ -107,6 +108,14 @@ public:
     /// @return True if valid XDR sentence.
     [[nodiscard]] static bool parseXdr(
         std::string_view sentence, XdrData& outData, bool verifyChecksum = true) noexcept;
+
+    /// @brief Parses $PFEC,GPpos pan/tilt position report sentence.
+    /// @param[in] sentence Raw or tokenized sentence.
+    /// @param[out] outPos Deserialized PfecGimbalPosition struct.
+    /// @param[in] verifyChecksum True to enforce checksum validation.
+    /// @return True if valid PFEC GPpos sentence.
+    [[nodiscard]] static bool parsePfecPos(
+        std::string_view sentence, PfecGimbalPosition& outPos, bool verifyChecksum = true) noexcept;
 };
 
 } // namespace Nmea

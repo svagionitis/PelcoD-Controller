@@ -1,0 +1,207 @@
+#pragma once
+
+/// @file NmeaDevice.h
+/// @brief Asynchronous thread-safe controller managing NMEA 0183 / AIS physical and network streams.
+
+#include "AisDecoder.h"
+#include "AisTypes.h"
+#include "NmeaSentenceParser.h"
+#include "NmeaStreamAccumulator.h"
+#include "NmeaTypes.h"
+#include "Transport/ITransport.h"
+
+#include <atomic>
+#include <chrono>
+#include <cstddef>
+#include <cstdint>
+#include <functional>
+#include <map>
+#include <memory>
+#include <mutex>
+#include <optional>
+#include <string>
+#include <string_view>
+#include <vector>
+
+namespace Nmea {
+
+/// @class NmeaDevice
+/// @brief Device controller wrapping Transport::ITransport, providing stream accumulation,
+///        real-time NMEA/AIS telemetry parsing, target caching, and thread-safe callback dispatching.
+class NmeaDevice {
+public:
+    using NavCallback = std::function<void(const NmeaNavSnapshot&)>;
+    using RadarCallback = std::function<void(const TtmData&)>;
+    using AisCallback = std::function<void(const AisVesselTarget&)>;
+    using RawSentenceCallback = std::function<void(std::string_view sentence, bool isTx)>;
+
+    /// @brief Constructs an NmeaDevice wrapping the given physical or network transport.
+    /// @param[in] transport Shared pointer to underlying transport (Serial, UDP, TCP).
+    /// @param[in] maxAccumulatorBuffer Maximum inbound stream buffer capacity before forced flush.
+    explicit NmeaDevice(std::shared_ptr<Transport::ITransport> transport, std::size_t maxAccumulatorBuffer = 4096U);
+
+    virtual ~NmeaDevice();
+
+    // Non-copyable, non-movable
+    NmeaDevice(const NmeaDevice&) = delete;
+    NmeaDevice& operator=(const NmeaDevice&) = delete;
+    NmeaDevice(NmeaDevice&&) = delete;
+    NmeaDevice& operator=(NmeaDevice&&) = delete;
+
+    /// @brief Starts communication, attaches callbacks to transport, and opens the channel.
+    /// @return True if transport is open and ready.
+    [[nodiscard]] bool start();
+
+    /// @brief Stops communication, detaches callbacks, and closes the transport channel.
+    void stop();
+
+    /// @brief Checks whether the underlying transport is currently connected and open.
+    [[nodiscard]] bool isConnected() const noexcept;
+
+    /// @brief Accesses the underlying transport channel.
+    [[nodiscard]] std::shared_ptr<Transport::ITransport> transport() const noexcept;
+
+    /// @brief Transmits a formatted NMEA sentence over the transport medium.
+    /// @param[in] sentence Sentence payload (with or without checksum).
+    /// @param[in] appendChecksum True to automatically calculate and append *HH\r\n if missing.
+    /// @return True if sentence was accepted and transmitted by the transport.
+    [[nodiscard]] bool sendSentence(std::string_view sentence, bool appendChecksum = true);
+
+    // --- State and Target Queries ---
+
+    /// @brief Retrieves the latest unified own-ship navigation snapshot.
+    [[nodiscard]] NmeaNavSnapshot navSnapshot() const;
+
+    /// @brief Retrieves a list of all currently tracked ARPA radar targets.
+    [[nodiscard]] std::vector<TtmData> activeRadarTargets() const;
+
+    /// @brief Retrieves telemetry for a specific radar target number.
+    /// @param[in] targetNumber Target tracking number (00..99).
+    /// @return TtmData struct if active, std::nullopt otherwise.
+    [[nodiscard]] std::optional<TtmData> radarTarget(std::uint32_t targetNumber) const;
+
+    /// @brief Retrieves a list of all currently active AIS vessel targets.
+    [[nodiscard]] std::vector<AisVesselTarget> activeAisTargets() const;
+
+    /// @brief Retrieves telemetry for a specific vessel MMSI.
+    /// @param[in] mmsi 9-digit Maritime Mobile Service Identity.
+    /// @return AisVesselTarget struct if active, std::nullopt otherwise.
+    [[nodiscard]] std::optional<AisVesselTarget> aisTarget(std::uint32_t mmsi) const;
+
+    /// @brief Prunes radar and AIS targets that have not received telemetry within their respective TTLs.
+    /// @param[in] radarTtl Maximum elapsed time before marking radar track Lost and pruning.
+    /// @param[in] aisTtl Maximum elapsed time before pruning vessel track.
+    void pruneStaleTargets(std::chrono::milliseconds radarTtl = std::chrono::seconds(10),
+        std::chrono::milliseconds aisTtl = std::chrono::seconds(300));
+
+    // --- Subscription Management (Copy-on-Write) ---
+
+    /// @brief Registers a subscriber callback for unified own-ship navigation updates.
+    /// @param[in] cb Callback invoked on GGA/RMC/HDT/THS/XDR sentences.
+    /// @return Unique subscription ID for unregistering.
+    std::size_t addNavCallback(NavCallback cb);
+
+    /// @brief Unregisters a navigation subscriber callback.
+    /// @param[in] id Subscription ID returned by addNavCallback.
+    void removeNavCallback(std::size_t id);
+
+    /// @brief Registers a subscriber callback for ARPA radar target updates.
+    /// @param[in] cb Callback invoked on TTM/TLL sentences.
+    /// @return Unique subscription ID for unregistering.
+    std::size_t addRadarCallback(RadarCallback cb);
+
+    /// @brief Unregisters a radar target subscriber callback.
+    /// @param[in] id Subscription ID returned by addRadarCallback.
+    void removeRadarCallback(std::size_t id);
+
+    /// @brief Registers a subscriber callback for AIS vessel target updates.
+    /// @param[in] cb Callback invoked when a complete AIS message is decoded.
+    /// @return Unique subscription ID for unregistering.
+    std::size_t addAisCallback(AisCallback cb);
+
+    /// @brief Unregisters an AIS subscriber callback.
+    /// @param[in] id Subscription ID returned by addAisCallback.
+    void removeAisCallback(std::size_t id);
+
+    /// @brief Registers a subscriber callback for raw inbound and outbound NMEA sentences.
+    /// @param[in] cb Callback invoked on every transmitted or received sentence.
+    /// @return Unique subscription ID for unregistering.
+    std::size_t addRawCallback(RawSentenceCallback cb);
+
+    /// @brief Unregisters a raw sentence subscriber callback.
+    /// @param[in] id Subscription ID returned by addRawCallback.
+    void removeRawCallback(std::size_t id);
+
+    /// @brief Ingests simulated or raw sentences directly into the accumulator.
+    /// @param[in] rawData Raw byte data.
+    void feedRawBytes(const std::vector<std::uint8_t>& rawData);
+
+private:
+    void handleIncomingBytes(const std::vector<std::uint8_t>& data);
+    void handleTransportState(Transport::TransportState state, const std::string& errorMsg);
+    void processSentence(std::string_view sentence);
+
+    template <typename T> struct CallbackList {
+        std::size_t nextId { 1U };
+        std::shared_ptr<const std::vector<std::pair<std::size_t, T>>> entries {
+            std::make_shared<std::vector<std::pair<std::size_t, T>>>()
+        };
+    };
+
+    template <typename T> std::size_t addCallbackInternal(CallbackList<T>& list, std::mutex& mutex, T cb)
+    {
+        std::lock_guard<std::mutex> lock(mutex);
+        const std::size_t id = list.nextId++;
+        auto newEntries = std::make_shared<std::vector<std::pair<std::size_t, T>>>(*list.entries);
+        newEntries->emplace_back(id, std::move(cb));
+        list.entries = newEntries;
+        return id;
+    }
+
+    template <typename T> void removeCallbackInternal(CallbackList<T>& list, std::mutex& mutex, std::size_t id)
+    {
+        std::lock_guard<std::mutex> lock(mutex);
+        auto newEntries = std::make_shared<std::vector<std::pair<std::size_t, T>>>();
+        newEntries->reserve(list.entries->size());
+        for (const auto& item : *list.entries) {
+            if (item.first != id) {
+                newEntries->push_back(item);
+            }
+        }
+        list.entries = newEntries;
+    }
+
+    std::shared_ptr<Transport::ITransport> m_transport;
+    NmeaStreamAccumulator m_accumulator;
+    AisDecoder m_aisDecoder;
+
+    mutable std::mutex m_lifecycleMutex;
+    std::atomic<bool> m_running { false };
+
+    // Navigation snapshot state
+    mutable std::mutex m_navMutex;
+    NmeaNavSnapshot m_navSnapshot {};
+
+    // Target state
+    struct RadarTrackEntry {
+        TtmData data {};
+        std::chrono::steady_clock::time_point lastUpdated {};
+    };
+    struct AisTrackEntry {
+        AisVesselTarget data {};
+        std::chrono::steady_clock::time_point lastUpdated {};
+    };
+
+    mutable std::mutex m_targetMutex;
+    std::map<std::uint32_t, RadarTrackEntry> m_radarTargets {};
+    std::map<std::uint32_t, AisTrackEntry> m_aisTargets {};
+
+    // Subscriptions
+    mutable std::mutex m_callbackMutex;
+    CallbackList<NavCallback> m_navCallbacks {};
+    CallbackList<RadarCallback> m_radarCallbacks {};
+    CallbackList<AisCallback> m_aisCallbacks {};
+    CallbackList<RawSentenceCallback> m_rawCallbacks {};
+};
+
+} // namespace Nmea

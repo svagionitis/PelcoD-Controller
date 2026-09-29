@@ -525,4 +525,33 @@ bool NmeaSentenceParser::parseXdr(std::string_view sentence, XdrData& outData, b
     return outData.valid;
 }
 
+bool NmeaSentenceParser::parsePfecPos(
+    std::string_view sentence, PfecGimbalPosition& outPos, bool verifyChecksum) noexcept
+{
+    outPos = PfecGimbalPosition {};
+    if (verifyChecksum && !NmeaChecksum::validate(sentence)) {
+        return false;
+    }
+
+    std::vector<std::string_view> tokens {};
+    tokenize(sentence, tokens);
+
+    // Format: $PFEC,GPpos,pan,tilt
+    if (tokens.size() < 4U) {
+        return false;
+    }
+
+    if (tokens[0] != "PFEC" || tokens[1] != "GPpos") {
+        return false;
+    }
+
+    if (!parseDouble(tokens[2], outPos.panDegrees) || !parseDouble(tokens[3], outPos.tiltDegrees)) {
+        return false;
+    }
+
+    outPos.timestamp = std::chrono::steady_clock::now();
+    outPos.valid = true;
+    return true;
+}
+
 } // namespace Nmea
