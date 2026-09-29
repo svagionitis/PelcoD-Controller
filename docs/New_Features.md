@@ -7,33 +7,33 @@ Here is a curated list of high-value features and enhancements that can be added
 ### 1. Callback & Event System Extensions (Completed)
 
 * **`ScopedConnectionList` / `ConnectionGroup` (Completed)**:
-  * Container allowing batch registration (`connections += device.addStatusCallback(...)`) that automatically disconnects all registered callbacks when the group goes out of scope. Implemented in `libs/PelcoDCore/Connection.h` and tested in `TestConnection.cpp`.
+  * Container allowing batch registration (`connections += device.addStatusCallback(...)`) that automatically disconnects all registered callbacks when the group goes out of scope. Implemented in [Connection.h](../libs/PelcoDCore/Connection.h) and tested in [TestConnection.cpp](../libs/PelcoDCore/tests/TestConnection.cpp).
 * **`std::future` / Promise-Based Asynchronous Queries (Completed)**:
-  * Exposes modern promise-based APIs (`queryPanAsync()`, `queryTiltAsync()`, `queryZoomAsync()`). Implemented in `libs/PelcoDCore/PelcoDDevice.h` and tested in `TestPelcoDDevice.cpp`.
+  * Exposes modern promise-based APIs (`queryPanAsync()`, `queryTiltAsync()`, `queryZoomAsync()`). Implemented in [PelcoDDevice.h](../libs/PelcoDCore/PelcoDDevice.h) and tested in [TestQPelcoDDevice.cpp](../libs/PelcoDQt/tests/TestQPelcoDDevice.cpp).
 * **Bus Address-Filtered Callbacks (Completed)**:
-  * On shared RS-485 multi-drop busses with multiple cameras, `addTrafficCallback(uint8_t targetAddress, TrafficCallback cb)` filters out packets destined for other devices at the library level. Implemented in `PelcoDDevice.h`.
+  * On shared RS-485 multi-drop busses with multiple cameras, `addTrafficCallback(uint8_t targetAddress, TrafficCallback cb)` filters out packets destined for other devices at the library level. Implemented in [PelcoDDevice.h](../libs/PelcoDCore/PelcoDDevice.h).
 
 ---
 
 ### 2. Protocol & Core Engine Capabilities (Completed)
 
 * **Pelco-P Protocol Support (Completed)**:
-  * Pelco-P (8-byte framing: `0xA0`, address, data bytes, checksum XOR/modulo-256, `0xAF`) builder and parser. Implemented in `PelcoPBuilder.h` and `PelcoPParser.h`, verified in `TestProtocolCompleteness.cpp`.
+  * Pelco-P (8-byte framing: `0xA0`, address, data bytes, checksum XOR/modulo-256, `0xAF`) builder and parser. Implemented in `PelcoPBuilder.h` and `PelcoPParser.h`, verified in [TestProtocolCompleteness.cpp](../libs/PelcoDCore/tests/TestProtocolCompleteness.cpp).
 * **Command Retries with Configurable Backoff (Completed)**:
-  * Configurable retry policies with backoff before triggering timeout callbacks. Implemented in `RetryPolicy.h` and tested in `TestRetryPolicy.cpp`.
+  * Configurable retry policies with backoff before triggering timeout callbacks. Implemented in [RetryPolicy.h](../libs/PelcoDCore/RetryPolicy.h) and tested in [TestRetryPolicy.cpp](../libs/PelcoDQt/tests/TestRetryPolicy.cpp).
 * **Multi-Baud Auto-Discovery in `BusScanner` (Completed)**:
-  * Auto-cycles through common baud rates (`2400`, `4800`, `9600`, `19200`, `38400`, `115200`) enabling true zero-config discovery. Implemented in `BusScanner.h` (`scanAllBauds()`) and tested in `TestBusScanner.cpp`.
+  * Auto-cycles through common baud rates (`2400`, `4800`, `9600`, `19200`, `38400`, `115200`) enabling true zero-config discovery. Implemented in [BusScanner.h](../libs/PelcoDCore/BusScanner.h) (`scanAllBauds()`) and tested in [TestBusScanner.cpp](../libs/PelcoDCore/tests/TestBusScanner.cpp).
 
 ---
 
 ### 3. Traffic Inspection & Diagnostics (Completed)
 
 * **Traffic Capture Export in Qt (`TrafficInspectorWidget`) (Completed)**:
-  * Export captured traffic to **CSV**, **JSON Lines**, or **PCAP/Wireshark** format directly from `TrafficInspectorWidget` in the Qt GUI.
+  * Export captured traffic to **CSV**, **JSON Lines**, or **PCAP/Wireshark** format directly from [TrafficInspectorWidget](../app-pelcod-qt/widgets/TrafficInspectorWidget.h) in the Qt GUI.
 * **Packet Macro Playback / Hex Scripting (Completed)**:
-  * Record, author, edit, import/export (JSON and line-based `.hex`/`.txt` scripts), and execute timed sequences of commands with millisecond scheduling, repeat loop rules, and live table visualization. Implemented in `MacroScript.h`, `MacroPlayer.h`, `MacroPlaybackDialog.h`, and integrated into `TrafficInspectorWidget`. Tested in `TestMacroPlayback.cpp`.
+  * Record, author, edit, import/export (JSON and line-based `.hex`/`.txt` scripts), and execute timed sequences of commands with millisecond scheduling, repeat loop rules, and live table visualization. Implemented in [MacroScript.h](../libs/PelcoDCore/MacroScript.h), [MacroPlayer.h](../libs/PelcoDCore/MacroPlayer.h), [MacroPlaybackDialog.h](../app-pelcod-qt/dialogs/MacroPlaybackDialog.h), and integrated into [TrafficInspectorWidget](../app-pelcod-qt/widgets/TrafficInspectorWidget.h). Tested in [TestMacroPlayback.cpp](../libs/PelcoDCore/tests/TestMacroPlayback.cpp).
 * **Round-Trip-Time (RTT) & Jitter Profiler (Completed)**:
-  * Real-time response latency profiler between query dispatch and response frame arrival, rendering live min/max/average RTT telemetry. Implemented in `RttProfiler.h` and `RttProfilerDialog.h`, tested in `TestRttProfiler.cpp`.
+  * Real-time response latency profiler between query dispatch and response frame arrival, rendering live min/max/average RTT telemetry. Implemented in [RttProfiler.h](../libs/PelcoDCore/RttProfiler.h) and [RttProfilerDialog.h](../app-pelcod-qt/dialogs/RttProfilerDialog.h), tested in [TestRttProfiler.cpp](../libs/PelcoDCore/tests/TestRttProfiler.cpp).
 
 ---
 
@@ -44,7 +44,7 @@ Here is a curated list of high-value features and enhancements that can be added
 * **Patrol Tour Timeline & Visualizer**:
   * Provide a graphical timeline editor for `PatrolController` showing dwell times, target presets, and smooth transitions.
 * **RTSP / Video Stream Overlay (Completed)**:
-  * Video preview widget side-by-side with PTZ compass and optics panel, with crosshair HUD, trajectory trails, and tactical overlay rendering. Implemented in `VideoStreamTab.cpp` and `VideoOverlayWidget.cpp`.
+  * Video preview widget side-by-side with PTZ compass and optics panel, with crosshair HUD, trajectory trails, and tactical overlay rendering. Implemented in [VideoStreamTab.cpp](../app-pelcod-qt/tabs/VideoStreamTab.cpp) and [VideoOverlayWidget.cpp](../app-pelcod-qt/widgets/VideoOverlayWidget.cpp).
 
 ---
 
@@ -52,19 +52,19 @@ Here is a curated list of high-value features and enhancements that can be added
 
 #### A. Target Tracking Engine Enhancements
 * **Dynamic Scale Adaptation (Zoom & Distance Compensation) (Completed)**:
-  * Estimates scale expansion/contraction factor dynamically using pairwise Lucas-Kanade feature dispersion. Implemented in `CentroidTargetTrackerFilter::setScaleAdaptation()`.
+  * Estimates scale expansion/contraction factor dynamically using pairwise Lucas-Kanade feature dispersion. Implemented in [CentroidTargetTrackerFilter](../libs/VideoFilters/VideoFilters.h)`::setScaleAdaptation()`.
 * **Appearance Model Fusion (Anti-Drift / Re-Identification) (Completed)**:
-  * Fuses optical flow with HSV/Luma histogram back-projection to periodically re-anchor the centroid and prevent track drift. Implemented in `CentroidTargetTrackerFilter::setAppearanceFusion()`.
+  * Fuses optical flow with HSV/Luma histogram back-projection to periodically re-anchor the centroid and prevent track drift. Implemented in [CentroidTargetTrackerFilter](../libs/VideoFilters/VideoFilters.h)`::setAppearanceFusion()`.
 * **Constant Acceleration (CA) Kinematic Kalman Model (Completed)**:
-  * 6-state constant-acceleration model $[x, y, v_x, v_y, a_x, a_y]^T$ with adaptive process noise covariance $Q(k)$ driven by measurement innovation residuals. Implemented in `CentroidTargetTrackerFilter`.
+  * 6-state constant-acceleration model $[x, y, v_x, v_y, a_x, a_y]^T$ with adaptive process noise covariance $Q(k)$ driven by measurement innovation residuals. Implemented in [CentroidTargetTrackerFilter](../libs/VideoFilters/VideoFilters.h).
 * **Trajectory Breadcrumbs & Predictive Lead Vector (Completed)**:
-  * Temporal trajectory trail with Catmull-Rom spline smoothing, thermal speed gradient coloring, CTRA turn prediction, Kalman covariance uncertainty ellipse, and PTZ boresight setpoint indicator. Implemented in `CentroidTargetTrackerFilter` and configurable via `TacticalOverlaysDialog`.
+  * Temporal trajectory trail with Catmull-Rom spline smoothing, thermal speed gradient coloring, CTRA turn prediction, Kalman covariance uncertainty ellipse, and PTZ boresight setpoint indicator. Implemented in [CentroidTargetTrackerFilter](../libs/VideoFilters/VideoFilters.h) and configurable via [TacticalOverlaysDialog](../app-pelcod-qt/dialogs/TacticalOverlaysDialog.h).
 
 #### B. Closed-Loop PTZ Auto-Tracking Extensions
 * **Closed-Loop 3-Axis Auto-Zoom (Target Framing) (Completed)**:
-  * Issues dynamic continuous/stepped zoom commands via `QPelcoDDevice::zoom()` to maintain constant relative target size on screen. Implemented in `PtzAutoTracker::setAutoZoomEnabled()`.
+  * Issues dynamic continuous/stepped zoom commands via `QPelcoDDevice::zoom()` to maintain constant relative target size on screen. Implemented in [PtzAutoTracker](../libs/Tracking/PtzAutoTracker.h)`::setAutoZoomEnabled()`.
 * **Predictive Lead Angle Boresight Deflection (Completed)**:
-  * Offsets camera boresight along target velocity vector so maneuvering objects remain centered in their direction of travel. Implemented in `PtzAutoTracker::setPredictiveLeadEnabled()`.
+  * Offsets camera boresight along target velocity vector so maneuvering objects remain centered in their direction of travel. Implemented in [PtzAutoTracker](../libs/Tracking/PtzAutoTracker.h)`::setPredictiveLeadEnabled()`.
 
 #### C. New Tactical & Surveillance Filters
 * **`LoiteringDetectorFilter` (Stationary Dwell-Time Alarm)**:
@@ -101,11 +101,11 @@ Techniques from digital signal processing (DSP), system identification, and cont
 
 #### A. Frequency-Domain & Spectral Tools
 * **Goertzel Algorithm (Targeted Single-Frequency Monitoring) (Completed)**:
-  * Computes discrete Fourier transform power at a specific target frequency using a 2nd-order IIR filter with $O(N)$ efficiency. Implemented in `GoertzelFilter.h`, tested in `TestGoertzelFilter.cpp`.
+  * Computes discrete Fourier transform power at a specific target frequency using a 2nd-order IIR filter with $O(N)$ efficiency. Implemented in [GoertzelFilter.h](../libs/Math/GoertzelFilter.h), tested in [TestGoertzelFilter.cpp](../libs/Math/tests/TestGoertzelFilter.cpp).
 * **Short-Time Fourier Transform (STFT) & Real-Time Spectrogram (Completed)**:
-  * Pure C++17 sliding-window frequency-domain engine producing a 2D time-frequency energy distribution (spectrogram / waterfall matrix) without external dependencies. Implemented in `Stft.h` and `SpectrogramWidget`.
+  * Pure C++17 sliding-window frequency-domain engine producing a 2D time-frequency energy distribution (spectrogram / waterfall matrix) without external dependencies. Implemented in [Stft.h](../libs/Math/Stft.h) and [SpectrogramWidget](../app-pelcod-qt/widgets/SpectrogramWidget.h).
 * **Discrete Wavelet Transform (DWT / Haar / Daubechies) (Completed)**:
-  * Multi-resolution decomposition with flexible time-frequency localization for transient shocks and wind blast impulses. Implemented in `Dwt.h`, tested in `TestDwt.cpp`.
+  * Multi-resolution decomposition with flexible time-frequency localization for transient shocks and wind blast impulses. Implemented in [Dwt.h](../libs/Math/Dwt.h), tested in [TestDwt.cpp](../libs/Math/tests/TestDwt.cpp).
 * **Chirp Z-Transform (CZT / "Zoom-FFT")**:
   * Evaluates the Z-transform along arbitrary contours and spiral arcs in the complex plane, enabling high-resolution spectral zoom into narrow frequency bands (e.g. motor resonance peaks) without massive FFT zero-padding.
 * **Fractional Fourier Transform (FrFT) & Chirplet Transform**:
@@ -121,13 +121,13 @@ Techniques from digital signal processing (DSP), system identification, and cont
 
 #### B. Time-Domain Filtering & State Estimation
 * **Cross-Correlation Latency Estimator (Completed)**:
-  * Measures lagged similarity between commanded PTZ motor velocities and observed optical flow velocities to discover physical end-to-end latency. Implemented in `LatencyEstimator.h` and `LatencyCalibrator.h`.
+  * Measures lagged similarity between commanded PTZ motor velocities and observed optical flow velocities to discover physical end-to-end latency. Implemented in [LatencyEstimator.h](../libs/Tracking/LatencyEstimator.h) and [LatencyCalibrator.h](../libs/Tracking/LatencyCalibrator.h).
 * **LMS / RLS Adaptive Filter (Active Vibration Cancellation - AVC)**:
   * Dynamically adapts FIR filter weights to cancel an interfering noise source in real time using IMU/accelerometer reference signals.
 * **Savitzky-Golay Polynomial Smoothing Filter**:
   * Fits local low-degree polynomials via moving convolution to smooth noisy optical flow centroids and compute velocity/acceleration derivatives without group delay or phase lag.
 * **Extended / Unscented Kalman Filter (EKF / UKF) (Completed)**:
-  * Non-linear Bayesian state estimator upgrading linear 2D tracker to true 3D spherical kinematics and pinhole camera projective geometry. Implemented in `ExtendedKalmanFilter.h` and `UnscentedKalmanFilter.h`.
+  * Non-linear Bayesian state estimator upgrading linear 2D tracker to true 3D spherical kinematics and pinhole camera projective geometry. Implemented in [ExtendedKalmanFilter.h](../libs/Tracking/ExtendedKalmanFilter.h) and [UnscentedKalmanFilter.h](../libs/Tracking/UnscentedKalmanFilter.h).
 * **Particle Filter (Sequential Monte Carlo)**:
   * Non-parametric Bayesian state estimator using sample particles to track non-linear, multi-modal probability distributions when targets undergo severe full occlusions or erratic maneuvers where Kalman assumptions fail.
 * **Robust PCA / Dynamic Mode Decomposition (DMD)**:
@@ -135,11 +135,11 @@ Techniques from digital signal processing (DSP), system identification, and cont
 
 #### C. Video Domain Enhancements
 * **Discrete Cosine Transform (DCT) Auto-Focus Sharpness Metric (Completed)**:
-  * Computes spatial frequency energy using real-valued DCT basis functions across 8x8 blocks for contrast-invariant lens focus sweeps. Implemented in `Dct.h`, tested in `TestDctSharpness.cpp`.
+  * Computes spatial frequency energy using real-valued DCT basis functions across 8x8 blocks for contrast-invariant lens focus sweeps. Implemented in [Dct.h](../libs/Math/Dct.h), tested in [TestDctSharpness.cpp](../libs/Math/tests/TestDctSharpness.cpp).
 * **Integral Images (Summed-Area Tables) (Completed)**:
-  * Computes arbitrary rectangular pixel sums in $O(1)$ constant time for adaptive local thresholding and contrast normalization. Implemented in `IntegralImage.h`, tested in `TestIntegralImage.cpp`.
+  * Computes arbitrary rectangular pixel sums in $O(1)$ constant time for adaptive local thresholding and contrast normalization. Implemented in [IntegralImage.h](../libs/Math/IntegralImage.h), tested in [TestIntegralImage.cpp](../libs/Math/tests/TestIntegralImage.cpp).
 * **Phase Correlation (2D FFT Global Motion Estimation) (Completed)**:
-  * Estimates sub-pixel translational shifts between frames using normalized cross-power spectrum for featureless environment stabilization. Implemented in `PhaseCorrelation.h`, tested in `TestPhaseCorrelation.cpp`.
+  * Estimates sub-pixel translational shifts between frames using normalized cross-power spectrum for featureless environment stabilization. Implemented in [PhaseCorrelation.h](../libs/Math/PhaseCorrelation.h), tested in [TestPhaseCorrelation.cpp](../libs/Math/tests/TestPhaseCorrelation.cpp).
 * **Fourier-Mellin Transform (Log-Polar Image Registration)**:
   * Resamples frequency spectra or images into log-polar coordinates $(\ln r, \theta)$ before phase correlation, converting rotation and scale into planar translations for complete RST (Rotation, Scale, Translation) invariant video stabilization.
 * **Radon & Hough Transforms (Horizon Leveling & Motion Blur Angle Estimation)**:
@@ -149,13 +149,13 @@ Techniques from digital signal processing (DSP), system identification, and cont
 * **Distance Transform & Chamfer Matching**:
   * Computes exact Euclidean distance fields from binary edge maps in linear time for shape matching, silhouette re-identification, and framing constraint boundaries.
 * **Gabor Transform & Filterbanks (Completed)**:
-  * Oriented Gaussian-windowed spatial-frequency bandpass filters for multi-angle sharpness assessment, directional motion blur estimation, texture analysis, and vehicle/pedestrian appearance modeling. Implemented in `Gabor.h` and `GaborFilter`, tested in `TestGabor.cpp`.
+  * Oriented Gaussian-windowed spatial-frequency bandpass filters for multi-angle sharpness assessment, directional motion blur estimation, texture analysis, and vehicle/pedestrian appearance modeling. Implemented in [Gabor.h](../libs/Math/Gabor.h) and [GaborFilter](../libs/VideoFilters/SpatialFilters.h), tested in [TestGabor.cpp](../libs/Math/tests/TestGabor.cpp).
 * **Planar Homography & Perspective Rectification**:
   * $3 \times 3$ projective matrix transformations for ground-plane projection, Birds-Eye-View (BEV) mapping, and ONVIF GeoMove coordinate conversions.
 * **Direct Encoder Latency & SEI Metadata Extractor (`SeiTimecodeExtractor`)**:
   * Extracts H.264/HEVC SEI (Supplemental Enhancement Information) NALUs (such as `user_data_unregistered`, SMPTE 12M-2, or ONVIF UTC timecodes) directly during decoding to compute true camera-to-display latency ($\Delta t = T_{\text{local}} - T_{\text{capture}}$) without external sensors.
 * **Stream Health & Freeze / Signal-Loss Monitor (`StreamHealthMonitor`) & Live OSD Designator (`StreamHealthOsdFilter`) (Completed)**:
-  * Real-time diagnostic state machine (`libs/Video`) and tactical live status overlay (`libs/VideoFilters`). Features sub-sampled grid processing (<0.05 ms overhead) to detect frozen frames, signal-loss timeouts, lens blackouts, whiteouts, and degraded FPS, with exclusion zones (ignored ROIs) to mask on-camera digital clocks. Pairs with `StreamHealthOsdFilter` to render animated pulsating '● LIVE' designator badges, health pills, and exclusion wireframes. Implemented in `StreamHealthMonitor.h/.cpp` and `StreamHealthOsdFilter.h/.cpp`, tested in `TestStreamHealthMonitor.cpp` and `TestVideoDecoder.cpp`.
+  * Real-time diagnostic state machine (`libs/Video`) and tactical live status overlay (`libs/VideoFilters`). Features sub-sampled grid processing (<0.05 ms overhead) to detect frozen frames, signal-loss timeouts, lens blackouts, whiteouts, and degraded FPS, with exclusion zones (ignored ROIs) to mask on-camera digital clocks. Pairs with `StreamHealthOsdFilter` to render animated pulsating '● LIVE' designator badges, health pills, and exclusion wireframes. Implemented in [StreamHealthMonitor.h](../libs/Video/StreamHealthMonitor.h)/[.cpp](../libs/Video/StreamHealthMonitor.cpp) and [StreamHealthOsdFilter.h](../libs/VideoFilters/StreamHealthOsdFilter.h)/[.cpp](../libs/VideoFilters/StreamHealthOsdFilter.cpp), tested in [TestStreamHealthMonitor.cpp](../libs/Video/tests/TestStreamHealthMonitor.cpp) and [TestVideoDecoder.cpp](../libs/Video/tests/TestVideoDecoder.cpp).
 * **Pre-Event Rolling Incident Buffer & Video Recorder (`VideoRecorder`)**:
   * Maintains an in-memory ring buffer (e.g. 5–15 seconds) of decoded frames or raw NALUs, enabling automated post-incident and pre-alarm clip export to MP4/MKV when perimeter tripwires or target trackers trigger.
 * **Hardware Latency Optical Test Pattern Generator (`MockVideoDecoder`)**:
@@ -167,7 +167,7 @@ Techniques from digital signal processing (DSP), system identification, and cont
 
 #### D. Control System Identification
 * **Automated Chirp / Swept-Sine Plant Identification (Empirical Bode Plot) (Completed)**:
-  * Pure C++17 system identification engine (`PlantIdentifier`) and physical sweep orchestrator (`ChirpCalibrator`), estimating empirical Frequency Response Functions and computing PID auto-tuning. Implemented in `PlantIdentifier.h` and `BodePlotWidget`.
+  * Pure C++17 system identification engine (`PlantIdentifier`) and physical sweep orchestrator (`ChirpCalibrator`), estimating empirical Frequency Response Functions and computing PID auto-tuning. Implemented in [PlantIdentifier.h](../libs/Tracking/PlantIdentifier.h) and [BodePlotWidget](../app-pelcod-qt/widgets/BodePlotWidget.h).
 
 ---
 

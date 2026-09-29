@@ -269,7 +269,7 @@ void onWatchdogTimer() {
 
 ## Verification & Unit Testing
 
-The test suites in `libs/Video/tests/TestStreamHealthMonitor.cpp` and `libs/Video/tests/TestVideoDecoder.cpp` exercise all diagnostic and presentation capabilities:
+The test suites in [TestStreamHealthMonitor.cpp](../../libs/Video/tests/TestStreamHealthMonitor.cpp) and [TestVideoDecoder.cpp](../../libs/Video/tests/TestVideoDecoder.cpp) exercise all diagnostic and presentation capabilities:
 1. **`InitialStateAndConfig`**: Verifies defaults and dynamic configuration mutators.
 2. **`HealthyDynamicStreaming`**: Confirms full-rate dynamic streaming produces healthy states and accurate measured FPS.
 3. **`FreezeDetectionAndRecovery`**: Asserts identical frames transition to `Frozen` precisely at the threshold deadline and recover immediately upon scene motion.

@@ -22,7 +22,7 @@ Neither the Kalman filter nor the PID controller can do the other's job. Here is
 
 ## 1. Why We Need the Kalman Filter (The Observer)
 
-Optical flow and visual bounding boxes (from [CentroidTargetTrackerFilter](../libs/PelcoDVideo/VideoFilters.h#L320)) produce noisy, delayed, 2D pixel measurements. The Kalman filter (see [Kalman Filter 101](technical/Kalman_Filter_101.md) for an intuitive ELI5 and technical guide) acts as the **state estimator**:
+Optical flow and visual bounding boxes (from [CentroidTargetTrackerFilter](../libs/VideoFilters/TrackingFilters.h#L163)) produce noisy, delayed, 2D pixel measurements. The Kalman filter (see [Kalman Filter 101](technical/Kalman_Filter_101.md) for an intuitive ELI5 and technical guide) acts as the **state estimator**:
 
 ### A. Extracting Velocity from Position
 Computer vision only tells you where the target *is* ($x, y$), not how fast it is moving ($v_x, v_y$).
@@ -35,7 +35,7 @@ $$\text{Total Delay} = \text{RTSP Transport} + \text{H.264 Decoding} + \text{Fra
 By the time the frame processor detects a moving car at pixel $(x, y)$, the car is already dozens of pixels ahead in reality!
 - Because the Kalman filter maintains the velocity state, it can project the target's trajectory forward into the future:
   $$\hat{x}_{\text{actual}} = x_{\text{measured}} + v_x \cdot \Delta t_{\text{latency}}$$
-- In [CentroidTargetTrackerFilter::getTargetState(lookahead)](../libs/PelcoDVideo/VideoFilters.cpp#L1916), we use this lookahead prediction so the PTZ motors steer towards where the target **will be**, eliminating systematic pursuit lag.
+- In [CentroidTargetTrackerFilter::getTargetState(lookahead)](../libs/VideoFilters/TrackingFilters.cpp#L500), we use this lookahead prediction so the PTZ motors steer towards where the target **will be**, eliminating systematic pursuit lag.
 
 ### C. Occlusion Coasting (Handling Obstacles)
 If a tracked person walks behind a lamppost, tree, or pillar, optical flow instantly loses its feature points:
@@ -48,7 +48,7 @@ If a tracked person walks behind a lamppost, tree, or pillar, optical flow insta
 
 Even with an accurate Kalman-filtered target position, you cannot simply feed raw pixel errors directly to the camera motors. PTZ heads are physical mechanical systems subject to **inertia, mass, gear backlash, friction, and motor acceleration limits**.
 
-[PidController](../libs/PelcoDCore/PidController.h) (see [PID Controller 101](technical/PID_Controller_101.md) for an intuitive ELI5 and technical reference) and [PtzAutoTracker](../libs/PelcoDCore/PtzAutoTracker.h) solve these physical control problems:
+[PidController](../libs/Tracking/PidController.h) (see [PID Controller 101](technical/PID_Controller_101.md) for an intuitive ELI5 and technical reference) and [PtzAutoTracker](../libs/Tracking/PtzAutoTracker.h) solve these physical control problems:
 
 ### A. Proportional Control ($K_p$): Scaling the Urgency
 - A target near the edge of the screen ($e = 0.9$) needs rapid panning to prevent it from escaping the frame.

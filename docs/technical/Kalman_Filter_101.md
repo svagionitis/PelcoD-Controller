@@ -381,7 +381,7 @@ This provides **zero-latency lookahead**, allowing PTZ motors to aim at where th
 
 In the `PelcoD-Controller` codebase, Kalman filtering is deployed across multiple architectural tiers:
 
-### 1. 2D Image-Space Kinematic Tracking ([`VideoFilters.cpp`](../../libs/PelcoDVideo/VideoFilters.cpp))
+### 1. 2D Image-Space Kinematic Tracking ([`TrackingFilters.cpp`](../../libs/VideoFilters/TrackingFilters.cpp))
 Inside `CentroidTargetTrackerFilter`, a 6-state constant-acceleration linear Kalman filter tracks pixel centroids:
 - **State Vector:** $\mathbf{x} = [x, y, v_x, v_y, a_x, a_y]^T$
 - **Measurement Vector:** $\mathbf{z} = [u, v]^T$ (Centroid from Lucas-Kanade optical flow)
@@ -398,8 +398,8 @@ Inside `CentroidTargetTrackerFilter`, a 6-state constant-acceleration linear Kal
 
 ---
 
-### 2. High-Performance Nonlinear Filters ([`ExtendedKalmanFilter.h`](../../libs/PelcoDCore/ExtendedKalmanFilter.h) & [`UnscentedKalmanFilter.h`](../../libs/PelcoDCore/UnscentedKalmanFilter.h))
-In `libs/PelcoDCore/`, the project includes standalone, pure C++17 non-linear filters implemented with zero external library dependencies:
+### 2. High-Performance Nonlinear Filters ([`ExtendedKalmanFilter.h`](../../libs/Tracking/ExtendedKalmanFilter.h) & [`UnscentedKalmanFilter.h`](../../libs/Tracking/UnscentedKalmanFilter.h))
+In `libs/Tracking/`, the project includes standalone, pure C++17 non-linear filters implemented with zero external library dependencies:
 - **`ExtendedKalmanFilter`:**
   - Implements **Joseph stabilized covariance updates** (`ExtendedKalmanFilter.cpp#L112`):
     ```cpp
@@ -416,11 +416,11 @@ In `libs/PelcoDCore/`, the project includes standalone, pure C++17 non-linear fi
 
 ---
 
-### 3. Domain-Specific 3D Spherical Tracking ([`PtzSphericalEstimator.h`](../../libs/PelcoDCore/PtzSphericalEstimator.h))
+### 3. Domain-Specific 3D Spherical Tracking ([`PtzSphericalEstimator.h`](../../libs/Tracking/PtzSphericalEstimator.h))
 Fuses raw 2D pixel coordinates with physical camera gimbal telemetry (pan and tilt encoder angles):
 - Converts 2D pixel offsets into true 3D spherical angles (Azimuth $\theta$, Elevation $\phi$, and angular rates $\omega_{\text{pan}}, \omega_{\text{tilt}}$).
 - Compensates for optical lens distortion and zoom-dependent focal length.
-- Projects lookahead target coordinates directly into [`PidController`](../../libs/PelcoDCore/PidController.h) to drive the Pelco-D physical pan/tilt head.
+- Projects lookahead target coordinates directly into [`PidController`](../../libs/Tracking/PidController.h) to drive the Pelco-D physical pan/tilt head.
 
 ---
 
@@ -466,5 +466,5 @@ The following standard reference texts, seminal papers, and academic resources p
    - [`docs/technical/DCT_101.md`](DCT_101.md): Complementary 101/ELI5 guide explaining the Discrete Cosine Transform (DCT).
    - [`docs/technical/DWT_101.md`](DWT_101.md): Complementary 101/ELI5 guide explaining the Discrete Wavelet Transform (DWT).
    - [`docs/PID_Kalman_Tracking.md`](../PID_Kalman_Tracking.md): Architectural analysis comparing the observer (Kalman) and actuator (PID) visual servoing duality.
-   - [`libs/PelcoDCore/ExtendedKalmanFilter.h`](../../libs/PelcoDCore/ExtendedKalmanFilter.h): C++17 Extended Kalman Filter implementation.
-   - [`libs/PelcoDCore/UnscentedKalmanFilter.h`](../../libs/PelcoDCore/UnscentedKalmanFilter.h): C++17 Unscented Kalman Filter implementation.
+   - [`libs/Tracking/ExtendedKalmanFilter.h`](../../libs/Tracking/ExtendedKalmanFilter.h): C++17 Extended Kalman Filter implementation.
+   - [`libs/Tracking/UnscentedKalmanFilter.h`](../../libs/Tracking/UnscentedKalmanFilter.h): C++17 Unscented Kalman Filter implementation.
