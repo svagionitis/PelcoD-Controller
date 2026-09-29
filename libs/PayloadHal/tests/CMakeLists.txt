@@ -70,5 +70,6 @@ add_payload_hal_test(TestTargetThreatEvaluator         TestTargetThreatEvaluator
 add_payload_hal_test(TestAutoFramingController         TestAutoFramingController.cpp)
 add_payload_hal_test(TestSlewToCueDirector             TestSlewToCueDirector.cpp)
 add_payload_hal_test(TestVesselAttitudeCompensator     TestVesselAttitudeCompensator.cpp)
+add_payload_hal_test(TestMarineSlewToCueSimulation     TestMarineSlewToCueSimulation.cpp)
 
 
