@@ -1,3 +1,7 @@
+---
+trigger: always_on
+---
+
 # Verification Checklist (Run Before Outputting Code)
 
 Before presenting any C++17 code snippet or committing changes, internally verify against this checklist:
@@ -13,4 +17,6 @@ Before presenting any C++17 code snippet or committing changes, internally verif
 10. Does this code violate any MISRA/AUTOSAR rules (e.g., dynamic casting, implicit conversions)?
 11. Did I write a failing test first if fixing a bug?
 12. Does code compile with zero warnings under `-Wall -Wextra -pedantic` (`-Werror`) and `/W4` on MSVC, with hardening flags applied?
+13. All the paths of the filenames in the docs should be relative.
+14. If there are diagrams involved, add both ASCII and mermaid diagrams.
 
