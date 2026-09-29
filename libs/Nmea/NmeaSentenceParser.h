@@ -6,6 +6,7 @@
 #include "NmeaChecksum.h"
 #include "NmeaTypes.h"
 #include "PfecTypes.h"
+#include "bam/BridgeAlertTypes.h"
 
 #include <cstdint>
 #include <string_view>
@@ -230,6 +231,110 @@ public:
     /// @return True if valid MDA sentence.
     [[nodiscard]] static bool parseMda(
         std::string_view sentence, MdaData& outData, bool verifyChecksum = true) noexcept;
+
+    /// @brief Parses $--GSA GNSS DOP and Active Satellites sentence.
+    /// @param[in] sentence Raw or tokenized sentence.
+    /// @param[out] outData Deserialized GsaData struct.
+    /// @param[in] verifyChecksum True to enforce checksum validation.
+    /// @return True if valid GSA sentence.
+    [[nodiscard]] static bool parseGsa(
+        std::string_view sentence, GsaData& outData, bool verifyChecksum = true) noexcept;
+
+    /// @brief Parses $--GSV GNSS Satellites in View sentence.
+    /// @param[in] sentence Raw or tokenized sentence.
+    /// @param[out] outData Deserialized GsvData struct.
+    /// @param[in] verifyChecksum True to enforce checksum validation.
+    /// @return True if valid GSV sentence.
+    [[nodiscard]] static bool parseGsv(
+        std::string_view sentence, GsvData& outData, bool verifyChecksum = true) noexcept;
+
+    /// @brief Parses $--ZDA UTC Time and Date sentence.
+    /// @param[in] sentence Raw or tokenized sentence.
+    /// @param[out] outData Deserialized ZdaData struct.
+    /// @param[in] verifyChecksum True to enforce checksum validation.
+    /// @return True if valid ZDA sentence.
+    [[nodiscard]] static bool parseZda(
+        std::string_view sentence, ZdaData& outData, bool verifyChecksum = true) noexcept;
+
+    /// @brief Parses $--VBW Dual Ground/Water Speed sentence.
+    /// @param[in] sentence Raw or tokenized sentence.
+    /// @param[out] outData Deserialized VbwData struct.
+    /// @param[in] verifyChecksum True to enforce checksum validation.
+    /// @return True if valid VBW sentence.
+    [[nodiscard]] static bool parseVbw(
+        std::string_view sentence, VbwData& outData, bool verifyChecksum = true) noexcept;
+
+    /// @brief Parses $--VHW Water Speed and Heading sentence.
+    /// @param[in] sentence Raw or tokenized sentence.
+    /// @param[out] outData Deserialized VhwData struct.
+    /// @param[in] verifyChecksum True to enforce checksum validation.
+    /// @return True if valid VHW sentence.
+    [[nodiscard]] static bool parseVhw(
+        std::string_view sentence, VhwData& outData, bool verifyChecksum = true) noexcept;
+
+    /// @brief Parses $--DPT Depth of Water sentence.
+    /// @param[in] sentence Raw or tokenized sentence.
+    /// @param[out] outData Deserialized DptData struct.
+    /// @param[in] verifyChecksum True to enforce checksum validation.
+    /// @return True if valid DPT sentence.
+    [[nodiscard]] static bool parseDpt(
+        std::string_view sentence, DptData& outData, bool verifyChecksum = true) noexcept;
+
+    /// @brief Parses $--DBT Depth Below Transducer sentence.
+    /// @param[in] sentence Raw or tokenized sentence.
+    /// @param[out] outData Deserialized DbtData struct.
+    /// @param[in] verifyChecksum True to enforce checksum validation.
+    /// @return True if valid DBT sentence.
+    [[nodiscard]] static bool parseDbt(
+        std::string_view sentence, DbtData& outData, bool verifyChecksum = true) noexcept;
+
+    /// @brief Parses $--ALF Alert sentence (IEC 62923 BAM).
+    /// @param[in] sentence Raw or tokenized sentence.
+    /// @param[out] outData Deserialized AlfData struct.
+    /// @param[in] verifyChecksum True to enforce checksum validation.
+    /// @return True if valid ALF sentence.
+    [[nodiscard]] static bool parseAlf(
+        std::string_view sentence, Bam::AlfData& outData, bool verifyChecksum = true) noexcept;
+
+    /// @brief Parses $--ALC Alert Cyclic List sentence (IEC 62923 BAM).
+    /// @param[in] sentence Raw or tokenized sentence.
+    /// @param[out] outData Deserialized AlcData struct.
+    /// @param[in] verifyChecksum True to enforce checksum validation.
+    /// @return True if valid ALC sentence.
+    [[nodiscard]] static bool parseAlc(
+        std::string_view sentence, Bam::AlcData& outData, bool verifyChecksum = true) noexcept;
+
+    /// @brief Parses $--ARC Alert Command Request sentence (IEC 62923 BAM).
+    /// @param[in] sentence Raw or tokenized sentence.
+    /// @param[out] outData Deserialized ArcData struct.
+    /// @param[in] verifyChecksum True to enforce checksum validation.
+    /// @return True if valid ARC sentence.
+    [[nodiscard]] static bool parseArc(
+        std::string_view sentence, Bam::ArcData& outData, bool verifyChecksum = true) noexcept;
+
+    /// @brief Parses $--HBT Heartbeat Supervision sentence (IEC 61162-1).
+    /// @param[in] sentence Raw or tokenized sentence.
+    /// @param[out] outData Deserialized HbtData struct.
+    /// @param[in] verifyChecksum True to enforce checksum validation.
+    /// @return True if valid HBT sentence.
+    [[nodiscard]] static bool parseHbt(
+        std::string_view sentence, Bam::HbtData& outData, bool verifyChecksum = true) noexcept;
+
+    /// @brief Parses $--ALR Set Alarm State sentence (Legacy IEC 61162-1).
+    /// @param[in] sentence Raw or tokenized sentence.
+    /// @param[out] outData Deserialized AlrData struct.
+    /// @param[in] verifyChecksum True to enforce checksum validation.
+    /// @return True if valid ALR sentence.
+    [[nodiscard]] static bool parseAlr(
+        std::string_view sentence, Bam::AlrData& outData, bool verifyChecksum = true) noexcept;
+
+    /// @brief Parses $--ACK Acknowledge Alarm sentence (Legacy IEC 61162-1).
+    /// @param[in] sentence Raw or tokenized sentence.
+    /// @param[out] outData Deserialized AckData struct.
+    /// @param[in] verifyChecksum True to enforce checksum validation.
+    /// @return True if valid ACK sentence.
+    [[nodiscard]] static bool parseAck(
+        std::string_view sentence, Bam::AckData& outData, bool verifyChecksum = true) noexcept;
 };
 
 } // namespace Nmea

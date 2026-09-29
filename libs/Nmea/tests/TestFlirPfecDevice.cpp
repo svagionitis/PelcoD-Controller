@@ -224,5 +224,35 @@ namespace {
         }
     }
 
+    TEST(TestFlirPfecDevice, ExtendedCameraControls)
+    {
+        auto transport = std::make_shared<MockPfecTransport>();
+        FlirPfecDevice camera(transport);
+        ASSERT_TRUE(camera.start(std::chrono::milliseconds(0)));
+
+        // Digital zoom
+        EXPECT_EQ(camera.digitalZoom(), FlirZoomLevel::Zoom1x);
+        EXPECT_TRUE(camera.setDigitalZoom(FlirZoomLevel::Zoom4x));
+        EXPECT_EQ(camera.digitalZoom(), FlirZoomLevel::Zoom4x);
+
+        auto sent = transport->sentPackets();
+        ASSERT_EQ(sent.size(), 1U);
+        EXPECT_NE(sent[0].find("$PFEC,GPcam,z,4.0"), std::string::npos);
+
+        // Gyro stabilization
+        transport->clearSentPackets();
+        EXPECT_FALSE(camera.isStabilized());
+        EXPECT_TRUE(camera.setStabilization(true));
+        EXPECT_TRUE(camera.isStabilized());
+
+        sent = transport->sentPackets();
+        ASSERT_EQ(sent.size(), 1U);
+        EXPECT_NE(sent[0].find("$PFEC,GPcam,s,on"), std::string::npos);
+
+        // Palette state
+        EXPECT_TRUE(camera.setColorPalette(FlirColorPalette::Ironbow));
+        EXPECT_EQ(camera.colorPalette(), FlirColorPalette::Ironbow);
+    }
+
 } // namespace
 } // namespace Nmea

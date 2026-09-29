@@ -45,10 +45,14 @@ add_library(Nmea STATIC
     gateway/NmeaGateway.cpp
     arbiter/NmeaSensorArbiter.h
     arbiter/NmeaSensorArbiter.cpp
+    bam/BridgeAlertTypes.h
+    bam/BridgeAlertManager.h
+    bam/BridgeAlertManager.cpp
 )
 
 target_include_directories(Nmea PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/bam>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/n2k>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/lwe>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/replay>

@@ -197,6 +197,45 @@ NmeaSentenceId NmeaSentenceParser::identifySentence(std::string_view sentence) n
         if (mnemonic == "MMB") {
             return NmeaSentenceId::MMB;
         }
+        if (mnemonic == "GSA") {
+            return NmeaSentenceId::GSA;
+        }
+        if (mnemonic == "GSV") {
+            return NmeaSentenceId::GSV;
+        }
+        if (mnemonic == "ZDA") {
+            return NmeaSentenceId::ZDA;
+        }
+        if (mnemonic == "VBW") {
+            return NmeaSentenceId::VBW;
+        }
+        if (mnemonic == "VHW") {
+            return NmeaSentenceId::VHW;
+        }
+        if (mnemonic == "DPT") {
+            return NmeaSentenceId::DPT;
+        }
+        if (mnemonic == "DBT") {
+            return NmeaSentenceId::DBT;
+        }
+        if (mnemonic == "ALF") {
+            return NmeaSentenceId::ALF;
+        }
+        if (mnemonic == "ALC") {
+            return NmeaSentenceId::ALC;
+        }
+        if (mnemonic == "ARC") {
+            return NmeaSentenceId::ARC;
+        }
+        if (mnemonic == "HBT") {
+            return NmeaSentenceId::HBT;
+        }
+        if (mnemonic == "ALR") {
+            return NmeaSentenceId::ALR;
+        }
+        if (mnemonic == "ACK") {
+            return NmeaSentenceId::ACK;
+        }
     }
 
     return NmeaSentenceId::Unknown;
@@ -1144,6 +1183,572 @@ bool NmeaSentenceParser::parseMda(std::string_view sentence, MdaData& outData, b
     }
     if (tokens.size() > 19U) {
         outData.windSpeedMps = parseOptDouble(tokens[19]);
+    }
+
+    outData.valid = true;
+    return true;
+}
+
+bool NmeaSentenceParser::parseGsa(std::string_view sentence, GsaData& outData, bool verifyChecksum) noexcept
+{
+    outData = GsaData {};
+    if (verifyChecksum && !NmeaChecksum::validate(sentence)) {
+        return false;
+    }
+
+    std::vector<std::string_view> tokens {};
+    tokenize(sentence, tokens);
+
+    // Format: $--GSA,mode,fixMode,sat1..sat12,pdop,hdop,vdop[,systemId]
+    if (tokens.size() < 18U) {
+        return false;
+    }
+
+    if (!tokens[1].empty()) {
+        outData.selectionMode = tokens[1].front();
+    }
+
+    unsigned int fixModeVal { 0U };
+    if (parseUInt(tokens[2], fixModeVal)) {
+        outData.fixMode = static_cast<std::uint8_t>(fixModeVal);
+    }
+
+    for (std::size_t i = 3U; i <= 14U; ++i) {
+        if (!tokens[i].empty()) {
+            unsigned int prnVal { 0U };
+            if (parseUInt(tokens[i], prnVal)) {
+                outData.activeSatellitePrns.push_back(static_cast<std::uint8_t>(prnVal));
+            }
+        }
+    }
+
+    parseDouble(tokens[15], outData.pdop);
+    parseDouble(tokens[16], outData.hdop);
+    parseDouble(tokens[17], outData.vdop);
+
+    if (tokens.size() > 18U && !tokens[18].empty()) {
+        unsigned int sysIdVal { 0U };
+        if (parseUInt(tokens[18], sysIdVal)) {
+            outData.systemId = static_cast<std::uint8_t>(sysIdVal);
+        }
+    }
+
+    outData.valid = true;
+    return true;
+}
+
+bool NmeaSentenceParser::parseGsv(std::string_view sentence, GsvData& outData, bool verifyChecksum) noexcept
+{
+    outData = GsvData {};
+    if (verifyChecksum && !NmeaChecksum::validate(sentence)) {
+        return false;
+    }
+
+    std::vector<std::string_view> tokens {};
+    tokenize(sentence, tokens);
+
+    // Format: $--GSV,totalSentences,sentenceNumber,totalSatsInView,[prn,elev,azim,snr]x1..4[,signalId]
+    if (tokens.size() < 4U) {
+        return false;
+    }
+
+    unsigned int totalSentencesVal { 0U };
+    if (parseUInt(tokens[1], totalSentencesVal)) {
+        outData.totalSentences = static_cast<std::uint8_t>(totalSentencesVal);
+    }
+
+    unsigned int sentenceNumberVal { 0U };
+    if (parseUInt(tokens[2], sentenceNumberVal)) {
+        outData.sentenceNumber = static_cast<std::uint8_t>(sentenceNumberVal);
+    }
+
+    unsigned int totalSatsVal { 0U };
+    if (parseUInt(tokens[3], totalSatsVal)) {
+        outData.totalSatellitesInView = static_cast<std::uint16_t>(totalSatsVal);
+    }
+
+    std::size_t idx { 4U };
+    while (idx + 3U < tokens.size()) {
+        // Check if remaining token is a trailing signalId (1 token left at end)
+        if (idx + 4U == tokens.size() && tokens[idx].size() <= 2U) {
+            // Might be trailing signalId if no more 4-tuples can be formed
+        }
+        GsvSatelliteInfo sat {};
+        unsigned int prnVal { 0U };
+        if (parseUInt(tokens[idx], prnVal)) {
+            sat.prn = static_cast<std::uint16_t>(prnVal);
+            parseDouble(tokens[idx + 1U], sat.elevationDeg);
+            parseDouble(tokens[idx + 2U], sat.azimuthDeg);
+            if (!tokens[idx + 3U].empty()) {
+                double snrVal { 0.0 };
+                if (parseDouble(tokens[idx + 3U], snrVal)) {
+                    sat.snrDb = snrVal;
+                }
+            }
+            outData.satellites.push_back(sat);
+        }
+        idx += 4U;
+    }
+
+    if (idx < tokens.size() && !tokens[idx].empty()) {
+        unsigned int sigVal { 0U };
+        if (parseUInt(tokens[idx], sigVal)) {
+            outData.signalId = static_cast<std::uint8_t>(sigVal);
+        }
+    }
+
+    outData.valid = true;
+    return true;
+}
+
+bool NmeaSentenceParser::parseZda(std::string_view sentence, ZdaData& outData, bool verifyChecksum) noexcept
+{
+    outData = ZdaData {};
+    if (verifyChecksum && !NmeaChecksum::validate(sentence)) {
+        return false;
+    }
+
+    std::vector<std::string_view> tokens {};
+    tokenize(sentence, tokens);
+
+    // Format: $--ZDA,hhmmss.ss,day,month,year,localZoneHours,localZoneMinutes
+    if (tokens.size() < 7U) {
+        return false;
+    }
+
+    if (!parseUtcTime(tokens[1], outData.utcTime)) {
+        return false;
+    }
+
+    unsigned int dayVal { 0U };
+    if (parseUInt(tokens[2], dayVal)) {
+        outData.day = static_cast<std::uint8_t>(dayVal);
+    }
+
+    unsigned int monthVal { 0U };
+    if (parseUInt(tokens[3], monthVal)) {
+        outData.month = static_cast<std::uint8_t>(monthVal);
+    }
+
+    unsigned int yearVal { 0U };
+    if (parseUInt(tokens[4], yearVal)) {
+        outData.year = static_cast<std::uint16_t>(yearVal);
+    }
+
+    if (!tokens[5].empty()) {
+        int zh { 0 };
+        const auto res = std::from_chars(tokens[5].data(), tokens[5].data() + tokens[5].size(), zh);
+        if (res.ec == std::errc {}) {
+            outData.localZoneHours = static_cast<std::int8_t>(zh);
+        }
+    }
+
+    unsigned int zmVal { 0U };
+    if (parseUInt(tokens[6], zmVal)) {
+        outData.localZoneMinutes = static_cast<std::uint8_t>(zmVal);
+    }
+
+    outData.valid = true;
+    return true;
+}
+
+bool NmeaSentenceParser::parseVbw(std::string_view sentence, VbwData& outData, bool verifyChecksum) noexcept
+{
+    outData = VbwData {};
+    if (verifyChecksum && !NmeaChecksum::validate(sentence)) {
+        return false;
+    }
+
+    std::vector<std::string_view> tokens {};
+    tokenize(sentence, tokens);
+
+    // Format: $--VBW,longWater,transWater,waterStat,longGround,transGround,groundStat[,sternWater,sternWStat,sternGround,sternGStat]
+    if (tokens.size() < 7U) {
+        return false;
+    }
+
+    parseDouble(tokens[1], outData.longitudinalWaterSpeedKnots);
+    parseDouble(tokens[2], outData.transverseWaterSpeedKnots);
+    if (!tokens[3].empty()) {
+        outData.waterSpeedStatus = tokens[3].front();
+    }
+
+    parseDouble(tokens[4], outData.longitudinalGroundSpeedKnots);
+    parseDouble(tokens[5], outData.transverseGroundSpeedKnots);
+    if (!tokens[6].empty()) {
+        outData.groundSpeedStatus = tokens[6].front();
+    }
+
+    if (tokens.size() > 7U && !tokens[7].empty()) {
+        double val { 0.0 };
+        if (parseDouble(tokens[7], val)) {
+            outData.sternWaterSpeedKnots = val;
+        }
+    }
+    if (tokens.size() > 8U && !tokens[8].empty()) {
+        outData.sternWaterStatus = tokens[8].front();
+    }
+    if (tokens.size() > 9U && !tokens[9].empty()) {
+        double val { 0.0 };
+        if (parseDouble(tokens[9], val)) {
+            outData.sternGroundSpeedKnots = val;
+        }
+    }
+    if (tokens.size() > 10U && !tokens[10].empty()) {
+        outData.sternGroundStatus = tokens[10].front();
+    }
+
+    outData.valid = true;
+    return true;
+}
+
+bool NmeaSentenceParser::parseVhw(std::string_view sentence, VhwData& outData, bool verifyChecksum) noexcept
+{
+    outData = VhwData {};
+    if (verifyChecksum && !NmeaChecksum::validate(sentence)) {
+        return false;
+    }
+
+    std::vector<std::string_view> tokens {};
+    tokenize(sentence, tokens);
+
+    // Format: $--VHW,headingTrue,T,headingMag,M,speedKnots,N,speedKmh,K
+    if (tokens.size() < 6U) {
+        return false;
+    }
+
+    if (!tokens[1].empty()) {
+        double val { 0.0 };
+        if (parseDouble(tokens[1], val)) {
+            outData.headingDegreesTrue = val;
+        }
+    }
+    if (tokens.size() > 3U && !tokens[3].empty()) {
+        double val { 0.0 };
+        if (parseDouble(tokens[3], val)) {
+            outData.headingDegreesMagnetic = val;
+        }
+    }
+    if (tokens.size() > 5U && !tokens[5].empty()) {
+        double val { 0.0 };
+        if (parseDouble(tokens[5], val)) {
+            outData.speedWaterKnots = val;
+        }
+    }
+    if (tokens.size() > 7U && !tokens[7].empty()) {
+        double val { 0.0 };
+        if (parseDouble(tokens[7], val)) {
+            outData.speedWaterKmh = val;
+        }
+    }
+
+    outData.valid = true;
+    return true;
+}
+
+bool NmeaSentenceParser::parseDpt(std::string_view sentence, DptData& outData, bool verifyChecksum) noexcept
+{
+    outData = DptData {};
+    if (verifyChecksum && !NmeaChecksum::validate(sentence)) {
+        return false;
+    }
+
+    std::vector<std::string_view> tokens {};
+    tokenize(sentence, tokens);
+
+    // Format: $--DPT,depth,offset[,maxRange]
+    if (tokens.size() < 3U) {
+        return false;
+    }
+
+    parseDouble(tokens[1], outData.waterDepthMeters);
+    parseDouble(tokens[2], outData.offsetMeters);
+
+    if (tokens.size() > 3U && !tokens[3].empty()) {
+        double val { 0.0 };
+        if (parseDouble(tokens[3], val)) {
+            outData.maximumRangeScaleMeters = val;
+        }
+    }
+
+    outData.valid = true;
+    return true;
+}
+
+bool NmeaSentenceParser::parseDbt(std::string_view sentence, DbtData& outData, bool verifyChecksum) noexcept
+{
+    outData = DbtData {};
+    if (verifyChecksum && !NmeaChecksum::validate(sentence)) {
+        return false;
+    }
+
+    std::vector<std::string_view> tokens {};
+    tokenize(sentence, tokens);
+
+    // Format: $--DBT,depthFeet,f,depthMeters,M,depthFathoms,F
+    if (tokens.size() < 7U) {
+        return false;
+    }
+
+    parseDouble(tokens[1], outData.depthFeet);
+    parseDouble(tokens[3], outData.depthMeters);
+    parseDouble(tokens[5], outData.depthFathoms);
+
+    outData.valid = true;
+    return true;
+}
+
+bool NmeaSentenceParser::parseAlf(
+    std::string_view sentence, Bam::AlfData& outData, bool verifyChecksum) noexcept
+{
+    outData = Bam::AlfData {};
+    if (verifyChecksum && !NmeaChecksum::validate(sentence)) {
+        return false;
+    }
+
+    std::vector<std::string_view> tokens {};
+    tokenize(sentence, tokens);
+
+    // Format: $--ALF,totSentences,sentNum,seqMsgId,timeLastChange,priority,category,state,alertId,alertInst,revCnt,escCnt,alertText
+    if (tokens.size() < 13U) {
+        return false;
+    }
+
+    unsigned int totSentencesVal { 0U };
+    if (parseUInt(tokens[1], totSentencesVal)) {
+        outData.totalSentences = static_cast<std::uint8_t>(totSentencesVal);
+    }
+
+    unsigned int sentNumVal { 0U };
+    if (parseUInt(tokens[2], sentNumVal)) {
+        outData.sentenceNumber = static_cast<std::uint8_t>(sentNumVal);
+    }
+
+    unsigned int seqMsgIdVal { 0U };
+    if (parseUInt(tokens[3], seqMsgIdVal)) {
+        outData.sequentialMessageId = static_cast<std::uint8_t>(seqMsgIdVal);
+    }
+
+    if (!tokens[4].empty()) {
+        static_cast<void>(parseUtcTime(tokens[4], outData.timeOfLastChange));
+    }
+
+    if (!tokens[5].empty()) {
+        outData.alertPriority = tokens[5].front();
+    }
+    if (!tokens[6].empty()) {
+        outData.alertCategory = tokens[6].front();
+    }
+    if (!tokens[7].empty()) {
+        outData.alertState = tokens[7].front();
+    }
+
+    unsigned int alertIdVal { 0U };
+    if (parseUInt(tokens[8], alertIdVal)) {
+        outData.alertIdentifier = static_cast<std::uint32_t>(alertIdVal);
+    }
+
+    unsigned int alertInstVal { 0U };
+    if (parseUInt(tokens[9], alertInstVal)) {
+        outData.alertInstance = static_cast<std::uint32_t>(alertInstVal);
+    }
+
+    unsigned int revCntVal { 0U };
+    if (parseUInt(tokens[10], revCntVal)) {
+        outData.revisionCounter = static_cast<std::uint32_t>(revCntVal);
+    }
+
+    unsigned int escCntVal { 0U };
+    if (parseUInt(tokens[11], escCntVal)) {
+        outData.escalationCounter = static_cast<std::uint32_t>(escCntVal);
+    }
+
+    outData.alertText = std::string(tokens[12]);
+    outData.valid = true;
+    return true;
+}
+
+bool NmeaSentenceParser::parseAlc(
+    std::string_view sentence, Bam::AlcData& outData, bool verifyChecksum) noexcept
+{
+    outData = Bam::AlcData {};
+    if (verifyChecksum && !NmeaChecksum::validate(sentence)) {
+        return false;
+    }
+
+    std::vector<std::string_view> tokens {};
+    tokenize(sentence, tokens);
+
+    // Format: $--ALC,totSentences,sentNum,seqMsgId,alertCount[,alertId,alertInst,revCnt]...
+    if (tokens.size() < 5U) {
+        return false;
+    }
+
+    unsigned int totSentencesVal { 0U };
+    if (parseUInt(tokens[1], totSentencesVal)) {
+        outData.totalSentences = static_cast<std::uint8_t>(totSentencesVal);
+    }
+
+    unsigned int sentNumVal { 0U };
+    if (parseUInt(tokens[2], sentNumVal)) {
+        outData.sentenceNumber = static_cast<std::uint8_t>(sentNumVal);
+    }
+
+    unsigned int seqMsgIdVal { 0U };
+    if (parseUInt(tokens[3], seqMsgIdVal)) {
+        outData.sequentialMessageId = static_cast<std::uint8_t>(seqMsgIdVal);
+    }
+
+    unsigned int alertCntVal { 0U };
+    if (parseUInt(tokens[4], alertCntVal)) {
+        outData.alertCount = static_cast<std::uint8_t>(alertCntVal);
+    }
+
+    std::size_t idx { 5U };
+    while (idx + 2U < tokens.size()) {
+        Bam::AlcEntry entry {};
+        unsigned int idVal { 0U };
+        unsigned int instVal { 0U };
+        unsigned int revVal { 0U };
+        if (parseUInt(tokens[idx], idVal) && parseUInt(tokens[idx + 1U], instVal) && parseUInt(tokens[idx + 2U], revVal)) {
+            entry.alertIdentifier = static_cast<std::uint32_t>(idVal);
+            entry.alertInstance = static_cast<std::uint32_t>(instVal);
+            entry.revisionCounter = static_cast<std::uint32_t>(revVal);
+            outData.alertEntries.push_back(entry);
+        }
+        idx += 3U;
+    }
+
+    outData.valid = true;
+    return true;
+}
+
+bool NmeaSentenceParser::parseArc(
+    std::string_view sentence, Bam::ArcData& outData, bool verifyChecksum) noexcept
+{
+    outData = Bam::ArcData {};
+    if (verifyChecksum && !NmeaChecksum::validate(sentence)) {
+        return false;
+    }
+
+    std::vector<std::string_view> tokens {};
+    tokenize(sentence, tokens);
+
+    // Format: $--ARC,releaseTime,alertId,alertInst,command
+    if (tokens.size() < 5U) {
+        return false;
+    }
+
+    if (!tokens[1].empty()) {
+        static_cast<void>(parseUtcTime(tokens[1], outData.releaseTime));
+    }
+
+    unsigned int idVal { 0U };
+    if (parseUInt(tokens[2], idVal)) {
+        outData.alertIdentifier = static_cast<std::uint32_t>(idVal);
+    }
+
+    unsigned int instVal { 0U };
+    if (parseUInt(tokens[3], instVal)) {
+        outData.alertInstance = static_cast<std::uint32_t>(instVal);
+    }
+
+    if (!tokens[4].empty()) {
+        outData.command = tokens[4].front();
+    }
+
+    outData.valid = true;
+    return true;
+}
+
+bool NmeaSentenceParser::parseHbt(
+    std::string_view sentence, Bam::HbtData& outData, bool verifyChecksum) noexcept
+{
+    outData = Bam::HbtData {};
+    if (verifyChecksum && !NmeaChecksum::validate(sentence)) {
+        return false;
+    }
+
+    std::vector<std::string_view> tokens {};
+    tokenize(sentence, tokens);
+
+    // Format: $--HBT,intervalSec,equipmentStatus,seqSentenceId
+    if (tokens.size() < 4U) {
+        return false;
+    }
+
+    parseDouble(tokens[1], outData.configuredIntervalSec);
+
+    if (!tokens[2].empty()) {
+        outData.equipmentStatus = tokens[2].front();
+    }
+
+    unsigned int seqIdVal { 0U };
+    if (parseUInt(tokens[3], seqIdVal)) {
+        outData.sequentialSentenceId = static_cast<std::uint8_t>(seqIdVal);
+    }
+
+    outData.valid = true;
+    return true;
+}
+
+bool NmeaSentenceParser::parseAlr(
+    std::string_view sentence, Bam::AlrData& outData, bool verifyChecksum) noexcept
+{
+    outData = Bam::AlrData {};
+    if (verifyChecksum && !NmeaChecksum::validate(sentence)) {
+        return false;
+    }
+
+    std::vector<std::string_view> tokens {};
+    tokenize(sentence, tokens);
+
+    // Format: $--ALR,timeChange,alertId,condition,ackState,alertText
+    if (tokens.size() < 6U) {
+        return false;
+    }
+
+    if (!tokens[1].empty()) {
+        static_cast<void>(parseUtcTime(tokens[1], outData.timeOfLastChange));
+    }
+
+    unsigned int idVal { 0U };
+    if (parseUInt(tokens[2], idVal)) {
+        outData.alertIdentifier = static_cast<std::uint32_t>(idVal);
+    }
+
+    if (!tokens[3].empty()) {
+        outData.condition = tokens[3].front();
+    }
+
+    if (!tokens[4].empty()) {
+        outData.acknowledgeState = tokens[4].front();
+    }
+
+    outData.alertText = std::string(tokens[5]);
+    outData.valid = true;
+    return true;
+}
+
+bool NmeaSentenceParser::parseAck(
+    std::string_view sentence, Bam::AckData& outData, bool verifyChecksum) noexcept
+{
+    outData = Bam::AckData {};
+    if (verifyChecksum && !NmeaChecksum::validate(sentence)) {
+        return false;
+    }
+
+    std::vector<std::string_view> tokens {};
+    tokenize(sentence, tokens);
+
+    // Format: $--ACK,alertId
+    if (tokens.size() < 2U) {
+        return false;
+    }
+
+    unsigned int idVal { 0U };
+    if (parseUInt(tokens[1], idVal)) {
+        outData.alertIdentifier = static_cast<std::uint32_t>(idVal);
     }
 
     outData.valid = true;

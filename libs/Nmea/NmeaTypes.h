@@ -38,7 +38,20 @@ enum class NmeaSentenceId : std::uint8_t {
     MTW, ///< Mean Water Temperature (Celsius)
     MDA, ///< Meteorological Composite Data (pressure, temp, humidity, wind)
     MMB, ///< Barometric Pressure (inHg and bar)
-    PASHR ///< Ashtech / Applanix Inertial Attitude (pitch, roll, heading, heave)
+    PASHR, ///< Ashtech / Applanix Inertial Attitude (pitch, roll, heading, heave)
+    GSA, ///< GNSS DOP and Active Satellites
+    GSV, ///< GNSS Satellites in View
+    ZDA, ///< UTC Time and Date
+    VBW, ///< Dual Ground/Water Speed
+    VHW, ///< Water Speed and Heading
+    DPT, ///< Depth of Water
+    DBT, ///< Depth Below Transducer
+    ALF, ///< Alert Sentence (IEC 62923 BAM)
+    ALC, ///< Alert Cyclic List (IEC 62923 BAM)
+    ARC, ///< Alert Command Request (IEC 62923 BAM)
+    HBT, ///< Heartbeat Supervision (IEC 62923 BAM)
+    ALR, ///< Set Alarm State (Legacy IEC 61162-1)
+    ACK ///< Acknowledge Alarm (Legacy IEC 61162-1)
 };
 
 /// @enum NmeaFixQuality
@@ -431,6 +444,95 @@ struct NmeaEnvironmentSnapshot {
     bool hasDewPoint { false };
     bool hasPressure { false };
     bool hasWind { false };
+};
+
+/// @struct GsaData
+/// @brief GNSS DOP and active satellites unpacked from $--GSA sentence.
+struct GsaData {
+    char selectionMode { 'M' }; ///< 'M' = Manual, 'A' = Automatic 2D/3D
+    std::uint8_t fixMode { 1U }; ///< 1 = Fix not available, 2 = 2D, 3 = 3D
+    std::vector<std::uint8_t> activeSatellitePrns {}; ///< Up to 12 PRNs tracking
+    double pdop { 99.9 }; ///< Dilution of precision (positional)
+    double hdop { 99.9 }; ///< Dilution of precision (horizontal)
+    double vdop { 99.9 }; ///< Dilution of precision (vertical)
+    std::optional<std::uint8_t> systemId {}; ///< GNSS System ID (NMEA 4.10+: 1=GPS, 2=GLONASS, 3=Galileo, 4=BeiDou)
+    bool valid { false };
+};
+
+/// @struct GsvSatelliteInfo
+/// @brief Individual space vehicle status reported in $--GSV sentences.
+struct GsvSatelliteInfo {
+    std::uint16_t prn { 0U }; ///< Satellite PRN / ID number
+    double elevationDeg { 0.0 }; ///< Elevation angle [0.0 .. 90.0] degrees
+    double azimuthDeg { 0.0 }; ///< Azimuth angle [0.0 .. 359.0] degrees
+    std::optional<double> snrDb {}; ///< Carrier-to-noise ratio (SNR) in dB-Hz [0 .. 99]
+};
+
+/// @struct GsvData
+/// @brief GNSS satellites in view unpacked from $--GSV sentence sequence.
+struct GsvData {
+    std::uint8_t totalSentences { 1U }; ///< Total sentences in sequence [1 .. 9]
+    std::uint8_t sentenceNumber { 1U }; ///< Sentence sequence number [1 .. 9]
+    std::uint16_t totalSatellitesInView { 0U }; ///< Total satellites in view across constellation
+    std::vector<GsvSatelliteInfo> satellites {}; ///< Up to 4 satellites in this sentence
+    std::optional<std::uint8_t> signalId {}; ///< Signal ID (NMEA 4.10+)
+    bool valid { false };
+};
+
+/// @struct ZdaData
+/// @brief UTC time and calendar date unpacked from $--ZDA sentence.
+struct ZdaData {
+    NmeaUtcTime utcTime {}; ///< Universal Time Coordinated
+    std::uint8_t day { 0U }; ///< Day of month [1 .. 31]
+    std::uint8_t month { 0U }; ///< Month [1 .. 12]
+    std::uint16_t year { 0U }; ///< 4-digit year (e.g. 2026)
+    std::int8_t localZoneHours { 0 }; ///< Local zone description hours [-13 .. +13]
+    std::uint8_t localZoneMinutes { 0U }; ///< Local zone description minutes [0 .. 59]
+    bool valid { false };
+};
+
+/// @struct VbwData
+/// @brief Dual ground and water speed unpacked from $--VBW sentence.
+struct VbwData {
+    double longitudinalWaterSpeedKnots { 0.0 }; ///< Fore/Aft water speed (+ fore, - aft)
+    double transverseWaterSpeedKnots { 0.0 }; ///< Port/Starboard water speed (+ stbd, - port)
+    char waterSpeedStatus { 'V' }; ///< 'A' = Valid, 'V' = Invalid
+    double longitudinalGroundSpeedKnots { 0.0 }; ///< Fore/Aft ground speed (+ fore, - aft)
+    double transverseGroundSpeedKnots { 0.0 }; ///< Port/Starboard ground speed (+ stbd, - port)
+    char groundSpeedStatus { 'V' }; ///< 'A' = Valid, 'V' = Invalid
+    std::optional<double> sternWaterSpeedKnots {}; ///< Stern transverse water speed (NMEA 3.0+)
+    std::optional<char> sternWaterStatus {}; ///< 'A' = Valid, 'V' = Invalid
+    std::optional<double> sternGroundSpeedKnots {}; ///< Stern transverse ground speed (NMEA 3.0+)
+    std::optional<char> sternGroundStatus {}; ///< 'A' = Valid, 'V' = Invalid
+    bool valid { false };
+};
+
+/// @struct VhwData
+/// @brief Water speed and heading unpacked from $--VHW sentence.
+struct VhwData {
+    std::optional<double> headingDegreesTrue {}; ///< Heading true [0.0 .. 360.0)
+    std::optional<double> headingDegreesMagnetic {}; ///< Heading magnetic [0.0 .. 360.0)
+    std::optional<double> speedWaterKnots {}; ///< Speed through water in knots
+    std::optional<double> speedWaterKmh {}; ///< Speed through water in km/h
+    bool valid { false };
+};
+
+/// @struct DptData
+/// @brief Water depth and transducer keel/waterline offset unpacked from $--DPT sentence.
+struct DptData {
+    double waterDepthMeters { 0.0 }; ///< Water depth relative to transducer in meters
+    double offsetMeters { 0.0 }; ///< Offset (+ distance to waterline = depth, - distance to keel = under-keel clearance)
+    std::optional<double> maximumRangeScaleMeters {}; ///< Maximum range scale in meters
+    bool valid { false };
+};
+
+/// @struct DbtData
+/// @brief Depth below transducer in feet, meters, and fathoms unpacked from $--DBT sentence.
+struct DbtData {
+    double depthFeet { 0.0 }; ///< Water depth below transducer in feet
+    double depthMeters { 0.0 }; ///< Water depth below transducer in meters
+    double depthFathoms { 0.0 }; ///< Water depth below transducer in fathoms
+    bool valid { false };
 };
 
 } // namespace Nmea

@@ -368,4 +368,285 @@ std::string NmeaSentenceBuilder::buildPfecCameraCommand(std::string_view command
     return NmeaChecksum::frameSentence(buf);
 }
 
+std::string NmeaSentenceBuilder::buildGsa(const GsaData& data, std::string_view talkerId)
+{
+    std::string body {};
+    body.reserve(80U);
+    body.append(talkerId);
+    body.append("GSA,");
+    body.push_back(data.selectionMode);
+    body.push_back(',');
+    body.append(std::to_string(static_cast<unsigned int>(data.fixMode)));
+
+    for (std::size_t i = 0U; i < 12U; ++i) {
+        body.push_back(',');
+        if (i < data.activeSatellitePrns.size()) {
+            char prnBuf[8] {};
+            std::snprintf(prnBuf, sizeof(prnBuf), "%02u", static_cast<unsigned int>(data.activeSatellitePrns[i]));
+            body.append(prnBuf);
+        }
+    }
+
+    char dopBuf[32] {};
+    std::snprintf(dopBuf, sizeof(dopBuf), ",%.1f,%.1f,%.1f", data.pdop, data.hdop, data.vdop);
+    body.append(dopBuf);
+
+    if (data.systemId.has_value()) {
+        body.push_back(',');
+        body.append(std::to_string(static_cast<unsigned int>(*data.systemId)));
+    }
+
+    return NmeaChecksum::frameSentence(body);
+}
+
+std::string NmeaSentenceBuilder::buildGsv(const GsvData& data, std::string_view talkerId)
+{
+    std::string body {};
+    body.reserve(90U);
+    body.append(talkerId);
+    body.append("GSV,");
+    body.append(std::to_string(static_cast<unsigned int>(data.totalSentences)));
+    body.push_back(',');
+    body.append(std::to_string(static_cast<unsigned int>(data.sentenceNumber)));
+    body.push_back(',');
+    body.append(std::to_string(static_cast<unsigned int>(data.totalSatellitesInView)));
+
+    for (const auto& sat : data.satellites) {
+        char satBuf[32] {};
+        if (sat.snrDb.has_value()) {
+            std::snprintf(satBuf, sizeof(satBuf), ",%02u,%02.0f,%03.0f,%02.0f",
+                static_cast<unsigned int>(sat.prn), sat.elevationDeg, sat.azimuthDeg, *sat.snrDb);
+        } else {
+            std::snprintf(satBuf, sizeof(satBuf), ",%02u,%02.0f,%03.0f,",
+                static_cast<unsigned int>(sat.prn), sat.elevationDeg, sat.azimuthDeg);
+        }
+        body.append(satBuf);
+    }
+
+    if (data.signalId.has_value()) {
+        body.push_back(',');
+        body.append(std::to_string(static_cast<unsigned int>(*data.signalId)));
+    }
+
+    return NmeaChecksum::frameSentence(body);
+}
+
+std::string NmeaSentenceBuilder::buildZda(const ZdaData& data, std::string_view talkerId)
+{
+    char buf[80] {};
+    std::snprintf(buf, sizeof(buf), "%sZDA,%02u%02u%02u.%02u,%02u,%02u,%04u,%02d,%02u",
+        std::string(talkerId).c_str(),
+        static_cast<unsigned int>(data.utcTime.hour),
+        static_cast<unsigned int>(data.utcTime.minute),
+        static_cast<unsigned int>(data.utcTime.second),
+        static_cast<unsigned int>(data.utcTime.millisecond / 10U),
+        static_cast<unsigned int>(data.day),
+        static_cast<unsigned int>(data.month),
+        static_cast<unsigned int>(data.year),
+        static_cast<int>(data.localZoneHours),
+        static_cast<unsigned int>(data.localZoneMinutes));
+    return NmeaChecksum::frameSentence(buf);
+}
+
+std::string NmeaSentenceBuilder::buildVbw(const VbwData& data, std::string_view talkerId)
+{
+    char buf[128] {};
+    if (data.sternWaterSpeedKnots.has_value() || data.sternGroundSpeedKnots.has_value()) {
+        std::snprintf(buf, sizeof(buf), "%sVBW,%.2f,%.2f,%c,%.2f,%.2f,%c,%.2f,%c,%.2f,%c",
+            std::string(talkerId).c_str(),
+            data.longitudinalWaterSpeedKnots, data.transverseWaterSpeedKnots, data.waterSpeedStatus,
+            data.longitudinalGroundSpeedKnots, data.transverseGroundSpeedKnots, data.groundSpeedStatus,
+            data.sternWaterSpeedKnots.value_or(0.0), data.sternWaterStatus.value_or('V'),
+            data.sternGroundSpeedKnots.value_or(0.0), data.sternGroundStatus.value_or('V'));
+    } else {
+        std::snprintf(buf, sizeof(buf), "%sVBW,%.2f,%.2f,%c,%.2f,%.2f,%c",
+            std::string(talkerId).c_str(),
+            data.longitudinalWaterSpeedKnots, data.transverseWaterSpeedKnots, data.waterSpeedStatus,
+            data.longitudinalGroundSpeedKnots, data.transverseGroundSpeedKnots, data.groundSpeedStatus);
+    }
+    return NmeaChecksum::frameSentence(buf);
+}
+
+std::string NmeaSentenceBuilder::buildVhw(const VhwData& data, std::string_view talkerId)
+{
+    char buf[96] {};
+    std::string hdgTStr {};
+    if (data.headingDegreesTrue.has_value()) {
+        char hBuf[16] {};
+        std::snprintf(hBuf, sizeof(hBuf), "%.1f", *data.headingDegreesTrue);
+        hdgTStr = hBuf;
+    }
+    std::string hdgMStr {};
+    if (data.headingDegreesMagnetic.has_value()) {
+        char hBuf[16] {};
+        std::snprintf(hBuf, sizeof(hBuf), "%.1f", *data.headingDegreesMagnetic);
+        hdgMStr = hBuf;
+    }
+    std::string spdKnStr {};
+    if (data.speedWaterKnots.has_value()) {
+        char sBuf[16] {};
+        std::snprintf(sBuf, sizeof(sBuf), "%.1f", *data.speedWaterKnots);
+        spdKnStr = sBuf;
+    }
+    std::string spdKmStr {};
+    if (data.speedWaterKmh.has_value()) {
+        char sBuf[16] {};
+        std::snprintf(sBuf, sizeof(sBuf), "%.1f", *data.speedWaterKmh);
+        spdKmStr = sBuf;
+    }
+
+    std::snprintf(buf, sizeof(buf), "%sVHW,%s,%s,%s,%s,%s,%s,%s,%s",
+        std::string(talkerId).c_str(),
+        hdgTStr.c_str(), hdgTStr.empty() ? "" : "T",
+        hdgMStr.c_str(), hdgMStr.empty() ? "" : "M",
+        spdKnStr.c_str(), spdKnStr.empty() ? "" : "N",
+        spdKmStr.c_str(), spdKmStr.empty() ? "" : "K");
+    return NmeaChecksum::frameSentence(buf);
+}
+
+std::string NmeaSentenceBuilder::buildDpt(const DptData& data, std::string_view talkerId)
+{
+    char buf[64] {};
+    if (data.maximumRangeScaleMeters.has_value()) {
+        std::snprintf(buf, sizeof(buf), "%sDPT,%.1f,%.1f,%.1f",
+            std::string(talkerId).c_str(), data.waterDepthMeters, data.offsetMeters, *data.maximumRangeScaleMeters);
+    } else {
+        std::snprintf(buf, sizeof(buf), "%sDPT,%.1f,%.1f",
+            std::string(talkerId).c_str(), data.waterDepthMeters, data.offsetMeters);
+    }
+    return NmeaChecksum::frameSentence(buf);
+}
+
+std::string NmeaSentenceBuilder::buildDbt(const DbtData& data, std::string_view talkerId)
+{
+    char buf[64] {};
+    std::snprintf(buf, sizeof(buf), "%sDBT,%.1f,f,%.1f,M,%.1f,F",
+        std::string(talkerId).c_str(), data.depthFeet, data.depthMeters, data.depthFathoms);
+    return NmeaChecksum::frameSentence(buf);
+}
+
+std::string NmeaSentenceBuilder::buildAlf(const Bam::AlfData& data, std::string_view talkerId)
+{
+    char buf[160] {};
+    std::snprintf(buf, sizeof(buf), "%sALF,%u,%u,%u,%02u%02u%02u.%02u,%c,%c,%c,%u,%u,%u,%u,%s",
+        std::string(talkerId).c_str(),
+        static_cast<unsigned int>(data.totalSentences),
+        static_cast<unsigned int>(data.sentenceNumber),
+        static_cast<unsigned int>(data.sequentialMessageId),
+        static_cast<unsigned int>(data.timeOfLastChange.hour),
+        static_cast<unsigned int>(data.timeOfLastChange.minute),
+        static_cast<unsigned int>(data.timeOfLastChange.second),
+        static_cast<unsigned int>(data.timeOfLastChange.millisecond / 10U),
+        data.alertPriority, data.alertCategory, data.alertState,
+        static_cast<unsigned int>(data.alertIdentifier),
+        static_cast<unsigned int>(data.alertInstance),
+        static_cast<unsigned int>(data.revisionCounter),
+        static_cast<unsigned int>(data.escalationCounter),
+        data.alertText.c_str());
+    return NmeaChecksum::frameSentence(buf);
+}
+
+std::string NmeaSentenceBuilder::buildAlc(const Bam::AlcData& data, std::string_view talkerId)
+{
+    std::string body {};
+    body.reserve(120U);
+    body.append(talkerId);
+    body.append("ALC,");
+    body.append(std::to_string(static_cast<unsigned int>(data.totalSentences)));
+    body.push_back(',');
+    body.append(std::to_string(static_cast<unsigned int>(data.sentenceNumber)));
+    body.push_back(',');
+    body.append(std::to_string(static_cast<unsigned int>(data.sequentialMessageId)));
+    body.push_back(',');
+    body.append(std::to_string(static_cast<unsigned int>(data.alertCount)));
+
+    for (const auto& entry : data.alertEntries) {
+        char entBuf[32] {};
+        std::snprintf(entBuf, sizeof(entBuf), ",%u,%u,%u",
+            static_cast<unsigned int>(entry.alertIdentifier),
+            static_cast<unsigned int>(entry.alertInstance),
+            static_cast<unsigned int>(entry.revisionCounter));
+        body.append(entBuf);
+    }
+
+    return NmeaChecksum::frameSentence(body);
+}
+
+std::string NmeaSentenceBuilder::buildArc(const Bam::ArcData& data, std::string_view talkerId)
+{
+    char buf[64] {};
+    std::snprintf(buf, sizeof(buf), "%sARC,%02u%02u%02u.%02u,%u,%u,%c",
+        std::string(talkerId).c_str(),
+        static_cast<unsigned int>(data.releaseTime.hour),
+        static_cast<unsigned int>(data.releaseTime.minute),
+        static_cast<unsigned int>(data.releaseTime.second),
+        static_cast<unsigned int>(data.releaseTime.millisecond / 10U),
+        static_cast<unsigned int>(data.alertIdentifier),
+        static_cast<unsigned int>(data.alertInstance),
+        data.command);
+    return NmeaChecksum::frameSentence(buf);
+}
+
+std::string NmeaSentenceBuilder::buildHbt(const Bam::HbtData& data, std::string_view talkerId)
+{
+    char buf[64] {};
+    std::snprintf(buf, sizeof(buf), "%sHBT,%.1f,%c,%u",
+        std::string(talkerId).c_str(),
+        data.configuredIntervalSec,
+        data.equipmentStatus,
+        static_cast<unsigned int>(data.sequentialSentenceId));
+    return NmeaChecksum::frameSentence(buf);
+}
+
+std::string NmeaSentenceBuilder::buildAlr(const Bam::AlrData& data, std::string_view talkerId)
+{
+    char buf[128] {};
+    std::snprintf(buf, sizeof(buf), "%sALR,%02u%02u%02u.%02u,%u,%c,%c,%s",
+        std::string(talkerId).c_str(),
+        static_cast<unsigned int>(data.timeOfLastChange.hour),
+        static_cast<unsigned int>(data.timeOfLastChange.minute),
+        static_cast<unsigned int>(data.timeOfLastChange.second),
+        static_cast<unsigned int>(data.timeOfLastChange.millisecond / 10U),
+        static_cast<unsigned int>(data.alertIdentifier),
+        data.condition,
+        data.acknowledgeState,
+        data.alertText.c_str());
+    return NmeaChecksum::frameSentence(buf);
+}
+
+std::string NmeaSentenceBuilder::buildAck(const Bam::AckData& data, std::string_view talkerId)
+{
+    char buf[64] {};
+    std::snprintf(buf, sizeof(buf), "%sACK,%u",
+        std::string(talkerId).c_str(),
+        static_cast<unsigned int>(data.alertIdentifier));
+    return NmeaChecksum::frameSentence(buf);
+}
+
+std::string NmeaSentenceBuilder::buildPfecPalette(std::uint8_t paletteIndex)
+{
+    char buf[32] {};
+    std::snprintf(buf, sizeof(buf), "PFEC,GPcam,p,%u", static_cast<unsigned int>(paletteIndex));
+    return NmeaChecksum::frameSentence(buf);
+}
+
+std::string NmeaSentenceBuilder::buildPfecStabilization(bool enable)
+{
+    char buf[32] {};
+    std::snprintf(buf, sizeof(buf), "PFEC,GPcam,s,%s", enable ? "on" : "off");
+    return NmeaChecksum::frameSentence(buf);
+}
+
+std::string NmeaSentenceBuilder::buildPfecNuc()
+{
+    return NmeaChecksum::frameSentence("PFEC,GPcam,nuc");
+}
+
+std::string NmeaSentenceBuilder::buildPfecDigitalZoom(double zoomFactor)
+{
+    char buf[32] {};
+    std::snprintf(buf, sizeof(buf), "PFEC,GPcam,z,%.1f", zoomFactor);
+    return NmeaChecksum::frameSentence(buf);
+}
+
 } // namespace Nmea

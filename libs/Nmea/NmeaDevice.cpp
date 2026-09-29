@@ -396,6 +396,112 @@ void NmeaDevice::removeAttitudeCallback(std::size_t id)
     removeCallbackInternal(m_attitudeCallbacks, m_callbackMutex, id);
 }
 
+std::size_t NmeaDevice::addGsaCallback(GsaCallback cb)
+{
+    return addCallbackInternal(m_gsaCallbacks, m_callbackMutex, std::move(cb));
+}
+
+void NmeaDevice::removeGsaCallback(std::size_t id)
+{
+    removeCallbackInternal(m_gsaCallbacks, m_callbackMutex, id);
+}
+
+std::size_t NmeaDevice::addGsvCallback(GsvCallback cb)
+{
+    return addCallbackInternal(m_gsvCallbacks, m_callbackMutex, std::move(cb));
+}
+
+void NmeaDevice::removeGsvCallback(std::size_t id)
+{
+    removeCallbackInternal(m_gsvCallbacks, m_callbackMutex, id);
+}
+
+std::size_t NmeaDevice::addZdaCallback(ZdaCallback cb)
+{
+    return addCallbackInternal(m_zdaCallbacks, m_callbackMutex, std::move(cb));
+}
+
+void NmeaDevice::removeZdaCallback(std::size_t id)
+{
+    removeCallbackInternal(m_zdaCallbacks, m_callbackMutex, id);
+}
+
+std::size_t NmeaDevice::addVbwCallback(VbwCallback cb)
+{
+    return addCallbackInternal(m_vbwCallbacks, m_callbackMutex, std::move(cb));
+}
+
+void NmeaDevice::removeVbwCallback(std::size_t id)
+{
+    removeCallbackInternal(m_vbwCallbacks, m_callbackMutex, id);
+}
+
+std::size_t NmeaDevice::addVhwCallback(VhwCallback cb)
+{
+    return addCallbackInternal(m_vhwCallbacks, m_callbackMutex, std::move(cb));
+}
+
+void NmeaDevice::removeVhwCallback(std::size_t id)
+{
+    removeCallbackInternal(m_vhwCallbacks, m_callbackMutex, id);
+}
+
+std::size_t NmeaDevice::addDptCallback(DptCallback cb)
+{
+    return addCallbackInternal(m_dptCallbacks, m_callbackMutex, std::move(cb));
+}
+
+void NmeaDevice::removeDptCallback(std::size_t id)
+{
+    removeCallbackInternal(m_dptCallbacks, m_callbackMutex, id);
+}
+
+std::size_t NmeaDevice::addDbtCallback(DbtCallback cb)
+{
+    return addCallbackInternal(m_dbtCallbacks, m_callbackMutex, std::move(cb));
+}
+
+void NmeaDevice::removeDbtCallback(std::size_t id)
+{
+    removeCallbackInternal(m_dbtCallbacks, m_callbackMutex, id);
+}
+
+std::optional<GsaData> NmeaDevice::lastGsa() const
+{
+    std::lock_guard<std::mutex> lock(m_maritimeMutex);
+    return m_lastGsa;
+}
+
+std::optional<ZdaData> NmeaDevice::lastZda() const
+{
+    std::lock_guard<std::mutex> lock(m_maritimeMutex);
+    return m_lastZda;
+}
+
+std::optional<VbwData> NmeaDevice::lastVbw() const
+{
+    std::lock_guard<std::mutex> lock(m_maritimeMutex);
+    return m_lastVbw;
+}
+
+std::optional<VhwData> NmeaDevice::lastVhw() const
+{
+    std::lock_guard<std::mutex> lock(m_maritimeMutex);
+    return m_lastVhw;
+}
+
+std::optional<DptData> NmeaDevice::lastDpt() const
+{
+    std::lock_guard<std::mutex> lock(m_maritimeMutex);
+    return m_lastDpt;
+}
+
+std::optional<DbtData> NmeaDevice::lastDbt() const
+{
+    std::lock_guard<std::mutex> lock(m_maritimeMutex);
+    return m_lastDbt;
+}
+
 std::shared_ptr<NmeaRouteManager> NmeaDevice::routeManager() const noexcept
 {
     return m_routeManager;
@@ -1015,6 +1121,159 @@ void NmeaDevice::processSentence(std::string_view sentence)
                 }
             }
             notifyEnvironmentAndThermal();
+        }
+        break;
+    }
+    case NmeaSentenceId::GSA: {
+        GsaData gsa {};
+        if (NmeaSentenceParser::parseGsa(sentence, gsa, true)) {
+            {
+                std::lock_guard<std::mutex> lock(m_maritimeMutex);
+                m_lastGsa = gsa;
+            }
+            std::shared_ptr<const std::vector<std::pair<std::size_t, GsaCallback>>> gsaCbs;
+            {
+                std::lock_guard<std::mutex> cbLock(m_callbackMutex);
+                gsaCbs = m_gsaCallbacks.entries;
+            }
+            for (const auto& item : *gsaCbs) {
+                if (item.second) {
+                    item.second(gsa);
+                }
+            }
+        }
+        break;
+    }
+    case NmeaSentenceId::GSV: {
+        GsvData gsv {};
+        if (NmeaSentenceParser::parseGsv(sentence, gsv, true)) {
+            std::shared_ptr<const std::vector<std::pair<std::size_t, GsvCallback>>> gsvCbs;
+            {
+                std::lock_guard<std::mutex> cbLock(m_callbackMutex);
+                gsvCbs = m_gsvCallbacks.entries;
+            }
+            for (const auto& item : *gsvCbs) {
+                if (item.second) {
+                    item.second(gsv);
+                }
+            }
+        }
+        break;
+    }
+    case NmeaSentenceId::ZDA: {
+        ZdaData zda {};
+        if (NmeaSentenceParser::parseZda(sentence, zda, true)) {
+            {
+                std::lock_guard<std::mutex> lock(m_maritimeMutex);
+                m_lastZda = zda;
+            }
+            std::shared_ptr<const std::vector<std::pair<std::size_t, ZdaCallback>>> zdaCbs;
+            {
+                std::lock_guard<std::mutex> cbLock(m_callbackMutex);
+                zdaCbs = m_zdaCallbacks.entries;
+            }
+            for (const auto& item : *zdaCbs) {
+                if (item.second) {
+                    item.second(zda);
+                }
+            }
+        }
+        break;
+    }
+    case NmeaSentenceId::VBW: {
+        VbwData vbw {};
+        if (NmeaSentenceParser::parseVbw(sentence, vbw, true)) {
+            {
+                std::lock_guard<std::mutex> lock(m_maritimeMutex);
+                m_lastVbw = vbw;
+            }
+            if (vbw.groundSpeedStatus == 'A') {
+                std::lock_guard<std::mutex> lock(m_navMutex);
+                m_navSnapshot.sogKnots = vbw.longitudinalGroundSpeedKnots;
+                m_navSnapshot.timestamp = now;
+                currentNav = m_navSnapshot;
+                navUpdated = true;
+            }
+            std::shared_ptr<const std::vector<std::pair<std::size_t, VbwCallback>>> vbwCbs;
+            {
+                std::lock_guard<std::mutex> cbLock(m_callbackMutex);
+                vbwCbs = m_vbwCallbacks.entries;
+            }
+            for (const auto& item : *vbwCbs) {
+                if (item.second) {
+                    item.second(vbw);
+                }
+            }
+        }
+        break;
+    }
+    case NmeaSentenceId::VHW: {
+        VhwData vhw {};
+        if (NmeaSentenceParser::parseVhw(sentence, vhw, true)) {
+            {
+                std::lock_guard<std::mutex> lock(m_maritimeMutex);
+                m_lastVhw = vhw;
+            }
+            if (vhw.headingDegreesTrue.has_value()) {
+                std::lock_guard<std::mutex> lock(m_navMutex);
+                if (!m_navSnapshot.hasHeading) {
+                    m_navSnapshot.trueHeadingDegrees = *vhw.headingDegreesTrue;
+                    m_navSnapshot.hasHeading = true;
+                    m_navSnapshot.timestamp = now;
+                    currentNav = m_navSnapshot;
+                    navUpdated = true;
+                }
+            }
+            std::shared_ptr<const std::vector<std::pair<std::size_t, VhwCallback>>> vhwCbs;
+            {
+                std::lock_guard<std::mutex> cbLock(m_callbackMutex);
+                vhwCbs = m_vhwCallbacks.entries;
+            }
+            for (const auto& item : *vhwCbs) {
+                if (item.second) {
+                    item.second(vhw);
+                }
+            }
+        }
+        break;
+    }
+    case NmeaSentenceId::DPT: {
+        DptData dpt {};
+        if (NmeaSentenceParser::parseDpt(sentence, dpt, true)) {
+            {
+                std::lock_guard<std::mutex> lock(m_maritimeMutex);
+                m_lastDpt = dpt;
+            }
+            std::shared_ptr<const std::vector<std::pair<std::size_t, DptCallback>>> dptCbs;
+            {
+                std::lock_guard<std::mutex> cbLock(m_callbackMutex);
+                dptCbs = m_dptCallbacks.entries;
+            }
+            for (const auto& item : *dptCbs) {
+                if (item.second) {
+                    item.second(dpt);
+                }
+            }
+        }
+        break;
+    }
+    case NmeaSentenceId::DBT: {
+        DbtData dbt {};
+        if (NmeaSentenceParser::parseDbt(sentence, dbt, true)) {
+            {
+                std::lock_guard<std::mutex> lock(m_maritimeMutex);
+                m_lastDbt = dbt;
+            }
+            std::shared_ptr<const std::vector<std::pair<std::size_t, DbtCallback>>> dbtCbs;
+            {
+                std::lock_guard<std::mutex> cbLock(m_callbackMutex);
+                dbtCbs = m_dbtCallbacks.entries;
+            }
+            for (const auto& item : *dbtCbs) {
+                if (item.second) {
+                    item.second(dbt);
+                }
+            }
         }
         break;
     }

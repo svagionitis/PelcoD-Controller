@@ -19,22 +19,95 @@ Here is a breakdown of NMEA features and extensions that can be added to the con
 
 ---
 
-### 2. Additional NMEA 0183 & IEC 61162 Sentences
-*Expanding [NmeaSentenceParser](../libs/Nmea/NmeaSentenceParser.h) and [NmeaSentenceBuilder](../libs/Nmea/NmeaSentenceBuilder.h)*
+### 2. Additional NMEA 0183 & IEC 61162 Sentences (Implemented)
+*Implemented in [NmeaSentenceParser](../libs/Nmea/NmeaSentenceParser.h), [NmeaSentenceBuilder](../libs/Nmea/NmeaSentenceBuilder.h), [BridgeAlertManager](../libs/Nmea/bam/BridgeAlertManager.h), [BridgeAlertTypes](../libs/Nmea/bam/BridgeAlertTypes.h), [NmeaDevice](../libs/Nmea/NmeaDevice.h), and [FlirPfecDevice](../libs/Nmea/FlirPfecDevice.h)*
 
-* **Bridge Alert Management (BAM - IEC 62923 / IEC 61162-1)**:
-  * **$xxALF** (Alert Sentence), **$xxALC** (Alert Circular), **$xxARC** (Alert Command), **$xxHBT** (Heartbeat supervision), and legacy **$xxALR / $xxACK**.
-  * Allows the PTZ controller to participate in integrated bridge alert and alarm annunciator systems.
+* **Bridge Alert Management (BAM - IEC 62923-1 / IEC 62923-2 / IEC 61162-1)**:
+  * **$xxALF** (Alert Sentence): Reports alert priority (`Emergency`, `Alarm`, `Warning`, `Caution`), category (`A`, `B`, `C`), state (`ActiveUnack`, `Silenced`, `ActiveAck`, `Transferred`, `RectifiedUnack`, `Normal`), identifier, instance, revision, and escalation counters.
+  * **$xxALC** (Alert Cyclic List): Periodic broadcast of all active alert identifiers, instances, and revision counters.
+  * **$xxARC** (Alert Command Request): Ingestion of bridge operator acknowledge (`A`), temporary acoustic silence (`Q`), and responsibility transfer (`O`) requests.
+  * **$xxHBT** (Heartbeat Supervision): Periodic supervisor sentence confirming equipment operational integrity and configured heartbeat intervals.
+  * **Legacy $xxALR / $xxACK**: Backward-compatibility alarm state generation and acknowledge reception.
+  * **BridgeAlertManager Lifecycle Engine**: Thread-safe coordinator managing alert transitions, silence timeouts (reverting to unacknowledged after 30 s), escalation timers, and cyclic broadcasts.
+
+#### BAM State Machine Architecture
+
+##### ASCII State Diagram
+
+```
++-----------------------------------------------------------------------------------+
+|                        Bridge Alert Management (BAM) Engine                       |
+|                               (IEC 62923 / IEC 61162-1)                           |
++-----------------------------------------------------------------------------------+
+                                        |
+                            registerAlert(priority, cat)
+                                        v
+                               +-----------------+
+                               |     Normal      |
+                               +-----------------+
+                                 |             ^
+                 Fault Raised /  |             | Ack when Rectified /
+                 Alarm Triggered |             | Normal Transition
+                                 v             |
+                      +-----------------------------+
+                      |   Active-Unacknowledged     | <-----------+
+                      |        (Visual/Audio)       |             |
+                      +-----------------------------+             |
+                        |      |             |                    |
+             Ack ('A')  |      | Silence('Q')| Fault Cleared      | Silence
+                        |      |             |                    | Timeout
+                        v      v             v                    | (30s)
+            +--------------+  +---------------+  +--------------------------+
+            |    Active-   |  |    Active-    |  |       Rectified-         |
+            | Acknowledged |  |   Silenced    |  |     Unacknowledged       |
+            +--------------+  +---------------+  +--------------------------+
+                   |                 |                         |
+             Fault |                 +-------------------------+
+            Normal |                 |
+                   v                 v
+            +---------------------------------+
+            |             Normal              |
+            +---------------------------------+
+```
+
+##### Mermaid State Diagram
+
+```mermaid
+stateDiagram-v2
+    [*] --> Normal
+    Normal --> ActiveUnacknowledged : Fault Detected (Alarm/Warning)
+    Normal --> ActiveAcknowledged : Caution Raised
+    ActiveUnacknowledged --> ActiveSilenced : Silence Command ('Q')
+    ActiveSilenced --> ActiveUnacknowledged : Silence Timeout (30s)
+    ActiveUnacknowledged --> ActiveAcknowledged : Acknowledge Command ('A')
+    ActiveUnacknowledged --> RectifiedUnacknowledged : Fault Rectified (Unack)
+    RectifiedUnacknowledged --> Normal : Acknowledge Command ('A')
+    ActiveSilenced --> Normal : Fault Rectified
+    ActiveAcknowledged --> Normal : Fault Rectified
+    ActiveUnacknowledged --> ActiveUnacknowledged : Escalation Timeout (+EscalationCounter)
+    ActiveAcknowledged --> ActiveResponsibilityTransferred : Transfer Command ('O')
+```
+
 * **GNSS Constellation & Signal Quality**:
-  * **$xxGSA** (DOP and active satellites: PDOP, HDOP, VDOP) for precision thresholding.
-  * **$xxGSV** (Satellites in view: PRN, elevation, azimuth, SNR across GPS/GLONASS/Galileo/BeiDou).
-  * **$xxZDA** (UTC time, day, month, year, local time zone offset) for synchronizing camera video timestamp overlays.
+  * **$xxGSA**: Dilution of precision (PDOP, HDOP, VDOP) and up to 12 active satellite PRNs for georeferencing precision gating.
+  * **$xxGSV**: Multi-sentence satellite constellation telemetry reporting space vehicle ID, elevation, azimuth, and SNR (dB-Hz) across GPS, GLONASS, Galileo, and BeiDou.
+  * **$xxZDA**: High-precision UTC time, date, and local zone offset for camera on-screen display (OSD) and video metadata synchronization.
 * **Vessel Speed & Water Depth**:
-  * **$xxVBW** (Dual ground and water speed: longitudinal/transverse).
-  * **$xxVHW** (Water speed and heading).
-  * **$xxDPT / $xxDBT** (Depth below transducer / keel).
+  * **$xxVBW**: Dual ground and water speed tracking (fore/aft longitudinal and port/starboard transverse speeds). Integrated with [NmeaSensorArbiter](../libs/Nmea/arbiter/NmeaSensorArbiter.h).
+  * **$xxVHW**: Water speed (knots and km/h) and heading true/magnetic.
+  * **$xxDPT / $xxDBT**: Water depth and transducer keel/waterline offset telemetry.
 * **Extended FLIR PFEC Commands**:
-  * Full control command synthesis: `$PFEC,GPcmd` for optical/thermal palette selection, digital zoom, Non-Uniformity Correction (NUC), and gyro-stabilization toggles in [FlirPfecDevice](../libs/Nmea/FlirPfecDevice.h).
+  * Digital zoom magnification: `setDigitalZoom` (`1x`, `2x`, `4x`, `8x`).
+  * Gyro stabilization toggle: `setStabilization` (`on` / `off`).
+  * Color palette selection: `setColorPalette` (`WhiteHot`, `BlackHot`, `Ironbow`, `Rainbow`, `Sepia`).
+  * Thermal calibration: `triggerNuc` (Non-Uniformity Correction).
+
+* **Unit Tests & Verification**:
+  * [TestBridgeAlertManager.cpp](../libs/Nmea/tests/TestBridgeAlertManager.cpp): Complete BAM alert lifecycle, timeouts, escalations, ARC commands, and cyclic broadcasts.
+  * [TestNmeaSentenceParser.cpp](../libs/Nmea/tests/TestNmeaSentenceParser.cpp): Parsing of GSA, GSV, ZDA, VBW, VHW, DPT, DBT, ALF, ALC, ARC, HBT, ALR, ACK.
+  * [TestNmeaSentenceBuilder.cpp](../libs/Nmea/tests/TestNmeaSentenceBuilder.cpp): Roundtrip sentence framing and extended PFEC commands.
+  * [TestNmeaDevice.cpp](../libs/Nmea/tests/TestNmeaDevice.cpp): Thread-safe callback dispatch and telemetry caching.
+  * [TestFlirPfecDevice.cpp](../libs/Nmea/tests/TestFlirPfecDevice.cpp): Optical/thermal digital zoom, gyro stabilization, and palette commands.
 
 ---
 

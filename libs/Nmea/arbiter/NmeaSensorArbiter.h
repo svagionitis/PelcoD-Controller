@@ -155,6 +155,21 @@ public:
     /// @brief Retrieves current divergence status between primary and secondary feeds.
     [[nodiscard]] DivergenceStatus divergenceStatus() const;
 
+    /// @brief Ingests speed log telemetry (VBW).
+    void updateSpeedLog(const VbwData& vbw);
+
+    /// @brief Ingests depth sensor telemetry (DPT).
+    void updateWaterDepth(const DptData& dpt);
+
+    /// @brief Returns the arbitrated speed through water in knots, if available.
+    [[nodiscard]] std::optional<double> arbitratedWaterSpeed() const;
+
+    /// @brief Returns the arbitrated speed over ground in knots.
+    [[nodiscard]] std::optional<double> arbitratedGroundSpeed() const;
+
+    /// @brief Returns the arbitrated water depth in meters.
+    [[nodiscard]] std::optional<double> arbitratedDepthMeters() const;
+
     /// @brief Calculates the great-circle Haversine distance in meters between two coordinates.
     [[nodiscard]] static double calculateDistanceMeters(double lat1, double lon1, double lat2, double lon2) noexcept;
 
@@ -184,6 +199,9 @@ private:
     HeadingSourceId m_activeHeading { HeadingSourceId::Primary };
 
     DivergenceStatus m_divergence {};
+
+    std::optional<VbwData> m_speedLog {};
+    std::optional<DptData> m_waterDepth {};
 };
 
 } // namespace Nmea::Arbiter

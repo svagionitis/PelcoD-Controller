@@ -335,5 +335,73 @@ namespace {
         device.stop();
     }
 
+    TEST(TestNmeaDevice, TelemetrySubscriptionsAndCaching)
+    {
+        auto transport = std::make_shared<MockTestTransport>();
+        NmeaDevice device(transport);
+        ASSERT_TRUE(device.start());
+
+        std::atomic<bool> gsaFired { false };
+        std::atomic<bool> gsvFired { false };
+        std::atomic<bool> zdaFired { false };
+        std::atomic<bool> vbwFired { false };
+        std::atomic<bool> vhwFired { false };
+        std::atomic<bool> dptFired { false };
+        std::atomic<bool> dbtFired { false };
+
+        device.addGsaCallback([&](const GsaData&) { gsaFired = true; });
+        device.addGsvCallback([&](const GsvData&) { gsvFired = true; });
+        device.addZdaCallback([&](const ZdaData&) { zdaFired = true; });
+        device.addVbwCallback([&](const VbwData&) { vbwFired = true; });
+        device.addVhwCallback([&](const VhwData&) { vhwFired = true; });
+        device.addDptCallback([&](const DptData&) { dptFired = true; });
+        device.addDbtCallback([&](const DbtData&) { dbtFired = true; });
+
+        // Inject sentences
+        transport->injectString(NmeaChecksum::frameSentence("GPGSA,A,3,04,05,,09,12,,,24,,,,,2.5,1.3,2.1,1"));
+        transport->injectString(NmeaChecksum::frameSentence("GPGSV,1,1,01,01,40,083,46,1"));
+        transport->injectString(NmeaChecksum::frameSentence("GPZDA,201530.00,04,07,2026,02,00"));
+        transport->injectString(NmeaChecksum::frameSentence("IIVBW,12.50,0.30,A,12.80,0.40,A"));
+        transport->injectString(NmeaChecksum::frameSentence("IIVHW,125.4,T,122.1,M,12.4,N,23.0,K"));
+        transport->injectString(NmeaChecksum::frameSentence("SDDPT,24.5,1.5,100.0"));
+        transport->injectString(NmeaChecksum::frameSentence("SDDBT,80.4,f,24.5,M,13.4,F"));
+
+        EXPECT_TRUE(gsaFired.load());
+        EXPECT_TRUE(gsvFired.load());
+        EXPECT_TRUE(zdaFired.load());
+        EXPECT_TRUE(vbwFired.load());
+        EXPECT_TRUE(vhwFired.load());
+        EXPECT_TRUE(dptFired.load());
+        EXPECT_TRUE(dbtFired.load());
+
+        // Verify caching
+        const auto lastGsa = device.lastGsa();
+        ASSERT_TRUE(lastGsa.has_value());
+        EXPECT_EQ(lastGsa->fixMode, 3U);
+
+        const auto lastZda = device.lastZda();
+        ASSERT_TRUE(lastZda.has_value());
+        EXPECT_EQ(lastZda->year, 2026U);
+
+        const auto lastVbw = device.lastVbw();
+        ASSERT_TRUE(lastVbw.has_value());
+        EXPECT_NEAR(lastVbw->longitudinalWaterSpeedKnots, 12.5, 1e-1);
+
+        const auto lastVhw = device.lastVhw();
+        ASSERT_TRUE(lastVhw.has_value());
+        ASSERT_TRUE(lastVhw->headingDegreesTrue.has_value());
+        EXPECT_NEAR(*lastVhw->headingDegreesTrue, 125.4, 1e-1);
+
+        const auto lastDpt = device.lastDpt();
+        ASSERT_TRUE(lastDpt.has_value());
+        EXPECT_NEAR(lastDpt->waterDepthMeters, 24.5, 1e-1);
+
+        const auto lastDbt = device.lastDbt();
+        ASSERT_TRUE(lastDbt.has_value());
+        EXPECT_NEAR(lastDbt->depthMeters, 24.5, 1e-1);
+
+        device.stop();
+    }
+
 } // namespace
 } // namespace Nmea

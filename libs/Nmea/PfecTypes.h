@@ -28,4 +28,13 @@ enum class FlirSensorType : std::uint8_t {
 /// @brief Thermal infrared pseudo-color palettes supported by FLIR marine cameras.
 enum class FlirColorPalette : std::uint8_t { WhiteHot = 0U, BlackHot = 1U, Rainbow = 2U, Ironbow = 3U, Sepia = 4U };
 
+/// @enum FlirZoomLevel
+/// @brief Digital zoom magnification levels supported by FLIR thermal/visible cameras.
+enum class FlirZoomLevel : std::uint8_t {
+    Zoom1x = 1U,
+    Zoom2x = 2U,
+    Zoom4x = 4U,
+    Zoom8x = 8U
+};
+
 } // namespace Nmea

@@ -494,4 +494,47 @@ double NmeaSensorArbiter::calculateHeadingDeltaDeg(double h1, double h2) noexcep
     return diff;
 }
 
+void NmeaSensorArbiter::updateSpeedLog(const VbwData& vbw)
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    m_speedLog = vbw;
+}
+
+void NmeaSensorArbiter::updateWaterDepth(const DptData& dpt)
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    m_waterDepth = dpt;
+}
+
+std::optional<double> NmeaSensorArbiter::arbitratedWaterSpeed() const
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    if (m_speedLog.has_value() && m_speedLog->waterSpeedStatus == 'A') {
+        return m_speedLog->longitudinalWaterSpeedKnots;
+    }
+    return std::nullopt;
+}
+
+std::optional<double> NmeaSensorArbiter::arbitratedGroundSpeed() const
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    const GpsChannelStatus& gps = (m_activeGps == GpsSourceId::Primary) ? m_primaryGps : m_secondaryGps;
+    if (gps.online && gps.positionValid) {
+        return gps.sogKnots;
+    }
+    if (m_speedLog.has_value() && m_speedLog->groundSpeedStatus == 'A') {
+        return m_speedLog->longitudinalGroundSpeedKnots;
+    }
+    return std::nullopt;
+}
+
+std::optional<double> NmeaSensorArbiter::arbitratedDepthMeters() const
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    if (m_waterDepth.has_value() && m_waterDepth->valid) {
+        return m_waterDepth->waterDepthMeters;
+    }
+    return std::nullopt;
+}
+
 } // namespace Nmea::Arbiter

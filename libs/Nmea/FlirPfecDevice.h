@@ -104,6 +104,25 @@ public:
     /// @return True if palette command was dispatched.
     bool setColorPalette(FlirColorPalette palette);
 
+    /// @brief Configures digital zoom factor.
+    /// @param[in] level Digital zoom magnification (1x, 2x, 4x, 8x).
+    /// @return True if digital zoom command was dispatched.
+    bool setDigitalZoom(FlirZoomLevel level);
+
+    /// @brief Enables or disables internal gyro stabilization.
+    /// @param[in] enable True to enable gyro stabilization, false to disable.
+    /// @return True if stabilization command was dispatched.
+    bool setStabilization(bool enable);
+
+    /// @brief Returns the active digital zoom level.
+    [[nodiscard]] FlirZoomLevel digitalZoom() const;
+
+    /// @brief Returns whether gyro stabilization is enabled.
+    [[nodiscard]] bool isStabilized() const;
+
+    /// @brief Returns the active color palette.
+    [[nodiscard]] FlirColorPalette colorPalette() const;
+
     /// @brief Triggers Non-Uniformity Correction (NUC / flat field calibration) on the thermal core.
     /// @return True if NUC command was dispatched.
     bool triggerNuc();
@@ -149,6 +168,10 @@ private:
 
     mutable std::mutex m_posMutex;
     PfecGimbalPosition m_currentPosition {};
+
+    std::atomic<FlirZoomLevel> m_digitalZoom { FlirZoomLevel::Zoom1x };
+    std::atomic<bool> m_stabilized { false };
+    std::atomic<FlirColorPalette> m_palette { FlirColorPalette::WhiteHot };
 
     mutable std::mutex m_callbackMutex;
     std::size_t m_nextCallbackId { 1U };

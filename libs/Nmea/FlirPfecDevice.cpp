@@ -136,14 +136,50 @@ bool FlirPfecDevice::selectSensor(FlirSensorType sensor)
 
 bool FlirPfecDevice::setColorPalette(FlirColorPalette palette)
 {
-    char buf[16] {};
-    std::snprintf(buf, sizeof(buf), "p,%u", static_cast<unsigned int>(palette));
-    return sendSentence(NmeaSentenceBuilder::buildPfecCameraCommand(buf));
+    const bool ok = sendSentence(NmeaSentenceBuilder::buildPfecPalette(static_cast<std::uint8_t>(palette)));
+    if (ok) {
+        m_palette = palette;
+    }
+    return ok;
+}
+
+bool FlirPfecDevice::setDigitalZoom(FlirZoomLevel level)
+{
+    const double factor = static_cast<double>(static_cast<std::uint8_t>(level));
+    const bool ok = sendSentence(NmeaSentenceBuilder::buildPfecDigitalZoom(factor));
+    if (ok) {
+        m_digitalZoom = level;
+    }
+    return ok;
+}
+
+bool FlirPfecDevice::setStabilization(bool enable)
+{
+    const bool ok = sendSentence(NmeaSentenceBuilder::buildPfecStabilization(enable));
+    if (ok) {
+        m_stabilized = enable;
+    }
+    return ok;
+}
+
+FlirZoomLevel FlirPfecDevice::digitalZoom() const
+{
+    return m_digitalZoom.load();
+}
+
+bool FlirPfecDevice::isStabilized() const
+{
+    return m_stabilized.load();
+}
+
+FlirColorPalette FlirPfecDevice::colorPalette() const
+{
+    return m_palette.load();
 }
 
 bool FlirPfecDevice::triggerNuc()
 {
-    return sendSentence(NmeaSentenceBuilder::buildPfecCameraCommand("nuc"));
+    return sendSentence(NmeaSentenceBuilder::buildPfecNuc());
 }
 
 bool FlirPfecDevice::queryPosition()

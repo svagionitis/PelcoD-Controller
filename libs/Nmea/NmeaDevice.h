@@ -50,6 +50,13 @@ public:
     using EnvironmentCallback = std::function<void(const NmeaEnvironmentSnapshot&)>;
     using ThermalAdviceCallback = std::function<void(const ThermalTuningAdvice&)>;
     using AttitudeCallback = std::function<void(const AttitudeData&)>;
+    using GsaCallback = std::function<void(const GsaData&)>;
+    using GsvCallback = std::function<void(const GsvData&)>;
+    using ZdaCallback = std::function<void(const ZdaData&)>;
+    using VbwCallback = std::function<void(const VbwData&)>;
+    using VhwCallback = std::function<void(const VhwData&)>;
+    using DptCallback = std::function<void(const DptData&)>;
+    using DbtCallback = std::function<void(const DbtData&)>;
 
     /// @brief Constructs an NmeaDevice wrapping the given physical or network transport.
     /// @param[in] transport Shared pointer to underlying transport (Serial, UDP, TCP).
@@ -234,6 +241,34 @@ public:
     /// @param[in] id Subscription ID returned by addAttitudeCallback.
     void removeAttitudeCallback(std::size_t id);
 
+    /// @brief Registers a subscriber callback for GNSS DOP and active satellites (GSA).
+    std::size_t addGsaCallback(GsaCallback cb);
+    void removeGsaCallback(std::size_t id);
+
+    /// @brief Registers a subscriber callback for GNSS satellites in view (GSV).
+    std::size_t addGsvCallback(GsvCallback cb);
+    void removeGsvCallback(std::size_t id);
+
+    /// @brief Registers a subscriber callback for UTC time and date (ZDA).
+    std::size_t addZdaCallback(ZdaCallback cb);
+    void removeZdaCallback(std::size_t id);
+
+    /// @brief Registers a subscriber callback for dual ground/water speed (VBW).
+    std::size_t addVbwCallback(VbwCallback cb);
+    void removeVbwCallback(std::size_t id);
+
+    /// @brief Registers a subscriber callback for water speed and heading (VHW).
+    std::size_t addVhwCallback(VhwCallback cb);
+    void removeVhwCallback(std::size_t id);
+
+    /// @brief Registers a subscriber callback for water depth (DPT).
+    std::size_t addDptCallback(DptCallback cb);
+    void removeDptCallback(std::size_t id);
+
+    /// @brief Registers a subscriber callback for depth below transducer (DBT).
+    std::size_t addDbtCallback(DbtCallback cb);
+    void removeDbtCallback(std::size_t id);
+
     /// @brief Retrieves the shared route manager.
     [[nodiscard]] std::shared_ptr<NmeaRouteManager> routeManager() const noexcept;
 
@@ -263,6 +298,24 @@ public:
 
     /// @brief Retrieves the latest vessel attitude telemetry.
     [[nodiscard]] std::optional<AttitudeData> lastAttitude() const;
+
+    /// @brief Retrieves the latest GNSS DOP and active satellites.
+    [[nodiscard]] std::optional<GsaData> lastGsa() const;
+
+    /// @brief Retrieves the latest UTC time and date.
+    [[nodiscard]] std::optional<ZdaData> lastZda() const;
+
+    /// @brief Retrieves the latest dual ground/water speed.
+    [[nodiscard]] std::optional<VbwData> lastVbw() const;
+
+    /// @brief Retrieves the latest water speed and heading.
+    [[nodiscard]] std::optional<VhwData> lastVhw() const;
+
+    /// @brief Retrieves the latest water depth.
+    [[nodiscard]] std::optional<DptData> lastDpt() const;
+
+    /// @brief Retrieves the latest depth below transducer.
+    [[nodiscard]] std::optional<DbtData> lastDbt() const;
 
     /// @brief Ingests simulated or raw sentences directly into the accumulator.
     /// @param[in] rawData Raw byte data.
@@ -341,6 +394,12 @@ private:
     std::optional<MtwData> m_lastMtw {};
     std::optional<MmbData> m_lastMmb {};
     std::optional<MdaData> m_lastMda {};
+    std::optional<GsaData> m_lastGsa {};
+    std::optional<ZdaData> m_lastZda {};
+    std::optional<VbwData> m_lastVbw {};
+    std::optional<VhwData> m_lastVhw {};
+    std::optional<DptData> m_lastDpt {};
+    std::optional<DbtData> m_lastDbt {};
 
     std::shared_ptr<NmeaRouteManager> m_routeManager { std::make_shared<NmeaRouteManager>() };
     std::shared_ptr<ThermalTuningAdvisor> m_thermalAdvisor { std::make_shared<ThermalTuningAdvisor>() };
@@ -366,6 +425,13 @@ private:
     CallbackList<EnvironmentCallback> m_envCallbacks {};
     CallbackList<ThermalAdviceCallback> m_thermalAdviceCallbacks {};
     CallbackList<AttitudeCallback> m_attitudeCallbacks {};
+    CallbackList<GsaCallback> m_gsaCallbacks {};
+    CallbackList<GsvCallback> m_gsvCallbacks {};
+    CallbackList<ZdaCallback> m_zdaCallbacks {};
+    CallbackList<VbwCallback> m_vbwCallbacks {};
+    CallbackList<VhwCallback> m_vhwCallbacks {};
+    CallbackList<DptCallback> m_dptCallbacks {};
+    CallbackList<DbtCallback> m_dbtCallbacks {};
 };
 
 } // namespace Nmea

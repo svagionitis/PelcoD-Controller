@@ -5,6 +5,8 @@
 
 #include "NmeaChecksum.h"
 #include "NmeaTypes.h"
+#include "PfecTypes.h"
+#include "bam/BridgeAlertTypes.h"
 
 #include <string>
 #include <string_view>
@@ -170,6 +172,57 @@ public:
     /// @param[in] command Parameter string (e.g. "c,vis", "c,ir", "p,1", "nuc").
     /// @return Formatted NMEA sentence string with checksum.
     [[nodiscard]] static std::string buildPfecCameraCommand(std::string_view command);
+
+    /// @brief Builds an $--GSA sentence from GNSS DOP and active satellites.
+    [[nodiscard]] static std::string buildGsa(const GsaData& data, std::string_view talkerId = "GP");
+
+    /// @brief Builds an $--GSV sentence slice from satellites in view.
+    [[nodiscard]] static std::string buildGsv(const GsvData& data, std::string_view talkerId = "GP");
+
+    /// @brief Builds an $--ZDA sentence from UTC time, date and local zone.
+    [[nodiscard]] static std::string buildZda(const ZdaData& data, std::string_view talkerId = "GP");
+
+    /// @brief Builds an $--VBW sentence from dual ground and water speed.
+    [[nodiscard]] static std::string buildVbw(const VbwData& data, std::string_view talkerId = "VD");
+
+    /// @brief Builds an $--VHW sentence from water speed and heading.
+    [[nodiscard]] static std::string buildVhw(const VhwData& data, std::string_view talkerId = "VW");
+
+    /// @brief Builds an $--DPT sentence from water depth and transducer offset.
+    [[nodiscard]] static std::string buildDpt(const DptData& data, std::string_view talkerId = "SD");
+
+    /// @brief Builds an $--DBT sentence from depth below transducer.
+    [[nodiscard]] static std::string buildDbt(const DbtData& data, std::string_view talkerId = "SD");
+
+    /// @brief Builds an $--ALF alert sentence (IEC 62923 BAM).
+    [[nodiscard]] static std::string buildAlf(const Bam::AlfData& data, std::string_view talkerId = "BN");
+
+    /// @brief Builds an $--ALC cyclic alert list sentence (IEC 62923 BAM).
+    [[nodiscard]] static std::string buildAlc(const Bam::AlcData& data, std::string_view talkerId = "BN");
+
+    /// @brief Builds an $--ARC alert command request sentence (IEC 62923 BAM).
+    [[nodiscard]] static std::string buildArc(const Bam::ArcData& data, std::string_view talkerId = "BN");
+
+    /// @brief Builds an $--HBT heartbeat supervision sentence (IEC 61162-1).
+    [[nodiscard]] static std::string buildHbt(const Bam::HbtData& data, std::string_view talkerId = "BN");
+
+    /// @brief Builds an $--ALR legacy alert sentence.
+    [[nodiscard]] static std::string buildAlr(const Bam::AlrData& data, std::string_view talkerId = "BN");
+
+    /// @brief Builds an $--ACK legacy alert acknowledge sentence.
+    [[nodiscard]] static std::string buildAck(const Bam::AckData& data, std::string_view talkerId = "BN");
+
+    /// @brief Builds a $PFEC,GPcam,p color palette command.
+    [[nodiscard]] static std::string buildPfecPalette(std::uint8_t paletteIndex);
+
+    /// @brief Builds a $PFEC,GPcam,s gyro stabilization enable/disable command.
+    [[nodiscard]] static std::string buildPfecStabilization(bool enable);
+
+    /// @brief Builds a $PFEC,GPcam,nuc thermal Non-Uniformity Correction trigger command.
+    [[nodiscard]] static std::string buildPfecNuc();
+
+    /// @brief Builds a $PFEC,GPcam,z digital zoom factor command.
+    [[nodiscard]] static std::string buildPfecDigitalZoom(double zoomFactor);
 
     /// @brief Helper to format decimal degrees to NMEA coordinate strings.
     /// @param[in] deg Decimal degrees.

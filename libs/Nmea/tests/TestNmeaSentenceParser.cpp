@@ -235,5 +235,198 @@ namespace {
         EXPECT_NEAR(pfec.rollDegrees, 8.1, 1e-2);
     }
 
+    TEST(TestNmeaSentenceParser, ParseGsaSentence)
+    {
+        const std::string raw = "GPGSA,A,3,04,05,,09,12,,,24,,,,,2.5,1.3,2.1,1";
+        const std::string sentence = NmeaChecksum::frameSentence(raw);
+
+        GsaData gsa {};
+        ASSERT_TRUE(NmeaSentenceParser::parseGsa(sentence, gsa, true));
+        EXPECT_TRUE(gsa.valid);
+        EXPECT_EQ(gsa.selectionMode, 'A');
+        EXPECT_EQ(gsa.fixMode, 3U);
+        EXPECT_EQ(gsa.activeSatellitePrns.size(), 5U);
+        EXPECT_EQ(gsa.activeSatellitePrns[0], 4U);
+        EXPECT_EQ(gsa.activeSatellitePrns[1], 5U);
+        EXPECT_EQ(gsa.activeSatellitePrns[2], 9U);
+        EXPECT_EQ(gsa.activeSatellitePrns[3], 12U);
+        EXPECT_EQ(gsa.activeSatellitePrns[4], 24U);
+        EXPECT_NEAR(gsa.pdop, 2.5, 1e-2);
+        EXPECT_NEAR(gsa.hdop, 1.3, 1e-2);
+        EXPECT_NEAR(gsa.vdop, 2.1, 1e-2);
+        ASSERT_TRUE(gsa.systemId.has_value());
+        EXPECT_EQ(*gsa.systemId, 1U);
+    }
+
+    TEST(TestNmeaSentenceParser, ParseGsvSentence)
+    {
+        const std::string raw = "GPGSV,2,1,08,01,40,083,46,02,17,308,41,12,07,344,,14,66,039,45,1";
+        const std::string sentence = NmeaChecksum::frameSentence(raw);
+
+        GsvData gsv {};
+        ASSERT_TRUE(NmeaSentenceParser::parseGsv(sentence, gsv, true));
+        EXPECT_TRUE(gsv.valid);
+        EXPECT_EQ(gsv.totalSentences, 2U);
+        EXPECT_EQ(gsv.sentenceNumber, 1U);
+        EXPECT_EQ(gsv.totalSatellitesInView, 8U);
+        ASSERT_EQ(gsv.satellites.size(), 4U);
+
+        EXPECT_EQ(gsv.satellites[0].prn, 1U);
+        EXPECT_NEAR(gsv.satellites[0].elevationDeg, 40.0, 1e-1);
+        EXPECT_NEAR(gsv.satellites[0].azimuthDeg, 83.0, 1e-1);
+        ASSERT_TRUE(gsv.satellites[0].snrDb.has_value());
+        EXPECT_NEAR(*gsv.satellites[0].snrDb, 46.0, 1e-1);
+
+        EXPECT_EQ(gsv.satellites[2].prn, 12U);
+        EXPECT_FALSE(gsv.satellites[2].snrDb.has_value()); // Tracking without lock
+
+        ASSERT_TRUE(gsv.signalId.has_value());
+        EXPECT_EQ(*gsv.signalId, 1U);
+    }
+
+    TEST(TestNmeaSentenceParser, ParseZdaSentence)
+    {
+        const std::string raw = "GPZDA,201530.50,04,07,2026,02,30";
+        const std::string sentence = NmeaChecksum::frameSentence(raw);
+
+        ZdaData zda {};
+        ASSERT_TRUE(NmeaSentenceParser::parseZda(sentence, zda, true));
+        EXPECT_TRUE(zda.valid);
+        EXPECT_EQ(zda.utcTime.hour, 20U);
+        EXPECT_EQ(zda.utcTime.minute, 15U);
+        EXPECT_EQ(zda.utcTime.second, 30U);
+        EXPECT_EQ(zda.utcTime.millisecond, 500U);
+        EXPECT_EQ(zda.day, 4U);
+        EXPECT_EQ(zda.month, 7U);
+        EXPECT_EQ(zda.year, 2026U);
+        EXPECT_EQ(zda.localZoneHours, 2);
+        EXPECT_EQ(zda.localZoneMinutes, 30U);
+    }
+
+    TEST(TestNmeaSentenceParser, ParseVbwSentence)
+    {
+        const std::string raw = "IIVBW,12.50,0.30,A,12.80,0.40,A,0.20,A,0.25,A";
+        const std::string sentence = NmeaChecksum::frameSentence(raw);
+
+        VbwData vbw {};
+        ASSERT_TRUE(NmeaSentenceParser::parseVbw(sentence, vbw, true));
+        EXPECT_TRUE(vbw.valid);
+        EXPECT_NEAR(vbw.longitudinalWaterSpeedKnots, 12.5, 1e-2);
+        EXPECT_NEAR(vbw.transverseWaterSpeedKnots, 0.3, 1e-2);
+        EXPECT_EQ(vbw.waterSpeedStatus, 'A');
+        EXPECT_NEAR(vbw.longitudinalGroundSpeedKnots, 12.8, 1e-2);
+        EXPECT_NEAR(vbw.transverseGroundSpeedKnots, 0.4, 1e-2);
+        EXPECT_EQ(vbw.groundSpeedStatus, 'A');
+        ASSERT_TRUE(vbw.sternWaterSpeedKnots.has_value());
+        EXPECT_NEAR(*vbw.sternWaterSpeedKnots, 0.2, 1e-2);
+    }
+
+    TEST(TestNmeaSentenceParser, ParseVhwSentence)
+    {
+        const std::string raw = "IIVHW,125.4,T,122.1,M,12.4,N,23.0,K";
+        const std::string sentence = NmeaChecksum::frameSentence(raw);
+
+        VhwData vhw {};
+        ASSERT_TRUE(NmeaSentenceParser::parseVhw(sentence, vhw, true));
+        EXPECT_TRUE(vhw.valid);
+        ASSERT_TRUE(vhw.headingDegreesTrue.has_value());
+        EXPECT_NEAR(*vhw.headingDegreesTrue, 125.4, 1e-2);
+        ASSERT_TRUE(vhw.headingDegreesMagnetic.has_value());
+        EXPECT_NEAR(*vhw.headingDegreesMagnetic, 122.1, 1e-2);
+        ASSERT_TRUE(vhw.speedWaterKnots.has_value());
+        EXPECT_NEAR(*vhw.speedWaterKnots, 12.4, 1e-2);
+        ASSERT_TRUE(vhw.speedWaterKmh.has_value());
+        EXPECT_NEAR(*vhw.speedWaterKmh, 23.0, 1e-2);
+    }
+
+    TEST(TestNmeaSentenceParser, ParseDptAndDbtSentences)
+    {
+        // DPT
+        const std::string dptRaw = "SDDPT,24.5,1.5,100.0";
+        const std::string dptSent = NmeaChecksum::frameSentence(dptRaw);
+        DptData dpt {};
+        ASSERT_TRUE(NmeaSentenceParser::parseDpt(dptSent, dpt, true));
+        EXPECT_TRUE(dpt.valid);
+        EXPECT_NEAR(dpt.waterDepthMeters, 24.5, 1e-2);
+        EXPECT_NEAR(dpt.offsetMeters, 1.5, 1e-2);
+        ASSERT_TRUE(dpt.maximumRangeScaleMeters.has_value());
+        EXPECT_NEAR(*dpt.maximumRangeScaleMeters, 100.0, 1e-2);
+
+        // DBT
+        const std::string dbtRaw = "SDDBT,80.4,f,24.5,M,13.4,F";
+        const std::string dbtSent = NmeaChecksum::frameSentence(dbtRaw);
+        DbtData dbt {};
+        ASSERT_TRUE(NmeaSentenceParser::parseDbt(dbtSent, dbt, true));
+        EXPECT_TRUE(dbt.valid);
+        EXPECT_NEAR(dbt.depthFeet, 80.4, 1e-2);
+        EXPECT_NEAR(dbt.depthMeters, 24.5, 1e-2);
+        EXPECT_NEAR(dbt.depthFathoms, 13.4, 1e-2);
+    }
+
+    TEST(TestNmeaSentenceParser, ParseBamSentences)
+    {
+        // ALF
+        const std::string alfRaw = "BNALF,1,1,0,123045.00,A,B,V,1001,1,1,0,Thermal Overheat";
+        const std::string alfSent = NmeaChecksum::frameSentence(alfRaw);
+        Bam::AlfData alf {};
+        ASSERT_TRUE(NmeaSentenceParser::parseAlf(alfSent, alf, true));
+        EXPECT_TRUE(alf.valid);
+        EXPECT_EQ(alf.alertPriority, 'A');
+        EXPECT_EQ(alf.alertCategory, 'B');
+        EXPECT_EQ(alf.alertState, 'V');
+        EXPECT_EQ(alf.alertIdentifier, 1001U);
+        EXPECT_EQ(alf.alertInstance, 1U);
+        EXPECT_EQ(alf.alertText, "Thermal Overheat");
+
+        // ALC
+        const std::string alcRaw = "BNALC,1,1,0,2,1001,1,1,1002,1,2";
+        const std::string alcSent = NmeaChecksum::frameSentence(alcRaw);
+        Bam::AlcData alc {};
+        ASSERT_TRUE(NmeaSentenceParser::parseAlc(alcSent, alc, true));
+        EXPECT_TRUE(alc.valid);
+        EXPECT_EQ(alc.alertCount, 2U);
+        ASSERT_EQ(alc.alertEntries.size(), 2U);
+        EXPECT_EQ(alc.alertEntries[0].alertIdentifier, 1001U);
+        EXPECT_EQ(alc.alertEntries[1].alertIdentifier, 1002U);
+        EXPECT_EQ(alc.alertEntries[1].revisionCounter, 2U);
+
+        // ARC
+        const std::string arcRaw = "BNARC,123100.00,1001,1,A";
+        const std::string arcSent = NmeaChecksum::frameSentence(arcRaw);
+        Bam::ArcData arc {};
+        ASSERT_TRUE(NmeaSentenceParser::parseArc(arcSent, arc, true));
+        EXPECT_TRUE(arc.valid);
+        EXPECT_EQ(arc.alertIdentifier, 1001U);
+        EXPECT_EQ(arc.command, 'A');
+
+        // HBT
+        const std::string hbtRaw = "BNHBT,60.0,A,1";
+        const std::string hbtSent = NmeaChecksum::frameSentence(hbtRaw);
+        Bam::HbtData hbt {};
+        ASSERT_TRUE(NmeaSentenceParser::parseHbt(hbtSent, hbt, true));
+        EXPECT_TRUE(hbt.valid);
+        EXPECT_NEAR(hbt.configuredIntervalSec, 60.0, 1e-1);
+        EXPECT_EQ(hbt.equipmentStatus, 'A');
+        EXPECT_EQ(hbt.sequentialSentenceId, 1U);
+
+        // ALR
+        const std::string alrRaw = "BNALR,123045.00,1001,A,V,Thermal Overheat";
+        const std::string alrSent = NmeaChecksum::frameSentence(alrRaw);
+        Bam::AlrData alr {};
+        ASSERT_TRUE(NmeaSentenceParser::parseAlr(alrSent, alr, true));
+        EXPECT_TRUE(alr.valid);
+        EXPECT_EQ(alr.alertIdentifier, 1001U);
+        EXPECT_EQ(alr.condition, 'A');
+        EXPECT_EQ(alr.acknowledgeState, 'V');
+
+        // ACK
+        const std::string ackRaw = "BNACK,1001";
+        const std::string ackSent = NmeaChecksum::frameSentence(ackRaw);
+        Bam::AckData ack {};
+        ASSERT_TRUE(NmeaSentenceParser::parseAck(ackSent, ack, true));
+        EXPECT_TRUE(ack.valid);
+        EXPECT_EQ(ack.alertIdentifier, 1001U);
+    }
+
 } // namespace
 } // namespace Nmea
