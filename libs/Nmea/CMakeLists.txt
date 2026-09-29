@@ -32,12 +32,16 @@ add_library(Nmea STATIC
     lwe/LweMulticastTransport.cpp
     lwe/LweChannelManager.h
     lwe/LweChannelManager.cpp
+    replay/ReplayTypes.h
+    replay/NmeaReplayTransport.h
+    replay/NmeaReplayTransport.cpp
 )
 
 target_include_directories(Nmea PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/n2k>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/lwe>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/replay>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/..>
     $<INSTALL_INTERFACE:include>
 )
