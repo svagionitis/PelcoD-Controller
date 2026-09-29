@@ -7,6 +7,10 @@ add_library(Nmea STATIC
     NmeaSentenceBuilder.cpp
     NmeaStreamAccumulator.h
     NmeaStreamAccumulator.cpp
+    AisTypes.h
+    AisBitReader.h
+    AisDecoder.h
+    AisDecoder.cpp
 )
 
 target_include_directories(Nmea PUBLIC
