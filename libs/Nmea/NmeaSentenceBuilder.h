@@ -97,6 +97,42 @@ public:
     /// @return Formatted NMEA sentence string.
     [[nodiscard]] static std::string buildHdg(const HdgData& data, std::string_view talkerId = "HC");
 
+    /// @brief Builds an $--RMB sentence for recommended minimum navigation info.
+    /// @param[in] data RmbData struct.
+    /// @param[in] talkerId 2-character talker ID (default "GP").
+    /// @return Formatted NMEA sentence string with checksum.
+    [[nodiscard]] static std::string buildRmb(const RmbData& data, std::string_view talkerId = "GP");
+
+    /// @brief Builds an $--RTE sentence for route waypoint sequence.
+    /// @param[in] data RteData struct.
+    /// @param[in] talkerId 2-character talker ID (default "GP").
+    /// @return Formatted NMEA sentence string with checksum.
+    [[nodiscard]] static std::string buildRte(const RteData& data, std::string_view talkerId = "GP");
+
+    /// @brief Builds an $--WPL sentence for waypoint location.
+    /// @param[in] data WplData struct.
+    /// @param[in] talkerId 2-character talker ID (default "GP").
+    /// @return Formatted NMEA sentence string with checksum.
+    [[nodiscard]] static std::string buildWpl(const WplData& data, std::string_view talkerId = "GP");
+
+    /// @brief Builds an $--MTW sentence for mean water temperature.
+    /// @param[in] data MtwData struct.
+    /// @param[in] talkerId 2-character talker ID (default "WI").
+    /// @return Formatted NMEA sentence string with checksum.
+    [[nodiscard]] static std::string buildMtw(const MtwData& data, std::string_view talkerId = "WI");
+
+    /// @brief Builds an $--MMB sentence for barometric pressure.
+    /// @param[in] data MmbData struct.
+    /// @param[in] talkerId 2-character talker ID (default "WI").
+    /// @return Formatted NMEA sentence string with checksum.
+    [[nodiscard]] static std::string buildMmb(const MmbData& data, std::string_view talkerId = "WI");
+
+    /// @brief Builds an $--MDA sentence for meteorological composite data.
+    /// @param[in] data MdaData struct.
+    /// @param[in] talkerId 2-character talker ID (default "WI").
+    /// @return Formatted NMEA sentence string with checksum.
+    [[nodiscard]] static std::string buildMda(const MdaData& data, std::string_view talkerId = "WI");
+
     /// @brief Builds a $PFEC,GPcmd,p pan/tilt velocity drive command.
     /// @param[in] panSpeed Pan speed [-100 .. 100].
     /// @param[in] tiltSpeed Tilt speed [-100 .. 100].

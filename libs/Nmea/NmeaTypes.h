@@ -5,6 +5,7 @@
 
 #include <chrono>
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -30,7 +31,13 @@ enum class NmeaSentenceId : std::uint8_t {
     BWC, ///< Bearing and Distance to Waypoint (Great Circle)
     BWR, ///< Bearing and Distance to Waypoint (Rhumb Line)
     MWV, ///< Wind Speed and Angle
-    HDG ///< Heading, Deviation & Variation
+    HDG, ///< Heading, Deviation & Variation
+    RMB, ///< Recommended Minimum Navigation Information (XTE, steer, dest)
+    RTE, ///< Routes (multi-sentence waypoint sequence)
+    WPL, ///< Waypoint Location (lat, lon, waypoint ID)
+    MTW, ///< Mean Water Temperature (Celsius)
+    MDA, ///< Meteorological Composite Data (pressure, temp, humidity, wind)
+    MMB ///< Barometric Pressure (inHg and bar)
 };
 
 /// @enum NmeaFixQuality
@@ -298,6 +305,94 @@ struct HdgData {
     bool hasDeviation { false };
     bool hasVariation { false };
     bool valid { false };
+};
+
+/// @struct RmbData
+/// @brief Navigation and cross-track error telemetry unpacked from $--RMB sentence.
+struct RmbData {
+    bool statusActive { false }; ///< True if 'A' (Active/OK), False if 'V' (Warning)
+    double crossTrackErrorNmi { 0.0 }; ///< Magnitude of cross track error in nautical miles
+    char directionToSteer { 'L' }; ///< 'L'=Steer Left, 'R'=Steer Right
+    std::string destWaypointId {}; ///< TO waypoint identifier
+    std::string originWaypointId {}; ///< FROM waypoint identifier
+    NmeaCoordinates destCoordinates {}; ///< Destination waypoint coordinates
+    double rangeToDestNmi { 0.0 }; ///< Range to destination in nautical miles
+    double bearingToDestTrueDeg { 0.0 }; ///< Bearing to destination in degrees True [0.0 .. 360.0)
+    double closingVelocityKnots { 0.0 }; ///< Destination closing velocity (VMG) in knots
+    bool arrivalAlarm { false }; ///< True if 'A' (arrival circle entered or perpendicular passed)
+    NmeaFaaMode faaMode { NmeaFaaMode::Autonomous };
+    bool valid { false };
+};
+
+/// @struct RteData
+/// @brief Route waypoint sequence unpacked from $--RTE sentence.
+struct RteData {
+    std::uint32_t totalSentences { 1U }; ///< Total sentences being transmitted for this route
+    std::uint32_t sentenceNumber { 1U }; ///< Sequence number of this sentence (1-indexed)
+    char routeType { 'c' }; ///< 'c'=Complete route, 'w'=Working route
+    std::string routeName {}; ///< Route identifier
+    std::vector<std::string> waypointIds {}; ///< Waypoints in this sentence slice
+    bool valid { false };
+};
+
+/// @struct WplData
+/// @brief Waypoint coordinates unpacked from $--WPL sentence.
+struct WplData {
+    NmeaCoordinates coordinates {}; ///< Geodetic latitude and longitude
+    std::string waypointId {}; ///< Waypoint identifier / name
+    bool valid { false };
+};
+
+/// @struct MtwData
+/// @brief Water temperature unpacked from $--MTW sentence.
+struct MtwData {
+    double waterTemperatureCelsius { 0.0 }; ///< Water surface temperature in degrees Celsius
+    bool valid { false };
+};
+
+/// @struct MmbData
+/// @brief Barometric pressure unpacked from $--MMB sentence.
+struct MmbData {
+    double pressureInHg { 0.0 }; ///< Barometric pressure in inches of mercury
+    double pressureBars { 0.0 }; ///< Barometric pressure in bars
+    bool valid { false };
+};
+
+/// @struct MdaData
+/// @brief Meteorological composite telemetry unpacked from $--MDA sentence.
+struct MdaData {
+    std::optional<double> barometricPressureInHg {}; ///< Barometric pressure in inHg
+    std::optional<double> barometricPressureBars {}; ///< Barometric pressure in bars
+    std::optional<double> airTemperatureCelsius {}; ///< Air temperature in degrees Celsius
+    std::optional<double> waterTemperatureCelsius {}; ///< Water surface temperature in degrees Celsius
+    std::optional<double> relativeHumidityPercent {}; ///< Relative humidity [0.0 .. 100.0]
+    std::optional<double> absoluteHumidityGPerM3 {}; ///< Absolute humidity
+    std::optional<double> dewPointCelsius {}; ///< Dew point temperature in degrees Celsius
+    std::optional<double> windDirectionTrueDeg {}; ///< Wind direction true [0.0 .. 360.0)
+    std::optional<double> windDirectionMagneticDeg {}; ///< Wind direction magnetic [0.0 .. 360.0)
+    std::optional<double> windSpeedKnots {}; ///< Wind speed in knots
+    std::optional<double> windSpeedMps {}; ///< Wind speed in meters per second
+    bool valid { false };
+};
+
+/// @struct NmeaEnvironmentSnapshot
+/// @brief Unified environmental state synthesized from meteorological and sea sensors.
+struct NmeaEnvironmentSnapshot {
+    std::optional<double> waterTemperatureCelsius {};
+    std::optional<double> airTemperatureCelsius {};
+    std::optional<double> seaAirDeltaTCelsius {}; ///< T_air - T_water (positive: air warmer; negative: water warmer)
+    std::optional<double> relativeHumidityPercent {};
+    std::optional<double> dewPointCelsius {};
+    std::optional<double> barometricPressureHpa {}; ///< Pressure in hectopascals / millibars (1 bar = 1000 hPa)
+    std::optional<double> windSpeedKnots {};
+    std::optional<double> windDirectionTrueDeg {};
+    std::chrono::steady_clock::time_point timestamp {};
+    bool hasWaterTemp { false };
+    bool hasAirTemp { false };
+    bool hasHumidity { false };
+    bool hasDewPoint { false };
+    bool hasPressure { false };
+    bool hasWind { false };
 };
 
 } // namespace Nmea

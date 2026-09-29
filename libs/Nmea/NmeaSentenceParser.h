@@ -164,6 +164,54 @@ public:
     /// @return True if valid HDG sentence.
     [[nodiscard]] static bool parseHdg(
         std::string_view sentence, HdgData& outData, bool verifyChecksum = true) noexcept;
+
+    /// @brief Parses $--RMB Recommended Minimum Navigation Information sentence.
+    /// @param[in] sentence Raw or tokenized sentence.
+    /// @param[out] outData Deserialized RmbData struct.
+    /// @param[in] verifyChecksum True to enforce checksum validation.
+    /// @return True if valid RMB sentence.
+    [[nodiscard]] static bool parseRmb(
+        std::string_view sentence, RmbData& outData, bool verifyChecksum = true) noexcept;
+
+    /// @brief Parses $--RTE Route sentence (single slice of route).
+    /// @param[in] sentence Raw or tokenized sentence.
+    /// @param[out] outData Deserialized RteData struct.
+    /// @param[in] verifyChecksum True to enforce checksum validation.
+    /// @return True if valid RTE sentence.
+    [[nodiscard]] static bool parseRte(
+        std::string_view sentence, RteData& outData, bool verifyChecksum = true) noexcept;
+
+    /// @brief Parses $--WPL Waypoint Location sentence.
+    /// @param[in] sentence Raw or tokenized sentence.
+    /// @param[out] outData Deserialized WplData struct.
+    /// @param[in] verifyChecksum True to enforce checksum validation.
+    /// @return True if valid WPL sentence.
+    [[nodiscard]] static bool parseWpl(
+        std::string_view sentence, WplData& outData, bool verifyChecksum = true) noexcept;
+
+    /// @brief Parses $--MTW Mean Water Temperature sentence.
+    /// @param[in] sentence Raw or tokenized sentence.
+    /// @param[out] outData Deserialized MtwData struct.
+    /// @param[in] verifyChecksum True to enforce checksum validation.
+    /// @return True if valid MTW sentence.
+    [[nodiscard]] static bool parseMtw(
+        std::string_view sentence, MtwData& outData, bool verifyChecksum = true) noexcept;
+
+    /// @brief Parses $--MMB Barometric Pressure sentence.
+    /// @param[in] sentence Raw or tokenized sentence.
+    /// @param[out] outData Deserialized MmbData struct.
+    /// @param[in] verifyChecksum True to enforce checksum validation.
+    /// @return True if valid MMB sentence.
+    [[nodiscard]] static bool parseMmb(
+        std::string_view sentence, MmbData& outData, bool verifyChecksum = true) noexcept;
+
+    /// @brief Parses $--MDA Meteorological Composite sentence.
+    /// @param[in] sentence Raw or tokenized sentence.
+    /// @param[out] outData Deserialized MdaData struct.
+    /// @param[in] verifyChecksum True to enforce checksum validation.
+    /// @return True if valid MDA sentence.
+    [[nodiscard]] static bool parseMda(
+        std::string_view sentence, MdaData& outData, bool verifyChecksum = true) noexcept;
 };
 
 } // namespace Nmea

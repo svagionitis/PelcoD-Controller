@@ -9,6 +9,8 @@
 #include "NmeaStreamAccumulator.h"
 #include "NmeaTypes.h"
 #include "Transport/ITransport.h"
+#include "environment/ThermalTuningAdvisor.h"
+#include "route/NmeaRouteManager.h"
 
 #include <atomic>
 #include <chrono>
@@ -38,6 +40,14 @@ public:
     using ApbCallback = std::function<void(const ApbData&)>;
     using MwvCallback = std::function<void(const MwvData&)>;
     using HdgCallback = std::function<void(const HdgData&)>;
+    using RmbCallback = std::function<void(const RmbData&)>;
+    using RteCallback = std::function<void(const RteData&)>;
+    using WplCallback = std::function<void(const WplData&)>;
+    using MtwCallback = std::function<void(const MtwData&)>;
+    using MmbCallback = std::function<void(const MmbData&)>;
+    using MdaCallback = std::function<void(const MdaData&)>;
+    using EnvironmentCallback = std::function<void(const NmeaEnvironmentSnapshot&)>;
+    using ThermalAdviceCallback = std::function<void(const ThermalTuningAdvice&)>;
 
     /// @brief Constructs an NmeaDevice wrapping the given physical or network transport.
     /// @param[in] transport Shared pointer to underlying transport (Serial, UDP, TCP).
@@ -181,6 +191,62 @@ public:
     /// @brief Retrieves the latest heading, deviation and variation telemetry.
     [[nodiscard]] std::optional<HdgData> lastHdg() const;
 
+    /// @brief Registers a subscriber callback for recommended minimum navigation info (RMB).
+    std::size_t addRmbCallback(RmbCallback cb);
+    void removeRmbCallback(std::size_t id);
+
+    /// @brief Registers a subscriber callback for route messages (RTE).
+    std::size_t addRteCallback(RteCallback cb);
+    void removeRteCallback(std::size_t id);
+
+    /// @brief Registers a subscriber callback for waypoint locations (WPL).
+    std::size_t addWplCallback(WplCallback cb);
+    void removeWplCallback(std::size_t id);
+
+    /// @brief Registers a subscriber callback for mean water temperature (MTW).
+    std::size_t addMtwCallback(MtwCallback cb);
+    void removeMtwCallback(std::size_t id);
+
+    /// @brief Registers a subscriber callback for barometric pressure (MMB).
+    std::size_t addMmbCallback(MmbCallback cb);
+    void removeMmbCallback(std::size_t id);
+
+    /// @brief Registers a subscriber callback for meteorological composite (MDA).
+    std::size_t addMdaCallback(MdaCallback cb);
+    void removeMdaCallback(std::size_t id);
+
+    /// @brief Registers a subscriber callback for aggregated environmental snapshot updates.
+    std::size_t addEnvironmentCallback(EnvironmentCallback cb);
+    void removeEnvironmentCallback(std::size_t id);
+
+    /// @brief Registers a subscriber callback for thermal camera tuning advice updates.
+    std::size_t addThermalAdviceCallback(ThermalAdviceCallback cb);
+    void removeThermalAdviceCallback(std::size_t id);
+
+    /// @brief Retrieves the shared route manager.
+    [[nodiscard]] std::shared_ptr<NmeaRouteManager> routeManager() const noexcept;
+
+    /// @brief Retrieves the shared thermal tuning advisor.
+    [[nodiscard]] std::shared_ptr<ThermalTuningAdvisor> thermalAdvisor() const noexcept;
+
+    /// @brief Retrieves the current environmental snapshot.
+    [[nodiscard]] NmeaEnvironmentSnapshot environmentSnapshot() const;
+
+    /// @brief Retrieves the current thermal tuning advice.
+    [[nodiscard]] ThermalTuningAdvice thermalAdvice() const;
+
+    /// @brief Retrieves the latest RMB navigation data.
+    [[nodiscard]] std::optional<RmbData> lastRmb() const;
+
+    /// @brief Retrieves the latest water temperature data.
+    [[nodiscard]] std::optional<MtwData> lastMtw() const;
+
+    /// @brief Retrieves the latest barometric pressure data.
+    [[nodiscard]] std::optional<MmbData> lastMmb() const;
+
+    /// @brief Retrieves the latest meteorological composite data.
+    [[nodiscard]] std::optional<MdaData> lastMda() const;
+
     /// @brief Ingests simulated or raw sentences directly into the accumulator.
     /// @param[in] rawData Raw byte data.
     void feedRawBytes(const std::vector<std::uint8_t>& rawData);
@@ -189,6 +255,7 @@ private:
     void handleIncomingBytes(const std::vector<std::uint8_t>& data);
     void handleTransportState(Transport::TransportState state, const std::string& errorMsg);
     void processSentence(std::string_view sentence);
+    void notifyEnvironmentAndThermal();
 
     template <typename T> struct CallbackList {
         std::size_t nextId { 1U };
@@ -252,6 +319,13 @@ private:
     std::optional<ApbData> m_lastApb {};
     std::optional<MwvData> m_lastMwv {};
     std::optional<HdgData> m_lastHdg {};
+    std::optional<RmbData> m_lastRmb {};
+    std::optional<MtwData> m_lastMtw {};
+    std::optional<MmbData> m_lastMmb {};
+    std::optional<MdaData> m_lastMda {};
+
+    std::shared_ptr<NmeaRouteManager> m_routeManager { std::make_shared<NmeaRouteManager>() };
+    std::shared_ptr<ThermalTuningAdvisor> m_thermalAdvisor { std::make_shared<ThermalTuningAdvisor>() };
 
     // Subscriptions
     mutable std::mutex m_callbackMutex;
@@ -264,6 +338,14 @@ private:
     CallbackList<ApbCallback> m_apbCallbacks {};
     CallbackList<MwvCallback> m_mwvCallbacks {};
     CallbackList<HdgCallback> m_hdgCallbacks {};
+    CallbackList<RmbCallback> m_rmbCallbacks {};
+    CallbackList<RteCallback> m_rteCallbacks {};
+    CallbackList<WplCallback> m_wplCallbacks {};
+    CallbackList<MtwCallback> m_mtwCallbacks {};
+    CallbackList<MmbCallback> m_mmbCallbacks {};
+    CallbackList<MdaCallback> m_mdaCallbacks {};
+    CallbackList<EnvironmentCallback> m_envCallbacks {};
+    CallbackList<ThermalAdviceCallback> m_thermalAdviceCallbacks {};
 };
 
 } // namespace Nmea

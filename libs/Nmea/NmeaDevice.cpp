@@ -306,6 +306,130 @@ std::optional<HdgData> NmeaDevice::lastHdg() const
     return m_lastHdg;
 }
 
+std::size_t NmeaDevice::addRmbCallback(RmbCallback cb)
+{
+    return addCallbackInternal(m_rmbCallbacks, m_callbackMutex, std::move(cb));
+}
+
+void NmeaDevice::removeRmbCallback(std::size_t id)
+{
+    removeCallbackInternal(m_rmbCallbacks, m_callbackMutex, id);
+}
+
+std::size_t NmeaDevice::addRteCallback(RteCallback cb)
+{
+    return addCallbackInternal(m_rteCallbacks, m_callbackMutex, std::move(cb));
+}
+
+void NmeaDevice::removeRteCallback(std::size_t id)
+{
+    removeCallbackInternal(m_rteCallbacks, m_callbackMutex, id);
+}
+
+std::size_t NmeaDevice::addWplCallback(WplCallback cb)
+{
+    return addCallbackInternal(m_wplCallbacks, m_callbackMutex, std::move(cb));
+}
+
+void NmeaDevice::removeWplCallback(std::size_t id)
+{
+    removeCallbackInternal(m_wplCallbacks, m_callbackMutex, id);
+}
+
+std::size_t NmeaDevice::addMtwCallback(MtwCallback cb)
+{
+    return addCallbackInternal(m_mtwCallbacks, m_callbackMutex, std::move(cb));
+}
+
+void NmeaDevice::removeMtwCallback(std::size_t id)
+{
+    removeCallbackInternal(m_mtwCallbacks, m_callbackMutex, id);
+}
+
+std::size_t NmeaDevice::addMmbCallback(MmbCallback cb)
+{
+    return addCallbackInternal(m_mmbCallbacks, m_callbackMutex, std::move(cb));
+}
+
+void NmeaDevice::removeMmbCallback(std::size_t id)
+{
+    removeCallbackInternal(m_mmbCallbacks, m_callbackMutex, id);
+}
+
+std::size_t NmeaDevice::addMdaCallback(MdaCallback cb)
+{
+    return addCallbackInternal(m_mdaCallbacks, m_callbackMutex, std::move(cb));
+}
+
+void NmeaDevice::removeMdaCallback(std::size_t id)
+{
+    removeCallbackInternal(m_mdaCallbacks, m_callbackMutex, id);
+}
+
+std::size_t NmeaDevice::addEnvironmentCallback(EnvironmentCallback cb)
+{
+    return addCallbackInternal(m_envCallbacks, m_callbackMutex, std::move(cb));
+}
+
+void NmeaDevice::removeEnvironmentCallback(std::size_t id)
+{
+    removeCallbackInternal(m_envCallbacks, m_callbackMutex, id);
+}
+
+std::size_t NmeaDevice::addThermalAdviceCallback(ThermalAdviceCallback cb)
+{
+    return addCallbackInternal(m_thermalAdviceCallbacks, m_callbackMutex, std::move(cb));
+}
+
+void NmeaDevice::removeThermalAdviceCallback(std::size_t id)
+{
+    removeCallbackInternal(m_thermalAdviceCallbacks, m_callbackMutex, id);
+}
+
+std::shared_ptr<NmeaRouteManager> NmeaDevice::routeManager() const noexcept
+{
+    return m_routeManager;
+}
+
+std::shared_ptr<ThermalTuningAdvisor> NmeaDevice::thermalAdvisor() const noexcept
+{
+    return m_thermalAdvisor;
+}
+
+NmeaEnvironmentSnapshot NmeaDevice::environmentSnapshot() const
+{
+    return m_thermalAdvisor ? m_thermalAdvisor->snapshot() : NmeaEnvironmentSnapshot {};
+}
+
+ThermalTuningAdvice NmeaDevice::thermalAdvice() const
+{
+    return m_thermalAdvisor ? m_thermalAdvisor->advice() : ThermalTuningAdvice {};
+}
+
+std::optional<RmbData> NmeaDevice::lastRmb() const
+{
+    std::lock_guard<std::mutex> lock(m_maritimeMutex);
+    return m_lastRmb;
+}
+
+std::optional<MtwData> NmeaDevice::lastMtw() const
+{
+    std::lock_guard<std::mutex> lock(m_maritimeMutex);
+    return m_lastMtw;
+}
+
+std::optional<MmbData> NmeaDevice::lastMmb() const
+{
+    std::lock_guard<std::mutex> lock(m_maritimeMutex);
+    return m_lastMmb;
+}
+
+std::optional<MdaData> NmeaDevice::lastMda() const
+{
+    std::lock_guard<std::mutex> lock(m_maritimeMutex);
+    return m_lastMda;
+}
+
 void NmeaDevice::feedRawBytes(const std::vector<std::uint8_t>& rawData)
 {
     handleIncomingBytes(rawData);
@@ -608,6 +732,139 @@ void NmeaDevice::processSentence(std::string_view sentence)
         }
         break;
     }
+    case NmeaSentenceId::RMB: {
+        RmbData rmb {};
+        if (NmeaSentenceParser::parseRmb(sentence, rmb, true)) {
+            {
+                std::lock_guard<std::mutex> lock(m_maritimeMutex);
+                m_lastRmb = rmb;
+            }
+            if (m_routeManager) {
+                m_routeManager->ingestRmb(rmb);
+            }
+            std::shared_ptr<const std::vector<std::pair<std::size_t, RmbCallback>>> rmbCbs;
+            {
+                std::lock_guard<std::mutex> cbLock(m_callbackMutex);
+                rmbCbs = m_rmbCallbacks.entries;
+            }
+            for (const auto& item : *rmbCbs) {
+                if (item.second) {
+                    item.second(rmb);
+                }
+            }
+        }
+        break;
+    }
+    case NmeaSentenceId::RTE: {
+        RteData rte {};
+        if (NmeaSentenceParser::parseRte(sentence, rte, true)) {
+            if (m_routeManager) {
+                m_routeManager->ingestRte(rte);
+            }
+            std::shared_ptr<const std::vector<std::pair<std::size_t, RteCallback>>> rteCbs;
+            {
+                std::lock_guard<std::mutex> cbLock(m_callbackMutex);
+                rteCbs = m_rteCallbacks.entries;
+            }
+            for (const auto& item : *rteCbs) {
+                if (item.second) {
+                    item.second(rte);
+                }
+            }
+        }
+        break;
+    }
+    case NmeaSentenceId::WPL: {
+        WplData wpl {};
+        if (NmeaSentenceParser::parseWpl(sentence, wpl, true)) {
+            if (m_routeManager) {
+                m_routeManager->ingestWpl(wpl);
+            }
+            std::shared_ptr<const std::vector<std::pair<std::size_t, WplCallback>>> wplCbs;
+            {
+                std::lock_guard<std::mutex> cbLock(m_callbackMutex);
+                wplCbs = m_wplCallbacks.entries;
+            }
+            for (const auto& item : *wplCbs) {
+                if (item.second) {
+                    item.second(wpl);
+                }
+            }
+        }
+        break;
+    }
+    case NmeaSentenceId::MTW: {
+        MtwData mtw {};
+        if (NmeaSentenceParser::parseMtw(sentence, mtw, true)) {
+            {
+                std::lock_guard<std::mutex> lock(m_maritimeMutex);
+                m_lastMtw = mtw;
+            }
+            if (m_thermalAdvisor) {
+                m_thermalAdvisor->ingestMtw(mtw);
+            }
+            std::shared_ptr<const std::vector<std::pair<std::size_t, MtwCallback>>> mtwCbs;
+            {
+                std::lock_guard<std::mutex> cbLock(m_callbackMutex);
+                mtwCbs = m_mtwCallbacks.entries;
+            }
+            for (const auto& item : *mtwCbs) {
+                if (item.second) {
+                    item.second(mtw);
+                }
+            }
+            notifyEnvironmentAndThermal();
+        }
+        break;
+    }
+    case NmeaSentenceId::MMB: {
+        MmbData mmb {};
+        if (NmeaSentenceParser::parseMmb(sentence, mmb, true)) {
+            {
+                std::lock_guard<std::mutex> lock(m_maritimeMutex);
+                m_lastMmb = mmb;
+            }
+            if (m_thermalAdvisor) {
+                m_thermalAdvisor->ingestMmb(mmb);
+            }
+            std::shared_ptr<const std::vector<std::pair<std::size_t, MmbCallback>>> mmbCbs;
+            {
+                std::lock_guard<std::mutex> cbLock(m_callbackMutex);
+                mmbCbs = m_mmbCallbacks.entries;
+            }
+            for (const auto& item : *mmbCbs) {
+                if (item.second) {
+                    item.second(mmb);
+                }
+            }
+            notifyEnvironmentAndThermal();
+        }
+        break;
+    }
+    case NmeaSentenceId::MDA: {
+        MdaData mda {};
+        if (NmeaSentenceParser::parseMda(sentence, mda, true)) {
+            {
+                std::lock_guard<std::mutex> lock(m_maritimeMutex);
+                m_lastMda = mda;
+            }
+            if (m_thermalAdvisor) {
+                m_thermalAdvisor->ingestMda(mda);
+            }
+            std::shared_ptr<const std::vector<std::pair<std::size_t, MdaCallback>>> mdaCbs;
+            {
+                std::lock_guard<std::mutex> cbLock(m_callbackMutex);
+                mdaCbs = m_mdaCallbacks.entries;
+            }
+            for (const auto& item : *mdaCbs) {
+                if (item.second) {
+                    item.second(mda);
+                }
+            }
+            notifyEnvironmentAndThermal();
+        }
+        break;
+    }
     default:
         break;
     }
@@ -622,6 +879,33 @@ void NmeaDevice::processSentence(std::string_view sentence)
             if (item.second) {
                 item.second(currentNav);
             }
+        }
+    }
+}
+
+void NmeaDevice::notifyEnvironmentAndThermal()
+{
+    if (!m_thermalAdvisor) {
+        return;
+    }
+    const auto env = m_thermalAdvisor->snapshot();
+    const auto adv = m_thermalAdvisor->advice();
+
+    std::shared_ptr<const std::vector<std::pair<std::size_t, EnvironmentCallback>>> envCbs;
+    std::shared_ptr<const std::vector<std::pair<std::size_t, ThermalAdviceCallback>>> advCbs;
+    {
+        std::lock_guard<std::mutex> cbLock(m_callbackMutex);
+        envCbs = m_envCallbacks.entries;
+        advCbs = m_thermalAdviceCallbacks.entries;
+    }
+    for (const auto& item : *envCbs) {
+        if (item.second) {
+            item.second(env);
+        }
+    }
+    for (const auto& item : *advCbs) {
+        if (item.second) {
+            item.second(adv);
         }
     }
 }

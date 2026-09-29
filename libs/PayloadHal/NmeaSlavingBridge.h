@@ -34,7 +34,9 @@ enum class MarineTargetType : std::uint8_t {
     GeodeticManual,
     RadarCursor,
     Waypoint,
-    EmergencyBeacon
+    EmergencyBeacon,
+    RouteLeg,
+    SarSweep
 };
 
 /// @enum TargetLossPolicy
@@ -109,6 +111,21 @@ public:
     /// @param[in] bwc Bearing and Distance to Waypoint data.
     /// @return True if waypoint coordinates were valid and slaved.
     bool slaveToWaypoint(const Nmea::BwcData& bwc);
+
+    /// @brief Slaves gimbal line-of-sight to the active ECDIS route leg ($--RMB).
+    /// @param[in] rmb Recommended Minimum Navigation Information data.
+    /// @param[in] lookAheadMeters Distance along track ahead from origin (0 = point at destination).
+    /// @return True if route leg was valid and slaved.
+    bool slaveToRouteLeg(const Nmea::RmbData& rmb, double lookAheadMeters = 0.0);
+
+    /// @brief Engages automated oscillating Search & Rescue (SAR) visual sweep across the active leg.
+    /// @param[in] rmb Recommended Minimum Navigation Information data.
+    /// @param[in] sweepHalfWidthMeters Lateral sweep width to left and right of track.
+    /// @param[in] forwardSweepMeters Look-ahead distance along track.
+    /// @param[in] sweepPeriodSec Time in seconds for one full back-and-forth oscillation cycle.
+    /// @return True if SAR sweep was initialized.
+    bool slaveToSarSweep(const Nmea::RmbData& rmb, double sweepHalfWidthMeters = 200.0,
+        double forwardSweepMeters = 500.0, double sweepPeriodSec = 8.0);
 
     /// @brief Configures automated emergency slew policy.
     /// @param[in] autoSlew When true, detected emergency beacons immediately pre-empt active tracking.
@@ -221,6 +238,14 @@ private:
     double m_targetSogKnots { 0.0 };
     double m_targetCogDegrees { 0.0 };
     std::chrono::steady_clock::time_point m_lastContactTime {};
+
+    // Route & SAR Sweep state
+    Nmea::RmbData m_activeRmbData {};
+    double m_routeLookAheadMeters { 0.0 };
+    double m_sarSweepHalfWidthMeters { 200.0 };
+    double m_sarForwardSweepMeters { 500.0 };
+    double m_sarSweepPeriodSec { 8.0 };
+    std::chrono::steady_clock::time_point m_sarSweepStartTime {};
 
     TargetLossPolicy m_lossPolicy { TargetLossPolicy::CoastPredictive };
     std::chrono::milliseconds m_targetTimeout { 15000 };

@@ -196,6 +196,88 @@ bool NmeaSlavingBridge::slaveToWaypoint(const Nmea::BwcData& bwc)
     return false;
 }
 
+bool NmeaSlavingBridge::slaveToRouteLeg(const Nmea::RmbData& rmb, double lookAheadMeters)
+{
+    if (!rmb.valid) {
+        return false;
+    }
+
+    std::lock_guard<std::mutex> lock(m_stateMutex);
+    m_activeRmbData = rmb;
+    m_routeLookAheadMeters = lookAheadMeters;
+
+    Klv::GeoPoint3D targetPos {};
+    targetPos.latitudeDeg = rmb.destCoordinates.latitudeDeg;
+    targetPos.longitudeDeg = rmb.destCoordinates.longitudeDeg;
+    targetPos.altitudeM = 0.0;
+
+    if (lookAheadMeters > 0.0 && m_nmeaDevice && m_nmeaDevice->routeManager()) {
+        const auto lookOpt = m_nmeaDevice->routeManager()->computeLookAhead(lookAheadMeters);
+        if (lookOpt.has_value()) {
+            targetPos.latitudeDeg = lookOpt->latitudeDeg;
+            targetPos.longitudeDeg = lookOpt->longitudeDeg;
+        }
+    }
+
+    m_targetType = MarineTargetType::RouteLeg;
+    m_targetId = 0U;
+    m_targetName = rmb.destWaypointId.empty() ? "Route Leg" : ("Leg TO " + rmb.destWaypointId);
+    m_lastKnownTargetPos = targetPos;
+    m_lastContactTime = std::chrono::steady_clock::now();
+    m_targetSogKnots = rmb.closingVelocityKnots;
+    m_targetCogDegrees = rmb.bearingToDestTrueDeg;
+
+    if (m_geoLockController) {
+        return m_geoLockController->engage(targetPos);
+    }
+    return false;
+}
+
+bool NmeaSlavingBridge::slaveToSarSweep(
+    const Nmea::RmbData& rmb, double sweepHalfWidthMeters, double forwardSweepMeters, double sweepPeriodSec)
+{
+    if (!rmb.valid) {
+        return false;
+    }
+
+    std::lock_guard<std::mutex> lock(m_stateMutex);
+    m_activeRmbData = rmb;
+    m_sarSweepHalfWidthMeters = sweepHalfWidthMeters;
+    m_sarForwardSweepMeters = forwardSweepMeters;
+    m_sarSweepPeriodSec = (sweepPeriodSec > 0.0) ? sweepPeriodSec : 8.0;
+    m_sarSweepStartTime = std::chrono::steady_clock::now();
+
+    Klv::GeoPoint3D initialPos {};
+    initialPos.latitudeDeg = rmb.destCoordinates.latitudeDeg;
+    initialPos.longitudeDeg = rmb.destCoordinates.longitudeDeg;
+    initialPos.altitudeM = 0.0;
+
+    if (m_hasPlatformNav && m_nmeaDevice && m_nmeaDevice->routeManager()) {
+        Nmea::NmeaCoordinates ownShipPos {};
+        ownShipPos.latitudeDeg = m_platformPos.latitudeDeg;
+        ownShipPos.longitudeDeg = m_platformPos.longitudeDeg;
+
+        const auto sweepOpt = m_nmeaDevice->routeManager()->computeSarSweepPoint(ownShipPos, 0.0, forwardSweepMeters);
+        if (sweepOpt.has_value()) {
+            initialPos.latitudeDeg = sweepOpt->latitudeDeg;
+            initialPos.longitudeDeg = sweepOpt->longitudeDeg;
+        }
+    }
+
+    m_targetType = MarineTargetType::SarSweep;
+    m_targetId = 0U;
+    m_targetName = "SAR Sweep (" + rmb.destWaypointId + ")";
+    m_lastKnownTargetPos = initialPos;
+    m_lastContactTime = std::chrono::steady_clock::now();
+    m_targetSogKnots = 0.0;
+    m_targetCogDegrees = rmb.bearingToDestTrueDeg;
+
+    if (m_geoLockController) {
+        return m_geoLockController->engage(initialPos);
+    }
+    return false;
+}
+
 void NmeaSlavingBridge::setEmergencySlewPolicy(bool autoSlew, bool ignoreTestMode) noexcept
 {
     m_autoSlewEmergency.store(autoSlew);
@@ -408,6 +490,27 @@ void NmeaSlavingBridge::update()
 
             if (m_geoLockController) {
                 (void)m_geoLockController->engage(deadReckonedPos);
+            }
+        } else if (m_targetType == MarineTargetType::SarSweep) {
+            if (m_hasPlatformNav && m_nmeaDevice && m_nmeaDevice->routeManager()) {
+                Nmea::NmeaCoordinates ownShipPos {};
+                ownShipPos.latitudeDeg = m_platformPos.latitudeDeg;
+                ownShipPos.longitudeDeg = m_platformPos.longitudeDeg;
+
+                const auto elapsedSec = std::chrono::duration<double>(now - m_sarSweepStartTime).count();
+                const double phase = 2.0 * 3.14159265358979323846 * (elapsedSec / m_sarSweepPeriodSec);
+                const double lateralOffset = m_sarSweepHalfWidthMeters * std::sin(phase);
+
+                const auto sweepOpt = m_nmeaDevice->routeManager()->computeSarSweepPoint(
+                    ownShipPos, lateralOffset, m_sarForwardSweepMeters);
+                if (sweepOpt.has_value()) {
+                    m_lastKnownTargetPos.latitudeDeg = sweepOpt->latitudeDeg;
+                    m_lastKnownTargetPos.longitudeDeg = sweepOpt->longitudeDeg;
+                    m_lastKnownTargetPos.altitudeM = 0.0;
+                    if (m_geoLockController) {
+                        (void)m_geoLockController->engage(m_lastKnownTargetPos);
+                    }
+                }
             }
         }
 

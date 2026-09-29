@@ -174,6 +174,24 @@ NmeaSentenceId NmeaSentenceParser::identifySentence(std::string_view sentence) n
         if (mnemonic == "HDG") {
             return NmeaSentenceId::HDG;
         }
+        if (mnemonic == "RMB") {
+            return NmeaSentenceId::RMB;
+        }
+        if (mnemonic == "RTE") {
+            return NmeaSentenceId::RTE;
+        }
+        if (mnemonic == "WPL") {
+            return NmeaSentenceId::WPL;
+        }
+        if (mnemonic == "MTW") {
+            return NmeaSentenceId::MTW;
+        }
+        if (mnemonic == "MDA") {
+            return NmeaSentenceId::MDA;
+        }
+        if (mnemonic == "MMB") {
+            return NmeaSentenceId::MMB;
+        }
     }
 
     return NmeaSentenceId::Unknown;
@@ -812,6 +830,229 @@ bool NmeaSentenceParser::parseHdg(std::string_view sentence, HdgData& outData, b
             outData.hasVariation = true;
             outData.magneticVariationDeg = (!tokens[5].empty() && tokens[5].front() == 'W') ? -varVal : varVal;
         }
+    }
+
+    outData.valid = true;
+    return true;
+}
+
+bool NmeaSentenceParser::parseRmb(std::string_view sentence, RmbData& outData, bool verifyChecksum) noexcept
+{
+    outData = RmbData {};
+    if (verifyChecksum && !NmeaChecksum::validate(sentence)) {
+        return false;
+    }
+
+    std::vector<std::string_view> tokens {};
+    tokenize(sentence, tokens);
+
+    // Format: $--RMB,status,xte,steerDir,destId,origId,lat,latHem,lon,lonHem,range,bearing,vmg,arrival,faa
+    if (tokens.size() < 14U) {
+        return false;
+    }
+
+    outData.statusActive = (!tokens[1].empty() && tokens[1].front() == 'A');
+    parseDouble(tokens[2], outData.crossTrackErrorNmi);
+    if (!tokens[3].empty()) {
+        outData.directionToSteer = tokens[3].front();
+    }
+    outData.destWaypointId = std::string(tokens[4]);
+    outData.originWaypointId = std::string(tokens[5]);
+
+    if (!tokens[6].empty() && !tokens[7].empty() && !tokens[8].empty() && !tokens[9].empty()) {
+        double lat { 0.0 };
+        double lon { 0.0 };
+        if (parseCoordinate(tokens[6], tokens[7], lat) && parseCoordinate(tokens[8], tokens[9], lon)) {
+            outData.destCoordinates.latitudeDeg = lat;
+            outData.destCoordinates.longitudeDeg = lon;
+        }
+    }
+
+    parseDouble(tokens[10], outData.rangeToDestNmi);
+    parseDouble(tokens[11], outData.bearingToDestTrueDeg);
+    parseDouble(tokens[12], outData.closingVelocityKnots);
+
+    outData.arrivalAlarm = (!tokens[13].empty() && tokens[13].front() == 'A');
+
+    if (tokens.size() >= 15U && !tokens[14].empty()) {
+        outData.faaMode = static_cast<NmeaFaaMode>(tokens[14].front());
+    }
+
+    outData.valid = true;
+    return true;
+}
+
+bool NmeaSentenceParser::parseRte(std::string_view sentence, RteData& outData, bool verifyChecksum) noexcept
+{
+    outData = RteData {};
+    if (verifyChecksum && !NmeaChecksum::validate(sentence)) {
+        return false;
+    }
+
+    std::vector<std::string_view> tokens {};
+    tokenize(sentence, tokens);
+
+    // Format: $--RTE,totalSentences,sentenceNum,routeType,routeName,wpt1,wpt2,...
+    if (tokens.size() < 5U) {
+        return false;
+    }
+
+    double totalVal { 1.0 };
+    double numVal { 1.0 };
+    if (parseDouble(tokens[1], totalVal)) {
+        outData.totalSentences = static_cast<std::uint32_t>(totalVal);
+    }
+    if (parseDouble(tokens[2], numVal)) {
+        outData.sentenceNumber = static_cast<std::uint32_t>(numVal);
+    }
+
+    if (!tokens[3].empty()) {
+        outData.routeType = tokens[3].front();
+    }
+    outData.routeName = std::string(tokens[4]);
+
+    for (std::size_t i = 5U; i < tokens.size(); ++i) {
+        if (!tokens[i].empty()) {
+            outData.waypointIds.emplace_back(tokens[i]);
+        }
+    }
+
+    outData.valid = true;
+    return true;
+}
+
+bool NmeaSentenceParser::parseWpl(std::string_view sentence, WplData& outData, bool verifyChecksum) noexcept
+{
+    outData = WplData {};
+    if (verifyChecksum && !NmeaChecksum::validate(sentence)) {
+        return false;
+    }
+
+    std::vector<std::string_view> tokens {};
+    tokenize(sentence, tokens);
+
+    // Format: $--WPL,lat,latHem,lon,lonHem,wptId
+    if (tokens.size() < 6U) {
+        return false;
+    }
+
+    double lat { 0.0 };
+    double lon { 0.0 };
+    if (!parseCoordinate(tokens[1], tokens[2], lat) || !parseCoordinate(tokens[3], tokens[4], lon)) {
+        return false;
+    }
+
+    outData.coordinates.latitudeDeg = lat;
+    outData.coordinates.longitudeDeg = lon;
+    outData.waypointId = std::string(tokens[5]);
+    outData.valid = true;
+    return true;
+}
+
+bool NmeaSentenceParser::parseMtw(std::string_view sentence, MtwData& outData, bool verifyChecksum) noexcept
+{
+    outData = MtwData {};
+    if (verifyChecksum && !NmeaChecksum::validate(sentence)) {
+        return false;
+    }
+
+    std::vector<std::string_view> tokens {};
+    tokenize(sentence, tokens);
+
+    // Format: $--MTW,tempC,C
+    if (tokens.size() < 3U) {
+        return false;
+    }
+
+    if (!parseDouble(tokens[1], outData.waterTemperatureCelsius)) {
+        return false;
+    }
+
+    outData.valid = true;
+    return true;
+}
+
+bool NmeaSentenceParser::parseMmb(std::string_view sentence, MmbData& outData, bool verifyChecksum) noexcept
+{
+    outData = MmbData {};
+    if (verifyChecksum && !NmeaChecksum::validate(sentence)) {
+        return false;
+    }
+
+    std::vector<std::string_view> tokens {};
+    tokenize(sentence, tokens);
+
+    // Format: $--MMB,pressInHg,I,pressBar,B
+    if (tokens.size() < 5U) {
+        return false;
+    }
+
+    parseDouble(tokens[1], outData.pressureInHg);
+    parseDouble(tokens[3], outData.pressureBars);
+
+    outData.valid = true;
+    return true;
+}
+
+bool NmeaSentenceParser::parseMda(std::string_view sentence, MdaData& outData, bool verifyChecksum) noexcept
+{
+    outData = MdaData {};
+    if (verifyChecksum && !NmeaChecksum::validate(sentence)) {
+        return false;
+    }
+
+    std::vector<std::string_view> tokens {};
+    tokenize(sentence, tokens);
+
+    // Format:
+    // $--MDA,pressInHg,I,pressBar,B,airTemp,C,waterTemp,C,relHum,absHum,dewPoint,C,windDirT,T,windDirM,M,windSpdKnots,N,windSpdMps,M
+    if (tokens.size() < 2U) {
+        return false;
+    }
+
+    auto parseOptDouble = [](std::string_view sv) -> std::optional<double> {
+        if (sv.empty()) {
+            return std::nullopt;
+        }
+        double val { 0.0 };
+        if (parseDouble(sv, val)) {
+            return val;
+        }
+        return std::nullopt;
+    };
+
+    if (tokens.size() > 1U) {
+        outData.barometricPressureInHg = parseOptDouble(tokens[1]);
+    }
+    if (tokens.size() > 3U) {
+        outData.barometricPressureBars = parseOptDouble(tokens[3]);
+    }
+    if (tokens.size() > 5U) {
+        outData.airTemperatureCelsius = parseOptDouble(tokens[5]);
+    }
+    if (tokens.size() > 7U) {
+        outData.waterTemperatureCelsius = parseOptDouble(tokens[7]);
+    }
+    if (tokens.size() > 9U) {
+        outData.relativeHumidityPercent = parseOptDouble(tokens[9]);
+    }
+    if (tokens.size() > 10U) {
+        outData.absoluteHumidityGPerM3 = parseOptDouble(tokens[10]);
+    }
+    if (tokens.size() > 11U) {
+        outData.dewPointCelsius = parseOptDouble(tokens[11]);
+    }
+    if (tokens.size() > 13U) {
+        outData.windDirectionTrueDeg = parseOptDouble(tokens[13]);
+    }
+    if (tokens.size() > 15U) {
+        outData.windDirectionMagneticDeg = parseOptDouble(tokens[15]);
+    }
+    if (tokens.size() > 17U) {
+        outData.windSpeedKnots = parseOptDouble(tokens[17]);
+    }
+    if (tokens.size() > 19U) {
+        outData.windSpeedMps = parseOptDouble(tokens[19]);
     }
 
     outData.valid = true;

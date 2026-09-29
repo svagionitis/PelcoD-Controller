@@ -220,6 +220,107 @@ std::string NmeaSentenceBuilder::buildHdg(const HdgData& data, std::string_view 
     return NmeaChecksum::frameSentence(buf);
 }
 
+std::string NmeaSentenceBuilder::buildRmb(const RmbData& data, std::string_view talkerId)
+{
+    std::string latStr {};
+    char latHemi { 'N' };
+    std::string lonStr {};
+    char lonHemi { 'E' };
+    formatCoordinate(data.destCoordinates.latitudeDeg, true, latStr, latHemi);
+    formatCoordinate(data.destCoordinates.longitudeDeg, false, lonStr, lonHemi);
+
+    char buf[256] {};
+    std::snprintf(buf, sizeof(buf), "%.*sRMB,%c,%.2f,%c,%s,%s,%s,%c,%s,%c,%.1f,%.1f,%.1f,%c,%c",
+        static_cast<int>(talkerId.size()), talkerId.data(), data.statusActive ? 'A' : 'V', data.crossTrackErrorNmi,
+        data.directionToSteer, data.destWaypointId.c_str(), data.originWaypointId.c_str(), latStr.c_str(), latHemi,
+        lonStr.c_str(), lonHemi, data.rangeToDestNmi, data.bearingToDestTrueDeg, data.closingVelocityKnots,
+        data.arrivalAlarm ? 'A' : 'V', static_cast<char>(data.faaMode));
+    return NmeaChecksum::frameSentence(buf);
+}
+
+std::string NmeaSentenceBuilder::buildRte(const RteData& data, std::string_view talkerId)
+{
+    std::string body {};
+    char headerBuf[64] {};
+    std::snprintf(headerBuf, sizeof(headerBuf), "%.*sRTE,%u,%u,%c,%s", static_cast<int>(talkerId.size()),
+        talkerId.data(), data.totalSentences, data.sentenceNumber, data.routeType, data.routeName.c_str());
+    body = headerBuf;
+
+    for (const auto& wpt : data.waypointIds) {
+        body += ",";
+        body += wpt;
+    }
+    return NmeaChecksum::frameSentence(body);
+}
+
+std::string NmeaSentenceBuilder::buildWpl(const WplData& data, std::string_view talkerId)
+{
+    std::string latStr {};
+    char latHemi { 'N' };
+    std::string lonStr {};
+    char lonHemi { 'E' };
+    formatCoordinate(data.coordinates.latitudeDeg, true, latStr, latHemi);
+    formatCoordinate(data.coordinates.longitudeDeg, false, lonStr, lonHemi);
+
+    char buf[128] {};
+    std::snprintf(buf, sizeof(buf), "%.*sWPL,%s,%c,%s,%c,%s", static_cast<int>(talkerId.size()), talkerId.data(),
+        latStr.c_str(), latHemi, lonStr.c_str(), lonHemi, data.waypointId.c_str());
+    return NmeaChecksum::frameSentence(buf);
+}
+
+std::string NmeaSentenceBuilder::buildMtw(const MtwData& data, std::string_view talkerId)
+{
+    char buf[64] {};
+    std::snprintf(buf, sizeof(buf), "%.*sMTW,%.1f,C", static_cast<int>(talkerId.size()), talkerId.data(),
+        data.waterTemperatureCelsius);
+    return NmeaChecksum::frameSentence(buf);
+}
+
+std::string NmeaSentenceBuilder::buildMmb(const MmbData& data, std::string_view talkerId)
+{
+    char buf[64] {};
+    std::snprintf(buf, sizeof(buf), "%.*sMMB,%.4f,I,%.4f,B", static_cast<int>(talkerId.size()), talkerId.data(),
+        data.pressureInHg, data.pressureBars);
+    return NmeaChecksum::frameSentence(buf);
+}
+
+std::string NmeaSentenceBuilder::buildMda(const MdaData& data, std::string_view talkerId)
+{
+    auto fmtOpt = [](std::optional<double> opt, int precision) -> std::string {
+        if (!opt.has_value()) {
+            return {};
+        }
+        char b[32] {};
+        if (precision == 4) {
+            std::snprintf(b, sizeof(b), "%.4f", *opt);
+        } else {
+            std::snprintf(b, sizeof(b), "%.1f", *opt);
+        }
+        return b;
+    };
+
+    const std::string pInHg = fmtOpt(data.barometricPressureInHg, 4);
+    const std::string pBars = fmtOpt(data.barometricPressureBars, 4);
+    const std::string aTemp = fmtOpt(data.airTemperatureCelsius, 1);
+    const std::string wTemp = fmtOpt(data.waterTemperatureCelsius, 1);
+    const std::string relHum = fmtOpt(data.relativeHumidityPercent, 1);
+    const std::string absHum = fmtOpt(data.absoluteHumidityGPerM3, 1);
+    const std::string dewPt = fmtOpt(data.dewPointCelsius, 1);
+    const std::string wDirT = fmtOpt(data.windDirectionTrueDeg, 1);
+    const std::string wDirM = fmtOpt(data.windDirectionMagneticDeg, 1);
+    const std::string wSpdK = fmtOpt(data.windSpeedKnots, 1);
+    const std::string wSpdM = fmtOpt(data.windSpeedMps, 1);
+
+    char buf[256] {};
+    std::snprintf(buf, sizeof(buf), "%.*sMDA,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s",
+        static_cast<int>(talkerId.size()), talkerId.data(), pInHg.c_str(), pInHg.empty() ? "" : "I", pBars.c_str(),
+        pBars.empty() ? "" : "B", aTemp.c_str(), aTemp.empty() ? "" : "C", wTemp.c_str(), wTemp.empty() ? "" : "C",
+        relHum.c_str(), absHum.c_str(), dewPt.c_str(), dewPt.empty() ? "" : "C", wDirT.c_str(),
+        wDirT.empty() ? "" : "T", wDirM.c_str(), wDirM.empty() ? "" : "M", wSpdK.c_str(), wSpdK.empty() ? "" : "N",
+        wSpdM.c_str(), wSpdM.empty() ? "" : "M");
+    return NmeaChecksum::frameSentence(buf);
+}
+
 std::string NmeaSentenceBuilder::buildPfecVelocity(int panSpeed, int tiltSpeed)
 {
     char buf[64] {};
