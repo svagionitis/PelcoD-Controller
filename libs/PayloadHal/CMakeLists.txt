@@ -79,6 +79,10 @@ add_library(PayloadHal STATIC
     adapters/LrfProtocols.cpp
     adapters/SerialLrfAdapter.h
     adapters/SerialLrfAdapter.cpp
+    adapters/FlirPfecPtzAdapter.h
+    adapters/FlirPfecPtzAdapter.cpp
+    NmeaSlavingBridge.h
+    NmeaSlavingBridge.cpp
     sim/SimulatedPayload.h
     sim/SimulatedPayload.cpp
 )
@@ -88,6 +92,7 @@ target_include_directories(PayloadHal PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/..>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../ViscaSony>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../Onvif>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../Nmea>
     $<INSTALL_INTERFACE:include>
 )
 
@@ -98,6 +103,7 @@ target_link_libraries(PayloadHal PUBLIC
     PelcoDFujinon
     ViscaSony
     Onvif
+    Nmea
     Transport
     Tracking
 )

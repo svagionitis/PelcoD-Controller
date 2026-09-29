@@ -18,6 +18,7 @@ function(add_payload_hal_test test_name test_source)
         PelcoDSim
         ViscaSony
         Onvif
+        Nmea
         Transport
         Tracking
         Threads::Threads
@@ -63,4 +64,6 @@ add_payload_hal_test(TestStadiametricRanger          TestStadiametricRanger.cpp)
 add_payload_hal_test(TestStanag4586Bridge            TestStanag4586Bridge.cpp)
 add_payload_hal_test(TestLaserDesignatorCoordinator    TestLaserDesignatorCoordinator.cpp)
 add_payload_hal_test(TestGeoSurveyGridEngine          TestGeoSurveyGridEngine.cpp)
+add_payload_hal_test(TestFlirPfecPtzAdapter            TestFlirPfecPtzAdapter.cpp)
+add_payload_hal_test(TestNmeaSlavingBridge             TestNmeaSlavingBridge.cpp)
 
