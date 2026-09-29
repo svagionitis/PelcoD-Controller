@@ -48,11 +48,27 @@ add_library(Nmea STATIC
     bam/BridgeAlertTypes.h
     bam/BridgeAlertManager.h
     bam/BridgeAlertManager.cpp
+    network/Base64.h
+    network/Sha1.h
+    network/Iec61162_460Types.h
+    network/Iec61162_460Firewall.h
+    network/Iec61162_460Firewall.cpp
+    network/NmeaTcpServer.h
+    network/NmeaTcpServer.cpp
+    network/NmeaUdpEndpoint.h
+    network/NmeaUdpEndpoint.cpp
+    network/NmeaJsonSerializer.h
+    network/NmeaJsonSerializer.cpp
+    network/NmeaWebSocketServer.h
+    network/NmeaWebSocketServer.cpp
+    network/MaritimeNetworkCoordinator.h
+    network/MaritimeNetworkCoordinator.cpp
 )
 
 target_include_directories(Nmea PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/bam>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/network>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/n2k>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/lwe>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/replay>

@@ -127,14 +127,159 @@ stateDiagram-v2
 ---
 
 ### 4. IEC 61162-460 & Network Transport
-*Expanding [LweMulticastTransport](../libs/Nmea/lwe/LweMulticastTransport.h) and [NmeaGateway](../libs/Nmea/gateway/NmeaGateway.h)*
+*Expanding [LweMulticastTransport](../libs/Nmea/lwe/LweMulticastTransport.h), [LweChannelManager](../libs/Nmea/lwe/LweChannelManager.h), and [NmeaGateway](../libs/Nmea/gateway/NmeaGateway.h)*
+
+#### Network & Security Architecture
+
+##### ASCII Architecture Diagram
+
+```
++---------------------------------------------------------------------------------------------------------+
+|                                     Maritime Network Architecture                                       |
++---------------------------------------------------------------------------------------------------------+
+|                                                                                                         |
+|   +-----------------------+   +------------------------+   +---------------------+   +--------------+   |
+|   | IEC 61162-450 LWE Bus |   |  OpenCPN / TimeZero    |   | HTML5 Web Dashboard |   | External PTZ |   |
+|   | 239.192.0.0/24 (UDP)  |   | TCP / UDP Port 10110   |   | WebSocket Port 8088 |   | IP Cameras   |   |
+|   +-----------+-----------+   +-----------+------------+   +----------+----------+   +-------+------+   |
+|               |                           |                           |                      |          |
+|               v                           v                           v                      v          |
+|   +-------------------------------------------------------------------------------------------------+   |
+|   |                     IEC 61162-460 Security Gateway (Iec61162_460Firewall)                       |   |
+|   |  - Interface Zone Isolation (BridgeNetwork, ExternalCamera, GeneralShipLan)                     |   |
+|   |  - Source IP & MAC Address Verification / Anti-Spoofing Tables                                  |   |
+|   |  - Transmission Group & Sentence Type Ingress/Egress Whitelist                                  |   |
+|   |  - Sliding-Window Rate Limiting & DoS / Packet Storm Suppression                                 |   |
+|   |  - Security Violation Event Logger & Audit Trail                                                |   |
+|   +---------------------------------------+---------------------------------------------------------+   |
+|                                           |                                                             |
+|                       Security Violations | (Alert ID 46001 / 46002)                                    |
+|                                           v                                                             |
+|                          +--------------------------------+                                             |
+|                          |    Bridge Alert Management     |                                             |
+|                          |   (IEC 62923 / IEC 61162-1)    |                                             |
+|                          +----------------+---------------+                                             |
+|                                           ^                                                             |
+|                                           |                                                             |
+|   +---------------------------------------v---------------------------------------------------------+   |
+|   |                         MaritimeNetworkCoordinator                                              |   |
+|   |  +------------------------+  +------------------------+  +------------------------------------+ |   |
+|   |  |     NmeaTcpServer      |  |    NmeaUdpEndpoint     |  |        NmeaWebSocketServer         | |   |
+|   |  | - Port 10110 multi-cli |  | - Port 10110 bcast/uni |  | - RFC 6455 framing & handshake     | |   |
+|   |  | - Async broadcast      |  | - Direct ITransport    |  | - Real-time JSON telemetry stream  | |   |
+|   |  +-----------+------------+  +-----------+------------+  +-----------------+------------------+ |   |
+|   +--------------|---------------------------|---------------------------------|--------------------+   |
+|                  |                           |                                 |                        |
+|                  +---------------------------v---------------------------------+                        |
+|                                              |                                                          |
+|                                              v                                                          |
+|                       +-----------------------------------------------+                                 |
+|                       |            NmeaDevice & NmeaGateway           |                                 |
+|                       |  - Sentence Parsing & Validation              |                                 |
+|                       |  - N2K Fast-Packet Translation                |                                 |
+|                       |  - Telemetry Caching & Arbitration            |                                 |
+|                       +----------------------+------------------------+                                 |
+|                                              |                                                          |
+|                                              v                                                          |
+|                       +-----------------------------------------------+                                 |
+|                       |       PayloadHal (Gimbal / Camera / Tracker)  |                                 |
+|                       +-----------------------------------------------+                                 |
++---------------------------------------------------------------------------------------------------------+
+```
+
+##### Mermaid Architecture Diagram
+
+```mermaid
+flowchart TD
+    subgraph ExternalNetworks ["External & Bridge Networks"]
+        LWE["IEC 61162-450 LWE Multicast\n(239.192.0.0/24:60001-60016)"]
+        NavSoftware["Navigation Software (OpenCPN, TimeZero)\nTCP / UDP Port 10110"]
+        WebClients["HTML5 Web / Tactical Dashboards\nWebSocket Port 8088 (JSON)"]
+        Cameras["External PTZ / Thermal Cameras\n(ONVIF / Pelco-D over IP)"]
+    end
+
+    subgraph SecurityGate ["IEC 61162-460 Security Gateway Engine"]
+        Firewall["Iec61162_460Firewall\n- Zone Isolation\n- Ingress/Egress Rule Filter\n- IP/MAC Anti-Spoofing"]
+        RateLimiter["TrafficRateLimiter\n- Sliding-window PPS\n- DoS / Flood Suppression"]
+        AuditLog["SecurityAuditLog\n- Tamper-evident incident history"]
+    end
+
+    subgraph Transports ["Network Transport Adapters"]
+        LweTrans["LweMulticastTransport / ChannelManager"]
+        TcpServer["NmeaTcpServer\n(Port 10110 Multi-Client)"]
+        UdpEp["NmeaUdpEndpoint\n(Port 10110 Unicast/Bcast)"]
+        WsServer["NmeaWebSocketServer\n(Port 8088 RFC 6455)"]
+        JsonSer["NmeaJsonSerializer\n(Fast zero-alloc JSON)"]
+    end
+
+    subgraph CoreServices ["Core Navigation & Control Services"]
+        Coord["MaritimeNetworkCoordinator"]
+        BAM["BridgeAlertManager\n(Security Alerts 46001/46002)"]
+        Device["NmeaDevice & NmeaGateway"]
+        Payload["PayloadHal (Gimbal / Tracker)"]
+    end
+
+    LWE --> Firewall
+    NavSoftware --> Firewall
+    WebClients --> Firewall
+    Cameras --> Firewall
+
+    Firewall --> RateLimiter
+    RateLimiter --> Transports
+    Firewall -. Violation .-> BAM
+    Firewall -. Log Event .-> AuditLog
+
+    Transports --> Coord
+    Coord <--> Device
+    Coord <--> BAM
+    Coord <--> Payload
+    WsServer --- JsonSer
+```
 
 * **IEC 61162-460 Secure Marine Gateway Compliance**:
-  * Network security filtering, interface isolation (bridge network vs external cameras), and source IP/MAC verification for IEC 61162-450 LWE multicast streams.
-* **WebSocket / JSON Telemetry Stream**:
-  * Streaming parsed NMEA/N2K navigation telemetry and camera gimbal position over WebSockets or MQTT to HTML5/web dashboards.
+  * [Iec61162_460Firewall.h](../libs/Nmea/network/Iec61162_460Firewall.h) / [Iec61162_460Firewall.cpp](../libs/Nmea/network/Iec61162_460Firewall.cpp):
+    * Network zone isolation (`BridgeNetwork`, `ExternalCamera`, `GeneralShipLan`, `InternetShore`).
+    * Source IP CIDR subnet filtering and MAC address anti-spoofing binding table.
+    * Ingress sentence formatter whitelist (e.g. restrict camera zone to `XDR`, `HDT` while blocking navigation injections).
+    * Outbound egress leak prevention (blocks sensitive Bridge Alert Management `$xxALF` or proprietary camera control sentences from leaking to public networks).
+    * Sliding-window traffic rate limiter per source IP to prevent packet storms and denial-of-service.
+    * Anomaly reporting directly into [BridgeAlertManager](../libs/Nmea/bam/BridgeAlertManager.h) generating IEC 62923 Warning alerts:
+      * Alert ID `46001`: Security Policy Violation.
+      * Alert ID `46002`: Bridge Network Flood Detected.
+
 * **NMEA 0183 TCP/UDP Server / Client**:
-  * Configurable TCP client/server (e.g. port 10110) for standard marine navigation software integration (e.g., OpenCPN, TimeZero, radar displays).
+  * [NmeaTcpServer.h](../libs/Nmea/network/NmeaTcpServer.h) / [NmeaTcpServer.cpp](../libs/Nmea/network/NmeaTcpServer.cpp):
+    * Multi-client TCP broadcast server listening on marine standard port `10110`.
+    * Non-blocking client polling, async sentence broadcast to all connected chartplotters (OpenCPN, TimeZero), and bidirectional sentence ingestion.
+  * [NmeaUdpEndpoint.h](../libs/Nmea/network/NmeaUdpEndpoint.h) / [NmeaUdpEndpoint.cpp](../libs/Nmea/network/NmeaUdpEndpoint.cpp):
+    * Unicast and subnet broadcast transceiver on port `10110`.
+    * Implements `Transport::ITransport` for direct integration with `NmeaDevice`.
+
+* **WebSocket / JSON Telemetry Stream**:
+  * [NmeaWebSocketServer.h](../libs/Nmea/network/NmeaWebSocketServer.h) / [NmeaWebSocketServer.cpp](../libs/Nmea/network/NmeaWebSocketServer.cpp):
+    * Standalone, pure C++17 RFC 6455 compliant WebSocket server (default port `8088`).
+    * Self-contained RFC 3174 SHA-1 ([Sha1.h](../libs/Nmea/network/Sha1.h)) and RFC 4648 Base64 ([Base64.h](../libs/Nmea/network/Base64.h)) HTTP Upgrade handshake with zero external crypto dependencies.
+    * Text frame broadcast, payload unmasking, and ping/pong keepalives.
+  * [NmeaJsonSerializer.h](../libs/Nmea/network/NmeaJsonSerializer.h) / [NmeaJsonSerializer.cpp](../libs/Nmea/network/NmeaJsonSerializer.cpp):
+    * Fast, zero-allocation JSON serialization for:
+      * Vessel navigation state (lat, lon, SOG, COG, heading, pitch, roll, depth).
+      * PTZ camera gimbal state (pan, tilt, zoom, HFOV, track status, target ID).
+      * Radar and AIS targets (ID, bearing, range, CPA, TCPA, threat level).
+      * BAM alerts (alert ID, priority, category, state, text).
+    * Inbound JSON command parser (`slewToCue`, `ptzMove`).
+
+* **Maritime Network Coordinator**:
+  * [MaritimeNetworkCoordinator.h](../libs/Nmea/network/MaritimeNetworkCoordinator.h) / [MaritimeNetworkCoordinator.cpp](../libs/Nmea/network/MaritimeNetworkCoordinator.cpp):
+    * Central coordinator orchestrating firewall security policies, TCP broadcast, UDP endpoints, and WebSocket telemetry dispatch.
+
+* **Unit Tests & Verification**:
+  * [TestNetworkCrypto.cpp](../libs/Nmea/tests/TestNetworkCrypto.cpp): Base64 roundtrip, RFC 3174 SHA-1 vectors, and RFC 6455 WebSocket accept token verification.
+  * [TestIec61162_460Firewall.cpp](../libs/Nmea/tests/TestIec61162_460Firewall.cpp): MAC anti-spoofing, zone formatter whitelist, PPS flood detection, and BAM alert triggers.
+  * [TestNmeaTcpServer.cpp](../libs/Nmea/tests/TestNmeaTcpServer.cpp): Multi-client connection lifecycle, sentence broadcast, and client command ingestion.
+  * [TestNmeaUdpEndpoint.cpp](../libs/Nmea/tests/TestNmeaUdpEndpoint.cpp): Bidirectional UDP loopback communication.
+  * [TestNmeaJsonSerializer.cpp](../libs/Nmea/tests/TestNmeaJsonSerializer.cpp): Vessel, gimbal, target, alert JSON serialization, and slew command parsing.
+  * [TestNmeaWebSocketServer.cpp](../libs/Nmea/tests/TestNmeaWebSocketServer.cpp): RFC 6455 handshake, JSON frame broadcasting, and masked frame reception.
+  * [TestMaritimeNetworkCoordinator.cpp](../libs/Nmea/tests/TestMaritimeNetworkCoordinator.cpp): End-to-end integration, routing, and multi-transport coordination.
 
 ---
 
