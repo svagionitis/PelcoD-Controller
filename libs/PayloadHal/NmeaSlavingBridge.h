@@ -27,7 +27,15 @@ namespace PayloadHal {
 
 /// @enum MarineTargetType
 /// @brief Type of active target being tracked by the slaving bridge.
-enum class MarineTargetType : std::uint8_t { None = 0, RadarArpa, AisVessel, GeodeticManual, RadarCursor, Waypoint };
+enum class MarineTargetType : std::uint8_t {
+    None = 0,
+    RadarArpa,
+    AisVessel,
+    GeodeticManual,
+    RadarCursor,
+    Waypoint,
+    EmergencyBeacon
+};
 
 /// @enum TargetLossPolicy
 /// @brief Action taken when a tracked target ceases reporting telemetry beyond the timeout threshold.
@@ -42,13 +50,15 @@ enum class TargetLossPolicy : std::uint8_t {
 struct MarineSlavingStatus {
     bool active { false };
     MarineTargetType targetType { MarineTargetType::None };
-    std::uint32_t targetId { 0U }; ///< Radar track number or AIS MMSI
+    std::uint32_t targetId { 0U }; ///< Radar track number, AIS MMSI, or Emergency Beacon MMSI
     std::string targetName {};
     std::optional<Klv::GeoPoint3D> targetPosition {};
     double slantRangeMeters { 0.0 };
     double trueBearingDeg { 0.0 };
     bool isCoasting { false };
     std::chrono::steady_clock::time_point lastContact {};
+    bool isEmergencyActive { false };
+    Nmea::AisBeaconType emergencyType { Nmea::AisBeaconType::None };
 };
 
 /// @class NmeaSlavingBridge
@@ -57,6 +67,7 @@ class NmeaSlavingBridge {
 public:
     using StatusCallback = std::function<void(const MarineSlavingStatus&)>;
     using TargetLostCallback = std::function<void(MarineTargetType type, std::uint32_t targetId)>;
+    using EmergencySlewCallback = std::function<void(const Nmea::AisEmergencyAlert&)>;
 
     /// @brief Constructs a slaving bridge connecting NmeaDevice to GeoLockController.
     /// @param[in] nmeaDevice Shared pointer to active NmeaDevice controller.
@@ -98,6 +109,31 @@ public:
     /// @param[in] bwc Bearing and Distance to Waypoint data.
     /// @return True if waypoint coordinates were valid and slaved.
     bool slaveToWaypoint(const Nmea::BwcData& bwc);
+
+    /// @brief Configures automated emergency slew policy.
+    /// @param[in] autoSlew When true, detected emergency beacons immediately pre-empt active tracking.
+    /// @param[in] ignoreTestMode When true, routine crew test bursts (e.g. "TEST") will not trigger automated slewing.
+    void setEmergencySlewPolicy(bool autoSlew, bool ignoreTestMode = true) noexcept;
+
+    /// @brief Checks whether automated emergency slew is enabled.
+    [[nodiscard]] bool isAutoSlewEmergencyEnabled() const noexcept;
+
+    /// @brief Checks whether emergency test bursts are ignored.
+    [[nodiscard]] bool isIgnoringEmergencyTestMode() const noexcept;
+
+    /// @brief Slaves gimbal line-of-sight to an emergency beacon (AIS-SART, MOB, EPIRB) by MMSI.
+    /// @param[in] mmsi 9-digit MMSI of the emergency beacon.
+    /// @return True if beacon exists or telemetry is awaited.
+    bool slaveToEmergencyBeacon(std::uint32_t mmsi);
+
+    /// @brief Clears active emergency slewing and restores previous slaved target if one was pre-empted.
+    void clearEmergencySlew();
+
+    /// @brief Subscribes to emergency slew activation events.
+    std::size_t addEmergencySlewCallback(EmergencySlewCallback cb);
+
+    /// @brief Unsubscribes an emergency slew callback.
+    void removeEmergencySlewCallback(std::size_t id);
 
     /// @brief Disengages target slaving and releases GeoLockController.
     void disengage();
@@ -144,8 +180,19 @@ private:
     void handleNavUpdate(const Nmea::NmeaNavSnapshot& snap);
     void handleRadarUpdate(const Nmea::TtmData& ttm);
     void handleAisUpdate(const Nmea::AisVesselTarget& target);
+    void handleEmergencyBeacon(const Nmea::AisEmergencyAlert& alert);
     void workerLoop();
     [[nodiscard]] MarineSlavingStatus statusLocked() const;
+
+    struct PreemptedTargetState {
+        MarineTargetType type { MarineTargetType::None };
+        std::uint32_t id { 0U };
+        std::string name {};
+        Klv::GeoPoint3D pos {};
+        double sogKnots { 0.0 };
+        double cogDegrees { 0.0 };
+        bool valid { false };
+    };
 
     std::shared_ptr<Nmea::NmeaDevice> m_nmeaDevice;
     std::shared_ptr<GeoLockController> m_geoLockController;
@@ -154,11 +201,17 @@ private:
     std::size_t m_navSubId { 0U };
     std::size_t m_radarSubId { 0U };
     std::size_t m_aisSubId { 0U };
+    std::size_t m_emergencySubId { 0U };
 
     mutable std::mutex m_stateMutex;
     MarineTargetType m_targetType { MarineTargetType::None };
     std::uint32_t m_targetId { 0U };
     std::string m_targetName {};
+
+    std::atomic<bool> m_autoSlewEmergency { true };
+    std::atomic<bool> m_ignoreEmergencyTestMode { true };
+    std::optional<PreemptedTargetState> m_preemptedTarget {};
+    Nmea::AisBeaconType m_currentEmergencyType { Nmea::AisBeaconType::None };
 
     Klv::GeoPoint3D m_platformPos {};
     double m_platformHeadingDeg { 0.0 };
@@ -185,6 +238,9 @@ private:
     };
     std::shared_ptr<const std::vector<std::pair<std::size_t, TargetLostCallback>>> m_lostCallbacks {
         std::make_shared<std::vector<std::pair<std::size_t, TargetLostCallback>>>()
+    };
+    std::shared_ptr<const std::vector<std::pair<std::size_t, EmergencySlewCallback>>> m_emergencySlewCallbacks {
+        std::make_shared<std::vector<std::pair<std::size_t, EmergencySlewCallback>>>()
     };
 };
 

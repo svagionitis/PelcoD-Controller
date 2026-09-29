@@ -163,29 +163,51 @@ bool AisDecoder::decodePayload(
     outTarget.repeatIndicator = static_cast<std::uint8_t>(reader.readBits(2U));
     outTarget.mmsi = reader.readBits(30U);
 
+    bool success = false;
     switch (msgType) {
     case AisMessageType::ClassAPosition1:
     case AisMessageType::ClassAPosition2:
     case AisMessageType::ClassAPosition3:
-        return decodeClassAPosition(reader, outTarget);
+        success = decodeClassAPosition(reader, outTarget);
+        break;
 
     case AisMessageType::ClassAStaticVoyage5:
-        return decodeClassAStatic(reader, outTarget);
+        success = decodeClassAStatic(reader, outTarget);
+        break;
+
+    case AisMessageType::SafetyBroadcast14:
+        success = decodeSafetyBroadcast(reader, outTarget);
+        break;
 
     case AisMessageType::ClassBPosition18:
-        return decodeClassBPosition(reader, outTarget);
+        success = decodeClassBPosition(reader, outTarget);
+        break;
 
     case AisMessageType::ClassBExtendedPosition19:
-        return decodeClassBExtendedPosition(reader, outTarget);
+        success = decodeClassBExtendedPosition(reader, outTarget);
+        break;
 
     case AisMessageType::ClassBStatic24:
-        return decodeClassBStatic(reader, outTarget);
+        success = decodeClassBStatic(reader, outTarget);
+        break;
 
     default:
         break;
     }
 
-    return false;
+    if (success) {
+        outTarget.beaconType = classifyAisMmsi(outTarget.mmsi);
+        outTarget.isEmergencyBeacon
+            = isAisEmergencyBeacon(outTarget.mmsi) || (outTarget.navStatus == AisNavStatus::AisSartActive);
+        if (outTarget.isEmergencyBeacon && outTarget.beaconType == AisBeaconType::StandardVessel) {
+            outTarget.beaconType = AisBeaconType::AisSart;
+        }
+        if (!outTarget.safetyText.empty() && outTarget.safetyText.find("TEST") != std::string::npos) {
+            outTarget.isEmergencyTestMode = true;
+        }
+    }
+
+    return success;
 }
 
 bool AisDecoder::decodeClassAPosition(AisBitReader& reader, AisVesselTarget& target) noexcept
@@ -377,6 +399,24 @@ bool AisDecoder::decodeClassBStatic(AisBitReader& reader, AisVesselTarget& targe
         }
     }
 
+    target.lastUpdate = std::chrono::steady_clock::now();
+    return true;
+}
+
+bool AisDecoder::decodeSafetyBroadcast(AisBitReader& reader, AisVesselTarget& target) noexcept
+{
+    // Spare: 2 bits
+    if (reader.remainingBits() < 2U) {
+        return false;
+    }
+    static_cast<void>(reader.readBits(2U));
+
+    const std::size_t numChars = reader.remainingBits() / 6U;
+    const std::string text = reader.readString(numChars);
+
+    target.safetyText = text;
+    target.vesselName = text;
+    target.staticDataValid = !text.empty();
     target.lastUpdate = std::chrono::steady_clock::now();
     return true;
 }

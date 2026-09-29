@@ -22,6 +22,8 @@ NmeaSlavingBridge::NmeaSlavingBridge(std::shared_ptr<Nmea::NmeaDevice> nmeaDevic
         m_radarSubId = m_nmeaDevice->addRadarCallback([this](const Nmea::TtmData& ttm) { handleRadarUpdate(ttm); });
         m_aisSubId
             = m_nmeaDevice->addAisCallback([this](const Nmea::AisVesselTarget& target) { handleAisUpdate(target); });
+        m_emergencySubId = m_nmeaDevice->addEmergencyBeaconCallback(
+            [this](const Nmea::AisEmergencyAlert& alert) { handleEmergencyBeacon(alert); });
 
         // Query initial nav snapshot if available
         const auto snap = m_nmeaDevice->navSnapshot();
@@ -54,6 +56,9 @@ NmeaSlavingBridge::~NmeaSlavingBridge()
         }
         if (m_aisSubId != 0U) {
             m_nmeaDevice->removeAisCallback(m_aisSubId);
+        }
+        if (m_emergencySubId != 0U) {
+            m_nmeaDevice->removeEmergencyBeaconCallback(m_emergencySubId);
         }
     }
 }
@@ -191,12 +196,117 @@ bool NmeaSlavingBridge::slaveToWaypoint(const Nmea::BwcData& bwc)
     return false;
 }
 
+void NmeaSlavingBridge::setEmergencySlewPolicy(bool autoSlew, bool ignoreTestMode) noexcept
+{
+    m_autoSlewEmergency.store(autoSlew);
+    m_ignoreEmergencyTestMode.store(ignoreTestMode);
+}
+
+bool NmeaSlavingBridge::isAutoSlewEmergencyEnabled() const noexcept
+{
+    return m_autoSlewEmergency.load();
+}
+
+bool NmeaSlavingBridge::isIgnoringEmergencyTestMode() const noexcept
+{
+    return m_ignoreEmergencyTestMode.load();
+}
+
+bool NmeaSlavingBridge::slaveToEmergencyBeacon(std::uint32_t mmsi)
+{
+    std::lock_guard<std::mutex> lock(m_stateMutex);
+    if (!m_preemptedTarget.has_value() && m_targetType != MarineTargetType::None
+        && m_targetType != MarineTargetType::EmergencyBeacon) {
+        PreemptedTargetState prev {};
+        prev.type = m_targetType;
+        prev.id = m_targetId;
+        prev.name = m_targetName;
+        prev.pos = m_lastKnownTargetPos;
+        prev.sogKnots = m_targetSogKnots;
+        prev.cogDegrees = m_targetCogDegrees;
+        prev.valid = true;
+        m_preemptedTarget = prev;
+    }
+
+    m_targetType = MarineTargetType::EmergencyBeacon;
+    m_targetId = mmsi;
+    m_targetName = "BEACON-" + std::to_string(mmsi);
+    m_lastContactTime = std::chrono::steady_clock::now();
+    m_currentEmergencyType = Nmea::classifyAisMmsi(mmsi);
+
+    if (m_nmeaDevice) {
+        const auto alertOpt = m_nmeaDevice->emergencyBeacon(mmsi);
+        if (alertOpt.has_value()) {
+            const auto& alert = *alertOpt;
+            m_currentEmergencyType = alert.beaconType;
+            if (!alert.messageText.empty()) {
+                m_targetName = alert.messageText;
+            }
+            m_targetSogKnots = alert.speedOverGroundKnots;
+            m_targetCogDegrees = alert.courseOverGroundDegrees;
+
+            if (alert.positionValid && m_geoLockController) {
+                m_lastKnownTargetPos.latitudeDeg = alert.coordinates.latitudeDeg;
+                m_lastKnownTargetPos.longitudeDeg = alert.coordinates.longitudeDeg;
+                m_lastKnownTargetPos.altitudeM = 0.0;
+                (void)m_geoLockController->engage(m_lastKnownTargetPos);
+            }
+        }
+    }
+
+    return true;
+}
+
+void NmeaSlavingBridge::clearEmergencySlew()
+{
+    std::optional<PreemptedTargetState> restoredTarget;
+    {
+        std::lock_guard<std::mutex> lock(m_stateMutex);
+        if (m_targetType != MarineTargetType::EmergencyBeacon) {
+            return;
+        }
+
+        restoredTarget = m_preemptedTarget;
+        m_preemptedTarget.reset();
+        m_currentEmergencyType = Nmea::AisBeaconType::None;
+
+        if (!restoredTarget.has_value() || !restoredTarget->valid || restoredTarget->type == MarineTargetType::None) {
+            m_targetType = MarineTargetType::None;
+            m_targetId = 0U;
+            m_targetName.clear();
+            if (m_geoLockController) {
+                m_geoLockController->disengage();
+            }
+            return;
+        }
+    }
+
+    if (restoredTarget.has_value()) {
+        switch (restoredTarget->type) {
+        case MarineTargetType::RadarArpa:
+            (void)slaveToRadarTarget(restoredTarget->id);
+            break;
+        case MarineTargetType::AisVessel:
+            (void)slaveToAisVessel(restoredTarget->id);
+            break;
+        case MarineTargetType::GeodeticManual:
+            (void)slaveToGeodeticTarget(restoredTarget->pos);
+            break;
+        default:
+            disengage();
+            break;
+        }
+    }
+}
+
 void NmeaSlavingBridge::disengage()
 {
     std::lock_guard<std::mutex> lock(m_stateMutex);
     m_targetType = MarineTargetType::None;
     m_targetId = 0U;
     m_targetName.clear();
+    m_preemptedTarget.reset();
+    m_currentEmergencyType = Nmea::AisBeaconType::None;
 
     if (m_geoLockController) {
         m_geoLockController->disengage();
@@ -249,6 +359,9 @@ MarineSlavingStatus NmeaSlavingBridge::statusLocked() const
         const auto elapsed = now - m_lastContactTime;
         st.isCoasting = (elapsed > std::chrono::seconds(1));
     }
+
+    st.isEmergencyActive = (m_targetType == MarineTargetType::EmergencyBeacon);
+    st.emergencyType = m_currentEmergencyType;
 
     return st;
 }
@@ -375,6 +488,30 @@ void NmeaSlavingBridge::removeTargetLostCallback(std::size_t id)
     m_lostCallbacks = newEntries;
 }
 
+std::size_t NmeaSlavingBridge::addEmergencySlewCallback(EmergencySlewCallback cb)
+{
+    std::lock_guard<std::mutex> lock(m_callbackMutex);
+    const std::size_t id = m_nextCallbackId++;
+    auto newEntries
+        = std::make_shared<std::vector<std::pair<std::size_t, EmergencySlewCallback>>>(*m_emergencySlewCallbacks);
+    newEntries->emplace_back(id, std::move(cb));
+    m_emergencySlewCallbacks = newEntries;
+    return id;
+}
+
+void NmeaSlavingBridge::removeEmergencySlewCallback(std::size_t id)
+{
+    std::lock_guard<std::mutex> lock(m_callbackMutex);
+    auto newEntries = std::make_shared<std::vector<std::pair<std::size_t, EmergencySlewCallback>>>();
+    newEntries->reserve(m_emergencySlewCallbacks->size());
+    for (const auto& item : *m_emergencySlewCallbacks) {
+        if (item.first != id) {
+            newEntries->push_back(item);
+        }
+    }
+    m_emergencySlewCallbacks = newEntries;
+}
+
 Klv::GeoPoint3D NmeaSlavingBridge::projectTargetFromRadar(
     const Klv::GeoPoint3D& platformPos, double rangeMeters, double trueBearingDeg) noexcept
 {
@@ -442,7 +579,8 @@ void NmeaSlavingBridge::handleRadarUpdate(const Nmea::TtmData& ttm)
 void NmeaSlavingBridge::handleAisUpdate(const Nmea::AisVesselTarget& target)
 {
     std::lock_guard<std::mutex> lock(m_stateMutex);
-    if (m_targetType != MarineTargetType::AisVessel || m_targetId != target.mmsi) {
+    if ((m_targetType != MarineTargetType::AisVessel && m_targetType != MarineTargetType::EmergencyBeacon)
+        || m_targetId != target.mmsi) {
         return;
     }
 
@@ -456,6 +594,82 @@ void NmeaSlavingBridge::handleAisUpdate(const Nmea::AisVesselTarget& target)
         m_lastKnownTargetPos.longitudeDeg = target.coordinates.longitudeDeg;
         m_lastKnownTargetPos.altitudeM = 0.0;
         (void)m_geoLockController->engage(m_lastKnownTargetPos);
+    }
+}
+
+void NmeaSlavingBridge::handleEmergencyBeacon(const Nmea::AisEmergencyAlert& alert)
+{
+    if (alert.isTestMode && m_ignoreEmergencyTestMode.load()) {
+        return;
+    }
+
+    bool shouldNotifyCallback = false;
+
+    {
+        std::lock_guard<std::mutex> lock(m_stateMutex);
+
+        if (m_targetType == MarineTargetType::EmergencyBeacon && m_targetId == alert.mmsi) {
+            // Continuation / periodic burst of currently tracked emergency beacon
+            m_lastContactTime = std::chrono::steady_clock::now();
+            m_targetSogKnots = alert.speedOverGroundKnots;
+            m_targetCogDegrees = alert.courseOverGroundDegrees;
+            m_currentEmergencyType = alert.beaconType;
+            if (!alert.messageText.empty()) {
+                m_targetName = alert.messageText;
+            }
+
+            if (alert.positionValid && m_geoLockController) {
+                m_lastKnownTargetPos.latitudeDeg = alert.coordinates.latitudeDeg;
+                m_lastKnownTargetPos.longitudeDeg = alert.coordinates.longitudeDeg;
+                m_lastKnownTargetPos.altitudeM = 0.0;
+                (void)m_geoLockController->engage(m_lastKnownTargetPos);
+            }
+            return;
+        }
+
+        if (m_autoSlewEmergency.load()) {
+            // Save current target if not already saved
+            if (!m_preemptedTarget.has_value() && m_targetType != MarineTargetType::None) {
+                PreemptedTargetState prev {};
+                prev.type = m_targetType;
+                prev.id = m_targetId;
+                prev.name = m_targetName;
+                prev.pos = m_lastKnownTargetPos;
+                prev.sogKnots = m_targetSogKnots;
+                prev.cogDegrees = m_targetCogDegrees;
+                prev.valid = true;
+                m_preemptedTarget = prev;
+            }
+
+            m_targetType = MarineTargetType::EmergencyBeacon;
+            m_targetId = alert.mmsi;
+            m_currentEmergencyType = alert.beaconType;
+            m_targetName = alert.messageText.empty() ? ("BEACON-" + std::to_string(alert.mmsi)) : alert.messageText;
+            m_lastContactTime = std::chrono::steady_clock::now();
+            m_targetSogKnots = alert.speedOverGroundKnots;
+            m_targetCogDegrees = alert.courseOverGroundDegrees;
+
+            if (alert.positionValid && m_geoLockController) {
+                m_lastKnownTargetPos.latitudeDeg = alert.coordinates.latitudeDeg;
+                m_lastKnownTargetPos.longitudeDeg = alert.coordinates.longitudeDeg;
+                m_lastKnownTargetPos.altitudeM = 0.0;
+                (void)m_geoLockController->engage(m_lastKnownTargetPos);
+            }
+            shouldNotifyCallback = true;
+        }
+    }
+
+    if (shouldNotifyCallback) {
+        std::shared_ptr<const std::vector<std::pair<std::size_t, EmergencySlewCallback>>> slewCbs;
+        {
+            std::lock_guard<std::mutex> cbLock(m_callbackMutex);
+            slewCbs = m_emergencySlewCallbacks;
+        }
+        for (const auto& item : *slewCbs) {
+            if (item.second) {
+                item.second(alert);
+            }
+        }
     }
 }
 

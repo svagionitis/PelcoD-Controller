@@ -127,6 +127,23 @@ public:
     /// @param[in] id Subscription ID returned by addAisCallback.
     void removeAisCallback(std::size_t id);
 
+    using EmergencyBeaconCallback = std::function<void(const AisEmergencyAlert&)>;
+
+    /// @brief Registers a subscriber callback for AIS-SART, MOB, and EPIRB distress beacon alerts.
+    /// @param[in] cb Callback invoked immediately when an emergency beacon or safety broadcast is received.
+    /// @return Unique subscription ID for unregistering.
+    std::size_t addEmergencyBeaconCallback(EmergencyBeaconCallback cb);
+
+    /// @brief Unregisters an emergency beacon callback.
+    /// @param[in] id Subscription ID returned by addEmergencyBeaconCallback.
+    void removeEmergencyBeaconCallback(std::size_t id);
+
+    /// @brief Retrieves list of currently active emergency distress beacons.
+    [[nodiscard]] std::vector<AisEmergencyAlert> activeEmergencyBeacons() const;
+
+    /// @brief Retrieves an active emergency beacon by MMSI if present.
+    [[nodiscard]] std::optional<AisEmergencyAlert> emergencyBeacon(std::uint32_t mmsi) const;
+
     /// @brief Registers a subscriber callback for raw inbound and outbound NMEA sentences.
     /// @param[in] cb Callback invoked on every transmitted or received sentence.
     /// @return Unique subscription ID for unregistering.
@@ -227,6 +244,7 @@ private:
     mutable std::mutex m_targetMutex;
     std::map<std::uint32_t, RadarTrackEntry> m_radarTargets {};
     std::map<std::uint32_t, AisTrackEntry> m_aisTargets {};
+    std::map<std::uint32_t, AisEmergencyAlert> m_emergencyBeacons {};
 
     // Maritime sentence state
     mutable std::mutex m_maritimeMutex;
@@ -240,6 +258,7 @@ private:
     CallbackList<NavCallback> m_navCallbacks {};
     CallbackList<RadarCallback> m_radarCallbacks {};
     CallbackList<AisCallback> m_aisCallbacks {};
+    CallbackList<EmergencyBeaconCallback> m_emergencyCallbacks {};
     CallbackList<RawSentenceCallback> m_rawCallbacks {};
     CallbackList<RsdCallback> m_rsdCallbacks {};
     CallbackList<ApbCallback> m_apbCallbacks {};

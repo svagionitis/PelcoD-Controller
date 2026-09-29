@@ -305,5 +305,195 @@ namespace {
         EXPECT_DOUBLE_EQ(target->longitudeDeg, -121.8);
     }
 
+    class TestAisBitWriter {
+    public:
+        void writeBits(std::uint32_t val, std::size_t numBits)
+        {
+            for (int i = static_cast<int>(numBits) - 1; i >= 0; --i) {
+                m_bits.push_back(static_cast<std::uint8_t>((val >> static_cast<std::uint32_t>(i)) & 1U));
+            }
+        }
+
+        void writeString(const std::string& str)
+        {
+            for (const char c : str) {
+                std::uint8_t val { 0U };
+                if (c >= '@' && c <= '_') {
+                    val = static_cast<std::uint8_t>(c - 64);
+                } else if (c >= ' ' && c <= '?') {
+                    val = static_cast<std::uint8_t>(c);
+                }
+                writeBits(val, 6U);
+            }
+        }
+
+        [[nodiscard]] std::pair<std::string, std::size_t> toArmoredPayload() const
+        {
+            std::vector<std::uint8_t> bytes {};
+            std::size_t bitIdx { 0U };
+            while (bitIdx < m_bits.size()) {
+                std::uint8_t b { 0U };
+                for (std::size_t i { 0U }; i < 6U; ++i) {
+                    b = static_cast<std::uint8_t>(b << 1U);
+                    if (bitIdx < m_bits.size()) {
+                        b = static_cast<std::uint8_t>(b | m_bits[bitIdx++]);
+                    }
+                }
+                bytes.push_back(b);
+            }
+            const std::size_t fillBits = (bytes.size() * 6U - m_bits.size()) % 6U;
+            std::string payload {};
+            payload.reserve(bytes.size());
+            for (std::uint8_t v : bytes) {
+                v &= 0x3FU;
+                const char c = (v <= 40U) ? static_cast<char>(v + 48U) : static_cast<char>(v + 56U);
+                payload.push_back(c);
+            }
+            return { payload, fillBits };
+        }
+
+    private:
+        std::vector<std::uint8_t> m_bits {};
+    };
+
+    [[nodiscard]] std::string createTestClassAPosition(std::uint32_t mmsi, Nmea::AisNavStatus navStatus, double latDeg,
+        double lonDeg, double sogKnots = 0.0, double cogDeg = 0.0)
+    {
+        TestAisBitWriter writer {};
+        writer.writeBits(1U, 6U); // Type 1
+        writer.writeBits(0U, 2U); // Repeat indicator
+        writer.writeBits(mmsi, 30U); // Source MMSI
+        writer.writeBits(static_cast<std::uint32_t>(navStatus), 4U);
+        writer.writeBits(0U, 8U); // ROT
+        const auto sogRaw = static_cast<std::uint32_t>(sogKnots * 10.0);
+        writer.writeBits(sogRaw, 10U);
+        writer.writeBits(1U, 1U); // Accuracy high
+
+        const auto lonRaw = static_cast<std::int32_t>(lonDeg * 600000.0);
+        const auto latRaw = static_cast<std::int32_t>(latDeg * 600000.0);
+        writer.writeBits(static_cast<std::uint32_t>(lonRaw), 28U);
+        writer.writeBits(static_cast<std::uint32_t>(latRaw), 27U);
+
+        const auto cogRaw = static_cast<std::uint32_t>(cogDeg * 10.0);
+        writer.writeBits(cogRaw, 12U);
+        writer.writeBits(511U, 9U); // Heading unavailable
+        writer.writeBits(60U, 6U); // Time stamp unavailable
+        writer.writeBits(0U, 2U); // Maneuver
+        writer.writeBits(0U, 4U); // Spare (3) + RAIM (1)
+        writer.writeBits(0U, 19U); // Radio status
+
+        const auto [payload, fillBits] = writer.toArmoredPayload();
+        const std::string body = "AIVDM,1,1,,A," + payload + "," + std::to_string(fillBits);
+        return Nmea::NmeaChecksum::frameSentence(body, '!');
+    }
+
+    [[nodiscard]] std::string createTestSafetyBroadcast(std::uint32_t mmsi, const std::string& text)
+    {
+        TestAisBitWriter writer {};
+        writer.writeBits(14U, 6U); // Type 14
+        writer.writeBits(0U, 2U); // Repeat indicator
+        writer.writeBits(mmsi, 30U); // Source MMSI
+        writer.writeBits(0U, 2U); // Spare
+        writer.writeString(text);
+
+        const auto [payload, fillBits] = writer.toArmoredPayload();
+        const std::string body = "AIVDM,1,1,,A," + payload + "," + std::to_string(fillBits);
+        return Nmea::NmeaChecksum::frameSentence(body, '!');
+    }
+
+    TEST(TestNmeaSlavingBridge, EmergencyBeaconPreemptionAndSlew)
+    {
+        auto payload = std::make_shared<SimulatedPayload>();
+        ASSERT_TRUE(payload->connect());
+
+        auto geoLock = std::make_shared<GeoLockController>(payload);
+        auto transport = std::make_shared<MockNmeaTransport>();
+        auto nmeaDevice = std::make_shared<Nmea::NmeaDevice>(transport);
+        ASSERT_TRUE(nmeaDevice->start());
+
+        NmeaSlavingBridge bridge(nmeaDevice, geoLock);
+
+        // Feed own-ship navigation at (37.0, -122.0)
+        const std::string gga
+            = Nmea::NmeaChecksum::frameSentence("GPGGA,123519,3700.000,N,12200.000,W,1,08,0.9,10.0,M,0.0,M,,");
+        const std::string hdt = Nmea::NmeaChecksum::frameSentence("HEHDT,000.0,T");
+        transport->injectString(gga);
+        transport->injectString(hdt);
+
+        // 1. Initially slave to ARPA radar target #5
+        const std::string ttm
+            = Nmea::NmeaChecksum::frameSentence("RATTM,05,2.0,090.0,T,10.0,180.0,T,1.0,5.0,N,FERRY,T,,123456,A");
+        transport->injectString(ttm);
+        EXPECT_TRUE(bridge.slaveToRadarTarget(5U));
+        EXPECT_EQ(bridge.status().targetType, MarineTargetType::RadarArpa);
+        EXPECT_EQ(bridge.status().targetId, 5U);
+        EXPECT_FALSE(bridge.status().isEmergencyActive);
+
+        std::atomic<bool> slewCallbackFired { false };
+        bridge.addEmergencySlewCallback([&slewCallbackFired](const Nmea::AisEmergencyAlert& alert) {
+            if (alert.mmsi == 972054321U) {
+                slewCallbackFired.store(true);
+            }
+        });
+
+        // 2. Incoming AIS-MOB distress burst (MMSI 972054321) at (37.8044, -122.4678)
+        const std::string mobSentence
+            = createTestClassAPosition(972054321U, Nmea::AisNavStatus::AisSartActive, 37.8044, -122.4678, 1.2, 45.0);
+        transport->injectString(mobSentence);
+
+        // Emergency beacon should immediately preempt the radar target
+        EXPECT_TRUE(slewCallbackFired.load());
+        const auto st = bridge.status();
+        EXPECT_TRUE(st.active);
+        EXPECT_TRUE(st.isEmergencyActive);
+        EXPECT_EQ(st.targetType, MarineTargetType::EmergencyBeacon);
+        EXPECT_EQ(st.targetId, 972054321U);
+        EXPECT_EQ(st.emergencyType, Nmea::AisBeaconType::AisMob);
+
+        ASSERT_TRUE(st.targetPosition.has_value());
+        EXPECT_NEAR(st.targetPosition->latitudeDeg, 37.8044, 1e-3);
+        EXPECT_NEAR(st.targetPosition->longitudeDeg, -122.4678, 1e-3);
+
+        const auto geoLockTarget = geoLock->currentTarget();
+        ASSERT_TRUE(geoLockTarget.has_value());
+        EXPECT_NEAR(geoLockTarget->latitudeDeg, 37.8044, 1e-3);
+        EXPECT_NEAR(geoLockTarget->longitudeDeg, -122.4678, 1e-3);
+
+        // 3. Clear emergency slew and verify that radar target #5 is restored!
+        bridge.clearEmergencySlew();
+        const auto restoredSt = bridge.status();
+        EXPECT_FALSE(restoredSt.isEmergencyActive);
+        EXPECT_EQ(restoredSt.targetType, MarineTargetType::RadarArpa);
+        EXPECT_EQ(restoredSt.targetId, 5U);
+    }
+
+    TEST(TestNmeaSlavingBridge, EmergencyTestModeRejection)
+    {
+        auto payload = std::make_shared<SimulatedPayload>();
+        ASSERT_TRUE(payload->connect());
+
+        auto geoLock = std::make_shared<GeoLockController>(payload);
+        auto transport = std::make_shared<MockNmeaTransport>();
+        auto nmeaDevice = std::make_shared<Nmea::NmeaDevice>(transport);
+        ASSERT_TRUE(nmeaDevice->start());
+
+        NmeaSlavingBridge bridge(nmeaDevice, geoLock);
+        EXPECT_TRUE(bridge.isIgnoringEmergencyTestMode());
+
+        // Currently slaved to manual geodetic target
+        Klv::GeoPoint3D initialTarget { 37.1, -122.2, 0.0 };
+        EXPECT_TRUE(bridge.slaveToGeodeticTarget(initialTarget));
+        EXPECT_EQ(bridge.status().targetType, MarineTargetType::GeodeticManual);
+
+        // Transmit routine crew SART test broadcast
+        const std::string sartTest = createTestSafetyBroadcast(970010123U, "SART TEST");
+        transport->injectString(sartTest);
+
+        // Tracking should NOT be pre-empted
+        EXPECT_FALSE(bridge.status().isEmergencyActive);
+        EXPECT_EQ(bridge.status().targetType, MarineTargetType::GeodeticManual);
+        EXPECT_NEAR(geoLock->currentTarget()->latitudeDeg, 37.1, 1e-4);
+    }
+
 } // namespace
 } // namespace PayloadHal

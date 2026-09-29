@@ -201,6 +201,37 @@ void NmeaDevice::removeAisCallback(std::size_t id)
     removeCallbackInternal(m_aisCallbacks, m_callbackMutex, id);
 }
 
+std::size_t NmeaDevice::addEmergencyBeaconCallback(EmergencyBeaconCallback cb)
+{
+    return addCallbackInternal(m_emergencyCallbacks, m_callbackMutex, std::move(cb));
+}
+
+void NmeaDevice::removeEmergencyBeaconCallback(std::size_t id)
+{
+    removeCallbackInternal(m_emergencyCallbacks, m_callbackMutex, id);
+}
+
+std::vector<AisEmergencyAlert> NmeaDevice::activeEmergencyBeacons() const
+{
+    std::lock_guard<std::mutex> lock(m_targetMutex);
+    std::vector<AisEmergencyAlert> beacons;
+    beacons.reserve(m_emergencyBeacons.size());
+    for (const auto& [mmsi, alert] : m_emergencyBeacons) {
+        beacons.push_back(alert);
+    }
+    return beacons;
+}
+
+std::optional<AisEmergencyAlert> NmeaDevice::emergencyBeacon(std::uint32_t mmsi) const
+{
+    std::lock_guard<std::mutex> lock(m_targetMutex);
+    const auto it = m_emergencyBeacons.find(mmsi);
+    if (it != m_emergencyBeacons.end()) {
+        return it->second;
+    }
+    return std::nullopt;
+}
+
 std::size_t NmeaDevice::addRawCallback(RawSentenceCallback cb)
 {
     return addCallbackInternal(m_rawCallbacks, m_callbackMutex, std::move(cb));
@@ -441,18 +472,37 @@ void NmeaDevice::processSentence(std::string_view sentence)
     case NmeaSentenceId::VDO: {
         AisVesselTarget aisTarget {};
         if (m_aisDecoder.decodeSentence(sentence, aisTarget, true)) {
+            std::optional<AisEmergencyAlert> alertOpt;
+            if (aisTarget.isEmergencyBeacon || aisTarget.messageType == AisMessageType::SafetyBroadcast14) {
+                alertOpt = aisTarget.toEmergencyAlert();
+            }
+
             {
                 std::lock_guard<std::mutex> lock(m_targetMutex);
                 m_aisTargets[aisTarget.mmsi] = { aisTarget, now };
+                if (alertOpt) {
+                    m_emergencyBeacons[alertOpt->mmsi] = *alertOpt;
+                }
             }
             std::shared_ptr<const std::vector<std::pair<std::size_t, AisCallback>>> aisCbs;
+            std::shared_ptr<const std::vector<std::pair<std::size_t, EmergencyBeaconCallback>>> emergencyCbs;
             {
                 std::lock_guard<std::mutex> cbLock(m_callbackMutex);
                 aisCbs = m_aisCallbacks.entries;
+                if (alertOpt) {
+                    emergencyCbs = m_emergencyCallbacks.entries;
+                }
             }
             for (const auto& item : *aisCbs) {
                 if (item.second) {
                     item.second(aisTarget);
+                }
+            }
+            if (alertOpt && emergencyCbs) {
+                for (const auto& item : *emergencyCbs) {
+                    if (item.second) {
+                        item.second(*alertOpt);
+                    }
                 }
             }
         }

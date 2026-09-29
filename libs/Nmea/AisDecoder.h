@@ -52,6 +52,9 @@ public:
     /// @brief Decodes Type 5 (Class A Static and Voyage Data).
     [[nodiscard]] static bool decodeClassAStatic(AisBitReader& reader, AisVesselTarget& target) noexcept;
 
+    /// @brief Decodes Type 14 (Safety-Related Broadcast Message).
+    [[nodiscard]] static bool decodeSafetyBroadcast(AisBitReader& reader, AisVesselTarget& target) noexcept;
+
     /// @brief Decodes Type 18 (Standard Class B Position Report).
     [[nodiscard]] static bool decodeClassBPosition(AisBitReader& reader, AisVesselTarget& target) noexcept;
 
