@@ -114,6 +114,30 @@ public:
     /// @return True on successful parse.
     [[nodiscard]] static bool parseMetadataValues(const std::vector<std::uint8_t>& packet, MsgSetMetadataValues& out);
 
+    /// @brief Parses tracking algorithm parameters (Message ID 0x44 / 0x0C).
+    /// @param[in] packet Validated framed packet bytes.
+    /// @param[out] out Deserialized tracking parameters.
+    /// @return True on successful parse.
+    [[nodiscard]] static bool parseTrackingParameters(const std::vector<std::uint8_t>& packet, MsgSetTrackingParameters& out);
+
+    /// @brief Parses lens optical calibration parameters (Message ID 0x6E / 0x6F / 0xB1).
+    [[nodiscard]] static bool parseLensParameters(const std::vector<std::uint8_t>& packet, MsgSetLensParameters& out);
+
+    /// @brief Parses system status mode settings (Message ID 0x80).
+    [[nodiscard]] static bool parseSystemStatusMode(const std::vector<std::uint8_t>& packet, MsgSystemStatusMode& out);
+
+    /// @brief Parses static metadata values (Message ID 0x14).
+    [[nodiscard]] static bool parseMetadataStaticValues(const std::vector<std::uint8_t>& packet, MsgMetadataStaticValues& out);
+
+    /// @brief Parses metadata rate reply (Message ID 0x62 / 0x8D).
+    [[nodiscard]] static bool parseMetadataRate(const std::vector<std::uint8_t>& packet, MsgSetMetadataRate& out);
+
+    /// @brief Parses network interfaces list (Message ID 0x67).
+    [[nodiscard]] static bool parseNetworkList(const std::vector<std::uint8_t>& packet, MsgCurrentNetworkList& out);
+
+    /// @brief Parses snapshot status and path (Message ID 0x5D / 0x5F).
+    [[nodiscard]] static bool parseSnapShot(const std::vector<std::uint8_t>& packet, MsgCurrentSnapShot& out);
+
 private:
     [[nodiscard]] static std::size_t getHeaderLength(const std::vector<std::uint8_t>& packet) noexcept;
 };

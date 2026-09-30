@@ -19,4 +19,12 @@ struct MsgSetSDRecordingParameters {
     std::string filenamePrefix {};
 };
 
+/// @struct MsgCurrentSnapShot
+/// @brief Snapshot status and image path reply (Message ID 0x5D / 0x5F).
+struct MsgCurrentSnapShot {
+    std::uint8_t cameraIndex { 0U };
+    std::uint8_t status { 0U };
+    std::string fileName {};
+};
+
 } // namespace Sightline

@@ -46,4 +46,11 @@ struct MsgSetEthernetDisplayParameters {
     std::uint16_t maxRawPacket { 1400U }; ///< Maximum raw packet size in bytes
 };
 
+/// @struct MsgCurrentNetworkList
+/// @brief Available network interfaces on the SLA board (Message ID 0x67).
+struct MsgCurrentNetworkList {
+    std::uint8_t numInterfaces { 0U };
+    std::vector<std::string> interfaceNames {};
+};
+
 } // namespace Sightline

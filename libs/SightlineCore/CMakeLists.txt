@@ -2,6 +2,8 @@ add_library(SightlineCore STATIC
     SightlineTypes.h
     SightlineCrc8.h
     SightlineCrc8.cpp
+    SightlineFraming.h
+    SightlineFraming.cpp
     SightlineMessages.h
     SightlineStreamAccumulator.h
     SightlineStreamAccumulator.cpp
@@ -11,6 +13,82 @@ add_library(SightlineCore STATIC
     SightlineProtocolParser.cpp
     SightlineDevice.h
     SightlineDevice.cpp
+    modules/SightlineBlendingBuilder.h
+    modules/SightlineBlendingBuilder.cpp
+    modules/SightlineBlendingParser.h
+    modules/SightlineBlendingParser.cpp
+    modules/SightlineCaptureBuilder.h
+    modules/SightlineCaptureBuilder.cpp
+    modules/SightlineCaptureParser.h
+    modules/SightlineCaptureParser.cpp
+    modules/SightlineClassificationBuilder.h
+    modules/SightlineClassificationBuilder.cpp
+    modules/SightlineClassificationParser.h
+    modules/SightlineClassificationParser.cpp
+    modules/SightlineCompressionBuilder.h
+    modules/SightlineCompressionBuilder.cpp
+    modules/SightlineCompressionParser.h
+    modules/SightlineCompressionParser.cpp
+    modules/SightlineDetectionBuilder.h
+    modules/SightlineDetectionBuilder.cpp
+    modules/SightlineDetectionParser.h
+    modules/SightlineDetectionParser.cpp
+    modules/SightlineDisplayBuilder.h
+    modules/SightlineDisplayBuilder.cpp
+    modules/SightlineDisplayParser.h
+    modules/SightlineDisplayParser.cpp
+    modules/SightlineEnhancementBuilder.h
+    modules/SightlineEnhancementBuilder.cpp
+    modules/SightlineEnhancementParser.h
+    modules/SightlineEnhancementParser.cpp
+    modules/SightlineFocusBuilder.h
+    modules/SightlineFocusBuilder.cpp
+    modules/SightlineFocusParser.h
+    modules/SightlineFocusParser.cpp
+    modules/SightlineGeneralBuilder.h
+    modules/SightlineGeneralBuilder.cpp
+    modules/SightlineGeneralParser.h
+    modules/SightlineGeneralParser.cpp
+    modules/SightlineKlvBuilder.h
+    modules/SightlineKlvBuilder.cpp
+    modules/SightlineKlvParser.h
+    modules/SightlineKlvParser.cpp
+    modules/SightlineLandingBuilder.h
+    modules/SightlineLandingBuilder.cpp
+    modules/SightlineLandingParser.h
+    modules/SightlineLandingParser.cpp
+    modules/SightlineNetworkBuilder.h
+    modules/SightlineNetworkBuilder.cpp
+    modules/SightlineNetworkParser.h
+    modules/SightlineNetworkParser.cpp
+    modules/SightlineNucBuilder.h
+    modules/SightlineNucBuilder.cpp
+    modules/SightlineNucParser.h
+    modules/SightlineNucParser.cpp
+    modules/SightlineOverlayBuilder.h
+    modules/SightlineOverlayBuilder.cpp
+    modules/SightlineOverlayParser.h
+    modules/SightlineOverlayParser.cpp
+    modules/SightlineRecordingBuilder.h
+    modules/SightlineRecordingBuilder.cpp
+    modules/SightlineRecordingParser.h
+    modules/SightlineRecordingParser.cpp
+    modules/SightlineSerialBuilder.h
+    modules/SightlineSerialBuilder.cpp
+    modules/SightlineSerialParser.h
+    modules/SightlineSerialParser.cpp
+    modules/SightlineStabilizationBuilder.h
+    modules/SightlineStabilizationBuilder.cpp
+    modules/SightlineStabilizationParser.h
+    modules/SightlineStabilizationParser.cpp
+    modules/SightlineTelemetryBuilder.h
+    modules/SightlineTelemetryBuilder.cpp
+    modules/SightlineTelemetryParser.h
+    modules/SightlineTelemetryParser.cpp
+    modules/SightlineTrackingBuilder.h
+    modules/SightlineTrackingBuilder.cpp
+    modules/SightlineTrackingParser.h
+    modules/SightlineTrackingParser.cpp
 )
 
 target_include_directories(SightlineCore PUBLIC

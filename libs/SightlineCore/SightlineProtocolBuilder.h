@@ -269,6 +269,165 @@ public:
     /// @return Framed binary packet.
     [[nodiscard]] static std::vector<std::uint8_t> buildDrawOverlay(const MsgDrawOverlay& msg);
 
+    // --- Parameter Query Getters ---
+
+    /// @brief Encodes query for active blend parameters (Message ID 0x30).
+    /// @return Framed binary packet.
+    [[nodiscard]] static std::vector<std::uint8_t> buildGetBlendParameters();
+
+    /// @brief Encodes query for active video parameters (Message ID 0x11).
+    /// @param[in] cameraIndex Target camera index (0-based).
+    /// @return Framed binary packet.
+    [[nodiscard]] static std::vector<std::uint8_t> buildGetVideoParameters(std::uint8_t cameraIndex = 0U);
+
+    /// @brief Encodes query for active video mode (Message ID 0x20).
+    /// @return Framed binary packet.
+    [[nodiscard]] static std::vector<std::uint8_t> buildGetVideoMode();
+
+    /// @brief Encodes query for custom AI detect parameters (Message ID 0x28 query 0xBA).
+    /// @return Framed binary packet.
+    [[nodiscard]] static std::vector<std::uint8_t> buildGetCustomAIDetect();
+
+    /// @brief Encodes query for active H.264 parameters (Message ID 0x24).
+    /// @param[in] displayId Network display mask ID.
+    /// @return Framed binary packet.
+    [[nodiscard]] static std::vector<std::uint8_t> buildGetH264Parameters(std::uint16_t displayId = 0x0002U);
+
+    /// @brief Encodes query for active detection parameters (Message ID 0x2E).
+    /// @param[in] cameraIndex Target camera index.
+    /// @param[in] detIdx Detection index (0 or 1).
+    /// @return Framed binary packet.
+    [[nodiscard]] static std::vector<std::uint8_t> buildGetDetectionParams(
+        std::uint8_t cameraIndex = 0U, std::uint8_t detIdx = 0U);
+
+    /// @brief Encodes query for active display parameters (Message ID 0x3A).
+    /// @param[in] cameraIndex Target camera index.
+    /// @return Framed binary packet.
+    [[nodiscard]] static std::vector<std::uint8_t> buildGetDisplayParams(std::uint8_t cameraIndex = 0U);
+
+    /// @brief Encodes query for active video enhancement parameters (Message ID 0x22).
+    /// @param[in] cameraIndex Target camera index.
+    /// @return Framed binary packet.
+    [[nodiscard]] static std::vector<std::uint8_t> buildGetVideoEnhance(std::uint8_t cameraIndex = 0U);
+
+    /// @brief Encodes query for focus parameters (Message ID 0x28 query 0xB3).
+    /// @param[in] cameraIndex Target camera index.
+    /// @return Framed binary packet.
+    [[nodiscard]] static std::vector<std::uint8_t> buildGetFocusParameters(std::uint8_t cameraIndex = 0U);
+
+    /// @brief Encodes query for lens parameters (Message ID 0x28 query 0xB1).
+    /// @param[in] cameraIndex Target camera index.
+    /// @return Framed binary packet.
+    [[nodiscard]] static std::vector<std::uint8_t> buildGetLensParameters(std::uint8_t cameraIndex = 0U);
+
+    /// @brief Encodes hardware ID query (Message ID 0x50).
+    /// @return Framed binary packet.
+    [[nodiscard]] static std::vector<std::uint8_t> buildGetHardwareId();
+
+    /// @brief Encodes query for active metadata values (Message ID 0x28 query 0x13).
+    /// @return Framed binary packet.
+    [[nodiscard]] static std::vector<std::uint8_t> buildGetMetadataValues();
+
+    /// @brief Encodes query for landing aid parameters (Message ID 0x28 query 0x81).
+    /// @return Framed binary packet.
+    [[nodiscard]] static std::vector<std::uint8_t> buildGetLandingAid();
+
+    /// @brief Encodes query for active network parameters (Message ID 0x1D).
+    /// @param[in] index Network interface index.
+    /// @return Framed binary packet.
+    [[nodiscard]] static std::vector<std::uint8_t> buildGetNetworkParameters(std::uint8_t index = 0U);
+
+    /// @brief Encodes query for active Ethernet video parameters (Message ID 0x1B).
+    /// @param[in] displayId Network display mask ID.
+    /// @return Framed binary packet.
+    [[nodiscard]] static std::vector<std::uint8_t> buildGetEthernetVideo(std::uint16_t displayId = 0x0002U);
+
+    /// @brief Encodes query for active Ethernet display parameters (Message ID 0x39).
+    /// @param[in] displayId Network display mask ID.
+    /// @return Framed binary packet.
+    [[nodiscard]] static std::vector<std::uint8_t> buildGetEthernetDisplay(std::uint16_t displayId = 0x0002U);
+
+    /// @brief Encodes query for network interfaces list (Message ID 0x66).
+    /// @return Framed binary packet.
+    [[nodiscard]] static std::vector<std::uint8_t> buildGetNetworkList();
+
+    /// @brief Encodes query for active NUC parameters (Message ID 0x28 query 0x35).
+    /// @param[in] cameraIndex Target camera index.
+    /// @return Framed binary packet.
+    [[nodiscard]] static std::vector<std::uint8_t> buildGetNucParameters(std::uint8_t cameraIndex = 0U);
+
+    /// @brief Encodes query for active overlay mode (Message ID 0x07).
+    /// @param[in] cameraIndex Target camera index.
+    /// @return Framed binary packet.
+    [[nodiscard]] static std::vector<std::uint8_t> buildGetOverlayMode(std::uint8_t cameraIndex = 0U);
+
+    /// @brief Encodes query for active snapshot state (Message ID 0x5F).
+    /// @param[in] cameraIndex Target camera index.
+    /// @return Framed binary packet.
+    [[nodiscard]] static std::vector<std::uint8_t> buildGetSnapShot(std::uint8_t cameraIndex = 0U);
+
+    /// @brief Encodes query for active SD recording parameters (Message ID 0x28 query 0x1E).
+    /// @return Framed binary packet.
+    [[nodiscard]] static std::vector<std::uint8_t> buildGetSDRecording();
+
+    /// @brief Encodes query for active port configuration (Message ID 0x3F).
+    /// @param[in] port Port index.
+    /// @return Framed binary packet.
+    [[nodiscard]] static std::vector<std::uint8_t> buildGetPortConfiguration(std::uint8_t port = 0U);
+
+    /// @brief Encodes query for active stabilization parameters (Message ID 0x03).
+    /// @param[in] cameraIndex Target camera index.
+    /// @return Framed binary packet.
+    [[nodiscard]] static std::vector<std::uint8_t> buildGetStabilization(std::uint8_t cameraIndex = 0U);
+
+    /// @brief Encodes query for active registration parameters (Message ID 0x0F).
+    /// @param[in] cameraIndex Target camera index.
+    /// @return Framed binary packet.
+    [[nodiscard]] static std::vector<std::uint8_t> buildGetRegistration(std::uint8_t cameraIndex = 0U);
+
+    /// @brief Encodes query for coordinate reporting mode (Message ID 0x28 query 0x0B).
+    /// @param[in] cameraIndex Target camera index.
+    /// @return Framed binary packet.
+    [[nodiscard]] static std::vector<std::uint8_t> buildGetCoordReportingMode(std::uint8_t cameraIndex = 0U);
+
+    /// @brief Encodes query for active tracking parameters (Message ID 0x0D).
+    /// @param[in] cameraIndex Target camera index.
+    /// @return Framed binary packet.
+    [[nodiscard]] static std::vector<std::uint8_t> buildGetTrackingParameters(std::uint8_t cameraIndex = 0U);
+
+    /// @brief Encodes query for active streaming control (Message ID 0x28 query 0x90).
+    [[nodiscard]] static std::vector<std::uint8_t> buildGetStreamingControl(std::uint8_t streamIndex = 0U);
+
+    /// @brief Encodes query for 3D noise reduction (Message ID 0x28 query 0xAF).
+    [[nodiscard]] static std::vector<std::uint8_t> buildGetNoise3D(std::uint8_t cameraIndex = 0U);
+
+    /// @brief Encodes query for system status mode (Message ID 0x28 query 0x80).
+    [[nodiscard]] static std::vector<std::uint8_t> buildGetSystemStatusMode();
+
+    /// @brief Encodes query for hardware configuration (Message ID 0x28 query 0x8E).
+    [[nodiscard]] static std::vector<std::uint8_t> buildGetCurrentConfig();
+
+    /// @brief Encodes query for static metadata values (Message ID 0x28 query 0x14).
+    [[nodiscard]] static std::vector<std::uint8_t> buildGetMetadataStaticValues();
+
+    /// @brief Encodes query for metadata rate (Message ID 0x28 query 0x62).
+    [[nodiscard]] static std::vector<std::uint8_t> buildGetMetadataRate();
+
+    /// @brief Encodes query for dead pixel replacement (Message ID 0x28 query 0xA8).
+    [[nodiscard]] static std::vector<std::uint8_t> buildGetDeadPixel(std::uint8_t cameraIndex = 0U);
+
+    /// @brief Encodes query for GPIO pin states (Message ID 0x28 query 0xB6).
+    [[nodiscard]] static std::vector<std::uint8_t> buildGetGPIO();
+
+    /// @brief Encodes query for active stabilization bias (Message ID 0x28 query 0x12).
+    [[nodiscard]] static std::vector<std::uint8_t> buildGetStabilizationBias(std::uint8_t cameraIndex = 0U);
+
+    /// @brief Encodes query for telemetry destination (Message ID 0x28 query 0x64).
+    [[nodiscard]] static std::vector<std::uint8_t> buildGetTelemetryDest();
+
+    /// @brief Encodes query for tracking trails (Message ID 0x28 query 0x9D).
+    [[nodiscard]] static std::vector<std::uint8_t> buildGetTrackTrails(std::uint8_t cameraIndex = 0U);
+
     // --- Raw Transport Helper ---
 
     /// @brief Encodes arbitrary payload into a framed, CRC-checked SLA packet.
