@@ -10,6 +10,7 @@
 #include "SpectrogramColorMap.h"
 #include "Stft.h"
 #include "Terminal.h"
+#include "TransportStats.h"
 
 #include <cstdint>
 #include <string>
@@ -23,8 +24,21 @@ public:
     DiagnosticsView();
     ~DiagnosticsView() = default;
 
+    /// @brief Renders the diagnostics view, including device status and kernel transport telemetry.
+    /// @param[in,out] canvas Target character grid for drawing.
+    /// @param[in] startY Row offset where view rendering begins.
+    /// @param[in] width Total width of available rendering viewport.
+    /// @param[in] height Total height of available rendering viewport.
+    /// @param[in] status Device telemetry and query states.
+    /// @param[in] info Device hardware and protocol information.
+    /// @param[in] stats Real-time transport and kernel-level metrics.
     void render(Canvas& canvas, int startY, int width, int height, const PelcoD::DeviceStatus& status,
-        const PelcoD::DeviceInfo& info);
+        const PelcoD::DeviceInfo& info, const Transport::TransportStatsSnapshot& stats = {});
+
+    /// @brief Handles keyboard input events for diagnostics operations.
+    /// @param[in] event Input key event.
+    /// @param[in,out] device Pelco-D device instance.
+    /// @return True if event was handled; false otherwise.
     bool handleInput(const InputEvent& event, PelcoD::PelcoDDevice& device);
 
 private:

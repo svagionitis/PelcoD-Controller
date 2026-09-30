@@ -75,6 +75,16 @@ void MainWindow::setupConnections()
     connect(m_device, &QViscaSonyDevice::modelDiscovered, this, &MainWindow::handleModelDiscovered);
     connect(m_device, &QViscaSonyDevice::trafficLogged, m_inspectorWidget, &ViscaTrafficInspectorWidget::logFrame);
     connect(m_device, &QViscaSonyDevice::commandFailed, this, &MainWindow::handleCommandFailed);
+    connect(m_device, &QViscaSonyDevice::statusUpdated, this, [this](const Visca::Sony::SonyFCBStatus& /*status*/) {
+        if (m_inspectorWidget && m_device) {
+            m_inspectorWidget->updateTransportStats(m_device->transportStats());
+        }
+    });
+    connect(m_device, &QViscaSonyDevice::connectionStateChanged, this, [this](bool /*connected*/) {
+        if (m_inspectorWidget && m_device) {
+            m_inspectorWidget->updateTransportStats(m_device->transportStats());
+        }
+    });
 
     // Traffic Inspector injection
     connect(
@@ -90,6 +100,9 @@ void MainWindow::handleConnect(std::shared_ptr<::Transport::ITransport> transpor
 void MainWindow::handleDisconnect()
 {
     m_device->disconnectDevice();
+    if (m_inspectorWidget && m_device) {
+        m_inspectorWidget->updateTransportStats(m_device->transportStats());
+    }
     statusBar()->showMessage(tr("Camera disconnected."));
 }
 

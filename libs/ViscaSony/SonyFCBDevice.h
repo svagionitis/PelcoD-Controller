@@ -47,6 +47,13 @@ public:
         return m_device;
     }
 
+    /// @brief Captures transport-layer and kernel-level communication statistics.
+    /// @return Aggregated snapshot containing generic and kernel-level metrics.
+    [[nodiscard]] ::Transport::TransportStatsSnapshot getTransportStats() const
+    {
+        return m_device.getTransportStats();
+    }
+
     /// @brief Polls all Block Inquiries (00 to 04) to update status telemetry.
     /// @return True if all block inquiries were answered and parsed.
     bool pollStatus();

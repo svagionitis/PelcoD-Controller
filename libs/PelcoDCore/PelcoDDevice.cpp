@@ -322,6 +322,14 @@ DeviceInfo PelcoDDevice::getInfo() const
     return m_info;
 }
 
+Transport::TransportStatsSnapshot PelcoDDevice::getTransportStats() const
+{
+    if (m_transport) {
+        return m_transport->getStats();
+    }
+    return {};
+}
+
 void PelcoDDevice::setTelemetryPolling(bool enable, std::uint32_t intervalMs) noexcept
 {
     m_telemetryPolling.store(enable);
@@ -931,8 +939,8 @@ std::future<std::uint16_t> PelcoDDevice::queryAzimuthZeroAsync(std::chrono::mill
 std::future<std::uint16_t> PelcoDDevice::queryZoomLimitAsync(std::chrono::milliseconds timeout)
 {
     return executeAsyncQuery<std::uint16_t>(
-        this, "QueryZoomLimit", [this] { queryZoomLimit(); },
-        [](const DeviceStatus& s) { return s.zoomLimit; }, timeout);
+        this, "QueryZoomLimit", [this] { queryZoomLimit(); }, [](const DeviceStatus& s) { return s.zoomLimit; },
+        timeout);
 }
 
 void PelcoDDevice::sendRawFrame(const std::vector<std::uint8_t>& frame)
@@ -1038,11 +1046,11 @@ void PelcoDDevice::workerLoop()
         }
 
         CommandItem item;
-        const auto pollDeadline = (pollingEnabled && isConnected())
-            ? nextPollTime
-            : std::chrono::steady_clock::time_point::max();
+        const auto pollDeadline
+            = (pollingEnabled && isConnected()) ? nextPollTime : std::chrono::steady_clock::time_point::max();
 
-        const bool hasItem = m_queue.popReady(item, [this] { return !m_running.load(); }, pollDeadline);
+        const bool hasItem = m_queue.popReady(
+            item, [this] { return !m_running.load(); }, pollDeadline);
         if (!m_running) {
             break;
         }
@@ -1086,8 +1094,8 @@ void PelcoDDevice::workerLoop()
                     }
                     for (const auto& entry : *rcbs) {
                         if (entry.cb) {
-                            entry.cb(item.queryTag.empty() ? "Command" : item.queryTag,
-                                item.retryCount + 1U, retryCfg.maxRetries, backoffDelay);
+                            entry.cb(item.queryTag.empty() ? "Command" : item.queryTag, item.retryCount + 1U,
+                                retryCfg.maxRetries, backoffDelay);
                         }
                     }
                 } else if (!item.queryTag.empty() && retryCfg.maxRetries > 0U) {
@@ -1156,7 +1164,8 @@ void PelcoDDevice::workerLoop()
                                 }
                                 for (const auto& entry : *rcbs) {
                                     if (entry.cb) {
-                                        entry.cb(item.queryTag, item.retryCount + 1U, retryCfg.maxRetries, backoffDelay);
+                                        entry.cb(
+                                            item.queryTag, item.retryCount + 1U, retryCfg.maxRetries, backoffDelay);
                                     }
                                 }
                             } else {

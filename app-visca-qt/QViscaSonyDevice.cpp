@@ -173,6 +173,14 @@ Visca::Sony::SonyFCBStatus QViscaSonyDevice::currentStatus() const noexcept
     return {};
 }
 
+::Transport::TransportStatsSnapshot QViscaSonyDevice::transportStats() const
+{
+    if (m_fcbDevice) {
+        return m_fcbDevice->getTransportStats();
+    }
+    return {};
+}
+
 void QViscaSonyDevice::setPollingInterval(int intervalMs)
 {
     if (m_pollTimer) {

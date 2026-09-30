@@ -6,10 +6,12 @@
 #include <QByteArray>
 #include <QCheckBox>
 #include <QComboBox>
+#include <QLabel>
 #include <QLineEdit>
 #include <QPushButton>
 #include <QTableWidget>
 #include <QWidget>
+#include <TransportStats.h>
 
 namespace ViscaApp {
 
@@ -29,6 +31,10 @@ public slots:
     void logFrame(bool isTx, const QByteArray& frame, const QString& description);
     void clearLog();
 
+    /// @brief Updates the real-time transport and kernel-level metrics display panel.
+    /// @param[in] stats Aggregated communication statistics snapshot.
+    void updateTransportStats(const ::Transport::TransportStatsSnapshot& stats);
+
 private slots:
     void handleSendClicked();
     void handleFilterChanged(int index);
@@ -40,6 +46,9 @@ private:
     QCheckBox* chkAutoScroll { nullptr };
     QComboBox* cmbFilter { nullptr };
     QPushButton* btnClear { nullptr };
+
+    QLabel* lblTransportStats { nullptr };
+    QLabel* lblKernelStats { nullptr };
 
     QLineEdit* editRawHex { nullptr };
     QPushButton* btnSendRaw { nullptr };

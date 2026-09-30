@@ -66,6 +66,14 @@ std::shared_ptr<Transport::ITransport> NmeaDevice::transport() const noexcept
     return m_transport;
 }
 
+Transport::TransportStatsSnapshot NmeaDevice::getTransportStats() const
+{
+    if (m_transport) {
+        return m_transport->getStats();
+    }
+    return {};
+}
+
 bool NmeaDevice::sendSentence(std::string_view sentence, bool appendChecksum)
 {
     if (sentence.empty() || !m_transport || !m_transport->isOpen()) {
@@ -744,8 +752,7 @@ void NmeaDevice::processSentence(std::string_view sentence)
                 m_lastAttitude = attData;
             }
             if (m_arbiter) {
-                m_arbiter->updateAttitude(
-                    Arbiter::HeadingSourceId::Primary, pashr.pitchDegrees, pashr.rollDegrees);
+                m_arbiter->updateAttitude(Arbiter::HeadingSourceId::Primary, pashr.pitchDegrees, pashr.rollDegrees);
                 if (pashr.isTrueHeading) {
                     m_arbiter->updateHeading(Arbiter::HeadingSourceId::Primary, pashr.headingDegrees);
                 }
@@ -786,8 +793,7 @@ void NmeaDevice::processSentence(std::string_view sentence)
                 m_lastAttitude = attData;
             }
             if (m_arbiter) {
-                m_arbiter->updateAttitude(
-                    Arbiter::HeadingSourceId::Primary, pfecAtt.pitchDegrees, pfecAtt.rollDegrees);
+                m_arbiter->updateAttitude(Arbiter::HeadingSourceId::Primary, pfecAtt.pitchDegrees, pfecAtt.rollDegrees);
                 m_arbiter->updateHeading(Arbiter::HeadingSourceId::Primary, pfecAtt.yawDegrees);
             }
             std::shared_ptr<const std::vector<std::pair<std::size_t, AttitudeCallback>>> attCbs;

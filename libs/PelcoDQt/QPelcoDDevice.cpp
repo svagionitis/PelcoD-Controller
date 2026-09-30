@@ -198,6 +198,14 @@ PelcoD::DeviceInfo QPelcoDDevice::deviceInfo() const
     return {};
 }
 
+Transport::TransportStatsSnapshot QPelcoDDevice::transportStats() const
+{
+    if (m_device) {
+        return m_device->getTransportStats();
+    }
+    return {};
+}
+
 PelcoD::PelcoDDevice* QPelcoDDevice::coreDevice() const noexcept
 {
     return m_device.get();

@@ -109,8 +109,8 @@ public:
     /// @param[in] panDir Pan motion direction.
     /// @param[in] tiltDir Tilt motion direction.
     /// @return @ref CommandResult containing execution status.
-    [[nodiscard]] CommandResult panTiltDrive(uint8_t panSpeed, uint8_t tiltSpeed,
-        ViscaPanDirection panDir, ViscaTiltDirection tiltDir);
+    [[nodiscard]] CommandResult panTiltDrive(
+        uint8_t panSpeed, uint8_t tiltSpeed, ViscaPanDirection panDir, ViscaTiltDirection tiltDir);
 
     /// @brief Halts pan and tilt axis motion.
     /// @param[in] panSpeed Optional deceleration speed. Defaults to 0.
@@ -144,8 +144,7 @@ public:
     /// @param[in] panPos Signed 16-bit Pan target step coordinate.
     /// @param[in] tiltPos Signed 16-bit Tilt target step coordinate.
     /// @return @ref CommandResult containing execution status.
-    [[nodiscard]] CommandResult panTiltAbsolute(
-        uint8_t panSpeed, uint8_t tiltSpeed, int16_t panPos, int16_t tiltPos);
+    [[nodiscard]] CommandResult panTiltAbsolute(uint8_t panSpeed, uint8_t tiltSpeed, int16_t panPos, int16_t tiltPos);
 
     /// @brief Applies a relative step offset displacement to pan and tilt.
     /// @param[in] panSpeed Pan speed index (0x01..0x18).
@@ -169,8 +168,7 @@ public:
     /// @param[in] panPos Signed 16-bit Pan boundary coordinate.
     /// @param[in] tiltPos Signed 16-bit Tilt boundary coordinate.
     /// @return @ref CommandResult containing execution status.
-    [[nodiscard]] CommandResult panTiltLimitSet(
-        ViscaPanTiltCorner corner, int16_t panPos, int16_t tiltPos);
+    [[nodiscard]] CommandResult panTiltLimitSet(ViscaPanTiltCorner corner, int16_t panPos, int16_t tiltPos);
 
     /// @brief Clears software boundary limits.
     /// @param[in] corner Boundary corner to clear.
@@ -198,6 +196,16 @@ public:
     [[nodiscard]] std::shared_ptr<::Transport::ITransport> transport() const noexcept
     {
         return m_transport;
+    }
+
+    /// @brief Captures transport-layer and kernel-level communication statistics.
+    /// @return Aggregated snapshot containing generic and kernel-level metrics.
+    [[nodiscard]] ::Transport::TransportStatsSnapshot getTransportStats() const
+    {
+        if (m_transport) {
+            return m_transport->getStats();
+        }
+        return {};
     }
 
 protected:
@@ -258,10 +266,8 @@ private:
     ViscaRxAccumulator m_accumulator {};
 
     static constexpr size_t kSocketCount { 2 };
-    std::array<SocketSlot, kSocketCount> m_sockets {{
-        { ViscaSocket::Socket1, SocketState::Idle, {} },
-        { ViscaSocket::Socket2, SocketState::Idle, {} }
-    }};
+    std::array<SocketSlot, kSocketCount> m_sockets { { { ViscaSocket::Socket1, SocketState::Idle, {} },
+        { ViscaSocket::Socket2, SocketState::Idle, {} } } };
 
     std::deque<InFlightCommand> m_commandQueue {};
     std::deque<InFlightInquiry> m_inquiryQueue {};

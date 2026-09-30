@@ -50,6 +50,10 @@ public:
     [[nodiscard]] Visca::Sony::CameraCapabilities capabilities() const noexcept;
     [[nodiscard]] Visca::Sony::SonyFCBStatus currentStatus() const noexcept;
 
+    /// @brief Retrieves the current transport and kernel communication statistics snapshot.
+    /// @return TransportStatsSnapshot containing atomic metrics and kernel telemetry.
+    [[nodiscard]] ::Transport::TransportStatsSnapshot transportStats() const;
+
     [[nodiscard]] std::shared_ptr<Visca::Sony::SonyFCBDevice> coreDevice() const noexcept
     {
         return m_fcbDevice;

@@ -332,9 +332,11 @@ void TuiApp::renderFrame()
         case 3:
             m_auxOsdView.render(m_canvas, viewStartY, width, viewHeight);
             break;
-        case 4:
-            m_diagnosticsView.render(m_canvas, viewStartY, width, viewHeight, status, info);
+        case 4: {
+            const auto stats = m_device ? m_device->getTransportStats() : Transport::TransportStatsSnapshot {};
+            m_diagnosticsView.render(m_canvas, viewStartY, width, viewHeight, status, info, stats);
             break;
+        }
         case 5:
             m_trafficView.render(m_canvas, viewStartY, width, viewHeight);
             break;

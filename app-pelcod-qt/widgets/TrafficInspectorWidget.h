@@ -7,11 +7,13 @@
 #include <QCheckBox>
 #include <QComboBox>
 #include <QHBoxLayout>
+#include <QLabel>
 #include <QLineEdit>
 #include <QPushButton>
 #include <QTableWidget>
 #include <QVBoxLayout>
 #include <QWidget>
+#include <TransportStats.h>
 
 namespace PelcoDApp {
 
@@ -31,6 +33,10 @@ public slots:
     void logFrame(bool isTx, const QByteArray& frame, const QString& description);
     void clearLog();
 
+    /// @brief Updates the real-time transport and kernel-level metrics display panel.
+    /// @param[in] stats Aggregated communication statistics snapshot.
+    void updateTransportStats(const Transport::TransportStatsSnapshot& stats);
+
 private slots:
     void handleSendClicked();
     void handleFilterChanged(int index);
@@ -44,6 +50,9 @@ private:
     QComboBox* cmbFilter { nullptr };
     QPushButton* btnClear { nullptr };
     QPushButton* btnMacros { nullptr };
+
+    QLabel* lblTransportStats { nullptr };
+    QLabel* lblKernelStats { nullptr };
 
     QLineEdit* editRawHex { nullptr };
     QPushButton* btnSendRaw { nullptr };

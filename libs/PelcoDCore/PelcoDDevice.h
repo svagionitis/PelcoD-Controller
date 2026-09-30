@@ -137,6 +137,10 @@ public:
     [[nodiscard]] DeviceStatus getStatus() const;
     [[nodiscard]] DeviceInfo getInfo() const;
 
+    /// @brief Captures transport-layer and kernel-level communication statistics.
+    /// @return Aggregated snapshot containing generic and kernel-level metrics.
+    [[nodiscard]] Transport::TransportStatsSnapshot getTransportStats() const;
+
     void setTelemetryPolling(bool enable, std::uint32_t intervalMs = 1000U) noexcept;
     [[nodiscard]] bool getTelemetryPolling() const noexcept;
     void setQueryTimeoutMs(std::uint32_t timeoutMs) noexcept;
@@ -392,7 +396,8 @@ public:
 
     /// @brief Asynchronously queries application software version with timeout.
     /// @param[in] timeout Maximum wait duration.
-    /// @return Future resolving to pair of {major, minor} version bytes, or throwing std::runtime_error on failure/timeout.
+    /// @return Future resolving to pair of {major, minor} version bytes, or throwing std::runtime_error on
+    /// failure/timeout.
     [[nodiscard]] std::future<std::pair<std::uint8_t, std::uint8_t>> querySoftwareVersionAsync(
         std::chrono::milliseconds timeout = std::chrono::milliseconds(1000));
 

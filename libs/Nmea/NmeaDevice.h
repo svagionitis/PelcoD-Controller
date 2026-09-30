@@ -84,6 +84,10 @@ public:
     /// @brief Accesses the underlying transport channel.
     [[nodiscard]] std::shared_ptr<Transport::ITransport> transport() const noexcept;
 
+    /// @brief Captures transport-layer and kernel-level communication statistics.
+    /// @return Aggregated snapshot containing generic and kernel-level metrics.
+    [[nodiscard]] Transport::TransportStatsSnapshot getTransportStats() const;
+
     /// @brief Transmits a formatted NMEA sentence over the transport medium.
     /// @param[in] sentence Sentence payload (with or without checksum).
     /// @param[in] appendChecksum True to automatically calculate and append *HH\r\n if missing.

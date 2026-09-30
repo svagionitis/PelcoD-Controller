@@ -58,7 +58,7 @@ void DiagnosticsView::ensureProfilerConnected(PelcoD::PelcoDDevice& device)
 }
 
 void DiagnosticsView::render(Canvas& canvas, int startY, int width, int height, const PelcoD::DeviceStatus& status,
-    const PelcoD::DeviceInfo& info)
+    const PelcoD::DeviceInfo& info, const Transport::TransportStatsSnapshot& stats)
 {
     const int panelHeight = height - 1;
     const int halfW = width / 2;
@@ -141,6 +141,46 @@ void DiagnosticsView::render(Canvas& canvas, int startY, int width, int height, 
     const std::string spark = generateSparkline(m_profiler.getHistory());
     canvas.drawString(leftX, curY, "RTT Trend Line   : [" + spark + "]", actionStyle);
     curY += 2;
+
+    // Transport & Kernel Statistics
+    const auto& gen = stats.generic;
+    std::ostringstream txRxOss;
+    txRxOss << "Transport I/O    : TX " << gen.bytesSent << " B (" << gen.packetsSent << " pkts) / RX "
+            << gen.bytesReceived << " B (" << gen.packetsReceived << " pkts)";
+    canvas.drawString(leftX, curY, txRxOss.str(), textStyle);
+    curY += 1;
+
+    std::ostringstream errOss;
+    errOss << "Transport Health : " << gen.txErrorCount << " TX err, " << gen.rxErrorCount << " RX err, "
+           << gen.reconnectCount << " reconnects";
+    canvas.drawString(
+        leftX, curY, errOss.str(), (gen.txErrorCount > 0U || gen.rxErrorCount > 0U) ? warnStyle : okStyle);
+    curY += 1;
+
+    if (stats.serial.has_value() && stats.serial->supported) {
+        const auto& s = *stats.serial;
+        std::ostringstream serOss;
+        serOss << "Serial Driver    : Q: " << s.queuedRxBytes << " In / " << s.queuedTxBytes
+               << " Out | Err: F=" << s.framingErrors << " O=" << s.fifoOverruns << " P=" << s.parityErrors
+               << " B=" << s.breakCount;
+        canvas.drawString(leftX, curY, serOss.str(), actionStyle);
+        curY += 1;
+    } else if (stats.tcp.has_value() && stats.tcp->supported) {
+        const auto& t = *stats.tcp;
+        std::ostringstream tcpOss;
+        tcpOss << "TCP Stack Stats  : RTT " << std::fixed << std::setprecision(1) << (t.rttUs / 1000.0)
+               << " ms | Retrans: " << t.totalRetrans << " | CWND: " << t.sndCwnd << " | Lost: " << t.lostSegments;
+        canvas.drawString(leftX, curY, tcpOss.str(), actionStyle);
+        curY += 1;
+    } else if (stats.udp.has_value() && stats.udp->supported) {
+        const auto& u = *stats.udp;
+        std::ostringstream udpOss;
+        udpOss << "UDP Socket Stats : Buf: " << (u.socketRxBufferSize / 1024U) << "KB RX / "
+               << (u.socketTxBufferSize / 1024U) << "KB TX | Drops: " << u.rxDroppedPackets;
+        canvas.drawString(leftX, curY, udpOss.str(), actionStyle);
+        curY += 1;
+    }
+    curY += 1;
 
     if (m_plantResult.success) {
         std::ostringstream bodeOss;

@@ -48,6 +48,10 @@ public:
 
     [[nodiscard]] PelcoD::DeviceStatus currentStatus() const;
     [[nodiscard]] PelcoD::DeviceInfo deviceInfo() const;
+
+    /// @brief Retrieves the current transport and kernel communication statistics snapshot.
+    /// @return TransportStatsSnapshot containing atomic metrics and kernel telemetry.
+    [[nodiscard]] Transport::TransportStatsSnapshot transportStats() const;
     [[nodiscard]] PelcoD::PelcoDDevice* coreDevice() const noexcept;
     [[nodiscard]] std::shared_ptr<PelcoD::PelcoDDevice> sharedCoreDevice() const noexcept
     {

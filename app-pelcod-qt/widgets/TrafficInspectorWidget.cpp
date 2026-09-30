@@ -4,10 +4,12 @@
 #include "TrafficInspectorWidget.h"
 
 #include "PelcoDFrame.h"
+#include "TransportStats.h"
 #include "app-pelcod-qt/dialogs/MacroPlaybackDialog.h"
 
 #include <QDateTime>
 #include <QFont>
+#include <QFrame>
 #include <QHeaderView>
 #include <QLabel>
 
@@ -73,6 +75,25 @@ void TrafficInspectorWidget::setupUi()
     tableInspector->setPalette(tablePal);
 
     mainLayout->addWidget(tableInspector);
+
+    // Transport and kernel diagnostics bar
+    auto* statsFrame = new QFrame(this);
+    statsFrame->setFrameShape(QFrame::StyledPanel);
+    statsFrame->setStyleSheet(
+        "QFrame { background-color: #0d1117; border: 1px solid #30363d; border-radius: 4px; padding: 2px; }");
+    auto* statsLayout = new QVBoxLayout(statsFrame);
+    statsLayout->setContentsMargins(6, 4, 6, 4);
+    statsLayout->setSpacing(2);
+
+    lblTransportStats = new QLabel(tr("Transport: Idle | TX: 0 B (0 pkts) | RX: 0 B (0 pkts) | Errors: 0"), this);
+    lblTransportStats->setStyleSheet("font-family: monospace; font-size: 11px; color: #58a6ff;");
+    statsLayout->addWidget(lblTransportStats);
+
+    lblKernelStats = new QLabel(tr("Kernel Telemetry: Awaiting active transport channel..."), this);
+    lblKernelStats->setStyleSheet("font-family: monospace; font-size: 11px; color: #8b949e;");
+    statsLayout->addWidget(lblKernelStats);
+
+    mainLayout->addWidget(statsFrame);
 
     // Raw hex injection bar
     auto* sendLayout = new QHBoxLayout();
@@ -205,6 +226,73 @@ void TrafficInspectorWidget::handleOpenMacros()
 
     connect(dialog, &MacroPlaybackDialog::sendFrameRequested, this, &TrafficInspectorWidget::sendRawHexRequested);
     dialog->show();
+}
+
+void TrafficInspectorWidget::updateTransportStats(const Transport::TransportStatsSnapshot& stats)
+{
+    const auto& gen = stats.generic;
+    const double txKb = static_cast<double>(gen.bytesSent) / 1024.0;
+    const double rxKb = static_cast<double>(gen.bytesReceived) / 1024.0;
+
+    QString genText = tr("Transport: TX: %1 KB (%2 pkts, %3 err) | RX: %4 KB (%5 pkts, %6 err) | Reconnects: %7")
+                          .arg(txKb, 0, 'f', 1)
+                          .arg(gen.packetsSent)
+                          .arg(gen.txErrorCount)
+                          .arg(rxKb, 0, 'f', 1)
+                          .arg(gen.packetsReceived)
+                          .arg(gen.rxErrorCount)
+                          .arg(gen.reconnectCount);
+
+    if (lblTransportStats) {
+        lblTransportStats->setText(genText);
+    }
+
+    if (!lblKernelStats) {
+        return;
+    }
+
+    if (stats.serial.has_value() && stats.serial->supported) {
+        const auto& s = *stats.serial;
+        QString serText = tr("[Serial Kernel] Driver Queue: In %1 B / Out %2 B | Hardware Err: Frame %3, Overrun %4, "
+                             "Parity %5, Break %6 | Line: CTS %7, DSR %8")
+                              .arg(s.queuedRxBytes)
+                              .arg(s.queuedTxBytes)
+                              .arg(s.framingErrors)
+                              .arg(s.fifoOverruns)
+                              .arg(s.parityErrors)
+                              .arg(s.breakCount)
+                              .arg(s.ctsHold ? tr("HOLD") : tr("OK"))
+                              .arg(s.dsrHold ? tr("HOLD") : tr("OK"));
+        lblKernelStats->setText(serText);
+        lblKernelStats->setStyleSheet("font-family: monospace; font-size: 11px; color: #7ee787;");
+    } else if (stats.tcp.has_value() && stats.tcp->supported) {
+        const auto& t = *stats.tcp;
+        const double rttMs = static_cast<double>(t.rttUs) / 1000.0;
+        const double rttVarMs = static_cast<double>(t.rttVarUs) / 1000.0;
+        QString tcpText = tr(
+            "[TCP Kernel] RTT: %1 ms (Var: %2 ms) | CWND: %3 pkts | Retrans: %4 | Lost: %5 | SendQ: %6 B | RecvQ: %7 B")
+                              .arg(rttMs, 0, 'f', 1)
+                              .arg(rttVarMs, 0, 'f', 1)
+                              .arg(t.sndCwnd)
+                              .arg(t.totalRetrans)
+                              .arg(t.lostSegments)
+                              .arg(t.queuedTxBytes)
+                              .arg(t.queuedRxBytes);
+        lblKernelStats->setText(tcpText);
+        lblKernelStats->setStyleSheet("font-family: monospace; font-size: 11px; color: #79c0ff;");
+    } else if (stats.udp.has_value() && stats.udp->supported) {
+        const auto& u = *stats.udp;
+        QString udpText = tr("[UDP Kernel] Socket Buffer: RX %1 B / TX %2 B | RecvQ: %3 B | Kernel Drops: %4")
+                              .arg(u.socketRxBufferSize)
+                              .arg(u.socketTxBufferSize)
+                              .arg(u.queuedRxBytes)
+                              .arg(u.rxDroppedPackets);
+        lblKernelStats->setText(udpText);
+        lblKernelStats->setStyleSheet("font-family: monospace; font-size: 11px; color: #d2a8ff;");
+    } else {
+        lblKernelStats->setText(tr("Kernel Telemetry: Awaiting active transport channel..."));
+        lblKernelStats->setStyleSheet("font-family: monospace; font-size: 11px; color: #8b949e;");
+    }
 }
 
 } // namespace PelcoDApp
