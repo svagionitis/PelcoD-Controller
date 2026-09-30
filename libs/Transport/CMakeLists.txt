@@ -10,6 +10,8 @@ add_library(Transport STATIC
     TcpTransport.cpp
     UdpTransport.h
     UdpTransport.cpp
+    SightlineUdpTransport.h
+    SightlineUdpTransport.cpp
     SocketUtils.h
     SocketUtils.cpp
 )

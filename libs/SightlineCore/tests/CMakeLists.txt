@@ -1,25 +1,26 @@
 # ==============================================================================
-# PelcoDTransport Unit Tests
+# SightlineCore Unit Tests
 # ==============================================================================
 
 set(PELCOD_TEST_SUPPORT_DIR "${CMAKE_SOURCE_DIR}/libs/TestSupport")
 
-function(add_transport_test test_name test_source)
+function(add_sightline_test test_name test_source)
     add_executable(${test_name} ${test_source})
     target_include_directories(${test_name} PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/..
-        ${CMAKE_SOURCE_DIR}/libs/PelcoDCore
+        ${CMAKE_SOURCE_DIR}/libs/Transport
         ${PELCOD_TEST_SUPPORT_DIR}
     )
     target_link_libraries(${test_name} PRIVATE
+        SightlineCore
         Transport
-        PelcoDCore
+        PelcoDTestSupport
         Threads::Threads
     )
     pelcod_register_gtest(${test_name})
 endfunction()
 
-add_transport_test(TestTcpTransportTimeout TestTcpTransportTimeout.cpp)
-add_transport_test(TestSerialTransport     TestSerialTransport.cpp)
-add_transport_test(TestUdpTransport        TestUdpTransport.cpp)
-add_transport_test(TestSightlineUdpTransport TestSightlineUdpTransport.cpp)
+add_sightline_test(TestSightlineCrc8        TestSightlineCrc8.cpp)
+add_sightline_test(TestSightlineAccumulator TestSightlineAccumulator.cpp)
+add_sightline_test(TestSightlineMessages    TestSightlineMessages.cpp)
+add_sightline_test(TestSightlineDevice      TestSightlineDevice.cpp)

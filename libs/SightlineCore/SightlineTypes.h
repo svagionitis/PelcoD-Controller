@@ -1,0 +1,417 @@
+#pragma once
+
+/// @file SightlineTypes.h
+/// @brief Fundamental types, enumerations, and coordinate definitions for the Sightline SLA protocol.
+
+#include <cstddef>
+#include <cstdint>
+#include <string>
+#include <vector>
+
+namespace Sightline {
+
+/// @brief Packet signature header byte 1.
+inline constexpr std::uint8_t HeaderByte1 { 0x51U };
+
+/// @brief Packet signature header byte 2.
+inline constexpr std::uint8_t HeaderByte2 { 0xACU };
+
+/// @brief Default UDP inbound command port on Sightline hardware.
+inline constexpr std::uint16_t DefaultHardwareCommandPort { 14001U };
+
+/// @brief Default UDP client reply and unsolicited telemetry port.
+inline constexpr std::uint16_t DefaultClientReplyPort { 14002U };
+
+/// @brief Secondary user program UDP command port (symmetrical reply).
+inline constexpr std::uint16_t DefaultSecondaryCommandPort { 14003U };
+
+/// @brief Hardware discovery broadcast port.
+inline constexpr std::uint16_t DefaultDiscoveryPort { 51000U };
+
+/// @enum MessageId
+/// @brief Sightline command and reply message identifiers from IDD-SLA-Protocol_3_11_6.
+enum class MessageId : std::uint8_t {
+    GetVersionNumber = 0x00U,
+    ResetAllParameters = 0x01U,
+    SetStabilizationParameters = 0x02U,
+    GetStabilizationParameters = 0x03U,
+    ResetStabilizationParameters = 0x04U,
+    ModifyTracking = 0x05U,
+    SetOverlayMode = 0x06U,
+    GetOverlayMode = 0x07U,
+    StartTracking = 0x08U,
+    StopTracking = 0x09U,
+    NudgeTrackingCoordinate = 0x0AU,
+    CoordinateReportingMode = 0x0BU,
+    SetTrackingParameters = 0x0CU,
+    GetTrackingParameters = 0x0DU,
+    SetRegistrationParameters = 0x0EU,
+    GetRegistrationParameters = 0x0FU,
+    SetVideoParameters = 0x10U,
+    GetVideoParameters = 0x11U,
+    SetStabilizationBias = 0x12U,
+    SetMetadataValues = 0x13U,
+    MetadataStaticValues = 0x14U,
+    SetMetadataFrameValues = 0x15U,
+    SetDisplayParameters = 0x16U,
+    ModifyTrackIndex = 0x17U,
+    SetADCParameters = 0x18U,
+    GetADCParameters = 0x19U,
+    SetEthernetVideoParameters = 0x1AU,
+    GetEthernetVideoParameters = 0x1BU,
+    SetNetworkParameters = 0x1CU,
+    GetNetworkParameters = 0x1DU,
+    SetSDRecordingParameters = 0x1EU,
+    SetVideoMode = 0x1FU,
+    GetVideoMode = 0x20U,
+    SetVideoEnhancementParameters = 0x21U,
+    GetVideoEnhancementParameters = 0x22U,
+    SetH264Parameters = 0x23U,
+    GetH264Parameters = 0x24U,
+    SaveParameters = 0x25U,
+    GetParameters = 0x28U,
+    SetEthernetDisplayParameters = 0x29U,
+    SetDisplayAdjustments = 0x2AU,
+    SetDetectionParameters = 0x2DU,
+    GetDetectionParameters = 0x2EU,
+    SetBlendParameters = 0x2FU,
+    GetBlendParameters = 0x30U,
+    GetImageSize = 0x31U,
+    DesignateSelectedTrackPrimary = 0x32U,
+    ShiftSelectedTrack = 0x33U,
+    NucParameters = 0x35U,
+    ReadWriteNuc = 0x36U,
+    SetAcquisitionParameters = 0x37U,
+    GetAcquisitionParameters = 0x38U,
+    GetEthernetDisplayParameters = 0x39U,
+    GetDisplayParameters = 0x3AU,
+    DrawObject = 0x3BU,
+    StopSelectedTrack = 0x3CU,
+    CommandPassThrough = 0x3DU,
+    SetPortConfiguration = 0x3EU,
+    GetPortConfiguration = 0x3FU,
+    VersionNumber = 0x40U,
+    CurrentStabilizationParameters = 0x41U,
+    CurrentOverlayMode = 0x42U,
+    TrackingPosition = 0x43U,
+    CurrentTrackingParameters = 0x44U,
+    CurrentRegistrationParameters = 0x45U,
+    CurrentVideoParameters = 0x46U,
+    CurrentADCParameters = 0x47U,
+    CurrentEthernetVideoParameters = 0x48U,
+    CurrentNetworkParameters = 0x49U,
+    CurrentVideoEnhancementParameters = 0x4AU,
+    CurrentVideoModeParameters = 0x4BU,
+    CurrentBlendParameters = 0x4DU,
+    CurrentImageSize = 0x4EU,
+    CurrentAcquisitionParameters = 0x4FU,
+    GetHardwareID = 0x50U,
+    TrackingPositions = 0x51U,
+    CurrentEthernetDisplayParameters = 0x52U,
+    CurrentPortConfiguration = 0x53U,
+    CurrentDetectionParameters = 0x54U,
+    FocusStats = 0x55U,
+    CurrentH264Parameters = 0x56U,
+    CurrentDisplayParameters = 0x57U,
+    CurrentSDCardRecordingStatus = 0x58U,
+    CurrentSDCardDirectoryInfo = 0x59U,
+    SendTraceStr = 0x5AU,
+    CommandCamera = 0x5BU,
+    DisplayAngle = 0x5CU,
+    CurrentSnapShot = 0x5DU,
+    SetSnapShot = 0x5EU,
+    GetSnapShot = 0x5FU,
+    DoSnapShot = 0x60U,
+    SetKlvData = 0x61U,
+    SetMetadataRate = 0x62U,
+    SetSystemType = 0x63U,
+    SetTelemetryDestination = 0x64U,
+    CurrentSystemType = 0x65U,
+    GetNetworkList = 0x66U,
+    CurrentNetworkList = 0x67U,
+    CurrentOverlayObjectsIds = 0x68U,
+    CurrentOverlayObjectParameters = 0x6BU,
+    SetLensMode = 0x6CU,
+    CurrentLensStatus = 0x6DU,
+    SetLensParameters = 0x6EU,
+    CurrentLensParameters = 0x6FU,
+    SetDigitalCameraParameters = 0x70U,
+    CurrentDigitalCameraParameters = 0x71U,
+    SetUserPalette = 0x72U,
+    CurrentUserPalette = 0x73U,
+    SetMultipleAlignment = 0x74U,
+    CurrentMultipleAlignment = 0x75U,
+    SetAdvancedDetectionParameters = 0x76U,
+    CurrentAdvancedDetectionParameters = 0x77U,
+    TrackingBoxPixelStats = 0x78U,
+    DirectoryStatisticsReply = 0x79U,
+    CurrentStabilizationBias = 0x7AU,
+    AdvancedCaptureParameters = 0x7BU,
+    SetDetectionRegionOfInterestParameters = 0x7CU,
+    CurrentDetectionRegionOfInterestParameters = 0x7DU,
+    UserWarningLevel = 0x7FU,
+    SystemStatusMode = 0x80U,
+    LandingAid = 0x81U,
+    CameraSwitch = 0x82U,
+    LandingPosition = 0x83U,
+    SetVMTI = 0x84U,
+    UserWarningMessage = 0x86U,
+    SystemStatusMessage = 0x87U,
+    DetailedTimingMessage = 0x88U,
+    AppendedMetadata = 0x89U,
+    FrameIndex = 0x8AU,
+    CurrentMetadataValues = 0x8BU,
+    CurrentMetadataFrameValues = 0x8CU,
+    CurrentMetadataRate = 0x8DU,
+    CurrentConfiguration = 0x8EU,
+    ExternalProgram = 0x8FU,
+    StreamingControl = 0x90U,
+    DigitalVideoParserParameters = 0x91U,
+    SetSystemValue = 0x92U,
+    CurrentSystemValue = 0x93U,
+    I2CCommand = 0x94U,
+    FourAlignPoints = 0x95U,
+    TagData = 0x96U,
+    TagDataRate = 0x97U,
+    TagSourceSelector = 0x98U,
+    DecoderParameters = 0x99U,
+    LogoParameters = 0x9BU,
+    DrawOverlay = 0x9CU,
+    TrackTrails = 0x9DU,
+    RegistrationParameters = 0x9EU,
+    StabilizationBias = 0x9FU,
+    TrackingPositionsExtended = 0xA0U,
+    DeadPixelStats = 0xA1U,
+    InternalCommand = 0xA2U,
+    InternalResponse = 0xA3U,
+    VideoDisplay = 0xA4U,
+    MultiDisplay = 0xA5U,
+    Usb3VisionFeature = 0xA6U,
+    CustomClassifier = 0xA7U,
+    DeadPixel = 0xA8U,
+    ClassifierParameters = 0xA9U,
+    SendScript = 0xAAU,
+    DoDetectSnapShot = 0xABU,
+    AncillaryTextMetadata = 0xACU,
+    VMTIChips = 0xADU,
+    UserFont = 0xAEU,
+    Noise3D = 0xAFU,
+    CursorOnTarget = 0xB0U,
+    LensParameters = 0xB1U,
+    LensCommand = 0xB2U,
+    FocusParameters = 0xB3U,
+    LensRanges = 0xB4U,
+    CustomAutoFocusParameters = 0xB5U,
+    GPIO = 0xB6U,
+    UsbWebcamFeature = 0xB7U,
+    CreateDeviceOverlay = 0xB8U,
+    BlendAlign = 0xB9U,
+    CustomAIDetect = 0xBAU,
+    CameraCapabilities = 0xBBU,
+    CustomResponse = 0xBCU,
+    TrackingMultiClass = 0xBDU,
+    SendToBTS = 0xBEU,
+    VMTIFields = 0xBFU,
+    CameraCalibration = 0xC0U,
+    KlvClassFilters = 0xC1U,
+    CameraParameterFile = 0xC2U,
+    Unknown = 0xFFU
+};
+
+/// @enum TrackingMode
+/// @brief Mode parameter for tracking initiation and modification.
+enum class TrackingMode : std::uint8_t {
+    Off = 0x00U,
+    Stationary = 0x01U,
+    Vehicle = 0x02U,
+    Person = 0x03U,
+    Drone = 0x04U,
+    Maritime = 0x05U,
+    Custom = 0x06U
+};
+
+/// @enum CoordinateReportingFlags
+/// @brief Reporting mode bitmask flags for tracking telemetry.
+enum class CoordinateReportingFlags : std::uint8_t {
+    Disabled = 0x00U,
+    PrimaryTrackOnly = 0x01U,
+    AllTracks = 0x02U,
+    IncludePixelStats = 0x04U,
+    IncludeVelocity = 0x08U
+};
+
+/// @struct TrackCoordinate
+/// @brief Target tracking bounding box and centroid position in sub-pixel coordinates.
+struct TrackCoordinate {
+    std::uint8_t trackId { 0U };
+    double centerCol { 0.0 };
+    double centerRow { 0.0 };
+    double width { 0.0 };
+    double height { 0.0 };
+    double velocityCol { 0.0 };
+    double velocityRow { 0.0 };
+    std::uint8_t confidence { 0U };
+    bool isPrimary { false };
+};
+
+/// @struct TrackingTelemetrySnapshot
+/// @brief Aggregated tracking coordinates emitted for a specific video frame.
+struct TrackingTelemetrySnapshot {
+    std::uint8_t cameraIndex { 0U };
+    std::uint64_t frameTimestampUs { 0U };
+    std::uint32_t frameNumber { 0U };
+    std::vector<TrackCoordinate> tracks {};
+};
+
+/// @brief Maps a Sightline MessageId to a human-readable string.
+/// @param[in] id MessageId enum value.
+/// @return String representation of the message.
+[[nodiscard]] inline constexpr std::string_view messageIdToString(MessageId id) noexcept
+{
+    switch (id) {
+    case MessageId::GetVersionNumber:
+        return "GetVersionNumber (0x00)";
+    case MessageId::ResetAllParameters:
+        return "ResetAllParameters (0x01)";
+    case MessageId::SetStabilizationParameters:
+        return "SetStabilization (0x02)";
+    case MessageId::ResetStabilizationParameters:
+        return "ResetStabilization (0x04)";
+    case MessageId::ModifyTracking:
+        return "ModifyTracking (0x05)";
+    case MessageId::SetOverlayMode:
+        return "SetOverlayMode (0x06)";
+    case MessageId::StartTracking:
+        return "StartTracking (0x08)";
+    case MessageId::StopTracking:
+        return "StopTracking (0x09)";
+    case MessageId::NudgeTrackingCoordinate:
+        return "NudgeTracking (0x0A)";
+    case MessageId::CoordinateReportingMode:
+        return "CoordinateReportingMode (0x0B)";
+    case MessageId::SetTrackingParameters:
+        return "SetTrackingParameters (0x0C)";
+    case MessageId::GetTrackingParameters:
+        return "GetTrackingParameters (0x0D)";
+    case MessageId::SetRegistrationParameters:
+        return "SetRegistration (0x0E)";
+    case MessageId::GetRegistrationParameters:
+        return "GetRegistration (0x0F)";
+    case MessageId::SetVideoParameters:
+        return "SetVideoParameters (0x10)";
+    case MessageId::GetVideoParameters:
+        return "GetVideoParameters (0x11)";
+    case MessageId::StabilizationBias:
+        return "StabilizationBias (0x12)";
+    case MessageId::SetMetadataValues:
+        return "SetMetadataValues (0x13)";
+    case MessageId::MetadataStaticValues:
+        return "MetadataStaticValues (0x14)";
+    case MessageId::SetDisplayParameters:
+        return "SetDisplayParameters (0x16)";
+    case MessageId::ModifyTrackIndex:
+        return "ModifyTrackIndex (0x17)";
+    case MessageId::SetEthernetVideoParameters:
+        return "SetEthernetVideo (0x1A)";
+    case MessageId::GetEthernetVideoParameters:
+        return "GetEthernetVideo (0x1B)";
+    case MessageId::SetNetworkParameters:
+        return "SetNetworkParameters (0x1C)";
+    case MessageId::GetNetworkParameters:
+        return "GetNetworkParameters (0x1D)";
+    case MessageId::SetSDRecordingParameters:
+        return "SetSDRecording (0x1E)";
+    case MessageId::SetVideoMode:
+        return "SetVideoMode (0x1F)";
+    case MessageId::GetVideoMode:
+        return "GetVideoMode (0x20)";
+    case MessageId::SetVideoEnhancementParameters:
+        return "SetVideoEnhancement (0x21)";
+    case MessageId::GetVideoEnhancementParameters:
+        return "GetVideoEnhancement (0x22)";
+    case MessageId::SetH264Parameters:
+        return "SetH264Parameters (0x23)";
+    case MessageId::GetH264Parameters:
+        return "GetH264Parameters (0x24)";
+    case MessageId::SaveParameters:
+        return "SaveParameters (0x25)";
+    case MessageId::GetParameters:
+        return "GetParameters (0x28)";
+    case MessageId::SetDetectionParameters:
+        return "SetDetectionParameters (0x2D)";
+    case MessageId::GetDetectionParameters:
+        return "GetDetectionParameters (0x2E)";
+    case MessageId::SetBlendParameters:
+        return "SetBlendParameters (0x2F)";
+    case MessageId::GetBlendParameters:
+        return "GetBlendParameters (0x30)";
+    case MessageId::DesignateSelectedTrackPrimary:
+        return "DesignatePrimary (0x32)";
+    case MessageId::ShiftSelectedTrack:
+        return "ShiftSelectedTrack (0x33)";
+    case MessageId::DrawObject:
+        return "DrawObject (0x3B)";
+    case MessageId::StopSelectedTrack:
+        return "StopSelectedTrack (0x3C)";
+    case MessageId::CommandPassThrough:
+        return "CommandPassThrough (0x3D)";
+    case MessageId::SetPortConfiguration:
+        return "SetPortConfiguration (0x3E)";
+    case MessageId::GetPortConfiguration:
+        return "GetPortConfiguration (0x3F)";
+    case MessageId::VersionNumber:
+        return "VersionNumber (0x40)";
+    case MessageId::CurrentStabilizationParameters:
+        return "CurrentStabilization (0x41)";
+    case MessageId::TrackingPosition:
+        return "TrackingPosition (0x43)";
+    case MessageId::CurrentVideoParameters:
+        return "CurrentVideoParameters (0x46)";
+    case MessageId::CurrentNetworkParameters:
+        return "CurrentNetworkParameters (0x49)";
+    case MessageId::TrackingPositions:
+        return "TrackingPositions (0x51)";
+    case MessageId::FocusStats:
+        return "FocusStats (0x55)";
+    case MessageId::CurrentH264Parameters:
+        return "CurrentH264Parameters (0x56)";
+    case MessageId::SetMetadataRate:
+        return "SetMetadataRate (0x62)";
+    case MessageId::SetTelemetryDestination:
+        return "SetTelemetryDestination (0x64)";
+    case MessageId::SetLensParameters:
+        return "SetLensParameters (0x6E)";
+    case MessageId::UserWarningMessage:
+        return "UserWarningMessage (0x86)";
+    case MessageId::SystemStatusMessage:
+        return "SystemStatusMessage (0x87)";
+    case MessageId::CurrentMetadataValues:
+        return "CurrentMetadataValues (0x8B)";
+    case MessageId::CurrentConfiguration:
+        return "CurrentConfiguration (0x8E)";
+    case MessageId::StreamingControl:
+        return "StreamingControl (0x90)";
+    case MessageId::DrawOverlay:
+        return "DrawOverlay (0x9C)";
+    case MessageId::TrackTrails:
+        return "TrackTrails (0x9D)";
+    case MessageId::TrackingPositionsExtended:
+        return "TrackingPositionsExtended (0xA0)";
+    case MessageId::Noise3D:
+        return "Noise3D (0xAF)";
+    case MessageId::CursorOnTarget:
+        return "CursorOnTarget (0xB0)";
+    case MessageId::LensCommand:
+        return "LensCommand (0xB2)";
+    case MessageId::FocusParameters:
+        return "FocusParameters (0xB3)";
+    case MessageId::GPIO:
+        return "GPIO (0xB6)";
+    case MessageId::CustomAIDetect:
+        return "CustomAIDetect (0xBA)";
+    default:
+        return "Unknown Message";
+    }
+}
+
+} // namespace Sightline
