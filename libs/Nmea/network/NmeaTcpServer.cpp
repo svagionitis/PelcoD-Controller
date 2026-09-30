@@ -113,8 +113,8 @@ std::size_t NmeaTcpServer::broadcastSentence(std::string_view sentence)
         if (client.socket == Transport::Net::InvalidSocket) {
             continue;
         }
-        const auto res = ::send(client.socket, formatted.data(), static_cast<int>(formatted.size()),
-                                Transport::Net::SendFlags);
+        const auto res = ::send(client.socket, formatted.data(),
+            static_cast<Transport::Net::SockBufLenType>(formatted.size()), Transport::Net::SendFlags);
         if (res > 0) {
             client.bytesSent += static_cast<std::uint64_t>(res);
             ++sentCount;
@@ -209,7 +209,7 @@ void NmeaTcpServer::serverLoop()
 void NmeaTcpServer::processClientRx(ConnectedClient& client, std::vector<std::string>& sentencesOut)
 {
     std::array<char, 2048> buf {};
-    const auto n = ::recv(client.socket, buf.data(), static_cast<int>(buf.size()), 0);
+    const auto n = ::recv(client.socket, buf.data(), static_cast<Transport::Net::SockBufLenType>(buf.size()), 0);
 
     if (n > 0) {
         client.bytesReceived += static_cast<std::uint64_t>(n);

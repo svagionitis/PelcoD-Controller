@@ -89,9 +89,9 @@ bool NmeaUdpEndpoint::sendData(const std::vector<std::uint8_t>& data)
     targetAddr.sin_port = htons(m_txPort);
     ::inet_pton(AF_INET, m_broadcastIp.c_str(), &targetAddr.sin_addr);
 
-    const auto sent = ::sendto(s, reinterpret_cast<const char*>(data.data()), static_cast<int>(data.size()),
-                               Transport::Net::SendFlags, reinterpret_cast<const sockaddr*>(&targetAddr),
-                               sizeof(targetAddr));
+    const auto sent = ::sendto(s, reinterpret_cast<const char*>(data.data()),
+        static_cast<Transport::Net::SockBufLenType>(data.size()), Transport::Net::SendFlags,
+        reinterpret_cast<const sockaddr*>(&targetAddr), sizeof(targetAddr));
     return sent > 0;
 }
 
@@ -132,8 +132,8 @@ void NmeaUdpEndpoint::rxWorkerLoop()
 
         sockaddr_in fromAddr {};
         auto fromLen = static_cast<Transport::Net::SockOptLenType>(sizeof(fromAddr));
-        const auto n = ::recvfrom(s, buf.data(), static_cast<int>(buf.size()), 0,
-                                  reinterpret_cast<sockaddr*>(&fromAddr), &fromLen);
+        const auto n = ::recvfrom(s, buf.data(), static_cast<Transport::Net::SockBufLenType>(buf.size()), 0,
+            reinterpret_cast<sockaddr*>(&fromAddr), &fromLen);
 
         if (n > 0) {
             const auto* pBytes = reinterpret_cast<const std::uint8_t*>(buf.data());

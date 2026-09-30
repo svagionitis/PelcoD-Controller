@@ -140,15 +140,16 @@ void NmeaWebSocketServer::sendFrame(Transport::Net::SocketHandle s, std::string_
     } else {
         frame.push_back(127U);
         for (int i = 7; i >= 0; --i) {
-            frame.push_back(static_cast<std::uint8_t>((static_cast<std::uint64_t>(len) >> (static_cast<unsigned int>(i) * 8U)) & 0xFFU));
+            frame.push_back(static_cast<std::uint8_t>(
+                (static_cast<std::uint64_t>(len) >> (static_cast<unsigned int>(i) * 8U)) & 0xFFU));
         }
     }
 
     const auto* pPayload = reinterpret_cast<const std::uint8_t*>(payload.data());
     frame.insert(frame.end(), pPayload, pPayload + payload.size());
 
-    ::send(s, reinterpret_cast<const char*>(frame.data()), static_cast<int>(frame.size()),
-           Transport::Net::SendFlags);
+    ::send(s, reinterpret_cast<const char*>(frame.data()), static_cast<Transport::Net::SockBufLenType>(frame.size()),
+        Transport::Net::SendFlags);
 }
 
 void NmeaWebSocketServer::workerLoop()
@@ -215,7 +216,7 @@ void NmeaWebSocketServer::workerLoop()
 bool NmeaWebSocketServer::processHandshake(WsClient& client)
 {
     std::array<char, 2048> buf {};
-    const auto n = ::recv(client.socket, buf.data(), static_cast<int>(buf.size()), 0);
+    const auto n = ::recv(client.socket, buf.data(), static_cast<Transport::Net::SockBufLenType>(buf.size()), 0);
 
     if (n > 0) {
         client.rxBuffer.append(buf.data(), static_cast<std::size_t>(n));
@@ -253,13 +254,14 @@ bool NmeaWebSocketServer::processHandshake(WsClient& client)
     const std::string clientKey = client.rxBuffer.substr(valStart, valEnd - valStart);
     const std::string acceptToken = Sha1::computeWebSocketAccept(clientKey);
 
-    std::string response =
-        "HTTP/1.1 101 Switching Protocols\r\n"
-        "Upgrade: websocket\r\n"
-        "Connection: Upgrade\r\n"
-        "Sec-WebSocket-Accept: " + acceptToken + "\r\n\r\n";
+    std::string response = "HTTP/1.1 101 Switching Protocols\r\n"
+                           "Upgrade: websocket\r\n"
+                           "Connection: Upgrade\r\n"
+                           "Sec-WebSocket-Accept: "
+        + acceptToken + "\r\n\r\n";
 
-    ::send(client.socket, response.data(), static_cast<int>(response.size()), Transport::Net::SendFlags);
+    ::send(client.socket, response.data(), static_cast<Transport::Net::SockBufLenType>(response.size()),
+        Transport::Net::SendFlags);
 
     client.rxBuffer.erase(0U, endOfHeader + 4U);
     client.isHandshakeDone = true;
@@ -269,7 +271,7 @@ bool NmeaWebSocketServer::processHandshake(WsClient& client)
 void NmeaWebSocketServer::readClientFrames(WsClient& client, std::vector<std::string>& msgsOut)
 {
     std::array<char, 4096> buf {};
-    const auto n = ::recv(client.socket, buf.data(), static_cast<int>(buf.size()), 0);
+    const auto n = ::recv(client.socket, buf.data(), static_cast<Transport::Net::SockBufLenType>(buf.size()), 0);
 
     if (n > 0) {
         client.rxBuffer.append(buf.data(), static_cast<std::size_t>(n));
@@ -292,8 +294,8 @@ void NmeaWebSocketServer::readClientFrames(WsClient& client, std::vector<std::st
             if (client.rxBuffer.size() < 4U) {
                 break;
             }
-            payloadLen = (static_cast<std::uint8_t>(client.rxBuffer[2]) << 8U) |
-                         static_cast<std::uint8_t>(client.rxBuffer[3]);
+            payloadLen
+                = (static_cast<std::uint8_t>(client.rxBuffer[2]) << 8U) | static_cast<std::uint8_t>(client.rxBuffer[3]);
             headerSize = 4U;
         } else if (payloadLen == 127U) {
             if (client.rxBuffer.size() < 10U) {
