@@ -83,6 +83,15 @@ std::vector<std::uint8_t> SightlineProtocolBuilder::buildSaveParameters(const Ms
     return buildRawPacket(MessageId::SaveParameters, payload);
 }
 
+std::vector<std::uint8_t> SightlineProtocolBuilder::buildSystemStatusMode(const MsgSystemStatusMode& msg)
+{
+    std::vector<std::uint8_t> payload {};
+    payload.reserve(6U);
+    appendU16Le(payload, msg.systemStatusBits);
+    appendU32Le(payload, msg.systemDebugBits);
+    return buildRawPacket(MessageId::SystemStatusMode, payload);
+}
+
 std::vector<std::uint8_t> SightlineProtocolBuilder::buildSetNetworkParameters(const MsgSetNetworkParameters& msg)
 {
     std::vector<std::uint8_t> payload {};

@@ -219,6 +219,14 @@ bool QSightlineDevice::queryVersion()
     return m_device->queryVersion();
 }
 
+bool QSightlineDevice::enableSystemStatus(bool enable)
+{
+    if (!m_device) {
+        return false;
+    }
+    return m_device->enableSystemStatus(enable);
+}
+
 bool QSightlineDevice::queryParameters(quint8 queryId)
 {
     if (!m_device) {

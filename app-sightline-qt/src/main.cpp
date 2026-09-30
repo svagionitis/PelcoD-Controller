@@ -6,6 +6,7 @@
 #include "TrafficLogModel.h"
 
 #include <QGuiApplication>
+#include <QPalette>
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
 #include <QQuickStyle>
@@ -21,7 +22,26 @@ int main(int argc, char* argv[])
     QGuiApplication::setOrganizationName(QStringLiteral("Sightline Intelligence"));
     QGuiApplication::setApplicationVersion(QStringLiteral("3.11.6"));
 
+    // Apply Fusion style matching app-video-qt
+    QQuickStyle::setStyle(QStringLiteral("Fusion"));
+
     QGuiApplication app(argc, argv);
+
+    // Apply global tactical dark palette to ensure all Fusion controls render dark
+    QPalette darkPalette {};
+    darkPalette.setColor(QPalette::Window, QColor("#0e1014"));
+    darkPalette.setColor(QPalette::WindowText, QColor("#f0f4fc"));
+    darkPalette.setColor(QPalette::Base, QColor("#141720"));
+    darkPalette.setColor(QPalette::AlternateBase, QColor("#1e2230"));
+    darkPalette.setColor(QPalette::ToolTipBase, QColor("#181b24"));
+    darkPalette.setColor(QPalette::ToolTipText, QColor("#f0f4fc"));
+    darkPalette.setColor(QPalette::Text, QColor("#f0f4fc"));
+    darkPalette.setColor(QPalette::Button, QColor("#181b24"));
+    darkPalette.setColor(QPalette::ButtonText, QColor("#f0f4fc"));
+    darkPalette.setColor(QPalette::BrightText, QColor("#ff1744"));
+    darkPalette.setColor(QPalette::Highlight, QColor("#00e5ff"));
+    darkPalette.setColor(QPalette::HighlightedText, QColor("#0e1014"));
+    app.setPalette(darkPalette);
 
     // Register custom C++ types with QML type system
     qmlRegisterUncreatableType<TrackListModel>(
@@ -31,7 +51,7 @@ int main(int argc, char* argv[])
 
     QQmlApplicationEngine engine {};
 
-    auto bridge = std::make_unique<SightlineQmlBridge>();
+    auto bridge = std::make_unique<SightlineQmlBridge>(&app);
     engine.rootContext()->setContextProperty(QStringLiteral("bridge"), bridge.get());
 
     const QUrl url(QStringLiteral("qrc:/qml/Main.qml"));

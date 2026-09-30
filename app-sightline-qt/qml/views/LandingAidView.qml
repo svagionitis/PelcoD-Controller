@@ -4,144 +4,139 @@ import QtQuick.Layouts 1.15
 import ".."
 import "../components"
 
-Item {
+ScrollView {
     id: root
+    Layout.fillWidth: true
+    Layout.fillHeight: true
+    contentWidth: availableWidth
+    clip: true
 
     ColumnLayout {
-        anchors.fill: parent
-        anchors.margins: 16
+        width: parent.width - 32
+        anchors.horizontalCenter: parent.horizontalCenter
         spacing: 16
 
+        Item { Layout.preferredHeight: 2 }
+
         RowLayout {
-            spacing: 12
+            Layout.fillWidth: true
+            spacing: 8
+            Rectangle { width: 4; height: 18; color: SightlineTheme.primary; radius: 2 }
             Text {
-                text: "🛬 PRECISION LANDING AID"
+                text: "AUTONOMOUS LANDING AID & VISUAL SERVOING"
                 color: SightlineTheme.textPrimary
-                font.pixelSize: SightlineTheme.fontSizeLarge
+                font.pixelSize: SightlineTheme.fontSizeMedium
                 font.bold: true
+                font.letterSpacing: 1.0
             }
             Text {
-                text: "• Module 0x77 / Fiducial & Visual Servo"
+                text: "// Module 0x77 Fiducial & Heli-Deck Recovery"
                 color: SightlineTheme.textMuted
-                font.pixelSize: SightlineTheme.fontSizeNormal
+                font.pixelSize: SightlineTheme.fontSizeSmall
+                font.family: "Monospace"
             }
         }
 
-        // Guidance Metrics
+        // Metrics Row
         RowLayout {
+            Layout.fillWidth: true
             spacing: 12
-            MetricCard {
-                title: "Relative X"
-                value: "+0.12"
-                unit: "m"
-                accentColor: SightlineTheme.primary
-                iconText: "↔️"
-            }
-            MetricCard {
-                title: "Relative Y"
-                value: "-0.04"
-                unit: "m"
-                accentColor: SightlineTheme.primary
-                iconText: "↕️"
-            }
-            MetricCard {
-                title: "Descent Range (Z)"
-                value: "14.8"
-                unit: "m"
-                accentColor: SightlineTheme.info
-                iconText: "📏"
-            }
-            MetricCard {
-                title: "Fiducial Lock"
-                value: "LOCKED"
-                accentColor: SightlineTheme.success
-                iconText: "🎯"
-            }
+            MetricCard { title: "Relative Lateral (X)"; value: "+0.12"; unit: "m"; accentColor: SightlineTheme.primary; iconText: "↔️" }
+            MetricCard { title: "Relative Longitude (Y)"; value: "-0.04"; unit: "m"; accentColor: SightlineTheme.primary; iconText: "↕️" }
+            MetricCard { title: "Descent Altitude (Z)"; value: "14.8"; unit: "m"; accentColor: SightlineTheme.info; iconText: "📏" }
+            MetricCard { title: "Marker Tracking"; value: "LOCKED"; accentColor: SightlineTheme.success; iconText: "🎯" }
             Item { Layout.fillWidth: true }
         }
 
-        // Configuration Card
+        // Settings Card
         Rectangle {
             Layout.fillWidth: true
-            Layout.preferredHeight: 320
-            color: SightlineTheme.surface
+            implicitHeight: landCol.implicitHeight + 28
+            color: SightlineTheme.surfaceCard
             radius: SightlineTheme.radiusMedium
             border.color: SightlineTheme.cardBorder
+            border.width: 1
 
             ColumnLayout {
+                id: landCol
                 anchors.fill: parent
-                anchors.margins: 16
-                spacing: 16
+                anchors.margins: 14
+                spacing: 12
 
                 Text {
-                    text: "LANDING AID GUIDANCE CONFIGURATION"
-                    color: SightlineTheme.textSecondary
-                    font.pixelSize: SightlineTheme.fontSizeSmall
+                    text: "FIDUCIAL RECOVERY & DESCENT VECTORING"
+                    color: SightlineTheme.primary
+                    font.pixelSize: 11
                     font.bold: true
                 }
 
                 RowLayout {
-                    spacing: 16
-                    Text { text: "Camera Channel:"; color: SightlineTheme.textSecondary; Layout.preferredWidth: 150 }
+                    Layout.fillWidth: true
+                    spacing: 12
+                    Text { text: "Camera Channel:"; color: SightlineTheme.textSecondary; font.pixelSize: 12; Layout.preferredWidth: 150; Layout.alignment: Qt.AlignVCenter }
                     ComboBox {
                         id: landCam
-                        model: ["Camera 0", "Camera 1", "Camera 2", "Camera 3"]
-                        Layout.preferredWidth: 200
+                        model: ["Camera 0 (Downward EO)", "Camera 1 (Downward IR)", "Camera 2", "Camera 3"]
+                        Layout.preferredWidth: 240
                     }
+                    Item { Layout.fillWidth: true }
                 }
 
                 RowLayout {
-                    spacing: 16
-                    Text { text: "Target Marker Type:"; color: SightlineTheme.textSecondary; Layout.preferredWidth: 150 }
+                    Layout.fillWidth: true
+                    spacing: 12
+                    Text { text: "Fiducial Symbology:"; color: SightlineTheme.textSecondary; font.pixelSize: 12; Layout.preferredWidth: 150; Layout.alignment: Qt.AlignVCenter }
                     ComboBox {
                         id: markerCombo
                         model: ["Sightline Proprietary Multi-Ring", "AprilTag 36h11", "ArUco 4x4", "High-Contrast H-Pad"]
                         Layout.preferredWidth: 280
                     }
+                    Item { Layout.fillWidth: true }
                 }
 
                 RowLayout {
-                    spacing: 16
-                    Text { text: "Marker Physical Size:"; color: SightlineTheme.textSecondary; Layout.preferredWidth: 150 }
+                    Layout.fillWidth: true
+                    spacing: 12
+                    Text { text: "Physical Target Size:"; color: SightlineTheme.textSecondary; font.pixelSize: 12; Layout.preferredWidth: 150; Layout.alignment: Qt.AlignVCenter }
                     TextField {
                         id: markerDimInput
                         text: "0.50"
-                        Layout.preferredWidth: 80
+                        Layout.preferredWidth: 70
                         color: SightlineTheme.textPrimary
-                        background: Rectangle { color: SightlineTheme.surfaceLight; radius: 4 }
+                        background: Rectangle { color: SightlineTheme.surfaceLight; radius: 4; border.color: markerDimInput.activeFocus ? SightlineTheme.primary : SightlineTheme.inputBorder }
                     }
-                    Text { text: "meters width"; color: SightlineTheme.textMuted }
+                    Text { text: "meters width"; color: SightlineTheme.textMuted; font.pixelSize: 12; Layout.alignment: Qt.AlignVCenter }
+                    Item { Layout.fillWidth: true }
                 }
 
                 RowLayout {
-                    spacing: 12
-                    Layout.topMargin: 8
+                    Layout.fillWidth: true
+                    spacing: 10
+                    Layout.topMargin: 4
 
                     Button {
                         text: "Arm Landing Guidance"
-                        Layout.preferredWidth: 180
-                        contentItem: Text { text: parent.text; color: "#FFFFFF"; font.bold: true; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
+                        Layout.preferredWidth: 170
+                        Layout.preferredHeight: 32
+                        contentItem: Text { text: parent.text; color: "#0e1014"; font.bold: true; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
                         background: Rectangle { color: SightlineTheme.success; radius: 4 }
-                        onClicked: {
-                            bridge.startTracking(landCam.currentIndex, 960, 540, 120, 120, 0x04);
-                        }
+                        onClicked: { if (bridge) bridge.startTracking(landCam.currentIndex, 960, 540, 120, 120, 0x04); }
                     }
 
                     Button {
                         text: "Disarm Guidance"
-                        Layout.preferredWidth: 180
-                        contentItem: Text { text: parent.text; color: "#FFFFFF"; font.bold: true; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
+                        Layout.preferredWidth: 140
+                        Layout.preferredHeight: 32
+                        contentItem: Text { text: parent.text; color: "#ffffff"; font.bold: true; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
                         background: Rectangle { color: SightlineTheme.error; radius: 4 }
-                        onClicked: {
-                            bridge.stopTracking(landCam.currentIndex, 0xFF);
-                        }
+                        onClicked: { if (bridge) bridge.stopTracking(landCam.currentIndex, 0xFF); }
                     }
-                }
 
-                Item { Layout.fillHeight: true }
+                    Item { Layout.fillWidth: true }
+                }
             }
         }
 
-        Item { Layout.fillHeight: true }
+        Item { Layout.preferredHeight: 16 }
     }
 }

@@ -115,7 +115,10 @@ bool SightlineQmlBridge::connectUdp(const QString& host, int cmdPort, int replyP
     connect(m_device.get(), &QSightlineDevice::connectionStateChanged, this, [this](bool ok) {
         emit connectionChanged();
         if (ok) {
+            m_connectionTimer.restart();
             m_device->queryVersion();
+            m_device->queryParameters(0x87U);
+            m_device->enableSystemStatus(true);
         }
     });
 
@@ -137,10 +140,17 @@ void SightlineQmlBridge::disconnectDevice()
         m_device->stop();
         m_device.reset();
     }
+    m_connectionTimer.invalidate();
     m_softwareVersion = tr("Disconnected");
-    m_trackListModel->clearTracks();
+    m_cpuLoadPercent = 0;
+    m_coreTempC = 0;
+    m_uptimeSeconds = 0;
+    if (m_trackListModel) {
+        m_trackListModel->clearTracks();
+    }
     emit connectionChanged();
     emit versionReceived();
+    emit systemStatusChanged();
 }
 
 // 1. Tracking
@@ -423,17 +433,20 @@ void SightlineQmlBridge::handleVersion(const Sightline::MsgVersionNumber& ver)
 {
     m_softwareVersion = QString::fromStdString(ver.versionString);
     if (m_softwareVersion.isEmpty()) {
-        m_softwareVersion
-            = QString("SLA Firmware v%1.%2.%3").arg(ver.softwareMajor).arg(ver.softwareMinor).arg(ver.softwarePatch);
+        m_softwareVersion = QString("v%1.%2.%3").arg(ver.softwareMajor).arg(ver.softwareMinor).arg(ver.softwareRelease);
     }
+    m_coreTempC = static_cast<int>(ver.degreesC);
     emit versionReceived();
+    emit systemStatusChanged();
 }
 
 void SightlineQmlBridge::handleSystemStatus(const Sightline::MsgSystemStatusMessage& stat)
 {
-    m_cpuLoadPercent = static_cast<int>(stat.cpuLoadPercent / 10U);
+    m_cpuLoadPercent = static_cast<int>(stat.cpuLoadPercent);
     m_coreTempC = static_cast<int>(stat.coreTempC);
-    m_uptimeSeconds = static_cast<int>(stat.uptimeSeconds);
+    if (m_connectionTimer.isValid()) {
+        m_uptimeSeconds = static_cast<int>(m_connectionTimer.elapsed() / 1000);
+    }
     emit systemStatusChanged();
 }
 

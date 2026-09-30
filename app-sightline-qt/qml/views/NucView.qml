@@ -4,124 +4,123 @@ import QtQuick.Layouts 1.15
 import ".."
 import "../components"
 
-Item {
+ScrollView {
     id: root
+    Layout.fillWidth: true
+    Layout.fillHeight: true
+    contentWidth: availableWidth
+    clip: true
 
     ColumnLayout {
-        anchors.fill: parent
-        anchors.margins: 16
+        width: parent.width - 32
+        anchors.horizontalCenter: parent.horizontalCenter
         spacing: 16
 
+        Item { Layout.preferredHeight: 2 }
+
         RowLayout {
-            spacing: 12
+            Layout.fillWidth: true
+            spacing: 8
+            Rectangle { width: 4; height: 18; color: SightlineTheme.primary; radius: 2 }
             Text {
-                text: "🌡️ NON-UNIFORMITY CORRECTION (NUC)"
+                text: "THERMAL NON-UNIFORMITY CORRECTION (NUC)"
                 color: SightlineTheme.textPrimary
-                font.pixelSize: SightlineTheme.fontSizeLarge
+                font.pixelSize: SightlineTheme.fontSizeMedium
                 font.bold: true
+                font.letterSpacing: 1.0
             }
             Text {
-                text: "• Module 0x67 / Thermal FPA Calibration & BPR"
+                text: "// Module 0x67 FFC Shutter & Bad Pixel Replacement"
                 color: SightlineTheme.textMuted
-                font.pixelSize: SightlineTheme.fontSizeNormal
+                font.pixelSize: SightlineTheme.fontSizeSmall
+                font.family: "Monospace"
             }
         }
 
-        // Metrics
+        // Metrics Row
         RowLayout {
+            Layout.fillWidth: true
             spacing: 12
-            MetricCard {
-                title: "FPA Temperature"
-                value: "38.2"
-                unit: "°C"
-                accentColor: SightlineTheme.warning
-                iconText: "🌡️"
-            }
-            MetricCard {
-                title: "Bad Pixels Replaced"
-                value: "14"
-                unit: "px"
-                accentColor: SightlineTheme.info
-                iconText: "🩹"
-            }
-            MetricCard {
-                title: "Calibration State"
-                value: "VALID"
-                accentColor: SightlineTheme.success
-                iconText: "✅"
-            }
+            MetricCard { title: "FPA Sensor Temp"; value: "38.2"; unit: "°C"; accentColor: SightlineTheme.warning; iconText: "🌡️" }
+            MetricCard { title: "Bad Pixels Replaced"; value: "14"; unit: "px"; accentColor: SightlineTheme.info; iconText: "🩹" }
+            MetricCard { title: "Calibration Table"; value: "VALID"; accentColor: SightlineTheme.success; iconText: "✅" }
             Item { Layout.fillWidth: true }
         }
 
-        // Calibration Controls Card
+        // Settings Card
         Rectangle {
             Layout.fillWidth: true
-            Layout.preferredHeight: 340
-            color: SightlineTheme.surface
+            implicitHeight: nucCol.implicitHeight + 28
+            color: SightlineTheme.surfaceCard
             radius: SightlineTheme.radiusMedium
             border.color: SightlineTheme.cardBorder
+            border.width: 1
 
             ColumnLayout {
+                id: nucCol
                 anchors.fill: parent
-                anchors.margins: 16
-                spacing: 16
+                anchors.margins: 14
+                spacing: 12
 
                 Text {
-                    text: "FLAT-FIELD CALIBRATION (FFC) & BAD PIXEL MAP"
-                    color: SightlineTheme.textSecondary
-                    font.pixelSize: SightlineTheme.fontSizeSmall
+                    text: "FLAT-FIELD CALIBRATION (FFC) & MAP REPLACEMENT"
+                    color: SightlineTheme.primary
+                    font.pixelSize: 11
                     font.bold: true
                 }
 
                 RowLayout {
-                    spacing: 16
-                    Text { text: "Thermal Camera:"; color: SightlineTheme.textSecondary; Layout.preferredWidth: 150 }
+                    Layout.fillWidth: true
+                    spacing: 12
+                    Text { text: "Thermal Camera:"; color: SightlineTheme.textSecondary; font.pixelSize: 12; Layout.preferredWidth: 150; Layout.alignment: Qt.AlignVCenter }
                     ComboBox {
                         id: nucCam
                         model: ["Camera 1 (LWIR Thermal)", "Camera 2 (MWIR Cooled)", "Camera 0"]
                         Layout.preferredWidth: 240
                     }
+                    Item { Layout.fillWidth: true }
                 }
 
                 RowLayout {
-                    spacing: 16
-                    Text { text: "Calibration Mode:"; color: SightlineTheme.textSecondary; Layout.preferredWidth: 150 }
+                    Layout.fillWidth: true
+                    spacing: 12
+                    Text { text: "Calibration Mode:"; color: SightlineTheme.textSecondary; font.pixelSize: 12; Layout.preferredWidth: 150; Layout.alignment: Qt.AlignVCenter }
                     ComboBox {
                         id: nucMode
                         model: ["1-Point Shutter Flat-Field (Quick)", "2-Point Blackbody (High Dynamic)", "Scene-Based Dynamic (Continuous)"]
                         Layout.preferredWidth: 280
                     }
+                    Item { Layout.fillWidth: true }
                 }
 
                 RowLayout {
-                    spacing: 12
-                    Layout.topMargin: 8
+                    Layout.fillWidth: true
+                    spacing: 10
+                    Layout.topMargin: 4
 
                     Button {
                         text: "Actuate Mechanical Shutter NUC"
-                        Layout.preferredWidth: 240
-                        contentItem: Text { text: parent.text; color: "#FFFFFF"; font.bold: true; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
+                        Layout.preferredWidth: 220
+                        Layout.preferredHeight: 32
+                        contentItem: Text { text: parent.text; color: "#0e1014"; font.bold: true; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
                         background: Rectangle { color: SightlineTheme.warning; radius: 4 }
-                        onClicked: {
-                            bridge.setReportingMode(nucCam.currentIndex, 100, 0x10);
-                        }
+                        onClicked: bridge.setReportingMode(nucCam.currentIndex, 100, 0x10)
                     }
 
                     Button {
                         text: "Update Bad Pixel Table"
-                        Layout.preferredWidth: 200
-                        contentItem: Text { text: parent.text; color: "#FFFFFF"; font.bold: true; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
+                        Layout.preferredWidth: 180
+                        Layout.preferredHeight: 32
+                        contentItem: Text { text: parent.text; color: "#0e1014"; font.bold: true; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
                         background: Rectangle { color: SightlineTheme.primary; radius: 4 }
-                        onClicked: {
-                            bridge.saveParameters(0x02);
-                        }
+                        onClicked: bridge.saveParameters(0x02)
                     }
-                }
 
-                Item { Layout.fillHeight: true }
+                    Item { Layout.fillWidth: true }
+                }
             }
         }
 
-        Item { Layout.fillHeight: true }
+        Item { Layout.preferredHeight: 16 }
     }
 }

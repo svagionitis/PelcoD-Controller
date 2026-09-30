@@ -36,7 +36,7 @@ public:
     /// @details Returns number of currently active target tracks.
     /// @param parent Parent model index (unused for flat list).
     /// @return Number of rows in model.
-    [[nodiscard]] int rowCount(const QModelIndex& parent = QModelIndex()) const override;
+    Q_INVOKABLE [[nodiscard]] int rowCount(const QModelIndex& parent = QModelIndex()) const override;
 
     /// @brief Retrieve model data for a role.
     /// @details Returns coordinate, confidence, or velocity based on role.

@@ -177,15 +177,28 @@ namespace {
         std::atomic<bool> statusFired { false };
         device.setSystemStatusCallback([&](const MsgSystemStatusMessage& status) {
             statusFired = true;
-            EXPECT_EQ(status.cpuLoadPercent, 350U);
+            EXPECT_EQ(status.cpuLoadPercent, 35U);
+            EXPECT_EQ(status.coreTempC, 45);
         });
 
         std::vector<std::uint8_t> statPayload {};
-        statPayload.push_back(0x5EU);
-        statPayload.push_back(0x01U); // 350
-        statPayload.push_back(45U); // 45 C
-        statPayload.push_back(0U);
+        // bytes 0..7: errorFlags (u64 LE = 0)
         for (std::size_t i = 0; i < 8; ++i) {
+            statPayload.push_back(0U);
+        }
+        // bytes 8..9: temperatureF (s16 LE = 113 F)
+        statPayload.push_back(113U);
+        statPayload.push_back(0U);
+        // bytes 10..13: load0..3 (load0 = 35%)
+        statPayload.push_back(35U);
+        statPayload.push_back(20U);
+        statPayload.push_back(10U);
+        statPayload.push_back(5U);
+        // bytes 14..15: temperatureC (s16 LE = 45 C)
+        statPayload.push_back(45U);
+        statPayload.push_back(0U);
+        // bytes 16..19: missedFrames
+        for (std::size_t i = 0; i < 4; ++i) {
             statPayload.push_back(0U);
         }
         const auto statPkt = SightlineProtocolBuilder::buildRawPacket(MessageId::SystemStatusMessage, statPayload);

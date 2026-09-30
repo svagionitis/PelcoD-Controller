@@ -366,8 +366,18 @@ bool SightlineDevice::setPortConfig(const MsgSetPortConfiguration& msg)
 
 bool SightlineDevice::queryVersion()
 {
-    return sendPacket(
-        SightlineProtocolBuilder::buildGetParameters(static_cast<std::uint8_t>(MessageId::GetVersionNumber)));
+    const bool sentGet
+        = sendPacket(SightlineProtocolBuilder::buildGetParameters(static_cast<std::uint8_t>(MessageId::VersionNumber)));
+    const bool sentVer = sendPacket(SightlineProtocolBuilder::buildRawPacket(MessageId::GetVersionNumber, {}));
+    return sentGet || sentVer;
+}
+
+bool SightlineDevice::enableSystemStatus(bool enable)
+{
+    MsgSystemStatusMode mode {};
+    mode.systemStatusBits = enable ? 0x0001U : 0x0000U;
+    mode.systemDebugBits = 0U;
+    return sendPacket(SightlineProtocolBuilder::buildSystemStatusMode(mode));
 }
 
 bool SightlineDevice::queryParameters(std::uint8_t queryId)

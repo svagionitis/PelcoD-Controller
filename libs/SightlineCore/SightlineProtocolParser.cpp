@@ -3,6 +3,7 @@
 
 #include "SightlineProtocolParser.h"
 
+#include <algorithm>
 #include <cstring>
 
 namespace Sightline {
@@ -92,24 +93,62 @@ bool SightlineProtocolParser::parseVersionNumber(const std::vector<std::uint8_t>
     }
 
     const auto payload = extractPayload(packet);
-    if (payload.size() < 12U) {
+    if (payload.size() < 4U) {
         return false;
     }
 
-    out.hardwareType = payload[0U];
-    out.softwareMajor = payload[1U];
-    out.softwareMinor = payload[2U];
-    out.softwarePatch = payload[3U];
-    out.appBits = readU32Le(payload.data() + 4U);
-    out.boardRevision = readU32Le(payload.data() + 8U);
+    out.softwareMajor = payload[0U];
+    out.softwareMinor = payload[1U];
+    out.hardwareVersion = payload[2U];
+    out.degreesF = payload[3U];
 
-    if (payload.size() > 12U) {
-        out.versionString = std::string(reinterpret_cast<const char*>(payload.data() + 12U), payload.size() - 12U);
-        while (!out.versionString.empty() && out.versionString.back() == '\0') {
-            out.versionString.pop_back();
-        }
+    if (payload.size() >= 7U) {
+        out.hardwareId = static_cast<std::uint32_t>(payload[4U]) | (static_cast<std::uint32_t>(payload[5U]) << 8U)
+            | (static_cast<std::uint32_t>(payload[6U]) << 16U);
+    }
+    if (payload.size() >= 11U) {
+        out.appBits = readU32Le(payload.data() + 7U);
+    }
+    if (payload.size() >= 12U) {
+        out.boardType = payload[11U];
+        out.hardwareType = out.boardType;
+    }
+    if (payload.size() >= 13U) {
+        out.softwareRelease = payload[12U];
+        out.softwarePatch = out.softwareRelease;
+    }
+    if (payload.size() >= 15U) {
+        out.otherVersion = readU16Le(payload.data() + 13U);
+        out.boardRevision = static_cast<std::uint32_t>((out.otherVersion >> 8U) & 0xFFU);
+    }
+    if (payload.size() >= 19U) {
+        out.srcRevision = readU32Le(payload.data() + 15U);
+    }
+    if (payload.size() >= 23U) {
+        out.buildDate = readU32Le(payload.data() + 19U);
+    }
+    if (payload.size() >= 27U) {
+        out.buildTime = readU32Le(payload.data() + 23U);
+    }
+    if (payload.size() >= 29U) {
+        out.softwareBuild = readU16Le(payload.data() + 27U);
+    }
+    if (payload.size() >= 31U) {
+        out.v4AppBits = readU16Le(payload.data() + 29U);
+    }
+    if (payload.size() >= 33U) {
+        out.degreesC = readS16Le(payload.data() + 31U);
     } else {
-        out.versionString.clear();
+        out.degreesC = static_cast<std::int16_t>((static_cast<int>(out.degreesF) - 32) * 5 / 9);
+    }
+    if (payload.size() >= 37U) {
+        out.adapters = readU32Le(payload.data() + 33U);
+    }
+
+    out.versionString = std::to_string(out.softwareMajor) + "." + std::to_string(out.softwareMinor) + "."
+        + std::to_string(out.softwareRelease);
+    if (out.softwareBuild > 0U) {
+        out.versionString += " (build " + std::to_string(out.softwareBuild) + ")";
     }
 
     return true;
@@ -146,14 +185,34 @@ bool SightlineProtocolParser::parseSystemStatus(const std::vector<std::uint8_t>&
     }
 
     const auto payload = extractPayload(packet);
-    if (payload.size() < 12U) {
+    if (payload.size() < 14U) {
         return false;
     }
 
-    out.cpuLoadPercent = readU16Le(payload.data());
-    out.coreTempC = readS16Le(payload.data() + 2U);
-    out.uptimeSeconds = readU32Le(payload.data() + 4U);
-    out.errorFlags = readU32Le(payload.data() + 8U);
+    out.errorFlags = static_cast<std::uint64_t>(readU32Le(payload.data()))
+        | (static_cast<std::uint64_t>(readU32Le(payload.data() + 4U)) << 32U);
+
+    out.temperatureF = readS16Le(payload.data() + 8U);
+
+    out.load0 = payload[10U];
+    out.load1 = payload[11U];
+    out.load2 = payload[12U];
+    out.load3 = payload[13U];
+    out.cpuLoadPercent = std::max({ out.load0, out.load1, out.load2, out.load3 });
+
+    if (payload.size() >= 16U) {
+        out.coreTempC = readS16Le(payload.data() + 14U);
+    } else {
+        out.coreTempC = static_cast<std::int16_t>((static_cast<int>(out.temperatureF) - 32) * 5 / 9);
+    }
+
+    if (payload.size() >= 20U) {
+        out.missedFrames0 = payload[16U];
+        out.missedFrames1 = payload[17U];
+        out.missedFrames2 = payload[18U];
+        out.missedFrames3 = payload[19U];
+    }
+
     return true;
 }
 

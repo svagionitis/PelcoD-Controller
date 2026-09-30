@@ -298,6 +298,11 @@ public:
     /// @return True if query was transmitted.
     [[nodiscard]] bool queryVersion();
 
+    /// @brief Enables or disables 1Hz periodic system health telemetry (0x80).
+    /// @param[in] enable True to enable, false to disable.
+    /// @return True if command was transmitted.
+    [[nodiscard]] bool enableSystemStatus(bool enable = true);
+
     /// @brief Sends a generic parameter getter query.
     /// @param[in] queryId Setter Message ID to query.
     /// @return True if query was transmitted.

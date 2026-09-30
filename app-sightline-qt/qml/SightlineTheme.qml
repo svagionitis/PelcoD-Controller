@@ -4,38 +4,40 @@ import QtQuick 2.15
 QtObject {
     id: theme
 
-    // Colors
-    readonly property color background: "#0F1115"
-    readonly property color surface: "#181A20"
-    readonly property color surfaceLight: "#22252D"
-    readonly property color cardBorder: "#2E333D"
-    readonly property color cardBorderHover: "#434B59"
+    // Tactical dark theme palette matching app-video-qt and ThemeDark.qss
+    readonly property color background: "#0e1014"
+    readonly property color surface: "#141720"
+    readonly property color surfaceCard: "#181b24"
+    readonly property color surfaceLight: "#1e2230"
+    readonly property color cardBorder: "#242938"
+    readonly property color cardBorderHighlight: "#2a2f40"
+    readonly property color inputBorder: "#2d3446"
 
-    readonly property color textPrimary: "#FFFFFF"
-    readonly property color textSecondary: "#8E95A5"
-    readonly property color textMuted: "#5B6171"
+    readonly property color textPrimary: "#f0f4fc"
+    readonly property color textSecondary: "#8894ab"
+    readonly property color textMuted: "#525c70"
 
-    readonly property color primary: "#00C0FF"
-    readonly property color primaryHover: "#33CDFF"
-    readonly property color primaryActive: "#0099CC"
+    readonly property color primary: "#00e5ff"
+    readonly property color primaryHover: "#33ebff"
+    readonly property color primaryActive: "#00b4cc"
 
-    readonly property color success: "#00E676"
-    readonly property color warning: "#FFB300"
-    readonly property color error: "#FF5252"
-    readonly property color info: "#448AFF"
+    readonly property color success: "#00e676"
+    readonly property color warning: "#ff9100"
+    readonly property color error: "#ff1744"
+    readonly property color info: "#00e5ff"
 
     // Typography
-    readonly property string fontFamily: "Inter, Roboto, sans-serif"
-    readonly property int fontSizeSmall: 11
-    readonly property int fontSizeNormal: 13
-    readonly property int fontSizeMedium: 15
-    readonly property int fontSizeLarge: 18
-    readonly property int fontSizeXLarge: 22
+    readonly property string fontFamily: "Segoe UI, Roboto, Helvetica Neue, sans-serif"
+    readonly property int fontSizeSmall: 10
+    readonly property int fontSizeNormal: 12
+    readonly property int fontSizeMedium: 14
+    readonly property int fontSizeLarge: 16
+    readonly property int fontSizeXLarge: 18
 
     // Dimensions & Spacing
     readonly property int radiusSmall: 4
-    readonly property int radiusMedium: 8
-    readonly property int radiusLarge: 12
-    readonly property int headerHeight: 64
+    readonly property int radiusMedium: 6
+    readonly property int radiusLarge: 8
+    readonly property int headerHeight: 48
     readonly property int sidebarWidth: 260
 }

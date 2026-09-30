@@ -1,5 +1,6 @@
 import QtQuick 2.15
 import QtQuick.Controls 2.15
+import QtQuick.Layouts 1.15
 import ".."
 
 Rectangle {
@@ -11,23 +12,23 @@ Rectangle {
     property string badgeText: ""
     signal clicked()
 
-    implicitWidth: 240
-    implicitHeight: 38
+    Layout.fillWidth: true
+    implicitHeight: 34
     radius: SightlineTheme.radiusSmall
-    color: root.selected ? Qt.rgba(0, 0.75, 1.0, 0.15) : (mouseArea.containsMouse ? SightlineTheme.surfaceLight : "transparent")
+    color: root.selected ? "#1e2838" : (mouseArea.containsMouse ? "#181f2a" : "transparent")
     border.color: root.selected ? SightlineTheme.primary : "transparent"
     border.width: 1
 
-    Row {
+    RowLayout {
         anchors.fill: parent
-        anchors.leftMargin: 12
-        anchors.rightMargin: 12
-        spacing: 10
+        anchors.leftMargin: 10
+        anchors.rightMargin: 10
+        spacing: 8
 
         Text {
             text: root.iconText
-            font.pixelSize: 16
-            anchors.verticalCenter: parent.verticalCenter
+            font.pixelSize: 13
+            Layout.alignment: Qt.AlignVCenter
         }
 
         Text {
@@ -35,27 +36,25 @@ Rectangle {
             color: root.selected ? SightlineTheme.primary : (mouseArea.containsMouse ? SightlineTheme.textPrimary : SightlineTheme.textSecondary)
             font.pixelSize: SightlineTheme.fontSizeNormal
             font.bold: root.selected
-            anchors.verticalCenter: parent.verticalCenter
+            Layout.fillWidth: true
+            Layout.alignment: Qt.AlignVCenter
             elide: Text.ElideRight
-            width: root.width - (root.badgeText.length > 0 ? 80 : 50)
         }
-
-        Item { width: 1; height: 1 }
 
         Rectangle {
             visible: root.badgeText.length > 0
-            implicitWidth: badgeLabel.implicitWidth + 10
-            implicitHeight: 18
-            radius: 9
+            implicitWidth: badgeLabel.implicitWidth + 8
+            implicitHeight: 16
+            radius: 8
             color: root.selected ? SightlineTheme.primary : SightlineTheme.surfaceLight
-            anchors.verticalCenter: parent.verticalCenter
+            Layout.alignment: Qt.AlignVCenter
 
             Text {
                 id: badgeLabel
                 anchors.centerIn: parent
                 text: root.badgeText
-                color: root.selected ? "#FFFFFF" : SightlineTheme.textMuted
-                font.pixelSize: 10
+                color: root.selected ? "#0e1014" : SightlineTheme.textSecondary
+                font.pixelSize: 9
                 font.bold: true
             }
         }

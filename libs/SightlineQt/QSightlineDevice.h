@@ -78,6 +78,7 @@ public slots:
     bool saveParameters(quint8 commitType = 0U);
     bool resetParameters(quint8 resetType = 0U);
     bool queryVersion();
+    bool enableSystemStatus(bool enable = true);
     bool queryParameters(quint8 queryId);
 
     bool sendRawPacket(const QByteArray& rawPacket);

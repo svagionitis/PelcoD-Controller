@@ -386,38 +386,85 @@ namespace {
     TEST(TestSightlineMessages, ParseVersionNumber)
     {
         std::vector<std::uint8_t> payload {};
-        payload.push_back(18U); // 4000-OEM
-        payload.push_back(3U); // Major
-        payload.push_back(11U); // Minor
-        payload.push_back(6U); // Patch
+        payload.push_back(3U); // byte 0: swMajor
+        payload.push_back(11U); // byte 1: swMinor
+        payload.push_back(1U); // byte 2: hwVersion
+        payload.push_back(125U); // byte 3: degreesF (125 F)
 
-        // appBits: 0x12345678 (Little Endian)
+        // bytes 4..6: hwID (u24 LE)
+        payload.push_back(0x56U);
+        payload.push_back(0x34U);
+        payload.push_back(0x12U);
+
+        // bytes 7..10: appBits (u32 LE: 0x12345678)
         payload.push_back(0x78U);
         payload.push_back(0x56U);
         payload.push_back(0x34U);
         payload.push_back(0x12U);
 
-        // boardRevision: 4
-        payload.push_back(4U);
+        // byte 11: boardType (18 = 4000-OEM)
+        payload.push_back(18U);
+
+        // byte 12: swRelease (6)
+        payload.push_back(6U);
+
+        // bytes 13..14: otherVersion (u16 LE: 0x0400 -> boardRevision = 4)
+        payload.push_back(0x00U);
+        payload.push_back(0x04U);
+
+        // bytes 15..18: srcRevision (u32 LE)
+        payload.push_back(100U);
         payload.push_back(0U);
         payload.push_back(0U);
         payload.push_back(0U);
 
-        // versionString
-        const std::string verStr = "SLA4000 v3.11.6";
-        payload.insert(payload.end(), verStr.begin(), verStr.end());
+        // bytes 19..22: buildDate (u32 LE)
+        payload.push_back(0x01U);
+        payload.push_back(0x00U);
+        payload.push_back(0x00U);
+        payload.push_back(0x00U);
 
-        const auto pkt = SightlineProtocolBuilder::buildRawPacket(MessageId::GetVersionNumber, payload);
+        // bytes 23..26: buildTime (u32 LE)
+        payload.push_back(0x02U);
+        payload.push_back(0x00U);
+        payload.push_back(0x00U);
+        payload.push_back(0x00U);
+
+        // bytes 27..28: swBuild (u16 LE: 42)
+        payload.push_back(42U);
+        payload.push_back(0U);
+
+        // bytes 29..30: v4AppBits (u16 LE: 0)
+        payload.push_back(0U);
+        payload.push_back(0U);
+
+        // bytes 31..32: degreesC (s16 LE: 52 C)
+        payload.push_back(52U);
+        payload.push_back(0U);
+
+        // bytes 33..36: adapters (u32 LE: 1)
+        payload.push_back(1U);
+        payload.push_back(0U);
+        payload.push_back(0U);
+        payload.push_back(0U);
+
+        const auto pkt = SightlineProtocolBuilder::buildRawPacket(MessageId::VersionNumber, payload);
 
         MsgVersionNumber out {};
         ASSERT_TRUE(SightlineProtocolParser::parseVersionNumber(pkt, out));
-        EXPECT_EQ(out.hardwareType, 18U);
         EXPECT_EQ(out.softwareMajor, 3U);
         EXPECT_EQ(out.softwareMinor, 11U);
+        EXPECT_EQ(out.softwareRelease, 6U);
         EXPECT_EQ(out.softwarePatch, 6U);
+        EXPECT_EQ(out.hardwareType, 18U);
+        EXPECT_EQ(out.boardType, 18U);
+        EXPECT_EQ(out.hardwareVersion, 1U);
+        EXPECT_EQ(out.degreesF, 125U);
+        EXPECT_EQ(out.degreesC, 52);
         EXPECT_EQ(out.appBits, 0x12345678U);
         EXPECT_EQ(out.boardRevision, 4U);
-        EXPECT_EQ(out.versionString, "SLA4000 v3.11.6");
+        EXPECT_EQ(out.softwareBuild, 42U);
+        EXPECT_EQ(out.versionString, "3.11.6 (build 42)");
     }
 
     /// @brief Verify tracking positions telemetry parsing.
@@ -562,20 +609,24 @@ namespace {
     TEST(TestSightlineMessages, ParseSystemStatus)
     {
         std::vector<std::uint8_t> payload {};
-        // cpuLoad: 45% (450)
-        payload.push_back(0xC2U);
-        payload.push_back(0x01U);
-        // coreTemp: 52 C
+        // bytes 0..7: errorFlags (u64 LE = 0)
+        for (std::size_t i = 0; i < 8; ++i) {
+            payload.push_back(0U);
+        }
+        // bytes 8..9: temperatureF (s16 LE = 125 F)
+        payload.push_back(125U);
+        payload.push_back(0U);
+        // bytes 10..13: load0, load1, load2, load3
+        payload.push_back(45U); // Core 0: 45%
+        payload.push_back(30U); // Core 1: 30%
+        payload.push_back(20U); // Core 2: 20%
+        payload.push_back(10U); // Core 3: 10%
+        // bytes 14..15: temperatureC (s16 LE = 52 C)
         payload.push_back(52U);
         payload.push_back(0U);
-        // uptime: 3600 seconds
-        payload.push_back(0x10U);
-        payload.push_back(0x0EU);
-        payload.push_back(0x00U);
-        payload.push_back(0x00U);
-        // errorFlags: 0
+        // bytes 16..19: missedFrames
         payload.push_back(0U);
-        payload.push_back(0U);
+        payload.push_back(1U);
         payload.push_back(0U);
         payload.push_back(0U);
 
@@ -583,10 +634,34 @@ namespace {
 
         MsgSystemStatusMessage out {};
         ASSERT_TRUE(SightlineProtocolParser::parseSystemStatus(pkt, out));
-        EXPECT_EQ(out.cpuLoadPercent, 450U);
+        EXPECT_EQ(out.cpuLoadPercent, 45U);
+        EXPECT_EQ(out.load0, 45U);
+        EXPECT_EQ(out.load1, 30U);
+        EXPECT_EQ(out.load2, 20U);
+        EXPECT_EQ(out.load3, 10U);
+        EXPECT_EQ(out.temperatureF, 125);
         EXPECT_EQ(out.coreTempC, 52);
-        EXPECT_EQ(out.uptimeSeconds, 3600U);
-        EXPECT_EQ(out.errorFlags, 0U);
+        EXPECT_EQ(out.missedFrames1, 1U);
+        EXPECT_EQ(out.errorFlags, 0ULL);
+    }
+
+    /// @brief Verify system status mode builder (0x80).
+    TEST(TestSightlineMessages, BuildSystemStatusMode)
+    {
+        MsgSystemStatusMode mode {};
+        mode.systemStatusBits = 0x0001U;
+        mode.systemDebugBits = 0x0400U; // Timing measurement bit 10
+
+        const auto pkt = SightlineProtocolBuilder::buildSystemStatusMode(mode);
+        EXPECT_EQ(SightlineProtocolParser::identifyMessage(pkt), MessageId::SystemStatusMode);
+        const auto payload = SightlineProtocolParser::extractPayload(pkt);
+        ASSERT_EQ(payload.size(), 6U);
+        EXPECT_EQ(payload[0], 0x01U);
+        EXPECT_EQ(payload[1], 0x00U);
+        EXPECT_EQ(payload[2], 0x00U);
+        EXPECT_EQ(payload[3], 0x04U);
+        EXPECT_EQ(payload[4], 0x00U);
+        EXPECT_EQ(payload[5], 0x00U);
     }
 
     /// @brief Verify user warning message parsing (0x86).

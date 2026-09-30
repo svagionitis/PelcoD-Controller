@@ -1,5 +1,6 @@
 import QtQuick 2.15
 import QtQuick.Controls 2.15
+import QtQuick.Layouts 1.15
 import ".."
 
 Rectangle {
@@ -15,36 +16,34 @@ Rectangle {
     signal coordinatePicked(int col, int row)
     signal nudgeRequested(int deltaCol, int deltaRow)
 
-    implicitWidth: 380
-    implicitHeight: 260
-    color: SightlineTheme.surfaceLight
+    implicitWidth: 360
+    implicitHeight: 250
+    color: SightlineTheme.surfaceCard
     radius: SightlineTheme.radiusMedium
     border.color: SightlineTheme.cardBorder
     border.width: 1
     clip: true
 
-    Column {
+    ColumnLayout {
         anchors.fill: parent
         anchors.margins: 10
-        spacing: 8
+        spacing: 6
 
         // Viewport Header
-        Row {
-            width: parent.width
-            Text {
-                text: "CAMERA VIEWPORT COORDINATES (" + root.selectedCol + ", " + root.selectedRow + ")"
-                color: SightlineTheme.textSecondary
-                font.pixelSize: SightlineTheme.fontSizeSmall
-                font.bold: true
-            }
+        Text {
+            text: "VIEWPORT RETICLE (" + root.selectedCol + ", " + root.selectedRow + ")"
+            color: SightlineTheme.textSecondary
+            font.pixelSize: 10
+            font.bold: true
+            Layout.fillWidth: true
         }
 
         // Viewport Canvas Area
         Rectangle {
             id: viewport
-            width: parent.width
-            height: 160
-            color: "#0B0C0E"
+            Layout.fillWidth: true
+            Layout.preferredHeight: 150
+            color: "#08090c"
             radius: SightlineTheme.radiusSmall
             border.color: SightlineTheme.cardBorder
             clip: true
@@ -54,13 +53,13 @@ Rectangle {
                 anchors.centerIn: parent
                 width: parent.width
                 height: 1
-                color: "#1E222A"
+                color: "#181b24"
             }
             Rectangle {
                 anchors.centerIn: parent
                 width: 1
                 height: parent.height
-                color: "#1E222A"
+                color: "#181b24"
             }
 
             // Target Gate Box
@@ -71,16 +70,16 @@ Rectangle {
                 width: Math.max(16, (root.trackBoxW / root.frameWidth) * viewport.width)
                 height: Math.max(16, (root.trackBoxH / root.frameHeight) * viewport.height)
                 color: "transparent"
-                border.color: SightlineTheme.success
+                border.color: SightlineTheme.primary
                 border.width: 2
 
-                // Center dot
+                // Center cross dot
                 Rectangle {
                     anchors.centerIn: parent
                     width: 4
                     height: 4
                     radius: 2
-                    color: SightlineTheme.success
+                    color: SightlineTheme.primary
                 }
             }
 
@@ -107,40 +106,40 @@ Rectangle {
         }
 
         // Nudge and Center Controls
-        Row {
-            anchors.horizontalCenter: parent.horizontalCenter
-            spacing: 8
+        RowLayout {
+            Layout.alignment: Qt.AlignHCenter
+            spacing: 6
 
             Button {
                 text: "◄"
-                implicitWidth: 36
-                implicitHeight: 30
+                implicitWidth: 32
+                implicitHeight: 26
                 onClicked: root.nudgeRequested(-5, 0)
             }
             Button {
                 text: "▲"
-                implicitWidth: 36
-                implicitHeight: 30
+                implicitWidth: 32
+                implicitHeight: 26
                 onClicked: root.nudgeRequested(0, -5)
             }
             Button {
                 text: "▼"
-                implicitWidth: 36
-                implicitHeight: 30
+                implicitWidth: 32
+                implicitHeight: 26
                 onClicked: root.nudgeRequested(0, 5)
             }
             Button {
                 text: "►"
-                implicitWidth: 36
-                implicitHeight: 30
+                implicitWidth: 32
+                implicitHeight: 26
                 onClicked: root.nudgeRequested(5, 0)
             }
             Button {
                 text: "Center"
-                implicitHeight: 30
+                implicitHeight: 26
                 onClicked: {
-                    root.selectedCol = root.frameWidth / 2;
-                    root.selectedRow = root.frameHeight / 2;
+                    root.selectedCol = Math.round(root.frameWidth / 2);
+                    root.selectedRow = Math.round(root.frameHeight / 2);
                     root.coordinatePicked(root.selectedCol, root.selectedRow);
                 }
             }

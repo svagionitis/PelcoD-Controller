@@ -33,6 +33,11 @@ public:
     /// @return Framed binary packet.
     [[nodiscard]] static std::vector<std::uint8_t> buildSaveParameters(const MsgSaveParameters& msg);
 
+    /// @brief Encodes system status mode configuration (Message ID 0x80).
+    /// @param[in] msg Status mode settings.
+    /// @return Framed binary packet.
+    [[nodiscard]] static std::vector<std::uint8_t> buildSystemStatusMode(const MsgSystemStatusMode& msg);
+
     /// @brief Encodes network parameters configuration (Message ID 0x1C).
     /// @param[in] msg Network parameters.
     /// @return Framed binary packet.

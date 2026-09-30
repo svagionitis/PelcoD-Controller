@@ -1,10 +1,11 @@
 import QtQuick 2.15
 import QtQuick.Controls 2.15
+import QtQuick.Layouts 1.15
 import ".."
 
 Rectangle {
     id: sidebar
-    width: SightlineTheme.sidebarWidth
+    implicitWidth: SightlineTheme.sidebarWidth
     color: SightlineTheme.surface
     border.color: SightlineTheme.cardBorder
     border.width: 1
@@ -14,13 +15,14 @@ Rectangle {
 
     ScrollView {
         anchors.fill: parent
-        anchors.margins: 8
+        contentWidth: availableWidth
         clip: true
         ScrollBar.vertical.policy: ScrollBar.AsNeeded
 
-        Column {
-            width: parent.width
-            spacing: 6
+        ColumnLayout {
+            width: parent.width - 16
+            anchors.horizontalCenter: parent.horizontalCenter
+            spacing: 3
 
             // Section 1: Target Tracking & AI
             Text {
@@ -28,21 +30,20 @@ Rectangle {
                 color: SightlineTheme.textMuted
                 font.pixelSize: 10
                 font.bold: true
-                leftPadding: 8
-                topPadding: 6
+                Layout.topMargin: 6
+                Layout.bottomMargin: 2
+                Layout.leftMargin: 4
             }
 
             ModuleTabButton {
-                width: parent.width
                 text: "Tracking"
                 iconText: "🎯"
                 selected: sidebar.currentIndex === 0
-                badgeText: bridge.trackListModel.rowCount() > 0 ? (bridge.trackListModel.rowCount() + " tracks") : ""
+                badgeText: (bridge && bridge.trackListModel && bridge.trackListModel.rowCount() > 0) ? (bridge.trackListModel.rowCount() + " tracks") : ""
                 onClicked: sidebar.moduleSelected(0)
             }
 
             ModuleTabButton {
-                width: parent.width
                 text: "Stabilization"
                 iconText: "⚖️"
                 selected: sidebar.currentIndex === 1
@@ -50,7 +51,6 @@ Rectangle {
             }
 
             ModuleTabButton {
-                width: parent.width
                 text: "Detection"
                 iconText: "🔍"
                 selected: sidebar.currentIndex === 2
@@ -58,7 +58,6 @@ Rectangle {
             }
 
             ModuleTabButton {
-                width: parent.width
                 text: "Classification"
                 iconText: "🧠"
                 selected: sidebar.currentIndex === 3
@@ -66,7 +65,6 @@ Rectangle {
             }
 
             ModuleTabButton {
-                width: parent.width
                 text: "Landing Aid"
                 iconText: "🛬"
                 selected: sidebar.currentIndex === 4
@@ -79,12 +77,12 @@ Rectangle {
                 color: SightlineTheme.textMuted
                 font.pixelSize: 10
                 font.bold: true
-                leftPadding: 8
-                topPadding: 10
+                Layout.topMargin: 10
+                Layout.bottomMargin: 2
+                Layout.leftMargin: 4
             }
 
             ModuleTabButton {
-                width: parent.width
                 text: "Capture"
                 iconText: "📹"
                 selected: sidebar.currentIndex === 5
@@ -92,7 +90,6 @@ Rectangle {
             }
 
             ModuleTabButton {
-                width: parent.width
                 text: "Display"
                 iconText: "🖥️"
                 selected: sidebar.currentIndex === 6
@@ -100,7 +97,6 @@ Rectangle {
             }
 
             ModuleTabButton {
-                width: parent.width
                 text: "Enhancement"
                 iconText: "✨"
                 selected: sidebar.currentIndex === 7
@@ -108,7 +104,6 @@ Rectangle {
             }
 
             ModuleTabButton {
-                width: parent.width
                 text: "Compression"
                 iconText: "🗜️"
                 selected: sidebar.currentIndex === 8
@@ -116,7 +111,6 @@ Rectangle {
             }
 
             ModuleTabButton {
-                width: parent.width
                 text: "Blending"
                 iconText: "🔀"
                 selected: sidebar.currentIndex === 9
@@ -124,7 +118,6 @@ Rectangle {
             }
 
             ModuleTabButton {
-                width: parent.width
                 text: "Overlays"
                 iconText: "📐"
                 selected: sidebar.currentIndex === 10
@@ -137,12 +130,12 @@ Rectangle {
                 color: SightlineTheme.textMuted
                 font.pixelSize: 10
                 font.bold: true
-                leftPadding: 8
-                topPadding: 10
+                Layout.topMargin: 10
+                Layout.bottomMargin: 2
+                Layout.leftMargin: 4
             }
 
             ModuleTabButton {
-                width: parent.width
                 text: "Focus & Lens"
                 iconText: "🔭"
                 selected: sidebar.currentIndex === 11
@@ -150,7 +143,6 @@ Rectangle {
             }
 
             ModuleTabButton {
-                width: parent.width
                 text: "NUC Calibration"
                 iconText: "🌡️"
                 selected: sidebar.currentIndex === 12
@@ -163,12 +155,12 @@ Rectangle {
                 color: SightlineTheme.textMuted
                 font.pixelSize: 10
                 font.bold: true
-                leftPadding: 8
-                topPadding: 10
+                Layout.topMargin: 10
+                Layout.bottomMargin: 2
+                Layout.leftMargin: 4
             }
 
             ModuleTabButton {
-                width: parent.width
                 text: "Telemetry"
                 iconText: "📡"
                 selected: sidebar.currentIndex === 13
@@ -176,7 +168,6 @@ Rectangle {
             }
 
             ModuleTabButton {
-                width: parent.width
                 text: "KLV Metadata"
                 iconText: "🏷️"
                 selected: sidebar.currentIndex === 14
@@ -184,7 +175,6 @@ Rectangle {
             }
 
             ModuleTabButton {
-                width: parent.width
                 text: "Recording"
                 iconText: "💾"
                 selected: sidebar.currentIndex === 15
@@ -197,12 +187,12 @@ Rectangle {
                 color: SightlineTheme.textMuted
                 font.pixelSize: 10
                 font.bold: true
-                leftPadding: 8
-                topPadding: 10
+                Layout.topMargin: 10
+                Layout.bottomMargin: 2
+                Layout.leftMargin: 4
             }
 
             ModuleTabButton {
-                width: parent.width
                 text: "Network"
                 iconText: "🌐"
                 selected: sidebar.currentIndex === 16
@@ -210,7 +200,6 @@ Rectangle {
             }
 
             ModuleTabButton {
-                width: parent.width
                 text: "Serial Port"
                 iconText: "🔌"
                 selected: sidebar.currentIndex === 17
@@ -218,7 +207,6 @@ Rectangle {
             }
 
             ModuleTabButton {
-                width: parent.width
                 text: "General System"
                 iconText: "⚙️"
                 selected: sidebar.currentIndex === 18
@@ -226,12 +214,13 @@ Rectangle {
             }
 
             ModuleTabButton {
-                width: parent.width
                 text: "Traffic Inspector"
                 iconText: "🔬"
                 selected: sidebar.currentIndex === 19
                 onClicked: sidebar.moduleSelected(19)
             }
+
+            Item { Layout.preferredHeight: 12 }
         }
     }
 }

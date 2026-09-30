@@ -15,99 +15,94 @@ ApplicationWindow {
     title: "Sightline SLA Protocol Control Suite v3.11.6"
     color: SightlineTheme.background
 
-    ColumnLayout {
+    // ApplicationWindow top header slot prevents any overlap with body views
+    header: StatusHeader {
+        id: statusHeader
+    }
+
+    RowLayout {
         anchors.fill: parent
         spacing: 0
 
-        // Persistent Top Header with Hardware Connection & Health Bar
-        StatusHeader {
-            Layout.fillWidth: true
-            z: 10
+        // Left Navigation Sidebar
+        ModuleNavigationSidebar {
+            id: sidebar
+            Layout.preferredWidth: SightlineTheme.sidebarWidth
+            Layout.minimumWidth: SightlineTheme.sidebarWidth
+            Layout.maximumWidth: SightlineTheme.sidebarWidth
+            Layout.fillHeight: true
+            currentIndex: stackLayout.currentIndex
+            onModuleSelected: function(index) {
+                stackLayout.currentIndex = index;
+            }
         }
 
-        // Main Application Workspace
-        RowLayout {
+        // Central Dynamic Module Workspace
+        StackLayout {
+            id: stackLayout
             Layout.fillWidth: true
             Layout.fillHeight: true
-            spacing: 0
+            currentIndex: 0
 
-            // Left Navigation Sidebar
-            ModuleNavigationSidebar {
-                id: sidebar
-                Layout.fillHeight: true
-                currentIndex: stackLayout.currentIndex
-                onModuleSelected: function(index) {
-                    stackLayout.currentIndex = index;
-                }
-            }
+            // 0: Tracking
+            TrackingView {}
 
-            // Central Dynamic Module Workspace
-            StackLayout {
-                id: stackLayout
-                Layout.fillWidth: true
-                Layout.fillHeight: true
-                currentIndex: 0
+            // 1: Stabilization
+            StabilizationView {}
 
-                // 0: Tracking
-                TrackingView {}
+            // 2: Detection
+            DetectionView {}
 
-                // 1: Stabilization
-                StabilizationView {}
+            // 3: Classification
+            ClassificationView {}
 
-                // 2: Detection
-                DetectionView {}
+            // 4: Landing Aid
+            LandingAidView {}
 
-                // 3: Classification
-                ClassificationView {}
+            // 5: Capture
+            CaptureView {}
 
-                // 4: Landing Aid
-                LandingAidView {}
+            // 6: Display
+            DisplayView {}
 
-                // 5: Capture
-                CaptureView {}
+            // 7: Enhancement
+            EnhancementView {}
 
-                // 6: Display
-                DisplayView {}
+            // 8: Compression
+            CompressionView {}
 
-                // 7: Enhancement
-                EnhancementView {}
+            // 9: Blending
+            BlendingView {}
 
-                // 8: Compression
-                CompressionView {}
+            // 10: Overlays
+            OverlayView {}
 
-                // 9: Blending
-                BlendingView {}
+            // 11: Focus & Lens
+            FocusLensView {}
 
-                // 10: Overlays
-                OverlayView {}
+            // 12: NUC Calibration
+            NucView {}
 
-                // 11: Focus & Lens
-                FocusLensView {}
+            // 13: Telemetry
+            TelemetryView {}
 
-                // 12: NUC Calibration
-                NucView {}
+            // 14: KLV Metadata
+            KlvMetadataView {}
 
-                // 13: Telemetry
-                TelemetryView {}
+            // 15: Recording
+            RecordingView {}
 
-                // 14: KLV Metadata
-                KlvMetadataView {}
+            // 16: Network
+            NetworkView {}
 
-                // 15: Recording
-                RecordingView {}
+            // 17: Serial Port
+            SerialPortView {}
 
-                // 16: Network
-                NetworkView {}
+            // 18: General System
+            GeneralSystemView {}
 
-                // 17: Serial Port
-                SerialPortView {}
-
-                // 18: General System
-                GeneralSystemView {}
-
-                // 19: Traffic Inspector
-                TrafficInspectorView {}
-            }
+            // 19: Traffic Inspector
+            TrafficInspectorView {}
         }
     }
 }

@@ -4,113 +4,125 @@ import QtQuick.Layouts 1.15
 import ".."
 import "../components"
 
-Item {
+ScrollView {
     id: root
+    Layout.fillWidth: true
+    Layout.fillHeight: true
+    contentWidth: availableWidth
+    clip: true
 
     property bool isRecording: false
 
     ColumnLayout {
-        anchors.fill: parent
-        anchors.margins: 16
+        width: parent.width - 32
+        anchors.horizontalCenter: parent.horizontalCenter
         spacing: 16
 
+        Item { Layout.preferredHeight: 2 }
+
         RowLayout {
-            spacing: 12
+            Layout.fillWidth: true
+            spacing: 8
+            Rectangle { width: 4; height: 18; color: SightlineTheme.primary; radius: 2 }
             Text {
-                text: "💾 ONBOARD RECORDING & SNAPSHOT"
+                text: "ONBOARD MEDIA STORAGE & RECORDING"
                 color: SightlineTheme.textPrimary
-                font.pixelSize: SightlineTheme.fontSizeLarge
+                font.pixelSize: SightlineTheme.fontSizeMedium
                 font.bold: true
+                font.letterSpacing: 1.0
             }
             Text {
-                text: "• Module 0x70 / 0x69 / SD Card Media Storage"
+                text: "// Modules 0x70, 0x69 SD Card & Snapshots"
                 color: SightlineTheme.textMuted
-                font.pixelSize: SightlineTheme.fontSizeNormal
+                font.pixelSize: SightlineTheme.fontSizeSmall
+                font.family: "Monospace"
             }
         }
 
-        // Metrics
+        // Metrics Row
         RowLayout {
+            Layout.fillWidth: true
             spacing: 12
-            MetricCard {
-                title: "Storage Status"
-                value: "118.4"
-                unit: "GB Free"
-                accentColor: SightlineTheme.info
-                iconText: "💽"
-            }
-            MetricCard {
-                title: "Recording State"
-                value: root.isRecording ? "RECORDING" : "STANDBY"
-                accentColor: root.isRecording ? SightlineTheme.error : SightlineTheme.success
-                iconText: root.isRecording ? "🔴" : "⏸️"
-            }
-            MetricCard {
-                title: "Recorded Clips"
-                value: "28"
-                accentColor: SightlineTheme.primary
-                iconText: "📁"
-            }
+            MetricCard { title: "Storage Free"; value: "118.4"; unit: "GB"; accentColor: SightlineTheme.info; iconText: "💽" }
+            MetricCard { title: "Recorder State"; value: root.isRecording ? "RECORDING" : "STANDBY"; accentColor: root.isRecording ? SightlineTheme.error : SightlineTheme.success; iconText: root.isRecording ? "🔴" : "⏸️" }
+            MetricCard { title: "Stored Clips"; value: "28"; unit: "files"; accentColor: SightlineTheme.primary; iconText: "📁" }
             Item { Layout.fillWidth: true }
         }
 
         // Settings Card
         Rectangle {
             Layout.fillWidth: true
-            Layout.preferredHeight: 340
-            color: SightlineTheme.surface
+            implicitHeight: recCol.implicitHeight + 28
+            color: SightlineTheme.surfaceCard
             radius: SightlineTheme.radiusMedium
             border.color: SightlineTheme.cardBorder
+            border.width: 1
 
             ColumnLayout {
+                id: recCol
                 anchors.fill: parent
-                anchors.margins: 16
-                spacing: 16
+                anchors.margins: 14
+                spacing: 12
 
                 Text {
-                    text: "VIDEO RECORDER CONTROLS"
-                    color: SightlineTheme.textSecondary
-                    font.pixelSize: SightlineTheme.fontSizeSmall
+                    text: "VIDEO RECORDING & STILL FRAME CAPTURE"
+                    color: SightlineTheme.primary
+                    font.pixelSize: 11
                     font.bold: true
                 }
 
                 RowLayout {
-                    spacing: 16
-                    Text { text: "Camera Source:"; color: SightlineTheme.textSecondary; Layout.preferredWidth: 150 }
+                    Layout.fillWidth: true
+                    spacing: 12
+                    Text { text: "Camera Source:"; color: SightlineTheme.textSecondary; font.pixelSize: 12; Layout.preferredWidth: 150; Layout.alignment: Qt.AlignVCenter }
                     ComboBox {
                         id: recCam
                         model: ["Camera 0 (EO Video)", "Camera 1 (IR Video)", "Camera 2", "Camera 3"]
-                        Layout.preferredWidth: 220
+                        Layout.preferredWidth: 240
                     }
+                    Item { Layout.fillWidth: true }
                 }
 
                 RowLayout {
-                    spacing: 16
-                    Text { text: "File Prefix:"; color: SightlineTheme.textSecondary; Layout.preferredWidth: 150 }
+                    Layout.fillWidth: true
+                    spacing: 12
+                    Text { text: "Filename Prefix:"; color: SightlineTheme.textSecondary; font.pixelSize: 12; Layout.preferredWidth: 150; Layout.alignment: Qt.AlignVCenter }
                     TextField {
                         id: prefixInput
                         text: "flight_rec"
-                        Layout.preferredWidth: 200
+                        Layout.preferredWidth: 180
                         color: SightlineTheme.textPrimary
-                        background: Rectangle { color: SightlineTheme.surfaceLight; radius: 4 }
+                        background: Rectangle { color: SightlineTheme.surfaceLight; radius: 4; border.color: prefixInput.activeFocus ? SightlineTheme.primary : SightlineTheme.inputBorder }
                     }
+                    Item { Layout.fillWidth: true }
                 }
 
                 RowLayout {
-                    spacing: 12
-                    Layout.topMargin: 12
+                    Layout.fillWidth: true
+                    spacing: 10
+                    Layout.topMargin: 4
 
                     Button {
-                        text: root.isRecording ? "Stop Recording" : "Start Video Recording"
-                        Layout.preferredWidth: 180
-                        contentItem: Text { text: parent.text; color: "#FFFFFF"; font.bold: true; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
-                        background: Rectangle { color: root.isRecording ? SightlineTheme.error : SightlineTheme.success; radius: 4 }
+                        text: root.isRecording ? "Stop Video Recording" : "Start Video Recording"
+                        Layout.preferredWidth: 170
+                        Layout.preferredHeight: 32
+                        contentItem: Text {
+                            text: parent.text
+                            color: root.isRecording ? "#ffffff" : "#0e1014"
+                            font.bold: true
+                            horizontalAlignment: Text.AlignHCenter
+                            verticalAlignment: Text.AlignVCenter
+                        }
+                        background: Rectangle {
+                            color: root.isRecording ? SightlineTheme.error : SightlineTheme.success
+                            radius: 4
+                        }
                         onClicked: {
                             if (root.isRecording) {
-                                bridge.setSDRecording(0, recCam.currentIndex, prefixInput.text);
+                                if (bridge) bridge.setSDRecording(0, recCam.currentIndex, prefixInput.text);
                                 root.isRecording = false;
                             } else {
-                                bridge.setSDRecording(1, recCam.currentIndex, prefixInput.text);
+                                if (bridge) bridge.setSDRecording(1, recCam.currentIndex, prefixInput.text);
                                 root.isRecording = true;
                             }
                         }
@@ -118,19 +130,18 @@ Item {
 
                     Button {
                         text: "Capture Still Snapshot"
-                        Layout.preferredWidth: 180
-                        contentItem: Text { text: parent.text; color: "#FFFFFF"; font.bold: true; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
+                        Layout.preferredWidth: 160
+                        Layout.preferredHeight: 32
+                        contentItem: Text { text: parent.text; color: "#0e1014"; font.bold: true; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
                         background: Rectangle { color: SightlineTheme.primary; radius: 4 }
-                        onClicked: {
-                            bridge.setSDRecording(2, recCam.currentIndex, prefixInput.text);
-                        }
+                        onClicked: { if (bridge) bridge.setSDRecording(2, recCam.currentIndex, prefixInput.text); }
                     }
-                }
 
-                Item { Layout.fillHeight: true }
+                    Item { Layout.fillWidth: true }
+                }
             }
         }
 
-        Item { Layout.fillHeight: true }
+        Item { Layout.preferredHeight: 16 }
     }
 }

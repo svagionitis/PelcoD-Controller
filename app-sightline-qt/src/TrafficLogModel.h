@@ -42,7 +42,7 @@ public:
     /// @details Returns number of entries currently stored.
     /// @param parent Parent model index.
     /// @return Number of entries.
-    [[nodiscard]] int rowCount(const QModelIndex& parent = QModelIndex()) const override;
+    Q_INVOKABLE [[nodiscard]] int rowCount(const QModelIndex& parent = QModelIndex()) const override;
 
     /// @brief Retrieve model data for a role.
     /// @details Formats timestamp, hex payload, or flags.

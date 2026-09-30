@@ -4,126 +4,134 @@ import QtQuick.Layouts 1.15
 import ".."
 import "../components"
 
-Item {
+ScrollView {
     id: root
+    Layout.fillWidth: true
+    Layout.fillHeight: true
+    contentWidth: availableWidth
+    clip: true
 
     ColumnLayout {
-        anchors.fill: parent
-        anchors.margins: 16
+        width: parent.width - 32
+        anchors.horizontalCenter: parent.horizontalCenter
         spacing: 16
 
+        Item { Layout.preferredHeight: 2 }
+
         RowLayout {
-            spacing: 12
+            Layout.fillWidth: true
+            spacing: 8
+            Rectangle { width: 4; height: 18; color: SightlineTheme.primary; radius: 2 }
             Text {
-                text: "📡 TELEMETRY REPORTING MODES"
+                text: "TELEMETRY REPORTING & STREAMING MASKS"
                 color: SightlineTheme.textPrimary
-                font.pixelSize: SightlineTheme.fontSizeLarge
+                font.pixelSize: SightlineTheme.fontSizeMedium
                 font.bold: true
+                font.letterSpacing: 1.0
             }
             Text {
-                text: "• Module 0x0B / 0x43 / Tracking Positions & Rates"
+                text: "// Modules 0x0B, 0x43 Reporting Periods"
                 color: SightlineTheme.textMuted
-                font.pixelSize: SightlineTheme.fontSizeNormal
+                font.pixelSize: SightlineTheme.fontSizeSmall
+                font.family: "Monospace"
             }
         }
 
-        // Metrics
+        // Metrics Row
         RowLayout {
+            Layout.fillWidth: true
             spacing: 12
-            MetricCard {
-                title: "Report Rate"
-                value: "30"
-                unit: "Hz"
-                accentColor: SightlineTheme.primary
-                iconText: "⚡"
-            }
-            MetricCard {
-                title: "Telemetry Mask"
-                value: "0x003F"
-                accentColor: SightlineTheme.info
-                iconText: "🎭"
-            }
-            MetricCard {
-                title: "Packet Throughput"
-                value: "48.2"
-                unit: "KB/s"
-                accentColor: SightlineTheme.success
-                iconText: "📊"
-            }
+            MetricCard { title: "Telemetry Rate"; value: "30"; unit: "Hz"; accentColor: SightlineTheme.primary; iconText: "⚡" }
+            MetricCard { title: "Reporting Mask"; value: "0x003F"; accentColor: SightlineTheme.info; iconText: "🎭" }
+            MetricCard { title: "Packet Bandwidth"; value: "48.2"; unit: "KB/s"; accentColor: SightlineTheme.success; iconText: "📊" }
             Item { Layout.fillWidth: true }
         }
 
         // Settings Card
         Rectangle {
             Layout.fillWidth: true
-            Layout.preferredHeight: 340
-            color: SightlineTheme.surface
+            implicitHeight: telemCol.implicitHeight + 28
+            color: SightlineTheme.surfaceCard
             radius: SightlineTheme.radiusMedium
             border.color: SightlineTheme.cardBorder
+            border.width: 1
 
             ColumnLayout {
+                id: telemCol
                 anchors.fill: parent
-                anchors.margins: 16
-                spacing: 16
+                anchors.margins: 14
+                spacing: 12
 
                 Text {
-                    text: "PERIODIC TELEMETRY STREAMING"
-                    color: SightlineTheme.textSecondary
-                    font.pixelSize: SightlineTheme.fontSizeSmall
+                    text: "PERIODIC TELEMETRY STREAMING CONFIGURATION"
+                    color: SightlineTheme.primary
+                    font.pixelSize: 11
                     font.bold: true
                 }
 
                 RowLayout {
-                    spacing: 16
-                    Text { text: "Camera Channel:"; color: SightlineTheme.textSecondary; Layout.preferredWidth: 150 }
+                    Layout.fillWidth: true
+                    spacing: 12
+                    Text { text: "Camera Channel:"; color: SightlineTheme.textSecondary; font.pixelSize: 12; Layout.preferredWidth: 150; Layout.alignment: Qt.AlignVCenter }
                     ComboBox {
                         id: telemCam
                         model: ["Camera 0", "Camera 1", "Camera 2", "Camera 3"]
-                        Layout.preferredWidth: 200
+                        Layout.preferredWidth: 240
                     }
+                    Item { Layout.fillWidth: true }
                 }
 
                 RowLayout {
-                    spacing: 16
-                    Text { text: "Reporting Period (ms):"; color: SightlineTheme.textSecondary; Layout.preferredWidth: 150 }
+                    Layout.fillWidth: true
+                    spacing: 12
+                    Text { text: "Reporting Interval:"; color: SightlineTheme.textSecondary; font.pixelSize: 12; Layout.preferredWidth: 150; Layout.alignment: Qt.AlignVCenter }
                     Slider {
                         id: periodSlider
                         from: 16
                         to: 500
                         value: 33
                         stepSize: 1
-                        Layout.preferredWidth: 220
+                        Layout.preferredWidth: 200
                     }
-                    Text { text: Math.round(periodSlider.value) + " ms (" + (1000.0 / periodSlider.value).toFixed(1) + " Hz)"; color: SightlineTheme.textPrimary; font.bold: true }
+                    Text { text: Math.round(periodSlider.value) + " ms (" + (1000.0 / periodSlider.value).toFixed(1) + " Hz)"; color: SightlineTheme.textPrimary; font.bold: true; font.pixelSize: 12 }
+                    Item { Layout.fillWidth: true }
                 }
 
                 RowLayout {
-                    spacing: 16
-                    Text { text: "Message Masks:"; color: SightlineTheme.textSecondary; Layout.preferredWidth: 150 }
-                    CheckBox { id: maskTrack; text: "Tracking Positions (0x43)"; checked: true }
-                    CheckBox { id: maskStatus; text: "System Status (0x3B)"; checked: true }
-                    CheckBox { id: maskWarn; text: "User Warnings (0x40)"; checked: true }
+                    Layout.fillWidth: true
+                    spacing: 12
+                    Text { text: "Message Masks:"; color: SightlineTheme.textSecondary; font.pixelSize: 12; Layout.preferredWidth: 150; Layout.alignment: Qt.AlignVCenter }
+                    CheckBox { id: maskTrack; text: "Tracking (0x43)"; checked: true }
+                    CheckBox { id: maskStatus; text: "Status (0x3B)"; checked: true }
+                    CheckBox { id: maskWarn; text: "Warnings (0x40)"; checked: true }
+                    Item { Layout.fillWidth: true }
                 }
 
-                Button {
-                    text: "Apply Telemetry Rate"
-                    Layout.preferredWidth: 200
-                    Layout.topMargin: 8
-                    contentItem: Text { text: parent.text; color: "#FFFFFF"; font.bold: true; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
-                    background: Rectangle { color: SightlineTheme.primary; radius: 4 }
-                    onClicked: {
-                        var flags = 0;
-                        if (maskTrack.checked) flags |= 0x01;
-                        if (maskStatus.checked) flags |= 0x02;
-                        if (maskWarn.checked) flags |= 0x04;
-                        bridge.setReportingMode(telemCam.currentIndex, Math.round(periodSlider.value), flags);
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 10
+                    Layout.topMargin: 4
+
+                    Button {
+                        text: "Apply Telemetry Rate"
+                        Layout.preferredWidth: 180
+                        Layout.preferredHeight: 32
+                        contentItem: Text { text: parent.text; color: "#0e1014"; font.bold: true; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
+                        background: Rectangle { color: SightlineTheme.primary; radius: 4 }
+                        onClicked: {
+                            var flags = 0;
+                            if (maskTrack.checked) flags |= 0x01;
+                            if (maskStatus.checked) flags |= 0x02;
+                            if (maskWarn.checked) flags |= 0x04;
+                            bridge.setReportingMode(telemCam.currentIndex, Math.round(periodSlider.value), flags);
+                        }
                     }
-                }
 
-                Item { Layout.fillHeight: true }
+                    Item { Layout.fillWidth: true }
+                }
             }
         }
 
-        Item { Layout.fillHeight: true }
+        Item { Layout.preferredHeight: 16 }
     }
 }

@@ -6,7 +6,7 @@ add_executable(SightlineAppQt
     src/TrackListModel.cpp
     src/TrafficLogModel.h
     src/TrafficLogModel.cpp
-    resources/qml.qrc
+    qml.qrc
 )
 
 add_custom_target(app-sightline-qt DEPENDS SightlineAppQt)

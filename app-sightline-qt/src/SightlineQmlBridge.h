@@ -9,6 +9,7 @@
 #include <SightlineQt/QSightlineDevice.h>
 #include <Transport/SightlineUdpTransport.h>
 
+#include <QElapsedTimer>
 #include <QObject>
 #include <QString>
 #include <memory>
@@ -316,6 +317,7 @@ private:
     QString m_lastWarningMessage {};
     QString m_softwareVersion { "Disconnected" };
 
+    QElapsedTimer m_connectionTimer {};
     std::unique_ptr<QSightlineDevice> m_device {};
     std::unique_ptr<TrackListModel> m_trackListModel {};
     std::unique_ptr<TrafficLogModel> m_trafficLogModel {};

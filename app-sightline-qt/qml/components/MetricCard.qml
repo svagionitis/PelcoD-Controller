@@ -1,5 +1,6 @@
 import QtQuick 2.15
 import QtQuick.Controls 2.15
+import QtQuick.Layouts 1.15
 import ".."
 
 Rectangle {
@@ -12,59 +13,63 @@ Rectangle {
     property string iconText: "📊"
 
     implicitWidth: 160
-    implicitHeight: 80
-    color: SightlineTheme.surface
+    implicitHeight: 62
+    color: SightlineTheme.surfaceCard
     radius: SightlineTheme.radiusMedium
     border.color: SightlineTheme.cardBorder
     border.width: 1
 
-    Row {
+    RowLayout {
         anchors.fill: parent
-        anchors.margins: 12
-        spacing: 12
+        anchors.margins: 10
+        spacing: 10
 
         Rectangle {
-            width: 38
-            height: 38
-            radius: 8
+            implicitWidth: 32
+            implicitHeight: 32
+            radius: 6
             color: Qt.rgba(root.accentColor.r, root.accentColor.g, root.accentColor.b, 0.15)
-            anchors.verticalCenter: parent.verticalCenter
+            Layout.alignment: Qt.AlignVCenter
 
             Text {
                 anchors.centerIn: parent
                 text: root.iconText
-                font.pixelSize: 18
+                font.pixelSize: 15
             }
         }
 
-        Column {
-            anchors.verticalCenter: parent.verticalCenter
+        ColumnLayout {
             spacing: 2
+            Layout.fillWidth: true
+            Layout.alignment: Qt.AlignVCenter
 
             Text {
                 text: root.title
                 color: SightlineTheme.textSecondary
-                font.pixelSize: SightlineTheme.fontSizeSmall
-                font.weight: Font.Medium
+                font.pixelSize: 10
+                font.bold: true
+                elide: Text.ElideRight
+                Layout.fillWidth: true
             }
 
-            Row {
+            RowLayout {
                 spacing: 4
                 Text {
                     text: root.value
                     color: SightlineTheme.textPrimary
-                    font.pixelSize: SightlineTheme.fontSizeLarge
-                    font.weight: Font.Bold
+                    font.pixelSize: 13
+                    font.bold: true
                 }
 
                 Text {
                     visible: root.unit.length > 0
                     text: root.unit
                     color: SightlineTheme.textMuted
-                    font.pixelSize: SightlineTheme.fontSizeSmall
-                    anchors.bottom: parent.bottom
-                    anchors.bottomMargin: 2
+                    font.pixelSize: 10
+                    Layout.alignment: Qt.AlignBaseline
                 }
+
+                Item { Layout.fillWidth: true }
             }
         }
     }
