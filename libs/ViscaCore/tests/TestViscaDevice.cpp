@@ -142,3 +142,40 @@ TEST(TestViscaDevice, PanTiltDriveAndInquiries)
     EXPECT_EQ(status->tiltSpeed, 0x0A);
 }
 
+/// @brief Tests VISCA protocol state machine and telemetry counters.
+TEST(TestViscaDevice, ProtocolStatisticsTracking)
+{
+    auto mockCamera = std::make_shared<MockViscaTransport>(1);
+    mockCamera->open();
+
+    ViscaDevice device(mockCamera, 1);
+
+    auto stats = device.getProtocolStats();
+    EXPECT_EQ(stats.socket1State, ViscaSocketState::Idle);
+    EXPECT_EQ(stats.socket2State, ViscaSocketState::Idle);
+    EXPECT_EQ(stats.socket1Processed, 0U);
+    EXPECT_EQ(stats.socket2Processed, 0U);
+    EXPECT_EQ(stats.inquiriesProcessed, 0U);
+
+    // Send a sync command
+    const ViscaFrame zoomCmd { 0x81, 0x01, 0x04, 0x47, 0x02, 0x00, 0x00, 0x00, 0xFF };
+    const CommandResult cmdRes = device.sendCommandSync(zoomCmd);
+    EXPECT_TRUE(cmdRes.success);
+
+    // Send an inquiry
+    const auto pos = device.queryPanTiltPosition();
+    EXPECT_TRUE(pos.has_value());
+
+    stats = device.getProtocolStats();
+    EXPECT_GT(stats.socket1Processed + stats.socket2Processed, 0U);
+    EXPECT_GE(stats.inquiriesProcessed, 1U);
+    EXPECT_EQ(stats.syntaxErrors, 0U);
+    EXPECT_EQ(stats.timeouts, 0U);
+    EXPECT_GE(stats.avgTurnaroundMs, 0.0);
+
+    device.resetProtocolStats();
+    const auto resetStats = device.getProtocolStats();
+    EXPECT_EQ(resetStats.socket1Processed, 0U);
+    EXPECT_EQ(resetStats.socket2Processed, 0U);
+    EXPECT_EQ(resetStats.inquiriesProcessed, 0U);
+}

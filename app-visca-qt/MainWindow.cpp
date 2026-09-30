@@ -77,12 +77,12 @@ void MainWindow::setupConnections()
     connect(m_device, &QViscaSonyDevice::commandFailed, this, &MainWindow::handleCommandFailed);
     connect(m_device, &QViscaSonyDevice::statusUpdated, this, [this](const Visca::Sony::SonyFCBStatus& /*status*/) {
         if (m_inspectorWidget && m_device) {
-            m_inspectorWidget->updateTransportStats(m_device->transportStats());
+            m_inspectorWidget->updateTransportStats(m_device->transportStats(), m_device->protocolStats());
         }
     });
     connect(m_device, &QViscaSonyDevice::connectionStateChanged, this, [this](bool /*connected*/) {
         if (m_inspectorWidget && m_device) {
-            m_inspectorWidget->updateTransportStats(m_device->transportStats());
+            m_inspectorWidget->updateTransportStats(m_device->transportStats(), m_device->protocolStats());
         }
     });
 
@@ -101,7 +101,7 @@ void MainWindow::handleDisconnect()
 {
     m_device->disconnectDevice();
     if (m_inspectorWidget && m_device) {
-        m_inspectorWidget->updateTransportStats(m_device->transportStats());
+        m_inspectorWidget->updateTransportStats(m_device->transportStats(), m_device->protocolStats());
     }
     statusBar()->showMessage(tr("Camera disconnected."));
 }

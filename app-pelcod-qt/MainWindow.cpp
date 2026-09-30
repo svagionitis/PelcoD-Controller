@@ -138,7 +138,7 @@ void MainWindow::handleStatusUpdated(const PelcoD::DeviceStatus& status)
     m_ptzTab->updateTelemetry(status);
     m_systemTab->updateStatus(status);
     if (m_inspectorWidget && m_device) {
-        m_inspectorWidget->updateTransportStats(m_device->transportStats());
+        m_inspectorWidget->updateTransportStats(m_device->transportStats(), m_device->protocolStats());
     }
 }
 

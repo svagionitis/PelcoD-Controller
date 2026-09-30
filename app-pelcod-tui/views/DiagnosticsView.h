@@ -5,6 +5,7 @@
 
 #include "Canvas.h"
 #include "PelcoDDevice.h"
+#include "PelcoDStats.h"
 #include "PlantIdentifier.h"
 #include "RttProfiler.h"
 #include "SpectrogramColorMap.h"
@@ -32,8 +33,10 @@ public:
     /// @param[in] status Device telemetry and query states.
     /// @param[in] info Device hardware and protocol information.
     /// @param[in] stats Real-time transport and kernel-level metrics.
+    /// @param[in] protoStats Real-time Pelco-D protocol telemetry snapshot.
     void render(Canvas& canvas, int startY, int width, int height, const PelcoD::DeviceStatus& status,
-        const PelcoD::DeviceInfo& info, const Transport::TransportStatsSnapshot& stats = {});
+        const PelcoD::DeviceInfo& info, const Transport::TransportStatsSnapshot& stats = {},
+        const PelcoD::PelcoDProtocolStats& protoStats = {});
 
     /// @brief Handles keyboard input events for diagnostics operations.
     /// @param[in] event Input key event.

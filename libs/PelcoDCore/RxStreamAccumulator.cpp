@@ -31,8 +31,8 @@ std::vector<std::vector<std::uint8_t>> RxStreamAccumulator::push(
     std::scoped_lock lock(m_mutex);
 
     if (m_buffer.size() + size > m_maxBufferSize) {
-        LOG(WARNING) << "RxStreamAccumulator overflow (" << (m_buffer.size() + size) << " > "
-                     << m_maxBufferSize << " bytes): resetting accumulator buffer";
+        LOG(WARNING) << "RxStreamAccumulator overflow (" << (m_buffer.size() + size) << " > " << m_maxBufferSize
+                     << " bytes): resetting accumulator buffer";
         m_buffer.clear();
     }
 
@@ -41,11 +41,14 @@ std::vector<std::vector<std::uint8_t>> RxStreamAccumulator::push(
     while (m_buffer.size() >= PelcoDFrame::GeneralResponseSize) {
         const auto syncIt = std::find(m_buffer.begin(), m_buffer.end(), PelcoDFrame::SyncByte);
         if (syncIt == m_buffer.end()) {
+            m_discardedBytes.fetch_add(static_cast<std::uint64_t>(m_buffer.size()), std::memory_order_relaxed);
             m_buffer.clear();
             break;
         }
 
         if (syncIt != m_buffer.begin()) {
+            const auto dropped = static_cast<std::uint64_t>(std::distance(m_buffer.begin(), syncIt));
+            m_discardedBytes.fetch_add(dropped, std::memory_order_relaxed);
             m_buffer.erase(m_buffer.begin(), syncIt);
         }
 
@@ -54,11 +57,8 @@ std::vector<std::vector<std::uint8_t>> RxStreamAccumulator::push(
             break;
         }
 
-        constexpr std::size_t candidateSizes[] = {
-            PelcoDFrame::StandardFrameSize,
-            PelcoDFrame::GeneralResponseSize,
-            PelcoDFrame::QueryResponseSize
-        };
+        constexpr std::size_t candidateSizes[]
+            = { PelcoDFrame::StandardFrameSize, PelcoDFrame::GeneralResponseSize, PelcoDFrame::QueryResponseSize };
 
         bool frameExtracted = false;
 
@@ -67,8 +67,7 @@ std::vector<std::vector<std::uint8_t>> RxStreamAccumulator::push(
                 std::vector<std::uint8_t> frame(
                     m_buffer.begin(), m_buffer.begin() + static_cast<std::ptrdiff_t>(candidateSize));
                 if (PelcoDFrame::isValidFrame(frame)) {
-                    m_buffer.erase(
-                        m_buffer.begin(), m_buffer.begin() + static_cast<std::ptrdiff_t>(candidateSize));
+                    m_buffer.erase(m_buffer.begin(), m_buffer.begin() + static_cast<std::ptrdiff_t>(candidateSize));
                     framesToDispatch.push_back(std::move(frame));
                     frameExtracted = true;
                     break;
@@ -82,6 +81,8 @@ std::vector<std::vector<std::uint8_t>> RxStreamAccumulator::push(
             if (available < maxExpectedSize) {
                 break;
             }
+            m_checksumErrors.fetch_add(1U, std::memory_order_relaxed);
+            m_discardedBytes.fetch_add(1U, std::memory_order_relaxed);
             m_buffer.erase(m_buffer.begin());
         }
     }
@@ -104,6 +105,22 @@ std::size_t RxStreamAccumulator::size() const
 std::size_t RxStreamAccumulator::maxBufferSize() const noexcept
 {
     return m_maxBufferSize;
+}
+
+std::uint64_t RxStreamAccumulator::discardedBytes() const noexcept
+{
+    return m_discardedBytes.load(std::memory_order_relaxed);
+}
+
+std::uint64_t RxStreamAccumulator::checksumErrors() const noexcept
+{
+    return m_checksumErrors.load(std::memory_order_relaxed);
+}
+
+void RxStreamAccumulator::resetStats() noexcept
+{
+    m_discardedBytes.store(0U, std::memory_order_relaxed);
+    m_checksumErrors.store(0U, std::memory_order_relaxed);
 }
 
 } // namespace PelcoD

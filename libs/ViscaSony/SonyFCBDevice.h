@@ -54,6 +54,13 @@ public:
         return m_device.getTransportStats();
     }
 
+    /// @brief Captures real-time VISCA protocol telemetry and error counters.
+    /// @return Snapshot containing socket states, completed counts, errors, and latencies.
+    [[nodiscard]] ViscaProtocolStats getProtocolStats() const
+    {
+        return m_device.getProtocolStats();
+    }
+
     /// @brief Polls all Block Inquiries (00 to 04) to update status telemetry.
     /// @return True if all block inquiries were answered and parsed.
     bool pollStatus();

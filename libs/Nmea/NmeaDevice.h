@@ -6,6 +6,7 @@
 #include "AisDecoder.h"
 #include "AisTypes.h"
 #include "NmeaSentenceParser.h"
+#include "NmeaStats.h"
 #include "NmeaStreamAccumulator.h"
 #include "NmeaTypes.h"
 #include "Transport/ITransport.h"
@@ -87,6 +88,13 @@ public:
     /// @brief Captures transport-layer and kernel-level communication statistics.
     /// @return Aggregated snapshot containing generic and kernel-level metrics.
     [[nodiscard]] Transport::TransportStatsSnapshot getTransportStats() const;
+
+    /// @brief Captures high-resolution NMEA protocol and sentence processing statistics.
+    /// @return NmeaProtocolStats containing sentence counts, errors, and hunt drops.
+    [[nodiscard]] NmeaProtocolStats getProtocolStats() const;
+
+    /// @brief Resets protocol sentence counters and accumulator telemetry.
+    void resetProtocolStats();
 
     /// @brief Transmits a formatted NMEA sentence over the transport medium.
     /// @param[in] sentence Sentence payload (with or without checksum).
@@ -436,6 +444,10 @@ private:
     CallbackList<VhwCallback> m_vhwCallbacks {};
     CallbackList<DptCallback> m_dptCallbacks {};
     CallbackList<DbtCallback> m_dbtCallbacks {};
+
+    std::atomic<std::uint64_t> m_sentencesReceived { 0U };
+    std::atomic<std::uint64_t> m_sentencesParsed { 0U };
+    std::atomic<std::uint64_t> m_sentencesSent { 0U };
 };
 
 } // namespace Nmea

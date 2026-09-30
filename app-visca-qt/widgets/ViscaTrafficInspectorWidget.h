@@ -12,6 +12,7 @@
 #include <QTableWidget>
 #include <QWidget>
 #include <TransportStats.h>
+#include <ViscaTypes.h>
 
 namespace ViscaApp {
 
@@ -33,7 +34,9 @@ public slots:
 
     /// @brief Updates the real-time transport and kernel-level metrics display panel.
     /// @param[in] stats Aggregated communication statistics snapshot.
-    void updateTransportStats(const ::Transport::TransportStatsSnapshot& stats);
+    /// @param[in] protoStats VISCA protocol execution telemetry.
+    void updateTransportStats(
+        const ::Transport::TransportStatsSnapshot& stats, const ::Visca::ViscaProtocolStats& protoStats = {});
 
 private slots:
     void handleSendClicked();

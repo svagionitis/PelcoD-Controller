@@ -58,7 +58,8 @@ void DiagnosticsView::ensureProfilerConnected(PelcoD::PelcoDDevice& device)
 }
 
 void DiagnosticsView::render(Canvas& canvas, int startY, int width, int height, const PelcoD::DeviceStatus& status,
-    const PelcoD::DeviceInfo& info, const Transport::TransportStatsSnapshot& stats)
+    const PelcoD::DeviceInfo& info, const Transport::TransportStatsSnapshot& stats,
+    const PelcoD::PelcoDProtocolStats& protoStats)
 {
     const int panelHeight = height - 1;
     const int halfW = width / 2;
@@ -145,9 +146,20 @@ void DiagnosticsView::render(Canvas& canvas, int startY, int width, int height, 
     // Transport & Kernel Statistics
     const auto& gen = stats.generic;
     std::ostringstream txRxOss;
-    txRxOss << "Transport I/O    : TX " << gen.bytesSent << " B (" << gen.packetsSent << " pkts) / RX "
-            << gen.bytesReceived << " B (" << gen.packetsReceived << " pkts)";
+    txRxOss << "Transport I/O    : TX " << std::fixed << std::setprecision(1)
+            << (static_cast<double>(gen.bytesSent) / 1024.0) << " KB (" << (gen.txBytesPerSec / 1024.0)
+            << " KB/s) / RX " << (static_cast<double>(gen.bytesReceived) / 1024.0) << " KB ("
+            << (gen.rxBytesPerSec / 1024.0) << " KB/s)";
     canvas.drawString(leftX, curY, txRxOss.str(), textStyle);
+    curY += 1;
+
+    std::ostringstream protoOss;
+    protoOss << "Pelco-D Protocol : " << protoStats.queriesSent << " Tx / " << protoStats.queriesCompleted << " Ok / "
+             << protoStats.queryTimeouts << " T/O / " << protoStats.queryRetries
+             << " Retry | CRC Err: " << protoStats.checksumErrors << " | Drops: " << protoStats.discardedSyncBytes
+             << " B";
+    canvas.drawString(leftX, curY, protoOss.str(),
+        (protoStats.checksumErrors > 0U || protoStats.queryTimeouts > 0U) ? warnStyle : okStyle);
     curY += 1;
 
     std::ostringstream errOss;

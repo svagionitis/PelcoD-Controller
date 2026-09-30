@@ -97,6 +97,11 @@ protected:
     mutable std::mutex m_timeMutex;
     std::chrono::steady_clock::time_point m_lastTxTime {};
     std::chrono::steady_clock::time_point m_lastRxTime {};
+    mutable std::chrono::steady_clock::time_point m_rateCalcTime {};
+    mutable std::uint64_t m_lastRateBytesSent { 0U };
+    mutable std::uint64_t m_lastRateBytesReceived { 0U };
+    mutable double m_txRateBps { 0.0 };
+    mutable double m_rxRateBps { 0.0 };
 };
 
 } // namespace Transport

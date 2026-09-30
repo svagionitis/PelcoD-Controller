@@ -330,6 +330,41 @@ Transport::TransportStatsSnapshot PelcoDDevice::getTransportStats() const
     return {};
 }
 
+PelcoDProtocolStats PelcoDDevice::getProtocolStats() const
+{
+    PelcoDProtocolStats stats {};
+    stats.queriesSent = m_queriesSent.load(std::memory_order_relaxed);
+    stats.queriesCompleted = m_queriesCompleted.load(std::memory_order_relaxed);
+    stats.queryTimeouts = m_queryTimeouts.load(std::memory_order_relaxed);
+    stats.queryRetries = m_queryRetries.load(std::memory_order_relaxed);
+    stats.checksumErrors = m_rxAccumulator.checksumErrors();
+    stats.discardedSyncBytes = m_rxAccumulator.discardedBytes();
+    stats.pendingCommands = m_queue.size();
+
+    const std::uint64_t completed = stats.queriesCompleted;
+    const std::uint64_t totalUs = m_totalRttUs.load(std::memory_order_relaxed);
+    if (completed > 0U) {
+        stats.avgRttMs = static_cast<double>(totalUs) / (1000.0 * static_cast<double>(completed));
+    }
+    stats.lastRttMs = static_cast<double>(m_lastRttUs.load(std::memory_order_relaxed)) / 1000.0;
+    stats.minRttMs = static_cast<double>(m_minRttUs.load(std::memory_order_relaxed)) / 1000.0;
+    stats.maxRttMs = static_cast<double>(m_maxRttUs.load(std::memory_order_relaxed)) / 1000.0;
+    return stats;
+}
+
+void PelcoDDevice::resetProtocolStats() noexcept
+{
+    m_queriesSent.store(0U, std::memory_order_relaxed);
+    m_queriesCompleted.store(0U, std::memory_order_relaxed);
+    m_queryTimeouts.store(0U, std::memory_order_relaxed);
+    m_queryRetries.store(0U, std::memory_order_relaxed);
+    m_totalRttUs.store(0U, std::memory_order_relaxed);
+    m_lastRttUs.store(0U, std::memory_order_relaxed);
+    m_minRttUs.store(0U, std::memory_order_relaxed);
+    m_maxRttUs.store(0U, std::memory_order_relaxed);
+    m_rxAccumulator.resetStats();
+}
+
 void PelcoDDevice::setTelemetryPolling(bool enable, std::uint32_t intervalMs) noexcept
 {
     m_telemetryPolling.store(enable);
@@ -978,6 +1013,7 @@ void PelcoDDevice::checkQueryTimeout()
     const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - m_querySentTime).count();
     const auto timeoutMs = m_queryTimeoutMs.load();
     if (elapsed >= static_cast<long long>(timeoutMs)) {
+        m_queryTimeouts.fetch_add(1U, std::memory_order_relaxed);
         m_awaitingResponse = false;
         m_responseCv.notify_all();
         std::string tag;
@@ -1066,6 +1102,7 @@ void PelcoDDevice::workerLoop()
                 m_pendingQueryTag = item.queryTag;
                 m_querySentTime = sendStartTime;
                 m_awaitingResponse = true;
+                m_queriesSent.fetch_add(1U, std::memory_order_relaxed);
             }
 
             VLOG(1) << "Sending command (" << item.frame.size() << " bytes, tag: '" << item.queryTag << "')";
@@ -1084,6 +1121,7 @@ void PelcoDDevice::workerLoop()
                     retryCfg = m_retryConfig;
                 }
                 if (retryCfg.retryOnTransportError && item.retryCount < retryCfg.maxRetries) {
+                    m_queryRetries.fetch_add(1U, std::memory_order_relaxed);
                     const std::string reason = "Transport transmission failed for "
                         + (item.queryTag.empty() ? "command" : "query '" + item.queryTag + "'");
                     const auto backoffDelay = m_queue.scheduleRetry(item, retryCfg, reason);
@@ -1156,6 +1194,7 @@ void PelcoDDevice::workerLoop()
                                     m_pendingQueryTag.clear();
                                 }
                                 const std::string reason = "Query '" + item.queryTag + "' timed out";
+                                m_queryRetries.fetch_add(1U, std::memory_order_relaxed);
                                 const auto backoffDelay = m_queue.scheduleRetry(item, retryCfg, reason);
                                 std::shared_ptr<const std::vector<CallbackEntry<RetryCallback>>> rcbs;
                                 {
@@ -1270,6 +1309,17 @@ void PelcoDDevice::dispatchFrame(const std::vector<std::uint8_t>& frame)
         if (querySatisfied) {
             const auto durationUs = std::chrono::duration_cast<std::chrono::microseconds>(
                 std::chrono::steady_clock::now() - m_querySentTime);
+            const auto us = static_cast<std::uint64_t>(durationUs.count());
+            m_queriesCompleted.fetch_add(1U, std::memory_order_relaxed);
+            m_totalRttUs.fetch_add(us, std::memory_order_relaxed);
+            m_lastRttUs.store(us, std::memory_order_relaxed);
+
+            std::uint64_t currentMin = m_minRttUs.load(std::memory_order_relaxed);
+            while ((currentMin == 0U || us < currentMin)
+                && !m_minRttUs.compare_exchange_weak(currentMin, us, std::memory_order_relaxed)) { }
+            std::uint64_t currentMax = m_maxRttUs.load(std::memory_order_relaxed);
+            while (us > currentMax && !m_maxRttUs.compare_exchange_weak(currentMax, us, std::memory_order_relaxed)) { }
+
             m_responseCv.notify_all();
             std::shared_ptr<const std::vector<CallbackEntry<QueryCompletedCallback>>> qcbs;
             std::shared_ptr<const std::vector<CallbackEntry<QueryLatencyCallback>>> lcbs;

@@ -334,7 +334,8 @@ void TuiApp::renderFrame()
             break;
         case 4: {
             const auto stats = m_device ? m_device->getTransportStats() : Transport::TransportStatsSnapshot {};
-            m_diagnosticsView.render(m_canvas, viewStartY, width, viewHeight, status, info, stats);
+            const auto proto = m_device ? m_device->getProtocolStats() : PelcoD::PelcoDProtocolStats {};
+            m_diagnosticsView.render(m_canvas, viewStartY, width, viewHeight, status, info, stats, proto);
             break;
         }
         case 5:

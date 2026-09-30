@@ -5,6 +5,7 @@
 
 #include "NmeaChecksum.h"
 
+#include <atomic>
 #include <cstddef>
 #include <cstdint>
 #include <mutex>
@@ -53,6 +54,15 @@ public:
     /// @brief Clears internal byte buffer.
     void clear();
 
+    /// @brief Number of corrupted or unaligned bytes discarded.
+    [[nodiscard]] std::uint64_t discardedBytes() const noexcept;
+
+    /// @brief Number of candidate sentences rejected due to checksum errors.
+    [[nodiscard]] std::uint64_t checksumErrors() const noexcept;
+
+    /// @brief Resets accumulator discarded byte and checksum error counters.
+    void resetStats() noexcept;
+
     /// @brief Current number of buffered bytes awaiting sentence termination.
     [[nodiscard]] std::size_t size() const;
 
@@ -63,6 +73,8 @@ private:
     const std::size_t m_maxBufferSize;
     mutable std::mutex m_mutex;
     std::string m_buffer;
+    std::atomic<std::uint64_t> m_discardedBytes { 0U };
+    std::atomic<std::uint64_t> m_checksumErrors { 0U };
 };
 
 } // namespace Nmea

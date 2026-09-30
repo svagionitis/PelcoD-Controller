@@ -3,6 +3,7 @@
 /// @file TrafficInspectorWidget.h
 /// @brief Live Pelco-D protocol packet inspector and raw hex frame injector.
 
+#include <PelcoDStats.h>
 #include <QByteArray>
 #include <QCheckBox>
 #include <QComboBox>
@@ -33,9 +34,11 @@ public slots:
     void logFrame(bool isTx, const QByteArray& frame, const QString& description);
     void clearLog();
 
-    /// @brief Updates the real-time transport and kernel-level metrics display panel.
+    /// @brief Updates the real-time transport and protocol telemetry metrics display panel.
     /// @param[in] stats Aggregated communication statistics snapshot.
-    void updateTransportStats(const Transport::TransportStatsSnapshot& stats);
+    /// @param[in] protoStats Pelco-D protocol telemetry snapshot.
+    void updateTransportStats(
+        const Transport::TransportStatsSnapshot& stats, const PelcoD::PelcoDProtocolStats& protoStats = {});
 
 private slots:
     void handleSendClicked();
@@ -53,6 +56,7 @@ private:
 
     QLabel* lblTransportStats { nullptr };
     QLabel* lblKernelStats { nullptr };
+    QLabel* lblProtocolStats { nullptr };
 
     QLineEdit* editRawHex { nullptr };
     QPushButton* btnSendRaw { nullptr };

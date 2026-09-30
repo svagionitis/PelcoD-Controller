@@ -59,23 +59,29 @@ std::vector<std::string> NmeaStreamAccumulator::push(std::string_view text, bool
     if (m_buffer.size() > m_maxBufferSize) {
         const auto start = m_buffer.find_first_of("$!\\");
         if (start != std::string::npos && start > 0U) {
+            m_discardedBytes.fetch_add(start, std::memory_order_relaxed);
             m_buffer.erase(0U, start);
         } else if (start == std::string::npos) {
+            m_discardedBytes.fetch_add(m_buffer.size(), std::memory_order_relaxed);
             m_buffer.clear();
             return sentences;
         } else if (m_buffer.size() > m_maxBufferSize) {
             // Delimiter was at 0, but buffer is still oversized without newline; prune
-            m_buffer.erase(0U, m_buffer.size() - 256U);
+            const auto pruneLen = m_buffer.size() - 256U;
+            m_discardedBytes.fetch_add(pruneLen, std::memory_order_relaxed);
+            m_buffer.erase(0U, pruneLen);
         }
     }
 
     while (!m_buffer.empty()) {
         const auto start = m_buffer.find_first_of("$!\\");
         if (start == std::string::npos) {
+            m_discardedBytes.fetch_add(m_buffer.size(), std::memory_order_relaxed);
             m_buffer.clear();
             break;
         }
         if (start > 0U) {
+            m_discardedBytes.fetch_add(start, std::memory_order_relaxed);
             m_buffer.erase(0U, start);
         }
 
@@ -91,6 +97,8 @@ std::vector<std::string> NmeaStreamAccumulator::push(std::string_view text, bool
 
         if (!validateChecksum || isValidCandidate(candidate)) {
             sentences.push_back(std::move(candidate));
+        } else {
+            m_checksumErrors.fetch_add(1U, std::memory_order_relaxed);
         }
     }
 
@@ -101,6 +109,22 @@ void NmeaStreamAccumulator::clear()
 {
     std::scoped_lock lock(m_mutex);
     m_buffer.clear();
+}
+
+std::uint64_t NmeaStreamAccumulator::discardedBytes() const noexcept
+{
+    return m_discardedBytes.load(std::memory_order_relaxed);
+}
+
+std::uint64_t NmeaStreamAccumulator::checksumErrors() const noexcept
+{
+    return m_checksumErrors.load(std::memory_order_relaxed);
+}
+
+void NmeaStreamAccumulator::resetStats() noexcept
+{
+    m_discardedBytes.store(0U, std::memory_order_relaxed);
+    m_checksumErrors.store(0U, std::memory_order_relaxed);
 }
 
 std::size_t NmeaStreamAccumulator::size() const

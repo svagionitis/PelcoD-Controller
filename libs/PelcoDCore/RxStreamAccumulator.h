@@ -5,6 +5,7 @@
 
 #include "PelcoDFrame.h"
 
+#include <atomic>
 #include <cstddef>
 #include <cstdint>
 #include <mutex>
@@ -52,10 +53,22 @@ public:
     /// @brief Configured maximum buffer capacity before overflow reset.
     [[nodiscard]] std::size_t maxBufferSize() const noexcept;
 
+    /// @brief Count of noise bytes dropped during sync byte hunting.
+    [[nodiscard]] std::uint64_t discardedBytes() const noexcept;
+
+    /// @brief Count of candidate frames rejected due to invalid checksums.
+    [[nodiscard]] std::uint64_t checksumErrors() const noexcept;
+
+    /// @brief Resets stream accumulator statistics.
+    void resetStats() noexcept;
+
 private:
     const std::size_t m_maxBufferSize;
     mutable std::mutex m_mutex;
     std::vector<std::uint8_t> m_buffer;
+
+    std::atomic<std::uint64_t> m_discardedBytes { 0U };
+    std::atomic<std::uint64_t> m_checksumErrors { 0U };
 };
 
 } // namespace PelcoD

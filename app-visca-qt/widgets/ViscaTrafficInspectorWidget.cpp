@@ -172,20 +172,38 @@ void ViscaTrafficInspectorWidget::handleSendClicked()
     }
 }
 
-void ViscaTrafficInspectorWidget::updateTransportStats(const ::Transport::TransportStatsSnapshot& stats)
+void ViscaTrafficInspectorWidget::updateTransportStats(
+    const ::Transport::TransportStatsSnapshot& stats, const ::Visca::ViscaProtocolStats& protoStats)
 {
     const auto& gen = stats.generic;
     const double txKb = static_cast<double>(gen.bytesSent) / 1024.0;
     const double rxKb = static_cast<double>(gen.bytesReceived) / 1024.0;
+    const double txRateKb = gen.txBytesPerSec / 1024.0;
+    const double rxRateKb = gen.rxBytesPerSec / 1024.0;
 
-    QString genText = tr("VISCA Transport: TX: %1 KB (%2 pkts, %3 err) | RX: %4 KB (%5 pkts, %6 err) | Reconnects: %7")
+    const char* s1Str = (protoStats.socket1State == Visca::ViscaSocketState::Executing) ? "Exec"
+        : (protoStats.socket1State == Visca::ViscaSocketState::AwaitingAck)             ? "WaitAck"
+                                                                                        : "Idle";
+    const char* s2Str = (protoStats.socket2State == Visca::ViscaSocketState::Executing) ? "Exec"
+        : (protoStats.socket2State == Visca::ViscaSocketState::AwaitingAck)             ? "WaitAck"
+                                                                                        : "Idle";
+
+    QString genText = tr("VISCA: TX %1 KB (%2 KB/s) | RX %3 KB (%4 KB/s) | S1:%5 (%6) | S2:%7 (%8) | Lat: %9 ms | "
+                         "Errs(Syntax:%10, Full:%11, Cancel:%12, Exec:%13, TO:%14)")
                           .arg(txKb, 0, 'f', 1)
-                          .arg(gen.packetsSent)
-                          .arg(gen.txErrorCount)
+                          .arg(txRateKb, 0, 'f', 1)
                           .arg(rxKb, 0, 'f', 1)
-                          .arg(gen.packetsReceived)
-                          .arg(gen.rxErrorCount)
-                          .arg(gen.reconnectCount);
+                          .arg(rxRateKb, 0, 'f', 1)
+                          .arg(s1Str)
+                          .arg(protoStats.socket1Processed)
+                          .arg(s2Str)
+                          .arg(protoStats.socket2Processed)
+                          .arg(protoStats.avgTurnaroundMs, 0, 'f', 1)
+                          .arg(protoStats.syntaxErrors)
+                          .arg(protoStats.bufferFullErrors)
+                          .arg(protoStats.cancelledCommands)
+                          .arg(protoStats.executionErrors)
+                          .arg(protoStats.timeouts);
 
     if (lblTransportStats) {
         lblTransportStats->setText(genText);

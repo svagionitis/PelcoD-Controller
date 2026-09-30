@@ -219,4 +219,34 @@ TEST(StreamAccumulatorTest, ClearAndReset)
     EXPECT_EQ(extracted[0], validFrame);
 }
 
+/// @brief Verify telemetry statistics tracking for discarded bytes and checksum errors.
+/// @details Ingests unaligned noise bytes and a bad checksum frame, validating counters.
+TEST(StreamAccumulatorTest, StatisticsTracking)
+{
+    PelcoD::RxStreamAccumulator acc;
+    EXPECT_EQ(acc.discardedBytes(), 0U);
+    EXPECT_EQ(acc.checksumErrors(), 0U);
+
+    // 4 noise bytes followed by valid frame
+    const auto validFrame = PelcoD::PelcoDFrame::createFrame(1U, 0x00U, 0x02U, 0x20U, 0x00U);
+    std::vector<std::uint8_t> noisy { 0x11U, 0x22U, 0x33U, 0x44U };
+    noisy.insert(noisy.end(), validFrame.begin(), validFrame.end());
+
+    const auto res1 = acc.push(noisy, true);
+    ASSERT_EQ(res1.size(), 1U);
+    EXPECT_EQ(acc.discardedBytes(), 4U);
+    EXPECT_EQ(acc.checksumErrors(), 0U);
+
+    // Corrupted checksum frame: 7 bytes starting with 0xFF but invalid CRC
+    std::vector<std::uint8_t> badCrcFrame { 0xFFU, 0x01U, 0x00U, 0x02U, 0x20U, 0x00U, 0x00U };
+    const auto res2 = acc.push(badCrcFrame, false);
+    EXPECT_TRUE(res2.empty());
+    EXPECT_EQ(acc.checksumErrors(), 1U);
+
+    // Reset stats
+    acc.resetStats();
+    EXPECT_EQ(acc.discardedBytes(), 0U);
+    EXPECT_EQ(acc.checksumErrors(), 0U);
+}
+
 } // namespace

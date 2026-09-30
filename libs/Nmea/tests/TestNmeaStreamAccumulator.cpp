@@ -102,5 +102,32 @@ namespace {
         EXPECT_EQ(acc.size(), 0U);
     }
 
+    /// @brief Verify telemetry tracking for noise bytes and checksum failures.
+    /// @details Pushes noise and corrupt sentence, verifying accumulator statistics.
+    TEST(TestNmeaStreamAccumulator, DiscardAndChecksumStats)
+    {
+        NmeaStreamAccumulator acc {};
+        EXPECT_EQ(acc.discardedBytes(), 0U);
+        EXPECT_EQ(acc.checksumErrors(), 0U);
+
+        // 10 noise bytes prefix
+        const std::string noisy = "0123456789$HEHDT,341.8,T*21\r\n";
+        const auto res1 = acc.push(noisy, true);
+        ASSERT_EQ(res1.size(), 1U);
+        EXPECT_EQ(acc.discardedBytes(), 10U);
+        EXPECT_EQ(acc.checksumErrors(), 0U);
+
+        // Bad checksum sentence
+        const std::string bad = "$HEHDT,341.8,T*99\r\n";
+        const auto res2 = acc.push(bad, true);
+        EXPECT_TRUE(res2.empty());
+        EXPECT_EQ(acc.checksumErrors(), 1U);
+
+        // Reset
+        acc.resetStats();
+        EXPECT_EQ(acc.discardedBytes(), 0U);
+        EXPECT_EQ(acc.checksumErrors(), 0U);
+    }
+
 } // namespace
 } // namespace Nmea

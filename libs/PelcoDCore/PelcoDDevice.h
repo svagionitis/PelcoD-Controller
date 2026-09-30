@@ -7,6 +7,7 @@
 #include "DeviceStatus.h"
 #include "ITransport.h"
 #include "PacedCommandQueue.h"
+#include "PelcoDStats.h"
 #include "PelcoDTypes.h"
 #include "ProtocolBuilder.h"
 #include "ProtocolParser.h"
@@ -140,6 +141,13 @@ public:
     /// @brief Captures transport-layer and kernel-level communication statistics.
     /// @return Aggregated snapshot containing generic and kernel-level metrics.
     [[nodiscard]] Transport::TransportStatsSnapshot getTransportStats() const;
+
+    /// @brief Captures real-time Pelco-D protocol telemetry and error counters.
+    /// @return Protocol statistics snapshot with query latency and framing metrics.
+    [[nodiscard]] PelcoDProtocolStats getProtocolStats() const;
+
+    /// @brief Resets protocol performance and diagnostic counters.
+    void resetProtocolStats() noexcept;
 
     void setTelemetryPolling(bool enable, std::uint32_t intervalMs = 1000U) noexcept;
     [[nodiscard]] bool getTelemetryPolling() const noexcept;
@@ -461,6 +469,15 @@ private:
     std::condition_variable m_responseCv;
     std::string m_pendingQueryTag;
     std::chrono::steady_clock::time_point m_querySentTime;
+
+    std::atomic<std::uint64_t> m_queriesSent { 0U };
+    std::atomic<std::uint64_t> m_queriesCompleted { 0U };
+    std::atomic<std::uint64_t> m_queryTimeouts { 0U };
+    std::atomic<std::uint64_t> m_queryRetries { 0U };
+    std::atomic<std::uint64_t> m_totalRttUs { 0U };
+    std::atomic<std::uint64_t> m_lastRttUs { 0U };
+    std::atomic<std::uint64_t> m_minRttUs { 0U };
+    std::atomic<std::uint64_t> m_maxRttUs { 0U };
 
     template <typename CallbackT> struct CallbackEntry {
         CallbackId id { 0U };

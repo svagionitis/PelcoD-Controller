@@ -62,6 +62,8 @@ struct GenericTransportStats {
     std::uint64_t txErrorCount { 0U };
     std::uint64_t rxErrorCount { 0U };
     std::uint32_t reconnectCount { 0U };
+    double txBytesPerSec { 0.0 };
+    double rxBytesPerSec { 0.0 };
     std::chrono::steady_clock::time_point lastTxTime {};
     std::chrono::steady_clock::time_point lastRxTime {};
 };

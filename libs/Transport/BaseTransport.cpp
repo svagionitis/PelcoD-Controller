@@ -71,6 +71,11 @@ void BaseTransport::resetStats() noexcept
     std::scoped_lock lock(m_timeMutex);
     m_lastTxTime = {};
     m_lastRxTime = {};
+    m_rateCalcTime = {};
+    m_lastRateBytesSent = 0U;
+    m_lastRateBytesReceived = 0U;
+    m_txRateBps = 0.0;
+    m_rxRateBps = 0.0;
 }
 
 void BaseTransport::recordBytesSent(std::size_t bytes) noexcept
@@ -119,6 +124,30 @@ void BaseTransport::populateGenericStats(TransportStatsSnapshot& snapshot) const
     std::scoped_lock lock(m_timeMutex);
     snapshot.generic.lastTxTime = m_lastTxTime;
     snapshot.generic.lastRxTime = m_lastRxTime;
+
+    const auto now = std::chrono::steady_clock::now();
+    if (m_rateCalcTime.time_since_epoch().count() == 0) {
+        m_rateCalcTime = now;
+        m_lastRateBytesSent = snapshot.generic.bytesSent;
+        m_lastRateBytesReceived = snapshot.generic.bytesReceived;
+    } else {
+        const auto elapsed = std::chrono::duration<double>(now - m_rateCalcTime).count();
+        if (elapsed >= 0.25) {
+            const double txDiff = (snapshot.generic.bytesSent >= m_lastRateBytesSent)
+                ? static_cast<double>(snapshot.generic.bytesSent - m_lastRateBytesSent)
+                : 0.0;
+            const double rxDiff = (snapshot.generic.bytesReceived >= m_lastRateBytesReceived)
+                ? static_cast<double>(snapshot.generic.bytesReceived - m_lastRateBytesReceived)
+                : 0.0;
+            m_txRateBps = txDiff / elapsed;
+            m_rxRateBps = rxDiff / elapsed;
+            m_rateCalcTime = now;
+            m_lastRateBytesSent = snapshot.generic.bytesSent;
+            m_lastRateBytesReceived = snapshot.generic.bytesReceived;
+        }
+    }
+    snapshot.generic.txBytesPerSec = m_txRateBps;
+    snapshot.generic.rxBytesPerSec = m_rxRateBps;
 }
 
 } // namespace Transport

@@ -206,6 +206,14 @@ Transport::TransportStatsSnapshot QPelcoDDevice::transportStats() const
     return {};
 }
 
+PelcoD::PelcoDProtocolStats QPelcoDDevice::protocolStats() const
+{
+    if (m_device) {
+        return m_device->getProtocolStats();
+    }
+    return {};
+}
+
 PelcoD::PelcoDDevice* QPelcoDDevice::coreDevice() const noexcept
 {
     return m_device.get();

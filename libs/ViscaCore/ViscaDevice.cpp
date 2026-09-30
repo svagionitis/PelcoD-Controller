@@ -28,12 +28,12 @@ ViscaDevice::~ViscaDevice()
 
     // Drain active socket commands
     for (auto& slot : m_sockets) {
-        if (slot.state != SocketState::Idle) {
+        if (slot.state != ViscaSocketState::Idle) {
             if (slot.command.callback) {
                 slot.command.callback(
                     CommandResult { false, slot.id, ViscaErrorCode::CommandCanceled, "Device destroying" });
             }
-            slot.state = SocketState::Idle;
+            slot.state = ViscaSocketState::Idle;
             slot.command = {};
         }
     }
@@ -81,12 +81,13 @@ CommandResult ViscaDevice::sendCommandSync(const ViscaFrame& command, std::chron
     }
 
     // Timed out: release assigned socket so subsequent commands are not blocked
+    m_timeouts.fetch_add(1U, std::memory_order_relaxed);
     std::vector<ViscaFrame> framesToSend;
     {
         std::scoped_lock lock(m_mutex);
         for (auto& slot : m_sockets) {
-            if (slot.state != SocketState::Idle && slot.command.frame == command) {
-                slot.state = SocketState::Idle;
+            if (slot.state != ViscaSocketState::Idle && slot.command.frame == command) {
+                slot.state = ViscaSocketState::Idle;
                 slot.command = InFlightCommand {};
                 collectFramesToSendLocked(framesToSend);
                 break;
@@ -131,6 +132,7 @@ InquiryResult ViscaDevice::sendInquirySync(const ViscaFrame& inquiry, std::chron
         return future.get();
     }
 
+    m_timeouts.fetch_add(1U, std::memory_order_relaxed);
     return InquiryResult { false, ViscaFrame {}, "Inquiry timed out waiting for camera response" };
 }
 
@@ -188,7 +190,7 @@ void ViscaDevice::collectFramesToSendLocked(std::vector<ViscaFrame>& outFrames)
     while (!m_commandQueue.empty()) {
         SocketSlot* idleSlot = nullptr;
         for (auto& slot : m_sockets) {
-            if (slot.state == SocketState::Idle) {
+            if (slot.state == ViscaSocketState::Idle) {
                 idleSlot = &slot;
                 break;
             }
@@ -201,7 +203,7 @@ void ViscaDevice::collectFramesToSendLocked(std::vector<ViscaFrame>& outFrames)
         idleSlot->command = std::move(m_commandQueue.front());
         m_commandQueue.pop_front();
         idleSlot->command.assignedSocket = idleSlot->id;
-        idleSlot->state = SocketState::AwaitingAck;
+        idleSlot->state = ViscaSocketState::AwaitingAck;
         outFrames.push_back(idleSlot->command.frame);
     }
 }
@@ -222,8 +224,8 @@ void ViscaDevice::onFrameReceived(const ViscaFrame& frame)
         // Check if frame is ACK (y0 4s FF)
         if (frame.isAck()) {
             if (auto* slot = findSocketSlot(frame.socket())) {
-                if (slot->state == SocketState::AwaitingAck) {
-                    slot->state = SocketState::Executing;
+                if (slot->state == ViscaSocketState::AwaitingAck) {
+                    slot->state = ViscaSocketState::Executing;
                 }
             }
         }
@@ -231,8 +233,19 @@ void ViscaDevice::onFrameReceived(const ViscaFrame& frame)
         else if (frame.isCompletion() && frame.size() == 3) {
             const ViscaSocket sock = frame.socket();
             SocketSlot* slot = (sock != ViscaSocket::None) ? findSocketSlot(sock) : findActiveSocketSlot();
-            if (slot && slot->state != SocketState::Idle) {
-                slot->state = SocketState::Idle;
+            if (slot && slot->state != ViscaSocketState::Idle) {
+                if (slot->id == ViscaSocket::Socket1) {
+                    m_socket1Processed.fetch_add(1U, std::memory_order_relaxed);
+                } else if (slot->id == ViscaSocket::Socket2) {
+                    m_socket2Processed.fetch_add(1U, std::memory_order_relaxed);
+                }
+                const auto turnaroundUs = static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::microseconds>(
+                    std::chrono::steady_clock::now() - slot->command.sendTime)
+                                                                    .count());
+                m_totalTurnaroundUs.fetch_add(turnaroundUs, std::memory_order_relaxed);
+                m_lastTurnaroundUs.store(turnaroundUs, std::memory_order_relaxed);
+
+                slot->state = ViscaSocketState::Idle;
                 cmdCallback = std::move(slot->command.callback);
                 cmdRes = CommandResult { true, slot->id, ViscaErrorCode::None, "" };
                 slot->command = {};
@@ -242,6 +255,7 @@ void ViscaDevice::onFrameReceived(const ViscaFrame& frame)
         }
         // Check if frame is Inquiry Response (y0 50 ... FF, size >= 4)
         else if (frame.isInquiryResponse()) {
+            m_inquiriesProcessed.fetch_add(1U, std::memory_order_relaxed);
             if (!m_inquiryQueue.empty()) {
                 InFlightInquiry inq = std::move(m_inquiryQueue.front());
                 m_inquiryQueue.pop_front();
@@ -256,8 +270,28 @@ void ViscaDevice::onFrameReceived(const ViscaFrame& frame)
             const ViscaErrorCode code = frame.errorCode();
             const std::string_view errStr = errorCodeToString(code);
 
-            if (auto* slot = findSocketSlot(sock); slot && slot->state != SocketState::Idle) {
-                slot->state = SocketState::Idle;
+            switch (code) {
+            case ViscaErrorCode::SyntaxError:
+                m_syntaxErrors.fetch_add(1U, std::memory_order_relaxed);
+                break;
+            case ViscaErrorCode::CommandBufferFull:
+                m_bufferFullErrors.fetch_add(1U, std::memory_order_relaxed);
+                break;
+            case ViscaErrorCode::CommandCanceled:
+                m_cancelledCommands.fetch_add(1U, std::memory_order_relaxed);
+                break;
+            case ViscaErrorCode::NoSocket:
+                m_noSocketErrors.fetch_add(1U, std::memory_order_relaxed);
+                break;
+            case ViscaErrorCode::CommandNotExecutable:
+                m_executionErrors.fetch_add(1U, std::memory_order_relaxed);
+                break;
+            default:
+                break;
+            }
+
+            if (auto* slot = findSocketSlot(sock); slot && slot->state != ViscaSocketState::Idle) {
+                slot->state = ViscaSocketState::Idle;
                 cmdCallback = std::move(slot->command.callback);
                 cmdRes = CommandResult { false, slot->id, code, std::string(errStr) };
                 slot->command = {};
@@ -289,8 +323,8 @@ void ViscaDevice::onFrameReceived(const ViscaFrame& frame)
     }
 }
 
-CommandResult ViscaDevice::panTiltDrive(uint8_t panSpeed, uint8_t tiltSpeed,
-    ViscaPanDirection panDir, ViscaTiltDirection tiltDir)
+CommandResult ViscaDevice::panTiltDrive(
+    uint8_t panSpeed, uint8_t tiltSpeed, ViscaPanDirection panDir, ViscaTiltDirection tiltDir)
 {
     const ViscaFrame cmd = ViscaBuilder::panTiltDrive(cameraAddress(), panSpeed, tiltSpeed, panDir, tiltDir);
     return sendCommandSync(cmd);
@@ -326,15 +360,13 @@ CommandResult ViscaDevice::panTiltRight(uint8_t panSpeed)
     return sendCommandSync(cmd);
 }
 
-CommandResult ViscaDevice::panTiltAbsolute(
-    uint8_t panSpeed, uint8_t tiltSpeed, int16_t panPos, int16_t tiltPos)
+CommandResult ViscaDevice::panTiltAbsolute(uint8_t panSpeed, uint8_t tiltSpeed, int16_t panPos, int16_t tiltPos)
 {
     const ViscaFrame cmd = ViscaBuilder::panTiltAbsolute(cameraAddress(), panSpeed, tiltSpeed, panPos, tiltPos);
     return sendCommandSync(cmd);
 }
 
-CommandResult ViscaDevice::panTiltRelative(
-    uint8_t panSpeed, uint8_t tiltSpeed, int16_t deltaPan, int16_t deltaTilt)
+CommandResult ViscaDevice::panTiltRelative(uint8_t panSpeed, uint8_t tiltSpeed, int16_t deltaPan, int16_t deltaTilt)
 {
     const ViscaFrame cmd = ViscaBuilder::panTiltRelative(cameraAddress(), panSpeed, tiltSpeed, deltaPan, deltaTilt);
     return sendCommandSync(cmd);
@@ -352,8 +384,7 @@ CommandResult ViscaDevice::panTiltReset()
     return sendCommandSync(cmd);
 }
 
-CommandResult ViscaDevice::panTiltLimitSet(
-    ViscaPanTiltCorner corner, int16_t panPos, int16_t tiltPos)
+CommandResult ViscaDevice::panTiltLimitSet(ViscaPanTiltCorner corner, int16_t panPos, int16_t tiltPos)
 {
     const ViscaFrame cmd = ViscaBuilder::panTiltLimitSet(cameraAddress(), corner, panPos, tiltPos);
     return sendCommandSync(cmd);
@@ -385,5 +416,53 @@ std::optional<ViscaPanTiltStatus> ViscaDevice::queryPanTiltStatus(std::chrono::m
     return ViscaParser::parsePanTiltStatus(res.responseFrame);
 }
 
-} // namespace Visca
+ViscaProtocolStats ViscaDevice::getProtocolStats() const
+{
+    ViscaProtocolStats stats {};
+    {
+        std::scoped_lock lock(m_mutex);
+        for (const auto& slot : m_sockets) {
+            if (slot.id == ViscaSocket::Socket1) {
+                stats.socket1State = slot.state;
+            } else if (slot.id == ViscaSocket::Socket2) {
+                stats.socket2State = slot.state;
+            }
+        }
+        stats.pendingCommands = m_commandQueue.size();
+        stats.pendingInquiries = m_inquiryQueue.size();
+    }
+    stats.socket1Processed = m_socket1Processed.load(std::memory_order_relaxed);
+    stats.socket2Processed = m_socket2Processed.load(std::memory_order_relaxed);
+    stats.inquiriesProcessed = m_inquiriesProcessed.load(std::memory_order_relaxed);
+    stats.syntaxErrors = m_syntaxErrors.load(std::memory_order_relaxed);
+    stats.bufferFullErrors = m_bufferFullErrors.load(std::memory_order_relaxed);
+    stats.cancelledCommands = m_cancelledCommands.load(std::memory_order_relaxed);
+    stats.noSocketErrors = m_noSocketErrors.load(std::memory_order_relaxed);
+    stats.executionErrors = m_executionErrors.load(std::memory_order_relaxed);
+    stats.timeouts = m_timeouts.load(std::memory_order_relaxed);
 
+    const uint64_t totalCompleted = stats.socket1Processed + stats.socket2Processed;
+    const uint64_t totalUs = m_totalTurnaroundUs.load(std::memory_order_relaxed);
+    if (totalCompleted > 0U) {
+        stats.avgTurnaroundMs = static_cast<double>(totalUs) / (1000.0 * static_cast<double>(totalCompleted));
+    }
+    stats.lastTurnaroundMs = static_cast<double>(m_lastTurnaroundUs.load(std::memory_order_relaxed)) / 1000.0;
+    return stats;
+}
+
+void ViscaDevice::resetProtocolStats() noexcept
+{
+    m_socket1Processed.store(0U, std::memory_order_relaxed);
+    m_socket2Processed.store(0U, std::memory_order_relaxed);
+    m_inquiriesProcessed.store(0U, std::memory_order_relaxed);
+    m_syntaxErrors.store(0U, std::memory_order_relaxed);
+    m_bufferFullErrors.store(0U, std::memory_order_relaxed);
+    m_cancelledCommands.store(0U, std::memory_order_relaxed);
+    m_noSocketErrors.store(0U, std::memory_order_relaxed);
+    m_executionErrors.store(0U, std::memory_order_relaxed);
+    m_timeouts.store(0U, std::memory_order_relaxed);
+    m_totalTurnaroundUs.store(0U, std::memory_order_relaxed);
+    m_lastTurnaroundUs.store(0U, std::memory_order_relaxed);
+}
+
+} // namespace Visca

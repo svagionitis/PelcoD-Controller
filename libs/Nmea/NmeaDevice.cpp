@@ -74,6 +74,25 @@ Transport::TransportStatsSnapshot NmeaDevice::getTransportStats() const
     return {};
 }
 
+NmeaProtocolStats NmeaDevice::getProtocolStats() const
+{
+    NmeaProtocolStats stats {};
+    stats.sentencesReceived = m_sentencesReceived.load(std::memory_order_relaxed);
+    stats.sentencesParsed = m_sentencesParsed.load(std::memory_order_relaxed);
+    stats.sentencesSent = m_sentencesSent.load(std::memory_order_relaxed);
+    stats.checksumErrors = m_accumulator.checksumErrors();
+    stats.discardedBytes = m_accumulator.discardedBytes();
+    return stats;
+}
+
+void NmeaDevice::resetProtocolStats()
+{
+    m_sentencesReceived.store(0U, std::memory_order_relaxed);
+    m_sentencesParsed.store(0U, std::memory_order_relaxed);
+    m_sentencesSent.store(0U, std::memory_order_relaxed);
+    m_accumulator.resetStats();
+}
+
 bool NmeaDevice::sendSentence(std::string_view sentence, bool appendChecksum)
 {
     if (sentence.empty() || !m_transport || !m_transport->isOpen()) {
@@ -94,6 +113,7 @@ bool NmeaDevice::sendSentence(std::string_view sentence, bool appendChecksum)
     const bool success = m_transport->sendData(bytes);
 
     if (success) {
+        m_sentencesSent.fetch_add(1U, std::memory_order_relaxed);
         std::shared_ptr<const std::vector<std::pair<std::size_t, RawSentenceCallback>>> rawCbs;
         {
             std::lock_guard<std::mutex> cbLock(m_callbackMutex);
@@ -577,6 +597,7 @@ void NmeaDevice::handleIncomingBytes(const std::vector<std::uint8_t>& data)
     }
 
     const auto sentences = m_accumulator.push(data.data(), data.size(), true);
+    m_sentencesReceived.fetch_add(sentences.size(), std::memory_order_relaxed);
     for (const auto& sentence : sentences) {
         processSentence(sentence);
     }
@@ -602,6 +623,9 @@ void NmeaDevice::processSentence(std::string_view sentence)
     }
 
     const auto id = NmeaSentenceParser::identifySentence(sentence);
+    if (id != NmeaSentenceId::Unknown) {
+        m_sentencesParsed.fetch_add(1U, std::memory_order_relaxed);
+    }
     const auto now = std::chrono::steady_clock::now();
 
     bool navUpdated { false };

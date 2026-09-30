@@ -54,6 +54,10 @@ public:
     /// @return TransportStatsSnapshot containing atomic metrics and kernel telemetry.
     [[nodiscard]] ::Transport::TransportStatsSnapshot transportStats() const;
 
+    /// @brief Retrieves the current VISCA protocol telemetry snapshot.
+    /// @return ViscaProtocolStats containing socket states, completed counts, errors, and latencies.
+    [[nodiscard]] Visca::ViscaProtocolStats protocolStats() const;
+
     [[nodiscard]] std::shared_ptr<Visca::Sony::SonyFCBDevice> coreDevice() const noexcept
     {
         return m_fcbDevice;

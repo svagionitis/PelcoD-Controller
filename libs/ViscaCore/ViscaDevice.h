@@ -208,13 +208,18 @@ public:
         return {};
     }
 
+    /// @brief Captures real-time VISCA protocol telemetry and error counters.
+    /// @return Snapshot containing socket states, completed counts, errors, and latencies.
+    [[nodiscard]] ViscaProtocolStats getProtocolStats() const;
+
+    /// @brief Resets protocol error and telemetry counters.
+    void resetProtocolStats() noexcept;
+
 protected:
     /// @brief Internal handler called when a valid frame arrives from accumulator.
     void onFrameReceived(const ViscaFrame& frame);
 
 private:
-    enum class SocketState { Idle, AwaitingAck, Executing };
-
     struct InFlightCommand {
         ViscaFrame frame {};
         ViscaSocket assignedSocket { ViscaSocket::None };
@@ -224,7 +229,7 @@ private:
 
     struct SocketSlot {
         ViscaSocket id { ViscaSocket::None };
-        SocketState state { SocketState::Idle };
+        ViscaSocketState state { ViscaSocketState::Idle };
         InFlightCommand command {};
     };
 
@@ -247,7 +252,7 @@ private:
     [[nodiscard]] SocketSlot* findActiveSocketSlot() noexcept
     {
         for (auto& slot : m_sockets) {
-            if (slot.state != SocketState::Idle) {
+            if (slot.state != ViscaSocketState::Idle) {
                 return &slot;
             }
         }
@@ -266,13 +271,25 @@ private:
     ViscaRxAccumulator m_accumulator {};
 
     static constexpr size_t kSocketCount { 2 };
-    std::array<SocketSlot, kSocketCount> m_sockets { { { ViscaSocket::Socket1, SocketState::Idle, {} },
-        { ViscaSocket::Socket2, SocketState::Idle, {} } } };
+    std::array<SocketSlot, kSocketCount> m_sockets { { { ViscaSocket::Socket1, ViscaSocketState::Idle, {} },
+        { ViscaSocket::Socket2, ViscaSocketState::Idle, {} } } };
 
     std::deque<InFlightCommand> m_commandQueue {};
     std::deque<InFlightInquiry> m_inquiryQueue {};
 
     TrafficCallback m_trafficCallback { nullptr };
+
+    std::atomic<uint64_t> m_socket1Processed { 0U };
+    std::atomic<uint64_t> m_socket2Processed { 0U };
+    std::atomic<uint64_t> m_inquiriesProcessed { 0U };
+    std::atomic<uint64_t> m_syntaxErrors { 0U };
+    std::atomic<uint64_t> m_bufferFullErrors { 0U };
+    std::atomic<uint64_t> m_cancelledCommands { 0U };
+    std::atomic<uint64_t> m_noSocketErrors { 0U };
+    std::atomic<uint64_t> m_executionErrors { 0U };
+    std::atomic<uint64_t> m_timeouts { 0U };
+    std::atomic<uint64_t> m_totalTurnaroundUs { 0U };
+    std::atomic<uint64_t> m_lastTurnaroundUs { 0U };
 };
 
 } // namespace Visca

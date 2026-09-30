@@ -163,7 +163,8 @@ namespace {
         });
 
         // 1. Test PASHR sentence
-        const std::string pashr = NmeaChecksum::frameSentence("PASHR,120000.00,045.20,T,+03.50,-02.10,+0.12,0.05,0.05,0.10,2,1");
+        const std::string pashr
+            = NmeaChecksum::frameSentence("PASHR,120000.00,045.20,T,+03.50,-02.10,+0.12,0.05,0.05,0.10,2,1");
         transport->injectString(pashr);
 
         EXPECT_EQ(attCount.load(), 1U);
@@ -399,6 +400,48 @@ namespace {
         const auto lastDbt = device.lastDbt();
         ASSERT_TRUE(lastDbt.has_value());
         EXPECT_NEAR(lastDbt->depthMeters, 24.5, 1e-1);
+
+        device.stop();
+    }
+
+    /// @brief Verify NMEA device protocol telemetry and statistics accounting.
+    /// @details Ingests valid and invalid sentences and sends outbound sentences, checking stats.
+    TEST(TestNmeaDevice, ProtocolStatistics)
+    {
+        auto transport = std::make_shared<MockTestTransport>();
+        NmeaDevice device(transport);
+        ASSERT_TRUE(device.start());
+
+        EXPECT_EQ(device.getProtocolStats().sentencesReceived, 0U);
+        EXPECT_EQ(device.getProtocolStats().sentencesParsed, 0U);
+        EXPECT_EQ(device.getProtocolStats().sentencesSent, 0U);
+
+        // Send a sentence outbound
+        EXPECT_TRUE(device.sendSentence("$HEHDT,100.0,T", true));
+        EXPECT_EQ(device.getProtocolStats().sentencesSent, 1U);
+
+        // Inject valid GGA sentence
+        transport->injectString("$GPGGA,123519,4807.038,N,01131.000,E,1,08,0.9,545.4,M,46.9,M,,*47\r\n");
+        EXPECT_EQ(device.getProtocolStats().sentencesReceived, 1U);
+        EXPECT_EQ(device.getProtocolStats().sentencesParsed, 1U);
+
+        // Inject corrupted checksum sentence
+        transport->injectString("$HEHDT,123.4,T*99\r\n");
+        EXPECT_EQ(device.getProtocolStats().checksumErrors, 1U);
+
+        // Inject noise prefix before valid sentence
+        transport->injectString("NOISE12345$HEHDT,341.8,T*21\r\n");
+        EXPECT_EQ(device.getProtocolStats().sentencesReceived, 2U);
+        EXPECT_EQ(device.getProtocolStats().discardedBytes, 10U);
+
+        // Reset protocol stats
+        device.resetProtocolStats();
+        const auto resetStats = device.getProtocolStats();
+        EXPECT_EQ(resetStats.sentencesReceived, 0U);
+        EXPECT_EQ(resetStats.sentencesParsed, 0U);
+        EXPECT_EQ(resetStats.sentencesSent, 0U);
+        EXPECT_EQ(resetStats.checksumErrors, 0U);
+        EXPECT_EQ(resetStats.discardedBytes, 0U);
 
         device.stop();
     }

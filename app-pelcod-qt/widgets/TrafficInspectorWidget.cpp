@@ -13,6 +13,8 @@
 #include <QHeaderView>
 #include <QLabel>
 
+#include <limits>
+
 namespace PelcoDApp {
 
 TrafficInspectorWidget::TrafficInspectorWidget(QWidget* parent)
@@ -92,6 +94,11 @@ void TrafficInspectorWidget::setupUi()
     lblKernelStats = new QLabel(tr("Kernel Telemetry: Awaiting active transport channel..."), this);
     lblKernelStats->setStyleSheet("font-family: monospace; font-size: 11px; color: #8b949e;");
     statsLayout->addWidget(lblKernelStats);
+
+    lblProtocolStats = new QLabel(
+        tr("Pelco-D Telemetry: Queries: 0 Sent / 0 Ok / 0 T/O / 0 Retry | CRC Err: 0 | Sync Hunt Drops: 0 B"), this);
+    lblProtocolStats->setStyleSheet("font-family: monospace; font-size: 11px; color: #e3b341;");
+    statsLayout->addWidget(lblProtocolStats);
 
     mainLayout->addWidget(statsFrame);
 
@@ -228,23 +235,46 @@ void TrafficInspectorWidget::handleOpenMacros()
     dialog->show();
 }
 
-void TrafficInspectorWidget::updateTransportStats(const Transport::TransportStatsSnapshot& stats)
+void TrafficInspectorWidget::updateTransportStats(
+    const Transport::TransportStatsSnapshot& stats, const PelcoD::PelcoDProtocolStats& protoStats)
 {
     const auto& gen = stats.generic;
     const double txKb = static_cast<double>(gen.bytesSent) / 1024.0;
     const double rxKb = static_cast<double>(gen.bytesReceived) / 1024.0;
+    const double txRateKb = gen.txBytesPerSec / 1024.0;
+    const double rxRateKb = gen.rxBytesPerSec / 1024.0;
 
-    QString genText = tr("Transport: TX: %1 KB (%2 pkts, %3 err) | RX: %4 KB (%5 pkts, %6 err) | Reconnects: %7")
-                          .arg(txKb, 0, 'f', 1)
-                          .arg(gen.packetsSent)
-                          .arg(gen.txErrorCount)
-                          .arg(rxKb, 0, 'f', 1)
-                          .arg(gen.packetsReceived)
-                          .arg(gen.rxErrorCount)
-                          .arg(gen.reconnectCount);
+    QString genText
+        = tr("Transport: TX: %1 KB (%2 KB/s, %3 pkts, %4 err) | RX: %5 KB (%6 KB/s, %7 pkts, %8 err) | Reconnects: %9")
+              .arg(txKb, 0, 'f', 1)
+              .arg(txRateKb, 0, 'f', 1)
+              .arg(gen.packetsSent)
+              .arg(gen.txErrorCount)
+              .arg(rxKb, 0, 'f', 1)
+              .arg(rxRateKb, 0, 'f', 1)
+              .arg(gen.packetsReceived)
+              .arg(gen.rxErrorCount)
+              .arg(gen.reconnectCount);
 
     if (lblTransportStats) {
         lblTransportStats->setText(genText);
+    }
+
+    if (lblProtocolStats) {
+        QString protoText
+            = tr("Pelco-D Telemetry: Queries: %1 Tx / %2 Ok / %3 T/O / %4 Retry | Bad CRC: %5 | Sync Drops: "
+                 "%6 B | RTT: %7 ms (Min: %8, Avg: %9, Max: %10)")
+                  .arg(protoStats.queriesSent)
+                  .arg(protoStats.queriesCompleted)
+                  .arg(protoStats.queryTimeouts)
+                  .arg(protoStats.queryRetries)
+                  .arg(protoStats.checksumErrors)
+                  .arg(protoStats.discardedSyncBytes)
+                  .arg(protoStats.lastRttMs, 0, 'f', 1)
+                  .arg(protoStats.minRttMs, 0, 'f', 1)
+                  .arg(protoStats.avgRttMs, 0, 'f', 1)
+                  .arg(protoStats.maxRttMs, 0, 'f', 1);
+        lblProtocolStats->setText(protoText);
     }
 
     if (!lblKernelStats) {
