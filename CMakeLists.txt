@@ -227,6 +227,13 @@ if(PELCOD_ENABLE_VIDEO)
     endif()
 endif()
 
+if(TARGET Qt6::Quick AND TARGET Qt6::Qml)
+    add_subdirectory(app-sightline-qt)
+    message(STATUS "Sightline: SightlineAppQt (app-sightline-qt) enabled")
+else()
+    message(STATUS "Sightline: SightlineAppQt (app-sightline-qt) disabled (requires Qt6 Quick and Qml)")
+endif()
+
 add_subdirectory(tests)
 
 # ==============================================================================

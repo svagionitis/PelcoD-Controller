@@ -1,0 +1,31 @@
+<RCC>
+    <qresource prefix="/">
+        <file>../qml/Main.qml</file>
+        <file>../qml/SightlineTheme.qml</file>
+        <file>../qml/components/MetricCard.qml</file>
+        <file>../qml/components/StatusHeader.qml</file>
+        <file>../qml/components/ModuleTabButton.qml</file>
+        <file>../qml/components/ModuleNavigationSidebar.qml</file>
+        <file>../qml/components/CoordinatePad.qml</file>
+        <file>../qml/views/TrackingView.qml</file>
+        <file>../qml/views/StabilizationView.qml</file>
+        <file>../qml/views/DetectionView.qml</file>
+        <file>../qml/views/ClassificationView.qml</file>
+        <file>../qml/views/LandingAidView.qml</file>
+        <file>../qml/views/CaptureView.qml</file>
+        <file>../qml/views/DisplayView.qml</file>
+        <file>../qml/views/EnhancementView.qml</file>
+        <file>../qml/views/CompressionView.qml</file>
+        <file>../qml/views/BlendingView.qml</file>
+        <file>../qml/views/OverlayView.qml</file>
+        <file>../qml/views/FocusLensView.qml</file>
+        <file>../qml/views/NucView.qml</file>
+        <file>../qml/views/TelemetryView.qml</file>
+        <file>../qml/views/KlvMetadataView.qml</file>
+        <file>../qml/views/RecordingView.qml</file>
+        <file>../qml/views/NetworkView.qml</file>
+        <file>../qml/views/SerialPortView.qml</file>
+        <file>../qml/views/GeneralSystemView.qml</file>
+        <file>../qml/views/TrafficInspectorView.qml</file>
+    </qresource>
+</RCC>
