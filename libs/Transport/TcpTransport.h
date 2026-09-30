@@ -42,8 +42,10 @@ public:
     void close() override;
     [[nodiscard]] bool isOpen() const noexcept override;
     [[nodiscard]] bool sendData(const std::vector<std::uint8_t>& data) override;
+    [[nodiscard]] TransportStatsSnapshot getStats() const override;
 
 private:
+    [[nodiscard]] TcpKernelStats queryKernelStats() const noexcept;
     void readWorker();
 
     std::string m_host;

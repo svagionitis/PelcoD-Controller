@@ -7,6 +7,13 @@
 #include <chrono>
 #include <glog/logging.h>
 
+#ifdef _WIN32
+#include <mstcpip.h>
+#else
+#include <linux/sockios.h>
+#include <sys/ioctl.h>
+#endif
+
 namespace Transport {
 
 TcpTransport::TcpTransport(std::string host, std::uint16_t port)
@@ -224,7 +231,12 @@ bool TcpTransport::sendData(const std::vector<std::uint8_t>& data)
         }
     }
 
-    return (totalSent == toSend);
+    if (totalSent == toSend) {
+        recordBytesSent(totalSent);
+        return true;
+    }
+    recordTxError();
+    return false;
 }
 
 void TcpTransport::readWorker()
@@ -268,6 +280,77 @@ void TcpTransport::readWorker()
             Net::closeSocket(sock);
         }
     }
+}
+
+TransportStatsSnapshot TcpTransport::getStats() const
+{
+    TransportStatsSnapshot snapshot {};
+    populateGenericStats(snapshot);
+    snapshot.tcp = queryKernelStats();
+    return snapshot;
+}
+
+TcpKernelStats TcpTransport::queryKernelStats() const noexcept
+{
+    TcpKernelStats stats {};
+    const SocketHandle sock = m_sockfd.load();
+    if (sock == InvalidSocket) {
+        return stats;
+    }
+
+#ifdef _WIN32
+#ifdef SIO_TCP_INFO
+    TCP_INFO_v0 tcpInfo {};
+    DWORD bytesReturned = 0;
+    DWORD version = 0;
+    const int rc = ::WSAIoctl(
+        sock, SIO_TCP_INFO, &version, sizeof(version), &tcpInfo, sizeof(tcpInfo), &bytesReturned, nullptr, nullptr);
+    if (rc == 0) {
+        stats.supported = true;
+        stats.rttUs = tcpInfo.RttUs;
+        stats.minRttUs = tcpInfo.MinRttUs;
+        stats.totalRetrans = tcpInfo.BytesRetrans;
+        stats.sndCwnd = tcpInfo.SndCwnd;
+    }
+#endif
+    u_long pendingBytes = 0;
+    if (::ioctlsocket(sock, FIONREAD, &pendingBytes) == 0) {
+        stats.queuedRxBytes = static_cast<std::uint32_t>(pendingBytes);
+        stats.supported = true;
+    }
+#else
+    struct tcp_info info { };
+    socklen_t len = sizeof(info);
+    if (::getsockopt(sock, IPPROTO_TCP, TCP_INFO, &info, &len) == 0) {
+        stats.supported = true;
+        stats.rttUs = info.tcpi_rtt;
+        stats.rttVarUs = info.tcpi_rttvar;
+        stats.totalRetrans = info.tcpi_total_retrans;
+        stats.unackedSegments = info.tcpi_unacked;
+        stats.lostSegments = info.tcpi_lost;
+        stats.sndCwnd = info.tcpi_snd_cwnd;
+        stats.reorderMetric = info.tcpi_reordering;
+        stats.caState = info.tcpi_ca_state;
+    }
+
+    int unsent = 0;
+#ifdef SIOCOUTQ
+    if (::ioctl(sock, SIOCOUTQ, &unsent) == 0 && unsent >= 0) {
+        stats.queuedTxBytes = static_cast<std::uint32_t>(unsent);
+        stats.supported = true;
+    }
+#endif
+
+    int unread = 0;
+#ifdef SIOCINQ
+    if (::ioctl(sock, SIOCINQ, &unread) == 0 && unread >= 0) {
+        stats.queuedRxBytes = static_cast<std::uint32_t>(unread);
+        stats.supported = true;
+    }
+#endif
+#endif
+
+    return stats;
 }
 
 } // namespace Transport

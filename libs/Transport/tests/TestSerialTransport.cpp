@@ -102,4 +102,23 @@ TEST(SerialTransportTest, SerialClosedStateRejection)
     EXPECT_FALSE(transport.sendData(frame));
 }
 
+/// @brief Verify telemetry snapshot and reset behavior on SerialTransport.
+TEST(SerialTransportTest, TelemetryAndKernelStats)
+{
+    SerialTransport transport("NON_EXISTENT_PORT_12345", 9600U);
+
+    const auto stats = transport.getStats();
+    EXPECT_EQ(stats.generic.bytesSent, 0U);
+    EXPECT_EQ(stats.generic.bytesReceived, 0U);
+    EXPECT_EQ(stats.generic.packetsSent, 0U);
+    EXPECT_EQ(stats.generic.packetsReceived, 0U);
+    EXPECT_TRUE(stats.serial.has_value());
+    EXPECT_FALSE(stats.serial->supported);
+
+    // Resetting stats on closed transport is a safe no-op
+    transport.resetStats();
+    const auto resetStats = transport.getStats();
+    EXPECT_EQ(resetStats.generic.bytesSent, 0U);
+}
+
 } // namespace

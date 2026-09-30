@@ -250,4 +250,74 @@ TEST(TcpTransportTimeoutTest, ConcurrentSendAndClose)
 #endif
 }
 
+/// @brief Verify TCP telemetry tracking and kernel socket statistics.
+TEST(TcpTransportTimeoutTest, TelemetryAndKernelStats)
+{
+#ifdef _WIN32
+    WSADATA wsaData;
+    ::WSAStartup(MAKEWORD(2, 2), &wsaData);
+#endif
+
+    const TestSocket listenSock = ::socket(AF_INET, SOCK_STREAM, 0);
+    ASSERT_NE(listenSock, INVALID_SOCKET);
+
+    sockaddr_in srvAddr {};
+    srvAddr.sin_family = AF_INET;
+    srvAddr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+    srvAddr.sin_port = 0; // ephemeral port
+
+    ASSERT_EQ(::bind(listenSock, reinterpret_cast<sockaddr*>(&srvAddr), sizeof(srvAddr)), 0);
+    ASSERT_EQ(::listen(listenSock, 1), 0);
+
+    socklen_t srvLen = sizeof(srvAddr);
+    ASSERT_EQ(::getsockname(listenSock, reinterpret_cast<sockaddr*>(&srvAddr), &srvLen), 0);
+    const auto port = ntohs(srvAddr.sin_port);
+
+    std::atomic<TestSocket> acceptedClient { INVALID_SOCKET };
+    std::thread serverThread([listenSock, &acceptedClient]() {
+        sockaddr_in clientAddr {};
+        socklen_t clientLen = sizeof(clientAddr);
+        const TestSocket client = ::accept(listenSock, reinterpret_cast<sockaddr*>(&clientAddr), &clientLen);
+        acceptedClient.store(client);
+    });
+
+    TcpTransport transport("127.0.0.1", port);
+    const auto initialStats = transport.getStats();
+    EXPECT_EQ(initialStats.generic.bytesSent, 0U);
+    EXPECT_TRUE(initialStats.tcp.has_value());
+    EXPECT_FALSE(initialStats.tcp->supported);
+
+    ASSERT_TRUE(transport.open());
+    if (serverThread.joinable()) {
+        serverThread.join();
+    }
+    const TestSocket clientSock = acceptedClient.load();
+    ASSERT_NE(clientSock, INVALID_SOCKET);
+
+    // Connected TCP stats should now support kernel queries
+    const auto connectedStats = transport.getStats();
+    EXPECT_TRUE(connectedStats.tcp.has_value());
+    EXPECT_TRUE(connectedStats.tcp->supported);
+
+    const std::vector<std::uint8_t> payload { 0x10, 0x20, 0x30, 0x40 };
+    ASSERT_TRUE(transport.sendData(payload));
+
+    const auto txStats = transport.getStats();
+    EXPECT_EQ(txStats.generic.bytesSent, payload.size());
+    EXPECT_EQ(txStats.generic.packetsSent, 1U);
+
+    transport.resetStats();
+    const auto resetStats = transport.getStats();
+    EXPECT_EQ(resetStats.generic.bytesSent, 0U);
+    EXPECT_EQ(resetStats.generic.packetsSent, 0U);
+
+    transport.close();
+    TEST_CLOSE_SOCKET(clientSock);
+    TEST_CLOSE_SOCKET(listenSock);
+
+#ifdef _WIN32
+    ::WSACleanup();
+#endif
+}
+
 } // namespace

@@ -3,6 +3,7 @@
 /// @file ITransport.h
 /// @brief Abstract transport interface for raw byte-oriented communications (zero Qt/protocol dependency).
 
+#include "TransportStats.h"
 #include "TransportTypes.h"
 
 #include <cstdint>
@@ -58,6 +59,18 @@ public:
     [[nodiscard]] virtual std::uint32_t getBaudRate() const noexcept
     {
         return 0U;
+    }
+
+    /// @brief Captures real-time transport telemetry and diagnostic counters.
+    /// @return Aggregated snapshot containing generic and kernel-level metrics.
+    [[nodiscard]] virtual TransportStatsSnapshot getStats() const
+    {
+        return {};
+    }
+
+    /// @brief Resets transport error and performance counters.
+    virtual void resetStats() noexcept
+    {
     }
 };
 

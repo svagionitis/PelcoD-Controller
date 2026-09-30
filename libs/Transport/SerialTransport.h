@@ -78,14 +78,24 @@ public:
     void close() override;
     [[nodiscard]] bool isOpen() const noexcept override;
     [[nodiscard]] bool sendData(const std::vector<std::uint8_t>& data) override;
+    [[nodiscard]] TransportStatsSnapshot getStats() const override;
+    void resetStats() noexcept override;
 
 private:
+    [[nodiscard]] SerialKernelStats queryKernelStats() const noexcept;
     void readWorker();
     bool configurePort();
 
     std::string m_portName;
     std::atomic<std::uint32_t> m_baudRate { 9600U };
     std::atomic<SerialHandle> m_handle { INVALID_SERIAL_HANDLE };
+
+#ifdef _WIN32
+    mutable std::atomic<std::uint64_t> m_winFramingErrors { 0U };
+    mutable std::atomic<std::uint64_t> m_winOverrunErrors { 0U };
+    mutable std::atomic<std::uint64_t> m_winParityErrors { 0U };
+    mutable std::atomic<std::uint64_t> m_winBreakErrors { 0U };
+#endif
 };
 
 } // namespace Transport

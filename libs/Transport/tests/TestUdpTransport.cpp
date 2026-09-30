@@ -142,4 +142,66 @@ TEST(UdpTransportTest, ErrorHandling)
     }
 }
 
+/// @brief Verify kernel and generic telemetry tracking in UdpTransport.
+TEST(UdpTransportTest, TelemetryAndKernelStats)
+{
+    constexpr std::uint16_t portA { 28885U };
+    constexpr std::uint16_t portB { 28886U };
+
+    UdpTransport peerA("127.0.0.1", portB, portA);
+    UdpTransport peerB("127.0.0.1", portA, portB);
+
+    // Initial unopened stats
+    const auto initialStatsA = peerA.getStats();
+    EXPECT_EQ(initialStatsA.generic.bytesSent, 0U);
+    EXPECT_EQ(initialStatsA.generic.bytesReceived, 0U);
+    EXPECT_TRUE(initialStatsA.udp.has_value());
+    EXPECT_FALSE(initialStatsA.udp->supported);
+
+    ASSERT_TRUE(peerA.open());
+    ASSERT_TRUE(peerB.open());
+
+    // Opened socket kernel stats should be supported (socket buffer sizes > 0)
+    const auto openStatsA = peerA.getStats();
+    EXPECT_TRUE(openStatsA.udp.has_value());
+    EXPECT_TRUE(openStatsA.udp->supported);
+    EXPECT_GT(openStatsA.udp->socketRxBufferSize, 0U);
+    EXPECT_GT(openStatsA.udp->socketTxBufferSize, 0U);
+
+    std::mutex mtxB;
+    std::condition_variable cvB;
+    std::vector<std::uint8_t> receivedB;
+
+    peerB.setDataCallback([&](const std::vector<std::uint8_t>& data) {
+        std::lock_guard<std::mutex> lock(mtxB);
+        receivedB.insert(receivedB.end(), data.begin(), data.end());
+        cvB.notify_one();
+    });
+
+    const std::vector<std::uint8_t> testPayload { 0x01, 0x02, 0x03, 0x04, 0x05 };
+    ASSERT_TRUE(peerA.sendData(testPayload));
+
+    {
+        std::unique_lock<std::mutex> lock(mtxB);
+        cvB.wait_for(lock, std::chrono::seconds(2), [&]() { return receivedB.size() >= testPayload.size(); });
+    }
+
+    const auto statsA = peerA.getStats();
+    EXPECT_EQ(statsA.generic.bytesSent, testPayload.size());
+    EXPECT_EQ(statsA.generic.packetsSent, 1U);
+
+    const auto statsB = peerB.getStats();
+    EXPECT_EQ(statsB.generic.bytesReceived, testPayload.size());
+    EXPECT_EQ(statsB.generic.packetsReceived, 1U);
+
+    // Reset stats
+    peerA.resetStats();
+    const auto resetStatsA = peerA.getStats();
+    EXPECT_EQ(resetStatsA.generic.bytesSent, 0U);
+    EXPECT_EQ(resetStatsA.generic.packetsSent, 0U);
+
+    peerA.close();
+    peerB.close();
+}
+
 } // namespace

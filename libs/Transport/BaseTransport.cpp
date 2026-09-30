@@ -31,6 +31,8 @@ void BaseTransport::notifyState(TransportState state, const std::string& errorMs
 
 void BaseTransport::invokeDataCallback(const std::vector<std::uint8_t>& data)
 {
+    recordBytesReceived(data.size());
+
     DataReceivedCallback callback;
     {
         std::scoped_lock lock(m_callbackMutex);
@@ -47,6 +49,76 @@ void BaseTransport::stopReadThread()
     if (m_readThread.joinable()) {
         m_readThread.join();
     }
+}
+
+TransportStatsSnapshot BaseTransport::getStats() const
+{
+    TransportStatsSnapshot snapshot {};
+    populateGenericStats(snapshot);
+    return snapshot;
+}
+
+void BaseTransport::resetStats() noexcept
+{
+    m_bytesSent.store(0U);
+    m_bytesReceived.store(0U);
+    m_packetsSent.store(0U);
+    m_packetsReceived.store(0U);
+    m_txErrorCount.store(0U);
+    m_rxErrorCount.store(0U);
+    m_reconnectCount.store(0U);
+
+    std::scoped_lock lock(m_timeMutex);
+    m_lastTxTime = {};
+    m_lastRxTime = {};
+}
+
+void BaseTransport::recordBytesSent(std::size_t bytes) noexcept
+{
+    m_bytesSent.fetch_add(static_cast<std::uint64_t>(bytes));
+    m_packetsSent.fetch_add(1U);
+
+    std::scoped_lock lock(m_timeMutex);
+    m_lastTxTime = std::chrono::steady_clock::now();
+}
+
+void BaseTransport::recordBytesReceived(std::size_t bytes) noexcept
+{
+    m_bytesReceived.fetch_add(static_cast<std::uint64_t>(bytes));
+    m_packetsReceived.fetch_add(1U);
+
+    std::scoped_lock lock(m_timeMutex);
+    m_lastRxTime = std::chrono::steady_clock::now();
+}
+
+void BaseTransport::recordTxError() noexcept
+{
+    m_txErrorCount.fetch_add(1U);
+}
+
+void BaseTransport::recordRxError() noexcept
+{
+    m_rxErrorCount.fetch_add(1U);
+}
+
+void BaseTransport::recordReconnect() noexcept
+{
+    m_reconnectCount.fetch_add(1U);
+}
+
+void BaseTransport::populateGenericStats(TransportStatsSnapshot& snapshot) const
+{
+    snapshot.generic.bytesSent = m_bytesSent.load();
+    snapshot.generic.bytesReceived = m_bytesReceived.load();
+    snapshot.generic.packetsSent = m_packetsSent.load();
+    snapshot.generic.packetsReceived = m_packetsReceived.load();
+    snapshot.generic.txErrorCount = m_txErrorCount.load();
+    snapshot.generic.rxErrorCount = m_rxErrorCount.load();
+    snapshot.generic.reconnectCount = m_reconnectCount.load();
+
+    std::scoped_lock lock(m_timeMutex);
+    snapshot.generic.lastTxTime = m_lastTxTime;
+    snapshot.generic.lastRxTime = m_lastRxTime;
 }
 
 } // namespace Transport

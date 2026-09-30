@@ -1,6 +1,7 @@
 add_library(Transport STATIC
     ITransport.h
     TransportTypes.h
+    TransportStats.h
     BaseTransport.h
     BaseTransport.cpp
     SerialTransport.h

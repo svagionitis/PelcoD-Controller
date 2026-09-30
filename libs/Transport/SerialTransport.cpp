@@ -7,6 +7,7 @@
 #include <cerrno>
 #include <cstring>
 #include <fcntl.h>
+#include <linux/serial.h>
 #include <poll.h>
 #include <sys/ioctl.h>
 #include <sys/stat.h>
@@ -319,7 +320,12 @@ bool SerialTransport::sendData(const std::vector<std::uint8_t>& data)
 #ifdef _WIN32
     DWORD bytesWritten = 0;
     const BOOL success = ::WriteFile(handle, data.data(), static_cast<DWORD>(data.size()), &bytesWritten, nullptr);
-    return success && (bytesWritten == static_cast<DWORD>(data.size()));
+    if (success && (bytesWritten == static_cast<DWORD>(data.size()))) {
+        recordBytesSent(data.size());
+        return true;
+    }
+    recordTxError();
+    return false;
 
 #else
     std::size_t totalWritten { 0U };
@@ -344,8 +350,10 @@ bool SerialTransport::sendData(const std::vector<std::uint8_t>& data)
 
     if (totalWritten == toWrite) {
         VLOG(1) << "Serial TX: " << totalWritten << " bytes";
+        recordBytesSent(totalWritten);
         return true;
     }
+    recordTxError();
     LOG(WARNING) << "Serial TX incomplete: wrote " << totalWritten << " of " << toWrite << " bytes";
     return false;
 #endif
@@ -570,6 +578,88 @@ std::vector<std::string> SerialTransport::enumeratePorts()
 
     std::sort(ports.begin(), ports.end(), naturalLess);
     return ports;
+}
+
+TransportStatsSnapshot SerialTransport::getStats() const
+{
+    TransportStatsSnapshot snapshot {};
+    populateGenericStats(snapshot);
+    snapshot.serial = queryKernelStats();
+    return snapshot;
+}
+
+void SerialTransport::resetStats() noexcept
+{
+    BaseTransport::resetStats();
+#ifdef _WIN32
+    m_winFramingErrors.store(0U);
+    m_winOverrunErrors.store(0U);
+    m_winParityErrors.store(0U);
+    m_winBreakErrors.store(0U);
+#endif
+}
+
+SerialKernelStats SerialTransport::queryKernelStats() const noexcept
+{
+    SerialKernelStats stats {};
+    const SerialHandle handle = m_handle.load();
+    if (handle == INVALID_SERIAL_HANDLE) {
+        return stats;
+    }
+
+#ifdef _WIN32
+    COMSTAT comStat {};
+    DWORD errors = 0;
+    if (::ClearCommError(handle, &errors, &comStat)) {
+        stats.supported = true;
+        stats.queuedRxBytes = static_cast<std::uint32_t>(comStat.cbInQue);
+        stats.queuedTxBytes = static_cast<std::uint32_t>(comStat.cbOutQue);
+        stats.ctsHold = (comStat.fCtsHold != 0);
+        stats.dsrHold = (comStat.fDsrHold != 0);
+        if (errors & CE_FRAME) {
+            m_winFramingErrors.fetch_add(1U);
+        }
+        if (errors & (CE_OVERRUN | CE_RXOVER)) {
+            m_winOverrunErrors.fetch_add(1U);
+        }
+        if (errors & CE_RXPARITY) {
+            m_winParityErrors.fetch_add(1U);
+        }
+        if (errors & CE_BREAK) {
+            m_winBreakErrors.fetch_add(1U);
+        }
+        stats.framingErrors = m_winFramingErrors.load();
+        stats.fifoOverruns = m_winOverrunErrors.load();
+        stats.parityErrors = m_winParityErrors.load();
+        stats.breakCount = m_winBreakErrors.load();
+    }
+#else
+    struct serial_icounter_struct icount { };
+    if (::ioctl(handle, TIOCGICOUNT, &icount) == 0) {
+        stats.supported = true;
+        stats.rxBytesDriver = static_cast<std::uint64_t>(std::max(0, icount.rx));
+        stats.txBytesDriver = static_cast<std::uint64_t>(std::max(0, icount.tx));
+        stats.framingErrors = static_cast<std::uint64_t>(std::max(0, icount.frame));
+        stats.fifoOverruns = static_cast<std::uint64_t>(std::max(0, icount.overrun) + std::max(0, icount.buf_overrun));
+        stats.parityErrors = static_cast<std::uint64_t>(std::max(0, icount.parity));
+        stats.breakCount = static_cast<std::uint64_t>(std::max(0, icount.brk));
+    }
+
+    int inQueue = 0;
+    if (::ioctl(handle, FIONREAD, &inQueue) == 0 && inQueue >= 0) {
+        stats.queuedRxBytes = static_cast<std::uint32_t>(std::max(0, inQueue));
+        stats.supported = true;
+    }
+
+    int modemStatus = 0;
+    if (::ioctl(handle, TIOCMGET, &modemStatus) == 0) {
+        stats.ctsHold = ((modemStatus & TIOCM_CTS) == 0);
+        stats.dsrHold = ((modemStatus & TIOCM_DSR) == 0);
+        stats.supported = true;
+    }
+#endif
+
+    return stats;
 }
 
 } // namespace Transport

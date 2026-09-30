@@ -7,6 +7,11 @@
 #include <chrono>
 #include <glog/logging.h>
 
+#ifndef _WIN32
+#include <linux/sockios.h>
+#include <sys/ioctl.h>
+#endif
+
 namespace Transport {
 
 UdpTransport::UdpTransport(std::string host, std::uint16_t port, std::uint16_t localPort)
@@ -210,10 +215,12 @@ bool UdpTransport::sendData(const std::vector<std::uint8_t>& data)
         static_cast<Net::SockBufLenType>(data.size()), Net::SendFlags);
 
     if (bytesSent < 0 || static_cast<std::size_t>(bytesSent) != data.size()) {
+        recordTxError();
         LOG(WARNING) << "UdpTransport: send error: " << Net::getSocketErrorString();
         return false;
     }
 
+    recordBytesSent(data.size());
     return true;
 }
 
@@ -260,6 +267,7 @@ void UdpTransport::readWorker()
                 if (Net::isWouldBlock()) {
                     continue;
                 }
+                recordRxError();
                 if (!m_running.load()) {
                     break;
                 }
@@ -267,6 +275,78 @@ void UdpTransport::readWorker()
             }
         }
     }
+}
+
+TransportStatsSnapshot UdpTransport::getStats() const
+{
+    TransportStatsSnapshot snapshot {};
+    populateGenericStats(snapshot);
+    snapshot.udp = queryKernelStats();
+    return snapshot;
+}
+
+UdpKernelStats UdpTransport::queryKernelStats() const noexcept
+{
+    UdpKernelStats stats {};
+    const auto sock = m_sockfd.load();
+    if (sock == InvalidSocket) {
+        return stats;
+    }
+
+#ifdef _WIN32
+    u_long pendingBytes = 0;
+    if (::ioctlsocket(sock, FIONREAD, &pendingBytes) == 0) {
+        stats.queuedRxBytes = static_cast<std::uint32_t>(pendingBytes);
+        stats.supported = true;
+    }
+
+    int rcvBuf = 0;
+    int optLen = sizeof(rcvBuf);
+    if (::getsockopt(sock, SOL_SOCKET, SO_RCVBUF, reinterpret_cast<char*>(&rcvBuf), &optLen) == 0 && rcvBuf >= 0) {
+        stats.socketRxBufferSize = static_cast<std::uint32_t>(rcvBuf);
+        stats.supported = true;
+    }
+
+    int sndBuf = 0;
+    optLen = sizeof(sndBuf);
+    if (::getsockopt(sock, SOL_SOCKET, SO_SNDBUF, reinterpret_cast<char*>(&sndBuf), &optLen) == 0 && sndBuf >= 0) {
+        stats.socketTxBufferSize = static_cast<std::uint32_t>(sndBuf);
+        stats.supported = true;
+    }
+#else
+    int pending = 0;
+#ifdef SIOCINQ
+    if (::ioctl(sock, SIOCINQ, &pending) == 0 && pending >= 0) {
+        stats.queuedRxBytes = static_cast<std::uint32_t>(pending);
+        stats.supported = true;
+    }
+#endif
+
+    int rcvBuf = 0;
+    socklen_t optLen = sizeof(rcvBuf);
+    if (::getsockopt(sock, SOL_SOCKET, SO_RCVBUF, &rcvBuf, &optLen) == 0 && rcvBuf >= 0) {
+        stats.socketRxBufferSize = static_cast<std::uint32_t>(rcvBuf);
+        stats.supported = true;
+    }
+
+    int sndBuf = 0;
+    optLen = sizeof(sndBuf);
+    if (::getsockopt(sock, SOL_SOCKET, SO_SNDBUF, &sndBuf, &optLen) == 0 && sndBuf >= 0) {
+        stats.socketTxBufferSize = static_cast<std::uint32_t>(sndBuf);
+        stats.supported = true;
+    }
+
+#ifdef SO_RXQ_OVFL
+    unsigned int drops = 0;
+    optLen = sizeof(drops);
+    if (::getsockopt(sock, SOL_SOCKET, SO_RXQ_OVFL, &drops, &optLen) == 0) {
+        stats.rxDroppedPackets = static_cast<std::uint64_t>(drops);
+        stats.supported = true;
+    }
+#endif
+#endif
+
+    return stats;
 }
 
 } // namespace Transport
