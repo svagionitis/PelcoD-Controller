@@ -228,10 +228,27 @@ bool SightlineProtocolParser::parseCurrentConfiguration(
         return false;
     }
 
-    out.numVideoInputs = payload[0U];
-    out.numVideoOutputs = payload[1U];
-    out.numDisplays = payload[2U];
-    out.hardwareType = payload[3U];
+    out.maxCameras = payload[0U];
+    out.maxVirtCameras = payload[1U];
+    out.maxStreams = payload[2U];
+    out.maxProcessed = payload[3U];
+    out.numVideoInputs = out.maxCameras;
+    out.numVideoOutputs = out.maxStreams;
+    out.numDisplays = out.maxProcessed;
+    out.hardwareType = out.maxCameras;
+
+    if (payload.size() >= 6U) {
+        out.cameraConfiguredBits = readU16Le(payload.data() + 4U);
+    }
+    if (payload.size() >= 8U) {
+        out.cameraConnectedBits = readU16Le(payload.data() + 6U);
+    }
+    if (payload.size() >= 12U) {
+        out.displayPresentBits = readU32Le(payload.data() + 8U);
+    }
+    if (payload.size() >= 16U) {
+        out.captureStateBits = readU32Le(payload.data() + 12U);
+    }
     return true;
 }
 
@@ -246,19 +263,34 @@ bool SightlineProtocolParser::parseTrackingPosition(const std::vector<std::uint8
     }
 
     const auto payload = extractPayload(packet);
-    if (payload.size() < 15U) {
+    if (payload.size() < 17U) {
         return false;
     }
 
-    out.cameraIndex = payload[0U];
-    out.col = static_cast<double>(readU16Le(payload.data() + 1U));
-    out.row = static_cast<double>(readU16Le(payload.data() + 3U));
-    out.translationCol = static_cast<double>(readS16Le(payload.data() + 5U)) / 256.0;
-    out.translationRow = static_cast<double>(readS16Le(payload.data() + 7U)) / 256.0;
-    out.rotationDeg = static_cast<double>(readS16Le(payload.data() + 9U)) / 100.0;
-    out.scale = static_cast<double>(readU16Le(payload.data() + 11U)) / 1000.0;
-    out.confidence = payload[13U];
-    out.trackFlags = payload[14U];
+    out.col = static_cast<double>(readS16Le(payload.data() + 0U));
+    out.row = static_cast<double>(readS16Le(payload.data() + 2U));
+    out.translationCol = static_cast<double>(readS16Le(payload.data() + 4U));
+    out.translationRow = static_cast<double>(readS16Le(payload.data() + 6U));
+    out.offsetCol = static_cast<double>(readS16Le(payload.data() + 8U));
+    out.offsetRow = static_cast<double>(readS16Le(payload.data() + 10U));
+    out.confidence = payload[12U];
+    out.sceneConfidence = payload[13U];
+    out.rotationDeg = static_cast<double>(readS16Le(payload.data() + 14U)) / 128.0;
+    out.cameraIndex = payload[16U];
+
+    if (payload.size() >= 18U) {
+        out.userTrackId = payload[17U];
+    }
+    if (payload.size() >= 24U) {
+        out.scale = static_cast<double>(readU16Le(payload.data() + 22U)) / 256.0;
+    }
+    if (payload.size() >= 32U) {
+        out.timestampUs = readU64Le(payload.data() + 24U);
+    }
+    if (payload.size() >= 36U) {
+        out.frameNumber = readU32Le(payload.data() + 32U);
+    }
+
     return true;
 }
 
@@ -269,35 +301,41 @@ bool SightlineProtocolParser::parseTrackingPositions(const std::vector<std::uint
     }
 
     const auto payload = extractPayload(packet);
-    if (payload.size() < 14U) {
+    if (payload.size() < 2U) {
         return false;
     }
 
     out.cameraIndex = payload[0U];
-    out.timestampUs = readU64Le(payload.data() + 1U);
-    out.frameNumber = readU32Le(payload.data() + 9U);
-    const std::uint8_t numTracks = payload[13U];
+    const std::uint8_t numTracks = payload[1U] & 0x7FU;
 
     out.tracks.clear();
-    std::size_t offset = 14U;
+    std::size_t offset = 2U;
 
     for (std::uint8_t i = 0U; i < numTracks; ++i) {
-        if ((offset + 13U) > payload.size()) {
+        if ((offset + 15U) > payload.size()) {
             break;
         }
 
         TrackCoordinate track {};
         track.trackId = payload[offset];
-        track.centerCol = static_cast<double>(readU16Le(payload.data() + offset + 1U));
-        track.centerRow = static_cast<double>(readU16Le(payload.data() + offset + 3U));
+        track.centerCol = static_cast<double>(readS16Le(payload.data() + offset + 1U));
+        track.centerRow = static_cast<double>(readS16Le(payload.data() + offset + 3U));
         track.width = static_cast<double>(readU16Le(payload.data() + offset + 5U));
         track.height = static_cast<double>(readU16Le(payload.data() + offset + 7U));
-        track.confidence = payload[offset + 9U];
-        track.isPrimary = ((payload[offset + 10U] & 0x01U) != 0U);
-        track.velocityCol = static_cast<double>(readS16Le(payload.data() + offset + 11U)) / 256.0;
+        track.velocityCol = static_cast<double>(static_cast<std::int8_t>(payload[offset + 9U])) / 256.0;
+        track.velocityRow = static_cast<double>(static_cast<std::int8_t>(payload[offset + 10U])) / 256.0;
+        track.confidence = payload[offset + 11U];
+        track.isPrimary = ((payload[offset + 12U] & 0x01U) != 0U);
 
         out.tracks.push_back(track);
-        offset += 13U;
+        offset += 15U;
+    }
+
+    if ((offset + 8U) <= payload.size()) {
+        out.timestampUs = readU64Le(payload.data() + offset);
+    }
+    if ((offset + 12U) <= payload.size()) {
+        out.frameNumber = readU32Le(payload.data() + offset + 8U);
     }
 
     return true;
@@ -311,37 +349,43 @@ bool SightlineProtocolParser::parsePositionsExtended(
     }
 
     const auto payload = extractPayload(packet);
-    if (payload.size() < 14U) {
+    if (payload.size() < 2U) {
         return false;
     }
 
     out.cameraIndex = payload[0U];
-    out.timestampUs = readU64Le(payload.data() + 1U);
-    out.frameNumber = readU32Le(payload.data() + 9U);
-    const std::uint8_t numTracks = payload[13U];
+    const std::uint8_t numTracks = payload[1U] & 0x7FU;
 
     out.tracks.clear();
     out.classIds.clear();
-    std::size_t offset = 14U;
+    std::size_t offset = 2U;
 
     for (std::uint8_t i = 0U; i < numTracks; ++i) {
-        if ((offset + 14U) > payload.size()) {
+        if ((offset + 21U) > payload.size()) {
             break;
         }
 
         TrackCoordinate track {};
         track.trackId = payload[offset];
-        track.centerCol = static_cast<double>(readU16Le(payload.data() + offset + 1U));
-        track.centerRow = static_cast<double>(readU16Le(payload.data() + offset + 3U));
+        track.centerCol = static_cast<double>(readS16Le(payload.data() + offset + 1U));
+        track.centerRow = static_cast<double>(readS16Le(payload.data() + offset + 3U));
         track.width = static_cast<double>(readU16Le(payload.data() + offset + 5U));
         track.height = static_cast<double>(readU16Le(payload.data() + offset + 7U));
-        track.confidence = payload[offset + 9U];
-        track.isPrimary = ((payload[offset + 10U] & 0x01U) != 0U);
-        track.velocityCol = static_cast<double>(readS16Le(payload.data() + offset + 11U)) / 256.0;
+        track.velocityCol = static_cast<double>(static_cast<std::int8_t>(payload[offset + 9U])) / 256.0;
+        track.velocityRow = static_cast<double>(static_cast<std::int8_t>(payload[offset + 10U])) / 256.0;
+        track.confidence = payload[offset + 11U];
+        track.isPrimary = ((payload[offset + 12U] & 0x01U) != 0U);
 
         out.tracks.push_back(track);
-        out.classIds.push_back(payload[offset + 13U]);
-        offset += 14U;
+        out.classIds.push_back(payload[offset + 15U]);
+        offset += 21U;
+    }
+
+    if ((offset + 8U) <= payload.size()) {
+        out.timestampUs = readU64Le(payload.data() + offset);
+    }
+    if ((offset + 12U) <= payload.size()) {
+        out.frameNumber = readU32Le(payload.data() + offset + 8U);
     }
 
     return true;
@@ -354,26 +398,15 @@ bool SightlineProtocolParser::parseTrackTrails(const std::vector<std::uint8_t>& 
     }
 
     const auto payload = extractPayload(packet);
-    if (payload.size() < 3U) {
+    if (payload.size() < 7U) {
         return false;
     }
 
     out.cameraIndex = payload[0U];
-    out.trackId = payload[1U];
-    const std::uint8_t numPts = payload[2U];
-
+    out.flags = readU16Le(payload.data() + 1U);
+    out.tracksLen = readU16Le(payload.data() + 3U);
+    out.detectionLen = readU16Le(payload.data() + 5U);
     out.historyPoints.clear();
-    std::size_t offset = 3U;
-
-    for (std::uint8_t i = 0U; i < numPts; ++i) {
-        if ((offset + 4U) > payload.size()) {
-            break;
-        }
-        const double x = static_cast<double>(readU16Le(payload.data() + offset));
-        const double y = static_cast<double>(readU16Le(payload.data() + offset + 2U));
-        out.historyPoints.emplace_back(x, y);
-        offset += 4U;
-    }
 
     return true;
 }
@@ -394,11 +427,15 @@ bool SightlineProtocolParser::parseStabilizationParams(
         return false;
     }
 
-    out.cameraIndex = payload[0U];
-    out.mode = payload[1U];
-    out.autoBias = payload[2U];
-    out.maxShift = payload[3U];
-    out.flags = payload[4U];
+    out.mode = payload[0U];
+    out.rate = payload[1U];
+    out.translationLimit = payload[2U];
+    out.angleLimit = payload[3U];
+    out.cameraIndex = payload[4U];
+    if (payload.size() >= 6U) {
+        out.maxStabOff = payload[5U];
+        out.maxShift = out.maxStabOff;
+    }
     return true;
 }
 

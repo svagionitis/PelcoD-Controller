@@ -91,11 +91,22 @@ struct MsgSystemStatusMode {
 
 /// @struct MsgCurrentConfiguration
 /// @brief Current hardware configuration, camera count, and display paths (Message ID 0x8E).
+/// @details Conforms to official Sightline SLACurrentConfiguration_t struct layout.
 struct MsgCurrentConfiguration {
+    std::uint8_t maxCameras { 1U };
+    std::uint8_t maxVirtCameras { 0U };
+    std::uint8_t maxStreams { 1U };
+    std::uint8_t maxProcessed { 1U };
+    std::uint16_t cameraConfiguredBits { 0U };
+    std::uint16_t cameraConnectedBits { 0U };
+    std::uint32_t displayPresentBits { 0U };
+    std::uint32_t captureStateBits { 0U };
+
+    // Backward-compatibility aliases
     std::uint8_t numVideoInputs { 1U };
-    std::uint8_t numVideoOutputs { 1U };
+    std::uint8_t numVideoOutputs { 0U };
     std::uint8_t numDisplays { 1U };
-    std::uint8_t hardwareType { 0U };
+    std::uint8_t hardwareType { 1U };
 };
 
 } // namespace Sightline

@@ -18,6 +18,10 @@ class SightlineProtocolBuilder {
 public:
     // --- System & Control ---
 
+    /// @brief Encodes get version number query (Message ID 0x00).
+    /// @return Framed binary packet.
+    [[nodiscard]] static std::vector<std::uint8_t> buildGetVersionNumber();
+
     /// @brief Encodes a generic parameter query (Message ID 0x28).
     /// @param[in] queryId Target setter Message ID to query.
     /// @return Framed binary packet.
@@ -84,6 +88,16 @@ public:
     /// @param[in] msg Tracking parameters.
     /// @return Framed binary packet.
     [[nodiscard]] static std::vector<std::uint8_t> buildSetTrackingParameters(const MsgSetTrackingParameters& msg);
+
+    /// @brief Encodes track index modification (stop/primary) (Message ID 0x17).
+    /// @param[in] msg Track index modify parameters.
+    /// @return Framed binary packet.
+    [[nodiscard]] static std::vector<std::uint8_t> buildModifyTrackIndex(const MsgModifyTrackIndex& msg);
+
+    /// @brief Encodes tracking trail parameters (Message ID 0x9D).
+    /// @param[in] msg Track trail parameters.
+    /// @return Framed binary packet.
+    [[nodiscard]] static std::vector<std::uint8_t> buildTrackTrails(const MsgTrackTrails& msg);
 
     /// @brief Encodes track promotion to primary (Message ID 0x32).
     /// @param[in] msg Designate primary parameters.

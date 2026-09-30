@@ -91,11 +91,18 @@ bool SightlineDevice::startTracking(std::uint8_t cameraIndex, std::uint16_t col,
 
 bool SightlineDevice::stopTracking(std::uint8_t cameraIndex, std::uint8_t trackId)
 {
-    MsgStopTracking msg {};
-    msg.cameraIndex = cameraIndex;
-    msg.trackId = trackId;
+    if (trackId == 0xFFU) {
+        MsgStopTracking msg {};
+        msg.cameraIndex = cameraIndex;
+        msg.trackId = 0xFFU;
+        return sendPacket(SightlineProtocolBuilder::buildStopTracking(msg));
+    }
 
-    return sendPacket(SightlineProtocolBuilder::buildStopTracking(msg));
+    MsgModifyTrackIndex modifyMsg {};
+    modifyMsg.trackIndex = trackId;
+    modifyMsg.flags = 0U; // 0 = Stop track
+    modifyMsg.cameraIndex = cameraIndex;
+    return sendPacket(SightlineProtocolBuilder::buildModifyTrackIndex(modifyMsg));
 }
 
 bool SightlineDevice::modifyTracking(
@@ -366,10 +373,7 @@ bool SightlineDevice::setPortConfig(const MsgSetPortConfiguration& msg)
 
 bool SightlineDevice::queryVersion()
 {
-    const bool sentGet
-        = sendPacket(SightlineProtocolBuilder::buildGetParameters(static_cast<std::uint8_t>(MessageId::VersionNumber)));
-    const bool sentVer = sendPacket(SightlineProtocolBuilder::buildRawPacket(MessageId::GetVersionNumber, {}));
-    return sentGet || sentVer;
+    return sendPacket(SightlineProtocolBuilder::buildGetVersionNumber());
 }
 
 bool SightlineDevice::enableSystemStatus(bool enable)

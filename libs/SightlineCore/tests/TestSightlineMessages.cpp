@@ -39,9 +39,24 @@ namespace {
         EXPECT_EQ(SightlineProtocolParser::identifyMessage(pkt), MessageId::StopTracking);
 
         const auto payload = SightlineProtocolParser::extractPayload(pkt);
-        ASSERT_EQ(payload.size(), 2U);
-        EXPECT_EQ(payload[0], 2U);
-        EXPECT_EQ(payload[1], 5U);
+        ASSERT_EQ(payload.size(), 4U);
+        EXPECT_EQ(payload[0], 0U);
+        EXPECT_EQ(payload[1], 0U);
+        EXPECT_EQ(payload[2], 0U);
+        EXPECT_EQ(payload[3], 2U);
+
+        // Individual track stopping uses buildModifyTrackIndex
+        MsgModifyTrackIndex modMsg {};
+        modMsg.trackIndex = 5U;
+        modMsg.flags = 0U; // Stop
+        modMsg.cameraIndex = 2U;
+        const auto modPkt = SightlineProtocolBuilder::buildModifyTrackIndex(modMsg);
+        EXPECT_EQ(SightlineProtocolParser::identifyMessage(modPkt), MessageId::ModifyTrackIndex);
+        const auto modPayload = SightlineProtocolParser::extractPayload(modPkt);
+        ASSERT_EQ(modPayload.size(), 7U);
+        EXPECT_EQ(modPayload[0], 5U);
+        EXPECT_EQ(modPayload[1], 0U);
+        EXPECT_EQ(modPayload[2], 2U);
     }
 
     /// @brief Verify system and network command serialization.
@@ -57,7 +72,11 @@ namespace {
         saveMsg.commitType = 2U;
         const auto savePkt = SightlineProtocolBuilder::buildSaveParameters(saveMsg);
         EXPECT_EQ(SightlineProtocolParser::identifyMessage(savePkt), MessageId::SaveParameters);
-        EXPECT_EQ(SightlineProtocolParser::extractPayload(savePkt)[0], 2U);
+        EXPECT_TRUE(SightlineProtocolParser::extractPayload(savePkt).empty());
+
+        const auto verPkt = SightlineProtocolBuilder::buildGetVersionNumber();
+        EXPECT_EQ(SightlineProtocolParser::identifyMessage(verPkt), MessageId::GetVersionNumber);
+        EXPECT_TRUE(SightlineProtocolParser::extractPayload(verPkt).empty());
 
         MsgSetNetworkParameters netMsg {};
         netMsg.ipAddress = 0xC0A80164U; // 192.168.1.100
@@ -160,9 +179,14 @@ namespace {
         EXPECT_EQ(SightlineProtocolParser::identifyMessage(stabPkt), MessageId::SetStabilizationParameters);
 
         MsgResetStabilizationParameters resetStab {};
+        resetStab.resetType = 0U;
         resetStab.cameraIndex = 1U;
         const auto resetPkt = SightlineProtocolBuilder::buildResetStabilization(resetStab);
         EXPECT_EQ(SightlineProtocolParser::identifyMessage(resetPkt), MessageId::ResetStabilizationParameters);
+        const auto resetPayload = SightlineProtocolParser::extractPayload(resetPkt);
+        ASSERT_EQ(resetPayload.size(), 2U);
+        EXPECT_EQ(resetPayload[0], 0U);
+        EXPECT_EQ(resetPayload[1], 1U);
 
         MsgSetStabilizationBias biasMsg {};
         biasMsg.cameraIndex = 0U;
@@ -467,40 +491,40 @@ namespace {
         EXPECT_EQ(out.versionString, "3.11.6 (build 42)");
     }
 
-    /// @brief Verify tracking positions telemetry parsing.
+    /// @brief Verify tracking positions telemetry parsing (0x51).
     TEST(TestSightlineMessages, ParseTrackingPositions)
     {
         std::vector<std::uint8_t> payload {};
-        payload.push_back(0U); // cameraIndex
+        payload.push_back(0U); // byte 0: cameraIndex
+        payload.push_back(1U); // byte 1: numTracks = 1
 
-        // timestampUs: 1000000 (8 bytes)
+        // Track 0 (15-byte stride)
+        payload.push_back(10U); // byte 0: trackId
+        payload.push_back(0x40U); // bytes 1..2: col: 320
+        payload.push_back(0x01U);
+        payload.push_back(0xF0U); // bytes 3..4: row: 240
+        payload.push_back(0x00U);
+        payload.push_back(64U); // bytes 5..6: width: 64
+        payload.push_back(0U);
+        payload.push_back(48U); // bytes 7..8: height: 48
+        payload.push_back(0U);
+        payload.push_back(0U); // byte 9: velCol8: 0
+        payload.push_back(0U); // byte 10: velRow8: 0
+        payload.push_back(95U); // byte 11: confidence: 95
+        payload.push_back(0x01U); // byte 12: flags: primary
+        payload.push_back(0U); // bytes 13..14: nearVal: 0
+        payload.push_back(0U);
+
+        // Optional trailer (12 bytes: 8-byte timestamp + 4-byte frameId)
         const std::uint64_t ts = 1000000ULL;
         for (std::size_t i = 0; i < 8; ++i) {
             payload.push_back(static_cast<std::uint8_t>((ts >> (i * 8)) & 0xFFU));
         }
 
-        // frameNumber: 42 (4 bytes)
         const std::uint32_t fn = 42U;
         for (std::size_t i = 0; i < 4; ++i) {
             payload.push_back(static_cast<std::uint8_t>((fn >> (i * 8)) & 0xFFU));
         }
-
-        payload.push_back(1U); // numTracks = 1
-
-        // Track 0
-        payload.push_back(10U); // trackId
-        payload.push_back(0x40U); // col: 320
-        payload.push_back(0x01U);
-        payload.push_back(0xF0U); // row: 240
-        payload.push_back(0x00U);
-        payload.push_back(64U); // width: 64
-        payload.push_back(0U);
-        payload.push_back(48U); // height: 48
-        payload.push_back(0U);
-        payload.push_back(95U); // confidence: 95
-        payload.push_back(0x01U); // flags: primary
-        payload.push_back(0U); // velocityCol: 0
-        payload.push_back(0U);
 
         const auto pkt = SightlineProtocolBuilder::buildRawPacket(MessageId::TrackingPositions, payload);
 
@@ -523,29 +547,45 @@ namespace {
     TEST(TestSightlineMessages, ParseTrackingPosition)
     {
         std::vector<std::uint8_t> payload {};
-        payload.push_back(0U); // cameraIndex
-        // col: 320 (0x0140)
+        // col: 320 (0x0140) (bytes 0..1)
         payload.push_back(0x40U);
         payload.push_back(0x01U);
-        // row: 240 (0x00F0)
+        // row: 240 (0x00F0) (bytes 2..3)
         payload.push_back(0xF0U);
         payload.push_back(0x00U);
-        // translationCol: 256 (= 1.0)
+        // translationCol (sceneCol): 256 (bytes 4..5)
         payload.push_back(0x00U);
         payload.push_back(0x01U);
-        // translationRow: 512 (= 2.0)
+        // translationRow (sceneRow): 512 (bytes 6..7)
         payload.push_back(0x00U);
         payload.push_back(0x02U);
-        // rotation: 1000 (= 10.0 deg)
-        payload.push_back(0xE8U);
-        payload.push_back(0x03U);
-        // scale: 1000 (= 1.0)
-        payload.push_back(0xE8U);
-        payload.push_back(0x03U);
-        // confidence: 99
+        // offsetCol: 0 (bytes 8..9)
+        payload.push_back(0x00U);
+        payload.push_back(0x00U);
+        // offsetRow: 0 (bytes 10..11)
+        payload.push_back(0x00U);
+        payload.push_back(0x00U);
+        // confidence: 99 (byte 12)
         payload.push_back(99U);
-        // trackFlags: 1
+        // sceneConfidence: 80 (byte 13)
+        payload.push_back(80U);
+        // rotation: 1280 (= 10.0 deg, rotation / 128.0) (bytes 14..15)
+        payload.push_back(0x00U);
+        payload.push_back(0x05U);
+        // cameraIndex: 0 (byte 16)
+        payload.push_back(0U);
+        // userTrackId: 1 (byte 17)
         payload.push_back(1U);
+        // sceneColFrac8: 0 (byte 18)
+        payload.push_back(0U);
+        // sceneRowFrac8: 0 (byte 19)
+        payload.push_back(0U);
+        // sceneAngle7: 0 (bytes 20..21)
+        payload.push_back(0U);
+        payload.push_back(0U);
+        // scale (sceneScale8): 256 (= 1.0, scale / 256.0) (bytes 22..23)
+        payload.push_back(0x00U);
+        payload.push_back(0x01U);
 
         const auto pkt = SightlineProtocolBuilder::buildRawPacket(MessageId::TrackingPosition, payload);
 
@@ -554,20 +594,44 @@ namespace {
         EXPECT_EQ(out.cameraIndex, 0U);
         EXPECT_DOUBLE_EQ(out.col, 320.0);
         EXPECT_DOUBLE_EQ(out.row, 240.0);
-        EXPECT_DOUBLE_EQ(out.translationCol, 1.0);
-        EXPECT_DOUBLE_EQ(out.translationRow, 2.0);
+        EXPECT_DOUBLE_EQ(out.translationCol, 256.0);
+        EXPECT_DOUBLE_EQ(out.translationRow, 512.0);
         EXPECT_DOUBLE_EQ(out.rotationDeg, 10.0);
         EXPECT_DOUBLE_EQ(out.scale, 1.0);
         EXPECT_EQ(out.confidence, 99U);
-        EXPECT_EQ(out.trackFlags, 1U);
     }
 
     /// @brief Verify extended tracking positions with AI class telemetry parsing (0xA0).
     TEST(TestSightlineMessages, ParsePositionsExtended)
     {
         std::vector<std::uint8_t> payload {};
-        payload.push_back(0U); // cameraIndex
+        payload.push_back(0U); // byte 0: cameraIndex
+        payload.push_back(1U); // byte 1: numTracks = 1
 
+        // Track 0 (21-byte stride)
+        payload.push_back(1U); // byte 0: trackId
+        payload.push_back(0x64U); // bytes 1..2: col: 100
+        payload.push_back(0x00U);
+        payload.push_back(0x96U); // bytes 3..4: row: 150
+        payload.push_back(0x00U);
+        payload.push_back(32U); // bytes 5..6: width: 32
+        payload.push_back(0U);
+        payload.push_back(32U); // bytes 7..8: height: 32
+        payload.push_back(0U);
+        payload.push_back(0U); // byte 9: velCol8: 0
+        payload.push_back(0U); // byte 10: velRow8: 0
+        payload.push_back(90U); // byte 11: confidence
+        payload.push_back(0x01U); // byte 12: primary
+        payload.push_back(0U); // bytes 13..14: nearVal
+        payload.push_back(0U);
+        payload.push_back(3U); // byte 15: classifierLabel (e.g. Vehicle)
+        payload.push_back(95U); // byte 16: classifierConf
+        payload.push_back(1U); // byte 17: userTrackId
+        payload.push_back(0U); // byte 18: trackColFrac8
+        payload.push_back(0U); // byte 19: trackRowFrac8
+        payload.push_back(0U); // byte 20: flags1
+
+        // Optional trailer (12 bytes)
         const std::uint64_t ts = 2000000ULL;
         for (std::size_t i = 0; i < 8; ++i) {
             payload.push_back(static_cast<std::uint8_t>((ts >> (i * 8)) & 0xFFU));
@@ -578,31 +642,40 @@ namespace {
             payload.push_back(static_cast<std::uint8_t>((fn >> (i * 8)) & 0xFFU));
         }
 
-        payload.push_back(1U); // numTracks = 1
-
-        payload.push_back(1U); // trackId
-        payload.push_back(0x64U); // col: 100
-        payload.push_back(0x00U);
-        payload.push_back(0x96U); // row: 150
-        payload.push_back(0x00U);
-        payload.push_back(32U); // width: 32
-        payload.push_back(0U);
-        payload.push_back(32U); // height: 32
-        payload.push_back(0U);
-        payload.push_back(90U); // confidence
-        payload.push_back(0x01U); // primary
-        payload.push_back(0U); // vel
-        payload.push_back(0U);
-        payload.push_back(3U); // classId (e.g. Vehicle)
-
         const auto pkt = SightlineProtocolBuilder::buildRawPacket(MessageId::TrackingPositionsExtended, payload);
 
         MsgTrackingPositionsExtended out {};
         ASSERT_TRUE(SightlineProtocolParser::parsePositionsExtended(pkt, out));
+        EXPECT_EQ(out.timestampUs, 2000000ULL);
+        EXPECT_EQ(out.frameNumber, 100U);
         ASSERT_EQ(out.tracks.size(), 1U);
         ASSERT_EQ(out.classIds.size(), 1U);
         EXPECT_EQ(out.tracks[0].trackId, 1U);
         EXPECT_EQ(out.classIds[0], 3U);
+    }
+
+    /// @brief Verify current stabilization parameters deserialization (0x41).
+    TEST(TestSightlineMessages, ParseStabilizationParams)
+    {
+        std::vector<std::uint8_t> payload {
+            1U, // mode: On
+            30U, // rate
+            64U, // translationLimit
+            10U, // angleLimit
+            2U, // cameraIndex
+            48U // maxStabOff
+        };
+        const auto pkt = SightlineProtocolBuilder::buildRawPacket(MessageId::CurrentStabilizationParameters, payload);
+
+        MsgSetStabilizationParameters out {};
+        ASSERT_TRUE(SightlineProtocolParser::parseStabilizationParams(pkt, out));
+        EXPECT_EQ(out.mode, 1U);
+        EXPECT_EQ(out.rate, 30U);
+        EXPECT_EQ(out.translationLimit, 64U);
+        EXPECT_EQ(out.angleLimit, 10U);
+        EXPECT_EQ(out.cameraIndex, 2U);
+        EXPECT_EQ(out.maxStabOff, 48U);
+        EXPECT_EQ(out.maxShift, 48U);
     }
 
     /// @brief Verify system status message parsing (0x87).
@@ -684,15 +757,31 @@ namespace {
     /// @brief Verify current configuration parsing (0x8E).
     TEST(TestSightlineMessages, ParseCurrentConfiguration)
     {
-        const std::vector<std::uint8_t> payload { 2U, 1U, 1U, 18U };
+        std::vector<std::uint8_t> payload {
+            2U, // maxCameras (byte 0)
+            0U, // maxVirtCameras (byte 1)
+            1U, // maxStreams (byte 2)
+            1U, // maxProcessed (byte 3)
+            0x03U, 0x00U, // cameraConfiguredBits (bytes 4..5): cameras 0, 1
+            0x01U, 0x00U, // cameraConnectedBits (bytes 6..7): camera 0
+            0x01U, 0x00U, 0x00U, 0x00U, // displayPresentBits (bytes 8..11)
+            0x01U, 0x00U, 0x00U, 0x00U // captureStateBits (bytes 12..15)
+        };
         const auto pkt = SightlineProtocolBuilder::buildRawPacket(MessageId::CurrentConfiguration, payload);
 
         MsgCurrentConfiguration out {};
         ASSERT_TRUE(SightlineProtocolParser::parseCurrentConfiguration(pkt, out));
+        EXPECT_EQ(out.maxCameras, 2U);
+        EXPECT_EQ(out.maxVirtCameras, 0U);
+        EXPECT_EQ(out.maxStreams, 1U);
+        EXPECT_EQ(out.maxProcessed, 1U);
+        EXPECT_EQ(out.cameraConfiguredBits, 0x0003U);
+        EXPECT_EQ(out.cameraConnectedBits, 0x0001U);
+        EXPECT_EQ(out.displayPresentBits, 1U);
+        EXPECT_EQ(out.captureStateBits, 1U);
         EXPECT_EQ(out.numVideoInputs, 2U);
         EXPECT_EQ(out.numVideoOutputs, 1U);
         EXPECT_EQ(out.numDisplays, 1U);
-        EXPECT_EQ(out.hardwareType, 18U);
     }
 
 } // namespace

@@ -12,10 +12,12 @@ namespace Sightline {
 
 /// @struct MsgCoordinateReportingMode
 /// @brief Configure rate and telemetry contents for tracking coordinates (Message ID 0x0B).
+/// @details Official Sightline SLACoordinateReportingMode_t: framePeriod(u8), flags(u16 LE), cameraIndex(u8).
 struct MsgCoordinateReportingMode {
-    std::uint8_t cameraIndex { 0U };
-    std::uint8_t framePeriod { 1U }; // 1 = every frame (30/60 Hz), 2 = every 2nd frame
-    std::uint8_t reportingFlags { 0x03U }; // Primary + All
+    std::uint8_t framePeriod { 1U }; ///< 1 = every frame (30/60 Hz), 2 = every 2nd frame
+    std::uint16_t flags { 0x0003U }; ///< Reporting bits: 0x0001 primary, 0x0002 all tracks
+    std::uint8_t cameraIndex { 0U }; ///< Camera index
+    std::uint8_t reportingFlags { 0x03U }; ///< Backward compatibility alias for flags
 };
 
 /// @struct MsgSetTelemetryDestination

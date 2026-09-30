@@ -13,10 +13,14 @@ namespace Sightline {
 
 /// @struct MsgSetPortConfiguration
 /// @brief Serial port mode and baud rate configuration (Message ID 0x3E).
+/// @details Conforms to official Sightline SLASetPortConfiguration_t struct layout.
 struct MsgSetPortConfiguration {
     std::uint8_t portIndex { 0U };
     std::uint32_t baudRate { 57600U };
-    std::uint8_t mode { 0U }; // 0: Command & Control, 1: Pass-through, 2: NMEA, etc.
+    std::uint8_t dataBits { 8U };
+    std::uint8_t stopBits { 1U };
+    std::uint8_t parity { 0U };
+    std::uint8_t mode { 0U }; // 0: SLA Protocol, 1: Aquarius & SLA, 2: SLA no telemetry, etc.
 };
 
 /// @struct MsgCommandPassThrough

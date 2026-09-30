@@ -65,6 +65,11 @@ namespace {
 // 1. System, Configuration & Diagnostic Messages
 // ==============================================================================
 
+std::vector<std::uint8_t> SightlineProtocolBuilder::buildGetVersionNumber()
+{
+    return buildRawPacket(MessageId::GetVersionNumber, {});
+}
+
 std::vector<std::uint8_t> SightlineProtocolBuilder::buildGetParameters(std::uint8_t queryId)
 {
     const std::vector<std::uint8_t> payload { queryId };
@@ -77,10 +82,9 @@ std::vector<std::uint8_t> SightlineProtocolBuilder::buildResetAllParameters(cons
     return buildRawPacket(MessageId::ResetAllParameters, payload);
 }
 
-std::vector<std::uint8_t> SightlineProtocolBuilder::buildSaveParameters(const MsgSaveParameters& msg)
+std::vector<std::uint8_t> SightlineProtocolBuilder::buildSaveParameters(const MsgSaveParameters& /*msg*/)
 {
-    const std::vector<std::uint8_t> payload { msg.commitType };
-    return buildRawPacket(MessageId::SaveParameters, payload);
+    return buildRawPacket(MessageId::SaveParameters, {});
 }
 
 std::vector<std::uint8_t> SightlineProtocolBuilder::buildSystemStatusMode(const MsgSystemStatusMode& msg)
@@ -144,31 +148,64 @@ std::vector<std::uint8_t> SightlineProtocolBuilder::buildStartTracking(const Msg
 
 std::vector<std::uint8_t> SightlineProtocolBuilder::buildStopTracking(const MsgStopTracking& msg)
 {
-    const std::vector<std::uint8_t> payload { msg.cameraIndex, msg.trackId };
+    const std::vector<std::uint8_t> payload { 0x00U, 0x00U, 0x00U, msg.cameraIndex };
     return buildRawPacket(MessageId::StopTracking, payload);
 }
 
 std::vector<std::uint8_t> SightlineProtocolBuilder::buildModifyTracking(const MsgModifyTracking& msg)
 {
-    const std::vector<std::uint8_t> payload { msg.cameraIndex, msg.trackId, msg.mode, msg.flags };
+    std::vector<std::uint8_t> payload {};
+    payload.reserve(7U);
+    appendU16Le(payload, msg.col);
+    appendU16Le(payload, msg.row);
+    payload.push_back(msg.flags);
+    payload.push_back(msg.width);
+    payload.push_back(msg.height);
+    payload.push_back(msg.cameraIndex);
     return buildRawPacket(MessageId::ModifyTracking, payload);
 }
 
 std::vector<std::uint8_t> SightlineProtocolBuilder::buildNudgeTracking(const MsgNudgeTrackingCoordinate& msg)
 {
-    std::vector<std::uint8_t> payload {};
-    payload.reserve(5U);
-    payload.push_back(msg.cameraIndex);
-    appendS16Le(payload, msg.deltaCol);
-    appendS16Le(payload, msg.deltaRow);
-
+    const std::int8_t offCol = (msg.offsetCol != 0) ? msg.offsetCol : static_cast<std::int8_t>(msg.deltaCol);
+    const std::int8_t offRow = (msg.offsetRow != 0) ? msg.offsetRow : static_cast<std::int8_t>(msg.deltaRow);
+    const std::vector<std::uint8_t> payload { static_cast<std::uint8_t>(offCol), static_cast<std::uint8_t>(offRow),
+        msg.rotate, msg.cameraIndex };
     return buildRawPacket(MessageId::NudgeTrackingCoordinate, payload);
 }
 
 std::vector<std::uint8_t> SightlineProtocolBuilder::buildSetReportingMode(const MsgCoordinateReportingMode& msg)
 {
-    const std::vector<std::uint8_t> payload { msg.cameraIndex, msg.framePeriod, msg.reportingFlags };
+    std::vector<std::uint8_t> payload {};
+    payload.reserve(4U);
+    payload.push_back(msg.framePeriod);
+    const std::uint16_t f = (msg.flags != 0U) ? msg.flags : static_cast<std::uint16_t>(msg.reportingFlags);
+    appendU16Le(payload, f);
+    payload.push_back(msg.cameraIndex);
     return buildRawPacket(MessageId::CoordinateReportingMode, payload);
+}
+
+std::vector<std::uint8_t> SightlineProtocolBuilder::buildModifyTrackIndex(const MsgModifyTrackIndex& msg)
+{
+    std::vector<std::uint8_t> payload {};
+    payload.reserve(7U);
+    payload.push_back(msg.trackIndex);
+    payload.push_back(msg.flags);
+    payload.push_back(msg.cameraIndex);
+    appendU16Le(payload, msg.width);
+    appendU16Le(payload, msg.height);
+    return buildRawPacket(MessageId::ModifyTrackIndex, payload);
+}
+
+std::vector<std::uint8_t> SightlineProtocolBuilder::buildTrackTrails(const MsgTrackTrails& msg)
+{
+    std::vector<std::uint8_t> payload {};
+    payload.reserve(7U);
+    payload.push_back(msg.cameraIndex);
+    appendU16Le(payload, msg.flags);
+    appendU16Le(payload, msg.tracksLen);
+    appendU16Le(payload, msg.detectionLen);
+    return buildRawPacket(MessageId::TrackTrails, payload);
 }
 
 std::vector<std::uint8_t> SightlineProtocolBuilder::buildSetTrackingParameters(const MsgSetTrackingParameters& msg)
@@ -236,7 +273,7 @@ std::vector<std::uint8_t> SightlineProtocolBuilder::buildSetStabilization(const 
 
 std::vector<std::uint8_t> SightlineProtocolBuilder::buildResetStabilization(const MsgResetStabilizationParameters& msg)
 {
-    const std::vector<std::uint8_t> payload { msg.cameraIndex };
+    const std::vector<std::uint8_t> payload { msg.resetType, msg.cameraIndex };
     return buildRawPacket(MessageId::ResetStabilizationParameters, payload);
 }
 
