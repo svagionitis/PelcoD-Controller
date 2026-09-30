@@ -15,14 +15,14 @@ namespace Sightline {
 /// @details Conforms to official Sightline SLACurrentStabilizationParameters_t / SLASetStabilizationParameters_t.
 struct MsgSetStabilizationParameters {
     std::uint8_t mode { 1U }; ///< 0: Off, 1: On, 2: Auto
-    std::uint8_t rate { 0U }; ///< Stabilization update rate
+    std::uint8_t rate { 0U }; ///< Stabilization update rate / smoothing filter
     std::uint8_t translationLimit { 0U }; ///< Max translation limit
     std::uint8_t angleLimit { 0U }; ///< Max rotation angle limit
     std::uint8_t cameraIndex { 0U }; ///< Camera channel index
-    std::uint8_t maxStabOff { 0U }; ///< Maximum stabilization offset
-    std::uint8_t autoBias { 1U }; ///< Auto-bias enable
-    std::uint8_t maxShift { 64U }; ///< Maximum pixel shift limit
-    std::uint8_t flags { 0U }; ///< Control / algorithm flags
+    std::uint8_t maxStabOff { 0U }; ///< Maximum stabilization offset in pixels
+    std::uint8_t edgeY { 0x10U }; ///< Edge border fill Y luma
+    std::uint8_t edgeU { 0x80U }; ///< Edge border fill U chroma
+    std::uint8_t edgeV { 0x80U }; ///< Edge border fill V chroma
 };
 
 /// @struct MsgResetStabilizationParameters

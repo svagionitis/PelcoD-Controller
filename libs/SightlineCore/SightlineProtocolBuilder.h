@@ -178,10 +178,15 @@ public:
     /// @return Framed binary packet.
     [[nodiscard]] static std::vector<std::uint8_t> buildSetDisplayParams(const MsgSetDisplayParameters& msg);
 
-    /// @brief Encodes network video stream destination (Message ID 0x1A).
+    /// @brief Encodes video frame rate, downsample, and quality over Ethernet (Message ID 0x1A).
     /// @param[in] msg Ethernet video parameters.
     /// @return Framed binary packet.
     [[nodiscard]] static std::vector<std::uint8_t> buildSetEthernetVideo(const MsgSetEthernetVideoParameters& msg);
+
+    /// @brief Encodes network video stream destination and port (Message ID 0x29).
+    /// @param[in] msg Ethernet display parameters.
+    /// @return Framed binary packet.
+    [[nodiscard]] static std::vector<std::uint8_t> buildSetEthernetDisplay(const MsgSetEthernetDisplayParameters& msg);
 
     /// @brief Encodes H.264 compression bitrate and GOP (Message ID 0x23).
     /// @param[in] msg Encoder parameters.

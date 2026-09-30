@@ -322,10 +322,10 @@ bool SightlineProtocolParser::parseTrackingPositions(const std::vector<std::uint
         track.centerRow = static_cast<double>(readS16Le(payload.data() + offset + 3U));
         track.width = static_cast<double>(readU16Le(payload.data() + offset + 5U));
         track.height = static_cast<double>(readU16Le(payload.data() + offset + 7U));
-        track.velocityCol = static_cast<double>(static_cast<std::int8_t>(payload[offset + 9U])) / 256.0;
-        track.velocityRow = static_cast<double>(static_cast<std::int8_t>(payload[offset + 10U])) / 256.0;
-        track.confidence = payload[offset + 11U];
-        track.isPrimary = ((payload[offset + 12U] & 0x01U) != 0U);
+        track.velocityCol = static_cast<double>(readS16Le(payload.data() + offset + 9U)) / 256.0;
+        track.velocityRow = static_cast<double>(readS16Le(payload.data() + offset + 11U)) / 256.0;
+        track.confidence = payload[offset + 13U];
+        track.isPrimary = ((payload[offset + 14U] & 0x01U) != 0U);
 
         out.tracks.push_back(track);
         offset += 15U;
@@ -371,10 +371,10 @@ bool SightlineProtocolParser::parsePositionsExtended(
         track.centerRow = static_cast<double>(readS16Le(payload.data() + offset + 3U));
         track.width = static_cast<double>(readU16Le(payload.data() + offset + 5U));
         track.height = static_cast<double>(readU16Le(payload.data() + offset + 7U));
-        track.velocityCol = static_cast<double>(static_cast<std::int8_t>(payload[offset + 9U])) / 256.0;
-        track.velocityRow = static_cast<double>(static_cast<std::int8_t>(payload[offset + 10U])) / 256.0;
-        track.confidence = payload[offset + 11U];
-        track.isPrimary = ((payload[offset + 12U] & 0x01U) != 0U);
+        track.velocityCol = static_cast<double>(readS16Le(payload.data() + offset + 9U)) / 256.0;
+        track.velocityRow = static_cast<double>(readS16Le(payload.data() + offset + 11U)) / 256.0;
+        track.confidence = payload[offset + 13U];
+        track.isPrimary = ((payload[offset + 14U] & 0x01U) != 0U);
 
         out.tracks.push_back(track);
         out.classIds.push_back(payload[offset + 15U]);
@@ -434,7 +434,11 @@ bool SightlineProtocolParser::parseStabilizationParams(
     out.cameraIndex = payload[4U];
     if (payload.size() >= 6U) {
         out.maxStabOff = payload[5U];
-        out.maxShift = out.maxStabOff;
+    }
+    if (payload.size() >= 9U) {
+        out.edgeY = payload[6U];
+        out.edgeU = payload[7U];
+        out.edgeV = payload[8U];
     }
     return true;
 }
@@ -446,15 +450,18 @@ bool SightlineProtocolParser::parseVideoParameters(const std::vector<std::uint8_
     }
 
     const auto payload = extractPayload(packet);
-    if (payload.size() < 7U) {
+    if (payload.size() < 8U) {
         return false;
     }
 
-    out.cameraIndex = payload[0U];
-    out.inputFormat = payload[1U];
-    out.width = readU16Le(payload.data() + 2U);
-    out.height = readU16Le(payload.data() + 4U);
-    out.frameRate = payload[6U];
+    out.autoChop = payload[0U];
+    out.chopTop = payload[1U];
+    out.chopBottom = payload[2U];
+    out.chopLeft = payload[3U];
+    out.chopRight = payload[4U];
+    out.deinterlace = payload[5U];
+    out.autoReset = payload[6U];
+    out.cameraIndex = payload[7U];
     return true;
 }
 
@@ -465,15 +472,19 @@ bool SightlineProtocolParser::parseH264Parameters(const std::vector<std::uint8_t
     }
 
     const auto payload = extractPayload(packet);
-    if (payload.size() < 9U) {
+    if (payload.size() < 13U) {
         return false;
     }
 
-    out.streamIndex = payload[0U];
-    out.targetBitrateBps = readU32Le(payload.data() + 1U);
-    out.gopLength = readU16Le(payload.data() + 5U);
-    out.qualityLevel = payload[7U];
-    out.rateControl = payload[8U];
+    out.targetBitrateBps = readU32Le(payload.data());
+    out.intraFrameInterval = payload[4U];
+    out.lfDisableIdc = payload[5U];
+    out.airMbPeriod = payload[6U];
+    out.sliceRefreshRowNumber = payload[7U];
+    out.flags = payload[8U];
+    out.displayId = readU16Le(payload.data() + 9U);
+    out.minQp = payload[11U];
+    out.maxQp = payload[12U];
     return true;
 }
 

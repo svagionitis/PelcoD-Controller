@@ -19,13 +19,18 @@ namespace {
         msg.width = 80U;
         msg.height = 60U;
         msg.flags = 0x01U;
+        msg.nearVal = 50U;
+        msg.userTrackId = 3U;
+        msg.framePts = 999999ULL;
 
         const auto pkt = SightlineProtocolBuilder::buildStartTracking(msg);
         EXPECT_EQ(SightlineProtocolParser::identifyMessage(pkt), MessageId::StartTracking);
 
         const auto payload = SightlineProtocolParser::extractPayload(pkt);
-        ASSERT_EQ(payload.size(), 10U);
+        ASSERT_EQ(payload.size(), 21U);
         EXPECT_EQ(payload[0], 1U);
+        EXPECT_EQ(payload[9], 0x01U);
+        EXPECT_EQ(payload[12], 3U);
     }
 
     /// @brief Verify stop tracking command serialization.
@@ -121,13 +126,39 @@ namespace {
         const auto repPkt = SightlineProtocolBuilder::buildSetReportingMode(repMsg);
         EXPECT_EQ(SightlineProtocolParser::identifyMessage(repPkt), MessageId::CoordinateReportingMode);
 
+        MsgStartTracking startMsg {};
+        startMsg.cameraIndex = 0U;
+        startMsg.centerCol = 320U;
+        startMsg.centerRow = 240U;
+        startMsg.width = 64U;
+        startMsg.height = 48U;
+        startMsg.flags = 0x01U;
+        startMsg.nearVal = 100U;
+        startMsg.userTrackId = 5U;
+        startMsg.framePts = 12345678ULL;
+        const auto startPkt = SightlineProtocolBuilder::buildStartTracking(startMsg);
+        EXPECT_EQ(SightlineProtocolParser::identifyMessage(startPkt), MessageId::StartTracking);
+        const auto startPayload = SightlineProtocolParser::extractPayload(startPkt);
+        ASSERT_EQ(startPayload.size(), 21U);
+        EXPECT_EQ(startPayload[0], 0U);
+        EXPECT_EQ(startPayload[9], 0x01U);
+        EXPECT_EQ(startPayload[12], 5U);
+
         MsgSetTrackingParameters trkParams {};
-        trkParams.cameraIndex = 0U;
+        trkParams.objectSize = 32U;
         trkParams.mode = 1U;
+        trkParams.cameraIndex = 0U;
         trkParams.acquisitionSearchCol = 200U;
         trkParams.acquisitionSearchRow = 150U;
+        trkParams.flags = 0x02U;
         const auto trkPkt = SightlineProtocolBuilder::buildSetTrackingParameters(trkParams);
         EXPECT_EQ(SightlineProtocolParser::identifyMessage(trkPkt), MessageId::SetTrackingParameters);
+        const auto trkPayload = SightlineProtocolParser::extractPayload(trkPkt);
+        ASSERT_EQ(trkPayload.size(), 16U);
+        EXPECT_EQ(trkPayload[0], 32U);
+        EXPECT_EQ(trkPayload[1], 1U);
+        EXPECT_EQ(trkPayload[6], 0U); // cameraIndex
+        EXPECT_EQ(trkPayload[15], 0x02U); // flags
 
         MsgDesignateSelectedTrackPrimary desMsg {};
         desMsg.cameraIndex = 0U;
@@ -171,12 +202,28 @@ namespace {
     TEST(TestSightlineMessages, BuildStabilizationRegistration)
     {
         MsgSetStabilizationParameters stabMsg {};
-        stabMsg.cameraIndex = 0U;
         stabMsg.mode = 1U;
-        stabMsg.autoBias = 1U;
-        stabMsg.maxShift = 48U;
+        stabMsg.rate = 30U;
+        stabMsg.translationLimit = 64U;
+        stabMsg.angleLimit = 10U;
+        stabMsg.cameraIndex = 0U;
+        stabMsg.maxStabOff = 48U;
+        stabMsg.edgeY = 0x10U;
+        stabMsg.edgeU = 0x80U;
+        stabMsg.edgeV = 0x80U;
         const auto stabPkt = SightlineProtocolBuilder::buildSetStabilization(stabMsg);
         EXPECT_EQ(SightlineProtocolParser::identifyMessage(stabPkt), MessageId::SetStabilizationParameters);
+        const auto stabPayload = SightlineProtocolParser::extractPayload(stabPkt);
+        ASSERT_EQ(stabPayload.size(), 9U);
+        EXPECT_EQ(stabPayload[0], 1U);
+        EXPECT_EQ(stabPayload[1], 30U);
+        EXPECT_EQ(stabPayload[2], 64U);
+        EXPECT_EQ(stabPayload[3], 10U);
+        EXPECT_EQ(stabPayload[4], 0U);
+        EXPECT_EQ(stabPayload[5], 48U);
+        EXPECT_EQ(stabPayload[6], 0x10U);
+        EXPECT_EQ(stabPayload[7], 0x80U);
+        EXPECT_EQ(stabPayload[8], 0x80U);
 
         MsgResetStabilizationParameters resetStab {};
         resetStab.resetType = 0U;
@@ -204,12 +251,26 @@ namespace {
         EXPECT_EQ(SightlineProtocolParser::identifyMessage(regPkt), MessageId::SetRegistrationParameters);
 
         MsgSetBlendParameters blendMsg {};
-        blendMsg.primaryCamera = 0U;
-        blendMsg.secondaryCamera = 1U;
-        blendMsg.blendMode = 1U;
-        blendMsg.alphaPercent = 75U;
+        blendMsg.absOffZoom = 1U;
+        blendMsg.vertical = 5;
+        blendMsg.horizontal = -10;
+        blendMsg.rotation = 0U;
+        blendMsg.zoom = 128U;
+        blendMsg.mode = 1U;
+        blendMsg.amt = 75U;
+        blendMsg.warpIndex = 0U;
+        blendMsg.fixedIndex = 1U;
         const auto blendPkt = SightlineProtocolBuilder::buildSetBlendParameters(blendMsg);
         EXPECT_EQ(SightlineProtocolParser::identifyMessage(blendPkt), MessageId::SetBlendParameters);
+        const auto blendPayload = SightlineProtocolParser::extractPayload(blendPkt);
+        ASSERT_EQ(blendPayload.size(), 18U);
+        EXPECT_EQ(blendPayload[0], 1U);
+        EXPECT_EQ(static_cast<std::int8_t>(blendPayload[1]), 5);
+        EXPECT_EQ(static_cast<std::int8_t>(blendPayload[2]), -10);
+        EXPECT_EQ(blendPayload[5], 1U); // mode
+        EXPECT_EQ(blendPayload[6], 75U); // amt
+        EXPECT_EQ(blendPayload[11], 0U); // warpIndex
+        EXPECT_EQ(blendPayload[12], 1U); // fixedIndex
 
         MsgNoise3D noiseMsg {};
         noiseMsg.cameraIndex = 0U;
@@ -224,13 +285,26 @@ namespace {
     TEST(TestSightlineMessages, BuildVideoPipeline)
     {
         MsgSetVideoParameters vidMsg {};
+        vidMsg.autoChop = 1U;
+        vidMsg.chopTop = 16U;
+        vidMsg.chopBottom = 16U;
+        vidMsg.chopLeft = 24U;
+        vidMsg.chopRight = 24U;
+        vidMsg.deinterlace = 1U;
+        vidMsg.autoReset = 1U;
         vidMsg.cameraIndex = 0U;
-        vidMsg.inputFormat = 1U;
-        vidMsg.width = 1920U;
-        vidMsg.height = 1080U;
-        vidMsg.frameRate = 60U;
         const auto vidPkt = SightlineProtocolBuilder::buildSetVideoParameters(vidMsg);
         EXPECT_EQ(SightlineProtocolParser::identifyMessage(vidPkt), MessageId::SetVideoParameters);
+        const auto vidPayload = SightlineProtocolParser::extractPayload(vidPkt);
+        ASSERT_EQ(vidPayload.size(), 8U);
+        EXPECT_EQ(vidPayload[0], 1U);
+        EXPECT_EQ(vidPayload[1], 16U);
+        EXPECT_EQ(vidPayload[2], 16U);
+        EXPECT_EQ(vidPayload[3], 24U);
+        EXPECT_EQ(vidPayload[4], 24U);
+        EXPECT_EQ(vidPayload[5], 1U);
+        EXPECT_EQ(vidPayload[6], 1U);
+        EXPECT_EQ(vidPayload[7], 0U);
 
         MsgSetVideoMode modeMsg {};
         modeMsg.cameraIndex = 0U;
@@ -261,22 +335,55 @@ namespace {
         EXPECT_EQ(SightlineProtocolParser::identifyMessage(dispPkt), MessageId::SetDisplayParameters);
 
         MsgSetEthernetVideoParameters ethMsg {};
-        ethMsg.streamIndex = 0U;
-        ethMsg.destIpAddress = 0xE0000001U; // 224.0.0.1
-        ethMsg.destPort = 15004U;
-        ethMsg.protocol = 0U;
-        ethMsg.ttl = 128U;
+        ethMsg.quality = 85U;
+        ethMsg.foveal = 10U;
+        ethMsg.frameStep = 2U;
+        ethMsg.frameSize = 5U;
+        ethMsg.displayId = 0x0002U;
+        ethMsg.customWide = 0U;
+        ethMsg.customHigh = 0U;
         const auto ethPkt = SightlineProtocolBuilder::buildSetEthernetVideo(ethMsg);
         EXPECT_EQ(SightlineProtocolParser::identifyMessage(ethPkt), MessageId::SetEthernetVideoParameters);
+        const auto ethPayload = SightlineProtocolParser::extractPayload(ethPkt);
+        ASSERT_EQ(ethPayload.size(), 10U);
+        EXPECT_EQ(ethPayload[0], 85U);
+        EXPECT_EQ(ethPayload[1], 10U);
+        EXPECT_EQ(ethPayload[2], 2U);
+        EXPECT_EQ(ethPayload[3], 5U);
+        EXPECT_EQ(ethPayload[4], 0x02U);
+        EXPECT_EQ(ethPayload[5], 0x00U);
+
+        MsgSetEthernetDisplayParameters dispEthMsg {};
+        dispEthMsg.protocol = 1U;
+        dispEthMsg.ipAddress = 0xE0000001U;
+        dispEthMsg.port = 15004U;
+        dispEthMsg.displayId = 0x0002U;
+        dispEthMsg.maxPacket = 1400U;
+        dispEthMsg.maxRawPacket = 1400U;
+        const auto dispEthPkt = SightlineProtocolBuilder::buildSetEthernetDisplay(dispEthMsg);
+        EXPECT_EQ(SightlineProtocolParser::identifyMessage(dispEthPkt), MessageId::SetEthernetDisplayParameters);
+        const auto dispEthPayload = SightlineProtocolParser::extractPayload(dispEthPkt);
+        ASSERT_EQ(dispEthPayload.size(), 13U);
+        EXPECT_EQ(dispEthPayload[0], 1U);
+        EXPECT_EQ(dispEthPayload[1], 0xE0U);
+        EXPECT_EQ(dispEthPayload[2], 0x00U);
+        EXPECT_EQ(dispEthPayload[3], 0x00U);
+        EXPECT_EQ(dispEthPayload[4], 0x01U);
 
         MsgSetH264Parameters h264Msg {};
-        h264Msg.streamIndex = 0U;
         h264Msg.targetBitrateBps = 8000000U;
-        h264Msg.gopLength = 60U;
-        h264Msg.qualityLevel = 2U;
-        h264Msg.rateControl = 1U;
+        h264Msg.intraFrameInterval = 60U;
+        h264Msg.lfDisableIdc = 0U;
+        h264Msg.airMbPeriod = 20U;
+        h264Msg.sliceRefreshRowNumber = 0U;
+        h264Msg.flags = 0x12U;
+        h264Msg.displayId = 0x0002U;
+        h264Msg.minQp = 10U;
+        h264Msg.maxQp = 40U;
         const auto h264Pkt = SightlineProtocolBuilder::buildSetH264Parameters(h264Msg);
         EXPECT_EQ(SightlineProtocolParser::identifyMessage(h264Pkt), MessageId::SetH264Parameters);
+        const auto h264Payload = SightlineProtocolParser::extractPayload(h264Pkt);
+        ASSERT_EQ(h264Payload.size(), 13U);
 
         MsgSetSDRecordingParameters sdMsg {};
         sdMsg.recordingState = 1U;
@@ -508,12 +615,12 @@ namespace {
         payload.push_back(0U);
         payload.push_back(48U); // bytes 7..8: height: 48
         payload.push_back(0U);
-        payload.push_back(0U); // byte 9: velCol8: 0
-        payload.push_back(0U); // byte 10: velRow8: 0
-        payload.push_back(95U); // byte 11: confidence: 95
-        payload.push_back(0x01U); // byte 12: flags: primary
-        payload.push_back(0U); // bytes 13..14: nearVal: 0
-        payload.push_back(0U);
+        payload.push_back(0x00U); // bytes 9..10: velCol8: 512 (2.0 pixels/frame)
+        payload.push_back(0x02U);
+        payload.push_back(0x00U); // bytes 11..12: velRow8: -256 (-1.0 pixel/frame)
+        payload.push_back(0xFFU);
+        payload.push_back(95U); // byte 13: confidence: 95
+        payload.push_back(0x01U); // byte 14: flags: primary
 
         // Optional trailer (12 bytes: 8-byte timestamp + 4-byte frameId)
         const std::uint64_t ts = 1000000ULL;
@@ -539,6 +646,8 @@ namespace {
         EXPECT_DOUBLE_EQ(out.tracks[0].centerRow, 240.0);
         EXPECT_DOUBLE_EQ(out.tracks[0].width, 64.0);
         EXPECT_DOUBLE_EQ(out.tracks[0].height, 48.0);
+        EXPECT_DOUBLE_EQ(out.tracks[0].velocityCol, 2.0);
+        EXPECT_DOUBLE_EQ(out.tracks[0].velocityRow, -1.0);
         EXPECT_EQ(out.tracks[0].confidence, 95U);
         EXPECT_TRUE(out.tracks[0].isPrimary);
     }
@@ -618,12 +727,12 @@ namespace {
         payload.push_back(0U);
         payload.push_back(32U); // bytes 7..8: height: 32
         payload.push_back(0U);
-        payload.push_back(0U); // byte 9: velCol8: 0
-        payload.push_back(0U); // byte 10: velRow8: 0
-        payload.push_back(90U); // byte 11: confidence
-        payload.push_back(0x01U); // byte 12: primary
-        payload.push_back(0U); // bytes 13..14: nearVal
-        payload.push_back(0U);
+        payload.push_back(0x00U); // bytes 9..10: velCol8: 512 (2.0 pixels/frame)
+        payload.push_back(0x02U);
+        payload.push_back(0x00U); // bytes 11..12: velRow8: -256 (-1.0 pixel/frame)
+        payload.push_back(0xFFU);
+        payload.push_back(90U); // byte 13: confidence: 90
+        payload.push_back(0x01U); // byte 14: primary flag
         payload.push_back(3U); // byte 15: classifierLabel (e.g. Vehicle)
         payload.push_back(95U); // byte 16: classifierConf
         payload.push_back(1U); // byte 17: userTrackId
@@ -651,6 +760,10 @@ namespace {
         ASSERT_EQ(out.tracks.size(), 1U);
         ASSERT_EQ(out.classIds.size(), 1U);
         EXPECT_EQ(out.tracks[0].trackId, 1U);
+        EXPECT_DOUBLE_EQ(out.tracks[0].velocityCol, 2.0);
+        EXPECT_DOUBLE_EQ(out.tracks[0].velocityRow, -1.0);
+        EXPECT_EQ(out.tracks[0].confidence, 90U);
+        EXPECT_TRUE(out.tracks[0].isPrimary);
         EXPECT_EQ(out.classIds[0], 3U);
     }
 
@@ -663,7 +776,10 @@ namespace {
             64U, // translationLimit
             10U, // angleLimit
             2U, // cameraIndex
-            48U // maxStabOff
+            48U, // maxStabOff
+            0x10U, // edgeY
+            0x80U, // edgeU
+            0x80U // edgeV
         };
         const auto pkt = SightlineProtocolBuilder::buildRawPacket(MessageId::CurrentStabilizationParameters, payload);
 
@@ -675,7 +791,70 @@ namespace {
         EXPECT_EQ(out.angleLimit, 10U);
         EXPECT_EQ(out.cameraIndex, 2U);
         EXPECT_EQ(out.maxStabOff, 48U);
-        EXPECT_EQ(out.maxShift, 48U);
+        EXPECT_EQ(out.edgeY, 0x10U);
+        EXPECT_EQ(out.edgeU, 0x80U);
+        EXPECT_EQ(out.edgeV, 0x80U);
+    }
+
+    /// @brief Verify current video parameters deserialization (0x46).
+    TEST(TestSightlineMessages, ParseVideoParameters)
+    {
+        std::vector<std::uint8_t> payload {
+            1U, // autoChop
+            16U, // chopTop
+            16U, // chopBottom
+            24U, // chopLeft
+            24U, // chopRight
+            1U, // deinterlace
+            1U, // autoReset
+            0U // cameraIndex
+        };
+        const auto pkt = SightlineProtocolBuilder::buildRawPacket(MessageId::CurrentVideoParameters, payload);
+
+        MsgSetVideoParameters out {};
+        ASSERT_TRUE(SightlineProtocolParser::parseVideoParameters(pkt, out));
+        EXPECT_EQ(out.autoChop, 1U);
+        EXPECT_EQ(out.chopTop, 16U);
+        EXPECT_EQ(out.chopBottom, 16U);
+        EXPECT_EQ(out.chopLeft, 24U);
+        EXPECT_EQ(out.chopRight, 24U);
+        EXPECT_EQ(out.deinterlace, 1U);
+        EXPECT_EQ(out.autoReset, 1U);
+        EXPECT_EQ(out.cameraIndex, 0U);
+    }
+
+    /// @brief Verify current H.264 parameters deserialization (0x56).
+    TEST(TestSightlineMessages, ParseH264Parameters)
+    {
+        std::vector<std::uint8_t> payload {};
+        // targetBitrateBps = 4000000 (0x003D0900)
+        payload.push_back(0x00U);
+        payload.push_back(0x09U);
+        payload.push_back(0x3DU);
+        payload.push_back(0x00U);
+        payload.push_back(30U); // intraFrameInterval
+        payload.push_back(0U); // lfDisableIdc
+        payload.push_back(20U); // airMbPeriod
+        payload.push_back(0U); // sliceRefreshRowNumber
+        payload.push_back(0x12U); // flags
+        payload.push_back(0x02U); // displayId low
+        payload.push_back(0x00U); // displayId high
+        payload.push_back(10U); // minQp
+        payload.push_back(40U); // maxQp
+
+        const auto pkt = SightlineProtocolBuilder::buildRawPacket(MessageId::CurrentH264Parameters, payload);
+
+        MsgSetH264Parameters out {};
+        ASSERT_TRUE(SightlineProtocolParser::parseH264Parameters(pkt, out));
+        EXPECT_EQ(out.targetBitrateBps, 4000000U);
+        EXPECT_EQ(out.intraFrameInterval, 30U);
+        EXPECT_EQ(out.lfDisableIdc, 0U);
+        EXPECT_EQ(out.airMbPeriod, 20U);
+        EXPECT_EQ(out.sliceRefreshRowNumber, 0U);
+        EXPECT_EQ(out.flags, 0x12U);
+        EXPECT_EQ(out.displayId, 0x0002U);
+        EXPECT_EQ(out.minQp, 10U);
+        EXPECT_EQ(out.maxQp, 40U);
     }
 
     /// @brief Verify system status message parsing (0x87).

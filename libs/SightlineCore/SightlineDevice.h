@@ -135,14 +135,18 @@ public:
     // --- Stabilization Commands ---
 
     /// @brief Configures electronic image stabilization parameters.
+    /// @param[in] msg Stabilization parameters struct.
+    /// @return True if command was successfully transmitted.
+    [[nodiscard]] bool setStabilization(const MsgSetStabilizationParameters& msg);
+
+    /// @brief Configures electronic image stabilization parameters.
     /// @param[in] cameraIndex Zero-based camera index.
     /// @param[in] mode Stabilization mode (0: Off, 1: On, 2: Auto).
-    /// @param[in] autoBias Automatic motion bias removal enable.
-    /// @param[in] maxShift Maximum shift limit in pixels.
-    /// @param[in] flags Option flags.
+    /// @param[in] rate Update rate / smoothing filter.
+    /// @param[in] maxStabOff Maximum stabilization offset in pixels.
     /// @return True if command was successfully transmitted.
-    [[nodiscard]] bool setStabilization(std::uint8_t cameraIndex, std::uint8_t mode, std::uint8_t autoBias = 1U,
-        std::uint8_t maxShift = 64U, std::uint8_t flags = 0U);
+    [[nodiscard]] bool setStabilization(
+        std::uint8_t cameraIndex, std::uint8_t mode, std::uint8_t rate = 0U, std::uint8_t maxStabOff = 64U);
 
     /// @brief Resets stabilization smoothing filters.
     /// @param[in] cameraIndex Zero-based camera index.
@@ -194,6 +198,11 @@ public:
     /// @param[in] msg Ethernet video parameters.
     /// @return True if command was successfully transmitted.
     [[nodiscard]] bool setEthernetVideo(const MsgSetEthernetVideoParameters& msg);
+
+    /// @brief Configures network Ethernet display stream destination and protocol.
+    /// @param[in] msg Ethernet display parameters.
+    /// @return True if command was successfully transmitted.
+    [[nodiscard]] bool setEthernetDisplay(const MsgSetEthernetDisplayParameters& msg);
 
     /// @brief Configures H.264 video compression parameters.
     /// @param[in] msg H.264 parameters.

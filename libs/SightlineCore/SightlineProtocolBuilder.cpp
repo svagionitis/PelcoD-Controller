@@ -135,13 +135,16 @@ std::vector<std::uint8_t> SightlineProtocolBuilder::buildCommandPassThrough(cons
 std::vector<std::uint8_t> SightlineProtocolBuilder::buildStartTracking(const MsgStartTracking& msg)
 {
     std::vector<std::uint8_t> payload {};
-    payload.reserve(10U);
+    payload.reserve(21U);
     payload.push_back(msg.cameraIndex);
     appendU16Le(payload, msg.centerCol);
     appendU16Le(payload, msg.centerRow);
     appendU16Le(payload, msg.width);
     appendU16Le(payload, msg.height);
     payload.push_back(msg.flags);
+    appendU16Le(payload, msg.nearVal);
+    payload.push_back(msg.userTrackId);
+    appendU64Le(payload, msg.framePts);
 
     return buildRawPacket(MessageId::StartTracking, payload);
 }
@@ -211,9 +214,17 @@ std::vector<std::uint8_t> SightlineProtocolBuilder::buildTrackTrails(const MsgTr
 std::vector<std::uint8_t> SightlineProtocolBuilder::buildSetTrackingParameters(const MsgSetTrackingParameters& msg)
 {
     std::vector<std::uint8_t> payload {};
-    payload.reserve(7U);
-    payload.push_back(msg.cameraIndex);
+    payload.reserve(16U);
+    payload.push_back(msg.objectSize);
     payload.push_back(msg.mode);
+    payload.push_back(msg.mode2);
+    payload.push_back(msg.maxMisses);
+    appendU16Le(payload, msg.nearVal);
+    payload.push_back(msg.objectHeight);
+    payload.push_back(msg.cameraIndex);
+    payload.push_back(msg.zoomSmoothing);
+    payload.push_back(msg.rollSmoothing);
+    payload.push_back(msg.maxTracks);
     appendU16Le(payload, msg.acquisitionSearchCol);
     appendU16Le(payload, msg.acquisitionSearchRow);
     payload.push_back(msg.flags);
@@ -267,7 +278,8 @@ std::vector<std::uint8_t> SightlineProtocolBuilder::buildCustomAIDetect(const Ms
 
 std::vector<std::uint8_t> SightlineProtocolBuilder::buildSetStabilization(const MsgSetStabilizationParameters& msg)
 {
-    const std::vector<std::uint8_t> payload { msg.cameraIndex, msg.mode, msg.autoBias, msg.maxShift, msg.flags };
+    const std::vector<std::uint8_t> payload { msg.mode, msg.rate, msg.translationLimit, msg.angleLimit,
+        msg.cameraIndex, msg.maxStabOff, msg.edgeY, msg.edgeU, msg.edgeV };
     return buildRawPacket(MessageId::SetStabilizationParameters, payload);
 }
 
@@ -296,7 +308,10 @@ std::vector<std::uint8_t> SightlineProtocolBuilder::buildSetRegistration(const M
 
 std::vector<std::uint8_t> SightlineProtocolBuilder::buildSetBlendParameters(const MsgSetBlendParameters& msg)
 {
-    const std::vector<std::uint8_t> payload { msg.primaryCamera, msg.secondaryCamera, msg.blendMode, msg.alphaPercent };
+    const std::vector<std::uint8_t> payload { msg.absOffZoom, static_cast<std::uint8_t>(msg.vertical),
+        static_cast<std::uint8_t>(msg.horizontal), msg.rotation, msg.zoom, msg.mode, msg.amt, msg.hue, msg.flags,
+        msg.reset, msg.reserved, msg.warpIndex, msg.fixedIndex, msg.usePresetAlign, msg.presetAlignIndex, msg.hzoom,
+        msg.hotStart, msg.coldEnd };
     return buildRawPacket(MessageId::SetBlendParameters, payload);
 }
 
@@ -312,13 +327,8 @@ std::vector<std::uint8_t> SightlineProtocolBuilder::buildSetNoise3D(const MsgNoi
 
 std::vector<std::uint8_t> SightlineProtocolBuilder::buildSetVideoParameters(const MsgSetVideoParameters& msg)
 {
-    std::vector<std::uint8_t> payload {};
-    payload.reserve(7U);
-    payload.push_back(msg.cameraIndex);
-    payload.push_back(msg.inputFormat);
-    appendU16Le(payload, msg.width);
-    appendU16Le(payload, msg.height);
-    payload.push_back(msg.frameRate);
+    const std::vector<std::uint8_t> payload { msg.autoChop, msg.chopTop, msg.chopBottom, msg.chopLeft,
+        msg.chopRight, msg.deinterlace, msg.autoReset, msg.cameraIndex };
     return buildRawPacket(MessageId::SetVideoParameters, payload);
 }
 
@@ -352,23 +362,45 @@ std::vector<std::uint8_t> SightlineProtocolBuilder::buildSetEthernetVideo(const 
 {
     std::vector<std::uint8_t> payload {};
     payload.reserve(10U);
-    payload.push_back(msg.streamIndex);
-    appendU32Le(payload, msg.destIpAddress);
-    appendU16Le(payload, msg.destPort);
-    payload.push_back(msg.protocol);
-    appendU16Le(payload, msg.ttl);
+    payload.push_back(msg.quality);
+    payload.push_back(msg.foveal);
+    payload.push_back(msg.frameStep);
+    payload.push_back(msg.frameSize);
+    appendU16Le(payload, msg.displayId);
+    appendU16Le(payload, msg.customWide);
+    appendU16Le(payload, msg.customHigh);
     return buildRawPacket(MessageId::SetEthernetVideoParameters, payload);
+}
+
+std::vector<std::uint8_t> SightlineProtocolBuilder::buildSetEthernetDisplay(const MsgSetEthernetDisplayParameters& msg)
+{
+    std::vector<std::uint8_t> payload {};
+    payload.reserve(13U);
+    payload.push_back(msg.protocol);
+    payload.push_back(static_cast<std::uint8_t>((msg.ipAddress >> 24U) & 0xFFU));
+    payload.push_back(static_cast<std::uint8_t>((msg.ipAddress >> 16U) & 0xFFU));
+    payload.push_back(static_cast<std::uint8_t>((msg.ipAddress >> 8U) & 0xFFU));
+    payload.push_back(static_cast<std::uint8_t>(msg.ipAddress & 0xFFU));
+    appendU16Le(payload, msg.port);
+    appendU16Le(payload, msg.displayId);
+    appendU16Le(payload, msg.maxPacket);
+    appendU16Le(payload, msg.maxRawPacket);
+    return buildRawPacket(MessageId::SetEthernetDisplayParameters, payload);
 }
 
 std::vector<std::uint8_t> SightlineProtocolBuilder::buildSetH264Parameters(const MsgSetH264Parameters& msg)
 {
     std::vector<std::uint8_t> payload {};
-    payload.reserve(9U);
-    payload.push_back(msg.streamIndex);
+    payload.reserve(13U);
     appendU32Le(payload, msg.targetBitrateBps);
-    appendU16Le(payload, msg.gopLength);
-    payload.push_back(msg.qualityLevel);
-    payload.push_back(msg.rateControl);
+    payload.push_back(msg.intraFrameInterval);
+    payload.push_back(msg.lfDisableIdc);
+    payload.push_back(msg.airMbPeriod);
+    payload.push_back(msg.sliceRefreshRowNumber);
+    payload.push_back(msg.flags);
+    appendU16Le(payload, msg.displayId);
+    payload.push_back(msg.minQp);
+    payload.push_back(msg.maxQp);
     return buildRawPacket(MessageId::SetH264Parameters, payload);
 }
 

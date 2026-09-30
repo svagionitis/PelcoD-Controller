@@ -181,15 +181,19 @@ bool SightlineDevice::customAIDetect(const MsgCustomAIDetect& msg)
 // 2. Stabilization Commands
 // ==============================================================================
 
+bool SightlineDevice::setStabilization(const MsgSetStabilizationParameters& msg)
+{
+    return sendPacket(SightlineProtocolBuilder::buildSetStabilization(msg));
+}
+
 bool SightlineDevice::setStabilization(
-    std::uint8_t cameraIndex, std::uint8_t mode, std::uint8_t autoBias, std::uint8_t maxShift, std::uint8_t flags)
+    std::uint8_t cameraIndex, std::uint8_t mode, std::uint8_t rate, std::uint8_t maxStabOff)
 {
     MsgSetStabilizationParameters msg {};
     msg.cameraIndex = cameraIndex;
     msg.mode = mode;
-    msg.autoBias = autoBias;
-    msg.maxShift = maxShift;
-    msg.flags = flags;
+    msg.rate = rate;
+    msg.maxStabOff = maxStabOff;
 
     return sendPacket(SightlineProtocolBuilder::buildSetStabilization(msg));
 }
@@ -251,6 +255,11 @@ bool SightlineDevice::setDisplayParams(const MsgSetDisplayParameters& msg)
 bool SightlineDevice::setEthernetVideo(const MsgSetEthernetVideoParameters& msg)
 {
     return sendPacket(SightlineProtocolBuilder::buildSetEthernetVideo(msg));
+}
+
+bool SightlineDevice::setEthernetDisplay(const MsgSetEthernetDisplayParameters& msg)
+{
+    return sendPacket(SightlineProtocolBuilder::buildSetEthernetDisplay(msg));
 }
 
 bool SightlineDevice::setH264Params(const MsgSetH264Parameters& msg)
