@@ -4,19 +4,19 @@ import QtQuick.Layouts 1.15
 import ".."
 import "../components"
 
-ScrollView {
+Item {
     id: root
     Layout.fillWidth: true
     Layout.fillHeight: true
-    contentWidth: availableWidth
-    clip: true
 
     UserPaletteDialog {
         id: paletteDialog
+        parent: Overlay.overlay
     }
 
     Dialog {
         id: savePresetDialog
+        parent: Overlay.overlay
         title: "Save Enhancement Preset"
         modal: true
         anchors.centerIn: parent
@@ -199,10 +199,20 @@ ScrollView {
         refreshPresets();
     }
 
-    ColumnLayout {
-        width: parent.width - 32
-        anchors.horizontalCenter: parent.horizontalCenter
-        spacing: 16
+    ScrollView {
+        id: scrollView
+        anchors.fill: parent
+        clip: true
+        contentWidth: Math.max(availableWidth, mainCol.width + 32)
+        contentHeight: mainCol.implicitHeight + 40
+        ScrollBar.vertical.policy: ScrollBar.AsNeeded
+        ScrollBar.horizontal.policy: ScrollBar.AsNeeded
+
+        ColumnLayout {
+            id: mainCol
+            width: Math.max(scrollView.availableWidth - 32, 480)
+            x: 16
+            spacing: 16
 
         Item { Layout.preferredHeight: 2 }
 
@@ -210,7 +220,7 @@ ScrollView {
         RowLayout {
             Layout.fillWidth: true
             spacing: 8
-            Rectangle { width: 4; height: 18; color: SightlineTheme.primary; radius: 2 }
+            Rectangle { implicitWidth: 4; implicitHeight: 18; color: SightlineTheme.primary; radius: 2 }
             Text {
                 text: "VIDEO ENHANCEMENT & ADAPTIVE CONTRAST (PANEL+ PARITY)"
                 color: SightlineTheme.textPrimary
@@ -280,7 +290,7 @@ ScrollView {
                     Layout.preferredHeight: 28
                 }
 
-                Rectangle { width: 1; height: 20; color: SightlineTheme.cardBorder }
+                Rectangle { implicitWidth: 1; implicitHeight: 20; color: SightlineTheme.cardBorder }
 
                 Text { text: "Preset:"; color: SightlineTheme.textSecondary; font.pixelSize: 11 }
                 ComboBox {
@@ -310,11 +320,12 @@ ScrollView {
                 Item { Layout.fillWidth: true }
 
                 Button {
+                    id: applyAllBtn
                     text: "Apply All Settings"
                     implicitHeight: 30
                     implicitWidth: 160
                     contentItem: Text {
-                        text: parent.text
+                        text: applyAllBtn.text
                         color: "#0e1014"
                         font.bold: true
                         font.pixelSize: 11
@@ -348,7 +359,7 @@ ScrollView {
                 RowLayout {
                     Layout.fillWidth: true
                     spacing: 8
-                    Rectangle { width: 3; height: 14; color: SightlineTheme.primary; radius: 1 }
+                    Rectangle { implicitWidth: 3; implicitHeight: 14; color: SightlineTheme.primary; radius: 1 }
                     Text { text: "CONTRAST MODES & SHARPENING (MESSAGE 0x21)"; color: SightlineTheme.primary; font.pixelSize: 11; font.bold: true }
                 }
 
@@ -451,7 +462,7 @@ ScrollView {
                 RowLayout {
                     Layout.fillWidth: true
                     spacing: 8
-                    Rectangle { width: 3; height: 14; color: SightlineTheme.info; radius: 1 }
+                    Rectangle { implicitWidth: 3; implicitHeight: 14; color: SightlineTheme.info; radius: 1 }
                     Text { text: "REGISTERED TEMPORAL DENOISE & MOTION MASKING"; color: SightlineTheme.info; font.pixelSize: 11; font.bold: true }
                 }
 
@@ -478,7 +489,7 @@ ScrollView {
                     }
                 }
 
-                Rectangle { Layout.fillWidth: true; height: 1; color: SightlineTheme.cardBorder }
+                Rectangle { Layout.fillWidth: true; implicitHeight: 1; color: SightlineTheme.cardBorder }
 
                 // 3D Noise Reduction (Msg 0xAF)
                 RowLayout {
@@ -519,7 +530,7 @@ ScrollView {
                 RowLayout {
                     Layout.fillWidth: true
                     spacing: 8
-                    Rectangle { width: 3; height: 14; color: SightlineTheme.warning; radius: 1 }
+                    Rectangle { implicitWidth: 3; implicitHeight: 14; color: SightlineTheme.warning; radius: 1 }
                     Text { text: "HISTOGRAM EQUALIZATION SHAPING, GAUSSIAN BLUR & TONAL CONTROLS"; color: SightlineTheme.warning; font.pixelSize: 11; font.bold: true }
                 }
 
@@ -599,7 +610,7 @@ ScrollView {
                 RowLayout {
                     Layout.fillWidth: true
                     spacing: 8
-                    Rectangle { width: 3; height: 14; color: SightlineTheme.accent; radius: 1 }
+                    Rectangle { implicitWidth: 3; implicitHeight: 14; color: SightlineTheme.accent; radius: 1 }
                     Text { text: "REGION OF INTEREST (ROI) & FALSE COLOR PALETTES"; color: SightlineTheme.accent; font.pixelSize: 11; font.bold: true }
                 }
 
@@ -635,7 +646,7 @@ ScrollView {
                     Item { Layout.fillWidth: true }
                 }
 
-                Rectangle { Layout.fillWidth: true; height: 1; color: SightlineTheme.cardBorder }
+                Rectangle { Layout.fillWidth: true; implicitHeight: 1; color: SightlineTheme.cardBorder }
 
                 // False Color Palette & Designer Modal
                 RowLayout {
@@ -703,10 +714,11 @@ ScrollView {
                     }
 
                     Button {
+                        id: openPaletteBtn
                         text: "🎨 Open User Palette Designer (Msg 0x72)..."
                         implicitHeight: 28
                         contentItem: Text {
-                            text: parent.text
+                            text: openPaletteBtn.text
                             color: SightlineTheme.accent
                             font.bold: true
                             font.pixelSize: 11
@@ -735,4 +747,5 @@ ScrollView {
 
         Item { Layout.preferredHeight: 16 }
     }
+}
 }

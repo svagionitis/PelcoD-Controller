@@ -93,7 +93,16 @@ if(WIN32)
         add_custom_command(TARGET SightlineAppQt POST_BUILD
             COMMAND powershell -ExecutionPolicy Bypass -File "${VCPKG_APPLOCAL_SCRIPT}"
                 -targetBinary "$<TARGET_FILE:SightlineAppQt>"
+                -installedDir "$<IF:$<CONFIG:Debug>,${CMAKE_SOURCE_DIR}/vcpkg_installed/x64-windows/debug/bin,${CMAKE_SOURCE_DIR}/vcpkg_installed/x64-windows/bin>"
             COMMENT "Deploying dependencies for SightlineAppQt using applocal.ps1..."
         )
+        if(BUILD_TESTING AND TARGET TestSightlineVideo)
+            add_custom_command(TARGET TestSightlineVideo POST_BUILD
+                COMMAND powershell -ExecutionPolicy Bypass -File "${VCPKG_APPLOCAL_SCRIPT}"
+                    -targetBinary "$<TARGET_FILE:TestSightlineVideo>"
+                    -installedDir "$<IF:$<CONFIG:Debug>,${CMAKE_SOURCE_DIR}/vcpkg_installed/x64-windows/debug/bin,${CMAKE_SOURCE_DIR}/vcpkg_installed/x64-windows/bin>"
+                COMMENT "Deploying dependencies for TestSightlineVideo using applocal.ps1..."
+            )
+        endif()
     endif()
 endif()
