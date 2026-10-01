@@ -1,6 +1,7 @@
 /// @file TestSightlineVideo.cpp
 /// @brief Automated unit test suite for SightlineVideoController and VideoQuickItem.
 
+#include "SightlineQmlBridge.h"
 #include "SightlineVideoController.h"
 #include "TrackListModel.h"
 #include "VideoQuickItem.h"
@@ -244,6 +245,145 @@ TEST_F(SightlineVideoTest, TrackListModelLifecycle)
     // Clear tracks
     model.clearTracks();
     EXPECT_EQ(model.rowCount(), 0);
+}
+
+TEST_F(SightlineVideoTest, EnhancementModeUpdatesAndSignals)
+{
+    SightlineApp::SightlineVideoController controller {};
+    QSignalSpy spy(&controller, &SightlineApp::SightlineVideoController::contrastModeChanged);
+
+    EXPECT_EQ(controller.contrastMode(), 0);
+
+    controller.updateEnhancementMode(0, 1, 128, 50, 10, 3);
+    EXPECT_EQ(controller.contrastMode(), 1);
+    EXPECT_EQ(spy.count(), 1);
+
+    // Update for camera 1 while camera 0 is active - should not emit contrastModeChanged
+    controller.updateEnhancementMode(1, 2, 100, 80, 5, 2);
+    EXPECT_EQ(controller.contrastMode(), 1);
+    EXPECT_EQ(spy.count(), 1);
+
+    // Switch to camera 1
+    controller.selectCamera(1);
+    EXPECT_EQ(controller.contrastMode(), 2);
+}
+
+TEST_F(SightlineVideoTest, FalseColorPaletteSelectionAndUserPalette)
+{
+    SightlineApp::SightlineVideoController controller {};
+    QSignalSpy palSpy(&controller, &SightlineApp::SightlineVideoController::activePaletteChanged);
+
+    EXPECT_EQ(controller.activePalette(), 0);
+
+    // Switch to Rainbow (index 2)
+    controller.updateFalseColor(0, 2);
+    EXPECT_EQ(controller.activePalette(), 2);
+    EXPECT_EQ(palSpy.count(), 1);
+
+    // Upload custom 768-byte palette (256 * 3 bytes)
+    const QByteArray samplePalette(768, static_cast<char>(0x80));
+    controller.updateUserPalette(0, samplePalette);
+
+    // Switch to User Palette (index 4)
+    controller.updateFalseColor(0, 4);
+    EXPECT_EQ(controller.activePalette(), 4);
+    EXPECT_EQ(palSpy.count(), 2);
+}
+
+TEST_F(SightlineVideoTest, EnhancementRoiConfiguration)
+{
+    SightlineApp::SightlineVideoController controller {};
+    QSignalSpy roiSpy(&controller, &SightlineApp::SightlineVideoController::enhancementRoiChanged);
+
+    EXPECT_TRUE(controller.enhancementRoi().isNull());
+
+    controller.updateEnhancementRoi(0, 50, 100, 300, 400);
+    EXPECT_EQ(controller.enhancementRoi(), QRect(100, 50, 400, 300));
+    EXPECT_EQ(roiSpy.count(), 1);
+}
+
+TEST_F(SightlineVideoTest, BridgeEnhancementMethodsAndPresets)
+{
+    SightlineQmlBridge bridge {};
+
+    QSignalSpy modeSpy(&bridge, &SightlineQmlBridge::enhancementModeChanged);
+    QSignalSpy palSpy(&bridge, &SightlineQmlBridge::falseColorPaletteChanged);
+    QSignalSpy roiSpy(&bridge, &SightlineQmlBridge::enhancementRoiUpdated);
+    QSignalSpy histSpy(&bridge, &SightlineQmlBridge::histogramChanged);
+
+    // 1. setEnhancementMode
+    bridge.setEnhancementMode(0, 1, 100, 50, 10, 2);
+    EXPECT_EQ(modeSpy.count(), 1);
+    EXPECT_EQ(bridge.activeContrastMode(), 1);
+
+    // 2. setFalseColorPalette
+    bridge.setFalseColorPalette(0, 3);
+    EXPECT_EQ(palSpy.count(), 1);
+    EXPECT_EQ(bridge.activePaletteIndex(), 3);
+
+    // 3. setEnhancementRoi
+    bridge.setEnhancementRoi(0, 20, 30, 240, 320);
+    EXPECT_EQ(roiSpy.count(), 1);
+    EXPECT_EQ(bridge.enhancementRoi(), QRect(30, 20, 320, 240));
+
+    // 4. setHistogramControls
+    bridge.setHistogramControls(0, true, false, 64, 15, 10, 20);
+    EXPECT_EQ(histSpy.count(), 1);
+
+    // 5. Additional bridge methods
+    bridge.setDenoiseParameters(0, 5, true, 1);
+    bridge.setScintillationMode(0, 1);
+    bridge.setGaussianAndLap(0, 2, 5, 10);
+    bridge.setCustomConvolution(0, 3, QVariantList { 0, -1, 0, -1, 5, -1, 0, -1, 0 }, false);
+    bridge.setLensDistortion(0, 10, 20);
+
+    // 6. Presets
+    bridge.saveEnhancementPreset(QStringLiteral("TacticalNight"));
+    const QStringList presets { bridge.getEnhancementPresets() };
+    EXPECT_TRUE(presets.contains(QStringLiteral("TacticalNight")));
+
+    bridge.setEnhancementMode(0, 0, 0, 0, 0, 0);
+    EXPECT_EQ(bridge.activeContrastMode(), 0);
+
+    bridge.loadEnhancementPreset(QStringLiteral("TacticalNight"));
+    EXPECT_EQ(bridge.activeContrastMode(), 1);
+
+    // 7. User palette file load and save
+    QTemporaryDir tempDir {};
+    ASSERT_TRUE(tempDir.isValid());
+    const QString palFile { tempDir.filePath(QStringLiteral("test_palette.bin")) };
+    const QByteArray sampleYuv(768, static_cast<char>(0x7F));
+    bridge.uploadUserPalette(0, sampleYuv);
+    EXPECT_TRUE(bridge.saveUserPaletteFile(palFile));
+    EXPECT_TRUE(QFile::exists(palFile));
+    EXPECT_TRUE(bridge.loadUserPaletteFile(palFile));
+}
+
+TEST_F(SightlineVideoTest, BridgeVideoControllerSignalWiring)
+{
+    SightlineQmlBridge bridge {};
+    SightlineApp::SightlineVideoController controller {};
+
+    QObject::connect(&bridge, &SightlineQmlBridge::enhancementModeChanged,
+        &controller, &SightlineApp::SightlineVideoController::updateEnhancementMode);
+    QObject::connect(&bridge, &SightlineQmlBridge::histogramChanged,
+        &controller, &SightlineApp::SightlineVideoController::updateHistogram);
+    QObject::connect(&bridge, &SightlineQmlBridge::falseColorPaletteChanged,
+        &controller, &SightlineApp::SightlineVideoController::updateFalseColor);
+    QObject::connect(&bridge, &SightlineQmlBridge::userPaletteUploaded,
+        &controller, &SightlineApp::SightlineVideoController::updateUserPalette);
+    QObject::connect(&bridge, &SightlineQmlBridge::enhancementRoiUpdated,
+        &controller, &SightlineApp::SightlineVideoController::updateEnhancementRoi);
+
+    // Test signal propagation from bridge to video controller
+    bridge.setEnhancementMode(0, 2, 120, 60, 15, 3);
+    EXPECT_EQ(controller.contrastMode(), 2);
+
+    bridge.setFalseColorPalette(0, 3);
+    EXPECT_EQ(controller.activePalette(), 3);
+
+    bridge.setEnhancementRoi(0, 10, 20, 100, 200);
+    EXPECT_EQ(controller.enhancementRoi(), QRect(20, 10, 200, 100));
 }
 
 } // namespace

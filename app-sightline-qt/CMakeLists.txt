@@ -46,6 +46,10 @@ if(BUILD_TESTING)
         src/SightlineVideoController.cpp
         src/TrackListModel.h
         src/TrackListModel.cpp
+        src/TrafficLogModel.h
+        src/TrafficLogModel.cpp
+        src/SightlineQmlBridge.h
+        src/SightlineQmlBridge.cpp
         tests/TestSightlineVideo.cpp
     )
     target_include_directories(TestSightlineVideo PRIVATE
@@ -55,6 +59,8 @@ if(BUILD_TESTING)
     )
     target_link_libraries(TestSightlineVideo PRIVATE
         SightlineCore
+        SightlineQt
+        Transport
         Video
         Qt6::Core
         Qt6::Gui

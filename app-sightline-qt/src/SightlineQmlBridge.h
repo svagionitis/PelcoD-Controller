@@ -11,6 +11,7 @@
 
 #include <QElapsedTimer>
 #include <QObject>
+#include <QRect>
 #include <QString>
 #include <memory>
 
@@ -28,6 +29,9 @@ class SightlineQmlBridge : public QObject {
     Q_PROPERTY(QString softwareVersion READ softwareVersion NOTIFY versionReceived)
     Q_PROPERTY(TrackListModel* trackListModel READ trackListModel CONSTANT)
     Q_PROPERTY(TrafficLogModel* trafficLogModel READ trafficLogModel CONSTANT)
+    Q_PROPERTY(int activeContrastMode READ activeContrastMode NOTIFY contrastModeChanged)
+    Q_PROPERTY(int activePaletteIndex READ activePaletteIndex NOTIFY paletteIndexChanged)
+    Q_PROPERTY(QRect enhancementRoi READ enhancementRoi NOTIFY enhancementRoiChanged)
 
 public:
     /// @brief Construct a new SightlineQmlBridge instance.
@@ -94,6 +98,18 @@ public:
     /// @brief Get pointer to the TrafficLogModel.
     /// @return Pointer to traffic log model.
     [[nodiscard]] TrafficLogModel* trafficLogModel() const noexcept;
+
+    /// @brief Get the active contrast mode for primary camera.
+    /// @return ContrastMode enum integer.
+    [[nodiscard]] int activeContrastMode() const noexcept;
+
+    /// @brief Get the active false color palette index for primary camera.
+    /// @return False color palette index.
+    [[nodiscard]] int activePaletteIndex() const noexcept;
+
+    /// @brief Get the active enhancement region of interest rectangle.
+    /// @return Enhancement ROI rectangle.
+    [[nodiscard]] QRect enhancementRoi() const noexcept;
 
     // --- QML Invokable Operations ---
 
@@ -236,85 +252,126 @@ public:
     /// @return True if dispatched.
     Q_INVOKABLE bool setVideoEnhance(int cam, int contrast, int brightness, int sharpening, int clahe);
 
-    /// @brief Configure full SLA video enhancement parameters (Message ID 0x21).
+    /// @brief Configure contrast mode and sharpening bounds (Message ID 0x21).
     /// @param cam Camera index.
     /// @param mode Contrast mode (0..8).
-    /// @param sharpen Sharpen level (0..15).
+    /// @param strength Contrast strength parameter (0..127).
     /// @param blend Alpha blend (0..255).
-    /// @param enhanceParam Contrast strength parameter (0..127).
-    /// @param denoise Registered frame averaging denoise rate (0..255).
-    /// @param flags Motion mask & histogram feature flags.
-    /// @param histAveRate Histogram temporal averaging rate (0..255).
-    /// @param histMaxPct Histogram max percent bin (0..255).
-    /// @param roiRow ROI bounding box upper row.
-    /// @param roiCol ROI bounding box upper column.
-    /// @param roiHigh ROI bounding box height.
-    /// @param roiWide ROI bounding box width.
-    /// @param gaussian Gaussian blur level (0..6).
-    /// @param lapMinDiff LAP contour suppression threshold (0..255).
-    /// @param colorEnhance Color enhancement level (0..255).
-    /// @param brightness Brightness shift (0..255).
+    /// @param sharpen Sharpen level (0..15).
+    /// @param radius Sharpen radius in pixels (1, 2, or 3).
+    /// @return True if dispatched or updated.
+    Q_INVOKABLE bool setEnhancementMode(int cam, int mode, int strength, int blend, int sharpen, int radius);
+
+    /// @brief Configure temporal denoise and motion masking (Message ID 0x21).
+    /// @param cam Camera index.
+    /// @param rate Denoise averaging rate (0..255).
+    /// @param motionMask Enable motion masking flag.
+    /// @param motionMaskType Mask type (0: Aerial, 1: Staring).
+    /// @return True if dispatched or updated.
+    Q_INVOKABLE bool setDenoiseParameters(int cam, int rate, bool motionMask, int motionMaskType);
+
+    /// @brief Configure histogram equalization and luminance (Message ID 0x21).
+    /// @param cam Camera index.
+    /// @param featureBased Feature-based histogram mode.
+    /// @param sqrtHist Square-root histogram weighting.
+    /// @param aveRate Temporal averaging rate (0..255).
+    /// @param maxPct Max percent bin clip (0..255).
+    /// @param brightness Brightness offset (0..255).
     /// @param contrast Contrast scale (0..255).
-    /// @param scintillation Scintillation preset mode (0..3).
-    /// @param sharpenRadius Sharpen radius in pixels (1, 2, or 3).
-    /// @return True if dispatched.
-    Q_INVOKABLE bool setEnhanceFull(int cam, int mode, int sharpen, int blend, int enhanceParam, int denoise, int flags,
-        int histAveRate, int histMaxPct, int roiRow, int roiCol, int roiHigh, int roiWide, int gaussian, int lapMinDiff,
-        int colorEnhance, int brightness, int contrast, int scintillation, int sharpenRadius);
+    /// @return True if dispatched or updated.
+    Q_INVOKABLE bool setHistogramControls(
+        int cam, bool featureBased, bool sqrtHist, int aveRate, int maxPct, int brightness, int contrast);
 
-    /// @brief Set custom NxN convolution kernel and normalization (Message ID 0x21).
+    /// @brief Configure atmospheric scintillation preset (Message ID 0x21).
     /// @param cam Camera index.
-    /// @param weights List of integer weights (e.g. 9 for 3x3, 25 for 5x5).
+    /// @param mode Scintillation preset mode (0..3).
+    /// @return True if dispatched or updated.
+    Q_INVOKABLE bool setScintillationMode(int cam, int mode);
+
+    /// @brief Configure Gaussian smoothing and LAP contour suppression (Message ID 0x21).
+    /// @param cam Camera index.
+    /// @param gaussianBlur Gaussian blur level (0..6).
+    /// @param lapMinDiff LAP suppression threshold (0..255).
+    /// @param colorEnhance Color enhancement level (0..255).
+    /// @return True if dispatched or updated.
+    Q_INVOKABLE bool setGaussianAndLap(int cam, int gaussianBlur, int lapMinDiff, int colorEnhance);
+
+    /// @brief Configure video enhancement region of interest (Message ID 0x21).
+    /// @param cam Camera index.
+    /// @param row ROI upper bounding row.
+    /// @param col ROI left bounding column.
+    /// @param height ROI bounding box height.
+    /// @param width ROI bounding box width.
+    /// @return True if dispatched or updated.
+    Q_INVOKABLE bool setEnhancementRoi(int cam, int row, int col, int height, int width);
+
+    /// @brief Configure custom spatial convolution kernel (Message ID 0x21).
+    /// @param cam Camera index.
+    /// @param kernelSize NxN kernel dimension (3, 5, 7, 9).
+    /// @param weights List of integer kernel weights.
     /// @param normalize Whether to normalize kernel sum.
-    /// @return True if dispatched.
-    Q_INVOKABLE bool setCustomConvolution(int cam, const QVariantList& weights, bool normalize);
+    /// @return True if dispatched or updated.
+    Q_INVOKABLE bool setCustomConvolution(int cam, int kernelSize, const QVariantList& weights, bool normalize);
 
-    /// @brief Set false color thermal palette (Message ID 0x16).
+    /// @brief Set thermal false color palette (Message ID 0x16).
     /// @param cam Camera index.
-    /// @param paletteIndex Palette index (0..41, or 127 for User Palette).
-    /// @return True if dispatched.
-    Q_INVOKABLE bool setFalseColor(int cam, int paletteIndex);
+    /// @param paletteIndex Palette index (0..41, or 127 for user custom palette).
+    /// @return True if dispatched or updated.
+    Q_INVOKABLE bool setFalseColorPalette(int cam, int paletteIndex);
 
-    /// @brief Upload custom 256x3 YUV user palette table to hardware (Message ID 0x72).
+    /// @brief Upload 256x3 YUV user lookup table to hardware (Message ID 0x72).
     /// @param paletteIndex Palette slot index (0..3).
-    /// @param yuvValues Array of 768 unsigned byte values (Y, U, V tuples).
-    /// @return True if dispatched.
-    Q_INVOKABLE bool setUserPaletteLut(int paletteIndex, const QVariantList& yuvValues);
+    /// @param yuvData Exactly 768 unsigned bytes of Y, U, V tuples.
+    /// @return True if dispatched or updated.
+    Q_INVOKABLE bool uploadUserPalette(int paletteIndex, const QByteArray& yuvData);
 
     /// @brief Load binary user palette file (256x3 YUV).
-    /// @param filePath Absolute or relative path to .lut / .bin file.
-    /// @return QVariantList of 768 byte values or empty on failure.
-    Q_INVOKABLE QVariantList loadPaletteFile(const QString& filePath);
+    /// @param filePath Path to binary palette file (.lut / .bin).
+    /// @return Raw 768-byte palette buffer.
+    Q_INVOKABLE QByteArray loadUserPaletteFile(const QString& filePath);
 
     /// @brief Save binary user palette file (256x3 YUV).
     /// @param filePath Target file path.
-    /// @param yuvValues Array of 768 unsigned byte values.
+    /// @param yuvData 768-byte palette buffer.
     /// @return True on success.
-    Q_INVOKABLE bool savePaletteFile(const QString& filePath, const QVariantList& yuvValues);
+    Q_INVOKABLE bool saveUserPaletteFile(const QString& filePath, const QByteArray& yuvData);
 
-    /// @brief Save named enhancement configuration preset.
-    /// @param name Preset name.
-    /// @param settings Dictionary of enhancement parameters.
-    /// @return True on success.
-    Q_INVOKABLE bool saveEnhancePreset(const QString& name, const QVariantMap& settings);
-
-    /// @brief Load named enhancement configuration preset.
-    /// @param name Preset name.
-    /// @return Parameter map or empty on error.
-    Q_INVOKABLE QVariantMap loadEnhancePreset(const QString& name);
-
-    /// @brief Get list of available enhancement preset names.
-    /// @return List of preset name strings.
-    Q_INVOKABLE QStringList getEnhancePresets();
-
-    /// @brief Configure optical lens radial distortion correction parameters.
+    /// @brief Configure optical lens radial distortion correction parameters (Message ID 0x6E).
     /// @param cam Camera index.
     /// @param k1 Radial barrel/pincushion coefficient 1.
     /// @param k2 Radial coefficient 2.
     /// @param centerOffsetX Horizontal optical center offset.
     /// @param centerOffsetY Vertical optical center offset.
-    /// @return True if dispatched.
+    /// @return True if dispatched or updated.
     Q_INVOKABLE bool setLensDistortion(int cam, double k1, double k2, double centerOffsetX, double centerOffsetY);
+
+    /// @brief Save named enhancement configuration preset to persistent storage.
+    /// @param name Preset name.
+    /// @param settings Dictionary of enhancement parameters.
+    /// @return True on success.
+    Q_INVOKABLE bool saveEnhancementPreset(const QString& name, const QVariantMap& settings);
+
+    /// @brief Load named enhancement configuration preset from persistent storage.
+    /// @param name Preset name.
+    /// @return Parameter map or empty on error.
+    Q_INVOKABLE QVariantMap loadEnhancementPreset(const QString& name);
+
+    /// @brief Get list of available enhancement preset names.
+    /// @return List of preset name strings.
+    Q_INVOKABLE QStringList getEnhancementPresets();
+
+    // --- Backwards compatibility wrappers ---
+    Q_INVOKABLE bool setEnhanceFull(int cam, int mode, int sharpen, int blend, int enhanceParam, int denoise, int flags,
+        int histAveRate, int histMaxPct, int roiRow, int roiCol, int roiHigh, int roiWide, int gaussian, int lapMinDiff,
+        int colorEnhance, int brightness, int contrast, int scintillation, int sharpenRadius);
+    Q_INVOKABLE bool setCustomConvolution(int cam, const QVariantList& weights, bool normalize);
+    Q_INVOKABLE bool setFalseColor(int cam, int paletteIndex);
+    Q_INVOKABLE bool setUserPaletteLut(int paletteIndex, const QVariantList& yuvValues);
+    Q_INVOKABLE QVariantList loadPaletteFile(const QString& filePath);
+    Q_INVOKABLE bool savePaletteFile(const QString& filePath, const QVariantList& yuvValues);
+    Q_INVOKABLE bool saveEnhancePreset(const QString& name, const QVariantMap& settings);
+    Q_INVOKABLE QVariantMap loadEnhancePreset(const QString& name);
+    Q_INVOKABLE QStringList getEnhancePresets();
 
     /// @brief Configure 3D noise reduction filter.
     /// @param cam Camera index.
@@ -388,6 +445,19 @@ signals:
     void warningReceived();
     void versionReceived();
     void moduleQueryDispatched(int tabIndex);
+    void contrastModeChanged();
+    void paletteIndexChanged();
+    void enhancementRoiChanged();
+    void enhancementModeChanged(int cam, int mode, int strength, int blend, int sharpen, int radius);
+    void denoiseChanged(int cam, int rate, bool motionMask, int motionMaskType);
+    void histogramChanged(
+        int cam, bool featureBased, bool sqrtHist, int aveRate, int maxPct, int brightness, int contrast);
+    void scintillationChanged(int cam, int mode);
+    void gaussianAndLapChanged(int cam, int gaussianBlur, int lapMinDiff, int colorEnhance);
+    void enhancementRoiUpdated(int cam, int row, int col, int height, int width);
+    void falseColorPaletteChanged(int cam, int paletteIndex);
+    void userPaletteUploaded(int paletteIndex, const QByteArray& yuvData);
+    void lensDistortionUpdated(int cam, double k1, double k2, double centerOffsetX, double centerOffsetY);
 
 private slots:
     void handleTrackingPositions(const Sightline::MsgTrackingPositions& pos);
@@ -406,6 +476,15 @@ private:
     int m_uptimeSeconds { 0 };
     QString m_lastWarningMessage {};
     QString m_softwareVersion { "Disconnected" };
+
+    Sightline::MsgSetVideoEnhancementFull m_cachedEnhancement[4] {};
+    int m_activePaletteIndex[4] { 0, 0, 0, 0 };
+    QByteArray m_activeUserPalette[4] {};
+    QRect m_cachedRoi[4] {};
+    double m_lensK1[4] { 0.0, 0.0, 0.0, 0.0 };
+    double m_lensK2[4] { 0.0, 0.0, 0.0, 0.0 };
+    double m_lensCenterX[4] { 0.0, 0.0, 0.0, 0.0 };
+    double m_lensCenterY[4] { 0.0, 0.0, 0.0, 0.0 };
 
     QElapsedTimer m_connectionTimer {};
     std::unique_ptr<QSightlineDevice> m_device {};

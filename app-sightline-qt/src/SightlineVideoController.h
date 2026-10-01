@@ -8,12 +8,15 @@
 #include <Video/DecoderTypes.h>
 #include <Video/IVideoDecoder.h>
 
+#include <QByteArray>
 #include <QImage>
 #include <QMutex>
 #include <QObject>
+#include <QRect>
 #include <QString>
 #include <QStringList>
 #include <QThread>
+#include <array>
 #include <atomic>
 #include <memory>
 
@@ -38,6 +41,9 @@ class SightlineVideoController : public QObject {
     Q_PROPERTY(int backendIndex READ backendIndex WRITE setBackendIndex NOTIFY backendIndexChanged)
     Q_PROPERTY(bool pipEnabled READ pipEnabled WRITE setPipEnabled NOTIFY pipEnabledChanged)
     Q_PROPERTY(int pipCamera READ pipCamera NOTIFY pipCameraChanged)
+    Q_PROPERTY(int contrastMode READ contrastMode NOTIFY contrastModeChanged)
+    Q_PROPERTY(int activePalette READ activePalette NOTIFY activePaletteChanged)
+    Q_PROPERTY(QRect enhancementRoi READ enhancementRoi NOTIFY enhancementRoiChanged)
 
 public:
     /// @enum PlaybackState
@@ -112,6 +118,18 @@ public:
     /// @return Alternate camera index (0 or 1).
     [[nodiscard]] int pipCamera() const noexcept;
 
+    /// @brief Get active contrast enhancement mode.
+    /// @return Mode index (0: Off, 1: Hist Eq, 2: CLAHE, 3: Scintillation).
+    [[nodiscard]] int contrastMode() const noexcept;
+
+    /// @brief Get active false-color palette index.
+    /// @return Palette index (0: White-Hot, 1: Black-Hot, 2: Rainbow, 3: Ironbow, 4: User).
+    [[nodiscard]] int activePalette() const noexcept;
+
+    /// @brief Get active video enhancement ROI.
+    /// @return Rectangle bounding active ROI.
+    [[nodiscard]] QRect enhancementRoi() const;
+
 public slots:
     /// @brief Set video stream URI.
     /// @param[in] uri RTSP, UDP, or mock URI.
@@ -158,6 +176,43 @@ public slots:
     /// @param[in] host Target IP address.
     void updateHostAddress(const QString& host);
 
+    /// @brief Update enhancement mode and parameters for camera.
+    /// @param[in] cam Camera index (0: EO, 1: IR).
+    /// @param[in] mode Enhancement algorithm mode.
+    /// @param[in] strength Enhancement strength (0..255).
+    /// @param[in] blend Blend percentage (0..100).
+    /// @param[in] sharpen Sharpen strength (0..255).
+    /// @param[in] radius Kernel radius (1..15).
+    void updateEnhancementMode(int cam, int mode, int strength, int blend, int sharpen, int radius);
+
+    /// @brief Update histogram, contrast, and brightness parameters.
+    /// @param[in] cam Camera index.
+    /// @param[in] featureBased Enable feature-based equalization.
+    /// @param[in] sqrtHist Enable square-root histogram scaling.
+    /// @param[in] aveRate Rolling average temporal rate (0..255).
+    /// @param[in] maxPct Maximum histogram peak clipping percentage.
+    /// @param[in] brightness Offset level (-128..127).
+    /// @param[in] contrast Contrast multiplier (-128..127).
+    void updateHistogram(int cam, bool featureBased, bool sqrtHist, int aveRate, int maxPct, int brightness, int contrast);
+
+    /// @brief Update false-color palette selection.
+    /// @param[in] cam Camera index.
+    /// @param[in] paletteIndex Palette enum (0: White-Hot, 1: Black-Hot, 2: Rainbow, 3: Ironbow, 4: User).
+    void updateFalseColor(int cam, int paletteIndex);
+
+    /// @brief Update user-defined false-color palette LUT data.
+    /// @param[in] paletteIndex Palette ID (0..3).
+    /// @param[in] yuvData Binary 256-color palette data.
+    void updateUserPalette(int paletteIndex, const QByteArray& yuvData);
+
+    /// @brief Update enhancement region of interest.
+    /// @param[in] cam Camera index.
+    /// @param[in] row Top row coordinate.
+    /// @param[in] col Left column coordinate.
+    /// @param[in] height ROI height.
+    /// @param[in] width ROI width.
+    void updateEnhancementRoi(int cam, int row, int col, int height, int width);
+
 signals:
     /// @brief Emitted when a new frame is decoded.
     /// @param[in] frame Decoded QImage frame.
@@ -198,14 +253,42 @@ signals:
     /// @param[in] path Absolute path of saved screenshot.
     void snapshotTaken(const QString& path);
 
+    /// @brief Emitted when contrast enhancement mode changes.
+    void contrastModeChanged();
+
+    /// @brief Emitted when active palette index changes.
+    void activePaletteChanged();
+
+    /// @brief Emitted when enhancement ROI updates.
+    void enhancementRoiChanged();
+
 private:
+    struct EnhancementConfig {
+        int mode { 0 };
+        int strength { 128 };
+        int blend { 100 };
+        int sharpen { 0 };
+        int radius { 1 };
+        int brightness { 0 };
+        int contrast { 0 };
+        int paletteIndex { 0 };
+        QRect roi {};
+    };
+
     void workerLoop();
     void updateState(PlaybackState state, const QString& msg);
     [[nodiscard]] QString resolveSourceUri() const;
     void applyThermalLook(QImage& image);
+    void applyEnhancement(QImage& image, int cam);
+    void applyFalseColorLut(QImage& image, const QRect& targetRoi, int paletteIndex, int cam);
+    void applyContrastBrightness(QImage& image, const QRect& targetRoi, int brightness, int contrast);
+    void applyNativeSharpen(QImage& image, const QRect& targetRoi, int sharpen);
+    void applyHistogramEq(QImage& image, const QRect& targetRoi, int blend);
+    void generatePaletteTables();
 
     mutable QMutex m_decoderMutex {};
     mutable QMutex m_snapshotMutex {};
+    mutable QMutex m_enhancementMutex {};
     std::unique_ptr<Video::IVideoDecoder> m_decoder {};
     std::unique_ptr<QThread> m_thread {};
 
@@ -228,6 +311,10 @@ private:
     QString m_statusMessage { QStringLiteral("Idle") };
 
     QImage m_lastFrameCopy {};
+
+    std::array<EnhancementConfig, 4> m_enhancementConfigs {};
+    std::array<QByteArray, 4> m_userPalettes {};
+    std::array<std::array<QRgb, 256>, 4> m_presetPalettes {};
 };
 
 } // namespace SightlineApp

@@ -62,6 +62,18 @@ int main(int argc, char* argv[])
     QObject::connect(bridge.get(), &SightlineQmlBridge::hostChanged, videoController.get(),
         [b = bridge.get(), vc = videoController.get()]() { vc->updateHostAddress(b->host()); });
 
+    // Synchronize enhancement parameters to native video pipeline
+    QObject::connect(bridge.get(), &SightlineQmlBridge::enhancementModeChanged,
+        videoController.get(), &SightlineApp::SightlineVideoController::updateEnhancementMode);
+    QObject::connect(bridge.get(), &SightlineQmlBridge::histogramChanged,
+        videoController.get(), &SightlineApp::SightlineVideoController::updateHistogram);
+    QObject::connect(bridge.get(), &SightlineQmlBridge::falseColorPaletteChanged,
+        videoController.get(), &SightlineApp::SightlineVideoController::updateFalseColor);
+    QObject::connect(bridge.get(), &SightlineQmlBridge::userPaletteUploaded,
+        videoController.get(), &SightlineApp::SightlineVideoController::updateUserPalette);
+    QObject::connect(bridge.get(), &SightlineQmlBridge::enhancementRoiUpdated,
+        videoController.get(), &SightlineApp::SightlineVideoController::updateEnhancementRoi);
+
     engine.rootContext()->setContextProperty(QStringLiteral("bridge"), bridge.get());
     engine.rootContext()->setContextProperty(QStringLiteral("videoController"), videoController.get());
 

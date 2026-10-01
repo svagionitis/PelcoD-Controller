@@ -125,6 +125,47 @@ Rectangle {
                     font.family: "Monospace"
                 }
 
+                // Enhancement Mode & Palette Status Badge
+                Rectangle {
+                    implicitWidth: 125
+                    implicitHeight: 22
+                    color: (bridge && bridge.activeContrastMode > 0) ? "#1a233a" : "#12141c"
+                    radius: 3
+                    border.color: (bridge && bridge.activeContrastMode > 0) ? SightlineTheme.primary : SightlineTheme.cardBorder
+                    border.width: 1
+
+                    RowLayout {
+                        anchors.centerIn: parent
+                        spacing: 4
+                        Text {
+                            text: {
+                                var modeNames = ["ENH: OFF", "ENH: HIST", "ENH: CLAHE", "ENH: SCINT"];
+                                var m = (bridge ? bridge.activeContrastMode : 0);
+                                return (m >= 0 && m < modeNames.length) ? modeNames[m] : "ENH";
+                            }
+                            color: (bridge && bridge.activeContrastMode > 0) ? SightlineTheme.primary : SightlineTheme.textMuted
+                            font.pixelSize: 9
+                            font.bold: true
+                            font.family: "Monospace"
+                        }
+                        Text {
+                            text: "|"
+                            color: SightlineTheme.textMuted
+                            font.pixelSize: 9
+                        }
+                        Text {
+                            text: {
+                                var palNames = ["WHITE", "BLACK", "RAIN", "IRON", "USER"];
+                                var p = (bridge ? bridge.activePaletteIndex : 0);
+                                return (p >= 0 && p < palNames.length) ? palNames[p] : "PAL";
+                            }
+                            color: SightlineTheme.textSecondary
+                            font.pixelSize: 9
+                            font.family: "Monospace"
+                        }
+                    }
+                }
+
                 // Stream Status Badge
                 Rectangle {
                     implicitWidth: 110
@@ -370,6 +411,49 @@ Rectangle {
                         id: trkLabel
                         anchors.centerIn: parent
                         text: "ACQ GATE"
+                        color: SightlineTheme.primary
+                        font.pixelSize: 8
+                        font.bold: true
+                        font.family: "Monospace"
+                    }
+                }
+            }
+
+            // Enhancement ROI Overlay Rectangle
+            Rectangle {
+                id: enhRoiOverlay
+                readonly property rect roi: bridge ? bridge.enhancementRoi : Qt.rect(0, 0, 0, 0)
+                readonly property bool hasRoi: roi.width > 0 && roi.height > 0 &&
+                                              (roi.width < root.frameWidth || roi.height < root.frameHeight)
+                visible: hasRoi
+                x: (roi.x / root.frameWidth) * canvasArea.width
+                y: (roi.y / root.frameHeight) * canvasArea.height
+                width: (roi.width / root.frameWidth) * canvasArea.width
+                height: (roi.height / root.frameHeight) * canvasArea.height
+                color: "#1a00e5ff"
+                border.color: SightlineTheme.primary
+                border.width: 1
+
+                // Corner indicators
+                Rectangle { x: -2; y: -2; width: 6; height: 6; color: SightlineTheme.primary }
+                Rectangle { x: parent.width - 4; y: -2; width: 6; height: 6; color: SightlineTheme.primary }
+                Rectangle { x: -2; y: parent.height - 4; width: 6; height: 6; color: SightlineTheme.primary }
+                Rectangle { x: parent.width - 4; y: parent.height - 4; width: 6; height: 6; color: SightlineTheme.primary }
+
+                // ROI Banner Label
+                Rectangle {
+                    y: -16
+                    anchors.left: parent.left
+                    implicitWidth: enhRoiLabel.implicitWidth + 8
+                    implicitHeight: 14
+                    color: "#cc080a0f"
+                    border.color: SightlineTheme.primary
+                    border.width: 1
+
+                    Text {
+                        id: enhRoiLabel
+                        anchors.centerIn: parent
+                        text: "ENH ROI [" + enhRoiOverlay.roi.width + "x" + enhRoiOverlay.roi.height + "]"
                         color: SightlineTheme.primary
                         font.pixelSize: 8
                         font.bold: true
