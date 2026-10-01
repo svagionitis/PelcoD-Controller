@@ -230,5 +230,31 @@ namespace {
         device.stop();
     }
 
+    /// @brief Verify raw traffic callback decouples execution and permits re-entrant callback registration.
+    TEST(TestSightlineDevice, RawTrafficReentrancy)
+    {
+        auto transport = std::make_shared<MockTestTransport>();
+        SightlineDevice device(transport);
+        ASSERT_TRUE(device.start());
+
+        std::atomic<int> reentrantCalls { 0 };
+        device.setRawTrafficCallback([&](bool /*isTx*/, const std::vector<std::uint8_t>& /*pkt*/) {
+            // Re-entrant access to m_callbackMutex inside raw traffic callback
+            device.setTrackingCallback([&](const MsgTrackingPositions&) {});
+            reentrantCalls.fetch_add(1);
+        });
+
+        // 1. Test TX path re-entrancy
+        EXPECT_TRUE(device.saveParameters(0U));
+        EXPECT_EQ(reentrantCalls.load(), 1);
+
+        // 2. Test RX path re-entrancy
+        const auto rxPkt = SightlineProtocolBuilder::buildGetVersionNumber();
+        transport->injectData(rxPkt);
+        EXPECT_EQ(reentrantCalls.load(), 2);
+
+        device.stop();
+    }
+
 } // namespace
 } // namespace Sightline

@@ -466,11 +466,13 @@ void SightlineDevice::handleIncomingBytes(const std::vector<std::uint8_t>& data)
 
 void SightlineDevice::dispatchPacket(const std::vector<std::uint8_t>& packet)
 {
+    RawTrafficCallback rawCb {};
     {
         std::lock_guard<std::mutex> lock(m_callbackMutex);
-        if (m_rawTrafficCallback) {
-            m_rawTrafficCallback(false, packet);
-        }
+        rawCb = m_rawTrafficCallback;
+    }
+    if (rawCb) {
+        rawCb(false, packet);
     }
 
     const auto id = SightlineProtocolParser::identifyMessage(packet);
@@ -569,11 +571,13 @@ bool SightlineDevice::sendPacket(const std::vector<std::uint8_t>& packet)
         return false;
     }
 
+    RawTrafficCallback rawCb {};
     {
         std::lock_guard<std::mutex> lock(m_callbackMutex);
-        if (m_rawTrafficCallback) {
-            m_rawTrafficCallback(true, packet);
-        }
+        rawCb = m_rawTrafficCallback;
+    }
+    if (rawCb) {
+        rawCb(true, packet);
     }
 
     return m_transport->sendData(packet);
