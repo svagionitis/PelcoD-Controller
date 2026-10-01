@@ -13,6 +13,7 @@
 #include "modules/SightlineDisplayBuilder.h"
 #include "modules/SightlineDisplayParser.h"
 #include "modules/SightlineEnhancementBuilder.h"
+#include "modules/SightlineEnhancementParser.h"
 #include "modules/SightlineNetworkBuilder.h"
 #include "modules/SightlineRecordingBuilder.h"
 #include "modules/SightlineRecordingParser.h"
@@ -499,5 +500,110 @@ namespace {
         EXPECT_EQ(queryPkt, SightlineProtocolBuilder::buildGetMultiDisplay(0U));
     }
 
+    TEST(SightlineEnhancementTest, FullEnhancementEncodingAndDecoding)
+    {
+        MsgSetVideoEnhancementFull msg {};
+        msg.cameraIndex = 1U;
+        msg.mode = ContrastMode::Lap16;
+        msg.sharpening = 12U;
+        msg.alphaBlend = 210U;
+        msg.enhanceParam = 15U;
+        msg.denoiseRate = 180U;
+        msg.flags = static_cast<std::uint8_t>(EnhancementFlags::AerialMotionMask) |
+                    static_cast<std::uint8_t>(EnhancementFlags::FeatureBasedHist);
+        msg.histAveRate = 64U;
+        msg.histMaxPctBin = 20U;
+        msg.roiRow = 100U;
+        msg.roiCol = 150U;
+        msg.roiHigh = 480U;
+        msg.roiWide = 640U;
+        msg.deconvSigma = 0U;
+        msg.gaussianBlur = 4U;
+        msg.lapMinDiff = 5U;
+        msg.colorEnhance = 150U;
+        msg.brightness = 135U;
+        msg.contrast = 140U;
+        msg.scintillation = ScintillationPreset::InfraRed;
+        msg.sharpenRadius = 3U;
+        msg.customKernel = { -1, -1, -1, -1, 9, -1, -1, -1, -1 };
+        msg.normalizeKernel = true;
+
+        const auto pkt = SightlineEnhancementBuilder::buildSetVideoEnhanceFull(msg);
+        EXPECT_EQ(SightlineFraming::identifyMessage(pkt), MessageId::SetVideoEnhancementParameters);
+        EXPECT_EQ(pkt, SightlineProtocolBuilder::buildSetVideoEnhanceFull(msg));
+
+        // Test parser
+        MsgSetVideoEnhancementFull parsed {};
+        ASSERT_TRUE(SightlineEnhancementParser::parseVideoEnhanceFull(pkt, parsed));
+        EXPECT_EQ(parsed.cameraIndex, 1U);
+        EXPECT_EQ(parsed.mode, ContrastMode::Lap16);
+        EXPECT_EQ(parsed.sharpening, 12U);
+        EXPECT_EQ(parsed.alphaBlend, 210U);
+        EXPECT_EQ(parsed.enhanceParam, 15U);
+        EXPECT_EQ(parsed.denoiseRate, 180U);
+        EXPECT_EQ(parsed.flags, msg.flags);
+        EXPECT_EQ(parsed.histAveRate, 64U);
+        EXPECT_EQ(parsed.histMaxPctBin, 20U);
+        EXPECT_EQ(parsed.roiRow, 100U);
+        EXPECT_EQ(parsed.roiCol, 150U);
+        EXPECT_EQ(parsed.roiHigh, 480U);
+        EXPECT_EQ(parsed.roiWide, 640U);
+        EXPECT_EQ(parsed.gaussianBlur, 4U);
+        EXPECT_EQ(parsed.lapMinDiff, 5U);
+        EXPECT_EQ(parsed.colorEnhance, 150U);
+        EXPECT_EQ(parsed.brightness, 135U);
+        EXPECT_EQ(parsed.contrast, 140U);
+        EXPECT_EQ(parsed.scintillation, ScintillationPreset::InfraRed);
+        EXPECT_EQ(parsed.sharpenRadius, 3U);
+        ASSERT_EQ(parsed.customKernel.size(), 9U);
+        EXPECT_EQ(parsed.customKernel[4], 9);
+        EXPECT_TRUE(parsed.normalizeKernel);
+
+        // Test facade parser
+        MsgSetVideoEnhancementFull facadeParsed {};
+        ASSERT_TRUE(SightlineProtocolParser::parseVideoEnhanceFull(pkt, facadeParsed));
+        EXPECT_EQ(facadeParsed.mode, ContrastMode::Lap16);
+
+        // Test legacy parser interoperability
+        MsgSetVideoEnhancement legacyParsed {};
+        ASSERT_TRUE(SightlineEnhancementParser::parseVideoEnhance(pkt, legacyParsed));
+        EXPECT_EQ(legacyParsed.cameraIndex, 1U);
+        EXPECT_EQ(legacyParsed.sharpening, 12U);
+        EXPECT_EQ(legacyParsed.contrast, 140U);
+        EXPECT_EQ(legacyParsed.brightness, 135U);
+    }
+
+    TEST(SightlineEnhancementTest, FalseColorEncoding)
+    {
+        const auto pkt = SightlineEnhancementBuilder::buildSetFalseColor(0U, FalseColorPalette::Iron256);
+        EXPECT_EQ(SightlineFraming::identifyMessage(pkt), MessageId::SetDisplayParameters);
+        EXPECT_EQ(pkt, SightlineProtocolBuilder::buildSetFalseColor(0U, FalseColorPalette::Iron256));
+
+        const auto payload = SightlineFraming::extractPayload(pkt);
+        ASSERT_GE(payload.size(), 17U);
+        EXPECT_EQ(payload[5], static_cast<std::uint8_t>(FalseColorPalette::Iron256)); // falseColorZTT
+        EXPECT_EQ(payload[6], 64U); // zoom = 1X (64)
+        EXPECT_EQ(payload[11], 0U); // cameraIndex
+    }
+
+    TEST(SightlineEnhancementTest, CustomKernelSizes)
+    {
+        MsgSetVideoEnhancementFull msg {};
+        msg.cameraIndex = 0U;
+        // 5x5 kernel (25 elements)
+        msg.customKernel.assign(25U, 1);
+        msg.normalizeKernel = false;
+
+        const auto pkt = SightlineEnhancementBuilder::buildSetVideoEnhanceFull(msg);
+        MsgSetVideoEnhancementFull parsed {};
+        ASSERT_TRUE(SightlineEnhancementParser::parseVideoEnhanceFull(pkt, parsed));
+        ASSERT_EQ(parsed.customKernel.size(), 25U);
+        EXPECT_FALSE(parsed.normalizeKernel);
+        for (std::size_t i = 0; i < 25U; ++i) {
+            EXPECT_EQ(parsed.customKernel[i], 1);
+        }
+    }
+
 } // namespace
 } // namespace Sightline
+

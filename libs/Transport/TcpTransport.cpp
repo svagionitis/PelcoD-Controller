@@ -310,7 +310,7 @@ TcpKernelStats TcpTransport::queryKernelStats() const noexcept
         stats.rttUs = tcpInfo.RttUs;
         stats.minRttUs = tcpInfo.MinRttUs;
         stats.totalRetrans = tcpInfo.BytesRetrans;
-        stats.sndCwnd = tcpInfo.SndCwnd;
+        stats.sndCwnd = tcpInfo.Cwnd;
     }
 #endif
     u_long pendingBytes = 0;

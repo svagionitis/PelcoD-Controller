@@ -9,6 +9,7 @@
 #include "modules/SightlineCompressionParser.h"
 #include "modules/SightlineDetectionParser.h"
 #include "modules/SightlineDisplayParser.h"
+#include "modules/SightlineEnhancementParser.h"
 #include "modules/SightlineFocusParser.h"
 #include "modules/SightlineGeneralParser.h"
 #include "modules/SightlineKlvParser.h"
@@ -102,6 +103,17 @@ bool SightlineProtocolParser::parseStabilizationParams(
 bool SightlineProtocolParser::parseVideoParameters(const std::vector<std::uint8_t>& packet, MsgSetVideoParameters& out)
 {
     return SightlineCaptureParser::parseVideoParameters(packet, out);
+}
+
+bool SightlineProtocolParser::parseVideoEnhance(const std::vector<std::uint8_t>& packet, MsgSetVideoEnhancement& out)
+{
+    return SightlineEnhancementParser::parseVideoEnhance(packet, out);
+}
+
+bool SightlineProtocolParser::parseVideoEnhanceFull(
+    const std::vector<std::uint8_t>& packet, MsgSetVideoEnhancementFull& out)
+{
+    return SightlineEnhancementParser::parseVideoEnhanceFull(packet, out);
 }
 
 bool SightlineProtocolParser::parseH264Parameters(const std::vector<std::uint8_t>& packet, MsgSetH264Parameters& out)

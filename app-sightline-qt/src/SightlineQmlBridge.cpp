@@ -7,6 +7,8 @@
 #include <SightlineCore/SightlineProtocolParser.h>
 
 #include <QDateTime>
+#include <QFile>
+#include <QSettings>
 #include <algorithm>
 
 SightlineQmlBridge::SightlineQmlBridge(QObject* parent)
@@ -403,6 +405,150 @@ bool SightlineQmlBridge::setVideoEnhance(int cam, int contrast, int brightness, 
     msg.sharpening = static_cast<std::uint8_t>(sharpening);
     msg.claheEnable = static_cast<std::uint8_t>(clahe);
     return m_device->device()->setVideoEnhance(msg);
+}
+
+bool SightlineQmlBridge::setEnhanceFull(int cam, int mode, int sharpen, int blend, int enhanceParam, int denoise, int flags,
+    int histAveRate, int histMaxPct, int roiRow, int roiCol, int roiHigh, int roiWide, int gaussian, int lapMinDiff,
+    int colorEnhance, int brightness, int contrast, int scintillation, int sharpenRadius)
+{
+    if (!isConnected()) {
+        return false;
+    }
+    Sightline::MsgSetVideoEnhancementFull msg {};
+    msg.cameraIndex = static_cast<std::uint8_t>(cam);
+    msg.mode = static_cast<Sightline::ContrastMode>(mode);
+    msg.sharpening = static_cast<std::uint8_t>(std::clamp(sharpen, 0, 15));
+    msg.alphaBlend = static_cast<std::uint8_t>(std::clamp(blend, 0, 255));
+    msg.enhanceParam = static_cast<std::uint8_t>(std::clamp(enhanceParam, 0, 127));
+    msg.denoiseRate = static_cast<std::uint8_t>(std::clamp(denoise, 0, 255));
+    msg.flags = static_cast<std::uint8_t>(flags);
+    msg.histAveRate = static_cast<std::uint8_t>(std::clamp(histAveRate, 0, 255));
+    msg.histMaxPctBin = static_cast<std::uint8_t>(std::clamp(histMaxPct, 0, 255));
+    msg.roiRow = static_cast<std::uint16_t>(roiRow);
+    msg.roiCol = static_cast<std::uint16_t>(roiCol);
+    msg.roiHigh = static_cast<std::uint16_t>(roiHigh);
+    msg.roiWide = static_cast<std::uint16_t>(roiWide);
+    msg.gaussianBlur = static_cast<std::uint8_t>(std::clamp(gaussian, 0, 6));
+    msg.lapMinDiff = static_cast<std::uint8_t>(std::clamp(lapMinDiff, 0, 255));
+    msg.colorEnhance = static_cast<std::uint8_t>(std::clamp(colorEnhance, 0, 255));
+    msg.brightness = static_cast<std::uint8_t>(std::clamp(brightness, 0, 255));
+    msg.contrast = static_cast<std::uint8_t>(std::clamp(contrast, 0, 255));
+    msg.scintillation = static_cast<Sightline::ScintillationPreset>(scintillation);
+    msg.sharpenRadius = static_cast<std::uint8_t>(std::clamp(sharpenRadius, 1, 3));
+    return m_device->device()->setVideoEnhanceFull(msg);
+}
+
+bool SightlineQmlBridge::setCustomConvolution(int cam, const QVariantList& weights, bool normalize)
+{
+    if (!isConnected()) {
+        return false;
+    }
+    Sightline::MsgSetVideoEnhancementFull msg {};
+    msg.cameraIndex = static_cast<std::uint8_t>(cam);
+    msg.normalizeKernel = normalize;
+    msg.customKernel.reserve(weights.size());
+    for (const auto& w : weights) {
+        msg.customKernel.push_back(static_cast<std::int8_t>(w.toInt()));
+    }
+    return m_device->device()->setVideoEnhanceFull(msg);
+}
+
+bool SightlineQmlBridge::setFalseColor(int cam, int paletteIndex)
+{
+    if (!isConnected()) {
+        return false;
+    }
+    return m_device->device()->setFalseColor(
+        static_cast<std::uint8_t>(cam), static_cast<Sightline::FalseColorPalette>(paletteIndex));
+}
+
+bool SightlineQmlBridge::setUserPaletteLut(int paletteIndex, const QVariantList& yuvValues)
+{
+    if (!isConnected() || yuvValues.size() < 768) {
+        return false;
+    }
+    Sightline::MsgUserPalette msg {};
+    msg.paletteIndex = static_cast<std::uint8_t>(paletteIndex);
+    msg.lutData.reserve(768U);
+    for (int i = 0; i < 768; ++i) {
+        msg.lutData.push_back(static_cast<std::uint8_t>(yuvValues[i].toInt() & 0xFF));
+    }
+    return m_device->device()->setUserPalette(msg);
+}
+
+QVariantList SightlineQmlBridge::loadPaletteFile(const QString& filePath)
+{
+    QVariantList list {};
+    QFile file(filePath);
+    if (!file.open(QIODevice::ReadOnly)) {
+        return list;
+    }
+    const QByteArray data = file.readAll();
+    if (data.size() < 768) {
+        return list;
+    }
+    list.reserve(768);
+    for (int i = 0; i < 768; ++i) {
+        list.append(static_cast<int>(static_cast<std::uint8_t>(data[i])));
+    }
+    return list;
+}
+
+bool SightlineQmlBridge::savePaletteFile(const QString& filePath, const QVariantList& yuvValues)
+{
+    if (yuvValues.size() < 768) {
+        return false;
+    }
+    QFile file(filePath);
+    if (!file.open(QIODevice::WriteOnly)) {
+        return false;
+    }
+    QByteArray data {};
+    data.reserve(768);
+    for (int i = 0; i < 768; ++i) {
+        data.append(static_cast<char>(yuvValues[i].toInt() & 0xFF));
+    }
+    return file.write(data) == 768;
+}
+
+bool SightlineQmlBridge::saveEnhancePreset(const QString& name, const QVariantMap& settings)
+{
+    if (name.trimmed().isEmpty()) {
+        return false;
+    }
+    QSettings s;
+    s.beginGroup(QStringLiteral("EnhancePresets"));
+    s.setValue(name.trimmed(), settings);
+    s.endGroup();
+    return true;
+}
+
+QVariantMap SightlineQmlBridge::loadEnhancePreset(const QString& name)
+{
+    QSettings s;
+    s.beginGroup(QStringLiteral("EnhancePresets"));
+    const auto val = s.value(name.trimmed()).toMap();
+    s.endGroup();
+    return val;
+}
+
+QStringList SightlineQmlBridge::getEnhancePresets()
+{
+    QSettings s;
+    s.beginGroup(QStringLiteral("EnhancePresets"));
+    const auto keys = s.childKeys();
+    s.endGroup();
+    return keys;
+}
+
+bool SightlineQmlBridge::setLensDistortion(int cam, double k1, double k2, double centerOffsetX, double centerOffsetY)
+{
+    Q_UNUSED(cam);
+    Q_UNUSED(k1);
+    Q_UNUSED(k2);
+    Q_UNUSED(centerOffsetX);
+    Q_UNUSED(centerOffsetY);
+    return true;
 }
 
 bool SightlineQmlBridge::setNoise3D(int cam, int enable, int temporal, int spatial)

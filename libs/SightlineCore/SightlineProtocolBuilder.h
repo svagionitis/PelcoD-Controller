@@ -342,6 +342,18 @@ public:
     /// @return Framed binary packet.
     [[nodiscard]] static std::vector<std::uint8_t> buildSetVideoEnhance(const MsgSetVideoEnhancement& msg);
 
+    /// @brief Encodes complete SLA video enhancement parameters (Message ID 0x21).
+    /// @param[in] msg Full enhancement parameters.
+    /// @return Framed binary packet.
+    [[nodiscard]] static std::vector<std::uint8_t> buildSetVideoEnhanceFull(const MsgSetVideoEnhancementFull& msg);
+
+    /// @brief Encodes false color palette selection (Message ID 0x16).
+    /// @param[in] cameraIndex Target camera index (0-based, or 255 for all).
+    /// @param[in] palette Predefined false color palette mode.
+    /// @return Framed binary packet.
+    [[nodiscard]] static std::vector<std::uint8_t> buildSetFalseColor(
+        std::uint8_t cameraIndex, FalseColorPalette palette);
+
     /// @brief Encodes display layout and scaling (Message ID 0x16).
     /// @param[in] msg Display parameters.
     /// @return Framed binary packet.

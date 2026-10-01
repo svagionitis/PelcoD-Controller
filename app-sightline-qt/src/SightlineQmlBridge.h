@@ -227,7 +227,7 @@ public:
     /// @return True if dispatched.
     Q_INVOKABLE bool setBlendParams(int cam1, int cam2, int mode, int alpha);
 
-    /// @brief Configure video enhancement parameters.
+    /// @brief Configure video enhancement parameters (basic).
     /// @param cam Camera index.
     /// @param contrast Contrast adjustment.
     /// @param brightness Brightness adjustment.
@@ -235,6 +235,86 @@ public:
     /// @param clahe CLAHE contrast level.
     /// @return True if dispatched.
     Q_INVOKABLE bool setVideoEnhance(int cam, int contrast, int brightness, int sharpening, int clahe);
+
+    /// @brief Configure full SLA video enhancement parameters (Message ID 0x21).
+    /// @param cam Camera index.
+    /// @param mode Contrast mode (0..8).
+    /// @param sharpen Sharpen level (0..15).
+    /// @param blend Alpha blend (0..255).
+    /// @param enhanceParam Contrast strength parameter (0..127).
+    /// @param denoise Registered frame averaging denoise rate (0..255).
+    /// @param flags Motion mask & histogram feature flags.
+    /// @param histAveRate Histogram temporal averaging rate (0..255).
+    /// @param histMaxPct Histogram max percent bin (0..255).
+    /// @param roiRow ROI bounding box upper row.
+    /// @param roiCol ROI bounding box upper column.
+    /// @param roiHigh ROI bounding box height.
+    /// @param roiWide ROI bounding box width.
+    /// @param gaussian Gaussian blur level (0..6).
+    /// @param lapMinDiff LAP contour suppression threshold (0..255).
+    /// @param colorEnhance Color enhancement level (0..255).
+    /// @param brightness Brightness shift (0..255).
+    /// @param contrast Contrast scale (0..255).
+    /// @param scintillation Scintillation preset mode (0..3).
+    /// @param sharpenRadius Sharpen radius in pixels (1, 2, or 3).
+    /// @return True if dispatched.
+    Q_INVOKABLE bool setEnhanceFull(int cam, int mode, int sharpen, int blend, int enhanceParam, int denoise, int flags,
+        int histAveRate, int histMaxPct, int roiRow, int roiCol, int roiHigh, int roiWide, int gaussian, int lapMinDiff,
+        int colorEnhance, int brightness, int contrast, int scintillation, int sharpenRadius);
+
+    /// @brief Set custom NxN convolution kernel and normalization (Message ID 0x21).
+    /// @param cam Camera index.
+    /// @param weights List of integer weights (e.g. 9 for 3x3, 25 for 5x5).
+    /// @param normalize Whether to normalize kernel sum.
+    /// @return True if dispatched.
+    Q_INVOKABLE bool setCustomConvolution(int cam, const QVariantList& weights, bool normalize);
+
+    /// @brief Set false color thermal palette (Message ID 0x16).
+    /// @param cam Camera index.
+    /// @param paletteIndex Palette index (0..41, or 127 for User Palette).
+    /// @return True if dispatched.
+    Q_INVOKABLE bool setFalseColor(int cam, int paletteIndex);
+
+    /// @brief Upload custom 256x3 YUV user palette table to hardware (Message ID 0x72).
+    /// @param paletteIndex Palette slot index (0..3).
+    /// @param yuvValues Array of 768 unsigned byte values (Y, U, V tuples).
+    /// @return True if dispatched.
+    Q_INVOKABLE bool setUserPaletteLut(int paletteIndex, const QVariantList& yuvValues);
+
+    /// @brief Load binary user palette file (256x3 YUV).
+    /// @param filePath Absolute or relative path to .lut / .bin file.
+    /// @return QVariantList of 768 byte values or empty on failure.
+    Q_INVOKABLE QVariantList loadPaletteFile(const QString& filePath);
+
+    /// @brief Save binary user palette file (256x3 YUV).
+    /// @param filePath Target file path.
+    /// @param yuvValues Array of 768 unsigned byte values.
+    /// @return True on success.
+    Q_INVOKABLE bool savePaletteFile(const QString& filePath, const QVariantList& yuvValues);
+
+    /// @brief Save named enhancement configuration preset.
+    /// @param name Preset name.
+    /// @param settings Dictionary of enhancement parameters.
+    /// @return True on success.
+    Q_INVOKABLE bool saveEnhancePreset(const QString& name, const QVariantMap& settings);
+
+    /// @brief Load named enhancement configuration preset.
+    /// @param name Preset name.
+    /// @return Parameter map or empty on error.
+    Q_INVOKABLE QVariantMap loadEnhancePreset(const QString& name);
+
+    /// @brief Get list of available enhancement preset names.
+    /// @return List of preset name strings.
+    Q_INVOKABLE QStringList getEnhancePresets();
+
+    /// @brief Configure optical lens radial distortion correction parameters.
+    /// @param cam Camera index.
+    /// @param k1 Radial barrel/pincushion coefficient 1.
+    /// @param k2 Radial coefficient 2.
+    /// @param centerOffsetX Horizontal optical center offset.
+    /// @param centerOffsetY Vertical optical center offset.
+    /// @return True if dispatched.
+    Q_INVOKABLE bool setLensDistortion(int cam, double k1, double k2, double centerOffsetX, double centerOffsetY);
 
     /// @brief Configure 3D noise reduction filter.
     /// @param cam Camera index.

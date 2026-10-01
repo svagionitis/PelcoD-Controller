@@ -123,6 +123,157 @@ ScrollView {
             }
         }
 
+        // Lens Distortion Correction Card
+        Rectangle {
+            Layout.fillWidth: true
+            implicitHeight: distCol.implicitHeight + 28
+            color: SightlineTheme.surfaceCard
+            radius: SightlineTheme.radiusMedium
+            border.color: SightlineTheme.cardBorder
+            border.width: 1
+
+            ColumnLayout {
+                id: distCol
+                anchors.fill: parent
+                anchors.margins: 14
+                spacing: 12
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 8
+                    Rectangle { width: 3; height: 14; color: SightlineTheme.primary; radius: 1 }
+                    Text {
+                        text: "OPTICAL LENS RADIAL DISTORTION CORRECTION"
+                        color: SightlineTheme.primary
+                        font.pixelSize: 11
+                        font.bold: true
+                    }
+                }
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 12
+                    Text { text: "k1 Radial Distortion:"; color: SightlineTheme.textSecondary; font.pixelSize: 12; Layout.preferredWidth: 150; Layout.alignment: Qt.AlignVCenter }
+                    Slider {
+                        id: k1Slider
+                        from: -50; to: 50; value: 5
+                        Layout.preferredWidth: 220
+                    }
+                    Text {
+                        text: (k1Slider.value / 100.0).toFixed(2)
+                        color: SightlineTheme.textPrimary
+                        font.bold: true
+                        font.pixelSize: 12
+                    }
+                    Item { Layout.fillWidth: true }
+                }
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 12
+                    Text { text: "k2 Radial Distortion:"; color: SightlineTheme.textSecondary; font.pixelSize: 12; Layout.preferredWidth: 150; Layout.alignment: Qt.AlignVCenter }
+                    Slider {
+                        id: k2Slider
+                        from: -50; to: 50; value: 0
+                        Layout.preferredWidth: 220
+                    }
+                    Text {
+                        text: (k2Slider.value / 1000.0).toFixed(3)
+                        color: SightlineTheme.textPrimary
+                        font.bold: true
+                        font.pixelSize: 12
+                    }
+                    Item { Layout.fillWidth: true }
+                }
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 12
+                    Text { text: "Center Offset X (px):"; color: SightlineTheme.textSecondary; font.pixelSize: 12; Layout.preferredWidth: 150; Layout.alignment: Qt.AlignVCenter }
+                    Slider {
+                        id: offXSlider
+                        from: -100; to: 100; value: 0
+                        Layout.preferredWidth: 220
+                    }
+                    Text {
+                        text: Math.round(offXSlider.value).toString()
+                        color: SightlineTheme.textPrimary
+                        font.bold: true
+                        font.pixelSize: 12
+                    }
+                    Item { Layout.fillWidth: true }
+                }
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 12
+                    Text { text: "Center Offset Y (px):"; color: SightlineTheme.textSecondary; font.pixelSize: 12; Layout.preferredWidth: 150; Layout.alignment: Qt.AlignVCenter }
+                    Slider {
+                        id: offYSlider
+                        from: -100; to: 100; value: 0
+                        Layout.preferredWidth: 220
+                    }
+                    Text {
+                        text: Math.round(offYSlider.value).toString()
+                        color: SightlineTheme.textPrimary
+                        font.bold: true
+                        font.pixelSize: 12
+                    }
+                    Item { Layout.fillWidth: true }
+                }
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 10
+
+                    Button {
+                        text: "Apply Distortion Calibration"
+                        implicitHeight: 30
+                        implicitWidth: 180
+                        contentItem: Text {
+                            text: parent.text
+                            color: "#0e1014"
+                            font.bold: true
+                            horizontalAlignment: Text.AlignHCenter
+                            verticalAlignment: Text.AlignVCenter
+                        }
+                        background: Rectangle {
+                            color: SightlineTheme.primary
+                            radius: 4
+                        }
+                        onClicked: {
+                            if (bridge) {
+                                bridge.setLensDistortion(
+                                    lensCam.currentIndex,
+                                    k1Slider.value / 100.0,
+                                    k2Slider.value / 1000.0,
+                                    offXSlider.value,
+                                    offYSlider.value
+                                );
+                            }
+                        }
+                    }
+
+                    Button {
+                        text: "Reset Calibration"
+                        implicitHeight: 30
+                        implicitWidth: 140
+                        onClicked: {
+                            k1Slider.value = 0;
+                            k2Slider.value = 0;
+                            offXSlider.value = 0;
+                            offYSlider.value = 0;
+                            if (bridge) {
+                                bridge.setLensDistortion(lensCam.currentIndex, 0.0, 0.0, 0.0, 0.0);
+                            }
+                        }
+                    }
+
+                    Item { Layout.fillWidth: true }
+                }
+            }
+        }
+
         Item { Layout.preferredHeight: 16 }
     }
 }

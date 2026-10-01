@@ -98,6 +98,19 @@ public:
     /// @return True on successful parse.
     [[nodiscard]] static bool parseVideoParameters(const std::vector<std::uint8_t>& packet, MsgSetVideoParameters& out);
 
+    /// @brief Parses active video enhancement parameters (Message ID 0x4A / 0x21).
+    /// @param[in] packet Validated framed packet bytes.
+    /// @param[out] out Deserialized enhancement structure.
+    /// @return True on successful parse.
+    [[nodiscard]] static bool parseVideoEnhance(const std::vector<std::uint8_t>& packet, MsgSetVideoEnhancement& out);
+
+    /// @brief Parses complete SLA video enhancement parameters (Message ID 0x4A / 0x21).
+    /// @param[in] packet Validated framed packet bytes.
+    /// @param[out] out Deserialized full enhancement structure.
+    /// @return True on successful parse.
+    [[nodiscard]] static bool parseVideoEnhanceFull(
+        const std::vector<std::uint8_t>& packet, MsgSetVideoEnhancementFull& out);
+
     /// @brief Parses active H.264 compression parameters (Message ID 0x56).
     /// @param[in] packet Validated framed packet bytes.
     /// @param[out] out Deserialized H.264 parameters.

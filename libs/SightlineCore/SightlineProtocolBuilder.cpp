@@ -362,6 +362,17 @@ std::vector<std::uint8_t> SightlineProtocolBuilder::buildSetVideoEnhance(const M
     return SightlineEnhancementBuilder::buildSetVideoEnhance(msg);
 }
 
+std::vector<std::uint8_t> SightlineProtocolBuilder::buildSetVideoEnhanceFull(const MsgSetVideoEnhancementFull& msg)
+{
+    return SightlineEnhancementBuilder::buildSetVideoEnhanceFull(msg);
+}
+
+std::vector<std::uint8_t> SightlineProtocolBuilder::buildSetFalseColor(
+    std::uint8_t cameraIndex, FalseColorPalette palette)
+{
+    return SightlineEnhancementBuilder::buildSetFalseColor(cameraIndex, palette);
+}
+
 std::vector<std::uint8_t> SightlineProtocolBuilder::buildSetDisplayParams(const MsgSetDisplayParameters& msg)
 {
     return SightlineDisplayBuilder::buildSetDisplayParams(msg);

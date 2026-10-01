@@ -189,6 +189,22 @@ public:
     /// @return True if command was successfully transmitted.
     [[nodiscard]] bool setVideoEnhance(const MsgSetVideoEnhancement& msg);
 
+    /// @brief Configures full SLA video enhancement parameters (Message ID 0x21).
+    /// @param[in] msg Full enhancement parameters.
+    /// @return True if command was successfully transmitted.
+    [[nodiscard]] bool setVideoEnhanceFull(const MsgSetVideoEnhancementFull& msg);
+
+    /// @brief Configures false color thermal palette (Message ID 0x16).
+    /// @param[in] cameraIndex Target camera index (0-based, or 255 for all).
+    /// @param[in] palette Predefined false color palette mode.
+    /// @return True if command was successfully transmitted.
+    [[nodiscard]] bool setFalseColor(std::uint8_t cameraIndex, FalseColorPalette palette);
+
+    /// @brief Ingests custom pseudo-color lookup table (LUT) for thermal sensors (Message ID 0x72).
+    /// @param[in] msg User palette table.
+    /// @return True if command was successfully transmitted.
+    [[nodiscard]] bool setUserPalette(const MsgUserPalette& msg);
+
     /// @brief Configures display output placement and scaling.
     /// @param[in] msg Display parameters.
     /// @return True if command was successfully transmitted.

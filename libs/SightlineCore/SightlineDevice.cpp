@@ -247,6 +247,21 @@ bool SightlineDevice::setVideoEnhance(const MsgSetVideoEnhancement& msg)
     return sendPacket(SightlineProtocolBuilder::buildSetVideoEnhance(msg));
 }
 
+bool SightlineDevice::setVideoEnhanceFull(const MsgSetVideoEnhancementFull& msg)
+{
+    return sendPacket(SightlineProtocolBuilder::buildSetVideoEnhanceFull(msg));
+}
+
+bool SightlineDevice::setFalseColor(std::uint8_t cameraIndex, FalseColorPalette palette)
+{
+    return sendPacket(SightlineProtocolBuilder::buildSetFalseColor(cameraIndex, palette));
+}
+
+bool SightlineDevice::setUserPalette(const MsgUserPalette& msg)
+{
+    return sendPacket(SightlineProtocolBuilder::buildSetUserPalette(msg));
+}
+
 bool SightlineDevice::setDisplayParams(const MsgSetDisplayParameters& msg)
 {
     return sendPacket(SightlineProtocolBuilder::buildSetDisplayParams(msg));
