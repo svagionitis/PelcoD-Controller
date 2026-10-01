@@ -34,4 +34,32 @@ struct MsgSetBlendParameters {
     std::uint8_t coldEnd { 255U }; ///< Thermal threshold cold end
 };
 
+/// @struct AlignPointPair
+/// @brief Coordinate pair mapping fixed and warp camera points for homography alignment.
+struct AlignPointPair {
+    std::uint16_t warpCol { 0U };
+    std::uint16_t warpRow { 0U };
+    std::uint16_t fixedCol { 0U };
+    std::uint16_t fixedRow { 0U };
+};
+
+/// @struct MsgFourAlignPoints
+/// @brief 4-point projective homography calibration for dual-sensor co-boresighting (Message ID 0x95).
+struct MsgFourAlignPoints {
+    std::uint8_t cameraIndex { 0U };
+    std::uint8_t warpIndex { 1U };
+    AlignPointPair points[4] {};
+};
+
+/// @struct MsgBlendAlign
+/// @brief Fine-tune alignment offsets and automated registration parameters (Message ID 0xB9).
+struct MsgBlendAlign {
+    std::uint8_t cameraIndex { 0U };
+    std::uint8_t mode { 0U }; ///< 0: Manual, 1: Feature-based auto-align, 2: Edge-based
+    std::int16_t offsetX { 0 }; ///< Horizontal pixel shift
+    std::int16_t offsetY { 0 }; ///< Vertical pixel shift
+    std::int16_t rotation { 0 }; ///< Rotation angle in 1/100 degrees
+    std::uint16_t scale { 1000U }; ///< Scaling factor (1000 = 1.0x)
+};
+
 } // namespace Sightline

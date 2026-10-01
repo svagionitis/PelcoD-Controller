@@ -5,8 +5,7 @@
 
 namespace Sightline {
 
-bool SightlineBlendingParser::parseBlendParameters(
-    const std::vector<std::uint8_t>& packet, MsgSetBlendParameters& out)
+bool SightlineBlendingParser::parseBlendParameters(ByteView packet, MsgSetBlendParameters& out)
 {
     const auto id { SightlineFraming::identifyMessage(packet) };
     if (id != MessageId::CurrentBlendParameters && id != MessageId::SetBlendParameters) {
@@ -37,6 +36,49 @@ bool SightlineBlendingParser::parseBlendParameters(
     out.hotStart = payload[16U];
     out.coldEnd = payload[17U];
 
+    return true;
+}
+
+bool SightlineBlendingParser::parseFourAlignPoints(ByteView packet, MsgFourAlignPoints& out)
+{
+    if (SightlineFraming::identifyMessage(packet) != MessageId::FourAlignPoints) {
+        return false;
+    }
+
+    const auto payload { SightlineFraming::extractPayload(packet) };
+    if (payload.size() < 34U) {
+        return false;
+    }
+
+    out.cameraIndex = payload[0U];
+    out.warpIndex = payload[1U];
+    for (std::size_t i { 0U }; i < 4U; ++i) {
+        const std::size_t offset { 2U + (i * 8U) };
+        out.points[i].warpCol = SightlineFraming::readU16Le(payload.data() + offset);
+        out.points[i].warpRow = SightlineFraming::readU16Le(payload.data() + offset + 2U);
+        out.points[i].fixedCol = SightlineFraming::readU16Le(payload.data() + offset + 4U);
+        out.points[i].fixedRow = SightlineFraming::readU16Le(payload.data() + offset + 6U);
+    }
+    return true;
+}
+
+bool SightlineBlendingParser::parseBlendAlign(ByteView packet, MsgBlendAlign& out)
+{
+    if (SightlineFraming::identifyMessage(packet) != MessageId::BlendAlign) {
+        return false;
+    }
+
+    const auto payload { SightlineFraming::extractPayload(packet) };
+    if (payload.size() < 10U) {
+        return false;
+    }
+
+    out.cameraIndex = payload[0U];
+    out.mode = payload[1U];
+    out.offsetX = SightlineFraming::readS16Le(payload.data() + 2U);
+    out.offsetY = SightlineFraming::readS16Le(payload.data() + 4U);
+    out.rotation = SightlineFraming::readS16Le(payload.data() + 6U);
+    out.scale = SightlineFraming::readU16Le(payload.data() + 8U);
     return true;
 }
 

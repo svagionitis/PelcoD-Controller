@@ -3,10 +3,12 @@
 
 #include "SightlineProtocolParser.h"
 #include "SightlineFraming.h"
+#include "modules/SightlineBlendingParser.h"
 #include "modules/SightlineCaptureParser.h"
 #include "modules/SightlineClassificationParser.h"
 #include "modules/SightlineCompressionParser.h"
 #include "modules/SightlineDetectionParser.h"
+#include "modules/SightlineDisplayParser.h"
 #include "modules/SightlineFocusParser.h"
 #include "modules/SightlineGeneralParser.h"
 #include "modules/SightlineKlvParser.h"
@@ -252,6 +254,55 @@ bool SightlineProtocolParser::parseCustomClassifier(ByteView packet, MsgCustomCl
 bool SightlineProtocolParser::parseClassifierParams(ByteView packet, MsgClassifierParameters& out)
 {
     return SightlineClassificationParser::parseClassifierParams(packet, out);
+}
+
+// ==============================================================================
+// 6. Multi-Sensor Alignment & Digital Video Pipeline Deserializers (Phase 3)
+// ==============================================================================
+
+bool SightlineProtocolParser::parseBlendParameters(ByteView packet, MsgSetBlendParameters& out)
+{
+    return SightlineBlendingParser::parseBlendParameters(packet, out);
+}
+
+bool SightlineProtocolParser::parseFourAlignPoints(ByteView packet, MsgFourAlignPoints& out)
+{
+    return SightlineBlendingParser::parseFourAlignPoints(packet, out);
+}
+
+bool SightlineProtocolParser::parseBlendAlign(ByteView packet, MsgBlendAlign& out)
+{
+    return SightlineBlendingParser::parseBlendAlign(packet, out);
+}
+
+bool SightlineProtocolParser::parseCameraSwitch(ByteView packet, MsgCameraSwitch& out)
+{
+    return SightlineCaptureParser::parseCameraSwitch(packet, out);
+}
+
+bool SightlineProtocolParser::parseAdvCaptureParams(ByteView packet, MsgAdvancedCaptureParameters& out)
+{
+    return SightlineCaptureParser::parseAdvCaptureParams(packet, out);
+}
+
+bool SightlineProtocolParser::parseDigiVideoParser(ByteView packet, MsgDigitalVideoParserParameters& out)
+{
+    return SightlineCaptureParser::parseDigiVideoParser(packet, out);
+}
+
+bool SightlineProtocolParser::parseCameraCapabilities(ByteView packet, MsgCameraCapabilities& out)
+{
+    return SightlineCaptureParser::parseCameraCapabilities(packet, out);
+}
+
+bool SightlineProtocolParser::parseVideoDisplay(ByteView packet, MsgVideoDisplay& out)
+{
+    return SightlineDisplayParser::parseVideoDisplay(packet, out);
+}
+
+bool SightlineProtocolParser::parseMultiDisplay(ByteView packet, MsgMultiDisplay& out)
+{
+    return SightlineDisplayParser::parseMultiDisplay(packet, out);
 }
 
 } // namespace Sightline

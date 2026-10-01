@@ -5,8 +5,7 @@
 
 namespace Sightline {
 
-bool SightlineCaptureParser::parseVideoParameters(
-    const std::vector<std::uint8_t>& packet, MsgSetVideoParameters& out)
+bool SightlineCaptureParser::parseVideoParameters(ByteView packet, MsgSetVideoParameters& out)
 {
     const auto id { SightlineFraming::identifyMessage(packet) };
     if (id != MessageId::CurrentVideoParameters && id != MessageId::SetVideoParameters) {
@@ -29,8 +28,7 @@ bool SightlineCaptureParser::parseVideoParameters(
     return true;
 }
 
-bool SightlineCaptureParser::parseVideoMode(
-    const std::vector<std::uint8_t>& packet, MsgSetVideoMode& out)
+bool SightlineCaptureParser::parseVideoMode(ByteView packet, MsgSetVideoMode& out)
 {
     const auto id { SightlineFraming::identifyMessage(packet) };
     if (id != MessageId::CurrentVideoModeParameters && id != MessageId::SetVideoMode) {
@@ -47,6 +45,81 @@ bool SightlineCaptureParser::parseVideoMode(
     out.digitalZoom = payload[2U];
     out.mirror = payload[3U];
     out.flip = payload[4U];
+    return true;
+}
+
+bool SightlineCaptureParser::parseCameraSwitch(ByteView packet, MsgCameraSwitch& out)
+{
+    if (SightlineFraming::identifyMessage(packet) != MessageId::CameraSwitch) {
+        return false;
+    }
+
+    const auto payload { SightlineFraming::extractPayload(packet) };
+    if (payload.size() < 3U) {
+        return false;
+    }
+
+    out.cameraIndex = payload[0U];
+    out.switchType = payload[1U];
+    out.flags = payload[2U];
+    return true;
+}
+
+bool SightlineCaptureParser::parseAdvCaptureParams(ByteView packet, MsgAdvancedCaptureParameters& out)
+{
+    if (SightlineFraming::identifyMessage(packet) != MessageId::AdvancedCaptureParameters) {
+        return false;
+    }
+
+    const auto payload { SightlineFraming::extractPayload(packet) };
+    if (payload.size() < 8U) {
+        return false;
+    }
+
+    out.cameraIndex = payload[0U];
+    out.bitDepth = payload[1U];
+    out.laneCount = payload[2U];
+    out.pixelClockHz = SightlineFraming::readU32Le(payload.data() + 3U);
+    out.syncFlags = payload[7U];
+    return true;
+}
+
+bool SightlineCaptureParser::parseDigiVideoParser(ByteView packet, MsgDigitalVideoParserParameters& out)
+{
+    if (SightlineFraming::identifyMessage(packet) != MessageId::DigitalVideoParserParameters) {
+        return false;
+    }
+
+    const auto payload { SightlineFraming::extractPayload(packet) };
+    if (payload.size() < 5U) {
+        return false;
+    }
+
+    out.cameraIndex = payload[0U];
+    out.videoStandard = payload[1U];
+    out.embeddedSync = payload[2U];
+    out.clockEdge = payload[3U];
+    out.flags = payload[4U];
+    return true;
+}
+
+bool SightlineCaptureParser::parseCameraCapabilities(ByteView packet, MsgCameraCapabilities& out)
+{
+    if (SightlineFraming::identifyMessage(packet) != MessageId::CameraCapabilities) {
+        return false;
+    }
+
+    const auto payload { SightlineFraming::extractPayload(packet) };
+    if (payload.size() < 8U) {
+        return false;
+    }
+
+    out.cameraIndex = payload[0U];
+    out.maxWidth = SightlineFraming::readU16Le(payload.data() + 1U);
+    out.maxHeight = SightlineFraming::readU16Le(payload.data() + 3U);
+    out.maxFrameRate = payload[5U];
+    out.supportsZoom = payload[6U];
+    out.flags = payload[7U];
     return true;
 }
 

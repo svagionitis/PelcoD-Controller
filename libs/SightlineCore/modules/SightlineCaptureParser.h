@@ -17,18 +17,40 @@ namespace Sightline {
 class SightlineCaptureParser {
 public:
     /// @brief Parses active video capture parameters (Message ID 0x46).
-    /// @param[in] packet Validated framed packet bytes.
+    /// @param[in] packet Validated framed packet bytes or view.
     /// @param[out] out Deserialized video parameters.
     /// @return True on successful parse.
-    [[nodiscard]] static bool parseVideoParameters(
-        const std::vector<std::uint8_t>& packet, MsgSetVideoParameters& out);
+    [[nodiscard]] static bool parseVideoParameters(ByteView packet, MsgSetVideoParameters& out);
 
     /// @brief Parses active video mode parameters (Message ID 0x4B).
-    /// @param[in] packet Validated framed packet bytes.
+    /// @param[in] packet Validated framed packet bytes or view.
     /// @param[out] out Deserialized video mode structure.
     /// @return True on successful parse.
-    [[nodiscard]] static bool parseVideoMode(
-        const std::vector<std::uint8_t>& packet, MsgSetVideoMode& out);
+    [[nodiscard]] static bool parseVideoMode(ByteView packet, MsgSetVideoMode& out);
+
+    /// @brief Parses camera switch command / status (Message ID 0x82).
+    /// @param[in] packet Validated framed packet bytes or view.
+    /// @param[out] out Deserialized camera switch structure.
+    /// @return True on successful parse.
+    [[nodiscard]] static bool parseCameraSwitch(ByteView packet, MsgCameraSwitch& out);
+
+    /// @brief Parses advanced capture deserializer hardware parameters (Message ID 0x7B).
+    /// @param[in] packet Validated framed packet bytes or view.
+    /// @param[out] out Deserialized advanced capture structure.
+    /// @return True on successful parse.
+    [[nodiscard]] static bool parseAdvCaptureParams(ByteView packet, MsgAdvancedCaptureParameters& out);
+
+    /// @brief Parses digital video framing decoder parameters (Message ID 0x91).
+    /// @param[in] packet Validated framed packet bytes or view.
+    /// @param[out] out Deserialized digital video parser structure.
+    /// @return True on successful parse.
+    [[nodiscard]] static bool parseDigiVideoParser(ByteView packet, MsgDigitalVideoParserParameters& out);
+
+    /// @brief Parses camera hardware capabilities and limits (Message ID 0xBB).
+    /// @param[in] packet Validated framed packet bytes or view.
+    /// @param[out] out Deserialized camera capabilities structure.
+    /// @return True on successful parse.
+    [[nodiscard]] static bool parseCameraCapabilities(ByteView packet, MsgCameraCapabilities& out);
 };
 
 } // namespace Sightline

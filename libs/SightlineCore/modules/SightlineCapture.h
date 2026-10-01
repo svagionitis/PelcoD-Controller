@@ -34,4 +34,43 @@ struct MsgSetVideoMode {
     std::uint8_t flip { 0U };
 };
 
+/// @struct MsgCameraSwitch
+/// @brief Rapid switching of active camera input channels (Message ID 0x82).
+struct MsgCameraSwitch {
+    std::uint8_t cameraIndex { 0U }; ///< Target camera index (0..3)
+    std::uint8_t switchType { 0U }; ///< 0: Instant, 1: Smooth dissolve
+    std::uint8_t flags { 0U }; ///< Reserved / options
+};
+
+/// @struct MsgAdvancedCaptureParameters
+/// @brief MIPI CSI-2 / SDI deserializer register parameters (Message ID 0x7B).
+struct MsgAdvancedCaptureParameters {
+    std::uint8_t cameraIndex { 0U }; ///< Camera channel index
+    std::uint8_t bitDepth { 8U }; ///< Bit depth (8, 10, 12, 14, 16)
+    std::uint8_t laneCount { 2U }; ///< MIPI CSI data lanes (1, 2, 4)
+    std::uint32_t pixelClockHz { 0U }; ///< Pixel clock frequency in Hz
+    std::uint8_t syncFlags { 0U }; ///< HSync / VSync active polarities
+};
+
+/// @struct MsgDigitalVideoParserParameters
+/// @brief Hardware framing decoder parameters for digital video inputs (Message ID 0x91).
+struct MsgDigitalVideoParserParameters {
+    std::uint8_t cameraIndex { 0U }; ///< Camera channel index
+    std::uint8_t videoStandard { 1U }; ///< 1: BT.656, 2: BT.1120, 3: SMPTE-296M, 4: SMPTE-274M
+    std::uint8_t embeddedSync { 1U }; ///< 0: Discrete sync lines, 1: Embedded SAV/EAV words
+    std::uint8_t clockEdge { 0U }; ///< 0: Rising edge, 1: Falling edge
+    std::uint8_t flags { 0U }; ///< Additional configuration flags
+};
+
+/// @struct MsgCameraCapabilities
+/// @brief Reports sensor capabilities, maximum resolution, and zoom limits (Message ID 0xBB).
+struct MsgCameraCapabilities {
+    std::uint8_t cameraIndex { 0U };
+    std::uint16_t maxWidth { 1920U };
+    std::uint16_t maxHeight { 1080U };
+    std::uint8_t maxFrameRate { 60U };
+    std::uint8_t supportsZoom { 1U };
+    std::uint8_t flags { 0U };
+};
+
 } // namespace Sightline

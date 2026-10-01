@@ -4,11 +4,14 @@
 #include "SightlineFraming.h"
 #include "SightlineProtocolBuilder.h"
 #include "SightlineProtocolParser.h"
+#include "modules/SightlineBlendingBuilder.h"
+#include "modules/SightlineBlendingParser.h"
 #include "modules/SightlineCaptureBuilder.h"
 #include "modules/SightlineCaptureParser.h"
 #include "modules/SightlineCompressionBuilder.h"
 #include "modules/SightlineCompressionParser.h"
 #include "modules/SightlineDisplayBuilder.h"
+#include "modules/SightlineDisplayParser.h"
 #include "modules/SightlineEnhancementBuilder.h"
 #include "modules/SightlineNetworkBuilder.h"
 #include "modules/SightlineRecordingBuilder.h"
@@ -244,6 +247,256 @@ namespace {
         MsgCurrentSnapShot facadeSnapOut {};
         ASSERT_TRUE(SightlineProtocolParser::parseSnapShot(snapPkt, facadeSnapOut));
         EXPECT_EQ(facadeSnapOut.fileName, "snap001.jpg");
+    }
+
+    /// @brief Verify camera switch command serialization and parsing.
+    TEST(TestSightlineVideoPipeline, BuildAndParseCameraSwitch)
+    {
+        MsgCameraSwitch msg {};
+        msg.cameraIndex = 2U;
+        msg.switchType = 1U; // Smooth dissolve
+        msg.flags = 0x05U;
+
+        const auto pkt = SightlineCaptureBuilder::buildCameraSwitch(msg);
+        EXPECT_EQ(SightlineFraming::identifyMessage(pkt), MessageId::CameraSwitch);
+        EXPECT_EQ(pkt, SightlineProtocolBuilder::buildCameraSwitch(msg));
+
+        MsgCameraSwitch out {};
+        ASSERT_TRUE(SightlineCaptureParser::parseCameraSwitch(pkt, out));
+        EXPECT_EQ(out.cameraIndex, 2U);
+        EXPECT_EQ(out.switchType, 1U);
+        EXPECT_EQ(out.flags, 0x05U);
+
+        MsgCameraSwitch facadeOut {};
+        ASSERT_TRUE(SightlineProtocolParser::parseCameraSwitch(pkt, facadeOut));
+        EXPECT_EQ(facadeOut.switchType, 1U);
+    }
+
+    /// @brief Verify advanced capture parameters serialization, parsing, and query.
+    TEST(TestSightlineVideoPipeline, BuildAndParseAdvCapture)
+    {
+        MsgAdvancedCaptureParameters msg {};
+        msg.cameraIndex = 1U;
+        msg.bitDepth = 12U;
+        msg.laneCount = 4U;
+        msg.pixelClockHz = 74250000U;
+        msg.syncFlags = 0x03U;
+
+        const auto pkt = SightlineCaptureBuilder::buildSetAdvCaptureParams(msg);
+        EXPECT_EQ(SightlineFraming::identifyMessage(pkt), MessageId::AdvancedCaptureParameters);
+        EXPECT_EQ(pkt, SightlineProtocolBuilder::buildSetAdvCaptureParams(msg));
+
+        MsgAdvancedCaptureParameters out {};
+        ASSERT_TRUE(SightlineCaptureParser::parseAdvCaptureParams(pkt, out));
+        EXPECT_EQ(out.cameraIndex, 1U);
+        EXPECT_EQ(out.bitDepth, 12U);
+        EXPECT_EQ(out.laneCount, 4U);
+        EXPECT_EQ(out.pixelClockHz, 74250000U);
+        EXPECT_EQ(out.syncFlags, 0x03U);
+
+        MsgAdvancedCaptureParameters facadeOut {};
+        ASSERT_TRUE(SightlineProtocolParser::parseAdvCaptureParams(pkt, facadeOut));
+        EXPECT_EQ(facadeOut.pixelClockHz, 74250000U);
+
+        const auto queryPkt = SightlineCaptureBuilder::buildGetAdvCaptureParams(1U);
+        EXPECT_EQ(SightlineFraming::identifyMessage(queryPkt), MessageId::GetParameters);
+        EXPECT_EQ(queryPkt, SightlineProtocolBuilder::buildGetAdvCaptureParams(1U));
+    }
+
+    /// @brief Verify digital video framing parser parameters serialization, parsing, and query.
+    TEST(TestSightlineVideoPipeline, BuildAndParseDigiVideoParser)
+    {
+        MsgDigitalVideoParserParameters msg {};
+        msg.cameraIndex = 0U;
+        msg.videoStandard = 2U; // BT.1120
+        msg.embeddedSync = 1U;
+        msg.clockEdge = 1U; // Falling edge
+        msg.flags = 0x08U;
+
+        const auto pkt = SightlineCaptureBuilder::buildSetDigiVideoParser(msg);
+        EXPECT_EQ(SightlineFraming::identifyMessage(pkt), MessageId::DigitalVideoParserParameters);
+        EXPECT_EQ(pkt, SightlineProtocolBuilder::buildSetDigiVideoParser(msg));
+
+        MsgDigitalVideoParserParameters out {};
+        ASSERT_TRUE(SightlineCaptureParser::parseDigiVideoParser(pkt, out));
+        EXPECT_EQ(out.cameraIndex, 0U);
+        EXPECT_EQ(out.videoStandard, 2U);
+        EXPECT_EQ(out.embeddedSync, 1U);
+        EXPECT_EQ(out.clockEdge, 1U);
+        EXPECT_EQ(out.flags, 0x08U);
+
+        MsgDigitalVideoParserParameters facadeOut {};
+        ASSERT_TRUE(SightlineProtocolParser::parseDigiVideoParser(pkt, facadeOut));
+        EXPECT_EQ(facadeOut.videoStandard, 2U);
+
+        const auto queryPkt = SightlineCaptureBuilder::buildGetDigiVideoParser(0U);
+        EXPECT_EQ(SightlineFraming::identifyMessage(queryPkt), MessageId::GetParameters);
+        EXPECT_EQ(queryPkt, SightlineProtocolBuilder::buildGetDigiVideoParser(0U));
+    }
+
+    /// @brief Verify camera sensor capabilities query and reply parsing.
+    TEST(TestSightlineVideoPipeline, BuildAndParseCameraCapabilities)
+    {
+        const auto queryPkt = SightlineCaptureBuilder::buildGetCameraCapabilities(1U);
+        EXPECT_EQ(SightlineFraming::identifyMessage(queryPkt), MessageId::GetParameters);
+        EXPECT_EQ(queryPkt, SightlineProtocolBuilder::buildGetCameraCapabilities(1U));
+
+        std::vector<std::uint8_t> payload {};
+        payload.push_back(1U); // cameraIndex
+        SightlineFraming::appendU16Le(payload, 3840U); // maxWidth
+        SightlineFraming::appendU16Le(payload, 2160U); // maxHeight
+        payload.push_back(60U); // maxFrameRate
+        payload.push_back(1U); // supportsZoom
+        payload.push_back(0x10U); // flags
+
+        const auto pkt = SightlineFraming::buildPacket(MessageId::CameraCapabilities, payload);
+
+        MsgCameraCapabilities out {};
+        ASSERT_TRUE(SightlineCaptureParser::parseCameraCapabilities(pkt, out));
+        EXPECT_EQ(out.cameraIndex, 1U);
+        EXPECT_EQ(out.maxWidth, 3840U);
+        EXPECT_EQ(out.maxHeight, 2160U);
+        EXPECT_EQ(out.maxFrameRate, 60U);
+        EXPECT_EQ(out.supportsZoom, 1U);
+        EXPECT_EQ(out.flags, 0x10U);
+
+        MsgCameraCapabilities facadeOut {};
+        ASSERT_TRUE(SightlineProtocolParser::parseCameraCapabilities(pkt, facadeOut));
+        EXPECT_EQ(facadeOut.maxWidth, 3840U);
+    }
+
+    /// @brief Verify 4-point projective homography calibration serialization, parsing, and query.
+    TEST(TestSightlineVideoPipeline, BuildAndParseFourAlignPoints)
+    {
+        MsgFourAlignPoints msg {};
+        msg.cameraIndex = 0U;
+        msg.warpIndex = 1U;
+        msg.points[0] = { 10U, 20U, 12U, 22U };
+        msg.points[1] = { 600U, 25U, 602U, 27U };
+        msg.points[2] = { 610U, 450U, 612U, 452U };
+        msg.points[3] = { 15U, 440U, 17U, 442U };
+
+        const auto pkt = SightlineBlendingBuilder::buildFourAlignPoints(msg);
+        EXPECT_EQ(SightlineFraming::identifyMessage(pkt), MessageId::FourAlignPoints);
+        EXPECT_EQ(pkt, SightlineProtocolBuilder::buildFourAlignPoints(msg));
+
+        MsgFourAlignPoints out {};
+        ASSERT_TRUE(SightlineBlendingParser::parseFourAlignPoints(pkt, out));
+        EXPECT_EQ(out.cameraIndex, 0U);
+        EXPECT_EQ(out.warpIndex, 1U);
+        EXPECT_EQ(out.points[0].warpCol, 10U);
+        EXPECT_EQ(out.points[0].warpRow, 20U);
+        EXPECT_EQ(out.points[0].fixedCol, 12U);
+        EXPECT_EQ(out.points[0].fixedRow, 22U);
+        EXPECT_EQ(out.points[2].warpCol, 610U);
+        EXPECT_EQ(out.points[2].fixedRow, 452U);
+
+        MsgFourAlignPoints facadeOut {};
+        ASSERT_TRUE(SightlineProtocolParser::parseFourAlignPoints(pkt, facadeOut));
+        EXPECT_EQ(facadeOut.points[1].warpCol, 600U);
+
+        const auto queryPkt = SightlineBlendingBuilder::buildGetFourAlignPoints(0U);
+        EXPECT_EQ(SightlineFraming::identifyMessage(queryPkt), MessageId::GetParameters);
+        EXPECT_EQ(queryPkt, SightlineProtocolBuilder::buildGetFourAlignPoints(0U));
+    }
+
+    /// @brief Verify fine-tune blend alignment serialization, parsing, and query.
+    TEST(TestSightlineVideoPipeline, BuildAndParseBlendAlign)
+    {
+        MsgBlendAlign msg {};
+        msg.cameraIndex = 1U;
+        msg.mode = 1U; // Feature-based auto
+        msg.offsetX = -15;
+        msg.offsetY = 8;
+        msg.rotation = 120; // 1.2 degrees
+        msg.scale = 1050U; // 1.05x
+
+        const auto pkt = SightlineBlendingBuilder::buildSetBlendAlign(msg);
+        EXPECT_EQ(SightlineFraming::identifyMessage(pkt), MessageId::BlendAlign);
+        EXPECT_EQ(pkt, SightlineProtocolBuilder::buildSetBlendAlign(msg));
+
+        MsgBlendAlign out {};
+        ASSERT_TRUE(SightlineBlendingParser::parseBlendAlign(pkt, out));
+        EXPECT_EQ(out.cameraIndex, 1U);
+        EXPECT_EQ(out.mode, 1U);
+        EXPECT_EQ(out.offsetX, -15);
+        EXPECT_EQ(out.offsetY, 8);
+        EXPECT_EQ(out.rotation, 120);
+        EXPECT_EQ(out.scale, 1050U);
+
+        MsgBlendAlign facadeOut {};
+        ASSERT_TRUE(SightlineProtocolParser::parseBlendAlign(pkt, facadeOut));
+        EXPECT_EQ(facadeOut.scale, 1050U);
+
+        const auto queryPkt = SightlineBlendingBuilder::buildGetBlendAlign(1U);
+        EXPECT_EQ(SightlineFraming::identifyMessage(queryPkt), MessageId::GetParameters);
+        EXPECT_EQ(queryPkt, SightlineProtocolBuilder::buildGetBlendAlign(1U));
+    }
+
+    /// @brief Verify video display routing serialization, parsing, and query.
+    TEST(TestSightlineVideoPipeline, BuildAndParseVideoDisplay)
+    {
+        MsgVideoDisplay msg {};
+        msg.displayIndex = 0U;
+        msg.cameraIndex = 1U;
+        msg.aspectRatio = 2U; // 16:9
+        msg.rotation = 1U; // 90 deg
+        msg.mirror = 0U;
+
+        const auto pkt = SightlineDisplayBuilder::buildSetVideoDisplay(msg);
+        EXPECT_EQ(SightlineFraming::identifyMessage(pkt), MessageId::VideoDisplay);
+        EXPECT_EQ(pkt, SightlineProtocolBuilder::buildSetVideoDisplay(msg));
+
+        MsgVideoDisplay out {};
+        ASSERT_TRUE(SightlineDisplayParser::parseVideoDisplay(pkt, out));
+        EXPECT_EQ(out.displayIndex, 0U);
+        EXPECT_EQ(out.cameraIndex, 1U);
+        EXPECT_EQ(out.aspectRatio, 2U);
+        EXPECT_EQ(out.rotation, 1U);
+        EXPECT_EQ(out.mirror, 0U);
+
+        MsgVideoDisplay facadeOut {};
+        ASSERT_TRUE(SightlineProtocolParser::parseVideoDisplay(pkt, facadeOut));
+        EXPECT_EQ(facadeOut.aspectRatio, 2U);
+
+        const auto queryPkt = SightlineDisplayBuilder::buildGetVideoDisplay(0U);
+        EXPECT_EQ(SightlineFraming::identifyMessage(queryPkt), MessageId::GetParameters);
+        EXPECT_EQ(queryPkt, SightlineProtocolBuilder::buildGetVideoDisplay(0U));
+    }
+
+    /// @brief Verify multi-display PiP split screen serialization, parsing, and query.
+    TEST(TestSightlineVideoPipeline, BuildAndParseMultiDisplay)
+    {
+        MsgMultiDisplay msg {};
+        msg.displayIndex = 0U;
+        msg.layout = 1U; // PiP
+        msg.pipCameraIndex = 2U;
+        msg.pipX = 1400U;
+        msg.pipY = 50U;
+        msg.pipWidth = 480U;
+        msg.pipHeight = 270U;
+
+        const auto pkt = SightlineDisplayBuilder::buildSetMultiDisplay(msg);
+        EXPECT_EQ(SightlineFraming::identifyMessage(pkt), MessageId::MultiDisplay);
+        EXPECT_EQ(pkt, SightlineProtocolBuilder::buildSetMultiDisplay(msg));
+
+        MsgMultiDisplay out {};
+        ASSERT_TRUE(SightlineDisplayParser::parseMultiDisplay(pkt, out));
+        EXPECT_EQ(out.displayIndex, 0U);
+        EXPECT_EQ(out.layout, 1U);
+        EXPECT_EQ(out.pipCameraIndex, 2U);
+        EXPECT_EQ(out.pipX, 1400U);
+        EXPECT_EQ(out.pipY, 50U);
+        EXPECT_EQ(out.pipWidth, 480U);
+        EXPECT_EQ(out.pipHeight, 270U);
+
+        MsgMultiDisplay facadeOut {};
+        ASSERT_TRUE(SightlineProtocolParser::parseMultiDisplay(pkt, facadeOut));
+        EXPECT_EQ(facadeOut.pipWidth, 480U);
+
+        const auto queryPkt = SightlineDisplayBuilder::buildGetMultiDisplay(0U);
+        EXPECT_EQ(SightlineFraming::identifyMessage(queryPkt), MessageId::GetParameters);
+        EXPECT_EQ(queryPkt, SightlineProtocolBuilder::buildGetMultiDisplay(0U));
     }
 
 } // namespace

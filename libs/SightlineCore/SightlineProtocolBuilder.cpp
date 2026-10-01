@@ -270,6 +270,80 @@ std::vector<std::uint8_t> SightlineProtocolBuilder::buildSetNoise3D(const MsgNoi
 }
 
 // ==============================================================================
+// 3b. Multi-Sensor Alignment & Digital Video Pipeline (Phase 3)
+// ==============================================================================
+
+std::vector<std::uint8_t> SightlineProtocolBuilder::buildFourAlignPoints(const MsgFourAlignPoints& msg)
+{
+    return SightlineBlendingBuilder::buildFourAlignPoints(msg);
+}
+
+std::vector<std::uint8_t> SightlineProtocolBuilder::buildGetFourAlignPoints(std::uint8_t cameraIndex)
+{
+    return SightlineBlendingBuilder::buildGetFourAlignPoints(cameraIndex);
+}
+
+std::vector<std::uint8_t> SightlineProtocolBuilder::buildSetBlendAlign(const MsgBlendAlign& msg)
+{
+    return SightlineBlendingBuilder::buildSetBlendAlign(msg);
+}
+
+std::vector<std::uint8_t> SightlineProtocolBuilder::buildGetBlendAlign(std::uint8_t cameraIndex)
+{
+    return SightlineBlendingBuilder::buildGetBlendAlign(cameraIndex);
+}
+
+std::vector<std::uint8_t> SightlineProtocolBuilder::buildCameraSwitch(const MsgCameraSwitch& msg)
+{
+    return SightlineCaptureBuilder::buildCameraSwitch(msg);
+}
+
+std::vector<std::uint8_t> SightlineProtocolBuilder::buildSetAdvCaptureParams(const MsgAdvancedCaptureParameters& msg)
+{
+    return SightlineCaptureBuilder::buildSetAdvCaptureParams(msg);
+}
+
+std::vector<std::uint8_t> SightlineProtocolBuilder::buildGetAdvCaptureParams(std::uint8_t cameraIndex)
+{
+    return SightlineCaptureBuilder::buildGetAdvCaptureParams(cameraIndex);
+}
+
+std::vector<std::uint8_t> SightlineProtocolBuilder::buildSetDigiVideoParser(const MsgDigitalVideoParserParameters& msg)
+{
+    return SightlineCaptureBuilder::buildSetDigiVideoParser(msg);
+}
+
+std::vector<std::uint8_t> SightlineProtocolBuilder::buildGetDigiVideoParser(std::uint8_t cameraIndex)
+{
+    return SightlineCaptureBuilder::buildGetDigiVideoParser(cameraIndex);
+}
+
+std::vector<std::uint8_t> SightlineProtocolBuilder::buildGetCameraCapabilities(std::uint8_t cameraIndex)
+{
+    return SightlineCaptureBuilder::buildGetCameraCapabilities(cameraIndex);
+}
+
+std::vector<std::uint8_t> SightlineProtocolBuilder::buildSetVideoDisplay(const MsgVideoDisplay& msg)
+{
+    return SightlineDisplayBuilder::buildSetVideoDisplay(msg);
+}
+
+std::vector<std::uint8_t> SightlineProtocolBuilder::buildGetVideoDisplay(std::uint8_t displayIndex)
+{
+    return SightlineDisplayBuilder::buildGetVideoDisplay(displayIndex);
+}
+
+std::vector<std::uint8_t> SightlineProtocolBuilder::buildSetMultiDisplay(const MsgMultiDisplay& msg)
+{
+    return SightlineDisplayBuilder::buildSetMultiDisplay(msg);
+}
+
+std::vector<std::uint8_t> SightlineProtocolBuilder::buildGetMultiDisplay(std::uint8_t displayIndex)
+{
+    return SightlineDisplayBuilder::buildGetMultiDisplay(displayIndex);
+}
+
+// ==============================================================================
 // 4. Video Pipeline, Display & Streaming Messages (Capture, Display, Network, Compression, Recording)
 // ==============================================================================
 

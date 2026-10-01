@@ -253,6 +253,78 @@ public:
     /// @return Framed binary packet.
     [[nodiscard]] static std::vector<std::uint8_t> buildSetNoise3D(const MsgNoise3D& msg);
 
+    // --- Multi-Sensor Alignment & Digital Video Pipeline (Phase 3) ---
+
+    /// @brief Encodes 4-point projective homography calibration (Message ID 0x95).
+    /// @param[in] msg Four align points parameters.
+    /// @return Framed binary packet.
+    [[nodiscard]] static std::vector<std::uint8_t> buildFourAlignPoints(const MsgFourAlignPoints& msg);
+
+    /// @brief Encodes query for 4-point projective calibration (Message ID 0x28 query 0x95).
+    /// @param[in] cameraIndex Target camera index.
+    /// @return Framed binary packet.
+    [[nodiscard]] static std::vector<std::uint8_t> buildGetFourAlignPoints(std::uint8_t cameraIndex = 0U);
+
+    /// @brief Encodes fine-tune alignment offsets and automated registration (Message ID 0xB9).
+    /// @param[in] msg Blend align parameters.
+    /// @return Framed binary packet.
+    [[nodiscard]] static std::vector<std::uint8_t> buildSetBlendAlign(const MsgBlendAlign& msg);
+
+    /// @brief Encodes query for blend alignment parameters (Message ID 0x28 query 0xB9).
+    /// @param[in] cameraIndex Target camera index.
+    /// @return Framed binary packet.
+    [[nodiscard]] static std::vector<std::uint8_t> buildGetBlendAlign(std::uint8_t cameraIndex = 0U);
+
+    /// @brief Encodes camera input channel switch (Message ID 0x82).
+    /// @param[in] msg Camera switch parameters.
+    /// @return Framed binary packet.
+    [[nodiscard]] static std::vector<std::uint8_t> buildCameraSwitch(const MsgCameraSwitch& msg);
+
+    /// @brief Encodes advanced capture deserializer hardware registers (Message ID 0x7B).
+    /// @param[in] msg Advanced capture parameters.
+    /// @return Framed binary packet.
+    [[nodiscard]] static std::vector<std::uint8_t> buildSetAdvCaptureParams(const MsgAdvancedCaptureParameters& msg);
+
+    /// @brief Encodes query for advanced capture parameters (Message ID 0x28 query 0x7B).
+    /// @param[in] cameraIndex Target camera index.
+    /// @return Framed binary packet.
+    [[nodiscard]] static std::vector<std::uint8_t> buildGetAdvCaptureParams(std::uint8_t cameraIndex = 0U);
+
+    /// @brief Encodes digital video framing decoder parameters (Message ID 0x91).
+    /// @param[in] msg Digital video parser parameters.
+    /// @return Framed binary packet.
+    [[nodiscard]] static std::vector<std::uint8_t> buildSetDigiVideoParser(const MsgDigitalVideoParserParameters& msg);
+
+    /// @brief Encodes query for digital video parser parameters (Message ID 0x28 query 0x91).
+    /// @param[in] cameraIndex Target camera index.
+    /// @return Framed binary packet.
+    [[nodiscard]] static std::vector<std::uint8_t> buildGetDigiVideoParser(std::uint8_t cameraIndex = 0U);
+
+    /// @brief Encodes query for camera sensor capabilities (Message ID 0x28 query 0xBB).
+    /// @param[in] cameraIndex Target camera index.
+    /// @return Framed binary packet.
+    [[nodiscard]] static std::vector<std::uint8_t> buildGetCameraCapabilities(std::uint8_t cameraIndex = 0U);
+
+    /// @brief Encodes multi-channel video display routing and aspect ratio (Message ID 0xA4).
+    /// @param[in] msg Video display parameters.
+    /// @return Framed binary packet.
+    [[nodiscard]] static std::vector<std::uint8_t> buildSetVideoDisplay(const MsgVideoDisplay& msg);
+
+    /// @brief Encodes query for video display routing (Message ID 0x28 query 0xA4).
+    /// @param[in] displayIndex Target display index.
+    /// @return Framed binary packet.
+    [[nodiscard]] static std::vector<std::uint8_t> buildGetVideoDisplay(std::uint8_t displayIndex = 0U);
+
+    /// @brief Encodes multi-display split screen and PiP window routing (Message ID 0xA5).
+    /// @param[in] msg Multi-display parameters.
+    /// @return Framed binary packet.
+    [[nodiscard]] static std::vector<std::uint8_t> buildSetMultiDisplay(const MsgMultiDisplay& msg);
+
+    /// @brief Encodes query for multi-display configuration (Message ID 0x28 query 0xA5).
+    /// @param[in] displayIndex Target display index.
+    /// @return Framed binary packet.
+    [[nodiscard]] static std::vector<std::uint8_t> buildGetMultiDisplay(std::uint8_t displayIndex = 0U);
+
     // --- Video & Display Pipeline ---
 
     /// @brief Encodes video capture format (Message ID 0x10).

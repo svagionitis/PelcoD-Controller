@@ -203,6 +203,35 @@ public:
     /// @brief Parses classifier execution bounds and threshold parameters (Message ID 0xA9).
     [[nodiscard]] static bool parseClassifierParams(ByteView packet, MsgClassifierParameters& out);
 
+    // --- Multi-Sensor Alignment & Digital Video Pipeline (Phase 3) ---
+
+    /// @brief Parses active blending parameters (Message ID 0x4D / 0x2F).
+    [[nodiscard]] static bool parseBlendParameters(ByteView packet, MsgSetBlendParameters& out);
+
+    /// @brief Parses 4-point projective homography points (Message ID 0x95).
+    [[nodiscard]] static bool parseFourAlignPoints(ByteView packet, MsgFourAlignPoints& out);
+
+    /// @brief Parses blend alignment offsets and registration mode (Message ID 0xB9).
+    [[nodiscard]] static bool parseBlendAlign(ByteView packet, MsgBlendAlign& out);
+
+    /// @brief Parses camera switch command / status (Message ID 0x82).
+    [[nodiscard]] static bool parseCameraSwitch(ByteView packet, MsgCameraSwitch& out);
+
+    /// @brief Parses advanced capture deserializer hardware parameters (Message ID 0x7B).
+    [[nodiscard]] static bool parseAdvCaptureParams(ByteView packet, MsgAdvancedCaptureParameters& out);
+
+    /// @brief Parses digital video framing decoder parameters (Message ID 0x91).
+    [[nodiscard]] static bool parseDigiVideoParser(ByteView packet, MsgDigitalVideoParserParameters& out);
+
+    /// @brief Parses camera hardware capabilities and limits (Message ID 0xBB).
+    [[nodiscard]] static bool parseCameraCapabilities(ByteView packet, MsgCameraCapabilities& out);
+
+    /// @brief Parses multi-channel video display routing and aspect ratio (Message ID 0xA4).
+    [[nodiscard]] static bool parseVideoDisplay(ByteView packet, MsgVideoDisplay& out);
+
+    /// @brief Parses multi-display split screen and PiP window routing (Message ID 0xA5).
+    [[nodiscard]] static bool parseMultiDisplay(ByteView packet, MsgMultiDisplay& out);
+
 private:
     [[nodiscard]] static std::size_t getHeaderLength(ByteView packet) noexcept;
 };
