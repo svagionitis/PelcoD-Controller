@@ -7,6 +7,7 @@
 #include <SightlineCore/SightlineProtocolParser.h>
 
 #include <QDateTime>
+#include <algorithm>
 
 SightlineQmlBridge::SightlineQmlBridge(QObject* parent)
     : QObject(parent)
@@ -259,13 +260,27 @@ bool SightlineQmlBridge::setVideoParams(int cam, int format, int width, int heig
     if (!isConnected()) {
         return false;
     }
+    static_cast<void>(format);
+    static_cast<void>(fps);
+
     Sightline::MsgSetVideoParameters msg {};
     msg.cameraIndex = static_cast<std::uint8_t>(cam);
-    msg.inputFormat = static_cast<std::uint8_t>(format);
-    msg.width = static_cast<std::uint16_t>(width);
-    msg.height = static_cast<std::uint16_t>(height);
-    msg.frameRate = static_cast<std::uint8_t>(fps);
-    return m_device->device()->setVideoParams(msg);
+    msg.autoChop = 0U;
+    msg.deinterlace = 1U;
+    msg.autoReset = 1U;
+    bool success { m_device->device()->setVideoParams(msg) };
+
+    if (width > 0 && height > 0) {
+        Sightline::MsgSetDisplayParameters dispMsg {};
+        dispMsg.displayIndex = 0U;
+        dispMsg.cameraIndex = static_cast<std::uint8_t>(cam);
+        dispMsg.displayWidth = static_cast<std::uint16_t>(width);
+        dispMsg.displayHeight = static_cast<std::uint16_t>(height);
+        const bool okDisplay { m_device->device()->setDisplayParams(dispMsg) };
+        success = success && okDisplay;
+    }
+
+    return success;
 }
 
 bool SightlineQmlBridge::setH264Params(int stream, int bitrate, int gop, int quality, int rateCtrl)
@@ -274,11 +289,24 @@ bool SightlineQmlBridge::setH264Params(int stream, int bitrate, int gop, int qua
         return false;
     }
     Sightline::MsgSetH264Parameters msg {};
-    msg.streamIndex = static_cast<std::uint8_t>(stream);
-    msg.targetBitrateBps = static_cast<std::uint32_t>(bitrate);
-    msg.gopLength = static_cast<std::uint16_t>(gop);
-    msg.qualityLevel = static_cast<std::uint8_t>(quality);
-    msg.rateControl = static_cast<std::uint8_t>(rateCtrl);
+    // Display ID: 0x0002 for Net0 (Stream 0), 0x0080 for Net1 (Stream 1)
+    if (stream == 0) {
+        msg.displayId = 0x0002U;
+    } else if (stream == 1) {
+        msg.displayId = 0x0080U;
+    } else {
+        msg.displayId = static_cast<std::uint16_t>(stream);
+    }
+
+    const auto targetBps = (bitrate > 0 && bitrate < 100000) ? static_cast<std::uint32_t>(bitrate) * 1000U
+                                                             : static_cast<std::uint32_t>(std::max(0, bitrate));
+    msg.targetBitrateBps = targetBps;
+    msg.intraFrameInterval = static_cast<std::uint8_t>(std::clamp(gop, 0, 255));
+    // Bitrate Mode: bit 4 is VBR (0x10) if rateCtrl == 1, CBR (0x00) otherwise. Profile: High (0x02).
+    const std::uint8_t vbrBit = (rateCtrl == 1) ? 0x10U : 0x00U;
+    msg.flags = static_cast<std::uint8_t>(vbrBit | 0x02U);
+    msg.minQp = 0U;
+    msg.maxQp = static_cast<std::uint8_t>(std::clamp(quality, 0, 51));
     return m_device->device()->setH264Params(msg);
 }
 
@@ -309,10 +337,13 @@ bool SightlineQmlBridge::setBlendParams(int cam1, int cam2, int mode, int alpha)
         return false;
     }
     Sightline::MsgSetBlendParameters msg {};
-    msg.primaryCamera = static_cast<std::uint8_t>(cam1);
-    msg.secondaryCamera = static_cast<std::uint8_t>(cam2);
-    msg.blendMode = static_cast<std::uint8_t>(mode);
-    msg.alphaPercent = static_cast<std::uint8_t>(alpha);
+    msg.warpIndex = static_cast<std::uint8_t>(cam1);
+    msg.fixedIndex = static_cast<std::uint8_t>(cam2);
+    // Sightline blend mode is 1-based (1: Frame, 2: Thermal, 3: Night, 4: Color).
+    const auto blendMode = (mode >= 1 && mode <= 4) ? static_cast<std::uint8_t>(mode)
+                                                    : static_cast<std::uint8_t>(std::clamp(mode + 1, 1, 4));
+    msg.mode = blendMode;
+    msg.amt = static_cast<std::uint8_t>(std::clamp(alpha, 0, 255));
     return m_device->device()->setBlend(msg);
 }
 
