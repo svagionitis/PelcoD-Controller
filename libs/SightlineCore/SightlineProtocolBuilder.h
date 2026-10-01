@@ -644,6 +644,44 @@ public:
     /// @brief Encodes query for tracking trails (Message ID 0x28 query 0x9D).
     [[nodiscard]] static std::vector<std::uint8_t> buildGetTrackTrails(std::uint8_t cameraIndex = 0U);
 
+    // --- Low-Level Bus, I2C, & Telemetry Tags (Phase 4) ---
+
+    /// @brief Encodes master I2C read/write transaction (Message ID 0x94).
+    [[nodiscard]] static std::vector<std::uint8_t> buildI2CCommand(const MsgI2CCommand& msg);
+
+    /// @brief Encodes set system value register (Message ID 0x92).
+    [[nodiscard]] static std::vector<std::uint8_t> buildSetSystemValue(const MsgSystemValue& msg);
+
+    /// @brief Encodes query for system value register (Message ID 0x28 query 0x92).
+    [[nodiscard]] static std::vector<std::uint8_t> buildGetSystemValue(std::uint8_t systemValueId);
+
+    /// @brief Encodes custom binary tag data frame (Message ID 0x96).
+    [[nodiscard]] static std::vector<std::uint8_t> buildTagData(const MsgTagData& msg);
+
+    /// @brief Encodes tag data broadcast decimation rate (Message ID 0x97).
+    [[nodiscard]] static std::vector<std::uint8_t> buildSetTagDataRate(const MsgTagDataRate& msg);
+
+    /// @brief Encodes query for tag data rate (Message ID 0x28 query 0x97).
+    [[nodiscard]] static std::vector<std::uint8_t> buildGetTagDataRate(std::uint16_t tagId);
+
+    /// @brief Encodes tag data source selector (Message ID 0x98).
+    [[nodiscard]] static std::vector<std::uint8_t> buildSetTagSourceSelector(const MsgTagSourceSelector& msg);
+
+    /// @brief Encodes query for tag source selector (Message ID 0x28 query 0x98).
+    [[nodiscard]] static std::vector<std::uint8_t> buildGetTagSourceSelector(std::uint16_t tagId);
+
+    /// @brief Encodes latency timing profiler packet (Message ID 0x88).
+    [[nodiscard]] static std::vector<std::uint8_t> buildDetailedTiming(const MsgDetailedTiming& msg);
+
+    /// @brief Encodes appended metadata stream configuration (Message ID 0x89).
+    [[nodiscard]] static std::vector<std::uint8_t> buildSetAppendedMetadata(const MsgAppendedMetadata& msg);
+
+    /// @brief Encodes query for appended metadata configuration (Message ID 0x28 query 0x89).
+    [[nodiscard]] static std::vector<std::uint8_t> buildGetAppendedMetadata(std::uint8_t cameraIndex = 0U);
+
+    /// @brief Encodes frame index and timestamp packet (Message ID 0x8A).
+    [[nodiscard]] static std::vector<std::uint8_t> buildFrameIndex(const MsgFrameIndex& msg);
+
     // --- Raw Transport Helper ---
 
     /// @brief Encodes arbitrary payload into a framed, CRC-checked SLA packet.

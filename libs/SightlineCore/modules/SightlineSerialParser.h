@@ -34,8 +34,13 @@ public:
     /// @param[in] packet Validated framed packet bytes.
     /// @param[out] out Deserialized GPIO structure.
     /// @return True on successful parse.
-    [[nodiscard]] static bool parseGPIO(
-        const std::vector<std::uint8_t>& packet, MsgGPIO& out);
+    [[nodiscard]] static bool parseGPIO(const std::vector<std::uint8_t>& packet, MsgGPIO& out);
+
+    /// @brief Parses master I2C response / telemetry packet (Message ID 0x94).
+    /// @param[in] packet Validated framed packet bytes or view.
+    /// @param[out] out Deserialized I2C command structure.
+    /// @return True on successful parse.
+    [[nodiscard]] static bool parseI2CCommand(ByteView packet, MsgI2CCommand& out);
 };
 
 } // namespace Sightline

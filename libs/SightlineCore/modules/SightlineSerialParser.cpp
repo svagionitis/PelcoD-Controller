@@ -24,8 +24,7 @@ bool SightlineSerialParser::parsePortConfiguration(
     return true;
 }
 
-bool SightlineSerialParser::parseCommandPassThrough(
-    const std::vector<std::uint8_t>& packet, MsgCommandPassThrough& out)
+bool SightlineSerialParser::parseCommandPassThrough(const std::vector<std::uint8_t>& packet, MsgCommandPassThrough& out)
 {
     if (SightlineFraming::identifyMessage(packet) != MessageId::CommandPassThrough) {
         return false;
@@ -41,8 +40,7 @@ bool SightlineSerialParser::parseCommandPassThrough(
     return true;
 }
 
-bool SightlineSerialParser::parseGPIO(
-    const std::vector<std::uint8_t>& packet, MsgGPIO& out)
+bool SightlineSerialParser::parseGPIO(const std::vector<std::uint8_t>& packet, MsgGPIO& out)
 {
     if (SightlineFraming::identifyMessage(packet) != MessageId::GPIO) {
         return false;
@@ -56,6 +54,30 @@ bool SightlineSerialParser::parseGPIO(
     out.pinMask = payload[0U];
     out.pinValues = payload[1U];
     out.directionMask = payload[2U];
+    return true;
+}
+
+bool SightlineSerialParser::parseI2CCommand(ByteView packet, MsgI2CCommand& out)
+{
+    if (SightlineFraming::identifyMessage(packet) != MessageId::I2CCommand) {
+        return false;
+    }
+
+    const auto payload { SightlineFraming::extractPayload(packet) };
+    if (payload.size() < 5U) {
+        return false;
+    }
+
+    out.busIndex = payload[0U];
+    out.deviceAddress = payload[1U];
+    out.subAddress = payload[2U];
+    out.writeLength = payload[3U];
+    out.readLength = payload[4U];
+    if (payload.size() > 5U) {
+        out.data.assign(payload.begin() + 5U, payload.end());
+    } else {
+        out.data.clear();
+    }
     return true;
 }
 

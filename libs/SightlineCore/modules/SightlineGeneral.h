@@ -8,6 +8,7 @@
 
 #include <cstdint>
 #include <string>
+#include <vector>
 
 namespace Sightline {
 
@@ -107,6 +108,65 @@ struct MsgCurrentConfiguration {
     std::uint8_t numVideoOutputs { 0U };
     std::uint8_t numDisplays { 1U };
     std::uint8_t hardwareType { 1U };
+};
+
+/// @struct MsgSystemValue
+/// @brief Read/write system register value (Message ID 0x92 / 0x93).
+/// @details Conforms to official Sightline SLASetSystemValue_t / SLACurrentSystemValue_t layout.
+struct MsgSystemValue {
+    std::uint8_t systemValueId { 0U }; ///< System register key identifier
+    std::uint32_t value { 0U }; ///< 32-bit register value or bitmask
+};
+
+/// @struct MsgTagData
+/// @brief Custom binary tags embedded synchronously into video frame headers (Message ID 0x96).
+/// @details Conforms to official Sightline SLATagData_t struct layout.
+struct MsgTagData {
+    std::uint16_t tagId { 0U }; ///< Tag identifier
+    std::vector<std::uint8_t> data {}; ///< Custom binary payload bytes
+};
+
+/// @struct MsgTagDataRate
+/// @brief Controls periodic broadcast rate for a specific Tag ID (Message ID 0x97).
+/// @details Conforms to official Sightline SLATagDataRate_t struct layout.
+struct MsgTagDataRate {
+    std::uint16_t tagId { 0U }; ///< Target tag identifier
+    std::uint8_t rate { 0U }; ///< Decimation rate / frequency (0 = disabled, 1 = every frame)
+};
+
+/// @struct MsgTagSourceSelector
+/// @brief Sensor/camera source channel selector for Tag data (Message ID 0x98).
+/// @details Conforms to official Sightline SLATagSourceSelector_t struct layout.
+struct MsgTagSourceSelector {
+    std::uint16_t tagId { 0U }; ///< Target tag identifier
+    std::uint8_t source { 0U }; ///< Camera / processing channel index
+};
+
+/// @struct MsgDetailedTiming
+/// @brief Frame-by-frame latency profiler telemetry (Message ID 0x88).
+/// @details Conforms to official Sightline SLADetailedTimingMessage_t struct layout.
+struct MsgDetailedTiming {
+    std::uint32_t frameNumber { 0U }; ///< Sequence frame index
+    std::uint32_t captureLatencyUs { 0U }; ///< Sensor ingestion latency in microseconds
+    std::uint32_t processLatencyUs { 0U }; ///< Video processing pipeline latency in microseconds
+    std::uint32_t transmitLatencyUs { 0U }; ///< Network / display transmit queue latency in microseconds
+};
+
+/// @struct MsgAppendedMetadata
+/// @brief Per-frame appended metadata stream configuration (Message ID 0x89).
+/// @details Conforms to official Sightline SLAAppendedMetadata_t struct layout.
+struct MsgAppendedMetadata {
+    std::uint8_t cameraIndex { 0U }; ///< Camera channel index (0..3)
+    std::uint8_t enable { 0U }; ///< 1 = Enable appended metadata, 0 = Disable
+};
+
+/// @struct MsgFrameIndex
+/// @brief Frame synchronization sequence and timestamp telemetry (Message ID 0x8A).
+/// @details Conforms to official Sightline SLAFrameIndex_t struct layout.
+struct MsgFrameIndex {
+    std::uint8_t cameraIndex { 0U }; ///< Camera channel index (0..3)
+    std::uint32_t frameIndex { 0U }; ///< Monotonic frame sequence counter
+    std::uint64_t timestampUs { 0ULL }; ///< UTC / sensor timestamp in microseconds
 };
 
 } // namespace Sightline

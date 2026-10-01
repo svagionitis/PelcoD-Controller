@@ -232,6 +232,32 @@ public:
     /// @brief Parses multi-display split screen and PiP window routing (Message ID 0xA5).
     [[nodiscard]] static bool parseMultiDisplay(ByteView packet, MsgMultiDisplay& out);
 
+    // --- Low-Level Bus, I2C, & Telemetry Tags (Phase 4) ---
+
+    /// @brief Parses master I2C response / telemetry packet (Message ID 0x94).
+    [[nodiscard]] static bool parseI2CCommand(ByteView packet, MsgI2CCommand& out);
+
+    /// @brief Parses system value register reply (Message ID 0x92 / 0x93).
+    [[nodiscard]] static bool parseSystemValue(ByteView packet, MsgSystemValue& out);
+
+    /// @brief Parses custom binary tag data frame (Message ID 0x96).
+    [[nodiscard]] static bool parseTagData(ByteView packet, MsgTagData& out);
+
+    /// @brief Parses tag data rate reply (Message ID 0x97).
+    [[nodiscard]] static bool parseTagDataRate(ByteView packet, MsgTagDataRate& out);
+
+    /// @brief Parses tag source selector reply (Message ID 0x98).
+    [[nodiscard]] static bool parseTagSourceSelector(ByteView packet, MsgTagSourceSelector& out);
+
+    /// @brief Parses detailed latency timing telemetry (Message ID 0x88).
+    [[nodiscard]] static bool parseDetailedTiming(ByteView packet, MsgDetailedTiming& out);
+
+    /// @brief Parses appended metadata configuration reply (Message ID 0x89).
+    [[nodiscard]] static bool parseAppendedMetadata(ByteView packet, MsgAppendedMetadata& out);
+
+    /// @brief Parses frame index and timestamp telemetry (Message ID 0x8A).
+    [[nodiscard]] static bool parseFrameIndex(ByteView packet, MsgFrameIndex& out);
+
 private:
     [[nodiscard]] static std::size_t getHeaderLength(ByteView packet) noexcept;
 };

@@ -38,4 +38,16 @@ struct MsgGPIO {
     std::uint8_t directionMask { 0xFFU }; // 1 = Output, 0 = Input
 };
 
+/// @struct MsgI2CCommand
+/// @brief Master I2C transaction across buses 0..3 for sensor daughterboards (Message ID 0x94).
+/// @details Conforms to official Sightline SLAI2CCommand_t struct layout.
+struct MsgI2CCommand {
+    std::uint8_t busIndex { 0U }; ///< Hardware I2C bus index (0..3)
+    std::uint8_t deviceAddress { 0U }; ///< 7-bit / 8-bit slave I2C device address
+    std::uint8_t subAddress { 0U }; ///< Register sub-address / pointer
+    std::uint8_t writeLength { 0U }; ///< Number of bytes to write
+    std::uint8_t readLength { 0U }; ///< Number of bytes to read
+    std::vector<std::uint8_t> data {}; ///< Payload buffer for write data or returned read data
+};
+
 } // namespace Sightline

@@ -703,6 +703,68 @@ std::vector<std::uint8_t> SightlineProtocolBuilder::buildGetTrackTrails(std::uin
     return SightlineTrackingBuilder::buildGetTrackTrails(cameraIndex);
 }
 
+// --- Low-Level Bus, I2C, & Telemetry Tags (Phase 4) ---
+
+std::vector<std::uint8_t> SightlineProtocolBuilder::buildI2CCommand(const MsgI2CCommand& msg)
+{
+    return SightlineSerialBuilder::buildI2CCommand(msg);
+}
+
+std::vector<std::uint8_t> SightlineProtocolBuilder::buildSetSystemValue(const MsgSystemValue& msg)
+{
+    return SightlineGeneralBuilder::buildSetSystemValue(msg);
+}
+
+std::vector<std::uint8_t> SightlineProtocolBuilder::buildGetSystemValue(std::uint8_t systemValueId)
+{
+    return SightlineGeneralBuilder::buildGetSystemValue(systemValueId);
+}
+
+std::vector<std::uint8_t> SightlineProtocolBuilder::buildTagData(const MsgTagData& msg)
+{
+    return SightlineGeneralBuilder::buildTagData(msg);
+}
+
+std::vector<std::uint8_t> SightlineProtocolBuilder::buildSetTagDataRate(const MsgTagDataRate& msg)
+{
+    return SightlineGeneralBuilder::buildSetTagDataRate(msg);
+}
+
+std::vector<std::uint8_t> SightlineProtocolBuilder::buildGetTagDataRate(std::uint16_t tagId)
+{
+    return SightlineGeneralBuilder::buildGetTagDataRate(tagId);
+}
+
+std::vector<std::uint8_t> SightlineProtocolBuilder::buildSetTagSourceSelector(const MsgTagSourceSelector& msg)
+{
+    return SightlineGeneralBuilder::buildSetTagSourceSelector(msg);
+}
+
+std::vector<std::uint8_t> SightlineProtocolBuilder::buildGetTagSourceSelector(std::uint16_t tagId)
+{
+    return SightlineGeneralBuilder::buildGetTagSourceSelector(tagId);
+}
+
+std::vector<std::uint8_t> SightlineProtocolBuilder::buildDetailedTiming(const MsgDetailedTiming& msg)
+{
+    return SightlineGeneralBuilder::buildDetailedTiming(msg);
+}
+
+std::vector<std::uint8_t> SightlineProtocolBuilder::buildSetAppendedMetadata(const MsgAppendedMetadata& msg)
+{
+    return SightlineGeneralBuilder::buildSetAppendedMetadata(msg);
+}
+
+std::vector<std::uint8_t> SightlineProtocolBuilder::buildGetAppendedMetadata(std::uint8_t cameraIndex)
+{
+    return SightlineGeneralBuilder::buildGetAppendedMetadata(cameraIndex);
+}
+
+std::vector<std::uint8_t> SightlineProtocolBuilder::buildFrameIndex(const MsgFrameIndex& msg)
+{
+    return SightlineGeneralBuilder::buildFrameIndex(msg);
+}
+
 // ==============================================================================
 // Raw Packet Assembly Engine
 // ==============================================================================

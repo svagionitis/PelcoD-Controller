@@ -267,5 +267,42 @@ namespace {
         EXPECT_EQ(facadeNetList.numInterfaces, 2U);
     }
 
+    /// @brief Verify I2C master transaction (0x94) builder and parser.
+    TEST(TestSightlinePeripherals, BuildAndParseI2CCommand)
+    {
+        MsgI2CCommand i2cIn {};
+        i2cIn.busIndex = 1U;
+        i2cIn.deviceAddress = 0x48U;
+        i2cIn.subAddress = 0x02U;
+        i2cIn.writeLength = 3U;
+        i2cIn.readLength = 2U;
+        i2cIn.data = { 0x11U, 0x22U, 0x33U };
+
+        const auto pkt = SightlineSerialBuilder::buildI2CCommand(i2cIn);
+        EXPECT_EQ(SightlineFraming::identifyMessage(pkt), MessageId::I2CCommand);
+
+        // Facade builder equivalence
+        EXPECT_EQ(pkt, SightlineProtocolBuilder::buildI2CCommand(i2cIn));
+
+        MsgI2CCommand i2cOut {};
+        ASSERT_TRUE(SightlineSerialParser::parseI2CCommand(pkt, i2cOut));
+        EXPECT_EQ(i2cOut.busIndex, 1U);
+        EXPECT_EQ(i2cOut.deviceAddress, 0x48U);
+        EXPECT_EQ(i2cOut.subAddress, 0x02U);
+        EXPECT_EQ(i2cOut.writeLength, 3U);
+        EXPECT_EQ(i2cOut.readLength, 2U);
+        ASSERT_EQ(i2cOut.data.size(), 3U);
+        EXPECT_EQ(i2cOut.data[0], 0x11U);
+        EXPECT_EQ(i2cOut.data[1], 0x22U);
+        EXPECT_EQ(i2cOut.data[2], 0x33U);
+
+        // Facade parser equivalence
+        MsgI2CCommand facadeOut {};
+        ASSERT_TRUE(SightlineProtocolParser::parseI2CCommand(pkt, facadeOut));
+        EXPECT_EQ(facadeOut.busIndex, 1U);
+        EXPECT_EQ(facadeOut.deviceAddress, 0x48U);
+        EXPECT_EQ(facadeOut.data.size(), 3U);
+    }
+
 } // namespace
 } // namespace Sightline

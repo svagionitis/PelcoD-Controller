@@ -15,6 +15,7 @@
 #include "modules/SightlineNetworkParser.h"
 #include "modules/SightlineNucParser.h"
 #include "modules/SightlineRecordingParser.h"
+#include "modules/SightlineSerialParser.h"
 #include "modules/SightlineStabilizationParser.h"
 #include "modules/SightlineTelemetryParser.h"
 #include "modules/SightlineTrackingParser.h"
@@ -303,6 +304,50 @@ bool SightlineProtocolParser::parseVideoDisplay(ByteView packet, MsgVideoDisplay
 bool SightlineProtocolParser::parseMultiDisplay(ByteView packet, MsgMultiDisplay& out)
 {
     return SightlineDisplayParser::parseMultiDisplay(packet, out);
+}
+
+// ==============================================================================
+// 7. Low-Level Bus, I2C, & Telemetry Tags Deserializers (Phase 4)
+// ==============================================================================
+
+bool SightlineProtocolParser::parseI2CCommand(ByteView packet, MsgI2CCommand& out)
+{
+    return SightlineSerialParser::parseI2CCommand(packet, out);
+}
+
+bool SightlineProtocolParser::parseSystemValue(ByteView packet, MsgSystemValue& out)
+{
+    return SightlineGeneralParser::parseSystemValue(packet, out);
+}
+
+bool SightlineProtocolParser::parseTagData(ByteView packet, MsgTagData& out)
+{
+    return SightlineGeneralParser::parseTagData(packet, out);
+}
+
+bool SightlineProtocolParser::parseTagDataRate(ByteView packet, MsgTagDataRate& out)
+{
+    return SightlineGeneralParser::parseTagDataRate(packet, out);
+}
+
+bool SightlineProtocolParser::parseTagSourceSelector(ByteView packet, MsgTagSourceSelector& out)
+{
+    return SightlineGeneralParser::parseTagSourceSelector(packet, out);
+}
+
+bool SightlineProtocolParser::parseDetailedTiming(ByteView packet, MsgDetailedTiming& out)
+{
+    return SightlineGeneralParser::parseDetailedTiming(packet, out);
+}
+
+bool SightlineProtocolParser::parseAppendedMetadata(ByteView packet, MsgAppendedMetadata& out)
+{
+    return SightlineGeneralParser::parseAppendedMetadata(packet, out);
+}
+
+bool SightlineProtocolParser::parseFrameIndex(ByteView packet, MsgFrameIndex& out)
+{
+    return SightlineGeneralParser::parseFrameIndex(packet, out);
 }
 
 } // namespace Sightline

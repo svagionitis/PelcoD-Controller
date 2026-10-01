@@ -19,30 +19,31 @@ public:
     /// @brief Encodes serial port configuration (Message ID 0x3E).
     /// @param[in] msg Port parameters.
     /// @return Framed binary packet.
-    [[nodiscard]] static std::vector<std::uint8_t> buildSetPortConfiguration(
-        const MsgSetPortConfiguration& msg);
+    [[nodiscard]] static std::vector<std::uint8_t> buildSetPortConfiguration(const MsgSetPortConfiguration& msg);
 
     /// @brief Encodes transparent pass-through data packet (Message ID 0x3D).
     /// @param[in] msg Passthrough payload.
     /// @return Framed binary packet.
-    [[nodiscard]] static std::vector<std::uint8_t> buildCommandPassThrough(
-        const MsgCommandPassThrough& msg);
+    [[nodiscard]] static std::vector<std::uint8_t> buildCommandPassThrough(const MsgCommandPassThrough& msg);
 
     /// @brief Encodes GPIO pin state and direction (Message ID 0xB6).
     /// @param[in] msg GPIO parameters.
     /// @return Framed binary packet.
-    [[nodiscard]] static std::vector<std::uint8_t> buildGPIO(
-        const MsgGPIO& msg);
+    [[nodiscard]] static std::vector<std::uint8_t> buildGPIO(const MsgGPIO& msg);
 
     /// @brief Encodes query for active port configuration (Message ID 0x3F).
     /// @param[in] port Port index (0-based).
     /// @return Framed binary packet.
-    [[nodiscard]] static std::vector<std::uint8_t> buildGetPortConfiguration(
-        std::uint8_t port = 0U);
+    [[nodiscard]] static std::vector<std::uint8_t> buildGetPortConfiguration(std::uint8_t port = 0U);
 
     /// @brief Encodes query for GPIO pin states (Message ID 0x28 query 0xB6).
     /// @return Framed binary packet.
     [[nodiscard]] static std::vector<std::uint8_t> buildGetGPIO();
+
+    /// @brief Encodes master I2C read/write transaction (Message ID 0x94).
+    /// @param[in] msg I2C command parameters and payload.
+    /// @return Framed binary packet.
+    [[nodiscard]] static std::vector<std::uint8_t> buildI2CCommand(const MsgI2CCommand& msg);
 };
 
 } // namespace Sightline

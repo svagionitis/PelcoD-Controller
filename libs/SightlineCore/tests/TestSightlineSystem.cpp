@@ -286,5 +286,163 @@ namespace {
         EXPECT_EQ(facadeOut.systemStatusBits, 0x0001U);
     }
 
+    /// @brief Verify Phase 4 Low-Level Bus & Telemetry Tags (0x92, 0x93, 0x96, 0x97, 0x98, 0x88, 0x89, 0x8A).
+    TEST(TestSightlineSystem, BuildAndParsePhase4SystemValues)
+    {
+        // 1. System Value (0x92 / 0x93)
+        MsgSystemValue valIn {};
+        valIn.systemValueId = 0x04U;
+        valIn.value = 0x12345678U;
+
+        const auto valPkt = SightlineGeneralBuilder::buildSetSystemValue(valIn);
+        EXPECT_EQ(SightlineFraming::identifyMessage(valPkt), MessageId::SetSystemValue);
+        EXPECT_EQ(valPkt, SightlineProtocolBuilder::buildSetSystemValue(valIn));
+
+        const auto getValPkt = SightlineGeneralBuilder::buildGetSystemValue(0x04U);
+        EXPECT_EQ(SightlineFraming::identifyMessage(getValPkt), MessageId::GetParameters);
+        EXPECT_EQ(getValPkt, SightlineProtocolBuilder::buildGetSystemValue(0x04U));
+
+        MsgSystemValue valOut {};
+        ASSERT_TRUE(SightlineGeneralParser::parseSystemValue(valPkt, valOut));
+        EXPECT_EQ(valOut.systemValueId, 0x04U);
+        EXPECT_EQ(valOut.value, 0x12345678U);
+
+        // Check CurrentSystemValue (0x93) parsing
+        const auto curValPkt
+            = SightlineFraming::buildPacket(MessageId::CurrentSystemValue, SightlineFraming::extractPayload(valPkt));
+        MsgSystemValue curValOut {};
+        ASSERT_TRUE(SightlineProtocolParser::parseSystemValue(curValPkt, curValOut));
+        EXPECT_EQ(curValOut.systemValueId, 0x04U);
+        EXPECT_EQ(curValOut.value, 0x12345678U);
+
+        // 2. Tag Data (0x96)
+        MsgTagData tagIn {};
+        tagIn.tagId = 0x0102U;
+        tagIn.data = { 0xAAU, 0xBBU, 0xCCU, 0xDDU };
+
+        const auto tagPkt = SightlineGeneralBuilder::buildTagData(tagIn);
+        EXPECT_EQ(SightlineFraming::identifyMessage(tagPkt), MessageId::TagData);
+        EXPECT_EQ(tagPkt, SightlineProtocolBuilder::buildTagData(tagIn));
+
+        MsgTagData tagOut {};
+        ASSERT_TRUE(SightlineGeneralParser::parseTagData(tagPkt, tagOut));
+        EXPECT_EQ(tagOut.tagId, 0x0102U);
+        ASSERT_EQ(tagOut.data.size(), 4U);
+        EXPECT_EQ(tagOut.data[0], 0xAAU);
+        EXPECT_EQ(tagOut.data[3], 0xDDU);
+
+        MsgTagData facadeTagOut {};
+        ASSERT_TRUE(SightlineProtocolParser::parseTagData(tagPkt, facadeTagOut));
+        EXPECT_EQ(facadeTagOut.tagId, 0x0102U);
+
+        // 3. Tag Data Rate (0x97)
+        MsgTagDataRate rateIn {};
+        rateIn.tagId = 0x0102U;
+        rateIn.rate = 5U;
+
+        const auto ratePkt = SightlineGeneralBuilder::buildSetTagDataRate(rateIn);
+        EXPECT_EQ(SightlineFraming::identifyMessage(ratePkt), MessageId::TagDataRate);
+        EXPECT_EQ(ratePkt, SightlineProtocolBuilder::buildSetTagDataRate(rateIn));
+
+        const auto getRatePkt = SightlineGeneralBuilder::buildGetTagDataRate(0x0102U);
+        EXPECT_EQ(SightlineFraming::identifyMessage(getRatePkt), MessageId::GetParameters);
+        EXPECT_EQ(getRatePkt, SightlineProtocolBuilder::buildGetTagDataRate(0x0102U));
+
+        MsgTagDataRate rateOut {};
+        ASSERT_TRUE(SightlineGeneralParser::parseTagDataRate(ratePkt, rateOut));
+        EXPECT_EQ(rateOut.tagId, 0x0102U);
+        EXPECT_EQ(rateOut.rate, 5U);
+
+        MsgTagDataRate facadeRateOut {};
+        ASSERT_TRUE(SightlineProtocolParser::parseTagDataRate(ratePkt, facadeRateOut));
+        EXPECT_EQ(facadeRateOut.rate, 5U);
+
+        // 4. Tag Source Selector (0x98)
+        MsgTagSourceSelector srcIn {};
+        srcIn.tagId = 0x0204U;
+        srcIn.source = 2U;
+
+        const auto srcPkt = SightlineGeneralBuilder::buildSetTagSourceSelector(srcIn);
+        EXPECT_EQ(SightlineFraming::identifyMessage(srcPkt), MessageId::TagSourceSelector);
+        EXPECT_EQ(srcPkt, SightlineProtocolBuilder::buildSetTagSourceSelector(srcIn));
+
+        const auto getSrcPkt = SightlineGeneralBuilder::buildGetTagSourceSelector(0x0204U);
+        EXPECT_EQ(SightlineFraming::identifyMessage(getSrcPkt), MessageId::GetParameters);
+        EXPECT_EQ(getSrcPkt, SightlineProtocolBuilder::buildGetTagSourceSelector(0x0204U));
+
+        MsgTagSourceSelector srcOut {};
+        ASSERT_TRUE(SightlineGeneralParser::parseTagSourceSelector(srcPkt, srcOut));
+        EXPECT_EQ(srcOut.tagId, 0x0204U);
+        EXPECT_EQ(srcOut.source, 2U);
+
+        MsgTagSourceSelector facadeSrcOut {};
+        ASSERT_TRUE(SightlineProtocolParser::parseTagSourceSelector(srcPkt, facadeSrcOut));
+        EXPECT_EQ(facadeSrcOut.source, 2U);
+
+        // 5. Detailed Timing (0x88)
+        MsgDetailedTiming timingIn {};
+        timingIn.frameNumber = 123456U;
+        timingIn.captureLatencyUs = 8300U;
+        timingIn.processLatencyUs = 12500U;
+        timingIn.transmitLatencyUs = 4200U;
+
+        const auto timingPkt = SightlineGeneralBuilder::buildDetailedTiming(timingIn);
+        EXPECT_EQ(SightlineFraming::identifyMessage(timingPkt), MessageId::DetailedTimingMessage);
+        EXPECT_EQ(timingPkt, SightlineProtocolBuilder::buildDetailedTiming(timingIn));
+
+        MsgDetailedTiming timingOut {};
+        ASSERT_TRUE(SightlineGeneralParser::parseDetailedTiming(timingPkt, timingOut));
+        EXPECT_EQ(timingOut.frameNumber, 123456U);
+        EXPECT_EQ(timingOut.captureLatencyUs, 8300U);
+        EXPECT_EQ(timingOut.processLatencyUs, 12500U);
+        EXPECT_EQ(timingOut.transmitLatencyUs, 4200U);
+
+        MsgDetailedTiming facadeTimingOut {};
+        ASSERT_TRUE(SightlineProtocolParser::parseDetailedTiming(timingPkt, facadeTimingOut));
+        EXPECT_EQ(facadeTimingOut.frameNumber, 123456U);
+
+        // 6. Appended Metadata (0x89)
+        MsgAppendedMetadata metaIn {};
+        metaIn.cameraIndex = 1U;
+        metaIn.enable = 1U;
+
+        const auto metaPkt = SightlineGeneralBuilder::buildSetAppendedMetadata(metaIn);
+        EXPECT_EQ(SightlineFraming::identifyMessage(metaPkt), MessageId::AppendedMetadata);
+        EXPECT_EQ(metaPkt, SightlineProtocolBuilder::buildSetAppendedMetadata(metaIn));
+
+        const auto getMetaPkt = SightlineGeneralBuilder::buildGetAppendedMetadata(1U);
+        EXPECT_EQ(SightlineFraming::identifyMessage(getMetaPkt), MessageId::GetParameters);
+        EXPECT_EQ(getMetaPkt, SightlineProtocolBuilder::buildGetAppendedMetadata(1U));
+
+        MsgAppendedMetadata metaOut {};
+        ASSERT_TRUE(SightlineGeneralParser::parseAppendedMetadata(metaPkt, metaOut));
+        EXPECT_EQ(metaOut.cameraIndex, 1U);
+        EXPECT_EQ(metaOut.enable, 1U);
+
+        MsgAppendedMetadata facadeMetaOut {};
+        ASSERT_TRUE(SightlineProtocolParser::parseAppendedMetadata(metaPkt, facadeMetaOut));
+        EXPECT_EQ(facadeMetaOut.enable, 1U);
+
+        // 7. Frame Index (0x8A)
+        MsgFrameIndex frameIn {};
+        frameIn.cameraIndex = 2U;
+        frameIn.frameIndex = 987654U;
+        frameIn.timestampUs = 1696160000000000ULL;
+
+        const auto framePkt = SightlineGeneralBuilder::buildFrameIndex(frameIn);
+        EXPECT_EQ(SightlineFraming::identifyMessage(framePkt), MessageId::FrameIndex);
+        EXPECT_EQ(framePkt, SightlineProtocolBuilder::buildFrameIndex(frameIn));
+
+        MsgFrameIndex frameOut {};
+        ASSERT_TRUE(SightlineGeneralParser::parseFrameIndex(framePkt, frameOut));
+        EXPECT_EQ(frameOut.cameraIndex, 2U);
+        EXPECT_EQ(frameOut.frameIndex, 987654U);
+        EXPECT_EQ(frameOut.timestampUs, 1696160000000000ULL);
+
+        MsgFrameIndex facadeFrameOut {};
+        ASSERT_TRUE(SightlineProtocolParser::parseFrameIndex(framePkt, facadeFrameOut));
+        EXPECT_EQ(facadeFrameOut.timestampUs, 1696160000000000ULL);
+    }
+
 } // namespace
 } // namespace Sightline
