@@ -4,7 +4,9 @@
 #include "SightlineProtocolParser.h"
 #include "SightlineFraming.h"
 #include "modules/SightlineCaptureParser.h"
+#include "modules/SightlineClassificationParser.h"
 #include "modules/SightlineCompressionParser.h"
+#include "modules/SightlineDetectionParser.h"
 #include "modules/SightlineFocusParser.h"
 #include "modules/SightlineGeneralParser.h"
 #include "modules/SightlineKlvParser.h"
@@ -186,6 +188,70 @@ bool SightlineProtocolParser::parseCameraCalibration(ByteView packet, MsgCameraC
 bool SightlineProtocolParser::parseCameraParameterFile(ByteView packet, MsgCameraParameterFile& out)
 {
     return SightlineNucParser::parseCameraParameterFile(packet, out);
+}
+
+// ==============================================================================
+// 5. VMTI & Tactical Video Analytics Deserializers (Detection & Classification)
+// ==============================================================================
+
+bool SightlineProtocolParser::parseDetectionParams(ByteView packet, MsgSetDetectionParameters& out)
+{
+    return SightlineDetectionParser::parseDetectionParams(packet, out);
+}
+
+bool SightlineProtocolParser::parseVMTI(ByteView packet, MsgSetVMTI& out)
+{
+    return SightlineDetectionParser::parseVMTI(packet, out);
+}
+
+bool SightlineProtocolParser::parseDetectionROI(ByteView packet, MsgDetectionROI& out)
+{
+    return SightlineDetectionParser::parseDetectionROI(packet, out);
+}
+
+bool SightlineProtocolParser::parseAdvDetectionParams(ByteView packet, MsgAdvancedDetectionParameters& out)
+{
+    return SightlineDetectionParser::parseAdvDetectionParams(packet, out);
+}
+
+bool SightlineProtocolParser::parseTrackingPixelStats(ByteView packet, MsgTrackingBoxPixelStats& out)
+{
+    return SightlineDetectionParser::parseTrackingPixelStats(packet, out);
+}
+
+bool SightlineProtocolParser::parseCustomAIDetect(ByteView packet, MsgCustomAIDetect& out)
+{
+    return SightlineClassificationParser::parseCustomAIDetect(packet, out);
+}
+
+bool SightlineProtocolParser::parseVMTIChips(ByteView packet, MsgVMTIChips& out)
+{
+    return SightlineClassificationParser::parseVMTIChips(packet, out);
+}
+
+bool SightlineProtocolParser::parseVMTIFields(ByteView packet, MsgVMTIFields& out)
+{
+    return SightlineClassificationParser::parseVMTIFields(packet, out);
+}
+
+bool SightlineProtocolParser::parseKlvClassFilters(ByteView packet, MsgKlvClassFilters& out)
+{
+    return SightlineClassificationParser::parseKlvClassFilters(packet, out);
+}
+
+bool SightlineProtocolParser::parseTrackingMultiClass(ByteView packet, MsgTrackingMultiClass& out)
+{
+    return SightlineClassificationParser::parseTrackingMultiClass(packet, out);
+}
+
+bool SightlineProtocolParser::parseCustomClassifier(ByteView packet, MsgCustomClassifier& out)
+{
+    return SightlineClassificationParser::parseCustomClassifier(packet, out);
+}
+
+bool SightlineProtocolParser::parseClassifierParams(ByteView packet, MsgClassifierParameters& out)
+{
+    return SightlineClassificationParser::parseClassifierParams(packet, out);
 }
 
 } // namespace Sightline

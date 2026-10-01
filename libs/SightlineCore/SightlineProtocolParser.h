@@ -165,6 +165,44 @@ public:
     /// @brief Parses camera parameter file status or reply (Message ID 0xC2).
     [[nodiscard]] static bool parseCameraParameterFile(ByteView packet, MsgCameraParameterFile& out);
 
+    // --- VMTI & Tactical Video Analytics Deserializers (Phase 2) ---
+
+    /// @brief Parses active detection parameters (Message ID 0x54 / 0x2D).
+    [[nodiscard]] static bool parseDetectionParams(ByteView packet, MsgSetDetectionParameters& out);
+
+    /// @brief Parses Video Moving Target Indication (VMTI) parameters (Message ID 0x84).
+    [[nodiscard]] static bool parseVMTI(ByteView packet, MsgSetVMTI& out);
+
+    /// @brief Parses detection region of interest (ROI) parameters (Message ID 0x7C / 0x7D).
+    [[nodiscard]] static bool parseDetectionROI(ByteView packet, MsgDetectionROI& out);
+
+    /// @brief Parses advanced detection parameters (Message ID 0x76 / 0x77).
+    [[nodiscard]] static bool parseAdvDetectionParams(ByteView packet, MsgAdvancedDetectionParameters& out);
+
+    /// @brief Parses tracking gate luminance pixel statistics (Message ID 0x78).
+    [[nodiscard]] static bool parseTrackingPixelStats(ByteView packet, MsgTrackingBoxPixelStats& out);
+
+    /// @brief Parses AI detection configuration (Message ID 0xBA).
+    [[nodiscard]] static bool parseCustomAIDetect(ByteView packet, MsgCustomAIDetect& out);
+
+    /// @brief Parses target thumbnail chip image payload (Message ID 0xAD).
+    [[nodiscard]] static bool parseVMTIChips(ByteView packet, MsgVMTIChips& out);
+
+    /// @brief Parses MISB ST 0903 VMTI field insertion mask (Message ID 0xBF).
+    [[nodiscard]] static bool parseVMTIFields(ByteView packet, MsgVMTIFields& out);
+
+    /// @brief Parses STANAG 4609 KLV target class filtering rules (Message ID 0xC1).
+    [[nodiscard]] static bool parseKlvClassFilters(ByteView packet, MsgKlvClassFilters& out);
+
+    /// @brief Parses multi-class deep learning categorization report (Message ID 0xBD).
+    [[nodiscard]] static bool parseTrackingMultiClass(ByteView packet, MsgTrackingMultiClass& out);
+
+    /// @brief Parses custom neural network classifier pipeline configuration (Message ID 0xA7).
+    [[nodiscard]] static bool parseCustomClassifier(ByteView packet, MsgCustomClassifier& out);
+
+    /// @brief Parses classifier execution bounds and threshold parameters (Message ID 0xA9).
+    [[nodiscard]] static bool parseClassifierParams(ByteView packet, MsgClassifierParameters& out);
+
 private:
     [[nodiscard]] static std::size_t getHeaderLength(ByteView packet) noexcept;
 };

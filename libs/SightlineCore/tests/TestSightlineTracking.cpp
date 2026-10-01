@@ -4,6 +4,10 @@
 #include "SightlineFraming.h"
 #include "SightlineProtocolBuilder.h"
 #include "SightlineProtocolParser.h"
+#include "modules/SightlineClassificationBuilder.h"
+#include "modules/SightlineClassificationParser.h"
+#include "modules/SightlineDetectionBuilder.h"
+#include "modules/SightlineDetectionParser.h"
 #include "modules/SightlineTrackingBuilder.h"
 #include "modules/SightlineTrackingParser.h"
 
@@ -350,6 +354,323 @@ namespace {
         const auto queryPkt = SightlineTrackingBuilder::buildGetTrackTrails(0U);
         EXPECT_EQ(SightlineFraming::identifyMessage(queryPkt), MessageId::GetParameters);
         EXPECT_EQ(queryPkt, SightlineProtocolBuilder::buildGetTrackTrails(0U));
+    }
+
+    /// @brief Verify VMTI configuration builder and parser roundtrip.
+    TEST(TestSightlineTracking, BuildAndParseVMTI)
+    {
+        MsgSetVMTI msg {};
+        msg.cameraIndex = 1U;
+        msg.enable = 1U;
+        msg.sensitivity = 75U;
+        msg.minTargetArea = 16U;
+        msg.maxTargetArea = 1024U;
+        msg.mode = 2U;
+
+        const auto pkt = SightlineDetectionBuilder::buildSetVMTI(msg);
+        EXPECT_EQ(SightlineFraming::identifyMessage(pkt), MessageId::SetVMTI);
+        EXPECT_EQ(pkt, SightlineProtocolBuilder::buildSetVMTI(msg));
+
+        MsgSetVMTI out {};
+        ASSERT_TRUE(SightlineDetectionParser::parseVMTI(pkt, out));
+        EXPECT_EQ(out.cameraIndex, 1U);
+        EXPECT_EQ(out.enable, 1U);
+        EXPECT_EQ(out.sensitivity, 75U);
+        EXPECT_EQ(out.minTargetArea, 16U);
+        EXPECT_EQ(out.maxTargetArea, 1024U);
+        EXPECT_EQ(out.mode, 2U);
+
+        MsgSetVMTI facadeOut {};
+        ASSERT_TRUE(SightlineProtocolParser::parseVMTI(pkt, facadeOut));
+        EXPECT_EQ(facadeOut.sensitivity, 75U);
+
+        const auto queryPkt = SightlineDetectionBuilder::buildGetVMTI(1U);
+        EXPECT_EQ(SightlineFraming::identifyMessage(queryPkt), MessageId::GetParameters);
+        EXPECT_EQ(queryPkt, SightlineProtocolBuilder::buildGetVMTI(1U));
+    }
+
+    /// @brief Verify detection ROI builder and parser roundtrip.
+    TEST(TestSightlineTracking, BuildAndParseDetectionROI)
+    {
+        MsgDetectionROI msg {};
+        msg.cameraIndex = 0U;
+        msg.roiIndex = 2U;
+        msg.roiType = 1U; // Exclusion
+        msg.left = 100U;
+        msg.top = 200U;
+        msg.width = 400U;
+        msg.height = 300U;
+
+        const auto pkt = SightlineDetectionBuilder::buildSetDetectionROI(msg);
+        EXPECT_EQ(SightlineFraming::identifyMessage(pkt), MessageId::SetDetectionRegionOfInterestParameters);
+        EXPECT_EQ(pkt, SightlineProtocolBuilder::buildSetDetectionROI(msg));
+
+        MsgDetectionROI out {};
+        ASSERT_TRUE(SightlineDetectionParser::parseDetectionROI(pkt, out));
+        EXPECT_EQ(out.cameraIndex, 0U);
+        EXPECT_EQ(out.roiIndex, 2U);
+        EXPECT_EQ(out.roiType, 1U);
+        EXPECT_EQ(out.left, 100U);
+        EXPECT_EQ(out.top, 200U);
+        EXPECT_EQ(out.width, 400U);
+        EXPECT_EQ(out.height, 300U);
+
+        MsgDetectionROI facadeOut {};
+        ASSERT_TRUE(SightlineProtocolParser::parseDetectionROI(pkt, facadeOut));
+        EXPECT_EQ(facadeOut.width, 400U);
+
+        const auto queryPkt = SightlineDetectionBuilder::buildGetDetectionROI(0U, 2U);
+        EXPECT_EQ(SightlineFraming::identifyMessage(queryPkt), MessageId::GetParameters);
+        EXPECT_EQ(queryPkt, SightlineProtocolBuilder::buildGetDetectionROI(0U, 2U));
+    }
+
+    /// @brief Verify advanced detection parameters roundtrip.
+    TEST(TestSightlineTracking, BuildAndParseAdvDetection)
+    {
+        MsgAdvancedDetectionParameters msg {};
+        msg.cameraIndex = 1U;
+        msg.minVelocity = 50U;
+        msg.maxVelocity = 5000U;
+        msg.persistenceFrames = 5U;
+        msg.mergeDistance = 25U;
+
+        const auto pkt = SightlineDetectionBuilder::buildSetAdvDetectionParams(msg);
+        EXPECT_EQ(SightlineFraming::identifyMessage(pkt), MessageId::SetAdvancedDetectionParameters);
+        EXPECT_EQ(pkt, SightlineProtocolBuilder::buildSetAdvDetectionParams(msg));
+
+        MsgAdvancedDetectionParameters out {};
+        ASSERT_TRUE(SightlineDetectionParser::parseAdvDetectionParams(pkt, out));
+        EXPECT_EQ(out.cameraIndex, 1U);
+        EXPECT_EQ(out.minVelocity, 50U);
+        EXPECT_EQ(out.maxVelocity, 5000U);
+        EXPECT_EQ(out.persistenceFrames, 5U);
+        EXPECT_EQ(out.mergeDistance, 25U);
+
+        MsgAdvancedDetectionParameters facadeOut {};
+        ASSERT_TRUE(SightlineProtocolParser::parseAdvDetectionParams(pkt, facadeOut));
+        EXPECT_EQ(facadeOut.maxVelocity, 5000U);
+
+        const auto queryPkt = SightlineDetectionBuilder::buildGetAdvDetectionParams(1U);
+        EXPECT_EQ(SightlineFraming::identifyMessage(queryPkt), MessageId::GetParameters);
+        EXPECT_EQ(queryPkt, SightlineProtocolBuilder::buildGetAdvDetectionParams(1U));
+    }
+
+    /// @brief Verify tracking gate pixel statistics parser and query builder.
+    TEST(TestSightlineTracking, BuildAndParseTrackingPixelStats)
+    {
+        std::vector<std::uint8_t> payload {};
+        payload.push_back(0U); // cameraIndex
+        payload.push_back(3U); // trackId
+        SightlineFraming::appendU16Le(payload, 32768U); // meanIntensity
+        SightlineFraming::appendU16Le(payload, 1024U); // stdDevIntensity
+        payload.push_back(10U); // minIntensity
+        payload.push_back(250U); // maxIntensity
+
+        const auto pkt = SightlineFraming::buildPacket(MessageId::TrackingBoxPixelStats, payload);
+
+        MsgTrackingBoxPixelStats out {};
+        ASSERT_TRUE(SightlineDetectionParser::parseTrackingPixelStats(pkt, out));
+        EXPECT_EQ(out.cameraIndex, 0U);
+        EXPECT_EQ(out.trackId, 3U);
+        EXPECT_EQ(out.meanIntensity, 32768U);
+        EXPECT_EQ(out.stdDevIntensity, 1024U);
+        EXPECT_EQ(out.minIntensity, 10U);
+        EXPECT_EQ(out.maxIntensity, 250U);
+
+        MsgTrackingBoxPixelStats facadeOut {};
+        ASSERT_TRUE(SightlineProtocolParser::parseTrackingPixelStats(pkt, facadeOut));
+        EXPECT_EQ(facadeOut.meanIntensity, 32768U);
+
+        const auto queryPkt = SightlineDetectionBuilder::buildGetTrackingPixelStats(0U, 3U);
+        EXPECT_EQ(SightlineFraming::identifyMessage(queryPkt), MessageId::GetParameters);
+        EXPECT_EQ(queryPkt, SightlineProtocolBuilder::buildGetTrackingPixelStats(0U, 3U));
+    }
+
+    /// @brief Verify automated detection snapshot command builder.
+    TEST(TestSightlineTracking, BuildDoDetectSnapShot)
+    {
+        MsgDoDetectSnapShot msg {};
+        msg.cameraIndex = 1U;
+        msg.detectionIndex = 4U;
+
+        const auto pkt = SightlineDetectionBuilder::buildDoDetectSnapShot(msg);
+        EXPECT_EQ(SightlineFraming::identifyMessage(pkt), MessageId::DoDetectSnapShot);
+        EXPECT_EQ(pkt, SightlineProtocolBuilder::buildDoDetectSnapShot(msg));
+
+        const auto payload = SightlineFraming::extractPayload(pkt);
+        ASSERT_EQ(payload.size(), 2U);
+        EXPECT_EQ(payload[0], 1U);
+        EXPECT_EQ(payload[1], 4U);
+    }
+
+    /// @brief Verify VMTI thumbnail chips builder and parser roundtrip.
+    TEST(TestSightlineTracking, BuildAndParseVMTIChips)
+    {
+        MsgVMTIChips msg {};
+        msg.cameraIndex = 0U;
+        msg.trackId = 7U;
+        msg.chipIndex = 0U;
+        msg.totalChips = 1U;
+        msg.chipWidth = 32U;
+        msg.chipHeight = 32U;
+        msg.chipData = { 0xFFU, 0xD8U, 0xFFU, 0xE0U, 0x12U, 0x34U, 0x56U, 0x78U };
+
+        const auto pkt = SightlineClassificationBuilder::buildVMTIChips(msg);
+        EXPECT_EQ(SightlineFraming::identifyMessage(pkt), MessageId::VMTIChips);
+        EXPECT_EQ(pkt, SightlineProtocolBuilder::buildVMTIChips(msg));
+
+        MsgVMTIChips out {};
+        ASSERT_TRUE(SightlineClassificationParser::parseVMTIChips(pkt, out));
+        EXPECT_EQ(out.cameraIndex, 0U);
+        EXPECT_EQ(out.trackId, 7U);
+        EXPECT_EQ(out.chipIndex, 0U);
+        EXPECT_EQ(out.totalChips, 1U);
+        EXPECT_EQ(out.chipWidth, 32U);
+        EXPECT_EQ(out.chipHeight, 32U);
+        EXPECT_EQ(out.chipData, msg.chipData);
+
+        MsgVMTIChips facadeOut {};
+        ASSERT_TRUE(SightlineProtocolParser::parseVMTIChips(pkt, facadeOut));
+        EXPECT_EQ(facadeOut.chipWidth, 32U);
+    }
+
+    /// @brief Verify VMTI fields configuration builder and parser roundtrip.
+    TEST(TestSightlineTracking, BuildAndParseVMTIFields)
+    {
+        MsgVMTIFields msg {};
+        msg.cameraIndex = 1U;
+        msg.enabledFieldsMask = 0x0000000FU;
+        msg.reportRate = 2U;
+
+        const auto pkt = SightlineClassificationBuilder::buildSetVMTIFields(msg);
+        EXPECT_EQ(SightlineFraming::identifyMessage(pkt), MessageId::VMTIFields);
+        EXPECT_EQ(pkt, SightlineProtocolBuilder::buildSetVMTIFields(msg));
+
+        MsgVMTIFields out {};
+        ASSERT_TRUE(SightlineClassificationParser::parseVMTIFields(pkt, out));
+        EXPECT_EQ(out.cameraIndex, 1U);
+        EXPECT_EQ(out.enabledFieldsMask, 0x0000000FU);
+        EXPECT_EQ(out.reportRate, 2U);
+
+        MsgVMTIFields facadeOut {};
+        ASSERT_TRUE(SightlineProtocolParser::parseVMTIFields(pkt, facadeOut));
+        EXPECT_EQ(facadeOut.reportRate, 2U);
+
+        const auto queryPkt = SightlineClassificationBuilder::buildGetVMTIFields(1U);
+        EXPECT_EQ(SightlineFraming::identifyMessage(queryPkt), MessageId::GetParameters);
+        EXPECT_EQ(queryPkt, SightlineProtocolBuilder::buildGetVMTIFields(1U));
+    }
+
+    /// @brief Verify KLV class filter rules builder and parser roundtrip.
+    TEST(TestSightlineTracking, BuildAndParseKlvClassFilters)
+    {
+        MsgKlvClassFilters msg {};
+        msg.cameraIndex = 0U;
+        msg.classMask = 0x003FU;
+        msg.minConfidence = 70U;
+
+        const auto pkt = SightlineClassificationBuilder::buildSetKlvClassFilters(msg);
+        EXPECT_EQ(SightlineFraming::identifyMessage(pkt), MessageId::KlvClassFilters);
+        EXPECT_EQ(pkt, SightlineProtocolBuilder::buildSetKlvClassFilters(msg));
+
+        MsgKlvClassFilters out {};
+        ASSERT_TRUE(SightlineClassificationParser::parseKlvClassFilters(pkt, out));
+        EXPECT_EQ(out.cameraIndex, 0U);
+        EXPECT_EQ(out.classMask, 0x003FU);
+        EXPECT_EQ(out.minConfidence, 70U);
+
+        MsgKlvClassFilters facadeOut {};
+        ASSERT_TRUE(SightlineProtocolParser::parseKlvClassFilters(pkt, facadeOut));
+        EXPECT_EQ(facadeOut.minConfidence, 70U);
+
+        const auto queryPkt = SightlineClassificationBuilder::buildGetKlvClassFilters(0U);
+        EXPECT_EQ(SightlineFraming::identifyMessage(queryPkt), MessageId::GetParameters);
+        EXPECT_EQ(queryPkt, SightlineProtocolBuilder::buildGetKlvClassFilters(0U));
+    }
+
+    /// @brief Verify multi-class tracking telemetry builder and parser roundtrip.
+    TEST(TestSightlineTracking, BuildAndParseTrackingMultiClass)
+    {
+        MsgTrackingMultiClass msg {};
+        msg.cameraIndex = 1U;
+        msg.trackId = 5U;
+        msg.primaryClass = 2U; // Person
+        msg.confidence = 88U;
+        msg.flags = 0x01U;
+
+        const auto pkt = SightlineClassificationBuilder::buildTrackingMultiClass(msg);
+        EXPECT_EQ(SightlineFraming::identifyMessage(pkt), MessageId::TrackingMultiClass);
+        EXPECT_EQ(pkt, SightlineProtocolBuilder::buildTrackingMultiClass(msg));
+
+        MsgTrackingMultiClass out {};
+        ASSERT_TRUE(SightlineClassificationParser::parseTrackingMultiClass(pkt, out));
+        EXPECT_EQ(out.cameraIndex, 1U);
+        EXPECT_EQ(out.trackId, 5U);
+        EXPECT_EQ(out.primaryClass, 2U);
+        EXPECT_EQ(out.confidence, 88U);
+        EXPECT_EQ(out.flags, 0x01U);
+
+        MsgTrackingMultiClass facadeOut {};
+        ASSERT_TRUE(SightlineProtocolParser::parseTrackingMultiClass(pkt, facadeOut));
+        EXPECT_EQ(facadeOut.confidence, 88U);
+    }
+
+    /// @brief Verify custom neural classifier builder and parser roundtrip.
+    TEST(TestSightlineTracking, BuildAndParseCustomClassifier)
+    {
+        MsgCustomClassifier msg {};
+        msg.cameraIndex = 0U;
+        msg.classifierType = 3U;
+        msg.enable = 1U;
+        msg.confidence = 65U;
+
+        const auto pkt = SightlineClassificationBuilder::buildSetCustomClassifier(msg);
+        EXPECT_EQ(SightlineFraming::identifyMessage(pkt), MessageId::CustomClassifier);
+        EXPECT_EQ(pkt, SightlineProtocolBuilder::buildSetCustomClassifier(msg));
+
+        MsgCustomClassifier out {};
+        ASSERT_TRUE(SightlineClassificationParser::parseCustomClassifier(pkt, out));
+        EXPECT_EQ(out.cameraIndex, 0U);
+        EXPECT_EQ(out.classifierType, 3U);
+        EXPECT_EQ(out.enable, 1U);
+        EXPECT_EQ(out.confidence, 65U);
+
+        MsgCustomClassifier facadeOut {};
+        ASSERT_TRUE(SightlineProtocolParser::parseCustomClassifier(pkt, facadeOut));
+        EXPECT_EQ(facadeOut.classifierType, 3U);
+
+        const auto queryPkt = SightlineClassificationBuilder::buildGetCustomClassifier(0U);
+        EXPECT_EQ(SightlineFraming::identifyMessage(queryPkt), MessageId::GetParameters);
+        EXPECT_EQ(queryPkt, SightlineProtocolBuilder::buildGetCustomClassifier(0U));
+    }
+
+    /// @brief Verify classifier parameters builder and parser roundtrip.
+    TEST(TestSightlineTracking, BuildAndParseClassifierParams)
+    {
+        MsgClassifierParameters msg {};
+        msg.cameraIndex = 1U;
+        msg.modelIndex = 2U;
+        msg.nmsThreshold = 40U;
+        msg.maxDetections = 50U;
+
+        const auto pkt = SightlineClassificationBuilder::buildSetClassifierParams(msg);
+        EXPECT_EQ(SightlineFraming::identifyMessage(pkt), MessageId::ClassifierParameters);
+        EXPECT_EQ(pkt, SightlineProtocolBuilder::buildSetClassifierParams(msg));
+
+        MsgClassifierParameters out {};
+        ASSERT_TRUE(SightlineClassificationParser::parseClassifierParams(pkt, out));
+        EXPECT_EQ(out.cameraIndex, 1U);
+        EXPECT_EQ(out.modelIndex, 2U);
+        EXPECT_EQ(out.nmsThreshold, 40U);
+        EXPECT_EQ(out.maxDetections, 50U);
+
+        MsgClassifierParameters facadeOut {};
+        ASSERT_TRUE(SightlineProtocolParser::parseClassifierParams(pkt, facadeOut));
+        EXPECT_EQ(facadeOut.maxDetections, 50U);
+
+        const auto queryPkt = SightlineClassificationBuilder::buildGetClassifierParams(1U);
+        EXPECT_EQ(SightlineFraming::identifyMessage(queryPkt), MessageId::GetParameters);
+        EXPECT_EQ(queryPkt, SightlineProtocolBuilder::buildGetClassifierParams(1U));
     }
 
 } // namespace

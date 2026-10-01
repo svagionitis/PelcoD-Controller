@@ -139,6 +139,103 @@ std::vector<std::uint8_t> SightlineProtocolBuilder::buildCustomAIDetect(const Ms
 }
 
 // ==============================================================================
+// 2b. VMTI & Tactical Video Analytics (Phase 2)
+// ==============================================================================
+
+std::vector<std::uint8_t> SightlineProtocolBuilder::buildSetVMTI(const MsgSetVMTI& msg)
+{
+    return SightlineDetectionBuilder::buildSetVMTI(msg);
+}
+
+std::vector<std::uint8_t> SightlineProtocolBuilder::buildGetVMTI(std::uint8_t cameraIndex)
+{
+    return SightlineDetectionBuilder::buildGetVMTI(cameraIndex);
+}
+
+std::vector<std::uint8_t> SightlineProtocolBuilder::buildSetDetectionROI(const MsgDetectionROI& msg)
+{
+    return SightlineDetectionBuilder::buildSetDetectionROI(msg);
+}
+
+std::vector<std::uint8_t> SightlineProtocolBuilder::buildGetDetectionROI(
+    std::uint8_t cameraIndex, std::uint8_t roiIndex)
+{
+    return SightlineDetectionBuilder::buildGetDetectionROI(cameraIndex, roiIndex);
+}
+
+std::vector<std::uint8_t> SightlineProtocolBuilder::buildSetAdvDetectionParams(
+    const MsgAdvancedDetectionParameters& msg)
+{
+    return SightlineDetectionBuilder::buildSetAdvDetectionParams(msg);
+}
+
+std::vector<std::uint8_t> SightlineProtocolBuilder::buildGetAdvDetectionParams(std::uint8_t cameraIndex)
+{
+    return SightlineDetectionBuilder::buildGetAdvDetectionParams(cameraIndex);
+}
+
+std::vector<std::uint8_t> SightlineProtocolBuilder::buildGetTrackingPixelStats(
+    std::uint8_t cameraIndex, std::uint8_t trackId)
+{
+    return SightlineDetectionBuilder::buildGetTrackingPixelStats(cameraIndex, trackId);
+}
+
+std::vector<std::uint8_t> SightlineProtocolBuilder::buildDoDetectSnapShot(const MsgDoDetectSnapShot& msg)
+{
+    return SightlineDetectionBuilder::buildDoDetectSnapShot(msg);
+}
+
+std::vector<std::uint8_t> SightlineProtocolBuilder::buildVMTIChips(const MsgVMTIChips& msg)
+{
+    return SightlineClassificationBuilder::buildVMTIChips(msg);
+}
+
+std::vector<std::uint8_t> SightlineProtocolBuilder::buildSetVMTIFields(const MsgVMTIFields& msg)
+{
+    return SightlineClassificationBuilder::buildSetVMTIFields(msg);
+}
+
+std::vector<std::uint8_t> SightlineProtocolBuilder::buildGetVMTIFields(std::uint8_t cameraIndex)
+{
+    return SightlineClassificationBuilder::buildGetVMTIFields(cameraIndex);
+}
+
+std::vector<std::uint8_t> SightlineProtocolBuilder::buildSetKlvClassFilters(const MsgKlvClassFilters& msg)
+{
+    return SightlineClassificationBuilder::buildSetKlvClassFilters(msg);
+}
+
+std::vector<std::uint8_t> SightlineProtocolBuilder::buildGetKlvClassFilters(std::uint8_t cameraIndex)
+{
+    return SightlineClassificationBuilder::buildGetKlvClassFilters(cameraIndex);
+}
+
+std::vector<std::uint8_t> SightlineProtocolBuilder::buildTrackingMultiClass(const MsgTrackingMultiClass& msg)
+{
+    return SightlineClassificationBuilder::buildTrackingMultiClass(msg);
+}
+
+std::vector<std::uint8_t> SightlineProtocolBuilder::buildSetCustomClassifier(const MsgCustomClassifier& msg)
+{
+    return SightlineClassificationBuilder::buildSetCustomClassifier(msg);
+}
+
+std::vector<std::uint8_t> SightlineProtocolBuilder::buildGetCustomClassifier(std::uint8_t cameraIndex)
+{
+    return SightlineClassificationBuilder::buildGetCustomClassifier(cameraIndex);
+}
+
+std::vector<std::uint8_t> SightlineProtocolBuilder::buildSetClassifierParams(const MsgClassifierParameters& msg)
+{
+    return SightlineClassificationBuilder::buildSetClassifierParams(msg);
+}
+
+std::vector<std::uint8_t> SightlineProtocolBuilder::buildGetClassifierParams(std::uint8_t cameraIndex)
+{
+    return SightlineClassificationBuilder::buildGetClassifierParams(cameraIndex);
+}
+
+// ==============================================================================
 // 3. Video Stabilization, Alignment & Enhancement Messages (Stabilization, Blending, Enhancement)
 // ==============================================================================
 
