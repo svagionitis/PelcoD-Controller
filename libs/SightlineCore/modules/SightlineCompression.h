@@ -32,4 +32,16 @@ struct MsgStreamingControl {
     std::uint8_t action { 1U }; // 0: Stop, 1: Start, 2: Pause
 };
 
+/// @struct MsgDecoderParameters
+/// @brief Configures hardware network video stream decoder (Message ID 0x99).
+/// @details Conforms to official Sightline SLADecoderParameters_t struct layout.
+struct MsgDecoderParameters {
+    std::uint8_t decoderIndex { 0U }; ///< Hardware decoder channel index (0..3)
+    std::uint8_t enable { 0U }; ///< 0: Disable, 1: Enable
+    std::uint8_t codec { 0U }; ///< 0: H.264, 1: H.265, 2: MJPEG
+    std::uint16_t networkPort { 15004U }; ///< Listening UDP transport port
+    std::uint16_t bufferDepthMs { 100U }; ///< De-jitter buffer latency target in ms
+    std::uint32_t multicastIp { 0U }; ///< Optional IPv4 multicast subscription address
+};
+
 } // namespace Sightline

@@ -20,15 +20,19 @@ public:
     /// @param[in] packet Validated framed packet bytes.
     /// @param[out] out Deserialized H.264 parameters.
     /// @return True on successful parse.
-    [[nodiscard]] static bool parseH264Parameters(
-        const std::vector<std::uint8_t>& packet, MsgSetH264Parameters& out);
+    [[nodiscard]] static bool parseH264Parameters(const std::vector<std::uint8_t>& packet, MsgSetH264Parameters& out);
 
     /// @brief Parses streaming control command/telemetry (Message ID 0x90).
     /// @param[in] packet Validated framed packet bytes.
     /// @param[out] out Deserialized streaming control structure.
     /// @return True on successful parse.
-    [[nodiscard]] static bool parseStreamingControl(
-        const std::vector<std::uint8_t>& packet, MsgStreamingControl& out);
+    [[nodiscard]] static bool parseStreamingControl(const std::vector<std::uint8_t>& packet, MsgStreamingControl& out);
+
+    /// @brief Parses hardware video decoder parameters (Message ID 0x99).
+    /// @param[in] packet Validated framed packet bytes or view.
+    /// @param[out] out Deserialized decoder configuration.
+    /// @return True on successful parse.
+    [[nodiscard]] static bool parseDecoderParameters(ByteView packet, MsgDecoderParameters& out);
 };
 
 } // namespace Sightline

@@ -20,26 +20,42 @@ public:
     /// @brief Encodes overlay display mode configuration (Message ID 0x06).
     /// @param[in] msg Overlay mode settings.
     /// @return Framed binary packet.
-    [[nodiscard]] static std::vector<std::uint8_t> buildSetOverlayMode(
-        const MsgSetOverlayMode& msg);
+    [[nodiscard]] static std::vector<std::uint8_t> buildSetOverlayMode(const MsgSetOverlayMode& msg);
 
     /// @brief Encodes single custom graphic object command (Message ID 0x3B).
     /// @param[in] msg Graphic object parameters.
     /// @return Framed binary packet.
-    [[nodiscard]] static std::vector<std::uint8_t> buildDrawObject(
-        const MsgDrawObject& msg);
+    [[nodiscard]] static std::vector<std::uint8_t> buildDrawObject(const MsgDrawObject& msg);
 
     /// @brief Encodes multiple graphic primitives update (Message ID 0x9C).
     /// @param[in] msg Draw overlay parameters.
     /// @return Framed binary packet.
-    [[nodiscard]] static std::vector<std::uint8_t> buildDrawOverlay(
-        const MsgDrawOverlay& msg);
+    [[nodiscard]] static std::vector<std::uint8_t> buildDrawOverlay(const MsgDrawOverlay& msg);
 
     /// @brief Encodes query for active overlay mode (Message ID 0x07).
     /// @param[in] cameraIndex Target camera index (0-based).
     /// @return Framed binary packet.
-    [[nodiscard]] static std::vector<std::uint8_t> buildGetOverlayMode(
-        std::uint8_t cameraIndex = 0U);
+    [[nodiscard]] static std::vector<std::uint8_t> buildGetOverlayMode(std::uint8_t cameraIndex = 0U);
+
+    /// @brief Encodes logo watermark configuration (Message ID 0x9B).
+    /// @param[in] msg Logo display parameters.
+    /// @return Framed binary packet.
+    [[nodiscard]] static std::vector<std::uint8_t> buildSetLogoParameters(const MsgLogoParameters& msg);
+
+    /// @brief Encodes query for logo watermark configuration (Message ID 0x28 query 0x9B).
+    /// @param[in] displayIndex Target display index (0-based).
+    /// @return Framed binary packet.
+    [[nodiscard]] static std::vector<std::uint8_t> buildGetLogoParameters(std::uint8_t displayIndex = 0U);
+
+    /// @brief Encodes dynamic ancillary text metadata / subtitle overlay (Message ID 0xAC).
+    /// @param[in] msg Dynamic text overlay settings.
+    /// @return Framed binary packet.
+    [[nodiscard]] static std::vector<std::uint8_t> buildAncillaryTextMetadata(const MsgAncillaryTextMetadata& msg);
+
+    /// @brief Encodes custom raster font glyph table upload (Message ID 0xAE).
+    /// @param[in] msg User font parameters and bitmap glyph data.
+    /// @return Framed binary packet.
+    [[nodiscard]] static std::vector<std::uint8_t> buildUserFont(const MsgUserFont& msg);
 };
 
 } // namespace Sightline

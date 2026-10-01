@@ -81,4 +81,24 @@ bool SightlineSerialParser::parseI2CCommand(ByteView packet, MsgI2CCommand& out)
     return true;
 }
 
+bool SightlineSerialParser::parseSendToBTS(ByteView packet, MsgSendToBTS& out)
+{
+    if (SightlineFraming::identifyMessage(packet) != MessageId::SendToBTS) {
+        return false;
+    }
+
+    const auto payload { SightlineFraming::extractPayload(packet) };
+    if (payload.empty()) {
+        return false;
+    }
+
+    out.btsPort = payload[0U];
+    if (payload.size() > 1U) {
+        out.data.assign(payload.begin() + 1U, payload.end());
+    } else {
+        out.data.clear();
+    }
+    return true;
+}
+
 } // namespace Sightline

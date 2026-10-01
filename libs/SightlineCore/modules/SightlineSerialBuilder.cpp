@@ -56,4 +56,13 @@ std::vector<std::uint8_t> SightlineSerialBuilder::buildI2CCommand(const MsgI2CCo
     return SightlineFraming::buildPacket(MessageId::I2CCommand, payload);
 }
 
+std::vector<std::uint8_t> SightlineSerialBuilder::buildSendToBTS(const MsgSendToBTS& msg)
+{
+    std::vector<std::uint8_t> payload {};
+    payload.reserve(1U + msg.data.size());
+    payload.push_back(msg.btsPort);
+    payload.insert(payload.end(), msg.data.begin(), msg.data.end());
+    return SightlineFraming::buildPacket(MessageId::SendToBTS, payload);
+}
+
 } // namespace Sightline

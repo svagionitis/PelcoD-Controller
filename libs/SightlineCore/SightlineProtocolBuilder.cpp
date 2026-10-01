@@ -766,6 +766,55 @@ std::vector<std::uint8_t> SightlineProtocolBuilder::buildFrameIndex(const MsgFra
 }
 
 // ==============================================================================
+// Autonomous Landing Aid & Graphics (Phase 5)
+// ==============================================================================
+
+std::vector<std::uint8_t> SightlineProtocolBuilder::buildLandingAid(const MsgLandingAid& msg)
+{
+    return SightlineLandingBuilder::buildLandingAid(msg);
+}
+
+std::vector<std::uint8_t> SightlineProtocolBuilder::buildLandingPosition(const MsgLandingPosition& msg)
+{
+    return SightlineLandingBuilder::buildLandingPosition(msg);
+}
+
+std::vector<std::uint8_t> SightlineProtocolBuilder::buildSetLogoParameters(const MsgLogoParameters& msg)
+{
+    return SightlineOverlayBuilder::buildSetLogoParameters(msg);
+}
+
+std::vector<std::uint8_t> SightlineProtocolBuilder::buildGetLogoParameters(std::uint8_t displayIndex)
+{
+    return SightlineOverlayBuilder::buildGetLogoParameters(displayIndex);
+}
+
+std::vector<std::uint8_t> SightlineProtocolBuilder::buildAncillaryTextMetadata(const MsgAncillaryTextMetadata& msg)
+{
+    return SightlineOverlayBuilder::buildAncillaryTextMetadata(msg);
+}
+
+std::vector<std::uint8_t> SightlineProtocolBuilder::buildUserFont(const MsgUserFont& msg)
+{
+    return SightlineOverlayBuilder::buildUserFont(msg);
+}
+
+std::vector<std::uint8_t> SightlineProtocolBuilder::buildSetDecoderParameters(const MsgDecoderParameters& msg)
+{
+    return SightlineCompressionBuilder::buildSetDecoderParameters(msg);
+}
+
+std::vector<std::uint8_t> SightlineProtocolBuilder::buildGetDecoderParameters(std::uint8_t decoderIndex)
+{
+    return SightlineCompressionBuilder::buildGetDecoderParameters(decoderIndex);
+}
+
+std::vector<std::uint8_t> SightlineProtocolBuilder::buildSendToBTS(const MsgSendToBTS& msg)
+{
+    return SightlineSerialBuilder::buildSendToBTS(msg);
+}
+
+// ==============================================================================
 // Raw Packet Assembly Engine
 // ==============================================================================
 

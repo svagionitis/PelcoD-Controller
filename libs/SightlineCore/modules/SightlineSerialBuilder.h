@@ -44,6 +44,11 @@ public:
     /// @param[in] msg I2C command parameters and payload.
     /// @return Framed binary packet.
     [[nodiscard]] static std::vector<std::uint8_t> buildI2CCommand(const MsgI2CCommand& msg);
+
+    /// @brief Encodes transparent packet forwarding to Base Transceiver Station (Message ID 0xBE).
+    /// @param[in] msg BTS target port and raw payload.
+    /// @return Framed binary packet.
+    [[nodiscard]] static std::vector<std::uint8_t> buildSendToBTS(const MsgSendToBTS& msg);
 };
 
 } // namespace Sightline

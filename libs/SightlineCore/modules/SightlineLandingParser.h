@@ -17,18 +17,16 @@ namespace Sightline {
 class SightlineLandingParser {
 public:
     /// @brief Parses landing aid configuration parameters (Message ID 0x81).
-    /// @param[in] packet Validated framed packet bytes.
+    /// @param[in] packet Validated framed packet bytes or view.
     /// @param[out] out Deserialized landing aid structure.
     /// @return True on successful parse.
-    [[nodiscard]] static bool parseLandingAid(
-        const std::vector<std::uint8_t>& packet, MsgLandingAid& out);
+    [[nodiscard]] static bool parseLandingAid(ByteView packet, MsgLandingAid& out);
 
     /// @brief Parses landing target relative coordinates and orientation (Message ID 0x83).
-    /// @param[in] packet Validated framed packet bytes.
+    /// @param[in] packet Validated framed packet bytes or view.
     /// @param[out] out Deserialized landing position structure.
     /// @return True on successful parse.
-    [[nodiscard]] static bool parseLandingPosition(
-        const std::vector<std::uint8_t>& packet, MsgLandingPosition& out);
+    [[nodiscard]] static bool parseLandingPosition(ByteView packet, MsgLandingPosition& out);
 };
 
 } // namespace Sightline

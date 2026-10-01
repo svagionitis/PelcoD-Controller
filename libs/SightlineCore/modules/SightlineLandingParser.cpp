@@ -5,8 +5,7 @@
 
 namespace Sightline {
 
-bool SightlineLandingParser::parseLandingAid(
-    const std::vector<std::uint8_t>& packet, MsgLandingAid& out)
+bool SightlineLandingParser::parseLandingAid(ByteView packet, MsgLandingAid& out)
 {
     if (SightlineFraming::identifyMessage(packet) != MessageId::LandingAid) {
         return false;
@@ -23,8 +22,7 @@ bool SightlineLandingParser::parseLandingAid(
     return true;
 }
 
-bool SightlineLandingParser::parseLandingPosition(
-    const std::vector<std::uint8_t>& packet, MsgLandingPosition& out)
+bool SightlineLandingParser::parseLandingPosition(ByteView packet, MsgLandingPosition& out)
 {
     if (SightlineFraming::identifyMessage(packet) != MessageId::LandingPosition) {
         return false;

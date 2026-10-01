@@ -4,6 +4,8 @@
 #include "SightlineFraming.h"
 #include "SightlineProtocolBuilder.h"
 #include "SightlineProtocolParser.h"
+#include "modules/SightlineCompressionBuilder.h"
+#include "modules/SightlineCompressionParser.h"
 #include "modules/SightlineLandingBuilder.h"
 #include "modules/SightlineLandingParser.h"
 #include "modules/SightlineNetworkParser.h"
@@ -302,6 +304,93 @@ namespace {
         EXPECT_EQ(facadeOut.busIndex, 1U);
         EXPECT_EQ(facadeOut.deviceAddress, 0x48U);
         EXPECT_EQ(facadeOut.data.size(), 3U);
+    }
+
+    /// @brief Verify Phase 5 hardware decoder parameters, landing facade, and BTS downlink forwarder.
+    TEST(TestSightlinePeripherals, BuildAndParsePhase5Peripherals)
+    {
+        // 1. Decoder Parameters (0x99)
+        MsgDecoderParameters decIn {};
+        decIn.decoderIndex = 1U;
+        decIn.enable = 1U;
+        decIn.codec = 1U; // H.265
+        decIn.networkPort = 15008U;
+        decIn.bufferDepthMs = 150U;
+        decIn.multicastIp = 0xE0000101U; // 224.0.1.1
+
+        const auto decPkt = SightlineCompressionBuilder::buildSetDecoderParameters(decIn);
+        EXPECT_EQ(SightlineFraming::identifyMessage(decPkt), MessageId::DecoderParameters);
+        EXPECT_EQ(decPkt, SightlineProtocolBuilder::buildSetDecoderParameters(decIn));
+
+        const auto getDecPkt = SightlineCompressionBuilder::buildGetDecoderParameters(1U);
+        EXPECT_EQ(SightlineFraming::identifyMessage(getDecPkt), MessageId::GetParameters);
+        EXPECT_EQ(getDecPkt, SightlineProtocolBuilder::buildGetDecoderParameters(1U));
+
+        MsgDecoderParameters decOut {};
+        ASSERT_TRUE(SightlineCompressionParser::parseDecoderParameters(decPkt, decOut));
+        EXPECT_EQ(decOut.decoderIndex, 1U);
+        EXPECT_EQ(decOut.enable, 1U);
+        EXPECT_EQ(decOut.codec, 1U);
+        EXPECT_EQ(decOut.networkPort, 15008U);
+        EXPECT_EQ(decOut.bufferDepthMs, 150U);
+        EXPECT_EQ(decOut.multicastIp, 0xE0000101U);
+
+        MsgDecoderParameters facadeDecOut {};
+        ASSERT_TRUE(SightlineProtocolParser::parseDecoderParameters(decPkt, facadeDecOut));
+        EXPECT_EQ(facadeDecOut.networkPort, 15008U);
+
+        // 2. SendToBTS (0xBE)
+        MsgSendToBTS btsIn {};
+        btsIn.btsPort = 2U;
+        btsIn.data = { 0xDEU, 0xADU, 0xBEU, 0xEFU, 0x01U, 0x02U };
+
+        const auto btsPkt = SightlineSerialBuilder::buildSendToBTS(btsIn);
+        EXPECT_EQ(SightlineFraming::identifyMessage(btsPkt), MessageId::SendToBTS);
+        EXPECT_EQ(btsPkt, SightlineProtocolBuilder::buildSendToBTS(btsIn));
+
+        MsgSendToBTS btsOut {};
+        ASSERT_TRUE(SightlineSerialParser::parseSendToBTS(btsPkt, btsOut));
+        EXPECT_EQ(btsOut.btsPort, 2U);
+        ASSERT_EQ(btsOut.data.size(), 6U);
+        EXPECT_EQ(btsOut.data[0], 0xDEU);
+        EXPECT_EQ(btsOut.data[3], 0xEFU);
+
+        MsgSendToBTS facadeBtsOut {};
+        ASSERT_TRUE(SightlineProtocolParser::parseSendToBTS(btsPkt, facadeBtsOut));
+        EXPECT_EQ(facadeBtsOut.btsPort, 2U);
+        EXPECT_EQ(facadeBtsOut.data.size(), 6U);
+
+        // 3. Landing Aid Facades (0x81 / 0x83)
+        MsgLandingAid aidIn {};
+        aidIn.cameraIndex = 2U;
+        aidIn.mode = 1U;
+        aidIn.patternType = 0U;
+
+        const auto aidPkt = SightlineProtocolBuilder::buildLandingAid(aidIn);
+        EXPECT_EQ(SightlineFraming::identifyMessage(aidPkt), MessageId::LandingAid);
+
+        MsgLandingAid aidOut {};
+        ASSERT_TRUE(SightlineProtocolParser::parseLandingAid(aidPkt, aidOut));
+        EXPECT_EQ(aidOut.cameraIndex, 2U);
+
+        MsgLandingPosition posIn {};
+        posIn.cameraIndex = 1U;
+        posIn.relativeX = 5.0;
+        posIn.relativeY = -2.0;
+        posIn.relativeZ = 20.0;
+        posIn.yawDeg = 15.0;
+        posIn.pitchDeg = -1.0;
+        posIn.rollDeg = 0.0;
+        posIn.confidence = 90U;
+
+        const auto posPkt = SightlineProtocolBuilder::buildLandingPosition(posIn);
+        EXPECT_EQ(SightlineFraming::identifyMessage(posPkt), MessageId::LandingPosition);
+
+        MsgLandingPosition posOut {};
+        ASSERT_TRUE(SightlineProtocolParser::parseLandingPosition(posPkt, posOut));
+        EXPECT_EQ(posOut.cameraIndex, 1U);
+        EXPECT_DOUBLE_EQ(posOut.relativeX, 5.0);
+        EXPECT_EQ(posOut.confidence, 90U);
     }
 
 } // namespace

@@ -5,8 +5,7 @@
 
 namespace Sightline {
 
-bool SightlineCompressionParser::parseH264Parameters(
-    const std::vector<std::uint8_t>& packet, MsgSetH264Parameters& out)
+bool SightlineCompressionParser::parseH264Parameters(const std::vector<std::uint8_t>& packet, MsgSetH264Parameters& out)
 {
     const auto id { SightlineFraming::identifyMessage(packet) };
     if (id != MessageId::CurrentH264Parameters && id != MessageId::SetH264Parameters) {
@@ -44,6 +43,26 @@ bool SightlineCompressionParser::parseStreamingControl(
 
     out.streamIndex = payload[0U];
     out.action = payload[1U];
+    return true;
+}
+
+bool SightlineCompressionParser::parseDecoderParameters(ByteView packet, MsgDecoderParameters& out)
+{
+    if (SightlineFraming::identifyMessage(packet) != MessageId::DecoderParameters) {
+        return false;
+    }
+
+    const auto payload { SightlineFraming::extractPayload(packet) };
+    if (payload.size() < 11U) {
+        return false;
+    }
+
+    out.decoderIndex = payload[0U];
+    out.enable = payload[1U];
+    out.codec = payload[2U];
+    out.networkPort = SightlineFraming::readU16Le(payload.data() + 3U);
+    out.bufferDepthMs = SightlineFraming::readU16Le(payload.data() + 5U);
+    out.multicastIp = SightlineFraming::readU32Le(payload.data() + 7U);
     return true;
 }
 

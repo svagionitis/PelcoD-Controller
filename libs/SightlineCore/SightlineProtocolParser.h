@@ -258,6 +258,38 @@ public:
     /// @brief Parses frame index and timestamp telemetry (Message ID 0x8A).
     [[nodiscard]] static bool parseFrameIndex(ByteView packet, MsgFrameIndex& out);
 
+    // --- Autonomous Landing Aid & Graphics (Phase 5) ---
+
+    /// @brief Parses landing aid configuration parameters (Message ID 0x81).
+    [[nodiscard]] static bool parseLandingAid(ByteView packet, MsgLandingAid& out);
+
+    /// @brief Parses landing target relative coordinates and orientation (Message ID 0x83).
+    [[nodiscard]] static bool parseLandingPosition(ByteView packet, MsgLandingPosition& out);
+
+    /// @brief Parses current overlay mode reply (Message ID 0x42 / 0x06).
+    [[nodiscard]] static bool parseOverlayMode(ByteView packet, MsgSetOverlayMode& out);
+
+    /// @brief Parses single custom graphic object command (Message ID 0x3B).
+    [[nodiscard]] static bool parseDrawObject(ByteView packet, MsgDrawObject& out);
+
+    /// @brief Parses batch overlay graphic primitives (Message ID 0x9C).
+    [[nodiscard]] static bool parseDrawOverlay(ByteView packet, MsgDrawOverlay& out);
+
+    /// @brief Parses logo watermark parameters reply (Message ID 0x9B).
+    [[nodiscard]] static bool parseLogoParameters(ByteView packet, MsgLogoParameters& out);
+
+    /// @brief Parses dynamic ancillary text metadata overlay (Message ID 0xAC).
+    [[nodiscard]] static bool parseAncillaryTextMetadata(ByteView packet, MsgAncillaryTextMetadata& out);
+
+    /// @brief Parses custom raster font glyph table (Message ID 0xAE).
+    [[nodiscard]] static bool parseUserFont(ByteView packet, MsgUserFont& out);
+
+    /// @brief Parses hardware video decoder parameters (Message ID 0x99).
+    [[nodiscard]] static bool parseDecoderParameters(ByteView packet, MsgDecoderParameters& out);
+
+    /// @brief Parses transparent packet forwarding to BTS / RF modem (Message ID 0xBE).
+    [[nodiscard]] static bool parseSendToBTS(ByteView packet, MsgSendToBTS& out);
+
 private:
     [[nodiscard]] static std::size_t getHeaderLength(ByteView packet) noexcept;
 };

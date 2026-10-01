@@ -12,8 +12,10 @@
 #include "modules/SightlineFocusParser.h"
 #include "modules/SightlineGeneralParser.h"
 #include "modules/SightlineKlvParser.h"
+#include "modules/SightlineLandingParser.h"
 #include "modules/SightlineNetworkParser.h"
 #include "modules/SightlineNucParser.h"
+#include "modules/SightlineOverlayParser.h"
 #include "modules/SightlineRecordingParser.h"
 #include "modules/SightlineSerialParser.h"
 #include "modules/SightlineStabilizationParser.h"
@@ -348,6 +350,60 @@ bool SightlineProtocolParser::parseAppendedMetadata(ByteView packet, MsgAppended
 bool SightlineProtocolParser::parseFrameIndex(ByteView packet, MsgFrameIndex& out)
 {
     return SightlineGeneralParser::parseFrameIndex(packet, out);
+}
+
+// ==============================================================================
+// 8. Autonomous Landing Aid & Graphics Deserializers (Phase 5)
+// ==============================================================================
+
+bool SightlineProtocolParser::parseLandingAid(ByteView packet, MsgLandingAid& out)
+{
+    return SightlineLandingParser::parseLandingAid(packet, out);
+}
+
+bool SightlineProtocolParser::parseLandingPosition(ByteView packet, MsgLandingPosition& out)
+{
+    return SightlineLandingParser::parseLandingPosition(packet, out);
+}
+
+bool SightlineProtocolParser::parseOverlayMode(ByteView packet, MsgSetOverlayMode& out)
+{
+    return SightlineOverlayParser::parseOverlayMode(packet, out);
+}
+
+bool SightlineProtocolParser::parseDrawObject(ByteView packet, MsgDrawObject& out)
+{
+    return SightlineOverlayParser::parseDrawObject(packet, out);
+}
+
+bool SightlineProtocolParser::parseDrawOverlay(ByteView packet, MsgDrawOverlay& out)
+{
+    return SightlineOverlayParser::parseDrawOverlay(packet, out);
+}
+
+bool SightlineProtocolParser::parseLogoParameters(ByteView packet, MsgLogoParameters& out)
+{
+    return SightlineOverlayParser::parseLogoParameters(packet, out);
+}
+
+bool SightlineProtocolParser::parseAncillaryTextMetadata(ByteView packet, MsgAncillaryTextMetadata& out)
+{
+    return SightlineOverlayParser::parseAncillaryTextMetadata(packet, out);
+}
+
+bool SightlineProtocolParser::parseUserFont(ByteView packet, MsgUserFont& out)
+{
+    return SightlineOverlayParser::parseUserFont(packet, out);
+}
+
+bool SightlineProtocolParser::parseDecoderParameters(ByteView packet, MsgDecoderParameters& out)
+{
+    return SightlineCompressionParser::parseDecoderParameters(packet, out);
+}
+
+bool SightlineProtocolParser::parseSendToBTS(ByteView packet, MsgSendToBTS& out)
+{
+    return SightlineSerialParser::parseSendToBTS(packet, out);
 }
 
 } // namespace Sightline

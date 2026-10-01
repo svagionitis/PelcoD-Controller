@@ -50,4 +50,12 @@ struct MsgI2CCommand {
     std::vector<std::uint8_t> data {}; ///< Payload buffer for write data or returned read data
 };
 
+/// @struct MsgSendToBTS
+/// @brief Transparent packet forwarding bridge to Base Transceiver Station / RF modem (Message ID 0xBE).
+/// @details Conforms to official Sightline SLASendToBTS_t struct layout.
+struct MsgSendToBTS {
+    std::uint8_t btsPort { 0U }; ///< Target BTS hardware channel or RF link ID
+    std::vector<std::uint8_t> data {}; ///< Transparent raw data payload
+};
+
 } // namespace Sightline

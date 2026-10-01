@@ -682,6 +682,35 @@ public:
     /// @brief Encodes frame index and timestamp packet (Message ID 0x8A).
     [[nodiscard]] static std::vector<std::uint8_t> buildFrameIndex(const MsgFrameIndex& msg);
 
+    // --- Autonomous Landing Aid & Graphics (Phase 5) ---
+
+    /// @brief Encodes landing aid search and tracking command (Message ID 0x81).
+    [[nodiscard]] static std::vector<std::uint8_t> buildLandingAid(const MsgLandingAid& msg);
+
+    /// @brief Encodes landing target relative position and orientation (Message ID 0x83).
+    [[nodiscard]] static std::vector<std::uint8_t> buildLandingPosition(const MsgLandingPosition& msg);
+
+    /// @brief Encodes logo watermark configuration (Message ID 0x9B).
+    [[nodiscard]] static std::vector<std::uint8_t> buildSetLogoParameters(const MsgLogoParameters& msg);
+
+    /// @brief Encodes query for logo watermark configuration (Message ID 0x28 query 0x9B).
+    [[nodiscard]] static std::vector<std::uint8_t> buildGetLogoParameters(std::uint8_t displayIndex = 0U);
+
+    /// @brief Encodes dynamic ancillary text metadata / subtitle overlay (Message ID 0xAC).
+    [[nodiscard]] static std::vector<std::uint8_t> buildAncillaryTextMetadata(const MsgAncillaryTextMetadata& msg);
+
+    /// @brief Encodes custom raster font glyph table upload (Message ID 0xAE).
+    [[nodiscard]] static std::vector<std::uint8_t> buildUserFont(const MsgUserFont& msg);
+
+    /// @brief Encodes hardware video decoder configuration (Message ID 0x99).
+    [[nodiscard]] static std::vector<std::uint8_t> buildSetDecoderParameters(const MsgDecoderParameters& msg);
+
+    /// @brief Encodes query for decoder configuration (Message ID 0x28 query 0x99).
+    [[nodiscard]] static std::vector<std::uint8_t> buildGetDecoderParameters(std::uint8_t decoderIndex = 0U);
+
+    /// @brief Encodes transparent packet forwarding to Base Transceiver Station (Message ID 0xBE).
+    [[nodiscard]] static std::vector<std::uint8_t> buildSendToBTS(const MsgSendToBTS& msg);
+
     // --- Raw Transport Helper ---
 
     /// @brief Encodes arbitrary payload into a framed, CRC-checked SLA packet.

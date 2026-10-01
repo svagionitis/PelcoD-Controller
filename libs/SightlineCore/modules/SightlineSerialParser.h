@@ -41,6 +41,12 @@ public:
     /// @param[out] out Deserialized I2C command structure.
     /// @return True on successful parse.
     [[nodiscard]] static bool parseI2CCommand(ByteView packet, MsgI2CCommand& out);
+
+    /// @brief Parses transparent packet forwarding to BTS / RF modem (Message ID 0xBE).
+    /// @param[in] packet Validated framed packet bytes or view.
+    /// @param[out] out Deserialized BTS payload structure.
+    /// @return True on successful parse.
+    [[nodiscard]] static bool parseSendToBTS(ByteView packet, MsgSendToBTS& out);
 };
 
 } // namespace Sightline
