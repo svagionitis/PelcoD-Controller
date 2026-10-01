@@ -43,196 +43,190 @@ ScrollView {
             }
         }
 
-        // Top Control Grid
-        RowLayout {
+        // Acquisition Parameters Card
+        Rectangle {
             Layout.fillWidth: true
-            spacing: 16
+            implicitHeight: targetCol.implicitHeight + 24
+            color: SightlineTheme.surfaceCard
+            radius: SightlineTheme.radiusMedium
+            border.color: SightlineTheme.cardBorder
+            border.width: 1
 
-            // Reticle Viewport
-            CoordinatePad {
-                id: coordPad
-                Layout.preferredWidth: 360
-                Layout.preferredHeight: 250
-                onCoordinatePicked: function(col, row) {
-                    colInput.text = col.toString();
-                    rowInput.text = row.toString();
+            ColumnLayout {
+                id: targetCol
+                anchors.fill: parent
+                anchors.margins: 14
+                spacing: 10
+
+                Text {
+                    text: "ACQUISITION PARAMETERS"
+                    color: SightlineTheme.primary
+                    font.pixelSize: 11
+                    font.bold: true
                 }
-                onNudgeRequested: function(dCol, dRow) {
-                    if (bridge) {
-                        bridge.nudgeTracking(camCombo.currentIndex, dCol, dRow);
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 12
+                    Text {
+                        text: "Camera Channel:"
+                        color: SightlineTheme.textSecondary
+                        font.pixelSize: 12
+                        Layout.preferredWidth: 130
+                        Layout.alignment: Qt.AlignVCenter
                     }
+                    ComboBox {
+                        id: camCombo
+                        model: ["Camera 0 (EO Visible)", "Camera 1 (IR Thermal)", "Camera 2", "Camera 3"]
+                        Layout.fillWidth: true
+                        Layout.maximumWidth: 260
+                    }
+                    Item { Layout.fillWidth: true }
+                }
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 12
+                    Text {
+                        text: "Center (Col, Row):"
+                        color: SightlineTheme.textSecondary
+                        font.pixelSize: 12
+                        Layout.preferredWidth: 130
+                        Layout.alignment: Qt.AlignVCenter
+                    }
+                    TextField {
+                        id: colInput
+                        text: coordPad.selectedCol.toString()
+                        Layout.preferredWidth: 80
+                        color: SightlineTheme.textPrimary
+                        background: Rectangle {
+                            color: SightlineTheme.surfaceLight
+                            radius: 4
+                            border.color: colInput.activeFocus ? SightlineTheme.primary : SightlineTheme.inputBorder
+                        }
+                    }
+                    TextField {
+                        id: rowInput
+                        text: coordPad.selectedRow.toString()
+                        Layout.preferredWidth: 80
+                        color: SightlineTheme.textPrimary
+                        background: Rectangle {
+                            color: SightlineTheme.surfaceLight
+                            radius: 4
+                            border.color: rowInput.activeFocus ? SightlineTheme.primary : SightlineTheme.inputBorder
+                        }
+                    }
+                    Item { Layout.fillWidth: true }
+                }
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 12
+                    Text {
+                        text: "Gate Size (W x H):"
+                        color: SightlineTheme.textSecondary
+                        font.pixelSize: 12
+                        Layout.preferredWidth: 130
+                        Layout.alignment: Qt.AlignVCenter
+                    }
+                    TextField {
+                        id: widthInput
+                        text: "80"
+                        Layout.preferredWidth: 80
+                        color: SightlineTheme.textPrimary
+                        background: Rectangle {
+                            color: SightlineTheme.surfaceLight
+                            radius: 4
+                            border.color: widthInput.activeFocus ? SightlineTheme.primary : SightlineTheme.inputBorder
+                        }
+                    }
+                    TextField {
+                        id: heightInput
+                        text: "80"
+                        Layout.preferredWidth: 80
+                        color: SightlineTheme.textPrimary
+                        background: Rectangle {
+                            color: SightlineTheme.surfaceLight
+                            radius: 4
+                            border.color: heightInput.activeFocus ? SightlineTheme.primary : SightlineTheme.inputBorder
+                        }
+                    }
+                    Item { Layout.fillWidth: true }
+                }
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 10
+                    Layout.topMargin: 4
+
+                    Button {
+                        text: "Acquire Target"
+                        Layout.preferredWidth: 140
+                        Layout.preferredHeight: 32
+                        contentItem: Text {
+                            text: parent.text
+                            color: "#0e1014"
+                            font.bold: true
+                            horizontalAlignment: Text.AlignHCenter
+                            verticalAlignment: Text.AlignVCenter
+                        }
+                        background: Rectangle {
+                            color: SightlineTheme.success
+                            radius: 4
+                        }
+                        onClicked: {
+                            if (bridge) {
+                                bridge.startTracking(
+                                    camCombo.currentIndex,
+                                    parseInt(colInput.text),
+                                    parseInt(rowInput.text),
+                                    parseInt(widthInput.text),
+                                    parseInt(heightInput.text),
+                                    0x01
+                                );
+                            }
+                        }
+                    }
+
+                    Button {
+                        text: "Stop All"
+                        Layout.preferredWidth: 110
+                        Layout.preferredHeight: 32
+                        contentItem: Text {
+                            text: parent.text
+                            color: "#ffffff"
+                            font.bold: true
+                            horizontalAlignment: Text.AlignHCenter
+                            verticalAlignment: Text.AlignVCenter
+                        }
+                        background: Rectangle {
+                            color: SightlineTheme.error
+                            radius: 4
+                        }
+                        onClicked: {
+                            if (bridge) {
+                                bridge.stopTracking(camCombo.currentIndex, 0xFF);
+                            }
+                        }
+                    }
+
+                    Item { Layout.fillWidth: true }
                 }
             }
+        }
 
-            // Acquisition Parameters Card
-            Rectangle {
-                Layout.fillWidth: true
-                implicitHeight: targetCol.implicitHeight + 24
-                color: SightlineTheme.surfaceCard
-                radius: SightlineTheme.radiusMedium
-                border.color: SightlineTheme.cardBorder
-                border.width: 1
-
-                ColumnLayout {
-                    id: targetCol
-                    anchors.fill: parent
-                    anchors.margins: 14
-                    spacing: 10
-
-                    Text {
-                        text: "ACQUISITION PARAMETERS"
-                        color: SightlineTheme.primary
-                        font.pixelSize: 11
-                        font.bold: true
-                    }
-
-                    RowLayout {
-                        Layout.fillWidth: true
-                        spacing: 12
-                        Text {
-                            text: "Camera Channel:"
-                            color: SightlineTheme.textSecondary
-                            font.pixelSize: 12
-                            Layout.preferredWidth: 120
-                            Layout.alignment: Qt.AlignVCenter
-                        }
-                        ComboBox {
-                            id: camCombo
-                            model: ["Camera 0 (EO Visible)", "Camera 1 (IR Thermal)", "Camera 2", "Camera 3"]
-                            Layout.fillWidth: true
-                            Layout.maximumWidth: 260
-                        }
-                        Item { Layout.fillWidth: true }
-                    }
-
-                    RowLayout {
-                        Layout.fillWidth: true
-                        spacing: 12
-                        Text {
-                            text: "Center (Col, Row):"
-                            color: SightlineTheme.textSecondary
-                            font.pixelSize: 12
-                            Layout.preferredWidth: 120
-                            Layout.alignment: Qt.AlignVCenter
-                        }
-                        TextField {
-                            id: colInput
-                            text: coordPad.selectedCol.toString()
-                            Layout.preferredWidth: 80
-                            color: SightlineTheme.textPrimary
-                            background: Rectangle {
-                                color: SightlineTheme.surfaceLight
-                                radius: 4
-                                border.color: colInput.activeFocus ? SightlineTheme.primary : SightlineTheme.inputBorder
-                            }
-                        }
-                        TextField {
-                            id: rowInput
-                            text: coordPad.selectedRow.toString()
-                            Layout.preferredWidth: 80
-                            color: SightlineTheme.textPrimary
-                            background: Rectangle {
-                                color: SightlineTheme.surfaceLight
-                                radius: 4
-                                border.color: rowInput.activeFocus ? SightlineTheme.primary : SightlineTheme.inputBorder
-                            }
-                        }
-                        Item { Layout.fillWidth: true }
-                    }
-
-                    RowLayout {
-                        Layout.fillWidth: true
-                        spacing: 12
-                        Text {
-                            text: "Gate Size (W x H):"
-                            color: SightlineTheme.textSecondary
-                            font.pixelSize: 12
-                            Layout.preferredWidth: 120
-                            Layout.alignment: Qt.AlignVCenter
-                        }
-                        TextField {
-                            id: widthInput
-                            text: "80"
-                            Layout.preferredWidth: 80
-                            color: SightlineTheme.textPrimary
-                            background: Rectangle {
-                                color: SightlineTheme.surfaceLight
-                                radius: 4
-                                border.color: widthInput.activeFocus ? SightlineTheme.primary : SightlineTheme.inputBorder
-                            }
-                        }
-                        TextField {
-                            id: heightInput
-                            text: "80"
-                            Layout.preferredWidth: 80
-                            color: SightlineTheme.textPrimary
-                            background: Rectangle {
-                                color: SightlineTheme.surfaceLight
-                                radius: 4
-                                border.color: heightInput.activeFocus ? SightlineTheme.primary : SightlineTheme.inputBorder
-                            }
-                        }
-                        Item { Layout.fillWidth: true }
-                    }
-
-                    RowLayout {
-                        Layout.fillWidth: true
-                        spacing: 10
-                        Layout.topMargin: 4
-
-                        Button {
-                            text: "Acquire Target"
-                            Layout.preferredWidth: 140
-                            Layout.preferredHeight: 32
-                            contentItem: Text {
-                                text: parent.text
-                                color: "#0e1014"
-                                font.bold: true
-                                horizontalAlignment: Text.AlignHCenter
-                                verticalAlignment: Text.AlignVCenter
-                            }
-                            background: Rectangle {
-                                color: SightlineTheme.success
-                                radius: 4
-                            }
-                            onClicked: {
-                                if (bridge) {
-                                    bridge.startTracking(
-                                        camCombo.currentIndex,
-                                        parseInt(colInput.text),
-                                        parseInt(rowInput.text),
-                                        parseInt(widthInput.text),
-                                        parseInt(heightInput.text),
-                                        0x01
-                                    );
-                                }
-                            }
-                        }
-
-                        Button {
-                            text: "Stop All"
-                            Layout.preferredWidth: 110
-                            Layout.preferredHeight: 32
-                            contentItem: Text {
-                                text: parent.text
-                                color: "#ffffff"
-                                font.bold: true
-                                horizontalAlignment: Text.AlignHCenter
-                                verticalAlignment: Text.AlignVCenter
-                            }
-                            background: Rectangle {
-                                color: SightlineTheme.error
-                                radius: 4
-                            }
-                            onClicked: {
-                                if (bridge) {
-                                    bridge.stopTracking(camCombo.currentIndex, 0xFF);
-                                }
-                            }
-                        }
-
-                        Item { Layout.fillWidth: true }
-                    }
+        // Secondary Reticle Coordinate Touch Pad
+        CoordinatePad {
+            id: coordPad
+            Layout.fillWidth: true
+            Layout.preferredHeight: 180
+            onCoordinatePicked: function(col, row) {
+                colInput.text = col.toString();
+                rowInput.text = row.toString();
+            }
+            onNudgeRequested: function(dCol, dRow) {
+                if (bridge) {
+                    bridge.nudgeTracking(camCombo.currentIndex, dCol, dRow);
                 }
             }
         }
@@ -280,49 +274,49 @@ ScrollView {
 
                     RowLayout {
                         anchors.fill: parent
-                        anchors.leftMargin: 8
-                        anchors.rightMargin: 8
-                        Text { text: "ID"; color: SightlineTheme.textMuted; font.bold: true; font.pixelSize: 11; Layout.preferredWidth: 40 }
-                        Text { text: "Status"; color: SightlineTheme.textMuted; font.bold: true; font.pixelSize: 11; Layout.preferredWidth: 70 }
-                        Text { text: "Center (X, Y)"; color: SightlineTheme.textMuted; font.bold: true; font.pixelSize: 11; Layout.preferredWidth: 120 }
-                        Text { text: "Size (W x H)"; color: SightlineTheme.textMuted; font.bold: true; font.pixelSize: 11; Layout.preferredWidth: 100 }
-                        Text { text: "Velocity (Vx, Vy)"; color: SightlineTheme.textMuted; font.bold: true; font.pixelSize: 11; Layout.preferredWidth: 120 }
-                        Text { text: "Confidence"; color: SightlineTheme.textMuted; font.bold: true; font.pixelSize: 11; Layout.preferredWidth: 80 }
+                        anchors.leftMargin: 6
+                        anchors.rightMargin: 6
+                        spacing: 4
+                        Text { text: "ID"; color: SightlineTheme.textMuted; font.bold: true; font.pixelSize: 10; Layout.preferredWidth: 32 }
+                        Text { text: "Status"; color: SightlineTheme.textMuted; font.bold: true; font.pixelSize: 10; Layout.preferredWidth: 60 }
+                        Text { text: "Center"; color: SightlineTheme.textMuted; font.bold: true; font.pixelSize: 10; Layout.preferredWidth: 85 }
+                        Text { text: "Size"; color: SightlineTheme.textMuted; font.bold: true; font.pixelSize: 10; Layout.preferredWidth: 75 }
+                        Text { text: "Conf"; color: SightlineTheme.textMuted; font.bold: true; font.pixelSize: 10; Layout.preferredWidth: 48 }
                         Item { Layout.fillWidth: true }
-                        Text { text: "Actions"; color: SightlineTheme.textMuted; font.bold: true; font.pixelSize: 11; Layout.preferredWidth: 130 }
+                        Text { text: "Actions"; color: SightlineTheme.textMuted; font.bold: true; font.pixelSize: 10; Layout.preferredWidth: 120 }
                     }
                 }
 
                 delegate: Rectangle {
                     width: trackListView.width
-                    height: 34
+                    height: 32
                     color: model.isPrimary ? "#1b2535" : (index % 2 === 0 ? SightlineTheme.surfaceCard : SightlineTheme.surfaceLight)
                     radius: 4
 
                     RowLayout {
                         anchors.fill: parent
-                        anchors.leftMargin: 8
-                        anchors.rightMargin: 8
+                        anchors.leftMargin: 6
+                        anchors.rightMargin: 6
+                        spacing: 4
 
-                        Text { text: "#" + model.trackId; color: SightlineTheme.textPrimary; font.bold: true; font.pixelSize: 11; Layout.preferredWidth: 40 }
+                        Text { text: "#" + model.trackId; color: SightlineTheme.textPrimary; font.bold: true; font.pixelSize: 10; Layout.preferredWidth: 32 }
                         Rectangle {
-                            Layout.preferredWidth: 70
-                            height: 18
-                            radius: 9
+                            Layout.preferredWidth: 60
+                            height: 16
+                            radius: 8
                             color: model.isPrimary ? SightlineTheme.primary : "transparent"
                             border.color: model.isPrimary ? "transparent" : SightlineTheme.cardBorder
                             Text {
                                 anchors.centerIn: parent
                                 text: model.isPrimary ? "PRIMARY" : "TRACK"
                                 color: model.isPrimary ? "#0e1014" : SightlineTheme.textMuted
-                                font.pixelSize: 9
+                                font.pixelSize: 8
                                 font.bold: true
                             }
                         }
-                        Text { text: model.centerCol + ", " + model.centerRow; color: SightlineTheme.textPrimary; font.pixelSize: 11; Layout.preferredWidth: 120 }
-                        Text { text: model.trackWidth + " x " + model.trackHeight; color: SightlineTheme.textSecondary; font.pixelSize: 11; Layout.preferredWidth: 100 }
-                        Text { text: model.velocityCol + ", " + model.velocityRow; color: SightlineTheme.textSecondary; font.pixelSize: 11; Layout.preferredWidth: 120 }
-                        Text { text: model.confidence + "%"; color: model.confidence > 70 ? SightlineTheme.success : SightlineTheme.warning; font.pixelSize: 11; font.bold: true; Layout.preferredWidth: 80 }
+                        Text { text: model.centerCol + ", " + model.centerRow; color: SightlineTheme.textPrimary; font.pixelSize: 10; Layout.preferredWidth: 85 }
+                        Text { text: model.trackWidth + "x" + model.trackHeight; color: SightlineTheme.textSecondary; font.pixelSize: 10; Layout.preferredWidth: 75 }
+                        Text { text: model.confidence + "%"; color: model.confidence > 70 ? SightlineTheme.success : SightlineTheme.warning; font.pixelSize: 10; font.bold: true; Layout.preferredWidth: 48 }
                         Item { Layout.fillWidth: true }
 
                         RowLayout {

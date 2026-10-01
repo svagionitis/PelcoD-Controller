@@ -37,14 +37,13 @@ ScrollView {
             }
         }
 
-        // Metrics Row
-        RowLayout {
+        // Metrics Flow
+        Flow {
             Layout.fillWidth: true
-            spacing: 12
+            spacing: 10
             MetricCard { title: "FPA Sensor Temp"; value: "38.2"; unit: "°C"; accentColor: SightlineTheme.warning; iconText: "🌡️" }
             MetricCard { title: "Bad Pixels Replaced"; value: "14"; unit: "px"; accentColor: SightlineTheme.info; iconText: "🩹" }
             MetricCard { title: "Calibration Table"; value: "VALID"; accentColor: SightlineTheme.success; iconText: "✅" }
-            Item { Layout.fillWidth: true }
         }
 
         // Settings Card
@@ -72,7 +71,7 @@ ScrollView {
                 RowLayout {
                     Layout.fillWidth: true
                     spacing: 12
-                    Text { text: "Thermal Camera:"; color: SightlineTheme.textSecondary; font.pixelSize: 12; Layout.preferredWidth: 150; Layout.alignment: Qt.AlignVCenter }
+                    Text { text: "Thermal Camera:"; color: SightlineTheme.textSecondary; font.pixelSize: 12; Layout.preferredWidth: 140; Layout.alignment: Qt.AlignVCenter }
                     ComboBox {
                         id: nucCam
                         model: ["Camera 1 (LWIR Thermal)", "Camera 2 (MWIR Cooled)", "Camera 0"]
@@ -84,7 +83,7 @@ ScrollView {
                 RowLayout {
                     Layout.fillWidth: true
                     spacing: 12
-                    Text { text: "Calibration Mode:"; color: SightlineTheme.textSecondary; font.pixelSize: 12; Layout.preferredWidth: 150; Layout.alignment: Qt.AlignVCenter }
+                    Text { text: "Calibration Mode:"; color: SightlineTheme.textSecondary; font.pixelSize: 12; Layout.preferredWidth: 140; Layout.alignment: Qt.AlignVCenter }
                     ComboBox {
                         id: nucMode
                         model: ["1-Point Shutter Flat-Field (Quick)", "2-Point Blackbody (High Dynamic)", "Scene-Based Dynamic (Continuous)"]
@@ -93,15 +92,15 @@ ScrollView {
                     Item { Layout.fillWidth: true }
                 }
 
-                RowLayout {
+                Flow {
                     Layout.fillWidth: true
                     spacing: 10
                     Layout.topMargin: 4
 
                     Button {
                         text: "Actuate Mechanical Shutter NUC"
-                        Layout.preferredWidth: 220
-                        Layout.preferredHeight: 32
+                        implicitWidth: 220
+                        implicitHeight: 32
                         contentItem: Text { text: parent.text; color: "#0e1014"; font.bold: true; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
                         background: Rectangle { color: SightlineTheme.warning; radius: 4 }
                         onClicked: bridge.setReportingMode(nucCam.currentIndex, 100, 0x10)
@@ -109,14 +108,12 @@ ScrollView {
 
                     Button {
                         text: "Update Bad Pixel Table"
-                        Layout.preferredWidth: 180
-                        Layout.preferredHeight: 32
+                        implicitWidth: 180
+                        implicitHeight: 32
                         contentItem: Text { text: parent.text; color: "#0e1014"; font.bold: true; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
                         background: Rectangle { color: SightlineTheme.primary; radius: 4 }
                         onClicked: bridge.saveParameters(0x02)
                     }
-
-                    Item { Layout.fillWidth: true }
                 }
             }
         }

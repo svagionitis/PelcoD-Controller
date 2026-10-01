@@ -37,14 +37,13 @@ ScrollView {
             }
         }
 
-        // Metrics Row
-        RowLayout {
+        // Metrics Flow
+        Flow {
             Layout.fillWidth: true
-            spacing: 12
+            spacing: 10
             MetricCard { title: "Inference Engine"; value: "YOLO-v8n"; accentColor: SightlineTheme.info; iconText: "🧬" }
             MetricCard { title: "Inference Latency"; value: "14.2"; unit: "ms"; accentColor: SightlineTheme.success; iconText: "⚡" }
             MetricCard { title: "Tracked Objects"; value: "3"; accentColor: SightlineTheme.primary; iconText: "🏷️" }
-            Item { Layout.fillWidth: true }
         }
 
         // Settings Card

@@ -37,14 +37,13 @@ ScrollView {
             }
         }
 
-        // Metrics Row
-        RowLayout {
+        // Metrics Flow
+        Flow {
             Layout.fillWidth: true
-            spacing: 12
+            spacing: 10
             MetricCard { title: "Display Sink"; value: "HDMI Out"; accentColor: SightlineTheme.primary; iconText: "📺" }
             MetricCard { title: "Window Layout"; value: "Single 1080p"; accentColor: SightlineTheme.info; iconText: "🖼️" }
             MetricCard { title: "Color Mapping"; value: "White-Hot"; accentColor: SightlineTheme.warning; iconText: "🎨" }
-            Item { Layout.fillWidth: true }
         }
 
         // Settings Card

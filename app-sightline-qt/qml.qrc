@@ -8,6 +8,8 @@
         <file>qml/components/ModuleTabButton.qml</file>
         <file>qml/components/ModuleNavigationSidebar.qml</file>
         <file>qml/components/CoordinatePad.qml</file>
+        <file>qml/components/TacticalVideoViewport.qml</file>
+        <file>qml/components/TrafficInspectorDrawer.qml</file>
         <file>qml/views/TrackingView.qml</file>
         <file>qml/views/StabilizationView.qml</file>
         <file>qml/views/DetectionView.qml</file>

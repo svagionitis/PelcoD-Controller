@@ -290,6 +290,15 @@ public:
     /// @return True if dispatched.
     Q_INVOKABLE bool sendRawHex(const QString& hexString);
 
+    /// @brief Dispatch generic parameter query (Message ID 0x28).
+    /// @param queryId Target setter Message ID to query.
+    /// @return True if dispatched.
+    Q_INVOKABLE bool queryParameters(int queryId);
+
+    /// @brief Automatically query getter parameters for the specified module tab index.
+    /// @param tabIndex Selected sidebar tab index.
+    Q_INVOKABLE void queryModuleParameters(int tabIndex);
+
 signals:
     void connectionChanged();
     void hostChanged();
@@ -298,6 +307,7 @@ signals:
     void systemStatusChanged();
     void warningReceived();
     void versionReceived();
+    void moduleQueryDispatched(int tabIndex);
 
 private slots:
     void handleTrackingPositions(const Sightline::MsgTrackingPositions& pos);

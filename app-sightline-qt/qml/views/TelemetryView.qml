@@ -37,14 +37,13 @@ ScrollView {
             }
         }
 
-        // Metrics Row
-        RowLayout {
+        // Metrics Flow
+        Flow {
             Layout.fillWidth: true
-            spacing: 12
+            spacing: 10
             MetricCard { title: "Telemetry Rate"; value: "30"; unit: "Hz"; accentColor: SightlineTheme.primary; iconText: "⚡" }
             MetricCard { title: "Reporting Mask"; value: "0x003F"; accentColor: SightlineTheme.info; iconText: "🎭" }
             MetricCard { title: "Packet Bandwidth"; value: "48.2"; unit: "KB/s"; accentColor: SightlineTheme.success; iconText: "📊" }
-            Item { Layout.fillWidth: true }
         }
 
         // Settings Card

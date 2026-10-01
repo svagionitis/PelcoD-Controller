@@ -37,15 +37,14 @@ ScrollView {
             }
         }
 
-        // Metrics Row
-        RowLayout {
+        // Metrics Flow
+        Flow {
             Layout.fillWidth: true
-            spacing: 12
+            spacing: 10
             MetricCard { title: "Aircraft Latitude"; value: parseFloat(latInput.text).toFixed(4); unit: "°N"; accentColor: SightlineTheme.primary; iconText: "🌐" }
             MetricCard { title: "Aircraft Longitude"; value: parseFloat(lonInput.text).toFixed(4); unit: "°E"; accentColor: SightlineTheme.primary; iconText: "🌐" }
             MetricCard { title: "Altitude MSL"; value: altInput.text; unit: "m"; accentColor: SightlineTheme.info; iconText: "⛰️" }
             MetricCard { title: "Platform Heading"; value: headingInput.text; unit: "°"; accentColor: SightlineTheme.warning; iconText: "🧭" }
-            Item { Layout.fillWidth: true }
         }
 
         // Settings Card
@@ -72,46 +71,70 @@ ScrollView {
 
                 RowLayout {
                     Layout.fillWidth: true
-                    spacing: 12
-                    Text { text: "Geodetic Position:"; color: SightlineTheme.textSecondary; font.pixelSize: 12; Layout.preferredWidth: 150; Layout.alignment: Qt.AlignVCenter }
-                    Text { text: "Lat:"; color: SightlineTheme.textMuted; font.pixelSize: 12; Layout.alignment: Qt.AlignVCenter }
-                    TextField {
-                        id: latInput; text: "37.7749"; Layout.preferredWidth: 90; color: SightlineTheme.textPrimary
-                        background: Rectangle { color: SightlineTheme.surfaceLight; radius: 4; border.color: latInput.activeFocus ? SightlineTheme.primary : SightlineTheme.inputBorder }
+                    spacing: 10
+                    Text { text: "Geodetic Position:"; color: SightlineTheme.textSecondary; font.pixelSize: 12; Layout.preferredWidth: 130; Layout.alignment: Qt.AlignTop; Layout.topMargin: 4 }
+                    Flow {
+                        Layout.fillWidth: true
+                        spacing: 8
+                        RowLayout {
+                            spacing: 4
+                            Text { text: "Lat:"; color: SightlineTheme.textMuted; font.pixelSize: 11 }
+                            TextField {
+                                id: latInput; text: "37.7749"; implicitWidth: 80; color: SightlineTheme.textPrimary
+                                background: Rectangle { color: SightlineTheme.surfaceLight; radius: 4; border.color: latInput.activeFocus ? SightlineTheme.primary : SightlineTheme.inputBorder }
+                            }
+                        }
+                        RowLayout {
+                            spacing: 4
+                            Text { text: "Lon:"; color: SightlineTheme.textMuted; font.pixelSize: 11 }
+                            TextField {
+                                id: lonInput; text: "-122.4194"; implicitWidth: 85; color: SightlineTheme.textPrimary
+                                background: Rectangle { color: SightlineTheme.surfaceLight; radius: 4; border.color: lonInput.activeFocus ? SightlineTheme.primary : SightlineTheme.inputBorder }
+                            }
+                        }
+                        RowLayout {
+                            spacing: 4
+                            Text { text: "Alt(m):"; color: SightlineTheme.textMuted; font.pixelSize: 11 }
+                            TextField {
+                                id: altInput; text: "1500.0"; implicitWidth: 70; color: SightlineTheme.textPrimary
+                                background: Rectangle { color: SightlineTheme.surfaceLight; radius: 4; border.color: altInput.activeFocus ? SightlineTheme.primary : SightlineTheme.inputBorder }
+                            }
+                        }
                     }
-                    Text { text: "Lon:"; color: SightlineTheme.textMuted; font.pixelSize: 12; Layout.alignment: Qt.AlignVCenter }
-                    TextField {
-                        id: lonInput; text: "-122.4194"; Layout.preferredWidth: 90; color: SightlineTheme.textPrimary
-                        background: Rectangle { color: SightlineTheme.surfaceLight; radius: 4; border.color: lonInput.activeFocus ? SightlineTheme.primary : SightlineTheme.inputBorder }
-                    }
-                    Text { text: "Alt (m):"; color: SightlineTheme.textMuted; font.pixelSize: 12; Layout.alignment: Qt.AlignVCenter }
-                    TextField {
-                        id: altInput; text: "1500.0"; Layout.preferredWidth: 80; color: SightlineTheme.textPrimary
-                        background: Rectangle { color: SightlineTheme.surfaceLight; radius: 4; border.color: altInput.activeFocus ? SightlineTheme.primary : SightlineTheme.inputBorder }
-                    }
-                    Item { Layout.fillWidth: true }
                 }
 
                 RowLayout {
                     Layout.fillWidth: true
-                    spacing: 12
-                    Text { text: "Platform Attitude:"; color: SightlineTheme.textSecondary; font.pixelSize: 12; Layout.preferredWidth: 150; Layout.alignment: Qt.AlignVCenter }
-                    Text { text: "Heading:"; color: SightlineTheme.textMuted; font.pixelSize: 12; Layout.alignment: Qt.AlignVCenter }
-                    TextField {
-                        id: headingInput; text: "180.0"; Layout.preferredWidth: 70; color: SightlineTheme.textPrimary
-                        background: Rectangle { color: SightlineTheme.surfaceLight; radius: 4; border.color: headingInput.activeFocus ? SightlineTheme.primary : SightlineTheme.inputBorder }
+                    spacing: 10
+                    Text { text: "Platform Attitude:"; color: SightlineTheme.textSecondary; font.pixelSize: 12; Layout.preferredWidth: 130; Layout.alignment: Qt.AlignTop; Layout.topMargin: 4 }
+                    Flow {
+                        Layout.fillWidth: true
+                        spacing: 8
+                        RowLayout {
+                            spacing: 4
+                            Text { text: "Heading:"; color: SightlineTheme.textMuted; font.pixelSize: 11 }
+                            TextField {
+                                id: headingInput; text: "180.0"; implicitWidth: 65; color: SightlineTheme.textPrimary
+                                background: Rectangle { color: SightlineTheme.surfaceLight; radius: 4; border.color: headingInput.activeFocus ? SightlineTheme.primary : SightlineTheme.inputBorder }
+                            }
+                        }
+                        RowLayout {
+                            spacing: 4
+                            Text { text: "Pitch:"; color: SightlineTheme.textMuted; font.pixelSize: 11 }
+                            TextField {
+                                id: pitchInput; text: "-15.0"; implicitWidth: 65; color: SightlineTheme.textPrimary
+                                background: Rectangle { color: SightlineTheme.surfaceLight; radius: 4; border.color: pitchInput.activeFocus ? SightlineTheme.primary : SightlineTheme.inputBorder }
+                            }
+                        }
+                        RowLayout {
+                            spacing: 4
+                            Text { text: "Roll:"; color: SightlineTheme.textMuted; font.pixelSize: 11 }
+                            TextField {
+                                id: rollInput; text: "0.0"; implicitWidth: 65; color: SightlineTheme.textPrimary
+                                background: Rectangle { color: SightlineTheme.surfaceLight; radius: 4; border.color: rollInput.activeFocus ? SightlineTheme.primary : SightlineTheme.inputBorder }
+                            }
+                        }
                     }
-                    Text { text: "Pitch:"; color: SightlineTheme.textMuted; font.pixelSize: 12; Layout.alignment: Qt.AlignVCenter }
-                    TextField {
-                        id: pitchInput; text: "-15.0"; Layout.preferredWidth: 70; color: SightlineTheme.textPrimary
-                        background: Rectangle { color: SightlineTheme.surfaceLight; radius: 4; border.color: pitchInput.activeFocus ? SightlineTheme.primary : SightlineTheme.inputBorder }
-                    }
-                    Text { text: "Roll:"; color: SightlineTheme.textMuted; font.pixelSize: 12; Layout.alignment: Qt.AlignVCenter }
-                    TextField {
-                        id: rollInput; text: "0.0"; Layout.preferredWidth: 70; color: SightlineTheme.textPrimary
-                        background: Rectangle { color: SightlineTheme.surfaceLight; radius: 4; border.color: rollInput.activeFocus ? SightlineTheme.primary : SightlineTheme.inputBorder }
-                    }
-                    Item { Layout.fillWidth: true }
                 }
 
                 RowLayout {

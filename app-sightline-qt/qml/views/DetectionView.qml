@@ -37,14 +37,13 @@ ScrollView {
             }
         }
 
-        // Metrics Row
-        RowLayout {
+        // Metrics Flow
+        Flow {
             Layout.fillWidth: true
-            spacing: 12
+            spacing: 10
             MetricCard { title: "Detected Blobs"; value: "4"; accentColor: SightlineTheme.info; iconText: "🎯" }
             MetricCard { title: "Detection Frame Rate"; value: "30"; unit: "Hz"; accentColor: SightlineTheme.success; iconText: "⚡" }
             MetricCard { title: "Clutter Rejection"; value: "96"; unit: "%"; accentColor: SightlineTheme.primary; iconText: "🛡️" }
-            Item { Layout.fillWidth: true }
         }
 
         // Settings Card

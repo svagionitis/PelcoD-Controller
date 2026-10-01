@@ -37,14 +37,13 @@ ScrollView {
             }
         }
 
-        // Metrics Row
-        RowLayout {
+        // Metrics Flow
+        Flow {
             Layout.fillWidth: true
-            spacing: 12
+            spacing: 10
             MetricCard { title: "Reticle Pattern"; value: "Mil-Dot Cross"; accentColor: SightlineTheme.primary; iconText: "🎯" }
             MetricCard { title: "Active Overlays"; value: "6 Badges"; accentColor: SightlineTheme.info; iconText: "📊" }
             MetricCard { title: "OSD Refresh"; value: "60"; unit: "Hz"; accentColor: SightlineTheme.success; iconText: "⚡" }
-            Item { Layout.fillWidth: true }
         }
 
         // Settings Card
@@ -84,11 +83,14 @@ ScrollView {
                 RowLayout {
                     Layout.fillWidth: true
                     spacing: 12
-                    Text { text: "Telemetry Badges:"; color: SightlineTheme.textSecondary; font.pixelSize: 12; Layout.preferredWidth: 150; Layout.alignment: Qt.AlignVCenter }
-                    CheckBox { id: showTime; text: "UTC Time"; checked: true }
-                    CheckBox { id: showGps; text: "GPS Coords"; checked: true }
-                    CheckBox { id: showTracks; text: "Track Boxes"; checked: true }
-                    Item { Layout.fillWidth: true }
+                    Text { text: "Telemetry Badges:"; color: SightlineTheme.textSecondary; font.pixelSize: 12; Layout.preferredWidth: 150; Layout.alignment: Qt.AlignTop; Layout.topMargin: 4 }
+                    Flow {
+                        Layout.fillWidth: true
+                        spacing: 8
+                        CheckBox { id: showTime; text: "UTC Time"; checked: true }
+                        CheckBox { id: showGps; text: "GPS Coords"; checked: true }
+                        CheckBox { id: showTracks; text: "Track Boxes"; checked: true }
+                    }
                 }
 
                 RowLayout {

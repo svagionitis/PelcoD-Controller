@@ -39,14 +39,13 @@ ScrollView {
             }
         }
 
-        // Metrics Row
-        RowLayout {
+        // Metrics Flow
+        Flow {
             Layout.fillWidth: true
-            spacing: 12
+            spacing: 10
             MetricCard { title: "Storage Free"; value: "118.4"; unit: "GB"; accentColor: SightlineTheme.info; iconText: "💽" }
             MetricCard { title: "Recorder State"; value: root.isRecording ? "RECORDING" : "STANDBY"; accentColor: root.isRecording ? SightlineTheme.error : SightlineTheme.success; iconText: root.isRecording ? "🔴" : "⏸️" }
             MetricCard { title: "Stored Clips"; value: "28"; unit: "files"; accentColor: SightlineTheme.primary; iconText: "📁" }
-            Item { Layout.fillWidth: true }
         }
 
         // Settings Card

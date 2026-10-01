@@ -37,15 +37,14 @@ ScrollView {
             }
         }
 
-        // Metrics Row
-        RowLayout {
+        // Metrics Flow
+        Flow {
             Layout.fillWidth: true
-            spacing: 12
+            spacing: 10
             MetricCard { title: "Shift X Offset"; value: "1.4"; unit: "px"; accentColor: SightlineTheme.primary; iconText: "↔️" }
             MetricCard { title: "Shift Y Offset"; value: "-0.8"; unit: "px"; accentColor: SightlineTheme.primary; iconText: "↕️" }
             MetricCard { title: "Roll Angle"; value: "0.2"; unit: "deg"; accentColor: SightlineTheme.info; iconText: "🔄" }
             MetricCard { title: "Confidence"; value: "98"; unit: "%"; accentColor: SightlineTheme.success; iconText: "✅" }
-            Item { Layout.fillWidth: true }
         }
 
         // Settings Card

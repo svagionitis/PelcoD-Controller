@@ -37,14 +37,13 @@ ScrollView {
             }
         }
 
-        // Metrics Row
-        RowLayout {
+        // Metrics Flow
+        Flow {
             Layout.fillWidth: true
-            spacing: 12
+            spacing: 10
             MetricCard { title: "Active Input Port"; value: "HDMI-1"; accentColor: SightlineTheme.primary; iconText: "🔌" }
             MetricCard { title: "Input Resolution"; value: "1080p60"; accentColor: SightlineTheme.info; iconText: "📺" }
             MetricCard { title: "Capture Jitter"; value: "< 0.4"; unit: "ms"; accentColor: SightlineTheme.success; iconText: "⏱️" }
-            Item { Layout.fillWidth: true }
         }
 
         // Settings Card

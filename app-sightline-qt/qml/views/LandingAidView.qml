@@ -37,15 +37,14 @@ ScrollView {
             }
         }
 
-        // Metrics Row
-        RowLayout {
+        // Metrics Flow
+        Flow {
             Layout.fillWidth: true
-            spacing: 12
+            spacing: 10
             MetricCard { title: "Relative Lateral (X)"; value: "+0.12"; unit: "m"; accentColor: SightlineTheme.primary; iconText: "↔️" }
             MetricCard { title: "Relative Longitude (Y)"; value: "-0.04"; unit: "m"; accentColor: SightlineTheme.primary; iconText: "↕️" }
             MetricCard { title: "Descent Altitude (Z)"; value: "14.8"; unit: "m"; accentColor: SightlineTheme.info; iconText: "📏" }
             MetricCard { title: "Marker Tracking"; value: "LOCKED"; accentColor: SightlineTheme.success; iconText: "🎯" }
-            Item { Layout.fillWidth: true }
         }
 
         // Settings Card

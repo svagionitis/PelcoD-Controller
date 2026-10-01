@@ -37,14 +37,13 @@ ScrollView {
             }
         }
 
-        // Metrics Row
-        RowLayout {
+        // Metrics Flow
+        Flow {
             Layout.fillWidth: true
-            spacing: 12
+            spacing: 10
             MetricCard { title: "UART Port 0"; value: "115200"; unit: "bps"; accentColor: SightlineTheme.primary; iconText: "📟" }
             MetricCard { title: "UART Port 1"; value: "Pelco-D"; accentColor: SightlineTheme.info; iconText: "🕹️" }
             MetricCard { title: "UART Status"; value: "ACTIVE"; accentColor: SightlineTheme.success; iconText: "⚡" }
-            Item { Layout.fillWidth: true }
         }
 
         // Settings Card

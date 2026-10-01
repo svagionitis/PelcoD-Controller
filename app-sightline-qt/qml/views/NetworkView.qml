@@ -37,14 +37,13 @@ ScrollView {
             }
         }
 
-        // Metrics Row
-        RowLayout {
+        // Metrics Flow
+        Flow {
             Layout.fillWidth: true
-            spacing: 12
+            spacing: 10
             MetricCard { title: "NIC Speed"; value: "1000 Mbps"; accentColor: SightlineTheme.success; iconText: "🔌" }
             MetricCard { title: "Active Target IP"; value: bridge ? bridge.host : "127.0.0.1"; accentColor: SightlineTheme.primary; iconText: "🌐" }
             MetricCard { title: "CoT Broadcast"; value: cotSwitch.checked ? "ACTIVE" : "STANDBY"; accentColor: cotSwitch.checked ? SightlineTheme.success : SightlineTheme.textMuted; iconText: "📡" }
-            Item { Layout.fillWidth: true }
         }
 
         // Settings Card

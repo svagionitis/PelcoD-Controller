@@ -122,6 +122,49 @@ ColumnLayout {
                     }
                 }
             }
+
+            CheckBox {
+                id: autoScrollCb
+                text: "Auto-scroll"
+                checked: true
+                Layout.alignment: Qt.AlignVCenter
+                contentItem: Text {
+                    text: autoScrollCb.text
+                    font.pixelSize: 11
+                    font.bold: true
+                    color: autoScrollCb.checked ? SightlineTheme.primary : SightlineTheme.textSecondary
+                    verticalAlignment: Text.AlignVCenter
+                    leftPadding: autoScrollCb.indicator.width + 4
+                }
+                onCheckedChanged: {
+                    if (checked && logListView.count > 0) {
+                        logListView.positionViewAtEnd();
+                    }
+                }
+            }
+
+            Button {
+                text: "▼ Latest"
+                implicitHeight: 32
+                implicitWidth: 70
+                Layout.alignment: Qt.AlignVCenter
+                contentItem: Text {
+                    text: parent.text
+                    color: SightlineTheme.primary
+                    font.pixelSize: 11
+                    font.bold: true
+                    horizontalAlignment: Text.AlignHCenter
+                    verticalAlignment: Text.AlignVCenter
+                }
+                background: Rectangle {
+                    color: SightlineTheme.surfaceLight
+                    radius: 4
+                    border.color: SightlineTheme.cardBorder
+                }
+                onClicked: {
+                    logListView.positionViewAtEnd();
+                }
+            }
         }
     }
 
@@ -141,6 +184,18 @@ ColumnLayout {
             anchors.margins: 8
             model: bridge ? bridge.trafficLogModel : null
             spacing: 3
+
+            onCountChanged: {
+                if (autoScrollCb.checked && count > 0) {
+                    logListView.positionViewAtEnd();
+                }
+            }
+
+            Component.onCompleted: {
+                if (count > 0) {
+                    logListView.positionViewAtEnd();
+                }
+            }
 
             header: Rectangle {
                 width: logListView.width

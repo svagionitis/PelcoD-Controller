@@ -20,6 +20,7 @@ QtObject {
     readonly property color primary: "#00e5ff"
     readonly property color primaryHover: "#33ebff"
     readonly property color primaryActive: "#00b4cc"
+    readonly property color accent: "#ff9100"
 
     readonly property color success: "#00e676"
     readonly property color warning: "#ff9100"
@@ -39,5 +40,5 @@ QtObject {
     readonly property int radiusMedium: 6
     readonly property int radiusLarge: 8
     readonly property int headerHeight: 48
-    readonly property int sidebarWidth: 260
+    readonly property int sidebarWidth: 200
 }

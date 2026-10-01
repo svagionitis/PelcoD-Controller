@@ -37,14 +37,13 @@ ScrollView {
             }
         }
 
-        // Metrics Row
-        RowLayout {
+        // Metrics Flow
+        Flow {
             Layout.fillWidth: true
-            spacing: 12
+            spacing: 10
             MetricCard { title: "Optical Zoom"; value: "18.4x"; accentColor: SightlineTheme.primary; iconText: "🔍" }
             MetricCard { title: "Focus Score"; value: "924"; unit: "pts"; accentColor: SightlineTheme.success; iconText: "🎯" }
             MetricCard { title: "Lens Barrel Temp"; value: "32.6"; unit: "°C"; accentColor: SightlineTheme.warning; iconText: "🌡️" }
-            Item { Layout.fillWidth: true }
         }
 
         // Settings Card
@@ -72,7 +71,7 @@ ScrollView {
                 RowLayout {
                     Layout.fillWidth: true
                     spacing: 12
-                    Text { text: "Camera Channel:"; color: SightlineTheme.textSecondary; font.pixelSize: 12; Layout.preferredWidth: 150; Layout.alignment: Qt.AlignVCenter }
+                    Text { text: "Camera Channel:"; color: SightlineTheme.textSecondary; font.pixelSize: 12; Layout.preferredWidth: 130; Layout.alignment: Qt.AlignVCenter }
                     ComboBox {
                         id: lensCam
                         model: ["Camera 0 (EO Zoom)", "Camera 1 (IR Lens)", "Camera 2", "Camera 3"]
@@ -84,21 +83,27 @@ ScrollView {
                 RowLayout {
                     Layout.fillWidth: true
                     spacing: 12
-                    Text { text: "Optical Zoom:"; color: SightlineTheme.textSecondary; font.pixelSize: 12; Layout.preferredWidth: 150; Layout.alignment: Qt.AlignVCenter }
-                    Button { text: "Wide (Zoom Out)"; implicitHeight: 30; implicitWidth: 130; onClicked: { if (bridge) bridge.sendLensCommand(lensCam.currentIndex, 0x01, -50); } }
-                    Button { text: "Stop"; implicitHeight: 30; implicitWidth: 70; onClicked: { if (bridge) bridge.sendLensCommand(lensCam.currentIndex, 0x01, 0); } }
-                    Button { text: "Tele (Zoom In)"; implicitHeight: 30; implicitWidth: 130; onClicked: { if (bridge) bridge.sendLensCommand(lensCam.currentIndex, 0x01, 50); } }
-                    Item { Layout.fillWidth: true }
+                    Text { text: "Optical Zoom:"; color: SightlineTheme.textSecondary; font.pixelSize: 12; Layout.preferredWidth: 130; Layout.alignment: Qt.AlignVCenter }
+                    Flow {
+                        Layout.fillWidth: true
+                        spacing: 8
+                        Button { text: "Wide (Zoom Out)"; implicitHeight: 30; implicitWidth: 110; onClicked: { if (bridge) bridge.sendLensCommand(lensCam.currentIndex, 0x01, -50); } }
+                        Button { text: "Stop"; implicitHeight: 30; implicitWidth: 60; onClicked: { if (bridge) bridge.sendLensCommand(lensCam.currentIndex, 0x01, 0); } }
+                        Button { text: "Tele (Zoom In)"; implicitHeight: 30; implicitWidth: 110; onClicked: { if (bridge) bridge.sendLensCommand(lensCam.currentIndex, 0x01, 50); } }
+                    }
                 }
 
                 RowLayout {
                     Layout.fillWidth: true
                     spacing: 12
-                    Text { text: "Manual Focus:"; color: SightlineTheme.textSecondary; font.pixelSize: 12; Layout.preferredWidth: 150; Layout.alignment: Qt.AlignVCenter }
-                    Button { text: "Focus Near"; implicitHeight: 30; implicitWidth: 130; onClicked: { if (bridge) bridge.sendLensCommand(lensCam.currentIndex, 0x02, -50); } }
-                    Button { text: "Stop"; implicitHeight: 30; implicitWidth: 70; onClicked: { if (bridge) bridge.sendLensCommand(lensCam.currentIndex, 0x02, 0); } }
-                    Button { text: "Focus Far"; implicitHeight: 30; implicitWidth: 130; onClicked: { if (bridge) bridge.sendLensCommand(lensCam.currentIndex, 0x02, 50); } }
-                    Item { Layout.fillWidth: true }
+                    Text { text: "Manual Focus:"; color: SightlineTheme.textSecondary; font.pixelSize: 12; Layout.preferredWidth: 130; Layout.alignment: Qt.AlignVCenter }
+                    Flow {
+                        Layout.fillWidth: true
+                        spacing: 8
+                        Button { text: "Focus Near"; implicitHeight: 30; implicitWidth: 110; onClicked: { if (bridge) bridge.sendLensCommand(lensCam.currentIndex, 0x02, -50); } }
+                        Button { text: "Stop"; implicitHeight: 30; implicitWidth: 60; onClicked: { if (bridge) bridge.sendLensCommand(lensCam.currentIndex, 0x02, 0); } }
+                        Button { text: "Focus Far"; implicitHeight: 30; implicitWidth: 110; onClicked: { if (bridge) bridge.sendLensCommand(lensCam.currentIndex, 0x02, 50); } }
+                    }
                 }
 
                 RowLayout {

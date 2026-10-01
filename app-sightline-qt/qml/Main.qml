@@ -8,10 +8,10 @@ import "views"
 ApplicationWindow {
     id: window
     visible: true
-    width: 1280
-    height: 820
-    minimumWidth: 1080
-    minimumHeight: 700
+    width: 1440
+    height: 900
+    minimumWidth: 1100
+    minimumHeight: 720
     title: "Sightline SLA Protocol Control Suite v3.11.6"
     color: SightlineTheme.background
 
@@ -20,89 +20,155 @@ ApplicationWindow {
         id: statusHeader
     }
 
-    RowLayout {
+    ColumnLayout {
         anchors.fill: parent
         spacing: 0
 
-        // Left Navigation Sidebar
-        ModuleNavigationSidebar {
-            id: sidebar
-            Layout.preferredWidth: SightlineTheme.sidebarWidth
-            Layout.minimumWidth: SightlineTheme.sidebarWidth
-            Layout.maximumWidth: SightlineTheme.sidebarWidth
-            Layout.fillHeight: true
-            currentIndex: stackLayout.currentIndex
-            onModuleSelected: function(index) {
-                stackLayout.currentIndex = index;
-            }
-        }
-
-        // Central Dynamic Module Workspace
-        StackLayout {
-            id: stackLayout
+        // 1. Central Workspace: 3-Pane Layout
+        RowLayout {
             Layout.fillWidth: true
             Layout.fillHeight: true
-            currentIndex: 0
+            spacing: 0
 
-            // 0: Tracking
-            TrackingView {}
+            // Left Navigation Sidebar (Vertical Tabs)
+            ModuleNavigationSidebar {
+                id: sidebar
+                Layout.preferredWidth: SightlineTheme.sidebarWidth
+                Layout.minimumWidth: 180
+                Layout.maximumWidth: 240
+                Layout.fillHeight: true
+                currentIndex: stackLayout.currentIndex
+                onModuleSelected: function(index) {
+                    if (index === 19) {
+                        // Focus and expand bottom protocol traffic inspector drawer
+                        trafficDrawer.isCollapsed = false;
+                    } else {
+                        stackLayout.currentIndex = index;
+                    }
 
-            // 1: Stabilization
-            StabilizationView {}
+                    // Auto-execute SLA getters to populate the active tab's structs/fields
+                    if (bridge) {
+                        bridge.queryModuleParameters(index);
+                    }
+                }
+            }
 
-            // 2: Detection
-            DetectionView {}
+            // Central Resizable Workspace: Video Viewport & Contextual Options
+            SplitView {
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                orientation: Qt.Horizontal
 
-            // 3: Classification
-            ClassificationView {}
+                handle: Rectangle {
+                    implicitWidth: 6
+                    color: SplitHandle.hovered || SplitHandle.pressed ? SightlineTheme.primary : SightlineTheme.cardBorder
+                    Rectangle {
+                        anchors.centerIn: parent
+                        width: 2
+                        height: 24
+                        radius: 1
+                        color: SightlineTheme.cardBorderHighlight
+                    }
+                }
 
-            // 4: Landing Aid
-            LandingAidView {}
+                // Center: Persistent Tactical Video Viewport (visible at all times)
+                TacticalVideoViewport {
+                    id: videoViewport
+                    SplitView.fillWidth: true
+                    SplitView.minimumWidth: 380
+                    SplitView.preferredWidth: 680
+                }
 
-            // 5: Capture
-            CaptureView {}
+                // Right: Contextual Module Options Panel (Resizable)
+                Rectangle {
+                    id: optionsContainer
+                    SplitView.preferredWidth: 560
+                    SplitView.minimumWidth: 420
+                    SplitView.fillWidth: true
+                    color: SightlineTheme.surface
+                    border.color: SightlineTheme.cardBorder
+                    border.width: 1
 
-            // 6: Display
-            DisplayView {}
+                    StackLayout {
+                        id: stackLayout
+                        anchors.fill: parent
+                        currentIndex: 0
 
-            // 7: Enhancement
-            EnhancementView {}
+                    // 0: Tracking
+                    TrackingView {}
 
-            // 8: Compression
-            CompressionView {}
+                    // 1: Stabilization
+                    StabilizationView {}
 
-            // 9: Blending
-            BlendingView {}
+                    // 2: Detection
+                    DetectionView {}
 
-            // 10: Overlays
-            OverlayView {}
+                    // 3: Classification
+                    ClassificationView {}
 
-            // 11: Focus & Lens
-            FocusLensView {}
+                    // 4: Landing Aid
+                    LandingAidView {}
 
-            // 12: NUC Calibration
-            NucView {}
+                    // 5: Capture
+                    CaptureView {}
 
-            // 13: Telemetry
-            TelemetryView {}
+                    // 6: Display
+                    DisplayView {}
 
-            // 14: KLV Metadata
-            KlvMetadataView {}
+                    // 7: Enhancement
+                    EnhancementView {}
 
-            // 15: Recording
-            RecordingView {}
+                    // 8: Compression
+                    CompressionView {}
 
-            // 16: Network
-            NetworkView {}
+                    // 9: Blending
+                    BlendingView {}
 
-            // 17: Serial Port
-            SerialPortView {}
+                    // 10: Overlays
+                    OverlayView {}
 
-            // 18: General System
-            GeneralSystemView {}
+                    // 11: Focus & Lens
+                    FocusLensView {}
 
-            // 19: Traffic Inspector
-            TrafficInspectorView {}
+                    // 12: NUC Calibration
+                    NucView {}
+
+                    // 13: Telemetry
+                    TelemetryView {}
+
+                    // 14: KLV Metadata
+                    KlvMetadataView {}
+
+                    // 15: Recording
+                    RecordingView {}
+
+                    // 16: Network
+                    NetworkView {}
+
+                    // 17: Serial Port
+                    SerialPortView {}
+
+                    // 18: General System
+                    GeneralSystemView {}
+
+                    // 19: Traffic Inspector Details
+                    TrafficInspectorView {}
+                }
+            }
+        }
+    }
+
+    // 2. Bottom: Persistent Protocol Traffic Inspector Drawer (docked at all times)
+    TrafficInspectorDrawer {
+        id: trafficDrawer
+        Layout.fillWidth: true
+    }
+    }
+
+    Component.onCompleted: {
+        if (bridge) {
+            // Automatically execute initial getters for default tab (Tracking)
+            bridge.queryModuleParameters(0);
         }
     }
 }

@@ -37,15 +37,14 @@ ScrollView {
             }
         }
 
-        // Metrics Row
-        RowLayout {
+        // Metrics Flow
+        Flow {
             Layout.fillWidth: true
-            spacing: 12
+            spacing: 10
             MetricCard { title: "Firmware Build"; value: bridge ? bridge.softwareVersion : "Disconnected"; accentColor: SightlineTheme.primary; iconText: "💾" }
             MetricCard { title: "SoC Core Temp"; value: (bridge && bridge.isConnected) ? (bridge.coreTempC + "°C") : "--"; accentColor: (bridge && bridge.coreTempC > 75) ? SightlineTheme.warning : SightlineTheme.info; iconText: "🌡️" }
             MetricCard { title: "Processor Load"; value: (bridge && bridge.isConnected) ? (bridge.cpuLoadPercent + "%") : "--"; accentColor: (bridge && bridge.cpuLoadPercent > 80) ? SightlineTheme.warning : SightlineTheme.success; iconText: "⚡" }
             MetricCard { title: "System Uptime"; value: (bridge && bridge.isConnected) ? (bridge.uptimeSeconds + "s") : "--"; accentColor: SightlineTheme.primary; iconText: "⏱️" }
-            Item { Layout.fillWidth: true }
         }
 
         // Settings Card
@@ -89,14 +88,14 @@ ScrollView {
                     Item { Layout.fillWidth: true }
                 }
 
-                RowLayout {
+                Flow {
                     Layout.fillWidth: true
                     spacing: 10
 
                     Button {
                         text: "Query Version"
-                        Layout.preferredWidth: 140
-                        Layout.preferredHeight: 32
+                        implicitWidth: 130
+                        implicitHeight: 32
                         contentItem: Text { text: parent.text; color: "#0e1014"; font.bold: true; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
                         background: Rectangle { color: SightlineTheme.primary; radius: 4 }
                         onClicked: { if (bridge) bridge.queryVersion(); }
@@ -104,8 +103,8 @@ ScrollView {
 
                     Button {
                         text: "Save to Flash"
-                        Layout.preferredWidth: 140
-                        Layout.preferredHeight: 32
+                        implicitWidth: 130
+                        implicitHeight: 32
                         contentItem: Text { text: parent.text; color: "#0e1014"; font.bold: true; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
                         background: Rectangle { color: SightlineTheme.success; radius: 4 }
                         onClicked: { if (bridge) bridge.saveParameters(0); }
@@ -113,14 +112,12 @@ ScrollView {
 
                     Button {
                         text: "Reset Defaults"
-                        Layout.preferredWidth: 140
-                        Layout.preferredHeight: 32
+                        implicitWidth: 130
+                        implicitHeight: 32
                         contentItem: Text { text: parent.text; color: "#ffffff"; font.bold: true; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
                         background: Rectangle { color: SightlineTheme.error; radius: 4 }
                         onClicked: { if (bridge) bridge.resetParameters(0); }
                     }
-
-                    Item { Layout.fillWidth: true }
                 }
 
                 Rectangle { Layout.fillWidth: true; height: 1; color: SightlineTheme.cardBorder }

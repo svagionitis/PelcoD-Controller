@@ -449,6 +449,101 @@ bool SightlineQmlBridge::sendRawHex(const QString& hexString)
     return m_device->sendRawPacket(rawBytes);
 }
 
+bool SightlineQmlBridge::queryParameters(int queryId)
+{
+    if (!isConnected()) {
+        return false;
+    }
+    return m_device->device()->queryParameters(static_cast<std::uint8_t>(queryId));
+}
+
+void SightlineQmlBridge::queryModuleParameters(int tabIndex)
+{
+    if (!isConnected()) {
+        return;
+    }
+
+    switch (tabIndex) {
+    case 0: // Tracking
+        queryParameters(static_cast<int>(Sightline::MessageId::SetTrackingParameters)); // 0x0C
+        queryParameters(static_cast<int>(Sightline::MessageId::CoordinateReportingMode)); // 0x0B
+        break;
+    case 1: // Stabilization
+        queryParameters(static_cast<int>(Sightline::MessageId::SetStabilizationParameters)); // 0x02
+        queryParameters(static_cast<int>(Sightline::MessageId::SetStabilizationBias)); // 0x12
+        break;
+    case 2: // Detection
+        queryParameters(static_cast<int>(Sightline::MessageId::SetDetectionParameters)); // 0x2D
+        queryParameters(static_cast<int>(Sightline::MessageId::SetVMTI)); // 0x84
+        break;
+    case 3: // Classification
+        queryParameters(static_cast<int>(Sightline::MessageId::CustomAIDetect)); // 0xBA
+        queryParameters(static_cast<int>(Sightline::MessageId::TrackingMultiClass)); // 0xBD
+        break;
+    case 4: // Landing Aid
+        queryParameters(static_cast<int>(Sightline::MessageId::LandingAid)); // 0x81
+        break;
+    case 5: // Capture
+        queryParameters(static_cast<int>(Sightline::MessageId::SetVideoParameters)); // 0x10
+        queryParameters(static_cast<int>(Sightline::MessageId::CameraCapabilities)); // 0xBB
+        break;
+    case 6: // Display
+        queryParameters(static_cast<int>(Sightline::MessageId::SetDisplayParameters)); // 0x16
+        queryParameters(static_cast<int>(Sightline::MessageId::VideoDisplay)); // 0xA4
+        break;
+    case 7: // Enhancement
+        queryParameters(static_cast<int>(Sightline::MessageId::SetVideoEnhancementParameters)); // 0x21
+        queryParameters(static_cast<int>(Sightline::MessageId::Noise3D)); // 0xAF
+        break;
+    case 8: // Compression
+        queryParameters(static_cast<int>(Sightline::MessageId::SetH264Parameters)); // 0x23
+        queryParameters(static_cast<int>(Sightline::MessageId::StreamingControl)); // 0x90
+        queryParameters(static_cast<int>(Sightline::MessageId::DecoderParameters)); // 0x99
+        break;
+    case 9: // Blending
+        queryParameters(static_cast<int>(Sightline::MessageId::SetBlendParameters)); // 0x2B
+        queryParameters(static_cast<int>(Sightline::MessageId::BlendAlign)); // 0xB9
+        break;
+    case 10: // Overlays
+        queryParameters(static_cast<int>(Sightline::MessageId::SetOverlayMode)); // 0x06
+        queryParameters(static_cast<int>(Sightline::MessageId::LogoParameters)); // 0x9B
+        break;
+    case 11: // Focus & Lens
+        queryParameters(static_cast<int>(Sightline::MessageId::SetLensParameters)); // 0x6E
+        break;
+    case 12: // NUC Calibration
+        queryParameters(static_cast<int>(Sightline::MessageId::NucParameters)); // 0x35
+        queryParameters(static_cast<int>(Sightline::MessageId::DeadPixel)); // 0xA8
+        break;
+    case 13: // Telemetry
+        queryParameters(0x13); // Metadata values
+        queryParameters(0x64); // Telemetry destination
+        break;
+    case 14: // KLV Metadata
+        queryParameters(static_cast<int>(Sightline::MessageId::CurrentMetadataRate)); // 0x8D / 0x62
+        break;
+    case 15: // Recording
+        queryParameters(0x5F); // SnapShot status
+        break;
+    case 16: // Network
+        queryParameters(static_cast<int>(Sightline::MessageId::SetNetworkParameters)); // 0x1C
+        queryParameters(0x66); // Network list
+        break;
+    case 17: // Serial Port
+        queryParameters(static_cast<int>(Sightline::MessageId::SetPortConfiguration)); // 0x3E
+        queryParameters(static_cast<int>(Sightline::MessageId::GPIO)); // 0xB6
+        break;
+    case 18: // General System
+        queryVersion(); // 0x00
+        queryParameters(static_cast<int>(Sightline::MessageId::SystemStatusMode)); // 0x80
+        break;
+    default:
+        break;
+    }
+
+    emit moduleQueryDispatched(tabIndex);
+}
+
 void SightlineQmlBridge::handleTrackingPositions(const Sightline::MsgTrackingPositions& pos)
 {
     m_trackListModel->updateTracks(pos.tracks);

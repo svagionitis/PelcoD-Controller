@@ -37,14 +37,13 @@ ScrollView {
             }
         }
 
-        // Metrics Row
-        RowLayout {
+        // Metrics Flow
+        Flow {
             Layout.fillWidth: true
-            spacing: 12
+            spacing: 10
             MetricCard { title: "CLAHE Processing"; value: "ACTIVE"; accentColor: SightlineTheme.success; iconText: "⚡" }
             MetricCard { title: "Denoise Filter"; value: "3D Temporal"; accentColor: SightlineTheme.info; iconText: "🌊" }
             MetricCard { title: "Tonal Range"; value: "14-bit Linear"; accentColor: SightlineTheme.primary; iconText: "📊" }
-            Item { Layout.fillWidth: true }
         }
 
         // Settings Card

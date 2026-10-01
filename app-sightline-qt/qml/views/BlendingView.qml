@@ -37,14 +37,13 @@ ScrollView {
             }
         }
 
-        // Metrics Row
-        RowLayout {
+        // Metrics Flow
+        Flow {
             Layout.fillWidth: true
-            spacing: 12
+            spacing: 10
             MetricCard { title: "Base Sensor"; value: "Visible EO"; accentColor: SightlineTheme.primary; iconText: "☀️" }
             MetricCard { title: "Overlay Sensor"; value: "LWIR Thermal"; accentColor: SightlineTheme.warning; iconText: "🌡️" }
             MetricCard { title: "Thermal Mix"; value: Math.round(alphaSlider.value / 2.55) + "% IR"; accentColor: SightlineTheme.info; iconText: "⚖️" }
-            Item { Layout.fillWidth: true }
         }
 
         // Settings Card

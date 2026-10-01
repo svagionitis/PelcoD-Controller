@@ -37,15 +37,14 @@ ScrollView {
             }
         }
 
-        // Metrics Row
-        RowLayout {
+        // Metrics Flow
+        Flow {
             Layout.fillWidth: true
-            spacing: 12
+            spacing: 10
             MetricCard { title: "Video Codec"; value: "H.264 Main"; accentColor: SightlineTheme.primary; iconText: "🎬" }
             MetricCard { title: "Target Bitrate"; value: "4.0"; unit: "Mbps"; accentColor: SightlineTheme.info; iconText: "📶" }
             MetricCard { title: "GOP Interval"; value: "30"; unit: "frames"; accentColor: SightlineTheme.warning; iconText: "⏱️" }
             MetricCard { title: "RTSP Transport"; value: "ACTIVE"; accentColor: SightlineTheme.success; iconText: "📡" }
-            Item { Layout.fillWidth: true }
         }
 
         // Settings Card
