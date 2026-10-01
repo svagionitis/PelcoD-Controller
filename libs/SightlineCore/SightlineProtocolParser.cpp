@@ -16,17 +16,17 @@
 
 namespace Sightline {
 
-std::size_t SightlineProtocolParser::getHeaderLength(const std::vector<std::uint8_t>& packet) noexcept
+std::size_t SightlineProtocolParser::getHeaderLength(ByteView packet) noexcept
 {
     return SightlineFraming::getHeaderLength(packet);
 }
 
-MessageId SightlineProtocolParser::identifyMessage(const std::vector<std::uint8_t>& packet) noexcept
+MessageId SightlineProtocolParser::identifyMessage(ByteView packet) noexcept
 {
     return SightlineFraming::identifyMessage(packet);
 }
 
-std::vector<std::uint8_t> SightlineProtocolParser::extractPayload(const std::vector<std::uint8_t>& packet)
+ByteView SightlineProtocolParser::extractPayload(ByteView packet) noexcept
 {
     return SightlineFraming::extractPayload(packet);
 }
@@ -65,8 +65,7 @@ bool SightlineProtocolParser::parseTrackingPosition(const std::vector<std::uint8
     return SightlineTrackingParser::parseTrackingPosition(packet, out);
 }
 
-bool SightlineProtocolParser::parseTrackingPositions(
-    const std::vector<std::uint8_t>& packet, MsgTrackingPositions& out)
+bool SightlineProtocolParser::parseTrackingPositions(const std::vector<std::uint8_t>& packet, MsgTrackingPositions& out)
 {
     return SightlineTrackingParser::parseTrackingPositions(packet, out);
 }
@@ -112,7 +111,8 @@ bool SightlineProtocolParser::parseMetadataValues(const std::vector<std::uint8_t
     return SightlineKlvParser::parseMetadataValues(packet, out);
 }
 
-bool SightlineProtocolParser::parseTrackingParameters(const std::vector<std::uint8_t>& packet, MsgSetTrackingParameters& out)
+bool SightlineProtocolParser::parseTrackingParameters(
+    const std::vector<std::uint8_t>& packet, MsgSetTrackingParameters& out)
 {
     return SightlineTrackingParser::parseTrackingParameters(packet, out);
 }
@@ -127,7 +127,8 @@ bool SightlineProtocolParser::parseSystemStatusMode(const std::vector<std::uint8
     return SightlineGeneralParser::parseSystemStatusMode(packet, out);
 }
 
-bool SightlineProtocolParser::parseMetadataStaticValues(const std::vector<std::uint8_t>& packet, MsgMetadataStaticValues& out)
+bool SightlineProtocolParser::parseMetadataStaticValues(
+    const std::vector<std::uint8_t>& packet, MsgMetadataStaticValues& out)
 {
     return SightlineKlvParser::parseMetadataStaticValues(packet, out);
 }

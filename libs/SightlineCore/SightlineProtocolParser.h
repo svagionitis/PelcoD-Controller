@@ -17,14 +17,16 @@ namespace Sightline {
 class SightlineProtocolParser {
 public:
     /// @brief Identifies the SLA Message ID from a framed binary packet.
-    /// @param[in] packet Validated framed packet bytes.
+    /// @details Extracts the Message ID byte directly following the framing header bytes.
+    /// @param[in] packet Validated framed packet bytes or view.
     /// @return Extracted MessageId enum or MessageId::Unknown.
-    [[nodiscard]] static MessageId identifyMessage(const std::vector<std::uint8_t>& packet) noexcept;
+    [[nodiscard]] static MessageId identifyMessage(ByteView packet) noexcept;
 
-    /// @brief Extracts payload bytes excluding headers, ID, and checksum.
-    /// @param[in] packet Validated framed packet bytes.
-    /// @return Byte vector of payload contents.
-    [[nodiscard]] static std::vector<std::uint8_t> extractPayload(const std::vector<std::uint8_t>& packet);
+    /// @brief Extracts payload bytes excluding headers, ID, and checksum without heap allocation.
+    /// @details Returns a ByteView slicing the underlying packet buffer between Message ID and CRC.
+    /// @param[in] packet Validated framed packet bytes or view.
+    /// @return ByteView of payload contents.
+    [[nodiscard]] static ByteView extractPayload(ByteView packet) noexcept;
 
     // --- System & Telemetry Deserializers ---
 
@@ -118,7 +120,8 @@ public:
     /// @param[in] packet Validated framed packet bytes.
     /// @param[out] out Deserialized tracking parameters.
     /// @return True on successful parse.
-    [[nodiscard]] static bool parseTrackingParameters(const std::vector<std::uint8_t>& packet, MsgSetTrackingParameters& out);
+    [[nodiscard]] static bool parseTrackingParameters(
+        const std::vector<std::uint8_t>& packet, MsgSetTrackingParameters& out);
 
     /// @brief Parses lens optical calibration parameters (Message ID 0x6E / 0x6F / 0xB1).
     [[nodiscard]] static bool parseLensParameters(const std::vector<std::uint8_t>& packet, MsgSetLensParameters& out);
@@ -127,7 +130,8 @@ public:
     [[nodiscard]] static bool parseSystemStatusMode(const std::vector<std::uint8_t>& packet, MsgSystemStatusMode& out);
 
     /// @brief Parses static metadata values (Message ID 0x14).
-    [[nodiscard]] static bool parseMetadataStaticValues(const std::vector<std::uint8_t>& packet, MsgMetadataStaticValues& out);
+    [[nodiscard]] static bool parseMetadataStaticValues(
+        const std::vector<std::uint8_t>& packet, MsgMetadataStaticValues& out);
 
     /// @brief Parses metadata rate reply (Message ID 0x62 / 0x8D).
     [[nodiscard]] static bool parseMetadataRate(const std::vector<std::uint8_t>& packet, MsgSetMetadataRate& out);
@@ -139,7 +143,7 @@ public:
     [[nodiscard]] static bool parseSnapShot(const std::vector<std::uint8_t>& packet, MsgCurrentSnapShot& out);
 
 private:
-    [[nodiscard]] static std::size_t getHeaderLength(const std::vector<std::uint8_t>& packet) noexcept;
+    [[nodiscard]] static std::size_t getHeaderLength(ByteView packet) noexcept;
 };
 
 } // namespace Sightline

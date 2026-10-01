@@ -22,26 +22,30 @@ public:
     static constexpr std::uint8_t HeaderByte2 { 0xACU };
 
     /// @brief Wraps a payload and message ID into a framed, CRC8-protected SLA packet.
+    /// @details Encodes header (0x51 0xAC), 1-byte or 2-byte length, message ID, payload, and computed CRC-8 checksum.
     /// @param[in] id SLA Message ID.
     /// @param[in] payload Byte buffer containing message payload.
     /// @return Complete framed binary packet.
-    [[nodiscard]] static std::vector<std::uint8_t> buildPacket(
-        MessageId id, const std::vector<std::uint8_t>& payload);
+    [[nodiscard]] static std::vector<std::uint8_t> buildPacket(MessageId id, ByteView payload);
 
     /// @brief Determines length of the packet header (3 bytes for short, 4 for extended length).
-    /// @param[in] packet Raw packet buffer.
+    /// @details Checks sync bytes and high bit of length byte to distinguish between standard (3-byte)
+    ///          and extended (4-byte) SLA framing headers.
+    /// @param[in] packet Raw packet buffer or view.
     /// @return Number of header bytes (0 if incomplete/invalid).
-    [[nodiscard]] static std::size_t getHeaderLength(const std::vector<std::uint8_t>& packet) noexcept;
+    [[nodiscard]] static std::size_t getHeaderLength(ByteView packet) noexcept;
 
     /// @brief Extracts the MessageId from a framed packet.
-    /// @param[in] packet Validated framed packet buffer.
+    /// @details Reads byte located immediately following header bytes without copying the frame.
+    /// @param[in] packet Validated framed packet buffer or view.
     /// @return Extracted MessageId enum or MessageId::Unknown.
-    [[nodiscard]] static MessageId identifyMessage(const std::vector<std::uint8_t>& packet) noexcept;
+    [[nodiscard]] static MessageId identifyMessage(ByteView packet) noexcept;
 
-    /// @brief Extracts payload bytes excluding header, Message ID, and CRC.
-    /// @param[in] packet Validated framed packet buffer.
-    /// @return Vector of payload bytes.
-    [[nodiscard]] static std::vector<std::uint8_t> extractPayload(const std::vector<std::uint8_t>& packet);
+    /// @brief Extracts payload bytes excluding header, Message ID, and CRC without heap allocation.
+    /// @details Computes zero-copy ByteView slice between Message ID and CRC checksum.
+    /// @param[in] packet Validated framed packet buffer or view.
+    /// @return ByteView of payload bytes.
+    [[nodiscard]] static ByteView extractPayload(ByteView packet) noexcept;
 
     // --- Endian Serialization Helpers (Little-Endian) ---
 

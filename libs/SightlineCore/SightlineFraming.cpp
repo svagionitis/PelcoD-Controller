@@ -5,8 +5,7 @@
 
 namespace Sightline {
 
-std::vector<std::uint8_t> SightlineFraming::buildPacket(
-    MessageId id, const std::vector<std::uint8_t>& payload)
+std::vector<std::uint8_t> SightlineFraming::buildPacket(MessageId id, ByteView payload)
 {
     // Length covers Message ID + Payload + Checksum
     const std::size_t payloadAndCsLen { 1U + payload.size() + 1U };
@@ -38,7 +37,7 @@ std::vector<std::uint8_t> SightlineFraming::buildPacket(
     return packet;
 }
 
-std::size_t SightlineFraming::getHeaderLength(const std::vector<std::uint8_t>& packet) noexcept
+std::size_t SightlineFraming::getHeaderLength(ByteView packet) noexcept
 {
     if (packet.size() < 3U) {
         return 0U;
@@ -52,7 +51,7 @@ std::size_t SightlineFraming::getHeaderLength(const std::vector<std::uint8_t>& p
     return 0U;
 }
 
-MessageId SightlineFraming::identifyMessage(const std::vector<std::uint8_t>& packet) noexcept
+MessageId SightlineFraming::identifyMessage(ByteView packet) noexcept
 {
     const std::size_t hLen { getHeaderLength(packet) };
     if (hLen == 0U || packet.size() <= hLen) {
@@ -61,7 +60,7 @@ MessageId SightlineFraming::identifyMessage(const std::vector<std::uint8_t>& pac
     return static_cast<MessageId>(packet[hLen]);
 }
 
-std::vector<std::uint8_t> SightlineFraming::extractPayload(const std::vector<std::uint8_t>& packet)
+ByteView SightlineFraming::extractPayload(ByteView packet) noexcept
 {
     const std::size_t hLen { getHeaderLength(packet) };
     // Packet must have header + MessageId (1) + Checksum (1)
@@ -69,7 +68,7 @@ std::vector<std::uint8_t> SightlineFraming::extractPayload(const std::vector<std
         return {};
     }
     // Payload is strictly between MessageId and Checksum
-    return std::vector<std::uint8_t>(packet.begin() + static_cast<std::ptrdiff_t>(hLen + 1U), packet.end() - 1);
+    return packet.subspan(hLen + 1U, packet.size() - (hLen + 2U));
 }
 
 void SightlineFraming::appendU16Le(std::vector<std::uint8_t>& buf, std::uint16_t val)
@@ -124,8 +123,7 @@ void SightlineFraming::appendString(std::vector<std::uint8_t>& buf, const std::s
 
 std::uint16_t SightlineFraming::readU16Le(const std::uint8_t* ptr) noexcept
 {
-    return static_cast<std::uint16_t>(
-        static_cast<std::uint16_t>(ptr[0]) | (static_cast<std::uint16_t>(ptr[1]) << 8U));
+    return static_cast<std::uint16_t>(static_cast<std::uint16_t>(ptr[0]) | (static_cast<std::uint16_t>(ptr[1]) << 8U));
 }
 
 std::int16_t SightlineFraming::readS16Le(const std::uint8_t* ptr) noexcept
