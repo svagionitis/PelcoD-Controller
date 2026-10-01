@@ -199,18 +199,20 @@ Item {
         refreshPresets();
     }
 
+    readonly property int minContentWidth: 980
+
     ScrollView {
         id: scrollView
         anchors.fill: parent
         clip: true
-        contentWidth: Math.max(availableWidth, mainCol.width + 32)
+        contentWidth: Math.max(availableWidth, root.minContentWidth + 32)
         contentHeight: mainCol.implicitHeight + 40
         ScrollBar.vertical.policy: ScrollBar.AsNeeded
         ScrollBar.horizontal.policy: ScrollBar.AsNeeded
 
         ColumnLayout {
             id: mainCol
-            width: Math.max(scrollView.availableWidth - 32, 480)
+            width: Math.max(scrollView.availableWidth - 32, root.minContentWidth)
             x: 16
             spacing: 16
 
