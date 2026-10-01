@@ -142,6 +142,91 @@ namespace {
         EXPECT_EQ(dpOut.cameraIndex, 1U);
         EXPECT_EQ(dpOut.mode, 1U);
         EXPECT_EQ(dpOut.deadPixelCount, 24U);
+
+        // 3. Read/Write NUC Flash (0x36)
+        MsgReadWriteNuc rwNucMsg {};
+        rwNucMsg.cameraIndex = 2U;
+        rwNucMsg.action = 1U; // Write to flash
+        rwNucMsg.tableIndex = 3U;
+
+        const auto rwNucPkt = SightlineNucBuilder::buildReadWriteNuc(rwNucMsg);
+        EXPECT_EQ(SightlineFraming::identifyMessage(rwNucPkt), MessageId::ReadWriteNuc);
+
+        MsgReadWriteNuc rwNucOut {};
+        ASSERT_TRUE(SightlineNucParser::parseReadWriteNuc(rwNucPkt, rwNucOut));
+        EXPECT_EQ(rwNucOut.cameraIndex, 2U);
+        EXPECT_EQ(rwNucOut.action, 1U);
+        EXPECT_EQ(rwNucOut.tableIndex, 3U);
+
+        // 4. User Thermal Palette (0x72)
+        MsgUserPalette palMsg {};
+        palMsg.paletteIndex = 1U;
+        palMsg.lutData = { 0x10U, 0x20U, 0x30U, 0x40U, 0x50U };
+
+        const auto palPkt = SightlineNucBuilder::buildSetUserPalette(palMsg);
+        EXPECT_EQ(SightlineFraming::identifyMessage(palPkt), MessageId::SetUserPalette);
+
+        MsgUserPalette palOut {};
+        ASSERT_TRUE(SightlineNucParser::parseUserPalette(palPkt, palOut));
+        EXPECT_EQ(palOut.paletteIndex, 1U);
+        EXPECT_EQ(palOut.lutData, palMsg.lutData);
+
+        // 5. Dead Pixel Statistics (0xA1)
+        std::vector<std::uint8_t> dpStatsPayload {};
+        dpStatsPayload.push_back(0U); // cameraIndex 0
+        SightlineFraming::appendU16Le(dpStatsPayload, 42U); // deadPixelCount
+        SightlineFraming::appendU16Le(dpStatsPayload, 3U); // badColumns
+        SightlineFraming::appendU16Le(dpStatsPayload, 1U); // badRows
+
+        const auto dpStatsPkt = SightlineFraming::buildPacket(MessageId::DeadPixelStats, dpStatsPayload);
+        MsgDeadPixelStats dpStatsOut {};
+        ASSERT_TRUE(SightlineNucParser::parseDeadPixelStats(dpStatsPkt, dpStatsOut));
+        EXPECT_EQ(dpStatsOut.cameraIndex, 0U);
+        EXPECT_EQ(dpStatsOut.deadPixelCount, 42U);
+        EXPECT_EQ(dpStatsOut.badColumns, 3U);
+        EXPECT_EQ(dpStatsOut.badRows, 1U);
+
+        // 6. Camera Calibration (0xC0)
+        MsgCameraCalibration calibMsg {};
+        calibMsg.cameraIndex = 0U;
+        calibMsg.focalLengthX = 1000.5F;
+        calibMsg.focalLengthY = 1000.8F;
+        calibMsg.principalPointX = 640.0F;
+        calibMsg.principalPointY = 512.0F;
+        calibMsg.radialDistortionK1 = -0.15F;
+        calibMsg.radialDistortionK2 = 0.05F;
+        calibMsg.tangentialP1 = 0.001F;
+        calibMsg.tangentialP2 = -0.002F;
+
+        const auto calibPkt = SightlineNucBuilder::buildCameraCalibration(calibMsg);
+        EXPECT_EQ(SightlineFraming::identifyMessage(calibPkt), MessageId::CameraCalibration);
+
+        MsgCameraCalibration calibOut {};
+        ASSERT_TRUE(SightlineNucParser::parseCameraCalibration(calibPkt, calibOut));
+        EXPECT_EQ(calibOut.cameraIndex, 0U);
+        EXPECT_FLOAT_EQ(calibOut.focalLengthX, 1000.5F);
+        EXPECT_FLOAT_EQ(calibOut.focalLengthY, 1000.8F);
+        EXPECT_FLOAT_EQ(calibOut.principalPointX, 640.0F);
+        EXPECT_FLOAT_EQ(calibOut.principalPointY, 512.0F);
+        EXPECT_FLOAT_EQ(calibOut.radialDistortionK1, -0.15F);
+        EXPECT_FLOAT_EQ(calibOut.radialDistortionK2, 0.05F);
+        EXPECT_FLOAT_EQ(calibOut.tangentialP1, 0.001F);
+        EXPECT_FLOAT_EQ(calibOut.tangentialP2, -0.002F);
+
+        // 7. Camera Parameter File (0xC2)
+        MsgCameraParameterFile paramFileMsg {};
+        paramFileMsg.cameraIndex = 1U;
+        paramFileMsg.action = 0U; // Load
+        paramFileMsg.filename = "boson640_calib.bin";
+
+        const auto filePkt = SightlineNucBuilder::buildCameraParameterFile(paramFileMsg);
+        EXPECT_EQ(SightlineFraming::identifyMessage(filePkt), MessageId::CameraParameterFile);
+
+        MsgCameraParameterFile fileOut {};
+        ASSERT_TRUE(SightlineNucParser::parseCameraParameterFile(filePkt, fileOut));
+        EXPECT_EQ(fileOut.cameraIndex, 1U);
+        EXPECT_EQ(fileOut.action, 0U);
+        EXPECT_EQ(fileOut.filename, "boson640_calib.bin");
     }
 
     /// @brief Verify network list reply deserialization and dead pixel query builder.
@@ -155,9 +240,18 @@ namespace {
         std::vector<std::uint8_t> payload {};
         payload.push_back(2U); // 2 interfaces
         // "eth0\0"
-        payload.push_back('e'); payload.push_back('t'); payload.push_back('h'); payload.push_back('0'); payload.push_back('\0');
+        payload.push_back('e');
+        payload.push_back('t');
+        payload.push_back('h');
+        payload.push_back('0');
+        payload.push_back('\0');
         // "wlan0\0"
-        payload.push_back('w'); payload.push_back('l'); payload.push_back('a'); payload.push_back('n'); payload.push_back('0'); payload.push_back('\0');
+        payload.push_back('w');
+        payload.push_back('l');
+        payload.push_back('a');
+        payload.push_back('n');
+        payload.push_back('0');
+        payload.push_back('\0');
 
         const auto netListPkt = SightlineFraming::buildPacket(MessageId::CurrentNetworkList, payload);
         MsgCurrentNetworkList netList {};

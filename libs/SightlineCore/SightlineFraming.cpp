@@ -147,6 +147,14 @@ std::uint64_t SightlineFraming::readU64Le(const std::uint8_t* ptr) noexcept
     return static_cast<std::uint64_t>(readU32Le(ptr)) | (static_cast<std::uint64_t>(readU32Le(ptr + 4U)) << 32U);
 }
 
+float SightlineFraming::readFloat32Le(const std::uint8_t* ptr) noexcept
+{
+    const std::uint32_t raw { readU32Le(ptr) };
+    float val { 0.0F };
+    std::memcpy(&val, &raw, sizeof(float));
+    return val;
+}
+
 double SightlineFraming::readDouble64Le(const std::uint8_t* ptr) noexcept
 {
     const std::uint64_t raw { readU64Le(ptr) };

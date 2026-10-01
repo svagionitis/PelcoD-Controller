@@ -142,6 +142,29 @@ public:
     /// @brief Parses snapshot status and path (Message ID 0x5D / 0x5F).
     [[nodiscard]] static bool parseSnapShot(const std::vector<std::uint8_t>& packet, MsgCurrentSnapShot& out);
 
+    // --- Thermal NUC & Sensor Calibration Deserializers ---
+
+    /// @brief Parses NUC calibration parameters (Message ID 0x35).
+    [[nodiscard]] static bool parseNucParameters(ByteView packet, MsgNucParameters& out);
+
+    /// @brief Parses dead pixel replacement configuration (Message ID 0xA8).
+    [[nodiscard]] static bool parseDeadPixel(ByteView packet, MsgDeadPixel& out);
+
+    /// @brief Parses NUC read/write flash response (Message ID 0x36).
+    [[nodiscard]] static bool parseReadWriteNuc(ByteView packet, MsgReadWriteNuc& out);
+
+    /// @brief Parses custom thermal pseudo-color palette (Message ID 0x72 / 0x73).
+    [[nodiscard]] static bool parseUserPalette(ByteView packet, MsgUserPalette& out);
+
+    /// @brief Parses dead pixel metrics and defect statistics (Message ID 0xA1).
+    [[nodiscard]] static bool parseDeadPixelStats(ByteView packet, MsgDeadPixelStats& out);
+
+    /// @brief Parses camera intrinsic geometric calibration (Message ID 0xC0).
+    [[nodiscard]] static bool parseCameraCalibration(ByteView packet, MsgCameraCalibration& out);
+
+    /// @brief Parses camera parameter file status or reply (Message ID 0xC2).
+    [[nodiscard]] static bool parseCameraParameterFile(ByteView packet, MsgCameraParameterFile& out);
+
 private:
     [[nodiscard]] static std::size_t getHeaderLength(ByteView packet) noexcept;
 };

@@ -116,6 +116,12 @@ public:
     /// @return 64-bit value.
     [[nodiscard]] static std::uint64_t readU64Le(const std::uint8_t* ptr) noexcept;
 
+    /// @brief Reads a 32-bit IEEE float in little-endian order.
+    /// @details Deserializes little-endian float using std::memcpy to avoid strict aliasing violation.
+    /// @param[in] ptr Pointer to at least 4 readable bytes.
+    /// @return 32-bit float value.
+    [[nodiscard]] static float readFloat32Le(const std::uint8_t* ptr) noexcept;
+
     /// @brief Reads a 64-bit IEEE double in little-endian order.
     /// @param[in] ptr Pointer to at least 8 readable bytes.
     /// @return 64-bit double value.

@@ -9,6 +9,7 @@
 #include "modules/SightlineGeneralParser.h"
 #include "modules/SightlineKlvParser.h"
 #include "modules/SightlineNetworkParser.h"
+#include "modules/SightlineNucParser.h"
 #include "modules/SightlineRecordingParser.h"
 #include "modules/SightlineStabilizationParser.h"
 #include "modules/SightlineTelemetryParser.h"
@@ -146,6 +147,45 @@ bool SightlineProtocolParser::parseNetworkList(const std::vector<std::uint8_t>& 
 bool SightlineProtocolParser::parseSnapShot(const std::vector<std::uint8_t>& packet, MsgCurrentSnapShot& out)
 {
     return SightlineRecordingParser::parseSnapShot(packet, out);
+}
+
+// ==============================================================================
+// 4. Thermal NUC & Sensor Calibration Deserializers (Nuc)
+// ==============================================================================
+
+bool SightlineProtocolParser::parseNucParameters(ByteView packet, MsgNucParameters& out)
+{
+    return SightlineNucParser::parseNucParameters(packet, out);
+}
+
+bool SightlineProtocolParser::parseDeadPixel(ByteView packet, MsgDeadPixel& out)
+{
+    return SightlineNucParser::parseDeadPixel(packet, out);
+}
+
+bool SightlineProtocolParser::parseReadWriteNuc(ByteView packet, MsgReadWriteNuc& out)
+{
+    return SightlineNucParser::parseReadWriteNuc(packet, out);
+}
+
+bool SightlineProtocolParser::parseUserPalette(ByteView packet, MsgUserPalette& out)
+{
+    return SightlineNucParser::parseUserPalette(packet, out);
+}
+
+bool SightlineProtocolParser::parseDeadPixelStats(ByteView packet, MsgDeadPixelStats& out)
+{
+    return SightlineNucParser::parseDeadPixelStats(packet, out);
+}
+
+bool SightlineProtocolParser::parseCameraCalibration(ByteView packet, MsgCameraCalibration& out)
+{
+    return SightlineNucParser::parseCameraCalibration(packet, out);
+}
+
+bool SightlineProtocolParser::parseCameraParameterFile(ByteView packet, MsgCameraParameterFile& out)
+{
+    return SightlineNucParser::parseCameraParameterFile(packet, out);
 }
 
 } // namespace Sightline

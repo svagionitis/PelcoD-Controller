@@ -275,7 +275,41 @@ std::vector<std::uint8_t> SightlineProtocolBuilder::buildGPIO(const MsgGPIO& msg
 }
 
 // ==============================================================================
-// 7. Reticles, Overlays & Graphics Messages (Overlays)
+// 7. Thermal NUC & Sensor Calibration Messages (Nuc)
+// ==============================================================================
+
+std::vector<std::uint8_t> SightlineProtocolBuilder::buildNucParameters(const MsgNucParameters& msg)
+{
+    return SightlineNucBuilder::buildNucParameters(msg);
+}
+
+std::vector<std::uint8_t> SightlineProtocolBuilder::buildDeadPixel(const MsgDeadPixel& msg)
+{
+    return SightlineNucBuilder::buildDeadPixel(msg);
+}
+
+std::vector<std::uint8_t> SightlineProtocolBuilder::buildReadWriteNuc(const MsgReadWriteNuc& msg)
+{
+    return SightlineNucBuilder::buildReadWriteNuc(msg);
+}
+
+std::vector<std::uint8_t> SightlineProtocolBuilder::buildSetUserPalette(const MsgUserPalette& msg)
+{
+    return SightlineNucBuilder::buildSetUserPalette(msg);
+}
+
+std::vector<std::uint8_t> SightlineProtocolBuilder::buildCameraCalibration(const MsgCameraCalibration& msg)
+{
+    return SightlineNucBuilder::buildCameraCalibration(msg);
+}
+
+std::vector<std::uint8_t> SightlineProtocolBuilder::buildCameraParameterFile(const MsgCameraParameterFile& msg)
+{
+    return SightlineNucBuilder::buildCameraParameterFile(msg);
+}
+
+// ==============================================================================
+// 8. Reticles, Overlays & Graphics Messages (Overlays)
 // ==============================================================================
 
 std::vector<std::uint8_t> SightlineProtocolBuilder::buildSetOverlayMode(const MsgSetOverlayMode& msg)
@@ -386,6 +420,21 @@ std::vector<std::uint8_t> SightlineProtocolBuilder::buildGetNetworkList()
 std::vector<std::uint8_t> SightlineProtocolBuilder::buildGetNucParameters(std::uint8_t cameraIndex)
 {
     return SightlineNucBuilder::buildGetNucParameters(cameraIndex);
+}
+
+std::vector<std::uint8_t> SightlineProtocolBuilder::buildGetUserPalette(std::uint8_t paletteIndex)
+{
+    return SightlineNucBuilder::buildGetUserPalette(paletteIndex);
+}
+
+std::vector<std::uint8_t> SightlineProtocolBuilder::buildGetDeadPixelStats(std::uint8_t cameraIndex)
+{
+    return SightlineNucBuilder::buildGetDeadPixelStats(cameraIndex);
+}
+
+std::vector<std::uint8_t> SightlineProtocolBuilder::buildGetCameraCalibration(std::uint8_t cameraIndex)
+{
+    return SightlineNucBuilder::buildGetCameraCalibration(cameraIndex);
 }
 
 std::vector<std::uint8_t> SightlineProtocolBuilder::buildGetOverlayMode(std::uint8_t cameraIndex)
