@@ -1,14 +1,15 @@
 import QtQuick 2.15
 import QtQuick.Controls 2.15
 import QtQuick.Layouts 1.15
+import Sightline 1.0
 import ".."
 
 Rectangle {
     id: root
 
     property int activeCamera: 0
-    property int frameWidth: 1920
-    property int frameHeight: 1080
+    property int frameWidth: videoController && videoController.frameWidth > 0 ? videoController.frameWidth : 1920
+    property int frameHeight: videoController && videoController.frameHeight > 0 ? videoController.frameHeight : 1080
     property int selectedCol: 960
     property int selectedRow: 540
     property int gateWidth: 80
@@ -18,11 +19,27 @@ Rectangle {
     property bool showGrid: true
     property bool showTelemetry: true
     property real zoomLevel: 1.0
+    property int viewportFillMode: VideoItem.PreserveAspectFit
 
     color: "#080a0f"
     border.color: SightlineTheme.cardBorder
     border.width: 1
     clip: true
+
+    onActiveCameraChanged: {
+        if (typeof videoController !== "undefined" && videoController) {
+            videoController.selectCamera(root.activeCamera);
+        }
+    }
+
+    Connections {
+        target: typeof videoController !== "undefined" ? videoController : null
+        function onActiveCameraChanged() {
+            if (videoController && root.activeCamera !== videoController.activeCamera) {
+                root.activeCamera = videoController.activeCamera;
+            }
+        }
+    }
 
     ColumnLayout {
         anchors.fill: parent
@@ -44,7 +61,7 @@ Rectangle {
 
                 // Camera Badge & Mode
                 Rectangle {
-                    implicitWidth: 110
+                    implicitWidth: 120
                     implicitHeight: 24
                     color: root.activeCamera === 1 ? "#3d1414" : "#14253d"
                     radius: 3
@@ -69,8 +86,16 @@ Rectangle {
 
                 // Telemetry Tape Indicators
                 Text {
-                    text: "RES: 1920x1080p60"
+                    text: "RES: " + root.frameWidth + "x" + root.frameHeight + " @" +
+                          (videoController ? videoController.fps.toFixed(0) : "30") + " FPS"
                     color: SightlineTheme.textMuted
+                    font.pixelSize: 10
+                    font.family: "Monospace"
+                }
+
+                Text {
+                    text: "LAT: " + (videoController ? videoController.avgDecodeTimeMs.toFixed(1) : "0.0") + " ms"
+                    color: SightlineTheme.textSecondary
                     font.pixelSize: 10
                     font.family: "Monospace"
                 }
@@ -92,18 +117,55 @@ Rectangle {
                     font.family: "Monospace"
                 }
 
+                // Stream Status Badge
                 Rectangle {
-                    implicitWidth: 70
+                    implicitWidth: 110
                     implicitHeight: 22
-                    color: bridge && bridge.isConnected ? "#0f2e1a" : "#2e1214"
+                    color: {
+                        if (!videoController) return "#2e1214";
+                        if (videoController.playbackState === 2) {
+                            return videoController.isSynthetic ? "#0f252e" : "#0f2e1a";
+                        } else if (videoController.playbackState === 1) {
+                            return "#3d2b0f";
+                        } else {
+                            return "#2e1214";
+                        }
+                    }
                     radius: 3
-                    border.color: bridge && bridge.isConnected ? SightlineTheme.success : SightlineTheme.error
+                    border.color: {
+                        if (!videoController) return SightlineTheme.error;
+                        if (videoController.playbackState === 2) {
+                            return videoController.isSynthetic ? SightlineTheme.primary : SightlineTheme.success;
+                        } else if (videoController.playbackState === 1) {
+                            return SightlineTheme.warning;
+                        } else {
+                            return SightlineTheme.error;
+                        }
+                    }
                     border.width: 1
 
                     Text {
                         anchors.centerIn: parent
-                        text: bridge && bridge.isConnected ? "LIVE FEED" : "STANDBY"
-                        color: bridge && bridge.isConnected ? SightlineTheme.success : SightlineTheme.error
+                        text: {
+                            if (!videoController) return "OFFLINE";
+                            if (videoController.playbackState === 2) {
+                                return videoController.isSynthetic ? "SYNTHETIC FEED" : "LIVE FEED";
+                            } else if (videoController.playbackState === 1) {
+                                return "CONNECTING...";
+                            } else {
+                                return "STANDBY";
+                            }
+                        }
+                        color: {
+                            if (!videoController) return SightlineTheme.error;
+                            if (videoController.playbackState === 2) {
+                                return videoController.isSynthetic ? SightlineTheme.primary : SightlineTheme.success;
+                            } else if (videoController.playbackState === 1) {
+                                return SightlineTheme.warning;
+                            } else {
+                                return SightlineTheme.error;
+                            }
+                        }
                         font.pixelSize: 9
                         font.bold: true
                     }
@@ -118,18 +180,15 @@ Rectangle {
             Layout.fillHeight: true
             clip: true
 
-            // Base Simulated Video / Sensor Texture Background
-            Rectangle {
+            // Real Hardware / Synthetic Video Presentation Item
+            VideoItem {
+                id: videoSurface
                 anchors.fill: parent
-                color: root.activeCamera === 1 ? "#120a0a" : "#0a0e14"
+                fillMode: root.viewportFillMode
 
-                // Synthetic scanline gradient simulation
-                Rectangle {
-                    anchors.fill: parent
-                    gradient: Gradient {
-                        GradientStop { position: 0.0; color: root.activeCamera === 1 ? "#1a0f0f" : "#0d131c" }
-                        GradientStop { position: 0.5; color: root.activeCamera === 1 ? "#0f0808" : "#080c12" }
-                        GradientStop { position: 1.0; color: root.activeCamera === 1 ? "#140c0c" : "#0a0f16" }
+                Component.onCompleted: {
+                    if (typeof videoController !== "undefined" && videoController) {
+                        videoController.attachVideoItem(videoSurface);
                     }
                 }
             }
@@ -272,11 +331,53 @@ Rectangle {
                     }
                 }
 
-                onClicked: designateTarget(mouse)
-                onPositionChanged: {
+                onClicked: function(mouse) { designateTarget(mouse); }
+                onPositionChanged: function(mouse) {
                     if (pressed) {
                         designateTarget(mouse);
                     }
+                }
+            }
+
+            // Toast / Snapshot notification banner
+            Rectangle {
+                id: toastBanner
+                anchors.top: parent.top
+                anchors.horizontalCenter: parent.horizontalCenter
+                anchors.topMargin: 12
+                implicitHeight: 28
+                implicitWidth: toastText.implicitWidth + 24
+                color: "#e600e5ff"
+                radius: 4
+                opacity: 0.0
+                visible: opacity > 0.0
+
+                Behavior on opacity {
+                    NumberAnimation { duration: 250 }
+                }
+
+                Text {
+                    id: toastText
+                    anchors.centerIn: parent
+                    text: "Snapshot Saved"
+                    color: "#080a0f"
+                    font.bold: true
+                    font.pixelSize: 11
+                }
+
+                Timer {
+                    id: toastTimer
+                    interval: 2200
+                    onTriggered: toastBanner.opacity = 0.0
+                }
+            }
+
+            Connections {
+                target: typeof videoController !== "undefined" ? videoController : null
+                function onSnapshotTaken(path) {
+                    toastText.text = "Snapshot: " + path.split("/").pop();
+                    toastBanner.opacity = 1.0;
+                    toastTimer.restart();
                 }
             }
         }
@@ -306,7 +407,7 @@ Rectangle {
                 Button {
                     text: "EO (Cam 0)"
                     implicitHeight: 28
-                    implicitWidth: 80
+                    implicitWidth: 84
                     checked: root.activeCamera === 0
                     checkable: true
                     onClicked: root.activeCamera = 0
@@ -315,10 +416,44 @@ Rectangle {
                 Button {
                     text: "IR (Cam 1)"
                     implicitHeight: 28
-                    implicitWidth: 80
+                    implicitWidth: 84
                     checked: root.activeCamera === 1
                     checkable: true
                     onClicked: root.activeCamera = 1
+                }
+
+                Rectangle { width: 1; height: 20; color: SightlineTheme.cardBorder }
+
+                // Video Source Selector (Synthetic vs Live RTSP)
+                Button {
+                    text: videoController && videoController.isSynthetic ? "Synthetic [ON]" : "Synthetic [OFF]"
+                    implicitHeight: 28
+                    implicitWidth: 98
+                    checkable: true
+                    checked: videoController ? videoController.isSynthetic : true
+                    onClicked: {
+                        if (videoController) {
+                            videoController.setSyntheticMode(!videoController.isSynthetic);
+                        }
+                    }
+                }
+
+                Button {
+                    text: "Stream URL..."
+                    implicitHeight: 28
+                    implicitWidth: 90
+                    onClicked: streamDialog.open()
+                }
+
+                Button {
+                    text: "📸 Snap"
+                    implicitHeight: 28
+                    implicitWidth: 64
+                    onClicked: {
+                        if (videoController) {
+                            videoController.takeSnapshot();
+                        }
+                    }
                 }
 
                 Rectangle { width: 1; height: 20; color: SightlineTheme.cardBorder }
@@ -378,6 +513,69 @@ Rectangle {
                         }
                     }
                 }
+            }
+        }
+    }
+
+    // Stream Configuration Dialog
+    Dialog {
+        id: streamDialog
+        title: "Video Stream Configuration"
+        anchors.centerIn: parent
+        modal: true
+        standardButtons: Dialog.Ok | Dialog.Cancel
+        width: 440
+
+        ColumnLayout {
+            anchors.fill: parent
+            spacing: 12
+
+            Text {
+                text: "Configure RTSP / UDP Sensor Network Stream:"
+                color: SightlineTheme.textPrimary
+                font.bold: true
+                font.pixelSize: 12
+            }
+
+            TextField {
+                id: streamUriField
+                Layout.fillWidth: true
+                placeholderText: "rtsp://10.10.10.51:554/net0"
+                text: videoController ? videoController.sourceUri : ""
+            }
+
+            RowLayout {
+                spacing: 8
+                Text {
+                    text: "Quick Presets:"
+                    color: SightlineTheme.textMuted
+                    font.pixelSize: 11
+                }
+                Button {
+                    text: "RTSP Net 0"
+                    onClicked: streamUriField.text = "rtsp://" + (bridge && bridge.host ? bridge.host : "10.10.10.51") + ":554/net0"
+                }
+                Button {
+                    text: "RTSP Net 1"
+                    onClicked: streamUriField.text = "rtsp://" + (bridge && bridge.host ? bridge.host : "10.10.10.51") + ":554/net1"
+                }
+                Button {
+                    text: "UDP 15004"
+                    onClicked: streamUriField.text = "udp://@:15004"
+                }
+            }
+
+            Text {
+                text: "Status: " + (videoController ? videoController.statusMessage : "Idle")
+                color: SightlineTheme.textSecondary
+                font.pixelSize: 11
+            }
+        }
+
+        onAccepted: {
+            if (videoController) {
+                videoController.sourceUri = streamUriField.text;
+                videoController.setSyntheticMode(false);
             }
         }
     }

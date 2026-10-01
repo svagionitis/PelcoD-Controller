@@ -102,11 +102,23 @@ TrafficLogModel* SightlineQmlBridge::trafficLogModel() const noexcept
 
 bool SightlineQmlBridge::connectUdp(const QString& host, int cmdPort, int replyPort)
 {
-    disconnectDevice();
+    const bool hostChangedVal { m_host != host };
+    const bool cmdPortChangedVal { m_commandPort != cmdPort };
+    const bool repPortChangedVal { m_replyPort != replyPort };
 
     m_host = host;
     m_commandPort = cmdPort;
     m_replyPort = replyPort;
+
+    if (hostChangedVal) {
+        emit hostChanged();
+    }
+    if (cmdPortChangedVal) {
+        emit commandPortChanged();
+    }
+    if (repPortChangedVal) {
+        emit replyPortChanged();
+    }
 
     auto transport = std::make_shared<Transport::SightlineUdpTransport>(
         host.toStdString(), static_cast<std::uint16_t>(cmdPort), static_cast<std::uint16_t>(replyPort));

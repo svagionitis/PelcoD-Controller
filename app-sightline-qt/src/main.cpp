@@ -2,8 +2,10 @@
 /// @brief Main entry point for the Sightline SLA Qt QML Control Application.
 
 #include "SightlineQmlBridge.h"
+#include "SightlineVideoController.h"
 #include "TrackListModel.h"
 #include "TrafficLogModel.h"
+#include "VideoQuickItem.h"
 
 #include <QGuiApplication>
 #include <QPalette>
@@ -44,6 +46,7 @@ int main(int argc, char* argv[])
     app.setPalette(darkPalette);
 
     // Register custom C++ types with QML type system
+    qmlRegisterType<SightlineApp::VideoQuickItem>("Sightline", 1, 0, "VideoItem");
     qmlRegisterUncreatableType<TrackListModel>(
         "Sightline", 1, 0, "TrackListModel", QStringLiteral("TrackListModel is instantiated by SightlineQmlBridge"));
     qmlRegisterUncreatableType<TrafficLogModel>(
@@ -52,7 +55,15 @@ int main(int argc, char* argv[])
     QQmlApplicationEngine engine {};
 
     auto bridge = std::make_unique<SightlineQmlBridge>(&app);
+    auto videoController = std::make_unique<SightlineApp::SightlineVideoController>(&app);
+
+    // Synchronize host IP address between telemetry bridge and video streaming
+    videoController->updateHostAddress(bridge->host());
+    QObject::connect(bridge.get(), &SightlineQmlBridge::hostChanged, videoController.get(),
+        [b = bridge.get(), vc = videoController.get()]() { vc->updateHostAddress(b->host()); });
+
     engine.rootContext()->setContextProperty(QStringLiteral("bridge"), bridge.get());
+    engine.rootContext()->setContextProperty(QStringLiteral("videoController"), videoController.get());
 
     const QUrl url(QStringLiteral("qrc:/qml/Main.qml"));
     QObject::connect(
