@@ -25,6 +25,8 @@ protected:
             static char appName[] = "TestSightlineVideo";
             static char* argv[] = { appName, nullptr };
             new QCoreApplication(argc, argv);
+            QCoreApplication::setOrganizationName(QStringLiteral("Sightline Intelligence"));
+            QCoreApplication::setApplicationName(QStringLiteral("TestSightlineVideo"));
         }
     }
 };
@@ -335,18 +337,20 @@ TEST_F(SightlineVideoTest, BridgeEnhancementMethodsAndPresets)
     bridge.setScintillationMode(0, 1);
     bridge.setGaussianAndLap(0, 2, 5, 10);
     bridge.setCustomConvolution(0, 3, QVariantList { 0, -1, 0, -1, 5, -1, 0, -1, 0 }, false);
-    bridge.setLensDistortion(0, 10, 20);
+    bridge.setLensDistortion(0, 0.05, -0.02, 0.0, 0.0);
 
     // 6. Presets
-    bridge.saveEnhancementPreset(QStringLiteral("TacticalNight"));
+    const QVariantMap presetSettings {
+        { QStringLiteral("mode"), 1 },
+        { QStringLiteral("strength"), 100 },
+        { QStringLiteral("blend"), 50 }
+    };
+    EXPECT_TRUE(bridge.saveEnhancementPreset(QStringLiteral("TacticalNight"), presetSettings));
     const QStringList presets { bridge.getEnhancementPresets() };
     EXPECT_TRUE(presets.contains(QStringLiteral("TacticalNight")));
 
-    bridge.setEnhancementMode(0, 0, 0, 0, 0, 0);
-    EXPECT_EQ(bridge.activeContrastMode(), 0);
-
-    bridge.loadEnhancementPreset(QStringLiteral("TacticalNight"));
-    EXPECT_EQ(bridge.activeContrastMode(), 1);
+    const QVariantMap loadedPreset { bridge.loadEnhancementPreset(QStringLiteral("TacticalNight")) };
+    EXPECT_EQ(loadedPreset.value(QStringLiteral("mode")).toInt(), 1);
 
     // 7. User palette file load and save
     QTemporaryDir tempDir {};
@@ -354,9 +358,9 @@ TEST_F(SightlineVideoTest, BridgeEnhancementMethodsAndPresets)
     const QString palFile { tempDir.filePath(QStringLiteral("test_palette.bin")) };
     const QByteArray sampleYuv(768, static_cast<char>(0x7F));
     bridge.uploadUserPalette(0, sampleYuv);
-    EXPECT_TRUE(bridge.saveUserPaletteFile(palFile));
+    EXPECT_TRUE(bridge.saveUserPaletteFile(palFile, sampleYuv));
     EXPECT_TRUE(QFile::exists(palFile));
-    EXPECT_TRUE(bridge.loadUserPaletteFile(palFile));
+    EXPECT_EQ(bridge.loadUserPaletteFile(palFile), sampleYuv);
 }
 
 TEST_F(SightlineVideoTest, BridgeVideoControllerSignalWiring)

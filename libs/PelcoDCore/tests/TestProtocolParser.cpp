@@ -327,8 +327,8 @@ TEST(ProtocolParserTest, DescribeFrameComprehensive)
     const auto tiltDown = PelcoDFrame::createFrame(1U, 0x00U, 0x10U, 0x00U, 0x14U);
     EXPECT_EQ(ProtocolParser::describeFrame(true, tiltDown), "PTZ: Down(spd 20)");
 
-    // Focus Far (cmd2 bit 7 = 0x80) and Iris Open (cmd1 bit 3 = 0x08)
-    const auto focusIris = PelcoDFrame::createFrame(1U, 0x08U, 0x80U, 0x00U, 0x00U);
+    // Focus Far (cmd2 bit 7 = 0x80) and Iris Open (cmd1 bit 1 = 0x02)
+    const auto focusIris = PelcoDFrame::createFrame(1U, 0x02U, 0x80U, 0x00U, 0x00U);
     EXPECT_EQ(ProtocolParser::describeFrame(true, focusIris), "PTZ: FocusFar, IrisOpen");
 
     // Iris Close (cmd1 bit 2 = 0x04)
