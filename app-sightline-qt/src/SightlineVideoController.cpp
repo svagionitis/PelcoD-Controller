@@ -127,10 +127,38 @@ void SightlineVideoController::selectCamera(int camIndex)
     if (m_activeCamera != clamped) {
         m_activeCamera = clamped;
         emit activeCameraChanged();
+        emit pipCameraChanged();
+        if (!m_sourceUri.isEmpty() && m_sourceUri.contains(QStringLiteral(":554/net"))) {
+            m_sourceUri = QStringLiteral("rtsp://%1:554/net%2").arg(m_hostAddress).arg(m_activeCamera);
+            emit sourceUriChanged();
+        }
         if (m_running.load() && !m_isSynthetic) {
             restartStream();
         }
     }
+}
+
+bool SightlineVideoController::pipEnabled() const noexcept
+{
+    return m_pipEnabled;
+}
+
+int SightlineVideoController::pipCamera() const noexcept
+{
+    return (m_activeCamera == 0) ? 1 : 0;
+}
+
+void SightlineVideoController::setPipEnabled(bool enabled)
+{
+    if (m_pipEnabled != enabled) {
+        m_pipEnabled = enabled;
+        emit pipEnabledChanged();
+    }
+}
+
+void SightlineVideoController::swapPipFeeds()
+{
+    selectCamera((m_activeCamera == 0) ? 1 : 0);
 }
 
 void SightlineVideoController::setSyntheticMode(bool enabled)
@@ -146,7 +174,15 @@ void SightlineVideoController::updateHostAddress(const QString& host)
 {
     const QString trimmed { host.trimmed() };
     if (!trimmed.isEmpty() && m_hostAddress != trimmed) {
+        const QString oldHost { m_hostAddress };
         m_hostAddress = trimmed;
+        if (!m_sourceUri.isEmpty() && m_sourceUri.contains(oldHost)) {
+            m_sourceUri.replace(oldHost, m_hostAddress);
+            emit sourceUriChanged();
+        } else if (m_sourceUri.contains(QStringLiteral("rtsp://127.0.0.1"))) {
+            m_sourceUri.replace(QStringLiteral("127.0.0.1"), m_hostAddress);
+            emit sourceUriChanged();
+        }
         if (!m_isSynthetic && m_running.load()) {
             restartStream();
         }
@@ -161,13 +197,25 @@ void SightlineVideoController::attachVideoItem(VideoQuickItem* item)
     }
 }
 
+void SightlineVideoController::attachPipVideoItem(VideoQuickItem* item)
+{
+    if (item != nullptr) {
+        connect(
+            this, &SightlineVideoController::pipFrameDecoded, item, &VideoQuickItem::updateFrame, Qt::QueuedConnection);
+    }
+}
+
 QString SightlineVideoController::resolveSourceUri() const
 {
     if (m_isSynthetic) {
         return QStringLiteral("mock://synthetic");
     }
     if (!m_sourceUri.trimmed().isEmpty()) {
-        return m_sourceUri.trimmed();
+        QString uri { m_sourceUri.trimmed() };
+        if (uri.contains(QStringLiteral("rtsp://127.0.0.1")) && m_hostAddress != QStringLiteral("127.0.0.1")) {
+            uri.replace(QStringLiteral("127.0.0.1"), m_hostAddress);
+        }
+        return uri;
     }
     return QStringLiteral("rtsp://%1:554/net%2").arg(m_hostAddress).arg(m_activeCamera);
 }
@@ -370,6 +418,17 @@ void SightlineVideoController::workerLoop()
             }
 
             emit frameDecoded(frameCopy);
+
+            // Picture-in-Picture secondary frame emission
+            if (m_pipEnabled) {
+                QImage pipCopy { rawImg.copy() };
+                const int pipCam { pipCamera() };
+                if (m_isSynthetic && pipCam == 1) {
+                    applyThermalLook(pipCopy);
+                }
+                emit pipFrameDecoded(pipCopy);
+            }
+
             ++framesCount;
 
             m_frameWidth = frameInfo.width;

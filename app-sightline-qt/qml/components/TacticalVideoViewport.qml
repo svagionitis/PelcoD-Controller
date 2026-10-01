@@ -20,6 +20,7 @@ Rectangle {
     property bool showTelemetry: true
     property real zoomLevel: 1.0
     property int viewportFillMode: VideoItem.PreserveAspectFit
+    readonly property bool devConnected: Boolean(bridge && bridge.isConnected)
 
     color: "#080a0f"
     border.color: SightlineTheme.cardBorder
@@ -103,6 +104,13 @@ Rectangle {
                 Text {
                     text: "FOV: 2.1° TELE"
                     color: SightlineTheme.textSecondary
+                    font.pixelSize: 10
+                    font.family: "Monospace"
+                }
+
+                Text {
+                    text: "ACQ: L-Click [PRI] | R-Click [SEC]"
+                    color: SightlineTheme.textMuted
                     font.pixelSize: 10
                     font.family: "Monospace"
                 }
@@ -268,9 +276,65 @@ Rectangle {
                 }
             }
 
-            // Active Primary Target Tracking Gate
+            // Multi-Target Tracking Reticles Overlay
+            Repeater {
+                model: bridge ? bridge.trackListModel : null
+                Item {
+                    id: trackItem
+                    x: (model.centerCol / root.frameWidth) * canvasArea.width - width / 2
+                    y: (model.centerRow / root.frameHeight) * canvasArea.height - height / 2
+                    width: Math.max(20, (model.trackWidth / root.frameWidth) * canvasArea.width)
+                    height: Math.max(20, (model.trackHeight / root.frameHeight) * canvasArea.height)
+
+                    readonly property color trackColor: model.isPrimary ? SightlineTheme.primary : "#ffb300"
+
+                    Rectangle {
+                        anchors.fill: parent
+                        color: "transparent"
+                        border.color: trackItem.trackColor
+                        border.width: 2
+
+                        // Target Gate Corner Brackets
+                        Rectangle { x: -1; y: -1; width: 5; height: 5; color: trackItem.trackColor }
+                        Rectangle { x: parent.width - 4; y: -1; width: 5; height: 5; color: trackItem.trackColor }
+                        Rectangle { x: -1; y: parent.height - 4; width: 5; height: 5; color: trackItem.trackColor }
+                        Rectangle { x: parent.width - 4; y: parent.height - 4; width: 5; height: 5; color: trackItem.trackColor }
+
+                        // Center cross dot
+                        Rectangle {
+                            anchors.centerIn: parent
+                            width: 4; height: 4; radius: 2
+                            color: trackItem.trackColor
+                        }
+
+                        // Target Label Banner
+                        Rectangle {
+                            y: -18
+                            anchors.horizontalCenter: parent.horizontalCenter
+                            implicitWidth: trkItemLabel.implicitWidth + 8
+                            implicitHeight: 14
+                            color: "#cc080a0f"
+                            border.color: trackItem.trackColor
+                            border.width: 1
+
+                            Text {
+                                id: trkItemLabel
+                                anchors.centerIn: parent
+                                text: (model.isPrimary ? "PRI #" : "SEC #") + model.trackId + " [" + model.confidence + "%]"
+                                color: trackItem.trackColor
+                                font.pixelSize: 8
+                                font.bold: true
+                                font.family: "Monospace"
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Default Single Acquisition Gate Guide (visible when no active tracks)
             Rectangle {
                 id: targetGate
+                visible: !bridge || !bridge.trackListModel || bridge.trackListModel.rowCount() === 0
                 x: (root.selectedCol / root.frameWidth) * canvasArea.width - width / 2
                 y: (root.selectedRow / root.frameHeight) * canvasArea.height - height / 2
                 width: Math.max(20, (root.gateWidth / root.frameWidth) * canvasArea.width)
@@ -305,7 +369,7 @@ Rectangle {
                     Text {
                         id: trkLabel
                         anchors.centerIn: parent
-                        text: "TRK #01 [LOCK]"
+                        text: "ACQ GATE"
                         color: SightlineTheme.primary
                         font.pixelSize: 8
                         font.bold: true
@@ -314,27 +378,155 @@ Rectangle {
                 }
             }
 
-            // Point-and-Click Video Acquisition Interaction
+            // Point-and-Click Multi-Target Video Acquisition Interaction
             MouseArea {
                 anchors.fill: parent
                 hoverEnabled: true
-                cursorShape: Qt.CrossCursor
+                cursorShape: root.devConnected ? Qt.CrossCursor : Qt.ArrowCursor
+                acceptedButtons: Qt.LeftButton | Qt.RightButton
+                enabled: root.devConnected
 
-                function designateTarget(mouse) {
+                function designateTarget(mouse, flags) {
                     var col = Math.max(0, Math.min(root.frameWidth, Math.round((mouse.x / canvasArea.width) * root.frameWidth)));
                     var row = Math.max(0, Math.min(root.frameHeight, Math.round((mouse.y / canvasArea.height) * root.frameHeight)));
                     root.selectedCol = col;
                     root.selectedRow = row;
 
                     if (bridge) {
-                        bridge.startTracking(root.activeCamera, col, row, root.gateWidth, root.gateHeight, 0x01);
+                        bridge.startTracking(root.activeCamera, col, row, root.gateWidth, root.gateHeight, flags);
                     }
                 }
 
-                onClicked: function(mouse) { designateTarget(mouse); }
+                onClicked: function(mouse) {
+                    var flags = (mouse.button === Qt.RightButton) ? 0x02 : 0x01;
+                    designateTarget(mouse, flags);
+                }
                 onPositionChanged: function(mouse) {
                     if (pressed) {
-                        designateTarget(mouse);
+                        var flags = (mouse.buttons & Qt.RightButton) ? 0x02 : 0x01;
+                        designateTarget(mouse, flags);
+                    }
+                }
+            }
+
+            // Picture-in-Picture (PIP) Alternate Camera Inset
+            Rectangle {
+                id: pipContainer
+                anchors.top: parent.top
+                anchors.right: parent.right
+                anchors.topMargin: 12
+                anchors.rightMargin: 12
+                width: 256
+                height: 144
+                color: "#080a0f"
+                radius: 4
+                clip: true
+                border.color: pipHoverArea.containsMouse ? SightlineTheme.primary : SightlineTheme.cardBorder
+                border.width: 2
+                visible: typeof videoController !== "undefined" && videoController && videoController.pipEnabled
+                z: 10
+
+                // Secondary Stream Video Presentation Item
+                VideoItem {
+                    id: pipVideoSurface
+                    anchors.fill: parent
+                    fillMode: VideoItem.PreserveAspectCrop
+
+                    Component.onCompleted: {
+                        if (typeof videoController !== "undefined" && videoController) {
+                            videoController.attachPipVideoItem(pipVideoSurface);
+                        }
+                    }
+                }
+
+                // Inset Header Overlay
+                Rectangle {
+                    anchors.top: parent.top
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    height: 22
+                    color: "#d90b0e14"
+                    border.color: SightlineTheme.cardBorder
+                    border.width: 1
+
+                    RowLayout {
+                        anchors.fill: parent
+                        anchors.leftMargin: 6
+                        anchors.rightMargin: 6
+                        spacing: 4
+
+                        Rectangle {
+                            width: 6; height: 6; radius: 3
+                            color: (videoController && videoController.pipCamera === 1) ? SightlineTheme.accent : SightlineTheme.primary
+                        }
+
+                        Text {
+                            text: (videoController && videoController.pipCamera === 1) ? "PIP: CAM 1 (IR)" : "PIP: CAM 0 (EO)"
+                            color: SightlineTheme.textPrimary
+                            font.pixelSize: 9
+                            font.bold: true
+                            Layout.fillWidth: true
+                        }
+
+                        Text {
+                            text: "⇄ SWAP"
+                            color: pipHoverArea.containsMouse ? SightlineTheme.primary : SightlineTheme.textMuted
+                            font.pixelSize: 8
+                            font.bold: true
+                        }
+
+                        // Close PIP button
+                        Rectangle {
+                            width: 14; height: 14; radius: 2
+                            color: "transparent"
+                            Text {
+                                anchors.centerIn: parent
+                                text: "×"
+                                color: SightlineTheme.textMuted
+                                font.pixelSize: 12
+                                font.bold: true
+                            }
+                            MouseArea {
+                                anchors.fill: parent
+                                onClicked: {
+                                    if (videoController) {
+                                        videoController.setPipEnabled(false);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Hover overlay indication & Click to Swap
+                MouseArea {
+                    id: pipHoverArea
+                    anchors.fill: parent
+                    anchors.topMargin: 22
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+
+                    Rectangle {
+                        anchors.fill: parent
+                        color: "#66000000"
+                        visible: pipHoverArea.containsMouse
+
+                        RowLayout {
+                            anchors.centerIn: parent
+                            spacing: 6
+                            Text {
+                                text: "⇄ Click to Swap Feeds"
+                                color: SightlineTheme.primary
+                                font.pixelSize: 11
+                                font.bold: true
+                            }
+                        }
+                    }
+
+                    onClicked: {
+                        if (videoController) {
+                            videoController.swapPipFeeds();
+                        }
                     }
                 }
             }
@@ -410,6 +602,8 @@ Rectangle {
                     implicitWidth: 84
                     checked: root.activeCamera === 0
                     checkable: true
+                    enabled: root.devConnected
+                    opacity: enabled ? 1.0 : 0.4
                     onClicked: root.activeCamera = 0
                 }
 
@@ -419,7 +613,41 @@ Rectangle {
                     implicitWidth: 84
                     checked: root.activeCamera === 1
                     checkable: true
+                    enabled: root.devConnected
+                    opacity: enabled ? 1.0 : 0.4
                     onClicked: root.activeCamera = 1
+                }
+
+                Rectangle { width: 1; height: 20; color: SightlineTheme.cardBorder }
+
+                // Picture-in-Picture Toggle & Swap
+                Button {
+                    text: videoController && videoController.pipEnabled ? "PIP [ON]" : "PIP [OFF]"
+                    implicitHeight: 28
+                    implicitWidth: 80
+                    checkable: true
+                    checked: videoController ? videoController.pipEnabled : false
+                    enabled: root.devConnected
+                    opacity: enabled ? 1.0 : 0.4
+                    onClicked: {
+                        if (videoController) {
+                            videoController.setPipEnabled(!videoController.pipEnabled);
+                        }
+                    }
+                }
+
+                Button {
+                    text: "⇄ Swap"
+                    implicitHeight: 28
+                    implicitWidth: 70
+                    visible: videoController && videoController.pipEnabled
+                    enabled: root.devConnected
+                    opacity: enabled ? 1.0 : 0.4
+                    onClicked: {
+                        if (videoController) {
+                            videoController.swapPipFeeds();
+                        }
+                    }
                 }
 
                 Rectangle { width: 1; height: 20; color: SightlineTheme.cardBorder }
@@ -431,6 +659,8 @@ Rectangle {
                     implicitWidth: 98
                     checkable: true
                     checked: videoController ? videoController.isSynthetic : true
+                    enabled: root.devConnected
+                    opacity: enabled ? 1.0 : 0.4
                     onClicked: {
                         if (videoController) {
                             videoController.setSyntheticMode(!videoController.isSynthetic);
@@ -442,6 +672,8 @@ Rectangle {
                     text: "Stream URL..."
                     implicitHeight: 28
                     implicitWidth: 90
+                    enabled: root.devConnected
+                    opacity: enabled ? 1.0 : 0.4
                     onClicked: streamDialog.open()
                 }
 
@@ -449,6 +681,8 @@ Rectangle {
                     text: "📸 Snap"
                     implicitHeight: 28
                     implicitWidth: 64
+                    enabled: root.devConnected
+                    opacity: enabled ? 1.0 : 0.4
                     onClicked: {
                         if (videoController) {
                             videoController.takeSnapshot();
@@ -477,6 +711,7 @@ Rectangle {
                 Text {
                     text: "NUDGE:"
                     color: SightlineTheme.textMuted
+                    opacity: root.devConnected ? 1.0 : 0.4
                     font.pixelSize: 10
                     font.bold: true
                 }
@@ -484,32 +719,55 @@ Rectangle {
                 Button {
                     text: "◄"
                     implicitWidth: 28; implicitHeight: 28
+                    enabled: root.devConnected
+                    opacity: enabled ? 1.0 : 0.4
                     onClicked: if (bridge) bridge.nudgeTracking(root.activeCamera, -5, 0)
                 }
                 Button {
                     text: "▲"
                     implicitWidth: 28; implicitHeight: 28
+                    enabled: root.devConnected
+                    opacity: enabled ? 1.0 : 0.4
                     onClicked: if (bridge) bridge.nudgeTracking(root.activeCamera, 0, -5)
                 }
                 Button {
                     text: "▼"
                     implicitWidth: 28; implicitHeight: 28
+                    enabled: root.devConnected
+                    opacity: enabled ? 1.0 : 0.4
                     onClicked: if (bridge) bridge.nudgeTracking(root.activeCamera, 0, 5)
                 }
                 Button {
                     text: "►"
                     implicitWidth: 28; implicitHeight: 28
+                    enabled: root.devConnected
+                    opacity: enabled ? 1.0 : 0.4
                     onClicked: if (bridge) bridge.nudgeTracking(root.activeCamera, 5, 0)
                 }
 
                 Button {
                     text: "Center"
                     implicitHeight: 28
+                    enabled: root.devConnected
+                    opacity: enabled ? 1.0 : 0.4
                     onClicked: {
                         root.selectedCol = Math.round(root.frameWidth / 2);
                         root.selectedRow = Math.round(root.frameHeight / 2);
                         if (bridge) {
                             bridge.startTracking(root.activeCamera, root.selectedCol, root.selectedRow, root.gateWidth, root.gateHeight, 0x01);
+                        }
+                    }
+                }
+
+                Button {
+                    text: "Clear Tracks"
+                    implicitHeight: 28
+                    implicitWidth: 90
+                    enabled: root.devConnected
+                    opacity: enabled ? 1.0 : 0.4
+                    onClicked: {
+                        if (bridge) {
+                            bridge.stopTracking(root.activeCamera, 0xFF);
                         }
                     }
                 }
@@ -540,8 +798,14 @@ Rectangle {
             TextField {
                 id: streamUriField
                 Layout.fillWidth: true
-                placeholderText: "rtsp://10.10.10.51:554/net0"
-                text: videoController ? videoController.sourceUri : ""
+                placeholderText: "rtsp://" + (bridge && bridge.host ? bridge.host : "127.0.0.1") + ":554/net" + root.activeCamera
+                text: {
+                    if (videoController && videoController.sourceUri) {
+                        return videoController.sourceUri;
+                    }
+                    var h = (bridge && bridge.host) ? bridge.host : "127.0.0.1";
+                    return "rtsp://" + h + ":554/net" + root.activeCamera;
+                }
             }
 
             RowLayout {
@@ -552,15 +816,30 @@ Rectangle {
                     font.pixelSize: 11
                 }
                 Button {
+                    text: "Auto (Net " + root.activeCamera + ")"
+                    enabled: root.devConnected
+                    opacity: enabled ? 1.0 : 0.4
+                    onClicked: {
+                        var h = (bridge && bridge.host) ? bridge.host : "127.0.0.1";
+                        streamUriField.text = "rtsp://" + h + ":554/net" + root.activeCamera;
+                    }
+                }
+                Button {
                     text: "RTSP Net 0"
-                    onClicked: streamUriField.text = "rtsp://" + (bridge && bridge.host ? bridge.host : "10.10.10.51") + ":554/net0"
+                    enabled: root.devConnected
+                    opacity: enabled ? 1.0 : 0.4
+                    onClicked: streamUriField.text = "rtsp://" + (bridge && bridge.host ? bridge.host : "127.0.0.1") + ":554/net0"
                 }
                 Button {
                     text: "RTSP Net 1"
-                    onClicked: streamUriField.text = "rtsp://" + (bridge && bridge.host ? bridge.host : "10.10.10.51") + ":554/net1"
+                    enabled: root.devConnected
+                    opacity: enabled ? 1.0 : 0.4
+                    onClicked: streamUriField.text = "rtsp://" + (bridge && bridge.host ? bridge.host : "127.0.0.1") + ":554/net1"
                 }
                 Button {
                     text: "UDP 15004"
+                    enabled: root.devConnected
+                    opacity: enabled ? 1.0 : 0.4
                     onClicked: streamUriField.text = "udp://@:15004"
                 }
             }

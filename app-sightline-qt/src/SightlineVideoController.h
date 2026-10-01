@@ -36,6 +36,8 @@ class SightlineVideoController : public QObject {
     Q_PROPERTY(QString statusMessage READ statusMessage NOTIFY statusMessageChanged)
     Q_PROPERTY(QStringList availableBackends READ availableBackends CONSTANT)
     Q_PROPERTY(int backendIndex READ backendIndex WRITE setBackendIndex NOTIFY backendIndexChanged)
+    Q_PROPERTY(bool pipEnabled READ pipEnabled WRITE setPipEnabled NOTIFY pipEnabledChanged)
+    Q_PROPERTY(int pipCamera READ pipCamera NOTIFY pipCameraChanged)
 
 public:
     /// @enum PlaybackState
@@ -102,6 +104,14 @@ public:
     /// @param[in] index Index into availableBackends list.
     void setBackendIndex(int index);
 
+    /// @brief Check if Picture-in-Picture thumbnail mode is active.
+    /// @return True if PIP is enabled.
+    [[nodiscard]] bool pipEnabled() const noexcept;
+
+    /// @brief Get camera index used for the Picture-in-Picture feed.
+    /// @return Alternate camera index (0 or 1).
+    [[nodiscard]] int pipCamera() const noexcept;
+
 public slots:
     /// @brief Set video stream URI.
     /// @param[in] uri RTSP, UDP, or mock URI.
@@ -124,6 +134,13 @@ public slots:
     /// @param[in] enabled True for synthetic simulation, false for live stream.
     void setSyntheticMode(bool enabled);
 
+    /// @brief Enable or disable Picture-in-Picture thumbnail.
+    /// @param[in] enabled PIP enable flag.
+    void setPipEnabled(bool enabled);
+
+    /// @brief Swap primary and PIP inset camera feeds.
+    void swapPipFeeds();
+
     /// @brief Capture high-resolution snapshot of current video frame.
     /// @param[in] filePath Target file path, or empty for automatic timestamp.
     /// @return Absolute path where image was saved, or empty on failure.
@@ -133,6 +150,10 @@ public slots:
     /// @param[in] item Target VideoQuickItem instance.
     void attachVideoItem(VideoQuickItem* item);
 
+    /// @brief Attach secondary presentation QML VideoQuickItem for PIP.
+    /// @param[in] item Target VideoQuickItem instance.
+    void attachPipVideoItem(VideoQuickItem* item);
+
     /// @brief Adapt stream source to matching target IP address.
     /// @param[in] host Target IP address.
     void updateHostAddress(const QString& host);
@@ -141,6 +162,10 @@ signals:
     /// @brief Emitted when a new frame is decoded.
     /// @param[in] frame Decoded QImage frame.
     void frameDecoded(const QImage& frame);
+
+    /// @brief Emitted when a new PIP frame is decoded.
+    /// @param[in] frame Decoded secondary QImage frame.
+    void pipFrameDecoded(const QImage& frame);
 
     /// @brief Emitted when playback state transitions.
     void playbackStateChanged();
@@ -153,6 +178,12 @@ signals:
 
     /// @brief Emitted when synthetic mode toggles.
     void syntheticChanged();
+
+    /// @brief Emitted when PIP enabled status changes.
+    void pipEnabledChanged();
+
+    /// @brief Emitted when PIP camera channel changes.
+    void pipCameraChanged();
 
     /// @brief Emitted when video statistics update.
     void statsUpdated();
@@ -183,10 +214,11 @@ private:
 
     PlaybackState m_state { PlaybackState::Idle };
     QString m_sourceUri {};
-    QString m_hostAddress { QStringLiteral("10.10.10.51") };
+    QString m_hostAddress { QStringLiteral("127.0.0.1") };
     int m_activeCamera { 0 };
     bool m_isSynthetic { true };
     int m_backendIndex { 0 };
+    bool m_pipEnabled { false };
 
     double m_fps { 0.0 };
     double m_avgDecodeTimeMs { 0.0 };

@@ -55,9 +55,21 @@ public:
     /// @param tracks Vector of track coordinates.
     void updateTracks(const std::vector<Sightline::TrackCoordinate>& tracks);
 
+    /// @brief Insert or modify an individual track in the model.
+    /// @param[in] track Track coordinate information.
+    void addOrUpdateTrack(const Sightline::TrackCoordinate& track);
+
+    /// @brief Remove a specific track by its identifier.
+    /// @param[in] trackId Track identifier to remove.
+    Q_INVOKABLE void removeTrack(int trackId);
+
+    /// @brief Set a specific track as primary and downgrade all others.
+    /// @param[in] trackId Track identifier to promote.
+    Q_INVOKABLE void setPrimaryTrack(int trackId);
+
     /// @brief Clear all tracks from the model.
     /// @details Resets the list to empty.
-    void clearTracks();
+    Q_INVOKABLE void clearTracks();
 
 private:
     std::vector<Sightline::TrackCoordinate> m_tracks {};

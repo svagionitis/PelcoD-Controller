@@ -44,6 +44,8 @@ if(BUILD_TESTING)
         src/VideoQuickItem.cpp
         src/SightlineVideoController.h
         src/SightlineVideoController.cpp
+        src/TrackListModel.h
+        src/TrackListModel.cpp
         tests/TestSightlineVideo.cpp
     )
     target_include_directories(TestSightlineVideo PRIVATE
@@ -52,6 +54,7 @@ if(BUILD_TESTING)
         ${CMAKE_SOURCE_DIR}/libs/Video
     )
     target_link_libraries(TestSightlineVideo PRIVATE
+        SightlineCore
         Video
         Qt6::Core
         Qt6::Gui

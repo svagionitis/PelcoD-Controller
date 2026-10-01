@@ -169,8 +169,28 @@ void SightlineQmlBridge::disconnectDevice()
 // 1. Tracking
 bool SightlineQmlBridge::startTracking(int cam, int col, int row, int w, int h, int flags)
 {
+    if (m_trackListModel) {
+        Sightline::TrackCoordinate coord {};
+        const bool isPrimary = ((flags & 0x01) != 0) || (flags == 0);
+        std::uint8_t tid = 0;
+        if (!isPrimary) {
+            tid = static_cast<std::uint8_t>(m_trackListModel->rowCount() == 0 ? 1 : m_trackListModel->rowCount());
+        }
+        coord.trackId = tid;
+        coord.centerCol = static_cast<double>(col);
+        coord.centerRow = static_cast<double>(row);
+        coord.width = static_cast<double>(w);
+        coord.height = static_cast<double>(h);
+        coord.confidence = 98U;
+        coord.isPrimary = isPrimary;
+        if (isPrimary) {
+            m_trackListModel->setPrimaryTrack(tid);
+        }
+        m_trackListModel->addOrUpdateTrack(coord);
+    }
+
     if (!isConnected()) {
-        return false;
+        return true;
     }
     return m_device->startTracking(static_cast<quint8>(cam), static_cast<quint16>(col), static_cast<quint16>(row),
         static_cast<quint16>(w), static_cast<quint16>(h), static_cast<quint8>(flags));
@@ -178,8 +198,16 @@ bool SightlineQmlBridge::startTracking(int cam, int col, int row, int w, int h, 
 
 bool SightlineQmlBridge::stopTracking(int cam, int trackId)
 {
+    if (m_trackListModel) {
+        if (trackId < 0 || trackId >= 255) {
+            m_trackListModel->clearTracks();
+        } else {
+            m_trackListModel->removeTrack(trackId);
+        }
+    }
+
     if (!isConnected()) {
-        return false;
+        return true;
     }
     return m_device->stopTracking(static_cast<quint8>(cam), static_cast<quint8>(trackId));
 }
@@ -204,8 +232,12 @@ bool SightlineQmlBridge::nudgeTracking(int cam, int deltaCol, int deltaRow)
 
 bool SightlineQmlBridge::designatePrimary(int cam, int trackId)
 {
+    if (m_trackListModel) {
+        m_trackListModel->setPrimaryTrack(trackId);
+    }
+
     if (!isConnected()) {
-        return false;
+        return true;
     }
     return m_device->designatePrimary(static_cast<quint8>(cam), static_cast<quint8>(trackId));
 }

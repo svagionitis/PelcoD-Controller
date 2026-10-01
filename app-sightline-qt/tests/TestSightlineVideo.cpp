@@ -2,6 +2,7 @@
 /// @brief Automated unit test suite for SightlineVideoController and VideoQuickItem.
 
 #include "SightlineVideoController.h"
+#include "TrackListModel.h"
 #include "VideoQuickItem.h"
 
 #include <QCoreApplication>
@@ -155,6 +156,94 @@ TEST_F(SightlineVideoTest, SnapshotCapture)
     EXPECT_FALSE(loaded.isNull());
     EXPECT_EQ(loaded.width(), controller.frameWidth());
     EXPECT_EQ(loaded.height(), controller.frameHeight());
+}
+
+TEST_F(SightlineVideoTest, PipModeAndStreamSwapping)
+{
+    SightlineApp::SightlineVideoController controller {};
+
+    EXPECT_FALSE(controller.pipEnabled());
+    EXPECT_EQ(controller.pipCamera(), 1);
+
+    QSignalSpy pipSpy(&controller, &SightlineApp::SightlineVideoController::pipEnabledChanged);
+    controller.setPipEnabled(true);
+    EXPECT_TRUE(controller.pipEnabled());
+    EXPECT_EQ(pipSpy.count(), 1);
+
+    // Swap feeds
+    QSignalSpy camSpy(&controller, &SightlineApp::SightlineVideoController::activeCameraChanged);
+    QSignalSpy pipCamSpy(&controller, &SightlineApp::SightlineVideoController::pipCameraChanged);
+
+    controller.swapPipFeeds();
+    EXPECT_EQ(controller.activeCamera(), 1);
+    EXPECT_EQ(controller.pipCamera(), 0);
+    EXPECT_EQ(camSpy.count(), 1);
+    EXPECT_EQ(pipCamSpy.count(), 1);
+
+    // Attach PIP item and verify reception
+    SightlineApp::VideoQuickItem pipItem {};
+    controller.attachPipVideoItem(&pipItem);
+
+    for (int i = 0; i < 20 && !pipItem.hasFrame(); ++i) {
+        QTest::qWait(30);
+    }
+
+    EXPECT_TRUE(pipItem.hasFrame());
+    EXPECT_GT(pipItem.videoWidth(), 0);
+    EXPECT_GT(pipItem.videoHeight(), 0);
+}
+
+TEST_F(SightlineVideoTest, TrackListModelLifecycle)
+{
+    TrackListModel model {};
+    EXPECT_EQ(model.rowCount(), 0);
+
+    Sightline::TrackCoordinate t0 {};
+    t0.trackId = 0U;
+    t0.centerCol = 640.0;
+    t0.centerRow = 360.0;
+    t0.width = 60.0;
+    t0.height = 60.0;
+    t0.confidence = 95U;
+    t0.isPrimary = true;
+
+    model.addOrUpdateTrack(t0);
+    EXPECT_EQ(model.rowCount(), 1);
+    EXPECT_TRUE(model.data(model.index(0, 0), TrackListModel::IsPrimaryRole).toBool());
+    EXPECT_DOUBLE_EQ(model.data(model.index(0, 0), TrackListModel::CenterColRole).toDouble(), 640.0);
+
+    Sightline::TrackCoordinate t1 {};
+    t1.trackId = 1U;
+    t1.centerCol = 800.0;
+    t1.centerRow = 450.0;
+    t1.width = 40.0;
+    t1.height = 40.0;
+    t1.confidence = 85U;
+    t1.isPrimary = false;
+
+    model.addOrUpdateTrack(t1);
+    EXPECT_EQ(model.rowCount(), 2);
+    EXPECT_FALSE(model.data(model.index(1, 0), TrackListModel::IsPrimaryRole).toBool());
+
+    // Promote t1 to primary
+    model.setPrimaryTrack(1);
+    EXPECT_FALSE(model.data(model.index(0, 0), TrackListModel::IsPrimaryRole).toBool());
+    EXPECT_TRUE(model.data(model.index(1, 0), TrackListModel::IsPrimaryRole).toBool());
+
+    // Update t1 position
+    t1.centerCol = 820.0;
+    model.addOrUpdateTrack(t1);
+    EXPECT_EQ(model.rowCount(), 2);
+    EXPECT_DOUBLE_EQ(model.data(model.index(1, 0), TrackListModel::CenterColRole).toDouble(), 820.0);
+
+    // Remove track 0
+    model.removeTrack(0);
+    EXPECT_EQ(model.rowCount(), 1);
+    EXPECT_EQ(model.data(model.index(0, 0), TrackListModel::TrackIdRole).toInt(), 1);
+
+    // Clear tracks
+    model.clearTracks();
+    EXPECT_EQ(model.rowCount(), 0);
 }
 
 } // namespace
