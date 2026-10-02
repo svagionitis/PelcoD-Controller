@@ -2,6 +2,7 @@
 /// @brief Implementation of Sightline SLA high-level controller and message dispatcher.
 
 #include "SightlineDevice.h"
+#include "modules/SightlineTrackingBuilder.h"
 
 namespace Sightline {
 
@@ -117,6 +118,46 @@ bool SightlineDevice::modifyTracking(
     return sendPacket(SightlineProtocolBuilder::buildModifyTracking(msg));
 }
 
+bool SightlineDevice::startPrecisionTrack(
+    std::uint8_t cameraIndex, std::uint16_t col, std::uint16_t row,
+    std::uint16_t width, std::uint16_t height, std::uint64_t framePtsUs,
+    std::uint8_t flags)
+{
+    return sendPacket(SightlineTrackingBuilder::buildStartPrecision(
+        cameraIndex, col, row, width, height, framePtsUs, flags));
+}
+
+bool SightlineDevice::setForcedCoast(
+    std::uint8_t cameraIndex, std::uint8_t trackId, ForcedCoastingMode mode)
+{
+    return sendPacket(SightlineTrackingBuilder::buildForcedCoasting(
+        cameraIndex, trackId, mode));
+}
+
+bool SightlineDevice::reinitTrack(std::uint8_t cameraIndex, std::uint8_t trackId)
+{
+    return sendPacket(SightlineTrackingBuilder::buildModifyTrackIndex(
+        cameraIndex, trackId, TrackIndexAction::Reinitialize));
+}
+
+bool SightlineDevice::resizeTrack(
+    std::uint8_t cameraIndex, std::uint8_t trackId,
+    std::uint16_t width, std::uint16_t height, bool acqAssist)
+{
+    const auto action = acqAssist ? TrackIndexAction::ResizeWithAcquisitionAssist
+                                  : TrackIndexAction::ResizeNoAcquisitionAssist;
+    return sendPacket(SightlineTrackingBuilder::buildModifyTrackIndex(
+        cameraIndex, trackId, action, width, height));
+}
+
+bool SightlineDevice::cueTrackAt(
+    std::uint8_t cameraIndex, std::uint16_t col, std::uint16_t row,
+    ModifyMode mode, std::uint8_t trackId)
+{
+    return sendPacket(SightlineTrackingBuilder::buildModifyTrackingMode(
+        cameraIndex, col, row, mode, trackId));
+}
+
 bool SightlineDevice::nudgeTracking(std::uint8_t cameraIndex, std::int16_t deltaCol, std::int16_t deltaRow)
 {
     MsgNudgeTrackingCoordinate msg {};
@@ -125,6 +166,13 @@ bool SightlineDevice::nudgeTracking(std::uint8_t cameraIndex, std::int16_t delta
     msg.deltaRow = deltaRow;
 
     return sendPacket(SightlineProtocolBuilder::buildNudgeTracking(msg));
+}
+
+bool SightlineDevice::nudgeDisplayTrack(
+    std::uint8_t cameraIndex, std::int16_t deltaCol, std::int16_t deltaRow)
+{
+    return sendPacket(SightlineTrackingBuilder::buildNudgeTrackingRotated(
+        cameraIndex, deltaCol, deltaRow, NudgeCoordinateMode::DisplayCoordinates));
 }
 
 bool SightlineDevice::setReportingMode(std::uint8_t cameraIndex, std::uint8_t framePeriod, std::uint8_t reportingFlags)

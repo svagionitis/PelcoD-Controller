@@ -1098,5 +1098,139 @@ namespace {
         EXPECT_EQ(parsed.maxPauseTime, 10U);
     }
 
+    /// @brief Verify precision acquisition with MISB timestamp serialization (0x08).
+    TEST(TestSightlineTracking, BuildAndParseStartPrecision)
+    {
+        const auto pkt = SightlineTrackingBuilder::buildStartPrecision(
+            2U, 640U, 480U, 80U, 60U, 987654321ULL, 0x01U);
+        EXPECT_EQ(SightlineFraming::identifyMessage(pkt), MessageId::StartTracking);
+
+        const auto payload = SightlineFraming::extractPayload(pkt);
+        ASSERT_EQ(payload.size(), 21U);
+
+        MsgStartTracking parsed {};
+        ASSERT_TRUE(SightlineTrackingParser::parseStartTracking(pkt, parsed));
+        EXPECT_EQ(parsed.cameraIndex, 2U);
+        EXPECT_EQ(parsed.centerCol, 640U);
+        EXPECT_EQ(parsed.centerRow, 480U);
+        EXPECT_EQ(parsed.width, 80U);
+        EXPECT_EQ(parsed.height, 60U);
+        EXPECT_EQ(parsed.flags, 0x01U);
+        EXPECT_EQ(parsed.framePts, 987654321ULL);
+    }
+
+    /// @brief Verify full 10-byte ModifyTracking command with ModifyMode (0x05).
+    TEST(TestSightlineTracking, BuildAndParseModifyTrackingFull)
+    {
+        const auto pkt = SightlineTrackingBuilder::buildModifyTrackingMode(
+            1U, 500U, 300U, ModifyMode::DesignateNearOrNewPrimary, 4U, 32U, 32U);
+        EXPECT_EQ(SightlineFraming::identifyMessage(pkt), MessageId::ModifyTracking);
+
+        const auto payload = SightlineFraming::extractPayload(pkt);
+        ASSERT_EQ(payload.size(), 10U);
+
+        MsgModifyTracking parsed {};
+        ASSERT_TRUE(SightlineTrackingParser::parseModifyTracking(pkt, parsed));
+        EXPECT_EQ(parsed.cameraIndex, 1U);
+        EXPECT_EQ(parsed.col, 500U);
+        EXPECT_EQ(parsed.row, 300U);
+        EXPECT_EQ(parsed.width, 32U);
+        EXPECT_EQ(parsed.height, 32U);
+        EXPECT_EQ(parsed.trackId, 4U);
+        EXPECT_EQ(parsed.mode, static_cast<std::uint8_t>(ModifyMode::DesignateNearOrNewPrimary));
+    }
+
+    /// @brief Verify forced coasting modes mapped to ModifyTrackIndex (0x17).
+    TEST(TestSightlineTracking, BuildAndParseForcedCoastingAllModes)
+    {
+        // 1. None / Clear coasting
+        {
+            const auto pkt = SightlineTrackingBuilder::buildForcedCoasting(0U, 1U, ForcedCoastingMode::None);
+            MsgModifyTrackIndex parsed {};
+            ASSERT_TRUE(SightlineTrackingParser::parseModifyTrackIndex(pkt, parsed));
+            EXPECT_EQ(parsed.trackIndex, 1U);
+            EXPECT_EQ(parsed.flags, static_cast<std::uint8_t>(TrackIndexAction::CoastNone));
+        }
+
+        // 2. Freeze Updates
+        {
+            const auto pkt = SightlineTrackingBuilder::buildForcedCoasting(0U, 2U, ForcedCoastingMode::FreezeUpdates);
+            MsgModifyTrackIndex parsed {};
+            ASSERT_TRUE(SightlineTrackingParser::parseModifyTrackIndex(pkt, parsed));
+            EXPECT_EQ(parsed.trackIndex, 2U);
+            EXPECT_EQ(parsed.flags, static_cast<std::uint8_t>(TrackIndexAction::CoastFreezeUpdates));
+        }
+
+        // 3. Freeze Search
+        {
+            const auto pkt = SightlineTrackingBuilder::buildForcedCoasting(0U, 3U, ForcedCoastingMode::FreezeSearch);
+            MsgModifyTrackIndex parsed {};
+            ASSERT_TRUE(SightlineTrackingParser::parseModifyTrackIndex(pkt, parsed));
+            EXPECT_EQ(parsed.trackIndex, 3U);
+            EXPECT_EQ(parsed.flags, static_cast<std::uint8_t>(TrackIndexAction::CoastFreezeSearch));
+        }
+
+        // 4. Freeze Propagation
+        {
+            const auto pkt = SightlineTrackingBuilder::buildForcedCoasting(0U, 4U, ForcedCoastingMode::FreezePropagation);
+            MsgModifyTrackIndex parsed {};
+            ASSERT_TRUE(SightlineTrackingParser::parseModifyTrackIndex(pkt, parsed));
+            EXPECT_EQ(parsed.trackIndex, 4U);
+            EXPECT_EQ(parsed.flags, static_cast<std::uint8_t>(TrackIndexAction::CoastFreezePropagation));
+        }
+    }
+
+    /// @brief Verify dynamic track box resizing with and without Acquisition Assist (0x17).
+    TEST(TestSightlineTracking, BuildAndParseTrackResizing)
+    {
+        // Resize with Acquisition Assist (action 9)
+        const auto pkt = SightlineTrackingBuilder::buildModifyTrackIndex(
+            1U, 2U, TrackIndexAction::ResizeWithAcquisitionAssist, 80U, 60U);
+        EXPECT_EQ(SightlineFraming::identifyMessage(pkt), MessageId::ModifyTrackIndex);
+
+        MsgModifyTrackIndex parsed {};
+        ASSERT_TRUE(SightlineTrackingParser::parseModifyTrackIndex(pkt, parsed));
+        EXPECT_EQ(parsed.cameraIndex, 1U);
+        EXPECT_EQ(parsed.trackIndex, 2U);
+        EXPECT_EQ(parsed.flags, 9U);
+        EXPECT_EQ(parsed.width, 80U);
+        EXPECT_EQ(parsed.height, 60U);
+    }
+
+    /// @brief Verify display-frame rotated nudge coordinates (0x0A).
+    TEST(TestSightlineTracking, BuildAndParseNudgeDisplayRotated)
+    {
+        const auto pkt = SightlineTrackingBuilder::buildNudgeTrackingRotated(
+            0U, -15, 25, NudgeCoordinateMode::DisplayCoordinates);
+        EXPECT_EQ(SightlineFraming::identifyMessage(pkt), MessageId::NudgeTrackingCoordinate);
+
+        MsgNudgeTrackingCoordinate parsed {};
+        ASSERT_TRUE(SightlineTrackingParser::parseNudgeTracking(pkt, parsed));
+        EXPECT_EQ(parsed.cameraIndex, 0U);
+        EXPECT_EQ(parsed.rotate, 1U);
+        EXPECT_EQ(parsed.offsetCol, -15);
+        EXPECT_EQ(parsed.offsetRow, 25);
+    }
+
+    /// @brief Verify track shift relative to centroid (0x33).
+    TEST(TestSightlineTracking, BuildAndParseShiftSelectedTrack)
+    {
+        MsgShiftSelectedTrack msg {};
+        msg.cameraIndex = 1U;
+        msg.trackId = 3U;
+        msg.shiftCol = -10;
+        msg.shiftRow = 20;
+
+        const auto pkt = SightlineTrackingBuilder::buildShiftSelectedTrack(msg);
+        EXPECT_EQ(SightlineFraming::identifyMessage(pkt), MessageId::ShiftSelectedTrack);
+
+        MsgShiftSelectedTrack parsed {};
+        ASSERT_TRUE(SightlineTrackingParser::parseShiftSelectedTrack(pkt, parsed));
+        EXPECT_EQ(parsed.cameraIndex, 1U);
+        EXPECT_EQ(parsed.trackId, 3U);
+        EXPECT_EQ(parsed.shiftCol, -10);
+        EXPECT_EQ(parsed.shiftRow, 20);
+    }
+
 } // namespace
 } // namespace Sightline

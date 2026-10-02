@@ -21,6 +21,20 @@ public:
     /// @return Framed binary packet.
     [[nodiscard]] static std::vector<std::uint8_t> buildStartTracking(const MsgStartTracking& msg);
 
+    /// @brief Encodes precision acquisition with MISB timestamp (Message ID 0x08).
+    /// @param[in] cameraIndex Zero-based camera index.
+    /// @param[in] col Center column coordinate in pixels.
+    /// @param[in] row Center row coordinate in pixels.
+    /// @param[in] width Target box width.
+    /// @param[in] height Target box height.
+    /// @param[in] framePtsUs Microsecond MISB Precision Time Stamp.
+    /// @param[in] flags Acquisition flags (default 0x01 primary).
+    /// @return Framed binary packet.
+    [[nodiscard]] static std::vector<std::uint8_t> buildStartPrecision(
+        std::uint8_t cameraIndex, std::uint16_t col, std::uint16_t row,
+        std::uint16_t width, std::uint16_t height, std::uint64_t framePtsUs,
+        std::uint8_t flags = 0x01U);
+
     /// @brief Encodes target tracking termination command (Message ID 0x09).
     /// @param[in] msg Stop tracking parameters.
     /// @return Framed binary packet.
@@ -31,10 +45,34 @@ public:
     /// @return Framed binary packet.
     [[nodiscard]] static std::vector<std::uint8_t> buildModifyTracking(const MsgModifyTracking& msg);
 
+    /// @brief Encodes target cueing and mode modification (Message ID 0x05).
+    /// @param[in] cameraIndex Zero-based camera index.
+    /// @param[in] col Target column coordinate.
+    /// @param[in] row Target row coordinate.
+    /// @param[in] mode Algorithmic modify mode (EAN Appendix C).
+    /// @param[in] trackId Target track ID.
+    /// @param[in] width Target box width (0 for default).
+    /// @param[in] height Target box height (0 for default).
+    /// @return Framed binary packet.
+    [[nodiscard]] static std::vector<std::uint8_t> buildModifyTrackingMode(
+        std::uint8_t cameraIndex, std::uint16_t col, std::uint16_t row,
+        ModifyMode mode, std::uint8_t trackId = 0U,
+        std::uint8_t width = 0U, std::uint8_t height = 0U);
+
     /// @brief Encodes sub-pixel tracking nudge command (Message ID 0x0A).
     /// @param[in] msg Coordinate trim nudge parameters.
     /// @return Framed binary packet.
     [[nodiscard]] static std::vector<std::uint8_t> buildNudgeTracking(const MsgNudgeTrackingCoordinate& msg);
+
+    /// @brief Encodes coordinate frame trim nudge (Message ID 0x0A).
+    /// @param[in] cameraIndex Zero-based camera index.
+    /// @param[in] deltaCol Pixel column offset to nudge.
+    /// @param[in] deltaRow Pixel row offset to nudge.
+    /// @param[in] coordMode Camera or display coordinate selection.
+    /// @return Framed binary packet.
+    [[nodiscard]] static std::vector<std::uint8_t> buildNudgeTrackingRotated(
+        std::uint8_t cameraIndex, std::int16_t deltaCol, std::int16_t deltaRow,
+        NudgeCoordinateMode coordMode = NudgeCoordinateMode::DisplayCoordinates);
 
     /// @brief Encodes coordinate reporting mode configuration (Message ID 0x0B).
     /// @param[in] msg Reporting parameters.
@@ -50,6 +88,25 @@ public:
     /// @param[in] msg Track index modify parameters.
     /// @return Framed binary packet.
     [[nodiscard]] static std::vector<std::uint8_t> buildModifyTrackIndex(const MsgModifyTrackIndex& msg);
+
+    /// @brief Encodes track index modification with typed action (Message ID 0x17).
+    /// @param[in] cameraIndex Zero-based camera index.
+    /// @param[in] trackIndex Zero-based track index.
+    /// @param[in] action Operational action code (stop, primary, reinit, forced coast, resize).
+    /// @param[in] width Optional target box width for resizing (default 0).
+    /// @param[in] height Optional target box height for resizing (default 0).
+    /// @return Framed binary packet.
+    [[nodiscard]] static std::vector<std::uint8_t> buildModifyTrackIndex(
+        std::uint8_t cameraIndex, std::uint8_t trackIndex, TrackIndexAction action,
+        std::uint16_t width = 0U, std::uint16_t height = 0U);
+
+    /// @brief Encodes forced coast override mode via ModifyTrackIndex (Message ID 0x17).
+    /// @param[in] cameraIndex Zero-based camera index.
+    /// @param[in] trackIndex Zero-based track index.
+    /// @param[in] mode Forced coasting algorithmic mode.
+    /// @return Framed binary packet.
+    [[nodiscard]] static std::vector<std::uint8_t> buildForcedCoasting(
+        std::uint8_t cameraIndex, std::uint8_t trackIndex, ForcedCoastingMode mode);
 
     /// @brief Encodes tracking trail parameters (Message ID 0x9D).
     /// @param[in] msg Track trail parameters.

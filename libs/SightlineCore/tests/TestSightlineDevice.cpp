@@ -54,6 +54,12 @@ namespace {
             return m_sentPackets;
         }
 
+        void clearSentPackets()
+        {
+            std::lock_guard<std::mutex> lock(m_mutex);
+            m_sentPackets.clear();
+        }
+
     private:
         mutable std::mutex m_mutex;
         bool m_isOpen { false };
@@ -544,6 +550,72 @@ namespace {
         EXPECT_TRUE(metricFired.load());
         EXPECT_TRUE(device.lastKlvMetricFilters().has_value());
         EXPECT_NEAR(device.lastKlvMetricFilters()->minTargetWidthM, 1.2F, 1e-4F);
+
+        device.stop();
+    }
+
+    /// @brief Verify Phase 2 tracking command dispatch through SightlineDevice.
+    TEST(TestSightlineDevice, Phase2TrackingCommandDispatch)
+    {
+        auto transport = std::make_shared<MockTestTransport>();
+        SightlineDevice device(transport);
+        ASSERT_TRUE(device.start());
+
+        // 1. startPrecisionTrack
+        transport->clearSentPackets();
+        EXPECT_TRUE(device.startPrecisionTrack(0U, 320U, 240U, 64U, 48U, 123456ULL));
+        auto sent = transport->getSentPackets();
+        ASSERT_EQ(sent.size(), 1U);
+        EXPECT_EQ(SightlineFraming::identifyMessage(sent[0]), MessageId::StartTracking);
+        EXPECT_EQ(SightlineFraming::extractPayload(sent[0]).size(), 21U);
+
+        // 2. setForcedCoast
+        transport->clearSentPackets();
+        EXPECT_TRUE(device.setForcedCoast(0U, 1U, ForcedCoastingMode::FreezeUpdates));
+        sent = transport->getSentPackets();
+        ASSERT_EQ(sent.size(), 1U);
+        EXPECT_EQ(SightlineFraming::identifyMessage(sent[0]), MessageId::ModifyTrackIndex);
+        const auto coastPayload = SightlineFraming::extractPayload(sent[0]);
+        EXPECT_EQ(coastPayload[0], 1U);
+        EXPECT_EQ(coastPayload[1], static_cast<std::uint8_t>(TrackIndexAction::CoastFreezeUpdates));
+
+        // 3. reinitTrack
+        transport->clearSentPackets();
+        EXPECT_TRUE(device.reinitTrack(0U, 2U));
+        sent = transport->getSentPackets();
+        ASSERT_EQ(sent.size(), 1U);
+        const auto reinitPayload = SightlineFraming::extractPayload(sent[0]);
+        EXPECT_EQ(reinitPayload[0], 2U);
+        EXPECT_EQ(reinitPayload[1], static_cast<std::uint8_t>(TrackIndexAction::Reinitialize));
+
+        // 4. resizeTrack
+        transport->clearSentPackets();
+        EXPECT_TRUE(device.resizeTrack(0U, 3U, 80U, 60U, true));
+        sent = transport->getSentPackets();
+        ASSERT_EQ(sent.size(), 1U);
+        const auto resizePayload = SightlineFraming::extractPayload(sent[0]);
+        EXPECT_EQ(resizePayload[0], 3U);
+        EXPECT_EQ(resizePayload[1], static_cast<std::uint8_t>(TrackIndexAction::ResizeWithAcquisitionAssist));
+
+        // 5. cueTrackAt
+        transport->clearSentPackets();
+        EXPECT_TRUE(device.cueTrackAt(0U, 400U, 250U, ModifyMode::DesignateNearAsPrimary, 5U));
+        sent = transport->getSentPackets();
+        ASSERT_EQ(sent.size(), 1U);
+        EXPECT_EQ(SightlineFraming::identifyMessage(sent[0]), MessageId::ModifyTracking);
+        const auto cuePayload = SightlineFraming::extractPayload(sent[0]);
+        ASSERT_EQ(cuePayload.size(), 10U);
+        EXPECT_EQ(cuePayload[8], 5U); // trackId
+        EXPECT_EQ(cuePayload[9], static_cast<std::uint8_t>(ModifyMode::DesignateNearAsPrimary));
+
+        // 6. nudgeDisplayTrack
+        transport->clearSentPackets();
+        EXPECT_TRUE(device.nudgeDisplayTrack(0U, -5, 10));
+        sent = transport->getSentPackets();
+        ASSERT_EQ(sent.size(), 1U);
+        EXPECT_EQ(SightlineFraming::identifyMessage(sent[0]), MessageId::NudgeTrackingCoordinate);
+        const auto nudgePayload = SightlineFraming::extractPayload(sent[0]);
+        EXPECT_EQ(nudgePayload[2], 1U); // rotate = 1 (DisplayCoordinates)
 
         device.stop();
     }

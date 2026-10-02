@@ -23,6 +23,22 @@ std::vector<std::uint8_t> SightlineTrackingBuilder::buildStartTracking(const Msg
     return SightlineFraming::buildPacket(MessageId::StartTracking, payload);
 }
 
+std::vector<std::uint8_t> SightlineTrackingBuilder::buildStartPrecision(
+    std::uint8_t cameraIndex, std::uint16_t col, std::uint16_t row,
+    std::uint16_t width, std::uint16_t height, std::uint64_t framePtsUs,
+    std::uint8_t flags)
+{
+    MsgStartTracking msg {};
+    msg.cameraIndex = cameraIndex;
+    msg.centerCol = col;
+    msg.centerRow = row;
+    msg.width = width;
+    msg.height = height;
+    msg.flags = flags;
+    msg.framePts = framePtsUs;
+    return buildStartTracking(msg);
+}
+
 std::vector<std::uint8_t> SightlineTrackingBuilder::buildStopTracking(const MsgStopTracking& msg)
 {
     const std::vector<std::uint8_t> payload { 0x00U, 0x00U, 0x00U, msg.cameraIndex };
@@ -32,14 +48,34 @@ std::vector<std::uint8_t> SightlineTrackingBuilder::buildStopTracking(const MsgS
 std::vector<std::uint8_t> SightlineTrackingBuilder::buildModifyTracking(const MsgModifyTracking& msg)
 {
     std::vector<std::uint8_t> payload {};
-    payload.reserve(7U);
+    payload.reserve((msg.trackId != 0U || msg.mode != 0U) ? 10U : 7U);
     SightlineFraming::appendU16Le(payload, msg.col);
     SightlineFraming::appendU16Le(payload, msg.row);
     payload.push_back(msg.flags);
     payload.push_back(msg.width);
     payload.push_back(msg.height);
     payload.push_back(msg.cameraIndex);
+    if (msg.trackId != 0U || msg.mode != 0U) {
+        payload.push_back(msg.trackId);
+        payload.push_back(msg.mode);
+    }
     return SightlineFraming::buildPacket(MessageId::ModifyTracking, payload);
+}
+
+std::vector<std::uint8_t> SightlineTrackingBuilder::buildModifyTrackingMode(
+    std::uint8_t cameraIndex, std::uint16_t col, std::uint16_t row,
+    ModifyMode mode, std::uint8_t trackId,
+    std::uint8_t width, std::uint8_t height)
+{
+    MsgModifyTracking msg {};
+    msg.cameraIndex = cameraIndex;
+    msg.col = col;
+    msg.row = row;
+    msg.width = width;
+    msg.height = height;
+    msg.trackId = trackId;
+    msg.mode = static_cast<std::uint8_t>(mode);
+    return buildModifyTracking(msg);
 }
 
 std::vector<std::uint8_t> SightlineTrackingBuilder::buildNudgeTracking(const MsgNudgeTrackingCoordinate& msg)
@@ -49,6 +85,18 @@ std::vector<std::uint8_t> SightlineTrackingBuilder::buildNudgeTracking(const Msg
     const std::vector<std::uint8_t> payload { static_cast<std::uint8_t>(offCol), static_cast<std::uint8_t>(offRow),
         msg.rotate, msg.cameraIndex };
     return SightlineFraming::buildPacket(MessageId::NudgeTrackingCoordinate, payload);
+}
+
+std::vector<std::uint8_t> SightlineTrackingBuilder::buildNudgeTrackingRotated(
+    std::uint8_t cameraIndex, std::int16_t deltaCol, std::int16_t deltaRow,
+    NudgeCoordinateMode coordMode)
+{
+    MsgNudgeTrackingCoordinate msg {};
+    msg.cameraIndex = cameraIndex;
+    msg.deltaCol = deltaCol;
+    msg.deltaRow = deltaRow;
+    msg.rotate = static_cast<std::uint8_t>(coordMode);
+    return buildNudgeTracking(msg);
 }
 
 std::vector<std::uint8_t> SightlineTrackingBuilder::buildSetReportingMode(const MsgCoordinateReportingMode& msg)
@@ -95,6 +143,41 @@ std::vector<std::uint8_t> SightlineTrackingBuilder::buildModifyTrackIndex(const 
     SightlineFraming::appendU16Le(payload, msg.width);
     SightlineFraming::appendU16Le(payload, msg.height);
     return SightlineFraming::buildPacket(MessageId::ModifyTrackIndex, payload);
+}
+
+std::vector<std::uint8_t> SightlineTrackingBuilder::buildModifyTrackIndex(
+    std::uint8_t cameraIndex, std::uint8_t trackIndex, TrackIndexAction action,
+    std::uint16_t width, std::uint16_t height)
+{
+    MsgModifyTrackIndex msg {};
+    msg.cameraIndex = cameraIndex;
+    msg.trackIndex = trackIndex;
+    msg.flags = static_cast<std::uint8_t>(action);
+    msg.width = width;
+    msg.height = height;
+    return buildModifyTrackIndex(msg);
+}
+
+std::vector<std::uint8_t> SightlineTrackingBuilder::buildForcedCoasting(
+    std::uint8_t cameraIndex, std::uint8_t trackIndex, ForcedCoastingMode mode)
+{
+    TrackIndexAction action { TrackIndexAction::CoastNone };
+    switch (mode) {
+    case ForcedCoastingMode::FreezeUpdates:
+        action = TrackIndexAction::CoastFreezeUpdates;
+        break;
+    case ForcedCoastingMode::FreezeSearch:
+        action = TrackIndexAction::CoastFreezeSearch;
+        break;
+    case ForcedCoastingMode::FreezePropagation:
+        action = TrackIndexAction::CoastFreezePropagation;
+        break;
+    case ForcedCoastingMode::None:
+    default:
+        action = TrackIndexAction::CoastNone;
+        break;
+    }
+    return buildModifyTrackIndex(cameraIndex, trackIndex, action);
 }
 
 std::vector<std::uint8_t> SightlineTrackingBuilder::buildTrackTrails(const MsgTrackTrails& msg)

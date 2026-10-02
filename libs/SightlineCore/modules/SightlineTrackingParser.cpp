@@ -226,4 +226,162 @@ bool SightlineTrackingParser::parseTrackingParameters(
     return true;
 }
 
+bool SightlineTrackingParser::parseStartTracking(
+    const std::vector<std::uint8_t>& packet, MsgStartTracking& out)
+{
+    if (SightlineFraming::identifyMessage(packet) != MessageId::StartTracking) {
+        return false;
+    }
+
+    const auto payload { SightlineFraming::extractPayload(packet) };
+    if (payload.size() < 10U) {
+        return false;
+    }
+
+    out.cameraIndex = payload[0U];
+    out.centerCol = SightlineFraming::readU16Le(payload.data() + 1U);
+    out.centerRow = SightlineFraming::readU16Le(payload.data() + 3U);
+    out.width = SightlineFraming::readU16Le(payload.data() + 5U);
+    out.height = SightlineFraming::readU16Le(payload.data() + 7U);
+    out.flags = payload[9U];
+
+    if (payload.size() >= 12U) {
+        out.nearVal = SightlineFraming::readU16Le(payload.data() + 10U);
+    } else {
+        out.nearVal = 0U;
+    }
+
+    if (payload.size() >= 13U) {
+        out.userTrackId = payload[12U];
+    } else {
+        out.userTrackId = 0U;
+    }
+
+    if (payload.size() >= 21U) {
+        out.framePts = SightlineFraming::readU64Le(payload.data() + 13U);
+    } else {
+        out.framePts = 0ULL;
+    }
+
+    return true;
+}
+
+bool SightlineTrackingParser::parseModifyTracking(
+    const std::vector<std::uint8_t>& packet, MsgModifyTracking& out)
+{
+    if (SightlineFraming::identifyMessage(packet) != MessageId::ModifyTracking) {
+        return false;
+    }
+
+    const auto payload { SightlineFraming::extractPayload(packet) };
+    if (payload.size() < 7U) {
+        return false;
+    }
+
+    out.col = SightlineFraming::readU16Le(payload.data() + 0U);
+    out.row = SightlineFraming::readU16Le(payload.data() + 2U);
+    out.flags = payload[4U];
+    out.width = payload[5U];
+    out.height = payload[6U];
+
+    if (payload.size() >= 8U) {
+        out.cameraIndex = payload[7U];
+    } else {
+        out.cameraIndex = 0U;
+    }
+
+    if (payload.size() >= 9U) {
+        out.trackId = payload[8U];
+    } else {
+        out.trackId = 0U;
+    }
+
+    if (payload.size() >= 10U) {
+        out.mode = payload[9U];
+    } else {
+        out.mode = 0U;
+    }
+
+    return true;
+}
+
+bool SightlineTrackingParser::parseModifyTrackIndex(
+    const std::vector<std::uint8_t>& packet, MsgModifyTrackIndex& out)
+{
+    if (SightlineFraming::identifyMessage(packet) != MessageId::ModifyTrackIndex) {
+        return false;
+    }
+
+    const auto payload { SightlineFraming::extractPayload(packet) };
+    if (payload.size() < 3U) {
+        return false;
+    }
+
+    out.trackIndex = payload[0U];
+    out.flags = payload[1U];
+    out.cameraIndex = payload[2U];
+
+    if (payload.size() >= 5U) {
+        out.width = SightlineFraming::readU16Le(payload.data() + 3U);
+    } else {
+        out.width = 0U;
+    }
+
+    if (payload.size() >= 7U) {
+        out.height = SightlineFraming::readU16Le(payload.data() + 5U);
+    } else {
+        out.height = 0U;
+    }
+
+    return true;
+}
+
+bool SightlineTrackingParser::parseNudgeTracking(
+    const std::vector<std::uint8_t>& packet, MsgNudgeTrackingCoordinate& out)
+{
+    if (SightlineFraming::identifyMessage(packet) != MessageId::NudgeTrackingCoordinate) {
+        return false;
+    }
+
+    const auto payload { SightlineFraming::extractPayload(packet) };
+    if (payload.size() < 4U) {
+        return false;
+    }
+
+    out.offsetCol = static_cast<std::int8_t>(payload[0U]);
+    out.offsetRow = static_cast<std::int8_t>(payload[1U]);
+    out.rotate = payload[2U];
+    out.cameraIndex = payload[3U];
+
+    if (payload.size() >= 8U) {
+        out.deltaCol = SightlineFraming::readS16Le(payload.data() + 4U);
+        out.deltaRow = SightlineFraming::readS16Le(payload.data() + 6U);
+    } else {
+        out.deltaCol = out.offsetCol;
+        out.deltaRow = out.offsetRow;
+    }
+
+    return true;
+}
+
+bool SightlineTrackingParser::parseShiftSelectedTrack(
+    const std::vector<std::uint8_t>& packet, MsgShiftSelectedTrack& out)
+{
+    if (SightlineFraming::identifyMessage(packet) != MessageId::ShiftSelectedTrack) {
+        return false;
+    }
+
+    const auto payload { SightlineFraming::extractPayload(packet) };
+    if (payload.size() < 6U) {
+        return false;
+    }
+
+    out.cameraIndex = payload[0U];
+    out.trackId = payload[1U];
+    out.shiftCol = SightlineFraming::readS16Le(payload.data() + 2U);
+    out.shiftRow = SightlineFraming::readS16Le(payload.data() + 4U);
+
+    return true;
+}
+
 } // namespace Sightline

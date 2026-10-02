@@ -50,6 +50,41 @@ public:
     /// @return True on successful parse.
     [[nodiscard]] static bool parseTrackingParameters(
         const std::vector<std::uint8_t>& packet, MsgSetTrackingParameters& out);
+
+    /// @brief Parses acquisition start command (Message ID 0x08).
+    /// @param[in] packet Validated framed packet bytes.
+    /// @param[out] out Deserialized start tracking parameters.
+    /// @return True on successful parse.
+    [[nodiscard]] static bool parseStartTracking(
+        const std::vector<std::uint8_t>& packet, MsgStartTracking& out);
+
+    /// @brief Parses active track modification command (Message ID 0x05).
+    /// @param[in] packet Validated framed packet bytes.
+    /// @param[out] out Deserialized modify tracking parameters.
+    /// @return True on successful parse.
+    [[nodiscard]] static bool parseModifyTracking(
+        const std::vector<std::uint8_t>& packet, MsgModifyTracking& out);
+
+    /// @brief Parses track index modification command (Message ID 0x17).
+    /// @param[in] packet Validated framed packet bytes.
+    /// @param[out] out Deserialized modify track index parameters.
+    /// @return True on successful parse.
+    [[nodiscard]] static bool parseModifyTrackIndex(
+        const std::vector<std::uint8_t>& packet, MsgModifyTrackIndex& out);
+
+    /// @brief Parses sub-pixel tracking nudge command (Message ID 0x0A).
+    /// @param[in] packet Validated framed packet bytes.
+    /// @param[out] out Deserialized nudge tracking parameters.
+    /// @return True on successful parse.
+    [[nodiscard]] static bool parseNudgeTracking(
+        const std::vector<std::uint8_t>& packet, MsgNudgeTrackingCoordinate& out);
+
+    /// @brief Parses track gate shift command (Message ID 0x33).
+    /// @param[in] packet Validated framed packet bytes.
+    /// @param[out] out Deserialized shift selected track parameters.
+    /// @return True on successful parse.
+    [[nodiscard]] static bool parseShiftSelectedTrack(
+        const std::vector<std::uint8_t>& packet, MsgShiftSelectedTrack& out);
 };
 
 } // namespace Sightline
