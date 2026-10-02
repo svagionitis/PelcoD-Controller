@@ -418,7 +418,7 @@ bool SightlineQmlBridge::setDetectionParams(int cam, int mode, int threshold, in
     }
     Sightline::MsgSetDetectionParameters msg {};
     msg.cameraIndex = static_cast<std::uint8_t>(cam);
-    msg.mode = static_cast<std::uint8_t>(mode);
+    msg.mode = static_cast<Sightline::DetectionMode>(mode);
     msg.threshold = static_cast<std::uint8_t>(threshold);
     msg.minTargetSize = static_cast<std::uint16_t>(minSize);
     msg.maxTargetSize = static_cast<std::uint16_t>(maxSize);

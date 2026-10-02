@@ -84,7 +84,8 @@ enum class MtiReticleType : std::uint8_t {
     EllipseWithClass = 0x02U,
     InvertedTriangle = 0x04U,
     InvertedTriangleWithClass = 0x08U,
-    Rectangle = 0x10U
+    Rectangle = 0x10U,
+    RectangleWithClass = 0x20U
 };
 
 /// @enum MtiLabelPosition

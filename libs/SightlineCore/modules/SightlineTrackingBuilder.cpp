@@ -2,6 +2,7 @@
 /// @brief Implementation of Sightline video tracking and motion command serializers.
 
 #include "SightlineTrackingBuilder.h"
+#include "SightlineDetectionBuilder.h"
 
 namespace Sightline {
 
@@ -45,12 +46,8 @@ std::vector<std::uint8_t> SightlineTrackingBuilder::buildNudgeTracking(const Msg
 {
     const std::int8_t offCol { (msg.offsetCol != 0) ? msg.offsetCol : static_cast<std::int8_t>(msg.deltaCol) };
     const std::int8_t offRow { (msg.offsetRow != 0) ? msg.offsetRow : static_cast<std::int8_t>(msg.deltaRow) };
-    const std::vector<std::uint8_t> payload {
-        static_cast<std::uint8_t>(offCol),
-        static_cast<std::uint8_t>(offRow),
-        msg.rotate,
-        msg.cameraIndex
-    };
+    const std::vector<std::uint8_t> payload { static_cast<std::uint8_t>(offCol), static_cast<std::uint8_t>(offRow),
+        msg.rotate, msg.cameraIndex };
     return SightlineFraming::buildPacket(MessageId::NudgeTrackingCoordinate, payload);
 }
 
@@ -133,40 +130,24 @@ std::vector<std::uint8_t> SightlineTrackingBuilder::buildStopSelectedTrack(const
 
 std::vector<std::uint8_t> SightlineTrackingBuilder::buildSetDetectionParams(const MsgSetDetectionParameters& msg)
 {
-    std::vector<std::uint8_t> payload {};
-    payload.reserve(7U);
-    payload.push_back(msg.cameraIndex);
-    payload.push_back(msg.mode);
-    payload.push_back(msg.threshold);
-    SightlineFraming::appendU16Le(payload, msg.minTargetSize);
-    SightlineFraming::appendU16Le(payload, msg.maxTargetSize);
-    return SightlineFraming::buildPacket(MessageId::SetDetectionParameters, payload);
+    return SightlineDetectionBuilder::buildSetDetectionParams(msg);
 }
 
 std::vector<std::uint8_t> SightlineTrackingBuilder::buildCustomAIDetect(const MsgCustomAIDetect& msg)
 {
-    const std::vector<std::uint8_t> payload {
-        msg.cameraIndex,
-        msg.modelId,
-        msg.confidenceThreshold,
-        msg.nmsThreshold
-    };
+    const std::vector<std::uint8_t> payload { msg.cameraIndex, msg.modelId, msg.confidenceThreshold, msg.nmsThreshold };
     return SightlineFraming::buildPacket(MessageId::CustomAIDetect, payload);
 }
 
-std::vector<std::uint8_t> SightlineTrackingBuilder::buildGetTrackingParameters(
-    std::uint8_t cameraIndex)
+std::vector<std::uint8_t> SightlineTrackingBuilder::buildGetTrackingParameters(std::uint8_t cameraIndex)
 {
     const std::vector<std::uint8_t> payload { cameraIndex };
     return SightlineFraming::buildPacket(MessageId::GetTrackingParameters, payload);
 }
 
-std::vector<std::uint8_t> SightlineTrackingBuilder::buildGetTrackTrails(
-    std::uint8_t cameraIndex)
+std::vector<std::uint8_t> SightlineTrackingBuilder::buildGetTrackTrails(std::uint8_t cameraIndex)
 {
-    const std::vector<std::uint8_t> payload {
-        static_cast<std::uint8_t>(MessageId::TrackTrails), cameraIndex
-    };
+    const std::vector<std::uint8_t> payload { static_cast<std::uint8_t>(MessageId::TrackTrails), cameraIndex };
     return SightlineFraming::buildPacket(MessageId::GetParameters, payload);
 }
 

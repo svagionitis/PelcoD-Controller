@@ -148,7 +148,7 @@ namespace {
 
         MsgSetDetectionParameters detMsg {};
         detMsg.cameraIndex = 0U;
-        detMsg.mode = 2U;
+        detMsg.mode = DetectionMode::Drone;
         detMsg.threshold = 30U;
         detMsg.minTargetSize = 8U;
         detMsg.maxTargetSize = 150U;
@@ -671,6 +671,151 @@ namespace {
         const auto queryPkt = SightlineClassificationBuilder::buildGetClassifierParams(1U);
         EXPECT_EQ(SightlineFraming::identifyMessage(queryPkt), MessageId::GetParameters);
         EXPECT_EQ(queryPkt, SightlineProtocolBuilder::buildGetClassifierParams(1U));
+    }
+
+    /// @brief Verify extended detection parameters roundtrip with Phase 1 enums and manual sensitivity.
+    TEST(TestSightlineTracking, BuildAndParseDetectionParamsExt)
+    {
+        MsgSetDetectionParameters msg {};
+        msg.cameraIndex = 2U;
+        msg.detectionIndex = 1U;
+        msg.mode = DetectionMode::Gas;
+        msg.sensitivityMode = SensitivityMode::Manual;
+        msg.threshold = 42U;
+        msg.minTargetSize = 12U;
+        msg.maxTargetSize = 350U;
+        msg.bkgdThreshold = 18U;
+        msg.watchFrames = 6U;
+        msg.suspiciousScore = 80U;
+
+        const auto pkt = SightlineDetectionBuilder::buildSetDetectionParams(msg);
+        EXPECT_EQ(SightlineFraming::identifyMessage(pkt), MessageId::SetDetectionParameters);
+
+        MsgSetDetectionParameters out {};
+        ASSERT_TRUE(SightlineDetectionParser::parseDetectionParams(pkt, out));
+        EXPECT_EQ(out.cameraIndex, 2U);
+        EXPECT_EQ(out.detectionIndex, 1U);
+        EXPECT_EQ(out.mode, DetectionMode::Gas);
+        EXPECT_EQ(out.sensitivityMode, SensitivityMode::Manual);
+        EXPECT_EQ(out.threshold, 42U);
+        EXPECT_EQ(out.minTargetSize, 12U);
+        EXPECT_EQ(out.maxTargetSize, 350U);
+        EXPECT_EQ(out.bkgdThreshold, 18U);
+        EXPECT_EQ(out.watchFrames, 6U);
+        EXPECT_EQ(out.suspiciousScore, 80U);
+    }
+
+    /// @brief Verify extended advanced detection parameters roundtrip for Staring, Aerial, Gas and Overlap.
+    TEST(TestSightlineTracking, BuildAndParseAdvDetectionExt)
+    {
+        MsgAdvancedDetectionParameters msg {};
+        msg.cameraIndex = 1U;
+        msg.detectionIndex = 1U;
+        msg.minVelocity = 100U;
+        msg.maxVelocity = 8000U;
+        msg.persistenceFrames = 4U;
+        msg.mergeDistance = 15U;
+        msg.hideOverlapTracks = false;
+        msg.detectNearTrack = true;
+        msg.averageTimeConstant = 15U;
+        msg.edgePenalty = 70U;
+        msg.nFramesBack = 8U;
+        msg.useRegistration = true;
+        msg.updateRate = 48U;
+        msg.surroundSize = 35U;
+        msg.blobDirection = BlobDirection::Bright;
+        msg.use8BitImages = true;
+        msg.gasAddOriginal = 200U;
+        msg.gasColor = 2U;
+        msg.aiIouThreshold = 55U;
+        msg.enableMtd = true;
+        msg.downsample = DetectionDownsample::Downsample2x;
+
+        const auto pkt = SightlineDetectionBuilder::buildSetAdvDetectionParams(msg);
+        EXPECT_EQ(SightlineFraming::identifyMessage(pkt), MessageId::SetAdvancedDetectionParameters);
+
+        MsgAdvancedDetectionParameters out {};
+        ASSERT_TRUE(SightlineDetectionParser::parseAdvDetectionParams(pkt, out));
+        EXPECT_EQ(out.cameraIndex, 1U);
+        EXPECT_EQ(out.detectionIndex, 1U);
+        EXPECT_EQ(out.minVelocity, 100U);
+        EXPECT_EQ(out.maxVelocity, 8000U);
+        EXPECT_EQ(out.persistenceFrames, 4U);
+        EXPECT_EQ(out.mergeDistance, 15U);
+        EXPECT_FALSE(out.hideOverlapTracks);
+        EXPECT_TRUE(out.detectNearTrack);
+        EXPECT_EQ(out.averageTimeConstant, 15U);
+        EXPECT_EQ(out.edgePenalty, 70U);
+        EXPECT_EQ(out.nFramesBack, 8U);
+        EXPECT_TRUE(out.useRegistration);
+        EXPECT_EQ(out.updateRate, 48U);
+        EXPECT_EQ(out.surroundSize, 35U);
+        EXPECT_EQ(out.blobDirection, BlobDirection::Bright);
+        EXPECT_TRUE(out.use8BitImages);
+        EXPECT_EQ(out.gasAddOriginal, 200U);
+        EXPECT_EQ(out.gasColor, 2U);
+        EXPECT_EQ(out.aiIouThreshold, 55U);
+        EXPECT_TRUE(out.enableMtd);
+        EXPECT_EQ(out.downsample, DetectionDownsample::Downsample2x);
+    }
+
+    /// @brief Verify line and masked grid detection ROI geometries.
+    TEST(TestSightlineTracking, BuildAndParseDetectionRoiExt)
+    {
+        MsgDetectionROI lineMsg {};
+        lineMsg.cameraIndex = 0U;
+        lineMsg.detectionIndex = 1U;
+        lineMsg.roiIndex = 1U;
+        lineMsg.geometryMode = RoiGeometryMode::DetectionLine;
+        lineMsg.lineLeftX = 100U;
+        lineMsg.lineLeftY = 250U;
+        lineMsg.lineRightX = 500U;
+        lineMsg.lineRightY = 350U;
+        lineMsg.lineSide = LineReportSide::Above;
+
+        const auto linePkt = SightlineDetectionBuilder::buildSetDetectionROI(lineMsg);
+        MsgDetectionROI lineOut {};
+        ASSERT_TRUE(SightlineDetectionParser::parseDetectionROI(linePkt, lineOut));
+        EXPECT_EQ(lineOut.cameraIndex, 0U);
+        EXPECT_EQ(lineOut.detectionIndex, 1U);
+        EXPECT_EQ(lineOut.roiIndex, 1U);
+        EXPECT_EQ(lineOut.geometryMode, RoiGeometryMode::DetectionLine);
+        EXPECT_EQ(lineOut.lineLeftX, 100U);
+        EXPECT_EQ(lineOut.lineLeftY, 250U);
+        EXPECT_EQ(lineOut.lineRightX, 500U);
+        EXPECT_EQ(lineOut.lineRightY, 350U);
+        EXPECT_EQ(lineOut.lineSide, LineReportSide::Above);
+
+        MsgDetectionROI gridMsg {};
+        gridMsg.cameraIndex = 1U;
+        gridMsg.detectionIndex = 0U;
+        gridMsg.roiIndex = 0U;
+        gridMsg.geometryMode = RoiGeometryMode::MaskedGrid;
+        gridMsg.blocksWide = 16U;
+        gridMsg.blocksHigh = 16U;
+        gridMsg.gridMasks[0U] = 0xAAAAAAAAAAAAAAAAULL;
+        gridMsg.gridMasks[1U] = 0x5555555555555555ULL;
+        gridMsg.gridMasks[2U] = 0xFF00FF00FF00FF00ULL;
+        gridMsg.gridMasks[3U] = 0x00FF00FF00FF00FFULL;
+        gridMsg.showRegions = true;
+
+        const auto gridPkt = SightlineDetectionBuilder::buildSetDetectionROI(gridMsg);
+        MsgDetectionROI gridOut {};
+        ASSERT_TRUE(SightlineDetectionParser::parseDetectionROI(gridPkt, gridOut));
+        EXPECT_EQ(gridOut.geometryMode, RoiGeometryMode::MaskedGrid);
+        EXPECT_EQ(gridOut.blocksWide, 16U);
+        EXPECT_EQ(gridOut.blocksHigh, 16U);
+        EXPECT_EQ(gridOut.gridMasks[0U], 0xAAAAAAAAAAAAAAAAULL);
+        EXPECT_EQ(gridOut.gridMasks[1U], 0x5555555555555555ULL);
+        EXPECT_EQ(gridOut.gridMasks[2U], 0xFF00FF00FF00FF00ULL);
+        EXPECT_EQ(gridOut.gridMasks[3U], 0x00FF00FF00FF00FFULL);
+        EXPECT_TRUE(gridOut.showRegions);
+    }
+
+    /// @brief Verify MTI reticle shape enum value for RectangleWithClass.
+    TEST(TestSightlineTracking, ReticleTypeRectangleWithClass)
+    {
+        EXPECT_EQ(static_cast<std::uint8_t>(MtiReticleType::RectangleWithClass), 0x20U);
     }
 
 } // namespace
