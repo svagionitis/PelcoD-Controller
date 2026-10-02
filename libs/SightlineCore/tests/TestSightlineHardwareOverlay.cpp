@@ -654,5 +654,370 @@ namespace {
         EXPECT_FALSE(parsedIds.isObjectActive(128U)); // not in payload, stays 0
     }
 
+    /// @brief Verify overlay object parameters query and deserialization (Message ID 0x6B & Query 0x28).
+    TEST(TestSightlineHardwareOverlay, OverlayObjectParams)
+    {
+        // 1. Serialization of query 0x28 for object 7
+        const auto queryPkt = SightlineOverlayBuilder::buildGetOverlayObjectParams(7U);
+        EXPECT_EQ(SightlineFraming::identifyMessage(queryPkt), MessageId::GetParameters);
+        EXPECT_EQ(queryPkt, SightlineProtocolBuilder::buildGetOverlayObjectParams(7U));
+
+        const auto queryPayload = SightlineFraming::extractPayload(queryPkt);
+        ASSERT_EQ(queryPayload.size(), 2U);
+        EXPECT_EQ(queryPayload[0U], static_cast<std::uint8_t>(MessageId::CurrentOverlayObjectParameters));
+        EXPECT_EQ(queryPayload[1U], 7U);
+
+        // 2. Deserialization of 0x6B parameter packet with text
+        std::vector<std::uint8_t> paramPayload {};
+        paramPayload.push_back(static_cast<std::uint8_t>(OverlayObjectType::TextExtended)); // type
+        paramPayload.push_back(7U); // objectId
+        paramPayload.push_back(OverlayPropertyFlags::OriginUpperLeft | OverlayPropertyFlags::SaveToFlash); // flags
+        paramPayload.push_back(1U); // staticObject
+        SightlineFraming::appendU16Le(paramPayload, 320U); // a (X)
+        SightlineFraming::appendU16Le(paramPayload, 240U); // b (Y)
+        SightlineFraming::appendU16Le(paramPayload, 64U); // c (Scale)
+        SightlineFraming::appendU16Le(paramPayload, 1U); // d (Font)
+        paramPayload.push_back(0x0EU); // color (White on Transparent)
+        const std::string bannerText = "AIR DEFENSE ALPHA";
+        paramPayload.insert(paramPayload.end(), bannerText.begin(), bannerText.end());
+        paramPayload.push_back(0U); // Null terminator
+
+        const auto paramPkt = SightlineFraming::buildPacket(MessageId::CurrentOverlayObjectParameters, paramPayload);
+        MsgCurrentOverlayObjectParameters parsedParams {};
+        ASSERT_TRUE(SightlineOverlayParser::parseOverlayObjectParams(paramPkt, parsedParams));
+        EXPECT_EQ(parsedParams.type, static_cast<std::uint8_t>(OverlayObjectType::TextExtended));
+        EXPECT_EQ(parsedParams.objectId, 7U);
+        EXPECT_EQ(parsedParams.flags, OverlayPropertyFlags::OriginUpperLeft | OverlayPropertyFlags::SaveToFlash);
+        EXPECT_EQ(parsedParams.staticObject, 1U);
+        EXPECT_EQ(parsedParams.a, 320U);
+        EXPECT_EQ(parsedParams.b, 240U);
+        EXPECT_EQ(parsedParams.c, 64U);
+        EXPECT_EQ(parsedParams.d, 1U);
+        EXPECT_EQ(parsedParams.color, 0x0EU);
+        EXPECT_EQ(parsedParams.text, "AIR DEFENSE ALPHA");
+
+        // Facade equivalence
+        MsgCurrentOverlayObjectParameters facadeParams {};
+        ASSERT_TRUE(SightlineProtocolParser::parseOverlayObjectParams(paramPkt, facadeParams));
+        EXPECT_EQ(facadeParams.text, parsedParams.text);
+
+        // 3. Truncation and wrong message ID rejection
+        std::vector<std::uint8_t> shortPayload(12U, 0U);
+        const auto shortPkt = SightlineFraming::buildPacket(MessageId::CurrentOverlayObjectParameters, shortPayload);
+        EXPECT_FALSE(SightlineOverlayParser::parseOverlayObjectParams(shortPkt, parsedParams));
+
+        const auto wrongIdPkt = SightlineFraming::buildPacket(MessageId::GetParameters, paramPayload);
+        EXPECT_FALSE(SightlineOverlayParser::parseOverlayObjectParams(wrongIdPkt, parsedParams));
+    }
+
+    /// @brief Verify full 21-byte round-trip covering all fields of MsgSetOverlayMode.
+    TEST(TestSightlineHardwareOverlay, OverlayModeRoundTrip)
+    {
+        MsgSetOverlayMode modeIn {};
+        modeIn.primaryReticle = 0x11U; // Cross, White
+        modeIn.secondaryReticle = 0x24U; // Circle, Dark Gray
+        modeIn.graphics = 0x1234U; // Custom bitmask
+        modeIn.mtiColor = 0x08U; // Light Green
+        modeIn.mtiSelectableColor = 0x0DU; // Yellow
+        modeIn.cameraIndex = 2U; // Camera 2
+        modeIn.selectedReticle = 0x02U;
+        modeIn.personReticle = 0x0BU; // Cyan
+        modeIn.cursorReticle = 0x01U;
+        modeIn.lineThickness = 3U; // 3px
+        modeIn.fontScale = 48U; // 150%
+        modeIn.fontId = 1U; // Arial
+        modeIn.extraLabels = ClassifierLabelsFlags::ClassifierTrackLabels | ClassifierLabelsFlags::MtiLabelsOnly;
+        modeIn.modernMode = 1U;
+        modeIn.mtiReticle = static_cast<std::uint8_t>(MtiReticleType::InvertedTriangleWithClass);
+        modeIn.mtiLabelAdv = static_cast<std::uint8_t>(MtiLabelPosition::TopRight);
+        modeIn.mtiMultiColor = 1U;
+        modeIn.detCounterColor = 0x0EU;
+        modeIn.mtiDisplayLabelLimit = 16U;
+        modeIn.detCounterPos = 2U;
+        modeIn.mtiLabelDeconflict = 1U;
+
+        const auto modePkt = SightlineOverlayBuilder::buildSetOverlayMode(modeIn);
+        EXPECT_EQ(SightlineFraming::identifyMessage(modePkt), MessageId::SetOverlayMode);
+        EXPECT_EQ(modePkt, SightlineProtocolBuilder::buildSetOverlayMode(modeIn));
+
+        // Exact payload length check (22 bytes payload + 5 bytes framing = 27 bytes)
+        EXPECT_EQ(modePkt.size(), 27U);
+
+        MsgSetOverlayMode modeOut {};
+        ASSERT_TRUE(SightlineOverlayParser::parseOverlayMode(modePkt, modeOut));
+        EXPECT_EQ(modeOut.primaryReticle, modeIn.primaryReticle);
+        EXPECT_EQ(modeOut.secondaryReticle, modeIn.secondaryReticle);
+        EXPECT_EQ(modeOut.graphics, modeIn.graphics);
+        EXPECT_EQ(modeOut.mtiColor, modeIn.mtiColor);
+        EXPECT_EQ(modeOut.mtiSelectableColor, modeIn.mtiSelectableColor);
+        EXPECT_EQ(modeOut.cameraIndex, modeIn.cameraIndex);
+        EXPECT_EQ(modeOut.selectedReticle, modeIn.selectedReticle);
+        EXPECT_EQ(modeOut.personReticle, modeIn.personReticle);
+        EXPECT_EQ(modeOut.cursorReticle, modeIn.cursorReticle);
+        EXPECT_EQ(modeOut.lineThickness, modeIn.lineThickness);
+        EXPECT_EQ(modeOut.fontScale, modeIn.fontScale);
+        EXPECT_EQ(modeOut.fontId, modeIn.fontId);
+        EXPECT_EQ(modeOut.extraLabels, modeIn.extraLabels);
+        EXPECT_EQ(modeOut.modernMode, modeIn.modernMode);
+        EXPECT_EQ(modeOut.mtiReticle, modeIn.mtiReticle);
+        EXPECT_EQ(modeOut.mtiLabelAdv, modeIn.mtiLabelAdv);
+        EXPECT_EQ(modeOut.mtiMultiColor, modeIn.mtiMultiColor);
+        EXPECT_EQ(modeOut.detCounterColor, modeIn.detCounterColor);
+        EXPECT_EQ(modeOut.mtiDisplayLabelLimit, modeIn.mtiDisplayLabelLimit);
+        EXPECT_EQ(modeOut.detCounterPos, modeIn.detCounterPos);
+        EXPECT_EQ(modeOut.mtiLabelDeconflict, modeIn.mtiLabelDeconflict);
+
+        // Facade equivalence
+        MsgSetOverlayMode facadeOut {};
+        ASSERT_TRUE(SightlineProtocolParser::parseOverlayMode(modePkt, facadeOut));
+        EXPECT_EQ(facadeOut.fontScale, modeIn.fontScale);
+        EXPECT_EQ(facadeOut.graphics, modeIn.graphics);
+    }
+
+    /// @brief Verify primitive geometry types, 5-bit alpha blending, and negative coordinates.
+    TEST(TestSightlineHardwareOverlay, DrawOverlayPrimitives)
+    {
+        // 1. Circle Primitive (Type 0)
+        MsgDrawOverlay circle {};
+        circle.cameraIndex = 0U;
+        circle.objectId = 10U;
+        circle.action = OverlayActionFlags::Create;
+        circle.type = OverlayObjectType::Circle;
+        circle.a = 200U; // X
+        circle.b = 150U; // Y
+        circle.c = 50U; // Radius
+        const auto circlePkt = SightlineOverlayBuilder::buildDrawOverlay(circle);
+        MsgDrawOverlay circleOut {};
+        ASSERT_TRUE(SightlineOverlayParser::parseDrawOverlay(circlePkt, circleOut));
+        EXPECT_EQ(circleOut.type, OverlayObjectType::Circle);
+        EXPECT_EQ(circleOut.a, 200U);
+        EXPECT_EQ(circleOut.c, 50U);
+
+        // 2. Line Primitive (Type 2)
+        MsgDrawOverlay line {};
+        line.cameraIndex = 1U;
+        line.objectId = 11U;
+        line.action = OverlayActionFlags::Create;
+        line.type = OverlayObjectType::Line;
+        line.a = 50U; // X1
+        line.b = 50U; // Y1
+        line.c = 300U; // X2
+        line.d = 200U; // Y2
+        line.e = 3U; // Thickness
+        line.hasE = true;
+        const auto linePkt = SightlineOverlayBuilder::buildDrawOverlay(line);
+        MsgDrawOverlay lineOut {};
+        ASSERT_TRUE(SightlineOverlayParser::parseDrawOverlay(linePkt, lineOut));
+        EXPECT_EQ(lineOut.type, OverlayObjectType::Line);
+        EXPECT_EQ(lineOut.c, 300U);
+        EXPECT_EQ(lineOut.d, 200U);
+        EXPECT_TRUE(lineOut.hasE);
+        EXPECT_EQ(lineOut.e, 3U);
+
+        // 3. 5-bit Alpha Blending in Action Byte (Bits 3..7)
+        MsgDrawOverlay alphaRect {};
+        alphaRect.cameraIndex = 0U;
+        alphaRect.objectId = 12U;
+        // Alpha = 25 (out of 31) -> 25 << 3 | 0x01
+        alphaRect.action
+            = static_cast<std::uint8_t>(OverlayActionFlags::Create | (25U << OverlayActionFlags::AlphaShift));
+        alphaRect.type = OverlayObjectType::FilledRectangle;
+        alphaRect.a = 100U;
+        alphaRect.b = 80U;
+        alphaRect.c = 200U;
+        alphaRect.d = 120U;
+        const auto alphaPkt = SightlineOverlayBuilder::buildDrawOverlay(alphaRect);
+        MsgDrawOverlay alphaOut {};
+        ASSERT_TRUE(SightlineOverlayParser::parseDrawOverlay(alphaPkt, alphaOut));
+        EXPECT_EQ((alphaOut.action >> OverlayActionFlags::AlphaShift) & 0x1FU, 25U);
+        EXPECT_EQ(alphaOut.action & 0x01U, OverlayActionFlags::Create);
+
+        // 4. Signed Negative Coordinates preservation
+        const std::int16_t negX = -320;
+        const std::int16_t negY = -240;
+        MsgDrawOverlay negCross = SightlineOverlayBuilder::makeCrossOverlay(
+            0U, 13U, negX, negY, 20U, OverlayPaletteColor::LightBlue, 1U, false);
+        const auto negPkt = SightlineOverlayBuilder::buildDrawOverlay(negCross);
+        MsgDrawOverlay negOut {};
+        ASSERT_TRUE(SightlineOverlayParser::parseDrawOverlay(negPkt, negOut));
+        EXPECT_EQ(static_cast<std::int16_t>(negOut.a), negX);
+        EXPECT_EQ(static_cast<std::int16_t>(negOut.b), negY);
+
+        // 5. Square and FilledSquare Primitives (Types 10 & 11)
+        MsgDrawOverlay square {};
+        square.type = OverlayObjectType::Square;
+        square.objectId = 14U;
+        square.action = OverlayActionFlags::Create;
+        square.a = 500U;
+        square.b = 400U;
+        square.c = 60U; // Side length
+        const auto squarePkt = SightlineOverlayBuilder::buildDrawOverlay(square);
+        MsgDrawOverlay squareOut {};
+        ASSERT_TRUE(SightlineOverlayParser::parseDrawOverlay(squarePkt, squareOut));
+        EXPECT_EQ(squareOut.type, OverlayObjectType::Square);
+        EXPECT_EQ(squareOut.c, 60U);
+    }
+
+    /// @brief Verify optional extension parameters E & F and text layout combinations.
+    TEST(TestSightlineHardwareOverlay, OptionalParamsAndText)
+    {
+        // 1. Standard 15-byte fixed layout (hasE = false, hasF = false)
+        MsgDrawOverlay fixed15 {};
+        fixed15.type = OverlayObjectType::Rectangle;
+        fixed15.objectId = 20U;
+        fixed15.action = OverlayActionFlags::Create;
+        fixed15.hasE = false;
+        fixed15.hasF = false;
+        const auto pkt15 = SightlineOverlayBuilder::buildDrawOverlay(fixed15);
+        EXPECT_EQ(SightlineFraming::extractPayload(pkt15).size(), 15U);
+
+        // 2. 17-byte layout (hasE = true, hasF = false)
+        MsgDrawOverlay ext17 = fixed15;
+        ext17.hasE = true;
+        ext17.e = 5U; // Line thickness 5px
+        const auto pkt17 = SightlineOverlayBuilder::buildDrawOverlay(ext17);
+        EXPECT_EQ(SightlineFraming::extractPayload(pkt17).size(), 17U);
+        MsgDrawOverlay out17 {};
+        ASSERT_TRUE(SightlineOverlayParser::parseDrawOverlay(pkt17, out17));
+        EXPECT_TRUE(out17.hasE);
+        EXPECT_FALSE(out17.hasF);
+        EXPECT_EQ(out17.e, 5U);
+
+        // 3. 19-byte layout (hasE = true, hasF = true)
+        MsgDrawOverlay ext19 = ext17;
+        ext19.hasF = true;
+        ext19.f = 45U; // 45 degrees angle
+        const auto pkt19 = SightlineOverlayBuilder::buildDrawOverlay(ext19);
+        EXPECT_EQ(SightlineFraming::extractPayload(pkt19).size(), 19U);
+        MsgDrawOverlay out19 {};
+        ASSERT_TRUE(SightlineOverlayParser::parseDrawOverlay(pkt19, out19));
+        EXPECT_TRUE(out19.hasE);
+        EXPECT_TRUE(out19.hasF);
+        EXPECT_EQ(out19.e, 5U);
+        EXPECT_EQ(out19.f, 45U);
+
+        // 4. Text with extension E (e.g. outline thickness)
+        MsgDrawOverlay textWithE = SightlineOverlayBuilder::makeTextOverlay(0U, 21U, 10, 10, "FIRE MISSION");
+        textWithE.hasE = true;
+        textWithE.e = 2U;
+        const auto textPkt = SightlineOverlayBuilder::buildDrawOverlay(textWithE);
+        MsgDrawOverlay textOut {};
+        ASSERT_TRUE(SightlineOverlayParser::parseDrawOverlay(textPkt, textOut));
+        EXPECT_EQ(textOut.text, "FIRE MISSION");
+        EXPECT_TRUE(textOut.hasE);
+        EXPECT_EQ(textOut.e, 2U);
+    }
+
+    /// @brief Verify active object IDs 256-bit bitmask boundaries across all 4 words.
+    TEST(TestSightlineHardwareOverlay, BitmaskBoundaries)
+    {
+        MsgCurrentOverlayObjectsIds msg {};
+
+        // Boundary bit testing: 0, 1, 63, 64, 127, 128, 199, 200, 255
+        const std::vector<std::uint8_t> boundaryIds { 0U, 1U, 63U, 64U, 127U, 128U, 199U, 200U, 255U };
+        for (const auto id : boundaryIds) {
+            EXPECT_FALSE(msg.isObjectActive(id));
+            msg.setObjectActive(id, true);
+            EXPECT_TRUE(msg.isObjectActive(id));
+        }
+
+        // Active user object IDs filter strictly [1..199]
+        const auto activeUserIds = msg.getActiveObjectIds();
+        EXPECT_EQ(activeUserIds.size(), 6U); // 1, 63, 64, 127, 128, 199
+        EXPECT_EQ(activeUserIds.front(), 1U);
+        EXPECT_EQ(activeUserIds.back(), 199U);
+
+        // Test clearing bits
+        for (const auto id : boundaryIds) {
+            msg.setObjectActive(id, false);
+            EXPECT_FALSE(msg.isObjectActive(id));
+        }
+        EXPECT_TRUE(msg.getActiveObjectIds().empty());
+    }
+
+    /// @brief Verify user TrueType font assignment and logo watermark parameters.
+    TEST(TestSightlineHardwareOverlay, FontAndLogoWatermark)
+    {
+        // 1. User Font Slot 0 (short filename)
+        MsgUserFont font0Msg {};
+        font0Msg.userFontIndex = 0U;
+        font0Msg.fontFileName = "hud.ttf";
+        const auto font0 = SightlineOverlayBuilder::buildUserFont(font0Msg);
+        EXPECT_EQ(SightlineFraming::identifyMessage(font0), MessageId::UserFont);
+        MsgUserFont font0Out {};
+        ASSERT_TRUE(SightlineOverlayParser::parseUserFont(font0, font0Out));
+        EXPECT_EQ(font0Out.userFontIndex, 0U);
+        EXPECT_EQ(font0Out.fontFileName, "hud.ttf");
+
+        // 2. User Font Slot 15 (max slot, path filename)
+        MsgUserFont font15Msg {};
+        font15Msg.userFontIndex = 15U;
+        font15Msg.fontFileName = "fonts/tactical_symbols_v2.otf";
+        const auto font15 = SightlineOverlayBuilder::buildUserFont(font15Msg);
+        MsgUserFont font15Out {};
+        ASSERT_TRUE(SightlineOverlayParser::parseUserFont(font15, font15Out));
+        EXPECT_EQ(font15Out.userFontIndex, 15U);
+        EXPECT_EQ(font15Out.fontFileName, "fonts/tactical_symbols_v2.otf");
+
+        // 3. Logo Watermark Opacity and Offsets
+        MsgLogoParameters logo {};
+        logo.cameraIndex = 3U;
+        logo.logoOpacity = 0U; // Fully transparent
+        logo.offsetX = 0U;
+        logo.offsetY = 0U;
+        const auto logoPkt0 = SightlineOverlayBuilder::buildSetLogoParameters(logo);
+        MsgLogoParameters logoOut0 {};
+        ASSERT_TRUE(SightlineOverlayParser::parseLogoParameters(logoPkt0, logoOut0));
+        EXPECT_EQ(logoOut0.cameraIndex, 3U);
+        EXPECT_EQ(logoOut0.logoOpacity, 0U);
+
+        logo.logoOpacity = 255U; // Fully opaque
+        logo.offsetX = 1920U;
+        logo.offsetY = 1080U;
+        const auto logoPktMax = SightlineOverlayBuilder::buildSetLogoParameters(logo);
+        MsgLogoParameters logoOutMax {};
+        ASSERT_TRUE(SightlineOverlayParser::parseLogoParameters(logoPktMax, logoOutMax));
+        EXPECT_EQ(logoOutMax.logoOpacity, 255U);
+        EXPECT_EQ(logoOutMax.offsetX, 1920U);
+        EXPECT_EQ(logoOutMax.offsetY, 1080U);
+    }
+
+    /// @brief Verify parser resilience against corrupted CRCs, truncated headers, and malformed payloads.
+    TEST(TestSightlineHardwareOverlay, MalformedFuzzingSafety)
+    {
+        // 1. Corrupt CRC-8 checksum detection
+        MsgDrawOverlay validDraw = SightlineOverlayBuilder::makeCrossOverlay(0U, 1U, 0, 0, 20U);
+        auto corruptPkt = SightlineOverlayBuilder::buildDrawOverlay(validDraw);
+        ASSERT_FALSE(corruptPkt.empty());
+        const auto expectedCrc = corruptPkt.back();
+        corruptPkt.back() ^= 0xFFU; // Invert CRC
+        const auto headerLen = SightlineFraming::getHeaderLength(corruptPkt);
+        const auto computedCrc
+            = SightlineCrc8::compute(corruptPkt.data() + headerLen, corruptPkt.size() - headerLen - 1U);
+        EXPECT_NE(computedCrc, corruptPkt.back());
+        EXPECT_EQ(computedCrc, expectedCrc);
+
+        // 2. Incomplete header (< 4 bytes)
+        const std::vector<std::uint8_t> truncHeader { 0x51U, 0xACU, 0x10U };
+        MsgDrawOverlay dummyDraw {};
+        EXPECT_FALSE(SightlineOverlayParser::parseDrawOverlay(truncHeader, dummyDraw));
+        MsgSetOverlayMode dummyMode {};
+        EXPECT_FALSE(SightlineOverlayParser::parseOverlayMode(truncHeader, dummyMode));
+        MsgLogoParameters dummyLogo {};
+        EXPECT_FALSE(SightlineOverlayParser::parseLogoParameters(truncHeader, dummyLogo));
+
+        // 3. Mismatched Message ID injection
+        const auto validModePkt = SightlineOverlayBuilder::buildSetOverlayMode(MsgSetOverlayMode {});
+        EXPECT_FALSE(SightlineOverlayParser::parseDrawOverlay(validModePkt, dummyDraw));
+        EXPECT_FALSE(SightlineOverlayParser::parseLogoParameters(validModePkt, dummyLogo));
+        MsgUserFont dummyFont {};
+        EXPECT_FALSE(SightlineOverlayParser::parseUserFont(validModePkt, dummyFont));
+
+        // 4. Undersized DrawOverlay payload (e.g. 4 bytes instead of 15+)
+        const std::vector<std::uint8_t> underBytes { 0x00U, 0x01U, 0x01U, 0x04U };
+        const auto underPkt = SightlineFraming::buildPacket(MessageId::DrawOverlay, underBytes);
+        EXPECT_FALSE(SightlineOverlayParser::parseDrawOverlay(underPkt, dummyDraw));
+    }
+
 } // namespace
 } // namespace Sightline
