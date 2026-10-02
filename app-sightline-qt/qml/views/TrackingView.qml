@@ -8,15 +8,18 @@ ScrollView {
     id: root
     Layout.fillWidth: true
     Layout.fillHeight: true
-    contentWidth: availableWidth
+    contentWidth: Math.max(availableWidth, minContentWidth + 32)
     contentHeight: mainCol.implicitHeight + 32
     clip: true
     ScrollBar.vertical.policy: ScrollBar.AsNeeded
+    ScrollBar.horizontal.policy: ScrollBar.AsNeeded
+
+    readonly property int minContentWidth: 560
 
     ColumnLayout {
         id: mainCol
         x: 16
-        width: Math.max(0, root.availableWidth - 32)
+        width: Math.max(root.availableWidth - 32, root.minContentWidth)
         spacing: 16
 
         Item { Layout.preferredHeight: 2 }
