@@ -795,9 +795,9 @@ std::vector<std::uint8_t> SightlineProtocolBuilder::buildSetLogoParameters(const
     return SightlineOverlayBuilder::buildSetLogoParameters(msg);
 }
 
-std::vector<std::uint8_t> SightlineProtocolBuilder::buildGetLogoParameters(std::uint8_t displayIndex)
+std::vector<std::uint8_t> SightlineProtocolBuilder::buildGetLogoParameters(std::uint8_t cameraIndex)
 {
-    return SightlineOverlayBuilder::buildGetLogoParameters(displayIndex);
+    return SightlineOverlayBuilder::buildGetLogoParameters(cameraIndex);
 }
 
 std::vector<std::uint8_t> SightlineProtocolBuilder::buildAncillaryTextMetadata(const MsgAncillaryTextMetadata& msg)
@@ -808,6 +808,16 @@ std::vector<std::uint8_t> SightlineProtocolBuilder::buildAncillaryTextMetadata(c
 std::vector<std::uint8_t> SightlineProtocolBuilder::buildUserFont(const MsgUserFont& msg)
 {
     return SightlineOverlayBuilder::buildUserFont(msg);
+}
+
+std::vector<std::uint8_t> SightlineProtocolBuilder::buildGetOverlayObjectsIds(std::uint8_t cameraIndex)
+{
+    return SightlineOverlayBuilder::buildGetOverlayObjectsIds(cameraIndex);
+}
+
+std::vector<std::uint8_t> SightlineProtocolBuilder::buildGetOverlayObjectParams(std::uint8_t objectId)
+{
+    return SightlineOverlayBuilder::buildGetOverlayObjectParams(objectId);
 }
 
 std::vector<std::uint8_t> SightlineProtocolBuilder::buildSetDecoderParameters(const MsgDecoderParameters& msg)

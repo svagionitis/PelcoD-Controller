@@ -420,6 +420,16 @@ bool SightlineProtocolParser::parseUserFont(ByteView packet, MsgUserFont& out)
     return SightlineOverlayParser::parseUserFont(packet, out);
 }
 
+bool SightlineProtocolParser::parseOverlayObjectsIds(ByteView packet, MsgCurrentOverlayObjectsIds& out)
+{
+    return SightlineOverlayParser::parseOverlayObjectsIds(packet, out);
+}
+
+bool SightlineProtocolParser::parseOverlayObjectParams(ByteView packet, MsgCurrentOverlayObjectParameters& out)
+{
+    return SightlineOverlayParser::parseOverlayObjectParams(packet, out);
+}
+
 bool SightlineProtocolParser::parseDecoderParameters(ByteView packet, MsgDecoderParameters& out)
 {
     return SightlineCompressionParser::parseDecoderParameters(packet, out);

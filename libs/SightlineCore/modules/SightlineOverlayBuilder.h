@@ -22,20 +22,20 @@ public:
     /// @return Framed binary packet.
     [[nodiscard]] static std::vector<std::uint8_t> buildSetOverlayMode(const MsgSetOverlayMode& msg);
 
-    /// @brief Encodes single custom graphic object command (Message ID 0x3B).
-    /// @param[in] msg Graphic object parameters.
+    /// @brief Encodes query for active overlay mode (Message ID 0x07 / 0x28).
+    /// @param[in] cameraIndex Target camera index (0-based).
     /// @return Framed binary packet.
-    [[nodiscard]] static std::vector<std::uint8_t> buildDrawObject(const MsgDrawObject& msg);
+    [[nodiscard]] static std::vector<std::uint8_t> buildGetOverlayMode(std::uint8_t cameraIndex = 0U);
 
-    /// @brief Encodes multiple graphic primitives update (Message ID 0x9C).
+    /// @brief Encodes user specified graphic overlay object creation/deletion (Message ID 0x9C).
     /// @param[in] msg Draw overlay parameters.
     /// @return Framed binary packet.
     [[nodiscard]] static std::vector<std::uint8_t> buildDrawOverlay(const MsgDrawOverlay& msg);
 
-    /// @brief Encodes query for active overlay mode (Message ID 0x07).
-    /// @param[in] cameraIndex Target camera index (0-based).
+    /// @brief Encodes legacy custom graphic object command (Message ID 0x3B).
+    /// @param[in] msg Graphic object parameters.
     /// @return Framed binary packet.
-    [[nodiscard]] static std::vector<std::uint8_t> buildGetOverlayMode(std::uint8_t cameraIndex = 0U);
+    [[nodiscard]] static std::vector<std::uint8_t> buildDrawObject(const MsgDrawObject& msg);
 
     /// @brief Encodes logo watermark configuration (Message ID 0x9B).
     /// @param[in] msg Logo display parameters.
@@ -43,19 +43,29 @@ public:
     [[nodiscard]] static std::vector<std::uint8_t> buildSetLogoParameters(const MsgLogoParameters& msg);
 
     /// @brief Encodes query for logo watermark configuration (Message ID 0x28 query 0x9B).
-    /// @param[in] displayIndex Target display index (0-based).
+    /// @param[in] cameraIndex Target camera index (0-based).
     /// @return Framed binary packet.
-    [[nodiscard]] static std::vector<std::uint8_t> buildGetLogoParameters(std::uint8_t displayIndex = 0U);
+    [[nodiscard]] static std::vector<std::uint8_t> buildGetLogoParameters(std::uint8_t cameraIndex = 0U);
 
-    /// @brief Encodes dynamic ancillary text metadata / subtitle overlay (Message ID 0xAC).
+    /// @brief Encodes TrueType font assignment command (Message ID 0xAE).
+    /// @param[in] msg User font parameters.
+    /// @return Framed binary packet.
+    [[nodiscard]] static std::vector<std::uint8_t> buildUserFont(const MsgUserFont& msg);
+
+    /// @brief Encodes query for list of all active user overlay objects (Message ID 0x28 query 0x68).
+    /// @param[in] cameraIndex Target camera index (0-based).
+    /// @return Framed binary packet.
+    [[nodiscard]] static std::vector<std::uint8_t> buildGetOverlayObjectsIds(std::uint8_t cameraIndex = 0U);
+
+    /// @brief Encodes query for parameters of an overlay object by ID (Message ID 0x28 query 0x6B).
+    /// @param[in] objectId Target object ID (1..199).
+    /// @return Framed binary packet.
+    [[nodiscard]] static std::vector<std::uint8_t> buildGetOverlayObjectParams(std::uint8_t objectId);
+
+    /// @brief Encodes dynamic ancillary text metadata insertion into KLV stream (Message ID 0xAC).
     /// @param[in] msg Dynamic text overlay settings.
     /// @return Framed binary packet.
     [[nodiscard]] static std::vector<std::uint8_t> buildAncillaryTextMetadata(const MsgAncillaryTextMetadata& msg);
-
-    /// @brief Encodes custom raster font glyph table upload (Message ID 0xAE).
-    /// @param[in] msg User font parameters and bitmap glyph data.
-    /// @return Framed binary packet.
-    [[nodiscard]] static std::vector<std::uint8_t> buildUserFont(const MsgUserFont& msg);
 };
 
 } // namespace Sightline

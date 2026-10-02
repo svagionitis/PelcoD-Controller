@@ -308,8 +308,14 @@ public:
     /// @brief Parses dynamic ancillary text metadata overlay (Message ID 0xAC).
     [[nodiscard]] static bool parseAncillaryTextMetadata(ByteView packet, MsgAncillaryTextMetadata& out);
 
-    /// @brief Parses custom raster font glyph table (Message ID 0xAE).
+    /// @brief Parses TrueType user font assignment reply (Message ID 0xAE).
     [[nodiscard]] static bool parseUserFont(ByteView packet, MsgUserFont& out);
+
+    /// @brief Parses active overlay object IDs bitmask reply (Message ID 0x68).
+    [[nodiscard]] static bool parseOverlayObjectsIds(ByteView packet, MsgCurrentOverlayObjectsIds& out);
+
+    /// @brief Parses graphic overlay object parameters reply (Message ID 0x6B).
+    [[nodiscard]] static bool parseOverlayObjectParams(ByteView packet, MsgCurrentOverlayObjectParameters& out);
 
     /// @brief Parses hardware video decoder parameters (Message ID 0x99).
     [[nodiscard]] static bool parseDecoderParameters(ByteView packet, MsgDecoderParameters& out);

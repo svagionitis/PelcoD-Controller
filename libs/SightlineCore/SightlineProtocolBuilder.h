@@ -706,13 +706,19 @@ public:
     [[nodiscard]] static std::vector<std::uint8_t> buildSetLogoParameters(const MsgLogoParameters& msg);
 
     /// @brief Encodes query for logo watermark configuration (Message ID 0x28 query 0x9B).
-    [[nodiscard]] static std::vector<std::uint8_t> buildGetLogoParameters(std::uint8_t displayIndex = 0U);
+    [[nodiscard]] static std::vector<std::uint8_t> buildGetLogoParameters(std::uint8_t cameraIndex = 0U);
 
-    /// @brief Encodes dynamic ancillary text metadata / subtitle overlay (Message ID 0xAC).
+    /// @brief Encodes dynamic ancillary text metadata insertion into KLV stream (Message ID 0xAC).
     [[nodiscard]] static std::vector<std::uint8_t> buildAncillaryTextMetadata(const MsgAncillaryTextMetadata& msg);
 
-    /// @brief Encodes custom raster font glyph table upload (Message ID 0xAE).
+    /// @brief Encodes TrueType font assignment command (Message ID 0xAE).
     [[nodiscard]] static std::vector<std::uint8_t> buildUserFont(const MsgUserFont& msg);
+
+    /// @brief Encodes query for active overlay objects bitmask (Message ID 0x28 query 0x68).
+    [[nodiscard]] static std::vector<std::uint8_t> buildGetOverlayObjectsIds(std::uint8_t cameraIndex = 0U);
+
+    /// @brief Encodes query for overlay object parameters by ID (Message ID 0x28 query 0x6B).
+    [[nodiscard]] static std::vector<std::uint8_t> buildGetOverlayObjectParams(std::uint8_t objectId);
 
     /// @brief Encodes hardware video decoder configuration (Message ID 0x99).
     [[nodiscard]] static std::vector<std::uint8_t> buildSetDecoderParameters(const MsgDecoderParameters& msg);

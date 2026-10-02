@@ -373,10 +373,12 @@ bool SightlineQmlBridge::setIgnoredEdgesOverlay(int cam, bool enable)
         return false;
     }
     Sightline::MsgSetOverlayMode mode {};
-    mode.displayIndex = static_cast<std::uint8_t>(cam);
-    mode.reticleMode = 1U;
-    mode.trackingBoxMode = 1U;
-    mode.telemetryTextMode = enable ? 0x80U : 0U;
+    mode.cameraIndex = static_cast<std::uint8_t>(cam);
+    if (enable) {
+        mode.graphics |= Sightline::OverlayGraphicsFlags::RegistrationIgnoreEdges;
+    } else {
+        mode.graphics &= static_cast<std::uint16_t>(~Sightline::OverlayGraphicsFlags::RegistrationIgnoreEdges);
+    }
     return m_device->device()->setOverlayMode(mode);
 }
 
