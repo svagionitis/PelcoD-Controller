@@ -58,6 +58,30 @@ std::optional<Sightline::MsgSystemStatusMessage> QSightlineDevice::lastSystemSta
     return std::nullopt;
 }
 
+std::optional<Sightline::MsgSetStabilizationParameters> QSightlineDevice::lastStabilization() const
+{
+    if (m_device) {
+        return m_device->lastStabilization();
+    }
+    return std::nullopt;
+}
+
+std::optional<Sightline::MsgSetRegistrationParameters> QSightlineDevice::lastRegistration() const
+{
+    if (m_device) {
+        return m_device->lastRegistration();
+    }
+    return std::nullopt;
+}
+
+std::optional<Sightline::MsgSetStabilizationBias> QSightlineDevice::lastStabilizationBias() const
+{
+    if (m_device) {
+        return m_device->lastStabilizationBias();
+    }
+    return std::nullopt;
+}
+
 Transport::TransportStatsSnapshot QSightlineDevice::getTransportStats() const
 {
     if (m_device) {
@@ -95,6 +119,21 @@ void QSightlineDevice::wireCallbacks()
     m_device->setSystemStatusCallback([this](const Sightline::MsgSystemStatusMessage& stat) {
         QMetaObject::invokeMethod(
             this, [this, stat]() { emit systemStatusReceived(stat); }, Qt::QueuedConnection);
+    });
+
+    m_device->setStabilizationCallback([this](const Sightline::MsgSetStabilizationParameters& params) {
+        QMetaObject::invokeMethod(
+            this, [this, params]() { emit stabilizationReceived(params); }, Qt::QueuedConnection);
+    });
+
+    m_device->setRegistrationCallback([this](const Sightline::MsgSetRegistrationParameters& params) {
+        QMetaObject::invokeMethod(
+            this, [this, params]() { emit registrationReceived(params); }, Qt::QueuedConnection);
+    });
+
+    m_device->setStabilizationBiasCallback([this](const Sightline::MsgSetStabilizationBias& bias) {
+        QMetaObject::invokeMethod(
+            this, [this, bias]() { emit stabilizationBiasReceived(bias); }, Qt::QueuedConnection);
     });
 
     m_device->setRawTrafficCallback([this](bool isTx, const std::vector<std::uint8_t>& frame) {
@@ -163,28 +202,77 @@ bool QSightlineDevice::designatePrimary(quint8 cameraIndex, quint8 trackId)
     return m_device->designatePrimary(cameraIndex, trackId);
 }
 
-bool QSightlineDevice::setStabilization(quint8 cameraIndex, quint8 mode, quint8 autoBias, quint8 maxShift)
+bool QSightlineDevice::setStabilization(quint8 cameraIndex, quint8 mode, quint8 rate, quint8 maxShift)
 {
     if (!m_device) {
         return false;
     }
-    return m_device->setStabilization(cameraIndex, mode, autoBias, maxShift);
+    return m_device->setStabilization(cameraIndex, mode, rate, maxShift);
 }
 
-bool QSightlineDevice::resetStabilization(quint8 cameraIndex)
+bool QSightlineDevice::setStabilization(const Sightline::MsgSetStabilizationParameters& msg)
 {
     if (!m_device) {
         return false;
     }
-    return m_device->resetStabilization(cameraIndex);
+    return m_device->setStabilization(msg);
 }
 
-bool QSightlineDevice::setStabilizationBias(quint8 cameraIndex, qint16 biasCol, qint16 biasRow, qint16 biasRotation)
+bool QSightlineDevice::resetStabilization(quint8 cameraIndex, quint8 resetType)
 {
     if (!m_device) {
         return false;
     }
-    return m_device->setStabilizationBias(cameraIndex, biasCol, biasRow, biasRotation);
+    return m_device->resetStabilization(cameraIndex, resetType);
+}
+
+bool QSightlineDevice::setStabilizationBias(const Sightline::MsgSetStabilizationBias& msg)
+{
+    if (!m_device) {
+        return false;
+    }
+    return m_device->setStabilizationBias(msg);
+}
+
+bool QSightlineDevice::setStabilizationBias(
+    quint8 cameraIndex, qint16 biasCol, qint16 biasRow, quint8 autoBias, quint8 updateRate)
+{
+    if (!m_device) {
+        return false;
+    }
+    return m_device->setStabilizationBias(cameraIndex, biasCol, biasRow, autoBias, updateRate);
+}
+
+bool QSightlineDevice::setRegistration(const Sightline::MsgSetRegistrationParameters& msg)
+{
+    if (!m_device) {
+        return false;
+    }
+    return m_device->setRegistration(msg);
+}
+
+bool QSightlineDevice::getStabilization(quint8 cameraIndex)
+{
+    if (!m_device) {
+        return false;
+    }
+    return m_device->getStabilization(cameraIndex);
+}
+
+bool QSightlineDevice::getRegistration(quint8 cameraIndex)
+{
+    if (!m_device) {
+        return false;
+    }
+    return m_device->getRegistration(cameraIndex);
+}
+
+bool QSightlineDevice::getStabilizationBias(quint8 cameraIndex)
+{
+    if (!m_device) {
+        return false;
+    }
+    return m_device->getStabilizationBias(cameraIndex);
 }
 
 bool QSightlineDevice::sendLensCommand(quint8 cameraIndex, quint8 commandType, qint16 rateOrPosition)

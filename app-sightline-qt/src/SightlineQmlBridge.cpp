@@ -5,6 +5,9 @@
 
 #include <SightlineCore/SightlineCrc8.h>
 #include <SightlineCore/SightlineProtocolParser.h>
+#include <SightlineCore/modules/SightlineOverlay.h>
+#include <SightlineCore/modules/SightlineStabilization.h>
+#include <SightlineCore/modules/SightlineStabilizationBuilder.h>
 
 #include <QDateTime>
 #include <QFile>
@@ -157,6 +160,12 @@ bool SightlineQmlBridge::connectUdp(const QString& host, int cmdPort, int replyP
     connect(m_device.get(), &QSightlineDevice::userWarningReceived, this, &SightlineQmlBridge::handleUserWarning);
     connect(m_device.get(), &QSightlineDevice::versionReceived, this, &SightlineQmlBridge::handleVersion);
     connect(m_device.get(), &QSightlineDevice::systemStatusReceived, this, &SightlineQmlBridge::handleSystemStatus);
+    connect(
+        m_device.get(), &QSightlineDevice::stabilizationReceived, this, &SightlineQmlBridge::handleStabilizationParams);
+    connect(
+        m_device.get(), &QSightlineDevice::registrationReceived, this, &SightlineQmlBridge::handleRegistrationParams);
+    connect(m_device.get(), &QSightlineDevice::stabilizationBiasReceived, this,
+        &SightlineQmlBridge::handleStabilizationBias);
     connect(m_device.get(), &QSightlineDevice::rawFrameReceived, this, &SightlineQmlBridge::handleRawFrame);
 
     const bool started = m_device->start();
@@ -259,7 +268,7 @@ bool SightlineQmlBridge::designatePrimary(int cam, int trackId)
     return m_device->designatePrimary(static_cast<quint8>(cam), static_cast<quint8>(trackId));
 }
 
-// 2. Stabilization
+// 2. Stabilization & Registration (EAN-Stabilization)
 bool SightlineQmlBridge::setStabilization(int cam, int mode, int autoBias, int maxShift)
 {
     if (!isConnected()) {
@@ -269,12 +278,106 @@ bool SightlineQmlBridge::setStabilization(int cam, int mode, int autoBias, int m
         static_cast<quint8>(autoBias), static_cast<quint8>(maxShift));
 }
 
-bool SightlineQmlBridge::resetStabilization(int cam)
+bool SightlineQmlBridge::setStabilizationFull(
+    int cam, int mode, int rate, int maxDispOffset, int maxAngle, int maxStabOff, int edgeY, int edgeU, int edgeV)
 {
     if (!isConnected()) {
         return false;
     }
-    return m_device->resetStabilization(static_cast<quint8>(cam));
+    Sightline::MsgSetStabilizationParameters msg {};
+    msg.cameraIndex = static_cast<std::uint8_t>(cam);
+    msg.mode = static_cast<std::uint8_t>(mode);
+    msg.rate = static_cast<std::uint8_t>(rate);
+    msg.translationLimit = static_cast<std::uint8_t>(maxDispOffset);
+    msg.angleLimit = static_cast<std::uint8_t>(maxAngle);
+    msg.maxStabOff = static_cast<std::uint8_t>(maxStabOff);
+    msg.edgeY = static_cast<std::uint8_t>(edgeY);
+    msg.edgeU = static_cast<std::uint8_t>(edgeU);
+    msg.edgeV = static_cast<std::uint8_t>(edgeV);
+
+    return m_device->setStabilization(msg);
+}
+
+bool SightlineQmlBridge::resetStabilization(int cam, int resetType)
+{
+    if (!isConnected()) {
+        return false;
+    }
+    return m_device->resetStabilization(static_cast<quint8>(cam), static_cast<quint8>(resetType));
+}
+
+bool SightlineQmlBridge::setRegistration(int cam, int maxTranslation, int maxRotation, int zoomRange, int left,
+    int right, int top, int bottom, int updateRate, int flags)
+{
+    if (!isConnected()) {
+        return false;
+    }
+    Sightline::MsgSetRegistrationParameters msg {};
+    msg.cameraIndex = static_cast<std::uint8_t>(cam);
+    msg.maxTranslation = static_cast<std::uint16_t>(maxTranslation);
+    msg.maxRotation = static_cast<std::uint8_t>(maxRotation);
+    msg.zoomRange = static_cast<std::uint8_t>(zoomRange);
+    msg.left = static_cast<std::uint16_t>(left);
+    msg.right = static_cast<std::uint16_t>(right);
+    msg.top = static_cast<std::uint16_t>(top);
+    msg.bottom = static_cast<std::uint16_t>(bottom);
+    msg.updateRate = static_cast<std::uint8_t>(updateRate);
+    msg.flags = static_cast<std::uint8_t>(flags);
+
+    return m_device->setRegistration(msg);
+}
+
+bool SightlineQmlBridge::setStabilizationBias(int cam, int biasCol, int biasRow, int autoBias, int updateRate)
+{
+    if (!isConnected()) {
+        return false;
+    }
+    return m_device->setStabilizationBias(static_cast<quint8>(cam), static_cast<qint16>(biasCol),
+        static_cast<qint16>(biasRow), static_cast<quint8>(autoBias), static_cast<quint8>(updateRate));
+}
+
+bool SightlineQmlBridge::applyStabilizationPreset(int cam, int preset)
+{
+    if (!isConnected()) {
+        return false;
+    }
+    const auto p = static_cast<Sightline::StabilizationPreset>(preset);
+    const auto c = static_cast<std::uint8_t>(cam);
+
+    const auto reg = Sightline::SightlineStabilizationBuilder::makeRegistrationPreset(p, c);
+    const auto stab = Sightline::SightlineStabilizationBuilder::makeStabilizationPreset(p, c);
+    const auto bias = Sightline::SightlineStabilizationBuilder::makeBiasPreset(p, c);
+
+    const bool ok1 = m_device->setRegistration(reg);
+    const bool ok2 = m_device->setStabilization(stab);
+    const bool ok3 = m_device->setStabilizationBias(bias);
+    return ok1 && ok2 && ok3;
+}
+
+int SightlineQmlBridge::setGimbalFeedforwardBias(
+    int cam, double panLeft, double tiltUp, int hRes, int vRes, double hFov, double vFov, double fps)
+{
+    if (!isConnected()) {
+        return 0;
+    }
+    const auto bias
+        = Sightline::SightlineStabilizationBuilder::calcGimbalBias(panLeft, tiltUp, static_cast<std::uint16_t>(hRes),
+            static_cast<std::uint16_t>(vRes), hFov, vFov, fps, static_cast<std::uint8_t>(cam));
+    m_device->setStabilizationBias(bias);
+    return static_cast<int>(bias.biasCol);
+}
+
+bool SightlineQmlBridge::setIgnoredEdgesOverlay(int cam, bool enable)
+{
+    if (!isConnected() || !m_device->device()) {
+        return false;
+    }
+    Sightline::MsgSetOverlayMode mode {};
+    mode.displayIndex = static_cast<std::uint8_t>(cam);
+    mode.reticleMode = 1U;
+    mode.trackingBoxMode = 1U;
+    mode.telemetryTextMode = enable ? 0x80U : 0U;
+    return m_device->device()->setOverlayMode(mode);
 }
 
 // 3. Detection & AI Classification
@@ -870,8 +973,9 @@ void SightlineQmlBridge::queryModuleParameters(int tabIndex)
         queryParameters(static_cast<int>(Sightline::MessageId::CoordinateReportingMode)); // 0x0B
         break;
     case 1: // Stabilization
-        queryParameters(static_cast<int>(Sightline::MessageId::SetStabilizationParameters)); // 0x02
-        queryParameters(static_cast<int>(Sightline::MessageId::SetStabilizationBias)); // 0x12
+        m_device->getStabilization(0U);
+        m_device->getRegistration(0U);
+        m_device->getStabilizationBias(0U);
         break;
     case 2: // Detection
         queryParameters(static_cast<int>(Sightline::MessageId::SetDetectionParameters)); // 0x2D
@@ -1005,4 +1109,20 @@ void SightlineQmlBridge::handleRawFrame(bool isTx, const QByteArray& data)
 
     entry.hexPayload = data.toHex(' ').toUpper();
     m_trafficLogModel->addEntry(entry);
+}
+
+void SightlineQmlBridge::handleStabilizationParams(const Sightline::MsgSetStabilizationParameters& p)
+{
+    emit stabilizationChanged(p.cameraIndex, p.mode, p.rate, p.translationLimit, p.angleLimit, p.maxStabOff);
+}
+
+void SightlineQmlBridge::handleRegistrationParams(const Sightline::MsgSetRegistrationParameters& p)
+{
+    emit registrationChanged(
+        p.cameraIndex, p.maxTranslation, p.maxRotation, p.zoomRange, p.left, p.right, p.top, p.bottom, p.updateRate);
+}
+
+void SightlineQmlBridge::handleStabilizationBias(const Sightline::MsgSetStabilizationBias& b)
+{
+    emit stabilizationBiasChanged(b.cameraIndex, b.biasCol, b.biasRow, b.autoBias, b.updateRate);
 }

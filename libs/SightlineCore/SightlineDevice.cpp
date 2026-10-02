@@ -198,24 +198,51 @@ bool SightlineDevice::setStabilization(
     return sendPacket(SightlineProtocolBuilder::buildSetStabilization(msg));
 }
 
-bool SightlineDevice::resetStabilization(std::uint8_t cameraIndex)
+bool SightlineDevice::resetStabilization(std::uint8_t cameraIndex, std::uint8_t resetType)
 {
     MsgResetStabilizationParameters msg {};
     msg.cameraIndex = cameraIndex;
+    msg.resetType = resetType;
 
     return sendPacket(SightlineProtocolBuilder::buildResetStabilization(msg));
 }
 
-bool SightlineDevice::setStabilizationBias(
-    std::uint8_t cameraIndex, std::int16_t biasCol, std::int16_t biasRow, std::int16_t biasRotation)
+bool SightlineDevice::setStabilizationBias(const MsgSetStabilizationBias& msg)
+{
+    return sendPacket(SightlineProtocolBuilder::buildSetStabilizationBias(msg));
+}
+
+bool SightlineDevice::setStabilizationBias(std::uint8_t cameraIndex, std::int16_t biasCol, std::int16_t biasRow,
+    std::uint8_t autoBias, std::uint8_t updateRate)
 {
     MsgSetStabilizationBias msg {};
     msg.cameraIndex = cameraIndex;
     msg.biasCol = biasCol;
     msg.biasRow = biasRow;
-    msg.biasRotation = biasRotation;
+    msg.autoBias = autoBias;
+    msg.updateRate = updateRate;
 
-    return sendPacket(SightlineProtocolBuilder::buildSetStabilizationBias(msg));
+    return setStabilizationBias(msg);
+}
+
+bool SightlineDevice::setRegistration(const MsgSetRegistrationParameters& msg)
+{
+    return sendPacket(SightlineProtocolBuilder::buildSetRegistration(msg));
+}
+
+bool SightlineDevice::getStabilization(std::uint8_t cameraIndex)
+{
+    return sendPacket(SightlineProtocolBuilder::buildGetStabilization(cameraIndex));
+}
+
+bool SightlineDevice::getRegistration(std::uint8_t cameraIndex)
+{
+    return sendPacket(SightlineProtocolBuilder::buildGetRegistration(cameraIndex));
+}
+
+bool SightlineDevice::getStabilizationBias(std::uint8_t cameraIndex)
+{
+    return sendPacket(SightlineProtocolBuilder::buildGetStabilizationBias(cameraIndex));
 }
 
 bool SightlineDevice::setBlend(const MsgSetBlendParameters& msg)
@@ -453,6 +480,24 @@ void SightlineDevice::setRawTrafficCallback(RawTrafficCallback cb)
     m_rawTrafficCallback = std::move(cb);
 }
 
+void SightlineDevice::setStabilizationCallback(StabilizationCallback cb)
+{
+    std::lock_guard<std::mutex> lock(m_callbackMutex);
+    m_stabilizationCallback = std::move(cb);
+}
+
+void SightlineDevice::setRegistrationCallback(RegistrationCallback cb)
+{
+    std::lock_guard<std::mutex> lock(m_callbackMutex);
+    m_registrationCallback = std::move(cb);
+}
+
+void SightlineDevice::setStabilizationBiasCallback(StabilizationBiasCallback cb)
+{
+    std::lock_guard<std::mutex> lock(m_callbackMutex);
+    m_stabilizationBiasCallback = std::move(cb);
+}
+
 std::optional<MsgTrackingPositions> SightlineDevice::lastTrackingPositions() const
 {
     std::lock_guard<std::mutex> lock(m_cacheMutex);
@@ -469,6 +514,24 @@ std::optional<MsgSystemStatusMessage> SightlineDevice::lastSystemStatus() const
 {
     std::lock_guard<std::mutex> lock(m_cacheMutex);
     return m_lastStatus;
+}
+
+std::optional<MsgSetStabilizationParameters> SightlineDevice::lastStabilization() const
+{
+    std::lock_guard<std::mutex> lock(m_cacheMutex);
+    return m_lastStabilization;
+}
+
+std::optional<MsgSetRegistrationParameters> SightlineDevice::lastRegistration() const
+{
+    std::lock_guard<std::mutex> lock(m_cacheMutex);
+    return m_lastRegistration;
+}
+
+std::optional<MsgSetStabilizationBias> SightlineDevice::lastStabilizationBias() const
+{
+    std::lock_guard<std::mutex> lock(m_cacheMutex);
+    return m_lastStabilizationBias;
 }
 
 void SightlineDevice::handleIncomingBytes(const std::vector<std::uint8_t>& data)
@@ -571,6 +634,65 @@ void SightlineDevice::dispatchPacket(const std::vector<std::uint8_t>& packet)
             }
             if (cb) {
                 cb(status);
+            }
+        }
+        break;
+    }
+    case MessageId::CurrentStabilizationParameters:
+    case MessageId::SetStabilizationParameters: {
+        MsgSetStabilizationParameters stab {};
+        if (SightlineProtocolParser::parseStabilizationParams(packet, stab)) {
+            {
+                std::lock_guard<std::mutex> lock(m_cacheMutex);
+                m_lastStabilization = stab;
+            }
+            StabilizationCallback cb {};
+            {
+                std::lock_guard<std::mutex> lock(m_callbackMutex);
+                cb = m_stabilizationCallback;
+            }
+            if (cb) {
+                cb(stab);
+            }
+        }
+        break;
+    }
+    case MessageId::RegistrationParameters:
+    case MessageId::CurrentRegistrationParameters:
+    case MessageId::SetRegistrationParameters: {
+        MsgSetRegistrationParameters reg {};
+        if (SightlineProtocolParser::parseRegistration(packet, reg)) {
+            {
+                std::lock_guard<std::mutex> lock(m_cacheMutex);
+                m_lastRegistration = reg;
+            }
+            RegistrationCallback cb {};
+            {
+                std::lock_guard<std::mutex> lock(m_callbackMutex);
+                cb = m_registrationCallback;
+            }
+            if (cb) {
+                cb(reg);
+            }
+        }
+        break;
+    }
+    case MessageId::StabilizationBias:
+    case MessageId::CurrentStabilizationBias:
+    case MessageId::SetStabilizationBias: {
+        MsgSetStabilizationBias bias {};
+        if (SightlineProtocolParser::parseStabilizationBias(packet, bias)) {
+            {
+                std::lock_guard<std::mutex> lock(m_cacheMutex);
+                m_lastStabilizationBias = bias;
+            }
+            StabilizationBiasCallback cb {};
+            {
+                std::lock_guard<std::mutex> lock(m_callbackMutex);
+                cb = m_stabilizationBiasCallback;
+            }
+            if (cb) {
+                cb(bias);
             }
         }
         break;

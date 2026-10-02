@@ -28,6 +28,9 @@ public:
     using WarningCallback = std::function<void(const MsgUserWarningMessage&)>;
     using VersionCallback = std::function<void(const MsgVersionNumber&)>;
     using SystemStatusCallback = std::function<void(const MsgSystemStatusMessage&)>;
+    using StabilizationCallback = std::function<void(const MsgSetStabilizationParameters&)>;
+    using RegistrationCallback = std::function<void(const MsgSetRegistrationParameters&)>;
+    using StabilizationBiasCallback = std::function<void(const MsgSetStabilizationBias&)>;
     using RawTrafficCallback = std::function<void(bool isTx, const std::vector<std::uint8_t>& frame)>;
 
     /// @brief Constructs a SightlineDevice wrapping the given transport channel.
@@ -146,21 +149,48 @@ public:
     /// @param[in] maxStabOff Maximum stabilization offset in pixels.
     /// @return True if command was successfully transmitted.
     [[nodiscard]] bool setStabilization(
-        std::uint8_t cameraIndex, std::uint8_t mode, std::uint8_t rate = 0U, std::uint8_t maxStabOff = 64U);
+        std::uint8_t cameraIndex, std::uint8_t mode, std::uint8_t rate = 50U, std::uint8_t maxStabOff = 0U);
 
-    /// @brief Resets stabilization smoothing filters.
+    /// @brief Resets stabilization smoothing filters (Message ID 0x04).
     /// @param[in] cameraIndex Zero-based camera index.
+    /// @param[in] resetType Filter reset mode (0: all, 1: display, 2: auto bias).
     /// @return True if command was successfully transmitted.
-    [[nodiscard]] bool resetStabilization(std::uint8_t cameraIndex);
+    [[nodiscard]] bool resetStabilization(std::uint8_t cameraIndex, std::uint8_t resetType = 0U);
 
-    /// @brief Sets stabilization motion bias offsets.
+    /// @brief Sets stabilization motion bias offsets (Message ID 0x9F).
+    /// @param[in] msg Stabilization bias structure.
+    /// @return True if command was successfully transmitted.
+    [[nodiscard]] bool setStabilizationBias(const MsgSetStabilizationBias& msg);
+
+    /// @brief Sets stabilization motion bias offsets (Message ID 0x9F).
     /// @param[in] cameraIndex Zero-based camera index.
     /// @param[in] biasCol Column bias in pixels.
     /// @param[in] biasRow Row bias in pixels.
-    /// @param[in] biasRotation Rotation bias.
+    /// @param[in] autoBias Enable automatic bias.
+    /// @param[in] updateRate Auto bias update rate.
     /// @return True if command was successfully transmitted.
-    [[nodiscard]] bool setStabilizationBias(
-        std::uint8_t cameraIndex, std::int16_t biasCol, std::int16_t biasRow, std::int16_t biasRotation);
+    [[nodiscard]] bool setStabilizationBias(std::uint8_t cameraIndex, std::int16_t biasCol, std::int16_t biasRow,
+        std::uint8_t autoBias = 1U, std::uint8_t updateRate = 50U);
+
+    /// @brief Configures frame registration parameters (Message ID 0x9E).
+    /// @param[in] msg Registration parameters.
+    /// @return True if command was successfully transmitted.
+    [[nodiscard]] bool setRegistration(const MsgSetRegistrationParameters& msg);
+
+    /// @brief Queries active stabilization parameters (Message ID 0x03).
+    /// @param[in] cameraIndex Target camera index.
+    /// @return True if command was successfully transmitted.
+    [[nodiscard]] bool getStabilization(std::uint8_t cameraIndex = 0U);
+
+    /// @brief Queries active registration parameters (Message ID 0x28 query 0x9E).
+    /// @param[in] cameraIndex Target camera index.
+    /// @return True if command was successfully transmitted.
+    [[nodiscard]] bool getRegistration(std::uint8_t cameraIndex = 0U);
+
+    /// @brief Queries active stabilization bias (Message ID 0x28 query 0x9F).
+    /// @param[in] cameraIndex Target camera index.
+    /// @return True if command was successfully transmitted.
+    [[nodiscard]] bool getStabilizationBias(std::uint8_t cameraIndex = 0U);
 
     /// @brief Configures multi-sensor video fusion and blending.
     /// @param[in] msg Blend parameters.
@@ -350,6 +380,15 @@ public:
     /// @brief Registers an observer callback for periodic system health status.
     void setSystemStatusCallback(SystemStatusCallback cb);
 
+    /// @brief Registers an observer callback for electronic stabilization telemetry.
+    void setStabilizationCallback(StabilizationCallback cb);
+
+    /// @brief Registers an observer callback for image registration telemetry.
+    void setRegistrationCallback(RegistrationCallback cb);
+
+    /// @brief Registers an observer callback for stabilization motion bias telemetry.
+    void setStabilizationBiasCallback(StabilizationBiasCallback cb);
+
     /// @brief Registers an observer callback for raw frame traffic inspection.
     void setRawTrafficCallback(RawTrafficCallback cb);
 
@@ -361,6 +400,15 @@ public:
 
     /// @brief Retrieves the latest cached system status snapshot.
     [[nodiscard]] std::optional<MsgSystemStatusMessage> lastSystemStatus() const;
+
+    /// @brief Retrieves the latest cached stabilization parameters snapshot.
+    [[nodiscard]] std::optional<MsgSetStabilizationParameters> lastStabilization() const;
+
+    /// @brief Retrieves the latest cached registration parameters snapshot.
+    [[nodiscard]] std::optional<MsgSetRegistrationParameters> lastRegistration() const;
+
+    /// @brief Retrieves the latest cached stabilization bias snapshot.
+    [[nodiscard]] std::optional<MsgSetStabilizationBias> lastStabilizationBias() const;
 
 private:
     void handleIncomingBytes(const std::vector<std::uint8_t>& data);
@@ -384,6 +432,12 @@ private:
     std::optional<MsgTrackingPositions> m_lastPositions;
     std::optional<MsgVersionNumber> m_lastVersion;
     std::optional<MsgSystemStatusMessage> m_lastStatus;
+    std::optional<MsgSetStabilizationParameters> m_lastStabilization;
+    std::optional<MsgSetRegistrationParameters> m_lastRegistration;
+    std::optional<MsgSetStabilizationBias> m_lastStabilizationBias;
+    StabilizationCallback m_stabilizationCallback;
+    RegistrationCallback m_registrationCallback;
+    StabilizationBiasCallback m_stabilizationBiasCallback;
 };
 
 } // namespace Sightline

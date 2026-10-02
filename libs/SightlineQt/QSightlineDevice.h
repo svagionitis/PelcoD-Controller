@@ -47,6 +47,15 @@ public:
     /// @brief Retrieves the latest cached system status snapshot.
     [[nodiscard]] std::optional<Sightline::MsgSystemStatusMessage> lastSystemStatus() const;
 
+    /// @brief Retrieves the latest cached stabilization parameters snapshot.
+    [[nodiscard]] std::optional<Sightline::MsgSetStabilizationParameters> lastStabilization() const;
+
+    /// @brief Retrieves the latest cached registration parameters snapshot.
+    [[nodiscard]] std::optional<Sightline::MsgSetRegistrationParameters> lastRegistration() const;
+
+    /// @brief Retrieves the latest cached stabilization bias snapshot.
+    [[nodiscard]] std::optional<Sightline::MsgSetStabilizationBias> lastStabilizationBias() const;
+
     /// @brief Retrieves transport and kernel-level metrics.
     [[nodiscard]] Transport::TransportStatsSnapshot getTransportStats() const;
 
@@ -56,6 +65,9 @@ signals:
     void userWarningReceived(const Sightline::MsgUserWarningMessage& warning);
     void versionReceived(const Sightline::MsgVersionNumber& version);
     void systemStatusReceived(const Sightline::MsgSystemStatusMessage& status);
+    void stabilizationReceived(const Sightline::MsgSetStabilizationParameters& params);
+    void registrationReceived(const Sightline::MsgSetRegistrationParameters& params);
+    void stabilizationBiasReceived(const Sightline::MsgSetStabilizationBias& bias);
     void rawFrameReceived(bool isTx, const QByteArray& data);
     void connectionStateChanged(bool isConnected);
 
@@ -70,9 +82,16 @@ public slots:
     bool nudgeTracking(quint8 cameraIndex, qint16 deltaCol, qint16 deltaRow);
     bool designatePrimary(quint8 cameraIndex, quint8 trackId);
 
-    bool setStabilization(quint8 cameraIndex, quint8 mode, quint8 autoBias = 1U, quint8 maxShift = 64U);
-    bool resetStabilization(quint8 cameraIndex);
-    bool setStabilizationBias(quint8 cameraIndex, qint16 biasCol, qint16 biasRow, qint16 biasRotation);
+    bool setStabilization(quint8 cameraIndex, quint8 mode, quint8 rate = 50U, quint8 maxShift = 0U);
+    bool setStabilization(const Sightline::MsgSetStabilizationParameters& msg);
+    bool resetStabilization(quint8 cameraIndex, quint8 resetType = 0U);
+    bool setStabilizationBias(const Sightline::MsgSetStabilizationBias& msg);
+    bool setStabilizationBias(
+        quint8 cameraIndex, qint16 biasCol, qint16 biasRow, quint8 autoBias = 1U, quint8 updateRate = 50U);
+    bool setRegistration(const Sightline::MsgSetRegistrationParameters& msg);
+    bool getStabilization(quint8 cameraIndex = 0U);
+    bool getRegistration(quint8 cameraIndex = 0U);
+    bool getStabilizationBias(quint8 cameraIndex = 0U);
 
     bool sendLensCommand(quint8 cameraIndex, quint8 commandType, qint16 rateOrPosition);
     bool saveParameters(quint8 commitType = 0U);

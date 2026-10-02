@@ -92,6 +92,20 @@ public:
     [[nodiscard]] static bool parseStabilizationParams(
         const std::vector<std::uint8_t>& packet, MsgSetStabilizationParameters& out);
 
+    /// @brief Parses active stabilization bias settings (Message ID 0x9F / 0x7A).
+    /// @param[in] packet Validated framed packet bytes.
+    /// @param[out] out Deserialized stabilization bias.
+    /// @return True on successful parse.
+    [[nodiscard]] static bool parseStabilizationBias(
+        const std::vector<std::uint8_t>& packet, MsgSetStabilizationBias& out);
+
+    /// @brief Parses active frame registration parameters (Message ID 0x9E / 0x45 / 0x0E).
+    /// @param[in] packet Validated framed packet bytes.
+    /// @param[out] out Deserialized registration parameters.
+    /// @return True on successful parse.
+    [[nodiscard]] static bool parseRegistration(
+        const std::vector<std::uint8_t>& packet, MsgSetRegistrationParameters& out);
+
     /// @brief Parses active video capture parameters (Message ID 0x46).
     /// @param[in] packet Validated framed packet bytes.
     /// @param[out] out Deserialized video parameters.

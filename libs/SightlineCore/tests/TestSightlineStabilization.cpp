@@ -59,16 +59,43 @@ namespace {
         biasMsg.cameraIndex = 0U;
         biasMsg.biasCol = 10;
         biasMsg.biasRow = -15;
-        biasMsg.biasRotation = 5;
+        biasMsg.autoBias = 1U;
+        biasMsg.updateRate = 50U;
         const auto biasPkt = SightlineStabilizationBuilder::buildSetStabilizationBias(biasMsg);
         EXPECT_EQ(SightlineFraming::identifyMessage(biasPkt), MessageId::StabilizationBias);
+        const auto biasPayload = SightlineFraming::extractPayload(biasPkt);
+        ASSERT_EQ(biasPayload.size(), 7U);
+        EXPECT_EQ(biasPayload[0], 0U);
+        EXPECT_EQ(SightlineFraming::readS16Le(biasPayload.data() + 1U), 10);
+        EXPECT_EQ(SightlineFraming::readS16Le(biasPayload.data() + 3U), -15);
+        EXPECT_EQ(biasPayload[5], 1U);
+        EXPECT_EQ(biasPayload[6], 50U);
 
         MsgSetRegistrationParameters regMsg {};
         regMsg.cameraIndex = 0U;
-        regMsg.searchRange = 16U;
-        regMsg.pyramidLevels = 4U;
+        regMsg.maxTranslation = 60U;
+        regMsg.maxRotation = 5U;
+        regMsg.zoomRange = 0U;
+        regMsg.left = 100U;
+        regMsg.right = 100U;
+        regMsg.top = 50U;
+        regMsg.bottom = 0U;
+        regMsg.updateRate = 100U;
+        regMsg.flags = 0U;
         const auto regPkt = SightlineStabilizationBuilder::buildSetRegistration(regMsg);
-        EXPECT_EQ(SightlineFraming::identifyMessage(regPkt), MessageId::SetRegistrationParameters);
+        EXPECT_EQ(SightlineFraming::identifyMessage(regPkt), MessageId::RegistrationParameters);
+        const auto regPayload = SightlineFraming::extractPayload(regPkt);
+        ASSERT_EQ(regPayload.size(), 15U);
+        EXPECT_EQ(regPayload[0], 0U);
+        EXPECT_EQ(SightlineFraming::readU16Le(regPayload.data() + 1U), 60U);
+        EXPECT_EQ(regPayload[3], 5U);
+        EXPECT_EQ(regPayload[4], 0U);
+        EXPECT_EQ(SightlineFraming::readU16Le(regPayload.data() + 5U), 100U);
+        EXPECT_EQ(SightlineFraming::readU16Le(regPayload.data() + 7U), 100U);
+        EXPECT_EQ(SightlineFraming::readU16Le(regPayload.data() + 9U), 50U);
+        EXPECT_EQ(SightlineFraming::readU16Le(regPayload.data() + 11U), 0U);
+        EXPECT_EQ(regPayload[13], 100U);
+        EXPECT_EQ(regPayload[14], 0U);
 
         MsgSetBlendParameters blendMsg {};
         blendMsg.absOffZoom = 1U;
@@ -135,12 +162,146 @@ namespace {
         EXPECT_EQ(facadeOut.maxStabOff, 48U);
     }
 
+    /// @brief Verify registration parameters deserialization (0x9E).
+    TEST(TestSightlineStabilization, ParseRegistrationParams)
+    {
+        MsgSetRegistrationParameters in {};
+        in.cameraIndex = 1U;
+        in.maxTranslation = 80U;
+        in.maxRotation = 3U;
+        in.zoomRange = 1U;
+        in.left = 120U;
+        in.right = 110U;
+        in.top = 40U;
+        in.bottom = 20U;
+        in.updateRate = 10U;
+        in.flags = 2U;
+
+        const auto pkt = SightlineStabilizationBuilder::buildSetRegistration(in);
+        MsgSetRegistrationParameters out {};
+        ASSERT_TRUE(SightlineStabilizationParser::parseRegistration(pkt, out));
+        EXPECT_EQ(out.cameraIndex, 1U);
+        EXPECT_EQ(out.maxTranslation, 80U);
+        EXPECT_EQ(out.maxRotation, 3U);
+        EXPECT_EQ(out.zoomRange, 1U);
+        EXPECT_EQ(out.left, 120U);
+        EXPECT_EQ(out.right, 110U);
+        EXPECT_EQ(out.top, 40U);
+        EXPECT_EQ(out.bottom, 20U);
+        EXPECT_EQ(out.updateRate, 10U);
+        EXPECT_EQ(out.flags, 2U);
+
+        // Facade test
+        MsgSetRegistrationParameters facadeOut {};
+        ASSERT_TRUE(SightlineProtocolParser::parseRegistration(pkt, facadeOut));
+        EXPECT_EQ(facadeOut.left, 120U);
+    }
+
+    /// @brief Verify stabilization bias deserialization (0x9F).
+    TEST(TestSightlineStabilization, ParseStabilizationBias)
+    {
+        MsgSetStabilizationBias in {};
+        in.cameraIndex = 2U;
+        in.biasCol = -42;
+        in.biasRow = 88;
+        in.autoBias = 1U;
+        in.updateRate = 60U;
+
+        const auto pkt = SightlineStabilizationBuilder::buildSetStabilizationBias(in);
+        MsgSetStabilizationBias out {};
+        ASSERT_TRUE(SightlineStabilizationParser::parseStabilizationBias(pkt, out));
+        EXPECT_EQ(out.cameraIndex, 2U);
+        EXPECT_EQ(out.biasCol, -42);
+        EXPECT_EQ(out.biasRow, 88);
+        EXPECT_EQ(out.autoBias, 1U);
+        EXPECT_EQ(out.updateRate, 60U);
+
+        // Facade test
+        MsgSetStabilizationBias facadeOut {};
+        ASSERT_TRUE(SightlineProtocolParser::parseStabilizationBias(pkt, facadeOut));
+        EXPECT_EQ(facadeOut.biasRow, 88);
+    }
+
+    /// @brief Verify Gimbal Feed-Forward Manual Stabilization Bias Calculation (EAN Section 3.1 & 3.2).
+    TEST(TestSightlineStabilization, GimbalBiasCalculation)
+    {
+        // Example from EAN-Stabilization Section 3.2:
+        // panLeftDegPerSec = 2.0, hRes = 1920, hFov = 8.0, fps = 30.0
+        // Expected biasCol = 2 * 1920 / (8 * 30) = +16 pixels/frame
+        const auto bias = SightlineStabilizationBuilder::calcGimbalBias(2.0, // panLeft
+            0.0, // tiltUp
+            1920U, // hRes
+            1080U, // vRes
+            8.0, // hFov
+            4.5, // vFov
+            30.0, // fps
+            0U // cameraIndex
+        );
+
+        EXPECT_EQ(bias.biasCol, 16);
+        EXPECT_EQ(bias.biasRow, 0);
+        EXPECT_EQ(bias.autoBias, 1U);
+
+        // Pan right (negative panLeft) and tilt down (negative tiltUp)
+        const auto biasOpposite
+            = SightlineStabilizationBuilder::calcGimbalBias(-2.0, -1.0, 1920U, 1080U, 8.0, 4.5, 30.0, 0U);
+        EXPECT_EQ(biasOpposite.biasCol, -16);
+        // tiltUp = -1.0 -> -1 * 1080 / (4.5 * 30) = -1080 / 135 = -8
+        EXPECT_EQ(biasOpposite.biasRow, -8);
+    }
+
+    /// @brief Verify EAN Operational Profiles Presets.
+    TEST(TestSightlineStabilization, OperationalPresets)
+    {
+        // 1. Airborne Gimbal (EAN 2.2.1)
+        const auto airReg
+            = SightlineStabilizationBuilder::makeRegistrationPreset(StabilizationPreset::AirborneGimbal, 0U);
+        EXPECT_EQ(airReg.maxTranslation, 0U);
+        EXPECT_EQ(airReg.maxRotation, 5U);
+        EXPECT_EQ(airReg.updateRate, 100U); // Low drift unchecked
+
+        const auto airStab
+            = SightlineStabilizationBuilder::makeStabilizationPreset(StabilizationPreset::AirborneGimbal, 0U);
+        EXPECT_EQ(airStab.rate, 50U);
+        EXPECT_EQ(airStab.maxStabOff, 0U);
+
+        // 2. Fixed Mount PTZ (EAN 2.2.2)
+        const auto ptzReg
+            = SightlineStabilizationBuilder::makeRegistrationPreset(StabilizationPreset::FixedMountPtz, 0U);
+        EXPECT_EQ(ptzReg.maxTranslation, 50U);
+        EXPECT_EQ(ptzReg.maxRotation, 0U);
+        EXPECT_EQ(ptzReg.updateRate, 10U); // Low drift checked
+
+        const auto ptzStab
+            = SightlineStabilizationBuilder::makeStabilizationPreset(StabilizationPreset::FixedMountPtz, 0U);
+        EXPECT_EQ(ptzStab.rate, 20U);
+        EXPECT_EQ(ptzStab.maxStabOff, 32U);
+
+        // 3. Moving Vehicle (EAN 2.2.3)
+        const auto vehReg
+            = SightlineStabilizationBuilder::makeRegistrationPreset(StabilizationPreset::MovingVehicle, 0U);
+        EXPECT_EQ(vehReg.maxTranslation, 0U);
+        EXPECT_EQ(vehReg.maxRotation, 0U);
+        EXPECT_EQ(vehReg.left, 100U);
+        EXPECT_EQ(vehReg.right, 100U);
+        EXPECT_EQ(vehReg.top, 50U);
+
+        const auto vehStab
+            = SightlineStabilizationBuilder::makeStabilizationPreset(StabilizationPreset::MovingVehicle, 0U);
+        EXPECT_EQ(vehStab.rate, 50U);
+        EXPECT_EQ(vehStab.maxStabOff, 50U);
+    }
+
     /// @brief Verify stabilization bias query builder.
     TEST(TestSightlineStabilization, StabilizationBiasQuery)
     {
         const auto queryPkt = SightlineStabilizationBuilder::buildGetStabilizationBias(2U);
         EXPECT_EQ(SightlineFraming::identifyMessage(queryPkt), MessageId::GetParameters);
         EXPECT_EQ(queryPkt, SightlineProtocolBuilder::buildGetStabilizationBias(2U));
+
+        const auto regQueryPkt = SightlineStabilizationBuilder::buildGetRegistration(1U);
+        EXPECT_EQ(SightlineFraming::identifyMessage(regQueryPkt), MessageId::GetParameters);
+        EXPECT_EQ(regQueryPkt, SightlineProtocolBuilder::buildGetRegistration(1U));
     }
 
 } // namespace

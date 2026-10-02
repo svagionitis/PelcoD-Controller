@@ -100,6 +100,18 @@ bool SightlineProtocolParser::parseStabilizationParams(
     return SightlineStabilizationParser::parseStabilizationParams(packet, out);
 }
 
+bool SightlineProtocolParser::parseStabilizationBias(
+    const std::vector<std::uint8_t>& packet, MsgSetStabilizationBias& out)
+{
+    return SightlineStabilizationParser::parseStabilizationBias(packet, out);
+}
+
+bool SightlineProtocolParser::parseRegistration(
+    const std::vector<std::uint8_t>& packet, MsgSetRegistrationParameters& out)
+{
+    return SightlineStabilizationParser::parseRegistration(packet, out);
+}
+
 bool SightlineProtocolParser::parseVideoParameters(const std::vector<std::uint8_t>& packet, MsgSetVideoParameters& out)
 {
     return SightlineCaptureParser::parseVideoParameters(packet, out);

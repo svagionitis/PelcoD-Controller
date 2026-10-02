@@ -162,7 +162,7 @@ public:
     /// @return True if dispatched.
     Q_INVOKABLE bool designatePrimary(int cam, int trackId);
 
-    // 2. Stabilization
+    // 2. Stabilization & Registration (EAN-Stabilization)
     /// @brief Configure video stabilization parameters.
     /// @param cam Camera index.
     /// @param mode Stabilization mode (0=off, 1=on).
@@ -171,10 +171,74 @@ public:
     /// @return True if dispatched.
     Q_INVOKABLE bool setStabilization(int cam, int mode, int autoBias = 1, int maxShift = 64);
 
-    /// @brief Reset video stabilization reference frame.
-    /// @param cam Camera index.
+    /// @brief Configure full video stabilization parameters (Message ID 0x02).
+    /// @param cam Camera channel index.
+    /// @param mode Bitmask mode flags.
+    /// @param rate Recenter drift rate 0..255.
+    /// @param maxDispOffset Maximum display offset limit.
+    /// @param maxAngle Maximum rotation angle limit in degrees.
+    /// @param maxStabOff Maximum stabilization offset limit.
+    /// @param edgeY Background edge color Y.
+    /// @param edgeU Background edge color U.
+    /// @param edgeV Background edge color V.
     /// @return True if dispatched.
-    Q_INVOKABLE bool resetStabilization(int cam);
+    Q_INVOKABLE bool setStabilizationFull(
+        int cam, int mode, int rate, int maxDispOffset, int maxAngle, int maxStabOff, int edgeY, int edgeU, int edgeV);
+
+    /// @brief Reset video stabilization reference frame (Message ID 0x04).
+    /// @param cam Camera index.
+    /// @param resetType 0: All filters, 1: Display filter, 2: Auto bias filter.
+    /// @return True if dispatched.
+    Q_INVOKABLE bool resetStabilization(int cam, int resetType = 0);
+
+    /// @brief Configure frame registration parameters (Message ID 0x9E).
+    /// @param cam Camera index.
+    /// @param maxTranslation Max translation in pixels/frame.
+    /// @param maxRotation Max rotation in degrees/frame (0..10).
+    /// @param zoomRange Max zoom range in %/frame (0..10).
+    /// @param left Left band of edge pixels to ignore.
+    /// @param right Right band of edge pixels to ignore.
+    /// @param top Top band of edge pixels to ignore.
+    /// @param bottom Bottom band of edge pixels to ignore.
+    /// @param updateRate Model update rate (100: moving, 10: low drift staring).
+    /// @param flags Registration flags.
+    /// @return True if dispatched.
+    Q_INVOKABLE bool setRegistration(int cam, int maxTranslation, int maxRotation, int zoomRange, int left, int right,
+        int top, int bottom, int updateRate, int flags);
+
+    /// @brief Configure stabilization motion bias (Message ID 0x9F).
+    /// @param cam Camera index.
+    /// @param biasCol Per-frame column adjustment in pixels.
+    /// @param biasRow Per-frame row adjustment in pixels.
+    /// @param autoBias Enable automatic bias correction.
+    /// @param updateRate Auto bias update rate.
+    /// @return True if dispatched.
+    Q_INVOKABLE bool setStabilizationBias(int cam, int biasCol, int biasRow, int autoBias = 1, int updateRate = 50);
+
+    /// @brief Apply operational profile preset from EAN-Stabilization.
+    /// @param cam Camera index.
+    /// @param preset 0: Airborne Gimbal, 1: Fixed/Ground PTZ, 2: Moving Vehicle.
+    /// @return True if dispatched.
+    Q_INVOKABLE bool applyStabilizationPreset(int cam, int preset);
+
+    /// @brief Calculate and set gimbal feedforward manual bias per EAN Section 3.1 & 3.2.
+    /// @param cam Camera index.
+    /// @param panLeft Pan angular rate (positive left, negative right) in deg/s.
+    /// @param tiltUp Tilt angular rate (positive up, negative down) in deg/s.
+    /// @param hRes Camera horizontal resolution in pixels.
+    /// @param vRes Camera vertical resolution in pixels.
+    /// @param hFov Camera horizontal field of view in degrees.
+    /// @param vFov Camera vertical field of view in degrees.
+    /// @param fps Camera frame rate in fps.
+    /// @return Calculated column bias in pixels.
+    Q_INVOKABLE int setGimbalFeedforwardBias(
+        int cam, double panLeft, double tiltUp, int hRes, int vRes, double hFov, double vFov, double fps);
+
+    /// @brief Toggles Registration Ignored Edges overlay on video (Message ID 0x06).
+    /// @param cam Camera index.
+    /// @param enable Show yellow ignored edges box on video.
+    /// @return True if dispatched.
+    Q_INVOKABLE bool setIgnoredEdgesOverlay(int cam, bool enable);
 
     // 3. Detection & AI Classification
     /// @brief Configure motion or blob detection parameters.
@@ -458,12 +522,19 @@ signals:
     void falseColorPaletteChanged(int cam, int paletteIndex);
     void userPaletteUploaded(int paletteIndex, const QByteArray& yuvData);
     void lensDistortionUpdated(int cam, double k1, double k2, double centerOffsetX, double centerOffsetY);
+    void stabilizationChanged(int cam, int mode, int rate, int maxDispOffset, int maxAngle, int maxStabOff);
+    void registrationChanged(int cam, int maxTranslation, int maxRotation, int zoomRange, int left, int right, int top,
+        int bottom, int updateRate);
+    void stabilizationBiasChanged(int cam, int biasCol, int biasRow, int autoBias, int updateRate);
 
 private slots:
     void handleTrackingPositions(const Sightline::MsgTrackingPositions& pos);
     void handleUserWarning(const Sightline::MsgUserWarningMessage& warn);
     void handleVersion(const Sightline::MsgVersionNumber& ver);
     void handleSystemStatus(const Sightline::MsgSystemStatusMessage& stat);
+    void handleStabilizationParams(const Sightline::MsgSetStabilizationParameters& p);
+    void handleRegistrationParams(const Sightline::MsgSetRegistrationParameters& p);
+    void handleStabilizationBias(const Sightline::MsgSetStabilizationBias& b);
     void handleRawFrame(bool isTx, const QByteArray& data);
 
 private:
