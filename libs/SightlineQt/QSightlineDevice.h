@@ -9,7 +9,10 @@
 
 #include <QByteArray>
 #include <QObject>
+#include <map>
 #include <memory>
+#include <utility>
+#include <vector>
 
 class QSightlineDevice : public QObject {
     Q_OBJECT
@@ -83,6 +86,9 @@ public:
 signals:
     void trackingPositionsReceived(const Sightline::MsgTrackingPositions& positions);
     void extendedPositionsReceived(const Sightline::MsgTrackingPositionsExtended& positions);
+    void trackCoastingChanged(quint8 cameraIndex, quint8 trackId, bool isCoasting);
+    void primaryTrackUpdated(quint8 cameraIndex, const Sightline::TrackCoordinate& track);
+    void primaryTrackChanged(quint8 cameraIndex, quint8 trackId);
     void userWarningReceived(const Sightline::MsgUserWarningMessage& warning);
     void versionReceived(const Sightline::MsgVersionNumber& version);
     void systemStatusReceived(const Sightline::MsgSystemStatusMessage& status);
@@ -106,10 +112,18 @@ public slots:
 
     bool startTracking(
         quint8 cameraIndex, quint16 col, quint16 row, quint16 width, quint16 height, quint8 flags = 0x01U);
+    bool startPrecisionTrack(
+        quint8 cameraIndex, quint16 col, quint16 row, quint16 width, quint16 height, quint64 framePts);
     bool stopTracking(quint8 cameraIndex, quint8 trackId = 0xFFU);
     bool modifyTracking(quint8 cameraIndex, quint8 trackId, quint8 mode, quint8 flags = 0U);
     bool nudgeTracking(quint8 cameraIndex, qint16 deltaCol, qint16 deltaRow);
+    bool nudgeDisplayTrack(quint8 cameraIndex, qint16 deltaCol, qint16 deltaRow);
     bool designatePrimary(quint8 cameraIndex, quint8 trackId);
+    bool setForcedCoast(quint8 cameraIndex, quint8 trackId, Sightline::ForcedCoastingMode mode);
+    bool reinitTrack(quint8 cameraIndex, quint8 trackId);
+    bool resizeTrack(quint8 cameraIndex, quint8 trackId, quint16 width, quint16 height, bool assist = true);
+    bool cueTrackAt(
+        quint8 cameraIndex, quint16 col, quint16 row, Sightline::ModifyMode mode, quint8 trackId = 0xFFU);
 
     // Automated Target Detection & Analytics (EAN-Detection-Modes)
     bool setDetection(const Sightline::MsgSetDetectionParameters& msg);
@@ -180,6 +194,11 @@ public slots:
 
 private:
     void wireCallbacks();
+    void processTrackTelemetry(quint8 cameraIndex, const std::vector<Sightline::TrackCoordinate>& tracks);
 
     std::unique_ptr<Sightline::SightlineDevice> m_device;
+    std::map<std::pair<quint8, quint8>, bool> m_knownCoastingState {};
+    std::map<quint8, quint8> m_knownPrimaryTrack {};
 };
+
+Q_DECLARE_METATYPE(Sightline::TrackCoordinate)

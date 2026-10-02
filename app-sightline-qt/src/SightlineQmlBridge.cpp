@@ -174,6 +174,10 @@ bool SightlineQmlBridge::connectUdp(const QString& host, int cmdPort, int replyP
 
     connect(m_device.get(), &QSightlineDevice::trackingPositionsReceived, this,
         &SightlineQmlBridge::handleTrackingPositions);
+    connect(m_device.get(), &QSightlineDevice::extendedPositionsReceived, this,
+        &SightlineQmlBridge::handleTrackingPositionsExtended);
+    connect(m_device.get(), &QSightlineDevice::trackCoastingChanged, this,
+        &SightlineQmlBridge::trackCoastingChanged);
     connect(m_device.get(), &QSightlineDevice::userWarningReceived, this, &SightlineQmlBridge::handleUserWarning);
     connect(m_device.get(), &QSightlineDevice::versionReceived, this, &SightlineQmlBridge::handleVersion);
     connect(m_device.get(), &QSightlineDevice::systemStatusReceived, this, &SightlineQmlBridge::handleSystemStatus);
@@ -299,6 +303,73 @@ bool SightlineQmlBridge::designatePrimary(int cam, int trackId)
         return true;
     }
     return m_device->designatePrimary(static_cast<quint8>(cam), static_cast<quint8>(trackId));
+}
+
+bool SightlineQmlBridge::startPrecisionTrack(int cam, int col, int row, int w, int h, qint64 framePts)
+{
+    if (m_trackListModel) {
+        Sightline::TrackCoordinate coord {};
+        coord.trackId = 0U;
+        coord.centerCol = static_cast<double>(col);
+        coord.centerRow = static_cast<double>(row);
+        coord.width = static_cast<double>(w);
+        coord.height = static_cast<double>(h);
+        coord.confidence = 98U;
+        coord.isPrimary = true;
+        m_trackListModel->setPrimaryTrack(0);
+        m_trackListModel->addOrUpdateTrack(coord);
+    }
+
+    if (!isConnected()) {
+        return true;
+    }
+    return m_device->startPrecisionTrack(static_cast<quint8>(cam), static_cast<quint16>(col),
+        static_cast<quint16>(row), static_cast<quint16>(w), static_cast<quint16>(h),
+        static_cast<quint64>(framePts));
+}
+
+bool SightlineQmlBridge::setForcedCoast(int cam, int trackId, int mode)
+{
+    if (!isConnected()) {
+        return false;
+    }
+    return m_device->setForcedCoast(
+        static_cast<quint8>(cam), static_cast<quint8>(trackId), static_cast<Sightline::ForcedCoastingMode>(mode));
+}
+
+bool SightlineQmlBridge::reinitTrack(int cam, int trackId)
+{
+    if (!isConnected()) {
+        return false;
+    }
+    return m_device->reinitTrack(static_cast<quint8>(cam), static_cast<quint8>(trackId));
+}
+
+bool SightlineQmlBridge::resizeTrack(int cam, int trackId, int w, int h, bool assist)
+{
+    if (!isConnected()) {
+        return false;
+    }
+    return m_device->resizeTrack(static_cast<quint8>(cam), static_cast<quint8>(trackId),
+        static_cast<quint16>(w), static_cast<quint16>(h), assist);
+}
+
+bool SightlineQmlBridge::cueTrackAt(int cam, int col, int row, int mode, int trackId)
+{
+    if (!isConnected()) {
+        return false;
+    }
+    return m_device->cueTrackAt(static_cast<quint8>(cam), static_cast<quint16>(col), static_cast<quint16>(row),
+        static_cast<Sightline::ModifyMode>(mode), static_cast<quint8>(trackId < 0 ? 0xFFU : trackId));
+}
+
+bool SightlineQmlBridge::nudgeDisplayTrack(int cam, int deltaCol, int deltaRow)
+{
+    if (!isConnected()) {
+        return false;
+    }
+    return m_device->nudgeDisplayTrack(
+        static_cast<quint8>(cam), static_cast<qint16>(deltaCol), static_cast<qint16>(deltaRow));
 }
 
 // 2. Stabilization & Registration (EAN-Stabilization)
@@ -1465,7 +1536,16 @@ void SightlineQmlBridge::queryModuleParameters(int tabIndex)
 
 void SightlineQmlBridge::handleTrackingPositions(const Sightline::MsgTrackingPositions& pos)
 {
-    m_trackListModel->updateTracks(pos.tracks);
+    if (m_trackListModel) {
+        m_trackListModel->updateTracks(pos.tracks);
+    }
+}
+
+void SightlineQmlBridge::handleTrackingPositionsExtended(const Sightline::MsgTrackingPositionsExtended& ext)
+{
+    if (m_trackListModel) {
+        m_trackListModel->updateTracks(ext.tracks);
+    }
 }
 
 void SightlineQmlBridge::handleUserWarning(const Sightline::MsgUserWarningMessage& warn)

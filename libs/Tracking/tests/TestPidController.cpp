@@ -242,6 +242,30 @@ TEST(PidControllerTest, AutoZoomFraming)
     std::cout << "  -> PASSED\n";
 }
 
+TEST(PidControllerTest, AutoZoomCoastingInhibition)
+{
+    std::cout << "[Test] testAutoZoomCoastingInhibition...\n";
+    PtzAutoTracker tracker;
+    tracker.setAutoZoomEnabled(true);
+    tracker.setTargetFramingHeight(0.20, 0.04);
+    tracker.setZoomCenteringThreshold(0.25);
+
+    // Target is small (0.12) and centered (0.05, 0.05), but isCoasting = true
+    const auto cmdCoasting = tracker.update(0.05, 0.05, 0.0, 0.0, true, true, 0.04, 0.12);
+    EXPECT_EQ(cmdCoasting.state, PtzAutoTracker::TrackingState::Coasting);
+    // Zoom MUST be inhibited during coasting
+    EXPECT_EQ(cmdCoasting.zoomDirection, 0);
+    EXPECT_FALSE(cmdCoasting.shouldZoom);
+
+    // When coasting ends (isCoasting = false), zoom resumes
+    const auto cmdResumed = tracker.update(0.05, 0.05, 0.0, 0.0, true, false, 0.04, 0.12);
+    EXPECT_EQ(cmdResumed.state, PtzAutoTracker::TrackingState::Tracking);
+    EXPECT_EQ(cmdResumed.zoomDirection, 1);
+    EXPECT_TRUE(cmdResumed.shouldZoom);
+
+    std::cout << "  -> PASSED\n";
+}
+
 TEST(PidControllerTest, PredictiveLeadBoresight)
 {
     std::cout << "[Test] testPredictiveLeadBoresight...\n";

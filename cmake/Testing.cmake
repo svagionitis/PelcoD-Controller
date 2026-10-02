@@ -120,6 +120,14 @@ function(pelcod_register_gtest target_name)
                 COMMENT "Copying Qt6 Widgets DLL for ${target_name}"
             )
         endif()
+        if(TARGET Qt6::Test)
+            add_custom_command(TARGET ${target_name} POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                    "$<TARGET_FILE:Qt6::Test>"
+                    "$<TARGET_FILE_DIR:${target_name}>"
+                COMMENT "Copying Qt6 Test DLL for ${target_name}"
+            )
+        endif()
         if(TARGET glog::glog)
             add_custom_command(TARGET ${target_name} POST_BUILD
                 COMMAND ${CMAKE_COMMAND} -E copy_if_different

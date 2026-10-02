@@ -499,6 +499,48 @@ struct TrackCoordinate {
     std::uint8_t confidence { 0U };
     bool isPrimary { false };
     bool isCoasting { false };
+
+    /// @brief Computes normalized boresight error X [-1.0, 1.0] relative to frame width.
+    /// @param[in] frameWidth Total horizontal pixel resolution (e.g. 1920.0).
+    /// @return Normalized horizontal error where -1.0 is left edge, 0.0 is center, +1.0 is right edge.
+    [[nodiscard]] constexpr double normalizedErrorX(double frameWidth) const noexcept
+    {
+        return (frameWidth > 0.0) ? ((centerCol - (frameWidth * 0.5)) / (frameWidth * 0.5)) : 0.0;
+    }
+
+    /// @brief Computes normalized boresight error Y [-1.0, 1.0] relative to frame height.
+    /// @param[in] frameHeight Total vertical pixel resolution (e.g. 1080.0).
+    /// @return Normalized vertical error where -1.0 is top edge, 0.0 is center, +1.0 is bottom edge.
+    [[nodiscard]] constexpr double normalizedErrorY(double frameHeight) const noexcept
+    {
+        return (frameHeight > 0.0) ? ((centerRow - (frameHeight * 0.5)) / (frameHeight * 0.5)) : 0.0;
+    }
+
+    /// @brief Computes normalized velocity X (units / sec) given sensor width and frame rate.
+    /// @param[in] frameWidth Total horizontal pixel resolution.
+    /// @param[in] frameRateHz Video sensor frame rate in Hertz (e.g. 30.0).
+    /// @return Normalized horizontal target velocity in normalized viewport units per second.
+    [[nodiscard]] constexpr double normalizedVelocityX(double frameWidth, double frameRateHz = 30.0) const noexcept
+    {
+        return (frameWidth > 0.0) ? ((velocityCol / (frameWidth * 0.5)) * frameRateHz) : 0.0;
+    }
+
+    /// @brief Computes normalized velocity Y (units / sec) given sensor height and frame rate.
+    /// @param[in] frameHeight Total vertical pixel resolution.
+    /// @param[in] frameRateHz Video sensor frame rate in Hertz (e.g. 30.0).
+    /// @return Normalized vertical target velocity in normalized viewport units per second.
+    [[nodiscard]] constexpr double normalizedVelocityY(double frameHeight, double frameRateHz = 30.0) const noexcept
+    {
+        return (frameHeight > 0.0) ? ((velocityRow / (frameHeight * 0.5)) * frameRateHz) : 0.0;
+    }
+
+    /// @brief Computes normalized bounding height [0.0, 1.0] relative to frame height.
+    /// @param[in] frameHeight Total vertical pixel resolution.
+    /// @return Normalized target height ratio.
+    [[nodiscard]] constexpr double normalizedHeight(double frameHeight) const noexcept
+    {
+        return (frameHeight > 0.0) ? (height / frameHeight) : 0.0;
+    }
 };
 
 /// @struct TrackingTelemetrySnapshot

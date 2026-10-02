@@ -179,6 +179,54 @@ public:
     /// @return True if dispatched.
     Q_INVOKABLE bool designatePrimary(int cam, int trackId);
 
+    /// @brief Command camera to start precision tracking at coordinate using MISB PTS.
+    /// @param cam Camera index (0-3).
+    /// @param col Center column coordinate.
+    /// @param row Center row coordinate.
+    /// @param w Track box width.
+    /// @param h Track box height.
+    /// @param framePts MISB timestamp in microseconds.
+    /// @return True if command dispatched successfully.
+    Q_INVOKABLE bool startPrecisionTrack(int cam, int col, int row, int w, int h, qint64 framePts);
+
+    /// @brief Command camera to force a specific coasting mode on a track.
+    /// @param cam Camera index.
+    /// @param trackId Track ID.
+    /// @param mode Forced coasting mode (3=None, 4=FreezeUpdates, 5=FreezeSearch, 6=FreezePropagation).
+    /// @return True if dispatched.
+    Q_INVOKABLE bool setForcedCoast(int cam, int trackId, int mode);
+
+    /// @brief Command camera to reinitialize primary track model.
+    /// @param cam Camera index.
+    /// @param trackId Track ID.
+    /// @return True if dispatched.
+    Q_INVOKABLE bool reinitTrack(int cam, int trackId);
+
+    /// @brief Dynamically resize track gate with or without acquisition assist.
+    /// @param cam Camera index.
+    /// @param trackId Track ID.
+    /// @param w New width.
+    /// @param h New height.
+    /// @param assist True to enable acquisition assist re-centering.
+    /// @return True if dispatched.
+    Q_INVOKABLE bool resizeTrack(int cam, int trackId, int w, int h, bool assist = true);
+
+    /// @brief Cue track or designate primary near coordinates using modify mode.
+    /// @param cam Camera index.
+    /// @param col Column coordinate.
+    /// @param row Row coordinate.
+    /// @param mode Modify mode integer (0-13).
+    /// @param trackId Track ID or -1 (0xFF) for unassigned.
+    /// @return True if dispatched.
+    Q_INVOKABLE bool cueTrackAt(int cam, int col, int row, int mode, int trackId = -1);
+
+    /// @brief Nudge track gate in display coordinate frame (handles sensor rotation).
+    /// @param cam Camera index.
+    /// @param deltaCol Column pixel offset in display frame.
+    /// @param deltaRow Row pixel offset in display frame.
+    /// @return True if dispatched.
+    Q_INVOKABLE bool nudgeDisplayTrack(int cam, int deltaCol, int deltaRow);
+
     // 2. Stabilization & Registration (EAN-Stabilization)
     /// @brief Configure video stabilization parameters.
     /// @param cam Camera index.
@@ -733,9 +781,11 @@ signals:
         int cam, int detIdx, int roiIdx, int geomMode, int x1, int y1, int x2, int y2, int lineSide);
     void klvMetricFiltersReceived(int cam, double minW, double maxW, double minH, double maxH, bool aboveHorizon,
         bool belowHorizon, double minLat, double maxLat, double minLon, double maxLon);
+    void trackCoastingChanged(int cam, int trackId, bool isCoasting);
 
 private slots:
     void handleTrackingPositions(const Sightline::MsgTrackingPositions& pos);
+    void handleTrackingPositionsExtended(const Sightline::MsgTrackingPositionsExtended& ext);
     void handleUserWarning(const Sightline::MsgUserWarningMessage& warn);
     void handleVersion(const Sightline::MsgVersionNumber& ver);
     void handleSystemStatus(const Sightline::MsgSystemStatusMessage& stat);

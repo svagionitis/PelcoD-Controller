@@ -54,6 +54,12 @@ public:
         return m_sent;
     }
 
+    void clearSentPackets()
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        m_sent.clear();
+    }
+
 private:
     mutable std::mutex m_mutex;
     bool m_isOpen { false };
@@ -328,6 +334,126 @@ TEST_F(QSightlineDeviceTest, DetectionSignalsAndCache)
     EXPECT_EQ(metricSpy.count(), 1);
     EXPECT_TRUE(qDevice.lastKlvMetricFilters().has_value());
     EXPECT_NEAR(qDevice.lastKlvMetricFilters()->minTargetWidthM, 2.4F, 1e-4F);
+
+    qDevice.stop();
+}
+
+/// @brief Verify Phase 3 tracking telemetry, coasting transitions, and primary track signals.
+TEST_F(QSightlineDeviceTest, Phase3TrackingAndCoastingSignals)
+{
+    auto transport = std::make_shared<MockTransportForQt>();
+    QSightlineDevice qDevice(transport);
+    ASSERT_TRUE(qDevice.start());
+
+    QSignalSpy coastSpy(&qDevice, &QSightlineDevice::trackCoastingChanged);
+    QSignalSpy primaryUpdateSpy(&qDevice, &QSightlineDevice::primaryTrackUpdated);
+    QSignalSpy primaryChangeSpy(&qDevice, &QSightlineDevice::primaryTrackChanged);
+
+    // Frame 1: Track 0 is primary and tracking; Track 1 is coasting
+    std::vector<std::uint8_t> payload {};
+    payload.push_back(0U); // cameraIndex = 0
+    payload.push_back(2U); // numTracks = 2
+    // Track 0
+    payload.push_back(0U); // trackId = 0
+    payload.push_back(0x40); payload.push_back(0x01); // col = 320
+    payload.push_back(0xF0); payload.push_back(0x00); // row = 240
+    payload.push_back(0x40); payload.push_back(0x00); // w = 64
+    payload.push_back(0x30); payload.push_back(0x00); // h = 48
+    payload.push_back(0x00); payload.push_back(0x00); // velCol = 0
+    payload.push_back(0x00); payload.push_back(0x00); // velRow = 0
+    payload.push_back(95U);   // byte 13: conf = 95 (bit 7 = 0, not coasting)
+    payload.push_back(0x01U); // byte 14: flags = primary (bit 0)
+    // Track 1
+    payload.push_back(1U); // trackId = 1
+    payload.push_back(0x50); payload.push_back(0x01); // col = 336
+    payload.push_back(0xFA); payload.push_back(0x00); // row = 250
+    payload.push_back(0x20); payload.push_back(0x00); // w = 32
+    payload.push_back(0x20); payload.push_back(0x00); // h = 32
+    payload.push_back(0x00); payload.push_back(0x00); // velCol = 0
+    payload.push_back(0x00); payload.push_back(0x00); // velRow = 0
+    payload.push_back(0x80U | 50U); // byte 13: conf = coasting (bit 7 set)
+    payload.push_back(0x00U);       // byte 14: flags = non-primary
+
+    const auto pkt1 = Sightline::SightlineFraming::buildPacket(Sightline::MessageId::TrackingPositions, payload);
+    transport->injectData(pkt1);
+    QCoreApplication::processEvents();
+
+    EXPECT_GE(coastSpy.count(), 2);
+    EXPECT_GE(primaryUpdateSpy.count(), 1);
+    EXPECT_EQ(primaryChangeSpy.count(), 1);
+    EXPECT_EQ(primaryChangeSpy.takeFirst().at(1).toInt(), 0);
+
+    // Frame 2: Track 0 transitions to coasting!
+    coastSpy.clear();
+    primaryUpdateSpy.clear();
+    payload[15U] = 0x80U | 90U; // Track 0 confidence has bit 7 set -> coasting
+    const auto pkt2 = Sightline::SightlineFraming::buildPacket(Sightline::MessageId::TrackingPositions, payload);
+    transport->injectData(pkt2);
+    QCoreApplication::processEvents();
+
+    ASSERT_GE(coastSpy.count(), 1);
+    bool foundTrack0Coasting = false;
+    for (int i = 0; i < coastSpy.count(); ++i) {
+        const auto args = coastSpy.at(i);
+        if (args.at(1).toInt() == 0 && args.at(2).toBool() == true) {
+            foundTrack0Coasting = true;
+            break;
+        }
+    }
+    EXPECT_TRUE(foundTrack0Coasting);
+
+    qDevice.stop();
+}
+
+/// @brief Verify Phase 2 tracking command slots dispatch through QSightlineDevice.
+TEST_F(QSightlineDeviceTest, Phase3TrackingCommandSlots)
+{
+    auto transport = std::make_shared<MockTransportForQt>();
+    QSightlineDevice qDevice(transport);
+    ASSERT_TRUE(qDevice.start());
+
+    // 1. startPrecisionTrack
+    transport->clearSentPackets();
+    EXPECT_TRUE(qDevice.startPrecisionTrack(0U, 320U, 240U, 64U, 48U, 123456ULL));
+    auto sent = transport->getSentPackets();
+    ASSERT_EQ(sent.size(), 1U);
+    EXPECT_EQ(Sightline::SightlineFraming::identifyMessage(sent[0]), Sightline::MessageId::StartTracking);
+    EXPECT_EQ(Sightline::SightlineFraming::extractPayload(sent[0]).size(), 21U);
+
+    // 2. setForcedCoast
+    transport->clearSentPackets();
+    EXPECT_TRUE(qDevice.setForcedCoast(0U, 2U, Sightline::ForcedCoastingMode::FreezeUpdates));
+    sent = transport->getSentPackets();
+    ASSERT_EQ(sent.size(), 1U);
+    EXPECT_EQ(Sightline::SightlineFraming::identifyMessage(sent[0]), Sightline::MessageId::ModifyTrackIndex);
+
+    // 3. reinitTrack
+    transport->clearSentPackets();
+    EXPECT_TRUE(qDevice.reinitTrack(0U, 3U));
+    sent = transport->getSentPackets();
+    ASSERT_EQ(sent.size(), 1U);
+    EXPECT_EQ(Sightline::SightlineFraming::identifyMessage(sent[0]), Sightline::MessageId::ModifyTrackIndex);
+
+    // 4. resizeTrack
+    transport->clearSentPackets();
+    EXPECT_TRUE(qDevice.resizeTrack(0U, 4U, 80U, 60U, true));
+    sent = transport->getSentPackets();
+    ASSERT_EQ(sent.size(), 1U);
+    EXPECT_EQ(Sightline::SightlineFraming::identifyMessage(sent[0]), Sightline::MessageId::ModifyTrackIndex);
+
+    // 5. cueTrackAt
+    transport->clearSentPackets();
+    EXPECT_TRUE(qDevice.cueTrackAt(0U, 400U, 250U, Sightline::ModifyMode::DesignateNearAsPrimary, 5U));
+    sent = transport->getSentPackets();
+    ASSERT_EQ(sent.size(), 1U);
+    EXPECT_EQ(Sightline::SightlineFraming::identifyMessage(sent[0]), Sightline::MessageId::ModifyTracking);
+
+    // 6. nudgeDisplayTrack
+    transport->clearSentPackets();
+    EXPECT_TRUE(qDevice.nudgeDisplayTrack(0U, 10, -5));
+    sent = transport->getSentPackets();
+    ASSERT_EQ(sent.size(), 1U);
+    EXPECT_EQ(Sightline::SightlineFraming::identifyMessage(sent[0]), Sightline::MessageId::NudgeTrackingCoordinate);
 
     qDevice.stop();
 }

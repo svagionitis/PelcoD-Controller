@@ -291,7 +291,7 @@ ScrollView {
                         Text { text: "Size"; color: SightlineTheme.textMuted; font.bold: true; font.pixelSize: 10; Layout.preferredWidth: 75 }
                         Text { text: "Conf"; color: SightlineTheme.textMuted; font.bold: true; font.pixelSize: 10; Layout.preferredWidth: 48 }
                         Item { Layout.fillWidth: true }
-                        Text { text: "Actions"; color: SightlineTheme.textMuted; font.bold: true; font.pixelSize: 10; Layout.preferredWidth: 120 }
+                        Text { text: "Actions"; color: SightlineTheme.textMuted; font.bold: true; font.pixelSize: 10; Layout.preferredWidth: 180 }
                     }
                 }
 
@@ -312,12 +312,12 @@ ScrollView {
                             Layout.preferredWidth: 60
                             height: 16
                             radius: 8
-                            color: model.isPrimary ? SightlineTheme.primary : "transparent"
-                            border.color: model.isPrimary ? "transparent" : SightlineTheme.cardBorder
+                            color: model.isCoasting ? SightlineTheme.warning : (model.isPrimary ? SightlineTheme.primary : "transparent")
+                            border.color: (model.isCoasting || model.isPrimary) ? "transparent" : SightlineTheme.cardBorder
                             Text {
                                 anchors.centerIn: parent
-                                text: model.isPrimary ? "PRIMARY" : "TRACK"
-                                color: model.isPrimary ? "#0e1014" : SightlineTheme.textMuted
+                                text: model.isCoasting ? "COAST" : (model.isPrimary ? "PRIMARY" : "TRACK")
+                                color: (model.isCoasting || model.isPrimary) ? "#0e1014" : SightlineTheme.textMuted
                                 font.pixelSize: 8
                                 font.bold: true
                             }
@@ -334,6 +334,11 @@ ScrollView {
                                 implicitHeight: 24
                                 visible: !model.isPrimary
                                 onClicked: bridge.designatePrimary(camCombo.currentIndex, model.trackId)
+                            }
+                            Button {
+                                text: "Reinit"
+                                implicitHeight: 24
+                                onClicked: bridge.reinitTrack(camCombo.currentIndex, model.trackId)
                             }
                             Button {
                                 text: "Drop"

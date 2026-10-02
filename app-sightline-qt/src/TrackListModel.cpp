@@ -44,6 +44,8 @@ QVariant TrackListModel::data(const QModelIndex& index, int role) const
         return track.velocityCol;
     case VelocityRowRole:
         return track.velocityRow;
+    case IsCoastingRole:
+        return track.isCoasting;
     default:
         return {};
     }
@@ -53,7 +55,8 @@ QHash<int, QByteArray> TrackListModel::roleNames() const
 {
     return { { TrackIdRole, "trackId" }, { CenterColRole, "centerCol" }, { CenterRowRole, "centerRow" },
         { WidthRole, "trackWidth" }, { HeightRole, "trackHeight" }, { ConfidenceRole, "confidence" },
-        { IsPrimaryRole, "isPrimary" }, { VelocityColRole, "velocityCol" }, { VelocityRowRole, "velocityRow" } };
+        { IsPrimaryRole, "isPrimary" }, { VelocityColRole, "velocityCol" }, { VelocityRowRole, "velocityRow" },
+        { IsCoastingRole, "isCoasting" } };
 }
 
 void TrackListModel::updateTracks(const std::vector<Sightline::TrackCoordinate>& tracks)

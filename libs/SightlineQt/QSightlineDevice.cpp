@@ -154,12 +154,22 @@ void QSightlineDevice::wireCallbacks()
 
     m_device->setTrackingCallback([this](const Sightline::MsgTrackingPositions& pos) {
         QMetaObject::invokeMethod(
-            this, [this, pos]() { emit trackingPositionsReceived(pos); }, Qt::QueuedConnection);
+            this,
+            [this, pos]() {
+                processTrackTelemetry(pos.cameraIndex, pos.tracks);
+                emit trackingPositionsReceived(pos);
+            },
+            Qt::QueuedConnection);
     });
 
     m_device->setExtendedPositionsCallback([this](const Sightline::MsgTrackingPositionsExtended& ext) {
         QMetaObject::invokeMethod(
-            this, [this, ext]() { emit extendedPositionsReceived(ext); }, Qt::QueuedConnection);
+            this,
+            [this, ext]() {
+                processTrackTelemetry(ext.cameraIndex, ext.tracks);
+                emit extendedPositionsReceived(ext);
+            },
+            Qt::QueuedConnection);
     });
 
     m_device->setWarningCallback([this](const Sightline::MsgUserWarningMessage& warn) {
@@ -254,7 +264,31 @@ void QSightlineDevice::stop()
     if (m_device) {
         m_device->stop();
     }
+    m_knownCoastingState.clear();
+    m_knownPrimaryTrack.clear();
     emit connectionStateChanged(false);
+}
+
+void QSightlineDevice::processTrackTelemetry(
+    quint8 cameraIndex, const std::vector<Sightline::TrackCoordinate>& tracks)
+{
+    for (const auto& trk : tracks) {
+        const auto key = std::make_pair(cameraIndex, trk.trackId);
+        const auto it = m_knownCoastingState.find(key);
+        if (it == m_knownCoastingState.end() || it->second != trk.isCoasting) {
+            m_knownCoastingState[key] = trk.isCoasting;
+            emit trackCoastingChanged(cameraIndex, trk.trackId, trk.isCoasting);
+        }
+
+        if (trk.isPrimary) {
+            emit primaryTrackUpdated(cameraIndex, trk);
+            const auto primIt = m_knownPrimaryTrack.find(cameraIndex);
+            if (primIt == m_knownPrimaryTrack.end() || primIt->second != trk.trackId) {
+                m_knownPrimaryTrack[cameraIndex] = trk.trackId;
+                emit primaryTrackChanged(cameraIndex, trk.trackId);
+            }
+        }
+    }
 }
 
 bool QSightlineDevice::startTracking(
@@ -296,6 +330,57 @@ bool QSightlineDevice::designatePrimary(quint8 cameraIndex, quint8 trackId)
         return false;
     }
     return m_device->designatePrimary(cameraIndex, trackId);
+}
+
+bool QSightlineDevice::startPrecisionTrack(
+    quint8 cameraIndex, quint16 col, quint16 row, quint16 width, quint16 height, quint64 framePts)
+{
+    if (!m_device) {
+        return false;
+    }
+    return m_device->startPrecisionTrack(cameraIndex, col, row, width, height, framePts);
+}
+
+bool QSightlineDevice::setForcedCoast(quint8 cameraIndex, quint8 trackId, Sightline::ForcedCoastingMode mode)
+{
+    if (!m_device) {
+        return false;
+    }
+    return m_device->setForcedCoast(cameraIndex, trackId, mode);
+}
+
+bool QSightlineDevice::reinitTrack(quint8 cameraIndex, quint8 trackId)
+{
+    if (!m_device) {
+        return false;
+    }
+    return m_device->reinitTrack(cameraIndex, trackId);
+}
+
+bool QSightlineDevice::resizeTrack(
+    quint8 cameraIndex, quint8 trackId, quint16 width, quint16 height, bool assist)
+{
+    if (!m_device) {
+        return false;
+    }
+    return m_device->resizeTrack(cameraIndex, trackId, width, height, assist);
+}
+
+bool QSightlineDevice::cueTrackAt(
+    quint8 cameraIndex, quint16 col, quint16 row, Sightline::ModifyMode mode, quint8 trackId)
+{
+    if (!m_device) {
+        return false;
+    }
+    return m_device->cueTrackAt(cameraIndex, col, row, mode, trackId);
+}
+
+bool QSightlineDevice::nudgeDisplayTrack(quint8 cameraIndex, qint16 deltaCol, qint16 deltaRow)
+{
+    if (!m_device) {
+        return false;
+    }
+    return m_device->nudgeDisplayTrack(cameraIndex, deltaCol, deltaRow);
 }
 
 bool QSightlineDevice::setDetection(const Sightline::MsgSetDetectionParameters& msg)

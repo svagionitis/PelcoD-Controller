@@ -1232,5 +1232,43 @@ namespace {
         EXPECT_EQ(parsed.shiftRow, 20);
     }
 
+    /// @brief Verify TrackCoordinate normalized conversions for closed-loop PTZ auto-tracking.
+    TEST(TestSightlineTracking, TrackCoordinateNormalizedConversions)
+    {
+        TrackCoordinate track {};
+        track.trackId = 1U;
+        track.centerCol = 960.0;
+        track.centerRow = 540.0;
+        track.width = 192.0;
+        track.height = 108.0;
+        track.velocityCol = 48.0;
+        track.velocityRow = -27.0;
+        track.confidence = 90U;
+        track.isPrimary = true;
+        track.isCoasting = false;
+
+        constexpr double frameW = 1920.0;
+        constexpr double frameH = 1080.0;
+
+        // Centered target: error should be 0.0
+        EXPECT_NEAR(track.normalizedErrorX(frameW), 0.0, 1e-6);
+        EXPECT_NEAR(track.normalizedErrorY(frameH), 0.0, 1e-6);
+
+        // Normalized height: 108 / 1080 = 0.10
+        EXPECT_NEAR(track.normalizedHeight(frameH), 0.10, 1e-6);
+
+        // Normalized velocity:
+        // velocityCol / (frameW * 0.5) * 30 Hz = 48 / 960 * 30 = 0.05 * 30 = 1.5 units/sec
+        EXPECT_NEAR(track.normalizedVelocityX(frameW, 30.0), 1.5, 1e-6);
+        // velocityRow / (frameH * 0.5) * 30 Hz = -27 / 540 * 30 = -0.05 * 30 = -1.5 units/sec
+        EXPECT_NEAR(track.normalizedVelocityY(frameH, 30.0), -1.5, 1e-6);
+
+        // Off-center target: Col = 1440 (+0.5), Row = 270 (-0.5)
+        track.centerCol = 1440.0;
+        track.centerRow = 270.0;
+        EXPECT_NEAR(track.normalizedErrorX(frameW), 0.5, 1e-6);
+        EXPECT_NEAR(track.normalizedErrorY(frameH), -0.5, 1e-6);
+    }
+
 } // namespace
 } // namespace Sightline

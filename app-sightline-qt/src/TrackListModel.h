@@ -21,7 +21,8 @@ public:
         ConfidenceRole,
         IsPrimaryRole,
         VelocityColRole,
-        VelocityRowRole
+        VelocityRowRole,
+        IsCoastingRole
     };
 
     /// @brief Construct a new TrackListModel.
