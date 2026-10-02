@@ -18,6 +18,7 @@
 #include <QThread>
 #include <array>
 #include <atomic>
+#include <deque>
 #include <memory>
 
 namespace SightlineApp {
@@ -44,6 +45,10 @@ class SightlineVideoController : public QObject {
     Q_PROPERTY(int contrastMode READ contrastMode NOTIFY contrastModeChanged)
     Q_PROPERTY(int activePalette READ activePalette NOTIFY activePaletteChanged)
     Q_PROPERTY(QRect enhancementRoi READ enhancementRoi NOTIFY enhancementRoiChanged)
+    Q_PROPERTY(bool isPaused READ isPaused WRITE pauseStream NOTIFY pausedChanged)
+    Q_PROPERTY(quint64 currentFramePts READ currentFramePts NOTIFY currentFramePtsChanged)
+    Q_PROPERTY(int bufferedFrameCount READ bufferedFrameCount NOTIFY bufferedFramesChanged)
+    Q_PROPERTY(int scrubOffset READ scrubOffset WRITE setScrubOffset NOTIFY scrubOffsetChanged)
 
 public:
     /// @enum PlaybackState
@@ -130,7 +135,45 @@ public:
     /// @return Rectangle bounding active ROI.
     [[nodiscard]] QRect enhancementRoi() const;
 
+    /// @struct TimestampedFrame
+    /// @brief Buffered decoded video frame paired with MISB microsecond timestamp.
+    struct TimestampedFrame {
+        QImage frame {};
+        quint64 ptsUs { 0U };
+    };
+
+    /// @brief Check if stream playback is currently paused.
+    /// @return True if paused.
+    [[nodiscard]] bool isPaused() const noexcept;
+
+    /// @brief Get current frame presentation timestamp in microseconds.
+    /// @return Microsecond PTS.
+    [[nodiscard]] quint64 currentFramePts() const noexcept;
+
+    /// @brief Alias for currentFramePts.
+    /// @return Microsecond PTS.
+    [[nodiscard]] quint64 currentPts() const noexcept;
+
+    /// @brief Get count of frames retained in circular buffer.
+    /// @return Number of buffered frames.
+    [[nodiscard]] int bufferedFrameCount() const noexcept;
+
+    /// @brief Get active scrub frame offset relative to live stream.
+    /// @return Offset (0: Live, negative: historical frames).
+    [[nodiscard]] int scrubOffset() const noexcept;
+
 public slots:
+    /// @brief Pause or resume live video stream ingestion.
+    /// @param[in] pause True to pause stream, false to resume live playback.
+    void pauseStream(bool pause);
+
+    /// @brief Toggle paused playback state.
+    void togglePause();
+
+    /// @brief Scrub playback frame to a historical buffered frame.
+    /// @param[in] offset Non-positive offset from latest frame (0: Live, -1: 1 frame ago, etc.).
+    void setScrubOffset(int offset);
+
     /// @brief Set video stream URI.
     /// @param[in] uri RTSP, UDP, or mock URI.
     void setSourceUri(const QString& uri);
@@ -262,6 +305,18 @@ signals:
     /// @brief Emitted when enhancement ROI updates.
     void enhancementRoiChanged();
 
+    /// @brief Emitted when stream pause state changes.
+    void pausedChanged();
+
+    /// @brief Emitted when current frame presentation timestamp changes.
+    void currentFramePtsChanged();
+
+    /// @brief Emitted when number of buffered frames updates.
+    void bufferedFramesChanged();
+
+    /// @brief Emitted when scrub offset updates.
+    void scrubOffsetChanged();
+
 private:
     struct EnhancementConfig {
         int mode { 0 };
@@ -285,6 +340,12 @@ private:
     void applyNativeSharpen(QImage& image, const QRect& targetRoi, int sharpen);
     void applyHistogramEq(QImage& image, const QRect& targetRoi, int blend);
     void generatePaletteTables();
+
+    static constexpr std::size_t MaxRingBufferSize { 90U };
+    std::deque<TimestampedFrame> m_frameRingBuffer {};
+    mutable QMutex m_bufferMutex {};
+    int m_scrubOffset { 0 };
+    quint64 m_currentFramePts { 0U };
 
     mutable QMutex m_decoderMutex {};
     mutable QMutex m_snapshotMutex {};

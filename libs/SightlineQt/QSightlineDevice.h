@@ -80,11 +80,15 @@ public:
     /// @brief Retrieves the latest cached KLV metric filters.
     [[nodiscard]] std::optional<Sightline::MsgKlvMetricFilters> lastKlvMetricFilters() const;
 
+    /// @brief Retrieves the latest cached algorithmic tracking parameters.
+    [[nodiscard]] std::optional<Sightline::MsgSetTrackingParameters> lastTrackingParameters() const;
+
     /// @brief Retrieves transport and kernel-level metrics.
     [[nodiscard]] Transport::TransportStatsSnapshot getTransportStats() const;
 
 signals:
     void trackingPositionsReceived(const Sightline::MsgTrackingPositions& positions);
+    void trackingParametersReceived(const Sightline::MsgSetTrackingParameters& params);
     void extendedPositionsReceived(const Sightline::MsgTrackingPositionsExtended& positions);
     void trackCoastingChanged(quint8 cameraIndex, quint8 trackId, bool isCoasting);
     void primaryTrackUpdated(quint8 cameraIndex, const Sightline::TrackCoordinate& track);
@@ -124,6 +128,7 @@ public slots:
     bool resizeTrack(quint8 cameraIndex, quint8 trackId, quint16 width, quint16 height, bool assist = true);
     bool cueTrackAt(
         quint8 cameraIndex, quint16 col, quint16 row, Sightline::ModifyMode mode, quint8 trackId = 0xFFU);
+    bool setTrackingParameters(const Sightline::MsgSetTrackingParameters& params);
 
     // Automated Target Detection & Analytics (EAN-Detection-Modes)
     bool setDetection(const Sightline::MsgSetDetectionParameters& msg);

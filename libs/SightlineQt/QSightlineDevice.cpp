@@ -138,6 +138,14 @@ std::optional<Sightline::MsgKlvMetricFilters> QSightlineDevice::lastKlvMetricFil
     return std::nullopt;
 }
 
+std::optional<Sightline::MsgSetTrackingParameters> QSightlineDevice::lastTrackingParameters() const
+{
+    if (m_device) {
+        return m_device->lastTrackingParameters();
+    }
+    return std::nullopt;
+}
+
 Transport::TransportStatsSnapshot QSightlineDevice::getTransportStats() const
 {
     if (m_device) {
@@ -151,6 +159,11 @@ void QSightlineDevice::wireCallbacks()
     if (!m_device) {
         return;
     }
+
+    m_device->setTrackingParamsCallback([this](const Sightline::MsgSetTrackingParameters& params) {
+        QMetaObject::invokeMethod(
+            this, [this, params]() { emit trackingParametersReceived(params); }, Qt::QueuedConnection);
+    });
 
     m_device->setTrackingCallback([this](const Sightline::MsgTrackingPositions& pos) {
         QMetaObject::invokeMethod(
@@ -381,6 +394,14 @@ bool QSightlineDevice::nudgeDisplayTrack(quint8 cameraIndex, qint16 deltaCol, qi
         return false;
     }
     return m_device->nudgeDisplayTrack(cameraIndex, deltaCol, deltaRow);
+}
+
+bool QSightlineDevice::setTrackingParameters(const Sightline::MsgSetTrackingParameters& params)
+{
+    if (!m_device) {
+        return false;
+    }
+    return m_device->setTrackingParameters(params);
 }
 
 bool QSightlineDevice::setDetection(const Sightline::MsgSetDetectionParameters& msg)

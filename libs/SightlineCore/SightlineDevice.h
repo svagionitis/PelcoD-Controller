@@ -40,6 +40,7 @@ public:
     using AdvDetectionCallback = std::function<void(const MsgAdvancedDetectionParameters&)>;
     using DetectionRoiCallback = std::function<void(const MsgDetectionROI&)>;
     using KlvMetricFiltersCallback = std::function<void(const MsgKlvMetricFilters&)>;
+    using TrackingParamsCallback = std::function<void(const MsgSetTrackingParameters&)>;
 
     /// @brief Constructs a SightlineDevice wrapping the given transport channel.
     /// @param[in] transport Shared pointer to underlying communication transport.
@@ -169,6 +170,11 @@ public:
     /// @return True if command was successfully transmitted.
     [[nodiscard]] bool setReportingMode(
         std::uint8_t cameraIndex, std::uint8_t framePeriod, std::uint8_t reportingFlags);
+
+    /// @brief Configures algorithmic tracking parameters and modes (Message ID 0x0C).
+    /// @param[in] msg Algorithmic tracking parameters and feature flags.
+    /// @return True if command was successfully transmitted.
+    [[nodiscard]] bool setTrackingParameters(const MsgSetTrackingParameters& msg);
 
     /// @brief Designates an active track as the primary track.
     /// @param[in] cameraIndex Zero-based camera index.
@@ -688,8 +694,14 @@ public:
     /// @brief Registers an observer callback for KLV metric dimension filters.
     void setKlvMetricFiltersCb(KlvMetricFiltersCallback cb);
 
+    /// @brief Registers an observer callback for algorithmic tracking parameters.
+    void setTrackingParamsCallback(TrackingParamsCallback cb);
+
     /// @brief Retrieves the latest cached tracking positions snapshot.
     [[nodiscard]] std::optional<MsgTrackingPositions> lastTrackingPositions() const;
+
+    /// @brief Retrieves the latest cached algorithmic tracking parameters.
+    [[nodiscard]] std::optional<MsgSetTrackingParameters> lastTrackingParameters() const;
 
     /// @brief Retrieves the latest cached version information.
     [[nodiscard]] std::optional<MsgVersionNumber> lastVersion() const;
@@ -752,9 +764,11 @@ private:
     AdvDetectionCallback m_advDetectionCallback;
     DetectionRoiCallback m_detectionRoiCallback;
     KlvMetricFiltersCallback m_klvMetricFiltersCallback;
+    TrackingParamsCallback m_trackingParamsCallback;
 
     mutable std::mutex m_cacheMutex;
     std::optional<MsgTrackingPositions> m_lastPositions;
+    std::optional<MsgSetTrackingParameters> m_lastTrackingParams;
     std::optional<MsgVersionNumber> m_lastVersion;
     std::optional<MsgSystemStatusMessage> m_lastStatus;
     std::optional<MsgSetStabilizationParameters> m_lastStabilization;

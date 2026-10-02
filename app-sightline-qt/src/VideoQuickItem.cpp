@@ -1,11 +1,10 @@
-/// @file VideoQuickItem.cpp
-/// @brief Implementation of custom QQuickPaintedItem for rendering video frames in QML scenes.
-
 #include "VideoQuickItem.h"
 
 #include <QFont>
+#include <QMouseEvent>
 #include <QPen>
 #include <algorithm>
+#include <cmath>
 
 namespace SightlineApp {
 
@@ -14,6 +13,7 @@ VideoQuickItem::VideoQuickItem(QQuickItem* parent)
 {
     setAntialiasing(true);
     setOpaquePainting(true);
+    setAcceptedMouseButtons(Qt::LeftButton);
 }
 
 VideoQuickItem::FillMode VideoQuickItem::fillMode() const noexcept
@@ -57,6 +57,241 @@ void VideoQuickItem::setShowOsdCrosshair(bool show)
         emit showOsdCrosshairChanged();
         update();
     }
+}
+
+VideoQuickItem::InteractionMode VideoQuickItem::interactionMode() const noexcept
+{
+    return m_interactionMode;
+}
+
+void VideoQuickItem::setInteractionMode(InteractionMode mode)
+{
+    if (m_interactionMode != mode) {
+        m_interactionMode = mode;
+        if (mode != InteractionMode::LassoAcquire && m_isLassoActive) {
+            m_isLassoActive = false;
+            emit lassoActiveChanged();
+            update();
+        }
+        emit interactionModeChanged();
+    }
+}
+
+bool VideoQuickItem::isLassoActive() const noexcept
+{
+    return m_isLassoActive;
+}
+
+QRectF VideoQuickItem::lassoRect() const noexcept
+{
+    return m_lassoRect;
+}
+
+int VideoQuickItem::defaultGateWidth() const noexcept
+{
+    return m_defaultGateWidth;
+}
+
+void VideoQuickItem::setDefaultGateWidth(int w) noexcept
+{
+    if (m_defaultGateWidth != w && w > 0) {
+        m_defaultGateWidth = w;
+        emit defaultGateSizeChanged();
+    }
+}
+
+int VideoQuickItem::defaultGateHeight() const noexcept
+{
+    return m_defaultGateHeight;
+}
+
+void VideoQuickItem::setDefaultGateHeight(int h) noexcept
+{
+    if (m_defaultGateHeight != h && h > 0) {
+        m_defaultGateHeight = h;
+        emit defaultGateSizeChanged();
+    }
+}
+
+QRectF VideoQuickItem::contentRect() const
+{
+    const QRectF bounds { boundingRect() };
+    double frameW { 0.0 };
+    double frameH { 0.0 };
+    {
+        QMutexLocker locker(&m_mutex);
+        frameW = static_cast<double>(m_videoWidth);
+        frameH = static_cast<double>(m_videoHeight);
+    }
+
+    if (frameW <= 0.0 || frameH <= 0.0 || bounds.width() <= 0.0 || bounds.height() <= 0.0) {
+        return bounds;
+    }
+
+    if (m_fillMode == FillMode::Stretch) {
+        return bounds;
+    }
+
+    if (m_fillMode == FillMode::PreserveAspectFit) {
+        const double scale { std::min(bounds.width() / frameW, bounds.height() / frameH) };
+        const double targetW { frameW * scale };
+        const double targetH { frameH * scale };
+        const double targetX { bounds.x() + (bounds.width() - targetW) / 2.0 };
+        const double targetY { bounds.y() + (bounds.height() - targetH) / 2.0 };
+        return QRectF(targetX, targetY, targetW, targetH);
+    }
+
+    if (m_fillMode == FillMode::PreserveAspectCrop) {
+        const double scale { std::max(bounds.width() / frameW, bounds.height() / frameH) };
+        const double targetW { frameW * scale };
+        const double targetH { frameH * scale };
+        const double targetX { bounds.x() + (bounds.width() - targetW) / 2.0 };
+        const double targetY { bounds.y() + (bounds.height() - targetH) / 2.0 };
+        return QRectF(targetX, targetY, targetW, targetH);
+    }
+
+    return bounds;
+}
+
+QPointF VideoQuickItem::mapToVideo(const QPointF& itemPoint) const
+{
+    const QRectF cRect { contentRect() };
+    double frameW { 0.0 };
+    double frameH { 0.0 };
+    {
+        QMutexLocker locker(&m_mutex);
+        frameW = static_cast<double>(m_videoWidth);
+        frameH = static_cast<double>(m_videoHeight);
+    }
+
+    if (cRect.width() <= 0.0 || cRect.height() <= 0.0 || frameW <= 0.0 || frameH <= 0.0) {
+        return itemPoint;
+    }
+
+    const double normX { (itemPoint.x() - cRect.x()) / cRect.width() };
+    const double normY { (itemPoint.y() - cRect.y()) / cRect.height() };
+
+    const double vX { std::clamp(normX * frameW, 0.0, frameW - 1.0) };
+    const double vY { std::clamp(normY * frameH, 0.0, frameH - 1.0) };
+
+    return QPointF(vX, vY);
+}
+
+QRectF VideoQuickItem::mapToVideoRect(const QRectF& itemRect) const
+{
+    const QPointF p1 { mapToVideo(itemRect.topLeft()) };
+    const QPointF p2 { mapToVideo(itemRect.bottomRight()) };
+
+    const double x { std::min(p1.x(), p2.x()) };
+    const double y { std::min(p1.y(), p2.y()) };
+    const double w { std::abs(p2.x() - p1.x()) };
+    const double h { std::abs(p2.y() - p1.y()) };
+
+    return QRectF(x, y, w, h);
+}
+
+QPointF VideoQuickItem::mapFromVideo(const QPointF& videoPoint) const
+{
+    const QRectF cRect { contentRect() };
+    double frameW { 0.0 };
+    double frameH { 0.0 };
+    {
+        QMutexLocker locker(&m_mutex);
+        frameW = static_cast<double>(m_videoWidth);
+        frameH = static_cast<double>(m_videoHeight);
+    }
+
+    if (frameW <= 0.0 || frameH <= 0.0) {
+        return videoPoint;
+    }
+
+    const double itemX { cRect.x() + (videoPoint.x() / frameW) * cRect.width() };
+    const double itemY { cRect.y() + (videoPoint.y() / frameH) * cRect.height() };
+
+    return QPointF(itemX, itemY);
+}
+
+QRectF VideoQuickItem::mapFromVideoRect(const QRectF& videoRect) const
+{
+    const QPointF p1 { mapFromVideo(videoRect.topLeft()) };
+    const QPointF p2 { mapFromVideo(videoRect.bottomRight()) };
+
+    const double x { std::min(p1.x(), p2.x()) };
+    const double y { std::min(p1.y(), p2.y()) };
+    const double w { std::abs(p2.x() - p1.x()) };
+    const double h { std::abs(p2.y() - p1.y()) };
+
+    return QRectF(x, y, w, h);
+}
+
+void VideoQuickItem::mousePressEvent(QMouseEvent* event)
+{
+    if (m_interactionMode == InteractionMode::None) {
+        event->ignore();
+        return;
+    }
+
+    event->accept();
+    if (m_interactionMode == InteractionMode::LassoAcquire) {
+        m_lassoStartPoint = event->position();
+        m_lassoRect = QRectF(m_lassoStartPoint, QSizeF(0.0, 0.0));
+        m_isLassoActive = true;
+        emit lassoActiveChanged();
+        emit lassoRectChanged();
+        update();
+    }
+}
+
+void VideoQuickItem::mouseMoveEvent(QMouseEvent* event)
+{
+    if (m_interactionMode == InteractionMode::LassoAcquire && m_isLassoActive) {
+        event->accept();
+        const QPointF curr { event->position() };
+        const double left { std::min(m_lassoStartPoint.x(), curr.x()) };
+        const double top { std::min(m_lassoStartPoint.y(), curr.y()) };
+        const double w { std::abs(curr.x() - m_lassoStartPoint.x()) };
+        const double h { std::abs(curr.y() - m_lassoStartPoint.y()) };
+        m_lassoRect = QRectF(left, top, w, h);
+        emit lassoRectChanged();
+        update();
+        return;
+    }
+    event->ignore();
+}
+
+void VideoQuickItem::mouseReleaseEvent(QMouseEvent* event)
+{
+    if (m_interactionMode == InteractionMode::ClickToTrack) {
+        event->accept();
+        const QPointF vPos { mapToVideo(event->position()) };
+        const int col { static_cast<int>(std::round(vPos.x())) };
+        const int row { static_cast<int>(std::round(vPos.y())) };
+        emit targetAcquired(col, row, m_defaultGateWidth, m_defaultGateHeight);
+        return;
+    }
+
+    if (m_interactionMode == InteractionMode::LassoAcquire && m_isLassoActive) {
+        event->accept();
+        m_isLassoActive = false;
+        emit lassoActiveChanged();
+
+        const QRectF vRect { mapToVideoRect(m_lassoRect) };
+        int col { static_cast<int>(std::round(vRect.center().x())) };
+        int row { static_cast<int>(std::round(vRect.center().y())) };
+        int w { static_cast<int>(std::round(vRect.width())) };
+        int h { static_cast<int>(std::round(vRect.height())) };
+
+        if (w < 8 || h < 8) {
+            w = m_defaultGateWidth;
+            h = m_defaultGateHeight;
+        }
+
+        emit targetAcquired(col, row, w, h);
+        update();
+        return;
+    }
+
+    event->ignore();
 }
 
 void VideoQuickItem::updateFrame(const QImage& frame)
@@ -136,31 +371,14 @@ void VideoQuickItem::paint(QPainter* painter)
         return;
     }
 
-    QRectF destRect { bounds };
-    const double frameW { static_cast<double>(frameCopy.width()) };
-    const double frameH { static_cast<double>(frameCopy.height()) };
-
-    if (m_fillMode == FillMode::PreserveAspectFit && frameW > 0.0 && frameH > 0.0) {
-        const double scale { std::min(bounds.width() / frameW, bounds.height() / frameH) };
-        const double targetW { frameW * scale };
-        const double targetH { frameH * scale };
-        const double targetX { bounds.x() + (bounds.width() - targetW) / 2.0 };
-        const double targetY { bounds.y() + (bounds.height() - targetH) / 2.0 };
-        destRect = QRectF(targetX, targetY, targetW, targetH);
-    } else if (m_fillMode == FillMode::PreserveAspectCrop && frameW > 0.0 && frameH > 0.0) {
-        const double scale { std::max(bounds.width() / frameW, bounds.height() / frameH) };
-        const double targetW { frameW * scale };
-        const double targetH { frameH * scale };
-        const double targetX { bounds.x() + (bounds.width() - targetW) / 2.0 };
-        const double targetY { bounds.y() + (bounds.height() - targetH) / 2.0 };
-        destRect = QRectF(targetX, targetY, targetW, targetH);
-    }
-
+    const QRectF destRect { contentRect() };
     painter->drawImage(destRect, frameCopy);
 
     if (m_showOsdCrosshair) {
         renderCrosshair(painter, destRect);
     }
+
+    renderLasso(painter);
 }
 
 void VideoQuickItem::renderPlaceholder(QPainter* painter, const QRectF& bounds)
@@ -244,6 +462,65 @@ void VideoQuickItem::renderCrosshair(QPainter* painter, const QRectF& bounds)
     // Bottom-right
     painter->drawLine(QPointF(right, bottom), QPointF(right - cornerLen, bottom));
     painter->drawLine(QPointF(right, bottom), QPointF(right, bottom - cornerLen));
+
+    painter->restore();
+}
+
+void VideoQuickItem::renderLasso(QPainter* painter)
+{
+    if (!m_isLassoActive || m_lassoRect.width() < 2.0 || m_lassoRect.height() < 2.0) {
+        return;
+    }
+
+    painter->save();
+
+    const QColor cyan(0, 229, 255);
+    QPen dashedPen(cyan, 1.5, Qt::DashLine);
+    painter->setPen(dashedPen);
+    painter->setBrush(QColor(0, 229, 255, 30));
+    painter->drawRect(m_lassoRect);
+
+    // Corner brackets (length 8px)
+    QPen solidPen(cyan, 2.0, Qt::SolidLine);
+    painter->setPen(solidPen);
+    const double L { std::min({ 8.0, m_lassoRect.width() / 2.0, m_lassoRect.height() / 2.0 }) };
+
+    // Top-Left
+    painter->drawLine(QPointF(m_lassoRect.left(), m_lassoRect.top()), QPointF(m_lassoRect.left() + L, m_lassoRect.top()));
+    painter->drawLine(QPointF(m_lassoRect.left(), m_lassoRect.top()), QPointF(m_lassoRect.left(), m_lassoRect.top() + L));
+
+    // Top-Right
+    painter->drawLine(QPointF(m_lassoRect.right(), m_lassoRect.top()), QPointF(m_lassoRect.right() - L, m_lassoRect.top()));
+    painter->drawLine(QPointF(m_lassoRect.right(), m_lassoRect.top()), QPointF(m_lassoRect.right(), m_lassoRect.top() + L));
+
+    // Bottom-Left
+    painter->drawLine(QPointF(m_lassoRect.left(), m_lassoRect.bottom()), QPointF(m_lassoRect.left() + L, m_lassoRect.bottom()));
+    painter->drawLine(QPointF(m_lassoRect.left(), m_lassoRect.bottom()), QPointF(m_lassoRect.left(), m_lassoRect.bottom() - L));
+
+    // Bottom-Right
+    painter->drawLine(QPointF(m_lassoRect.right(), m_lassoRect.bottom()), QPointF(m_lassoRect.right() - L, m_lassoRect.bottom()));
+    painter->drawLine(QPointF(m_lassoRect.right(), m_lassoRect.bottom()), QPointF(m_lassoRect.right(), m_lassoRect.bottom() - L));
+
+    // Center crosshair
+    const QPointF center { m_lassoRect.center() };
+    painter->drawLine(QPointF(center.x() - 4.0, center.y()), QPointF(center.x() + 4.0, center.y()));
+    painter->drawLine(QPointF(center.x(), center.y() - 4.0), QPointF(center.x(), center.y() + 4.0));
+
+    // Dimension banner
+    const QRectF vRect { mapToVideoRect(m_lassoRect) };
+    const QString dimText { QStringLiteral("%1 x %2")
+        .arg(static_cast<int>(std::round(vRect.width())))
+        .arg(static_cast<int>(std::round(vRect.height()))) };
+
+    QFont font { painter->font() };
+    font.setPixelSize(10);
+    font.setBold(true);
+    painter->setFont(font);
+
+    const QRectF bannerRect(m_lassoRect.left(), m_lassoRect.top() - 16.0, 70.0, 14.0);
+    painter->fillRect(bannerRect, QColor(8, 10, 15, 200));
+    painter->setPen(cyan);
+    painter->drawText(bannerRect, Qt::AlignCenter, dimText);
 
     painter->restore();
 }

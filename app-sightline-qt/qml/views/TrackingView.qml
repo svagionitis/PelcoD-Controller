@@ -15,6 +15,40 @@ ScrollView {
     ScrollBar.horizontal.policy: ScrollBar.AsNeeded
 
     readonly property int minContentWidth: 560
+    readonly property var modeValues: [0, 1, 2, 4, 5, 6]
+
+    Connections {
+        target: bridge
+        function onTrackingParametersReceived(cam, mode, flags, misses, zoom, roll, pause, acqCol, acqRow) {
+            if (cam === camCombo.currentIndex) {
+                for (var i = 0; i < modeValues.length; ++i) {
+                    if (modeValues[i] === mode) {
+                        modeCombo.currentIndex = i;
+                        break;
+                    }
+                }
+                chkAcqAssist.checked = (flags & 0x01) !== 0;
+                chkIntelAssist.checked = (flags & 0x02) !== 0;
+                chkColorTrack.checked = (flags & 0x04) !== 0;
+                chkZoomScale.checked = (flags & 0x08) !== 0;
+                chkUniqueTracks.checked = (flags & 0x10) !== 0;
+                chkAutoMode.checked = (flags & 0x20) !== 0;
+
+                spinMaxMisses.value = misses;
+                spinZoomSmooth.value = zoom;
+                spinRollSmooth.value = roll;
+                spinMaxPause.value = pause;
+                spinAcqCol.value = acqCol;
+                spinAcqRow.value = acqRow;
+            }
+        }
+    }
+
+    Component.onCompleted: {
+        if (bridge) {
+            bridge.queryTrackingParameters(camCombo.currentIndex);
+        }
+    }
 
     ColumnLayout {
         id: mainCol
@@ -42,7 +76,7 @@ ScrollView {
                 font.letterSpacing: 1.0
             }
             Text {
-                text: "// Modules 0x08, 0x09, 0x13, 0x43"
+                text: "// Modules 0x08, 0x09, 0x0C, 0x13, 0x43"
                 color: SightlineTheme.textMuted
                 font.pixelSize: SightlineTheme.fontSizeSmall
                 font.family: "Monospace"
@@ -84,6 +118,31 @@ ScrollView {
                     ComboBox {
                         id: camCombo
                         model: ["Camera 0 (EO Visible)", "Camera 1 (IR Thermal)", "Camera 2", "Camera 3"]
+                        Layout.fillWidth: true
+                        Layout.maximumWidth: 260
+                        onCurrentIndexChanged: {
+                            if (bridge) {
+                                bridge.queryTrackingParameters(currentIndex);
+                            }
+                        }
+                    }
+                    Item { Layout.fillWidth: true }
+                }
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 12
+                    Text {
+                        text: "Tracking Mode:"
+                        color: SightlineTheme.textSecondary
+                        font.pixelSize: 12
+                        Layout.preferredWidth: 130
+                        Layout.alignment: Qt.AlignVCenter
+                    }
+                    ComboBox {
+                        id: modeCombo
+                        model: ["Vehicle (0)", "Stationary (1)", "Scene (2)", "Static (4)", "Drone (5)", "Person (6)"]
+                        currentIndex: 0
                         Layout.fillWidth: true
                         Layout.maximumWidth: 260
                     }
@@ -188,7 +247,7 @@ ScrollView {
                                     parseInt(rowInput.text),
                                     parseInt(widthInput.text),
                                     parseInt(heightInput.text),
-                                    0x01
+                                    modeValues[modeCombo.currentIndex]
                                 );
                             }
                         }
@@ -233,6 +292,198 @@ ScrollView {
             onNudgeRequested: function(dCol, dRow) {
                 if (bridge) {
                     bridge.nudgeTracking(camCombo.currentIndex, dCol, dRow);
+                }
+            }
+        }
+
+        // Advanced Tracking Parameters Card (0x0C)
+        Rectangle {
+            Layout.fillWidth: true
+            implicitHeight: advCol.implicitHeight + 24
+            color: SightlineTheme.surfaceCard
+            radius: SightlineTheme.radiusMedium
+            border.color: SightlineTheme.cardBorder
+            border.width: 1
+
+            ColumnLayout {
+                id: advCol
+                anchors.fill: parent
+                anchors.margins: 14
+                spacing: 10
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    Text {
+                        text: "ADVANCED TRACKING PARAMETERS (0x0C)"
+                        color: SightlineTheme.primary
+                        font.pixelSize: 11
+                        font.bold: true
+                    }
+                    Item { Layout.fillWidth: true }
+                    Text {
+                        text: "Algorithmic Tuning & Hardware Flags"
+                        color: SightlineTheme.textMuted
+                        font.pixelSize: 10
+                    }
+                }
+
+                // Feature Flags Flow
+                Text {
+                    text: "Algorithmic Flags:"
+                    color: SightlineTheme.textSecondary
+                    font.pixelSize: 11
+                    font.bold: true
+                }
+
+                Flow {
+                    Layout.fillWidth: true
+                    spacing: 12
+
+                    CheckBox { id: chkAcqAssist; text: "Acquisition Assist"; checked: false }
+                    CheckBox { id: chkIntelAssist; text: "Intelligence Assist"; checked: false }
+                    CheckBox { id: chkColorTrack; text: "Color Tracking"; checked: false }
+                    CheckBox { id: chkZoomScale; text: "Zoom Scale"; checked: false }
+                    CheckBox { id: chkUniqueTracks; text: "Unique Tracks"; checked: false }
+                    CheckBox { id: chkAutoMode; text: "Auto Mode"; checked: false }
+                }
+
+                // Tuning Numerical Controls Grid
+                GridLayout {
+                    columns: 4
+                    columnSpacing: 16
+                    rowSpacing: 8
+                    Layout.fillWidth: true
+
+                    Text { text: "Max Misses:"; color: SightlineTheme.textSecondary; font.pixelSize: 11 }
+                    SpinBox {
+                        id: spinMaxMisses
+                        from: 1
+                        to: 255
+                        value: 15
+                        editable: true
+                        Layout.preferredWidth: 100
+                    }
+
+                    Text { text: "Max Pause (frames):"; color: SightlineTheme.textSecondary; font.pixelSize: 11 }
+                    SpinBox {
+                        id: spinMaxPause
+                        from: 0
+                        to: 65535
+                        value: 0
+                        editable: true
+                        Layout.preferredWidth: 110
+                    }
+
+                    Text { text: "Zoom Smoothing:"; color: SightlineTheme.textSecondary; font.pixelSize: 11 }
+                    SpinBox {
+                        id: spinZoomSmooth
+                        from: 0
+                        to: 100
+                        value: 0
+                        editable: true
+                        Layout.preferredWidth: 100
+                    }
+
+                    Text { text: "Roll Smoothing:"; color: SightlineTheme.textSecondary; font.pixelSize: 11 }
+                    SpinBox {
+                        id: spinRollSmooth
+                        from: 0
+                        to: 100
+                        value: 0
+                        editable: true
+                        Layout.preferredWidth: 110
+                    }
+
+                    Text { text: "Acq Col Offset:"; color: SightlineTheme.textSecondary; font.pixelSize: 11 }
+                    SpinBox {
+                        id: spinAcqCol
+                        from: 0
+                        to: 4096
+                        value: 0
+                        editable: true
+                        Layout.preferredWidth: 100
+                    }
+
+                    Text { text: "Acq Row Offset:"; color: SightlineTheme.textSecondary; font.pixelSize: 11 }
+                    SpinBox {
+                        id: spinAcqRow
+                        from: 0
+                        to: 4096
+                        value: 0
+                        editable: true
+                        Layout.preferredWidth: 110
+                    }
+                }
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 10
+                    Layout.topMargin: 6
+
+                    Button {
+                        text: "Apply Parameters"
+                        Layout.preferredWidth: 140
+                        Layout.preferredHeight: 32
+                        contentItem: Text {
+                            text: parent.text
+                            color: "#0e1014"
+                            font.bold: true
+                            horizontalAlignment: Text.AlignHCenter
+                            verticalAlignment: Text.AlignVCenter
+                        }
+                        background: Rectangle {
+                            color: SightlineTheme.primary
+                            radius: 4
+                        }
+                        onClicked: {
+                            if (bridge) {
+                                var flags = 0;
+                                if (chkAcqAssist.checked) flags |= 0x01;
+                                if (chkIntelAssist.checked) flags |= 0x02;
+                                if (chkColorTrack.checked) flags |= 0x04;
+                                if (chkZoomScale.checked) flags |= 0x08;
+                                if (chkUniqueTracks.checked) flags |= 0x10;
+                                if (chkAutoMode.checked) flags |= 0x20;
+
+                                bridge.setTrackingParameters(
+                                    camCombo.currentIndex,
+                                    modeValues[modeCombo.currentIndex],
+                                    flags,
+                                    spinMaxMisses.value,
+                                    spinZoomSmooth.value,
+                                    spinRollSmooth.value,
+                                    spinMaxPause.value,
+                                    spinAcqCol.value,
+                                    spinAcqRow.value
+                                );
+                            }
+                        }
+                    }
+
+                    Button {
+                        text: "Query Hardware"
+                        Layout.preferredWidth: 130
+                        Layout.preferredHeight: 32
+                        contentItem: Text {
+                            text: parent.text
+                            color: SightlineTheme.textPrimary
+                            font.bold: true
+                            horizontalAlignment: Text.AlignHCenter
+                            verticalAlignment: Text.AlignVCenter
+                        }
+                        background: Rectangle {
+                            color: SightlineTheme.surfaceLight
+                            border.color: SightlineTheme.cardBorder
+                            radius: 4
+                        }
+                        onClicked: {
+                            if (bridge) {
+                                bridge.queryTrackingParameters(camCombo.currentIndex);
+                            }
+                        }
+                    }
+
+                    Item { Layout.fillWidth: true }
                 }
             }
         }

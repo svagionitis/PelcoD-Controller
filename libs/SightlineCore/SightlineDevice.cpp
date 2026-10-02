@@ -215,6 +215,16 @@ bool SightlineDevice::stopTrack(std::uint8_t cameraIndex, std::uint8_t trackId)
     return sendPacket(SightlineProtocolBuilder::buildStopSelectedTrack(msg));
 }
 
+bool SightlineDevice::setTrackingParameters(const MsgSetTrackingParameters& msg)
+{
+    const bool sent { sendPacket(SightlineProtocolBuilder::buildSetTrackingParameters(msg)) };
+    if (sent) {
+        std::lock_guard<std::mutex> lock(m_cacheMutex);
+        m_lastTrackingParams = msg;
+    }
+    return sent;
+}
+
 bool SightlineDevice::setDetection(const MsgSetDetectionParameters& msg)
 {
     return sendPacket(SightlineProtocolBuilder::buildSetDetectionParams(msg));
@@ -726,6 +736,18 @@ std::optional<MsgTrackingPositions> SightlineDevice::lastTrackingPositions() con
     return m_lastPositions;
 }
 
+std::optional<MsgSetTrackingParameters> SightlineDevice::lastTrackingParameters() const
+{
+    std::lock_guard<std::mutex> lock(m_cacheMutex);
+    return m_lastTrackingParams;
+}
+
+void SightlineDevice::setTrackingParamsCallback(TrackingParamsCallback cb)
+{
+    std::lock_guard<std::mutex> lock(m_callbackMutex);
+    m_trackingParamsCallback = std::move(cb);
+}
+
 std::optional<MsgVersionNumber> SightlineDevice::lastVersion() const
 {
     std::lock_guard<std::mutex> lock(m_cacheMutex);
@@ -895,6 +917,25 @@ void SightlineDevice::dispatchPacket(const std::vector<std::uint8_t>& packet)
             }
             if (cb) {
                 cb(extPositions);
+            }
+        }
+        break;
+    }
+    case MessageId::CurrentTrackingParameters:
+    case MessageId::SetTrackingParameters: {
+        MsgSetTrackingParameters params {};
+        if (SightlineProtocolParser::parseTrackingParameters(packet, params)) {
+            {
+                std::lock_guard<std::mutex> lock(m_cacheMutex);
+                m_lastTrackingParams = params;
+            }
+            TrackingParamsCallback cb {};
+            {
+                std::lock_guard<std::mutex> lock(m_callbackMutex);
+                cb = m_trackingParamsCallback;
+            }
+            if (cb) {
+                cb(params);
             }
         }
         break;

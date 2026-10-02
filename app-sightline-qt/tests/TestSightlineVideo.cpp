@@ -9,12 +9,20 @@
 #include <QCoreApplication>
 #include <QDir>
 #include <QImage>
+#include <QMouseEvent>
 #include <QSignalSpy>
 #include <QTemporaryDir>
 #include <QTest>
 #include <gtest/gtest.h>
 
 namespace {
+
+class TestableVideoQuickItem : public SightlineApp::VideoQuickItem {
+public:
+    using SightlineApp::VideoQuickItem::mousePressEvent;
+    using SightlineApp::VideoQuickItem::mouseMoveEvent;
+    using SightlineApp::VideoQuickItem::mouseReleaseEvent;
+};
 
 class SightlineVideoTest : public ::testing::Test {
 protected:
@@ -404,6 +412,117 @@ TEST_F(SightlineVideoTest, BridgeDetectionAndClassifierMethods)
     EXPECT_FALSE(bridge.queryDetectionROI(0, 0));
     EXPECT_FALSE(bridge.queryKlvMetricFilters(0));
     EXPECT_FALSE(bridge.queryClassifierConfig(0));
+}
+
+TEST_F(SightlineVideoTest, ControllerPauseAndScrubbing)
+{
+    SightlineApp::SightlineVideoController controller {};
+
+    // Allow worker loop to ingest frames into ring buffer
+    for (int i = 0; i < 30 && controller.bufferedFrameCount() < 5; ++i) {
+        QTest::qWait(30);
+    }
+
+    EXPECT_FALSE(controller.isPaused());
+    EXPECT_GT(controller.bufferedFrameCount(), 0);
+
+    // Toggle pause
+    controller.togglePause();
+    EXPECT_TRUE(controller.isPaused());
+
+    // Check PTS retention
+    EXPECT_GT(controller.currentFramePts(), 0ULL);
+
+    // Scrub backward
+    controller.setScrubOffset(-2);
+    EXPECT_EQ(controller.scrubOffset(), -2);
+
+    // Resume live
+    controller.pauseStream(false);
+    EXPECT_FALSE(controller.isPaused());
+    EXPECT_EQ(controller.scrubOffset(), 0);
+
+    controller.stopStream();
+}
+
+TEST_F(SightlineVideoTest, VideoQuickItemCoordinateMappingAndLasso)
+{
+    TestableVideoQuickItem item {};
+    item.setSize(QSizeF(800.0, 600.0));
+
+    QImage testFrame(640, 480, QImage::Format_RGB888);
+    testFrame.fill(Qt::black);
+    item.updateFrame(testFrame);
+
+    EXPECT_TRUE(item.hasFrame());
+    EXPECT_EQ(item.videoWidth(), 640);
+    EXPECT_EQ(item.videoHeight(), 480);
+
+    const QRectF content = item.contentRect();
+    EXPECT_DOUBLE_EQ(content.width(), 800.0);
+    EXPECT_DOUBLE_EQ(content.height(), 600.0);
+
+    const QPointF mappedPoint = item.mapToVideo(QPointF(400.0, 300.0));
+    EXPECT_NEAR(mappedPoint.x(), 320.0, 1.0);
+    EXPECT_NEAR(mappedPoint.y(), 240.0, 1.0);
+
+    const QRectF mappedRect = item.mapToVideoRect(QRectF(200.0, 150.0, 400.0, 300.0));
+    EXPECT_NEAR(mappedRect.x(), 160.0, 1.0);
+    EXPECT_NEAR(mappedRect.y(), 120.0, 1.0);
+    EXPECT_NEAR(mappedRect.width(), 320.0, 1.0);
+    EXPECT_NEAR(mappedRect.height(), 240.0, 1.0);
+
+    // Test InteractionMode property
+    EXPECT_EQ(item.interactionMode(), SightlineApp::VideoQuickItem::InteractionMode::None);
+    item.setInteractionMode(SightlineApp::VideoQuickItem::InteractionMode::LassoAcquire);
+    EXPECT_EQ(item.interactionMode(), SightlineApp::VideoQuickItem::InteractionMode::LassoAcquire);
+
+    // Test simulated mouse lasso drag: press at (200, 150), move to (400, 300), release
+    QSignalSpy targetSpy(&item, &SightlineApp::VideoQuickItem::targetAcquired);
+
+    QMouseEvent pressEv(QEvent::MouseButtonPress, QPointF(200.0, 150.0), QPointF(200.0, 150.0), Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
+    item.mousePressEvent(&pressEv);
+    EXPECT_TRUE(item.isLassoActive());
+
+    QMouseEvent moveEv(QEvent::MouseMove, QPointF(400.0, 300.0), QPointF(400.0, 300.0), Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
+    item.mouseMoveEvent(&moveEv);
+    EXPECT_TRUE(item.isLassoActive());
+    EXPECT_FALSE(item.lassoRect().isEmpty());
+
+    QMouseEvent releaseEv(QEvent::MouseButtonRelease, QPointF(400.0, 300.0), QPointF(400.0, 300.0), Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
+    item.mouseReleaseEvent(&releaseEv);
+    EXPECT_FALSE(item.isLassoActive());
+
+    EXPECT_EQ(targetSpy.count(), 1);
+    const auto args = targetSpy.takeFirst();
+    const int col = args.at(0).toInt();
+    const int row = args.at(1).toInt();
+    const int w = args.at(2).toInt();
+    const int h = args.at(3).toInt();
+
+    // Box was (200, 150) to (400, 300) -> in video coords: (160, 120) to (320, 240)
+    // Width = 160, Height = 120, Center = (240, 180)
+    EXPECT_NEAR(col, 240, 2);
+    EXPECT_NEAR(row, 180, 2);
+    EXPECT_NEAR(w, 160, 2);
+    EXPECT_NEAR(h, 120, 2);
+
+    // Test ClickToTrack mode
+    item.setInteractionMode(SightlineApp::VideoQuickItem::InteractionMode::ClickToTrack);
+    QSignalSpy clickSpy(&item, &SightlineApp::VideoQuickItem::targetAcquired);
+    QMouseEvent clickReleaseEv(QEvent::MouseButtonRelease, QPointF(400.0, 300.0), QPointF(400.0, 300.0), Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
+    item.mouseReleaseEvent(&clickReleaseEv);
+    EXPECT_EQ(clickSpy.count(), 1);
+    const auto clickArgs = clickSpy.takeFirst();
+    EXPECT_NEAR(clickArgs.at(0).toInt(), 320, 2);
+    EXPECT_NEAR(clickArgs.at(1).toInt(), 240, 2);
+}
+
+TEST_F(SightlineVideoTest, BridgeTrackingParameters)
+{
+    SightlineQmlBridge bridge {};
+    EXPECT_FALSE(bridge.setTrackingParameters(0, 0, 0, 15, 0, 0, 0, 0, 0));
+    EXPECT_FALSE(bridge.queryTrackingParameters(0));
 }
 
 } // namespace

@@ -235,6 +235,20 @@ Rectangle {
                 anchors.fill: parent
                 fillMode: root.viewportFillMode
 
+                onTargetAcquired: function(col, row, width, height) {
+                    root.selectedCol = col;
+                    root.selectedRow = row;
+                    root.gateWidth = width;
+                    root.gateHeight = height;
+                    if (bridge) {
+                        if (typeof videoController !== "undefined" && videoController && videoController.isPaused) {
+                            bridge.startPrecisionTrack(root.activeCamera, col, row, width, height, videoController.currentFramePts);
+                        } else {
+                            bridge.startTracking(root.activeCamera, col, row, width, height, 0x01);
+                        }
+                    }
+                }
+
                 Component.onCompleted: {
                     if (typeof videoController !== "undefined" && videoController) {
                         videoController.attachVideoItem(videoSurface);
@@ -658,6 +672,81 @@ Rectangle {
             }
         }
 
+        // Precision Timestamp Frame Scrubber Bar (Visible when Stream is Paused)
+        Rectangle {
+            id: scrubberBar
+            Layout.fillWidth: true
+            implicitHeight: (videoController && videoController.isPaused) ? 36 : 0
+            visible: implicitHeight > 0
+            color: "#141923"
+            border.color: SightlineTheme.primary
+            border.width: 1
+            clip: true
+
+            Behavior on implicitHeight {
+                NumberAnimation { duration: 200 }
+            }
+
+            RowLayout {
+                anchors.fill: parent
+                anchors.leftMargin: 12
+                anchors.rightMargin: 12
+                spacing: 10
+
+                Text {
+                    text: "PTS SCRUB:"
+                    color: SightlineTheme.primary
+                    font.pixelSize: 10
+                    font.bold: true
+                }
+
+                Slider {
+                    id: frameSlider
+                    Layout.fillWidth: true
+                    from: -(videoController ? Math.max(1, videoController.bufferedFrameCount - 1) : 1)
+                    to: 0
+                    stepSize: 1.0
+                    value: videoController ? videoController.scrubOffset : 0
+                    onMoved: {
+                        if (videoController) {
+                            videoController.setScrubOffset(Math.round(value));
+                        }
+                    }
+                }
+
+                Text {
+                    readonly property int offset: videoController ? videoController.scrubOffset : 0
+                    readonly property double offsetSec: offset * (1.0 / Math.max(1.0, (videoController ? videoController.fps : 30.0)))
+                    text: (offset === 0 ? "LIVE" : offsetSec.toFixed(2) + "s (" + offset + "f)")
+                    color: offset === 0 ? SightlineTheme.success : SightlineTheme.warning
+                    font.pixelSize: 11
+                    font.bold: true
+                    font.family: "Monospace"
+                    Layout.preferredWidth: 100
+                }
+
+                Rectangle { width: 1; height: 18; color: SightlineTheme.cardBorder }
+
+                Text {
+                    text: "PTS: " + (videoController ? videoController.currentFramePts : 0) + " µs"
+                    color: SightlineTheme.textSecondary
+                    font.pixelSize: 10
+                    font.family: "Monospace"
+                }
+
+                Button {
+                    text: "Live ►"
+                    implicitHeight: 24
+                    implicitWidth: 60
+                    onClicked: {
+                        if (videoController) {
+                            videoController.pauseStream(false);
+                        }
+                    }
+                }
+            }
+        }
+
         // 3. Bottom Viewport Control Toolbar
         Rectangle {
             Layout.fillWidth: true
@@ -700,6 +789,38 @@ Rectangle {
                     enabled: root.devConnected
                     opacity: enabled ? 1.0 : 0.4
                     onClicked: root.activeCamera = 1
+                }
+
+                Rectangle { width: 1; height: 20; color: SightlineTheme.cardBorder }
+
+                // Play / Pause Toggle
+                Button {
+                    text: videoController && videoController.isPaused ? "▶ Live" : "⏸ Pause"
+                    implicitHeight: 28
+                    implicitWidth: 80
+                    checkable: true
+                    checked: videoController ? videoController.isPaused : false
+                    enabled: root.devConnected
+                    opacity: enabled ? 1.0 : 0.4
+                    onClicked: {
+                        if (videoController) {
+                            videoController.togglePause();
+                        }
+                    }
+                }
+
+                // Tactical Lasso Gate Toggle
+                Button {
+                    text: videoSurface.interactionMode === 2 ? "🎯 Lasso [ON]" : "🎯 Lasso [OFF]"
+                    implicitHeight: 28
+                    implicitWidth: 96
+                    checkable: true
+                    checked: videoSurface.interactionMode === 2
+                    enabled: root.devConnected
+                    opacity: enabled ? 1.0 : 0.4
+                    onClicked: {
+                        videoSurface.interactionMode = (videoSurface.interactionMode === 2) ? 0 : 2;
+                    }
                 }
 
                 Rectangle { width: 1; height: 20; color: SightlineTheme.cardBorder }

@@ -458,6 +458,85 @@ TEST_F(QSightlineDeviceTest, Phase3TrackingCommandSlots)
     qDevice.stop();
 }
 
+/// @brief Verify SetTrackingParameters slot dispatch and signal reception through QSightlineDevice.
+TEST_F(QSightlineDeviceTest, SetTrackingParametersSlotAndSignal)
+{
+    auto transport = std::make_shared<MockTransportForQt>();
+    QSightlineDevice qDevice(transport);
+    ASSERT_TRUE(qDevice.start());
+
+    // 1. Dispatch setTrackingParameters slot
+    Sightline::MsgSetTrackingParameters params {};
+    params.cameraIndex = 1U;
+    params.mode = 5U; // Drone
+    params.flags = 0x05U; // AcqAssist | Color
+    params.maxMisses = 20U;
+    params.zoomSmoothing = 10U;
+    params.rollSmoothing = 5U;
+    params.maxPauseTime = 12U;
+    params.acquisitionSearchCol = 640U;
+    params.acquisitionSearchRow = 480U;
+
+    transport->clearSentPackets();
+    EXPECT_TRUE(qDevice.setTrackingParameters(params));
+
+    auto sent = transport->getSentPackets();
+    ASSERT_EQ(sent.size(), 1U);
+    EXPECT_EQ(Sightline::SightlineFraming::identifyMessage(sent[0]), Sightline::MessageId::SetTrackingParameters);
+
+    // Verify lastTrackingParameters was updated
+    const auto lastParams = qDevice.lastTrackingParameters();
+    ASSERT_TRUE(lastParams.has_value());
+    EXPECT_EQ(lastParams->cameraIndex, 1U);
+    EXPECT_EQ(lastParams->mode, 5U);
+    EXPECT_EQ(lastParams->flags, 0x05U);
+    EXPECT_EQ(lastParams->maxMisses, 20U);
+    EXPECT_EQ(lastParams->zoomSmoothing, 10U);
+    EXPECT_EQ(lastParams->rollSmoothing, 5U);
+    EXPECT_EQ(lastParams->maxPauseTime, 12U);
+    EXPECT_EQ(lastParams->acquisitionSearchCol, 640U);
+    EXPECT_EQ(lastParams->acquisitionSearchRow, 480U);
+
+    // 2. Test signal reception by injecting a 0x0C response packet
+    QSignalSpy paramSpy(&qDevice, &QSightlineDevice::trackingParametersReceived);
+
+    std::vector<std::uint8_t> payload {
+        32U,   // 0: objectSize
+        6U,    // 1: mode (Person)
+        0U,    // 2: mode2
+        30U,   // 3: maxMisses
+        0x00U, 0x00U, // 4-5: nearVal
+        32U,   // 6: objectHeight
+        2U,    // 7: cameraIndex
+        15U,   // 8: zoomSmoothing
+        8U,    // 9: rollSmoothing
+        10U,   // 10: maxTracks
+        0x80U, 0x01U, // 11-12: acquisitionSearchCol (384)
+        0x20U, 0x01U, // 13-14: acquisitionSearchRow (288)
+        0x12U, // 15: flags (IntelAssist | Unique)
+        5U     // 16: maxPauseTime
+    };
+    const auto packet = Sightline::SightlineFraming::buildPacket(Sightline::MessageId::CurrentTrackingParameters, payload);
+    transport->injectData(packet);
+
+    QCoreApplication::processEvents();
+
+    EXPECT_EQ(paramSpy.count(), 1);
+    const auto receivedParams = qDevice.lastTrackingParameters();
+    ASSERT_TRUE(receivedParams.has_value());
+    EXPECT_EQ(receivedParams->cameraIndex, 2U);
+    EXPECT_EQ(receivedParams->mode, 6U);
+    EXPECT_EQ(receivedParams->flags, 0x12U);
+    EXPECT_EQ(receivedParams->maxMisses, 30U);
+    EXPECT_EQ(receivedParams->zoomSmoothing, 15U);
+    EXPECT_EQ(receivedParams->rollSmoothing, 8U);
+    EXPECT_EQ(receivedParams->maxPauseTime, 5U);
+    EXPECT_EQ(receivedParams->acquisitionSearchCol, 384U);
+    EXPECT_EQ(receivedParams->acquisitionSearchRow, 288U);
+
+    qDevice.stop();
+}
+
 } // namespace
 
 int main(int argc, char* argv[])

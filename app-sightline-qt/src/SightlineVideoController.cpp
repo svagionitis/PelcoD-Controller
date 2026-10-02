@@ -168,6 +168,89 @@ QRect SightlineVideoController::enhancementRoi() const
     return m_enhancementConfigs[static_cast<std::size_t>(m_activeCamera)].roi;
 }
 
+bool SightlineVideoController::isPaused() const noexcept
+{
+    return m_paused.load();
+}
+
+quint64 SightlineVideoController::currentFramePts() const noexcept
+{
+    QMutexLocker locker(&m_bufferMutex);
+    return m_currentFramePts;
+}
+
+quint64 SightlineVideoController::currentPts() const noexcept
+{
+    return currentFramePts();
+}
+
+int SightlineVideoController::bufferedFrameCount() const noexcept
+{
+    QMutexLocker locker(&m_bufferMutex);
+    return static_cast<int>(m_frameRingBuffer.size());
+}
+
+int SightlineVideoController::scrubOffset() const noexcept
+{
+    QMutexLocker locker(&m_bufferMutex);
+    return m_scrubOffset;
+}
+
+void SightlineVideoController::pauseStream(bool pause)
+{
+    if (m_paused.load() != pause) {
+        m_paused.store(pause);
+        if (!pause) {
+            QMutexLocker locker(&m_bufferMutex);
+            m_scrubOffset = 0;
+            if (!m_frameRingBuffer.empty()) {
+                m_currentFramePts = m_frameRingBuffer.back().ptsUs;
+            }
+            emit scrubOffsetChanged();
+            emit currentFramePtsChanged();
+        }
+        emit pausedChanged();
+    }
+}
+
+void SightlineVideoController::togglePause()
+{
+    pauseStream(!m_paused.load());
+}
+
+void SightlineVideoController::setScrubOffset(int offset)
+{
+    QImage scrubImg {};
+    quint64 scrubPts { 0U };
+    {
+        QMutexLocker locker(&m_bufferMutex);
+        if (m_frameRingBuffer.empty()) {
+            return;
+        }
+
+        const int maxBack { -static_cast<int>(m_frameRingBuffer.size()) + 1 };
+        const int clamped { std::clamp(offset, maxBack, 0) };
+        m_scrubOffset = clamped;
+
+        const std::size_t idx { static_cast<std::size_t>(static_cast<int>(m_frameRingBuffer.size()) - 1 + clamped) };
+        if (idx < m_frameRingBuffer.size()) {
+            scrubImg = m_frameRingBuffer[idx].frame;
+            scrubPts = m_frameRingBuffer[idx].ptsUs;
+            m_currentFramePts = scrubPts;
+        }
+    }
+
+    if (!scrubImg.isNull()) {
+        {
+            QMutexLocker locker(&m_snapshotMutex);
+            m_lastFrameCopy = scrubImg;
+        }
+        emit frameDecoded(scrubImg);
+        emit currentFramePtsChanged();
+        emit scrubOffsetChanged();
+    }
+}
+
 void SightlineVideoController::setPipEnabled(bool enabled)
 {
     if (m_pipEnabled != enabled) {
@@ -351,6 +434,16 @@ void SightlineVideoController::stopStream()
     m_avgDecodeTimeMs = 0.0;
     m_bitrateKbps = 0.0;
     emit statsUpdated();
+
+    {
+        QMutexLocker locker(&m_bufferMutex);
+        m_frameRingBuffer.clear();
+        m_scrubOffset = 0;
+        m_currentFramePts = 0U;
+    }
+    emit bufferedFramesChanged();
+    emit currentFramePtsChanged();
+    emit scrubOffsetChanged();
 
     updateState(PlaybackState::Idle, tr("Stream Disconnected"));
 }
@@ -752,6 +845,30 @@ void SightlineVideoController::workerLoop()
             {
                 QMutexLocker locker(&m_snapshotMutex);
                 m_lastFrameCopy = frameCopy;
+            }
+
+            quint64 framePtsUs { 0U };
+            if (frameInfo.timestamp > 0.0) {
+                framePtsUs = static_cast<quint64>(frameInfo.timestamp * 1'000'000.0);
+            } else {
+                framePtsUs = static_cast<quint64>(
+                    std::chrono::duration_cast<std::chrono::microseconds>(
+                        std::chrono::system_clock::now().time_since_epoch()).count());
+            }
+
+            {
+                QMutexLocker locker(&m_bufferMutex);
+                if (m_frameRingBuffer.size() >= MaxRingBufferSize) {
+                    m_frameRingBuffer.pop_front();
+                }
+                m_frameRingBuffer.push_back(TimestampedFrame { frameCopy, framePtsUs });
+                if (!m_paused.load()) {
+                    m_currentFramePts = framePtsUs;
+                }
+            }
+            emit bufferedFramesChanged();
+            if (!m_paused.load()) {
+                emit currentFramePtsChanged();
             }
 
             emit frameDecoded(frameCopy);

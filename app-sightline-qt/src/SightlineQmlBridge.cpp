@@ -174,6 +174,8 @@ bool SightlineQmlBridge::connectUdp(const QString& host, int cmdPort, int replyP
 
     connect(m_device.get(), &QSightlineDevice::trackingPositionsReceived, this,
         &SightlineQmlBridge::handleTrackingPositions);
+    connect(m_device.get(), &QSightlineDevice::trackingParametersReceived, this,
+        &SightlineQmlBridge::handleTrackingParameters);
     connect(m_device.get(), &QSightlineDevice::extendedPositionsReceived, this,
         &SightlineQmlBridge::handleTrackingPositionsExtended);
     connect(m_device.get(), &QSightlineDevice::trackCoastingChanged, this,
@@ -370,6 +372,38 @@ bool SightlineQmlBridge::nudgeDisplayTrack(int cam, int deltaCol, int deltaRow)
     }
     return m_device->nudgeDisplayTrack(
         static_cast<quint8>(cam), static_cast<qint16>(deltaCol), static_cast<qint16>(deltaRow));
+}
+
+bool SightlineQmlBridge::setTrackingParameters(int cam, int mode, int flags,
+    int maxMisses, int zoomSmoothing, int rollSmoothing,
+    int maxPauseTime, int acqCol, int acqRow)
+{
+    if (cam < 0 || cam >= 4) {
+        return false;
+    }
+    Sightline::MsgSetTrackingParameters params {};
+    params.cameraIndex = static_cast<std::uint8_t>(cam);
+    params.mode = static_cast<std::uint8_t>(mode);
+    params.flags = static_cast<std::uint8_t>(flags);
+    params.maxMisses = static_cast<std::uint8_t>(maxMisses);
+    params.zoomSmoothing = static_cast<std::uint8_t>(zoomSmoothing);
+    params.rollSmoothing = static_cast<std::uint8_t>(rollSmoothing);
+    params.maxPauseTime = static_cast<std::uint8_t>(std::clamp(maxPauseTime, 0, 20));
+    params.acquisitionSearchCol = static_cast<std::uint16_t>(acqCol);
+    params.acquisitionSearchRow = static_cast<std::uint16_t>(acqRow);
+
+    m_cachedTrackingParams[static_cast<std::size_t>(cam)] = params;
+
+    if (!isConnected()) {
+        return false;
+    }
+    return m_device->setTrackingParameters(params);
+}
+
+bool SightlineQmlBridge::queryTrackingParameters(int cam)
+{
+    (void)cam;
+    return queryParameters(static_cast<int>(Sightline::MessageId::SetTrackingParameters));
 }
 
 // 2. Stabilization & Registration (EAN-Stabilization)
@@ -1546,6 +1580,18 @@ void SightlineQmlBridge::handleTrackingPositionsExtended(const Sightline::MsgTra
     if (m_trackListModel) {
         m_trackListModel->updateTracks(ext.tracks);
     }
+}
+
+void SightlineQmlBridge::handleTrackingParameters(const Sightline::MsgSetTrackingParameters& p)
+{
+    const int cam = static_cast<int>(p.cameraIndex);
+    if (cam >= 0 && cam < 4) {
+        m_cachedTrackingParams[static_cast<std::size_t>(cam)] = p;
+    }
+    emit trackingParametersReceived(cam, static_cast<int>(p.mode), static_cast<int>(p.flags),
+        static_cast<int>(p.maxMisses), static_cast<int>(p.zoomSmoothing),
+        static_cast<int>(p.rollSmoothing), static_cast<int>(p.maxPauseTime),
+        static_cast<int>(p.acquisitionSearchCol), static_cast<int>(p.acquisitionSearchRow));
 }
 
 void SightlineQmlBridge::handleUserWarning(const Sightline::MsgUserWarningMessage& warn)

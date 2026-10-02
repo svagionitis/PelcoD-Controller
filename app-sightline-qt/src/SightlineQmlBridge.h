@@ -227,6 +227,26 @@ public:
     /// @return True if dispatched.
     Q_INVOKABLE bool nudgeDisplayTrack(int cam, int deltaCol, int deltaRow);
 
+    /// @brief Configures algorithmic tracking parameters and modes (Message ID 0x0C).
+    /// @param cam Camera index (0-3).
+    /// @param mode Tracking mode (0=Vehicle, 1=Stationary, 2=Scene, 4=Static, 5=Drone, 6=Person).
+    /// @param flags Feature bitmask (AcqAssist, IntelAssist, Color, ZoomScaling, UniqueTracks, AutoMode).
+    /// @param maxMisses Maximum coasting misses before dropping track (default 45).
+    /// @param zoomSmoothing Zoom rate filter smoothing factor (default 5).
+    /// @param rollSmoothing Roll rate filter smoothing factor (default 5).
+    /// @param maxPauseTime Maximum pause duration in seconds (0..20).
+    /// @param acqCol Initial acquisition search column size in pixels (default 128).
+    /// @param acqRow Initial acquisition search row size in pixels (default 96).
+    /// @return True if dispatched.
+    Q_INVOKABLE bool setTrackingParameters(int cam, int mode, int flags,
+        int maxMisses = 45, int zoomSmoothing = 5, int rollSmoothing = 5,
+        int maxPauseTime = 0, int acqCol = 128, int acqRow = 96);
+
+    /// @brief Queries current tracking parameters from device.
+    /// @param cam Camera index.
+    /// @return True if dispatched.
+    Q_INVOKABLE bool queryTrackingParameters(int cam = 0);
+
     // 2. Stabilization & Registration (EAN-Stabilization)
     /// @brief Configure video stabilization parameters.
     /// @param cam Camera index.
@@ -782,10 +802,13 @@ signals:
     void klvMetricFiltersReceived(int cam, double minW, double maxW, double minH, double maxH, bool aboveHorizon,
         bool belowHorizon, double minLat, double maxLat, double minLon, double maxLon);
     void trackCoastingChanged(int cam, int trackId, bool isCoasting);
+    void trackingParametersReceived(int cam, int mode, int flags, int maxMisses, int zoomSmoothing,
+        int rollSmoothing, int maxPauseTime, int acqCol, int acqRow);
 
 private slots:
     void handleTrackingPositions(const Sightline::MsgTrackingPositions& pos);
     void handleTrackingPositionsExtended(const Sightline::MsgTrackingPositionsExtended& ext);
+    void handleTrackingParameters(const Sightline::MsgSetTrackingParameters& p);
     void handleUserWarning(const Sightline::MsgUserWarningMessage& warn);
     void handleVersion(const Sightline::MsgVersionNumber& ver);
     void handleSystemStatus(const Sightline::MsgSystemStatusMessage& stat);
@@ -815,6 +838,7 @@ private:
     QString m_softwareVersion { "Disconnected" };
 
     Sightline::MsgSetVideoEnhancementFull m_cachedEnhancement[4] {};
+    Sightline::MsgSetTrackingParameters m_cachedTrackingParams[4] {};
     int m_activePaletteIndex[4] { 0, 0, 0, 0 };
     QByteArray m_activeUserPalette[4] {};
     QRect m_cachedRoi[4] {};
