@@ -9,11 +9,14 @@ ScrollView {
     Layout.fillWidth: true
     Layout.fillHeight: true
     contentWidth: availableWidth
+    contentHeight: mainCol.implicitHeight + 32
     clip: true
+    ScrollBar.vertical.policy: ScrollBar.AsNeeded
 
     ColumnLayout {
-        width: parent.width - 32
-        anchors.horizontalCenter: parent.horizontalCenter
+        id: mainCol
+        x: 16
+        width: Math.max(0, root.availableWidth - 32)
         spacing: 16
 
         Item { Layout.preferredHeight: 2 }
@@ -265,6 +268,8 @@ ScrollView {
                 anchors.margins: 8
                 model: bridge ? bridge.trackListModel : null
                 spacing: 4
+                clip: true
+                ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
 
                 header: Rectangle {
                     width: trackListView.width

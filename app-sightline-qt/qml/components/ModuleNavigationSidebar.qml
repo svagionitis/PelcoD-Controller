@@ -14,14 +14,17 @@ Rectangle {
     signal moduleSelected(int index)
 
     ScrollView {
+        id: navScrollView
         anchors.fill: parent
         contentWidth: availableWidth
+        contentHeight: navCol.implicitHeight + 16
         clip: true
         ScrollBar.vertical.policy: ScrollBar.AsNeeded
 
         ColumnLayout {
-            width: parent.width - 16
-            anchors.horizontalCenter: parent.horizontalCenter
+            id: navCol
+            x: 8
+            width: Math.max(0, navScrollView.availableWidth - 16)
             spacing: 3
 
             // Section 1: Target Tracking & AI

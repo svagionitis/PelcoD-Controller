@@ -4,12 +4,22 @@ import QtQuick.Layouts 1.15
 import ".."
 import "../components"
 
-ColumnLayout {
+ScrollView {
     id: root
     Layout.fillWidth: true
     Layout.fillHeight: true
-    Layout.margins: 16
-    spacing: 14
+    contentWidth: availableWidth
+    contentHeight: mainCol.implicitHeight + 32
+    clip: true
+    ScrollBar.vertical.policy: ScrollBar.AsNeeded
+
+    ColumnLayout {
+        id: mainCol
+        x: 16
+        width: Math.max(0, root.availableWidth - 32)
+        spacing: 14
+
+        Item { Layout.preferredHeight: 2 }
 
     // Section Title
     RowLayout {
@@ -171,7 +181,7 @@ ColumnLayout {
     // Traffic Log Table
     Rectangle {
         Layout.fillWidth: true
-        Layout.fillHeight: true
+        Layout.preferredHeight: 480
         color: SightlineTheme.surfaceCard
         radius: SightlineTheme.radiusMedium
         border.color: SightlineTheme.cardBorder
@@ -184,6 +194,8 @@ ColumnLayout {
             anchors.margins: 8
             model: bridge ? bridge.trafficLogModel : null
             spacing: 3
+            clip: true
+            ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
 
             onCountChanged: {
                 if (autoScrollCb.checked && count > 0) {
@@ -286,5 +298,8 @@ ColumnLayout {
                 }
             }
         }
+    }
+
+    Item { Layout.preferredHeight: 16 }
     }
 }
