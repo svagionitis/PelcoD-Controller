@@ -451,16 +451,19 @@ bool SightlineQmlBridge::setDenoiseParameters(int cam, int rate, bool motionMask
     cfg.cameraIndex = static_cast<std::uint8_t>(c);
     cfg.denoiseRate = static_cast<std::uint8_t>(std::clamp(rate, 0, 255));
 
+    constexpr auto aerialMask = static_cast<std::uint8_t>(Sightline::EnhancementFlags::AerialMotionMask);
+    constexpr auto staringMask = static_cast<std::uint8_t>(Sightline::EnhancementFlags::StaringMotionMask);
+
     if (motionMask) {
         if (motionMaskType == 1) {
-            cfg.flags |= (1U << 4); // Staring mask
-            cfg.flags &= ~(1U << 0);
+            cfg.flags |= staringMask; // Staring mask
+            cfg.flags = static_cast<std::uint8_t>(cfg.flags & ~aerialMask);
         } else {
-            cfg.flags |= (1U << 0); // Aerial mask
-            cfg.flags &= ~(1U << 4);
+            cfg.flags |= aerialMask; // Aerial mask
+            cfg.flags = static_cast<std::uint8_t>(cfg.flags & ~staringMask);
         }
     } else {
-        cfg.flags &= ~((1U << 0) | (1U << 4));
+        cfg.flags = static_cast<std::uint8_t>(cfg.flags & ~(aerialMask | staringMask));
     }
 
     emit denoiseChanged(c, rate, motionMask, motionMaskType);
@@ -477,15 +480,18 @@ bool SightlineQmlBridge::setHistogramControls(
     const int c = std::clamp(cam, 0, 3);
     auto& cfg = m_cachedEnhancement[c];
     cfg.cameraIndex = static_cast<std::uint8_t>(c);
+    constexpr auto featureMask = static_cast<std::uint8_t>(Sightline::EnhancementFlags::FeatureBasedHist);
+    constexpr auto sqrtMask = static_cast<std::uint8_t>(Sightline::EnhancementFlags::SquareRootHist);
+
     if (featureBased) {
-        cfg.flags |= (1U << 1);
+        cfg.flags |= featureMask;
     } else {
-        cfg.flags &= ~(1U << 1);
+        cfg.flags = static_cast<std::uint8_t>(cfg.flags & ~featureMask);
     }
     if (sqrtHist) {
-        cfg.flags |= (1U << 2);
+        cfg.flags |= sqrtMask;
     } else {
-        cfg.flags &= ~(1U << 2);
+        cfg.flags = static_cast<std::uint8_t>(cfg.flags & ~sqrtMask);
     }
     cfg.histAveRate = static_cast<std::uint8_t>(std::clamp(aveRate, 0, 255));
     cfg.histMaxPctBin = static_cast<std::uint8_t>(std::clamp(maxPct, 0, 255));
@@ -563,7 +569,7 @@ bool SightlineQmlBridge::setCustomConvolution(int cam, int kernelSize, const QVa
     cfg.cameraIndex = static_cast<std::uint8_t>(c);
     cfg.normalizeKernel = normalize;
     cfg.customKernel.clear();
-    cfg.customKernel.reserve(weights.size());
+    cfg.customKernel.reserve(static_cast<std::size_t>(weights.size()));
     for (const auto& w : weights) {
         cfg.customKernel.push_back(static_cast<std::int8_t>(w.toInt()));
     }
@@ -683,13 +689,14 @@ QStringList SightlineQmlBridge::getEnhancementPresets()
 }
 
 // Backwards compatibility wrappers
-bool SightlineQmlBridge::setEnhanceFull(int cam, int mode, int sharpen, int blend, int enhanceParam, int denoise, int flags,
-    int histAveRate, int histMaxPct, int roiRow, int roiCol, int roiHigh, int roiWide, int gaussian, int lapMinDiff,
-    int colorEnhance, int brightness, int contrast, int scintillation, int sharpenRadius)
+bool SightlineQmlBridge::setEnhanceFull(int cam, int mode, int sharpen, int blend, int enhanceParam, int denoise,
+    int flags, int histAveRate, int histMaxPct, int roiRow, int roiCol, int roiHigh, int roiWide, int gaussian,
+    int lapMinDiff, int colorEnhance, int brightness, int contrast, int scintillation, int sharpenRadius)
 {
     setEnhancementMode(cam, mode, enhanceParam, blend, sharpen, sharpenRadius);
     setDenoiseParameters(cam, denoise, (flags & 0x11) != 0, (flags & (1 << 4)) != 0 ? 1 : 0);
-    setHistogramControls(cam, (flags & (1 << 1)) != 0, (flags & (1 << 2)) != 0, histAveRate, histMaxPct, brightness, contrast);
+    setHistogramControls(
+        cam, (flags & (1 << 1)) != 0, (flags & (1 << 2)) != 0, histAveRate, histMaxPct, brightness, contrast);
     setGaussianAndLap(cam, gaussian, lapMinDiff, colorEnhance);
     setEnhancementRoi(cam, roiRow, roiCol, roiHigh, roiWide);
     setScintillationMode(cam, scintillation);
