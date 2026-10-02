@@ -2,6 +2,7 @@
 /// @brief Unit tests for SightlineDevice lifecycle, command dispatch, and async telemetry.
 
 #include "SightlineDevice.h"
+#include "SightlineFraming.h"
 #include "SightlineProtocolBuilder.h"
 #include "Transport/BaseTransport.h"
 
@@ -252,6 +253,163 @@ namespace {
         const auto rxPkt = SightlineProtocolBuilder::buildGetVersionNumber();
         transport->injectData(rxPkt);
         EXPECT_EQ(reentrantCalls.load(), 2);
+
+        device.stop();
+    }
+
+    /// @brief Verify overlay drawing convenience helpers and batch dispatch over transport.
+    TEST(TestSightlineDevice, OverlayDrawingDispatch)
+    {
+        auto transport = std::make_shared<MockTestTransport>();
+        SightlineDevice device(transport);
+        ASSERT_TRUE(device.start());
+
+        // 1. drawCross
+        EXPECT_TRUE(device.drawCross(0U, 1U, 0, 0, 25U, OverlayPaletteColor::White, 1U, false));
+        // 2. drawRectangle
+        EXPECT_TRUE(device.drawRectangle(0U, 2U, 10, 20, 100U, 50U, true));
+        // 3. drawText
+        EXPECT_TRUE(device.drawText(0U, 3U, 10, 80, "HUD ONLINE"));
+        // 4. drawKlvField
+        EXPECT_TRUE(device.drawKlvField(0U, 4U, 10, 120, KlvFieldTag::UtcTime, KlvFormatType::TimeYmdHms));
+        // 5. drawBlackout
+        EXPECT_TRUE(device.drawBlackout(0U, 5U, 640U, 480U));
+        // 6. destroyOverlay
+        EXPECT_TRUE(device.destroyOverlay(0U, 5U));
+        // 7. destroyAllOverlays
+        EXPECT_TRUE(device.destroyAllOverlays(0U));
+
+        const auto sent = transport->getSentPackets();
+        ASSERT_EQ(sent.size(), 7U);
+        for (const auto& pkt : sent) {
+            EXPECT_EQ(SightlineProtocolParser::identifyMessage(pkt), MessageId::DrawOverlay);
+        }
+
+        // Verify first packet is the exact EAN Section 9.1 cross packet
+        const std::vector<std::uint8_t> expectedCrossPkt { 0x51U, 0xACU, 0x13U, 0x9CU, 0x00U, 0x01U, 0x01U, 0x04U,
+            0x09U, 0x00U, 0x00U, 0x00U, 0x00U, 0x19U, 0x00U, 0x00U, 0x00U, 0x0EU, 0x00U, 0x01U, 0x00U, 0x97U };
+        EXPECT_EQ(sent[0U], expectedCrossPkt);
+
+        // 8. drawOverlayBatch
+        std::vector<MsgDrawOverlay> batch {};
+        batch.push_back(SightlineProtocolBuilder::makeCrossOverlay(0U, 10U, 100, 100, 15U));
+        batch.push_back(SightlineProtocolBuilder::makeDestroyOverlay(0U, 11U));
+        EXPECT_TRUE(device.drawOverlayBatch(batch));
+
+        const auto sentAfterBatch = transport->getSentPackets();
+        EXPECT_EQ(sentAfterBatch.size(), 8U);
+
+        device.stop();
+    }
+
+    /// @brief Verify overlay queries, fonts, and logo parameters dispatch over transport.
+    TEST(TestSightlineDevice, OverlayQueriesDispatch)
+    {
+        auto transport = std::make_shared<MockTestTransport>();
+        SightlineDevice device(transport);
+        ASSERT_TRUE(device.start());
+
+        EXPECT_TRUE(device.getOverlayMode(0U));
+        EXPECT_TRUE(device.getLogoParameters(0U));
+        EXPECT_TRUE(device.getOverlayObjectsIds(0U));
+        EXPECT_TRUE(device.getOverlayObjectParams(42U));
+        EXPECT_TRUE(device.setUserFont(1U, "/fonts/Roboto.ttf"));
+
+        MsgLogoParameters logoMsg {};
+        logoMsg.cameraIndex = 0U;
+        logoMsg.logoOpacity = 128U;
+        logoMsg.offsetX = 20U;
+        logoMsg.offsetY = 30U;
+        EXPECT_TRUE(device.setLogoParameters(logoMsg));
+
+        const auto sent = transport->getSentPackets();
+        ASSERT_EQ(sent.size(), 6U);
+        EXPECT_EQ(SightlineProtocolParser::identifyMessage(sent[0U]), MessageId::GetOverlayMode);
+        EXPECT_EQ(SightlineProtocolParser::identifyMessage(sent[1U]), MessageId::GetParameters);
+        EXPECT_EQ(SightlineProtocolParser::identifyMessage(sent[2U]), MessageId::GetParameters);
+        EXPECT_EQ(SightlineProtocolParser::identifyMessage(sent[3U]), MessageId::GetParameters);
+        EXPECT_EQ(SightlineProtocolParser::identifyMessage(sent[4U]), MessageId::UserFont);
+        EXPECT_EQ(SightlineProtocolParser::identifyMessage(sent[5U]), MessageId::LogoParameters);
+
+        device.stop();
+    }
+
+    /// @brief Verify asynchronous overlay telemetry dispatch and cache updates.
+    TEST(TestSightlineDevice, OverlayTelemetryCallback)
+    {
+        auto transport = std::make_shared<MockTestTransport>();
+        SightlineDevice device(transport);
+        ASSERT_TRUE(device.start());
+
+        std::atomic<bool> modeFired { false };
+        std::atomic<bool> idsFired { false };
+        std::atomic<bool> paramsFired { false };
+        std::atomic<bool> logoFired { false };
+
+        device.setOverlayCallback([&](const MsgSetOverlayMode& mode) {
+            EXPECT_EQ(mode.cameraIndex, 0U);
+            EXPECT_EQ(mode.primaryReticle, 0x11U);
+            modeFired.store(true);
+        });
+
+        device.setObjectsIdsCallback([&](const MsgCurrentOverlayObjectsIds& ids) {
+            EXPECT_TRUE(ids.isObjectActive(1U));
+            idsFired.store(true);
+        });
+
+        device.setObjectParamsCallback([&](const MsgCurrentOverlayObjectParameters& params) {
+            EXPECT_EQ(params.objectId, 7U);
+            paramsFired.store(true);
+        });
+
+        device.setLogoCallback([&](const MsgLogoParameters& logo) {
+            EXPECT_EQ(logo.logoOpacity, 200U);
+            logoFired.store(true);
+        });
+
+        // 1. Inject CurrentOverlayMode (0x42)
+        const auto modePkt = SightlineProtocolBuilder::buildRawPacket(MessageId::CurrentOverlayMode,
+            std::vector<std::uint8_t> { 0x11U, 0x01U, 0x10U, 0x10U, 0x08U, 0x07U, 0x00U });
+        transport->injectData(modePkt);
+        EXPECT_TRUE(modeFired.load());
+        EXPECT_TRUE(device.lastOverlayMode().has_value());
+
+        // 2. Inject CurrentOverlayObjectsIds (0x68)
+        std::vector<std::uint8_t> idsPayload(32U, 0U);
+        idsPayload[0U] = 0x02U; // Object 1 active
+        const auto idsPkt = SightlineProtocolBuilder::buildRawPacket(MessageId::CurrentOverlayObjectsIds, idsPayload);
+        transport->injectData(idsPkt);
+        EXPECT_TRUE(idsFired.load());
+        EXPECT_TRUE(device.lastOverlayObjectsIds().has_value());
+        EXPECT_TRUE(device.lastOverlayObjectsIds()->isObjectActive(1U));
+
+        // 3. Inject CurrentOverlayObjectParameters (0x6B)
+        std::vector<std::uint8_t> paramPayload {};
+        paramPayload.push_back(1U); // type Rectangle
+        paramPayload.push_back(7U); // objectId 7
+        paramPayload.push_back(4U); // flags
+        paramPayload.push_back(1U); // staticObject
+        SightlineFraming::appendU16Le(paramPayload, 10U);
+        SightlineFraming::appendU16Le(paramPayload, 20U);
+        SightlineFraming::appendU16Le(paramPayload, 100U);
+        SightlineFraming::appendU16Le(paramPayload, 50U);
+        paramPayload.push_back(0x0EU); // color
+        const auto paramPkt
+            = SightlineProtocolBuilder::buildRawPacket(MessageId::CurrentOverlayObjectParameters, paramPayload);
+        transport->injectData(paramPkt);
+        EXPECT_TRUE(paramsFired.load());
+
+        // 4. Inject LogoParameters (0x9B)
+        MsgLogoParameters logoMsg {};
+        logoMsg.cameraIndex = 0U;
+        logoMsg.logoOpacity = 200U;
+        logoMsg.offsetX = 50U;
+        logoMsg.offsetY = 60U;
+        const auto logoPkt = SightlineProtocolBuilder::buildSetLogoParameters(logoMsg);
+        transport->injectData(logoPkt);
+        EXPECT_TRUE(logoFired.load());
+        EXPECT_TRUE(device.lastLogoParameters().has_value());
+        EXPECT_EQ(device.lastLogoParameters()->logoOpacity, 200U);
 
         device.stop();
     }

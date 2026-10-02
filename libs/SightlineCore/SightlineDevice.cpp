@@ -384,14 +384,105 @@ bool SightlineDevice::setOverlayMode(const MsgSetOverlayMode& msg)
     return sendPacket(SightlineProtocolBuilder::buildSetOverlayMode(msg));
 }
 
-bool SightlineDevice::drawObject(const MsgDrawObject& msg)
+bool SightlineDevice::getOverlayMode(std::uint8_t cameraIndex)
 {
-    return sendPacket(SightlineProtocolBuilder::buildDrawObject(msg));
+    return sendPacket(SightlineProtocolBuilder::buildGetOverlayMode(cameraIndex));
 }
 
 bool SightlineDevice::drawOverlay(const MsgDrawOverlay& msg)
 {
     return sendPacket(SightlineProtocolBuilder::buildDrawOverlay(msg));
+}
+
+bool SightlineDevice::drawOverlayBatch(const std::vector<MsgDrawOverlay>& objects)
+{
+    return sendPacket(SightlineProtocolBuilder::buildDrawOverlayBatch(objects));
+}
+
+bool SightlineDevice::drawCross(std::uint8_t cameraIndex, std::uint8_t objectId, std::int16_t centerX,
+    std::int16_t centerY, std::uint16_t size, OverlayPaletteColor fgColor, std::uint16_t thickness,
+    bool originUpperLeft)
+{
+    return drawOverlay(SightlineProtocolBuilder::makeCrossOverlay(
+        cameraIndex, objectId, centerX, centerY, size, fgColor, thickness, originUpperLeft));
+}
+
+bool SightlineDevice::drawRectangle(std::uint8_t cameraIndex, std::uint8_t objectId, std::int16_t x, std::int16_t y,
+    std::uint16_t width, std::uint16_t height, bool filled, OverlayPaletteColor fgColor, OverlayPaletteColor bgColor,
+    std::uint8_t alpha, std::uint16_t thickness, bool originUpperLeft)
+{
+    return drawOverlay(SightlineProtocolBuilder::makeRectangleOverlay(
+        cameraIndex, objectId, x, y, width, height, filled, fgColor, bgColor, alpha, thickness, originUpperLeft));
+}
+
+bool SightlineDevice::drawText(std::uint8_t cameraIndex, std::uint8_t objectId, std::int16_t x, std::int16_t y,
+    const std::string& text, OverlayFontId fontId, OverlayPaletteColor fgColor, OverlayPaletteColor bgColor,
+    std::uint8_t hScale, std::uint8_t vScale, bool originUpperLeft)
+{
+    return drawOverlay(SightlineProtocolBuilder::makeTextOverlay(
+        cameraIndex, objectId, x, y, text, fontId, fgColor, bgColor, hScale, vScale, originUpperLeft));
+}
+
+bool SightlineDevice::drawKlvField(std::uint8_t cameraIndex, std::uint8_t objectId, std::int16_t x, std::int16_t y,
+    KlvFieldTag fieldTag, KlvFormatType formatType, const std::string& formatString, OverlayFontId fontId,
+    OverlayPaletteColor fgColor, bool originUpperLeft)
+{
+    return drawOverlay(SightlineProtocolBuilder::makeKlvFieldOverlay(
+        cameraIndex, objectId, x, y, fieldTag, formatType, formatString, fontId, fgColor, originUpperLeft));
+}
+
+bool SightlineDevice::drawBlackout(
+    std::uint8_t cameraIndex, std::uint8_t objectId, std::uint16_t width, std::uint16_t height)
+{
+    return drawOverlay(SightlineProtocolBuilder::makeBlackoutOverlay(cameraIndex, objectId, width, height));
+}
+
+bool SightlineDevice::destroyOverlay(std::uint8_t cameraIndex, std::uint8_t objectId)
+{
+    return drawOverlay(SightlineProtocolBuilder::makeDestroyOverlay(cameraIndex, objectId));
+}
+
+bool SightlineDevice::destroyAllOverlays(std::uint8_t cameraIndex)
+{
+    return drawOverlay(SightlineProtocolBuilder::makeDestroyOverlay(cameraIndex, 0U));
+}
+
+bool SightlineDevice::drawObject(const MsgDrawObject& msg)
+{
+    return sendPacket(SightlineProtocolBuilder::buildDrawObject(msg));
+}
+
+bool SightlineDevice::setLogoParameters(const MsgLogoParameters& msg)
+{
+    return sendPacket(SightlineProtocolBuilder::buildSetLogoParameters(msg));
+}
+
+bool SightlineDevice::getLogoParameters(std::uint8_t cameraIndex)
+{
+    return sendPacket(SightlineProtocolBuilder::buildGetLogoParameters(cameraIndex));
+}
+
+bool SightlineDevice::setUserFont(const MsgUserFont& msg)
+{
+    return sendPacket(SightlineProtocolBuilder::buildUserFont(msg));
+}
+
+bool SightlineDevice::setUserFont(std::uint8_t slotIndex, const std::string& fontFileName)
+{
+    MsgUserFont msg {};
+    msg.userFontIndex = slotIndex;
+    msg.fontFileName = fontFileName;
+    return setUserFont(msg);
+}
+
+bool SightlineDevice::getOverlayObjectsIds(std::uint8_t cameraIndex)
+{
+    return sendPacket(SightlineProtocolBuilder::buildGetOverlayObjectsIds(cameraIndex));
+}
+
+bool SightlineDevice::getOverlayObjectParams(std::uint8_t objectId)
+{
+    return sendPacket(SightlineProtocolBuilder::buildGetOverlayObjectParams(objectId));
 }
 
 // ==============================================================================
@@ -532,6 +623,48 @@ std::optional<MsgSetStabilizationBias> SightlineDevice::lastStabilizationBias() 
 {
     std::lock_guard<std::mutex> lock(m_cacheMutex);
     return m_lastStabilizationBias;
+}
+
+void SightlineDevice::setOverlayCallback(OverlayModeCallback cb)
+{
+    std::lock_guard<std::mutex> lock(m_callbackMutex);
+    m_overlayModeCallback = std::move(cb);
+}
+
+void SightlineDevice::setObjectsIdsCallback(OverlayObjectsIdsCallback cb)
+{
+    std::lock_guard<std::mutex> lock(m_callbackMutex);
+    m_objectsIdsCallback = std::move(cb);
+}
+
+void SightlineDevice::setObjectParamsCallback(OverlayObjectParamsCallback cb)
+{
+    std::lock_guard<std::mutex> lock(m_callbackMutex);
+    m_objectParamsCallback = std::move(cb);
+}
+
+void SightlineDevice::setLogoCallback(LogoParametersCallback cb)
+{
+    std::lock_guard<std::mutex> lock(m_callbackMutex);
+    m_logoCallback = std::move(cb);
+}
+
+std::optional<MsgSetOverlayMode> SightlineDevice::lastOverlayMode() const
+{
+    std::lock_guard<std::mutex> lock(m_cacheMutex);
+    return m_lastOverlayMode;
+}
+
+std::optional<MsgCurrentOverlayObjectsIds> SightlineDevice::lastOverlayObjectsIds() const
+{
+    std::lock_guard<std::mutex> lock(m_cacheMutex);
+    return m_lastOverlayObjectsIds;
+}
+
+std::optional<MsgLogoParameters> SightlineDevice::lastLogoParameters() const
+{
+    std::lock_guard<std::mutex> lock(m_cacheMutex);
+    return m_lastLogoParameters;
 }
 
 void SightlineDevice::handleIncomingBytes(const std::vector<std::uint8_t>& data)
@@ -693,6 +826,75 @@ void SightlineDevice::dispatchPacket(const std::vector<std::uint8_t>& packet)
             }
             if (cb) {
                 cb(bias);
+            }
+        }
+        break;
+    }
+    case MessageId::CurrentOverlayMode:
+    case MessageId::SetOverlayMode: {
+        MsgSetOverlayMode mode {};
+        if (SightlineProtocolParser::parseOverlayMode(packet, mode)) {
+            {
+                std::lock_guard<std::mutex> lock(m_cacheMutex);
+                m_lastOverlayMode = mode;
+            }
+            OverlayModeCallback cb {};
+            {
+                std::lock_guard<std::mutex> lock(m_callbackMutex);
+                cb = m_overlayModeCallback;
+            }
+            if (cb) {
+                cb(mode);
+            }
+        }
+        break;
+    }
+    case MessageId::CurrentOverlayObjectsIds: {
+        MsgCurrentOverlayObjectsIds ids {};
+        if (SightlineProtocolParser::parseOverlayObjectsIds(packet, ids)) {
+            {
+                std::lock_guard<std::mutex> lock(m_cacheMutex);
+                m_lastOverlayObjectsIds = ids;
+            }
+            OverlayObjectsIdsCallback cb {};
+            {
+                std::lock_guard<std::mutex> lock(m_callbackMutex);
+                cb = m_objectsIdsCallback;
+            }
+            if (cb) {
+                cb(ids);
+            }
+        }
+        break;
+    }
+    case MessageId::CurrentOverlayObjectParameters: {
+        MsgCurrentOverlayObjectParameters params {};
+        if (SightlineProtocolParser::parseOverlayObjectParams(packet, params)) {
+            OverlayObjectParamsCallback cb {};
+            {
+                std::lock_guard<std::mutex> lock(m_callbackMutex);
+                cb = m_objectParamsCallback;
+            }
+            if (cb) {
+                cb(params);
+            }
+        }
+        break;
+    }
+    case MessageId::LogoParameters: {
+        MsgLogoParameters logo {};
+        if (SightlineProtocolParser::parseLogoParameters(packet, logo)) {
+            {
+                std::lock_guard<std::mutex> lock(m_cacheMutex);
+                m_lastLogoParameters = logo;
+            }
+            LogoParametersCallback cb {};
+            {
+                std::lock_guard<std::mutex> lock(m_callbackMutex);
+                cb = m_logoCallback;
+            }
+            if (cb) {
+                cb(logo);
             }
         }
         break;

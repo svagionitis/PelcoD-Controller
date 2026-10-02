@@ -32,6 +32,10 @@ public:
     using RegistrationCallback = std::function<void(const MsgSetRegistrationParameters&)>;
     using StabilizationBiasCallback = std::function<void(const MsgSetStabilizationBias&)>;
     using RawTrafficCallback = std::function<void(bool isTx, const std::vector<std::uint8_t>& frame)>;
+    using OverlayModeCallback = std::function<void(const MsgSetOverlayMode&)>;
+    using OverlayObjectsIdsCallback = std::function<void(const MsgCurrentOverlayObjectsIds&)>;
+    using OverlayObjectParamsCallback = std::function<void(const MsgCurrentOverlayObjectParameters&)>;
+    using LogoParametersCallback = std::function<void(const MsgLogoParameters&)>;
 
     /// @brief Constructs a SightlineDevice wrapping the given transport channel.
     /// @param[in] transport Shared pointer to underlying communication transport.
@@ -310,20 +314,151 @@ public:
 
     // --- Overlays & Reticles ---
 
-    /// @brief Configures overlay graphics rendering mode.
+    /// @brief Configures overlay graphics rendering mode (Message ID 0x06).
     /// @param[in] msg Overlay mode parameters.
     /// @return True if command was successfully transmitted.
     [[nodiscard]] bool setOverlayMode(const MsgSetOverlayMode& msg);
 
-    /// @brief Draws a single dynamic graphics primitive on video overlay.
+    /// @brief Queries current overlay rendering mode (Message ID 0x07 / 0x28).
+    /// @param[in] cameraIndex Target camera index (0-based).
+    /// @return True if query was transmitted.
+    [[nodiscard]] bool getOverlayMode(std::uint8_t cameraIndex = 0U);
+
+    /// @brief Draws a single dynamic graphics primitive on video overlay (Message ID 0x9C).
+    /// @param[in] msg Draw overlay parameters.
+    /// @return True if command was successfully transmitted.
+    [[nodiscard]] bool drawOverlay(const MsgDrawOverlay& msg);
+
+    /// @brief Draws a batch of overlay graphic primitives in sequential packets (Message ID 0x9C).
+    /// @param[in] objects Vector of graphic overlay commands.
+    /// @return True if packets were successfully transmitted.
+    [[nodiscard]] bool drawOverlayBatch(const std::vector<MsgDrawOverlay>& objects);
+
+    /// @brief Draws a cross reticle overlay on screen (Message ID 0x9C).
+    /// @param[in] cameraIndex Target camera index (0-based).
+    /// @param[in] objectId Unique object identifier (1..199).
+    /// @param[in] centerX Center X coordinate in pixels.
+    /// @param[in] centerY Center Y coordinate in pixels.
+    /// @param[in] size Arm length in pixels.
+    /// @param[in] fgColor Foreground palette color.
+    /// @param[in] thickness Line thickness in pixels.
+    /// @param[in] originUpperLeft True if origin is upper-left, false if center.
+    /// @return True if command was transmitted.
+    [[nodiscard]] bool drawCross(std::uint8_t cameraIndex, std::uint8_t objectId, std::int16_t centerX,
+        std::int16_t centerY, std::uint16_t size, OverlayPaletteColor fgColor = OverlayPaletteColor::White,
+        std::uint16_t thickness = 1U, bool originUpperLeft = false);
+
+    /// @brief Draws an outlined or solid filled rectangle on screen (Message ID 0x9C).
+    /// @param[in] cameraIndex Target camera index (0-based).
+    /// @param[in] objectId Unique object identifier (1..199).
+    /// @param[in] x Top-left X coordinate in pixels.
+    /// @param[in] y Top-left Y coordinate in pixels.
+    /// @param[in] width Rectangle width in pixels.
+    /// @param[in] height Rectangle height in pixels.
+    /// @param[in] filled True for solid filled rectangle, false for outline.
+    /// @param[in] fgColor Foreground/border palette color.
+    /// @param[in] bgColor Background/fill palette color.
+    /// @param[in] alpha Opacity/transparency level (0 = opaque, 1..31 = translucent).
+    /// @param[in] thickness Border line thickness in pixels.
+    /// @param[in] originUpperLeft True if origin is upper-left.
+    /// @return True if command was transmitted.
+    [[nodiscard]] bool drawRectangle(std::uint8_t cameraIndex, std::uint8_t objectId, std::int16_t x, std::int16_t y,
+        std::uint16_t width, std::uint16_t height, bool filled = false,
+        OverlayPaletteColor fgColor = OverlayPaletteColor::White,
+        OverlayPaletteColor bgColor = OverlayPaletteColor::TransparentBgOrTurquoiseFg, std::uint8_t alpha = 0U,
+        std::uint16_t thickness = 1U, bool originUpperLeft = true);
+
+    /// @brief Draws a static or dynamic text string on screen (Message ID 0x9C).
+    /// @param[in] cameraIndex Target camera index (0-based).
+    /// @param[in] objectId Unique object identifier (1..199).
+    /// @param[in] x Starting X coordinate in pixels.
+    /// @param[in] y Starting Y coordinate in pixels.
+    /// @param[in] text String content (up to 64 bytes).
+    /// @param[in] fontId System or user font slot.
+    /// @param[in] fgColor Text font color.
+    /// @param[in] bgColor Text background/shadow color.
+    /// @param[in] hScale Horizontal scale (32 = 100%).
+    /// @param[in] vScale Vertical scale (32 = 100%).
+    /// @param[in] originUpperLeft True if origin is upper-left.
+    /// @return True if command was transmitted.
+    [[nodiscard]] bool drawText(std::uint8_t cameraIndex, std::uint8_t objectId, std::int16_t x, std::int16_t y,
+        const std::string& text, OverlayFontId fontId = OverlayFontId::Courier,
+        OverlayPaletteColor fgColor = OverlayPaletteColor::White,
+        OverlayPaletteColor bgColor = OverlayPaletteColor::TransparentBgOrTurquoiseFg, std::uint8_t hScale = 32U,
+        std::uint8_t vScale = 32U, bool originUpperLeft = true);
+
+    /// @brief Draws a dynamic KLV telemetry field badge (Message ID 0x9C).
+    /// @param[in] cameraIndex Target camera index (0-based).
+    /// @param[in] objectId Unique object identifier (1..199).
+    /// @param[in] x Starting X coordinate in pixels.
+    /// @param[in] y Starting Y coordinate in pixels.
+    /// @param[in] fieldTag Telemetry field tag to bind.
+    /// @param[in] formatType Formatting style for the telemetry value.
+    /// @param[in] formatString C-style template string (e.g. "%s" or "Slant: %f m").
+    /// @param[in] fontId Font slot.
+    /// @param[in] fgColor Text font color.
+    /// @param[in] originUpperLeft True if origin is upper-left.
+    /// @return True if command was transmitted.
+    [[nodiscard]] bool drawKlvField(std::uint8_t cameraIndex, std::uint8_t objectId, std::int16_t x, std::int16_t y,
+        KlvFieldTag fieldTag, KlvFormatType formatType, const std::string& formatString = "%s",
+        OverlayFontId fontId = OverlayFontId::Courier, OverlayPaletteColor fgColor = OverlayPaletteColor::White,
+        bool originUpperLeft = true);
+
+    /// @brief Draws an opaque blackout rectangle covering the video display (EAN Sec 10).
+    /// @param[in] cameraIndex Target camera index (0-based).
+    /// @param[in] objectId Unique object identifier (1..199).
+    /// @param[in] width Display width in pixels.
+    /// @param[in] height Display height in pixels.
+    /// @return True if command was transmitted.
+    [[nodiscard]] bool drawBlackout(
+        std::uint8_t cameraIndex, std::uint8_t objectId, std::uint16_t width = 640U, std::uint16_t height = 480U);
+
+    /// @brief Destroys a single graphic overlay object by ID (Message ID 0x9C).
+    /// @param[in] cameraIndex Target camera index (0-based).
+    /// @param[in] objectId Object identifier to delete (1..199).
+    /// @return True if command was transmitted.
+    [[nodiscard]] bool destroyOverlay(std::uint8_t cameraIndex, std::uint8_t objectId);
+
+    /// @brief Destroys all user graphic overlay objects on the target camera (Message ID 0x9C).
+    /// @param[in] cameraIndex Target camera index (0-based).
+    /// @return True if command was transmitted.
+    [[nodiscard]] bool destroyAllOverlays(std::uint8_t cameraIndex = 0U);
+
+    /// @brief Draws a single dynamic graphics primitive on video overlay (legacy Message ID 0x3B).
     /// @param[in] msg Draw object parameters.
     /// @return True if command was successfully transmitted.
     [[nodiscard]] bool drawObject(const MsgDrawObject& msg);
 
-    /// @brief Draws multi-primitive overlay batch.
-    /// @param[in] msg Draw overlay parameters.
-    /// @return True if command was successfully transmitted.
-    [[nodiscard]] bool drawOverlay(const MsgDrawOverlay& msg);
+    /// @brief Configures logo watermark display parameters (Message ID 0x9B).
+    /// @param[in] msg Logo parameters struct.
+    /// @return True if command was transmitted.
+    [[nodiscard]] bool setLogoParameters(const MsgLogoParameters& msg);
+
+    /// @brief Queries logo watermark display configuration (Message ID 0x28 query 0x9B).
+    /// @param[in] cameraIndex Target camera index (0-based).
+    /// @return True if query was transmitted.
+    [[nodiscard]] bool getLogoParameters(std::uint8_t cameraIndex = 0U);
+
+    /// @brief Assigns a TrueType font file path to a font slot (Message ID 0xAE).
+    /// @param[in] msg User font parameters struct.
+    /// @return True if command was transmitted.
+    [[nodiscard]] bool setUserFont(const MsgUserFont& msg);
+
+    /// @brief Assigns a TrueType font file path to a font slot (Message ID 0xAE).
+    /// @param[in] slotIndex Font slot index (0..15).
+    /// @param[in] fontFileName Path or filename of the TTF font on the device.
+    /// @return True if command was transmitted.
+    [[nodiscard]] bool setUserFont(std::uint8_t slotIndex, const std::string& fontFileName);
+
+    /// @brief Queries list of all active user overlay objects (Message ID 0x28 query 0x68).
+    /// @param[in] cameraIndex Target camera index (0-based).
+    /// @return True if query was transmitted.
+    [[nodiscard]] bool getOverlayObjectsIds(std::uint8_t cameraIndex = 0U);
+
+    /// @brief Queries parameters and geometry of a specific overlay object (Message ID 0x28 query 0x6B).
+    /// @param[in] objectId Target object identifier (1..199).
+    /// @return True if query was transmitted.
+    [[nodiscard]] bool getOverlayObjectParams(std::uint8_t objectId);
 
     // --- System & Maintenance ---
 
@@ -392,6 +527,18 @@ public:
     /// @brief Registers an observer callback for raw frame traffic inspection.
     void setRawTrafficCallback(RawTrafficCallback cb);
 
+    /// @brief Registers an observer callback for overlay mode telemetry.
+    void setOverlayCallback(OverlayModeCallback cb);
+
+    /// @brief Registers an observer callback for active overlay object IDs bitmasks.
+    void setObjectsIdsCallback(OverlayObjectsIdsCallback cb);
+
+    /// @brief Registers an observer callback for overlay object parameters queries.
+    void setObjectParamsCallback(OverlayObjectParamsCallback cb);
+
+    /// @brief Registers an observer callback for logo watermark parameters.
+    void setLogoCallback(LogoParametersCallback cb);
+
     /// @brief Retrieves the latest cached tracking positions snapshot.
     [[nodiscard]] std::optional<MsgTrackingPositions> lastTrackingPositions() const;
 
@@ -410,6 +557,15 @@ public:
     /// @brief Retrieves the latest cached stabilization bias snapshot.
     [[nodiscard]] std::optional<MsgSetStabilizationBias> lastStabilizationBias() const;
 
+    /// @brief Retrieves the latest cached overlay mode configuration.
+    [[nodiscard]] std::optional<MsgSetOverlayMode> lastOverlayMode() const;
+
+    /// @brief Retrieves the latest cached active overlay object IDs bitmask.
+    [[nodiscard]] std::optional<MsgCurrentOverlayObjectsIds> lastOverlayObjectsIds() const;
+
+    /// @brief Retrieves the latest cached logo watermark parameters.
+    [[nodiscard]] std::optional<MsgLogoParameters> lastLogoParameters() const;
+
 private:
     void handleIncomingBytes(const std::vector<std::uint8_t>& data);
     void dispatchPacket(const std::vector<std::uint8_t>& packet);
@@ -427,6 +583,10 @@ private:
     VersionCallback m_versionCallback;
     SystemStatusCallback m_systemStatusCallback;
     RawTrafficCallback m_rawTrafficCallback;
+    OverlayModeCallback m_overlayModeCallback;
+    OverlayObjectsIdsCallback m_objectsIdsCallback;
+    OverlayObjectParamsCallback m_objectParamsCallback;
+    LogoParametersCallback m_logoCallback;
 
     mutable std::mutex m_cacheMutex;
     std::optional<MsgTrackingPositions> m_lastPositions;
@@ -435,6 +595,9 @@ private:
     std::optional<MsgSetStabilizationParameters> m_lastStabilization;
     std::optional<MsgSetRegistrationParameters> m_lastRegistration;
     std::optional<MsgSetStabilizationBias> m_lastStabilizationBias;
+    std::optional<MsgSetOverlayMode> m_lastOverlayMode;
+    std::optional<MsgCurrentOverlayObjectsIds> m_lastOverlayObjectsIds;
+    std::optional<MsgLogoParameters> m_lastLogoParameters;
     StabilizationCallback m_stabilizationCallback;
     RegistrationCallback m_registrationCallback;
     StabilizationBiasCallback m_stabilizationBiasCallback;
