@@ -509,6 +509,54 @@ std::vector<std::uint8_t> SightlineProtocolBuilder::buildDrawOverlay(const MsgDr
     return SightlineOverlayBuilder::buildDrawOverlay(msg);
 }
 
+std::vector<std::uint8_t> SightlineProtocolBuilder::buildDrawOverlayBatch(const std::vector<MsgDrawOverlay>& objects)
+{
+    return SightlineOverlayBuilder::buildDrawOverlayBatch(objects);
+}
+
+MsgDrawOverlay SightlineProtocolBuilder::makeCrossOverlay(std::uint8_t cameraIndex, std::uint8_t objectId,
+    std::int16_t centerX, std::int16_t centerY, std::uint16_t size, OverlayPaletteColor fgColor,
+    std::uint16_t thickness, bool originUpperLeft)
+{
+    return SightlineOverlayBuilder::makeCrossOverlay(
+        cameraIndex, objectId, centerX, centerY, size, fgColor, thickness, originUpperLeft);
+}
+
+MsgDrawOverlay SightlineProtocolBuilder::makeRectangleOverlay(std::uint8_t cameraIndex, std::uint8_t objectId,
+    std::int16_t x, std::int16_t y, std::uint16_t width, std::uint16_t height, bool filled, OverlayPaletteColor fgColor,
+    OverlayPaletteColor bgColor, std::uint8_t alpha, std::uint16_t thickness, bool originUpperLeft)
+{
+    return SightlineOverlayBuilder::makeRectangleOverlay(
+        cameraIndex, objectId, x, y, width, height, filled, fgColor, bgColor, alpha, thickness, originUpperLeft);
+}
+
+MsgDrawOverlay SightlineProtocolBuilder::makeTextOverlay(std::uint8_t cameraIndex, std::uint8_t objectId,
+    std::int16_t x, std::int16_t y, const std::string& text, OverlayFontId fontId, OverlayPaletteColor fgColor,
+    OverlayPaletteColor bgColor, std::uint8_t hScale, std::uint8_t vScale, bool originUpperLeft)
+{
+    return SightlineOverlayBuilder::makeTextOverlay(
+        cameraIndex, objectId, x, y, text, fontId, fgColor, bgColor, hScale, vScale, originUpperLeft);
+}
+
+MsgDrawOverlay SightlineProtocolBuilder::makeKlvFieldOverlay(std::uint8_t cameraIndex, std::uint8_t objectId,
+    std::int16_t x, std::int16_t y, KlvFieldTag fieldTag, KlvFormatType formatType, const std::string& formatString,
+    OverlayFontId fontId, OverlayPaletteColor fgColor, bool originUpperLeft)
+{
+    return SightlineOverlayBuilder::makeKlvFieldOverlay(
+        cameraIndex, objectId, x, y, fieldTag, formatType, formatString, fontId, fgColor, originUpperLeft);
+}
+
+MsgDrawOverlay SightlineProtocolBuilder::makeBlackoutOverlay(
+    std::uint8_t cameraIndex, std::uint8_t objectId, std::uint16_t width, std::uint16_t height)
+{
+    return SightlineOverlayBuilder::makeBlackoutOverlay(cameraIndex, objectId, width, height);
+}
+
+MsgDrawOverlay SightlineProtocolBuilder::makeDestroyOverlay(std::uint8_t cameraIndex, std::uint8_t objectId)
+{
+    return SightlineOverlayBuilder::makeDestroyOverlay(cameraIndex, objectId);
+}
+
 // ==============================================================================
 // Parameter Query Getters
 // ==============================================================================

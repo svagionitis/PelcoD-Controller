@@ -301,6 +301,20 @@ struct MsgUserFont {
 struct MsgCurrentOverlayObjectsIds {
     std::array<std::uint64_t, 4> idMask {}; ///< 256 bits representing active object IDs
 
+    /// @brief Sets or clears the active flag for a specific object ID.
+    /// @param[in] objId Object ID (0..255).
+    /// @param[in] active True to mark active, false to clear.
+    constexpr void setObjectActive(std::uint8_t objId, bool active = true) noexcept
+    {
+        const std::size_t wordIdx { static_cast<std::size_t>(objId / 64U) };
+        const std::uint64_t bitIdx { 1ULL << (objId % 64U) };
+        if (active) {
+            idMask[wordIdx] |= bitIdx;
+        } else {
+            idMask[wordIdx] &= ~bitIdx;
+        }
+    }
+
     /// @brief Checks if a specific object ID is currently active.
     /// @param[in] objId Object ID to test (0..255).
     /// @return True if active.
@@ -309,6 +323,19 @@ struct MsgCurrentOverlayObjectsIds {
         const std::size_t wordIdx { static_cast<std::size_t>(objId / 64U) };
         const std::uint64_t bitIdx { 1ULL << (objId % 64U) };
         return (idMask[wordIdx] & bitIdx) != 0ULL;
+    }
+
+    /// @brief Returns a list of all active user object IDs (1..199).
+    /// @return Vector of active object IDs.
+    [[nodiscard]] std::vector<std::uint8_t> getActiveObjectIds() const
+    {
+        std::vector<std::uint8_t> active {};
+        for (std::size_t i { 1U }; i < 200U; ++i) {
+            if (isObjectActive(static_cast<std::uint8_t>(i))) {
+                active.push_back(static_cast<std::uint8_t>(i));
+            }
+        }
+        return active;
     }
 };
 

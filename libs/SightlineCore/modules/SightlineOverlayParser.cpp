@@ -3,6 +3,8 @@
 
 #include "SightlineOverlayParser.h"
 
+#include <algorithm>
+
 namespace Sightline {
 
 bool SightlineOverlayParser::parseOverlayMode(ByteView packet, MsgSetOverlayMode& out)
@@ -199,14 +201,18 @@ bool SightlineOverlayParser::parseOverlayObjectsIds(ByteView packet, MsgCurrentO
     }
 
     const auto payload { SightlineFraming::extractPayload(packet) };
-    if (payload.size() < 32U) {
+    if (payload.empty()) {
         return false;
     }
 
-    out.idMask[0U] = SightlineFraming::readU64Le(payload.data());
-    out.idMask[1U] = SightlineFraming::readU64Le(payload.data() + 8U);
-    out.idMask[2U] = SightlineFraming::readU64Le(payload.data() + 16U);
-    out.idMask[3U] = SightlineFraming::readU64Le(payload.data() + 24U);
+    std::uint8_t buf[32U] {};
+    const auto copyLen = std::min<std::size_t>(payload.size(), 32U);
+    std::copy_n(payload.data(), copyLen, buf);
+
+    out.idMask[0U] = SightlineFraming::readU64Le(buf);
+    out.idMask[1U] = SightlineFraming::readU64Le(buf + 8U);
+    out.idMask[2U] = SightlineFraming::readU64Le(buf + 16U);
+    out.idMask[3U] = SightlineFraming::readU64Le(buf + 24U);
     return true;
 }
 

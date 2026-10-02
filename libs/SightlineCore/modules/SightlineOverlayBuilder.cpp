@@ -76,6 +76,165 @@ std::vector<std::uint8_t> SightlineOverlayBuilder::buildDrawOverlay(const MsgDra
     return SightlineFraming::buildPacket(MessageId::DrawOverlay, payload);
 }
 
+std::vector<std::uint8_t> SightlineOverlayBuilder::buildDrawOverlayBatch(const std::vector<MsgDrawOverlay>& objects)
+{
+    std::vector<std::uint8_t> out {};
+    out.reserve(objects.size() * 32U);
+    for (const auto& obj : objects) {
+        const auto pkt { buildDrawOverlay(obj) };
+        out.insert(out.end(), pkt.begin(), pkt.end());
+    }
+    return out;
+}
+
+MsgDrawOverlay SightlineOverlayBuilder::makeCrossOverlay(std::uint8_t cameraIndex, std::uint8_t objectId,
+    std::int16_t centerX, std::int16_t centerY, std::uint16_t size, OverlayPaletteColor fgColor,
+    std::uint16_t thickness, bool originUpperLeft)
+{
+    MsgDrawOverlay msg {};
+    msg.cameraIndex = cameraIndex;
+    msg.objectId = objectId;
+    msg.action = OverlayActionFlags::Create;
+    msg.propertyFlags = OverlayPropertyFlags::CoordDisplayStatic;
+    if (originUpperLeft) {
+        msg.propertyFlags |= OverlayPropertyFlags::OriginUpperLeft;
+    }
+    msg.type = OverlayObjectType::Cross;
+    msg.a = static_cast<std::uint16_t>(centerX);
+    msg.b = static_cast<std::uint16_t>(centerY);
+    msg.c = size;
+    msg.d = 0U;
+    msg.backgroundColor = static_cast<std::uint8_t>(((static_cast<std::uint8_t>(fgColor) & 0x0FU) << 4U)
+        | (static_cast<std::uint8_t>(OverlayPaletteColor::TransparentBgOrTurquoiseFg) & 0x0FU));
+    msg.text.clear();
+    msg.e = thickness;
+    msg.hasE = true;
+    msg.hasF = false;
+    return msg;
+}
+
+MsgDrawOverlay SightlineOverlayBuilder::makeRectangleOverlay(std::uint8_t cameraIndex, std::uint8_t objectId,
+    std::int16_t x, std::int16_t y, std::uint16_t width, std::uint16_t height, bool filled, OverlayPaletteColor fgColor,
+    OverlayPaletteColor bgColor, std::uint8_t alpha, std::uint16_t thickness, bool originUpperLeft)
+{
+    MsgDrawOverlay msg {};
+    msg.cameraIndex = cameraIndex;
+    msg.objectId = objectId;
+    const auto alphaBits = static_cast<std::uint8_t>((alpha & 0x1FU) << 3U);
+    msg.action = static_cast<std::uint8_t>(OverlayActionFlags::Create | alphaBits);
+    msg.propertyFlags = OverlayPropertyFlags::CoordDisplayStatic;
+    if (originUpperLeft) {
+        msg.propertyFlags |= OverlayPropertyFlags::OriginUpperLeft;
+    }
+    msg.type = filled ? OverlayObjectType::FilledRectangle : OverlayObjectType::Rectangle;
+    msg.a = static_cast<std::uint16_t>(x);
+    msg.b = static_cast<std::uint16_t>(y);
+    msg.c = width;
+    msg.d = height;
+    msg.backgroundColor = static_cast<std::uint8_t>(
+        ((static_cast<std::uint8_t>(fgColor) & 0x0FU) << 4U) | (static_cast<std::uint8_t>(bgColor) & 0x0FU));
+    msg.text.clear();
+    msg.e = thickness;
+    msg.hasE = true;
+    msg.hasF = false;
+    return msg;
+}
+
+MsgDrawOverlay SightlineOverlayBuilder::makeTextOverlay(std::uint8_t cameraIndex, std::uint8_t objectId, std::int16_t x,
+    std::int16_t y, const std::string& text, OverlayFontId fontId, OverlayPaletteColor fgColor,
+    OverlayPaletteColor bgColor, std::uint8_t hScale, std::uint8_t vScale, bool originUpperLeft)
+{
+    MsgDrawOverlay msg {};
+    msg.cameraIndex = cameraIndex;
+    msg.objectId = objectId;
+    msg.action = OverlayActionFlags::Create;
+    msg.propertyFlags = OverlayPropertyFlags::CoordDisplayStatic;
+    if (originUpperLeft) {
+        msg.propertyFlags |= OverlayPropertyFlags::OriginUpperLeft;
+    }
+    msg.type = OverlayObjectType::TextExtended;
+    msg.a = static_cast<std::uint16_t>(x);
+    msg.b = static_cast<std::uint16_t>(y);
+    msg.c = static_cast<std::uint16_t>((static_cast<std::uint16_t>(vScale) << 8U) | static_cast<std::uint16_t>(hScale));
+    msg.d = static_cast<std::uint16_t>(static_cast<std::uint8_t>(fontId) & 0x1FU);
+    msg.backgroundColor = static_cast<std::uint8_t>(
+        ((static_cast<std::uint8_t>(fgColor) & 0x0FU) << 4U) | (static_cast<std::uint8_t>(bgColor) & 0x0FU));
+    msg.text = text;
+    msg.e = 0U;
+    msg.hasE = true;
+    msg.hasF = false;
+    return msg;
+}
+
+MsgDrawOverlay SightlineOverlayBuilder::makeKlvFieldOverlay(std::uint8_t cameraIndex, std::uint8_t objectId,
+    std::int16_t x, std::int16_t y, KlvFieldTag fieldTag, KlvFormatType formatType, const std::string& formatString,
+    OverlayFontId fontId, OverlayPaletteColor fgColor, bool originUpperLeft)
+{
+    MsgDrawOverlay msg {};
+    msg.cameraIndex = cameraIndex;
+    msg.objectId = objectId;
+    msg.action = OverlayActionFlags::Create;
+    msg.propertyFlags = OverlayPropertyFlags::CoordDisplayStatic;
+    if (originUpperLeft) {
+        msg.propertyFlags |= OverlayPropertyFlags::OriginUpperLeft;
+    }
+    msg.type = OverlayObjectType::KlvField;
+    msg.a = static_cast<std::uint16_t>(x);
+    msg.b = static_cast<std::uint16_t>(y);
+    msg.c = static_cast<std::uint16_t>((32U << 8U) | (static_cast<std::uint8_t>(fontId) & 0x1FU));
+    msg.d = static_cast<std::uint16_t>(
+        (static_cast<std::uint16_t>(formatType) << 8U) | (static_cast<std::uint8_t>(fieldTag) & 0xFFU));
+    msg.backgroundColor = static_cast<std::uint8_t>(((static_cast<std::uint8_t>(fgColor) & 0x0FU) << 4U)
+        | (static_cast<std::uint8_t>(OverlayPaletteColor::TransparentBgOrTurquoiseFg) & 0x0FU));
+    msg.text = formatString;
+    msg.e = 0U;
+    msg.hasE = false;
+    msg.hasF = false;
+    return msg;
+}
+
+MsgDrawOverlay SightlineOverlayBuilder::makeBlackoutOverlay(
+    std::uint8_t cameraIndex, std::uint8_t objectId, std::uint16_t width, std::uint16_t height)
+{
+    MsgDrawOverlay msg {};
+    msg.cameraIndex = cameraIndex;
+    msg.objectId = objectId;
+    msg.action = OverlayActionFlags::Create;
+    msg.propertyFlags = OverlayPropertyFlags::OriginUpperLeft | OverlayPropertyFlags::CoordDisplayStatic;
+    msg.type = OverlayObjectType::FilledRectangle;
+    msg.a = 1U;
+    msg.b = 1U;
+    msg.c = width;
+    msg.d = height;
+    msg.backgroundColor = static_cast<std::uint8_t>((static_cast<std::uint8_t>(OverlayPaletteColor::Black) << 4U)
+        | (static_cast<std::uint8_t>(OverlayPaletteColor::Black) & 0x0FU));
+    msg.text.clear();
+    msg.e = 1U;
+    msg.hasE = true;
+    msg.hasF = false;
+    return msg;
+}
+
+MsgDrawOverlay SightlineOverlayBuilder::makeDestroyOverlay(std::uint8_t cameraIndex, std::uint8_t objectId)
+{
+    MsgDrawOverlay msg {};
+    msg.cameraIndex = cameraIndex;
+    msg.objectId = objectId;
+    msg.action = OverlayActionFlags::Destroy;
+    msg.propertyFlags = OverlayPropertyFlags::CoordDisplayStatic;
+    msg.type = OverlayObjectType::Circle;
+    msg.a = 0U;
+    msg.b = 0U;
+    msg.c = 0U;
+    msg.d = 0U;
+    msg.backgroundColor = 0U;
+    msg.text.clear();
+    msg.e = 0U;
+    msg.hasE = false;
+    msg.hasF = false;
+    return msg;
+}
+
 std::vector<std::uint8_t> SightlineOverlayBuilder::buildDrawObject(const MsgDrawObject& msg)
 {
     std::vector<std::uint8_t> payload {};

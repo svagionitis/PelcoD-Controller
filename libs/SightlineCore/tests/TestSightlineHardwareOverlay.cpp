@@ -445,5 +445,214 @@ namespace {
         EXPECT_EQ(builtTextPkt, expectedTextPkt);
     }
 
+    /// @brief Verify factory helpers and EAN compliance.
+    TEST(TestSightlineHardwareOverlay, FactoryHelpers)
+    {
+        // 1. makeCrossOverlay matching EAN Section 9.1
+        const auto crossObj
+            = SightlineOverlayBuilder::makeCrossOverlay(0U, 1U, 0, 0, 25U, OverlayPaletteColor::White, 1U, false);
+        const auto crossPkt = SightlineOverlayBuilder::buildDrawOverlay(crossObj);
+
+        const std::vector<std::uint8_t> expectedCrossPkt { 0x51U, 0xACU, 0x13U, 0x9CU, 0x00U, 0x01U, 0x01U, 0x04U,
+            0x09U, 0x00U, 0x00U, 0x00U, 0x00U, 0x19U, 0x00U, 0x00U, 0x00U, 0x0EU, 0x00U, 0x01U, 0x00U, 0x97U };
+        EXPECT_EQ(crossPkt, expectedCrossPkt);
+
+        // Facade equivalence
+        const auto facadeCrossObj
+            = SightlineProtocolBuilder::makeCrossOverlay(0U, 1U, 0, 0, 25U, OverlayPaletteColor::White, 1U, false);
+        EXPECT_EQ(SightlineProtocolBuilder::buildDrawOverlay(facadeCrossObj), expectedCrossPkt);
+
+        // 2. makeBlackoutOverlay matching EAN Section 10 box (640x480)
+        const auto blackoutObj = SightlineOverlayBuilder::makeBlackoutOverlay(0U, 1U, 640U, 480U);
+        EXPECT_EQ(blackoutObj.cameraIndex, 0U);
+        EXPECT_EQ(blackoutObj.objectId, 1U);
+        EXPECT_EQ(blackoutObj.action, OverlayActionFlags::Create);
+        EXPECT_EQ(blackoutObj.type, OverlayObjectType::FilledRectangle);
+        EXPECT_EQ(blackoutObj.c, 640U);
+        EXPECT_EQ(blackoutObj.d, 480U);
+        EXPECT_EQ(blackoutObj.backgroundColor, 0x11U); // Black fg, black bg
+
+        // 3. makeDestroyOverlay
+        const auto destroyObj = SightlineOverlayBuilder::makeDestroyOverlay(0U, 5U);
+        EXPECT_EQ(destroyObj.objectId, 5U);
+        EXPECT_EQ(destroyObj.action, OverlayActionFlags::Destroy);
+        EXPECT_EQ(destroyObj.type, OverlayObjectType::Circle);
+
+        const auto destroyAllObj = SightlineOverlayBuilder::makeDestroyOverlay(0U, 0U);
+        EXPECT_EQ(destroyAllObj.objectId, 0U);
+        EXPECT_EQ(destroyAllObj.action, OverlayActionFlags::Destroy);
+
+        // 4. makeRectangleOverlay with alpha transparency
+        const auto rectObj = SightlineOverlayBuilder::makeRectangleOverlay(
+            0U, 2U, 100, 150, 200U, 100U, true, OverlayPaletteColor::Red, OverlayPaletteColor::DarkGray, 16U, 2U, true);
+        EXPECT_EQ(rectObj.type, OverlayObjectType::FilledRectangle);
+        EXPECT_EQ(rectObj.a, 100U);
+        EXPECT_EQ(rectObj.b, 150U);
+        EXPECT_EQ(rectObj.c, 200U);
+        EXPECT_EQ(rectObj.d, 100U);
+        EXPECT_EQ(rectObj.action, static_cast<std::uint8_t>(OverlayActionFlags::Create | (16U << 3U)));
+
+        // 5. makeTextOverlay
+        const auto textObj
+            = SightlineOverlayBuilder::makeTextOverlay(0U, 3U, 50, 60, "TARGET ACQUIRED", OverlayFontId::ArialBold,
+                OverlayPaletteColor::Green, OverlayPaletteColor::TransparentBgOrTurquoiseFg, 32U, 32U, true);
+        EXPECT_EQ(textObj.type, OverlayObjectType::TextExtended);
+        EXPECT_EQ(textObj.text, "TARGET ACQUIRED");
+        EXPECT_EQ(textObj.d, static_cast<std::uint16_t>(OverlayFontId::ArialBold));
+    }
+
+    /// @brief Verify KLV field overlay encoding and tag/format packing.
+    TEST(TestSightlineHardwareOverlay, KlvOverlayPacking)
+    {
+        // Tag 0 (UtcTime), Format 0 (TimeYmdHms)
+        const auto utcObj = SightlineOverlayBuilder::makeKlvFieldOverlay(
+            0U, 4U, 10, 20, KlvFieldTag::UtcTime, KlvFormatType::TimeYmdHms, "UTC: %s", OverlayFontId::Courier);
+        EXPECT_EQ(utcObj.type, OverlayObjectType::KlvField);
+        EXPECT_EQ(utcObj.d & 0xFFU, static_cast<std::uint16_t>(KlvFieldTag::UtcTime));
+        EXPECT_EQ((utcObj.d >> 8U) & 0xFFU, static_cast<std::uint16_t>(KlvFormatType::TimeYmdHms));
+        EXPECT_EQ(utcObj.text, "UTC: %s");
+
+        const auto utcPkt = SightlineOverlayBuilder::buildDrawOverlay(utcObj);
+        MsgDrawOverlay parsedUtc {};
+        ASSERT_TRUE(SightlineOverlayParser::parseDrawOverlay(utcPkt, parsedUtc));
+        EXPECT_EQ(parsedUtc.type, OverlayObjectType::KlvField);
+        EXPECT_EQ(parsedUtc.text, "UTC: %s");
+        EXPECT_EQ(parsedUtc.d & 0xFFU, static_cast<std::uint16_t>(KlvFieldTag::UtcTime));
+
+        // Tag 19 (SlantRange), Format 0 (DistanceMeters)
+        const auto slantObj = SightlineOverlayBuilder::makeKlvFieldOverlay(
+            0U, 5U, 10, 50, KlvFieldTag::SlantRange, KlvFormatType::DistanceMeters, "Slant: %f m");
+        EXPECT_EQ(slantObj.d & 0xFFU, 19U);
+        EXPECT_EQ((slantObj.d >> 8U) & 0xFFU, 0U);
+
+        const auto slantPkt = SightlineOverlayBuilder::buildDrawOverlay(slantObj);
+        MsgDrawOverlay parsedSlant {};
+        ASSERT_TRUE(SightlineOverlayParser::parseDrawOverlay(slantPkt, parsedSlant));
+        EXPECT_EQ(parsedSlant.text, "Slant: %f m");
+    }
+
+    /// @brief Verify batch draw overlay serializer.
+    TEST(TestSightlineHardwareOverlay, BatchOverlay)
+    {
+        std::vector<MsgDrawOverlay> batch {};
+        batch.push_back(SightlineOverlayBuilder::makeCrossOverlay(0U, 1U, 320, 240, 20U));
+        batch.push_back(SightlineOverlayBuilder::makeTextOverlay(0U, 2U, 100, 100, "TRACK 1"));
+        batch.push_back(SightlineOverlayBuilder::makeDestroyOverlay(0U, 3U));
+
+        const auto batchBytes = SightlineOverlayBuilder::buildDrawOverlayBatch(batch);
+        EXPECT_FALSE(batchBytes.empty());
+
+        // Also test facade
+        const auto facadeBytes = SightlineProtocolBuilder::buildDrawOverlayBatch(batch);
+        EXPECT_EQ(batchBytes, facadeBytes);
+
+        // Verify sequential framing: each packet starts with SLA preamble 0x51, 0xAC
+        std::size_t offset { 0U };
+        std::size_t packetCount { 0U };
+        while (offset + 4U <= batchBytes.size()) {
+            EXPECT_EQ(batchBytes[offset], 0x51U);
+            EXPECT_EQ(batchBytes[offset + 1U], 0xACU);
+            const auto headerLen = SightlineFraming::getHeaderLength(
+                ByteView { batchBytes.data() + offset, batchBytes.size() - offset });
+            ASSERT_GT(headerLen, 0U);
+            const auto len = batchBytes[offset + 2U];
+            const auto totalPktLen = static_cast<std::size_t>(headerLen + len);
+            ASSERT_LE(offset + totalPktLen, batchBytes.size());
+
+            ByteView pktView { batchBytes.data() + offset, totalPktLen };
+            EXPECT_EQ(SightlineFraming::identifyMessage(pktView), MessageId::DrawOverlay);
+
+            MsgDrawOverlay parsed {};
+            ASSERT_TRUE(SightlineOverlayParser::parseDrawOverlay(pktView, parsed));
+            EXPECT_EQ(parsed.objectId, batch[packetCount].objectId);
+
+            offset += totalPktLen;
+            ++packetCount;
+        }
+        EXPECT_EQ(packetCount, 3U);
+        EXPECT_EQ(offset, batchBytes.size());
+    }
+
+    /// @brief Verify active object IDs bitmask extraction.
+    TEST(TestSightlineHardwareOverlay, OverlayIdsBitmask)
+    {
+        MsgCurrentOverlayObjectsIds msg {};
+        EXPECT_TRUE(msg.getActiveObjectIds().empty());
+
+        msg.setObjectActive(1U, true);
+        msg.setObjectActive(5U, true);
+        msg.setObjectActive(42U, true);
+        msg.setObjectActive(199U, true);
+
+        const auto activeIds = msg.getActiveObjectIds();
+        ASSERT_EQ(activeIds.size(), 4U);
+        EXPECT_EQ(activeIds[0U], 1U);
+        EXPECT_EQ(activeIds[1U], 5U);
+        EXPECT_EQ(activeIds[2U], 42U);
+        EXPECT_EQ(activeIds[3U], 199U);
+
+        // Test wire parsing of bitmask
+        std::vector<std::uint8_t> payload(32U, 0U);
+        // Bit 1 = 1 << 1 = 0x02
+        payload[0U] = 0x02U;
+        // Bit 64 = first bit of word 1 -> payload[8U] = 0x01
+        payload[8U] = 0x01U;
+
+        const auto pkt = SightlineFraming::buildPacket(MessageId::CurrentOverlayObjectsIds, payload);
+        MsgCurrentOverlayObjectsIds parsed {};
+        ASSERT_TRUE(SightlineOverlayParser::parseOverlayObjectsIds(pkt, parsed));
+        EXPECT_TRUE(parsed.isObjectActive(1U));
+        EXPECT_TRUE(parsed.isObjectActive(64U));
+        EXPECT_FALSE(parsed.isObjectActive(2U));
+    }
+
+    /// @brief Verify truncated and boundary packet safety.
+    TEST(TestSightlineHardwareOverlay, TruncatedSafety)
+    {
+        // Truncated DrawOverlay (< 15 bytes payload)
+        std::vector<std::uint8_t> shortPayload(10U, 0U);
+        const auto shortDrawPkt = SightlineFraming::buildPacket(MessageId::DrawOverlay, shortPayload);
+        MsgDrawOverlay parsedDraw {};
+        EXPECT_FALSE(SightlineOverlayParser::parseDrawOverlay(shortDrawPkt, parsedDraw));
+
+        // Truncated OverlayMode:
+        // Less than 4 bytes must fail
+        std::vector<std::uint8_t> tooShortModePayload(3U, 0U);
+        const auto tooShortModePkt = SightlineFraming::buildPacket(MessageId::CurrentOverlayMode, tooShortModePayload);
+        MsgSetOverlayMode parsedMode {};
+        EXPECT_FALSE(SightlineOverlayParser::parseOverlayMode(tooShortModePkt, parsedMode));
+
+        // 4 bytes minimal payload must succeed
+        std::vector<std::uint8_t> minModePayload { 0x11U, 0x22U, 0x34U, 0x12U };
+        const auto minModePkt = SightlineFraming::buildPacket(MessageId::CurrentOverlayMode, minModePayload);
+        EXPECT_TRUE(SightlineOverlayParser::parseOverlayMode(minModePkt, parsedMode));
+        EXPECT_EQ(parsedMode.primaryReticle, 0x11U);
+        EXPECT_EQ(parsedMode.secondaryReticle, 0x22U);
+        EXPECT_EQ(parsedMode.graphics, 0x1234U);
+
+        // 10 bytes payload must succeed and extract intermediate fields
+        std::vector<std::uint8_t> midModePayload { 0x11U, 0x22U, 0x34U, 0x12U, 0x08U, 0x07U, 0x02U, 0x03U, 0x04U,
+            0x05U };
+        const auto midModePkt = SightlineFraming::buildPacket(MessageId::CurrentOverlayMode, midModePayload);
+        EXPECT_TRUE(SightlineOverlayParser::parseOverlayMode(midModePkt, parsedMode));
+        EXPECT_EQ(parsedMode.mtiColor, 0x08U);
+        EXPECT_EQ(parsedMode.cameraIndex, 0x02U);
+        EXPECT_EQ(parsedMode.cursorReticle, 0x05U);
+
+        // Empty CurrentOverlayObjectsIds must fail gracefully
+        const auto emptyIdsPkt = SightlineFraming::buildPacket(MessageId::CurrentOverlayObjectsIds, {});
+        MsgCurrentOverlayObjectsIds parsedIds {};
+        EXPECT_FALSE(SightlineOverlayParser::parseOverlayObjectsIds(emptyIdsPkt, parsedIds));
+
+        // Partial (e.g. 16 bytes) CurrentOverlayObjectsIds must succeed and populate first 128 bits
+        std::vector<std::uint8_t> partialIdsPayload(16U, 0xFFU);
+        const auto partialIdsPkt
+            = SightlineFraming::buildPacket(MessageId::CurrentOverlayObjectsIds, partialIdsPayload);
+        EXPECT_TRUE(SightlineOverlayParser::parseOverlayObjectsIds(partialIdsPkt, parsedIds));
+        EXPECT_TRUE(parsedIds.isObjectActive(1U));
+        EXPECT_TRUE(parsedIds.isObjectActive(127U));
+        EXPECT_FALSE(parsedIds.isObjectActive(128U)); // not in payload, stays 0
+    }
+
 } // namespace
 } // namespace Sightline
