@@ -295,7 +295,8 @@ void NmeaWebSocketServer::readClientFrames(WsClient& client, std::vector<std::st
                 break;
             }
             payloadLen
-                = (static_cast<std::uint8_t>(client.rxBuffer[2]) << 8U) | static_cast<std::uint8_t>(client.rxBuffer[3]);
+                = static_cast<std::uint64_t>((static_cast<std::uint32_t>(static_cast<std::uint8_t>(client.rxBuffer[2])) << 8U)
+                    | static_cast<std::uint32_t>(static_cast<std::uint8_t>(client.rxBuffer[3])));
             headerSize = 4U;
         } else if (payloadLen == 127U) {
             if (client.rxBuffer.size() < 10U) {
