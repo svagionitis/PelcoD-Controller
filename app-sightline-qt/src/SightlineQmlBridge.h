@@ -257,7 +257,7 @@ public:
     /// @return True if dispatched.
     Q_INVOKABLE bool setIgnoredEdgesOverlay(int cam, bool enable);
 
-    // 3. Detection & AI Classification
+    // 3. Detection & AI Classification (EAN-Detection-Modes)
     /// @brief Configure motion or blob detection parameters.
     /// @param cam Camera index.
     /// @param mode Detection mode.
@@ -266,6 +266,51 @@ public:
     /// @param maxSize Maximum target size.
     /// @return True if dispatched.
     Q_INVOKABLE bool setDetectionParams(int cam, int mode, int threshold, int minSize, int maxSize);
+
+    /// @brief Comprehensive detection mode & sensitivity configuration (EAN Sec 2).
+    Q_INVOKABLE bool setDetectionExtended(int cam, int detIdx, int mode, int sensMode, int threshold, int minSize,
+        int maxSize, int bkgdThresh = 0, int watchFrames = 0, int suspScore = 0);
+
+    /// @brief Configure advanced algorithmic tuning parameters (EAN Sec 2.1-2.4).
+    Q_INVOKABLE bool setDetectionAdvanced(int cam, int updateRate, int surroundSize, int blobDir, bool use8Bit,
+        int gasOriginal, int gasColor, int iouThresh, bool enableMtd, int downsample);
+
+    /// @brief Configure directional 2-point detection line ROI (EAN Sec 3.1).
+    Q_INVOKABLE bool setDetectionRoiLine(int cam, int detIdx, int roiIdx, int x1, int y1, int x2, int y2, int lineSide);
+
+    /// @brief Configure 16x16 masked grid detection ROI (EAN Sec 3.2).
+    Q_INVOKABLE bool setDetectionRoiGrid(int cam, int detIdx, int roiIdx, int blocksW, int blocksH,
+        const QString& mask0, const QString& mask1, const QString& mask2, const QString& mask3,
+        bool showRegions = false);
+
+    /// @brief Triggers automated high-res detection snapshot capture (Message ID 0xAB).
+    Q_INVOKABLE bool triggerDetectionSnapshot(int cam, int detIdx = 0);
+
+    /// @brief Configure deep learning classifier parameters and custom models (EAN Sec 4.1).
+    Q_INVOKABLE bool setClassifierSettings(int cam, int model, const QString& customModel, int maxPerFrame, int minDims,
+        int droneMode, int pad, int updateRate);
+
+    /// @brief Assign hardware compute resource execution (NPU vs CPU, Sync vs Async).
+    Q_INVOKABLE bool setComputeAssignment(bool useNpu, bool asyncInferencing);
+
+    /// @brief Configure KLV metric dimension & spatial horizon filters (EAN Sec 4.4.4).
+    Q_INVOKABLE bool setKlvMetricBounds(int cam, double minW, double maxW, double minH, double maxH, bool aboveHorizon,
+        bool belowHorizon, double minLat, double maxLat, double minLon, double maxLon);
+
+    /// @brief Query active detection parameters.
+    Q_INVOKABLE bool queryDetection(int cam, int detIdx = 0);
+
+    /// @brief Query advanced detection parameters.
+    Q_INVOKABLE bool queryAdvDetection(int cam);
+
+    /// @brief Query detection ROI.
+    Q_INVOKABLE bool queryDetectionROI(int cam, int roiIdx = 0);
+
+    /// @brief Query KLV metric filters.
+    Q_INVOKABLE bool queryKlvMetricFilters(int cam);
+
+    /// @brief Query classifier configuration.
+    Q_INVOKABLE bool queryClassifierConfig(int cam);
 
     /// @brief Configure custom AI deep learning detector parameters.
     /// @param cam Camera index.
@@ -681,6 +726,13 @@ signals:
     void overlayModeReceived(int cam, int primaryReticle, int secondaryReticle, int graphicsMask);
     void overlayObjectParamsReceived(int objId, int objType, int x, int y);
     void logoParametersReceived(int cam, int opacity, int offsetX, int offsetY);
+    void detectionParamsReceived(int cam, int detIdx, int mode, int sensMode, int threshold, int minSize, int maxSize);
+    void advDetectionReceived(int cam, int updateRate, int surroundSize, int blobDir, bool use8Bit, int gasOriginal,
+        int gasColor, int iouThresh, bool enableMtd, int downsample);
+    void detectionRoiReceived(
+        int cam, int detIdx, int roiIdx, int geomMode, int x1, int y1, int x2, int y2, int lineSide);
+    void klvMetricFiltersReceived(int cam, double minW, double maxW, double minH, double maxH, bool aboveHorizon,
+        bool belowHorizon, double minLat, double maxLat, double minLon, double maxLon);
 
 private slots:
     void handleTrackingPositions(const Sightline::MsgTrackingPositions& pos);
@@ -695,6 +747,10 @@ private slots:
     void handleOverlayObjectsIds(const Sightline::MsgCurrentOverlayObjectsIds& ids);
     void handleOverlayObjectParams(const Sightline::MsgCurrentOverlayObjectParameters& p);
     void handleLogoParameters(const Sightline::MsgLogoParameters& l);
+    void handleDetectionParams(const Sightline::MsgSetDetectionParameters& det);
+    void handleAdvDetection(const Sightline::MsgAdvancedDetectionParameters& adv);
+    void handleDetectionROI(const Sightline::MsgDetectionROI& roi);
+    void handleKlvMetricFilters(const Sightline::MsgKlvMetricFilters& filters);
     void onCoolerTimerTick();
 
 private:

@@ -106,6 +106,38 @@ std::optional<Sightline::MsgLogoParameters> QSightlineDevice::lastLogoParameters
     return std::nullopt;
 }
 
+std::optional<Sightline::MsgSetDetectionParameters> QSightlineDevice::lastDetectionParams() const
+{
+    if (m_device) {
+        return m_device->lastDetectionParams();
+    }
+    return std::nullopt;
+}
+
+std::optional<Sightline::MsgAdvancedDetectionParameters> QSightlineDevice::lastAdvDetection() const
+{
+    if (m_device) {
+        return m_device->lastAdvDetection();
+    }
+    return std::nullopt;
+}
+
+std::optional<Sightline::MsgDetectionROI> QSightlineDevice::lastDetectionROI() const
+{
+    if (m_device) {
+        return m_device->lastDetectionROI();
+    }
+    return std::nullopt;
+}
+
+std::optional<Sightline::MsgKlvMetricFilters> QSightlineDevice::lastKlvMetricFilters() const
+{
+    if (m_device) {
+        return m_device->lastKlvMetricFilters();
+    }
+    return std::nullopt;
+}
+
 Transport::TransportStatsSnapshot QSightlineDevice::getTransportStats() const
 {
     if (m_device) {
@@ -180,6 +212,26 @@ void QSightlineDevice::wireCallbacks()
             this, [this, logo]() { emit logoParametersReceived(logo); }, Qt::QueuedConnection);
     });
 
+    m_device->setDetectionCallback([this](const Sightline::MsgSetDetectionParameters& det) {
+        QMetaObject::invokeMethod(
+            this, [this, det]() { emit detectionReceived(det); }, Qt::QueuedConnection);
+    });
+
+    m_device->setAdvDetectionCallback([this](const Sightline::MsgAdvancedDetectionParameters& adv) {
+        QMetaObject::invokeMethod(
+            this, [this, adv]() { emit advDetectionReceived(adv); }, Qt::QueuedConnection);
+    });
+
+    m_device->setDetectionRoiCallback([this](const Sightline::MsgDetectionROI& roi) {
+        QMetaObject::invokeMethod(
+            this, [this, roi]() { emit detectionRoiReceived(roi); }, Qt::QueuedConnection);
+    });
+
+    m_device->setKlvMetricFiltersCb([this](const Sightline::MsgKlvMetricFilters& filters) {
+        QMetaObject::invokeMethod(
+            this, [this, filters]() { emit klvMetricFiltersReceived(filters); }, Qt::QueuedConnection);
+    });
+
     m_device->setRawTrafficCallback([this](bool isTx, const std::vector<std::uint8_t>& frame) {
         const QByteArray bytes(reinterpret_cast<const char*>(frame.data()), static_cast<int>(frame.size()));
         QMetaObject::invokeMethod(
@@ -244,6 +296,126 @@ bool QSightlineDevice::designatePrimary(quint8 cameraIndex, quint8 trackId)
         return false;
     }
     return m_device->designatePrimary(cameraIndex, trackId);
+}
+
+bool QSightlineDevice::setDetection(const Sightline::MsgSetDetectionParameters& msg)
+{
+    if (!m_device) {
+        return false;
+    }
+    return m_device->setDetection(msg);
+}
+
+bool QSightlineDevice::setAdvancedDetection(const Sightline::MsgAdvancedDetectionParameters& msg)
+{
+    if (!m_device) {
+        return false;
+    }
+    return m_device->setAdvancedDetection(msg);
+}
+
+bool QSightlineDevice::setDetectionROI(const Sightline::MsgDetectionROI& msg)
+{
+    if (!m_device) {
+        return false;
+    }
+    return m_device->setDetectionROI(msg);
+}
+
+bool QSightlineDevice::setVMTI(const Sightline::MsgSetVMTI& msg)
+{
+    if (!m_device) {
+        return false;
+    }
+    return m_device->setVMTI(msg);
+}
+
+bool QSightlineDevice::triggerDetectionSnapshot(quint8 cameraIndex, quint8 detectionIndex)
+{
+    if (!m_device) {
+        return false;
+    }
+    return m_device->triggerDetectionSnapshot(cameraIndex, detectionIndex);
+}
+
+bool QSightlineDevice::setKlvMetricFilters(const Sightline::MsgKlvMetricFilters& msg)
+{
+    if (!m_device) {
+        return false;
+    }
+    return m_device->setKlvMetricFilters(msg);
+}
+
+bool QSightlineDevice::setClassifierConfig(const Sightline::MsgClassifierConfig& msg)
+{
+    if (!m_device) {
+        return false;
+    }
+    return m_device->setClassifierConfig(msg);
+}
+
+bool QSightlineDevice::setComputeResources(bool useNpu, bool asyncInferencing)
+{
+    if (!m_device) {
+        return false;
+    }
+    return m_device->setComputeResources(useNpu, asyncInferencing);
+}
+
+bool QSightlineDevice::queryDetectionParams(quint8 cameraIndex, quint8 detIdx)
+{
+    if (!m_device) {
+        return false;
+    }
+    return m_device->queryDetectionParams(cameraIndex, detIdx);
+}
+
+bool QSightlineDevice::queryAdvDetection(quint8 cameraIndex)
+{
+    if (!m_device) {
+        return false;
+    }
+    return m_device->queryAdvDetection(cameraIndex);
+}
+
+bool QSightlineDevice::queryDetectionROI(quint8 cameraIndex, quint8 roiIndex)
+{
+    if (!m_device) {
+        return false;
+    }
+    return m_device->queryDetectionROI(cameraIndex, roiIndex);
+}
+
+bool QSightlineDevice::queryVMTI(quint8 cameraIndex)
+{
+    if (!m_device) {
+        return false;
+    }
+    return m_device->queryVMTI(cameraIndex);
+}
+
+bool QSightlineDevice::queryTrackingPixelStats(quint8 cameraIndex, quint8 trackId)
+{
+    if (!m_device) {
+        return false;
+    }
+    return m_device->queryTrackingPixelStats(cameraIndex, trackId);
+}
+
+bool QSightlineDevice::queryKlvMetricFilters(quint8 cameraIndex)
+{
+    if (!m_device) {
+        return false;
+    }
+    return m_device->queryKlvMetricFilters(cameraIndex);
+}
+
+bool QSightlineDevice::queryClassifierConfig(quint8 cameraIndex)
+{
+    if (!m_device) {
+        return false;
+    }
+    return m_device->queryClassifierConfig(cameraIndex);
 }
 
 bool QSightlineDevice::setStabilization(quint8 cameraIndex, quint8 mode, quint8 rate, quint8 maxShift)

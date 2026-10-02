@@ -340,11 +340,8 @@ TEST_F(SightlineVideoTest, BridgeEnhancementMethodsAndPresets)
     bridge.setLensDistortion(0, 0.05, -0.02, 0.0, 0.0);
 
     // 6. Presets
-    const QVariantMap presetSettings {
-        { QStringLiteral("mode"), 1 },
-        { QStringLiteral("strength"), 100 },
-        { QStringLiteral("blend"), 50 }
-    };
+    const QVariantMap presetSettings { { QStringLiteral("mode"), 1 }, { QStringLiteral("strength"), 100 },
+        { QStringLiteral("blend"), 50 } };
     EXPECT_TRUE(bridge.saveEnhancementPreset(QStringLiteral("TacticalNight"), presetSettings));
     const QStringList presets { bridge.getEnhancementPresets() };
     EXPECT_TRUE(presets.contains(QStringLiteral("TacticalNight")));
@@ -368,16 +365,16 @@ TEST_F(SightlineVideoTest, BridgeVideoControllerSignalWiring)
     SightlineQmlBridge bridge {};
     SightlineApp::SightlineVideoController controller {};
 
-    QObject::connect(&bridge, &SightlineQmlBridge::enhancementModeChanged,
-        &controller, &SightlineApp::SightlineVideoController::updateEnhancementMode);
-    QObject::connect(&bridge, &SightlineQmlBridge::histogramChanged,
-        &controller, &SightlineApp::SightlineVideoController::updateHistogram);
-    QObject::connect(&bridge, &SightlineQmlBridge::falseColorPaletteChanged,
-        &controller, &SightlineApp::SightlineVideoController::updateFalseColor);
-    QObject::connect(&bridge, &SightlineQmlBridge::userPaletteUploaded,
-        &controller, &SightlineApp::SightlineVideoController::updateUserPalette);
-    QObject::connect(&bridge, &SightlineQmlBridge::enhancementRoiUpdated,
-        &controller, &SightlineApp::SightlineVideoController::updateEnhancementRoi);
+    QObject::connect(&bridge, &SightlineQmlBridge::enhancementModeChanged, &controller,
+        &SightlineApp::SightlineVideoController::updateEnhancementMode);
+    QObject::connect(&bridge, &SightlineQmlBridge::histogramChanged, &controller,
+        &SightlineApp::SightlineVideoController::updateHistogram);
+    QObject::connect(&bridge, &SightlineQmlBridge::falseColorPaletteChanged, &controller,
+        &SightlineApp::SightlineVideoController::updateFalseColor);
+    QObject::connect(&bridge, &SightlineQmlBridge::userPaletteUploaded, &controller,
+        &SightlineApp::SightlineVideoController::updateUserPalette);
+    QObject::connect(&bridge, &SightlineQmlBridge::enhancementRoiUpdated, &controller,
+        &SightlineApp::SightlineVideoController::updateEnhancementRoi);
 
     // Test signal propagation from bridge to video controller
     bridge.setEnhancementMode(0, 2, 120, 60, 15, 3);
@@ -388,6 +385,25 @@ TEST_F(SightlineVideoTest, BridgeVideoControllerSignalWiring)
 
     bridge.setEnhancementRoi(0, 10, 20, 100, 200);
     EXPECT_EQ(controller.enhancementRoi(), QRect(20, 10, 200, 100));
+}
+
+TEST_F(SightlineVideoTest, BridgeDetectionAndClassifierMethods)
+{
+    SightlineQmlBridge bridge;
+    // Without active connection, safe false is returned without crashing
+    EXPECT_FALSE(bridge.setDetectionExtended(0, 0, 7, 0, 45, 10, 200, 15, 5, 30));
+    EXPECT_FALSE(bridge.setDetectionAdvanced(0, 30, 20, 2, false, 128, 0, 50, true, 0));
+    EXPECT_FALSE(bridge.setDetectionRoiLine(0, 0, 0, 50, 200, 590, 200, 1));
+    EXPECT_FALSE(bridge.setDetectionRoiGrid(0, 0, 0, 16, 16, "0", "0", "0", "0", true));
+    EXPECT_FALSE(bridge.triggerDetectionSnapshot(0, 0));
+    EXPECT_FALSE(bridge.setClassifierSettings(0, 1, "", 3, 10, 0, 4, 3));
+    EXPECT_FALSE(bridge.setComputeAssignment(true, true));
+    EXPECT_FALSE(bridge.setKlvMetricBounds(0, 0.5, 20.0, 0.5, 15.0, true, false, 30.0, 40.0, -120.0, -110.0));
+    EXPECT_FALSE(bridge.queryDetection(0, 0));
+    EXPECT_FALSE(bridge.queryAdvDetection(0));
+    EXPECT_FALSE(bridge.queryDetectionROI(0, 0));
+    EXPECT_FALSE(bridge.queryKlvMetricFilters(0));
+    EXPECT_FALSE(bridge.queryClassifierConfig(0));
 }
 
 } // namespace

@@ -65,6 +65,18 @@ public:
     /// @brief Retrieves the latest cached logo watermark parameters.
     [[nodiscard]] std::optional<Sightline::MsgLogoParameters> lastLogoParameters() const;
 
+    /// @brief Retrieves the latest cached detection parameters snapshot.
+    [[nodiscard]] std::optional<Sightline::MsgSetDetectionParameters> lastDetectionParams() const;
+
+    /// @brief Retrieves the latest cached advanced detection parameters.
+    [[nodiscard]] std::optional<Sightline::MsgAdvancedDetectionParameters> lastAdvDetection() const;
+
+    /// @brief Retrieves the latest cached detection ROI parameters.
+    [[nodiscard]] std::optional<Sightline::MsgDetectionROI> lastDetectionROI() const;
+
+    /// @brief Retrieves the latest cached KLV metric filters.
+    [[nodiscard]] std::optional<Sightline::MsgKlvMetricFilters> lastKlvMetricFilters() const;
+
     /// @brief Retrieves transport and kernel-level metrics.
     [[nodiscard]] Transport::TransportStatsSnapshot getTransportStats() const;
 
@@ -81,6 +93,10 @@ signals:
     void overlayObjectsIdsReceived(const Sightline::MsgCurrentOverlayObjectsIds& ids);
     void overlayObjectParamsReceived(const Sightline::MsgCurrentOverlayObjectParameters& params);
     void logoParametersReceived(const Sightline::MsgLogoParameters& logo);
+    void detectionReceived(const Sightline::MsgSetDetectionParameters& params);
+    void advDetectionReceived(const Sightline::MsgAdvancedDetectionParameters& params);
+    void detectionRoiReceived(const Sightline::MsgDetectionROI& roi);
+    void klvMetricFiltersReceived(const Sightline::MsgKlvMetricFilters& filters);
     void rawFrameReceived(bool isTx, const QByteArray& data);
     void connectionStateChanged(bool isConnected);
 
@@ -94,6 +110,23 @@ public slots:
     bool modifyTracking(quint8 cameraIndex, quint8 trackId, quint8 mode, quint8 flags = 0U);
     bool nudgeTracking(quint8 cameraIndex, qint16 deltaCol, qint16 deltaRow);
     bool designatePrimary(quint8 cameraIndex, quint8 trackId);
+
+    // Automated Target Detection & Analytics (EAN-Detection-Modes)
+    bool setDetection(const Sightline::MsgSetDetectionParameters& msg);
+    bool setAdvancedDetection(const Sightline::MsgAdvancedDetectionParameters& msg);
+    bool setDetectionROI(const Sightline::MsgDetectionROI& msg);
+    bool setVMTI(const Sightline::MsgSetVMTI& msg);
+    bool triggerDetectionSnapshot(quint8 cameraIndex, quint8 detectionIndex = 0U);
+    bool setKlvMetricFilters(const Sightline::MsgKlvMetricFilters& msg);
+    bool setClassifierConfig(const Sightline::MsgClassifierConfig& msg);
+    bool setComputeResources(bool useNpu, bool asyncInferencing);
+    bool queryDetectionParams(quint8 cameraIndex = 0U, quint8 detIdx = 0U);
+    bool queryAdvDetection(quint8 cameraIndex = 0U);
+    bool queryDetectionROI(quint8 cameraIndex = 0U, quint8 roiIndex = 0U);
+    bool queryVMTI(quint8 cameraIndex = 0U);
+    bool queryTrackingPixelStats(quint8 cameraIndex = 0U, quint8 trackId = 0U);
+    bool queryKlvMetricFilters(quint8 cameraIndex = 0U);
+    bool queryClassifierConfig(quint8 cameraIndex = 0U);
 
     bool setStabilization(quint8 cameraIndex, quint8 mode, quint8 rate = 50U, quint8 maxShift = 0U);
     bool setStabilization(const Sightline::MsgSetStabilizationParameters& msg);

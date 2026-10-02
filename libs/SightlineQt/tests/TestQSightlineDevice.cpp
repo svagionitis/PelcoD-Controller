@@ -212,6 +212,126 @@ TEST_F(QSightlineDeviceTest, OverlaySignalsAndCache)
     qDevice.stop();
 }
 
+/// @brief Verify detection, ROI, snapshot, and classifier slot dispatch in QSightlineDevice.
+TEST_F(QSightlineDeviceTest, DetectionCommandSlots)
+{
+    auto transport = std::make_shared<MockTransportForQt>();
+    QSightlineDevice qDevice(transport);
+    ASSERT_TRUE(qDevice.start());
+
+    Sightline::MsgSetDetectionParameters detMsg {};
+    detMsg.cameraIndex = 0U;
+    detMsg.mode = Sightline::DetectionMode::Maritime;
+    EXPECT_TRUE(qDevice.setDetection(detMsg));
+
+    Sightline::MsgAdvancedDetectionParameters advMsg {};
+    advMsg.cameraIndex = 0U;
+    EXPECT_TRUE(qDevice.setAdvancedDetection(advMsg));
+
+    Sightline::MsgDetectionROI roiMsg {};
+    roiMsg.cameraIndex = 0U;
+    EXPECT_TRUE(qDevice.setDetectionROI(roiMsg));
+
+    Sightline::MsgSetVMTI vmtiMsg {};
+    vmtiMsg.cameraIndex = 0U;
+    EXPECT_TRUE(qDevice.setVMTI(vmtiMsg));
+
+    EXPECT_TRUE(qDevice.triggerDetectionSnapshot(0U, 1U));
+
+    Sightline::MsgKlvMetricFilters metricMsg {};
+    metricMsg.cameraIndex = 0U;
+    EXPECT_TRUE(qDevice.setKlvMetricFilters(metricMsg));
+
+    Sightline::MsgClassifierConfig classMsg {};
+    classMsg.cameraIndex = 0U;
+    EXPECT_TRUE(qDevice.setClassifierConfig(classMsg));
+
+    EXPECT_TRUE(qDevice.setComputeResources(true, true));
+
+    EXPECT_TRUE(qDevice.queryDetectionParams(0U, 0U));
+    EXPECT_TRUE(qDevice.queryAdvDetection(0U));
+    EXPECT_TRUE(qDevice.queryDetectionROI(0U, 0U));
+    EXPECT_TRUE(qDevice.queryVMTI(0U));
+    EXPECT_TRUE(qDevice.queryTrackingPixelStats(0U, 1U));
+    EXPECT_TRUE(qDevice.queryKlvMetricFilters(0U));
+    EXPECT_TRUE(qDevice.queryClassifierConfig(0U));
+
+    const auto sent = transport->getSentPackets();
+    EXPECT_GE(sent.size(), 16U);
+
+    qDevice.stop();
+}
+
+/// @brief Verify detection telemetry signals and cache updates in QSightlineDevice.
+TEST_F(QSightlineDeviceTest, DetectionSignalsAndCache)
+{
+    auto transport = std::make_shared<MockTransportForQt>();
+    QSightlineDevice qDevice(transport);
+    ASSERT_TRUE(qDevice.start());
+
+    QSignalSpy detSpy(&qDevice, &QSightlineDevice::detectionReceived);
+    QSignalSpy advSpy(&qDevice, &QSightlineDevice::advDetectionReceived);
+    QSignalSpy roiSpy(&qDevice, &QSightlineDevice::detectionRoiReceived);
+    QSignalSpy metricSpy(&qDevice, &QSightlineDevice::klvMetricFiltersReceived);
+
+    // 1. Inject CurrentDetectionParameters (0x54)
+    Sightline::MsgSetDetectionParameters detMsg {};
+    detMsg.cameraIndex = 0U;
+    detMsg.mode = Sightline::DetectionMode::Maritime;
+    const auto detPkt = Sightline::SightlineProtocolBuilder::buildSetDetectionParams(detMsg);
+    const auto detPayload = Sightline::SightlineFraming::extractPayload(detPkt);
+    const auto curDetPkt
+        = Sightline::SightlineFraming::buildPacket(Sightline::MessageId::CurrentDetectionParameters, detPayload);
+    transport->injectData(curDetPkt);
+
+    // 2. Inject CurrentAdvancedDetectionParameters (0x77)
+    Sightline::MsgAdvancedDetectionParameters advMsg {};
+    advMsg.cameraIndex = 0U;
+    advMsg.updateRate = 42U;
+    const auto advPkt = Sightline::SightlineProtocolBuilder::buildSetAdvDetectionParams(advMsg);
+    const auto advPayload = Sightline::SightlineFraming::extractPayload(advPkt);
+    const auto curAdvPkt = Sightline::SightlineFraming::buildPacket(
+        Sightline::MessageId::CurrentAdvancedDetectionParameters, advPayload);
+    transport->injectData(curAdvPkt);
+
+    // 3. Inject CurrentDetectionRegionOfInterestParameters (0x7D)
+    Sightline::MsgDetectionROI roiMsg {};
+    roiMsg.cameraIndex = 0U;
+    roiMsg.lineLeftX = 140U;
+    const auto roiPkt = Sightline::SightlineProtocolBuilder::buildSetDetectionROI(roiMsg);
+    const auto roiPayload = Sightline::SightlineFraming::extractPayload(roiPkt);
+    const auto curRoiPkt = Sightline::SightlineFraming::buildPacket(
+        Sightline::MessageId::CurrentDetectionRegionOfInterestParameters, roiPayload);
+    transport->injectData(curRoiPkt);
+
+    // 4. Inject KlvClassFilters (0xC1)
+    Sightline::MsgKlvMetricFilters metricMsg {};
+    metricMsg.cameraIndex = 1U;
+    metricMsg.minTargetWidthM = 2.4F;
+    const auto klvPkt = Sightline::SightlineProtocolBuilder::buildSetKlvMetricFilters(metricMsg);
+    transport->injectData(klvPkt);
+
+    QCoreApplication::processEvents();
+
+    EXPECT_EQ(detSpy.count(), 1);
+    EXPECT_TRUE(qDevice.lastDetectionParams().has_value());
+    EXPECT_EQ(qDevice.lastDetectionParams()->mode, Sightline::DetectionMode::Maritime);
+
+    EXPECT_EQ(advSpy.count(), 1);
+    EXPECT_TRUE(qDevice.lastAdvDetection().has_value());
+    EXPECT_EQ(qDevice.lastAdvDetection()->updateRate, 42U);
+
+    EXPECT_EQ(roiSpy.count(), 1);
+    EXPECT_TRUE(qDevice.lastDetectionROI().has_value());
+    EXPECT_EQ(qDevice.lastDetectionROI()->lineLeftX, 140U);
+
+    EXPECT_EQ(metricSpy.count(), 1);
+    EXPECT_TRUE(qDevice.lastKlvMetricFilters().has_value());
+    EXPECT_NEAR(qDevice.lastKlvMetricFilters()->minTargetWidthM, 2.4F, 1e-4F);
+
+    qDevice.stop();
+}
+
 } // namespace
 
 int main(int argc, char* argv[])

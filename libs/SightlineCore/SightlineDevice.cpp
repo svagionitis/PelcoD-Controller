@@ -245,6 +245,16 @@ bool SightlineDevice::queryTrackingPixelStats(std::uint8_t cameraIndex, std::uin
     return sendPacket(SightlineProtocolBuilder::buildGetTrackingPixelStats(cameraIndex, trackId));
 }
 
+bool SightlineDevice::queryKlvMetricFilters(std::uint8_t cameraIndex)
+{
+    return sendPacket(SightlineProtocolBuilder::buildGetKlvMetricFilters(cameraIndex));
+}
+
+bool SightlineDevice::queryClassifierConfig(std::uint8_t cameraIndex)
+{
+    return sendPacket(SightlineProtocolBuilder::buildGetClassifierConfig(cameraIndex));
+}
+
 bool SightlineDevice::customAIDetect(const MsgCustomAIDetect& msg)
 {
     return sendPacket(SightlineProtocolBuilder::buildCustomAIDetect(msg));

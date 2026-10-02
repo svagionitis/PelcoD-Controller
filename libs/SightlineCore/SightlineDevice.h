@@ -203,6 +203,16 @@ public:
     /// @return True if command was successfully transmitted.
     [[nodiscard]] bool queryTrackingPixelStats(std::uint8_t cameraIndex = 0U, std::uint8_t trackId = 0U);
 
+    /// @brief Queries KLV metric dimension filters (Message ID 0x28 query 0xC1).
+    /// @param[in] cameraIndex Target camera index.
+    /// @return True if command was successfully transmitted.
+    [[nodiscard]] bool queryKlvMetricFilters(std::uint8_t cameraIndex = 0U);
+
+    /// @brief Queries classifier configuration (Message ID 0x28 query 0xA9).
+    /// @param[in] cameraIndex Target camera index.
+    /// @return True if command was successfully transmitted.
+    [[nodiscard]] bool queryClassifierConfig(std::uint8_t cameraIndex = 0U);
+
     /// @brief Executes custom deep learning AI model detection.
     /// @param[in] msg AI detect parameters.
     /// @return True if command was successfully transmitted.

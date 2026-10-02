@@ -190,6 +190,11 @@ bool SightlineQmlBridge::connectUdp(const QString& host, int cmdPort, int replyP
     connect(m_device.get(), &QSightlineDevice::overlayObjectParamsReceived, this,
         &SightlineQmlBridge::handleOverlayObjectParams);
     connect(m_device.get(), &QSightlineDevice::logoParametersReceived, this, &SightlineQmlBridge::handleLogoParameters);
+    connect(m_device.get(), &QSightlineDevice::detectionReceived, this, &SightlineQmlBridge::handleDetectionParams);
+    connect(m_device.get(), &QSightlineDevice::advDetectionReceived, this, &SightlineQmlBridge::handleAdvDetection);
+    connect(m_device.get(), &QSightlineDevice::detectionRoiReceived, this, &SightlineQmlBridge::handleDetectionROI);
+    connect(
+        m_device.get(), &QSightlineDevice::klvMetricFiltersReceived, this, &SightlineQmlBridge::handleKlvMetricFilters);
 
     const bool started = m_device->start();
     emit connectionChanged();
@@ -423,6 +428,185 @@ bool SightlineQmlBridge::setDetectionParams(int cam, int mode, int threshold, in
     msg.minTargetSize = static_cast<std::uint16_t>(minSize);
     msg.maxTargetSize = static_cast<std::uint16_t>(maxSize);
     return m_device->device()->setDetection(msg);
+}
+
+bool SightlineQmlBridge::setDetectionExtended(int cam, int detIdx, int mode, int sensMode, int threshold, int minSize,
+    int maxSize, int bkgdThresh, int watchFrames, int suspScore)
+{
+    if (!isConnected()) {
+        return false;
+    }
+    Sightline::MsgSetDetectionParameters msg {};
+    msg.cameraIndex = static_cast<std::uint8_t>(cam);
+    msg.detectionIndex = static_cast<std::uint8_t>(detIdx);
+    msg.mode = static_cast<Sightline::DetectionMode>(mode);
+    msg.sensitivityMode = static_cast<Sightline::SensitivityMode>(sensMode);
+    msg.threshold = static_cast<std::uint8_t>(threshold);
+    msg.minTargetSize = static_cast<std::uint16_t>(minSize);
+    msg.maxTargetSize = static_cast<std::uint16_t>(maxSize);
+    msg.bkgdThreshold = static_cast<std::uint8_t>(bkgdThresh);
+    msg.watchFrames = static_cast<std::uint8_t>(watchFrames);
+    msg.suspiciousScore = static_cast<std::uint8_t>(suspScore);
+    return m_device->setDetection(msg);
+}
+
+bool SightlineQmlBridge::setDetectionAdvanced(int cam, int updateRate, int surroundSize, int blobDir, bool use8Bit,
+    int gasOriginal, int gasColor, int iouThresh, bool enableMtd, int downsample)
+{
+    if (!isConnected()) {
+        return false;
+    }
+    Sightline::MsgAdvancedDetectionParameters msg {};
+    msg.cameraIndex = static_cast<std::uint8_t>(cam);
+    msg.updateRate = static_cast<std::uint8_t>(updateRate);
+    msg.surroundSize = static_cast<std::uint8_t>(surroundSize);
+    msg.blobDirection = static_cast<Sightline::BlobDirection>(blobDir);
+    msg.use8BitImages = use8Bit;
+    msg.gasAddOriginal = static_cast<std::uint8_t>(gasOriginal);
+    msg.gasColor = static_cast<std::uint8_t>(gasColor);
+    msg.aiIouThreshold = static_cast<std::uint8_t>(iouThresh);
+    msg.enableMtd = enableMtd;
+    msg.downsample = static_cast<Sightline::DetectionDownsample>(downsample);
+    return m_device->setAdvancedDetection(msg);
+}
+
+bool SightlineQmlBridge::setDetectionRoiLine(
+    int cam, int detIdx, int roiIdx, int x1, int y1, int x2, int y2, int lineSide)
+{
+    if (!isConnected()) {
+        return false;
+    }
+    Sightline::MsgDetectionROI msg {};
+    msg.cameraIndex = static_cast<std::uint8_t>(cam);
+    msg.detectionIndex = static_cast<std::uint8_t>(detIdx);
+    msg.roiIndex = static_cast<std::uint8_t>(roiIdx);
+    msg.geometryMode = Sightline::RoiGeometryMode::DetectionLine;
+    msg.lineLeftX = static_cast<std::uint16_t>(x1);
+    msg.lineLeftY = static_cast<std::uint16_t>(y1);
+    msg.lineRightX = static_cast<std::uint16_t>(x2);
+    msg.lineRightY = static_cast<std::uint16_t>(y2);
+    msg.lineSide = static_cast<Sightline::LineReportSide>(lineSide);
+    return m_device->setDetectionROI(msg);
+}
+
+bool SightlineQmlBridge::setDetectionRoiGrid(int cam, int detIdx, int roiIdx, int blocksW, int blocksH,
+    const QString& mask0, const QString& mask1, const QString& mask2, const QString& mask3, bool showRegions)
+{
+    if (!isConnected()) {
+        return false;
+    }
+    Sightline::MsgDetectionROI msg {};
+    msg.cameraIndex = static_cast<std::uint8_t>(cam);
+    msg.detectionIndex = static_cast<std::uint8_t>(detIdx);
+    msg.roiIndex = static_cast<std::uint8_t>(roiIdx);
+    msg.geometryMode = Sightline::RoiGeometryMode::MaskedGrid;
+    msg.blocksWide = static_cast<std::uint8_t>(blocksW);
+    msg.blocksHigh = static_cast<std::uint8_t>(blocksH);
+    bool ok0 { false };
+    bool ok1 { false };
+    bool ok2 { false };
+    bool ok3 { false };
+    msg.gridMasks[0] = mask0.toULongLong(&ok0, 16);
+    msg.gridMasks[1] = mask1.toULongLong(&ok1, 16);
+    msg.gridMasks[2] = mask2.toULongLong(&ok2, 16);
+    msg.gridMasks[3] = mask3.toULongLong(&ok3, 16);
+    msg.showRegions = showRegions;
+    return m_device->setDetectionROI(msg);
+}
+
+bool SightlineQmlBridge::triggerDetectionSnapshot(int cam, int detIdx)
+{
+    if (!isConnected()) {
+        return false;
+    }
+    return m_device->triggerDetectionSnapshot(static_cast<quint8>(cam), static_cast<quint8>(detIdx));
+}
+
+bool SightlineQmlBridge::setClassifierSettings(int cam, int model, const QString& customModel, int maxPerFrame,
+    int minDims, int droneMode, int pad, int updateRate)
+{
+    if (!isConnected()) {
+        return false;
+    }
+    Sightline::MsgClassifierConfig msg {};
+    msg.cameraIndex = static_cast<std::uint8_t>(cam);
+    msg.model = static_cast<Sightline::PretrainedClassifierModel>(model);
+    msg.customModelName = customModel.toStdString();
+    msg.maxPerFrame = static_cast<std::uint8_t>(maxPerFrame);
+    msg.minDimensions = static_cast<std::uint16_t>(minDims);
+    msg.droneReporting = static_cast<Sightline::DroneReportingMode>(droneMode);
+    msg.detectionPadding = static_cast<std::uint8_t>(pad);
+    msg.updateRate = static_cast<std::uint8_t>(updateRate);
+    return m_device->setClassifierConfig(msg);
+}
+
+bool SightlineQmlBridge::setComputeAssignment(bool useNpu, bool asyncInferencing)
+{
+    if (!isConnected()) {
+        return false;
+    }
+    return m_device->setComputeResources(useNpu, asyncInferencing);
+}
+
+bool SightlineQmlBridge::setKlvMetricBounds(int cam, double minW, double maxW, double minH, double maxH,
+    bool aboveHorizon, bool belowHorizon, double minLat, double maxLat, double minLon, double maxLon)
+{
+    if (!isConnected()) {
+        return false;
+    }
+    Sightline::MsgKlvMetricFilters msg {};
+    msg.cameraIndex = static_cast<std::uint8_t>(cam);
+    msg.minTargetWidthM = static_cast<float>(minW);
+    msg.maxTargetWidthM = static_cast<float>(maxW);
+    msg.minTargetHeightM = static_cast<float>(minH);
+    msg.maxTargetHeightM = static_cast<float>(maxH);
+    msg.filterAboveHorizon = aboveHorizon;
+    msg.filterBelowHorizon = belowHorizon;
+    msg.minLatitude = minLat;
+    msg.maxLatitude = maxLat;
+    msg.minLongitude = minLon;
+    msg.maxLongitude = maxLon;
+    return m_device->setKlvMetricFilters(msg);
+}
+
+bool SightlineQmlBridge::queryDetection(int cam, int detIdx)
+{
+    if (!isConnected()) {
+        return false;
+    }
+    return m_device->queryDetectionParams(static_cast<quint8>(cam), static_cast<quint8>(detIdx));
+}
+
+bool SightlineQmlBridge::queryAdvDetection(int cam)
+{
+    if (!isConnected()) {
+        return false;
+    }
+    return m_device->queryAdvDetection(static_cast<quint8>(cam));
+}
+
+bool SightlineQmlBridge::queryDetectionROI(int cam, int roiIdx)
+{
+    if (!isConnected()) {
+        return false;
+    }
+    return m_device->queryDetectionROI(static_cast<quint8>(cam), static_cast<quint8>(roiIdx));
+}
+
+bool SightlineQmlBridge::queryKlvMetricFilters(int cam)
+{
+    if (!isConnected()) {
+        return false;
+    }
+    return m_device->queryKlvMetricFilters(static_cast<quint8>(cam));
+}
+
+bool SightlineQmlBridge::queryClassifierConfig(int cam)
+{
+    if (!isConnected()) {
+        return false;
+    }
+    return m_device->queryClassifierConfig(static_cast<quint8>(cam));
 }
 
 bool SightlineQmlBridge::customAIDetect(int cam, int modelId, int confThresh, int nmsThresh)
@@ -1380,6 +1564,32 @@ void SightlineQmlBridge::handleOverlayObjectParams(const Sightline::MsgCurrentOv
 void SightlineQmlBridge::handleLogoParameters(const Sightline::MsgLogoParameters& l)
 {
     emit logoParametersReceived(l.cameraIndex, l.logoOpacity, l.offsetX, l.offsetY);
+}
+
+void SightlineQmlBridge::handleDetectionParams(const Sightline::MsgSetDetectionParameters& det)
+{
+    emit detectionParamsReceived(det.cameraIndex, det.detectionIndex, static_cast<int>(det.mode),
+        static_cast<int>(det.sensitivityMode), det.threshold, det.minTargetSize, det.maxTargetSize);
+}
+
+void SightlineQmlBridge::handleAdvDetection(const Sightline::MsgAdvancedDetectionParameters& adv)
+{
+    emit advDetectionReceived(adv.cameraIndex, adv.updateRate, adv.surroundSize, static_cast<int>(adv.blobDirection),
+        adv.use8BitImages, adv.gasAddOriginal, adv.gasColor, adv.aiIouThreshold, adv.enableMtd,
+        static_cast<int>(adv.downsample));
+}
+
+void SightlineQmlBridge::handleDetectionROI(const Sightline::MsgDetectionROI& roi)
+{
+    emit detectionRoiReceived(roi.cameraIndex, roi.detectionIndex, roi.roiIndex, static_cast<int>(roi.geometryMode),
+        roi.lineLeftX, roi.lineLeftY, roi.lineRightX, roi.lineRightY, static_cast<int>(roi.lineSide));
+}
+
+void SightlineQmlBridge::handleKlvMetricFilters(const Sightline::MsgKlvMetricFilters& filters)
+{
+    emit klvMetricFiltersReceived(filters.cameraIndex, filters.minTargetWidthM, filters.maxTargetWidthM,
+        filters.minTargetHeightM, filters.maxTargetHeightM, filters.filterAboveHorizon, filters.filterBelowHorizon,
+        filters.minLatitude, filters.maxLatitude, filters.minLongitude, filters.maxLongitude);
 }
 
 void SightlineQmlBridge::onCoolerTimerTick()
