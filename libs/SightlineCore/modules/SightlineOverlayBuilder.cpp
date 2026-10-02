@@ -65,7 +65,9 @@ std::vector<std::uint8_t> SightlineOverlayBuilder::buildDrawOverlay(const MsgDra
     payload.push_back(msg.backgroundColor);
     payload.push_back(textLen);
     if (textLen > 0U) {
-        payload.insert(payload.end(), msg.text.begin(), msg.text.begin() + textLen);
+        for (std::size_t i { 0U }; i < textLen; ++i) {
+            payload.push_back(static_cast<std::uint8_t>(msg.text[i]));
+        }
     }
     if (msg.hasE || msg.hasF) {
         SightlineFraming::appendU16Le(payload, msg.e);
@@ -277,7 +279,9 @@ std::vector<std::uint8_t> SightlineOverlayBuilder::buildUserFont(const MsgUserFo
     payload.push_back(msg.userFontIndex);
     payload.push_back(nameLen);
     if (nameLen > 0U) {
-        payload.insert(payload.end(), msg.fontFileName.begin(), msg.fontFileName.begin() + nameLen);
+        for (std::size_t i { 0U }; i < nameLen; ++i) {
+            payload.push_back(static_cast<std::uint8_t>(msg.fontFileName[i]));
+        }
     }
     return SightlineFraming::buildPacket(MessageId::UserFont, payload);
 }
@@ -306,15 +310,21 @@ std::vector<std::uint8_t> SightlineOverlayBuilder::buildAncillaryTextMetadata(co
     SightlineFraming::appendU64Le(payload, msg.creationTime);
     payload.push_back(srcLen);
     if (srcLen > 0U) {
-        payload.insert(payload.end(), msg.source.begin(), msg.source.begin() + srcLen);
+        for (std::size_t i { 0U }; i < srcLen; ++i) {
+            payload.push_back(static_cast<std::uint8_t>(msg.source[i]));
+        }
     }
     payload.push_back(origLen);
     if (origLen > 0U) {
-        payload.insert(payload.end(), msg.originator.begin(), msg.originator.begin() + origLen);
+        for (std::size_t i { 0U }; i < origLen; ++i) {
+            payload.push_back(static_cast<std::uint8_t>(msg.originator[i]));
+        }
     }
     payload.push_back(bodyLen);
     if (bodyLen > 0U) {
-        payload.insert(payload.end(), msg.messageBody.begin(), msg.messageBody.begin() + bodyLen);
+        for (std::size_t i { 0U }; i < bodyLen; ++i) {
+            payload.push_back(static_cast<std::uint8_t>(msg.messageBody[i]));
+        }
     }
     SightlineFraming::appendU16Le(payload, msg.displayId);
     return SightlineFraming::buildPacket(MessageId::AncillaryTextMetadata, payload);

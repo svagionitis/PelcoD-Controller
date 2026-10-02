@@ -117,7 +117,9 @@ void SightlineFraming::appendDouble64Le(std::vector<std::uint8_t>& buf, double v
 
 void SightlineFraming::appendString(std::vector<std::uint8_t>& buf, const std::string& str)
 {
-    buf.insert(buf.end(), str.begin(), str.end());
+    for (const char ch : str) {
+        buf.push_back(static_cast<std::uint8_t>(ch));
+    }
     buf.push_back(0x00U); // Null terminator
 }
 

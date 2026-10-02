@@ -290,10 +290,12 @@ MacroSequence MacroSerializer::fromScript(const std::string& script)
 
         // Check if the last token is a delay in milliseconds (pure numeric)
         std::uint32_t delay = 100U;
-        bool hasExplicitDelay = false;
+        bool hasExplicitDelay { false };
         if (tokens.size() > 1) {
             const std::string& lastTok = tokens.back();
-            if (std::all_of(lastTok.begin(), lastTok.end(), [](unsigned char c) { return std::isdigit(c); })) {
+            if (std::all_of(lastTok.begin(), lastTok.end(), [](char c) {
+                    return std::isdigit(static_cast<unsigned char>(c)) != 0;
+                })) {
                 try {
                     delay = static_cast<std::uint32_t>(std::stoul(lastTok));
                     hasExplicitDelay = true;

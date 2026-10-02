@@ -17,13 +17,17 @@ bool SightlineTrackingParser::parseTrackingPosition(
         return false;
     }
 
-    out.col = static_cast<double>(SightlineFraming::readS16Le(payload.data() + 0U));
-    out.row = static_cast<double>(SightlineFraming::readS16Le(payload.data() + 2U));
-    out.translationCol = static_cast<double>(SightlineFraming::readS16Le(payload.data() + 4U));
-    out.translationRow = static_cast<double>(SightlineFraming::readS16Le(payload.data() + 6U));
+    const auto baseCol = static_cast<double>(SightlineFraming::readS16Le(payload.data() + 0U));
+    const auto baseRow = static_cast<double>(SightlineFraming::readS16Le(payload.data() + 2U));
+    const auto baseSceneCol = static_cast<double>(SightlineFraming::readS16Le(payload.data() + 4U));
+    const auto baseSceneRow = static_cast<double>(SightlineFraming::readS16Le(payload.data() + 6U));
     out.offsetCol = static_cast<double>(SightlineFraming::readS16Le(payload.data() + 8U));
     out.offsetRow = static_cast<double>(SightlineFraming::readS16Le(payload.data() + 10U));
-    out.confidence = payload[12U];
+
+    const std::uint8_t rawConf { payload[12U] };
+    out.isCoasting = ((rawConf & 0x80U) != 0U);
+    out.confidence = static_cast<std::uint8_t>(rawConf & 0x7FU);
+
     out.sceneConfidence = payload[13U];
     out.rotationDeg = static_cast<double>(SightlineFraming::readS16Le(payload.data() + 14U)) / 128.0;
     out.cameraIndex = payload[16U];
@@ -31,6 +35,24 @@ bool SightlineTrackingParser::parseTrackingPosition(
     if (payload.size() >= 18U) {
         out.userTrackId = payload[17U];
     }
+
+    double fracCol { 0.0 };
+    double fracRow { 0.0 };
+    double fracSceneCol { 0.0 };
+    double fracSceneRow { 0.0 };
+
+    if (payload.size() >= 22U) {
+        fracCol = static_cast<double>(payload[18U]) / 256.0;
+        fracRow = static_cast<double>(payload[19U]) / 256.0;
+        fracSceneCol = static_cast<double>(payload[20U]) / 256.0;
+        fracSceneRow = static_cast<double>(payload[21U]) / 256.0;
+    }
+
+    out.col = (baseCol >= 0.0) ? (baseCol + fracCol) : (baseCol - fracCol);
+    out.row = (baseRow >= 0.0) ? (baseRow + fracRow) : (baseRow - fracRow);
+    out.translationCol = (baseSceneCol >= 0.0) ? (baseSceneCol + fracSceneCol) : (baseSceneCol - fracSceneCol);
+    out.translationRow = (baseSceneRow >= 0.0) ? (baseSceneRow + fracSceneRow) : (baseSceneRow - fracSceneRow);
+
     if (payload.size() >= 24U) {
         out.scale = static_cast<double>(SightlineFraming::readU16Le(payload.data() + 22U)) / 256.0;
     }
@@ -75,7 +97,10 @@ bool SightlineTrackingParser::parseTrackingPositions(
         track.height = static_cast<double>(SightlineFraming::readU16Le(payload.data() + offset + 7U));
         track.velocityCol = static_cast<double>(SightlineFraming::readS16Le(payload.data() + offset + 9U)) / 256.0;
         track.velocityRow = static_cast<double>(SightlineFraming::readS16Le(payload.data() + offset + 11U)) / 256.0;
-        track.confidence = payload[offset + 13U];
+
+        const std::uint8_t rawConf { payload[offset + 13U] };
+        track.isCoasting = ((rawConf & 0x80U) != 0U);
+        track.confidence = static_cast<std::uint8_t>(rawConf & 0x7FU);
         track.isPrimary = ((payload[offset + 14U] & 0x01U) != 0U);
 
         out.tracks.push_back(track);
@@ -124,7 +149,10 @@ bool SightlineTrackingParser::parsePositionsExtended(
         track.height = static_cast<double>(SightlineFraming::readU16Le(payload.data() + offset + 7U));
         track.velocityCol = static_cast<double>(SightlineFraming::readS16Le(payload.data() + offset + 9U)) / 256.0;
         track.velocityRow = static_cast<double>(SightlineFraming::readS16Le(payload.data() + offset + 11U)) / 256.0;
-        track.confidence = payload[offset + 13U];
+
+        const std::uint8_t rawConf { payload[offset + 13U] };
+        track.isCoasting = ((rawConf & 0x80U) != 0U);
+        track.confidence = static_cast<std::uint8_t>(rawConf & 0x7FU);
         track.isPrimary = ((payload[offset + 14U] & 0x01U) != 0U);
 
         out.tracks.push_back(track);
@@ -189,6 +217,11 @@ bool SightlineTrackingParser::parseTrackingParameters(
     out.acquisitionSearchCol = SightlineFraming::readU16Le(payload.data() + 11U);
     out.acquisitionSearchRow = SightlineFraming::readU16Le(payload.data() + 13U);
     out.flags = payload[15U];
+    if (payload.size() >= 17U) {
+        out.maxPauseTime = payload[16U];
+    } else {
+        out.maxPauseTime = 0U;
+    }
 
     return true;
 }

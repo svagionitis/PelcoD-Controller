@@ -51,7 +51,7 @@ std::string getSocketErrorString(int errCode)
     char* errText { nullptr };
     const DWORD len
         = FormatMessageA(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
-            nullptr, errCode, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), reinterpret_cast<LPSTR>(&errText), 0, nullptr);
+            nullptr, static_cast<DWORD>(errCode), MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), reinterpret_cast<LPSTR>(&errText), 0, nullptr);
     std::string msg
         = (len > 0 && errText != nullptr) ? std::string(errText) : "Winsock error " + std::to_string(errCode);
     if (errText != nullptr) {

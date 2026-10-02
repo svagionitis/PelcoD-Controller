@@ -56,7 +56,7 @@ function(apply_compiler_flags TARGET_NAME)
                 /HIGHENTROPYVA      # 64-bit ASLR with 64-bit high entropy address space
                 /guard:cf           # Linker Control Flow Guard (emits valid address table for indirect calls)
                 /CETCOMPAT          # Hardware Control-flow Enforcement Technology (Hardware Shadow Stack on x64)
-                /DEPENDENTLOADFLAG:0x800 # Restrict DLL loading to %SystemRoot%\System32 and application directory (anti-DLL hijacking)
+                /DEPENDENTLOADFLAG:0xA00 # Restrict DLL loading to %SystemRoot%\System32 and application directory (LOAD_LIBRARY_SEARCH_SYSTEM32 | LOAD_LIBRARY_SEARCH_APPLICATION_DIR)
             )
         endif()
     else()

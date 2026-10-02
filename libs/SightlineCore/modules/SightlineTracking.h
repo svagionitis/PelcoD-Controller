@@ -12,6 +12,9 @@
 
 namespace Sightline {
 
+// Note: TrackingMode, ModifyMode, ForcedCoastingMode, and TrackingFlags are
+// canonically defined in SightlineTypes.h (included above).
+
 /// @struct MsgStartTracking
 /// @brief Primary or secondary target acquisition initiation (Message ID 0x08).
 /// @details Conforms to official Sightline SLAStartTracking_t struct layout.
@@ -40,7 +43,7 @@ struct MsgStopTracking {
 /// @details Conforms to official Sightline SLAModifyTrackIndex_t struct layout.
 struct MsgModifyTrackIndex {
     std::uint8_t trackIndex { 0U };
-    std::uint8_t flags { 0U }; // 0: Stop, 1: Primary, 2: Reinit, 3: Coast off, 4: Coast on
+    std::uint8_t flags { 0U }; // 0: Stop, 1: Primary, 2: Reinit, 3: Coast off, 4: Coast on, 8: Resize no AA, 9: Resize AA
     std::uint8_t cameraIndex { 0U };
     std::uint16_t width { 0U };
     std::uint16_t height { 0U };
@@ -79,16 +82,17 @@ struct MsgSetTrackingParameters {
     std::uint8_t objectSize { 32U };
     std::uint8_t mode { 1U };
     std::uint8_t mode2 { 0U };
-    std::uint8_t maxMisses { 5U };
+    std::uint8_t maxMisses { 45U }; // Default is 45 frames (1.5s @ 30Hz) per EAN Sec 7.2
     std::uint16_t nearVal { 0U };
     std::uint8_t objectHeight { 0U };
     std::uint8_t cameraIndex { 0U };
-    std::uint8_t zoomSmoothing { 0U };
-    std::uint8_t rollSmoothing { 0U };
+    std::uint8_t zoomSmoothing { 5U }; // Default is 5 per EAN Sec 5.2
+    std::uint8_t rollSmoothing { 5U }; // Default is 5 per EAN Sec 5.2
     std::uint8_t maxTracks { 10U };
     std::uint16_t acquisitionSearchCol { 128U };
     std::uint16_t acquisitionSearchRow { 96U };
     std::uint8_t flags { 0U };
+    std::uint8_t maxPauseTime { 0U }; // Measured in seconds (0..20) per EAN Sec 4.9.1
 };
 
 /// @struct MsgDesignateSelectedTrackPrimary
@@ -116,7 +120,7 @@ struct MsgStopSelectedTrack {
 
 /// @struct MsgTrackingPosition
 /// @brief Single primary track position and scene motion telemetry (Message ID 0x43).
-/// @details Conforms to official Sightline SLATrackingPosition_t struct layout.
+/// @details Conforms to official Sightline SLATrackingPosition_t struct layout with subpixel accuracy.
 struct MsgTrackingPosition {
     std::uint8_t cameraIndex { 0U };
     double col { 0.0 };
@@ -127,7 +131,8 @@ struct MsgTrackingPosition {
     double offsetRow { 0.0 };
     double rotationDeg { 0.0 };
     double scale { 1.0 };
-    std::uint8_t confidence { 0U };
+    std::uint8_t confidence { 0U }; // Masked correlation score 0..100%
+    bool isCoasting { false };      // True if target occluded (confidence MSB 0x80)
     std::uint8_t sceneConfidence { 0U };
     std::uint8_t trackFlags { 0U };
     std::uint8_t userTrackId { 0U };

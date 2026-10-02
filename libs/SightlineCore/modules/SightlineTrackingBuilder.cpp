@@ -65,7 +65,7 @@ std::vector<std::uint8_t> SightlineTrackingBuilder::buildSetReportingMode(const 
 std::vector<std::uint8_t> SightlineTrackingBuilder::buildSetTrackingParameters(const MsgSetTrackingParameters& msg)
 {
     std::vector<std::uint8_t> payload {};
-    payload.reserve(16U);
+    payload.reserve((msg.maxPauseTime > 0U) ? 17U : 16U);
     payload.push_back(msg.objectSize);
     payload.push_back(msg.mode);
     payload.push_back(msg.mode2);
@@ -79,6 +79,9 @@ std::vector<std::uint8_t> SightlineTrackingBuilder::buildSetTrackingParameters(c
     SightlineFraming::appendU16Le(payload, msg.acquisitionSearchCol);
     SightlineFraming::appendU16Le(payload, msg.acquisitionSearchRow);
     payload.push_back(msg.flags);
+    if (msg.maxPauseTime > 0U) {
+        payload.push_back(msg.maxPauseTime);
+    }
     return SightlineFraming::buildPacket(MessageId::SetTrackingParameters, payload);
 }
 

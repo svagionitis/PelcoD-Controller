@@ -902,5 +902,201 @@ namespace {
         EXPECT_EQ(getPkt, SightlineProtocolBuilder::buildGetClassifierConfig(0U));
     }
 
+    /// @brief Verify sub-pixel fractional coordinates extraction from 0x43.
+    TEST(TestSightlineTracking, ParseSubpixelTrackingPosition)
+    {
+        std::vector<std::uint8_t> payload {};
+        // col: 320 (bytes 0..1)
+        payload.push_back(0x40U);
+        payload.push_back(0x01U);
+        // row: 240 (bytes 2..3)
+        payload.push_back(0xF0U);
+        payload.push_back(0x00U);
+        // translationCol: 100 (bytes 4..5)
+        payload.push_back(0x64U);
+        payload.push_back(0x00U);
+        // translationRow: 50 (bytes 6..7)
+        payload.push_back(0x32U);
+        payload.push_back(0x00U);
+        // offsetCol: 0 (bytes 8..9)
+        payload.push_back(0x00U);
+        payload.push_back(0x00U);
+        // offsetRow: 0 (bytes 10..11)
+        payload.push_back(0x00U);
+        payload.push_back(0x00U);
+        // confidence: 80 (byte 12)
+        payload.push_back(80U);
+        // sceneConfidence: 90 (byte 13)
+        payload.push_back(90U);
+        // rotation: 0 (bytes 14..15)
+        payload.push_back(0x00U);
+        payload.push_back(0x00U);
+        // cameraIndex: 0 (byte 16)
+        payload.push_back(0U);
+        // userTrackId: 1 (byte 17)
+        payload.push_back(1U);
+        // targetColFrac8: 128 (0.50 px) (byte 18)
+        payload.push_back(128U);
+        // targetRowFrac8: 64 (0.25 px) (byte 19)
+        payload.push_back(64U);
+        // sceneColFrac8: 192 (0.75 px) (byte 20)
+        payload.push_back(192U);
+        // sceneRowFrac8: 32 (0.125 px) (byte 21)
+        payload.push_back(32U);
+        // scale: 256 (1.0) (bytes 22..23)
+        payload.push_back(0x00U);
+        payload.push_back(0x01U);
+
+        const auto pkt = SightlineFraming::buildPacket(MessageId::TrackingPosition, payload);
+        MsgTrackingPosition out {};
+        ASSERT_TRUE(SightlineTrackingParser::parseTrackingPosition(pkt, out));
+
+        EXPECT_DOUBLE_EQ(out.col, 320.5);
+        EXPECT_DOUBLE_EQ(out.row, 240.25);
+        EXPECT_DOUBLE_EQ(out.translationCol, 100.75);
+        EXPECT_DOUBLE_EQ(out.translationRow, 50.125);
+        EXPECT_FALSE(out.isCoasting);
+        EXPECT_EQ(out.confidence, 80U);
+    }
+
+    /// @brief Verify coasting state extraction from single tracking position (0x43).
+    TEST(TestSightlineTracking, ParseCoastingStateSingleTrack)
+    {
+        std::vector<std::uint8_t> payload {};
+        // col: 100, row: 150
+        payload.push_back(0x64U); payload.push_back(0x00U);
+        payload.push_back(0x96U); payload.push_back(0x00U);
+        // translationCol: 0, translationRow: 0
+        payload.push_back(0x00U); payload.push_back(0x00U);
+        payload.push_back(0x00U); payload.push_back(0x00U);
+        // offsetCol: 0, offsetRow: 0
+        payload.push_back(0x00U); payload.push_back(0x00U);
+        payload.push_back(0x00U); payload.push_back(0x00U);
+        // confidence with coasting MSB bit 7 set: 0x80 | 75 = 203
+        payload.push_back(0x80U | 75U);
+        // sceneConfidence: 50
+        payload.push_back(50U);
+        // rotation: 0
+        payload.push_back(0x00U); payload.push_back(0x00U);
+        // cameraIndex: 0
+        payload.push_back(0U);
+
+        const auto pkt = SightlineFraming::buildPacket(MessageId::TrackingPosition, payload);
+        MsgTrackingPosition out {};
+        ASSERT_TRUE(SightlineTrackingParser::parseTrackingPosition(pkt, out));
+
+        EXPECT_TRUE(out.isCoasting);
+        EXPECT_EQ(out.confidence, 75U);
+    }
+
+    /// @brief Verify coasting state extraction from multi-target tracking telemetry (0x51).
+    TEST(TestSightlineTracking, ParseCoastingStateMultiTracks)
+    {
+        std::vector<std::uint8_t> payload {};
+        payload.push_back(0U); // cameraIndex
+        payload.push_back(2U); // numTracks = 2
+
+        // Track 0: locked (confidence: 92, isCoasting: false)
+        payload.push_back(1U); // trackId
+        payload.push_back(0x40U); payload.push_back(0x01U); // col 320
+        payload.push_back(0xF0U); payload.push_back(0x00U); // row 240
+        payload.push_back(64U); payload.push_back(0U);      // width 64
+        payload.push_back(48U); payload.push_back(0U);      // height 48
+        payload.push_back(0U); payload.push_back(0U);       // velCol
+        payload.push_back(0U); payload.push_back(0U);       // velRow
+        payload.push_back(92U);                              // confidence 92
+        payload.push_back(0x01U);                            // primary flag
+
+        // Track 1: occluded coasting (confidence: 0x80 | 60, isCoasting: true)
+        payload.push_back(2U); // trackId
+        payload.push_back(0x80U); payload.push_back(0x01U); // col 384
+        payload.push_back(0x00U); payload.push_back(0x01U); // row 256
+        payload.push_back(32U); payload.push_back(0U);      // width 32
+        payload.push_back(32U); payload.push_back(0U);      // height 32
+        payload.push_back(0U); payload.push_back(0U);       // velCol
+        payload.push_back(0U); payload.push_back(0U);       // velRow
+        payload.push_back(0x80U | 60U);                      // confidence 60 with coast bit
+        payload.push_back(0x00U);                            // secondary flag
+
+        const auto pkt = SightlineFraming::buildPacket(MessageId::TrackingPositions, payload);
+        MsgTrackingPositions out {};
+        ASSERT_TRUE(SightlineTrackingParser::parseTrackingPositions(pkt, out));
+        ASSERT_EQ(out.tracks.size(), 2U);
+
+        EXPECT_FALSE(out.tracks[0].isCoasting);
+        EXPECT_EQ(out.tracks[0].confidence, 92U);
+
+        EXPECT_TRUE(out.tracks[1].isCoasting);
+        EXPECT_EQ(out.tracks[1].confidence, 60U);
+    }
+
+    /// @brief Verify coasting state extraction from extended positions with AI classification (0xA0).
+    TEST(TestSightlineTracking, ParseCoastingPositionsExtended)
+    {
+        std::vector<std::uint8_t> payload {};
+        payload.push_back(0U); // cameraIndex
+        payload.push_back(1U); // numTracks = 1
+
+        payload.push_back(5U); // trackId
+        payload.push_back(0x00U); payload.push_back(0x01U); // col 256
+        payload.push_back(0x80U); payload.push_back(0x00U); // row 128
+        payload.push_back(50U); payload.push_back(0U);      // width
+        payload.push_back(50U); payload.push_back(0U);      // height
+        payload.push_back(0U); payload.push_back(0U);       // velCol
+        payload.push_back(0U); payload.push_back(0U);       // velRow
+        payload.push_back(0x80U | 68U);                      // confidence 68 with coast bit
+        payload.push_back(0x01U);                            // primary
+        payload.push_back(2U);                               // classId: vehicle
+        for (std::size_t i { 0U }; i < 5U; ++i) {
+            payload.push_back(0U);                           // padding to 21 bytes
+        }
+
+        const auto pkt = SightlineFraming::buildPacket(MessageId::TrackingPositionsExtended, payload);
+        MsgTrackingPositionsExtended out {};
+        ASSERT_TRUE(SightlineTrackingParser::parsePositionsExtended(pkt, out));
+        ASSERT_EQ(out.tracks.size(), 1U);
+
+        EXPECT_TRUE(out.tracks[0].isCoasting);
+        EXPECT_EQ(out.tracks[0].confidence, 68U);
+    }
+
+    /// @brief Verify default parameters compliance with Sightline EAN-Target-Tracking specifications.
+    TEST(TestSightlineTracking, TrackingParametersDefaultCompliance)
+    {
+        const MsgSetTrackingParameters params {};
+        // Section 7.2: Default max misses is 45 frames (1.5 seconds at 30 fps)
+        EXPECT_EQ(params.maxMisses, 45U);
+        // Section 5.2: Default smoothing values are 5
+        EXPECT_EQ(params.zoomSmoothing, 5U);
+        EXPECT_EQ(params.rollSmoothing, 5U);
+        // Section 4.9.1: Default maxPauseTime is 0
+        EXPECT_EQ(params.maxPauseTime, 0U);
+    }
+
+    /// @brief Verify round-trip serialization of maxPauseTime in SetTrackingParameters.
+    TEST(TestSightlineTracking, BuildAndParseMaxPauseTime)
+    {
+        MsgSetTrackingParameters params {};
+        params.cameraIndex = 1U;
+        params.objectSize = 48U;
+        params.mode = static_cast<std::uint8_t>(TrackingMode::Drone);
+        params.maxMisses = 60U;
+        params.zoomSmoothing = 5U;
+        params.rollSmoothing = 5U;
+        params.maxTracks = 15U;
+        params.maxPauseTime = 10U; // 10 seconds buffer
+
+        const auto pkt = SightlineTrackingBuilder::buildSetTrackingParameters(params);
+        EXPECT_EQ(SightlineFraming::identifyMessage(pkt), MessageId::SetTrackingParameters);
+
+        MsgSetTrackingParameters parsed {};
+        ASSERT_TRUE(SightlineTrackingParser::parseTrackingParameters(pkt, parsed));
+        EXPECT_EQ(parsed.cameraIndex, 1U);
+        EXPECT_EQ(parsed.objectSize, 48U);
+        EXPECT_EQ(parsed.mode, static_cast<std::uint8_t>(TrackingMode::Drone));
+        EXPECT_EQ(parsed.maxMisses, 60U);
+        EXPECT_EQ(parsed.maxPauseTime, 10U);
+    }
+
 } // namespace
 } // namespace Sightline

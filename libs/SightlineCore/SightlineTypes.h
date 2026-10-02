@@ -400,16 +400,58 @@ enum class MessageId : std::uint8_t {
 };
 
 /// @enum TrackingMode
-/// @brief Mode parameter for tracking initiation and modification.
+/// @brief Primary tracking algorithmic modes supported by Sightline SLA firmware.
+/// @details Conforms to EAN-Target-Tracking Section 3.
 enum class TrackingMode : std::uint8_t {
-    Off = 0x00U,
-    Stationary = 0x01U,
-    Vehicle = 0x02U,
-    Person = 0x03U,
-    Drone = 0x04U,
-    Maritime = 0x05U,
-    Custom = 0x06U
+    Vehicle = 0U,        ///< Any moving or stationary ground vehicle (2.22+)
+    Stationary = 1U,     ///< Fixed infrastructure or buildings (2.22+)
+    Scene = 2U,          ///< Scene tracking / lock via frame registration (2.22+)
+    NoRegistration = 3U, ///< Deprecated in 3.7; blue sky / untextured targets
+    Static = 4U,         ///< Fixed camera coordinates (IR radiometric reporting)
+    Drone = 5U,          ///< Agile, rapidly resizing aerial targets (2.24+)
+    Person = 6U          ///< Human pedestrian tracking (3.01+)
 };
+
+/// @enum ModifyMode
+/// @brief Target designation, modification, and cueing operations.
+/// @details Conforms to EAN-Target-Tracking Appendix C (Tables C1 & C2).
+enum class ModifyMode : std::uint8_t {
+    ShowCursorOnly = 0U,
+    KillAllDesignatePrimary = 1U,
+    DesignatePrimaryAtCursor = 2U,
+    MoveNearToSecondary = 3U,
+    MoveNearOrNewSecondary = 4U,
+    DesignateNearAsPrimary = 5U,
+    DesignateNearOrNewPrimary = 6U,
+    MoveNearOrNewPrimary = 7U,
+    MoveNearOrKillAllNewPrimary = 8U,
+    KillTrackNear = 9U,
+    KillAllExceptPrimary = 10U,
+    Reserved11 = 11U,
+    DesignateNearAsSecondary = 12U,
+    DesignateNearOrNewSecondary = 13U
+};
+
+/// @enum ForcedCoastingMode
+/// @brief Manual coast override modes configured via ModifyTrackIndex (0x17).
+/// @details Conforms to EAN-Target-Tracking Section 7.5.
+enum class ForcedCoastingMode : std::uint8_t {
+    None = 0U,
+    FreezeUpdates = 1U,     ///< Searches frame, updates momentum; does not retrain model (2.24+)
+    FreezeSearch = 2U,      ///< Skips search; maintains current velocity projection (3.00+)
+    FreezePropagation = 3U  ///< Freezes search and velocity propagation entirely (3.4+)
+};
+
+/// @namespace TrackingFlags
+/// @brief Feature bitmasks for SetTrackingParameters (0x0C).
+namespace TrackingFlags {
+    inline constexpr std::uint8_t AcquisitionAssist { 0x01U }; ///< Enables initial search area optimization
+    inline constexpr std::uint8_t IntelligentAssist { 0x02U }; ///< Enables adaptive reinitialization
+    inline constexpr std::uint8_t ColorTracking     { 0x04U }; ///< Enables color contrast tracking (3.11+)
+    inline constexpr std::uint8_t ZoomScaling       { 0x08U }; ///< Scale target gate with zoom (3.6+)
+    inline constexpr std::uint8_t UniqueTracks      { 0x10U }; ///< Independent per-track modes (3.11+)
+    inline constexpr std::uint8_t AutoTrackMode     { 0x20U }; ///< Automatic AI classification mode (3.11+)
+}
 
 /// @enum CoordinateReportingFlags
 /// @brief Reporting mode bitmask flags for tracking telemetry.
@@ -433,6 +475,7 @@ struct TrackCoordinate {
     double velocityRow { 0.0 };
     std::uint8_t confidence { 0U };
     bool isPrimary { false };
+    bool isCoasting { false };
 };
 
 /// @struct TrackingTelemetrySnapshot

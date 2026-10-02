@@ -128,6 +128,30 @@ function(pelcod_register_gtest target_name)
                 COMMENT "Copying glog DLL for ${target_name}"
             )
         endif()
+        if(TARGET GTest::gmock_main)
+            add_custom_command(TARGET ${target_name} POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                    "$<TARGET_FILE:GTest::gmock_main>"
+                    "$<TARGET_FILE_DIR:${target_name}>"
+                COMMENT "Copying gmock_main DLL for ${target_name}"
+            )
+        endif()
+        if(TARGET GTest::gmock)
+            add_custom_command(TARGET ${target_name} POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                    "$<TARGET_FILE:GTest::gmock>"
+                    "$<TARGET_FILE_DIR:${target_name}>"
+                COMMENT "Copying gmock DLL for ${target_name}"
+            )
+        endif()
+        if(TARGET GTest::gtest)
+            add_custom_command(TARGET ${target_name} POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                    "$<TARGET_FILE:GTest::gtest>"
+                    "$<TARGET_FILE_DIR:${target_name}>"
+                COMMENT "Copying gtest DLL for ${target_name}"
+            )
+        endif()
         if(_GFLAGS_DEBUG_DLL)
             add_custom_command(TARGET ${target_name} POST_BUILD
                 COMMAND ${CMAKE_COMMAND} -E copy_if_different
@@ -141,9 +165,11 @@ function(pelcod_register_gtest target_name)
     set(_ENV_SETUP_BLOCK "set(ENV{QT_QPA_PLATFORM} \"offscreen\")\n")
     if(WIN32)
         string(JOIN ";" _TARGET_SEARCH_PATHS
-            "${_PELCOD_QT_BIN_DIR}"
-            ${_PELCOD_VCPKG_BIN_DIRS}
             "$<TARGET_FILE_DIR:${target_name}>"
+            "${_PELCOD_QT_BIN_DIR}"
+            "$<$<CONFIG:Debug>:${CMAKE_BINARY_DIR}/vcpkg_installed/x64-windows/debug/bin>"
+            "$<$<NOT:$<CONFIG:Debug>>:${CMAKE_BINARY_DIR}/vcpkg_installed/x64-windows/bin>"
+            ${_PELCOD_VCPKG_BIN_DIRS}
             "${CMAKE_BINARY_DIR}/lib/$<CONFIG>"
             "${CMAKE_BINARY_DIR}/lib"
         )
