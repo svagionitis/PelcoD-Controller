@@ -16,9 +16,11 @@
 
 SightlineQmlBridge::SightlineQmlBridge(QObject* parent)
     : QObject(parent)
+    , m_coolerTimer(std::make_unique<QTimer>(this))
     , m_trackListModel(std::make_unique<TrackListModel>(this))
     , m_trafficLogModel(std::make_unique<TrafficLogModel>(this))
 {
+    connect(m_coolerTimer.get(), &QTimer::timeout, this, &SightlineQmlBridge::onCoolerTimerTick);
 }
 
 SightlineQmlBridge::~SightlineQmlBridge()
@@ -120,6 +122,21 @@ QRect SightlineQmlBridge::enhancementRoi() const noexcept
     return m_cachedRoi[0];
 }
 
+QVariantList SightlineQmlBridge::activeOverlayIds() const
+{
+    return m_activeOverlayIds;
+}
+
+bool SightlineQmlBridge::isCoolerCountdownActive() const noexcept
+{
+    return m_coolerTimer && m_coolerTimer->isActive();
+}
+
+int SightlineQmlBridge::coolerCountdownRemaining() const noexcept
+{
+    return m_coolerRemaining;
+}
+
 bool SightlineQmlBridge::connectUdp(const QString& host, int cmdPort, int replyPort)
 {
     const bool hostChangedVal { m_host != host };
@@ -167,6 +184,12 @@ bool SightlineQmlBridge::connectUdp(const QString& host, int cmdPort, int replyP
     connect(m_device.get(), &QSightlineDevice::stabilizationBiasReceived, this,
         &SightlineQmlBridge::handleStabilizationBias);
     connect(m_device.get(), &QSightlineDevice::rawFrameReceived, this, &SightlineQmlBridge::handleRawFrame);
+    connect(m_device.get(), &QSightlineDevice::overlayModeReceived, this, &SightlineQmlBridge::handleOverlayMode);
+    connect(m_device.get(), &QSightlineDevice::overlayObjectsIdsReceived, this,
+        &SightlineQmlBridge::handleOverlayObjectsIds);
+    connect(m_device.get(), &QSightlineDevice::overlayObjectParamsReceived, this,
+        &SightlineQmlBridge::handleOverlayObjectParams);
+    connect(m_device.get(), &QSightlineDevice::logoParametersReceived, this, &SightlineQmlBridge::handleLogoParameters);
 
     const bool started = m_device->start();
     emit connectionChanged();
@@ -178,6 +201,11 @@ void SightlineQmlBridge::disconnectDevice()
     if (m_device) {
         m_device->stop();
         m_device.reset();
+    }
+    if (m_coolerTimer && m_coolerTimer->isActive()) {
+        m_coolerTimer->stop();
+        m_coolerRemaining = 0;
+        emit coolerCountdownChanged();
     }
     m_connectionTimer.invalidate();
     m_softwareVersion = tr("Disconnected");
@@ -880,6 +908,203 @@ bool SightlineQmlBridge::setNoise3D(int cam, int enable, int temporal, int spati
     return m_device->device()->setNoise3D(msg);
 }
 
+// 6. Overlays & Graphic Primitives (Module 0x62 & 0x9C)
+bool SightlineQmlBridge::setOverlayMode(int cam, int primaryReticle, int secondaryReticle, int graphicsMask)
+{
+    if (!isConnected()) {
+        emit overlayModeReceived(cam, primaryReticle, secondaryReticle, graphicsMask);
+        return true;
+    }
+    Sightline::MsgSetOverlayMode msg {};
+    msg.cameraIndex = static_cast<std::uint8_t>(cam);
+    msg.primaryReticle = static_cast<std::uint8_t>(primaryReticle);
+    msg.secondaryReticle = static_cast<std::uint8_t>(secondaryReticle);
+    msg.graphics = static_cast<std::uint16_t>(graphicsMask);
+    return m_device->setOverlayMode(msg);
+}
+
+bool SightlineQmlBridge::getOverlayMode(int cam)
+{
+    if (!isConnected()) {
+        return false;
+    }
+    return m_device->getOverlayMode(static_cast<quint8>(cam));
+}
+
+bool SightlineQmlBridge::drawCross(
+    int cam, int objId, int x, int y, int size, int fgColor, int thickness, bool originUpperLeft)
+{
+    if (!m_activeOverlayIds.contains(objId)) {
+        m_activeOverlayIds.append(objId);
+        emit activeOverlayIdsChanged();
+    }
+    if (!isConnected()) {
+        return true;
+    }
+    return m_device->drawCross(static_cast<quint8>(cam), static_cast<quint8>(objId), static_cast<qint16>(x),
+        static_cast<qint16>(y), static_cast<quint16>(size), static_cast<Sightline::OverlayPaletteColor>(fgColor),
+        static_cast<quint16>(thickness), originUpperLeft);
+}
+
+bool SightlineQmlBridge::drawRectangle(int cam, int objId, int x, int y, int w, int h, bool filled, int fgColor,
+    int bgColor, int alpha, int thickness, bool originUpperLeft)
+{
+    if (!m_activeOverlayIds.contains(objId)) {
+        m_activeOverlayIds.append(objId);
+        emit activeOverlayIdsChanged();
+    }
+    if (!isConnected()) {
+        return true;
+    }
+    return m_device->drawRectangle(static_cast<quint8>(cam), static_cast<quint8>(objId), static_cast<qint16>(x),
+        static_cast<qint16>(y), static_cast<quint16>(w), static_cast<quint16>(h), filled,
+        static_cast<Sightline::OverlayPaletteColor>(fgColor), static_cast<Sightline::OverlayPaletteColor>(bgColor),
+        static_cast<quint8>(alpha), static_cast<quint16>(thickness), originUpperLeft);
+}
+
+bool SightlineQmlBridge::drawText(int cam, int objId, int x, int y, const QString& text, int fontId, int fgColor,
+    int bgColor, int hScale, int vScale, bool originUpperLeft)
+{
+    if (!m_activeOverlayIds.contains(objId)) {
+        m_activeOverlayIds.append(objId);
+        emit activeOverlayIdsChanged();
+    }
+    if (!isConnected()) {
+        return true;
+    }
+    return m_device->drawText(static_cast<quint8>(cam), static_cast<quint8>(objId), static_cast<qint16>(x),
+        static_cast<qint16>(y), text, static_cast<Sightline::OverlayFontId>(fontId),
+        static_cast<Sightline::OverlayPaletteColor>(fgColor), static_cast<Sightline::OverlayPaletteColor>(bgColor),
+        static_cast<quint8>(hScale), static_cast<quint8>(vScale), originUpperLeft);
+}
+
+bool SightlineQmlBridge::drawKlvField(int cam, int objId, int x, int y, int fieldTag, int formatType,
+    const QString& formatString, int fontId, int fgColor, bool originUpperLeft)
+{
+    if (!m_activeOverlayIds.contains(objId)) {
+        m_activeOverlayIds.append(objId);
+        emit activeOverlayIdsChanged();
+    }
+    if (!isConnected()) {
+        return true;
+    }
+    return m_device->drawKlvField(static_cast<quint8>(cam), static_cast<quint8>(objId), static_cast<qint16>(x),
+        static_cast<qint16>(y), static_cast<Sightline::KlvFieldTag>(fieldTag),
+        static_cast<Sightline::KlvFormatType>(formatType), formatString, static_cast<Sightline::OverlayFontId>(fontId),
+        static_cast<Sightline::OverlayPaletteColor>(fgColor), originUpperLeft);
+}
+
+bool SightlineQmlBridge::drawBlackout(int cam, int objId, int width, int height)
+{
+    if (!m_activeOverlayIds.contains(objId)) {
+        m_activeOverlayIds.append(objId);
+        emit activeOverlayIdsChanged();
+    }
+    if (!isConnected()) {
+        return true;
+    }
+    return m_device->drawBlackout(static_cast<quint8>(cam), static_cast<quint8>(objId), static_cast<quint16>(width),
+        static_cast<quint16>(height));
+}
+
+bool SightlineQmlBridge::destroyOverlay(int cam, int objId)
+{
+    m_activeOverlayIds.removeAll(objId);
+    emit activeOverlayIdsChanged();
+    if (!isConnected()) {
+        return true;
+    }
+    return m_device->destroyOverlay(static_cast<quint8>(cam), static_cast<quint8>(objId));
+}
+
+bool SightlineQmlBridge::destroyAllOverlays(int cam)
+{
+    m_activeOverlayIds.clear();
+    emit activeOverlayIdsChanged();
+    if (!isConnected()) {
+        return true;
+    }
+    return m_device->destroyAllOverlays(static_cast<quint8>(cam));
+}
+
+bool SightlineQmlBridge::setLogoParameters(int cam, int opacity, int offsetX, int offsetY)
+{
+    if (!isConnected()) {
+        emit logoParametersReceived(cam, opacity, offsetX, offsetY);
+        return true;
+    }
+    Sightline::MsgLogoParameters msg {};
+    msg.cameraIndex = static_cast<std::uint8_t>(cam);
+    msg.logoOpacity = static_cast<std::uint8_t>(opacity);
+    msg.offsetX = static_cast<std::uint16_t>(offsetX);
+    msg.offsetY = static_cast<std::uint16_t>(offsetY);
+    return m_device->setLogoParameters(msg);
+}
+
+bool SightlineQmlBridge::getLogoParameters(int cam)
+{
+    if (!isConnected()) {
+        return false;
+    }
+    return m_device->getLogoParameters(static_cast<quint8>(cam));
+}
+
+bool SightlineQmlBridge::setUserFont(int slotIndex, const QString& fontPath)
+{
+    if (!isConnected()) {
+        return true;
+    }
+    return m_device->setUserFont(static_cast<quint8>(slotIndex), fontPath);
+}
+
+bool SightlineQmlBridge::getOverlayObjectsIds(int cam)
+{
+    if (!isConnected()) {
+        return false;
+    }
+    return m_device->getOverlayObjectsIds(static_cast<quint8>(cam));
+}
+
+bool SightlineQmlBridge::getOverlayObjectParams(int objId)
+{
+    if (!isConnected()) {
+        return false;
+    }
+    return m_device->getOverlayObjectParams(static_cast<quint8>(objId));
+}
+
+bool SightlineQmlBridge::startCoolerCountdown(int cam, int durationSeconds)
+{
+    const int duration = (durationSeconds <= 0) ? 15 : durationSeconds;
+    m_coolerCamera = cam;
+    m_coolerRemaining = duration;
+
+    // EAN Section 10: Step 1 - Draw blackout box (objId=1, 640x480 black)
+    drawBlackout(cam, 1, 640, 480);
+
+    // EAN Section 10: Step 2 - Draw countdown text (objId=2)
+    const QString text = QString(QStringLiteral("Imager cooling down %1s")).arg(m_coolerRemaining);
+    drawText(cam, 2, 20, 20, text, 0, 0, 14, 32, 32, true);
+
+    if (m_coolerTimer) {
+        m_coolerTimer->start(1000);
+    }
+    emit coolerCountdownChanged();
+    return true;
+}
+
+void SightlineQmlBridge::cancelCoolerCountdown()
+{
+    if (m_coolerTimer && m_coolerTimer->isActive()) {
+        m_coolerTimer->stop();
+    }
+    destroyOverlay(m_coolerCamera, 1);
+    destroyOverlay(m_coolerCamera, 2);
+    m_coolerRemaining = 0;
+    emit coolerCountdownChanged();
+    emit coolerCountdownFinished();
+}
+
 // 7. Telemetry & Metadata
 bool SightlineQmlBridge::setReportingMode(int cam, int period, int flags)
 {
@@ -1014,6 +1239,9 @@ void SightlineQmlBridge::queryModuleParameters(int tabIndex)
     case 10: // Overlays
         queryParameters(static_cast<int>(Sightline::MessageId::SetOverlayMode)); // 0x06
         queryParameters(static_cast<int>(Sightline::MessageId::LogoParameters)); // 0x9B
+        if (m_device) {
+            m_device->getOverlayObjectsIds(0U);
+        }
         break;
     case 11: // Focus & Lens
         queryParameters(static_cast<int>(Sightline::MessageId::SetLensParameters)); // 0x6E
@@ -1127,4 +1355,52 @@ void SightlineQmlBridge::handleRegistrationParams(const Sightline::MsgSetRegistr
 void SightlineQmlBridge::handleStabilizationBias(const Sightline::MsgSetStabilizationBias& b)
 {
     emit stabilizationBiasChanged(b.cameraIndex, b.biasCol, b.biasRow, b.autoBias, b.updateRate);
+}
+
+void SightlineQmlBridge::handleOverlayMode(const Sightline::MsgSetOverlayMode& m)
+{
+    emit overlayModeReceived(m.cameraIndex, m.primaryReticle, m.secondaryReticle, m.graphics);
+}
+
+void SightlineQmlBridge::handleOverlayObjectsIds(const Sightline::MsgCurrentOverlayObjectsIds& ids)
+{
+    m_activeOverlayIds.clear();
+    const auto active = ids.getActiveObjectIds();
+    for (const auto id : active) {
+        m_activeOverlayIds.append(static_cast<int>(id));
+    }
+    emit activeOverlayIdsChanged();
+}
+
+void SightlineQmlBridge::handleOverlayObjectParams(const Sightline::MsgCurrentOverlayObjectParameters& p)
+{
+    emit overlayObjectParamsReceived(p.objectId, static_cast<int>(p.type), p.a, p.b);
+}
+
+void SightlineQmlBridge::handleLogoParameters(const Sightline::MsgLogoParameters& l)
+{
+    emit logoParametersReceived(l.cameraIndex, l.logoOpacity, l.offsetX, l.offsetY);
+}
+
+void SightlineQmlBridge::onCoolerTimerTick()
+{
+    if (m_coolerRemaining > 0) {
+        --m_coolerRemaining;
+        emit coolerCountdownChanged();
+        if (m_coolerRemaining > 0) {
+            const QString text = QString(QStringLiteral("Imager cooling down %1s")).arg(m_coolerRemaining);
+            drawText(m_coolerCamera, 2, 20, 20, text, 0, 0, 14, 32, 32, true);
+        } else {
+            if (m_coolerTimer) {
+                m_coolerTimer->stop();
+            }
+            destroyOverlay(m_coolerCamera, 1);
+            destroyOverlay(m_coolerCamera, 2);
+            emit coolerCountdownFinished();
+        }
+    } else {
+        if (m_coolerTimer) {
+            m_coolerTimer->stop();
+        }
+    }
 }

@@ -82,6 +82,30 @@ std::optional<Sightline::MsgSetStabilizationBias> QSightlineDevice::lastStabiliz
     return std::nullopt;
 }
 
+std::optional<Sightline::MsgSetOverlayMode> QSightlineDevice::lastOverlayMode() const
+{
+    if (m_device) {
+        return m_device->lastOverlayMode();
+    }
+    return std::nullopt;
+}
+
+std::optional<Sightline::MsgCurrentOverlayObjectsIds> QSightlineDevice::lastOverlayObjectsIds() const
+{
+    if (m_device) {
+        return m_device->lastOverlayObjectsIds();
+    }
+    return std::nullopt;
+}
+
+std::optional<Sightline::MsgLogoParameters> QSightlineDevice::lastLogoParameters() const
+{
+    if (m_device) {
+        return m_device->lastLogoParameters();
+    }
+    return std::nullopt;
+}
+
 Transport::TransportStatsSnapshot QSightlineDevice::getTransportStats() const
 {
     if (m_device) {
@@ -134,6 +158,26 @@ void QSightlineDevice::wireCallbacks()
     m_device->setStabilizationBiasCallback([this](const Sightline::MsgSetStabilizationBias& bias) {
         QMetaObject::invokeMethod(
             this, [this, bias]() { emit stabilizationBiasReceived(bias); }, Qt::QueuedConnection);
+    });
+
+    m_device->setOverlayCallback([this](const Sightline::MsgSetOverlayMode& mode) {
+        QMetaObject::invokeMethod(
+            this, [this, mode]() { emit overlayModeReceived(mode); }, Qt::QueuedConnection);
+    });
+
+    m_device->setObjectsIdsCallback([this](const Sightline::MsgCurrentOverlayObjectsIds& ids) {
+        QMetaObject::invokeMethod(
+            this, [this, ids]() { emit overlayObjectsIdsReceived(ids); }, Qt::QueuedConnection);
+    });
+
+    m_device->setObjectParamsCallback([this](const Sightline::MsgCurrentOverlayObjectParameters& params) {
+        QMetaObject::invokeMethod(
+            this, [this, params]() { emit overlayObjectParamsReceived(params); }, Qt::QueuedConnection);
+    });
+
+    m_device->setLogoCallback([this](const Sightline::MsgLogoParameters& logo) {
+        QMetaObject::invokeMethod(
+            this, [this, logo]() { emit logoParametersReceived(logo); }, Qt::QueuedConnection);
     });
 
     m_device->setRawTrafficCallback([this](bool isTx, const std::vector<std::uint8_t>& frame) {
@@ -331,4 +375,99 @@ bool QSightlineDevice::sendRawPacket(const QByteArray& rawPacket)
     const std::vector<std::uint8_t> data(reinterpret_cast<const std::uint8_t*>(rawPacket.constData()),
         reinterpret_cast<const std::uint8_t*>(rawPacket.constData()) + rawPacket.size());
     return m_device->transport()->sendData(data);
+}
+
+bool QSightlineDevice::setOverlayMode(const Sightline::MsgSetOverlayMode& msg)
+{
+    return m_device ? m_device->setOverlayMode(msg) : false;
+}
+
+bool QSightlineDevice::getOverlayMode(quint8 cameraIndex)
+{
+    return m_device ? m_device->getOverlayMode(cameraIndex) : false;
+}
+
+bool QSightlineDevice::drawOverlay(const Sightline::MsgDrawOverlay& msg)
+{
+    return m_device ? m_device->drawOverlay(msg) : false;
+}
+
+bool QSightlineDevice::drawOverlayBatch(const std::vector<Sightline::MsgDrawOverlay>& objects)
+{
+    return m_device ? m_device->drawOverlayBatch(objects) : false;
+}
+
+bool QSightlineDevice::drawCross(quint8 cameraIndex, quint8 objectId, qint16 centerX, qint16 centerY, quint16 size,
+    Sightline::OverlayPaletteColor fgColor, quint16 thickness, bool originUpperLeft)
+{
+    return m_device
+        ? m_device->drawCross(cameraIndex, objectId, centerX, centerY, size, fgColor, thickness, originUpperLeft)
+        : false;
+}
+
+bool QSightlineDevice::drawRectangle(quint8 cameraIndex, quint8 objectId, qint16 x, qint16 y, quint16 width,
+    quint16 height, bool filled, Sightline::OverlayPaletteColor fgColor, Sightline::OverlayPaletteColor bgColor,
+    quint8 alpha, quint16 thickness, bool originUpperLeft)
+{
+    return m_device ? m_device->drawRectangle(
+               cameraIndex, objectId, x, y, width, height, filled, fgColor, bgColor, alpha, thickness, originUpperLeft)
+                    : false;
+}
+
+bool QSightlineDevice::drawText(quint8 cameraIndex, quint8 objectId, qint16 x, qint16 y, const QString& text,
+    Sightline::OverlayFontId fontId, Sightline::OverlayPaletteColor fgColor, Sightline::OverlayPaletteColor bgColor,
+    quint8 hScale, quint8 vScale, bool originUpperLeft)
+{
+    return m_device ? m_device->drawText(cameraIndex, objectId, x, y, text.toStdString(), fontId, fgColor, bgColor,
+               hScale, vScale, originUpperLeft)
+                    : false;
+}
+
+bool QSightlineDevice::drawKlvField(quint8 cameraIndex, quint8 objectId, qint16 x, qint16 y,
+    Sightline::KlvFieldTag fieldTag, Sightline::KlvFormatType formatType, const QString& formatString,
+    Sightline::OverlayFontId fontId, Sightline::OverlayPaletteColor fgColor, bool originUpperLeft)
+{
+    return m_device ? m_device->drawKlvField(cameraIndex, objectId, x, y, fieldTag, formatType,
+               formatString.toStdString(), fontId, fgColor, originUpperLeft)
+                    : false;
+}
+
+bool QSightlineDevice::drawBlackout(quint8 cameraIndex, quint8 objectId, quint16 width, quint16 height)
+{
+    return m_device ? m_device->drawBlackout(cameraIndex, objectId, width, height) : false;
+}
+
+bool QSightlineDevice::destroyOverlay(quint8 cameraIndex, quint8 objectId)
+{
+    return m_device ? m_device->destroyOverlay(cameraIndex, objectId) : false;
+}
+
+bool QSightlineDevice::destroyAllOverlays(quint8 cameraIndex)
+{
+    return m_device ? m_device->destroyAllOverlays(cameraIndex) : false;
+}
+
+bool QSightlineDevice::setLogoParameters(const Sightline::MsgLogoParameters& msg)
+{
+    return m_device ? m_device->setLogoParameters(msg) : false;
+}
+
+bool QSightlineDevice::getLogoParameters(quint8 cameraIndex)
+{
+    return m_device ? m_device->getLogoParameters(cameraIndex) : false;
+}
+
+bool QSightlineDevice::setUserFont(quint8 slotIndex, const QString& fontFileName)
+{
+    return m_device ? m_device->setUserFont(slotIndex, fontFileName.toStdString()) : false;
+}
+
+bool QSightlineDevice::getOverlayObjectsIds(quint8 cameraIndex)
+{
+    return m_device ? m_device->getOverlayObjectsIds(cameraIndex) : false;
+}
+
+bool QSightlineDevice::getOverlayObjectParams(quint8 objectId)
+{
+    return m_device ? m_device->getOverlayObjectParams(objectId) : false;
 }

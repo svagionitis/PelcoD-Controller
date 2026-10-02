@@ -3,6 +3,7 @@
 
 #include "QSightlineDevice.h"
 #include <SightlineCore/SightlineProtocolBuilder.h>
+#include <SightlineCore/modules/SightlineOverlayBuilder.h>
 #include <Transport/BaseTransport.h>
 
 #include <gtest/gtest.h>
@@ -132,6 +133,81 @@ TEST_F(QSightlineDeviceTest, IncomingTelemetrySignals)
 
     EXPECT_GE(rawSpy.count(), 1);
     EXPECT_EQ(warnSpy.count(), 1);
+
+    qDevice.stop();
+}
+
+/// @brief Verify overlay command dispatch slots.
+TEST_F(QSightlineDeviceTest, OverlayCommandSlots)
+{
+    auto transport = std::make_shared<MockTransportForQt>();
+    QSightlineDevice qDevice(transport);
+    ASSERT_TRUE(qDevice.start());
+
+    Sightline::MsgSetOverlayMode modeMsg {};
+    modeMsg.cameraIndex = 0U;
+    EXPECT_TRUE(qDevice.setOverlayMode(modeMsg));
+    EXPECT_TRUE(qDevice.getOverlayMode(0U));
+    EXPECT_TRUE(qDevice.drawCross(0U, 1U, 100, 100, 20U));
+    EXPECT_TRUE(qDevice.drawRectangle(0U, 2U, 50, 50, 100U, 80U));
+    EXPECT_TRUE(qDevice.drawText(0U, 3U, 10, 10, QStringLiteral("TEST")));
+    EXPECT_TRUE(
+        qDevice.drawKlvField(0U, 4U, 20, 20, Sightline::KlvFieldTag::UtcTime, Sightline::KlvFormatType::TimeHms));
+    EXPECT_TRUE(qDevice.drawBlackout(0U, 5U, 640U, 480U));
+    EXPECT_TRUE(qDevice.destroyOverlay(0U, 1U));
+    EXPECT_TRUE(qDevice.destroyAllOverlays(0U));
+
+    Sightline::MsgLogoParameters logoMsg {};
+    logoMsg.cameraIndex = 0U;
+    EXPECT_TRUE(qDevice.setLogoParameters(logoMsg));
+    EXPECT_TRUE(qDevice.getLogoParameters(0U));
+    EXPECT_TRUE(qDevice.setUserFont(0U, QStringLiteral("font.ttf")));
+    EXPECT_TRUE(qDevice.getOverlayObjectsIds(0U));
+    EXPECT_TRUE(qDevice.getOverlayObjectParams(1U));
+
+    const auto sent = transport->getSentPackets();
+    EXPECT_EQ(sent.size(), 14U);
+
+    qDevice.stop();
+}
+
+/// @brief Verify incoming overlay telemetry signals and cache updates.
+TEST_F(QSightlineDeviceTest, OverlaySignalsAndCache)
+{
+    auto transport = std::make_shared<MockTransportForQt>();
+    QSightlineDevice qDevice(transport);
+    ASSERT_TRUE(qDevice.start());
+
+    QSignalSpy modeSpy(&qDevice, &QSightlineDevice::overlayModeReceived);
+    QSignalSpy logoSpy(&qDevice, &QSightlineDevice::logoParametersReceived);
+
+    // Inject SetOverlayMode packet (0x06)
+    Sightline::MsgSetOverlayMode modeMsg {};
+    modeMsg.cameraIndex = 1U;
+    modeMsg.graphics = 0x1010U;
+    const auto modePkt = Sightline::SightlineOverlayBuilder::buildSetOverlayMode(modeMsg);
+    transport->injectData(modePkt);
+
+    // Inject LogoParameters packet (0x9B)
+    Sightline::MsgLogoParameters logoMsg {};
+    logoMsg.cameraIndex = 1U;
+    logoMsg.logoOpacity = 128U;
+    logoMsg.offsetX = 50U;
+    logoMsg.offsetY = 30U;
+    const auto logoPkt = Sightline::SightlineOverlayBuilder::buildSetLogoParameters(logoMsg);
+    transport->injectData(logoPkt);
+
+    QCoreApplication::processEvents();
+
+    EXPECT_EQ(modeSpy.count(), 1);
+    EXPECT_TRUE(qDevice.lastOverlayMode().has_value());
+    EXPECT_EQ(qDevice.lastOverlayMode()->cameraIndex, 1U);
+    EXPECT_EQ(qDevice.lastOverlayMode()->graphics, 0x1010U);
+
+    EXPECT_EQ(logoSpy.count(), 1);
+    EXPECT_TRUE(qDevice.lastLogoParameters().has_value());
+    EXPECT_EQ(qDevice.lastLogoParameters()->logoOpacity, 128U);
+    EXPECT_EQ(qDevice.lastLogoParameters()->offsetX, 50U);
 
     qDevice.stop();
 }

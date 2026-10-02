@@ -56,6 +56,15 @@ public:
     /// @brief Retrieves the latest cached stabilization bias snapshot.
     [[nodiscard]] std::optional<Sightline::MsgSetStabilizationBias> lastStabilizationBias() const;
 
+    /// @brief Retrieves the latest cached overlay mode configuration.
+    [[nodiscard]] std::optional<Sightline::MsgSetOverlayMode> lastOverlayMode() const;
+
+    /// @brief Retrieves the latest cached active overlay object IDs bitmask.
+    [[nodiscard]] std::optional<Sightline::MsgCurrentOverlayObjectsIds> lastOverlayObjectsIds() const;
+
+    /// @brief Retrieves the latest cached logo watermark parameters.
+    [[nodiscard]] std::optional<Sightline::MsgLogoParameters> lastLogoParameters() const;
+
     /// @brief Retrieves transport and kernel-level metrics.
     [[nodiscard]] Transport::TransportStatsSnapshot getTransportStats() const;
 
@@ -68,6 +77,10 @@ signals:
     void stabilizationReceived(const Sightline::MsgSetStabilizationParameters& params);
     void registrationReceived(const Sightline::MsgSetRegistrationParameters& params);
     void stabilizationBiasReceived(const Sightline::MsgSetStabilizationBias& bias);
+    void overlayModeReceived(const Sightline::MsgSetOverlayMode& mode);
+    void overlayObjectsIdsReceived(const Sightline::MsgCurrentOverlayObjectsIds& ids);
+    void overlayObjectParamsReceived(const Sightline::MsgCurrentOverlayObjectParameters& params);
+    void logoParametersReceived(const Sightline::MsgLogoParameters& logo);
     void rawFrameReceived(bool isTx, const QByteArray& data);
     void connectionStateChanged(bool isConnected);
 
@@ -99,6 +112,36 @@ public slots:
     bool queryVersion();
     bool enableSystemStatus(bool enable = true);
     bool queryParameters(quint8 queryId);
+
+    // Overlays & Symbology
+    bool setOverlayMode(const Sightline::MsgSetOverlayMode& msg);
+    bool getOverlayMode(quint8 cameraIndex = 0U);
+    bool drawOverlay(const Sightline::MsgDrawOverlay& msg);
+    bool drawOverlayBatch(const std::vector<Sightline::MsgDrawOverlay>& objects);
+    bool drawCross(quint8 cameraIndex, quint8 objectId, qint16 centerX, qint16 centerY, quint16 size,
+        Sightline::OverlayPaletteColor fgColor = Sightline::OverlayPaletteColor::White, quint16 thickness = 1U,
+        bool originUpperLeft = false);
+    bool drawRectangle(quint8 cameraIndex, quint8 objectId, qint16 x, qint16 y, quint16 width, quint16 height,
+        bool filled = false, Sightline::OverlayPaletteColor fgColor = Sightline::OverlayPaletteColor::White,
+        Sightline::OverlayPaletteColor bgColor = Sightline::OverlayPaletteColor::TransparentBgOrTurquoiseFg,
+        quint8 alpha = 0U, quint16 thickness = 1U, bool originUpperLeft = true);
+    bool drawText(quint8 cameraIndex, quint8 objectId, qint16 x, qint16 y, const QString& text,
+        Sightline::OverlayFontId fontId = Sightline::OverlayFontId::Courier,
+        Sightline::OverlayPaletteColor fgColor = Sightline::OverlayPaletteColor::White,
+        Sightline::OverlayPaletteColor bgColor = Sightline::OverlayPaletteColor::TransparentBgOrTurquoiseFg,
+        quint8 hScale = 32U, quint8 vScale = 32U, bool originUpperLeft = true);
+    bool drawKlvField(quint8 cameraIndex, quint8 objectId, qint16 x, qint16 y, Sightline::KlvFieldTag fieldTag,
+        Sightline::KlvFormatType formatType, const QString& formatString = "%s",
+        Sightline::OverlayFontId fontId = Sightline::OverlayFontId::Courier,
+        Sightline::OverlayPaletteColor fgColor = Sightline::OverlayPaletteColor::White, bool originUpperLeft = true);
+    bool drawBlackout(quint8 cameraIndex, quint8 objectId, quint16 width = 640U, quint16 height = 480U);
+    bool destroyOverlay(quint8 cameraIndex, quint8 objectId);
+    bool destroyAllOverlays(quint8 cameraIndex = 0U);
+    bool setLogoParameters(const Sightline::MsgLogoParameters& msg);
+    bool getLogoParameters(quint8 cameraIndex = 0U);
+    bool setUserFont(quint8 slotIndex, const QString& fontFileName);
+    bool getOverlayObjectsIds(quint8 cameraIndex = 0U);
+    bool getOverlayObjectParams(quint8 objectId);
 
     bool sendRawPacket(const QByteArray& rawPacket);
 

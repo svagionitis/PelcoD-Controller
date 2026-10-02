@@ -13,6 +13,8 @@
 #include <QObject>
 #include <QRect>
 #include <QString>
+#include <QTimer>
+#include <QVariantList>
 #include <memory>
 
 class SightlineQmlBridge : public QObject {
@@ -32,6 +34,9 @@ class SightlineQmlBridge : public QObject {
     Q_PROPERTY(int activeContrastMode READ activeContrastMode NOTIFY contrastModeChanged)
     Q_PROPERTY(int activePaletteIndex READ activePaletteIndex NOTIFY paletteIndexChanged)
     Q_PROPERTY(QRect enhancementRoi READ enhancementRoi NOTIFY enhancementRoiChanged)
+    Q_PROPERTY(QVariantList activeOverlayIds READ activeOverlayIds NOTIFY activeOverlayIdsChanged)
+    Q_PROPERTY(bool coolerCountdownActive READ isCoolerCountdownActive NOTIFY coolerCountdownChanged)
+    Q_PROPERTY(int coolerCountdownRemaining READ coolerCountdownRemaining NOTIFY coolerCountdownChanged)
 
 public:
     /// @brief Construct a new SightlineQmlBridge instance.
@@ -110,6 +115,18 @@ public:
     /// @brief Get the active enhancement region of interest rectangle.
     /// @return Enhancement ROI rectangle.
     [[nodiscard]] QRect enhancementRoi() const noexcept;
+
+    /// @brief Get active overlay object identifiers registered in session.
+    /// @return List of integer object IDs.
+    [[nodiscard]] QVariantList activeOverlayIds() const;
+
+    /// @brief Check if cooler countdown sequence is actively executing.
+    /// @return True if cooler countdown timer is running.
+    [[nodiscard]] bool isCoolerCountdownActive() const noexcept;
+
+    /// @brief Get remaining seconds for active cooler countdown.
+    /// @return Remaining seconds (0 if inactive).
+    [[nodiscard]] int coolerCountdownRemaining() const noexcept;
 
     // --- QML Invokable Operations ---
 
@@ -445,6 +462,138 @@ public:
     /// @return True if dispatched.
     Q_INVOKABLE bool setNoise3D(int cam, int enable, int temporal, int spatial);
 
+    // 6. Overlays & Graphic Primitives (Module 0x62 & 0x9C)
+    /// @brief Configure reticle mode and graphics feature flags (Message ID 0x06).
+    /// @param cam Camera index.
+    /// @param primaryReticle Primary reticle style index.
+    /// @param secondaryReticle Secondary reticle style index.
+    /// @param graphicsMask Bitmask of OverlayGraphicsFlags.
+    /// @return True if dispatched.
+    Q_INVOKABLE bool setOverlayMode(int cam, int primaryReticle, int secondaryReticle, int graphicsMask);
+
+    /// @brief Query overlay mode for camera (Message ID 0x06).
+    /// @param cam Camera index.
+    /// @return True if dispatched.
+    Q_INVOKABLE bool getOverlayMode(int cam = 0);
+
+    /// @brief Draw cross graphic object (Message ID 0x9C).
+    /// @param cam Camera index.
+    /// @param objId Object identifier (0-255).
+    /// @param x Center X coordinate in pixels.
+    /// @param y Center Y coordinate in pixels.
+    /// @param size Arm length/size in pixels.
+    /// @param fgColor Color index (0-15).
+    /// @param thickness Line thickness in pixels.
+    /// @param originUpperLeft True for top-left (0,0), false for center (0,0).
+    /// @return True if dispatched.
+    Q_INVOKABLE bool drawCross(
+        int cam, int objId, int x, int y, int size, int fgColor = 0, int thickness = 1, bool originUpperLeft = false);
+
+    /// @brief Draw rectangle graphic object (Message ID 0x9C).
+    /// @param cam Camera index.
+    /// @param objId Object identifier (0-255).
+    /// @param x Corner X coordinate in pixels.
+    /// @param y Corner Y coordinate in pixels.
+    /// @param w Width in pixels.
+    /// @param h Height in pixels.
+    /// @param filled True to fill interior.
+    /// @param fgColor Border/foreground color index (0-15).
+    /// @param bgColor Fill/background color index (0-15).
+    /// @param alpha 5-bit alpha opacity level (0-31).
+    /// @param thickness Border line thickness.
+    /// @param originUpperLeft True for top-left origin.
+    /// @return True if dispatched.
+    Q_INVOKABLE bool drawRectangle(int cam, int objId, int x, int y, int w, int h, bool filled, int fgColor = 0,
+        int bgColor = 14, int alpha = 0, int thickness = 1, bool originUpperLeft = true);
+
+    /// @brief Draw text banner graphic object (Message ID 0x9C).
+    /// @param cam Camera index.
+    /// @param objId Object identifier (0-255).
+    /// @param x Starting X coordinate.
+    /// @param y Starting Y coordinate.
+    /// @param text Text string to display.
+    /// @param fontId Font family ID (0=Courier, 1=Arial, etc.).
+    /// @param fgColor Text color index (0-15).
+    /// @param bgColor Background box color index (0-15).
+    /// @param hScale Horizontal font scale (8..255).
+    /// @param vScale Vertical font scale (8..255).
+    /// @param originUpperLeft True for top-left origin.
+    /// @return True if dispatched.
+    Q_INVOKABLE bool drawText(int cam, int objId, int x, int y, const QString& text, int fontId = 0, int fgColor = 0,
+        int bgColor = 14, int hScale = 32, int vScale = 32, bool originUpperLeft = true);
+
+    /// @brief Draw dynamic KLV telemetry field graphic object (Message ID 0x9C).
+    /// @param cam Camera index.
+    /// @param objId Object identifier (0-255).
+    /// @param x Starting X coordinate.
+    /// @param y Starting Y coordinate.
+    /// @param fieldTag KLV field tag index.
+    /// @param formatType Value format style index.
+    /// @param formatString Printf-style format template.
+    /// @param fontId Font family ID.
+    /// @param fgColor Text color index.
+    /// @param originUpperLeft True for top-left origin.
+    /// @return True if dispatched.
+    Q_INVOKABLE bool drawKlvField(int cam, int objId, int x, int y, int fieldTag, int formatType,
+        const QString& formatString = "%s", int fontId = 0, int fgColor = 0, bool originUpperLeft = true);
+
+    /// @brief Draw solid blackout rectangle covering sensor image.
+    /// @param cam Camera index.
+    /// @param objId Object identifier.
+    /// @param width Screen width in pixels (default 640).
+    /// @param height Screen height in pixels (default 480).
+    /// @return True if dispatched.
+    Q_INVOKABLE bool drawBlackout(int cam, int objId, int width = 640, int height = 480);
+
+    /// @brief Destroy/delete specific graphic overlay object.
+    /// @param cam Camera index.
+    /// @param objId Object identifier to delete.
+    /// @return True if dispatched.
+    Q_INVOKABLE bool destroyOverlay(int cam, int objId);
+
+    /// @brief Destroy/delete all user overlay objects on camera.
+    /// @param cam Camera index.
+    /// @return True if dispatched.
+    Q_INVOKABLE bool destroyAllOverlays(int cam = 0);
+
+    /// @brief Configure watermark logo opacity and offsets (Message ID 0x9B).
+    /// @param cam Camera index.
+    /// @param opacity Transparency alpha value (0-255).
+    /// @param offsetX Offset from right edge in pixels.
+    /// @param offsetY Offset from bottom edge in pixels.
+    /// @return True if dispatched.
+    Q_INVOKABLE bool setLogoParameters(int cam, int opacity, int offsetX, int offsetY);
+
+    /// @brief Query watermark logo parameters (Message ID 0x9B).
+    /// @param cam Camera index.
+    /// @return True if dispatched.
+    Q_INVOKABLE bool getLogoParameters(int cam = 0);
+
+    /// @brief Assign user TrueType font file to font slot (Message ID 0xAE).
+    /// @param slotIndex Font slot index (0-15).
+    /// @param fontPath Local file path or font identifier string.
+    /// @return True if dispatched.
+    Q_INVOKABLE bool setUserFont(int slotIndex, const QString& fontPath);
+
+    /// @brief Query active user overlay object IDs from hardware (Message ID 0x68).
+    /// @param cam Camera index.
+    /// @return True if dispatched.
+    Q_INVOKABLE bool getOverlayObjectsIds(int cam = 0);
+
+    /// @brief Query detailed parameters of specific overlay object (Message ID 0x6B).
+    /// @param objId Object identifier.
+    /// @return True if dispatched.
+    Q_INVOKABLE bool getOverlayObjectParams(int objId);
+
+    /// @brief Start automated cooler countdown sequence (EAN-Overlay-Graphics Section 10).
+    /// @param cam Camera index.
+    /// @param durationSeconds Countdown duration in seconds.
+    /// @return True if started.
+    Q_INVOKABLE bool startCoolerCountdown(int cam, int durationSeconds = 15);
+
+    /// @brief Cancel active cooler countdown sequence.
+    Q_INVOKABLE void cancelCoolerCountdown();
+
     // 7. Telemetry & Metadata
     /// @brief Configure telemetry reporting rate and message masks.
     /// @param cam Camera index.
@@ -526,6 +675,12 @@ signals:
     void registrationChanged(int cam, int maxTranslation, int maxRotation, int zoomRange, int left, int right, int top,
         int bottom, int updateRate);
     void stabilizationBiasChanged(int cam, int biasCol, int biasRow, int autoBias, int updateRate);
+    void activeOverlayIdsChanged();
+    void coolerCountdownChanged();
+    void coolerCountdownFinished();
+    void overlayModeReceived(int cam, int primaryReticle, int secondaryReticle, int graphicsMask);
+    void overlayObjectParamsReceived(int objId, int objType, int x, int y);
+    void logoParametersReceived(int cam, int opacity, int offsetX, int offsetY);
 
 private slots:
     void handleTrackingPositions(const Sightline::MsgTrackingPositions& pos);
@@ -536,6 +691,11 @@ private slots:
     void handleRegistrationParams(const Sightline::MsgSetRegistrationParameters& p);
     void handleStabilizationBias(const Sightline::MsgSetStabilizationBias& b);
     void handleRawFrame(bool isTx, const QByteArray& data);
+    void handleOverlayMode(const Sightline::MsgSetOverlayMode& m);
+    void handleOverlayObjectsIds(const Sightline::MsgCurrentOverlayObjectsIds& ids);
+    void handleOverlayObjectParams(const Sightline::MsgCurrentOverlayObjectParameters& p);
+    void handleLogoParameters(const Sightline::MsgLogoParameters& l);
+    void onCoolerTimerTick();
 
 private:
     QString m_host { "127.0.0.1" };
@@ -556,6 +716,11 @@ private:
     double m_lensK2[4] { 0.0, 0.0, 0.0, 0.0 };
     double m_lensCenterX[4] { 0.0, 0.0, 0.0, 0.0 };
     double m_lensCenterY[4] { 0.0, 0.0, 0.0, 0.0 };
+
+    std::unique_ptr<QTimer> m_coolerTimer {};
+    int m_coolerRemaining { 0 };
+    int m_coolerCamera { 0 };
+    QVariantList m_activeOverlayIds {};
 
     QElapsedTimer m_connectionTimer {};
     std::unique_ptr<QSightlineDevice> m_device {};
