@@ -64,6 +64,18 @@ public:
     /// @param[out] out Deserialized classifier parameters structure.
     /// @return True on successful parse.
     [[nodiscard]] static bool parseClassifierParams(ByteView packet, MsgClassifierParameters& out);
+
+    /// @brief Parses KLV spatial and metric dimension filtering rules (Message ID 0xC1).
+    /// @param[in] packet Validated framed packet bytes or view.
+    /// @param[out] out Deserialized metric filters structure.
+    /// @return True on successful parse.
+    [[nodiscard]] static bool parseKlvMetricFilters(ByteView packet, MsgKlvMetricFilters& out);
+
+    /// @brief Parses classifier configuration and compute settings (Message ID 0xA9).
+    /// @param[in] packet Validated framed packet bytes or view.
+    /// @param[out] out Deserialized classifier config structure.
+    /// @return True on successful parse.
+    [[nodiscard]] static bool parseClassifierConfig(ByteView packet, MsgClassifierConfig& out);
 };
 
 } // namespace Sightline

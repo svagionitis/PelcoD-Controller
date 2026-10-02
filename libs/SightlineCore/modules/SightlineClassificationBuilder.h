@@ -74,6 +74,26 @@ public:
     /// @param[in] cameraIndex Target camera index.
     /// @return Framed binary packet.
     [[nodiscard]] static std::vector<std::uint8_t> buildGetClassifierParams(std::uint8_t cameraIndex = 0U);
+
+    /// @brief Encodes KLV spatial and metric dimension filtering rules (Message ID 0xC1).
+    /// @param[in] msg Metric filter parameters (EAN Sec 4.4.4).
+    /// @return Framed binary packet.
+    [[nodiscard]] static std::vector<std::uint8_t> buildSetKlvMetricFilters(const MsgKlvMetricFilters& msg);
+
+    /// @brief Encodes query for active KLV metric filters (Message ID 0x28 query 0xC1).
+    /// @param[in] cameraIndex Target camera index.
+    /// @return Framed binary packet.
+    [[nodiscard]] static std::vector<std::uint8_t> buildGetKlvMetricFilters(std::uint8_t cameraIndex = 0U);
+
+    /// @brief Encodes classifier configuration and NPU compute assignment (Message ID 0xA9).
+    /// @param[in] msg Classifier configuration.
+    /// @return Framed binary packet.
+    [[nodiscard]] static std::vector<std::uint8_t> buildSetClassifierConfig(const MsgClassifierConfig& msg);
+
+    /// @brief Encodes query for classifier configuration (Message ID 0x28 query 0xA9).
+    /// @param[in] cameraIndex Target camera index.
+    /// @return Framed binary packet.
+    [[nodiscard]] static std::vector<std::uint8_t> buildGetClassifierConfig(std::uint8_t cameraIndex = 0U);
 };
 
 } // namespace Sightline

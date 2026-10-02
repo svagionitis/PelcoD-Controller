@@ -818,5 +818,89 @@ namespace {
         EXPECT_EQ(static_cast<std::uint8_t>(MtiReticleType::RectangleWithClass), 0x20U);
     }
 
+    /// @brief Verify KLV metric dimension filters builder and parser roundtrip.
+    TEST(TestSightlineTracking, BuildAndParseKlvMetricFilters)
+    {
+        MsgKlvMetricFilters msg {};
+        msg.cameraIndex = 1U;
+        msg.minTargetWidthM = 0.8F;
+        msg.maxTargetWidthM = 2.5F;
+        msg.minTargetHeightM = 1.5F;
+        msg.maxTargetHeightM = 4.2F;
+        msg.filterAboveHorizon = true;
+        msg.filterBelowHorizon = false;
+        msg.minLatitude = 32.5;
+        msg.maxLatitude = 35.8;
+        msg.minLongitude = -117.2;
+        msg.maxLongitude = -115.1;
+
+        const auto setPkt = SightlineClassificationBuilder::buildSetKlvMetricFilters(msg);
+        EXPECT_EQ(SightlineFraming::identifyMessage(setPkt), MessageId::KlvClassFilters);
+        EXPECT_EQ(setPkt, SightlineProtocolBuilder::buildSetKlvMetricFilters(msg));
+
+        MsgKlvMetricFilters out {};
+        ASSERT_TRUE(SightlineClassificationParser::parseKlvMetricFilters(setPkt, out));
+        EXPECT_EQ(out.cameraIndex, 1U);
+        EXPECT_NEAR(out.minTargetWidthM, 0.8F, 1e-4F);
+        EXPECT_NEAR(out.maxTargetWidthM, 2.5F, 1e-4F);
+        EXPECT_NEAR(out.minTargetHeightM, 1.5F, 1e-4F);
+        EXPECT_NEAR(out.maxTargetHeightM, 4.2F, 1e-4F);
+        EXPECT_TRUE(out.filterAboveHorizon);
+        EXPECT_FALSE(out.filterBelowHorizon);
+        EXPECT_NEAR(out.minLatitude, 32.5, 1e-4);
+        EXPECT_NEAR(out.maxLatitude, 35.8, 1e-4);
+        EXPECT_NEAR(out.minLongitude, -117.2, 1e-4);
+        EXPECT_NEAR(out.maxLongitude, -115.1, 1e-4);
+
+        MsgKlvMetricFilters facadeOut {};
+        ASSERT_TRUE(SightlineProtocolParser::parseKlvMetricFilters(setPkt, facadeOut));
+        EXPECT_EQ(facadeOut.cameraIndex, 1U);
+
+        const auto getPkt = SightlineClassificationBuilder::buildGetKlvMetricFilters(1U);
+        EXPECT_EQ(SightlineFraming::identifyMessage(getPkt), MessageId::GetParameters);
+        EXPECT_EQ(getPkt, SightlineProtocolBuilder::buildGetKlvMetricFilters(1U));
+    }
+
+    /// @brief Verify classifier configuration builder and parser roundtrip.
+    TEST(TestSightlineTracking, BuildAndParseClassifierConfig)
+    {
+        MsgClassifierConfig msg {};
+        msg.cameraIndex = 0U;
+        msg.model = PretrainedClassifierModel::Drone;
+        msg.maxPerFrame = 8U;
+        msg.minDimensions = 16U;
+        msg.droneReporting = DroneReportingMode::Detailed;
+        msg.detectionPadding = 4U;
+        msg.updateRate = 30U;
+        msg.useNpu = true;
+        msg.asyncExecution = true;
+        msg.customModelName = "drone_v2.bin";
+
+        const auto setPkt = SightlineClassificationBuilder::buildSetClassifierConfig(msg);
+        EXPECT_EQ(SightlineFraming::identifyMessage(setPkt), MessageId::ClassifierParameters);
+        EXPECT_EQ(setPkt, SightlineProtocolBuilder::buildSetClassifierConfig(msg));
+
+        MsgClassifierConfig out {};
+        ASSERT_TRUE(SightlineClassificationParser::parseClassifierConfig(setPkt, out));
+        EXPECT_EQ(out.cameraIndex, 0U);
+        EXPECT_EQ(out.model, PretrainedClassifierModel::Drone);
+        EXPECT_EQ(out.maxPerFrame, 8U);
+        EXPECT_EQ(out.minDimensions, 16U);
+        EXPECT_EQ(out.droneReporting, DroneReportingMode::Detailed);
+        EXPECT_EQ(out.detectionPadding, 4U);
+        EXPECT_EQ(out.updateRate, 30U);
+        EXPECT_TRUE(out.useNpu);
+        EXPECT_TRUE(out.asyncExecution);
+        EXPECT_EQ(out.customModelName, "drone_v2.bin");
+
+        MsgClassifierConfig facadeOut {};
+        ASSERT_TRUE(SightlineProtocolParser::parseClassifierConfig(setPkt, facadeOut));
+        EXPECT_EQ(facadeOut.customModelName, "drone_v2.bin");
+
+        const auto getPkt = SightlineClassificationBuilder::buildGetClassifierConfig(0U);
+        EXPECT_EQ(SightlineFraming::identifyMessage(getPkt), MessageId::GetParameters);
+        EXPECT_EQ(getPkt, SightlineProtocolBuilder::buildGetClassifierConfig(0U));
+    }
+
 } // namespace
 } // namespace Sightline

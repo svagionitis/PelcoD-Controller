@@ -99,4 +99,52 @@ std::vector<std::uint8_t> SightlineClassificationBuilder::buildGetClassifierPara
     return SightlineFraming::buildPacket(MessageId::GetParameters, payload);
 }
 
+std::vector<std::uint8_t> SightlineClassificationBuilder::buildSetKlvMetricFilters(const MsgKlvMetricFilters& msg)
+{
+    std::vector<std::uint8_t> payload {};
+    payload.reserve(50U);
+    payload.push_back(msg.cameraIndex);
+    SightlineFraming::appendFloat32Le(payload, msg.minTargetWidthM);
+    SightlineFraming::appendFloat32Le(payload, msg.maxTargetWidthM);
+    SightlineFraming::appendFloat32Le(payload, msg.minTargetHeightM);
+    SightlineFraming::appendFloat32Le(payload, msg.maxTargetHeightM);
+    const std::uint8_t horizonMask = static_cast<std::uint8_t>(
+        (msg.filterAboveHorizon ? 0x01U : 0x00U) | (msg.filterBelowHorizon ? 0x02U : 0x00U));
+    payload.push_back(horizonMask);
+    SightlineFraming::appendDouble64Le(payload, msg.minLatitude);
+    SightlineFraming::appendDouble64Le(payload, msg.maxLatitude);
+    SightlineFraming::appendDouble64Le(payload, msg.minLongitude);
+    SightlineFraming::appendDouble64Le(payload, msg.maxLongitude);
+    return SightlineFraming::buildPacket(MessageId::KlvClassFilters, payload);
+}
+
+std::vector<std::uint8_t> SightlineClassificationBuilder::buildGetKlvMetricFilters(std::uint8_t cameraIndex)
+{
+    const std::vector<std::uint8_t> payload { static_cast<std::uint8_t>(MessageId::KlvClassFilters), cameraIndex };
+    return SightlineFraming::buildPacket(MessageId::GetParameters, payload);
+}
+
+std::vector<std::uint8_t> SightlineClassificationBuilder::buildSetClassifierConfig(const MsgClassifierConfig& msg)
+{
+    std::vector<std::uint8_t> payload {};
+    payload.reserve(12U + msg.customModelName.size());
+    payload.push_back(msg.cameraIndex);
+    payload.push_back(static_cast<std::uint8_t>(msg.model));
+    payload.push_back(msg.maxPerFrame);
+    SightlineFraming::appendU16Le(payload, msg.minDimensions);
+    payload.push_back(static_cast<std::uint8_t>(msg.droneReporting));
+    payload.push_back(msg.detectionPadding);
+    payload.push_back(msg.updateRate);
+    payload.push_back(static_cast<std::uint8_t>(msg.useNpu ? 1U : 0U));
+    payload.push_back(static_cast<std::uint8_t>(msg.asyncExecution ? 1U : 0U));
+    SightlineFraming::appendString(payload, msg.customModelName);
+    return SightlineFraming::buildPacket(MessageId::ClassifierParameters, payload);
+}
+
+std::vector<std::uint8_t> SightlineClassificationBuilder::buildGetClassifierConfig(std::uint8_t cameraIndex)
+{
+    const std::vector<std::uint8_t> payload { static_cast<std::uint8_t>(MessageId::ClassifierParameters), cameraIndex };
+    return SightlineFraming::buildPacket(MessageId::GetParameters, payload);
+}
+
 } // namespace Sightline

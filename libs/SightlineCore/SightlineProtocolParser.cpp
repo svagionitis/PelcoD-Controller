@@ -283,6 +283,16 @@ bool SightlineProtocolParser::parseClassifierParams(ByteView packet, MsgClassifi
     return SightlineClassificationParser::parseClassifierParams(packet, out);
 }
 
+bool SightlineProtocolParser::parseKlvMetricFilters(ByteView packet, MsgKlvMetricFilters& out)
+{
+    return SightlineClassificationParser::parseKlvMetricFilters(packet, out);
+}
+
+bool SightlineProtocolParser::parseClassifierConfig(ByteView packet, MsgClassifierConfig& out)
+{
+    return SightlineClassificationParser::parseClassifierConfig(packet, out);
+}
+
 // ==============================================================================
 // 6. Multi-Sensor Alignment & Digital Video Pipeline Deserializers (Phase 3)
 // ==============================================================================

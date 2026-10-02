@@ -36,6 +36,10 @@ public:
     using OverlayObjectsIdsCallback = std::function<void(const MsgCurrentOverlayObjectsIds&)>;
     using OverlayObjectParamsCallback = std::function<void(const MsgCurrentOverlayObjectParameters&)>;
     using LogoParametersCallback = std::function<void(const MsgLogoParameters&)>;
+    using DetectionCallback = std::function<void(const MsgSetDetectionParameters&)>;
+    using AdvDetectionCallback = std::function<void(const MsgAdvancedDetectionParameters&)>;
+    using DetectionRoiCallback = std::function<void(const MsgDetectionROI&)>;
+    using KlvMetricFiltersCallback = std::function<void(const MsgKlvMetricFilters&)>;
 
     /// @brief Constructs a SightlineDevice wrapping the given transport channel.
     /// @param[in] transport Shared pointer to underlying communication transport.
@@ -133,6 +137,71 @@ public:
     /// @param[in] msg Detection parameters.
     /// @return True if command was successfully transmitted.
     [[nodiscard]] bool setDetection(const MsgSetDetectionParameters& msg);
+
+    /// @brief Configures advanced detection parameters (Message ID 0x76).
+    /// @param[in] msg Advanced detection parameters.
+    /// @return True if command was successfully transmitted.
+    [[nodiscard]] bool setAdvancedDetection(const MsgAdvancedDetectionParameters& msg);
+
+    /// @brief Configures detection region of interest (Message ID 0x7C).
+    /// @param[in] msg Detection ROI parameters.
+    /// @return True if command was successfully transmitted.
+    [[nodiscard]] bool setDetectionROI(const MsgDetectionROI& msg);
+
+    /// @brief Configures Video Moving Target Indication (Message ID 0x84).
+    /// @param[in] msg VMTI parameters.
+    /// @return True if command was successfully transmitted.
+    [[nodiscard]] bool setVMTI(const MsgSetVMTI& msg);
+
+    /// @brief Triggers automated high-res detection snapshot capture (Message ID 0xAB).
+    /// @param[in] cameraIndex Zero-based camera index.
+    /// @param[in] detectionIndex Target detection index (0 or 1).
+    /// @return True if command was successfully transmitted.
+    [[nodiscard]] bool triggerDetectionSnapshot(std::uint8_t cameraIndex, std::uint8_t detectionIndex = 0U);
+
+    /// @brief Configures KLV spatial and metric dimension filters (Message ID 0xC1).
+    /// @param[in] msg Metric filters struct (EAN Sec 4.4.4).
+    /// @return True if command was successfully transmitted.
+    [[nodiscard]] bool setKlvMetricFilters(const MsgKlvMetricFilters& msg);
+
+    /// @brief Configures classifier settings and compute assignment (Message ID 0xA9).
+    /// @param[in] msg Classifier configuration struct.
+    /// @return True if command was successfully transmitted.
+    [[nodiscard]] bool setClassifierConfig(const MsgClassifierConfig& msg);
+
+    /// @brief Configures classifier compute resource assignment (NPU vs CPU, Sync vs Async).
+    /// @param[in] useNpu True to force classification to NPU via NPU_CONTROL.
+    /// @param[in] asyncInferencing True to run asynchronously via CLASSIFY_ASYNC.
+    /// @return True if commands were successfully transmitted.
+    [[nodiscard]] bool setComputeResources(bool useNpu, bool asyncInferencing);
+
+    /// @brief Queries active detection parameters (Message ID 0x2E).
+    /// @param[in] cameraIndex Target camera index.
+    /// @param[in] detIdx Detection index (0 or 1).
+    /// @return True if command was successfully transmitted.
+    [[nodiscard]] bool queryDetectionParams(std::uint8_t cameraIndex = 0U, std::uint8_t detIdx = 0U);
+
+    /// @brief Queries advanced detection parameters (Message ID 0x28 query 0x76).
+    /// @param[in] cameraIndex Target camera index.
+    /// @return True if command was successfully transmitted.
+    [[nodiscard]] bool queryAdvDetection(std::uint8_t cameraIndex = 0U);
+
+    /// @brief Queries active detection ROI (Message ID 0x28 query 0x7C).
+    /// @param[in] cameraIndex Target camera index.
+    /// @param[in] roiIndex ROI slot index (0..3).
+    /// @return True if command was successfully transmitted.
+    [[nodiscard]] bool queryDetectionROI(std::uint8_t cameraIndex = 0U, std::uint8_t roiIndex = 0U);
+
+    /// @brief Queries active VMTI configuration (Message ID 0x28 query 0x84).
+    /// @param[in] cameraIndex Target camera index.
+    /// @return True if command was successfully transmitted.
+    [[nodiscard]] bool queryVMTI(std::uint8_t cameraIndex = 0U);
+
+    /// @brief Queries tracking box luminance statistics (Message ID 0x28 query 0x78).
+    /// @param[in] cameraIndex Target camera index.
+    /// @param[in] trackId Target track ID.
+    /// @return True if command was successfully transmitted.
+    [[nodiscard]] bool queryTrackingPixelStats(std::uint8_t cameraIndex = 0U, std::uint8_t trackId = 0U);
 
     /// @brief Executes custom deep learning AI model detection.
     /// @param[in] msg AI detect parameters.
@@ -539,6 +608,18 @@ public:
     /// @brief Registers an observer callback for logo watermark parameters.
     void setLogoCallback(LogoParametersCallback cb);
 
+    /// @brief Registers an observer callback for active detection parameters.
+    void setDetectionCallback(DetectionCallback cb);
+
+    /// @brief Registers an observer callback for advanced detection parameters.
+    void setAdvDetectionCallback(AdvDetectionCallback cb);
+
+    /// @brief Registers an observer callback for detection region of interest.
+    void setDetectionRoiCallback(DetectionRoiCallback cb);
+
+    /// @brief Registers an observer callback for KLV metric dimension filters.
+    void setKlvMetricFiltersCb(KlvMetricFiltersCallback cb);
+
     /// @brief Retrieves the latest cached tracking positions snapshot.
     [[nodiscard]] std::optional<MsgTrackingPositions> lastTrackingPositions() const;
 
@@ -566,6 +647,18 @@ public:
     /// @brief Retrieves the latest cached logo watermark parameters.
     [[nodiscard]] std::optional<MsgLogoParameters> lastLogoParameters() const;
 
+    /// @brief Retrieves the latest cached detection parameters snapshot.
+    [[nodiscard]] std::optional<MsgSetDetectionParameters> lastDetectionParams() const;
+
+    /// @brief Retrieves the latest cached advanced detection parameters.
+    [[nodiscard]] std::optional<MsgAdvancedDetectionParameters> lastAdvDetection() const;
+
+    /// @brief Retrieves the latest cached detection ROI parameters.
+    [[nodiscard]] std::optional<MsgDetectionROI> lastDetectionROI() const;
+
+    /// @brief Retrieves the latest cached KLV metric filters.
+    [[nodiscard]] std::optional<MsgKlvMetricFilters> lastKlvMetricFilters() const;
+
 private:
     void handleIncomingBytes(const std::vector<std::uint8_t>& data);
     void dispatchPacket(const std::vector<std::uint8_t>& packet);
@@ -587,6 +680,10 @@ private:
     OverlayObjectsIdsCallback m_objectsIdsCallback;
     OverlayObjectParamsCallback m_objectParamsCallback;
     LogoParametersCallback m_logoCallback;
+    DetectionCallback m_detectionCallback;
+    AdvDetectionCallback m_advDetectionCallback;
+    DetectionRoiCallback m_detectionRoiCallback;
+    KlvMetricFiltersCallback m_klvMetricFiltersCallback;
 
     mutable std::mutex m_cacheMutex;
     std::optional<MsgTrackingPositions> m_lastPositions;
@@ -598,6 +695,10 @@ private:
     std::optional<MsgSetOverlayMode> m_lastOverlayMode;
     std::optional<MsgCurrentOverlayObjectsIds> m_lastOverlayObjectsIds;
     std::optional<MsgLogoParameters> m_lastLogoParameters;
+    std::optional<MsgSetDetectionParameters> m_lastDetectionParams;
+    std::optional<MsgAdvancedDetectionParameters> m_lastAdvDetection;
+    std::optional<MsgDetectionROI> m_lastDetectionROI;
+    std::optional<MsgKlvMetricFilters> m_lastKlvMetricFilters;
     StabilizationCallback m_stabilizationCallback;
     RegistrationCallback m_registrationCallback;
     StabilizationBiasCallback m_stabilizationBiasCallback;

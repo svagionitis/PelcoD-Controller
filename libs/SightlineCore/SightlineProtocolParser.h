@@ -230,6 +230,12 @@ public:
     /// @brief Parses classifier execution bounds and threshold parameters (Message ID 0xA9).
     [[nodiscard]] static bool parseClassifierParams(ByteView packet, MsgClassifierParameters& out);
 
+    /// @brief Parses KLV spatial and metric dimension filtering rules (Message ID 0xC1).
+    [[nodiscard]] static bool parseKlvMetricFilters(ByteView packet, MsgKlvMetricFilters& out);
+
+    /// @brief Parses classifier configuration and compute settings (Message ID 0xA9).
+    [[nodiscard]] static bool parseClassifierConfig(ByteView packet, MsgClassifierConfig& out);
+
     // --- Multi-Sensor Alignment & Digital Video Pipeline (Phase 3) ---
 
     /// @brief Parses active blending parameters (Message ID 0x4D / 0x2F).

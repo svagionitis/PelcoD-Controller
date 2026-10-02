@@ -235,6 +235,26 @@ std::vector<std::uint8_t> SightlineProtocolBuilder::buildGetClassifierParams(std
     return SightlineClassificationBuilder::buildGetClassifierParams(cameraIndex);
 }
 
+std::vector<std::uint8_t> SightlineProtocolBuilder::buildSetKlvMetricFilters(const MsgKlvMetricFilters& msg)
+{
+    return SightlineClassificationBuilder::buildSetKlvMetricFilters(msg);
+}
+
+std::vector<std::uint8_t> SightlineProtocolBuilder::buildGetKlvMetricFilters(std::uint8_t cameraIndex)
+{
+    return SightlineClassificationBuilder::buildGetKlvMetricFilters(cameraIndex);
+}
+
+std::vector<std::uint8_t> SightlineProtocolBuilder::buildSetClassifierConfig(const MsgClassifierConfig& msg)
+{
+    return SightlineClassificationBuilder::buildSetClassifierConfig(msg);
+}
+
+std::vector<std::uint8_t> SightlineProtocolBuilder::buildGetClassifierConfig(std::uint8_t cameraIndex)
+{
+    return SightlineClassificationBuilder::buildGetClassifierConfig(cameraIndex);
+}
+
 // ==============================================================================
 // 3. Video Stabilization, Alignment & Enhancement Messages (Stabilization, Blending, Enhancement)
 // ==============================================================================

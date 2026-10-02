@@ -133,4 +133,64 @@ bool SightlineClassificationParser::parseClassifierParams(ByteView packet, MsgCl
     return true;
 }
 
+bool SightlineClassificationParser::parseKlvMetricFilters(ByteView packet, MsgKlvMetricFilters& out)
+{
+    if (SightlineFraming::identifyMessage(packet) != MessageId::KlvClassFilters) {
+        return false;
+    }
+
+    const auto payload { SightlineFraming::extractPayload(packet) };
+    if (payload.size() < 50U) {
+        return false;
+    }
+
+    out.cameraIndex = payload[0U];
+    out.minTargetWidthM = SightlineFraming::readFloat32Le(payload.data() + 1U);
+    out.maxTargetWidthM = SightlineFraming::readFloat32Le(payload.data() + 5U);
+    out.minTargetHeightM = SightlineFraming::readFloat32Le(payload.data() + 9U);
+    out.maxTargetHeightM = SightlineFraming::readFloat32Le(payload.data() + 13U);
+    const std::uint8_t horizonMask { payload[17U] };
+    out.filterAboveHorizon = ((horizonMask & 0x01U) != 0U);
+    out.filterBelowHorizon = ((horizonMask & 0x02U) != 0U);
+    out.minLatitude = SightlineFraming::readDouble64Le(payload.data() + 18U);
+    out.maxLatitude = SightlineFraming::readDouble64Le(payload.data() + 26U);
+    out.minLongitude = SightlineFraming::readDouble64Le(payload.data() + 34U);
+    out.maxLongitude = SightlineFraming::readDouble64Le(payload.data() + 42U);
+    return true;
+}
+
+bool SightlineClassificationParser::parseClassifierConfig(ByteView packet, MsgClassifierConfig& out)
+{
+    if (SightlineFraming::identifyMessage(packet) != MessageId::ClassifierParameters) {
+        return false;
+    }
+
+    const auto payload { SightlineFraming::extractPayload(packet) };
+    if (payload.size() < 10U) {
+        return false;
+    }
+
+    out.cameraIndex = payload[0U];
+    out.model = static_cast<PretrainedClassifierModel>(payload[1U]);
+    out.maxPerFrame = payload[2U];
+    out.minDimensions = SightlineFraming::readU16Le(payload.data() + 3U);
+    out.droneReporting = static_cast<DroneReportingMode>(payload[5U]);
+    out.detectionPadding = payload[6U];
+    out.updateRate = payload[7U];
+    out.useNpu = (payload[8U] != 0U);
+    out.asyncExecution = (payload[9U] != 0U);
+
+    if (payload.size() > 10U) {
+        const char* strStart { reinterpret_cast<const char*>(payload.data() + 10U) };
+        std::size_t strLen { payload.size() - 10U };
+        if (payload[payload.size() - 1U] == 0U) {
+            --strLen;
+        }
+        out.customModelName.assign(strStart, strLen);
+    } else {
+        out.customModelName.clear();
+    }
+    return true;
+}
+
 } // namespace Sightline

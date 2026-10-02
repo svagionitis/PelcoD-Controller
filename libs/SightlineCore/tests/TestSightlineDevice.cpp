@@ -414,5 +414,139 @@ namespace {
         device.stop();
     }
 
+    /// @brief Verify detection, ROI, VMTI, snapshot, and classifier command dispatches.
+    TEST(TestSightlineDevice, DetectionCommandDispatch)
+    {
+        auto transport = std::make_shared<MockTestTransport>();
+        SightlineDevice device(transport);
+        ASSERT_TRUE(device.start());
+
+        MsgSetDetectionParameters detMsg {};
+        detMsg.cameraIndex = 0U;
+        detMsg.mode = DetectionMode::Maritime;
+        EXPECT_TRUE(device.setDetection(detMsg));
+
+        MsgAdvancedDetectionParameters advMsg {};
+        advMsg.cameraIndex = 0U;
+        EXPECT_TRUE(device.setAdvancedDetection(advMsg));
+
+        MsgDetectionROI roiMsg {};
+        roiMsg.cameraIndex = 0U;
+        EXPECT_TRUE(device.setDetectionROI(roiMsg));
+
+        MsgSetVMTI vmtiMsg {};
+        vmtiMsg.cameraIndex = 0U;
+        EXPECT_TRUE(device.setVMTI(vmtiMsg));
+
+        EXPECT_TRUE(device.triggerDetectionSnapshot(0U, 1U));
+
+        MsgKlvMetricFilters metricMsg {};
+        metricMsg.cameraIndex = 0U;
+        EXPECT_TRUE(device.setKlvMetricFilters(metricMsg));
+
+        MsgClassifierConfig classMsg {};
+        classMsg.cameraIndex = 0U;
+        EXPECT_TRUE(device.setClassifierConfig(classMsg));
+
+        EXPECT_TRUE(device.setComputeResources(true, true));
+
+        EXPECT_TRUE(device.queryDetectionParams(0U, 0U));
+        EXPECT_TRUE(device.queryAdvDetection(0U));
+        EXPECT_TRUE(device.queryDetectionROI(0U, 0U));
+        EXPECT_TRUE(device.queryVMTI(0U));
+        EXPECT_TRUE(device.queryTrackingPixelStats(0U, 1U));
+
+        const auto sent = transport->getSentPackets();
+        EXPECT_GE(sent.size(), 14U);
+
+        device.stop();
+    }
+
+    /// @brief Verify inbound detection telemetry callbacks and cached state getters.
+    TEST(TestSightlineDevice, DetectionTelemetryCallbacksAndCache)
+    {
+        auto transport = std::make_shared<MockTestTransport>();
+        SightlineDevice device(transport);
+        ASSERT_TRUE(device.start());
+
+        std::atomic<bool> detFired { false };
+        std::atomic<bool> advFired { false };
+        std::atomic<bool> roiFired { false };
+        std::atomic<bool> metricFired { false };
+
+        device.setDetectionCallback([&](const MsgSetDetectionParameters& det) {
+            EXPECT_EQ(det.cameraIndex, 0U);
+            EXPECT_EQ(det.mode, DetectionMode::Maritime);
+            detFired.store(true);
+        });
+
+        device.setAdvDetectionCallback([&](const MsgAdvancedDetectionParameters& adv) {
+            EXPECT_EQ(adv.cameraIndex, 0U);
+            EXPECT_EQ(adv.updateRate, 55U);
+            advFired.store(true);
+        });
+
+        device.setDetectionRoiCallback([&](const MsgDetectionROI& roi) {
+            EXPECT_EQ(roi.cameraIndex, 0U);
+            EXPECT_EQ(roi.lineLeftX, 120U);
+            roiFired.store(true);
+        });
+
+        device.setKlvMetricFiltersCb([&](const MsgKlvMetricFilters& filters) {
+            EXPECT_EQ(filters.cameraIndex, 1U);
+            EXPECT_NEAR(filters.minTargetWidthM, 1.2F, 1e-4F);
+            metricFired.store(true);
+        });
+
+        // 1. Inject CurrentDetectionParameters (0x54)
+        MsgSetDetectionParameters detMsg {};
+        detMsg.cameraIndex = 0U;
+        detMsg.mode = DetectionMode::Maritime;
+        const auto detPkt = SightlineProtocolBuilder::buildSetDetectionParams(detMsg);
+        auto detPayload = SightlineFraming::extractPayload(detPkt);
+        const auto curDetPkt = SightlineFraming::buildPacket(MessageId::CurrentDetectionParameters, detPayload);
+        transport->injectData(curDetPkt);
+        EXPECT_TRUE(detFired.load());
+        EXPECT_TRUE(device.lastDetectionParams().has_value());
+        EXPECT_EQ(device.lastDetectionParams()->mode, DetectionMode::Maritime);
+
+        // 2. Inject CurrentAdvancedDetectionParameters (0x77)
+        MsgAdvancedDetectionParameters advMsg {};
+        advMsg.cameraIndex = 0U;
+        advMsg.updateRate = 55U;
+        const auto advPkt = SightlineProtocolBuilder::buildSetAdvDetectionParams(advMsg);
+        auto advPayload = SightlineFraming::extractPayload(advPkt);
+        const auto curAdvPkt = SightlineFraming::buildPacket(MessageId::CurrentAdvancedDetectionParameters, advPayload);
+        transport->injectData(curAdvPkt);
+        EXPECT_TRUE(advFired.load());
+        EXPECT_TRUE(device.lastAdvDetection().has_value());
+        EXPECT_EQ(device.lastAdvDetection()->updateRate, 55U);
+
+        // 3. Inject CurrentDetectionRegionOfInterestParameters (0x7D)
+        MsgDetectionROI roiMsg {};
+        roiMsg.cameraIndex = 0U;
+        roiMsg.lineLeftX = 120U;
+        const auto roiPkt = SightlineProtocolBuilder::buildSetDetectionROI(roiMsg);
+        auto roiPayload = SightlineFraming::extractPayload(roiPkt);
+        const auto curRoiPkt
+            = SightlineFraming::buildPacket(MessageId::CurrentDetectionRegionOfInterestParameters, roiPayload);
+        transport->injectData(curRoiPkt);
+        EXPECT_TRUE(roiFired.load());
+        EXPECT_TRUE(device.lastDetectionROI().has_value());
+        EXPECT_EQ(device.lastDetectionROI()->lineLeftX, 120U);
+
+        // 4. Inject KlvClassFilters (0xC1)
+        MsgKlvMetricFilters metricMsg {};
+        metricMsg.cameraIndex = 1U;
+        metricMsg.minTargetWidthM = 1.2F;
+        const auto klvPkt = SightlineProtocolBuilder::buildSetKlvMetricFilters(metricMsg);
+        transport->injectData(klvPkt);
+        EXPECT_TRUE(metricFired.load());
+        EXPECT_TRUE(device.lastKlvMetricFilters().has_value());
+        EXPECT_NEAR(device.lastKlvMetricFilters()->minTargetWidthM, 1.2F, 1e-4F);
+
+        device.stop();
+    }
+
 } // namespace
 } // namespace Sightline
