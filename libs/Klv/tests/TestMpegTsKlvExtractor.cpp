@@ -75,3 +75,115 @@ TEST(MpegTsKlvExtractorTest, AutoDiscoversMetadataPidFromUniversalLabel) {
     EXPECT_EQ(*extractor.metadataPid(), kUnknownMetaPid);
     EXPECT_EQ(count, 1);
 }
+
+TEST(MpegTsKlvExtractorTest, ExtractsFromSampleFlightVideo) {
+    const std::vector<std::string> candidatePaths = {
+        "sample-videos/mpegts-klv-day-flight.ts",
+        "../../../../sample-videos/mpegts-klv-day-flight.ts",
+        "../../../sample-videos/mpegts-klv-day-flight.ts"
+    };
+
+    std::string videoPath;
+    for (const auto& p : candidatePaths) {
+        FILE* fp = std::fopen(p.c_str(), "rb");
+        if (fp != nullptr) {
+            std::fclose(fp);
+            videoPath = p;
+            break;
+        }
+    }
+
+    if (videoPath.empty()) {
+        GTEST_SKIP() << "Sample flight video not found in search paths.";
+    }
+
+    FILE* fp = std::fopen(videoPath.c_str(), "rb");
+    ASSERT_NE(fp, nullptr);
+
+    constexpr std::size_t kChunkSize = 2U * 1024U * 1024U;
+    std::vector<std::uint8_t> buffer(kChunkSize);
+    const std::size_t bytesRead = std::fread(buffer.data(), 1U, kChunkSize, fp);
+    std::fclose(fp);
+
+    ASSERT_GT(bytesRead, 0U);
+
+    MpegTsKlvExtractor extractor;
+    std::size_t messageCount = 0U;
+    std::vector<UasDatalinkMessage> receivedMessages;
+
+    extractor.setMessageCallback([&](const UasDatalinkMessage& m) {
+        messageCount++;
+        receivedMessages.push_back(m);
+    });
+
+    const std::size_t dispatched = extractor.processStream(buffer.data(), bytesRead);
+    EXPECT_GT(dispatched, 0U);
+    EXPECT_GT(messageCount, 0U);
+    EXPECT_TRUE(extractor.metadataPid().has_value());
+    EXPECT_EQ(*extractor.metadataPid(), 0x0101U);
+
+    if (!receivedMessages.empty()) {
+        const auto& firstMsg = receivedMessages.front();
+        EXPECT_TRUE(firstMsg.precisionTimeStampUs.has_value());
+        EXPECT_TRUE(firstMsg.imageSourceSensor.has_value());
+        EXPECT_EQ(*firstMsg.imageSourceSensor, "EON");
+        EXPECT_TRUE(firstMsg.platformHeadingDeg.has_value());
+    }
+}
+
+TEST(MpegTsKlvExtractorTest, ExtractsFromNightFlightVideo) {
+    const std::vector<std::string> candidatePaths = {
+        "sample-videos/mpegts-klv-night-flight-IR.ts",
+        "../../../../sample-videos/mpegts-klv-night-flight-IR.ts",
+        "../../../sample-videos/mpegts-klv-night-flight-IR.ts"
+    };
+
+    std::string videoPath;
+    for (const auto& p : candidatePaths) {
+        FILE* fp = std::fopen(p.c_str(), "rb");
+        if (fp != nullptr) {
+            std::fclose(fp);
+            videoPath = p;
+            break;
+        }
+    }
+
+    if (videoPath.empty()) {
+        GTEST_SKIP() << "Sample night flight video not found in search paths.";
+    }
+
+    FILE* fp = std::fopen(videoPath.c_str(), "rb");
+    ASSERT_NE(fp, nullptr);
+
+    constexpr std::size_t kChunkSize = 2U * 1024U * 1024U;
+    std::vector<std::uint8_t> buffer(kChunkSize);
+    const std::size_t bytesRead = std::fread(buffer.data(), 1U, kChunkSize, fp);
+    std::fclose(fp);
+
+    ASSERT_GT(bytesRead, 0U);
+
+    MpegTsKlvExtractor extractor;
+    std::size_t messageCount = 0U;
+    std::vector<UasDatalinkMessage> receivedMessages;
+
+    extractor.setMessageCallback([&](const UasDatalinkMessage& m) {
+        messageCount++;
+        receivedMessages.push_back(m);
+    });
+
+    const std::size_t dispatched = extractor.processStream(buffer.data(), bytesRead);
+    EXPECT_GT(dispatched, 0U);
+    EXPECT_GT(messageCount, 0U);
+    EXPECT_TRUE(extractor.metadataPid().has_value());
+    EXPECT_EQ(*extractor.metadataPid(), 0x0101U);
+
+    if (!receivedMessages.empty()) {
+        const auto& firstMsg = receivedMessages.front();
+        EXPECT_TRUE(firstMsg.precisionTimeStampUs.has_value());
+        EXPECT_TRUE(firstMsg.imageSourceSensor.has_value());
+        EXPECT_EQ(*firstMsg.imageSourceSensor, "IR");
+        EXPECT_TRUE(firstMsg.platformHeadingDeg.has_value());
+    }
+}
+
+

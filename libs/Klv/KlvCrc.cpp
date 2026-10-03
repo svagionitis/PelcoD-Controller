@@ -39,18 +39,42 @@ std::uint16_t KlvCrc::calculate(const std::uint8_t* data, std::size_t size) noex
     return crc;
 }
 
+std::uint16_t KlvCrc::computeBcc16(const std::uint8_t* data, std::size_t size) noexcept {
+    if (data == nullptr || size == 0U) {
+        return 0U;
+    }
+
+    std::uint16_t bcc { 0U };
+    for (std::size_t i = 0U; i < size; ++i) {
+        const auto shift = static_cast<std::uint8_t>(8U * ((i + 1U) % 2U));
+        bcc = static_cast<std::uint16_t>(bcc + (static_cast<std::uint16_t>(data[i]) << shift));
+    }
+    return bcc;
+}
+
 bool KlvCrc::verifyPacket(const std::uint8_t* packet, std::size_t packetSize) noexcept {
     if (packet == nullptr || packetSize < 4U) {
         return false;
     }
 
-    // A valid MISB ST 0601 packet evaluated with its 2-byte CRC yields 0x0000.
+    // 1. Check MISB ST 0601 BCC-16 checksum
+    // Tag 1 (Checksum) stores a 2-byte big-endian value at the end of the packet.
+    const auto storedChecksum = static_cast<std::uint16_t>(
+        (static_cast<std::uint16_t>(packet[packetSize - 2U]) << 8U) |
+        static_cast<std::uint16_t>(packet[packetSize - 1U]));
+
+    const std::uint16_t calculatedBcc = computeBcc16(packet, packetSize - 2U);
+    if (calculatedBcc == storedChecksum) {
+        return true;
+    }
+
+    // 2. Check MISB ST 0903 / CCITT CRC-16 (evaluates to 0x0000 over entire packet)
     return calculate(packet, packetSize) == 0x0000U;
 }
 
 std::uint16_t KlvCrc::computeChecksumForTag1(const std::uint8_t* packetWithoutCrc,
                                              std::size_t size) noexcept {
-    return calculate(packetWithoutCrc, size);
+    return computeBcc16(packetWithoutCrc, size);
 }
 
 } // namespace Klv

@@ -19,6 +19,14 @@ public:
     /// @return 16-bit calculated CRC value.
     [[nodiscard]] static std::uint16_t calculate(const std::uint8_t* data, std::size_t size) noexcept;
 
+    /// @brief Computes MISB ST 0601 BCC-16 16-bit checksum over a byte sequence.
+    /// @details Sums each 16-bit word: bcc += data[i] << (8 * ((i + 1) % 2)).
+    /// @param[in] data Pointer to the buffer.
+    /// @param[in] size Size of the buffer in bytes.
+    /// @return 16-bit calculated BCC checksum value.
+    [[nodiscard]] static std::uint16_t computeBcc16(const std::uint8_t* data, std::size_t size) noexcept;
+
+
     /// @brief Validates a complete MISB ST 0601 packet including its appended Tag 1 CRC bytes.
     /// @param[in] packet Pointer to the start of the packet (starting with 16-byte UL).
     /// @param[in] packetSize Total size of the packet in bytes up to and including the 2-byte CRC.
