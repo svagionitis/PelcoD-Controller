@@ -48,4 +48,19 @@ if(PELCOD_ENABLE_FILTERS AND OpenCV_FOUND)
         opencv_imgproc
     )
     pelcod_register_gtest(TestMapRasterizerFilter)
+
+    add_executable(TestTacticalHudFilter TestTacticalHudFilter.cpp)
+    target_include_directories(TestTacticalHudFilter PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/..
+        ${CMAKE_SOURCE_DIR}/libs/VideoFilters
+        ${CMAKE_SOURCE_DIR}/libs/Klv
+    )
+    target_link_libraries(TestTacticalHudFilter PRIVATE
+        VideoFilters
+        Video
+        Klv
+        opencv_core
+        opencv_imgproc
+    )
+    pelcod_register_gtest(TestTacticalHudFilter)
 endif()

@@ -37,7 +37,8 @@ public:
     enum class HudMode : std::uint8_t {
         Minimal,     ///< Center reticle, top heading ribbon, and compact slant range.
         Standard,    ///< Reticle, compass ribbon, artificial horizon, target coordinate card, security banner.
-        FullTactical ///< Standard + ownship platform navigation card + tactical footprint radar inset.
+        FullTactical,///< Standard + ownship platform navigation card + tactical footprint radar inset.
+        Misb1909     ///< MISB ST 1909.1 compliant metadata overlay for visualization.
     };
 
     /// @enum ColorPalette
@@ -57,14 +58,24 @@ public:
         DecimalDeg  ///< Decimal Degrees (e.g. 37.774929°N 122.419416°W)
     };
 
+    /// @struct LaserData
+    /// @brief MISB ST 1909.1 / ST 0601 laser designator and rangefinder status.
+    struct LaserData {
+        bool active { false };                ///< Laser firing status (ST 1909-38/39)
+        std::optional<std::uint32_t> prfCode; ///< Laser PRF code (ST 1909-40/41/42)
+        std::string name { "Laser" };         ///< Laser sensor name (ST 1909-37)
+    };
+
     /// @struct TargetData
     /// @brief Target and optical ground intersection telemetry.
     struct TargetData {
         std::optional<double> latitudeDeg;  ///< Target WGS-84 latitude
         std::optional<double> longitudeDeg; ///< Target WGS-84 longitude
-        std::optional<double> elevationM;   ///< Target MSL elevation in meters
+        std::optional<double> elevationM;   ///< Target elevation in meters
         std::optional<double> slantRangeM;  ///< Slant range to target in meters
         std::optional<double> widthM;       ///< Target footprint width in meters
+        bool elevationIsHae { false };      ///< If true, HAE datum; if false, MSL
+        bool isTrueLocation { false };      ///< If true, True Location (TL); if false, Frame Center (FC)
     };
 
     /// @struct PlatformData
@@ -80,11 +91,14 @@ public:
         double zoomLevel { 1.0 };           ///< Optical zoom multiplier (e.g. 1.0x to 40.0x)
         std::optional<double> latitudeDeg;  ///< Ownship latitude
         std::optional<double> longitudeDeg; ///< Ownship longitude
-        std::optional<double> altitudeM;    ///< Ownship MSL altitude in meters
+        std::optional<double> altitudeM;    ///< Ownship altitude in meters
+        bool altitudeIsHae { false };       ///< If true, HAE datum; if false, MSL
         std::string tailNumber;             ///< Platform callsign / tail ID
+        std::string designation;            ///< Platform model / designation (Tag 10)
         std::string missionId;              ///< Active mission ID
         std::string sensorPayload;          ///< Sensor payload model / camera type
         std::uint64_t timestampUs { 0U };   ///< Precision timestamp in microseconds since epoch
+        std::optional<std::uint64_t> frameTimestampUs; ///< Frame timestamp (ST 0604)
     };
 
     /// @brief Constructs a TacticalHudFilter with designated HUD mode and color palette.
@@ -161,13 +175,48 @@ public:
     /// @param[in] zoomMagnification Optical zoom factor (e.g. 1.0x to 30.0x).
     void setSensorOrientation(double azimuthDeg, double elevationDeg, double hfovDeg, double zoomMagnification = 1.0);
 
+    /// @brief Manually sets platform telemetry data.
+    /// @param[in] platform Platform navigation and sensor data.
+    void setPlatformData(const PlatformData& platform);
+
+    /// @brief Retrieves platform telemetry data.
+    [[nodiscard]] PlatformData getPlatformData() const;
+
     /// @brief Manually sets target coordinate data.
     /// @param[in] target Target telemetry data.
     void setTargetData(const TargetData& target);
 
+    /// @brief Retrieves target tracking data.
+    [[nodiscard]] TargetData getTargetData() const;
+
     /// @brief Manually sets MISB ST 0102 security classification.
     /// @param[in] security Security classification metadata.
     void setSecurityMetadata(const Klv::SecurityMetadata& security);
+
+    /// @brief Manually sets laser sensor data.
+    /// @param[in] laser Laser status and PRF code.
+    void setLaserData(const LaserData& laser);
+
+    /// @brief Retrieves laser sensor data.
+    [[nodiscard]] LaserData getLaserData() const;
+
+    /// @brief Formats an angle per MISB ST 1909.1 (ST 1909-01, ST 1909.1-95).
+    /// @param[in] deg Optional angle in decimal degrees.
+    /// @param[in] digitsBefore Number of digits/spaces before decimal point.
+    /// @param[in] digitsAfter Number of decimal places.
+    /// @return Formatted angle string with degree symbol, or "N/A".
+    [[nodiscard]] static std::string formatSt1909Angle(std::optional<double> deg, int digitsBefore, int digitsAfter);
+
+    /// @brief Formats integer meters per MISB ST 1909.1 (ST 1909-01, ST 1909.1-95).
+    /// @param[in] meters Optional distance or elevation in meters.
+    /// @param[in] digits Number of total digits/spaces.
+    /// @return Formatted integer meters string with "m" suffix, or "N/A".
+    [[nodiscard]] static std::string formatSt1909Meters(std::optional<double> meters, int digits);
+
+    /// @brief Formats timestamp per ISO 8601-1 CCYY-MM-DDThh:mm:ss.sZ (ST 1909-46).
+    /// @param[in] epochUs Optional timestamp in microseconds since UNIX epoch.
+    /// @return ISO 8601 string, or "N/A".
+    [[nodiscard]] static std::string formatSt1909IsoTime(std::optional<std::uint64_t> epochUs);
 
 private:
     mutable std::mutex m_mutex;
@@ -180,6 +229,7 @@ private:
 
     PlatformData m_platform;
     TargetData m_target;
+    LaserData m_laser;
     std::optional<Klv::SecurityMetadata> m_security;
     std::optional<Klv::FrustumCorners> m_footprintCorners;
 };

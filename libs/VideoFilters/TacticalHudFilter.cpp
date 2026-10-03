@@ -12,7 +12,8 @@
 #include <cstdio>
 #include <ctime>
 #include <iomanip>
-#include <opencv2/opencv.hpp>
+#include <opencv2/core.hpp>
+#include <opencv2/imgproc.hpp>
 #include <sstream>
 
 namespace Video::Filters {
@@ -109,6 +110,13 @@ namespace {
         return std::string(fullBuf);
     }
 
+    void renderMisb1909(cv::Mat& mat, int width, int height, const cv::Scalar& theme,
+                        bool showSecBanners,
+                        const TacticalHudFilter::PlatformData& plat,
+                        const TacticalHudFilter::TargetData& tgt,
+                        const TacticalHudFilter::LaserData& laser,
+                        const std::optional<Klv::SecurityMetadata>& sec);
+
 } // namespace
 
 TacticalHudFilter::TacticalHudFilter(HudMode mode, ColorPalette palette)
@@ -192,9 +200,95 @@ void TacticalHudFilter::setSensorOrientation(double azimuthDeg, double elevation
     m_platform.zoomLevel = zoomMagnification;
 }
 
+void TacticalHudFilter::setLaserData(const LaserData& laser) {
+    std::scoped_lock lock(m_mutex);
+    m_laser = laser;
+}
+
+TacticalHudFilter::LaserData TacticalHudFilter::getLaserData() const {
+    std::scoped_lock lock(m_mutex);
+    return m_laser;
+}
+
+std::string TacticalHudFilter::formatSt1909Angle(std::optional<double> deg, int digitsBefore, int digitsAfter) {
+    if (!deg.has_value()) {
+        return "N/A";
+    }
+
+    std::ostringstream oss;
+    oss << std::fixed << std::setprecision(digitsAfter) << *deg;
+    const std::string str = oss.str();
+
+    const auto dotPos = str.find('.');
+    const std::string before = (dotPos != std::string::npos) ? str.substr(0, dotPos) : str;
+    const std::string after = (dotPos != std::string::npos) ? str.substr(dotPos) : "";
+
+    std::string padded;
+    if (static_cast<int>(before.length()) < digitsBefore) {
+        padded = std::string(static_cast<std::size_t>(digitsBefore - static_cast<int>(before.length())), ' ') + before;
+    } else {
+        padded = before;
+    }
+
+    return padded + after + "*";
+}
+
+std::string TacticalHudFilter::formatSt1909Meters(std::optional<double> meters, int digits) {
+    if (!meters.has_value()) {
+        return "N/A";
+    }
+
+    const auto intVal = static_cast<long long>(std::round(*meters));
+    const std::string str = std::to_string(intVal);
+
+    std::string padded;
+    if (static_cast<int>(str.length()) < digits) {
+        padded = std::string(static_cast<std::size_t>(digits - static_cast<int>(str.length())), ' ') + str;
+    } else {
+        padded = str;
+    }
+
+    return padded + "m";
+}
+
+std::string TacticalHudFilter::formatSt1909IsoTime(std::optional<std::uint64_t> epochUs) {
+    if (!epochUs.has_value() || *epochUs == 0U) {
+        return "N/A";
+    }
+
+    const std::time_t sec = static_cast<std::time_t>(*epochUs / 1000000ULL);
+    const auto frac10 = static_cast<int>((*epochUs % 1000000ULL) / 100000ULL);
+    std::tm tmBuf {};
+#if defined(_WIN32)
+    gmtime_s(&tmBuf, &sec);
+#else
+    gmtime_r(&sec, &tmBuf);
+#endif
+    char buf[64];
+    std::strftime(buf, sizeof(buf), "%Y-%m-%dT%H:%M:%S", &tmBuf);
+    char fullBuf[80];
+    std::snprintf(fullBuf, sizeof(fullBuf), "%s.%dZ", buf, frac10);
+    return std::string(fullBuf);
+}
+
+void TacticalHudFilter::setPlatformData(const PlatformData& platform) {
+    std::scoped_lock lock(m_mutex);
+    m_platform = platform;
+}
+
+TacticalHudFilter::PlatformData TacticalHudFilter::getPlatformData() const {
+    std::scoped_lock lock(m_mutex);
+    return m_platform;
+}
+
 void TacticalHudFilter::setTargetData(const TargetData& target) {
     std::scoped_lock lock(m_mutex);
     m_target = target;
+}
+
+TacticalHudFilter::TargetData TacticalHudFilter::getTargetData() const {
+    std::scoped_lock lock(m_mutex);
+    return m_target;
 }
 
 void TacticalHudFilter::setSecurityMetadata(const Klv::SecurityMetadata& security) {
@@ -214,15 +308,34 @@ void TacticalHudFilter::updateTelemetry(const Klv::UasDatalinkMessage& msg) {
     if (msg.sensorVfovDeg) m_platform.vfovDeg = *msg.sensorVfovDeg;
     if (msg.sensorLatitudeDeg) m_platform.latitudeDeg = *msg.sensorLatitudeDeg;
     if (msg.sensorLongitudeDeg) m_platform.longitudeDeg = *msg.sensorLongitudeDeg;
-    if (msg.sensorTrueAltitudeM) m_platform.altitudeM = *msg.sensorTrueAltitudeM;
+    if (msg.sensorTrueAltitudeM) {
+        m_platform.altitudeM = *msg.sensorTrueAltitudeM;
+        m_platform.altitudeIsHae = false;
+    } else if (msg.sensorAltitudeHaeM) {
+        m_platform.altitudeM = *msg.sensorAltitudeHaeM;
+        m_platform.altitudeIsHae = true;
+    }
     if (msg.platformTailNumber) m_platform.tailNumber = *msg.platformTailNumber;
+    if (msg.platformDesignation) m_platform.designation = *msg.platformDesignation;
     if (msg.missionId) m_platform.missionId = *msg.missionId;
     if (msg.imageSourceSensor) m_platform.sensorPayload = *msg.imageSourceSensor;
     if (msg.precisionTimeStampUs) m_platform.timestampUs = *msg.precisionTimeStampUs;
 
-    if (msg.frameCenterLatDeg) m_target.latitudeDeg = *msg.frameCenterLatDeg;
-    if (msg.frameCenterLonDeg) m_target.longitudeDeg = *msg.frameCenterLonDeg;
-    if (msg.frameCenterElevM) m_target.elevationM = *msg.frameCenterElevM;
+    if (msg.frameCenterLatDeg) {
+        m_target.latitudeDeg = *msg.frameCenterLatDeg;
+        m_target.isTrueLocation = false;
+    }
+    if (msg.frameCenterLonDeg) {
+        m_target.longitudeDeg = *msg.frameCenterLonDeg;
+        m_target.isTrueLocation = false;
+    }
+    if (msg.frameCenterElevM) {
+        m_target.elevationM = *msg.frameCenterElevM;
+        m_target.elevationIsHae = false;
+    } else if (msg.frameCenterElevHaeM) {
+        m_target.elevationM = *msg.frameCenterElevHaeM;
+        m_target.elevationIsHae = true;
+    }
     if (msg.slantRangeM) m_target.slantRangeM = *msg.slantRangeM;
     if (msg.targetWidthM) m_target.widthM = *msg.targetWidthM;
 
@@ -237,6 +350,7 @@ void TacticalHudFilter::process(std::uint8_t* data, int width, int height, Pixel
 
     PlatformData plat;
     TargetData tgt;
+    LaserData laser;
     std::optional<Klv::SecurityMetadata> sec;
     std::optional<Klv::FrustumCorners> corners;
     HudMode mode;
@@ -250,6 +364,7 @@ void TacticalHudFilter::process(std::uint8_t* data, int width, int height, Pixel
         std::scoped_lock lock(m_mutex);
         plat = m_platform;
         tgt = m_target;
+        laser = m_laser;
         sec = m_security;
         corners = m_footprintCorners;
         mode = m_mode;
@@ -264,6 +379,11 @@ void TacticalHudFilter::process(std::uint8_t* data, int width, int height, Pixel
     const cv::Scalar theme = getThemeColor(palette, format);
     const int cx = width / 2;
     const int cy = height / 2;
+
+    if (mode == HudMode::Misb1909) {
+        renderMisb1909(mat, width, height, theme, showSecBanners, plat, tgt, laser, sec);
+        return;
+    }
 
     // 1. Security Classification Banners (Top & Bottom)
     if (showSecBanners && sec.has_value()) {
@@ -593,6 +713,210 @@ void TacticalHudFilter::process(std::uint8_t* data, int width, int height, Pixel
                          cv::FONT_HERSHEY_SIMPLEX, 0.30, theme, 1);
     }
 }
+
+namespace {
+
+void renderMisb1909(cv::Mat& mat, int width, int height, const cv::Scalar& theme,
+                    bool showSecBanners,
+                    const TacticalHudFilter::PlatformData& plat,
+                    const TacticalHudFilter::TargetData& tgt,
+                    const TacticalHudFilter::LaserData& laser,
+                    const std::optional<Klv::SecurityMetadata>& sec) {
+    const double fontScale = std::clamp(static_cast<double>(height) * 0.00045, 0.35, 0.90);
+    const int fontFace = cv::FONT_HERSHEY_SIMPLEX;
+    const int thickness = 1;
+    int bLine = 0;
+    const cv::Size sampleSz = cv::getTextSize("A", fontFace, fontScale, thickness, &bLine);
+    const int lineH = static_cast<int>(std::round(sampleSz.height * 1.6));
+
+    // 1. Main Sensor Group (Top-Left: 3.70% row, 2.00% col, left-aligned, downwards)
+    {
+        const int col = static_cast<int>(std::round(width * 0.0200));
+        const int row = static_cast<int>(std::round(height * 0.0370));
+        int curY = row + sampleSz.height;
+
+        const std::string name = plat.sensorPayload.empty() ? "N/A" : plat.sensorPayload;
+        drawOutlinedText(mat, name, cv::Point(col, curY), fontFace, fontScale, theme, thickness);
+        curY += lineH;
+
+        const std::string azStr = "REL AZ " + TacticalHudFilter::formatSt1909Angle(plat.sensorAzimuthDeg, 5, 4);
+        drawOutlinedText(mat, azStr, cv::Point(col, curY), fontFace, fontScale, theme, thickness);
+        curY += lineH;
+
+        const std::string elStr = "REL EL " + TacticalHudFilter::formatSt1909Angle(plat.sensorElevationDeg, 5, 4);
+        drawOutlinedText(mat, elStr, cv::Point(col, curY), fontFace, fontScale, theme, thickness);
+    }
+
+    // 2. Classification & Releasability Group (Top-Center: 3.70% row, 50.00% col, centered, downwards)
+    if (showSecBanners) {
+        const int col = width / 2;
+        const int row = static_cast<int>(std::round(height * 0.0370));
+        const int curY = row + sampleSz.height;
+
+        std::string classText = "UNCLASSIFIED";
+        if (sec.has_value()) {
+            switch (sec->classification) {
+                case Klv::SecurityClassification::Unclassified: classText = "UNCLASSIFIED"; break;
+                case Klv::SecurityClassification::Restricted: classText = "RESTRICTED"; break;
+                case Klv::SecurityClassification::Confidential: classText = "CONFIDENTIAL"; break;
+                case Klv::SecurityClassification::Secret: classText = "SECRET"; break;
+                case Klv::SecurityClassification::TopSecret: classText = "TOP SECRET"; break;
+            }
+            if (!sec->caveats.empty()) {
+                classText += "//" + sec->caveats;
+            }
+        }
+
+        const cv::Size sz = cv::getTextSize(classText, fontFace, fontScale, thickness, &bLine);
+        drawOutlinedText(mat, classText, cv::Point(col - sz.width / 2, curY), fontFace, fontScale, theme, thickness);
+    }
+
+    // 3. Platform Information Group (Top-Right: 3.70% row, 98.00% col, right-aligned, downwards)
+    {
+        const int col = static_cast<int>(std::round(width * 0.9800));
+        const int row = static_cast<int>(std::round(height * 0.0370));
+        int curY = row + sampleSz.height;
+
+        std::string platName;
+        if (!plat.designation.empty()) {
+            platName = plat.designation;
+            if (!plat.tailNumber.empty()) platName += " " + plat.tailNumber;
+        } else if (!plat.tailNumber.empty()) {
+            platName = plat.tailNumber;
+        } else {
+            platName = "N/A";
+        }
+        cv::Size sz = cv::getTextSize(platName, fontFace, fontScale, thickness, &bLine);
+        drawOutlinedText(mat, platName, cv::Point(col - sz.width, curY), fontFace, fontScale, theme, thickness);
+        curY += lineH;
+
+        const std::string latStr = TacticalHudFilter::formatSt1909Angle(plat.latitudeDeg, 3, 4) + " LAT";
+        sz = cv::getTextSize(latStr, fontFace, fontScale, thickness, &bLine);
+        drawOutlinedText(mat, latStr, cv::Point(col - sz.width, curY), fontFace, fontScale, theme, thickness);
+        curY += lineH;
+
+        const std::string lonStr = TacticalHudFilter::formatSt1909Angle(plat.longitudeDeg, 4, 4) + " LON";
+        sz = cv::getTextSize(lonStr, fontFace, fontScale, thickness, &bLine);
+        drawOutlinedText(mat, lonStr, cv::Point(col - sz.width, curY), fontFace, fontScale, theme, thickness);
+        curY += lineH;
+
+        const std::string qual = plat.altitudeIsHae ? "HAE" : "MSL";
+        const std::string altStr = TacticalHudFilter::formatSt1909Meters(plat.altitudeM, 5) + " " + qual + " ALT";
+        sz = cv::getTextSize(altStr, fontFace, fontScale, thickness, &bLine);
+        drawOutlinedText(mat, altStr, cv::Point(col - sz.width, curY), fontFace, fontScale, theme, thickness);
+    }
+
+    // 4. True North Arrow Group (Mid-Left: 50.00% row, 2.00% col)
+    {
+        const int col = static_cast<int>(std::round(width * 0.0200));
+        const int row = height / 2;
+        const int radius = std::max(14, height / 45);
+        const cv::Point center(col + radius + 2, row);
+
+        cv::circle(mat, center, radius + 1, cv::Scalar(0, 0, 0), thickness + 2, cv::LINE_AA);
+        cv::circle(mat, center, radius, theme, thickness, cv::LINE_AA);
+
+        const double totalHeading = plat.headingDeg + plat.sensorAzimuthDeg;
+        const double northAngleRad = deg2rad(-totalHeading - 90.0);
+
+        const int arrowLen = radius + 6;
+        const cv::Point tip(static_cast<int>(center.x + arrowLen * std::cos(northAngleRad)),
+                            static_cast<int>(center.y + arrowLen * std::sin(northAngleRad)));
+        const double wingRad1 = northAngleRad + deg2rad(150.0);
+        const double wingRad2 = northAngleRad - deg2rad(150.0);
+        const cv::Point w1(static_cast<int>(tip.x + 8.0 * std::cos(wingRad1)),
+                           static_cast<int>(tip.y + 8.0 * std::sin(wingRad1)));
+        const cv::Point w2(static_cast<int>(tip.x + 8.0 * std::cos(wingRad2)),
+                           static_cast<int>(tip.y + 8.0 * std::sin(wingRad2)));
+        const std::vector<cv::Point> triangle = { tip, w1, w2 };
+        cv::fillConvexPoly(mat, triangle, theme, cv::LINE_AA);
+
+        const cv::Size nSz = cv::getTextSize("N", fontFace, fontScale, thickness, &bLine);
+        drawOutlinedText(mat, "N", cv::Point(center.x - nSz.width / 2, center.y + nSz.height / 2),
+                         fontFace, fontScale, theme, thickness);
+    }
+
+    // 5. Laser Sensor Group (Bottom-Left: 96.30% row, 2.00% col, left-aligned, upwards)
+    {
+        const int col = static_cast<int>(std::round(width * 0.0200));
+        const int row = static_cast<int>(std::round(height * 0.9630));
+        std::vector<std::string> lines;
+        lines.push_back(laser.name.empty() ? "Laser" : laser.name);
+        lines.push_back(laser.active ? "Laser ON" : "Laser OFF");
+        if (laser.prfCode.has_value()) {
+            char prfBuf[32];
+            std::snprintf(prfBuf, sizeof(prfBuf), "Laser PRF Code %06u", *laser.prfCode);
+            lines.push_back(prfBuf);
+        }
+
+        const int totalH = static_cast<int>(lines.size() - 1U) * lineH;
+        int curY = row - totalH;
+        for (const auto& line : lines) {
+            drawOutlinedText(mat, line, cv::Point(col, curY), fontFace, fontScale, theme, thickness);
+            curY += lineH;
+        }
+    }
+
+    // 6. Date/Time Group (Bottom-Center: 96.30% row, 50.00% col, centered, upwards)
+    {
+        const int col = width / 2;
+        const int row = static_cast<int>(std::round(height * 0.9630));
+        std::vector<std::string> lines;
+        if (plat.frameTimestampUs.has_value()) {
+            lines.push_back("FT " + TacticalHudFilter::formatSt1909IsoTime(plat.frameTimestampUs));
+        }
+        lines.push_back("MT " + TacticalHudFilter::formatSt1909IsoTime(plat.timestampUs));
+
+        const int totalH = static_cast<int>(lines.size() - 1U) * lineH;
+        int curY = row - totalH;
+        for (const auto& line : lines) {
+            const cv::Size sz = cv::getTextSize(line, fontFace, fontScale, thickness, &bLine);
+            drawOutlinedText(mat, line, cv::Point(col - sz.width / 2, curY), fontFace, fontScale, theme, thickness);
+            curY += lineH;
+        }
+    }
+
+    // 7. Target Group (Bottom-Right: 96.30% row, 98.00% col, right-aligned, upwards)
+    {
+        const int col = static_cast<int>(std::round(width * 0.9800));
+        const int row = static_cast<int>(std::round(height * 0.9630));
+        std::vector<std::string> lines;
+        lines.push_back(TacticalHudFilter::formatSt1909Meters(tgt.slantRangeM, 7) + " SR");
+        lines.push_back(TacticalHudFilter::formatSt1909Meters(tgt.widthM, 7) + " TW");
+        lines.push_back(TacticalHudFilter::formatSt1909Angle(plat.hfovDeg, 3, 4) + " HFOV");
+        lines.push_back(TacticalHudFilter::formatSt1909Angle(plat.vfovDeg, 3, 4) + " VFOV");
+        const std::string latTag = tgt.isTrueLocation ? " TL LAT" : " FC LAT";
+        lines.push_back(TacticalHudFilter::formatSt1909Angle(tgt.latitudeDeg, 3, 4) + latTag);
+        const std::string lonTag = tgt.isTrueLocation ? " TL LON" : " FC LON";
+        lines.push_back(TacticalHudFilter::formatSt1909Angle(tgt.longitudeDeg, 4, 4) + lonTag);
+        const std::string elQual = tgt.elevationIsHae ? "HAE" : "MSL";
+        const std::string elTag = tgt.isTrueLocation ? " TL EL" : " FC EL";
+        lines.push_back(TacticalHudFilter::formatSt1909Meters(tgt.elevationM, 5) + " " + elQual + elTag);
+
+        const int totalH = static_cast<int>(lines.size() - 1U) * lineH;
+        int curY = row - totalH;
+        for (const auto& line : lines) {
+            const cv::Size sz = cv::getTextSize(line, fontFace, fontScale, thickness, &bLine);
+            drawOutlinedText(mat, line, cv::Point(col - sz.width, curY), fontFace, fontScale, theme, thickness);
+            curY += lineH;
+        }
+    }
+
+    // 8. Target Reticle (Center: 50.00% col, 50.00% row, open crosshair)
+    {
+        const int cx = width / 2;
+        const int cy = height / 2;
+        const int arm = std::max(18, height / 30);
+        const int gap = std::max(6, height / 80);
+
+        drawOutlinedLine(mat, cv::Point(cx - arm, cy), cv::Point(cx - gap, cy), theme, thickness);
+        drawOutlinedLine(mat, cv::Point(cx + gap, cy), cv::Point(cx + arm, cy), theme, thickness);
+        drawOutlinedLine(mat, cv::Point(cx, cy - arm), cv::Point(cx, cy - gap), theme, thickness);
+        drawOutlinedLine(mat, cv::Point(cx, cy + gap), cv::Point(cx, cy + arm), theme, thickness);
+    }
+}
+
+} // namespace
 
 } // namespace Video::Filters
 
