@@ -79,6 +79,21 @@ bool FFmpegDecoder::initialize(std::string_view source, PixelFormat format, int 
 
     m_outputFormat = format;
     m_filePath = std::string(source);
+    if (m_filePath.rfind("file:///", 0) == 0) {
+#ifdef _WIN32
+        m_filePath = m_filePath.substr(8);
+#else
+        m_filePath = m_filePath.substr(7);
+#endif
+    } else if (m_filePath.rfind("file://", 0) == 0) {
+        m_filePath = m_filePath.substr(7);
+    }
+#ifdef _WIN32
+    if (m_filePath.size() >= 3 && m_filePath[0] == '/'
+        && std::isalpha(static_cast<unsigned char>(m_filePath[1])) && m_filePath[2] == ':') {
+        m_filePath.erase(0, 1);
+    }
+#endif
     m_threadCount = threadCount;
     m_deviceType = device;
     m_actualDeviceType = DeviceType::CPU;

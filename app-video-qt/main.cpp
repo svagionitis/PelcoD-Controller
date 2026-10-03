@@ -7,9 +7,13 @@
 #include <QQmlContext>
 #include <QQuickStyle>
 #include <QUrl>
+#include <glog/logging.h>
 
 int main(int argc, char* argv[])
 {
+    google::InitGoogleLogging(argv[0]);
+    FLAGS_logtostderr = 1;
+
     QGuiApplication app(argc, argv);
 
     QGuiApplication::setApplicationName(QStringLiteral("PelcoD Tactical Video Player"));

@@ -7,6 +7,7 @@
 #include "DecoderTypes.h"
 #include "DeviceEnumerator.h"
 #include "IVideoDecoder.h"
+#include "KlvTypes.h"
 #include "StreamHealthMonitor.h"
 
 #include <QImage>
@@ -19,7 +20,12 @@
 #include <QVariantMap>
 #include <atomic>
 #include <memory>
+#include <optional>
 #include <vector>
+
+namespace Video::Filters {
+class TacticalHudFilter;
+}
 
 namespace VideoApp {
 
@@ -106,6 +112,11 @@ class VideoPlayerController : public QObject {
             filterConfigChanged)
     Q_PROPERTY(bool textOverlayEnabled READ textOverlayEnabled WRITE setTextOverlayEnabled NOTIFY filterConfigChanged)
     Q_PROPERTY(QString textOverlayString READ textOverlayString WRITE setTextOverlayString NOTIFY filterConfigChanged)
+
+    // Tactical HUD Filter (MISB ST 1909 / STANAG 4609)
+    Q_PROPERTY(bool tacticalHudEnabled READ tacticalHudEnabled WRITE setTacticalHudEnabled NOTIFY filterConfigChanged)
+    Q_PROPERTY(int tacticalHudMode READ tacticalHudMode WRITE setTacticalHudMode NOTIFY filterConfigChanged)
+    Q_PROPERTY(int tacticalHudPalette READ tacticalHudPalette WRITE setTacticalHudPalette NOTIFY filterConfigChanged)
 
     // Mini-Map Tactical Inset Rasterizer
     Q_PROPERTY(bool mapRasterizerEnabled READ mapRasterizerEnabled WRITE setMapRasterizerEnabled NOTIFY filterConfigChanged)
@@ -242,6 +253,26 @@ public:
     void setTextOverlayEnabled(bool v);
     [[nodiscard]] QString textOverlayString() const;
     void setTextOverlayString(const QString& v);
+
+    // Tactical HUD Filter
+    /// @brief Checks whether the MISB ST 1909 tactical HUD filter is enabled.
+    /// @return True if active.
+    [[nodiscard]] bool tacticalHudEnabled() const noexcept;
+    /// @brief Enables or disables the tactical HUD overlay.
+    /// @param[in] v True to enable.
+    void setTacticalHudEnabled(bool v);
+    /// @brief Returns the HUD symbology density mode index (0: Minimal, 1: Standard, 2: FullTactical, 3: Misb1909).
+    /// @return HUD density mode.
+    [[nodiscard]] int tacticalHudMode() const noexcept;
+    /// @brief Sets the HUD symbology density mode.
+    /// @param[in] v Mode index.
+    void setTacticalHudMode(int v);
+    /// @brief Returns the tactical color palette index.
+    /// @return Palette index.
+    [[nodiscard]] int tacticalHudPalette() const noexcept;
+    /// @brief Sets the tactical color palette.
+    /// @param[in] v Palette index.
+    void setTacticalHudPalette(int v);
 
     // Mini-Map Rasterizer Inset
     [[nodiscard]] bool mapRasterizerEnabled() const noexcept;
@@ -397,6 +428,27 @@ private:
     int m_mapRasterizerHeight { 180 };
     bool m_mapRasterizerShowFrustum { true };
     bool m_mapRasterizerShowHeading { true };
+
+    // Tactical HUD Filter & KLV telemetry
+    struct TimedKlv {
+        double timeSeconds { 0.0 };
+        Klv::UasDatalinkMessage message {};
+    };
+
+    void loadKlvTrack(const QString& sourcePath);
+    void updateKlvTelemetry(double timeSeconds);
+    void applyKlvTelemetry(const Klv::UasDatalinkMessage& msg);
+
+    bool m_tacticalHudEnabled { false };
+    int m_tacticalHudMode { 3 }; // 0: Minimal, 1: Standard, 2: FullTactical, 3: Misb1909
+    int m_tacticalHudPalette { 0 }; // 0: TacticalGreen, 1: Amber, 2: ElectricCyan, 3: CombatRed, 4: White
+
+    std::vector<TimedKlv> m_klvTimeline {};
+    std::size_t m_lastKlvIndex { 0 };
+    std::optional<Klv::UasDatalinkMessage> m_lastKlvMsg {};
+#if defined(PELCOD_HAS_FILTERS)
+    std::shared_ptr<Video::Filters::TacticalHudFilter> m_tacticalHudFilter { nullptr };
+#endif
 
     // Platform Tactical Telemetry
     qreal m_platformLatitude { 37.7749 };

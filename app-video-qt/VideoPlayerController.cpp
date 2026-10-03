@@ -3,14 +3,18 @@
 
 #include "VideoPlayerController.h"
 #include "VideoQuickItem.h"
+#include "MpegTsKlvExtractor.h"
 
 #if defined(PELCOD_HAS_FILTERS)
+#include "TacticalHudFilter.h"
 #include "VideoFilters.h"
 #endif
 
 #include <QDateTime>
 #include <QDir>
+#include <QFile>
 #include <QStandardPaths>
+#include <QUrl>
 #include <algorithm>
 #include <chrono>
 
@@ -542,6 +546,48 @@ void VideoPlayerController::setTelemetryOsdEnabled(bool v)
     }
 }
 
+bool VideoPlayerController::tacticalHudEnabled() const noexcept
+{
+    return m_tacticalHudEnabled;
+}
+
+void VideoPlayerController::setTacticalHudEnabled(bool v)
+{
+    if (m_tacticalHudEnabled != v) {
+        m_tacticalHudEnabled = v;
+        m_filtersDirty.store(true);
+        emit filterConfigChanged();
+    }
+}
+
+int VideoPlayerController::tacticalHudMode() const noexcept
+{
+    return m_tacticalHudMode;
+}
+
+void VideoPlayerController::setTacticalHudMode(int v)
+{
+    if (m_tacticalHudMode != v) {
+        m_tacticalHudMode = v;
+        m_filtersDirty.store(true);
+        emit filterConfigChanged();
+    }
+}
+
+int VideoPlayerController::tacticalHudPalette() const noexcept
+{
+    return m_tacticalHudPalette;
+}
+
+void VideoPlayerController::setTacticalHudPalette(int v)
+{
+    if (m_tacticalHudPalette != v) {
+        m_tacticalHudPalette = v;
+        m_filtersDirty.store(true);
+        emit filterConfigChanged();
+    }
+}
+
 bool VideoPlayerController::streamHealthOsdEnabled() const noexcept
 {
     return m_streamHealthOsd;
@@ -821,7 +867,21 @@ void VideoPlayerController::startPlayback()
     QString effectiveSource = m_sourceUri.trimmed();
     if (effectiveSource.isEmpty()) {
         effectiveSource = QStringLiteral("mock://test");
+    } else {
+        const QUrl sourceUrl(effectiveSource);
+        if (sourceUrl.isLocalFile()) {
+            effectiveSource = sourceUrl.toLocalFile();
+        } else {
+#ifdef _WIN32
+            if (effectiveSource.size() >= 3 && effectiveSource.at(0) == QLatin1Char('/')
+                && effectiveSource.at(1).isLetter() && effectiveSource.at(2) == QLatin1Char(':')) {
+                effectiveSource.remove(0, 1);
+            }
+#endif
+        }
     }
+
+    loadKlvTrack(effectiveSource);
 
     configureFilterPipeline(dec.get());
 
@@ -959,6 +1019,7 @@ void VideoPlayerController::workerLoop()
             QMutexLocker locker(&m_decoderMutex);
             if (m_decoder) {
                 m_decoder->seek(reqSeek);
+                m_lastKlvIndex = 0;
             }
         }
 
@@ -1032,6 +1093,7 @@ void VideoPlayerController::workerLoop()
             decodeAccumMs += decodeMs;
 
             m_positionSeconds = frameInfo.timestamp;
+            updateKlvTelemetry(m_positionSeconds);
         }
 
         // Periodic telemetry calculation (every 250ms)
@@ -1188,6 +1250,21 @@ void VideoPlayerController::configureFilterPipeline(Video::IVideoDecoder* decode
         decoder->addFrameProcessor(std::make_shared<Video::TelemetryOsdFilter>());
     }
 
+    // Tactical HUD Symbology (MISB ST 1909 / STANAG 4609)
+    if (m_tacticalHudEnabled) {
+        const auto mode = static_cast<Video::Filters::TacticalHudFilter::HudMode>(
+            std::clamp(m_tacticalHudMode, 0, 3));
+        const auto palette = static_cast<Video::Filters::TacticalHudFilter::ColorPalette>(
+            std::clamp(m_tacticalHudPalette, 0, 4));
+        m_tacticalHudFilter = std::make_shared<Video::Filters::TacticalHudFilter>(mode, palette);
+        if (m_lastKlvMsg.has_value()) {
+            m_tacticalHudFilter->updateTelemetry(*m_lastKlvMsg);
+        }
+        decoder->addFrameProcessor(m_tacticalHudFilter);
+    } else {
+        m_tacticalHudFilter.reset();
+    }
+
     // Stream Health OSD & Monitor Watchdog
     if (m_streamHealthOsd) {
         if (!m_streamHealthMonitor) {
@@ -1226,6 +1303,99 @@ void VideoPlayerController::configureFilterPipeline(Video::IVideoDecoder* decode
         mapFilter->setZoom(static_cast<double>(m_mapRasterizerZoom));
         mapFilter->setPlatformTelemetry({ m_platformLatitude, m_platformLongitude }, m_platformHeading);
         decoder->addFrameProcessor(mapFilter);
+    }
+#endif
+}
+
+void VideoPlayerController::loadKlvTrack(const QString& sourcePath)
+{
+    m_klvTimeline.clear();
+    m_lastKlvIndex = 0;
+    m_lastKlvMsg.reset();
+
+    QFile file(sourcePath);
+    if (!file.exists() || !file.open(QIODevice::ReadOnly)) {
+        return;
+    }
+
+    const QByteArray data = file.readAll();
+    file.close();
+
+    if (data.size() < 188) {
+        return;
+    }
+
+    Klv::MpegTsKlvExtractor extractor;
+    std::vector<Klv::UasDatalinkMessage> messages;
+    extractor.setMessageCallback([&messages](const Klv::UasDatalinkMessage& msg) {
+        messages.push_back(msg);
+    });
+
+    static_cast<void>(extractor.processStream(reinterpret_cast<const std::uint8_t*>(data.constData()),
+                                            static_cast<std::size_t>(data.size())));
+    static_cast<void>(extractor.flush());
+
+    if (messages.empty()) {
+        return;
+    }
+
+    std::uint64_t baseTimeUs = 0;
+    if (messages.front().precisionTimeStampUs.has_value()) {
+        baseTimeUs = *messages.front().precisionTimeStampUs;
+    }
+
+    m_klvTimeline.reserve(messages.size());
+    for (const auto& msg : messages) {
+        TimedKlv item {};
+        if (msg.precisionTimeStampUs.has_value() && baseTimeUs > 0) {
+            item.timeSeconds = static_cast<double>(*msg.precisionTimeStampUs - baseTimeUs) / 1000000.0;
+        } else {
+            item.timeSeconds = 0.0;
+        }
+        item.message = msg;
+        m_klvTimeline.push_back(std::move(item));
+    }
+
+    if (!m_klvTimeline.empty()) {
+        applyKlvTelemetry(m_klvTimeline.front().message);
+    }
+}
+
+void VideoPlayerController::updateKlvTelemetry(double timeSeconds)
+{
+    if (m_klvTimeline.empty()) {
+        return;
+    }
+
+    if (timeSeconds < 0.0) {
+        m_lastKlvIndex = 0;
+        applyKlvTelemetry(m_klvTimeline.front().message);
+        return;
+    }
+
+    while (m_lastKlvIndex + 1 < m_klvTimeline.size()
+           && m_klvTimeline[m_lastKlvIndex + 1].timeSeconds <= timeSeconds) {
+        ++m_lastKlvIndex;
+    }
+
+    applyKlvTelemetry(m_klvTimeline[m_lastKlvIndex].message);
+}
+
+void VideoPlayerController::applyKlvTelemetry(const Klv::UasDatalinkMessage& msg)
+{
+    m_lastKlvMsg = msg;
+    if (msg.sensorLatitudeDeg && msg.sensorLongitudeDeg) {
+        m_platformLatitude = std::clamp(*msg.sensorLatitudeDeg, -85.0511, 85.0511);
+        m_platformLongitude = *msg.sensorLongitudeDeg;
+    }
+    if (msg.platformHeadingDeg) {
+        m_platformHeading = *msg.platformHeadingDeg;
+    }
+    emit telemetryChanged();
+
+#if defined(PELCOD_HAS_FILTERS)
+    if (m_tacticalHudFilter) {
+        m_tacticalHudFilter->updateTelemetry(msg);
     }
 #endif
 }

@@ -603,6 +603,49 @@ ScrollView {
                     Text { text: "Tactical Telemetry OSD Header"; color: "#f0f4fc"; font.pixelSize: 12 }
                 }
 
+                // Tactical HUD Overlay (MISB ST 1909 / STANAG 4609)
+                ColumnLayout {
+                    Layout.fillWidth: true
+                    spacing: 4
+                    RowLayout {
+                        Layout.fillWidth: true
+                        Switch {
+                            checked: controller.tacticalHudEnabled
+                            onToggled: controller.tacticalHudEnabled = checked
+                        }
+                        Text { text: "Tactical HUD (MISB ST 1909 / STANAG 4609)"; color: "#00e5ff"; font.pixelSize: 12; font.bold: true }
+                    }
+                    RowLayout {
+                        Layout.fillWidth: true
+                        visible: controller.tacticalHudEnabled
+                        spacing: 8
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            Text { text: "Density Mode"; color: "#8894ab"; font.pixelSize: 10 }
+                            ComboBox {
+                                Layout.fillWidth: true
+                                model: ["Minimal", "Standard", "Full Tactical", "MISB ST 1909.1"]
+                                currentIndex: controller.tacticalHudMode
+                                onActivated: function(index) {
+                                    controller.tacticalHudMode = index;
+                                }
+                            }
+                        }
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            Text { text: "Color Palette"; color: "#8894ab"; font.pixelSize: 10 }
+                            ComboBox {
+                                Layout.fillWidth: true
+                                model: ["Tactical Green", "FLIR Amber", "Electric Cyan", "Combat Red", "White"]
+                                currentIndex: controller.tacticalHudPalette
+                                onActivated: function(index) {
+                                    controller.tacticalHudPalette = index;
+                                }
+                            }
+                        }
+                    }
+                }
+
                 // Tactical Mini-Map Inset (OpenCV Rasterizer)
                 ColumnLayout {
                     Layout.fillWidth: true

@@ -20,6 +20,7 @@
 #include <atomic>
 #include <cassert>
 #include <cmath>
+#include <filesystem>
 #include <gtest/gtest.h>
 #include <iostream>
 #include <thread>
@@ -1945,6 +1946,57 @@ TEST(VideoFiltersTest, TacticalHudFilterMinimalMode)
 }
 #endif
 
+#if defined(PELCOD_HAS_FFMPEG)
+TEST(VideoDecoderTest, FFmpegDecoderNormalizesPath)
+{
+    auto decoder = DecoderFactory::create(BackendType::FFmpeg);
+    ASSERT_TRUE(decoder != nullptr);
+
+    const std::vector<std::string> prefixes = {
+        "sample-videos/",
+        "../sample-videos/",
+        "../../sample-videos/",
+        "../../../sample-videos/",
+        "../../../../sample-videos/"
+    };
+    for (const auto& sampleName : { "mpegts-klv-day-flight.ts", "mpegts-klv-night-flight-IR.ts" }) {
+        std::string samplePath;
+        for (const auto& prefix : prefixes) {
+            const std::string candidate = prefix + sampleName;
+            FILE* fp = std::fopen(candidate.c_str(), "rb");
+            if (fp != nullptr) {
+                std::fclose(fp);
+                samplePath = candidate;
+                break;
+            }
+        }
+        if (samplePath.empty()) {
+            continue;
+        }
+
+#ifdef _WIN32
+        std::string fullPath = std::filesystem::absolute(samplePath).string();
+        std::replace(fullPath.begin(), fullPath.end(), '\\', '/');
+        // Leading slash format like "/C:/Users/..." produced by QUrl / QML FileDialog
+        const std::string leadingSlashPath = "/" + fullPath;
+        EXPECT_TRUE(decoder->initialize(leadingSlashPath));
+        if (decoder->isInitialized()) {
+            EXPECT_TRUE(decoder->decodeNextFrame());
+            decoder->close();
+        }
+
+        // file:/// URL format
+        const std::string fileUrlPath = "file:///" + fullPath;
+        EXPECT_TRUE(decoder->initialize(fileUrlPath));
+        if (decoder->isInitialized()) {
+            EXPECT_TRUE(decoder->decodeNextFrame());
+            decoder->close();
+        }
+#endif
+    }
+}
+#endif
+
 int main(int argc, char* argv[])
 {
     qputenv("QT_QPA_PLATFORM", "offscreen");
@@ -1952,3 +2004,4 @@ int main(int argc, char* argv[])
     ::testing::InitGoogleTest(&argc, argv);
     return RUN_ALL_TESTS();
 }
+

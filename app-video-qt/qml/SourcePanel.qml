@@ -20,7 +20,13 @@ ScrollView {
         nameFilters: ["Video Files (*.mp4 *.mkv *.avi *.mov *.ts *.flv *.webm *.m4v)", "All Files (*)"]
         onAccepted: {
             var path = selectedFile.toString();
-            if (path.startsWith("file://")) {
+            if (path.startsWith("file:///")) {
+                if (path.length >= 10 && path.charAt(9) === ':') {
+                    path = path.substring(8);
+                } else {
+                    path = path.substring(7);
+                }
+            } else if (path.startsWith("file://")) {
                 path = path.substring(7);
             }
             filePathField.text = path;
