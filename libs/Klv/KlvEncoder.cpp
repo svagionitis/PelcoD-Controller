@@ -2,6 +2,7 @@
 #include "KlvBer.h"
 #include "KlvCrc.h"
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 
 namespace Klv {
@@ -18,6 +19,11 @@ inline std::int32_t scaleLongitude(double deg) noexcept {
     constexpr double kMaxVal = 2147483647.0;
     const double clamped = std::clamp(deg, -180.0, 180.0);
     return static_cast<std::int32_t>(std::round(clamped * (kMaxVal / 180.0)));
+}
+
+inline std::int16_t scaleCornerOffset(double offsetDeg) noexcept {
+    const double clamped = std::clamp(offsetDeg, -0.075, 0.075);
+    return static_cast<std::int16_t>(std::round(clamped * (32767.0 / 0.075)));
 }
 
 inline std::uint16_t scaleAltitude(double altM) noexcept {
@@ -123,7 +129,9 @@ void KlvEncoder::appendTagUint64(std::uint32_t tag, std::uint64_t value, std::ve
 void KlvEncoder::appendTagString(std::uint32_t tag, const std::string& value, std::vector<std::uint8_t>& out) {
     KlvBer::encodeTag(tag, out);
     KlvBer::encodeLength(value.size(), out);
-    out.insert(out.end(), value.begin(), value.end());
+    for (const char ch : value) {
+        out.push_back(static_cast<std::uint8_t>(ch));
+    }
 }
 
 void KlvEncoder::appendTagBytes(std::uint32_t tag, const std::vector<std::uint8_t>& value, std::vector<std::uint8_t>& out) {
@@ -137,22 +145,36 @@ std::vector<std::uint8_t> KlvEncoder::encodeSecurityLocalSet(const SecurityMetad
     // Sub-tag 1: Classification (1 byte)
     appendTagUint8(1U, static_cast<std::uint8_t>(security.classification), inner);
 
-    // Sub-tag 2: Classifying Country
+    // Sub-tag 2: Classifying Country and Releasing Instructions Coding Method (1 byte)
+    appendTagUint8(2U, security.countryCodingMethod, inner);
+
+    // Sub-tag 3: Classifying Country
     if (!security.classifyingCountry.empty()) {
-        appendTagString(2U, security.classifyingCountry, inner);
+        appendTagString(3U, security.classifyingCountry, inner);
     }
-    // Sub-tag 3: SCI / SHI
+    // Sub-tag 4: SCI / SHI
     if (!security.sciShiInfo.empty()) {
-        appendTagString(3U, security.sciShiInfo, inner);
+        appendTagString(4U, security.sciShiInfo, inner);
     }
-    // Sub-tag 4: Caveats
+    // Sub-tag 5: Caveats
     if (!security.caveats.empty()) {
-        appendTagString(4U, security.caveats, inner);
+        appendTagString(5U, security.caveats, inner);
     }
-    // Sub-tag 5: Releasing Instructions
+    // Sub-tag 6: Releasing Instructions
     if (!security.releasingInstructions.empty()) {
-        appendTagString(5U, security.releasingInstructions, inner);
+        appendTagString(6U, security.releasingInstructions, inner);
     }
+    // Sub-tag 12: Object Country Coding Method
+    if (security.objectCountryCodingMethod != 0U) {
+        appendTagUint8(12U, security.objectCountryCodingMethod, inner);
+    }
+    // Sub-tag 13: Object Country Codes
+    if (!security.objectCountryCodes.empty()) {
+        appendTagString(13U, security.objectCountryCodes, inner);
+    }
+    // Sub-tag 22: Version (1 byte)
+    appendTagUint8(22U, security.version, inner);
+
     return inner;
 }
 
@@ -160,10 +182,16 @@ std::vector<std::uint8_t> KlvEncoder::encode(const UasDatalinkMessage& msg) {
     std::vector<std::uint8_t> payload;
     payload.reserve(256U);
 
-    // Tag 2: Precision Time Stamp (8 bytes)
+    // Tag 2: Precision Time Stamp (8 bytes, mandatory in MISB ST 0601)
+    std::uint64_t pts = 0ULL;
     if (msg.precisionTimeStampUs.has_value()) {
-        appendTagUint64(static_cast<std::uint32_t>(Tag::PrecisionTimeStamp), *msg.precisionTimeStampUs, payload);
+        pts = *msg.precisionTimeStampUs;
+    } else {
+        pts = static_cast<std::uint64_t>(
+            std::chrono::duration_cast<std::chrono::microseconds>(
+                std::chrono::system_clock::now().time_since_epoch()).count());
     }
+    appendTagUint64(static_cast<std::uint32_t>(Tag::PrecisionTimeStamp), pts, payload);
 
     // Tag 3: Mission ID
     if (msg.missionId.has_value()) {
@@ -270,28 +298,69 @@ std::vector<std::uint8_t> KlvEncoder::encode(const UasDatalinkMessage& msg) {
         appendTagUint16(static_cast<std::uint32_t>(Tag::FrameCenterElev), scaleAltitude(*msg.frameCenterElevM), payload);
     }
 
-    // Tags 26..33: 4 Footprint Corner Coordinates
+    // Tags 26..33 (Offsets) and Tags 82..89 (Full Coordinates)
     if (msg.cornerCoordinates.has_value()) {
         const auto& c = *msg.cornerCoordinates;
-        appendTagInt32(static_cast<std::uint32_t>(Tag::CornerLat1), scaleLatitude(c.topLeft.latitudeDeg), payload);
-        appendTagInt32(static_cast<std::uint32_t>(Tag::CornerLon1), scaleLongitude(c.topLeft.longitudeDeg), payload);
-        appendTagInt32(static_cast<std::uint32_t>(Tag::CornerLat2), scaleLatitude(c.topRight.latitudeDeg), payload);
-        appendTagInt32(static_cast<std::uint32_t>(Tag::CornerLon2), scaleLongitude(c.topRight.longitudeDeg), payload);
-        appendTagInt32(static_cast<std::uint32_t>(Tag::CornerLat3), scaleLatitude(c.bottomRight.latitudeDeg), payload);
-        appendTagInt32(static_cast<std::uint32_t>(Tag::CornerLon3), scaleLongitude(c.bottomRight.longitudeDeg), payload);
-        appendTagInt32(static_cast<std::uint32_t>(Tag::CornerLat4), scaleLatitude(c.bottomLeft.latitudeDeg), payload);
-        appendTagInt32(static_cast<std::uint32_t>(Tag::CornerLon4), scaleLongitude(c.bottomLeft.longitudeDeg), payload);
+
+        // If Frame Center is available, encode standard 2-byte offsets (Tags 26..33)
+        if (msg.frameCenterLatDeg.has_value() && msg.frameCenterLonDeg.has_value()) {
+            const double cLat = *msg.frameCenterLatDeg;
+            const double cLon = *msg.frameCenterLonDeg;
+            appendTagInt16(static_cast<std::uint32_t>(Tag::OffsetCornerLat1), scaleCornerOffset(c.topLeft.latitudeDeg - cLat), payload);
+            appendTagInt16(static_cast<std::uint32_t>(Tag::OffsetCornerLon1), scaleCornerOffset(c.topLeft.longitudeDeg - cLon), payload);
+            appendTagInt16(static_cast<std::uint32_t>(Tag::OffsetCornerLat2), scaleCornerOffset(c.topRight.latitudeDeg - cLat), payload);
+            appendTagInt16(static_cast<std::uint32_t>(Tag::OffsetCornerLon2), scaleCornerOffset(c.topRight.longitudeDeg - cLon), payload);
+            appendTagInt16(static_cast<std::uint32_t>(Tag::OffsetCornerLat3), scaleCornerOffset(c.bottomRight.latitudeDeg - cLat), payload);
+            appendTagInt16(static_cast<std::uint32_t>(Tag::OffsetCornerLon3), scaleCornerOffset(c.bottomRight.longitudeDeg - cLon), payload);
+            appendTagInt16(static_cast<std::uint32_t>(Tag::OffsetCornerLat4), scaleCornerOffset(c.bottomLeft.latitudeDeg - cLat), payload);
+            appendTagInt16(static_cast<std::uint32_t>(Tag::OffsetCornerLon4), scaleCornerOffset(c.bottomLeft.longitudeDeg - cLon), payload);
+        }
+
+        // Also encode standard ST 0601.8+ 4-byte Full Corner Coordinates (Tags 82..89)
+        appendTagInt32(static_cast<std::uint32_t>(Tag::CornerLat1Full), scaleLatitude(c.topLeft.latitudeDeg), payload);
+        appendTagInt32(static_cast<std::uint32_t>(Tag::CornerLon1Full), scaleLongitude(c.topLeft.longitudeDeg), payload);
+        appendTagInt32(static_cast<std::uint32_t>(Tag::CornerLat2Full), scaleLatitude(c.topRight.latitudeDeg), payload);
+        appendTagInt32(static_cast<std::uint32_t>(Tag::CornerLon2Full), scaleLongitude(c.topRight.longitudeDeg), payload);
+        appendTagInt32(static_cast<std::uint32_t>(Tag::CornerLat3Full), scaleLatitude(c.bottomRight.latitudeDeg), payload);
+        appendTagInt32(static_cast<std::uint32_t>(Tag::CornerLon3Full), scaleLongitude(c.bottomRight.longitudeDeg), payload);
+        appendTagInt32(static_cast<std::uint32_t>(Tag::CornerLat4Full), scaleLatitude(c.bottomLeft.latitudeDeg), payload);
+        appendTagInt32(static_cast<std::uint32_t>(Tag::CornerLon4Full), scaleLongitude(c.bottomLeft.longitudeDeg), payload);
     }
 
-    // Tag 48: Security Local Set
-    if (msg.security.has_value()) {
-        const auto secBytes = encodeSecurityLocalSet(*msg.security);
-        appendTagBytes(static_cast<std::uint32_t>(Tag::SecurityLocalSet), secBytes, payload);
+    // Tag 45: Target Error CE90
+    if (msg.targetErrorCe90M.has_value()) {
+        const double clamped = std::clamp(*msg.targetErrorCe90M, 0.0, 65535.0);
+        appendTagUint16(static_cast<std::uint32_t>(Tag::TargetErrorCe90), static_cast<std::uint16_t>(std::round(clamped)), payload);
     }
 
-    // Tag 65: UAS LS Version
-    if (msg.uasLsVersion.has_value()) {
-        appendTagUint8(static_cast<std::uint32_t>(Tag::UasLsVersion), *msg.uasLsVersion, payload);
+    // Tag 46: Target Error LE90
+    if (msg.targetErrorLe90M.has_value()) {
+        const double clamped = std::clamp(*msg.targetErrorLe90M, 0.0, 65535.0);
+        appendTagUint16(static_cast<std::uint32_t>(Tag::TargetErrorLe90), static_cast<std::uint16_t>(std::round(clamped)), payload);
+    }
+
+    // Tag 48: Security Local Set (Mandatory in MISB ST 0601)
+    const SecurityMetadata sec = msg.security.value_or(SecurityMetadata{});
+    const auto secBytes = encodeSecurityLocalSet(sec);
+    appendTagBytes(static_cast<std::uint32_t>(Tag::SecurityLocalSet), secBytes, payload);
+
+    // Tag 65: UAS LS Version (Mandatory in MISB ST 0601)
+    const std::uint8_t uasVer = msg.uasLsVersion.value_or(16U);
+    appendTagUint8(static_cast<std::uint32_t>(Tag::UasLsVersion), uasVer, payload);
+
+    // Tag 75: Sensor Altitude HAE
+    if (msg.sensorAltitudeHaeM.has_value()) {
+        appendTagUint16(static_cast<std::uint32_t>(Tag::SensorAltitudeHae), scaleAltitude(*msg.sensorAltitudeHaeM), payload);
+    }
+
+    // Tag 78: Frame Center Elevation HAE
+    if (msg.frameCenterElevHaeM.has_value()) {
+        appendTagUint16(static_cast<std::uint32_t>(Tag::FrameCenterElevHae), scaleAltitude(*msg.frameCenterElevHaeM), payload);
+    }
+
+    // Tag 118: Sensor Roll Angle
+    if (msg.sensorRollAngleDeg.has_value()) {
+        appendTagUint32(static_cast<std::uint32_t>(Tag::SensorRollAngle), scaleRelRoll(*msg.sensorRollAngleDeg), payload);
     }
 
     // Tag 1 (Checksum) adds 4 bytes: Tag (0x01), Length (0x02), 2 bytes CRC

@@ -1,5 +1,6 @@
 #include "KlvEncoder.h"
 #include "KlvParser.h"
+#include "KlvCrc.h"
 #include <gtest/gtest.h>
 
 using namespace Klv;
@@ -42,7 +43,7 @@ TEST(KlvEncoderParserTest, FullRoundTrip) {
     sec.sciShiInfo = "TACTICAL";
     sec.caveats = "REL TO NATO";
     original.security = sec;
-    original.uasLsVersion = 16U;
+    original.uasLsVersion = static_cast<std::uint8_t>(16U);
 
     // 1. Encode
     const std::vector<std::uint8_t> encodedPacket = KlvEncoder::encode(original);
@@ -136,3 +137,107 @@ TEST(KlvEncoderParserTest, InvalidUniversalLabelRejection) {
     UasDatalinkMessage parsed;
     EXPECT_EQ(KlvParser::parse(packet.data(), packet.size(), parsed, true), KlvStatus::InvalidUniversalLabel);
 }
+
+TEST(KlvEncoderParserTest, Misb0601OffsetCorners2ByteDecoding) {
+    // Manually construct a minimal ST 0601 packet containing:
+    // Tag 2: Timestamp (8 bytes)
+    // Tag 23: Frame Center Lat = 37.800000 deg
+    // Tag 24: Frame Center Lon = -122.400000 deg
+    // Tag 26: Offset Corner Lat 1 (2 bytes) = +0.005 deg offset -> 0.005 * (32767 / 0.075) = 2184
+    // Tag 27: Offset Corner Lon 1 (2 bytes) = -0.002 deg offset -> -0.002 * (32767 / 0.075) = -874
+    // Tag 65: Version 16
+    // Tag 1: Checksum (2 bytes)
+    std::vector<std::uint8_t> payload;
+
+    // Tag 2: Timestamp
+    payload.push_back(0x02U); payload.push_back(0x08U);
+    for (int i = 0; i < 8; ++i) payload.push_back(0x01U);
+
+    // Tag 23: Frame Center Lat = 37.8 deg -> 37.8 * (2147483647 / 90) = 901943132 = 0x35C28F5C
+    payload.push_back(0x17U); payload.push_back(0x04U);
+    payload.push_back(0x35U); payload.push_back(0xC2U); payload.push_back(0x8FU); payload.push_back(0x5CU);
+
+    // Tag 24: Frame Center Lon = -122.4 deg -> -122.4 * (2147483647 / 180) = -1460288880 = 0xA8F5C290
+    payload.push_back(0x18U); payload.push_back(0x04U);
+    payload.push_back(0xA8U); payload.push_back(0xF5U); payload.push_back(0xC2U); payload.push_back(0x90U);
+
+    // Tag 26: Offset Corner Lat 1 = 2184 = 0x0888 (2 bytes)
+    payload.push_back(0x1AU); payload.push_back(0x02U);
+    payload.push_back(0x08U); payload.push_back(0x88U);
+
+    // Tag 27: Offset Corner Lon 1 = -874 = 0xFC96 (2 bytes)
+    payload.push_back(0x1BU); payload.push_back(0x02U);
+    payload.push_back(0xFCU); payload.push_back(0x96U);
+
+    // Tag 65: Version 16
+    payload.push_back(0x41U); payload.push_back(0x01U); payload.push_back(0x10U);
+
+    // Tag 1 overhead
+    payload.push_back(0x01U); payload.push_back(0x02U);
+
+    std::vector<std::uint8_t> packet(kMisb0601UniversalLabel.begin(), kMisb0601UniversalLabel.end());
+    packet.push_back(static_cast<std::uint8_t>(payload.size() + 2U)); // BER length
+    packet.insert(packet.end(), payload.begin(), payload.end());
+
+    const std::uint16_t crc = KlvCrc::calculate(packet.data(), packet.size());
+    packet.push_back(static_cast<std::uint8_t>((crc >> 8U) & 0xFFU));
+    packet.push_back(static_cast<std::uint8_t>(crc & 0xFFU));
+
+    UasDatalinkMessage parsed;
+    const KlvStatus status = KlvParser::parse(packet.data(), packet.size(), parsed, true);
+    ASSERT_EQ(status, KlvStatus::Success);
+    ASSERT_TRUE(parsed.cornerCoordinates.has_value());
+    EXPECT_NEAR(parsed.cornerCoordinates->topLeft.latitudeDeg, 37.805, 1e-4);
+    EXPECT_NEAR(parsed.cornerCoordinates->topLeft.longitudeDeg, -122.402, 1e-4);
+}
+
+TEST(KlvEncoderParserTest, Misb0102SecuritySubTagsCompliance) {
+    // Construct raw MISB ST 0102 payload:
+    // Tag 1 (1 byte): 0x04 (Secret)
+    // Tag 2 (1 byte): 0x01 (ISO-3166-2)
+    // Tag 3 (4 bytes): "NATO"
+    // Tag 4 (8 bytes): "TACTICAL"
+    // Tag 5 (11 bytes): "REL TO NATO"
+    // Tag 6 (5 bytes): "NOFOR"
+    // Tag 22 (1 byte): 0x0D (Version 13)
+    std::vector<std::uint8_t> secPayload;
+    secPayload.push_back(0x01U); secPayload.push_back(0x01U); secPayload.push_back(0x04U); // Tag 1: Classification
+    secPayload.push_back(0x02U); secPayload.push_back(0x01U); secPayload.push_back(0x01U); // Tag 2: Coding Method
+    secPayload.push_back(0x03U); secPayload.push_back(0x04U); // Tag 3: Country "NATO"
+    secPayload.insert(secPayload.end(), {'N', 'A', 'T', 'O'});
+    secPayload.push_back(0x04U); secPayload.push_back(0x08U); // Tag 4: SCI/SHI "TACTICAL"
+    secPayload.insert(secPayload.end(), {'T', 'A', 'C', 'T', 'I', 'C', 'A', 'L'});
+    secPayload.push_back(0x05U); secPayload.push_back(0x0BU); // Tag 5: Caveats "REL TO NATO"
+    secPayload.insert(secPayload.end(), {'R', 'E', 'L', ' ', 'T', 'O', ' ', 'N', 'A', 'T', 'O'});
+    secPayload.push_back(0x06U); secPayload.push_back(0x05U); // Tag 6: Releasing "NOFOR"
+    secPayload.insert(secPayload.end(), {'N', 'O', 'F', 'O', 'R'});
+    secPayload.push_back(0x16U); secPayload.push_back(0x01U); secPayload.push_back(0x0DU); // Tag 22: Version 13
+
+    SecurityMetadata sec;
+    const KlvStatus status = KlvParser::parseSecurityLocalSet(secPayload.data(), secPayload.size(), sec);
+    ASSERT_EQ(status, KlvStatus::Success);
+    EXPECT_EQ(sec.classification, SecurityClassification::Secret);
+    EXPECT_EQ(sec.countryCodingMethod, 1U);
+    EXPECT_EQ(sec.classifyingCountry, "NATO");
+    EXPECT_EQ(sec.sciShiInfo, "TACTICAL");
+    EXPECT_EQ(sec.caveats, "REL TO NATO");
+    EXPECT_EQ(sec.releasingInstructions, "NOFOR");
+    EXPECT_EQ(sec.version, 13U);
+}
+
+TEST(KlvEncoderParserTest, Misb0601MandatoryTagsEnforced) {
+    UasDatalinkMessage msg;
+    // Don't set security or version or timestamp; KlvEncoder must default and include them
+    const auto packet = KlvEncoder::encode(msg);
+
+    UasDatalinkMessage parsed;
+    const KlvStatus status = KlvParser::parse(packet.data(), packet.size(), parsed, true);
+    ASSERT_EQ(status, KlvStatus::Success);
+
+    // Mandatory tags per MISB ST 0601:
+    EXPECT_TRUE(parsed.precisionTimeStampUs.has_value());
+    EXPECT_TRUE(parsed.security.has_value());
+    EXPECT_TRUE(parsed.uasLsVersion.has_value());
+    EXPECT_EQ(*parsed.uasLsVersion, 16U);
+}
+

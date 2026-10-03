@@ -13,7 +13,9 @@ TileData ProceduralGridTileProvider::generateGridTile(const TileCoord& /*coord*/
     tile.bytes.reserve(header.size() + static_cast<std::size_t>(kTileDim * kTileDim * 3));
 
     // Append PPM header
-    tile.bytes.insert(tile.bytes.end(), header.begin(), header.end());
+    for (const char ch : header) {
+        tile.bytes.push_back(static_cast<std::uint8_t>(ch));
+    }
 
     // Color definitions (RGB)
     constexpr std::uint8_t kBgR = 16, kBgG = 20, kBgB = 28;       // #10141c Dark Tactical

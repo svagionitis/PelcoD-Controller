@@ -50,16 +50,40 @@ enum class Tag : std::uint32_t {
     FrameCenterLat = 23U,       ///< Frame center WGS-84 latitude [-90, +90] deg (4 bytes)
     FrameCenterLon = 24U,       ///< Frame center WGS-84 longitude [-180, +180] deg (4 bytes)
     FrameCenterElev = 25U,      ///< Frame center elevation above MSL [-900, +19000] m (2 bytes)
-    CornerLat1 = 26U,           ///< Corner 1 (Top-Left) latitude [-90, +90] deg (4 bytes)
-    CornerLon1 = 27U,           ///< Corner 1 (Top-Left) longitude [-180, +180] deg (4 bytes)
-    CornerLat2 = 28U,           ///< Corner 2 (Top-Right) latitude [-90, +90] deg (4 bytes)
-    CornerLon2 = 29U,           ///< Corner 2 (Top-Right) longitude [-180, +180] deg (4 bytes)
-    CornerLat3 = 30U,           ///< Corner 3 (Bottom-Right) latitude [-90, +90] deg (4 bytes)
-    CornerLon3 = 31U,           ///< Corner 3 (Bottom-Right) longitude [-180, +180] deg (4 bytes)
-    CornerLat4 = 32U,           ///< Corner 4 (Bottom-Left) latitude [-90, +90] deg (4 bytes)
-    CornerLon4 = 33U,           ///< Corner 4 (Bottom-Left) longitude [-180, +180] deg (4 bytes)
-    SecurityLocalSet = 48U,     ///< MISB ST 0102 Security Classification Local Set (nested)
-    UasLsVersion = 65U          ///< UAS Datalink LS version number (1 byte)
+    OffsetCornerLat1 = 26U,     ///< Tag 26: Offset Corner 1 latitude [-0.075, +0.075] deg (2 bytes)
+    OffsetCornerLon1 = 27U,     ///< Tag 27: Offset Corner 1 longitude [-0.075, +0.075] deg (2 bytes)
+    OffsetCornerLat2 = 28U,     ///< Tag 28: Offset Corner 2 latitude [-0.075, +0.075] deg (2 bytes)
+    OffsetCornerLon2 = 29U,     ///< Tag 29: Offset Corner 2 longitude [-0.075, +0.075] deg (2 bytes)
+    OffsetCornerLat3 = 30U,     ///< Tag 30: Offset Corner 3 latitude [-0.075, +0.075] deg (2 bytes)
+    OffsetCornerLon3 = 31U,     ///< Tag 31: Offset Corner 3 longitude [-0.075, +0.075] deg (2 bytes)
+    OffsetCornerLat4 = 32U,     ///< Tag 32: Offset Corner 4 latitude [-0.075, +0.075] deg (2 bytes)
+    OffsetCornerLon4 = 33U,     ///< Tag 33: Offset Corner 4 longitude [-0.075, +0.075] deg (2 bytes)
+    CornerLat1 = 26U,           ///< Backward-compatible alias for OffsetCornerLat1
+    CornerLon1 = 27U,           ///< Backward-compatible alias for OffsetCornerLon1
+    CornerLat2 = 28U,           ///< Backward-compatible alias for OffsetCornerLat2
+    CornerLon2 = 29U,           ///< Backward-compatible alias for OffsetCornerLon2
+    CornerLat3 = 30U,           ///< Backward-compatible alias for OffsetCornerLat3
+    CornerLon3 = 31U,           ///< Backward-compatible alias for OffsetCornerLon3
+    CornerLat4 = 32U,           ///< Backward-compatible alias for OffsetCornerLat4
+    CornerLon4 = 33U,           ///< Backward-compatible alias for OffsetCornerLon4
+    TargetErrorCe90 = 45U,      ///< Tag 45: Target Location Error CE90 in meters (2 bytes)
+    TargetErrorLe90 = 46U,      ///< Tag 46: Target Location Error LE90 in meters (2 bytes)
+    SecurityLocalSet = 48U,     ///< Tag 48: MISB ST 0102 Security Classification Local Set (nested)
+    UasLsVersion = 65U,         ///< Tag 65: UAS Datalink LS version number (1 byte)
+    VmtiLocalSet = 74U,         ///< Tag 74: MISB ST 0903 VMTI Local Set (nested)
+    SensorAltitudeHae = 75U,    ///< Tag 75: Sensor true altitude HAE [-900, +19000] m (2 bytes)
+    FrameCenterElevHae = 78U,   ///< Tag 78: Frame center elevation HAE [-900, +19000] m (2 bytes)
+    CornerLat1Full = 82U,       ///< Tag 82: Corner 1 Latitude Full [-90, +90] deg (4 bytes)
+    CornerLon1Full = 83U,       ///< Tag 83: Corner 1 Longitude Full [-180, +180] deg (4 bytes)
+    CornerLat2Full = 84U,       ///< Tag 84: Corner 2 Latitude Full [-90, +90] deg (4 bytes)
+    CornerLon2Full = 85U,       ///< Tag 85: Corner 2 Longitude Full [-180, +180] deg (4 bytes)
+    CornerLat3Full = 86U,       ///< Tag 86: Corner 3 Latitude Full [-90, +90] deg (4 bytes)
+    CornerLon3Full = 87U,       ///< Tag 87: Corner 3 Longitude Full [-180, +180] deg (4 bytes)
+    CornerLat4Full = 88U,       ///< Tag 88: Corner 4 Latitude Full [-90, +90] deg (4 bytes)
+    CornerLon4Full = 89U,       ///< Tag 89: Corner 4 Longitude Full [-180, +180] deg (4 bytes)
+    MiisCoreId = 94U,           ///< Tag 94: MISB ST 1204 Core Identifier
+    WavelengthBands = 95U,      ///< Tag 95: Wavelength band bitmask (1 byte)
+    SensorRollAngle = 118U      ///< Tag 118: Sensor roll angle [0, 360) deg (4 bytes)
 };
 
 /// @enum KlvStatus
@@ -86,7 +110,7 @@ struct GeoPoint2D {
 struct GeoPoint3D {
     double latitudeDeg { 0.0 };  ///< Latitude [-90.0, +90.0] degrees
     double longitudeDeg { 0.0 }; ///< Longitude [-180.0, +180.0] degrees
-    double altitudeM { 0.0 };    ///< Height above Mean Sea Level (MSL) in meters
+    double altitudeM { 0.0 };    ///< Height above Mean Sea Level (MSL) or HAE in meters
 };
 
 /// @struct FrustumCorners
@@ -109,13 +133,17 @@ enum class SecurityClassification : std::uint8_t {
 };
 
 /// @struct SecurityMetadata
-/// @brief Basic metadata for MISB ST 0102 Security Classification Local Set (Tag 48).
+/// @brief Conforms to MISB ST 0102.13 Security Classification Local Set (ST 0601 Tag 48).
 struct SecurityMetadata {
-    SecurityClassification classification { SecurityClassification::Unclassified }; ///< Tag 1
-    std::string classifyingCountry; ///< Tag 2: Country / Authority code (e.g. "US", "NATO")
-    std::string sciShiInfo;         ///< Tag 3: Security caveats / SCI / SHI
-    std::string caveats;            ///< Tag 4: Handling caveats
-    std::string releasingInstructions; ///< Tag 5: Releasing instructions
+    SecurityClassification classification { SecurityClassification::Unclassified }; ///< Sub-Tag 1
+    std::uint8_t countryCodingMethod { 1U }; ///< Sub-Tag 2: 1 = ISO-3166 Two-Letter
+    std::string classifyingCountry { "US" }; ///< Sub-Tag 3: Country / Authority code (e.g. "US", "NATO")
+    std::string sciShiInfo {};               ///< Sub-Tag 4: Security caveats / SCI / SHI
+    std::string caveats {};                  ///< Sub-Tag 5: Handling caveats
+    std::string releasingInstructions {};    ///< Sub-Tag 6: Releasing instructions
+    std::uint8_t objectCountryCodingMethod { 1U }; ///< Sub-Tag 12: Object country coding method
+    std::string objectCountryCodes {};       ///< Sub-Tag 13: Object country codes
+    std::uint8_t version { 13U };            ///< Sub-Tag 22: ST 0102 version (default 13)
 };
 
 /// @struct UasDatalinkMessage
@@ -144,9 +172,14 @@ struct UasDatalinkMessage {
     std::optional<double> frameCenterLatDeg;          ///< Tag 23: [-90, +90] deg
     std::optional<double> frameCenterLonDeg;          ///< Tag 24: [-180, +180] deg
     std::optional<double> frameCenterElevM;           ///< Tag 25: [-900, +19000] m
-    std::optional<FrustumCorners> cornerCoordinates;  ///< Tags 26..33: 4 Footprint corners
+    std::optional<FrustumCorners> cornerCoordinates;  ///< Decoded from Tags 26..33 or 82..89
+    std::optional<double> targetErrorCe90M;           ///< Tag 45: CE90 in meters
+    std::optional<double> targetErrorLe90M;           ///< Tag 46: LE90 in meters
     std::optional<SecurityMetadata> security;         ///< Tag 48: Security Local Set
-    std::optional<std::uint8_t> uasLsVersion;         ///< Tag 65: Version number (e.g. 1..16)
+    std::optional<std::uint8_t> uasLsVersion;         ///< Tag 65: Version number (e.g. 1..19)
+    std::optional<double> sensorAltitudeHaeM;         ///< Tag 75: Sensor HAE altitude in meters
+    std::optional<double> frameCenterElevHaeM;        ///< Tag 78: Frame center HAE elevation in meters
+    std::optional<double> sensorRollAngleDeg;         ///< Tag 118: Sensor roll angle [0, 360) deg
 };
 
 } // namespace Klv

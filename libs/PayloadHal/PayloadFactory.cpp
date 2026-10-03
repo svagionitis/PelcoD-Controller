@@ -422,7 +422,7 @@ namespace {
 
         result.scheme = uriString.substr(0, schemeEnd);
         std::transform(result.scheme.begin(), result.scheme.end(), result.scheme.begin(),
-            [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+            [](char c) { return static_cast<char>(std::tolower(static_cast<unsigned char>(c))); });
 
         std::string rest = uriString.substr(schemeEnd + 3);
 

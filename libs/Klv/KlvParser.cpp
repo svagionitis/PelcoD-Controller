@@ -56,6 +56,10 @@ inline double unscaleTargetWidth(std::uint16_t val) noexcept {
     return static_cast<double>(val) * (10000.0 / 65535.0);
 }
 
+inline double unscaleCornerOffset(std::int16_t val) noexcept {
+    return static_cast<double>(val) * (0.075 / 32767.0);
+}
+
 inline std::uint16_t readUint16BigEndian(const std::uint8_t* ptr) noexcept {
     return static_cast<std::uint16_t>((static_cast<std::uint16_t>(ptr[0]) << 8U) |
                                       static_cast<std::uint16_t>(ptr[1]));
@@ -129,17 +133,35 @@ KlvStatus KlvParser::parseSecurityLocalSet(const std::uint8_t* data,
                     security.classification = static_cast<SecurityClassification>(valPtr[0]);
                 }
                 break;
-            case 2U: // Classifying Country
+            case 2U: // Classifying Country and Releasing Instructions Coding Method
+                if (len >= 1U) {
+                    security.countryCodingMethod = valPtr[0];
+                }
+                break;
+            case 3U: // Classifying Country
                 security.classifyingCountry.assign(reinterpret_cast<const char*>(valPtr), len);
                 break;
-            case 3U: // SCI / SHI
+            case 4U: // SCI / SHI
                 security.sciShiInfo.assign(reinterpret_cast<const char*>(valPtr), len);
                 break;
-            case 4U: // Caveats
+            case 5U: // Caveats
                 security.caveats.assign(reinterpret_cast<const char*>(valPtr), len);
                 break;
-            case 5U: // Releasing Instructions
+            case 6U: // Releasing Instructions
                 security.releasingInstructions.assign(reinterpret_cast<const char*>(valPtr), len);
+                break;
+            case 12U: // Object Country Coding Method
+                if (len >= 1U) {
+                    security.objectCountryCodingMethod = valPtr[0];
+                }
+                break;
+            case 13U: // Object Country Codes
+                security.objectCountryCodes.assign(reinterpret_cast<const char*>(valPtr), len);
+                break;
+            case 22U: // Version
+                if (len >= 1U) {
+                    security.version = valPtr[0];
+                }
                 break;
             default:
                 break;
@@ -179,6 +201,15 @@ KlvStatus KlvParser::parse(const std::uint8_t* data,
 
     std::size_t offset = kUniversalLabelSize + berLenConsumed;
     const std::size_t endOffset = totalExpectedSize;
+
+    std::optional<double> rawOffsetLat1;
+    std::optional<double> rawOffsetLon1;
+    std::optional<double> rawOffsetLat2;
+    std::optional<double> rawOffsetLon2;
+    std::optional<double> rawOffsetLat3;
+    std::optional<double> rawOffsetLon3;
+    std::optional<double> rawOffsetLat4;
+    std::optional<double> rawOffsetLon4;
 
     while (offset < endOffset) {
         std::uint32_t tag { 0U };
@@ -303,52 +334,141 @@ KlvStatus KlvParser::parse(const std::uint8_t* data,
                     message.frameCenterElevM = unscaleAltitude(readUint16BigEndian(valPtr));
                 }
                 break;
-            case Tag::CornerLat1:
+            case Tag::OffsetCornerLat1:
+                if (len == 2U) {
+                    rawOffsetLat1 = unscaleCornerOffset(readInt16BigEndian(valPtr));
+                } else if (len >= 4U) {
+                    if (!message.cornerCoordinates) message.cornerCoordinates.emplace();
+                    message.cornerCoordinates->topLeft.latitudeDeg = unscaleLatitude(readInt32BigEndian(valPtr));
+                }
+                break;
+            case Tag::OffsetCornerLon1:
+                if (len == 2U) {
+                    rawOffsetLon1 = unscaleCornerOffset(readInt16BigEndian(valPtr));
+                } else if (len >= 4U) {
+                    if (!message.cornerCoordinates) message.cornerCoordinates.emplace();
+                    message.cornerCoordinates->topLeft.longitudeDeg = unscaleLongitude(readInt32BigEndian(valPtr));
+                }
+                break;
+            case Tag::OffsetCornerLat2:
+                if (len == 2U) {
+                    rawOffsetLat2 = unscaleCornerOffset(readInt16BigEndian(valPtr));
+                } else if (len >= 4U) {
+                    if (!message.cornerCoordinates) message.cornerCoordinates.emplace();
+                    message.cornerCoordinates->topRight.latitudeDeg = unscaleLatitude(readInt32BigEndian(valPtr));
+                }
+                break;
+            case Tag::OffsetCornerLon2:
+                if (len == 2U) {
+                    rawOffsetLon2 = unscaleCornerOffset(readInt16BigEndian(valPtr));
+                } else if (len >= 4U) {
+                    if (!message.cornerCoordinates) message.cornerCoordinates.emplace();
+                    message.cornerCoordinates->topRight.longitudeDeg = unscaleLongitude(readInt32BigEndian(valPtr));
+                }
+                break;
+            case Tag::OffsetCornerLat3:
+                if (len == 2U) {
+                    rawOffsetLat3 = unscaleCornerOffset(readInt16BigEndian(valPtr));
+                } else if (len >= 4U) {
+                    if (!message.cornerCoordinates) message.cornerCoordinates.emplace();
+                    message.cornerCoordinates->bottomRight.latitudeDeg = unscaleLatitude(readInt32BigEndian(valPtr));
+                }
+                break;
+            case Tag::OffsetCornerLon3:
+                if (len == 2U) {
+                    rawOffsetLon3 = unscaleCornerOffset(readInt16BigEndian(valPtr));
+                } else if (len >= 4U) {
+                    if (!message.cornerCoordinates) message.cornerCoordinates.emplace();
+                    message.cornerCoordinates->bottomRight.longitudeDeg = unscaleLongitude(readInt32BigEndian(valPtr));
+                }
+                break;
+            case Tag::OffsetCornerLat4:
+                if (len == 2U) {
+                    rawOffsetLat4 = unscaleCornerOffset(readInt16BigEndian(valPtr));
+                } else if (len >= 4U) {
+                    if (!message.cornerCoordinates) message.cornerCoordinates.emplace();
+                    message.cornerCoordinates->bottomLeft.latitudeDeg = unscaleLatitude(readInt32BigEndian(valPtr));
+                }
+                break;
+            case Tag::OffsetCornerLon4:
+                if (len == 2U) {
+                    rawOffsetLon4 = unscaleCornerOffset(readInt16BigEndian(valPtr));
+                } else if (len >= 4U) {
+                    if (!message.cornerCoordinates) message.cornerCoordinates.emplace();
+                    message.cornerCoordinates->bottomLeft.longitudeDeg = unscaleLongitude(readInt32BigEndian(valPtr));
+                }
+                break;
+            case Tag::CornerLat1Full:
                 if (len >= 4U) {
                     if (!message.cornerCoordinates) message.cornerCoordinates.emplace();
                     message.cornerCoordinates->topLeft.latitudeDeg = unscaleLatitude(readInt32BigEndian(valPtr));
                 }
                 break;
-            case Tag::CornerLon1:
+            case Tag::CornerLon1Full:
                 if (len >= 4U) {
                     if (!message.cornerCoordinates) message.cornerCoordinates.emplace();
                     message.cornerCoordinates->topLeft.longitudeDeg = unscaleLongitude(readInt32BigEndian(valPtr));
                 }
                 break;
-            case Tag::CornerLat2:
+            case Tag::CornerLat2Full:
                 if (len >= 4U) {
                     if (!message.cornerCoordinates) message.cornerCoordinates.emplace();
                     message.cornerCoordinates->topRight.latitudeDeg = unscaleLatitude(readInt32BigEndian(valPtr));
                 }
                 break;
-            case Tag::CornerLon2:
+            case Tag::CornerLon2Full:
                 if (len >= 4U) {
                     if (!message.cornerCoordinates) message.cornerCoordinates.emplace();
                     message.cornerCoordinates->topRight.longitudeDeg = unscaleLongitude(readInt32BigEndian(valPtr));
                 }
                 break;
-            case Tag::CornerLat3:
+            case Tag::CornerLat3Full:
                 if (len >= 4U) {
                     if (!message.cornerCoordinates) message.cornerCoordinates.emplace();
                     message.cornerCoordinates->bottomRight.latitudeDeg = unscaleLatitude(readInt32BigEndian(valPtr));
                 }
                 break;
-            case Tag::CornerLon3:
+            case Tag::CornerLon3Full:
                 if (len >= 4U) {
                     if (!message.cornerCoordinates) message.cornerCoordinates.emplace();
                     message.cornerCoordinates->bottomRight.longitudeDeg = unscaleLongitude(readInt32BigEndian(valPtr));
                 }
                 break;
-            case Tag::CornerLat4:
+            case Tag::CornerLat4Full:
                 if (len >= 4U) {
                     if (!message.cornerCoordinates) message.cornerCoordinates.emplace();
                     message.cornerCoordinates->bottomLeft.latitudeDeg = unscaleLatitude(readInt32BigEndian(valPtr));
                 }
                 break;
-            case Tag::CornerLon4:
+            case Tag::CornerLon4Full:
                 if (len >= 4U) {
                     if (!message.cornerCoordinates) message.cornerCoordinates.emplace();
                     message.cornerCoordinates->bottomLeft.longitudeDeg = unscaleLongitude(readInt32BigEndian(valPtr));
+                }
+                break;
+            case Tag::TargetErrorCe90:
+                if (len >= 2U) {
+                    message.targetErrorCe90M = static_cast<double>(readUint16BigEndian(valPtr));
+                }
+                break;
+            case Tag::TargetErrorLe90:
+                if (len >= 2U) {
+                    message.targetErrorLe90M = static_cast<double>(readUint16BigEndian(valPtr));
+                }
+                break;
+            case Tag::SensorAltitudeHae:
+                if (len >= 2U) {
+                    message.sensorAltitudeHaeM = unscaleAltitude(readUint16BigEndian(valPtr));
+                }
+                break;
+            case Tag::FrameCenterElevHae:
+                if (len >= 2U) {
+                    message.frameCenterElevHaeM = unscaleAltitude(readUint16BigEndian(valPtr));
+                }
+                break;
+            case Tag::SensorRollAngle:
+                if (len >= 4U) {
+                    message.sensorRollAngleDeg = unscaleRelRoll(readUint32BigEndian(valPtr));
                 }
                 break;
             case Tag::SecurityLocalSet: {
@@ -372,6 +492,23 @@ KlvStatus KlvParser::parse(const std::uint8_t* data,
         }
 
         offset += len;
+    }
+
+    if (rawOffsetLat1 || rawOffsetLon1 || rawOffsetLat2 || rawOffsetLon2 ||
+        rawOffsetLat3 || rawOffsetLon3 || rawOffsetLat4 || rawOffsetLon4) {
+        if (!message.cornerCoordinates) {
+            message.cornerCoordinates.emplace();
+        }
+        const double centerLat = message.frameCenterLatDeg.value_or(0.0);
+        const double centerLon = message.frameCenterLonDeg.value_or(0.0);
+        if (rawOffsetLat1) message.cornerCoordinates->topLeft.latitudeDeg = centerLat + *rawOffsetLat1;
+        if (rawOffsetLon1) message.cornerCoordinates->topLeft.longitudeDeg = centerLon + *rawOffsetLon1;
+        if (rawOffsetLat2) message.cornerCoordinates->topRight.latitudeDeg = centerLat + *rawOffsetLat2;
+        if (rawOffsetLon2) message.cornerCoordinates->topRight.longitudeDeg = centerLon + *rawOffsetLon2;
+        if (rawOffsetLat3) message.cornerCoordinates->bottomRight.latitudeDeg = centerLat + *rawOffsetLat3;
+        if (rawOffsetLon3) message.cornerCoordinates->bottomRight.longitudeDeg = centerLon + *rawOffsetLon3;
+        if (rawOffsetLat4) message.cornerCoordinates->bottomLeft.latitudeDeg = centerLat + *rawOffsetLat4;
+        if (rawOffsetLon4) message.cornerCoordinates->bottomLeft.longitudeDeg = centerLon + *rawOffsetLon4;
     }
 
     return KlvStatus::Success;
