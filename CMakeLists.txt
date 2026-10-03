@@ -322,6 +322,7 @@ install(FILES
     libs/Klv/KlvStreamScanner.h
     libs/Klv/MpegTsKlvExtractor.h
     libs/Klv/KlvGeodesy.h
+    libs/Klv/Misb1201.h
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/Klv
 )
 

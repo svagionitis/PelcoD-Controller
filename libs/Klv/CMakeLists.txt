@@ -20,6 +20,8 @@ add_library(Klv STATIC
     MpegTsKlvExtractor.cpp
     KlvGeodesy.h
     KlvGeodesy.cpp
+    Misb1201.h
+    Misb1201.cpp
 )
 
 target_include_directories(Klv PUBLIC
