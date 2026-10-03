@@ -46,15 +46,20 @@ public:
     /// @param[in] data Pointer to the input stream buffer.
     /// @param[in] size Number of bytes available.
     /// @return Number of KLV packets dispatched.
-    std::size_t processStream(const std::uint8_t* data, std::size_t size);
+    [[nodiscard]] std::size_t processStream(const std::uint8_t* data, std::size_t size);
 
     /// @brief Ingests a single 188-byte aligned MPEG-TS packet.
     /// @param[in] packet Pointer to 188 bytes starting with 0x47.
     /// @return Number of KLV packets dispatched (0 or 1).
-    std::size_t processTsPacket(const std::uint8_t* packet);
+    [[nodiscard]] std::size_t processTsPacket(const std::uint8_t* packet);
 
     /// @brief Resets all demuxer state, PID tables, and reassembly buffers.
     void reset();
+
+    /// @brief Flushes any remaining buffered PES packet data.
+    /// @details Ingests any complete or unconsumed PES data currently in the reassembly buffer.
+    /// @return Number of KLV packets dispatched during flush.
+    [[nodiscard]] std::size_t flush();
 
     /// @brief Returns the discovered or manually set metadata PID, if any.
     [[nodiscard]] std::optional<std::uint16_t> metadataPid() const noexcept;
@@ -71,7 +76,8 @@ private:
 
     void parsePat(const std::uint8_t* payload, std::size_t size);
     void parsePmt(const std::uint8_t* payload, std::size_t size);
-    void handlePesPacket(const std::uint8_t* pesData, std::size_t pesSize);
+    std::size_t handlePesPacket(const std::uint8_t* pesData, std::size_t pesSize);
 };
+
 
 } // namespace Klv

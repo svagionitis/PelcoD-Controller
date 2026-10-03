@@ -1,4 +1,5 @@
 #include "MpegTsKlvExtractor.h"
+#include "KlvBer.h"
 #include <algorithm>
 #include <cstring>
 
@@ -35,6 +36,15 @@ void MpegTsKlvExtractor::reset() {
     m_scanner.reset();
 }
 
+std::size_t MpegTsKlvExtractor::flush() {
+    std::size_t dispatched = 0U;
+    if (!m_pesReassemblyBuffer.empty()) {
+        dispatched = handlePesPacket(m_pesReassemblyBuffer.data(), m_pesReassemblyBuffer.size());
+        m_pesReassemblyBuffer.clear();
+    }
+    return dispatched;
+}
+
 std::size_t MpegTsKlvExtractor::processStream(const std::uint8_t* data, std::size_t size) {
     if (data == nullptr || size == 0U) {
         return 0U;
@@ -42,32 +52,29 @@ std::size_t MpegTsKlvExtractor::processStream(const std::uint8_t* data, std::siz
 
     m_streamBuffer.insert(m_streamBuffer.end(), data, data + size);
     std::size_t dispatched = 0U;
+    std::size_t offset = 0U;
 
-    while (m_streamBuffer.size() >= kTsPacketSize) {
+    while (offset + kTsPacketSize <= m_streamBuffer.size()) {
         // Find 0x47 sync byte
-        auto it = std::find(m_streamBuffer.begin(), m_streamBuffer.end(), kTsSyncByte);
-        if (it == m_streamBuffer.end()) {
-            m_streamBuffer.clear();
-            break;
-        }
-
-        if (it != m_streamBuffer.begin()) {
-            m_streamBuffer.erase(m_streamBuffer.begin(), it);
-        }
-
-        if (m_streamBuffer.size() < kTsPacketSize) {
-            break;
-        }
-
-        // Verify next packet sync if enough bytes are available
-        if (m_streamBuffer.size() >= 2U * kTsPacketSize && m_streamBuffer[kTsPacketSize] != kTsSyncByte) {
-            // False sync byte, drop 1 byte and re-align
-            m_streamBuffer.erase(m_streamBuffer.begin());
+        if (m_streamBuffer[offset] != kTsSyncByte) {
+            offset++;
             continue;
         }
 
-        dispatched += processTsPacket(m_streamBuffer.data());
-        m_streamBuffer.erase(m_streamBuffer.begin(), m_streamBuffer.begin() + kTsPacketSize);
+        // Verify next packet sync if enough bytes are available
+        if (offset + 2U * kTsPacketSize <= m_streamBuffer.size() &&
+            m_streamBuffer[offset + kTsPacketSize] != kTsSyncByte) {
+            // False sync byte, advance by 1 byte and re-align
+            offset++;
+            continue;
+        }
+
+        dispatched += processTsPacket(m_streamBuffer.data() + offset);
+        offset += kTsPacketSize;
+    }
+
+    if (offset > 0U) {
+        m_streamBuffer.erase(m_streamBuffer.begin(), m_streamBuffer.begin() + static_cast<std::ptrdiff_t>(offset));
     }
 
     return dispatched;
@@ -121,28 +128,110 @@ std::size_t MpegTsKlvExtractor::processTsPacket(const std::uint8_t* packet) {
         return 0U;
     }
 
-    // If metadata PID not discovered yet, check if this packet contains MISB UL
+    // If metadata PID not discovered yet, check if this packet contains MISB UL or PES wrapping MISB UL
     if (!m_metadataPid.has_value()) {
         if (payloadSize >= kUniversalLabelSize &&
             std::memcmp(payload, kMisb0601UniversalLabel.data(), kMisb0601PrefixSize) == 0) {
             m_metadataPid = pid;
+        } else if (payloadSize >= 9U + kUniversalLabelSize &&
+                   payload[0] == 0x00U && payload[1] == 0x00U && payload[2] == 0x01U) {
+            const std::size_t pesHdrLen = static_cast<std::size_t>(payload[8]);
+            const std::size_t klvOffset = 9U + pesHdrLen;
+            if (klvOffset + kUniversalLabelSize <= payloadSize &&
+                std::memcmp(payload + klvOffset, kMisb0601UniversalLabel.data(), kMisb0601PrefixSize) == 0) {
+                m_metadataPid = pid;
+            }
+        }
+    }
+
+    // Ignore packets that don't match metadata PID
+    if (!m_metadataPid.has_value() || pid != *m_metadataPid) {
+        return 0U;
+    }
+
+    // Continuity Counter checking
+    const std::uint8_t cc = packet[3] & 0x0FU;
+    bool ccDiscontinuity = false;
+    if (m_lastContinuityCounter >= 0) {
+        if (static_cast<int>(cc) == m_lastContinuityCounter) {
+            // Duplicate packet, ignore
+            return 0U;
+        }
+        const int expectedCc = (m_lastContinuityCounter + 1) & 0x0F;
+        if (static_cast<int>(cc) != expectedCc) {
+            ccDiscontinuity = true;
+        }
+    }
+    m_lastContinuityCounter = static_cast<int>(cc);
+
+    if (ccDiscontinuity) {
+        m_pesReassemblyBuffer.clear();
+        if (!pusi) {
+            // Fragment following dropped packets cannot be assembled
+            return 0U;
         }
     }
 
     std::size_t dispatched = 0U;
 
-    // Process metadata packet if matched
-    if (m_metadataPid.has_value() && pid == *m_metadataPid) {
-        if (pusi) {
-            if (!m_pesReassemblyBuffer.empty()) {
-                handlePesPacket(m_pesReassemblyBuffer.data(), m_pesReassemblyBuffer.size());
-                m_pesReassemblyBuffer.clear();
-            }
+    // On PUSI boundary, flush any previously buffered unbounded or unconsumed PES packet
+    if (pusi) {
+        if (!m_pesReassemblyBuffer.empty()) {
+            dispatched += handlePesPacket(m_pesReassemblyBuffer.data(), m_pesReassemblyBuffer.size());
+            m_pesReassemblyBuffer.clear();
         }
-        m_pesReassemblyBuffer.insert(m_pesReassemblyBuffer.end(), payload, payload + payloadSize);
+    }
 
-        // Feed directly to scanner in case of unfragmented or streaming KLV
-        dispatched += m_scanner.processBytes(payload, payloadSize);
+    m_pesReassemblyBuffer.insert(m_pesReassemblyBuffer.end(), payload, payload + payloadSize);
+
+    // Immediate complete PES / KLV packet extraction loop
+    while (m_pesReassemblyBuffer.size() >= 6U) {
+        if (m_pesReassemblyBuffer[0] == 0x00U &&
+            m_pesReassemblyBuffer[1] == 0x00U &&
+            m_pesReassemblyBuffer[2] == 0x01U) {
+            const std::size_t pesLen = (static_cast<std::size_t>(m_pesReassemblyBuffer[4]) << 8U) |
+                                       static_cast<std::size_t>(m_pesReassemblyBuffer[5]);
+            if (pesLen == 0U) {
+                // Unbounded PES stream: wait for next PUSI or flush()
+                break;
+            }
+
+            const std::size_t totalPesSize = 6U + pesLen;
+            if (m_pesReassemblyBuffer.size() < totalPesSize) {
+                // Incomplete PES fragment: wait for more TS packets
+                break;
+            }
+
+            dispatched += handlePesPacket(m_pesReassemblyBuffer.data(), totalPesSize);
+            m_pesReassemblyBuffer.erase(m_pesReassemblyBuffer.begin(),
+                                        m_pesReassemblyBuffer.begin() + static_cast<std::ptrdiff_t>(totalPesSize));
+        } else if (m_pesReassemblyBuffer.size() >= kUniversalLabelSize + 2U &&
+                   std::memcmp(m_pesReassemblyBuffer.data(), kMisb0601UniversalLabel.data(), kMisb0601PrefixSize) == 0) {
+            // Raw KLV packet without PES encapsulation
+            std::size_t payloadLength { 0U };
+            std::size_t berLenConsumed { 0U };
+            const std::uint8_t* berPtr = m_pesReassemblyBuffer.data() + kUniversalLabelSize;
+            const std::size_t avail = m_pesReassemblyBuffer.size() - kUniversalLabelSize;
+            if (!KlvBer::decodeLength(berPtr, avail, payloadLength, berLenConsumed)) {
+                break;
+            }
+
+            const std::size_t totalKlvSize = kUniversalLabelSize + berLenConsumed + payloadLength;
+            if (m_pesReassemblyBuffer.size() < totalKlvSize) {
+                break;
+            }
+
+            dispatched += handlePesPacket(m_pesReassemblyBuffer.data(), totalKlvSize);
+            m_pesReassemblyBuffer.erase(m_pesReassemblyBuffer.begin(),
+                                        m_pesReassemblyBuffer.begin() + static_cast<std::ptrdiff_t>(totalKlvSize));
+        } else {
+            // If remainder is all 0xFF TS stuffing, clear buffer and finish
+            if (std::all_of(m_pesReassemblyBuffer.begin(), m_pesReassemblyBuffer.end(), [](std::uint8_t b) { return b == 0xFFU; })) {
+                m_pesReassemblyBuffer.clear();
+                break;
+            }
+            m_pesReassemblyBuffer.erase(m_pesReassemblyBuffer.begin());
+        }
     }
 
     return dispatched;
@@ -229,28 +318,33 @@ void MpegTsKlvExtractor::parsePmt(const std::uint8_t* payload, std::size_t size)
     }
 }
 
-void MpegTsKlvExtractor::handlePesPacket(const std::uint8_t* pesData, std::size_t pesSize) {
+std::size_t MpegTsKlvExtractor::handlePesPacket(const std::uint8_t* pesData, std::size_t pesSize) {
     if (pesData == nullptr || pesSize < 6U) {
-        return;
+        return 0U;
     }
 
     // Check for PES start code prefix: 0x00 0x00 0x01
     if (pesData[0] == 0x00U && pesData[1] == 0x00U && pesData[2] == 0x01U) {
-        // Stream ID at pesData[3]
-        // PES packet length at pesData[4..5]
-        if (pesSize >= 9U) {
-            // Optional PES header flags at pesData[6..7]
-            const std::size_t pesHeaderDataLen = static_cast<std::size_t>(pesData[8]);
-            const std::size_t payloadOffset = 9U + pesHeaderDataLen;
-            if (payloadOffset < pesSize) {
-                m_scanner.processBytes(pesData + payloadOffset, pesSize - payloadOffset);
-                return;
+        const std::uint8_t streamId = pesData[3];
+        std::size_t payloadOffset = 6U;
+        if (streamId != 0xBCU && streamId != 0xBFU && streamId != 0xF0U &&
+            streamId != 0xF1U && streamId != 0xF2U && streamId != 0xF8U && streamId != 0xFFU) {
+            if (pesSize >= 9U) {
+                const std::size_t pesHeaderDataLen = static_cast<std::size_t>(pesData[8]);
+                payloadOffset = 9U + pesHeaderDataLen;
+            } else {
+                return 0U;
             }
         }
+        if (payloadOffset < pesSize) {
+            return m_scanner.processBytes(pesData + payloadOffset, pesSize - payloadOffset);
+        }
+        return 0U;
     }
 
-    // If not standard PES header or payloadOffset past end, feed entire buffer to scanner
-    m_scanner.processBytes(pesData, pesSize);
+    // If not standard PES header (e.g. raw KLV packet), feed to scanner
+    return m_scanner.processBytes(pesData, pesSize);
 }
+
 
 } // namespace Klv
