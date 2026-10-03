@@ -274,6 +274,31 @@ int SightlineQmlBridge::tcMtuBytes() const noexcept
     return m_tcMtuBytes;
 }
 
+QString SightlineQmlBridge::boardIp() const
+{
+    return m_boardIp;
+}
+
+QString SightlineQmlBridge::boardNetmask() const
+{
+    return m_boardNetmask;
+}
+
+QString SightlineQmlBridge::boardGateway() const
+{
+    return m_boardGateway;
+}
+
+bool SightlineQmlBridge::boardDhcp() const noexcept
+{
+    return m_boardDhcp;
+}
+
+QStringList SightlineQmlBridge::networkInterfaces() const
+{
+    return m_networkInterfaces;
+}
+
 bool SightlineQmlBridge::connectUdp(const QString& host, int cmdPort, int replyPort)
 {
     const bool hostChangedVal { m_host != host };
@@ -1154,6 +1179,22 @@ bool SightlineQmlBridge::queryNetworkParams()
     const bool pOk = m_device->getNetworkParams(0U);
     const bool lOk = m_device->getNetworkList();
     return pOk || lOk;
+}
+
+bool SightlineQmlBridge::setBoardNetwork(
+    const QString& ip, const QString& mask, const QString& gateway, bool dhcp)
+{
+    if (!isConnected()) {
+        return false;
+    }
+    Sightline::MsgSetNetworkParameters msg {};
+    msg.ipAddress = QHostAddress(ip).toIPv4Address();
+    msg.subnetMask = QHostAddress(mask).toIPv4Address();
+    msg.gateway = QHostAddress(gateway).toIPv4Address();
+    msg.dhcpEnable = dhcp ? 1U : 0U;
+    msg.commandPort = static_cast<std::uint16_t>(m_commandPort);
+    msg.replyPort = static_cast<std::uint16_t>(m_replyPort);
+    return m_device->setNetworkParams(msg);
 }
 
 bool SightlineQmlBridge::streamingControl(int stream, int action)
@@ -2417,12 +2458,23 @@ void SightlineQmlBridge::handleEthernetVideo(const Sightline::MsgSetEthernetVide
 
 void SightlineQmlBridge::handleNetworkParams(const Sightline::MsgSetNetworkParameters& p)
 {
-    static_cast<void>(p);
+    m_boardIp = QHostAddress(p.ipAddress).toString();
+    m_boardNetmask = QHostAddress(p.subnetMask).toString();
+    m_boardGateway = QHostAddress(p.gateway).toString();
+    m_boardDhcp = (p.dhcpEnable != 0U);
+    emit boardNetworkChanged();
 }
 
 void SightlineQmlBridge::handleNetworkList(const Sightline::MsgCurrentNetworkList& l)
 {
-    static_cast<void>(l);
+    m_networkInterfaces.clear();
+    for (const auto& name : l.interfaceNames) {
+        m_networkInterfaces.append(QString::fromStdString(name));
+    }
+    if (m_networkInterfaces.isEmpty()) {
+        m_networkInterfaces.append(QStringLiteral("eth0"));
+    }
+    emit networkInterfacesChanged();
 }
 
 void SightlineQmlBridge::handleSystemValue(const Sightline::MsgSystemValue& val)

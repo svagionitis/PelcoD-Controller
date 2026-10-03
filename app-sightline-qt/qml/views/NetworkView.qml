@@ -37,7 +37,7 @@ ScrollView {
                 font.letterSpacing: 1.0
             }
             Text {
-                text: "// Modules 0x1C, 0x66, 0x92 Linux TC & 0x7E CoT"
+                text: "// EAN-Encoding Modules 0x1C (Network), 0x66 (NIC List), 0x92 Key 13 (tc), 0x7E (CoT)"
                 color: SightlineTheme.textMuted
                 font.pixelSize: SightlineTheme.fontSizeSmall
                 font.family: "Monospace"
@@ -74,16 +74,22 @@ ScrollView {
             spacing: 10
 
             MetricCard {
-                title: "NIC Interface"
-                value: "eth0 (1 Gbps)"
+                title: "Hardware NICs"
+                value: bridge && bridge.networkInterfaces.length > 0 ? bridge.networkInterfaces.join(", ") : "eth0"
                 accentColor: SightlineTheme.success
                 iconText: "🔌"
             }
             MetricCard {
-                title: "Target Host IP"
-                value: bridge ? bridge.host : "127.0.0.1"
+                title: "Board IPv4"
+                value: bridge ? bridge.boardIp : "192.168.0.107"
                 accentColor: SightlineTheme.primary
                 iconText: "🌐"
+            }
+            MetricCard {
+                title: "IP Mode"
+                value: bridge ? (bridge.boardDhcp ? "DHCP (Auto)" : "STATIC IP") : "STATIC IP"
+                accentColor: bridge && bridge.boardDhcp ? SightlineTheme.info : SightlineTheme.accent
+                iconText: "⚙️"
             }
             MetricCard {
                 title: "Traffic Limiter"
@@ -91,11 +97,208 @@ ScrollView {
                 accentColor: bridge && bridge.tcRateKbps > 0 ? SightlineTheme.warning : SightlineTheme.textMuted
                 iconText: "🚦"
             }
-            MetricCard {
-                title: "CoT Telemetry"
-                value: cotSwitch.checked ? "STREAMING" : "STANDBY"
-                accentColor: cotSwitch.checked ? SightlineTheme.success : SightlineTheme.textMuted
-                iconText: "📡"
+        }
+
+        // Section: SLA Board Network Interface Configuration (Message ID 0x1C)
+        Rectangle {
+            Layout.fillWidth: true
+            implicitHeight: netCol.implicitHeight + 28
+            color: SightlineTheme.surfaceCard
+            radius: SightlineTheme.radiusMedium
+            border.color: SightlineTheme.cardBorder
+            border.width: 1
+
+            ColumnLayout {
+                id: netCol
+                anchors.fill: parent
+                anchors.margins: 14
+                spacing: 12
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    Text {
+                        text: "SLA HARDWARE NETWORK CONFIGURATION (STATIC IP & DHCP)"
+                        color: SightlineTheme.primary
+                        font.pixelSize: 11
+                        font.bold: true
+                    }
+                    Item { Layout.fillWidth: true }
+                    Text {
+                        text: "Message ID 0x1C (SLASetNetworkParameters)"
+                        color: SightlineTheme.textMuted
+                        font.pixelSize: 10
+                        font.family: "Monospace"
+                    }
+                }
+
+                Text {
+                    text: "Configure the embedded SLA video processor's onboard Ethernet IP address, subnet mask, and default gateway per EAN-Encoding Section 3.5 & Figure 6."
+                    color: SightlineTheme.textSecondary
+                    font.pixelSize: 11
+                    Layout.fillWidth: true
+                }
+
+                // Mode: DHCP vs Static IP
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 12
+                    Text { text: "Addressing Mode:"; color: SightlineTheme.textSecondary; font.pixelSize: 12; Layout.preferredWidth: 160; Layout.alignment: Qt.AlignVCenter }
+
+                    RadioButton {
+                        id: staticRadio
+                        text: "Static IPv4 Address"
+                        checked: bridge ? !bridge.boardDhcp : true
+                    }
+                    RadioButton {
+                        id: dhcpRadio
+                        text: "DHCP (Auto Assign)"
+                        checked: bridge ? bridge.boardDhcp : false
+                    }
+                    Item { Layout.fillWidth: true }
+                }
+
+                // IP Address
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 12
+                    enabled: staticRadio.checked
+                    opacity: staticRadio.checked ? 1.0 : 0.4
+                    Text { text: "Board IP Address:"; color: SightlineTheme.textSecondary; font.pixelSize: 12; Layout.preferredWidth: 160; Layout.alignment: Qt.AlignVCenter }
+
+                    TextField {
+                        id: boardIpField
+                        text: bridge ? bridge.boardIp : "192.168.0.107"
+                        Layout.preferredWidth: 180
+                        color: SightlineTheme.textPrimary
+                        background: Rectangle {
+                            color: SightlineTheme.surfaceLight
+                            radius: 4
+                            border.color: parent.activeFocus ? SightlineTheme.primary : SightlineTheme.inputBorder
+                        }
+                    }
+
+                    Text { text: "Subnet Mask:"; color: SightlineTheme.textMuted; font.pixelSize: 11; Layout.leftMargin: 8 }
+                    TextField {
+                        id: boardMaskField
+                        text: bridge ? bridge.boardNetmask : "255.255.0.0"
+                        Layout.preferredWidth: 160
+                        color: SightlineTheme.textPrimary
+                        background: Rectangle {
+                            color: SightlineTheme.surfaceLight
+                            radius: 4
+                            border.color: parent.activeFocus ? SightlineTheme.primary : SightlineTheme.inputBorder
+                        }
+                    }
+
+                    Item { Layout.fillWidth: true }
+                }
+
+                // Gateway
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 12
+                    enabled: staticRadio.checked
+                    opacity: staticRadio.checked ? 1.0 : 0.4
+                    Text { text: "Default Gateway:"; color: SightlineTheme.textSecondary; font.pixelSize: 12; Layout.preferredWidth: 160; Layout.alignment: Qt.AlignVCenter }
+
+                    TextField {
+                        id: boardGwField
+                        text: bridge ? bridge.boardGateway : "192.168.0.1"
+                        Layout.preferredWidth: 180
+                        color: SightlineTheme.textPrimary
+                        background: Rectangle {
+                            color: SightlineTheme.surfaceLight
+                            radius: 4
+                            border.color: parent.activeFocus ? SightlineTheme.primary : SightlineTheme.inputBorder
+                        }
+                    }
+
+                    Item { Layout.fillWidth: true }
+                }
+
+                // Quick Subnet Presets
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 8
+                    enabled: staticRadio.checked
+                    opacity: staticRadio.checked ? 1.0 : 0.4
+                    Item { Layout.preferredWidth: 160 }
+                    Text { text: "Quick Presets:"; color: SightlineTheme.textMuted; font.pixelSize: 11 }
+
+                    Button {
+                        text: "EAN Fig 6 (192.168.0.107/16)"
+                        Layout.preferredHeight: 24
+                        background: Rectangle { color: SightlineTheme.surfaceLight; radius: 3 }
+                        contentItem: Text { text: parent.text; color: SightlineTheme.primary; font.pixelSize: 10; font.bold: true; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
+                        onClicked: {
+                            boardIpField.text = "192.168.0.107";
+                            boardMaskField.text = "255.255.0.0";
+                            boardGwField.text = "192.168.0.1";
+                        }
+                    }
+
+                    Button {
+                        text: "Class C (192.168.1.100/24)"
+                        Layout.preferredHeight: 24
+                        background: Rectangle { color: SightlineTheme.surfaceLight; radius: 3 }
+                        contentItem: Text { text: parent.text; color: SightlineTheme.textSecondary; font.pixelSize: 10; font.bold: true; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
+                        onClicked: {
+                            boardIpField.text = "192.168.1.100";
+                            boardMaskField.text = "255.255.255.0";
+                            boardGwField.text = "192.168.1.1";
+                        }
+                    }
+
+                    Button {
+                        text: "Tactical LAN (10.0.0.100/8)"
+                        Layout.preferredHeight: 24
+                        background: Rectangle { color: SightlineTheme.surfaceLight; radius: 3 }
+                        contentItem: Text { text: parent.text; color: SightlineTheme.textSecondary; font.pixelSize: 10; font.bold: true; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
+                        onClicked: {
+                            boardIpField.text = "10.0.0.100";
+                            boardMaskField.text = "255.0.0.0";
+                            boardGwField.text = "10.0.0.1";
+                        }
+                    }
+
+                    Item { Layout.fillWidth: true }
+                }
+
+                // Apply Network Settings Button
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 10
+                    Layout.topMargin: 4
+
+                    Button {
+                        text: "Apply Hardware Network Config"
+                        Layout.preferredWidth: 230
+                        Layout.preferredHeight: 32
+                        background: Rectangle {
+                            color: parent.hovered ? "#33ebff" : SightlineTheme.primary
+                            radius: 4
+                        }
+                        contentItem: Text {
+                            text: parent.text
+                            color: "#0e1014"
+                            font.bold: true
+                            horizontalAlignment: Text.AlignHCenter
+                            verticalAlignment: Text.AlignVCenter
+                        }
+                        onClicked: {
+                            if (bridge) {
+                                bridge.setBoardNetwork(
+                                    boardIpField.text,
+                                    boardMaskField.text,
+                                    boardGwField.text,
+                                    dhcpRadio.checked
+                                );
+                            }
+                        }
+                    }
+
+                    Item { Layout.fillWidth: true }
+                }
             }
         }
 
@@ -124,7 +327,7 @@ ScrollView {
                     }
                     Item { Layout.fillWidth: true }
                     Text {
-                        text: "System Value 13 (0x92 / 0x93)"
+                        text: "System Value 13 (0x92 / 0x93 / Appendix A2 & A3)"
                         color: SightlineTheme.textMuted
                         font.pixelSize: 10
                         font.family: "Monospace"

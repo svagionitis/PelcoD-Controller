@@ -561,7 +561,7 @@ ScrollView {
                     }
 
                     Button {
-                        text: "Use Host IP"
+                        text: "Use My IP"
                         Layout.preferredHeight: 28
                         background: Rectangle { color: SightlineTheme.surfaceLight; radius: 3 }
                         contentItem: Text { text: parent.text; color: SightlineTheme.textSecondary; font.pixelSize: 10; font.bold: true; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
@@ -569,11 +569,11 @@ ScrollView {
                     }
 
                     Button {
-                        text: "Multicast 239.255.0.1"
+                        text: "Use Multicast"
                         Layout.preferredHeight: 28
                         background: Rectangle { color: SightlineTheme.surfaceLight; radius: 3 }
                         contentItem: Text { text: parent.text; color: SightlineTheme.textSecondary; font.pixelSize: 10; font.bold: true; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
-                        onClicked: { ipInput.text = "239.255.0.1"; }
+                        onClicked: { ipInput.text = "224.10.10.10"; }
                     }
 
                     Item { Layout.fillWidth: true }
@@ -676,6 +676,27 @@ ScrollView {
                     }
                     Item { Layout.fillWidth: true }
                 }
+
+                // Section 3.4 Advanced Flags: Remove TS Encapsulation & RTP Aggregate Packets
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 16
+                    Text { text: "Advanced Framing:"; color: SightlineTheme.textSecondary; font.pixelSize: 12; Layout.preferredWidth: 160; Layout.alignment: Qt.AlignVCenter }
+
+                    CheckBox {
+                        id: removeTsCheck
+                        text: "Remove TS Encapsulation"
+                        checked: false
+                    }
+
+                    CheckBox {
+                        id: rtpAggregateCheck
+                        text: "RTP Aggregate Packets (Multi-Packet RTP)"
+                        checked: false
+                    }
+
+                    Item { Layout.fillWidth: true }
+                }
             }
         }
 
@@ -740,16 +761,50 @@ ScrollView {
                     ComboBox {
                         id: resolutionCombo
                         model: [
-                            "0 — Native Input Resolution",
+                            "0 — Native Input Resolution (Out=In)",
                             "1 — 720p HD (1280 x 720)",
                             "2 — 480p SD (640 x 480)",
                             "3 — 240p Low (320 x 240)",
-                            "5 — Downsample 2:1 Scale"
+                            "5 — Downsample 2:1 Scale",
+                            "4 — Custom (e.g. 1920x1096 for accurate VLC frame rate)"
                         ]
                         currentIndex: 0
-                        Layout.preferredWidth: 280
+                        Layout.preferredWidth: 360
                     }
 
+                    Item { Layout.fillWidth: true }
+                }
+
+                // Custom Resolution Row (when Custom is selected)
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 12
+                    visible: resolutionCombo.currentIndex === 5
+                    Text { text: "Custom Dimensions:"; color: SightlineTheme.textSecondary; font.pixelSize: 12; Layout.preferredWidth: 160; Layout.alignment: Qt.AlignVCenter }
+
+                    Text { text: "Width (px):"; color: SightlineTheme.textMuted; font.pixelSize: 11 }
+                    TextField {
+                        id: customWidthField
+                        text: "1920"
+                        Layout.preferredWidth: 80
+                        color: SightlineTheme.textPrimary
+                        background: Rectangle { color: SightlineTheme.surfaceLight; radius: 4; border.color: parent.activeFocus ? SightlineTheme.primary : SightlineTheme.inputBorder }
+                    }
+
+                    Text { text: "Height (px):"; color: SightlineTheme.textMuted; font.pixelSize: 11; Layout.leftMargin: 8 }
+                    TextField {
+                        id: customHeightField
+                        text: "1096"
+                        Layout.preferredWidth: 80
+                        color: SightlineTheme.textPrimary
+                        background: Rectangle { color: SightlineTheme.surfaceLight; radius: 4; border.color: parent.activeFocus ? SightlineTheme.primary : SightlineTheme.inputBorder }
+                    }
+
+                    Text {
+                        text: "(EAN Section 4.1: 1920x1096 resolves VLC 720p60 frame rate reporting issue)"
+                        color: SightlineTheme.info
+                        font.pixelSize: 11
+                    }
                     Item { Layout.fillWidth: true }
                 }
             }
@@ -805,9 +860,11 @@ ScrollView {
 
                         const stepMap = [1, 2, 3, 4, 6];
                         const step = stepMap[frameStepCombo.currentIndex] || 1;
-                        const resMap = [0, 1, 2, 3, 5];
+                        const resMap = [0, 1, 2, 3, 5, 4];
                         const res = resMap[resolutionCombo.currentIndex] || 0;
-                        bridge.setEthernetVideo(streamIdx, step, res, 0, 0, 80, 0);
+                        const custW = (res === 4) ? (parseInt(customWidthField.text) || 1920) : 0;
+                        const custH = (res === 4) ? (parseInt(customHeightField.text) || 1096) : 0;
+                        bridge.setEthernetVideo(streamIdx, step, res, custW, custH, 80, 0);
                     }
                 }
             }

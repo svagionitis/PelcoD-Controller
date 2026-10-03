@@ -66,6 +66,11 @@ class SightlineQmlBridge : public QObject {
     Q_PROPERTY(int tcRateKbps READ tcRateKbps NOTIFY tcStatusChanged)
     Q_PROPERTY(int tcBurstBytes READ tcBurstBytes NOTIFY tcStatusChanged)
     Q_PROPERTY(int tcMtuBytes READ tcMtuBytes NOTIFY tcStatusChanged)
+    Q_PROPERTY(QString boardIp READ boardIp NOTIFY boardNetworkChanged)
+    Q_PROPERTY(QString boardNetmask READ boardNetmask NOTIFY boardNetworkChanged)
+    Q_PROPERTY(QString boardGateway READ boardGateway NOTIFY boardNetworkChanged)
+    Q_PROPERTY(bool boardDhcp READ boardDhcp NOTIFY boardNetworkChanged)
+    Q_PROPERTY(QStringList networkInterfaces READ networkInterfaces NOTIFY networkInterfacesChanged)
 
 public:
     /// @brief Construct a new SightlineQmlBridge instance.
@@ -234,6 +239,21 @@ public:
 
     /// @brief Get Linux traffic control MTU in bytes.
     [[nodiscard]] int tcMtuBytes() const noexcept;
+
+    /// @brief Get board network interface IP address.
+    [[nodiscard]] QString boardIp() const;
+
+    /// @brief Get board network subnet mask.
+    [[nodiscard]] QString boardNetmask() const;
+
+    /// @brief Get board network default gateway.
+    [[nodiscard]] QString boardGateway() const;
+
+    /// @brief Get board DHCP enable flag.
+    [[nodiscard]] bool boardDhcp() const noexcept;
+
+    /// @brief Get enumerated board network interface names.
+    [[nodiscard]] QStringList networkInterfaces() const;
 
     // --- QML Invokable Operations ---
 
@@ -600,6 +620,14 @@ public:
     /// @brief Queries network parameters and interface list.
     /// @return True if query dispatched.
     Q_INVOKABLE bool queryNetworkParams();
+
+    /// @brief Configures board network interface parameters (Message ID 0x1C).
+    /// @param ip Board IPv4 address string.
+    /// @param mask Subnet mask string.
+    /// @param gateway Default gateway IP string.
+    /// @param dhcp Enable DHCP auto-assignment.
+    /// @return True if dispatched.
+    Q_INVOKABLE bool setBoardNetwork(const QString& ip, const QString& mask, const QString& gateway, bool dhcp);
 
     /// @brief Control video streaming start or stop.
     /// @param stream Stream index.
@@ -1052,6 +1080,8 @@ signals:
     void netDisplayChanged();
     void netVideoChanged();
     void tcStatusChanged();
+    void boardNetworkChanged();
+    void networkInterfacesChanged();
     void encoderParamsReceived(int stream, int bitrateKbps, int gop, int flags, int minQp, int maxQp);
     void displayParamsReceived(int stream, int protocol, const QString& ip, int port, int maxPacket);
     void trafficControlReceived(int rateKbps, int burstBytes, int mtuBytes);
@@ -1127,6 +1157,12 @@ private:
     int m_tcRateKbps { 0 };
     int m_tcBurstBytes { 3000 };
     int m_tcMtuBytes { 1500 };
+
+    QString m_boardIp { "192.168.0.107" };
+    QString m_boardNetmask { "255.255.0.0" };
+    QString m_boardGateway { "192.168.0.1" };
+    bool m_boardDhcp { false };
+    QStringList m_networkInterfaces { "eth0" };
 
     Sightline::MsgSetVideoEnhancementFull m_cachedEnhancement[4] {};
     Sightline::MsgSetTrackingParameters m_cachedTrackingParams[4] {};
