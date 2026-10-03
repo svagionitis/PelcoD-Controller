@@ -39,6 +39,13 @@ public:
     /// @return 16-bit big-endian CRC value to append.
     [[nodiscard]] static std::uint16_t computeChecksumForTag1(const std::uint8_t* packetWithoutCrc,
                                                              std::size_t size) noexcept;
+
+    /// @brief Computes ISO/IEC 13818-1 MPEG-2 32-bit CRC for MISB ST 0806.
+    /// @details Polynomial 0x04C11DB7, initial value 0xFFFFFFFF, no reflection.
+    /// @param[in] data Pointer to the buffer.
+    /// @param[in] size Size of the buffer in bytes.
+    /// @return 32-bit calculated CRC value.
+    [[nodiscard]] static std::uint32_t calculateCrc32Mpeg(const std::uint8_t* data, std::size_t size) noexcept;
 };
 
 } // namespace Klv

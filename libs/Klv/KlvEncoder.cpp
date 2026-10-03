@@ -1,6 +1,7 @@
 #include "KlvEncoder.h"
 #include "KlvBer.h"
 #include "KlvCrc.h"
+#include "RvtEncoder.h"
 #include "VmtiEncoder.h"
 #include <algorithm>
 #include <chrono>
@@ -348,6 +349,12 @@ std::vector<std::uint8_t> KlvEncoder::encode(const UasDatalinkMessage& msg) {
     // Tag 65: UAS LS Version (Mandatory in MISB ST 0601)
     const std::uint8_t uasVer = msg.uasLsVersion.value_or(16U);
     appendTagUint8(static_cast<std::uint32_t>(Tag::UasLsVersion), uasVer, payload);
+
+    // Tag 73: MISB ST 0806 RVT Local Set
+    if (msg.rvt.has_value()) {
+        const auto rvtBytes = RvtEncoder::encode(*msg.rvt, false);
+        appendTagBytes(static_cast<std::uint32_t>(Tag::RvtLocalSet), rvtBytes, payload);
+    }
 
     // Tag 74: MISB ST 0903 VMTI Local Set
     if (msg.vmti.has_value()) {

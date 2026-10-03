@@ -4,6 +4,7 @@
 /// @brief Core data structures, enumerations, and constants for STANAG 4609 / MISB ST 0601 KLV metadata.
 
 #include "GeoTypes.h"
+#include "RvtTypes.h"
 #include "VmtiTypes.h"
 
 #include <array>
@@ -73,6 +74,7 @@ enum class Tag : std::uint32_t {
     TargetErrorLe90 = 46U,      ///< Tag 46: Target Location Error LE90 in meters (2 bytes)
     SecurityLocalSet = 48U,     ///< Tag 48: MISB ST 0102 Security Classification Local Set (nested)
     UasLsVersion = 65U,         ///< Tag 65: UAS Datalink LS version number (1 byte)
+    RvtLocalSet = 73U,          ///< Tag 73: MISB ST 0806 RVT Local Set (nested)
     VmtiLocalSet = 74U,         ///< Tag 74: MISB ST 0903 VMTI Local Set (nested)
     SensorAltitudeHae = 75U,    ///< Tag 75: Sensor true altitude HAE [-900, +19000] m (2 bytes)
     FrameCenterElevHae = 78U,   ///< Tag 78: Frame center elevation HAE [-900, +19000] m (2 bytes)
@@ -167,6 +169,7 @@ struct UasDatalinkMessage {
     std::optional<double> targetErrorLe90M;           ///< Tag 46: LE90 in meters
     std::optional<SecurityMetadata> security;         ///< Tag 48: Security Local Set
     std::optional<std::uint8_t> uasLsVersion;         ///< Tag 65: Version number (e.g. 1..19)
+    std::optional<RvtLocalSet> rvt;                   ///< Tag 73: MISB ST 0806 RVT Local Set
     std::optional<VmtiLocalSet> vmti;                 ///< Tag 74: MISB ST 0903 VMTI Local Set
     std::optional<double> sensorAltitudeHaeM;         ///< Tag 75: Sensor HAE altitude in meters
     std::optional<double> frameCenterElevHaeM;        ///< Tag 78: Frame center HAE elevation in meters

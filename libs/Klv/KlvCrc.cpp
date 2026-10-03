@@ -77,4 +77,40 @@ std::uint16_t KlvCrc::computeChecksumForTag1(const std::uint8_t* packetWithoutCr
     return computeBcc16(packetWithoutCrc, size);
 }
 
+namespace {
+
+/// @brief Generates the 256-entry CRC-32 MPEG-2 (ISO/IEC 13818-1) table at compile-time.
+constexpr std::array<std::uint32_t, 256> generateCrc32MpegTable() noexcept {
+    std::array<std::uint32_t, 256> table {};
+    for (std::size_t i = 0U; i < 256U; ++i) {
+        std::uint32_t curr = static_cast<std::uint32_t>(i << 24U);
+        for (std::size_t bit = 0U; bit < 8U; ++bit) {
+            if ((curr & 0x80000000U) != 0U) {
+                curr = (curr << 1U) ^ 0x04C11DB7U;
+            } else {
+                curr = (curr << 1U);
+            }
+        }
+        table[i] = curr;
+    }
+    return table;
+}
+
+constexpr auto kCrc32MpegTable = generateCrc32MpegTable();
+
+} // namespace
+
+std::uint32_t KlvCrc::calculateCrc32Mpeg(const std::uint8_t* data, std::size_t size) noexcept {
+    if (data == nullptr || size == 0U) {
+        return 0U;
+    }
+
+    std::uint32_t crc { 0xFFFFFFFFU };
+    for (std::size_t i = 0U; i < size; ++i) {
+        const auto idx = static_cast<std::uint8_t>((crc >> 24U) ^ data[i]);
+        crc = (crc << 8U) ^ kCrc32MpegTable[idx];
+    }
+    return crc;
+}
+
 } // namespace Klv

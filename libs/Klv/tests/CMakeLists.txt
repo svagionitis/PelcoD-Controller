@@ -23,3 +23,5 @@ add_klv_test(TestKlvGeodesy        TestKlvGeodesy.cpp)
 add_klv_test(TestVmtiEncoderParser TestVmtiEncoderParser.cpp)
 add_klv_test(TestMisb1201          TestMisb1201.cpp)
 add_klv_test(TestFlightStreamValidation TestFlightStreamValidation.cpp)
+add_klv_test(TestRvtLocalSet          TestRvtLocalSet.cpp)
+

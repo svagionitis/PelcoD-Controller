@@ -22,6 +22,11 @@ add_library(Klv STATIC
     KlvGeodesy.cpp
     Misb1201.h
     Misb1201.cpp
+    RvtTypes.h
+    RvtEncoder.h
+    RvtEncoder.cpp
+    RvtParser.h
+    RvtParser.cpp
 )
 
 target_include_directories(Klv PUBLIC

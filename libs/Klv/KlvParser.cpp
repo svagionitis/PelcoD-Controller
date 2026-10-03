@@ -1,6 +1,7 @@
 #include "KlvParser.h"
 #include "KlvBer.h"
 #include "KlvCrc.h"
+#include "RvtParser.h"
 #include "VmtiParser.h"
 #include <algorithm>
 #include <cstring>
@@ -484,6 +485,13 @@ KlvStatus KlvParser::parse(const std::uint8_t* data,
                     message.uasLsVersion = valPtr[0];
                 }
                 break;
+            case Tag::RvtLocalSet: {
+                RvtLocalSet rvtSet {};
+                if (RvtParser::parse(valPtr, len, rvtSet, false) == KlvStatus::Success) {
+                    message.rvt = rvtSet;
+                }
+                break;
+            }
             case Tag::VmtiLocalSet: {
                 VmtiLocalSet vmtiSet {};
                 if (VmtiParser::parse(valPtr, len, vmtiSet, false) == KlvStatus::Success) {

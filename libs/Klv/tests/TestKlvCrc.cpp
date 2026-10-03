@@ -72,3 +72,12 @@ TEST(KlvCrcTest, Misb0601Bcc16CalculationAndVerification) {
     EXPECT_FALSE(KlvCrc::verifyPacket(corrupted.data(), corrupted.size()));
 }
 
+TEST(KlvCrcTest, Crc32MpegCalculation) {
+    const std::uint8_t data[] = { '1', '2', '3', '4', '5', '6', '7', '8', '9' };
+    const std::uint32_t crc = KlvCrc::calculateCrc32Mpeg(data, sizeof(data));
+    EXPECT_EQ(crc, 0x0376E6E7U);
+    EXPECT_EQ(KlvCrc::calculateCrc32Mpeg(nullptr, 10U), 0U);
+    EXPECT_EQ(KlvCrc::calculateCrc32Mpeg(nullptr, 0U), 0U);
+}
+
+
