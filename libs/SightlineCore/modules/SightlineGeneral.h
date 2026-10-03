@@ -113,9 +113,16 @@ struct MsgCurrentConfiguration {
 /// @struct MsgSystemValue
 /// @brief Read/write system register value (Message ID 0x92 / 0x93).
 /// @details Conforms to official Sightline SLASetSystemValue_t / SLACurrentSystemValue_t layout.
+///          Supports 1 to 4 32-bit values (val0..val3), e.g. for Linux Traffic Control (key 13).
 struct MsgSystemValue {
+    static constexpr std::uint8_t TrafficControl { 13U }; ///< System Value 13: Linux traffic control (tc)
+
     std::uint8_t systemValueId { 0U }; ///< System register key identifier
-    std::uint32_t value { 0U }; ///< 32-bit register value or bitmask
+    std::uint32_t value { 0U }; ///< Primary value (val0) or bitmask (backward-compatible alias)
+    std::uint32_t value1 { 0U }; ///< Secondary value (val1), e.g. burst in bytes
+    std::uint32_t value2 { 0U }; ///< Tertiary value (val2), e.g. MTU in bytes
+    std::uint32_t value3 { 0U }; ///< Quaternary value (val3), e.g. reserved (0)
+    std::uint8_t numValues { 1U }; ///< Number of active 32-bit values (1..4)
 };
 
 /// @struct MsgTagData

@@ -45,6 +45,12 @@ public:
     using RecordingEventCallback = std::function<void(const MsgFileRecordingEvent&)>;
     using RecordingStatusV2Callback = std::function<void(const MsgCurrentRecordingStatusV2&)>;
     using DirListingReplyCallback = std::function<void(const MsgDirectoryListingReply&)>;
+    using H264ParamsCallback = std::function<void(const MsgSetH264Parameters&)>;
+    using EthernetDisplayCallback = std::function<void(const MsgSetEthernetDisplayParameters&)>;
+    using EthernetVideoCallback = std::function<void(const MsgSetEthernetVideoParameters&)>;
+    using NetworkParamsCallback = std::function<void(const MsgSetNetworkParameters&)>;
+    using NetworkListCallback = std::function<void(const MsgCurrentNetworkList&)>;
+    using SystemValueCallback = std::function<void(const MsgSystemValue&)>;
 
     /// @brief Constructs a SightlineDevice wrapping the given transport channel.
     /// @param[in] transport Shared pointer to underlying communication transport.
@@ -405,6 +411,38 @@ public:
     /// @param[in] msg H.264 parameters.
     /// @return True if command was successfully transmitted.
     [[nodiscard]] bool setH264Params(const MsgSetH264Parameters& msg);
+
+    /// @brief Configures Linux Traffic Control (tc) bandwidth limiter (Message ID 0x92, Key 13).
+    /// @param[in] rateKbps Maximum rate in kilobits per second.
+    /// @param[in] burstBytes Burst in bytes (e.g. 3000).
+    /// @param[in] mtuBytes MTU in bytes (e.g. 1500).
+    /// @return True if command was successfully transmitted.
+    [[nodiscard]] bool setTrafficControl(
+        std::uint32_t rateKbps, std::uint32_t burstBytes = 3000U, std::uint32_t mtuBytes = 1500U);
+
+    /// @brief Queries H.264 compression parameters for specified network display (Message ID 0x24).
+    /// @param[in] displayId Network Display ID (Net0 = 0x0002, Net1 = 0x0080, Net2 = 0x0200).
+    /// @return True if query was successfully transmitted.
+    [[nodiscard]] bool getH264Params(std::uint16_t displayId = 0x0002U);
+
+    /// @brief Queries active Ethernet display streaming parameters (Message ID 0x39).
+    /// @param[in] displayId Network Display ID.
+    /// @return True if query was successfully transmitted.
+    [[nodiscard]] bool getEthernetDisplay(std::uint16_t displayId = 0x0002U);
+
+    /// @brief Queries active Ethernet video parameters (Message ID 0x1B).
+    /// @param[in] displayId Network Display ID.
+    /// @return True if query was successfully transmitted.
+    [[nodiscard]] bool getEthernetVideo(std::uint16_t displayId = 0x0002U);
+
+    /// @brief Queries board network parameters for specified interface (Message ID 0x1D).
+    /// @param[in] index Zero-based interface index.
+    /// @return True if query was successfully transmitted.
+    [[nodiscard]] bool getNetworkParams(std::uint8_t index = 0U);
+
+    /// @brief Queries available network interfaces (Message ID 0x28 query 0x67).
+    /// @return True if query was successfully transmitted.
+    [[nodiscard]] bool getNetworkList();
 
     /// @brief Controls onboard SD card recording.
     /// @param[in] msg SD recording parameters.
@@ -807,6 +845,42 @@ public:
     /// @brief Retrieves the latest cached KLV metric filters.
     [[nodiscard]] std::optional<MsgKlvMetricFilters> lastKlvMetricFilters() const;
 
+    /// @brief Registers an observer callback for H.264 encoder parameters (0x56).
+    void setH264ParamsCallback(H264ParamsCallback cb);
+
+    /// @brief Registers an observer callback for Ethernet display stream destination (0x52).
+    void setEthernetDisplayCb(EthernetDisplayCallback cb);
+
+    /// @brief Registers an observer callback for Ethernet video parameters (0x48).
+    void setEthernetVideoCb(EthernetVideoCallback cb);
+
+    /// @brief Registers an observer callback for network parameters (0x49).
+    void setNetworkParamsCb(NetworkParamsCallback cb);
+
+    /// @brief Registers an observer callback for network list (0x67).
+    void setNetworkListCb(NetworkListCallback cb);
+
+    /// @brief Registers an observer callback for system register values (0x93).
+    void setSystemValueCallback(SystemValueCallback cb);
+
+    /// @brief Retrieves the latest cached H.264 encoder parameters snapshot.
+    [[nodiscard]] std::optional<MsgSetH264Parameters> lastH264Params() const;
+
+    /// @brief Retrieves the latest cached Ethernet display streaming destination snapshot.
+    [[nodiscard]] std::optional<MsgSetEthernetDisplayParameters> lastEthernetDisplay() const;
+
+    /// @brief Retrieves the latest cached Ethernet video quality and sizing snapshot.
+    [[nodiscard]] std::optional<MsgSetEthernetVideoParameters> lastEthernetVideo() const;
+
+    /// @brief Retrieves the latest cached network settings snapshot.
+    [[nodiscard]] std::optional<MsgSetNetworkParameters> lastNetworkParams() const;
+
+    /// @brief Retrieves the latest cached network interfaces list.
+    [[nodiscard]] std::optional<MsgCurrentNetworkList> lastNetworkList() const;
+
+    /// @brief Retrieves the latest cached system value.
+    [[nodiscard]] std::optional<MsgSystemValue> lastSystemValue() const;
+
 private:
     void handleIncomingBytes(const std::vector<std::uint8_t>& data);
     void dispatchPacket(const std::vector<std::uint8_t>& packet);
@@ -860,6 +934,19 @@ private:
     StabilizationCallback m_stabilizationCallback;
     RegistrationCallback m_registrationCallback;
     StabilizationBiasCallback m_stabilizationBiasCallback;
+    H264ParamsCallback m_h264ParamsCallback;
+    EthernetDisplayCallback m_ethDisplayCallback;
+    EthernetVideoCallback m_ethVideoCallback;
+    NetworkParamsCallback m_netParamsCallback;
+    NetworkListCallback m_netListCallback;
+    SystemValueCallback m_systemValueCallback;
+
+    std::optional<MsgSetH264Parameters> m_lastH264Params;
+    std::optional<MsgSetEthernetDisplayParameters> m_lastEthernetDisplay;
+    std::optional<MsgSetEthernetVideoParameters> m_lastEthernetVideo;
+    std::optional<MsgSetNetworkParameters> m_lastNetworkParams;
+    std::optional<MsgCurrentNetworkList> m_lastNetworkList;
+    std::optional<MsgSystemValue> m_lastSystemValue;
 };
 
 } // namespace Sightline

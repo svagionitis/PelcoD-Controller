@@ -170,6 +170,24 @@ bool SightlineProtocolParser::parseMetadataRate(const std::vector<std::uint8_t>&
     return SightlineKlvParser::parseMetadataRate(packet, out);
 }
 
+bool SightlineProtocolParser::parseEthernetDisplay(
+    const std::vector<std::uint8_t>& packet, MsgSetEthernetDisplayParameters& out)
+{
+    return SightlineNetworkParser::parseEthernetDisplay(packet, out);
+}
+
+bool SightlineProtocolParser::parseEthernetVideo(
+    const std::vector<std::uint8_t>& packet, MsgSetEthernetVideoParameters& out)
+{
+    return SightlineNetworkParser::parseEthernetVideo(packet, out);
+}
+
+bool SightlineProtocolParser::parseNetworkParameters(
+    const std::vector<std::uint8_t>& packet, MsgSetNetworkParameters& out)
+{
+    return SightlineNetworkParser::parseNetworkParameters(packet, out);
+}
+
 bool SightlineProtocolParser::parseNetworkList(const std::vector<std::uint8_t>& packet, MsgCurrentNetworkList& out)
 {
     return SightlineNetworkParser::parseNetworkList(packet, out);

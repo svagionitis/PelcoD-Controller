@@ -834,6 +834,12 @@ std::vector<std::uint8_t> SightlineProtocolBuilder::buildSetSystemValue(const Ms
     return SightlineGeneralBuilder::buildSetSystemValue(msg);
 }
 
+std::vector<std::uint8_t> SightlineProtocolBuilder::buildSetTrafficControl(
+    std::uint32_t rateKbps, std::uint32_t burstBytes, std::uint32_t mtuBytes)
+{
+    return SightlineGeneralBuilder::buildSetTrafficControl(rateKbps, burstBytes, mtuBytes);
+}
+
 std::vector<std::uint8_t> SightlineProtocolBuilder::buildGetSystemValue(std::uint8_t systemValueId)
 {
     return SightlineGeneralBuilder::buildGetSystemValue(systemValueId);

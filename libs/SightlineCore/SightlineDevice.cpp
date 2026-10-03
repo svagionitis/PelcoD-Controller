@@ -450,6 +450,36 @@ bool SightlineDevice::setH264Params(const MsgSetH264Parameters& msg)
     return sendPacket(SightlineProtocolBuilder::buildSetH264Parameters(msg));
 }
 
+bool SightlineDevice::setTrafficControl(std::uint32_t rateKbps, std::uint32_t burstBytes, std::uint32_t mtuBytes)
+{
+    return sendPacket(SightlineProtocolBuilder::buildSetTrafficControl(rateKbps, burstBytes, mtuBytes));
+}
+
+bool SightlineDevice::getH264Params(std::uint16_t displayId)
+{
+    return sendPacket(SightlineProtocolBuilder::buildGetH264Parameters(displayId));
+}
+
+bool SightlineDevice::getEthernetDisplay(std::uint16_t displayId)
+{
+    return sendPacket(SightlineProtocolBuilder::buildGetEthernetDisplay(displayId));
+}
+
+bool SightlineDevice::getEthernetVideo(std::uint16_t displayId)
+{
+    return sendPacket(SightlineProtocolBuilder::buildGetEthernetVideo(displayId));
+}
+
+bool SightlineDevice::getNetworkParams(std::uint8_t index)
+{
+    return sendPacket(SightlineProtocolBuilder::buildGetNetworkParameters(index));
+}
+
+bool SightlineDevice::getNetworkList()
+{
+    return sendPacket(SightlineProtocolBuilder::buildGetNetworkList());
+}
+
 bool SightlineDevice::setSDRecording(const MsgSetSDRecordingParameters& msg)
 {
     return sendPacket(SightlineProtocolBuilder::buildSetSDRecording(msg));
@@ -956,6 +986,78 @@ std::optional<MsgKlvMetricFilters> SightlineDevice::lastKlvMetricFilters() const
     return m_lastKlvMetricFilters;
 }
 
+void SightlineDevice::setH264ParamsCallback(H264ParamsCallback cb)
+{
+    std::lock_guard<std::mutex> lock(m_callbackMutex);
+    m_h264ParamsCallback = std::move(cb);
+}
+
+void SightlineDevice::setEthernetDisplayCb(EthernetDisplayCallback cb)
+{
+    std::lock_guard<std::mutex> lock(m_callbackMutex);
+    m_ethDisplayCallback = std::move(cb);
+}
+
+void SightlineDevice::setEthernetVideoCb(EthernetVideoCallback cb)
+{
+    std::lock_guard<std::mutex> lock(m_callbackMutex);
+    m_ethVideoCallback = std::move(cb);
+}
+
+void SightlineDevice::setNetworkParamsCb(NetworkParamsCallback cb)
+{
+    std::lock_guard<std::mutex> lock(m_callbackMutex);
+    m_netParamsCallback = std::move(cb);
+}
+
+void SightlineDevice::setNetworkListCb(NetworkListCallback cb)
+{
+    std::lock_guard<std::mutex> lock(m_callbackMutex);
+    m_netListCallback = std::move(cb);
+}
+
+void SightlineDevice::setSystemValueCallback(SystemValueCallback cb)
+{
+    std::lock_guard<std::mutex> lock(m_callbackMutex);
+    m_systemValueCallback = std::move(cb);
+}
+
+std::optional<MsgSetH264Parameters> SightlineDevice::lastH264Params() const
+{
+    std::lock_guard<std::mutex> lock(m_cacheMutex);
+    return m_lastH264Params;
+}
+
+std::optional<MsgSetEthernetDisplayParameters> SightlineDevice::lastEthernetDisplay() const
+{
+    std::lock_guard<std::mutex> lock(m_cacheMutex);
+    return m_lastEthernetDisplay;
+}
+
+std::optional<MsgSetEthernetVideoParameters> SightlineDevice::lastEthernetVideo() const
+{
+    std::lock_guard<std::mutex> lock(m_cacheMutex);
+    return m_lastEthernetVideo;
+}
+
+std::optional<MsgSetNetworkParameters> SightlineDevice::lastNetworkParams() const
+{
+    std::lock_guard<std::mutex> lock(m_cacheMutex);
+    return m_lastNetworkParams;
+}
+
+std::optional<MsgCurrentNetworkList> SightlineDevice::lastNetworkList() const
+{
+    std::lock_guard<std::mutex> lock(m_cacheMutex);
+    return m_lastNetworkList;
+}
+
+std::optional<MsgSystemValue> SightlineDevice::lastSystemValue() const
+{
+    std::lock_guard<std::mutex> lock(m_cacheMutex);
+    return m_lastSystemValue;
+}
+
 void SightlineDevice::handleIncomingBytes(const std::vector<std::uint8_t>& data)
 {
     const auto packets = m_accumulator.push(data);
@@ -1350,6 +1452,119 @@ void SightlineDevice::dispatchPacket(const std::vector<std::uint8_t>& packet)
             }
             if (cb) {
                 cb(reply);
+            }
+        }
+        break;
+    }
+    case MessageId::CurrentH264Parameters:
+    case MessageId::SetH264Parameters: {
+        MsgSetH264Parameters params {};
+        if (SightlineProtocolParser::parseH264Parameters(packet, params)) {
+            {
+                std::lock_guard<std::mutex> lock(m_cacheMutex);
+                m_lastH264Params = params;
+            }
+            H264ParamsCallback cb {};
+            {
+                std::lock_guard<std::mutex> lock(m_callbackMutex);
+                cb = m_h264ParamsCallback;
+            }
+            if (cb) {
+                cb(params);
+            }
+        }
+        break;
+    }
+    case MessageId::CurrentEthernetDisplayParameters:
+    case MessageId::SetEthernetDisplayParameters: {
+        MsgSetEthernetDisplayParameters params {};
+        if (SightlineProtocolParser::parseEthernetDisplay(packet, params)) {
+            {
+                std::lock_guard<std::mutex> lock(m_cacheMutex);
+                m_lastEthernetDisplay = params;
+            }
+            EthernetDisplayCallback cb {};
+            {
+                std::lock_guard<std::mutex> lock(m_callbackMutex);
+                cb = m_ethDisplayCallback;
+            }
+            if (cb) {
+                cb(params);
+            }
+        }
+        break;
+    }
+    case MessageId::CurrentEthernetVideoParameters:
+    case MessageId::SetEthernetVideoParameters: {
+        MsgSetEthernetVideoParameters params {};
+        if (SightlineProtocolParser::parseEthernetVideo(packet, params)) {
+            {
+                std::lock_guard<std::mutex> lock(m_cacheMutex);
+                m_lastEthernetVideo = params;
+            }
+            EthernetVideoCallback cb {};
+            {
+                std::lock_guard<std::mutex> lock(m_callbackMutex);
+                cb = m_ethVideoCallback;
+            }
+            if (cb) {
+                cb(params);
+            }
+        }
+        break;
+    }
+    case MessageId::CurrentNetworkParameters:
+    case MessageId::SetNetworkParameters: {
+        MsgSetNetworkParameters params {};
+        if (SightlineProtocolParser::parseNetworkParameters(packet, params)) {
+            {
+                std::lock_guard<std::mutex> lock(m_cacheMutex);
+                m_lastNetworkParams = params;
+            }
+            NetworkParamsCallback cb {};
+            {
+                std::lock_guard<std::mutex> lock(m_callbackMutex);
+                cb = m_netParamsCallback;
+            }
+            if (cb) {
+                cb(params);
+            }
+        }
+        break;
+    }
+    case MessageId::CurrentNetworkList: {
+        MsgCurrentNetworkList list {};
+        if (SightlineProtocolParser::parseNetworkList(packet, list)) {
+            {
+                std::lock_guard<std::mutex> lock(m_cacheMutex);
+                m_lastNetworkList = list;
+            }
+            NetworkListCallback cb {};
+            {
+                std::lock_guard<std::mutex> lock(m_callbackMutex);
+                cb = m_netListCallback;
+            }
+            if (cb) {
+                cb(list);
+            }
+        }
+        break;
+    }
+    case MessageId::CurrentSystemValue:
+    case MessageId::SetSystemValue: {
+        MsgSystemValue val {};
+        if (SightlineProtocolParser::parseSystemValue(packet, val)) {
+            {
+                std::lock_guard<std::mutex> lock(m_cacheMutex);
+                m_lastSystemValue = val;
+            }
+            SystemValueCallback cb {};
+            {
+                std::lock_guard<std::mutex> lock(m_callbackMutex);
+                cb = m_systemValueCallback;
+            }
+            if (cb) {
+                cb(val);
             }
         }
         break;

@@ -3,6 +3,8 @@
 
 #include "SightlineGeneralBuilder.h"
 
+#include <algorithm>
+
 namespace Sightline {
 
 std::vector<std::uint8_t> SightlineGeneralBuilder::buildGetVersionNumber()
@@ -56,10 +58,33 @@ std::vector<std::uint8_t> SightlineGeneralBuilder::buildGetCurrentConfig()
 std::vector<std::uint8_t> SightlineGeneralBuilder::buildSetSystemValue(const MsgSystemValue& msg)
 {
     std::vector<std::uint8_t> payload {};
-    payload.reserve(5U);
+    const std::size_t count { std::clamp(static_cast<std::size_t>(msg.numValues), 1ULL, 4ULL) };
+    payload.reserve(1U + (count * 4U));
     payload.push_back(msg.systemValueId);
     SightlineFraming::appendU32Le(payload, msg.value);
+    if (count >= 2U) {
+        SightlineFraming::appendU32Le(payload, msg.value1);
+    }
+    if (count >= 3U) {
+        SightlineFraming::appendU32Le(payload, msg.value2);
+    }
+    if (count >= 4U) {
+        SightlineFraming::appendU32Le(payload, msg.value3);
+    }
     return SightlineFraming::buildPacket(MessageId::SetSystemValue, payload);
+}
+
+std::vector<std::uint8_t> SightlineGeneralBuilder::buildSetTrafficControl(
+    std::uint32_t rateKbps, std::uint32_t burstBytes, std::uint32_t mtuBytes)
+{
+    MsgSystemValue msg {};
+    msg.systemValueId = MsgSystemValue::TrafficControl;
+    msg.value = rateKbps;
+    msg.value1 = burstBytes;
+    msg.value2 = mtuBytes;
+    msg.value3 = 0U;
+    msg.numValues = 4U;
+    return buildSetSystemValue(msg);
 }
 
 std::vector<std::uint8_t> SightlineGeneralBuilder::buildGetSystemValue(std::uint8_t systemValueId)

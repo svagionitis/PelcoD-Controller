@@ -219,7 +219,9 @@ namespace {
         payload.push_back(0x05U); // Warning code low
         payload.push_back(0x00U); // Warning code high
         const std::string msgText = "Camera 0 Track Dropped";
-        payload.insert(payload.end(), msgText.begin(), msgText.end());
+        for (const char ch : msgText) {
+            payload.push_back(static_cast<std::uint8_t>(ch));
+        }
 
         const auto pkt = SightlineFraming::buildPacket(MessageId::UserWarningMessage, payload);
 
@@ -314,7 +316,56 @@ namespace {
         ASSERT_TRUE(SightlineProtocolParser::parseSystemValue(curValPkt, curValOut));
         EXPECT_EQ(curValOut.systemValueId, 0x04U);
         EXPECT_EQ(curValOut.value, 0x12345678U);
+    }
 
+    /// @brief Verify multi-value System Value and Linux Traffic Control (0x92 / 0x93).
+    TEST(TestSightlineSystem, BuildAndParseTrafficControl)
+    {
+        // 1. Traffic Control builder (System Value 13)
+        const auto tcPkt = SightlineGeneralBuilder::buildSetTrafficControl(2500U, 3000U, 1500U);
+        EXPECT_EQ(SightlineFraming::identifyMessage(tcPkt), MessageId::SetSystemValue);
+        EXPECT_EQ(tcPkt, SightlineProtocolBuilder::buildSetTrafficControl(2500U, 3000U, 1500U));
+
+        MsgSystemValue tcOut {};
+        ASSERT_TRUE(SightlineGeneralParser::parseSystemValue(tcPkt, tcOut));
+        EXPECT_EQ(tcOut.systemValueId, MsgSystemValue::TrafficControl);
+        EXPECT_EQ(tcOut.value, 2500U);
+        EXPECT_EQ(tcOut.value1, 3000U);
+        EXPECT_EQ(tcOut.value2, 1500U);
+        EXPECT_EQ(tcOut.value3, 0U);
+        EXPECT_EQ(tcOut.numValues, 4U);
+
+        // 2. Custom multi-value System Value (3 values)
+        MsgSystemValue multiIn {};
+        multiIn.systemValueId = 0x20U;
+        multiIn.value = 100U;
+        multiIn.value1 = 200U;
+        multiIn.value2 = 300U;
+        multiIn.numValues = 3U;
+
+        const auto multiPkt = SightlineGeneralBuilder::buildSetSystemValue(multiIn);
+        MsgSystemValue multiOut {};
+        ASSERT_TRUE(SightlineProtocolParser::parseSystemValue(multiPkt, multiOut));
+        EXPECT_EQ(multiOut.systemValueId, 0x20U);
+        EXPECT_EQ(multiOut.value, 100U);
+        EXPECT_EQ(multiOut.value1, 200U);
+        EXPECT_EQ(multiOut.value2, 300U);
+        EXPECT_EQ(multiOut.numValues, 3U);
+
+        // 3. Reset traffic control by sending 0
+        const auto resetPkt = SightlineProtocolBuilder::buildSetTrafficControl(0U, 0U, 0U);
+        MsgSystemValue resetOut {};
+        ASSERT_TRUE(SightlineProtocolParser::parseSystemValue(resetPkt, resetOut));
+        EXPECT_EQ(resetOut.systemValueId, MsgSystemValue::TrafficControl);
+        EXPECT_EQ(resetOut.value, 0U);
+        EXPECT_EQ(resetOut.value1, 0U);
+        EXPECT_EQ(resetOut.value2, 0U);
+        EXPECT_EQ(resetOut.numValues, 4U);
+    }
+
+    /// @brief Verify Tag Data frames (0x96).
+    TEST(TestSightlineSystem, BuildAndParseTagDataFrames)
+    {
         // 2. Tag Data (0x96)
         MsgTagData tagIn {};
         tagIn.tagId = 0x0102U;

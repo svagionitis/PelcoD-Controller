@@ -57,6 +57,14 @@ public:
     /// @return Framed binary packet.
     [[nodiscard]] static std::vector<std::uint8_t> buildSetSystemValue(const MsgSystemValue& msg);
 
+    /// @brief Encodes Linux Traffic Control (tc) bandwidth limiter (Message ID 0x92, Key 13).
+    /// @param[in] rateKbps Maximum rate in kilobits per second.
+    /// @param[in] burstBytes Burst in bytes (e.g. 3000).
+    /// @param[in] mtuBytes MTU in bytes (e.g. 1500).
+    /// @return Framed binary packet.
+    [[nodiscard]] static std::vector<std::uint8_t> buildSetTrafficControl(
+        std::uint32_t rateKbps, std::uint32_t burstBytes = 3000U, std::uint32_t mtuBytes = 1500U);
+
     /// @brief Encodes query for system value register (Message ID 0x28 query 0x92).
     /// @param[in] systemValueId Target system register identifier.
     /// @return Framed binary packet.

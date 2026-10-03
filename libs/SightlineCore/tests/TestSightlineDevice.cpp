@@ -846,5 +846,106 @@ namespace {
         device.stop();
     }
 
+    /// @brief Verify encoding and network commands, queries, and telemetry dispatching.
+    TEST(TestSightlineDevice, EncodingAndNetworkTelemetryDispatch)
+    {
+        auto transport = std::make_shared<MockTestTransport>();
+        SightlineDevice device(transport);
+        ASSERT_TRUE(device.start());
+
+        // 1. Dispatch commands and queries
+        EXPECT_TRUE(device.setTrafficControl(2500U, 3000U, 1500U));
+        EXPECT_TRUE(device.getH264Params(0x0002U));
+        EXPECT_TRUE(device.getEthernetDisplay(0x0002U));
+        EXPECT_TRUE(device.getEthernetVideo(0x0002U));
+        EXPECT_TRUE(device.getNetworkParams(0U));
+        EXPECT_TRUE(device.getNetworkList());
+
+        const auto sent = transport->getSentPackets();
+        ASSERT_EQ(sent.size(), 6U);
+        EXPECT_EQ(SightlineFraming::identifyMessage(sent[0]), MessageId::SetSystemValue);
+        EXPECT_EQ(SightlineFraming::identifyMessage(sent[1]), MessageId::GetH264Parameters);
+        EXPECT_EQ(SightlineFraming::identifyMessage(sent[2]), MessageId::GetEthernetDisplayParameters);
+        EXPECT_EQ(SightlineFraming::identifyMessage(sent[3]), MessageId::GetEthernetVideoParameters);
+        EXPECT_EQ(SightlineFraming::identifyMessage(sent[4]), MessageId::GetNetworkParameters);
+        EXPECT_EQ(SightlineFraming::identifyMessage(sent[5]), MessageId::GetNetworkList);
+
+        // 2. Setup telemetry callbacks
+        std::atomic<bool> h264Received { false };
+        std::atomic<bool> ethDisplayReceived { false };
+        std::atomic<bool> ethVideoReceived { false };
+        std::atomic<bool> systemValReceived { false };
+
+        MsgSetH264Parameters capturedH264 {};
+        device.setH264ParamsCallback([&](const MsgSetH264Parameters& params) {
+            capturedH264 = params;
+            h264Received.store(true);
+        });
+
+        MsgSetEthernetDisplayParameters capturedDisplay {};
+        device.setEthernetDisplayCb([&](const MsgSetEthernetDisplayParameters& params) {
+            capturedDisplay = params;
+            ethDisplayReceived.store(true);
+        });
+
+        MsgSetEthernetVideoParameters capturedVideo {};
+        device.setEthernetVideoCb([&](const MsgSetEthernetVideoParameters& params) {
+            capturedVideo = params;
+            ethVideoReceived.store(true);
+        });
+
+        MsgSystemValue capturedVal {};
+        device.setSystemValueCallback([&](const MsgSystemValue& val) {
+            capturedVal = val;
+            systemValReceived.store(true);
+        });
+
+        // 3. Inject CurrentH264Parameters (0x56)
+        MsgSetH264Parameters inH264 {};
+        inH264.targetBitrateBps = 4500000U;
+        inH264.intraFrameInterval = 30U;
+        inH264.flags = 0x12U;
+        inH264.displayId = 0x0002U;
+        const auto h264Pkt = SightlineFraming::buildPacket(
+            MessageId::CurrentH264Parameters,
+            SightlineFraming::extractPayload(SightlineProtocolBuilder::buildSetH264Parameters(inH264)));
+        transport->injectData(h264Pkt);
+
+        EXPECT_TRUE(h264Received.load());
+        EXPECT_EQ(capturedH264.targetBitrateBps, 4500000U);
+        EXPECT_TRUE(device.lastH264Params().has_value());
+        EXPECT_EQ(device.lastH264Params()->targetBitrateBps, 4500000U);
+
+        // 4. Inject CurrentEthernetDisplayParameters (0x52)
+        MsgSetEthernetDisplayParameters inDisplay {};
+        inDisplay.protocol = static_cast<std::uint8_t>(EthernetDisplayProtocol::RtpH264);
+        inDisplay.ipAddress = 0x7F000001U;
+        inDisplay.port = 15004U;
+        inDisplay.displayId = 0x0002U;
+        const auto dispPkt = SightlineFraming::buildPacket(
+            MessageId::CurrentEthernetDisplayParameters,
+            SightlineFraming::extractPayload(SightlineProtocolBuilder::buildSetEthernetDisplay(inDisplay)));
+        transport->injectData(dispPkt);
+
+        EXPECT_TRUE(ethDisplayReceived.load());
+        EXPECT_EQ(capturedDisplay.protocol, static_cast<std::uint8_t>(EthernetDisplayProtocol::RtpH264));
+        EXPECT_TRUE(device.lastEthernetDisplay().has_value());
+        EXPECT_EQ(device.lastEthernetDisplay()->port, 15004U);
+
+        // 5. Inject CurrentSystemValue (0x93)
+        const auto tcPkt = SightlineProtocolBuilder::buildSetTrafficControl(3000U, 2000U, 1500U);
+        const auto curValPkt = SightlineFraming::buildPacket(
+            MessageId::CurrentSystemValue, SightlineFraming::extractPayload(tcPkt));
+        transport->injectData(curValPkt);
+
+        EXPECT_TRUE(systemValReceived.load());
+        EXPECT_EQ(capturedVal.systemValueId, MsgSystemValue::TrafficControl);
+        EXPECT_EQ(capturedVal.value, 3000U);
+        EXPECT_TRUE(device.lastSystemValue().has_value());
+        EXPECT_EQ(device.lastSystemValue()->value, 3000U);
+
+        device.stop();
+    }
+
 } // namespace
 } // namespace Sightline

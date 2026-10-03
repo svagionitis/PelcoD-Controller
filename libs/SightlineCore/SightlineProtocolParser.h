@@ -163,6 +163,18 @@ public:
     /// @brief Parses metadata rate reply (Message ID 0x62 / 0x8D).
     [[nodiscard]] static bool parseMetadataRate(const std::vector<std::uint8_t>& packet, MsgSetMetadataRate& out);
 
+    /// @brief Parses Ethernet display streaming parameters (Message ID 0x29 / 0x52).
+    [[nodiscard]] static bool parseEthernetDisplay(
+        const std::vector<std::uint8_t>& packet, MsgSetEthernetDisplayParameters& out);
+
+    /// @brief Parses Ethernet video parameters (Message ID 0x1A / 0x48).
+    [[nodiscard]] static bool parseEthernetVideo(
+        const std::vector<std::uint8_t>& packet, MsgSetEthernetVideoParameters& out);
+
+    /// @brief Parses network parameters (Message ID 0x1C / 0x49).
+    [[nodiscard]] static bool parseNetworkParameters(
+        const std::vector<std::uint8_t>& packet, MsgSetNetworkParameters& out);
+
     /// @brief Parses network interfaces list (Message ID 0x67).
     [[nodiscard]] static bool parseNetworkList(const std::vector<std::uint8_t>& packet, MsgCurrentNetworkList& out);
 

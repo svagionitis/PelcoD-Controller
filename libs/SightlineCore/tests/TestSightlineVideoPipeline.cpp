@@ -1257,6 +1257,42 @@ namespace {
         EXPECT_EQ(syncService.failedCount(), 0U);
     }
 
+    /// @brief Verify Sightline EAN-Encoding protocol types, RFC 3550 port rules, and flag generation.
+    TEST(TestSightlineVideoPipeline, EncodingAndTransportProtocolsEanCompliance)
+    {
+        // 1. Verify RFC 3550 even-numbered port rule for RTP protocols
+        EXPECT_TRUE(isRtpProtocol(static_cast<std::uint8_t>(EthernetDisplayProtocol::RtpH264)));
+        EXPECT_TRUE(isRtpProtocol(static_cast<std::uint8_t>(EthernetDisplayProtocol::RtpH265)));
+        EXPECT_TRUE(isRtpProtocol(static_cast<std::uint8_t>(EthernetDisplayProtocol::RtpMpeg2TsH264)));
+        EXPECT_TRUE(isRtpProtocol(static_cast<std::uint8_t>(EthernetDisplayProtocol::RtpMpeg2TsH265)));
+        EXPECT_FALSE(isRtpProtocol(static_cast<std::uint8_t>(EthernetDisplayProtocol::Mpeg2TsH264)));
+        EXPECT_FALSE(isRtpProtocol(static_cast<std::uint8_t>(EthernetDisplayProtocol::Mpeg2TsH265)));
+        EXPECT_FALSE(isRtpProtocol(static_cast<std::uint8_t>(EthernetDisplayProtocol::KlvOnly)));
+
+        // RTP odd ports rejected, even ports accepted
+        EXPECT_TRUE(isValidTransportPort(15004U, static_cast<std::uint8_t>(EthernetDisplayProtocol::RtpH264)));
+        EXPECT_FALSE(isValidTransportPort(15005U, static_cast<std::uint8_t>(EthernetDisplayProtocol::RtpH264)));
+        EXPECT_TRUE(isValidTransportPort(15005U, static_cast<std::uint8_t>(EthernetDisplayProtocol::Mpeg2TsH264)));
+
+        // 2. Flags byte generation for H.264
+        const auto flagsVbrHigh = makeH264Flags(H264Profile::High, BitrateControlMode::Variable);
+        EXPECT_EQ(flagsVbrHigh, 0x12U);
+
+        const auto flagsCbrBase = makeH264Flags(H264Profile::Baseline, BitrateControlMode::Legacy);
+        EXPECT_EQ(flagsCbrBase, 0x00U);
+
+        const auto flagsConstrainedMain = makeH264Flags(H264Profile::Main, BitrateControlMode::Constrained);
+        EXPECT_EQ(flagsConstrainedMain, 0x21U);
+
+        const auto flagsBalancedHigh = makeH264Flags(H264Profile::High, BitrateControlMode::Balanced);
+        EXPECT_EQ(flagsBalancedHigh, 0x32U);
+
+        // 3. Multi-channel network display IDs
+        EXPECT_EQ(static_cast<std::uint16_t>(NetworkDisplayId::Net0), 0x0002U);
+        EXPECT_EQ(static_cast<std::uint16_t>(NetworkDisplayId::Net1), 0x0080U);
+        EXPECT_EQ(static_cast<std::uint16_t>(NetworkDisplayId::Net2), 0x0200U);
+    }
+
 } // namespace
 } // namespace Sightline
 

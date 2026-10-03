@@ -207,6 +207,23 @@ bool SightlineGeneralParser::parseSystemValue(ByteView packet, MsgSystemValue& o
 
     out.systemValueId = payload[0U];
     out.value = SightlineFraming::readU32Le(payload.data() + 1U);
+    out.value1 = 0U;
+    out.value2 = 0U;
+    out.value3 = 0U;
+    out.numValues = 1U;
+
+    if (payload.size() >= 9U) {
+        out.value1 = SightlineFraming::readU32Le(payload.data() + 5U);
+        out.numValues = 2U;
+    }
+    if (payload.size() >= 13U) {
+        out.value2 = SightlineFraming::readU32Le(payload.data() + 9U);
+        out.numValues = 3U;
+    }
+    if (payload.size() >= 17U) {
+        out.value3 = SightlineFraming::readU32Le(payload.data() + 13U);
+        out.numValues = 4U;
+    }
     return true;
 }
 
