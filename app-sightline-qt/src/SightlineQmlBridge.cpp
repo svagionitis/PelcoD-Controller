@@ -387,8 +387,6 @@ bool SightlineQmlBridge::connectUdp(const QString& host, int cmdPort, int replyP
     const bool started = m_device->start();
     emit connectionChanged();
     return started;
-    emit connectionChanged();
-    return started;
 }
 
 void SightlineQmlBridge::disconnectDevice()
@@ -1960,32 +1958,175 @@ bool SightlineQmlBridge::setReportingMode(int cam, int period, int flags)
         static_cast<std::uint8_t>(cam), static_cast<std::uint8_t>(period), static_cast<std::uint8_t>(flags));
 }
 
-bool SightlineQmlBridge::setMetadata(double lat, double lon, double alt, double heading, double pitch, double roll)
+bool SightlineQmlBridge::setMetadata(
+    double lat, double lon, double alt, double heading, double pitch, double roll,
+    double hfov, double vfov, double az, double el, int displayId)
 {
     if (!isConnected()) {
         return false;
     }
     Sightline::MsgSetMetadataValues msg {};
-    msg.platformLatitudeDeg = lat;
-    msg.platformLongitudeDeg = lon;
-    msg.platformAltitudeMeters = alt;
-    msg.platformHeadingDeg = heading;
-    msg.platformPitchDeg = pitch;
-    msg.platformRollDeg = roll;
+    msg.validDataMask = 0x0FFFU;
+    msg.utcTime = static_cast<std::uint64_t>(QDateTime::currentMSecsSinceEpoch()) * 1000ULL;
+    msg.heading = Sightline::MsgSetMetadataValues::degToHeading(heading);
+    msg.pitch = Sightline::MsgSetMetadataValues::degToPitch(pitch);
+    msg.roll = Sightline::MsgSetMetadataValues::degToRoll(roll);
+    msg.lat = Sightline::MsgSetMetadataValues::degToLat(lat);
+    msg.lon = Sightline::MsgSetMetadataValues::degToLon(lon);
+    msg.alt = Sightline::MsgSetMetadataValues::altToMisb(alt);
+    msg.hfov = Sightline::MsgSetMetadataValues::degToFov(hfov);
+    msg.vfov = Sightline::MsgSetMetadataValues::degToFov(vfov);
+    msg.az = Sightline::MsgSetMetadataValues::degToAzimuth(az);
+    msg.el = Sightline::MsgSetMetadataValues::degToElevation(el);
+    msg.sensorRoll = 0U;
+    msg.displayId = static_cast<std::uint16_t>(displayId);
     return m_device->device()->setMetadata(msg);
 }
 
-bool SightlineQmlBridge::setCursorOnTarget(int enable, int port, const QString& uid, const QString& type)
+bool SightlineQmlBridge::setMetadataStatic(int type, const QString& value, int displayId)
+{
+    if (!isConnected()) {
+        return false;
+    }
+    Sightline::MsgMetadataStaticValues msg {};
+    msg.type = static_cast<Sightline::StaticMetadataType>(type);
+    msg.setString(value.toStdString());
+    msg.displayId = static_cast<std::uint16_t>(displayId);
+    return m_device->device()->setMetadataStatic(msg);
+}
+
+bool SightlineQmlBridge::setMetadataFrame(
+    double centerLat, double centerLon, double centerEl, double frameWidth, double slantRange,
+    bool enableOlsDted, int displayId)
+{
+    if (!isConnected()) {
+        return false;
+    }
+    Sightline::MsgSetMetadataFrameValues msg {};
+    msg.validDataMask = 0x001FU;
+    msg.frameCenterLat = Sightline::MsgSetMetadataValues::degToLat(centerLat);
+    msg.frameCenterLon = Sightline::MsgSetMetadataValues::degToLon(centerLon);
+    msg.frameCenterEl = Sightline::MsgSetMetadataValues::altToMisb(centerEl);
+    msg.frameWidth = static_cast<std::uint16_t>(std::clamp(frameWidth, 0.0, 65535.0));
+    msg.slantRange = static_cast<std::uint32_t>(std::max(0.0, slantRange));
+    msg.userSuppliedFlags = enableOlsDted ? 0x20U : 0x01U; // Bit 5: OLS DTED terrain mode
+    msg.displayId = static_cast<std::uint16_t>(displayId);
+    return m_device->device()->setMetadataFrame(msg);
+}
+
+bool SightlineQmlBridge::setMetadataRate(quint64 enables, int frameStep, int displayId)
+{
+    if (!isConnected()) {
+        return false;
+    }
+    Sightline::MsgSetMetadataRate msg {};
+    msg.enables = enables;
+    msg.frameStep = static_cast<std::uint8_t>(std::clamp(frameStep, 0, 255));
+    msg.displayId = static_cast<std::uint16_t>(displayId);
+    return m_device->device()->setMetadataRate(msg);
+}
+
+bool SightlineQmlBridge::setTagData(int tagId, int tagSubId, const QString& hexData, int displayId)
+{
+    if (!isConnected()) {
+        return false;
+    }
+    Sightline::MsgTagData msg {};
+    msg.tagId = static_cast<std::uint8_t>(tagId);
+    msg.tagSubId = static_cast<std::uint8_t>(tagSubId);
+    msg.displayId = static_cast<std::uint16_t>(displayId);
+    const QByteArray bytes = QByteArray::fromHex(hexData.toUtf8());
+    msg.data.clear();
+    msg.data.reserve(static_cast<std::size_t>(bytes.size()));
+    for (char c : bytes) {
+        msg.data.push_back(static_cast<std::uint8_t>(c));
+    }
+    return m_device->device()->setTagData(msg);
+}
+
+bool SightlineQmlBridge::setTagDataRate(int tagId, int frameStep, int displayId)
+{
+    if (!isConnected()) {
+        return false;
+    }
+    Sightline::MsgTagDataRate msg {};
+    msg.mode = 0U; // single tag
+    msg.tagId1 = static_cast<std::uint8_t>(tagId);
+    msg.frameStep = static_cast<std::uint16_t>(frameStep);
+    msg.displayId = static_cast<std::uint16_t>(displayId);
+    return m_device->device()->setTagDataRate(msg);
+}
+
+bool SightlineQmlBridge::setTagSourceSelector(int tagId, int selector, int displayId)
+{
+    if (!isConnected()) {
+        return false;
+    }
+    Sightline::MsgTagSourceSelector msg {};
+    msg.mode = 0U; // single tag
+    msg.tagId1 = static_cast<std::uint8_t>(tagId);
+    msg.selector = static_cast<std::uint16_t>(selector);
+    msg.displayId = static_cast<std::uint16_t>(displayId);
+    return m_device->device()->setTagSourceSelector(msg);
+}
+
+bool SightlineQmlBridge::setCursorOnTarget(int mode, const QString& ipAddress, int port, int rate, int displayId)
 {
     if (!isConnected()) {
         return false;
     }
     Sightline::MsgCursorOnTarget msg {};
-    msg.enable = static_cast<std::uint8_t>(enable);
-    msg.broadcastPort = static_cast<std::uint16_t>(port);
-    msg.uid = uid.toStdString();
-    msg.cotType = type.toStdString();
-    return m_device->device()->transport()->sendData(Sightline::SightlineProtocolBuilder::buildCursorOnTarget(msg));
+    msg.mode = static_cast<std::uint16_t>(mode);
+    const QHostAddress host(ipAddress);
+    msg.ipAddress = host.toIPv4Address();
+    msg.port = static_cast<std::uint16_t>(port);
+    msg.rate = static_cast<std::uint16_t>(rate);
+    msg.displayId = static_cast<std::uint16_t>(displayId);
+    return m_device->device()->setCursorOnTarget(msg);
+}
+
+bool SightlineQmlBridge::setVmtiChips(
+    int mode, int format, int sizeType, int sizeHint, int maxPerFrame, int minFramesBetween, int displayId)
+{
+    if (!isConnected()) {
+        return false;
+    }
+    Sightline::MsgVmtiChips msg {};
+    msg.mode = static_cast<std::uint8_t>(mode);
+    msg.format = static_cast<Sightline::VmtiChipFormat>(format);
+    msg.sizeType = static_cast<Sightline::VmtiChipSizeType>(sizeType);
+    msg.sizeHint = static_cast<std::uint16_t>(sizeHint);
+    msg.maxPerFrame = static_cast<std::uint8_t>(maxPerFrame);
+    msg.minFramesBetween = static_cast<std::uint8_t>(minFramesBetween);
+    msg.displayId = static_cast<std::uint16_t>(displayId);
+    return m_device->device()->setVmtiChips(msg);
+}
+
+bool SightlineQmlBridge::setVmtiFields(int fieldsMask, int ontologyRate, int displayId)
+{
+    if (!isConnected()) {
+        return false;
+    }
+    Sightline::MsgVmtiFields msg {};
+    msg.displayId = static_cast<std::uint16_t>(displayId);
+    msg.fields = static_cast<std::uint16_t>(fieldsMask);
+    msg.ontologySeriesRate = static_cast<std::uint16_t>(ontologyRate);
+    return m_device->device()->setVmtiFields(msg);
+}
+
+bool SightlineQmlBridge::setAncillaryText(
+    const QString& source, const QString& originator, const QString& message, int displayId)
+{
+    if (!isConnected()) {
+        return false;
+    }
+    Sightline::MsgAncillaryTextMetadata msg {};
+    msg.creationTime = static_cast<std::uint64_t>(QDateTime::currentMSecsSinceEpoch()) * 1000ULL;
+    msg.source = source.toStdString();
+    msg.originator = originator.toStdString();
+    msg.messageBody = message.toStdString();
+    msg.displayId = static_cast<std::uint16_t>(displayId);
+    return m_device->device()->setAncillaryText(msg);
 }
 
 // 8. System & Raw Inspection

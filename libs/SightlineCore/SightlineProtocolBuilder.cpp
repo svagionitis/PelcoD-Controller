@@ -482,6 +482,31 @@ std::vector<std::uint8_t> SightlineProtocolBuilder::buildSetMetadataRate(const M
     return SightlineKlvBuilder::buildSetMetadataRate(msg);
 }
 
+std::vector<std::uint8_t> SightlineProtocolBuilder::buildSetFrameValues(const MsgSetMetadataFrameValues& msg)
+{
+    return SightlineKlvBuilder::buildSetMetadataFrameValues(msg);
+}
+
+std::vector<std::uint8_t> SightlineProtocolBuilder::buildSetKlvData(const MsgSetKlvData& msg)
+{
+    return SightlineKlvBuilder::buildSetKlvData(msg);
+}
+
+std::vector<std::uint8_t> SightlineProtocolBuilder::buildSetVmti(const MsgSetVmti& msg)
+{
+    return SightlineKlvBuilder::buildSetVmti(msg);
+}
+
+std::vector<std::uint8_t> SightlineProtocolBuilder::buildVmtiChips(const MsgVmtiChips& msg)
+{
+    return SightlineKlvBuilder::buildVmtiChips(msg);
+}
+
+std::vector<std::uint8_t> SightlineProtocolBuilder::buildVmtiFields(const MsgVmtiFields& msg)
+{
+    return SightlineKlvBuilder::buildVmtiFields(msg);
+}
+
 std::vector<std::uint8_t> SightlineProtocolBuilder::buildSetTelemetryDest(const MsgSetTelemetryDestination& msg)
 {
     return SightlineTelemetryBuilder::buildSetTelemetryDest(msg);

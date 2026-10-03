@@ -6,6 +6,7 @@
 /// @see https://knowledge.sightlineintelligence.com/wp-content/uploads/EAN-Overlay-Graphics.pdf
 
 #include "../SightlineTypes.h"
+#include "SightlineKlv.h"
 
 #include <array>
 #include <cstdint>
@@ -370,17 +371,6 @@ struct MsgDrawObject {
     std::uint16_t d { 0U };
     std::uint8_t color { 0x0EU };
     std::string text {};
-};
-
-/// @struct MsgAncillaryTextMetadata
-/// @brief Injects MISB ST 0808 text metadata into the MPEG-TS KLV stream (Message ID 0xAC).
-/// @details Conforms to official Sightline SLAAncillaryTextMetadata_t struct layout.
-struct MsgAncillaryTextMetadata {
-    std::uint64_t creationTime { 0ULL }; ///< UTC time in microseconds
-    std::string source {}; ///< Originator type (e.g. "human", max 8 chars)
-    std::string originator {}; ///< Originator ID (max 16 chars)
-    std::string messageBody {}; ///< UTF-8 text string
-    std::uint16_t displayId { 0x0002U }; ///< Network display ID (e.g. Net0 = 0x0002)
 };
 
 } // namespace Sightline

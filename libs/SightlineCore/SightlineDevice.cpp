@@ -543,13 +543,79 @@ bool SightlineDevice::setMetadata(const MsgSetMetadataValues& msg)
     return sendPacket(SightlineProtocolBuilder::buildSetMetadataValues(msg));
 }
 
-bool SightlineDevice::setMetadataRate(std::uint8_t metadataType, std::uint8_t ratePeriod)
+bool SightlineDevice::setMetadataStatic(const MsgMetadataStaticValues& msg)
+{
+    return sendPacket(SightlineProtocolBuilder::buildMetadataStaticValues(msg));
+}
+
+bool SightlineDevice::setMetadataFrame(const MsgSetMetadataFrameValues& msg)
+{
+    return sendPacket(SightlineProtocolBuilder::buildSetFrameValues(msg));
+}
+
+bool SightlineDevice::setKlvData(const MsgSetKlvData& msg)
+{
+    return sendPacket(SightlineProtocolBuilder::buildSetKlvData(msg));
+}
+
+bool SightlineDevice::setMetadataRate(const MsgSetMetadataRate& msg)
+{
+    return sendPacket(SightlineProtocolBuilder::buildSetMetadataRate(msg));
+}
+
+bool SightlineDevice::setMetadataRate(
+    std::uint64_t enables, std::uint8_t frameStep, std::uint16_t displayId)
 {
     MsgSetMetadataRate msg {};
-    msg.metadataType = metadataType;
-    msg.ratePeriod = ratePeriod;
-
+    msg.enables = enables;
+    msg.frameStep = frameStep;
+    msg.displayId = displayId;
     return sendPacket(SightlineProtocolBuilder::buildSetMetadataRate(msg));
+}
+
+bool SightlineDevice::setVmti(const MsgSetVmti& msg)
+{
+    return sendPacket(SightlineProtocolBuilder::buildSetVmti(msg));
+}
+
+bool SightlineDevice::setAppendedMetadata(const MsgAppendedMetadata& msg)
+{
+    return sendPacket(SightlineProtocolBuilder::buildSetAppendedMetadata(msg));
+}
+
+bool SightlineDevice::setTagData(const MsgTagData& msg)
+{
+    return sendPacket(SightlineProtocolBuilder::buildTagData(msg));
+}
+
+bool SightlineDevice::setTagDataRate(const MsgTagDataRate& msg)
+{
+    return sendPacket(SightlineProtocolBuilder::buildTagDataRate(msg));
+}
+
+bool SightlineDevice::setTagSourceSelector(const MsgTagSourceSelector& msg)
+{
+    return sendPacket(SightlineProtocolBuilder::buildSetTagSourceSelector(msg));
+}
+
+bool SightlineDevice::setAncillaryText(const MsgAncillaryTextMetadata& msg)
+{
+    return sendPacket(SightlineProtocolBuilder::buildAncillaryTextMetadata(msg));
+}
+
+bool SightlineDevice::setVmtiChips(const MsgVmtiChips& msg)
+{
+    return sendPacket(SightlineProtocolBuilder::buildVmtiChips(msg));
+}
+
+bool SightlineDevice::setCursorOnTarget(const MsgCursorOnTarget& msg)
+{
+    return sendPacket(SightlineProtocolBuilder::buildCursorOnTarget(msg));
+}
+
+bool SightlineDevice::setVmtiFields(const MsgVmtiFields& msg)
+{
+    return sendPacket(SightlineProtocolBuilder::buildVmtiFields(msg));
 }
 
 bool SightlineDevice::setTelemetryDest(const MsgSetTelemetryDestination& msg)

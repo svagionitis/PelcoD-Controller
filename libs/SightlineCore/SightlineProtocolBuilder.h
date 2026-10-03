@@ -456,10 +456,25 @@ public:
     /// @return Framed binary packet.
     [[nodiscard]] static std::vector<std::uint8_t> buildMetadataStaticValues(const MsgMetadataStaticValues& msg);
 
+    /// @brief Encodes KLV frame values (Message ID 0x15).
+    [[nodiscard]] static std::vector<std::uint8_t> buildSetFrameValues(const MsgSetMetadataFrameValues& msg);
+
+    /// @brief Encodes raw KLV data blob (Message ID 0x61).
+    [[nodiscard]] static std::vector<std::uint8_t> buildSetKlvData(const MsgSetKlvData& msg);
+
     /// @brief Encodes KLV transmission rate (Message ID 0x62).
     /// @param[in] msg Metadata rate parameters.
     /// @return Framed binary packet.
     [[nodiscard]] static std::vector<std::uint8_t> buildSetMetadataRate(const MsgSetMetadataRate& msg);
+
+    /// @brief Encodes external VMTI target injection (Message ID 0x84).
+    [[nodiscard]] static std::vector<std::uint8_t> buildSetVmti(const MsgSetVmti& msg);
+
+    /// @brief Encodes VMTI target image chips configuration (Message ID 0xAD).
+    [[nodiscard]] static std::vector<std::uint8_t> buildVmtiChips(const MsgVmtiChips& msg);
+
+    /// @brief Encodes VMTI fields configuration (Message ID 0xBF).
+    [[nodiscard]] static std::vector<std::uint8_t> buildVmtiFields(const MsgVmtiFields& msg);
 
     /// @brief Encodes external telemetry destination IP/port (Message ID 0x64).
     /// @param[in] msg Destination parameters.
@@ -827,6 +842,12 @@ public:
 
     /// @brief Encodes tag data broadcast decimation rate (Message ID 0x97).
     [[nodiscard]] static std::vector<std::uint8_t> buildSetTagDataRate(const MsgTagDataRate& msg);
+
+    /// @brief Alias for buildSetTagDataRate.
+    [[nodiscard]] static std::vector<std::uint8_t> buildTagDataRate(const MsgTagDataRate& msg)
+    {
+        return buildSetTagDataRate(msg);
+    }
 
     /// @brief Encodes query for tag data rate (Message ID 0x28 query 0x97).
     [[nodiscard]] static std::vector<std::uint8_t> buildGetTagDataRate(std::uint16_t tagId);

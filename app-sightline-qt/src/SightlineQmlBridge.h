@@ -982,23 +982,44 @@ public:
     /// @return True if dispatched.
     Q_INVOKABLE bool setReportingMode(int cam, int period, int flags);
 
-    /// @brief Transmit aircraft/sensor positioning metadata for KLV injection.
-    /// @param lat Latitude in degrees.
-    /// @param lon Longitude in degrees.
-    /// @param alt Altitude in meters.
-    /// @param heading Platform heading in degrees.
-    /// @param pitch Platform pitch in degrees.
-    /// @param roll Platform roll in degrees.
-    /// @return True if dispatched.
-    Q_INVOKABLE bool setMetadata(double lat, double lon, double alt, double heading, double pitch, double roll);
+    /// @brief Transmit aircraft/sensor positioning metadata for KLV injection (Message ID 0x13).
+    Q_INVOKABLE bool setMetadata(
+        double lat, double lon, double alt, double heading, double pitch, double roll,
+        double hfov = 30.0, double vfov = 20.0, double az = 0.0, double el = 0.0, int displayId = 2);
 
-    /// @brief Configure Cursor-on-Target (CoT) XML telemetry streaming.
-    /// @param enable Enable/disable CoT generation.
-    /// @param port Destination UDP broadcast port.
-    /// @param uid Platform UID string.
-    /// @param type Cursor-on-Target entity type string.
-    /// @return True if dispatched.
-    Q_INVOKABLE bool setCursorOnTarget(int enable, int port, const QString& uid, const QString& type);
+    /// @brief Configure static mission and security classification metadata (Message ID 0x14).
+    Q_INVOKABLE bool setMetadataStatic(int type, const QString& value, int displayId = 2);
+
+    /// @brief Configure frame center and ground projection / OLS DTED terrain mode (Message ID 0x15).
+    Q_INVOKABLE bool setMetadataFrame(
+        double centerLat, double centerLon, double centerEl, double frameWidth, double slantRange,
+        bool enableOlsDted = false, int displayId = 2);
+
+    /// @brief Configure KLV metadata transmission rate and enabled local sets (Message ID 0x62).
+    Q_INVOKABLE bool setMetadataRate(quint64 enables, int frameStep, int displayId = 2);
+
+    /// @brief Configure custom or extended MISB tag data (Message ID 0x96).
+    Q_INVOKABLE bool setTagData(int tagId, int tagSubId, const QString& hexData, int displayId = 2);
+
+    /// @brief Configure MISB tag update decimation rate (Message ID 0x97).
+    Q_INVOKABLE bool setTagDataRate(int tagId, int frameStep, int displayId = 2);
+
+    /// @brief Configure MISB tag source selector multiplexer (Message ID 0x98).
+    Q_INVOKABLE bool setTagSourceSelector(int tagId, int selector, int displayId = 2);
+
+    /// @brief Configure Cursor-on-Target (CoT) XML telemetry streaming (Message ID 0xB0).
+    Q_INVOKABLE bool setCursorOnTarget(int mode, const QString& ipAddress, int port, int rate, int displayId = 2);
+
+    /// @brief Configure VMTI target image chips (Message ID 0xAD).
+    Q_INVOKABLE bool setVmtiChips(
+        int mode, int format, int sizeType, int sizeHint, int maxPerFrame, int minFramesBetween, int displayId = 2);
+
+    /// @brief Configure VMTI fields and ontology series update rate (Message ID 0xBF).
+    Q_INVOKABLE bool setVmtiFields(int fieldsMask, int ontologyRate, int displayId = 2);
+
+    /// @brief Inject dynamic ancillary text metadata into KLV elementary stream (Message ID 0xAC).
+    Q_INVOKABLE bool setAncillaryText(
+        const QString& source, const QString& originator, const QString& message, int displayId = 2);
 
     // 8. System & Raw Inspection
     /// @brief Commit active parameters to onboard non-volatile flash.

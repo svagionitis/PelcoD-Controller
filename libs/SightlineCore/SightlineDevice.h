@@ -502,11 +502,78 @@ public:
     /// @return True if command was successfully transmitted.
     [[nodiscard]] bool setMetadata(const MsgSetMetadataValues& msg);
 
-    /// @brief Configures metadata injection rate.
-    /// @param[in] metadataType Type of metadata.
-    /// @param[in] ratePeriod Divisor period.
+    /// @brief Sets static mission and classification metadata.
+    /// @param[in] msg Static metadata values.
     /// @return True if command was successfully transmitted.
-    [[nodiscard]] bool setMetadataRate(std::uint8_t metadataType, std::uint8_t ratePeriod);
+    [[nodiscard]] bool setMetadataStatic(const MsgMetadataStaticValues& msg);
+
+    /// @brief Sets KLV frame values including terrain / OLS DTED mode.
+    /// @param[in] msg Frame metadata values.
+    /// @return True if command was successfully transmitted.
+    [[nodiscard]] bool setMetadataFrame(const MsgSetMetadataFrameValues& msg);
+
+    /// @brief Injects user-constructed KLV blob into elementary stream.
+    /// @param[in] msg KLV data blob.
+    /// @return True if command was successfully transmitted.
+    [[nodiscard]] bool setKlvData(const MsgSetKlvData& msg);
+
+    /// @brief Configures metadata injection rate.
+    /// @param[in] msg Metadata rate parameters.
+    /// @return True if command was successfully transmitted.
+    [[nodiscard]] bool setMetadataRate(const MsgSetMetadataRate& msg);
+
+    /// @brief Configures metadata injection rate (convenience overload).
+    /// @param[in] enables Bitmask of enabled telemetry packets.
+    /// @param[in] frameStep Decimation rate (1 = full rate).
+    /// @param[in] displayId Network display ID.
+    /// @return True if command was successfully transmitted.
+    [[nodiscard]] bool setMetadataRate(
+        std::uint64_t enables, std::uint8_t frameStep, std::uint16_t displayId = 0x0002U);
+
+    /// @brief Injects external target detections into VMTI Tag 74.
+    /// @param[in] msg VMTI targets.
+    /// @return True if command was successfully transmitted.
+    [[nodiscard]] bool setVmti(const MsgSetVmti& msg);
+
+    /// @brief Injects appended user metadata (Tag 100).
+    /// @param[in] msg Appended metadata.
+    /// @return True if command was successfully transmitted.
+    [[nodiscard]] bool setAppendedMetadata(const MsgAppendedMetadata& msg);
+
+    /// @brief Configures custom MISB tag data value.
+    /// @param[in] msg Tag data.
+    /// @return True if command was successfully transmitted.
+    [[nodiscard]] bool setTagData(const MsgTagData& msg);
+
+    /// @brief Configures custom MISB tag data rate.
+    /// @param[in] msg Tag data rate.
+    /// @return True if command was successfully transmitted.
+    [[nodiscard]] bool setTagDataRate(const MsgTagDataRate& msg);
+
+    /// @brief Configures source selector for MISB tags.
+    /// @param[in] msg Tag source selector.
+    /// @return True if command was successfully transmitted.
+    [[nodiscard]] bool setTagSourceSelector(const MsgTagSourceSelector& msg);
+
+    /// @brief Injects dynamic ancillary text into KLV elementary stream.
+    /// @param[in] msg Ancillary text message.
+    /// @return True if command was successfully transmitted.
+    [[nodiscard]] bool setAncillaryText(const MsgAncillaryTextMetadata& msg);
+
+    /// @brief Configures VMTI target image chips.
+    /// @param[in] msg VMTI chips parameters.
+    /// @return True if command was successfully transmitted.
+    [[nodiscard]] bool setVmtiChips(const MsgVmtiChips& msg);
+
+    /// @brief Configures Cursor-on-Target XML tactical broadcast.
+    /// @param[in] msg CoT parameters.
+    /// @return True if command was successfully transmitted.
+    [[nodiscard]] bool setCursorOnTarget(const MsgCursorOnTarget& msg);
+
+    /// @brief Configures VMTI fields and Ontology update rate.
+    /// @param[in] msg VMTI fields parameters.
+    /// @return True if command was successfully transmitted.
+    [[nodiscard]] bool setVmtiFields(const MsgVmtiFields& msg);
 
     /// @brief Registers external client destination for high-rate telemetry.
     /// @param[in] msg Telemetry destination parameters.

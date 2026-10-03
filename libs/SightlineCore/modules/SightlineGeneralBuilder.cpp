@@ -2,6 +2,7 @@
 /// @brief Implementation of Sightline general system configuration serializers.
 
 #include "SightlineGeneralBuilder.h"
+#include "SightlineKlvBuilder.h"
 
 #include <algorithm>
 
@@ -95,47 +96,27 @@ std::vector<std::uint8_t> SightlineGeneralBuilder::buildGetSystemValue(std::uint
 
 std::vector<std::uint8_t> SightlineGeneralBuilder::buildTagData(const MsgTagData& msg)
 {
-    std::vector<std::uint8_t> payload {};
-    payload.reserve(2U + msg.data.size());
-    SightlineFraming::appendU16Le(payload, msg.tagId);
-    payload.insert(payload.end(), msg.data.begin(), msg.data.end());
-    return SightlineFraming::buildPacket(MessageId::TagData, payload);
+    return SightlineKlvBuilder::buildTagData(msg);
 }
 
 std::vector<std::uint8_t> SightlineGeneralBuilder::buildSetTagDataRate(const MsgTagDataRate& msg)
 {
-    std::vector<std::uint8_t> payload {};
-    payload.reserve(3U);
-    SightlineFraming::appendU16Le(payload, msg.tagId);
-    payload.push_back(msg.rate);
-    return SightlineFraming::buildPacket(MessageId::TagDataRate, payload);
+    return SightlineKlvBuilder::buildTagDataRate(msg);
 }
 
 std::vector<std::uint8_t> SightlineGeneralBuilder::buildGetTagDataRate(std::uint16_t tagId)
 {
-    std::vector<std::uint8_t> payload {};
-    payload.reserve(3U);
-    payload.push_back(static_cast<std::uint8_t>(MessageId::TagDataRate));
-    SightlineFraming::appendU16Le(payload, tagId);
-    return SightlineFraming::buildPacket(MessageId::GetParameters, payload);
+    return SightlineKlvBuilder::buildGetTagDataRate(static_cast<std::uint8_t>(tagId));
 }
 
 std::vector<std::uint8_t> SightlineGeneralBuilder::buildSetTagSourceSelector(const MsgTagSourceSelector& msg)
 {
-    std::vector<std::uint8_t> payload {};
-    payload.reserve(3U);
-    SightlineFraming::appendU16Le(payload, msg.tagId);
-    payload.push_back(msg.source);
-    return SightlineFraming::buildPacket(MessageId::TagSourceSelector, payload);
+    return SightlineKlvBuilder::buildSetTagSourceSelector(msg);
 }
 
 std::vector<std::uint8_t> SightlineGeneralBuilder::buildGetTagSourceSelector(std::uint16_t tagId)
 {
-    std::vector<std::uint8_t> payload {};
-    payload.reserve(3U);
-    payload.push_back(static_cast<std::uint8_t>(MessageId::TagSourceSelector));
-    SightlineFraming::appendU16Le(payload, tagId);
-    return SightlineFraming::buildPacket(MessageId::GetParameters, payload);
+    return SightlineKlvBuilder::buildGetTagSourceSelector(static_cast<std::uint8_t>(tagId));
 }
 
 std::vector<std::uint8_t> SightlineGeneralBuilder::buildDetailedTiming(const MsgDetailedTiming& msg)
@@ -151,14 +132,12 @@ std::vector<std::uint8_t> SightlineGeneralBuilder::buildDetailedTiming(const Msg
 
 std::vector<std::uint8_t> SightlineGeneralBuilder::buildSetAppendedMetadata(const MsgAppendedMetadata& msg)
 {
-    const std::vector<std::uint8_t> payload { msg.cameraIndex, msg.enable };
-    return SightlineFraming::buildPacket(MessageId::AppendedMetadata, payload);
+    return SightlineKlvBuilder::buildSetAppendedMetadata(msg);
 }
 
 std::vector<std::uint8_t> SightlineGeneralBuilder::buildGetAppendedMetadata(std::uint8_t cameraIndex)
 {
-    const std::vector<std::uint8_t> payload { static_cast<std::uint8_t>(MessageId::AppendedMetadata), cameraIndex };
-    return SightlineFraming::buildPacket(MessageId::GetParameters, payload);
+    return SightlineKlvBuilder::buildGetAppendedMetadata(cameraIndex);
 }
 
 std::vector<std::uint8_t> SightlineGeneralBuilder::buildFrameIndex(const MsgFrameIndex& msg)

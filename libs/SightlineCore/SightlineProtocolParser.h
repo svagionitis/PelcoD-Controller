@@ -163,6 +163,45 @@ public:
     /// @brief Parses metadata rate reply (Message ID 0x62 / 0x8D).
     [[nodiscard]] static bool parseMetadataRate(const std::vector<std::uint8_t>& packet, MsgSetMetadataRate& out);
 
+    /// @brief Parses current metadata rate query reply (Message ID 0x8D).
+    [[nodiscard]] static bool parseCurrentRate(const std::vector<std::uint8_t>& packet, MsgCurrentMetadataRate& out);
+
+    /// @brief Parses current metadata values (Message ID 0x8B).
+    [[nodiscard]] static bool parseCurrentValues(
+        const std::vector<std::uint8_t>& packet, MsgCurrentMetadataValues& out);
+
+    /// @brief Parses frame metadata values (Message ID 0x15).
+    [[nodiscard]] static bool parseFrameValues(
+        const std::vector<std::uint8_t>& packet, MsgSetMetadataFrameValues& out);
+
+    /// @brief Parses current frame metadata values (Message ID 0x8C).
+    [[nodiscard]] static bool parseCurrentFrameValues(
+        const std::vector<std::uint8_t>& packet, MsgCurrentMetadataFrameValues& out);
+
+    /// @brief Parses TagData message (Message ID 0x96).
+    [[nodiscard]] static bool parseTagData(const std::vector<std::uint8_t>& packet, MsgTagData& out);
+
+    /// @brief Parses TagDataRate message (Message ID 0x97).
+    [[nodiscard]] static bool parseTagDataRate(const std::vector<std::uint8_t>& packet, MsgTagDataRate& out);
+
+    /// @brief Parses TagSourceSelector message (Message ID 0x98).
+    [[nodiscard]] static bool parseTagSourceSelector(
+        const std::vector<std::uint8_t>& packet, MsgTagSourceSelector& out);
+
+    /// @brief Parses Cursor-on-Target XML configuration (Message ID 0xB0).
+    [[nodiscard]] static bool parseCursorOnTarget(
+        const std::vector<std::uint8_t>& packet, MsgCursorOnTarget& out);
+
+    /// @brief Parses VMTI chips configuration (Message ID 0xAD).
+    [[nodiscard]] static bool parseVmtiChips(const std::vector<std::uint8_t>& packet, MsgVmtiChips& out);
+
+    /// @brief Parses VMTI fields configuration (Message ID 0xBF).
+    [[nodiscard]] static bool parseVmtiFields(const std::vector<std::uint8_t>& packet, MsgVmtiFields& out);
+
+    /// @brief Parses dynamic ancillary text metadata insertion (Message ID 0xAC).
+    [[nodiscard]] static bool parseAncillaryText(
+        const std::vector<std::uint8_t>& packet, MsgAncillaryTextMetadata& out);
+
     /// @brief Parses Ethernet display streaming parameters (Message ID 0x29 / 0x52).
     [[nodiscard]] static bool parseEthernetDisplay(
         const std::vector<std::uint8_t>& packet, MsgSetEthernetDisplayParameters& out);

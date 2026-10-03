@@ -2,6 +2,7 @@
 /// @brief Implementation of Sightline Overlays module builder.
 
 #include "SightlineOverlayBuilder.h"
+#include "SightlineKlvBuilder.h"
 
 #include <algorithm>
 
@@ -302,32 +303,7 @@ std::vector<std::uint8_t> SightlineOverlayBuilder::buildGetOverlayObjectParams(s
 
 std::vector<std::uint8_t> SightlineOverlayBuilder::buildAncillaryTextMetadata(const MsgAncillaryTextMetadata& msg)
 {
-    std::vector<std::uint8_t> payload {};
-    const auto srcLen = static_cast<std::uint8_t>(std::min<std::size_t>(msg.source.size(), 8U));
-    const auto origLen = static_cast<std::uint8_t>(std::min<std::size_t>(msg.originator.size(), 16U));
-    const auto bodyLen = static_cast<std::uint8_t>(std::min<std::size_t>(msg.messageBody.size(), 255U));
-    payload.reserve(8U + 1U + srcLen + 1U + origLen + 1U + bodyLen + 2U);
-    SightlineFraming::appendU64Le(payload, msg.creationTime);
-    payload.push_back(srcLen);
-    if (srcLen > 0U) {
-        for (std::size_t i { 0U }; i < srcLen; ++i) {
-            payload.push_back(static_cast<std::uint8_t>(msg.source[i]));
-        }
-    }
-    payload.push_back(origLen);
-    if (origLen > 0U) {
-        for (std::size_t i { 0U }; i < origLen; ++i) {
-            payload.push_back(static_cast<std::uint8_t>(msg.originator[i]));
-        }
-    }
-    payload.push_back(bodyLen);
-    if (bodyLen > 0U) {
-        for (std::size_t i { 0U }; i < bodyLen; ++i) {
-            payload.push_back(static_cast<std::uint8_t>(msg.messageBody[i]));
-        }
-    }
-    SightlineFraming::appendU16Le(payload, msg.displayId);
-    return SightlineFraming::buildPacket(MessageId::AncillaryTextMetadata, payload);
+    return SightlineKlvBuilder::buildAncillaryTextMetadata(msg);
 }
 
 } // namespace Sightline

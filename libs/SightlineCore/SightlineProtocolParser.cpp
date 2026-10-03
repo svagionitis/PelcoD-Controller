@@ -170,6 +170,67 @@ bool SightlineProtocolParser::parseMetadataRate(const std::vector<std::uint8_t>&
     return SightlineKlvParser::parseMetadataRate(packet, out);
 }
 
+bool SightlineProtocolParser::parseCurrentRate(const std::vector<std::uint8_t>& packet, MsgCurrentMetadataRate& out)
+{
+    return SightlineKlvParser::parseCurrentRate(packet, out);
+}
+
+bool SightlineProtocolParser::parseCurrentValues(
+    const std::vector<std::uint8_t>& packet, MsgCurrentMetadataValues& out)
+{
+    return SightlineKlvParser::parseCurrentValues(packet, out);
+}
+
+bool SightlineProtocolParser::parseFrameValues(
+    const std::vector<std::uint8_t>& packet, MsgSetMetadataFrameValues& out)
+{
+    return SightlineKlvParser::parseFrameValues(packet, out);
+}
+
+bool SightlineProtocolParser::parseCurrentFrameValues(
+    const std::vector<std::uint8_t>& packet, MsgCurrentMetadataFrameValues& out)
+{
+    return SightlineKlvParser::parseCurrentFrameValues(packet, out);
+}
+
+bool SightlineProtocolParser::parseTagData(const std::vector<std::uint8_t>& packet, MsgTagData& out)
+{
+    return SightlineKlvParser::parseTagData(packet, out);
+}
+
+bool SightlineProtocolParser::parseTagDataRate(const std::vector<std::uint8_t>& packet, MsgTagDataRate& out)
+{
+    return SightlineKlvParser::parseTagDataRate(packet, out);
+}
+
+bool SightlineProtocolParser::parseTagSourceSelector(
+    const std::vector<std::uint8_t>& packet, MsgTagSourceSelector& out)
+{
+    return SightlineKlvParser::parseTagSourceSelector(packet, out);
+}
+
+bool SightlineProtocolParser::parseCursorOnTarget(
+    const std::vector<std::uint8_t>& packet, MsgCursorOnTarget& out)
+{
+    return SightlineKlvParser::parseCursorOnTarget(packet, out);
+}
+
+bool SightlineProtocolParser::parseVmtiChips(const std::vector<std::uint8_t>& packet, MsgVmtiChips& out)
+{
+    return SightlineKlvParser::parseVmtiChips(packet, out);
+}
+
+bool SightlineProtocolParser::parseVmtiFields(const std::vector<std::uint8_t>& packet, MsgVmtiFields& out)
+{
+    return SightlineKlvParser::parseVmtiFields(packet, out);
+}
+
+bool SightlineProtocolParser::parseAncillaryText(
+    const std::vector<std::uint8_t>& packet, MsgAncillaryTextMetadata& out)
+{
+    return SightlineKlvParser::parseAncillaryText(packet, out);
+}
+
 bool SightlineProtocolParser::parseEthernetDisplay(
     const std::vector<std::uint8_t>& packet, MsgSetEthernetDisplayParameters& out)
 {

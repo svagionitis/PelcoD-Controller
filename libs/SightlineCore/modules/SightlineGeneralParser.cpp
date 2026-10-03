@@ -2,6 +2,7 @@
 /// @brief Implementation of Sightline General module response deserializer.
 
 #include "SightlineGeneralParser.h"
+#include "SightlineKlvParser.h"
 
 #include <algorithm>
 #include <string>
@@ -229,54 +230,20 @@ bool SightlineGeneralParser::parseSystemValue(ByteView packet, MsgSystemValue& o
 
 bool SightlineGeneralParser::parseTagData(ByteView packet, MsgTagData& out)
 {
-    if (SightlineFraming::identifyMessage(packet) != MessageId::TagData) {
-        return false;
-    }
-
-    const auto payload { SightlineFraming::extractPayload(packet) };
-    if (payload.size() < 2U) {
-        return false;
-    }
-
-    out.tagId = SightlineFraming::readU16Le(payload.data());
-    if (payload.size() > 2U) {
-        out.data.assign(payload.begin() + 2U, payload.end());
-    } else {
-        out.data.clear();
-    }
-    return true;
+    const std::vector<std::uint8_t> pkt(packet.begin(), packet.end());
+    return SightlineKlvParser::parseTagData(pkt, out);
 }
 
 bool SightlineGeneralParser::parseTagDataRate(ByteView packet, MsgTagDataRate& out)
 {
-    if (SightlineFraming::identifyMessage(packet) != MessageId::TagDataRate) {
-        return false;
-    }
-
-    const auto payload { SightlineFraming::extractPayload(packet) };
-    if (payload.size() < 3U) {
-        return false;
-    }
-
-    out.tagId = SightlineFraming::readU16Le(payload.data());
-    out.rate = payload[2U];
-    return true;
+    const std::vector<std::uint8_t> pkt(packet.begin(), packet.end());
+    return SightlineKlvParser::parseTagDataRate(pkt, out);
 }
 
 bool SightlineGeneralParser::parseTagSourceSelector(ByteView packet, MsgTagSourceSelector& out)
 {
-    if (SightlineFraming::identifyMessage(packet) != MessageId::TagSourceSelector) {
-        return false;
-    }
-
-    const auto payload { SightlineFraming::extractPayload(packet) };
-    if (payload.size() < 3U) {
-        return false;
-    }
-
-    out.tagId = SightlineFraming::readU16Le(payload.data());
-    out.source = payload[2U];
-    return true;
+    const std::vector<std::uint8_t> pkt(packet.begin(), packet.end());
+    return SightlineKlvParser::parseTagSourceSelector(pkt, out);
 }
 
 bool SightlineGeneralParser::parseDetailedTiming(ByteView packet, MsgDetailedTiming& out)
@@ -299,18 +266,8 @@ bool SightlineGeneralParser::parseDetailedTiming(ByteView packet, MsgDetailedTim
 
 bool SightlineGeneralParser::parseAppendedMetadata(ByteView packet, MsgAppendedMetadata& out)
 {
-    if (SightlineFraming::identifyMessage(packet) != MessageId::AppendedMetadata) {
-        return false;
-    }
-
-    const auto payload { SightlineFraming::extractPayload(packet) };
-    if (payload.size() < 2U) {
-        return false;
-    }
-
-    out.cameraIndex = payload[0U];
-    out.enable = payload[1U];
-    return true;
+    const std::vector<std::uint8_t> pkt(packet.begin(), packet.end());
+    return SightlineKlvParser::parseAppendedMetadata(pkt, out);
 }
 
 bool SightlineGeneralParser::parseFrameIndex(ByteView packet, MsgFrameIndex& out)
