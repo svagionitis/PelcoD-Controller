@@ -17,7 +17,7 @@ using namespace Visca::Testing;
 /// @details Verifies that AddressSet and CAM_VersionInq successfully identify camera parameters.
 TEST(TestViscaBusScanner, DiscoverSingleCamera)
 {
-    auto mockCamera = std::make_shared<MockViscaTransport>(1);
+    auto mockCamera = std::make_shared<MockViscaTransport>(uint8_t { 1U });
     mockCamera->open();
 
     ViscaBusScanner scanner(mockCamera);
@@ -42,7 +42,7 @@ TEST(TestViscaBusScanner, DiscoverSingleCamera)
 /// @brief Tests error callback when scanning with a closed or null transport interface.
 TEST(TestViscaBusScanner, ClosedTransportReportsError)
 {
-    auto mockCamera = std::make_shared<MockViscaTransport>(1);
+    auto mockCamera = std::make_shared<MockViscaTransport>(uint8_t { 1U });
     mockCamera->close(); // explicitly closed
 
     ViscaBusScanner scanner(mockCamera);
@@ -66,7 +66,7 @@ TEST(TestViscaBusScanner, ClosedTransportReportsError)
 /// @brief Tests error callback when transport sendData fails during AddressSet.
 TEST(TestViscaBusScanner, SendFailureReportsError)
 {
-    auto mockCamera = std::make_shared<MockViscaTransport>(1);
+    auto mockCamera = std::make_shared<MockViscaTransport>(uint8_t { 1U });
     mockCamera->open();
     mockCamera->setSendFailure(true);
 
@@ -91,7 +91,7 @@ TEST(TestViscaBusScanner, SendFailureReportsError)
 /// @brief Tests error reporting when AddressSet times out, triggering single-camera fallback.
 TEST(TestViscaBusScanner, AddressSetTimeoutFallback)
 {
-    auto mockCamera = std::make_shared<MockViscaTransport>(1);
+    auto mockCamera = std::make_shared<MockViscaTransport>(uint8_t { 1U });
     mockCamera->open();
     mockCamera->setDropAddressSet(true); // AddressSet will time out, but versionInquiry works
 
@@ -116,7 +116,7 @@ TEST(TestViscaBusScanner, AddressSetTimeoutFallback)
 /// @brief Tests early abort when cancellation predicate is signalled.
 TEST(TestViscaBusScanner, CancellationAbortsEarly)
 {
-    auto mockCamera = std::make_shared<MockViscaTransport>(1);
+    auto mockCamera = std::make_shared<MockViscaTransport>(uint8_t { 1U });
     mockCamera->open();
 
     ViscaBusScanner scanner(mockCamera);

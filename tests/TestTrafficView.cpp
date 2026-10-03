@@ -17,7 +17,7 @@ using namespace PelcoDTui;
 TEST(TestTrafficView, TrafficFiltering)
 {
     TrafficView tv;
-    auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(1U);
+    auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(static_cast<std::uint8_t>(1U));
     PelcoD::PelcoDDevice dev(mock, 1U);
 
     EXPECT_EQ(tv.getFilter(), TrafficFilter::All);
@@ -101,7 +101,7 @@ TEST(TestTrafficView, TrafficExport)
 TEST(TestTrafficView, TrafficRenderingAndControls)
 {
     TrafficView tv;
-    auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(1U);
+    auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(static_cast<std::uint8_t>(1U));
     PelcoD::PelcoDDevice dev(mock, 1U);
 
     const std::vector<std::uint8_t> txPacket { 0xFF, 0x01, 0x00, 0x02, 0x20, 0x00, 0x23 };
