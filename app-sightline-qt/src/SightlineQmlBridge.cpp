@@ -17,10 +17,13 @@
 SightlineQmlBridge::SightlineQmlBridge(QObject* parent)
     : QObject(parent)
     , m_coolerTimer(std::make_unique<QTimer>(this))
+    , m_recordingClockTimer(std::make_unique<QTimer>(this))
     , m_trackListModel(std::make_unique<TrackListModel>(this))
     , m_trafficLogModel(std::make_unique<TrafficLogModel>(this))
+    , m_recordingFileListModel(std::make_unique<RecordingFileListModel>(this))
 {
     connect(m_coolerTimer.get(), &QTimer::timeout, this, &SightlineQmlBridge::onCoolerTimerTick);
+    connect(m_recordingClockTimer.get(), &QTimer::timeout, this, &SightlineQmlBridge::onRecordingClockTick);
 }
 
 SightlineQmlBridge::~SightlineQmlBridge()
@@ -137,6 +140,61 @@ int SightlineQmlBridge::coolerCountdownRemaining() const noexcept
     return m_coolerRemaining;
 }
 
+bool SightlineQmlBridge::isRecordingActive() const noexcept
+{
+    return m_isRecordingActive;
+}
+
+int SightlineQmlBridge::freeStorageMB() const noexcept
+{
+    return m_freeStorageMB;
+}
+
+int SightlineQmlBridge::usedStorageMB() const noexcept
+{
+    return m_usedStorageMB;
+}
+
+double SightlineQmlBridge::storageUsagePercent() const noexcept
+{
+    return m_storageUsagePercent;
+}
+
+int SightlineQmlBridge::currentBitrateKbps() const noexcept
+{
+    return m_currentBitrateKbps;
+}
+
+int SightlineQmlBridge::droppedFrames() const noexcept
+{
+    return m_droppedFrames;
+}
+
+int SightlineQmlBridge::elapsedRecordingSec() const noexcept
+{
+    return m_elapsedRecordingSec;
+}
+
+QString SightlineQmlBridge::currentFilename() const
+{
+    return m_currentFilename;
+}
+
+QString SightlineQmlBridge::lastRecordingEvent() const
+{
+    return m_lastRecordingEvent;
+}
+
+QString SightlineQmlBridge::lastAckStatus() const
+{
+    return m_lastAckStatus;
+}
+
+RecordingFileListModel* SightlineQmlBridge::recordingFileListModel() const noexcept
+{
+    return m_recordingFileListModel.get();
+}
+
 bool SightlineQmlBridge::connectUdp(const QString& host, int cmdPort, int replyPort)
 {
     const bool hostChangedVal { m_host != host };
@@ -201,6 +259,14 @@ bool SightlineQmlBridge::connectUdp(const QString& host, int cmdPort, int replyP
     connect(m_device.get(), &QSightlineDevice::detectionRoiReceived, this, &SightlineQmlBridge::handleDetectionROI);
     connect(
         m_device.get(), &QSightlineDevice::klvMetricFiltersReceived, this, &SightlineQmlBridge::handleKlvMetricFilters);
+    connect(m_device.get(), &QSightlineDevice::commandAckReceived, this,
+        &SightlineQmlBridge::handleCommandAck);
+    connect(m_device.get(), &QSightlineDevice::recordingEventReceived, this,
+        &SightlineQmlBridge::handleRecordingEvent);
+    connect(m_device.get(), &QSightlineDevice::recordingStatusReceived, this,
+        &SightlineQmlBridge::handleRecordingStatus);
+    connect(m_device.get(), &QSightlineDevice::dirListingReplyReceived, this,
+        &SightlineQmlBridge::handleDirListingReply);
 
     const bool started = m_device->start();
     emit connectionChanged();
@@ -217,6 +283,16 @@ void SightlineQmlBridge::disconnectDevice()
         m_coolerTimer->stop();
         m_coolerRemaining = 0;
         emit coolerCountdownChanged();
+    }
+    if (m_recordingClockTimer && m_recordingClockTimer->isActive()) {
+        m_recordingClockTimer->stop();
+    }
+    m_isRecordingActive = false;
+    m_elapsedRecordingSec = 0;
+    emit recordingActiveChanged(false);
+    emit recordingClockChanged();
+    if (m_recordingFileListModel) {
+        m_recordingFileListModel->clear();
     }
     m_connectionTimer.invalidate();
     m_softwareVersion = tr("Disconnected");
@@ -811,6 +887,158 @@ bool SightlineQmlBridge::setSDRecording(int state, int cam, const QString& prefi
     msg.cameraIndex = static_cast<std::uint8_t>(cam);
     msg.filenamePrefix = prefix.toStdString();
     return m_device->device()->setSDRecording(msg);
+}
+
+bool SightlineQmlBridge::startRecordingV2(
+    int cam, const QString& prefix, int format, int dest, int maxDurationSec, int maxBitrateKbps, bool autoSplit)
+{
+    static_cast<void>(format);
+    static_cast<void>(maxDurationSec);
+    static_cast<void>(maxBitrateKbps);
+
+    if (!isConnected()) {
+        return false;
+    }
+    Sightline::MsgSetFileRecordingParamsV2 msg {};
+    static std::uint16_t s_recSeq { 1U };
+    msg.sequenceId = s_recSeq++;
+    msg.cameraIndex = static_cast<std::uint8_t>(cam);
+    msg.action = Sightline::RecordingAction::Start;
+    msg.destination = static_cast<Sightline::StorageDestination>(std::clamp(dest, 0, 2));
+
+    std::uint8_t flags = 0U;
+    if (autoSplit) {
+        flags |= static_cast<std::uint8_t>(Sightline::RecordingFlags::AllowNumericOverwrite);
+    }
+    msg.flags = flags;
+    msg.baseFilename = prefix.toStdString();
+
+    const bool ok = m_device->setFileRecordingV2(msg);
+    if (ok) {
+        m_isRecordingActive = true;
+        m_elapsedRecordingSec = 0;
+        if (!m_recordingClockTimer->isActive()) {
+            m_recordingClockTimer->start(1000);
+        }
+        emit recordingActiveChanged(true);
+        emit recordingClockChanged();
+    }
+    return ok;
+}
+
+bool SightlineQmlBridge::stopRecordingV2(int cam)
+{
+    if (!isConnected()) {
+        return false;
+    }
+    Sightline::MsgSetFileRecordingParamsV2 msg {};
+    static std::uint16_t s_stopSeq { 1000U };
+    msg.sequenceId = s_stopSeq++;
+    msg.cameraIndex = static_cast<std::uint8_t>(cam);
+    msg.action = Sightline::RecordingAction::Stop;
+
+    const bool ok = m_device->setFileRecordingV2(msg);
+    m_isRecordingActive = false;
+    if (m_recordingClockTimer && m_recordingClockTimer->isActive()) {
+        m_recordingClockTimer->stop();
+    }
+    emit recordingActiveChanged(false);
+    return ok;
+}
+
+bool SightlineQmlBridge::captureSnapshotV2(
+    int cam, const QString& prefix, int format, int quality, bool includeMetadata)
+{
+    static_cast<void>(includeMetadata);
+
+    if (!isConnected()) {
+        return false;
+    }
+    Sightline::MsgDoSnapShotV2 msg {};
+    static std::uint16_t s_snapSeq { 2000U };
+    msg.sequenceId = s_snapSeq++;
+    msg.cameraIndex = static_cast<std::uint8_t>(cam);
+    msg.format = static_cast<Sightline::SnapshotFormat>(std::clamp(format, 0, 3));
+    msg.qualityLevel = static_cast<std::uint8_t>(std::clamp(quality, 1, 100));
+    msg.burstCount = 1U;
+    msg.customFilename = prefix.toStdString();
+
+    return m_device->doSnapshotV2(msg);
+}
+
+bool SightlineQmlBridge::requestDirectoryListing(int dest, int startIndex, int maxEntries, const QString& filter)
+{
+    if (!isConnected()) {
+        return false;
+    }
+    Sightline::MsgGetDirectoryListing msg {};
+    static std::uint16_t s_dirSeq { 3000U };
+    msg.sequenceId = s_dirSeq++;
+    msg.destination = static_cast<Sightline::StorageDestination>(std::clamp(dest, 0, 3));
+    msg.startIndex = static_cast<std::uint32_t>(std::max(0, startIndex));
+    msg.maxEntries = static_cast<std::uint16_t>(std::clamp(maxEntries, 1, 255));
+    msg.pathFilter = filter.toStdString();
+
+    return m_device->getDirectoryListing(msg);
+}
+
+bool SightlineQmlBridge::pinStorageFile(int dest, const QString& filename, bool pin)
+{
+    if (!isConnected()) {
+        return false;
+    }
+    Sightline::MsgFileStorageManagement msg {};
+    static std::uint16_t s_mgmtSeq { 4000U };
+    msg.sequenceId = s_mgmtSeq++;
+    msg.operation = pin ? Sightline::FileStorageOp::Pin : Sightline::FileStorageOp::Unpin;
+    msg.destination = static_cast<Sightline::StorageDestination>(std::clamp(dest, 0, 3));
+    msg.targetFilename = filename.toStdString();
+
+    const bool ok = m_device->sendFileStorageMgmt(msg);
+    if (ok && m_recordingFileListModel) {
+        m_recordingFileListModel->setFilePinned(filename, pin);
+    }
+    return ok;
+}
+
+bool SightlineQmlBridge::deleteStorageFile(int dest, const QString& filename)
+{
+    if (!isConnected()) {
+        return false;
+    }
+    Sightline::MsgFileStorageManagement msg {};
+    static std::uint16_t s_delSeq { 5000U };
+    msg.sequenceId = s_delSeq++;
+    msg.operation = Sightline::FileStorageOp::Delete;
+    msg.destination = static_cast<Sightline::StorageDestination>(std::clamp(dest, 0, 3));
+    msg.targetFilename = filename.toStdString();
+
+    const bool ok = m_device->sendFileStorageMgmt(msg);
+    if (ok && m_recordingFileListModel) {
+        m_recordingFileListModel->removeEntry(filename);
+    }
+    return ok;
+}
+
+QJsonObject SightlineQmlBridge::validateFilename(const QString& prefix)
+{
+    QJsonObject obj;
+    const auto code = Sightline::RecordingValidator::checkFilename(prefix.toStdString(), 0U);
+    const bool valid = (code == Sightline::RecordingStatusCode::Success);
+    obj[QStringLiteral("valid")] = valid;
+    QString errStr {};
+    switch (code) {
+    case Sightline::RecordingStatusCode::ErrNumericFilename:
+        errStr = QStringLiteral("Warning: Filename cannot end in digits 0-9 without overwrite flag (Sightline rollover conflict)");
+        break;
+    case Sightline::RecordingStatusCode::ErrInvalidCharacters:
+        errStr = QStringLiteral("Error: Filename contains invalid characters or exceeds 64 characters");
+        break;
+    default:
+        break;
+    }
+    obj[QStringLiteral("error")] = errStr;
+    return obj;
 }
 
 // 6. Blending & Enhancement
@@ -1738,5 +1966,127 @@ void SightlineQmlBridge::onCoolerTimerTick()
         if (m_coolerTimer) {
             m_coolerTimer->stop();
         }
+    }
+}
+
+void SightlineQmlBridge::handleCommandAck(const Sightline::MsgCommandAck& ack)
+{
+    QString statusDesc = QStringLiteral("Success");
+    switch (ack.statusCode) {
+    case Sightline::RecordingStatusCode::Success:
+        statusDesc = QStringLiteral("Success (0x00)");
+        break;
+    case Sightline::RecordingStatusCode::ErrMalformedPayload:
+        statusDesc = QStringLiteral("Error: Malformed Payload (0x01)");
+        break;
+    case Sightline::RecordingStatusCode::ErrMediaUnavailable:
+        statusDesc = QStringLiteral("Error: Media Unavailable (0x02)");
+        break;
+    case Sightline::RecordingStatusCode::ErrMediaReadOnly:
+        statusDesc = QStringLiteral("Error: Media Read-Only (0x03)");
+        break;
+    case Sightline::RecordingStatusCode::ErrInsufficientStorage:
+        statusDesc = QStringLiteral("Error: Insufficient Storage (0x04)");
+        break;
+    case Sightline::RecordingStatusCode::ErrNumericFilename:
+        statusDesc = QStringLiteral("Error: Numeric Filename Conflict (0x05)");
+        break;
+    case Sightline::RecordingStatusCode::ErrInvalidCharacters:
+        statusDesc = QStringLiteral("Error: Invalid Characters (0x06)");
+        break;
+    case Sightline::RecordingStatusCode::ErrBusyFlushing:
+        statusDesc = QStringLiteral("Error: Storage Busy Flushing (0x07)");
+        break;
+    case Sightline::RecordingStatusCode::ErrChannelUnsupported:
+        statusDesc = QStringLiteral("Error: Channel Unsupported (0x08)");
+        break;
+    default:
+        statusDesc = QStringLiteral("Status 0x%1").arg(static_cast<int>(ack.statusCode), 2, 16, QChar('0'));
+        break;
+    }
+    m_lastAckStatus = QStringLiteral("ACK Seq %1 [%2]").arg(ack.sequenceId).arg(statusDesc);
+    emit commandAckReceived(ack.sequenceId, static_cast<int>(ack.statusCode), statusDesc);
+}
+
+void SightlineQmlBridge::handleRecordingEvent(const Sightline::MsgFileRecordingEvent& ev)
+{
+    QString evTypeStr = QStringLiteral("Event");
+    switch (ev.eventType) {
+    case Sightline::RecordingEventType::Started:
+        evTypeStr = QStringLiteral("Started");
+        m_isRecordingActive = true;
+        emit recordingActiveChanged(true);
+        break;
+    case Sightline::RecordingEventType::Stopped:
+        evTypeStr = QStringLiteral("Stopped");
+        m_isRecordingActive = false;
+        if (m_recordingClockTimer && m_recordingClockTimer->isActive()) {
+            m_recordingClockTimer->stop();
+        }
+        emit recordingActiveChanged(false);
+        break;
+    case Sightline::RecordingEventType::FileSplit:
+        evTypeStr = QStringLiteral("Split / Rollover");
+        break;
+    case Sightline::RecordingEventType::LowWatermark:
+        evTypeStr = QStringLiteral("Low Storage Watermark");
+        break;
+    case Sightline::RecordingEventType::CriticalStorage:
+        evTypeStr = QStringLiteral("Critical Storage (< 2%)");
+        break;
+    case Sightline::RecordingEventType::BufferOverrun:
+        evTypeStr = QStringLiteral("Buffer Overrun!");
+        break;
+    case Sightline::RecordingEventType::SnapshotSaved:
+        evTypeStr = QStringLiteral("Snapshot Saved");
+        break;
+    case Sightline::RecordingEventType::FifoPruned:
+        evTypeStr = QStringLiteral("FIFO Pruned Oldest");
+        break;
+    default:
+        break;
+    }
+
+    m_lastRecordingEvent = QStringLiteral("[%1] %2 %3")
+                               .arg(evTypeStr)
+                               .arg(QString::fromStdString(ev.eventPayload))
+                               .arg(ev.freeStorageMB > 0 ? QStringLiteral("(%1 MB free)").arg(ev.freeStorageMB) : QString());
+    emit recordingEventReceived(m_lastRecordingEvent);
+}
+
+void SightlineQmlBridge::handleRecordingStatus(const Sightline::MsgCurrentRecordingStatusV2& stat)
+{
+    m_isRecordingActive = (stat.recordingState != 0U);
+    m_currentBitrateKbps = static_cast<int>(stat.currentBitrateKbps);
+    m_droppedFrames = static_cast<int>(stat.droppedFrames);
+    m_freeStorageMB = static_cast<int>(stat.freeStorageMB);
+    m_currentFilename = QString::fromStdString(stat.activeFilename);
+
+    const quint64 usedMB = stat.totalBytesWritten / (1024ULL * 1024ULL);
+    m_usedStorageMB = static_cast<int>(usedMB);
+    const quint64 totalMB = usedMB + stat.freeStorageMB;
+    if (totalMB > 0ULL) {
+        m_storageUsagePercent = (static_cast<double>(usedMB) / static_cast<double>(totalMB)) * 100.0;
+    }
+
+    emit recordingStatusChanged();
+}
+
+void SightlineQmlBridge::handleDirListingReply(const Sightline::MsgDirectoryListingReply& rep)
+{
+    if (m_recordingFileListModel) {
+        if (rep.startIndex == 0U) {
+            m_recordingFileListModel->updateEntries(rep.entries);
+        } else {
+            m_recordingFileListModel->appendEntries(rep.entries);
+        }
+    }
+}
+
+void SightlineQmlBridge::onRecordingClockTick()
+{
+    if (m_isRecordingActive) {
+        m_elapsedRecordingSec++;
+        emit recordingClockChanged();
     }
 }

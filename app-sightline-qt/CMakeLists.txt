@@ -8,6 +8,8 @@ add_executable(SightlineAppQt
     src/TrackListModel.cpp
     src/TrafficLogModel.h
     src/TrafficLogModel.cpp
+    src/RecordingFileListModel.h
+    src/RecordingFileListModel.cpp
     src/VideoQuickItem.h
     src/VideoQuickItem.cpp
     qml.qrc
@@ -48,6 +50,8 @@ if(BUILD_TESTING)
         src/TrackListModel.cpp
         src/TrafficLogModel.h
         src/TrafficLogModel.cpp
+        src/RecordingFileListModel.h
+        src/RecordingFileListModel.cpp
         src/SightlineQmlBridge.h
         src/SightlineQmlBridge.cpp
         tests/TestSightlineVideo.cpp

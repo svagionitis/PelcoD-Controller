@@ -1,6 +1,7 @@
 /// @file TestSightlineVideo.cpp
 /// @brief Automated unit test suite for SightlineVideoController and VideoQuickItem.
 
+#include "RecordingFileListModel.h"
 #include "SightlineQmlBridge.h"
 #include "SightlineVideoController.h"
 #include "TrackListModel.h"
@@ -523,6 +524,104 @@ TEST_F(SightlineVideoTest, BridgeTrackingParameters)
     SightlineQmlBridge bridge {};
     EXPECT_FALSE(bridge.setTrackingParameters(0, 0, 0, 15, 0, 0, 0, 0, 0));
     EXPECT_FALSE(bridge.queryTrackingParameters(0));
+}
+
+TEST_F(SightlineVideoTest, RecordingFileListModelLifecycle)
+{
+    RecordingFileListModel model {};
+    EXPECT_EQ(model.rowCount(), 0);
+
+    // Formatter helpers
+    EXPECT_EQ(RecordingFileListModel::formatFileSize(500ULL), QStringLiteral("500 B"));
+    EXPECT_EQ(RecordingFileListModel::formatFileSize(2048ULL), QStringLiteral("2.0 KB"));
+    EXPECT_EQ(RecordingFileListModel::formatFileSize(10485760ULL), QStringLiteral("10.0 MB"));
+    EXPECT_EQ(RecordingFileListModel::formatFileSize(1073741824ULL), QStringLiteral("1.00 GB"));
+
+    EXPECT_EQ(RecordingFileListModel::formatTypeName(0U), QStringLiteral("MPEG-TS"));
+    EXPECT_EQ(RecordingFileListModel::formatTypeName(1U), QStringLiteral("MP4 (fMP4)"));
+    EXPECT_EQ(RecordingFileListModel::formatTypeName(2U), QStringLiteral("JPEG Still"));
+
+    EXPECT_EQ(RecordingFileListModel::formatTimestamp(0ULL), QStringLiteral("---"));
+    EXPECT_NE(RecordingFileListModel::formatTimestamp(1609459200000000ULL), QStringLiteral("---"));
+
+    // Populate entries
+    std::vector<Sightline::DirListEntry> entries {};
+    Sightline::DirListEntry e1 {};
+    e1.filename = "flight_0001.ts";
+    e1.fileSizeBytes = 104857600ULL;
+    e1.timestampUs = 1609459200000000ULL;
+    e1.isPinned = false;
+    e1.formatType = 0U;
+
+    Sightline::DirListEntry e2 {};
+    e2.filename = "snap_0001.jpg";
+    e2.fileSizeBytes = 204800ULL;
+    e2.timestampUs = 1609459300000000ULL;
+    e2.isPinned = true;
+    e2.formatType = 2U;
+
+    entries.push_back(e1);
+    entries.push_back(e2);
+
+    model.updateEntries(entries);
+    EXPECT_EQ(model.rowCount(), 2);
+
+    const QModelIndex idx0 = model.index(0, 0);
+    EXPECT_EQ(model.data(idx0, RecordingFileListModel::FilenameRole).toString(), QStringLiteral("flight_0001.ts"));
+    EXPECT_EQ(model.data(idx0, RecordingFileListModel::FileSizeBytesRole).toULongLong(), 104857600ULL);
+    EXPECT_FALSE(model.data(idx0, RecordingFileListModel::IsPinnedRole).toBool());
+    EXPECT_EQ(model.data(idx0, RecordingFileListModel::FormatTypeRole).toInt(), 0);
+    EXPECT_EQ(model.data(idx0, RecordingFileListModel::FormatStringRole).toString(), QStringLiteral("MPEG-TS"));
+
+    // Pinning
+    model.setFilePinned(QStringLiteral("flight_0001.ts"), true);
+    EXPECT_TRUE(model.data(idx0, RecordingFileListModel::IsPinnedRole).toBool());
+
+    // Removal
+    model.removeEntry(QStringLiteral("flight_0001.ts"));
+    EXPECT_EQ(model.rowCount(), 1);
+    EXPECT_EQ(model.data(model.index(0, 0), RecordingFileListModel::FilenameRole).toString(), QStringLiteral("snap_0001.jpg"));
+
+    // Append
+    model.appendEntries({ e1 });
+    EXPECT_EQ(model.rowCount(), 2);
+
+    model.clear();
+    EXPECT_EQ(model.rowCount(), 0);
+}
+
+TEST_F(SightlineVideoTest, BridgeRecordingPropertiesAndValidation)
+{
+    SightlineQmlBridge bridge {};
+    EXPECT_FALSE(bridge.isRecordingActive());
+    EXPECT_EQ(bridge.freeStorageMB(), 0);
+    EXPECT_EQ(bridge.usedStorageMB(), 0);
+    EXPECT_DOUBLE_EQ(bridge.storageUsagePercent(), 0.0);
+    EXPECT_EQ(bridge.currentBitrateKbps(), 0);
+    EXPECT_EQ(bridge.droppedFrames(), 0);
+    EXPECT_EQ(bridge.elapsedRecordingSec(), 0);
+    EXPECT_TRUE(bridge.currentFilename().isEmpty());
+    EXPECT_TRUE(bridge.lastRecordingEvent().isEmpty());
+    EXPECT_TRUE(bridge.lastAckStatus().isEmpty());
+    ASSERT_NE(bridge.recordingFileListModel(), nullptr);
+
+    // Filename validation
+    const auto validRes = bridge.validateFilename(QStringLiteral("mission_flight"));
+    EXPECT_TRUE(validRes[QStringLiteral("valid")].toBool());
+    EXPECT_TRUE(validRes[QStringLiteral("error")].toString().isEmpty());
+
+    // Ending with digit 0-9 violates Sightline rollover convention
+    const auto invalidDigit = bridge.validateFilename(QStringLiteral("mission_flight01"));
+    EXPECT_FALSE(invalidDigit[QStringLiteral("valid")].toBool());
+    EXPECT_FALSE(invalidDigit[QStringLiteral("error")].toString().isEmpty());
+
+    // Disconnected operations should safely return false without crashing
+    EXPECT_FALSE(bridge.startRecordingV2(0, QStringLiteral("test"), 0, 0, 0, 0, true));
+    EXPECT_FALSE(bridge.stopRecordingV2(0));
+    EXPECT_FALSE(bridge.captureSnapshotV2(0, QStringLiteral("snap"), 0, 85, true));
+    EXPECT_FALSE(bridge.requestDirectoryListing(0, 0, 20, QStringLiteral("")));
+    EXPECT_FALSE(bridge.pinStorageFile(0, QStringLiteral("file.ts"), true));
+    EXPECT_FALSE(bridge.deleteStorageFile(0, QStringLiteral("file.ts")));
 }
 
 } // namespace

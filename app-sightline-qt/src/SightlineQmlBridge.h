@@ -3,13 +3,16 @@
 /// @file SightlineQmlBridge.h
 /// @brief Primary QML bridge controller exposing SightlineDevice API, models and telemetry.
 
+#include "RecordingFileListModel.h"
 #include "TrackListModel.h"
 #include "TrafficLogModel.h"
 #include <SightlineCore/SightlineMessages.h>
+#include <SightlineCore/modules/RecordingValidator.h>
 #include <SightlineQt/QSightlineDevice.h>
 #include <Transport/SightlineUdpTransport.h>
 
 #include <QElapsedTimer>
+#include <QJsonObject>
 #include <QObject>
 #include <QRect>
 #include <QString>
@@ -37,6 +40,17 @@ class SightlineQmlBridge : public QObject {
     Q_PROPERTY(QVariantList activeOverlayIds READ activeOverlayIds NOTIFY activeOverlayIdsChanged)
     Q_PROPERTY(bool coolerCountdownActive READ isCoolerCountdownActive NOTIFY coolerCountdownChanged)
     Q_PROPERTY(int coolerCountdownRemaining READ coolerCountdownRemaining NOTIFY coolerCountdownChanged)
+    Q_PROPERTY(bool isRecordingActive READ isRecordingActive NOTIFY recordingActiveChanged)
+    Q_PROPERTY(int freeStorageMB READ freeStorageMB NOTIFY recordingStatusChanged)
+    Q_PROPERTY(int usedStorageMB READ usedStorageMB NOTIFY recordingStatusChanged)
+    Q_PROPERTY(double storageUsagePercent READ storageUsagePercent NOTIFY recordingStatusChanged)
+    Q_PROPERTY(int currentBitrateKbps READ currentBitrateKbps NOTIFY recordingStatusChanged)
+    Q_PROPERTY(int droppedFrames READ droppedFrames NOTIFY recordingStatusChanged)
+    Q_PROPERTY(int elapsedRecordingSec READ elapsedRecordingSec NOTIFY recordingClockChanged)
+    Q_PROPERTY(QString currentFilename READ currentFilename NOTIFY recordingStatusChanged)
+    Q_PROPERTY(QString lastRecordingEvent READ lastRecordingEvent NOTIFY recordingEventReceived)
+    Q_PROPERTY(QString lastAckStatus READ lastAckStatus NOTIFY commandAckReceived)
+    Q_PROPERTY(RecordingFileListModel* recordingFileListModel READ recordingFileListModel CONSTANT)
 
 public:
     /// @brief Construct a new SightlineQmlBridge instance.
@@ -127,6 +141,39 @@ public:
     /// @brief Get remaining seconds for active cooler countdown.
     /// @return Remaining seconds (0 if inactive).
     [[nodiscard]] int coolerCountdownRemaining() const noexcept;
+
+    /// @brief Check if video recording is actively in progress.
+    [[nodiscard]] bool isRecordingActive() const noexcept;
+
+    /// @brief Get remaining free storage space in megabytes.
+    [[nodiscard]] int freeStorageMB() const noexcept;
+
+    /// @brief Get consumed storage space in megabytes.
+    [[nodiscard]] int usedStorageMB() const noexcept;
+
+    /// @brief Get storage consumption percentage (0.0 to 100.0).
+    [[nodiscard]] double storageUsagePercent() const noexcept;
+
+    /// @brief Get current stream encode bitrate in Kbps.
+    [[nodiscard]] int currentBitrateKbps() const noexcept;
+
+    /// @brief Get total dropped video frames counter.
+    [[nodiscard]] int droppedFrames() const noexcept;
+
+    /// @brief Get elapsed recording time in seconds.
+    [[nodiscard]] int elapsedRecordingSec() const noexcept;
+
+    /// @brief Get active recording target filename.
+    [[nodiscard]] QString currentFilename() const;
+
+    /// @brief Get last received recording event text.
+    [[nodiscard]] QString lastRecordingEvent() const;
+
+    /// @brief Get last received command ACK status description.
+    [[nodiscard]] QString lastAckStatus() const;
+
+    /// @brief Access remote storage file list model.
+    [[nodiscard]] RecordingFileListModel* recordingFileListModel() const noexcept;
 
     // --- QML Invokable Operations ---
 
@@ -427,6 +474,59 @@ public:
     /// @param prefix File name prefix.
     /// @return True if dispatched.
     Q_INVOKABLE bool setSDRecording(int state, int cam, const QString& prefix);
+
+    /// @brief Starts video recording using hardened V2 protocol.
+    /// @param cam Camera index.
+    /// @param prefix Base filename prefix.
+    /// @param format Format index (0: TS, 1: MP4, 2: Raw).
+    /// @param dest Storage destination (0: MicroSD, 1: USB, 2: Network, 3: Temp).
+    /// @param maxDurationSec Maximum duration in seconds per split (0 = default).
+    /// @param maxBitrateKbps Bitrate ceiling in Kbps (0 = unlimited).
+    /// @param autoSplit True to enable automatic rollover.
+    /// @return True if successfully dispatched.
+    Q_INVOKABLE bool startRecordingV2(
+        int cam, const QString& prefix, int format, int dest, int maxDurationSec, int maxBitrateKbps, bool autoSplit);
+
+    /// @brief Stops video recording on specified camera.
+    /// @param cam Camera index.
+    /// @return True if successfully dispatched.
+    Q_INVOKABLE bool stopRecordingV2(int cam);
+
+    /// @brief Captures a still snapshot with explicit parameters.
+    /// @param cam Camera index.
+    /// @param prefix Optional custom filename.
+    /// @param format Format index (0: JPEG, 1: PNG, 2: TIFF16, 3: SLRAW).
+    /// @param quality Quality percentage (1-100).
+    /// @param includeMetadata True to request embedding geospatial KLV/XMP metadata.
+    /// @return True if successfully dispatched.
+    Q_INVOKABLE bool captureSnapshotV2(
+        int cam, const QString& prefix, int format, int quality, bool includeMetadata);
+
+    /// @brief Queries remote filesystem directory listing.
+    /// @param dest Target storage device (0: MicroSD, 1: USB).
+    /// @param startIndex Starting entry index.
+    /// @param maxEntries Maximum entries to return.
+    /// @param filter Substring filter for matching filenames.
+    /// @return True if query dispatched.
+    Q_INVOKABLE bool requestDirectoryListing(int dest, int startIndex, int maxEntries, const QString& filter);
+
+    /// @brief Modifies file pin status on remote storage.
+    /// @param dest Target storage device.
+    /// @param filename File to pin/unpin.
+    /// @param pin True to pin, false to unpin.
+    /// @return True if command dispatched.
+    Q_INVOKABLE bool pinStorageFile(int dest, const QString& filename, bool pin);
+
+    /// @brief Deletes a file on remote storage.
+    /// @param dest Target storage device.
+    /// @param filename Target file to delete.
+    /// @return True if command dispatched.
+    Q_INVOKABLE bool deleteStorageFile(int dest, const QString& filename);
+
+    /// @brief Validates filename prefix against Sightline filename rollover rules.
+    /// @param prefix Proposed prefix.
+    /// @return QJsonObject with "valid" (bool) and "error" (string).
+    Q_INVOKABLE [[nodiscard]] QJsonObject validateFilename(const QString& prefix);
 
     // 6. Blending & Enhancement
     /// @brief Configure dual-camera video blending parameters.
@@ -804,6 +904,11 @@ signals:
     void trackCoastingChanged(int cam, int trackId, bool isCoasting);
     void trackingParametersReceived(int cam, int mode, int flags, int maxMisses, int zoomSmoothing,
         int rollSmoothing, int maxPauseTime, int acqCol, int acqRow);
+    void recordingActiveChanged(bool active);
+    void recordingStatusChanged();
+    void recordingClockChanged();
+    void recordingEventReceived(const QString& eventMsg);
+    void commandAckReceived(int seqId, int status, const QString& statusStr);
 
 private slots:
     void handleTrackingPositions(const Sightline::MsgTrackingPositions& pos);
@@ -824,6 +929,11 @@ private slots:
     void handleAdvDetection(const Sightline::MsgAdvancedDetectionParameters& adv);
     void handleDetectionROI(const Sightline::MsgDetectionROI& roi);
     void handleKlvMetricFilters(const Sightline::MsgKlvMetricFilters& filters);
+    void handleCommandAck(const Sightline::MsgCommandAck& ack);
+    void handleRecordingEvent(const Sightline::MsgFileRecordingEvent& ev);
+    void handleRecordingStatus(const Sightline::MsgCurrentRecordingStatusV2& stat);
+    void handleDirListingReply(const Sightline::MsgDirectoryListingReply& rep);
+    void onRecordingClockTick();
     void onCoolerTimerTick();
 
 private:
@@ -836,6 +946,17 @@ private:
     int m_uptimeSeconds { 0 };
     QString m_lastWarningMessage {};
     QString m_softwareVersion { "Disconnected" };
+
+    bool m_isRecordingActive { false };
+    int m_freeStorageMB { 0 };
+    int m_usedStorageMB { 0 };
+    double m_storageUsagePercent { 0.0 };
+    int m_currentBitrateKbps { 0 };
+    int m_droppedFrames { 0 };
+    int m_elapsedRecordingSec { 0 };
+    QString m_currentFilename {};
+    QString m_lastRecordingEvent {};
+    QString m_lastAckStatus {};
 
     Sightline::MsgSetVideoEnhancementFull m_cachedEnhancement[4] {};
     Sightline::MsgSetTrackingParameters m_cachedTrackingParams[4] {};
@@ -853,7 +974,9 @@ private:
     QVariantList m_activeOverlayIds {};
 
     QElapsedTimer m_connectionTimer {};
+    std::unique_ptr<QTimer> m_recordingClockTimer {};
     std::unique_ptr<QSightlineDevice> m_device {};
     std::unique_ptr<TrackListModel> m_trackListModel {};
     std::unique_ptr<TrafficLogModel> m_trafficLogModel {};
+    std::unique_ptr<RecordingFileListModel> m_recordingFileListModel {};
 };

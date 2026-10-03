@@ -6,6 +6,7 @@
 #include <SightlineCore/SightlineDevice.h>
 #include <SightlineCore/SightlineMessages.h>
 #include <SightlineCore/SightlineTypes.h>
+#include <SightlineCore/modules/SightlineRecording.h>
 
 #include <QByteArray>
 #include <QObject>
@@ -83,6 +84,18 @@ public:
     /// @brief Retrieves the latest cached algorithmic tracking parameters.
     [[nodiscard]] std::optional<Sightline::MsgSetTrackingParameters> lastTrackingParameters() const;
 
+    /// @brief Retrieves the latest cached command acknowledgment.
+    [[nodiscard]] std::optional<Sightline::MsgCommandAck> lastCommandAck() const;
+
+    /// @brief Retrieves the latest cached recording event notification.
+    [[nodiscard]] std::optional<Sightline::MsgFileRecordingEvent> lastRecordingEvent() const;
+
+    /// @brief Retrieves the latest cached recording status telemetry.
+    [[nodiscard]] std::optional<Sightline::MsgCurrentRecordingStatusV2> lastRecordingStatus() const;
+
+    /// @brief Retrieves the latest cached directory listing reply.
+    [[nodiscard]] std::optional<Sightline::MsgDirectoryListingReply> lastDirListingReply() const;
+
     /// @brief Retrieves transport and kernel-level metrics.
     [[nodiscard]] Transport::TransportStatsSnapshot getTransportStats() const;
 
@@ -107,6 +120,10 @@ signals:
     void advDetectionReceived(const Sightline::MsgAdvancedDetectionParameters& params);
     void detectionRoiReceived(const Sightline::MsgDetectionROI& roi);
     void klvMetricFiltersReceived(const Sightline::MsgKlvMetricFilters& filters);
+    void commandAckReceived(const Sightline::MsgCommandAck& ack);
+    void recordingEventReceived(const Sightline::MsgFileRecordingEvent& event);
+    void recordingStatusReceived(const Sightline::MsgCurrentRecordingStatusV2& status);
+    void dirListingReplyReceived(const Sightline::MsgDirectoryListingReply& reply);
     void rawFrameReceived(bool isTx, const QByteArray& data);
     void connectionStateChanged(bool isConnected);
 
@@ -195,6 +212,12 @@ public slots:
     bool getOverlayObjectsIds(quint8 cameraIndex = 0U);
     bool getOverlayObjectParams(quint8 objectId);
 
+    // Hardened Recording & Media Storage
+    bool setFileRecordingV2(const Sightline::MsgSetFileRecordingParamsV2& msg);
+    bool doSnapshotV2(const Sightline::MsgDoSnapShotV2& msg);
+    bool getDirectoryListing(const Sightline::MsgGetDirectoryListing& msg);
+    bool sendFileStorageMgmt(const Sightline::MsgFileStorageManagement& msg);
+
     bool sendRawPacket(const QByteArray& rawPacket);
 
 private:
@@ -207,3 +230,8 @@ private:
 };
 
 Q_DECLARE_METATYPE(Sightline::TrackCoordinate)
+Q_DECLARE_METATYPE(Sightline::MsgCommandAck)
+Q_DECLARE_METATYPE(Sightline::MsgFileRecordingEvent)
+Q_DECLARE_METATYPE(Sightline::MsgCurrentRecordingStatusV2)
+Q_DECLARE_METATYPE(Sightline::MsgDirectoryListingReply)
+Q_DECLARE_METATYPE(Sightline::DirListEntry)

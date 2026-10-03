@@ -146,6 +146,38 @@ std::optional<Sightline::MsgSetTrackingParameters> QSightlineDevice::lastTrackin
     return std::nullopt;
 }
 
+std::optional<Sightline::MsgCommandAck> QSightlineDevice::lastCommandAck() const
+{
+    if (m_device) {
+        return m_device->lastCommandAck();
+    }
+    return std::nullopt;
+}
+
+std::optional<Sightline::MsgFileRecordingEvent> QSightlineDevice::lastRecordingEvent() const
+{
+    if (m_device) {
+        return m_device->lastRecordingEvent();
+    }
+    return std::nullopt;
+}
+
+std::optional<Sightline::MsgCurrentRecordingStatusV2> QSightlineDevice::lastRecordingStatus() const
+{
+    if (m_device) {
+        return m_device->lastRecordingStatus();
+    }
+    return std::nullopt;
+}
+
+std::optional<Sightline::MsgDirectoryListingReply> QSightlineDevice::lastDirListingReply() const
+{
+    if (m_device) {
+        return m_device->lastDirListingReply();
+    }
+    return std::nullopt;
+}
+
 Transport::TransportStatsSnapshot QSightlineDevice::getTransportStats() const
 {
     if (m_device) {
@@ -253,6 +285,26 @@ void QSightlineDevice::wireCallbacks()
     m_device->setKlvMetricFiltersCb([this](const Sightline::MsgKlvMetricFilters& filters) {
         QMetaObject::invokeMethod(
             this, [this, filters]() { emit klvMetricFiltersReceived(filters); }, Qt::QueuedConnection);
+    });
+
+    m_device->setCommandAckCallback([this](const Sightline::MsgCommandAck& ack) {
+        QMetaObject::invokeMethod(
+            this, [this, ack]() { emit commandAckReceived(ack); }, Qt::QueuedConnection);
+    });
+
+    m_device->setRecordingEventCb([this](const Sightline::MsgFileRecordingEvent& ev) {
+        QMetaObject::invokeMethod(
+            this, [this, ev]() { emit recordingEventReceived(ev); }, Qt::QueuedConnection);
+    });
+
+    m_device->setRecordingStatusCb([this](const Sightline::MsgCurrentRecordingStatusV2& stat) {
+        QMetaObject::invokeMethod(
+            this, [this, stat]() { emit recordingStatusReceived(stat); }, Qt::QueuedConnection);
+    });
+
+    m_device->setDirListingReplyCb([this](const Sightline::MsgDirectoryListingReply& rep) {
+        QMetaObject::invokeMethod(
+            this, [this, rep]() { emit dirListingReplyReceived(rep); }, Qt::QueuedConnection);
     });
 
     m_device->setRawTrafficCallback([this](bool isTx, const std::vector<std::uint8_t>& frame) {
@@ -748,4 +800,24 @@ bool QSightlineDevice::getOverlayObjectsIds(quint8 cameraIndex)
 bool QSightlineDevice::getOverlayObjectParams(quint8 objectId)
 {
     return m_device ? m_device->getOverlayObjectParams(objectId) : false;
+}
+
+bool QSightlineDevice::setFileRecordingV2(const Sightline::MsgSetFileRecordingParamsV2& msg)
+{
+    return m_device ? m_device->setFileRecordingV2(msg) : false;
+}
+
+bool QSightlineDevice::doSnapshotV2(const Sightline::MsgDoSnapShotV2& msg)
+{
+    return m_device ? m_device->doSnapShotV2(msg) : false;
+}
+
+bool QSightlineDevice::getDirectoryListing(const Sightline::MsgGetDirectoryListing& msg)
+{
+    return m_device ? m_device->getDirectoryListing(msg) : false;
+}
+
+bool QSightlineDevice::sendFileStorageMgmt(const Sightline::MsgFileStorageManagement& msg)
+{
+    return m_device ? m_device->sendFileStorageMgmt(msg) : false;
 }
