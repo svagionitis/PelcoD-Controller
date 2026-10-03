@@ -102,6 +102,47 @@ struct MsgDoSnapShotV2 {
     std::string customFilename {};          ///< Optional custom filename override
 };
 
+/// @enum RecordingEventType
+/// @brief Event types emitted in FileRecordingEvent (Message ID 0xC6).
+enum class RecordingEventType : std::uint8_t {
+    Started = 0x01U,         ///< Recording started and first file opened
+    FileSplit = 0x02U,       ///< Boundary reached; rollover to new container
+    Stopped = 0x03U,         ///< Stop flush completed; file closed and synced
+    LowWatermark = 0x04U,    ///< Storage free space below low threshold (< 10%)
+    CriticalStorage = 0x05U, ///< Storage free space critical (< 2%)
+    BufferOverrun = 0x06U,   ///< Memory ring buffer full; frames throttled
+    SnapshotSaved = 0x07U,   ///< Still frame capture committed to disk
+    FifoPruned = 0x08U       ///< Oldest file unlinked to reclaim storage
+};
+
+/// @struct MsgFileRecordingEvent
+/// @brief Asynchronous push-based recording notification (Message ID 0xC6).
+struct MsgFileRecordingEvent {
+    std::uint64_t timestampUs { 0ULL };     ///< Microsecond precision UTC timestamp
+    std::uint8_t cameraIndex { 0U };        ///< Originating sensor channel (0..2)
+    RecordingEventType eventType { RecordingEventType::Started }; ///< Event category
+    std::uint32_t statusCode { 0U };        ///< Status or error code (0=Success)
+    std::uint32_t freeStorageMB { 0U };     ///< Remaining storage capacity in MB
+    std::uint8_t queueFullPercent { 0U };   ///< Memory ring buffer fullness (0..100%)
+    std::string eventPayload {};            ///< Contextual string (e.g. filename)
+};
+
+/// @struct MsgCurrentRecordingStatusV2
+/// @brief Comprehensive periodic recording health telemetry (Message ID 0xC7).
+struct MsgCurrentRecordingStatusV2 {
+    std::uint16_t sequenceId { 0U };        ///< Telemetry sequence counter
+    std::uint8_t cameraIndex { 0U };        ///< Active sensor channel (0..2)
+    std::uint8_t recordingState { 0U };     ///< 0: Idle, 1: Active, 2: Flushing, 3: Error
+    std::uint32_t currentBitrateKbps { 0U };///< Instantaneous write throughput in kbps
+    std::uint64_t totalBytesWritten { 0ULL };///< Cumulative session bytes written
+    std::uint32_t freeStorageMB { 0U };     ///< Unallocated storage capacity in MB
+    std::uint16_t estRemainingSecs { 0U };  ///< Estimated duration until media full
+    std::uint8_t ringBufferPercent { 0U };  ///< Ring buffer memory utilization (0..100%)
+    std::uint16_t droppedFrames { 0U };     ///< Cumulative dropped frame count
+    std::uint16_t activeFileFrameCount { 0U }; ///< Frames committed to active file
+    std::string activeFilename {};          ///< Relative path of active file
+};
+
 /// @struct MsgSetSDRecordingParameters
 /// @brief Onboard SD card video recording control (Message ID 0x1E).
 struct MsgSetSDRecordingParameters {

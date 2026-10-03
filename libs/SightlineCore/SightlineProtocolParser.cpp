@@ -195,6 +195,16 @@ bool SightlineProtocolParser::parseDoSnapShotV2(const std::vector<std::uint8_t>&
     return SightlineRecordingParser::parseDoSnapShotV2(packet, out);
 }
 
+bool SightlineProtocolParser::parseRecordingEvent(const std::vector<std::uint8_t>& packet, MsgFileRecordingEvent& out)
+{
+    return SightlineRecordingParser::parseRecordingEvent(packet, out);
+}
+
+bool SightlineProtocolParser::parseRecordingStatusV2(const std::vector<std::uint8_t>& packet, MsgCurrentRecordingStatusV2& out)
+{
+    return SightlineRecordingParser::parseRecordingStatusV2(packet, out);
+}
+
 // ==============================================================================
 // 4. Thermal NUC & Sensor Calibration Deserializers (Nuc)
 // ==============================================================================

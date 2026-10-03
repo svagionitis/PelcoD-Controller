@@ -42,6 +42,8 @@ public:
     using KlvMetricFiltersCallback = std::function<void(const MsgKlvMetricFilters&)>;
     using TrackingParamsCallback = std::function<void(const MsgSetTrackingParameters&)>;
     using CommandAckCallback = std::function<void(const MsgCommandAck&)>;
+    using RecordingEventCallback = std::function<void(const MsgFileRecordingEvent&)>;
+    using RecordingStatusV2Callback = std::function<void(const MsgCurrentRecordingStatusV2&)>;
 
     /// @brief Constructs a SightlineDevice wrapping the given transport channel.
     /// @param[in] transport Shared pointer to underlying communication transport.
@@ -423,6 +425,16 @@ public:
     /// @return True if command was successfully transmitted.
     [[nodiscard]] bool sendCmdAck(const MsgCommandAck& msg);
 
+    /// @brief Transmits a file recording event notification (0xC6).
+    /// @param[in] msg File recording event structure.
+    /// @return True if command was successfully transmitted.
+    [[nodiscard]] bool sendRecordingEvent(const MsgFileRecordingEvent& msg);
+
+    /// @brief Transmits comprehensive recording health telemetry (0xC7).
+    /// @param[in] msg Recording health telemetry structure.
+    /// @return True if command was successfully transmitted.
+    [[nodiscard]] bool sendRecordingStatusV2(const MsgCurrentRecordingStatusV2& msg);
+
     /// @brief Starts, stops, or pauses network video streams.
     /// @param[in] streamIndex Zero-based stream index.
     /// @param[in] action Action code (0: Stop, 1: Start, 2: Pause).
@@ -719,6 +731,18 @@ public:
     /// @brief Retrieves the latest cached command acknowledgment reply.
     [[nodiscard]] std::optional<MsgCommandAck> lastCommandAck() const;
 
+    /// @brief Registers an observer callback for file recording events (0xC6).
+    void setRecordingEventCb(RecordingEventCallback cb);
+
+    /// @brief Registers an observer callback for recording status telemetry (0xC7).
+    void setRecordingStatusCb(RecordingStatusV2Callback cb);
+
+    /// @brief Retrieves the latest cached file recording event.
+    [[nodiscard]] std::optional<MsgFileRecordingEvent> lastRecordingEvent() const;
+
+    /// @brief Retrieves the latest cached recording status telemetry.
+    [[nodiscard]] std::optional<MsgCurrentRecordingStatusV2> lastRecordingStatus() const;
+
     /// @brief Retrieves the latest cached tracking positions snapshot.
     [[nodiscard]] std::optional<MsgTrackingPositions> lastTrackingPositions() const;
 
@@ -788,6 +812,8 @@ private:
     KlvMetricFiltersCallback m_klvMetricFiltersCallback;
     TrackingParamsCallback m_trackingParamsCallback;
     CommandAckCallback m_commandAckCallback;
+    RecordingEventCallback m_recordingEventCb;
+    RecordingStatusV2Callback m_recordingStatusCb;
 
     mutable std::mutex m_cacheMutex;
     std::optional<MsgTrackingPositions> m_lastPositions;
@@ -805,6 +831,8 @@ private:
     std::optional<MsgDetectionROI> m_lastDetectionROI;
     std::optional<MsgKlvMetricFilters> m_lastKlvMetricFilters;
     std::optional<MsgCommandAck> m_lastCommandAck;
+    std::optional<MsgFileRecordingEvent> m_lastRecordingEvent;
+    std::optional<MsgCurrentRecordingStatusV2> m_lastRecordingStatus;
     StabilizationCallback m_stabilizationCallback;
     RegistrationCallback m_registrationCallback;
     StabilizationBiasCallback m_stabilizationBiasCallback;

@@ -178,6 +178,12 @@ public:
     /// @brief Parses hardened snapshot request (Message ID 0xC5).
     [[nodiscard]] static bool parseDoSnapShotV2(const std::vector<std::uint8_t>& packet, MsgDoSnapShotV2& out);
 
+    /// @brief Parses push-based file recording event notification (Message ID 0xC6).
+    [[nodiscard]] static bool parseRecordingEvent(const std::vector<std::uint8_t>& packet, MsgFileRecordingEvent& out);
+
+    /// @brief Parses comprehensive recording health telemetry (Message ID 0xC7).
+    [[nodiscard]] static bool parseRecordingStatusV2(const std::vector<std::uint8_t>& packet, MsgCurrentRecordingStatusV2& out);
+
     // --- Thermal NUC & Sensor Calibration Deserializers ---
 
     /// @brief Parses NUC calibration parameters (Message ID 0x35).

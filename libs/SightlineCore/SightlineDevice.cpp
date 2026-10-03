@@ -470,6 +470,16 @@ bool SightlineDevice::sendCmdAck(const MsgCommandAck& msg)
     return sendPacket(SightlineProtocolBuilder::buildCmdAck(msg));
 }
 
+bool SightlineDevice::sendRecordingEvent(const MsgFileRecordingEvent& msg)
+{
+    return sendPacket(SightlineProtocolBuilder::buildRecordingEvent(msg));
+}
+
+bool SightlineDevice::sendRecordingStatusV2(const MsgCurrentRecordingStatusV2& msg)
+{
+    return sendPacket(SightlineProtocolBuilder::buildRecordingStatusV2(msg));
+}
+
 bool SightlineDevice::streamingControl(std::uint8_t streamIndex, std::uint8_t action)
 {
     MsgStreamingControl msg {};
@@ -851,6 +861,30 @@ std::optional<MsgCommandAck> SightlineDevice::lastCommandAck() const
 {
     std::lock_guard<std::mutex> lock(m_cacheMutex);
     return m_lastCommandAck;
+}
+
+void SightlineDevice::setRecordingEventCb(RecordingEventCallback cb)
+{
+    std::lock_guard<std::mutex> lock(m_callbackMutex);
+    m_recordingEventCb = std::move(cb);
+}
+
+void SightlineDevice::setRecordingStatusCb(RecordingStatusV2Callback cb)
+{
+    std::lock_guard<std::mutex> lock(m_callbackMutex);
+    m_recordingStatusCb = std::move(cb);
+}
+
+std::optional<MsgFileRecordingEvent> SightlineDevice::lastRecordingEvent() const
+{
+    std::lock_guard<std::mutex> lock(m_cacheMutex);
+    return m_lastRecordingEvent;
+}
+
+std::optional<MsgCurrentRecordingStatusV2> SightlineDevice::lastRecordingStatus() const
+{
+    std::lock_guard<std::mutex> lock(m_cacheMutex);
+    return m_lastRecordingStatus;
 }
 
 std::optional<MsgSetOverlayMode> SightlineDevice::lastOverlayMode() const
@@ -1235,6 +1269,42 @@ void SightlineDevice::dispatchPacket(const std::vector<std::uint8_t>& packet)
             }
             if (cb) {
                 cb(ack);
+            }
+        }
+        break;
+    }
+    case MessageId::FileRecordingEvent: {
+        MsgFileRecordingEvent event {};
+        if (SightlineProtocolParser::parseRecordingEvent(packet, event)) {
+            {
+                std::lock_guard<std::mutex> lock(m_cacheMutex);
+                m_lastRecordingEvent = event;
+            }
+            RecordingEventCallback cb {};
+            {
+                std::lock_guard<std::mutex> lock(m_callbackMutex);
+                cb = m_recordingEventCb;
+            }
+            if (cb) {
+                cb(event);
+            }
+        }
+        break;
+    }
+    case MessageId::CurrentRecordingStatusV2: {
+        MsgCurrentRecordingStatusV2 status {};
+        if (SightlineProtocolParser::parseRecordingStatusV2(packet, status)) {
+            {
+                std::lock_guard<std::mutex> lock(m_cacheMutex);
+                m_lastRecordingStatus = status;
+            }
+            RecordingStatusV2Callback cb {};
+            {
+                std::lock_guard<std::mutex> lock(m_callbackMutex);
+                cb = m_recordingStatusCb;
+            }
+            if (cb) {
+                cb(status);
             }
         }
         break;

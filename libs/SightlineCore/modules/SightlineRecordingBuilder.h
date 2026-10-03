@@ -50,6 +50,18 @@ public:
     /// @return Framed binary packet.
     [[nodiscard]] static std::vector<std::uint8_t> buildDoSnapShotV2(
         const MsgDoSnapShotV2& msg);
+
+    /// @brief Encodes push-based file recording event notification (Message ID 0xC6).
+    /// @param[in] msg File recording event structure.
+    /// @return Framed binary packet.
+    [[nodiscard]] static std::vector<std::uint8_t> buildRecordingEvent(
+        const MsgFileRecordingEvent& msg);
+
+    /// @brief Encodes comprehensive recording health telemetry (Message ID 0xC7).
+    /// @param[in] msg Recording health telemetry structure.
+    /// @return Framed binary packet.
+    [[nodiscard]] static std::vector<std::uint8_t> buildRecordingStatusV2(
+        const MsgCurrentRecordingStatusV2& msg);
 };
 
 } // namespace Sightline

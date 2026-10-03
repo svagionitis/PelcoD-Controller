@@ -433,6 +433,16 @@ std::vector<std::uint8_t> SightlineProtocolBuilder::buildDoSnapShotV2(const MsgD
     return SightlineRecordingBuilder::buildDoSnapShotV2(msg);
 }
 
+std::vector<std::uint8_t> SightlineProtocolBuilder::buildRecordingEvent(const MsgFileRecordingEvent& msg)
+{
+    return SightlineRecordingBuilder::buildRecordingEvent(msg);
+}
+
+std::vector<std::uint8_t> SightlineProtocolBuilder::buildRecordingStatusV2(const MsgCurrentRecordingStatusV2& msg)
+{
+    return SightlineRecordingBuilder::buildRecordingStatusV2(msg);
+}
+
 std::vector<std::uint8_t> SightlineProtocolBuilder::buildStreamingControl(const MsgStreamingControl& msg)
 {
     return SightlineCompressionBuilder::buildStreamingControl(msg);

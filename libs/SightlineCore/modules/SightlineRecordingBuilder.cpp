@@ -77,4 +77,42 @@ std::vector<std::uint8_t> SightlineRecordingBuilder::buildDoSnapShotV2(
     return SightlineFraming::buildPacket(MessageId::DoSnapShotV2, payload);
 }
 
+std::vector<std::uint8_t> SightlineRecordingBuilder::buildRecordingEvent(
+    const MsgFileRecordingEvent& msg)
+{
+    std::vector<std::uint8_t> payload {};
+    payload.reserve(19U + msg.eventPayload.size() + 1U);
+    SightlineFraming::appendU64Le(payload, msg.timestampUs);
+    payload.push_back(msg.cameraIndex);
+    payload.push_back(static_cast<std::uint8_t>(msg.eventType));
+    SightlineFraming::appendU32Le(payload, msg.statusCode);
+    SightlineFraming::appendU32Le(payload, msg.freeStorageMB);
+    payload.push_back(msg.queueFullPercent);
+    if (!msg.eventPayload.empty()) {
+        SightlineFraming::appendString(payload, msg.eventPayload);
+    }
+    return SightlineFraming::buildPacket(MessageId::FileRecordingEvent, payload);
+}
+
+std::vector<std::uint8_t> SightlineRecordingBuilder::buildRecordingStatusV2(
+    const MsgCurrentRecordingStatusV2& msg)
+{
+    std::vector<std::uint8_t> payload {};
+    payload.reserve(27U + msg.activeFilename.size() + 1U);
+    SightlineFraming::appendU16Le(payload, msg.sequenceId);
+    payload.push_back(msg.cameraIndex);
+    payload.push_back(msg.recordingState);
+    SightlineFraming::appendU32Le(payload, msg.currentBitrateKbps);
+    SightlineFraming::appendU64Le(payload, msg.totalBytesWritten);
+    SightlineFraming::appendU32Le(payload, msg.freeStorageMB);
+    SightlineFraming::appendU16Le(payload, msg.estRemainingSecs);
+    payload.push_back(msg.ringBufferPercent);
+    SightlineFraming::appendU16Le(payload, msg.droppedFrames);
+    SightlineFraming::appendU16Le(payload, msg.activeFileFrameCount);
+    if (!msg.activeFilename.empty()) {
+        SightlineFraming::appendString(payload, msg.activeFilename);
+    }
+    return SightlineFraming::buildPacket(MessageId::CurrentRecordingStatusV2, payload);
+}
+
 } // namespace Sightline

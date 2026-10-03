@@ -18,6 +18,8 @@
 #include "modules/SightlineRecordingBuilder.h"
 #include "modules/SightlineRecordingParser.h"
 #include "modules/RecordingValidator.h"
+#include "modules/RecordingRingBuffer.h"
+#include "modules/StorageRetentionManager.h"
 
 #include <gtest/gtest.h>
 
@@ -819,6 +821,185 @@ namespace {
         MsgDoSnapShotV2 facadeSnap {};
         ASSERT_TRUE(SightlineProtocolParser::parseDoSnapShotV2(pkt, facadeSnap));
         EXPECT_EQ(facadeSnap.customFilename, "RawBurst");
+    }
+
+    TEST(TestSightlineVideoPipeline, RecordingRingBufferBasic)
+    {
+        RecordingRingBuffer ringBuffer(4U);
+        EXPECT_EQ(ringBuffer.capacity(), 4U);
+        EXPECT_EQ(ringBuffer.size(), 0U);
+        EXPECT_TRUE(ringBuffer.empty());
+        EXPECT_FALSE(ringBuffer.full());
+        EXPECT_EQ(ringBuffer.droppedCount(), 0U);
+        EXPECT_EQ(ringBuffer.utilizationPercent(), 0U);
+
+        RecordingChunk c1 {};
+        c1.timestampUs = 1000U;
+        c1.cameraIndex = 0U;
+        c1.data = { 0x01, 0x02 };
+
+        RecordingChunk c2 {};
+        c2.timestampUs = 2000U;
+
+        RecordingChunk c3 {};
+        c3.timestampUs = 3000U;
+
+        RecordingChunk c4 {};
+        c4.timestampUs = 4000U;
+
+        EXPECT_TRUE(ringBuffer.push(std::move(c1)));
+        EXPECT_TRUE(ringBuffer.push(std::move(c2)));
+        EXPECT_TRUE(ringBuffer.push(std::move(c3)));
+        EXPECT_EQ(ringBuffer.size(), 3U);
+        EXPECT_FALSE(ringBuffer.empty());
+        EXPECT_FALSE(ringBuffer.full());
+
+        EXPECT_TRUE(ringBuffer.push(std::move(c4)));
+        EXPECT_TRUE(ringBuffer.full());
+        EXPECT_EQ(ringBuffer.size(), 4U);
+
+        // Buffer full - next push must drop
+        RecordingChunk c5 {};
+        c5.timestampUs = 5000U;
+        EXPECT_FALSE(ringBuffer.push(std::move(c5)));
+        EXPECT_EQ(ringBuffer.droppedCount(), 1U);
+        EXPECT_EQ(ringBuffer.size(), 4U);
+
+        const auto poppedOpt = ringBuffer.pop();
+        ASSERT_TRUE(poppedOpt.has_value());
+        EXPECT_EQ(poppedOpt->timestampUs, 1000U);
+        EXPECT_EQ(poppedOpt->data.size(), 2U);
+        EXPECT_EQ(ringBuffer.size(), 3U);
+        EXPECT_FALSE(ringBuffer.full());
+
+        RecordingChunk c6 {};
+        c6.timestampUs = 6000U;
+        EXPECT_TRUE(ringBuffer.push(std::move(c6)));
+        EXPECT_TRUE(ringBuffer.full());
+
+        std::vector<RecordingChunk> drained {};
+        while (auto opt = ringBuffer.pop()) {
+            drained.push_back(std::move(*opt));
+        }
+        EXPECT_EQ(drained.size(), 4U);
+        EXPECT_EQ(drained[0].timestampUs, 2000U);
+        EXPECT_EQ(drained[1].timestampUs, 3000U);
+        EXPECT_EQ(drained[2].timestampUs, 4000U);
+        EXPECT_EQ(drained[3].timestampUs, 6000U);
+        EXPECT_TRUE(ringBuffer.empty());
+
+        ringBuffer.clear();
+        EXPECT_EQ(ringBuffer.droppedCount(), 0U);
+    }
+
+    TEST(TestSightlineVideoPipeline, StorageRetentionManagerPrune)
+    {
+        StorageRetentionManager manager {};
+
+        std::vector<FileMetadataEntry> entries {
+            { "video_001.ts", 100000000ULL, 1000U, false },
+            { "video_002.ts", 200000000ULL, 2000U, false },
+            { "video_003.ts", 300000000ULL, 3000U, false },
+            { "video_004.ts", 400000000ULL, 4000U, false }
+        };
+
+        // Pin video_001 so it cannot be pruned
+        manager.pinFile("video_001.ts");
+        EXPECT_TRUE(manager.isPinned("video_001.ts"));
+
+        // Request reclamation of 250 MB (250,000,000 bytes)
+        // Expected: oldest unpinned files evicted first (video_002 is 200MB, so need video_003 as well)
+        std::uint64_t reclaimedBytes { 0ULL };
+        const auto pruneList = manager.pruneOldest(entries, 250000000ULL, reclaimedBytes);
+        ASSERT_EQ(pruneList.size(), 2U);
+        EXPECT_EQ(pruneList[0], "video_002.ts");
+        EXPECT_EQ(pruneList[1], "video_003.ts");
+        EXPECT_GE(reclaimedBytes, 250000000ULL);
+
+        // Now unpin video_001
+        manager.unpinFile("video_001.ts");
+        EXPECT_FALSE(manager.isPinned("video_001.ts"));
+
+        // Recalculate: video_001 is now eligible as oldest
+        const auto newPruneList = manager.pruneOldest(entries, 250000000ULL, reclaimedBytes);
+        ASSERT_EQ(newPruneList.size(), 2U);
+        EXPECT_EQ(newPruneList[0], "video_001.ts");
+        EXPECT_EQ(newPruneList[1], "video_002.ts");
+        EXPECT_GE(reclaimedBytes, 250000000ULL);
+
+        // Clear all pinned
+        manager.clearPinned();
+        EXPECT_FALSE(manager.isPinned("video_001.ts"));
+    }
+
+    TEST(TestSightlineVideoPipeline, RecordingEventRoundTrip)
+    {
+        MsgFileRecordingEvent inEvt {};
+        inEvt.timestampUs = 987654321ULL;
+        inEvt.cameraIndex = 1U;
+        inEvt.eventType = RecordingEventType::Stopped;
+        inEvt.statusCode = 0U;
+        inEvt.freeStorageMB = 24000U;
+        inEvt.queueFullPercent = 15U;
+        inEvt.eventPayload = "Mission_01_0001.ts";
+
+        const auto pkt = SightlineRecordingBuilder::buildRecordingEvent(inEvt);
+        EXPECT_EQ(SightlineFraming::identifyMessage(pkt), MessageId::FileRecordingEvent);
+        EXPECT_EQ(pkt, SightlineProtocolBuilder::buildRecordingEvent(inEvt));
+
+        MsgFileRecordingEvent outEvt {};
+        ASSERT_TRUE(SightlineRecordingParser::parseRecordingEvent(pkt, outEvt));
+        EXPECT_EQ(outEvt.timestampUs, 987654321ULL);
+        EXPECT_EQ(outEvt.cameraIndex, 1U);
+        EXPECT_EQ(outEvt.eventType, RecordingEventType::Stopped);
+        EXPECT_EQ(outEvt.statusCode, 0U);
+        EXPECT_EQ(outEvt.freeStorageMB, 24000U);
+        EXPECT_EQ(outEvt.queueFullPercent, 15U);
+        EXPECT_EQ(outEvt.eventPayload, "Mission_01_0001.ts");
+
+        // Facade equivalence
+        MsgFileRecordingEvent facadeEvt {};
+        ASSERT_TRUE(SightlineProtocolParser::parseRecordingEvent(pkt, facadeEvt));
+        EXPECT_EQ(facadeEvt.eventPayload, "Mission_01_0001.ts");
+    }
+
+    TEST(TestSightlineVideoPipeline, RecordingStatusV2RoundTrip)
+    {
+        MsgCurrentRecordingStatusV2 inStatus {};
+        inStatus.sequenceId = 200U;
+        inStatus.cameraIndex = 2U;
+        inStatus.recordingState = 1U;
+        inStatus.currentBitrateKbps = 15200U;
+        inStatus.totalBytesWritten = 1073741824ULL;
+        inStatus.freeStorageMB = 28400U;
+        inStatus.estRemainingSecs = 1800U;
+        inStatus.ringBufferPercent = 12U;
+        inStatus.droppedFrames = 2U;
+        inStatus.activeFileFrameCount = 3600U;
+        inStatus.activeFilename = "ActiveRec.ts";
+
+        const auto pkt = SightlineRecordingBuilder::buildRecordingStatusV2(inStatus);
+        EXPECT_EQ(SightlineFraming::identifyMessage(pkt), MessageId::CurrentRecordingStatusV2);
+        EXPECT_EQ(pkt, SightlineProtocolBuilder::buildRecordingStatusV2(inStatus));
+
+        MsgCurrentRecordingStatusV2 outStatus {};
+        ASSERT_TRUE(SightlineRecordingParser::parseRecordingStatusV2(pkt, outStatus));
+        EXPECT_EQ(outStatus.sequenceId, 200U);
+        EXPECT_EQ(outStatus.cameraIndex, 2U);
+        EXPECT_EQ(outStatus.recordingState, 1U);
+        EXPECT_EQ(outStatus.currentBitrateKbps, 15200U);
+        EXPECT_EQ(outStatus.totalBytesWritten, 1073741824ULL);
+        EXPECT_EQ(outStatus.freeStorageMB, 28400U);
+        EXPECT_EQ(outStatus.estRemainingSecs, 1800U);
+        EXPECT_EQ(outStatus.ringBufferPercent, 12U);
+        EXPECT_EQ(outStatus.droppedFrames, 2U);
+        EXPECT_EQ(outStatus.activeFileFrameCount, 3600U);
+        EXPECT_EQ(outStatus.activeFilename, "ActiveRec.ts");
+
+        // Facade equivalence
+        MsgCurrentRecordingStatusV2 facadeStatus {};
+        ASSERT_TRUE(SightlineProtocolParser::parseRecordingStatusV2(pkt, facadeStatus));
+        EXPECT_EQ(facadeStatus.activeFilename, "ActiveRec.ts");
     }
 
 } // namespace

@@ -142,4 +142,68 @@ bool SightlineRecordingParser::parseDoSnapShotV2(
     return true;
 }
 
+bool SightlineRecordingParser::parseRecordingEvent(
+    const std::vector<std::uint8_t>& packet, MsgFileRecordingEvent& out)
+{
+    if (SightlineFraming::identifyMessage(packet) != MessageId::FileRecordingEvent) {
+        return false;
+    }
+
+    const auto payload { SightlineFraming::extractPayload(packet) };
+    if (payload.size() < 19U) {
+        return false;
+    }
+
+    out.timestampUs = SightlineFraming::readU64Le(payload.data());
+    out.cameraIndex = payload[8U];
+    out.eventType = static_cast<RecordingEventType>(payload[9U]);
+    out.statusCode = SightlineFraming::readU32Le(payload.data() + 10U);
+    out.freeStorageMB = SightlineFraming::readU32Le(payload.data() + 14U);
+    out.queueFullPercent = payload[18U];
+    if (payload.size() > 19U) {
+        out.eventPayload = std::string(
+            reinterpret_cast<const char*>(payload.data() + 19U), payload.size() - 19U);
+        while (!out.eventPayload.empty() && out.eventPayload.back() == '\0') {
+            out.eventPayload.pop_back();
+        }
+    } else {
+        out.eventPayload.clear();
+    }
+    return true;
+}
+
+bool SightlineRecordingParser::parseRecordingStatusV2(
+    const std::vector<std::uint8_t>& packet, MsgCurrentRecordingStatusV2& out)
+{
+    if (SightlineFraming::identifyMessage(packet) != MessageId::CurrentRecordingStatusV2) {
+        return false;
+    }
+
+    const auto payload { SightlineFraming::extractPayload(packet) };
+    if (payload.size() < 27U) {
+        return false;
+    }
+
+    out.sequenceId = SightlineFraming::readU16Le(payload.data());
+    out.cameraIndex = payload[2U];
+    out.recordingState = payload[3U];
+    out.currentBitrateKbps = SightlineFraming::readU32Le(payload.data() + 4U);
+    out.totalBytesWritten = SightlineFraming::readU64Le(payload.data() + 8U);
+    out.freeStorageMB = SightlineFraming::readU32Le(payload.data() + 16U);
+    out.estRemainingSecs = SightlineFraming::readU16Le(payload.data() + 20U);
+    out.ringBufferPercent = payload[22U];
+    out.droppedFrames = SightlineFraming::readU16Le(payload.data() + 23U);
+    out.activeFileFrameCount = SightlineFraming::readU16Le(payload.data() + 25U);
+    if (payload.size() > 27U) {
+        out.activeFilename = std::string(
+            reinterpret_cast<const char*>(payload.data() + 27U), payload.size() - 27U);
+        while (!out.activeFilename.empty() && out.activeFilename.back() == '\0') {
+            out.activeFilename.pop_back();
+        }
+    } else {
+        out.activeFilename.clear();
+    }
+    return true;
+}
+
 } // namespace Sightline

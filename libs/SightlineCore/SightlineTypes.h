@@ -399,6 +399,8 @@ enum class MessageId : std::uint8_t {
     CommandAck = 0xC3U,
     SetFileRecordingParamsV2 = 0xC4U,
     DoSnapShotV2 = 0xC5U,
+    FileRecordingEvent = 0xC6U,
+    CurrentRecordingStatusV2 = 0xC7U,
     Unknown = 0xFFU
 };
 
@@ -707,6 +709,10 @@ struct TrackingTelemetrySnapshot {
         return "SetFileRecordingParamsV2 (0xC4)";
     case MessageId::DoSnapShotV2:
         return "DoSnapShotV2 (0xC5)";
+    case MessageId::FileRecordingEvent:
+        return "FileRecordingEvent (0xC6)";
+    case MessageId::CurrentRecordingStatusV2:
+        return "CurrentRecordingStatusV2 (0xC7)";
     default:
         return "Unknown Message";
     }

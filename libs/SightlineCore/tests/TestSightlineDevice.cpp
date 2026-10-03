@@ -692,5 +692,89 @@ namespace {
         device.stop();
     }
 
+    /// @brief Verify Phase 2 file recording event notifications and health telemetry handling.
+    TEST(TestSightlineDevice, Phase2RecordingTelemetryIntegration)
+    {
+        auto transport = std::make_shared<MockTestTransport>();
+        SightlineDevice device(transport);
+        ASSERT_TRUE(device.start());
+
+        std::atomic<bool> eventReceived { false };
+        MsgFileRecordingEvent capturedEvent {};
+        device.setRecordingEventCb([&](const MsgFileRecordingEvent& evt) {
+            eventReceived = true;
+            capturedEvent = evt;
+        });
+
+        std::atomic<bool> statusReceived { false };
+        MsgCurrentRecordingStatusV2 capturedStatus {};
+        device.setRecordingStatusCb([&](const MsgCurrentRecordingStatusV2& st) {
+            statusReceived = true;
+            capturedStatus = st;
+        });
+
+        // 1. Dispatch sendRecordingEvent
+        MsgFileRecordingEvent eventOut {};
+        eventOut.timestampUs = 123456789ULL;
+        eventOut.cameraIndex = 0U;
+        eventOut.eventType = RecordingEventType::Started;
+        eventOut.statusCode = 0U;
+        eventOut.freeStorageMB = 15000U;
+        eventOut.queueFullPercent = 5U;
+        eventOut.eventPayload = "Track_001.ts";
+
+        EXPECT_TRUE(device.sendRecordingEvent(eventOut));
+        auto sent = transport->getSentPackets();
+        ASSERT_EQ(sent.size(), 1U);
+        EXPECT_EQ(SightlineFraming::identifyMessage(sent[0]), MessageId::FileRecordingEvent);
+
+        // 2. Dispatch sendRecordingStatusV2
+        transport->clearSentPackets();
+        MsgCurrentRecordingStatusV2 statusOut {};
+        statusOut.sequenceId = 101U;
+        statusOut.cameraIndex = 0U;
+        statusOut.recordingState = 1U;
+        statusOut.currentBitrateKbps = 9500U;
+        statusOut.totalBytesWritten = 1073741824ULL;
+        statusOut.freeStorageMB = 12000U;
+        statusOut.estRemainingSecs = 3600U;
+        statusOut.ringBufferPercent = 10U;
+        statusOut.droppedFrames = 0U;
+        statusOut.activeFileFrameCount = 1800U;
+        statusOut.activeFilename = "Track_001.ts";
+
+        EXPECT_TRUE(device.sendRecordingStatusV2(statusOut));
+        sent = transport->getSentPackets();
+        ASSERT_EQ(sent.size(), 1U);
+        EXPECT_EQ(SightlineFraming::identifyMessage(sent[0]), MessageId::CurrentRecordingStatusV2);
+
+        // 3. Inject inbound FileRecordingEvent
+        const auto incomingEvtPkt = SightlineProtocolBuilder::buildRecordingEvent(eventOut);
+        transport->injectData(incomingEvtPkt);
+
+        EXPECT_TRUE(eventReceived.load());
+        EXPECT_EQ(capturedEvent.timestampUs, 123456789ULL);
+        EXPECT_EQ(capturedEvent.eventType, RecordingEventType::Started);
+        EXPECT_EQ(capturedEvent.eventPayload, "Track_001.ts");
+
+        EXPECT_TRUE(device.lastRecordingEvent().has_value());
+        EXPECT_EQ(device.lastRecordingEvent()->timestampUs, 123456789ULL);
+
+        // 4. Inject inbound CurrentRecordingStatusV2
+        const auto incomingStPkt = SightlineProtocolBuilder::buildRecordingStatusV2(statusOut);
+        transport->injectData(incomingStPkt);
+
+        EXPECT_TRUE(statusReceived.load());
+        EXPECT_EQ(capturedStatus.sequenceId, 101U);
+        EXPECT_EQ(capturedStatus.freeStorageMB, 12000U);
+        EXPECT_EQ(capturedStatus.currentBitrateKbps, 9500U);
+
+        EXPECT_TRUE(device.lastRecordingStatus().has_value());
+        EXPECT_EQ(device.lastRecordingStatus()->sequenceId, 101U);
+        EXPECT_EQ(device.lastRecordingStatus()->freeStorageMB, 12000U);
+
+        device.stop();
+    }
+
 } // namespace
 } // namespace Sightline

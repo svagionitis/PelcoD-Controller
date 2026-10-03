@@ -75,6 +75,10 @@ add_library(SightlineCore STATIC
     modules/SightlineRecordingParser.cpp
     modules/RecordingValidator.h
     modules/RecordingValidator.cpp
+    modules/RecordingRingBuffer.h
+    modules/RecordingRingBuffer.cpp
+    modules/StorageRetentionManager.h
+    modules/StorageRetentionManager.cpp
     modules/SightlineSerialBuilder.h
     modules/SightlineSerialBuilder.cpp
     modules/SightlineSerialParser.h

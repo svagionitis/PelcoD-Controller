@@ -51,6 +51,20 @@ public:
     /// @return True if parsing succeeded.
     [[nodiscard]] static bool parseDoSnapShotV2(
         const std::vector<std::uint8_t>& packet, MsgDoSnapShotV2& out);
+
+    /// @brief Parses push-based file recording event notification (Message ID 0xC6).
+    /// @param[in] packet Raw packet buffer.
+    /// @param[out] out Deserialized event structure.
+    /// @return True if parsing succeeded.
+    [[nodiscard]] static bool parseRecordingEvent(
+        const std::vector<std::uint8_t>& packet, MsgFileRecordingEvent& out);
+
+    /// @brief Parses comprehensive recording health telemetry (Message ID 0xC7).
+    /// @param[in] packet Raw packet buffer.
+    /// @param[out] out Deserialized telemetry structure.
+    /// @return True if parsing succeeded.
+    [[nodiscard]] static bool parseRecordingStatusV2(
+        const std::vector<std::uint8_t>& packet, MsgCurrentRecordingStatusV2& out);
 };
 
 } // namespace Sightline
