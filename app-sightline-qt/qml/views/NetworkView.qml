@@ -14,7 +14,7 @@ ScrollView {
     ScrollBar.vertical.policy: ScrollBar.AsNeeded
     ScrollBar.horizontal.policy: ScrollBar.AsNeeded
 
-    readonly property int minContentWidth: 520
+    readonly property int minContentWidth: 640
 
     ColumnLayout {
         id: mainCol
@@ -24,22 +24,47 @@ ScrollView {
 
         Item { Layout.preferredHeight: 2 }
 
+        // Header Title
         RowLayout {
             Layout.fillWidth: true
             spacing: 8
-            Rectangle { width: 4; height: 18; color: SightlineTheme.primary; radius: 2 }
+            Rectangle { width: 4; height: 20; color: SightlineTheme.primary; radius: 2 }
             Text {
-                text: "NETWORK & CURSOR-ON-TARGET (CoT) XML"
+                text: "NETWORK INTERFACES, TRAFFIC CONTROL & TELEMETRY"
                 color: SightlineTheme.textPrimary
                 font.pixelSize: SightlineTheme.fontSizeMedium
                 font.bold: true
                 font.letterSpacing: 1.0
             }
             Text {
-                text: "// Modules 0x1C, 0x7E TAK/ATAK Integration"
+                text: "// Modules 0x1C, 0x66, 0x92 Linux TC & 0x7E CoT"
                 color: SightlineTheme.textMuted
                 font.pixelSize: SightlineTheme.fontSizeSmall
                 font.family: "Monospace"
+            }
+            Item { Layout.fillWidth: true }
+
+            Button {
+                text: "Query Network Info"
+                Layout.preferredHeight: 28
+                background: Rectangle {
+                    color: parent.hovered ? SightlineTheme.surfaceLight : SightlineTheme.surfaceCard
+                    radius: 4
+                    border.color: SightlineTheme.cardBorder
+                }
+                contentItem: Text {
+                    text: parent.text
+                    color: SightlineTheme.primary
+                    font.pixelSize: 11
+                    font.bold: true
+                    horizontalAlignment: Text.AlignHCenter
+                    verticalAlignment: Text.AlignVCenter
+                }
+                onClicked: {
+                    if (bridge) {
+                        bridge.queryNetworkParams();
+                    }
+                }
             }
         }
 
@@ -47,37 +72,276 @@ ScrollView {
         Flow {
             Layout.fillWidth: true
             spacing: 10
-            MetricCard { title: "NIC Speed"; value: "1000 Mbps"; accentColor: SightlineTheme.success; iconText: "🔌" }
-            MetricCard { title: "Active Target IP"; value: bridge ? bridge.host : "127.0.0.1"; accentColor: SightlineTheme.primary; iconText: "🌐" }
-            MetricCard { title: "CoT Broadcast"; value: cotSwitch.checked ? "ACTIVE" : "STANDBY"; accentColor: cotSwitch.checked ? SightlineTheme.success : SightlineTheme.textMuted; iconText: "📡" }
+
+            MetricCard {
+                title: "NIC Interface"
+                value: "eth0 (1 Gbps)"
+                accentColor: SightlineTheme.success
+                iconText: "🔌"
+            }
+            MetricCard {
+                title: "Target Host IP"
+                value: bridge ? bridge.host : "127.0.0.1"
+                accentColor: SightlineTheme.primary
+                iconText: "🌐"
+            }
+            MetricCard {
+                title: "Traffic Limiter"
+                value: bridge ? (bridge.tcRateKbps > 0 ? bridge.tcRateKbps + " kbps" : "UNRESTRICTED") : "UNRESTRICTED"
+                accentColor: bridge && bridge.tcRateKbps > 0 ? SightlineTheme.warning : SightlineTheme.textMuted
+                iconText: "🚦"
+            }
+            MetricCard {
+                title: "CoT Telemetry"
+                value: cotSwitch.checked ? "STREAMING" : "STANDBY"
+                accentColor: cotSwitch.checked ? SightlineTheme.success : SightlineTheme.textMuted
+                iconText: "📡"
+            }
         }
 
-        // Settings Card
+        // Section: Linux Traffic Control (tc) Card
         Rectangle {
             Layout.fillWidth: true
-            implicitHeight: netCol.implicitHeight + 28
+            implicitHeight: tcCol.implicitHeight + 28
             color: SightlineTheme.surfaceCard
             radius: SightlineTheme.radiusMedium
             border.color: SightlineTheme.cardBorder
             border.width: 1
 
             ColumnLayout {
-                id: netCol
+                id: tcCol
                 anchors.fill: parent
                 anchors.margins: 14
                 spacing: 12
 
+                RowLayout {
+                    Layout.fillWidth: true
+                    Text {
+                        text: "LINUX TRAFFIC CONTROL (tc) BANDWIDTH LIMITER"
+                        color: SightlineTheme.primary
+                        font.pixelSize: 11
+                        font.bold: true
+                    }
+                    Item { Layout.fillWidth: true }
+                    Text {
+                        text: "System Value 13 (0x92 / 0x93)"
+                        color: SightlineTheme.textMuted
+                        font.pixelSize: 10
+                        font.family: "Monospace"
+                    }
+                }
+
                 Text {
-                    text: "CURSOR-ON-TARGET (CoT) TELEMETRY FEED"
-                    color: SightlineTheme.primary
+                    text: "Configure kernel-level packet shaping on the SLA embedded Linux network stack to prevent RF link saturation during high-motion bursts."
+                    color: SightlineTheme.textSecondary
                     font.pixelSize: 11
-                    font.bold: true
+                    Layout.fillWidth: true
+                }
+
+                // Rate Limit Slider & SpinBox
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 12
+                    Text { text: "Shaping Rate Limit:"; color: SightlineTheme.textSecondary; font.pixelSize: 12; Layout.preferredWidth: 160; Layout.alignment: Qt.AlignVCenter }
+
+                    Slider {
+                        id: tcRateSlider
+                        from: 0
+                        to: 30000
+                        value: bridge ? bridge.tcRateKbps : 0
+                        stepSize: 250
+                        Layout.preferredWidth: 260
+                    }
+
+                    TextField {
+                        id: tcRateInput
+                        text: Math.round(tcRateSlider.value).toString()
+                        Layout.preferredWidth: 80
+                        color: SightlineTheme.textPrimary
+                        horizontalAlignment: Text.AlignHCenter
+                        background: Rectangle {
+                            color: SightlineTheme.surfaceLight
+                            radius: 4
+                            border.color: parent.activeFocus ? SightlineTheme.primary : SightlineTheme.inputBorder
+                        }
+                        onEditingFinished: {
+                            var val = parseInt(text) || 0;
+                            val = Math.max(0, Math.min(100000, val));
+                            tcRateSlider.value = val;
+                        }
+                    }
+
+                    Text {
+                        text: tcRateSlider.value === 0 ? "Unlimited (Shaping Disabled)" : "kbps (" + (tcRateSlider.value / 1000.0).toFixed(2) + " Mbps)"
+                        color: tcRateSlider.value === 0 ? SightlineTheme.textMuted : SightlineTheme.warning
+                        font.bold: tcRateSlider.value > 0
+                        font.pixelSize: 12
+                    }
+
+                    Item { Layout.fillWidth: true }
+                }
+
+                // Quick Rate Presets
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 8
+                    Item { Layout.preferredWidth: 160 }
+                    Repeater {
+                        model: [
+                            { label: "0 (Unlimited)", val: 0 },
+                            { label: "500k", val: 500 },
+                            { label: "1.0M", val: 1000 },
+                            { label: "2.5M (Tactical Link)", val: 2500 },
+                            { label: "5.0M", val: 5000 },
+                            { label: "10.0M", val: 10000 }
+                        ]
+                        Button {
+                            text: modelData.label
+                            Layout.preferredHeight: 24
+                            background: Rectangle {
+                                color: tcRateSlider.value === modelData.val ? SightlineTheme.accent : SightlineTheme.surfaceLight
+                                radius: 3
+                            }
+                            contentItem: Text {
+                                text: parent.text
+                                color: tcRateSlider.value === modelData.val ? "#0e1014" : SightlineTheme.textSecondary
+                                font.pixelSize: 10
+                                font.bold: true
+                                horizontalAlignment: Text.AlignHCenter
+                                verticalAlignment: Text.AlignVCenter
+                            }
+                            onClicked: { tcRateSlider.value = modelData.val; }
+                        }
+                    }
+                    Item { Layout.fillWidth: true }
+                }
+
+                // Burst and MTU
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 12
+                    Text { text: "Token Bucket Parameters:"; color: SightlineTheme.textSecondary; font.pixelSize: 12; Layout.preferredWidth: 160; Layout.alignment: Qt.AlignVCenter }
+
+                    Text { text: "Burst Size (Bytes):"; color: SightlineTheme.textMuted; font.pixelSize: 11 }
+                    SpinBox {
+                        id: tcBurstSpin
+                        from: 500
+                        to: 65535
+                        value: bridge && bridge.tcBurstBytes > 0 ? bridge.tcBurstBytes : 3000
+                        stepSize: 500
+                        Layout.preferredWidth: 110
+                    }
+
+                    Text { text: "MTU (Bytes):"; color: SightlineTheme.textMuted; font.pixelSize: 11; Layout.leftMargin: 8 }
+                    SpinBox {
+                        id: tcMtuSpin
+                        from: 576
+                        to: 9000
+                        value: bridge && bridge.tcMtuBytes > 0 ? bridge.tcMtuBytes : 1500
+                        stepSize: 100
+                        Layout.preferredWidth: 110
+                    }
+
+                    Item { Layout.fillWidth: true }
+                }
+
+                // TC Actions
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 10
+                    Layout.topMargin: 4
+
+                    Button {
+                        text: "Apply Traffic Control"
+                        Layout.preferredWidth: 180
+                        Layout.preferredHeight: 32
+                        background: Rectangle {
+                            color: parent.hovered ? "#33ebff" : SightlineTheme.primary
+                            radius: 4
+                        }
+                        contentItem: Text {
+                            text: parent.text
+                            color: "#0e1014"
+                            font.bold: true
+                            horizontalAlignment: Text.AlignHCenter
+                            verticalAlignment: Text.AlignVCenter
+                        }
+                        onClicked: {
+                            if (bridge) {
+                                bridge.setTrafficControl(
+                                    Math.round(tcRateSlider.value),
+                                    tcBurstSpin.value,
+                                    tcMtuSpin.value
+                                );
+                            }
+                        }
+                    }
+
+                    Button {
+                        text: "Reset (Disable Shaping)"
+                        Layout.preferredWidth: 180
+                        Layout.preferredHeight: 32
+                        background: Rectangle {
+                            color: SightlineTheme.surfaceLight
+                            radius: 4
+                            border.color: SightlineTheme.cardBorder
+                        }
+                        contentItem: Text {
+                            text: parent.text
+                            color: SightlineTheme.textSecondary
+                            font.bold: true
+                            horizontalAlignment: Text.AlignHCenter
+                            verticalAlignment: Text.AlignVCenter
+                        }
+                        onClicked: {
+                            if (bridge) {
+                                bridge.resetTrafficControl();
+                                tcRateSlider.value = 0;
+                            }
+                        }
+                    }
+
+                    Item { Layout.fillWidth: true }
+                }
+            }
+        }
+
+        // Section: Cursor-on-Target (CoT) XML Feed Card
+        Rectangle {
+            Layout.fillWidth: true
+            implicitHeight: cotCol.implicitHeight + 28
+            color: SightlineTheme.surfaceCard
+            radius: SightlineTheme.radiusMedium
+            border.color: SightlineTheme.cardBorder
+            border.width: 1
+
+            ColumnLayout {
+                id: cotCol
+                anchors.fill: parent
+                anchors.margins: 14
+                spacing: 12
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    Text {
+                        text: "CURSOR-ON-TARGET (CoT) XML TELEMETRY FEED"
+                        color: SightlineTheme.primary
+                        font.pixelSize: 11
+                        font.bold: true
+                    }
+                    Item { Layout.fillWidth: true }
+                    Text {
+                        text: "Module 0x7E ATAK/TAK Interop"
+                        color: SightlineTheme.textMuted
+                        font.pixelSize: 10
+                        font.family: "Monospace"
+                    }
                 }
 
                 RowLayout {
                     Layout.fillWidth: true
                     spacing: 12
-                    Text { text: "Enable CoT Stream:"; color: SightlineTheme.textSecondary; font.pixelSize: 12; Layout.preferredWidth: 150; Layout.alignment: Qt.AlignVCenter }
+                    Text { text: "Enable CoT Stream:"; color: SightlineTheme.textSecondary; font.pixelSize: 12; Layout.preferredWidth: 160; Layout.alignment: Qt.AlignVCenter }
                     Switch { id: cotSwitch; checked: true }
                     Item { Layout.fillWidth: true }
                 }
@@ -85,7 +349,7 @@ ScrollView {
                 RowLayout {
                     Layout.fillWidth: true
                     spacing: 12
-                    Text { text: "Destination UDP Port:"; color: SightlineTheme.textSecondary; font.pixelSize: 12; Layout.preferredWidth: 150; Layout.alignment: Qt.AlignVCenter }
+                    Text { text: "Destination UDP Port:"; color: SightlineTheme.textSecondary; font.pixelSize: 12; Layout.preferredWidth: 160; Layout.alignment: Qt.AlignVCenter }
                     TextField {
                         id: cotPortInput
                         text: "1870"
@@ -93,17 +357,18 @@ ScrollView {
                         color: SightlineTheme.textPrimary
                         background: Rectangle { color: SightlineTheme.surfaceLight; radius: 4; border.color: cotPortInput.activeFocus ? SightlineTheme.primary : SightlineTheme.inputBorder }
                     }
+                    Text { text: "(Standard ATAK / WinTAK multicast/broadcast port)" ; color: SightlineTheme.textMuted; font.pixelSize: 11 }
                     Item { Layout.fillWidth: true }
                 }
 
                 RowLayout {
                     Layout.fillWidth: true
                     spacing: 12
-                    Text { text: "Platform Call Sign:"; color: SightlineTheme.textSecondary; font.pixelSize: 12; Layout.preferredWidth: 150; Layout.alignment: Qt.AlignVCenter }
+                    Text { text: "Platform Call Sign:"; color: SightlineTheme.textSecondary; font.pixelSize: 12; Layout.preferredWidth: 160; Layout.alignment: Qt.AlignVCenter }
                     TextField {
                         id: cotUidInput
                         text: "SIGHTLINE-UAV-01"
-                        Layout.preferredWidth: 200
+                        Layout.preferredWidth: 220
                         color: SightlineTheme.textPrimary
                         background: Rectangle { color: SightlineTheme.surfaceLight; radius: 4; border.color: cotUidInput.activeFocus ? SightlineTheme.primary : SightlineTheme.inputBorder }
                     }
@@ -113,14 +378,15 @@ ScrollView {
                 RowLayout {
                     Layout.fillWidth: true
                     spacing: 12
-                    Text { text: "MIL-STD Entity Type:"; color: SightlineTheme.textSecondary; font.pixelSize: 12; Layout.preferredWidth: 150; Layout.alignment: Qt.AlignVCenter }
+                    Text { text: "MIL-STD Entity Type:"; color: SightlineTheme.textSecondary; font.pixelSize: 12; Layout.preferredWidth: 160; Layout.alignment: Qt.AlignVCenter }
                     TextField {
                         id: cotTypeInput
                         text: "a-f-A-M-F-Q"
-                        Layout.preferredWidth: 200
+                        Layout.preferredWidth: 220
                         color: SightlineTheme.textPrimary
                         background: Rectangle { color: SightlineTheme.surfaceLight; radius: 4; border.color: cotTypeInput.activeFocus ? SightlineTheme.primary : SightlineTheme.inputBorder }
                     }
+                    Text { text: "(Air Military Fixed-Wing Reconnaissance)" ; color: SightlineTheme.textMuted; font.pixelSize: 11 }
                     Item { Layout.fillWidth: true }
                 }
 
@@ -139,7 +405,7 @@ ScrollView {
                             if (bridge) {
                                 bridge.setCursorOnTarget(
                                     cotSwitch.checked ? 1 : 0,
-                                    parseInt(cotPortInput.text),
+                                    parseInt(cotPortInput.text) || 1870,
                                     cotUidInput.text,
                                     cotTypeInput.text
                                 );

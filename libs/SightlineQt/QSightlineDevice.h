@@ -6,6 +6,9 @@
 #include <SightlineCore/SightlineDevice.h>
 #include <SightlineCore/SightlineMessages.h>
 #include <SightlineCore/SightlineTypes.h>
+#include <SightlineCore/modules/SightlineCompression.h>
+#include <SightlineCore/modules/SightlineGeneral.h>
+#include <SightlineCore/modules/SightlineNetwork.h>
 #include <SightlineCore/modules/SightlineRecording.h>
 
 #include <QByteArray>
@@ -96,6 +99,30 @@ public:
     /// @brief Retrieves the latest cached directory listing reply.
     [[nodiscard]] std::optional<Sightline::MsgDirectoryListingReply> lastDirListingReply() const;
 
+    /// @brief Retrieves the latest cached H.264/H.265 compression parameters.
+    /// @return Optional message struct if received.
+    [[nodiscard]] std::optional<Sightline::MsgSetH264Parameters> lastH264Params() const;
+
+    /// @brief Retrieves the latest cached Ethernet display configuration.
+    /// @return Optional message struct if received.
+    [[nodiscard]] std::optional<Sightline::MsgSetEthernetDisplayParameters> lastEthernetDisplay() const;
+
+    /// @brief Retrieves the latest cached Ethernet video parameters.
+    /// @return Optional message struct if received.
+    [[nodiscard]] std::optional<Sightline::MsgSetEthernetVideoParameters> lastEthernetVideo() const;
+
+    /// @brief Retrieves the latest cached network interface parameters.
+    /// @return Optional message struct if received.
+    [[nodiscard]] std::optional<Sightline::MsgSetNetworkParameters> lastNetworkParams() const;
+
+    /// @brief Retrieves the latest cached network interface list.
+    /// @return Optional message struct if received.
+    [[nodiscard]] std::optional<Sightline::MsgCurrentNetworkList> lastNetworkList() const;
+
+    /// @brief Retrieves the latest cached system value.
+    /// @return Optional message struct if received.
+    [[nodiscard]] std::optional<Sightline::MsgSystemValue> lastSystemValue() const;
+
     /// @brief Retrieves transport and kernel-level metrics.
     [[nodiscard]] Transport::TransportStatsSnapshot getTransportStats() const;
 
@@ -124,6 +151,12 @@ signals:
     void recordingEventReceived(const Sightline::MsgFileRecordingEvent& event);
     void recordingStatusReceived(const Sightline::MsgCurrentRecordingStatusV2& status);
     void dirListingReplyReceived(const Sightline::MsgDirectoryListingReply& reply);
+    void h264ParamsReceived(const Sightline::MsgSetH264Parameters& params);
+    void ethernetDisplayReceived(const Sightline::MsgSetEthernetDisplayParameters& params);
+    void ethernetVideoReceived(const Sightline::MsgSetEthernetVideoParameters& params);
+    void networkParamsReceived(const Sightline::MsgSetNetworkParameters& params);
+    void networkListReceived(const Sightline::MsgCurrentNetworkList& list);
+    void systemValueReceived(const Sightline::MsgSystemValue& val);
     void rawFrameReceived(bool isTx, const QByteArray& data);
     void connectionStateChanged(bool isConnected);
 
@@ -218,6 +251,18 @@ public slots:
     bool getDirectoryListing(const Sightline::MsgGetDirectoryListing& msg);
     bool sendFileStorageMgmt(const Sightline::MsgFileStorageManagement& msg);
 
+    // Encoding & Network Streaming
+    bool setH264Params(const Sightline::MsgSetH264Parameters& params);
+    bool setEthernetDisplay(const Sightline::MsgSetEthernetDisplayParameters& params);
+    bool setEthernetVideo(const Sightline::MsgSetEthernetVideoParameters& params);
+    bool setNetworkParams(const Sightline::MsgSetNetworkParameters& params);
+    bool setTrafficControl(quint32 rateKbps, quint32 burstBytes = 3000U, quint32 mtuBytes = 1500U);
+    bool getH264Params(quint16 displayId = 0x0002U);
+    bool getEthernetDisplay(quint16 displayId = 0x0002U);
+    bool getEthernetVideo(quint16 displayId = 0x0002U);
+    bool getNetworkParams(quint8 index = 0U);
+    bool getNetworkList();
+
     bool sendRawPacket(const QByteArray& rawPacket);
 
 private:
@@ -235,3 +280,9 @@ Q_DECLARE_METATYPE(Sightline::MsgFileRecordingEvent)
 Q_DECLARE_METATYPE(Sightline::MsgCurrentRecordingStatusV2)
 Q_DECLARE_METATYPE(Sightline::MsgDirectoryListingReply)
 Q_DECLARE_METATYPE(Sightline::DirListEntry)
+Q_DECLARE_METATYPE(Sightline::MsgSetH264Parameters)
+Q_DECLARE_METATYPE(Sightline::MsgSetEthernetDisplayParameters)
+Q_DECLARE_METATYPE(Sightline::MsgSetEthernetVideoParameters)
+Q_DECLARE_METATYPE(Sightline::MsgSetNetworkParameters)
+Q_DECLARE_METATYPE(Sightline::MsgCurrentNetworkList)
+Q_DECLARE_METATYPE(Sightline::MsgSystemValue)

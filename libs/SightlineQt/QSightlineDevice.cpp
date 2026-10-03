@@ -178,6 +178,54 @@ std::optional<Sightline::MsgDirectoryListingReply> QSightlineDevice::lastDirList
     return std::nullopt;
 }
 
+std::optional<Sightline::MsgSetH264Parameters> QSightlineDevice::lastH264Params() const
+{
+    if (m_device) {
+        return m_device->lastH264Params();
+    }
+    return std::nullopt;
+}
+
+std::optional<Sightline::MsgSetEthernetDisplayParameters> QSightlineDevice::lastEthernetDisplay() const
+{
+    if (m_device) {
+        return m_device->lastEthernetDisplay();
+    }
+    return std::nullopt;
+}
+
+std::optional<Sightline::MsgSetEthernetVideoParameters> QSightlineDevice::lastEthernetVideo() const
+{
+    if (m_device) {
+        return m_device->lastEthernetVideo();
+    }
+    return std::nullopt;
+}
+
+std::optional<Sightline::MsgSetNetworkParameters> QSightlineDevice::lastNetworkParams() const
+{
+    if (m_device) {
+        return m_device->lastNetworkParams();
+    }
+    return std::nullopt;
+}
+
+std::optional<Sightline::MsgCurrentNetworkList> QSightlineDevice::lastNetworkList() const
+{
+    if (m_device) {
+        return m_device->lastNetworkList();
+    }
+    return std::nullopt;
+}
+
+std::optional<Sightline::MsgSystemValue> QSightlineDevice::lastSystemValue() const
+{
+    if (m_device) {
+        return m_device->lastSystemValue();
+    }
+    return std::nullopt;
+}
+
 Transport::TransportStatsSnapshot QSightlineDevice::getTransportStats() const
 {
     if (m_device) {
@@ -305,6 +353,36 @@ void QSightlineDevice::wireCallbacks()
     m_device->setDirListingReplyCb([this](const Sightline::MsgDirectoryListingReply& rep) {
         QMetaObject::invokeMethod(
             this, [this, rep]() { emit dirListingReplyReceived(rep); }, Qt::QueuedConnection);
+    });
+
+    m_device->setH264ParamsCallback([this](const Sightline::MsgSetH264Parameters& params) {
+        QMetaObject::invokeMethod(
+            this, [this, params]() { emit h264ParamsReceived(params); }, Qt::QueuedConnection);
+    });
+
+    m_device->setEthernetDisplayCb([this](const Sightline::MsgSetEthernetDisplayParameters& params) {
+        QMetaObject::invokeMethod(
+            this, [this, params]() { emit ethernetDisplayReceived(params); }, Qt::QueuedConnection);
+    });
+
+    m_device->setEthernetVideoCb([this](const Sightline::MsgSetEthernetVideoParameters& params) {
+        QMetaObject::invokeMethod(
+            this, [this, params]() { emit ethernetVideoReceived(params); }, Qt::QueuedConnection);
+    });
+
+    m_device->setNetworkParamsCb([this](const Sightline::MsgSetNetworkParameters& params) {
+        QMetaObject::invokeMethod(
+            this, [this, params]() { emit networkParamsReceived(params); }, Qt::QueuedConnection);
+    });
+
+    m_device->setNetworkListCb([this](const Sightline::MsgCurrentNetworkList& list) {
+        QMetaObject::invokeMethod(
+            this, [this, list]() { emit networkListReceived(list); }, Qt::QueuedConnection);
+    });
+
+    m_device->setSystemValueCallback([this](const Sightline::MsgSystemValue& val) {
+        QMetaObject::invokeMethod(
+            this, [this, val]() { emit systemValueReceived(val); }, Qt::QueuedConnection);
     });
 
     m_device->setRawTrafficCallback([this](bool isTx, const std::vector<std::uint8_t>& frame) {
@@ -821,3 +899,54 @@ bool QSightlineDevice::sendFileStorageMgmt(const Sightline::MsgFileStorageManage
 {
     return m_device ? m_device->sendFileStorageMgmt(msg) : false;
 }
+
+bool QSightlineDevice::setH264Params(const Sightline::MsgSetH264Parameters& params)
+{
+    return m_device ? m_device->setH264Params(params) : false;
+}
+
+bool QSightlineDevice::setEthernetDisplay(const Sightline::MsgSetEthernetDisplayParameters& params)
+{
+    return m_device ? m_device->setEthernetDisplay(params) : false;
+}
+
+bool QSightlineDevice::setEthernetVideo(const Sightline::MsgSetEthernetVideoParameters& params)
+{
+    return m_device ? m_device->setEthernetVideo(params) : false;
+}
+
+bool QSightlineDevice::setNetworkParams(const Sightline::MsgSetNetworkParameters& params)
+{
+    return m_device ? m_device->setNetwork(params) : false;
+}
+
+bool QSightlineDevice::setTrafficControl(quint32 rateKbps, quint32 burstBytes, quint32 mtuBytes)
+{
+    return m_device ? m_device->setTrafficControl(rateKbps, burstBytes, mtuBytes) : false;
+}
+
+bool QSightlineDevice::getH264Params(quint16 displayId)
+{
+    return m_device ? m_device->getH264Params(displayId) : false;
+}
+
+bool QSightlineDevice::getEthernetDisplay(quint16 displayId)
+{
+    return m_device ? m_device->getEthernetDisplay(displayId) : false;
+}
+
+bool QSightlineDevice::getEthernetVideo(quint16 displayId)
+{
+    return m_device ? m_device->getEthernetVideo(displayId) : false;
+}
+
+bool QSightlineDevice::getNetworkParams(quint8 index)
+{
+    return m_device ? m_device->getNetworkParams(index) : false;
+}
+
+bool QSightlineDevice::getNetworkList()
+{
+    return m_device ? m_device->getNetworkList() : false;
+}
+

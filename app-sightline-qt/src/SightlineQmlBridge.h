@@ -51,6 +51,21 @@ class SightlineQmlBridge : public QObject {
     Q_PROPERTY(QString lastRecordingEvent READ lastRecordingEvent NOTIFY recordingEventReceived)
     Q_PROPERTY(QString lastAckStatus READ lastAckStatus NOTIFY commandAckReceived)
     Q_PROPERTY(RecordingFileListModel* recordingFileListModel READ recordingFileListModel CONSTANT)
+    Q_PROPERTY(int encBitrateKbps READ encBitrateKbps NOTIFY encParamsChanged)
+    Q_PROPERTY(int encGopInterval READ encGopInterval NOTIFY encParamsChanged)
+    Q_PROPERTY(int encProfile READ encProfile NOTIFY encParamsChanged)
+    Q_PROPERTY(int encRateControl READ encRateControl NOTIFY encParamsChanged)
+    Q_PROPERTY(int encMinQp READ encMinQp NOTIFY encParamsChanged)
+    Q_PROPERTY(int encMaxQp READ encMaxQp NOTIFY encParamsChanged)
+    Q_PROPERTY(int encAirMb READ encAirMb NOTIFY encParamsChanged)
+    Q_PROPERTY(int encSliceRows READ encSliceRows NOTIFY encParamsChanged)
+    Q_PROPERTY(int netDisplayProtocol READ netDisplayProtocol NOTIFY netDisplayChanged)
+    Q_PROPERTY(QString netDisplayIp READ netDisplayIp NOTIFY netDisplayChanged)
+    Q_PROPERTY(int netDisplayPort READ netDisplayPort NOTIFY netDisplayChanged)
+    Q_PROPERTY(int netMaxPacket READ netMaxPacket NOTIFY netDisplayChanged)
+    Q_PROPERTY(int tcRateKbps READ tcRateKbps NOTIFY tcStatusChanged)
+    Q_PROPERTY(int tcBurstBytes READ tcBurstBytes NOTIFY tcStatusChanged)
+    Q_PROPERTY(int tcMtuBytes READ tcMtuBytes NOTIFY tcStatusChanged)
 
 public:
     /// @brief Construct a new SightlineQmlBridge instance.
@@ -174,6 +189,51 @@ public:
 
     /// @brief Access remote storage file list model.
     [[nodiscard]] RecordingFileListModel* recordingFileListModel() const noexcept;
+
+    /// @brief Get encoder target bitrate in Kbps.
+    [[nodiscard]] int encBitrateKbps() const noexcept;
+
+    /// @brief Get encoder GOP / intra-frame interval.
+    [[nodiscard]] int encGopInterval() const noexcept;
+
+    /// @brief Get encoder H.264 profile.
+    [[nodiscard]] int encProfile() const noexcept;
+
+    /// @brief Get encoder rate control mode.
+    [[nodiscard]] int encRateControl() const noexcept;
+
+    /// @brief Get encoder minimum QP.
+    [[nodiscard]] int encMinQp() const noexcept;
+
+    /// @brief Get encoder maximum QP.
+    [[nodiscard]] int encMaxQp() const noexcept;
+
+    /// @brief Get adaptive intra refresh macroblocks count.
+    [[nodiscard]] int encAirMb() const noexcept;
+
+    /// @brief Get slice rows count.
+    [[nodiscard]] int encSliceRows() const noexcept;
+
+    /// @brief Get Ethernet display streaming protocol.
+    [[nodiscard]] int netDisplayProtocol() const noexcept;
+
+    /// @brief Get Ethernet display streaming destination IP.
+    [[nodiscard]] QString netDisplayIp() const;
+
+    /// @brief Get Ethernet display streaming destination UDP port.
+    [[nodiscard]] int netDisplayPort() const noexcept;
+
+    /// @brief Get Ethernet display max packet size.
+    [[nodiscard]] int netMaxPacket() const noexcept;
+
+    /// @brief Get Linux traffic control rate in Kbps.
+    [[nodiscard]] int tcRateKbps() const noexcept;
+
+    /// @brief Get Linux traffic control burst in bytes.
+    [[nodiscard]] int tcBurstBytes() const noexcept;
+
+    /// @brief Get Linux traffic control MTU in bytes.
+    [[nodiscard]] int tcMtuBytes() const noexcept;
 
     // --- QML Invokable Operations ---
 
@@ -461,6 +521,85 @@ public:
     /// @param rateCtrl Rate control mode.
     /// @return True if dispatched.
     Q_INVOKABLE bool setH264Params(int stream, int bitrate, int gop, int quality, int rateCtrl);
+
+    /// @brief Configures advanced H.264/H.265 compression parameters (Message ID 0x23).
+    /// @param stream Video stream index (0: Net0, 1: Net1, 2: Net2).
+    /// @param bitrate Target bitrate in kbps.
+    /// @param gop Group of Pictures interval (0..255).
+    /// @param profile Profile (0: Baseline, 1: Main, 2: High).
+    /// @param rateCtrl Rate control mode (0: Legacy, 1: Variable, 2: Constrained, 3: Balanced).
+    /// @param minQp Minimum quantization parameter (0..30).
+    /// @param maxQp Maximum quantization parameter (0..51).
+    /// @param deblock Deblocking filter mode (0: Enabled, 1: Disabled, 2: NoSliceBoundaries).
+    /// @param airMb Adaptive intra refresh macroblocks.
+    /// @param sliceRows Slices per frame or slice rows.
+    /// @return True if dispatched.
+    Q_INVOKABLE bool setH264ParamsEx(int stream, int bitrate, int gop, int profile, int rateCtrl,
+        int minQp, int maxQp, int deblock = 0, int airMb = 0, int sliceRows = 0);
+
+    /// @brief Configures Ethernet display streaming destination (Message ID 0x51).
+    /// @param stream Video stream index (0: Net0, 1: Net1, 2: Net2).
+    /// @param protocol Protocol enum value (1: TS, 3: RTP H.264, 4: RTP H.265, 7: RTSP H.264, 8: RTSP H.265, etc.).
+    /// @param ip Destination IP address string.
+    /// @param port Destination UDP/RTP port (must be even for RTP).
+    /// @param maxPacket Maximum packet size in bytes (default 1400).
+    /// @param maxRawPacket Maximum raw packet size in bytes (default 0).
+    /// @return True if dispatched.
+    Q_INVOKABLE bool setEthernetDisplay(int stream, int protocol, const QString& ip, int port,
+        int maxPacket = 1400, int maxRawPacket = 0);
+
+    /// @brief Configures Ethernet video quality, decimation, and downsampling (Message ID 0x1A).
+    /// @param stream Video stream index.
+    /// @param frameStep Frame decimation step (1 = 30fps, 2 = 15fps, etc.).
+    /// @param frameSize Resolution mode (0: Native, 1: 720p, 2: 480p, 3: 240p, 4: Custom, 5: Downsample 2:1, etc.).
+    /// @param customW Custom frame width.
+    /// @param customH Custom frame height.
+    /// @param quality MJPEG quality (0..100).
+    /// @param foveal Foveal quality.
+    /// @return True if dispatched.
+    Q_INVOKABLE bool setEthernetVideo(int stream, int frameStep = 1, int frameSize = 0,
+        int customW = 0, int customH = 0, int quality = 0, int foveal = 0);
+
+    /// @brief Configures Linux Traffic Control (tc) bandwidth limiter (Message ID 0x92 Key 13).
+    /// @param rateKbps Rate limit in kbps (0 to disable/reset).
+    /// @param burstBytes Token bucket burst size in bytes (e.g. 3000).
+    /// @param mtuBytes MTU in bytes (e.g. 1500).
+    /// @return True if dispatched.
+    Q_INVOKABLE bool setTrafficControl(int rateKbps, int burstBytes = 3000, int mtuBytes = 1500);
+
+    /// @brief Resets Linux Traffic Control shaping back to unlimited.
+    /// @return True if dispatched.
+    Q_INVOKABLE bool resetTrafficControl();
+
+    /// @brief Applies optimized tactical low-bandwidth profile (100 kbps, 720p, frameStep 2, CBR).
+    /// @param stream Video stream index.
+    /// @return True if dispatched.
+    Q_INVOKABLE bool applyLowBandwidth(int stream);
+
+    /// @brief Validates transport port parity against RFC 3550 (RTP ports must be even).
+    /// @param protocol Protocol enum index.
+    /// @param port UDP port number.
+    /// @return True if port is valid for protocol.
+    Q_INVOKABLE [[nodiscard]] bool isValidPort(int protocol, int port) const noexcept;
+
+    /// @brief Checks if protocol is RTP-based (RFC 3550 applies).
+    /// @param protocol Protocol enum index.
+    /// @return True if protocol is RTP.
+    Q_INVOKABLE [[nodiscard]] bool isRtp(int protocol) const noexcept;
+
+    /// @brief Queries encoder parameters for specified stream.
+    /// @param stream Video stream index.
+    /// @return True if query dispatched.
+    Q_INVOKABLE bool queryEncoderParams(int stream = 0);
+
+    /// @brief Queries Ethernet display streaming destination for specified stream.
+    /// @param stream Video stream index.
+    /// @return True if query dispatched.
+    Q_INVOKABLE bool queryDisplayParams(int stream = 0);
+
+    /// @brief Queries network parameters and interface list.
+    /// @return True if query dispatched.
+    Q_INVOKABLE bool queryNetworkParams();
 
     /// @brief Control video streaming start or stop.
     /// @param stream Stream index.
@@ -909,6 +1048,13 @@ signals:
     void recordingClockChanged();
     void recordingEventReceived(const QString& eventMsg);
     void commandAckReceived(int seqId, int status, const QString& statusStr);
+    void encParamsChanged();
+    void netDisplayChanged();
+    void netVideoChanged();
+    void tcStatusChanged();
+    void encoderParamsReceived(int stream, int bitrateKbps, int gop, int flags, int minQp, int maxQp);
+    void displayParamsReceived(int stream, int protocol, const QString& ip, int port, int maxPacket);
+    void trafficControlReceived(int rateKbps, int burstBytes, int mtuBytes);
 
 private slots:
     void handleTrackingPositions(const Sightline::MsgTrackingPositions& pos);
@@ -933,6 +1079,12 @@ private slots:
     void handleRecordingEvent(const Sightline::MsgFileRecordingEvent& ev);
     void handleRecordingStatus(const Sightline::MsgCurrentRecordingStatusV2& stat);
     void handleDirListingReply(const Sightline::MsgDirectoryListingReply& rep);
+    void handleH264Params(const Sightline::MsgSetH264Parameters& p);
+    void handleEthernetDisplay(const Sightline::MsgSetEthernetDisplayParameters& p);
+    void handleEthernetVideo(const Sightline::MsgSetEthernetVideoParameters& p);
+    void handleNetworkParams(const Sightline::MsgSetNetworkParameters& p);
+    void handleNetworkList(const Sightline::MsgCurrentNetworkList& l);
+    void handleSystemValue(const Sightline::MsgSystemValue& val);
     void onRecordingClockTick();
     void onCoolerTimerTick();
 
@@ -957,6 +1109,24 @@ private:
     QString m_currentFilename {};
     QString m_lastRecordingEvent {};
     QString m_lastAckStatus {};
+
+    int m_encBitrateKbps { 4000 };
+    int m_encGopInterval { 30 };
+    int m_encProfile { 2 };
+    int m_encRateControl { 0 };
+    int m_encMinQp { 0 };
+    int m_encMaxQp { 28 };
+    int m_encAirMb { 0 };
+    int m_encSliceRows { 0 };
+
+    int m_netDisplayProtocol { 1 };
+    QString m_netDisplayIp { "127.0.0.1" };
+    int m_netDisplayPort { 15004 };
+    int m_netMaxPacket { 1400 };
+
+    int m_tcRateKbps { 0 };
+    int m_tcBurstBytes { 3000 };
+    int m_tcMtuBytes { 1500 };
 
     Sightline::MsgSetVideoEnhancementFull m_cachedEnhancement[4] {};
     Sightline::MsgSetTrackingParameters m_cachedTrackingParams[4] {};

@@ -5,12 +5,16 @@
 
 #include <SightlineCore/SightlineCrc8.h>
 #include <SightlineCore/SightlineProtocolParser.h>
+#include <SightlineCore/modules/SightlineCompression.h>
+#include <SightlineCore/modules/SightlineGeneral.h>
+#include <SightlineCore/modules/SightlineNetwork.h>
 #include <SightlineCore/modules/SightlineOverlay.h>
 #include <SightlineCore/modules/SightlineStabilization.h>
 #include <SightlineCore/modules/SightlineStabilizationBuilder.h>
 
 #include <QDateTime>
 #include <QFile>
+#include <QHostAddress>
 #include <QSettings>
 #include <algorithm>
 
@@ -195,6 +199,81 @@ RecordingFileListModel* SightlineQmlBridge::recordingFileListModel() const noexc
     return m_recordingFileListModel.get();
 }
 
+int SightlineQmlBridge::encBitrateKbps() const noexcept
+{
+    return m_encBitrateKbps;
+}
+
+int SightlineQmlBridge::encGopInterval() const noexcept
+{
+    return m_encGopInterval;
+}
+
+int SightlineQmlBridge::encProfile() const noexcept
+{
+    return m_encProfile;
+}
+
+int SightlineQmlBridge::encRateControl() const noexcept
+{
+    return m_encRateControl;
+}
+
+int SightlineQmlBridge::encMinQp() const noexcept
+{
+    return m_encMinQp;
+}
+
+int SightlineQmlBridge::encMaxQp() const noexcept
+{
+    return m_encMaxQp;
+}
+
+int SightlineQmlBridge::encAirMb() const noexcept
+{
+    return m_encAirMb;
+}
+
+int SightlineQmlBridge::encSliceRows() const noexcept
+{
+    return m_encSliceRows;
+}
+
+int SightlineQmlBridge::netDisplayProtocol() const noexcept
+{
+    return m_netDisplayProtocol;
+}
+
+QString SightlineQmlBridge::netDisplayIp() const
+{
+    return m_netDisplayIp;
+}
+
+int SightlineQmlBridge::netDisplayPort() const noexcept
+{
+    return m_netDisplayPort;
+}
+
+int SightlineQmlBridge::netMaxPacket() const noexcept
+{
+    return m_netMaxPacket;
+}
+
+int SightlineQmlBridge::tcRateKbps() const noexcept
+{
+    return m_tcRateKbps;
+}
+
+int SightlineQmlBridge::tcBurstBytes() const noexcept
+{
+    return m_tcBurstBytes;
+}
+
+int SightlineQmlBridge::tcMtuBytes() const noexcept
+{
+    return m_tcMtuBytes;
+}
+
 bool SightlineQmlBridge::connectUdp(const QString& host, int cmdPort, int replyPort)
 {
     const bool hostChangedVal { m_host != host };
@@ -267,8 +346,22 @@ bool SightlineQmlBridge::connectUdp(const QString& host, int cmdPort, int replyP
         &SightlineQmlBridge::handleRecordingStatus);
     connect(m_device.get(), &QSightlineDevice::dirListingReplyReceived, this,
         &SightlineQmlBridge::handleDirListingReply);
+    connect(m_device.get(), &QSightlineDevice::h264ParamsReceived, this,
+        &SightlineQmlBridge::handleH264Params);
+    connect(m_device.get(), &QSightlineDevice::ethernetDisplayReceived, this,
+        &SightlineQmlBridge::handleEthernetDisplay);
+    connect(m_device.get(), &QSightlineDevice::ethernetVideoReceived, this,
+        &SightlineQmlBridge::handleEthernetVideo);
+    connect(m_device.get(), &QSightlineDevice::networkParamsReceived, this,
+        &SightlineQmlBridge::handleNetworkParams);
+    connect(m_device.get(), &QSightlineDevice::networkListReceived, this,
+        &SightlineQmlBridge::handleNetworkList);
+    connect(m_device.get(), &QSightlineDevice::systemValueReceived, this,
+        &SightlineQmlBridge::handleSystemValue);
 
     const bool started = m_device->start();
+    emit connectionChanged();
+    return started;
     emit connectionChanged();
     return started;
 }
@@ -867,6 +960,200 @@ bool SightlineQmlBridge::setH264Params(int stream, int bitrate, int gop, int qua
     msg.minQp = 0U;
     msg.maxQp = static_cast<std::uint8_t>(std::clamp(quality, 0, 51));
     return m_device->device()->setH264Params(msg);
+}
+
+bool SightlineQmlBridge::setH264ParamsEx(int stream, int bitrate, int gop, int profile, int rateCtrl,
+    int minQp, int maxQp, int deblock, int airMb, int sliceRows)
+{
+    if (!isConnected()) {
+        return false;
+    }
+    Sightline::MsgSetH264Parameters msg {};
+    if (stream == 0) {
+        msg.displayId = static_cast<std::uint16_t>(Sightline::NetworkDisplayId::Net0);
+    } else if (stream == 1) {
+        msg.displayId = static_cast<std::uint16_t>(Sightline::NetworkDisplayId::Net1);
+    } else if (stream == 2) {
+        msg.displayId = static_cast<std::uint16_t>(Sightline::NetworkDisplayId::Net2);
+    } else {
+        msg.displayId = static_cast<std::uint16_t>(stream);
+    }
+
+    const auto targetBps = (bitrate > 0 && bitrate < 100000) ? static_cast<std::uint32_t>(bitrate) * 1000U
+                                                             : static_cast<std::uint32_t>(std::max(0, bitrate));
+    msg.targetBitrateBps = targetBps;
+    msg.intraFrameInterval = static_cast<std::uint8_t>(std::clamp(gop, 0, 255));
+    msg.flags = Sightline::makeH264Flags(
+        static_cast<Sightline::H264Profile>(std::clamp(profile, 0, 2)),
+        static_cast<Sightline::BitrateControlMode>(std::clamp(rateCtrl, 0, 3)));
+    msg.lfDisableIdc = static_cast<std::uint8_t>(std::clamp(deblock, 0, 2));
+    msg.minQp = static_cast<std::uint8_t>(std::clamp(minQp, 0, 30));
+    msg.maxQp = static_cast<std::uint8_t>(std::clamp(maxQp, 0, 51));
+    msg.airMbPeriod = static_cast<std::uint8_t>(std::clamp(airMb, 0, 255));
+    msg.sliceRefreshRowNumber = static_cast<std::uint8_t>(std::clamp(sliceRows, 0, 255));
+
+    m_encBitrateKbps = bitrate;
+    m_encGopInterval = gop;
+    m_encProfile = profile;
+    m_encRateControl = rateCtrl;
+    m_encMinQp = minQp;
+    m_encMaxQp = maxQp;
+    m_encAirMb = airMb;
+    m_encSliceRows = sliceRows;
+    emit encParamsChanged();
+
+    return m_device->setH264Params(msg);
+}
+
+bool SightlineQmlBridge::setEthernetDisplay(int stream, int protocol, const QString& ip, int port,
+    int maxPacket, int maxRawPacket)
+{
+    if (!isConnected()) {
+        return false;
+    }
+    Sightline::MsgSetEthernetDisplayParameters msg {};
+    if (stream == 0) {
+        msg.displayId = static_cast<std::uint16_t>(Sightline::NetworkDisplayId::Net0);
+    } else if (stream == 1) {
+        msg.displayId = static_cast<std::uint16_t>(Sightline::NetworkDisplayId::Net1);
+    } else if (stream == 2) {
+        msg.displayId = static_cast<std::uint16_t>(Sightline::NetworkDisplayId::Net2);
+    } else {
+        msg.displayId = static_cast<std::uint16_t>(stream);
+    }
+
+    msg.protocol = static_cast<std::uint8_t>(protocol);
+    msg.ipAddress = QHostAddress(ip).toIPv4Address();
+    msg.port = static_cast<std::uint16_t>(port);
+    msg.maxPacket = static_cast<std::uint16_t>(maxPacket > 0 ? maxPacket : 1400);
+    msg.maxRawPacket = static_cast<std::uint16_t>(maxRawPacket);
+
+    m_netDisplayProtocol = protocol;
+    m_netDisplayIp = ip;
+    m_netDisplayPort = port;
+    m_netMaxPacket = maxPacket;
+    emit netDisplayChanged();
+
+    return m_device->setEthernetDisplay(msg);
+}
+
+bool SightlineQmlBridge::setEthernetVideo(int stream, int frameStep, int frameSize,
+    int customW, int customH, int quality, int foveal)
+{
+    if (!isConnected()) {
+        return false;
+    }
+    Sightline::MsgSetEthernetVideoParameters msg {};
+    if (stream == 0) {
+        msg.displayId = static_cast<std::uint16_t>(Sightline::NetworkDisplayId::Net0);
+    } else if (stream == 1) {
+        msg.displayId = static_cast<std::uint16_t>(Sightline::NetworkDisplayId::Net1);
+    } else if (stream == 2) {
+        msg.displayId = static_cast<std::uint16_t>(Sightline::NetworkDisplayId::Net2);
+    } else {
+        msg.displayId = static_cast<std::uint16_t>(stream);
+    }
+
+    msg.frameStep = static_cast<std::uint8_t>(std::clamp(frameStep, 1, 255));
+    msg.frameSize = static_cast<std::uint8_t>(frameSize);
+    msg.customWide = static_cast<std::uint16_t>(customW);
+    msg.customHigh = static_cast<std::uint16_t>(customH);
+    msg.quality = static_cast<std::uint8_t>(std::clamp(quality, 0, 100));
+    msg.foveal = static_cast<std::uint8_t>(foveal);
+
+    emit netVideoChanged();
+    return m_device->setEthernetVideo(msg);
+}
+
+bool SightlineQmlBridge::setTrafficControl(int rateKbps, int burstBytes, int mtuBytes)
+{
+    if (!isConnected()) {
+        return false;
+    }
+    m_tcRateKbps = rateKbps;
+    m_tcBurstBytes = burstBytes;
+    m_tcMtuBytes = mtuBytes;
+    emit tcStatusChanged();
+
+    return m_device->setTrafficControl(
+        static_cast<std::uint32_t>(std::max(0, rateKbps)),
+        static_cast<std::uint32_t>(std::max(0, burstBytes)),
+        static_cast<std::uint32_t>(std::max(0, mtuBytes)));
+}
+
+bool SightlineQmlBridge::resetTrafficControl()
+{
+    return setTrafficControl(0, 0, 0);
+}
+
+bool SightlineQmlBridge::applyLowBandwidth(int stream)
+{
+    if (!isConnected()) {
+        return false;
+    }
+    const bool encOk = setH264ParamsEx(
+        stream,
+        100, // 100 kbps
+        30,  // 30 frame GOP
+        1,   // Main profile
+        2,   // Constrained Bitrate (CBR)
+        18,  // min QP
+        42,  // max QP
+        0,   // Deblocking enabled
+        0,   // AIR
+        0    // Slice rows
+    );
+
+    const bool vidOk = setEthernetVideo(
+        stream,
+        2, // Frame step 2 = 15 fps
+        1, // Frame size 1 = 720p
+        0, 0, 0, 0
+    );
+
+    return encOk && vidOk;
+}
+
+bool SightlineQmlBridge::isValidPort(int protocol, int port) const noexcept
+{
+    return Sightline::isValidTransportPort(
+        static_cast<std::uint16_t>(port),
+        static_cast<std::uint8_t>(protocol));
+}
+
+bool SightlineQmlBridge::isRtp(int protocol) const noexcept
+{
+    return Sightline::isRtpProtocol(static_cast<std::uint8_t>(protocol));
+}
+
+bool SightlineQmlBridge::queryEncoderParams(int stream)
+{
+    if (!isConnected()) {
+        return false;
+    }
+    const std::uint16_t displayId = (stream == 1) ? 0x0080U : (stream == 2 ? 0x0200U : 0x0002U);
+    return m_device->getH264Params(displayId);
+}
+
+bool SightlineQmlBridge::queryDisplayParams(int stream)
+{
+    if (!isConnected()) {
+        return false;
+    }
+    const std::uint16_t displayId = (stream == 1) ? 0x0080U : (stream == 2 ? 0x0200U : 0x0002U);
+    const bool dOk = m_device->getEthernetDisplay(displayId);
+    const bool vOk = m_device->getEthernetVideo(displayId);
+    return dOk || vOk;
+}
+
+bool SightlineQmlBridge::queryNetworkParams()
+{
+    if (!isConnected()) {
+        return false;
+    }
+    const bool pOk = m_device->getNetworkParams(0U);
+    const bool lOk = m_device->getNetworkList();
+    return pOk || lOk;
 }
 
 bool SightlineQmlBridge::streamingControl(int stream, int action)
@@ -1745,7 +2032,10 @@ void SightlineQmlBridge::queryModuleParameters(int tabIndex)
         queryParameters(static_cast<int>(Sightline::MessageId::Noise3D)); // 0xAF
         break;
     case 8: // Compression
-        queryParameters(static_cast<int>(Sightline::MessageId::SetH264Parameters)); // 0x23
+        queryEncoderParams(0);
+        queryEncoderParams(1);
+        queryDisplayParams(0);
+        queryDisplayParams(1);
         queryParameters(static_cast<int>(Sightline::MessageId::StreamingControl)); // 0x90
         queryParameters(static_cast<int>(Sightline::MessageId::DecoderParameters)); // 0x99
         break;
@@ -1778,8 +2068,8 @@ void SightlineQmlBridge::queryModuleParameters(int tabIndex)
         queryParameters(0x5F); // SnapShot status
         break;
     case 16: // Network
-        queryParameters(static_cast<int>(Sightline::MessageId::SetNetworkParameters)); // 0x1C
-        queryParameters(0x66); // Network list
+        queryNetworkParams();
+        queryParameters(static_cast<int>(Sightline::MessageId::SetSystemValue)); // 0x92 (traffic control)
         break;
     case 17: // Serial Port
         queryParameters(static_cast<int>(Sightline::MessageId::SetPortConfiguration)); // 0x3E
@@ -2090,3 +2380,59 @@ void SightlineQmlBridge::onRecordingClockTick()
         emit recordingClockChanged();
     }
 }
+
+void SightlineQmlBridge::handleH264Params(const Sightline::MsgSetH264Parameters& p)
+{
+    m_encBitrateKbps = static_cast<int>(p.targetBitrateBps / 1000U);
+    m_encGopInterval = static_cast<int>(p.intraFrameInterval);
+    m_encProfile = static_cast<int>(p.flags & 0x03U);
+    m_encRateControl = static_cast<int>((p.flags >> 4) & 0x03U);
+    m_encMinQp = static_cast<int>(p.minQp);
+    m_encMaxQp = static_cast<int>(p.maxQp);
+    m_encAirMb = static_cast<int>(p.airMbPeriod);
+    m_encSliceRows = static_cast<int>(p.sliceRefreshRowNumber);
+
+    emit encParamsChanged();
+    const int streamIdx = (p.displayId == 0x0080U) ? 1 : (p.displayId == 0x0200U ? 2 : 0);
+    emit encoderParamsReceived(streamIdx, m_encBitrateKbps, m_encGopInterval, p.flags, m_encMinQp, m_encMaxQp);
+}
+
+void SightlineQmlBridge::handleEthernetDisplay(const Sightline::MsgSetEthernetDisplayParameters& p)
+{
+    m_netDisplayProtocol = static_cast<int>(p.protocol);
+    m_netDisplayIp = QHostAddress(p.ipAddress).toString();
+    m_netDisplayPort = static_cast<int>(p.port);
+    m_netMaxPacket = static_cast<int>(p.maxPacket);
+
+    emit netDisplayChanged();
+    const int streamIdx = (p.displayId == 0x0080U) ? 1 : (p.displayId == 0x0200U ? 2 : 0);
+    emit displayParamsReceived(streamIdx, m_netDisplayProtocol, m_netDisplayIp, m_netDisplayPort, m_netMaxPacket);
+}
+
+void SightlineQmlBridge::handleEthernetVideo(const Sightline::MsgSetEthernetVideoParameters& p)
+{
+    static_cast<void>(p);
+    emit netVideoChanged();
+}
+
+void SightlineQmlBridge::handleNetworkParams(const Sightline::MsgSetNetworkParameters& p)
+{
+    static_cast<void>(p);
+}
+
+void SightlineQmlBridge::handleNetworkList(const Sightline::MsgCurrentNetworkList& l)
+{
+    static_cast<void>(l);
+}
+
+void SightlineQmlBridge::handleSystemValue(const Sightline::MsgSystemValue& val)
+{
+    if (val.systemValueId == Sightline::MsgSystemValue::TrafficControl) {
+        m_tcRateKbps = static_cast<int>(val.value);
+        m_tcBurstBytes = static_cast<int>(val.value1);
+        m_tcMtuBytes = static_cast<int>(val.value2);
+        emit tcStatusChanged();
+        emit trafficControlReceived(m_tcRateKbps, m_tcBurstBytes, m_tcMtuBytes);
+    }
+}
+
