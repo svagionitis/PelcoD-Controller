@@ -64,3 +64,80 @@ TEST(KlvGeodesyTest, FrameCenterAndFrustum) {
     EXPECT_GT(frustum->topRight.longitudeDeg, frustum->topLeft.longitudeDeg);
     EXPECT_GT(frustum->bottomRight.longitudeDeg, frustum->bottomLeft.longitudeDeg);
 }
+
+TEST(KlvGeodesyTest, Attitude3DRotation) {
+    const GeoPoint3D platform { 0.0, 0.0, 1000.0 }; // 1000m MSL at Equator
+    const GeoPoint2D platform2D { platform.latitudeDeg, platform.longitudeDeg };
+
+    const PlatformAttitude levelAtt { 0.0, 0.0, 0.0 };       // Heading 0, Pitch 0, Roll 0
+    const PlatformAttitude pitchUpAtt { 0.0, 5.0, 0.0 };      // Pitch up +5 deg
+    const CameraOrientation camNominal { 0.0, -30.0, 0.0 };   // Az 0, El -30 deg, Roll 0
+    const CameraOrientation camRolled { 0.0, -30.0, 45.0 };   // Optical roll 45 deg
+
+    // Frame center under level flight
+    const auto centerLevel = KlvGeodesy::computeFrameCenter(platform, levelAtt, camNominal, 0.0);
+    ASSERT_TRUE(centerLevel.has_value());
+    const double distLevel = KlvGeodesy::distanceMeters(platform2D, *centerLevel);
+
+    // Frame center with pitch-up (+5 deg nose-up with el -30 results in -25 deg effective depression)
+    const auto centerPitched = KlvGeodesy::computeFrameCenter(platform, pitchUpAtt, camNominal, 0.0);
+    ASSERT_TRUE(centerPitched.has_value());
+    const double distPitched = KlvGeodesy::distanceMeters(platform2D, *centerPitched);
+
+    // Pitched up camera looks further out
+    EXPECT_GT(distPitched, distLevel);
+
+    // Optical roll should not change boresight center
+    const auto centerRolled = KlvGeodesy::computeFrameCenter(platform, levelAtt, camRolled, 0.0);
+    ASSERT_TRUE(centerRolled.has_value());
+    EXPECT_NEAR(centerRolled->latitudeDeg, centerLevel->latitudeDeg, 1e-5);
+    EXPECT_NEAR(centerRolled->longitudeDeg, centerLevel->longitudeDeg, 1e-5);
+
+    // But optical roll alters the frustum corners (rotates footprint)
+    const auto frustum0 = KlvGeodesy::computeFrustum(platform, levelAtt, camNominal, 20.0, 15.0, 0.0);
+    const auto frustum45 = KlvGeodesy::computeFrustum(platform, levelAtt, camRolled, 20.0, 15.0, 0.0);
+    ASSERT_TRUE(frustum0.has_value());
+    ASSERT_TRUE(frustum45.has_value());
+
+    // With 0 deg roll, top-left is west of top-right
+    EXPECT_LT(frustum0->topLeft.longitudeDeg, frustum0->topRight.longitudeDeg);
+    // With 45 deg roll, the corners are rotated and no longer match the 0 deg roll footprint
+    EXPECT_NE(frustum45->topLeft.latitudeDeg, frustum0->topLeft.latitudeDeg);
+    EXPECT_NE(frustum45->topLeft.longitudeDeg, frustum0->topLeft.longitudeDeg);
+}
+
+TEST(KlvGeodesyTest, HorizonClippingAndDistance) {
+    const GeoPoint3D platform { 0.0, 0.0, 1000.0 }; // 1000m MSL
+    const GeoPoint2D platform2D { platform.latitudeDeg, platform.longitudeDeg };
+
+    // Horizon distance: sqrt(2 * R * h + h^2)
+    const double hDist = KlvGeodesy::horizonDistance(1000.0, 0.0);
+    EXPECT_NEAR(hDist, 112885.0, 1.0); // ~112.88 km
+
+    // Pointing upwards (+10 deg) should have no physical ground intersection
+    const PlatformAttitude levelAtt { 0.0, 0.0, 0.0 };
+    const CameraOrientation skywardCam { 0.0, 10.0, 0.0 };
+    const auto centerSky = KlvGeodesy::computeFrameCenter(platform, levelAtt, skywardCam, 0.0);
+    EXPECT_FALSE(centerSky.has_value());
+
+    // Intersect ray with clipToHorizon = false
+    const Vector3D upRay = KlvGeodesy::computeRayNed(levelAtt, skywardCam);
+    const auto unclipped = KlvGeodesy::intersectRayEarth(platform, upRay, 0.0, false);
+    EXPECT_FALSE(unclipped.has_value());
+
+    // Intersect ray with clipToHorizon = true: clips exactly to geometric horizon distance
+    const auto clipped = KlvGeodesy::intersectRayEarth(platform, upRay, 0.0, true);
+    ASSERT_TRUE(clipped.has_value());
+    const double clippedDist = KlvGeodesy::distanceMeters(platform2D, *clipped);
+    EXPECT_NEAR(clippedDist, hDist, 5.0);
+
+    // Frustum with shallow depression pointing above horizon (e.g., el = -2 deg, vfov = 10 deg)
+    // Top rays point at +3 deg (above horizon), but computeFrustum clips them to horizon
+    const CameraOrientation shallowCam { 0.0, -2.0, 0.0 };
+    const auto frustum = KlvGeodesy::computeFrustum(platform, levelAtt, shallowCam, 10.0, 10.0, 0.0);
+    ASSERT_TRUE(frustum.has_value());
+
+    // Top corners should be bounded near horizon distance
+    const double distTl = KlvGeodesy::distanceMeters(platform2D, frustum->topLeft);
+    EXPECT_NEAR(distTl, hDist, 5.0);
+}

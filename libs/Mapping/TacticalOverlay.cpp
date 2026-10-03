@@ -17,6 +17,20 @@ ScreenFrustum TacticalOverlay::projectFrustum(const MapViewport& viewport,
     sf.corners[1] = viewport.geoToScreen(frustum.topRight);
     sf.corners[2] = viewport.geoToScreen(frustum.bottomRight);
     sf.corners[3] = viewport.geoToScreen(frustum.bottomLeft);
+
+    // Unroll anti-meridian screen X wrapping relative to corner 0 to maintain contiguous polygon
+    const double mapDimension = static_cast<double>(viewport.tileSize()) * std::pow(2.0, viewport.zoom());
+    if (mapDimension > 0.0) {
+        for (std::size_t i = 1; i < sf.corners.size(); ++i) {
+            double dx = sf.corners[i].x - sf.corners[0].x;
+            if (dx > mapDimension * 0.5) {
+                sf.corners[i].x -= mapDimension;
+            } else if (dx < -mapDimension * 0.5) {
+                sf.corners[i].x += mapDimension;
+            }
+        }
+    }
+
     sf.valid = true;
     return sf;
 }
@@ -44,6 +58,18 @@ ScreenVector TacticalOverlay::projectLineOfSight(const MapViewport& viewport,
     ScreenVector sv;
     sv.origin = viewport.geoToScreen(platformPos);
     sv.tip = viewport.geoToScreen(targetPos);
+
+    // Unroll anti-meridian screen X wrapping relative to origin
+    const double mapDimension = static_cast<double>(viewport.tileSize()) * std::pow(2.0, viewport.zoom());
+    if (mapDimension > 0.0) {
+        double dx = sv.tip.x - sv.origin.x;
+        if (dx > mapDimension * 0.5) {
+            sv.tip.x -= mapDimension;
+        } else if (dx < -mapDimension * 0.5) {
+            sv.tip.x += mapDimension;
+        }
+    }
+
     sv.valid = true;
     return sv;
 }

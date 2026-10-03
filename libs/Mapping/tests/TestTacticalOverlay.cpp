@@ -87,3 +87,29 @@ TEST(TestTacticalOverlay, FrustumOffscreenClipping) {
     const ScreenRect viewportRect { 0.0, 0.0, 800.0, 600.0 };
     EXPECT_FALSE(TacticalOverlay::isFrustumVisible(frustum, viewportRect));
 }
+
+TEST(TestTacticalOverlay, AntiMeridianCrossingContiguity) {
+    // Frustum crossing the international date line / anti-meridian (+180 / -180 deg)
+    Klv::FrustumCorners frustum;
+    frustum.topLeft = Klv::GeoPoint2D { 10.0, 179.95 };
+    frustum.topRight = Klv::GeoPoint2D { 10.0, -179.95 };
+    frustum.bottomRight = Klv::GeoPoint2D { 9.95, -179.95 };
+    frustum.bottomLeft = Klv::GeoPoint2D { 9.95, 179.95 };
+
+    // Viewport centered at Prime Meridian (0.0, 0.0) where wrapping disparity is largest
+    MapViewport viewport(Klv::GeoPoint2D { 10.0, 0.0 }, 10.0, 800.0, 600.0);
+
+    const ScreenFrustum sf = TacticalOverlay::projectFrustum(viewport, frustum);
+    EXPECT_TRUE(sf.valid);
+
+    // Without anti-meridian unrolling, corners 0 and 1 would be separated by ~262,144 pixels (whole map width at zoom 10)
+    // With anti-meridian unrolling, width |corner1.x - corner0.x| is strictly the local 0.1 deg ground width (< 100 pixels)
+    const double frustumPixelWidth = std::abs(sf.corners[1].x - sf.corners[0].x);
+    EXPECT_LT(frustumPixelWidth, 100.0);
+
+    // Also verify line-of-sight vector across anti-meridian
+    const ScreenVector los = TacticalOverlay::projectLineOfSight(viewport, frustum.topLeft, frustum.topRight);
+    EXPECT_TRUE(los.valid);
+    const double losPixelWidth = std::abs(los.tip.x - los.origin.x);
+    EXPECT_LT(losPixelWidth, 100.0);
+}
