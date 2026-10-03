@@ -1,5 +1,7 @@
 add_library(Klv STATIC
     KlvTypes.h
+    GeoTypes.h
+    VmtiTypes.h
     KlvBer.h
     KlvBer.cpp
     KlvCrc.h
@@ -8,6 +10,10 @@ add_library(Klv STATIC
     KlvEncoder.cpp
     KlvParser.h
     KlvParser.cpp
+    VmtiEncoder.h
+    VmtiEncoder.cpp
+    VmtiParser.h
+    VmtiParser.cpp
     KlvStreamScanner.h
     KlvStreamScanner.cpp
     MpegTsKlvExtractor.h

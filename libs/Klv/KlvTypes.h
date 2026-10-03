@@ -3,6 +3,9 @@
 /// @file KlvTypes.h
 /// @brief Core data structures, enumerations, and constants for STANAG 4609 / MISB ST 0601 KLV metadata.
 
+#include "GeoTypes.h"
+#include "VmtiTypes.h"
+
 #include <array>
 #include <cstddef>
 #include <cstdint>
@@ -98,20 +101,7 @@ enum class KlvStatus {
     TagError               ///< Unexpected or malformed tag structure
 };
 
-/// @struct GeoPoint2D
-/// @brief WGS-84 2D geodetic position (latitude and longitude in degrees).
-struct GeoPoint2D {
-    double latitudeDeg { 0.0 };  ///< Latitude [-90.0, +90.0] degrees
-    double longitudeDeg { 0.0 }; ///< Longitude [-180.0, +180.0] degrees
-};
 
-/// @struct GeoPoint3D
-/// @brief WGS-84 3D geodetic position (latitude, longitude, altitude).
-struct GeoPoint3D {
-    double latitudeDeg { 0.0 };  ///< Latitude [-90.0, +90.0] degrees
-    double longitudeDeg { 0.0 }; ///< Longitude [-180.0, +180.0] degrees
-    double altitudeM { 0.0 };    ///< Height above Mean Sea Level (MSL) or HAE in meters
-};
 
 /// @struct FrustumCorners
 /// @brief Optical footprint 4-corner ground projection coordinates on the WGS-84 ellipsoid.
@@ -177,6 +167,7 @@ struct UasDatalinkMessage {
     std::optional<double> targetErrorLe90M;           ///< Tag 46: LE90 in meters
     std::optional<SecurityMetadata> security;         ///< Tag 48: Security Local Set
     std::optional<std::uint8_t> uasLsVersion;         ///< Tag 65: Version number (e.g. 1..19)
+    std::optional<VmtiLocalSet> vmti;                 ///< Tag 74: MISB ST 0903 VMTI Local Set
     std::optional<double> sensorAltitudeHaeM;         ///< Tag 75: Sensor HAE altitude in meters
     std::optional<double> frameCenterElevHaeM;        ///< Tag 78: Frame center HAE elevation in meters
     std::optional<double> sensorRollAngleDeg;         ///< Tag 118: Sensor roll angle [0, 360) deg

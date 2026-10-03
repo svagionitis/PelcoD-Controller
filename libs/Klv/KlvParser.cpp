@@ -1,6 +1,7 @@
 #include "KlvParser.h"
 #include "KlvBer.h"
 #include "KlvCrc.h"
+#include "VmtiParser.h"
 #include <algorithm>
 #include <cstring>
 
@@ -483,6 +484,13 @@ KlvStatus KlvParser::parse(const std::uint8_t* data,
                     message.uasLsVersion = valPtr[0];
                 }
                 break;
+            case Tag::VmtiLocalSet: {
+                VmtiLocalSet vmtiSet {};
+                if (VmtiParser::parse(valPtr, len, vmtiSet, false) == KlvStatus::Success) {
+                    message.vmti = vmtiSet;
+                }
+                break;
+            }
             case Tag::Checksum:
                 // Checksum already verified across whole packet
                 break;
