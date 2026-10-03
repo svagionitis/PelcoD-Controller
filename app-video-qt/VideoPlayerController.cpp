@@ -1014,16 +1014,17 @@ void VideoPlayerController::workerLoop()
             }
         }
 
+        bool forceFrame = false;
         const double reqSeek = m_seekRequested.exchange(-1.0);
         if (reqSeek >= 0.0) {
             QMutexLocker locker(&m_decoderMutex);
             if (m_decoder) {
                 m_decoder->seek(reqSeek);
-                m_lastKlvIndex = 0;
             }
+            forceFrame = true;
         }
 
-        if (m_paused.load()) {
+        if (m_paused.load() && !forceFrame) {
             QThread::msleep(20);
             continue;
         }
@@ -1046,6 +1047,12 @@ void VideoPlayerController::workerLoop()
         const double decodeMs = std::chrono::duration<double, std::milli>(endDecode - startDecode).count();
 
         if (!success) {
+            if (forceFrame) {
+                m_positionSeconds = reqSeek;
+                updateKlvTelemetry(m_positionSeconds);
+                emit positionSecondsChanged();
+            }
+
             if (m_isLoopPlayback && m_isSeekable) {
                 QMutexLocker locker(&m_decoderMutex);
                 if (m_decoder) {
@@ -1094,6 +1101,11 @@ void VideoPlayerController::workerLoop()
 
             m_positionSeconds = frameInfo.timestamp;
             updateKlvTelemetry(m_positionSeconds);
+
+            if (forceFrame) {
+                emit positionSecondsChanged();
+                emit statsUpdated();
+            }
         }
 
         // Periodic telemetry calculation (every 250ms)
@@ -1356,6 +1368,9 @@ void VideoPlayerController::loadKlvTrack(const QString& sourcePath)
         m_klvTimeline.push_back(std::move(item));
     }
 
+    std::stable_sort(m_klvTimeline.begin(), m_klvTimeline.end(),
+                     [](const TimedKlv& a, const TimedKlv& b) { return a.timeSeconds < b.timeSeconds; });
+
     if (!m_klvTimeline.empty()) {
         applyKlvTelemetry(m_klvTimeline.front().message);
     }
@@ -1367,18 +1382,22 @@ void VideoPlayerController::updateKlvTelemetry(double timeSeconds)
         return;
     }
 
-    if (timeSeconds < 0.0) {
+    if (timeSeconds <= m_klvTimeline.front().timeSeconds) {
         m_lastKlvIndex = 0;
         applyKlvTelemetry(m_klvTimeline.front().message);
         return;
     }
 
-    while (m_lastKlvIndex + 1 < m_klvTimeline.size()
-           && m_klvTimeline[m_lastKlvIndex + 1].timeSeconds <= timeSeconds) {
-        ++m_lastKlvIndex;
+    auto it = std::upper_bound(m_klvTimeline.begin(), m_klvTimeline.end(), timeSeconds,
+                               [](double t, const TimedKlv& item) { return t < item.timeSeconds; });
+
+    if (it != m_klvTimeline.begin()) {
+        --it;
     }
 
-    applyKlvTelemetry(m_klvTimeline[m_lastKlvIndex].message);
+    const std::size_t idx = static_cast<std::size_t>(std::distance(m_klvTimeline.begin(), it));
+    m_lastKlvIndex = idx;
+    applyKlvTelemetry(m_klvTimeline[idx].message);
 }
 
 void VideoPlayerController::applyKlvTelemetry(const Klv::UasDatalinkMessage& msg)

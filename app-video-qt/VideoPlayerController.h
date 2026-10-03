@@ -35,6 +35,7 @@ class VideoQuickItem;
 /// @brief Manages background decoding thread, backend selection, dynamic filter pipeline, and telemetry.
 class VideoPlayerController : public QObject {
     Q_OBJECT
+    friend class VideoPlayerControllerTest;
 
     // --- State & Source Properties ---
     Q_PROPERTY(PlaybackState playbackState READ playbackState NOTIFY playbackStateChanged)
@@ -300,6 +301,47 @@ public:
     [[nodiscard]] qreal platformHeading() const noexcept;
     void setPlatformHeading(qreal v);
 
+    /// @struct TimedKlv
+    /// @brief Associates presentation timestamp with demuxed MISB ST 0601 telemetry.
+    struct TimedKlv {
+        double timeSeconds { 0.0 };
+        Klv::UasDatalinkMessage message {};
+    };
+
+    /// @brief Loads KLV metadata track from MPEG-TS file into timeline.
+    /// @param[in] sourcePath Path to MPEG-TS video file.
+    void loadKlvTrack(const QString& sourcePath);
+
+    /// @brief Synchronizes KLV telemetry to designated presentation timestamp.
+    /// @param[in] timeSeconds Presentation timestamp in seconds.
+    void updateKlvTelemetry(double timeSeconds);
+
+    /// @brief Returns the index of the currently active KLV timeline entry.
+    /// @return 0-based index into KLV timeline.
+    [[nodiscard]] std::size_t lastKlvIndex() const noexcept { return m_lastKlvIndex; }
+
+    /// @brief Returns the total number of KLV timeline entries.
+    /// @return Count of timeline entries.
+    [[nodiscard]] std::size_t klvTimelineSize() const noexcept { return m_klvTimeline.size(); }
+
+    /// @brief Returns the timestamp in seconds of the KLV timeline entry at given index.
+    /// @param[in] idx Index into timeline.
+    /// @return Timestamp in seconds, or -1.0 if out of bounds.
+    [[nodiscard]] double klvTimeAt(std::size_t idx) const noexcept {
+        return idx < m_klvTimeline.size() ? m_klvTimeline[idx].timeSeconds : -1.0;
+    }
+
+    /// @brief Returns the currently pending seek target timestamp in seconds (-1.0 if none).
+    /// @return Pending seek timestamp.
+    [[nodiscard]] double requestedSeek() const noexcept { return m_seekRequested.load(); }
+
+    /// @brief Injects a timed KLV entry for testing.
+    /// @param[in] item Timed KLV entry to insert.
+    void addKlvTimelineEntry(const TimedKlv& item) { m_klvTimeline.push_back(item); }
+
+    /// @brief Clears all KLV timeline entries.
+    void clearKlvTimeline() noexcept { m_klvTimeline.clear(); m_lastKlvIndex = 0; }
+
 public slots:
     /// @brief Starts video playback using configured source, backend, and hardware device.
     void startPlayback();
@@ -429,14 +471,6 @@ private:
     bool m_mapRasterizerShowFrustum { true };
     bool m_mapRasterizerShowHeading { true };
 
-    // Tactical HUD Filter & KLV telemetry
-    struct TimedKlv {
-        double timeSeconds { 0.0 };
-        Klv::UasDatalinkMessage message {};
-    };
-
-    void loadKlvTrack(const QString& sourcePath);
-    void updateKlvTelemetry(double timeSeconds);
     void applyKlvTelemetry(const Klv::UasDatalinkMessage& msg);
 
     bool m_tacticalHudEnabled { false };

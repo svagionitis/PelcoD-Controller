@@ -89,6 +89,39 @@ target_link_libraries(TestViscaAppQt PRIVATE
 )
 pelcod_register_gtest(TestViscaAppQt NO_MAIN)
 
+add_executable(TestVideoPlayerController
+    TestVideoPlayerController.cpp
+    ${CMAKE_SOURCE_DIR}/app-video-qt/VideoPlayerController.cpp
+    ${CMAKE_SOURCE_DIR}/app-video-qt/VideoQuickItem.cpp
+)
+target_include_directories(TestVideoPlayerController PRIVATE
+    ${CMAKE_SOURCE_DIR}
+    ${CMAKE_SOURCE_DIR}/app-video-qt
+    ${CMAKE_SOURCE_DIR}/libs/Video
+    ${CMAKE_SOURCE_DIR}/libs/VideoFilters
+    ${CMAKE_SOURCE_DIR}/libs/Mapping
+    ${CMAKE_SOURCE_DIR}/libs/MappingQt
+    ${CMAKE_SOURCE_DIR}/libs/Klv
+)
+target_link_libraries(TestVideoPlayerController PRIVATE
+    Video
+    Mapping
+    MappingQt
+    Klv
+    Qt6::Core
+    Qt6::Gui
+    Qt6::Qml
+    Qt6::Quick
+    Qt6::QuickControls2
+    Qt6::Test
+    glog::glog
+)
+if(PELCOD_ENABLE_FILTERS AND OpenCV_FOUND)
+    target_link_libraries(TestVideoPlayerController PRIVATE VideoFilters)
+    target_compile_definitions(TestVideoPlayerController PRIVATE PELCOD_HAS_FILTERS=1)
+endif()
+pelcod_register_gtest(TestVideoPlayerController)
+
 # ==============================================================================
 # CLI Argument Validation Tests (PelcoDAppTui)
 # ==============================================================================
