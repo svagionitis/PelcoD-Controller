@@ -17,6 +17,7 @@
 #include "modules/SightlineNetworkBuilder.h"
 #include "modules/SightlineRecordingBuilder.h"
 #include "modules/SightlineRecordingParser.h"
+#include "modules/RecordingValidator.h"
 
 #include <gtest/gtest.h>
 
@@ -236,7 +237,7 @@ namespace {
         payload.push_back(0U); // cameraIndex
         payload.push_back(1U); // status: Success
         const std::string fn = "snap001.jpg";
-        payload.insert(payload.end(), fn.begin(), fn.end());
+        SightlineFraming::appendString(payload, fn);
 
         const auto snapPkt = SightlineFraming::buildPacket(MessageId::CurrentSnapShot, payload);
         MsgCurrentSnapShot snapOut {};
@@ -602,6 +603,222 @@ namespace {
         for (std::size_t i = 0; i < 25U; ++i) {
             EXPECT_EQ(parsed.customKernel[i], 1);
         }
+    }
+
+    // ==========================================================================
+    // Phase 1 Recording & Validation Tests
+    // ==========================================================================
+
+    TEST(RecordingValidatorTest, FilenameValidation)
+    {
+        // Valid filename without trailing numerals
+        EXPECT_EQ(
+            RecordingValidator::checkFilename("mission_rec", 0U),
+            RecordingStatusCode::Success);
+
+        // Valid filename with underscore suffix
+        EXPECT_EQ(
+            RecordingValidator::checkFilename("flight_A_", 0U),
+            RecordingStatusCode::Success);
+
+        // Trailing numeral without overwrite flag must fail
+        EXPECT_EQ(
+            RecordingValidator::checkFilename("flight_01", 0U),
+            RecordingStatusCode::ErrNumericFilename);
+
+        // Trailing numeral with AllowNumericOverwrite flag must pass
+        const auto allowFlag { static_cast<std::uint8_t>(RecordingFlags::AllowNumericOverwrite) };
+        EXPECT_EQ(
+            RecordingValidator::checkFilename("flight_01", allowFlag),
+            RecordingStatusCode::Success);
+
+        // Empty filename must fail
+        EXPECT_EQ(
+            RecordingValidator::checkFilename("", 0U),
+            RecordingStatusCode::ErrInvalidCharacters);
+
+        // Filename exceeding max length (64 chars) must fail
+        const std::string longName(65U, 'a');
+        EXPECT_EQ(
+            RecordingValidator::checkFilename(longName, 0U),
+            RecordingStatusCode::ErrInvalidCharacters);
+
+        // Forbidden characters
+        EXPECT_EQ(
+            RecordingValidator::checkFilename("path/to/file", 0U),
+            RecordingStatusCode::ErrInvalidCharacters);
+        EXPECT_EQ(
+            RecordingValidator::checkFilename("file*name", 0U),
+            RecordingStatusCode::ErrInvalidCharacters);
+        EXPECT_EQ(
+            RecordingValidator::checkFilename("file?name", 0U),
+            RecordingStatusCode::ErrInvalidCharacters);
+    }
+
+    TEST(RecordingValidatorTest, CameraValidation)
+    {
+        // Valid camera indexes
+        EXPECT_EQ(RecordingValidator::checkCamera(0U), RecordingStatusCode::Success);
+        EXPECT_EQ(RecordingValidator::checkCamera(1U), RecordingStatusCode::Success);
+        EXPECT_EQ(RecordingValidator::checkCamera(2U), RecordingStatusCode::Success);
+
+        // Invalid camera index
+        EXPECT_EQ(RecordingValidator::checkCamera(3U), RecordingStatusCode::ErrChannelUnsupported);
+
+        // 0xFF (Snap All Cams) disallowed when false
+        EXPECT_EQ(RecordingValidator::checkCamera(0xFFU, false), RecordingStatusCode::ErrChannelUnsupported);
+
+        // 0xFF allowed when true
+        EXPECT_EQ(RecordingValidator::checkCamera(0xFFU, true), RecordingStatusCode::Success);
+    }
+
+    TEST(RecordingValidatorTest, SnapshotValidation)
+    {
+        MsgDoSnapShotV2 msg {};
+        msg.sequenceId = 1U;
+        msg.cameraIndex = 0U;
+        msg.format = SnapshotFormat::Jpeg;
+        msg.domain = SnapshotDomain::Capture;
+        msg.qualityLevel = 85U;
+        msg.burstCount = 1U;
+        msg.customFilename = "snap_ok";
+
+        EXPECT_EQ(RecordingValidator::checkSnapshot(msg), RecordingStatusCode::Success);
+
+        // Invalid quality
+        msg.qualityLevel = 0U;
+        EXPECT_EQ(RecordingValidator::checkSnapshot(msg), RecordingStatusCode::ErrMalformedPayload);
+        msg.qualityLevel = 101U;
+        EXPECT_EQ(RecordingValidator::checkSnapshot(msg), RecordingStatusCode::ErrMalformedPayload);
+        msg.qualityLevel = 85U;
+
+        // Invalid burst count
+        msg.burstCount = 0U;
+        EXPECT_EQ(RecordingValidator::checkSnapshot(msg), RecordingStatusCode::ErrMalformedPayload);
+        msg.burstCount = 121U;
+        EXPECT_EQ(RecordingValidator::checkSnapshot(msg), RecordingStatusCode::ErrMalformedPayload);
+        msg.burstCount = 10U;
+
+        // Invalid filename
+        msg.customFilename = "snap/invalid";
+        EXPECT_EQ(RecordingValidator::checkSnapshot(msg), RecordingStatusCode::ErrInvalidCharacters);
+    }
+
+    TEST(RecordingValidatorTest, StorageValidation)
+    {
+        std::uint32_t freeMB { 0U };
+
+        // FTP push does not require local mount
+        EXPECT_EQ(
+            RecordingValidator::checkStorage(StorageDestination::FtpPush, 0ULL, false, freeMB),
+            RecordingStatusCode::Success);
+
+        // Unmounted MicroSD
+        EXPECT_EQ(
+            RecordingValidator::checkStorage(StorageDestination::MicroSD, 100000000ULL, false, freeMB),
+            RecordingStatusCode::ErrMediaUnavailable);
+
+        // Insufficient storage (< 50 MB)
+        EXPECT_EQ(
+            RecordingValidator::checkStorage(StorageDestination::MicroSD, 1000000ULL, true, freeMB),
+            RecordingStatusCode::ErrInsufficientStorage);
+
+        // Valid storage (100 MB available)
+        EXPECT_EQ(
+            RecordingValidator::checkStorage(StorageDestination::MicroSD, 104857600ULL, true, freeMB),
+            RecordingStatusCode::Success);
+        EXPECT_EQ(freeMB, 100U);
+    }
+
+    TEST(TestSightlineVideoPipeline, CommandAckRoundTrip)
+    {
+        MsgCommandAck inAck {};
+        inAck.sequenceId = 0x1A2BU;
+        inAck.originalMsgId = static_cast<std::uint8_t>(MessageId::SetFileRecordingParamsV2);
+        inAck.statusCode = RecordingStatusCode::Success;
+        inAck.freeStorageMB = 14200U;
+        inAck.subsystemState = 0x03U;
+
+        const auto pkt = SightlineRecordingBuilder::buildCmdAck(inAck);
+        EXPECT_EQ(SightlineFraming::identifyMessage(pkt), MessageId::CommandAck);
+        EXPECT_EQ(pkt, SightlineProtocolBuilder::buildCmdAck(inAck));
+
+        MsgCommandAck outAck {};
+        ASSERT_TRUE(SightlineRecordingParser::parseCmdAck(pkt, outAck));
+        EXPECT_EQ(outAck.sequenceId, 0x1A2BU);
+        EXPECT_EQ(outAck.originalMsgId, static_cast<std::uint8_t>(MessageId::SetFileRecordingParamsV2));
+        EXPECT_EQ(outAck.statusCode, RecordingStatusCode::Success);
+        EXPECT_EQ(outAck.freeStorageMB, 14200U);
+        EXPECT_EQ(outAck.subsystemState, 0x03U);
+
+        // Facade equivalence
+        MsgCommandAck facadeAck {};
+        ASSERT_TRUE(SightlineProtocolParser::parseCmdAck(pkt, facadeAck));
+        EXPECT_EQ(facadeAck.sequenceId, 0x1A2BU);
+    }
+
+    TEST(TestSightlineVideoPipeline, SetFileRecordingV2RoundTrip)
+    {
+        MsgSetFileRecordingParamsV2 inMsg {};
+        inMsg.sequenceId = 42U;
+        inMsg.cameraIndex = 1U;
+        inMsg.action = RecordingAction::Start;
+        inMsg.destination = StorageDestination::UsbDrive;
+        inMsg.flags = 0x05U;
+        inMsg.maxSplitSizeBytes = 1073741824U;
+        inMsg.maxSplitFrames = 1800U;
+        inMsg.baseFilename = "Flight_Record";
+
+        const auto pkt = SightlineRecordingBuilder::buildSetFileRecordingV2(inMsg);
+        EXPECT_EQ(SightlineFraming::identifyMessage(pkt), MessageId::SetFileRecordingParamsV2);
+        EXPECT_EQ(pkt, SightlineProtocolBuilder::buildSetFileRecordingV2(inMsg));
+
+        MsgSetFileRecordingParamsV2 outMsg {};
+        ASSERT_TRUE(SightlineRecordingParser::parseSetFileRecordingV2(pkt, outMsg));
+        EXPECT_EQ(outMsg.sequenceId, 42U);
+        EXPECT_EQ(outMsg.cameraIndex, 1U);
+        EXPECT_EQ(outMsg.action, RecordingAction::Start);
+        EXPECT_EQ(outMsg.destination, StorageDestination::UsbDrive);
+        EXPECT_EQ(outMsg.flags, 0x05U);
+        EXPECT_EQ(outMsg.maxSplitSizeBytes, 1073741824U);
+        EXPECT_EQ(outMsg.maxSplitFrames, 1800U);
+        EXPECT_EQ(outMsg.baseFilename, "Flight_Record");
+
+        // Facade equivalence
+        MsgSetFileRecordingParamsV2 facadeMsg {};
+        ASSERT_TRUE(SightlineProtocolParser::parseSetFileRecordingV2(pkt, facadeMsg));
+        EXPECT_EQ(facadeMsg.baseFilename, "Flight_Record");
+    }
+
+    TEST(TestSightlineVideoPipeline, DoSnapShotV2RoundTrip)
+    {
+        MsgDoSnapShotV2 inSnap {};
+        inSnap.sequenceId = 99U;
+        inSnap.cameraIndex = 0xFFU; // All cameras
+        inSnap.format = SnapshotFormat::Slraw;
+        inSnap.domain = SnapshotDomain::Capture;
+        inSnap.qualityLevel = 95U;
+        inSnap.burstCount = 30U;
+        inSnap.customFilename = "RawBurst";
+
+        const auto pkt = SightlineRecordingBuilder::buildDoSnapShotV2(inSnap);
+        EXPECT_EQ(SightlineFraming::identifyMessage(pkt), MessageId::DoSnapShotV2);
+        EXPECT_EQ(pkt, SightlineProtocolBuilder::buildDoSnapShotV2(inSnap));
+
+        MsgDoSnapShotV2 outSnap {};
+        ASSERT_TRUE(SightlineRecordingParser::parseDoSnapShotV2(pkt, outSnap));
+        EXPECT_EQ(outSnap.sequenceId, 99U);
+        EXPECT_EQ(outSnap.cameraIndex, 0xFFU);
+        EXPECT_EQ(outSnap.format, SnapshotFormat::Slraw);
+        EXPECT_EQ(outSnap.domain, SnapshotDomain::Capture);
+        EXPECT_EQ(outSnap.qualityLevel, 95U);
+        EXPECT_EQ(outSnap.burstCount, 30U);
+        EXPECT_EQ(outSnap.customFilename, "RawBurst");
+
+        // Facade equivalence
+        MsgDoSnapShotV2 facadeSnap {};
+        ASSERT_TRUE(SightlineProtocolParser::parseDoSnapShotV2(pkt, facadeSnap));
+        EXPECT_EQ(facadeSnap.customFilename, "RawBurst");
     }
 
 } // namespace

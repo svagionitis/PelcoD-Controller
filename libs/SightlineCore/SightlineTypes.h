@@ -396,6 +396,9 @@ enum class MessageId : std::uint8_t {
     CameraCalibration = 0xC0U,
     KlvClassFilters = 0xC1U,
     CameraParameterFile = 0xC2U,
+    CommandAck = 0xC3U,
+    SetFileRecordingParamsV2 = 0xC4U,
+    DoSnapShotV2 = 0xC5U,
     Unknown = 0xFFU
 };
 
@@ -698,6 +701,12 @@ struct TrackingTelemetrySnapshot {
         return "GPIO (0xB6)";
     case MessageId::CustomAIDetect:
         return "CustomAIDetect (0xBA)";
+    case MessageId::CommandAck:
+        return "CommandAck (0xC3)";
+    case MessageId::SetFileRecordingParamsV2:
+        return "SetFileRecordingParamsV2 (0xC4)";
+    case MessageId::DoSnapShotV2:
+        return "DoSnapShotV2 (0xC5)";
     default:
         return "Unknown Message";
     }

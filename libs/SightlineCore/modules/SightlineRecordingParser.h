@@ -30,6 +30,27 @@ public:
     /// @return True if parsing succeeded.
     [[nodiscard]] static bool parseSnapShot(
         const std::vector<std::uint8_t>& packet, MsgCurrentSnapShot& out);
+
+    /// @brief Parses command acknowledgment message (Message ID 0xC3).
+    /// @param[in] packet Raw packet buffer.
+    /// @param[out] out Deserialized CommandAck structure.
+    /// @return True if parsing succeeded.
+    [[nodiscard]] static bool parseCmdAck(
+        const std::vector<std::uint8_t>& packet, MsgCommandAck& out);
+
+    /// @brief Parses hardened video recording parameters (Message ID 0xC4).
+    /// @param[in] packet Raw packet buffer.
+    /// @param[out] out Deserialized recording parameters structure.
+    /// @return True if parsing succeeded.
+    [[nodiscard]] static bool parseSetFileRecordingV2(
+        const std::vector<std::uint8_t>& packet, MsgSetFileRecordingParamsV2& out);
+
+    /// @brief Parses hardened snapshot request (Message ID 0xC5).
+    /// @param[in] packet Raw packet buffer.
+    /// @param[out] out Deserialized snapshot request structure.
+    /// @return True if parsing succeeded.
+    [[nodiscard]] static bool parseDoSnapShotV2(
+        const std::vector<std::uint8_t>& packet, MsgDoSnapShotV2& out);
 };
 
 } // namespace Sightline

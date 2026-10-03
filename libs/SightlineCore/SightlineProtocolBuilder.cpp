@@ -418,6 +418,21 @@ std::vector<std::uint8_t> SightlineProtocolBuilder::buildSetSDRecording(const Ms
     return SightlineRecordingBuilder::buildSetSDRecording(msg);
 }
 
+std::vector<std::uint8_t> SightlineProtocolBuilder::buildCmdAck(const MsgCommandAck& msg)
+{
+    return SightlineRecordingBuilder::buildCmdAck(msg);
+}
+
+std::vector<std::uint8_t> SightlineProtocolBuilder::buildSetFileRecordingV2(const MsgSetFileRecordingParamsV2& msg)
+{
+    return SightlineRecordingBuilder::buildSetFileRecordingV2(msg);
+}
+
+std::vector<std::uint8_t> SightlineProtocolBuilder::buildDoSnapShotV2(const MsgDoSnapShotV2& msg)
+{
+    return SightlineRecordingBuilder::buildDoSnapShotV2(msg);
+}
+
 std::vector<std::uint8_t> SightlineProtocolBuilder::buildStreamingControl(const MsgStreamingControl& msg)
 {
     return SightlineCompressionBuilder::buildStreamingControl(msg);

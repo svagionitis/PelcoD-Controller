@@ -41,6 +41,7 @@ public:
     using DetectionRoiCallback = std::function<void(const MsgDetectionROI&)>;
     using KlvMetricFiltersCallback = std::function<void(const MsgKlvMetricFilters&)>;
     using TrackingParamsCallback = std::function<void(const MsgSetTrackingParameters&)>;
+    using CommandAckCallback = std::function<void(const MsgCommandAck&)>;
 
     /// @brief Constructs a SightlineDevice wrapping the given transport channel.
     /// @param[in] transport Shared pointer to underlying communication transport.
@@ -407,6 +408,21 @@ public:
     /// @return True if command was successfully transmitted.
     [[nodiscard]] bool setSDRecording(const MsgSetSDRecordingParameters& msg);
 
+    /// @brief Configures hardened video recording parameters with sequence tracking (0xC4).
+    /// @param[in] msg Hardened recording parameters.
+    /// @return True if command was successfully transmitted.
+    [[nodiscard]] bool setFileRecordingV2(const MsgSetFileRecordingParamsV2& msg);
+
+    /// @brief Triggers hardened snapshot capture with explicit sensor routing (0xC5).
+    /// @param[in] msg Hardened snapshot request.
+    /// @return True if command was successfully transmitted.
+    [[nodiscard]] bool doSnapShotV2(const MsgDoSnapShotV2& msg);
+
+    /// @brief Transmits a command acknowledgment packet (0xC3).
+    /// @param[in] msg CommandAck structure.
+    /// @return True if command was successfully transmitted.
+    [[nodiscard]] bool sendCmdAck(const MsgCommandAck& msg);
+
     /// @brief Starts, stops, or pauses network video streams.
     /// @param[in] streamIndex Zero-based stream index.
     /// @param[in] action Action code (0: Stop, 1: Start, 2: Pause).
@@ -697,6 +713,12 @@ public:
     /// @brief Registers an observer callback for algorithmic tracking parameters.
     void setTrackingParamsCallback(TrackingParamsCallback cb);
 
+    /// @brief Registers an observer callback for command acknowledgment replies.
+    void setCommandAckCallback(CommandAckCallback cb);
+
+    /// @brief Retrieves the latest cached command acknowledgment reply.
+    [[nodiscard]] std::optional<MsgCommandAck> lastCommandAck() const;
+
     /// @brief Retrieves the latest cached tracking positions snapshot.
     [[nodiscard]] std::optional<MsgTrackingPositions> lastTrackingPositions() const;
 
@@ -765,6 +787,7 @@ private:
     DetectionRoiCallback m_detectionRoiCallback;
     KlvMetricFiltersCallback m_klvMetricFiltersCallback;
     TrackingParamsCallback m_trackingParamsCallback;
+    CommandAckCallback m_commandAckCallback;
 
     mutable std::mutex m_cacheMutex;
     std::optional<MsgTrackingPositions> m_lastPositions;
@@ -781,6 +804,7 @@ private:
     std::optional<MsgAdvancedDetectionParameters> m_lastAdvDetection;
     std::optional<MsgDetectionROI> m_lastDetectionROI;
     std::optional<MsgKlvMetricFilters> m_lastKlvMetricFilters;
+    std::optional<MsgCommandAck> m_lastCommandAck;
     StabilizationCallback m_stabilizationCallback;
     RegistrationCallback m_registrationCallback;
     StabilizationBiasCallback m_stabilizationBiasCallback;

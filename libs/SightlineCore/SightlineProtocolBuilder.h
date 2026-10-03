@@ -399,6 +399,21 @@ public:
     /// @return Framed binary packet.
     [[nodiscard]] static std::vector<std::uint8_t> buildSetSDRecording(const MsgSetSDRecordingParameters& msg);
 
+    /// @brief Encodes command acknowledgment message (Message ID 0xC3).
+    /// @param[in] msg CommandAck structure.
+    /// @return Framed binary packet.
+    [[nodiscard]] static std::vector<std::uint8_t> buildCmdAck(const MsgCommandAck& msg);
+
+    /// @brief Encodes hardened video recording parameters with sequence tracking (Message ID 0xC4).
+    /// @param[in] msg Hardened recording parameters structure.
+    /// @return Framed binary packet.
+    [[nodiscard]] static std::vector<std::uint8_t> buildSetFileRecordingV2(const MsgSetFileRecordingParamsV2& msg);
+
+    /// @brief Encodes hardened snapshot capture command (Message ID 0xC5).
+    /// @param[in] msg Hardened snapshot request structure.
+    /// @return Framed binary packet.
+    [[nodiscard]] static std::vector<std::uint8_t> buildDoSnapShotV2(const MsgDoSnapShotV2& msg);
+
     /// @brief Encodes streaming pipeline play/pause/stop (Message ID 0x90).
     /// @param[in] msg Streaming control parameters.
     /// @return Framed binary packet.

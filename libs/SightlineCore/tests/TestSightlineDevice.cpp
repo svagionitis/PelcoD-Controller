@@ -620,5 +620,77 @@ namespace {
         device.stop();
     }
 
+    /// @brief Verify Phase 1 file recording, snapshot V2 dispatch, and CommandAck handling.
+    TEST(TestSightlineDevice, Phase1RecordingAndAckIntegration)
+    {
+        auto transport = std::make_shared<MockTestTransport>();
+        SightlineDevice device(transport);
+        ASSERT_TRUE(device.start());
+
+        std::atomic<bool> ackReceived { false };
+        MsgCommandAck capturedAck {};
+        device.setCommandAckCallback([&](const MsgCommandAck& ack) {
+            ackReceived = true;
+            capturedAck = ack;
+        });
+
+        // 1. Dispatch setFileRecordingV2
+        MsgSetFileRecordingParamsV2 recMsg {};
+        recMsg.sequenceId = 0x4201U;
+        recMsg.cameraIndex = 0U;
+        recMsg.action = RecordingAction::Start;
+        recMsg.destination = StorageDestination::MicroSD;
+        recMsg.flags = static_cast<std::uint8_t>(RecordingFlags::AllowNumericOverwrite);
+        recMsg.baseFilename = "Mission_01";
+
+        EXPECT_TRUE(device.setFileRecordingV2(recMsg));
+        auto sent = transport->getSentPackets();
+        ASSERT_EQ(sent.size(), 1U);
+        EXPECT_EQ(SightlineFraming::identifyMessage(sent[0]), MessageId::SetFileRecordingParamsV2);
+
+        // 2. Dispatch doSnapShotV2
+        transport->clearSentPackets();
+        MsgDoSnapShotV2 snapMsg {};
+        snapMsg.sequenceId = 0x4202U;
+        snapMsg.cameraIndex = 1U;
+        snapMsg.format = SnapshotFormat::Tiff16;
+        snapMsg.burstCount = 5U;
+        snapMsg.customFilename = "ThermalBurst";
+
+        EXPECT_TRUE(device.doSnapShotV2(snapMsg));
+        sent = transport->getSentPackets();
+        ASSERT_EQ(sent.size(), 1U);
+        EXPECT_EQ(SightlineFraming::identifyMessage(sent[0]), MessageId::DoSnapShotV2);
+
+        // 3. Dispatch sendCmdAck
+        transport->clearSentPackets();
+        MsgCommandAck ackReply {};
+        ackReply.sequenceId = 0x4201U;
+        ackReply.originalMsgId = static_cast<std::uint8_t>(MessageId::SetFileRecordingParamsV2);
+        ackReply.statusCode = RecordingStatusCode::Success;
+        ackReply.freeStorageMB = 32000U;
+        ackReply.subsystemState = 0x01U;
+
+        EXPECT_TRUE(device.sendCmdAck(ackReply));
+        sent = transport->getSentPackets();
+        ASSERT_EQ(sent.size(), 1U);
+        EXPECT_EQ(SightlineFraming::identifyMessage(sent[0]), MessageId::CommandAck);
+
+        // 4. Inject inbound CommandAck packet from hardware
+        const auto incomingAckPkt = SightlineProtocolBuilder::buildCmdAck(ackReply);
+        transport->injectData(incomingAckPkt);
+
+        EXPECT_TRUE(ackReceived.load());
+        EXPECT_EQ(capturedAck.sequenceId, 0x4201U);
+        EXPECT_EQ(capturedAck.statusCode, RecordingStatusCode::Success);
+        EXPECT_EQ(capturedAck.freeStorageMB, 32000U);
+
+        // Verify device cache
+        EXPECT_TRUE(device.lastCommandAck().has_value());
+        EXPECT_EQ(device.lastCommandAck()->sequenceId, 0x4201U);
+
+        device.stop();
+    }
+
 } // namespace
 } // namespace Sightline

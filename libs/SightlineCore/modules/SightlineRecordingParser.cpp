@@ -61,4 +61,85 @@ bool SightlineRecordingParser::parseSnapShot(
     return true;
 }
 
+bool SightlineRecordingParser::parseCmdAck(
+    const std::vector<std::uint8_t>& packet, MsgCommandAck& out)
+{
+    if (SightlineFraming::identifyMessage(packet) != MessageId::CommandAck) {
+        return false;
+    }
+
+    const auto payload { SightlineFraming::extractPayload(packet) };
+    if (payload.size() < 9U) {
+        return false;
+    }
+
+    out.sequenceId = SightlineFraming::readU16Le(payload.data());
+    out.originalMsgId = payload[2U];
+    out.statusCode = static_cast<RecordingStatusCode>(payload[3U]);
+    out.freeStorageMB = SightlineFraming::readU32Le(payload.data() + 4U);
+    out.subsystemState = payload[8U];
+    return true;
+}
+
+bool SightlineRecordingParser::parseSetFileRecordingV2(
+    const std::vector<std::uint8_t>& packet, MsgSetFileRecordingParamsV2& out)
+{
+    if (SightlineFraming::identifyMessage(packet) != MessageId::SetFileRecordingParamsV2) {
+        return false;
+    }
+
+    const auto payload { SightlineFraming::extractPayload(packet) };
+    if (payload.size() < 12U) {
+        return false;
+    }
+
+    out.sequenceId = SightlineFraming::readU16Le(payload.data());
+    out.cameraIndex = payload[2U];
+    out.action = static_cast<RecordingAction>(payload[3U]);
+    out.destination = static_cast<StorageDestination>(payload[4U]);
+    out.flags = payload[5U];
+    out.maxSplitSizeBytes = SightlineFraming::readU32Le(payload.data() + 6U);
+    out.maxSplitFrames = SightlineFraming::readU16Le(payload.data() + 10U);
+    if (payload.size() > 12U) {
+        out.baseFilename = std::string(
+            reinterpret_cast<const char*>(payload.data() + 12U), payload.size() - 12U);
+        while (!out.baseFilename.empty() && out.baseFilename.back() == '\0') {
+            out.baseFilename.pop_back();
+        }
+    } else {
+        out.baseFilename.clear();
+    }
+    return true;
+}
+
+bool SightlineRecordingParser::parseDoSnapShotV2(
+    const std::vector<std::uint8_t>& packet, MsgDoSnapShotV2& out)
+{
+    if (SightlineFraming::identifyMessage(packet) != MessageId::DoSnapShotV2) {
+        return false;
+    }
+
+    const auto payload { SightlineFraming::extractPayload(packet) };
+    if (payload.size() < 7U) {
+        return false;
+    }
+
+    out.sequenceId = SightlineFraming::readU16Le(payload.data());
+    out.cameraIndex = payload[2U];
+    out.format = static_cast<SnapshotFormat>(payload[3U]);
+    out.domain = static_cast<SnapshotDomain>(payload[4U]);
+    out.qualityLevel = payload[5U];
+    out.burstCount = payload[6U];
+    if (payload.size() > 7U) {
+        out.customFilename = std::string(
+            reinterpret_cast<const char*>(payload.data() + 7U), payload.size() - 7U);
+        while (!out.customFilename.empty() && out.customFilename.back() == '\0') {
+            out.customFilename.pop_back();
+        }
+    } else {
+        out.customFilename.clear();
+    }
+    return true;
+}
+
 } // namespace Sightline

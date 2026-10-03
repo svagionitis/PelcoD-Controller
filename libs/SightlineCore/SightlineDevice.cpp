@@ -455,6 +455,21 @@ bool SightlineDevice::setSDRecording(const MsgSetSDRecordingParameters& msg)
     return sendPacket(SightlineProtocolBuilder::buildSetSDRecording(msg));
 }
 
+bool SightlineDevice::setFileRecordingV2(const MsgSetFileRecordingParamsV2& msg)
+{
+    return sendPacket(SightlineProtocolBuilder::buildSetFileRecordingV2(msg));
+}
+
+bool SightlineDevice::doSnapShotV2(const MsgDoSnapShotV2& msg)
+{
+    return sendPacket(SightlineProtocolBuilder::buildDoSnapShotV2(msg));
+}
+
+bool SightlineDevice::sendCmdAck(const MsgCommandAck& msg)
+{
+    return sendPacket(SightlineProtocolBuilder::buildCmdAck(msg));
+}
+
 bool SightlineDevice::streamingControl(std::uint8_t streamIndex, std::uint8_t action)
 {
     MsgStreamingControl msg {};
@@ -826,6 +841,18 @@ void SightlineDevice::setKlvMetricFiltersCb(KlvMetricFiltersCallback cb)
     m_klvMetricFiltersCallback = std::move(cb);
 }
 
+void SightlineDevice::setCommandAckCallback(CommandAckCallback cb)
+{
+    std::lock_guard<std::mutex> lock(m_callbackMutex);
+    m_commandAckCallback = std::move(cb);
+}
+
+std::optional<MsgCommandAck> SightlineDevice::lastCommandAck() const
+{
+    std::lock_guard<std::mutex> lock(m_cacheMutex);
+    return m_lastCommandAck;
+}
+
 std::optional<MsgSetOverlayMode> SightlineDevice::lastOverlayMode() const
 {
     std::lock_guard<std::mutex> lock(m_cacheMutex);
@@ -1190,6 +1217,24 @@ void SightlineDevice::dispatchPacket(const std::vector<std::uint8_t>& packet)
             }
             if (cb) {
                 cb(filters);
+            }
+        }
+        break;
+    }
+    case MessageId::CommandAck: {
+        MsgCommandAck ack {};
+        if (SightlineProtocolParser::parseCmdAck(packet, ack)) {
+            {
+                std::lock_guard<std::mutex> lock(m_cacheMutex);
+                m_lastCommandAck = ack;
+            }
+            CommandAckCallback cb {};
+            {
+                std::lock_guard<std::mutex> lock(m_callbackMutex);
+                cb = m_commandAckCallback;
+            }
+            if (cb) {
+                cb(ack);
             }
         }
         break;

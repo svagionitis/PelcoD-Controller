@@ -169,6 +169,15 @@ public:
     /// @brief Parses snapshot status and path (Message ID 0x5D / 0x5F).
     [[nodiscard]] static bool parseSnapShot(const std::vector<std::uint8_t>& packet, MsgCurrentSnapShot& out);
 
+    /// @brief Parses command acknowledgment message (Message ID 0xC3).
+    [[nodiscard]] static bool parseCmdAck(const std::vector<std::uint8_t>& packet, MsgCommandAck& out);
+
+    /// @brief Parses hardened video recording parameters (Message ID 0xC4).
+    [[nodiscard]] static bool parseSetFileRecordingV2(const std::vector<std::uint8_t>& packet, MsgSetFileRecordingParamsV2& out);
+
+    /// @brief Parses hardened snapshot request (Message ID 0xC5).
+    [[nodiscard]] static bool parseDoSnapShotV2(const std::vector<std::uint8_t>& packet, MsgDoSnapShotV2& out);
+
     // --- Thermal NUC & Sensor Calibration Deserializers ---
 
     /// @brief Parses NUC calibration parameters (Message ID 0x35).
