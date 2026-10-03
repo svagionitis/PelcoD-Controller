@@ -162,8 +162,16 @@ Techniques from digital signal processing (DSP), system identification, and cont
   * Extends synthetic test generation with high-contrast digital millisecond stopwatches, binary optical barcodes, and sweeping sinusoidal bars synchronized with PTZ motor commands for bench-testing glass-to-glass latency estimators without physical hardware.
 * **Multi-Resolution Sub-Stream Scaler & ROI Cropper (`FrameScaler`)**:
   * Provides high-performance SIMD/OpenCV downsampling and bounding-box ROI cropping (e.g. 640×360 or 128×128 target patches) to feed optical flow and Gabor feature analyzers with minimal CPU/GPU overhead while maintaining full 1080p/4K resolution for operator display.
-* **STANAG 4609 / MISB ST 0601 KLV Metadata Engine (`KlvParser` / `KlvEncoder`)**:
-  * Lightweight, zero-dependency C++17 telemetry encoder and parser implementing the SMPTE 336M / MISB ST 0601 UAS Datalink Local Set standard. Synchronizes camera pan/tilt angles, optical FOV, platform GPS coordinates (latitude, longitude, altitude), and slant range frame-by-frame with RTSP and MPEG-TS video streams. Enables moving map integration (ATAK / WinTAK sensor footprint frustums), geo-pointing target coordinate calculations, and lossless forensic metadata recording without altering video pixels.
+* **STANAG 4609 / MISB KLV Metadata Engine & Standards Suite (`libs/Klv`) (Completed)**:
+  * Full-featured, zero-Qt C++17 telemetry encoder, parser, and translation engine conforming to NATO STANAG 4609 and MISB standards. Detailed in [KLV_Features.md](KLV_Features.md).
+  * **MISB ST 0601.19 (UAS Datalink Local Set)**: Frame-by-frame synchronization of camera pan/tilt/roll angles, optical FOV, platform GPS, slant range, Target Location Error (CE90/LE90), and corner frustums with RTSP and MPEG-TS video streams ([KlvParser.h](../libs/Klv/KlvParser.h), [KlvEncoder.h](../libs/Klv/KlvEncoder.h)).
+  * **MISB ST 0806.4 (Remote Video Terminal - RVT Local Set)**: Subordinate Points of Interest (POI), Areas of Interest (AOI), User-Defined metadata, and MPEG-2 CRC-32 integrity validation ([RvtParser.h](../libs/Klv/RvtParser.h), [RvtEncoder.h](../libs/Klv/RvtEncoder.h)).
+  * **MISB ST 0805.1 (Cursor-on-Target / CoT Translation)**: Real-time translation of ST 0601 platform position, Sensor POI, and ST 0806 RVT POIs into MIL-STD-2525B/D Cursor-on-Target XML events for ATAK / WinTAK interoperability ([Misb0805.h](../libs/Klv/Misb0805.h), [Misb0805.cpp](../libs/Klv/Misb0805.cpp)).
+  * **MISB ST 1601.2 (Geo-Registration Local Set)**: Image-to-image and image-to-ground correspondence tie points, elevation, and covariance matrices ([GeoRegistrationParser.h](../libs/Klv/GeoRegistrationParser.h), [GeoRegistrationEncoder.h](../libs/Klv/GeoRegistrationEncoder.h)).
+  * **MISB ST 1303.2 (MDARRAY)**: Multi-dimensional array pack serialization with NaturalFormat, ST 1201 IMAPB, and UnsignedInteger APA encodings ([MdArray.h](../libs/Klv/MdArray.h), [MdArray.cpp](../libs/Klv/MdArray.cpp)).
+  * **MISB ST 1201.5 (Floating Point Mapping)**: Floating-point compression via IMAPA/IMAPB and RIMAPB recovery ([Misb1201.h](../libs/Klv/Misb1201.h), [Misb1201.cpp](../libs/Klv/Misb1201.cpp)).
+  * **MISB ST 0903.6 (VMTI)**: Video Moving Target Indicator metadata ([VmtiParser.h](../libs/Klv/VmtiParser.h), [VmtiEncoder.h](../libs/Klv/VmtiEncoder.h)).
+  * **MPEG-TS KLV Extraction**: Hardware/software demuxing, PID auto-discovery, and multi-packet PES reassembly ([MpegTsKlvExtractor.h](../libs/Klv/MpegTsKlvExtractor.h)).
 
 #### D. Control System Identification
 * **Automated Chirp / Swept-Sine Plant Identification (Empirical Bode Plot) (Completed)**:

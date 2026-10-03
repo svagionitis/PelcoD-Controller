@@ -29,6 +29,13 @@ add_library(Klv STATIC
     RvtParser.cpp
     Misb0805.h
     Misb0805.cpp
+    MdArray.h
+    MdArray.cpp
+    GeoRegistrationTypes.h
+    GeoRegistrationEncoder.h
+    GeoRegistrationEncoder.cpp
+    GeoRegistrationParser.h
+    GeoRegistrationParser.cpp
 )
 
 target_include_directories(Klv PUBLIC
