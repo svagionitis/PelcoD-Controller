@@ -24,4 +24,5 @@ add_klv_test(TestVmtiEncoderParser TestVmtiEncoderParser.cpp)
 add_klv_test(TestMisb1201          TestMisb1201.cpp)
 add_klv_test(TestFlightStreamValidation TestFlightStreamValidation.cpp)
 add_klv_test(TestRvtLocalSet          TestRvtLocalSet.cpp)
+add_klv_test(TestMisb0805             TestMisb0805.cpp)
 

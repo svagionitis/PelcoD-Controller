@@ -27,6 +27,8 @@ add_library(Klv STATIC
     RvtEncoder.cpp
     RvtParser.h
     RvtParser.cpp
+    Misb0805.h
+    Misb0805.cpp
 )
 
 target_include_directories(Klv PUBLIC
