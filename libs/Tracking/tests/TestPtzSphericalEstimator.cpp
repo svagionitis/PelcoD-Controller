@@ -168,4 +168,29 @@ TEST(PtzSphericalEstimatorTest, UKFModeConverges)
     std::cout << "  -> PASSED\n";
 }
 
+TEST(PtzSphericalEstimatorTest, CovarianceAndCe90Computation)
+{
+    std::cout << "[Test] testCovarianceAndCe90Computation\n";
+    PtzSphericalEstimator est;
+    est.init(0.2, -0.4); // 0.2 rad azimuth, -0.4 rad elevation (down)
+
+    // With 0 slant range, CE90 and LE90 are 0
+    const auto sZero = est.getState(0.0, 0.0, 0.0, 0.0);
+    EXPECT_GT(sZero.sigmaAzimuthRad, 0.0);
+    EXPECT_GT(sZero.sigmaElevationRad, 0.0);
+    EXPECT_NEAR(sZero.ce90Meters, 0.0, 1e-6);
+    EXPECT_NEAR(sZero.le90Meters, 0.0, 1e-6);
+
+    // With 1000m slant range, CE90 and LE90 are positively estimated
+    const auto s1000 = est.getState(0.0, 0.0, 0.0, 1000.0);
+    EXPECT_GT(s1000.ce90Meters, 0.0);
+    EXPECT_GT(s1000.le90Meters, 0.0);
+
+    // Higher slant range scales CE90 linearly
+    const auto s2000 = est.getState(0.0, 0.0, 0.0, 2000.0);
+    EXPECT_NEAR(s2000.ce90Meters, s1000.ce90Meters * 2.0, 0.1);
+    EXPECT_NEAR(s2000.le90Meters, s1000.le90Meters * 2.0, 0.1);
+    std::cout << "  -> PASSED\n";
+}
+
 } // namespace

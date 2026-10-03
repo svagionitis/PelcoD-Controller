@@ -349,4 +349,52 @@ PtzAutoTracker::TrackingCommand PtzAutoTracker::updateAngular(double errorAzimut
     return cmd;
 }
 
+PtzAutoTracker::TrackingCommand PtzAutoTracker::updateFromVmti(
+    const Klv::VTargetPack& pack,
+    std::uint32_t frameWidth,
+    std::uint32_t frameHeight,
+    double dt,
+    double currentZoom)
+{
+    if (frameWidth == 0U || frameHeight == 0U) {
+        return update(0.0, 0.0, 0.0, 0.0, false, true, dt, 0.0, currentZoom);
+    }
+
+    double u = 0.0;
+    double v = 0.0;
+    bool hasDetection = false;
+
+    if (pack.centroid.has_value()) {
+        u = static_cast<double>(pack.centroid->col > 0U ? pack.centroid->col - 1U : 0U);
+        v = static_cast<double>(pack.centroid->row > 0U ? pack.centroid->row - 1U : 0U);
+        hasDetection = true;
+    } else if (pack.boundingBox.has_value()) {
+        const auto& box = *pack.boundingBox;
+        const double c1 = static_cast<double>(box.topLeft.col > 0U ? box.topLeft.col - 1U : 0U);
+        const double r1 = static_cast<double>(box.topLeft.row > 0U ? box.topLeft.row - 1U : 0U);
+        const double c2 = static_cast<double>(box.bottomRight.col > 0U ? box.bottomRight.col - 1U : 0U);
+        const double r2 = static_cast<double>(box.bottomRight.row > 0U ? box.bottomRight.row - 1U : 0U);
+        u = (c1 + c2) * 0.5;
+        v = (r1 + r2) * 0.5;
+        hasDetection = true;
+    }
+
+    if (!hasDetection) {
+        return update(0.0, 0.0, 0.0, 0.0, false, true, dt, 0.0, currentZoom);
+    }
+
+    const double halfW = static_cast<double>(frameWidth) * 0.5;
+    const double halfH = static_cast<double>(frameHeight) * 0.5;
+    const double errorX = (u - halfW) / halfW;
+    const double errorY = (v - halfH) / halfH;
+
+    double targetNormHeight = 0.0;
+    if (pack.boundingBox.has_value()) {
+        targetNormHeight = static_cast<double>(pack.boundingBox->height()) / static_cast<double>(frameHeight);
+    }
+
+    const bool isLocked = pack.confidence.value_or(100U) > 10U;
+    return update(errorX, errorY, 0.0, 0.0, isLocked, false, dt, targetNormHeight, currentZoom);
+}
+
 } // namespace Tracking

@@ -39,6 +39,11 @@ struct SphericalTargetState {
     double mahalanobisDistance { 0.0 }; ///< Statistical distance of innovation residual.
     bool locked { false }; ///< True if target is acquired.
     bool isOutlierGated { false }; ///< True if latest visual detection exceeded Mahalanobis threshold.
+
+    double ce90Meters { 0.0 }; ///< Circular Error 90% (horizontal error in meters per MISB ST 0601/0903).
+    double le90Meters { 0.0 }; ///< Linear Error 90% (vertical error in meters per MISB ST 0601/0903).
+    double sigmaAzimuthRad { 0.0 }; ///< 1-sigma standard deviation in azimuth angle (radians).
+    double sigmaElevationRad { 0.0 }; ///< 1-sigma standard deviation in elevation angle (radians).
 };
 
 /// @struct SphericalEstimatorConfig
@@ -88,12 +93,14 @@ public:
     /// @param[in] dt Elapsed time in seconds.
     void predict(double dt);
 
-    /// @brief Retrieves estimated spherical target kinematics and boresight errors.
+    /// @brief Retrieves estimated spherical target kinematics, covariance, and boresight errors.
     /// @param[in] lookaheadLatencySeconds Forward projection lookahead time in seconds.
     /// @param[in] camPanRad Camera current pan angle in radians.
     /// @param[in] camTiltRad Camera current tilt angle in radians.
+    /// @param[in] slantRangeMeters Estimated slant range to target in meters (computes CE90 and LE90).
     [[nodiscard]] SphericalTargetState getState(
-        double lookaheadLatencySeconds = 0.0, double camPanRad = 0.0, double camTiltRad = 0.0) const noexcept;
+        double lookaheadLatencySeconds = 0.0, double camPanRad = 0.0, double camTiltRad = 0.0,
+        double slantRangeMeters = 0.0) const noexcept;
 
     /// @brief Sets active estimation algorithm (EKF or UKF).
     void setType(EstimatorType type);

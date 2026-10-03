@@ -23,6 +23,8 @@ add_library(Tracking STATIC
     ChirpCalibrator.cpp
     TransientShockDetector.h
     TransientShockDetector.cpp
+    TrackingVmtiBridge.h
+    TrackingVmtiBridge.cpp
     Tracking.h
 )
 
@@ -33,6 +35,7 @@ target_include_directories(Tracking PUBLIC
 )
 
 target_link_libraries(Tracking PUBLIC
+    Klv
     Math
     Threads::Threads
     glog::glog

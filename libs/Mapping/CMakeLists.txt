@@ -15,6 +15,8 @@ add_library(Mapping STATIC
     CompositeTileProvider.cpp
     TacticalOverlay.h
     TacticalOverlay.cpp
+    VmtiOverlay.h
+    VmtiOverlay.cpp
 )
 
 target_include_directories(Mapping PUBLIC

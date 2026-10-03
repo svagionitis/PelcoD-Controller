@@ -174,7 +174,7 @@ void PtzSphericalEstimator::update(double u, double v, double camPanRad, double 
 }
 
 SphericalTargetState PtzSphericalEstimator::getState(
-    double lookaheadLatencySeconds, double camPanRad, double camTiltRad) const noexcept
+    double lookaheadLatencySeconds, double camPanRad, double camTiltRad, double slantRangeMeters) const noexcept
 {
     std::scoped_lock lock(m_mutex);
     SphericalTargetState out {};
@@ -183,11 +183,30 @@ SphericalTargetState PtzSphericalEstimator::getState(
     }
 
     const Math::Vector<6>& x = (m_config.type == EstimatorType::EKF) ? m_ekf.getState() : m_ukf.getState();
+    const Math::Matrix<6, 6>& P = (m_config.type == EstimatorType::EKF) ? m_ekf.getCovariance() : m_ukf.getCovariance();
 
     out.azimuthRad = x[0];
     out.elevationRad = x[1];
     out.azimuthVelocityRadPerSec = x[2];
     out.elevationVelocityRadPerSec = x[3];
+
+    // Angular uncertainties (1-sigma)
+    out.sigmaAzimuthRad = std::sqrt(std::max(0.0, P(0, 0)));
+    out.sigmaElevationRad = std::sqrt(std::max(0.0, P(1, 1)));
+
+    // MISB ST 0601 Tag 45 & ST 0903 CE90 / LE90 error projection
+    if (slantRangeMeters > 0.0) {
+        const double r = slantRangeMeters;
+        const double sigmaCross = r * out.sigmaAzimuthRad;
+        const double sinEl = std::abs(std::sin(out.elevationRad));
+        const double sigmaAlong = (sinEl > 0.0175) ? ((r * out.sigmaElevationRad) / sinEl) : (r * out.sigmaElevationRad);
+
+        // CE90 for 2D horizontal bivariate normal distribution
+        out.ce90Meters = 2.146 * std::sqrt((sigmaCross * sigmaCross + sigmaAlong * sigmaAlong) * 0.5);
+
+        // LE90 for vertical/elevation line-of-sight error
+        out.le90Meters = 1.6449 * (r * out.sigmaElevationRad);
+    }
 
     // Angular errors relative to camera pan/tilt in degrees
     // Shortest angular difference for azimuth

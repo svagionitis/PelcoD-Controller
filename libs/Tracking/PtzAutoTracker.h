@@ -4,6 +4,7 @@
 /// @brief 3-Axis closed-loop automated PTZ tracking orchestrator.
 
 #include "PidController.h"
+#include "Klv/VmtiTypes.h"
 #include <algorithm>
 #include <cstdint>
 
@@ -70,6 +71,19 @@ public:
     TrackingCommand updateAngular(double errorAzimuthDeg, double errorElevationDeg, double omegaAzimuthDegPerSec,
         double omegaElevationDegPerSec, bool isLocked, bool isCoasting, double dt, double targetNormHeight = 0.0,
         double currentZoom = 1.0);
+
+    /// @brief Ingests an external MISB ST 0903 VTargetPack detection to drive closed-loop PTZ tracking.
+    /// @param[in] pack VTargetPack detection containing centroid or bounding box.
+    /// @param[in] frameWidth Video frame width in pixels.
+    /// @param[in] frameHeight Video frame height in pixels.
+    /// @param[in] dt Elapsed time in seconds since previous update.
+    /// @param[in] currentZoom Current optical/sensor magnification factor (>= 1.0).
+    /// @return Actionable TrackingCommand with discrete pan/tilt/zoom directions and speeds.
+    TrackingCommand updateFromVmti(const Klv::VTargetPack& pack,
+                                  std::uint32_t frameWidth,
+                                  std::uint32_t frameHeight,
+                                  double dt,
+                                  double currentZoom = 1.0);
 
     /// @brief Reset axis controllers, framing state, and set state to Idle.
     void reset() noexcept;
