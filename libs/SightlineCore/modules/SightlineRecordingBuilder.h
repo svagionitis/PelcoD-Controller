@@ -62,6 +62,24 @@ public:
     /// @return Framed binary packet.
     [[nodiscard]] static std::vector<std::uint8_t> buildRecordingStatusV2(
         const MsgCurrentRecordingStatusV2& msg);
+
+    /// @brief Encodes directory catalog query (Message ID 0xC8).
+    /// @param[in] msg Directory query structure.
+    /// @return Framed binary packet.
+    [[nodiscard]] static std::vector<std::uint8_t> buildGetDirListing(
+        const MsgGetDirectoryListing& msg);
+
+    /// @brief Encodes directory catalog response batch (Message ID 0xC9).
+    /// @param[in] msg Directory listing reply structure.
+    /// @return Framed binary packet.
+    [[nodiscard]] static std::vector<std::uint8_t> buildDirListingReply(
+        const MsgDirectoryListingReply& msg);
+
+    /// @brief Encodes in-band file storage management command (Message ID 0xCA).
+    /// @param[in] msg Storage management command structure.
+    /// @return Framed binary packet.
+    [[nodiscard]] static std::vector<std::uint8_t> buildFileStorageMgmt(
+        const MsgFileStorageManagement& msg);
 };
 
 } // namespace Sightline

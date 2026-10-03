@@ -401,6 +401,9 @@ enum class MessageId : std::uint8_t {
     DoSnapShotV2 = 0xC5U,
     FileRecordingEvent = 0xC6U,
     CurrentRecordingStatusV2 = 0xC7U,
+    GetDirectoryListing = 0xC8U,
+    DirectoryListingReply = 0xC9U,
+    FileStorageManagement = 0xCAU,
     Unknown = 0xFFU
 };
 
@@ -713,6 +716,12 @@ struct TrackingTelemetrySnapshot {
         return "FileRecordingEvent (0xC6)";
     case MessageId::CurrentRecordingStatusV2:
         return "CurrentRecordingStatusV2 (0xC7)";
+    case MessageId::GetDirectoryListing:
+        return "GetDirectoryListing (0xC8)";
+    case MessageId::DirectoryListingReply:
+        return "DirectoryListingReply (0xC9)";
+    case MessageId::FileStorageManagement:
+        return "FileStorageManagement (0xCA)";
     default:
         return "Unknown Message";
     }

@@ -206,4 +206,102 @@ bool SightlineRecordingParser::parseRecordingStatusV2(
     return true;
 }
 
+bool SightlineRecordingParser::parseGetDirListing(
+    const std::vector<std::uint8_t>& packet, MsgGetDirectoryListing& out)
+{
+    if (SightlineFraming::identifyMessage(packet) != MessageId::GetDirectoryListing) {
+        return false;
+    }
+
+    const auto payload { SightlineFraming::extractPayload(packet) };
+    if (payload.size() < 6U) {
+        return false;
+    }
+
+    out.sequenceId = SightlineFraming::readU16Le(payload.data());
+    out.destination = static_cast<StorageDestination>(payload[2U]);
+    out.startIndex = SightlineFraming::readU16Le(payload.data() + 3U);
+    out.maxEntries = payload[5U];
+    if (payload.size() > 6U) {
+        out.pathFilter = std::string(
+            reinterpret_cast<const char*>(payload.data() + 6U), payload.size() - 6U);
+        while (!out.pathFilter.empty() && out.pathFilter.back() == '\0') {
+            out.pathFilter.pop_back();
+        }
+    } else {
+        out.pathFilter.clear();
+    }
+    return true;
+}
+
+bool SightlineRecordingParser::parseDirListingReply(
+    const std::vector<std::uint8_t>& packet, MsgDirectoryListingReply& out)
+{
+    if (SightlineFraming::identifyMessage(packet) != MessageId::DirectoryListingReply) {
+        return false;
+    }
+
+    const auto payload { SightlineFraming::extractPayload(packet) };
+    if (payload.size() < 7U) {
+        return false;
+    }
+
+    out.sequenceId = SightlineFraming::readU16Le(payload.data());
+    out.totalFiles = SightlineFraming::readU16Le(payload.data() + 2U);
+    out.startIndex = SightlineFraming::readU16Le(payload.data() + 4U);
+    const auto entryCount = static_cast<std::size_t>(payload[6U]);
+
+    out.entries.clear();
+    out.entries.reserve(entryCount);
+
+    std::size_t offset { 7U };
+    for (std::size_t i = 0U; i < entryCount && (offset + 18U <= payload.size()); ++i) {
+        DirListEntry entry {};
+        entry.fileSizeBytes = SightlineFraming::readU64Le(payload.data() + offset);
+        entry.timestampUs = SightlineFraming::readU64Le(payload.data() + offset + 8U);
+        entry.isPinned = (payload[offset + 16U] != 0U);
+        entry.formatType = payload[offset + 17U];
+        offset += 18U;
+
+        std::size_t strEnd = offset;
+        while (strEnd < payload.size() && payload[strEnd] != 0U) {
+            ++strEnd;
+        }
+        entry.filename = std::string(
+            reinterpret_cast<const char*>(payload.data() + offset), strEnd - offset);
+        offset = (strEnd < payload.size()) ? (strEnd + 1U) : strEnd;
+
+        out.entries.push_back(std::move(entry));
+    }
+
+    return true;
+}
+
+bool SightlineRecordingParser::parseFileStorageMgmt(
+    const std::vector<std::uint8_t>& packet, MsgFileStorageManagement& out)
+{
+    if (SightlineFraming::identifyMessage(packet) != MessageId::FileStorageManagement) {
+        return false;
+    }
+
+    const auto payload { SightlineFraming::extractPayload(packet) };
+    if (payload.size() < 4U) {
+        return false;
+    }
+
+    out.sequenceId = SightlineFraming::readU16Le(payload.data());
+    out.operation = static_cast<FileStorageOp>(payload[2U]);
+    out.destination = static_cast<StorageDestination>(payload[3U]);
+    if (payload.size() > 4U) {
+        out.targetFilename = std::string(
+            reinterpret_cast<const char*>(payload.data() + 4U), payload.size() - 4U);
+        while (!out.targetFilename.empty() && out.targetFilename.back() == '\0') {
+            out.targetFilename.pop_back();
+        }
+    } else {
+        out.targetFilename.clear();
+    }
+    return true;
+}
+
 } // namespace Sightline

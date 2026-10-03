@@ -79,6 +79,12 @@ add_library(SightlineCore STATIC
     modules/RecordingRingBuffer.cpp
     modules/StorageRetentionManager.h
     modules/StorageRetentionManager.cpp
+    modules/MetadataXmpBuilder.h
+    modules/MetadataXmpBuilder.cpp
+    modules/TransactionalStorageWriter.h
+    modules/TransactionalStorageWriter.cpp
+    modules/SecureStorageSyncService.h
+    modules/SecureStorageSyncService.cpp
     modules/SightlineSerialBuilder.h
     modules/SightlineSerialBuilder.cpp
     modules/SightlineSerialParser.h

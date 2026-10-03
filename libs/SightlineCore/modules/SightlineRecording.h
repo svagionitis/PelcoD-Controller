@@ -159,4 +159,51 @@ struct MsgCurrentSnapShot {
     std::string fileName {};
 };
 
+/// @enum FileStorageOp
+/// @brief Operations requested in MsgFileStorageManagement (Message ID 0xCA).
+enum class FileStorageOp : std::uint8_t {
+    Pin = 0x01U,       ///< Protect file from circular FIFO deletion
+    Unpin = 0x02U,     ///< Allow file to be deleted by circular FIFO pruning
+    Delete = 0x03U,    ///< Immediately unlink target file
+    FormatMedia = 0x04U///< Re-initialize storage medium filesystem
+};
+
+/// @struct DirListEntry
+/// @brief Individual file metadata item within DirectoryListingReply (0xC9).
+struct DirListEntry {
+    std::string filename {};            ///< Base filename (max 64 chars)
+    std::uint64_t fileSizeBytes { 0ULL };///< File size on medium
+    std::uint64_t timestampUs { 0ULL }; ///< Creation timestamp in UTC microseconds
+    bool isPinned { false };            ///< True if locked against FIFO pruning
+    std::uint8_t formatType { 0U };     ///< 0: TS, 1: MP4/fMP4, 2: JPEG, 3: TIFF
+};
+
+/// @struct MsgGetDirectoryListing
+/// @brief Paginated file catalog query (Message ID 0xC8).
+struct MsgGetDirectoryListing {
+    std::uint16_t sequenceId { 0U };    ///< Transaction sequence identifier
+    StorageDestination destination { StorageDestination::MicroSD }; ///< Target volume
+    std::uint16_t startIndex { 0U };    ///< Zero-based offset of first desired entry
+    std::uint8_t maxEntries { 8U };     ///< Max items to return in batch (1..16)
+    std::string pathFilter {};          ///< Optional directory path or filename prefix filter
+};
+
+/// @struct MsgDirectoryListingReply
+/// @brief Paginated file catalog response (Message ID 0xC9).
+struct MsgDirectoryListingReply {
+    std::uint16_t sequenceId { 0U };    ///< Matching transaction sequence identifier
+    std::uint16_t totalFiles { 0U };    ///< Total number of matching files on volume
+    std::uint16_t startIndex { 0U };    ///< Offset of first entry in entries vector
+    std::vector<DirListEntry> entries {};///< Batch of catalog entries
+};
+
+/// @struct MsgFileStorageManagement
+/// @brief In-band file locking, deletion, or format command (Message ID 0xCA).
+struct MsgFileStorageManagement {
+    std::uint16_t sequenceId { 0U };    ///< Transaction sequence identifier
+    FileStorageOp operation { FileStorageOp::Pin }; ///< Action to execute
+    StorageDestination destination { StorageDestination::MicroSD }; ///< Target volume
+    std::string targetFilename {};      ///< Target relative filename or path
+};
+
 } // namespace Sightline

@@ -443,6 +443,21 @@ std::vector<std::uint8_t> SightlineProtocolBuilder::buildRecordingStatusV2(const
     return SightlineRecordingBuilder::buildRecordingStatusV2(msg);
 }
 
+std::vector<std::uint8_t> SightlineProtocolBuilder::buildGetDirListing(const MsgGetDirectoryListing& msg)
+{
+    return SightlineRecordingBuilder::buildGetDirListing(msg);
+}
+
+std::vector<std::uint8_t> SightlineProtocolBuilder::buildDirListingReply(const MsgDirectoryListingReply& msg)
+{
+    return SightlineRecordingBuilder::buildDirListingReply(msg);
+}
+
+std::vector<std::uint8_t> SightlineProtocolBuilder::buildFileStorageMgmt(const MsgFileStorageManagement& msg)
+{
+    return SightlineRecordingBuilder::buildFileStorageMgmt(msg);
+}
+
 std::vector<std::uint8_t> SightlineProtocolBuilder::buildStreamingControl(const MsgStreamingControl& msg)
 {
     return SightlineCompressionBuilder::buildStreamingControl(msg);

@@ -205,6 +205,21 @@ bool SightlineProtocolParser::parseRecordingStatusV2(const std::vector<std::uint
     return SightlineRecordingParser::parseRecordingStatusV2(packet, out);
 }
 
+bool SightlineProtocolParser::parseGetDirListing(const std::vector<std::uint8_t>& packet, MsgGetDirectoryListing& out)
+{
+    return SightlineRecordingParser::parseGetDirListing(packet, out);
+}
+
+bool SightlineProtocolParser::parseDirListingReply(const std::vector<std::uint8_t>& packet, MsgDirectoryListingReply& out)
+{
+    return SightlineRecordingParser::parseDirListingReply(packet, out);
+}
+
+bool SightlineProtocolParser::parseFileStorageMgmt(const std::vector<std::uint8_t>& packet, MsgFileStorageManagement& out)
+{
+    return SightlineRecordingParser::parseFileStorageMgmt(packet, out);
+}
+
 // ==============================================================================
 // 4. Thermal NUC & Sensor Calibration Deserializers (Nuc)
 // ==============================================================================

@@ -480,6 +480,21 @@ bool SightlineDevice::sendRecordingStatusV2(const MsgCurrentRecordingStatusV2& m
     return sendPacket(SightlineProtocolBuilder::buildRecordingStatusV2(msg));
 }
 
+bool SightlineDevice::getDirectoryListing(const MsgGetDirectoryListing& msg)
+{
+    return sendPacket(SightlineProtocolBuilder::buildGetDirListing(msg));
+}
+
+bool SightlineDevice::sendDirListingReply(const MsgDirectoryListingReply& msg)
+{
+    return sendPacket(SightlineProtocolBuilder::buildDirListingReply(msg));
+}
+
+bool SightlineDevice::sendFileStorageMgmt(const MsgFileStorageManagement& msg)
+{
+    return sendPacket(SightlineProtocolBuilder::buildFileStorageMgmt(msg));
+}
+
 bool SightlineDevice::streamingControl(std::uint8_t streamIndex, std::uint8_t action)
 {
     MsgStreamingControl msg {};
@@ -885,6 +900,18 @@ std::optional<MsgCurrentRecordingStatusV2> SightlineDevice::lastRecordingStatus(
 {
     std::lock_guard<std::mutex> lock(m_cacheMutex);
     return m_lastRecordingStatus;
+}
+
+void SightlineDevice::setDirListingReplyCb(DirListingReplyCallback cb)
+{
+    std::lock_guard<std::mutex> lock(m_callbackMutex);
+    m_dirListingReplyCb = std::move(cb);
+}
+
+std::optional<MsgDirectoryListingReply> SightlineDevice::lastDirListingReply() const
+{
+    std::lock_guard<std::mutex> lock(m_cacheMutex);
+    return m_lastDirListingReply;
 }
 
 std::optional<MsgSetOverlayMode> SightlineDevice::lastOverlayMode() const
@@ -1305,6 +1332,24 @@ void SightlineDevice::dispatchPacket(const std::vector<std::uint8_t>& packet)
             }
             if (cb) {
                 cb(status);
+            }
+        }
+        break;
+    }
+    case MessageId::DirectoryListingReply: {
+        MsgDirectoryListingReply reply {};
+        if (SightlineProtocolParser::parseDirListingReply(packet, reply)) {
+            {
+                std::lock_guard<std::mutex> lock(m_cacheMutex);
+                m_lastDirListingReply = reply;
+            }
+            DirListingReplyCallback cb {};
+            {
+                std::lock_guard<std::mutex> lock(m_callbackMutex);
+                cb = m_dirListingReplyCb;
+            }
+            if (cb) {
+                cb(reply);
             }
         }
         break;

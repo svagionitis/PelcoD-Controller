@@ -776,5 +776,75 @@ namespace {
         device.stop();
     }
 
+    /// @brief Verify Phase 3 remote filesystem querying, reply callback, and storage operations.
+    TEST(TestSightlineDevice, Phase3RemoteFileSystemIntegration)
+    {
+        auto transport = std::make_shared<MockTestTransport>();
+        SightlineDevice device(transport);
+        ASSERT_TRUE(device.start());
+
+        std::atomic<bool> replyReceived { false };
+        MsgDirectoryListingReply capturedReply {};
+        device.setDirListingReplyCb([&](const MsgDirectoryListingReply& rep) {
+            replyReceived = true;
+            capturedReply = rep;
+        });
+
+        // 1. Dispatch getDirectoryListing
+        MsgGetDirectoryListing getMsg {};
+        getMsg.sequenceId = 0x6101U;
+        getMsg.destination = StorageDestination::MicroSD;
+        getMsg.startIndex = 0U;
+        getMsg.maxEntries = 10U;
+        getMsg.pathFilter = "Mission";
+
+        EXPECT_TRUE(device.getDirectoryListing(getMsg));
+        auto sent = transport->getSentPackets();
+        ASSERT_EQ(sent.size(), 1U);
+        EXPECT_EQ(SightlineFraming::identifyMessage(sent[0]), MessageId::GetDirectoryListing);
+
+        // 2. Dispatch sendFileStorageMgmt
+        transport->clearSentPackets();
+        MsgFileStorageManagement mgmtMsg {};
+        mgmtMsg.sequenceId = 0x6102U;
+        mgmtMsg.operation = FileStorageOp::Pin;
+        mgmtMsg.destination = StorageDestination::MicroSD;
+        mgmtMsg.targetFilename = "Mission_0001.ts";
+
+        EXPECT_TRUE(device.sendFileStorageMgmt(mgmtMsg));
+        sent = transport->getSentPackets();
+        ASSERT_EQ(sent.size(), 1U);
+        EXPECT_EQ(SightlineFraming::identifyMessage(sent[0]), MessageId::FileStorageManagement);
+
+        // 3. Inject inbound DirectoryListingReply
+        MsgDirectoryListingReply inboundReply {};
+        inboundReply.sequenceId = 0x6101U;
+        inboundReply.totalFiles = 1U;
+        inboundReply.startIndex = 0U;
+        DirListEntry entry {};
+        entry.filename = "Mission_0001.ts";
+        entry.fileSizeBytes = 1048576ULL;
+        entry.timestampUs = 12345000ULL;
+        entry.isPinned = true;
+        entry.formatType = 0U;
+        inboundReply.entries.push_back(entry);
+
+        const auto replyPkt = SightlineProtocolBuilder::buildDirListingReply(inboundReply);
+        transport->injectData(replyPkt);
+
+        EXPECT_TRUE(replyReceived.load());
+        EXPECT_EQ(capturedReply.sequenceId, 0x6101U);
+        EXPECT_EQ(capturedReply.totalFiles, 1U);
+        ASSERT_EQ(capturedReply.entries.size(), 1U);
+        EXPECT_EQ(capturedReply.entries[0].filename, "Mission_0001.ts");
+        EXPECT_TRUE(capturedReply.entries[0].isPinned);
+
+        // Verify device cache
+        EXPECT_TRUE(device.lastDirListingReply().has_value());
+        EXPECT_EQ(device.lastDirListingReply()->sequenceId, 0x6101U);
+
+        device.stop();
+    }
+
 } // namespace
 } // namespace Sightline

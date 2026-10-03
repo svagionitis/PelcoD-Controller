@@ -20,7 +20,11 @@
 #include "modules/RecordingValidator.h"
 #include "modules/RecordingRingBuffer.h"
 #include "modules/StorageRetentionManager.h"
+#include "modules/MetadataXmpBuilder.h"
+#include "modules/TransactionalStorageWriter.h"
+#include "modules/SecureStorageSyncService.h"
 
+#include <filesystem>
 #include <gtest/gtest.h>
 
 namespace Sightline {
@@ -1000,6 +1004,257 @@ namespace {
         MsgCurrentRecordingStatusV2 facadeStatus {};
         ASSERT_TRUE(SightlineProtocolParser::parseRecordingStatusV2(pkt, facadeStatus));
         EXPECT_EQ(facadeStatus.activeFilename, "ActiveRec.ts");
+    }
+
+    TEST(TestSightlineVideoPipeline, MetadataXmpBuilderRdfAndJpegInjection)
+    {
+        XmpGeospatialMetadata meta {};
+        meta.latitudeDeg = 37.774900;
+        meta.longitudeDeg = -122.419400;
+        meta.absoluteAltitudeM = 125.5;
+        meta.relativeAltitudeM = 45.2;
+        meta.flightRollDeg = 1.25F;
+        meta.flightPitchDeg = -2.10F;
+        meta.flightYawDeg = 185.30F;
+        meta.gimbalRollDeg = 0.00F;
+        meta.gimbalPitchDeg = -45.00F;
+        meta.gimbalYawDeg = 185.30F;
+        meta.horizontalFovDeg = 54.20F;
+        meta.verticalFovDeg = 32.10F;
+        meta.slantRangeM = 850.0;
+        meta.modelName = "Sightline SLA-3000";
+
+        const std::string rdfXml = MetadataXmpBuilder::buildRdfXml(meta);
+        EXPECT_FALSE(rdfXml.empty());
+        EXPECT_NE(rdfXml.find("drone-dji:GpsLatitude"), std::string::npos);
+        EXPECT_NE(rdfXml.find("Camera:HorizFOV"), std::string::npos);
+        EXPECT_NE(rdfXml.find("Sightline SLA-3000"), std::string::npos);
+
+        XmpGeospatialMetadata parsedMeta {};
+        ASSERT_TRUE(MetadataXmpBuilder::parseRdfXml(rdfXml, parsedMeta));
+        EXPECT_NEAR(parsedMeta.latitudeDeg, 37.774900, 0.0001);
+        EXPECT_NEAR(parsedMeta.longitudeDeg, -122.419400, 0.0001);
+        EXPECT_NEAR(parsedMeta.absoluteAltitudeM, 125.5, 0.1);
+        EXPECT_FLOAT_EQ(parsedMeta.flightRollDeg, 1.25F);
+        EXPECT_FLOAT_EQ(parsedMeta.gimbalPitchDeg, -45.00F);
+        EXPECT_EQ(parsedMeta.modelName, "Sightline SLA-3000");
+
+        // Test JPEG injection & extraction
+        // Minimal dummy JPEG: SOI (0xFFD8) + DQT (0xFFDB, len=5, data=0) + EOI (0xFFD9)
+        std::vector<std::uint8_t> jpegDummy {
+            0xFFU, 0xD8U,
+            0xFFU, 0xDBU, 0x00U, 0x05U, 0x00U, 0x01U, 0x02U,
+            0xFFU, 0xD9U
+        };
+
+        ASSERT_TRUE(MetadataXmpBuilder::injectXmpIntoJpeg(jpegDummy, meta));
+        EXPECT_GT(jpegDummy.size(), 50U);
+
+        std::string extractedXml {};
+        ASSERT_TRUE(MetadataXmpBuilder::extractXmpFromJpeg(jpegDummy, extractedXml));
+        EXPECT_EQ(extractedXml, rdfXml);
+    }
+
+    TEST(TestSightlineVideoPipeline, TransactionalStorageWriterLifecycle)
+    {
+        const auto tempPath =
+            std::filesystem::temp_directory_path() / "sightline_test_tx.mp4";
+
+        std::error_code ec {};
+        std::filesystem::remove(tempPath, ec);
+
+        TransactionalStorageWriter writer {};
+        ASSERT_TRUE(writer.startTransaction(tempPath.string()));
+        EXPECT_TRUE(writer.isActive());
+        EXPECT_EQ(writer.destinationPath(), tempPath.string());
+        EXPECT_FALSE(writer.stagingPath().empty());
+
+        // Write ftyp box
+        const auto ftyp = TransactionalStorageWriter::buildFtypBox();
+        EXPECT_TRUE(writer.writeChunk(ftyp));
+
+        // Write moov header
+        const auto moov = TransactionalStorageWriter::buildMoovHeader(1920U, 1080U, 90000U);
+        EXPECT_TRUE(writer.writeChunk(moov));
+
+        // Write fragment (moof + mdat)
+        std::vector<std::uint8_t> dummyNalu { 0x00, 0x00, 0x00, 0x01, 0x65, 0x88, 0x84 };
+        const auto fragment = TransactionalStorageWriter::buildFragment(1U, dummyNalu, 3000U);
+        EXPECT_TRUE(writer.writeChunk(fragment));
+
+        EXPECT_GT(writer.bytesWritten(), 100ULL);
+
+        // Sync barrier
+        EXPECT_TRUE(writer.syncBarrier());
+
+        // Commit transaction
+        ASSERT_TRUE(writer.commit());
+        EXPECT_FALSE(writer.isActive());
+
+        // Target file exists, staging file removed
+        EXPECT_TRUE(std::filesystem::exists(tempPath));
+        EXPECT_EQ(std::filesystem::file_size(tempPath), static_cast<std::uintmax_t>(writer.bytesWritten()));
+
+        // Cleanup
+        std::filesystem::remove(tempPath, ec);
+    }
+
+    TEST(TestSightlineVideoPipeline, RemoteFileSystemMessagesRoundTrip)
+    {
+        // 1. GetDirectoryListing (0xC8)
+        MsgGetDirectoryListing inGet {};
+        inGet.sequenceId = 0x5101U;
+        inGet.destination = StorageDestination::MicroSD;
+        inGet.startIndex = 16U;
+        inGet.maxEntries = 8U;
+        inGet.pathFilter = "Flight_";
+
+        const auto getPkt = SightlineRecordingBuilder::buildGetDirListing(inGet);
+        EXPECT_EQ(SightlineFraming::identifyMessage(getPkt), MessageId::GetDirectoryListing);
+        EXPECT_EQ(getPkt, SightlineProtocolBuilder::buildGetDirListing(inGet));
+
+        MsgGetDirectoryListing outGet {};
+        ASSERT_TRUE(SightlineRecordingParser::parseGetDirListing(getPkt, outGet));
+        EXPECT_EQ(outGet.sequenceId, 0x5101U);
+        EXPECT_EQ(outGet.destination, StorageDestination::MicroSD);
+        EXPECT_EQ(outGet.startIndex, 16U);
+        EXPECT_EQ(outGet.maxEntries, 8U);
+        EXPECT_EQ(outGet.pathFilter, "Flight_");
+
+        MsgGetDirectoryListing facadeGet {};
+        ASSERT_TRUE(SightlineProtocolParser::parseGetDirListing(getPkt, facadeGet));
+        EXPECT_EQ(facadeGet.pathFilter, "Flight_");
+
+        // 2. DirectoryListingReply (0xC9)
+        MsgDirectoryListingReply inReply {};
+        inReply.sequenceId = 0x5101U;
+        inReply.totalFiles = 120U;
+        inReply.startIndex = 16U;
+
+        DirListEntry e1 {};
+        e1.filename = "Flight_0016.ts";
+        e1.fileSizeBytes = 1048576000ULL;
+        e1.timestampUs = 1609459200000000ULL;
+        e1.isPinned = true;
+        e1.formatType = 0U;
+
+        DirListEntry e2 {};
+        e2.filename = "Flight_0017.mp4";
+        e2.fileSizeBytes = 524288000ULL;
+        e2.timestampUs = 1609459300000000ULL;
+        e2.isPinned = false;
+        e2.formatType = 1U;
+
+        inReply.entries.push_back(e1);
+        inReply.entries.push_back(e2);
+
+        const auto replyPkt = SightlineRecordingBuilder::buildDirListingReply(inReply);
+        EXPECT_EQ(SightlineFraming::identifyMessage(replyPkt), MessageId::DirectoryListingReply);
+        EXPECT_EQ(replyPkt, SightlineProtocolBuilder::buildDirListingReply(inReply));
+
+        MsgDirectoryListingReply outReply {};
+        ASSERT_TRUE(SightlineRecordingParser::parseDirListingReply(replyPkt, outReply));
+        EXPECT_EQ(outReply.sequenceId, 0x5101U);
+        EXPECT_EQ(outReply.totalFiles, 120U);
+        EXPECT_EQ(outReply.startIndex, 16U);
+        ASSERT_EQ(outReply.entries.size(), 2U);
+        EXPECT_EQ(outReply.entries[0].filename, "Flight_0016.ts");
+        EXPECT_EQ(outReply.entries[0].fileSizeBytes, 1048576000ULL);
+        EXPECT_TRUE(outReply.entries[0].isPinned);
+        EXPECT_EQ(outReply.entries[1].filename, "Flight_0017.mp4");
+        EXPECT_FALSE(outReply.entries[1].isPinned);
+
+        MsgDirectoryListingReply facadeReply {};
+        ASSERT_TRUE(SightlineProtocolParser::parseDirListingReply(replyPkt, facadeReply));
+        EXPECT_EQ(facadeReply.entries.size(), 2U);
+
+        // 3. FileStorageManagement (0xCA)
+        MsgFileStorageManagement inMgmt {};
+        inMgmt.sequenceId = 0x5102U;
+        inMgmt.operation = FileStorageOp::Pin;
+        inMgmt.destination = StorageDestination::MicroSD;
+        inMgmt.targetFilename = "Flight_0016.ts";
+
+        const auto mgmtPkt = SightlineRecordingBuilder::buildFileStorageMgmt(inMgmt);
+        EXPECT_EQ(SightlineFraming::identifyMessage(mgmtPkt), MessageId::FileStorageManagement);
+        EXPECT_EQ(mgmtPkt, SightlineProtocolBuilder::buildFileStorageMgmt(inMgmt));
+
+        MsgFileStorageManagement outMgmt {};
+        ASSERT_TRUE(SightlineRecordingParser::parseFileStorageMgmt(mgmtPkt, outMgmt));
+        EXPECT_EQ(outMgmt.sequenceId, 0x5102U);
+        EXPECT_EQ(outMgmt.operation, FileStorageOp::Pin);
+        EXPECT_EQ(outMgmt.destination, StorageDestination::MicroSD);
+        EXPECT_EQ(outMgmt.targetFilename, "Flight_0016.ts");
+
+        MsgFileStorageManagement facadeMgmt {};
+        ASSERT_TRUE(SightlineProtocolParser::parseFileStorageMgmt(mgmtPkt, facadeMgmt));
+        EXPECT_EQ(facadeMgmt.targetFilename, "Flight_0016.ts");
+    }
+
+    namespace {
+
+    class MockSecureStorageSink : public ISecureStorageSink {
+    public:
+        bool failTransfer { false };
+        std::vector<std::pair<std::string, std::string>> uploads {};
+
+        [[nodiscard]] bool uploadFile(
+            std::string_view localPath, std::string_view remotePath) override
+        {
+            if (failTransfer) {
+                return false;
+            }
+            uploads.emplace_back(std::string(localPath), std::string(remotePath));
+            return true;
+        }
+    };
+
+    } // namespace
+
+    TEST(TestSightlineVideoPipeline, SecureStorageSyncServiceQueueAndOffload)
+    {
+        auto mockSink = std::make_shared<MockSecureStorageSink>();
+        SecureSyncConfig cfg {};
+        cfg.serverHost = "vault.enterprise.internal";
+        cfg.serverPort = 22U;
+        cfg.remoteDirectory = "/var/recordings/uav_01";
+        cfg.useTls = true;
+
+        SecureStorageSyncService syncService(mockSink, cfg);
+        EXPECT_EQ(syncService.pendingCount(), 0U);
+        EXPECT_EQ(syncService.completedCount(), 0U);
+        EXPECT_EQ(syncService.failedCount(), 0U);
+
+        // Enqueue 3 files
+        syncService.enqueueUpload("C:/data/flight_01.ts", "flight_01.ts");
+        syncService.enqueueUpload("C:/data/flight_02.ts", "flight_02.ts");
+        syncService.enqueueUpload("C:/data/flight_03.ts", "flight_03.ts");
+        EXPECT_EQ(syncService.pendingCount(), 3U);
+
+        // Process next item
+        EXPECT_TRUE(syncService.processNext());
+        EXPECT_EQ(syncService.pendingCount(), 2U);
+        EXPECT_EQ(syncService.completedCount(), 1U);
+        ASSERT_EQ(mockSink->uploads.size(), 1U);
+        EXPECT_EQ(mockSink->uploads[0].second, "/var/recordings/uav_01/flight_01.ts");
+
+        // Process all remaining
+        const std::size_t processed = syncService.processAll();
+        EXPECT_EQ(processed, 2U);
+        EXPECT_EQ(syncService.pendingCount(), 0U);
+        EXPECT_EQ(syncService.completedCount(), 3U);
+        EXPECT_EQ(mockSink->uploads.size(), 3U);
+
+        // Test failure accounting
+        mockSink->failTransfer = true;
+        syncService.enqueueUpload("C:/data/failed_01.ts", "failed_01.ts");
+        EXPECT_FALSE(syncService.processNext());
+        EXPECT_EQ(syncService.failedCount(), 1U);
+        EXPECT_EQ(syncService.pendingCount(), 0U);
+
+        syncService.clear();
+        EXPECT_EQ(syncService.completedCount(), 0U);
+        EXPECT_EQ(syncService.failedCount(), 0U);
     }
 
 } // namespace

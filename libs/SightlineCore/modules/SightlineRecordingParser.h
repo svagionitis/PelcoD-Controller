@@ -65,6 +65,27 @@ public:
     /// @return True if parsing succeeded.
     [[nodiscard]] static bool parseRecordingStatusV2(
         const std::vector<std::uint8_t>& packet, MsgCurrentRecordingStatusV2& out);
+
+    /// @brief Parses directory catalog query (Message ID 0xC8).
+    /// @param[in] packet Raw packet buffer.
+    /// @param[out] out Deserialized directory query structure.
+    /// @return True if parsing succeeded.
+    [[nodiscard]] static bool parseGetDirListing(
+        const std::vector<std::uint8_t>& packet, MsgGetDirectoryListing& out);
+
+    /// @brief Parses directory catalog response batch (Message ID 0xC9).
+    /// @param[in] packet Raw packet buffer.
+    /// @param[out] out Deserialized directory reply structure.
+    /// @return True if parsing succeeded.
+    [[nodiscard]] static bool parseDirListingReply(
+        const std::vector<std::uint8_t>& packet, MsgDirectoryListingReply& out);
+
+    /// @brief Parses in-band file storage management command (Message ID 0xCA).
+    /// @param[in] packet Raw packet buffer.
+    /// @param[out] out Deserialized storage management structure.
+    /// @return True if parsing succeeded.
+    [[nodiscard]] static bool parseFileStorageMgmt(
+        const std::vector<std::uint8_t>& packet, MsgFileStorageManagement& out);
 };
 
 } // namespace Sightline

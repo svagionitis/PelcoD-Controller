@@ -184,6 +184,15 @@ public:
     /// @brief Parses comprehensive recording health telemetry (Message ID 0xC7).
     [[nodiscard]] static bool parseRecordingStatusV2(const std::vector<std::uint8_t>& packet, MsgCurrentRecordingStatusV2& out);
 
+    /// @brief Parses directory catalog query (Message ID 0xC8).
+    [[nodiscard]] static bool parseGetDirListing(const std::vector<std::uint8_t>& packet, MsgGetDirectoryListing& out);
+
+    /// @brief Parses directory catalog response batch (Message ID 0xC9).
+    [[nodiscard]] static bool parseDirListingReply(const std::vector<std::uint8_t>& packet, MsgDirectoryListingReply& out);
+
+    /// @brief Parses in-band file storage management command (Message ID 0xCA).
+    [[nodiscard]] static bool parseFileStorageMgmt(const std::vector<std::uint8_t>& packet, MsgFileStorageManagement& out);
+
     // --- Thermal NUC & Sensor Calibration Deserializers ---
 
     /// @brief Parses NUC calibration parameters (Message ID 0x35).

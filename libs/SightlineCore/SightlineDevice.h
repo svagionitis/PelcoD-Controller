@@ -44,6 +44,7 @@ public:
     using CommandAckCallback = std::function<void(const MsgCommandAck&)>;
     using RecordingEventCallback = std::function<void(const MsgFileRecordingEvent&)>;
     using RecordingStatusV2Callback = std::function<void(const MsgCurrentRecordingStatusV2&)>;
+    using DirListingReplyCallback = std::function<void(const MsgDirectoryListingReply&)>;
 
     /// @brief Constructs a SightlineDevice wrapping the given transport channel.
     /// @param[in] transport Shared pointer to underlying communication transport.
@@ -435,6 +436,21 @@ public:
     /// @return True if command was successfully transmitted.
     [[nodiscard]] bool sendRecordingStatusV2(const MsgCurrentRecordingStatusV2& msg);
 
+    /// @brief Queries remote file catalog (Message ID 0xC8).
+    /// @param[in] msg Directory query parameters.
+    /// @return True if command was successfully transmitted.
+    [[nodiscard]] bool getDirectoryListing(const MsgGetDirectoryListing& msg);
+
+    /// @brief Transmits remote file catalog response (Message ID 0xC9).
+    /// @param[in] msg Directory listing reply structure.
+    /// @return True if command was successfully transmitted.
+    [[nodiscard]] bool sendDirListingReply(const MsgDirectoryListingReply& msg);
+
+    /// @brief Transmits file storage management operation (Message ID 0xCA).
+    /// @param[in] msg Storage operation parameters.
+    /// @return True if command was successfully transmitted.
+    [[nodiscard]] bool sendFileStorageMgmt(const MsgFileStorageManagement& msg);
+
     /// @brief Starts, stops, or pauses network video streams.
     /// @param[in] streamIndex Zero-based stream index.
     /// @param[in] action Action code (0: Stop, 1: Start, 2: Pause).
@@ -743,6 +759,12 @@ public:
     /// @brief Retrieves the latest cached recording status telemetry.
     [[nodiscard]] std::optional<MsgCurrentRecordingStatusV2> lastRecordingStatus() const;
 
+    /// @brief Registers an observer callback for remote directory catalog replies (0xC9).
+    void setDirListingReplyCb(DirListingReplyCallback cb);
+
+    /// @brief Retrieves the latest cached remote directory catalog reply.
+    [[nodiscard]] std::optional<MsgDirectoryListingReply> lastDirListingReply() const;
+
     /// @brief Retrieves the latest cached tracking positions snapshot.
     [[nodiscard]] std::optional<MsgTrackingPositions> lastTrackingPositions() const;
 
@@ -814,6 +836,7 @@ private:
     CommandAckCallback m_commandAckCallback;
     RecordingEventCallback m_recordingEventCb;
     RecordingStatusV2Callback m_recordingStatusCb;
+    DirListingReplyCallback m_dirListingReplyCb;
 
     mutable std::mutex m_cacheMutex;
     std::optional<MsgTrackingPositions> m_lastPositions;
@@ -833,6 +856,7 @@ private:
     std::optional<MsgCommandAck> m_lastCommandAck;
     std::optional<MsgFileRecordingEvent> m_lastRecordingEvent;
     std::optional<MsgCurrentRecordingStatusV2> m_lastRecordingStatus;
+    std::optional<MsgDirectoryListingReply> m_lastDirListingReply;
     StabilizationCallback m_stabilizationCallback;
     RegistrationCallback m_registrationCallback;
     StabilizationBiasCallback m_stabilizationBiasCallback;

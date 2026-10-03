@@ -115,4 +115,54 @@ std::vector<std::uint8_t> SightlineRecordingBuilder::buildRecordingStatusV2(
     return SightlineFraming::buildPacket(MessageId::CurrentRecordingStatusV2, payload);
 }
 
+std::vector<std::uint8_t> SightlineRecordingBuilder::buildGetDirListing(
+    const MsgGetDirectoryListing& msg)
+{
+    std::vector<std::uint8_t> payload {};
+    payload.reserve(6U + msg.pathFilter.size() + 1U);
+    SightlineFraming::appendU16Le(payload, msg.sequenceId);
+    payload.push_back(static_cast<std::uint8_t>(msg.destination));
+    SightlineFraming::appendU16Le(payload, msg.startIndex);
+    payload.push_back(msg.maxEntries);
+    if (!msg.pathFilter.empty()) {
+        SightlineFraming::appendString(payload, msg.pathFilter);
+    }
+    return SightlineFraming::buildPacket(MessageId::GetDirectoryListing, payload);
+}
+
+std::vector<std::uint8_t> SightlineRecordingBuilder::buildDirListingReply(
+    const MsgDirectoryListingReply& msg)
+{
+    std::vector<std::uint8_t> payload {};
+    payload.reserve(7U + msg.entries.size() * 32U);
+    SightlineFraming::appendU16Le(payload, msg.sequenceId);
+    SightlineFraming::appendU16Le(payload, msg.totalFiles);
+    SightlineFraming::appendU16Le(payload, msg.startIndex);
+    payload.push_back(static_cast<std::uint8_t>(msg.entries.size()));
+
+    for (const auto& entry : msg.entries) {
+        SightlineFraming::appendU64Le(payload, entry.fileSizeBytes);
+        SightlineFraming::appendU64Le(payload, entry.timestampUs);
+        payload.push_back(entry.isPinned ? 1U : 0U);
+        payload.push_back(entry.formatType);
+        SightlineFraming::appendString(payload, entry.filename);
+    }
+
+    return SightlineFraming::buildPacket(MessageId::DirectoryListingReply, payload);
+}
+
+std::vector<std::uint8_t> SightlineRecordingBuilder::buildFileStorageMgmt(
+    const MsgFileStorageManagement& msg)
+{
+    std::vector<std::uint8_t> payload {};
+    payload.reserve(4U + msg.targetFilename.size() + 1U);
+    SightlineFraming::appendU16Le(payload, msg.sequenceId);
+    payload.push_back(static_cast<std::uint8_t>(msg.operation));
+    payload.push_back(static_cast<std::uint8_t>(msg.destination));
+    if (!msg.targetFilename.empty()) {
+        SightlineFraming::appendString(payload, msg.targetFilename);
+    }
+    return SightlineFraming::buildPacket(MessageId::FileStorageManagement, payload);
+}
+
 } // namespace Sightline
