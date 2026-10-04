@@ -25,6 +25,8 @@ add_library(Tracking STATIC
     TransientShockDetector.cpp
     TrackingVmtiBridge.h
     TrackingVmtiBridge.cpp
+    PtzSlewToCueBridge.h
+    PtzSlewToCueBridge.cpp
     Tracking.h
 )
 
@@ -37,6 +39,7 @@ target_include_directories(Tracking PUBLIC
 target_link_libraries(Tracking PUBLIC
     Klv
     Math
+    PelcoDCore
     Threads::Threads
     glog::glog
 )

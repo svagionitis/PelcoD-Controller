@@ -22,6 +22,7 @@ The `libs/Klv` library provides a high-performance, zero-Qt, C++17 telemetry enc
 | **MISB ST 0102.13** | Security Classification Local Set | **Fully Implemented** | [KlvTypes.h](../libs/Klv/KlvTypes.h) (`SecurityMetadata`) |
 | **STANAG 4609** | NATO Digital Motion Imagery Architecture (MPEG-TS PES) | **Fully Implemented** | [MpegTsKlvExtractor.h](../libs/Klv/MpegTsKlvExtractor.h), [KlvStreamScanner.h](../libs/Klv/KlvStreamScanner.h) |
 | **WGS-84 Geodesy** | Earth Curvature, Frustum Footprints & Slant Range | **Fully Implemented** | [KlvGeodesy.h](../libs/Klv/KlvGeodesy.h), [KlvGeodesy.cpp](../libs/Klv/KlvGeodesy.cpp) |
+| **PTZ Slew-to-Cue Bridge** | WGS-84 / CoT / VMTI Cue Slewing & Auto-Framing | **Fully Implemented** | [PtzSlewToCueBridge.h](../libs/Tracking/PtzSlewToCueBridge.h), [PtzSlewToCueBridge.cpp](../libs/Tracking/PtzSlewToCueBridge.cpp) |
 
 ---
 
@@ -203,11 +204,22 @@ graph TD
     - MISB ST 1607 Tag 94 (`SegmentLocalSet::miisCoreId` and `applyTo` union-and-override).
     - MISB ST 0903 VMTI Tag 13 (`VmtiLocalSet::miisId`).
 
+### 3.10 PTZ Slew-to-Cue Bridge
+
+- **Files**: [PtzSlewToCueBridge.h](../libs/Tracking/PtzSlewToCueBridge.h)/[.cpp](../libs/Tracking/PtzSlewToCueBridge.cpp)
+- **Features**:
+  - Transforms geodetic target cues (MISB ST 0601 Target Location, ST 0806 POIs, Cursor-on-Target, radar tracks, VMTI detections) into topocentric Azimuth-Elevation-Range (AER).
+  - Full 3D platform attitude compensation (Yaw/Heading, Pitch, Roll) using DCM derotation to determine gimbal angles in the sensor body frame.
+  - Dual-mode actuation state machine:
+    - **Coarse Slew Mode**: Emits Pelco-D absolute pan (`0x4B`) and tilt (`0x4D`) centidegree commands to acquire distant cues.
+    - **Fine Tracking Mode**: Hands off line-of-sight tracking errors to [PtzAutoTracker](../libs/Tracking/PtzAutoTracker.h) closed-loop PID velocity commands.
+  - **Dynamic Optical Auto-Framing**: Dynamically adjusts camera HFOV to frame the target based on target bounding radius and calculated slant range.
+
 ---
 
 ## 4. Test Verification & Coverage
 
-All modules in `libs/Klv` are verified by comprehensive GoogleTest suites:
+All modules in `libs/Klv` and tracking integration bridges are verified by comprehensive GoogleTest suites:
 
 | Test Suite | File | Test Count | Key Scenarios Tested |
 |---|---|---|---|
@@ -225,4 +237,6 @@ All modules in `libs/Klv` are verified by comprehensive GoogleTest suites:
 | **TestGeoRegistration** | [TestGeoRegistration.cpp](../libs/Klv/tests/TestGeoRegistration.cpp) | 10 | MDARRAY 1D/2D NaturalFormat and ST 1201 IMAPB, 2-image tie points, geo tie points, covariances, ST 1601.1-03 parity rule |
 | **TestSt1607LocalSet** | [TestSt1607LocalSet.cpp](../libs/Klv/tests/TestSt1607LocalSet.cpp) | 9 | ST 1607 UL matching, MSID local/universal ID, standalone packets, embedded Tags 100/101, embedded Tag 98, ST 1607.2 rules, union-and-override |
 | **TestMiisCoreId** | [TestMiisCoreId.cpp](../libs/Klv/tests/TestMiisCoreId.cpp) | 10 | RFC 4122 UUID v1/v4/v5, 16/32/33/35-byte binary packs, ST 0601 Tag 94, ST 1607 Tag 94, ST 0903 Tag 13 |
-| **Total** | | **89** | **100% Pass Rate** |
+| **TestPtzSlewToCueBridge** | [TestPtzSlewToCueBridge.cpp](../libs/Tracking/tests/TestPtzSlewToCueBridge.cpp) | 8 | Stationary mast target bearing, platform attitude derotation, coarse-to-fine transitions, auto-zoom framing |
+| **Total** | | **97** | **100% Pass Rate** |
+

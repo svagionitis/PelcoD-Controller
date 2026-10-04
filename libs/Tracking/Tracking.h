@@ -15,6 +15,8 @@
 #include "PlantIdentifier.h"
 #include "PtzAutoTracker.h"
 #include "PtzCameraModel.h"
+#include "PtzSlewToCueBridge.h"
 #include "PtzSphericalEstimator.h"
+#include "TrackingVmtiBridge.h"
 #include "TransientShockDetector.h"
 #include "UnscentedKalmanFilter.h"
