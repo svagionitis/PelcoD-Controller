@@ -18,6 +18,9 @@ add_library(Klv STATIC
     KlvStreamScanner.cpp
     MpegTsKlvExtractor.h
     MpegTsKlvExtractor.cpp
+    MpegTsMuxerTypes.h
+    MpegTsKlvMuxer.h
+    MpegTsKlvMuxer.cpp
     KlvGeodesy.h
     KlvGeodesy.cpp
     Misb1201.h

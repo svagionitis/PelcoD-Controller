@@ -20,7 +20,7 @@ The `libs/Klv` library provides a high-performance, zero-Qt, C++17 telemetry enc
 | **MISB ST 1201.5** | Floating Point to Integer Mapping (IMAPB) | **Fully Implemented** | [Misb1201.h](../libs/Klv/Misb1201.h), [Misb1201.cpp](../libs/Klv/Misb1201.cpp) |
 | **MISB ST 0903.6** | Video Moving Target Indicator (VMTI) | **Fully Implemented** | [VmtiParser.h](../libs/Klv/VmtiParser.h), [VmtiEncoder.h](../libs/Klv/VmtiEncoder.h), [VmtiTypes.h](../libs/Klv/VmtiTypes.h) |
 | **MISB ST 0102.13** | Security Classification Local Set | **Fully Implemented** | [KlvTypes.h](../libs/Klv/KlvTypes.h) (`SecurityMetadata`) |
-| **STANAG 4609** | NATO Digital Motion Imagery Architecture (MPEG-TS PES) | **Fully Implemented** | [MpegTsKlvExtractor.h](../libs/Klv/MpegTsKlvExtractor.h), [KlvStreamScanner.h](../libs/Klv/KlvStreamScanner.h) |
+| **STANAG 4609** | NATO Digital Motion Imagery Architecture (MPEG-TS PES) | **Fully Implemented** | [MpegTsKlvExtractor.h](../libs/Klv/MpegTsKlvExtractor.h), [MpegTsKlvMuxer.h](../libs/Klv/MpegTsKlvMuxer.h), [KlvStreamScanner.h](../libs/Klv/KlvStreamScanner.h) |
 | **WGS-84 Geodesy** | Earth Curvature, Frustum Footprints & Slant Range | **Fully Implemented** | [KlvGeodesy.h](../libs/Klv/KlvGeodesy.h), [KlvGeodesy.cpp](../libs/Klv/KlvGeodesy.cpp) |
 | **PTZ Slew-to-Cue Bridge** | WGS-84 / CoT / VMTI Cue Slewing & Auto-Framing | **Fully Implemented** | [PtzSlewToCueBridge.h](../libs/Tracking/PtzSlewToCueBridge.h), [PtzSlewToCueBridge.cpp](../libs/Tracking/PtzSlewToCueBridge.cpp) |
 
@@ -35,42 +35,41 @@ The `libs/Klv` library provides a high-performance, zero-Qt, C++17 telemetry enc
 |                                    libs/Klv Architecture & Pipeline                                |
 +----------------------------------------------------------------------------------------------------+
 |                                                                                                    |
-|    MPEG-2 Transport Stream (188-byte TS Packets)                                                   |
-|                         |                                                                          |
-|                         v                                                                          |
-|           +----------------------------+                                                           |
-|           |    MpegTsKlvExtractor      | <--- Automatic PID Auto-Discovery (ST 0601 Universal Label) |
-|           +----------------------------+ <--- Multi-Packet PES Reassembly & CC Continuity Checking  |
-|                         |                                                                          |
-|                         v                                                                          |
-|           +----------------------------+                                                           |
-|           |     KlvStreamScanner       | <--- SMPTE ST 336 Sync Alignment & Frame Slicing          |
-|           +----------------------------+                                                           |
-|                         |                                                                          |
-|       +-----------------+-------------------+---------------------+--------------------+           |
-|       |                                     |                     |                    |           |
-|       v                                     v                     v                    v           |
-| +-------------------+             +-------------------+ +-------------------+  +-----------------+ |
-| |     KlvParser     |             |     RvtParser     | | GeoRegistration-  |  |  St1607Parser   | |
-| |  (MISB ST 0601)   |             |  (MISB ST 0806)   | |      Parser       |  | (MISB ST 1607)  | |
-| +-------------------+             +-------------------+ |  (MISB ST 1601)   |  +-----------------+ |
-|       |        \                            |           +-------------------+          |           |
-|       |         \ Nested Tag 73             |                     |                    |           |
-|       |          +------------------------->|                     |                    |           |
-|       |                                     |                     |                    |           |
-|       | Nested Tag 74                       v                     v                    |           |
-|       +------------------> +-------------------+        +-------------------+          |           |
-|       |                    |    VmtiParser     |        |      MdArray      |          |           |
-|       |                    |  (MISB ST 0903)   |        |  (MISB ST 1303)   |          |           |
-|       |                    +-------------------+        +-------------------+          |           |
-|       | Nested Tag 100/101                                        |                    |           |
-|       +-----------------------------------------------------------+------------------->+           |
-|                                                                   |                                |
-|                                                                   v                                |
-|                                                         +-------------------+                      |
-|                                                         |     Misb1201      |                      |
-|                                                         | (IMAPB / RIMAPB)  |                      |
-|                                                         +-------------------+                      |
+|    MPEG-2 Transport Stream (188-byte TS Packets)           MPEG-2 Transport Stream Egress          |
+|                 |                                                        ^                         |
+|                 v                                                        |                         |
+|   +----------------------------+                           +----------------------------+          |
+|   |    MpegTsKlvExtractor      |                           |      MpegTsKlvMuxer        |          |
+|   +----------------------------+                           +----------------------------+          |
+|   | - Auto PID Discovery       |                           | - PAT/PMT Generation (CRC) |          |
+|   | - PES Reassembly & CC Check|                           | - 90kHz PTS & 27MHz PCR    |          |
+|   | - SMPTE ST 336 Alignment   |                           | - 188-byte Framing & Pad   |          |
+|   +----------------------------+                           +----------------------------+          |
+|                 |                                                        ^                         |
+|                 v                                                        |                         |
+|   +----------------------------+                           +----------------------------+          |
+|   |     KlvStreamScanner       |                           |        KlvEncoder          |          |
+|   +----------------------------+                           +----------------------------+          |
+|                 |                                                        ^                         |
+|       +---------+-------+--------------------+---------------------+     |                         |
+|       |                 |                    |                     |     |                         |
+|       v                 v                    v                     v     |                         |
+| +-------------+   +-------------+      +-------------+       +-------------+                       |
+| |  KlvParser  |   |  RvtParser  |      |GeoReg-Parser|       |St1607Parser |                       |
+| |(MISB ST0601)|   |(MISB ST0806)|      |(MISB ST1601)|       |(MISB ST1607)|                       |
+| +-------------+   +-------------+      +-------------+       +-------------+                       |
+|       |     \           |                    |                     |                               |
+|       |      \Tag 73    |                    v                     |                               |
+|       |       +-------->|              +-------------+             |                               |
+|       |                 v              |   MdArray   |             |                               |
+|       |Tag 74     +-------------+      |(MISB ST1303)|             |                               |
+|       +---------> | VmtiParser  |      +-------------+             |                               |
+|       |           |(MISB ST0903)|            |                     |                               |
+|       |           +-------------+            v                     |                               |
+|       | Tag 100/101                    +-------------+             |                               |
+|       +--------------------------------|  Misb1201   |------------>+                               |
+|                                        |(IMAPB/RIMAPB|                                             |
+|                                        +-------------+                                             |
 |                                                                                                    |
 |  Tactical Ingestion & Conversion Services                                                          |
 |       |                                     |                                                      |
@@ -91,7 +90,7 @@ The `libs/Klv` library provides a high-performance, zero-Qt, C++17 telemetry enc
 
 ```mermaid
 graph TD
-    TS[MPEG-2 Transport Stream] --> Extractor[MpegTsKlvExtractor]
+    TS_IN[MPEG-2 Transport Stream Ingest] --> Extractor[MpegTsKlvExtractor]
     Extractor --> Scanner[KlvStreamScanner]
     Scanner --> ST0601[KlvParser - MISB ST 0601]
 
@@ -110,6 +109,10 @@ graph TD
 
     COT --> TAK[CoT XML Stream to WinTAK / ATAK / TAK Server]
     GEODESY --> MAP[Tactical Moving Map Display]
+
+    MSG[Telemetry / UasDatalinkMessage] --> Encoder[KlvEncoder]
+    Encoder --> Muxer[MpegTsKlvMuxer]
+    Muxer -->|188-byte TS Stream with PAT/PMT/PCR| TS_OUT[MPEG-2 TS Stream Egress]
 ```
 
 ---
@@ -168,13 +171,17 @@ graph TD
   - Reverse mapping (RIMAPB) recovering floating-point values from raw integers.
   - Full IEEE-754 special value handling: Below Minimum, Above Maximum, Positive/Negative Infinity, Quiet NaN, Signaling NaN, User Defined.
 
-### 3.7 MPEG-TS Stream Ingestion & Parsing
-- **Files**: [MpegTsKlvExtractor.h](../libs/Klv/MpegTsKlvExtractor.h)/[.cpp](../libs/Klv/MpegTsKlvExtractor.cpp), [KlvStreamScanner.h](../libs/Klv/KlvStreamScanner.h)/[.cpp](../libs/Klv/KlvStreamScanner.cpp)
+### 3.7 MPEG-TS Stream Ingestion, Parsing & Multiplexing
+- **Files**: [MpegTsKlvExtractor.h](../libs/Klv/MpegTsKlvExtractor.h)/[.cpp](../libs/Klv/MpegTsKlvExtractor.cpp), [MpegTsKlvMuxer.h](../libs/Klv/MpegTsKlvMuxer.h)/[.cpp](../libs/Klv/MpegTsKlvMuxer.cpp), [MpegTsMuxerTypes.h](../libs/Klv/MpegTsMuxerTypes.h), [KlvStreamScanner.h](../libs/Klv/KlvStreamScanner.h)/[.cpp](../libs/Klv/KlvStreamScanner.cpp)
 - **Features**:
-  - 188-byte MPEG-TS packet demuxing with automatic sync byte (`0x47`) synchronization.
-  - Automatic metadata stream PID discovery via SMPTE ST 336 / MISB Universal Label matching across PMT and raw Elementary Streams.
-  - Robust multi-packet PES payload reassembly, continuity counter (CC) drop detection, and adaptation field handling.
-  - Streaming slice scanning and recovery from mid-stream packet loss.
+  - **MPEG-TS Demuxing**: 188-byte MPEG-TS packet demuxing with automatic sync byte (`0x47`) synchronization.
+  - **Auto PID Discovery**: Automatic metadata stream PID discovery via SMPTE ST 336 / MISB Universal Label matching across PMT and raw Elementary Streams.
+  - **PES Reassembly**: Robust multi-packet PES payload reassembly, continuity counter (CC) drop detection, and adaptation field handling.
+  - **MPEG-TS Muxing (STANAG 4609 & MISB ST 1402)**: Complete 188-byte packet multiplexing of MISB ST 0601 / ST 0806 / ST 1607 KLV telemetry into MPEG-2 Transport Streams.
+  - **PSI Table Generation**: Periodic injection of Program Association Tables (PAT, PID `0x0000`) and Program Map Tables (PMT, configurable PID) with ISO/IEC 13818-1 32-bit CRC calculation via [KlvCrc](../libs/Klv/KlvCrc.h).
+  - **Registration Descriptors**: Automatic injection of Format Identifier `"KLVA"` (or `"KLVN"`) Registration Descriptors (Tag `0x05`) per MISB ST 1402.
+  - **Clock Discipline**: 90 kHz Presentation Time Stamp (PTS) generation synthesized from microsecond telemetry timestamps (MISB ST 0601 Tag 2) and periodic 27 MHz Program Clock Reference (PCR) insertion into adaptation fields.
+  - **Streaming & Buffer Modes**: High-efficiency per-packet streaming callbacks for network egress (UDP/RTP) and contiguous buffer serialization (`muxToBuffer`, `muxMessageToBuffer`).
 
 ### 3.8 MISB ST 1607.2 Constructs to Amend/Segment KLV Metadata
 - **Files**: [St1607Types.h](../libs/Klv/St1607Types.h)/[.cpp](../libs/Klv/St1607Types.cpp), [St1607Parser.h](../libs/Klv/St1607Parser.h)/[.cpp](../libs/Klv/St1607Parser.cpp), [St1607Encoder.h](../libs/Klv/St1607Encoder.h)/[.cpp](../libs/Klv/St1607Encoder.cpp)
@@ -227,7 +234,8 @@ All modules in `libs/Klv` and tracking integration bridges are verified by compr
 | **TestKlvCrc** | [TestKlvCrc.cpp](../libs/Klv/tests/TestKlvCrc.cpp) | 4 | CRC-16-CCITT (ST 0601) and MPEG-2 CRC-32 (ST 0806) test vectors |
 | **TestKlvEncoderParser** | [TestKlvEncoderParser.cpp](../libs/Klv/tests/TestKlvEncoderParser.cpp) | 6 | Full ST 0601 round-trip, sparse updates, Security Local Set, CRC failure detection |
 | **TestKlvStreamScanner** | [TestKlvStreamScanner.cpp](../libs/Klv/tests/TestKlvStreamScanner.cpp) | 4 | Stream boundary re-sync, fragmented packets, corrupted prefixes |
-| **TestMpegTsKlvExtractor** | [TestMpegTsKlvExtractor.cpp](../libs/Klv/tests/TestMpegTsKlvExtractor.cpp) | 7 | PID auto-discovery, single/multi-packet PES reassembly, CC drops, real flight TS extraction |
+| **TestMpegTsKlvExtractor** | [TestMpegTsKlvExtractor.cpp](../libs/Klv/tests/TestMpegTsKlvExtractor.cpp) | 8 | PID auto-discovery, single/multi-packet PES reassembly, CC drops, real flight TS extraction |
+| **TestMpegTsKlvMuxer** | [TestMpegTsKlvMuxer.cpp](../libs/Klv/tests/TestMpegTsKlvMuxer.cpp) | 6 | PAT/PMT CRC-32 validation, single/fragmented PES muxing, 90kHz PTS & 27MHz PCR, CC cycling, extractor round-trip |
 | **TestKlvGeodesy** | [TestKlvGeodesy.cpp](../libs/Klv/tests/TestKlvGeodesy.cpp) | 5 | WGS-84 direct geodetic, slant range, camera frustum footprints, horizon clipping |
 | **TestVmtiEncoderParser** | [TestVmtiEncoderParser.cpp](../libs/Klv/tests/TestVmtiEncoderParser.cpp) | 4 | VMTI standalone and embedded round-trips, target row-major pixel coordinates |
 | **TestMisb1201** | [TestMisb1201.cpp](../libs/Klv/tests/TestMisb1201.cpp) | 5 | ST 1201 Appendix A standard test vectors (IMAPA, IMAPB, Zero Offset, Special Values) |
@@ -238,5 +246,5 @@ All modules in `libs/Klv` and tracking integration bridges are verified by compr
 | **TestSt1607LocalSet** | [TestSt1607LocalSet.cpp](../libs/Klv/tests/TestSt1607LocalSet.cpp) | 9 | ST 1607 UL matching, MSID local/universal ID, standalone packets, embedded Tags 100/101, embedded Tag 98, ST 1607.2 rules, union-and-override |
 | **TestMiisCoreId** | [TestMiisCoreId.cpp](../libs/Klv/tests/TestMiisCoreId.cpp) | 10 | RFC 4122 UUID v1/v4/v5, 16/32/33/35-byte binary packs, ST 0601 Tag 94, ST 1607 Tag 94, ST 0903 Tag 13 |
 | **TestPtzSlewToCueBridge** | [TestPtzSlewToCueBridge.cpp](../libs/Tracking/tests/TestPtzSlewToCueBridge.cpp) | 8 | Stationary mast target bearing, platform attitude derotation, coarse-to-fine transitions, auto-zoom framing |
-| **Total** | | **97** | **100% Pass Rate** |
+| **Total** | | **104** | **100% Pass Rate** |
 
