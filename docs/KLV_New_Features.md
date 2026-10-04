@@ -196,6 +196,19 @@ graph TD
 
 ---
 
+### 2.7 KML & GeoJSON Spatial Exporter (`KmlExporter`, `GeoJsonExporter`)
+- **Target Files**: `libs/Mapping/SpatialExportTypes.h`, `libs/Mapping/SpatialDataRecorder.h`, `libs/Mapping/KmlExporter.h`, `libs/Mapping/GeoJsonExporter.h`
+- **Objective**: Export 4D flight tracks, 3D volumetric sensor frustum pyramids, 2D ground footprints, and target ground tracks to Google Earth Pro/Web and QGIS.
+- **Detailed Plan**: See [KML_GeoJSON_Exporter_Plan.md](KML_GeoJSON_Exporter_Plan.md).
+- **Key Features**:
+  - Standard OGC KML 2.2 with `<gx:Track>`, `<gx:angles>`, and `<TimeSpan>` temporal animation sliders.
+  - Volumetric 3D sensor frustum pyramids (`<MultiGeometry>` polyhedrons) with altitude-dependent semi-transparent shading.
+  - RFC 7946 GeoJSON layers: 3D flight path (`LineString Z`), 2D ground footprints (`Polygon`), 3D frustum meshes (`MultiPolygon Z`), and target tracks (`Point`/`LineString`).
+  - Adaptive decimation engine (uniform $\Delta t$, distance threshold, heading change) to optimize GIS rendering performance.
+  - Pure C++17 implementation in [`libs/Mapping`](../libs/Mapping) with zero Qt dependencies.
+
+---
+
 ## 3. Implementation Priorities & Phasing
 
 | Phase | Milestone | Priority | Dependencies |
@@ -206,3 +219,5 @@ graph TD
 | **Phase 4** | **RTSP Passthrough Bridge (`RtspPassthroughBridge`)**<br>Zero-transcode H.264/H.265 NALU depacketization from IP cameras and gimbals. | **Medium** | [VideoNaluParser](../libs/Klv/VideoNaluParser.h), [SocketUtils](../libs/Transport/SocketUtils.h) |
 | **Phase 5** | **Multi-PID Metadata Substream Multiplexing**<br>Simultaneous broadcast of EO/IR, Radar, and VMTI on separate PIDs per MISB ST 1607. | **Medium** | [MpegTsKlvMuxer](../libs/Klv/MpegTsKlvMuxer.h), [St1607Parser](../libs/Klv/St1607Parser.h) |
 | **Phase 6** | **Embedded RTSP Server Egress (`RtspServerPublisher`)**<br>Allows clients on non-multicast networks to pull streams on demand via RTSP. | **Low** | [SocketUtils](../libs/Transport/SocketUtils.h), [BaseTransport](../libs/Transport/BaseTransport.h) |
+| **Phase 7** | **KML & GeoJSON Spatial Exporter**<br>Exports 4D flight tracks and 3D sensor frustum pyramids to Google Earth and QGIS. | **Medium** | [KlvGeodesy](../libs/Klv/KlvGeodesy.h), [GeoTypes.h](../libs/Mapping/GeoTypes.h) |
+

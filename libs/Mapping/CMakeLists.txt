@@ -17,6 +17,13 @@ add_library(Mapping STATIC
     TacticalOverlay.cpp
     VmtiOverlay.h
     VmtiOverlay.cpp
+    SpatialExportTypes.h
+    SpatialDataRecorder.h
+    SpatialDataRecorder.cpp
+    GeoJsonExporter.h
+    GeoJsonExporter.cpp
+    KmlExporter.h
+    KmlExporter.cpp
 )
 
 target_include_directories(Mapping PUBLIC
