@@ -172,6 +172,7 @@ struct UasDatalinkMessage {
     std::optional<double> sensorAltitudeHaeM;         ///< Tag 75: Sensor HAE altitude in meters
     std::optional<double> frameCenterElevHaeM;        ///< Tag 78: Frame center HAE elevation in meters
     std::optional<MiisCoreId> miisCoreId {};          ///< Tag 94: MISB ST 1204 MIIS Core Identifier
+    std::optional<std::uint8_t> wavelengthBands;      ///< Tag 95: Wavelength band bitmask (MISB ST 0601)
     std::optional<double> sensorRollAngleDeg;         ///< Tag 118: Sensor roll angle [0, 360) deg
     std::vector<SegmentLocalSet> segments {};         ///< Tag 100: MISB ST 1607 Segment Local Sets
     std::vector<AmendLocalSet> amends {};             ///< Tag 101: MISB ST 1607 Amend Local Sets

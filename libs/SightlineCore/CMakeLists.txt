@@ -53,6 +53,8 @@ add_library(SightlineCore STATIC
     modules/SightlineKlvBuilder.cpp
     modules/SightlineKlvParser.h
     modules/SightlineKlvParser.cpp
+    modules/SightlineKlvRadiometryBridge.h
+    modules/SightlineKlvRadiometryBridge.cpp
     modules/SightlineLandingBuilder.h
     modules/SightlineLandingBuilder.cpp
     modules/SightlineLandingParser.h
@@ -115,6 +117,7 @@ target_include_directories(SightlineCore PUBLIC
 
 target_link_libraries(SightlineCore PUBLIC
     Transport
+    Klv
     Threads::Threads
 )
 

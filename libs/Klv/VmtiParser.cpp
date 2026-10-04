@@ -134,6 +134,23 @@ bool VmtiParser::parseTarget(
                 target.colorRgb = std::array<std::uint8_t, 3> { val[0], val[1], val[2] };
             }
             break;
+        case VTargetTag::TargetIntensity:
+            if (itemLen == 4U) {
+                const std::uint32_t rawBits = (static_cast<std::uint32_t>(val[0]) << 24U) |
+                                              (static_cast<std::uint32_t>(val[1]) << 16U) |
+                                              (static_cast<std::uint32_t>(val[2]) << 8U) |
+                                              static_cast<std::uint32_t>(val[3]);
+                float fVal { 0.0F };
+                std::memcpy(&fVal, &rawBits, sizeof(float));
+                target.targetIntensity = fVal;
+            } else if (itemLen == 1U) {
+                target.targetIntensity = static_cast<float>(val[0]);
+            } else if (itemLen == 2U) {
+                const std::uint16_t uVal = static_cast<std::uint16_t>(
+                    (static_cast<std::uint16_t>(val[0]) << 8U) | static_cast<std::uint16_t>(val[1]));
+                target.targetIntensity = static_cast<float>(uVal);
+            }
+            break;
         case VTargetTag::TargetLocationOffsetLat:
             if (itemLen >= 3U) {
                 const auto raw = (static_cast<std::uint32_t>(val[0]) << 16U) |

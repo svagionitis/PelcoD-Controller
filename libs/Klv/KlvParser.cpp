@@ -481,6 +481,11 @@ KlvStatus KlvParser::parse(const std::uint8_t* data,
                 }
                 break;
             }
+            case Tag::WavelengthBands:
+                if (len >= 1U) {
+                    message.wavelengthBands = valPtr[0];
+                }
+                break;
             case Tag::SecurityLocalSet: {
                 SecurityMetadata sec {};
                 if (parseSecurityLocalSet(valPtr, len, sec) == KlvStatus::Success) {

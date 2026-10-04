@@ -105,6 +105,19 @@ void VmtiEncoder::encodeTarget(
         out.push_back((*target.colorRgb)[2]);
     }
 
+    // Tag 9: Target Intensity (4 bytes IEEE 754 float, big-endian)
+    if (target.targetIntensity.has_value()) {
+        out.push_back(static_cast<std::uint8_t>(VTargetTag::TargetIntensity));
+        out.push_back(4U);
+        std::uint32_t bits { 0U };
+        const float val = *target.targetIntensity;
+        std::memcpy(&bits, &val, sizeof(float));
+        out.push_back(static_cast<std::uint8_t>((bits >> 24U) & 0xFFU));
+        out.push_back(static_cast<std::uint8_t>((bits >> 16U) & 0xFFU));
+        out.push_back(static_cast<std::uint8_t>((bits >> 8U) & 0xFFU));
+        out.push_back(static_cast<std::uint8_t>(bits & 0xFFU));
+    }
+
     // 9. Tag 10 & 11: Lat/Lon Offset
     if (target.locationOffsetDeg.has_value()) {
         const std::uint32_t latOff = scaleOffset(target.locationOffsetDeg->latitudeDeg);

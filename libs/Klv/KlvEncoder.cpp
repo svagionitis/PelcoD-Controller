@@ -379,6 +379,11 @@ std::vector<std::uint8_t> KlvEncoder::encode(const UasDatalinkMessage& msg) {
         appendTagBytes(static_cast<std::uint32_t>(Tag::MiisCoreId), miisBytes, payload);
     }
 
+    // Tag 95: Wavelength Bands (1 byte bitmask per MISB ST 0601)
+    if (msg.wavelengthBands.has_value()) {
+        appendTagUint8(static_cast<std::uint32_t>(Tag::WavelengthBands), *msg.wavelengthBands, payload);
+    }
+
     // Tag 118: Sensor Roll Angle
     if (msg.sensorRollAngleDeg.has_value()) {
         appendTagUint32(static_cast<std::uint32_t>(Tag::SensorRollAngle), scaleRelRoll(*msg.sensorRollAngleDeg), payload);

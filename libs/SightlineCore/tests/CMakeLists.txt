@@ -8,6 +8,7 @@ function(add_sightline_test test_name test_source)
     add_executable(${test_name} ${test_source})
     target_include_directories(${test_name} PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/..
+        ${CMAKE_SOURCE_DIR}/libs
         ${CMAKE_SOURCE_DIR}/libs/Transport
         ${PELCOD_TEST_SUPPORT_DIR}
     )
@@ -33,4 +34,6 @@ add_sightline_test(TestSightlinePeripherals     TestSightlinePeripherals.cpp)
 add_sightline_test(TestSightlineZeroCopy        TestSightlineZeroCopy.cpp)
 add_sightline_test(TestSightlineRadiometry      TestSightlineRadiometry.cpp)
 add_sightline_test(TestSightlineIsotherm        TestSightlineIsotherm.cpp)
+add_sightline_test(TestSightlineKlvRadiometry   TestSightlineKlvRadiometry.cpp)
+
 

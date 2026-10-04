@@ -81,6 +81,7 @@ TEST(VmtiTest, StandaloneVmtiRoundTrip) {
     target1.history = static_cast<std::uint16_t>(120U);
     target1.percentagePixels = static_cast<std::uint8_t>(85U);
     target1.colorRgb = std::array<std::uint8_t, 3> { 0xFF, 0x00, 0x00 };
+    target1.targetIntensity = 310.15F; // 37.0 C in Kelvin
     target1.locationOffsetDeg = GeoPoint2D { 0.005, -0.008 };
     target1.heightAboveEllipsoidM = 125.0;
     target1.detectionStatus = static_cast<std::uint8_t>(1U); // Active-Moving
@@ -137,6 +138,8 @@ TEST(VmtiTest, StandaloneVmtiRoundTrip) {
     EXPECT_EQ((*decT1.colorRgb)[0], 0xFF);
     EXPECT_EQ((*decT1.colorRgb)[1], 0x00);
     EXPECT_EQ((*decT1.colorRgb)[2], 0x00);
+    ASSERT_TRUE(decT1.targetIntensity.has_value());
+    EXPECT_NEAR(*decT1.targetIntensity, 310.15F, 1e-4F);
     ASSERT_TRUE(decT1.locationOffsetDeg.has_value());
     EXPECT_NEAR(decT1.locationOffsetDeg->latitudeDeg, 0.005, 1e-4);
     EXPECT_NEAR(decT1.locationOffsetDeg->longitudeDeg, -0.008, 1e-4);
@@ -168,6 +171,7 @@ TEST(VmtiTest, EmbeddedInMisb0601RoundTrip) {
     msg.sensorTrueAltitudeM = 1000.0;
     msg.frameCenterLatDeg = 38.01;
     msg.frameCenterLonDeg = 24.01;
+    msg.wavelengthBands = static_cast<std::uint8_t>(0x10U); // LWIR band (MISB ST 0601 Tag 95)
 
     VmtiLocalSet vmti;
     vmti.precisionTimeStampUs = msg.precisionTimeStampUs;
@@ -192,6 +196,9 @@ TEST(VmtiTest, EmbeddedInMisb0601RoundTrip) {
     UasDatalinkMessage parsedMsg;
     const KlvStatus parseStatus = KlvParser::parse(buffer.data(), buffer.size(), parsedMsg);
     EXPECT_EQ(parseStatus, KlvStatus::Success);
+
+    ASSERT_TRUE(parsedMsg.wavelengthBands.has_value());
+    EXPECT_EQ(*parsedMsg.wavelengthBands, 0x10U);
 
     ASSERT_TRUE(parsedMsg.vmti.has_value());
     EXPECT_EQ(parsedMsg.vmti->systemName.value_or(""), "EMBEDDED_VMTI");

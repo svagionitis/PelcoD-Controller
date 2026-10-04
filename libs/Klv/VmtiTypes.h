@@ -122,6 +122,7 @@ struct VTargetPack {
     std::optional<std::uint16_t> history;               ///< Target detection count (frames)
     std::optional<std::uint8_t> percentagePixels;       ///< Ratio of target pixels in bounding box [1, 100]%
     std::optional<std::array<std::uint8_t, 3>> colorRgb;///< Target RGB color
+    std::optional<float> targetIntensity;               ///< Tag 9: Target intensity / radiometric measurement (MISB ST 0903)
     std::optional<GeoPoint2D> locationOffsetDeg;        ///< Target lat/lon offset from Frame Center
     std::optional<double> heightAboveEllipsoidM;        ///< Target HAE in meters
     std::optional<GeoPoint3D> targetLocation;           ///< Target geodetic position (lat, lon, HAE)
