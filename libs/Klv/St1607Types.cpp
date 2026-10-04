@@ -98,6 +98,7 @@ void SegmentLocalSet::applyTo(UasDatalinkMessage& target) const noexcept {
     if (cornerCoordinates)      target.cornerCoordinates = cornerCoordinates;
     if (sensorAltitudeHaeM)     target.sensorAltitudeHaeM = sensorAltitudeHaeM;
     if (frameCenterElevHaeM)    target.frameCenterElevHaeM = frameCenterElevHaeM;
+    if (miisCoreId)             target.miisCoreId = miisCoreId;
     if (sensorRollAngleDeg)     target.sensorRollAngleDeg = sensorRollAngleDeg;
 
     if (securityCountryCodingMethod || securityObjectCountryCodes) {

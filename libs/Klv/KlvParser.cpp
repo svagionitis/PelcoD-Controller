@@ -474,6 +474,13 @@ KlvStatus KlvParser::parse(const std::uint8_t* data,
                     message.sensorRollAngleDeg = unscaleRelRoll(readUint32BigEndian(valPtr));
                 }
                 break;
+            case Tag::MiisCoreId: {
+                MiisCoreId miis {};
+                if (miis.decode(valPtr, len) == KlvStatus::Success) {
+                    message.miisCoreId = miis;
+                }
+                break;
+            }
             case Tag::SecurityLocalSet: {
                 SecurityMetadata sec {};
                 if (parseSecurityLocalSet(valPtr, len, sec) == KlvStatus::Success) {

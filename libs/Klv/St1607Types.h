@@ -5,6 +5,7 @@
 
 #include "GeoRegistrationTypes.h"
 #include "GeoTypes.h"
+#include "MiisCoreId.h"
 
 #include <array>
 #include <cstddef>
@@ -106,7 +107,7 @@ struct SegmentLocalSet {
     std::optional<FrustumCorners> cornerCoordinates {};             ///< Corner coords (Tags 26..33 or 82..89)
     std::optional<double> sensorAltitudeHaeM {};                    ///< Tag 75: Sensor HAE altitude in meters
     std::optional<double> frameCenterElevHaeM {};                   ///< Tag 78: Frame center HAE elevation in meters
-    std::optional<std::string> miisCoreId {};                       ///< Tag 94: MISB ST 1204 Core Identifier
+    std::optional<MiisCoreId> miisCoreId {};                       ///< Tag 94: MISB ST 1204 Core Identifier
     std::optional<double> sensorRollAngleDeg {};                    ///< Tag 118: Sensor roll angle [0, 360) deg
     std::optional<std::uint8_t> securityCountryCodingMethod {};     ///< Tag 48 Item 12 (ST 1607-04)
     std::optional<std::string> securityObjectCountryCodes {};       ///< Tag 48 Item 13 (ST 1607-04)

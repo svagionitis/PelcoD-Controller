@@ -4,6 +4,7 @@
 /// @brief Core data structures, enumerations, and constants for STANAG 4609 / MISB ST 0601 KLV metadata.
 
 #include "GeoTypes.h"
+#include "MiisCoreId.h"
 #include "RvtTypes.h"
 #include "St1607Types.h"
 #include "VmtiTypes.h"
@@ -170,6 +171,7 @@ struct UasDatalinkMessage {
     std::optional<VmtiLocalSet> vmti;                 ///< Tag 74: MISB ST 0903 VMTI Local Set
     std::optional<double> sensorAltitudeHaeM;         ///< Tag 75: Sensor HAE altitude in meters
     std::optional<double> frameCenterElevHaeM;        ///< Tag 78: Frame center HAE elevation in meters
+    std::optional<MiisCoreId> miisCoreId {};          ///< Tag 94: MISB ST 1204 MIIS Core Identifier
     std::optional<double> sensorRollAngleDeg;         ///< Tag 118: Sensor roll angle [0, 360) deg
     std::vector<SegmentLocalSet> segments {};         ///< Tag 100: MISB ST 1607 Segment Local Sets
     std::vector<AmendLocalSet> amends {};             ///< Tag 101: MISB ST 1607 Amend Local Sets

@@ -346,6 +346,13 @@ KlvStatus VmtiParser::parse(
             }
             break;
         }
+        case VmtiTag::MiisId: {
+            MiisCoreId miis {};
+            if (miis.decode(val, itemLen) == KlvStatus::Success) {
+                vmti.miisId = miis;
+            }
+            break;
+        }
         case VmtiTag::VTargetSeries:
             seriesData = val;
             seriesLen = itemLen;

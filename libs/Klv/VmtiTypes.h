@@ -5,6 +5,7 @@
 /// @see MISB ST 0903.6 "Video Moving Target Indicator Metadata"
 
 #include "GeoTypes.h"
+#include "MiisCoreId.h"
 
 #include <array>
 #include <cstddef>
@@ -137,6 +138,7 @@ struct VmtiLocalSet {
     std::uint8_t version { 6U };                       ///< Tag 4: VMTI LS version (default 6)
     std::optional<std::uint32_t> totalTargetsDetected; ///< Tag 5: Total targets detected
     std::optional<std::uint32_t> numTargetsReported;   ///< Tag 6: Number of reported targets
+    std::optional<MiisCoreId> miisId {};               ///< Tag 13: MISB ST 1204 MIIS Core Identifier
     std::vector<VTargetPack> targets {};               ///< Tag 101: VTarget Series
     std::uint32_t frameWidth { 1920U };                ///< Frame width for pixel conversions
     std::uint32_t frameHeight { 1080U };               ///< Frame height for pixel conversions

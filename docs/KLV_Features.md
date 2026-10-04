@@ -15,6 +15,7 @@ The `libs/Klv` library provides a high-performance, zero-Qt, C++17 telemetry enc
 | **MISB ST 0805.1** | Cursor-on-Target (CoT) Metadata Translation | **Fully Implemented** | [Misb0805.h](../libs/Klv/Misb0805.h), [Misb0805.cpp](../libs/Klv/Misb0805.cpp) |
 | **MISB ST 1601.2** | Geo-Registration Local Set | **Fully Implemented** | [GeoRegistrationParser.h](../libs/Klv/GeoRegistrationParser.h), [GeoRegistrationEncoder.h](../libs/Klv/GeoRegistrationEncoder.h), [GeoRegistrationTypes.h](../libs/Klv/GeoRegistrationTypes.h) |
 | **MISB ST 1607.2** | Constructs to Amend/Segment KLV Metadata | **Fully Implemented** | [St1607Parser.h](../libs/Klv/St1607Parser.h), [St1607Encoder.h](../libs/Klv/St1607Encoder.h), [St1607Types.h](../libs/Klv/St1607Types.h) |
+| **MISB ST 1204.3** | Motion Imagery Identification System (MIIS) Core Identifier | **Fully Implemented** | [MiisCoreId.h](../libs/Klv/MiisCoreId.h), [MiisCoreId.cpp](../libs/Klv/MiisCoreId.cpp) |
 | **MISB ST 1303.2** | Multi-Dimensional Array Pack (MDARRAY) | **Fully Implemented** | [MdArray.h](../libs/Klv/MdArray.h), [MdArray.cpp](../libs/Klv/MdArray.cpp) |
 | **MISB ST 1201.5** | Floating Point to Integer Mapping (IMAPB) | **Fully Implemented** | [Misb1201.h](../libs/Klv/Misb1201.h), [Misb1201.cpp](../libs/Klv/Misb1201.cpp) |
 | **MISB ST 0903.6** | Video Moving Target Indicator (VMTI) | **Fully Implemented** | [VmtiParser.h](../libs/Klv/VmtiParser.h), [VmtiEncoder.h](../libs/Klv/VmtiEncoder.h), [VmtiTypes.h](../libs/Klv/VmtiTypes.h) |
@@ -185,6 +186,23 @@ graph TD
   - Strict compliance checks for ST 1607.2-07 (no simultaneous Amend/Segment sets at same level) and ST 1607.2-08 (no Segment set inside an Amend set).
   - High-performance "union and override" resolution engine via `applyTo(UasDatalinkMessage&)` methods.
 
+### 3.9 MISB ST 1204.3 Motion Imagery Identification System (MIIS) Core Identifier
+- **Files**: [MiisCoreId.h](../libs/Klv/MiisCoreId.h)/[.cpp](../libs/Klv/MiisCoreId.cpp)
+- **Features**:
+  - RFC 4122 compliant 128-bit UUID generation, validation, and serialization.
+  - Generators for UUID Version 1 (MAC node + 60-bit 100ns timestamp), Version 4 (Random entropy), and Version 5 (SHA-1 name-based deterministic hashing).
+  - Strongly-typed Sub-Identifiers with `MiisIdType` (Sensor, Platform, Window) and `MiisIdQuality` (Physical vs. Virtual).
+  - Multi-mode binary encoding & decoding:
+    - 16-byte raw binary stream UUID.
+    - 32-byte dual UUID (Sensor UUID + Platform UUID).
+    - 33-byte versioned composite pack (Version + Sensor UUID + Platform UUID).
+    - 35-byte versioned quality composite pack (Version + Sensor Quality + Sensor UUID + Platform Quality + Platform UUID).
+    - RFC 4122 canonical 8-4-4-4-12 hex string and URN (`urn:uuid:...`) parsing and formatting.
+  - Full subsystem integration:
+    - MISB ST 0601 Tag 94 (`UasDatalinkMessage::miisCoreId`).
+    - MISB ST 1607 Tag 94 (`SegmentLocalSet::miisCoreId` and `applyTo` union-and-override).
+    - MISB ST 0903 VMTI Tag 13 (`VmtiLocalSet::miisId`).
+
 ---
 
 ## 4. Test Verification & Coverage
@@ -206,4 +224,5 @@ All modules in `libs/Klv` are verified by comprehensive GoogleTest suites:
 | **TestMisb0805** | [TestMisb0805.cpp](../libs/Klv/tests/TestMisb0805.cpp) | 6 | ISO-8601 formatting, CE90/LE90 conversion, Platform CoT, Sensor POI CoT, RVT POI to CoT batch conversion |
 | **TestGeoRegistration** | [TestGeoRegistration.cpp](../libs/Klv/tests/TestGeoRegistration.cpp) | 10 | MDARRAY 1D/2D NaturalFormat and ST 1201 IMAPB, 2-image tie points, geo tie points, covariances, ST 1601.1-03 parity rule |
 | **TestSt1607LocalSet** | [TestSt1607LocalSet.cpp](../libs/Klv/tests/TestSt1607LocalSet.cpp) | 9 | ST 1607 UL matching, MSID local/universal ID, standalone packets, embedded Tags 100/101, embedded Tag 98, ST 1607.2 rules, union-and-override |
-| **Total** | | **79** | **100% Pass Rate** |
+| **TestMiisCoreId** | [TestMiisCoreId.cpp](../libs/Klv/tests/TestMiisCoreId.cpp) | 10 | RFC 4122 UUID v1/v4/v5, 16/32/33/35-byte binary packs, ST 0601 Tag 94, ST 1607 Tag 94, ST 0903 Tag 13 |
+| **Total** | | **89** | **100% Pass Rate** |

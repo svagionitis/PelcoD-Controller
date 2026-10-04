@@ -42,6 +42,8 @@ add_library(Klv STATIC
     St1607Encoder.cpp
     St1607Parser.h
     St1607Parser.cpp
+    MiisCoreId.h
+    MiisCoreId.cpp
 )
 
 target_include_directories(Klv PUBLIC

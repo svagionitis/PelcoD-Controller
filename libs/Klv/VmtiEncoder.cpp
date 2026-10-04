@@ -237,6 +237,14 @@ std::vector<std::uint8_t> VmtiEncoder::encode(const VmtiLocalSet& vmti, bool sta
     // Tag 9: FrameHeight
     appendTagVarUint(static_cast<std::uint32_t>(VmtiTag::FrameHeight), vmti.frameHeight, payload);
 
+    // Tag 13: MIIS Core Identifier
+    if (vmti.miisId.has_value()) {
+        const auto miisBytes = vmti.miisId->encode();
+        KlvBer::encodeTag(static_cast<std::uint32_t>(VmtiTag::MiisId), payload);
+        KlvBer::encodeLength(miisBytes.size(), payload);
+        payload.insert(payload.end(), miisBytes.begin(), miisBytes.end());
+    }
+
     // Tag 101: VTargetSeries
     if (!vmti.targets.empty()) {
         encodeSeries(vmti.targets, vmti.frameWidth, vmti.frameHeight, payload);

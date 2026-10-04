@@ -379,9 +379,13 @@ KlvStatus St1607Parser::parseSegment(const std::uint8_t* data,
             case 78U:
                 if (len >= 2U) outSet.frameCenterElevHaeM = unscaleAlt(readU16(valPtr));
                 break;
-            case 94U:
-                outSet.miisCoreId = std::string(reinterpret_cast<const char*>(valPtr), len);
+            case 94U: {
+                MiisCoreId miis {};
+                if (miis.decode(valPtr, len) == KlvStatus::Success) {
+                    outSet.miisCoreId = miis;
+                }
                 break;
+            }
             case 100U: { // Child Segment Local Set
                 SegmentLocalSet childSeg {};
                 if (parseSegment(valPtr, len, childSeg) == KlvStatus::Success) {

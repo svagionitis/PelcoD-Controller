@@ -373,6 +373,12 @@ std::vector<std::uint8_t> KlvEncoder::encode(const UasDatalinkMessage& msg) {
         appendTagUint16(static_cast<std::uint32_t>(Tag::FrameCenterElevHae), scaleAltitude(*msg.frameCenterElevHaeM), payload);
     }
 
+    // Tag 94: MISB ST 1204 MIIS Core Identifier
+    if (msg.miisCoreId.has_value()) {
+        const auto miisBytes = msg.miisCoreId->encode();
+        appendTagBytes(static_cast<std::uint32_t>(Tag::MiisCoreId), miisBytes, payload);
+    }
+
     // Tag 118: Sensor Roll Angle
     if (msg.sensorRollAngleDeg.has_value()) {
         appendTagUint32(static_cast<std::uint32_t>(Tag::SensorRollAngle), scaleRelRoll(*msg.sensorRollAngleDeg), payload);

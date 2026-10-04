@@ -255,7 +255,10 @@ KlvStatus St1607Encoder::encodeSegment(const SegmentLocalSet& set, std::vector<s
 
     if (set.sensorAltitudeHaeM)     appendU16(75U, scaleAlt(*set.sensorAltitudeHaeM), out);
     if (set.frameCenterElevHaeM)    appendU16(78U, scaleAlt(*set.frameCenterElevHaeM), out);
-    if (set.miisCoreId)             appendStr(94U, *set.miisCoreId, out);
+    if (set.miisCoreId) {
+        const auto miisBytes = set.miisCoreId->encode();
+        appendBytes(94U, miisBytes, out);
+    }
 
     for (const auto& child : set.childSegments) {
         std::vector<std::uint8_t> childBytes {};
