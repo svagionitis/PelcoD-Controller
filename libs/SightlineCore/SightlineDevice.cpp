@@ -405,6 +405,16 @@ bool SightlineDevice::setVideoParams(const MsgSetVideoParameters& msg)
     return sendPacket(SightlineProtocolBuilder::buildSetVideoParameters(msg));
 }
 
+bool SightlineDevice::setDigitalCameraParams(const MsgDigitalCameraParameters& msg)
+{
+    return sendPacket(SightlineProtocolBuilder::buildSetDigitalCameraParams(msg));
+}
+
+bool SightlineDevice::getDigitalCameraParams(std::uint8_t cameraIndex)
+{
+    return sendPacket(SightlineProtocolBuilder::buildGetDigitalCameraParams(cameraIndex));
+}
+
 bool SightlineDevice::setVideoMode(const MsgSetVideoMode& msg)
 {
     return sendPacket(SightlineProtocolBuilder::buildSetVideoMode(msg));

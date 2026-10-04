@@ -64,6 +64,17 @@ public:
     /// @param[in] cameraIndex Target camera index.
     /// @return Framed binary packet.
     [[nodiscard]] static std::vector<std::uint8_t> buildGetCameraCapabilities(std::uint8_t cameraIndex = 0U);
+
+    /// @brief Encodes digital camera auto gain parameters (Message ID 0x70).
+    /// @param[in] msg Digital camera AGC parameters.
+    /// @return Framed binary packet.
+    [[nodiscard]] static std::vector<std::uint8_t> buildSetDigitalCameraParams(
+        const MsgDigitalCameraParameters& msg);
+
+    /// @brief Encodes query for digital camera parameters (Message ID 0x28 query 0x70).
+    /// @param[in] cameraIndex Target camera index.
+    /// @return Framed binary packet.
+    [[nodiscard]] static std::vector<std::uint8_t> buildGetDigitalCameraParams(std::uint8_t cameraIndex = 0U);
 };
 
 } // namespace Sightline

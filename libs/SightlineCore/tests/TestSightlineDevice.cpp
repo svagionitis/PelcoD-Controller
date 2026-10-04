@@ -231,8 +231,14 @@ namespace {
         MsgSetOverlayMode mode {};
         EXPECT_TRUE(device.setOverlayMode(mode));
 
+        MsgDigitalCameraParameters digiParams {};
+        digiParams.cameraIndex = 1U;
+        digiParams.mode = AutoGainMode::Manual;
+        EXPECT_TRUE(device.setDigitalCameraParams(digiParams));
+        EXPECT_TRUE(device.getDigitalCameraParams(1U));
+
         const auto sent = transport->getSentPackets();
-        EXPECT_EQ(sent.size(), 5U);
+        EXPECT_EQ(sent.size(), 7U);
 
         device.stop();
     }

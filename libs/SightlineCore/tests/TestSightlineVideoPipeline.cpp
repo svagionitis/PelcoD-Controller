@@ -373,6 +373,85 @@ namespace {
         EXPECT_EQ(facadeOut.maxWidth, 3840U);
     }
 
+    /// @brief Verify digital camera high-bit-depth auto gain parameter serialization, parsing, and query (Message ID 0x70 / 0x71).
+    TEST(TestSightlineVideoPipeline, BuildAndParseDigitalCameraParams)
+    {
+        MsgDigitalCameraParameters msg {};
+        msg.cameraIndex = 1U;
+        msg.mode = AutoGainMode::Manual;
+        msg.agHoldmax = 20271U;
+        msg.agHoldmin = 18870U;
+        msg.rowROIPct = 10U;
+        msg.colROIPct = 15U;
+        msg.highROIPct = 200U;
+        msg.wideROIPct = 220U;
+        msg.minAGRange = 350U;
+        msg.agRate8 = 45U;
+        msg.minExp = 2U;
+        msg.maxExp = 250U;
+        msg.rejectDarkTail = 12U;
+        msg.rejectBrightTail = 18U;
+        msg.midpoint = 140U;
+        msg.highBitDepthFlags = 0x00000001U;
+
+        const auto pkt = SightlineCaptureBuilder::buildSetDigitalCameraParams(msg);
+        EXPECT_EQ(SightlineFraming::identifyMessage(pkt), MessageId::SetDigitalCameraParameters);
+        EXPECT_EQ(pkt, SightlineProtocolBuilder::buildSetDigitalCameraParams(msg));
+
+        // Test parser on SetDigitalCameraParameters (0x70)
+        MsgDigitalCameraParameters out {};
+        ASSERT_TRUE(SightlineCaptureParser::parseDigitalCameraParams(pkt, out));
+        EXPECT_EQ(out.cameraIndex, 1U);
+        EXPECT_EQ(out.mode, AutoGainMode::Manual);
+        EXPECT_EQ(out.agHoldmax, 20271U);
+        EXPECT_EQ(out.agHoldmin, 18870U);
+        EXPECT_EQ(out.rowROIPct, 10U);
+        EXPECT_EQ(out.colROIPct, 15U);
+        EXPECT_EQ(out.highROIPct, 200U);
+        EXPECT_EQ(out.wideROIPct, 220U);
+        EXPECT_EQ(out.minAGRange, 350U);
+        EXPECT_EQ(out.agRate8, 45U);
+        EXPECT_EQ(out.minExp, 2U);
+        EXPECT_EQ(out.maxExp, 250U);
+        EXPECT_EQ(out.rejectDarkTail, 12U);
+        EXPECT_EQ(out.rejectBrightTail, 18U);
+        EXPECT_EQ(out.midpoint, 140U);
+        EXPECT_EQ(out.highBitDepthFlags, 0x00000001U);
+
+        // Test facade parser
+        MsgDigitalCameraParameters facadeOut {};
+        ASSERT_TRUE(SightlineProtocolParser::parseDigitalCameraParams(pkt, facadeOut));
+        EXPECT_EQ(facadeOut.agHoldmax, 20271U);
+        EXPECT_EQ(facadeOut.agHoldmin, 18870U);
+
+        // Test parser on CurrentDigitalCameraParameters (0x71)
+        const auto payload = SightlineFraming::extractPayload(pkt);
+        const auto currPkt = SightlineFraming::buildPacket(MessageId::CurrentDigitalCameraParameters, payload);
+        MsgDigitalCameraParameters currOut {};
+        ASSERT_TRUE(SightlineCaptureParser::parseDigitalCameraParams(currPkt, currOut));
+        EXPECT_EQ(currOut.cameraIndex, 1U);
+        EXPECT_EQ(currOut.agHoldmax, 20271U);
+
+        // Test partial/minimum payload parsing (6 bytes)
+        std::vector<std::uint8_t> shortPayload {};
+        shortPayload.push_back(0U); // cameraIndex
+        shortPayload.push_back(static_cast<std::uint8_t>(AutoGainMode::HighBitDepthAuto));
+        SightlineFraming::appendU16Le(shortPayload, 50000U); // agHoldmax
+        SightlineFraming::appendU16Le(shortPayload, 1000U);  // agHoldmin
+        const auto shortPkt = SightlineFraming::buildPacket(MessageId::CurrentDigitalCameraParameters, shortPayload);
+        MsgDigitalCameraParameters shortOut {};
+        ASSERT_TRUE(SightlineCaptureParser::parseDigitalCameraParams(shortPkt, shortOut));
+        EXPECT_EQ(shortOut.cameraIndex, 0U);
+        EXPECT_EQ(shortOut.mode, AutoGainMode::HighBitDepthAuto);
+        EXPECT_EQ(shortOut.agHoldmax, 50000U);
+        EXPECT_EQ(shortOut.agHoldmin, 1000U);
+
+        // Test query builder (0x28 query 0x70)
+        const auto queryPkt = SightlineCaptureBuilder::buildGetDigitalCameraParams(1U);
+        EXPECT_EQ(SightlineFraming::identifyMessage(queryPkt), MessageId::GetParameters);
+        EXPECT_EQ(queryPkt, SightlineProtocolBuilder::buildGetDigitalCameraParams(1U));
+    }
+
     /// @brief Verify 4-point projective homography calibration serialization, parsing, and query.
     TEST(TestSightlineVideoPipeline, BuildAndParseFourAlignPoints)
     {

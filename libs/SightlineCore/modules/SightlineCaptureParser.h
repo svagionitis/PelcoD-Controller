@@ -51,6 +51,13 @@ public:
     /// @param[out] out Deserialized camera capabilities structure.
     /// @return True on successful parse.
     [[nodiscard]] static bool parseCameraCapabilities(ByteView packet, MsgCameraCapabilities& out);
+
+    /// @brief Parses digital camera auto gain parameters (Message ID 0x70 / 0x71).
+    /// @param[in] packet Validated framed packet bytes or view.
+    /// @param[out] out Deserialized digital camera parameters.
+    /// @return True on successful parse.
+    [[nodiscard]] static bool parseDigitalCameraParams(
+        ByteView packet, MsgDigitalCameraParameters& out);
 };
 
 } // namespace Sightline

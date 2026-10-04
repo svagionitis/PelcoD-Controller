@@ -681,6 +681,10 @@ struct TrackingTelemetrySnapshot {
         return "SetTelemetryDestination (0x64)";
     case MessageId::SetLensParameters:
         return "SetLensParameters (0x6E)";
+    case MessageId::SetDigitalCameraParameters:
+        return "SetDigitalCameraParameters (0x70)";
+    case MessageId::CurrentDigitalCameraParameters:
+        return "CurrentDigitalCameraParameters (0x71)";
     case MessageId::UserWarningMessage:
         return "UserWarningMessage (0x86)";
     case MessageId::SystemStatusMessage:

@@ -117,6 +117,11 @@ bool SightlineProtocolParser::parseVideoParameters(const std::vector<std::uint8_
     return SightlineCaptureParser::parseVideoParameters(packet, out);
 }
 
+bool SightlineProtocolParser::parseDigitalCameraParams(ByteView packet, MsgDigitalCameraParameters& out)
+{
+    return SightlineCaptureParser::parseDigitalCameraParams(packet, out);
+}
+
 bool SightlineProtocolParser::parseVideoEnhance(const std::vector<std::uint8_t>& packet, MsgSetVideoEnhancement& out)
 {
     return SightlineEnhancementParser::parseVideoEnhance(packet, out);

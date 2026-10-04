@@ -73,4 +73,39 @@ struct MsgCameraCapabilities {
     std::uint8_t flags { 0U };
 };
 
+/// @enum AutoGainMode
+/// @brief Sensor auto-gain and high-bit-depth dynamic range compression modes (Message ID 0x70).
+enum class AutoGainMode : std::uint8_t {
+    HighBitDepthAuto = 0U, ///< 10 to 16-bit high bit depth automatic gain control
+    Manual = 1U,           ///< Manual gain: agHoldmax and agHoldmin used for clamping
+    SightLineAuto = 2U,    ///< SLA AGC adjusts sensor registers (4000/17xx)
+    CameraAuto = 3U,       ///< Camera internal AGC controls gain/exposure (4000/17xx)
+    Unknown = 255U
+};
+
+/// @struct MsgDigitalCameraParameters
+/// @brief Digital camera high-bit-depth auto gain and dynamic range parameters (Message ID 0x70 / 0x71).
+/// @details Official Sightline SLASetDigitalCameraParameters_t / SLACurrentDigitalCameraParameters_t.
+///          Dynamically adjusts a 10 to 16 bit digital camera input to an 8 bit image.
+struct MsgDigitalCameraParameters {
+    std::uint8_t cameraIndex { 0U };         ///< Target camera index (0-based)
+    AutoGainMode mode { AutoGainMode::HighBitDepthAuto }; ///< Gain mode (0: HighBitDepth, 1: Manual, 2: SightLine, 3: Camera)
+    std::uint16_t agHoldmax { 65535U };      ///< Autogain max value mapped to 255 in 8-bit output
+    std::uint16_t agHoldmin { 0U };          ///< Autogain min value mapped to 0 in 8-bit output
+    std::uint8_t rowROIPct { 0U };           ///< Row offset in % of image height (255 = 100%, default 0)
+    std::uint8_t colROIPct { 0U };           ///< Col offset in % of image width (255 = 100%, default 0)
+    std::uint8_t highROIPct { 255U };        ///< Height in % of image height (255 = 100%, default 255)
+    std::uint8_t wideROIPct { 255U };        ///< Width in % of image width (255 = 100%, default 255)
+    std::uint16_t minAGRange { 200U };       ///< Min spread to prevent over-gaining flat scenes (default 200)
+    std::uint8_t agRate8 { 32U };            ///< Smoothing filter time constant (1..255, default 32 ~= 1 sec)
+    std::uint8_t minExp { 0U };              ///< Minimum exposure / integration time (0 = ignored)
+    std::uint8_t maxExp { 0U };              ///< Maximum exposure / integration time (0 = ignored)
+    std::uint8_t rejectDarkTail { 0U };      ///< Left/dark tail exclusion (0 = none, 10 = 1.0%, 255 = 25.5%)
+    std::uint8_t rejectBrightTail { 0U };    ///< Right/bright tail exclusion (0 = none, 10 = 1.0%, 255 = 25.5%)
+    std::uint8_t midpoint { 128U };          ///< Center output value correspondence (0..255, default 128)
+    std::uint32_t highBitDepthFlags { 0U };  ///< Bit 0: Contrast stretching from saturation %
+};
+
+using MsgSetDigitalCameraParameters = MsgDigitalCameraParameters;
+
 } // namespace Sightline

@@ -343,6 +343,17 @@ std::vector<std::uint8_t> SightlineProtocolBuilder::buildGetCameraCapabilities(s
     return SightlineCaptureBuilder::buildGetCameraCapabilities(cameraIndex);
 }
 
+std::vector<std::uint8_t> SightlineProtocolBuilder::buildSetDigitalCameraParams(
+    const MsgDigitalCameraParameters& msg)
+{
+    return SightlineCaptureBuilder::buildSetDigitalCameraParams(msg);
+}
+
+std::vector<std::uint8_t> SightlineProtocolBuilder::buildGetDigitalCameraParams(std::uint8_t cameraIndex)
+{
+    return SightlineCaptureBuilder::buildGetDigitalCameraParams(cameraIndex);
+}
+
 std::vector<std::uint8_t> SightlineProtocolBuilder::buildSetVideoDisplay(const MsgVideoDisplay& msg)
 {
     return SightlineDisplayBuilder::buildSetVideoDisplay(msg);

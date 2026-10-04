@@ -112,6 +112,12 @@ public:
     /// @return True on successful parse.
     [[nodiscard]] static bool parseVideoParameters(const std::vector<std::uint8_t>& packet, MsgSetVideoParameters& out);
 
+    /// @brief Parses digital camera auto gain parameters (Message ID 0x70 / 0x71).
+    /// @param[in] packet Validated framed packet bytes or view.
+    /// @param[out] out Deserialized digital camera parameters.
+    /// @return True on successful parse.
+    [[nodiscard]] static bool parseDigitalCameraParams(ByteView packet, MsgDigitalCameraParameters& out);
+
     /// @brief Parses active video enhancement parameters (Message ID 0x4A / 0x21).
     /// @param[in] packet Validated framed packet bytes.
     /// @param[out] out Deserialized enhancement structure.

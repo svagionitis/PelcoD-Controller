@@ -366,6 +366,16 @@ public:
     /// @return True if command was successfully transmitted.
     [[nodiscard]] bool setVideoParams(const MsgSetVideoParameters& msg);
 
+    /// @brief Configures digital camera high-bit-depth auto gain and dynamic range parameters (Message ID 0x70).
+    /// @param[in] msg Digital camera AGC parameters.
+    /// @return True if command was successfully transmitted.
+    [[nodiscard]] bool setDigitalCameraParams(const MsgDigitalCameraParameters& msg);
+
+    /// @brief Queries digital camera parameters (Message ID 0x28 query 0x70).
+    /// @param[in] cameraIndex Target camera index.
+    /// @return True if command was successfully transmitted.
+    [[nodiscard]] bool getDigitalCameraParams(std::uint8_t cameraIndex = 0U);
+
     /// @brief Configures video zoom, freeze, and orientation mode.
     /// @param[in] msg Video mode parameters.
     /// @return True if command was successfully transmitted.

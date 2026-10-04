@@ -123,4 +123,51 @@ bool SightlineCaptureParser::parseCameraCapabilities(ByteView packet, MsgCameraC
     return true;
 }
 
+bool SightlineCaptureParser::parseDigitalCameraParams(ByteView packet, MsgDigitalCameraParameters& out)
+{
+    const auto id = SightlineFraming::identifyMessage(packet);
+    if (id != MessageId::SetDigitalCameraParameters && id != MessageId::CurrentDigitalCameraParameters) {
+        return false;
+    }
+
+    const auto payload { SightlineFraming::extractPayload(packet) };
+    if (payload.size() < 6U) {
+        return false;
+    }
+
+    out.cameraIndex = payload[0U];
+    out.mode = static_cast<AutoGainMode>(payload[1U]);
+    out.agHoldmax = SightlineFraming::readU16Le(payload.data() + 2U);
+    out.agHoldmin = SightlineFraming::readU16Le(payload.data() + 4U);
+
+    if (payload.size() >= 10U) {
+        out.rowROIPct = payload[6U];
+        out.colROIPct = payload[7U];
+        out.highROIPct = payload[8U];
+        out.wideROIPct = payload[9U];
+    }
+    if (payload.size() >= 12U) {
+        out.minAGRange = SightlineFraming::readU16Le(payload.data() + 10U);
+    }
+    if (payload.size() >= 13U) {
+        out.agRate8 = payload[12U];
+    }
+    if (payload.size() >= 15U) {
+        out.minExp = payload[13U];
+        out.maxExp = payload[14U];
+    }
+    if (payload.size() >= 17U) {
+        out.rejectDarkTail = payload[15U];
+        out.rejectBrightTail = payload[16U];
+    }
+    if (payload.size() >= 18U) {
+        out.midpoint = payload[17U];
+    }
+    if (payload.size() >= 22U) {
+        out.highBitDepthFlags = SightlineFraming::readU32Le(payload.data() + 18U);
+    }
+
+    return true;
+}
+
 } // namespace Sightline
