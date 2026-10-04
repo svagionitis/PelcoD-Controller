@@ -2,10 +2,55 @@
 #include "KlvEncoder.h"
 #include "MpegTsKlvExtractor.h"
 #include "MpegTsKlvMuxer.h"
+#include <algorithm>
+#include <cstdio>
 #include <gtest/gtest.h>
+#include <string>
 #include <vector>
 
 using namespace Klv;
+
+namespace {
+
+[[nodiscard]] std::string findSampleVideo(const std::string& filename) {
+    const std::vector<std::string> prefixes = {
+        "",
+        "sample-videos/",
+        "../sample-videos/",
+        "../../sample-videos/",
+        "../../../sample-videos/",
+        "../../../../sample-videos/"
+    };
+
+    for (const auto& prefix : prefixes) {
+        const std::string candidate = prefix + filename;
+        FILE* fp = std::fopen(candidate.c_str(), "rb");
+        if (fp != nullptr) {
+            std::fclose(fp);
+            return candidate;
+        }
+    }
+    return {};
+}
+
+[[nodiscard]] std::vector<std::uint8_t> loadVideoFile(const std::string& path) {
+    FILE* fp = std::fopen(path.c_str(), "rb");
+    if (fp == nullptr) {
+        return {};
+    }
+
+    std::fseek(fp, 0, SEEK_END);
+    const auto fileSize = static_cast<std::size_t>(std::ftell(fp));
+    std::fseek(fp, 0, SEEK_SET);
+
+    std::vector<std::uint8_t> buffer(fileSize);
+    const std::size_t readBytes = std::fread(buffer.data(), 1U, fileSize, fp);
+    std::fclose(fp);
+    buffer.resize(readBytes);
+    return buffer;
+}
+
+} // namespace
 
 TEST(MpegTsKlvMuxerTest, PatAndPmtGeneration) {
     MpegTsMuxerConfig config;
@@ -271,4 +316,116 @@ TEST(MpegTsKlvMuxerTest, StreamTypeAndIdVariations) {
     const std::size_t dispatched = extractor.processStream(tsBuffer.data(), tsBuffer.size());
     EXPECT_EQ(dispatched, 1U);
     EXPECT_EQ(receivedMission, "STREAM_TYPE_06");
+}
+
+TEST(MpegTsKlvMuxerTest, InterleaveMoonVideo) {
+    const std::string videoPath = findSampleVideo("rotating-moon-from-LRO.ts");
+    if (videoPath.empty()) {
+        GTEST_SKIP() << "sample-videos/rotating-moon-from-LRO.ts not found.";
+    }
+
+    const std::vector<std::uint8_t> videoData = loadVideoFile(videoPath);
+    ASSERT_FALSE(videoData.empty());
+    ASSERT_EQ(videoData.size() % MpegTsKlvMuxer::kTsPacketSize, 0U);
+    ASSERT_EQ(videoData[0], MpegTsKlvMuxer::kTsSyncByte);
+
+    // 1. Verify baseline video-only TS contains zero KLV metadata packets
+    {
+        MpegTsKlvExtractor baselineExtractor;
+        std::size_t rawKlvCount { 0U };
+        baselineExtractor.setMessageCallback([&rawKlvCount](const UasDatalinkMessage&) {
+            rawKlvCount++;
+        });
+        const std::size_t dispatched = baselineExtractor.processStream(videoData.data(), videoData.size());
+        EXPECT_EQ(dispatched, 0U);
+        EXPECT_EQ(rawKlvCount, 0U);
+        EXPECT_FALSE(baselineExtractor.metadataPid().has_value());
+    }
+
+    // 2. Configure MpegTsKlvMuxer for KLV injection
+    MpegTsMuxerConfig config;
+    config.metadataPid = 0x01E0U;
+    config.pmtPid = 0x1000U;
+    config.streamType = KlvStreamType::MetadataInPes;
+    MpegTsKlvMuxer muxer(config);
+
+    // Prepare simulated Lunar Reconnaissance Orbiter telemetry messages
+    constexpr std::size_t kNumMessages { 5U };
+    std::vector<UasDatalinkMessage> expectedMessages;
+    expectedMessages.reserve(kNumMessages);
+
+    for (std::size_t i = 0U; i < kNumMessages; ++i) {
+        UasDatalinkMessage msg;
+        msg.missionId = "LRO_MOON_ORBIT_" + std::to_string(i + 1U);
+        msg.platformDesignation = "LUNAR_RECONNAISSANCE_ORBITER";
+        msg.imageSourceSensor = "LROC_WAC";
+        msg.platformHeadingDeg = static_cast<double>(i) * 36.0;
+        msg.platformPitchDeg = -5.0 + static_cast<double>(i) * 0.5;
+        msg.platformRollDeg = 1.0;
+        msg.sensorLatitudeDeg = -10.0 + static_cast<double>(i) * 2.0;
+        msg.sensorLongitudeDeg = 45.0 + static_cast<double>(i) * 10.0;
+        msg.sensorTrueAltitudeM = 50000.0;
+        msg.precisionTimeStampUs = 1700000000000000ULL + static_cast<std::uint64_t>(i) * 100000ULL;
+        expectedMessages.push_back(msg);
+    }
+
+    std::vector<std::vector<std::uint8_t>> klvPackets;
+    muxer.setPacketCallback([&klvPackets](const std::uint8_t* p, std::size_t sz) {
+        klvPackets.emplace_back(p, p + sz);
+    });
+
+    for (const auto& msg : expectedMessages) {
+        const std::size_t count = muxer.muxMessage(msg);
+        EXPECT_GT(count, 0U);
+    }
+    ASSERT_FALSE(klvPackets.empty());
+
+    // 3. Interleave KLV TS packets into video TS stream
+    constexpr std::size_t kVideoStride { 120U };
+    const std::size_t totalVideoPackets = videoData.size() / MpegTsKlvMuxer::kTsPacketSize;
+    const std::size_t packetsToUse = std::min(std::size_t{1000U}, totalVideoPackets);
+
+    std::vector<std::uint8_t> interleavedTs;
+    interleavedTs.reserve((packetsToUse + klvPackets.size()) * MpegTsKlvMuxer::kTsPacketSize);
+
+    std::size_t klvIdx { 0U };
+    for (std::size_t vp = 0U; vp < packetsToUse; ++vp) {
+        if (vp % kVideoStride == 0U && klvIdx < klvPackets.size()) {
+            interleavedTs.insert(interleavedTs.end(), klvPackets[klvIdx].begin(), klvPackets[klvIdx].end());
+            klvIdx++;
+        }
+        const auto* vPtr = videoData.data() + (vp * MpegTsKlvMuxer::kTsPacketSize);
+        interleavedTs.insert(interleavedTs.end(), vPtr, vPtr + MpegTsKlvMuxer::kTsPacketSize);
+    }
+    while (klvIdx < klvPackets.size()) {
+        interleavedTs.insert(interleavedTs.end(), klvPackets[klvIdx].begin(), klvPackets[klvIdx].end());
+        klvIdx++;
+    }
+
+    // 4. Feed interleaved TS stream into MpegTsKlvExtractor
+    MpegTsKlvExtractor extractor;
+    std::vector<UasDatalinkMessage> decodedMessages;
+    extractor.setMessageCallback([&decodedMessages](const UasDatalinkMessage& m) {
+        decodedMessages.push_back(m);
+    });
+
+    const std::size_t dispatched = extractor.processStream(interleavedTs.data(), interleavedTs.size());
+    EXPECT_EQ(dispatched, expectedMessages.size());
+    EXPECT_EQ(decodedMessages.size(), expectedMessages.size());
+    EXPECT_TRUE(extractor.metadataPid().has_value());
+    EXPECT_EQ(*extractor.metadataPid(), 0x01E0U);
+
+    for (std::size_t i = 0U; i < expectedMessages.size() && i < decodedMessages.size(); ++i) {
+        EXPECT_EQ(decodedMessages[i].missionId.value_or(""), expectedMessages[i].missionId.value_or(""));
+        EXPECT_EQ(decodedMessages[i].platformDesignation.value_or(""), expectedMessages[i].platformDesignation.value_or(""));
+        EXPECT_EQ(decodedMessages[i].imageSourceSensor.value_or(""), expectedMessages[i].imageSourceSensor.value_or(""));
+        ASSERT_TRUE(decodedMessages[i].platformHeadingDeg.has_value());
+        EXPECT_NEAR(*decodedMessages[i].platformHeadingDeg, *expectedMessages[i].platformHeadingDeg, 0.05);
+        ASSERT_TRUE(decodedMessages[i].sensorLatitudeDeg.has_value());
+        EXPECT_NEAR(*decodedMessages[i].sensorLatitudeDeg, *expectedMessages[i].sensorLatitudeDeg, 0.0001);
+        ASSERT_TRUE(decodedMessages[i].sensorLongitudeDeg.has_value());
+        EXPECT_NEAR(*decodedMessages[i].sensorLongitudeDeg, *expectedMessages[i].sensorLongitudeDeg, 0.0001);
+        ASSERT_TRUE(decodedMessages[i].precisionTimeStampUs.has_value());
+        EXPECT_EQ(*decodedMessages[i].precisionTimeStampUs, *expectedMessages[i].precisionTimeStampUs);
+    }
 }

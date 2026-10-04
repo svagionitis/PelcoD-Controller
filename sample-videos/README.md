@@ -186,6 +186,10 @@ The sample videos in this directory are directly referenced by automated CTest t
 * **[`../libs/Klv/tests/TestMpegTsKlvExtractor.cpp`](../libs/Klv/tests/TestMpegTsKlvExtractor.cpp)**:
   * Tests auto-discovery of metadata PID `0x0101` from stream headers and Universal Labels.
   * Tests tag decoding for timestamp, sensor ID, platform heading, and SPI coordinates.
+* **[`../libs/Klv/tests/TestMpegTsKlvMuxer.cpp`](../libs/Klv/tests/TestMpegTsKlvMuxer.cpp)**:
+  * Tests multiplexing KLV metadata packets into pure video transport streams (`rotating-moon-from-LRO.ts`).
+  * Verifies baseline detection of zero KLV packets in pure video streams.
+  * Interleaves simulated lunar orbiter telemetry (LRO mission, LROC sensor, geodetic coordinates, platform attitudes) into the video stream and validates end-to-end extraction fidelity via `MpegTsKlvExtractor`.
 * **[`../libs/Video/tests/TestVideoDecoder.cpp`](../libs/Video/tests/TestVideoDecoder.cpp)**:
   * Validates FFmpeg decoding, frame step accuracy, PTS monotonicity, and path normalization across Windows/POSIX environments.
 * **[`../tests/TestVideoPlayerController.cpp`](../tests/TestVideoPlayerController.cpp)**:
