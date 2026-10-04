@@ -14,6 +14,9 @@ add_library(Transport STATIC
     SightlineUdpTransport.cpp
     SocketUtils.h
     SocketUtils.cpp
+    TsNetworkTypes.h
+    MpegTsNetworkPublisher.h
+    MpegTsNetworkPublisher.cpp
 )
 
 target_include_directories(Transport PUBLIC

@@ -172,7 +172,7 @@ graph TD
   - Full IEEE-754 special value handling: Below Minimum, Above Maximum, Positive/Negative Infinity, Quiet NaN, Signaling NaN, User Defined.
 
 ### 3.7 MPEG-TS Stream Ingestion, Parsing, Multiplexing & Video Elementary Streams
-- **Files**: [MpegTsKlvExtractor.h](../libs/Klv/MpegTsKlvExtractor.h)/[.cpp](../libs/Klv/MpegTsKlvExtractor.cpp), [MpegTsKlvMuxer.h](../libs/Klv/MpegTsKlvMuxer.h)/[.cpp](../libs/Klv/MpegTsKlvMuxer.cpp), [MpegTsMuxerTypes.h](../libs/Klv/MpegTsMuxerTypes.h), [KlvStreamScanner.h](../libs/Klv/KlvStreamScanner.h)/[.cpp](../libs/Klv/KlvStreamScanner.cpp), [VideoTypes.h](../libs/Klv/VideoTypes.h), [VideoNaluParser.h](../libs/Klv/VideoNaluParser.h)/[.cpp](../libs/Klv/VideoNaluParser.cpp), [VideoPesPacketizer.h](../libs/Klv/VideoPesPacketizer.h)/[.cpp](../libs/Klv/VideoPesPacketizer.cpp), [PtsSyncTypes.h](../libs/Klv/PtsSyncTypes.h), [MasterTimeBase.h](../libs/Klv/MasterTimeBase.h)/[.cpp](../libs/Klv/MasterTimeBase.cpp), [PtsSyncManager.h](../libs/Klv/PtsSyncManager.h)/[.cpp](../libs/Klv/PtsSyncManager.cpp)
+- **Files**: [MpegTsKlvExtractor.h](../libs/Klv/MpegTsKlvExtractor.h)/[.cpp](../libs/Klv/MpegTsKlvExtractor.cpp), [MpegTsKlvMuxer.h](../libs/Klv/MpegTsKlvMuxer.h)/[.cpp](../libs/Klv/MpegTsKlvMuxer.cpp), [MpegTsMuxerTypes.h](../libs/Klv/MpegTsMuxerTypes.h), [KlvStreamScanner.h](../libs/Klv/KlvStreamScanner.h)/[.cpp](../libs/Klv/KlvStreamScanner.cpp), [VideoTypes.h](../libs/Klv/VideoTypes.h), [VideoNaluParser.h](../libs/Klv/VideoNaluParser.h)/[.cpp](../libs/Klv/VideoNaluParser.cpp), [VideoPesPacketizer.h](../libs/Klv/VideoPesPacketizer.h)/[.cpp](../libs/Klv/VideoPesPacketizer.cpp), [PtsSyncTypes.h](../libs/Klv/PtsSyncTypes.h), [MasterTimeBase.h](../libs/Klv/MasterTimeBase.h)/[.cpp](../libs/Klv/MasterTimeBase.cpp), [PtsSyncManager.h](../libs/Klv/PtsSyncManager.h)/[.cpp](../libs/Klv/PtsSyncManager.cpp), [MpegTsNetworkPublisher.h](../libs/Transport/MpegTsNetworkPublisher.h)/[.cpp](../libs/Transport/MpegTsNetworkPublisher.cpp), [TsNetworkTypes.h](../libs/Transport/TsNetworkTypes.h)
 - **Features**:
   - **MPEG-TS Demuxing**: 188-byte MPEG-TS packet demuxing with automatic sync byte (`0x47`) synchronization.
   - **Auto PID Discovery**: Automatic metadata stream PID discovery via SMPTE ST 336 / MISB Universal Label matching across PMT and raw Elementary Streams.
@@ -185,6 +185,10 @@ graph TD
   - **PCR Clock Discipline**: Stamping periodic 27 MHz PCR clock references ($\le 40\text{ ms}$) on Video adaptation fields.
   - **PSI Table Generation**: Periodic injection of Program Association Tables (PAT, PID `0x0000`) and Program Map Tables (PMT, configurable PID) with ISO/IEC 13818-1 32-bit CRC calculation via [KlvCrc](../libs/Klv/KlvCrc.h).
   - **Registration Descriptors**: Automatic injection of Format Identifier `"KLVA"` (or `"KLVN"`) Registration Descriptors (Tag `0x05`) per MISB ST 1402.
+  - **Transport Stream Network Egress (`MpegTsNetworkPublisher`)**: Industrial-grade, zero-allocation network streaming socket broadcasting multiplexed 188-byte STANAG 4609 / MISB MPEG-TS packets directly to network clients over IPv4 Unicast and Multicast.
+  - **MTU-Safe TS Packet Aggregation**: Bundles up to 7 TS packets ($7 \times 188 = 1316\text{ bytes}$) per UDP datagram, maximizing network throughput while preventing IP fragmentation on standard 1500-byte Ethernet MTUs.
+  - **RFC 3550 & RFC 2250 RTP Encapsulation**: Formats datagrams into compliant RTP payloads with 12-byte header, Payload Type 33 (`MP2T`), 90 kHz timestamping, and sequence numbering.
+  - **Multicast Management & Kernel Send Buffering**: Automatic multicast IP classification (`224.0.0.0`–`239.255.255.255`), configurable hop limit (`IP_MULTICAST_TTL`), interface binding (`IP_MULTICAST_IF`), loopback control (`IP_MULTICAST_LOOP`), and 1 MB kernel socket send buffering (`SO_SNDBUF`).
   - **Streaming & Buffer Modes**: High-efficiency per-packet streaming callbacks for network egress (UDP/RTP) and contiguous buffer serialization (`muxToBuffer`, `muxMessageToBuffer`, `muxVideoToBuffer`, `muxSynchronizedToBuffer`).
 
 ### 3.8 MISB ST 1607.2 Constructs to Amend/Segment KLV Metadata
@@ -254,6 +258,7 @@ All modules in `libs/Klv` and tracking integration bridges are verified by compr
 | **TestSt1607LocalSet** | [TestSt1607LocalSet.cpp](../libs/Klv/tests/TestSt1607LocalSet.cpp) | 9 | ST 1607 UL matching, MSID local/universal ID, standalone packets, embedded Tags 100/101, embedded Tag 98, ST 1607.2 rules, union-and-override |
 | **TestMiisCoreId** | [TestMiisCoreId.cpp](../libs/Klv/tests/TestMiisCoreId.cpp) | 10 | RFC 4122 UUID v1/v4/v5, 16/32/33/35-byte binary packs, ST 0601 Tag 94, ST 1607 Tag 94, ST 0903 Tag 13 |
 | **TestPtzSlewToCueBridge** | [TestPtzSlewToCueBridge.cpp](../libs/Tracking/tests/TestPtzSlewToCueBridge.cpp) | 8 | Stationary mast target bearing, platform attitude derotation, coarse-to-fine transitions, auto-zoom framing |
-| **Total** | | **117** | **100% Pass Rate** |
+| **TestMpegTsNetworkPublisher** | [TestMpegTsNetworkPublisher.cpp](../libs/Transport/tests/TestMpegTsNetworkPublisher.cpp) | 8 | Raw UDP streaming (1316 B), partial packet accumulation & flush, RFC 3550 RTP encapsulation (1328 B), multicast TTL/loopback, invalid buffer rejection, bitrate tracking |
+| **Total** | | **125** | **100% Pass Rate** |
 
 
