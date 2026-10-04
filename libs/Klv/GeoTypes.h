@@ -20,4 +20,13 @@ struct GeoPoint3D {
     double altitudeM { 0.0 };    ///< Height above Mean Sea Level (MSL) or HAE in meters
 };
 
+/// @struct FrustumCorners
+/// @brief Optical footprint 4-corner ground projection coordinates on the WGS-84 ellipsoid.
+struct FrustumCorners {
+    GeoPoint2D topLeft {};     ///< Corner 1 (Top-Left)
+    GeoPoint2D topRight {};    ///< Corner 2 (Top-Right)
+    GeoPoint2D bottomRight {}; ///< Corner 3 (Bottom-Right)
+    GeoPoint2D bottomLeft {};  ///< Corner 4 (Bottom-Left)
+};
+
 } // namespace Klv

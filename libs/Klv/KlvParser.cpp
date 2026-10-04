@@ -2,6 +2,7 @@
 #include "KlvBer.h"
 #include "KlvCrc.h"
 #include "RvtParser.h"
+#include "St1607Parser.h"
 #include "VmtiParser.h"
 #include <algorithm>
 #include <cstring>
@@ -496,6 +497,20 @@ KlvStatus KlvParser::parse(const std::uint8_t* data,
                 VmtiLocalSet vmtiSet {};
                 if (VmtiParser::parse(valPtr, len, vmtiSet, false) == KlvStatus::Success) {
                     message.vmti = vmtiSet;
+                }
+                break;
+            }
+            case Tag::SegmentLocalSet: {
+                SegmentLocalSet segSet {};
+                if (St1607Parser::parseSegment(valPtr, len, segSet) == KlvStatus::Success) {
+                    message.segments.push_back(segSet);
+                }
+                break;
+            }
+            case Tag::AmendLocalSet: {
+                AmendLocalSet amendSet {};
+                if (St1607Parser::parseAmend(valPtr, len, amendSet) == KlvStatus::Success) {
+                    message.amends.push_back(amendSet);
                 }
                 break;
             }

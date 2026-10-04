@@ -26,4 +26,5 @@ add_klv_test(TestFlightStreamValidation TestFlightStreamValidation.cpp)
 add_klv_test(TestRvtLocalSet          TestRvtLocalSet.cpp)
 add_klv_test(TestMisb0805             TestMisb0805.cpp)
 add_klv_test(TestGeoRegistration      TestGeoRegistration.cpp)
+add_klv_test(TestSt1607LocalSet       TestSt1607LocalSet.cpp)
 

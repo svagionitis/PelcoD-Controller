@@ -36,6 +36,12 @@ add_library(Klv STATIC
     GeoRegistrationEncoder.cpp
     GeoRegistrationParser.h
     GeoRegistrationParser.cpp
+    St1607Types.h
+    St1607Types.cpp
+    St1607Encoder.h
+    St1607Encoder.cpp
+    St1607Parser.h
+    St1607Parser.cpp
 )
 
 target_include_directories(Klv PUBLIC

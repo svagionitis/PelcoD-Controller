@@ -2,6 +2,7 @@
 #include "KlvBer.h"
 #include "KlvCrc.h"
 #include "RvtEncoder.h"
+#include "St1607Encoder.h"
 #include "VmtiEncoder.h"
 #include <algorithm>
 #include <chrono>
@@ -375,6 +376,22 @@ std::vector<std::uint8_t> KlvEncoder::encode(const UasDatalinkMessage& msg) {
     // Tag 118: Sensor Roll Angle
     if (msg.sensorRollAngleDeg.has_value()) {
         appendTagUint32(static_cast<std::uint32_t>(Tag::SensorRollAngle), scaleRelRoll(*msg.sensorRollAngleDeg), payload);
+    }
+
+    // Tag 100: Segment Local Sets
+    for (const auto& seg : msg.segments) {
+        std::vector<std::uint8_t> segBytes {};
+        if (St1607Encoder::encodeSegment(seg, segBytes) == KlvStatus::Success) {
+            appendTagBytes(static_cast<std::uint32_t>(Tag::SegmentLocalSet), segBytes, payload);
+        }
+    }
+
+    // Tag 101: Amend Local Sets
+    for (const auto& amend : msg.amends) {
+        std::vector<std::uint8_t> amendBytes {};
+        if (St1607Encoder::encodeAmend(amend, amendBytes) == KlvStatus::Success) {
+            appendTagBytes(static_cast<std::uint32_t>(Tag::AmendLocalSet), amendBytes, payload);
+        }
     }
 
     // Tag 1 (Checksum) adds 4 bytes: Tag (0x01), Length (0x02), 2 bytes CRC

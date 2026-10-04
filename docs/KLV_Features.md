@@ -14,6 +14,7 @@ The `libs/Klv` library provides a high-performance, zero-Qt, C++17 telemetry enc
 | **MISB ST 0806.4** | Remote Video Terminal (RVT) Local Set | **Fully Implemented** | [RvtParser.h](../libs/Klv/RvtParser.h), [RvtEncoder.h](../libs/Klv/RvtEncoder.h), [RvtTypes.h](../libs/Klv/RvtTypes.h) |
 | **MISB ST 0805.1** | Cursor-on-Target (CoT) Metadata Translation | **Fully Implemented** | [Misb0805.h](../libs/Klv/Misb0805.h), [Misb0805.cpp](../libs/Klv/Misb0805.cpp) |
 | **MISB ST 1601.2** | Geo-Registration Local Set | **Fully Implemented** | [GeoRegistrationParser.h](../libs/Klv/GeoRegistrationParser.h), [GeoRegistrationEncoder.h](../libs/Klv/GeoRegistrationEncoder.h), [GeoRegistrationTypes.h](../libs/Klv/GeoRegistrationTypes.h) |
+| **MISB ST 1607.2** | Constructs to Amend/Segment KLV Metadata | **Fully Implemented** | [St1607Parser.h](../libs/Klv/St1607Parser.h), [St1607Encoder.h](../libs/Klv/St1607Encoder.h), [St1607Types.h](../libs/Klv/St1607Types.h) |
 | **MISB ST 1303.2** | Multi-Dimensional Array Pack (MDARRAY) | **Fully Implemented** | [MdArray.h](../libs/Klv/MdArray.h), [MdArray.cpp](../libs/Klv/MdArray.cpp) |
 | **MISB ST 1201.5** | Floating Point to Integer Mapping (IMAPB) | **Fully Implemented** | [Misb1201.h](../libs/Klv/Misb1201.h), [Misb1201.cpp](../libs/Klv/Misb1201.cpp) |
 | **MISB ST 0903.6** | Video Moving Target Indicator (VMTI) | **Fully Implemented** | [VmtiParser.h](../libs/Klv/VmtiParser.h), [VmtiEncoder.h](../libs/Klv/VmtiEncoder.h), [VmtiTypes.h](../libs/Klv/VmtiTypes.h) |
@@ -44,22 +45,24 @@ The `libs/Klv` library provides a high-performance, zero-Qt, C++17 telemetry enc
 |           |     KlvStreamScanner       | <--- SMPTE ST 336 Sync Alignment & Frame Slicing          |
 |           +----------------------------+                                                           |
 |                         |                                                                          |
-|       +-----------------+-------------------+---------------------+                                |
-|       |                                     |                     |                                |
-|       v                                     v                     v                                |
-| +-------------------+             +-------------------+ +-------------------+                      |
-| |     KlvParser     |             |     RvtParser     | | GeoRegistration-  |                      |
-| |  (MISB ST 0601)   |             |  (MISB ST 0806)   | |      Parser       |                      |
-| +-------------------+             +-------------------+ |  (MISB ST 1601)   |                      |
-|       |        \                            |           +-------------------+                      |
-|       |         \ Nested Tag 73             |                     |                                |
-|       |          +------------------------->|                     |                                |
-|       |                                     |                     |                                |
-|       | Nested Tag 74                       v                     v                                |
-|       +------------------> +-------------------+        +-------------------+                      |
-|                            |    VmtiParser     |        |      MdArray      |                      |
-|                            |  (MISB ST 0903)   |        |  (MISB ST 1303)   |                      |
-|                            +-------------------+        +-------------------+                      |
+|       +-----------------+-------------------+---------------------+--------------------+           |
+|       |                                     |                     |                    |           |
+|       v                                     v                     v                    v           |
+| +-------------------+             +-------------------+ +-------------------+  +-----------------+ |
+| |     KlvParser     |             |     RvtParser     | | GeoRegistration-  |  |  St1607Parser   | |
+| |  (MISB ST 0601)   |             |  (MISB ST 0806)   | |      Parser       |  | (MISB ST 1607)  | |
+| +-------------------+             +-------------------+ |  (MISB ST 1601)   |  +-----------------+ |
+|       |        \                            |           +-------------------+          |           |
+|       |         \ Nested Tag 73             |                     |                    |           |
+|       |          +------------------------->|                     |                    |           |
+|       |                                     |                     |                    |           |
+|       | Nested Tag 74                       v                     v                    |           |
+|       +------------------> +-------------------+        +-------------------+          |           |
+|       |                    |    VmtiParser     |        |      MdArray      |          |           |
+|       |                    |  (MISB ST 0903)   |        |  (MISB ST 1303)   |          |           |
+|       |                    +-------------------+        +-------------------+          |           |
+|       | Nested Tag 100/101                                        |                    |           |
+|       +-----------------------------------------------------------+------------------->+           |
 |                                                                   |                                |
 |                                                                   v                                |
 |                                                         +-------------------+                      |
@@ -92,7 +95,9 @@ graph TD
 
     ST0601 -->|Nested Tag 73| RVT[RvtParser - MISB ST 0806]
     ST0601 -->|Nested Tag 74| VMTI[VmtiParser - MISB ST 0903]
-    ST0601 -->|Nested Tag 98 / Standalone| GEOR[GeoRegistrationParser - MISB ST 1601]
+    ST0601 -->|Nested Tag 100/101| ST1607[St1607Parser - MISB ST 1607]
+    ST1607 -->|Nested Tag 98| GEOR[GeoRegistrationParser - MISB ST 1601]
+    ST0601 -->|Nested Tag 98 / Standalone| GEOR
 
     GEOR --> MDARRAY[MdArray - MISB ST 1303.2]
     MDARRAY --> MISB1201[Misb1201 - IMAPB/RIMAPB]
@@ -169,6 +174,17 @@ graph TD
   - Robust multi-packet PES payload reassembly, continuity counter (CC) drop detection, and adaptation field handling.
   - Streaming slice scanning and recovery from mid-stream packet loss.
 
+### 3.8 MISB ST 1607.2 Constructs to Amend/Segment KLV Metadata
+- **Files**: [St1607Types.h](../libs/Klv/St1607Types.h)/[.cpp](../libs/Klv/St1607Types.cpp), [St1607Parser.h](../libs/Klv/St1607Parser.h)/[.cpp](../libs/Klv/St1607Parser.cpp), [St1607Encoder.h](../libs/Klv/St1607Encoder.h)/[.cpp](../libs/Klv/St1607Encoder.cpp)
+- **Features**:
+  - Full support for Amend Local Set (`06.0E.2B.34.02.0B.01.01.0E.01.03.03.03.01.00.00`, CRC 17182) and Segment Local Set (`06.0E.2B.34.02.0B.01.01.0E.01.03.03.03.00.00.00`, CRC 29742).
+  - Integration with MISB ST 0601 as Tag 100 (Segment Local Set) and Tag 101 (Amend Local Set).
+  - Encoding and decoding of Item 143 Metadata Substream Identifier (MSID) Pack supporting both BER-OID Local IDs and 16-byte UUIDs per ST 0601.19-46/47.
+  - Support for embedded Tag 98 (ST 1601 Geo-Registration Local Set) within Amend Local Sets.
+  - Security Local Set filtering per ST 1607.2-09 / ST 1607-04 (Items 12 & 13 only for localized country codes).
+  - Strict compliance checks for ST 1607.2-07 (no simultaneous Amend/Segment sets at same level) and ST 1607.2-08 (no Segment set inside an Amend set).
+  - High-performance "union and override" resolution engine via `applyTo(UasDatalinkMessage&)` methods.
+
 ---
 
 ## 4. Test Verification & Coverage
@@ -189,4 +205,5 @@ All modules in `libs/Klv` are verified by comprehensive GoogleTest suites:
 | **TestRvtLocalSet** | [TestRvtLocalSet.cpp](../libs/Klv/tests/TestRvtLocalSet.cpp) | 7 | Standalone ST 0806 packet with CRC-32, POI/AOI/UserDefined serialization, ST 0601 Tag 73 embedding |
 | **TestMisb0805** | [TestMisb0805.cpp](../libs/Klv/tests/TestMisb0805.cpp) | 6 | ISO-8601 formatting, CE90/LE90 conversion, Platform CoT, Sensor POI CoT, RVT POI to CoT batch conversion |
 | **TestGeoRegistration** | [TestGeoRegistration.cpp](../libs/Klv/tests/TestGeoRegistration.cpp) | 10 | MDARRAY 1D/2D NaturalFormat and ST 1201 IMAPB, 2-image tie points, geo tie points, covariances, ST 1601.1-03 parity rule |
-| **Total** | | **70** | **100% Pass Rate** |
+| **TestSt1607LocalSet** | [TestSt1607LocalSet.cpp](../libs/Klv/tests/TestSt1607LocalSet.cpp) | 9 | ST 1607 UL matching, MSID local/universal ID, standalone packets, embedded Tags 100/101, embedded Tag 98, ST 1607.2 rules, union-and-override |
+| **Total** | | **79** | **100% Pass Rate** |

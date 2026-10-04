@@ -5,6 +5,7 @@
 
 #include "GeoTypes.h"
 #include "RvtTypes.h"
+#include "St1607Types.h"
 #include "VmtiTypes.h"
 
 #include <array>
@@ -88,7 +89,11 @@ enum class Tag : std::uint32_t {
     CornerLon4Full = 89U,       ///< Tag 89: Corner 4 Longitude Full [-180, +180] deg (4 bytes)
     MiisCoreId = 94U,           ///< Tag 94: MISB ST 1204 Core Identifier
     WavelengthBands = 95U,      ///< Tag 95: Wavelength band bitmask (1 byte)
-    SensorRollAngle = 118U      ///< Tag 118: Sensor roll angle [0, 360) deg (4 bytes)
+    GeoRegistration = 98U,      ///< Tag 98: MISB ST 1601 Geo-Registration Local Set
+    SegmentLocalSet = 100U,     ///< Tag 100: MISB ST 1607 Segment Local Set
+    AmendLocalSet = 101U,       ///< Tag 101: MISB ST 1607 Amend Local Set
+    SensorRollAngle = 118U,     ///< Tag 118: Sensor roll angle [0, 360) deg (4 bytes)
+    Msid = 143U                 ///< Tag 143: MISB ST 0601 Metadata Substream ID Pack
 };
 
 /// @enum KlvStatus
@@ -105,14 +110,6 @@ enum class KlvStatus {
 
 
 
-/// @struct FrustumCorners
-/// @brief Optical footprint 4-corner ground projection coordinates on the WGS-84 ellipsoid.
-struct FrustumCorners {
-    GeoPoint2D topLeft {};     ///< Corner 1 (Top-Left)
-    GeoPoint2D topRight {};    ///< Corner 2 (Top-Right)
-    GeoPoint2D bottomRight {}; ///< Corner 3 (Bottom-Right)
-    GeoPoint2D bottomLeft {};  ///< Corner 4 (Bottom-Left)
-};
 
 /// @enum SecurityClassification
 /// @brief MISB ST 0102 Security Classification levels.
@@ -174,6 +171,8 @@ struct UasDatalinkMessage {
     std::optional<double> sensorAltitudeHaeM;         ///< Tag 75: Sensor HAE altitude in meters
     std::optional<double> frameCenterElevHaeM;        ///< Tag 78: Frame center HAE elevation in meters
     std::optional<double> sensorRollAngleDeg;         ///< Tag 118: Sensor roll angle [0, 360) deg
+    std::vector<SegmentLocalSet> segments {};         ///< Tag 100: MISB ST 1607 Segment Local Sets
+    std::vector<AmendLocalSet> amends {};             ///< Tag 101: MISB ST 1607 Amend Local Sets
 };
 
 } // namespace Klv
