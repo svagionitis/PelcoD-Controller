@@ -541,6 +541,13 @@ public:
     /// @return Framed binary packet.
     [[nodiscard]] static std::vector<std::uint8_t> buildSetUserPalette(const MsgUserPalette& msg);
 
+    /// @brief Encodes custom pseudo-color thermal palette table from isotherm builder (Message ID 0x72).
+    /// @param[in] builder Configured isotherm LUT builder.
+    /// @param[in] paletteIndex Palette slot index (0..3).
+    /// @return Framed binary packet.
+    [[nodiscard]] static std::vector<std::uint8_t> buildSetIsothermPalette(
+        const SightlineIsothermBuilder& builder, std::uint8_t paletteIndex = 0U);
+
     /// @brief Encodes geometric camera intrinsic calibration parameters (Message ID 0xC0).
     /// @param[in] msg Camera calibration parameters.
     /// @return Framed binary packet.

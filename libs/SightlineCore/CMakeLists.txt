@@ -75,6 +75,8 @@ add_library(SightlineCore STATIC
     modules/SightlineRecordingParser.cpp
     modules/SightlineRadiometry.h
     modules/SightlineRadiometry.cpp
+    modules/SightlineIsothermBuilder.h
+    modules/SightlineIsothermBuilder.cpp
     modules/RecordingValidator.h
     modules/RecordingValidator.cpp
     modules/RecordingRingBuffer.h

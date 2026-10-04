@@ -68,11 +68,16 @@ bool SightlineNucParser::parseUserPalette(ByteView packet, MsgUserPalette& out)
         return false;
     }
 
-    out.paletteIndex = payload[0U];
-    if (payload.size() > 1U) {
-        out.lutData.assign(payload.data() + 1U, payload.data() + payload.size());
+    if (payload.size() == 768U) {
+        out.paletteIndex = 0U;
+        out.lutData.assign(payload.data(), payload.data() + payload.size());
     } else {
-        out.lutData.clear();
+        out.paletteIndex = payload[0U];
+        if (payload.size() > 1U) {
+            out.lutData.assign(payload.data() + 1U, payload.data() + payload.size());
+        } else {
+            out.lutData.clear();
+        }
     }
     return true;
 }

@@ -402,6 +402,13 @@ public:
     /// @return True if command was successfully transmitted.
     [[nodiscard]] bool setUserPalette(const MsgUserPalette& msg);
 
+    /// @brief Ingests custom pseudo-color lookup table from isotherm builder (Message ID 0x72).
+    /// @param[in] builder Configured isotherm LUT builder.
+    /// @param[in] paletteIndex Palette slot index (0..3).
+    /// @return True if command was successfully transmitted.
+    [[nodiscard]] bool setIsothermPalette(
+        const SightlineIsothermBuilder& builder, std::uint8_t paletteIndex = 0U);
+
     /// @brief Configures display output placement and scaling.
     /// @param[in] msg Display parameters.
     /// @return True if command was successfully transmitted.

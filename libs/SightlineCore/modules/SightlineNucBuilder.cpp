@@ -42,9 +42,13 @@ std::vector<std::uint8_t> SightlineNucBuilder::buildReadWriteNuc(const MsgReadWr
 std::vector<std::uint8_t> SightlineNucBuilder::buildSetUserPalette(const MsgUserPalette& msg)
 {
     std::vector<std::uint8_t> payload {};
-    payload.reserve(1U + msg.lutData.size());
-    payload.push_back(msg.paletteIndex);
-    payload.insert(payload.end(), msg.lutData.begin(), msg.lutData.end());
+    if (msg.lutData.size() == 768U && msg.paletteIndex == 0U) {
+        payload = msg.lutData;
+    } else {
+        payload.reserve(1U + msg.lutData.size());
+        payload.push_back(msg.paletteIndex);
+        payload.insert(payload.end(), msg.lutData.begin(), msg.lutData.end());
+    }
     return SightlineFraming::buildPacket(MessageId::SetUserPalette, payload);
 }
 

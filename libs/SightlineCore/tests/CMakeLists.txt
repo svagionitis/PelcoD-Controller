@@ -32,3 +32,5 @@ add_sightline_test(TestSightlineHardwareOverlay TestSightlineHardwareOverlay.cpp
 add_sightline_test(TestSightlinePeripherals     TestSightlinePeripherals.cpp)
 add_sightline_test(TestSightlineZeroCopy        TestSightlineZeroCopy.cpp)
 add_sightline_test(TestSightlineRadiometry      TestSightlineRadiometry.cpp)
+add_sightline_test(TestSightlineIsotherm        TestSightlineIsotherm.cpp)
+

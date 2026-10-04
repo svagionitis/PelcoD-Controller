@@ -440,6 +440,12 @@ bool SightlineDevice::setUserPalette(const MsgUserPalette& msg)
     return sendPacket(SightlineProtocolBuilder::buildSetUserPalette(msg));
 }
 
+bool SightlineDevice::setIsothermPalette(
+    const SightlineIsothermBuilder& builder, std::uint8_t paletteIndex)
+{
+    return sendPacket(SightlineProtocolBuilder::buildSetIsothermPalette(builder, paletteIndex));
+}
+
 bool SightlineDevice::setDisplayParams(const MsgSetDisplayParameters& msg)
 {
     return sendPacket(SightlineProtocolBuilder::buildSetDisplayParams(msg));

@@ -576,6 +576,12 @@ std::vector<std::uint8_t> SightlineProtocolBuilder::buildSetUserPalette(const Ms
     return SightlineNucBuilder::buildSetUserPalette(msg);
 }
 
+std::vector<std::uint8_t> SightlineProtocolBuilder::buildSetIsothermPalette(
+    const SightlineIsothermBuilder& builder, std::uint8_t paletteIndex)
+{
+    return builder.buildPacket(paletteIndex);
+}
+
 std::vector<std::uint8_t> SightlineProtocolBuilder::buildCameraCalibration(const MsgCameraCalibration& msg)
 {
     return SightlineNucBuilder::buildCameraCalibration(msg);

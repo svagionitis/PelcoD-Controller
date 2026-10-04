@@ -23,6 +23,14 @@ enum class RadiometricSensor : std::uint8_t {
     CustomLinear = 5U       ///< Custom linear calibration: Temp = raw * scaleA + offsetB
 };
 
+/// @enum TemperatureScale
+/// @brief Physical temperature measurement units.
+enum class TemperatureScale : std::uint8_t {
+    Celsius    = 0U, ///< Degrees Celsius (°C)
+    Fahrenheit = 1U, ///< Degrees Fahrenheit (°F)
+    Kelvin     = 2U  ///< Kelvin (K)
+};
+
 /// @struct TemperatureReading
 /// @brief Multi-unit calibrated physical temperature representation.
 struct TemperatureReading {
@@ -98,6 +106,38 @@ public:
     /// @return Temperature in Kelvin.
     [[nodiscard]] static constexpr float fahrenheitToKelvin(float fahrenheit) noexcept {
         return ((fahrenheit - 32.0F) / 1.8F) + 273.15F;
+    }
+
+    /// @brief Converts a temperature value in a specified scale to Kelvin.
+    /// @param[in] temp Temperature scalar.
+    /// @param[in] scale Scale of input temperature.
+    /// @return Temperature in Kelvin.
+    [[nodiscard]] static constexpr float toKelvin(float temp, TemperatureScale scale) noexcept {
+        switch (scale) {
+        case TemperatureScale::Celsius:
+            return celsiusToKelvin(temp);
+        case TemperatureScale::Fahrenheit:
+            return fahrenheitToKelvin(temp);
+        case TemperatureScale::Kelvin:
+        default:
+            return temp;
+        }
+    }
+
+    /// @brief Converts a temperature from Kelvin to a specified scale.
+    /// @param[in] kelvin Absolute temperature in Kelvin.
+    /// @param[in] scale Desired output temperature scale.
+    /// @return Temperature in target scale.
+    [[nodiscard]] static constexpr float fromKelvinToScale(float kelvin, TemperatureScale scale) noexcept {
+        switch (scale) {
+        case TemperatureScale::Celsius:
+            return kelvinToCelsius(kelvin);
+        case TemperatureScale::Fahrenheit:
+            return kelvinToFahrenheit(kelvin);
+        case TemperatureScale::Kelvin:
+        default:
+            return kelvin;
+        }
     }
 
     /// @brief Creates a multi-unit TemperatureReading from Kelvin.

@@ -27,3 +27,5 @@
 #include "modules/SightlineStabilization.h"
 #include "modules/SightlineTelemetry.h"
 #include "modules/SightlineTracking.h"
+#include "modules/SightlineRadiometry.h"
+#include "modules/SightlineIsothermBuilder.h"
