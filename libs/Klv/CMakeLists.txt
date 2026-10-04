@@ -26,6 +26,11 @@ add_library(Klv STATIC
     VideoNaluParser.cpp
     VideoPesPacketizer.h
     VideoPesPacketizer.cpp
+    PtsSyncTypes.h
+    MasterTimeBase.h
+    MasterTimeBase.cpp
+    PtsSyncManager.h
+    PtsSyncManager.cpp
     KlvGeodesy.h
     KlvGeodesy.cpp
     Misb1201.h

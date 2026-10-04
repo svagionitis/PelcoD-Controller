@@ -31,4 +31,6 @@ add_klv_test(TestSt1607LocalSet       TestSt1607LocalSet.cpp)
 add_klv_test(TestMiisCoreId           TestMiisCoreId.cpp)
 add_klv_test(TestVideoNaluParser      TestVideoNaluParser.cpp)
 add_klv_test(TestVideoPesPacketizer   TestVideoPesPacketizer.cpp)
+add_klv_test(TestMasterTimeBase       TestMasterTimeBase.cpp)
+add_klv_test(TestPtsSyncManager       TestPtsSyncManager.cpp)
 

@@ -172,7 +172,7 @@ graph TD
   - Full IEEE-754 special value handling: Below Minimum, Above Maximum, Positive/Negative Infinity, Quiet NaN, Signaling NaN, User Defined.
 
 ### 3.7 MPEG-TS Stream Ingestion, Parsing, Multiplexing & Video Elementary Streams
-- **Files**: [MpegTsKlvExtractor.h](../libs/Klv/MpegTsKlvExtractor.h)/[.cpp](../libs/Klv/MpegTsKlvExtractor.cpp), [MpegTsKlvMuxer.h](../libs/Klv/MpegTsKlvMuxer.h)/[.cpp](../libs/Klv/MpegTsKlvMuxer.cpp), [MpegTsMuxerTypes.h](../libs/Klv/MpegTsMuxerTypes.h), [KlvStreamScanner.h](../libs/Klv/KlvStreamScanner.h)/[.cpp](../libs/Klv/KlvStreamScanner.cpp), [VideoTypes.h](../libs/Klv/VideoTypes.h), [VideoNaluParser.h](../libs/Klv/VideoNaluParser.h)/[.cpp](../libs/Klv/VideoNaluParser.cpp), [VideoPesPacketizer.h](../libs/Klv/VideoPesPacketizer.h)/[.cpp](../libs/Klv/VideoPesPacketizer.cpp)
+- **Files**: [MpegTsKlvExtractor.h](../libs/Klv/MpegTsKlvExtractor.h)/[.cpp](../libs/Klv/MpegTsKlvExtractor.cpp), [MpegTsKlvMuxer.h](../libs/Klv/MpegTsKlvMuxer.h)/[.cpp](../libs/Klv/MpegTsKlvMuxer.cpp), [MpegTsMuxerTypes.h](../libs/Klv/MpegTsMuxerTypes.h), [KlvStreamScanner.h](../libs/Klv/KlvStreamScanner.h)/[.cpp](../libs/Klv/KlvStreamScanner.cpp), [VideoTypes.h](../libs/Klv/VideoTypes.h), [VideoNaluParser.h](../libs/Klv/VideoNaluParser.h)/[.cpp](../libs/Klv/VideoNaluParser.cpp), [VideoPesPacketizer.h](../libs/Klv/VideoPesPacketizer.h)/[.cpp](../libs/Klv/VideoPesPacketizer.cpp), [PtsSyncTypes.h](../libs/Klv/PtsSyncTypes.h), [MasterTimeBase.h](../libs/Klv/MasterTimeBase.h)/[.cpp](../libs/Klv/MasterTimeBase.cpp), [PtsSyncManager.h](../libs/Klv/PtsSyncManager.h)/[.cpp](../libs/Klv/PtsSyncManager.cpp)
 - **Features**:
   - **MPEG-TS Demuxing**: 188-byte MPEG-TS packet demuxing with automatic sync byte (`0x47`) synchronization.
   - **Auto PID Discovery**: Automatic metadata stream PID discovery via SMPTE ST 336 / MISB Universal Label matching across PMT and raw Elementary Streams.
@@ -180,7 +180,9 @@ graph TD
   - **Live Video NALU Parsing**: Fast, zero-allocation Annex B start code (`0x000001` and `0x00000001`) scanning, Access Unit (AU) boundary grouping, slice header exp-Golomb parsing (I/P/B), and IDR/IRAP keyframe identification for both H.264 (AVC) and H.265 (HEVC) streams.
   - **Video PES Packetizer**: Formats Video Elementary Streams into ISO/IEC 13818-1 PES packets (Stream ID `0xE0`), injecting 33-bit 90 kHz PTS and optional DTS, AUD headers, data alignment indicators, and unbounded length fields (`0x0000`) for large HD/4K frames.
   - **Multi-Stream TS Muxing (STANAG 4609 & MISB ST 1402)**: Complete 188-byte packet multiplexing of Video Elementary Streams (Stream Type `0x1B` AVC or `0x24` HEVC on PID `0x0101`) alongside KLV Metadata (Stream Type `0x15` or `0x06` on PID `0x01E0`).
-  - **PTS / PCR Synchronization**: Enforces temporal synchronization between video frames and metadata packets within the STANAG 4609 required $\pm 50\text{ ms}$ window, stamping periodic 27 MHz PCR clock references ($\le 40\text{ ms}$) on Video adaptation fields.
+  - **Master Time Base Engine**: Drift-compensated monotonic and UTC epoch clock conversions (`SystemMasterTimeBase`) transforming microsecond capture timestamps onto standard 33-bit 90 kHz PTS timebases.
+  - **PTS Synchronization Manager (`PtsSyncManager`)**: Enforces strict temporal alignment between live video frames and asynchronous metadata packets within the STANAG 4609 required $\pm 50\text{ ms}$ window via a sliding jitter buffer and configurable synchronization policies (`NearestFrame`, `StrictClamp`, `DropStale`).
+  - **PCR Clock Discipline**: Stamping periodic 27 MHz PCR clock references ($\le 40\text{ ms}$) on Video adaptation fields.
   - **PSI Table Generation**: Periodic injection of Program Association Tables (PAT, PID `0x0000`) and Program Map Tables (PMT, configurable PID) with ISO/IEC 13818-1 32-bit CRC calculation via [KlvCrc](../libs/Klv/KlvCrc.h).
   - **Registration Descriptors**: Automatic injection of Format Identifier `"KLVA"` (or `"KLVN"`) Registration Descriptors (Tag `0x05`) per MISB ST 1402.
   - **Streaming & Buffer Modes**: High-efficiency per-packet streaming callbacks for network egress (UDP/RTP) and contiguous buffer serialization (`muxToBuffer`, `muxMessageToBuffer`, `muxVideoToBuffer`, `muxSynchronizedToBuffer`).
@@ -240,6 +242,8 @@ All modules in `libs/Klv` and tracking integration bridges are verified by compr
 | **TestMpegTsKlvMuxer** | [TestMpegTsKlvMuxer.cpp](../libs/Klv/tests/TestMpegTsKlvMuxer.cpp) | 10 | PAT/PMT CRC-32 validation, multi-stream PMT (Video 0x1B/0x24 + KLV 0x15), 90kHz PTS & 27MHz PCR, synchronized frame multiplexing (<= 50ms) |
 | **TestVideoNaluParser** | [TestVideoNaluParser.cpp](../libs/Klv/tests/TestVideoNaluParser.cpp) | 5 | 3-byte/4-byte Annex B start codes, H.264 & H.265 NALU type extraction, keyframe detection, streaming chunk AU boundary slicing |
 | **TestVideoPesPacketizer** | [TestVideoPesPacketizer.cpp](../libs/Klv/tests/TestVideoPesPacketizer.cpp) | 4 | Video Stream ID 0xE0 framing, 33-bit 90kHz PTS/DTS encoding, AUD prepending, unbounded PES lengths (> 65535 bytes) |
+| **TestMasterTimeBase** | [TestMasterTimeBase.cpp](../libs/Klv/tests/TestMasterTimeBase.cpp) | 3 | System epoch and monotonic clock timebases, 90kHz PTS tick bidirectional scaling, 33-bit rollover wrapping |
+| **TestPtsSyncManager** | [TestPtsSyncManager.cpp](../libs/Klv/tests/TestPtsSyncManager.cpp) | 6 | In-sync nominal alignment, compliant skew handling, StrictClamp (<= 50ms), NearestFrame snapping, DropStale policy, MpegTsKlvMuxer binding |
 | **TestKlvGeodesy** | [TestKlvGeodesy.cpp](../libs/Klv/tests/TestKlvGeodesy.cpp) | 5 | WGS-84 direct geodetic, slant range, camera frustum footprints, horizon clipping |
 | **TestVmtiEncoderParser** | [TestVmtiEncoderParser.cpp](../libs/Klv/tests/TestVmtiEncoderParser.cpp) | 4 | VMTI standalone and embedded round-trips, target row-major pixel coordinates |
 | **TestMisb1201** | [TestMisb1201.cpp](../libs/Klv/tests/TestMisb1201.cpp) | 5 | ST 1201 Appendix A standard test vectors (IMAPA, IMAPB, Zero Offset, Special Values) |
@@ -250,5 +254,6 @@ All modules in `libs/Klv` and tracking integration bridges are verified by compr
 | **TestSt1607LocalSet** | [TestSt1607LocalSet.cpp](../libs/Klv/tests/TestSt1607LocalSet.cpp) | 9 | ST 1607 UL matching, MSID local/universal ID, standalone packets, embedded Tags 100/101, embedded Tag 98, ST 1607.2 rules, union-and-override |
 | **TestMiisCoreId** | [TestMiisCoreId.cpp](../libs/Klv/tests/TestMiisCoreId.cpp) | 10 | RFC 4122 UUID v1/v4/v5, 16/32/33/35-byte binary packs, ST 0601 Tag 94, ST 1607 Tag 94, ST 0903 Tag 13 |
 | **TestPtzSlewToCueBridge** | [TestPtzSlewToCueBridge.cpp](../libs/Tracking/tests/TestPtzSlewToCueBridge.cpp) | 8 | Stationary mast target bearing, platform attitude derotation, coarse-to-fine transitions, auto-zoom framing |
-| **Total** | | **108** | **100% Pass Rate** |
+| **Total** | | **117** | **100% Pass Rate** |
+
 
