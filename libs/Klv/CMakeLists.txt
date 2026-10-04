@@ -57,6 +57,15 @@ add_library(Klv STATIC
     St1607Parser.cpp
     MiisCoreId.h
     MiisCoreId.cpp
+    StanagScrubTypes.h
+    TelemetryTimeIndex.h
+    TelemetryTimeIndex.cpp
+    TelemetryInterpolator.h
+    TelemetryInterpolator.cpp
+    StanagStreamIndexer.h
+    StanagStreamIndexer.cpp
+    StanagScrubController.h
+    StanagScrubController.cpp
 )
 
 target_include_directories(Klv PUBLIC

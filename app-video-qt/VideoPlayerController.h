@@ -8,6 +8,8 @@
 #include "DeviceEnumerator.h"
 #include "IVideoDecoder.h"
 #include "KlvTypes.h"
+#include "StanagScrubController.h"
+#include "StanagStreamIndexer.h"
 #include "StreamHealthMonitor.h"
 
 #include <QImage>
@@ -480,6 +482,8 @@ private:
     std::vector<TimedKlv> m_klvTimeline {};
     std::size_t m_lastKlvIndex { 0 };
     std::optional<Klv::UasDatalinkMessage> m_lastKlvMsg {};
+    Klv::StanagScrubController m_stanagScrubController {};
+    Klv::StanagStreamIndexer m_stanagStreamIndexer {};
 #if defined(PELCOD_HAS_FILTERS)
     std::shared_ptr<Video::Filters::TacticalHudFilter> m_tacticalHudFilter { nullptr };
 #endif

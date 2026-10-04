@@ -33,4 +33,8 @@ add_klv_test(TestVideoNaluParser      TestVideoNaluParser.cpp)
 add_klv_test(TestVideoPesPacketizer   TestVideoPesPacketizer.cpp)
 add_klv_test(TestMasterTimeBase       TestMasterTimeBase.cpp)
 add_klv_test(TestPtsSyncManager       TestPtsSyncManager.cpp)
+add_klv_test(TestTelemetryTimeIndex   TestTelemetryTimeIndex.cpp)
+add_klv_test(TestTelemetryInterpolator TestTelemetryInterpolator.cpp)
+add_klv_test(TestStanagStreamIndexer  TestStanagStreamIndexer.cpp)
+add_klv_test(TestStanagScrubController TestStanagScrubController.cpp)
 

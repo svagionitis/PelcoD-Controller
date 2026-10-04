@@ -1325,6 +1325,11 @@ void VideoPlayerController::loadKlvTrack(const QString& sourcePath)
     m_lastKlvIndex = 0;
     m_lastKlvMsg.reset();
 
+    // Fast single-pass indexing via StanagStreamIndexer
+    if (m_stanagStreamIndexer.indexFile(sourcePath.toStdString())) {
+        m_stanagScrubController.setTimeIndex(m_stanagStreamIndexer.timeIndex());
+    }
+
     QFile file(sourcePath);
     if (!file.exists() || !file.open(QIODevice::ReadOnly)) {
         return;
@@ -1397,7 +1402,15 @@ void VideoPlayerController::updateKlvTelemetry(double timeSeconds)
 
     const std::size_t idx = static_cast<std::size_t>(std::distance(m_klvTimeline.begin(), it));
     m_lastKlvIndex = idx;
-    applyKlvTelemetry(m_klvTimeline[idx].message);
+
+    // Use continuous sub-50ms scrub controller if available, else discrete waypoint
+    if (m_stanagScrubController.timeIndex().klvPacketCount() > 0U &&
+        m_stanagScrubController.scrubToSeconds(timeSeconds)) {
+        const auto sf = m_stanagScrubController.currentFrame();
+        applyKlvTelemetry(sf.telemetry);
+    } else {
+        applyKlvTelemetry(m_klvTimeline[idx].message);
+    }
 }
 
 void VideoPlayerController::applyKlvTelemetry(const Klv::UasDatalinkMessage& msg)
