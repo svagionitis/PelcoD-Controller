@@ -150,14 +150,15 @@ struct MsgAdvancedDetectionParameters {
 };
 
 /// @struct MsgTrackingBoxPixelStats
-/// @brief Grayscale and luminance pixel statistics inside tracking gate (Message ID 0x78).
+/// @brief 16-bit Luminance and radiometric pixel statistics inside tracking gate (Message ID 0x78).
+/// @details Supports both 8-bit imagers and high-bit-depth (14-bit / 16-bit) radiometric thermal imagers.
 struct MsgTrackingBoxPixelStats {
     std::uint8_t cameraIndex { 0U };
     std::uint8_t trackId { 0U };
-    std::uint16_t meanIntensity { 0U }; ///< Mean pixel luminance (0..65535)
-    std::uint16_t stdDevIntensity { 0U }; ///< Standard deviation of luminance
-    std::uint8_t minIntensity { 0U }; ///< Minimum pixel luminance
-    std::uint8_t maxIntensity { 255U }; ///< Maximum pixel luminance
+    std::uint16_t meanIntensity { 0U };    ///< Mean pixel luminance / raw count (0..65535)
+    std::uint16_t stdDevIntensity { 0U };  ///< Standard deviation of luminance / raw counts
+    std::uint16_t minIntensity { 0U };     ///< Minimum pixel luminance / raw count (0..65535)
+    std::uint16_t maxIntensity { 65535U }; ///< Maximum pixel luminance / raw count (0..65535)
 };
 
 /// @struct MsgDoDetectSnapShot

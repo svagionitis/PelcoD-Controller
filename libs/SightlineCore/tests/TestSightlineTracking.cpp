@@ -486,6 +486,30 @@ namespace {
         EXPECT_EQ(queryPkt, SightlineProtocolBuilder::buildGetTrackingPixelStats(0U, 3U));
     }
 
+    /// @brief Verify parsing of high-bit-depth (14-bit / 16-bit) tracking box pixel statistics.
+    TEST(TestSightlineTracking, ParseHighBitDepthTrackingPixelStats)
+    {
+        std::vector<std::uint8_t> payload {};
+        payload.push_back(1U); // cameraIndex
+        payload.push_back(2U); // trackId
+        SightlineFraming::appendU16Le(payload, 19500U); // meanIntensity
+        SightlineFraming::appendU16Le(payload, 300U);   // stdDevIntensity
+        SightlineFraming::appendU16Le(payload, 18870U); // minIntensity (high-bit depth 16-bit)
+        SightlineFraming::appendU16Le(payload, 20271U); // maxIntensity (high-bit depth 16-bit)
+
+        const auto pkt = SightlineFraming::buildPacket(MessageId::TrackingBoxPixelStats, payload);
+
+        MsgTrackingBoxPixelStats out {};
+        ASSERT_TRUE(SightlineDetectionParser::parseTrackingPixelStats(pkt, out));
+        EXPECT_EQ(out.cameraIndex, 1U);
+        EXPECT_EQ(out.trackId, 2U);
+        EXPECT_EQ(out.meanIntensity, 19500U);
+        EXPECT_EQ(out.stdDevIntensity, 300U);
+        EXPECT_EQ(out.minIntensity, static_cast<std::uint16_t>(18870U));
+        EXPECT_EQ(out.maxIntensity, static_cast<std::uint16_t>(20271U));
+    }
+
+
     /// @brief Verify automated detection snapshot command builder.
     TEST(TestSightlineTracking, BuildDoDetectSnapShot)
     {

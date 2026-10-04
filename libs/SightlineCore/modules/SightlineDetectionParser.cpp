@@ -161,8 +161,15 @@ bool SightlineDetectionParser::parseTrackingPixelStats(ByteView packet, MsgTrack
     out.trackId = payload[1U];
     out.meanIntensity = SightlineFraming::readU16Le(payload.data() + 2U);
     out.stdDevIntensity = SightlineFraming::readU16Le(payload.data() + 4U);
-    out.minIntensity = payload[6U];
-    out.maxIntensity = payload[7U];
+
+    if (payload.size() >= 10U) {
+        out.minIntensity = SightlineFraming::readU16Le(payload.data() + 6U);
+        out.maxIntensity = SightlineFraming::readU16Le(payload.data() + 8U);
+    } else {
+        out.minIntensity = static_cast<std::uint16_t>(payload[6U]);
+        out.maxIntensity = static_cast<std::uint16_t>(payload[7U]);
+    }
+
     return true;
 }
 
