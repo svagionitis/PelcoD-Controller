@@ -429,3 +429,166 @@ TEST(MpegTsKlvMuxerTest, InterleaveMoonVideo) {
         EXPECT_EQ(*decodedMessages[i].precisionTimeStampUs, *expectedMessages[i].precisionTimeStampUs);
     }
 }
+
+TEST(MpegTsKlvMuxerTest, MultiStreamPmtGeneration) {
+    MpegTsMuxerConfig config;
+    config.programNumber = 1U;
+    config.pmtPid = 0x0100U;
+    config.videoPid = 0x0101U;
+    config.metadataPid = 0x01E0U;
+    config.videoCodec = VideoCodec::H264; // Stream type 0x1B
+    config.streamType = KlvStreamType::MetadataInPes; // Stream type 0x15
+    config.pcrOnVideo = true;
+    config.formatIdentifier = "KLVA";
+
+    MpegTsKlvMuxer muxer(config);
+    EXPECT_EQ(muxer.effectivePcrPid(), 0x0101U);
+
+    std::vector<std::vector<std::uint8_t>> packets;
+    muxer.setPacketCallback([&packets](const std::uint8_t* data, std::size_t size) {
+        packets.emplace_back(data, data + size);
+    });
+
+    const std::size_t emitted = muxer.emitPsiTables();
+    ASSERT_EQ(emitted, 2U);
+    ASSERT_EQ(packets.size(), 2U);
+
+    // Verify PMT packet (Packet 1)
+    const auto& pmtPacket = packets[1];
+    EXPECT_EQ(pmtPacket.size(), MpegTsKlvMuxer::kTsPacketSize);
+    EXPECT_EQ(pmtPacket[0], MpegTsKlvMuxer::kTsSyncByte);
+
+    // PMT PID 0x0100
+    const std::uint16_t pmtPid = static_cast<std::uint16_t>(((pmtPacket[1] & 0x1FU) << 8U) | pmtPacket[2]);
+    EXPECT_EQ(pmtPid, 0x0100U);
+
+    // PMT Table ID = 0x02 at byte 5
+    EXPECT_EQ(pmtPacket[5], 0x02U);
+
+    // PCR PID in PMT at bytes 13..14: should be video PID 0x0101
+    const std::uint16_t pcrPid = static_cast<std::uint16_t>(((pmtPacket[13] & 0x1FU) << 8U) | pmtPacket[14]);
+    EXPECT_EQ(pcrPid, 0x0101U);
+
+    // Verify PMT CRC32
+    const std::size_t pmtSectionLen = ((static_cast<std::size_t>(pmtPacket[6] & 0x0FU)) << 8U) |
+                                      static_cast<std::size_t>(pmtPacket[7]);
+    const std::size_t pmtTotalSectionBytes = 3U + pmtSectionLen;
+    const std::uint32_t pmtCrc = KlvCrc::calculateCrc32Mpeg(pmtPacket.data() + 5, pmtTotalSectionBytes);
+    EXPECT_EQ(pmtCrc, 0x00000000U);
+
+    // Scan for Video Stream Type (0x1B) and Metadata Stream Type (0x15) inside PMT ES loop
+    // PMT section starts at byte 5. Program info length is at bytes 15..16.
+    const std::size_t progInfoLen = ((static_cast<std::size_t>(pmtPacket[15] & 0x0FU)) << 8U) |
+                                    static_cast<std::size_t>(pmtPacket[16]);
+    std::size_t esOffset = 17U + progInfoLen;
+
+    bool foundVideoEs = false;
+    bool foundMetaEs = false;
+
+    while (esOffset + 5U <= 5U + pmtTotalSectionBytes - 4U) {
+        const std::uint8_t st = pmtPacket[esOffset];
+        const std::uint16_t elemPid = static_cast<std::uint16_t>(((pmtPacket[esOffset + 1] & 0x1FU) << 8U) |
+                                                                 pmtPacket[esOffset + 2]);
+        const std::size_t esInfoLength = ((static_cast<std::size_t>(pmtPacket[esOffset + 3] & 0x0FU)) << 8U) |
+                                         static_cast<std::size_t>(pmtPacket[esOffset + 4]);
+
+        if (st == 0x1BU && elemPid == 0x0101U) {
+            foundVideoEs = true;
+        } else if (st == 0x15U && elemPid == 0x01E0U) {
+            foundMetaEs = true;
+        }
+
+        esOffset += 5U + esInfoLength;
+    }
+
+    EXPECT_TRUE(foundVideoEs);
+    EXPECT_TRUE(foundMetaEs);
+}
+
+TEST(MpegTsKlvMuxerTest, VideoAccessUnitMuxing) {
+    MpegTsMuxerConfig config;
+    config.videoCodec = VideoCodec::H264;
+    config.videoPid = 0x0101U;
+    config.pcrOnVideo = true;
+    MpegTsKlvMuxer muxer(config);
+
+    VideoAccessUnit au;
+    au.codec = VideoCodec::H264;
+    au.ptsUs = 5000000ULL;
+    au.isKeyframe = true;
+    au.primarySliceType = VideoSliceType::I;
+    au.data = { 0x00U, 0x00U, 0x00U, 0x01U, 0x65U, 0x88U, 0x01U, 0x02U };
+
+    const auto tsBuffer = muxer.muxVideoToBuffer(au);
+    ASSERT_FALSE(tsBuffer.empty());
+    ASSERT_EQ(tsBuffer.size() % MpegTsKlvMuxer::kTsPacketSize, 0U);
+
+    // Verify first packet contains Video PID 0x0101 with PUSI = 1
+    // Skip PAT and PMT (packets 0 and 1)
+    ASSERT_GE(tsBuffer.size(), 3U * MpegTsKlvMuxer::kTsPacketSize);
+    const auto* videoPkt = tsBuffer.data() + (2U * MpegTsKlvMuxer::kTsPacketSize);
+
+    EXPECT_EQ(videoPkt[0], MpegTsKlvMuxer::kTsSyncByte);
+    const std::uint16_t pid = static_cast<std::uint16_t>(((videoPkt[1] & 0x1FU) << 8U) | videoPkt[2]);
+    EXPECT_EQ(pid, 0x0101U);
+    EXPECT_TRUE((videoPkt[1] & 0x40U) != 0U); // PUSI = 1
+}
+
+TEST(MpegTsKlvMuxerTest, SynchronizedVideoAndTelemetryMuxing) {
+    MpegTsMuxerConfig config;
+    config.videoCodec = VideoCodec::H264;
+    config.videoPid = 0x0101U;
+    config.metadataPid = 0x01E0U;
+    config.pcrOnVideo = true;
+    MpegTsKlvMuxer muxer(config);
+
+    constexpr std::uint64_t kVideoPtsUs = 10000000ULL; // 10.0 s
+    constexpr std::uint64_t kKlvPtsUs = 10010000ULL;   // 10.01 s (10 ms difference, well within <= 50 ms)
+
+    VideoAccessUnit au;
+    au.codec = VideoCodec::H264;
+    au.ptsUs = kVideoPtsUs;
+    au.isKeyframe = true;
+    au.primarySliceType = VideoSliceType::I;
+    au.data = { 0x00U, 0x00U, 0x00U, 0x01U, 0x65U, 0x88U };
+
+    UasDatalinkMessage msg;
+    msg.missionId = "STANAG_SYNC_TEST";
+    msg.precisionTimeStampUs = kKlvPtsUs;
+    msg.platformHeadingDeg = 135.5;
+    msg.sensorLatitudeDeg = 34.0522;
+    msg.sensorLongitudeDeg = -118.2437;
+    msg.sensorTrueAltitudeM = 2500.0;
+
+    const auto tsBuffer = muxer.muxSynchronizedToBuffer(au, msg);
+    ASSERT_FALSE(tsBuffer.empty());
+    ASSERT_EQ(tsBuffer.size() % MpegTsKlvMuxer::kTsPacketSize, 0U);
+
+    // Extract KLV using MpegTsKlvExtractor
+    MpegTsKlvExtractor extractor;
+    std::size_t extractedCount = 0U;
+    UasDatalinkMessage extractedMsg;
+
+    extractor.setMessageCallback([&](const UasDatalinkMessage& m) {
+        extractedCount++;
+        extractedMsg = m;
+    });
+
+    const std::size_t processed = extractor.processStream(tsBuffer.data(), tsBuffer.size());
+    EXPECT_GT(processed, 0U);
+    EXPECT_EQ(extractedCount, 1U);
+    EXPECT_TRUE(extractor.metadataPid().has_value());
+    EXPECT_EQ(*extractor.metadataPid(), 0x01E0U);
+
+    EXPECT_EQ(extractedMsg.missionId.value_or(""), "STANAG_SYNC_TEST");
+    ASSERT_TRUE(extractedMsg.platformHeadingDeg.has_value());
+    EXPECT_NEAR(*extractedMsg.platformHeadingDeg, 135.5, 0.01);
+    ASSERT_TRUE(extractedMsg.sensorLatitudeDeg.has_value());
+    EXPECT_NEAR(*extractedMsg.sensorLatitudeDeg, 34.0522, 0.0001);
+    ASSERT_TRUE(extractedMsg.precisionTimeStampUs.has_value());
+    EXPECT_EQ(*extractedMsg.precisionTimeStampUs, kKlvPtsUs);
+
+    // Validate that the temporal skew between Video PTS and KLV PTS is <= 50 ms
+    const auto deltaUs = (kKlvPtsUs > kVideoPtsUs) ? (kKlvPtsUs - kVideoPtsUs) : (kVideoPtsUs - kKlvPtsUs);
+    EXPECT_LE(deltaUs / 1000ULL, 50ULL);
+}

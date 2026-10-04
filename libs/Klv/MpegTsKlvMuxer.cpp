@@ -28,6 +28,13 @@ void MpegTsKlvMuxer::reset() noexcept {
     m_lastPcrTimestampUs = 0U;
 }
 
+std::uint16_t MpegTsKlvMuxer::effectivePcrPid() const noexcept {
+    if (m_config.videoCodec != VideoCodec::None && m_config.pcrOnVideo) {
+        return m_config.videoPid;
+    }
+    return m_config.pcrPid;
+}
+
 std::uint8_t MpegTsKlvMuxer::nextCc(std::uint16_t pid) noexcept {
     auto it = m_continuityCounters.find(pid);
     if (it == m_continuityCounters.end()) {
@@ -71,7 +78,7 @@ std::vector<std::uint8_t> MpegTsKlvMuxer::buildPatPacket() {
     section.push_back(0x00U); // section_number
     section.push_back(0x00U); // last_section_number
 
-    // Program 1 entry
+    // Program entry
     section.push_back(static_cast<std::uint8_t>((m_config.programNumber >> 8U) & 0xFFU));
     section.push_back(static_cast<std::uint8_t>(m_config.programNumber & 0xFFU));
     section.push_back(static_cast<std::uint8_t>(0xE0U | ((m_config.pmtPid >> 8U) & 0x1FU)));
@@ -109,10 +116,14 @@ std::vector<std::uint8_t> MpegTsKlvMuxer::buildPmtPacket() {
     }
 
     constexpr std::uint16_t progInfoLen = 0U;
-    const auto esInfoLen = static_cast<std::uint16_t>(esDesc.size());
+    const auto metaEsInfoLen = static_cast<std::uint16_t>(esDesc.size());
 
-    // Section length = 9 (header after length) + progInfoLen + (5 + esInfoLen) + 4 (CRC)
-    const std::uint16_t sectionLength = static_cast<std::uint16_t>(9U + progInfoLen + 5U + esInfoLen + 4U);
+    const bool hasVideo = (m_config.videoCodec != VideoCodec::None);
+    const std::uint16_t videoEsEntryLen = hasVideo ? 5U : 0U;
+    const std::uint16_t metaEsEntryLen = static_cast<std::uint16_t>(5U + metaEsInfoLen);
+
+    // Section length = 9 (header after length) + progInfoLen + videoEsEntryLen + metaEsEntryLen + 4 (CRC)
+    const std::uint16_t sectionLength = static_cast<std::uint16_t>(9U + progInfoLen + videoEsEntryLen + metaEsEntryLen + 4U);
 
     std::vector<std::uint8_t> section;
     section.reserve(3U + sectionLength);
@@ -127,19 +138,31 @@ std::vector<std::uint8_t> MpegTsKlvMuxer::buildPmtPacket() {
     section.push_back(0x00U); // section_number
     section.push_back(0x00U); // last_section_number
 
-    section.push_back(static_cast<std::uint8_t>(0xE0U | ((m_config.pcrPid >> 8U) & 0x1FU)));
-    section.push_back(static_cast<std::uint8_t>(m_config.pcrPid & 0xFFU));
+    const std::uint16_t pcrPid = effectivePcrPid();
+    section.push_back(static_cast<std::uint8_t>(0xE0U | ((pcrPid >> 8U) & 0x1FU)));
+    section.push_back(static_cast<std::uint8_t>(pcrPid & 0xFFU));
 
     section.push_back(static_cast<std::uint8_t>(0xF0U | ((progInfoLen >> 8U) & 0x0FU)));
     section.push_back(static_cast<std::uint8_t>(progInfoLen & 0xFFU));
 
-    // Elementary stream entry
+    // 1. Video Elementary stream entry (if enabled)
+    if (hasVideo) {
+        const std::uint8_t videoStreamType = (m_config.videoCodec == VideoCodec::H264)
+                                                 ? 0x1BU   // AVC / H.264
+                                                 : 0x24U;  // HEVC / H.265
+        section.push_back(videoStreamType);
+        section.push_back(static_cast<std::uint8_t>(0xE0U | ((m_config.videoPid >> 8U) & 0x1FU)));
+        section.push_back(static_cast<std::uint8_t>(m_config.videoPid & 0xFFU));
+        section.push_back(0xF0U); // ES info length high 4 bits
+        section.push_back(0x00U); // ES info length low 8 bits (0 bytes)
+    }
+
+    // 2. Metadata Elementary stream entry
     section.push_back(static_cast<std::uint8_t>(m_config.streamType)); // 0x06 or 0x15
     section.push_back(static_cast<std::uint8_t>(0xE0U | ((m_config.metadataPid >> 8U) & 0x1FU)));
     section.push_back(static_cast<std::uint8_t>(m_config.metadataPid & 0xFFU));
-
-    section.push_back(static_cast<std::uint8_t>(0xF0U | ((esInfoLen >> 8U) & 0x0FU)));
-    section.push_back(static_cast<std::uint8_t>(esInfoLen & 0xFFU));
+    section.push_back(static_cast<std::uint8_t>(0xF0U | ((metaEsInfoLen >> 8U) & 0x0FU)));
+    section.push_back(static_cast<std::uint8_t>(metaEsInfoLen & 0xFFU));
     section.insert(section.end(), esDesc.begin(), esDesc.end());
 
     const std::uint32_t crc = KlvCrc::calculateCrc32Mpeg(section.data(), section.size());
@@ -251,7 +274,7 @@ std::size_t MpegTsKlvMuxer::emitTsPacket(std::uint16_t pid,
                 afOffset += 6U;
             }
 
-            // Remainder of adaptation field is filled with 0xFF stuffing
+            // Stuff adaptation field with 0xFF
             const std::size_t payloadOffset = 5U + static_cast<std::size_t>(afLength);
             while (afOffset < payloadOffset) {
                 packet[afOffset++] = 0xFFU;
@@ -265,6 +288,36 @@ std::size_t MpegTsKlvMuxer::emitTsPacket(std::uint16_t pid,
 
     dispatchPacket(packet);
     return 1U;
+}
+
+std::size_t MpegTsKlvMuxer::emitPesStream(std::uint16_t pid,
+                                          const std::vector<std::uint8_t>& pesData,
+                                          std::optional<std::uint64_t> pcrUs) {
+    if (pesData.empty()) {
+        return 0U;
+    }
+
+    std::size_t emittedCount = 0U;
+    std::size_t pesOffset = 0U;
+    bool isFirst = true;
+
+    while (pesOffset < pesData.size()) {
+        const std::size_t remaining = pesData.size() - pesOffset;
+        const bool includePcr = isFirst && pcrUs.has_value();
+        const std::size_t maxPayload = includePcr ? (184U - 8U) : 184U;
+        const std::size_t chunkSize = std::min(remaining, maxPayload);
+
+        emittedCount += emitTsPacket(pid,
+                                     isFirst,
+                                     pesData.data() + pesOffset,
+                                     chunkSize,
+                                     includePcr ? pcrUs : std::nullopt);
+
+        pesOffset += chunkSize;
+        isFirst = false;
+    }
+
+    return emittedCount;
 }
 
 std::size_t MpegTsKlvMuxer::emitPsiTables() {
@@ -292,9 +345,9 @@ std::size_t MpegTsKlvMuxer::muxKlvPacket(const std::uint8_t* klvData,
     }
     m_packetCounter++;
 
-    // Determine whether to generate PCR
+    // Determine whether to generate PCR on metadata PID
     std::optional<std::uint64_t> pcrUs = std::nullopt;
-    if (timestampUs.has_value()) {
+    if (timestampUs.has_value() && effectivePcrPid() == m_config.metadataPid) {
         const std::uint64_t intervalUs = static_cast<std::uint64_t>(m_config.pcrIntervalMs) * 1000ULL;
         if (m_lastPcrTimestampUs == 0U || *timestampUs >= m_lastPcrTimestampUs + intervalUs) {
             pcrUs = timestampUs;
@@ -303,35 +356,83 @@ std::size_t MpegTsKlvMuxer::muxKlvPacket(const std::uint8_t* klvData,
     }
 
     const auto pes = buildPesPacket(klvData, size, timestampUs);
-    if (pes.empty()) {
-        return emittedCount;
-    }
-
-    std::size_t pesOffset = 0U;
-    bool isFirst = true;
-
-    while (pesOffset < pes.size()) {
-        const std::size_t remaining = pes.size() - pesOffset;
-        const bool includePcr = isFirst && pcrUs.has_value();
-        const std::size_t maxPayload = includePcr ? (184U - 8U) : 184U;
-        const std::size_t chunkSize = std::min(remaining, maxPayload);
-
-        emittedCount += emitTsPacket(m_config.metadataPid,
-                                     isFirst,
-                                     pes.data() + pesOffset,
-                                     chunkSize,
-                                     includePcr ? pcrUs : std::nullopt);
-
-        pesOffset += chunkSize;
-        isFirst = false;
-    }
-
+    emittedCount += emitPesStream(m_config.metadataPid, pes, pcrUs);
     return emittedCount;
 }
 
 std::size_t MpegTsKlvMuxer::muxMessage(const UasDatalinkMessage& message) {
     const auto klvBytes = KlvEncoder::encode(message);
     return muxKlvPacket(klvBytes.data(), klvBytes.size(), message.precisionTimeStampUs);
+}
+
+std::size_t MpegTsKlvMuxer::muxVideoAccessUnit(const VideoAccessUnit& au) {
+    if (au.data.empty()) {
+        return 0U;
+    }
+
+    std::size_t emittedCount = 0U;
+
+    if (m_packetCounter % m_config.patPmtPeriodPackets == 0U) {
+        emittedCount += emitPsiTables();
+    }
+    m_packetCounter++;
+
+    // Determine whether to generate PCR on video PID
+    std::optional<std::uint64_t> pcrUs = std::nullopt;
+    if (effectivePcrPid() == m_config.videoPid) {
+        const std::uint64_t intervalUs = static_cast<std::uint64_t>(m_config.pcrIntervalMs) * 1000ULL;
+        if (m_lastPcrTimestampUs == 0U || au.ptsUs >= m_lastPcrTimestampUs + intervalUs || au.isKeyframe) {
+            pcrUs = au.ptsUs;
+            m_lastPcrTimestampUs = au.ptsUs;
+        }
+    }
+
+    const auto pes = m_videoPesPacketizer.packetize(au);
+    emittedCount += emitPesStream(m_config.videoPid, pes, pcrUs);
+    return emittedCount;
+}
+
+std::size_t MpegTsKlvMuxer::muxVideoFrame(const std::uint8_t* data,
+                                          std::size_t size,
+                                          std::uint64_t ptsUs,
+                                          std::optional<std::uint64_t> dtsUs,
+                                          bool isKeyframe) {
+    if (data == nullptr || size == 0U) {
+        return 0U;
+    }
+
+    std::size_t emittedCount = 0U;
+
+    if (m_packetCounter % m_config.patPmtPeriodPackets == 0U) {
+        emittedCount += emitPsiTables();
+    }
+    m_packetCounter++;
+
+    std::optional<std::uint64_t> pcrUs = std::nullopt;
+    if (effectivePcrPid() == m_config.videoPid) {
+        const std::uint64_t intervalUs = static_cast<std::uint64_t>(m_config.pcrIntervalMs) * 1000ULL;
+        if (m_lastPcrTimestampUs == 0U || ptsUs >= m_lastPcrTimestampUs + intervalUs || isKeyframe) {
+            pcrUs = ptsUs;
+            m_lastPcrTimestampUs = ptsUs;
+        }
+    }
+
+    const auto pes = m_videoPesPacketizer.buildPesPacket(data, size, ptsUs, dtsUs, isKeyframe);
+    emittedCount += emitPesStream(m_config.videoPid, pes, pcrUs);
+    return emittedCount;
+}
+
+std::size_t MpegTsKlvMuxer::muxSynchronizedFrame(const VideoAccessUnit& au,
+                                                 const std::optional<UasDatalinkMessage>& message) {
+    std::size_t emittedCount = 0U;
+
+    // Emit KLV packet first if available so decoders receive metadata ahead of or at video PTS
+    if (message.has_value()) {
+        emittedCount += muxMessage(*message);
+    }
+
+    emittedCount += muxVideoAccessUnit(au);
+    return emittedCount;
 }
 
 std::vector<std::uint8_t> MpegTsKlvMuxer::muxToBuffer(const std::uint8_t* klvData,
@@ -353,6 +454,35 @@ std::vector<std::uint8_t> MpegTsKlvMuxer::muxToBuffer(const std::uint8_t* klvDat
 std::vector<std::uint8_t> MpegTsKlvMuxer::muxMessageToBuffer(const UasDatalinkMessage& message) {
     const auto klvBytes = KlvEncoder::encode(message);
     return muxToBuffer(klvBytes.data(), klvBytes.size(), message.precisionTimeStampUs);
+}
+
+std::vector<std::uint8_t> MpegTsKlvMuxer::muxVideoToBuffer(const VideoAccessUnit& au) {
+    std::vector<std::uint8_t> output;
+    const auto originalCallback = m_callback;
+
+    setPacketCallback([&output](const std::uint8_t* packet, std::size_t sz) {
+        output.insert(output.end(), packet, packet + sz);
+    });
+
+    static_cast<void>(muxVideoAccessUnit(au));
+    setPacketCallback(originalCallback);
+
+    return output;
+}
+
+std::vector<std::uint8_t> MpegTsKlvMuxer::muxSynchronizedToBuffer(const VideoAccessUnit& au,
+                                                                  const std::optional<UasDatalinkMessage>& message) {
+    std::vector<std::uint8_t> output;
+    const auto originalCallback = m_callback;
+
+    setPacketCallback([&output](const std::uint8_t* packet, std::size_t sz) {
+        output.insert(output.end(), packet, packet + sz);
+    });
+
+    static_cast<void>(muxSynchronizedFrame(au, message));
+    setPacketCallback(originalCallback);
+
+    return output;
 }
 
 } // namespace Klv

@@ -21,6 +21,11 @@ add_library(Klv STATIC
     MpegTsMuxerTypes.h
     MpegTsKlvMuxer.h
     MpegTsKlvMuxer.cpp
+    VideoTypes.h
+    VideoNaluParser.h
+    VideoNaluParser.cpp
+    VideoPesPacketizer.h
+    VideoPesPacketizer.cpp
     KlvGeodesy.h
     KlvGeodesy.cpp
     Misb1201.h

@@ -3,6 +3,7 @@
 /// @file MpegTsMuxerTypes.h
 /// @brief Configuration and enumerations for STANAG 4609 / MISB ST 1402 MPEG-TS KLV multiplexer.
 
+#include "VideoTypes.h"
 #include <cstddef>
 #include <cstdint>
 #include <string>
@@ -32,19 +33,28 @@ struct MpegTsMuxerConfig {
     /// @brief PMT Elementary PID (default 0x0100 / 256).
     std::uint16_t pmtPid { 0x0100U };
 
+    /// @brief Video Elementary PID (default 0x0101 / 257).
+    std::uint16_t videoPid { 0x0101U };
+
     /// @brief Metadata Elementary PID (default 0x01E0 / 480).
     std::uint16_t metadataPid { 0x01E0U };
 
-    /// @brief PCR PID (defaults to metadata PID for standalone metadata stream).
+    /// @brief PCR PID (defaults to metadata PID for standalone, or video PID when video enabled).
     std::uint16_t pcrPid { 0x01E0U };
 
     /// @brief Transport Stream ID in PAT (default 1).
     std::uint16_t transportStreamId { 1U };
 
-    /// @brief Elementary stream type (0x06 or 0x15).
+    /// @brief Video codec to advertise in PMT and packetize (None = metadata-only mode).
+    VideoCodec videoCodec { VideoCodec::None };
+
+    /// @brief Whether PCR timestamps should be stamped on the Video PID when video is active.
+    bool pcrOnVideo { true };
+
+    /// @brief Elementary stream type for metadata (0x06 or 0x15).
     KlvStreamType streamType { KlvStreamType::MetadataInPes };
 
-    /// @brief PES stream ID (0xBD or 0xFC).
+    /// @brief PES stream ID for metadata (0xBD or 0xFC).
     KlvStreamId streamId { KlvStreamId::PrivateStream1 };
 
     /// @brief Registration descriptor format identifier ("KLVA" or "KLVN").
@@ -55,6 +65,9 @@ struct MpegTsMuxerConfig {
 
     /// @brief Target PCR insertion period in milliseconds (< 100ms per ISO/IEC 13818-1).
     std::uint32_t pcrIntervalMs { 40U };
+
+    /// @brief Maximum allowed PTS desynchronization in milliseconds (STANAG 4609 <= 50ms).
+    std::uint32_t maxSyncDeltaMs { 50U };
 
     /// @brief Whether to emit 33-bit Presentation Time Stamp (PTS) in PES headers.
     bool emitPts { true };
