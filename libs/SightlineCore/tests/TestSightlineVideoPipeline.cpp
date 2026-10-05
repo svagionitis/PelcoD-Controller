@@ -4,6 +4,10 @@
 #include "SightlineFraming.h"
 #include "SightlineProtocolBuilder.h"
 #include "SightlineProtocolParser.h"
+#include "modules/MetadataXmpBuilder.h"
+#include "modules/RecordingRingBuffer.h"
+#include "modules/RecordingValidator.h"
+#include "modules/SecureStorageSyncService.h"
 #include "modules/SightlineBlendingBuilder.h"
 #include "modules/SightlineBlendingParser.h"
 #include "modules/SightlineCaptureBuilder.h"
@@ -17,12 +21,8 @@
 #include "modules/SightlineNetworkBuilder.h"
 #include "modules/SightlineRecordingBuilder.h"
 #include "modules/SightlineRecordingParser.h"
-#include "modules/RecordingValidator.h"
-#include "modules/RecordingRingBuffer.h"
 #include "modules/StorageRetentionManager.h"
-#include "modules/MetadataXmpBuilder.h"
 #include "modules/TransactionalStorageWriter.h"
-#include "modules/SecureStorageSyncService.h"
 
 #include <filesystem>
 #include <gtest/gtest.h>
@@ -373,7 +373,8 @@ namespace {
         EXPECT_EQ(facadeOut.maxWidth, 3840U);
     }
 
-    /// @brief Verify digital camera high-bit-depth auto gain parameter serialization, parsing, and query (Message ID 0x70 / 0x71).
+    /// @brief Verify digital camera high-bit-depth auto gain parameter serialization, parsing, and query (Message ID
+    /// 0x70 / 0x71).
     TEST(TestSightlineVideoPipeline, BuildAndParseDigitalCameraParams)
     {
         MsgDigitalCameraParameters msg {};
@@ -437,7 +438,7 @@ namespace {
         shortPayload.push_back(0U); // cameraIndex
         shortPayload.push_back(static_cast<std::uint8_t>(AutoGainMode::HighBitDepthAuto));
         SightlineFraming::appendU16Le(shortPayload, 50000U); // agHoldmax
-        SightlineFraming::appendU16Le(shortPayload, 1000U);  // agHoldmin
+        SightlineFraming::appendU16Le(shortPayload, 1000U); // agHoldmin
         const auto shortPkt = SightlineFraming::buildPacket(MessageId::CurrentDigitalCameraParameters, shortPayload);
         MsgDigitalCameraParameters shortOut {};
         ASSERT_TRUE(SightlineCaptureParser::parseDigitalCameraParams(shortPkt, shortOut));
@@ -595,8 +596,8 @@ namespace {
         msg.alphaBlend = 210U;
         msg.enhanceParam = 15U;
         msg.denoiseRate = 180U;
-        msg.flags = static_cast<std::uint8_t>(EnhancementFlags::AerialMotionMask) |
-                    static_cast<std::uint8_t>(EnhancementFlags::FeatureBasedHist);
+        msg.flags = static_cast<std::uint8_t>(EnhancementFlags::AerialMotionMask)
+            | static_cast<std::uint8_t>(EnhancementFlags::FeatureBasedHist);
         msg.histAveRate = 64U;
         msg.histMaxPctBin = 20U;
         msg.roiRow = 100U;
@@ -697,47 +698,29 @@ namespace {
     TEST(RecordingValidatorTest, FilenameValidation)
     {
         // Valid filename without trailing numerals
-        EXPECT_EQ(
-            RecordingValidator::checkFilename("mission_rec", 0U),
-            RecordingStatusCode::Success);
+        EXPECT_EQ(RecordingValidator::checkFilename("mission_rec", 0U), RecordingStatusCode::Success);
 
         // Valid filename with underscore suffix
-        EXPECT_EQ(
-            RecordingValidator::checkFilename("flight_A_", 0U),
-            RecordingStatusCode::Success);
+        EXPECT_EQ(RecordingValidator::checkFilename("flight_A_", 0U), RecordingStatusCode::Success);
 
         // Trailing numeral without overwrite flag must fail
-        EXPECT_EQ(
-            RecordingValidator::checkFilename("flight_01", 0U),
-            RecordingStatusCode::ErrNumericFilename);
+        EXPECT_EQ(RecordingValidator::checkFilename("flight_01", 0U), RecordingStatusCode::ErrNumericFilename);
 
         // Trailing numeral with AllowNumericOverwrite flag must pass
         const auto allowFlag { static_cast<std::uint8_t>(RecordingFlags::AllowNumericOverwrite) };
-        EXPECT_EQ(
-            RecordingValidator::checkFilename("flight_01", allowFlag),
-            RecordingStatusCode::Success);
+        EXPECT_EQ(RecordingValidator::checkFilename("flight_01", allowFlag), RecordingStatusCode::Success);
 
         // Empty filename must fail
-        EXPECT_EQ(
-            RecordingValidator::checkFilename("", 0U),
-            RecordingStatusCode::ErrInvalidCharacters);
+        EXPECT_EQ(RecordingValidator::checkFilename("", 0U), RecordingStatusCode::ErrInvalidCharacters);
 
         // Filename exceeding max length (64 chars) must fail
         const std::string longName(65U, 'a');
-        EXPECT_EQ(
-            RecordingValidator::checkFilename(longName, 0U),
-            RecordingStatusCode::ErrInvalidCharacters);
+        EXPECT_EQ(RecordingValidator::checkFilename(longName, 0U), RecordingStatusCode::ErrInvalidCharacters);
 
         // Forbidden characters
-        EXPECT_EQ(
-            RecordingValidator::checkFilename("path/to/file", 0U),
-            RecordingStatusCode::ErrInvalidCharacters);
-        EXPECT_EQ(
-            RecordingValidator::checkFilename("file*name", 0U),
-            RecordingStatusCode::ErrInvalidCharacters);
-        EXPECT_EQ(
-            RecordingValidator::checkFilename("file?name", 0U),
-            RecordingStatusCode::ErrInvalidCharacters);
+        EXPECT_EQ(RecordingValidator::checkFilename("path/to/file", 0U), RecordingStatusCode::ErrInvalidCharacters);
+        EXPECT_EQ(RecordingValidator::checkFilename("file*name", 0U), RecordingStatusCode::ErrInvalidCharacters);
+        EXPECT_EQ(RecordingValidator::checkFilename("file?name", 0U), RecordingStatusCode::ErrInvalidCharacters);
     }
 
     TEST(RecordingValidatorTest, CameraValidation)
@@ -794,23 +777,19 @@ namespace {
         std::uint32_t freeMB { 0U };
 
         // FTP push does not require local mount
-        EXPECT_EQ(
-            RecordingValidator::checkStorage(StorageDestination::FtpPush, 0ULL, false, freeMB),
+        EXPECT_EQ(RecordingValidator::checkStorage(StorageDestination::FtpPush, 0ULL, false, freeMB),
             RecordingStatusCode::Success);
 
         // Unmounted MicroSD
-        EXPECT_EQ(
-            RecordingValidator::checkStorage(StorageDestination::MicroSD, 100000000ULL, false, freeMB),
+        EXPECT_EQ(RecordingValidator::checkStorage(StorageDestination::MicroSD, 100000000ULL, false, freeMB),
             RecordingStatusCode::ErrMediaUnavailable);
 
         // Insufficient storage (< 50 MB)
-        EXPECT_EQ(
-            RecordingValidator::checkStorage(StorageDestination::MicroSD, 1000000ULL, true, freeMB),
+        EXPECT_EQ(RecordingValidator::checkStorage(StorageDestination::MicroSD, 1000000ULL, true, freeMB),
             RecordingStatusCode::ErrInsufficientStorage);
 
         // Valid storage (100 MB available)
-        EXPECT_EQ(
-            RecordingValidator::checkStorage(StorageDestination::MicroSD, 104857600ULL, true, freeMB),
+        EXPECT_EQ(RecordingValidator::checkStorage(StorageDestination::MicroSD, 104857600ULL, true, freeMB),
             RecordingStatusCode::Success);
         EXPECT_EQ(freeMB, 100U);
     }
@@ -979,12 +958,9 @@ namespace {
     {
         StorageRetentionManager manager {};
 
-        std::vector<FileMetadataEntry> entries {
-            { "video_001.ts", 100000000ULL, 1000U, false },
-            { "video_002.ts", 200000000ULL, 2000U, false },
-            { "video_003.ts", 300000000ULL, 3000U, false },
-            { "video_004.ts", 400000000ULL, 4000U, false }
-        };
+        std::vector<FileMetadataEntry> entries { { "video_001.ts", 100000000ULL, 1000U, false },
+            { "video_002.ts", 200000000ULL, 2000U, false }, { "video_003.ts", 300000000ULL, 3000U, false },
+            { "video_004.ts", 400000000ULL, 4000U, false } };
 
         // Pin video_001 so it cannot be pruned
         manager.pinFile("video_001.ts");
@@ -1120,11 +1096,8 @@ namespace {
 
         // Test JPEG injection & extraction
         // Minimal dummy JPEG: SOI (0xFFD8) + DQT (0xFFDB, len=5, data=0) + EOI (0xFFD9)
-        std::vector<std::uint8_t> jpegDummy {
-            0xFFU, 0xD8U,
-            0xFFU, 0xDBU, 0x00U, 0x05U, 0x00U, 0x01U, 0x02U,
-            0xFFU, 0xD9U
-        };
+        std::vector<std::uint8_t> jpegDummy { 0xFFU, 0xD8U, 0xFFU, 0xDBU, 0x00U, 0x05U, 0x00U, 0x01U, 0x02U, 0xFFU,
+            0xD9U };
 
         ASSERT_TRUE(MetadataXmpBuilder::injectXmpIntoJpeg(jpegDummy, meta));
         EXPECT_GT(jpegDummy.size(), 50U);
@@ -1136,8 +1109,7 @@ namespace {
 
     TEST(TestSightlineVideoPipeline, TransactionalStorageWriterLifecycle)
     {
-        const auto tempPath =
-            std::filesystem::temp_directory_path() / "sightline_test_tx.mp4";
+        const auto tempPath = std::filesystem::temp_directory_path() / "sightline_test_tx.mp4";
 
         std::error_code ec {};
         std::filesystem::remove(tempPath, ec);
@@ -1272,21 +1244,20 @@ namespace {
 
     namespace {
 
-    class MockSecureStorageSink : public ISecureStorageSink {
-    public:
-        bool failTransfer { false };
-        std::vector<std::pair<std::string, std::string>> uploads {};
+        class MockSecureStorageSink : public ISecureStorageSink {
+        public:
+            bool failTransfer { false };
+            std::vector<std::pair<std::string, std::string>> uploads {};
 
-        [[nodiscard]] bool uploadFile(
-            std::string_view localPath, std::string_view remotePath) override
-        {
-            if (failTransfer) {
-                return false;
+            [[nodiscard]] bool uploadFile(std::string_view localPath, std::string_view remotePath) override
+            {
+                if (failTransfer) {
+                    return false;
+                }
+                uploads.emplace_back(std::string(localPath), std::string(remotePath));
+                return true;
             }
-            uploads.emplace_back(std::string(localPath), std::string(remotePath));
-            return true;
-        }
-    };
+        };
 
     } // namespace
 
@@ -1372,6 +1343,25 @@ namespace {
         EXPECT_EQ(static_cast<std::uint16_t>(NetworkDisplayId::Net2), 0x0200U);
     }
 
+    /// @brief Verify RTSP mount channel formatting conforming to EAN-RTSP.
+    TEST(TestSightlineVideoPipeline, RtspMountChannelEanCompliance)
+    {
+        // 1. Primary Network 0 mount (/net0)
+        const std::string net0Uri = formatRtspStreamUri("192.168.1.157", 554U, RtspMountChannel::Net0);
+        EXPECT_EQ(net0Uri, "rtsp://192.168.1.157:554/net0");
+
+        // 2. Secondary Network 1 mount (/net1)
+        const std::string net1Uri = formatRtspStreamUri("192.168.1.157", 554U, RtspMountChannel::Net1);
+        EXPECT_EQ(net1Uri, "rtsp://192.168.1.157:554/net1");
+
+        // 3. 1500-OEM legacy single-stream root mount (/)
+        const std::string legacyUri = formatRtspStreamUri("192.168.0.115", 554U, RtspMountChannel::LegacyRoot);
+        EXPECT_EQ(legacyUri, "rtsp://192.168.0.115:554/");
+
+        // 4. Custom port validation
+        const std::string customPortUri = formatRtspStreamUri("10.0.0.50", 8554U, RtspMountChannel::Net0);
+        EXPECT_EQ(customPortUri, "rtsp://10.0.0.50:8554/net0");
+    }
+
 } // namespace
 } // namespace Sightline
-

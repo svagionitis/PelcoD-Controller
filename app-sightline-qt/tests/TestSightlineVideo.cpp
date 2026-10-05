@@ -20,8 +20,8 @@ namespace {
 
 class TestableVideoQuickItem : public SightlineApp::VideoQuickItem {
 public:
-    using SightlineApp::VideoQuickItem::mousePressEvent;
     using SightlineApp::VideoQuickItem::mouseMoveEvent;
+    using SightlineApp::VideoQuickItem::mousePressEvent;
     using SightlineApp::VideoQuickItem::mouseReleaseEvent;
 };
 
@@ -75,6 +75,80 @@ TEST_F(SightlineVideoTest, CameraSelectionAndSwitching)
     // Clamping checks
     controller.selectCamera(99);
     EXPECT_EQ(controller.activeCamera(), 0);
+
+    // Verify 4-camera support
+    controller.selectCamera(2);
+    EXPECT_EQ(controller.activeCamera(), 2);
+    controller.selectCamera(3);
+    EXPECT_EQ(controller.activeCamera(), 3);
+}
+
+TEST_F(SightlineVideoTest, CameraSwitchDoesNotMutateStreamUri)
+{
+    SightlineApp::SightlineVideoController controller {};
+    controller.setSyntheticMode(false);
+
+    // Initial default should be Net0 mount
+    EXPECT_EQ(controller.networkChannel(), SightlineApp::SightlineVideoController::NetworkChannel::Net0);
+    EXPECT_EQ(controller.sourceUri(), QStringLiteral("rtsp://127.0.0.1:554/net0"));
+
+    // Switching camera must NOT mutate the RTSP mount URI to /net1 or /net2
+    controller.selectCamera(1);
+    EXPECT_EQ(controller.activeCamera(), 1);
+    EXPECT_EQ(controller.sourceUri(), QStringLiteral("rtsp://127.0.0.1:554/net0"));
+
+    controller.selectCamera(2);
+    EXPECT_EQ(controller.activeCamera(), 2);
+    EXPECT_EQ(controller.sourceUri(), QStringLiteral("rtsp://127.0.0.1:554/net0"));
+}
+
+TEST_F(SightlineVideoTest, NetworkChannelMountResolution)
+{
+    SightlineApp::SightlineVideoController controller {};
+    controller.setSyntheticMode(false);
+
+    QSignalSpy channelSpy(&controller, &SightlineApp::SightlineVideoController::networkChannelChanged);
+
+    // Switch to Net1
+    controller.selectNetworkChannel(SightlineApp::SightlineVideoController::NetworkChannel::Net1);
+    EXPECT_EQ(controller.networkChannel(), SightlineApp::SightlineVideoController::NetworkChannel::Net1);
+    EXPECT_EQ(controller.activeNetworkChannel(), 1);
+    EXPECT_EQ(controller.sourceUri(), QStringLiteral("rtsp://127.0.0.1:554/net1"));
+    EXPECT_EQ(channelSpy.count(), 1);
+
+    // Switch to Legacy 1500-OEM root
+    controller.selectNetworkChannel(SightlineApp::SightlineVideoController::NetworkChannel::Legacy);
+    EXPECT_EQ(controller.networkChannel(), SightlineApp::SightlineVideoController::NetworkChannel::Legacy);
+    EXPECT_EQ(controller.activeNetworkChannel(), 2);
+    EXPECT_EQ(controller.sourceUri(), QStringLiteral("rtsp://127.0.0.1:554/"));
+    EXPECT_EQ(channelSpy.count(), 2);
+
+    // Switch back to Net0 via integer slot (QML compatibility)
+    controller.selectNetworkChannelInt(0);
+    EXPECT_EQ(controller.networkChannel(), SightlineApp::SightlineVideoController::NetworkChannel::Net0);
+    EXPECT_EQ(controller.activeNetworkChannel(), 0);
+    EXPECT_EQ(controller.sourceUri(), QStringLiteral("rtsp://127.0.0.1:554/net0"));
+    EXPECT_EQ(channelSpy.count(), 3);
+}
+
+TEST_F(SightlineVideoTest, CustomUriPreservationAcrossCameraSwitches)
+{
+    SightlineApp::SightlineVideoController controller {};
+    controller.setSyntheticMode(false);
+
+    const QString customUri { QStringLiteral("udp://@:15004") };
+    controller.setSourceUri(customUri);
+    EXPECT_EQ(controller.networkChannel(), SightlineApp::SightlineVideoController::NetworkChannel::Custom);
+    EXPECT_EQ(controller.sourceUri(), customUri);
+
+    // Camera switching must preserve custom URI
+    controller.selectCamera(1);
+    EXPECT_EQ(controller.activeCamera(), 1);
+    EXPECT_EQ(controller.sourceUri(), customUri);
+
+    controller.selectCamera(0);
+    EXPECT_EQ(controller.activeCamera(), 0);
+    EXPECT_EQ(controller.sourceUri(), customUri);
 }
 
 TEST_F(SightlineVideoTest, SyntheticModeToggle)
@@ -481,16 +555,19 @@ TEST_F(SightlineVideoTest, VideoQuickItemCoordinateMappingAndLasso)
     // Test simulated mouse lasso drag: press at (200, 150), move to (400, 300), release
     QSignalSpy targetSpy(&item, &SightlineApp::VideoQuickItem::targetAcquired);
 
-    QMouseEvent pressEv(QEvent::MouseButtonPress, QPointF(200.0, 150.0), QPointF(200.0, 150.0), Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
+    QMouseEvent pressEv(QEvent::MouseButtonPress, QPointF(200.0, 150.0), QPointF(200.0, 150.0), Qt::LeftButton,
+        Qt::LeftButton, Qt::NoModifier);
     item.mousePressEvent(&pressEv);
     EXPECT_TRUE(item.isLassoActive());
 
-    QMouseEvent moveEv(QEvent::MouseMove, QPointF(400.0, 300.0), QPointF(400.0, 300.0), Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
+    QMouseEvent moveEv(QEvent::MouseMove, QPointF(400.0, 300.0), QPointF(400.0, 300.0), Qt::LeftButton, Qt::LeftButton,
+        Qt::NoModifier);
     item.mouseMoveEvent(&moveEv);
     EXPECT_TRUE(item.isLassoActive());
     EXPECT_FALSE(item.lassoRect().isEmpty());
 
-    QMouseEvent releaseEv(QEvent::MouseButtonRelease, QPointF(400.0, 300.0), QPointF(400.0, 300.0), Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
+    QMouseEvent releaseEv(QEvent::MouseButtonRelease, QPointF(400.0, 300.0), QPointF(400.0, 300.0), Qt::LeftButton,
+        Qt::LeftButton, Qt::NoModifier);
     item.mouseReleaseEvent(&releaseEv);
     EXPECT_FALSE(item.isLassoActive());
 
@@ -511,7 +588,8 @@ TEST_F(SightlineVideoTest, VideoQuickItemCoordinateMappingAndLasso)
     // Test ClickToTrack mode
     item.setInteractionMode(SightlineApp::VideoQuickItem::InteractionMode::ClickToTrack);
     QSignalSpy clickSpy(&item, &SightlineApp::VideoQuickItem::targetAcquired);
-    QMouseEvent clickReleaseEv(QEvent::MouseButtonRelease, QPointF(400.0, 300.0), QPointF(400.0, 300.0), Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
+    QMouseEvent clickReleaseEv(QEvent::MouseButtonRelease, QPointF(400.0, 300.0), QPointF(400.0, 300.0), Qt::LeftButton,
+        Qt::LeftButton, Qt::NoModifier);
     item.mouseReleaseEvent(&clickReleaseEv);
     EXPECT_EQ(clickSpy.count(), 1);
     const auto clickArgs = clickSpy.takeFirst();
@@ -580,7 +658,8 @@ TEST_F(SightlineVideoTest, RecordingFileListModelLifecycle)
     // Removal
     model.removeEntry(QStringLiteral("flight_0001.ts"));
     EXPECT_EQ(model.rowCount(), 1);
-    EXPECT_EQ(model.data(model.index(0, 0), RecordingFileListModel::FilenameRole).toString(), QStringLiteral("snap_0001.jpg"));
+    EXPECT_EQ(model.data(model.index(0, 0), RecordingFileListModel::FilenameRole).toString(),
+        QStringLiteral("snap_0001.jpg"));
 
     // Append
     model.appendEntries({ e1 });

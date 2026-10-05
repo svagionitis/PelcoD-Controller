@@ -1003,13 +1003,13 @@ Rectangle {
             TextField {
                 id: streamUriField
                 Layout.fillWidth: true
-                placeholderText: "rtsp://" + (bridge && bridge.host ? bridge.host : "127.0.0.1") + ":554/net" + root.activeCamera
+                placeholderText: "rtsp://" + (bridge && bridge.host ? bridge.host : "127.0.0.1") + ":554/net0"
                 text: {
                     if (videoController && videoController.sourceUri) {
                         return videoController.sourceUri;
                     }
                     var h = (bridge && bridge.host) ? bridge.host : "127.0.0.1";
-                    return "rtsp://" + h + ":554/net" + root.activeCamera;
+                    return "rtsp://" + h + ":554/net0";
                 }
             }
 
@@ -1021,12 +1021,12 @@ Rectangle {
                     font.pixelSize: 11
                 }
                 Button {
-                    text: "Auto (Net " + root.activeCamera + ")"
+                    text: "1500-OEM (/)"
                     enabled: root.devConnected
                     opacity: enabled ? 1.0 : 0.4
                     onClicked: {
                         var h = (bridge && bridge.host) ? bridge.host : "127.0.0.1";
-                        streamUriField.text = "rtsp://" + h + ":554/net" + root.activeCamera;
+                        streamUriField.text = "rtsp://" + h + ":554/";
                     }
                 }
                 Button {

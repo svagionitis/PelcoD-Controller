@@ -29,6 +29,10 @@ class SightlineVideoController : public QObject {
     Q_OBJECT
 
     Q_PROPERTY(PlaybackState playbackState READ playbackState NOTIFY playbackStateChanged)
+    Q_PROPERTY(
+        NetworkChannel networkChannel READ networkChannel WRITE selectNetworkChannel NOTIFY networkChannelChanged)
+    Q_PROPERTY(
+        int activeNetworkChannel READ activeNetworkChannel WRITE selectNetworkChannelInt NOTIFY networkChannelChanged)
     Q_PROPERTY(QString sourceUri READ sourceUri WRITE setSourceUri NOTIFY sourceUriChanged)
     Q_PROPERTY(int activeCamera READ activeCamera WRITE selectCamera NOTIFY activeCameraChanged)
     Q_PROPERTY(bool isSynthetic READ isSynthetic WRITE setSyntheticMode NOTIFY syntheticChanged)
@@ -56,6 +60,11 @@ public:
     enum class PlaybackState { Idle, Opening, Playing, Paused, Error };
     Q_ENUM(PlaybackState)
 
+    /// @enum NetworkChannel
+    /// @brief Logical RTSP outbound display channel per Sightline EAN-RTSP.
+    enum class NetworkChannel { Net0 = 0, Net1 = 1, Legacy = 2, Custom = 3 };
+    Q_ENUM(NetworkChannel)
+
     /// @brief Constructor.
     /// @param[in] parent Optional parent QObject.
     explicit SightlineVideoController(QObject* parent = nullptr);
@@ -70,6 +79,14 @@ public:
     /// @brief Get current video stream URI.
     /// @return Configured source URI.
     [[nodiscard]] QString sourceUri() const;
+
+    /// @brief Get active logical RTSP network channel.
+    /// @return Selected NetworkChannel enum value.
+    [[nodiscard]] NetworkChannel networkChannel() const noexcept;
+
+    /// @brief Get active logical RTSP network channel as integer.
+    /// @return Selected channel integer (0: Net0, 1: Net1, 2: Legacy, 3: Custom).
+    [[nodiscard]] int activeNetworkChannel() const noexcept;
 
     /// @brief Get active camera index (0: EO Daylight, 1: IR Thermal).
     /// @return Selected camera index.
@@ -178,6 +195,14 @@ public slots:
     /// @param[in] uri RTSP, UDP, or mock URI.
     void setSourceUri(const QString& uri);
 
+    /// @brief Select logical RTSP network channel.
+    /// @param[in] channel Target NetworkChannel (Net0, Net1, Legacy, Custom).
+    void selectNetworkChannel(NetworkChannel channel);
+
+    /// @brief Select logical RTSP network channel by integer (for QML).
+    /// @param[in] channel 0: Net0, 1: Net1, 2: Legacy, 3: Custom.
+    void selectNetworkChannelInt(int channel);
+
     /// @brief Start or resume video decoding pipeline.
     void startStream();
 
@@ -236,7 +261,8 @@ public slots:
     /// @param[in] maxPct Maximum histogram peak clipping percentage.
     /// @param[in] brightness Offset level (-128..127).
     /// @param[in] contrast Contrast multiplier (-128..127).
-    void updateHistogram(int cam, bool featureBased, bool sqrtHist, int aveRate, int maxPct, int brightness, int contrast);
+    void updateHistogram(
+        int cam, bool featureBased, bool sqrtHist, int aveRate, int maxPct, int brightness, int contrast);
 
     /// @brief Update false-color palette selection.
     /// @param[in] cam Camera index.
@@ -270,6 +296,9 @@ signals:
 
     /// @brief Emitted when source URI changes.
     void sourceUriChanged();
+
+    /// @brief Emitted when logical RTSP network channel changes.
+    void networkChannelChanged();
 
     /// @brief Emitted when active camera index changes.
     void activeCameraChanged();
@@ -357,6 +386,7 @@ private:
     std::atomic<bool> m_paused { false };
 
     PlaybackState m_state { PlaybackState::Idle };
+    NetworkChannel m_networkChannel { NetworkChannel::Net0 };
     QString m_sourceUri {};
     QString m_hostAddress { QStringLiteral("127.0.0.1") };
     int m_activeCamera { 0 };

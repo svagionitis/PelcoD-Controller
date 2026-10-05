@@ -32,7 +32,17 @@ SightlineVideoController::PlaybackState SightlineVideoController::playbackState(
 
 QString SightlineVideoController::sourceUri() const
 {
-    return m_sourceUri;
+    return m_sourceUri.isEmpty() ? resolveSourceUri() : m_sourceUri;
+}
+
+SightlineVideoController::NetworkChannel SightlineVideoController::networkChannel() const noexcept
+{
+    return m_networkChannel;
+}
+
+int SightlineVideoController::activeNetworkChannel() const noexcept
+{
+    return static_cast<int>(m_networkChannel);
 }
 
 void SightlineVideoController::setSourceUri(const QString& uri)
@@ -40,11 +50,47 @@ void SightlineVideoController::setSourceUri(const QString& uri)
     const QString trimmed { uri.trimmed() };
     if (m_sourceUri != trimmed) {
         m_sourceUri = trimmed;
+        if (m_sourceUri.endsWith(QStringLiteral("/net0"))) {
+            m_networkChannel = NetworkChannel::Net0;
+        } else if (m_sourceUri.endsWith(QStringLiteral("/net1"))) {
+            m_networkChannel = NetworkChannel::Net1;
+        } else if (m_sourceUri.endsWith(QStringLiteral(":554/")) || m_sourceUri.endsWith(QStringLiteral(":554"))) {
+            m_networkChannel = NetworkChannel::Legacy;
+        } else if (!m_sourceUri.isEmpty()) {
+            m_networkChannel = NetworkChannel::Custom;
+        }
+        emit networkChannelChanged();
         emit sourceUriChanged();
         if (m_running.load() && !m_isSynthetic) {
             restartStream();
         }
     }
+}
+
+void SightlineVideoController::selectNetworkChannel(NetworkChannel channel)
+{
+    if (m_networkChannel != channel) {
+        m_networkChannel = channel;
+        m_sourceUri = resolveSourceUri();
+        emit networkChannelChanged();
+        emit sourceUriChanged();
+        if (m_running.load() && !m_isSynthetic) {
+            restartStream();
+        }
+    }
+}
+
+void SightlineVideoController::selectNetworkChannelInt(int channel)
+{
+    NetworkChannel ch { NetworkChannel::Net0 };
+    if (channel == 1) {
+        ch = NetworkChannel::Net1;
+    } else if (channel == 2) {
+        ch = NetworkChannel::Legacy;
+    } else if (channel == 3) {
+        ch = NetworkChannel::Custom;
+    }
+    selectNetworkChannel(ch);
 }
 
 int SightlineVideoController::activeCamera() const noexcept
@@ -125,18 +171,15 @@ void SightlineVideoController::setBackendIndex(int index)
 
 void SightlineVideoController::selectCamera(int camIndex)
 {
-    const int clamped { (camIndex == 1) ? 1 : 0 };
+    const int clamped { (camIndex >= 0 && camIndex <= 3) ? camIndex : 0 };
     if (m_activeCamera != clamped) {
         m_activeCamera = clamped;
         emit activeCameraChanged();
         emit pipCameraChanged();
-        if (!m_sourceUri.isEmpty() && m_sourceUri.contains(QStringLiteral(":554/net"))) {
-            m_sourceUri = QStringLiteral("rtsp://%1:554/net%2").arg(m_hostAddress).arg(m_activeCamera);
-            emit sourceUriChanged();
-        }
-        if (m_running.load() && !m_isSynthetic) {
-            restartStream();
-        }
+        // Note: Per Sightline EAN-RTSP, physical camera selection is decoupled
+        // from the logical network transmission channel (net0 / net1).
+        // Camera switching updates local enhancements, telemetry, and PIP without
+        // mutating the active RTSP stream mount point.
     }
 }
 
@@ -279,7 +322,10 @@ void SightlineVideoController::updateHostAddress(const QString& host)
     if (!trimmed.isEmpty() && m_hostAddress != trimmed) {
         const QString oldHost { m_hostAddress };
         m_hostAddress = trimmed;
-        if (!m_sourceUri.isEmpty() && m_sourceUri.contains(oldHost)) {
+        if (m_networkChannel != NetworkChannel::Custom) {
+            m_sourceUri = resolveSourceUri();
+            emit sourceUriChanged();
+        } else if (!m_sourceUri.isEmpty() && m_sourceUri.contains(oldHost)) {
             m_sourceUri.replace(oldHost, m_hostAddress);
             emit sourceUriChanged();
         } else if (m_sourceUri.contains(QStringLiteral("rtsp://127.0.0.1"))) {
@@ -388,14 +434,20 @@ QString SightlineVideoController::resolveSourceUri() const
     if (m_isSynthetic) {
         return QStringLiteral("mock://synthetic");
     }
-    if (!m_sourceUri.trimmed().isEmpty()) {
+    if (m_networkChannel == NetworkChannel::Custom && !m_sourceUri.trimmed().isEmpty()) {
         QString uri { m_sourceUri.trimmed() };
         if (uri.contains(QStringLiteral("rtsp://127.0.0.1")) && m_hostAddress != QStringLiteral("127.0.0.1")) {
             uri.replace(QStringLiteral("127.0.0.1"), m_hostAddress);
         }
         return uri;
     }
-    return QStringLiteral("rtsp://%1:554/net%2").arg(m_hostAddress).arg(m_activeCamera);
+    if (m_networkChannel == NetworkChannel::Net1) {
+        return QStringLiteral("rtsp://%1:554/net1").arg(m_hostAddress);
+    }
+    if (m_networkChannel == NetworkChannel::Legacy) {
+        return QStringLiteral("rtsp://%1:554/").arg(m_hostAddress);
+    }
+    return QStringLiteral("rtsp://%1:554/net0").arg(m_hostAddress);
 }
 
 void SightlineVideoController::startStream()
@@ -530,8 +582,8 @@ void SightlineVideoController::generatePaletteTables()
             g = static_cast<int>(170.0 + t * (255.0 - 170.0));
             b = static_cast<int>(t * 255.0);
         }
-        m_presetPalettes[3][static_cast<std::size_t>(i)] = qRgb(
-            std::clamp(r, 0, 255), std::clamp(g, 0, 255), std::clamp(b, 0, 255));
+        m_presetPalettes[3][static_cast<std::size_t>(i)]
+            = qRgb(std::clamp(r, 0, 255), std::clamp(g, 0, 255), std::clamp(b, 0, 255));
     }
 }
 
@@ -581,8 +633,7 @@ void SightlineVideoController::applyEnhancement(QImage& image, int cam)
     }
 }
 
-void SightlineVideoController::applyFalseColorLut(
-    QImage& image, const QRect& targetRoi, int paletteIndex, int cam)
+void SightlineVideoController::applyFalseColorLut(QImage& image, const QRect& targetRoi, int paletteIndex, int cam)
 {
     const int top { targetRoi.top() };
     const int bottom { targetRoi.bottom() };
@@ -851,9 +902,9 @@ void SightlineVideoController::workerLoop()
             if (frameInfo.timestamp > 0.0) {
                 framePtsUs = static_cast<quint64>(frameInfo.timestamp * 1'000'000.0);
             } else {
-                framePtsUs = static_cast<quint64>(
-                    std::chrono::duration_cast<std::chrono::microseconds>(
-                        std::chrono::system_clock::now().time_since_epoch()).count());
+                framePtsUs = static_cast<quint64>(std::chrono::duration_cast<std::chrono::microseconds>(
+                    std::chrono::system_clock::now().time_since_epoch())
+                                                      .count());
             }
 
             {

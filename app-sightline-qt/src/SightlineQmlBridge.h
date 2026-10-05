@@ -365,9 +365,8 @@ public:
     /// @param acqCol Initial acquisition search column size in pixels (default 128).
     /// @param acqRow Initial acquisition search row size in pixels (default 96).
     /// @return True if dispatched.
-    Q_INVOKABLE bool setTrackingParameters(int cam, int mode, int flags,
-        int maxMisses = 45, int zoomSmoothing = 5, int rollSmoothing = 5,
-        int maxPauseTime = 0, int acqCol = 128, int acqRow = 96);
+    Q_INVOKABLE bool setTrackingParameters(int cam, int mode, int flags, int maxMisses = 45, int zoomSmoothing = 5,
+        int rollSmoothing = 5, int maxPauseTime = 0, int acqCol = 128, int acqRow = 96);
 
     /// @brief Queries current tracking parameters from device.
     /// @param cam Camera index.
@@ -554,19 +553,20 @@ public:
     /// @param airMb Adaptive intra refresh macroblocks.
     /// @param sliceRows Slices per frame or slice rows.
     /// @return True if dispatched.
-    Q_INVOKABLE bool setH264ParamsEx(int stream, int bitrate, int gop, int profile, int rateCtrl,
-        int minQp, int maxQp, int deblock = 0, int airMb = 0, int sliceRows = 0);
+    Q_INVOKABLE bool setH264ParamsEx(int stream, int bitrate, int gop, int profile, int rateCtrl, int minQp, int maxQp,
+        int deblock = 0, int airMb = 0, int sliceRows = 0);
 
     /// @brief Configures Ethernet display streaming destination (Message ID 0x51).
     /// @param stream Video stream index (0: Net0, 1: Net1, 2: Net2).
-    /// @param protocol Protocol enum value (1: TS, 3: RTP H.264, 4: RTP H.265, 7: RTSP H.264, 8: RTSP H.265, etc.).
+    /// @param protocol Protocol enum (1: MPEG2-TS H.264, 2: MJPEG, 4: Raw, 5: RTP H.264, 6: RTP TS H.264, 7: KLV, 8:
+    /// MPEG2-TS H.265, 9: RTP H.265, 10: RTP TS H.265).
     /// @param ip Destination IP address string.
     /// @param port Destination UDP/RTP port (must be even for RTP).
     /// @param maxPacket Maximum packet size in bytes (default 1400).
     /// @param maxRawPacket Maximum raw packet size in bytes (default 0).
     /// @return True if dispatched.
-    Q_INVOKABLE bool setEthernetDisplay(int stream, int protocol, const QString& ip, int port,
-        int maxPacket = 1400, int maxRawPacket = 0);
+    Q_INVOKABLE bool setEthernetDisplay(
+        int stream, int protocol, const QString& ip, int port, int maxPacket = 1400, int maxRawPacket = 0);
 
     /// @brief Configures Ethernet video quality, decimation, and downsampling (Message ID 0x1A).
     /// @param stream Video stream index.
@@ -577,8 +577,8 @@ public:
     /// @param quality MJPEG quality (0..100).
     /// @param foveal Foveal quality.
     /// @return True if dispatched.
-    Q_INVOKABLE bool setEthernetVideo(int stream, int frameStep = 1, int frameSize = 0,
-        int customW = 0, int customH = 0, int quality = 0, int foveal = 0);
+    Q_INVOKABLE bool setEthernetVideo(int stream, int frameStep = 1, int frameSize = 0, int customW = 0,
+        int customH = 0, int quality = 0, int foveal = 0);
 
     /// @brief Configures Linux Traffic Control (tc) bandwidth limiter (Message ID 0x92 Key 13).
     /// @param rateKbps Rate limit in kbps (0 to disable/reset).
@@ -666,8 +666,7 @@ public:
     /// @param quality Quality percentage (1-100).
     /// @param includeMetadata True to request embedding geospatial KLV/XMP metadata.
     /// @return True if successfully dispatched.
-    Q_INVOKABLE bool captureSnapshotV2(
-        int cam, const QString& prefix, int format, int quality, bool includeMetadata);
+    Q_INVOKABLE bool captureSnapshotV2(int cam, const QString& prefix, int format, int quality, bool includeMetadata);
 
     /// @brief Queries remote filesystem directory listing.
     /// @param dest Target storage device (0: MicroSD, 1: USB).
@@ -983,17 +982,15 @@ public:
     Q_INVOKABLE bool setReportingMode(int cam, int period, int flags);
 
     /// @brief Transmit aircraft/sensor positioning metadata for KLV injection (Message ID 0x13).
-    Q_INVOKABLE bool setMetadata(
-        double lat, double lon, double alt, double heading, double pitch, double roll,
+    Q_INVOKABLE bool setMetadata(double lat, double lon, double alt, double heading, double pitch, double roll,
         double hfov = 30.0, double vfov = 20.0, double az = 0.0, double el = 0.0, int displayId = 2);
 
     /// @brief Configure static mission and security classification metadata (Message ID 0x14).
     Q_INVOKABLE bool setMetadataStatic(int type, const QString& value, int displayId = 2);
 
     /// @brief Configure frame center and ground projection / OLS DTED terrain mode (Message ID 0x15).
-    Q_INVOKABLE bool setMetadataFrame(
-        double centerLat, double centerLon, double centerEl, double frameWidth, double slantRange,
-        bool enableOlsDted = false, int displayId = 2);
+    Q_INVOKABLE bool setMetadataFrame(double centerLat, double centerLon, double centerEl, double frameWidth,
+        double slantRange, bool enableOlsDted = false, int displayId = 2);
 
     /// @brief Configure KLV metadata transmission rate and enabled local sets (Message ID 0x62).
     Q_INVOKABLE bool setMetadataRate(quint64 enables, int frameStep, int displayId = 2);
@@ -1090,8 +1087,8 @@ signals:
     void klvMetricFiltersReceived(int cam, double minW, double maxW, double minH, double maxH, bool aboveHorizon,
         bool belowHorizon, double minLat, double maxLat, double minLon, double maxLon);
     void trackCoastingChanged(int cam, int trackId, bool isCoasting);
-    void trackingParametersReceived(int cam, int mode, int flags, int maxMisses, int zoomSmoothing,
-        int rollSmoothing, int maxPauseTime, int acqCol, int acqRow);
+    void trackingParametersReceived(int cam, int mode, int flags, int maxMisses, int zoomSmoothing, int rollSmoothing,
+        int maxPauseTime, int acqCol, int acqRow);
     void recordingActiveChanged(bool active);
     void recordingStatusChanged();
     void recordingClockChanged();

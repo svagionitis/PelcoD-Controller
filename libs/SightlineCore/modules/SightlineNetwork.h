@@ -7,6 +7,8 @@
 #include "../SightlineTypes.h"
 
 #include <cstdint>
+#include <string>
+#include <string_view>
 
 namespace Sightline {
 
@@ -38,15 +40,15 @@ struct MsgSetEthernetVideoParameters {
 /// @brief Transport stream and elementary video protocol types (Message ID 0x29 / 0x52).
 enum class EthernetDisplayProtocol : std::uint8_t {
     Disabled = 0U,
-    Mpeg2TsH264 = 1U,    ///< MPEG2-TS with H.264 video and KLV metadata
-    Mjpeg = 2U,          ///< Motion JPEG (1500-OEM legacy)
-    Mpeg4 = 3U,          ///< MPEG-4 Part 2 (1500-OEM legacy)
-    Raw = 4U,            ///< Raw uncompressed frames
-    RtpH264 = 5U,        ///< Direct RTP H.264 (RFC 6184)
+    Mpeg2TsH264 = 1U, ///< MPEG2-TS with H.264 video and KLV metadata
+    Mjpeg = 2U, ///< Motion JPEG (1500-OEM legacy)
+    Mpeg4 = 3U, ///< MPEG-4 Part 2 (1500-OEM legacy)
+    Raw = 4U, ///< Raw uncompressed frames
+    RtpH264 = 5U, ///< Direct RTP H.264 (RFC 6184)
     RtpMpeg2TsH264 = 6U, ///< RTP encapsulating MPEG2-TS H.264
-    KlvOnly = 7U,        ///< MPEG2-TS KLV metadata only without video (SW 3.3+)
-    Mpeg2TsH265 = 8U,    ///< MPEG2-TS with H.265 (HEVC) video (17xx/4000/41xx)
-    RtpH265 = 9U,        ///< Direct RTP H.265 (RFC 7798)
+    KlvOnly = 7U, ///< MPEG2-TS KLV metadata only without video (SW 3.3+)
+    Mpeg2TsH265 = 8U, ///< MPEG2-TS with H.265 (HEVC) video (17xx/4000/41xx)
+    RtpH265 = 9U, ///< Direct RTP H.265 (RFC 7798)
     RtpMpeg2TsH265 = 10U ///< RTP encapsulating MPEG2-TS H.265
 };
 
@@ -55,7 +57,7 @@ enum class EthernetDisplayProtocol : std::uint8_t {
 enum class NetworkDisplayId : std::uint16_t {
     Net0 = 0x0002U, ///< Network display channel 0 (Primary)
     Net1 = 0x0080U, ///< Network display channel 1 (Secondary)
-    Net2 = 0x0200U  ///< Network display channel 2 (Tertiary, 4100/4110)
+    Net2 = 0x0200U ///< Network display channel 2 (Tertiary, 4100/4110)
 };
 
 /// @brief Checks whether the given protocol utilizes RTP framing.
@@ -80,6 +82,41 @@ enum class NetworkDisplayId : std::uint16_t {
         return (port % 2U) == 0U;
     }
     return port > 0U;
+}
+
+/// @enum RtspMountChannel
+/// @brief Supported RTSP mount point channels per Sightline EAN-RTSP.
+enum class RtspMountChannel : std::uint8_t {
+    Net0 = 0U, ///< Network display channel 0 (Primary, /net0)
+    Net1 = 1U, ///< Network display channel 1 (Secondary, /net1)
+    LegacyRoot = 2U ///< 1500-OEM single-stream root mount (/)
+};
+
+/// @brief Formats an RTSP stream URI conforming to Sightline EAN-RTSP.
+/// @details Decouples physical camera index from logical network mount points.
+/// @param[in] host Target IP address or hostname.
+/// @param[in] port Inbound RTSP port (default 554).
+/// @param[in] channel Mount channel (Net0, Net1, or LegacyRoot).
+/// @return Formatted RTSP URI string.
+[[nodiscard]] inline std::string formatRtspStreamUri(
+    std::string_view host, std::uint16_t port = 554U, RtspMountChannel channel = RtspMountChannel::Net0)
+{
+    std::string uri { "rtsp://" };
+    uri.append(host);
+    uri.push_back(':');
+    uri.append(std::to_string(port));
+    switch (channel) {
+    case RtspMountChannel::Net0:
+        uri.append("/net0");
+        break;
+    case RtspMountChannel::Net1:
+        uri.append("/net1");
+        break;
+    case RtspMountChannel::LegacyRoot:
+        uri.push_back('/');
+        break;
+    }
+    return uri;
 }
 
 /// @struct MsgSetEthernetDisplayParameters
