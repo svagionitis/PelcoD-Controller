@@ -20,6 +20,14 @@
 #include <QUrl>
 #include <algorithm>
 
+namespace {
+[[nodiscard]] std::string toSafeStdString(const QString& str)
+{
+    const QByteArray utf8Bytes = str.toUtf8();
+    return std::string(utf8Bytes.constData(), static_cast<std::size_t>(utf8Bytes.size()));
+}
+} // namespace
+
 SightlineQmlBridge::SightlineQmlBridge(QObject* parent)
     : QObject(parent)
     , m_coolerTimer(std::make_unique<QTimer>(this))
@@ -322,7 +330,7 @@ bool SightlineQmlBridge::connectUdp(const QString& host, int cmdPort, int replyP
     }
 
     auto transport = std::make_shared<Transport::SightlineUdpTransport>(
-        host.toStdString(), static_cast<std::uint16_t>(cmdPort), static_cast<std::uint16_t>(replyPort));
+        toSafeStdString(host), static_cast<std::uint16_t>(cmdPort), static_cast<std::uint16_t>(replyPort));
 
     m_device = std::make_unique<QSightlineDevice>(transport, this);
 
@@ -377,6 +385,15 @@ bool SightlineQmlBridge::connectUdp(const QString& host, int cmdPort, int replyP
     connect(m_device.get(), &QSightlineDevice::networkParamsReceived, this, &SightlineQmlBridge::handleNetworkParams);
     connect(m_device.get(), &QSightlineDevice::networkListReceived, this, &SightlineQmlBridge::handleNetworkList);
     connect(m_device.get(), &QSightlineDevice::systemValueReceived, this, &SightlineQmlBridge::handleSystemValue);
+    connect(
+        m_device.get(), &QSightlineDevice::blendParametersReceived, this, &SightlineQmlBridge::handleBlendParams);
+    connect(m_device.get(), &QSightlineDevice::currentBlendParamsReceived, this,
+        &SightlineQmlBridge::handleCurrentBlendParams);
+    connect(
+        m_device.get(), &QSightlineDevice::fourAlignPointsReceived, this, &SightlineQmlBridge::handleFourAlignPoints);
+    connect(m_device.get(), &QSightlineDevice::blendAlignReceived, this, &SightlineQmlBridge::handleBlendAlign);
+    connect(m_device.get(), &QSightlineDevice::multipleAlignmentReceived, this,
+        &SightlineQmlBridge::handleMultipleAlignment);
 
     const bool started = m_device->start();
     emit connectionChanged();
@@ -821,7 +838,7 @@ bool SightlineQmlBridge::setClassifierSettings(int cam, int model, const QString
     Sightline::MsgClassifierConfig msg {};
     msg.cameraIndex = static_cast<std::uint8_t>(cam);
     msg.model = static_cast<Sightline::PretrainedClassifierModel>(model);
-    msg.customModelName = customModel.toStdString();
+    msg.customModelName = toSafeStdString(customModel);
     msg.maxPerFrame = static_cast<std::uint8_t>(maxPerFrame);
     msg.minDimensions = static_cast<std::uint16_t>(minDims);
     msg.droneReporting = static_cast<Sightline::DroneReportingMode>(droneMode);
@@ -1092,8 +1109,8 @@ bool SightlineQmlBridge::exportSdpFile(int stream, const QString& destinationPat
 
     Transport::SdpStreamParams params {};
     params.sessionName = "Sightline Net" + std::to_string(stream);
-    params.originAddress = m_boardIp.isEmpty() ? "127.0.0.1" : m_boardIp.toStdString();
-    params.destinationIp = m_netDisplayIp.isEmpty() ? "127.0.0.1" : m_netDisplayIp.toStdString();
+    params.originAddress = m_boardIp.isEmpty() ? "127.0.0.1" : toSafeStdString(m_boardIp);
+    params.destinationIp = m_netDisplayIp.isEmpty() ? "127.0.0.1" : toSafeStdString(m_netDisplayIp);
     params.destinationPort = static_cast<std::uint16_t>(m_netDisplayPort > 0 ? m_netDisplayPort : 15004);
     params.isMulticast = Transport::SdpGenerator::isMulticast(params.destinationIp);
     params.ttl = 15U;
@@ -1127,7 +1144,7 @@ bool SightlineQmlBridge::exportSdpFile(int stream, const QString& destinationPat
         break;
     }
 
-    return Transport::SdpGenerator::saveToFile(filePath.toStdString(), params);
+    return Transport::SdpGenerator::saveToFile(toSafeStdString(filePath), params);
 }
 
 bool SightlineQmlBridge::setTrafficControl(int rateKbps, int burstBytes, int mtuBytes)
@@ -1245,7 +1262,7 @@ bool SightlineQmlBridge::setSDRecording(int state, int cam, const QString& prefi
     Sightline::MsgSetSDRecordingParameters msg {};
     msg.recordingState = static_cast<std::uint8_t>(state);
     msg.cameraIndex = static_cast<std::uint8_t>(cam);
-    msg.filenamePrefix = prefix.toStdString();
+    msg.filenamePrefix = toSafeStdString(prefix);
     return m_device->device()->setSDRecording(msg);
 }
 
@@ -1271,7 +1288,7 @@ bool SightlineQmlBridge::startRecordingV2(
         flags |= static_cast<std::uint8_t>(Sightline::RecordingFlags::AllowNumericOverwrite);
     }
     msg.flags = flags;
-    msg.baseFilename = prefix.toStdString();
+    msg.baseFilename = toSafeStdString(prefix);
 
     const bool ok = m_device->setFileRecordingV2(msg);
     if (ok) {
@@ -1321,7 +1338,7 @@ bool SightlineQmlBridge::captureSnapshotV2(
     msg.format = static_cast<Sightline::SnapshotFormat>(std::clamp(format, 0, 3));
     msg.qualityLevel = static_cast<std::uint8_t>(std::clamp(quality, 1, 100));
     msg.burstCount = 1U;
-    msg.customFilename = prefix.toStdString();
+    msg.customFilename = toSafeStdString(prefix);
 
     return m_device->doSnapshotV2(msg);
 }
@@ -1337,7 +1354,7 @@ bool SightlineQmlBridge::requestDirectoryListing(int dest, int startIndex, int m
     msg.destination = static_cast<Sightline::StorageDestination>(std::clamp(dest, 0, 3));
     msg.startIndex = static_cast<std::uint16_t>(std::clamp(startIndex, 0, 65535));
     msg.maxEntries = static_cast<std::uint8_t>(std::clamp(maxEntries, 1, 255));
-    msg.pathFilter = filter.toStdString();
+    msg.pathFilter = toSafeStdString(filter);
 
     return m_device->getDirectoryListing(msg);
 }
@@ -1352,7 +1369,7 @@ bool SightlineQmlBridge::pinStorageFile(int dest, const QString& filename, bool 
     msg.sequenceId = s_mgmtSeq++;
     msg.operation = pin ? Sightline::FileStorageOp::Pin : Sightline::FileStorageOp::Unpin;
     msg.destination = static_cast<Sightline::StorageDestination>(std::clamp(dest, 0, 3));
-    msg.targetFilename = filename.toStdString();
+    msg.targetFilename = toSafeStdString(filename);
 
     const bool ok = m_device->sendFileStorageMgmt(msg);
     if (ok && m_recordingFileListModel) {
@@ -1371,7 +1388,7 @@ bool SightlineQmlBridge::deleteStorageFile(int dest, const QString& filename)
     msg.sequenceId = s_delSeq++;
     msg.operation = Sightline::FileStorageOp::Delete;
     msg.destination = static_cast<Sightline::StorageDestination>(std::clamp(dest, 0, 3));
-    msg.targetFilename = filename.toStdString();
+    msg.targetFilename = toSafeStdString(filename);
 
     const bool ok = m_device->sendFileStorageMgmt(msg);
     if (ok && m_recordingFileListModel) {
@@ -1383,7 +1400,7 @@ bool SightlineQmlBridge::deleteStorageFile(int dest, const QString& filename)
 QJsonObject SightlineQmlBridge::validateFilename(const QString& prefix)
 {
     QJsonObject obj;
-    const auto code = Sightline::RecordingValidator::checkFilename(prefix.toStdString(), 0U);
+    const auto code = Sightline::RecordingValidator::checkFilename(toSafeStdString(prefix), 0U);
     const bool valid = (code == Sightline::RecordingStatusCode::Success);
     obj[QStringLiteral("valid")] = valid;
     QString errStr {};
@@ -1409,14 +1426,105 @@ bool SightlineQmlBridge::setBlendParams(int cam1, int cam2, int mode, int alpha)
         return false;
     }
     Sightline::MsgSetBlendParameters msg {};
-    msg.warpIndex = static_cast<std::uint8_t>(cam1);
-    msg.fixedIndex = static_cast<std::uint8_t>(cam2);
-    // Sightline blend mode is 1-based (1: Frame, 2: Thermal, 3: Night, 4: Color).
-    const auto blendMode = (mode >= 1 && mode <= 4) ? static_cast<std::uint8_t>(mode)
-                                                    : static_cast<std::uint8_t>(std::clamp(mode + 1, 1, 4));
-    msg.mode = static_cast<Sightline::BlendMode>(blendMode);
+    msg.warpIndex = static_cast<std::uint8_t>(std::clamp(cam1, 0, 3));
+    msg.fixedIndex = static_cast<std::uint8_t>(std::clamp(cam2, 0, 3));
+    msg.mode = static_cast<Sightline::BlendMode>(std::clamp(mode, 0, 12));
     msg.amt = static_cast<std::uint8_t>(std::clamp(alpha, 0, 255));
-    return m_device->device()->setBlend(msg);
+    return m_device->setBlend(msg);
+}
+
+bool SightlineQmlBridge::setBlendParameters(int warpIdx, int fixedIdx, int mode, int amt, int hue, int flags,
+    int hotStart, int coldEnd, int vertical, int horizontal, int rotation, int zoom, int hzoom)
+{
+    if (!isConnected()) {
+        return false;
+    }
+    Sightline::MsgSetBlendParameters msg {};
+    msg.warpIndex = static_cast<std::uint8_t>(std::clamp(warpIdx, 0, 3));
+    msg.fixedIndex = static_cast<std::uint8_t>(std::clamp(fixedIdx, 0, 3));
+    msg.mode = static_cast<Sightline::BlendMode>(std::clamp(mode, 0, 12));
+    msg.amt = static_cast<std::uint8_t>(std::clamp(amt, 0, 255));
+    msg.hue = static_cast<std::uint8_t>(std::clamp(hue, 0, 255));
+    msg.flags = static_cast<std::uint8_t>(flags);
+    msg.hotStart = static_cast<std::uint8_t>(std::clamp(hotStart, 0, 255));
+    msg.coldEnd = static_cast<std::uint8_t>(std::clamp(coldEnd, 0, 255));
+    msg.vertical = static_cast<std::int8_t>(std::clamp(vertical, -128, 127));
+    msg.horizontal = static_cast<std::int8_t>(std::clamp(horizontal, -128, 127));
+    msg.rotation = static_cast<std::uint8_t>(rotation);
+    msg.zoom = static_cast<std::uint8_t>(zoom);
+    msg.hzoom = static_cast<std::uint8_t>(hzoom);
+    return m_device->setBlend(msg);
+}
+
+bool SightlineQmlBridge::getBlendParameters()
+{
+    return isConnected() ? m_device->getBlendParameters() : false;
+}
+
+bool SightlineQmlBridge::setBlendAlign(int index, int vertical, int horizontal, int rotate, int zoom, int hzoom)
+{
+    if (!isConnected()) {
+        return false;
+    }
+    Sightline::MsgBlendAlign msg {};
+    msg.index = static_cast<std::uint8_t>(std::clamp(index, 0, 4));
+    msg.vertical = static_cast<std::int16_t>(vertical);
+    msg.horizontal = static_cast<std::int16_t>(horizontal);
+    msg.rotate = static_cast<std::uint16_t>(rotate);
+    msg.zoom = static_cast<std::uint16_t>(zoom);
+    msg.hzoom = static_cast<std::uint16_t>(hzoom);
+    return m_device->setBlendAlign(msg);
+}
+
+bool SightlineQmlBridge::getBlendAlign(int index)
+{
+    return isConnected() ? m_device->getBlendAlign(static_cast<quint8>(index)) : false;
+}
+
+bool SightlineQmlBridge::setFourAlignPoints(int index, const QVariantList& points)
+{
+    if (!isConnected() || points.size() < 4) {
+        return false;
+    }
+    Sightline::MsgFourAlignPoints msg {};
+    msg.index = static_cast<std::uint8_t>(std::clamp(index, 0, 4));
+    for (int i { 0 }; i < 4; ++i) {
+        const auto map = points.at(i).toMap();
+        msg.points[i].leftCol = static_cast<std::int16_t>(map.value(QStringLiteral("leftCol")).toInt());
+        msg.points[i].leftRow = static_cast<std::int16_t>(map.value(QStringLiteral("leftRow")).toInt());
+        msg.points[i].rightCol = static_cast<std::int16_t>(map.value(QStringLiteral("rightCol")).toInt());
+        msg.points[i].rightRow = static_cast<std::int16_t>(map.value(QStringLiteral("rightRow")).toInt());
+    }
+    return m_device->setFourAlignPoints(msg);
+}
+
+bool SightlineQmlBridge::getFourAlignPoints(int index)
+{
+    return isConnected() ? m_device->getFourAlignPoints(static_cast<quint8>(index)) : false;
+}
+
+bool SightlineQmlBridge::setMultipleAlignment(int nAlignments, const QVariantList& alignments)
+{
+    if (!isConnected()) {
+        return false;
+    }
+    Sightline::MsgSetMultipleAlignment msg {};
+    msg.nAlignments = static_cast<std::uint8_t>(std::clamp(nAlignments, 0, 5));
+    const int count = std::min(static_cast<int>(alignments.size()), 5);
+    for (int i { 0 }; i < count; ++i) {
+        const auto map = alignments.at(i).toMap();
+        msg.alignment[i].vertical = static_cast<std::uint8_t>(map.value(QStringLiteral("vertical")).toUInt());
+        msg.alignment[i].horizontal = static_cast<std::uint8_t>(map.value(QStringLiteral("horizontal")).toUInt());
+        msg.alignment[i].rotate = static_cast<std::uint8_t>(map.value(QStringLiteral("rotate")).toUInt());
+        msg.alignment[i].zoom = static_cast<std::uint8_t>(map.value(QStringLiteral("zoom")).toUInt());
+        msg.alignment[i].hzoom = static_cast<std::uint8_t>(map.value(QStringLiteral("hzoom")).toUInt());
+    }
+    return m_device->setMultipleAlignment(msg);
+}
+
+bool SightlineQmlBridge::getMultipleAlignment()
+{
+    return isConnected() ? m_device->getMultipleAlignment() : false;
 }
 
 bool SightlineQmlBridge::setVideoEnhance(int cam, int contrast, int brightness, int sharpening, int clahe)
@@ -2024,7 +2132,7 @@ bool SightlineQmlBridge::setMetadataStatic(int type, const QString& value, int d
     }
     Sightline::MsgMetadataStaticValues msg {};
     msg.type = static_cast<Sightline::StaticMetadataType>(type);
-    msg.setString(value.toStdString());
+    msg.setString(toSafeStdString(value));
     msg.displayId = static_cast<std::uint16_t>(displayId);
     return m_device->device()->setMetadataStatic(msg);
 }
@@ -2155,9 +2263,9 @@ bool SightlineQmlBridge::setAncillaryText(
     }
     Sightline::MsgAncillaryTextMetadata msg {};
     msg.creationTime = static_cast<std::uint64_t>(QDateTime::currentMSecsSinceEpoch()) * 1000ULL;
-    msg.source = source.toStdString();
-    msg.originator = originator.toStdString();
-    msg.messageBody = message.toStdString();
+    msg.source = toSafeStdString(source);
+    msg.originator = toSafeStdString(originator);
+    msg.messageBody = toSafeStdString(message);
     msg.displayId = static_cast<std::uint16_t>(displayId);
     return m_device->device()->setAncillaryText(msg);
 }
@@ -2255,8 +2363,10 @@ void SightlineQmlBridge::queryModuleParameters(int tabIndex)
         queryParameters(static_cast<int>(Sightline::MessageId::DecoderParameters)); // 0x99
         break;
     case 9: // Blending
-        queryParameters(static_cast<int>(Sightline::MessageId::SetBlendParameters)); // 0x2B
-        queryParameters(static_cast<int>(Sightline::MessageId::BlendAlign)); // 0xB9
+        if (m_device) {
+            m_device->getBlendParameters();
+            m_device->getBlendAlign(0U);
+        }
         break;
     case 10: // Overlays
         queryParameters(static_cast<int>(Sightline::MessageId::SetOverlayMode)); // 0x06
@@ -2661,4 +2771,91 @@ void SightlineQmlBridge::handleSystemValue(const Sightline::MsgSystemValue& val)
         emit tcStatusChanged();
         emit trafficControlReceived(m_tcRateKbps, m_tcBurstBytes, m_tcMtuBytes);
     }
+}
+
+void SightlineQmlBridge::handleBlendParams(const Sightline::MsgSetBlendParameters& p)
+{
+    QVariantMap map {};
+    map[QStringLiteral("mode")] = static_cast<int>(p.mode);
+    map[QStringLiteral("amt")] = static_cast<int>(p.amt);
+    map[QStringLiteral("hue")] = static_cast<int>(p.hue);
+    map[QStringLiteral("flags")] = static_cast<int>(p.flags);
+    map[QStringLiteral("warpIndex")] = static_cast<int>(p.warpIndex);
+    map[QStringLiteral("fixedIndex")] = static_cast<int>(p.fixedIndex);
+    map[QStringLiteral("usePresetAlign")] = static_cast<int>(p.usePresetAlign);
+    map[QStringLiteral("presetAlignIndex")] = static_cast<int>(p.presetAlignIndex);
+    map[QStringLiteral("vertical")] = static_cast<int>(p.vertical);
+    map[QStringLiteral("horizontal")] = static_cast<int>(p.horizontal);
+    map[QStringLiteral("rotation")] = static_cast<int>(p.rotation);
+    map[QStringLiteral("zoom")] = static_cast<int>(p.zoom);
+    map[QStringLiteral("hzoom")] = static_cast<int>(p.hzoom);
+    map[QStringLiteral("hotStart")] = static_cast<int>(p.hotStart);
+    map[QStringLiteral("coldEnd")] = static_cast<int>(p.coldEnd);
+    emit blendParametersReceived(map);
+}
+
+void SightlineQmlBridge::handleCurrentBlendParams(const Sightline::MsgCurrentBlendParameters& p)
+{
+    QVariantMap map {};
+    map[QStringLiteral("mode")] = static_cast<int>(p.mode);
+    map[QStringLiteral("amt")] = static_cast<int>(p.amt);
+    map[QStringLiteral("hue")] = static_cast<int>(p.hue);
+    map[QStringLiteral("flags")] = static_cast<int>(p.flags);
+    map[QStringLiteral("warpIndex")] = static_cast<int>(p.warpIndex);
+    map[QStringLiteral("fixedIndex")] = static_cast<int>(p.fixedIndex);
+    map[QStringLiteral("usePresetAlign")] = static_cast<int>(p.usePresetAlign);
+    map[QStringLiteral("presetAlignIndex")] = static_cast<int>(p.presetAlignIndex);
+    map[QStringLiteral("up")] = static_cast<int>(p.up);
+    map[QStringLiteral("right")] = static_cast<int>(p.right);
+    map[QStringLiteral("down")] = static_cast<int>(p.down);
+    map[QStringLiteral("left")] = static_cast<int>(p.left);
+    map[QStringLiteral("vertical")] = static_cast<int>(p.up - p.down);
+    map[QStringLiteral("horizontal")] = static_cast<int>(p.right - p.left);
+    map[QStringLiteral("rotation")] = static_cast<int>(p.rotation);
+    map[QStringLiteral("zoom")] = static_cast<int>(p.zoom);
+    map[QStringLiteral("hzoom")] = static_cast<int>(p.hzoom);
+    map[QStringLiteral("hotStart")] = static_cast<int>(p.hotStart);
+    map[QStringLiteral("coldEnd")] = static_cast<int>(p.coldEnd);
+    emit currentBlendParamsReceived(map);
+}
+
+void SightlineQmlBridge::handleFourAlignPoints(const Sightline::MsgFourAlignPoints& p)
+{
+    QVariantList list {};
+    for (std::size_t i { 0U }; i < 4U; ++i) {
+        QVariantMap pt {};
+        pt[QStringLiteral("leftCol")] = static_cast<int>(p.points[i].leftCol);
+        pt[QStringLiteral("leftRow")] = static_cast<int>(p.points[i].leftRow);
+        pt[QStringLiteral("rightCol")] = static_cast<int>(p.points[i].rightCol);
+        pt[QStringLiteral("rightRow")] = static_cast<int>(p.points[i].rightRow);
+        list.append(pt);
+    }
+    emit fourAlignPointsReceived(static_cast<int>(p.index), list);
+}
+
+void SightlineQmlBridge::handleBlendAlign(const Sightline::MsgBlendAlign& a)
+{
+    QVariantMap map {};
+    map[QStringLiteral("index")] = static_cast<int>(a.index);
+    map[QStringLiteral("vertical")] = static_cast<int>(a.vertical);
+    map[QStringLiteral("horizontal")] = static_cast<int>(a.horizontal);
+    map[QStringLiteral("rotate")] = static_cast<int>(a.rotate);
+    map[QStringLiteral("zoom")] = static_cast<int>(a.zoom);
+    map[QStringLiteral("hzoom")] = static_cast<int>(a.hzoom);
+    emit blendAlignReceived(map);
+}
+
+void SightlineQmlBridge::handleMultipleAlignment(const Sightline::MsgSetMultipleAlignment& m)
+{
+    QVariantList list {};
+    for (std::size_t i { 0U }; i < 5U; ++i) {
+        QVariantMap slot {};
+        slot[QStringLiteral("vertical")] = static_cast<int>(m.alignment[i].vertical);
+        slot[QStringLiteral("horizontal")] = static_cast<int>(m.alignment[i].horizontal);
+        slot[QStringLiteral("rotate")] = static_cast<int>(m.alignment[i].rotate);
+        slot[QStringLiteral("zoom")] = static_cast<int>(m.alignment[i].zoom);
+        slot[QStringLiteral("hzoom")] = static_cast<int>(m.alignment[i].hzoom);
+        list.append(slot);
+    }
+    emit multipleAlignmentReceived(list);
 }

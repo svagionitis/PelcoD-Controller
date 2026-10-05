@@ -33,7 +33,7 @@ QVariant RecordingFileListModel::data(const QModelIndex& index, int role) const
 
     switch (role) {
     case FilenameRole:
-        return QString::fromStdString(entry.filename);
+        return QString::fromUtf8(entry.filename.data(), static_cast<qsizetype>(entry.filename.size()));
     case FileSizeBytesRole:
         return static_cast<qulonglong>(entry.fileSizeBytes);
     case FormattedSizeRole:
@@ -92,7 +92,8 @@ void RecordingFileListModel::appendEntries(const std::vector<Sightline::DirListE
 
 void RecordingFileListModel::setFilePinned(const QString& filename, bool pinned)
 {
-    const std::string nameStr = filename.toStdString();
+    const QByteArray nameBytes = filename.toUtf8();
+    const std::string nameStr(nameBytes.constData(), static_cast<std::size_t>(nameBytes.size()));
     for (std::size_t i = 0; i < m_entries.size(); ++i) {
         if (m_entries[i].filename == nameStr) {
             m_entries[i].isPinned = pinned;
@@ -105,7 +106,8 @@ void RecordingFileListModel::setFilePinned(const QString& filename, bool pinned)
 
 void RecordingFileListModel::removeEntry(const QString& filename)
 {
-    const std::string nameStr = filename.toStdString();
+    const QByteArray nameBytes = filename.toUtf8();
+    const std::string nameStr(nameBytes.constData(), static_cast<std::size_t>(nameBytes.size()));
     for (std::size_t i = 0; i < m_entries.size(); ++i) {
         if (m_entries[i].filename == nameStr) {
             beginRemoveRows(QModelIndex(), static_cast<int>(i), static_cast<int>(i));

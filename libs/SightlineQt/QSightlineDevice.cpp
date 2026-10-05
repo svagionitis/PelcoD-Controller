@@ -5,6 +5,14 @@
 
 #include <QMetaObject>
 
+namespace {
+[[nodiscard]] std::string toSafeStdString(const QString& str)
+{
+    const QByteArray utf8Bytes = str.toUtf8();
+    return std::string(utf8Bytes.constData(), static_cast<std::size_t>(utf8Bytes.size()));
+}
+} // namespace
+
 QSightlineDevice::QSightlineDevice(std::shared_ptr<Transport::ITransport> transport, QObject* parent)
     : QObject(parent)
     , m_device(std::make_unique<Sightline::SightlineDevice>(std::move(transport)))
@@ -226,6 +234,46 @@ std::optional<Sightline::MsgSystemValue> QSightlineDevice::lastSystemValue() con
     return std::nullopt;
 }
 
+std::optional<Sightline::MsgSetBlendParameters> QSightlineDevice::lastBlendParams() const
+{
+    if (m_device) {
+        return m_device->lastBlendParams();
+    }
+    return std::nullopt;
+}
+
+std::optional<Sightline::MsgCurrentBlendParameters> QSightlineDevice::lastCurrentBlendParams() const
+{
+    if (m_device) {
+        return m_device->lastCurrentBlendParams();
+    }
+    return std::nullopt;
+}
+
+std::optional<Sightline::MsgFourAlignPoints> QSightlineDevice::lastFourAlignPoints() const
+{
+    if (m_device) {
+        return m_device->lastFourAlignPoints();
+    }
+    return std::nullopt;
+}
+
+std::optional<Sightline::MsgBlendAlign> QSightlineDevice::lastBlendAlign() const
+{
+    if (m_device) {
+        return m_device->lastBlendAlign();
+    }
+    return std::nullopt;
+}
+
+std::optional<Sightline::MsgSetMultipleAlignment> QSightlineDevice::lastMultipleAlignment() const
+{
+    if (m_device) {
+        return m_device->lastMultipleAlignment();
+    }
+    return std::nullopt;
+}
+
 Transport::TransportStatsSnapshot QSightlineDevice::getTransportStats() const
 {
     if (m_device) {
@@ -383,6 +431,31 @@ void QSightlineDevice::wireCallbacks()
     m_device->setSystemValueCallback([this](const Sightline::MsgSystemValue& val) {
         QMetaObject::invokeMethod(
             this, [this, val]() { emit systemValueReceived(val); }, Qt::QueuedConnection);
+    });
+
+    m_device->setBlendParamsCb([this](const Sightline::MsgSetBlendParameters& params) {
+        QMetaObject::invokeMethod(
+            this, [this, params]() { emit blendParametersReceived(params); }, Qt::QueuedConnection);
+    });
+
+    m_device->setCurrentBlendParamsCb([this](const Sightline::MsgCurrentBlendParameters& params) {
+        QMetaObject::invokeMethod(
+            this, [this, params]() { emit currentBlendParamsReceived(params); }, Qt::QueuedConnection);
+    });
+
+    m_device->setFourAlignPointsCb([this](const Sightline::MsgFourAlignPoints& points) {
+        QMetaObject::invokeMethod(
+            this, [this, points]() { emit fourAlignPointsReceived(points); }, Qt::QueuedConnection);
+    });
+
+    m_device->setBlendAlignCb([this](const Sightline::MsgBlendAlign& align) {
+        QMetaObject::invokeMethod(
+            this, [this, align]() { emit blendAlignReceived(align); }, Qt::QueuedConnection);
+    });
+
+    m_device->setMultipleAlignmentCb([this](const Sightline::MsgSetMultipleAlignment& params) {
+        QMetaObject::invokeMethod(
+            this, [this, params]() { emit multipleAlignmentReceived(params); }, Qt::QueuedConnection);
     });
 
     m_device->setRawTrafficCallback([this](bool isTx, const std::vector<std::uint8_t>& frame) {
@@ -826,7 +899,7 @@ bool QSightlineDevice::drawText(quint8 cameraIndex, quint8 objectId, qint16 x, q
     Sightline::OverlayFontId fontId, Sightline::OverlayPaletteColor fgColor, Sightline::OverlayPaletteColor bgColor,
     quint8 hScale, quint8 vScale, bool originUpperLeft)
 {
-    return m_device ? m_device->drawText(cameraIndex, objectId, x, y, text.toStdString(), fontId, fgColor, bgColor,
+    return m_device ? m_device->drawText(cameraIndex, objectId, x, y, toSafeStdString(text), fontId, fgColor, bgColor,
                hScale, vScale, originUpperLeft)
                     : false;
 }
@@ -836,7 +909,7 @@ bool QSightlineDevice::drawKlvField(quint8 cameraIndex, quint8 objectId, qint16 
     Sightline::OverlayFontId fontId, Sightline::OverlayPaletteColor fgColor, bool originUpperLeft)
 {
     return m_device ? m_device->drawKlvField(cameraIndex, objectId, x, y, fieldTag, formatType,
-               formatString.toStdString(), fontId, fgColor, originUpperLeft)
+               toSafeStdString(formatString), fontId, fgColor, originUpperLeft)
                     : false;
 }
 
@@ -867,7 +940,7 @@ bool QSightlineDevice::getLogoParameters(quint8 cameraIndex)
 
 bool QSightlineDevice::setUserFont(quint8 slotIndex, const QString& fontFileName)
 {
-    return m_device ? m_device->setUserFont(slotIndex, fontFileName.toStdString()) : false;
+    return m_device ? m_device->setUserFont(slotIndex, toSafeStdString(fontFileName)) : false;
 }
 
 bool QSightlineDevice::getOverlayObjectsIds(quint8 cameraIndex)
@@ -948,5 +1021,45 @@ bool QSightlineDevice::getNetworkParams(quint8 index)
 bool QSightlineDevice::getNetworkList()
 {
     return m_device ? m_device->getNetworkList() : false;
+}
+
+bool QSightlineDevice::setBlend(const Sightline::MsgSetBlendParameters& msg)
+{
+    return m_device ? m_device->setBlend(msg) : false;
+}
+
+bool QSightlineDevice::getBlendParameters()
+{
+    return m_device ? m_device->getBlendParameters() : false;
+}
+
+bool QSightlineDevice::setFourAlignPoints(const Sightline::MsgFourAlignPoints& msg)
+{
+    return m_device ? m_device->setFourAlignPoints(msg) : false;
+}
+
+bool QSightlineDevice::getFourAlignPoints(quint8 index)
+{
+    return m_device ? m_device->getFourAlignPoints(index) : false;
+}
+
+bool QSightlineDevice::setBlendAlign(const Sightline::MsgBlendAlign& msg)
+{
+    return m_device ? m_device->setBlendAlign(msg) : false;
+}
+
+bool QSightlineDevice::getBlendAlign(quint8 index)
+{
+    return m_device ? m_device->getBlendAlign(index) : false;
+}
+
+bool QSightlineDevice::setMultipleAlignment(const Sightline::MsgSetMultipleAlignment& msg)
+{
+    return m_device ? m_device->setMultipleAlignment(msg) : false;
+}
+
+bool QSightlineDevice::getMultipleAlignment()
+{
+    return m_device ? m_device->getMultipleAlignment() : false;
 }
 

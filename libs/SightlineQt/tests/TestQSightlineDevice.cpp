@@ -3,6 +3,7 @@
 
 #include "QSightlineDevice.h"
 #include <SightlineCore/SightlineProtocolBuilder.h>
+#include <SightlineCore/modules/SightlineBlendingBuilder.h>
 #include <SightlineCore/modules/SightlineOverlayBuilder.h>
 #include <Transport/BaseTransport.h>
 
@@ -533,6 +534,121 @@ TEST_F(QSightlineDeviceTest, SetTrackingParametersSlotAndSignal)
     EXPECT_EQ(receivedParams->maxPauseTime, 5U);
     EXPECT_EQ(receivedParams->acquisitionSearchCol, 384U);
     EXPECT_EQ(receivedParams->acquisitionSearchRow, 288U);
+
+    qDevice.stop();
+}
+
+/// @brief Verify blending command dispatch slots.
+TEST_F(QSightlineDeviceTest, BlendingCommandSlots)
+{
+    auto transport = std::make_shared<MockTransportForQt>();
+    QSightlineDevice qDevice(transport);
+    ASSERT_TRUE(qDevice.start());
+
+    Sightline::MsgSetBlendParameters blendMsg {};
+    blendMsg.warpIndex = 1U;
+    blendMsg.fixedIndex = 0U;
+    blendMsg.mode = Sightline::BlendMode::FrameBlendWarpEo;
+    blendMsg.amt = 128U;
+    EXPECT_TRUE(qDevice.setBlend(blendMsg));
+    EXPECT_TRUE(qDevice.getBlendParameters());
+
+    Sightline::MsgFourAlignPoints ptsMsg {};
+    ptsMsg.index = 2U;
+    EXPECT_TRUE(qDevice.setFourAlignPoints(ptsMsg));
+    EXPECT_TRUE(qDevice.getFourAlignPoints(2U));
+
+    Sightline::MsgBlendAlign alignMsg {};
+    alignMsg.index = 1U;
+    alignMsg.zoom = 4096U;
+    EXPECT_TRUE(qDevice.setBlendAlign(alignMsg));
+    EXPECT_TRUE(qDevice.getBlendAlign(1U));
+
+    Sightline::MsgSetMultipleAlignment multiMsg {};
+    EXPECT_TRUE(qDevice.setMultipleAlignment(multiMsg));
+    EXPECT_TRUE(qDevice.getMultipleAlignment());
+
+    const auto sent = transport->getSentPackets();
+    EXPECT_EQ(sent.size(), 8U);
+
+    qDevice.stop();
+}
+
+/// @brief Verify incoming blending telemetry signals and cache updates.
+TEST_F(QSightlineDeviceTest, BlendingSignalsAndCache)
+{
+    auto transport = std::make_shared<MockTransportForQt>();
+    QSightlineDevice qDevice(transport);
+    ASSERT_TRUE(qDevice.start());
+
+    QSignalSpy blendSpy(&qDevice, &QSightlineDevice::blendParametersReceived);
+    QSignalSpy curBlendSpy(&qDevice, &QSightlineDevice::currentBlendParamsReceived);
+    QSignalSpy ptsSpy(&qDevice, &QSightlineDevice::fourAlignPointsReceived);
+    QSignalSpy alignSpy(&qDevice, &QSightlineDevice::blendAlignReceived);
+    QSignalSpy multiSpy(&qDevice, &QSightlineDevice::multipleAlignmentReceived);
+
+    // 1. Inject MsgSetBlendParameters (0x2F)
+    Sightline::MsgSetBlendParameters blendMsg {};
+    blendMsg.warpIndex = 1U;
+    blendMsg.fixedIndex = 0U;
+    blendMsg.mode = Sightline::BlendMode::ThermalBlendWarpEo;
+    blendMsg.amt = 200U;
+    transport->injectData(Sightline::SightlineBlendingBuilder::buildSetBlendParameters(blendMsg));
+
+    // 2. Inject MsgCurrentBlendParameters (0x4D)
+    const std::vector<std::uint8_t> curBlendPayload {
+        0x01U, 10U, 25U, 2U, 5U, 0U, 128U,
+        static_cast<std::uint8_t>(Sightline::BlendMode::FrameBlendWarpEo),
+        180U, 0U, 0x01U, 0U, 0U, 1U, 1U, 0U, 128U, 10U, 50U
+    };
+    transport->injectData(Sightline::SightlineFraming::buildPacket(Sightline::MessageId::CurrentBlendParameters, curBlendPayload));
+
+    // 3. Inject MsgFourAlignPoints (0x95)
+    Sightline::MsgFourAlignPoints ptsMsg {};
+    ptsMsg.index = 1U;
+    ptsMsg.points[0].leftCol = 10;
+    ptsMsg.points[0].leftRow = 20;
+    transport->injectData(Sightline::SightlineBlendingBuilder::buildFourAlignPoints(ptsMsg));
+
+    // 4. Inject MsgBlendAlign (0xB9)
+    Sightline::MsgBlendAlign alignMsg {};
+    alignMsg.index = 1U;
+    alignMsg.rotate = 45U * 128U;
+    alignMsg.zoom = 4096U;
+    transport->injectData(Sightline::SightlineBlendingBuilder::buildSetBlendAlign(alignMsg));
+
+    // 5. Inject MsgSetMultipleAlignment (0x74)
+    Sightline::MsgSetMultipleAlignment multiMsg {};
+    multiMsg.nAlignments = 1U;
+    multiMsg.alignment[0].horizontal = 5U;
+    multiMsg.alignment[0].vertical = 10U;
+    transport->injectData(Sightline::SightlineBlendingBuilder::buildSetMultipleAlignment(multiMsg));
+
+    QCoreApplication::processEvents();
+
+    EXPECT_EQ(blendSpy.count(), 2);
+    EXPECT_EQ(curBlendSpy.count(), 1);
+    EXPECT_EQ(ptsSpy.count(), 1);
+    EXPECT_EQ(alignSpy.count(), 1);
+    EXPECT_EQ(multiSpy.count(), 1);
+
+    ASSERT_TRUE(qDevice.lastBlendParams().has_value());
+    EXPECT_EQ(qDevice.lastBlendParams()->mode, Sightline::BlendMode::FrameBlendWarpEo);
+
+    ASSERT_TRUE(qDevice.lastCurrentBlendParams().has_value());
+    EXPECT_EQ(qDevice.lastCurrentBlendParams()->amt, 180U);
+
+    ASSERT_TRUE(qDevice.lastFourAlignPoints().has_value());
+    EXPECT_EQ(qDevice.lastFourAlignPoints()->index, 1U);
+    EXPECT_EQ(qDevice.lastFourAlignPoints()->points[0].leftCol, 10);
+
+    ASSERT_TRUE(qDevice.lastBlendAlign().has_value());
+    EXPECT_EQ(qDevice.lastBlendAlign()->index, 1U);
+    EXPECT_EQ(qDevice.lastBlendAlign()->rotate, 45U * 128U);
+
+    ASSERT_TRUE(qDevice.lastMultipleAlignment().has_value());
+    EXPECT_EQ(qDevice.lastMultipleAlignment()->nAlignments, 1U);
+    EXPECT_EQ(qDevice.lastMultipleAlignment()->alignment[0].horizontal, 5U);
 
     qDevice.stop();
 }

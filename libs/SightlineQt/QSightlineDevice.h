@@ -6,6 +6,7 @@
 #include <SightlineCore/SightlineDevice.h>
 #include <SightlineCore/SightlineMessages.h>
 #include <SightlineCore/SightlineTypes.h>
+#include <SightlineCore/modules/SightlineBlending.h>
 #include <SightlineCore/modules/SightlineCompression.h>
 #include <SightlineCore/modules/SightlineGeneral.h>
 #include <SightlineCore/modules/SightlineNetwork.h>
@@ -123,6 +124,21 @@ public:
     /// @return Optional message struct if received.
     [[nodiscard]] std::optional<Sightline::MsgSystemValue> lastSystemValue() const;
 
+    /// @brief Retrieves the latest cached blend parameters snapshot.
+    [[nodiscard]] std::optional<Sightline::MsgSetBlendParameters> lastBlendParams() const;
+
+    /// @brief Retrieves the latest cached current blend parameters snapshot.
+    [[nodiscard]] std::optional<Sightline::MsgCurrentBlendParameters> lastCurrentBlendParams() const;
+
+    /// @brief Retrieves the latest cached 4-point projective homography snapshot.
+    [[nodiscard]] std::optional<Sightline::MsgFourAlignPoints> lastFourAlignPoints() const;
+
+    /// @brief Retrieves the latest cached blend alignment snapshot.
+    [[nodiscard]] std::optional<Sightline::MsgBlendAlign> lastBlendAlign() const;
+
+    /// @brief Retrieves the latest cached multiple alignment snapshot.
+    [[nodiscard]] std::optional<Sightline::MsgSetMultipleAlignment> lastMultipleAlignment() const;
+
     /// @brief Retrieves transport and kernel-level metrics.
     [[nodiscard]] Transport::TransportStatsSnapshot getTransportStats() const;
 
@@ -157,6 +173,11 @@ signals:
     void networkParamsReceived(const Sightline::MsgSetNetworkParameters& params);
     void networkListReceived(const Sightline::MsgCurrentNetworkList& list);
     void systemValueReceived(const Sightline::MsgSystemValue& val);
+    void blendParametersReceived(const Sightline::MsgSetBlendParameters& params);
+    void currentBlendParamsReceived(const Sightline::MsgCurrentBlendParameters& params);
+    void fourAlignPointsReceived(const Sightline::MsgFourAlignPoints& points);
+    void blendAlignReceived(const Sightline::MsgBlendAlign& align);
+    void multipleAlignmentReceived(const Sightline::MsgSetMultipleAlignment& params);
     void rawFrameReceived(bool isTx, const QByteArray& data);
     void connectionStateChanged(bool isConnected);
 
@@ -263,6 +284,16 @@ public slots:
     bool getNetworkParams(quint8 index = 0U);
     bool getNetworkList();
 
+    // Blending & Multi-Sensor Alignment
+    bool setBlend(const Sightline::MsgSetBlendParameters& msg);
+    bool getBlendParameters();
+    bool setFourAlignPoints(const Sightline::MsgFourAlignPoints& msg);
+    bool getFourAlignPoints(quint8 index = 0U);
+    bool setBlendAlign(const Sightline::MsgBlendAlign& msg);
+    bool getBlendAlign(quint8 index = 0U);
+    bool setMultipleAlignment(const Sightline::MsgSetMultipleAlignment& msg);
+    bool getMultipleAlignment();
+
     bool sendRawPacket(const QByteArray& rawPacket);
 
 private:
@@ -286,3 +317,8 @@ Q_DECLARE_METATYPE(Sightline::MsgSetEthernetVideoParameters)
 Q_DECLARE_METATYPE(Sightline::MsgSetNetworkParameters)
 Q_DECLARE_METATYPE(Sightline::MsgCurrentNetworkList)
 Q_DECLARE_METATYPE(Sightline::MsgSystemValue)
+Q_DECLARE_METATYPE(Sightline::MsgSetBlendParameters)
+Q_DECLARE_METATYPE(Sightline::MsgCurrentBlendParameters)
+Q_DECLARE_METATYPE(Sightline::MsgFourAlignPoints)
+Q_DECLARE_METATYPE(Sightline::MsgBlendAlign)
+Q_DECLARE_METATYPE(Sightline::MsgSetMultipleAlignment)

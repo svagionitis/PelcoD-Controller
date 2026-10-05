@@ -709,6 +709,32 @@ public:
     /// @return True if dispatched.
     Q_INVOKABLE bool setBlendParams(int cam1, int cam2, int mode, int alpha);
 
+    /// @brief Configure full multi-sensor video blending and registration parameters (Message ID 0x2F).
+    Q_INVOKABLE bool setBlendParameters(int warpIdx, int fixedIdx, int mode, int amt, int hue = 0, int flags = 0,
+        int hotStart = 0, int coldEnd = 0, int vertical = 0, int horizontal = 0, int rotation = 0, int zoom = 128,
+        int hzoom = 128);
+
+    /// @brief Query active multi-sensor blend parameters (Message ID 0x30).
+    Q_INVOKABLE bool getBlendParameters();
+
+    /// @brief Configure fine-tune alignment offsets and automated registration (Message ID 0xB9).
+    Q_INVOKABLE bool setBlendAlign(int index, int vertical, int horizontal, int rotate, int zoom, int hzoom);
+
+    /// @brief Query blend alignment parameters (Message ID 0x28 query 0xB9).
+    Q_INVOKABLE bool getBlendAlign(int index = 0);
+
+    /// @brief Configure 4-point projective homography calibration (Message ID 0x95).
+    Q_INVOKABLE bool setFourAlignPoints(int index, const QVariantList& points);
+
+    /// @brief Query 4-point projective calibration (Message ID 0x28 query 0x95).
+    Q_INVOKABLE bool getFourAlignPoints(int index = 0);
+
+    /// @brief Configure multi-camera multiple alignment (Message ID 0x74).
+    Q_INVOKABLE bool setMultipleAlignment(int nAlignments, const QVariantList& alignments);
+
+    /// @brief Query multiple alignment parameters (Message ID 0x28 query 0x74).
+    Q_INVOKABLE bool getMultipleAlignment();
+
     /// @brief Configure video enhancement parameters (basic).
     /// @param cam Camera index.
     /// @param contrast Contrast adjustment.
@@ -1109,6 +1135,11 @@ signals:
     void encoderParamsReceived(int stream, int bitrateKbps, int gop, int flags, int minQp, int maxQp);
     void displayParamsReceived(int stream, int protocol, const QString& ip, int port, int maxPacket);
     void trafficControlReceived(int rateKbps, int burstBytes, int mtuBytes);
+    void blendParametersReceived(const QVariantMap& params);
+    void currentBlendParamsReceived(const QVariantMap& params);
+    void fourAlignPointsReceived(int index, const QVariantList& points);
+    void blendAlignReceived(const QVariantMap& align);
+    void multipleAlignmentReceived(const QVariantList& alignments);
 
 private slots:
     void handleTrackingPositions(const Sightline::MsgTrackingPositions& pos);
@@ -1139,6 +1170,11 @@ private slots:
     void handleNetworkParams(const Sightline::MsgSetNetworkParameters& p);
     void handleNetworkList(const Sightline::MsgCurrentNetworkList& l);
     void handleSystemValue(const Sightline::MsgSystemValue& val);
+    void handleBlendParams(const Sightline::MsgSetBlendParameters& p);
+    void handleCurrentBlendParams(const Sightline::MsgCurrentBlendParameters& p);
+    void handleFourAlignPoints(const Sightline::MsgFourAlignPoints& p);
+    void handleBlendAlign(const Sightline::MsgBlendAlign& a);
+    void handleMultipleAlignment(const Sightline::MsgSetMultipleAlignment& m);
     void onRecordingClockTick();
     void onCoolerTimerTick();
 
