@@ -322,11 +322,17 @@ public:
     /// @brief Parses active blending parameters (Message ID 0x4D / 0x2F).
     [[nodiscard]] static bool parseBlendParameters(ByteView packet, MsgSetBlendParameters& out);
 
+    /// @brief Parses full active blending telemetry snapshot (Message ID 0x4D).
+    [[nodiscard]] static bool parseCurrentBlendParameters(ByteView packet, MsgCurrentBlendParameters& out);
+
     /// @brief Parses 4-point projective homography points (Message ID 0x95).
     [[nodiscard]] static bool parseFourAlignPoints(ByteView packet, MsgFourAlignPoints& out);
 
     /// @brief Parses blend alignment offsets and registration mode (Message ID 0xB9).
     [[nodiscard]] static bool parseBlendAlign(ByteView packet, MsgBlendAlign& out);
+
+    /// @brief Parses multiple alignment parameters (Message ID 0x74 / 0x75).
+    [[nodiscard]] static bool parseMultipleAlignment(ByteView packet, MsgSetMultipleAlignment& out);
 
     /// @brief Parses camera switch command / status (Message ID 0x82).
     [[nodiscard]] static bool parseCameraSwitch(ByteView packet, MsgCameraSwitch& out);

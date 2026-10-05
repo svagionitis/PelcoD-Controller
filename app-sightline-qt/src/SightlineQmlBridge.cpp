@@ -1414,7 +1414,7 @@ bool SightlineQmlBridge::setBlendParams(int cam1, int cam2, int mode, int alpha)
     // Sightline blend mode is 1-based (1: Frame, 2: Thermal, 3: Night, 4: Color).
     const auto blendMode = (mode >= 1 && mode <= 4) ? static_cast<std::uint8_t>(mode)
                                                     : static_cast<std::uint8_t>(std::clamp(mode + 1, 1, 4));
-    msg.mode = blendMode;
+    msg.mode = static_cast<Sightline::BlendMode>(blendMode);
     msg.amt = static_cast<std::uint8_t>(std::clamp(alpha, 0, 255));
     return m_device->device()->setBlend(msg);
 }

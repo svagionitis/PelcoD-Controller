@@ -298,9 +298,9 @@ std::vector<std::uint8_t> SightlineProtocolBuilder::buildFourAlignPoints(const M
     return SightlineBlendingBuilder::buildFourAlignPoints(msg);
 }
 
-std::vector<std::uint8_t> SightlineProtocolBuilder::buildGetFourAlignPoints(std::uint8_t cameraIndex)
+std::vector<std::uint8_t> SightlineProtocolBuilder::buildGetFourAlignPoints(std::uint8_t index)
 {
-    return SightlineBlendingBuilder::buildGetFourAlignPoints(cameraIndex);
+    return SightlineBlendingBuilder::buildGetFourAlignPoints(index);
 }
 
 std::vector<std::uint8_t> SightlineProtocolBuilder::buildSetBlendAlign(const MsgBlendAlign& msg)
@@ -308,9 +308,19 @@ std::vector<std::uint8_t> SightlineProtocolBuilder::buildSetBlendAlign(const Msg
     return SightlineBlendingBuilder::buildSetBlendAlign(msg);
 }
 
-std::vector<std::uint8_t> SightlineProtocolBuilder::buildGetBlendAlign(std::uint8_t cameraIndex)
+std::vector<std::uint8_t> SightlineProtocolBuilder::buildGetBlendAlign(std::uint8_t index)
 {
-    return SightlineBlendingBuilder::buildGetBlendAlign(cameraIndex);
+    return SightlineBlendingBuilder::buildGetBlendAlign(index);
+}
+
+std::vector<std::uint8_t> SightlineProtocolBuilder::buildSetMultipleAlignment(const MsgSetMultipleAlignment& msg)
+{
+    return SightlineBlendingBuilder::buildSetMultipleAlignment(msg);
+}
+
+std::vector<std::uint8_t> SightlineProtocolBuilder::buildGetMultipleAlignment()
+{
+    return SightlineBlendingBuilder::buildGetMultipleAlignment();
 }
 
 std::vector<std::uint8_t> SightlineProtocolBuilder::buildCameraSwitch(const MsgCameraSwitch& msg)

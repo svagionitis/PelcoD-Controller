@@ -103,7 +103,7 @@ namespace {
         blendMsg.horizontal = -10;
         blendMsg.rotation = 0U;
         blendMsg.zoom = 128U;
-        blendMsg.mode = 1U;
+        blendMsg.mode = BlendMode::FrameBlendWarpEo;
         blendMsg.amt = 75U;
         blendMsg.warpIndex = 0U;
         blendMsg.fixedIndex = 1U;

@@ -234,7 +234,7 @@ std::vector<HtpasswdEntry> SightlineDigestAuth::parseHtpasswd(std::string_view c
 
                     // Transform hash to lowercase if needed
                     std::transform(entry.ha1.begin(), entry.ha1.end(), entry.ha1.begin(),
-                        [](unsigned char ch) { return static_cast<char>(std::tolower(ch)); });
+                        [](char ch) { return static_cast<char>(std::tolower(static_cast<unsigned char>(ch))); });
 
                     entries.push_back(std::move(entry));
                 }

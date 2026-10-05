@@ -426,6 +426,11 @@ bool SightlineProtocolParser::parseBlendParameters(ByteView packet, MsgSetBlendP
     return SightlineBlendingParser::parseBlendParameters(packet, out);
 }
 
+bool SightlineProtocolParser::parseCurrentBlendParameters(ByteView packet, MsgCurrentBlendParameters& out)
+{
+    return SightlineBlendingParser::parseCurrentBlendParameters(packet, out);
+}
+
 bool SightlineProtocolParser::parseFourAlignPoints(ByteView packet, MsgFourAlignPoints& out)
 {
     return SightlineBlendingParser::parseFourAlignPoints(packet, out);
@@ -434,6 +439,11 @@ bool SightlineProtocolParser::parseFourAlignPoints(ByteView packet, MsgFourAlign
 bool SightlineProtocolParser::parseBlendAlign(ByteView packet, MsgBlendAlign& out)
 {
     return SightlineBlendingParser::parseBlendAlign(packet, out);
+}
+
+bool SightlineProtocolParser::parseMultipleAlignment(ByteView packet, MsgSetMultipleAlignment& out)
+{
+    return SightlineBlendingParser::parseMultipleAlignment(packet, out);
 }
 
 bool SightlineProtocolParser::parseCameraSwitch(ByteView packet, MsgCameraSwitch& out)

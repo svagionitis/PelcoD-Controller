@@ -281,9 +281,9 @@ public:
     [[nodiscard]] static std::vector<std::uint8_t> buildFourAlignPoints(const MsgFourAlignPoints& msg);
 
     /// @brief Encodes query for 4-point projective calibration (Message ID 0x28 query 0x95).
-    /// @param[in] cameraIndex Target camera index.
+    /// @param[in] index Alignment slot index [0..4].
     /// @return Framed binary packet.
-    [[nodiscard]] static std::vector<std::uint8_t> buildGetFourAlignPoints(std::uint8_t cameraIndex = 0U);
+    [[nodiscard]] static std::vector<std::uint8_t> buildGetFourAlignPoints(std::uint8_t index = 0U);
 
     /// @brief Encodes fine-tune alignment offsets and automated registration (Message ID 0xB9).
     /// @param[in] msg Blend align parameters.
@@ -291,9 +291,18 @@ public:
     [[nodiscard]] static std::vector<std::uint8_t> buildSetBlendAlign(const MsgBlendAlign& msg);
 
     /// @brief Encodes query for blend alignment parameters (Message ID 0x28 query 0xB9).
-    /// @param[in] cameraIndex Target camera index.
+    /// @param[in] index Alignment slot index [0..4].
     /// @return Framed binary packet.
-    [[nodiscard]] static std::vector<std::uint8_t> buildGetBlendAlign(std::uint8_t cameraIndex = 0U);
+    [[nodiscard]] static std::vector<std::uint8_t> buildGetBlendAlign(std::uint8_t index = 0U);
+
+    /// @brief Encodes multi-camera multiple alignment (Message ID 0x74).
+    /// @param[in] msg Multiple alignment parameters.
+    /// @return Framed binary packet.
+    [[nodiscard]] static std::vector<std::uint8_t> buildSetMultipleAlignment(const MsgSetMultipleAlignment& msg);
+
+    /// @brief Encodes query for multiple alignment parameters (Message ID 0x28 query 0x74).
+    /// @return Framed binary packet.
+    [[nodiscard]] static std::vector<std::uint8_t> buildGetMultipleAlignment();
 
     /// @brief Encodes camera input channel switch (Message ID 0x82).
     /// @param[in] msg Camera switch parameters.

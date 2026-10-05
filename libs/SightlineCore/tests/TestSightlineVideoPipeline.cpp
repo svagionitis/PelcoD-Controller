@@ -459,68 +459,150 @@ namespace {
     TEST(TestSightlineVideoPipeline, BuildAndParseFourAlignPoints)
     {
         MsgFourAlignPoints msg {};
-        msg.cameraIndex = 0U;
-        msg.warpIndex = 1U;
-        msg.points[0] = { 10U, 20U, 12U, 22U };
-        msg.points[1] = { 600U, 25U, 602U, 27U };
-        msg.points[2] = { 610U, 450U, 612U, 452U };
-        msg.points[3] = { 15U, 440U, 17U, 442U };
+        msg.index = 2U; // Preset slot index [0..4]
+        msg.points[0] = { 10, 20, 12, 22 };
+        msg.points[1] = { 600, 25, 602, 27 };
+        msg.points[2] = { 610, 450, 612, 452 };
+        msg.points[3] = { 15, 440, 17, 442 };
 
         const auto pkt = SightlineBlendingBuilder::buildFourAlignPoints(msg);
         EXPECT_EQ(SightlineFraming::identifyMessage(pkt), MessageId::FourAlignPoints);
         EXPECT_EQ(pkt, SightlineProtocolBuilder::buildFourAlignPoints(msg));
+        const auto payload = SightlineFraming::extractPayload(pkt);
+        ASSERT_EQ(payload.size(), 33U); // 1 byte index + 4 * 8 bytes = 33 bytes
 
         MsgFourAlignPoints out {};
         ASSERT_TRUE(SightlineBlendingParser::parseFourAlignPoints(pkt, out));
-        EXPECT_EQ(out.cameraIndex, 0U);
-        EXPECT_EQ(out.warpIndex, 1U);
-        EXPECT_EQ(out.points[0].warpCol, 10U);
-        EXPECT_EQ(out.points[0].warpRow, 20U);
-        EXPECT_EQ(out.points[0].fixedCol, 12U);
-        EXPECT_EQ(out.points[0].fixedRow, 22U);
-        EXPECT_EQ(out.points[2].warpCol, 610U);
-        EXPECT_EQ(out.points[2].fixedRow, 452U);
+        EXPECT_EQ(out.index, 2U);
+        EXPECT_EQ(out.points[0].leftCol, 10);
+        EXPECT_EQ(out.points[0].leftRow, 20);
+        EXPECT_EQ(out.points[0].rightCol, 12);
+        EXPECT_EQ(out.points[0].rightRow, 22);
+        EXPECT_EQ(out.points[2].leftCol, 610);
+        EXPECT_EQ(out.points[2].rightRow, 452);
 
         MsgFourAlignPoints facadeOut {};
         ASSERT_TRUE(SightlineProtocolParser::parseFourAlignPoints(pkt, facadeOut));
-        EXPECT_EQ(facadeOut.points[1].warpCol, 600U);
+        EXPECT_EQ(facadeOut.points[1].leftCol, 600);
 
-        const auto queryPkt = SightlineBlendingBuilder::buildGetFourAlignPoints(0U);
+        const auto queryPkt = SightlineBlendingBuilder::buildGetFourAlignPoints(2U);
         EXPECT_EQ(SightlineFraming::identifyMessage(queryPkt), MessageId::GetParameters);
-        EXPECT_EQ(queryPkt, SightlineProtocolBuilder::buildGetFourAlignPoints(0U));
+        EXPECT_EQ(queryPkt, SightlineProtocolBuilder::buildGetFourAlignPoints(2U));
     }
 
     /// @brief Verify fine-tune blend alignment serialization, parsing, and query.
     TEST(TestSightlineVideoPipeline, BuildAndParseBlendAlign)
     {
         MsgBlendAlign msg {};
-        msg.cameraIndex = 1U;
-        msg.mode = 1U; // Feature-based auto
-        msg.offsetX = -15;
-        msg.offsetY = 8;
-        msg.rotation = 120; // 1.2 degrees
-        msg.scale = 1050U; // 1.05x
+        msg.index = 1U;
+        msg.vertical = -15;
+        msg.horizontal = 8;
+        msg.rotate = 120U;
+        msg.zoom = 4096U;
+        msg.hzoom = 4096U;
 
         const auto pkt = SightlineBlendingBuilder::buildSetBlendAlign(msg);
         EXPECT_EQ(SightlineFraming::identifyMessage(pkt), MessageId::BlendAlign);
         EXPECT_EQ(pkt, SightlineProtocolBuilder::buildSetBlendAlign(msg));
+        const auto payload = SightlineFraming::extractPayload(pkt);
+        ASSERT_EQ(payload.size(), 11U); // 1 byte index + 5 * 2 bytes = 11 bytes
 
         MsgBlendAlign out {};
         ASSERT_TRUE(SightlineBlendingParser::parseBlendAlign(pkt, out));
-        EXPECT_EQ(out.cameraIndex, 1U);
-        EXPECT_EQ(out.mode, 1U);
-        EXPECT_EQ(out.offsetX, -15);
-        EXPECT_EQ(out.offsetY, 8);
-        EXPECT_EQ(out.rotation, 120);
-        EXPECT_EQ(out.scale, 1050U);
+        EXPECT_EQ(out.index, 1U);
+        EXPECT_EQ(out.vertical, -15);
+        EXPECT_EQ(out.horizontal, 8);
+        EXPECT_EQ(out.rotate, 120U);
+        EXPECT_EQ(out.zoom, 4096U);
+        EXPECT_EQ(out.hzoom, 4096U);
 
         MsgBlendAlign facadeOut {};
         ASSERT_TRUE(SightlineProtocolParser::parseBlendAlign(pkt, facadeOut));
-        EXPECT_EQ(facadeOut.scale, 1050U);
+        EXPECT_EQ(facadeOut.zoom, 4096U);
 
         const auto queryPkt = SightlineBlendingBuilder::buildGetBlendAlign(1U);
         EXPECT_EQ(SightlineFraming::identifyMessage(queryPkt), MessageId::GetParameters);
         EXPECT_EQ(queryPkt, SightlineProtocolBuilder::buildGetBlendAlign(1U));
+    }
+
+    /// @brief Verify 19-byte CurrentBlendParameters telemetry deserialization.
+    TEST(TestSightlineVideoPipeline, ParseCurrentBlendParameters)
+    {
+        const std::vector<std::uint8_t> payload {
+            0x01U, // absOffZoom
+            10U,   // up
+            25U,   // right
+            4U,    // down
+            5U,    // left
+            128U,  // rotation
+            100U,  // zoom
+            static_cast<std::uint8_t>(BlendMode::ThermalBlendWarpEo), // mode
+            200U,  // amt
+            64U,   // hue
+            0x02U, // flags (UseHueForColor)
+            0x00U, // reserved
+            0U,    // warpIndex
+            1U,    // fixedIndex
+            1U,    // usePresetAlign
+            2U,    // presetAlignIndex
+            110U,  // hzoom
+            150U,  // hotStart
+            50U    // coldEnd
+        };
+        const auto pkt = SightlineFraming::buildPacket(MessageId::CurrentBlendParameters, payload);
+
+        MsgCurrentBlendParameters current {};
+        ASSERT_TRUE(SightlineBlendingParser::parseCurrentBlendParameters(pkt, current));
+        EXPECT_EQ(current.absOffZoom, 0x01U);
+        EXPECT_EQ(current.up, 10U);
+        EXPECT_EQ(current.right, 25U);
+        EXPECT_EQ(current.down, 4U);
+        EXPECT_EQ(current.left, 5U);
+        EXPECT_EQ(current.mode, BlendMode::ThermalBlendWarpEo);
+        EXPECT_EQ(current.amt, 200U);
+        EXPECT_EQ(current.hue, 64U);
+        EXPECT_EQ(current.flags, 0x02U);
+        EXPECT_EQ(current.hotStart, 150U);
+        EXPECT_EQ(current.coldEnd, 50U);
+
+        // Also test mapping via parseBlendParameters facade
+        MsgSetBlendParameters mapped {};
+        ASSERT_TRUE(SightlineProtocolParser::parseBlendParameters(pkt, mapped));
+        EXPECT_EQ(mapped.vertical, 6);   // up - down = 10 - 4 = 6
+        EXPECT_EQ(mapped.horizontal, 20); // right - left = 25 - 5 = 20
+        EXPECT_EQ(mapped.mode, BlendMode::ThermalBlendWarpEo);
+        EXPECT_EQ(mapped.amt, 200U);
+    }
+
+    /// @brief Verify 26-byte MultipleAlignment serialization, parsing, and query.
+    TEST(TestSightlineVideoPipeline, BuildAndParseMultipleAlignment)
+    {
+        MsgSetMultipleAlignment msg {};
+        msg.nAlignments = 2U;
+        msg.alignment[0] = { 10U, 12U, 5U, 100U, 105U };
+        msg.alignment[1] = { 20U, 22U, 10U, 110U, 115U };
+
+        const auto pkt = SightlineBlendingBuilder::buildSetMultipleAlignment(msg);
+        EXPECT_EQ(SightlineFraming::identifyMessage(pkt), MessageId::SetMultipleAlignment);
+        EXPECT_EQ(pkt, SightlineProtocolBuilder::buildSetMultipleAlignment(msg));
+        const auto payload = SightlineFraming::extractPayload(pkt);
+        ASSERT_EQ(payload.size(), 26U); // 1 + 5*5 = 26 bytes
+
+        MsgSetMultipleAlignment out {};
+        ASSERT_TRUE(SightlineBlendingParser::parseMultipleAlignment(pkt, out));
+        EXPECT_EQ(out.nAlignments, 2U);
+        EXPECT_EQ(out.alignment[0].vertical, 10U);
+        EXPECT_EQ(out.alignment[0].horizontal, 12U);
+        EXPECT_EQ(out.alignment[0].rotate, 5U);
+        EXPECT_EQ(out.alignment[1].zoom, 110U);
+
+        MsgSetMultipleAlignment facadeOut {};
+        ASSERT_TRUE(SightlineProtocolParser::parseMultipleAlignment(pkt, facadeOut));
+        EXPECT_EQ(facadeOut.alignment[1].hzoom, 115U);
+
+        const auto queryPkt = SightlineBlendingBuilder::buildGetMultipleAlignment();
+        EXPECT_EQ(SightlineFraming::identifyMessage(queryPkt), MessageId::GetParameters);
+        EXPECT_EQ(queryPkt, SightlineProtocolBuilder::buildGetMultipleAlignment());
     }
 
     /// @brief Verify video display routing serialization, parsing, and query.
