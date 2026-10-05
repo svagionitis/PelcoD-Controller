@@ -24,6 +24,7 @@
 #include "modules/SightlineRecordingParser.h"
 #include "modules/StorageRetentionManager.h"
 #include "modules/TransactionalStorageWriter.h"
+#include <Transport/SdpGenerator.h>
 
 #include <filesystem>
 #include <gtest/gtest.h>
@@ -1459,6 +1460,60 @@ namespace {
         const std::string authUri = formatRtspStreamUri("192.168.1.15", 554U, RtspMountChannel::Net0, creds);
         EXPECT_EQ(authUri, "rtsp://root:root@192.168.1.15:554/net0");
         EXPECT_EQ(SightlineDigestAuth::sanitizeRtspUri(authUri), "rtsp://root:***@192.168.1.15:554/net0");
+    }
+
+    /// @brief Verify dynamic SDP generation per Sightline EAN-RTSP Sec 7, 8, and 11.
+    TEST(TestSightlineVideoPipeline, DynamicSdpEanCompliance)
+    {
+        // 1. Multicast RTP MPEG2-TS SDP (EAN-RTSP Section 7)
+        Transport::SdpStreamParams tsParams {};
+        tsParams.sessionName = "Sightline Net0 Stream";
+        tsParams.originAddress = "192.168.1.15";
+        tsParams.destinationIp = "239.255.0.1";
+        tsParams.destinationPort = 15004U;
+        tsParams.isMulticast = true;
+        tsParams.ttl = 15U;
+        tsParams.transportProtocol = Transport::SdpProtocol::RtpAvp;
+        tsParams.payloadType = Transport::SdpPayloadType::Mpeg2Ts;
+        tsParams.clockRate = 90000U;
+        tsParams.bitrateKbps = 4000;
+
+        const std::string tsSdp = Transport::SdpGenerator::generate(tsParams);
+        EXPECT_NE(tsSdp.find("v=0\r\n"), std::string::npos);
+        EXPECT_NE(tsSdp.find("s=Sightline Net0 Stream\r\n"), std::string::npos);
+        EXPECT_NE(tsSdp.find("c=IN IP4 239.255.0.1/15\r\n"), std::string::npos);
+        EXPECT_NE(tsSdp.find("m=video 15004 RTP/AVP 33\r\n"), std::string::npos);
+        EXPECT_NE(tsSdp.find("a=rtpmap:33 MP2T/90000\r\n"), std::string::npos);
+        EXPECT_NE(tsSdp.find("b=AS:4000\r\n"), std::string::npos);
+
+        // 2. Unicast RTP H.264 SDP (EAN-RTSP Section 8)
+        Transport::SdpStreamParams h264Params {};
+        h264Params.sessionName = "Sightline Net1 Stream";
+        h264Params.originAddress = "192.168.1.15";
+        h264Params.destinationIp = "192.168.1.100";
+        h264Params.destinationPort = 15006U;
+        h264Params.isMulticast = false;
+        h264Params.transportProtocol = Transport::SdpProtocol::RtpAvp;
+        h264Params.payloadType = Transport::SdpPayloadType::H264;
+        h264Params.clockRate = 90000U;
+        h264Params.frameWidth = 1920;
+        h264Params.frameHeight = 1080;
+
+        const std::string h264Sdp = Transport::SdpGenerator::generate(h264Params);
+        EXPECT_NE(h264Sdp.find("c=IN IP4 192.168.1.100\r\n"), std::string::npos);
+        EXPECT_NE(h264Sdp.find("m=video 15006 RTP/AVP 96\r\n"), std::string::npos);
+        EXPECT_NE(h264Sdp.find("a=rtpmap:96 H264/90000\r\n"), std::string::npos);
+        EXPECT_NE(h264Sdp.find("a=fmtp:96 packetization-mode=1\r\n"), std::string::npos);
+        EXPECT_NE(h264Sdp.find("a=x-dimensions:1920,1080\r\n"), std::string::npos);
+
+        // 3. Round-trip parse validation
+        const auto parsedParams = Transport::SdpGenerator::parse(h264Sdp);
+        EXPECT_EQ(parsedParams.destinationIp, "192.168.1.100");
+        EXPECT_EQ(parsedParams.destinationPort, 15006U);
+        EXPECT_EQ(parsedParams.payloadType, Transport::SdpPayloadType::H264);
+        EXPECT_EQ(parsedParams.clockRate, 90000U);
+        EXPECT_EQ(parsedParams.frameWidth, 1920);
+        EXPECT_EQ(parsedParams.frameHeight, 1080);
     }
 
 } // namespace

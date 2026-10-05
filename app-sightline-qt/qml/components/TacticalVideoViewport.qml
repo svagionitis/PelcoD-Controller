@@ -1,6 +1,7 @@
 import QtQuick 2.15
 import QtQuick.Controls 2.15
 import QtQuick.Layouts 1.15
+import QtQuick.Dialogs
 import Sightline 1.0
 import ".."
 
@@ -1102,10 +1103,40 @@ Rectangle {
                 }
             }
 
-            Text {
-                text: "Status: " + (videoController ? videoController.statusMessage : "Idle")
-                color: SightlineTheme.textSecondary
-                font.pixelSize: 11
+            RowLayout {
+                spacing: 8
+                Layout.fillWidth: true
+
+                Text {
+                    text: "Status: " + (videoController ? videoController.statusMessage : "Idle")
+                    color: SightlineTheme.textSecondary
+                    font.pixelSize: 11
+                    Layout.fillWidth: true
+                }
+
+                Button {
+                    text: "Export SDP..."
+                    implicitHeight: 28
+                    onClicked: sdpExportDialog.open()
+                }
+            }
+        }
+
+        FileDialog {
+            id: sdpExportDialog
+            title: "Export Current Stream SDP File"
+            fileMode: FileDialog.SaveFile
+            nameFilters: ["SDP files (*.sdp)", "All files (*)"]
+            defaultSuffix: "sdp"
+            currentFile: "sightline_stream.sdp"
+            onAccepted: {
+                var path = selectedFile.toString().replace(/^(file:\/{3}|file:\/\/)/, "");
+                if (Qt.platform.os === "windows" && path.length > 2 && path[0] === '/' && path[2] === ':') {
+                    path = path.substring(1);
+                }
+                if (videoController) {
+                    videoController.exportCurrentStreamSdp(path);
+                }
             }
         }
 

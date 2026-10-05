@@ -580,6 +580,12 @@ public:
     Q_INVOKABLE bool setEthernetVideo(int stream, int frameStep = 1, int frameSize = 0, int customW = 0,
         int customH = 0, int quality = 0, int foveal = 0);
 
+    /// @brief Export SDP file for a given video network stream (EAN-RTSP Section 7).
+    /// @param stream Video network stream index (0: Net0, 1: Net1).
+    /// @param destinationPath Local file system path to write the SDP file.
+    /// @return True if SDP file was successfully generated and written.
+    Q_INVOKABLE bool exportSdpFile(int stream, const QString& destinationPath);
+
     /// @brief Configures Linux Traffic Control (tc) bandwidth limiter (Message ID 0x92 Key 13).
     /// @param rateKbps Rate limit in kbps (0 to disable/reset).
     /// @param burstBytes Token bucket burst size in bytes (e.g. 3000).

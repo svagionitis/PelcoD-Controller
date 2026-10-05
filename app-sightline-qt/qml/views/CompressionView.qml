@@ -1,6 +1,7 @@
 import QtQuick 2.15
 import QtQuick.Controls 2.15
 import QtQuick.Layouts 1.15
+import QtQuick.Dialogs
 import ".."
 import "../components"
 
@@ -911,7 +912,47 @@ ScrollView {
                 }
             }
 
+            Button {
+                text: "Export SDP File..."
+                Layout.preferredWidth: 150
+                Layout.preferredHeight: 36
+                background: Rectangle {
+                    color: parent.hovered ? SightlineTheme.surfaceLight : SightlineTheme.surfaceCard
+                    radius: 4
+                    border.color: SightlineTheme.cardBorder
+                }
+                contentItem: Text {
+                    text: parent.text
+                    color: SightlineTheme.textPrimary
+                    font.bold: true
+                    font.pixelSize: 12
+                    horizontalAlignment: Text.AlignHCenter
+                    verticalAlignment: Text.AlignVCenter
+                }
+                onClicked: {
+                    saveSdpDialog.open();
+                }
+            }
+
             Item { Layout.fillWidth: true }
+        }
+
+        FileDialog {
+            id: saveSdpDialog
+            title: "Export Stream SDP File (EAN-RTSP Section 7)"
+            fileMode: FileDialog.SaveFile
+            nameFilters: ["SDP files (*.sdp)", "All files (*)"]
+            defaultSuffix: "sdp"
+            currentFile: "stream_net" + streamChannelCombo.currentIndex + ".sdp"
+            onAccepted: {
+                var path = selectedFile.toString().replace(/^(file:\/{3}|file:\/\/)/, "");
+                if (Qt.platform.os === "windows" && path.length > 2 && path[0] === '/' && path[2] === ':') {
+                    path = path.substring(1);
+                }
+                if (bridge) {
+                    bridge.exportSdpFile(streamChannelCombo.currentIndex, path);
+                }
+            }
         }
 
         Item { Layout.preferredHeight: 16 }

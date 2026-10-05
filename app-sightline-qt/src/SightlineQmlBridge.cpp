@@ -11,11 +11,13 @@
 #include <SightlineCore/modules/SightlineOverlay.h>
 #include <SightlineCore/modules/SightlineStabilization.h>
 #include <SightlineCore/modules/SightlineStabilizationBuilder.h>
+#include <Transport/SdpGenerator.h>
 
 #include <QDateTime>
 #include <QFile>
 #include <QHostAddress>
 #include <QSettings>
+#include <QUrl>
 #include <algorithm>
 
 SightlineQmlBridge::SightlineQmlBridge(QObject* parent)
@@ -1076,6 +1078,56 @@ bool SightlineQmlBridge::setEthernetVideo(
 
     emit netVideoChanged();
     return m_device->setEthernetVideo(msg);
+}
+
+bool SightlineQmlBridge::exportSdpFile(int stream, const QString& destinationPath)
+{
+    QString filePath = destinationPath;
+    if (filePath.startsWith(QStringLiteral("file://"))) {
+        filePath = QUrl(filePath).toLocalFile();
+    }
+    if (filePath.isEmpty()) {
+        return false;
+    }
+
+    Transport::SdpStreamParams params {};
+    params.sessionName = "Sightline Net" + std::to_string(stream);
+    params.originAddress = m_boardIp.isEmpty() ? "127.0.0.1" : m_boardIp.toStdString();
+    params.destinationIp = m_netDisplayIp.isEmpty() ? "127.0.0.1" : m_netDisplayIp.toStdString();
+    params.destinationPort = static_cast<std::uint16_t>(m_netDisplayPort > 0 ? m_netDisplayPort : 15004);
+    params.isMulticast = Transport::SdpGenerator::isMulticast(params.destinationIp);
+    params.ttl = 15U;
+    params.clockRate = 90000U;
+    params.bitrateKbps = m_encBitrateKbps > 0 ? m_encBitrateKbps : 4000;
+
+    switch (m_netDisplayProtocol) {
+    case 5: // RTP H.264
+        params.transportProtocol = Transport::SdpProtocol::RtpAvp;
+        params.payloadType = Transport::SdpPayloadType::H264;
+        break;
+    case 9: // RTP H.265
+        params.transportProtocol = Transport::SdpProtocol::RtpAvp;
+        params.payloadType = Transport::SdpPayloadType::H265;
+        break;
+    case 2: // MJPEG
+        params.transportProtocol = Transport::SdpProtocol::RtpAvp;
+        params.payloadType = Transport::SdpPayloadType::Mjpeg;
+        break;
+    case 6: // RTP TS H.264
+    case 10: // RTP TS H.265
+        params.transportProtocol = Transport::SdpProtocol::RtpAvp;
+        params.payloadType = Transport::SdpPayloadType::Mpeg2Ts;
+        break;
+    case 1: // MPEG2-TS H.264 (raw UDP)
+    case 4: // Raw
+    case 8: // MPEG2-TS H.265 (raw UDP)
+    default:
+        params.transportProtocol = Transport::SdpProtocol::Udp;
+        params.payloadType = Transport::SdpPayloadType::Mpeg2Ts;
+        break;
+    }
+
+    return Transport::SdpGenerator::saveToFile(filePath.toStdString(), params);
 }
 
 bool SightlineQmlBridge::setTrafficControl(int rateKbps, int burstBytes, int mtuBytes)

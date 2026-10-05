@@ -296,6 +296,11 @@ public slots:
     /// @return Absolute path where image was saved, or empty on failure.
     QString takeSnapshot(const QString& filePath = QString {});
 
+    /// @brief Export SDP file for current stream configuration.
+    /// @param[in] destinationPath Target path to save the SDP file.
+    /// @return True if SDP file was successfully exported.
+    Q_INVOKABLE bool exportCurrentStreamSdp(const QString& destinationPath);
+
     /// @brief Attach presentation QML VideoQuickItem to controller.
     /// @param[in] item Target VideoQuickItem instance.
     void attachVideoItem(VideoQuickItem* item);

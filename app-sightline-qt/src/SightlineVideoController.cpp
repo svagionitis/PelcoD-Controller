@@ -3,10 +3,13 @@
 
 #include "SightlineVideoController.h"
 
+#include <Transport/SdpGenerator.h>
+
 #include <QColor>
 #include <QDateTime>
 #include <QDir>
 #include <QStandardPaths>
+#include <QUrl>
 #include <algorithm>
 #include <chrono>
 
@@ -644,6 +647,60 @@ QString SightlineVideoController::takeSnapshot(const QString& filePath)
         return targetPath;
     }
     return QString {};
+}
+
+bool SightlineVideoController::exportCurrentStreamSdp(const QString& destinationPath)
+{
+    QString filePath { destinationPath };
+    if (filePath.startsWith(QStringLiteral("file://"))) {
+        filePath = QUrl(filePath).toLocalFile();
+    }
+    if (filePath.isEmpty()) {
+        return false;
+    }
+
+    Transport::SdpStreamParams params {};
+    params.sessionName = "Sightline Video Stream";
+    params.originAddress = "127.0.0.1";
+
+    const QUrl uri { m_sourceUri };
+    if (uri.isValid()) {
+        if (!uri.host().isEmpty()) {
+            params.destinationIp = uri.host().toStdString();
+        }
+        if (uri.port() > 0) {
+            params.destinationPort = static_cast<std::uint16_t>(uri.port());
+        }
+    }
+
+    if (params.destinationIp.empty()) {
+        params.destinationIp = "127.0.0.1";
+    }
+    if (params.destinationPort == 0U) {
+        params.destinationPort = 15004U;
+    }
+
+    params.isMulticast = Transport::SdpGenerator::isMulticast(params.destinationIp);
+    params.ttl = 15U;
+    params.clockRate = 90000U;
+
+    if (m_sourceUri.startsWith(QStringLiteral("udp://"))) {
+        params.transportProtocol = Transport::SdpProtocol::Udp;
+        params.payloadType = Transport::SdpPayloadType::Mpeg2Ts;
+    } else {
+        params.transportProtocol = Transport::SdpProtocol::RtpAvp;
+        params.payloadType = Transport::SdpPayloadType::H264;
+    }
+
+    if (m_frameWidth > 0 && m_frameHeight > 0) {
+        params.frameWidth = m_frameWidth;
+        params.frameHeight = m_frameHeight;
+    }
+    if (m_bitrateKbps > 0.0) {
+        params.bitrateKbps = static_cast<int>(m_bitrateKbps);
+    }
+
+    return Transport::SdpGenerator::saveToFile(filePath.toStdString(), params);
 }
 
 void SightlineVideoController::updateState(PlaybackState state, const QString& msg)
