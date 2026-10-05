@@ -6,7 +6,10 @@
 #include <Transport/SdpGenerator.h>
 
 #include <QColor>
+#include <QCoreApplication>
 #include <QDateTime>
+#include <QDeadlineTimer>
+#include <QDebug>
 #include <QDir>
 #include <QStandardPaths>
 #include <QUrl>
@@ -363,6 +366,10 @@ void SightlineVideoController::pauseStream(bool pause)
     if (m_paused.load() != pause) {
         m_paused.store(pause);
         if (!pause) {
+            {
+                QMutexLocker locker(&m_workerMutex);
+                m_workerCondition.wakeAll();
+            }
             QMutexLocker locker(&m_bufferMutex);
             m_scrubOffset = 0;
             if (!m_frameRingBuffer.empty()) {
@@ -584,14 +591,46 @@ void SightlineVideoController::startStream()
 
 void SightlineVideoController::stopStream()
 {
-    m_running.store(false);
-    m_paused.store(false);
+    m_running.store(false, std::memory_order_release);
+    m_paused.store(false, std::memory_order_release);
 
+    // 1. Wake condition wait immediately so worker wakes from pacing/pause/retry
+    {
+        QMutexLocker locker(&m_workerMutex);
+        m_workerCondition.wakeAll();
+    }
+
+    // 2. Cooperatively unblock any in-flight blocking av_read_frame() call
+    {
+        QMutexLocker locker(&m_decoderMutex);
+        if (m_decoder) {
+            m_decoder->interrupt();
+        }
+    }
+
+    // 3. Strict non-blocking condition wait: wait for worker thread to finish cooperatively
+    // while keeping Qt event loop responsive if called from GUI thread
     if (m_thread && m_thread->isRunning()) {
-        m_thread->wait(1500);
+        constexpr int MaxShutdownWaitMs { 2500 };
+        QDeadlineTimer deadline(MaxShutdownWaitMs);
+        while (m_thread->isRunning() && !deadline.hasExpired()) {
+            {
+                QMutexLocker locker(&m_decoderMutex);
+                if (m_decoder) {
+                    m_decoder->interrupt();
+                }
+            }
+            if (m_thread->wait(20)) {
+                break;
+            }
+            if (QCoreApplication::instance() != nullptr
+                && QThread::currentThread() == QCoreApplication::instance()->thread()) {
+                QCoreApplication::processEvents(QEventLoop::ExcludeUserInputEvents, 10);
+            }
+        }
         if (m_thread->isRunning()) {
-            m_thread->terminate();
-            m_thread->wait(500);
+            qWarning() << "SightlineVideoController: Worker thread did not exit within" << MaxShutdownWaitMs
+                       << "ms; skipping terminate() to preserve hardware state";
         }
     }
     m_thread.reset();
@@ -982,6 +1021,10 @@ void SightlineVideoController::applyNativeSharpen(QImage& image, const QRect& ta
 
 void SightlineVideoController::workerLoop()
 {
+    if (!m_running.load()) {
+        return;
+    }
+
     Video::BackendType backend { Video::BackendType::Mock };
     if (!m_isSynthetic) {
         const auto available { Video::DecoderFactory::availableBackends() };
@@ -990,6 +1033,10 @@ void SightlineVideoController::workerLoop()
         } else if (!available.empty()) {
             backend = available.front();
         }
+    }
+
+    if (!m_running.load()) {
+        return;
     }
 
     auto dec { Video::DecoderFactory::create(backend) };
@@ -1008,7 +1055,19 @@ void SightlineVideoController::workerLoop()
         dec->clearCredentials();
     }
 
-    if (!dec->initialize(effectiveUri.toStdString(), Video::PixelFormat::RGB24, 0, Video::DeviceType::CPU)) {
+    {
+        QMutexLocker locker(&m_decoderMutex);
+        m_decoder = std::move(dec);
+    }
+
+    if (!m_running.load()) {
+        return;
+    }
+
+    if (!m_decoder->initialize(effectiveUri.toStdString(), Video::PixelFormat::RGB24, 0, Video::DeviceType::CPU)) {
+        if (!m_running.load()) {
+            return;
+        }
         if (!m_isSynthetic) {
             updateState(PlaybackState::Error, tr("Cannot connect to %1").arg(sanitizedSourceUri()));
             m_running.store(false);
@@ -1016,9 +1075,8 @@ void SightlineVideoController::workerLoop()
         }
     }
 
-    {
-        QMutexLocker locker(&m_decoderMutex);
-        m_decoder = std::move(dec);
+    if (!m_running.load()) {
+        return;
     }
 
     const auto meta { m_decoder->getVideoMetadata() };
@@ -1035,7 +1093,8 @@ void SightlineVideoController::workerLoop()
 
     while (m_running.load()) {
         if (m_paused.load()) {
-            QThread::msleep(20);
+            QMutexLocker locker(&m_workerMutex);
+            m_workerCondition.wait(&m_workerMutex, 20);
             continue;
         }
 
@@ -1058,8 +1117,9 @@ void SightlineVideoController::workerLoop()
         decodeAccumMs += decodeMs;
 
         if (!success) {
-            // Live stream packet starvation or disconnect -> sleep and retry
-            QThread::msleep(20);
+            // Live stream packet starvation or disconnect -> condition wait and retry
+            QMutexLocker locker(&m_workerMutex);
+            m_workerCondition.wait(&m_workerMutex, 20);
             continue;
         }
 
@@ -1124,7 +1184,8 @@ void SightlineVideoController::workerLoop()
         if (m_isSynthetic) {
             const double sleepTargetMs { 33.3 - decodeMs };
             if (sleepTargetMs > 1.0) {
-                QThread::msleep(static_cast<unsigned long>(sleepTargetMs));
+                QMutexLocker locker(&m_workerMutex);
+                m_workerCondition.wait(&m_workerMutex, static_cast<unsigned long>(sleepTargetMs));
             }
         }
 
@@ -1143,6 +1204,13 @@ void SightlineVideoController::workerLoop()
             framesCount = 0;
             decodeAccumMs = 0.0;
             lastStatsTime = now;
+        }
+    }
+
+    {
+        QMutexLocker locker(&m_decoderMutex);
+        if (m_decoder) {
+            m_decoder->close();
         }
     }
 }

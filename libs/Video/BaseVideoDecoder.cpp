@@ -248,4 +248,9 @@ std::string BaseVideoDecoder::buildAuthenticatedUri(std::string_view uri) const
     return authUri;
 }
 
+void BaseVideoDecoder::interrupt() noexcept
+{
+    // Default no-op for decoders without asynchronous interruption facilities
+}
+
 } // namespace Video

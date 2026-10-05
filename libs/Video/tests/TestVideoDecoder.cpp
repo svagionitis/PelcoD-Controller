@@ -2040,6 +2040,34 @@ TEST(VideoDecoderTest, FFmpegDecoderNormalizesPath)
 #endif
     }
 }
+
+TEST(VideoDecoderTest, DecoderInterruptCooperativeCancellation)
+{
+    auto decoder = DecoderFactory::create(BackendType::Mock);
+    ASSERT_TRUE(decoder != nullptr);
+
+    EXPECT_TRUE(decoder->initialize("mock://test"));
+    EXPECT_TRUE(decoder->isInitialized());
+
+    // Calling interrupt should not throw, deadlock, or crash
+    decoder->interrupt();
+
+    decoder->close();
+    EXPECT_FALSE(decoder->isInitialized());
+}
+
+TEST(VideoDecoderTest, FFmpegDecoderInterruptAndTeardownTimeout)
+{
+    auto decoder = DecoderFactory::create(BackendType::FFmpeg);
+    ASSERT_TRUE(decoder != nullptr);
+
+    // Verify interrupt on uninitialized decoder is safe
+    decoder->interrupt();
+
+    // Verify close on uninitialized decoder executes cleanly with timeout protection
+    decoder->close();
+    EXPECT_FALSE(decoder->isInitialized());
+}
 #endif
 
 int main(int argc, char* argv[])

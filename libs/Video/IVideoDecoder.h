@@ -111,6 +111,10 @@ public:
 
     /// @brief Closes the video stream and releases decoder resources.
     virtual void close() = 0;
+
+    /// @brief Aborts active blocking network operations or decoding loops.
+    /// @details Thread-safe cooperative signal safe to invoke asynchronously from another thread.
+    virtual void interrupt() noexcept = 0;
 };
 
 } // namespace Video

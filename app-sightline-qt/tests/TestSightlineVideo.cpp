@@ -774,6 +774,34 @@ TEST_F(SightlineVideoTest, BridgeRecordingPropertiesAndValidation)
     EXPECT_FALSE(bridge.deleteStorageFile(0, QStringLiteral("file.ts")));
 }
 
+TEST_F(SightlineVideoTest, CooperativeStopStreamRapidCycling)
+{
+    SightlineApp::SightlineVideoController controller {};
+
+    // Rapid start/stop cycling to ensure no thread leaks, deadlocks, or termination crashes
+    for (int i = 0; i < 10; ++i) {
+        controller.startStream();
+        QTest::qWait(20);
+        controller.stopStream();
+        EXPECT_EQ(controller.playbackState(), SightlineApp::SightlineVideoController::PlaybackState::Idle);
+    }
+}
+
+TEST_F(SightlineVideoTest, StopStreamResponsiveDuringActiveStream)
+{
+    SightlineApp::SightlineVideoController controller {};
+    QTest::qWait(100);
+    EXPECT_EQ(controller.playbackState(), SightlineApp::SightlineVideoController::PlaybackState::Playing);
+
+    const auto start = std::chrono::steady_clock::now();
+    controller.stopStream();
+    const auto elapsed
+        = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start).count();
+
+    EXPECT_EQ(controller.playbackState(), SightlineApp::SightlineVideoController::PlaybackState::Idle);
+    EXPECT_LT(elapsed, 2500);
+}
+
 } // namespace
 
 int main(int argc, char** argv)

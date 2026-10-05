@@ -105,6 +105,13 @@ public:
 
     void close() override;
 
+    /// @brief Aborts active blocking network operations or decoding loops.
+    /// @details Sets the interrupt flag to immediately abort blocking FFmpeg calls.
+    void interrupt() noexcept override;
+
+    /// @brief Bounded interrupt timeout in milliseconds during RTSP close/teardown.
+    static constexpr int TeardownTimeoutMs { 1500 };
+
 private:
     AVFormatContextPtr m_formatCtx;
     AVCodecContextPtr m_codecCtx;

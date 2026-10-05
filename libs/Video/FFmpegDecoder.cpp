@@ -48,13 +48,23 @@ FFmpegDecoder::~FFmpegDecoder()
 
 void FFmpegDecoder::close()
 {
-    m_interruptCtx.interrupted.store(true, std::memory_order_relaxed);
     m_isInitialized = false;
     m_swsCtx.reset();
     m_rawFrame.reset();
     m_packet.reset();
     m_codecCtx.reset();
-    m_formatCtx.reset();
+
+    if (m_formatCtx) {
+        // Enforce bounded interrupt timeout during avformat_close_input() to guarantee RTSP TEARDOWN
+        // transmission without hanging indefinitely on broken network links.
+        m_interruptCtx.interrupted.store(false, std::memory_order_release);
+        m_interruptCtx.lastActivity = std::chrono::steady_clock::now();
+        m_interruptCtx.timeoutMs = TeardownTimeoutMs;
+        m_formatCtx.reset();
+    }
+
+    // Seal interrupt state post-close
+    m_interruptCtx.interrupted.store(true, std::memory_order_release);
 
     if (m_hwDeviceCtx != nullptr) {
         av_buffer_unref(&m_hwDeviceCtx);
@@ -70,6 +80,11 @@ void FFmpegDecoder::close()
     m_codecName.clear();
     m_frameBuffer.clear();
     m_reachedEof = false;
+}
+
+void FFmpegDecoder::interrupt() noexcept
+{
+    m_interruptCtx.interrupted.store(true, std::memory_order_release);
 }
 
 bool FFmpegDecoder::initialize(std::string_view source, PixelFormat format, int threadCount, DeviceType device)

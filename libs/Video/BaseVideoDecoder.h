@@ -115,6 +115,10 @@ public:
     /// @brief Clears configured RTSP credentials.
     void clearCredentials() override;
 
+    /// @brief Aborts active blocking network operations or decoding loops.
+    /// @details Default implementation is a no-op; overridden by concrete decoders with interrupt callbacks.
+    void interrupt() noexcept override;
+
 protected:
     // -----------------------------------------------------------------------
     // Helpers for concrete decoders to call during their operation

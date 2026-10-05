@@ -16,6 +16,7 @@
 #include <QString>
 #include <QStringList>
 #include <QThread>
+#include <QWaitCondition>
 #include <array>
 #include <atomic>
 #include <deque>
@@ -454,6 +455,8 @@ private:
     mutable QMutex m_decoderMutex {};
     mutable QMutex m_snapshotMutex {};
     mutable QMutex m_enhancementMutex {};
+    mutable QMutex m_workerMutex {};
+    QWaitCondition m_workerCondition {};
     std::unique_ptr<Video::IVideoDecoder> m_decoder {};
     std::unique_ptr<QThread> m_thread {};
 
