@@ -158,4 +158,14 @@ bool BaseVideoDecoder::reconnect()
     return ok;
 }
 
+void BaseVideoDecoder::setRtspTransport(RtspTransportMode mode)
+{
+    m_rtspTransport = mode;
+}
+
+RtspTransportMode BaseVideoDecoder::rtspTransport() const noexcept
+{
+    return m_rtspTransport;
+}
+
 } // namespace Video

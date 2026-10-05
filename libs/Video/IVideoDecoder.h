@@ -81,6 +81,14 @@ public:
     /// @return True if auto-reconnect is enabled.
     [[nodiscard]] virtual bool isAutoReconnectEnabled() const = 0;
 
+    /// @brief Configures the RTSP transport mode (TCP, UDP, Multicast, Auto).
+    /// @param[in] mode Transport protocol mode.
+    virtual void setRtspTransport(RtspTransportMode mode) = 0;
+
+    /// @brief Retrieves the active RTSP transport mode.
+    /// @return Configured RtspTransportMode.
+    [[nodiscard]] virtual RtspTransportMode rtspTransport() const noexcept = 0;
+
     /// @brief Closes the video stream and releases decoder resources.
     virtual void close() = 0;
 };

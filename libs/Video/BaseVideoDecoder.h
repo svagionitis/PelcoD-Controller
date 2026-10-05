@@ -87,6 +87,14 @@ public:
     /// @return True if auto-reconnect is enabled.
     [[nodiscard]] bool isAutoReconnectEnabled() const override;
 
+    /// @brief Configures the RTSP transport mode (TCP, UDP, Multicast, Auto).
+    /// @param[in] mode Transport protocol mode.
+    void setRtspTransport(RtspTransportMode mode) override;
+
+    /// @brief Retrieves the active RTSP transport mode.
+    /// @return Configured RtspTransportMode.
+    [[nodiscard]] RtspTransportMode rtspTransport() const noexcept override;
+
 protected:
     // -----------------------------------------------------------------------
     // Helpers for concrete decoders to call during their operation
@@ -159,6 +167,7 @@ protected:
     int m_reconnectIntervalMs { 1500 }; ///< Milliseconds between reconnection retries.
     std::chrono::steady_clock::time_point m_lastReconnectAttempt {}; ///< Timestamp of last reconnect attempt.
     bool m_isLiveStream { false }; ///< Flag indicating live stream (RTSP/device) vs finite file.
+    RtspTransportMode m_rtspTransport { RtspTransportMode::Auto }; ///< Configured RTSP transport mode.
 
     bool m_tripleBufferingEnabled { false }; ///< Whether triple buffering is active.
     mutable AtomicTripleBuffer<FrameBufferSlot> m_tripleBuffer; ///< Lock-free triple buffer.

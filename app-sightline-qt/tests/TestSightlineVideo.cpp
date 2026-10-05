@@ -151,6 +151,49 @@ TEST_F(SightlineVideoTest, CustomUriPreservationAcrossCameraSwitches)
     EXPECT_EQ(controller.sourceUri(), customUri);
 }
 
+TEST_F(SightlineVideoTest, TransportModeConfiguration)
+{
+    SightlineApp::SightlineVideoController controller {};
+    QSignalSpy transportSpy(&controller, &SightlineApp::SightlineVideoController::transportModeChanged);
+
+    // Initial default should be Auto
+    EXPECT_EQ(controller.transportMode(), SightlineApp::SightlineVideoController::RtspTransport::Auto);
+    EXPECT_EQ(controller.activeTransportMode(), 0);
+
+    // Switch to TCP
+    controller.selectTransportMode(SightlineApp::SightlineVideoController::RtspTransport::Tcp);
+    EXPECT_EQ(controller.transportMode(), SightlineApp::SightlineVideoController::RtspTransport::Tcp);
+    EXPECT_EQ(controller.activeTransportMode(), 1);
+    EXPECT_EQ(transportSpy.count(), 1);
+
+    // Switch to UDP Unicast
+    controller.selectTransportMode(SightlineApp::SightlineVideoController::RtspTransport::Udp);
+    EXPECT_EQ(controller.transportMode(), SightlineApp::SightlineVideoController::RtspTransport::Udp);
+    EXPECT_EQ(controller.activeTransportMode(), 2);
+    EXPECT_EQ(transportSpy.count(), 2);
+
+    // Switch to UDP Multicast
+    controller.selectTransportMode(SightlineApp::SightlineVideoController::RtspTransport::Multicast);
+    EXPECT_EQ(controller.transportMode(), SightlineApp::SightlineVideoController::RtspTransport::Multicast);
+    EXPECT_EQ(controller.activeTransportMode(), 3);
+    EXPECT_EQ(transportSpy.count(), 3);
+
+    // Idempotent selection should not re-trigger signal
+    controller.selectTransportMode(SightlineApp::SightlineVideoController::RtspTransport::Multicast);
+    EXPECT_EQ(transportSpy.count(), 3);
+
+    // Test QML integer slot
+    controller.selectTransportModeInt(1);
+    EXPECT_EQ(controller.transportMode(), SightlineApp::SightlineVideoController::RtspTransport::Tcp);
+    EXPECT_EQ(controller.activeTransportMode(), 1);
+    EXPECT_EQ(transportSpy.count(), 4);
+
+    controller.selectTransportModeInt(0);
+    EXPECT_EQ(controller.transportMode(), SightlineApp::SightlineVideoController::RtspTransport::Auto);
+    EXPECT_EQ(controller.activeTransportMode(), 0);
+    EXPECT_EQ(transportSpy.count(), 5);
+}
+
 TEST_F(SightlineVideoTest, SyntheticModeToggle)
 {
     SightlineApp::SightlineVideoController controller {};

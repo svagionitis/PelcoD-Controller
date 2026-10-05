@@ -109,6 +109,33 @@ bool GStreamerDecoder::initialize(std::string_view source, PixelFormat format, i
     }
     m_pipeline.reset(playbinRaw);
 
+    if (srcType == SourceType::Rtsp) {
+        g_signal_connect(playbinRaw, "source-setup", G_CALLBACK(+[](GstElement*, GstElement* srcElem, gpointer data) {
+            auto* self = static_cast<GStreamerDecoder*>(data);
+            if (srcElem != nullptr
+                && g_object_class_find_property(G_OBJECT_GET_CLASS(srcElem), "protocols") != nullptr) {
+                // GstRTSPLowerTrans flags: UDP=1, UDP_MCAST=2, TCP=4
+                int proto = 1 | 4; // Auto: UDP with TCP fallback
+                switch (self->rtspTransport()) {
+                case RtspTransportMode::Tcp:
+                    proto = 4;
+                    break;
+                case RtspTransportMode::Udp:
+                    proto = 1;
+                    break;
+                case RtspTransportMode::UdpMulticast:
+                    proto = 2;
+                    break;
+                case RtspTransportMode::Auto:
+                    proto = 1 | 4;
+                    break;
+                }
+                g_object_set(srcElem, "protocols", proto, "latency", 100, nullptr);
+            }
+        }),
+            this);
+    }
+
     // Create custom video sink bin: videoconvert -> appsink
     GstElement* sinkBin = gst_bin_new("sink-bin");
     GstElement* conv = gst_element_factory_make("videoconvert", "sink-conv");

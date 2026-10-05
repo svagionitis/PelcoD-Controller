@@ -98,6 +98,15 @@ enum class SourceType {
     MockPattern ///< In-process synthetic test pattern generator
 };
 
+/// @enum RtspTransportMode
+/// @brief Transport layer protocol for RTSP session streaming.
+enum class RtspTransportMode {
+    Auto, ///< Automatic negotiation (UDP preferred, fallback to TCP)
+    Tcp, ///< Interleaved TCP framing (RFC 2326 Section 10.12)
+    Udp, ///< Unicast UDP (RTP/AVP over UDP, requires even client port per RFC 3550)
+    UdpMulticast ///< Multicast UDP (joins multicast group per Sightline EAN-RTSP Section 4)
+};
+
 /// @struct VideoDeviceInfo
 /// @brief Descriptor for an enumerated hardware video capture device.
 struct VideoDeviceInfo {

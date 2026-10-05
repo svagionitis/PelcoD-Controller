@@ -1049,6 +1049,30 @@ Rectangle {
                 }
             }
 
+            RowLayout {
+                spacing: 8
+                Layout.fillWidth: true
+
+                Text {
+                    text: "Transport Mode:"
+                    color: SightlineTheme.textMuted
+                    font.pixelSize: 11
+                }
+
+                ComboBox {
+                    id: transportCombo
+                    Layout.fillWidth: true
+                    implicitHeight: 26
+                    model: ["Auto", "TCP Interleaved", "UDP Unicast", "UDP Multicast"]
+                    currentIndex: videoController ? videoController.activeTransportMode : 0
+                    onActivated: function(index) {
+                        if (videoController) {
+                            videoController.selectTransportModeInt(index);
+                        }
+                    }
+                }
+            }
+
             Text {
                 text: "Status: " + (videoController ? videoController.statusMessage : "Idle")
                 color: SightlineTheme.textSecondary
@@ -1058,6 +1082,7 @@ Rectangle {
 
         onAccepted: {
             if (videoController) {
+                videoController.selectTransportModeInt(transportCombo.currentIndex);
                 videoController.sourceUri = streamUriField.text;
                 videoController.setSyntheticMode(false);
             }

@@ -245,6 +245,27 @@ TEST(VideoDecoderTest, SourceTypeDetection)
     EXPECT_EQ(detectSourceType("/var/media/camera_dump.ts"), SourceType::File);
 }
 
+TEST(VideoDecoderTest, RtspTransportModeConfiguration)
+{
+    MockVideoDecoder decoder {};
+    EXPECT_EQ(decoder.rtspTransport(), RtspTransportMode::Auto);
+
+    decoder.setRtspTransport(RtspTransportMode::Tcp);
+    EXPECT_EQ(decoder.rtspTransport(), RtspTransportMode::Tcp);
+
+    decoder.setRtspTransport(RtspTransportMode::Udp);
+    EXPECT_EQ(decoder.rtspTransport(), RtspTransportMode::Udp);
+
+    decoder.setRtspTransport(RtspTransportMode::UdpMulticast);
+    EXPECT_EQ(decoder.rtspTransport(), RtspTransportMode::UdpMulticast);
+
+    // Verify transport mode persists across reconnect attempts
+    EXPECT_TRUE(decoder.initialize("mock://test"));
+    EXPECT_EQ(decoder.rtspTransport(), RtspTransportMode::UdpMulticast);
+    EXPECT_TRUE(decoder.reconnect());
+    EXPECT_EQ(decoder.rtspTransport(), RtspTransportMode::UdpMulticast);
+}
+
 TEST(VideoDecoderTest, DeviceEnumeration)
 {
     // Ensure hardware device enumeration runs safely without throwing or crashing
@@ -1952,13 +1973,8 @@ TEST(VideoDecoderTest, FFmpegDecoderNormalizesPath)
     auto decoder = DecoderFactory::create(BackendType::FFmpeg);
     ASSERT_TRUE(decoder != nullptr);
 
-    const std::vector<std::string> prefixes = {
-        "sample-videos/",
-        "../sample-videos/",
-        "../../sample-videos/",
-        "../../../sample-videos/",
-        "../../../../sample-videos/"
-    };
+    const std::vector<std::string> prefixes = { "sample-videos/", "../sample-videos/", "../../sample-videos/",
+        "../../../sample-videos/", "../../../../sample-videos/" };
     for (const auto& sampleName : { "mpegts-klv-day-flight.ts", "mpegts-klv-night-flight-IR.ts" }) {
         std::string samplePath;
         for (const auto& prefix : prefixes) {
@@ -2004,4 +2020,3 @@ int main(int argc, char* argv[])
     ::testing::InitGoogleTest(&argc, argv);
     return RUN_ALL_TESTS();
 }
-

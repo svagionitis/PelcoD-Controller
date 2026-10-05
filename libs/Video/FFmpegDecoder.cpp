@@ -89,8 +89,8 @@ bool FFmpegDecoder::initialize(std::string_view source, PixelFormat format, int 
         m_filePath = m_filePath.substr(7);
     }
 #ifdef _WIN32
-    if (m_filePath.size() >= 3 && m_filePath[0] == '/'
-        && std::isalpha(static_cast<unsigned char>(m_filePath[1])) && m_filePath[2] == ':') {
+    if (m_filePath.size() >= 3 && m_filePath[0] == '/' && std::isalpha(static_cast<unsigned char>(m_filePath[1]))
+        && m_filePath[2] == ':') {
         m_filePath.erase(0, 1);
     }
 #endif
@@ -119,7 +119,20 @@ bool FFmpegDecoder::initialize(std::string_view source, PixelFormat format, int 
         // RTSP network socket timeout in microseconds (5 seconds)
         av_dict_set(&options, "stimeout", "5000000", 0);
         if (m_filePath.rfind("rtsp://", 0) == 0) {
-            av_dict_set(&options, "rtsp_transport", "tcp", 0);
+            switch (m_rtspTransport) {
+            case RtspTransportMode::Tcp:
+                av_dict_set(&options, "rtsp_transport", "tcp", 0);
+                break;
+            case RtspTransportMode::Udp:
+                av_dict_set(&options, "rtsp_transport", "udp", 0);
+                break;
+            case RtspTransportMode::UdpMulticast:
+                av_dict_set(&options, "rtsp_transport", "udp_multicast", 0);
+                break;
+            case RtspTransportMode::Auto:
+                // Allow default RTSP negotiation (UDP with TCP fallback)
+                break;
+            }
         }
     } else if (srcType == SourceType::Device) {
 #ifdef _WIN32

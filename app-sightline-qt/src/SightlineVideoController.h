@@ -33,6 +33,9 @@ class SightlineVideoController : public QObject {
         NetworkChannel networkChannel READ networkChannel WRITE selectNetworkChannel NOTIFY networkChannelChanged)
     Q_PROPERTY(
         int activeNetworkChannel READ activeNetworkChannel WRITE selectNetworkChannelInt NOTIFY networkChannelChanged)
+    Q_PROPERTY(RtspTransport transportMode READ transportMode WRITE selectTransportMode NOTIFY transportModeChanged)
+    Q_PROPERTY(
+        int activeTransportMode READ activeTransportMode WRITE selectTransportModeInt NOTIFY transportModeChanged)
     Q_PROPERTY(QString sourceUri READ sourceUri WRITE setSourceUri NOTIFY sourceUriChanged)
     Q_PROPERTY(int activeCamera READ activeCamera WRITE selectCamera NOTIFY activeCameraChanged)
     Q_PROPERTY(bool isSynthetic READ isSynthetic WRITE setSyntheticMode NOTIFY syntheticChanged)
@@ -65,6 +68,11 @@ public:
     enum class NetworkChannel { Net0 = 0, Net1 = 1, Legacy = 2, Custom = 3 };
     Q_ENUM(NetworkChannel)
 
+    /// @enum RtspTransport
+    /// @brief Transport protocol mode for RTSP streaming per Sightline EAN-RTSP.
+    enum class RtspTransport { Auto = 0, Tcp = 1, Udp = 2, Multicast = 3 };
+    Q_ENUM(RtspTransport)
+
     /// @brief Constructor.
     /// @param[in] parent Optional parent QObject.
     explicit SightlineVideoController(QObject* parent = nullptr);
@@ -87,6 +95,14 @@ public:
     /// @brief Get active logical RTSP network channel as integer.
     /// @return Selected channel integer (0: Net0, 1: Net1, 2: Legacy, 3: Custom).
     [[nodiscard]] int activeNetworkChannel() const noexcept;
+
+    /// @brief Get active RTSP transport mode.
+    /// @return Active RtspTransport enum value.
+    [[nodiscard]] RtspTransport transportMode() const noexcept;
+
+    /// @brief Get active RTSP transport mode as integer for QML.
+    /// @return Transport mode index (0: Auto, 1: TCP, 2: UDP, 3: Multicast).
+    [[nodiscard]] int activeTransportMode() const noexcept;
 
     /// @brief Get active camera index (0: EO Daylight, 1: IR Thermal).
     /// @return Selected camera index.
@@ -203,6 +219,14 @@ public slots:
     /// @param[in] channel 0: Net0, 1: Net1, 2: Legacy, 3: Custom.
     void selectNetworkChannelInt(int channel);
 
+    /// @brief Select RTSP transport mode.
+    /// @param[in] mode Target RtspTransport (Auto, Tcp, Udp, Multicast).
+    void selectTransportMode(RtspTransport mode);
+
+    /// @brief Select RTSP transport mode by integer index (for QML).
+    /// @param[in] mode 0: Auto, 1: TCP, 2: UDP, 3: Multicast.
+    void selectTransportModeInt(int mode);
+
     /// @brief Start or resume video decoding pipeline.
     void startStream();
 
@@ -300,6 +324,9 @@ signals:
     /// @brief Emitted when logical RTSP network channel changes.
     void networkChannelChanged();
 
+    /// @brief Emitted when RTSP transport mode changes.
+    void transportModeChanged();
+
     /// @brief Emitted when active camera index changes.
     void activeCameraChanged();
 
@@ -387,6 +414,7 @@ private:
 
     PlaybackState m_state { PlaybackState::Idle };
     NetworkChannel m_networkChannel { NetworkChannel::Net0 };
+    RtspTransport m_transportMode { RtspTransport::Auto };
     QString m_sourceUri {};
     QString m_hostAddress { QStringLiteral("127.0.0.1") };
     int m_activeCamera { 0 };

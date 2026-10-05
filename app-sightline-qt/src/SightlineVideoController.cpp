@@ -93,6 +93,40 @@ void SightlineVideoController::selectNetworkChannelInt(int channel)
     selectNetworkChannel(ch);
 }
 
+SightlineVideoController::RtspTransport SightlineVideoController::transportMode() const noexcept
+{
+    return m_transportMode;
+}
+
+int SightlineVideoController::activeTransportMode() const noexcept
+{
+    return static_cast<int>(m_transportMode);
+}
+
+void SightlineVideoController::selectTransportMode(RtspTransport mode)
+{
+    if (m_transportMode != mode) {
+        m_transportMode = mode;
+        emit transportModeChanged();
+        if (m_running.load() && !m_isSynthetic) {
+            restartStream();
+        }
+    }
+}
+
+void SightlineVideoController::selectTransportModeInt(int mode)
+{
+    RtspTransport transport { RtspTransport::Auto };
+    if (mode == 1) {
+        transport = RtspTransport::Tcp;
+    } else if (mode == 2) {
+        transport = RtspTransport::Udp;
+    } else if (mode == 3) {
+        transport = RtspTransport::Multicast;
+    }
+    selectTransportMode(transport);
+}
+
 int SightlineVideoController::activeCamera() const noexcept
 {
     return m_activeCamera;
@@ -827,6 +861,8 @@ void SightlineVideoController::workerLoop()
     }
 
     const QString effectiveUri { resolveSourceUri() };
+
+    dec->setRtspTransport(static_cast<Video::RtspTransportMode>(m_transportMode));
 
     if (!dec->initialize(effectiveUri.toStdString(), Video::PixelFormat::RGB24, 0, Video::DeviceType::CPU)) {
         if (!m_isSynthetic) {
