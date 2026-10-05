@@ -194,6 +194,34 @@ TEST_F(SightlineVideoTest, TransportModeConfiguration)
     EXPECT_EQ(transportSpy.count(), 5);
 }
 
+TEST_F(SightlineVideoTest, RtspDigestAuthenticationConfiguration)
+{
+    SightlineApp::SightlineVideoController controller {};
+    QSignalSpy authSpy(&controller, &SightlineApp::SightlineVideoController::rtspAuthChanged);
+
+    EXPECT_FALSE(controller.authEnabled());
+    EXPECT_TRUE(controller.rtspUsername().isEmpty());
+    EXPECT_TRUE(controller.rtspPassword().isEmpty());
+
+    // Configure credentials
+    controller.setRtspCredentials(QStringLiteral("admin"), QStringLiteral("bls_345"));
+    EXPECT_TRUE(controller.authEnabled());
+    EXPECT_EQ(controller.rtspUsername(), QStringLiteral("admin"));
+    EXPECT_EQ(controller.rtspPassword(), QStringLiteral("bls_345"));
+    EXPECT_EQ(authSpy.count(), 1);
+
+    // Verify URI sanitization hides password
+    controller.setSourceUri(QStringLiteral("rtsp://admin:bls_345@192.168.1.15:554/net0"));
+    EXPECT_EQ(controller.sanitizedSourceUri(), QStringLiteral("rtsp://admin:***@192.168.1.15:554/net0"));
+
+    // Clear credentials
+    controller.clearRtspCredentials();
+    EXPECT_FALSE(controller.authEnabled());
+    EXPECT_TRUE(controller.rtspUsername().isEmpty());
+    EXPECT_TRUE(controller.rtspPassword().isEmpty());
+    EXPECT_EQ(authSpy.count(), 2);
+}
+
 TEST_F(SightlineVideoTest, SyntheticModeToggle)
 {
     SightlineApp::SightlineVideoController controller {};

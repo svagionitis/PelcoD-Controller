@@ -89,6 +89,26 @@ public:
     /// @return Configured RtspTransportMode.
     [[nodiscard]] virtual RtspTransportMode rtspTransport() const noexcept = 0;
 
+    /// @brief Configures RTSP authentication credentials for RFC 2069 Digest sessions.
+    /// @param[in] user Username identifier.
+    /// @param[in] pass Plaintext user password.
+    virtual void setCredentials(std::string_view user, std::string_view pass) = 0;
+
+    /// @brief Checks whether RTSP credentials are configured.
+    /// @return True if a non-empty username is set.
+    [[nodiscard]] virtual bool hasCredentials() const noexcept = 0;
+
+    /// @brief Retrieves configured RTSP username.
+    /// @return Username string.
+    [[nodiscard]] virtual std::string rtspUsername() const = 0;
+
+    /// @brief Retrieves configured RTSP password.
+    /// @return Password string.
+    [[nodiscard]] virtual std::string rtspPassword() const = 0;
+
+    /// @brief Clears configured RTSP credentials.
+    virtual void clearCredentials() = 0;
+
     /// @brief Closes the video stream and releases decoder resources.
     virtual void close() = 0;
 };

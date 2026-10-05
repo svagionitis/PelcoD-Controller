@@ -1073,6 +1073,35 @@ Rectangle {
                 }
             }
 
+            // RFC 2069 Digest Authentication Controls
+            CheckBox {
+                id: authToggle
+                text: "Enable RTSP Digest Authentication (RFC 2069)"
+                checked: videoController ? videoController.authEnabled : false
+                Layout.fillWidth: true
+            }
+
+            RowLayout {
+                spacing: 8
+                Layout.fillWidth: true
+                visible: authToggle.checked
+
+                TextField {
+                    id: authUserField
+                    Layout.fillWidth: true
+                    placeholderText: "Username (e.g. root or admin)"
+                    text: videoController ? videoController.rtspUsername : ""
+                }
+
+                TextField {
+                    id: authPassField
+                    Layout.fillWidth: true
+                    echoMode: TextInput.Password
+                    placeholderText: "Password"
+                    text: videoController ? videoController.rtspPassword : ""
+                }
+            }
+
             Text {
                 text: "Status: " + (videoController ? videoController.statusMessage : "Idle")
                 color: SightlineTheme.textSecondary
@@ -1083,6 +1112,11 @@ Rectangle {
         onAccepted: {
             if (videoController) {
                 videoController.selectTransportModeInt(transportCombo.currentIndex);
+                if (authToggle.checked) {
+                    videoController.setRtspCredentials(authUserField.text, authPassField.text);
+                } else {
+                    videoController.clearRtspCredentials();
+                }
                 videoController.sourceUri = streamUriField.text;
                 videoController.setSyntheticMode(false);
             }

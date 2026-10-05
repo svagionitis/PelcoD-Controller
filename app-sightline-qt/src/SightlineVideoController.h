@@ -36,6 +36,10 @@ class SightlineVideoController : public QObject {
     Q_PROPERTY(RtspTransport transportMode READ transportMode WRITE selectTransportMode NOTIFY transportModeChanged)
     Q_PROPERTY(
         int activeTransportMode READ activeTransportMode WRITE selectTransportModeInt NOTIFY transportModeChanged)
+    Q_PROPERTY(QString rtspUsername READ rtspUsername WRITE setRtspUsername NOTIFY rtspAuthChanged)
+    Q_PROPERTY(QString rtspPassword READ rtspPassword WRITE setRtspPassword NOTIFY rtspAuthChanged)
+    Q_PROPERTY(bool authEnabled READ authEnabled WRITE setAuthEnabled NOTIFY rtspAuthChanged)
+    Q_PROPERTY(QString sanitizedSourceUri READ sanitizedSourceUri NOTIFY sourceUriChanged)
     Q_PROPERTY(QString sourceUri READ sourceUri WRITE setSourceUri NOTIFY sourceUriChanged)
     Q_PROPERTY(int activeCamera READ activeCamera WRITE selectCamera NOTIFY activeCameraChanged)
     Q_PROPERTY(bool isSynthetic READ isSynthetic WRITE setSyntheticMode NOTIFY syntheticChanged)
@@ -103,6 +107,22 @@ public:
     /// @brief Get active RTSP transport mode as integer for QML.
     /// @return Transport mode index (0: Auto, 1: TCP, 2: UDP, 3: Multicast).
     [[nodiscard]] int activeTransportMode() const noexcept;
+
+    /// @brief Get configured RTSP username.
+    /// @return Username string.
+    [[nodiscard]] QString rtspUsername() const;
+
+    /// @brief Get configured RTSP password.
+    /// @return Password string.
+    [[nodiscard]] QString rtspPassword() const;
+
+    /// @brief Check if RTSP authentication is enabled.
+    /// @return True if authentication is enabled.
+    [[nodiscard]] bool authEnabled() const noexcept;
+
+    /// @brief Get sanitized source URI with redacted password.
+    /// @return URI string with hidden password.
+    [[nodiscard]] QString sanitizedSourceUri() const;
 
     /// @brief Get active camera index (0: EO Daylight, 1: IR Thermal).
     /// @return Selected camera index.
@@ -227,6 +247,26 @@ public slots:
     /// @param[in] mode 0: Auto, 1: TCP, 2: UDP, 3: Multicast.
     void selectTransportModeInt(int mode);
 
+    /// @brief Set RTSP username.
+    /// @param[in] user Username string.
+    void setRtspUsername(const QString& user);
+
+    /// @brief Set RTSP password.
+    /// @param[in] pass Password string.
+    void setRtspPassword(const QString& pass);
+
+    /// @brief Enable or disable RTSP Digest authentication.
+    /// @param[in] enabled True to enable authentication.
+    void setAuthEnabled(bool enabled);
+
+    /// @brief Configure RTSP credentials in a single call.
+    /// @param[in] user Username.
+    /// @param[in] pass Plaintext password.
+    void setRtspCredentials(const QString& user, const QString& pass);
+
+    /// @brief Clear configured RTSP credentials and disable authentication.
+    void clearRtspCredentials();
+
     /// @brief Start or resume video decoding pipeline.
     void startStream();
 
@@ -327,6 +367,9 @@ signals:
     /// @brief Emitted when RTSP transport mode changes.
     void transportModeChanged();
 
+    /// @brief Emitted when RTSP authentication credentials change.
+    void rtspAuthChanged();
+
     /// @brief Emitted when active camera index changes.
     void activeCameraChanged();
 
@@ -415,6 +458,9 @@ private:
     PlaybackState m_state { PlaybackState::Idle };
     NetworkChannel m_networkChannel { NetworkChannel::Net0 };
     RtspTransport m_transportMode { RtspTransport::Auto };
+    QString m_rtspUsername {};
+    QString m_rtspPassword {};
+    bool m_authEnabled { false };
     QString m_sourceUri {};
     QString m_hostAddress { QStringLiteral("127.0.0.1") };
     int m_activeCamera { 0 };

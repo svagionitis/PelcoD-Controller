@@ -266,6 +266,35 @@ TEST(VideoDecoderTest, RtspTransportModeConfiguration)
     EXPECT_EQ(decoder.rtspTransport(), RtspTransportMode::UdpMulticast);
 }
 
+TEST(VideoDecoderTest, RtspCredentialsConfiguration)
+{
+    MockVideoDecoder decoder {};
+    EXPECT_FALSE(decoder.hasCredentials());
+    EXPECT_TRUE(decoder.rtspUsername().empty());
+    EXPECT_TRUE(decoder.rtspPassword().empty());
+
+    decoder.setCredentials("admin", "bls_345");
+    EXPECT_TRUE(decoder.hasCredentials());
+    EXPECT_EQ(decoder.rtspUsername(), "admin");
+    EXPECT_EQ(decoder.rtspPassword(), "bls_345");
+
+    // Verify credentials persist across stream initialization and reconnection
+    EXPECT_TRUE(decoder.initialize("mock://test"));
+    EXPECT_TRUE(decoder.hasCredentials());
+    EXPECT_EQ(decoder.rtspUsername(), "admin");
+    EXPECT_EQ(decoder.rtspPassword(), "bls_345");
+
+    EXPECT_TRUE(decoder.reconnect());
+    EXPECT_TRUE(decoder.hasCredentials());
+    EXPECT_EQ(decoder.rtspUsername(), "admin");
+
+    // Verify clearing credentials
+    decoder.clearCredentials();
+    EXPECT_FALSE(decoder.hasCredentials());
+    EXPECT_TRUE(decoder.rtspUsername().empty());
+    EXPECT_TRUE(decoder.rtspPassword().empty());
+}
+
 TEST(VideoDecoderTest, DeviceEnumeration)
 {
     // Ensure hardware device enumeration runs safely without throwing or crashing

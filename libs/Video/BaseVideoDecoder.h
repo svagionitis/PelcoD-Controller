@@ -95,6 +95,26 @@ public:
     /// @return Configured RtspTransportMode.
     [[nodiscard]] RtspTransportMode rtspTransport() const noexcept override;
 
+    /// @brief Configures RTSP authentication credentials for RFC 2069 Digest sessions.
+    /// @param[in] user Username identifier.
+    /// @param[in] pass Plaintext user password.
+    void setCredentials(std::string_view user, std::string_view pass) override;
+
+    /// @brief Checks whether RTSP credentials are configured.
+    /// @return True if a non-empty username is set.
+    [[nodiscard]] bool hasCredentials() const noexcept override;
+
+    /// @brief Retrieves configured RTSP username.
+    /// @return Username string.
+    [[nodiscard]] std::string rtspUsername() const override;
+
+    /// @brief Retrieves configured RTSP password.
+    /// @return Password string.
+    [[nodiscard]] std::string rtspPassword() const override;
+
+    /// @brief Clears configured RTSP credentials.
+    void clearCredentials() override;
+
 protected:
     // -----------------------------------------------------------------------
     // Helpers for concrete decoders to call during their operation
@@ -168,6 +188,18 @@ protected:
     std::chrono::steady_clock::time_point m_lastReconnectAttempt {}; ///< Timestamp of last reconnect attempt.
     bool m_isLiveStream { false }; ///< Flag indicating live stream (RTSP/device) vs finite file.
     RtspTransportMode m_rtspTransport { RtspTransportMode::Auto }; ///< Configured RTSP transport mode.
+    std::string m_rtspUsername {}; ///< Configured RTSP username.
+    std::string m_rtspPassword {}; ///< Configured RTSP password.
+
+    /// @brief Redacts password from URI for safe logging.
+    /// @param[in] uri Input URI.
+    /// @return Sanitized URI.
+    [[nodiscard]] static std::string maskCredentials(std::string_view uri);
+
+    /// @brief Builds an authenticated URI if credentials are set and URI lacks inline credentials.
+    /// @param[in] uri Raw source URI.
+    /// @return Authenticated URI or original URI.
+    [[nodiscard]] std::string buildAuthenticatedUri(std::string_view uri) const;
 
     bool m_tripleBufferingEnabled { false }; ///< Whether triple buffering is active.
     mutable AtomicTripleBuffer<FrameBufferSlot> m_tripleBuffer; ///< Lock-free triple buffer.

@@ -127,6 +127,88 @@ void SightlineVideoController::selectTransportModeInt(int mode)
     selectTransportMode(transport);
 }
 
+QString SightlineVideoController::rtspUsername() const
+{
+    return m_rtspUsername;
+}
+
+QString SightlineVideoController::rtspPassword() const
+{
+    return m_rtspPassword;
+}
+
+bool SightlineVideoController::authEnabled() const noexcept
+{
+    return m_authEnabled;
+}
+
+QString SightlineVideoController::sanitizedSourceUri() const
+{
+    const QString uri { sourceUri() };
+    const qsizetype schemeIdx { uri.indexOf(QStringLiteral("://")) };
+    if (schemeIdx < 0) {
+        return uri;
+    }
+    const qsizetype atIdx { uri.indexOf(QLatin1Char('@'), schemeIdx + 3) };
+    if (atIdx < 0) {
+        return uri;
+    }
+    const qsizetype colonIdx { uri.indexOf(QLatin1Char(':'), schemeIdx + 3) };
+    if (colonIdx >= 0 && colonIdx < atIdx) {
+        return uri.left(colonIdx + 1) + QStringLiteral("***") + uri.mid(atIdx);
+    }
+    return uri;
+}
+
+void SightlineVideoController::setRtspUsername(const QString& user)
+{
+    if (m_rtspUsername != user) {
+        m_rtspUsername = user;
+        emit rtspAuthChanged();
+    }
+}
+
+void SightlineVideoController::setRtspPassword(const QString& pass)
+{
+    if (m_rtspPassword != pass) {
+        m_rtspPassword = pass;
+        emit rtspAuthChanged();
+    }
+}
+
+void SightlineVideoController::setAuthEnabled(bool enabled)
+{
+    if (m_authEnabled != enabled) {
+        m_authEnabled = enabled;
+        emit rtspAuthChanged();
+        if (m_running.load() && !m_isSynthetic) {
+            restartStream();
+        }
+    }
+}
+
+void SightlineVideoController::setRtspCredentials(const QString& user, const QString& pass)
+{
+    m_rtspUsername = user;
+    m_rtspPassword = pass;
+    m_authEnabled = !user.isEmpty();
+    emit rtspAuthChanged();
+    if (m_running.load() && !m_isSynthetic) {
+        restartStream();
+    }
+}
+
+void SightlineVideoController::clearRtspCredentials()
+{
+    m_rtspUsername.clear();
+    m_rtspPassword.clear();
+    m_authEnabled = false;
+    emit rtspAuthChanged();
+    if (m_running.load() && !m_isSynthetic) {
+        restartStream();
+    }
+}
+
 int SightlineVideoController::activeCamera() const noexcept
 {
     return m_activeCamera;
@@ -863,10 +945,15 @@ void SightlineVideoController::workerLoop()
     const QString effectiveUri { resolveSourceUri() };
 
     dec->setRtspTransport(static_cast<Video::RtspTransportMode>(m_transportMode));
+    if (m_authEnabled && !m_rtspUsername.isEmpty()) {
+        dec->setCredentials(m_rtspUsername.toStdString(), m_rtspPassword.toStdString());
+    } else {
+        dec->clearCredentials();
+    }
 
     if (!dec->initialize(effectiveUri.toStdString(), Video::PixelFormat::RGB24, 0, Video::DeviceType::CPU)) {
         if (!m_isSynthetic) {
-            updateState(PlaybackState::Error, tr("Cannot connect to %1").arg(effectiveUri));
+            updateState(PlaybackState::Error, tr("Cannot connect to %1").arg(sanitizedSourceUri()));
             m_running.store(false);
             return;
         }

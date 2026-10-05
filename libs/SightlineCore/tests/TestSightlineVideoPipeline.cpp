@@ -14,6 +14,7 @@
 #include "modules/SightlineCaptureParser.h"
 #include "modules/SightlineCompressionBuilder.h"
 #include "modules/SightlineCompressionParser.h"
+#include "modules/SightlineDigestAuth.h"
 #include "modules/SightlineDisplayBuilder.h"
 #include "modules/SightlineDisplayParser.h"
 #include "modules/SightlineEnhancementBuilder.h"
@@ -1361,6 +1362,103 @@ namespace {
         // 4. Custom port validation
         const std::string customPortUri = formatRtspStreamUri("10.0.0.50", 8554U, RtspMountChannel::Net0);
         EXPECT_EQ(customPortUri, "rtsp://10.0.0.50:8554/net0");
+    }
+
+    /// @brief Verify RFC 1321 standard MD5 test vectors.
+    TEST(TestSightlineVideoPipeline, DigestAuthMd5Rfc1321TestVectors)
+    {
+        EXPECT_EQ(SightlineDigestAuth::computeMd5Hex(""), "d41d8cd98f00b204e9800998ecf8427e");
+        EXPECT_EQ(SightlineDigestAuth::computeMd5Hex("a"), "0cc175b9c0f1b6a831c399e269772661");
+        EXPECT_EQ(SightlineDigestAuth::computeMd5Hex("abc"), "900150983cd24fb0d6963f7d28e17f72");
+        EXPECT_EQ(SightlineDigestAuth::computeMd5Hex("message digest"), "f96b697d7cb7938d525a2f31aaf161d0");
+        EXPECT_EQ(SightlineDigestAuth::computeMd5Hex("abcdefghijklmnopqrstuvwxyz"), "c3fcd3d76192e4007dfb496cca67e13b");
+    }
+
+    /// @brief Verify official Sightline EAN-RTSP Section 6.1.2 test vectors and .htpasswd generation.
+    TEST(TestSightlineVideoPipeline, DigestAuthSightlineEanTestVectors)
+    {
+        // 1. root:sla_rtspserver:root -> 54a6205c85e92a26699dc2c1184e887d
+        const std::string rootHa1 = SightlineDigestAuth::computeHa1("root", "sla_rtspserver", "root");
+        EXPECT_EQ(rootHa1, "54a6205c85e92a26699dc2c1184e887d");
+        EXPECT_EQ(SightlineDigestAuth::formatHtpasswdLine("root", "sla_rtspserver", "root"),
+            "root:sla_rtspserver:54a6205c85e92a26699dc2c1184e887d");
+
+        // 2. admin:sla_rtspserver:bls_345 -> 66b7f77eb8d65ece28a3a36ad2ba8736
+        const std::string adminHa1 = SightlineDigestAuth::computeHa1("admin", "sla_rtspserver", "bls_345");
+        EXPECT_EQ(adminHa1, "66b7f77eb8d65ece28a3a36ad2ba8736");
+        EXPECT_EQ(SightlineDigestAuth::formatHtpasswdLine("admin", "sla_rtspserver", "bls_345"),
+            "admin:sla_rtspserver:66b7f77eb8d65ece28a3a36ad2ba8736");
+    }
+
+    /// @brief Verify .htpasswd file parsing, comments handling, and user record lookup.
+    TEST(TestSightlineVideoPipeline, DigestAuthHtpasswdFileParsing)
+    {
+        const std::string htpasswdData = "# Sightline RTSP Passwords File\r\n"
+                                         "root:sla_rtspserver:54a6205c85e92a26699dc2c1184e887d\n"
+                                         "\n"
+                                         "# Secondary admin user\n"
+                                         "admin:sla_rtspserver:66B7F77EB8D65ECE28A3A36AD2BA8736\r\n";
+
+        const auto entries = SightlineDigestAuth::parseHtpasswd(htpasswdData);
+        ASSERT_EQ(entries.size(), 2U);
+
+        const auto rootUser = SightlineDigestAuth::findHtpasswdUser(entries, "root");
+        ASSERT_TRUE(rootUser.has_value());
+        EXPECT_EQ(rootUser->realm, "sla_rtspserver");
+        EXPECT_EQ(rootUser->ha1, "54a6205c85e92a26699dc2c1184e887d");
+
+        const auto adminUser = SightlineDigestAuth::findHtpasswdUser(entries, "admin");
+        ASSERT_TRUE(adminUser.has_value());
+        EXPECT_EQ(adminUser->ha1, "66b7f77eb8d65ece28a3a36ad2ba8736");
+
+        const auto nonExistent = SightlineDigestAuth::findHtpasswdUser(entries, "operator");
+        EXPECT_FALSE(nonExistent.has_value());
+    }
+
+    /// @brief Verify RFC 2069 challenge parsing and response calculation.
+    TEST(TestSightlineVideoPipeline, DigestAuthRfc2069HandshakeCalculation)
+    {
+        const std::string challengeHeader = "Digest realm=\"sla_rtspserver\", nonce=\"4f8a12bc90\", opaque=\"xyz789\"";
+        const auto challenge = SightlineDigestAuth::parseDigestChallenge(challengeHeader);
+        EXPECT_EQ(challenge.realm, "sla_rtspserver");
+        EXPECT_EQ(challenge.nonce, "4f8a12bc90");
+        EXPECT_EQ(challenge.opaque, "xyz789");
+
+        const std::string ha1 = SightlineDigestAuth::computeHa1("admin", challenge.realm, "bls_345");
+        const std::string uri = "rtsp://192.168.1.15:554/net0";
+        const std::string ha2 = SightlineDigestAuth::computeHa2("DESCRIBE", uri);
+        const std::string response = SightlineDigestAuth::computeResponse(ha1, challenge.nonce, ha2);
+
+        DigestResponseParams params {};
+        params.username = "admin";
+        params.realm = challenge.realm;
+        params.nonce = challenge.nonce;
+        params.uri = uri;
+        params.response = response;
+        params.opaque = challenge.opaque;
+
+        const std::string authHeader = SightlineDigestAuth::formatDigestAuthHeader(params);
+        EXPECT_NE(authHeader.find("username=\"admin\""), std::string::npos);
+        EXPECT_NE(authHeader.find("realm=\"sla_rtspserver\""), std::string::npos);
+        EXPECT_NE(authHeader.find("response=\"" + response + "\""), std::string::npos);
+    }
+
+    /// @brief Verify RTSP URI credential redaction and authenticated URI formatting.
+    TEST(TestSightlineVideoPipeline, DigestAuthSanitizeAndFormatRtspUri)
+    {
+        // 1. Sanitization redacts password
+        const std::string rawUri = "rtsp://admin:bls_345@192.168.1.15:554/net0";
+        EXPECT_EQ(SightlineDigestAuth::sanitizeRtspUri(rawUri), "rtsp://admin:***@192.168.1.15:554/net0");
+
+        // 2. Unauthenticated URIs remain untouched
+        const std::string plainUri = "rtsp://192.168.1.15:554/net0";
+        EXPECT_EQ(SightlineDigestAuth::sanitizeRtspUri(plainUri), plainUri);
+
+        // 3. Authenticated URI builder
+        const RtspCredentials creds { "root", "root" };
+        const std::string authUri = formatRtspStreamUri("192.168.1.15", 554U, RtspMountChannel::Net0, creds);
+        EXPECT_EQ(authUri, "rtsp://root:root@192.168.1.15:554/net0");
+        EXPECT_EQ(SightlineDigestAuth::sanitizeRtspUri(authUri), "rtsp://root:***@192.168.1.15:554/net0");
     }
 
 } // namespace

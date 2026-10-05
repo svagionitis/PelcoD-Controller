@@ -92,6 +92,13 @@ enum class RtspMountChannel : std::uint8_t {
     LegacyRoot = 2U ///< 1500-OEM single-stream root mount (/)
 };
 
+/// @struct RtspCredentials
+/// @brief Authentication credentials for RTSP Digest sessions (RFC 2069).
+struct RtspCredentials {
+    std::string username {}; ///< Username identifier
+    std::string password {}; ///< Plaintext user password
+};
+
 /// @brief Formats an RTSP stream URI conforming to Sightline EAN-RTSP.
 /// @details Decouples physical camera index from logical network mount points.
 /// @param[in] host Target IP address or hostname.
@@ -102,6 +109,42 @@ enum class RtspMountChannel : std::uint8_t {
     std::string_view host, std::uint16_t port = 554U, RtspMountChannel channel = RtspMountChannel::Net0)
 {
     std::string uri { "rtsp://" };
+    uri.append(host);
+    uri.push_back(':');
+    uri.append(std::to_string(port));
+    switch (channel) {
+    case RtspMountChannel::Net0:
+        uri.append("/net0");
+        break;
+    case RtspMountChannel::Net1:
+        uri.append("/net1");
+        break;
+    case RtspMountChannel::LegacyRoot:
+        uri.push_back('/');
+        break;
+    }
+    return uri;
+}
+
+/// @brief Formats an authenticated RTSP stream URI per Sightline EAN-RTSP Section 2.2.
+/// @details Syntax: rtsp://<username>:<password>@<host>:<port>/<channel>
+/// @param[in] host Target IP address or hostname.
+/// @param[in] port Inbound RTSP port (default 554).
+/// @param[in] channel Mount channel (Net0, Net1, or LegacyRoot).
+/// @param[in] creds Authentication credentials.
+/// @return Formatted RTSP URI string.
+[[nodiscard]] inline std::string formatRtspStreamUri(
+    std::string_view host, std::uint16_t port, RtspMountChannel channel, const RtspCredentials& creds)
+{
+    std::string uri { "rtsp://" };
+    if (!creds.username.empty()) {
+        uri.append(creds.username);
+        if (!creds.password.empty()) {
+            uri.push_back(':');
+            uri.append(creds.password);
+        }
+        uri.push_back('@');
+    }
     uri.append(host);
     uri.push_back(':');
     uri.append(std::to_string(port));

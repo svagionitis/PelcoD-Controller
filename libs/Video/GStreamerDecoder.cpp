@@ -131,6 +131,12 @@ bool GStreamerDecoder::initialize(std::string_view source, PixelFormat format, i
                     break;
                 }
                 g_object_set(srcElem, "protocols", proto, "latency", 100, nullptr);
+                if (self->hasCredentials()
+                    && g_object_class_find_property(G_OBJECT_GET_CLASS(srcElem), "user-id") != nullptr) {
+                    const std::string user = self->rtspUsername();
+                    const std::string pass = self->rtspPassword();
+                    g_object_set(srcElem, "user-id", user.c_str(), "user-pw", pass.c_str(), nullptr);
+                }
             }
         }),
             this);

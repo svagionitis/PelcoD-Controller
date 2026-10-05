@@ -33,6 +33,8 @@ add_library(SightlineCore STATIC
     modules/SightlineDetectionBuilder.cpp
     modules/SightlineDetectionParser.h
     modules/SightlineDetectionParser.cpp
+    modules/SightlineDigestAuth.h
+    modules/SightlineDigestAuth.cpp
     modules/SightlineDisplayBuilder.h
     modules/SightlineDisplayBuilder.cpp
     modules/SightlineDisplayParser.h

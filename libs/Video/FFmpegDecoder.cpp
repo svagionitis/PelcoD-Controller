@@ -113,7 +113,7 @@ bool FFmpegDecoder::initialize(std::string_view source, PixelFormat format, int 
 
     AVDictionary* options = nullptr;
     const AVInputFormat* iformat = nullptr;
-    std::string openPath = m_filePath;
+    std::string openPath = buildAuthenticatedUri(m_filePath);
 
     if (srcType == SourceType::Rtsp) {
         // RTSP network socket timeout in microseconds (5 seconds)
@@ -159,8 +159,8 @@ bool FFmpegDecoder::initialize(std::string_view source, PixelFormat format, int 
         av_dict_free(&options);
     }
     if (ret < 0) {
-        LOG(ERROR) << "FFmpegDecoder: Failed to open source: " << m_filePath << " (resolved: " << openPath
-                   << ", error: " << ret << ")";
+        LOG(ERROR) << "FFmpegDecoder: Failed to open source: " << maskCredentials(m_filePath)
+                   << " (resolved: " << maskCredentials(openPath) << ", error: " << ret << ")";
         return false;
     }
     m_formatCtx.reset(formatCtxRaw);
@@ -168,7 +168,7 @@ bool FFmpegDecoder::initialize(std::string_view source, PixelFormat format, int 
     m_interruptCtx.lastActivity = std::chrono::steady_clock::now();
     ret = avformat_find_stream_info(m_formatCtx.get(), nullptr);
     if (ret < 0) {
-        LOG(ERROR) << "FFmpegDecoder: Failed to find stream info for: " << m_filePath;
+        LOG(ERROR) << "FFmpegDecoder: Failed to find stream info for: " << maskCredentials(m_filePath);
         close();
         return false;
     }

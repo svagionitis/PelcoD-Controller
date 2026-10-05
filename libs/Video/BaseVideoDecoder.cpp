@@ -168,4 +168,84 @@ RtspTransportMode BaseVideoDecoder::rtspTransport() const noexcept
     return m_rtspTransport;
 }
 
+void BaseVideoDecoder::setCredentials(std::string_view user, std::string_view pass)
+{
+    m_rtspUsername = std::string(user);
+    m_rtspPassword = std::string(pass);
+}
+
+bool BaseVideoDecoder::hasCredentials() const noexcept
+{
+    return !m_rtspUsername.empty();
+}
+
+std::string BaseVideoDecoder::rtspUsername() const
+{
+    return m_rtspUsername;
+}
+
+std::string BaseVideoDecoder::rtspPassword() const
+{
+    return m_rtspPassword;
+}
+
+void BaseVideoDecoder::clearCredentials()
+{
+    m_rtspUsername.clear();
+    m_rtspPassword.clear();
+}
+
+std::string BaseVideoDecoder::maskCredentials(std::string_view uri)
+{
+    const std::size_t schemePos { uri.find("://") };
+    if (schemePos == std::string_view::npos) {
+        return std::string(uri);
+    }
+    const std::size_t atPos { uri.find('@', schemePos + 3U) };
+    if (atPos == std::string_view::npos) {
+        return std::string(uri);
+    }
+    const std::size_t colonPos { uri.find(':', schemePos + 3U) };
+    if (colonPos != std::string_view::npos && colonPos < atPos) {
+        std::string masked {};
+        masked.reserve(uri.size());
+        masked.append(uri.substr(0U, colonPos + 1U));
+        masked.append("***");
+        masked.append(uri.substr(atPos));
+        return masked;
+    }
+    return std::string(uri);
+}
+
+std::string BaseVideoDecoder::buildAuthenticatedUri(std::string_view uri) const
+{
+    if (!hasCredentials()) {
+        return std::string(uri);
+    }
+    const std::size_t schemePos { uri.find("://") };
+    if (schemePos == std::string_view::npos) {
+        return std::string(uri);
+    }
+    const std::size_t nextSlash { uri.find('/', schemePos + 3U) };
+    const std::size_t hostEnd { (nextSlash != std::string_view::npos) ? nextSlash : uri.size() };
+    const std::string_view authority { uri.substr(schemePos + 3U, hostEnd - (schemePos + 3U)) };
+
+    // If already contains inline credentials, don't overwrite
+    if (authority.find('@') != std::string_view::npos) {
+        return std::string(uri);
+    }
+
+    std::string authUri {};
+    authUri.reserve(uri.size() + m_rtspUsername.size() + m_rtspPassword.size() + 2U);
+    authUri.append(uri.substr(0U, schemePos + 3U));
+    authUri.append(m_rtspUsername);
+    if (!m_rtspPassword.empty()) {
+        authUri.push_back(':');
+        authUri.append(m_rtspPassword);
+    }
+    authUri.push_back('@');
+    authUri.append(uri.substr(schemePos + 3U));
+    return authUri;
+}
+
 } // namespace Video
