@@ -4,6 +4,8 @@
 #include "SightlineDevice.h"
 #include "SightlineFraming.h"
 #include "SightlineProtocolBuilder.h"
+#include "modules/SightlineBlending.h"
+#include "modules/SightlineBlendingBuilder.h"
 #include "Transport/BaseTransport.h"
 
 #include <gtest/gtest.h>
@@ -949,6 +951,211 @@ namespace {
         EXPECT_EQ(capturedVal.value, 3000U);
         EXPECT_TRUE(device.lastSystemValue().has_value());
         EXPECT_EQ(device.lastSystemValue()->value, 3000U);
+
+        device.stop();
+    }
+
+    /// @brief Verify multi-sensor blending and alignment command transmission over transport.
+    TEST(TestSightlineDevice, BlendingCommandDispatch)
+    {
+        auto transport = std::make_shared<MockTestTransport>();
+        SightlineDevice device(transport);
+        ASSERT_TRUE(device.start());
+
+        // 1. setBlend
+        MsgSetBlendParameters blendMsg {};
+        blendMsg.mode = BlendMode::FrameBlendWarpEo;
+        blendMsg.amt = 128U;
+        EXPECT_TRUE(device.setBlend(blendMsg));
+
+        // 2. getBlendParameters
+        EXPECT_TRUE(device.getBlendParameters());
+
+        // 3. setFourAlignPoints
+        MsgFourAlignPoints fourPts {};
+        fourPts.index = 1U;
+        EXPECT_TRUE(device.setFourAlignPoints(fourPts));
+
+        // 4. getFourAlignPoints
+        EXPECT_TRUE(device.getFourAlignPoints(2U));
+
+        // 5. setBlendAlign
+        MsgBlendAlign alignMsg {};
+        alignMsg.index = 0U;
+        alignMsg.vertical = 10;
+        EXPECT_TRUE(device.setBlendAlign(alignMsg));
+
+        // 6. getBlendAlign
+        EXPECT_TRUE(device.getBlendAlign(1U));
+
+        // 7. setMultipleAlignment
+        MsgSetMultipleAlignment multiMsg {};
+        multiMsg.nAlignments = 2U;
+        EXPECT_TRUE(device.setMultipleAlignment(multiMsg));
+
+        // 8. getMultipleAlignment
+        EXPECT_TRUE(device.getMultipleAlignment());
+
+        const auto sent = transport->getSentPackets();
+        ASSERT_EQ(sent.size(), 8U);
+        EXPECT_EQ(SightlineFraming::identifyMessage(sent[0U]), MessageId::SetBlendParameters);
+        EXPECT_EQ(SightlineFraming::identifyMessage(sent[1U]), MessageId::GetBlendParameters);
+        EXPECT_EQ(SightlineFraming::identifyMessage(sent[2U]), MessageId::FourAlignPoints);
+        EXPECT_EQ(SightlineFraming::identifyMessage(sent[3U]), MessageId::GetParameters);
+        EXPECT_EQ(SightlineFraming::identifyMessage(sent[4U]), MessageId::BlendAlign);
+        EXPECT_EQ(SightlineFraming::identifyMessage(sent[5U]), MessageId::GetParameters);
+        EXPECT_EQ(SightlineFraming::identifyMessage(sent[6U]), MessageId::SetMultipleAlignment);
+        EXPECT_EQ(SightlineFraming::identifyMessage(sent[7U]), MessageId::GetParameters);
+
+        device.stop();
+    }
+
+    /// @brief Verify asynchronous telemetry dispatch and thread-safe caching for Blending and Alignment.
+    TEST(TestSightlineDevice, BlendingTelemetryDispatchAndCaching)
+    {
+        auto transport = std::make_shared<MockTestTransport>();
+        SightlineDevice device(transport);
+        ASSERT_TRUE(device.start());
+
+        std::atomic<bool> blendParamsReceived { false };
+        std::atomic<bool> currentBlendReceived { false };
+        std::atomic<bool> fourAlignReceived { false };
+        std::atomic<bool> blendAlignReceived { false };
+        std::atomic<bool> multiAlignReceived { false };
+
+        MsgSetBlendParameters capturedBlend {};
+        device.setBlendParamsCb([&](const MsgSetBlendParameters& params) {
+            capturedBlend = params;
+            blendParamsReceived.store(true);
+        });
+
+        MsgCurrentBlendParameters capturedCurrent {};
+        device.setCurrentBlendParamsCb([&](const MsgCurrentBlendParameters& params) {
+            capturedCurrent = params;
+            currentBlendReceived.store(true);
+        });
+
+        MsgFourAlignPoints capturedFourPts {};
+        device.setFourAlignPointsCb([&](const MsgFourAlignPoints& points) {
+            capturedFourPts = points;
+            fourAlignReceived.store(true);
+        });
+
+        MsgBlendAlign capturedBlendAlign {};
+        device.setBlendAlignCb([&](const MsgBlendAlign& align) {
+            capturedBlendAlign = align;
+            blendAlignReceived.store(true);
+        });
+
+        MsgSetMultipleAlignment capturedMultiAlign {};
+        device.setMultipleAlignmentCb([&](const MsgSetMultipleAlignment& multi) {
+            capturedMultiAlign = multi;
+            multiAlignReceived.store(true);
+        });
+
+        // 1. Inject SetBlendParameters (0x2F - 18B payload)
+        MsgSetBlendParameters inBlend {};
+        inBlend.mode = BlendMode::ThermalBlendWarpEo;
+        inBlend.vertical = -5;
+        inBlend.horizontal = 12;
+        inBlend.amt = 200U;
+        const auto blendPkt = SightlineBlendingBuilder::buildSetBlendParameters(inBlend);
+        transport->injectData(blendPkt);
+
+        EXPECT_TRUE(blendParamsReceived.load());
+        EXPECT_EQ(capturedBlend.mode, BlendMode::ThermalBlendWarpEo);
+        EXPECT_EQ(capturedBlend.vertical, -5);
+        EXPECT_EQ(capturedBlend.horizontal, 12);
+        EXPECT_TRUE(device.lastBlendParams().has_value());
+        EXPECT_EQ(device.lastBlendParams()->mode, BlendMode::ThermalBlendWarpEo);
+
+        // 2. Inject CurrentBlendParameters (0x4D - 19B payload)
+        blendParamsReceived.store(false);
+        const std::vector<std::uint8_t> curBlendPayload {
+            0x01U,       // absOffZoom
+            10U,         // up
+            25U,         // right
+            2U,          // down
+            5U,          // left (net vertical: 10-2=8, horizontal: 25-5=20)
+            0U,          // rotation
+            128U,        // zoom
+            static_cast<std::uint8_t>(BlendMode::FrameBlendWarpEo), // mode
+            180U,        // amt
+            0U,          // hue
+            0x01U,       // flags
+            0U,          // reserved
+            0U,          // warpIndex
+            1U,          // fixedIndex
+            1U,          // usePresetAlign
+            0U,          // presetAlignIndex
+            128U,        // hzoom
+            10U,         // hotStart
+            50U          // coldEnd
+        };
+        const auto curBlendPkt = SightlineFraming::buildPacket(MessageId::CurrentBlendParameters, curBlendPayload);
+        transport->injectData(curBlendPkt);
+
+        EXPECT_TRUE(currentBlendReceived.load());
+        EXPECT_TRUE(blendParamsReceived.load());
+        EXPECT_EQ(capturedCurrent.up, 10U);
+        EXPECT_EQ(capturedCurrent.right, 25U);
+        EXPECT_EQ(capturedCurrent.mode, BlendMode::FrameBlendWarpEo);
+        EXPECT_EQ(capturedBlend.vertical, 8);
+        EXPECT_EQ(capturedBlend.horizontal, 20);
+        EXPECT_TRUE(device.lastCurrentBlendParams().has_value());
+        EXPECT_EQ(device.lastCurrentBlendParams()->up, 10U);
+        EXPECT_TRUE(device.lastBlendParams().has_value());
+        EXPECT_EQ(device.lastBlendParams()->vertical, 8);
+
+        // 3. Inject FourAlignPoints (0x95 - 33B payload)
+        MsgFourAlignPoints inFourPts {};
+        inFourPts.index = 2U;
+        inFourPts.points[0U] = { 100, 200, 105, 198 };
+        inFourPts.points[1U] = { 500, 200, 498, 202 };
+        inFourPts.points[2U] = { 500, 400, 502, 399 };
+        inFourPts.points[3U] = { 100, 400, 99, 401 };
+        const auto fourPkt = SightlineBlendingBuilder::buildFourAlignPoints(inFourPts);
+        transport->injectData(fourPkt);
+
+        EXPECT_TRUE(fourAlignReceived.load());
+        EXPECT_EQ(capturedFourPts.index, 2U);
+        EXPECT_EQ(capturedFourPts.points[0U].leftCol, 100);
+        EXPECT_TRUE(device.lastFourAlignPoints().has_value());
+        EXPECT_EQ(device.lastFourAlignPoints()->points[1U].leftCol, 500);
+
+        // 4. Inject BlendAlign (0xB9 - 11B payload)
+        MsgBlendAlign inAlign {};
+        inAlign.index = 3U;
+        inAlign.vertical = -15;
+        inAlign.horizontal = 30;
+        inAlign.rotate = 640U;
+        inAlign.zoom = 4096U;
+        inAlign.hzoom = 4096U;
+        const auto alignPkt = SightlineBlendingBuilder::buildSetBlendAlign(inAlign);
+        transport->injectData(alignPkt);
+
+        EXPECT_TRUE(blendAlignReceived.load());
+        EXPECT_EQ(capturedBlendAlign.index, 3U);
+        EXPECT_EQ(capturedBlendAlign.vertical, -15);
+        EXPECT_EQ(capturedBlendAlign.horizontal, 30);
+        EXPECT_TRUE(device.lastBlendAlign().has_value());
+        EXPECT_EQ(device.lastBlendAlign()->rotate, 640U);
+
+        // 5. Inject CurrentMultipleAlignment (0x75 - 26B payload)
+        MsgSetMultipleAlignment inMulti {};
+        inMulti.nAlignments = 3U;
+        inMulti.alignment[0U] = { 5, 10, 0, 128, 128 };
+        inMulti.alignment[1U] = { 12, 4, 2, 130, 130 };
+        const auto multiPayload = SightlineFraming::extractPayload(
+            SightlineBlendingBuilder::buildSetMultipleAlignment(inMulti));
+        const auto multiPkt = SightlineFraming::buildPacket(MessageId::CurrentMultipleAlignment, multiPayload);
+        transport->injectData(multiPkt);
+
+        EXPECT_TRUE(multiAlignReceived.load());
+        EXPECT_EQ(capturedMultiAlign.nAlignments, 3U);
+        EXPECT_EQ(capturedMultiAlign.alignment[0U].vertical, 5);
+        EXPECT_TRUE(device.lastMultipleAlignment().has_value());
+        EXPECT_EQ(device.lastMultipleAlignment()->alignment[1U].vertical, 12);
 
         device.stop();
     }

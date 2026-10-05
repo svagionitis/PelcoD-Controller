@@ -391,6 +391,41 @@ bool SightlineDevice::setBlend(const MsgSetBlendParameters& msg)
     return sendPacket(SightlineProtocolBuilder::buildSetBlendParameters(msg));
 }
 
+bool SightlineDevice::getBlendParameters()
+{
+    return sendPacket(SightlineProtocolBuilder::buildGetBlendParameters());
+}
+
+bool SightlineDevice::setFourAlignPoints(const MsgFourAlignPoints& msg)
+{
+    return sendPacket(SightlineProtocolBuilder::buildFourAlignPoints(msg));
+}
+
+bool SightlineDevice::getFourAlignPoints(std::uint8_t index)
+{
+    return sendPacket(SightlineProtocolBuilder::buildGetFourAlignPoints(index));
+}
+
+bool SightlineDevice::setBlendAlign(const MsgBlendAlign& msg)
+{
+    return sendPacket(SightlineProtocolBuilder::buildSetBlendAlign(msg));
+}
+
+bool SightlineDevice::getBlendAlign(std::uint8_t index)
+{
+    return sendPacket(SightlineProtocolBuilder::buildGetBlendAlign(index));
+}
+
+bool SightlineDevice::setMultipleAlignment(const MsgSetMultipleAlignment& msg)
+{
+    return sendPacket(SightlineProtocolBuilder::buildSetMultipleAlignment(msg));
+}
+
+bool SightlineDevice::getMultipleAlignment()
+{
+    return sendPacket(SightlineProtocolBuilder::buildGetMultipleAlignment());
+}
+
 bool SightlineDevice::setNoise3D(const MsgNoise3D& msg)
 {
     return sendPacket(SightlineProtocolBuilder::buildSetNoise3D(msg));
@@ -1140,6 +1175,66 @@ std::optional<MsgSystemValue> SightlineDevice::lastSystemValue() const
     return m_lastSystemValue;
 }
 
+void SightlineDevice::setBlendParamsCb(BlendParamsCallback cb)
+{
+    std::lock_guard<std::mutex> lock(m_callbackMutex);
+    m_blendParamsCb = std::move(cb);
+}
+
+void SightlineDevice::setCurrentBlendParamsCb(CurrentBlendParamsCallback cb)
+{
+    std::lock_guard<std::mutex> lock(m_callbackMutex);
+    m_currentBlendParamsCb = std::move(cb);
+}
+
+void SightlineDevice::setFourAlignPointsCb(FourAlignPointsCallback cb)
+{
+    std::lock_guard<std::mutex> lock(m_callbackMutex);
+    m_fourAlignPointsCb = std::move(cb);
+}
+
+void SightlineDevice::setBlendAlignCb(BlendAlignCallback cb)
+{
+    std::lock_guard<std::mutex> lock(m_callbackMutex);
+    m_blendAlignCb = std::move(cb);
+}
+
+void SightlineDevice::setMultipleAlignmentCb(MultipleAlignmentCallback cb)
+{
+    std::lock_guard<std::mutex> lock(m_callbackMutex);
+    m_multipleAlignmentCb = std::move(cb);
+}
+
+std::optional<MsgSetBlendParameters> SightlineDevice::lastBlendParams() const
+{
+    std::lock_guard<std::mutex> lock(m_cacheMutex);
+    return m_lastBlendParams;
+}
+
+std::optional<MsgCurrentBlendParameters> SightlineDevice::lastCurrentBlendParams() const
+{
+    std::lock_guard<std::mutex> lock(m_cacheMutex);
+    return m_lastCurrentBlendParams;
+}
+
+std::optional<MsgFourAlignPoints> SightlineDevice::lastFourAlignPoints() const
+{
+    std::lock_guard<std::mutex> lock(m_cacheMutex);
+    return m_lastFourAlignPoints;
+}
+
+std::optional<MsgBlendAlign> SightlineDevice::lastBlendAlign() const
+{
+    std::lock_guard<std::mutex> lock(m_cacheMutex);
+    return m_lastBlendAlign;
+}
+
+std::optional<MsgSetMultipleAlignment> SightlineDevice::lastMultipleAlignment() const
+{
+    std::lock_guard<std::mutex> lock(m_cacheMutex);
+    return m_lastMultipleAlignment;
+}
+
 void SightlineDevice::handleIncomingBytes(const std::vector<std::uint8_t>& data)
 {
     const auto packets = m_accumulator.push(data);
@@ -1647,6 +1742,107 @@ void SightlineDevice::dispatchPacket(const std::vector<std::uint8_t>& packet)
             }
             if (cb) {
                 cb(val);
+            }
+        }
+        break;
+    }
+    case MessageId::SetBlendParameters: {
+        MsgSetBlendParameters params {};
+        if (SightlineProtocolParser::parseBlendParameters(packet, params)) {
+            {
+                std::lock_guard<std::mutex> lock(m_cacheMutex);
+                m_lastBlendParams = params;
+            }
+            BlendParamsCallback cb {};
+            {
+                std::lock_guard<std::mutex> lock(m_callbackMutex);
+                cb = m_blendParamsCb;
+            }
+            if (cb) {
+                cb(params);
+            }
+        }
+        break;
+    }
+    case MessageId::CurrentBlendParameters: {
+        MsgCurrentBlendParameters curParams {};
+        if (SightlineProtocolParser::parseCurrentBlendParameters(packet, curParams)) {
+            MsgSetBlendParameters mappedParams {};
+            const bool mappedOk { SightlineProtocolParser::parseBlendParameters(packet, mappedParams) };
+            {
+                std::lock_guard<std::mutex> lock(m_cacheMutex);
+                m_lastCurrentBlendParams = curParams;
+                if (mappedOk) {
+                    m_lastBlendParams = mappedParams;
+                }
+            }
+            CurrentBlendParamsCallback curCb {};
+            BlendParamsCallback mappedCb {};
+            {
+                std::lock_guard<std::mutex> lock(m_callbackMutex);
+                curCb = m_currentBlendParamsCb;
+                mappedCb = m_blendParamsCb;
+            }
+            if (curCb) {
+                curCb(curParams);
+            }
+            if (mappedCb && mappedOk) {
+                mappedCb(mappedParams);
+            }
+        }
+        break;
+    }
+    case MessageId::FourAlignPoints: {
+        MsgFourAlignPoints points {};
+        if (SightlineProtocolParser::parseFourAlignPoints(packet, points)) {
+            {
+                std::lock_guard<std::mutex> lock(m_cacheMutex);
+                m_lastFourAlignPoints = points;
+            }
+            FourAlignPointsCallback cb {};
+            {
+                std::lock_guard<std::mutex> lock(m_callbackMutex);
+                cb = m_fourAlignPointsCb;
+            }
+            if (cb) {
+                cb(points);
+            }
+        }
+        break;
+    }
+    case MessageId::BlendAlign: {
+        MsgBlendAlign align {};
+        if (SightlineProtocolParser::parseBlendAlign(packet, align)) {
+            {
+                std::lock_guard<std::mutex> lock(m_cacheMutex);
+                m_lastBlendAlign = align;
+            }
+            BlendAlignCallback cb {};
+            {
+                std::lock_guard<std::mutex> lock(m_callbackMutex);
+                cb = m_blendAlignCb;
+            }
+            if (cb) {
+                cb(align);
+            }
+        }
+        break;
+    }
+    case MessageId::SetMultipleAlignment:
+    case MessageId::CurrentMultipleAlignment: {
+        MsgSetMultipleAlignment multiAlign {};
+        if (SightlineProtocolParser::parseMultipleAlignment(packet, multiAlign)) {
+            {
+                std::lock_guard<std::mutex> lock(m_cacheMutex);
+                m_lastMultipleAlignment = multiAlign;
+            }
+            MultipleAlignmentCallback cb {};
+            {
+                std::lock_guard<std::mutex> lock(m_callbackMutex);
+                cb = m_multipleAlignmentCb;
+            }
+            if (cb) {
+                cb(multiAlign);
             }
         }
         break;

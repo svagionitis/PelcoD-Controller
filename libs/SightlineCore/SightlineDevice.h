@@ -51,6 +51,11 @@ public:
     using NetworkParamsCallback = std::function<void(const MsgSetNetworkParameters&)>;
     using NetworkListCallback = std::function<void(const MsgCurrentNetworkList&)>;
     using SystemValueCallback = std::function<void(const MsgSystemValue&)>;
+    using BlendParamsCallback = std::function<void(const MsgSetBlendParameters&)>;
+    using CurrentBlendParamsCallback = std::function<void(const MsgCurrentBlendParameters&)>;
+    using FourAlignPointsCallback = std::function<void(const MsgFourAlignPoints&)>;
+    using BlendAlignCallback = std::function<void(const MsgBlendAlign&)>;
+    using MultipleAlignmentCallback = std::function<void(const MsgSetMultipleAlignment&)>;
 
     /// @brief Constructs a SightlineDevice wrapping the given transport channel.
     /// @param[in] transport Shared pointer to underlying communication transport.
@@ -353,6 +358,39 @@ public:
     /// @param[in] msg Blend parameters.
     /// @return True if command was successfully transmitted.
     [[nodiscard]] bool setBlend(const MsgSetBlendParameters& msg);
+
+    /// @brief Queries active multi-sensor blend parameters (Message ID 0x30).
+    /// @return True if command was successfully transmitted.
+    [[nodiscard]] bool getBlendParameters();
+
+    /// @brief Configures 4-point projective homography calibration (Message ID 0x95).
+    /// @param[in] msg Four align points parameters.
+    /// @return True if command was successfully transmitted.
+    [[nodiscard]] bool setFourAlignPoints(const MsgFourAlignPoints& msg);
+
+    /// @brief Queries 4-point projective calibration (Message ID 0x28 query 0x95).
+    /// @param[in] index Alignment slot index [0..4].
+    /// @return True if command was successfully transmitted.
+    [[nodiscard]] bool getFourAlignPoints(std::uint8_t index = 0U);
+
+    /// @brief Configures fine-tune alignment offsets and automated registration (Message ID 0xB9).
+    /// @param[in] msg Blend align parameters.
+    /// @return True if command was successfully transmitted.
+    [[nodiscard]] bool setBlendAlign(const MsgBlendAlign& msg);
+
+    /// @brief Queries blend alignment parameters (Message ID 0x28 query 0xB9).
+    /// @param[in] index Alignment slot index [0..4].
+    /// @return True if command was successfully transmitted.
+    [[nodiscard]] bool getBlendAlign(std::uint8_t index = 0U);
+
+    /// @brief Configures multi-camera multiple alignment (Message ID 0x74).
+    /// @param[in] msg Multiple alignment parameters.
+    /// @return True if command was successfully transmitted.
+    [[nodiscard]] bool setMultipleAlignment(const MsgSetMultipleAlignment& msg);
+
+    /// @brief Queries multiple alignment parameters (Message ID 0x28 query 0x74).
+    /// @return True if command was successfully transmitted.
+    [[nodiscard]] bool getMultipleAlignment();
 
     /// @brief Configures 3D spatio-temporal noise reduction filter.
     /// @param[in] msg Noise reduction parameters.
@@ -947,6 +985,36 @@ public:
     /// @brief Registers an observer callback for system register values (0x93).
     void setSystemValueCallback(SystemValueCallback cb);
 
+    /// @brief Registers an observer callback for blend parameters (0x2F / 0x4D).
+    void setBlendParamsCb(BlendParamsCallback cb);
+
+    /// @brief Registers an observer callback for full current blend parameters (0x4D).
+    void setCurrentBlendParamsCb(CurrentBlendParamsCallback cb);
+
+    /// @brief Registers an observer callback for 4-point alignment homography (0x95).
+    void setFourAlignPointsCb(FourAlignPointsCallback cb);
+
+    /// @brief Registers an observer callback for blend alignment parameters (0xB9).
+    void setBlendAlignCb(BlendAlignCallback cb);
+
+    /// @brief Registers an observer callback for multiple alignment parameters (0x74 / 0x75).
+    void setMultipleAlignmentCb(MultipleAlignmentCallback cb);
+
+    /// @brief Retrieves the latest cached blend parameters snapshot.
+    [[nodiscard]] std::optional<MsgSetBlendParameters> lastBlendParams() const;
+
+    /// @brief Retrieves the latest cached current blend parameters snapshot (19 bytes).
+    [[nodiscard]] std::optional<MsgCurrentBlendParameters> lastCurrentBlendParams() const;
+
+    /// @brief Retrieves the latest cached 4-point projective calibration snapshot.
+    [[nodiscard]] std::optional<MsgFourAlignPoints> lastFourAlignPoints() const;
+
+    /// @brief Retrieves the latest cached blend alignment snapshot.
+    [[nodiscard]] std::optional<MsgBlendAlign> lastBlendAlign() const;
+
+    /// @brief Retrieves the latest cached multiple alignment snapshot.
+    [[nodiscard]] std::optional<MsgSetMultipleAlignment> lastMultipleAlignment() const;
+
     /// @brief Retrieves the latest cached H.264 encoder parameters snapshot.
     [[nodiscard]] std::optional<MsgSetH264Parameters> lastH264Params() const;
 
@@ -1024,6 +1092,11 @@ private:
     NetworkParamsCallback m_netParamsCallback;
     NetworkListCallback m_netListCallback;
     SystemValueCallback m_systemValueCallback;
+    BlendParamsCallback m_blendParamsCb;
+    CurrentBlendParamsCallback m_currentBlendParamsCb;
+    FourAlignPointsCallback m_fourAlignPointsCb;
+    BlendAlignCallback m_blendAlignCb;
+    MultipleAlignmentCallback m_multipleAlignmentCb;
 
     std::optional<MsgSetH264Parameters> m_lastH264Params;
     std::optional<MsgSetEthernetDisplayParameters> m_lastEthernetDisplay;
@@ -1031,6 +1104,11 @@ private:
     std::optional<MsgSetNetworkParameters> m_lastNetworkParams;
     std::optional<MsgCurrentNetworkList> m_lastNetworkList;
     std::optional<MsgSystemValue> m_lastSystemValue;
+    std::optional<MsgSetBlendParameters> m_lastBlendParams;
+    std::optional<MsgCurrentBlendParameters> m_lastCurrentBlendParams;
+    std::optional<MsgFourAlignPoints> m_lastFourAlignPoints;
+    std::optional<MsgBlendAlign> m_lastBlendAlign;
+    std::optional<MsgSetMultipleAlignment> m_lastMultipleAlignment;
 };
 
 } // namespace Sightline

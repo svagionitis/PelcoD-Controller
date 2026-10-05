@@ -2,6 +2,7 @@
 /// @brief Implementation of Sightline video stabilization command serializers.
 
 #include "SightlineStabilizationBuilder.h"
+#include "SightlineBlendingBuilder.h"
 
 namespace Sightline {
 
@@ -50,27 +51,7 @@ std::vector<std::uint8_t> SightlineStabilizationBuilder::buildSetRegistration(co
 
 std::vector<std::uint8_t> SightlineStabilizationBuilder::buildSetBlendParameters(const MsgSetBlendParameters& msg)
 {
-    const std::vector<std::uint8_t> payload {
-        msg.absOffZoom,
-        static_cast<std::uint8_t>(msg.vertical),
-        static_cast<std::uint8_t>(msg.horizontal),
-        msg.rotation,
-        msg.zoom,
-        static_cast<std::uint8_t>(msg.mode),
-        msg.amt,
-        msg.hue,
-        msg.flags,
-        msg.reset,
-        msg.reserved,
-        msg.warpIndex,
-        msg.fixedIndex,
-        msg.usePresetAlign,
-        msg.presetAlignIndex,
-        msg.hzoom,
-        msg.hotStart,
-        msg.coldEnd
-    };
-    return SightlineFraming::buildPacket(MessageId::SetBlendParameters, payload);
+    return SightlineBlendingBuilder::buildSetBlendParameters(msg);
 }
 
 std::vector<std::uint8_t> SightlineStabilizationBuilder::buildSetNoise3D(const MsgNoise3D& msg)

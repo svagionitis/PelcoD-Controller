@@ -41,6 +41,7 @@ public:
     [[nodiscard]] static std::vector<std::uint8_t> buildSetRegistration(const MsgSetRegistrationParameters& msg);
 
     /// @brief Encodes multi-sensor blending fusion (Message ID 0x2F).
+    /// @note Prefer SightlineBlendingBuilder::buildSetBlendParameters.
     /// @param[in] msg Blend parameters.
     /// @return Framed binary packet.
     [[nodiscard]] static std::vector<std::uint8_t> buildSetBlendParameters(const MsgSetBlendParameters& msg);
