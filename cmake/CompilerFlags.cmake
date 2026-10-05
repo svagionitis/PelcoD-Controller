@@ -24,9 +24,15 @@ function(apply_compiler_flags TARGET_NAME)
             /W4                     # Baseline high warning level (Level 4)
             /wd4324                 # Suppress C4324: structure padded due to alignment specifier (alignas/SIMD)
             /permissive-            # Enforce strict standard C++ conformance (disables Microsoft non-standard extensions)
+            /Zc:__cplusplus         # Correctly report __cplusplus conforming to C++17 (201703L)
+            /utf-8                  # Set both source and execution character sets to UTF-8
+            /MP                     # Multi-processor compilation for MSBuild/Visual Studio
             /FS                     # Force synchronous PDB access across concurrent compilation jobs
             /external:anglebrackets # Treat angle-bracket headers (#include <...>) as external library headers
             /external:W0            # Suppress warnings inside external headers (Qt, STL, external third-party libs)
+            /w14305                 # C4305: truncation from 'double' to 'float' (-Wdouble-promotion)
+            /w14189                 # C4189: local variable is initialized but not referenced (-Wunused-variable)
+            /w14702                 # C4702: unreachable code (-Wunreachable-code)
             /w14244                 # C4244: conversion from 'type1' to 'type2', possible loss of data (-Wconversion)
             /w14267                 # C4267: conversion from 'size_t' to smaller integer type, possible loss of data
             /w14365                 # C4365: signed to unsigned conversion mismatch (-Wsign-conversion)
@@ -42,6 +48,10 @@ function(apply_compiler_flags TARGET_NAME)
 
         if(WARNINGS_AS_ERRORS)
             target_compile_options(${TARGET_NAME} PRIVATE /WX) # Treat all warnings as fatal errors (-Werror)
+        endif()
+
+        if(ENABLE_ASAN)
+            target_compile_options(${TARGET_NAME} PRIVATE /fsanitize=address)
         endif()
 
         if(ENABLE_HARDENING)
@@ -104,6 +114,7 @@ function(apply_compiler_flags TARGET_NAME)
             target_link_options(${TARGET_NAME} PRIVATE
                 -Wl,-z,relro,-z,now # Full Read-Only Relocation (RELRO) and immediate binding
                 -Wl,-z,noexecstack  # Mark executable stack as non-executable (NX/DEP)
+                -Wl,--as-needed     # Only link libraries containing referenced symbols
             )
         endif()
 
