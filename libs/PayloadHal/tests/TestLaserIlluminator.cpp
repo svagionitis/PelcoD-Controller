@@ -25,8 +25,11 @@ protected:
 
     void TearDown() override
     {
-        if (m_illuminator && m_illuminator->isArmed()) {
-            m_illuminator->disarmLaser();
+        if (m_illuminator) {
+            m_illuminator->registerTelemetryCallback(nullptr);
+            if (m_illuminator->isArmed()) {
+                m_illuminator->disarmLaser();
+            }
         }
         if (m_payload) {
             m_payload->disconnect();
@@ -172,6 +175,7 @@ TEST_F(LaserIlluminatorTest, TelemetryCallbacksAndThermalFeedback)
     EXPECT_TRUE(callbackFired);
     EXPECT_FALSE(lastTelem.isEmitting);
     EXPECT_NEAR(lastTelem.diodeTemperatureC, 25.0, 1e-3);
+    m_illuminator->registerTelemetryCallback(nullptr);
 }
 
 TEST_F(LaserIlluminatorTest, DisconnectDisarmsIlluminator)

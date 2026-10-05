@@ -270,10 +270,8 @@ std::vector<std::uint8_t> VmtiEncoder::encode(const VmtiLocalSet& vmti, bool sta
 
     // Standalone packet layout:
     // [16-byte UL] [BER Length of items + checksum] [Items...] [Tag 1 Checksum (4 bytes)]
-    std::vector<std::uint8_t> packet;
+    std::vector<std::uint8_t> packet(kMisb0903UniversalLabel.begin(), kMisb0903UniversalLabel.end());
     packet.reserve(kVmtiUniversalLabelSize + 8U + payload.size() + 4U);
-
-    packet.insert(packet.end(), kMisb0903UniversalLabel.begin(), kMisb0903UniversalLabel.end());
 
     const std::size_t totalPayloadLen = payload.size() + 4U; // 4 bytes for Checksum Tag 1 (Tag 1, Len 2, CRC 2)
     KlvBer::encodeLength(totalPayloadLen, packet);

@@ -75,6 +75,9 @@ HttpResponse OnvifHttpClient::executeRequest(void* curlHandle, const std::string
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0L);
 
+    // Bypass proxies for local/loopback camera addresses and test fixtures
+    curl_easy_setopt(curl, CURLOPT_NOPROXY, "127.0.0.1,localhost");
+
     char errorBuffer[CURL_ERROR_SIZE] { 0 };
     curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, errorBuffer);
 

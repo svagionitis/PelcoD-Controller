@@ -12,103 +12,112 @@ namespace Mapping {
 
 namespace {
 
-[[nodiscard]] std::string formatIsoTime(std::uint64_t timestampUs) {
-    if (timestampUs == 0U) {
-        return "";
-    }
-    const std::time_t sec = static_cast<std::time_t>(timestampUs / 1000000ULL);
-    const auto ms = static_cast<unsigned int>((timestampUs % 1000000ULL) / 1000ULL);
-    std::tm tmBuf {};
-#if defined(_WIN32)
-    gmtime_s(&tmBuf, &sec);
-#else
-    gmtime_r(&sec, &tmBuf);
-#endif
-    char buf[36] {};
-    std::snprintf(buf, sizeof(buf), "%04d-%02d-%02dT%02d:%02d:%02d.%03dZ",
-                  tmBuf.tm_year + 1900, tmBuf.tm_mon + 1, tmBuf.tm_mday,
-                  tmBuf.tm_hour, tmBuf.tm_min, tmBuf.tm_sec, ms);
-    return std::string(buf);
-}
-
-[[nodiscard]] std::string escapeXml(const std::string& input) {
-    std::string out;
-    out.reserve(input.size() + 8U);
-    for (const char c : input) {
-        switch (c) {
-        case '&':
-            out += "&amp;";
-            break;
-        case '<':
-            out += "&lt;";
-            break;
-        case '>':
-            out += "&gt;";
-            break;
-        case '"':
-            out += "&quot;";
-            break;
-        case '\'':
-            out += "&apos;";
-            break;
-        default:
-            out += c;
-            break;
+    [[nodiscard]] std::string formatIsoTime(std::uint64_t timestampUs)
+    {
+        if (timestampUs == 0U) {
+            return "";
         }
+        const std::time_t sec = static_cast<std::time_t>(timestampUs / 1000000ULL);
+        const auto ms = static_cast<unsigned int>((timestampUs % 1000000ULL) / 1000ULL);
+        std::tm tmBuf {};
+#if defined(_WIN32)
+        gmtime_s(&tmBuf, &sec);
+#else
+        gmtime_r(&sec, &tmBuf);
+#endif
+        char buf[64] {};
+        std::snprintf(buf, sizeof(buf), "%04d-%02d-%02dT%02d:%02d:%02d.%03dZ", tmBuf.tm_year + 1900, tmBuf.tm_mon + 1,
+            tmBuf.tm_mday, tmBuf.tm_hour, tmBuf.tm_min, tmBuf.tm_sec, ms);
+        return std::string(buf);
     }
-    return out;
-}
 
-void writeKmlCoord(std::ostream& os, const SpatialPoint3D& pt) {
-    os << std::fixed << std::setprecision(7) << pt.longitudeDeg << ','
-       << std::fixed << std::setprecision(7) << pt.latitudeDeg << ','
-       << std::fixed << std::setprecision(2) << pt.altitudeM;
-}
+    [[nodiscard]] std::string escapeXml(const std::string& input)
+    {
+        std::string out;
+        out.reserve(input.size() + 8U);
+        for (const char c : input) {
+            switch (c) {
+            case '&':
+                out += "&amp;";
+                break;
+            case '<':
+                out += "&lt;";
+                break;
+            case '>':
+                out += "&gt;";
+                break;
+            case '"':
+                out += "&quot;";
+                break;
+            case '\'':
+                out += "&apos;";
+                break;
+            default:
+                out += c;
+                break;
+            }
+        }
+        return out;
+    }
 
-void writeLinearRing(std::ostream& os,
-                     const SpatialPoint3D& p1,
-                     const SpatialPoint3D& p2,
-                     const SpatialPoint3D& p3,
-                     const SpatialPoint3D& p4) {
-    os << "        <Polygon>\n";
-    os << "          <altitudeMode>absolute</altitudeMode>\n";
-    os << "          <outerBoundaryIs>\n";
-    os << "            <LinearRing>\n";
-    os << "              <coordinates>\n";
-    os << "                "; writeKmlCoord(os, p1); os << " ";
-    writeKmlCoord(os, p2); os << " ";
-    writeKmlCoord(os, p3); os << " ";
-    writeKmlCoord(os, p4); os << " ";
-    writeKmlCoord(os, p1); os << "\n";
-    os << "              </coordinates>\n";
-    os << "            </LinearRing>\n";
-    os << "          </outerBoundaryIs>\n";
-    os << "        </Polygon>\n";
-}
+    void writeKmlCoord(std::ostream& os, const SpatialPoint3D& pt)
+    {
+        os << std::fixed << std::setprecision(7) << pt.longitudeDeg << ',' << std::fixed << std::setprecision(7)
+           << pt.latitudeDeg << ',' << std::fixed << std::setprecision(2) << pt.altitudeM;
+    }
 
-void writeTriangularRing(std::ostream& os,
-                          const SpatialPoint3D& p1,
-                          const SpatialPoint3D& p2,
-                          const SpatialPoint3D& p3) {
-    os << "        <Polygon>\n";
-    os << "          <altitudeMode>absolute</altitudeMode>\n";
-    os << "          <outerBoundaryIs>\n";
-    os << "            <LinearRing>\n";
-    os << "              <coordinates>\n";
-    os << "                "; writeKmlCoord(os, p1); os << " ";
-    writeKmlCoord(os, p2); os << " ";
-    writeKmlCoord(os, p3); os << " ";
-    writeKmlCoord(os, p1); os << "\n";
-    os << "              </coordinates>\n";
-    os << "            </LinearRing>\n";
-    os << "          </outerBoundaryIs>\n";
-    os << "        </Polygon>\n";
-}
+    void writeLinearRing(std::ostream& os, const SpatialPoint3D& p1, const SpatialPoint3D& p2, const SpatialPoint3D& p3,
+        const SpatialPoint3D& p4)
+    {
+        os << "        <Polygon>\n";
+        os << "          <altitudeMode>absolute</altitudeMode>\n";
+        os << "          <outerBoundaryIs>\n";
+        os << "            <LinearRing>\n";
+        os << "              <coordinates>\n";
+        os << "                ";
+        writeKmlCoord(os, p1);
+        os << " ";
+        writeKmlCoord(os, p2);
+        os << " ";
+        writeKmlCoord(os, p3);
+        os << " ";
+        writeKmlCoord(os, p4);
+        os << " ";
+        writeKmlCoord(os, p1);
+        os << "\n";
+        os << "              </coordinates>\n";
+        os << "            </LinearRing>\n";
+        os << "          </outerBoundaryIs>\n";
+        os << "        </Polygon>\n";
+    }
+
+    void writeTriangularRing(
+        std::ostream& os, const SpatialPoint3D& p1, const SpatialPoint3D& p2, const SpatialPoint3D& p3)
+    {
+        os << "        <Polygon>\n";
+        os << "          <altitudeMode>absolute</altitudeMode>\n";
+        os << "          <outerBoundaryIs>\n";
+        os << "            <LinearRing>\n";
+        os << "              <coordinates>\n";
+        os << "                ";
+        writeKmlCoord(os, p1);
+        os << " ";
+        writeKmlCoord(os, p2);
+        os << " ";
+        writeKmlCoord(os, p3);
+        os << " ";
+        writeKmlCoord(os, p1);
+        os << "\n";
+        os << "              </coordinates>\n";
+        os << "            </LinearRing>\n";
+        os << "          </outerBoundaryIs>\n";
+        os << "        </Polygon>\n";
+    }
 
 } // namespace
 
-std::string KmlExporter::exportToString(const SpatialDataRecorder& recorder,
-                                        const KmlConfig& config) {
+std::string KmlExporter::exportToString(const SpatialDataRecorder& recorder, const KmlConfig& config)
+{
     std::ostringstream oss;
     const bool success = exportToStream(recorder, oss, config);
     if (!success) {
@@ -117,9 +126,8 @@ std::string KmlExporter::exportToString(const SpatialDataRecorder& recorder,
     return oss.str();
 }
 
-bool KmlExporter::exportToStream(const SpatialDataRecorder& recorder,
-                                 std::ostream& os,
-                                 const KmlConfig& config) {
+bool KmlExporter::exportToStream(const SpatialDataRecorder& recorder, std::ostream& os, const KmlConfig& config)
+{
     const auto& tracks = recorder.trackPoints();
     const auto& frustums = recorder.frustums();
 
@@ -186,17 +194,13 @@ bool KmlExporter::exportToStream(const SpatialDataRecorder& recorder,
                 os << "        <when>" << formatIsoTime(tp.timestampUs) << "</when>\n";
             }
             for (const auto& tp : tracks) {
-                os << "        <gx:coord>"
-                   << std::fixed << std::setprecision(7) << tp.position.longitudeDeg << " "
-                   << std::fixed << std::setprecision(7) << tp.position.latitudeDeg << " "
-                   << std::fixed << std::setprecision(2) << tp.position.altitudeM
-                   << "</gx:coord>\n";
+                os << "        <gx:coord>" << std::fixed << std::setprecision(7) << tp.position.longitudeDeg << " "
+                   << std::fixed << std::setprecision(7) << tp.position.latitudeDeg << " " << std::fixed
+                   << std::setprecision(2) << tp.position.altitudeM << "</gx:coord>\n";
             }
             for (const auto& tp : tracks) {
-                os << "        <gx:angles>"
-                   << std::fixed << std::setprecision(1) << tp.headingDeg << " "
-                   << std::fixed << std::setprecision(1) << tp.pitchDeg << " "
-                   << std::fixed << std::setprecision(1) << tp.rollDeg
+                os << "        <gx:angles>" << std::fixed << std::setprecision(1) << tp.headingDeg << " " << std::fixed
+                   << std::setprecision(1) << tp.pitchDeg << " " << std::fixed << std::setprecision(1) << tp.rollDeg
                    << "</gx:angles>\n";
             }
 
@@ -275,8 +279,11 @@ bool KmlExporter::exportToStream(const SpatialDataRecorder& recorder,
                 os << "        <LineString>\n";
                 os << "          <altitudeMode>absolute</altitudeMode>\n";
                 os << "          <coordinates>\n";
-                os << "            "; writeKmlCoord(os, fr.apex); os << " ";
-                writeKmlCoord(os, fr.targetCenter); os << "\n";
+                os << "            ";
+                writeKmlCoord(os, fr.apex);
+                os << " ";
+                writeKmlCoord(os, fr.targetCenter);
+                os << "\n";
                 os << "          </coordinates>\n";
                 os << "        </LineString>\n";
             }
@@ -294,9 +301,9 @@ bool KmlExporter::exportToStream(const SpatialDataRecorder& recorder,
     return os.good();
 }
 
-bool KmlExporter::exportToFile(const std::string& filePath,
-                               const SpatialDataRecorder& recorder,
-                               const KmlConfig& config) {
+bool KmlExporter::exportToFile(
+    const std::string& filePath, const SpatialDataRecorder& recorder, const KmlConfig& config)
+{
     std::ofstream ofs(filePath, std::ios::out | std::ios::trunc);
     if (!ofs.is_open()) {
         return false;

@@ -12,71 +12,71 @@ namespace Mapping {
 
 namespace {
 
-[[nodiscard]] std::string formatIsoTime(std::uint64_t timestampUs) {
-    if (timestampUs == 0U) {
-        return "";
-    }
-    const std::time_t sec = static_cast<std::time_t>(timestampUs / 1000000ULL);
-    const auto ms = static_cast<unsigned int>((timestampUs % 1000000ULL) / 1000ULL);
-    std::tm tmBuf {};
-#if defined(_WIN32)
-    gmtime_s(&tmBuf, &sec);
-#else
-    gmtime_r(&sec, &tmBuf);
-#endif
-    char buf[36] {};
-    std::snprintf(buf, sizeof(buf), "%04d-%02d-%02dT%02d:%02d:%02d.%03dZ",
-                  tmBuf.tm_year + 1900, tmBuf.tm_mon + 1, tmBuf.tm_mday,
-                  tmBuf.tm_hour, tmBuf.tm_min, tmBuf.tm_sec, ms);
-    return std::string(buf);
-}
-
-[[nodiscard]] std::string escapeJson(const std::string& input) {
-    std::string out;
-    out.reserve(input.size() + 8U);
-    for (const char c : input) {
-        switch (c) {
-        case '"':
-            out += "\\\"";
-            break;
-        case '\\':
-            out += "\\\\";
-            break;
-        case '\b':
-            out += "\\b";
-            break;
-        case '\f':
-            out += "\\f";
-            break;
-        case '\n':
-            out += "\\n";
-            break;
-        case '\r':
-            out += "\\r";
-            break;
-        case '\t':
-            out += "\\t";
-            break;
-        default:
-            out += c;
-            break;
+    [[nodiscard]] std::string formatIsoTime(std::uint64_t timestampUs)
+    {
+        if (timestampUs == 0U) {
+            return "";
         }
+        const std::time_t sec = static_cast<std::time_t>(timestampUs / 1000000ULL);
+        const auto ms = static_cast<unsigned int>((timestampUs % 1000000ULL) / 1000ULL);
+        std::tm tmBuf {};
+#if defined(_WIN32)
+        gmtime_s(&tmBuf, &sec);
+#else
+        gmtime_r(&sec, &tmBuf);
+#endif
+        char buf[64] {};
+        std::snprintf(buf, sizeof(buf), "%04d-%02d-%02dT%02d:%02d:%02d.%03dZ", tmBuf.tm_year + 1900, tmBuf.tm_mon + 1,
+            tmBuf.tm_mday, tmBuf.tm_hour, tmBuf.tm_min, tmBuf.tm_sec, ms);
+        return std::string(buf);
     }
-    return out;
-}
 
-void writeCoord(std::ostream& os, const SpatialPoint3D& pt, int precision) {
-    os << '['
-       << std::fixed << std::setprecision(precision) << pt.longitudeDeg << ", "
-       << std::fixed << std::setprecision(precision) << pt.latitudeDeg << ", "
-       << std::fixed << std::setprecision(2) << pt.altitudeM
-       << ']';
-}
+    [[nodiscard]] std::string escapeJson(const std::string& input)
+    {
+        std::string out;
+        out.reserve(input.size() + 8U);
+        for (const char c : input) {
+            switch (c) {
+            case '"':
+                out += "\\\"";
+                break;
+            case '\\':
+                out += "\\\\";
+                break;
+            case '\b':
+                out += "\\b";
+                break;
+            case '\f':
+                out += "\\f";
+                break;
+            case '\n':
+                out += "\\n";
+                break;
+            case '\r':
+                out += "\\r";
+                break;
+            case '\t':
+                out += "\\t";
+                break;
+            default:
+                out += c;
+                break;
+            }
+        }
+        return out;
+    }
+
+    void writeCoord(std::ostream& os, const SpatialPoint3D& pt, int precision)
+    {
+        os << '[' << std::fixed << std::setprecision(precision) << pt.longitudeDeg << ", " << std::fixed
+           << std::setprecision(precision) << pt.latitudeDeg << ", " << std::fixed << std::setprecision(2)
+           << pt.altitudeM << ']';
+    }
 
 } // namespace
 
-std::string GeoJsonExporter::exportToString(const SpatialDataRecorder& recorder,
-                                            const GeoJsonConfig& config) {
+std::string GeoJsonExporter::exportToString(const SpatialDataRecorder& recorder, const GeoJsonConfig& config)
+{
     std::ostringstream oss;
     const bool success = exportToStream(recorder, oss, config);
     if (!success) {
@@ -85,9 +85,8 @@ std::string GeoJsonExporter::exportToString(const SpatialDataRecorder& recorder,
     return oss.str();
 }
 
-bool GeoJsonExporter::exportToStream(const SpatialDataRecorder& recorder,
-                                     std::ostream& os,
-                                     const GeoJsonConfig& config) {
+bool GeoJsonExporter::exportToStream(const SpatialDataRecorder& recorder, std::ostream& os, const GeoJsonConfig& config)
+{
     const auto& tracks = recorder.trackPoints();
     const auto& frustums = recorder.frustums();
 
@@ -213,42 +212,58 @@ bool GeoJsonExporter::exportToStream(const SpatialDataRecorder& recorder,
             // 5 Polygons: 1 ground base + 4 side walls
             // Face 0: Base [C1, C4, C3, C2, C1]
             os << "          [[";
-            writeCoord(os, fr.base[0], config.coordinatePrecision); os << ", ";
-            writeCoord(os, fr.base[3], config.coordinatePrecision); os << ", ";
-            writeCoord(os, fr.base[2], config.coordinatePrecision); os << ", ";
-            writeCoord(os, fr.base[1], config.coordinatePrecision); os << ", ";
+            writeCoord(os, fr.base[0], config.coordinatePrecision);
+            os << ", ";
+            writeCoord(os, fr.base[3], config.coordinatePrecision);
+            os << ", ";
+            writeCoord(os, fr.base[2], config.coordinatePrecision);
+            os << ", ";
+            writeCoord(os, fr.base[1], config.coordinatePrecision);
+            os << ", ";
             writeCoord(os, fr.base[0], config.coordinatePrecision);
             os << "]],\n";
 
             // Face 1: Left wall [Apex, C1, C4, Apex]
             os << "          [[";
-            writeCoord(os, fr.apex, config.coordinatePrecision); os << ", ";
-            writeCoord(os, fr.base[0], config.coordinatePrecision); os << ", ";
-            writeCoord(os, fr.base[3], config.coordinatePrecision); os << ", ";
+            writeCoord(os, fr.apex, config.coordinatePrecision);
+            os << ", ";
+            writeCoord(os, fr.base[0], config.coordinatePrecision);
+            os << ", ";
+            writeCoord(os, fr.base[3], config.coordinatePrecision);
+            os << ", ";
             writeCoord(os, fr.apex, config.coordinatePrecision);
             os << "]],\n";
 
             // Face 2: Bottom wall [Apex, C4, C3, Apex]
             os << "          [[";
-            writeCoord(os, fr.apex, config.coordinatePrecision); os << ", ";
-            writeCoord(os, fr.base[3], config.coordinatePrecision); os << ", ";
-            writeCoord(os, fr.base[2], config.coordinatePrecision); os << ", ";
+            writeCoord(os, fr.apex, config.coordinatePrecision);
+            os << ", ";
+            writeCoord(os, fr.base[3], config.coordinatePrecision);
+            os << ", ";
+            writeCoord(os, fr.base[2], config.coordinatePrecision);
+            os << ", ";
             writeCoord(os, fr.apex, config.coordinatePrecision);
             os << "]],\n";
 
             // Face 3: Right wall [Apex, C3, C2, Apex]
             os << "          [[";
-            writeCoord(os, fr.apex, config.coordinatePrecision); os << ", ";
-            writeCoord(os, fr.base[2], config.coordinatePrecision); os << ", ";
-            writeCoord(os, fr.base[1], config.coordinatePrecision); os << ", ";
+            writeCoord(os, fr.apex, config.coordinatePrecision);
+            os << ", ";
+            writeCoord(os, fr.base[2], config.coordinatePrecision);
+            os << ", ";
+            writeCoord(os, fr.base[1], config.coordinatePrecision);
+            os << ", ";
             writeCoord(os, fr.apex, config.coordinatePrecision);
             os << "]],\n";
 
             // Face 4: Top wall [Apex, C2, C1, Apex]
             os << "          [[";
-            writeCoord(os, fr.apex, config.coordinatePrecision); os << ", ";
-            writeCoord(os, fr.base[1], config.coordinatePrecision); os << ", ";
-            writeCoord(os, fr.base[0], config.coordinatePrecision); os << ", ";
+            writeCoord(os, fr.apex, config.coordinatePrecision);
+            os << ", ";
+            writeCoord(os, fr.base[1], config.coordinatePrecision);
+            os << ", ";
+            writeCoord(os, fr.base[0], config.coordinatePrecision);
+            os << ", ";
             writeCoord(os, fr.apex, config.coordinatePrecision);
             os << "]]\n";
 
@@ -296,9 +311,9 @@ bool GeoJsonExporter::exportToStream(const SpatialDataRecorder& recorder,
     return os.good();
 }
 
-bool GeoJsonExporter::exportToFile(const std::string& filePath,
-                                   const SpatialDataRecorder& recorder,
-                                   const GeoJsonConfig& config) {
+bool GeoJsonExporter::exportToFile(
+    const std::string& filePath, const SpatialDataRecorder& recorder, const GeoJsonConfig& config)
+{
     std::ofstream ofs(filePath, std::ios::out | std::ios::trunc);
     if (!ofs.is_open()) {
         return false;

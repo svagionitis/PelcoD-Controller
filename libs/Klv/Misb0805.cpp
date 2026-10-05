@@ -11,15 +11,17 @@ namespace Klv {
 
 namespace {
 
-[[nodiscard]] std::uint64_t getCurrentTimeUs() noexcept {
-    const auto now = std::chrono::system_clock::now();
-    const auto us = std::chrono::duration_cast<std::chrono::microseconds>(now.time_since_epoch()).count();
-    return static_cast<std::uint64_t>(us > 0 ? us : 0);
-}
+    [[nodiscard]] std::uint64_t getCurrentTimeUs() noexcept
+    {
+        const auto now = std::chrono::system_clock::now();
+        const auto us = std::chrono::duration_cast<std::chrono::microseconds>(now.time_since_epoch()).count();
+        return static_cast<std::uint64_t>(us > 0 ? us : 0);
+    }
 
 } // namespace
 
-std::string CotEvent::toXml() const {
+std::string CotEvent::toXml() const
+{
     std::ostringstream oss;
     oss << "<event version=\"" << version << "\""
         << " uid=\"" << uid << "\""
@@ -27,12 +29,8 @@ std::string CotEvent::toXml() const {
         << " time=\"" << time << "\""
         << " start=\"" << start << "\""
         << " stale=\"" << stale << "\""
-        << " how=\"" << how << "\">"
-        << std::fixed << std::setprecision(6)
-        << "<point lat=\"" << point.lat << "\""
-        << " lon=\"" << point.lon << "\""
-        << std::setprecision(2)
-        << " hae=\"" << point.hae << "\""
+        << " how=\"" << how << "\">" << std::fixed << std::setprecision(6) << "<point lat=\"" << point.lat << "\""
+        << " lon=\"" << point.lon << "\"" << std::setprecision(2) << " hae=\"" << point.hae << "\""
         << " ce=\"" << point.ce << "\""
         << " le=\"" << point.le << "\"/>";
     if (!detailXml.empty()) {
@@ -42,7 +40,8 @@ std::string CotEvent::toXml() const {
     return oss.str();
 }
 
-std::string Misb0805::formatIso8601(std::uint64_t timestampUs) noexcept {
+std::string Misb0805::formatIso8601(std::uint64_t timestampUs) noexcept
+{
     const auto sec = static_cast<std::time_t>(timestampUs / 1000000ULL);
     const auto ms = static_cast<unsigned int>((timestampUs % 1000000ULL) / 1000ULL);
 
@@ -53,41 +52,41 @@ std::string Misb0805::formatIso8601(std::uint64_t timestampUs) noexcept {
     gmtime_r(&sec, &tmBuf);
 #endif
 
-    char buf[36] {};
-    std::snprintf(buf, sizeof(buf), "%04d-%02d-%02dT%02d:%02d:%02d.%03uZ",
-                  tmBuf.tm_year + 1900, tmBuf.tm_mon + 1, tmBuf.tm_mday,
-                  tmBuf.tm_hour, tmBuf.tm_min, tmBuf.tm_sec, ms);
+    char buf[64] {};
+    std::snprintf(buf, sizeof(buf), "%04d-%02d-%02dT%02d:%02d:%02d.%03uZ", tmBuf.tm_year + 1900, tmBuf.tm_mon + 1,
+        tmBuf.tm_mday, tmBuf.tm_hour, tmBuf.tm_min, tmBuf.tm_sec, ms);
     return std::string(buf);
 }
 
-double Misb0805::ce90ToSigma1(double ce90M) noexcept {
+double Misb0805::ce90ToSigma1(double ce90M) noexcept
+{
     constexpr double kCe90ToSigma = 2.146;
     return ce90M / kCe90ToSigma;
 }
 
-double Misb0805::le90ToSigma1(double le90M) noexcept {
+double Misb0805::le90ToSigma1(double le90M) noexcept
+{
     constexpr double kLe90ToSigma = 1.645;
     return le90M / kLe90ToSigma;
 }
 
-std::string Misb0805::targetTypeToCot(RvtTargetType type) noexcept {
+std::string Misb0805::targetTypeToCot(RvtTargetType type) noexcept
+{
     switch (type) {
-        case RvtTargetType::Friendly:
-            return "a-f-G";
-        case RvtTargetType::Hostile:
-            return "a-h-G";
-        case RvtTargetType::Target:
-            return "b-m-p-s-p-i";
-        case RvtTargetType::Unknown:
-        default:
-            return "a-u-G";
+    case RvtTargetType::Friendly:
+        return "a-f-G";
+    case RvtTargetType::Hostile:
+        return "a-h-G";
+    case RvtTargetType::Target:
+        return "b-m-p-s-p-i";
+    case RvtTargetType::Unknown:
+    default:
+        return "a-u-G";
     }
 }
 
-CotEvent Misb0805::toPlatformPosition(
-    const UasDatalinkMessage& msg,
-    double staleSec,
-    const std::string& platformType) {
+CotEvent Misb0805::toPlatformPosition(const UasDatalinkMessage& msg, double staleSec, const std::string& platformType)
+{
     CotEvent event {};
     event.version = "2.0";
 
@@ -145,9 +144,8 @@ CotEvent Misb0805::toPlatformPosition(
 }
 
 CotEvent Misb0805::toSensorPointOfInterest(
-    const UasDatalinkMessage& msg,
-    double staleSec,
-    const std::string& platformType) {
+    const UasDatalinkMessage& msg, double staleSec, const std::string& platformType)
+{
     CotEvent event {};
     event.version = "2.0";
 
@@ -197,11 +195,8 @@ CotEvent Misb0805::toSensorPointOfInterest(
     return event;
 }
 
-CotEvent Misb0805::toCot(
-    const PoiPack& poi,
-    const std::string& parentUid,
-    std::uint64_t timestampUs,
-    double staleSec) {
+CotEvent Misb0805::toCot(const PoiPack& poi, const std::string& parentUid, std::uint64_t timestampUs, double staleSec)
+{
     CotEvent event {};
     event.version = "2.0";
 
@@ -250,10 +245,8 @@ CotEvent Misb0805::toCot(
     return event;
 }
 
-std::vector<CotEvent> Misb0805::toCot(
-    const RvtLocalSet& rvt,
-    const std::string& parentUid,
-    double staleSec) {
+std::vector<CotEvent> Misb0805::toCot(const RvtLocalSet& rvt, const std::string& parentUid, double staleSec)
+{
     std::vector<CotEvent> events;
     events.reserve(rvt.pois.size());
 

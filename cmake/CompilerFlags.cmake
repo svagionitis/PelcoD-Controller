@@ -58,13 +58,19 @@ function(apply_compiler_flags TARGET_NAME)
             target_compile_options(${TARGET_NAME} PRIVATE
                 /GS                 # Buffer security check (stack canary protection against buffer overflows)
                 /guard:cf           # Control Flow Guard (compiler-level indirect call target validation)
+                /guard:ehcont       # Exception handling continuation guard (ROP protection)
                 /sdl                # Microsoft Security Development Lifecycle checks (strict security checks)
+                /Qspectre           # Speculative execution side-channel mitigation
+            )
+            target_compile_definitions(${TARGET_NAME} PRIVATE
+                _ITERATOR_DEBUG_LEVEL=1 # Lightweight checked iterators in Release
             )
             target_link_options(${TARGET_NAME} PRIVATE
                 /NXCOMPAT           # Data Execution Prevention (DEP / No-Execute stack, equivalent to -z noexecstack)
                 /DYNAMICBASE        # Address Space Layout Randomization (ASLR, equivalent to -pie)
                 /HIGHENTROPYVA      # 64-bit ASLR with 64-bit high entropy address space
                 /guard:cf           # Linker Control Flow Guard (emits valid address table for indirect calls)
+                /guard:ehcont       # Linker EH Continuation table
                 /CETCOMPAT          # Hardware Control-flow Enforcement Technology (Hardware Shadow Stack on x64)
                 /DEPENDENTLOADFLAG:0xA00 # Restrict DLL loading to %SystemRoot%\System32 and application directory (LOAD_LIBRARY_SEARCH_SYSTEM32 | LOAD_LIBRARY_SEARCH_APPLICATION_DIR)
             )
@@ -98,6 +104,9 @@ function(apply_compiler_flags TARGET_NAME)
                 -fstack-clash-protection # Prevent stack clash attacks across page boundaries
             )
 
+            # Lightweight container bounds assertions
+            target_compile_definitions(${TARGET_NAME} PRIVATE _GLIBCXX_ASSERTIONS)
+
             if(CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|AMD64")
                 target_compile_options(${TARGET_NAME} PRIVATE -fcf-protection=full) # Control Flow Integrity (IBT + SHSTK)
             endif()
@@ -108,12 +117,18 @@ function(apply_compiler_flags TARGET_NAME)
             endif()
 
             if(CMAKE_BUILD_TYPE STREQUAL "Release" OR CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo")
-                target_compile_definitions(${TARGET_NAME} PRIVATE _FORTIFY_SOURCE=2) # Runtime buffer boundary checks
+                if((CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL 12.0)
+                   OR (CMAKE_CXX_COMPILER_ID MATCHES "Clang" AND CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL 17.0))
+                    target_compile_options(${TARGET_NAME} PRIVATE -U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=3)
+                else()
+                    target_compile_options(${TARGET_NAME} PRIVATE -U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=2)
+                endif()
             endif()
 
             target_link_options(${TARGET_NAME} PRIVATE
                 -Wl,-z,relro,-z,now # Full Read-Only Relocation (RELRO) and immediate binding
                 -Wl,-z,noexecstack  # Mark executable stack as non-executable (NX/DEP)
+                -Wl,-z,separate-code # Enforce separate code and read-only data pages
                 -Wl,--as-needed     # Only link libraries containing referenced symbols
             )
         endif()
