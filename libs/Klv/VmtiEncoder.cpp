@@ -4,53 +4,55 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstring>
 
 namespace Klv {
 
 namespace {
 
-void appendTagVarUint(std::uint32_t tag, std::uint32_t val, std::vector<std::uint8_t>& out) {
-    KlvBer::encodeTag(tag, out);
-    if (val <= 0xFFU) {
-        out.push_back(1U);
-        out.push_back(static_cast<std::uint8_t>(val));
-    } else if (val <= 0xFFFFU) {
-        out.push_back(2U);
-        out.push_back(static_cast<std::uint8_t>((val >> 8U) & 0xFFU));
-        out.push_back(static_cast<std::uint8_t>(val & 0xFFU));
-    } else if (val <= 0xFFFFFFU) {
-        out.push_back(3U);
-        out.push_back(static_cast<std::uint8_t>((val >> 16U) & 0xFFU));
-        out.push_back(static_cast<std::uint8_t>((val >> 8U) & 0xFFU));
-        out.push_back(static_cast<std::uint8_t>(val & 0xFFU));
-    } else {
-        out.push_back(4U);
-        out.push_back(static_cast<std::uint8_t>((val >> 24U) & 0xFFU));
-        out.push_back(static_cast<std::uint8_t>((val >> 16U) & 0xFFU));
-        out.push_back(static_cast<std::uint8_t>((val >> 8U) & 0xFFU));
-        out.push_back(static_cast<std::uint8_t>(val & 0xFFU));
+    void appendTagVarUint(std::uint32_t tag, std::uint32_t val, std::vector<std::uint8_t>& out)
+    {
+        KlvBer::encodeTag(tag, out);
+        if (val <= 0xFFU) {
+            out.push_back(1U);
+            out.push_back(static_cast<std::uint8_t>(val));
+        } else if (val <= 0xFFFFU) {
+            out.push_back(2U);
+            out.push_back(static_cast<std::uint8_t>((val >> 8U) & 0xFFU));
+            out.push_back(static_cast<std::uint8_t>(val & 0xFFU));
+        } else if (val <= 0xFFFFFFU) {
+            out.push_back(3U);
+            out.push_back(static_cast<std::uint8_t>((val >> 16U) & 0xFFU));
+            out.push_back(static_cast<std::uint8_t>((val >> 8U) & 0xFFU));
+            out.push_back(static_cast<std::uint8_t>(val & 0xFFU));
+        } else {
+            out.push_back(4U);
+            out.push_back(static_cast<std::uint8_t>((val >> 24U) & 0xFFU));
+            out.push_back(static_cast<std::uint8_t>((val >> 16U) & 0xFFU));
+            out.push_back(static_cast<std::uint8_t>((val >> 8U) & 0xFFU));
+            out.push_back(static_cast<std::uint8_t>(val & 0xFFU));
+        }
     }
-}
 
 } // namespace
 
-std::uint32_t VmtiEncoder::scaleOffset(double offsetDeg) noexcept {
+std::uint32_t VmtiEncoder::scaleOffset(double offsetDeg) noexcept
+{
     const double clamped = std::clamp(offsetDeg, -19.2, 19.2);
     const double scaled = std::round((clamped + 19.2) * 131072.0);
     return static_cast<std::uint32_t>(std::clamp(scaled, 0.0, 16777215.0));
 }
 
-std::uint16_t VmtiEncoder::scaleHae(double haeM) noexcept {
+std::uint16_t VmtiEncoder::scaleHae(double haeM) noexcept
+{
     const double clamped = std::clamp(haeM, -900.0, 19000.0);
     const double scaled = std::round(clamped + 900.0);
     return static_cast<std::uint16_t>(std::clamp(scaled, 0.0, 65535.0));
 }
 
 void VmtiEncoder::encodeTarget(
-    const VTargetPack& target,
-    std::uint32_t frameWidth,
-    std::uint32_t frameHeight,
-    std::vector<std::uint8_t>& out) {
+    const VTargetPack& target, std::uint32_t frameWidth, std::uint32_t frameHeight, std::vector<std::uint8_t>& out)
+{
     (void)frameHeight;
 
     // 1. Mandatory BER-OID targetId (no tag or length, raw BER-OID)
@@ -184,11 +186,9 @@ void VmtiEncoder::encodeTarget(
     }
 }
 
-void VmtiEncoder::encodeSeries(
-    const std::vector<VTargetPack>& targets,
-    std::uint32_t frameWidth,
-    std::uint32_t frameHeight,
-    std::vector<std::uint8_t>& out) {
+void VmtiEncoder::encodeSeries(const std::vector<VTargetPack>& targets, std::uint32_t frameWidth,
+    std::uint32_t frameHeight, std::vector<std::uint8_t>& out)
+{
     std::vector<std::uint8_t> seriesPayload;
     seriesPayload.reserve(targets.size() * 32U);
 
@@ -206,7 +206,8 @@ void VmtiEncoder::encodeSeries(
     out.insert(out.end(), seriesPayload.begin(), seriesPayload.end());
 }
 
-std::vector<std::uint8_t> VmtiEncoder::encode(const VmtiLocalSet& vmti, bool standalone) {
+std::vector<std::uint8_t> VmtiEncoder::encode(const VmtiLocalSet& vmti, bool standalone)
+{
     std::vector<std::uint8_t> payload;
     payload.reserve(256U);
 

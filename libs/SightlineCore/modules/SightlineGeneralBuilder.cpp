@@ -59,7 +59,8 @@ std::vector<std::uint8_t> SightlineGeneralBuilder::buildGetCurrentConfig()
 std::vector<std::uint8_t> SightlineGeneralBuilder::buildSetSystemValue(const MsgSystemValue& msg)
 {
     std::vector<std::uint8_t> payload {};
-    const std::size_t count { std::clamp(static_cast<std::size_t>(msg.numValues), 1ULL, 4ULL) };
+    const std::size_t count { std::clamp(
+        static_cast<std::size_t>(msg.numValues), std::size_t { 1U }, std::size_t { 4U }) };
     payload.reserve(1U + (count * 4U));
     payload.push_back(msg.systemValueId);
     SightlineFraming::appendU32Le(payload, msg.value);

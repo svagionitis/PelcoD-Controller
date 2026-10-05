@@ -6,101 +6,106 @@ namespace Klv {
 
 namespace {
 
-class BitReader {
-public:
-    BitReader(const std::uint8_t* data, std::size_t size) noexcept
-        : m_data(data)
-        , m_size(size) {
-    }
-
-    [[nodiscard]] bool readBit(std::uint8_t& outBit) noexcept {
-        if (m_byteOffset >= m_size) {
-            return false;
+    class BitReader {
+    public:
+        BitReader(const std::uint8_t* data, std::size_t size) noexcept
+            : m_data(data)
+            , m_size(size)
+        {
         }
-        outBit = static_cast<std::uint8_t>((m_data[m_byteOffset] >> (7U - m_bitOffset)) & 0x01U);
-        m_bitOffset++;
-        if (m_bitOffset == 8U) {
-            m_bitOffset = 0U;
-            m_byteOffset++;
-            // Skip emulation prevention byte (0x000003)
-            if (m_byteOffset >= 2U && m_byteOffset < m_size &&
-                m_data[m_byteOffset - 2U] == 0x00U &&
-                m_data[m_byteOffset - 1U] == 0x00U &&
-                m_data[m_byteOffset] == 0x03U) {
+
+        [[nodiscard]] bool readBit(std::uint8_t& outBit) noexcept
+        {
+            if (m_byteOffset >= m_size) {
+                return false;
+            }
+            outBit = static_cast<std::uint8_t>((m_data[m_byteOffset] >> (7U - m_bitOffset)) & 0x01U);
+            m_bitOffset++;
+            if (m_bitOffset == 8U) {
+                m_bitOffset = 0U;
                 m_byteOffset++;
+                // Skip emulation prevention byte (0x000003)
+                if (m_byteOffset >= 2U && m_byteOffset < m_size && m_data[m_byteOffset - 2U] == 0x00U
+                    && m_data[m_byteOffset - 1U] == 0x00U && m_data[m_byteOffset] == 0x03U) {
+                    m_byteOffset++;
+                }
             }
-        }
-        return true;
-    }
-
-    [[nodiscard]] bool readBits(std::size_t numBits, std::uint32_t& outVal) noexcept {
-        if (numBits > 32U) {
-            return false;
-        }
-        outVal = 0U;
-        for (std::size_t i = 0U; i < numBits; ++i) {
-            std::uint8_t b = 0U;
-            if (!readBit(b)) {
-                return false;
-            }
-            outVal = (outVal << 1U) | static_cast<std::uint32_t>(b);
-        }
-        return true;
-    }
-
-    [[nodiscard]] bool readUe(std::uint32_t& outVal) noexcept {
-        std::size_t leadingZeroBits = 0U;
-        std::uint8_t bit = 0U;
-        while (readBit(bit) && bit == 0U) {
-            leadingZeroBits++;
-            if (leadingZeroBits > 31U) {
-                return false;
-            }
-        }
-        if (bit == 0U) {
-            return false;
-        }
-        if (leadingZeroBits == 0U) {
-            outVal = 0U;
             return true;
         }
-        std::uint32_t suffix = 0U;
-        if (!readBits(leadingZeroBits, suffix)) {
-            return false;
-        }
-        outVal = (1U << leadingZeroBits) - 1U + suffix;
-        return true;
-    }
 
-private:
-    const std::uint8_t* m_data;
-    std::size_t m_size;
-    std::size_t m_byteOffset { 0U };
-    std::size_t m_bitOffset { 0U };
-};
+        [[nodiscard]] bool readBits(std::size_t numBits, std::uint32_t& outVal) noexcept
+        {
+            if (numBits > 32U) {
+                return false;
+            }
+            outVal = 0U;
+            for (std::size_t i = 0U; i < numBits; ++i) {
+                std::uint8_t b = 0U;
+                if (!readBit(b)) {
+                    return false;
+                }
+                outVal = (outVal << 1U) | static_cast<std::uint32_t>(b);
+            }
+            return true;
+        }
+
+        [[nodiscard]] bool readUe(std::uint32_t& outVal) noexcept
+        {
+            std::size_t leadingZeroBits = 0U;
+            std::uint8_t bit = 0U;
+            while (readBit(bit) && bit == 0U) {
+                leadingZeroBits++;
+                if (leadingZeroBits > 31U) {
+                    return false;
+                }
+            }
+            if (bit == 0U) {
+                return false;
+            }
+            if (leadingZeroBits == 0U) {
+                outVal = 0U;
+                return true;
+            }
+            std::uint32_t suffix = 0U;
+            if (!readBits(leadingZeroBits, suffix)) {
+                return false;
+            }
+            outVal = (1U << leadingZeroBits) - 1U + suffix;
+            return true;
+        }
+
+    private:
+        const std::uint8_t* m_data;
+        std::size_t m_size;
+        std::size_t m_byteOffset { 0U };
+        std::size_t m_bitOffset { 0U };
+    };
 
 } // namespace
 
 VideoNaluParser::VideoNaluParser(VideoCodec codec) noexcept
-    : m_codec(codec) {
+    : m_codec(codec)
+{
 }
 
-void VideoNaluParser::setUnitCallback(AccessUnitCallback callback) {
+void VideoNaluParser::setUnitCallback(AccessUnitCallback callback)
+{
     m_callback = std::move(callback);
 }
 
-VideoCodec VideoNaluParser::codec() const noexcept {
+VideoCodec VideoNaluParser::codec() const noexcept
+{
     return m_codec;
 }
 
-void VideoNaluParser::setCodec(VideoCodec codec) noexcept {
+void VideoNaluParser::setCodec(VideoCodec codec) noexcept
+{
     m_codec = codec;
 }
 
-std::size_t VideoNaluParser::findStartCode(const std::uint8_t* data,
-                                           std::size_t size,
-                                           std::size_t offset,
-                                           std::size_t& prefixLen) noexcept {
+std::size_t VideoNaluParser::findStartCode(
+    const std::uint8_t* data, std::size_t size, std::size_t offset, std::size_t& prefixLen) noexcept
+{
     prefixLen = 0U;
     if (data == nullptr || size < 3U || offset > size - 3U) {
         return size;
@@ -119,8 +124,8 @@ std::size_t VideoNaluParser::findStartCode(const std::uint8_t* data,
     return size;
 }
 
-std::uint8_t VideoNaluParser::extractNaluType(std::uint8_t headerByte,
-                                              VideoCodec codec) noexcept {
+std::uint8_t VideoNaluParser::extractNaluType(std::uint8_t headerByte, VideoCodec codec) noexcept
+{
     if (codec == VideoCodec::H264) {
         return headerByte & 0x1FU;
     }
@@ -130,21 +135,21 @@ std::uint8_t VideoNaluParser::extractNaluType(std::uint8_t headerByte,
     return 0U;
 }
 
-bool VideoNaluParser::isKeyframeType(std::uint8_t naluType,
-                                     VideoCodec codec) noexcept {
+bool VideoNaluParser::isKeyframeType(std::uint8_t naluType, VideoCodec codec) noexcept
+{
     if (codec == VideoCodec::H264) {
         return naluType == static_cast<std::uint8_t>(NaluTypeH264::IdrSlice);
     }
     if (codec == VideoCodec::H265) {
-        return naluType == static_cast<std::uint8_t>(NaluTypeH265::IdrWRadl) ||
-               naluType == static_cast<std::uint8_t>(NaluTypeH265::IdrNLp) ||
-               naluType == static_cast<std::uint8_t>(NaluTypeH265::CraNut);
+        return naluType == static_cast<std::uint8_t>(NaluTypeH265::IdrWRadl)
+            || naluType == static_cast<std::uint8_t>(NaluTypeH265::IdrNLp)
+            || naluType == static_cast<std::uint8_t>(NaluTypeH265::CraNut);
     }
     return false;
 }
 
-VideoSliceType VideoNaluParser::parseH264Slice(const std::uint8_t* payload,
-                                               std::size_t size) noexcept {
+VideoSliceType VideoNaluParser::parseH264Slice(const std::uint8_t* payload, std::size_t size) noexcept
+{
     if (payload == nullptr || size < 2U) {
         return VideoSliceType::Unknown;
     }
@@ -160,19 +165,24 @@ VideoSliceType VideoNaluParser::parseH264Slice(const std::uint8_t* payload,
     }
     const std::uint32_t modType = sliceTypeUe % 5U;
     switch (modType) {
-    case 0U: return VideoSliceType::P;
-    case 1U: return VideoSliceType::B;
-    case 2U: return VideoSliceType::I;
-    case 3U: return VideoSliceType::P;
-    case 4U: return VideoSliceType::I;
-    default: break;
+    case 0U:
+        return VideoSliceType::P;
+    case 1U:
+        return VideoSliceType::B;
+    case 2U:
+        return VideoSliceType::I;
+    case 3U:
+        return VideoSliceType::P;
+    case 4U:
+        return VideoSliceType::I;
+    default:
+        break;
     }
     return VideoSliceType::Unknown;
 }
 
-std::vector<NaluDescriptor> VideoNaluParser::extractNalus(const std::uint8_t* data,
-                                                         std::size_t size,
-                                                         VideoCodec codec) {
+std::vector<NaluDescriptor> VideoNaluParser::extractNalus(const std::uint8_t* data, std::size_t size, VideoCodec codec)
+{
     std::vector<NaluDescriptor> result;
     if (data == nullptr || size < 4U) {
         return result;
@@ -205,11 +215,9 @@ std::vector<NaluDescriptor> VideoNaluParser::extractNalus(const std::uint8_t* da
     return result;
 }
 
-VideoAccessUnit VideoNaluParser::parseAccessUnit(const std::uint8_t* data,
-                                                 std::size_t size,
-                                                 VideoCodec codec,
-                                                 std::uint64_t ptsUs,
-                                                 std::optional<std::uint64_t> dtsUs) {
+VideoAccessUnit VideoNaluParser::parseAccessUnit(const std::uint8_t* data, std::size_t size, VideoCodec codec,
+    std::uint64_t ptsUs, std::optional<std::uint64_t> dtsUs)
+{
     VideoAccessUnit au;
     au.codec = codec;
     au.ptsUs = ptsUs;
@@ -229,8 +237,7 @@ VideoAccessUnit VideoNaluParser::parseAccessUnit(const std::uint8_t* data,
             au.primarySliceType = VideoSliceType::I;
             break;
         }
-        if (codec == VideoCodec::H264 &&
-            nalu.naluType == static_cast<std::uint8_t>(NaluTypeH264::NonIdrSlice)) {
+        if (codec == VideoCodec::H264 && nalu.naluType == static_cast<std::uint8_t>(NaluTypeH264::NonIdrSlice)) {
             const auto st = parseH264Slice(au.data.data() + nalu.offset, nalu.size);
             if (st != VideoSliceType::Unknown && au.primarySliceType == VideoSliceType::Unknown) {
                 au.primarySliceType = st;
@@ -245,20 +252,19 @@ VideoAccessUnit VideoNaluParser::parseAccessUnit(const std::uint8_t* data,
     return au;
 }
 
-bool VideoNaluParser::isAuBoundary(std::uint8_t naluType,
-                                   VideoCodec codec,
-                                   const std::uint8_t* payload,
-                                   std::size_t size) noexcept {
+bool VideoNaluParser::isAuBoundary(
+    std::uint8_t naluType, VideoCodec codec, const std::uint8_t* payload, std::size_t size) noexcept
+{
     if (codec == VideoCodec::H264) {
         if (naluType == static_cast<std::uint8_t>(NaluTypeH264::Aud)) {
             return true;
         }
-        if (naluType == static_cast<std::uint8_t>(NaluTypeH264::Sps) ||
-            naluType == static_cast<std::uint8_t>(NaluTypeH264::Pps)) {
+        if (naluType == static_cast<std::uint8_t>(NaluTypeH264::Sps)
+            || naluType == static_cast<std::uint8_t>(NaluTypeH264::Pps)) {
             return true;
         }
-        if (naluType == static_cast<std::uint8_t>(NaluTypeH264::IdrSlice) ||
-            naluType == static_cast<std::uint8_t>(NaluTypeH264::NonIdrSlice)) {
+        if (naluType == static_cast<std::uint8_t>(NaluTypeH264::IdrSlice)
+            || naluType == static_cast<std::uint8_t>(NaluTypeH264::NonIdrSlice)) {
             if (payload != nullptr && size >= 2U) {
                 BitReader reader(payload + 1U, size - 1U);
                 std::uint32_t firstMb = 0U;
@@ -271,9 +277,9 @@ bool VideoNaluParser::isAuBoundary(std::uint8_t naluType,
         if (naluType == static_cast<std::uint8_t>(NaluTypeH265::AudNut)) {
             return true;
         }
-        if (naluType == static_cast<std::uint8_t>(NaluTypeH265::VpsNut) ||
-            naluType == static_cast<std::uint8_t>(NaluTypeH265::SpsNut) ||
-            naluType == static_cast<std::uint8_t>(NaluTypeH265::PpsNut)) {
+        if (naluType == static_cast<std::uint8_t>(NaluTypeH265::VpsNut)
+            || naluType == static_cast<std::uint8_t>(NaluTypeH265::SpsNut)
+            || naluType == static_cast<std::uint8_t>(NaluTypeH265::PpsNut)) {
             return true;
         }
         if ((naluType <= 9U || (naluType >= 16U && naluType <= 21U)) && payload != nullptr && size >= 3U) {
@@ -288,9 +294,8 @@ bool VideoNaluParser::isAuBoundary(std::uint8_t naluType,
     return false;
 }
 
-std::size_t VideoNaluParser::pushChunk(const std::uint8_t* data,
-                                       std::size_t size,
-                                       std::uint64_t ptsUs) {
+std::size_t VideoNaluParser::pushChunk(const std::uint8_t* data, std::size_t size, std::uint64_t ptsUs)
+{
     if (data == nullptr || size == 0U) {
         return 0U;
     }
@@ -311,8 +316,6 @@ std::size_t VideoNaluParser::pushChunk(const std::uint8_t* data,
         return 0U;
     }
 
-    std::size_t prevStart = firstStart;
-    std::size_t prevPrefix = prefixLen;
     std::size_t scanPos = firstStart + prefixLen;
     bool hasSliceInCurrentAu = false;
 
@@ -330,8 +333,8 @@ std::size_t VideoNaluParser::pushChunk(const std::uint8_t* data,
             const std::size_t remSize = m_buffer.size() - naluDataOffset;
 
             const bool isBoundary = isAuBoundary(naluType, m_codec, payload, remSize);
-            const bool isSlice = (m_codec == VideoCodec::H264 && (naluType == 1U || naluType == 5U)) ||
-                                 (m_codec == VideoCodec::H265 && (naluType <= 9U || (naluType >= 16U && naluType <= 21U)));
+            const bool isSlice = (m_codec == VideoCodec::H264 && (naluType == 1U || naluType == 5U))
+                || (m_codec == VideoCodec::H265 && (naluType <= 9U || (naluType >= 16U && naluType <= 21U)));
 
             if (isBoundary && hasSliceInCurrentAu) {
                 // We found the start of the next AU at curStart!
@@ -346,8 +349,6 @@ std::size_t VideoNaluParser::pushChunk(const std::uint8_t* data,
                 m_currentPtsUs = ptsUs;
                 hasSliceInCurrentAu = isSlice;
                 scanPos = curPrefix;
-                prevStart = 0U;
-                prevPrefix = curPrefix;
                 continue;
             }
 
@@ -356,15 +357,14 @@ std::size_t VideoNaluParser::pushChunk(const std::uint8_t* data,
             }
         }
 
-        prevStart = curStart;
-        prevPrefix = curPrefix;
         scanPos = curStart + curPrefix;
     }
 
     return emittedCount;
 }
 
-std::size_t VideoNaluParser::flush() {
+std::size_t VideoNaluParser::flush()
+{
     if (m_buffer.empty()) {
         return 0U;
     }
@@ -379,7 +379,8 @@ std::size_t VideoNaluParser::flush() {
     return 0U;
 }
 
-void VideoNaluParser::reset() noexcept {
+void VideoNaluParser::reset() noexcept
+{
     m_buffer.clear();
     m_currentPtsUs = 0U;
 }

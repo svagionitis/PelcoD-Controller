@@ -340,8 +340,7 @@ bool SightlineQmlBridge::connectUdp(const QString& host, int cmdPort, int replyP
         &SightlineQmlBridge::handleTrackingParameters);
     connect(m_device.get(), &QSightlineDevice::extendedPositionsReceived, this,
         &SightlineQmlBridge::handleTrackingPositionsExtended);
-    connect(m_device.get(), &QSightlineDevice::trackCoastingChanged, this,
-        &SightlineQmlBridge::trackCoastingChanged);
+    connect(m_device.get(), &QSightlineDevice::trackCoastingChanged, this, &SightlineQmlBridge::trackCoastingChanged);
     connect(m_device.get(), &QSightlineDevice::userWarningReceived, this, &SightlineQmlBridge::handleUserWarning);
     connect(m_device.get(), &QSightlineDevice::versionReceived, this, &SightlineQmlBridge::handleVersion);
     connect(m_device.get(), &QSightlineDevice::systemStatusReceived, this, &SightlineQmlBridge::handleSystemStatus);
@@ -363,26 +362,19 @@ bool SightlineQmlBridge::connectUdp(const QString& host, int cmdPort, int replyP
     connect(m_device.get(), &QSightlineDevice::detectionRoiReceived, this, &SightlineQmlBridge::handleDetectionROI);
     connect(
         m_device.get(), &QSightlineDevice::klvMetricFiltersReceived, this, &SightlineQmlBridge::handleKlvMetricFilters);
-    connect(m_device.get(), &QSightlineDevice::commandAckReceived, this,
-        &SightlineQmlBridge::handleCommandAck);
-    connect(m_device.get(), &QSightlineDevice::recordingEventReceived, this,
-        &SightlineQmlBridge::handleRecordingEvent);
-    connect(m_device.get(), &QSightlineDevice::recordingStatusReceived, this,
-        &SightlineQmlBridge::handleRecordingStatus);
-    connect(m_device.get(), &QSightlineDevice::dirListingReplyReceived, this,
-        &SightlineQmlBridge::handleDirListingReply);
-    connect(m_device.get(), &QSightlineDevice::h264ParamsReceived, this,
-        &SightlineQmlBridge::handleH264Params);
-    connect(m_device.get(), &QSightlineDevice::ethernetDisplayReceived, this,
-        &SightlineQmlBridge::handleEthernetDisplay);
-    connect(m_device.get(), &QSightlineDevice::ethernetVideoReceived, this,
-        &SightlineQmlBridge::handleEthernetVideo);
-    connect(m_device.get(), &QSightlineDevice::networkParamsReceived, this,
-        &SightlineQmlBridge::handleNetworkParams);
-    connect(m_device.get(), &QSightlineDevice::networkListReceived, this,
-        &SightlineQmlBridge::handleNetworkList);
-    connect(m_device.get(), &QSightlineDevice::systemValueReceived, this,
-        &SightlineQmlBridge::handleSystemValue);
+    connect(m_device.get(), &QSightlineDevice::commandAckReceived, this, &SightlineQmlBridge::handleCommandAck);
+    connect(m_device.get(), &QSightlineDevice::recordingEventReceived, this, &SightlineQmlBridge::handleRecordingEvent);
+    connect(
+        m_device.get(), &QSightlineDevice::recordingStatusReceived, this, &SightlineQmlBridge::handleRecordingStatus);
+    connect(
+        m_device.get(), &QSightlineDevice::dirListingReplyReceived, this, &SightlineQmlBridge::handleDirListingReply);
+    connect(m_device.get(), &QSightlineDevice::h264ParamsReceived, this, &SightlineQmlBridge::handleH264Params);
+    connect(
+        m_device.get(), &QSightlineDevice::ethernetDisplayReceived, this, &SightlineQmlBridge::handleEthernetDisplay);
+    connect(m_device.get(), &QSightlineDevice::ethernetVideoReceived, this, &SightlineQmlBridge::handleEthernetVideo);
+    connect(m_device.get(), &QSightlineDevice::networkParamsReceived, this, &SightlineQmlBridge::handleNetworkParams);
+    connect(m_device.get(), &QSightlineDevice::networkListReceived, this, &SightlineQmlBridge::handleNetworkList);
+    connect(m_device.get(), &QSightlineDevice::systemValueReceived, this, &SightlineQmlBridge::handleSystemValue);
 
     const bool started = m_device->start();
     emit connectionChanged();
@@ -517,9 +509,8 @@ bool SightlineQmlBridge::startPrecisionTrack(int cam, int col, int row, int w, i
     if (!isConnected()) {
         return true;
     }
-    return m_device->startPrecisionTrack(static_cast<quint8>(cam), static_cast<quint16>(col),
-        static_cast<quint16>(row), static_cast<quint16>(w), static_cast<quint16>(h),
-        static_cast<quint64>(framePts));
+    return m_device->startPrecisionTrack(static_cast<quint8>(cam), static_cast<quint16>(col), static_cast<quint16>(row),
+        static_cast<quint16>(w), static_cast<quint16>(h), static_cast<quint64>(framePts));
 }
 
 bool SightlineQmlBridge::setForcedCoast(int cam, int trackId, int mode)
@@ -544,8 +535,8 @@ bool SightlineQmlBridge::resizeTrack(int cam, int trackId, int w, int h, bool as
     if (!isConnected()) {
         return false;
     }
-    return m_device->resizeTrack(static_cast<quint8>(cam), static_cast<quint8>(trackId),
-        static_cast<quint16>(w), static_cast<quint16>(h), assist);
+    return m_device->resizeTrack(static_cast<quint8>(cam), static_cast<quint8>(trackId), static_cast<quint16>(w),
+        static_cast<quint16>(h), assist);
 }
 
 bool SightlineQmlBridge::cueTrackAt(int cam, int col, int row, int mode, int trackId)
@@ -553,8 +544,9 @@ bool SightlineQmlBridge::cueTrackAt(int cam, int col, int row, int mode, int tra
     if (!isConnected()) {
         return false;
     }
+    const auto uTrackId = (trackId < 0) ? quint8 { 0xFFU } : static_cast<quint8>(trackId);
     return m_device->cueTrackAt(static_cast<quint8>(cam), static_cast<quint16>(col), static_cast<quint16>(row),
-        static_cast<Sightline::ModifyMode>(mode), static_cast<quint8>(trackId < 0 ? 0xFFU : trackId));
+        static_cast<Sightline::ModifyMode>(mode), uTrackId);
 }
 
 bool SightlineQmlBridge::nudgeDisplayTrack(int cam, int deltaCol, int deltaRow)
@@ -566,9 +558,8 @@ bool SightlineQmlBridge::nudgeDisplayTrack(int cam, int deltaCol, int deltaRow)
         static_cast<quint8>(cam), static_cast<qint16>(deltaCol), static_cast<qint16>(deltaRow));
 }
 
-bool SightlineQmlBridge::setTrackingParameters(int cam, int mode, int flags,
-    int maxMisses, int zoomSmoothing, int rollSmoothing,
-    int maxPauseTime, int acqCol, int acqRow)
+bool SightlineQmlBridge::setTrackingParameters(int cam, int mode, int flags, int maxMisses, int zoomSmoothing,
+    int rollSmoothing, int maxPauseTime, int acqCol, int acqRow)
 {
     if (cam < 0 || cam >= 4) {
         return false;
@@ -985,8 +976,8 @@ bool SightlineQmlBridge::setH264Params(int stream, int bitrate, int gop, int qua
     return m_device->device()->setH264Params(msg);
 }
 
-bool SightlineQmlBridge::setH264ParamsEx(int stream, int bitrate, int gop, int profile, int rateCtrl,
-    int minQp, int maxQp, int deblock, int airMb, int sliceRows)
+bool SightlineQmlBridge::setH264ParamsEx(int stream, int bitrate, int gop, int profile, int rateCtrl, int minQp,
+    int maxQp, int deblock, int airMb, int sliceRows)
 {
     if (!isConnected()) {
         return false;
@@ -1006,8 +997,7 @@ bool SightlineQmlBridge::setH264ParamsEx(int stream, int bitrate, int gop, int p
                                                              : static_cast<std::uint32_t>(std::max(0, bitrate));
     msg.targetBitrateBps = targetBps;
     msg.intraFrameInterval = static_cast<std::uint8_t>(std::clamp(gop, 0, 255));
-    msg.flags = Sightline::makeH264Flags(
-        static_cast<Sightline::H264Profile>(std::clamp(profile, 0, 2)),
+    msg.flags = Sightline::makeH264Flags(static_cast<Sightline::H264Profile>(std::clamp(profile, 0, 2)),
         static_cast<Sightline::BitrateControlMode>(std::clamp(rateCtrl, 0, 3)));
     msg.lfDisableIdc = static_cast<std::uint8_t>(std::clamp(deblock, 0, 2));
     msg.minQp = static_cast<std::uint8_t>(std::clamp(minQp, 0, 30));
@@ -1028,8 +1018,8 @@ bool SightlineQmlBridge::setH264ParamsEx(int stream, int bitrate, int gop, int p
     return m_device->setH264Params(msg);
 }
 
-bool SightlineQmlBridge::setEthernetDisplay(int stream, int protocol, const QString& ip, int port,
-    int maxPacket, int maxRawPacket)
+bool SightlineQmlBridge::setEthernetDisplay(
+    int stream, int protocol, const QString& ip, int port, int maxPacket, int maxRawPacket)
 {
     if (!isConnected()) {
         return false;
@@ -1060,8 +1050,8 @@ bool SightlineQmlBridge::setEthernetDisplay(int stream, int protocol, const QStr
     return m_device->setEthernetDisplay(msg);
 }
 
-bool SightlineQmlBridge::setEthernetVideo(int stream, int frameStep, int frameSize,
-    int customW, int customH, int quality, int foveal)
+bool SightlineQmlBridge::setEthernetVideo(
+    int stream, int frameStep, int frameSize, int customW, int customH, int quality, int foveal)
 {
     if (!isConnected()) {
         return false;
@@ -1098,10 +1088,8 @@ bool SightlineQmlBridge::setTrafficControl(int rateKbps, int burstBytes, int mtu
     m_tcMtuBytes = mtuBytes;
     emit tcStatusChanged();
 
-    return m_device->setTrafficControl(
-        static_cast<std::uint32_t>(std::max(0, rateKbps)),
-        static_cast<std::uint32_t>(std::max(0, burstBytes)),
-        static_cast<std::uint32_t>(std::max(0, mtuBytes)));
+    return m_device->setTrafficControl(static_cast<std::uint32_t>(std::max(0, rateKbps)),
+        static_cast<std::uint32_t>(std::max(0, burstBytes)), static_cast<std::uint32_t>(std::max(0, mtuBytes)));
 }
 
 bool SightlineQmlBridge::resetTrafficControl()
@@ -1114,34 +1102,29 @@ bool SightlineQmlBridge::applyLowBandwidth(int stream)
     if (!isConnected()) {
         return false;
     }
-    const bool encOk = setH264ParamsEx(
-        stream,
+    const bool encOk = setH264ParamsEx(stream,
         100, // 100 kbps
-        30,  // 30 frame GOP
-        1,   // Main profile
-        2,   // Constrained Bitrate (CBR)
-        18,  // min QP
-        42,  // max QP
-        0,   // Deblocking enabled
-        0,   // AIR
-        0    // Slice rows
+        30, // 30 frame GOP
+        1, // Main profile
+        2, // Constrained Bitrate (CBR)
+        18, // min QP
+        42, // max QP
+        0, // Deblocking enabled
+        0, // AIR
+        0 // Slice rows
     );
 
-    const bool vidOk = setEthernetVideo(
-        stream,
+    const bool vidOk = setEthernetVideo(stream,
         2, // Frame step 2 = 15 fps
         1, // Frame size 1 = 720p
-        0, 0, 0, 0
-    );
+        0, 0, 0, 0);
 
     return encOk && vidOk;
 }
 
 bool SightlineQmlBridge::isValidPort(int protocol, int port) const noexcept
 {
-    return Sightline::isValidTransportPort(
-        static_cast<std::uint16_t>(port),
-        static_cast<std::uint8_t>(protocol));
+    return Sightline::isValidTransportPort(static_cast<std::uint16_t>(port), static_cast<std::uint8_t>(protocol));
 }
 
 bool SightlineQmlBridge::isRtp(int protocol) const noexcept
@@ -1179,8 +1162,7 @@ bool SightlineQmlBridge::queryNetworkParams()
     return pOk || lOk;
 }
 
-bool SightlineQmlBridge::setBoardNetwork(
-    const QString& ip, const QString& mask, const QString& gateway, bool dhcp)
+bool SightlineQmlBridge::setBoardNetwork(const QString& ip, const QString& mask, const QString& gateway, bool dhcp)
 {
     if (!isConnected()) {
         return false;
@@ -1301,8 +1283,8 @@ bool SightlineQmlBridge::requestDirectoryListing(int dest, int startIndex, int m
     static std::uint16_t s_dirSeq { 3000U };
     msg.sequenceId = s_dirSeq++;
     msg.destination = static_cast<Sightline::StorageDestination>(std::clamp(dest, 0, 3));
-    msg.startIndex = static_cast<std::uint32_t>(std::max(0, startIndex));
-    msg.maxEntries = static_cast<std::uint16_t>(std::clamp(maxEntries, 1, 255));
+    msg.startIndex = static_cast<std::uint16_t>(std::clamp(startIndex, 0, 65535));
+    msg.maxEntries = static_cast<std::uint8_t>(std::clamp(maxEntries, 1, 255));
     msg.pathFilter = filter.toStdString();
 
     return m_device->getDirectoryListing(msg);
@@ -1355,7 +1337,8 @@ QJsonObject SightlineQmlBridge::validateFilename(const QString& prefix)
     QString errStr {};
     switch (code) {
     case Sightline::RecordingStatusCode::ErrNumericFilename:
-        errStr = QStringLiteral("Warning: Filename cannot end in digits 0-9 without overwrite flag (Sightline rollover conflict)");
+        errStr = QStringLiteral(
+            "Warning: Filename cannot end in digits 0-9 without overwrite flag (Sightline rollover conflict)");
         break;
     case Sightline::RecordingStatusCode::ErrInvalidCharacters:
         errStr = QStringLiteral("Error: Filename contains invalid characters or exceeds 64 characters");
@@ -1958,8 +1941,7 @@ bool SightlineQmlBridge::setReportingMode(int cam, int period, int flags)
         static_cast<std::uint8_t>(cam), static_cast<std::uint8_t>(period), static_cast<std::uint8_t>(flags));
 }
 
-bool SightlineQmlBridge::setMetadata(
-    double lat, double lon, double alt, double heading, double pitch, double roll,
+bool SightlineQmlBridge::setMetadata(double lat, double lon, double alt, double heading, double pitch, double roll,
     double hfov, double vfov, double az, double el, int displayId)
 {
     if (!isConnected()) {
@@ -1995,9 +1977,8 @@ bool SightlineQmlBridge::setMetadataStatic(int type, const QString& value, int d
     return m_device->device()->setMetadataStatic(msg);
 }
 
-bool SightlineQmlBridge::setMetadataFrame(
-    double centerLat, double centerLon, double centerEl, double frameWidth, double slantRange,
-    bool enableOlsDted, int displayId)
+bool SightlineQmlBridge::setMetadataFrame(double centerLat, double centerLon, double centerEl, double frameWidth,
+    double slantRange, bool enableOlsDted, int displayId)
 {
     if (!isConnected()) {
         return false;
@@ -2289,9 +2270,9 @@ void SightlineQmlBridge::handleTrackingParameters(const Sightline::MsgSetTrackin
         m_cachedTrackingParams[static_cast<std::size_t>(cam)] = p;
     }
     emit trackingParametersReceived(cam, static_cast<int>(p.mode), static_cast<int>(p.flags),
-        static_cast<int>(p.maxMisses), static_cast<int>(p.zoomSmoothing),
-        static_cast<int>(p.rollSmoothing), static_cast<int>(p.maxPauseTime),
-        static_cast<int>(p.acquisitionSearchCol), static_cast<int>(p.acquisitionSearchRow));
+        static_cast<int>(p.maxMisses), static_cast<int>(p.zoomSmoothing), static_cast<int>(p.rollSmoothing),
+        static_cast<int>(p.maxPauseTime), static_cast<int>(p.acquisitionSearchCol),
+        static_cast<int>(p.acquisitionSearchRow));
 }
 
 void SightlineQmlBridge::handleUserWarning(const Sightline::MsgUserWarningMessage& warn)
@@ -2519,10 +2500,11 @@ void SightlineQmlBridge::handleRecordingEvent(const Sightline::MsgFileRecordingE
         break;
     }
 
-    m_lastRecordingEvent = QStringLiteral("[%1] %2 %3")
-                               .arg(evTypeStr)
-                               .arg(QString::fromStdString(ev.eventPayload))
-                               .arg(ev.freeStorageMB > 0 ? QStringLiteral("(%1 MB free)").arg(ev.freeStorageMB) : QString());
+    m_lastRecordingEvent
+        = QStringLiteral("[%1] %2 %3")
+              .arg(evTypeStr)
+              .arg(QString::fromStdString(ev.eventPayload))
+              .arg(ev.freeStorageMB > 0 ? QStringLiteral("(%1 MB free)").arg(ev.freeStorageMB) : QString());
     emit recordingEventReceived(m_lastRecordingEvent);
 }
 
@@ -2628,4 +2610,3 @@ void SightlineQmlBridge::handleSystemValue(const Sightline::MsgSystemValue& val)
         emit trafficControlReceived(m_tcRateKbps, m_tcBurstBytes, m_tcMtuBytes);
     }
 }
-

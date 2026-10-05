@@ -6,19 +6,13 @@
 namespace Tracking {
 
 namespace {
-inline constexpr double kPi { 3.14159265358979323846 };
-inline constexpr double kRadToDeg { 180.0 / kPi };
+    inline constexpr double kPi { 3.14159265358979323846 };
+    inline constexpr double kRadToDeg { 180.0 / kPi };
 } // namespace
 
-Klv::VTargetPack TrackingVmtiBridge::buildTargetPack(
-    const SphericalTargetState& state,
-    const CameraIntrinsics& intrinsics,
-    std::uint32_t trackId,
-    double camPanRad,
-    double camTiltRad,
-    double zoom,
-    double slantRangeMeters,
-    const std::optional<Klv::GeoPoint3D>& platformPos) noexcept
+Klv::VTargetPack TrackingVmtiBridge::buildTargetPack(const SphericalTargetState& state,
+    const CameraIntrinsics& intrinsics, std::uint32_t trackId, double camPanRad, double camTiltRad, double zoom,
+    double slantRangeMeters, const std::optional<Klv::GeoPoint3D>& platformPos) noexcept
 {
     Klv::VTargetPack pack;
     pack.targetId = trackId;
@@ -27,8 +21,10 @@ Klv::VTargetPack TrackingVmtiBridge::buildTargetPack(
     PtzCameraModel model(intrinsics);
     const Math::Vector<2> uv = model.project(state.azimuthRad, state.elevationRad, camPanRad, camTiltRad, zoom);
 
-    const double clampedU = std::clamp(uv[0], 0.0, static_cast<double>(intrinsics.imageWidth > 0U ? intrinsics.imageWidth - 1U : 0U));
-    const double clampedV = std::clamp(uv[1], 0.0, static_cast<double>(intrinsics.imageHeight > 0U ? intrinsics.imageHeight - 1U : 0U));
+    const double maxU = (intrinsics.imageWidth > 0) ? static_cast<double>(intrinsics.imageWidth - 1) : 0.0;
+    const double maxV = (intrinsics.imageHeight > 0) ? static_cast<double>(intrinsics.imageHeight - 1) : 0.0;
+    const double clampedU = std::clamp(uv[0], 0.0, maxU);
+    const double clampedV = std::clamp(uv[1], 0.0, maxV);
 
     // 1-indexed pixel coordinates
     Klv::PixelCoord centroid;
@@ -64,10 +60,9 @@ Klv::VTargetPack TrackingVmtiBridge::buildTargetPack(
         }
 
         const double groundDist = slantRangeMeters * std::cos(state.elevationRad);
-        const Klv::GeoPoint2D target2D = Klv::KlvGeodesy::directGeodetic(
-            Klv::GeoPoint2D { platformPos->latitudeDeg, platformPos->longitudeDeg },
-            targetBearing,
-            std::max(0.0, groundDist));
+        const Klv::GeoPoint2D target2D
+            = Klv::KlvGeodesy::directGeodetic(Klv::GeoPoint2D { platformPos->latitudeDeg, platformPos->longitudeDeg },
+                targetBearing, std::max(0.0, groundDist));
 
         const double targetHae = platformPos->altitudeM + (slantRangeMeters * std::sin(state.elevationRad));
         pack.targetLocation = Klv::GeoPoint3D { target2D.latitudeDeg, target2D.longitudeDeg, targetHae };
@@ -77,10 +72,7 @@ Klv::VTargetPack TrackingVmtiBridge::buildTargetPack(
     return pack;
 }
 
-bool TrackingVmtiBridge::extractPixelDetection(
-    const Klv::VTargetPack& pack,
-    double& outU,
-    double& outV) noexcept
+bool TrackingVmtiBridge::extractPixelDetection(const Klv::VTargetPack& pack, double& outU, double& outV) noexcept
 {
     if (pack.centroid.has_value()) {
         outU = static_cast<double>(pack.centroid->col > 0U ? pack.centroid->col - 1U : 0U);
