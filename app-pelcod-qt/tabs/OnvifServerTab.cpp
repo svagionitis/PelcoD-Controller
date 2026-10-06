@@ -106,6 +106,24 @@ void OnvifServerTab::setupUi()
 
     leftLayout->addWidget(grpNetwork);
 
+    // Group 2b: Authentication (Administrator account seeded into the credential store)
+    auto* grpAuth = new QGroupBox(tr("Authentication"), leftContainer);
+    auto* authForm = new QFormLayout(grpAuth);
+    authForm->setSpacing(8);
+
+    m_editAdminUser = new QLineEdit(grpAuth);
+    m_editAdminUser->setPlaceholderText(tr("Administrator username"));
+    authForm->addRow(tr("Admin User:"), m_editAdminUser);
+
+    m_editAdminPass = new QLineEdit(grpAuth);
+    m_editAdminPass->setEchoMode(QLineEdit::Password);
+    m_editAdminPass->setPlaceholderText(tr("Leave empty to keep current password"));
+    m_editAdminPass->setToolTip(tr("Non-loopback binds are refused while the password is empty or equals the "
+                                   "username."));
+    authForm->addRow(tr("Admin Password:"), m_editAdminPass);
+
+    leftLayout->addWidget(grpAuth);
+
     // Group 3: Device Identification
     auto* grpIdentity = new QGroupBox(tr("Device Information (Profile S & T)"), leftContainer);
     auto* identForm = new QFormLayout(grpIdentity);
@@ -223,6 +241,13 @@ void OnvifServerTab::syncUiFromConfig()
     m_editFirmware->setText(QString::fromStdString(cfg.firmwareVersion));
     m_editSerial->setText(QString::fromStdString(cfg.serialNumber));
     m_editRtspUri->setText(QString::fromStdString(cfg.rtspStreamUri));
+    for (const auto& user : cfg.defaultUsers) {
+        if (user.level == Onvif::OnvifUserLevel::Administrator) {
+            m_editAdminUser->setText(QString::fromStdString(user.username));
+            break;
+        }
+    }
+    m_editAdminPass->clear();
     m_endpointEdit->setText(m_server->endpointUrl());
 }
 
@@ -240,6 +265,15 @@ void OnvifServerTab::applyUiToConfig()
     cfg.firmwareVersion = m_editFirmware->text().trimmed().toStdString();
     cfg.serialNumber = m_editSerial->text().trimmed().toStdString();
     cfg.rtspStreamUri = m_editRtspUri->text().trimmed().toStdString();
+
+    // Seed the Administrator account only when both fields are provided; an
+    // empty password keeps the previously configured account unchanged.
+    const std::string adminUser { m_editAdminUser->text().trimmed().toStdString() };
+    if (!adminUser.empty() && !m_editAdminPass->text().isEmpty()) {
+        cfg.defaultUsers = { Onvif::OnvifUser {
+            adminUser, m_editAdminPass->text().toStdString(), Onvif::OnvifUserLevel::Administrator } };
+    }
+    m_editAdminPass->clear();
 
     m_server->setConfig(cfg);
 

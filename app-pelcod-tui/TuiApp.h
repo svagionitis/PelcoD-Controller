@@ -63,6 +63,13 @@ public:
     /// @param[in] name Device display name.
     /// @param[in] rtsp Advertised RTSP stream URI.
     void setOnvifServerConfig(int port, const std::string& name, const std::string& rtsp);
+
+    /// @brief Replaces the ONVIF server's seeded accounts with a single administrator.
+    /// @details Required for non-loopback operation: the server refuses to start while a
+    ///          factory-default password (e.g. admin/admin) is configured (review finding C1).
+    /// @param[in] username Administrator user name (1..32 characters of [A-Za-z0-9._-]).
+    /// @param[in] password Administrator password (must not be empty or equal to the user name).
+    void setOnvifServerCredentials(const std::string& username, const std::string& password);
 #endif
 
 private:

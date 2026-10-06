@@ -545,6 +545,115 @@ C4Component
     Rel(discovery, pugi, "Parses ProbeMatch XML", "pugi::xml_document")
 ```
 
+### 5.1 Server-Side Authentication & Access Control (`OnvifServer`)
+
+Every inbound request to the embedded server passes through a fail-closed pipeline before any handler runs. Source files (relative to the repository root):
+
+| Component | File | Responsibility |
+|---|---|---|
+| `Authenticator` | [`libs/Onvif/Authenticator.h`](../libs/Onvif/Authenticator.h) | Facade: UsernameToken first, then HTTP Digest; per-peer failure back-off |
+| `UsernameTokenValidator` | [`libs/Onvif/UsernameToken.h`](../libs/Onvif/UsernameToken.h) | WS-Security `PasswordDigest`, `wsu:Created` skew check, nonce replay check |
+| `DigestValidator` | [`libs/Onvif/HttpDigest.h`](../libs/Onvif/HttpDigest.h) | RFC 7616 Digest (`SHA-256`, `MD5`), stateless HMAC nonces, `nc` replay check |
+| `NonceCache` | [`libs/Onvif/NonceCache.h`](../libs/Onvif/NonceCache.h) | Bounded TTL cache of seen nonces |
+| `CredentialStore` | [`libs/Onvif/CredentialStore.h`](../libs/Onvif/CredentialStore.h) | Authoritative, thread-safe user database; last-admin and default-password guards |
+| `AccessPolicy` | [`libs/Onvif/AccessPolicy.h`](../libs/Onvif/AccessPolicy.h) | `(service, operation) -> AccessClass` tables; unknown = `Unrecoverable` |
+| `SoapFault` | [`libs/Onvif/SoapFault.h`](../libs/Onvif/SoapFault.h) | `ter:NotAuthorized` and `env:Sender` fault builders |
+| `OnvifCrypto` | [`libs/Onvif/OnvifCrypto.h`](../libs/Onvif/OnvifCrypto.h) | OpenSSL digests, HMAC-SHA256, constant-time compare, CSPRNG |
+
+#### ASCII Diagram
+
+```text
+  NVR / VMS client
+        |  HTTP POST /onvif/<service>  (SOAP + optional wsse:Security / Authorization: Digest)
+        v
++------------------------------------------------------------------------------------------+
+|                                     OnvifServer                                          |
+|                                                                                          |
+|  parseSoapRequest() ---> AccessPolicy::classify(service, op) ---> AccessClass            |
+|        |                                                              |                  |
+|        |                                         PreAuth? ---yes----> dispatch handler   |
+|        |                                              | no                               |
+|        v                                              v                                  |
+|  +------------------------------------ Authenticator ---------------------------------+  |
+|  |  1. UsernameTokenValidator  (wsse:UsernameToken / PasswordDigest)                  |  |
+|  |  2. DigestValidator         (Authorization: Digest, SHA-256 | MD5)                 |  |
+|  |        |                         |                                                 |  |
+|  |        +-----> NonceCache <------+   (replay detection, bounded, TTL)              |  |
+|  |        +-----> CredentialStore       (user lookup, level)                          |  |
+|  |  Back-off: >5 failures / 60 s per peer -> 100 ms doubling to 2 s                   |  |
+|  +------------------------------------------------------------------------------------+  |
+|        |                                                                                 |
+|        +-- NoCredentials / Stale ------------> HTTP 401 + WWW-Authenticate (x2)          |
+|        +-- Invalid / Replay / Unsupported ---> HTTP 400 + ter:NotAuthorized (SoapFault)  |
+|        +-- Success: level >= required? --no--> HTTP 400 + ter:NotAuthorized              |
+|                                   | yes                                                  |
+|                                   v                                                      |
+|                          dispatch handler (Device / Media / PTZ / Imaging / Events ...)  |
++------------------------------------------------------------------------------------------+
+```
+
+#### Mermaid Component Diagram
+
+```mermaid
+C4Component
+    title Component Diagram - OnvifServer Authentication
+
+    Person(nvr, "NVR / VMS", "ONVIF client")
+    Container_Boundary(srv, "Onvif (Server side)")
+        Component(server, "OnvifServer", "C++17 Class", "HTTP/SOAP front-end, start-up guards, dispatch")
+        Component(policy, "AccessPolicy", "constexpr tables", "Maps operations to ONVIF access classes")
+        Component(auth, "Authenticator", "C++17 Class", "Credential facade and failure back-off")
+        Component(ut, "UsernameTokenValidator", "C++17 Class", "WS-Security PasswordDigest")
+        Component(dig, "DigestValidator", "C++17 Class", "RFC 7616 HTTP Digest")
+        Component(nc, "NonceCache", "C++17 Class", "Bounded replay cache")
+        Component(store, "CredentialStore", "C++17 Class", "Authoritative user database")
+        Component(fault, "SoapFault", "C++17 Functions", "NotAuthorized / Sender faults")
+        Component(crypto, "OnvifCrypto", "OpenSSL", "Digests, HMAC, constant-time compare, CSPRNG")
+    Container_Boundary_End()
+
+    Rel(nvr, server, "SOAP request", "HTTP")
+    Rel(server, policy, "classify(service, op)")
+    Rel(server, auth, "authenticate(AuthInput)")
+    Rel(auth, ut, "validate wsse:Security")
+    Rel(auth, dig, "validate Authorization")
+    Rel(ut, nc, "insert nonce")
+    Rel(dig, nc, "insert nonce/nc")
+    Rel(ut, store, "lookup user")
+    Rel(dig, store, "lookup user")
+    Rel(ut, crypto, "SHA-1, constTimeEqual")
+    Rel(dig, crypto, "SHA-256/MD5, HMAC")
+    Rel(server, fault, "build fault on reject")
+```
+
+#### Mermaid Sequence Diagram (HTTP Digest challenge)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant C as NVR / VMS
+    participant S as OnvifServer
+    participant P as AccessPolicy
+    participant A as Authenticator
+    participant D as DigestValidator
+    participant K as CredentialStore
+
+    C->>S: POST /onvif/ptz_service (ContinuousMove, no credentials)
+    S->>P: classify("ptz", "ContinuousMove")
+    P-->>S: Actuate
+    S->>A: authenticate(input)
+    A-->>S: NoCredentials
+    S-->>C: 401 + WWW-Authenticate Digest SHA-256 / MD5
+    C->>S: POST again with Authorization: Digest ...
+    S->>A: authenticate(input)
+    A->>D: validate(header, method, uri)
+    D->>K: find(username)
+    K-->>D: OnvifUser (Operator)
+    D-->>A: Success (principal)
+    A-->>S: Success
+    Note over S: Operator >= Actuate requirement
+    S-->>C: 200 ContinuousMoveResponse
+```
+
 ---
 
 ## 6. Level 3: Component Diagram (PelcoDAppQt & PelcoDQt)
@@ -820,6 +929,7 @@ As detailed in the architecture and verified by our automated test suite:
    - Stream accumulator bounded to fixed buffer sizes with garbage-collection reset to prevent memory exhaustion under noise.
 4. **Input Sanitization:** Query payloads are character-by-character sanitized with `std::isprint` to protect user interfaces and system logs from terminal escape sequences and non-printable control characters.
 5. **WS-Security Authentication:** ONVIF client produces nonces, timestamps, and SHA-1 password digests ensuring credentials are never transmitted in plaintext over the wire.
-6. **Binary Hardening:** Complies with modern hardening standards (`-fstack-protector-strong`, `-fstack-clash-protection`, `-fcf-protection=full`, `_FORTIFY_SOURCE=2`, `/GS`, `/guard:cf`, `ASLR`, `DEP`, `-pie`).
+6. **ONVIF Server Access Control:** The embedded `OnvifServer` authenticates every non-`PreAuth` operation (UsernameToken `PasswordDigest` or RFC 7616 HTTP Digest), enforces ONVIF Core access classes per user level, detects nonce replay with a bounded cache, applies per-peer failure back-off, compares secrets in constant time, and refuses to start on a non-loopback address while a default password is configured (see [§5.1](#51-server-side-authentication--access-control-onvifserver)).
+7. **Binary Hardening:** Complies with modern hardening standards (`-fstack-protector-strong`, `-fstack-clash-protection`, `-fcf-protection=full`, `_FORTIFY_SOURCE=2`, `/GS`, `/guard:cf`, `ASLR`, `DEP`, `-pie`).
 
 

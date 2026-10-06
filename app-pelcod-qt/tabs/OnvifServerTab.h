@@ -64,6 +64,10 @@ private:
     QLineEdit* m_editBindAddress { nullptr };
     QCheckBox* m_chkDiscovery { nullptr };
 
+    // Authentication (seeded Administrator account)
+    QLineEdit* m_editAdminUser { nullptr };
+    QLineEdit* m_editAdminPass { nullptr };
+
     // Device Identification
     QLineEdit* m_editDeviceName { nullptr };
     QLineEdit* m_editManufacturer { nullptr };

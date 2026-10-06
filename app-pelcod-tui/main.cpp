@@ -13,10 +13,12 @@
 #include "Onvif/OnvifTypes.h"
 #endif
 
+#include <algorithm>
 #include <charconv>
 #include <chrono>
 #include <cstdint>
 #include <cstdlib>
+#include <fstream>
 #include <iomanip>
 #include <iostream>
 #include <memory>
@@ -59,6 +61,9 @@ struct ParseResult {
     int onvifServerPort { 8080 };
     std::string onvifServerName { "Pelco-D ONVIF Bridge" };
     std::string onvifServerRtsp { "rtsp://127.0.0.1:8554/live" };
+    std::string onvifServerUser {};
+    std::string onvifServerPassFile {};
+    std::string onvifServerPass {};
 #endif
 };
 
@@ -141,6 +146,45 @@ template <typename T> [[nodiscard]] bool parseInteger(std::string_view str, T& o
     return true;
 }
 
+#if defined(PELCOD_ENABLE_ONVIF)
+/// @brief Read an ONVIF server password from the first line of a file.
+/// @details Only the first line is used; a trailing CR/LF is stripped. Reading
+///          stops as soon as the length cap is exceeded, so an oversized or
+///          binary file cannot cause unbounded allocation.
+/// @param path Filesystem path of the password file.
+/// @param outPass Receives the password on success.
+/// @param outError Receives a human-readable error on failure.
+/// @return true if a non-empty password of at most 256 bytes was read.
+[[nodiscard]] bool readPasswordFile(const std::string& path, std::string& outPass, std::string& outError)
+{
+    constexpr std::size_t kMaxPasswordLen { 256U };
+    std::ifstream file { path, std::ios::in | std::ios::binary };
+    if (!file.is_open()) {
+        outError = "Cannot open ONVIF server password file '" + path + "'";
+        return false;
+    }
+    std::string line {};
+    char ch { '\0' };
+    while (file.get(ch) && (ch != '\n')) {
+        if (line.size() >= kMaxPasswordLen) {
+            std::fill(line.begin(), line.end(), '\0');
+            outError = "ONVIF server password file '" + path + "' exceeds 256 bytes";
+            return false;
+        }
+        line.push_back(ch);
+    }
+    if (!line.empty() && (line.back() == '\r')) {
+        line.pop_back();
+    }
+    if (line.empty()) {
+        outError = "ONVIF server password file '" + path + "' is empty";
+        return false;
+    }
+    outPass = std::move(line);
+    return true;
+}
+#endif
+
 /// @brief Display command-line usage information and keyboard shortcuts.
 /// @param progName Executable name invoked in the shell.
 void printUsage(std::string_view progName)
@@ -174,6 +218,10 @@ void printUsage(std::string_view progName)
               << "  --onvif-server-port <port>  Port for embedded ONVIF server (default: 8080)\n"
               << "  --onvif-server-name <name>  Advertised camera device name\n"
               << "  --onvif-server-rtsp <uri>   Advertised RTSP stream URI for NVRs\n"
+              << "  --onvif-server-user <name>  Administrator username for the embedded ONVIF server\n"
+              << "  --onvif-server-password-file <path>\n"
+              << "                              File whose first line is the server admin password\n"
+              << "                              (required with --onvif-server-user)\n"
 #endif
               << "  --help, -h                  Display this help message and exit\n\n"
               << "Keyboard Shortcuts:\n"
@@ -520,6 +568,27 @@ void printUsage(std::string_view progName)
             }
             result.onvifServerRtsp = argv[++i];
             result.onvifServer = true;
+        } else if (arg == "--onvif-server-user") {
+            if (i + 1 >= argc) {
+                result.status = ParseStatus::Error;
+                result.errorMessage = "Option '--onvif-server-user' requires a username";
+                return result;
+            }
+            result.onvifServerUser = argv[++i];
+            if (result.onvifServerUser.empty()) {
+                result.status = ParseStatus::Error;
+                result.errorMessage = "Option '--onvif-server-user' requires a non-empty username";
+                return result;
+            }
+            result.onvifServer = true;
+        } else if (arg == "--onvif-server-password-file") {
+            if (i + 1 >= argc) {
+                result.status = ParseStatus::Error;
+                result.errorMessage = "Option '--onvif-server-password-file' requires a file path";
+                return result;
+            }
+            result.onvifServerPassFile = argv[++i];
+            result.onvifServer = true;
 #endif
         } else {
             result.status = ParseStatus::Error;
@@ -527,6 +596,19 @@ void printUsage(std::string_view progName)
             return result;
         }
     }
+
+#if defined(PELCOD_ENABLE_ONVIF)
+    if (result.onvifServerUser.empty() != result.onvifServerPassFile.empty()) {
+        result.status = ParseStatus::Error;
+        result.errorMessage = "Options '--onvif-server-user' and '--onvif-server-password-file' must be used together";
+        return result;
+    }
+    if (!result.onvifServerPassFile.empty()
+        && !readPasswordFile(result.onvifServerPassFile, result.onvifServerPass, result.errorMessage)) {
+        result.status = ParseStatus::Error;
+        return result;
+    }
+#endif
 
     return result;
 }
@@ -798,6 +880,12 @@ int main(int argc, char* argv[])
         PelcoDTui::TuiApp app(parseResult.config, parseResult.videoSource, parseResult.videoBackend);
 #if defined(PELCOD_ENABLE_ONVIF)
         app.setOnvifServerConfig(parseResult.onvifServerPort, parseResult.onvifServerName, parseResult.onvifServerRtsp);
+        if (!parseResult.onvifServerUser.empty()) {
+            app.setOnvifServerCredentials(parseResult.onvifServerUser, parseResult.onvifServerPass);
+            // Best-effort scrub of the local plaintext copy; the server keeps its own.
+            std::fill(parseResult.onvifServerPass.begin(), parseResult.onvifServerPass.end(), '\0');
+            parseResult.onvifServerPass.clear();
+        }
         if (parseResult.onvifServer) {
             app.startOnvifServer();
         }

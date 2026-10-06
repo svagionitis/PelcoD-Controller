@@ -51,6 +51,12 @@ void TuiApp::setOnvifServerConfig(int port, const std::string& name, const std::
         cfg.rtspStreamUri = rtsp;
     }
 }
+
+void TuiApp::setOnvifServerCredentials(const std::string& username, const std::string& password)
+{
+    auto& cfg = m_onvifServerView.config();
+    cfg.defaultUsers = { Onvif::OnvifUser { username, password, Onvif::OnvifUserLevel::Administrator } };
+}
 #endif
 
 void TuiApp::startVideoWorker()

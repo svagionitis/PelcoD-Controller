@@ -137,6 +137,12 @@ cmake --build build --target format-check
 
 # Monitor real-time PullPoint security events (motion, tamper alarms)
 ./build/app-pelcod-tui/PelcoDAppTui --onvif-events http://192.168.1.100/onvif/device_service -u admin -p secret
+
+# Run the embedded ONVIF server bridge with a non-default Administrator account.
+# The password is read from the first line of a file (never passed on the command line).
+printf '%s\n' 'S3cure-Passw0rd' > onvif_admin.pass && chmod 600 onvif_admin.pass
+./build/app-pelcod-tui/PelcoDAppTui --onvif-server --onvif-server-port 8080 \
+    --onvif-server-user operator --onvif-server-password-file onvif_admin.pass
 ```
 
 ---
@@ -208,6 +214,23 @@ The [`libs/Onvif/`](libs/Onvif/) library is a pure C++17 client (zero Qt depende
 - **PTZ Service:** Continuous move (pan/tilt/zoom velocities), Relative move, Absolute move, Stop, Preset management (Set, Goto, Remove, GetPresets), and Home position (Set, Goto).
 - **Optical & Imaging Service:** Query and adjust Brightness, Contrast, Color Saturation, Sharpness, IR Cut Filter mode (Auto/On/Off), Wide Dynamic Range (WDR), Backlight Compensation (BLC), and Focus modes.
 - **PullPoint Event Service:** Real-time event notifications via `CreatePullPointSubscription` and `PullMessages` for motion detection, tamper alarms, and digital I/O inputs.
+
+### Embedded ONVIF Server Authentication (`OnvifServer`)
+
+> [!WARNING]
+> **Breaking change.** The embedded server now enforces authentication on every protected operation, and `OnvifServer::start()` returns `false` on a non-loopback bind (e.g. `0.0.0.0`) while any account still has a factory-default password (empty, or equal to its username). Set real credentials or explicitly opt out with `OnvifServerConfig::auth.allowDefaultPassword = true`.
+
+- **Credential forms:** WS-Security UsernameToken `PasswordDigest` (nonce + `wsu:Created`, replay cache, ±300 s clock skew) and RFC 7616 HTTP Digest (`SHA-256` preferred, `MD5` for legacy NVRs, stateless HMAC nonces). `PasswordText` is rejected unless `auth.allowPasswordText` is set.
+- **Access policy:** Every operation is mapped to an ONVIF Core §5.9.4 access class ([`libs/Onvif/AccessPolicy.cpp`](libs/Onvif/AccessPolicy.cpp)). `PreAuth` operations (`GetSystemDateAndTime`, `GetServiceCapabilities`, ...) are open; unknown operations fail closed (Administrator only).
+- **Fault semantics:** Missing or stale credentials return HTTP `401` with `WWW-Authenticate` challenges; invalid credentials or insufficient privilege return HTTP `400` with a `ter:NotAuthorized` SOAP fault. Repeated failures from one peer trigger exponential back-off (100 ms → 2 s).
+- **Credential store:** [`libs/Onvif/CredentialStore.h`](libs/Onvif/CredentialStore.h) is the single source of truth for `CreateUsers` / `SetUser` / `DeleteUsers` and `SetSystemFactoryDefault`; the last Administrator cannot be removed.
+- **Media endpoints:** The metadata stream and snapshot HTTP routes require `ReadMedia` via HTTP Digest.
+
+| Front-end | How to set the Administrator account |
+|---|---|
+| `app-pelcod-tui` | `--onvif-server-user <name> --onvif-server-password-file <path>` (both required together; first line of the file, max 256 bytes) |
+| `app-pelcod-qt` | *ONVIF Server* tab → **Authentication** group (Admin User / masked Admin Password), then *Apply* or *Start* |
+| Library | `OnvifServerConfig::defaultUsers = {{"name", "password", OnvifUserLevel::Administrator}}` |
 
 ---
 

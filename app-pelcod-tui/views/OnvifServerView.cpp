@@ -82,7 +82,9 @@ bool OnvifServerView::startServer()
 
         if (!m_server->start()) {
             m_server.reset();
-            m_lastMessage = "Failed to start ONVIF server on port " + std::to_string(m_config.port);
+            m_lastMessage = "Failed to start ONVIF server on port " + std::to_string(m_config.port)
+                + " (port in use, or default password on non-loopback bind: use --onvif-server-user"
+                  " / --onvif-server-password-file)";
             return false;
         }
 
