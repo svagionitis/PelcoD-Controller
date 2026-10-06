@@ -13,6 +13,10 @@
 #include "VideoPlayerController.h"
 #include "VideoQuickItem.h"
 
+#if defined(PELCOD_HAS_DJI)
+#include "Mp4TestBuilder.h"
+#endif
+
 #include <algorithm>
 #include <iterator>
 
@@ -170,6 +174,42 @@ TEST_F(VideoPlayerControllerTest, LoadKlvSampleAndScrub)
     EXPECT_EQ(controller.lastKlvIndex(), 0U);
     EXPECT_DOUBLE_EQ(controller.platformHeading(), initialHeading);
 }
+
+#if defined(PELCOD_HAS_DJI)
+TEST_F(VideoPlayerControllerTest, LoadDjiMp4TelemetryAndScrub)
+{
+    DjiTest::Mp4BuildOptions opts {};
+    opts.texts = {
+        "FrameCnt: 0 2026-09-24 15:20:55.713\n[latitude: 38.375988] [longitude: 23.257121] [abs_alt: 169.5]",
+        "FrameCnt: 1 2026-09-24 15:20:55.746\n[latitude: 38.376000] [longitude: 23.257200] [abs_alt: 169.6]",
+        "FrameCnt: 2 2026-09-24 15:20:55.779\n[latitude: 38.376100] [longitude: 23.257300] [abs_alt: 169.7]",
+    };
+    const DjiTest::TempFile file { DjiTest::buildMp4(opts), "controller_dji" };
+
+    VideoPlayerController controller {};
+    controller.loadKlvTrack(QString::fromStdString(file.path()));
+
+    ASSERT_EQ(controller.klvTimelineSize(), 3U);
+    EXPECT_NEAR(controller.klvTimeAt(2U), 2.0 / 30.0, 1e-9);
+    EXPECT_NEAR(controller.platformLatitude(), 38.375988, 1e-9);
+
+    controller.updateKlvTelemetry(0.05); // between frame 1 (0.033) and frame 2 (0.067)
+    EXPECT_EQ(controller.lastKlvIndex(), 1U);
+    EXPECT_NEAR(controller.platformLongitude(), 23.2572, 1e-9);
+}
+
+TEST_F(VideoPlayerControllerTest, Mp4WithoutDjiTrackLeavesTimelineEmpty)
+{
+    DjiTest::Mp4BuildOptions opts {};
+    opts.texts = { "[latitude: 1.0] [longitude: 2.0]" };
+    opts.includeTextTrack = false;
+    const DjiTest::TempFile file { DjiTest::buildMp4(opts), "controller_plain_mp4" };
+
+    VideoPlayerController controller {};
+    controller.loadKlvTrack(QString::fromStdString(file.path()));
+    EXPECT_EQ(controller.klvTimelineSize(), 0U);
+}
+#endif
 
 namespace {
 

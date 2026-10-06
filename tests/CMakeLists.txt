@@ -121,6 +121,11 @@ if(PELCOD_ENABLE_VIDEO AND TARGET Qt6::Quick AND TARGET Qt6::Qml AND TARGET Qt6:
         target_link_libraries(TestVideoPlayerController PRIVATE VideoFilters)
         target_compile_definitions(TestVideoPlayerController PRIVATE PELCOD_HAS_FILTERS=1)
     endif()
+    if(TARGET DjiTelemetry)
+        target_link_libraries(TestVideoPlayerController PRIVATE DjiTelemetry)
+        target_include_directories(TestVideoPlayerController PRIVATE ${CMAKE_SOURCE_DIR}/libs/DjiTelemetry/tests)
+        target_compile_definitions(TestVideoPlayerController PRIVATE PELCOD_HAS_DJI=1)
+    endif()
     pelcod_register_gtest(TestVideoPlayerController)
 endif()
 

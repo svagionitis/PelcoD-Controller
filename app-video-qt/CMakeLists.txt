@@ -35,6 +35,11 @@ if(PELCOD_ENABLE_FILTERS AND OpenCV_FOUND)
     target_compile_definitions(VideoAppQt PRIVATE PELCOD_HAS_FILTERS=1)
 endif()
 
+if(TARGET DjiTelemetry)
+    target_link_libraries(VideoAppQt PRIVATE DjiTelemetry)
+    target_compile_definitions(VideoAppQt PRIVATE PELCOD_HAS_DJI=1)
+endif()
+
 apply_compiler_flags(VideoAppQt)
 
 if(WIN32)

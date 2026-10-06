@@ -11,6 +11,10 @@
 #include "VideoFilters.h"
 #endif
 
+#if defined(PELCOD_HAS_DJI)
+#include "DjiTelemetrySource.h"
+#endif
+
 #include <QDateTime>
 #include <QDir>
 #include <QFile>
@@ -1329,6 +1333,19 @@ void VideoPlayerController::loadKlvTrack(const QString& sourcePath)
     m_klvTimeline.clear();
     m_lastKlvIndex = 0;
     m_lastKlvMsg.reset();
+    m_stanagScrubController.setTimeIndex({});
+
+    // ISO-BMFF (MP4/MOV) sources carry no MPEG-TS KLV. Branch before the TS indexer and
+    // readAll() below, which would otherwise scan/allocate the whole (multi-GB) file.
+    QFile probe(sourcePath);
+    if (probe.open(QIODevice::ReadOnly)) {
+        const QByteArray head = probe.read(8);
+        probe.close();
+        if ((head.size() == 8) && (head.mid(4, 4) == QByteArrayLiteral("ftyp"))) {
+            loadDjiTimeline(sourcePath);
+            return;
+        }
+    }
 
     // Fast single-pass indexing via StanagStreamIndexer
     if (m_stanagStreamIndexer.indexFile(sourcePath.toStdString())) {
@@ -1382,6 +1399,29 @@ void VideoPlayerController::loadKlvTrack(const QString& sourcePath)
     if (!m_klvTimeline.empty()) {
         applyKlvTelemetry(m_klvTimeline.front().message);
     }
+}
+
+void VideoPlayerController::loadDjiTimeline(const QString& sourcePath)
+{
+#if defined(PELCOD_HAS_DJI)
+    std::vector<Dji::TimedTelemetry> entries {};
+    if (!Dji::loadDjiTrack(sourcePath.toStdString(), entries)) {
+        return;
+    }
+    m_klvTimeline.reserve(entries.size());
+    for (auto& entry : entries) {
+        TimedKlv item {};
+        item.timeSeconds = entry.timeSec;
+        item.message = std::move(entry.message);
+        m_klvTimeline.push_back(std::move(item));
+    }
+    // Scrub index stays empty: updateKlvTelemetry() uses the discrete per-frame timeline.
+    if (!m_klvTimeline.empty()) {
+        applyKlvTelemetry(m_klvTimeline.front().message);
+    }
+#else
+    static_cast<void>(sourcePath);
+#endif
 }
 
 void VideoPlayerController::updateKlvTelemetry(double timeSeconds)

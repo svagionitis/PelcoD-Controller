@@ -501,6 +501,13 @@ private:
 
     void applyKlvTelemetry(const Klv::UasDatalinkMessage& msg);
 
+    /// @brief Fills the KLV timeline from a DJI MP4 tx3g telemetry track.
+    /// @details Uses DjiTelemetry (when built with PELCOD_HAS_DJI) to map per-frame DJI
+    ///          subtitle telemetry onto ST 0601 messages. Only the moov box and text samples
+    ///          are read; the video payload is never loaded into memory.
+    /// @param[in] sourcePath Local MP4 file path.
+    void loadDjiTimeline(const QString& sourcePath);
+
     bool m_tacticalHudEnabled { false };
     int m_tacticalHudMode { 3 }; // 0: Minimal, 1: Standard, 2: FullTactical, 3: Misb1909
     int m_tacticalHudPalette { 0 }; // 0: TacticalGreen, 1: Amber, 2: ElectricCyan, 3: CombatRed, 4: White

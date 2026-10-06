@@ -55,6 +55,11 @@ if(PELCOD_ENABLE_ONVIF)
 endif()
 
 # ==============================================================================
+# DJI Telemetry (DjiTelemetry) - MP4 tx3g subtitle telemetry -> MISB ST 0601
+# ==============================================================================
+option(PELCOD_ENABLE_DJI "Build DJI MP4 subtitle telemetry reader (depends on Klv only)" ON)
+
+# ==============================================================================
 # Video Subsystem (PelcoDVideo) Dependencies
 # ==============================================================================
 option(PELCOD_ENABLE_VIDEO "Build in-tree RTSP video decoder and overlay subsystem" ON)
@@ -248,6 +253,9 @@ include(GitHooks)
 set(PELCOD_INSTALL_TARGETS PelcoDAppQt ViscaAppQt PelcoDAppTui PelcoDCore PelcoDQt Math Transport ViscaCore ViscaSony Tracking Klv Mapping PayloadHal PelcoDFujinon PelcoDSim Nmea SightlineCore SightlineQt)
 if(TARGET MappingQt)
     list(APPEND PELCOD_INSTALL_TARGETS MappingQt)
+endif()
+if(TARGET DjiTelemetry)
+    list(APPEND PELCOD_INSTALL_TARGETS DjiTelemetry)
 endif()
 if(PELCOD_ENABLE_ONVIF)
     list(APPEND PELCOD_INSTALL_TARGETS Onvif)

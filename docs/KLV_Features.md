@@ -230,6 +230,69 @@ graph TD
     - **Fine Tracking Mode**: Hands off line-of-sight tracking errors to [PtzAutoTracker](../libs/Tracking/PtzAutoTracker.h) closed-loop PID velocity commands.
   - **Dynamic Optical Auto-Framing**: Dynamically adjusts camera HFOV to frame the target based on target bounding radius and calculated slant range.
 
+### 3.11 DJI MP4 Subtitle Telemetry (DjiTelemetry)
+
+DJI aircraft (e.g. Matrice 4T) record **MP4**, not MPEG-TS, and carry **no MISB KLV**. Per-frame telemetry is stored in a `tx3g` timed-text track (handler `sbtl`) as plain text, plus an undocumented protobuf `djmd` track (not used). `libs/DjiTelemetry` reads the text track and maps it onto the existing `Klv::UasDatalinkMessage` model so the overlay, HUD and map work unchanged.
+
+- **Files**: [Mp4TextTrackReader.h](../libs/DjiTelemetry/Mp4TextTrackReader.h)/[.cpp](../libs/DjiTelemetry/Mp4TextTrackReader.cpp), [DjiSubtitleParser.h](../libs/DjiTelemetry/DjiSubtitleParser.h)/[.cpp](../libs/DjiTelemetry/DjiSubtitleParser.cpp), [DjiSt0601Mapper.h](../libs/DjiTelemetry/DjiSt0601Mapper.h)/[.cpp](../libs/DjiTelemetry/DjiSt0601Mapper.cpp), [DjiTelemetrySource.h](../libs/DjiTelemetry/DjiTelemetrySource.h)/[.cpp](../libs/DjiTelemetry/DjiTelemetrySource.cpp)
+- **Build option**: `PELCOD_ENABLE_DJI` (default `ON`). The library depends on `Klv` only; `Klv` has no knowledge of DJI. `app-video-qt` gets `PELCOD_HAS_DJI` when the target exists.
+- **Sample text** (one per video frame):
+  ```
+  FrameCnt: 0 2026-09-24 15:20:55.713
+  [focal_len: 52.70] [dzoom_ratio: 1.00], [latitude: 38.375988] [longitude: 23.257121]
+  [rel_alt: 20.160 abs_alt: 169.523] [gb_yaw: -77.4 gb_pitch: 7.4 gb_roll: 0.0] [ir_gain_mode: 0]
+  ```
+- **Field mapping**:
+
+  | DJI field | ST 0601 | Notes |
+  |---|---|---|
+  | date-time (local) | Tag 2 | Local to UTC; offset auto-derived from `mvhd` creation time, rounded to 15 min |
+  | `latitude` / `longitude` | Tags 13 / 14 | Dropped if out of range or 0/0 (no GPS fix) |
+  | `abs_alt` | Tag 15 (or 75) | `absAltIsHae` selects Tag 75 |
+  | `gb_yaw` / `gb_pitch` / `gb_roll` | Tags 18 / 19 / 20 | Absolute angles; aircraft attitude (Tags 5-7) not available |
+  | `focal_len` + `dzoom_ratio` | Tags 16 / 17 | 35 mm-equivalent focal length + video aspect ratio from `tkhd` |
+  | `(c)too` encoder string | Tag 10 | e.g. "DJI DJI Matrice 4T" |
+
+- **Features**:
+  - Loads only the `moov` box (capped at 256 MiB) and ~220 B per text sample; the multi-GB video payload is never read. Measured on a 1.1 GB, 32,892-frame recording: ~0.3 s (optimised build, warm cache), 85 MB peak RSS.
+  - `moov` before or after `mdat`; 32/64-bit box sizes; `stco`/`co64`; multi-entry `stts`/`stsc`; fixed or per-sample `stsz`; edit list with leading empty edit.
+  - Timeline times come from `stts`/`elst`, not from `FrameCnt` (DJI counters skip values: sample 30006 is `FrameCnt: 30012` in the reference file).
+  - Tolerant text parser: several pairs per bracket, `key : value` spacing, CRLF, the `longtitude` firmware misspelling, unknown keys kept in `extra`. Uses `std::from_chars` (locale-independent, no exceptions).
+  - Every box size, entry count and chunk offset is bounds-checked against its parent and the file size (SEI CERT INT30-C / INT32-C / ARR30-C).
+
+```
+ DJI MP4 file                         libs/DjiTelemetry                        app-video-qt
+ +--------------------+      +--------------------------------+      +--------------------------+
+ | ftyp               |      | Mp4TextTrackReader             |      | loadKlvTrack(path)       |
+ | mdat (video, text, |----->|  moov walk, stbl -> samples    |      |   'ftyp' ? ----+         |
+ |       djmd, jpeg)  |      |  readText(i) by seek           |      |                v         |
+ | moov               |      +---------------+----------------+      | loadDjiTimeline(path)    |
+ |  trak vide (tkhd)  |                      v                       |                |         |
+ |  trak djmd         |      | DjiSubtitleParser              |      |                v         |
+ |  trak sbtl/tx3g    |      |  text -> DjiTelemetrySample    |      | m_klvTimeline (TimedKlv) |
+ |  udta/meta/ilst    |      +---------------+----------------+      |                |         |
+ +--------------------+                      v                       |                v         |
+                             | DjiSt0601Mapper                |      | updateKlvTelemetry(t)    |
+                             |  -> Klv::UasDatalinkMessage    |      |  -> applyKlvTelemetry()  |
+                             +---------------+----------------+      |  -> HUD / map / OSD      |
+                                             v                       +--------------------------+
+                             | DjiTelemetrySource             |                  ^
+                             |  loadDjiTrack() -> TimedTelem. |------------------+
+                             +--------------------------------+
+```
+
+```mermaid
+flowchart LR
+    F["DJI MP4 (moov + tx3g track)"] --> R["Mp4TextTrackReader"]
+    R --> P["DjiSubtitleParser"]
+    P --> M["DjiSt0601Mapper"]
+    M --> S["DjiTelemetrySource::loadDjiTrack"]
+    S --> T["VideoPlayerController m_klvTimeline"]
+    T --> U["updateKlvTelemetry / applyKlvTelemetry"]
+    U --> H["Tactical HUD, map, OSD"]
+    DJI["DjiTelemetry"] -.->|links| KLV["Klv"]
+```
+
 ---
 
 ## 4. Test Verification & Coverage
@@ -259,6 +322,10 @@ All modules in `libs/Klv` and tracking integration bridges are verified by compr
 | **TestMiisCoreId** | [TestMiisCoreId.cpp](../libs/Klv/tests/TestMiisCoreId.cpp) | 10 | RFC 4122 UUID v1/v4/v5, 16/32/33/35-byte binary packs, ST 0601 Tag 94, ST 1607 Tag 94, ST 0903 Tag 13 |
 | **TestPtzSlewToCueBridge** | [TestPtzSlewToCueBridge.cpp](../libs/Tracking/tests/TestPtzSlewToCueBridge.cpp) | 8 | Stationary mast target bearing, platform attitude derotation, coarse-to-fine transitions, auto-zoom framing |
 | **TestMpegTsNetworkPublisher** | [TestMpegTsNetworkPublisher.cpp](../libs/Transport/tests/TestMpegTsNetworkPublisher.cpp) | 8 | Raw UDP streaming (1316 B), partial packet accumulation & flush, RFC 3550 RTP encapsulation (1328 B), multicast TTL/loopback, invalid buffer rejection, bitrate tracking |
-| **Total** | | **125** | **100% Pass Rate** |
+| **TestDjiSubtitleParser** | [TestDjiSubtitleParser.cpp](../libs/DjiTelemetry/tests/TestDjiSubtitleParser.cpp) | 9 | Matrice 4T sample, CRLF, consumer-drone layout (`longtitude`, `key : value`), malformed numbers/dates, unterminated brackets, fractional-second precision |
+| **TestMp4TextTrackReader** | [TestMp4TextTrackReader.cpp](../libs/DjiTelemetry/tests/TestMp4TextTrackReader.cpp) | 13 | moov at end/start, co64 + 64-bit mdat, multi-entry stsc/stts, fixed stsz, edit lists, truncated/corrupt/non-MP4 input |
+| **TestDjiSt0601Mapper** | [TestDjiSt0601Mapper.cpp](../libs/DjiTelemetry/tests/TestDjiSt0601Mapper.cpp) | 9 | Range checks, 0/0 no-fix, yaw wrapping, local to UTC, FOV from 35 mm-equivalent focal length, UTC offset rounding |
+| **TestDjiTelemetrySource** | [TestDjiTelemetrySource.cpp](../libs/DjiTelemetry/tests/TestDjiTelemetrySource.cpp) | 5 | End-to-end synthetic MP4 to timed ST 0601, offset override, skipped samples, MP4 detection |
+| **Total** | | **161** | **100% Pass Rate** |
 
 
