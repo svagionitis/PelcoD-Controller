@@ -701,7 +701,8 @@ public:
     Q_INVOKABLE [[nodiscard]] QJsonObject validateFilename(const QString& prefix);
 
     // 6. Blending & Enhancement
-    /// @brief Configure dual-camera video blending parameters.
+    /// @brief Configure dual-camera video blending parameters (legacy subset of 0x2F).
+    /// @deprecated Use applyBlendConfig() which exposes every SLASetBlendParameters_t field.
     /// @param cam1 Primary camera index.
     /// @param cam2 Secondary camera index.
     /// @param mode Blending mode.
@@ -709,31 +710,109 @@ public:
     /// @return True if dispatched.
     Q_INVOKABLE bool setBlendParams(int cam1, int cam2, int mode, int alpha);
 
-    /// @brief Configure full multi-sensor video blending and registration parameters (Message ID 0x2F).
+    /// @brief Configure multi-sensor video blending and registration parameters (Message ID 0x2F).
+    /// @details Positional convenience wrapper around applyBlendConfig(). Warp fields default to
+    ///          "no change" (0) and the thermal window defaults to the full range (0..255).
+    /// @param[in] warpIdx Warp camera index [0..3].
+    /// @param[in] fixedIdx Fixed camera index [0..3].
+    /// @param[in] mode Blend mode (reserved value 5 is rejected).
+    /// @param[in] amt Blend amount (0 = all IR, 255 = all EO).
+    /// @param[in] hue Hue for Night/Color blends.
+    /// @param[in] flags BlendFlags bitmask (bits 0..1).
+    /// @param[in] hotStart Thermal threshold hot start.
+    /// @param[in] coldEnd Thermal threshold cold end.
+    /// @param[in] vertical Vertical warp shift (int8).
+    /// @param[in] horizontal Horizontal warp shift (int8).
+    /// @param[in] rotation Warp rotation (1..255 maps to -5..5 deg; 0 = no change).
+    /// @param[in] zoom Warp zoom (0 = no change).
+    /// @param[in] hzoom Warp horizontal zoom (0 = no change).
+    /// @return True if the packet was validated and dispatched.
     Q_INVOKABLE bool setBlendParameters(int warpIdx, int fixedIdx, int mode, int amt, int hue = 0, int flags = 0,
-        int hotStart = 0, int coldEnd = 0, int vertical = 0, int horizontal = 0, int rotation = 0, int zoom = 128,
-        int hzoom = 128);
+        int hotStart = 0, int coldEnd = 255, int vertical = 0, int horizontal = 0, int rotation = 0, int zoom = 0,
+        int hzoom = 0);
+
+    /// @brief Apply a complete 0x2F blend configuration from a keyed QML map.
+    /// @details Recognised keys: warpIndex, fixedIndex, mode, amt, hue, flags, hotStart, coldEnd,
+    ///          absolute (bool), zoomMultiplier (0..7), vertical, horizontal, rotation, zoom, hzoom,
+    ///          reset (bool), usePresetAlign (bool), presetAlignIndex (0..4 or 10..14).
+    ///          Missing keys take safe defaults (see packBlendConfig()).
+    /// @param[in] cfg Keyed blend configuration.
+    /// @return True if connected, the configuration was valid, and the packet was dispatched.
+    Q_INVOKABLE [[nodiscard]] bool applyBlendConfig(const QVariantMap& cfg);
 
     /// @brief Query active multi-sensor blend parameters (Message ID 0x30).
+    /// @return True if dispatched.
     Q_INVOKABLE bool getBlendParameters();
 
     /// @brief Configure fine-tune alignment offsets and automated registration (Message ID 0xB9).
+    /// @details Values are normalised/clamped by packBlendAlign() before dispatch.
+    /// @param[in] index Alignment slot [0..4].
+    /// @param[in] vertical Vertical offset in pixels (int16).
+    /// @param[in] horizontal Horizontal offset in pixels (int16).
+    /// @param[in] rotate Rotation in degrees * 128 (any integer; wrapped to [0, 360) deg).
+    /// @param[in] zoom Zoom * 4096 (clamped to 0.01x..15.99x).
+    /// @param[in] hzoom Horizontal zoom * 4096 (clamped to 0.01x..15.99x).
+    /// @return True if dispatched.
     Q_INVOKABLE bool setBlendAlign(int index, int vertical, int horizontal, int rotate, int zoom, int hzoom);
 
     /// @brief Query blend alignment parameters (Message ID 0x28 query 0xB9).
+    /// @param[in] index Alignment slot [0..4].
+    /// @return True if dispatched.
     Q_INVOKABLE bool getBlendAlign(int index = 0);
 
     /// @brief Configure 4-point projective homography calibration (Message ID 0x95).
+    /// @details Negative coordinates are clamped to 0 (device semantics); all zeros resets the slot.
+    /// @param[in] index Alignment slot [0..4].
+    /// @param[in] points Four maps with keys leftCol, leftRow, rightCol, rightRow.
+    /// @return True if dispatched.
     Q_INVOKABLE bool setFourAlignPoints(int index, const QVariantList& points);
 
     /// @brief Query 4-point projective calibration (Message ID 0x28 query 0x95).
+    /// @param[in] index Alignment slot [0..4].
+    /// @return True if dispatched.
     Q_INVOKABLE bool getFourAlignPoints(int index = 0);
 
     /// @brief Configure multi-camera multiple alignment (Message ID 0x74).
+    /// @param[in] nAlignments Number of valid slots [0..5].
+    /// @param[in] alignments Up to five maps with keys vertical, horizontal, rotate, zoom, hzoom (0..255).
+    /// @return True if dispatched.
     Q_INVOKABLE bool setMultipleAlignment(int nAlignments, const QVariantList& alignments);
 
     /// @brief Query multiple alignment parameters (Message ID 0x28 query 0x74).
+    /// @return True if dispatched.
     Q_INVOKABLE bool getMultipleAlignment();
+
+    /// @brief Check whether a value is a defined (non-reserved) BlendMode.
+    /// @param[in] mode Candidate mode value.
+    /// @return True for 0..4 and 6..12; false for reserved 5 and out-of-range values.
+    [[nodiscard]] static bool isValidBlendMode(int mode) noexcept;
+
+    /// @brief Check whether a value is a valid 0x2F preset alignment index.
+    /// @param[in] index Candidate index.
+    /// @return True for 0..4 (SLABlendAlign_t slots) and 10..14 (SLAFourAlignPoints_t slots).
+    [[nodiscard]] static bool isValidPresetIdx(int index) noexcept;
+
+    /// @brief Validate and pack a keyed QML blend configuration into a 0x2F message.
+    /// @details Every narrowing conversion is clamped (or masked for bitfields) before the cast,
+    ///          satisfying CERT INT31-C. Defaults: mode 1, amt 128, fixed 1, coldEnd 255,
+    ///          warp fields 0 ("no change"), incremental offsets, no reset, no preset.
+    /// @param[in] cfg Keyed configuration (see applyBlendConfig()).
+    /// @param[out] out Packed message; only written when the function returns true.
+    /// @return False if mode is reserved/out of range or the preset index is invalid while enabled.
+    [[nodiscard]] static bool packBlendConfig(const QVariantMap& cfg, Sightline::MsgSetBlendParameters& out);
+
+    /// @brief Validate and pack 0xB9 blend-align values.
+    /// @details Rotation (deg * 128) is wrapped into [0, 46080); zoom/hzoom are clamped to
+    ///          [41, 65495] (0.01x..15.99x * 4096); offsets are clamped to int16; index to [0..4].
+    /// @param[in] index Alignment slot.
+    /// @param[in] vertical Vertical offset in pixels.
+    /// @param[in] horizontal Horizontal offset in pixels.
+    /// @param[in] rotate Rotation in degrees * 128.
+    /// @param[in] zoom Zoom * 4096.
+    /// @param[in] hzoom Horizontal zoom * 4096.
+    /// @return Packed, range-safe message.
+    [[nodiscard]] static Sightline::MsgBlendAlign packBlendAlign(
+        int index, int vertical, int horizontal, int rotate, int zoom, int hzoom) noexcept;
 
     /// @brief Configure video enhancement parameters (basic).
     /// @param cam Camera index.
@@ -1139,7 +1218,10 @@ signals:
     void currentBlendParamsReceived(const QVariantMap& params);
     void fourAlignPointsReceived(int index, const QVariantList& points);
     void blendAlignReceived(const QVariantMap& align);
-    void multipleAlignmentReceived(const QVariantList& alignments);
+    /// @brief Emitted on 0x74/0x75 multiple-alignment telemetry.
+    /// @param nAlignments Number of valid slots reported by the device [0..5].
+    /// @param alignments Five slot maps (vertical, horizontal, rotate, zoom, hzoom).
+    void multipleAlignmentReceived(int nAlignments, const QVariantList& alignments);
 
 private slots:
     void handleTrackingPositions(const Sightline::MsgTrackingPositions& pos);

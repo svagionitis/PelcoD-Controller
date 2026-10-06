@@ -12,6 +12,18 @@
         <file>qml/components/TrafficInspectorDrawer.qml</file>
         <file>qml/components/ConvolutionGrid.qml</file>
         <file>qml/components/UserPaletteDialog.qml</file>
+        <file>qml/components/blending/BlendState.qml</file>
+        <file>qml/components/blending/BlendCard.qml</file>
+        <file>qml/components/blending/BlendButton.qml</file>
+        <file>qml/components/blending/DecimalSpinBox.qml</file>
+        <file>qml/components/blending/BlendCheckBox.qml</file>
+        <file>qml/components/blending/BlendRadio.qml</file>
+        <file>qml/components/blending/BlendFusionCard.qml</file>
+        <file>qml/components/blending/BlendWarpCard.qml</file>
+        <file>qml/components/blending/BlendAlignCard.qml</file>
+        <file>qml/components/blending/FourPointAlignCard.qml</file>
+        <file>qml/components/blending/MultiAlignCard.qml</file>
+        <file>qml/components/blending/BlendTelemetryCard.qml</file>
         <file>qml/views/TrackingView.qml</file>
         <file>qml/views/StabilizationView.qml</file>
         <file>qml/views/DetectionView.qml</file>

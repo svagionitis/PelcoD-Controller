@@ -1,6 +1,7 @@
 /// @file main.cpp
 /// @brief Main entry point for the Sightline SLA Qt QML Control Application.
 
+#include "SightlineBlendCatalog.h"
 #include "SightlineQmlBridge.h"
 #include "SightlineVideoController.h"
 #include "TrackListModel.h"
@@ -63,19 +64,23 @@ int main(int argc, char* argv[])
         [b = bridge.get(), vc = videoController.get()]() { vc->updateHostAddress(b->host()); });
 
     // Synchronize enhancement parameters to native video pipeline
-    QObject::connect(bridge.get(), &SightlineQmlBridge::enhancementModeChanged,
-        videoController.get(), &SightlineApp::SightlineVideoController::updateEnhancementMode);
-    QObject::connect(bridge.get(), &SightlineQmlBridge::histogramChanged,
-        videoController.get(), &SightlineApp::SightlineVideoController::updateHistogram);
-    QObject::connect(bridge.get(), &SightlineQmlBridge::falseColorPaletteChanged,
-        videoController.get(), &SightlineApp::SightlineVideoController::updateFalseColor);
-    QObject::connect(bridge.get(), &SightlineQmlBridge::userPaletteUploaded,
-        videoController.get(), &SightlineApp::SightlineVideoController::updateUserPalette);
-    QObject::connect(bridge.get(), &SightlineQmlBridge::enhancementRoiUpdated,
-        videoController.get(), &SightlineApp::SightlineVideoController::updateEnhancementRoi);
+    QObject::connect(bridge.get(), &SightlineQmlBridge::enhancementModeChanged, videoController.get(),
+        &SightlineApp::SightlineVideoController::updateEnhancementMode);
+    QObject::connect(bridge.get(), &SightlineQmlBridge::histogramChanged, videoController.get(),
+        &SightlineApp::SightlineVideoController::updateHistogram);
+    QObject::connect(bridge.get(), &SightlineQmlBridge::falseColorPaletteChanged, videoController.get(),
+        &SightlineApp::SightlineVideoController::updateFalseColor);
+    QObject::connect(bridge.get(), &SightlineQmlBridge::userPaletteUploaded, videoController.get(),
+        &SightlineApp::SightlineVideoController::updateUserPalette);
+    QObject::connect(bridge.get(), &SightlineQmlBridge::enhancementRoiUpdated, videoController.get(),
+        &SightlineApp::SightlineVideoController::updateEnhancementRoi);
 
     engine.rootContext()->setContextProperty(QStringLiteral("bridge"), bridge.get());
     engine.rootContext()->setContextProperty(QStringLiteral("videoController"), videoController.get());
+
+    // Blend-mode metadata (names, capabilities, labels) derived from Sightline::BlendMode
+    auto blendCatalog = std::make_unique<SightlineBlendCatalog>(&app);
+    engine.rootContext()->setContextProperty(QStringLiteral("blendCatalog"), blendCatalog.get());
 
     const QUrl url(QStringLiteral("qrc:/qml/Main.qml"));
     QObject::connect(

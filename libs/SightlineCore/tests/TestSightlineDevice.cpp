@@ -4,9 +4,9 @@
 #include "SightlineDevice.h"
 #include "SightlineFraming.h"
 #include "SightlineProtocolBuilder.h"
+#include "Transport/BaseTransport.h"
 #include "modules/SightlineBlending.h"
 #include "modules/SightlineBlendingBuilder.h"
-#include "Transport/BaseTransport.h"
 
 #include <gtest/gtest.h>
 
@@ -914,8 +914,7 @@ namespace {
         inH264.intraFrameInterval = 30U;
         inH264.flags = 0x12U;
         inH264.displayId = 0x0002U;
-        const auto h264Pkt = SightlineFraming::buildPacket(
-            MessageId::CurrentH264Parameters,
+        const auto h264Pkt = SightlineFraming::buildPacket(MessageId::CurrentH264Parameters,
             SightlineFraming::extractPayload(SightlineProtocolBuilder::buildSetH264Parameters(inH264)));
         transport->injectData(h264Pkt);
 
@@ -930,8 +929,7 @@ namespace {
         inDisplay.ipAddress = 0x7F000001U;
         inDisplay.port = 15004U;
         inDisplay.displayId = 0x0002U;
-        const auto dispPkt = SightlineFraming::buildPacket(
-            MessageId::CurrentEthernetDisplayParameters,
+        const auto dispPkt = SightlineFraming::buildPacket(MessageId::CurrentEthernetDisplayParameters,
             SightlineFraming::extractPayload(SightlineProtocolBuilder::buildSetEthernetDisplay(inDisplay)));
         transport->injectData(dispPkt);
 
@@ -942,8 +940,8 @@ namespace {
 
         // 5. Inject CurrentSystemValue (0x93)
         const auto tcPkt = SightlineProtocolBuilder::buildSetTrafficControl(3000U, 2000U, 1500U);
-        const auto curValPkt = SightlineFraming::buildPacket(
-            MessageId::CurrentSystemValue, SightlineFraming::extractPayload(tcPkt));
+        const auto curValPkt
+            = SightlineFraming::buildPacket(MessageId::CurrentSystemValue, SightlineFraming::extractPayload(tcPkt));
         transport->injectData(curValPkt);
 
         EXPECT_TRUE(systemValReceived.load());
@@ -1072,25 +1070,25 @@ namespace {
         // 2. Inject CurrentBlendParameters (0x4D - 19B payload)
         blendParamsReceived.store(false);
         const std::vector<std::uint8_t> curBlendPayload {
-            0x01U,       // absOffZoom
-            10U,         // up
-            25U,         // right
-            2U,          // down
-            5U,          // left (net vertical: 10-2=8, horizontal: 25-5=20)
-            0U,          // rotation
-            128U,        // zoom
+            0x01U, // absOffZoom
+            10U, // up
+            25U, // right
+            2U, // down
+            5U, // left (net vertical: 10-2=8, horizontal: 25-5=20)
+            0U, // rotation
+            128U, // zoom
             static_cast<std::uint8_t>(BlendMode::FrameBlendWarpEo), // mode
-            180U,        // amt
-            0U,          // hue
-            0x01U,       // flags
-            0U,          // reserved
-            0U,          // warpIndex
-            1U,          // fixedIndex
-            1U,          // usePresetAlign
-            0U,          // presetAlignIndex
-            128U,        // hzoom
-            10U,         // hotStart
-            50U          // coldEnd
+            180U, // amt
+            0U, // hue
+            0x01U, // flags
+            0U, // reserved
+            0U, // warpIndex
+            1U, // fixedIndex
+            1U, // usePresetAlign
+            0U, // presetAlignIndex
+            128U, // hzoom
+            10U, // hotStart
+            50U // coldEnd
         };
         const auto curBlendPkt = SightlineFraming::buildPacket(MessageId::CurrentBlendParameters, curBlendPayload);
         transport->injectData(curBlendPkt);
@@ -1146,8 +1144,10 @@ namespace {
         inMulti.nAlignments = 3U;
         inMulti.alignment[0U] = { 5, 10, 0, 128, 128 };
         inMulti.alignment[1U] = { 12, 4, 2, 130, 130 };
-        const auto multiPayload = SightlineFraming::extractPayload(
-            SightlineBlendingBuilder::buildSetMultipleAlignment(inMulti));
+        // Keep the source packet alive: extractPayload() returns a non-owning view
+        // (CERT EXP54-CPP - binding it to a temporary yields a dangling view).
+        const auto setMultiPkt { SightlineBlendingBuilder::buildSetMultipleAlignment(inMulti) };
+        const auto multiPayload { SightlineFraming::extractPayload(setMultiPkt) };
         const auto multiPkt = SightlineFraming::buildPacket(MessageId::CurrentMultipleAlignment, multiPayload);
         transport->injectData(multiPkt);
 

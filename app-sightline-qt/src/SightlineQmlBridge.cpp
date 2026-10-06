@@ -2,6 +2,7 @@
 /// @brief Implementation of Sightline QML Bridge controller.
 
 #include "SightlineQmlBridge.h"
+#include "SightlineBlendCatalog.h"
 
 #include <SightlineCore/SightlineCrc8.h>
 #include <SightlineCore/SightlineProtocolParser.h>
@@ -19,6 +20,7 @@
 #include <QSettings>
 #include <QUrl>
 #include <algorithm>
+#include <limits>
 
 namespace {
 [[nodiscard]] std::string toSafeStdString(const QString& str)
@@ -26,6 +28,48 @@ namespace {
     const QByteArray utf8Bytes = str.toUtf8();
     return std::string(utf8Bytes.constData(), static_cast<std::size_t>(utf8Bytes.size()));
 }
+
+/// @brief Reads an integer from a QVariantMap and clamps it into [lo, hi].
+/// @param[in] cfg Source map.
+/// @param[in] key Map key.
+/// @param[in] def Default when the key is absent.
+/// @param[in] lo Inclusive lower bound.
+/// @param[in] hi Inclusive upper bound.
+/// @return Clamped value.
+[[nodiscard]] int cfgInt(const QVariantMap& cfg, const QString& key, int def, int lo, int hi)
+{
+    return std::clamp(cfg.value(key, def).toInt(), lo, hi);
+}
+
+/// @brief Reads a 0..255 value from a QVariantMap as a clamped std::uint8_t.
+/// @param[in] cfg Source map.
+/// @param[in] key Map key.
+/// @param[in] def Default when the key is absent.
+/// @return Clamped byte.
+[[nodiscard]] std::uint8_t cfgU8(const QVariantMap& cfg, const QString& key, int def)
+{
+    return static_cast<std::uint8_t>(cfgInt(cfg, key, def, 0, 255));
+}
+
+/// @brief Clamps an int into the std::int16_t range.
+/// @param[in] v Input value.
+/// @return Range-safe int16 value.
+[[nodiscard]] std::int16_t clampS16(int v) noexcept
+{
+    return static_cast<std::int16_t>(std::clamp(v, static_cast<int>(std::numeric_limits<std::int16_t>::min()),
+        static_cast<int>(std::numeric_limits<std::int16_t>::max())));
+}
+
+/// @brief 0xB9 rotation full turn in raw units (360 deg * 128).
+inline constexpr int kAlignFullTurn { 360 * 128 };
+/// @brief 0xB9 minimum zoom in raw units (0.01x * 4096, rounded up).
+inline constexpr int kAlignZoomMin { 41 };
+/// @brief 0xB9 maximum zoom in raw units (15.99x * 4096, rounded down).
+inline constexpr int kAlignZoomMax { 65495 };
+/// @brief Highest valid 0x2F zoom multiplier (bits 1..3 of absOffZoom).
+inline constexpr int kZoomMultMax { 7 };
+/// @brief Defined 0x2F blend flag bits (bit 0 hist-eq, bit 1 use-hue).
+inline constexpr unsigned kBlendFlagMask { 0x03U };
 } // namespace
 
 SightlineQmlBridge::SightlineQmlBridge(QObject* parent)
@@ -385,8 +429,7 @@ bool SightlineQmlBridge::connectUdp(const QString& host, int cmdPort, int replyP
     connect(m_device.get(), &QSightlineDevice::networkParamsReceived, this, &SightlineQmlBridge::handleNetworkParams);
     connect(m_device.get(), &QSightlineDevice::networkListReceived, this, &SightlineQmlBridge::handleNetworkList);
     connect(m_device.get(), &QSightlineDevice::systemValueReceived, this, &SightlineQmlBridge::handleSystemValue);
-    connect(
-        m_device.get(), &QSightlineDevice::blendParametersReceived, this, &SightlineQmlBridge::handleBlendParams);
+    connect(m_device.get(), &QSightlineDevice::blendParametersReceived, this, &SightlineQmlBridge::handleBlendParams);
     connect(m_device.get(), &QSightlineDevice::currentBlendParamsReceived, this,
         &SightlineQmlBridge::handleCurrentBlendParams);
     connect(
@@ -1420,39 +1463,115 @@ QJsonObject SightlineQmlBridge::validateFilename(const QString& prefix)
 }
 
 // 6. Blending & Enhancement
-bool SightlineQmlBridge::setBlendParams(int cam1, int cam2, int mode, int alpha)
+bool SightlineQmlBridge::isValidBlendMode(int mode) noexcept
 {
-    if (!isConnected()) {
+    return SightlineBlendCatalog::isValidMode(mode);
+}
+
+bool SightlineQmlBridge::isValidPresetIdx(int index) noexcept
+{
+    return SightlineBlendCatalog::isValidPreset(index);
+}
+
+bool SightlineQmlBridge::packBlendConfig(const QVariantMap& cfg, Sightline::MsgSetBlendParameters& out)
+{
+    const int mode { cfg.value(QStringLiteral("mode"), 1).toInt() };
+    if (!isValidBlendMode(mode)) {
         return false;
     }
+    const bool usePreset { cfg.value(QStringLiteral("usePresetAlign"), false).toBool() };
+    const int presetIdx { cfg.value(QStringLiteral("presetAlignIndex"), 0).toInt() };
+    if (usePreset && !isValidPresetIdx(presetIdx)) {
+        return false;
+    }
+
+    const bool absolute { cfg.value(QStringLiteral("absolute"), false).toBool() };
+    const auto zoomMult { static_cast<unsigned>(cfgInt(cfg, QStringLiteral("zoomMultiplier"), 0, 0, kZoomMultMax)) };
+    const unsigned offsetBit { absolute ? static_cast<unsigned>(Sightline::AbsOffZoomFlags::AbsoluteOffsets)
+                                        : static_cast<unsigned>(Sightline::AbsOffZoomFlags::IncrementalOffsets) };
+    const unsigned zoomBits { (zoomMult << 1U)
+        & static_cast<unsigned>(Sightline::AbsOffZoomFlags::ZoomMultiplierMask) };
+    const auto rawFlags { static_cast<unsigned>(cfgInt(cfg, QStringLiteral("flags"), 0, 0, 255)) };
+
     Sightline::MsgSetBlendParameters msg {};
-    msg.warpIndex = static_cast<std::uint8_t>(std::clamp(cam1, 0, 3));
-    msg.fixedIndex = static_cast<std::uint8_t>(std::clamp(cam2, 0, 3));
-    msg.mode = static_cast<Sightline::BlendMode>(std::clamp(mode, 0, 12));
-    msg.amt = static_cast<std::uint8_t>(std::clamp(alpha, 0, 255));
-    return m_device->setBlend(msg);
+    msg.absOffZoom = static_cast<std::uint8_t>(offsetBit | zoomBits);
+    msg.vertical = static_cast<std::int8_t>(cfgInt(cfg, QStringLiteral("vertical"), 0, -128, 127));
+    msg.horizontal = static_cast<std::int8_t>(cfgInt(cfg, QStringLiteral("horizontal"), 0, -128, 127));
+    msg.rotation = cfgU8(cfg, QStringLiteral("rotation"), 0);
+    msg.zoom = cfgU8(cfg, QStringLiteral("zoom"), 0);
+    msg.mode = static_cast<Sightline::BlendMode>(mode);
+    msg.amt = cfgU8(cfg, QStringLiteral("amt"), 128);
+    msg.hue = cfgU8(cfg, QStringLiteral("hue"), 0);
+    msg.flags = static_cast<std::uint8_t>(rawFlags & kBlendFlagMask);
+    msg.reset = cfg.value(QStringLiteral("reset"), false).toBool() ? 1U : 0U;
+    msg.reserved = 0U;
+    msg.warpIndex = static_cast<std::uint8_t>(cfgInt(cfg, QStringLiteral("warpIndex"), 0, 0, 3));
+    msg.fixedIndex = static_cast<std::uint8_t>(cfgInt(cfg, QStringLiteral("fixedIndex"), 1, 0, 3));
+    msg.usePresetAlign = usePreset ? 1U : 0U;
+    msg.presetAlignIndex = usePreset ? static_cast<std::uint8_t>(presetIdx) : 0U;
+    msg.hzoom = cfgU8(cfg, QStringLiteral("hzoom"), 0);
+    msg.hotStart = cfgU8(cfg, QStringLiteral("hotStart"), 0);
+    msg.coldEnd = cfgU8(cfg, QStringLiteral("coldEnd"), 255);
+
+    out = msg;
+    return true;
+}
+
+Sightline::MsgBlendAlign SightlineQmlBridge::packBlendAlign(
+    int index, int vertical, int horizontal, int rotate, int zoom, int hzoom) noexcept
+{
+    Sightline::MsgBlendAlign msg {};
+    msg.index = static_cast<std::uint8_t>(std::clamp(index, 0, 4));
+    msg.vertical = clampS16(vertical);
+    msg.horizontal = clampS16(horizontal);
+    const int wrapped { ((rotate % kAlignFullTurn) + kAlignFullTurn) % kAlignFullTurn };
+    msg.rotate = static_cast<std::uint16_t>(wrapped);
+    msg.zoom = static_cast<std::uint16_t>(std::clamp(zoom, kAlignZoomMin, kAlignZoomMax));
+    msg.hzoom = static_cast<std::uint16_t>(std::clamp(hzoom, kAlignZoomMin, kAlignZoomMax));
+    return msg;
+}
+
+bool SightlineQmlBridge::setBlendParams(int cam1, int cam2, int mode, int alpha)
+{
+    const QVariantMap cfg {
+        { QStringLiteral("warpIndex"), cam1 },
+        { QStringLiteral("fixedIndex"), cam2 },
+        { QStringLiteral("mode"), mode },
+        { QStringLiteral("amt"), alpha },
+    };
+    return applyBlendConfig(cfg);
 }
 
 bool SightlineQmlBridge::setBlendParameters(int warpIdx, int fixedIdx, int mode, int amt, int hue, int flags,
     int hotStart, int coldEnd, int vertical, int horizontal, int rotation, int zoom, int hzoom)
 {
+    const QVariantMap cfg {
+        { QStringLiteral("warpIndex"), warpIdx },
+        { QStringLiteral("fixedIndex"), fixedIdx },
+        { QStringLiteral("mode"), mode },
+        { QStringLiteral("amt"), amt },
+        { QStringLiteral("hue"), hue },
+        { QStringLiteral("flags"), flags },
+        { QStringLiteral("hotStart"), hotStart },
+        { QStringLiteral("coldEnd"), coldEnd },
+        { QStringLiteral("vertical"), vertical },
+        { QStringLiteral("horizontal"), horizontal },
+        { QStringLiteral("rotation"), rotation },
+        { QStringLiteral("zoom"), zoom },
+        { QStringLiteral("hzoom"), hzoom },
+    };
+    return applyBlendConfig(cfg);
+}
+
+bool SightlineQmlBridge::applyBlendConfig(const QVariantMap& cfg)
+{
     if (!isConnected()) {
         return false;
     }
     Sightline::MsgSetBlendParameters msg {};
-    msg.warpIndex = static_cast<std::uint8_t>(std::clamp(warpIdx, 0, 3));
-    msg.fixedIndex = static_cast<std::uint8_t>(std::clamp(fixedIdx, 0, 3));
-    msg.mode = static_cast<Sightline::BlendMode>(std::clamp(mode, 0, 12));
-    msg.amt = static_cast<std::uint8_t>(std::clamp(amt, 0, 255));
-    msg.hue = static_cast<std::uint8_t>(std::clamp(hue, 0, 255));
-    msg.flags = static_cast<std::uint8_t>(flags);
-    msg.hotStart = static_cast<std::uint8_t>(std::clamp(hotStart, 0, 255));
-    msg.coldEnd = static_cast<std::uint8_t>(std::clamp(coldEnd, 0, 255));
-    msg.vertical = static_cast<std::int8_t>(std::clamp(vertical, -128, 127));
-    msg.horizontal = static_cast<std::int8_t>(std::clamp(horizontal, -128, 127));
-    msg.rotation = static_cast<std::uint8_t>(rotation);
-    msg.zoom = static_cast<std::uint8_t>(zoom);
-    msg.hzoom = static_cast<std::uint8_t>(hzoom);
+    if (!packBlendConfig(cfg, msg)) {
+        return false;
+    }
     return m_device->setBlend(msg);
 }
 
@@ -1466,41 +1585,36 @@ bool SightlineQmlBridge::setBlendAlign(int index, int vertical, int horizontal, 
     if (!isConnected()) {
         return false;
     }
-    Sightline::MsgBlendAlign msg {};
-    msg.index = static_cast<std::uint8_t>(std::clamp(index, 0, 4));
-    msg.vertical = static_cast<std::int16_t>(vertical);
-    msg.horizontal = static_cast<std::int16_t>(horizontal);
-    msg.rotate = static_cast<std::uint16_t>(rotate);
-    msg.zoom = static_cast<std::uint16_t>(zoom);
-    msg.hzoom = static_cast<std::uint16_t>(hzoom);
-    return m_device->setBlendAlign(msg);
+    return m_device->setBlendAlign(packBlendAlign(index, vertical, horizontal, rotate, zoom, hzoom));
 }
 
 bool SightlineQmlBridge::getBlendAlign(int index)
 {
-    return isConnected() ? m_device->getBlendAlign(static_cast<quint8>(index)) : false;
+    return isConnected() ? m_device->getBlendAlign(static_cast<quint8>(std::clamp(index, 0, 4))) : false;
 }
 
 bool SightlineQmlBridge::setFourAlignPoints(int index, const QVariantList& points)
 {
-    if (!isConnected() || points.size() < 4) {
+    if (!isConnected() || (points.size() < 4)) {
         return false;
     }
+    constexpr int kMaxCoord { std::numeric_limits<std::int16_t>::max() };
     Sightline::MsgFourAlignPoints msg {};
     msg.index = static_cast<std::uint8_t>(std::clamp(index, 0, 4));
     for (int i { 0 }; i < 4; ++i) {
-        const auto map = points.at(i).toMap();
-        msg.points[i].leftCol = static_cast<std::int16_t>(map.value(QStringLiteral("leftCol")).toInt());
-        msg.points[i].leftRow = static_cast<std::int16_t>(map.value(QStringLiteral("leftRow")).toInt());
-        msg.points[i].rightCol = static_cast<std::int16_t>(map.value(QStringLiteral("rightCol")).toInt());
-        msg.points[i].rightRow = static_cast<std::int16_t>(map.value(QStringLiteral("rightRow")).toInt());
+        const QVariantMap map { points.at(i).toMap() };
+        auto& pt { msg.points[static_cast<std::size_t>(i)] };
+        pt.leftCol = static_cast<std::int16_t>(cfgInt(map, QStringLiteral("leftCol"), 0, 0, kMaxCoord));
+        pt.leftRow = static_cast<std::int16_t>(cfgInt(map, QStringLiteral("leftRow"), 0, 0, kMaxCoord));
+        pt.rightCol = static_cast<std::int16_t>(cfgInt(map, QStringLiteral("rightCol"), 0, 0, kMaxCoord));
+        pt.rightRow = static_cast<std::int16_t>(cfgInt(map, QStringLiteral("rightRow"), 0, 0, kMaxCoord));
     }
     return m_device->setFourAlignPoints(msg);
 }
 
 bool SightlineQmlBridge::getFourAlignPoints(int index)
 {
-    return isConnected() ? m_device->getFourAlignPoints(static_cast<quint8>(index)) : false;
+    return isConnected() ? m_device->getFourAlignPoints(static_cast<quint8>(std::clamp(index, 0, 4))) : false;
 }
 
 bool SightlineQmlBridge::setMultipleAlignment(int nAlignments, const QVariantList& alignments)
@@ -1510,14 +1624,15 @@ bool SightlineQmlBridge::setMultipleAlignment(int nAlignments, const QVariantLis
     }
     Sightline::MsgSetMultipleAlignment msg {};
     msg.nAlignments = static_cast<std::uint8_t>(std::clamp(nAlignments, 0, 5));
-    const int count = std::min(static_cast<int>(alignments.size()), 5);
+    const int count { std::min(static_cast<int>(alignments.size()), 5) };
     for (int i { 0 }; i < count; ++i) {
-        const auto map = alignments.at(i).toMap();
-        msg.alignment[i].vertical = static_cast<std::uint8_t>(map.value(QStringLiteral("vertical")).toUInt());
-        msg.alignment[i].horizontal = static_cast<std::uint8_t>(map.value(QStringLiteral("horizontal")).toUInt());
-        msg.alignment[i].rotate = static_cast<std::uint8_t>(map.value(QStringLiteral("rotate")).toUInt());
-        msg.alignment[i].zoom = static_cast<std::uint8_t>(map.value(QStringLiteral("zoom")).toUInt());
-        msg.alignment[i].hzoom = static_cast<std::uint8_t>(map.value(QStringLiteral("hzoom")).toUInt());
+        const QVariantMap map { alignments.at(i).toMap() };
+        auto& entry { msg.alignment[static_cast<std::size_t>(i)] };
+        entry.vertical = cfgU8(map, QStringLiteral("vertical"), 0);
+        entry.horizontal = cfgU8(map, QStringLiteral("horizontal"), 0);
+        entry.rotate = cfgU8(map, QStringLiteral("rotate"), 0);
+        entry.zoom = cfgU8(map, QStringLiteral("zoom"), 0);
+        entry.hzoom = cfgU8(map, QStringLiteral("hzoom"), 0);
     }
     return m_device->setMultipleAlignment(msg);
 }
@@ -2364,8 +2479,10 @@ void SightlineQmlBridge::queryModuleParameters(int tabIndex)
         break;
     case 9: // Blending
         if (m_device) {
-            m_device->getBlendParameters();
-            m_device->getBlendAlign(0U);
+            static_cast<void>(m_device->getBlendParameters());
+            static_cast<void>(m_device->getBlendAlign(0U));
+            static_cast<void>(m_device->getFourAlignPoints(0U));
+            static_cast<void>(m_device->getMultipleAlignment());
         }
         break;
     case 10: // Overlays
@@ -2775,7 +2892,13 @@ void SightlineQmlBridge::handleSystemValue(const Sightline::MsgSystemValue& val)
 
 void SightlineQmlBridge::handleBlendParams(const Sightline::MsgSetBlendParameters& p)
 {
+    const auto aoz { static_cast<unsigned>(p.absOffZoom) };
+    const auto zoomMask { static_cast<unsigned>(Sightline::AbsOffZoomFlags::ZoomMultiplierMask) };
     QVariantMap map {};
+    map[QStringLiteral("absOffZoom")] = static_cast<int>(p.absOffZoom);
+    map[QStringLiteral("absolute")] = (aoz & static_cast<unsigned>(Sightline::AbsOffZoomFlags::AbsoluteOffsets)) != 0U;
+    map[QStringLiteral("zoomMultiplier")] = static_cast<int>((aoz & zoomMask) >> 1U);
+    map[QStringLiteral("reset")] = static_cast<int>(p.reset);
     map[QStringLiteral("mode")] = static_cast<int>(p.mode);
     map[QStringLiteral("amt")] = static_cast<int>(p.amt);
     map[QStringLiteral("hue")] = static_cast<int>(p.hue);
@@ -2796,7 +2919,11 @@ void SightlineQmlBridge::handleBlendParams(const Sightline::MsgSetBlendParameter
 
 void SightlineQmlBridge::handleCurrentBlendParams(const Sightline::MsgCurrentBlendParameters& p)
 {
+    const auto aoz { static_cast<unsigned>(p.absOffZoom) };
+    const auto zoomMask { static_cast<unsigned>(Sightline::AbsOffZoomFlags::ZoomMultiplierMask) };
     QVariantMap map {};
+    map[QStringLiteral("absOffZoom")] = static_cast<int>(p.absOffZoom);
+    map[QStringLiteral("zoomMultiplier")] = static_cast<int>((aoz & zoomMask) >> 1U);
     map[QStringLiteral("mode")] = static_cast<int>(p.mode);
     map[QStringLiteral("amt")] = static_cast<int>(p.amt);
     map[QStringLiteral("hue")] = static_cast<int>(p.hue);
@@ -2857,5 +2984,5 @@ void SightlineQmlBridge::handleMultipleAlignment(const Sightline::MsgSetMultiple
         slot[QStringLiteral("hzoom")] = static_cast<int>(m.alignment[i].hzoom);
         list.append(slot);
     }
-    emit multipleAlignmentReceived(list);
+    emit multipleAlignmentReceived(static_cast<int>(m.nAlignments), list);
 }
