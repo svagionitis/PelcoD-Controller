@@ -2,6 +2,7 @@
 /// @brief Main entry point for the Sightline SLA Qt QML Control Application.
 
 #include "SightlineBlendCatalog.h"
+#include "SightlineNucController.h"
 #include "SightlineQmlBridge.h"
 #include "SightlineVideoController.h"
 #include "TrackListModel.h"
@@ -52,6 +53,8 @@ int main(int argc, char* argv[])
         "Sightline", 1, 0, "TrackListModel", QStringLiteral("TrackListModel is instantiated by SightlineQmlBridge"));
     qmlRegisterUncreatableType<TrafficLogModel>(
         "Sightline", 1, 0, "TrafficLogModel", QStringLiteral("TrafficLogModel is instantiated by SightlineQmlBridge"));
+    qmlRegisterUncreatableType<SightlineNucController>("Sightline", 1, 0, "NucController",
+        QStringLiteral("NucController is instantiated by SightlineQmlBridge"));
 
     QQmlApplicationEngine engine {};
 

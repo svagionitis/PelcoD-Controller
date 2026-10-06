@@ -56,6 +56,10 @@ public:
     using FourAlignPointsCallback = std::function<void(const MsgFourAlignPoints&)>;
     using BlendAlignCallback = std::function<void(const MsgBlendAlign&)>;
     using MultipleAlignmentCallback = std::function<void(const MsgSetMultipleAlignment&)>;
+    using NucParamsCallback = std::function<void(const MsgNucParameters&)>;
+    using NucTableCallback = std::function<void(const MsgReadWriteNuc&)>;
+    using DeadStatsCallback = std::function<void(const MsgDeadPixelStats&)>;
+    using Noise3DCallback = std::function<void(const MsgNoise3D&)>;
 
     /// @brief Constructs a SightlineDevice wrapping the given transport channel.
     /// @param[in] transport Shared pointer to underlying communication transport.
@@ -995,6 +999,30 @@ public:
     /// @brief Registers an observer callback for multiple alignment parameters (0x74 / 0x75).
     void setMultipleAlignmentCb(MultipleAlignmentCallback cb);
 
+    /// @brief Registers an observer callback for NUC parameter replies (0x35).
+    /// @param[in] cb Callback invoked on the receive thread; empty to clear.
+    void setNucParamsCallback(NucParamsCallback cb);
+
+    /// @brief Registers an observer callback for NUC / dead table name replies (0x36).
+    /// @param[in] cb Callback invoked on the receive thread; empty to clear.
+    void setNucTableCallback(NucTableCallback cb);
+
+    /// @brief Registers an observer callback for dead pixel statistics (0xA1).
+    /// @param[in] cb Callback invoked on the receive thread; empty to clear.
+    void setDeadStatsCallback(DeadStatsCallback cb);
+
+    /// @brief Registers an observer callback for 3D noise statistics (0xAF).
+    /// @param[in] cb Callback invoked on the receive thread; empty to clear.
+    void setNoise3DCallback(Noise3DCallback cb);
+
+    /// @brief Transmits a packet already framed by a Sightline builder.
+    /// @details Reports the packet to the raw traffic callback like every other command. Used
+    ///          as the NucWorkflow packet sink.
+    /// @param[in] packet Complete framed packet (header, payload, CRC).
+    /// @return True if the transport accepted the packet.
+    /// @retval false The device is not started, the transport is closed, or @p packet is empty.
+    [[nodiscard]] bool sendFramed(const std::vector<std::uint8_t>& packet);
+
     /// @brief Retrieves the latest cached blend parameters snapshot.
     [[nodiscard]] std::optional<MsgSetBlendParameters> lastBlendParams() const;
 
@@ -1092,6 +1120,10 @@ private:
     FourAlignPointsCallback m_fourAlignPointsCb;
     BlendAlignCallback m_blendAlignCb;
     MultipleAlignmentCallback m_multipleAlignmentCb;
+    NucParamsCallback m_nucParamsCb;
+    NucTableCallback m_nucTableCb;
+    DeadStatsCallback m_deadStatsCb;
+    Noise3DCallback m_noise3DCb;
 
     std::optional<MsgSetH264Parameters> m_lastH264Params;
     std::optional<MsgSetEthernetDisplayParameters> m_lastEthernetDisplay;

@@ -6,6 +6,7 @@
 #include "SightlineFraming.h"
 #include "SightlineMessages.h"
 #include "SightlineTypes.h"
+#include "SightlineNucCaps.h"
 
 #include <cstdint>
 #include <vector>
@@ -25,6 +26,43 @@ public:
     /// @return Framed binary packet.
     /// @retval empty `msg.nucName` exceeds 255 characters.
     [[nodiscard]] static std::vector<std::uint8_t> buildNucParameters(const MsgNucParameters& msg);
+
+    /// @brief Encodes 0x35 truncated after the field group selected by @p tail.
+    /// @details Firmware accepts shorter payloads (EAN Appendix A4 sends 28 bytes). Use the
+    ///          shortest tail that carries the fields you intend to change, capped by
+    ///          SightlineNucCaps::maxNucTail(). Fields beyond the tail keep their board value.
+    /// @param[in] msg NUC parameters.
+    /// @param[in] tail Last field group to serialise.
+    /// @return Framed binary packet (28, 33, 35, or 36 + name bytes of payload).
+    /// @retval empty `msg.nucName` is non-empty but @p tail is not NucTail::Named (it would be
+    ///         silently dropped), or the name exceeds 255 characters.
+    [[nodiscard]] static std::vector<std::uint8_t> buildNucParameters(
+        const MsgNucParameters& msg, NucTail tail);
+
+    /// @brief Validates a 0x35 command against the IDD ranges and firmware capabilities.
+    /// @details Checks, in order: run mode support, Calc2Point numFrames, DPR fields only with
+    ///          CalcDead (and their ranges), numReplace, deadFilterThresh, and nucName rules
+    ///          (FW 3.10+, fewer than 64 characters, [A-Za-z0-9_-], EAN section 4.4).
+    /// @param[in] msg NUC parameters.
+    /// @param[in] fw Reported firmware version (0.0 if unknown).
+    /// @return NucError::Ok or the first violation found.
+    [[nodiscard]] static NucError checkNucParams(const MsgNucParameters& msg, FwVersion fw);
+
+    /// @brief Validates a 0x36 command against the IDD rules and firmware capabilities.
+    /// @details fileName is required unless the command is a pure ClearNuc / ClearDead.
+    ///          secondaryFileName is required for LoadInterpolated / LoadShutterFlatten and must
+    ///          be empty otherwise; interpolationRatio must be 0 unless LoadInterpolated.
+    /// @param[in] msg Read/write NUC command.
+    /// @param[in] fw Reported firmware version (0.0 if unknown).
+    /// @return NucError::Ok or the first violation found.
+    [[nodiscard]] static NucError checkReadWriteNuc(const MsgReadWriteNuc& msg, FwVersion fw);
+
+    /// @brief Validates a 0xA8 command against the IDD rules and firmware capabilities.
+    /// @details Requires FW 3.3; `c` must be 0 or 1 for Add / Remove; `d` is reserved (0).
+    /// @param[in] msg Dead pixel command.
+    /// @param[in] fw Reported firmware version (0.0 if unknown).
+    /// @return NucError::Ok or the first violation found.
+    [[nodiscard]] static NucError checkDeadPixel(const MsgDeadPixel& msg, FwVersion fw);
 
     /// @brief Encodes a raw dead pixel list operation (Message ID 0xA8).
     /// @details Prefer buildAddDeadPixel / buildRemoveDeadPixel / buildDynamicDead.

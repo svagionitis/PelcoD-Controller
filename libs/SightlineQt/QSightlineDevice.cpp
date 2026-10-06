@@ -458,6 +458,26 @@ void QSightlineDevice::wireCallbacks()
             this, [this, params]() { emit multipleAlignmentReceived(params); }, Qt::QueuedConnection);
     });
 
+    m_device->setNucParamsCallback([this](const Sightline::MsgNucParameters& params) {
+        QMetaObject::invokeMethod(
+            this, [this, params]() { emit nucParamsReceived(params); }, Qt::QueuedConnection);
+    });
+
+    m_device->setNucTableCallback([this](const Sightline::MsgReadWriteNuc& table) {
+        QMetaObject::invokeMethod(
+            this, [this, table]() { emit nucTableReceived(table); }, Qt::QueuedConnection);
+    });
+
+    m_device->setDeadStatsCallback([this](const Sightline::MsgDeadPixelStats& stats) {
+        QMetaObject::invokeMethod(
+            this, [this, stats]() { emit deadStatsReceived(stats); }, Qt::QueuedConnection);
+    });
+
+    m_device->setNoise3DCallback([this](const Sightline::MsgNoise3D& stats) {
+        QMetaObject::invokeMethod(
+            this, [this, stats]() { emit noiseStatsReceived(stats); }, Qt::QueuedConnection);
+    });
+
     m_device->setRawTrafficCallback([this](bool isTx, const std::vector<std::uint8_t>& frame) {
         const QByteArray bytes(reinterpret_cast<const char*>(frame.data()), static_cast<int>(frame.size()));
         QMetaObject::invokeMethod(
@@ -856,6 +876,11 @@ bool QSightlineDevice::sendRawPacket(const QByteArray& rawPacket)
     const std::vector<std::uint8_t> data(reinterpret_cast<const std::uint8_t*>(rawPacket.constData()),
         reinterpret_cast<const std::uint8_t*>(rawPacket.constData()) + rawPacket.size());
     return m_device->transport()->sendData(data);
+}
+
+bool QSightlineDevice::sendFramed(const std::vector<std::uint8_t>& packet)
+{
+    return m_device ? m_device->sendFramed(packet) : false;
 }
 
 bool QSightlineDevice::setOverlayMode(const Sightline::MsgSetOverlayMode& msg)

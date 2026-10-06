@@ -2,9 +2,33 @@
 /// @brief Implementation of Sightline SLA high-level controller and message dispatcher.
 
 #include "SightlineDevice.h"
+#include "modules/SightlineEnhancementParser.h"
 #include "modules/SightlineTrackingBuilder.h"
 
 namespace Sightline {
+
+namespace {
+
+    /// @brief Invokes an observer callback outside the registration lock.
+    /// @tparam Callback std::function type of the slot.
+    /// @tparam Message Parsed message type.
+    /// @param[in] mutex Mutex guarding @p slot.
+    /// @param[in] slot Registered callback (may be empty).
+    /// @param[in] msg Parsed message passed to the callback.
+    template <typename Callback, typename Message>
+    void fireCallback(std::mutex& mutex, const Callback& slot, const Message& msg)
+    {
+        Callback cb {};
+        {
+            std::lock_guard<std::mutex> lock(mutex);
+            cb = slot;
+        }
+        if (cb) {
+            cb(msg);
+        }
+    }
+
+} // namespace
 
 SightlineDevice::SightlineDevice(std::shared_ptr<Transport::ITransport> transport, std::size_t maxAccumulatorBuffer)
     : m_transport(std::move(transport))
@@ -1200,6 +1224,38 @@ void SightlineDevice::setMultipleAlignmentCb(MultipleAlignmentCallback cb)
     m_multipleAlignmentCb = std::move(cb);
 }
 
+void SightlineDevice::setNucParamsCallback(NucParamsCallback cb)
+{
+    std::lock_guard<std::mutex> lock(m_callbackMutex);
+    m_nucParamsCb = std::move(cb);
+}
+
+void SightlineDevice::setNucTableCallback(NucTableCallback cb)
+{
+    std::lock_guard<std::mutex> lock(m_callbackMutex);
+    m_nucTableCb = std::move(cb);
+}
+
+void SightlineDevice::setDeadStatsCallback(DeadStatsCallback cb)
+{
+    std::lock_guard<std::mutex> lock(m_callbackMutex);
+    m_deadStatsCb = std::move(cb);
+}
+
+void SightlineDevice::setNoise3DCallback(Noise3DCallback cb)
+{
+    std::lock_guard<std::mutex> lock(m_callbackMutex);
+    m_noise3DCb = std::move(cb);
+}
+
+bool SightlineDevice::sendFramed(const std::vector<std::uint8_t>& packet)
+{
+    if (packet.empty() || !m_started.load()) {
+        return false;
+    }
+    return sendPacket(packet);
+}
+
 std::optional<MsgSetBlendParameters> SightlineDevice::lastBlendParams() const
 {
     std::lock_guard<std::mutex> lock(m_cacheMutex);
@@ -1839,6 +1895,34 @@ void SightlineDevice::dispatchPacket(const std::vector<std::uint8_t>& packet)
             if (cb) {
                 cb(multiAlign);
             }
+        }
+        break;
+    }
+    case MessageId::NucParameters: {
+        MsgNucParameters nuc {};
+        if (SightlineProtocolParser::parseNucParameters(packet, nuc)) {
+            fireCallback(m_callbackMutex, m_nucParamsCb, nuc);
+        }
+        break;
+    }
+    case MessageId::ReadWriteNuc: {
+        MsgReadWriteNuc table {};
+        if (SightlineProtocolParser::parseReadWriteNuc(packet, table)) {
+            fireCallback(m_callbackMutex, m_nucTableCb, table);
+        }
+        break;
+    }
+    case MessageId::DeadPixelStats: {
+        MsgDeadPixelStats stats {};
+        if (SightlineProtocolParser::parseDeadPixelStats(packet, stats)) {
+            fireCallback(m_callbackMutex, m_deadStatsCb, stats);
+        }
+        break;
+    }
+    case MessageId::Noise3D: {
+        MsgNoise3D noise {};
+        if (SightlineEnhancementParser::parseNoise3D(packet, noise)) {
+            fireCallback(m_callbackMutex, m_noise3DCb, noise);
         }
         break;
     }

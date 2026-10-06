@@ -4,6 +4,7 @@
 /// @brief Primary QML bridge controller exposing SightlineDevice API, models and telemetry.
 
 #include "RecordingFileListModel.h"
+#include "SightlineNucController.h"
 #include "TrackListModel.h"
 #include "TrafficLogModel.h"
 #include <SightlineCore/SightlineMessages.h>
@@ -34,6 +35,7 @@ class SightlineQmlBridge : public QObject {
     Q_PROPERTY(QString softwareVersion READ softwareVersion NOTIFY versionReceived)
     Q_PROPERTY(TrackListModel* trackListModel READ trackListModel CONSTANT)
     Q_PROPERTY(TrafficLogModel* trafficLogModel READ trafficLogModel CONSTANT)
+    Q_PROPERTY(SightlineNucController* nuc READ nuc CONSTANT)
     Q_PROPERTY(int activeContrastMode READ activeContrastMode NOTIFY contrastModeChanged)
     Q_PROPERTY(int activePaletteIndex READ activePaletteIndex NOTIFY paletteIndexChanged)
     Q_PROPERTY(QRect enhancementRoi READ enhancementRoi NOTIFY enhancementRoiChanged)
@@ -137,6 +139,10 @@ public:
     /// @brief Get pointer to the TrafficLogModel.
     /// @return Pointer to traffic log model.
     [[nodiscard]] TrafficLogModel* trafficLogModel() const noexcept;
+
+    /// @brief Get the NUC / DPR workflow controller (EAN-NUC-and-DPR).
+    /// @return Pointer to the controller; owned by the bridge, never null.
+    [[nodiscard]] SightlineNucController* nuc() const noexcept;
 
     /// @brief Get the active contrast mode for primary camera.
     /// @return ContrastMode enum integer.
@@ -1319,4 +1325,5 @@ private:
     std::unique_ptr<TrackListModel> m_trackListModel {};
     std::unique_ptr<TrafficLogModel> m_trafficLogModel {};
     std::unique_ptr<RecordingFileListModel> m_recordingFileListModel {};
+    std::unique_ptr<SightlineNucController> m_nuc {}; ///< NUC / DPR workflow; sends via m_device
 };

@@ -67,8 +67,12 @@ add_library(SightlineCore STATIC
     modules/SightlineNetworkParser.cpp
     modules/SightlineNucBuilder.h
     modules/SightlineNucBuilder.cpp
+    modules/SightlineNucCaps.h
+    modules/SightlineNucCaps.cpp
     modules/SightlineNucParser.h
     modules/SightlineNucParser.cpp
+    modules/SightlineNucWorkflow.h
+    modules/SightlineNucWorkflow.cpp
     modules/SightlineOverlayBuilder.h
     modules/SightlineOverlayBuilder.cpp
     modules/SightlineOverlayParser.h

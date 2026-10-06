@@ -8,8 +8,10 @@
 #include <SightlineCore/SightlineTypes.h>
 #include <SightlineCore/modules/SightlineBlending.h>
 #include <SightlineCore/modules/SightlineCompression.h>
+#include <SightlineCore/modules/SightlineEnhancement.h>
 #include <SightlineCore/modules/SightlineGeneral.h>
 #include <SightlineCore/modules/SightlineNetwork.h>
+#include <SightlineCore/modules/SightlineNuc.h>
 #include <SightlineCore/modules/SightlineRecording.h>
 
 #include <QByteArray>
@@ -178,6 +180,18 @@ signals:
     void fourAlignPointsReceived(const Sightline::MsgFourAlignPoints& points);
     void blendAlignReceived(const Sightline::MsgBlendAlign& align);
     void multipleAlignmentReceived(const Sightline::MsgSetMultipleAlignment& params);
+    /// @brief Emitted when a 0x35 NUC parameters reply arrives.
+    /// @param[in] params Decoded NUC parameters.
+    void nucParamsReceived(const Sightline::MsgNucParameters& params);
+    /// @brief Emitted when a 0x36 NUC table reply arrives.
+    /// @param[in] table Decoded NUC table operation/name.
+    void nucTableReceived(const Sightline::MsgReadWriteNuc& table);
+    /// @brief Emitted when a 0xA1 dead pixel statistics reply arrives.
+    /// @param[in] stats Decoded dead pixel statistics.
+    void deadStatsReceived(const Sightline::MsgDeadPixelStats& stats);
+    /// @brief Emitted when a 0xAF 3D noise statistics reply arrives.
+    /// @param[in] stats Decoded 3D noise statistics.
+    void noiseStatsReceived(const Sightline::MsgNoise3D& stats);
     void rawFrameReceived(bool isTx, const QByteArray& data);
     void connectionStateChanged(bool isConnected);
 
@@ -296,6 +310,14 @@ public slots:
 
     bool sendRawPacket(const QByteArray& rawPacket);
 
+    /// @brief Sends an already framed SLA packet through the device.
+    /// @details Unlike sendRawPacket, the packet is also reported via
+    ///          rawFrameReceived(true, ...) for traffic monitoring.
+    /// @param[in] packet Complete framed packet bytes.
+    /// @return True if the packet was handed to the transport.
+    /// @retval false Device missing, not started, or packet empty.
+    bool sendFramed(const std::vector<std::uint8_t>& packet);
+
 private:
     void wireCallbacks();
     void processTrackTelemetry(quint8 cameraIndex, const std::vector<Sightline::TrackCoordinate>& tracks);
@@ -322,3 +344,7 @@ Q_DECLARE_METATYPE(Sightline::MsgCurrentBlendParameters)
 Q_DECLARE_METATYPE(Sightline::MsgFourAlignPoints)
 Q_DECLARE_METATYPE(Sightline::MsgBlendAlign)
 Q_DECLARE_METATYPE(Sightline::MsgSetMultipleAlignment)
+Q_DECLARE_METATYPE(Sightline::MsgNucParameters)
+Q_DECLARE_METATYPE(Sightline::MsgReadWriteNuc)
+Q_DECLARE_METATYPE(Sightline::MsgDeadPixelStats)
+Q_DECLARE_METATYPE(Sightline::MsgNoise3D)

@@ -4,6 +4,7 @@
 #include "QSightlineDevice.h"
 #include <SightlineCore/SightlineProtocolBuilder.h>
 #include <SightlineCore/modules/SightlineBlendingBuilder.h>
+#include <SightlineCore/modules/SightlineNucBuilder.h>
 #include <SightlineCore/modules/SightlineOverlayBuilder.h>
 #include <Transport/BaseTransport.h>
 
@@ -649,6 +650,45 @@ TEST_F(QSightlineDeviceTest, BlendingSignalsAndCache)
     ASSERT_TRUE(qDevice.lastMultipleAlignment().has_value());
     EXPECT_EQ(qDevice.lastMultipleAlignment()->nAlignments, 1U);
     EXPECT_EQ(qDevice.lastMultipleAlignment()->alignment[0].horizontal, 5U);
+
+    qDevice.stop();
+}
+
+/// @brief NUC replies (0x35 / 0x36 / 0xA1 / 0xAF) emit queued signals; sendFramed transmits.
+TEST_F(QSightlineDeviceTest, NucSignalsAndFramedSend)
+{
+    auto transport = std::make_shared<MockTransportForQt>();
+    QSightlineDevice qDevice(transport);
+    ASSERT_TRUE(qDevice.start());
+
+    QSignalSpy nucSpy(&qDevice, &QSightlineDevice::nucParamsReceived);
+    QSignalSpy tableSpy(&qDevice, &QSightlineDevice::nucTableReceived);
+    QSignalSpy statsSpy(&qDevice, &QSightlineDevice::deadStatsReceived);
+    QSignalSpy noiseSpy(&qDevice, &QSightlineDevice::noiseStatsReceived);
+
+    transport->injectData(Sightline::SightlineNucBuilder::buildNucParameters(Sightline::MsgNucParameters {}));
+    Sightline::MsgReadWriteNuc table {};
+    table.fileOp = Sightline::NucFileOp::LoadNuc;
+    table.fileName = "zoom1";
+    transport->injectData(Sightline::SightlineNucBuilder::buildReadWriteNuc(table));
+    transport->injectData(Sightline::SightlineFraming::buildPacket(
+        Sightline::MessageId::DeadPixelStats, std::vector<std::uint8_t>(33U, 0U)));
+    transport->injectData(Sightline::SightlineFraming::buildPacket(
+        Sightline::MessageId::Noise3D, std::vector<std::uint8_t>(17U, 0U)));
+
+    QCoreApplication::processEvents();
+
+    EXPECT_EQ(nucSpy.count(), 1);
+    EXPECT_EQ(tableSpy.count(), 1);
+    EXPECT_EQ(statsSpy.count(), 1);
+    EXPECT_EQ(noiseSpy.count(), 1);
+
+    transport->clearSentPackets();
+    const auto query { Sightline::SightlineNucBuilder::buildGetNucParameters(0U) };
+    EXPECT_TRUE(qDevice.sendFramed(query));
+    const auto sent { transport->getSentPackets() };
+    ASSERT_EQ(sent.size(), 1U);
+    EXPECT_EQ(sent[0U], query);
 
     qDevice.stop();
 }

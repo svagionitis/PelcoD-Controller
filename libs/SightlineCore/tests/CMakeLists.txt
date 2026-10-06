@@ -36,5 +36,7 @@ add_sightline_test(TestSightlineRadiometry      TestSightlineRadiometry.cpp)
 add_sightline_test(TestSightlineIsotherm        TestSightlineIsotherm.cpp)
 add_sightline_test(TestSightlineKlvRadiometry   TestSightlineKlvRadiometry.cpp)
 add_sightline_test(TestSightlineNuc             TestSightlineNuc.cpp)
+add_sightline_test(TestSightlineNucCaps         TestSightlineNucCaps.cpp)
+add_sightline_test(TestSightlineNucWorkflow     TestSightlineNucWorkflow.cpp)
 
 

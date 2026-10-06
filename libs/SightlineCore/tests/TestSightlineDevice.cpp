@@ -7,6 +7,7 @@
 #include "Transport/BaseTransport.h"
 #include "modules/SightlineBlending.h"
 #include "modules/SightlineBlendingBuilder.h"
+#include "modules/SightlineNucBuilder.h"
 
 #include <gtest/gtest.h>
 
@@ -1156,6 +1157,75 @@ namespace {
         EXPECT_EQ(capturedMultiAlign.alignment[0U].vertical, 5);
         EXPECT_TRUE(device.lastMultipleAlignment().has_value());
         EXPECT_EQ(device.lastMultipleAlignment()->alignment[1U].vertical, 12);
+
+        device.stop();
+    }
+
+    /// @brief 0x35 / 0x36 / 0xA1 / 0xAF replies reach their callbacks (IDD v3.11 layouts).
+    TEST(TestSightlineDevice, NucRepliesDispatch)
+    {
+        auto transport = std::make_shared<MockTestTransport>();
+        SightlineDevice device(transport);
+        ASSERT_TRUE(device.start());
+
+        MsgNucParameters nucOut {};
+        MsgReadWriteNuc tableOut {};
+        MsgDeadPixelStats statsOut {};
+        MsgNoise3D noiseOut {};
+        int fired { 0 };
+        device.setNucParamsCallback([&](const MsgNucParameters& m) { nucOut = m; ++fired; });
+        device.setNucTableCallback([&](const MsgReadWriteNuc& m) { tableOut = m; ++fired; });
+        device.setDeadStatsCallback([&](const MsgDeadPixelStats& m) { statsOut = m; ++fired; });
+        device.setNoise3DCallback([&](const MsgNoise3D& m) { noiseOut = m; ++fired; });
+
+        MsgNucParameters nucIn {};
+        nucIn.cameraIndex = 1U;
+        nucIn.deadReplace = DeadReplace::Median;
+        transport->injectData(SightlineNucBuilder::buildNucParameters(nucIn));
+
+        MsgReadWriteNuc tableIn {};
+        tableIn.cameraIndex = 1U;
+        tableIn.fileOp = NucFileOp::LoadNuc;
+        tableIn.fileName = "zoom1";
+        transport->injectData(SightlineNucBuilder::buildReadWriteNuc(tableIn));
+
+        std::vector<std::uint8_t> stats { 1U };
+        SightlineFraming::appendS32Le(stats, 42);
+        for (std::size_t i { 0U }; i < 7U; ++i) {
+            SightlineFraming::appendU32Le(stats, 0U);
+        }
+        transport->injectData(SightlineFraming::buildPacket(MessageId::DeadPixelStats, stats));
+
+        std::vector<std::uint8_t> noise { 1U };
+        for (std::size_t i { 0U }; i < 8U; ++i) {
+            SightlineFraming::appendU16Le(noise, 512U);
+        }
+        transport->injectData(SightlineFraming::buildPacket(MessageId::Noise3D, noise));
+
+        EXPECT_EQ(fired, 4);
+        EXPECT_EQ(nucOut.cameraIndex, 1U);
+        EXPECT_EQ(nucOut.deadReplace, DeadReplace::Median);
+        EXPECT_EQ(tableOut.fileName, "zoom1");
+        EXPECT_EQ(statsOut.nDead, 42);
+        EXPECT_EQ(noiseOut.sigT8, 512U);
+
+        device.stop();
+    }
+
+    /// @brief sendFramed forwards a builder-produced packet and rejects an empty one.
+    TEST(TestSightlineDevice, SendFramedForwards)
+    {
+        auto transport = std::make_shared<MockTestTransport>();
+        SightlineDevice device(transport);
+        EXPECT_FALSE(device.sendFramed(SightlineNucBuilder::buildGetNucParameters(0U))); // not started
+        ASSERT_TRUE(device.start());
+
+        const auto pkt { SightlineNucBuilder::buildGetNucParameters(2U) };
+        EXPECT_TRUE(device.sendFramed(pkt));
+        EXPECT_FALSE(device.sendFramed(std::vector<std::uint8_t> {}));
+        const auto sent { transport->getSentPackets() };
+        ASSERT_EQ(sent.size(), 1U);
+        EXPECT_EQ(sent[0U], pkt);
 
         device.stop();
     }

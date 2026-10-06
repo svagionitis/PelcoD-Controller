@@ -79,6 +79,9 @@ SightlineQmlBridge::SightlineQmlBridge(QObject* parent)
     , m_trackListModel(std::make_unique<TrackListModel>(this))
     , m_trafficLogModel(std::make_unique<TrafficLogModel>(this))
     , m_recordingFileListModel(std::make_unique<RecordingFileListModel>(this))
+    , m_nuc(std::make_unique<SightlineNucController>(
+          [this](const std::vector<std::uint8_t>& packet) { return m_device ? m_device->sendFramed(packet) : false; },
+          this))
 {
     connect(m_coolerTimer.get(), &QTimer::timeout, this, &SightlineQmlBridge::onCoolerTimerTick);
     connect(m_recordingClockTimer.get(), &QTimer::timeout, this, &SightlineQmlBridge::onRecordingClockTick);
@@ -166,6 +169,11 @@ TrackListModel* SightlineQmlBridge::trackListModel() const noexcept
 TrafficLogModel* SightlineQmlBridge::trafficLogModel() const noexcept
 {
     return m_trafficLogModel.get();
+}
+
+SightlineNucController* SightlineQmlBridge::nuc() const noexcept
+{
+    return m_nuc.get();
 }
 
 int SightlineQmlBridge::activeContrastMode() const noexcept
@@ -376,6 +384,7 @@ bool SightlineQmlBridge::connectUdp(const QString& host, int cmdPort, int replyP
     auto transport = std::make_shared<Transport::SightlineUdpTransport>(
         toSafeStdString(host), static_cast<std::uint16_t>(cmdPort), static_cast<std::uint16_t>(replyPort));
 
+    m_nuc->reset();
     m_device = std::make_unique<QSightlineDevice>(transport, this);
 
     connect(m_device.get(), &QSightlineDevice::connectionStateChanged, this, [this](bool ok) {
@@ -438,6 +447,17 @@ bool SightlineQmlBridge::connectUdp(const QString& host, int cmdPort, int replyP
     connect(m_device.get(), &QSightlineDevice::multipleAlignmentReceived, this,
         &SightlineQmlBridge::handleMultipleAlignment);
 
+    // NUC / DPR workflow (EAN-NUC-and-DPR): firmware gates, board state, stats and warnings.
+    connect(m_device.get(), &QSightlineDevice::versionReceived, m_nuc.get(), &SightlineNucController::onVersion);
+    connect(m_device.get(), &QSightlineDevice::nucParamsReceived, m_nuc.get(), &SightlineNucController::onNucParams);
+    connect(m_device.get(), &QSightlineDevice::nucTableReceived, m_nuc.get(), &SightlineNucController::onNucTable);
+    connect(m_device.get(), &QSightlineDevice::deadStatsReceived, m_nuc.get(), &SightlineNucController::onDeadStats);
+    connect(
+        m_device.get(), &QSightlineDevice::noiseStatsReceived, m_nuc.get(), &SightlineNucController::onNoiseStats);
+    connect(m_device.get(), &QSightlineDevice::userWarningReceived, m_nuc.get(), &SightlineNucController::onWarning);
+    connect(m_device.get(), &QSightlineDevice::stabilizationReceived, m_nuc.get(),
+        &SightlineNucController::onStabilization);
+
     const bool started = m_device->start();
     emit connectionChanged();
     return started;
@@ -448,6 +468,9 @@ void SightlineQmlBridge::disconnectDevice()
     if (m_device) {
         m_device->stop();
         m_device.reset();
+    }
+    if (m_nuc) {
+        m_nuc->reset();
     }
     if (m_coolerTimer && m_coolerTimer->isActive()) {
         m_coolerTimer->stop();
@@ -2482,9 +2505,12 @@ void SightlineQmlBridge::queryModuleParameters(int tabIndex)
         queryParameters(static_cast<int>(Sightline::MessageId::SetLensParameters)); // 0x6E
         break;
     case 12: // NUC Calibration
-        queryParameters(static_cast<int>(Sightline::MessageId::NucParameters)); // 0x35
-        queryParameters(static_cast<int>(Sightline::MessageId::DeadPixelStats)); // 0xA1
-        queryParameters(static_cast<int>(Sightline::MessageId::Noise3D)); // 0xAF (read-only stats)
+        // 0x35, 0xA1, 4x 0x36 table names and 0xAF for the NUC camera.
+        static_cast<void>(m_nuc->refresh());
+        if (m_device) {
+            // Stabilization must be off before a NUC; keep the controller's gate current.
+            static_cast<void>(m_device->getStabilization(static_cast<quint8>(m_nuc->camera())));
+        }
         // 0xA8 DeadPixel is write-only; it is not a valid GetParameters target (IDD v3.11).
         break;
     case 13: // Telemetry

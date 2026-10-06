@@ -4,6 +4,8 @@ add_executable(SightlineAppQt
     src/SightlineQmlBridge.cpp
     src/SightlineBlendCatalog.h
     src/SightlineBlendCatalog.cpp
+    src/SightlineNucController.h
+    src/SightlineNucController.cpp
     src/SightlineVideoController.h
     src/SightlineVideoController.cpp
     src/TrackListModel.h
@@ -58,9 +60,12 @@ if(BUILD_TESTING)
         src/SightlineQmlBridge.cpp
         src/SightlineBlendCatalog.h
         src/SightlineBlendCatalog.cpp
+        src/SightlineNucController.h
+        src/SightlineNucController.cpp
         tests/TestSightlineVideo.cpp
         tests/TestSightlineBlendBridge.cpp
         tests/TestSightlineBlendCatalog.cpp
+        tests/TestSightlineNucController.cpp
     )
     target_include_directories(TestSightlineVideo PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/src
