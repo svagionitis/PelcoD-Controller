@@ -96,10 +96,36 @@ Rectangle {
                 }
 
                 Text {
-                    text: "LAT: " + (videoController ? videoController.avgDecodeTimeMs.toFixed(1) : "0.0") + " ms"
+                    text: "DEC: " + (videoController ? videoController.avgDecodeTimeMs.toFixed(1) : "0.0") + " ms"
                     color: SightlineTheme.textSecondary
                     font.pixelSize: 10
                     font.family: "Monospace"
+                }
+
+                Text {
+                    id: displayLatencyLabel
+                    readonly property bool measured: videoSurface.presentedFrames > 0
+                    text: measured
+                          ? "DISP: " + videoSurface.displayLatencyMs.toFixed(1)
+                            + " / " + videoSurface.displayLatencyMaxMs.toFixed(1) + " ms"
+                          : "DISP: -- ms"
+                    color: !measured ? SightlineTheme.textMuted
+                         : videoSurface.displayLatencyMs > 100.0 ? SightlineTheme.error
+                         : videoSurface.displayLatencyMs > 50.0 ? SightlineTheme.warning
+                         : SightlineTheme.success
+                    font.pixelSize: 10
+                    font.family: "Monospace"
+
+                    Behavior on color { ColorAnimation { duration: 250 } }
+
+                    ToolTip.visible: displayLatencyHover.hovered
+                    ToolTip.delay: 400
+                    ToolTip.text: "Decode → display latency (avg / max over last 120 frames)\n"
+                                  + "Last: " + videoSurface.displayLatencyLastMs.toFixed(1) + " ms  "
+                                  + "Min: " + videoSurface.displayLatencyMinMs.toFixed(1) + " ms\n"
+                                  + "Measured at QQuickWindow::frameSwapped"
+
+                    HoverHandler { id: displayLatencyHover }
                 }
 
                 Text {

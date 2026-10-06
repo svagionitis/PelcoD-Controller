@@ -1,4 +1,5 @@
 #include "FFmpegDecoder.h"
+#include "LatencyTracker.h"
 
 #if defined(PELCOD_HAS_FFMPEG)
 
@@ -363,6 +364,7 @@ bool FFmpegDecoder::decodeNextFrame()
             const auto decodeEnd = std::chrono::steady_clock::now();
             m_lastDecodeTimeMs = std::chrono::duration<double, std::milli>(decodeEnd - decodeStart).count();
             m_totalDecodeTimeMs += m_lastDecodeTimeMs;
+            m_decodedAtNs = steadyNowNs();
 
             const std::size_t frameBytes = static_cast<std::size_t>(m_width * m_height * 3);
             publishToTripleBuffer(

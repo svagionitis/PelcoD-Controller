@@ -1,4 +1,5 @@
 #include "GStreamerDecoder.h"
+#include "LatencyTracker.h"
 
 #if defined(PELCOD_HAS_GSTREAMER)
 
@@ -328,6 +329,7 @@ bool GStreamerDecoder::decodeNextFrame()
             const auto end = std::chrono::steady_clock::now();
             m_lastDecodeTimeMs = std::chrono::duration<double, std::milli>(end - start).count();
             m_totalDecodeTimeMs += m_lastDecodeTimeMs;
+            m_decodedAtNs = steadyNowNs();
 
             publishToTripleBuffer(
                 m_frameBuffer.data(), m_width, m_height, expectedSize, m_timestamp, m_lastDecodeTimeMs, m_outputFormat);

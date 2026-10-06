@@ -415,6 +415,7 @@ void SightlineVideoController::setScrubOffset(int offset)
             m_lastFrameCopy = scrubImg;
         }
         emit frameDecoded(scrubImg);
+        emit timedFrameDecoded(scrubImg, 0);
         emit currentFramePtsChanged();
         emit scrubOffsetChanged();
     }
@@ -467,8 +468,8 @@ void SightlineVideoController::updateHostAddress(const QString& host)
 void SightlineVideoController::attachVideoItem(VideoQuickItem* item)
 {
     if (item != nullptr) {
-        connect(
-            this, &SightlineVideoController::frameDecoded, item, &VideoQuickItem::updateFrame, Qt::QueuedConnection);
+        connect(this, &SightlineVideoController::timedFrameDecoded, item, &VideoQuickItem::updateTimedFrame,
+            Qt::QueuedConnection);
     }
 }
 
@@ -1123,6 +1124,8 @@ void SightlineVideoController::workerLoop()
             continue;
         }
 
+        const std::int64_t decodedAtNs { (frameInfo.decodedAtNs > 0) ? frameInfo.decodedAtNs : Video::steadyNowNs() };
+
         if (frameInfo.data != nullptr && frameInfo.width > 0 && frameInfo.height > 0) {
             const QImage rawImg(
                 frameInfo.data, frameInfo.width, frameInfo.height, frameInfo.width * 3, QImage::Format_RGB888);
@@ -1163,6 +1166,7 @@ void SightlineVideoController::workerLoop()
             }
 
             emit frameDecoded(frameCopy);
+            emit timedFrameDecoded(frameCopy, static_cast<qint64>(decodedAtNs));
 
             // Picture-in-Picture secondary frame emission
             if (m_pipEnabled) {

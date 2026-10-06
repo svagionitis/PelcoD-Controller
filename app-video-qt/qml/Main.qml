@@ -374,6 +374,7 @@ ApplicationWindow {
 
                     StatsPanel {
                         controller: controller
+                        videoItem: videoItem
                     }
 
                     TacticalMapPanel {

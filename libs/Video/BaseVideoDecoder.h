@@ -179,6 +179,7 @@ protected:
     double m_lastDecodeTimeMs { 0.0 }; ///< Last frame decode duration in milliseconds.
     double m_totalDecodeTimeMs { 0.0 }; ///< Cumulative decode time for averaging.
     std::uint64_t m_decodedFramesCount { 0U }; ///< Total successfully decoded frames.
+    std::int64_t m_decodedAtNs { 0 }; ///< steady_clock stamp (ns) of the last decode completion.
 
     // Reconnect helpers (used by FFmpeg & GStreamer)
     std::string m_filePath; ///< Cached source URI / path for reconnection.

@@ -14,6 +14,8 @@ set(PELCOD_VIDEO_SOURCES
     BrailleRenderer.cpp
     StreamHealthMonitor.h
     StreamHealthMonitor.cpp
+    LatencyTracker.h
+    LatencyTracker.cpp
 )
 
 if(PELCOD_ENABLE_FFMPEG AND FFMPEG_FOUND)

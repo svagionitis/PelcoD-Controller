@@ -7,10 +7,13 @@
 #include "TrackListModel.h"
 #include "VideoQuickItem.h"
 
+#include <LatencyTracker.h>
+
 #include <QCoreApplication>
 #include <QDir>
 #include <QImage>
 #include <QMouseEvent>
+#include <QPainter>
 #include <QSignalSpy>
 #include <QTemporaryDir>
 #include <QTest>
@@ -267,6 +270,75 @@ TEST_F(SightlineVideoTest, VideoQuickItemPropertiesAndFrameIngestion)
     EXPECT_FALSE(item.hasFrame());
     EXPECT_EQ(item.videoWidth(), 0);
     EXPECT_EQ(item.videoHeight(), 0);
+}
+
+namespace {
+
+    /// @brief Paints the item onto an offscreen canvas and simulates a scene graph swap.
+    /// @param[in,out] item Video item under test.
+    void presentFrame(SightlineApp::VideoQuickItem& item)
+    {
+        QImage canvas(320, 240, QImage::Format_RGB32);
+        QPainter painter(&canvas);
+        item.paint(&painter);
+        painter.end();
+        item.notifyFrameSwapped();
+        item.publishLatency();
+    }
+
+} // namespace
+
+TEST_F(SightlineVideoTest, VideoQuickItemMeasuresDisplayLatency)
+{
+    SightlineApp::VideoQuickItem item {};
+    item.setSize(QSizeF(320.0, 240.0));
+    EXPECT_DOUBLE_EQ(item.displayLatencyMs(), 0.0);
+    EXPECT_EQ(item.presentedFrames(), 0U);
+
+    QImage testFrame(320, 240, QImage::Format_RGB888);
+    testFrame.fill(Qt::green);
+
+    constexpr qint64 kFiveMsNs { 5'000'000 };
+    const qint64 decodedAt { static_cast<qint64>(Video::steadyNowNs()) - kFiveMsNs };
+    item.updateTimedFrame(testFrame, decodedAt);
+
+    QSignalSpy latSpy(&item, &SightlineApp::VideoQuickItem::displayLatencyChanged);
+    presentFrame(item);
+
+    EXPECT_EQ(latSpy.count(), 1);
+    EXPECT_EQ(item.presentedFrames(), 1U);
+    EXPECT_GE(item.displayLatencyLastMs(), 5.0);
+    EXPECT_GE(item.displayLatencyMs(), 5.0);
+    EXPECT_LE(item.displayLatencyMinMs(), item.displayLatencyMaxMs());
+
+    // Repainting the same frame (e.g. overlay update) must not be counted again
+    presentFrame(item);
+    EXPECT_EQ(item.presentedFrames(), 1U);
+
+    // Unstamped frames (scrub/PIP path) are displayed but not measured
+    item.updateFrame(testFrame);
+    presentFrame(item);
+    EXPECT_EQ(item.presentedFrames(), 1U);
+
+    item.resetLatency();
+    EXPECT_EQ(item.presentedFrames(), 0U);
+    EXPECT_DOUBLE_EQ(item.displayLatencyMs(), 0.0);
+}
+
+TEST_F(SightlineVideoTest, ControllerFeedsDisplayLatency)
+{
+    SightlineApp::SightlineVideoController controller {};
+    SightlineApp::VideoQuickItem item {};
+    item.setSize(QSizeF(320.0, 240.0));
+    controller.attachVideoItem(&item);
+
+    for (int i = 0; (i < 20) && (item.presentedFrames() == 0U); ++i) {
+        QTest::qWait(30);
+        presentFrame(item);
+    }
+
+    EXPECT_GT(item.presentedFrames(), 0U);
+    EXPECT_GT(item.displayLatencyLastMs(), 0.0);
 }
 
 TEST_F(SightlineVideoTest, ControllerAttachVideoItemIntegration)

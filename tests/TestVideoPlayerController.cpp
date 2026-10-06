@@ -2,9 +2,19 @@
 /// @brief Tests for VideoPlayerController timeline seeking, scrubbing, and KLV telemetry.
 
 #include <QGuiApplication>
+#include <QImage>
+#include <QPainter>
+#include <QSignalSpy>
+#include <QTest>
 #include <gtest/gtest.h>
 
+#include "DecoderFactory.h"
+#include "LatencyTracker.h"
 #include "VideoPlayerController.h"
+#include "VideoQuickItem.h"
+
+#include <algorithm>
+#include <iterator>
 
 namespace VideoApp {
 
@@ -109,14 +119,8 @@ TEST_F(VideoPlayerControllerTest, ScrubbingBoundaryConditions)
 /// @return Path to existing file, or empty string if not found.
 [[nodiscard]] static std::string findSampleVideo(const std::string& filename)
 {
-    const std::vector<std::string> prefixes {
-        "",
-        "sample-videos/",
-        "../sample-videos/",
-        "../../sample-videos/",
-        "../../../sample-videos/",
-        "../../../../sample-videos/"
-    };
+    const std::vector<std::string> prefixes { "", "sample-videos/", "../sample-videos/", "../../sample-videos/",
+        "../../../sample-videos/", "../../../../sample-videos/" };
 
     for (const auto& prefix : prefixes) {
         const std::string candidate { prefix + filename };
@@ -165,6 +169,81 @@ TEST_F(VideoPlayerControllerTest, LoadKlvSampleAndScrub)
     controller.updateKlvTelemetry(0.0);
     EXPECT_EQ(controller.lastKlvIndex(), 0U);
     EXPECT_DOUBLE_EQ(controller.platformHeading(), initialHeading);
+}
+
+namespace {
+
+    /// @brief Paints the item onto an offscreen canvas and simulates a scene graph swap.
+    /// @param[in,out] item Video item under test.
+    void presentFrame(VideoQuickItem& item)
+    {
+        QImage canvas(320, 240, QImage::Format_RGB32);
+        QPainter painter(&canvas);
+        item.paint(&painter);
+        painter.end();
+        item.notifyFrameSwapped();
+        item.publishLatency();
+    }
+
+} // namespace
+
+TEST_F(VideoPlayerControllerTest, VideoItemMeasuresDisplayLatency)
+{
+    VideoQuickItem item {};
+    item.setSize(QSizeF(320.0, 240.0));
+    EXPECT_DOUBLE_EQ(item.displayLatencyMs(), 0.0);
+    EXPECT_EQ(item.presentedFrames(), 0U);
+
+    QImage testFrame(320, 240, QImage::Format_RGB888);
+    testFrame.fill(Qt::green);
+
+    constexpr qint64 kFiveMsNs { 5'000'000 };
+    item.updateTimedFrame(testFrame, static_cast<qint64>(Video::steadyNowNs()) - kFiveMsNs);
+
+    QSignalSpy latSpy(&item, &VideoQuickItem::displayLatencyChanged);
+    presentFrame(item);
+
+    EXPECT_EQ(latSpy.count(), 1);
+    EXPECT_EQ(item.presentedFrames(), 1U);
+    EXPECT_GE(item.displayLatencyLastMs(), 5.0);
+    EXPECT_GE(item.displayLatencyMs(), 5.0);
+    EXPECT_LE(item.displayLatencyMinMs(), item.displayLatencyMaxMs());
+
+    // Repainting the same frame must not be counted again
+    presentFrame(item);
+    EXPECT_EQ(item.presentedFrames(), 1U);
+
+    // Unstamped frames are displayed but not measured
+    item.updateFrame(testFrame);
+    presentFrame(item);
+    EXPECT_EQ(item.presentedFrames(), 1U);
+
+    item.resetLatency();
+    EXPECT_EQ(item.presentedFrames(), 0U);
+    EXPECT_DOUBLE_EQ(item.displayLatencyMs(), 0.0);
+}
+
+TEST_F(VideoPlayerControllerTest, ControllerFeedsDisplayLatency)
+{
+    VideoPlayerController controller {};
+    VideoQuickItem item {};
+    item.setSize(QSizeF(320.0, 240.0));
+    controller.attachVideoItem(&item);
+
+    const auto backends { Video::DecoderFactory::availableBackends() };
+    const auto mockIt { std::find(backends.cbegin(), backends.cend(), Video::BackendType::Mock) };
+    ASSERT_NE(mockIt, backends.cend());
+    controller.setBackendIndex(static_cast<int>(std::distance(backends.cbegin(), mockIt)));
+    controller.startPlayback();
+
+    for (int i = 0; (i < 40) && (item.presentedFrames() == 0U); ++i) {
+        QTest::qWait(30);
+        presentFrame(item);
+    }
+    controller.stopPlayback();
+
+    EXPECT_GT(item.presentedFrames(), 0U);
+    EXPECT_GT(item.displayLatencyLastMs(), 0.0);
 }
 
 } // namespace VideoApp

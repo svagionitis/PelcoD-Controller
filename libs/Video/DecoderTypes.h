@@ -43,6 +43,7 @@ struct FrameInfo {
     std::size_t size { 0U }; ///< Frame buffer size in bytes (width * height * 3)
     double timestamp { 0.0 }; ///< Presentation timestamp (PTS) in seconds
     double decodeTimeMs { 0.0 }; ///< Active frame decode duration in milliseconds
+    std::int64_t decodedAtNs { 0 }; ///< steady_clock stamp (ns) when decoding finished; 0 if unknown
     PixelFormat format { PixelFormat::RGB24 }; ///< Pixel format of this frame
 };
 

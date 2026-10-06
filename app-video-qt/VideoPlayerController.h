@@ -122,14 +122,18 @@ class VideoPlayerController : public QObject {
     Q_PROPERTY(int tacticalHudPalette READ tacticalHudPalette WRITE setTacticalHudPalette NOTIFY filterConfigChanged)
 
     // Mini-Map Tactical Inset Rasterizer
-    Q_PROPERTY(bool mapRasterizerEnabled READ mapRasterizerEnabled WRITE setMapRasterizerEnabled NOTIFY filterConfigChanged)
+    Q_PROPERTY(
+        bool mapRasterizerEnabled READ mapRasterizerEnabled WRITE setMapRasterizerEnabled NOTIFY filterConfigChanged)
     Q_PROPERTY(int mapRasterizerCorner READ mapRasterizerCorner WRITE setMapRasterizerCorner NOTIFY filterConfigChanged)
-    Q_PROPERTY(qreal mapRasterizerOpacity READ mapRasterizerOpacity WRITE setMapRasterizerOpacity NOTIFY filterConfigChanged)
+    Q_PROPERTY(
+        qreal mapRasterizerOpacity READ mapRasterizerOpacity WRITE setMapRasterizerOpacity NOTIFY filterConfigChanged)
     Q_PROPERTY(int mapRasterizerZoom READ mapRasterizerZoom WRITE setMapRasterizerZoom NOTIFY filterConfigChanged)
     Q_PROPERTY(int mapRasterizerWidth READ mapRasterizerWidth WRITE setMapRasterizerWidth NOTIFY filterConfigChanged)
     Q_PROPERTY(int mapRasterizerHeight READ mapRasterizerHeight WRITE setMapRasterizerHeight NOTIFY filterConfigChanged)
-    Q_PROPERTY(bool mapRasterizerShowFrustum READ mapRasterizerShowFrustum WRITE setMapRasterizerShowFrustum NOTIFY filterConfigChanged)
-    Q_PROPERTY(bool mapRasterizerShowHeading READ mapRasterizerShowHeading WRITE setMapRasterizerShowHeading NOTIFY filterConfigChanged)
+    Q_PROPERTY(bool mapRasterizerShowFrustum READ mapRasterizerShowFrustum WRITE setMapRasterizerShowFrustum NOTIFY
+            filterConfigChanged)
+    Q_PROPERTY(bool mapRasterizerShowHeading READ mapRasterizerShowHeading WRITE setMapRasterizerShowHeading NOTIFY
+            filterConfigChanged)
 
     // Platform Tactical Telemetry
     Q_PROPERTY(qreal platformLatitude READ platformLatitude WRITE setPlatformLatitude NOTIFY telemetryChanged)
@@ -320,29 +324,46 @@ public:
 
     /// @brief Returns the index of the currently active KLV timeline entry.
     /// @return 0-based index into KLV timeline.
-    [[nodiscard]] std::size_t lastKlvIndex() const noexcept { return m_lastKlvIndex; }
+    [[nodiscard]] std::size_t lastKlvIndex() const noexcept
+    {
+        return m_lastKlvIndex;
+    }
 
     /// @brief Returns the total number of KLV timeline entries.
     /// @return Count of timeline entries.
-    [[nodiscard]] std::size_t klvTimelineSize() const noexcept { return m_klvTimeline.size(); }
+    [[nodiscard]] std::size_t klvTimelineSize() const noexcept
+    {
+        return m_klvTimeline.size();
+    }
 
     /// @brief Returns the timestamp in seconds of the KLV timeline entry at given index.
     /// @param[in] idx Index into timeline.
     /// @return Timestamp in seconds, or -1.0 if out of bounds.
-    [[nodiscard]] double klvTimeAt(std::size_t idx) const noexcept {
+    [[nodiscard]] double klvTimeAt(std::size_t idx) const noexcept
+    {
         return idx < m_klvTimeline.size() ? m_klvTimeline[idx].timeSeconds : -1.0;
     }
 
     /// @brief Returns the currently pending seek target timestamp in seconds (-1.0 if none).
     /// @return Pending seek timestamp.
-    [[nodiscard]] double requestedSeek() const noexcept { return m_seekRequested.load(); }
+    [[nodiscard]] double requestedSeek() const noexcept
+    {
+        return m_seekRequested.load();
+    }
 
     /// @brief Injects a timed KLV entry for testing.
     /// @param[in] item Timed KLV entry to insert.
-    void addKlvTimelineEntry(const TimedKlv& item) { m_klvTimeline.push_back(item); }
+    void addKlvTimelineEntry(const TimedKlv& item)
+    {
+        m_klvTimeline.push_back(item);
+    }
 
     /// @brief Clears all KLV timeline entries.
-    void clearKlvTimeline() noexcept { m_klvTimeline.clear(); m_lastKlvIndex = 0; }
+    void clearKlvTimeline() noexcept
+    {
+        m_klvTimeline.clear();
+        m_lastKlvIndex = 0;
+    }
 
 public slots:
     /// @brief Starts video playback using configured source, backend, and hardware device.
@@ -392,6 +413,11 @@ signals:
     void telemetryChanged();
     void coordinateTargetPicked(double lat, double lon);
     void frameDecoded(const QImage& frame);
+
+    /// @brief Emitted alongside frameDecoded with the decode-completion stamp for latency measurement.
+    /// @param[in] frame Decoded QImage frame.
+    /// @param[in] decodedAtNs Video::steadyNowNs() stamp at decode completion.
+    void timedFrameDecoded(const QImage& frame, qint64 decodedAtNs);
 
 private:
     void workerLoop();

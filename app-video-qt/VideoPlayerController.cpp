@@ -2,8 +2,9 @@
 /// @brief Master QML controller bridging UI events with Video and VideoFilters subsystems.
 
 #include "VideoPlayerController.h"
-#include "VideoQuickItem.h"
+#include "LatencyTracker.h"
 #include "MpegTsKlvExtractor.h"
+#include "VideoQuickItem.h"
 
 #if defined(PELCOD_HAS_FILTERS)
 #include "TacticalHudFilter.h"
@@ -833,7 +834,8 @@ void VideoPlayerController::refreshDevices()
 void VideoPlayerController::attachVideoItem(VideoApp::VideoQuickItem* item)
 {
     if (item != nullptr) {
-        connect(this, &VideoPlayerController::frameDecoded, item, &VideoQuickItem::updateFrame, Qt::QueuedConnection);
+        connect(this, &VideoPlayerController::timedFrameDecoded, item, &VideoQuickItem::updateTimedFrame,
+            Qt::QueuedConnection);
     }
 }
 
@@ -1083,6 +1085,9 @@ void VideoPlayerController::workerLoop()
         }
 
         if (frameInfo.data != nullptr && frameInfo.width > 0 && frameInfo.height > 0) {
+            const std::int64_t decodedAtNs { (frameInfo.decodedAtNs > 0) ? frameInfo.decodedAtNs
+                                                                         : Video::steadyNowNs() };
+
             // Ingest and emit decoded frame
             const QImage rawImg(
                 frameInfo.data, frameInfo.width, frameInfo.height, frameInfo.width * 3, QImage::Format_RGB888);
@@ -1095,6 +1100,7 @@ void VideoPlayerController::workerLoop()
             }
 
             emit frameDecoded(frameCopy);
+            emit timedFrameDecoded(frameCopy, static_cast<qint64>(decodedAtNs));
             ++m_totalFrames;
             ++framesInInterval;
             decodeAccumMs += decodeMs;
@@ -1264,10 +1270,9 @@ void VideoPlayerController::configureFilterPipeline(Video::IVideoDecoder* decode
 
     // Tactical HUD Symbology (MISB ST 1909 / STANAG 4609)
     if (m_tacticalHudEnabled) {
-        const auto mode = static_cast<Video::Filters::TacticalHudFilter::HudMode>(
-            std::clamp(m_tacticalHudMode, 0, 3));
-        const auto palette = static_cast<Video::Filters::TacticalHudFilter::ColorPalette>(
-            std::clamp(m_tacticalHudPalette, 0, 4));
+        const auto mode = static_cast<Video::Filters::TacticalHudFilter::HudMode>(std::clamp(m_tacticalHudMode, 0, 3));
+        const auto palette
+            = static_cast<Video::Filters::TacticalHudFilter::ColorPalette>(std::clamp(m_tacticalHudPalette, 0, 4));
         m_tacticalHudFilter = std::make_shared<Video::Filters::TacticalHudFilter>(mode, palette);
         if (m_lastKlvMsg.has_value()) {
             m_tacticalHudFilter->updateTelemetry(*m_lastKlvMsg);
@@ -1306,10 +1311,10 @@ void VideoPlayerController::configureFilterPipeline(Video::IVideoDecoder* decode
 
     // 6. Tactical Mini-Map Inset Rasterizer
     if (m_mapRasterizerEnabled) {
-        const auto corner = static_cast<Video::Filters::MapRasterizerFilter::InsetCorner>(
-            std::clamp(m_mapRasterizerCorner, 0, 4));
-        auto mapFilter = std::make_shared<Video::Filters::MapRasterizerFilter>(
-            m_mapRasterizerWidth, m_mapRasterizerHeight);
+        const auto corner
+            = static_cast<Video::Filters::MapRasterizerFilter::InsetCorner>(std::clamp(m_mapRasterizerCorner, 0, 4));
+        auto mapFilter
+            = std::make_shared<Video::Filters::MapRasterizerFilter>(m_mapRasterizerWidth, m_mapRasterizerHeight);
         mapFilter->setCorner(corner);
         mapFilter->setOpacity(m_mapRasterizerOpacity);
         mapFilter->setZoom(static_cast<double>(m_mapRasterizerZoom));
@@ -1344,12 +1349,10 @@ void VideoPlayerController::loadKlvTrack(const QString& sourcePath)
 
     Klv::MpegTsKlvExtractor extractor;
     std::vector<Klv::UasDatalinkMessage> messages;
-    extractor.setMessageCallback([&messages](const Klv::UasDatalinkMessage& msg) {
-        messages.push_back(msg);
-    });
+    extractor.setMessageCallback([&messages](const Klv::UasDatalinkMessage& msg) { messages.push_back(msg); });
 
-    static_cast<void>(extractor.processStream(reinterpret_cast<const std::uint8_t*>(data.constData()),
-                                            static_cast<std::size_t>(data.size())));
+    static_cast<void>(extractor.processStream(
+        reinterpret_cast<const std::uint8_t*>(data.constData()), static_cast<std::size_t>(data.size())));
     static_cast<void>(extractor.flush());
 
     if (messages.empty()) {
@@ -1374,7 +1377,7 @@ void VideoPlayerController::loadKlvTrack(const QString& sourcePath)
     }
 
     std::stable_sort(m_klvTimeline.begin(), m_klvTimeline.end(),
-                     [](const TimedKlv& a, const TimedKlv& b) { return a.timeSeconds < b.timeSeconds; });
+        [](const TimedKlv& a, const TimedKlv& b) { return a.timeSeconds < b.timeSeconds; });
 
     if (!m_klvTimeline.empty()) {
         applyKlvTelemetry(m_klvTimeline.front().message);
@@ -1394,7 +1397,7 @@ void VideoPlayerController::updateKlvTelemetry(double timeSeconds)
     }
 
     auto it = std::upper_bound(m_klvTimeline.begin(), m_klvTimeline.end(), timeSeconds,
-                               [](double t, const TimedKlv& item) { return t < item.timeSeconds; });
+        [](double t, const TimedKlv& item) { return t < item.timeSeconds; });
 
     if (it != m_klvTimeline.begin()) {
         --it;
@@ -1404,8 +1407,8 @@ void VideoPlayerController::updateKlvTelemetry(double timeSeconds)
     m_lastKlvIndex = idx;
 
     // Use continuous sub-50ms scrub controller if available, else discrete waypoint
-    if (m_stanagScrubController.timeIndex().klvPacketCount() > 0U &&
-        m_stanagScrubController.scrubToSeconds(timeSeconds)) {
+    if (m_stanagScrubController.timeIndex().klvPacketCount() > 0U
+        && m_stanagScrubController.scrubToSeconds(timeSeconds)) {
         const auto sf = m_stanagScrubController.currentFrame();
         applyKlvTelemetry(sf.telemetry);
     } else {

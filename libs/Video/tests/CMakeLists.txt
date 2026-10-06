@@ -31,6 +31,16 @@ target_link_libraries(TestStreamHealthMonitor PRIVATE
 )
 pelcod_register_gtest(TestStreamHealthMonitor)
 
+add_executable(TestLatencyTracker TestLatencyTracker.cpp)
+target_include_directories(TestLatencyTracker PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/..
+)
+target_link_libraries(TestLatencyTracker PRIVATE
+    Video
+    GTest::gtest_main
+)
+pelcod_register_gtest(TestLatencyTracker)
+
 if(PELCOD_ENABLE_FILTERS AND OpenCV_FOUND)
     add_executable(TestMapRasterizerFilter TestMapRasterizerFilter.cpp)
     target_include_directories(TestMapRasterizerFilter PRIVATE

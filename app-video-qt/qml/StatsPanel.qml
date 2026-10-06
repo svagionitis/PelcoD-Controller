@@ -10,6 +10,16 @@ ScrollView {
 
     required property VideoPlayerController controller
 
+    /// Video surface providing decode→display latency (optional; card shows "--" when unset).
+    property VideoItem videoItem: null
+
+    readonly property bool latencyMeasured: videoItem !== null && videoItem.presentedFrames > 0
+
+    function latencyColor(ms) {
+        if (!latencyMeasured) return "#525c70";
+        return ms <= 50.0 ? "#00e676" : (ms <= 100.0 ? "#ff9100" : "#ff1744");
+    }
+
     ColumnLayout {
         width: parent.width - 20
         anchors.horizontalCenter: parent.horizontalCenter
@@ -91,7 +101,7 @@ ScrollView {
                     anchors.margins: 10
                     spacing: 2
                     Text {
-                        text: "DECODE LATENCY"
+                        text: "DECODE TIME"
                         color: "#8894ab"
                         font.pixelSize: 10
                         font.bold: true
@@ -186,6 +196,128 @@ ScrollView {
                             Layout.alignment: Qt.AlignBottom
                         }
                     }
+                }
+            }
+
+            // Display Latency Card (decode → QQuickWindow::frameSwapped)
+            Rectangle {
+                id: displayLatencyCard
+                Layout.fillWidth: true
+                Layout.columnSpan: 2
+                height: 104
+                color: "#181b24"
+                radius: 6
+                border.color: root.latencyMeasured ? Qt.darker(root.latencyColor(root.videoItem.displayLatencyMs), 2.2) : "#2a2f40"
+                Behavior on border.color { ColorAnimation { duration: 300 } }
+
+                ColumnLayout {
+                    anchors.fill: parent
+                    anchors.margins: 10
+                    spacing: 4
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        Text {
+                            text: "DISPLAY LATENCY"
+                            color: "#8894ab"
+                            font.pixelSize: 10
+                            font.bold: true
+                            Layout.fillWidth: true
+                        }
+                        Text {
+                            text: "DECODE → SCREEN"
+                            color: "#525c70"
+                            font.pixelSize: 9
+                            font.letterSpacing: 0.8
+                        }
+                    }
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 4
+                        Text {
+                            text: root.latencyMeasured ? root.videoItem.displayLatencyMs.toFixed(1) : "--"
+                            color: root.latencyColor(root.latencyMeasured ? root.videoItem.displayLatencyMs : 0)
+                            font.pixelSize: 22
+                            font.bold: true
+                            font.family: "Monospace"
+                            Behavior on color { ColorAnimation { duration: 300 } }
+                        }
+                        Text {
+                            text: "ms avg"
+                            color: "#8894ab"
+                            font.pixelSize: 11
+                            Layout.alignment: Qt.AlignBottom
+                        }
+                        Item { Layout.fillWidth: true }
+                        Repeater {
+                            model: [
+                                { label: "LAST", key: "displayLatencyLastMs" },
+                                { label: "MIN", key: "displayLatencyMinMs" },
+                                { label: "MAX", key: "displayLatencyMaxMs" }
+                            ]
+                            delegate: ColumnLayout {
+                                spacing: 0
+                                Layout.leftMargin: 10
+                                Text {
+                                    text: modelData.label
+                                    color: "#525c70"
+                                    font.pixelSize: 9
+                                    font.bold: true
+                                    Layout.alignment: Qt.AlignRight
+                                }
+                                Text {
+                                    text: root.latencyMeasured ? root.videoItem[modelData.key].toFixed(1) : "--"
+                                    color: "#f0f4fc"
+                                    font.pixelSize: 12
+                                    font.family: "Monospace"
+                                    Layout.alignment: Qt.AlignRight
+                                }
+                            }
+                        }
+                    }
+
+                    // Budget bar: average latency on a 0–100 ms scale, marker at one 30 FPS frame
+                    Rectangle {
+                        Layout.fillWidth: true
+                        height: 4
+                        radius: 2
+                        color: "#212530"
+
+                        Rectangle {
+                            height: parent.height
+                            radius: 2
+                            width: root.latencyMeasured
+                                   ? parent.width * Math.min(1.0, root.videoItem.displayLatencyMs / 100.0)
+                                   : 0
+                            color: root.latencyColor(root.latencyMeasured ? root.videoItem.displayLatencyMs : 0)
+                            Behavior on width { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
+                            Behavior on color { ColorAnimation { duration: 300 } }
+                        }
+
+                        // 1-frame marker at 33.3 ms
+                        Rectangle {
+                            x: parent.width * 0.333
+                            width: 1
+                            height: parent.height + 4
+                            anchors.verticalCenter: parent.verticalCenter
+                            color: "#8894ab"
+                            opacity: 0.6
+                        }
+                    }
+                }
+
+                HoverHandler { id: latencyHover }
+                ToolTip.visible: latencyHover.hovered
+                ToolTip.delay: 400
+                ToolTip.text: "Time from decode completion to QQuickWindow::frameSwapped\n"
+                              + "Rolling window of 120 frames. Bar: 0–100 ms, marker = 1 frame @30 FPS.\n"
+                              + "Measured frames: " + (root.videoItem ? root.videoItem.presentedFrames : 0)
+
+                MouseArea {
+                    anchors.fill: parent
+                    acceptedButtons: Qt.RightButton
+                    onClicked: if (root.videoItem) root.videoItem.resetLatency()
                 }
             }
         }

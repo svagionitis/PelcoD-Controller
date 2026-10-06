@@ -357,6 +357,11 @@ signals:
     /// @param[in] frame Decoded QImage frame.
     void frameDecoded(const QImage& frame);
 
+    /// @brief Emitted alongside frameDecoded with the decode-completion stamp for latency measurement.
+    /// @param[in] frame Decoded QImage frame.
+    /// @param[in] decodedAtNs Video::steadyNowNs() stamp at decode completion (0 = not measurable, e.g. scrub).
+    void timedFrameDecoded(const QImage& frame, qint64 decodedAtNs);
+
     /// @brief Emitted when a new PIP frame is decoded.
     /// @param[in] frame Decoded secondary QImage frame.
     void pipFrameDecoded(const QImage& frame);

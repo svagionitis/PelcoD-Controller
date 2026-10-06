@@ -5,6 +5,7 @@
 
 #include <QFont>
 #include <QPen>
+#include <QQuickWindow>
 #include <algorithm>
 #include <cmath>
 
@@ -15,6 +16,10 @@ VideoQuickItem::VideoQuickItem(QQuickItem* parent)
 {
     setAntialiasing(true);
     setOpaquePainting(true);
+
+    m_latencyTimer.setInterval(kLatencyPublishMs);
+    connect(&m_latencyTimer, &QTimer::timeout, this, &VideoQuickItem::publishLatency);
+    m_latencyTimer.start();
 }
 
 VideoQuickItem::FillMode VideoQuickItem::fillMode() const noexcept
@@ -62,6 +67,11 @@ void VideoQuickItem::setShowOsdCrosshair(bool show)
 
 void VideoQuickItem::updateFrame(const QImage& frame)
 {
+    updateTimedFrame(frame, 0);
+}
+
+void VideoQuickItem::updateTimedFrame(const QImage& frame, qint64 decodedAtNs)
+{
     if (frame.isNull()) {
         return;
     }
@@ -72,6 +82,8 @@ void VideoQuickItem::updateFrame(const QImage& frame)
     {
         QMutexLocker locker(&m_mutex);
         m_currentFrame = frame;
+        // A newer frame supersedes an unpainted one: that frame never reached the display.
+        m_pendingStampNs = (decodedAtNs > 0) ? decodedAtNs : 0;
         hadFrameBefore = m_hasFrame;
         m_hasFrame = true;
 
@@ -92,15 +104,91 @@ void VideoQuickItem::updateFrame(const QImage& frame)
     update();
 }
 
+void VideoQuickItem::notifyFrameSwapped()
+{
+    const std::int64_t stampNs { m_paintedStampNs.exchange(0) };
+    if (stampNs > 0) {
+        static_cast<void>(m_latency.addInterval(stampNs, Video::steadyNowNs()));
+    }
+}
+
+void VideoQuickItem::publishLatency()
+{
+    const Video::LatencyStats stats { m_latency.snapshot() };
+    if (stats.count != m_latencyStats.count) {
+        m_latencyStats = stats;
+        emit displayLatencyChanged();
+    }
+}
+
+void VideoQuickItem::resetLatency()
+{
+    {
+        QMutexLocker locker(&m_mutex);
+        m_pendingStampNs = 0;
+    }
+    m_paintedStampNs.store(0);
+    m_latency.reset();
+    publishLatency();
+}
+
+double VideoQuickItem::displayLatencyMs() const noexcept
+{
+    return m_latencyStats.avgMs;
+}
+
+double VideoQuickItem::displayLatencyLastMs() const noexcept
+{
+    return m_latencyStats.lastMs;
+}
+
+double VideoQuickItem::displayLatencyMinMs() const noexcept
+{
+    return m_latencyStats.minMs;
+}
+
+double VideoQuickItem::displayLatencyMaxMs() const noexcept
+{
+    return m_latencyStats.maxMs;
+}
+
+qulonglong VideoQuickItem::presentedFrames() const noexcept
+{
+    return static_cast<qulonglong>(m_latencyStats.count);
+}
+
+void VideoQuickItem::itemChange(ItemChange change, const ItemChangeData& value)
+{
+    if (change == ItemSceneChange) {
+        bindWindow(value.window);
+    }
+    QQuickPaintedItem::itemChange(change, value);
+}
+
+void VideoQuickItem::bindWindow(QQuickWindow* window)
+{
+    if (m_swapConnection) {
+        static_cast<void>(disconnect(m_swapConnection));
+        m_swapConnection = QMetaObject::Connection {};
+    }
+    if (window != nullptr) {
+        // Direct: frameSwapped is emitted on the render thread right after the swap.
+        m_swapConnection = connect(
+            window, &QQuickWindow::frameSwapped, this, &VideoQuickItem::notifyFrameSwapped, Qt::DirectConnection);
+    }
+}
+
 void VideoQuickItem::clearFrame()
 {
     {
         QMutexLocker locker(&m_mutex);
         m_currentFrame = QImage();
+        m_pendingStampNs = 0;
         m_hasFrame = false;
         m_videoWidth = 0;
         m_videoHeight = 0;
     }
+    m_paintedStampNs.store(0);
 
     emit hasFrameChanged();
     emit videoSizeChanged();
@@ -129,6 +217,11 @@ void VideoQuickItem::paint(QPainter* painter)
         if (m_hasFrame && !m_currentFrame.isNull()) {
             frameCopy = m_currentFrame;
             valid = true;
+            // Latch once per frame: repaints of the same frame are not re-measured.
+            if (m_pendingStampNs > 0) {
+                m_paintedStampNs.store(static_cast<std::int64_t>(m_pendingStampNs));
+                m_pendingStampNs = 0;
+            }
         }
     }
 

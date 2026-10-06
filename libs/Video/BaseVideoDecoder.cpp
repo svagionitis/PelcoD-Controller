@@ -18,6 +18,7 @@ FrameInfo BaseVideoDecoder::getRawFrameData() const
     info.size = m_frameBuffer.size();
     info.timestamp = m_timestamp;
     info.decodeTimeMs = m_lastDecodeTimeMs;
+    info.decodedAtNs = m_decodedAtNs;
     info.format = m_outputFormat;
     return info;
 }

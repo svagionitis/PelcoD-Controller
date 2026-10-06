@@ -1,4 +1,5 @@
 #include "MockVideoDecoder.h"
+#include "LatencyTracker.h"
 
 #include <algorithm>
 #include <chrono>
@@ -88,6 +89,7 @@ bool MockVideoDecoder::decodeNextFrame()
     m_lastDecodeTimeMs = std::chrono::duration<double, std::milli>(t1 - t0).count();
     m_totalDecodeTimeMs += m_lastDecodeTimeMs;
     ++m_decodedFramesCount;
+    m_decodedAtNs = steadyNowNs();
 
     publishToTripleBuffer(
         m_frameBuffer.data(), m_width, m_height, frameBytes, m_timestamp, m_lastDecodeTimeMs, m_outputFormat);
