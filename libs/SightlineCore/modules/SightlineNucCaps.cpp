@@ -174,6 +174,9 @@ const char* SightlineNucCaps::errorText(NucError err) noexcept
     case NucError::Busy:
         text = "A NUC workflow is already running";
         break;
+    case NucError::NameCount:
+        text = "Too many names for a multi-NUC run";
+        break;
     default:
         text = "Unknown error";
         break;

@@ -2,7 +2,7 @@
 /// @brief Unit tests for Isotherm Color LUT Builder, BT.601 conversions, and AGC limits.
 
 #include "modules/SightlineIsothermBuilder.h"
-#include "modules/SightlineNucParser.h"
+#include "modules/SightlinePaletteParser.h"
 #include "SightlineDevice.h"
 #include "SightlineFraming.h"
 
@@ -188,7 +188,7 @@ TEST_F(TestSightlineIsotherm, SerializationAndPacket)
     EXPECT_EQ(SightlineFraming::identifyMessage(pkt), MessageId::SetUserPalette);
 
     MsgUserPalette parsed {};
-    ASSERT_TRUE(SightlineNucParser::parseUserPalette(pkt, parsed));
+    ASSERT_TRUE(SightlinePaletteParser::parseUserPalette(pkt, parsed));
     EXPECT_EQ(parsed.paletteIndex, 0U);
     EXPECT_EQ(parsed.lutData.size(), 768U);
     EXPECT_EQ(parsed.lutData, yuvBytes);

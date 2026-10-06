@@ -53,7 +53,8 @@ enum class NucError : std::uint8_t {
     StateUnknown = 14U, ///< Command would overwrite board settings not yet read back (query 0x35)
     NotSent = 15U, ///< Transport rejected the packet
     NotRunning = 16U, ///< No workflow step is pending
-    Busy = 17U ///< A workflow is already running
+    Busy = 17U, ///< A workflow is already running
+    NameCount = 18U ///< Multi-NUC name list exceeds kMaxMultiNuc entries
 };
 
 /// @class SightlineNucCaps

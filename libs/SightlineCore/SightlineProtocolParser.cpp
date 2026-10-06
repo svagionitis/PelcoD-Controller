@@ -4,6 +4,7 @@
 #include "SightlineProtocolParser.h"
 #include "SightlineFraming.h"
 #include "modules/SightlineBlendingParser.h"
+#include "modules/SightlineCalibrationParser.h"
 #include "modules/SightlineCaptureParser.h"
 #include "modules/SightlineClassificationParser.h"
 #include "modules/SightlineCompressionParser.h"
@@ -17,6 +18,7 @@
 #include "modules/SightlineNetworkParser.h"
 #include "modules/SightlineNucParser.h"
 #include "modules/SightlineOverlayParser.h"
+#include "modules/SightlinePaletteParser.h"
 #include "modules/SightlineRecordingParser.h"
 #include "modules/SightlineSerialParser.h"
 #include "modules/SightlineStabilizationParser.h"
@@ -325,7 +327,7 @@ bool SightlineProtocolParser::parseReadWriteNuc(ByteView packet, MsgReadWriteNuc
 
 bool SightlineProtocolParser::parseUserPalette(ByteView packet, MsgUserPalette& out)
 {
-    return SightlineNucParser::parseUserPalette(packet, out);
+    return SightlinePaletteParser::parseUserPalette(packet, out);
 }
 
 bool SightlineProtocolParser::parseDeadPixelStats(ByteView packet, MsgDeadPixelStats& out)
@@ -335,12 +337,12 @@ bool SightlineProtocolParser::parseDeadPixelStats(ByteView packet, MsgDeadPixelS
 
 bool SightlineProtocolParser::parseCameraCalibration(ByteView packet, MsgCameraCalibration& out)
 {
-    return SightlineNucParser::parseCameraCalibration(packet, out);
+    return SightlineCalibrationParser::parseCameraCalibration(packet, out);
 }
 
 bool SightlineProtocolParser::parseCameraParameterFile(ByteView packet, MsgCameraParameterFile& out)
 {
-    return SightlineNucParser::parseCameraParameterFile(packet, out);
+    return SightlineCalibrationParser::parseCameraParameterFile(packet, out);
 }
 
 // ==============================================================================

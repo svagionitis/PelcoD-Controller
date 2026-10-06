@@ -69,7 +69,7 @@
 /// @endverbatim
 
 #include "SightlineCapture.h"
-#include "SightlineNuc.h"
+#include "SightlinePalette.h"
 #include "SightlineRadiometry.h"
 #include "SightlineTypes.h"
 

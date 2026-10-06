@@ -26,6 +26,11 @@ namespace {
     constexpr const char* kPromptDone { "Complete. Save the table or set it as the startup default if required." };
     constexpr const char* kPromptAbort { "Aborted. Frames already added stay on the board until cleared." };
 
+    /// @brief Firmware gate for multi-NUC: nucName is documented in IDD 3.11.
+    constexpr std::uint8_t kMultiMajor { 3U };
+    /// @brief Firmware gate for multi-NUC: nucName is documented in IDD 3.11.
+    constexpr std::uint8_t kMultiMinor { 11U };
+
     /// @brief Returns the ordinal of a tail for length comparisons.
     /// @param[in] tail Tail.
     /// @return 0 (Base) .. 3 (Named).
@@ -128,7 +133,7 @@ NucError NucWorkflow::next()
     if ((m_stage != NucStage::Running) || (m_step >= m_steps.size())) {
         return NucError::NotRunning;
     }
-    const NucError err { runStep(m_steps[m_step].action) };
+    const NucError err { runStep(m_steps[m_step]) };
     if (err != NucError::Ok) {
         m_lastError = err;
         m_stage = NucStage::Failed;
@@ -173,7 +178,7 @@ const char* NucWorkflow::prompt() const noexcept
     const char* text { kPromptIdle };
     switch (m_stage) {
     case NucStage::Running:
-        text = (m_step < m_steps.size()) ? m_steps[m_step].prompt : kPromptDone;
+        text = (m_step < m_steps.size()) ? m_steps[m_step].prompt.c_str() : kPromptDone;
         break;
     case NucStage::Done:
         text = kPromptDone;
@@ -225,12 +230,12 @@ NucError NucWorkflow::calcDead(const DprLimits& limits)
 
 NucError NucWorkflow::calcReplace()
 {
-    return sendRun(NucRunMode::CalcReplace, 0U);
+    return sendRun(NucRunMode::CalcReplace, 0U, std::string {});
 }
 
 NucError NucWorkflow::autoDead()
 {
-    return sendRun(NucRunMode::AutoDead, 0U);
+    return sendRun(NucRunMode::AutoDead, 0U, std::string {});
 }
 
 NucError NucWorkflow::setReplace(const DprReplace& rep)
@@ -367,6 +372,13 @@ NucError NucWorkflow::planSteps(NucRecipe recipe, const NucOptions& options)
             { StepAction::NoiseRead, "Waiting for 'Noise stats calculation complete'; retrieve results manually if needed." },
         };
         break;
+    case NucRecipe::MultiNuc: {
+        const NucError err { planMulti(options.names, steps) };
+        if (err != NucError::Ok) {
+            return err;
+        }
+        break;
+    }
     default:
         return NucError::Unsupported;
     }
@@ -374,30 +386,79 @@ NucError NucWorkflow::planSteps(NucRecipe recipe, const NucOptions& options)
     return NucError::Ok;
 }
 
-NucError NucWorkflow::runStep(StepAction action)
+NucError NucWorkflow::planMulti(const std::vector<std::string>& names, std::vector<Step>& steps) const
+{
+    if (!SightlineNucCaps::atLeast(m_fw, kMultiMajor, kMultiMinor)) {
+        return NucError::Unsupported;
+    }
+    if (!m_hasState) {
+        return NucError::StateUnknown; // nucName needs the full 0x35 layout
+    }
+    if (names.empty()) {
+        return NucError::FileNameBlank;
+    }
+    if (names.size() > kMaxMultiNuc) {
+        return NucError::NameCount;
+    }
+    for (std::size_t i { 0U }; i < names.size(); ++i) {
+        if (names[i].empty()) {
+            return NucError::FileNameBlank;
+        }
+        MsgNucParameters probe {};
+        probe.nucRunMode = NucRunMode::AddFrames;
+        probe.nucName = names[i];
+        const NucError err { SightlineNucBuilder::checkNucParams(probe, m_fw) };
+        if (err != NucError::Ok) {
+            return err;
+        }
+        for (std::size_t j { 0U }; j < i; ++j) {
+            if (names[j] == names[i]) {
+                return NucError::NameInvalid;
+            }
+        }
+    }
+
+    std::vector<Step> out {};
+    out.reserve(names.size() * 3U);
+    for (const std::string& name : names) {
+        out.push_back({ StepAction::AddFrames,
+            "[unverified] Point at a uniform COLD source with the lens at '" + name + "', then add frames.", name });
+    }
+    for (const std::string& name : names) {
+        out.push_back({ StepAction::AddFrames,
+            "[unverified] Point at a uniform HOT source with the lens at '" + name + "', then add frames.", name });
+    }
+    for (const std::string& name : names) {
+        out.push_back({ StepAction::Calc2Point, "[unverified] Calculate the 2-point NUC for '" + name + "'.", name });
+    }
+    steps = std::move(out);
+    return NucError::Ok;
+}
+
+NucError NucWorkflow::runStep(const Step& step)
 {
     NucError err { NucError::Ok };
-    switch (action) {
+    switch (step.action) {
     case StepAction::ResetAll:
-        err = sendRun(NucRunMode::ResetAll, 0U);
+        err = sendRun(NucRunMode::ResetAll, 0U, step.name);
         break;
     case StepAction::AddFrames:
-        err = sendRun(NucRunMode::AddFrames, m_options.numFrames);
+        err = sendRun(NucRunMode::AddFrames, m_options.numFrames, step.name);
         break;
     case StepAction::Calc2Point:
-        err = sendRun(NucRunMode::Calc2Point, 0U);
+        err = sendRun(NucRunMode::Calc2Point, 0U, step.name);
         if (err == NucError::Ok) {
             m_state.nucShow = NucShow::NucAndDpr; // EAN 3.4 step 7: 2-pt enables NUC and DPR
         }
         break;
     case StepAction::ClearFrames:
-        err = sendRun(NucRunMode::ClearFrames, 0U);
+        err = sendRun(NucRunMode::ClearFrames, 0U, step.name);
         break;
     case StepAction::Calc1Point:
-        err = sendRun(NucRunMode::Calc1Point, 0U);
+        err = sendRun(NucRunMode::Calc1Point, 0U, step.name);
         break;
     case StepAction::Flatten:
-        err = sendRun(NucRunMode::ShutterFlatten, m_options.numFrames);
+        err = sendRun(NucRunMode::ShutterFlatten, m_options.numFrames, step.name);
         break;
     case StepAction::SaveFlatten: {
         MsgReadWriteNuc save {};
@@ -407,7 +468,7 @@ NucError NucWorkflow::runStep(StepAction action)
         break;
     }
     case StepAction::NoiseCalc:
-        err = sendRun(NucRunMode::Noise3DStats, m_options.numFrames);
+        err = sendRun(NucRunMode::Noise3DStats, m_options.numFrames, step.name);
         break;
     case StepAction::NoiseRead:
         err = queryNoise() ? NucError::Ok : NucError::NotSent;
@@ -419,11 +480,12 @@ NucError NucWorkflow::runStep(StepAction action)
     return err;
 }
 
-NucError NucWorkflow::sendRun(NucRunMode run, std::uint8_t frames)
+NucError NucWorkflow::sendRun(NucRunMode run, std::uint8_t frames, const std::string& name)
 {
     MsgNucParameters msg { baseMsg() };
     msg.nucRunMode = run;
     msg.numFrames = frames;
+    msg.nucName = name;
     return sendNuc(msg, runTail());
 }
 

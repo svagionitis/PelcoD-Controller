@@ -291,4 +291,50 @@ TEST_F(NucControllerTest, ResetForgetsFirmware)
     EXPECT_FALSE(m_ctl->caps().value(QStringLiteral("dpr")).toBool());
 }
 
+TEST_F(NucControllerTest, MultiCapNeedsFw311)
+{
+    setFw(3U, 10U);
+    EXPECT_FALSE(m_ctl->caps().value(QStringLiteral("multi")).toBool());
+    setFw(3U, 11U);
+    EXPECT_TRUE(m_ctl->caps().value(QStringLiteral("multi")).toBool());
+}
+
+TEST_F(NucControllerTest, StartMultiSendsNamedSteps)
+{
+    setFw(3U, 11U);
+    m_ctl->onNucParams(Sightline::MsgNucParameters {});
+    const QStringList names { QStringLiteral(" lensA "), QString {}, QStringLiteral("lensB") };
+    ASSERT_TRUE(m_ctl->startMulti(20, names).isEmpty());
+    EXPECT_EQ(m_ctl->stepCount(), 6);
+    EXPECT_TRUE(m_ctl->prompt().contains(QStringLiteral("lensA")));
+
+    while (m_ctl->busy()) {
+        ASSERT_TRUE(m_ctl->next().isEmpty());
+    }
+    ASSERT_EQ(m_sent.size(), 6U);
+    const Packet last { payloadAt(5U) };
+    ASSERT_EQ(last.size(), 36U + 5U);
+    EXPECT_EQ(last[2], 8U);
+    EXPECT_EQ(last[35], 5U);
+    EXPECT_EQ(last[36], static_cast<std::uint8_t>('l'));
+    EXPECT_EQ(last[40], static_cast<std::uint8_t>('B'));
+}
+
+TEST_F(NucControllerTest, StartMultiValidates)
+{
+    setFw(3U, 11U);
+    EXPECT_FALSE(m_ctl->startMulti(20, { QStringLiteral("a") }).isEmpty()); // no board state
+    m_ctl->onNucParams(Sightline::MsgNucParameters {});
+    EXPECT_FALSE(m_ctl->startMulti(256, { QStringLiteral("a") }).isEmpty());
+    EXPECT_FALSE(m_ctl->startMulti(20, {}).isEmpty());
+    EXPECT_FALSE(m_ctl->startMulti(20, { QStringLiteral("a b") }).isEmpty());
+
+    Sightline::MsgSetStabilizationParameters stab {};
+    stab.mode = 1U;
+    m_ctl->onStabilization(stab);
+    EXPECT_FALSE(m_ctl->startMulti(20, { QStringLiteral("a") }).isEmpty());
+    EXPECT_FALSE(m_ctl->busy());
+    EXPECT_TRUE(m_sent.empty());
+}
+
 } // namespace

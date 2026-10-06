@@ -121,35 +121,10 @@ public:
     [[nodiscard]] static std::vector<std::uint8_t> buildGetReadWriteNuc(
         NucTableQuery query, std::uint8_t cameraIndex = 0U);
 
-    /// @brief Encodes custom pseudo-color thermal palette table (Message ID 0x72).
-    /// @param[in] msg User palette table.
-    /// @return Framed binary packet.
-    [[nodiscard]] static std::vector<std::uint8_t> buildSetUserPalette(const MsgUserPalette& msg);
-
-    /// @brief Encodes query for active user palette (Message ID 0x28 query 0x72).
-    /// @param[in] paletteIndex Palette slot index.
-    /// @return Framed binary packet.
-    [[nodiscard]] static std::vector<std::uint8_t> buildGetUserPalette(std::uint8_t paletteIndex = 0U);
-
     /// @brief Encodes query for dead pixel detection statistics (Message ID 0x28 query 0xA1).
     /// @param[in] cameraIndex Target camera index.
     /// @return Framed binary packet; the reply is a MsgDeadPixelStats (0xA1).
     [[nodiscard]] static std::vector<std::uint8_t> buildGetDeadPixelStats(std::uint8_t cameraIndex = 0U);
-
-    /// @brief Encodes geometric camera intrinsic calibration parameters (Message ID 0xC0).
-    /// @param[in] msg Camera calibration parameters.
-    /// @return Framed binary packet.
-    [[nodiscard]] static std::vector<std::uint8_t> buildCameraCalibration(const MsgCameraCalibration& msg);
-
-    /// @brief Encodes query for camera calibration parameters (Message ID 0x28 query 0xC0).
-    /// @param[in] cameraIndex Target camera index.
-    /// @return Framed binary packet.
-    [[nodiscard]] static std::vector<std::uint8_t> buildGetCameraCalibration(std::uint8_t cameraIndex = 0U);
-
-    /// @brief Encodes camera parameter file load/save command (Message ID 0xC2).
-    /// @param[in] msg Camera parameter file parameters.
-    /// @return Framed binary packet.
-    [[nodiscard]] static std::vector<std::uint8_t> buildCameraParameterFile(const MsgCameraParameterFile& msg);
 };
 
 } // namespace Sightline

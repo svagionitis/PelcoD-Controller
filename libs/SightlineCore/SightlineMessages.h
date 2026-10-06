@@ -21,6 +21,8 @@
 #include "modules/SightlineLanding.h"
 #include "modules/SightlineNetwork.h"
 #include "modules/SightlineNuc.h"
+#include "modules/SightlineCalibration.h"
+#include "modules/SightlinePalette.h"
 #include "modules/SightlineOverlay.h"
 #include "modules/SightlineRecording.h"
 #include "modules/SightlineSerial.h"

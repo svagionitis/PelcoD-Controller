@@ -9,8 +9,10 @@
 #include "modules/SightlineLandingBuilder.h"
 #include "modules/SightlineLandingParser.h"
 #include "modules/SightlineNetworkParser.h"
-#include "modules/SightlineNucBuilder.h"
-#include "modules/SightlineNucParser.h"
+#include "modules/SightlineCalibrationBuilder.h"
+#include "modules/SightlineCalibrationParser.h"
+#include "modules/SightlinePaletteBuilder.h"
+#include "modules/SightlinePaletteParser.h"
 #include "modules/SightlineSerialBuilder.h"
 #include "modules/SightlineSerialParser.h"
 
@@ -122,11 +124,11 @@ namespace {
         palMsg.paletteIndex = 1U;
         palMsg.lutData = { 0x10U, 0x20U, 0x30U, 0x40U, 0x50U };
 
-        const auto palPkt = SightlineNucBuilder::buildSetUserPalette(palMsg);
+        const auto palPkt = SightlinePaletteBuilder::buildSetUserPalette(palMsg);
         EXPECT_EQ(SightlineFraming::identifyMessage(palPkt), MessageId::SetUserPalette);
 
         MsgUserPalette palOut {};
-        ASSERT_TRUE(SightlineNucParser::parseUserPalette(palPkt, palOut));
+        ASSERT_TRUE(SightlinePaletteParser::parseUserPalette(palPkt, palOut));
         EXPECT_EQ(palOut.paletteIndex, 1U);
         EXPECT_EQ(palOut.lutData, palMsg.lutData);
 
@@ -142,11 +144,11 @@ namespace {
         calibMsg.tangentialP1 = 0.001F;
         calibMsg.tangentialP2 = -0.002F;
 
-        const auto calibPkt = SightlineNucBuilder::buildCameraCalibration(calibMsg);
+        const auto calibPkt = SightlineCalibrationBuilder::buildCameraCalibration(calibMsg);
         EXPECT_EQ(SightlineFraming::identifyMessage(calibPkt), MessageId::CameraCalibration);
 
         MsgCameraCalibration calibOut {};
-        ASSERT_TRUE(SightlineNucParser::parseCameraCalibration(calibPkt, calibOut));
+        ASSERT_TRUE(SightlineCalibrationParser::parseCameraCalibration(calibPkt, calibOut));
         EXPECT_EQ(calibOut.cameraIndex, 0U);
         EXPECT_FLOAT_EQ(calibOut.focalLengthX, 1000.5F);
         EXPECT_FLOAT_EQ(calibOut.focalLengthY, 1000.8F);
@@ -163,11 +165,11 @@ namespace {
         paramFileMsg.action = 0U; // Load
         paramFileMsg.filename = "boson640_calib.bin";
 
-        const auto filePkt = SightlineNucBuilder::buildCameraParameterFile(paramFileMsg);
+        const auto filePkt = SightlineCalibrationBuilder::buildCameraParameterFile(paramFileMsg);
         EXPECT_EQ(SightlineFraming::identifyMessage(filePkt), MessageId::CameraParameterFile);
 
         MsgCameraParameterFile fileOut {};
-        ASSERT_TRUE(SightlineNucParser::parseCameraParameterFile(filePkt, fileOut));
+        ASSERT_TRUE(SightlineCalibrationParser::parseCameraParameterFile(filePkt, fileOut));
         EXPECT_EQ(fileOut.cameraIndex, 1U);
         EXPECT_EQ(fileOut.action, 0U);
         EXPECT_EQ(fileOut.filename, "boson640_calib.bin");

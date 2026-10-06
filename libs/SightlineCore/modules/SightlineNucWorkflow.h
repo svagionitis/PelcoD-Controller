@@ -35,6 +35,29 @@
 ///          ```
 ///
 ///          Not thread-safe: call from a single thread (for example, the Qt GUI thread).
+///
+///          Multi-NUC (UNVERIFIED ON HARDWARE). The IDD (3.11) defines 0x35 nucName only as
+///          "Name of NUC to add the frames to when creating multiple NUCs at once"; EAN 4.3 / 4.4
+///          do not give the command sequence. The recipe below is an interpretation: frames
+///          are added per name, then a 2-point calculation is run per name with nucName set.
+///          Confirm against a board before relying on it.
+///
+///          ```
+///          start(MultiNuc, names = {A, B})
+///            [0] AddFrames run=1 N name=A   (COLD, lens at A)
+///            [1] AddFrames run=1 N name=B   (COLD, lens at B)
+///            [2] AddFrames run=1 N name=A   (HOT,  lens at A)
+///            [3] AddFrames run=1 N name=B   (HOT,  lens at B)
+///            [4] Calc2Pt   run=8 0 name=A
+///            [5] Calc2Pt   run=8 0 name=B   -> Done
+///          ```
+///
+///          ```mermaid
+///          flowchart LR
+///              C["Cold frames: each name"] --> H["Hot frames: each name"]
+///              H --> K["2-point calc: each name"]
+///              K --> D([Done])
+///          ```
 
 #include "SightlineGeneral.h"
 #include "SightlineNuc.h"
@@ -54,8 +77,12 @@ enum class NucRecipe : std::uint8_t {
     TwoPoint = 0U, ///< EAN 3.4: reset, hot frames, cold frames, 2-point calculation
     OnePoint = 1U, ///< EAN 4.6 / A4: clear frames, add frames, 1-point calculation
     ShutterFlatten = 2U, ///< EAN 4.7 / 4.7.1: shutter flatten, optional "_shutter_only" save
-    NoiseStats = 3U ///< EAN 5.5: calculate 3D noise statistics, then read 0xAF
+    NoiseStats = 3U, ///< EAN 5.5: calculate 3D noise statistics, then read 0xAF
+    MultiNuc = 4U ///< IDD 0x35 nucName (FW 3.11): one table per name; unverified on hardware
 };
+
+/// @brief Maximum number of names in one multi-NUC run.
+inline constexpr std::size_t kMaxMultiNuc { 16U };
 
 /// @enum NucStage
 /// @brief Lifecycle of the current recipe.
@@ -72,6 +99,7 @@ enum class NucStage : std::uint8_t {
 struct NucOptions {
     std::uint8_t numFrames { 30U }; ///< Frames per capture step (EAN 3.4 default 30)
     std::string saveName {}; ///< ShutterFlatten only: "_shutter_only" table name (FW 3.11); empty = no save
+    std::vector<std::string> names {}; ///< MultiNuc only: unique table names, 1..kMaxMultiNuc
 };
 
 /// @struct DprLimits
@@ -145,7 +173,8 @@ public:
     /// @brief Starts a recipe; nothing is sent until next().
     /// @param[in] recipe Procedure to run.
     /// @param[in] options Recipe parameters.
-    /// @return NucError::Ok, Busy, Unsupported, or a save-name validation error.
+    /// @return NucError::Ok, Busy, Unsupported, StateUnknown (MultiNuc without a cached 0x35),
+    ///         NameCount, or a name validation error.
     [[nodiscard]] NucError start(NucRecipe recipe, const NucOptions& options);
 
     /// @brief Sends the current step and advances.
@@ -173,7 +202,8 @@ public:
     [[nodiscard]] std::size_t stepCount() const noexcept;
 
     /// @brief Returns the operator instruction for the current state.
-    /// @return Static, null-terminated string; never null.
+    /// @details The pointer stays valid until the next successful start().
+    /// @return Null-terminated string; never null.
     [[nodiscard]] const char* prompt() const noexcept;
 
     /// @brief Returns the error that ended the last recipe (Ok if none).
@@ -259,7 +289,8 @@ private:
     /// @brief One recipe step.
     struct Step {
         StepAction action { StepAction::ResetAll }; ///< What next() sends
-        const char* prompt { "" }; ///< Operator instruction shown before sending
+        std::string prompt {}; ///< Operator instruction shown before sending
+        std::string name {}; ///< 0x35 nucName for this step (MultiNuc only)
     };
 
     /// @brief Validates recipe preconditions and fills m_steps.
@@ -268,16 +299,23 @@ private:
     /// @return NucError::Ok or the reason the recipe cannot run.
     [[nodiscard]] NucError planSteps(NucRecipe recipe, const NucOptions& options);
 
-    /// @brief Executes one step action.
-    /// @param[in] action Step action.
+    /// @brief Validates multi-NUC preconditions and builds its steps.
+    /// @param[in] names Table names.
+    /// @param[out] steps Planned steps; filled only on success.
+    /// @return NucError::Ok or the reason the recipe cannot run.
+    [[nodiscard]] NucError planMulti(const std::vector<std::string>& names, std::vector<Step>& steps) const;
+
+    /// @brief Executes one step.
+    /// @param[in] step Step to send.
     /// @return NucError::Ok or the failure.
-    [[nodiscard]] NucError runStep(StepAction action);
+    [[nodiscard]] NucError runStep(const Step& step);
 
     /// @brief Sends a 0x35 run command built from the cached state.
     /// @param[in] run Run mode.
     /// @param[in] frames numFrames.
+    /// @param[in] name nucName (empty for single-table recipes).
     /// @return NucError::Ok or the failure.
-    [[nodiscard]] NucError sendRun(NucRunMode run, std::uint8_t frames);
+    [[nodiscard]] NucError sendRun(NucRunMode run, std::uint8_t frames, const std::string& name);
 
     /// @brief Validates, encodes with @p tail, sends, and updates the cached state.
     /// @param[in] msg Message to send.

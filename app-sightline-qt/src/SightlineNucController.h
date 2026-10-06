@@ -102,7 +102,8 @@ public:
     [[nodiscard]] QString firmware() const;
 
     /// @brief Returns firmware-gated feature flags.
-    /// @details Keys: dpr (3.3), noise (3.4), destripe (3.9), named (3.10), shutterSave (3.11).
+    /// @details Keys: dpr (3.3), noise (3.4), destripe (3.9), named (3.10), shutterSave (3.11),
+    ///          multi (3.11, multi-NUC recipe; unverified on hardware).
     /// @return Capability map.
     [[nodiscard]] QVariantMap caps() const;
 
@@ -141,6 +142,14 @@ public:
     /// @param[in] saveName ShutterFlatten only: "_shutter_only" table name, empty = no save.
     /// @return Empty string on success, otherwise the error text.
     Q_INVOKABLE QString start(int recipe, int frames, const QString& saveName);
+
+    /// @brief Starts the multi-NUC recipe (FW 3.11, unverified on hardware).
+    /// @details Names are trimmed and blank entries dropped; the remaining names must be
+    ///          unique, [A-Za-z0-9_-], and at most kMaxMultiNuc. Needs the 0x35 board state.
+    /// @param[in] frames Frames per capture step (0..255).
+    /// @param[in] names One table name per lens position.
+    /// @return Empty string on success, otherwise the error text.
+    Q_INVOKABLE QString startMulti(int frames, const QStringList& names);
 
     /// @brief Sends the current step and advances.
     /// @return Empty string on success, otherwise the error text.

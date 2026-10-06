@@ -177,13 +177,6 @@ struct MsgDeadPixel {
     std::uint8_t d { 0U }; ///< Reserved, 0
 };
 
-/// @struct MsgUserPalette
-/// @brief Ingests or queries custom pseudo-color lookup table (LUT) for thermal sensors (Message ID 0x72 / 0x73).
-struct MsgUserPalette {
-    std::uint8_t paletteIndex { 0U }; ///< Palette slot index (0..3)
-    std::vector<std::uint8_t> lutData {}; ///< Raw RGB or YUV palette table data
-};
-
 // =============================================================================
 // DeadPixelStats (0xA1)
 // =============================================================================
@@ -202,28 +195,6 @@ struct MsgDeadPixelStats {
     std::uint32_t nOffLo { 0U }; ///< Pixels with offset below minimum dead pixel offset
     std::uint32_t nOffHi { 0U }; ///< Pixels with offset above maximum dead pixel offset
     std::uint32_t nDevHi { 0U }; ///< Pixels with std deviation above maximum
-};
-
-/// @struct MsgCameraCalibration
-/// @brief Geometric intrinsic pinhole camera calibration parameters (Message ID 0xC0).
-struct MsgCameraCalibration {
-    std::uint8_t cameraIndex { 0U };
-    float focalLengthX { 0.0F }; ///< fx in pixels
-    float focalLengthY { 0.0F }; ///< fy in pixels
-    float principalPointX { 0.0F }; ///< cx in pixels
-    float principalPointY { 0.0F }; ///< cy in pixels
-    float radialDistortionK1 { 0.0F }; ///< k1 coefficient
-    float radialDistortionK2 { 0.0F }; ///< k2 coefficient
-    float tangentialP1 { 0.0F }; ///< p1 coefficient
-    float tangentialP2 { 0.0F }; ///< p2 coefficient
-};
-
-/// @struct MsgCameraParameterFile
-/// @brief Loads or saves sensor parameter calibration file on local storage (Message ID 0xC2).
-struct MsgCameraParameterFile {
-    std::uint8_t cameraIndex { 0U };
-    std::uint8_t action { 0U }; ///< 0: Load file, 1: Save file, 2: Reset to default
-    std::string filename {}; ///< Target parameter configuration filename
 };
 
 } // namespace Sightline

@@ -4,6 +4,7 @@
 #include "SightlineProtocolBuilder.h"
 #include "SightlineFraming.h"
 #include "modules/SightlineBlendingBuilder.h"
+#include "modules/SightlineCalibrationBuilder.h"
 #include "modules/SightlineCaptureBuilder.h"
 #include "modules/SightlineClassificationBuilder.h"
 #include "modules/SightlineCompressionBuilder.h"
@@ -17,6 +18,7 @@
 #include "modules/SightlineNetworkBuilder.h"
 #include "modules/SightlineNucBuilder.h"
 #include "modules/SightlineOverlayBuilder.h"
+#include "modules/SightlinePaletteBuilder.h"
 #include "modules/SightlineRecordingBuilder.h"
 #include "modules/SightlineSerialBuilder.h"
 #include "modules/SightlineStabilizationBuilder.h"
@@ -583,7 +585,7 @@ std::vector<std::uint8_t> SightlineProtocolBuilder::buildGetReadWriteNuc(NucTabl
 
 std::vector<std::uint8_t> SightlineProtocolBuilder::buildSetUserPalette(const MsgUserPalette& msg)
 {
-    return SightlineNucBuilder::buildSetUserPalette(msg);
+    return SightlinePaletteBuilder::buildSetUserPalette(msg);
 }
 
 std::vector<std::uint8_t> SightlineProtocolBuilder::buildSetIsothermPalette(
@@ -594,12 +596,12 @@ std::vector<std::uint8_t> SightlineProtocolBuilder::buildSetIsothermPalette(
 
 std::vector<std::uint8_t> SightlineProtocolBuilder::buildCameraCalibration(const MsgCameraCalibration& msg)
 {
-    return SightlineNucBuilder::buildCameraCalibration(msg);
+    return SightlineCalibrationBuilder::buildCameraCalibration(msg);
 }
 
 std::vector<std::uint8_t> SightlineProtocolBuilder::buildCameraParameterFile(const MsgCameraParameterFile& msg)
 {
-    return SightlineNucBuilder::buildCameraParameterFile(msg);
+    return SightlineCalibrationBuilder::buildCameraParameterFile(msg);
 }
 
 // ==============================================================================
@@ -766,7 +768,7 @@ std::vector<std::uint8_t> SightlineProtocolBuilder::buildGetNucParameters(std::u
 
 std::vector<std::uint8_t> SightlineProtocolBuilder::buildGetUserPalette(std::uint8_t paletteIndex)
 {
-    return SightlineNucBuilder::buildGetUserPalette(paletteIndex);
+    return SightlinePaletteBuilder::buildGetUserPalette(paletteIndex);
 }
 
 std::vector<std::uint8_t> SightlineProtocolBuilder::buildGetDeadPixelStats(std::uint8_t cameraIndex)
@@ -776,7 +778,7 @@ std::vector<std::uint8_t> SightlineProtocolBuilder::buildGetDeadPixelStats(std::
 
 std::vector<std::uint8_t> SightlineProtocolBuilder::buildGetCameraCalibration(std::uint8_t cameraIndex)
 {
-    return SightlineNucBuilder::buildGetCameraCalibration(cameraIndex);
+    return SightlineCalibrationBuilder::buildGetCameraCalibration(cameraIndex);
 }
 
 std::vector<std::uint8_t> SightlineProtocolBuilder::buildGetOverlayMode(std::uint8_t cameraIndex)

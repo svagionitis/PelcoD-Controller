@@ -410,5 +410,137 @@ namespace {
         EXPECT_EQ(payloadOf(sent[5U]), (Bytes { 0x36U, 0x04U, 0x01U }));
     }
 
+    // =========================================================================
+    // Multi-NUC recipe (IDD 0x35 nucName, FW 3.11) - unverified on hardware
+    // =========================================================================
+
+    /// @brief Returns the nucName carried by a full-layout 0x35 payload.
+    /// @param[in] p Payload (35 fixed bytes + u8 length + characters).
+    /// @return Name, or empty if the payload is too short.
+    std::string nameOf(const Bytes& p)
+    {
+        if (p.size() < 36U) {
+            return {};
+        }
+        const std::size_t len { p[35U] };
+        if (p.size() != (36U + len)) {
+            return {};
+        }
+        std::string name {};
+        for (std::size_t i { 36U }; i < p.size(); ++i) {
+            name.push_back(static_cast<char>(p[i]));
+        }
+        return name;
+    }
+
+    /// @brief Cold frames per name, hot frames per name, then a 2-point calculation per name.
+    TEST_F(NucWorkflowTest, MultiNucSequence)
+    {
+        setup(kFw311, true);
+        NucOptions opt {};
+        opt.numFrames = 20U;
+        opt.names = { "lensA", "lensB" };
+        ASSERT_EQ(wf.start(NucRecipe::MultiNuc, opt), NucError::Ok);
+        EXPECT_TRUE(sent.empty());
+        ASSERT_EQ(wf.stepCount(), 6U);
+
+        const std::string first { wf.prompt() };
+        EXPECT_NE(first.find("COLD"), std::string::npos) << first;
+        EXPECT_NE(first.find("lensA"), std::string::npos) << first;
+
+        runAll();
+        EXPECT_EQ(wf.stage(), NucStage::Done);
+        ASSERT_EQ(sent.size(), 6U);
+
+        const std::uint8_t runs[] { 1U, 1U, 1U, 1U, 8U, 8U };
+        const std::uint8_t frames[] { 20U, 20U, 20U, 20U, 0U, 0U };
+        const char* const names[] { "lensA", "lensB", "lensA", "lensB", "lensA", "lensB" };
+        for (std::size_t i { 0U }; i < 6U; ++i) {
+            const Bytes p { payloadOf(sent[i]) };
+            EXPECT_EQ(p[0U], 1U) << i;
+            EXPECT_EQ(p[2U], runs[i]) << i;
+            EXPECT_EQ(p[3U], frames[i]) << i;
+            EXPECT_EQ(nameOf(p), names[i]) << i;
+        }
+    }
+
+    /// @brief The hot-frame prompts name the target and the hot source.
+    TEST_F(NucWorkflowTest, MultiNucHotPrompt)
+    {
+        setup(kFw311, true);
+        NucOptions opt {};
+        opt.names = { "wide", "narrow" };
+        ASSERT_EQ(wf.start(NucRecipe::MultiNuc, opt), NucError::Ok);
+        ASSERT_EQ(wf.next(), NucError::Ok);
+        ASSERT_EQ(wf.next(), NucError::Ok);
+        const std::string hot { wf.prompt() };
+        EXPECT_NE(hot.find("HOT"), std::string::npos) << hot;
+        EXPECT_NE(hot.find("wide"), std::string::npos) << hot;
+    }
+
+    /// @brief Gated to FW 3.11, where the IDD documents nucName.
+    TEST_F(NucWorkflowTest, MultiNucNeedsFw311)
+    {
+        constexpr FwVersion kFw310 { 3U, 10U };
+        setup(kFw310, true);
+        NucOptions opt {};
+        opt.names = { "a" };
+        EXPECT_EQ(wf.start(NucRecipe::MultiNuc, opt), NucError::Unsupported);
+        EXPECT_EQ(wf.stage(), NucStage::Idle);
+    }
+
+    /// @brief nucName needs the full 0x35 layout, so the board state must be known.
+    TEST_F(NucWorkflowTest, MultiNucNeedsBoardState)
+    {
+        setup(kFw311, false);
+        NucOptions opt {};
+        opt.names = { "a" };
+        EXPECT_EQ(wf.start(NucRecipe::MultiNuc, opt), NucError::StateUnknown);
+    }
+
+    /// @brief Names must be present, unique, short, and use [A-Za-z0-9_-].
+    TEST_F(NucWorkflowTest, MultiNucValidatesNames)
+    {
+        setup(kFw311, true);
+        NucOptions opt {};
+        EXPECT_EQ(wf.start(NucRecipe::MultiNuc, opt), NucError::FileNameBlank);
+
+        opt.names = { "a", "" };
+        EXPECT_EQ(wf.start(NucRecipe::MultiNuc, opt), NucError::FileNameBlank);
+
+        opt.names = { "a", "a" };
+        EXPECT_EQ(wf.start(NucRecipe::MultiNuc, opt), NucError::NameInvalid);
+
+        opt.names = { "lens.nuc" };
+        EXPECT_EQ(wf.start(NucRecipe::MultiNuc, opt), NucError::NameInvalid);
+
+        opt.names = { std::string(64U, 'x') };
+        EXPECT_EQ(wf.start(NucRecipe::MultiNuc, opt), NucError::NameTooLong);
+
+        opt.names.clear();
+        for (std::size_t i { 0U }; i <= kMaxMultiNuc; ++i) {
+            opt.names.push_back("n" + std::to_string(i));
+        }
+        EXPECT_EQ(wf.start(NucRecipe::MultiNuc, opt), NucError::NameCount);
+
+        opt.names.pop_back();
+        EXPECT_EQ(wf.start(NucRecipe::MultiNuc, opt), NucError::Ok);
+        EXPECT_EQ(wf.stepCount(), 3U * kMaxMultiNuc);
+    }
+
+    /// @brief Names are ignored by the single-table recipes.
+    TEST_F(NucWorkflowTest, NamesIgnoredByTwoPoint)
+    {
+        setup(kFw311, true);
+        NucOptions opt {};
+        opt.names = { "lensA" };
+        ASSERT_EQ(wf.start(NucRecipe::TwoPoint, opt), NucError::Ok);
+        runAll();
+        for (const Bytes& pkt : sent) {
+            EXPECT_EQ(payloadOf(pkt).size(), 36U);
+        }
+    }
+
 } // namespace
 } // namespace Sightline
+

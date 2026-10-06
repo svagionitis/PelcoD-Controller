@@ -150,6 +150,7 @@ QVariantMap SightlineNucController::caps() const
     m.insert(QStringLiteral("destripe"), SightlineNucCaps::atLeast(fw, 3U, 9U));
     m.insert(QStringLiteral("named"), SightlineNucCaps::atLeast(fw, 3U, 10U));
     m.insert(QStringLiteral("shutterSave"), SightlineNucCaps::atLeast(fw, 3U, 11U));
+    m.insert(QStringLiteral("multi"), SightlineNucCaps::atLeast(fw, 3U, 11U));
     return m;
 }
 
@@ -205,6 +206,25 @@ QString SightlineNucController::start(int recipe, int frames, const QString& sav
     opts.numFrames = static_cast<std::uint8_t>(frames);
     opts.saveName = saveName.toStdString();
     return report(m_flow.start(static_cast<Sightline::NucRecipe>(recipe), opts));
+}
+
+QString SightlineNucController::startMulti(int frames, const QStringList& names)
+{
+    if (!inRange(frames, 0, kU8Max)) {
+        return fail(errText(Sightline::NucError::ReservedSet));
+    }
+    if (stabilizationOn()) {
+        return fail(tr("Turn stabilization off before running a NUC (EAN-NUC-and-DPR)."));
+    }
+    Sightline::NucOptions opts {};
+    opts.numFrames = static_cast<std::uint8_t>(frames);
+    for (const QString& raw : names) {
+        const QString name { raw.trimmed() };
+        if (!name.isEmpty()) {
+            opts.names.push_back(name.toStdString());
+        }
+    }
+    return report(m_flow.start(Sightline::NucRecipe::MultiNuc, opts));
 }
 
 QString SightlineNucController::next()

@@ -243,7 +243,8 @@ ScrollView {
                         { text: "2-Point (hot + cold source)", need: "" },
                         { text: "1-Point (uniform source)", need: "" },
                         { text: "Shutter Flatten", need: "dpr" },
-                        { text: "3D Noise Statistics", need: "noise" }
+                        { text: "3D Noise Statistics", need: "noise" },
+                        { text: "Multi-NUC (unverified)", need: "multi" }
                     ]
                 }
                 FieldLabel { text: "Frames:" }
@@ -266,6 +267,51 @@ ScrollView {
                     id: flattenName
                     placeholderText: root.caps.shutterSave ? "e.g. field_shutter_only (optional)" : "Requires firmware 3.11"
                     enabled: root.caps.shutterSave === true && root.nuc && !root.nuc.busy
+                }
+            }
+
+            // Multi-NUC (IDD 0x35 nucName, FW 3.11) - sequence not confirmed on hardware
+            ColumnLayout {
+                Layout.fillWidth: true
+                visible: recipeBox.currentIndex === 4
+                spacing: 6
+
+                Rectangle {
+                    Layout.fillWidth: true
+                    implicitHeight: multiNote.implicitHeight + 16
+                    radius: SightlineTheme.radiusMedium
+                    color: Qt.rgba(SightlineTheme.warning.r, SightlineTheme.warning.g, SightlineTheme.warning.b, 0.12)
+                    border.color: SightlineTheme.warning
+                    Text {
+                        id: multiNote
+                        anchors { left: parent.left; right: parent.right; verticalCenter: parent.verticalCenter; margins: 8 }
+                        text: root.caps.multi
+                              ? "Unverified on hardware: cold frames per name, hot frames per name, then a 2-point calculation per name. Requires the 0x35 board state (Refresh)."
+                              : "Requires firmware 3.11."
+                        color: SightlineTheme.textPrimary
+                        font.pixelSize: 11
+                        wrapMode: Text.WordWrap
+                    }
+                }
+
+                FieldLabel { text: "Table names (one per line, [A-Za-z0-9_-], max 16):" }
+                TextArea {
+                    id: multiNames
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 84
+                    enabled: root.caps.multi === true && root.nuc && !root.nuc.busy
+                    placeholderText: "wide\nmedium\nnarrow"
+                    font.pixelSize: 12
+                    font.family: "Monospace"
+                    color: SightlineTheme.textPrimary
+                    selectByMouse: true
+                    wrapMode: TextEdit.NoWrap
+                    background: Rectangle {
+                        radius: SightlineTheme.radiusMedium
+                        color: SightlineTheme.surfaceLight
+                        border.color: multiNames.activeFocus ? SightlineTheme.warning : SightlineTheme.cardBorder
+                        Behavior on border.color { ColorAnimation { duration: 150 } }
+                    }
                 }
             }
 
@@ -373,8 +419,10 @@ ScrollView {
                     enabled: root.nuc && !root.nuc.busy && !root.nuc.stabilizationOn
                              && (recipeBox.model[recipeBox.currentIndex].need === ""
                                  || root.caps[recipeBox.model[recipeBox.currentIndex].need] === true)
-                    onClicked: root.report(root.nuc.start(recipeBox.currentIndex, framesBox.value,
-                                                          recipeBox.currentIndex === 2 ? flattenName.text : ""),
+                    onClicked: root.report(recipeBox.currentIndex === 4
+                                           ? root.nuc.startMulti(framesBox.value, multiNames.text.split("\n"))
+                                           : root.nuc.start(recipeBox.currentIndex, framesBox.value,
+                                                            recipeBox.currentIndex === 2 ? flattenName.text : ""),
                                            "Procedure ready — follow the prompt, then press Next")
                 }
                 BlendButton {

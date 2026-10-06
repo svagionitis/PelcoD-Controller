@@ -21,6 +21,11 @@ add_library(SightlineCore STATIC
     modules/SightlineCaptureBuilder.cpp
     modules/SightlineCaptureParser.h
     modules/SightlineCaptureParser.cpp
+    modules/SightlineCalibration.h
+    modules/SightlineCalibrationBuilder.h
+    modules/SightlineCalibrationBuilder.cpp
+    modules/SightlineCalibrationParser.h
+    modules/SightlineCalibrationParser.cpp
     modules/SightlineClassificationBuilder.h
     modules/SightlineClassificationBuilder.cpp
     modules/SightlineClassificationParser.h
@@ -73,10 +78,17 @@ add_library(SightlineCore STATIC
     modules/SightlineNucParser.cpp
     modules/SightlineNucWorkflow.h
     modules/SightlineNucWorkflow.cpp
+    modules/SightlineNucTableFile.h
+    modules/SightlineNucTableFile.cpp
     modules/SightlineOverlayBuilder.h
     modules/SightlineOverlayBuilder.cpp
     modules/SightlineOverlayParser.h
     modules/SightlineOverlayParser.cpp
+    modules/SightlinePalette.h
+    modules/SightlinePaletteBuilder.h
+    modules/SightlinePaletteBuilder.cpp
+    modules/SightlinePaletteParser.h
+    modules/SightlinePaletteParser.cpp
     modules/SightlineRecordingBuilder.h
     modules/SightlineRecordingBuilder.cpp
     modules/SightlineRecordingParser.h
