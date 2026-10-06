@@ -32,6 +32,7 @@ endif()
 
 add_library(Onvif STATIC
     Onvif.h
+    HttplibInclude.h
     OnvifTypes.h
     OnvifSecurity.h
     OnvifSecurity.cpp
@@ -50,6 +51,23 @@ add_library(Onvif STATIC
     WsDiscoveryServer.cpp
     OnvifServer.h
     OnvifServer.cpp
+    OnvifAuthTypes.h
+    OnvifCrypto.h
+    OnvifCrypto.cpp
+    NonceCache.h
+    NonceCache.cpp
+    CredentialStore.h
+    CredentialStore.cpp
+    UsernameToken.h
+    UsernameToken.cpp
+    HttpDigest.h
+    HttpDigest.cpp
+    AccessPolicy.h
+    AccessPolicy.cpp
+    Authenticator.h
+    Authenticator.cpp
+    SoapFault.h
+    SoapFault.cpp
     GeodesyUtils.h
     adapters/PelcoDPtzAdapter.h
     adapters/PelcoDPtzAdapter.cpp

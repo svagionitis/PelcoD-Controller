@@ -3,6 +3,7 @@
 /// @file OnvifServerTypes.h
 /// @brief Configuration and interface types for the embedded ONVIF server and WS-Discovery responder.
 
+#include "OnvifAuthTypes.h"
 #include "OnvifTypes.h"
 
 #include <cstdint>
@@ -55,8 +56,13 @@ struct OnvifServerConfig {
     ImagingSettings defaultImagingSettings {};
 
     /// @brief Default ONVIF user accounts.
+    /// @details Seeds the server's authoritative CredentialStore. The factory-default passwords
+    ///          below are refused on non-loopback binds unless auth.allowDefaultPassword is set.
     std::vector<OnvifUser> defaultUsers { { "admin", "admin", OnvifUserLevel::Administrator },
         { "operator", "operator", OnvifUserLevel::Operator } };
+
+    /// @brief Server-side authentication and authorization policy (review finding C1).
+    OnvifAuthConfig auth {};
 
     /// @brief Default network interfaces.
     std::vector<NetworkInterfaceConfig> defaultNetworkInterfaces { { "eth0", true, "eth0", "00:11:22:33:44:55", 1500,

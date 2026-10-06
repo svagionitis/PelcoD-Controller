@@ -56,9 +56,9 @@ std::string OnvifSecurity::base64Encode(const std::vector<std::uint8_t>& data)
 
     size_t i { 0 };
     while (i < data.size()) {
-        const std::uint32_t octetA = (i < data.size()) ? static_cast<std::uint8_t>(data[i++]) : 0;
-        const std::uint32_t octetB = (i < data.size()) ? static_cast<std::uint8_t>(data[i++]) : 0;
-        const std::uint32_t octetC = (i < data.size()) ? static_cast<std::uint8_t>(data[i++]) : 0;
+        const std::uint32_t octetA = (i < data.size()) ? static_cast<std::uint32_t>(data[i++]) : 0U;
+        const std::uint32_t octetB = (i < data.size()) ? static_cast<std::uint32_t>(data[i++]) : 0U;
+        const std::uint32_t octetC = (i < data.size()) ? static_cast<std::uint32_t>(data[i++]) : 0U;
 
         const std::uint32_t triple = (octetA << 16) + (octetB << 8) + octetC;
 
@@ -81,7 +81,11 @@ std::string OnvifSecurity::base64Encode(const std::vector<std::uint8_t>& data)
 
 std::string OnvifSecurity::base64Encode(const std::string& text)
 {
-    const std::vector<std::uint8_t> data(text.begin(), text.end());
+    std::vector<std::uint8_t> data {};
+    data.reserve(text.size());
+    for (const char ch : text) {
+        data.push_back(static_cast<std::uint8_t>(static_cast<unsigned char>(ch)));
+    }
     return base64Encode(data);
 }
 
@@ -189,6 +193,175 @@ std::vector<std::uint8_t> OnvifSecurity::base64Decode(const std::string& base64T
         }
     }
     return result;
+}
+
+namespace {
+
+    /// @brief Maps a Base64 alphabet character to its 6-bit value.
+    /// @return Value in [0, 63], or -1 if the character is not in the alphabet.
+    [[nodiscard]] int base64Value(char ch) noexcept
+    {
+        if ((ch >= 'A') && (ch <= 'Z')) {
+            return ch - 'A';
+        }
+        if ((ch >= 'a') && (ch <= 'z')) {
+            return (ch - 'a') + 26;
+        }
+        if ((ch >= '0') && (ch <= '9')) {
+            return (ch - '0') + 52;
+        }
+        if (ch == '+') {
+            return 62;
+        }
+        if (ch == '/') {
+            return 63;
+        }
+        return -1;
+    }
+
+    /// @brief Parses a fixed-width run of decimal digits.
+    [[nodiscard]] bool parseFixed(std::string_view s, std::size_t pos, std::size_t count, std::int64_t& out) noexcept
+    {
+        if ((pos > s.size()) || (count > (s.size() - pos))) {
+            return false;
+        }
+        std::int64_t value { 0 };
+        for (std::size_t i { pos }; i < (pos + count); ++i) {
+            const char ch { s[i] };
+            if ((ch < '0') || (ch > '9')) {
+                return false;
+            }
+            value = (value * 10) + static_cast<std::int64_t>(ch - '0');
+        }
+        out = value;
+        return true;
+    }
+
+    /// @brief Days since 1970-01-01 for a proleptic Gregorian date (H. Hinnant's algorithm).
+    [[nodiscard]] std::int64_t daysFromCivil(std::int64_t y, std::int64_t m, std::int64_t d) noexcept
+    {
+        const std::int64_t yy { (m <= 2) ? (y - 1) : y };
+        const std::int64_t era { ((yy >= 0) ? yy : (yy - 399)) / 400 };
+        const std::int64_t yoe { yy - (era * 400) };
+        const std::int64_t mp { (m > 2) ? (m - 3) : (m + 9) };
+        const std::int64_t doy { (((153 * mp) + 2) / 5) + (d - 1) };
+        const std::int64_t doe { (yoe * 365) + (yoe / 4) - (yoe / 100) + doy };
+        return (era * 146097) + doe - 719468;
+    }
+
+    /// @brief Number of days in a month of a given year.
+    [[nodiscard]] std::int64_t daysInMonth(std::int64_t y, std::int64_t m) noexcept
+    {
+        constexpr std::array<std::int64_t, 12U> kDays { 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31 };
+        const bool leap { ((y % 4) == 0) && (((y % 100) != 0) || ((y % 400) == 0)) };
+        if ((m == 2) && leap) {
+            return 29;
+        }
+        return kDays.at(static_cast<std::size_t>(m - 1));
+    }
+
+} // namespace
+
+std::optional<std::vector<std::uint8_t>> OnvifSecurity::base64DecodeStrict(std::string_view text)
+{
+    if ((text.size() % 4U) != 0U) {
+        return std::nullopt;
+    }
+    std::size_t pad { 0U };
+    if (!text.empty() && (text.back() == '=')) {
+        pad = ((text.size() >= 2U) && (text[text.size() - 2U] == '=')) ? 2U : 1U;
+    }
+
+    std::vector<std::uint8_t> out {};
+    out.reserve((text.size() / 4U) * 3U);
+    for (std::size_t i { 0U }; i < text.size(); i += 4U) {
+        const bool lastQuad { (i + 4U) == text.size() };
+        std::uint32_t acc { 0U };
+        for (std::size_t j { 0U }; j < 4U; ++j) {
+            const char ch { text[i + j] };
+            std::uint32_t v { 0U };
+            if (ch == '=') {
+                if (!lastQuad || (j < (4U - pad))) {
+                    return std::nullopt;
+                }
+            } else {
+                const int iv { base64Value(ch) };
+                if (iv < 0) {
+                    return std::nullopt;
+                }
+                v = static_cast<std::uint32_t>(iv);
+            }
+            acc = (acc << 6U) | v;
+        }
+        out.push_back(static_cast<std::uint8_t>((acc >> 16U) & 0xFFU));
+        if (!lastQuad || (pad < 2U)) {
+            out.push_back(static_cast<std::uint8_t>((acc >> 8U) & 0xFFU));
+        }
+        if (!lastQuad || (pad < 1U)) {
+            out.push_back(static_cast<std::uint8_t>(acc & 0xFFU));
+        }
+    }
+    return out;
+}
+
+std::optional<std::chrono::system_clock::time_point> OnvifSecurity::parseIsoUtc(std::string_view text)
+{
+    constexpr std::size_t kBaseLength { 19U }; // YYYY-MM-DDThh:mm:ss
+    if ((text.size() < kBaseLength) || (text.size() > 64U)) {
+        return std::nullopt;
+    }
+    std::int64_t year { 0 };
+    std::int64_t month { 0 };
+    std::int64_t day { 0 };
+    std::int64_t hour { 0 };
+    std::int64_t minute { 0 };
+    std::int64_t second { 0 };
+    const bool fieldsOk { parseFixed(text, 0U, 4U, year) && (text[4] == '-') && parseFixed(text, 5U, 2U, month)
+        && (text[7] == '-') && parseFixed(text, 8U, 2U, day) && ((text[10] == 'T') || (text[10] == 't'))
+        && parseFixed(text, 11U, 2U, hour) && (text[13] == ':') && parseFixed(text, 14U, 2U, minute)
+        && (text[16] == ':') && parseFixed(text, 17U, 2U, second) };
+    if (!fieldsOk || (year < 1) || (month < 1) || (month > 12) || (day < 1) || (day > daysInMonth(year, month))
+        || (hour > 23) || (minute > 59) || (second > 59)) {
+        return std::nullopt;
+    }
+
+    std::size_t pos { kBaseLength };
+    if ((pos < text.size()) && (text[pos] == '.')) {
+        ++pos;
+        const std::size_t fracStart { pos };
+        while ((pos < text.size()) && (text[pos] >= '0') && (text[pos] <= '9')) {
+            ++pos;
+        }
+        if (pos == fracStart) {
+            return std::nullopt;
+        }
+    }
+
+    std::int64_t offsetSeconds { 0 };
+    if (pos < text.size()) {
+        const char zone { text[pos] };
+        if ((zone == 'Z') || (zone == 'z')) {
+            ++pos;
+        } else if ((zone == '+') || (zone == '-')) {
+            std::int64_t oh { 0 };
+            std::int64_t om { 0 };
+            if (!parseFixed(text, pos + 1U, 2U, oh) || ((pos + 3U) >= text.size()) || (text[pos + 3U] != ':')
+                || !parseFixed(text, pos + 4U, 2U, om) || (oh > 14) || (om > 59)) {
+                return std::nullopt;
+            }
+            offsetSeconds = ((oh * 3600) + (om * 60)) * ((zone == '-') ? -1 : 1);
+            pos += 6U;
+        } else {
+            return std::nullopt;
+        }
+    }
+    if (pos != text.size()) {
+        return std::nullopt;
+    }
+
+    const std::int64_t epochSeconds { (daysFromCivil(year, month, day) * 86400) + (hour * 3600) + (minute * 60)
+        + second - offsetSeconds };
+    return std::chrono::system_clock::from_time_t(0) + std::chrono::seconds { epochSeconds };
 }
 
 OnvifCertificate OnvifSecurity::generateSelfSignedCertificate(

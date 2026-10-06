@@ -144,6 +144,8 @@ namespace {
             config.firmwareVersion = "2.4.0";
             config.serialNumber = "SN-ONVIF-12345";
             config.rtspStreamUri = "rtsp://127.0.0.1:8554/live.sdp";
+            // The server enforces authentication (C1); seed the account used by the clients below.
+            config.defaultUsers = { { "admin", "secretPass", Onvif::OnvifUserLevel::Administrator } };
 
             m_ptzHandler = std::make_shared<MockPtzHandler>();
             m_imagingHandler = std::make_shared<MockImagingHandler>();

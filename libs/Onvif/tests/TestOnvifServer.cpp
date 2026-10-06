@@ -3,7 +3,9 @@
 #include <Onvif/adapters/PelcoDPtzAdapter.h>
 #include <PelcoDSim/MockPelcoDDevice.h>
 
-#include <httplib.h>
+#include "OnvifTestClient.h"
+
+#include <Onvif/HttplibInclude.h>
 #include <pugixml.hpp>
 
 #include <chrono>
@@ -194,7 +196,7 @@ TEST(OnvifServerTest, HttpSoapEndpoints)
 
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
-    httplib::Client client("127.0.0.1", 18080);
+    OnvifTest::OnvifTestClient client("127.0.0.1", 18080);
     client.set_connection_timeout(std::chrono::seconds(2));
     client.set_read_timeout(std::chrono::seconds(2));
 
@@ -356,7 +358,7 @@ TEST(OnvifServerTest, ProfileTImagingAndEvents)
 
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
-    httplib::Client client("127.0.0.1", 18081);
+    OnvifTest::OnvifTestClient client("127.0.0.1", 18081);
     client.set_connection_timeout(std::chrono::seconds(2));
     client.set_read_timeout(std::chrono::seconds(3));
 
@@ -519,8 +521,8 @@ TEST(OnvifServerTest, PelcoDPtzAdapter)
 {
     std::cout << "[RUN] testPelcoDPtzAdapter..." << std::endl;
 
-    auto mockTransport = std::make_shared<PelcoD::MockPelcoDDevice>(1U);
-    auto device = std::make_shared<PelcoD::PelcoDDevice>(mockTransport, 1U);
+    auto mockTransport = std::make_shared<PelcoD::MockPelcoDDevice>(std::uint8_t { 1U });
+    auto device = std::make_shared<PelcoD::PelcoDDevice>(mockTransport, std::uint8_t { 1U });
     EXPECT_TRUE(device->start());
 
     PelcoDPtzAdapter adapter(device);
@@ -576,8 +578,8 @@ TEST(OnvifServerTest, PresetToursServerAndAdapter)
 {
     std::cout << "[RUN] testPresetToursServerAndAdapter..." << std::endl;
 
-    auto mockTransport = std::make_shared<PelcoD::MockPelcoDDevice>(1U);
-    auto device = std::make_shared<PelcoD::PelcoDDevice>(mockTransport, 1U);
+    auto mockTransport = std::make_shared<PelcoD::MockPelcoDDevice>(std::uint8_t { 1U });
+    auto device = std::make_shared<PelcoD::PelcoDDevice>(mockTransport, std::uint8_t { 1U });
     EXPECT_TRUE(device->start());
 
     auto adapter = std::make_shared<PelcoDPtzAdapter>(device);
@@ -595,7 +597,7 @@ TEST(OnvifServerTest, PresetToursServerAndAdapter)
 
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
-    httplib::Client client("127.0.0.1", 18082);
+    OnvifTest::OnvifTestClient client("127.0.0.1", 18082);
     client.set_connection_timeout(std::chrono::seconds(2));
     client.set_read_timeout(std::chrono::seconds(2));
 
@@ -770,8 +772,8 @@ TEST(OnvifServerTest, PtzServiceExtensionsServerAndAdapter)
 {
     std::cout << "[RUN] testPtzServiceExtensionsServerAndAdapter..." << std::endl;
 
-    auto mockTransport = std::make_shared<PelcoD::MockPelcoDDevice>(1U);
-    auto device = std::make_shared<PelcoD::PelcoDDevice>(mockTransport, 1U);
+    auto mockTransport = std::make_shared<PelcoD::MockPelcoDDevice>(std::uint8_t { 1U });
+    auto device = std::make_shared<PelcoD::PelcoDDevice>(mockTransport, std::uint8_t { 1U });
     EXPECT_TRUE(device->start());
 
     auto adapter = std::make_shared<PelcoDPtzAdapter>(device);
@@ -786,7 +788,7 @@ TEST(OnvifServerTest, PtzServiceExtensionsServerAndAdapter)
 
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
-    httplib::Client client("127.0.0.1", 18083);
+    OnvifTest::OnvifTestClient client("127.0.0.1", 18083);
     client.set_connection_timeout(std::chrono::seconds(2));
     client.set_read_timeout(std::chrono::seconds(2));
 
@@ -945,7 +947,7 @@ TEST(OnvifServerTest, Media2OsdAndAnalytics)
     EXPECT_TRUE(server.start());
     EXPECT_TRUE(server.isRunning());
 
-    httplib::Client client("127.0.0.1", config.port);
+    OnvifTest::OnvifTestClient client("127.0.0.1", config.port);
     client.set_connection_timeout(2, 0);
     client.set_read_timeout(2, 0);
 
@@ -1168,6 +1170,7 @@ TEST(OnvifServerTest, DeviceManagementAndSecurity)
     std::cout << "[RUN] testDeviceManagementAndSecurity" << std::endl;
 
     OnvifServerConfig config;
+    config.bindAddress = "127.0.0.1";
     config.port = 18591;
     config.deviceName = "DeviceMgmtCamera";
 
@@ -1175,7 +1178,7 @@ TEST(OnvifServerTest, DeviceManagementAndSecurity)
     EXPECT_TRUE(server.start());
     EXPECT_TRUE(server.isRunning());
 
-    httplib::Client client("127.0.0.1", config.port);
+    OnvifTest::OnvifTestClient client("127.0.0.1", config.port);
     client.set_connection_timeout(std::chrono::seconds(2));
     client.set_read_timeout(std::chrono::seconds(2));
 
@@ -1515,8 +1518,8 @@ TEST(OnvifServerTest, ImagingExtensionsAndDeviceIo)
 {
     std::cout << "[RUN] testImagingExtensionsAndDeviceIo..." << std::endl;
 
-    auto mockTransport = std::make_shared<PelcoD::MockPelcoDDevice>(1U);
-    auto device = std::make_shared<PelcoD::PelcoDDevice>(mockTransport, 1U);
+    auto mockTransport = std::make_shared<PelcoD::MockPelcoDDevice>(std::uint8_t { 1U });
+    auto device = std::make_shared<PelcoD::PelcoDDevice>(mockTransport, std::uint8_t { 1U });
     EXPECT_TRUE(device->start());
 
     auto adapter = std::make_shared<PelcoDPtzAdapter>(device);
@@ -1531,7 +1534,7 @@ TEST(OnvifServerTest, ImagingExtensionsAndDeviceIo)
     EXPECT_TRUE(server.start());
     EXPECT_TRUE(server.isRunning());
 
-    httplib::Client client("127.0.0.1", config.port);
+    OnvifTest::OnvifTestClient client("127.0.0.1", config.port);
     client.set_connection_timeout(std::chrono::seconds(2));
     client.set_read_timeout(std::chrono::seconds(2));
 
@@ -1755,8 +1758,8 @@ TEST(OnvifServerTest, MetadataStreamsAndMaintenanceExtensions)
 {
     std::cout << "[RUN] testMetadataStreamsAndMaintenanceExtensions" << std::endl;
 
-    auto mockTransport = std::make_shared<PelcoD::MockPelcoDDevice>(1U);
-    auto device = std::make_shared<PelcoD::PelcoDDevice>(mockTransport, 1U);
+    auto mockTransport = std::make_shared<PelcoD::MockPelcoDDevice>(std::uint8_t { 1U });
+    auto device = std::make_shared<PelcoD::PelcoDDevice>(mockTransport, std::uint8_t { 1U });
     EXPECT_TRUE(device->start());
 
     auto adapter = std::make_shared<PelcoDPtzAdapter>(device);
@@ -1781,7 +1784,7 @@ TEST(OnvifServerTest, MetadataStreamsAndMaintenanceExtensions)
     EXPECT_TRUE(server.start());
     EXPECT_TRUE(server.isRunning());
 
-    httplib::Client client("127.0.0.1", config.port);
+    OnvifTest::OnvifTestClient client("127.0.0.1", config.port);
     client.set_connection_timeout(std::chrono::seconds(2));
     client.set_read_timeout(std::chrono::seconds(2));
 
@@ -1939,8 +1942,8 @@ TEST(OnvifServerTest, ProfileGAndPkiCertificates)
 {
     std::cout << "[RUN] testProfileGAndPkiCertificates" << std::endl;
 
-    auto mockTransport = std::make_shared<PelcoD::MockPelcoDDevice>(1U);
-    auto device = std::make_shared<PelcoD::PelcoDDevice>(mockTransport, 1U);
+    auto mockTransport = std::make_shared<PelcoD::MockPelcoDDevice>(std::uint8_t { 1U });
+    auto device = std::make_shared<PelcoD::PelcoDDevice>(mockTransport, std::uint8_t { 1U });
     EXPECT_TRUE(device->start());
 
     auto adapter = std::make_shared<PelcoDPtzAdapter>(device);
@@ -1958,7 +1961,7 @@ TEST(OnvifServerTest, ProfileGAndPkiCertificates)
     EXPECT_TRUE(server.start());
     EXPECT_TRUE(server.isRunning());
 
-    httplib::Client client("127.0.0.1", config.port);
+    OnvifTest::OnvifTestClient client("127.0.0.1", config.port);
     client.set_connection_timeout(std::chrono::seconds(3));
     client.set_read_timeout(std::chrono::seconds(3));
 
@@ -2397,8 +2400,8 @@ TEST(OnvifServerTest, VideoAnalyticsRuleEngineAndEvaluation)
 {
     std::cout << "[RUN] testVideoAnalyticsRuleEngineAndEvaluation" << std::endl;
 
-    auto mockTransport = std::make_shared<PelcoD::MockPelcoDDevice>(1U);
-    auto device = std::make_shared<PelcoD::PelcoDDevice>(mockTransport, 1U);
+    auto mockTransport = std::make_shared<PelcoD::MockPelcoDDevice>(std::uint8_t { 1U });
+    auto device = std::make_shared<PelcoD::PelcoDDevice>(mockTransport, std::uint8_t { 1U });
     EXPECT_TRUE(device->start());
     auto adapter = std::make_shared<PelcoDPtzAdapter>(device);
 
@@ -2411,7 +2414,7 @@ TEST(OnvifServerTest, VideoAnalyticsRuleEngineAndEvaluation)
     EXPECT_TRUE(server.start());
     EXPECT_TRUE(server.isRunning());
 
-    httplib::Client client("127.0.0.1", 18090);
+    OnvifTest::OnvifTestClient client("127.0.0.1", 18090);
 
     // 1. GetServiceCapabilities
     {
@@ -2564,8 +2567,8 @@ TEST(OnvifServerTest, PtzGeoMoveAndSphericalSpaces)
 {
     std::cout << "[RUN] testPtzGeoMoveAndSphericalSpaces..." << std::endl;
 
-    auto mockTransport = std::make_shared<PelcoD::MockPelcoDDevice>(1U);
-    auto device = std::make_shared<PelcoD::PelcoDDevice>(mockTransport, 1U);
+    auto mockTransport = std::make_shared<PelcoD::MockPelcoDDevice>(std::uint8_t { 1U });
+    auto device = std::make_shared<PelcoD::PelcoDDevice>(mockTransport, std::uint8_t { 1U });
     EXPECT_TRUE(device->start());
 
     auto adapter = std::make_shared<PelcoDPtzAdapter>(device);
@@ -2588,7 +2591,7 @@ TEST(OnvifServerTest, PtzGeoMoveAndSphericalSpaces)
 
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
-    httplib::Client client("127.0.0.1", config.port);
+    OnvifTest::OnvifTestClient client("127.0.0.1", config.port);
     client.set_connection_timeout(std::chrono::seconds(2));
     client.set_read_timeout(std::chrono::seconds(2));
 
@@ -2748,6 +2751,7 @@ TEST(OnvifServerTest, ProfileTPrivacyMasksAndVideoSourceModes)
 {
     const int port = 18599;
     OnvifServerConfig config;
+    config.bindAddress = "127.0.0.1";
     config.port = port;
     config.deviceName = "Profile T Privacy & Source Modes Camera";
 
@@ -2764,7 +2768,7 @@ TEST(OnvifServerTest, ProfileTPrivacyMasksAndVideoSourceModes)
 
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
-    httplib::Client client("127.0.0.1", port);
+    OnvifTest::OnvifTestClient client("127.0.0.1", port);
     client.set_connection_timeout(std::chrono::seconds(2));
     client.set_read_timeout(std::chrono::seconds(2));
 
@@ -2974,7 +2978,7 @@ TEST(OnvifServerTest, ProfileTPrivacyMasksAndVideoSourceModes)
 
     // 11. End-to-end OnvifClient calls against the running server
     {
-        OnvifClient onvifClient("http://127.0.0.1:" + std::to_string(port) + "/onvif/device_service");
+        OnvifClient onvifClient("http://127.0.0.1:" + std::to_string(port) + "/onvif/device_service", OnvifTest::defaultAdmin());
         EXPECT_TRUE(onvifClient.getCapabilities());
 
         const auto opts = onvifClient.getMaskOptions("VideoSource_1");
@@ -3027,6 +3031,7 @@ TEST(OnvifServerTest, ThermalServiceAndRadiometry)
 {
     const int port = 18585;
     OnvifServerConfig config;
+    config.bindAddress = "127.0.0.1";
     config.port = port;
     config.deviceName = "Thermal Test Camera";
 
@@ -3047,7 +3052,7 @@ TEST(OnvifServerTest, ThermalServiceAndRadiometry)
 
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
-    httplib::Client client("127.0.0.1", port);
+    OnvifTest::OnvifTestClient client("127.0.0.1", port);
     client.set_connection_timeout(5, 0);
     client.set_read_timeout(5, 0);
 
@@ -3208,7 +3213,7 @@ TEST(OnvifServerTest, ThermalServiceAndRadiometry)
 
     // 8. End-to-end OnvifClient calls against running server
     {
-        OnvifClient onvifClient("http://127.0.0.1:" + std::to_string(port) + "/onvif/device_service");
+        OnvifClient onvifClient("http://127.0.0.1:" + std::to_string(port) + "/onvif/device_service", OnvifTest::defaultAdmin());
         const auto caps = onvifClient.getCapabilities();
         EXPECT_TRUE(caps.has_value());
         EXPECT_TRUE(!caps->thermalXAddr.empty());

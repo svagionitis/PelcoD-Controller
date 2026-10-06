@@ -3,11 +3,13 @@
 /// @file OnvifServer.h
 /// @brief Embedded ONVIF Profile S HTTP server and WS-Discovery responder.
 
+#include "Authenticator.h"
+#include "CredentialStore.h"
+#include "HttplibInclude.h"
 #include "OnvifServerTypes.h"
 #include "WsDiscoveryServer.h"
 
 #include <cstdint>
-#include <httplib.h>
 #include <pugixml.hpp>
 
 #include <atomic>
@@ -50,7 +52,12 @@ public:
     OnvifServer& operator=(OnvifServer&&) = delete;
 
     /// @brief Starts WS-Discovery responder and HTTP SOAP service threads.
-    /// @return True if server started successfully.
+    /// @details Refuses to start (returns false) when:
+    ///          - authentication is disabled and the bind address is not loopback;
+    ///          - a factory-default password is configured, the bind address is not loopback and
+    ///            OnvifAuthConfig::allowDefaultPassword is false;
+    ///          - the HTTP port cannot be bound (e.g. already in use).
+    /// @return True if the server is listening.
     [[nodiscard]] bool start();
 
     /// @brief Stops HTTP service and WS-Discovery responder threads.
@@ -171,6 +178,14 @@ private:
 
     void sendSoapResponse(httplib::Response& res, const std::string& bodyXml, int status = 200);
 
+    [[nodiscard]] bool authorize(const httplib::Request& req, httplib::Response& res, std::string_view serviceName,
+        const std::string& opName, const pugi::xml_document& doc);
+    [[nodiscard]] bool authorizeHttp(const httplib::Request& req, httplib::Response& res, std::string_view what);
+    void rejectAuth(const httplib::Request& req, httplib::Response& res, AuthOutcome outcome, std::string_view what);
+    void rejectForbidden(const httplib::Request& req, httplib::Response& res, const Principal& who,
+        std::string_view what);
+    void appendAuthFailLog(const std::string& remoteAddr, std::string_view what, std::string_view reason);
+
     struct PullPointSubscription {
         std::string id {};
         std::chrono::steady_clock::time_point terminationTime {};
@@ -204,7 +219,8 @@ private:
     httplib::Server m_httpServer;
 
     mutable std::mutex m_deviceMutex {};
-    std::vector<OnvifUser> m_internalUsers {};
+    std::shared_ptr<CredentialStore> m_credStore {};
+    std::unique_ptr<Authenticator> m_authenticator {};
     std::vector<NetworkInterfaceConfig> m_internalNetworkInterfaces {};
     std::string m_internalGateway { "192.168.1.1" };
     DnsConfig m_internalDns {};

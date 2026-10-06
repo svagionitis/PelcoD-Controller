@@ -7,7 +7,9 @@
 
 #include <chrono>
 #include <cstdint>
+#include <optional>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace Onvif {
@@ -66,6 +68,19 @@ public:
     /// @param[in] base64Text Base64 input string.
     /// @return Decoded byte vector.
     [[nodiscard]] static std::vector<std::uint8_t> base64Decode(const std::string& base64Text);
+
+    /// @brief Strictly decodes RFC 4648 Base64.
+    /// @details Unlike base64Decode(), any character outside the alphabet, a length that is not a
+    ///          multiple of four, or misplaced padding causes failure. Used for untrusted input.
+    /// @param[in] text Base64 input.
+    /// @return Decoded bytes, or std::nullopt if the input is not canonical Base64.
+    [[nodiscard]] static std::optional<std::vector<std::uint8_t>> base64DecodeStrict(std::string_view text);
+
+    /// @brief Parses an xsd:dateTime UTC timestamp.
+    /// @details Accepts `YYYY-MM-DDThh:mm:ss[.fraction](Z|+hh:mm|-hh:mm)`. Fractions are truncated.
+    /// @param[in] text Timestamp text.
+    /// @return Parsed time point, or std::nullopt if malformed or out of range.
+    [[nodiscard]] static std::optional<std::chrono::system_clock::time_point> parseIsoUtc(std::string_view text);
 
     /// @brief Builds complete UsernameToken parameters for SOAP envelope.
     /// @param[in] credentials User credentials and clock offset.

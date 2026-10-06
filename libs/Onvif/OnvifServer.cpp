@@ -1,5 +1,8 @@
 #include "OnvifServer.h"
+#include "AccessPolicy.h"
 #include "OnvifSecurity.h"
+#include "SoapFault.h"
+#include "UsernameToken.h"
 #include "XmlUtils.h"
 
 #include <pugixml.hpp>
@@ -34,6 +37,7 @@ namespace {
             << "xmlns:trp=\"http://www.onvif.org/ver10/replay/wsdl\" "
             << "xmlns:wsnt=\"http://docs.oasis-open.org/wsn/b-2\" "
             << "xmlns:wsa=\"http://schemas.xmlsoap.org/ws/2004/08/addressing\" "
+            << "xmlns:ter=\"http://www.onvif.org/ver10/error\" "
             << "xmlns:tt=\"http://www.onvif.org/ver10/schema\">\r\n"
             << "  <SOAP-ENV:Body>\r\n"
             << bodyXml << "  </SOAP-ENV:Body>\r\n"
@@ -50,6 +54,39 @@ namespace {
             return true;
         }
         return false;
+    }
+
+    /// @brief True if the bind address only accepts connections from the local host.
+    [[nodiscard]] bool isLoopbackHost(const std::string& host) noexcept
+    {
+        return (host.rfind("127.", 0U) == 0U) || (host == "localhost") || (host == "::1") || (host == "[::1]");
+    }
+
+    /// @brief Stable, secret-free label for an authentication outcome (access log).
+    [[nodiscard]] const char* outcomeLabel(AuthOutcome outcome) noexcept
+    {
+        switch (outcome) {
+        case AuthOutcome::Success:
+            return "success";
+        case AuthOutcome::NoCredentials:
+            return "no-credentials";
+        case AuthOutcome::InvalidCredentials:
+            return "invalid-credentials";
+        case AuthOutcome::Replay:
+            return "replay";
+        case AuthOutcome::Stale:
+            return "stale";
+        case AuthOutcome::Unsupported:
+        default:
+            return "unsupported";
+        }
+    }
+
+    /// @brief Bounds attacker-controlled text written to logs.
+    [[nodiscard]] std::string clipForLog(std::string_view text)
+    {
+        constexpr std::size_t kMaxLogField { 96U };
+        return std::string { text.substr(0U, kMaxLogField) };
     }
 
     std::string formatIso8601Utc(const std::chrono::system_clock::time_point& tp)
@@ -278,7 +315,8 @@ OnvifServer::OnvifServer(OnvifServerConfig config, std::shared_ptr<IPtzHandler> 
     , m_metadataHandler(std::move(metadataHandler))
     , m_analyticsHandler(std::move(analyticsHandler))
 {
-    m_internalUsers = m_config.defaultUsers;
+    m_credStore = std::make_shared<CredentialStore>(m_config.defaultUsers);
+    m_authenticator = std::make_unique<Authenticator>(m_credStore, m_config.auth);
     m_internalNetworkInterfaces = m_config.defaultNetworkInterfaces;
     m_internalGateway = m_config.defaultGateway;
     m_internalDns = m_config.defaultDns;
@@ -408,19 +446,38 @@ bool OnvifServer::start()
         return true;
     }
 
+    const std::string host { m_config.bindAddress.empty() ? std::string { "0.0.0.0" } : m_config.bindAddress };
+    const bool loopback { isLoopbackHost(host) };
+    if (!m_config.auth.enabled && !loopback) {
+        logSystemMessage("ERROR", "Refusing to start: authentication disabled on non-loopback address " + host);
+        return false;
+    }
+    if (m_config.auth.enabled && !loopback && !m_config.auth.allowDefaultPassword && m_credStore->hasDefaultPassword()) {
+        logSystemMessage("ERROR", "Refusing to start: factory-default ONVIF password configured on " + host);
+        return false;
+    }
+
+    // Exclusive bind so a second instance cannot silently share the port (Windows SO_REUSEADDR and
+    // POSIX SO_REUSEPORT would both allow it with httplib's default socket options).
+    m_httpServer.set_socket_options([](auto sock) {
+#ifdef _WIN32
+        static_cast<void>(httplib::set_socket_opt(sock, SOL_SOCKET, SO_EXCLUSIVEADDRUSE, 1));
+#else
+        static_cast<void>(httplib::set_socket_opt(sock, SOL_SOCKET, SO_REUSEADDR, 1));
+#endif
+    });
+    if (!m_httpServer.bind_to_port(host, m_config.port)) {
+        logSystemMessage("ERROR", "Failed to bind ONVIF HTTP server to " + host + ":" + std::to_string(m_config.port));
+        return false;
+    }
+
     if (m_discoveryServer) {
         [[maybe_unused]] const bool discStarted = m_discoveryServer->start();
     }
 
     m_running = true;
-
-    m_httpThread = std::thread([this]() {
-        const std::string host = m_config.bindAddress.empty() ? "0.0.0.0" : m_config.bindAddress;
-        m_httpServer.listen(host.c_str(), m_config.port);
-    });
-
-    // Brief wait for socket binding
-    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    m_httpThread = std::thread([this]() { static_cast<void>(m_httpServer.listen_after_bind()); });
+    m_httpServer.wait_until_ready();
     return true;
 }
 
@@ -658,7 +715,10 @@ void OnvifServer::setupRoutes()
     m_httpServer.Get("/onvif/metadata_stream",
         [this](const httplib::Request& req, httplib::Response& res) { handleMetadataStream(req, res); });
 
-    m_httpServer.Get("/onvif/snapshot", [](const httplib::Request&, httplib::Response& res) {
+    m_httpServer.Get("/onvif/snapshot", [this](const httplib::Request& req, httplib::Response& res) {
+        if (!authorizeHttp(req, res, "Snapshot")) {
+            return;
+        }
         res.status = 501;
         res.set_content("Snapshot service not implemented", "text/plain");
     });
@@ -679,7 +739,111 @@ std::optional<OnvifServer::SoapRequest> OnvifServer::parseSoapRequest(
         m_logCallback(std::string(serviceName), opName, req.remote_addr);
     }
 
+    if (!authorize(req, res, serviceName, opName, doc)) {
+        return std::nullopt;
+    }
+
     return SoapRequest { bodyNode, reqNode, opName };
+}
+
+bool OnvifServer::authorize(const httplib::Request& req, httplib::Response& res, std::string_view serviceName,
+    const std::string& opName, const pugi::xml_document& doc)
+{
+    if (!m_config.auth.enabled) {
+        return true;
+    }
+    const AccessClass required { AccessPolicy::classify(serviceName, opName) };
+    if (required == AccessClass::PreAuth) {
+        return true;
+    }
+
+    const std::string authorization { req.get_header_value("Authorization") };
+    AuthInput input {};
+    input.method = req.method;
+    input.uri = req.target.empty() ? req.path : req.target;
+    input.authorization = authorization;
+    input.securityHeader = findSecurityHeader(doc);
+    input.remoteAddr = req.remote_addr;
+
+    const std::string what { std::string { serviceName } + "/" + clipForLog(opName) };
+    const AuthResult result { m_authenticator->authenticate(input) };
+    if (result.outcome != AuthOutcome::Success) {
+        rejectAuth(req, res, result.outcome, what);
+        return false;
+    }
+    if (!AccessPolicy::permits(result.principal.level, required)) {
+        rejectForbidden(req, res, result.principal, what);
+        return false;
+    }
+    return true;
+}
+
+bool OnvifServer::authorizeHttp(const httplib::Request& req, httplib::Response& res, std::string_view what)
+{
+    if (!m_config.auth.enabled) {
+        return true;
+    }
+    const std::string authorization { req.get_header_value("Authorization") };
+    AuthInput input {};
+    input.method = req.method;
+    input.uri = req.target.empty() ? req.path : req.target;
+    input.authorization = authorization;
+    input.remoteAddr = req.remote_addr;
+
+    const AuthResult result { m_authenticator->authenticate(input) };
+    if (result.outcome != AuthOutcome::Success) {
+        rejectAuth(req, res, result.outcome, what);
+        return false;
+    }
+    if (!AccessPolicy::permits(result.principal.level, AccessClass::ReadMedia)) {
+        rejectForbidden(req, res, result.principal, what);
+        return false;
+    }
+    return true;
+}
+
+void OnvifServer::rejectAuth(
+    const httplib::Request& req, httplib::Response& res, AuthOutcome outcome, std::string_view what)
+{
+    appendAuthFailLog(req.remote_addr, what, outcomeLabel(outcome));
+
+    // A first request without credentials is the normal start of the Digest handshake and is not
+    // counted; presented-but-wrong credentials are, and earn an increasing delay.
+    if (outcome != AuthOutcome::NoCredentials) {
+        const auto now { std::chrono::steady_clock::now() };
+        m_authenticator->recordFailure(req.remote_addr, now);
+        const std::chrono::milliseconds delay { m_authenticator->penalty(req.remote_addr, now) };
+        if (delay.count() > 0) {
+            std::this_thread::sleep_for(delay);
+        }
+    }
+
+    const bool challenge { (outcome == AuthOutcome::NoCredentials) || (outcome == AuthOutcome::Stale) };
+    if (challenge) {
+        for (const auto& value : m_authenticator->challenges(outcome == AuthOutcome::Stale)) {
+            static_cast<void>(res.headers.emplace("WWW-Authenticate", value));
+        }
+    }
+    sendSoapResponse(res, SoapFault::notAuthorized(), challenge ? 401 : 400);
+}
+
+void OnvifServer::rejectForbidden(
+    const httplib::Request& req, httplib::Response& res, const Principal& who, std::string_view what)
+{
+    appendAuthFailLog(req.remote_addr, what, "insufficient-privilege user=" + clipForLog(who.username));
+    sendSoapResponse(res, SoapFault::notAuthorized(), 400);
+}
+
+void OnvifServer::appendAuthFailLog(const std::string& remoteAddr, std::string_view what, std::string_view reason)
+{
+    std::scoped_lock lock(m_logMutex);
+    const std::string timestamp = formatIso8601Utc(std::chrono::system_clock::now());
+    std::ostringstream entry;
+    entry << "[" << timestamp << "] [" << remoteAddr << "] AUTH_FAIL " << what << " (" << reason << ")";
+    m_accessLogs.push_back(entry.str());
+    if (m_accessLogs.size() > 500) {
+        m_accessLogs.pop_front();
+    }
 }
 
 void OnvifServer::appendAccessLog(
@@ -963,13 +1127,8 @@ void OnvifServer::handleDeviceService(const httplib::Request& req, httplib::Resp
         }
         body << "    <tds:SetScopesResponse/>\r\n";
     } else if (isOp(opName, "GetUsers")) {
-        std::vector<OnvifUser> users;
-        if (m_deviceHandler) {
-            users = m_deviceHandler->handleGetUsers();
-        } else {
-            std::scoped_lock lock(m_deviceMutex);
-            users = m_internalUsers;
-        }
+        // CredentialStore is authoritative (passwords are never returned).
+        const std::vector<OnvifUser> users { m_credStore->list() };
         body << "    <tds:GetUsersResponse>\r\n";
         for (const auto& u : users) {
             body << "      <tds:User>\r\n"
@@ -979,65 +1138,87 @@ void OnvifServer::handleDeviceService(const httplib::Request& req, httplib::Resp
         }
         body << "    </tds:GetUsersResponse>\r\n";
     } else if (isOp(opName, "CreateUsers")) {
-        const auto userNodes = doc.select_nodes(".//*[local-name()='User']");
+        // Scoped to the request element so header content can never be interpreted as a user.
+        const auto userNodes = reqNode.select_nodes(".//*[local-name()='User']");
         std::vector<OnvifUser> newUsers;
         for (const auto& sel : userNodes) {
-            const auto u = parseOnvifUser(sel.node());
-            if (!u.username.empty()) {
-                newUsers.push_back(u);
+            newUsers.push_back(parseOnvifUser(sel.node()));
+        }
+        for (const auto& nu : newUsers) {
+            if (!CredentialStore::isValidName(nu.username) || (nu.level == OnvifUserLevel::Anonymous)) {
+                sendSoapResponse(res, SoapFault::sender("ter:InvalidArgVal", "", "Invalid user name or level"), 400);
+                return;
+            }
+            if (m_credStore->find(nu.username).has_value()) {
+                sendSoapResponse(
+                    res, SoapFault::sender("ter:OperationProhibited", "ter:UsernameClash", "User exists"), 400);
+                return;
             }
         }
-        if (m_deviceHandler) {
-            m_deviceHandler->handleCreateUsers(newUsers);
+        for (const auto& nu : newUsers) {
+            static_cast<void>(m_credStore->upsert(nu));
         }
-        {
-            std::scoped_lock lock(m_deviceMutex);
-            for (const auto& nu : newUsers) {
-                auto it = std::find_if(m_internalUsers.begin(), m_internalUsers.end(),
-                    [&](const OnvifUser& existing) { return existing.username == nu.username; });
-                if (it != m_internalUsers.end()) {
-                    *it = nu;
-                } else {
-                    m_internalUsers.push_back(nu);
-                }
-            }
+        if (m_deviceHandler && !newUsers.empty()) {
+            static_cast<void>(m_deviceHandler->handleCreateUsers(newUsers));
         }
         body << "    <tds:CreateUsersResponse/>\r\n";
     } else if (isOp(opName, "SetUser")) {
-        const auto userNodes = doc.select_nodes(".//*[local-name()='User']");
+        const auto userNodes = reqNode.select_nodes(".//*[local-name()='User']");
+        std::vector<OnvifUser> updates;
         for (const auto& sel : userNodes) {
-            const auto u = parseOnvifUser(sel.node());
-            if (!u.username.empty()) {
-                if (m_deviceHandler) {
-                    m_deviceHandler->handleSetUser(u);
-                }
-                std::scoped_lock lock(m_deviceMutex);
-                auto it = std::find_if(m_internalUsers.begin(), m_internalUsers.end(),
-                    [&](const OnvifUser& existing) { return existing.username == u.username; });
-                if (it != m_internalUsers.end()) {
-                    *it = u;
-                } else {
-                    m_internalUsers.push_back(u);
-                }
+            OnvifUser u = parseOnvifUser(sel.node());
+            const auto existing = m_credStore->find(u.username);
+            if (!existing.has_value()) {
+                sendSoapResponse(
+                    res, SoapFault::sender("ter:InvalidArgVal", "ter:UsernameMissing", "Unknown user"), 400);
+                return;
+            }
+            if (u.password.empty()) {
+                u.password = existing->password; // Password is optional in tt:User.
+            }
+            updates.push_back(std::move(u));
+        }
+        for (const auto& u : updates) {
+            if (!m_credStore->upsert(u)) {
+                sendSoapResponse(
+                    res, SoapFault::sender("ter:OperationProhibited", "ter:FixedUser", "Change not permitted"), 400);
+                return;
+            }
+            if (m_deviceHandler) {
+                static_cast<void>(m_deviceHandler->handleSetUser(u));
             }
         }
         body << "    <tds:SetUserResponse/>\r\n";
     } else if (isOp(opName, "DeleteUsers")) {
-        const auto unNodes = doc.select_nodes(".//*[local-name()='Username']");
+        const auto unNodes = reqNode.select_nodes(".//*[local-name()='Username']");
         std::vector<std::string> names;
+        std::size_t adminsTargeted { 0U };
         for (const auto& sel : unNodes) {
-            names.push_back(sel.node().text().as_string());
-        }
-        if (m_deviceHandler) {
-            m_deviceHandler->handleDeleteUsers(names);
-        }
-        {
-            std::scoped_lock lock(m_deviceMutex);
-            for (const auto& name : names) {
-                m_internalUsers.erase(std::remove_if(m_internalUsers.begin(), m_internalUsers.end(),
-                                          [&](const OnvifUser& u) { return u.username == name; }),
-                    m_internalUsers.end());
+            const std::string name { sel.node().text().as_string() };
+            const auto existing = m_credStore->find(name);
+            if (!existing.has_value()) {
+                sendSoapResponse(
+                    res, SoapFault::sender("ter:InvalidArgVal", "ter:UsernameMissing", "Unknown user"), 400);
+                return;
             }
+            if (existing->level == OnvifUserLevel::Administrator) {
+                ++adminsTargeted;
+            }
+            names.push_back(name);
+        }
+        if ((adminsTargeted > 0U) && (adminsTargeted >= m_credStore->adminCount())) {
+            sendSoapResponse(
+                res, SoapFault::sender("ter:OperationProhibited", "ter:FixedUser", "Last administrator"), 400);
+            return;
+        }
+        std::vector<std::string> deleted;
+        for (const auto& name : names) {
+            if (m_credStore->erase(name)) {
+                deleted.push_back(name);
+            }
+        }
+        if (m_deviceHandler && !deleted.empty()) {
+            static_cast<void>(m_deviceHandler->handleDeleteUsers(deleted));
         }
         body << "    <tds:DeleteUsersResponse/>\r\n";
     } else if (isOp(opName, "GetNetworkInterfaces")) {
@@ -1258,9 +1439,9 @@ void OnvifServer::handleDeviceService(const httplib::Request& req, httplib::Resp
         if (m_deviceHandler) {
             m_deviceHandler->handleSetSystemFactoryDefault(type);
         }
+        m_credStore->reset(m_config.defaultUsers);
         {
             std::scoped_lock lock(m_deviceMutex);
-            m_internalUsers = m_config.defaultUsers;
             m_internalNetworkInterfaces = m_config.defaultNetworkInterfaces;
             m_internalGateway = m_config.defaultGateway;
             m_internalDns = m_config.defaultDns;
@@ -2425,6 +2606,9 @@ void OnvifServer::handleMetadataStream(const httplib::Request& req, httplib::Res
 {
     if (m_logCallback) {
         m_logCallback("MetadataStream", "GetStream", req.remote_addr);
+    }
+    if (!authorizeHttp(req, res, "MetadataStream")) {
+        return;
     }
     MetadataStreamPayload payload;
     if (m_metadataHandler) {
