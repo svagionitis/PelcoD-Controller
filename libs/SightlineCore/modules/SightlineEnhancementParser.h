@@ -30,10 +30,12 @@ public:
     [[nodiscard]] static bool parseVideoEnhanceFull(
         const std::vector<std::uint8_t>& packet, MsgSetVideoEnhancementFull& out);
 
-    /// @brief Parses 3D noise reduction parameters (Message ID 0xAF).
+    /// @brief Parses the 3D noise statistics reply (Message ID 0xAF, IDD SLANoise3D_t).
+    /// @details Decodes cameraIndex plus 8 little-endian u16 values scaled by kNoise3DScale.
     /// @param[in] packet Validated framed packet bytes.
-    /// @param[out] out Deserialized noise parameters.
+    /// @param[out] out Deserialized noise statistics.
     /// @return True on successful parse.
+    /// @retval false Wrong message ID or payload shorter than 17 bytes.
     [[nodiscard]] static bool parseNoise3D(
         const std::vector<std::uint8_t>& packet, MsgNoise3D& out);
 };

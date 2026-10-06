@@ -115,15 +115,6 @@ std::vector<std::uint8_t> SightlineEnhancementBuilder::buildSetFalseColor(
     return SightlineFraming::buildPacket(MessageId::SetDisplayParameters, payload);
 }
 
-std::vector<std::uint8_t> SightlineEnhancementBuilder::buildSetNoise3D(
-    const MsgNoise3D& msg)
-{
-    const std::vector<std::uint8_t> payload {
-        msg.cameraIndex, msg.enable, msg.temporalStrength, msg.spatialStrength
-    };
-    return SightlineFraming::buildPacket(MessageId::Noise3D, payload);
-}
-
 std::vector<std::uint8_t> SightlineEnhancementBuilder::buildGetVideoEnhance(
     std::uint8_t cameraIndex)
 {

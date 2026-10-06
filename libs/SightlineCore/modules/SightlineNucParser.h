@@ -16,25 +16,32 @@ namespace Sightline {
 /// @brief Deserializes NUC parameters and dead pixel replacement status frames.
 class SightlineNucParser {
 public:
-    /// @brief Parses NUC calibration parameters (Message ID 0x35).
-    /// @details Deserializes camera index, NUC mode action, and shutter mode state.
+    /// @brief Parses NUC/DPR parameters (Message ID 0x35).
+    /// @details Requires at least the 4 leading bytes. Tail fields added in later firmware are decoded
+    ///          when present; a reply truncated on a field boundary (e.g. 28-byte legacy layout) leaves
+    ///          the remaining fields at their struct defaults. @p out is only written on success.
     /// @param[in] packet Validated framed packet bytes or view.
     /// @param[out] out Deserialized NUC structure.
     /// @return True on successful parse.
+    /// @retval false Wrong message ID, fewer than 4 bytes, enumerator outside the IDD range,
+    ///         field cut mid-way, or nucName length overruns the payload.
     [[nodiscard]] static bool parseNucParameters(ByteView packet, MsgNucParameters& out);
 
-    /// @brief Parses dead pixel replacement configuration (Message ID 0xA8).
-    /// @details Deserializes camera index, mode, and dead pixel count.
+    /// @brief Parses a dead pixel list operation (Message ID 0xA8).
+    /// @details The board never emits 0xA8; this decoder exists for traffic inspection and simulators.
     /// @param[in] packet Validated framed packet bytes or view.
     /// @param[out] out Deserialized dead pixel structure.
     /// @return True on successful parse.
+    /// @retval false Wrong message ID, payload shorter than 8 bytes, or mode outside 0..2.
     [[nodiscard]] static bool parseDeadPixel(ByteView packet, MsgDeadPixel& out);
 
-    /// @brief Parses NUC read/write flash response (Message ID 0x36).
-    /// @details Deserializes camera index, action status, and table slot index.
+    /// @brief Parses a NUC / dead table read-write reply (Message ID 0x36).
+    /// @details Reply to GetParameters [0x36, NucTableQuery, cam]. secondaryFileName and
+    ///          interpolationRatio are optional. @p out is only written on success.
     /// @param[in] packet Validated framed packet bytes or view.
     /// @param[out] out Deserialized read/write NUC structure.
     /// @return True on successful parse.
+    /// @retval false Wrong message ID, reserved mode nibble, or a string overruns the payload.
     [[nodiscard]] static bool parseReadWriteNuc(ByteView packet, MsgReadWriteNuc& out);
 
     /// @brief Parses custom thermal pseudo-color palette (Message ID 0x72 / 0x73).
@@ -44,11 +51,12 @@ public:
     /// @return True on successful parse.
     [[nodiscard]] static bool parseUserPalette(ByteView packet, MsgUserPalette& out);
 
-    /// @brief Parses dead pixel metrics and defect statistics (Message ID 0xA1).
-    /// @details Deserializes total defect count, bad columns, and bad rows.
+    /// @brief Parses dead pixel calibration statistics (Message ID 0xA1).
+    /// @details Decodes the 33-byte IDD layout: nDead (s32) and seven per-criterion u32 counters.
     /// @param[in] packet Validated framed packet bytes or view.
     /// @param[out] out Deserialized dead pixel stats structure.
     /// @return True on successful parse.
+    /// @retval false Wrong message ID or payload shorter than 33 bytes.
     [[nodiscard]] static bool parseDeadPixelStats(ByteView packet, MsgDeadPixelStats& out);
 
     /// @brief Parses camera intrinsic geometric calibration (Message ID 0xC0).

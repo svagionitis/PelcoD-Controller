@@ -127,13 +127,6 @@ Item {
             palIdx = 127; // User Palette
         }
         bridge.setFalseColor(camCombo.currentIndex, palIdx);
-
-        bridge.setNoise3D(
-            camCombo.currentIndex,
-            denoise3dSwitch.checked ? 1 : 0,
-            Math.round(temp3dSlider.value),
-            Math.round(spat3dSlider.value)
-        );
     }
 
     function loadPresetValues(name) {
@@ -190,9 +183,6 @@ Item {
         roiHighSpin.value = 0;
         roiWideSpin.value = 0;
         falseColorCombo.currentIndex = 0;
-        denoise3dSwitch.checked = false;
-        temp3dSlider.value = 50;
-        spat3dSlider.value = 30;
     }
 
     Component.onCompleted: {
@@ -489,27 +479,6 @@ Item {
                         text: "Staring Motion Mask"
                         checked: false
                     }
-                }
-
-                Rectangle { Layout.fillWidth: true; implicitHeight: 1; color: SightlineTheme.cardBorder }
-
-                // 3D Noise Reduction (Msg 0xAF)
-                RowLayout {
-                    Layout.fillWidth: true
-                    spacing: 14
-
-                    Text { text: "3D Digital Noise Reduction:"; color: SightlineTheme.textSecondary; font.pixelSize: 11; font.bold: true; Layout.preferredWidth: 160 }
-                    Switch { id: denoise3dSwitch; checked: false }
-
-                    Text { text: "Temporal Strength:"; color: SightlineTheme.textSecondary; font.pixelSize: 11 }
-                    Slider { id: temp3dSlider; from: 0; to: 100; value: 50; Layout.preferredWidth: 120 }
-                    Text { text: Math.round(temp3dSlider.value) + "%"; color: SightlineTheme.textPrimary; font.pixelSize: 11; Layout.preferredWidth: 35 }
-
-                    Text { text: "Spatial Strength:"; color: SightlineTheme.textSecondary; font.pixelSize: 11 }
-                    Slider { id: spat3dSlider; from: 0; to: 100; value: 30; Layout.preferredWidth: 120 }
-                    Text { text: Math.round(spat3dSlider.value) + "%"; color: SightlineTheme.textPrimary; font.pixelSize: 11; Layout.preferredWidth: 35 }
-
-                    Item { Layout.fillWidth: true }
                 }
             }
         }

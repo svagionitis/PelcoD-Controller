@@ -392,11 +392,6 @@ public:
     /// @return True if command was successfully transmitted.
     [[nodiscard]] bool getMultipleAlignment();
 
-    /// @brief Configures 3D spatio-temporal noise reduction filter.
-    /// @param[in] msg Noise reduction parameters.
-    /// @return True if command was successfully transmitted.
-    [[nodiscard]] bool setNoise3D(const MsgNoise3D& msg);
-
     // --- Video & Display Pipeline ---
 
     /// @brief Configures video capture format.

@@ -284,11 +284,6 @@ std::vector<std::uint8_t> SightlineProtocolBuilder::buildSetBlendParameters(cons
     return SightlineBlendingBuilder::buildSetBlendParameters(msg);
 }
 
-std::vector<std::uint8_t> SightlineProtocolBuilder::buildSetNoise3D(const MsgNoise3D& msg)
-{
-    return SightlineEnhancementBuilder::buildSetNoise3D(msg);
-}
-
 // ==============================================================================
 // 3b. Multi-Sensor Alignment & Digital Video Pipeline (Phase 3)
 // ==============================================================================
@@ -581,6 +576,11 @@ std::vector<std::uint8_t> SightlineProtocolBuilder::buildReadWriteNuc(const MsgR
     return SightlineNucBuilder::buildReadWriteNuc(msg);
 }
 
+std::vector<std::uint8_t> SightlineProtocolBuilder::buildGetReadWriteNuc(NucTableQuery query, std::uint8_t cameraIndex)
+{
+    return SightlineNucBuilder::buildGetReadWriteNuc(query, cameraIndex);
+}
+
 std::vector<std::uint8_t> SightlineProtocolBuilder::buildSetUserPalette(const MsgUserPalette& msg)
 {
     return SightlineNucBuilder::buildSetUserPalette(msg);
@@ -847,11 +847,6 @@ std::vector<std::uint8_t> SightlineProtocolBuilder::buildGetMetadataStaticValues
 std::vector<std::uint8_t> SightlineProtocolBuilder::buildGetMetadataRate()
 {
     return SightlineKlvBuilder::buildGetMetadataRate();
-}
-
-std::vector<std::uint8_t> SightlineProtocolBuilder::buildGetDeadPixel(std::uint8_t cameraIndex)
-{
-    return SightlineNucBuilder::buildGetDeadPixel(cameraIndex);
 }
 
 std::vector<std::uint8_t> SightlineProtocolBuilder::buildGetGPIO()

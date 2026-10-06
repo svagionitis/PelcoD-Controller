@@ -35,5 +35,6 @@ add_sightline_test(TestSightlineZeroCopy        TestSightlineZeroCopy.cpp)
 add_sightline_test(TestSightlineRadiometry      TestSightlineRadiometry.cpp)
 add_sightline_test(TestSightlineIsotherm        TestSightlineIsotherm.cpp)
 add_sightline_test(TestSightlineKlvRadiometry   TestSightlineKlvRadiometry.cpp)
+add_sightline_test(TestSightlineNuc             TestSightlineNuc.cpp)
 
 

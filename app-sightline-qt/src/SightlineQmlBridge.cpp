@@ -1996,19 +1996,6 @@ QStringList SightlineQmlBridge::getEnhancePresets()
     return getEnhancementPresets();
 }
 
-bool SightlineQmlBridge::setNoise3D(int cam, int enable, int temporal, int spatial)
-{
-    if (!isConnected()) {
-        return false;
-    }
-    Sightline::MsgNoise3D msg {};
-    msg.cameraIndex = static_cast<std::uint8_t>(cam);
-    msg.enable = static_cast<std::uint8_t>(enable);
-    msg.temporalStrength = static_cast<std::uint8_t>(temporal);
-    msg.spatialStrength = static_cast<std::uint8_t>(spatial);
-    return m_device->device()->setNoise3D(msg);
-}
-
 // 6. Overlays & Graphic Primitives (Module 0x62 & 0x9C)
 bool SightlineQmlBridge::setOverlayMode(int cam, int primaryReticle, int secondaryReticle, int graphicsMask)
 {
@@ -2467,7 +2454,6 @@ void SightlineQmlBridge::queryModuleParameters(int tabIndex)
         break;
     case 7: // Enhancement
         queryParameters(static_cast<int>(Sightline::MessageId::SetVideoEnhancementParameters)); // 0x21
-        queryParameters(static_cast<int>(Sightline::MessageId::Noise3D)); // 0xAF
         break;
     case 8: // Compression
         queryEncoderParams(0);
@@ -2497,7 +2483,9 @@ void SightlineQmlBridge::queryModuleParameters(int tabIndex)
         break;
     case 12: // NUC Calibration
         queryParameters(static_cast<int>(Sightline::MessageId::NucParameters)); // 0x35
-        queryParameters(static_cast<int>(Sightline::MessageId::DeadPixel)); // 0xA8
+        queryParameters(static_cast<int>(Sightline::MessageId::DeadPixelStats)); // 0xA1
+        queryParameters(static_cast<int>(Sightline::MessageId::Noise3D)); // 0xAF (read-only stats)
+        // 0xA8 DeadPixel is write-only; it is not a valid GetParameters target (IDD v3.11).
         break;
     case 13: // Telemetry
         queryParameters(0x13); // Metadata values

@@ -268,11 +268,6 @@ public:
     /// @return Framed binary packet.
     [[nodiscard]] static std::vector<std::uint8_t> buildSetBlendParameters(const MsgSetBlendParameters& msg);
 
-    /// @brief Encodes 3D spatio-temporal noise reduction (Message ID 0xAF).
-    /// @param[in] msg Noise reduction parameters.
-    /// @return Framed binary packet.
-    [[nodiscard]] static std::vector<std::uint8_t> buildSetNoise3D(const MsgNoise3D& msg);
-
     // --- Multi-Sensor Alignment & Digital Video Pipeline (Phase 3) ---
 
     /// @brief Encodes 4-point projective homography calibration (Message ID 0x95).
@@ -530,20 +525,31 @@ public:
 
     // --- Thermal NUC & Sensor Calibration ---
 
-    /// @brief Encodes NUC calibration and shutter mode command (Message ID 0x35).
+    /// @brief Encodes NUC/DPR parameters and calibration action (Message ID 0x35).
+    /// @details Delegates to SightlineNucBuilder::buildNucParameters.
     /// @param[in] msg NUC parameters.
-    /// @return Framed binary packet.
+    /// @return Framed binary packet, or empty if @p msg is structurally invalid.
     [[nodiscard]] static std::vector<std::uint8_t> buildNucParameters(const MsgNucParameters& msg);
 
-    /// @brief Encodes dead pixel replacement configuration (Message ID 0xA8).
-    /// @param[in] msg Dead pixel parameters.
+    /// @brief Encodes a raw dead pixel list operation (Message ID 0xA8).
+    /// @details Delegates to SightlineNucBuilder::buildDeadPixel.
+    /// @param[in] msg Dead pixel operation.
     /// @return Framed binary packet.
     [[nodiscard]] static std::vector<std::uint8_t> buildDeadPixel(const MsgDeadPixel& msg);
 
-    /// @brief Encodes NUC flash read/write/restore command (Message ID 0x36).
+    /// @brief Encodes NUC / dead table save, load, and default command (Message ID 0x36).
+    /// @details Delegates to SightlineNucBuilder::buildReadWriteNuc.
     /// @param[in] msg Read/write NUC parameters.
-    /// @return Framed binary packet.
+    /// @return Framed binary packet, or empty if @p msg is structurally invalid.
     [[nodiscard]] static std::vector<std::uint8_t> buildReadWriteNuc(const MsgReadWriteNuc& msg);
+
+    /// @brief Encodes query for loaded / default table names (Message ID 0x28 query 0x36).
+    /// @details Delegates to SightlineNucBuilder::buildGetReadWriteNuc.
+    /// @param[in] query Table selector.
+    /// @param[in] cameraIndex Target camera index.
+    /// @return Framed binary packet.
+    [[nodiscard]] static std::vector<std::uint8_t> buildGetReadWriteNuc(
+        NucTableQuery query, std::uint8_t cameraIndex = 0U);
 
     /// @brief Encodes custom pseudo-color thermal palette table (Message ID 0x72).
     /// @param[in] msg User palette table.
@@ -833,9 +839,6 @@ public:
 
     /// @brief Encodes query for metadata rate (Message ID 0x28 query 0x62).
     [[nodiscard]] static std::vector<std::uint8_t> buildGetMetadataRate();
-
-    /// @brief Encodes query for dead pixel replacement (Message ID 0x28 query 0xA8).
-    [[nodiscard]] static std::vector<std::uint8_t> buildGetDeadPixel(std::uint8_t cameraIndex = 0U);
 
     /// @brief Encodes query for GPIO pin states (Message ID 0x28 query 0xB6).
     [[nodiscard]] static std::vector<std::uint8_t> buildGetGPIO();

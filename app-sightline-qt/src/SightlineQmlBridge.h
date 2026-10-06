@@ -944,14 +944,6 @@ public:
     Q_INVOKABLE QVariantMap loadEnhancePreset(const QString& name);
     Q_INVOKABLE QStringList getEnhancePresets();
 
-    /// @brief Configure 3D noise reduction filter.
-    /// @param cam Camera index.
-    /// @param enable Noise reduction enable flag.
-    /// @param temporal Temporal filtering strength.
-    /// @param spatial Spatial filtering strength.
-    /// @return True if dispatched.
-    Q_INVOKABLE bool setNoise3D(int cam, int enable, int temporal, int spatial);
-
     // 6. Overlays & Graphic Primitives (Module 0x62 & 0x9C)
     /// @brief Configure reticle mode and graphics feature flags (Message ID 0x06).
     /// @param cam Camera index.

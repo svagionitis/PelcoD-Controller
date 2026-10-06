@@ -112,55 +112,12 @@ namespace {
         EXPECT_EQ(posOut.confidence, 98U);
     }
 
-    /// @brief Verify thermal NUC calibration and dead pixel table serialization & deserialization.
-    TEST(TestSightlinePeripherals, BuildAndParseNuc)
+    /// @brief Verify thermal palette, camera calibration and parameter file serialization & deserialization.
+    /// @details NUC/DPR messages (0x35, 0x36, 0xA8, 0xA1, 0xAF) are covered against IDD golden
+    ///          vectors in TestSightlineNuc.cpp.
+    TEST(TestSightlinePeripherals, BuildAndParseThermalAux)
     {
-        // 1. NUC Parameters (0x35)
-        MsgNucParameters nucMsg {};
-        nucMsg.cameraIndex = 1U;
-        nucMsg.nucAction = 2U; // 2-point NUC
-        nucMsg.shutterMode = 0U; // Manual
-
-        const auto nucPkt = SightlineNucBuilder::buildNucParameters(nucMsg);
-        EXPECT_EQ(SightlineFraming::identifyMessage(nucPkt), MessageId::NucParameters);
-
-        MsgNucParameters nucOut {};
-        ASSERT_TRUE(SightlineNucParser::parseNucParameters(nucPkt, nucOut));
-        EXPECT_EQ(nucOut.cameraIndex, 1U);
-        EXPECT_EQ(nucOut.nucAction, 2U);
-        EXPECT_EQ(nucOut.shutterMode, 0U);
-
-        // 2. Dead Pixel (0xA8)
-        MsgDeadPixel dpMsg {};
-        dpMsg.cameraIndex = 1U;
-        dpMsg.mode = 1U; // Replacement enable
-        dpMsg.deadPixelCount = 24U;
-
-        const auto dpPkt = SightlineNucBuilder::buildDeadPixel(dpMsg);
-        EXPECT_EQ(SightlineFraming::identifyMessage(dpPkt), MessageId::DeadPixel);
-
-        MsgDeadPixel dpOut {};
-        ASSERT_TRUE(SightlineNucParser::parseDeadPixel(dpPkt, dpOut));
-        EXPECT_EQ(dpOut.cameraIndex, 1U);
-        EXPECT_EQ(dpOut.mode, 1U);
-        EXPECT_EQ(dpOut.deadPixelCount, 24U);
-
-        // 3. Read/Write NUC Flash (0x36)
-        MsgReadWriteNuc rwNucMsg {};
-        rwNucMsg.cameraIndex = 2U;
-        rwNucMsg.action = 1U; // Write to flash
-        rwNucMsg.tableIndex = 3U;
-
-        const auto rwNucPkt = SightlineNucBuilder::buildReadWriteNuc(rwNucMsg);
-        EXPECT_EQ(SightlineFraming::identifyMessage(rwNucPkt), MessageId::ReadWriteNuc);
-
-        MsgReadWriteNuc rwNucOut {};
-        ASSERT_TRUE(SightlineNucParser::parseReadWriteNuc(rwNucPkt, rwNucOut));
-        EXPECT_EQ(rwNucOut.cameraIndex, 2U);
-        EXPECT_EQ(rwNucOut.action, 1U);
-        EXPECT_EQ(rwNucOut.tableIndex, 3U);
-
-        // 4. User Thermal Palette (0x72)
+        // 1. User Thermal Palette (0x72)
         MsgUserPalette palMsg {};
         palMsg.paletteIndex = 1U;
         palMsg.lutData = { 0x10U, 0x20U, 0x30U, 0x40U, 0x50U };
@@ -173,22 +130,7 @@ namespace {
         EXPECT_EQ(palOut.paletteIndex, 1U);
         EXPECT_EQ(palOut.lutData, palMsg.lutData);
 
-        // 5. Dead Pixel Statistics (0xA1)
-        std::vector<std::uint8_t> dpStatsPayload {};
-        dpStatsPayload.push_back(0U); // cameraIndex 0
-        SightlineFraming::appendU16Le(dpStatsPayload, 42U); // deadPixelCount
-        SightlineFraming::appendU16Le(dpStatsPayload, 3U); // badColumns
-        SightlineFraming::appendU16Le(dpStatsPayload, 1U); // badRows
-
-        const auto dpStatsPkt = SightlineFraming::buildPacket(MessageId::DeadPixelStats, dpStatsPayload);
-        MsgDeadPixelStats dpStatsOut {};
-        ASSERT_TRUE(SightlineNucParser::parseDeadPixelStats(dpStatsPkt, dpStatsOut));
-        EXPECT_EQ(dpStatsOut.cameraIndex, 0U);
-        EXPECT_EQ(dpStatsOut.deadPixelCount, 42U);
-        EXPECT_EQ(dpStatsOut.badColumns, 3U);
-        EXPECT_EQ(dpStatsOut.badRows, 1U);
-
-        // 6. Camera Calibration (0xC0)
+        // 2. Camera Calibration (0xC0)
         MsgCameraCalibration calibMsg {};
         calibMsg.cameraIndex = 0U;
         calibMsg.focalLengthX = 1000.5F;
@@ -215,7 +157,7 @@ namespace {
         EXPECT_FLOAT_EQ(calibOut.tangentialP1, 0.001F);
         EXPECT_FLOAT_EQ(calibOut.tangentialP2, -0.002F);
 
-        // 7. Camera Parameter File (0xC2)
+        // 3. Camera Parameter File (0xC2)
         MsgCameraParameterFile paramFileMsg {};
         paramFileMsg.cameraIndex = 1U;
         paramFileMsg.action = 0U; // Load
@@ -231,13 +173,11 @@ namespace {
         EXPECT_EQ(fileOut.filename, "boson640_calib.bin");
     }
 
-    /// @brief Verify network list reply deserialization and dead pixel query builder.
-    TEST(TestSightlinePeripherals, NetworkListAndDeadPixelQuery)
+    /// @brief Verify network list reply deserialization.
+    /// @details 0xA8 is not a valid GetParameters target per IDD v3.11; the former dead pixel
+    ///          query assertions were removed with buildGetDeadPixel.
+    TEST(TestSightlinePeripherals, NetworkList)
     {
-        const auto getDpPkt = SightlineNucBuilder::buildGetDeadPixel(1U);
-        EXPECT_EQ(SightlineFraming::identifyMessage(getDpPkt), MessageId::GetParameters);
-        EXPECT_EQ(getDpPkt, SightlineProtocolBuilder::buildGetDeadPixel(1U));
-
         // Network list parsing (0x67)
         std::vector<std::uint8_t> payload {};
         payload.push_back(2U); // 2 interfaces

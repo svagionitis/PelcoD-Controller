@@ -46,11 +46,6 @@ public:
     /// @return Framed binary packet.
     [[nodiscard]] static std::vector<std::uint8_t> buildSetBlendParameters(const MsgSetBlendParameters& msg);
 
-    /// @brief Encodes 3D spatio-temporal noise reduction (Message ID 0xAF).
-    /// @param[in] msg Noise reduction parameters.
-    /// @return Framed binary packet.
-    [[nodiscard]] static std::vector<std::uint8_t> buildSetNoise3D(const MsgNoise3D& msg);
-
     /// @brief Encodes query for active stabilization parameters (Message ID 0x03).
     /// @param[in] cameraIndex Target camera index (0-based).
     /// @return Framed binary packet.

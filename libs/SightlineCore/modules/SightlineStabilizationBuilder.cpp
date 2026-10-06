@@ -54,12 +54,6 @@ std::vector<std::uint8_t> SightlineStabilizationBuilder::buildSetBlendParameters
     return SightlineBlendingBuilder::buildSetBlendParameters(msg);
 }
 
-std::vector<std::uint8_t> SightlineStabilizationBuilder::buildSetNoise3D(const MsgNoise3D& msg)
-{
-    const std::vector<std::uint8_t> payload { msg.cameraIndex, msg.enable, msg.temporalStrength, msg.spatialStrength };
-    return SightlineFraming::buildPacket(MessageId::Noise3D, payload);
-}
-
 std::vector<std::uint8_t> SightlineStabilizationBuilder::buildGetStabilization(std::uint8_t cameraIndex)
 {
     const std::vector<std::uint8_t> payload { cameraIndex };

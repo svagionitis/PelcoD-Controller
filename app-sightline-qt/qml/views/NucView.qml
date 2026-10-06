@@ -36,20 +36,20 @@ ScrollView {
                 font.letterSpacing: 1.0
             }
             Text {
-                text: "// Module 0x67 FFC Shutter & Bad Pixel Replacement"
+                text: "// 0x35 NUC Parameters · 0x36 Read/Write NUC · 0xA8 Dead Pixel"
                 color: SightlineTheme.textMuted
                 font.pixelSize: SightlineTheme.fontSizeSmall
                 font.family: "Monospace"
             }
         }
 
-        // Metrics Flow
+        // Metrics Flow (placeholders until the 0xA1 / 0x35 replies are bound to the bridge)
         Flow {
             Layout.fillWidth: true
             spacing: 10
-            MetricCard { title: "FPA Sensor Temp"; value: "38.2"; unit: "°C"; accentColor: SightlineTheme.warning; iconText: "🌡️" }
-            MetricCard { title: "Bad Pixels Replaced"; value: "14"; unit: "px"; accentColor: SightlineTheme.info; iconText: "🩹" }
-            MetricCard { title: "Calibration Table"; value: "VALID"; accentColor: SightlineTheme.success; iconText: "✅" }
+            MetricCard { title: "FPA Sensor Temp"; value: "—"; unit: "°C"; accentColor: SightlineTheme.warning; iconText: "🌡️" }
+            MetricCard { title: "Dead Pixels"; value: "—"; unit: "px"; accentColor: SightlineTheme.info; iconText: "🩹" }
+            MetricCard { title: "NUC Table"; value: "—"; accentColor: SightlineTheme.textMuted; iconText: "📄" }
         }
 
         // Settings Card
@@ -98,28 +98,41 @@ ScrollView {
                     Item { Layout.fillWidth: true }
                 }
 
+                // The former handlers sent a reporting-mode change and a save-parameters
+                // command, neither of which performs a NUC. Actions stay disabled until the guided
+                // NUC workflow (0x35 run modes / 0x36 file ops) is exposed by the bridge.
                 Flow {
                     Layout.fillWidth: true
                     spacing: 10
                     Layout.topMargin: 4
 
                     Button {
-                        text: "Actuate Mechanical Shutter NUC"
+                        id: nucRunBtn
+                        text: "Run NUC"
+                        enabled: false
                         implicitWidth: 220
                         implicitHeight: 32
                         contentItem: Text { text: parent.text; color: "#0e1014"; font.bold: true; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
-                        background: Rectangle { color: SightlineTheme.warning; radius: 4 }
-                        onClicked: bridge.setReportingMode(nucCam.currentIndex, 100, 0x10)
+                        background: Rectangle { color: SightlineTheme.warning; radius: 4; opacity: nucRunBtn.enabled ? 1.0 : 0.35 }
                     }
 
                     Button {
-                        text: "Update Bad Pixel Table"
+                        id: deadTableBtn
+                        text: "Save Dead Pixel Table"
+                        enabled: false
                         implicitWidth: 180
                         implicitHeight: 32
                         contentItem: Text { text: parent.text; color: "#0e1014"; font.bold: true; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
-                        background: Rectangle { color: SightlineTheme.primary; radius: 4 }
-                        onClicked: bridge.saveParameters(0x02)
+                        background: Rectangle { color: SightlineTheme.primary; radius: 4; opacity: deadTableBtn.enabled ? 1.0 : 0.35 }
                     }
+                }
+
+                Text {
+                    Layout.fillWidth: true
+                    text: "NUC / DPR actions are disabled pending the guided NUC workflow."
+                    color: SightlineTheme.textMuted
+                    font.pixelSize: SightlineTheme.fontSizeSmall
+                    wrapMode: Text.WordWrap
                 }
             }
         }

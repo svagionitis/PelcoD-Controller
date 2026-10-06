@@ -89,6 +89,14 @@ public:
     /// @param[in] str String to append.
     static void appendString(std::vector<std::uint8_t>& buf, const std::string& str);
 
+    /// @brief Appends an IDD SVPLenString_t (u8 length prefix followed by raw characters, no terminator).
+    /// @details The length prefix is a single byte, so strings longer than 255 characters cannot be
+    ///          represented. In that case nothing is appended (no silent truncation, CERT STR50-CPP).
+    /// @param[in,out] buf Target byte buffer; left unchanged on failure.
+    /// @param[in] str String to append.
+    /// @return True if the string was appended, false if it exceeds 255 characters.
+    [[nodiscard]] static bool appendLenString(std::vector<std::uint8_t>& buf, const std::string& str);
+
     // --- Endian Deserialization Helpers (Little-Endian) ---
 
     /// @brief Reads a 16-bit unsigned integer in little-endian order.

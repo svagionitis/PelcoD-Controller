@@ -123,6 +123,19 @@ void SightlineFraming::appendString(std::vector<std::uint8_t>& buf, const std::s
     buf.push_back(0x00U); // Null terminator
 }
 
+bool SightlineFraming::appendLenString(std::vector<std::uint8_t>& buf, const std::string& str)
+{
+    constexpr std::size_t kMaxLenString { 255U };
+    if (str.size() > kMaxLenString) {
+        return false;
+    }
+    buf.push_back(static_cast<std::uint8_t>(str.size()));
+    for (const char ch : str) {
+        buf.push_back(static_cast<std::uint8_t>(ch));
+    }
+    return true;
+}
+
 std::uint16_t SightlineFraming::readU16Le(const std::uint8_t* ptr) noexcept
 {
     return static_cast<std::uint16_t>(static_cast<std::uint16_t>(ptr[0]) | (static_cast<std::uint16_t>(ptr[1]) << 8U));

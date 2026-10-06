@@ -426,11 +426,6 @@ bool SightlineDevice::getMultipleAlignment()
     return sendPacket(SightlineProtocolBuilder::buildGetMultipleAlignment());
 }
 
-bool SightlineDevice::setNoise3D(const MsgNoise3D& msg)
-{
-    return sendPacket(SightlineProtocolBuilder::buildSetNoise3D(msg));
-}
-
 // ==============================================================================
 // 3. Video Pipeline & Display Commands
 // ==============================================================================

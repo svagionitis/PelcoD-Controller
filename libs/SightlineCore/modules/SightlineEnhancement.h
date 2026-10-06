@@ -130,13 +130,25 @@ struct MsgSetVideoEnhancementFull {
     bool normalizeKernel { false };           ///< Automatic sum normalization
 };
 
+/// @brief Fixed-point scale applied by the firmware to every MsgNoise3D statistic.
+inline constexpr std::uint16_t kNoise3DScale { 256U };
+
 /// @struct MsgNoise3D
-/// @brief 3D Spatio-temporal noise reduction filter settings (Message ID 0xAF).
+/// @brief 3D noise statistics reply (Message ID 0xAF, IDD SLANoise3D_t). Read-only.
+/// @details Triggered by MsgNucParameters with NucRunMode::Noise3DStats, then retrieved with
+///          GetParameters [0xAF, cameraIndex]. Every value is a standard deviation scaled by
+///          kNoise3DScale (divide by 256.0 to obtain grey levels). Payload (17 bytes):
+///          0 cameraIndex, then 8 x u16 in the order below. See EAN-NUC-and-DPR section 5.5.
 struct MsgNoise3D {
-    std::uint8_t cameraIndex { 0U };
-    std::uint8_t enable { 1U };
-    std::uint8_t temporalStrength { 50U };
-    std::uint8_t spatialStrength { 30U };
+    std::uint8_t cameraIndex { 0U }; ///< Camera index
+    std::uint16_t sigT8 { 0U }; ///< SIGt: std dev of frame averages
+    std::uint16_t sigV8 { 0U }; ///< SIGv: std dev of 2D row slices
+    std::uint16_t sigH8 { 0U }; ///< SIGh: std dev of 2D column slices
+    std::uint16_t sigVh8 { 0U }; ///< SIGvh: std dev of per-pixel averages over time
+    std::uint16_t sigTv8 { 0U }; ///< SIGtv: std dev of row averages
+    std::uint16_t sigTh8 { 0U }; ///< SIGth: std dev of column averages
+    std::uint16_t sigTvh8 { 0U }; ///< SIGtvh: std dev of all pixel values
+    std::uint16_t noiseTemporal8 { 0U }; ///< Noise_temporal: mean per-pixel temporal std dev
 };
 
 } // namespace Sightline

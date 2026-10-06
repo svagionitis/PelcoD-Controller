@@ -96,15 +96,23 @@ bool SightlineEnhancementParser::parseNoise3D(
         return false;
     }
 
+    constexpr std::size_t kNoise3DSize { 17U }; // u8 + 8 x u16
+
     const auto payload { SightlineFraming::extractPayload(packet) };
-    if (payload.size() < 4U) {
+    if (payload.size() < kNoise3DSize) {
         return false;
     }
 
+    const std::uint8_t* const p { payload.data() };
     out.cameraIndex = payload[0U];
-    out.enable = payload[1U];
-    out.temporalStrength = payload[2U];
-    out.spatialStrength = payload[3U];
+    out.sigT8 = SightlineFraming::readU16Le(p + 1U);
+    out.sigV8 = SightlineFraming::readU16Le(p + 3U);
+    out.sigH8 = SightlineFraming::readU16Le(p + 5U);
+    out.sigVh8 = SightlineFraming::readU16Le(p + 7U);
+    out.sigTv8 = SightlineFraming::readU16Le(p + 9U);
+    out.sigTh8 = SightlineFraming::readU16Le(p + 11U);
+    out.sigTvh8 = SightlineFraming::readU16Le(p + 13U);
+    out.noiseTemporal8 = SightlineFraming::readU16Le(p + 15U);
     return true;
 }
 

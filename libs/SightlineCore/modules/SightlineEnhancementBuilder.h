@@ -35,19 +35,15 @@ public:
     [[nodiscard]] static std::vector<std::uint8_t> buildSetFalseColor(
         std::uint8_t cameraIndex, FalseColorPalette palette);
 
-    /// @brief Encodes 3D spatio-temporal noise reduction (Message ID 0xAF).
-    /// @param[in] msg Noise reduction parameters.
-    /// @return Framed binary packet.
-    [[nodiscard]] static std::vector<std::uint8_t> buildSetNoise3D(
-        const MsgNoise3D& msg);
-
     /// @brief Encodes query for active video enhancement parameters (Message ID 0x22).
     /// @param[in] cameraIndex Target camera index (0-based).
     /// @return Framed binary packet.
     [[nodiscard]] static std::vector<std::uint8_t> buildGetVideoEnhance(
         std::uint8_t cameraIndex = 0U);
 
-    /// @brief Encodes query for 3D noise reduction parameters (Message ID 0x28 query 0xAF).
+    /// @brief Encodes query for 3D noise statistics (Message ID 0x28 query 0xAF).
+    /// @details 0xAF is read-only. Trigger the calculation first with MsgNucParameters
+    ///          (NucRunMode::Noise3DStats), then query; the reply is a MsgNoise3D.
     /// @param[in] cameraIndex Target camera index (0-based).
     /// @return Framed binary packet.
     [[nodiscard]] static std::vector<std::uint8_t> buildGetNoise3D(

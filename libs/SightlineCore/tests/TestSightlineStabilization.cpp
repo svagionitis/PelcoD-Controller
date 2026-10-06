@@ -118,14 +118,6 @@ namespace {
         EXPECT_EQ(blendPayload[6], 75U); // amt
         EXPECT_EQ(blendPayload[11], 0U); // warpIndex
         EXPECT_EQ(blendPayload[12], 1U); // fixedIndex
-
-        MsgNoise3D noiseMsg {};
-        noiseMsg.cameraIndex = 0U;
-        noiseMsg.enable = 1U;
-        noiseMsg.temporalStrength = 60U;
-        noiseMsg.spatialStrength = 40U;
-        const auto noisePkt = SightlineStabilizationBuilder::buildSetNoise3D(noiseMsg);
-        EXPECT_EQ(SightlineFraming::identifyMessage(noisePkt), MessageId::Noise3D);
     }
 
     /// @brief Verify current stabilization parameters deserialization (0x41).
