@@ -58,6 +58,10 @@ add_library(Onvif STATIC
     NonceCache.cpp
     CredentialStore.h
     CredentialStore.cpp
+    PasswordPolicy.h
+    PasswordPolicy.cpp
+    CredentialVault.h
+    CredentialVault.cpp
     UsernameToken.h
     UsernameToken.cpp
     HttpDigest.h

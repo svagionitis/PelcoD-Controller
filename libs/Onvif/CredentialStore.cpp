@@ -2,6 +2,7 @@
 /// @brief Implementation of the authoritative ONVIF user store.
 
 #include "CredentialStore.h"
+#include "PasswordPolicy.h"
 
 #include <openssl/crypto.h>
 
@@ -54,8 +55,8 @@ bool CredentialStore::isValidName(std::string_view username) noexcept
 
 std::size_t CredentialStore::countAdmins() const noexcept
 {
-    return static_cast<std::size_t>(std::count_if(m_users.begin(), m_users.end(),
-        [](const OnvifUser& u) { return u.level == OnvifUserLevel::Administrator; }));
+    return static_cast<std::size_t>(std::count_if(
+        m_users.begin(), m_users.end(), [](const OnvifUser& u) { return u.level == OnvifUserLevel::Administrator; }));
 }
 
 void CredentialStore::wipeAll() noexcept
@@ -148,8 +149,9 @@ std::size_t CredentialStore::adminCount() const
 bool CredentialStore::hasDefaultPassword() const
 {
     const std::shared_lock lock { m_mutex };
-    return std::any_of(m_users.begin(), m_users.end(),
-        [](const OnvifUser& u) { return u.password.empty() || (u.password == u.username); });
+    return std::any_of(m_users.begin(), m_users.end(), [](const OnvifUser& u) {
+        return u.password.empty() || (u.password == u.username) || PasswordPolicy::isCommonDefault(u.password);
+    });
 }
 
 } // namespace Onvif

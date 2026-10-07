@@ -50,4 +50,15 @@ std::string SoapFault::resourceUnknown(std::string_view reason)
     return sender("wsrf-rw:ResourceUnknownFault", "", reason);
 }
 
+std::string SoapFault::deviceUnprovisioned()
+{
+    return sender("ter:OperationProhibited", "ter:DeviceUnprovisioned",
+        "Device is unprovisioned. Initial administrator credentials must be set before use.");
+}
+
+std::string SoapFault::passwordTooWeak(std::string_view reason)
+{
+    return sender("ter:InvalidArgVal", "ter:PasswordTooWeak", reason);
+}
+
 } // namespace Onvif

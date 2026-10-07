@@ -3,6 +3,7 @@
 #include "NotificationDispatcher.h"
 #include "NotificationUrlValidator.h"
 #include "OnvifSecurity.h"
+#include "PasswordPolicy.h"
 #include "SoapFault.h"
 #include "SubscriptionManager.h"
 #include "UsernameToken.h"
@@ -320,6 +321,11 @@ OnvifServer::OnvifServer(OnvifServerConfig config, std::shared_ptr<IPtzHandler> 
 {
     m_credStore = std::make_shared<CredentialStore>(m_config.defaultUsers);
     m_authenticator = std::make_unique<Authenticator>(m_credStore, m_config.auth);
+    if ((m_credStore->adminCount() > 0U) && !m_credStore->hasDefaultPassword()) {
+        m_provisioningState = ProvisioningState::Provisioned;
+    } else {
+        m_provisioningState = ProvisioningState::Unprovisioned;
+    }
     m_internalNetworkInterfaces = m_config.defaultNetworkInterfaces;
     m_internalGateway = m_config.defaultGateway;
     m_internalDns = m_config.defaultDns;
@@ -537,6 +543,11 @@ OnvifServerConfig OnvifServer::getConfig() const
     return m_config;
 }
 
+ProvisioningState OnvifServer::provisioningState() const noexcept
+{
+    return m_provisioningState.load();
+}
+
 void OnvifServer::setPtzHandler(std::shared_ptr<IPtzHandler> handler)
 {
     m_ptzHandler = std::move(handler);
@@ -744,6 +755,18 @@ bool OnvifServer::authorize(const httplib::Request& req, httplib::Response& res,
         return true;
     }
     const AccessClass required { AccessPolicy::classify(serviceName, opName) };
+
+    if (m_provisioningState.load() == ProvisioningState::Unprovisioned) {
+        if ((required == AccessClass::PreAuth) || isOp(opName, "GetDeviceInformation")) {
+            return true;
+        }
+        if (isOp(opName, "CreateUsers")) {
+            return true;
+        }
+        sendSoapResponse(res, SoapFault::deviceUnprovisioned(), 400);
+        return false;
+    }
+
     if (required == AccessClass::PreAuth) {
         return true;
     }
@@ -773,6 +796,11 @@ bool OnvifServer::authorizeHttp(const httplib::Request& req, httplib::Response& 
 {
     if (!m_config.auth.enabled) {
         return true;
+    }
+    if (m_provisioningState.load() == ProvisioningState::Unprovisioned) {
+        res.status = 400;
+        res.set_content(SoapFault::deviceUnprovisioned(), "application/soap+xml; charset=utf-8");
+        return false;
     }
     const std::string authorization { req.get_header_value("Authorization") };
     AuthInput input {};
@@ -1148,9 +1176,19 @@ void OnvifServer::handleDeviceService(const httplib::Request& req, httplib::Resp
                     res, SoapFault::sender("ter:OperationProhibited", "ter:UsernameClash", "User exists"), 400);
                 return;
             }
+            const auto checkRes = PasswordPolicy::check(nu.password, nu.username, m_config.passwordPolicy);
+            if (checkRes != PasswordCheckResult::Valid) {
+                sendSoapResponse(res, SoapFault::passwordTooWeak(PasswordPolicy::describe(checkRes)), 400);
+                return;
+            }
         }
         for (const auto& nu : newUsers) {
             static_cast<void>(m_credStore->upsert(nu));
+        }
+        if ((m_credStore->adminCount() > 0U) && !m_credStore->hasDefaultPassword()) {
+            m_provisioningState = ProvisioningState::Provisioned;
+        } else {
+            m_provisioningState = ProvisioningState::Unprovisioned;
         }
         if (m_deviceHandler && !newUsers.empty()) {
             static_cast<void>(m_deviceHandler->handleCreateUsers(newUsers));
@@ -1173,6 +1211,13 @@ void OnvifServer::handleDeviceService(const httplib::Request& req, httplib::Resp
             updates.push_back(std::move(u));
         }
         for (const auto& u : updates) {
+            const auto checkRes = PasswordPolicy::check(u.password, u.username, m_config.passwordPolicy);
+            if (checkRes != PasswordCheckResult::Valid) {
+                sendSoapResponse(res, SoapFault::passwordTooWeak(PasswordPolicy::describe(checkRes)), 400);
+                return;
+            }
+        }
+        for (const auto& u : updates) {
             if (!m_credStore->upsert(u)) {
                 sendSoapResponse(
                     res, SoapFault::sender("ter:OperationProhibited", "ter:FixedUser", "Change not permitted"), 400);
@@ -1181,6 +1226,11 @@ void OnvifServer::handleDeviceService(const httplib::Request& req, httplib::Resp
             if (m_deviceHandler) {
                 static_cast<void>(m_deviceHandler->handleSetUser(u));
             }
+        }
+        if ((m_credStore->adminCount() > 0U) && !m_credStore->hasDefaultPassword()) {
+            m_provisioningState = ProvisioningState::Provisioned;
+        } else {
+            m_provisioningState = ProvisioningState::Unprovisioned;
         }
         body << "    <tds:SetUserResponse/>\r\n";
     } else if (isOp(opName, "DeleteUsers")) {
@@ -1210,6 +1260,11 @@ void OnvifServer::handleDeviceService(const httplib::Request& req, httplib::Resp
             if (m_credStore->erase(name)) {
                 deleted.push_back(name);
             }
+        }
+        if ((m_credStore->adminCount() > 0U) && !m_credStore->hasDefaultPassword()) {
+            m_provisioningState = ProvisioningState::Provisioned;
+        } else {
+            m_provisioningState = ProvisioningState::Unprovisioned;
         }
         if (m_deviceHandler && !deleted.empty()) {
             static_cast<void>(m_deviceHandler->handleDeleteUsers(deleted));
@@ -1434,6 +1489,11 @@ void OnvifServer::handleDeviceService(const httplib::Request& req, httplib::Resp
             m_deviceHandler->handleSetSystemFactoryDefault(type);
         }
         m_credStore->reset(m_config.defaultUsers);
+        if ((m_credStore->adminCount() > 0U) && !m_credStore->hasDefaultPassword()) {
+            m_provisioningState = ProvisioningState::Provisioned;
+        } else {
+            m_provisioningState = ProvisioningState::Unprovisioned;
+        }
         {
             std::scoped_lock lock(m_deviceMutex);
             m_internalNetworkInterfaces = m_config.defaultNetworkInterfaces;

@@ -61,6 +61,32 @@ struct NotificationConfig {
     std::size_t maxDispatchQueueSize { 128 };
 };
 
+/// @enum ProvisioningState
+/// @brief Device provisioning lifecycle state for first-boot security (ETSI EN 303 645 §5.1).
+enum class ProvisioningState {
+    Unprovisioned, ///< No administrator account configured; operational endpoints blocked.
+    Provisioned ///< Administrator account established; fully operational.
+};
+
+/// @struct PasswordPolicyConfig
+/// @brief Operational rules for password complexity and hygiene (CWE-798, ETSI EN 303 645 §5.1).
+struct PasswordPolicyConfig {
+    /// @brief Minimum allowed password length (default: 8 per ETSI EN 303 645 / NIST SP 800-63B).
+    std::size_t minLength { 8 };
+
+    /// @brief Maximum password length (prevents algorithmic DoS).
+    std::size_t maxLength { 64 };
+
+    /// @brief Required character classes out of 4 (lower, upper, digit, symbol).
+    std::size_t minClasses { 3 };
+
+    /// @brief Disallow passwords containing or matching the username.
+    bool rejectUsername { true };
+
+    /// @brief Disallow trivial default strings ("admin", "password", etc.).
+    bool rejectCommonDefaults { true };
+};
+
 /// @struct OnvifServerConfig
 /// @brief Configuration settings for the embedded ONVIF HTTP server and WS-Discovery service.
 struct OnvifServerConfig {
@@ -102,10 +128,12 @@ struct OnvifServerConfig {
     ImagingSettings defaultImagingSettings {};
 
     /// @brief Default ONVIF user accounts.
-    /// @details Seeds the server's authoritative CredentialStore. The factory-default passwords
-    ///          below are refused on non-loopback binds unless auth.allowDefaultPassword is set.
-    std::vector<OnvifUser> defaultUsers { { "admin", "admin", OnvifUserLevel::Administrator },
-        { "operator", "operator", OnvifUserLevel::Operator } };
+    /// @details Defaults to empty to prevent universal default credentials (CWE-798, ETSI EN 303 645 §5.1).
+    ///          When empty, the server operates in ProvisioningState::Unprovisioned mode.
+    std::vector<OnvifUser> defaultUsers {};
+
+    /// @brief Password complexity and hygiene policy (review finding C6).
+    PasswordPolicyConfig passwordPolicy {};
 
     /// @brief Server-side authentication and authorization policy (review finding C1).
     OnvifAuthConfig auth {};

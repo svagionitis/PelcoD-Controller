@@ -37,6 +37,17 @@ public:
     /// @return Serialized Fault element.
     [[nodiscard]] static std::string resourceUnknown(std::string_view reason);
 
+    /// @brief Fault returned when operational actions are requested on an unprovisioned device.
+    /// @details Code `SOAP-ENV:Sender`, Subcode `ter:OperationProhibited`, secondary `ter:DeviceUnprovisioned`.
+    /// @return Serialized Fault element.
+    [[nodiscard]] static std::string deviceUnprovisioned();
+
+    /// @brief Fault returned when a supplied password fails password policy validation.
+    /// @details Code `SOAP-ENV:Sender`, Subcode `ter:InvalidArgVal`, secondary `ter:PasswordTooWeak`.
+    /// @param[in] reason Detailed policy failure explanation.
+    /// @return Serialized Fault element.
+    [[nodiscard]] static std::string passwordTooWeak(std::string_view reason);
+
     /// @brief Generic sender fault.
     /// @param[in] subcode Qualified ONVIF subcode (e.g. "ter:InvalidArgVal").
     /// @param[in] secondSubcode Optional nested subcode (e.g. "ter:UsernameClash"); empty to omit.

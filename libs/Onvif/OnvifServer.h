@@ -70,6 +70,10 @@ public:
     /// @return True if running.
     [[nodiscard]] bool isRunning() const noexcept;
 
+    /// @brief Gets active device provisioning lifecycle state (CWE-798, ETSI EN 303 645 §5.1).
+    /// @return Current ProvisioningState (Unprovisioned vs Provisioned).
+    [[nodiscard]] ProvisioningState provisioningState() const noexcept;
+
     /// @brief Gets active server configuration.
     /// @return Copy of active OnvifServerConfig.
     [[nodiscard]] OnvifServerConfig getConfig() const;
@@ -276,6 +280,7 @@ private:
     std::unique_ptr<SubscriptionManager> m_subManager {};
     std::unique_ptr<NotificationDispatcher> m_dispatcher {};
 
+    std::atomic<ProvisioningState> m_provisioningState { ProvisioningState::Unprovisioned };
     std::atomic<bool> m_running { false };
     std::thread m_httpThread {};
 };
