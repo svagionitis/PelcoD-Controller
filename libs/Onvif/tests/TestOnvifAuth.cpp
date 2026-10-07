@@ -55,8 +55,8 @@ std::string isoUtc(std::chrono::system_clock::time_point tp)
 /// @brief Standard three-user seed used by most tests.
 std::vector<OnvifUser> seedUsers()
 {
-    return { { "admin", "Adm1n-Pass", OnvifUserLevel::Administrator },
-        { "op", "Op-Pass", OnvifUserLevel::Operator }, { "viewer", "View-Pass", OnvifUserLevel::User } };
+    return { { "admin", "Adm1n-Pass", OnvifUserLevel::Administrator }, { "op", "Op-Pass", OnvifUserLevel::Operator },
+        { "viewer", "View-Pass", OnvifUserLevel::User } };
 }
 
 /// @brief Builds a serialized wsse:Security element.
@@ -156,8 +156,8 @@ std::string makeDigestAuth(const std::string& challenge, const EVP_MD* md, const
     const std::string resp { hashHex(md, ha1 + ":" + nonce + ":" + nc + ":" + cnonce + ":auth:" + ha2) };
     std::ostringstream ss {};
     ss << "Digest username=\"" << user << "\", realm=\"" << realm << "\", nonce=\"" << nonce << "\", uri=\"" << uri
-       << "\", algorithm=" << algName << ", qop=auth, nc=" << nc << ", cnonce=\"" << cnonce << "\", response=\""
-       << resp << "\"";
+       << "\", algorithm=" << algName << ", qop=auth, nc=" << nc << ", cnonce=\"" << cnonce << "\", response=\"" << resp
+       << "\"";
     return ss.str();
 }
 
@@ -300,9 +300,9 @@ TEST_F(UsernameTokenTest, PasswordTextRejected)
     const std::string created { isoUtc(now) };
     const std::string nonceB64 { OnvifSecurity::base64Encode(nonce) };
     EXPECT_EQ(run(makeSecurityXml("op", "Op-Pass", created, nonceB64, kTextType)).outcome, AuthOutcome::Unsupported);
-    EXPECT_EQ(run(makeSecurityXml("op", "Op-Pass", created, OnvifSecurity::base64Encode(OnvifSecurity::generateNonce()),
-                      ""))
-                  .outcome,
+    EXPECT_EQ(
+        run(makeSecurityXml("op", "Op-Pass", created, OnvifSecurity::base64Encode(OnvifSecurity::generateNonce()), ""))
+            .outcome,
         AuthOutcome::Unsupported);
 }
 
@@ -383,10 +383,9 @@ TEST_F(DigestTest, Md5ValidSucceeds)
 
 TEST_F(DigestTest, WrongPasswordFails)
 {
-    const std::string auth { makeDigestAuth(challengeFor("SHA-256"), EVP_sha256(), "SHA-256", "admin", "nope",
-        "POST", "/onvif/device_service", "00000001", "c3") };
-    EXPECT_EQ(validator.validate(auth, "POST", "/onvif/device_service", now).outcome,
-        AuthOutcome::InvalidCredentials);
+    const std::string auth { makeDigestAuth(challengeFor("SHA-256"), EVP_sha256(), "SHA-256", "admin", "nope", "POST",
+        "/onvif/device_service", "00000001", "c3") };
+    EXPECT_EQ(validator.validate(auth, "POST", "/onvif/device_service", now).outcome, AuthOutcome::InvalidCredentials);
 }
 
 TEST_F(DigestTest, ExpiredNonceIsStale)
@@ -402,18 +401,16 @@ TEST_F(DigestTest, ForgedNonceFails)
     std::string challenge { challengeFor("SHA-256") };
     const std::string nonce { digestParam(challenge, "nonce") };
     challenge.replace(challenge.find(nonce), nonce.size(), OnvifSecurity::base64Encode(std::string("forged-nonce")));
-    const std::string auth { makeDigestAuth(challenge, EVP_sha256(), "SHA-256", "admin", "Adm1n-Pass", "POST",
-        "/onvif/device_service", "00000001", "c5") };
-    EXPECT_EQ(validator.validate(auth, "POST", "/onvif/device_service", now).outcome,
-        AuthOutcome::InvalidCredentials);
+    const std::string auth { makeDigestAuth(
+        challenge, EVP_sha256(), "SHA-256", "admin", "Adm1n-Pass", "POST", "/onvif/device_service", "00000001", "c5") };
+    EXPECT_EQ(validator.validate(auth, "POST", "/onvif/device_service", now).outcome, AuthOutcome::InvalidCredentials);
 }
 
 TEST_F(DigestTest, UriMismatchFails)
 {
     const std::string auth { makeDigestAuth(challengeFor("SHA-256"), EVP_sha256(), "SHA-256", "admin", "Adm1n-Pass",
         "POST", "/onvif/media_service", "00000001", "c6") };
-    EXPECT_EQ(validator.validate(auth, "POST", "/onvif/device_service", now).outcome,
-        AuthOutcome::InvalidCredentials);
+    EXPECT_EQ(validator.validate(auth, "POST", "/onvif/device_service", now).outcome, AuthOutcome::InvalidCredentials);
 }
 
 TEST_F(DigestTest, NcReplayFails)
@@ -426,9 +423,9 @@ TEST_F(DigestTest, NcReplayFails)
 
 TEST_F(DigestTest, MalformedHeaderNoCrash)
 {
-    const std::vector<std::string> junk { "", "Digest", "Digest ,,,,", "Basic YWRtaW46YWRtaW4=",
-        "Digest username=\"admin", "Digest username=admin, response=\"\"", std::string(8192U, 'A'),
-        "Digest username=\"a\\\"b\", realm=\"ONVIF\"" };
+    const std::vector<std::string> junk { "", "Digest", "Digest ,,,,",
+        "Basic YWRtaW46YWRtaW4=", "Digest username=\"admin", "Digest username=admin, response=\"\"",
+        std::string(8192U, 'A'), "Digest username=\"a\\\"b\", realm=\"ONVIF\"" };
     for (const auto& h : junk) {
         const auto outcome { validator.validate(h, "POST", "/onvif/device_service", now).outcome };
         EXPECT_TRUE(outcome == AuthOutcome::InvalidCredentials || outcome == AuthOutcome::NoCredentials) << h;
@@ -508,9 +505,9 @@ TEST(AuthenticatorTest, UsernameTokenRouted)
 {
     Authenticator auth { std::make_shared<CredentialStore>(seedUsers()), OnvifAuthConfig {} };
     pugi::xml_document doc {};
-    ASSERT_TRUE(doc.load_string(makeDigestSecurity(
-                                    "admin", "Adm1n-Pass", std::chrono::system_clock::now(), OnvifSecurity::generateNonce())
-                                    .c_str()));
+    ASSERT_TRUE(doc.load_string(
+        makeDigestSecurity("admin", "Adm1n-Pass", std::chrono::system_clock::now(), OnvifSecurity::generateNonce())
+            .c_str()));
     AuthInput in {};
     in.method = "POST";
     in.uri = "/onvif/device_service";
@@ -526,9 +523,9 @@ TEST(AuthenticatorTest, DisabledMechanismsIgnored)
     cfg.allowUsernameToken = false;
     Authenticator auth { std::make_shared<CredentialStore>(seedUsers()), cfg };
     pugi::xml_document doc {};
-    ASSERT_TRUE(doc.load_string(makeDigestSecurity(
-                                    "admin", "Adm1n-Pass", std::chrono::system_clock::now(), OnvifSecurity::generateNonce())
-                                    .c_str()));
+    ASSERT_TRUE(doc.load_string(
+        makeDigestSecurity("admin", "Adm1n-Pass", std::chrono::system_clock::now(), OnvifSecurity::generateNonce())
+            .c_str()));
     AuthInput in {};
     in.securityHeader = doc.document_element();
     EXPECT_EQ(auth.authenticate(in).outcome, AuthOutcome::NoCredentials);
@@ -589,6 +586,7 @@ TEST(OnvifServerAuthGuardTest, DefaultPasswordNonLoopbackStartFails)
     OnvifServerConfig config {};
     config.bindAddress = "0.0.0.0";
     config.port = 18712;
+    config.defaultUsers = { { "admin", "admin", OnvifUserLevel::Administrator } };
     OnvifServer server { config };
     EXPECT_FALSE(server.start());
 }
@@ -598,6 +596,7 @@ TEST(OnvifServerAuthGuardTest, DefaultPasswordAllowedExplicitly)
     OnvifServerConfig config {};
     config.bindAddress = "0.0.0.0";
     config.port = 18713;
+    config.defaultUsers = { { "admin", "admin", OnvifUserLevel::Administrator } };
     config.auth.allowDefaultPassword = true;
     OnvifServer server { config };
     EXPECT_TRUE(server.start());
@@ -609,6 +608,7 @@ TEST(OnvifServerAuthGuardTest, LoopbackWithDefaultsStarts)
     OnvifServerConfig config {};
     config.bindAddress = "127.0.0.1";
     config.port = 18714;
+    config.defaultUsers = { { "admin", "admin", OnvifUserLevel::Administrator } };
     OnvifServer server { config };
     EXPECT_TRUE(server.start());
     server.stop();

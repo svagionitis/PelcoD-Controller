@@ -487,30 +487,62 @@ bool OnvifServer::start()
         return false;
     }
 
-    if (m_discoveryServer) {
-        [[maybe_unused]] const bool discStarted = m_discoveryServer->start();
-    }
+    const auto listenExited { std::make_shared<std::atomic<bool>>(false) };
+    m_httpThread = std::thread([this, listenExited]() {
+        const bool res { m_httpServer.listen_after_bind() };
+        if (!res) {
+            logSystemMessage("ERROR", "ONVIF HTTP server listen_after_bind failed");
+        }
+        listenExited->store(true, std::memory_order_release);
+    });
 
-    if (m_dispatcher) {
-        m_dispatcher->start();
-    }
-
-    m_running = true;
-    m_httpThread = std::thread([this]() { static_cast<void>(m_httpServer.listen_after_bind()); });
     constexpr auto maxWait { std::chrono::milliseconds(1000) };
     const auto startWait { std::chrono::steady_clock::now() };
-    while (!m_httpServer.is_running() && m_running) {
+    bool listening { false };
+    while (!listenExited->load(std::memory_order_acquire)) {
+        if (m_httpServer.is_running()) {
+            listening = true;
+            break;
+        }
         if ((std::chrono::steady_clock::now() - startWait) > maxWait) {
             break;
         }
         std::this_thread::sleep_for(std::chrono::milliseconds(5));
     }
+
+    if (!listening) {
+        logSystemMessage("ERROR", "Failed to start listening on " + host + ":" + std::to_string(m_config.port));
+        m_httpServer.stop();
+        if (m_httpThread.joinable()) {
+            m_httpThread.join();
+        }
+        m_running = false;
+        return false;
+    }
+
+    m_running = true;
+
+    if (m_dispatcher) {
+        m_dispatcher->start();
+    }
+
+    if (m_discoveryServer) {
+        if (!m_discoveryServer->start()) {
+            logSystemMessage("WARNING", "WS-Discovery server failed to start on UDP port 3702");
+        }
+    }
+
+    logSystemMessage("INFO", "ONVIF HTTP server started successfully on " + host + ":" + std::to_string(m_config.port));
     return true;
 }
 
 void OnvifServer::stop()
 {
     if (!m_running) {
+        if (m_httpThread.joinable()) {
+            m_httpServer.stop();
+            m_httpThread.join();
+        }
         return;
     }
 

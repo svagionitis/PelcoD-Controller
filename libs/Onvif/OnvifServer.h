@@ -59,8 +59,9 @@ public:
     ///          - authentication is disabled and the bind address is not loopback;
     ///          - a factory-default password is configured, the bind address is not loopback and
     ///            OnvifAuthConfig::allowDefaultPassword is false;
-    ///          - the HTTP port cannot be bound (e.g. already in use).
-    /// @return True if the server is listening.
+    ///          - the HTTP port cannot be bound (e.g. already in use);
+    ///          - the HTTP listener fails to start or times out (finding H2).
+    /// @return True if the server is actively listening.
     [[nodiscard]] bool start();
 
     /// @brief Stops HTTP service and WS-Discovery responder threads.
