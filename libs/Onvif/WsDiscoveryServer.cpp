@@ -1,5 +1,6 @@
 #include "WsDiscoveryServer.h"
 #include "WsDiscoveryCommon.h"
+#include "XmlUtils.h"
 
 #include <Transport/SocketUtils.h>
 #include <pugixml.hpp>
@@ -231,7 +232,7 @@ std::string WsDiscoveryServer::createProbeMatchesPayload(
         << "    <wsa:MessageID>urn:uuid:" << responseUuid << "</wsa:MessageID>\r\n";
 
     if (!relatesToMessageId.empty()) {
-        oss << "    <wsa:RelatesTo>" << relatesToMessageId << "</wsa:RelatesTo>\r\n";
+        oss << "    <wsa:RelatesTo>" << Xml::escapeXml(relatesToMessageId) << "</wsa:RelatesTo>\r\n";
     }
 
     oss << "    <wsa:To>http://schemas.xmlsoap.org/ws/2004/08/addressing/role/anonymous</wsa:To>\r\n"
@@ -241,21 +242,22 @@ std::string WsDiscoveryServer::createProbeMatchesPayload(
         << "    <d:ProbeMatches>\r\n"
         << "      <d:ProbeMatch>\r\n"
         << "        <wsa:EndpointReference>\r\n"
-        << "          <wsa:Address>urn:uuid:" << m_config.serviceUuid << "</wsa:Address>\r\n"
+        << "          <wsa:Address>urn:uuid:" << Xml::escapeXml(m_config.serviceUuid) << "</wsa:Address>\r\n"
         << "        </wsa:EndpointReference>\r\n"
         << "        <d:Types>dn:NetworkVideoTransmitter tds:Device</d:Types>\r\n"
         << "        <d:Scopes>\r\n"
         << "          onvif://www.onvif.org/type/video_encoder\r\n"
         << "          onvif://www.onvif.org/type/ptz\r\n"
-        << "          onvif://www.onvif.org/name/" << m_config.deviceName << "\r\n"
-        << "          onvif://www.onvif.org/hardware/" << m_config.model << "\r\n";
+        << "          onvif://www.onvif.org/name/" << Xml::escapeXml(m_config.deviceName) << "\r\n"
+        << "          onvif://www.onvif.org/hardware/" << Xml::escapeXml(m_config.model) << "\r\n";
 
     for (const auto& scope : m_config.scopes) {
-        oss << "          " << scope << "\r\n";
+        oss << "          " << Xml::escapeXml(scope) << "\r\n";
     }
 
     oss << "        </d:Scopes>\r\n"
-        << "        <d:XAddrs>http://" << localIp << ":" << m_config.port << "/onvif/device_service</d:XAddrs>\r\n"
+        << "        <d:XAddrs>http://" << Xml::escapeXml(localIp) << ":" << m_config.port
+        << "/onvif/device_service</d:XAddrs>\r\n"
         << "        <d:MetadataVersion>1</d:MetadataVersion>\r\n"
         << "      </d:ProbeMatch>\r\n"
         << "    </d:ProbeMatches>\r\n"
@@ -284,21 +286,22 @@ std::string WsDiscoveryServer::createHelloPayload(const std::string& localIp) co
         << "  <SOAP-ENV:Body>\r\n"
         << "    <d:Hello>\r\n"
         << "      <wsa:EndpointReference>\r\n"
-        << "        <wsa:Address>urn:uuid:" << m_config.serviceUuid << "</wsa:Address>\r\n"
+        << "        <wsa:Address>urn:uuid:" << Xml::escapeXml(m_config.serviceUuid) << "</wsa:Address>\r\n"
         << "      </wsa:EndpointReference>\r\n"
         << "      <d:Types>dn:NetworkVideoTransmitter tds:Device</d:Types>\r\n"
         << "      <d:Scopes>\r\n"
         << "        onvif://www.onvif.org/type/video_encoder\r\n"
         << "        onvif://www.onvif.org/type/ptz\r\n"
-        << "        onvif://www.onvif.org/name/" << m_config.deviceName << "\r\n"
-        << "        onvif://www.onvif.org/hardware/" << m_config.model << "\r\n";
+        << "        onvif://www.onvif.org/name/" << Xml::escapeXml(m_config.deviceName) << "\r\n"
+        << "        onvif://www.onvif.org/hardware/" << Xml::escapeXml(m_config.model) << "\r\n";
 
     for (const auto& scope : m_config.scopes) {
-        oss << "        " << scope << "\r\n";
+        oss << "        " << Xml::escapeXml(scope) << "\r\n";
     }
 
     oss << "      </d:Scopes>\r\n"
-        << "      <d:XAddrs>http://" << localIp << ":" << m_config.port << "/onvif/device_service</d:XAddrs>\r\n"
+        << "      <d:XAddrs>http://" << Xml::escapeXml(localIp) << ":" << m_config.port
+        << "/onvif/device_service</d:XAddrs>\r\n"
         << "      <d:MetadataVersion>1</d:MetadataVersion>\r\n"
         << "    </d:Hello>\r\n"
         << "  </SOAP-ENV:Body>\r\n"
@@ -324,7 +327,7 @@ std::string WsDiscoveryServer::createByePayload() const
         << "  <SOAP-ENV:Body>\r\n"
         << "    <d:Bye>\r\n"
         << "      <wsa:EndpointReference>\r\n"
-        << "        <wsa:Address>urn:uuid:" << m_config.serviceUuid << "</wsa:Address>\r\n"
+        << "        <wsa:Address>urn:uuid:" << Xml::escapeXml(m_config.serviceUuid) << "</wsa:Address>\r\n"
         << "      </wsa:EndpointReference>\r\n"
         << "    </d:Bye>\r\n"
         << "  </SOAP-ENV:Body>\r\n"

@@ -19,3 +19,6 @@ add_onvif_test(TestPelcoDOnvif  TestPelcoDOnvif.cpp)
 add_onvif_test(TestOnvifServer  TestOnvifServer.cpp)
 add_onvif_test(TestOnvifAuthServer  TestOnvifAuthServer.cpp)
 add_onvif_test(TestOnvifAuth  TestOnvifAuth.cpp)
+add_onvif_test(TestXmlUtils  TestXmlUtils.cpp)
+add_onvif_test(TestOnvifXmlSecurity TestOnvifXmlSecurity.cpp)
+

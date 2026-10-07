@@ -43,10 +43,10 @@ namespace {
         std::ostringstream ss {};
         ss << "  <trt:OSD";
         if (!osd.token.empty()) {
-            ss << " token=\"" << osd.token << "\"";
+            ss << " token=\"" << Xml::escapeXmlAttr(osd.token) << "\"";
         }
         ss << ">\n"
-           << "    <tt:VideoSourceConfigurationToken>" << osd.videoSourceToken
+           << "    <tt:VideoSourceConfigurationToken>" << Xml::escapeXmlText(osd.videoSourceToken)
            << "</tt:VideoSourceConfigurationToken>\n"
            << "    <tt:Type>Text</tt:Type>\n"
            << "    <tt:Position>\n"
@@ -58,10 +58,10 @@ namespace {
            << "    <tt:TextString>\n"
            << "      <tt:Type>" << (osd.isDateAndTime ? "DateAndTime" : "Plain") << "</tt:Type>\n";
         if (!osd.isDateAndTime) {
-            ss << "      <tt:PlainText>" << osd.plainText << "</tt:PlainText>\n";
+            ss << "      <tt:PlainText>" << Xml::escapeXmlText(osd.plainText) << "</tt:PlainText>\n";
         } else {
-            ss << "      <tt:DateFormat>" << osd.dateFormat << "</tt:DateFormat>\n"
-               << "      <tt:TimeFormat>" << osd.timeFormat << "</tt:TimeFormat>\n";
+            ss << "      <tt:DateFormat>" << Xml::escapeXmlText(osd.dateFormat) << "</tt:DateFormat>\n"
+               << "      <tt:TimeFormat>" << Xml::escapeXmlText(osd.timeFormat) << "</tt:TimeFormat>\n";
         }
         ss << "      <tt:FontSize>" << osd.fontSize << "</tt:FontSize>\n"
            << "    </tt:TextString>\n"
@@ -74,10 +74,11 @@ namespace {
         std::ostringstream ss {};
         ss << "  <tr2:Mask";
         if (!mask.token.empty()) {
-            ss << " token=\"" << mask.token << "\"";
+            ss << " token=\"" << Xml::escapeXmlAttr(mask.token) << "\"";
         }
         ss << ">\n"
-           << "    <tr2:ConfigurationToken>" << mask.configurationToken << "</tr2:ConfigurationToken>\n"
+           << "    <tr2:ConfigurationToken>" << Xml::escapeXmlText(mask.configurationToken)
+           << "</tr2:ConfigurationToken>\n"
            << "    <tr2:Polygon>\n";
         for (const auto& pt : mask.polygon) {
             ss << "      <tt:Point x=\"" << std::fixed << std::setprecision(4) << pt.x << "\" y=\"" << pt.y << "\"/>\n";
@@ -85,7 +86,7 @@ namespace {
         ss << "    </tr2:Polygon>\n"
            << "    <tr2:Type>" << maskTypeToString(mask.type) << "</tr2:Type>\n"
            << "    <tr2:Color X=\"" << mask.color.x << "\" Y=\"" << mask.color.y << "\" Z=\"" << mask.color.z
-           << "\" Colorspace=\"" << mask.color.colorspace << "\"/>\n"
+           << "\" Colorspace=\"" << Xml::escapeXmlAttr(mask.color.colorspace) << "\"/>\n"
            << "    <tr2:Enabled>" << (mask.enabled ? "true" : "false") << "</tr2:Enabled>\n"
            << "  </tr2:Mask>\n";
         return ss.str();
@@ -608,7 +609,7 @@ std::optional<StreamUriInfo> OnvifClient::getStreamUri(const std::string& profil
        << "      <tt:Protocol>RTSP</tt:Protocol>\n"
        << "    </tt:Transport>\n"
        << "  </trt:StreamSetup>\n"
-       << "  <trt:ProfileToken>" << profileToken << "</trt:ProfileToken>\n"
+       << "  <trt:ProfileToken>" << Xml::escapeXmlText(profileToken) << "</trt:ProfileToken>\n"
        << "</trt:GetStreamUri>";
 
     const HttpResponse resp = sendSoapRequest(getMediaEndpoint(), ss.str());
@@ -642,7 +643,7 @@ bool OnvifClient::continuousMove(const std::string& profileToken, double panSpee
 
     std::ostringstream ss {};
     ss << "<tptz:ContinuousMove>\n"
-       << "  <tptz:ProfileToken>" << profileToken << "</tptz:ProfileToken>\n"
+       << "  <tptz:ProfileToken>" << Xml::escapeXmlText(profileToken) << "</tptz:ProfileToken>\n"
        << "  <tptz:Velocity>\n"
        << "    <tt:PanTilt x=\"" << std::fixed << std::setprecision(4) << panSpeed << "\" y=\"" << tiltSpeed << "\"/>\n"
        << "    <tt:Zoom x=\"" << zoomSpeed << "\"/>\n"
@@ -660,7 +661,7 @@ bool OnvifClient::stop(const std::string& profileToken, bool stopPanTilt, bool s
 
     std::ostringstream ss {};
     ss << "<tptz:Stop>\n"
-       << "  <tptz:ProfileToken>" << profileToken << "</tptz:ProfileToken>\n"
+       << "  <tptz:ProfileToken>" << Xml::escapeXmlText(profileToken) << "</tptz:ProfileToken>\n"
        << "  <tptz:PanTilt>" << (stopPanTilt ? "true" : "false") << "</tptz:PanTilt>\n"
        << "  <tptz:Zoom>" << (stopZoom ? "true" : "false") << "</tptz:Zoom>\n"
        << "</tptz:Stop>";
@@ -718,7 +719,7 @@ std::optional<PtzStatus> OnvifClient::getStatus(const std::string& profileToken)
 
     std::ostringstream ss {};
     ss << "<tptz:GetStatus>\n"
-       << "  <tptz:ProfileToken>" << profileToken << "</tptz:ProfileToken>\n"
+       << "  <tptz:ProfileToken>" << Xml::escapeXmlText(profileToken) << "</tptz:ProfileToken>\n"
        << "</tptz:GetStatus>";
 
     const HttpResponse resp = sendSoapRequest(m_capabilities.ptzXAddr, ss.str());
@@ -737,7 +738,7 @@ bool OnvifClient::absoluteMove(const std::string& profileToken, double pan, doub
 
     std::ostringstream ss {};
     ss << "<tptz:AbsoluteMove>\n"
-       << "  <tptz:ProfileToken>" << profileToken << "</tptz:ProfileToken>\n"
+       << "  <tptz:ProfileToken>" << Xml::escapeXmlText(profileToken) << "</tptz:ProfileToken>\n"
        << "  <tptz:Position>\n"
        << "    <tt:PanTilt x=\"" << std::fixed << std::setprecision(4) << pan << "\" y=\"" << tilt << "\"/>\n"
        << "    <tt:Zoom x=\"" << zoom << "\"/>\n"
@@ -756,7 +757,7 @@ bool OnvifClient::absoluteMoveSpherical(
 
     std::ostringstream ss {};
     ss << "<tptz:AbsoluteMove>\n"
-       << "  <tptz:ProfileToken>" << profileToken << "</tptz:ProfileToken>\n"
+       << "  <tptz:ProfileToken>" << Xml::escapeXmlText(profileToken) << "</tptz:ProfileToken>\n"
        << "  <tptz:Position>\n"
        << "    <tt:PanTilt x=\"" << std::fixed << std::setprecision(4) << azimuthDeg << "\" y=\"" << elevationDeg
        << "\" space=\"" << CoordinateSpace::PositionSphericalSpace << "\"/>\n"
@@ -776,7 +777,7 @@ bool OnvifClient::geoMove(const std::string& profileToken, const GeoLocation& ta
 
     std::ostringstream ss {};
     ss << "<tptz:GeoMove>\n"
-       << "  <tptz:ProfileToken>" << profileToken << "</tptz:ProfileToken>\n"
+       << "  <tptz:ProfileToken>" << Xml::escapeXmlText(profileToken) << "</tptz:ProfileToken>\n"
        << "  <tptz:Target>\n"
        << "    <tt:GeoLocation lat=\"" << std::fixed << std::setprecision(6) << target.latitude << "\" lon=\""
        << target.longitude << "\" elevation=\"" << std::setprecision(2) << target.elevation << "\"/>\n"
@@ -848,7 +849,7 @@ std::optional<std::string> OnvifClient::getSnapshotUri(const std::string& profil
 {
     std::ostringstream ss {};
     ss << "<trt:GetSnapshotUri>\n"
-       << "  <trt:ProfileToken>" << profileToken << "</trt:ProfileToken>\n"
+       << "  <trt:ProfileToken>" << Xml::escapeXmlText(profileToken) << "</trt:ProfileToken>\n"
        << "</trt:GetSnapshotUri>";
 
     const HttpResponse resp = sendSoapRequest(getMediaEndpoint(), ss.str());
@@ -892,7 +893,7 @@ bool OnvifClient::relativeMove(
 
     std::ostringstream ss {};
     ss << "<tptz:RelativeMove>\n"
-       << "  <tptz:ProfileToken>" << profileToken << "</tptz:ProfileToken>\n"
+       << "  <tptz:ProfileToken>" << Xml::escapeXmlText(profileToken) << "</tptz:ProfileToken>\n"
        << "  <tptz:Translation>\n"
        << "    <tt:PanTilt x=\"" << std::fixed << std::setprecision(4) << panTranslation << "\" y=\"" << tiltTranslation
        << "\"/>\n"
@@ -911,7 +912,7 @@ bool OnvifClient::gotoHomePosition(const std::string& profileToken)
 
     std::ostringstream ss {};
     ss << "<tptz:GotoHomePosition>\n"
-       << "  <tptz:ProfileToken>" << profileToken << "</tptz:ProfileToken>\n"
+       << "  <tptz:ProfileToken>" << Xml::escapeXmlText(profileToken) << "</tptz:ProfileToken>\n"
        << "</tptz:GotoHomePosition>";
 
     return sendSoapAction(m_capabilities.ptzXAddr, ss.str());
@@ -925,7 +926,7 @@ bool OnvifClient::setHomePosition(const std::string& profileToken)
 
     std::ostringstream ss {};
     ss << "<tptz:SetHomePosition>\n"
-       << "  <tptz:ProfileToken>" << profileToken << "</tptz:ProfileToken>\n"
+       << "  <tptz:ProfileToken>" << Xml::escapeXmlText(profileToken) << "</tptz:ProfileToken>\n"
        << "</tptz:SetHomePosition>";
 
     return sendSoapAction(m_capabilities.ptzXAddr, ss.str());
@@ -940,8 +941,8 @@ std::optional<std::string> OnvifClient::sendAuxiliaryCommand(
 
     std::ostringstream ss {};
     ss << "<tptz:SendAuxiliaryCommand>\n"
-       << "  <tptz:ProfileToken>" << profileToken << "</tptz:ProfileToken>\n"
-       << "  <tptz:AuxiliaryData>" << auxiliaryData << "</tptz:AuxiliaryData>\n"
+       << "  <tptz:ProfileToken>" << Xml::escapeXmlText(profileToken) << "</tptz:ProfileToken>\n"
+       << "  <tptz:AuxiliaryData>" << Xml::escapeXmlText(auxiliaryData) << "</tptz:AuxiliaryData>\n"
        << "</tptz:SendAuxiliaryCommand>";
 
     const HttpResponse resp = sendSoapRequest(m_capabilities.ptzXAddr, ss.str());
@@ -1026,7 +1027,7 @@ std::vector<PtzPreset> OnvifClient::getPresets(const std::string& profileToken)
 
     std::ostringstream ss {};
     ss << "<tptz:GetPresets>\n"
-       << "  <tptz:ProfileToken>" << profileToken << "</tptz:ProfileToken>\n"
+       << "  <tptz:ProfileToken>" << Xml::escapeXmlText(profileToken) << "</tptz:ProfileToken>\n"
        << "</tptz:GetPresets>";
 
     const HttpResponse resp = sendSoapRequest(m_capabilities.ptzXAddr, ss.str());
@@ -1068,12 +1069,12 @@ std::optional<std::string> OnvifClient::setPreset(
 
     std::ostringstream ss {};
     ss << "<tptz:SetPreset>\n"
-       << "  <tptz:ProfileToken>" << profileToken << "</tptz:ProfileToken>\n";
+       << "  <tptz:ProfileToken>" << Xml::escapeXmlText(profileToken) << "</tptz:ProfileToken>\n";
     if (!presetName.empty()) {
-        ss << "  <tptz:PresetName>" << presetName << "</tptz:PresetName>\n";
+        ss << "  <tptz:PresetName>" << Xml::escapeXmlText(presetName) << "</tptz:PresetName>\n";
     }
     if (!presetToken.empty()) {
-        ss << "  <tptz:PresetToken>" << presetToken << "</tptz:PresetToken>\n";
+        ss << "  <tptz:PresetToken>" << Xml::escapeXmlText(presetToken) << "</tptz:PresetToken>\n";
     }
     ss << "</tptz:SetPreset>";
 
@@ -1093,8 +1094,8 @@ bool OnvifClient::gotoPreset(const std::string& profileToken, const std::string&
 
     std::ostringstream ss {};
     ss << "<tptz:GotoPreset>\n"
-       << "  <tptz:ProfileToken>" << profileToken << "</tptz:ProfileToken>\n"
-       << "  <tptz:PresetToken>" << presetToken << "</tptz:PresetToken>\n"
+       << "  <tptz:ProfileToken>" << Xml::escapeXmlText(profileToken) << "</tptz:ProfileToken>\n"
+       << "  <tptz:PresetToken>" << Xml::escapeXmlText(presetToken) << "</tptz:PresetToken>\n"
        << "  <tptz:Speed>\n"
        << "    <tt:PanTilt x=\"" << std::fixed << std::setprecision(4) << speed << "\" y=\"" << speed << "\"/>\n"
        << "    <tt:Zoom x=\"" << speed << "\"/>\n"
@@ -1112,8 +1113,8 @@ bool OnvifClient::removePreset(const std::string& profileToken, const std::strin
 
     std::ostringstream ss {};
     ss << "<tptz:RemovePreset>\n"
-       << "  <tptz:ProfileToken>" << profileToken << "</tptz:ProfileToken>\n"
-       << "  <tptz:PresetToken>" << presetToken << "</tptz:PresetToken>\n"
+       << "  <tptz:ProfileToken>" << Xml::escapeXmlText(profileToken) << "</tptz:ProfileToken>\n"
+       << "  <tptz:PresetToken>" << Xml::escapeXmlText(presetToken) << "</tptz:PresetToken>\n"
        << "</tptz:RemovePreset>";
 
     return sendSoapAction(m_capabilities.ptzXAddr, ss.str());
@@ -1278,7 +1279,7 @@ std::vector<PresetTour> OnvifClient::getPresetTours(const std::string& profileTo
 
     std::ostringstream ss {};
     ss << "<tptz:GetPresetTours>\n"
-       << "  <tptz:ProfileToken>" << profileToken << "</tptz:ProfileToken>\n"
+       << "  <tptz:ProfileToken>" << Xml::escapeXmlText(profileToken) << "</tptz:ProfileToken>\n"
        << "</tptz:GetPresetTours>";
 
     const HttpResponse resp = sendSoapRequest(m_capabilities.ptzXAddr, ss.str());
@@ -1297,8 +1298,8 @@ std::optional<PresetTour> OnvifClient::getPresetTour(const std::string& profileT
 
     std::ostringstream ss {};
     ss << "<tptz:GetPresetTour>\n"
-       << "  <tptz:ProfileToken>" << profileToken << "</tptz:ProfileToken>\n"
-       << "  <tptz:PresetTourToken>" << tourToken << "</tptz:PresetTourToken>\n"
+       << "  <tptz:ProfileToken>" << Xml::escapeXmlText(profileToken) << "</tptz:ProfileToken>\n"
+       << "  <tptz:PresetTourToken>" << Xml::escapeXmlText(tourToken) << "</tptz:PresetTourToken>\n"
        << "</tptz:GetPresetTour>";
 
     const HttpResponse resp = sendSoapRequest(m_capabilities.ptzXAddr, ss.str());
@@ -1317,7 +1318,7 @@ std::optional<std::string> OnvifClient::createPresetTour(const std::string& prof
 
     std::ostringstream ss {};
     ss << "<tptz:CreatePresetTour>\n"
-       << "  <tptz:ProfileToken>" << profileToken << "</tptz:ProfileToken>\n"
+       << "  <tptz:ProfileToken>" << Xml::escapeXmlText(profileToken) << "</tptz:ProfileToken>\n"
        << "</tptz:CreatePresetTour>";
 
     const HttpResponse resp = sendSoapRequest(m_capabilities.ptzXAddr, ss.str());
@@ -1336,16 +1337,16 @@ bool OnvifClient::modifyPresetTour(const std::string& profileToken, const Preset
 
     std::ostringstream ss {};
     ss << "<tptz:ModifyPresetTour>\n"
-       << "  <tptz:ProfileToken>" << profileToken << "</tptz:ProfileToken>\n"
-       << "  <tptz:PresetTour token=\"" << tour.token << "\">\n";
+       << "  <tptz:ProfileToken>" << Xml::escapeXmlText(profileToken) << "</tptz:ProfileToken>\n"
+       << "  <tptz:PresetTour token=\"" << Xml::escapeXmlAttr(tour.token) << "\">\n";
     if (!tour.name.empty()) {
-        ss << "    <tt:Name>" << tour.name << "</tt:Name>\n";
+        ss << "    <tt:Name>" << Xml::escapeXmlText(tour.name) << "</tt:Name>\n";
     }
     ss << "    <tt:AutoStart>" << (tour.autoStart ? "true" : "false") << "</tt:AutoStart>\n";
     for (const auto& spot : tour.spots) {
         ss << "    <tt:TourSpot>\n"
            << "      <tt:PresetDetail>\n"
-           << "        <tt:PresetToken>" << spot.presetToken << "</tt:PresetToken>\n"
+           << "        <tt:PresetToken>" << Xml::escapeXmlText(spot.presetToken) << "</tt:PresetToken>\n"
            << "      </tt:PresetDetail>\n"
            << "      <tt:Speed>\n"
            << "        <tt:PanTilt x=\"" << std::fixed << std::setprecision(2) << spot.speed << "\" y=\"" << spot.speed
@@ -1376,8 +1377,8 @@ bool OnvifClient::operatePresetTour(
 
     std::ostringstream ss {};
     ss << "<tptz:OperatePresetTour>\n"
-       << "  <tptz:ProfileToken>" << profileToken << "</tptz:ProfileToken>\n"
-       << "  <tptz:PresetTourToken>" << tourToken << "</tptz:PresetTourToken>\n"
+       << "  <tptz:ProfileToken>" << Xml::escapeXmlText(profileToken) << "</tptz:ProfileToken>\n"
+       << "  <tptz:PresetTourToken>" << Xml::escapeXmlText(tourToken) << "</tptz:PresetTourToken>\n"
        << "  <tptz:Operation>" << opStr << "</tptz:Operation>\n"
        << "</tptz:OperatePresetTour>";
 
@@ -1392,8 +1393,8 @@ bool OnvifClient::removePresetTour(const std::string& profileToken, const std::s
 
     std::ostringstream ss {};
     ss << "<tptz:RemovePresetTour>\n"
-       << "  <tptz:ProfileToken>" << profileToken << "</tptz:ProfileToken>\n"
-       << "  <tptz:PresetTourToken>" << tourToken << "</tptz:PresetTourToken>\n"
+       << "  <tptz:ProfileToken>" << Xml::escapeXmlText(profileToken) << "</tptz:ProfileToken>\n"
+       << "  <tptz:PresetTourToken>" << Xml::escapeXmlText(tourToken) << "</tptz:PresetTourToken>\n"
        << "</tptz:RemovePresetTour>";
 
     return sendSoapAction(m_capabilities.ptzXAddr, ss.str());
@@ -1663,8 +1664,8 @@ bool OnvifClient::setCurrentImagingPreset(const std::string& videoSourceToken, c
 
     std::ostringstream ss {};
     ss << "<timg:SetCurrentPreset xmlns:timg=\"http://www.onvif.org/ver20/imaging/wsdl\">\n"
-       << "  <timg:VideoSourceToken>" << videoSourceToken << "</timg:VideoSourceToken>\n"
-       << "  <timg:PresetToken>" << presetToken << "</timg:PresetToken>\n"
+       << "  <timg:VideoSourceToken>" << Xml::escapeXmlText(videoSourceToken) << "</timg:VideoSourceToken>\n"
+       << "  <timg:PresetToken>" << Xml::escapeXmlText(presetToken) << "</timg:PresetToken>\n"
        << "</timg:SetCurrentPreset>";
 
     return sendSoapAction(m_capabilities.imagingXAddr, ss.str());
@@ -1686,7 +1687,7 @@ std::vector<std::string> OnvifClient::getRelayOutputOptions(const std::string& r
     const std::string endpoint = getDeviceIoEndpoint();
     std::ostringstream ss;
     ss << "<tmd:GetRelayOutputOptions xmlns:tmd=\"http://www.onvif.org/ver10/deviceIO/wsdl\">\n"
-       << "  <tmd:RelayOutputToken>" << relayToken << "</tmd:RelayOutputToken>\n"
+       << "  <tmd:RelayOutputToken>" << Xml::escapeXmlText(relayToken) << "</tmd:RelayOutputToken>\n"
        << "</tmd:GetRelayOutputOptions>";
 
     const HttpResponse resp = sendSoapRequest(endpoint, ss.str());
@@ -1718,7 +1719,7 @@ bool OnvifClient::setRelayOutputSettings(const std::string& relayToken, const Re
     std::ostringstream ss;
     ss << "<tmd:SetRelayOutputSettings xmlns:tmd=\"http://www.onvif.org/ver10/deviceIO/wsdl\" "
        << "xmlns:tt=\"http://www.onvif.org/ver10/schema\">\n"
-       << "  <tmd:RelayOutputToken>" << relayToken << "</tmd:RelayOutputToken>\n"
+       << "  <tmd:RelayOutputToken>" << Xml::escapeXmlText(relayToken) << "</tmd:RelayOutputToken>\n"
        << "  <tmd:Properties>\n"
        << "    <tt:Mode>" << relayModeToString(settings.mode) << "</tt:Mode>\n"
        << "    <tt:DelayTime>PT" << static_cast<int>(settings.delayTimeSeconds) << "S</tt:DelayTime>\n"
@@ -1734,7 +1735,7 @@ bool OnvifClient::setRelayOutputState(const std::string& relayToken, RelayLogica
     const std::string endpoint = getDeviceIoEndpoint();
     std::ostringstream ss;
     ss << "<tmd:SetRelayOutputState xmlns:tmd=\"http://www.onvif.org/ver10/deviceIO/wsdl\">\n"
-       << "  <tmd:RelayOutputToken>" << relayToken << "</tmd:RelayOutputToken>\n"
+       << "  <tmd:RelayOutputToken>" << Xml::escapeXmlText(relayToken) << "</tmd:RelayOutputToken>\n"
        << "  <tmd:LogicalState>" << relayLogicalStateToString(state) << "</tmd:LogicalState>\n"
        << "</tmd:SetRelayOutputState>";
 
@@ -1894,7 +1895,7 @@ std::optional<MetadataConfiguration> OnvifClient::getMetadataConfiguration(const
     const std::string endpoint = getMediaEndpoint();
     std::ostringstream ss;
     ss << "<trt:GetMetadataConfiguration xmlns:trt=\"http://www.onvif.org/ver10/media/wsdl\">\n"
-       << "  <trt:ConfigurationToken>" << configToken << "</trt:ConfigurationToken>\n"
+       << "  <trt:ConfigurationToken>" << Xml::escapeXmlText(configToken) << "</trt:ConfigurationToken>\n"
        << "</trt:GetMetadataConfiguration>";
     const HttpResponse resp = sendSoapRequest(endpoint, ss.str());
     if (!resp.isSuccess()) {
@@ -1909,8 +1910,8 @@ bool OnvifClient::setMetadataConfiguration(const MetadataConfiguration& config)
     std::ostringstream ss;
     ss << "<trt:SetMetadataConfiguration xmlns:trt=\"http://www.onvif.org/ver10/media/wsdl\" "
        << "xmlns:tt=\"http://www.onvif.org/ver10/schema\">\n"
-       << "  <trt:Configuration token=\"" << config.token << "\">\n"
-       << "    <tt:Name>" << config.name << "</tt:Name>\n"
+       << "  <trt:Configuration token=\"" << Xml::escapeXmlAttr(config.token) << "\">\n"
+       << "    <tt:Name>" << Xml::escapeXmlText(config.name) << "</tt:Name>\n"
        << "    <tt:UseCount>" << config.useCount << "</tt:UseCount>\n";
     if (config.ptzStatusEnabled) {
         ss << "    <tt:PTZStatus>\n"
@@ -1932,7 +1933,7 @@ std::optional<MetadataConfigurationOptions> OnvifClient::getMetadataConfiguratio
     const std::string endpoint = getMediaEndpoint();
     std::ostringstream ss;
     ss << "<trt:GetMetadataConfigurationOptions xmlns:trt=\"http://www.onvif.org/ver10/media/wsdl\">\n"
-       << "  <trt:ConfigurationToken>" << configToken << "</trt:ConfigurationToken>\n"
+       << "  <trt:ConfigurationToken>" << Xml::escapeXmlText(configToken) << "</trt:ConfigurationToken>\n"
        << "</trt:GetMetadataConfigurationOptions>";
     const HttpResponse resp = sendSoapRequest(endpoint, ss.str());
     if (!resp.isSuccess()) {
@@ -1998,7 +1999,7 @@ bool OnvifClient::restoreSystem(const std::string& backupData)
     ss << "<tds:RestoreSystem xmlns:tds=\"http://www.onvif.org/ver10/device/wsdl\" "
        << "xmlns:tt=\"http://www.onvif.org/ver10/schema\">\n"
        << "  <tds:BackupFiles>\n"
-       << "    <tt:Data>" << backupData << "</tt:Data>\n"
+       << "    <tt:Data>" << Xml::escapeXmlText(backupData) << "</tt:Data>\n"
        << "  </tds:BackupFiles>\n"
        << "</tds:RestoreSystem>";
     return sendSoapAction(m_deviceEndpoint, ss.str());
@@ -2032,7 +2033,7 @@ std::optional<CertificateInformation> OnvifClient::getCertificateInformation(con
 {
     std::ostringstream ss;
     ss << "<tds:GetCertificateInformation xmlns:tds=\"http://www.onvif.org/ver10/device/wsdl\">\n"
-       << "  <tds:CertificateID>" << certificateId << "</tds:CertificateID>\n"
+       << "  <tds:CertificateID>" << Xml::escapeXmlText(certificateId) << "</tds:CertificateID>\n"
        << "</tds:GetCertificateInformation>";
     const HttpResponse resp = sendSoapRequest(m_deviceEndpoint, ss.str());
     if (!resp.isSuccess()) {
@@ -2046,8 +2047,8 @@ std::optional<OnvifCertificate> OnvifClient::createCertificate(
 {
     std::ostringstream ss;
     ss << "<tds:CreateCertificate xmlns:tds=\"http://www.onvif.org/ver10/device/wsdl\">\n"
-       << "  <tds:CertificateID>" << certificateId << "</tds:CertificateID>\n"
-       << "  <tds:Subject>" << subject << "</tds:Subject>\n"
+       << "  <tds:CertificateID>" << Xml::escapeXmlText(certificateId) << "</tds:CertificateID>\n"
+       << "  <tds:Subject>" << Xml::escapeXmlText(subject) << "</tds:Subject>\n"
        << "  <tds:ValidNotAfter>" << daysValid << "</tds:ValidNotAfter>\n"
        << "</tds:CreateCertificate>";
     const HttpResponse resp = sendSoapRequest(m_deviceEndpoint, ss.str());
@@ -2061,8 +2062,8 @@ std::optional<Pkcs10Request> OnvifClient::getPkcs10Request(const std::string& ce
 {
     std::ostringstream ss;
     ss << "<tds:GetPkcs10Request xmlns:tds=\"http://www.onvif.org/ver10/device/wsdl\">\n"
-       << "  <tds:CertificateID>" << certificateId << "</tds:CertificateID>\n"
-       << "  <tds:Subject>" << subject << "</tds:Subject>\n"
+       << "  <tds:CertificateID>" << Xml::escapeXmlText(certificateId) << "</tds:CertificateID>\n"
+       << "  <tds:Subject>" << Xml::escapeXmlText(subject) << "</tds:Subject>\n"
        << "</tds:GetPkcs10Request>";
     const HttpResponse resp = sendSoapRequest(m_deviceEndpoint, ss.str());
     if (!resp.isSuccess()) {
@@ -2078,8 +2079,9 @@ bool OnvifClient::loadCertificates(const std::vector<OnvifCertificate>& certific
        << "xmlns:tt=\"http://www.onvif.org/ver10/schema\">\n";
     for (const auto& cert : certificates) {
         ss << "  <tds:NVTCertificate>\n"
-           << "    <tt:CertificateID>" << cert.certificateId << "</tt:CertificateID>\n"
-           << "    <tt:Certificate><tt:Data>" << cert.x509DerBase64 << "</tt:Data></tt:Certificate>\n"
+           << "    <tt:CertificateID>" << Xml::escapeXmlText(cert.certificateId) << "</tt:CertificateID>\n"
+           << "    <tt:Certificate><tt:Data>" << Xml::escapeXmlText(cert.x509DerBase64)
+           << "</tt:Data></tt:Certificate>\n"
            << "  </tds:NVTCertificate>\n";
     }
     ss << "</tds:LoadCertificates>";
@@ -2091,7 +2093,7 @@ bool OnvifClient::deleteCertificates(const std::vector<std::string>& certificate
     std::ostringstream ss;
     ss << "<tds:DeleteCertificates xmlns:tds=\"http://www.onvif.org/ver10/device/wsdl\">\n";
     for (const auto& id : certificateIds) {
-        ss << "  <tds:CertificateID>" << id << "</tds:CertificateID>\n";
+        ss << "  <tds:CertificateID>" << Xml::escapeXmlText(id) << "</tds:CertificateID>\n";
     }
     ss << "</tds:DeleteCertificates>";
     return sendSoapAction(m_deviceEndpoint, ss.str());
@@ -2158,7 +2160,7 @@ std::optional<RecordingConfig> OnvifClient::getRecordingConfiguration(const std:
         = resolveServiceUrl(m_capabilities.recordingXAddr, m_deviceEndpoint, "/onvif/recording_service");
     std::ostringstream ss;
     ss << "<trc:GetRecordingConfiguration xmlns:trc=\"http://www.onvif.org/ver10/recording/wsdl\">\n"
-       << "  <trc:RecordingToken>" << recordingToken << "</trc:RecordingToken>\n"
+       << "  <trc:RecordingToken>" << escapeXmlText(recordingToken) << "</trc:RecordingToken>\n"
        << "</trc:GetRecordingConfiguration>";
     const HttpResponse resp = sendSoapRequest(url, ss.str());
     if (!resp.isSuccess()) {
@@ -2174,11 +2176,12 @@ bool OnvifClient::setRecordingConfiguration(const RecordingConfig& config)
     std::ostringstream ss;
     ss << "<trc:SetRecordingConfiguration xmlns:trc=\"http://www.onvif.org/ver10/recording/wsdl\" "
        << "xmlns:tt=\"http://www.onvif.org/ver10/schema\">\n"
-       << "  <trc:RecordingToken>" << config.recordingToken << "</trc:RecordingToken>\n"
+       << "  <trc:RecordingToken>" << escapeXmlText(config.recordingToken) << "</trc:RecordingToken>\n"
        << "  <trc:RecordingConfiguration>\n"
-       << "    <tt:Source><tt:SourceId>" << config.sourceToken << "</tt:SourceId></tt:Source>\n"
-       << "    <tt:Content>" << config.content << "</tt:Content>\n"
-       << "    <tt:MaximumRetentionTime>" << config.maximumRetentionTime << "</tt:MaximumRetentionTime>\n"
+       << "    <tt:Source><tt:SourceId>" << escapeXmlText(config.sourceToken) << "</tt:SourceId></tt:Source>\n"
+       << "    <tt:Content>" << escapeXmlText(config.content) << "</tt:Content>\n"
+       << "    <tt:MaximumRetentionTime>" << escapeXmlText(config.maximumRetentionTime)
+       << "</tt:MaximumRetentionTime>\n"
        << "  </trc:RecordingConfiguration>\n"
        << "</trc:SetRecordingConfiguration>";
     return sendSoapAction(url, ss.str());
@@ -2190,7 +2193,7 @@ bool OnvifClient::deleteRecording(const std::string& recordingToken)
         = resolveServiceUrl(m_capabilities.recordingXAddr, m_deviceEndpoint, "/onvif/recording_service");
     std::ostringstream ss;
     ss << "<trc:DeleteRecording xmlns:trc=\"http://www.onvif.org/ver10/recording/wsdl\">\n"
-       << "  <trc:RecordingToken>" << recordingToken << "</trc:RecordingToken>\n"
+       << "  <trc:RecordingToken>" << escapeXmlText(recordingToken) << "</trc:RecordingToken>\n"
        << "</trc:DeleteRecording>";
     return sendSoapAction(url, ss.str());
 }
@@ -2202,10 +2205,10 @@ std::optional<std::string> OnvifClient::createTrack(const std::string& recording
     std::ostringstream ss;
     ss << "<trc:CreateTrack xmlns:trc=\"http://www.onvif.org/ver10/recording/wsdl\" "
        << "xmlns:tt=\"http://www.onvif.org/ver10/schema\">\n"
-       << "  <trc:RecordingToken>" << recordingToken << "</trc:RecordingToken>\n"
+       << "  <trc:RecordingToken>" << escapeXmlText(recordingToken) << "</trc:RecordingToken>\n"
        << "  <trc:TrackConfiguration>\n"
        << "    <tt:TrackType>" << recordingTrackTypeToString(track.trackType) << "</tt:TrackType>\n"
-       << "    <tt:Description>" << track.description << "</tt:Description>\n"
+       << "    <tt:Description>" << escapeXmlText(track.description) << "</tt:Description>\n"
        << "  </trc:TrackConfiguration>\n"
        << "</trc:CreateTrack>";
     const HttpResponse resp = sendSoapRequest(url, ss.str());
@@ -2221,8 +2224,8 @@ bool OnvifClient::deleteTrack(const std::string& recordingToken, const std::stri
         = resolveServiceUrl(m_capabilities.recordingXAddr, m_deviceEndpoint, "/onvif/recording_service");
     std::ostringstream ss;
     ss << "<trc:DeleteTrack xmlns:trc=\"http://www.onvif.org/ver10/recording/wsdl\">\n"
-       << "  <trc:RecordingToken>" << recordingToken << "</trc:RecordingToken>\n"
-       << "  <trc:TrackToken>" << trackToken << "</trc:TrackToken>\n"
+       << "  <trc:RecordingToken>" << escapeXmlText(recordingToken) << "</trc:RecordingToken>\n"
+       << "  <trc:TrackToken>" << escapeXmlText(trackToken) << "</trc:TrackToken>\n"
        << "</trc:DeleteTrack>";
     return sendSoapAction(url, ss.str());
 }
@@ -2247,10 +2250,10 @@ std::optional<std::string> OnvifClient::createRecordingJob(const RecordingJob& j
     ss << "<trc:CreateRecordingJob xmlns:trc=\"http://www.onvif.org/ver10/recording/wsdl\" "
        << "xmlns:tt=\"http://www.onvif.org/ver10/schema\">\n"
        << "  <trc:JobConfiguration>\n"
-       << "    <tt:RecordingToken>" << job.recordingToken << "</tt:RecordingToken>\n"
+       << "    <tt:RecordingToken>" << escapeXmlText(job.recordingToken) << "</tt:RecordingToken>\n"
        << "    <tt:Mode>" << recordingJobModeToString(job.mode) << "</tt:Mode>\n"
        << "    <tt:Priority>" << job.priority << "</tt:Priority>\n"
-       << "    <tt:Source><tt:SourceToken>" << job.sourceToken << "</tt:SourceToken></tt:Source>\n"
+       << "    <tt:Source><tt:SourceToken>" << escapeXmlText(job.sourceToken) << "</tt:SourceToken></tt:Source>\n"
        << "  </trc:JobConfiguration>\n"
        << "</trc:CreateRecordingJob>";
     const HttpResponse resp = sendSoapRequest(url, ss.str());
@@ -2266,7 +2269,7 @@ bool OnvifClient::setRecordingJobMode(const std::string& jobToken, RecordingJobM
         = resolveServiceUrl(m_capabilities.recordingXAddr, m_deviceEndpoint, "/onvif/recording_service");
     std::ostringstream ss;
     ss << "<trc:SetRecordingJobMode xmlns:trc=\"http://www.onvif.org/ver10/recording/wsdl\">\n"
-       << "  <trc:JobToken>" << jobToken << "</trc:JobToken>\n"
+       << "  <trc:JobToken>" << escapeXmlText(jobToken) << "</trc:JobToken>\n"
        << "  <trc:Mode>" << recordingJobModeToString(mode) << "</trc:Mode>\n"
        << "</trc:SetRecordingJobMode>";
     return sendSoapAction(url, ss.str());
@@ -2278,7 +2281,7 @@ bool OnvifClient::deleteRecordingJob(const std::string& jobToken)
         = resolveServiceUrl(m_capabilities.recordingXAddr, m_deviceEndpoint, "/onvif/recording_service");
     std::ostringstream ss;
     ss << "<trc:DeleteRecordingJob xmlns:trc=\"http://www.onvif.org/ver10/recording/wsdl\">\n"
-       << "  <trc:JobToken>" << jobToken << "</trc:JobToken>\n"
+       << "  <trc:JobToken>" << escapeXmlText(jobToken) << "</trc:JobToken>\n"
        << "</trc:DeleteRecordingJob>";
     return sendSoapAction(url, ss.str());
 }
@@ -2305,9 +2308,9 @@ std::optional<std::string> OnvifClient::findRecordings(
     const std::string url = resolveServiceUrl(m_capabilities.searchXAddr, m_deviceEndpoint, "/onvif/search_service");
     std::ostringstream ss;
     ss << "<tse:FindRecordings xmlns:tse=\"http://www.onvif.org/ver10/search/wsdl\">\n"
-       << "  <tse:Scope><tse:IncludedSources>" << scope << "</tse:IncludedSources></tse:Scope>\n"
+       << "  <tse:Scope><tse:IncludedSources>" << escapeXmlText(scope) << "</tse:IncludedSources></tse:Scope>\n"
        << "  <tse:MaxMatches>" << maxMatches << "</tse:MaxMatches>\n"
-       << "  <tse:KeepAliveTime>" << keepAliveTime << "</tse:KeepAliveTime>\n"
+       << "  <tse:KeepAliveTime>" << escapeXmlText(keepAliveTime) << "</tse:KeepAliveTime>\n"
        << "</tse:FindRecordings>";
     const HttpResponse resp = sendSoapRequest(url, ss.str());
     if (!resp.isSuccess()) {
@@ -2321,7 +2324,7 @@ std::vector<RecordingSearchResult> OnvifClient::getRecordingSearchResults(const 
     const std::string url = resolveServiceUrl(m_capabilities.searchXAddr, m_deviceEndpoint, "/onvif/search_service");
     std::ostringstream ss;
     ss << "<tse:GetRecordingSearchResults xmlns:tse=\"http://www.onvif.org/ver10/search/wsdl\">\n"
-       << "  <tse:SearchToken>" << searchToken << "</tse:SearchToken>\n"
+       << "  <tse:SearchToken>" << escapeXmlText(searchToken) << "</tse:SearchToken>\n"
        << "</tse:GetRecordingSearchResults>";
     const HttpResponse resp = sendSoapRequest(url, ss.str());
     if (!resp.isSuccess()) {
@@ -2336,9 +2339,9 @@ std::optional<std::string> OnvifClient::findEvents(
     const std::string url = resolveServiceUrl(m_capabilities.searchXAddr, m_deviceEndpoint, "/onvif/search_service");
     std::ostringstream ss;
     ss << "<tse:FindEvents xmlns:tse=\"http://www.onvif.org/ver10/search/wsdl\">\n"
-       << "  <tse:StartPoint>" << startUtc << "</tse:StartPoint>\n";
+       << "  <tse:StartPoint>" << escapeXmlText(startUtc) << "</tse:StartPoint>\n";
     if (!endUtc.empty()) {
-        ss << "  <tse:EndPoint>" << endUtc << "</tse:EndPoint>\n";
+        ss << "  <tse:EndPoint>" << escapeXmlText(endUtc) << "</tse:EndPoint>\n";
     }
     ss << "  <tse:MaxMatches>" << maxMatches << "</tse:MaxMatches>\n"
        << "</tse:FindEvents>";
@@ -2354,7 +2357,7 @@ std::vector<RecordedEventResult> OnvifClient::getEventSearchResults(const std::s
     const std::string url = resolveServiceUrl(m_capabilities.searchXAddr, m_deviceEndpoint, "/onvif/search_service");
     std::ostringstream ss;
     ss << "<tse:GetEventSearchResults xmlns:tse=\"http://www.onvif.org/ver10/search/wsdl\">\n"
-       << "  <tse:SearchToken>" << searchToken << "</tse:SearchToken>\n"
+       << "  <tse:SearchToken>" << escapeXmlText(searchToken) << "</tse:SearchToken>\n"
        << "</tse:GetEventSearchResults>";
     const HttpResponse resp = sendSoapRequest(url, ss.str());
     if (!resp.isSuccess()) {
@@ -2368,7 +2371,7 @@ bool OnvifClient::endSearch(const std::string& searchToken)
     const std::string url = resolveServiceUrl(m_capabilities.searchXAddr, m_deviceEndpoint, "/onvif/search_service");
     std::ostringstream ss;
     ss << "<tse:EndSearch xmlns:tse=\"http://www.onvif.org/ver10/search/wsdl\">\n"
-       << "  <tse:SearchToken>" << searchToken << "</tse:SearchToken>\n"
+       << "  <tse:SearchToken>" << escapeXmlText(searchToken) << "</tse:SearchToken>\n"
        << "</tse:EndSearch>";
     return sendSoapAction(url, ss.str());
 }
@@ -2383,8 +2386,8 @@ std::optional<std::string> OnvifClient::getReplayUri(const std::string& recordin
     std::ostringstream ss;
     ss << "<trp:GetReplayUri xmlns:trp=\"http://www.onvif.org/ver10/replay/wsdl\" "
        << "xmlns:tt=\"http://www.onvif.org/ver10/schema\">\n"
-       << "  <trp:StreamSetup><tt:Stream>" << streamType << "</tt:Stream></trp:StreamSetup>\n"
-       << "  <trp:RecordingToken>" << recordingToken << "</trp:RecordingToken>\n"
+       << "  <trp:StreamSetup><tt:Stream>" << escapeXmlText(streamType) << "</tt:Stream></trp:StreamSetup>\n"
+       << "  <trp:RecordingToken>" << escapeXmlText(recordingToken) << "</trp:RecordingToken>\n"
        << "</trp:GetReplayUri>";
     const HttpResponse resp = sendSoapRequest(url, ss.str());
     if (!resp.isSuccess()) {
@@ -2410,7 +2413,7 @@ bool OnvifClient::setReplayConfiguration(const ReplayConfiguration& config)
     std::ostringstream ss;
     ss << "<trp:SetReplayConfiguration xmlns:trp=\"http://www.onvif.org/ver10/replay/wsdl\" "
        << "xmlns:tt=\"http://www.onvif.org/ver10/schema\">\n"
-       << "  <trp:Configuration><tt:SessionTimeout>" << config.sessionTimeout
+       << "  <trp:Configuration><tt:SessionTimeout>" << escapeXmlText(config.sessionTimeout)
        << "</tt:SessionTimeout></trp:Configuration>\n"
        << "</trp:SetReplayConfiguration>";
     return sendSoapAction(url, ss.str());
@@ -2490,7 +2493,8 @@ std::vector<OsdConfig> OnvifClient::getOSDs(const std::string& videoSourceConfig
     std::ostringstream ss {};
     ss << "<trt:GetOSDs>\n";
     if (!videoSourceConfigurationToken.empty()) {
-        ss << "  <trt:ConfigurationToken>" << videoSourceConfigurationToken << "</trt:ConfigurationToken>\n";
+        ss << "  <trt:ConfigurationToken>" << escapeXmlText(videoSourceConfigurationToken)
+           << "</trt:ConfigurationToken>\n";
     }
     ss << "</trt:GetOSDs>";
 
@@ -2508,7 +2512,7 @@ std::optional<OsdConfig> OnvifClient::getOSD(const std::string& osdToken)
 
     std::ostringstream ss {};
     ss << "<trt:GetOSD>\n"
-       << "  <trt:OSDToken>" << osdToken << "</trt:OSDToken>\n"
+       << "  <trt:OSDToken>" << escapeXmlText(osdToken) << "</trt:OSDToken>\n"
        << "</trt:GetOSD>";
 
     const HttpResponse resp = sendSoapRequest(targetUrl, ss.str());
@@ -2551,7 +2555,7 @@ bool OnvifClient::deleteOSD(const std::string& osdToken)
 
     std::ostringstream ss {};
     ss << "<trt:DeleteOSD>\n"
-       << "  <trt:OSDToken>" << osdToken << "</trt:OSDToken>\n"
+       << "  <trt:OSDToken>" << escapeXmlText(osdToken) << "</trt:OSDToken>\n"
        << "</trt:DeleteOSD>";
 
     return sendSoapAction(targetUrl, ss.str());
@@ -2653,8 +2657,8 @@ bool OnvifClient::createUsers(const std::vector<OnvifUser>& users)
     ss << "<tds:CreateUsers>";
     for (const auto& u : users) {
         ss << "<tds:User>"
-           << "<tt:Username>" << u.username << "</tt:Username>"
-           << "<tt:Password>" << u.password << "</tt:Password>"
+           << "<tt:Username>" << escapeXmlText(u.username) << "</tt:Username>"
+           << "<tt:Password>" << escapeXmlText(u.password) << "</tt:Password>"
            << "<tt:UserLevel>" << userLevelToString(u.level) << "</tt:UserLevel>"
            << "</tds:User>";
     }
@@ -2668,9 +2672,9 @@ bool OnvifClient::setUser(const OnvifUser& user)
     std::ostringstream ss {};
     ss << "<tds:SetUser>"
        << "<tds:User>"
-       << "<tt:Username>" << user.username << "</tt:Username>";
+       << "<tt:Username>" << escapeXmlText(user.username) << "</tt:Username>";
     if (!user.password.empty()) {
-        ss << "<tt:Password>" << user.password << "</tt:Password>";
+        ss << "<tt:Password>" << escapeXmlText(user.password) << "</tt:Password>";
     }
     ss << "<tt:UserLevel>" << userLevelToString(user.level) << "</tt:UserLevel>"
        << "</tds:User>"
@@ -2684,7 +2688,7 @@ bool OnvifClient::deleteUsers(const std::vector<std::string>& usernames)
     std::ostringstream ss {};
     ss << "<tds:DeleteUsers>";
     for (const auto& name : usernames) {
-        ss << "<tds:Username>" << name << "</tds:Username>";
+        ss << "<tds:Username>" << escapeXmlText(name) << "</tds:Username>";
     }
     ss << "</tds:DeleteUsers>";
     return sendSoapAction(targetUrl, ss.str());
@@ -2772,14 +2776,14 @@ bool OnvifClient::setNetworkInterfaces(const NetworkInterfaceConfig& config)
     const std::string targetUrl = getDeviceEndpoint();
     std::ostringstream ss {};
     ss << "<tds:SetNetworkInterfaces>"
-       << "<tds:InterfaceToken>" << config.token << "</tds:InterfaceToken>"
+       << "<tds:InterfaceToken>" << escapeXmlText(config.token) << "</tds:InterfaceToken>"
        << "<tds:NetworkInterface>"
        << "<tt:Enabled>" << (config.enabled ? "true" : "false") << "</tt:Enabled>"
        << "<tt:MTU>" << config.mtu << "</tt:MTU>"
        << "<tt:IPv4>"
        << "<tt:Enabled>" << (config.ipv4.enabled ? "true" : "false") << "</tt:Enabled>"
        << "<tt:Manual>"
-       << "<tt:Address>" << config.ipv4.manualAddress << "</tt:Address>"
+       << "<tt:Address>" << escapeXmlText(config.ipv4.manualAddress) << "</tt:Address>"
        << "<tt:PrefixLength>" << config.ipv4.prefixLength << "</tt:PrefixLength>"
        << "</tt:Manual>"
        << "<tt:DHCP>" << (config.ipv4.dhcp ? "true" : "false") << "</tt:DHCP>"
@@ -2818,7 +2822,7 @@ bool OnvifClient::setNetworkDefaultGateway(const std::string& gateway)
     const std::string targetUrl = getDeviceEndpoint();
     std::ostringstream ss {};
     ss << "<tds:SetNetworkDefaultGateway>"
-       << "<tds:IPv4Address>" << gateway << "</tds:IPv4Address>"
+       << "<tds:IPv4Address>" << escapeXmlText(gateway) << "</tds:IPv4Address>"
        << "</tds:SetNetworkDefaultGateway>";
     return sendSoapAction(targetUrl, ss.str());
 }
@@ -2872,12 +2876,12 @@ bool OnvifClient::setDNS(const DnsConfig& dns)
     ss << "<tds:SetDNS>"
        << "<tds:FromDHCP>" << (dns.fromDhcp ? "true" : "false") << "</tds:FromDHCP>";
     for (const auto& sd : dns.searchDomains) {
-        ss << "<tds:SearchDomain>" << sd << "</tds:SearchDomain>";
+        ss << "<tds:SearchDomain>" << escapeXmlText(sd) << "</tds:SearchDomain>";
     }
     for (const auto& server : dns.dnsServers) {
         ss << "<tds:DNSManual>"
            << "<tt:Type>IPv4</tt:Type>"
-           << "<tt:IPv4Address>" << server << "</tt:IPv4Address>"
+           << "<tt:IPv4Address>" << escapeXmlText(server) << "</tt:IPv4Address>"
            << "</tds:DNSManual>";
     }
     ss << "</tds:SetDNS>";
@@ -2935,7 +2939,7 @@ bool OnvifClient::setNTP(const NtpConfig& ntp)
     for (const auto& srv : ntp.manualServers) {
         ss << "<tds:NTPManual>"
            << "<tt:Type>DNS</tt:Type>"
-           << "<tt:DNSname>" << srv << "</tt:DNSname>"
+           << "<tt:DNSname>" << escapeXmlText(srv) << "</tt:DNSname>"
            << "</tds:NTPManual>";
     }
     ss << "</tds:SetNTP>";
@@ -2971,7 +2975,7 @@ bool OnvifClient::setHostname(const std::string& hostname)
     const std::string targetUrl = getDeviceEndpoint();
     std::ostringstream ss {};
     ss << "<tds:SetHostname>"
-       << "<tds:Name>" << hostname << "</tds:Name>"
+       << "<tds:Name>" << escapeXmlText(hostname) << "</tds:Name>"
        << "</tds:SetHostname>";
     return sendSoapAction(targetUrl, ss.str());
 }
@@ -2981,9 +2985,9 @@ bool OnvifClient::setSystemDateAndTime(const SystemDateTimeConfig& dt)
     const std::string targetUrl = getDeviceEndpoint();
     std::ostringstream ss {};
     ss << "<tds:SetSystemDateAndTime>"
-       << "<tds:DateTimeType>" << dt.dateTimeType << "</tds:DateTimeType>"
+       << "<tds:DateTimeType>" << escapeXmlText(dt.dateTimeType) << "</tds:DateTimeType>"
        << "<tds:DaylightSavings>" << (dt.daylightSavings ? "true" : "false") << "</tds:DaylightSavings>"
-       << "<tds:TimeZone><tt:TZ>" << dt.timeZone << "</tt:TZ></tds:TimeZone>"
+       << "<tds:TimeZone><tt:TZ>" << escapeXmlText(dt.timeZone) << "</tt:TZ></tds:TimeZone>"
        << "<tds:UTCDateTime>"
        << "<tt:Time>"
        << "<tt:Hour>" << dt.hour << "</tt:Hour>"
@@ -3041,7 +3045,7 @@ bool OnvifClient::addScopes(const std::vector<std::string>& scopes)
     std::ostringstream ss {};
     ss << "<tds:AddScopes>";
     for (const auto& s : scopes) {
-        ss << "<tds:ScopeItem>" << s << "</tds:ScopeItem>";
+        ss << "<tds:ScopeItem>" << escapeXmlText(s) << "</tds:ScopeItem>";
     }
     ss << "</tds:AddScopes>";
     return sendSoapAction(targetUrl, ss.str());
@@ -3053,7 +3057,7 @@ bool OnvifClient::removeScopes(const std::vector<std::string>& scopes)
     std::ostringstream ss {};
     ss << "<tds:RemoveScopes>";
     for (const auto& s : scopes) {
-        ss << "<tds:ScopeItem>" << s << "</tds:ScopeItem>";
+        ss << "<tds:ScopeItem>" << escapeXmlText(s) << "</tds:ScopeItem>";
     }
     ss << "</tds:RemoveScopes>";
     return sendSoapAction(targetUrl, ss.str());
@@ -3065,7 +3069,7 @@ bool OnvifClient::setScopes(const std::vector<std::string>& scopes)
     std::ostringstream ss {};
     ss << "<tds:SetScopes>";
     for (const auto& s : scopes) {
-        ss << "<tds:ScopeItem>" << s << "</tds:ScopeItem>";
+        ss << "<tds:ScopeItem>" << escapeXmlText(s) << "</tds:ScopeItem>";
     }
     ss << "</tds:SetScopes>";
     return sendSoapAction(targetUrl, ss.str());
@@ -3919,11 +3923,11 @@ std::optional<ReplayConfiguration> OnvifClient::parseReplayConfigurationResponse
 
 static void serializeRuleXml(std::ostringstream& ss, const AnalyticsRule& rule)
 {
-    ss << "    <tan:Rule Name=\"" << rule.name << "\" Type=\"" << rule.type << "\">\n"
+    ss << "    <tan:Rule Name=\"" << escapeXmlAttr(rule.name) << "\" Type=\"" << escapeXmlAttr(rule.type) << "\">\n"
        << "      <tan:Parameters>\n";
 
     if (rule.type.find("Line") != std::string::npos) {
-        ss << "        <tt:SimpleItem Name=\"Direction\" Value=\"" << rule.direction << "\"/>\n"
+        ss << "        <tt:SimpleItem Name=\"Direction\" Value=\"" << escapeXmlAttr(rule.direction) << "\"/>\n"
            << "        <tt:ElementItem Name=\"Segment\">\n"
            << "          <tt:Point x=\"" << std::fixed << std::setprecision(4) << rule.lineStart.x << "\" y=\""
            << std::fixed << std::setprecision(4) << rule.lineStart.y << "\"/>\n"
@@ -3957,7 +3961,7 @@ static void serializeRuleXml(std::ostringstream& ss, const AnalyticsRule& rule)
             }
             classesJoined += rule.objectClasses[i];
         }
-        ss << "        <tt:SimpleItem Name=\"Classes\" Value=\"" << classesJoined << "\"/>\n";
+        ss << "        <tt:SimpleItem Name=\"Classes\" Value=\"" << escapeXmlAttr(classesJoined) << "\"/>\n";
         ss << "        <tt:SimpleItem Name=\"MinConfidence\" Value=\"" << std::fixed << std::setprecision(2)
            << rule.minConfidence << "\"/>\n";
     }
@@ -3969,10 +3973,11 @@ static void serializeRuleXml(std::ostringstream& ss, const AnalyticsRule& rule)
 
 static void serializeModuleXml(std::ostringstream& ss, const AnalyticsModule& module)
 {
-    ss << "    <tan:AnalyticsModule Name=\"" << module.name << "\" Type=\"" << module.type << "\">\n"
+    ss << "    <tan:AnalyticsModule Name=\"" << escapeXmlAttr(module.name) << "\" Type=\"" << escapeXmlAttr(module.type)
+       << "\">\n"
        << "      <tan:Parameters>\n";
     for (const auto& [k, v] : module.parameters) {
-        ss << "        <tt:SimpleItem Name=\"" << k << "\" Value=\"" << v << "\"/>\n";
+        ss << "        <tt:SimpleItem Name=\"" << escapeXmlAttr(k) << "\" Value=\"" << escapeXmlAttr(v) << "\"/>\n";
     }
     ss << "      </tan:Parameters>\n"
        << "    </tan:AnalyticsModule>\n";
@@ -3984,7 +3989,7 @@ std::vector<AnalyticsRuleDescription> OnvifClient::getSupportedRules(const std::
         = resolveServiceUrl(m_capabilities.analyticsXAddr, m_deviceEndpoint, "/onvif/analytics_service");
     std::ostringstream ss;
     ss << "<tan:GetSupportedRules xmlns:tan=\"http://www.onvif.org/ver20/analytics/wsdl\">\n"
-       << "  <tan:ConfigurationToken>" << configToken << "</tan:ConfigurationToken>\n"
+       << "  <tan:ConfigurationToken>" << escapeXmlText(configToken) << "</tan:ConfigurationToken>\n"
        << "</tan:GetSupportedRules>";
     const HttpResponse resp = sendSoapRequest(url, ss.str());
     if (!resp.isSuccess()) {
@@ -3999,7 +4004,7 @@ std::vector<AnalyticsRule> OnvifClient::getRules(const std::string& configToken)
         = resolveServiceUrl(m_capabilities.analyticsXAddr, m_deviceEndpoint, "/onvif/analytics_service");
     std::ostringstream ss;
     ss << "<tan:GetRules xmlns:tan=\"http://www.onvif.org/ver20/analytics/wsdl\">\n"
-       << "  <tan:ConfigurationToken>" << configToken << "</tan:ConfigurationToken>\n"
+       << "  <tan:ConfigurationToken>" << escapeXmlText(configToken) << "</tan:ConfigurationToken>\n"
        << "</tan:GetRules>";
     const HttpResponse resp = sendSoapRequest(url, ss.str());
     if (!resp.isSuccess()) {
@@ -4015,7 +4020,7 @@ bool OnvifClient::createRules(const std::string& configToken, const std::vector<
     std::ostringstream ss;
     ss << "<tan:CreateRules xmlns:tan=\"http://www.onvif.org/ver20/analytics/wsdl\" "
        << "xmlns:tt=\"http://www.onvif.org/ver10/schema\">\n"
-       << "  <tan:ConfigurationToken>" << configToken << "</tan:ConfigurationToken>\n";
+       << "  <tan:ConfigurationToken>" << escapeXmlText(configToken) << "</tan:ConfigurationToken>\n";
     for (const auto& r : rules) {
         serializeRuleXml(ss, r);
     }
@@ -4030,7 +4035,7 @@ bool OnvifClient::modifyRules(const std::string& configToken, const std::vector<
     std::ostringstream ss;
     ss << "<tan:ModifyRules xmlns:tan=\"http://www.onvif.org/ver20/analytics/wsdl\" "
        << "xmlns:tt=\"http://www.onvif.org/ver10/schema\">\n"
-       << "  <tan:ConfigurationToken>" << configToken << "</tan:ConfigurationToken>\n";
+       << "  <tan:ConfigurationToken>" << escapeXmlText(configToken) << "</tan:ConfigurationToken>\n";
     for (const auto& r : rules) {
         serializeRuleXml(ss, r);
     }
@@ -4044,9 +4049,9 @@ bool OnvifClient::deleteRules(const std::string& configToken, const std::vector<
         = resolveServiceUrl(m_capabilities.analyticsXAddr, m_deviceEndpoint, "/onvif/analytics_service");
     std::ostringstream ss;
     ss << "<tan:DeleteRules xmlns:tan=\"http://www.onvif.org/ver20/analytics/wsdl\">\n"
-       << "  <tan:ConfigurationToken>" << configToken << "</tan:ConfigurationToken>\n";
+       << "  <tan:ConfigurationToken>" << escapeXmlText(configToken) << "</tan:ConfigurationToken>\n";
     for (const auto& name : ruleNames) {
-        ss << "  <tan:RuleName>" << name << "</tan:RuleName>\n";
+        ss << "  <tan:RuleName>" << escapeXmlText(name) << "</tan:RuleName>\n";
     }
     ss << "</tan:DeleteRules>";
     return sendSoapAction(url, ss.str());
@@ -4058,7 +4063,7 @@ std::vector<AnalyticsModuleDescription> OnvifClient::getSupportedAnalyticsModule
         = resolveServiceUrl(m_capabilities.analyticsXAddr, m_deviceEndpoint, "/onvif/analytics_service");
     std::ostringstream ss;
     ss << "<tan:GetSupportedAnalyticsModules xmlns:tan=\"http://www.onvif.org/ver20/analytics/wsdl\">\n"
-       << "  <tan:ConfigurationToken>" << configToken << "</tan:ConfigurationToken>\n"
+       << "  <tan:ConfigurationToken>" << escapeXmlText(configToken) << "</tan:ConfigurationToken>\n"
        << "</tan:GetSupportedAnalyticsModules>";
     const HttpResponse resp = sendSoapRequest(url, ss.str());
     if (!resp.isSuccess()) {
@@ -4073,7 +4078,7 @@ std::vector<AnalyticsModule> OnvifClient::getAnalyticsModules(const std::string&
         = resolveServiceUrl(m_capabilities.analyticsXAddr, m_deviceEndpoint, "/onvif/analytics_service");
     std::ostringstream ss;
     ss << "<tan:GetAnalyticsModules xmlns:tan=\"http://www.onvif.org/ver20/analytics/wsdl\">\n"
-       << "  <tan:ConfigurationToken>" << configToken << "</tan:ConfigurationToken>\n"
+       << "  <tan:ConfigurationToken>" << escapeXmlText(configToken) << "</tan:ConfigurationToken>\n"
        << "</tan:GetAnalyticsModules>";
     const HttpResponse resp = sendSoapRequest(url, ss.str());
     if (!resp.isSuccess()) {
@@ -4089,7 +4094,7 @@ bool OnvifClient::createAnalyticsModules(const std::string& configToken, const s
     std::ostringstream ss;
     ss << "<tan:CreateAnalyticsModules xmlns:tan=\"http://www.onvif.org/ver20/analytics/wsdl\" "
        << "xmlns:tt=\"http://www.onvif.org/ver10/schema\">\n"
-       << "  <tan:ConfigurationToken>" << configToken << "</tan:ConfigurationToken>\n";
+       << "  <tan:ConfigurationToken>" << escapeXmlText(configToken) << "</tan:ConfigurationToken>\n";
     for (const auto& m : modules) {
         serializeModuleXml(ss, m);
     }
@@ -4104,7 +4109,7 @@ bool OnvifClient::modifyAnalyticsModules(const std::string& configToken, const s
     std::ostringstream ss;
     ss << "<tan:ModifyAnalyticsModules xmlns:tan=\"http://www.onvif.org/ver20/analytics/wsdl\" "
        << "xmlns:tt=\"http://www.onvif.org/ver10/schema\">\n"
-       << "  <tan:ConfigurationToken>" << configToken << "</tan:ConfigurationToken>\n";
+       << "  <tan:ConfigurationToken>" << escapeXmlText(configToken) << "</tan:ConfigurationToken>\n";
     for (const auto& m : modules) {
         serializeModuleXml(ss, m);
     }
@@ -4118,9 +4123,9 @@ bool OnvifClient::deleteAnalyticsModules(const std::string& configToken, const s
         = resolveServiceUrl(m_capabilities.analyticsXAddr, m_deviceEndpoint, "/onvif/analytics_service");
     std::ostringstream ss;
     ss << "<tan:DeleteAnalyticsModules xmlns:tan=\"http://www.onvif.org/ver20/analytics/wsdl\">\n"
-       << "  <tan:ConfigurationToken>" << configToken << "</tan:ConfigurationToken>\n";
+       << "  <tan:ConfigurationToken>" << escapeXmlText(configToken) << "</tan:ConfigurationToken>\n";
     for (const auto& name : moduleNames) {
-        ss << "  <tan:AnalyticsModuleName>" << name << "</tan:AnalyticsModuleName>\n";
+        ss << "  <tan:AnalyticsModuleName>" << escapeXmlText(name) << "</tan:AnalyticsModuleName>\n";
     }
     ss << "</tan:DeleteAnalyticsModules>";
     return sendSoapAction(url, ss.str());
@@ -4494,7 +4499,7 @@ std::optional<MaskOptions> OnvifClient::getMaskOptions(const std::string& config
         = resolveServiceUrl(m_capabilities.media2XAddr, m_deviceEndpoint, "/onvif/media2_service");
     std::ostringstream ss {};
     ss << "<tr2:GetMaskOptions xmlns:tr2=\"http://www.onvif.org/ver20/media/wsdl\">\n"
-       << "  <tr2:ConfigurationToken>" << configToken << "</tr2:ConfigurationToken>\n"
+       << "  <tr2:ConfigurationToken>" << escapeXmlText(configToken) << "</tr2:ConfigurationToken>\n"
        << "</tr2:GetMaskOptions>";
 
     const HttpResponse resp = sendSoapRequest(targetUrl, ss.str());
@@ -4511,7 +4516,7 @@ std::vector<PrivacyMask> OnvifClient::getMasks(const std::string& configToken)
     std::ostringstream ss {};
     ss << "<tr2:GetMasks xmlns:tr2=\"http://www.onvif.org/ver20/media/wsdl\">\n";
     if (!configToken.empty()) {
-        ss << "  <tr2:ConfigurationToken>" << configToken << "</tr2:ConfigurationToken>\n";
+        ss << "  <tr2:ConfigurationToken>" << escapeXmlText(configToken) << "</tr2:ConfigurationToken>\n";
     }
     ss << "</tr2:GetMasks>";
 
@@ -4528,7 +4533,7 @@ std::optional<PrivacyMask> OnvifClient::getMask(const std::string& maskToken)
         = resolveServiceUrl(m_capabilities.media2XAddr, m_deviceEndpoint, "/onvif/media2_service");
     std::ostringstream ss {};
     ss << "<tr2:GetMask xmlns:tr2=\"http://www.onvif.org/ver20/media/wsdl\">\n"
-       << "  <tr2:Token>" << maskToken << "</tr2:Token>\n"
+       << "  <tr2:Token>" << escapeXmlText(maskToken) << "</tr2:Token>\n"
        << "</tr2:GetMask>";
 
     const HttpResponse resp = sendSoapRequest(targetUrl, ss.str());
@@ -4572,7 +4577,7 @@ bool OnvifClient::deleteMask(const std::string& maskToken)
         = resolveServiceUrl(m_capabilities.media2XAddr, m_deviceEndpoint, "/onvif/media2_service");
     std::ostringstream ss {};
     ss << "<tr2:DeleteMask xmlns:tr2=\"http://www.onvif.org/ver20/media/wsdl\">\n"
-       << "  <tr2:Token>" << maskToken << "</tr2:Token>\n"
+       << "  <tr2:Token>" << escapeXmlText(maskToken) << "</tr2:Token>\n"
        << "</tr2:DeleteMask>";
 
     return sendSoapAction(targetUrl, ss.str());
@@ -4584,7 +4589,7 @@ std::vector<VideoSourceMode> OnvifClient::getVideoSourceModes(const std::string&
         = resolveServiceUrl(m_capabilities.media2XAddr, m_deviceEndpoint, "/onvif/media2_service");
     std::ostringstream ss {};
     ss << "<tr2:GetVideoSourceModes xmlns:tr2=\"http://www.onvif.org/ver20/media/wsdl\">\n"
-       << "  <tr2:VideoSourceToken>" << videoSourceToken << "</tr2:VideoSourceToken>\n"
+       << "  <tr2:VideoSourceToken>" << escapeXmlText(videoSourceToken) << "</tr2:VideoSourceToken>\n"
        << "</tr2:GetVideoSourceModes>";
 
     const HttpResponse resp = sendSoapRequest(targetUrl, ss.str());
@@ -4600,8 +4605,8 @@ bool OnvifClient::setVideoSourceMode(const std::string& videoSourceToken, const 
         = resolveServiceUrl(m_capabilities.media2XAddr, m_deviceEndpoint, "/onvif/media2_service");
     std::ostringstream ss {};
     ss << "<tr2:SetVideoSourceMode xmlns:tr2=\"http://www.onvif.org/ver20/media/wsdl\">\n"
-       << "  <tr2:VideoSourceToken>" << videoSourceToken << "</tr2:VideoSourceToken>\n"
-       << "  <tr2:VideoSourceModeToken>" << modeToken << "</tr2:VideoSourceModeToken>\n"
+       << "  <tr2:VideoSourceToken>" << escapeXmlText(videoSourceToken) << "</tr2:VideoSourceToken>\n"
+       << "  <tr2:VideoSourceModeToken>" << escapeXmlText(modeToken) << "</tr2:VideoSourceModeToken>\n"
        << "</tr2:SetVideoSourceMode>";
 
     return sendSoapAction(targetUrl, ss.str());
@@ -4901,7 +4906,7 @@ std::optional<RadiometryConfig> OnvifClient::getRadiometryConfiguration(const st
         = resolveServiceUrl(m_capabilities.thermalXAddr, m_deviceEndpoint, "/onvif/thermal_service");
     std::ostringstream ss {};
     ss << "<tth:GetRadiometryConfiguration xmlns:tth=\"http://www.onvif.org/ver10/thermal/wsdl\">\n"
-       << "  <tth:VideoSourceToken>" << videoSourceToken << "</tth:VideoSourceToken>\n"
+       << "  <tth:VideoSourceToken>" << escapeXmlText(videoSourceToken) << "</tth:VideoSourceToken>\n"
        << "</tth:GetRadiometryConfiguration>";
 
     const HttpResponse resp = sendSoapRequest(targetUrl, ss.str());
@@ -4918,7 +4923,7 @@ bool OnvifClient::setRadiometryConfiguration(const std::string& videoSourceToken
     std::ostringstream ss {};
     ss << "<tth:SetRadiometryConfiguration xmlns:tth=\"http://www.onvif.org/ver10/thermal/wsdl\">\n"
        << "  <tth:Configuration>\n"
-       << "    <tth:VideoSourceToken>" << videoSourceToken << "</tth:VideoSourceToken>\n"
+       << "    <tth:VideoSourceToken>" << escapeXmlText(videoSourceToken) << "</tth:VideoSourceToken>\n"
        << "    <tth:Emissivity>" << std::fixed << std::setprecision(2) << config.emissivity << "</tth:Emissivity>\n"
        << "    <tth:Distance>" << std::fixed << std::setprecision(1) << config.distance << "</tth:Distance>\n"
        << "    <tth:ReflectedTemperature>" << std::fixed << std::setprecision(1) << config.reflectedTemperature
@@ -4941,7 +4946,7 @@ std::vector<RadiometrySpot> OnvifClient::getRadiometrySpots(const std::string& v
         = resolveServiceUrl(m_capabilities.thermalXAddr, m_deviceEndpoint, "/onvif/thermal_service");
     std::ostringstream ss {};
     ss << "<tth:GetRadiometrySpots xmlns:tth=\"http://www.onvif.org/ver10/thermal/wsdl\">\n"
-       << "  <tth:VideoSourceToken>" << videoSourceToken << "</tth:VideoSourceToken>\n"
+       << "  <tth:VideoSourceToken>" << escapeXmlText(videoSourceToken) << "</tth:VideoSourceToken>\n"
        << "</tth:GetRadiometrySpots>";
 
     const HttpResponse resp = sendSoapRequest(targetUrl, ss.str());
@@ -4958,12 +4963,12 @@ bool OnvifClient::setRadiometrySpots(const std::string& videoSourceToken, const 
     std::ostringstream ss {};
     ss << "<tth:SetRadiometrySpots xmlns:tth=\"http://www.onvif.org/ver10/thermal/wsdl\" "
        << "xmlns:tt=\"http://www.onvif.org/ver10/schema\">\n"
-       << "  <tth:VideoSourceToken>" << videoSourceToken << "</tth:VideoSourceToken>\n";
+       << "  <tth:VideoSourceToken>" << escapeXmlText(videoSourceToken) << "</tth:VideoSourceToken>\n";
     for (const auto& s : spots) {
-        ss << "  <tth:Spot token=\"" << s.token << "\">\n"
+        ss << "  <tth:Spot token=\"" << escapeXmlAttr(s.token) << "\">\n"
            << "    <tth:Position x=\"" << std::fixed << std::setprecision(4) << s.position.x << "\" y=\""
            << s.position.y << "\"/>\n"
-           << "    <tth:Label>" << s.label << "</tth:Label>\n"
+           << "    <tth:Label>" << escapeXmlText(s.label) << "</tth:Label>\n"
            << "    <tth:Temperature>" << std::fixed << std::setprecision(1) << s.temperature << "</tth:Temperature>\n"
            << "  </tth:Spot>\n";
     }
@@ -4978,7 +4983,7 @@ std::vector<RadiometryBox> OnvifClient::getRadiometryBoxes(const std::string& vi
         = resolveServiceUrl(m_capabilities.thermalXAddr, m_deviceEndpoint, "/onvif/thermal_service");
     std::ostringstream ss {};
     ss << "<tth:GetRadiometryBoxes xmlns:tth=\"http://www.onvif.org/ver10/thermal/wsdl\">\n"
-       << "  <tth:VideoSourceToken>" << videoSourceToken << "</tth:VideoSourceToken>\n"
+       << "  <tth:VideoSourceToken>" << escapeXmlText(videoSourceToken) << "</tth:VideoSourceToken>\n"
        << "</tth:GetRadiometryBoxes>";
 
     const HttpResponse resp = sendSoapRequest(targetUrl, ss.str());
@@ -4995,13 +5000,13 @@ bool OnvifClient::setRadiometryBoxes(const std::string& videoSourceToken, const 
     std::ostringstream ss {};
     ss << "<tth:SetRadiometryBoxes xmlns:tth=\"http://www.onvif.org/ver10/thermal/wsdl\" "
        << "xmlns:tt=\"http://www.onvif.org/ver10/schema\">\n"
-       << "  <tth:VideoSourceToken>" << videoSourceToken << "</tth:VideoSourceToken>\n";
+       << "  <tth:VideoSourceToken>" << escapeXmlText(videoSourceToken) << "</tth:VideoSourceToken>\n";
     for (const auto& b : boxes) {
-        ss << "  <tth:Box token=\"" << b.token << "\">\n"
+        ss << "  <tth:Box token=\"" << escapeXmlAttr(b.token) << "\">\n"
            << "    <tth:TopLeft x=\"" << std::fixed << std::setprecision(4) << b.topLeft.x << "\" y=\"" << b.topLeft.y
            << "\"/>\n"
            << "    <tth:BottomRight x=\"" << b.bottomRight.x << "\" y=\"" << b.bottomRight.y << "\"/>\n"
-           << "    <tth:Label>" << b.label << "</tth:Label>\n"
+           << "    <tth:Label>" << escapeXmlText(b.label) << "</tth:Label>\n"
            << "    <tth:MinTemperature>" << std::fixed << std::setprecision(1) << b.minTemperature
            << "</tth:MinTemperature>\n"
            << "    <tth:MaxTemperature>" << b.maxTemperature << "</tth:MaxTemperature>\n"
@@ -5019,7 +5024,7 @@ std::vector<ColorPalette> OnvifClient::getColorPalettes(const std::string& video
         = resolveServiceUrl(m_capabilities.thermalXAddr, m_deviceEndpoint, "/onvif/thermal_service");
     std::ostringstream ss {};
     ss << "<tth:GetColorPalettes xmlns:tth=\"http://www.onvif.org/ver10/thermal/wsdl\">\n"
-       << "  <tth:VideoSourceToken>" << videoSourceToken << "</tth:VideoSourceToken>\n"
+       << "  <tth:VideoSourceToken>" << escapeXmlText(videoSourceToken) << "</tth:VideoSourceToken>\n"
        << "</tth:GetColorPalettes>";
 
     const HttpResponse resp = sendSoapRequest(targetUrl, ss.str());
@@ -5035,8 +5040,8 @@ bool OnvifClient::setColorPalette(const std::string& videoSourceToken, const std
         = resolveServiceUrl(m_capabilities.thermalXAddr, m_deviceEndpoint, "/onvif/thermal_service");
     std::ostringstream ss {};
     ss << "<tth:SetColorPalette xmlns:tth=\"http://www.onvif.org/ver10/thermal/wsdl\">\n"
-       << "  <tth:VideoSourceToken>" << videoSourceToken << "</tth:VideoSourceToken>\n"
-       << "  <tth:PaletteToken>" << paletteToken << "</tth:PaletteToken>\n"
+       << "  <tth:VideoSourceToken>" << escapeXmlText(videoSourceToken) << "</tth:VideoSourceToken>\n"
+       << "  <tth:PaletteToken>" << escapeXmlText(paletteToken) << "</tth:PaletteToken>\n"
        << "</tth:SetColorPalette>";
 
     return sendSoapAction(targetUrl, ss.str());
@@ -5048,7 +5053,7 @@ bool OnvifClient::triggerNuc(const std::string& videoSourceToken)
         = resolveServiceUrl(m_capabilities.thermalXAddr, m_deviceEndpoint, "/onvif/thermal_service");
     std::ostringstream ss {};
     ss << "<tth:TriggerNUC xmlns:tth=\"http://www.onvif.org/ver10/thermal/wsdl\">\n"
-       << "  <tth:VideoSourceToken>" << videoSourceToken << "</tth:VideoSourceToken>\n"
+       << "  <tth:VideoSourceToken>" << escapeXmlText(videoSourceToken) << "</tth:VideoSourceToken>\n"
        << "</tth:TriggerNUC>";
 
     return sendSoapAction(targetUrl, ss.str());

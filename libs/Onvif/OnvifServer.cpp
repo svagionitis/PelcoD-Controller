@@ -208,9 +208,9 @@ namespace {
 
     void appendPresetTourXml(std::ostringstream& body, const PresetTour& t, const std::string& prefix = "tptz")
     {
-        body << "      <" << prefix << ":PresetTour token=\"" << t.token << "\">\r\n";
+        body << "      <" << prefix << ":PresetTour token=\"" << Xml::escapeXmlAttr(t.token) << "\">\r\n";
         if (!t.name.empty()) {
-            body << "        <tt:Name>" << t.name << "</tt:Name>\r\n";
+            body << "        <tt:Name>" << Xml::escapeXmlText(t.name) << "</tt:Name>\r\n";
         }
         body << "        <tt:Status>\r\n";
         std::string st = "Idle";
@@ -227,7 +227,7 @@ namespace {
         for (const auto& s : t.spots) {
             body << "        <tt:TourSpot>\r\n"
                  << "          <tt:PresetDetail>\r\n"
-                 << "            <tt:PresetToken>" << s.presetToken << "</tt:PresetToken>\r\n"
+                 << "            <tt:PresetToken>" << Xml::escapeXmlText(s.presetToken) << "</tt:PresetToken>\r\n"
                  << "          </tt:PresetDetail>\r\n"
                  << "          <tt:Speed>\r\n"
                  << "            <tt:PanTilt x=\"" << s.speed << "\" y=\"" << s.speed << "\"/>\r\n"
@@ -975,11 +975,12 @@ void OnvifServer::handleDeviceService(const httplib::Request& req, httplib::Resp
         body << "    <tds:SetSystemDateAndTimeResponse/>\r\n";
     } else if (isOp(opName, "GetDeviceInformation")) {
         body << "    <tds:GetDeviceInformationResponse>\r\n"
-             << "      <tds:Manufacturer>" << m_config.manufacturer << "</tds:Manufacturer>\r\n"
-             << "      <tds:Model>" << m_config.model << "</tds:Model>\r\n"
-             << "      <tds:FirmwareVersion>" << m_config.firmwareVersion << "</tds:FirmwareVersion>\r\n"
-             << "      <tds:SerialNumber>" << m_config.serialNumber << "</tds:SerialNumber>\r\n"
-             << "      <tds:HardwareId>" << m_config.hardwareId << "</tds:HardwareId>\r\n"
+             << "      <tds:Manufacturer>" << Xml::escapeXmlText(m_config.manufacturer) << "</tds:Manufacturer>\r\n"
+             << "      <tds:Model>" << Xml::escapeXmlText(m_config.model) << "</tds:Model>\r\n"
+             << "      <tds:FirmwareVersion>" << Xml::escapeXmlText(m_config.firmwareVersion)
+             << "</tds:FirmwareVersion>\r\n"
+             << "      <tds:SerialNumber>" << Xml::escapeXmlText(m_config.serialNumber) << "</tds:SerialNumber>\r\n"
+             << "      <tds:HardwareId>" << Xml::escapeXmlText(m_config.hardwareId) << "</tds:HardwareId>\r\n"
              << "    </tds:GetDeviceInformationResponse>\r\n";
     } else if (isOp(opName, "GetCapabilities")) {
         size_t numRelays = 0;
@@ -988,114 +989,116 @@ void OnvifServer::handleDeviceService(const httplib::Request& req, httplib::Resp
             numRelays = m_internalRelayOutputs.size();
         }
 
+        const std::string safeHost = Xml::escapeXml(host);
         body << "    <tds:GetCapabilitiesResponse>\r\n"
              << "      <tds:Capabilities>\r\n"
              << "        <tt:Device>\r\n"
-             << "          <tt:XAddr>http://" << host << ":" << port << "/onvif/device_service</tt:XAddr>\r\n"
+             << "          <tt:XAddr>http://" << safeHost << ":" << port << "/onvif/device_service</tt:XAddr>\r\n"
              << "        </tt:Device>\r\n"
              << "        <tt:Media>\r\n"
-             << "          <tt:XAddr>http://" << host << ":" << port << "/onvif/media_service</tt:XAddr>\r\n"
+             << "          <tt:XAddr>http://" << safeHost << ":" << port << "/onvif/media_service</tt:XAddr>\r\n"
              << "        </tt:Media>\r\n"
              << "        <tt:PTZ>\r\n"
-             << "          <tt:XAddr>http://" << host << ":" << port << "/onvif/ptz_service</tt:XAddr>\r\n"
+             << "          <tt:XAddr>http://" << safeHost << ":" << port << "/onvif/ptz_service</tt:XAddr>\r\n"
              << "        </tt:PTZ>\r\n"
              << "        <tt:Imaging>\r\n"
-             << "          <tt:XAddr>http://" << host << ":" << port << "/onvif/imaging_service</tt:XAddr>\r\n"
+             << "          <tt:XAddr>http://" << safeHost << ":" << port << "/onvif/imaging_service</tt:XAddr>\r\n"
              << "        </tt:Imaging>\r\n"
              << "        <tt:Events>\r\n"
-             << "          <tt:XAddr>http://" << host << ":" << port << "/onvif/event_service</tt:XAddr>\r\n"
+             << "          <tt:XAddr>http://" << safeHost << ":" << port << "/onvif/event_service</tt:XAddr>\r\n"
              << "        </tt:Events>\r\n"
              << "        <tt:Analytics>\r\n"
-             << "          <tt:XAddr>http://" << host << ":" << port << "/onvif/analytics_service</tt:XAddr>\r\n"
+             << "          <tt:XAddr>http://" << safeHost << ":" << port << "/onvif/analytics_service</tt:XAddr>\r\n"
              << "          <tt:RuleSupport>true</tt:RuleSupport>\r\n"
              << "        </tt:Analytics>\r\n"
              << "        <tt:Extension>\r\n"
              << "          <tt:DeviceIO>\r\n"
-             << "            <tt:XAddr>http://" << host << ":" << port << "/onvif/deviceio_service</tt:XAddr>\r\n"
+             << "            <tt:XAddr>http://" << safeHost << ":" << port << "/onvif/deviceio_service</tt:XAddr>\r\n"
              << "            <tt:VideoSources>1</tt:VideoSources>\r\n"
              << "            <tt:RelayOutputs>" << numRelays << "</tt:RelayOutputs>\r\n"
              << "          </tt:DeviceIO>\r\n"
              << "          <tt:Recording>\r\n"
-             << "            <tt:XAddr>http://" << host << ":" << port << "/onvif/recording_service</tt:XAddr>\r\n"
+             << "            <tt:XAddr>http://" << safeHost << ":" << port << "/onvif/recording_service</tt:XAddr>\r\n"
              << "            <tt:Receiver>false</tt:Receiver>\r\n"
              << "            <tt:MediaProfileSummary>false</tt:MediaProfileSummary>\r\n"
              << "          </tt:Recording>\r\n"
              << "          <tt:Search>\r\n"
-             << "            <tt:XAddr>http://" << host << ":" << port << "/onvif/search_service</tt:XAddr>\r\n"
+             << "            <tt:XAddr>http://" << safeHost << ":" << port << "/onvif/search_service</tt:XAddr>\r\n"
              << "            <tt:MetadataSearch>true</tt:MetadataSearch>\r\n"
              << "          </tt:Search>\r\n"
              << "          <tt:Replay>\r\n"
-             << "            <tt:XAddr>http://" << host << ":" << port << "/onvif/replay_service</tt:XAddr>\r\n"
+             << "            <tt:XAddr>http://" << safeHost << ":" << port << "/onvif/replay_service</tt:XAddr>\r\n"
              << "          </tt:Replay>\r\n"
              << "          <tt:Media2>\r\n"
-             << "            <tt:XAddr>http://" << host << ":" << port << "/onvif/media2_service</tt:XAddr>\r\n"
+             << "            <tt:XAddr>http://" << safeHost << ":" << port << "/onvif/media2_service</tt:XAddr>\r\n"
              << "          </tt:Media2>\r\n"
              << "          <tt:Thermal>\r\n"
-             << "            <tt:XAddr>http://" << host << ":" << port << "/onvif/thermal_service</tt:XAddr>\r\n"
+             << "            <tt:XAddr>http://" << safeHost << ":" << port << "/onvif/thermal_service</tt:XAddr>\r\n"
              << "          </tt:Thermal>\r\n"
              << "        </tt:Extension>\r\n"
              << "      </tds:Capabilities>\r\n"
              << "    </tds:GetCapabilitiesResponse>\r\n";
     } else if (isOp(opName, "GetServices")) {
+        const std::string safeHost = Xml::escapeXml(host);
         body << "    <tds:GetServicesResponse>\r\n"
              << "      <tds:Service>\r\n"
              << "        <tds:Namespace>http://www.onvif.org/ver10/device/wsdl</tds:Namespace>\r\n"
-             << "        <tds:XAddr>http://" << host << ":" << port << "/onvif/device_service</tds:XAddr>\r\n"
+             << "        <tds:XAddr>http://" << safeHost << ":" << port << "/onvif/device_service</tds:XAddr>\r\n"
              << "        <tds:Version><tt:Major>10</tt:Major><tt:Minor>0</tt:Minor></tds:Version>\r\n"
              << "      </tds:Service>\r\n"
              << "      <tds:Service>\r\n"
              << "        <tds:Namespace>http://www.onvif.org/ver10/thermal/wsdl</tds:Namespace>\r\n"
-             << "        <tds:XAddr>http://" << host << ":" << port << "/onvif/thermal_service</tds:XAddr>\r\n"
+             << "        <tds:XAddr>http://" << safeHost << ":" << port << "/onvif/thermal_service</tds:XAddr>\r\n"
              << "        <tds:Version><tt:Major>1</tt:Major><tt:Minor>0</tt:Minor></tds:Version>\r\n"
              << "      </tds:Service>\r\n"
              << "      <tds:Service>\r\n"
              << "        <tds:Namespace>http://www.onvif.org/ver10/media/wsdl</tds:Namespace>\r\n"
-             << "        <tds:XAddr>http://" << host << ":" << port << "/onvif/media_service</tds:XAddr>\r\n"
+             << "        <tds:XAddr>http://" << safeHost << ":" << port << "/onvif/media_service</tds:XAddr>\r\n"
              << "        <tds:Version><tt:Major>10</tt:Major><tt:Minor>0</tt:Minor></tds:Version>\r\n"
              << "      </tds:Service>\r\n"
              << "      <tds:Service>\r\n"
              << "        <tds:Namespace>http://www.onvif.org/ver20/media/wsdl</tds:Namespace>\r\n"
-             << "        <tds:XAddr>http://" << host << ":" << port << "/onvif/media2_service</tds:XAddr>\r\n"
+             << "        <tds:XAddr>http://" << safeHost << ":" << port << "/onvif/media2_service</tds:XAddr>\r\n"
              << "        <tds:Version><tt:Major>20</tt:Major><tt:Minor>0</tt:Minor></tds:Version>\r\n"
              << "      </tds:Service>\r\n"
              << "      <tds:Service>\r\n"
              << "        <tds:Namespace>http://www.onvif.org/ver20/ptz/wsdl</tds:Namespace>\r\n"
-             << "        <tds:XAddr>http://" << host << ":" << port << "/onvif/ptz_service</tds:XAddr>\r\n"
+             << "        <tds:XAddr>http://" << safeHost << ":" << port << "/onvif/ptz_service</tds:XAddr>\r\n"
              << "        <tds:Version><tt:Major>2</tt:Major><tt:Minor>0</tt:Minor></tds:Version>\r\n"
              << "      </tds:Service>\r\n"
              << "      <tds:Service>\r\n"
              << "        <tds:Namespace>http://www.onvif.org/ver20/imaging/wsdl</tds:Namespace>\r\n"
-             << "        <tds:XAddr>http://" << host << ":" << port << "/onvif/imaging_service</tds:XAddr>\r\n"
+             << "        <tds:XAddr>http://" << safeHost << ":" << port << "/onvif/imaging_service</tds:XAddr>\r\n"
              << "        <tds:Version><tt:Major>20</tt:Major><tt:Minor>0</tt:Minor></tds:Version>\r\n"
              << "      </tds:Service>\r\n"
              << "      <tds:Service>\r\n"
              << "        <tds:Namespace>http://www.onvif.org/ver10/deviceIO/wsdl</tds:Namespace>\r\n"
-             << "        <tds:XAddr>http://" << host << ":" << port << "/onvif/deviceio_service</tds:XAddr>\r\n"
+             << "        <tds:XAddr>http://" << safeHost << ":" << port << "/onvif/deviceio_service</tds:XAddr>\r\n"
              << "        <tds:Version><tt:Major>10</tt:Major><tt:Minor>0</tt:Minor></tds:Version>\r\n"
              << "      </tds:Service>\r\n"
              << "      <tds:Service>\r\n"
              << "        <tds:Namespace>http://www.onvif.org/ver10/events/wsdl</tds:Namespace>\r\n"
-             << "        <tds:XAddr>http://" << host << ":" << port << "/onvif/event_service</tds:XAddr>\r\n"
+             << "        <tds:XAddr>http://" << safeHost << ":" << port << "/onvif/event_service</tds:XAddr>\r\n"
              << "        <tds:Version><tt:Major>10</tt:Major><tt:Minor>0</tt:Minor></tds:Version>\r\n"
              << "      </tds:Service>\r\n"
              << "      <tds:Service>\r\n"
              << "        <tds:Namespace>http://www.onvif.org/ver20/analytics/wsdl</tds:Namespace>\r\n"
-             << "        <tds:XAddr>http://" << host << ":" << port << "/onvif/analytics_service</tds:XAddr>\r\n"
+             << "        <tds:XAddr>http://" << safeHost << ":" << port << "/onvif/analytics_service</tds:XAddr>\r\n"
              << "        <tds:Version><tt:Major>20</tt:Major><tt:Minor>0</tt:Minor></tds:Version>\r\n"
              << "      </tds:Service>\r\n"
              << "      <tds:Service>\r\n"
              << "        <tds:Namespace>http://www.onvif.org/ver10/recording/wsdl</tds:Namespace>\r\n"
-             << "        <tds:XAddr>http://" << host << ":" << port << "/onvif/recording_service</tt:XAddr>\r\n"
+             << "        <tds:XAddr>http://" << safeHost << ":" << port << "/onvif/recording_service</tds:XAddr>\r\n"
              << "        <tds:Version><tt:Major>17</tt:Major><tt:Minor>0</tt:Minor></tds:Version>\r\n"
              << "      </tds:Service>\r\n"
              << "      <tds:Service>\r\n"
              << "        <tds:Namespace>http://www.onvif.org/ver10/search/wsdl</tds:Namespace>\r\n"
-             << "        <tds:XAddr>http://" << host << ":" << port << "/onvif/search_service</tt:XAddr>\r\n"
+             << "        <tds:XAddr>http://" << safeHost << ":" << port << "/onvif/search_service</tds:XAddr>\r\n"
              << "        <tds:Version><tt:Major>10</tt:Major><tt:Minor>0</tt:Minor></tds:Version>\r\n"
              << "      </tds:Service>\r\n"
              << "      <tds:Service>\r\n"
              << "        <tds:Namespace>http://www.onvif.org/ver10/replay/wsdl</tds:Namespace>\r\n"
-             << "        <tds:XAddr>http://" << host << ":" << port << "/onvif/replay_service</tt:XAddr>\r\n"
+             << "        <tds:XAddr>http://" << safeHost << ":" << port << "/onvif/replay_service</tds:XAddr>\r\n"
              << "        <tds:Version><tt:Major>10</tt:Major><tt:Minor>0</tt:Minor></tds:Version>\r\n"
              << "      </tds:Service>\r\n"
              << "    </tds:GetServicesResponse>\r\n";
@@ -1108,12 +1111,12 @@ void OnvifServer::handleDeviceService(const httplib::Request& req, httplib::Resp
                 "<tds:Scopes><tt:ScopeDef>Fixed</tt:ScopeDef><tt:ScopeItem>onvif://www.onvif.org/type/ptz</"
                 "tt:ScopeItem></tds:Scopes>\r\n"
              << "      <tds:Scopes><tt:ScopeDef>Fixed</tt:ScopeDef><tt:ScopeItem>onvif://www.onvif.org/name/"
-             << m_config.deviceName << "</tt:ScopeItem></tds:Scopes>\r\n"
+             << Xml::escapeXmlText(m_config.deviceName) << "</tt:ScopeItem></tds:Scopes>\r\n"
              << "      <tds:Scopes><tt:ScopeDef>Fixed</tt:ScopeDef><tt:ScopeItem>onvif://www.onvif.org/hardware/"
-             << m_config.model << "</tt:ScopeItem></tds:Scopes>\r\n";
+             << Xml::escapeXmlText(m_config.model) << "</tt:ScopeItem></tds:Scopes>\r\n";
         for (const auto& scope : m_config.scopes) {
-            body << "      <tds:Scopes><tt:ScopeDef>Configurable</tt:ScopeDef><tt:ScopeItem>" << scope
-                 << "</tt:ScopeItem></tds:Scopes>\r\n";
+            body << "      <tds:Scopes><tt:ScopeDef>Configurable</tt:ScopeDef><tt:ScopeItem>"
+                 << Xml::escapeXmlText(scope) << "</tt:ScopeItem></tds:Scopes>\r\n";
         }
         body << "    </tds:GetScopesResponse>\r\n";
     } else if (isOp(opName, "AddScopes")) {
@@ -1143,7 +1146,7 @@ void OnvifServer::handleDeviceService(const httplib::Request& req, httplib::Resp
         body << "    <tds:GetUsersResponse>\r\n";
         for (const auto& u : users) {
             body << "      <tds:User>\r\n"
-                 << "        <tt:Username>" << u.username << "</tt:Username>\r\n"
+                 << "        <tt:Username>" << Xml::escapeXmlText(u.username) << "</tt:Username>\r\n"
                  << "        <tt:UserLevel>" << userLevelToString(u.level) << "</tt:UserLevel>\r\n"
                  << "      </tds:User>\r\n";
         }
@@ -1242,18 +1245,18 @@ void OnvifServer::handleDeviceService(const httplib::Request& req, httplib::Resp
         }
         body << "    <tds:GetNetworkInterfacesResponse>\r\n";
         for (const auto& iface : ifaces) {
-            body << "      <tds:NetworkInterfaces token=\"" << iface.token << "\">\r\n"
+            body << "      <tds:NetworkInterfaces token=\"" << Xml::escapeXmlAttr(iface.token) << "\">\r\n"
                  << "        <tt:Enabled>" << (iface.enabled ? "true" : "false") << "</tt:Enabled>\r\n"
                  << "        <tt:Info>\r\n"
-                 << "          <tt:Name>" << iface.name << "</tt:Name>\r\n"
-                 << "          <tt:HwAddress>" << iface.hwAddress << "</tt:HwAddress>\r\n"
+                 << "          <tt:Name>" << Xml::escapeXmlText(iface.name) << "</tt:Name>\r\n"
+                 << "          <tt:HwAddress>" << Xml::escapeXmlText(iface.hwAddress) << "</tt:HwAddress>\r\n"
                  << "          <tt:MTU>" << iface.mtu << "</tt:MTU>\r\n"
                  << "        </tt:Info>\r\n"
                  << "        <tt:IPv4>\r\n"
                  << "          <tt:Enabled>" << (iface.ipv4.enabled ? "true" : "false") << "</tt:Enabled>\r\n"
                  << "          <tt:Config>\r\n"
                  << "            <tt:Manual>\r\n"
-                 << "              <tt:Address>" << iface.ipv4.manualAddress << "</tt:Address>\r\n"
+                 << "              <tt:Address>" << Xml::escapeXmlText(iface.ipv4.manualAddress) << "</tt:Address>\r\n"
                  << "              <tt:PrefixLength>" << iface.ipv4.prefixLength << "</tt:PrefixLength>\r\n"
                  << "            </tt:Manual>\r\n"
                  << "            <tt:DHCP>" << (iface.ipv4.dhcp ? "true" : "false") << "</tt:DHCP>\r\n"
@@ -1319,7 +1322,7 @@ void OnvifServer::handleDeviceService(const httplib::Request& req, httplib::Resp
         }
         body << "    <tds:GetNetworkDefaultGatewayResponse>\r\n"
              << "      <tds:NetworkGateway>\r\n"
-             << "        <tt:IPv4Address>" << gw << "</tt:IPv4Address>\r\n"
+             << "        <tt:IPv4Address>" << Xml::escapeXmlText(gw) << "</tt:IPv4Address>\r\n"
              << "      </tds:NetworkGateway>\r\n"
              << "    </tds:GetNetworkDefaultGatewayResponse>\r\n";
     } else if (isOp(opName, "SetNetworkDefaultGateway")) {
@@ -1345,12 +1348,12 @@ void OnvifServer::handleDeviceService(const httplib::Request& req, httplib::Resp
              << "      <tds:DNSInformation>\r\n"
              << "        <tt:FromDHCP>" << (dns.fromDhcp ? "true" : "false") << "</tt:FromDHCP>\r\n";
         for (const auto& sd : dns.searchDomains) {
-            body << "        <tt:SearchDomain>" << sd << "</tt:SearchDomain>\r\n";
+            body << "        <tt:SearchDomain>" << Xml::escapeXmlText(sd) << "</tt:SearchDomain>\r\n";
         }
         for (const auto& server : dns.dnsServers) {
             body << "        <tt:DNSManual>\r\n"
                  << "          <tt:Type>IPv4</tt:Type>\r\n"
-                 << "          <tt:IPv4Address>" << server << "</tt:IPv4Address>\r\n"
+                 << "          <tt:IPv4Address>" << Xml::escapeXmlText(server) << "</tt:IPv4Address>\r\n"
                  << "        </tt:DNSManual>\r\n";
         }
         body << "      </tds:DNSInformation>\r\n"
@@ -1490,7 +1493,7 @@ void OnvifServer::handleDeviceService(const httplib::Request& req, httplib::Resp
         }
         body << "    <tds:GetSystemLogResponse>\r\n"
              << "      <tds:SystemLog>\r\n"
-             << "        <tt:String>" << logData << "</tt:String>\r\n"
+             << "        <tt:String>" << Xml::escapeXmlText(logData) << "</tt:String>\r\n"
              << "      </tds:SystemLog>\r\n"
              << "    </tds:GetSystemLogResponse>\r\n";
     } else if (isOp(opName, "GetSystemSupportInformation")) {
@@ -1518,7 +1521,7 @@ void OnvifServer::handleDeviceService(const httplib::Request& req, httplib::Resp
         }
         body << "    <tds:GetSystemSupportInformationResponse>\r\n"
              << "      <tds:SupportInformation>\r\n"
-             << "        <tt:String>" << info.rawDiagnostics << "</tt:String>\r\n"
+             << "        <tt:String>" << Xml::escapeXmlText(info.rawDiagnostics) << "</tt:String>\r\n"
              << "      </tds:SupportInformation>\r\n"
              << "    </tds:GetSystemSupportInformationResponse>\r\n";
     } else if (isOp(opName, "GetSystemBackup")) {
@@ -1577,9 +1580,9 @@ void OnvifServer::handleDeviceService(const httplib::Request& req, httplib::Resp
         body << "    <tds:GetCertificatesResponse>\r\n";
         for (const auto& cert : certs) {
             body << "      <tds:NvtCertificate>\r\n"
-                 << "        <tt:CertificateID>" << cert.certificateId << "</tt:CertificateID>\r\n"
+                 << "        <tt:CertificateID>" << Xml::escapeXmlText(cert.certificateId) << "</tt:CertificateID>\r\n"
                  << "        <tt:Certificate>\r\n"
-                 << "          <tt:Data>" << cert.x509DerBase64 << "</tt:Data>\r\n"
+                 << "          <tt:Data>" << Xml::escapeXmlText(cert.x509DerBase64) << "</tt:Data>\r\n"
                  << "        </tt:Certificate>\r\n"
                  << "      </tds:NvtCertificate>\r\n";
         }
@@ -1613,16 +1616,17 @@ void OnvifServer::handleDeviceService(const httplib::Request& req, httplib::Resp
         }
         body << "    <tds:GetCertificateInformationResponse>\r\n"
              << "      <tds:CertificateInformation>\r\n"
-             << "        <tt:CertificateID>" << (info.certificateId.empty() ? certId : info.certificateId)
+             << "        <tt:CertificateID>"
+             << Xml::escapeXmlText(info.certificateId.empty() ? certId : info.certificateId)
              << "</tt:CertificateID>\r\n"
-             << "        <tt:IssuerDN>" << info.issuer << "</tt:IssuerDN>\r\n"
-             << "        <tt:SubjectDN>" << info.subject << "</tt:SubjectDN>\r\n"
+             << "        <tt:IssuerDN>" << Xml::escapeXmlText(info.issuer) << "</tt:IssuerDN>\r\n"
+             << "        <tt:SubjectDN>" << Xml::escapeXmlText(info.subject) << "</tt:SubjectDN>\r\n"
              << "        <tt:Validity>\r\n"
-             << "          <tt:From>" << info.validNotBefore << "</tt:From>\r\n"
-             << "          <tt:Until>" << info.validNotAfter << "</tt:Until>\r\n"
+             << "          <tt:From>" << Xml::escapeXmlText(info.validNotBefore) << "</tt:From>\r\n"
+             << "          <tt:Until>" << Xml::escapeXmlText(info.validNotAfter) << "</tt:Until>\r\n"
              << "        </tt:Validity>\r\n"
              << "        <tt:Extension>\r\n"
-             << "          <tt:KeyUsage>" << info.keyAlgorithm << "</tt:KeyUsage>\r\n"
+             << "          <tt:KeyUsage>" << Xml::escapeXmlText(info.keyAlgorithm) << "</tt:KeyUsage>\r\n"
              << "        </tt:Extension>\r\n"
              << "      </tds:CertificateInformation>\r\n"
              << "    </tds:GetCertificateInformationResponse>\r\n";
@@ -1763,8 +1767,8 @@ void OnvifServer::handleDeviceService(const httplib::Request& req, httplib::Resp
             }
         }
         body << "    <tds:GetGeoLocationResponse>\r\n"
-             << "      <tds:Location Entity=\"" << loc.entity << "\" Token=\"" << loc.token << "\" Fixed=\""
-             << (loc.fixed ? "true" : "false") << "\">\r\n"
+             << "      <tds:Location Entity=\"" << Xml::escapeXmlAttr(loc.entity) << "\" Token=\""
+             << Xml::escapeXmlAttr(loc.token) << "\" Fixed=\"" << (loc.fixed ? "true" : "false") << "\">\r\n"
              << "        <tt:GeoLocation lat=\"" << std::fixed << std::setprecision(6) << loc.location.latitude
              << "\" lon=\"" << loc.location.longitude << "\" elevation=\"" << std::setprecision(2)
              << loc.location.elevation << "\"/>\r\n"
@@ -1935,8 +1939,8 @@ void OnvifServer::processOsdRequest(
         }
 
         std::ostringstream s;
-        s << "      <" << prefix << ":OSD token=\"" << osd.token << "\">\r\n"
-          << "        <tt:VideoSourceConfigurationToken>" << osd.videoSourceToken
+        s << "      <" << prefix << ":OSD token=\"" << Xml::escapeXmlAttr(osd.token) << "\">\r\n"
+          << "        <tt:VideoSourceConfigurationToken>" << Xml::escapeXmlText(osd.videoSourceToken)
           << "</tt:VideoSourceConfigurationToken>\r\n"
           << "        <tt:Type>Text</tt:Type>\r\n"
           << "        <tt:Position>\r\n"
@@ -1948,10 +1952,10 @@ void OnvifServer::processOsdRequest(
           << "        <tt:TextString>\r\n"
           << "          <tt:Type>" << (osd.isDateAndTime ? "DateAndTime" : "Plain") << "</tt:Type>\r\n";
         if (!osd.isDateAndTime) {
-            s << "          <tt:PlainText>" << osd.plainText << "</tt:PlainText>\r\n";
+            s << "          <tt:PlainText>" << Xml::escapeXmlText(osd.plainText) << "</tt:PlainText>\r\n";
         } else {
-            s << "          <tt:DateFormat>" << osd.dateFormat << "</tt:DateFormat>\r\n"
-              << "          <tt:TimeFormat>" << osd.timeFormat << "</tt:TimeFormat>\r\n";
+            s << "          <tt:DateFormat>" << Xml::escapeXmlText(osd.dateFormat) << "</tt:DateFormat>\r\n"
+              << "          <tt:TimeFormat>" << Xml::escapeXmlText(osd.timeFormat) << "</tt:TimeFormat>\r\n";
         }
         s << "          <tt:FontSize>" << osd.fontSize << "</tt:FontSize>\r\n"
           << "        </tt:TextString>\r\n"
@@ -2104,7 +2108,8 @@ void OnvifServer::processOsdRequest(
         }
 
         body << "    <" << prefix << ":CreateOSDResponse>\r\n"
-             << "      <" << prefix << ":OSDToken>" << assignedToken << "</" << prefix << ":OSDToken>\r\n"
+             << "      <" << prefix << ":OSDToken>" << Xml::escapeXmlText(assignedToken) << "</" << prefix
+             << ":OSDToken>\r\n"
              << "    </" << prefix << ":CreateOSDResponse>\r\n";
     } else if (isOp(opName, "SetOSD")) {
         const pugi::xml_node osdNode = doc.select_node("//*[local-name()='OSD']").node();
@@ -2144,8 +2149,8 @@ void OnvifServer::processMetadataRequest(
 {
     auto serializeMetaConfig = [&](const MetadataConfiguration& cfg) {
         std::ostringstream s;
-        s << "      <" << prefix << ":Configurations token=\"" << cfg.token << "\">\r\n"
-          << "        <tt:Name>" << cfg.name << "</tt:Name>\r\n"
+        s << "      <" << prefix << ":Configurations token=\"" << Xml::escapeXmlAttr(cfg.token) << "\">\r\n"
+          << "        <tt:Name>" << Xml::escapeXmlText(cfg.name) << "</tt:Name>\r\n"
           << "        <tt:UseCount>1</tt:UseCount>\r\n";
         if (cfg.ptzStatusEnabled) {
             s << "        <tt:PTZStatus>\r\n"
@@ -2199,8 +2204,8 @@ void OnvifServer::processMetadataRequest(
         }
 
         body << "    <" << prefix << ":GetMetadataConfigurationResponse>\r\n"
-             << "      <" << prefix << ":Configuration token=\"" << found.token << "\">\r\n"
-             << "        <tt:Name>" << found.name << "</tt:Name>\r\n"
+             << "      <" << prefix << ":Configuration token=\"" << Xml::escapeXmlAttr(found.token) << "\">\r\n"
+             << "        <tt:Name>" << Xml::escapeXmlText(found.name) << "</tt:Name>\r\n"
              << "        <tt:UseCount>1</tt:UseCount>\r\n";
         if (found.ptzStatusEnabled) {
             body << "        <tt:PTZStatus>\r\n"
@@ -2289,9 +2294,9 @@ void OnvifServer::processMaskRequest(
 {
     auto serializeMask = [&](const PrivacyMask& m) {
         std::ostringstream s;
-        s << "      <" << prefix << ":Mask token=\"" << m.token << "\">\r\n"
-          << "        <" << prefix << ":ConfigurationToken>" << m.configurationToken << "</" << prefix
-          << ":ConfigurationToken>\r\n"
+        s << "      <" << prefix << ":Mask token=\"" << Xml::escapeXmlAttr(m.token) << "\">\r\n"
+          << "        <" << prefix << ":ConfigurationToken>" << Xml::escapeXmlText(m.configurationToken) << "</"
+          << prefix << ":ConfigurationToken>\r\n"
           << "        <" << prefix << ":Polygon>\r\n";
         for (const auto& pt : m.polygon) {
             s << "          <tt:Point x=\"" << std::fixed << std::setprecision(4) << pt.x << "\" y=\"" << pt.y
@@ -2300,7 +2305,7 @@ void OnvifServer::processMaskRequest(
         s << "        </" << prefix << ":Polygon>\r\n"
           << "        <" << prefix << ":Type>" << maskTypeToString(m.type) << "</" << prefix << ":Type>\r\n"
           << "        <" << prefix << ":Color X=\"" << m.color.x << "\" Y=\"" << m.color.y << "\" Z=\"" << m.color.z
-          << "\" Colorspace=\"" << m.color.colorspace << "\"/>\r\n"
+          << "\" Colorspace=\"" << Xml::escapeXmlAttr(m.color.colorspace) << "\"/>\r\n"
           << "        <" << prefix << ":Enabled>" << (m.enabled ? "true" : "false") << "</" << prefix << ":Enabled>\r\n"
           << "      </" << prefix << ":Mask>\r\n";
         return s.str();
@@ -2332,7 +2337,7 @@ void OnvifServer::processMaskRequest(
                  << ":SupportedTypes>\r\n";
         }
         for (const auto& cs : opts.supportedColorSpaces) {
-            body << "        <" << prefix << ":SupportedColorSpaces>" << cs << "</" << prefix
+            body << "        <" << prefix << ":SupportedColorSpaces>" << Xml::escapeXmlText(cs) << "</" << prefix
                  << ":SupportedColorSpaces>\r\n";
         }
         body << "      </" << prefix << ":Options>\r\n"
@@ -2923,7 +2928,7 @@ void OnvifServer::handlePtzService(const httplib::Request& req, httplib::Respons
             auxResp = m_ptzHandler->handleSendAuxiliaryCommand(auxData);
         }
         body << "    <tptz:SendAuxiliaryCommandResponse>\r\n"
-             << "      <tptz:AuxiliaryResponse>" << auxResp << "</tptz:AuxiliaryResponse>\r\n"
+             << "      <tptz:AuxiliaryResponse>" << Xml::escapeXmlText(auxResp) << "</tptz:AuxiliaryResponse>\r\n"
              << "    </tptz:SendAuxiliaryCommandResponse>\r\n";
     } else if (opName.find("GetConfigurationOptions") != std::string::npos
         || opName.find("GetConfigurationOption") != std::string::npos) {
@@ -3027,8 +3032,8 @@ void OnvifServer::handlePtzService(const httplib::Request& req, httplib::Respons
         if (m_ptzHandler) {
             const auto presets = m_ptzHandler->handleGetPresets();
             for (const auto& p : presets) {
-                body << "      <tptz:Preset token=\"" << p.token << "\">\r\n"
-                     << "        <tt:Name>" << p.name << "</tt:Name>\r\n"
+                body << "      <tptz:Preset token=\"" << Xml::escapeXmlAttr(p.token) << "\">\r\n"
+                     << "        <tt:Name>" << Xml::escapeXmlText(p.name) << "</tt:Name>\r\n"
                      << "      </tptz:Preset>\r\n";
             }
         }
@@ -3046,7 +3051,7 @@ void OnvifServer::handlePtzService(const httplib::Request& req, httplib::Respons
         }
 
         body << "    <tptz:SetPresetResponse>\r\n"
-             << "      <tptz:PTZPresetToken>" << assignedToken << "</tptz:PTZPresetToken>\r\n"
+             << "      <tptz:PTZPresetToken>" << Xml::escapeXmlText(assignedToken) << "</tptz:PTZPresetToken>\r\n"
              << "    </tptz:SetPresetResponse>\r\n";
     } else if (opName.find("GotoPreset") != std::string::npos) {
         const pugi::xml_node tokenNode = doc.select_node("//*[local-name()='PresetToken']").node();
@@ -3134,7 +3139,7 @@ void OnvifServer::handlePtzService(const httplib::Request& req, httplib::Respons
             assignedToken = m_ptzHandler->handleCreatePresetTour();
         }
         body << "    <tptz:CreatePresetTourResponse>\r\n"
-             << "      <tptz:PresetTourToken>" << assignedToken << "</tptz:PresetTourToken>\r\n"
+             << "      <tptz:PresetTourToken>" << Xml::escapeXmlText(assignedToken) << "</tptz:PresetTourToken>\r\n"
              << "    </tptz:CreatePresetTourResponse>\r\n";
     } else if (opName.find("ModifyPresetTour") != std::string::npos) {
         const pugi::xml_node tourNode = doc.select_node("//*[local-name()='PresetTour']").node();
@@ -3484,7 +3489,7 @@ void OnvifServer::handleDeviceIoService(const httplib::Request& req, httplib::Re
 
         body << "    <tmd:GetRelayOutputsResponse>\r\n";
         for (const auto& r : relays) {
-            body << "      <tmd:RelayOutputs token=\"" << r.token << "\">\r\n"
+            body << "      <tmd:RelayOutputs token=\"" << Xml::escapeXmlAttr(r.token) << "\">\r\n"
                  << "        <tt:Properties>\r\n"
                  << "          <tt:Mode>" << relayModeToString(r.mode) << "</tt:Mode>\r\n"
                  << "          <tt:DelayTime>PT" << static_cast<int>(r.delayTimeSeconds) << "S</tt:DelayTime>\r\n"
@@ -3499,7 +3504,7 @@ void OnvifServer::handleDeviceIoService(const httplib::Request& req, httplib::Re
         const std::string token = tokenNode ? tokenNode.text().as_string() : "Relay_1";
 
         body << "    <tmd:GetRelayOutputOptionsResponse>\r\n"
-             << "      <tmd:RelayOutputOptions token=\"" << token << "\">\r\n"
+             << "      <tmd:RelayOutputOptions token=\"" << Xml::escapeXmlAttr(token) << "\">\r\n"
              << "        <tt:Mode>Bistable</tt:Mode>\r\n"
              << "        <tt:Mode>Monostable</tt:Mode>\r\n"
              << "        <tt:DelayTimes>\r\n"
@@ -3580,7 +3585,7 @@ void OnvifServer::handleDeviceIoService(const httplib::Request& req, httplib::Re
 
         body << "    <tmd:GetDigitalInputsResponse>\r\n";
         for (const auto& in : inputs) {
-            body << "      <tmd:DigitalInputs token=\"" << in.token << "\">\r\n"
+            body << "      <tmd:DigitalInputs token=\"" << Xml::escapeXmlAttr(in.token) << "\">\r\n"
                  << "        <tt:IdleState>" << relayIdleStateToString(in.idleState) << "</tt:IdleState>\r\n"
                  << "      </tmd:DigitalInputs>\r\n";
         }
@@ -3590,7 +3595,7 @@ void OnvifServer::handleDeviceIoService(const httplib::Request& req, httplib::Re
         const std::string token = tokenNode ? tokenNode.text().as_string() : "Input_1";
 
         body << "    <tmd:GetDigitalInputConfigurationOptionsResponse>\r\n"
-             << "      <tmd:DigitalInputOptions token=\"" << token << "\">\r\n"
+             << "      <tmd:DigitalInputOptions token=\"" << Xml::escapeXmlAttr(token) << "\">\r\n"
              << "        <tt:IdleState>open</tt:IdleState>\r\n"
              << "        <tt:IdleState>closed</tt:IdleState>\r\n"
              << "      </tmd:DigitalInputOptions>\r\n"
@@ -3625,6 +3630,7 @@ void OnvifServer::handleEventService(const httplib::Request& req, httplib::Respo
     const auto& [bodyNode, reqNode, opName] = *soap;
 
     const std::string host = resolveHost(req);
+    const std::string safeHost = Xml::escapeXmlText(host);
     const int port = m_config.port;
 
     std::ostringstream body;
@@ -3647,8 +3653,8 @@ void OnvifServer::handleEventService(const httplib::Request& req, httplib::Respo
 
         body << "    <tev:CreatePullPointSubscriptionResponse>\r\n"
              << "      <tev:SubscriptionReference>\r\n"
-             << "        <wsa:Address>http://" << host << ":" << port << "/onvif/events/subscription/" << subId
-             << "</wsa:Address>\r\n"
+             << "        <wsa:Address>http://" << safeHost << ":" << port << "/onvif/events/subscription/"
+             << Xml::escapeXmlText(subId) << "</wsa:Address>\r\n"
              << "      </tev:SubscriptionReference>\r\n"
              << "      <wsnt:CurrentTime>" << curTime << "</wsnt:CurrentTime>\r\n"
              << "      <wsnt:TerminationTime>" << termTime << "</wsnt:TerminationTime>\r\n"
@@ -3675,8 +3681,8 @@ void OnvifServer::handleEventService(const httplib::Request& req, httplib::Respo
 
         body << "    <wsnt:SubscribeResponse>\r\n"
              << "      <wsnt:SubscriptionReference>\r\n"
-             << "        <wsa:Address>http://" << host << ":" << port << "/onvif/events/subscription/" << subId
-             << "</wsa:Address>\r\n"
+             << "        <wsa:Address>http://" << safeHost << ":" << port << "/onvif/events/subscription/"
+             << Xml::escapeXmlText(subId) << "</wsa:Address>\r\n"
              << "      </wsnt:SubscriptionReference>\r\n"
              << "      <wsnt:CurrentTime>" << curTime << "</wsnt:CurrentTime>\r\n"
              << "      <wsnt:TerminationTime>" << termTime << "</wsnt:TerminationTime>\r\n"
@@ -3781,20 +3787,20 @@ void OnvifServer::handleSubscriptionService(const httplib::Request& req, httplib
         for (const auto& ev : pulledEvents) {
             body << "      <wsnt:NotificationMessage>\r\n"
                  << "        <wsnt:Topic Dialect=\"http://www.onvif.org/ver10/tev/topicExpression/ConcreteSet\">"
-                 << ev.topic << "</wsnt:Topic>\r\n"
-                 << "        <wsnt:Message UtcTime=\"" << ev.utcTime << "\">\r\n";
+                 << Xml::escapeXmlText(ev.topic) << "</wsnt:Topic>\r\n"
+                 << "        <wsnt:Message UtcTime=\"" << Xml::escapeXmlAttr(ev.utcTime) << "\">\r\n";
 
             if (!ev.sourceName.empty()) {
                 body << "          <tt:Source>\r\n"
-                     << "            <tt:SimpleItem Name=\"" << ev.sourceName << "\" Value=\"" << ev.sourceValue
-                     << "\"/>\r\n"
+                     << "            <tt:SimpleItem Name=\"" << Xml::escapeXmlAttr(ev.sourceName) << "\" Value=\""
+                     << Xml::escapeXmlAttr(ev.sourceValue) << "\"/>\r\n"
                      << "          </tt:Source>\r\n";
             }
 
             if (!ev.dataName.empty()) {
                 body << "          <tt:Data>\r\n"
-                     << "            <tt:SimpleItem Name=\"" << ev.dataName << "\" Value=\"" << ev.dataValue
-                     << "\"/>\r\n"
+                     << "            <tt:SimpleItem Name=\"" << Xml::escapeXmlAttr(ev.dataName) << "\" Value=\""
+                     << Xml::escapeXmlAttr(ev.dataValue) << "\"/>\r\n"
                      << "          </tt:Data>\r\n";
             }
 
@@ -3840,10 +3846,12 @@ void OnvifServer::handleAnalyticsService(const httplib::Request& req, httplib::R
     std::ostringstream body;
 
     const auto serializeRuleToXml = [](std::ostringstream& ss, const AnalyticsRule& rule) {
-        ss << "      <tan:Rule Name=\"" << rule.name << "\" Type=\"" << rule.type << "\">\r\n"
+        ss << "      <tan:Rule Name=\"" << Xml::escapeXmlAttr(rule.name) << "\" Type=\""
+           << Xml::escapeXmlAttr(rule.type) << "\">\r\n"
            << "        <tan:Parameters>\r\n";
         if (rule.type.find("Line") != std::string::npos) {
-            ss << "          <tt:SimpleItem Name=\"Direction\" Value=\"" << rule.direction << "\"/>\r\n"
+            ss << "          <tt:SimpleItem Name=\"Direction\" Value=\"" << Xml::escapeXmlAttr(rule.direction)
+               << "\"/>\r\n"
                << "          <tt:ElementItem Name=\"Segment\">\r\n"
                << "            <tt:Point x=\"" << std::fixed << std::setprecision(4) << rule.lineStart.x << "\" y=\""
                << std::fixed << std::setprecision(4) << rule.lineStart.y << "\"/>\r\n"
@@ -3877,7 +3885,8 @@ void OnvifServer::handleAnalyticsService(const httplib::Request& req, httplib::R
                 }
                 classesJoined += rule.objectClasses[i];
             }
-            ss << "          <tt:SimpleItem Name=\"Classes\" Value=\"" << classesJoined << "\"/>\r\n"
+            ss << "          <tt:SimpleItem Name=\"Classes\" Value=\"" << Xml::escapeXmlAttr(classesJoined)
+               << "\"/>\r\n"
                << "          <tt:SimpleItem Name=\"MinConfidence\" Value=\"" << std::fixed << std::setprecision(2)
                << rule.minConfidence << "\"/>\r\n";
         }
@@ -3888,10 +3897,12 @@ void OnvifServer::handleAnalyticsService(const httplib::Request& req, httplib::R
     };
 
     const auto serializeModuleToXml = [](std::ostringstream& ss, const AnalyticsModule& mod) {
-        ss << "      <tan:AnalyticsModule Name=\"" << mod.name << "\" Type=\"" << mod.type << "\">\r\n"
+        ss << "      <tan:AnalyticsModule Name=\"" << Xml::escapeXmlAttr(mod.name) << "\" Type=\""
+           << Xml::escapeXmlAttr(mod.type) << "\">\r\n"
            << "        <tan:Parameters>\r\n";
         for (const auto& [k, v] : mod.parameters) {
-            ss << "          <tt:SimpleItem Name=\"" << k << "\" Value=\"" << v << "\"/>\r\n";
+            ss << "          <tt:SimpleItem Name=\"" << Xml::escapeXmlAttr(k) << "\" Value=\"" << Xml::escapeXmlAttr(v)
+               << "\"/>\r\n";
         }
         ss << "        </tan:Parameters>\r\n"
            << "      </tan:AnalyticsModule>\r\n";
@@ -4166,7 +4177,7 @@ void OnvifServer::handleRecordingService(const httplib::Request& req, httplib::R
         }
         logSystemMessage("INFO", "CreateRecording token=" + recToken);
         body << "    <trc:CreateRecordingResponse>\r\n"
-             << "      <trc:RecordingToken>" << recToken << "</trc:RecordingToken>\r\n"
+             << "      <trc:RecordingToken>" << Xml::escapeXmlText(recToken) << "</trc:RecordingToken>\r\n"
              << "    </trc:CreateRecordingResponse>\r\n";
     } else if (isOp(opName, "GetRecordings")) {
         std::vector<RecordingConfig> recs;
@@ -4180,24 +4191,26 @@ void OnvifServer::handleRecordingService(const httplib::Request& req, httplib::R
         body << "    <trc:GetRecordingsResponse>\r\n";
         for (const auto& rec : recs) {
             body << "      <trc:RecordingItem>\r\n"
-                 << "        <trc:RecordingToken>" << rec.recordingToken << "</trc:RecordingToken>\r\n"
+                 << "        <trc:RecordingToken>" << Xml::escapeXmlText(rec.recordingToken)
+                 << "</trc:RecordingToken>\r\n"
                  << "        <trc:Configuration>\r\n"
                  << "          <tt:Source>\r\n"
-                 << "            <tt:SourceId>" << rec.sourceToken << "</tt:SourceId>\r\n"
-                 << "            <tt:Name>" << rec.sourceToken << "</tt:Name>\r\n"
+                 << "            <tt:SourceId>" << Xml::escapeXmlText(rec.sourceToken) << "</tt:SourceId>\r\n"
+                 << "            <tt:Name>" << Xml::escapeXmlText(rec.sourceToken) << "</tt:Name>\r\n"
                  << "          </tt:Source>\r\n"
-                 << "          <tt:Content>" << rec.content << "</tt:Content>\r\n"
-                 << "          <tt:MaximumRetentionTime>" << rec.maximumRetentionTime
+                 << "          <tt:Content>" << Xml::escapeXmlText(rec.content) << "</tt:Content>\r\n"
+                 << "          <tt:MaximumRetentionTime>" << Xml::escapeXmlText(rec.maximumRetentionTime)
                  << "</tt:MaximumRetentionTime>\r\n"
                  << "        </trc:Configuration>\r\n"
                  << "        <trc:Tracks>\r\n";
             for (const auto& trk : rec.tracks) {
                 body << "          <trc:Track>\r\n"
-                     << "            <trc:TrackToken>" << trk.trackToken << "</trc:TrackToken>\r\n"
+                     << "            <trc:TrackToken>" << Xml::escapeXmlText(trk.trackToken) << "</trc:TrackToken>\r\n"
                      << "            <trc:Configuration>\r\n"
                      << "              <tt:TrackType>" << recordingTrackTypeToString(trk.trackType)
                      << "</tt:TrackType>\r\n"
-                     << "              <tt:Description>" << trk.description << "</tt:Description>\r\n"
+                     << "              <tt:Description>" << Xml::escapeXmlText(trk.description)
+                     << "</tt:Description>\r\n"
                      << "            </trc:Configuration>\r\n"
                      << "          </trc:Track>\r\n";
             }
@@ -4230,11 +4243,12 @@ void OnvifServer::handleRecordingService(const httplib::Request& req, httplib::R
         body << "    <trc:GetRecordingConfigurationResponse>\r\n"
              << "      <trc:RecordingConfiguration>\r\n"
              << "        <tt:Source>\r\n"
-             << "          <tt:SourceId>" << rec.sourceToken << "</tt:SourceId>\r\n"
-             << "          <tt:Name>" << rec.sourceToken << "</tt:Name>\r\n"
+             << "          <tt:SourceId>" << Xml::escapeXmlText(rec.sourceToken) << "</tt:SourceId>\r\n"
+             << "          <tt:Name>" << Xml::escapeXmlText(rec.sourceToken) << "</tt:Name>\r\n"
              << "        </tt:Source>\r\n"
-             << "        <tt:Content>" << rec.content << "</tt:Content>\r\n"
-             << "        <tt:MaximumRetentionTime>" << rec.maximumRetentionTime << "</tt:MaximumRetentionTime>\r\n"
+             << "        <tt:Content>" << Xml::escapeXmlText(rec.content) << "</tt:Content>\r\n"
+             << "        <tt:MaximumRetentionTime>" << Xml::escapeXmlText(rec.maximumRetentionTime)
+             << "</tt:MaximumRetentionTime>\r\n"
              << "      </trc:RecordingConfiguration>\r\n"
              << "    </trc:GetRecordingConfigurationResponse>\r\n";
     } else if (isOp(opName, "SetRecordingConfiguration")) {
@@ -4315,7 +4329,7 @@ void OnvifServer::handleRecordingService(const httplib::Request& req, httplib::R
             }
         }
         body << "    <trc:CreateTrackResponse>\r\n"
-             << "      <trc:TrackToken>" << trkToken << "</trc:TrackToken>\r\n"
+             << "      <trc:TrackToken>" << Xml::escapeXmlText(trkToken) << "</trc:TrackToken>\r\n"
              << "    </trc:CreateTrackResponse>\r\n";
     } else if (isOp(opName, "GetTrackConfiguration")) {
         const pugi::xml_node recNode = reqNode.select_node(".//*[local-name()='RecordingToken']").node();
@@ -4339,7 +4353,7 @@ void OnvifServer::handleRecordingService(const httplib::Request& req, httplib::R
         body << "    <trc:GetTrackConfigurationResponse>\r\n"
              << "      <trc:TrackConfiguration>\r\n"
              << "        <tt:TrackType>" << recordingTrackTypeToString(trk.trackType) << "</tt:TrackType>\r\n"
-             << "        <tt:Description>" << trk.description << "</tt:Description>\r\n"
+             << "        <tt:Description>" << Xml::escapeXmlText(trk.description) << "</tt:Description>\r\n"
              << "      </trc:TrackConfiguration>\r\n"
              << "    </trc:GetTrackConfigurationResponse>\r\n";
     } else if (isOp(opName, "DeleteTrack")) {
@@ -4374,13 +4388,14 @@ void OnvifServer::handleRecordingService(const httplib::Request& req, httplib::R
         body << "    <trc:GetRecordingJobsResponse>\r\n";
         for (const auto& job : jobs) {
             body << "      <trc:JobItem>\r\n"
-                 << "        <trc:JobToken>" << job.jobToken << "</trc:JobToken>\r\n"
+                 << "        <trc:JobToken>" << Xml::escapeXmlText(job.jobToken) << "</trc:JobToken>\r\n"
                  << "        <trc:JobConfiguration>\r\n"
-                 << "          <tt:RecordingToken>" << job.recordingToken << "</tt:RecordingToken>\r\n"
+                 << "          <tt:RecordingToken>" << Xml::escapeXmlText(job.recordingToken)
+                 << "</tt:RecordingToken>\r\n"
                  << "          <tt:Mode>" << recordingJobModeToString(job.mode) << "</tt:Mode>\r\n"
                  << "          <tt:Priority>" << job.priority << "</tt:Priority>\r\n"
                  << "          <tt:Source>\r\n"
-                 << "            <tt:SourceToken>" << job.sourceToken << "</tt:SourceToken>\r\n"
+                 << "            <tt:SourceToken>" << Xml::escapeXmlText(job.sourceToken) << "</tt:SourceToken>\r\n"
                  << "          </tt:Source>\r\n"
                  << "        </trc:JobConfiguration>\r\n"
                  << "      </trc:JobItem>\r\n";
@@ -4414,7 +4429,7 @@ void OnvifServer::handleRecordingService(const httplib::Request& req, httplib::R
             m_internalRecordingJobs.push_back(job);
         }
         body << "    <trc:CreateRecordingJobResponse>\r\n"
-             << "      <trc:JobToken>" << jobToken << "</trc:JobToken>\r\n"
+             << "      <trc:JobToken>" << Xml::escapeXmlText(jobToken) << "</trc:JobToken>\r\n"
              << "    </trc:CreateRecordingJobResponse>\r\n";
     } else if (isOp(opName, "SetRecordingJobMode")) {
         const pugi::xml_node tokenNode = reqNode.select_node(".//*[local-name()='JobToken']").node();
@@ -4462,8 +4477,8 @@ void OnvifServer::handleRecordingService(const httplib::Request& req, httplib::R
         }
         body << "    <trc:GetRecordingSummaryResponse>\r\n"
              << "      <trc:Summary>\r\n"
-             << "        <tt:DataFrom>" << sum.dataFrom << "</tt:DataFrom>\r\n"
-             << "        <tt:DataUntil>" << sum.dataUntil << "</tt:DataUntil>\r\n"
+             << "        <tt:DataFrom>" << Xml::escapeXmlText(sum.dataFrom) << "</tt:DataFrom>\r\n"
+             << "        <tt:DataUntil>" << Xml::escapeXmlText(sum.dataUntil) << "</tt:DataUntil>\r\n"
              << "        <tt:NumberRecordings>" << sum.numberRecordings << "</tt:NumberRecordings>\r\n"
              << "      </trc:Summary>\r\n"
              << "    </trc:GetRecordingSummaryResponse>\r\n";
@@ -4515,7 +4530,7 @@ void OnvifServer::handleSearchService(const httplib::Request& req, httplib::Resp
         }
         logSystemMessage("INFO", "FindRecordings searchToken=" + searchToken);
         body << "    <tse:FindRecordingsResponse>\r\n"
-             << "      <tse:SearchToken>" << searchToken << "</tse:SearchToken>\r\n"
+             << "      <tse:SearchToken>" << Xml::escapeXmlText(searchToken) << "</tse:SearchToken>\r\n"
              << "    </tse:FindRecordingsResponse>\r\n";
     } else if (isOp(opName, "GetRecordingSearchResults")) {
         const pugi::xml_node tokenNode = reqNode.select_node(".//*[local-name()='SearchToken']").node();
@@ -4535,11 +4550,14 @@ void OnvifServer::handleSearchService(const httplib::Request& req, httplib::Resp
              << "      <tse:ResultList SearchState=\"Completed\">\r\n";
         for (const auto& resItem : results) {
             body << "        <tse:RecordingInformation>\r\n"
-                 << "          <tt:RecordingToken>" << resItem.recordingToken << "</tt:RecordingToken>\r\n"
-                 << "          <tt:TrackToken>" << resItem.trackToken << "</tt:TrackToken>\r\n"
-                 << "          <tt:EarliestRecording>" << resItem.earliestTime << "</tt:EarliestRecording>\r\n"
-                 << "          <tt:LatestRecording>" << resItem.latestTime << "</tt:LatestRecording>\r\n"
-                 << "          <tt:SearchState>" << resItem.searchState << "</tt:SearchState>\r\n"
+                 << "          <tt:RecordingToken>" << Xml::escapeXmlText(resItem.recordingToken)
+                 << "</tt:RecordingToken>\r\n"
+                 << "          <tt:TrackToken>" << Xml::escapeXmlText(resItem.trackToken) << "</tt:TrackToken>\r\n"
+                 << "          <tt:EarliestRecording>" << Xml::escapeXmlText(resItem.earliestTime)
+                 << "</tt:EarliestRecording>\r\n"
+                 << "          <tt:LatestRecording>" << Xml::escapeXmlText(resItem.latestTime)
+                 << "</tt:LatestRecording>\r\n"
+                 << "          <tt:SearchState>" << Xml::escapeXmlText(resItem.searchState) << "</tt:SearchState>\r\n"
                  << "        </tse:RecordingInformation>\r\n";
         }
         body << "      </tse:ResultList>\r\n"
@@ -4567,7 +4585,7 @@ void OnvifServer::handleSearchService(const httplib::Request& req, httplib::Resp
             m_eventSearches[searchToken] = evResults;
         }
         body << "    <tse:FindEventsResponse>\r\n"
-             << "      <tse:SearchToken>" << searchToken << "</tse:SearchToken>\r\n"
+             << "      <tse:SearchToken>" << Xml::escapeXmlText(searchToken) << "</tse:SearchToken>\r\n"
              << "    </tse:FindEventsResponse>\r\n";
     } else if (isOp(opName, "GetEventSearchResults")) {
         const pugi::xml_node tokenNode = reqNode.select_node(".//*[local-name()='SearchToken']").node();
@@ -4587,11 +4605,12 @@ void OnvifServer::handleSearchService(const httplib::Request& req, httplib::Resp
              << "      <tse:ResultList SearchState=\"Completed\">\r\n";
         for (const auto& ev : events) {
             body << "        <tse:EventInformation>\r\n"
-                 << "          <tt:RecordingToken>" << ev.recordingToken << "</tt:RecordingToken>\r\n"
-                 << "          <tt:UtcTime>" << ev.eventTime << "</tt:UtcTime>\r\n"
-                 << "          <tt:Topic>" << ev.topic << "</tt:Topic>\r\n"
-                 << "          <tt:Source>" << ev.source << "</tt:Source>\r\n"
-                 << "          <tt:Data>" << ev.data << "</tt:Data>\r\n"
+                 << "          <tt:RecordingToken>" << Xml::escapeXmlText(ev.recordingToken)
+                 << "</tt:RecordingToken>\r\n"
+                 << "          <tt:UtcTime>" << Xml::escapeXmlText(ev.eventTime) << "</tt:UtcTime>\r\n"
+                 << "          <tt:Topic>" << Xml::escapeXmlText(ev.topic) << "</tt:Topic>\r\n"
+                 << "          <tt:Source>" << Xml::escapeXmlText(ev.source) << "</tt:Source>\r\n"
+                 << "          <tt:Data>" << Xml::escapeXmlText(ev.data) << "</tt:Data>\r\n"
                  << "        </tse:EventInformation>\r\n";
         }
         body << "      </tse:ResultList>\r\n"
@@ -4608,7 +4627,7 @@ void OnvifServer::handleSearchService(const httplib::Request& req, httplib::Resp
             m_eventSearches.erase(searchToken);
         }
         body << "    <tse:EndSearchResponse>\r\n"
-             << "      <tse:Endpoint>" << searchToken << "</tse:Endpoint>\r\n"
+             << "      <tse:Endpoint>" << Xml::escapeXmlText(searchToken) << "</tse:Endpoint>\r\n"
              << "    </tse:EndSearchResponse>\r\n";
     } else {
         body << "    <tse:" << opName << "Response/>\r\n";
@@ -4647,7 +4666,7 @@ void OnvifServer::handleReplayService(const httplib::Request& req, httplib::Resp
             uri = baseReplay + "?recording=" + recToken;
         }
         body << "    <trp:GetReplayUriResponse>\r\n"
-             << "      <trp:Uri>" << uri << "</trp:Uri>\r\n"
+             << "      <trp:Uri>" << Xml::escapeXmlText(uri) << "</trp:Uri>\r\n"
              << "    </trp:GetReplayUriResponse>\r\n";
     } else if (isOp(opName, "GetReplayConfiguration")) {
         ReplayConfiguration cfg;
@@ -4659,7 +4678,7 @@ void OnvifServer::handleReplayService(const httplib::Request& req, httplib::Resp
         }
         body << "    <trp:GetReplayConfigurationResponse>\r\n"
              << "      <trp:Configuration>\r\n"
-             << "        <tt:SessionTimeout>" << cfg.sessionTimeout << "</tt:SessionTimeout>\r\n"
+             << "        <tt:SessionTimeout>" << Xml::escapeXmlText(cfg.sessionTimeout) << "</tt:SessionTimeout>\r\n"
              << "      </trp:Configuration>\r\n"
              << "    </trp:GetReplayConfigurationResponse>\r\n";
     } else if (isOp(opName, "SetReplayConfiguration")) {
@@ -4721,7 +4740,7 @@ void OnvifServer::handleThermalService(const httplib::Request& req, httplib::Res
         }
         body << "    <tth:GetRadiometryConfigurationResponse>\r\n"
              << "      <tth:Configuration>\r\n"
-             << "        <tth:VideoSourceToken>" << tok << "</tth:VideoSourceToken>\r\n"
+             << "        <tth:VideoSourceToken>" << Xml::escapeXmlText(tok) << "</tth:VideoSourceToken>\r\n"
              << "        <tth:Emissivity>" << std::fixed << std::setprecision(2) << cfg.emissivity
              << "</tth:Emissivity>\r\n"
              << "        <tth:Distance>" << std::fixed << std::setprecision(1) << cfg.distance << "</tth:Distance>\r\n"
@@ -4783,10 +4802,10 @@ void OnvifServer::handleThermalService(const httplib::Request& req, httplib::Res
         }
         body << "    <tth:GetRadiometrySpotsResponse>\r\n";
         for (const auto& s : spots) {
-            body << "      <tth:Spot token=\"" << s.token << "\">\r\n"
+            body << "      <tth:Spot token=\"" << Xml::escapeXmlAttr(s.token) << "\">\r\n"
                  << "        <tth:Position x=\"" << std::fixed << std::setprecision(4) << s.position.x << "\" y=\""
                  << s.position.y << "\"/>\r\n"
-                 << "        <tth:Label>" << s.label << "</tth:Label>\r\n"
+                 << "        <tth:Label>" << Xml::escapeXmlText(s.label) << "</tth:Label>\r\n"
                  << "        <tth:Temperature>" << std::fixed << std::setprecision(1) << s.temperature
                  << "</tth:Temperature>\r\n"
                  << "      </tth:Spot>\r\n";
@@ -4832,11 +4851,11 @@ void OnvifServer::handleThermalService(const httplib::Request& req, httplib::Res
         }
         body << "    <tth:GetRadiometryBoxesResponse>\r\n";
         for (const auto& b : boxes) {
-            body << "      <tth:Box token=\"" << b.token << "\">\r\n"
+            body << "      <tth:Box token=\"" << Xml::escapeXmlAttr(b.token) << "\">\r\n"
                  << "        <tth:TopLeft x=\"" << std::fixed << std::setprecision(4) << b.topLeft.x << "\" y=\""
                  << b.topLeft.y << "\"/>\r\n"
                  << "        <tth:BottomRight x=\"" << b.bottomRight.x << "\" y=\"" << b.bottomRight.y << "\"/>\r\n"
-                 << "        <tth:Label>" << b.label << "</tth:Label>\r\n"
+                 << "        <tth:Label>" << Xml::escapeXmlText(b.label) << "</tth:Label>\r\n"
                  << "        <tth:MinTemperature>" << std::fixed << std::setprecision(1) << b.minTemperature
                  << "</tth:MinTemperature>\r\n"
                  << "        <tth:MaxTemperature>" << b.maxTemperature << "</tth:MaxTemperature>\r\n"
@@ -4894,9 +4913,9 @@ void OnvifServer::handleThermalService(const httplib::Request& req, httplib::Res
         }
         body << "    <tth:GetColorPalettesResponse>\r\n";
         for (const auto& p : palettes) {
-            body << "      <tth:Palette token=\"" << p.token << "\" IsDefault=\"" << (p.isDefault ? "true" : "false")
-                 << "\">\r\n"
-                 << "        <tth:Name>" << p.name << "</tth:Name>\r\n"
+            body << "      <tth:Palette token=\"" << Xml::escapeXmlAttr(p.token) << "\" IsDefault=\""
+                 << (p.isDefault ? "true" : "false") << "\">\r\n"
+                 << "        <tth:Name>" << Xml::escapeXmlText(p.name) << "</tth:Name>\r\n"
                  << "      </tth:Palette>\r\n";
         }
         body << "    </tth:GetColorPalettesResponse>\r\n";

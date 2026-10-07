@@ -1,4 +1,5 @@
 #include "OnvifSecurity.h"
+#include "XmlUtils.h"
 
 #include <openssl/bio.h>
 #include <openssl/buffer.h>
@@ -149,7 +150,7 @@ std::string OnvifSecurity::buildSoapSecurityHeader(const SecurityCredentials& cr
           "xmlns:wsse=\"http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd\" "
        << "xmlns:wsu=\"http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd\">\n"
        << "  <wsse:UsernameToken>\n"
-       << "    <wsse:Username>" << token.username << "</wsse:Username>\n"
+       << "    <wsse:Username>" << Xml::escapeXml(token.username) << "</wsse:Username>\n"
        << "    <wsse:Password "
           "Type=\"http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-username-token-profile-1.0#PasswordDigest\">"
        << token.passwordDigest << "</wsse:Password>\n"
@@ -359,8 +360,8 @@ std::optional<std::chrono::system_clock::time_point> OnvifSecurity::parseIsoUtc(
         return std::nullopt;
     }
 
-    const std::int64_t epochSeconds { (daysFromCivil(year, month, day) * 86400) + (hour * 3600) + (minute * 60)
-        + second - offsetSeconds };
+    const std::int64_t epochSeconds { (daysFromCivil(year, month, day) * 86400) + (hour * 3600) + (minute * 60) + second
+        - offsetSeconds };
     return std::chrono::system_clock::from_time_t(0) + std::chrono::seconds { epochSeconds };
 }
 

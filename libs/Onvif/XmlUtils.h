@@ -4,11 +4,48 @@
 /// @brief XML traversal and namespace-agnostic element lookup utilities for ONVIF.
 
 #include "OnvifTypes.h"
+#include <ostream>
 #include <pugixml.hpp>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace Onvif::Xml {
+
+/// @brief Sanitizes a string by filtering out illegal XML 1.0 control characters.
+/// @details XML 1.0 §2.2 specifies valid characters:
+///          #x9 | #xA | #xD | [#x20-#xD7FF] | [#xE000-#xFFFD] | [#x10000-#x10FFFF].
+///          Control characters in [0x00, 0x08], 0x0B, 0x0C, and [0x0E, 0x1F] are stripped.
+/// @param[in] input Raw input string to sanitize.
+/// @return Sanitized string adhering strictly to XML 1.0 character sets.
+[[nodiscard]] std::string sanitizeXml(std::string_view input);
+
+/// @brief Escapes predefined XML entities in a string for safe embedding in text or attributes.
+/// @details Replaces '&' -> "&amp;", '<' -> "&lt;", '>' -> "&gt;", '"' -> "&quot;", '\'' -> "&apos;".
+///          Also filters illegal XML 1.0 control characters.
+/// @param[in] input String to escape.
+/// @return XML-safe escaped string.
+[[nodiscard]] std::string escapeXml(std::string_view input);
+
+/// @brief Escapes predefined XML entities specifically for element text nodes.
+/// @details Replaces '&' -> "&amp;", '<' -> "&lt;", '>' -> "&gt;". Quotes are preserved.
+///          Also filters illegal XML 1.0 control characters.
+/// @param[in] input String to escape.
+/// @return XML-safe escaped element text string.
+[[nodiscard]] std::string escapeXmlText(std::string_view input);
+
+/// @brief Escapes predefined XML entities specifically for XML attributes.
+/// @details Replaces '&' -> "&amp;", '<' -> "&lt;", '>' -> "&gt;", '"' -> "&quot;", '\'' -> "&apos;".
+///          Also filters illegal XML 1.0 control characters.
+/// @param[in] input String to escape.
+/// @return XML-safe escaped attribute string.
+[[nodiscard]] std::string escapeXmlAttr(std::string_view input);
+
+/// @brief Writes a safe XML element with escaped content to an output stream.
+/// @param[in,out] os Destination output stream.
+/// @param[in] qualifiedTag XML tag name (e.g. "tt:Name").
+/// @param[in] content Raw text content to escape and enclose.
+void writeXmlTag(std::ostream& os, std::string_view qualifiedTag, std::string_view content);
 
 /// @brief Extracts the local name of an XML node, stripping any namespace prefix.
 /// @param[in] node XML node to inspect.

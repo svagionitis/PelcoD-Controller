@@ -5,6 +5,89 @@
 
 namespace Onvif::Xml {
 
+std::string sanitizeXml(std::string_view input)
+{
+    std::string out {};
+    out.reserve(input.size());
+    for (const char ch : input) {
+        const auto uc = static_cast<unsigned char>(ch);
+        if (uc >= 0x20 || uc == 0x09 || uc == 0x0A || uc == 0x0D) {
+            out.push_back(ch);
+        }
+    }
+    return out;
+}
+
+std::string escapeXml(std::string_view input)
+{
+    std::string out {};
+    out.reserve(input.size() + (input.size() / 4));
+    for (const char ch : input) {
+        const auto uc = static_cast<unsigned char>(ch);
+        if (uc < 0x20 && uc != 0x09 && uc != 0x0A && uc != 0x0D) {
+            continue;
+        }
+        switch (ch) {
+        case '&':
+            out.append("&amp;");
+            break;
+        case '<':
+            out.append("&lt;");
+            break;
+        case '>':
+            out.append("&gt;");
+            break;
+        case '"':
+            out.append("&quot;");
+            break;
+        case '\'':
+            out.append("&apos;");
+            break;
+        default:
+            out.push_back(ch);
+            break;
+        }
+    }
+    return out;
+}
+
+std::string escapeXmlText(std::string_view input)
+{
+    std::string out {};
+    out.reserve(input.size() + (input.size() / 4));
+    for (const char ch : input) {
+        const auto uc = static_cast<unsigned char>(ch);
+        if (uc < 0x20 && uc != 0x09 && uc != 0x0A && uc != 0x0D) {
+            continue;
+        }
+        switch (ch) {
+        case '&':
+            out.append("&amp;");
+            break;
+        case '<':
+            out.append("&lt;");
+            break;
+        case '>':
+            out.append("&gt;");
+            break;
+        default:
+            out.push_back(ch);
+            break;
+        }
+    }
+    return out;
+}
+
+std::string escapeXmlAttr(std::string_view input)
+{
+    return escapeXml(input);
+}
+
+void writeXmlTag(std::ostream& os, std::string_view qualifiedTag, std::string_view content)
+{
+    os << '<' << qualifiedTag << '>' << escapeXml(content) << "</" << qualifiedTag << '>';
+}
+
 std::string getLocalNodeName(const pugi::xml_node& node)
 {
     const std::string name = node.name();
