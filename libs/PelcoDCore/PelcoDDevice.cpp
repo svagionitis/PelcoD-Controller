@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <exception>
 #include <glog/logging.h>
 
 namespace PelcoD {
@@ -19,7 +20,13 @@ PelcoDDevice::PelcoDDevice(std::shared_ptr<ITransport> transport, std::uint8_t a
 
 PelcoDDevice::~PelcoDDevice()
 {
-    stop();
+    try {
+        stop();
+    } catch (const std::exception& ex) {
+        LOG(ERROR) << "PelcoDDevice: exception during destruction: " << ex.what();
+    } catch (...) {
+        LOG(ERROR) << "PelcoDDevice: unknown exception during destruction";
+    }
 }
 
 bool PelcoDDevice::start()
@@ -33,33 +40,21 @@ bool PelcoDDevice::start()
         return false;
     }
 
-    m_transport->setDataCallback([this](const std::vector<std::uint8_t>& data) { onDataReceived(data); });
-    m_transport->setStateCallback([this](TransportState state, const std::string& msg) {
-        if (state == TransportState::Disconnected || state == TransportState::Error) {
-            LOG(WARNING) << "Transport disconnected or error: " << msg;
-            bool wasConn = false;
-            {
-                std::scoped_lock lock(m_statusMutex);
-                wasConn = m_status.connected;
-                m_status.connected = false;
-            }
-            if (wasConn) {
-                std::shared_ptr<const std::vector<CallbackEntry<StatusCallback>>> sbs;
-                {
-                    std::scoped_lock lock(m_callbackState->mutex);
-                    sbs = m_callbackState->statusCallbacks;
-                }
-                DeviceStatus copy;
-                {
-                    std::scoped_lock lock(m_statusMutex);
-                    copy = m_status;
-                }
-                for (const auto& entry : *sbs) {
-                    if (entry.cb) {
-                        entry.cb(copy);
-                    }
-                }
-            }
+    // C3b: every transport callback of this session enters a fresh gate. stop() closes it and waits for
+    // in-flight invocations; copies of these lambdas that a transport still holds after stop() (or a
+    // restart) are rejected because their gate stays closed.
+    auto gate = std::make_shared<CallbackGate>();
+    m_rxGate = gate;
+    m_transport->setDataCallback([this, gate](const std::vector<std::uint8_t>& data) {
+        const CallbackGate::Pass pass { *gate };
+        if (pass) {
+            onDataReceived(data);
+        }
+    });
+    m_transport->setStateCallback([this, gate](TransportState state, const std::string& msg) {
+        const CallbackGate::Pass pass { *gate };
+        if (pass) {
+            onTransportState(state, msg);
         }
     });
 
@@ -67,6 +62,7 @@ bool PelcoDDevice::start()
         if (!m_transport->open()) {
             m_transport->setDataCallback(nullptr);
             m_transport->setStateCallback(nullptr);
+            gate->close();
             return false;
         }
     }
@@ -87,7 +83,17 @@ bool PelcoDDevice::start()
 
 void PelcoDDevice::stop()
 {
-    std::scoped_lock lifecycleLock(m_lifecycleMutex);
+    std::unique_lock<std::recursive_mutex> lifecycleLock { m_lifecycleMutex };
+
+    // C3b: drain in-flight transport callbacks *without* holding the lifecycle lock, so that a callback
+    // which itself calls stop()/start() cannot deadlock against us. Re-check after re-locking in case a
+    // concurrent stop()+start() installed a new session gate meanwhile.
+    for (auto gate = m_rxGate; gate && !gate->isClosed(); gate = m_rxGate) {
+        lifecycleLock.unlock();
+        gate->close();
+        lifecycleLock.lock();
+    }
+
     if (!m_running.load() && !m_workerThread.joinable()) {
         if (m_transport) {
             if (m_transport->isOpen()) {
@@ -119,10 +125,52 @@ void PelcoDDevice::stop()
         m_transport->setStateCallback(nullptr);
     }
 
+    // The gate is closed, so the transport's own Disconnected notification (if any) was rejected;
+    // publish the disconnect here instead, exactly once.
+    markDisconnected();
+}
+
+void PelcoDDevice::onTransportState(TransportState state, const std::string& msg)
+{
+    if (state == TransportState::Disconnected || state == TransportState::Error) {
+        LOG(WARNING) << "Transport disconnected or error: " << msg;
+        markDisconnected();
+    }
+}
+
+void PelcoDDevice::markDisconnected()
+{
+    bool wasConn { false };
+    DeviceStatus copy {};
     {
         std::scoped_lock lock(m_statusMutex);
+        wasConn = m_status.connected;
         m_status.connected = false;
+        copy = m_status;
     }
+    if (!wasConn) {
+        return;
+    }
+    std::shared_ptr<const std::vector<CallbackEntry<StatusCallback>>> sbs {};
+    {
+        std::scoped_lock lock(m_callbackState->mutex);
+        sbs = m_callbackState->statusCallbacks;
+    }
+    for (const auto& entry : *sbs) {
+        if (entry.cb) {
+            entry.cb(copy);
+        }
+    }
+}
+
+bool PelcoDDevice::setFrameExt(std::shared_ptr<IFrameExtension> ext)
+{
+    std::scoped_lock lifecycleLock(m_lifecycleMutex);
+    if (m_running.load() || (m_rxGate && !m_rxGate->isClosed())) {
+        return false;
+    }
+    m_frameExt = std::move(ext);
+    return true;
 }
 
 bool PelcoDDevice::isConnected() const noexcept
@@ -1237,6 +1285,12 @@ void PelcoDDevice::onDataReceived(const std::vector<std::uint8_t>& data)
 bool PelcoDDevice::isResponseMatchingQuery(
     const std::string& queryTag, const std::vector<std::uint8_t>& frame) const noexcept
 {
+    if (m_frameExt) {
+        const ExtMatch verdict { m_frameExt->matchQuery(queryTag, frame) };
+        if (verdict != ExtMatch::NotHandled) {
+            return verdict == ExtMatch::Matched;
+        }
+    }
     return ProtocolParser::isResponseMatchingQuery(queryTag, frame);
 }
 
@@ -1252,6 +1306,13 @@ void PelcoDDevice::resolveQueryWait()
 
 void PelcoDDevice::dispatchFrame(const std::vector<std::uint8_t>& frame)
 {
+    // Vendor extension first (preserves the ordering of the former derived-class override). The
+    // extension is shared-owned, so it is alive here even while a derived device is being destroyed.
+    if (m_frameExt && m_frameExt->onFrame(frame)) {
+        resolveQueryWait();
+        m_frameExt->publish(getStatus());
+    }
+
     // Notify RX traffic callbacks using copy-on-write snapshot (zero heap allocation)
     std::shared_ptr<const std::vector<CallbackEntry<TrafficCallback>>> tbs;
     std::shared_ptr<const std::vector<CallbackEntry<StatusCallback>>> sbs;

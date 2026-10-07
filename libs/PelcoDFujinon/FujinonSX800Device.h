@@ -18,7 +18,11 @@ namespace PelcoD {
 
 /// @class FujinonSX800Device
 /// @brief Specialized PelcoDDevice profile extending standard PTZ with Fujinon optics, OIS, and filter controls.
-class FujinonSX800Device : public PelcoDDevice {
+/// @details Fujinon telemetry decoding and query matching live in a private, shared-owned
+///          IFrameExtension (FujinonFrameExt) that the base device consults on the RX thread. Because
+///          the base co-owns it, destroying this object while frames are arriving is safe: no RX
+///          thread ever dispatches into this partially destroyed object (review finding C3).
+class FujinonSX800Device final : public PelcoDDevice {
 public:
     using FujinonStatusCallback = std::function<void(const FujinonStatus& status)>;
 
@@ -26,7 +30,14 @@ public:
     /// @param[in] transport Underlying communication interface.
     /// @param[in] address RS-485 device bus address (1 - 31).
     explicit FujinonSX800Device(std::shared_ptr<ITransport> transport, std::uint8_t address = 1U);
-    ~FujinonSX800Device() override = default;
+
+    /// @brief Destroys the profile; the base destructor drains in-flight RX callbacks.
+    ~FujinonSX800Device() override;
+
+    FujinonSX800Device(const FujinonSX800Device&) = delete;
+    FujinonSX800Device& operator=(const FujinonSX800Device&) = delete;
+    FujinonSX800Device(FujinonSX800Device&&) = delete;
+    FujinonSX800Device& operator=(FujinonSX800Device&&) = delete;
 
     /// @brief Retrieves the latest snapshot of Fujinon extended status and telemetry.
     [[nodiscard]] FujinonStatus getFujinonStatus() const;
@@ -356,31 +367,11 @@ public:
     /// @brief Send standard Pelco-D query for optical zoom position (0x00 0x55).
     void queryZoomStandard();
 
-protected:
-    void dispatchFrame(const std::vector<std::uint8_t>& frame) override;
-    [[nodiscard]] bool isResponseMatchingQuery(
-        const std::string& queryTag, const std::vector<std::uint8_t>& frame) const noexcept override;
-
 private:
-    mutable std::mutex m_fujinonMutex;
-    FujinonStatus m_fujinonStatus {};
-    struct FujinonCallbackEntry {
-        CallbackId id { 0U };
-        FujinonStatusCallback cb {};
-    };
+    class FujinonFrameExt;
 
-    struct FujinonCallbackState {
-        mutable std::mutex mutex;
-        std::atomic<CallbackId> nextId { 1U };
-        std::shared_ptr<const std::vector<FujinonCallbackEntry>> callbacks {
-            std::make_shared<const std::vector<FujinonCallbackEntry>>()
-        };
-
-        bool remove(CallbackId id);
-        void clear();
-    };
-
-    std::shared_ptr<FujinonCallbackState> m_fujinonCallbackState { std::make_shared<FujinonCallbackState>() };
+    /// Fujinon RX state and subscribers; co-owned by the base device (see class details).
+    std::shared_ptr<FujinonFrameExt> m_ext;
 };
 
 } // namespace PelcoD

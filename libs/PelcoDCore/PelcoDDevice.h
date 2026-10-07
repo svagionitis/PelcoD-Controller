@@ -3,8 +3,10 @@
 /// @file PelcoDDevice.h
 /// @brief Asynchronous thread-safe controller managing Pelco-D device communication.
 
+#include "CallbackGate.h"
 #include "Connection.h"
 #include "DeviceStatus.h"
+#include "FrameExtension.h"
 #include "ITransport.h"
 #include "PacedCommandQueue.h"
 #include "PelcoDStats.h"
@@ -42,6 +44,13 @@ public:
         const std::string& queryTag, std::uint32_t attempt, std::uint32_t maxRetries, std::chrono::milliseconds delay)>;
 
     explicit PelcoDDevice(std::shared_ptr<ITransport> transport, std::uint8_t address = 1U);
+
+    /// @brief Stops the controller and waits for every in-flight transport callback to finish.
+    /// @details Equivalent to stop(). After the destructor returns no transport thread is executing
+    ///          inside this object, and late invocations of stale transport callbacks are rejected.
+    ///          Derived classes must not rely on virtual dispatch from internal threads; protocol
+    ///          extensions are installed through setFrameExt() instead (review finding C3).
+    /// @warning Destroying the device from inside one of its own callbacks is undefined behaviour.
     virtual ~PelcoDDevice();
 
     // Non-copyable, non-movable
@@ -56,7 +65,11 @@ public:
     [[nodiscard]] bool start();
 
     /// @brief Stops worker, rx, and polling loops, and closes the transport.
-    /// @details Thread-safe and idempotent; safe to call multiple times or if never started.
+    /// @details Thread-safe and idempotent; safe to call multiple times or if never started. First
+    ///          closes the session's CallbackGate and waits (without holding the lifecycle lock) until
+    ///          no transport callback is executing inside the device, then joins the worker and closes
+    ///          the transport. May be called from inside a transport-thread callback.
+    /// @note Emits one status notification with `connected == false` if the device was connected.
     void stop();
     [[nodiscard]] bool isConnected() const noexcept;
 
@@ -433,15 +446,26 @@ public:
 protected:
     void enqueueCommand(const std::vector<std::uint8_t>& frame, std::string queryTag = "",
         CommandPriority priority = CommandPriority::Normal);
-    virtual void dispatchFrame(const std::vector<std::uint8_t>& frame);
-    [[nodiscard]] virtual bool isResponseMatchingQuery(
-        const std::string& queryTag, const std::vector<std::uint8_t>& frame) const noexcept;
+
+    /// @brief Installs a vendor protocol extension consulted for every received frame.
+    /// @details The device shares ownership of @p ext, so the extension outlives every in-flight RX
+    ///          callback even while a derived device's own members are being destroyed. Intended to be
+    ///          called from a derived constructor.
+    /// @param[in] ext Extension to install (may be null to remove).
+    /// @return True if installed; false if a session is active (call before start()).
+    [[nodiscard]] bool setFrameExt(std::shared_ptr<IFrameExtension> ext);
+
     void resolveQueryWait();
 
 private:
     void workerLoop();
     void onDataReceived(const std::vector<std::uint8_t>& data);
+    void onTransportState(TransportState state, const std::string& msg);
+    void markDisconnected();
     void checkQueryTimeout();
+    void dispatchFrame(const std::vector<std::uint8_t>& frame);
+    [[nodiscard]] bool isResponseMatchingQuery(
+        const std::string& queryTag, const std::vector<std::uint8_t>& frame) const noexcept;
 
     std::shared_ptr<ITransport> m_transport;
     std::atomic<std::uint8_t> m_address { 1U };
@@ -449,6 +473,11 @@ private:
     mutable std::recursive_mutex m_lifecycleMutex;
     std::atomic<bool> m_running { false };
     std::thread m_workerThread;
+
+    /// Per-session admission gate for transport callbacks (guarded by m_lifecycleMutex).
+    std::shared_ptr<CallbackGate> m_rxGate {};
+    /// Optional vendor extension; written only while no session is active (see setFrameExt()).
+    std::shared_ptr<IFrameExtension> m_frameExt {};
 
     PacedCommandQueue m_queue;
     RxStreamAccumulator m_rxAccumulator;

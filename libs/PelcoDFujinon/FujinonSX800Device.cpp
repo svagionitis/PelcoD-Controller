@@ -4,46 +4,124 @@
 #include "FujinonSX800Device.h"
 
 #include <algorithm>
+#include <atomic>
+#include <mutex>
 #include <utility>
 
 namespace PelcoD {
 
+/// @class FujinonSX800Device::FujinonFrameExt
+/// @brief Shared-owned Fujinon RX extension: telemetry model, subscribers, and query matching.
+/// @details Co-owned by FujinonSX800Device and its PelcoDDevice base, so it outlives every in-flight
+///          RX callback even while the derived device's members are being destroyed (review C3a).
+/// @note Thread-safe: status and subscriber list are guarded by separate mutexes; subscriber
+///       callbacks are invoked without holding any lock (copy-on-write snapshot).
+class FujinonSX800Device::FujinonFrameExt final : public IFrameExtension {
+public:
+    /// @brief Returns a snapshot of the Fujinon status model (baseStatus left default).
+    /// @return Copy of the current Fujinon status.
+    [[nodiscard]] FujinonStatus snapshot() const
+    {
+        std::scoped_lock lock { m_statusMutex };
+        return m_status;
+    }
+
+    /// @brief Registers a Fujinon status subscriber.
+    /// @param[in] cb Non-empty callback.
+    /// @return Identifier used by removeCallback().
+    [[nodiscard]] CallbackId addCallback(FujinonStatusCallback cb)
+    {
+        const CallbackId id { m_nextId.fetch_add(1U, std::memory_order_relaxed) };
+        std::scoped_lock lock { m_cbMutex };
+        auto nextList = std::make_shared<std::vector<Entry>>(*m_callbacks);
+        nextList->push_back(Entry { id, std::move(cb) });
+        m_callbacks = std::move(nextList);
+        return id;
+    }
+
+    /// @brief Removes a subscriber.
+    /// @param[in] id Identifier returned by addCallback().
+    /// @return True if found and removed.
+    bool removeCallback(CallbackId id)
+    {
+        std::scoped_lock lock { m_cbMutex };
+        const auto& current = *m_callbacks;
+        const auto it = std::find_if(current.begin(), current.end(), [id](const Entry& e) { return e.id == id; });
+        if (it == current.end()) {
+            return false;
+        }
+        auto nextList = std::make_shared<std::vector<Entry>>();
+        nextList->reserve(current.size() - 1U);
+        for (const auto& entry : current) {
+            if (entry.id != id) {
+                nextList->push_back(entry);
+            }
+        }
+        m_callbacks = std::move(nextList);
+        return true;
+    }
+
+    /// @brief Removes every subscriber.
+    void clearCallbacks()
+    {
+        std::scoped_lock lock { m_cbMutex };
+        m_callbacks = std::make_shared<const std::vector<Entry>>();
+    }
+
+    [[nodiscard]] ExtMatch matchQuery(
+        const std::string& queryTag, const std::vector<std::uint8_t>& frame) const noexcept override;
+
+    [[nodiscard]] bool onFrame(const std::vector<std::uint8_t>& frame) override
+    {
+        std::scoped_lock lock { m_statusMutex };
+        return FujinonParser::updateFujinonStatus(frame, m_status);
+    }
+
+    void publish(const DeviceStatus& base) override
+    {
+        std::shared_ptr<const std::vector<Entry>> callbacks {};
+        {
+            std::scoped_lock lock { m_cbMutex };
+            callbacks = m_callbacks;
+        }
+        FujinonStatus current { snapshot() };
+        current.baseStatus = base;
+        for (const auto& entry : *callbacks) {
+            if (entry.cb) {
+                entry.cb(current);
+            }
+        }
+    }
+
+private:
+    struct Entry {
+        CallbackId id { 0U };
+        FujinonStatusCallback cb {};
+    };
+
+    mutable std::mutex m_statusMutex {};
+    FujinonStatus m_status {};
+
+    mutable std::mutex m_cbMutex {};
+    std::atomic<CallbackId> m_nextId { 1U };
+    std::shared_ptr<const std::vector<Entry>> m_callbacks { std::make_shared<const std::vector<Entry>>() };
+};
+
 FujinonSX800Device::FujinonSX800Device(std::shared_ptr<ITransport> transport, std::uint8_t address)
     : PelcoDDevice(std::move(transport), address)
+    , m_ext { std::make_shared<FujinonFrameExt>() }
 {
+    // No session can be active inside the constructor, so installation cannot be refused.
+    static_cast<void>(setFrameExt(m_ext));
 }
+
+FujinonSX800Device::~FujinonSX800Device() = default;
 
 FujinonStatus FujinonSX800Device::getFujinonStatus() const
 {
-    std::scoped_lock lock(m_fujinonMutex);
-    auto status = m_fujinonStatus;
+    FujinonStatus status { m_ext->snapshot() };
     status.baseStatus = getStatus();
     return status;
-}
-
-bool FujinonSX800Device::FujinonCallbackState::remove(CallbackId id)
-{
-    std::scoped_lock lock(mutex);
-    const auto& current = *callbacks;
-    auto it = std::find_if(current.begin(), current.end(), [id](const auto& entry) { return entry.id == id; });
-    if (it == current.end()) {
-        return false;
-    }
-    auto nextList = std::make_shared<std::vector<FujinonCallbackEntry>>();
-    nextList->reserve(current.size() - 1U);
-    for (const auto& entry : current) {
-        if (entry.id != id) {
-            nextList->push_back(entry);
-        }
-    }
-    callbacks = std::move(nextList);
-    return true;
-}
-
-void FujinonSX800Device::FujinonCallbackState::clear()
-{
-    std::scoped_lock lock(mutex);
-    callbacks = std::make_shared<const std::vector<FujinonCallbackEntry>>();
 }
 
 Connection FujinonSX800Device::addFujinonStatusCallback(FujinonStatusCallback cb)
@@ -51,30 +129,24 @@ Connection FujinonSX800Device::addFujinonStatusCallback(FujinonStatusCallback cb
     if (!cb) {
         return Connection {};
     }
-    const CallbackId id = m_fujinonCallbackState->nextId.fetch_add(1U, std::memory_order_relaxed);
-    {
-        std::scoped_lock lock(m_fujinonCallbackState->mutex);
-        auto nextList = std::make_shared<std::vector<FujinonCallbackEntry>>(*m_fujinonCallbackState->callbacks);
-        nextList->push_back({ id, std::move(cb) });
-        m_fujinonCallbackState->callbacks = std::move(nextList);
-    }
-    std::weak_ptr<FujinonCallbackState> weakState = m_fujinonCallbackState;
-    return Connection([weakState, id]() {
-        if (auto state = weakState.lock()) {
-            state->remove(id);
+    const CallbackId id { m_ext->addCallback(std::move(cb)) };
+    std::weak_ptr<FujinonFrameExt> weakExt { m_ext };
+    return Connection([weakExt, id]() {
+        if (auto ext = weakExt.lock()) {
+            static_cast<void>(ext->removeCallback(id));
         }
     });
 }
 
 bool FujinonSX800Device::removeFujinonStatusCallback(CallbackId id)
 {
-    return m_fujinonCallbackState->remove(id);
+    return m_ext->removeCallback(id);
 }
 
 void FujinonSX800Device::clearCallbacks()
 {
     PelcoDDevice::clearCallbacks();
-    m_fujinonCallbackState->clear();
+    m_ext->clearCallbacks();
 }
 
 void FujinonSX800Device::setOISMode(FujinonOISMode mode)
@@ -462,97 +534,76 @@ void FujinonSX800Device::queryZoomStandard()
     sendQueryFrame(FujinonBuilder::buildQueryZoomStandard(getAddress()), "FujinonQueryZoomStd");
 }
 
-bool FujinonSX800Device::isResponseMatchingQuery(
+namespace {
+
+/// @brief Maps a parser verdict for an extension-owned query tag onto ExtMatch.
+/// @param[in] parsed True if the frame parsed as the expected response.
+/// @return ExtMatch::Matched or ExtMatch::Rejected.
+[[nodiscard]] constexpr ExtMatch toMatch(bool parsed) noexcept
+{
+    return parsed ? ExtMatch::Matched : ExtMatch::Rejected;
+}
+
+} // namespace
+
+ExtMatch FujinonSX800Device::FujinonFrameExt::matchQuery(
     const std::string& queryTag, const std::vector<std::uint8_t>& frame) const noexcept
 {
     if (queryTag == "FujinonQueryFocus") {
         std::uint16_t val { 0U };
-        return FujinonParser::parseQueryFocus(frame, val);
+        return toMatch(FujinonParser::parseQueryFocus(frame, val));
     }
     if (queryTag == "FujinonQueryZoom") {
         std::uint16_t val { 0U };
-        return FujinonParser::parseQueryZoom(frame, val);
+        return toMatch(FujinonParser::parseQueryZoom(frame, val));
     }
     if (queryTag == "FujinonQuerySerial") {
-        std::string s;
-        return FujinonParser::parseQuerySerialNumber(frame, s);
+        std::string s {};
+        return toMatch(FujinonParser::parseQuerySerialNumber(frame, s));
     }
     if (queryTag == "FujinonQueryFirmware") {
-        std::string fw;
-        return FujinonParser::parseQueryFirmwareVersion(frame, fw);
+        std::string fw {};
+        return toMatch(FujinonParser::parseQueryFirmwareVersion(frame, fw));
     }
     if (queryTag == "FujinonQueryLens") {
         std::uint8_t st { 0U };
-        return FujinonParser::parseQueryLensStatus(frame, st);
+        return toMatch(FujinonParser::parseQueryLensStatus(frame, st));
     }
     if (queryTag == "FujinonQueryPhoto") {
-        FujinonPhotoSettings photo;
-        return FujinonParser::parsePhotoSettings(frame, photo);
+        FujinonPhotoSettings photo {};
+        return toMatch(FujinonParser::parsePhotoSettings(frame, photo));
     }
     if (queryTag == "FujinonQueryImageQuality") {
-        FujinonImageQualitySettings img;
-        return FujinonParser::parseImageQualitySettings(frame, img);
+        FujinonImageQualitySettings img {};
+        return toMatch(FujinonParser::parseImageQualitySettings(frame, img));
     }
     if (queryTag == "FujinonQueryManual") {
-        FujinonManualSettings man;
-        return FujinonParser::parseManualSettings(frame, man);
+        FujinonManualSettings man {};
+        return toMatch(FujinonParser::parseManualSettings(frame, man));
     }
     if (queryTag == "FujinonQueryImageQualityFine") {
-        FujinonFineImageSettings fine;
-        return FujinonParser::parseFineImageSettings(frame, fine);
+        FujinonFineImageSettings fine {};
+        return toMatch(FujinonParser::parseFineImageSettings(frame, fine));
     }
     if (queryTag == "FujinonQueryDayNightEx") {
-        FujinonDayNightExSettings dn;
-        return FujinonParser::parseDayNightExSettings(frame, dn);
+        FujinonDayNightExSettings dn {};
+        return toMatch(FujinonParser::parseDayNightExSettings(frame, dn));
     }
     if (queryTag == "FujinonQueryZoomFocusEx") {
-        FujinonZoomFocusExSettings zf;
-        return FujinonParser::parseZoomFocusExSettings(frame, zf);
+        FujinonZoomFocusExSettings zf {};
+        return toMatch(FujinonParser::parseZoomFocusExSettings(frame, zf));
     }
     if (queryTag == "FujinonQueryRTC") {
         std::uint8_t d1 { 0U };
         std::uint8_t d2 { 0U };
-        return FujinonParser::parseQueryRTC(frame, d1, d2);
+        return toMatch(FujinonParser::parseQueryRTC(frame, d1, d2));
     }
     if (queryTag == "FujinonQueryZoomStd") {
         std::uint16_t val { 0U };
-        return FujinonParser::parseQueryZoomStandard(frame, val);
+        return toMatch(FujinonParser::parseQueryZoomStandard(frame, val));
     }
 
-    return PelcoDDevice::isResponseMatchingQuery(queryTag, frame);
-}
-
-void FujinonSX800Device::dispatchFrame(const std::vector<std::uint8_t>& frame)
-{
-    bool updated = false;
-    FujinonStatus currentStatus;
-    std::shared_ptr<const std::vector<FujinonCallbackEntry>> callbacks;
-
-    {
-        std::scoped_lock lock(m_fujinonMutex);
-        if (FujinonParser::updateFujinonStatus(frame, m_fujinonStatus)) {
-            updated = true;
-            currentStatus = m_fujinonStatus;
-            {
-                std::scoped_lock cbLock(m_fujinonCallbackState->mutex);
-                callbacks = m_fujinonCallbackState->callbacks;
-            }
-        }
-    }
-
-    if (updated) {
-        resolveQueryWait();
-        if (callbacks) {
-            currentStatus.baseStatus = getStatus();
-            for (const auto& entry : *callbacks) {
-                if (entry.cb) {
-                    entry.cb(currentStatus);
-                }
-            }
-        }
-    }
-
-    PelcoDDevice::dispatchFrame(frame);
+    return ExtMatch::NotHandled;
 }
 
 } // namespace PelcoD

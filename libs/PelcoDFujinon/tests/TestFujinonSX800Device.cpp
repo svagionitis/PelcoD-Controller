@@ -10,6 +10,7 @@
 
 #include <atomic>
 #include <chrono>
+#include <future>
 #include <memory>
 #include <thread>
 #include <vector>
@@ -18,7 +19,7 @@ namespace {
 
 TEST(FujinonSX800DeviceTest, DeviceLifecycleAndCommands)
 {
-    auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(1U);
+    auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(std::uint8_t { 1U });
     PelcoD::FujinonSX800Device device(mock, 1U);
 
     ASSERT_TRUE(device.start());
@@ -202,6 +203,55 @@ TEST(FujinonSX800DeviceTest, DeviceLifecycleAndCommands)
 
     device.stop();
     EXPECT_FALSE(device.isConnected());
+}
+
+/// @brief Destroying a FujinonSX800Device must wait for an in-flight RX callback (review C3a).
+/// @details A Fujinon status callback blocks on the RX thread while another thread destroys the device.
+///          Before the fix, ~FujinonSX800Device destroyed the derived members (mutex, status, callback
+///          list) while the RX thread was still executing the overridden dispatchFrame(), and the
+///          base destructor returned without waiting for it.
+TEST(FujinonSX800DeviceTest, FujinonDtorWaitsForRx)
+{
+    using namespace std::chrono_literals;
+
+    auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(std::uint8_t { 1U });
+    auto device = std::make_unique<PelcoD::FujinonSX800Device>(mock, std::uint8_t { 1U });
+    ASSERT_TRUE(device->start());
+
+    std::promise<void> enteredPromise {};
+    auto entered = enteredPromise.get_future();
+    std::promise<void> releasePromise {};
+    const std::shared_future<void> release { releasePromise.get_future().share() };
+    std::atomic<bool> first { true };
+
+    static_cast<void>(device->addFujinonStatusCallback([&](const PelcoD::FujinonStatus&) {
+        if (first.exchange(false)) {
+            enteredPromise.set_value();
+            static_cast<void>(release.wait_for(5s));
+        }
+    }));
+
+    const auto focusResp = PelcoD::PelcoDFrame::createFrame(1U, 0x00U, 0x81U, 0x34U, 0x56U);
+    std::thread rxThread { [&mock, &focusResp] { mock->injectRxData(focusResp); } };
+    if (entered.wait_for(2s) != std::future_status::ready) {
+        releasePromise.set_value();
+        rxThread.join();
+        FAIL() << "Fujinon RX callback was never entered";
+    }
+
+    std::atomic<bool> destroyed { false };
+    std::thread killer { [&device, &destroyed] {
+        device.reset();
+        destroyed.store(true);
+    } };
+
+    std::this_thread::sleep_for(150ms);
+    EXPECT_FALSE(destroyed.load()) << "Destructor returned while a Fujinon RX callback was in flight";
+
+    releasePromise.set_value();
+    rxThread.join();
+    killer.join();
+    EXPECT_TRUE(destroyed.load());
 }
 
 } // namespace
