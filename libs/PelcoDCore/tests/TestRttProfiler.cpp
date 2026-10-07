@@ -10,7 +10,9 @@
 #include <atomic>
 #include <chrono>
 #include <cmath>
+#include <cstdint>
 #include <memory>
+#include <mutex>
 #include <sstream>
 #include <thread>
 #include <vector>
@@ -160,7 +162,8 @@ TEST(RttProfilerTest, ExportCsvAndJson)
 /// @details Probes mock device configured with simulated latency, checking average RTT reflects simulated delay.
 TEST(RttProfilerTest, ActiveBurstWithMockDevice)
 {
-    auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(1U);
+    constexpr std::uint8_t kAddress { 1U };
+    auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(kAddress);
     PelcoD::LatencyConfig latCfg;
     latCfg.enabled = true;
     latCfg.baseLatencyMs = 25U;
@@ -168,7 +171,7 @@ TEST(RttProfilerTest, ActiveBurstWithMockDevice)
     latCfg.packetDropPercent = 0.0;
     mock->setLatencyConfig(latCfg);
 
-    auto device = std::make_shared<PelcoD::PelcoDDevice>(mock, 1U);
+    auto device = std::make_shared<PelcoD::PelcoDDevice>(mock, kAddress);
     ASSERT_TRUE(device->start());
 
     PelcoD::RttProfiler profiler(device);
@@ -265,6 +268,342 @@ TEST(RttProfilerTest, ResetProfiler)
     profiler.reset();
     EXPECT_EQ(profiler.getStatistics().totalProbes, 0U);
     EXPECT_TRUE(profiler.getHistory().empty());
+}
+
+// =============================================================================
+// C2 regression tests: worker lifecycle (restart, callbacks, concurrency)
+// =============================================================================
+
+/// @brief Poll a predicate until it holds or the timeout expires.
+/// @tparam Pred Callable returning bool.
+/// @param[in] pred Condition to wait for.
+/// @param[in] timeout Maximum time to wait.
+/// @return True if the predicate became true before the timeout.
+template <typename Pred>
+[[nodiscard]] bool waitFor(Pred pred, std::chrono::milliseconds timeout = std::chrono::milliseconds { 3000 })
+{
+    const auto deadline { std::chrono::steady_clock::now() + timeout };
+    bool ok { pred() };
+    while (!ok && (std::chrono::steady_clock::now() < deadline)) {
+        std::this_thread::sleep_for(std::chrono::milliseconds { 5 });
+        ok = pred();
+    }
+    return ok;
+}
+
+/// @brief Create a started PelcoDDevice backed by an in-process MockPelcoDDevice.
+/// @return Started device, or nullptr if it failed to start.
+[[nodiscard]] std::shared_ptr<PelcoD::PelcoDDevice> makeMockDevice()
+{
+    constexpr std::uint8_t kAddress { 1U };
+    auto mock { std::make_shared<PelcoD::MockPelcoDDevice>(kAddress) };
+    auto device { std::make_shared<PelcoD::PelcoDDevice>(mock, kAddress) };
+    if (!device->start()) {
+        device.reset();
+    }
+    return device;
+}
+
+/// @brief Short ActiveBurst configuration that completes in well under a second.
+/// @return Burst configuration with 2 probes, 10 ms interval, and 20 ms settle time.
+[[nodiscard]] PelcoD::RttProfilerConfig shortBurst()
+{
+    PelcoD::RttProfilerConfig cfg {};
+    cfg.mode = PelcoD::ProfilerMode::ActiveBurst;
+    cfg.burstCount = 2U;
+    cfg.intervalMs = 10U;
+    cfg.timeoutMs = 20U;
+    return cfg;
+}
+
+/// @brief Thread-safe recorder of StateChangedCallback transitions.
+class StateRecorder {
+public:
+    /// @brief Append a transition.
+    /// @param[in] running New running state.
+    void record(bool running)
+    {
+        std::scoped_lock lock { m_mutex };
+        m_states.push_back(running);
+    }
+
+    /// @brief Snapshot the recorded transitions.
+    /// @return Copy of all transitions in arrival order.
+    [[nodiscard]] std::vector<bool> states() const
+    {
+        std::scoped_lock lock { m_mutex };
+        return m_states;
+    }
+
+    /// @brief Number of recorded transitions.
+    /// @return Transition count.
+    [[nodiscard]] std::size_t size() const
+    {
+        std::scoped_lock lock { m_mutex };
+        return m_states.size();
+    }
+
+private:
+    mutable std::mutex m_mutex {};
+    std::vector<bool> m_states {};
+};
+
+/// @brief C2a: starting a second burst after the first completed must not terminate.
+/// @details The finished worker used to stay joinable and was move-assigned over by start().
+TEST(RttProfilerTest, BurstTwiceRestarts)
+{
+    auto device { makeMockDevice() };
+    ASSERT_NE(device, nullptr);
+
+    PelcoD::RttProfiler profiler { device };
+    std::atomic<std::uint32_t> finishedCount { 0U };
+    profiler.setFinishedCallback([&finishedCount](const PelcoD::RttStatistics&) { finishedCount.fetch_add(1U); });
+
+    ASSERT_TRUE(profiler.start(shortBurst()));
+    ASSERT_TRUE(waitFor([&finishedCount] { return finishedCount.load() == 1U; }));
+    ASSERT_TRUE(waitFor([&profiler] { return !profiler.isRunning(); }));
+
+    ASSERT_TRUE(profiler.start(shortBurst()));
+    ASSERT_TRUE(waitFor([&finishedCount] { return finishedCount.load() == 2U; }));
+
+    profiler.stop();
+    EXPECT_FALSE(profiler.isRunning());
+    device->stop();
+}
+
+/// @brief C2a: many back-to-back burst cycles must all start and complete.
+/// @details Restarts immediately after each completion to stress the reap-then-spawn path.
+TEST(RttProfilerTest, BurstRestartStress)
+{
+    auto device { makeMockDevice() };
+    ASSERT_NE(device, nullptr);
+
+    PelcoD::RttProfiler profiler { device };
+    std::atomic<std::uint32_t> finishedCount { 0U };
+    profiler.setFinishedCallback([&finishedCount](const PelcoD::RttStatistics&) { finishedCount.fetch_add(1U); });
+
+    PelcoD::RttProfilerConfig cfg { shortBurst() };
+    cfg.burstCount = 1U;
+    constexpr std::uint32_t kCycles { 10U };
+    for (std::uint32_t i { 0U }; i < kCycles; ++i) {
+        ASSERT_TRUE(waitFor([&profiler] { return !profiler.isRunning(); }));
+        ASSERT_TRUE(profiler.start(cfg)) << "cycle " << i;
+        ASSERT_TRUE(waitFor([&finishedCount, i] { return finishedCount.load() == (i + 1U); })) << "cycle " << i;
+    }
+
+    profiler.stop();
+    device->stop();
+}
+
+/// @brief C2b: start() from the FinishedCallback (worker thread) must be rejected, not terminate.
+/// @details After the rejected attempt, a start() from the test thread must succeed.
+TEST(RttProfilerTest, StartFromFinishedCbFails)
+{
+    auto device { makeMockDevice() };
+    ASSERT_NE(device, nullptr);
+
+    PelcoD::RttProfiler profiler { device };
+    const PelcoD::RttProfilerConfig cfg { shortBurst() };
+    std::atomic<std::uint32_t> finishedCount { 0U };
+    std::atomic<bool> restartAttempted { false };
+    std::atomic<bool> restartResult { true };
+
+    profiler.setFinishedCallback([&](const PelcoD::RttStatistics&) {
+        if (!restartAttempted.exchange(true)) {
+            restartResult.store(profiler.start(cfg));
+        }
+        finishedCount.fetch_add(1U);
+    });
+
+    ASSERT_TRUE(profiler.start(cfg));
+    ASSERT_TRUE(waitFor([&finishedCount] { return finishedCount.load() == 1U; }));
+    EXPECT_TRUE(restartAttempted.load());
+    EXPECT_FALSE(restartResult.load());
+
+    ASSERT_TRUE(waitFor([&profiler] { return !profiler.isRunning(); }));
+    ASSERT_TRUE(profiler.start(cfg));
+    ASSERT_TRUE(waitFor([&finishedCount] { return finishedCount.load() == 2U; }));
+
+    profiler.stop();
+    device->stop();
+}
+
+/// @brief C2c: stop() and setDevice() from the FinishedCallback must not self-join.
+/// @details Self-join threw std::system_error on the worker thread, which called std::terminate.
+TEST(RttProfilerTest, StopFromFinishedCbIsSafe)
+{
+    auto device { makeMockDevice() };
+    ASSERT_NE(device, nullptr);
+
+    PelcoD::RttProfiler profiler { device };
+    std::atomic<std::uint32_t> finishedCount { 0U };
+    profiler.setFinishedCallback([&](const PelcoD::RttStatistics&) {
+        profiler.stop();
+        profiler.setDevice(device);
+        finishedCount.fetch_add(1U);
+    });
+
+    ASSERT_TRUE(profiler.start(shortBurst()));
+    ASSERT_TRUE(waitFor([&finishedCount] { return finishedCount.load() == 1U; }));
+    ASSERT_TRUE(waitFor([&profiler] { return !profiler.isRunning(); }));
+    EXPECT_EQ(profiler.getDevice(), device);
+
+    ASSERT_TRUE(profiler.start(shortBurst()));
+    ASSERT_TRUE(waitFor([&finishedCount] { return finishedCount.load() == 2U; }));
+
+    profiler.stop();
+    device->stop();
+}
+
+/// @brief StateChangedCallback must report exactly true,false per burst across restarts.
+/// @details Guards against duplicate or reordered transitions after the lifecycle rework.
+TEST(RttProfilerTest, StateCbOrderAcrossRestarts)
+{
+    auto device { makeMockDevice() };
+    ASSERT_NE(device, nullptr);
+
+    PelcoD::RttProfiler profiler { device };
+    StateRecorder recorder {};
+    profiler.setStateChangedCallback([&recorder](bool running) { recorder.record(running); });
+
+    ASSERT_TRUE(profiler.start(shortBurst()));
+    ASSERT_TRUE(waitFor([&recorder] { return recorder.size() >= 2U; }));
+    ASSERT_TRUE(waitFor([&profiler] { return !profiler.isRunning(); }));
+
+    ASSERT_TRUE(profiler.start(shortBurst()));
+    ASSERT_TRUE(waitFor([&recorder] { return recorder.size() >= 4U; }));
+
+    profiler.stop();
+    std::this_thread::sleep_for(std::chrono::milliseconds { 50 });
+    const std::vector<bool> expected { true, false, true, false };
+    EXPECT_EQ(recorder.states(), expected);
+    device->stop();
+}
+
+/// @brief stop() from inside stateCb(true) must prevent the worker from being spawned.
+/// @details Previously start() spawned the worker after the callback, producing a second
+///          stateCb(false) from a worker that should never have existed.
+TEST(RttProfilerTest, StopInStartedCbNoWorker)
+{
+    auto device { makeMockDevice() };
+    ASSERT_NE(device, nullptr);
+
+    PelcoD::RttProfiler profiler { device };
+    StateRecorder recorder {};
+    std::atomic<std::uint32_t> finishedCount { 0U };
+    profiler.setFinishedCallback([&finishedCount](const PelcoD::RttStatistics&) { finishedCount.fetch_add(1U); });
+    profiler.setStateChangedCallback([&](bool running) {
+        recorder.record(running);
+        if (running) {
+            profiler.stop();
+        }
+    });
+
+    ASSERT_TRUE(profiler.start(shortBurst()));
+    std::this_thread::sleep_for(std::chrono::milliseconds { 150 });
+
+    EXPECT_FALSE(profiler.isRunning());
+    EXPECT_EQ(finishedCount.load(), 0U);
+    const std::vector<bool> expected { true, false };
+    EXPECT_EQ(recorder.states(), expected);
+
+    profiler.stop();
+    device->stop();
+}
+
+/// @brief stop() during a long continuous-mode interval must return promptly.
+/// @details Guards against a lost wake-up when m_stopRequested is set outside m_mutex.
+TEST(RttProfilerTest, StopDuringIntervalIsPrompt)
+{
+    auto device { makeMockDevice() };
+    ASSERT_NE(device, nullptr);
+
+    PelcoD::RttProfiler profiler { device };
+    PelcoD::RttProfilerConfig cfg {};
+    cfg.mode = PelcoD::ProfilerMode::ActiveContinuous;
+    cfg.intervalMs = 5000U;
+    cfg.timeoutMs = 20U;
+
+    ASSERT_TRUE(profiler.start(cfg));
+    std::this_thread::sleep_for(std::chrono::milliseconds { 50 });
+
+    const auto t0 { std::chrono::steady_clock::now() };
+    profiler.stop();
+    const auto elapsed { std::chrono::steady_clock::now() - t0 };
+
+    EXPECT_LT(elapsed, std::chrono::milliseconds { 1000 });
+    EXPECT_FALSE(profiler.isRunning());
+    device->stop();
+}
+
+/// @brief Concurrent start()/stop() from two threads must not crash or race on m_worker.
+/// @details Primary target for TSan builds; on MSVC it catches double-join and reassign crashes.
+TEST(RttProfilerTest, ConcurrentStartStopStress)
+{
+    auto device { makeMockDevice() };
+    ASSERT_NE(device, nullptr);
+
+    PelcoD::RttProfiler profiler { device };
+    PelcoD::RttProfilerConfig cfg { shortBurst() };
+    cfg.burstCount = 1U;
+
+    constexpr std::uint32_t kIterations { 200U };
+    auto hammer = [&profiler, &cfg]() {
+        for (std::uint32_t i { 0U }; i < kIterations; ++i) {
+            static_cast<void>(profiler.start(cfg));
+            if ((i % 3U) == 0U) {
+                std::this_thread::sleep_for(std::chrono::milliseconds { 1 });
+            }
+            profiler.stop();
+        }
+    };
+
+    std::thread t1 { hammer };
+    std::thread t2 { hammer };
+    t1.join();
+    t2.join();
+
+    profiler.stop();
+    EXPECT_FALSE(profiler.isRunning());
+    device->stop();
+}
+
+/// @brief Mixed Passive / Burst / Continuous cycles must transition cleanly.
+/// @details Covers a burst that completes on its own followed by other modes.
+TEST(RttProfilerTest, PassiveActiveCycles)
+{
+    auto device { makeMockDevice() };
+    ASSERT_NE(device, nullptr);
+
+    PelcoD::RttProfiler profiler { device };
+    std::atomic<std::uint32_t> finishedCount { 0U };
+    profiler.setFinishedCallback([&finishedCount](const PelcoD::RttStatistics&) { finishedCount.fetch_add(1U); });
+
+    PelcoD::RttProfilerConfig passive {};
+    passive.mode = PelcoD::ProfilerMode::Passive;
+    PelcoD::RttProfilerConfig continuous { shortBurst() };
+    continuous.mode = PelcoD::ProfilerMode::ActiveContinuous;
+
+    ASSERT_TRUE(profiler.start(passive));
+    profiler.stop();
+
+    // Burst completes on its own; the next active start must reap the finished worker.
+    ASSERT_TRUE(profiler.start(shortBurst()));
+    ASSERT_TRUE(waitFor([&finishedCount] { return finishedCount.load() == 1U; }));
+    ASSERT_TRUE(waitFor([&profiler] { return !profiler.isRunning(); }));
+
+    ASSERT_TRUE(profiler.start(continuous));
+    std::this_thread::sleep_for(std::chrono::milliseconds { 50 });
+    EXPECT_TRUE(profiler.isRunning());
+    profiler.stop();
+    EXPECT_FALSE(profiler.isRunning());
+
+    ASSERT_TRUE(profiler.start(passive));
+    EXPECT_TRUE(profiler.isRunning());
+    profiler.stop();
+    EXPECT_FALSE(profiler.isRunning());
+
+    device->stop();
 }
 
 } // namespace

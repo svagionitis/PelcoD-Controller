@@ -73,6 +73,13 @@ struct RttProfilerConfig {
 /// @brief Real-time round-trip latency, jitter, and link health diagnostic engine.
 /// @details Thread-safe engine computing online running mean and variance (Welford's algorithm),
 ///          RFC 3550 packet delay variation (jitter), rolling percentiles, and CSV/JSON export.
+///
+///          Threading contract:
+///          - start(), stop(), and setDevice() may be called from any thread, including concurrently.
+///          - Active modes run on one internal worker thread. FinishedCallback and the final
+///            StateChangedCallback(false) of a self-completing burst run on that worker thread.
+///          - From a worker-thread callback, start() returns false; stop() and setDevice() are safe.
+///          - The profiler must not be destroyed from inside one of its own callbacks.
 class RttProfiler {
 public:
     using SampleCallback = std::function<void(const RttSample& sample, const RttStatistics& stats)>;
@@ -85,6 +92,8 @@ public:
     explicit RttProfiler(std::shared_ptr<PelcoDDevice> device = nullptr);
 
     /// @brief Destructor terminating any background worker loop.
+    /// @details Calls stop(), which joins the worker. Precondition: must not run on the worker
+    ///          thread (i.e. the profiler must not be destroyed from one of its own callbacks).
     ~RttProfiler();
 
     // Non-copyable, non-movable
@@ -94,6 +103,7 @@ public:
     RttProfiler& operator=(RttProfiler&&) = delete;
 
     /// @brief Assign or rebind the target device controller.
+    /// @details Stops any active session first. Safe to call from a profiler callback.
     /// @param[in] device Pointer to device controller.
     void setDevice(std::shared_ptr<PelcoDDevice> device);
 
@@ -102,11 +112,19 @@ public:
     [[nodiscard]] std::shared_ptr<PelcoDDevice> getDevice() const;
 
     /// @brief Starts diagnostic profiling using the specified configuration.
+    /// @details Resets statistics and fires StateChangedCallback(true) before any probe is sent.
+    ///          A worker left over from a burst that completed on its own is joined first, so a
+    ///          new session can start straight after the previous one finished.
     /// @param[in] config Profiler configuration options.
-    /// @return True if profiling commenced; false if parameters are invalid or already running.
-    bool start(const RttProfilerConfig& config = RttProfilerConfig {});
+    /// @return True if profiling commenced; false if parameters are invalid, a session is already
+    ///         running, the device is missing or disconnected (active modes), or the call is made
+    ///         from a profiler callback running on the worker thread.
+    [[nodiscard]] bool start(const RttProfilerConfig& config = RttProfilerConfig {});
 
     /// @brief Stops active probing and unhooks passive listeners.
+    /// @details Joins the worker and fires StateChangedCallback(false) if a session was running.
+    ///          When called from a callback on the worker thread, it only requests the stop; the
+    ///          exiting worker is joined later by start() or the destructor.
     void stop();
 
     /// @brief Clears accumulated metrics, counters, and sample history.
@@ -172,13 +190,31 @@ private:
     void updatePercentilesLocked();
     void resetStatisticsUnderLock() noexcept;
 
+    /// @brief Check whether the calling thread is the profiler worker thread.
+    /// @return True if called on the worker thread (e.g. from a worker-side callback).
+    [[nodiscard]] bool isWorkerThread() const noexcept;
+
+    /// @brief Join the worker thread if it is joinable and not the calling thread.
+    /// @details Caller must hold m_lifecycleMutex and must not hold m_mutex, because the worker
+    ///          needs m_mutex (and user callbacks may call getters) before it can exit.
+    /// @return False if called on the worker thread itself (join skipped); true otherwise.
+    [[nodiscard]] bool joinWorker();
+
     mutable std::mutex m_mutex;
+
+    /// Serialises ownership of m_worker and m_deviceLatencyConn between start() and stop().
+    /// Lock order: m_lifecycleMutex before m_mutex. Never held while invoking user callbacks.
+    std::mutex m_lifecycleMutex {};
     std::shared_ptr<PelcoDDevice> m_device;
 
     RttProfilerConfig m_config {};
     RttStatistics m_stats {};
     std::deque<RttSample> m_history {};
     std::uint64_t m_nextSeq { 1U };
+
+    /// Incremented (under m_mutex) each time start() claims a session; lets start() detect
+    /// that its session was stopped or superseded while StateChangedCallback(true) ran.
+    std::uint64_t m_session { 0U };
 
     // Welford algorithm state
     double m_welfordMean { 0.0 };
@@ -191,6 +227,8 @@ private:
     std::atomic<bool> m_running { false };
     std::atomic<bool> m_stopRequested { false };
     std::thread m_worker;
+    /// Id of the current or most recent worker thread; written by the worker at entry.
+    std::atomic<std::thread::id> m_workerId {};
     std::condition_variable m_cv;
 
     ScopedConnection m_deviceLatencyConn;

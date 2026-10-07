@@ -34,6 +34,27 @@ std::shared_ptr<PelcoDDevice> RttProfiler::getDevice() const
     return m_device;
 }
 
+bool RttProfiler::isWorkerThread() const noexcept
+{
+    return std::this_thread::get_id() == m_workerId.load();
+}
+
+bool RttProfiler::joinWorker()
+{
+    bool joined { true };
+    if (m_worker.joinable()) {
+        if (std::this_thread::get_id() == m_worker.get_id()) {
+            // A thread cannot join itself (std::system_error / std::terminate).
+            joined = false;
+        } else {
+            m_worker.join();
+            // The OS may reuse the id once the thread is joined; forget it.
+            m_workerId.store(std::thread::id {});
+        }
+    }
+    return joined;
+}
+
 bool RttProfiler::start(const RttProfilerConfig& config)
 {
     if (config.intervalMs < 10U || config.timeoutMs < 20U || config.historyCapacity == 0U) {
@@ -43,45 +64,78 @@ bool RttProfiler::start(const RttProfilerConfig& config)
         return false;
     }
 
-    std::shared_ptr<PelcoDDevice> dev;
+    // C2b: a callback running on the worker thread cannot replace its own std::thread.
+    if (isWorkerThread()) {
+        return false;
+    }
+
+    const bool isActive { (config.mode == ProfilerMode::ActiveBurst)
+        || (config.mode == ProfilerMode::ActiveContinuous) };
+    std::uint64_t session { 0U };
+
+    // Phase 1: reap any finished worker and claim the session.
     {
-        std::scoped_lock lock(m_mutex);
+        std::scoped_lock lifecycle { m_lifecycleMutex };
         if (m_running.load()) {
             return false;
         }
-        dev = m_device;
-        if (!dev && config.mode != ProfilerMode::Passive) {
+
+        // C2a: a burst that completed on its own leaves m_worker joinable. Join it (without
+        // m_mutex, which the exiting worker needs) before m_worker is reassigned below.
+        if (!joinWorker()) {
             return false;
         }
-        if (dev && !dev->isConnected() && config.mode != ProfilerMode::Passive) {
-            return false;
+
+        std::shared_ptr<PelcoDDevice> dev {};
+        {
+            std::scoped_lock lock { m_mutex };
+            dev = m_device;
+            if (!dev && isActive) {
+                return false;
+            }
+            if (dev && !dev->isConnected() && isActive) {
+                return false;
+            }
+
+            m_config = config;
+            m_stopRequested = false;
+            m_running = true;
+            session = ++m_session;
+
+            // Reset statistics for new session
+            resetStatisticsUnderLock();
         }
 
-        m_config = config;
-        m_stopRequested = false;
-        m_running = true;
-
-        // Reset statistics for new session
-        resetStatisticsUnderLock();
+        // The worker is reaped, so nothing else touches m_deviceLatencyConn here.
+        if (dev) {
+            m_deviceLatencyConn
+                = dev->addQueryLatencyCallback([this](const std::string& tag, std::chrono::microseconds duration,
+                                                   bool success) { recordSample(duration, tag, success); });
+        }
     }
 
-    if (dev) {
-        m_deviceLatencyConn
-            = dev->addQueryLatencyCallback([this](const std::string& tag, std::chrono::microseconds duration,
-                                               bool success) { recordSample(duration, tag, success); });
-    }
-
-    StateChangedCallback stateCb;
+    // Notify without any lock so the callback may call stop() or the getters.
+    // Firing before the spawn guarantees observers see true before the worker's false.
+    StateChangedCallback stateCb {};
     {
-        std::scoped_lock lock(m_mutex);
+        std::scoped_lock lock { m_mutex };
         stateCb = m_stateCb;
     }
     if (stateCb) {
         stateCb(true);
     }
 
-    if (config.mode == ProfilerMode::ActiveBurst || config.mode == ProfilerMode::ActiveContinuous) {
-        m_worker = std::thread(&RttProfiler::activeWorkerLoop, this, config);
+    // Phase 2: spawn only if this session is still the live one (not stopped or replaced).
+    if (isActive) {
+        std::scoped_lock lifecycle { m_lifecycleMutex };
+        bool spawn { false };
+        {
+            std::scoped_lock lock { m_mutex };
+            spawn = (session == m_session) && m_running.load() && !m_stopRequested.load();
+        }
+        if (spawn) {
+            m_worker = std::thread { &RttProfiler::activeWorkerLoop, this, config };
+        }
     }
 
     return true;
@@ -89,19 +143,33 @@ bool RttProfiler::start(const RttProfilerConfig& config)
 
 void RttProfiler::stop()
 {
-    m_stopRequested = true;
-    m_deviceLatencyConn.disconnect();
+    {
+        // Set under m_mutex so the worker cannot miss the wake-up between its predicate
+        // check and its wait.
+        std::scoped_lock lock { m_mutex };
+        m_stopRequested = true;
+    }
     m_cv.notify_all();
 
-    if (m_worker.joinable()) {
-        m_worker.join();
+    // C2c: from a worker-thread callback, joining would self-join. The worker is already
+    // exiting and reports its own state change; it is reaped by start() or the destructor.
+    if (isWorkerThread()) {
+        return;
     }
 
-    const bool wasRunning = m_running.exchange(false);
+    {
+        std::scoped_lock lifecycle { m_lifecycleMutex };
+        static_cast<void>(joinWorker());
+        // Disconnect only after the join: the worker also disconnects on exit, and
+        // ScopedConnection is not safe for concurrent use.
+        m_deviceLatencyConn.disconnect();
+    }
+
+    const bool wasRunning { m_running.exchange(false) };
     if (wasRunning) {
-        StateChangedCallback stateCb;
+        StateChangedCallback stateCb {};
         {
-            std::scoped_lock lock(m_mutex);
+            std::scoped_lock lock { m_mutex };
             stateCb = m_stateCb;
         }
         if (stateCb) {
@@ -296,6 +364,7 @@ void RttProfiler::setFinishedCallback(FinishedCallback cb)
 
 void RttProfiler::activeWorkerLoop(RttProfilerConfig config)
 {
+    m_workerId.store(std::this_thread::get_id());
     std::uint32_t probesSent = 0U;
 
     while (!m_stopRequested.load()) {

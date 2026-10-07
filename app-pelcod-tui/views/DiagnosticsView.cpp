@@ -37,7 +37,8 @@ DiagnosticsView::DiagnosticsView()
     PelcoD::RttProfilerConfig cfg;
     cfg.historyCapacity = 20U;
     cfg.mode = PelcoD::ProfilerMode::Passive;
-    m_profiler.start(cfg);
+    // Passive mode with a valid config and no device always succeeds.
+    static_cast<void>(m_profiler.start(cfg));
 
     Math::StftConfig stftCfg {};
     stftCfg.windowSize = 32U;
