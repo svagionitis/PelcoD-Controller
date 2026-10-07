@@ -452,7 +452,10 @@ bool PelcoDPtzAdapter::handleOperatePresetTour(const std::string& tourToken, Pre
             if (!steps.empty()) {
                 patrol->setSteps(steps);
                 patrol->setLoop(true);
-                patrol->start();
+                if (!patrol->start()) {
+                    tour.status = PresetTourState::Idle;
+                    return false;
+                }
             }
         }
         return true;

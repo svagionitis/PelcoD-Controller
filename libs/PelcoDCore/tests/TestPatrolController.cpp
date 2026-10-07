@@ -328,4 +328,157 @@ TEST(PatrolControllerTest, PatrolDwellTicking)
     EXPECT_LE(lastRemaining.load(), 1U);
 }
 
+/// @brief Thread-safe recorder of dispatched preset identifiers.
+/// @details Shared by the C1 regression tests to wait for specific dispatch counts.
+struct PresetRecorder {
+    std::mutex mtx {};
+    std::condition_variable cv {};
+    std::vector<std::uint8_t> presets {};
+
+    /// @brief Record a dispatched preset and wake any waiters.
+    /// @param[in] presetId Preset identifier that was dispatched.
+    void record(std::uint8_t presetId)
+    {
+        std::scoped_lock lock { mtx };
+        presets.push_back(presetId);
+        cv.notify_all();
+    }
+
+    /// @brief Wait until at least @p count presets have been dispatched.
+    /// @param[in] count Minimum number of dispatches to wait for.
+    /// @return True if the count was reached within 2 seconds.
+    [[nodiscard]] bool waitFor(std::size_t count)
+    {
+        std::unique_lock<std::mutex> lock { mtx };
+        return cv.wait_for(lock, std::chrono::seconds(2), [this, count]() { return presets.size() >= count; });
+    }
+
+    /// @brief Return the most recently dispatched preset.
+    /// @return Last preset identifier, or 0 if none were dispatched.
+    [[nodiscard]] std::uint8_t last()
+    {
+        std::scoped_lock lock { mtx };
+        return presets.empty() ? std::uint8_t { 0U } : presets.back();
+    }
+};
+
+/// @brief Regression for C1a: start() while Paused must restart instead of calling std::terminate.
+/// @details Before the fix, start() move-assigned a new std::thread into a still-joinable worker.
+///          The tour must restart from step 0 and dispatch preset 1 again.
+TEST(PatrolControllerTest, StartWhilePausedRestarts)
+{
+    PresetRecorder rec {};
+    PelcoD::PatrolController controller([&rec](std::uint8_t presetId) { rec.record(presetId); });
+    controller.addStep(PelcoD::PatrolStep { 1U, 20U, "Step 1", 0U });
+    controller.addStep(PelcoD::PatrolStep { 2U, 20U, "Step 2", 0U });
+
+    ASSERT_TRUE(controller.start());
+    ASSERT_TRUE(rec.waitFor(1U));
+    controller.nextStep();
+    ASSERT_TRUE(rec.waitFor(2U));
+    EXPECT_EQ(rec.last(), 2U);
+
+    controller.pause();
+    ASSERT_TRUE(controller.isPaused());
+
+    ASSERT_TRUE(controller.start());
+    EXPECT_TRUE(controller.isRunning());
+    EXPECT_EQ(controller.getCurrentStepIndex(), 0U);
+    ASSERT_TRUE(rec.waitFor(3U));
+    EXPECT_EQ(rec.last(), 1U);
+
+    controller.stop();
+    EXPECT_FALSE(controller.isWorkerActive());
+}
+
+/// @brief Regression for C1a via the ONVIF flow: setSteps() while Paused followed by start().
+/// @details The new first step must be dispatched immediately after the restart.
+TEST(PatrolControllerTest, StartAfterSetStepsWhilePaused)
+{
+    PresetRecorder rec {};
+    PelcoD::PatrolController controller([&rec](std::uint8_t presetId) { rec.record(presetId); });
+    controller.addStep(PelcoD::PatrolStep { 1U, 20U, "Step 1", 0U });
+
+    ASSERT_TRUE(controller.start());
+    ASSERT_TRUE(rec.waitFor(1U));
+    controller.pause();
+
+    controller.setSteps({ PelcoD::PatrolStep { 7U, 20U, "New", 0U } });
+    ASSERT_TRUE(controller.start());
+    ASSERT_TRUE(rec.waitFor(2U));
+    EXPECT_EQ(rec.last(), 7U);
+
+    controller.stop();
+}
+
+/// @brief Stress the start/pause/start/stop lifecycle to detect leaked joinable workers.
+/// @details Any reassignment of a joinable std::thread aborts the process.
+TEST(PatrolControllerTest, PauseStartCycleStress)
+{
+    PelcoD::PatrolController controller([](std::uint8_t) {});
+    controller.addStep(PelcoD::PatrolStep { 1U, 20U, "Step 1", 0U });
+
+    for (std::uint32_t i { 0U }; i < 25U; ++i) {
+        ASSERT_TRUE(controller.start());
+        controller.pause();
+        ASSERT_TRUE(controller.start());
+        controller.stop();
+        ASSERT_FALSE(controller.isWorkerActive());
+    }
+}
+
+/// @brief Regression for C1b: start() from a worker-thread callback must not self-join.
+/// @details Before the fix, start() inside TourFinishedCallback joined the current thread,
+///          throwing std::system_error on the worker and terminating the process.
+TEST(PatrolControllerTest, StartFromFinishedCbFails)
+{
+    std::mutex mtx {};
+    std::condition_variable cv {};
+    bool done { false };
+    bool restartResult { true };
+
+    PelcoD::PatrolController controller([](std::uint8_t) {});
+    controller.addStep(PelcoD::PatrolStep { 1U, 1U, "Step 1", 0U });
+    controller.setLoop(false);
+    controller.setTourFinishedCallback([&]() {
+        const bool result { controller.start() };
+        std::scoped_lock lock { mtx };
+        restartResult = result;
+        done = true;
+        cv.notify_all();
+    });
+
+    ASSERT_TRUE(controller.start());
+    {
+        std::unique_lock<std::mutex> lock { mtx };
+        ASSERT_TRUE(cv.wait_for(lock, std::chrono::seconds(4), [&]() { return done; }));
+        EXPECT_FALSE(restartResult);
+    }
+    EXPECT_EQ(controller.getState(), PelcoD::PatrolState::Idle);
+}
+
+/// @brief Guard: a tour that finished naturally can be restarted from the caller's thread.
+/// @details Verifies the finished worker is joined before a new worker is spawned.
+TEST(PatrolControllerTest, RestartAfterTourFinished)
+{
+    PresetRecorder rec {};
+    std::atomic<bool> finished { false };
+    PelcoD::PatrolController controller([&rec](std::uint8_t presetId) { rec.record(presetId); });
+    controller.setTourFinishedCallback([&finished]() { finished.store(true); });
+    controller.addStep(PelcoD::PatrolStep { 3U, 1U, "Step 1", 0U });
+    controller.setLoop(false);
+
+    ASSERT_TRUE(controller.start());
+    ASSERT_TRUE(rec.waitFor(1U));
+    for (std::uint32_t i { 0U }; (i < 40U) && !finished.load(); ++i) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    }
+    ASSERT_TRUE(finished.load());
+
+    ASSERT_TRUE(controller.start());
+    ASSERT_TRUE(rec.waitFor(2U));
+    EXPECT_EQ(rec.last(), 3U);
+    controller.stop();
+}
+
 } // namespace

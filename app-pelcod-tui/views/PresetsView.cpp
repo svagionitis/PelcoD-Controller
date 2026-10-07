@@ -123,8 +123,7 @@ bool PresetsView::handleInput(const InputEvent& event, PelcoD::PelcoDDevice& dev
             m_patrol->stop();
             m_lastAction = "Tour Stopped";
         } else {
-            m_patrol->start();
-            m_lastAction = "Tour Started";
+            m_lastAction = m_patrol->start() ? "Tour Started" : "Tour Not Started (no steps)";
         }
         return true;
     }

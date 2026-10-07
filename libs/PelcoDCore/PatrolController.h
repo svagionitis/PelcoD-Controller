@@ -52,9 +52,32 @@ public:
     PatrolController& operator=(PatrolController&&) = delete;
 
     // Sequence Execution
-    bool start();
+
+    /// @brief Start (or restart) the patrol tour from step 0.
+    /// @details If the tour is Idle, a new worker thread is spawned and step 0 is dispatched.
+    ///          If the tour is Paused, the paused worker is signalled, joined, and the tour is
+    ///          restarted from step 0 (use resume() to continue from the paused step instead).
+    ///          If the tour is already Running, this is a no-op that returns true.
+    /// @return True if the tour is running after the call; false if there are no steps or if
+    ///         called from a callback executing on the patrol worker thread.
+    /// @note Must not be called while holding locks that patrol callbacks acquire. Calling it
+    ///       from a patrol callback is rejected because the worker cannot join itself.
+    /// @see resume()
+    [[nodiscard]] bool start();
+
+    /// @brief Stop the patrol tour and join the worker thread.
+    /// @details Transitions to Idle and notifies the state callback. When called from a patrol
+    ///          callback (worker thread), the worker is signalled but not joined; it is joined
+    ///          later by start() or the destructor.
     void stop();
+
+    /// @brief Pause a running tour, freezing the remaining dwell time.
+    /// @details No-op unless the tour is Running.
     void pause();
+
+    /// @brief Resume a paused tour from the step and dwell time at which it was paused.
+    /// @details No-op unless the tour is Paused.
+    /// @see start()
     void resume();
     void nextStep();
     void previousStep();
@@ -67,8 +90,16 @@ public:
     // Configuration & Step Management
     void addStep(const PatrolStep& step);
     void insertStep(std::size_t index, const PatrolStep& step);
-    bool removeStep(std::size_t index);
-    bool setStep(std::size_t index, const PatrolStep& step);
+    /// @brief Remove the step at @p index.
+    /// @param[in] index Zero-based step index.
+    /// @return True if the step existed and was removed.
+    [[nodiscard]] bool removeStep(std::size_t index);
+
+    /// @brief Replace the step at @p index.
+    /// @param[in] index Zero-based step index.
+    /// @param[in] step New step definition.
+    /// @return True if the step existed and was replaced.
+    [[nodiscard]] bool setStep(std::size_t index, const PatrolStep& step);
     void clearSteps();
 
     [[nodiscard]] std::vector<PatrolStep> getSteps() const;
@@ -92,6 +123,11 @@ public:
 
 private:
     void workerLoop();
+
+    /// @brief Join the worker thread if it is joinable and not the calling thread.
+    /// @details Must be called without holding m_mutex, because the worker needs it to exit.
+    /// @return False if called on the worker thread itself (join skipped); true otherwise.
+    [[nodiscard]] bool joinWorker();
     void dispatchCurrentStep(std::unique_lock<std::mutex>& lock);
     void notifyStateChange(std::unique_lock<std::mutex>& lock, PatrolState state, bool relock = true);
 

@@ -24,9 +24,22 @@ PatrolController::~PatrolController()
     m_state.store(PatrolState::Idle);
     m_cv.notify_all();
 
+    // Precondition: the destructor never runs on the worker thread.
+    static_cast<void>(joinWorker());
+}
+
+bool PatrolController::joinWorker()
+{
+    bool joined { true };
     if (m_worker.joinable()) {
-        m_worker.join();
+        if (std::this_thread::get_id() == m_worker.get_id()) {
+            // A thread cannot join itself (std::system_error / std::terminate).
+            joined = false;
+        } else {
+            m_worker.join();
+        }
     }
+    return joined;
 }
 
 void PatrolController::notifyStateChange(std::unique_lock<std::mutex>& lock, PatrolState state, bool relock)
@@ -47,27 +60,50 @@ void PatrolController::notifyStateChange(std::unique_lock<std::mutex>& lock, Pat
 
 bool PatrolController::start()
 {
-    if (m_worker.joinable() && !m_workerRunning.load()) {
-        m_worker.join();
+    {
+        std::unique_lock<std::mutex> lock { m_mutex };
+        if (m_steps.empty()) {
+            return false;
+        }
+
+        if (m_state.load() == PatrolState::Running) {
+            return true;
+        }
+
+        // C1b: a patrol callback running on the worker thread cannot replace its own thread.
+        // Reject before mutating any state so the existing worker keeps its invariants.
+        if (m_worker.joinable() && (std::this_thread::get_id() == m_worker.get_id())) {
+            return false;
+        }
+
+        // C1a: a Paused (or finished) worker must exit before m_worker is reassigned.
+        // The state is left unchanged so observers see a single Paused -> Running transition.
+        m_workerRunning.store(false);
+        m_cv.notify_all();
     }
 
-    std::unique_lock<std::mutex> lock(m_mutex);
-    if (m_steps.empty()) {
+    // Join without holding m_mutex: the worker needs it to leave its wait.
+    if (!joinWorker()) {
         return false;
     }
 
-    if (m_state.load() == PatrolState::Running) {
-        return true;
+    std::unique_lock<std::mutex> lock { m_mutex };
+    if (m_steps.empty()) {
+        // Steps were cleared while the old worker was being joined.
+        if (m_state.exchange(PatrolState::Idle) != PatrolState::Idle) {
+            notifyStateChange(lock, PatrolState::Idle, false);
+        }
+        return false;
     }
 
     m_currentStepIndex = 0U;
-    m_remainingDwellSeconds = m_steps[0].dwellTimeSeconds;
+    m_remainingDwellSeconds = m_steps[0U].dwellTimeSeconds;
     m_stepAdvanceRequested = false;
     m_stepAdvanceDelta = 0;
     m_needsDispatch = true;
     m_state.store(PatrolState::Running);
     m_workerRunning.store(true);
-    m_worker = std::thread(&PatrolController::workerLoop, this);
+    m_worker = std::thread { &PatrolController::workerLoop, this };
 
     notifyStateChange(lock, PatrolState::Running);
     return true;
@@ -91,9 +127,9 @@ void PatrolController::stop()
         notifyStateChange(lock, PatrolState::Idle, false);
     }
 
-    if (m_worker.joinable() && std::this_thread::get_id() != m_worker.get_id()) {
-        m_worker.join();
-    }
+    // When stop() is invoked from a patrol callback, joinWorker() skips the self-join;
+    // the worker exits on its own and is joined later by start() or the destructor.
+    static_cast<void>(joinWorker());
 }
 
 void PatrolController::pause()
