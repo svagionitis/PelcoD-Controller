@@ -48,6 +48,21 @@ public:
     /// @return Serialized Fault element.
     [[nodiscard]] static std::string passwordTooWeak(std::string_view reason);
 
+    /// @brief Fault returned when an action is not supported by the service.
+    /// @details Code `SOAP-ENV:Receiver`, Subcode `ter:ActionNotSupported` (ONVIF Core §5.11.2).
+    /// @param[in] reason Human-readable reason text (defaults to "Action Not Supported").
+    /// @return Serialized Fault element.
+    [[nodiscard]] static std::string actionNotSupported(std::string_view reason = "Action Not Supported");
+
+    /// @brief Generic receiver fault.
+    /// @details Formats a SOAP 1.2 Receiver fault with primary and optional secondary subcodes.
+    /// @param[in] subcode Qualified ONVIF subcode (e.g. "ter:ActionNotSupported").
+    /// @param[in] secondSubcode Optional nested subcode; empty to omit.
+    /// @param[in] reason Human-readable reason text (must not contain markup).
+    /// @return Serialized Fault element.
+    [[nodiscard]] static std::string receiver(
+        std::string_view subcode, std::string_view secondSubcode, std::string_view reason);
+
     /// @brief Generic sender fault.
     /// @param[in] subcode Qualified ONVIF subcode (e.g. "ter:InvalidArgVal").
     /// @param[in] secondSubcode Optional nested subcode (e.g. "ter:UsernameClash"); empty to omit.

@@ -1818,7 +1818,8 @@ void OnvifServer::handleDeviceService(const httplib::Request& req, httplib::Resp
     } else if (isOp(opName, "GetVideoSourceModes") || isOp(opName, "SetVideoSourceMode")) {
         processVideoSourceModeRequest(opName, doc, body, "tds");
     } else {
-        body << "    <tds:" << opName << "Response/>\r\n";
+        sendSoapResponse(res, SoapFault::actionNotSupported(), 500);
+        return;
     }
 
     sendSoapResponse(res, body.str());
@@ -1898,7 +1899,8 @@ void OnvifServer::handleMediaService(const httplib::Request& req, httplib::Respo
              << "      </trt:MediaUri>\r\n"
              << "    </trt:GetSnapshotUriResponse>\r\n";
     } else {
-        body << "    <trt:" << opName << "Response/>\r\n";
+        sendSoapResponse(res, SoapFault::actionNotSupported(), 500);
+        return;
     }
 
     sendSoapResponse(res, body.str());
@@ -2722,7 +2724,8 @@ void OnvifServer::handleMedia2Service(const httplib::Request& req, httplib::Resp
                 "SourceConfigurations=\"true\"/>\r\n"
              << "    </tr2:GetServiceCapabilitiesResponse>\r\n";
     } else {
-        body << "    <tr2:" << opName << "Response/>\r\n";
+        sendSoapResponse(res, SoapFault::actionNotSupported(), 500);
+        return;
     }
 
     sendSoapResponse(res, body.str());
@@ -3179,7 +3182,8 @@ void OnvifServer::handlePtzService(const httplib::Request& req, httplib::Respons
             m_ptzHandler->handleOperatePresetTour(tourTok, tourOp);
         }
     } else {
-        body << "    <tptz:" << opName << "Response/>\r\n";
+        sendSoapResponse(res, SoapFault::actionNotSupported(), 500);
+        return;
     }
 
     sendSoapResponse(res, body.str());
@@ -3442,7 +3446,8 @@ void OnvifServer::handleImagingService(const httplib::Request& req, httplib::Res
         }
         body << "    <timg:SetCurrentPresetResponse/>\r\n";
     } else {
-        body << "    <timg:" << opName << "Response/>\r\n";
+        sendSoapResponse(res, SoapFault::actionNotSupported(), 500);
+        return;
     }
 
     sendSoapResponse(res, body.str());
@@ -3595,7 +3600,8 @@ void OnvifServer::handleDeviceIoService(const httplib::Request& req, httplib::Re
     } else if (isOp(opName, "GetAudioOutputs")) {
         body << "    <tmd:GetAudioOutputsResponse/>\r\n";
     } else {
-        body << "    <tmd:" << opName << "Response/>\r\n";
+        sendSoapResponse(res, SoapFault::actionNotSupported(), 500);
+        return;
     }
 
     sendSoapResponse(res, body.str());
@@ -3698,7 +3704,8 @@ void OnvifServer::handleEventService(const httplib::Request& req, httplib::Respo
              << "      </wstop:TopicSet>\r\n"
              << "    </tev:GetEventPropertiesResponse>\r\n";
     } else {
-        body << "    <tev:" << opName << "Response/>\r\n";
+        sendSoapResponse(res, SoapFault::actionNotSupported(), 500);
+        return;
     }
 
     sendSoapResponse(res, body.str());
@@ -3808,7 +3815,8 @@ void OnvifServer::handleSubscriptionService(const httplib::Request& req, httplib
              << "      <wsnt:CurrentTime>" << curTime << "</wsnt:CurrentTime>\r\n"
              << "    </wsnt:RenewResponse>\r\n";
     } else {
-        body << "    <wsnt:" << opName << "Response/>\r\n";
+        sendSoapResponse(res, SoapFault::actionNotSupported(), 500);
+        return;
     }
 
     sendSoapResponse(res, body.str());
@@ -4104,7 +4112,8 @@ void OnvifServer::handleAnalyticsService(const httplib::Request& req, httplib::R
         }
         body << "    <tan:DeleteAnalyticsModulesResponse/>\r\n";
     } else {
-        body << "    <tan:" << opName << "Response/>\r\n";
+        sendSoapResponse(res, SoapFault::actionNotSupported(), 500);
+        return;
     }
 
     sendSoapResponse(res, body.str());
@@ -4463,7 +4472,8 @@ void OnvifServer::handleRecordingService(const httplib::Request& req, httplib::R
              << "      </trc:Summary>\r\n"
              << "    </trc:GetRecordingSummaryResponse>\r\n";
     } else {
-        body << "    <trc:" << opName << "Response/>\r\n";
+        sendSoapResponse(res, SoapFault::actionNotSupported(), 500);
+        return;
     }
 
     sendSoapResponse(res, body.str());
@@ -4610,7 +4620,8 @@ void OnvifServer::handleSearchService(const httplib::Request& req, httplib::Resp
              << "      <tse:Endpoint>" << Xml::escapeXmlText(searchToken) << "</tse:Endpoint>\r\n"
              << "    </tse:EndSearchResponse>\r\n";
     } else {
-        body << "    <tse:" << opName << "Response/>\r\n";
+        sendSoapResponse(res, SoapFault::actionNotSupported(), 500);
+        return;
     }
 
     sendSoapResponse(res, body.str());
@@ -4675,7 +4686,8 @@ void OnvifServer::handleReplayService(const httplib::Request& req, httplib::Resp
         }
         body << "    <trp:SetReplayConfigurationResponse/>\r\n";
     } else {
-        body << "    <trp:" << opName << "Response/>\r\n";
+        sendSoapResponse(res, SoapFault::actionNotSupported(), 500);
+        return;
     }
 
     sendSoapResponse(res, body.str());
@@ -4920,7 +4932,8 @@ void OnvifServer::handleThermalService(const httplib::Request& req, httplib::Res
         }
         body << "    <tth:TriggerNUCResponse/>\r\n";
     } else {
-        body << "    <tth:" << opName << "Response/>\r\n";
+        sendSoapResponse(res, SoapFault::actionNotSupported(), 500);
+        return;
     }
 
     sendSoapResponse(res, body.str());
