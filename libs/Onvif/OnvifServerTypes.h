@@ -87,6 +87,25 @@ struct PasswordPolicyConfig {
     bool rejectCommonDefaults { true };
 };
 
+/// @struct DiscoveryConfig
+/// @brief Operational and security configuration for WS-Discovery responder (review finding C7).
+struct DiscoveryConfig {
+    /// @brief Enable IP_MULTICAST_LOOP socket option (default: false for security, true for loopback tests).
+    bool enableMulticastLoopback { false };
+
+    /// @brief Drop probe requests originating from source port 3702 to prevent mutual reflection amplification.
+    bool dropReflectionPort3702 { true };
+
+    /// @brief Enable token bucket rate limiting on probe responses (CWE-406 mitigation).
+    bool enableRateLimiting { true };
+
+    /// @brief Maximum probe responses permitted per second per sender IP.
+    std::size_t maxResponsesPerSecPerIp { 20 };
+
+    /// @brief Maximum total probe responses permitted per second globally.
+    std::size_t maxGlobalResponsesPerSec { 60 };
+};
+
 /// @struct OnvifServerConfig
 /// @brief Configuration settings for the embedded ONVIF HTTP server and WS-Discovery service.
 struct OnvifServerConfig {
@@ -140,6 +159,9 @@ struct OnvifServerConfig {
 
     /// @brief Server-side event subscription and delivery policy (review finding C5).
     NotificationConfig notification {};
+
+    /// @brief WS-Discovery multicast responder security configuration (review finding C7).
+    DiscoveryConfig discovery {};
 
     /// @brief Default network interfaces.
     std::vector<NetworkInterfaceConfig> defaultNetworkInterfaces { { "eth0", true, "eth0", "00:11:22:33:44:55", 1500,

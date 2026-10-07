@@ -49,6 +49,8 @@ add_library(Onvif STATIC
     WsDiscoveryCommon.cpp
     WsDiscoveryServer.h
     WsDiscoveryServer.cpp
+    WsDiscoveryValidator.h
+    WsDiscoveryValidator.cpp
     OnvifServer.h
     OnvifServer.cpp
     OnvifAuthTypes.h

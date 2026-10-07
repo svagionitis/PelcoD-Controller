@@ -47,6 +47,7 @@ namespace {
 
 WsDiscoveryServer::WsDiscoveryServer(OnvifServerConfig config)
     : m_config(std::move(config))
+    , m_rateLimiter(m_config.discovery.maxResponsesPerSecPerIp, m_config.discovery.maxGlobalResponsesPerSec)
 {
     if (m_config.serviceUuid.empty()) {
         m_config.serviceUuid = generateRandomUuid();
@@ -90,8 +91,8 @@ bool WsDiscoveryServer::start()
     mreq.imr_interface.s_addr = htonl(INADDR_ANY);
     setsockopt(sock, IPPROTO_IP, IP_ADD_MEMBERSHIP, reinterpret_cast<const char*>(&mreq), sizeof(mreq));
 
-    // Enable multicast loopback
-    unsigned char loop = 1;
+    // Multicast loopback control (disabled by default to prevent self-amplification, C7)
+    const unsigned char loop = m_config.discovery.enableMulticastLoopback ? 1 : 0;
     setsockopt(sock, IPPROTO_IP, IP_MULTICAST_LOOP, reinterpret_cast<const char*>(&loop), sizeof(loop));
 
     m_sockFd = sock;
@@ -183,34 +184,27 @@ void WsDiscoveryServer::runListener()
             continue;
         }
 
-        // Check if message is a Probe
-        const pugi::xml_node actionNode = doc.select_node("//*[local-name()='Action']").node();
-        const std::string actionText = actionNode ? actionNode.text().as_string() : "";
+        // Strict validation against WS-Discovery §5 and self-amplification defense (C7)
+        const auto senderPort = ntohs(senderAddr.sin_port);
+        const auto valResult = WsDiscoveryValidator::validateProbe(
+            doc, senderPort, m_config.serviceUuid, m_config.discovery.dropReflectionPort3702);
 
-        if (actionText.find("http://schemas.xmlsoap.org/ws/2005/04/discovery/Probe") == std::string::npos
-            && actionText.find("Probe") == std::string::npos) {
+        if (!valResult.isValidProbe) {
             continue;
         }
 
-        // Check Types filter if specified
-        const pugi::xml_node typesNode = doc.select_node("//*[local-name()='Types']").node();
-        if (typesNode) {
-            const std::string typesText = typesNode.text().as_string();
-            if (!typesText.empty() && typesText.find("NetworkVideoTransmitter") == std::string::npos
-                && typesText.find("Device") == std::string::npos) {
-                continue;
-            }
+        // Token-bucket rate limiting mitigation against UDP amplification (CWE-406)
+        char senderIpStr[INET_ADDRSTRLEN] { 0 };
+        inet_ntop(AF_INET, &senderAddr.sin_addr, senderIpStr, sizeof(senderIpStr));
+        if (m_config.discovery.enableRateLimiting && !m_rateLimiter.checkRateLimit(senderIpStr)) {
+            continue;
         }
-
-        // Extract MessageID to relate to
-        const pugi::xml_node msgIdNode = doc.select_node("//*[local-name()='MessageID']").node();
-        const std::string msgId = msgIdNode ? msgIdNode.text().as_string() : "";
 
         const std::string localIp = (m_config.bindAddress != "0.0.0.0" && !m_config.bindAddress.empty())
             ? m_config.bindAddress
             : resolveLocalIp(senderAddr);
 
-        const std::string probeMatches = createProbeMatchesPayload(msgId, localIp);
+        const std::string probeMatches = createProbeMatchesPayload(valResult.messageId, localIp);
         sendto(sock, probeMatches.data(), static_cast<Net::SockBufLenType>(probeMatches.size()), 0,
             reinterpret_cast<struct sockaddr*>(&senderAddr), senderLen);
     }

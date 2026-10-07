@@ -23,4 +23,5 @@ add_onvif_test(TestXmlUtils  TestXmlUtils.cpp)
 add_onvif_test(TestOnvifXmlSecurity TestOnvifXmlSecurity.cpp)
 add_onvif_test(TestOnvifEventSecurity TestOnvifEventSecurity.cpp)
 add_onvif_test(TestOnvifCredentialsSecurity TestOnvifCredentialsSecurity.cpp)
+add_onvif_test(TestOnvifDiscoverySecurity TestOnvifDiscoverySecurity.cpp)
 

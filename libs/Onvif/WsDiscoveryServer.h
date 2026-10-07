@@ -4,6 +4,7 @@
 /// @brief WS-Discovery multicast responder daemon for ONVIF device discovery.
 
 #include "OnvifServerTypes.h"
+#include "WsDiscoveryValidator.h"
 #include <Transport/SocketUtils.h>
 
 #include <atomic>
@@ -68,6 +69,7 @@ private:
     std::thread m_thread {};
 
     Net::SocketHandle m_sockFd { Net::InvalidSocket };
+    DiscoveryRateLimiter m_rateLimiter;
 };
 
 } // namespace Onvif

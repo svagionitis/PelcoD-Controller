@@ -171,6 +171,8 @@ protected:
         m_config.manufacturer = "PelcoD-Security";
         m_config.model = "Model-Secure";
         m_config.rtspStreamUri = "rtsp://127.0.0.1:8554/sec_stream";
+        m_config.auth.enabled = false;
+        m_config.defaultUsers = { OnvifUser { "admin", "P@ssw0rd!Secure", OnvifUserLevel::Administrator } };
 
         m_ptzHandler = std::make_shared<SecurityMockPtzHandler>();
         m_osdHandler = std::make_shared<SecurityMockOsdHandler>();
