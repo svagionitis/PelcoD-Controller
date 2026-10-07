@@ -68,6 +68,12 @@ add_library(Onvif STATIC
     Authenticator.cpp
     SoapFault.h
     SoapFault.cpp
+    NotificationUrlValidator.h
+    NotificationUrlValidator.cpp
+    NotificationDispatcher.h
+    NotificationDispatcher.cpp
+    SubscriptionManager.h
+    SubscriptionManager.cpp
     GeodesyUtils.h
     adapters/PelcoDPtzAdapter.h
     adapters/PelcoDPtzAdapter.cpp

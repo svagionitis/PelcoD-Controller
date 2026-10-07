@@ -1,7 +1,10 @@
 #include "OnvifServer.h"
 #include "AccessPolicy.h"
+#include "NotificationDispatcher.h"
+#include "NotificationUrlValidator.h"
 #include "OnvifSecurity.h"
 #include "SoapFault.h"
+#include "SubscriptionManager.h"
 #include "UsernameToken.h"
 #include "XmlUtils.h"
 
@@ -431,6 +434,8 @@ OnvifServer::OnvifServer(OnvifServerConfig config, std::shared_ptr<IPtzHandler> 
 
     logSystemMessage("INFO", "ONVIF Server initialized successfully");
 
+    m_subManager = std::make_unique<SubscriptionManager>(m_config.notification);
+    m_dispatcher = std::make_unique<NotificationDispatcher>(m_config.notification);
     m_discoveryServer = std::make_unique<WsDiscoveryServer>(m_config);
     setupRoutes();
 }
@@ -479,6 +484,10 @@ bool OnvifServer::start()
         [[maybe_unused]] const bool discStarted = m_discoveryServer->start();
     }
 
+    if (m_dispatcher) {
+        m_dispatcher->start();
+    }
+
     m_running = true;
     m_httpThread = std::thread([this]() { static_cast<void>(m_httpServer.listen_after_bind()); });
     constexpr auto maxWait { std::chrono::milliseconds(1000) };
@@ -505,12 +514,12 @@ void OnvifServer::stop()
     m_httpServer.stop();
     m_running = false;
 
-    {
-        std::scoped_lock lock(m_subMutex);
-        for (auto& [id, sub] : m_subscriptions) {
-            std::scoped_lock subLock(sub->mutex);
-            sub->cv.notify_all();
-        }
+    if (m_dispatcher) {
+        m_dispatcher->stop();
+    }
+
+    if (m_subManager) {
+        m_subManager->notifyAll();
     }
 
     if (m_httpThread.joinable()) {
@@ -615,44 +624,15 @@ void OnvifServer::publishEvent(const OnvifEvent& event)
         ev.utcTime = formatIso8601Utc(std::chrono::system_clock::now());
     }
 
-    std::vector<std::string> pushUrls;
-    {
-        std::scoped_lock lock(m_subMutex);
-        for (auto& [id, sub] : m_subscriptions) {
-            std::scoped_lock subLock(sub->mutex);
-            sub->queue.push_back(ev);
-            sub->cv.notify_one();
-        }
-        for (const auto& [id, pushSub] : m_pushSubscriptions) {
-            if (!pushSub.consumerUrl.empty()) {
-                pushUrls.push_back(pushSub.consumerUrl);
-            }
-        }
+    std::vector<std::string> pushUrls {};
+    if (m_subManager) {
+        m_subManager->publishEvent(ev, pushUrls);
     }
 
-    if (!pushUrls.empty()) {
-        std::thread([pushUrls = std::move(pushUrls), ev]() {
-            for (const auto& url : pushUrls) {
-                try {
-                    const std::string prefixHttp = "http://";
-                    if (url.rfind(prefixHttp, 0) == 0) {
-                        const std::string noPrefix = url.substr(prefixHttp.length());
-                        const auto slashPos = noPrefix.find('/');
-                        const std::string hostPort
-                            = (slashPos != std::string::npos) ? noPrefix.substr(0, slashPos) : noPrefix;
-                        const std::string path = (slashPos != std::string::npos) ? noPrefix.substr(slashPos) : "/";
-                        httplib::Client cli(hostPort);
-                        cli.set_connection_timeout(1, 0);
-                        cli.set_read_timeout(1, 0);
-                        cli.Post(path.c_str(), "<NotificationMessage/>", "application/soap+xml; charset=utf-8");
-                    }
-                } catch (const std::exception&) {
-                    // Ignore client connection error on push notifications
-                } catch (...) {
-                    // Ignore client connection error on push notifications
-                }
-            }
-        }).detach();
+    if (m_dispatcher && !pushUrls.empty()) {
+        for (auto& url : pushUrls) {
+            m_dispatcher->enqueue(std::move(url), "<NotificationMessage/>");
+        }
     }
 }
 
@@ -3636,56 +3616,67 @@ void OnvifServer::handleEventService(const httplib::Request& req, httplib::Respo
     std::ostringstream body;
 
     if (opName.find("CreatePullPointSubscription") != std::string::npos) {
-        std::string subId;
-        std::shared_ptr<PullPointSubscription> sub;
-        {
-            std::scoped_lock lock(m_subMutex);
-            subId = std::to_string(m_nextSubId++);
-            sub = std::make_shared<PullPointSubscription>();
-            sub->id = subId;
-            sub->terminationTime = std::chrono::steady_clock::now() + std::chrono::minutes(10);
-            m_subscriptions[subId] = sub;
+        const pugi::xml_node initTermNode = doc.select_node("//*[local-name()='InitialTerminationTime']").node();
+        const std::string initTermStr = initTermNode ? initTermNode.text().as_string() : "";
+
+        if (!m_subManager) {
+            sendSoapResponse(res, SoapFault::subscribeCreationFailed("Event service unavailable"), 500);
+            return;
+        }
+
+        const auto result = m_subManager->createPullSub(initTermStr);
+        if (!result.success) {
+            sendSoapResponse(res, SoapFault::subscribeCreationFailed(result.errorReason), 500);
+            return;
         }
 
         const auto now = std::chrono::system_clock::now();
         const std::string curTime = formatIso8601Utc(now);
-        const std::string termTime = formatIso8601Utc(now + std::chrono::minutes(10));
 
         body << "    <tev:CreatePullPointSubscriptionResponse>\r\n"
              << "      <tev:SubscriptionReference>\r\n"
              << "        <wsa:Address>http://" << safeHost << ":" << port << "/onvif/events/subscription/"
-             << Xml::escapeXmlText(subId) << "</wsa:Address>\r\n"
+             << Xml::escapeXmlText(result.id) << "</wsa:Address>\r\n"
              << "      </tev:SubscriptionReference>\r\n"
              << "      <wsnt:CurrentTime>" << curTime << "</wsnt:CurrentTime>\r\n"
-             << "      <wsnt:TerminationTime>" << termTime << "</wsnt:TerminationTime>\r\n"
+             << "      <wsnt:TerminationTime>" << result.terminationTimeUtc << "</wsnt:TerminationTime>\r\n"
              << "    </tev:CreatePullPointSubscriptionResponse>\r\n";
     } else if (isOp(opName, "Subscribe")) {
         const pugi::xml_node consumerNode
             = doc.select_node("//*[local-name()='ConsumerReference']/*[local-name()='Address']").node();
         const std::string consumerUrl = consumerNode ? consumerNode.text().as_string() : "";
 
-        std::string subId;
-        {
-            std::scoped_lock lock(m_subMutex);
-            subId = std::to_string(m_nextSubId++);
-            PushSubscription pushSub;
-            pushSub.id = subId;
-            pushSub.consumerUrl = consumerUrl;
-            pushSub.terminationTime = std::chrono::steady_clock::now() + std::chrono::minutes(10);
-            m_pushSubscriptions[subId] = pushSub;
+        const bool loopback { isLoopbackHost(host) };
+        const auto check = NotificationUrlValidator::validateUrl(consumerUrl, m_config.notification, loopback);
+        if (!check.isValid()) {
+            sendSoapResponse(res, SoapFault::invalidConsumerRef(check.reason), 400);
+            return;
+        }
+
+        const pugi::xml_node initTermNode = doc.select_node("//*[local-name()='InitialTerminationTime']").node();
+        const std::string initTermStr = initTermNode ? initTermNode.text().as_string() : "";
+
+        if (!m_subManager) {
+            sendSoapResponse(res, SoapFault::subscribeCreationFailed("Event service unavailable"), 500);
+            return;
+        }
+
+        const auto result = m_subManager->createPushSub(consumerUrl, initTermStr);
+        if (!result.success) {
+            sendSoapResponse(res, SoapFault::subscribeCreationFailed(result.errorReason), 500);
+            return;
         }
 
         const auto now = std::chrono::system_clock::now();
         const std::string curTime = formatIso8601Utc(now);
-        const std::string termTime = formatIso8601Utc(now + std::chrono::minutes(10));
 
         body << "    <wsnt:SubscribeResponse>\r\n"
              << "      <wsnt:SubscriptionReference>\r\n"
              << "        <wsa:Address>http://" << safeHost << ":" << port << "/onvif/events/subscription/"
-             << Xml::escapeXmlText(subId) << "</wsa:Address>\r\n"
+             << Xml::escapeXmlText(result.id) << "</wsa:Address>\r\n"
              << "      </wsnt:SubscriptionReference>\r\n"
              << "      <wsnt:CurrentTime>" << curTime << "</wsnt:CurrentTime>\r\n"
-             << "      <wsnt:TerminationTime>" << termTime << "</wsnt:TerminationTime>\r\n"
+             << "      <wsnt:TerminationTime>" << result.terminationTimeUtc << "</wsnt:TerminationTime>\r\n"
              << "    </wsnt:SubscribeResponse>\r\n";
     } else if (opName.find("GetEventProperties") != std::string::npos) {
         body << "    <tev:GetEventPropertiesResponse>\r\n"
@@ -3728,33 +3719,19 @@ void OnvifServer::handleSubscriptionService(const httplib::Request& req, httplib
         subId = req.path.substr(prefix.length());
     }
 
-    std::shared_ptr<PullPointSubscription> sub;
-    {
-        std::scoped_lock lock(m_subMutex);
-        if (!subId.empty()) {
-            const auto it = m_subscriptions.find(subId);
-            if (it != m_subscriptions.end()) {
-                sub = it->second;
-            }
-        }
-        if (!sub && !m_subscriptions.empty()) {
-            sub = m_subscriptions.begin()->second;
-        }
-    }
-
-    if (!sub) {
-        // Auto-create implicit subscription if none exists
-        std::scoped_lock lock(m_subMutex);
-        subId = std::to_string(m_nextSubId++);
-        sub = std::make_shared<PullPointSubscription>();
-        sub->id = subId;
-        sub->terminationTime = std::chrono::steady_clock::now() + std::chrono::minutes(10);
-        m_subscriptions[subId] = sub;
+    if (!m_subManager) {
+        sendSoapResponse(res, SoapFault::resourceUnknown("Event service unavailable"), 500);
+        return;
     }
 
     std::ostringstream body;
 
     if (opName.find("PullMessages") != std::string::npos) {
+        if (subId.empty()) {
+            sendSoapResponse(res, SoapFault::resourceUnknown("Missing subscription ID in URI"), 400);
+            return;
+        }
+
         const pugi::xml_node timeoutNode = doc.select_node("//*[local-name()='Timeout']").node();
         const std::string timeoutStr = timeoutNode ? timeoutNode.text().as_string() : "PT5S";
         const int timeoutSecs = parseTimeoutSeconds(timeoutStr, 5);
@@ -3762,23 +3739,15 @@ void OnvifServer::handleSubscriptionService(const httplib::Request& req, httplib
         const pugi::xml_node limitNode = doc.select_node("//*[local-name()='MessageLimit']").node();
         const int limit = limitNode ? std::clamp(limitNode.text().as_int(10), 1, 100) : 10;
 
-        std::vector<OnvifEvent> pulledEvents;
-        {
-            std::unique_lock<std::mutex> lock(sub->mutex);
-            if (sub->queue.empty() && timeoutSecs > 0) {
-                sub->cv.wait_for(
-                    lock, std::chrono::seconds(timeoutSecs), [&]() { return !sub->queue.empty() || !m_running; });
-            }
-
-            while (!sub->queue.empty() && static_cast<int>(pulledEvents.size()) < limit) {
-                pulledEvents.push_back(std::move(sub->queue.front()));
-                sub->queue.pop_front();
-            }
+        std::vector<OnvifEvent> pulledEvents {};
+        std::string curTime {};
+        std::string termTime {};
+        const bool ok
+            = m_subManager->pullMessages(subId, limit, timeoutSecs, pulledEvents, curTime, termTime, m_running);
+        if (!ok) {
+            sendSoapResponse(res, SoapFault::resourceUnknown("Subscription does not exist or has expired"), 400);
+            return;
         }
-
-        const auto now = std::chrono::system_clock::now();
-        const std::string curTime = formatIso8601Utc(now);
-        const std::string termTime = formatIso8601Utc(now + std::chrono::minutes(10));
 
         body << "    <tev:PullMessagesResponse>\r\n"
              << "      <wsnt:CurrentTime>" << curTime << "</wsnt:CurrentTime>\r\n"
@@ -3810,21 +3779,31 @@ void OnvifServer::handleSubscriptionService(const httplib::Request& req, httplib
 
         body << "    </tev:PullMessagesResponse>\r\n";
     } else if (opName.find("Unsubscribe") != std::string::npos) {
-        {
-            std::scoped_lock lock(m_subMutex);
-            if (!subId.empty()) {
-                m_subscriptions.erase(subId);
-                m_pushSubscriptions.erase(subId);
-            }
+        if (!subId.empty()) {
+            m_subManager->unsubscribe(subId);
         }
         body << "    <wsnt:UnsubscribeResponse/>\r\n";
     } else if (opName.find("Renew") != std::string::npos) {
+        if (subId.empty()) {
+            sendSoapResponse(res, SoapFault::resourceUnknown("Missing subscription ID in URI"), 400);
+            return;
+        }
+
+        const pugi::xml_node termNode = doc.select_node("//*[local-name()='TerminationTime']").node();
+        const std::string termStr = termNode ? termNode.text().as_string() : "";
+
+        std::string newTermTime {};
+        const bool renewed = m_subManager->renewSub(subId, termStr, newTermTime);
+        if (!renewed) {
+            sendSoapResponse(res, SoapFault::resourceUnknown("Subscription does not exist or has expired"), 400);
+            return;
+        }
+
         const auto now = std::chrono::system_clock::now();
         const std::string curTime = formatIso8601Utc(now);
-        const std::string termTime = formatIso8601Utc(now + std::chrono::minutes(10));
 
         body << "    <wsnt:RenewResponse>\r\n"
-             << "      <wsnt:TerminationTime>" << termTime << "</wsnt:TerminationTime>\r\n"
+             << "      <wsnt:TerminationTime>" << newTermTime << "</wsnt:TerminationTime>\r\n"
              << "      <wsnt:CurrentTime>" << curTime << "</wsnt:CurrentTime>\r\n"
              << "    </wsnt:RenewResponse>\r\n";
     } else {

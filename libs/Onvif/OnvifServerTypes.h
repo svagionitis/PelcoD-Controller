@@ -6,6 +6,7 @@
 #include "OnvifAuthTypes.h"
 #include "OnvifTypes.h"
 
+#include <chrono>
 #include <cstdint>
 #include <functional>
 #include <memory>
@@ -14,6 +15,51 @@
 #include <vector>
 
 namespace Onvif {
+
+/// @struct NotificationConfig
+/// @brief Operational and security configuration for ONVIF event delivery and subscriptions.
+/// @details Remediates review finding C5 (SSRF prevention, bounded threads, and lease quotas).
+struct NotificationConfig {
+    /// @brief Maximum active PullPoint subscriptions allowed simultaneously.
+    std::size_t maxSubscriptions { 32 };
+
+    /// @brief Maximum active Push subscriptions allowed simultaneously.
+    std::size_t maxPushSubscriptions { 16 };
+
+    /// @brief Maximum pending events stored in each subscription's queue.
+    std::size_t maxQueuePerSubscription { 100 };
+
+    /// @brief Default subscription lease duration in seconds (10 minutes).
+    std::chrono::seconds defaultLease { 600 };
+
+    /// @brief Minimum allowable subscription lease duration in seconds (10 seconds).
+    std::chrono::seconds minLease { 10 };
+
+    /// @brief Maximum allowable subscription lease duration in seconds (2 hours).
+    std::chrono::seconds maxLease { 7200 };
+
+    /// @brief Allow loopback addresses (127.0.0.0/8, ::1, localhost) as consumer references.
+    /// @details When unset (nullopt), defaults to allowing loopback only if server binds to loopback.
+    std::optional<bool> allowLoopback { std::nullopt };
+
+    /// @brief Allow RFC 1918 / RFC 4193 private LAN addresses for local VMS receivers.
+    bool allowPrivateSubnets { true };
+
+    /// @brief Whitelist of allowed destination hostnames or IP prefixes (empty allows all non-blocked).
+    std::vector<std::string> allowedHosts {};
+
+    /// @brief Blacklist of explicit forbidden hostnames or IP patterns.
+    std::vector<std::string> blockedHosts {};
+
+    /// @brief Connection timeout for push notification delivery in milliseconds.
+    std::chrono::milliseconds connectTimeoutMs { 1000 };
+
+    /// @brief Read/response timeout for push notification delivery in milliseconds.
+    std::chrono::milliseconds readTimeoutMs { 2000 };
+
+    /// @brief Maximum number of pending delivery items in the dispatcher work queue.
+    std::size_t maxDispatchQueueSize { 128 };
+};
 
 /// @struct OnvifServerConfig
 /// @brief Configuration settings for the embedded ONVIF HTTP server and WS-Discovery service.
@@ -63,6 +109,9 @@ struct OnvifServerConfig {
 
     /// @brief Server-side authentication and authorization policy (review finding C1).
     OnvifAuthConfig auth {};
+
+    /// @brief Server-side event subscription and delivery policy (review finding C5).
+    NotificationConfig notification {};
 
     /// @brief Default network interfaces.
     std::vector<NetworkInterfaceConfig> defaultNetworkInterfaces { { "eth0", true, "eth0", "00:11:22:33:44:55", 1500,

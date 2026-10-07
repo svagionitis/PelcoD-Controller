@@ -35,4 +35,19 @@ std::string SoapFault::notAuthorized()
     return sender("ter:NotAuthorized", "", "Sender not Authorized");
 }
 
+std::string SoapFault::invalidConsumerRef(std::string_view reason)
+{
+    return sender("ter:InvalidArgVal", "wsnt:InvalidConsumerReferenceFault", reason);
+}
+
+std::string SoapFault::subscribeCreationFailed(std::string_view reason)
+{
+    return sender("wsnt:SubscribeCreationFailedFault", "", reason);
+}
+
+std::string SoapFault::resourceUnknown(std::string_view reason)
+{
+    return sender("wsrf-rw:ResourceUnknownFault", "", reason);
+}
+
 } // namespace Onvif

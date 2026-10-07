@@ -26,6 +26,9 @@
 
 namespace Onvif {
 
+class SubscriptionManager;
+class NotificationDispatcher;
+
 /// @class OnvifServer
 /// @brief Standalone Qt-free ONVIF Profile S and Profile T HTTP server coordinating Device, Media, PTZ, Imaging, and
 /// Event services.
@@ -182,23 +185,9 @@ private:
         const std::string& opName, const pugi::xml_document& doc);
     [[nodiscard]] bool authorizeHttp(const httplib::Request& req, httplib::Response& res, std::string_view what);
     void rejectAuth(const httplib::Request& req, httplib::Response& res, AuthOutcome outcome, std::string_view what);
-    void rejectForbidden(const httplib::Request& req, httplib::Response& res, const Principal& who,
-        std::string_view what);
+    void rejectForbidden(
+        const httplib::Request& req, httplib::Response& res, const Principal& who, std::string_view what);
     void appendAuthFailLog(const std::string& remoteAddr, std::string_view what, std::string_view reason);
-
-    struct PullPointSubscription {
-        std::string id {};
-        std::chrono::steady_clock::time_point terminationTime {};
-        std::deque<OnvifEvent> queue {};
-        std::mutex mutex {};
-        std::condition_variable cv {};
-    };
-
-    struct PushSubscription {
-        std::string id {};
-        std::string consumerUrl {};
-        std::chrono::steady_clock::time_point terminationTime {};
-    };
 
     OnvifServerConfig m_config;
     RequestLogCallback m_logCallback {};
@@ -284,10 +273,8 @@ private:
     std::string m_internalActiveColorPalette { "WhiteHot" };
     ThermalCapabilities m_internalThermalCaps {};
 
-    mutable std::mutex m_subMutex {};
-    std::map<std::string, std::shared_ptr<PullPointSubscription>> m_subscriptions {};
-    std::map<std::string, PushSubscription> m_pushSubscriptions {};
-    std::uint32_t m_nextSubId { 1 };
+    std::unique_ptr<SubscriptionManager> m_subManager {};
+    std::unique_ptr<NotificationDispatcher> m_dispatcher {};
 
     std::atomic<bool> m_running { false };
     std::thread m_httpThread {};
