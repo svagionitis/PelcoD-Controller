@@ -120,11 +120,14 @@ private:
     SwsContextPtr m_swsCtx;
 
     int m_videoStreamIndex { -1 };
+    std::vector<int> m_metadataStreamIndices {};
     bool m_reachedEof { false };
 
     DeviceType m_actualDeviceType { DeviceType::CPU };
     AVBufferRef* m_hwDeviceCtx { nullptr };
     FFmpegInterruptContext m_interruptCtx {};
+
+    void dispatchMetadataPacket(const AVPacket* pkt);
 };
 
 } // namespace Video

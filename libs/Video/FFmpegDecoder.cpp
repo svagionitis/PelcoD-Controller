@@ -73,6 +73,7 @@ void FFmpegDecoder::close()
     }
 
     m_videoStreamIndex = -1;
+    m_metadataStreamIndices.clear();
     m_width = 0;
     m_height = 0;
     m_timestamp = 0.0;
@@ -197,6 +198,23 @@ bool FFmpegDecoder::initialize(std::string_view source, PixelFormat format, int 
         return false;
     }
     m_videoStreamIndex = ret;
+
+    m_metadataStreamIndices.clear();
+    for (unsigned int i = 0; i < m_formatCtx->nb_streams; ++i) {
+        const AVStream* st = m_formatCtx->streams[i];
+        if (st == nullptr || st->codecpar == nullptr) {
+            continue;
+        }
+        if (static_cast<int>(i) == m_videoStreamIndex) {
+            continue;
+        }
+        const AVMediaType type = st->codecpar->codec_type;
+        const AVCodecID cid = st->codecpar->codec_id;
+        if (type == AVMEDIA_TYPE_DATA || type == AVMEDIA_TYPE_SUBTITLE || cid == AV_CODEC_ID_SMPTE_KLV
+            || cid == AV_CODEC_ID_BIN_DATA || cid == AV_CODEC_ID_TIMED_ID3) {
+            m_metadataStreamIndices.push_back(static_cast<int>(i));
+        }
+    }
 
     AVCodecContext* codecCtxRaw = avcodec_alloc_context3(codec);
     if (codecCtxRaw == nullptr) {
@@ -388,6 +406,7 @@ bool FFmpegDecoder::decodeNextFrame()
                         return false;
                     }
                 } else {
+                    dispatchMetadataPacket(m_packet.get());
                     av_packet_unref(m_packet.get());
                 }
             } else if (readRet == AVERROR_EOF) {
@@ -445,6 +464,39 @@ bool FFmpegDecoder::seek(double timeInSeconds)
         return true;
     }
     return false;
+}
+
+void FFmpegDecoder::dispatchMetadataPacket(const AVPacket* pkt)
+{
+    if (pkt == nullptr || pkt->data == nullptr || pkt->size <= 0) {
+        return;
+    }
+
+    bool isMetadata { false };
+    for (const int idx : m_metadataStreamIndices) {
+        if (pkt->stream_index == idx) {
+            isMetadata = true;
+            break;
+        }
+    }
+
+    if (!isMetadata && pkt->stream_index >= 0 && m_formatCtx != nullptr
+        && static_cast<unsigned int>(pkt->stream_index) < m_formatCtx->nb_streams) {
+        const AVStream* st = m_formatCtx->streams[pkt->stream_index];
+        if (st != nullptr && st->codecpar != nullptr && st->codecpar->codec_type != AVMEDIA_TYPE_AUDIO) {
+            // Check for KLV Universal Label prefix (06 0E 2B 34) or MPEG-TS sync byte (0x47)
+            if (pkt->size >= 4
+                && (pkt->data[0] == 0x47
+                    || (pkt->data[0] == 0x06 && pkt->data[1] == 0x0E && pkt->data[2] == 0x2B
+                        && pkt->data[3] == 0x34))) {
+                isMetadata = true;
+            }
+        }
+    }
+
+    if (isMetadata) {
+        dispatchMetadata(pkt->data, static_cast<std::size_t>(pkt->size));
+    }
 }
 
 } // namespace Video

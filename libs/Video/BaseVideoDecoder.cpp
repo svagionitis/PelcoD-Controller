@@ -249,6 +249,27 @@ std::string BaseVideoDecoder::buildAuthenticatedUri(std::string_view uri) const
     return authUri;
 }
 
+void BaseVideoDecoder::setMetadataCallback(MetadataCallback callback)
+{
+    std::lock_guard<std::mutex> lock(m_metadataMutex);
+    m_metadataCallback = std::move(callback);
+}
+
+void BaseVideoDecoder::dispatchMetadata(const std::uint8_t* data, std::size_t size)
+{
+    if (data == nullptr || size == 0U) {
+        return;
+    }
+    MetadataCallback cb;
+    {
+        std::lock_guard<std::mutex> lock(m_metadataMutex);
+        cb = m_metadataCallback;
+    }
+    if (cb) {
+        cb(data, size);
+    }
+}
+
 void BaseVideoDecoder::interrupt() noexcept
 {
     // Default no-op for decoders without asynchronous interruption facilities

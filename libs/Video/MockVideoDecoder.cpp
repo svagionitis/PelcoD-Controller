@@ -200,4 +200,9 @@ void MockVideoDecoder::renderTestPattern(std::uint8_t* buffer)
     }
 }
 
+void MockVideoDecoder::injectMetadata(const std::uint8_t* data, std::size_t size)
+{
+    dispatchMetadata(data, size);
+}
+
 } // namespace Video

@@ -39,6 +39,11 @@ public:
     /// @return True if connection is simulated as lost.
     [[nodiscard]] bool isSimulatedConnectionLoss() const noexcept;
 
+    /// @brief Injects raw metadata bytes for testing metadata callbacks.
+    /// @param[in] data Pointer to metadata payload buffer.
+    /// @param[in] size Size of metadata buffer in bytes.
+    void injectMetadata(const std::uint8_t* data, std::size_t size);
+
 private:
     void renderTestPattern(std::uint8_t* buffer);
 

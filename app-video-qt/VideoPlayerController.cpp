@@ -28,6 +28,9 @@ namespace VideoApp {
 VideoPlayerController::VideoPlayerController(QObject* parent)
     : QObject(parent)
 {
+    m_liveKlvScanner.setMessageCallback([this](const Klv::UasDatalinkMessage& msg) { handleLiveKlvMessage(msg); });
+    m_liveTsExtractor.setMessageCallback([this](const Klv::UasDatalinkMessage& msg) { handleLiveKlvMessage(msg); });
+
     refreshDevices();
 }
 
@@ -889,6 +892,8 @@ void VideoPlayerController::startPlayback()
 
     loadKlvTrack(effectiveSource);
 
+    dec->setMetadataCallback([this](const std::uint8_t* data, std::size_t size) { handleLiveMetadata(data, size); });
+
     configureFilterPipeline(dec.get());
 
     if (!dec->initialize(effectiveSource.toStdString(), Video::PixelFormat::RGB24, 0, device)) {
@@ -940,6 +945,9 @@ void VideoPlayerController::stopPlayback()
         QMutexLocker locker(&m_decoderMutex);
         m_decoder.reset();
     }
+
+    m_liveKlvScanner.reset();
+    m_liveTsExtractor.reset();
 
     m_fps = 0.0;
     m_avgDecodeTimeMs = 0.0;
@@ -1110,7 +1118,14 @@ void VideoPlayerController::workerLoop()
             decodeAccumMs += decodeMs;
 
             m_positionSeconds = frameInfo.timestamp;
-            updateKlvTelemetry(m_positionSeconds);
+            if (m_isSeekable && !m_klvTimeline.empty()) {
+                updateKlvTelemetry(m_positionSeconds);
+            }
+#if defined(PELCOD_HAS_FILTERS)
+            if (!m_isSeekable && m_tacticalHudFilter && m_lastKlvMsg.has_value()) {
+                m_tacticalHudFilter->updateTelemetry(*m_lastKlvMsg);
+            }
+#endif
 
             if (forceFrame) {
                 emit positionSecondsChanged();
@@ -1473,6 +1488,34 @@ void VideoPlayerController::applyKlvTelemetry(const Klv::UasDatalinkMessage& msg
         m_tacticalHudFilter->updateTelemetry(msg);
     }
 #endif
+}
+
+void VideoPlayerController::handleLiveMetadata(const std::uint8_t* data, std::size_t size)
+{
+    if (data == nullptr || size == 0U) {
+        return;
+    }
+
+    if (data[0] == Klv::MpegTsKlvExtractor::kTsSyncByte || (size % Klv::MpegTsKlvExtractor::kTsPacketSize == 0U)) {
+        static_cast<void>(m_liveTsExtractor.processStream(data, size));
+    } else {
+        static_cast<void>(m_liveKlvScanner.processBytes(data, size));
+    }
+}
+
+void VideoPlayerController::handleLiveKlvMessage(const Klv::UasDatalinkMessage& msg)
+{
+    applyKlvTelemetry(msg);
+    if (!m_isSeekable) {
+        TimedKlv item {};
+        item.timeSeconds = m_positionSeconds;
+        item.message = msg;
+        if (m_klvTimeline.size() >= 1000U) {
+            m_klvTimeline.erase(m_klvTimeline.begin(), m_klvTimeline.begin() + 100);
+        }
+        m_klvTimeline.push_back(std::move(item));
+        m_lastKlvIndex = m_klvTimeline.size() - 1U;
+    }
 }
 
 } // namespace VideoApp

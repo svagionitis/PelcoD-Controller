@@ -115,6 +115,15 @@ public:
     /// @brief Clears configured RTSP credentials.
     void clearCredentials() override;
 
+    /// @brief Registers a callback to receive non-video metadata/telemetry packets.
+    /// @param[in] callback Function invoked when metadata packets (e.g. KLV) are demuxed.
+    void setMetadataCallback(MetadataCallback callback) override;
+
+    /// @brief Dispatches raw metadata bytes to the registered callback, if any.
+    /// @param[in] data Pointer to raw metadata payload buffer.
+    /// @param[in] size Size of metadata buffer in bytes.
+    void dispatchMetadata(const std::uint8_t* data, std::size_t size);
+
     /// @brief Aborts active blocking network operations or decoding loops.
     /// @details Default implementation is a no-op; overridden by concrete decoders with interrupt callbacks.
     void interrupt() noexcept override;
@@ -212,6 +221,8 @@ protected:
 private:
     mutable std::mutex m_processorMutex;
     std::vector<std::shared_ptr<IFrameProcessor>> m_processors;
+    mutable std::mutex m_metadataMutex {};
+    MetadataCallback m_metadataCallback {};
 };
 
 } // namespace Video

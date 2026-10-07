@@ -12,6 +12,7 @@ target_include_directories(TestVideoDecoder PRIVATE
 target_link_libraries(TestVideoDecoder PRIVATE
     PelcoDQt
     Video
+    Klv
     Qt6::Core
     Qt6::Gui
     Qt6::Test

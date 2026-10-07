@@ -7,7 +7,9 @@
 #include "DecoderTypes.h"
 #include "DeviceEnumerator.h"
 #include "IVideoDecoder.h"
+#include "KlvStreamScanner.h"
 #include "KlvTypes.h"
+#include "MpegTsKlvExtractor.h"
 #include "StanagScrubController.h"
 #include "StanagStreamIndexer.h"
 #include "StreamHealthMonitor.h"
@@ -517,6 +519,11 @@ private:
     std::optional<Klv::UasDatalinkMessage> m_lastKlvMsg {};
     Klv::StanagScrubController m_stanagScrubController {};
     Klv::StanagStreamIndexer m_stanagStreamIndexer {};
+    Klv::KlvStreamScanner m_liveKlvScanner {};
+    Klv::MpegTsKlvExtractor m_liveTsExtractor {};
+
+    void handleLiveMetadata(const std::uint8_t* data, std::size_t size);
+    void handleLiveKlvMessage(const Klv::UasDatalinkMessage& msg);
 #if defined(PELCOD_HAS_FILTERS)
     std::shared_ptr<Video::Filters::TacticalHudFilter> m_tacticalHudFilter { nullptr };
 #endif

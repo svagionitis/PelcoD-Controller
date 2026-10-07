@@ -114,6 +114,7 @@ public:
 private:
     static void initGStreamer();
     std::string getBusErrorMessage();
+    void setupKlvProbe(GstPad* pad);
 
     GstElementPtr m_pipeline;
     GstElement* m_sink { nullptr };

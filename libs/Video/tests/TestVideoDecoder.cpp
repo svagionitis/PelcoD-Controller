@@ -6,6 +6,7 @@
 #include "DecoderFactory.h"
 #include "DecoderTypes.h"
 #include "DeviceEnumerator.h"
+#include "KlvStreamScanner.h"
 #include "MockVideoDecoder.h"
 #include "QVideoStreamWorker.h"
 #if defined(PELCOD_HAS_FILTERS)
@@ -2067,6 +2068,155 @@ TEST(VideoDecoderTest, FFmpegDecoderInterruptAndTeardownTimeout)
     // Verify close on uninitialized decoder executes cleanly with timeout protection
     decoder->close();
     EXPECT_FALSE(decoder->isInitialized());
+}
+
+TEST(VideoDecoderTest, MockDecoderMetadataCallbackAndInjection)
+{
+    auto mock = std::make_unique<MockVideoDecoder>();
+    ASSERT_TRUE(mock != nullptr);
+
+    std::vector<std::uint8_t> capturedData {};
+    std::size_t invocationCount { 0U };
+
+    mock->setMetadataCallback([&](const std::uint8_t* data, std::size_t size) {
+        ++invocationCount;
+        capturedData.assign(data, data + size);
+    });
+
+    const std::vector<std::uint8_t> payload = { 0x06, 0x0E, 0x2B, 0x34, 0x02, 0x0B, 0x01, 0x01, 0xAA, 0xBB };
+    mock->injectMetadata(payload.data(), payload.size());
+
+    EXPECT_EQ(invocationCount, 1U);
+    EXPECT_EQ(capturedData, payload);
+}
+
+TEST(VideoDecoderTest, FFmpegDecoderDemuxesKlvMetadataStream)
+{
+    auto decoder = DecoderFactory::create(BackendType::FFmpeg);
+    ASSERT_TRUE(decoder != nullptr);
+
+    const std::vector<std::string> prefixes = { "sample-videos/", "../sample-videos/", "../../sample-videos/",
+        "../../../sample-videos/", "../../../../sample-videos/" };
+    std::string samplePath;
+    for (const auto& prefix : prefixes) {
+        const std::string candidate = prefix + "mpegts-klv-day-flight.ts";
+        FILE* fp = std::fopen(candidate.c_str(), "rb");
+        if (fp != nullptr) {
+            std::fclose(fp);
+            samplePath = candidate;
+            break;
+        }
+    }
+    ASSERT_FALSE(samplePath.empty()) << "sample-videos/mpegts-klv-day-flight.ts must exist";
+
+    std::size_t metadataPacketsReceived { 0U };
+    std::size_t totalMetadataBytes { 0U };
+
+    decoder->setMetadataCallback([&](const std::uint8_t* data, std::size_t size) {
+        if (data != nullptr && size > 0U) {
+            ++metadataPacketsReceived;
+            totalMetadataBytes += size;
+        }
+    });
+
+    ASSERT_TRUE(decoder->initialize(samplePath));
+    EXPECT_TRUE(decoder->isInitialized());
+
+    for (int i = 0; i < 40; ++i) {
+        if (!decoder->decodeNextFrame()) {
+            break;
+        }
+    }
+
+    EXPECT_GT(metadataPacketsReceived, 0U);
+    EXPECT_GT(totalMetadataBytes, 0U);
+}
+
+TEST(VideoDecoderTest, FFmpegDecoderKlvTelemetryDecoding)
+{
+    auto decoder = DecoderFactory::create(BackendType::FFmpeg);
+    ASSERT_TRUE(decoder != nullptr);
+
+    const std::vector<std::string> prefixes = { "sample-videos/", "../sample-videos/", "../../sample-videos/",
+        "../../../sample-videos/", "../../../../sample-videos/" };
+    std::string samplePath;
+    for (const auto& prefix : prefixes) {
+        const std::string candidate = prefix + "mpegts-klv-day-flight.ts";
+        FILE* fp = std::fopen(candidate.c_str(), "rb");
+        if (fp != nullptr) {
+            std::fclose(fp);
+            samplePath = candidate;
+            break;
+        }
+    }
+    ASSERT_FALSE(samplePath.empty()) << "sample-videos/mpegts-klv-day-flight.ts must exist";
+
+    Klv::KlvStreamScanner scanner {};
+    std::size_t uasMessagesParsed { 0U };
+    scanner.setMessageCallback([&](const Klv::UasDatalinkMessage& msg) {
+        if (msg.platformHeadingDeg.has_value() || msg.sensorLatitudeDeg.has_value()) {
+            ++uasMessagesParsed;
+        }
+    });
+
+    decoder->setMetadataCallback([&](const std::uint8_t* data, std::size_t size) {
+        if (data != nullptr && size > 0U) {
+            scanner.processBytes(data, size);
+        }
+    });
+
+    ASSERT_TRUE(decoder->initialize(samplePath));
+    EXPECT_TRUE(decoder->isInitialized());
+
+    for (int i = 0; i < 40; ++i) {
+        if (!decoder->decodeNextFrame()) {
+            break;
+        }
+    }
+
+    decoder->close();
+
+    EXPECT_GT(uasMessagesParsed, 0U);
+}
+#endif
+
+#if defined(PELCOD_HAS_GSTREAMER)
+TEST(VideoDecoderTest, GStreamerDecoderDemuxesKlvMetadataStream)
+{
+    auto decoder = DecoderFactory::create(BackendType::GStreamer);
+    ASSERT_TRUE(decoder != nullptr);
+
+    const std::vector<std::string> prefixes = { "sample-videos/", "../sample-videos/", "../../sample-videos/",
+        "../../../sample-videos/", "../../../../sample-videos/" };
+    std::string samplePath;
+    for (const auto& prefix : prefixes) {
+        const std::string candidate = prefix + "mpegts-klv-day-flight.ts";
+        FILE* fp = std::fopen(candidate.c_str(), "rb");
+        if (fp != nullptr) {
+            std::fclose(fp);
+            samplePath = candidate;
+            break;
+        }
+    }
+    if (samplePath.empty()) {
+        GTEST_SKIP() << "sample video missing";
+    }
+
+    std::size_t metadataPacketsReceived { 0U };
+    decoder->setMetadataCallback([&](const std::uint8_t* data, std::size_t size) {
+        if (data != nullptr && size > 0U) {
+            ++metadataPacketsReceived;
+        }
+    });
+
+    if (decoder->initialize(samplePath)) {
+        for (int i = 0; i < 30; ++i) {
+            if (!decoder->decodeNextFrame()) {
+                break;
+            }
+        }
+        decoder->close();
+    }
 }
 #endif
 

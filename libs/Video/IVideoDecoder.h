@@ -5,6 +5,7 @@
 
 #include "DecoderTypes.h"
 
+#include <functional>
 #include <memory>
 #include <string_view>
 #include <vector>
@@ -108,6 +109,13 @@ public:
 
     /// @brief Clears configured RTSP credentials.
     virtual void clearCredentials() = 0;
+
+    /// @brief Callback type for stream metadata/KLV packet delivery.
+    using MetadataCallback = std::function<void(const std::uint8_t* data, std::size_t size)>;
+
+    /// @brief Registers a callback to receive non-video metadata/telemetry packets.
+    /// @param[in] callback Function invoked when metadata packets (e.g. KLV) are demuxed.
+    virtual void setMetadataCallback(MetadataCallback callback) = 0;
 
     /// @brief Closes the video stream and releases decoder resources.
     virtual void close() = 0;

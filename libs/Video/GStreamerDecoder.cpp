@@ -110,6 +110,21 @@ bool GStreamerDecoder::initialize(std::string_view source, PixelFormat format, i
     }
     m_pipeline.reset(playbinRaw);
 
+    g_signal_connect(playbinRaw, "deep-element-added",
+        G_CALLBACK(+[](GstBin*, GstBin*, GstElement* element, gpointer data) {
+            auto* self = static_cast<GStreamerDecoder*>(data);
+            if (element != nullptr && self != nullptr) {
+                g_signal_connect(element, "pad-added", G_CALLBACK(+[](GstElement*, GstPad* pad, gpointer cbData) {
+                    auto* decoder = static_cast<GStreamerDecoder*>(cbData);
+                    if (pad != nullptr && decoder != nullptr) {
+                        decoder->setupKlvProbe(pad);
+                    }
+                }),
+                    self);
+            }
+        }),
+        this);
+
     if (srcType == SourceType::Rtsp) {
         g_signal_connect(playbinRaw, "source-setup", G_CALLBACK(+[](GstElement*, GstElement* srcElem, gpointer data) {
             auto* self = static_cast<GStreamerDecoder*>(data);
@@ -353,6 +368,59 @@ bool GStreamerDecoder::seek(double timeInSeconds)
     return (gst_element_seek_simple(m_pipeline.get(), GST_FORMAT_TIME,
                 static_cast<GstSeekFlags>(GST_SEEK_FLAG_FLUSH | GST_SEEK_FLAG_KEY_UNIT), targetNs)
         != 0);
+}
+
+void GStreamerDecoder::setupKlvProbe(GstPad* pad)
+{
+    if (pad == nullptr || gst_pad_get_direction(pad) != GST_PAD_SRC) {
+        return;
+    }
+
+    bool isKlvOrMeta { false };
+    GstCaps* caps = gst_pad_get_current_caps(pad);
+    if (caps == nullptr) {
+        caps = gst_pad_query_caps(pad, nullptr);
+    }
+    if (caps != nullptr) {
+        gchar* capsStr = gst_caps_to_string(caps);
+        if (capsStr != nullptr) {
+            const std::string_view str(capsStr);
+            if (str.find("meta/x-klv") != std::string_view::npos || str.find("smpte336m") != std::string_view::npos
+                || (str.find("application/") != std::string_view::npos
+                    && str.find("video") == std::string_view::npos)) {
+                isKlvOrMeta = true;
+            }
+            g_free(capsStr);
+        }
+        gst_caps_unref(caps);
+    }
+
+    gchar* padName = gst_pad_get_name(pad);
+    if (padName != nullptr) {
+        const std::string_view name(padName);
+        if (name.rfind("private_", 0) == 0 || name.find("meta") != std::string_view::npos
+            || name.find("klv") != std::string_view::npos) {
+            isKlvOrMeta = true;
+        }
+        g_free(padName);
+    }
+
+    if (isKlvOrMeta) {
+        gst_pad_add_probe(
+            pad, GST_PAD_PROBE_TYPE_BUFFER,
+            [](GstPad*, GstPadProbeInfo* info, gpointer data) -> GstPadProbeReturn {
+                auto* self = static_cast<GStreamerDecoder*>(data);
+                GstBuffer* buffer = GST_PAD_PROBE_INFO_BUFFER(info);
+                if (buffer != nullptr && self != nullptr) {
+                    GstMapInfoWrapper map(buffer, GST_MAP_READ);
+                    if (map.isMapped() && map.size() > 0) {
+                        self->dispatchMetadata(map.data(), map.size());
+                    }
+                }
+                return GST_PAD_PROBE_DROP;
+            },
+            this, nullptr);
+    }
 }
 
 } // namespace Video
