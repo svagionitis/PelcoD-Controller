@@ -2,8 +2,8 @@
 #include <pugixml.hpp>
 
 #include <algorithm>
-#include <cctype>
 #include <chrono>
+#include <string_view>
 
 namespace Onvif {
 
@@ -19,20 +19,29 @@ namespace {
         return str.substr(start, end - start + 1);
     }
 
-    bool containsUuid(const std::string& text, const std::string& uuid)
+    /// @brief Folds an ASCII upper-case letter to lower-case.
+    /// @details Locale-independent; bytes outside 'A'..'Z' (including non-ASCII) are returned unchanged.
+    /// @param ch Input character.
+    /// @return Lower-case equivalent of @p ch for 'A'..'Z', otherwise @p ch.
+    [[nodiscard]] constexpr char toLowerAscii(char ch) noexcept
     {
-        if (uuid.empty() || text.empty()) {
+        return ((ch >= 'A') && (ch <= 'Z')) ? static_cast<char>((ch - 'A') + 'a') : ch;
+    }
+
+    /// @brief Case-insensitive (ASCII) substring test without heap allocation.
+    /// @details Used for WS-Discovery self-message suppression; safe to call from noexcept functions.
+    /// @param text Haystack (MessageID / Address / RelatesTo text).
+    /// @param uuid Needle (local service UUID).
+    /// @return true if @p uuid occurs in @p text ignoring ASCII case, false otherwise or if either is empty.
+    [[nodiscard]] bool containsUuid(std::string_view text, std::string_view uuid) noexcept
+    {
+        if (uuid.empty() || (text.size() < uuid.size())) {
             return false;
         }
 
-        std::string textLower = text;
-        std::string uuidLower = uuid;
-        std::transform(textLower.begin(), textLower.end(), textLower.begin(),
-            [](unsigned char ch) { return static_cast<char>(std::tolower(ch)); });
-        std::transform(uuidLower.begin(), uuidLower.end(), uuidLower.begin(),
-            [](unsigned char ch) { return static_cast<char>(std::tolower(ch)); });
-
-        return textLower.find(uuidLower) != std::string::npos;
+        const auto it { std::search(text.cbegin(), text.cend(), uuid.cbegin(), uuid.cend(),
+            [](char lhs, char rhs) noexcept { return toLowerAscii(lhs) == toLowerAscii(rhs); }) };
+        return it != text.cend();
     }
 
 } // namespace

@@ -10,6 +10,7 @@
 #include <gtest/gtest.h>
 #include <pugixml.hpp>
 
+#include <array>
 #include <chrono>
 #include <string>
 #include <thread>
@@ -142,6 +143,50 @@ TEST(TestOnvifDiscoverySecurity, RejectsSelfGeneratedUuid)
     const auto res = WsDiscoveryValidator::validateProbe(doc, 54321, myUuid);
     EXPECT_TRUE(res.isSelfMessage);
     EXPECT_FALSE(res.isValidProbe);
+}
+
+TEST(TestOnvifDiscoverySecurity, RejectsSelfUuidUpperWire)
+{
+    const std::string localUuid { "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee" };
+    const std::string xmlStr { makeSoapProbe(
+        WsDiscoveryValidator::kProbeActionUri, standardProbeBody(), "urn:uuid:AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE") };
+
+    pugi::xml_document doc {};
+    ASSERT_TRUE(doc.load_string(xmlStr.c_str()));
+
+    const auto res { WsDiscoveryValidator::validateProbe(doc, 54321U, localUuid) };
+    EXPECT_TRUE(res.isSelfMessage);
+    EXPECT_FALSE(res.isValidProbe);
+}
+
+TEST(TestOnvifDiscoverySecurity, RejectsSelfUuidMixedLocal)
+{
+    const std::string localUuid { "AaAaAaAa-BbBb-CcCc-DdDd-EeEeEeEeEeEe" };
+    const std::string xmlStr { makeSoapProbe(
+        WsDiscoveryValidator::kProbeActionUri, standardProbeBody(), "urn:uuid:aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee") };
+
+    pugi::xml_document doc {};
+    ASSERT_TRUE(doc.load_string(xmlStr.c_str()));
+
+    const auto res { WsDiscoveryValidator::validateProbe(doc, 54321U, localUuid) };
+    EXPECT_TRUE(res.isSelfMessage);
+    EXPECT_FALSE(res.isValidProbe);
+}
+
+TEST(TestOnvifDiscoverySecurity, AcceptsNonAsciiUuidBytes)
+{
+    // UTF-8 "\xC3\x84" (A-umlaut) must not fold to 'a' and must not match the local UUID
+    const std::string localUuid { "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee" };
+    const std::string xmlStr { makeSoapProbe(WsDiscoveryValidator::kProbeActionUri, standardProbeBody(),
+        "urn:uuid:\xC3\x84"
+        "aaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee") };
+
+    pugi::xml_document doc {};
+    ASSERT_TRUE(doc.load_string(xmlStr.c_str()));
+
+    const auto res { WsDiscoveryValidator::validateProbe(doc, 54321U, localUuid) };
+    EXPECT_FALSE(res.isSelfMessage);
+    EXPECT_TRUE(res.isValidProbe);
 }
 
 TEST(TestOnvifDiscoverySecurity, RejectsReflectionPort3702)
