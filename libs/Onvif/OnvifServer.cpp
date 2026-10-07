@@ -452,21 +452,25 @@ bool OnvifServer::start()
         logSystemMessage("ERROR", "Refusing to start: authentication disabled on non-loopback address " + host);
         return false;
     }
-    if (m_config.auth.enabled && !loopback && !m_config.auth.allowDefaultPassword && m_credStore->hasDefaultPassword()) {
+    if (m_config.auth.enabled && !loopback && !m_config.auth.allowDefaultPassword
+        && m_credStore->hasDefaultPassword()) {
         logSystemMessage("ERROR", "Refusing to start: factory-default ONVIF password configured on " + host);
         return false;
     }
 
     // Exclusive bind so a second instance cannot silently share the port (Windows SO_REUSEADDR and
     // POSIX SO_REUSEPORT would both allow it with httplib's default socket options).
-    m_httpServer.set_socket_options([](auto sock) {
+    m_httpServer.set_socket_options([](socket_t sock) {
+        const int opt { 1 };
 #ifdef _WIN32
-        static_cast<void>(httplib::set_socket_opt(sock, SOL_SOCKET, SO_EXCLUSIVEADDRUSE, 1));
+        static_cast<void>(::setsockopt(
+            sock, SOL_SOCKET, SO_EXCLUSIVEADDRUSE, reinterpret_cast<const char*>(&opt), static_cast<int>(sizeof(opt))));
 #else
-        static_cast<void>(httplib::set_socket_opt(sock, SOL_SOCKET, SO_REUSEADDR, 1));
+        static_cast<void>(::setsockopt(
+            sock, SOL_SOCKET, SO_REUSEADDR, static_cast<const void*>(&opt), static_cast<socklen_t>(sizeof(opt))));
 #endif
     });
-    if (!m_httpServer.bind_to_port(host, m_config.port)) {
+    if (!m_httpServer.bind_to_port(host.c_str(), m_config.port)) {
         logSystemMessage("ERROR", "Failed to bind ONVIF HTTP server to " + host + ":" + std::to_string(m_config.port));
         return false;
     }
@@ -477,7 +481,14 @@ bool OnvifServer::start()
 
     m_running = true;
     m_httpThread = std::thread([this]() { static_cast<void>(m_httpServer.listen_after_bind()); });
-    m_httpServer.wait_until_ready();
+    constexpr auto maxWait { std::chrono::milliseconds(1000) };
+    const auto startWait { std::chrono::steady_clock::now() };
+    while (!m_httpServer.is_running() && m_running) {
+        if ((std::chrono::steady_clock::now() - startWait) > maxWait) {
+            break;
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(5));
+    }
     return true;
 }
 

@@ -152,8 +152,7 @@ public:
 
     /// @brief Sets the TCP connection timeout.
     /// @param[in] timeout Timeout duration.
-    template <class Rep, class Period>
-    void set_connection_timeout(const std::chrono::duration<Rep, Period>& timeout)
+    template <class Rep, class Period> void set_connection_timeout(const std::chrono::duration<Rep, Period>& timeout)
     {
         m_client.set_connection_timeout(timeout);
     }
@@ -168,8 +167,7 @@ public:
 
     /// @brief Sets the socket read timeout.
     /// @param[in] timeout Timeout duration.
-    template <class Rep, class Period>
-    void set_read_timeout(const std::chrono::duration<Rep, Period>& timeout)
+    template <class Rep, class Period> void set_read_timeout(const std::chrono::duration<Rep, Period>& timeout)
     {
         m_client.set_read_timeout(timeout);
     }
@@ -190,7 +188,7 @@ public:
     httplib::Result Post(const std::string& path, const std::string& body, const std::string& contentType)
     {
         const std::string secured = injectSecurity(body, Onvif::OnvifSecurity::buildSoapSecurityHeader(m_creds));
-        return m_client.Post(path, secured, contentType);
+        return m_client.Post(path.c_str(), secured, contentType.c_str());
     }
 
     /// @brief Performs an HTTP GET, answering a 401 Digest challenge with SHA-256 credentials.
@@ -198,7 +196,7 @@ public:
     /// @return httplib result of the final request.
     httplib::Result Get(const std::string& path)
     {
-        httplib::Result first = m_client.Get(path);
+        httplib::Result first = m_client.Get(path.c_str());
         if (!first || (first->status != 401) || m_creds.username.empty()) {
             return first;
         }
@@ -214,7 +212,7 @@ public:
             + nonce + "\", uri=\"" + path + "\", algorithm=SHA-256, qop=auth, nc=" + nc + ", cnonce=\"" + cnonce
             + "\", response=\"" + response + "\"" };
         const httplib::Headers headers { { "Authorization", auth } };
-        return m_client.Get(path, headers);
+        return m_client.Get(path.c_str(), headers);
     }
 
     /// @brief Provides access to the underlying httplib client for raw requests.
