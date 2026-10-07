@@ -384,7 +384,11 @@ FORWARD_CORE_0(queryAll)
 void QPelcoDDevice::sendRawHex(const QByteArray& hexData)
 {
     if (m_device) {
-        std::vector<std::uint8_t> frame(hexData.begin(), hexData.end());
+        std::vector<std::uint8_t> frame {};
+        frame.reserve(static_cast<std::size_t>(hexData.size()));
+        for (const char ch : hexData) {
+            frame.push_back(static_cast<std::uint8_t>(ch));
+        }
         m_device->sendRawFrame(frame);
     }
 }
