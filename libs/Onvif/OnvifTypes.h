@@ -138,6 +138,7 @@ struct OnvifEvent {
     std::string dataName {}; ///< Data item name, e.g. "IsMotion" or "State"
     std::string dataValue {}; ///< Data item value, e.g. "true" or "false"
     std::string utcTime {}; ///< Notification timestamp from camera
+    std::string propertyOperation { "Changed" }; ///< Operation type: "Initialized", "Deleted", or "Changed"
 };
 
 /// @enum PresetTourOperation

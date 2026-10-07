@@ -8,6 +8,7 @@
 #include "SoapFault.h"
 #include "SubscriptionManager.h"
 #include "UsernameToken.h"
+#include "WsDiscoveryCommon.h"
 #include "XmlUtils.h"
 
 #include <pugixml.hpp>
@@ -41,13 +42,81 @@ namespace {
             << "xmlns:tse=\"http://www.onvif.org/ver10/search/wsdl\" "
             << "xmlns:trp=\"http://www.onvif.org/ver10/replay/wsdl\" "
             << "xmlns:wsnt=\"http://docs.oasis-open.org/wsn/b-2\" "
-            << "xmlns:wsa=\"http://schemas.xmlsoap.org/ws/2004/08/addressing\" "
+            << "xmlns:wsa=\"http://www.w3.org/2005/08/addressing\" "
+            << "xmlns:tns1=\"http://www.onvif.org/ver10/topics\" "
             << "xmlns:ter=\"http://www.onvif.org/ver10/error\" "
             << "xmlns:tt=\"http://www.onvif.org/ver10/schema\">\r\n"
             << "  <SOAP-ENV:Body>\r\n"
             << bodyXml << "  </SOAP-ENV:Body>\r\n"
             << "</SOAP-ENV:Envelope>\r\n";
         return oss.str();
+    }
+
+    /// @brief Builds a compliant WS-BaseNotification NotificationMessage element for an ONVIF event.
+    /// @details Ensures that wsnt:Topic declares xmlns:tns1="http://www.onvif.org/ver10/topics",
+    ///          and wsnt:Message encapsulates tt:Message with UtcTime and PropertyOperation attributes.
+    /// @param[in] ev Event metadata to serialize.
+    /// @return Serialized XML string for wsnt:NotificationMessage.
+    [[nodiscard]] std::string buildNotificationMsg(const OnvifEvent& ev)
+    {
+        std::ostringstream ss {};
+        const std::string op { ev.propertyOperation.empty() ? "Changed" : ev.propertyOperation };
+        ss << "      <wsnt:NotificationMessage>\r\n"
+           << "        <wsnt:Topic Dialect=\"http://www.onvif.org/ver10/tev/topicExpression/ConcreteSet\" "
+           << "xmlns:tns1=\"http://www.onvif.org/ver10/topics\">" << Xml::escapeXmlText(ev.topic) << "</wsnt:Topic>\r\n"
+           << "        <wsnt:Message>\r\n"
+           << "          <tt:Message UtcTime=\"" << Xml::escapeXmlAttr(ev.utcTime) << "\" "
+           << "PropertyOperation=\"" << Xml::escapeXmlAttr(op) << "\">\r\n";
+
+        if (!ev.sourceName.empty()) {
+            ss << "            <tt:Source>\r\n"
+               << "              <tt:SimpleItem Name=\"" << Xml::escapeXmlAttr(ev.sourceName) << "\" Value=\""
+               << Xml::escapeXmlAttr(ev.sourceValue) << "\"/>\r\n"
+               << "            </tt:Source>\r\n";
+        }
+
+        if (!ev.dataName.empty()) {
+            ss << "            <tt:Data>\r\n"
+               << "              <tt:SimpleItem Name=\"" << Xml::escapeXmlAttr(ev.dataName) << "\" Value=\""
+               << Xml::escapeXmlAttr(ev.dataValue) << "\"/>\r\n"
+               << "            </tt:Data>\r\n";
+        }
+
+        ss << "          </tt:Message>\r\n"
+           << "        </wsnt:Message>\r\n"
+           << "      </wsnt:NotificationMessage>\r\n";
+        return ss.str();
+    }
+
+    /// @brief Builds a complete SOAP 1.2 wsnt:Notify POST envelope for push notification delivery.
+    /// @details Constructs envelope with WS-Addressing 1.0 Action, MessageID, and To headers.
+    /// @param[in] ev Event metadata to serialize.
+    /// @param[in] toUrl Target consumer URL.
+    /// @return Serialized SOAP 1.2 envelope containing wsnt:Notify.
+    [[nodiscard]] std::string buildNotifyEnvelope(const OnvifEvent& ev, const std::string& toUrl)
+    {
+        const std::string msgUuid { generateRandomUuid() };
+        const std::string notifXml { buildNotificationMsg(ev) };
+
+        std::ostringstream ss {};
+        ss << "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+           << "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
+           << "xmlns:wsa=\"http://www.w3.org/2005/08/addressing\" "
+           << "xmlns:wsnt=\"http://docs.oasis-open.org/wsn/b-2\" "
+           << "xmlns:tev=\"http://www.onvif.org/ver10/events/wsdl\" "
+           << "xmlns:tt=\"http://www.onvif.org/ver10/schema\" "
+           << "xmlns:tns1=\"http://www.onvif.org/ver10/topics\">\r\n"
+           << "  <SOAP-ENV:Header>\r\n"
+           << "    <wsa:Action>http://docs.oasis-open.org/wsn/bw-2/NotificationConsumer/Notify</wsa:Action>\r\n"
+           << "    <wsa:MessageID>urn:uuid:" << Xml::escapeXmlText(msgUuid) << "</wsa:MessageID>\r\n"
+           << "    <wsa:To>" << Xml::escapeXmlText(toUrl) << "</wsa:To>\r\n"
+           << "  </SOAP-ENV:Header>\r\n"
+           << "  <SOAP-ENV:Body>\r\n"
+           << "    <wsnt:Notify>\r\n"
+           << notifXml << "    </wsnt:Notify>\r\n"
+           << "  </SOAP-ENV:Body>\r\n"
+           << "</SOAP-ENV:Envelope>\r\n";
+        return ss.str();
     }
 
     bool isOp(const std::string& opName, const std::string& target)
@@ -667,6 +736,9 @@ void OnvifServer::publishEvent(const OnvifEvent& event)
     if (ev.utcTime.empty()) {
         ev.utcTime = formatIso8601Utc(std::chrono::system_clock::now());
     }
+    if (ev.propertyOperation.empty()) {
+        ev.propertyOperation = "Changed";
+    }
 
     std::vector<std::string> pushUrls {};
     if (m_subManager) {
@@ -675,7 +747,8 @@ void OnvifServer::publishEvent(const OnvifEvent& event)
 
     if (m_dispatcher && !pushUrls.empty()) {
         for (auto& url : pushUrls) {
-            m_dispatcher->enqueue(std::move(url), "<NotificationMessage/>");
+            std::string payload { buildNotifyEnvelope(ev, url) };
+            m_dispatcher->enqueue(std::move(url), std::move(payload));
         }
     }
 }
@@ -3794,27 +3867,7 @@ void OnvifServer::handleSubscriptionService(const httplib::Request& req, httplib
              << "      <wsnt:TerminationTime>" << termTime << "</wsnt:TerminationTime>\r\n";
 
         for (const auto& ev : pulledEvents) {
-            body << "      <wsnt:NotificationMessage>\r\n"
-                 << "        <wsnt:Topic Dialect=\"http://www.onvif.org/ver10/tev/topicExpression/ConcreteSet\">"
-                 << Xml::escapeXmlText(ev.topic) << "</wsnt:Topic>\r\n"
-                 << "        <wsnt:Message UtcTime=\"" << Xml::escapeXmlAttr(ev.utcTime) << "\">\r\n";
-
-            if (!ev.sourceName.empty()) {
-                body << "          <tt:Source>\r\n"
-                     << "            <tt:SimpleItem Name=\"" << Xml::escapeXmlAttr(ev.sourceName) << "\" Value=\""
-                     << Xml::escapeXmlAttr(ev.sourceValue) << "\"/>\r\n"
-                     << "          </tt:Source>\r\n";
-            }
-
-            if (!ev.dataName.empty()) {
-                body << "          <tt:Data>\r\n"
-                     << "            <tt:SimpleItem Name=\"" << Xml::escapeXmlAttr(ev.dataName) << "\" Value=\""
-                     << Xml::escapeXmlAttr(ev.dataValue) << "\"/>\r\n"
-                     << "          </tt:Data>\r\n";
-            }
-
-            body << "        </wsnt:Message>\r\n"
-                 << "      </wsnt:NotificationMessage>\r\n";
+            body << buildNotificationMsg(ev);
         }
 
         body << "    </tev:PullMessagesResponse>\r\n";

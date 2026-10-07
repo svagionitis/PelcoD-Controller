@@ -1819,9 +1819,16 @@ std::vector<OnvifEvent> OnvifClient::parsePullMessagesResponse(const std::string
 
         const auto messageNode = findNodeWithSuffix(msgNode, "Message");
         if (messageNode) {
-            ev.utcTime = messageNode.attribute("UtcTime").as_string();
+            const auto ttMessage = findNodeWithSuffix(messageNode, "Message");
+            const auto& effectiveMsg = ttMessage ? ttMessage : messageNode;
 
-            const auto sourceNode = findNodeWithSuffix(messageNode, "Source");
+            ev.utcTime = effectiveMsg.attribute("UtcTime").as_string();
+            const auto propOpAttr = effectiveMsg.attribute("PropertyOperation");
+            if (propOpAttr) {
+                ev.propertyOperation = propOpAttr.as_string();
+            }
+
+            const auto sourceNode = findNodeWithSuffix(effectiveMsg, "Source");
             if (sourceNode) {
                 const auto simpleItem = findRecursiveNodeWithSuffix(sourceNode, "SimpleItem");
                 if (simpleItem) {
@@ -1830,7 +1837,7 @@ std::vector<OnvifEvent> OnvifClient::parsePullMessagesResponse(const std::string
                 }
             }
 
-            const auto dataNode = findNodeWithSuffix(messageNode, "Data");
+            const auto dataNode = findNodeWithSuffix(effectiveMsg, "Data");
             if (dataNode) {
                 const auto simpleItem = findRecursiveNodeWithSuffix(dataNode, "SimpleItem");
                 if (simpleItem) {

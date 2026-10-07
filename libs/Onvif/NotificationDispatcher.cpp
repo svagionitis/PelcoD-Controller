@@ -104,7 +104,9 @@ void NotificationDispatcher::workerLoop()
             cli.set_read_timeout(readSec > 0 ? readSec : 2, 0);
 
             const std::string& body { task.payload.empty() ? std::string { "<NotificationMessage/>" } : task.payload };
-            cli.Post(path.c_str(), body, "application/soap+xml; charset=utf-8");
+            cli.Post(path.c_str(), body,
+                "application/soap+xml; charset=utf-8; "
+                "action=\"http://docs.oasis-open.org/wsn/bw-2/NotificationConsumer/Notify\"");
         } catch (const std::exception&) {
             // Swallow connection / socket failure on consumer delivery to prevent crashes
         } catch (...) {
