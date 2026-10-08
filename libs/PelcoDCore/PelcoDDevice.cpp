@@ -16,12 +16,19 @@ PelcoDDevice::PelcoDDevice(std::shared_ptr<ITransport> transport, std::uint8_t a
     , m_address { address }
 {
     m_status.address = address;
+    m_safetyGuard = std::make_unique<MotionSafetyGuard>([this] {
+        LOG(WARNING) << "PelcoDDevice: dead-man watchdog expired, triggering stopMotion()";
+        stopMotion();
+    });
 }
 
 PelcoDDevice::~PelcoDDevice()
 {
     try {
         stop();
+        if (m_safetyGuard) {
+            m_safetyGuard->shutdown();
+        }
     } catch (const std::exception& ex) {
         LOG(ERROR) << "PelcoDDevice: exception during destruction: " << ex.what();
     } catch (...) {
@@ -94,6 +101,18 @@ void PelcoDDevice::stop()
         lifecycleLock.lock();
     }
 
+    // C5: Fail-safe stop. Transmit a synchronous best-effort Stop command directly across transport
+    // before closing the connection or terminating worker threads.
+    if (m_transport && m_transport->isOpen()) {
+        const auto stopFrame = ProtocolBuilder::buildStop(m_address.load());
+        (void)m_transport->sendData(stopFrame);
+    }
+
+    if (m_safetyGuard) {
+        m_safetyGuard->onDisconnect();
+    }
+    (void)m_queue.purgeMotionCommands();
+
     if (!m_running.load() && !m_workerThread.joinable()) {
         if (m_transport) {
             if (m_transport->isOpen()) {
@@ -134,6 +153,14 @@ void PelcoDDevice::onTransportState(TransportState state, const std::string& msg
 {
     if (state == TransportState::Disconnected || state == TransportState::Error) {
         LOG(WARNING) << "Transport disconnected or error: " << msg;
+        if (m_safetyGuard) {
+            m_safetyGuard->onDisconnect();
+        }
+        (void)m_queue.purgeMotionCommands();
+        if (m_transport && m_transport->isOpen()) {
+            const auto stopFrame = ProtocolBuilder::buildStop(m_address.load());
+            (void)m_transport->sendData(stopFrame);
+        }
         markDisconnected();
     }
 }
@@ -445,6 +472,21 @@ RetryConfig PelcoDDevice::getRetryConfig() const noexcept
 {
     std::scoped_lock lock(m_retryMutex);
     return m_retryConfig;
+}
+
+void PelcoDDevice::setDeadManTimeout(std::chrono::milliseconds timeout) noexcept
+{
+    if (m_safetyGuard) {
+        m_safetyGuard->setDeadManTimeout(timeout);
+    }
+}
+
+std::chrono::milliseconds PelcoDDevice::getDeadManTimeout() const noexcept
+{
+    if (m_safetyGuard) {
+        return m_safetyGuard->getDeadManTimeout();
+    }
+    return std::chrono::milliseconds { 0 };
 }
 
 void PelcoDDevice::panLeft(std::uint8_t speed)
@@ -1043,8 +1085,16 @@ void PelcoDDevice::enqueueCommand(
         return;
     }
     std::uint64_t motionGen { 0U };
-    if (PelcoDFrame::isStandardMotion(frame) || PelcoDFrame::isStandardStop(frame)) {
+    if (PelcoDFrame::isStandardMotion(frame)) {
         motionGen = ++m_motionGeneration;
+        if (m_safetyGuard) {
+            m_safetyGuard->onMotionCommand(frame);
+        }
+    } else if (PelcoDFrame::isStandardStop(frame)) {
+        motionGen = ++m_motionGeneration;
+        if (m_safetyGuard) {
+            m_safetyGuard->onStopCommand();
+        }
     }
     m_queue.enqueue(frame, std::move(queryTag), priority, motionGen);
 

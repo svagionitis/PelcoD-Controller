@@ -87,6 +87,12 @@ public:
     /// @brief Removes all queued commands.
     void clear();
 
+    /// @brief Purges all queued motion commands and pending motion retries.
+    /// @details Removes items associated with active or past motion generations, as well
+    ///          as standard motion and stop frames. Preserves non-motion queries and configurations.
+    /// @return Number of motion items purged from the queue.
+    [[nodiscard]] std::size_t purgeMotionCommands() noexcept;
+
     /// @brief Current number of commands queued.
     [[nodiscard]] std::size_t size() const;
 

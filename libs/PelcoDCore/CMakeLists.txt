@@ -18,6 +18,8 @@ add_library(PelcoDCore STATIC
     PelcoDDevice.cpp
     PacedCommandQueue.h
     PacedCommandQueue.cpp
+    MotionSafetyGuard.h
+    MotionSafetyGuard.cpp
     RxStreamAccumulator.h
     RxStreamAccumulator.cpp
     PatrolController.h

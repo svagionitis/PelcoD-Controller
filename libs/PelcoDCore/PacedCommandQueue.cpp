@@ -2,6 +2,7 @@
 /// @brief Implementation of prioritized paced command queue with exponential retry backoff.
 
 #include "PacedCommandQueue.h"
+#include "PelcoDFrame.h"
 
 #include <algorithm>
 #include <cmath>
@@ -214,6 +215,23 @@ void PacedCommandQueue::clear()
 {
     std::scoped_lock lock(m_mutex);
     m_queue.clear();
+}
+
+std::size_t PacedCommandQueue::purgeMotionCommands() noexcept
+{
+    std::scoped_lock lock(m_mutex);
+    std::size_t purgedCount { 0U };
+    auto it = m_queue.begin();
+    while (it != m_queue.end()) {
+        if (it->motionGeneration > 0U || PelcoDFrame::isStandardMotion(it->frame)
+            || PelcoDFrame::isStandardStop(it->frame)) {
+            it = m_queue.erase(it);
+            ++purgedCount;
+        } else {
+            ++it;
+        }
+    }
+    return purgedCount;
 }
 
 std::size_t PacedCommandQueue::size() const

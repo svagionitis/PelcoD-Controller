@@ -8,6 +8,7 @@
 #include "DeviceStatus.h"
 #include "FrameExtension.h"
 #include "ITransport.h"
+#include "MotionSafetyGuard.h"
 #include "PacedCommandQueue.h"
 #include "PelcoDStats.h"
 #include "PelcoDTypes.h"
@@ -169,6 +170,14 @@ public:
 
     void setRetryConfig(const RetryConfig& config) noexcept;
     [[nodiscard]] RetryConfig getRetryConfig() const noexcept;
+
+    /// @brief Configures the motion safety dead-man watchdog timeout.
+    /// @param[in] timeout Maximum duration allowed without motion refresh before auto-stop (0ms = disabled).
+    void setDeadManTimeout(std::chrono::milliseconds timeout) noexcept;
+
+    /// @brief Retrieves the configured motion safety dead-man watchdog timeout.
+    /// @return Configured watchdog duration.
+    [[nodiscard]] std::chrono::milliseconds getDeadManTimeout() const noexcept;
 
     // Motion & Positioning
     void panLeft(std::uint8_t speed);
@@ -480,6 +489,7 @@ private:
     std::shared_ptr<IFrameExtension> m_frameExt {};
 
     PacedCommandQueue m_queue;
+    std::unique_ptr<MotionSafetyGuard> m_safetyGuard {};
     RxStreamAccumulator m_rxAccumulator;
     std::atomic<std::uint64_t> m_motionGeneration { 0U };
 
