@@ -507,8 +507,8 @@ private:
     std::atomic<bool> m_awaitingResponse { false };
     std::atomic<bool> m_abortQueryWait { false };
     std::condition_variable m_responseCv;
-    std::string m_pendingQueryTag;
-    std::chrono::steady_clock::time_point m_querySentTime;
+    std::string m_pendingQueryTag {};
+    std::chrono::steady_clock::time_point m_querySentTime {}; ///< Dispatch timestamp of pending query; guarded by m_statusMutex (H1)
 
     std::atomic<std::uint64_t> m_queriesSent { 0U };
     std::atomic<std::uint64_t> m_queriesCompleted { 0U };

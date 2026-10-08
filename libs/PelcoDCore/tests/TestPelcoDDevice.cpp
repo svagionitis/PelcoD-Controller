@@ -190,9 +190,9 @@ TEST(PelcoDDeviceLifecycle, MotionRetryCancelledByStopMotion)
     // Wait past the 50ms backoff interval
     std::this_thread::sleep_for(120ms);
 
+    const auto frames = transport->sentFrames();
     device.stop();
 
-    const auto frames = transport->sentFrames();
     ASSERT_GE(frames.size(), 2U);
     // Frame 0: panLeft (cmd2=0x04)
     EXPECT_EQ(frames[0][3], 0x04U);
@@ -230,9 +230,9 @@ TEST(PelcoDDeviceLifecycle, MotionRetryCancelledByDirectionChange)
 
     std::this_thread::sleep_for(120ms);
 
+    const auto frames = transport->sentFrames();
     device.stop();
 
-    const auto frames = transport->sentFrames();
     ASSERT_GE(frames.size(), 2U);
     EXPECT_EQ(frames[0][3], 0x04U); // PanLeft
     EXPECT_EQ(frames[1][3], 0x02U); // PanRight
@@ -240,4 +240,166 @@ TEST(PelcoDDeviceLifecycle, MotionRetryCancelledByDirectionChange)
     EXPECT_EQ(frames.size(), 2U) << "Retried panLeft executed after panRight!";
 }
 
+/// @brief Transport double that asynchronously responds to query frames.
+class AutoEchoTransport final : public PelcoD::ITransport {
+public:
+    AutoEchoTransport() = default;
+    ~AutoEchoTransport() override
+    {
+        for (auto& th : m_threads) {
+            if (th.joinable()) {
+                th.join();
+            }
+        }
+    }
+
+    [[nodiscard]] bool open() override
+    {
+        m_open.store(true);
+        return true;
+    }
+
+    void close() override
+    {
+        m_open.store(false);
+    }
+
+    [[nodiscard]] bool isOpen() const noexcept override
+    {
+        return m_open.load();
+    }
+
+    [[nodiscard]] bool sendData(const std::vector<std::uint8_t>& data) override
+    {
+        if (!m_open.load() || data.size() < 4U) {
+            return false;
+        }
+
+        std::scoped_lock lock { m_mutex };
+        auto cb = m_dataCb;
+        if (cb && data.size() >= 7U) {
+            std::vector<std::uint8_t> resp;
+            if (data[3] == 0x51U) { // QueryPan
+                resp = PelcoD::PelcoDFrame::createFrame(1U, 0x00U, 0x59U, 0x12U, 0x34U);
+            } else if (data[3] == 0x53U) { // QueryTilt
+                resp = PelcoD::PelcoDFrame::createFrame(1U, 0x00U, 0x5BU, 0x05U, 0x67U);
+            } else if (data[3] == 0x55U) { // QueryZoom
+                resp = PelcoD::PelcoDFrame::createFrame(1U, 0x00U, 0x5DU, 0x02U, 0x00U);
+            }
+            if (!resp.empty()) {
+                m_threads.emplace_back([cb = std::move(cb), resp = std::move(resp)]() mutable {
+                    std::this_thread::yield();
+                    cb(resp);
+                });
+            }
+        }
+        return true;
+    }
+
+    void setDataCallback(DataReceivedCallback callback) override
+    {
+        std::scoped_lock lock { m_mutex };
+        m_dataCb = std::move(callback);
+    }
+
+    void setStateCallback(StateChangedCallback callback) override
+    {
+        std::scoped_lock lock { m_mutex };
+        m_stateCb = std::move(callback);
+    }
+
+private:
+    std::atomic<bool> m_open { false };
+    mutable std::mutex m_mutex {};
+    DataReceivedCallback m_dataCb {};
+    StateChangedCallback m_stateCb {};
+    std::vector<std::thread> m_threads {};
+};
+
+/// @brief Concurrently queued queries must not clobber m_querySentTime or cause data races (review finding H1).
+/// @details Verifies that when queries and responses interleave rapidly across worker and RX threads,
+///          query latencies remain non-negative, valid, and free of data races.
+TEST(PelcoDDeviceConcurrency, QuerySentTimeRaceSafety)
+{
+    auto transport = std::make_shared<AutoEchoTransport>();
+    PelcoD::PelcoDDevice device { transport, 1U };
+
+    std::atomic<bool> negativeDurationObserved { false };
+    std::atomic<std::uint32_t> completedQueries { 0U };
+
+    static_cast<void>(device.addQueryLatencyCallback(
+        [&](const std::string& /*tag*/, std::chrono::microseconds durationUs, bool success) {
+            if (success) {
+                completedQueries.fetch_add(1U);
+                if (durationUs.count() < 0) {
+                    negativeDurationObserved.store(true);
+                }
+            }
+        }));
+
+    ASSERT_TRUE(device.start());
+
+    constexpr std::uint32_t kIterations { 30U };
+    for (std::uint32_t i { 0U }; i < kIterations; ++i) {
+        device.queryPan();
+        device.queryTilt();
+        device.queryZoom();
+        std::this_thread::sleep_for(10ms);
+    }
+
+    std::this_thread::sleep_for(150ms);
+    device.stop();
+
+    EXPECT_GT(completedQueries.load(), 0U);
+    EXPECT_FALSE(negativeDurationObserved.load()) << "m_querySentTime was clobbered by concurrent query or read racily!";
+}
+
+/// @brief When checkQueryTimeout races with query dispatch and responses, timeout callbacks must
+///        never observe an empty tag or invalid duration (H1).
+TEST(PelcoDDeviceConcurrency, QueryTimeoutRaceSafety)
+{
+    auto transport = std::make_shared<PelcoD::Test::CapturingTransport>();
+    PelcoD::PelcoDDevice device { transport, 1U };
+    device.setQueryTimeoutMs(20U);
+
+    std::atomic<bool> emptyTagObserved { false };
+    std::atomic<bool> invalidLatencyObserved { false };
+    std::atomic<std::uint32_t> timeoutCount { 0U };
+
+    static_cast<void>(device.addTimeoutCallback([&](const std::string& tag) {
+        timeoutCount.fetch_add(1U);
+        if (tag.empty()) {
+            emptyTagObserved.store(true);
+        }
+    }));
+
+    static_cast<void>(device.addQueryLatencyCallback(
+        [&](const std::string& tag, std::chrono::microseconds durationUs, bool success) {
+            if (!success) {
+                if (tag.empty()) {
+                    emptyTagObserved.store(true);
+                }
+                if (durationUs.count() < 0) {
+                    invalidLatencyObserved.store(true);
+                }
+            }
+        }));
+
+    ASSERT_TRUE(device.start());
+
+    // Send queries and let them time out
+    for (std::uint32_t i { 0U }; i < 10U; ++i) {
+        device.queryPan();
+        std::this_thread::sleep_for(25ms);
+    }
+
+    device.stop();
+
+    EXPECT_GT(timeoutCount.load(), 0U);
+    EXPECT_FALSE(emptyTagObserved.load()) << "Timeout fired with empty queryTag due to TOCTOU race!";
+    EXPECT_FALSE(invalidLatencyObserved.load()) << "Timeout latency was negative or invalid!";
+}
+
 } // namespace
+
+

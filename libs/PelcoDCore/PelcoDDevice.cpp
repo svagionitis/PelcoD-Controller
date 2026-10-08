@@ -134,7 +134,11 @@ void PelcoDDevice::stop()
         m_workerThread.join();
     }
     m_rxAccumulator.clear();
-    m_awaitingResponse = false;
+    {
+        std::scoped_lock lock(m_statusMutex);
+        m_awaitingResponse = false;
+        m_pendingQueryTag.clear();
+    }
 
     if (m_transport) {
         if (m_transport->isOpen()) {
@@ -1111,18 +1115,31 @@ void PelcoDDevice::checkQueryTimeout()
         return;
     }
 
+    std::string tag;
+    std::chrono::microseconds durationUs { 0 };
+    bool timedOut { false };
     const auto now = std::chrono::steady_clock::now();
-    const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - m_querySentTime).count();
     const auto timeoutMs = m_queryTimeoutMs.load();
-    if (elapsed >= static_cast<long long>(timeoutMs)) {
-        m_queryTimeouts.fetch_add(1U, std::memory_order_relaxed);
-        m_awaitingResponse = false;
-        m_responseCv.notify_all();
-        std::string tag;
-        {
-            std::scoped_lock lock(m_statusMutex);
-            tag = m_pendingQueryTag;
+    DeviceStatus statusCopy {};
+
+    {
+        std::scoped_lock lock(m_statusMutex);
+        if (m_awaitingResponse.load()) {
+            const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - m_querySentTime).count();
+            if (elapsed >= static_cast<long long>(timeoutMs)) {
+                timedOut = true;
+                tag = m_pendingQueryTag;
+                durationUs = std::chrono::duration_cast<std::chrono::microseconds>(now - m_querySentTime);
+                m_awaitingResponse = false;
+                m_pendingQueryTag.clear();
+                statusCopy = m_status;
+            }
         }
+    }
+
+    if (timedOut) {
+        m_queryTimeouts.fetch_add(1U, std::memory_order_relaxed);
+        m_responseCv.notify_all();
 
         LOG(WARNING) << "Query timeout: No response received for query '" << tag << "' within " << timeoutMs << " ms";
 
@@ -1140,17 +1157,11 @@ void PelcoDDevice::checkQueryTimeout()
                 entry.cb(tag);
             }
         }
-        DeviceStatus statusCopy;
-        {
-            std::scoped_lock lock(m_statusMutex);
-            statusCopy = m_status;
-        }
         for (const auto& entry : *qcbs) {
             if (entry.cb) {
                 entry.cb(tag, false, statusCopy);
             }
         }
-        const auto durationUs = std::chrono::duration_cast<std::chrono::microseconds>(now - m_querySentTime);
         for (const auto& entry : *lcbs) {
             if (entry.cb) {
                 entry.cb(tag, durationUs, false);
@@ -1405,8 +1416,8 @@ void PelcoDDevice::dispatchFrame(const std::vector<std::uint8_t>& frame)
         return;
     }
 
-    DeviceStatus currentStatus;
-    DeviceInfo currentInfo;
+    DeviceStatus currentStatus {};
+    DeviceInfo currentInfo {};
     {
         std::scoped_lock lock(m_statusMutex);
         currentStatus = m_status;
@@ -1416,10 +1427,13 @@ void PelcoDDevice::dispatchFrame(const std::vector<std::uint8_t>& frame)
     if (ProtocolParser::updateStatus(frame, currentStatus, currentInfo)) {
         bool querySatisfied = false;
         std::string satisfiedTag;
+        std::chrono::microseconds durationUs { 0 };
         {
             std::scoped_lock lock(m_statusMutex);
             if (m_awaitingResponse.load() && isResponseMatchingQuery(m_pendingQueryTag, frame)) {
                 satisfiedTag = m_pendingQueryTag;
+                durationUs = std::chrono::duration_cast<std::chrono::microseconds>(
+                    std::chrono::steady_clock::now() - m_querySentTime);
                 m_awaitingResponse = false;
                 m_pendingQueryTag.clear();
                 querySatisfied = true;
@@ -1429,8 +1443,6 @@ void PelcoDDevice::dispatchFrame(const std::vector<std::uint8_t>& frame)
         }
 
         if (querySatisfied) {
-            const auto durationUs = std::chrono::duration_cast<std::chrono::microseconds>(
-                std::chrono::steady_clock::now() - m_querySentTime);
             const auto us = static_cast<std::uint64_t>(durationUs.count());
             m_queriesCompleted.fetch_add(1U, std::memory_order_relaxed);
             m_totalRttUs.fetch_add(us, std::memory_order_relaxed);
