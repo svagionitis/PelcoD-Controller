@@ -245,4 +245,109 @@ TEST(CommandQueueTest, BackoffStrategyCalculations)
     EXPECT_EQ(PelcoD::calculateBackoffDelay(cfg, 4U).count(), 500); // Clamped to 500
 }
 
+/// @brief Verify that an Urgent stop command purges any pending motion command retries (review finding C4).
+/// @details A failed motion command (generation 1) is scheduled for retry with backoff.
+///          A subsequent Urgent stop command (generation 2) must purge the pending retry.
+TEST(CommandQueueTest, UrgentStopPurgesPendingMotionRetries)
+{
+    PelcoD::PacedCommandQueue queue;
+
+    PelcoD::RetryConfig cfg;
+    cfg.maxRetries = 3U;
+    cfg.initialBackoff = std::chrono::milliseconds(100);
+    cfg.strategy = PelcoD::BackoffStrategy::Fixed;
+
+    PelcoD::CommandItem panItem;
+    panItem.frame = { 0xFF, 0x01, 0x00, 0x04, 0x20, 0x00, 0x25 }; // PanLeft
+    panItem.queryTag = "PanLeft";
+    panItem.priority = PelcoD::CommandPriority::Normal;
+    panItem.motionGeneration = 1U;
+
+    const auto delay = queue.scheduleRetry(panItem, cfg, "PanLeft failed");
+    EXPECT_EQ(delay.count(), 100);
+    EXPECT_EQ(queue.size(), 1U);
+
+    // Enqueue Urgent stop with generation 2
+    const std::vector<std::uint8_t> stopFrame { 0xFF, 0x01, 0x00, 0x00, 0x00, 0x00, 0x01 };
+    queue.enqueue(stopFrame, "Stop", PelcoD::CommandPriority::Urgent, 2U);
+
+    // The pending pan retry (generation 1) must be purged, leaving ONLY the stop command
+    EXPECT_EQ(queue.size(), 1U);
+
+    PelcoD::CommandItem popped;
+    bool ok = queue.popReady(popped, [] { return false; });
+    EXPECT_TRUE(ok);
+    EXPECT_EQ(popped.queryTag, "Stop");
+    EXPECT_EQ(popped.motionGeneration, 2U);
+
+    // Queue should now be completely empty even after backoff interval expires
+    std::this_thread::sleep_for(std::chrono::milliseconds(110));
+    PelcoD::CommandItem shouldBeEmpty;
+    ok = queue.popReady(
+        shouldBeEmpty, [] { return false; }, std::chrono::steady_clock::time_point::max(),
+        std::chrono::milliseconds(0));
+    EXPECT_FALSE(ok);
+}
+
+/// @brief Verify that a newer motion command purges older motion commands and their retries (review finding C4).
+/// @details If PanLeft (gen 1) is awaiting retry, and PanRight (gen 2) is enqueued,
+///          PanLeft must be discarded so it never executes after PanRight.
+TEST(CommandQueueTest, NewerMotionPurgesOlderMotionAndRetries)
+{
+    PelcoD::PacedCommandQueue queue;
+
+    PelcoD::RetryConfig cfg;
+    cfg.maxRetries = 3U;
+    cfg.initialBackoff = std::chrono::milliseconds(100);
+    cfg.strategy = PelcoD::BackoffStrategy::Fixed;
+
+    PelcoD::CommandItem panLeft;
+    panLeft.frame = { 0xFF, 0x01, 0x00, 0x04, 0x20, 0x00, 0x25 };
+    panLeft.queryTag = "PanLeft";
+    panLeft.priority = PelcoD::CommandPriority::Normal;
+    panLeft.motionGeneration = 1U;
+
+    static_cast<void>(queue.scheduleRetry(panLeft, cfg, "PanLeft retry"));
+    EXPECT_EQ(queue.size(), 1U);
+
+    // Enqueue PanRight with generation 2
+    const std::vector<std::uint8_t> panRightFrame { 0xFF, 0x01, 0x00, 0x02, 0x20, 0x00, 0x23 };
+    queue.enqueue(panRightFrame, "PanRight", PelcoD::CommandPriority::Normal, 2U);
+
+    // Older generation 1 retry must be purged
+    EXPECT_EQ(queue.size(), 1U);
+
+    PelcoD::CommandItem popped;
+    bool ok = queue.popReady(popped, [] { return false; });
+    EXPECT_TRUE(ok);
+    EXPECT_EQ(popped.queryTag, "PanRight");
+    EXPECT_EQ(popped.motionGeneration, 2U);
+}
+
+/// @brief Verify that scheduleRetry drops retries for obsolete motion generations (review finding C4).
+TEST(CommandQueueTest, ScheduleRetryRejectsObsoleteGeneration)
+{
+    PelcoD::PacedCommandQueue queue;
+
+    PelcoD::RetryConfig cfg;
+    cfg.maxRetries = 3U;
+    cfg.initialBackoff = std::chrono::milliseconds(50);
+
+    // Active generation is advanced to 2 by a stop command
+    const std::vector<std::uint8_t> stopFrame { 0xFF, 0x01, 0x00, 0x00, 0x00, 0x00, 0x01 };
+    queue.enqueue(stopFrame, "Stop", PelcoD::CommandPriority::Urgent, 2U);
+    EXPECT_EQ(queue.currentMotionGeneration(), 2U);
+
+    // An in-flight motion item with generation 1 attempts to retry
+    PelcoD::CommandItem staleMotion;
+    staleMotion.frame = { 0xFF, 0x01, 0x00, 0x04, 0x20, 0x00, 0x25 };
+    staleMotion.queryTag = "StalePan";
+    staleMotion.priority = PelcoD::CommandPriority::Normal;
+    staleMotion.motionGeneration = 1U;
+
+    const auto delay = queue.scheduleRetry(staleMotion, cfg, "Attempt stale retry");
+    EXPECT_EQ(delay.count(), 0);
+    EXPECT_EQ(queue.size(), 1U); // Only the Stop command remains
+}
+
 } // namespace

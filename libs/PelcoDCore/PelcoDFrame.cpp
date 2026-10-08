@@ -83,6 +83,29 @@ bool PelcoDFrame::isValidFrame(const std::vector<std::uint8_t>& frame) noexcept
     return false;
 }
 
+bool PelcoDFrame::isStandardMotion(const std::vector<std::uint8_t>& frame) noexcept
+{
+    if (frame.size() != StandardFrameSize || frame[0] != SyncByte) {
+        return false;
+    }
+    const std::uint8_t cmd1 = frame[2];
+    const std::uint8_t cmd2 = frame[3];
+    if ((cmd2 & 0x01U) == 0U) {
+        return ((cmd2 & 0xFEU) != 0U) || ((cmd1 & 0x07U) != 0U);
+    }
+    return false;
+}
+
+bool PelcoDFrame::isStandardStop(const std::vector<std::uint8_t>& frame) noexcept
+{
+    if (frame.size() != StandardFrameSize || frame[0] != SyncByte) {
+        return false;
+    }
+    const std::uint8_t cmd1 = frame[2];
+    const std::uint8_t cmd2 = frame[3];
+    return (cmd1 == 0x00U) && (cmd2 == 0x00U) && (frame[4] == 0x00U) && (frame[5] == 0x00U);
+}
+
 std::vector<std::vector<std::uint8_t>> PelcoDFrame::splitStream(const std::vector<std::uint8_t>& stream)
 {
     std::vector<std::vector<std::uint8_t>> frames;
@@ -149,21 +172,21 @@ std::vector<std::vector<std::uint8_t>> PelcoDFrame::splitStream(const std::vecto
 }
 
 namespace {
-constexpr char kHexDigits[] = "0123456789ABCDEF";
+    constexpr char kHexDigits[] = "0123456789ABCDEF";
 
-inline int hexDigitVal(char c) noexcept
-{
-    if (c >= '0' && c <= '9') {
-        return c - '0';
+    inline int hexDigitVal(char c) noexcept
+    {
+        if (c >= '0' && c <= '9') {
+            return c - '0';
+        }
+        if (c >= 'a' && c <= 'f') {
+            return c - 'a' + 10;
+        }
+        if (c >= 'A' && c <= 'F') {
+            return c - 'A' + 10;
+        }
+        return -1;
     }
-    if (c >= 'a' && c <= 'f') {
-        return c - 'a' + 10;
-    }
-    if (c >= 'A' && c <= 'F') {
-        return c - 'A' + 10;
-    }
-    return -1;
-}
 } // namespace
 
 std::string PelcoDFrame::toHexString(const std::vector<std::uint8_t>& bytes, char delimiter)
@@ -224,4 +247,3 @@ std::vector<std::uint8_t> PelcoDFrame::fromHexString(std::string_view hexStr)
 }
 
 } // namespace PelcoD
-

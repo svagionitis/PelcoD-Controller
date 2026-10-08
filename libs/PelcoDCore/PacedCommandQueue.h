@@ -27,6 +27,7 @@ struct CommandItem {
     CommandPriority priority { CommandPriority::Normal };
     std::uint32_t retryCount { 0U };
     std::chrono::steady_clock::time_point earliestDispatchTime { std::chrono::steady_clock::now() };
+    std::uint64_t motionGeneration { 0U };
 };
 
 /// @class PacedCommandQueue
@@ -53,8 +54,9 @@ public:
     /// @param[in] frame Raw frame bytes.
     /// @param[in] queryTag Optional query identifier.
     /// @param[in] priority Scheduling priority.
+    /// @param[in] motionGeneration Generation token for motion sequencing (0 = non-motion).
     void enqueue(std::vector<std::uint8_t> frame, std::string queryTag = "",
-        CommandPriority priority = CommandPriority::Normal);
+        CommandPriority priority = CommandPriority::Normal, std::uint64_t motionGeneration = 0U);
 
     /// @brief Schedules a failed command for exponential backoff retransmission.
     /// @param[in,out] item Command item being retried (retryCount incremented).
@@ -94,11 +96,15 @@ public:
     /// @brief Configured maximum queue capacity.
     [[nodiscard]] std::size_t maxCapacity() const noexcept;
 
+    /// @brief Current motion generation tracked by the queue.
+    [[nodiscard]] std::uint64_t currentMotionGeneration() const noexcept;
+
 private:
     const std::size_t m_maxCapacity;
     mutable std::mutex m_mutex;
     std::condition_variable m_cv;
     std::deque<CommandItem> m_queue;
+    std::uint64_t m_currentMotionGeneration { 0U };
 };
 
 } // namespace PelcoD

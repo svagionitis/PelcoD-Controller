@@ -19,6 +19,18 @@ void PacedCommandQueue::enqueue(CommandItem item)
 {
     std::scoped_lock lock(m_mutex);
 
+    if (item.motionGeneration > 0U) {
+        m_currentMotionGeneration = std::max(m_currentMotionGeneration, item.motionGeneration);
+        auto it = m_queue.begin();
+        while (it != m_queue.end()) {
+            if (it->motionGeneration > 0U && it->motionGeneration < m_currentMotionGeneration) {
+                it = m_queue.erase(it);
+            } else {
+                ++it;
+            }
+        }
+    }
+
     if (m_queue.size() >= m_maxCapacity) {
         LOG(WARNING) << "PacedCommandQueue capacity reached (" << m_queue.size() << "/" << m_maxCapacity
                      << "): dropping oldest non-urgent command";
@@ -54,7 +66,7 @@ void PacedCommandQueue::enqueue(CommandItem item)
 }
 
 void PacedCommandQueue::enqueue(
-    std::vector<std::uint8_t> frame, std::string queryTag, CommandPriority priority)
+    std::vector<std::uint8_t> frame, std::string queryTag, CommandPriority priority, std::uint64_t motionGeneration)
 {
     CommandItem item;
     item.frame = std::move(frame);
@@ -62,19 +74,29 @@ void PacedCommandQueue::enqueue(
     item.priority = priority;
     item.retryCount = 0U;
     item.earliestDispatchTime = std::chrono::steady_clock::now();
+    item.motionGeneration = motionGeneration;
     enqueue(std::move(item));
 }
 
 std::chrono::milliseconds PacedCommandQueue::scheduleRetry(
     CommandItem item, const RetryConfig& retryCfg, std::string_view logReason)
 {
+    {
+        std::scoped_lock lock(m_mutex);
+        if (item.motionGeneration > 0U && item.motionGeneration < m_currentMotionGeneration) {
+            LOG(INFO) << "Cancelling retry for obsolete motion command (gen " << item.motionGeneration << " < "
+                      << m_currentMotionGeneration << ")";
+            return std::chrono::milliseconds { 0 };
+        }
+    }
+
     item.retryCount++;
     const auto backoffDelay = calculateBackoffDelay(retryCfg, item.retryCount);
     item.earliestDispatchTime = std::chrono::steady_clock::now() + backoffDelay;
 
     if (!logReason.empty()) {
-        LOG(INFO) << logReason << " (attempt " << item.retryCount << "/" << retryCfg.maxRetries
-                  << "). Retrying in " << backoffDelay.count() << " ms";
+        LOG(INFO) << logReason << " (attempt " << item.retryCount << "/" << retryCfg.maxRetries << "). Retrying in "
+                  << backoffDelay.count() << " ms";
     }
 
     enqueue(std::move(item));
@@ -91,14 +113,19 @@ bool PacedCommandQueue::popReady(CommandItem& outItem, const std::function<bool(
         auto readyIt = m_queue.end();
         auto earliestWait = std::chrono::steady_clock::time_point::max();
 
-        for (auto it = m_queue.begin(); it != m_queue.end(); ++it) {
-            if (it->earliestDispatchTime <= curNow) {
+        auto it = m_queue.begin();
+        while (it != m_queue.end()) {
+            if (it->motionGeneration > 0U && it->motionGeneration < m_currentMotionGeneration) {
+                it = m_queue.erase(it);
+                continue;
+            }
+            if (readyIt == m_queue.end() && it->earliestDispatchTime <= curNow) {
                 readyIt = it;
-                break;
             }
             if (it->earliestDispatchTime < earliestWait) {
                 earliestWait = it->earliestDispatchTime;
             }
+            ++it;
         }
 
         if (readyIt != m_queue.end()) {
@@ -110,8 +137,7 @@ bool PacedCommandQueue::popReady(CommandItem& outItem, const std::function<bool(
         auto waitTime = defaultTimeout;
         if (nextPollTime != std::chrono::steady_clock::time_point::max()) {
             if (nextPollTime > curNow) {
-                const auto pollDiff
-                    = std::chrono::duration_cast<std::chrono::milliseconds>(nextPollTime - curNow);
+                const auto pollDiff = std::chrono::duration_cast<std::chrono::milliseconds>(nextPollTime - curNow);
                 waitTime = std::min(waitTime, pollDiff);
             } else {
                 waitTime = std::chrono::milliseconds(0);
@@ -119,8 +145,7 @@ bool PacedCommandQueue::popReady(CommandItem& outItem, const std::function<bool(
         }
 
         if (!m_queue.empty() && earliestWait != std::chrono::steady_clock::time_point::max()) {
-            const auto backoffDiff
-                = std::chrono::duration_cast<std::chrono::milliseconds>(earliestWait - curNow);
+            const auto backoffDiff = std::chrono::duration_cast<std::chrono::milliseconds>(earliestWait - curNow);
             waitTime = std::min(waitTime, std::max(backoffDiff, std::chrono::milliseconds(1)));
         }
 
@@ -149,12 +174,18 @@ bool PacedCommandQueue::popReady(CommandItem& outItem, const std::function<bool(
         }
 
         const auto checkNow = std::chrono::steady_clock::now();
-        for (auto it = m_queue.begin(); it != m_queue.end(); ++it) {
-            if (it->earliestDispatchTime <= checkNow) {
-                outItem = std::move(*it);
-                m_queue.erase(it);
+        auto checkIt = m_queue.begin();
+        while (checkIt != m_queue.end()) {
+            if (checkIt->motionGeneration > 0U && checkIt->motionGeneration < m_currentMotionGeneration) {
+                checkIt = m_queue.erase(checkIt);
+                continue;
+            }
+            if (checkIt->earliestDispatchTime <= checkNow) {
+                outItem = std::move(*checkIt);
+                m_queue.erase(checkIt);
                 return true;
             }
+            ++checkIt;
         }
 
         return false;
@@ -200,6 +231,12 @@ bool PacedCommandQueue::empty() const
 std::size_t PacedCommandQueue::maxCapacity() const noexcept
 {
     return m_maxCapacity;
+}
+
+std::uint64_t PacedCommandQueue::currentMotionGeneration() const noexcept
+{
+    std::scoped_lock lock(m_mutex);
+    return m_currentMotionGeneration;
 }
 
 } // namespace PelcoD

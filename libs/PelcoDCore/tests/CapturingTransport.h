@@ -43,12 +43,17 @@ public:
         return m_open.load();
     }
 
-    /// @brief Accepts and discards outbound bytes.
-    /// @param[in] data Ignored payload.
-    /// @return True while the transport is open.
+    /// @brief Records outbound bytes and returns send status.
+    /// @param[in] data Transmitted payload.
+    /// @return True while open, or false if configured to fail.
     [[nodiscard]] bool sendData(const std::vector<std::uint8_t>& data) override
     {
-        static_cast<void>(data);
+        std::scoped_lock lock { m_mutex };
+        m_sentFrames.push_back(data);
+        if (m_failSendCount > 0U) {
+            --m_failSendCount;
+            return false;
+        }
         return m_open.load();
     }
 
@@ -88,11 +93,29 @@ public:
         return m_lastState;
     }
 
+    /// @brief Configures number of subsequent sendData calls to fail.
+    /// @param[in] count Number of failures to induce.
+    void setFailSendCount(std::size_t count)
+    {
+        std::scoped_lock lock { m_mutex };
+        m_failSendCount = count;
+    }
+
+    /// @brief Snapshot of all frames passed to sendData().
+    /// @return List of transmitted frames in temporal order.
+    [[nodiscard]] std::vector<std::vector<std::uint8_t>> sentFrames() const
+    {
+        std::scoped_lock lock { m_mutex };
+        return m_sentFrames;
+    }
+
 private:
     mutable std::mutex m_mutex {};
     std::atomic<bool> m_open { false };
     DataReceivedCallback m_lastData {};
     StateChangedCallback m_lastState {};
+    std::size_t m_failSendCount { 0U };
+    std::vector<std::vector<std::uint8_t>> m_sentFrames {};
 };
 
 } // namespace PelcoD::Test

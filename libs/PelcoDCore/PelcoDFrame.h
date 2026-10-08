@@ -46,6 +46,16 @@ public:
     /// @return True if length and checksum conform to protocol.
     [[nodiscard]] static bool isValidFrame(const std::vector<std::uint8_t>& frame) noexcept;
 
+    /// @brief Checks whether the frame is a standard Pelco-D motion command (Pan, Tilt, Zoom, Focus, Iris).
+    /// @param[in] frame Raw frame bytes.
+    /// @return True if standard motion command.
+    [[nodiscard]] static bool isStandardMotion(const std::vector<std::uint8_t>& frame) noexcept;
+
+    /// @brief Checks whether the frame is a standard Pelco-D PTZ stop command.
+    /// @param[in] frame Raw frame bytes.
+    /// @return True if standard stop command.
+    [[nodiscard]] static bool isStandardStop(const std::vector<std::uint8_t>& frame) noexcept;
+
     /// @brief Extracts verified frames from continuous byte stream.
     /// @param[in] stream Input byte buffer.
     /// @return List of isolated valid protocol frames.

@@ -162,4 +162,82 @@ TEST(PelcoDDeviceLifecycle, StopFromRxCallbackIsSafe)
     EXPECT_FALSE(device.isConnected());
 }
 
+/// @brief A retried motion command must not execute after stopMotion() (review finding C4).
+/// @details If panLeft() transmission fails and schedules a backoff retry, a subsequent
+///          stopMotion() must cancel the pending retry so motion does not resume.
+TEST(PelcoDDeviceLifecycle, MotionRetryCancelledByStopMotion)
+{
+    auto transport = std::make_shared<PelcoD::Test::CapturingTransport>();
+    PelcoD::PelcoDDevice device { transport, 1U };
+
+    PelcoD::RetryConfig cfg;
+    cfg.maxRetries = 2U;
+    cfg.initialBackoff = 50ms;
+    cfg.strategy = PelcoD::BackoffStrategy::Fixed;
+    cfg.retryOnTransportError = true;
+    device.setRetryConfig(cfg);
+
+    // Fail the very first send (panLeft)
+    transport->setFailSendCount(1U);
+    ASSERT_TRUE(device.start());
+
+    device.panLeft(0x20U);
+    std::this_thread::sleep_for(15ms); // Allow worker thread to attempt and fail panLeft
+
+    // Operator commands stop
+    device.stopMotion();
+
+    // Wait past the 50ms backoff interval
+    std::this_thread::sleep_for(120ms);
+
+    device.stop();
+
+    const auto frames = transport->sentFrames();
+    ASSERT_GE(frames.size(), 2U);
+    // Frame 0: panLeft (cmd2=0x04)
+    EXPECT_EQ(frames[0][3], 0x04U);
+    // Frame 1: stop (cmd1=0x00, cmd2=0x00)
+    EXPECT_EQ(frames[1][2], 0x00U);
+    EXPECT_EQ(frames[1][3], 0x00U);
+
+    // There must NOT be any subsequent panLeft frame after stop!
+    EXPECT_EQ(frames.size(), 2U) << "Retried panLeft executed after stopMotion!";
+}
+
+/// @brief A retried motion command must not execute after a newer direction command (review finding C4).
+/// @details If panLeft() fails and is queued for retry, an immediate panRight() must
+///          cancel the panLeft retry so the direction is not inverted later.
+TEST(PelcoDDeviceLifecycle, MotionRetryCancelledByDirectionChange)
+{
+    auto transport = std::make_shared<PelcoD::Test::CapturingTransport>();
+    PelcoD::PelcoDDevice device { transport, 1U };
+
+    PelcoD::RetryConfig cfg;
+    cfg.maxRetries = 2U;
+    cfg.initialBackoff = 50ms;
+    cfg.strategy = PelcoD::BackoffStrategy::Fixed;
+    cfg.retryOnTransportError = true;
+    device.setRetryConfig(cfg);
+
+    transport->setFailSendCount(1U);
+    ASSERT_TRUE(device.start());
+
+    device.panLeft(0x20U);
+    std::this_thread::sleep_for(15ms);
+
+    // Operator changes direction to right
+    device.panRight(0x20U);
+
+    std::this_thread::sleep_for(120ms);
+
+    device.stop();
+
+    const auto frames = transport->sentFrames();
+    ASSERT_GE(frames.size(), 2U);
+    EXPECT_EQ(frames[0][3], 0x04U); // PanLeft
+    EXPECT_EQ(frames[1][3], 0x02U); // PanRight
+
+    EXPECT_EQ(frames.size(), 2U) << "Retried panLeft executed after panRight!";
+}
+
 } // namespace

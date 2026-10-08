@@ -489,7 +489,7 @@ void PelcoDDevice::zoomWide()
 
 void PelcoDDevice::zoomStop()
 {
-    enqueueCommand(ProtocolBuilder::buildZoom(m_address, ZoomAction::Stop));
+    enqueueCommand(ProtocolBuilder::buildZoom(m_address, ZoomAction::Stop), "", CommandPriority::Urgent);
 }
 
 void PelcoDDevice::focusNear()
@@ -504,7 +504,7 @@ void PelcoDDevice::focusFar()
 
 void PelcoDDevice::focusStop()
 {
-    enqueueCommand(ProtocolBuilder::buildFocus(m_address, FocusAction::Stop));
+    enqueueCommand(ProtocolBuilder::buildFocus(m_address, FocusAction::Stop), "", CommandPriority::Urgent);
 }
 
 void PelcoDDevice::irisOpen()
@@ -519,7 +519,7 @@ void PelcoDDevice::irisClose()
 
 void PelcoDDevice::irisStop()
 {
-    enqueueCommand(ProtocolBuilder::buildIris(m_address, IrisAction::Stop));
+    enqueueCommand(ProtocolBuilder::buildIris(m_address, IrisAction::Stop), "", CommandPriority::Urgent);
 }
 
 void PelcoDDevice::setPanAngle(std::uint16_t centidegrees)
@@ -1042,7 +1042,11 @@ void PelcoDDevice::enqueueCommand(
     if (frame.empty()) {
         return;
     }
-    m_queue.enqueue(frame, std::move(queryTag), priority);
+    std::uint64_t motionGen { 0U };
+    if (PelcoDFrame::isStandardMotion(frame) || PelcoDFrame::isStandardStop(frame)) {
+        motionGen = ++m_motionGeneration;
+    }
+    m_queue.enqueue(frame, std::move(queryTag), priority, motionGen);
 
     // If an urgent command arrives while waiting for a query response, abort the query wait immediately
     if (priority == CommandPriority::Urgent && m_awaitingResponse.load()) {
@@ -1169,19 +1173,26 @@ void PelcoDDevice::workerLoop()
                     retryCfg = m_retryConfig;
                 }
                 if (retryCfg.retryOnTransportError && item.retryCount < retryCfg.maxRetries) {
-                    m_queryRetries.fetch_add(1U, std::memory_order_relaxed);
-                    const std::string reason = "Transport transmission failed for "
-                        + (item.queryTag.empty() ? "command" : "query '" + item.queryTag + "'");
-                    const auto backoffDelay = m_queue.scheduleRetry(item, retryCfg, reason);
-                    std::shared_ptr<const std::vector<CallbackEntry<RetryCallback>>> rcbs;
-                    {
-                        std::scoped_lock lock(m_callbackState->mutex);
-                        rcbs = m_callbackState->retryCallbacks;
-                    }
-                    for (const auto& entry : *rcbs) {
-                        if (entry.cb) {
-                            entry.cb(item.queryTag.empty() ? "Command" : item.queryTag, item.retryCount + 1U,
-                                retryCfg.maxRetries, backoffDelay);
+                    if (item.motionGeneration > 0U && item.motionGeneration < m_queue.currentMotionGeneration()) {
+                        LOG(INFO) << "Skipping retry for obsolete motion command (gen " << item.motionGeneration
+                                  << " < " << m_queue.currentMotionGeneration() << ")";
+                    } else {
+                        m_queryRetries.fetch_add(1U, std::memory_order_relaxed);
+                        const std::string reason = "Transport transmission failed for "
+                            + (item.queryTag.empty() ? "command" : "query '" + item.queryTag + "'");
+                        const auto backoffDelay = m_queue.scheduleRetry(item, retryCfg, reason);
+                        if (backoffDelay.count() > 0) {
+                            std::shared_ptr<const std::vector<CallbackEntry<RetryCallback>>> rcbs;
+                            {
+                                std::scoped_lock lock(m_callbackState->mutex);
+                                rcbs = m_callbackState->retryCallbacks;
+                            }
+                            for (const auto& entry : *rcbs) {
+                                if (entry.cb) {
+                                    entry.cb(item.queryTag.empty() ? "Command" : item.queryTag, item.retryCount + 1U,
+                                        retryCfg.maxRetries, backoffDelay);
+                                }
+                            }
                         }
                     }
                 } else if (!item.queryTag.empty() && retryCfg.maxRetries > 0U) {

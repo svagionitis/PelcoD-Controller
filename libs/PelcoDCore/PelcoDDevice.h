@@ -481,6 +481,7 @@ private:
 
     PacedCommandQueue m_queue;
     RxStreamAccumulator m_rxAccumulator;
+    std::atomic<std::uint64_t> m_motionGeneration { 0U };
 
     std::atomic<bool> m_telemetryPolling { false };
     std::atomic<std::uint32_t> m_pollIntervalMs { 1000U };
