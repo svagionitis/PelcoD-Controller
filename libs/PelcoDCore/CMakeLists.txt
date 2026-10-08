@@ -2,6 +2,7 @@ add_library(PelcoDCore STATIC
     PelcoDTypes.h
     RetryPolicy.h
     Connection.h
+    Connection.cpp
     CallbackGate.h
     CallbackGate.cpp
     FrameExtension.h

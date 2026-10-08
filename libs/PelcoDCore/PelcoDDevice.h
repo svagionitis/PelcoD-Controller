@@ -522,6 +522,7 @@ private:
     template <typename CallbackT> struct CallbackEntry {
         CallbackId id { 0U };
         CallbackT cb {};
+        std::shared_ptr<CallbackGate> gate {};
     };
 
     struct CallbackState {
@@ -547,8 +548,8 @@ private:
         };
 
         template <typename CallbackT>
-        static bool removeCallbackEntry(
-            std::shared_ptr<const std::vector<CallbackEntry<CallbackT>>>& list, CallbackId id, std::mutex& mtx)
+        static bool removeCallbackEntry(std::shared_ptr<const std::vector<CallbackEntry<CallbackT>>>& list,
+            CallbackId id, std::mutex& mtx, std::shared_ptr<CallbackGate>& outGate)
         {
             std::scoped_lock lock(mtx);
             const auto& current = *list;
@@ -556,6 +557,7 @@ private:
             if (it == current.end()) {
                 return false;
             }
+            outGate = it->gate;
             auto nextList = std::make_shared<std::vector<CallbackEntry<CallbackT>>>();
             nextList->reserve(current.size() - 1U);
             for (const auto& entry : current) {

@@ -170,8 +170,8 @@ TEST(ConnectionTest, ScopedConnectionList)
 ///          continues to receive events.
 TEST(ConnectionTest, PelcoDDeviceSelectiveDisconnection)
 {
-    auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(1U);
-    PelcoD::PelcoDDevice device(mock, 1U);
+    auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(static_cast<std::uint8_t>(1U));
+    PelcoD::PelcoDDevice device(mock, static_cast<std::uint8_t>(1U));
 
     std::atomic<int> countA { 0 };
     std::atomic<int> countB { 0 };
@@ -222,8 +222,8 @@ TEST(ConnectionTest, DisconnectAfterDeviceDestruction)
     PelcoD::ScopedConnection orphanedScoped;
 
     {
-        auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(1U);
-        PelcoD::PelcoDDevice device(mock, 1U);
+        auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(static_cast<std::uint8_t>(1U));
+        PelcoD::PelcoDDevice device(mock, static_cast<std::uint8_t>(1U));
 
         orphanedTraffic = device.addTrafficCallback([](bool, const std::vector<std::uint8_t>&) {});
         orphanedScoped = device.addStatusCallback([](const PelcoD::DeviceStatus&) {});
@@ -242,8 +242,8 @@ TEST(ConnectionTest, DisconnectAfterDeviceDestruction)
 ///          cleared by clearCallbacks().
 TEST(ConnectionTest, FujinonSX800DeviceConnection)
 {
-    auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(1U);
-    PelcoD::FujinonSX800Device fujinonDevice(mock, 1U);
+    auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(static_cast<std::uint8_t>(1U));
+    PelcoD::FujinonSX800Device fujinonDevice(mock, static_cast<std::uint8_t>(1U));
 
     std::atomic<int> fujinonCount { 0 };
     PelcoD::Connection fujinonConn = fujinonDevice.addFujinonStatusCallback(
@@ -323,8 +323,8 @@ TEST(ConnectionTest, FilteredTrafficCallbacks)
 ///          immediate exception on stopped device, and timeout failure on silent transport.
 TEST(ConnectionTest, AsyncQueries)
 {
-    auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(1U);
-    PelcoD::PelcoDDevice device(mock, 1U);
+    auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(static_cast<std::uint8_t>(1U));
+    PelcoD::PelcoDDevice device(mock, static_cast<std::uint8_t>(1U));
 
     // Test disconnected device immediately fails
     auto failFut = device.queryPanAsync();
@@ -416,6 +416,187 @@ TEST(ConnectionTest, ConnectionRebind)
 
     // Leaving scope: second must now disconnect
     EXPECT_TRUE(secondDisconnected);
+}
+
+/// @brief Verify thread-safety and exact-once disconnect across concurrent threads and copies.
+TEST(ConnectionTest, ConcurrentDisconnectSafe)
+{
+    std::atomic<int> disconnectCount { 0 };
+    PelcoD::Connection conn([&disconnectCount]() {
+        disconnectCount.fetch_add(1);
+    });
+
+    constexpr std::size_t kThreadCount { 10U };
+    std::vector<std::thread> threads;
+    threads.reserve(kThreadCount);
+
+    for (std::size_t i { 0U }; i < kThreadCount; ++i) {
+        threads.emplace_back([conn]() mutable {
+            conn.disconnect();
+            EXPECT_FALSE(conn.isConnected());
+        });
+    }
+
+    for (auto& th : threads) {
+        th.join();
+    }
+
+    EXPECT_EQ(disconnectCount.load(), 1);
+    EXPECT_FALSE(conn.isConnected());
+}
+
+/// @brief Verify disconnect() blocks until an in-flight callback on a foreign thread completes.
+TEST(ConnectionTest, DisconnectBlocksUntilDone)
+{
+    auto transport = std::make_shared<ControlledTransport>();
+    PelcoD::PelcoDDevice device(transport, static_cast<std::uint8_t>(1U));
+    ASSERT_TRUE(device.start());
+
+    std::promise<void> enteredPromise {};
+    auto entered = enteredPromise.get_future();
+    std::promise<void> releasePromise {};
+    const std::shared_future<void> release { releasePromise.get_future().share() };
+    std::atomic<bool> callbackFinished { false };
+
+    PelcoD::Connection conn = device.addTrafficCallback(
+        [&enteredPromise, release, &callbackFinished](bool, const std::vector<std::uint8_t>&) {
+            enteredPromise.set_value();
+            static_cast<void>(release.wait_for(std::chrono::seconds { 2 }));
+            callbackFinished.store(true);
+        });
+
+    const std::vector<std::uint8_t> frame = { 0xFFU, 0x01U, 0x00U, 0x00U, 0x00U, 0x00U, 0x01U };
+    std::thread rxThread([transport, frame]() {
+        transport->inject(frame);
+    });
+
+    ASSERT_EQ(entered.wait_for(std::chrono::seconds { 2 }), std::future_status::ready);
+
+    std::atomic<bool> disconnectDone { false };
+    std::thread disconnector([&conn, &disconnectDone]() {
+        conn.disconnect();
+        disconnectDone.store(true);
+    });
+
+    std::this_thread::sleep_for(std::chrono::milliseconds { 80 });
+    EXPECT_FALSE(disconnectDone.load());
+
+    releasePromise.set_value();
+    disconnector.join();
+    rxThread.join();
+
+    EXPECT_TRUE(disconnectDone.load());
+    EXPECT_TRUE(callbackFinished.load());
+
+    device.stop();
+}
+
+/// @brief Verify callback never fires and does not access captured memory after disconnect() returns.
+TEST(ConnectionTest, NoCallbackAfterDisconnect)
+{
+    auto transport = std::make_shared<ControlledTransport>();
+    PelcoD::PelcoDDevice device(transport, static_cast<std::uint8_t>(1U));
+    ASSERT_TRUE(device.start());
+
+    struct GuardedResource {
+        std::atomic<int> useCount { 0 };
+    };
+
+    auto resource = std::make_unique<GuardedResource>();
+    GuardedResource* rawPtr = resource.get();
+
+    PelcoD::Connection conn = device.addTrafficCallback(
+        [rawPtr](bool, const std::vector<std::uint8_t>&) {
+            rawPtr->useCount.fetch_add(1);
+        });
+
+    const std::vector<std::uint8_t> frame = { 0xFFU, 0x01U, 0x00U, 0x00U, 0x00U, 0x00U, 0x01U };
+    transport->inject(frame);
+    ASSERT_TRUE(waitFor([rawPtr]() { return rawPtr->useCount.load() >= 1; }, 1000));
+
+    // Disconnect and immediately destroy the resource
+    conn.disconnect();
+    resource.reset(); // If callback fires after this, it would be a UAF
+
+    // Inject more frames; callback must not execute
+    for (int i { 0 }; i < 5; ++i) {
+        transport->inject(frame);
+    }
+    std::this_thread::sleep_for(std::chrono::milliseconds { 50 });
+
+    EXPECT_FALSE(conn.isConnected());
+    device.stop();
+}
+
+/// @brief Verify re-entrant disconnect from within the callback itself does not deadlock.
+TEST(ConnectionTest, ReentrantDisconnectSafe)
+{
+    auto transport = std::make_shared<ControlledTransport>();
+    PelcoD::PelcoDDevice device(transport, static_cast<std::uint8_t>(1U));
+    ASSERT_TRUE(device.start());
+
+    PelcoD::Connection conn {};
+    std::atomic<bool> reentrantInvoked { false };
+
+    conn = device.addTrafficCallback(
+        [&conn, &reentrantInvoked](bool, const std::vector<std::uint8_t>&) {
+            conn.disconnect();
+            reentrantInvoked.store(true);
+        });
+
+    const std::vector<std::uint8_t> frame = { 0xFFU, 0x01U, 0x00U, 0x00U, 0x00U, 0x00U, 0x01U };
+    transport->inject(frame);
+
+    ASSERT_TRUE(waitFor([&reentrantInvoked]() { return reentrantInvoked.load(); }, 1000));
+    EXPECT_FALSE(conn.isConnected());
+
+    device.stop();
+}
+
+/// @brief Verify clearCallbacks() waits for in-flight callbacks across multiple subscriptions.
+TEST(ConnectionTest, ClearCallbacksDrainsCb)
+{
+    auto transport = std::make_shared<ControlledTransport>();
+    PelcoD::PelcoDDevice device(transport, static_cast<std::uint8_t>(1U));
+    ASSERT_TRUE(device.start());
+
+    std::promise<void> enteredPromise {};
+    auto entered = enteredPromise.get_future();
+    std::promise<void> releasePromise {};
+    const std::shared_future<void> release { releasePromise.get_future().share() };
+    std::atomic<bool> cbFinished { false };
+
+    device.addTrafficCallback(
+        [&enteredPromise, release, &cbFinished](bool, const std::vector<std::uint8_t>&) {
+            enteredPromise.set_value();
+            static_cast<void>(release.wait_for(std::chrono::seconds { 2 }));
+            cbFinished.store(true);
+        });
+
+    const std::vector<std::uint8_t> frame = { 0xFFU, 0x01U, 0x00U, 0x00U, 0x00U, 0x00U, 0x01U };
+    std::thread rxThread([transport, frame]() {
+        transport->inject(frame);
+    });
+
+    ASSERT_EQ(entered.wait_for(std::chrono::seconds { 2 }), std::future_status::ready);
+
+    std::atomic<bool> clearDone { false };
+    std::thread clearer([&device, &clearDone]() {
+        device.clearCallbacks();
+        clearDone.store(true);
+    });
+
+    std::this_thread::sleep_for(std::chrono::milliseconds { 80 });
+    EXPECT_FALSE(clearDone.load());
+
+    releasePromise.set_value();
+    clearer.join();
+    rxThread.join();
+
+    EXPECT_TRUE(clearDone.load());
+    EXPECT_TRUE(cbFinished.load());
+
+    device.stop();
 }
 
 } // namespace

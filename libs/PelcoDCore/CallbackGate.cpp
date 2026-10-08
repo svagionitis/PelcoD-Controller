@@ -10,32 +10,24 @@ namespace PelcoD {
 
 namespace {
 
-/// @brief Innermost gate entered on the current thread and its nesting depth on that thread.
-struct ActiveGate {
-    const CallbackGate* gate { nullptr };
-    std::uint32_t depth { 0U };
-};
-
-thread_local ActiveGate t_activeGate {};
+thread_local const CallbackGate::Pass* t_topPass { nullptr };
 
 } // namespace
 
 CallbackGate::Pass::Pass(CallbackGate& gate) noexcept
     : m_gate { gate }
-    , m_prevGate { t_activeGate.gate }
-    , m_prevDepth { t_activeGate.depth }
+    , m_prevPass { t_topPass }
     , m_entered { gate.enter() }
 {
     if (m_entered) {
-        const std::uint32_t depth { (m_prevGate == &gate) ? (m_prevDepth + 1U) : 1U };
-        t_activeGate = ActiveGate { &gate, depth };
+        t_topPass = this;
     }
 }
 
 CallbackGate::Pass::~Pass()
 {
     if (m_entered) {
-        t_activeGate = ActiveGate { m_prevGate, m_prevDepth };
+        t_topPass = m_prevPass;
         m_gate.leave();
     }
 }
@@ -61,7 +53,13 @@ void CallbackGate::close()
     static_cast<void>(m_state.fetch_or(kClosedBit, std::memory_order_acq_rel));
 
     // Frames of this gate already on the calling thread cannot finish until close() returns.
-    const std::uint32_t ownFrames { (t_activeGate.gate == this) ? t_activeGate.depth : 0U };
+    std::uint32_t ownFrames { 0U };
+    for (const Pass* p { t_topPass }; p != nullptr; p = p->m_prevPass) {
+        if ((&p->m_gate == this) && p->m_entered) {
+            ++ownFrames;
+        }
+    }
+
     while ((m_state.load(std::memory_order_acquire) & kCountMask) > ownFrames) {
         std::this_thread::sleep_for(std::chrono::milliseconds { 1 });
     }

@@ -53,9 +53,9 @@ public:
         }
 
     private:
+        friend class CallbackGate;
         CallbackGate& m_gate;
-        const CallbackGate* m_prevGate { nullptr };
-        std::uint32_t m_prevDepth { 0U };
+        const Pass* m_prevPass { nullptr };
         bool m_entered { false };
     };
 

@@ -3,9 +3,12 @@
 /// @file Connection.h
 /// @brief RAII Connection and ScopedConnection classes for callback lifecycle management.
 
+#include <atomic>
 #include <cstddef>
 #include <cstdint>
 #include <functional>
+#include <memory>
+#include <mutex>
 #include <utility>
 #include <vector>
 
@@ -15,8 +18,9 @@ namespace PelcoD {
 using CallbackId = std::uint64_t;
 
 /// @class Connection
-/// @brief Represents a connection to a callback or event subscriber.
-/// @details Allows disconnecting the callback explicitly. Thread-safe and idempotent.
+/// @brief Represents a thread-safe connection to a callback or event subscriber.
+/// @details Allows disconnecting the callback explicitly. Thread-safe across concurrent calls
+///          and across copies sharing the same underlying subscription. Idempotent and noexcept.
 class Connection {
 public:
     /// @brief Default constructor for an empty/inactive connection.
@@ -24,16 +28,13 @@ public:
 
     /// @brief Constructs an active connection with a custom disconnect routine.
     /// @param[in] disconnectFn Callback invoked when disconnect() is called.
-    explicit Connection(std::function<void()> disconnectFn)
-        : m_disconnect { std::move(disconnectFn) }
-    {
-    }
+    explicit Connection(std::function<void()> disconnectFn);
 
-    /// @brief Default copy constructor.
-    Connection(const Connection&) = default;
+    /// @brief Default copy constructor sharing active subscription state.
+    Connection(const Connection&) noexcept = default;
 
-    /// @brief Default copy assignment operator.
-    Connection& operator=(const Connection&) = default;
+    /// @brief Default copy assignment operator sharing active subscription state.
+    Connection& operator=(const Connection&) noexcept = default;
 
     /// @brief Default move constructor.
     Connection(Connection&&) noexcept = default;
@@ -44,24 +45,27 @@ public:
     ~Connection() = default;
 
     /// @brief Disconnects the associated callback.
-    /// @details Safe to call multiple times or on an uninitialized connection. Idempotent.
-    void disconnect()
-    {
-        std::function<void()> fn = std::exchange(m_disconnect, nullptr);
-        if (fn) {
-            fn();
-        }
-    }
+    /// @details Safe to call multiple times or concurrently from multiple threads. Idempotent and noexcept.
+    void disconnect() noexcept;
 
     /// @brief Checks if this connection is currently active.
     /// @return True if connected; false otherwise.
-    [[nodiscard]] bool isConnected() const noexcept
-    {
-        return static_cast<bool>(m_disconnect);
-    }
+    [[nodiscard]] bool isConnected() const noexcept;
 
 private:
-    std::function<void()> m_disconnect {};
+    struct SharedState {
+        explicit SharedState(std::function<void()> fn)
+            : disconnectFn { std::move(fn) }
+            , connected { true }
+        {
+        }
+
+        std::mutex mutex {};
+        std::function<void()> disconnectFn {};
+        std::atomic<bool> connected { false };
+    };
+
+    std::shared_ptr<SharedState> m_state {};
 };
 
 /// @class ScopedConnection

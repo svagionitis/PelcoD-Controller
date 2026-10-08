@@ -2,6 +2,7 @@
 /// @brief Implementation of Fujinon SX800 / SX801 specialized device profile.
 
 #include "FujinonSX800Device.h"
+#include "CallbackGate.h"
 
 #include <algorithm>
 #include <atomic>
@@ -32,40 +33,59 @@ public:
     [[nodiscard]] CallbackId addCallback(FujinonStatusCallback cb)
     {
         const CallbackId id { m_nextId.fetch_add(1U, std::memory_order_relaxed) };
+        auto gate = std::make_shared<CallbackGate>();
         std::scoped_lock lock { m_cbMutex };
         auto nextList = std::make_shared<std::vector<Entry>>(*m_callbacks);
-        nextList->push_back(Entry { id, std::move(cb) });
+        nextList->push_back(Entry { id, std::move(cb), std::move(gate) });
         m_callbacks = std::move(nextList);
         return id;
     }
 
-    /// @brief Removes a subscriber.
+    /// @brief Removes a subscriber and drains any active callback.
     /// @param[in] id Identifier returned by addCallback().
     /// @return True if found and removed.
     bool removeCallback(CallbackId id)
     {
-        std::scoped_lock lock { m_cbMutex };
-        const auto& current = *m_callbacks;
-        const auto it = std::find_if(current.begin(), current.end(), [id](const Entry& e) { return e.id == id; });
-        if (it == current.end()) {
-            return false;
-        }
-        auto nextList = std::make_shared<std::vector<Entry>>();
-        nextList->reserve(current.size() - 1U);
-        for (const auto& entry : current) {
-            if (entry.id != id) {
-                nextList->push_back(entry);
+        std::shared_ptr<CallbackGate> gateToClose;
+        {
+            std::scoped_lock lock { m_cbMutex };
+            const auto& current = *m_callbacks;
+            const auto it = std::find_if(current.begin(), current.end(), [id](const Entry& e) { return e.id == id; });
+            if (it == current.end()) {
+                return false;
             }
+            gateToClose = it->gate;
+            auto nextList = std::make_shared<std::vector<Entry>>();
+            nextList->reserve(current.size() - 1U);
+            for (const auto& entry : current) {
+                if (entry.id != id) {
+                    nextList->push_back(entry);
+                }
+            }
+            m_callbacks = std::move(nextList);
         }
-        m_callbacks = std::move(nextList);
+        if (gateToClose) {
+            gateToClose->close();
+        }
         return true;
     }
 
-    /// @brief Removes every subscriber.
+    /// @brief Removes every subscriber and drains all active callbacks.
     void clearCallbacks()
     {
-        std::scoped_lock lock { m_cbMutex };
-        m_callbacks = std::make_shared<const std::vector<Entry>>();
+        std::shared_ptr<const std::vector<Entry>> oldList;
+        {
+            std::scoped_lock lock { m_cbMutex };
+            oldList = m_callbacks;
+            m_callbacks = std::make_shared<const std::vector<Entry>>();
+        }
+        if (oldList) {
+            for (const auto& entry : *oldList) {
+                if (entry.gate) {
+                    entry.gate->close();
+                }
+            }
+        }
     }
 
     [[nodiscard]] ExtMatch matchQuery(
@@ -87,8 +107,11 @@ public:
         FujinonStatus current { snapshot() };
         current.baseStatus = base;
         for (const auto& entry : *callbacks) {
-            if (entry.cb) {
-                entry.cb(current);
+            if (entry.cb && entry.gate) {
+                const CallbackGate::Pass pass { *entry.gate };
+                if (pass) {
+                    entry.cb(current);
+                }
             }
         }
     }
@@ -97,6 +120,7 @@ private:
     struct Entry {
         CallbackId id { 0U };
         FujinonStatusCallback cb {};
+        std::shared_ptr<CallbackGate> gate {};
     };
 
     mutable std::mutex m_statusMutex {};

@@ -188,8 +188,11 @@ void PelcoDDevice::markDisconnected()
         sbs = m_callbackState->statusCallbacks;
     }
     for (const auto& entry : *sbs) {
-        if (entry.cb) {
-            entry.cb(copy);
+        if (entry.cb && entry.gate) {
+            const CallbackGate::Pass pass { *entry.gate };
+            if (pass) {
+                entry.cb(copy);
+            }
         }
     }
 }
@@ -223,43 +226,95 @@ std::uint8_t PelcoDDevice::getAddress() const noexcept
 
 bool PelcoDDevice::CallbackState::removeStatus(CallbackId id)
 {
-    return removeCallbackEntry(statusCallbacks, id, mutex);
+    std::shared_ptr<CallbackGate> gate {};
+    const bool removed = removeCallbackEntry(statusCallbacks, id, mutex, gate);
+    if (gate) {
+        gate->close();
+    }
+    return removed;
 }
 
 bool PelcoDDevice::CallbackState::removeTraffic(CallbackId id)
 {
-    return removeCallbackEntry(trafficCallbacks, id, mutex);
+    std::shared_ptr<CallbackGate> gate {};
+    const bool removed = removeCallbackEntry(trafficCallbacks, id, mutex, gate);
+    if (gate) {
+        gate->close();
+    }
+    return removed;
 }
 
 bool PelcoDDevice::CallbackState::removeTimeout(CallbackId id)
 {
-    return removeCallbackEntry(timeoutCallbacks, id, mutex);
+    std::shared_ptr<CallbackGate> gate {};
+    const bool removed = removeCallbackEntry(timeoutCallbacks, id, mutex, gate);
+    if (gate) {
+        gate->close();
+    }
+    return removed;
 }
 
 bool PelcoDDevice::CallbackState::removeQueryCompleted(CallbackId id)
 {
-    return removeCallbackEntry(queryCompletedCallbacks, id, mutex);
+    std::shared_ptr<CallbackGate> gate {};
+    const bool removed = removeCallbackEntry(queryCompletedCallbacks, id, mutex, gate);
+    if (gate) {
+        gate->close();
+    }
+    return removed;
 }
 
 bool PelcoDDevice::CallbackState::removeRetry(CallbackId id)
 {
-    return removeCallbackEntry(retryCallbacks, id, mutex);
+    std::shared_ptr<CallbackGate> gate {};
+    const bool removed = removeCallbackEntry(retryCallbacks, id, mutex, gate);
+    if (gate) {
+        gate->close();
+    }
+    return removed;
 }
 
 bool PelcoDDevice::CallbackState::removeQueryLatency(CallbackId id)
 {
-    return removeCallbackEntry(queryLatencyCallbacks, id, mutex);
+    std::shared_ptr<CallbackGate> gate {};
+    const bool removed = removeCallbackEntry(queryLatencyCallbacks, id, mutex, gate);
+    if (gate) {
+        gate->close();
+    }
+    return removed;
 }
 
 void PelcoDDevice::CallbackState::clear()
 {
-    std::scoped_lock lock(mutex);
-    statusCallbacks = std::make_shared<const std::vector<CallbackEntry<StatusCallback>>>();
-    trafficCallbacks = std::make_shared<const std::vector<CallbackEntry<TrafficCallback>>>();
-    timeoutCallbacks = std::make_shared<const std::vector<CallbackEntry<TimeoutCallback>>>();
-    queryCompletedCallbacks = std::make_shared<const std::vector<CallbackEntry<QueryCompletedCallback>>>();
-    retryCallbacks = std::make_shared<const std::vector<CallbackEntry<RetryCallback>>>();
-    queryLatencyCallbacks = std::make_shared<const std::vector<CallbackEntry<QueryLatencyCallback>>>();
+    std::vector<std::shared_ptr<CallbackGate>> gatesToClose;
+    {
+        std::scoped_lock lock(mutex);
+        auto collectGates = [&gatesToClose](const auto& list) {
+            for (const auto& entry : *list) {
+                if (entry.gate) {
+                    gatesToClose.push_back(entry.gate);
+                }
+            }
+        };
+        collectGates(statusCallbacks);
+        collectGates(trafficCallbacks);
+        collectGates(timeoutCallbacks);
+        collectGates(queryCompletedCallbacks);
+        collectGates(retryCallbacks);
+        collectGates(queryLatencyCallbacks);
+
+        statusCallbacks = std::make_shared<const std::vector<CallbackEntry<StatusCallback>>>();
+        trafficCallbacks = std::make_shared<const std::vector<CallbackEntry<TrafficCallback>>>();
+        timeoutCallbacks = std::make_shared<const std::vector<CallbackEntry<TimeoutCallback>>>();
+        queryCompletedCallbacks = std::make_shared<const std::vector<CallbackEntry<QueryCompletedCallback>>>();
+        retryCallbacks = std::make_shared<const std::vector<CallbackEntry<RetryCallback>>>();
+        queryLatencyCallbacks = std::make_shared<const std::vector<CallbackEntry<QueryLatencyCallback>>>();
+    }
+    for (const auto& gate : gatesToClose) {
+        if (gate) {
+            gate->close();
+        }
+    }
 }
 
 template <typename CallbackT, typename RemoveMemFn>
@@ -270,16 +325,19 @@ Connection PelcoDDevice::registerCallbackHelper(CallbackT cb,
         return Connection {};
     }
     const CallbackId id = m_callbackState->nextId.fetch_add(1U, std::memory_order_relaxed);
+    auto gate = std::make_shared<CallbackGate>();
     {
         std::scoped_lock lock(m_callbackState->mutex);
         auto nextList = std::make_shared<std::vector<CallbackEntry<CallbackT>>>(*(m_callbackState.get()->*listMember));
-        nextList->push_back({ id, std::move(cb) });
+        nextList->push_back({ id, std::move(cb), gate });
         m_callbackState.get()->*listMember = std::move(nextList);
     }
     std::weak_ptr<CallbackState> weakState = m_callbackState;
-    return Connection([weakState, id, removeFn]() {
+    return Connection([weakState, id, removeFn, gate]() {
         if (auto state = weakState.lock()) {
             (state.get()->*removeFn)(id);
+        } else {
+            gate->close();
         }
     });
 }
@@ -1153,18 +1211,27 @@ void PelcoDDevice::checkQueryTimeout()
             lcbs = m_callbackState->queryLatencyCallbacks;
         }
         for (const auto& entry : *cbs) {
-            if (entry.cb) {
-                entry.cb(tag);
+            if (entry.cb && entry.gate) {
+                const CallbackGate::Pass pass { *entry.gate };
+                if (pass) {
+                    entry.cb(tag);
+                }
             }
         }
         for (const auto& entry : *qcbs) {
-            if (entry.cb) {
-                entry.cb(tag, false, statusCopy);
+            if (entry.cb && entry.gate) {
+                const CallbackGate::Pass pass { *entry.gate };
+                if (pass) {
+                    entry.cb(tag, false, statusCopy);
+                }
             }
         }
         for (const auto& entry : *lcbs) {
-            if (entry.cb) {
-                entry.cb(tag, durationUs, false);
+            if (entry.cb && entry.gate) {
+                const CallbackGate::Pass pass { *entry.gate };
+                if (pass) {
+                    entry.cb(tag, durationUs, false);
+                }
             }
         }
     }
@@ -1249,9 +1316,12 @@ void PelcoDDevice::workerLoop()
                                 rcbs = m_callbackState->retryCallbacks;
                             }
                             for (const auto& entry : *rcbs) {
-                                if (entry.cb) {
-                                    entry.cb(item.queryTag.empty() ? "Command" : item.queryTag, item.retryCount + 1U,
-                                        retryCfg.maxRetries, backoffDelay);
+                                if (entry.cb && entry.gate) {
+                                    const CallbackGate::Pass pass { *entry.gate };
+                                    if (pass) {
+                                        entry.cb(item.queryTag.empty() ? "Command" : item.queryTag, item.retryCount + 1U,
+                                            retryCfg.maxRetries, backoffDelay);
+                                    }
                                 }
                             }
                         }
@@ -1268,8 +1338,11 @@ void PelcoDDevice::workerLoop()
                         qcbs = m_callbackState->queryCompletedCallbacks;
                     }
                     for (const auto& entry : *qcbs) {
-                        if (entry.cb) {
-                            entry.cb(item.queryTag, false, statusCopy);
+                        if (entry.cb && entry.gate) {
+                            const CallbackGate::Pass pass { *entry.gate };
+                            if (pass) {
+                                entry.cb(item.queryTag, false, statusCopy);
+                            }
                         }
                     }
                 }
@@ -1281,8 +1354,11 @@ void PelcoDDevice::workerLoop()
                     tbs = m_callbackState->trafficCallbacks;
                 }
                 for (const auto& entry : *tbs) {
-                    if (entry.cb) {
-                        entry.cb(true, item.frame);
+                    if (entry.cb && entry.gate) {
+                        const CallbackGate::Pass pass { *entry.gate };
+                        if (pass) {
+                            entry.cb(true, item.frame);
+                        }
                     }
                 }
 
@@ -1322,9 +1398,12 @@ void PelcoDDevice::workerLoop()
                                     rcbs = m_callbackState->retryCallbacks;
                                 }
                                 for (const auto& entry : *rcbs) {
-                                    if (entry.cb) {
-                                        entry.cb(
-                                            item.queryTag, item.retryCount + 1U, retryCfg.maxRetries, backoffDelay);
+                                    if (entry.cb && entry.gate) {
+                                        const CallbackGate::Pass pass { *entry.gate };
+                                        if (pass) {
+                                            entry.cb(
+                                                item.queryTag, item.retryCount + 1U, retryCfg.maxRetries, backoffDelay);
+                                        }
                                     }
                                 }
                             } else {
@@ -1395,8 +1474,11 @@ void PelcoDDevice::dispatchFrame(const std::vector<std::uint8_t>& frame)
     }
 
     for (const auto& entry : *tbs) {
-        if (entry.cb) {
-            entry.cb(false, frame);
+        if (entry.cb && entry.gate) {
+            const CallbackGate::Pass pass { *entry.gate };
+            if (pass) {
+                entry.cb(false, frame);
+            }
         }
     }
 
@@ -1463,20 +1545,29 @@ void PelcoDDevice::dispatchFrame(const std::vector<std::uint8_t>& frame)
                 lcbs = m_callbackState->queryLatencyCallbacks;
             }
             for (const auto& entry : *qcbs) {
-                if (entry.cb) {
-                    entry.cb(satisfiedTag, true, currentStatus);
+                if (entry.cb && entry.gate) {
+                    const CallbackGate::Pass pass { *entry.gate };
+                    if (pass) {
+                        entry.cb(satisfiedTag, true, currentStatus);
+                    }
                 }
             }
             for (const auto& entry : *lcbs) {
-                if (entry.cb) {
-                    entry.cb(satisfiedTag, durationUs, true);
+                if (entry.cb && entry.gate) {
+                    const CallbackGate::Pass pass { *entry.gate };
+                    if (pass) {
+                        entry.cb(satisfiedTag, durationUs, true);
+                    }
                 }
             }
         }
 
         for (const auto& entry : *sbs) {
-            if (entry.cb) {
-                entry.cb(currentStatus);
+            if (entry.cb && entry.gate) {
+                const CallbackGate::Pass pass { *entry.gate };
+                if (pass) {
+                    entry.cb(currentStatus);
+                }
             }
         }
     }

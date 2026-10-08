@@ -97,4 +97,21 @@ TEST(CallbackGateTest, OtherGatePassDoesNotExempt)
     EXPECT_EQ(gateA.inFlight(), 1U);
 }
 
+/// @brief Closing an outer gate from inside an inner gate on the same thread must return immediately.
+TEST(CallbackGateTest, NestedDifferentGatesReentrantClose)
+{
+    PelcoD::CallbackGate outerGate {};
+    PelcoD::CallbackGate innerGate {};
+    const PelcoD::CallbackGate::Pass outerPass { outerGate };
+    ASSERT_TRUE(static_cast<bool>(outerPass));
+    {
+        const PelcoD::CallbackGate::Pass innerPass { innerGate };
+        ASSERT_TRUE(static_cast<bool>(innerPass));
+
+        // Closing outerGate while inside innerPass on the same thread must not deadlock!
+        outerGate.close();
+        EXPECT_TRUE(outerGate.isClosed());
+    }
+}
+
 } // namespace
