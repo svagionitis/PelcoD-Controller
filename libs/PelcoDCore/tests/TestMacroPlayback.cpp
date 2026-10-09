@@ -222,30 +222,21 @@ TEST(MacroPlaybackTest, MacroPlayerSpeedMultiplier)
 }
 
 /// @brief Verify deserialization resilience on malformed scripts and non-JSON input.
-/// @details Ensures fromScript and fromJson return empty/default sequences and validate() fails
-///          when presented with empty or malformed input text.
+/// @details Ensures fromScript and fromJson throw std::runtime_error when presented with empty or malformed input text.
 TEST(MacroPlaybackTest, MacroSerializerMalformedInputs)
 {
-    // Empty JSON produces empty sequence
-    const auto emptyJsonSeq = PelcoD::MacroSerializer::fromJson("");
-    EXPECT_TRUE(emptyJsonSeq.steps.empty());
-    std::string err;
-    EXPECT_FALSE(PelcoD::MacroSerializer::validate(emptyJsonSeq, &err));
+    // Empty JSON throws std::runtime_error
+    EXPECT_THROW((void)PelcoD::MacroSerializer::fromJson(""), std::runtime_error);
 
-    // Invalid JSON syntax produces empty sequence
-    const auto badJsonSeq = PelcoD::MacroSerializer::fromJson("{ not valid json }");
-    EXPECT_TRUE(badJsonSeq.steps.empty());
+    // Invalid JSON syntax throws std::runtime_error
+    EXPECT_THROW((void)PelcoD::MacroSerializer::fromJson("{ not valid json }"), std::runtime_error);
 
-    // JSON missing steps array
-    const auto noStepsSeq = PelcoD::MacroSerializer::fromJson("{\"name\":\"test\"}");
-    EXPECT_TRUE(noStepsSeq.steps.empty());
-    EXPECT_FALSE(PelcoD::MacroSerializer::validate(noStepsSeq, &err));
+    // JSON missing steps array throws std::runtime_error
+    EXPECT_THROW((void)PelcoD::MacroSerializer::fromJson("{\"name\":\"test\"}"), std::runtime_error);
 
-    // Malformed hex in plaintext script produces empty steps
+    // Malformed hex in plaintext script throws std::runtime_error
     const std::string badHexScript = "ZZ ZZ NOT HEX 100 # Comment\n";
-    const auto badHexSeq = PelcoD::MacroSerializer::fromScript(badHexScript);
-    EXPECT_TRUE(badHexSeq.steps.empty());
-    EXPECT_FALSE(PelcoD::MacroSerializer::validate(badHexSeq, &err));
+    EXPECT_THROW((void)PelcoD::MacroSerializer::fromScript(badHexScript), std::runtime_error);
 }
 
 /// @brief Verify starting an empty sequence is safely rejected.
@@ -262,4 +253,202 @@ TEST(MacroPlaybackTest, MacroPlayerEmptySequence)
     EXPECT_EQ(player.state(), PelcoD::MacroPlayerState::Idle);
 }
 
+/// @brief Verify plaintext script parsing retains checksum when no explicit delay is present (H5).
+/// @details Checksum 0x25 consists of decimal digits '2' and '5'. Unpatched code mistakenly strips
+///          0x25 as a 25ms delay, emitting an invalid 6-byte frame.
+TEST(MacroPlaybackTest, FromScriptWithoutDelayRetainsChecksum)
+{
+    const std::string script = "FF 01 00 04 20 00 25  # Pan Left Speed 32\n";
+    PelcoD::MacroSequence seq = PelcoD::MacroSerializer::fromScript(script);
+
+    ASSERT_EQ(seq.steps.size(), 1U);
+    EXPECT_EQ(seq.steps[0].delayMs, 100U); // Default delay
+    ASSERT_EQ(seq.steps[0].frame.size(), 7U);
+    EXPECT_EQ(seq.steps[0].frame[0], 0xFFU);
+    EXPECT_EQ(seq.steps[0].frame[1], 0x01U);
+    EXPECT_EQ(seq.steps[0].frame[2], 0x00U);
+    EXPECT_EQ(seq.steps[0].frame[3], 0x04U);
+    EXPECT_EQ(seq.steps[0].frame[4], 0x20U);
+    EXPECT_EQ(seq.steps[0].frame[5], 0x00U);
+    EXPECT_EQ(seq.steps[0].frame[6], 0x25U); // Checksum intact!
+
+    std::string err;
+    EXPECT_TRUE(PelcoD::MacroSerializer::validate(seq, &err)) << "Validation failed: " << err;
+}
+
+/// @brief Verify plaintext script parsing handles explicit delay tokens (@150, 200ms, trailing number) (H5).
+TEST(MacroPlaybackTest, FromScriptWithExplicitDelayTokens)
+{
+    const std::string script = "FF 01 00 04 20 00 25  150   # Standard number delay\n"
+                               "FF 01 00 02 20 00 23  @200  # Explicit @ delay\n"
+                               "FF 01 00 00 00 00 01  50ms  # Explicit ms suffix\n";
+    PelcoD::MacroSequence seq = PelcoD::MacroSerializer::fromScript(script);
+
+    ASSERT_EQ(seq.steps.size(), 3U);
+    EXPECT_EQ(seq.steps[0].delayMs, 150U);
+    ASSERT_EQ(seq.steps[0].frame.size(), 7U);
+    EXPECT_EQ(seq.steps[0].frame[6], 0x25U);
+
+    EXPECT_EQ(seq.steps[1].delayMs, 200U);
+    ASSERT_EQ(seq.steps[1].frame.size(), 7U);
+    EXPECT_EQ(seq.steps[1].frame[6], 0x23U);
+
+    EXPECT_EQ(seq.steps[2].delayMs, 50U);
+    ASSERT_EQ(seq.steps[2].frame.size(), 7U);
+    EXPECT_EQ(seq.steps[2].frame[6], 0x01U);
+}
+
+/// @brief Verify validate() rejects truncated frames and invalid frame lengths (H5).
+/// @details Unpatched code only verified frame.size() == 7, silently accepting 6-byte truncated frames.
+TEST(MacroPlaybackTest, ValidateRejectsTruncatedAndInvalidFrames)
+{
+    PelcoD::MacroSequence seq;
+    PelcoD::MacroStep step6;
+    step6.label = "Truncated 6-byte frame";
+    step6.frame = { 0xFF, 0x01, 0x00, 0x04, 0x20, 0x00 }; // 6 bytes (missing checksum)
+    seq.steps.push_back(step6);
+
+    std::string err;
+    EXPECT_FALSE(PelcoD::MacroSerializer::validate(seq, &err));
+    EXPECT_FALSE(err.empty());
+
+    // 5-byte arbitrary length
+    seq.steps[0].frame = { 0xFF, 0x01, 0x00, 0x04, 0x20 };
+    EXPECT_FALSE(PelcoD::MacroSerializer::validate(seq, &err));
+
+    // Valid 4-byte general response
+    seq.steps[0].frame = { 0xFF, 0x01, 0x00, 0x01 }; // 1 + 0 = 1 checksum
+    EXPECT_TRUE(PelcoD::MacroSerializer::validate(seq, &err)) << err;
+
+    // Invalid 4-byte general response
+    seq.steps[0].frame = { 0xFF, 0x01, 0x00, 0x99 };
+    EXPECT_FALSE(PelcoD::MacroSerializer::validate(seq, &err));
+}
+
+/// @brief Verify JSON parsing handles brackets, braces, and escaped characters in step labels (H6).
+/// @details Unpatched code used substring .find(']') and .find('}'), truncating macros prematurely.
+TEST(MacroPlaybackTest, FromJsonWithBracketsAndBracesInLabels)
+{
+    const std::string json = "{\n"
+                             "  \"name\": \"Complex Tour [Special]\",\n"
+                             "  \"description\": \"Tests {bracket} handling in labels\",\n"
+                             "  \"repeatCount\": 2,\n"
+                             "  \"steps\": [\n"
+                             "    {\n"
+                             "      \"label\": \"Pan [fast] sweep\",\n"
+                             "      \"hex\": \"FF 01 00 04 20 00 25\",\n"
+                             "      \"delayMs\": 150,\n"
+                             "      \"expectResponse\": false\n"
+                             "    },\n"
+                             "    {\n"
+                             "      \"label\": \"Preset {Home} with \\\"quotes\\\"\",\n"
+                             "      \"hex\": \"FF 01 00 07 00 01 09\",\n"
+                             "      \"delayMs\": 300,\n"
+                             "      \"expectResponse\": true\n"
+                             "    }\n"
+                             "  ]\n"
+                             "}\n";
+
+    PelcoD::MacroSequence seq = PelcoD::MacroSerializer::fromJson(json);
+    EXPECT_EQ(seq.name, "Complex Tour [Special]");
+    EXPECT_EQ(seq.description, "Tests {bracket} handling in labels");
+    EXPECT_EQ(seq.repeatCount, 2U);
+    ASSERT_EQ(seq.steps.size(), 2U);
+
+    EXPECT_EQ(seq.steps[0].label, "Pan [fast] sweep");
+    EXPECT_EQ(seq.steps[0].delayMs, 150U);
+    EXPECT_FALSE(seq.steps[0].expectResponse);
+
+    EXPECT_EQ(seq.steps[1].label, "Preset {Home} with \"quotes\"");
+    EXPECT_EQ(seq.steps[1].delayMs, 300U);
+    EXPECT_TRUE(seq.steps[1].expectResponse);
+}
+
+/// @brief Verify JSON parsing does not collide on field names contained inside labels (H6).
+TEST(MacroPlaybackTest, FromJsonKeyNameInLabelNoCollision)
+{
+    const std::string json = "{\n"
+                             "  \"name\": \"ActualMacroName\",\n"
+                             "  \"repeatCount\": 1,\n"
+                             "  \"steps\": [\n"
+                             "    {\n"
+                             "      \"label\": \"Set name of device and steps count\",\n"
+                             "      \"hex\": \"FF 01 00 00 00 00 01\",\n"
+                             "      \"delayMs\": 50\n"
+                             "    }\n"
+                             "  ]\n"
+                             "}\n";
+
+    PelcoD::MacroSequence seq = PelcoD::MacroSerializer::fromJson(json);
+    EXPECT_EQ(seq.name, "ActualMacroName");
+    ASSERT_EQ(seq.steps.size(), 1U);
+    EXPECT_EQ(seq.steps[0].label, "Set name of device and steps count");
+}
+
+/// @brief Verify fromJson throws std::runtime_error on malformed JSON or schema violations (H6).
+TEST(MacroPlaybackTest, FromJsonMalformedSyntaxThrows)
+{
+    // Empty JSON
+    EXPECT_THROW((void)PelcoD::MacroSerializer::fromJson(""), std::runtime_error);
+
+    // Invalid JSON syntax
+    EXPECT_THROW((void)PelcoD::MacroSerializer::fromJson("{ not valid json }"), std::runtime_error);
+
+    // Unclosed bracket
+    EXPECT_THROW((void)PelcoD::MacroSerializer::fromJson("{\"name\":\"test\", \"steps\": [ {"), std::runtime_error);
+
+    // Missing steps array
+    EXPECT_THROW((void)PelcoD::MacroSerializer::fromJson("{\"name\":\"test\"}"), std::runtime_error);
+}
+
+/// @brief Verify fromScript throws std::runtime_error on invalid hex strings (H5).
+TEST(MacroPlaybackTest, FromScriptMalformedHexThrows)
+{
+    const std::string badScript = "ZZ ZZ NOT HEX 100 # Comment\n";
+    EXPECT_THROW((void)PelcoD::MacroSerializer::fromScript(badScript), std::runtime_error);
+}
+
+/// @brief Verify JSON round-trip serialization preserves special characters and labels (H6).
+TEST(MacroPlaybackTest, MacroJsonRoundTripWithSpecialLabels)
+{
+    PelcoD::MacroSequence seq;
+    seq.name = "Tour [Pan/Tilt] \"Special\"";
+    seq.description = "Line 1\nLine 2 with {braces} and [brackets]";
+    seq.repeatCount = 5U;
+
+    PelcoD::MacroStep step1;
+    step1.label = "Step 1: [fast] pan & \"zoom\"";
+    step1.frame = PelcoD::PelcoDFrame::createFrame(1, 0, 0x04, 0x20, 0x00);
+    step1.delayMs = 120U;
+    step1.expectResponse = true;
+    seq.steps.push_back(step1);
+
+    PelcoD::MacroStep step2;
+    step2.label = "Step 2: stop motion {safe}";
+    step2.frame = PelcoD::PelcoDFrame::createFrame(1, 0, 0x00, 0x00, 0x00);
+    step2.delayMs = 50U;
+    step2.expectResponse = false;
+    seq.steps.push_back(step2);
+
+    const std::string json = PelcoD::MacroSerializer::toJson(seq);
+    PelcoD::MacroSequence roundTripped = PelcoD::MacroSerializer::fromJson(json);
+
+    EXPECT_EQ(roundTripped.name, seq.name);
+    EXPECT_EQ(roundTripped.description, seq.description);
+    EXPECT_EQ(roundTripped.repeatCount, seq.repeatCount);
+    ASSERT_EQ(roundTripped.steps.size(), 2U);
+
+    EXPECT_EQ(roundTripped.steps[0].label, seq.steps[0].label);
+    EXPECT_EQ(roundTripped.steps[0].frame, seq.steps[0].frame);
+    EXPECT_EQ(roundTripped.steps[0].delayMs, seq.steps[0].delayMs);
+    EXPECT_EQ(roundTripped.steps[0].expectResponse, seq.steps[0].expectResponse);
+
+    EXPECT_EQ(roundTripped.steps[1].label, seq.steps[1].label);
+    EXPECT_EQ(roundTripped.steps[1].frame, seq.steps[1].frame);
+    EXPECT_EQ(roundTripped.steps[1].delayMs, seq.steps[1].delayMs);
+    EXPECT_EQ(roundTripped.steps[1].expectResponse, seq.steps[1].expectResponse);
+}
+
 } // namespace
+
+
