@@ -1489,36 +1489,34 @@ void PelcoDDevice::dispatchFrame(const std::vector<std::uint8_t>& frame)
         }
     }
 
-    // Ignore frames with invalid structure or addressed to another device on shared bus
-    if (frame.size() < 2U || frame[1] != m_address.load()) {
+    // Fast-path frame validation
+    if (frame.size() < 2U) {
         return;
     }
 
-    bool awaitingQuery { false };
-    std::string pendingQueryTag;
+    bool statusUpdated { false };
+    bool querySatisfied { false };
+    std::string satisfiedTag {};
+    std::chrono::microseconds durationUs { 0 };
+    DeviceStatus statusSnapshot {};
+
     {
         std::scoped_lock lock(m_statusMutex);
-        awaitingQuery = m_awaitingResponse.load();
-        pendingQueryTag = m_pendingQueryTag;
-    }
-    if (awaitingQuery && !isResponseMatchingQuery(pendingQueryTag, frame)) {
-        return;
-    }
 
-    DeviceStatus currentStatus {};
-    DeviceInfo currentInfo {};
-    {
-        std::scoped_lock lock(m_statusMutex);
-        currentStatus = m_status;
-        currentInfo = m_info;
-    }
+        // Discard frames addressed to another device or stale address following setAddress()
+        if (frame[1] != m_address.load()) {
+            return;
+        }
 
-    if (ProtocolParser::updateStatus(frame, currentStatus, currentInfo)) {
-        bool querySatisfied = false;
-        std::string satisfiedTag;
-        std::chrono::microseconds durationUs { 0 };
-        {
-            std::scoped_lock lock(m_statusMutex);
+        // If awaiting query response, drop frames not matching pending query
+        if (m_awaitingResponse.load() && !isResponseMatchingQuery(m_pendingQueryTag, frame)) {
+            return;
+        }
+
+        // Apply updates directly in-place to m_status and m_info under lock (H2 fix: no TOCTOU)
+        if (ProtocolParser::updateStatus(frame, m_status, m_info)) {
+            statusUpdated = true;
+
             if (m_awaitingResponse.load() && isResponseMatchingQuery(m_pendingQueryTag, frame)) {
                 satisfiedTag = m_pendingQueryTag;
                 durationUs = std::chrono::duration_cast<std::chrono::microseconds>(
@@ -1527,53 +1525,55 @@ void PelcoDDevice::dispatchFrame(const std::vector<std::uint8_t>& frame)
                 m_pendingQueryTag.clear();
                 querySatisfied = true;
             }
-            m_status = currentStatus;
-            m_info = currentInfo;
+
+            statusSnapshot = m_status;
         }
+    }
 
-        if (querySatisfied) {
-            const auto us = static_cast<std::uint64_t>(durationUs.count());
-            m_queriesCompleted.fetch_add(1U, std::memory_order_relaxed);
-            m_totalRttUs.fetch_add(us, std::memory_order_relaxed);
-            m_lastRttUs.store(us, std::memory_order_relaxed);
+    if (querySatisfied) {
+        const auto us = static_cast<std::uint64_t>(durationUs.count());
+        m_queriesCompleted.fetch_add(1U, std::memory_order_relaxed);
+        m_totalRttUs.fetch_add(us, std::memory_order_relaxed);
+        m_lastRttUs.store(us, std::memory_order_relaxed);
 
-            std::uint64_t currentMin = m_minRttUs.load(std::memory_order_relaxed);
-            while ((currentMin == 0U || us < currentMin)
-                && !m_minRttUs.compare_exchange_weak(currentMin, us, std::memory_order_relaxed)) { }
-            std::uint64_t currentMax = m_maxRttUs.load(std::memory_order_relaxed);
-            while (us > currentMax && !m_maxRttUs.compare_exchange_weak(currentMax, us, std::memory_order_relaxed)) { }
+        std::uint64_t currentMin = m_minRttUs.load(std::memory_order_relaxed);
+        while ((currentMin == 0U || us < currentMin)
+            && !m_minRttUs.compare_exchange_weak(currentMin, us, std::memory_order_relaxed)) { }
+        std::uint64_t currentMax = m_maxRttUs.load(std::memory_order_relaxed);
+        while (us > currentMax && !m_maxRttUs.compare_exchange_weak(currentMax, us, std::memory_order_relaxed)) { }
 
-            m_responseCv.notify_all();
-            std::shared_ptr<const std::vector<CallbackEntry<QueryCompletedCallback>>> qcbs;
-            std::shared_ptr<const std::vector<CallbackEntry<QueryLatencyCallback>>> lcbs;
-            {
-                std::scoped_lock lock(m_callbackState->mutex);
-                qcbs = m_callbackState->queryCompletedCallbacks;
-                lcbs = m_callbackState->queryLatencyCallbacks;
-            }
-            for (const auto& entry : *qcbs) {
-                if (entry.cb && entry.gate) {
-                    const CallbackGate::Pass pass { *entry.gate };
-                    if (pass) {
-                        entry.cb(satisfiedTag, true, currentStatus);
-                    }
-                }
-            }
-            for (const auto& entry : *lcbs) {
-                if (entry.cb && entry.gate) {
-                    const CallbackGate::Pass pass { *entry.gate };
-                    if (pass) {
-                        entry.cb(satisfiedTag, durationUs, true);
-                    }
+        m_responseCv.notify_all();
+        std::shared_ptr<const std::vector<CallbackEntry<QueryCompletedCallback>>> qcbs;
+        std::shared_ptr<const std::vector<CallbackEntry<QueryLatencyCallback>>> lcbs;
+        {
+            std::scoped_lock lock(m_callbackState->mutex);
+            qcbs = m_callbackState->queryCompletedCallbacks;
+            lcbs = m_callbackState->queryLatencyCallbacks;
+        }
+        for (const auto& entry : *qcbs) {
+            if (entry.cb && entry.gate) {
+                const CallbackGate::Pass pass { *entry.gate };
+                if (pass) {
+                    entry.cb(satisfiedTag, true, statusSnapshot);
                 }
             }
         }
+        for (const auto& entry : *lcbs) {
+            if (entry.cb && entry.gate) {
+                const CallbackGate::Pass pass { *entry.gate };
+                if (pass) {
+                    entry.cb(satisfiedTag, durationUs, true);
+                }
+            }
+        }
+    }
 
+    if (statusUpdated) {
         for (const auto& entry : *sbs) {
             if (entry.cb && entry.gate) {
                 const CallbackGate::Pass pass { *entry.gate };
                 if (pass) {
-                    entry.cb(currentStatus);
+                    entry.cb(statusSnapshot);
                 }
             }
         }

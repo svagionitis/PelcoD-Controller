@@ -400,6 +400,139 @@ TEST(PelcoDDeviceConcurrency, QueryTimeoutRaceSafety)
     EXPECT_FALSE(invalidLatencyObserved.load()) << "Timeout latency was negative or invalid!";
 }
 
+/// @brief Telemetry dispatch must not revert connected=false on transport disconnect (review finding H2).
+/// @details Verifies that when frames arrive concurrently with transport disconnection,
+///          markDisconnected()'s update is never overwritten by dispatchFrame's snapshot write-back.
+TEST(PelcoDDeviceConcurrency, DisconnectRxRaceSafety)
+{
+    auto transport = std::make_shared<PelcoD::Test::CapturingTransport>();
+    PelcoD::PelcoDDevice device { transport, 1U };
+
+    ASSERT_TRUE(device.start());
+    ASSERT_TRUE(device.getStatus().connected);
+
+    const auto frame = panResponse();
+
+    for (std::uint32_t run { 0U }; run < 50U; ++run) {
+        ASSERT_TRUE(transport->open());
+        const auto dataCb = transport->lastDataCb();
+        const auto stateCb = transport->lastStateCb();
+        ASSERT_TRUE(dataCb);
+        ASSERT_TRUE(stateCb);
+
+        std::atomic<bool> stopWorker { false };
+        std::thread rxWorker([&] {
+            while (!stopWorker.load()) {
+                dataCb(frame);
+                std::this_thread::yield();
+            }
+        });
+
+        std::this_thread::sleep_for(1ms);
+
+        stateCb(PelcoD::TransportState::Disconnected, "link down");
+
+        stopWorker.store(true);
+        rxWorker.join();
+
+        ASSERT_FALSE(device.getStatus().connected)
+            << "Run " << run << ": dispatchFrame reverted connected to true after transport disconnect!";
+
+        device.stop();
+        ASSERT_TRUE(device.start());
+    }
+
+    device.stop();
+}
+
+/// @brief Telemetry dispatch must not revert setAddress() updates (review finding H2).
+/// @details Verifies that an in-flight frame for an older address cannot overwrite m_status.address
+///          after setAddress() has updated it.
+TEST(PelcoDDeviceConcurrency, SetAddressRxRaceSafety)
+{
+    auto transport = std::make_shared<PelcoD::Test::CapturingTransport>();
+    PelcoD::PelcoDDevice device { transport, 1U };
+
+    ASSERT_TRUE(device.start());
+    const auto dataCb = transport->lastDataCb();
+    ASSERT_TRUE(dataCb);
+
+    const auto frameAddr1 = panResponse();
+
+    for (std::uint32_t run { 0U }; run < 50U; ++run) {
+        device.setAddress(1U);
+        ASSERT_EQ(device.getStatus().address, 1U);
+
+        std::atomic<bool> stopWorker { false };
+        std::thread rxWorker([&] {
+            while (!stopWorker.load()) {
+                dataCb(frameAddr1);
+                std::this_thread::yield();
+            }
+        });
+
+        std::this_thread::sleep_for(1ms);
+
+        device.setAddress(2U);
+
+        stopWorker.store(true);
+        rxWorker.join();
+
+        ASSERT_EQ(device.getStatus().address, 2U)
+            << "Run " << run << ": dispatchFrame reverted address to 1 after setAddress(2)!";
+    }
+
+    device.stop();
+}
+
+/// @brief Multi-threaded stress test ensuring zero lost updates across concurrent status mutations (H2).
+/// @details Concurrently injects telemetry frames while modifying address and polling status,
+///          verifying invariants and lack of TOCTOU clobbering.
+TEST(PelcoDDeviceConcurrency, StressStatusDispatch)
+{
+    auto transport = std::make_shared<PelcoD::Test::CapturingTransport>();
+    PelcoD::PelcoDDevice device { transport, 1U };
+
+    ASSERT_TRUE(device.start());
+    const auto dataCb = transport->lastDataCb();
+    ASSERT_TRUE(dataCb);
+
+    std::atomic<bool> stopStress { false };
+    std::atomic<bool> raceDetected { false };
+
+    std::thread t1([&] {
+        std::uint16_t angle { 0U };
+        while (!stopStress.load()) {
+            const auto f = PelcoD::PelcoDFrame::createFrame(
+                1U, 0x00U, 0x59U, static_cast<std::uint8_t>(angle >> 8U), static_cast<std::uint8_t>(angle & 0xFFU));
+            dataCb(f);
+            angle = static_cast<std::uint16_t>((angle + 10U) % 36000U);
+            std::this_thread::yield();
+        }
+    });
+
+    std::thread t2([&] {
+        while (!stopStress.load()) {
+            device.setAddress(2U);
+            if (device.getAddress() == 2U && device.getStatus().address != 2U) {
+                raceDetected.store(true);
+            }
+            device.setAddress(1U);
+            std::this_thread::yield();
+        }
+    });
+
+    std::this_thread::sleep_for(100ms);
+    stopStress.store(true);
+
+    t1.join();
+    t2.join();
+    device.stop();
+
+    EXPECT_FALSE(raceDetected.load())
+        << "dispatchFrame clobbered device address during concurrent setAddress operations!";
+}
+
 } // namespace
 
 
