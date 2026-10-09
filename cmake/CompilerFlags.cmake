@@ -101,8 +101,12 @@ function(apply_compiler_flags TARGET_NAME)
             get_target_property(TARGET_TYPE ${TARGET_NAME} TYPE)
             target_compile_options(${TARGET_NAME} PRIVATE
                 -fstack-protector-strong # Canary-based stack buffer overflow protection
-                -fstack-clash-protection # Prevent stack clash attacks across page boundaries
             )
+            if(NOT WIN32)
+                target_compile_options(${TARGET_NAME} PRIVATE
+                    -fstack-clash-protection # Prevent stack clash attacks across page boundaries
+                )
+            endif()
 
             # Lightweight container bounds assertions
             target_compile_definitions(${TARGET_NAME} PRIVATE _GLIBCXX_ASSERTIONS)
@@ -111,7 +115,7 @@ function(apply_compiler_flags TARGET_NAME)
                 target_compile_options(${TARGET_NAME} PRIVATE -fcf-protection=full) # Control Flow Integrity (IBT + SHSTK)
             endif()
 
-            if(TARGET_TYPE STREQUAL "EXECUTABLE")
+            if(TARGET_TYPE STREQUAL "EXECUTABLE" AND NOT WIN32)
                 target_compile_options(${TARGET_NAME} PRIVATE -fPIE) # Position Independent Executable code generation
                 target_link_options(${TARGET_NAME} PRIVATE -pie)     # Produce Position Independent Executable
             endif()
@@ -125,12 +129,14 @@ function(apply_compiler_flags TARGET_NAME)
                 endif()
             endif()
 
-            target_link_options(${TARGET_NAME} PRIVATE
-                -Wl,-z,relro,-z,now # Full Read-Only Relocation (RELRO) and immediate binding
-                -Wl,-z,noexecstack  # Mark executable stack as non-executable (NX/DEP)
-                -Wl,-z,separate-code # Enforce separate code and read-only data pages
-                -Wl,--as-needed     # Only link libraries containing referenced symbols
-            )
+            if(NOT WIN32)
+                target_link_options(${TARGET_NAME} PRIVATE
+                    -Wl,-z,relro,-z,now # Full Read-Only Relocation (RELRO) and immediate binding
+                    -Wl,-z,noexecstack  # Mark executable stack as non-executable (NX/DEP)
+                    -Wl,-z,separate-code # Enforce separate code and read-only data pages
+                    -Wl,--as-needed     # Only link libraries containing referenced symbols
+                )
+            endif()
         endif()
 
         set(SANITIZER_FLAGS "")

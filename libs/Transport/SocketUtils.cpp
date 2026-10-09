@@ -65,8 +65,8 @@ std::string getSocketErrorString(int errCode)
 
 bool setNonBlocking(SocketHandle s, bool nonBlocking) noexcept
 {
-    u_long mode = nonBlocking ? 1 : 0;
-    return ::ioctlsocket(s, FIONBIO, &mode) == 0;
+    u_long mode { nonBlocking ? 1UL : 0UL };
+    return ::ioctlsocket(s, static_cast<long>(FIONBIO), &mode) == 0;
 }
 
 int pollSockets(PollFd* fds, unsigned long nfds, int timeoutMs) noexcept

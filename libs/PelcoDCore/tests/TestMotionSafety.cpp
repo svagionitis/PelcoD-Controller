@@ -73,12 +73,12 @@ TEST(TestMotionSafety, PacedCommandQueuePurgeMotionCommands)
     const auto queryFrame = PelcoD::ProtocolBuilder::buildQueryPan(1U);
     queue.enqueue(queryFrame, "QueryPan", PelcoD::CommandPriority::Low, 0U);
 
-    // Enqueue motion commands
+    // Enqueue motion commands belonging to the active motion generation
     const auto panFrame = PelcoD::ProtocolBuilder::buildPan(1U, PelcoD::PanDirection::Left, 0x20U);
     queue.enqueue(panFrame, "", PelcoD::CommandPriority::Normal, 1U);
 
     const auto tiltFrame = PelcoD::ProtocolBuilder::buildTilt(1U, PelcoD::TiltDirection::Up, 0x20U);
-    queue.enqueue(tiltFrame, "", PelcoD::CommandPriority::Normal, 2U);
+    queue.enqueue(tiltFrame, "", PelcoD::CommandPriority::Normal, 1U);
 
     EXPECT_EQ(queue.size(), 3U);
 
@@ -104,6 +104,7 @@ TEST(TestMotionSafety, TransportDisconnectPurgesQueuedMotion)
     device.tiltDown(0x10U);
 
     // Simulate transport disconnect event
+    transport->close();
     auto stateCb = transport->lastStateCb();
     ASSERT_TRUE(stateCb);
     stateCb(PelcoD::TransportState::Disconnected, "Cable disconnected");

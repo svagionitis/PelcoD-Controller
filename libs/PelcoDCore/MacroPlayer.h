@@ -60,11 +60,11 @@ public:
     /// @brief Destructor. Automatically stops playback thread.
     ~MacroPlayer();
 
-    // Prevent copying, allow moving
+    // Non-copyable, non-movable (owns std::mutex and std::condition_variable)
     MacroPlayer(const MacroPlayer&) = delete;
     MacroPlayer& operator=(const MacroPlayer&) = delete;
-    MacroPlayer(MacroPlayer&&) noexcept = default;
-    MacroPlayer& operator=(MacroPlayer&&) noexcept = default;
+    MacroPlayer(MacroPlayer&&) = delete;
+    MacroPlayer& operator=(MacroPlayer&&) = delete;
 
     /// @brief Sets the frame dispatch callback.
     /// @param[in] cb Callback invoked to send frame bytes.

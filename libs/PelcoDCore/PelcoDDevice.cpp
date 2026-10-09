@@ -1244,6 +1244,10 @@ void PelcoDDevice::workerLoop()
 
     while (m_running) {
         checkQueryTimeout();
+        const auto expiredFrames = m_rxAccumulator.flushExpired(RxFrameExpectation::AllowGeneralResponse);
+        for (const auto& frame : expiredFrames) {
+            dispatchFrame(frame);
+        }
 
         const bool pollingEnabled = m_telemetryPolling.load();
         if (pollingEnabled && !lastPollingEnabled) {
@@ -1427,7 +1431,10 @@ void PelcoDDevice::workerLoop()
 
 void PelcoDDevice::onDataReceived(const std::vector<std::uint8_t>& data)
 {
-    const auto frames = m_rxAccumulator.push(data, m_awaitingResponse.load());
+    const RxFrameExpectation expectation = m_awaitingResponse.load()
+        ? RxFrameExpectation::AwaitingQuery
+        : RxFrameExpectation::StandardOnly;
+    const auto frames = m_rxAccumulator.push(data, expectation);
     for (const auto& frame : frames) {
         dispatchFrame(frame);
     }

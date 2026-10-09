@@ -2,6 +2,7 @@
 /// @brief Implementation of Pelco-D frame calculation, validation, and parsing.
 
 #include "PelcoDFrame.h"
+#include "RxStreamAccumulator.h"
 
 #include <numeric>
 
@@ -108,64 +109,20 @@ bool PelcoDFrame::isStandardStop(const std::vector<std::uint8_t>& frame) noexcep
 
 std::vector<std::vector<std::uint8_t>> PelcoDFrame::splitStream(const std::vector<std::uint8_t>& stream)
 {
-    std::vector<std::vector<std::uint8_t>> frames;
     constexpr std::size_t MaxStreamSize { 1024U * 1024U }; // 1 MB limit
     constexpr std::size_t MaxFrames { 2048U };
 
     if (stream.size() < GeneralResponseSize || stream.size() > MaxStreamSize) {
-        return frames;
+        return {};
     }
 
-    std::size_t idx { 0U };
-    const std::size_t total = stream.size();
+    RxStreamAccumulator accumulator(stream.size() + 64U);
+    auto frames = accumulator.push(stream, RxFrameExpectation::AllFrames);
+    const auto flushed = accumulator.flush(RxFrameExpectation::AllFrames);
+    frames.insert(frames.end(), flushed.begin(), flushed.end());
 
-    while (idx < total && frames.size() < MaxFrames) {
-        // Find next sync byte
-        if (stream[idx] != SyncByte) {
-            ++idx;
-            continue;
-        }
-
-        const std::size_t remaining = total - idx;
-
-        // Try 7-byte standard frame first (most common)
-        if (remaining >= StandardFrameSize) {
-            const std::uint8_t cksm = calculateChecksum(&stream[idx + 1U], 5U);
-            if (stream[idx + 6U] == cksm) {
-                std::vector<std::uint8_t> cand7(stream.begin() + static_cast<std::ptrdiff_t>(idx),
-                    stream.begin() + static_cast<std::ptrdiff_t>(idx + StandardFrameSize));
-                frames.push_back(std::move(cand7));
-                idx += StandardFrameSize;
-                continue;
-            }
-        }
-
-        // Try 4-byte general response with valid checksum
-        if (remaining >= GeneralResponseSize) {
-            const std::uint8_t cksm4 = calculateChecksum(&stream[idx + 1U], 2U);
-            if (stream[idx + 3U] == cksm4) {
-                std::vector<std::uint8_t> cand4(stream.begin() + static_cast<std::ptrdiff_t>(idx),
-                    stream.begin() + static_cast<std::ptrdiff_t>(idx + GeneralResponseSize));
-                frames.push_back(std::move(cand4));
-                idx += GeneralResponseSize;
-                continue;
-            }
-        }
-
-        // Try 18-byte query response
-        if (remaining >= QueryResponseSize) {
-            std::vector<std::uint8_t> cand18(stream.begin() + static_cast<std::ptrdiff_t>(idx),
-                stream.begin() + static_cast<std::ptrdiff_t>(idx + QueryResponseSize));
-
-            if (isValidFrame(cand18)) {
-                frames.push_back(std::move(cand18));
-                idx += QueryResponseSize;
-                continue;
-            }
-        }
-
-        // Unrecognized or corrupted frame starting at sync byte; advance by 1
-        ++idx;
+    if (frames.size() > MaxFrames) {
+        frames.resize(MaxFrames);
     }
 
     return frames;
