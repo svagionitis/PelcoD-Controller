@@ -385,12 +385,12 @@ void PatrolController::workerLoop()
 
         if (m_stepAdvanceRequested) {
             m_stepAdvanceRequested = false;
-            const int delta = m_stepAdvanceDelta;
+            const std::int32_t delta = m_stepAdvanceDelta;
             m_stepAdvanceDelta = 0;
 
             if (!m_steps.empty()) {
-                const int numSteps = static_cast<int>(m_steps.size());
-                int nextIdx = static_cast<int>(m_currentStepIndex) + delta;
+                const std::int32_t numSteps = static_cast<std::int32_t>(m_steps.size());
+                std::int32_t nextIdx = static_cast<std::int32_t>(m_currentStepIndex) + delta;
                 if (nextIdx >= numSteps) {
                     nextIdx = m_loop.load() ? 0 : (numSteps - 1);
                 } else if (nextIdx < 0) {

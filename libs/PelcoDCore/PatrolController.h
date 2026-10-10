@@ -144,7 +144,7 @@ private:
     std::uint32_t m_remainingDwellSeconds { 0U };
     bool m_needsDispatch { false };
     bool m_stepAdvanceRequested { false };
-    int m_stepAdvanceDelta { 0 };
+    std::int32_t m_stepAdvanceDelta { 0 };
 
     GoToPresetCallback m_dispatcher;
     StepChangedCallback m_stepChangedCb;

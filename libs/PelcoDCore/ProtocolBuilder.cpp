@@ -5,6 +5,7 @@
 #include "PelcoDFrame.h"
 
 #include <algorithm>
+#include <utility>
 
 namespace PelcoD {
 
@@ -100,6 +101,12 @@ std::vector<std::uint8_t> ProtocolBuilder::buildScan(std::uint8_t address, bool 
 
 namespace {
 
+/// @brief Decomposes a 16-bit integer into big-endian (MSB, LSB) byte pair.
+[[nodiscard]] inline constexpr std::pair<std::uint8_t, std::uint8_t> split16Bit(std::uint16_t value) noexcept
+{
+    return { static_cast<std::uint8_t>((value >> 8U) & 0xFFU), static_cast<std::uint8_t>(value & 0xFFU) };
+}
+
 /// @brief Constructs a standard Pelco-D command frame with Command 1 set to 0x00.
 [[nodiscard]] inline std::vector<std::uint8_t> buildStandardCmd(
     std::uint8_t address, CommandOpcode opcode, std::uint8_t data1 = 0x00U, std::uint8_t data2 = 0x00U)
@@ -111,8 +118,7 @@ namespace {
 [[nodiscard]] inline std::vector<std::uint8_t> build16BitCmd(
     std::uint8_t address, CommandOpcode opcode, std::uint16_t value)
 {
-    const auto msb = static_cast<std::uint8_t>((value >> 8U) & 0xFFU);
-    const auto lsb = static_cast<std::uint8_t>(value & 0xFFU);
+    const auto [msb, lsb] = split16Bit(value);
     return PelcoDFrame::createFrame(address, 0x00U, static_cast<std::uint8_t>(opcode), msb, lsb);
 }
 
@@ -451,8 +457,7 @@ std::vector<std::uint8_t> ProtocolBuilder::buildSetMonthDay(
 
 std::vector<std::uint8_t> ProtocolBuilder::buildSetYear(std::uint8_t address, std::uint16_t year)
 {
-    const auto msb = static_cast<std::uint8_t>((year >> 8U) & 0xFFU);
-    const auto lsb = static_cast<std::uint8_t>(year & 0xFFU);
+    const auto [msb, lsb] = split16Bit(year);
     return PelcoDFrame::createFrame(address, static_cast<std::uint8_t>(TimeSubOpcode::SetYear),
         static_cast<std::uint8_t>(CommandOpcode::TimeMacro), msb, lsb);
 }
@@ -485,8 +490,7 @@ std::vector<std::uint8_t> ProtocolBuilder::buildQueryAzimuthZero(std::uint8_t ad
 
 std::vector<std::uint8_t> ProtocolBuilder::buildSetZoomLimit(std::uint8_t address, std::uint16_t limitHundredths)
 {
-    const auto msb = static_cast<std::uint8_t>((limitHundredths >> 8U) & 0xFFU);
-    const auto lsb = static_cast<std::uint8_t>(limitHundredths & 0xFFU);
+    const auto [msb, lsb] = split16Bit(limitHundredths);
     return PelcoDFrame::createFrame(address, static_cast<std::uint8_t>(EverestSubOpcode::SetZoomLimit),
         static_cast<std::uint8_t>(CommandOpcode::Everest), msb, lsb);
 }
@@ -511,32 +515,28 @@ std::vector<std::uint8_t> ProtocolBuilder::buildDeletePattern(std::uint8_t addre
 
 std::vector<std::uint8_t> ProtocolBuilder::buildSetManualLeftPanLimit(std::uint8_t address, std::uint16_t centidegrees)
 {
-    const auto msb = static_cast<std::uint8_t>((centidegrees >> 8U) & 0xFFU);
-    const auto lsb = static_cast<std::uint8_t>(centidegrees & 0xFFU);
+    const auto [msb, lsb] = split16Bit(centidegrees);
     return PelcoDFrame::createFrame(address, static_cast<std::uint8_t>(EverestSubOpcode::SetManualLeftPanLimit),
         static_cast<std::uint8_t>(CommandOpcode::Everest), msb, lsb);
 }
 
 std::vector<std::uint8_t> ProtocolBuilder::buildSetManualRightPanLimit(std::uint8_t address, std::uint16_t centidegrees)
 {
-    const auto msb = static_cast<std::uint8_t>((centidegrees >> 8U) & 0xFFU);
-    const auto lsb = static_cast<std::uint8_t>(centidegrees & 0xFFU);
+    const auto [msb, lsb] = split16Bit(centidegrees);
     return PelcoDFrame::createFrame(address, static_cast<std::uint8_t>(EverestSubOpcode::SetManualRightPanLimit),
         static_cast<std::uint8_t>(CommandOpcode::Everest), msb, lsb);
 }
 
 std::vector<std::uint8_t> ProtocolBuilder::buildSetScanLeftPanLimit(std::uint8_t address, std::uint16_t centidegrees)
 {
-    const auto msb = static_cast<std::uint8_t>((centidegrees >> 8U) & 0xFFU);
-    const auto lsb = static_cast<std::uint8_t>(centidegrees & 0xFFU);
+    const auto [msb, lsb] = split16Bit(centidegrees);
     return PelcoDFrame::createFrame(address, static_cast<std::uint8_t>(EverestSubOpcode::SetScanLeftPanLimit),
         static_cast<std::uint8_t>(CommandOpcode::Everest), msb, lsb);
 }
 
 std::vector<std::uint8_t> ProtocolBuilder::buildSetScanRightPanLimit(std::uint8_t address, std::uint16_t centidegrees)
 {
-    const auto msb = static_cast<std::uint8_t>((centidegrees >> 8U) & 0xFFU);
-    const auto lsb = static_cast<std::uint8_t>(centidegrees & 0xFFU);
+    const auto [msb, lsb] = split16Bit(centidegrees);
     return PelcoDFrame::createFrame(address, static_cast<std::uint8_t>(EverestSubOpcode::SetScanRightPanLimit),
         static_cast<std::uint8_t>(CommandOpcode::Everest), msb, lsb);
 }

@@ -33,6 +33,8 @@ struct MacroSequence {
 /// @details Supports both structured JSON format and line-based plain hex script format.
 class MacroSerializer {
 public:
+    MacroSerializer() = delete;
+
     /// @brief Deserializes a macro sequence from JSON formatted text.
     /// @param[in] json Text containing JSON representation of the macro sequence.
     /// @return Parsed MacroSequence object.
@@ -60,7 +62,7 @@ public:
     /// @param[in] sequence Sequence to check.
     /// @param[out] errorMsg If non-null and validation fails, populated with explanation.
     /// @return True if valid, false otherwise.
-    [[nodiscard]] static bool validate(const MacroSequence& sequence, std::string* errorMsg = nullptr) noexcept;
+    [[nodiscard]] static bool validate(const MacroSequence& sequence, std::string* errorMsg = nullptr);
 };
 
 } // namespace PelcoD

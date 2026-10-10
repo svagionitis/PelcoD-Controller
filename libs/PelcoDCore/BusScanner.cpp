@@ -329,7 +329,7 @@ void BusScanner::scanWorker(ScanConfig config)
             }
         }
 
-        for (int addr = config.startAddress; addr <= config.endAddress; ++addr) {
+        for (std::uint32_t addr { config.startAddress }; addr <= config.endAddress; ++addr) {
             if (m_stopRequested.load()) {
                 break;
             }

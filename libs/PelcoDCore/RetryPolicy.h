@@ -51,8 +51,8 @@ struct RetryConfig {
         return std::chrono::milliseconds { 0 };
     }
 
-    const auto capMs = config.maxBackoff.count();
-    const auto initialMs = config.initialBackoff.count();
+    const std::int64_t capMs = config.maxBackoff.count();
+    const std::int64_t initialMs = config.initialBackoff.count();
 
     if (initialMs >= capMs) {
         return config.maxBackoff;

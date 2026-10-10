@@ -79,7 +79,7 @@ bool PelcoDDevice::start()
         m_status.connected = true;
     }
 
-    LOG(INFO) << "Starting PelcoDDevice controller (address: " << static_cast<int>(m_address) << ")";
+    LOG(INFO) << "Starting PelcoDDevice controller (address: " << static_cast<std::uint32_t>(m_address) << ")";
 
     m_rxAccumulator.clear();
     m_running = true;
@@ -1190,7 +1190,7 @@ void PelcoDDevice::checkQueryTimeout()
         std::scoped_lock lock(m_statusMutex);
         if (m_awaitingResponse.load()) {
             const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - m_querySentTime).count();
-            if (elapsed >= static_cast<long long>(timeoutMs)) {
+            if (elapsed >= static_cast<std::int64_t>(timeoutMs)) {
                 timedOut = true;
                 tag = m_pendingQueryTag;
                 durationUs = std::chrono::duration_cast<std::chrono::microseconds>(now - m_querySentTime);
@@ -1274,9 +1274,12 @@ void PelcoDDevice::workerLoop()
         CommandItem item;
         const auto pollDeadline
             = (pollingEnabled && isConnected()) ? nextPollTime : std::chrono::steady_clock::time_point::max();
+        const auto idleWaitTimeout = (m_rxAccumulator.size() > 0U)
+            ? m_rxAccumulator.interByteTimeout()
+            : std::chrono::milliseconds(50);
 
         const bool hasItem = m_queue.popReady(
-            item, [this] { return !m_running.load(); }, pollDeadline);
+            item, [this] { return !m_running.load(); }, pollDeadline, idleWaitTimeout);
         if (!m_running) {
             break;
         }
@@ -1443,6 +1446,9 @@ void PelcoDDevice::onDataReceived(const std::vector<std::uint8_t>& data)
     const auto frames = m_rxAccumulator.push(data, expectation);
     for (const auto& frame : frames) {
         dispatchFrame(frame);
+    }
+    if (m_rxAccumulator.size() > 0U) {
+        m_queue.wakeAll();
     }
 }
 

@@ -710,7 +710,7 @@ std::string MacroSerializer::toScript(const MacroSequence& sequence)
     return ss.str();
 }
 
-bool MacroSerializer::validate(const MacroSequence& sequence, std::string* errorMsg) noexcept
+bool MacroSerializer::validate(const MacroSequence& sequence, std::string* errorMsg)
 {
     try {
         if (sequence.steps.empty()) {

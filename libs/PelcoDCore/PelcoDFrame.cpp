@@ -129,18 +129,23 @@ std::vector<std::vector<std::uint8_t>> PelcoDFrame::splitStream(const std::vecto
 }
 
 namespace {
-    constexpr char kHexDigits[] = "0123456789ABCDEF";
+    inline constexpr std::string_view kHexDigits { "0123456789ABCDEF" };
 
-    inline int hexDigitVal(char c) noexcept
+    [[nodiscard]] inline constexpr bool isDelimiter(char c) noexcept
+    {
+        return (c == ' ') || (c == ':') || (c == '-') || (c == ',') || (c == '\t') || (c == '\r') || (c == '\n');
+    }
+
+    [[nodiscard]] inline std::int32_t hexDigitVal(char c) noexcept
     {
         if (c >= '0' && c <= '9') {
-            return c - '0';
+            return static_cast<std::int32_t>(c - '0');
         }
         if (c >= 'a' && c <= 'f') {
-            return c - 'a' + 10;
+            return static_cast<std::int32_t>(c - 'a' + 10);
         }
         if (c >= 'A' && c <= 'F') {
-            return c - 'A' + 10;
+            return static_cast<std::int32_t>(c - 'A' + 10);
         }
         return -1;
     }
@@ -163,8 +168,8 @@ std::string PelcoDFrame::toHexString(const std::uint8_t* data, std::size_t lengt
 
     for (std::size_t i { 0U }; i < length; ++i) {
         const std::uint8_t b = data[i];
-        result.push_back(kHexDigits[(b >> 4U) & 0x0FU]);
-        result.push_back(kHexDigits[b & 0x0FU]);
+        result.push_back(kHexDigits[(static_cast<std::size_t>(b) >> 4U) & 0x0FU]);
+        result.push_back(kHexDigits[static_cast<std::size_t>(b) & 0x0FU]);
         if (delimiter != '\0' && (i + 1U < length)) {
             result.push_back(delimiter);
         }
@@ -176,7 +181,7 @@ std::string PelcoDFrame::toHexString(const std::uint8_t* data, std::size_t lengt
 std::vector<std::uint8_t> PelcoDFrame::fromHexString(std::string_view hexStr)
 {
     std::vector<std::uint8_t> bytes;
-    int highNibble { -1 };
+    std::int32_t highNibble { -1 };
 
     for (std::size_t i { 0U }; i < hexStr.size(); ++i) {
         const char c = hexStr[i];
@@ -186,16 +191,21 @@ std::vector<std::uint8_t> PelcoDFrame::fromHexString(std::string_view hexStr)
             continue;
         }
 
-        const int val = hexDigitVal(c);
-        if (val < 0) {
-            // Non-hex character (whitespace or delimiter such as ' ', ':', '-', ',')
+        if (isDelimiter(c)) {
             continue;
+        }
+
+        const std::int32_t val = hexDigitVal(c);
+        if (val < 0) {
+            // Non-hex, non-delimiter character encountered: reject invalid string (L10)
+            return {};
         }
 
         if (highNibble < 0) {
             highNibble = val;
         } else {
-            bytes.push_back(static_cast<std::uint8_t>((highNibble << 4) | val));
+            const auto combined = (static_cast<std::uint32_t>(highNibble) << 4U) | static_cast<std::uint32_t>(val);
+            bytes.push_back(static_cast<std::uint8_t>(combined));
             highNibble = -1;
         }
     }

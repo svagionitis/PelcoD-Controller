@@ -48,10 +48,23 @@ std::vector<std::vector<std::uint8_t>> RxStreamAccumulator::push(
 
     std::scoped_lock lock(m_mutex);
 
-    if (m_buffer.size() + size > m_maxBufferSize) {
-        LOG(WARNING) << "RxStreamAccumulator overflow (" << (m_buffer.size() + size) << " > " << m_maxBufferSize
+    // Amortized compaction: if read offset has advanced significantly, compact buffer
+    if (m_readOffset > 0U) {
+        if (m_readOffset >= m_buffer.size()) {
+            m_buffer.clear();
+            m_readOffset = 0U;
+        } else if (m_readOffset >= 512U || m_buffer.size() > (m_maxBufferSize / 2U)) {
+            m_buffer.erase(m_buffer.begin(), m_buffer.begin() + static_cast<std::ptrdiff_t>(m_readOffset));
+            m_readOffset = 0U;
+        }
+    }
+
+    const std::size_t activeBuffered = m_buffer.size() - m_readOffset;
+    if (activeBuffered + size > m_maxBufferSize) {
+        LOG(WARNING) << "RxStreamAccumulator overflow (" << (activeBuffered + size) << " > " << m_maxBufferSize
                      << " bytes): resetting accumulator buffer";
         m_buffer.clear();
+        m_readOffset = 0U;
     }
 
     m_buffer.insert(m_buffer.end(), data, data + size);
@@ -63,7 +76,8 @@ std::vector<std::vector<std::uint8_t>> RxStreamAccumulator::push(
 std::vector<std::vector<std::uint8_t>> RxStreamAccumulator::flushExpired(RxFrameExpectation expectation)
 {
     std::scoped_lock lock(m_mutex);
-    if (m_buffer.empty()) {
+    const std::size_t activeBuffered = (m_buffer.size() >= m_readOffset) ? (m_buffer.size() - m_readOffset) : 0U;
+    if (activeBuffered == 0U) {
         return {};
     }
 
@@ -87,34 +101,37 @@ std::vector<std::vector<std::uint8_t>> RxStreamAccumulator::extractLocked(
 {
     std::vector<std::vector<std::uint8_t>> framesToDispatch;
 
-    while (m_buffer.size() >= PelcoDFrame::GeneralResponseSize) {
-        const auto syncIt = std::find(m_buffer.begin(), m_buffer.end(), PelcoDFrame::SyncByte);
-        if (syncIt == m_buffer.end()) {
-            m_discardedBytes.fetch_add(static_cast<std::uint64_t>(m_buffer.size()), std::memory_order_relaxed);
-            m_buffer.clear();
+    while ((m_buffer.size() - m_readOffset) >= PelcoDFrame::GeneralResponseSize) {
+        const auto bufBegin = m_buffer.begin() + static_cast<std::ptrdiff_t>(m_readOffset);
+        const auto bufEnd = m_buffer.end();
+
+        const auto syncIt = std::find(bufBegin, bufEnd, PelcoDFrame::SyncByte);
+        if (syncIt == bufEnd) {
+            m_discardedBytes.fetch_add(static_cast<std::uint64_t>(std::distance(bufBegin, bufEnd)), std::memory_order_relaxed);
+            m_readOffset = m_buffer.size();
             break;
         }
 
-        if (syncIt != m_buffer.begin()) {
-            const auto dropped = static_cast<std::uint64_t>(std::distance(m_buffer.begin(), syncIt));
+        if (syncIt != bufBegin) {
+            const auto dropped = static_cast<std::uint64_t>(std::distance(bufBegin, syncIt));
             m_discardedBytes.fetch_add(dropped, std::memory_order_relaxed);
-            m_buffer.erase(m_buffer.begin(), syncIt);
+            m_readOffset += static_cast<std::size_t>(dropped);
         }
 
-        const std::size_t available = m_buffer.size();
+        const std::size_t available = m_buffer.size() - m_readOffset;
         if (available < PelcoDFrame::GeneralResponseSize) {
             break;
         }
 
         bool frameExtracted = false;
+        const auto frameStart = m_buffer.begin() + static_cast<std::ptrdiff_t>(m_readOffset);
 
         // 1. Try 7-byte standard frame first (most common PTZ replies, telemetry, ACKs)
         if (available >= PelcoDFrame::StandardFrameSize) {
             std::vector<std::uint8_t> frame(
-                m_buffer.begin(), m_buffer.begin() + static_cast<std::ptrdiff_t>(PelcoDFrame::StandardFrameSize));
+                frameStart, frameStart + static_cast<std::ptrdiff_t>(PelcoDFrame::StandardFrameSize));
             if (PelcoDFrame::isValidFrame(frame)) {
-                m_buffer.erase(
-                    m_buffer.begin(), m_buffer.begin() + static_cast<std::ptrdiff_t>(PelcoDFrame::StandardFrameSize));
+                m_readOffset += PelcoDFrame::StandardFrameSize;
                 framesToDispatch.push_back(std::move(frame));
                 frameExtracted = true;
                 continue;
@@ -126,38 +143,35 @@ std::vector<std::vector<std::uint8_t>> RxStreamAccumulator::extractLocked(
             || (expectation == RxFrameExpectation::AllFrames);
         if (queryAllowed && available >= PelcoDFrame::QueryResponseSize) {
             std::vector<std::uint8_t> frame(
-                m_buffer.begin(), m_buffer.begin() + static_cast<std::ptrdiff_t>(PelcoDFrame::QueryResponseSize));
+                frameStart, frameStart + static_cast<std::ptrdiff_t>(PelcoDFrame::QueryResponseSize));
             if (PelcoDFrame::isValidFrame(frame)) {
-                m_buffer.erase(
-                    m_buffer.begin(), m_buffer.begin() + static_cast<std::ptrdiff_t>(PelcoDFrame::QueryResponseSize));
+                m_readOffset += PelcoDFrame::QueryResponseSize;
                 framesToDispatch.push_back(std::move(frame));
                 frameExtracted = true;
                 continue;
             }
         }
 
-        // 3. Try 4-byte general response only if explicitly allowed and boundary lookahead or timeout confirmed
+        // 3. Try 4-byte general response if allowed by expectation OR boundary lookahead confirms next frame
         const bool generalAllowed = (expectation == RxFrameExpectation::AllowGeneralResponse)
-            || (expectation == RxFrameExpectation::AllFrames);
+            || (expectation == RxFrameExpectation::AllFrames)
+            || (available > PelcoDFrame::GeneralResponseSize
+                && m_buffer[m_readOffset + PelcoDFrame::GeneralResponseSize] == PelcoDFrame::SyncByte);
         if (generalAllowed && available >= PelcoDFrame::GeneralResponseSize) {
             bool candidateAllowed = false;
 
             if (forceFlush) {
-                // Under explicit flush or expired silence, allow candidate if buffer ends exactly at 4 bytes
-                // or if followed by another sync byte
                 candidateAllowed = (available == PelcoDFrame::GeneralResponseSize)
-                    || (m_buffer[PelcoDFrame::GeneralResponseSize] == PelcoDFrame::SyncByte);
+                    || (m_buffer[m_readOffset + PelcoDFrame::GeneralResponseSize] == PelcoDFrame::SyncByte);
             } else if (available > PelcoDFrame::GeneralResponseSize) {
-                // In continuous stream, 4-byte frame is only valid if immediately followed by next sync byte
-                candidateAllowed = (m_buffer[PelcoDFrame::GeneralResponseSize] == PelcoDFrame::SyncByte);
+                candidateAllowed = (m_buffer[m_readOffset + PelcoDFrame::GeneralResponseSize] == PelcoDFrame::SyncByte);
             }
 
             if (candidateAllowed) {
                 std::vector<std::uint8_t> frame(
-                    m_buffer.begin(), m_buffer.begin() + static_cast<std::ptrdiff_t>(PelcoDFrame::GeneralResponseSize));
+                    frameStart, frameStart + static_cast<std::ptrdiff_t>(PelcoDFrame::GeneralResponseSize));
                 if (PelcoDFrame::isValidFrame(frame)) {
-                    m_buffer.erase(
-                        m_buffer.begin(), m_buffer.begin() + static_cast<std::ptrdiff_t>(PelcoDFrame::GeneralResponseSize));
+                    m_readOffset += PelcoDFrame::GeneralResponseSize;
                     framesToDispatch.push_back(std::move(frame));
                     frameExtracted = true;
                     continue;
@@ -167,7 +181,21 @@ std::vector<std::vector<std::uint8_t>> RxStreamAccumulator::extractLocked(
 
         // If no frame was extracted, check if we must wait for more bytes before declaring checksum error
         if (!frameExtracted) {
-            const std::size_t maxExpectedSize = (expectation == RxFrameExpectation::AwaitingQuery)
+            bool couldBeQuery = (expectation == RxFrameExpectation::AwaitingQuery);
+            if (couldBeQuery && available >= PelcoDFrame::GeneralResponseSize) {
+                bool sawNull = false;
+                for (std::size_t i { 2U }; i < std::min(available, static_cast<std::size_t>(17U)); ++i) {
+                    const std::uint8_t b = m_buffer[m_readOffset + i];
+                    if (b == 0x00U) {
+                        sawNull = true;
+                    } else if (sawNull || b < 32U || b > 126U) {
+                        couldBeQuery = false;
+                        break;
+                    }
+                }
+            }
+
+            const std::size_t maxExpectedSize = couldBeQuery
                 ? PelcoDFrame::QueryResponseSize
                 : PelcoDFrame::StandardFrameSize;
 
@@ -179,8 +207,17 @@ std::vector<std::vector<std::uint8_t>> RxStreamAccumulator::extractLocked(
             // Available bytes >= maxExpectedSize and no candidate at index 0 was valid; slide by 1
             m_checksumErrors.fetch_add(1U, std::memory_order_relaxed);
             m_discardedBytes.fetch_add(1U, std::memory_order_relaxed);
-            m_buffer.erase(m_buffer.begin());
+            m_readOffset += 1U;
         }
+    }
+
+    // Post-extraction compaction: if all consumed, reset buffer and offset
+    if (m_readOffset >= m_buffer.size()) {
+        m_buffer.clear();
+        m_readOffset = 0U;
+    } else if (m_readOffset >= 512U) {
+        m_buffer.erase(m_buffer.begin(), m_buffer.begin() + static_cast<std::ptrdiff_t>(m_readOffset));
+        m_readOffset = 0U;
     }
 
     return framesToDispatch;
@@ -190,12 +227,13 @@ void RxStreamAccumulator::clear()
 {
     std::scoped_lock lock(m_mutex);
     m_buffer.clear();
+    m_readOffset = 0U;
 }
 
 std::size_t RxStreamAccumulator::size() const
 {
     std::scoped_lock lock(m_mutex);
-    return m_buffer.size();
+    return (m_buffer.size() >= m_readOffset) ? (m_buffer.size() - m_readOffset) : 0U;
 }
 
 std::size_t RxStreamAccumulator::maxBufferSize() const noexcept

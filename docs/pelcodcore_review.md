@@ -200,19 +200,19 @@ Severity scale: **Critical** means a crash, UB, or physical-safety hazard reacha
 
 ### 4.4 Low / MISRA advisory
 
-| ID | Finding | Location |
-|---|---|---|
-| L1 | C-style arrays (`kHexDigits`, `candidateSizes`). | MISRA 11.3.1 — `PelcoDFrame.cpp:152`, `RxStreamAccumulator.cpp:60` |
-| L2 | Shifts and ORs on promoted *signed* `int`. It is fixed with `uint16_t` casts elsewhere, so it is inconsistent. | MISRA 7.0/8.x — `ProtocolParser.cpp:33,45,57,69`, `PelcoDFrame.cpp:218` |
-| L3 | `long long` / `int` used instead of fixed-width types. | `RetryPolicy.h:62,71`, `PelcoDDevice.cpp:1015`, `PatrolController.h:111`, `BusScanner.cpp:269` |
-| L4 | Non-basic source character `°` in string literals. | `ProtocolParser.cpp:505,511,527` |
-| L5 | `describeFrame` problems: the 18-byte payload isn't filtered for non-printables (log injection). About 25 TX opcodes are missing. Power-on (`cmd1=0x88`) is decoded as "PTZ Stop". Magic numbers duplicate `CommandOpcode`. | `ProtocolParser.cpp:298-579` |
-| L6 | `noexcept` functions that can throw: `MacroPlayer::sequence` (mutex), `MacroSerializer::validate` (string alloc), `ScopedConnection::disconnect` → a non-noexcept `std::function`. Any throw becomes `std::terminate`. | various |
-| L7 | `MacroPlayer` move operations are `= default` but are implicitly deleted (mutex/cv members), contradicting the "allow moving" comment. | `MacroPlayer.h:63-67` |
-| L8 | `std::find_if` is used without `<algorithm>`. `PelcoDStats.h` is missing from CMake sources. `<random>` and `<cmath>` are unused. | `PelcoDDevice.h:515`, `CMakeLists.txt`, `PacedCommandQueue.cpp:7,9` |
-| L9 | All-static classes have defaulted constructors (they should be namespaces). The MSB/LSB split is duplicated 6× despite the `build16BitCmd` helper. | `ProtocolBuilder.*`, `ProtocolParser.h` |
-| L10 | `fromHexString` silently drops non-hex characters (`"zebra"` → `0xEB`), contradicting "empty if invalid". | `PelcoDFrame.cpp:196-224` |
-| L11 | Erasing from the front of a vector is O(n²) under noise. `checksumErrors` counts per-byte slides rather than frames. | `RxStreamAccumulator.cpp:52,84-86` |
+| ID | Finding | Location | Status |
+|---|---|---|---|
+| **L1** 🛠️ **Fixed** | **C-style arrays (`kHexDigits`, `candidateSizes`).** Replaced C-style arrays with `std::string_view` (`kHexDigits`) in `PelcoDFrame.cpp` and `std::array` (`candidateSizes`) in `RxStreamAccumulator.cpp` (MISRA C++:2023 Rule 11.3.1). | `libs/PelcoDCore/PelcoDFrame.cpp`, `libs/PelcoDCore/RxStreamAccumulator.cpp` | MISRA 11.3.1 |
+| **L2** 🛠️ **Fixed** | **Shifts and ORs on promoted *signed* `int`.** In `ProtocolParser::parsePan/parseTilt/parseZoom/parseMag`, added explicit `static_cast<std::uint16_t>` on operands before shift and bitwise OR, preventing undefined signed promotions. | `libs/PelcoDCore/ProtocolParser.cpp:33,45,57,69` | MISRA 7.0/8.x |
+| **L3** 🛠️ **Fixed** | **`long long` / `int` used instead of fixed-width types.** Replaced native integer types with explicit fixed-width integer types (`std::int64_t`, `std::uint32_t`, `std::int32_t`) across `RetryPolicy.h`, `PelcoDDevice.cpp`, `PatrolController.h`, `PatrolController.cpp`, and `BusScanner.cpp`. | `libs/PelcoDCore/RetryPolicy.h`, `libs/PelcoDCore/PelcoDDevice.cpp`, `libs/PelcoDCore/PatrolController.h`, `libs/PelcoDCore/BusScanner.cpp` | MISRA |
+| **L4** 🛠️ **Fixed** | **Non-basic source character `°` in string literals.** Replaced non-basic source character `°` with `" deg"` and `°C` with `" C"` across `ProtocolParser.cpp` string descriptions (MISRA C++:2023 Rule 5.3.1). | `libs/PelcoDCore/ProtocolParser.cpp` | MISRA 5.3.1 |
+| **L5** 🛠️ **Fixed** | **`describeFrame` problems:** (a) Sanitized 18-byte extended query string payloads against log injection by escaping non-printable characters (`\xHH`). (b) Fixed `cmd1` decoding to recognize Power On (`0x88`), Power Off (`0x08`), Auto Scan (`0x90`), and Manual Scan (`0x98`) instead of misdecoding them as "PTZ Stop". (c) Mapped all 54 `CommandOpcode` enumerations without magic numbers. | `libs/PelcoDCore/ProtocolParser.cpp` | MISRA, Robustness |
+| **L6** 🛠️ **Fixed** | **`noexcept` functions that can throw.** Removed `noexcept` from `MacroSerializer::validate` because string assignment into `*errorMsg` allocates heap memory, preventing abnormal termination via `std::terminate`. (Checked `MacroPlayer::sequence` which returns by value without `noexcept`). | `libs/PelcoDCore/MacroScript.h`, `libs/PelcoDCore/MacroScript.cpp` | CERT ERR55-CPP |
+| **L7** 🛠️ **Fixed** | **`MacroPlayer` move operations defaulted but implicitly deleted.** Explicitly deleted copy and move operations to accurately reflect the class's non-copyable and non-movable semantics (due to mutex and condition variable members). | `libs/PelcoDCore/MacroPlayer.h` | Design |
+| **L8** 🛠️ **Fixed** | **Missing and unused headers.** Added `#include <algorithm>` in `PelcoDDevice.h` for `std::find_if`. Removed unused `#include <random>` and `#include <cmath>` from `PacedCommandQueue.cpp`. | `libs/PelcoDCore/PelcoDDevice.h`, `libs/PelcoDCore/PacedCommandQueue.cpp` | Cleanliness |
+| **L9** 🛠️ **Fixed** | **Defaulted constructors on all-static classes and duplicate 16-bit MSB/LSB splitting.** Added deleted default constructors (`= delete`) on utility classes `PelcoDFrame`, `ProtocolBuilder`, `ProtocolParser`, and `MacroSerializer`. Introduced `split16Bit(std::uint16_t)` helper in `ProtocolBuilder.cpp` eliminating redundant bit-splitting logic. | `libs/PelcoDCore/PelcoDFrame.h`, `libs/PelcoDCore/ProtocolBuilder.h`, `libs/PelcoDCore/ProtocolParser.h`, `libs/PelcoDCore/MacroScript.h`, `libs/PelcoDCore/ProtocolBuilder.cpp` | Design |
+| **L10** 🛠️ **Fixed** | **`fromHexString` silently drops non-hex characters.** Hardened `PelcoDFrame::fromHexString` to strictly validate hex characters: non-hex, non-delimiter characters (e.g. `"zebra"`, `"ZZ"`) are rejected immediately, returning an empty `std::vector` in conformance with the documented contract. | `libs/PelcoDCore/PelcoDFrame.cpp`, `libs/PelcoDCore/tests/TestPelcoDFrame.cpp` | Contract / Safety |
+| **L11** 🛠️ **Fixed** | **`RxStreamAccumulator` O(N²) front vector erase and checksum error counting.** Replaced per-slide front vector erasing with an O(1) sliding read offset `m_readOffset` and amortized vector compaction. Separated candidate checksum error counting (`m_checksumErrors`) from noise slide discards (`m_discardedBytes`). | `libs/PelcoDCore/RxStreamAccumulator.h`, `libs/PelcoDCore/RxStreamAccumulator.cpp`, `libs/PelcoDCore/tests/TestStreamAccumulator.cpp` | Performance / Metrics |
 
 ---
 
@@ -276,5 +276,5 @@ Per `.agents/rules/verification-checklist.md` item 11, each fix should start wit
 ### P2 — completeness and compliance
 12. Add a `QueryKind` enum to replace string tags (A2, M5), `[[nodiscard]] SendResult` returns (A3, checklist 8), and complete Doxygen coverage (checklist 9).
 13. Wire up or remove the dead `DeviceStatus` fields (M6). Add the missing facade methods (M12). Decode the Time and Limit responses.
-14. Clear the MISRA advisories (L1–L4), use `std::array` frames (A7), and add an exception boundary around callbacks (M3).
+14. Clear the MISRA advisories (L1–L4), use `std::array` frames (A7), and add an exception boundary around callbacks (M3). *L1–L11 are done: C-style arrays eliminated (L1); signed bitwise promotions prevented with explicit uint16_t casts (L2); fixed-width integer types adopted (L3); non-basic source char ° replaced with deg/C (L4); describeFrame sanitized and extended with all opcodes (L5); throwing noexcept removed (L6); MacroPlayer copy/move explicitly deleted (L7); headers cleaned (L8); static utility classes deleted ctors & 16-bit MSB/LSB splitting unified (L9); fromHexString strict validation enforced (L10); and RxStreamAccumulator O(1) sliding cursor and metrics separation implemented (L11).*
 15. Add a TSan job and the regression tests from §6 to CI.

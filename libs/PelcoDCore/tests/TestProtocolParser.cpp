@@ -163,10 +163,10 @@ TEST(ProtocolParserTest, DescribeFrame)
     EXPECT_EQ(ProtocolParser::describeFrame(false, nakFrame), "NAK (Error) for Opcode 0x51");
 
     const auto panFrame = PelcoDFrame::createFrame(0x01U, 0x00U, 0x59U, 0x30U, 0x39U);
-    EXPECT_EQ(ProtocolParser::describeFrame(false, panFrame), "Pan Response: 123.45°");
+    EXPECT_EQ(ProtocolParser::describeFrame(false, panFrame), "Pan Response: 123.45 deg");
 
     const auto tiltFrame = PelcoDFrame::createFrame(0x01U, 0x00U, 0x5BU, 0x11U, 0xD7U);
-    EXPECT_EQ(ProtocolParser::describeFrame(false, tiltFrame), "Tilt Response: 45.67°");
+    EXPECT_EQ(ProtocolParser::describeFrame(false, tiltFrame), "Tilt Response: 45.67 deg");
 
     const auto zoomFrame = PelcoDFrame::createFrame(0x01U, 0x00U, 0x5DU, 0x04U, 0xB0U);
     EXPECT_EQ(ProtocolParser::describeFrame(false, zoomFrame), "Zoom Response: 1200");
@@ -178,7 +178,7 @@ TEST(ProtocolParserTest, DescribeFrame)
     EXPECT_EQ(ProtocolParser::describeFrame(false, devFrame), "Device Type Response: SW=0x05 HW=0x02");
 
     const auto diagFrame = PelcoDFrame::createFrame(0x01U, 0x00U, 0x71U, 0x23U, 0x01U);
-    EXPECT_EQ(ProtocolParser::describeFrame(false, diagFrame), "Diagnostics Response: Temp=35°C Sensor=0x01");
+    EXPECT_EQ(ProtocolParser::describeFrame(false, diagFrame), "Diagnostics Response: Temp=35 C Sensor=0x01");
 }
 
 /// @brief Verify response categorization into General, StandardExtendedAckNak, ExtendedTelemetry, or QueryReply.
@@ -334,6 +334,44 @@ TEST(ProtocolParserTest, DescribeFrameComprehensive)
     // Iris Close (cmd1 bit 2 = 0x04)
     const auto irisClose = PelcoDFrame::createFrame(1U, 0x04U, 0x00U, 0x00U, 0x00U);
     EXPECT_EQ(ProtocolParser::describeFrame(true, irisClose), "PTZ: IrisClose");
+
+    // Power On (cmd1 = 0x88) and Power Off (cmd1 = 0x08) not misdecoded as "PTZ Stop" (L5)
+    const auto pwrOn = PelcoDFrame::createFrame(1U, 0x88U, 0x00U, 0x00U, 0x00U);
+    EXPECT_EQ(ProtocolParser::describeFrame(true, pwrOn), "Power On");
+    const auto pwrOff = PelcoDFrame::createFrame(1U, 0x08U, 0x00U, 0x00U, 0x00U);
+    EXPECT_EQ(ProtocolParser::describeFrame(true, pwrOff), "Power Off");
+
+    // Auto Scan On (cmd1 = 0x90) and Manual Scan On (cmd1 = 0x10)
+    const auto autoScan = PelcoDFrame::createFrame(1U, 0x90U, 0x00U, 0x00U, 0x00U);
+    EXPECT_EQ(ProtocolParser::describeFrame(true, autoScan), "Auto Scan On");
+
+    // True PTZ Stop (all bits 0)
+    const auto ptzStop = PelcoDFrame::createFrame(1U, 0x00U, 0x00U, 0x00U, 0x00U);
+    EXPECT_EQ(ProtocolParser::describeFrame(true, ptzStop), "PTZ Stop");
+
+    // Expanded TX opcodes (L5)
+    const auto shutterCmd = PelcoDFrame::createFrame(1U, 0x00U, 0x37U, 0x01U, 0xF4U);
+    EXPECT_EQ(ProtocolParser::describeFrame(true, shutterCmd), "Set Shutter Speed (500)");
+
+    const auto gainCmd = PelcoDFrame::createFrame(1U, 0x00U, 0x3FU, 0x00U, 0x14U);
+    EXPECT_EQ(ProtocolParser::describeFrame(true, gainCmd), "Adjust Gain (20)");
+
+    const auto autoFocusCmd = PelcoDFrame::createFrame(1U, 0x00U, 0x2BU, 0x00U, 0x01U);
+    EXPECT_EQ(ProtocolParser::describeFrame(true, autoFocusCmd), "Auto Focus (1)");
+
+    const auto resetDefaultsCmd = PelcoDFrame::createFrame(1U, 0x00U, 0x29U, 0x00U, 0x00U);
+    EXPECT_EQ(ProtocolParser::describeFrame(true, resetDefaultsCmd), "Reset Defaults");
+
+    // 18-byte query response with non-printable control characters safely sanitized (L5)
+    std::vector<std::uint8_t> qFrame(18U, 0x00U);
+    qFrame[0] = 0xFFU;
+    qFrame[1] = 0x01U;
+    qFrame[2] = 'O';
+    qFrame[3] = 'K';
+    qFrame[4] = 0x1BU; // ESC control byte
+    qFrame[5] = 0x0AU; // LF control byte
+    qFrame[17] = PelcoDFrame::calculateChecksum(&qFrame[1], 16U);
+    EXPECT_EQ(ProtocolParser::describeFrame(false, qFrame), "Query Response (Addr 1): \"OK\\x1B\\x0A\"");
 
     // Extended command with unrecognized odd opcode (e.g. 0xEF)
     const auto unknownExtCmd = PelcoDFrame::createFrame(1U, 0x00U, 0xEFU, 0x00U, 0x00U);

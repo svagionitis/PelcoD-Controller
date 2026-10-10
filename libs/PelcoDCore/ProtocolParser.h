@@ -26,8 +26,7 @@ enum class ResponseClassification {
 /// @brief Decodes Pelco-D 4-byte general, 7-byte extended, and 18-byte query responses.
 class ProtocolParser {
 public:
-    ProtocolParser() = default;
-    ~ProtocolParser() = default;
+    ProtocolParser() = delete;
 
     /// @brief Decodes 4-byte general response packet.
     /// @param[in] frame Raw response frame.

@@ -120,6 +120,7 @@ private:
     const std::chrono::milliseconds m_interByteTimeout;
     mutable std::mutex m_mutex;
     std::vector<std::uint8_t> m_buffer;
+    std::size_t m_readOffset { 0U };
     std::chrono::steady_clock::time_point m_lastRxTime {};
 
     std::atomic<std::uint64_t> m_discardedBytes { 0U };

@@ -17,6 +17,7 @@
 #include "RetryPolicy.h"
 #include "RxStreamAccumulator.h"
 
+#include <algorithm>
 #include <atomic>
 #include <chrono>
 #include <condition_variable>

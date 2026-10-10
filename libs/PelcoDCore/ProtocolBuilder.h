@@ -15,8 +15,7 @@ namespace PelcoD {
 /// @brief Factory methods for encoding standard and extended Pelco-D command packets.
 class ProtocolBuilder {
 public:
-    ProtocolBuilder() = default;
-    ~ProtocolBuilder() = default;
+    ProtocolBuilder() = delete;
 
     // Standard Motion Commands
     [[nodiscard]] static std::vector<std::uint8_t> buildMotion(std::uint8_t address, PanDirection panDir,

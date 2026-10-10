@@ -15,6 +15,8 @@ namespace PelcoD {
 /// @brief Static utilities for constructing and validating Pelco-D protocol frames.
 class PelcoDFrame {
 public:
+    PelcoDFrame() = delete;
+
     static constexpr std::uint8_t SyncByte { 0xFFU };
     static constexpr std::size_t GeneralResponseSize { 4U };
     static constexpr std::size_t StandardFrameSize { 7U };

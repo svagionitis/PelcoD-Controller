@@ -408,7 +408,11 @@ TEST(MockDeviceTest, SharedBusDeviceFiltering)
     const std::vector<std::uint8_t> fDev2Gen { 0xFFU, 0x02U, 0x05U, 0x07U };
     mock->injectRxData(fDev2Gen);
 
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    const auto waitStart = std::chrono::steady_clock::now();
+    while (rxTrafficCount.load() < 2
+        && std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - waitStart).count() < 500) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
 
     // Traffic callback must see both frames (bus sniffer)
     EXPECT_EQ(rxTrafficCount.load(), 2);

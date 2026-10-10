@@ -326,8 +326,14 @@ TEST(PelcoDFrameTest, FromHexString)
     const std::vector<std::uint8_t> expectedPrefix { 0xFFU, 0x01U };
     EXPECT_EQ(PelcoD::PelcoDFrame::fromHexString("FF 01 A"), expectedPrefix);
 
-    // Non-hex characters ignored
-    EXPECT_EQ(PelcoD::PelcoDFrame::fromHexString("ZZ FF -- 01 !!"), expectedPrefix);
+    // Non-hex, non-delimiter characters invalidate the input (L10)
+    EXPECT_TRUE(PelcoD::PelcoDFrame::fromHexString("ZZ FF -- 01 !!").empty());
+    EXPECT_TRUE(PelcoD::PelcoDFrame::fromHexString("zebra").empty());
+    EXPECT_TRUE(PelcoD::PelcoDFrame::fromHexString("0xFF 0xZZ 0x01").empty());
+
+    // Valid delimiters (spaces, hyphens, colons, commas) remain accepted
+    const std::vector<std::uint8_t> delimExpected { 0xFFU, 0x01U, 0x00U };
+    EXPECT_EQ(PelcoD::PelcoDFrame::fromHexString("FF - 01 : 00"), delimExpected);
 
     // Round-trip test
     const auto serialized = PelcoD::PelcoDFrame::toHexString(expected);

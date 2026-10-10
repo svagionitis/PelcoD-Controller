@@ -5,9 +5,7 @@
 #include "PelcoDFrame.h"
 
 #include <algorithm>
-#include <cmath>
 #include <glog/logging.h>
-#include <random>
 
 namespace PelcoD {
 

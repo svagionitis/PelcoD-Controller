@@ -383,4 +383,45 @@ TEST(StreamAccumulatorTest, Corrupted7ByteFrameNotParsedAsFalseGeneralResponse)
     EXPECT_TRUE(res.empty());
 }
 
+/// @brief Verify sliding cursor efficiently extracts frames amidst stream noise and compacts buffer (L11).
+TEST(StreamAccumulatorTest, SlidingCursorHandlesStreamNoiseEfficiently)
+{
+    PelcoD::RxStreamAccumulator acc;
+
+    const auto frame1 = PelcoD::PelcoDFrame::createFrame(1U, 0x00U, 0x02U, 0x20U, 0x00U);
+    const auto frame2 = PelcoD::PelcoDFrame::createFrame(2U, 0x00U, 0x04U, 0x00U, 0x30U);
+
+    // Stream: 100 bytes noise, frame1, 500 bytes noise, frame2
+    std::vector<std::uint8_t> noisyStream(100U, 0x55U);
+    noisyStream.insert(noisyStream.end(), frame1.begin(), frame1.end());
+    noisyStream.insert(noisyStream.end(), 500U, 0xAAU);
+    noisyStream.insert(noisyStream.end(), frame2.begin(), frame2.end());
+
+    const auto extracted = acc.push(noisyStream);
+    ASSERT_EQ(extracted.size(), 2U);
+    EXPECT_EQ(extracted[0], frame1);
+    EXPECT_EQ(extracted[1], frame2);
+    EXPECT_EQ(acc.size(), 0U);
+    EXPECT_EQ(acc.discardedBytes(), 600U);
+    EXPECT_EQ(acc.checksumErrors(), 0U);
+}
+
+/// @brief Verify that checksumErrors increments for corrupted candidate frames while noise increments discardedBytes (L11).
+TEST(StreamAccumulatorTest, ChecksumErrorAccurateAccounting)
+{
+    PelcoD::RxStreamAccumulator acc;
+
+    // 10 noise bytes, followed by a 7-byte candidate starting with SyncByte but corrupted checksum
+    std::vector<std::uint8_t> stream(10U, 0x12U);
+    const std::vector<std::uint8_t> badCandidate { 0xFFU, 0x01U, 0x00U, 0x04U, 0x20U, 0x00U, 0x99U };
+    stream.insert(stream.end(), badCandidate.begin(), badCandidate.end());
+
+    const auto extracted = acc.push(stream);
+    EXPECT_TRUE(extracted.empty());
+
+    // 10 preamble noise bytes + 1 byte slid past bad sync = 11 discarded bytes
+    EXPECT_GE(acc.discardedBytes(), 10U);
+    EXPECT_GE(acc.checksumErrors(), 1U);
+}
+
 } // namespace
