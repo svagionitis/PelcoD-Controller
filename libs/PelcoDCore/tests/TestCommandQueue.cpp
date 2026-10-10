@@ -9,6 +9,7 @@
 #include <chrono>
 #include <cstdint>
 #include <future>
+#include <limits>
 #include <thread>
 #include <vector>
 
@@ -243,6 +244,70 @@ TEST(CommandQueueTest, BackoffStrategyCalculations)
     EXPECT_EQ(PelcoD::calculateBackoffDelay(cfg, 2U).count(), 200);
     EXPECT_EQ(PelcoD::calculateBackoffDelay(cfg, 3U).count(), 400);
     EXPECT_EQ(PelcoD::calculateBackoffDelay(cfg, 4U).count(), 500); // Clamped to 500
+}
+
+/// @brief Verify that Linear backoff multiplication does not overflow or produce UB (review finding H10).
+/// @details Large retry attempts combined with initial backoff must not trigger signed integer overflow
+///          and must saturate cleanly to maxBackoff.
+TEST(CommandQueueTest, LinearBackoffOverflowSaturatesSafely)
+{
+    PelcoD::RetryConfig cfg;
+    cfg.strategy = PelcoD::BackoffStrategy::Linear;
+    cfg.initialBackoff = std::chrono::milliseconds(10000);
+    cfg.maxBackoff = std::chrono::milliseconds(50000);
+
+    // Extreme retry attempt must saturate to maxBackoff and never wrap or overflow
+    EXPECT_EQ(PelcoD::calculateBackoffDelay(cfg, std::numeric_limits<std::uint32_t>::max()).count(), 50000);
+    EXPECT_EQ(PelcoD::calculateBackoffDelay(cfg, 1000000U).count(), 50000);
+}
+
+/// @brief Verify that Exponential backoff does not trigger floating-point cast UB or negative wrapping (review finding H10).
+/// @details Extremely large retry attempts causing pow() to exceed LLONG_MAX or reach infinity must saturate
+///          safely to maxBackoff without invoking undefined float-to-int conversions (CERT FLP34-C).
+TEST(CommandQueueTest, ExponentialBackoffFloatOverflowSaturatesSafely)
+{
+    PelcoD::RetryConfig cfg;
+    cfg.strategy = PelcoD::BackoffStrategy::Exponential;
+    cfg.initialBackoff = std::chrono::milliseconds(100);
+    cfg.maxBackoff = std::chrono::milliseconds(30000);
+    cfg.backoffMultiplier = 2.0;
+
+    // Attempt 70: 2^69 > LLONG_MAX (would overflow signed 64-bit int and cast UB)
+    EXPECT_EQ(PelcoD::calculateBackoffDelay(cfg, 70U).count(), 30000);
+
+    // Attempt 1050: pow(2.0, 1049) evaluates to +infinity (unrepresentable float cast UB)
+    EXPECT_EQ(PelcoD::calculateBackoffDelay(cfg, 1050U).count(), 30000);
+}
+
+/// @brief Verify that Exponential backoff handles NaN, zero, or negative multipliers safely (review finding H10).
+TEST(CommandQueueTest, ExponentialBackoffNanAndNegativeMultiplier)
+{
+    PelcoD::RetryConfig cfg;
+    cfg.strategy = PelcoD::BackoffStrategy::Exponential;
+    cfg.initialBackoff = std::chrono::milliseconds(100);
+    cfg.maxBackoff = std::chrono::milliseconds(5000);
+
+    cfg.backoffMultiplier = std::numeric_limits<double>::quiet_NaN();
+    EXPECT_EQ(PelcoD::calculateBackoffDelay(cfg, 2U).count(), 100);
+
+    cfg.backoffMultiplier = -2.0;
+    EXPECT_EQ(PelcoD::calculateBackoffDelay(cfg, 2U).count(), 100);
+
+    cfg.backoffMultiplier = 0.0;
+    EXPECT_EQ(PelcoD::calculateBackoffDelay(cfg, 2U).count(), 100);
+}
+
+/// @brief Verify that zero or negative maxBackoff returns zero milliseconds (review finding H10).
+TEST(CommandQueueTest, ZeroAndNegativeMaxBackoffReturnsZero)
+{
+    PelcoD::RetryConfig cfg;
+    cfg.initialBackoff = std::chrono::milliseconds(100);
+
+    cfg.maxBackoff = std::chrono::milliseconds(0);
+    EXPECT_EQ(PelcoD::calculateBackoffDelay(cfg, 1U).count(), 0);
+
+    cfg.maxBackoff = std::chrono::milliseconds(-50);
+    EXPECT_EQ(PelcoD::calculateBackoffDelay(cfg, 1U).count(), 0);
 }
 
 /// @brief Verify that an Urgent stop command purges any pending motion command retries (review finding C4).

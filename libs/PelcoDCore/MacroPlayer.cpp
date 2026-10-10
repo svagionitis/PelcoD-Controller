@@ -4,6 +4,7 @@
 #include "MacroPlayer.h"
 
 #include <chrono>
+#include <cmath>
 
 namespace PelcoD {
 
@@ -280,12 +281,12 @@ bool MacroPlayer::stepNext()
 
 void MacroPlayer::setSpeedMultiplier(double multiplier) noexcept
 {
-    if (multiplier < 0.05) {
+    if (std::isnan(multiplier) || multiplier < 0.05) {
         multiplier = 0.05;
     } else if (multiplier > 20.0) {
         multiplier = 20.0;
     }
-    m_speedMultiplier = multiplier;
+    m_speedMultiplier.store(multiplier);
 }
 
 double MacroPlayer::speedMultiplier() const noexcept
@@ -377,13 +378,19 @@ void MacroPlayer::workerThreadFunc()
         // Advance step counter
         m_currentStep.store(stepIdx + 1U);
 
-        // Calculate scaled delay with overflow protection (H10)
+        // Calculate scaled delay with overflow protection (H10, CERT FLP34-C)
         const double speed = m_speedMultiplier.load();
-        const double effectiveSpeed = (speed >= 0.05) ? speed : 0.05;
+        const double effectiveSpeed = (!std::isnan(speed) && speed >= 0.05) ? speed : 0.05;
         const double scaledDelay = static_cast<double>(step.delayMs) / effectiveSpeed;
-        const auto delayMs = (scaledDelay > static_cast<double>(UINT32_MAX))
-            ? UINT32_MAX
-            : static_cast<std::uint32_t>(scaledDelay);
+
+        std::uint32_t delayMs { 0U };
+        if (std::isnan(scaledDelay) || scaledDelay <= 0.0) {
+            delayMs = 0U;
+        } else if (std::isinf(scaledDelay) || scaledDelay >= static_cast<double>(UINT32_MAX)) {
+            delayMs = UINT32_MAX;
+        } else {
+            delayMs = static_cast<std::uint32_t>(scaledDelay);
+        }
 
         // Sleep with interruptible check
         if (delayMs > 0U) {

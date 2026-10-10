@@ -10,6 +10,7 @@
 #include <chrono>
 #include <cstdint>
 #include <future>
+#include <limits>
 #include <mutex>
 #include <stdexcept>
 #include <string>
@@ -710,6 +711,104 @@ TEST(MacroPlaybackTest, ConcurrentSequenceSnapshotSafety)
     }
     running.store(false);
     reader.join();
+}
+
+/// @brief Verify MacroPlayer setSpeedMultiplier NaN handling and extreme speed delay calculation (H10).
+TEST(MacroPlaybackTest, MacroPlayerSpeedMultiplierNanAndExtremeSpeed)
+{
+    PelcoD::MacroPlayer player;
+    player.setSpeedMultiplier(std::numeric_limits<double>::quiet_NaN());
+    // Should be clamped to min limit 0.05
+    EXPECT_DOUBLE_EQ(player.speedMultiplier(), 0.05);
+
+    player.setSpeedMultiplier(0.001);
+    EXPECT_DOUBLE_EQ(player.speedMultiplier(), 0.05);
+
+    player.setSpeedMultiplier(100.0);
+    EXPECT_DOUBLE_EQ(player.speedMultiplier(), 20.0);
+
+    // Test playback execution with step delay UINT32_MAX and speed 0.05
+    PelcoD::MacroSequence seq;
+    PelcoD::MacroStep step;
+    step.label = "Extreme Delay";
+    step.frame = PelcoD::PelcoDFrame::createFrame(1, 0, 0x04, 0x10, 0x00);
+    step.delayMs = std::numeric_limits<std::uint32_t>::max();
+    seq.steps.push_back(step);
+
+    player.loadSequence(seq);
+    player.setSpeedMultiplier(0.05);
+
+    std::atomic<bool> dispatched { false };
+    player.setDispatchCallback([&](const std::vector<std::uint8_t>&) {
+        dispatched.store(true);
+    });
+
+    EXPECT_TRUE(player.start());
+    // Allow thread to spawn and dispatch the frame
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    EXPECT_TRUE(dispatched.load());
+
+    // Promptly stop the extreme sleep
+    player.stop();
+    EXPECT_EQ(player.state(), PelcoD::MacroPlayerState::Stopped);
+}
+
+/// @brief Verify fromJson rejects negative and out-of-range delayMs values without float-to-int UB (H10).
+TEST(MacroPlaybackTest, FromJsonRejectsNegativeAndOutOfRangeDelay)
+{
+    const std::string negDelayJson = R"({
+        "name": "Negative Delay",
+        "steps": [
+            {
+                "label": "Step 1",
+                "hex": "FF 01 00 04 20 00 25",
+                "delayMs": -100
+            }
+        ]
+    })";
+    EXPECT_THROW(static_cast<void>(PelcoD::MacroSerializer::fromJson(negDelayJson)), std::runtime_error);
+
+    const std::string hugeDelayJson = R"({
+        "name": "Huge Delay",
+        "steps": [
+            {
+                "label": "Step 1",
+                "hex": "FF 01 00 04 20 00 25",
+                "delayMs": 1e25
+            }
+        ]
+    })";
+    EXPECT_THROW(static_cast<void>(PelcoD::MacroSerializer::fromJson(hugeDelayJson)), std::runtime_error);
+}
+
+/// @brief Verify fromJson rejects negative and out-of-range repeatCount values without float-to-int UB (H10).
+TEST(MacroPlaybackTest, FromJsonRejectsNegativeAndOutOfRangeRepeatCount)
+{
+    const std::string negRepeatJson = R"({
+        "name": "Negative Repeat",
+        "repeatCount": -1,
+        "steps": [
+            {
+                "label": "Step 1",
+                "hex": "FF 01 00 04 20 00 25",
+                "delayMs": 100
+            }
+        ]
+    })";
+    EXPECT_THROW(static_cast<void>(PelcoD::MacroSerializer::fromJson(negRepeatJson)), std::runtime_error);
+
+    const std::string hugeRepeatJson = R"({
+        "name": "Huge Repeat",
+        "repeatCount": 5e10,
+        "steps": [
+            {
+                "label": "Step 1",
+                "hex": "FF 01 00 04 20 00 25",
+                "delayMs": 100
+            }
+        ]
+    })";
+    EXPECT_THROW(static_cast<void>(PelcoD::MacroSerializer::fromJson(hugeRepeatJson)), std::runtime_error);
 }
 
 } // namespace

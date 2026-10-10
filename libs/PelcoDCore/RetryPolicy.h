@@ -47,11 +47,18 @@ struct RetryConfig {
 [[nodiscard]] inline std::chrono::milliseconds calculateBackoffDelay(
     const RetryConfig& config, std::uint32_t retryAttempt) noexcept
 {
-    if (retryAttempt == 0U || config.initialBackoff.count() <= 0) {
+    if (retryAttempt == 0U || config.initialBackoff.count() <= 0 || config.maxBackoff.count() <= 0) {
         return std::chrono::milliseconds { 0 };
     }
 
-    std::chrono::milliseconds delay = config.initialBackoff;
+    const auto capMs = config.maxBackoff.count();
+    const auto initialMs = config.initialBackoff.count();
+
+    if (initialMs >= capMs) {
+        return config.maxBackoff;
+    }
+
+    std::chrono::milliseconds delay { config.initialBackoff };
 
     switch (config.strategy) {
     case BackoffStrategy::Fixed:
@@ -59,17 +66,36 @@ struct RetryConfig {
         break;
 
     case BackoffStrategy::Linear: {
-        const auto calculatedMs = static_cast<long long>(config.initialBackoff.count()) * retryAttempt;
-        delay = std::chrono::milliseconds(calculatedMs);
+        const auto maxAttemptsBeforeCap = static_cast<std::uint64_t>(capMs) / static_cast<std::uint64_t>(initialMs);
+        if (static_cast<std::uint64_t>(retryAttempt) >= maxAttemptsBeforeCap) {
+            delay = config.maxBackoff;
+        } else {
+            const auto calculatedMs = initialMs * static_cast<std::int64_t>(retryAttempt);
+            delay = std::chrono::milliseconds { calculatedMs };
+        }
         break;
     }
 
     case BackoffStrategy::Exponential: {
-        const double mult = (config.backoffMultiplier > 0.0)
-            ? std::pow(config.backoffMultiplier, static_cast<double>(retryAttempt - 1U))
-            : 1.0;
-        const auto calculatedMs = static_cast<long long>(static_cast<double>(config.initialBackoff.count()) * mult);
-        delay = std::chrono::milliseconds(calculatedMs);
+        double mult = 1.0;
+        if (!std::isnan(config.backoffMultiplier) && config.backoffMultiplier > 0.0) {
+            mult = std::pow(config.backoffMultiplier, static_cast<double>(retryAttempt - 1U));
+        }
+
+        if (std::isnan(mult) || mult <= 0.0) {
+            delay = config.initialBackoff;
+        } else if (std::isinf(mult)) {
+            delay = config.maxBackoff;
+        } else {
+            const double scaledMs = static_cast<double>(initialMs) * mult;
+            if (std::isnan(scaledMs) || scaledMs <= 0.0) {
+                delay = config.initialBackoff;
+            } else if (std::isinf(scaledMs) || scaledMs >= static_cast<double>(capMs)) {
+                delay = config.maxBackoff;
+            } else {
+                delay = std::chrono::milliseconds { static_cast<std::int64_t>(scaledMs) };
+            }
+        }
         break;
     }
     }

@@ -7,6 +7,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <cmath>
 #include <cstdint>
 #include <sstream>
 #include <stdexcept>
@@ -465,6 +466,9 @@ MacroSequence MacroSerializer::fromJson(const std::string& json)
         if (repVal->type != JsonType::Number) {
             throw std::runtime_error("'repeatCount' property must be a number");
         }
+        if (std::isnan(repVal->numVal) || repVal->numVal < 0.0 || repVal->numVal > static_cast<double>(UINT32_MAX)) {
+            throw std::runtime_error("'repeatCount' value out of allowable range [0, 4294967295]");
+        }
         seq.repeatCount = static_cast<std::uint32_t>(repVal->numVal);
     }
 
@@ -503,6 +507,9 @@ MacroSequence MacroSerializer::fromJson(const std::string& json)
         if (const auto* dly = stepItem.find("delayMs"); dly != nullptr) {
             if (dly->type != JsonType::Number) {
                 throw std::runtime_error("Step " + std::to_string(i + 1U) + " 'delayMs' must be a number");
+            }
+            if (std::isnan(dly->numVal) || dly->numVal < 0.0 || dly->numVal > static_cast<double>(UINT32_MAX)) {
+                throw std::runtime_error("Step " + std::to_string(i + 1U) + " 'delayMs' value out of allowable range [0, 4294967295]");
             }
             step.delayMs = static_cast<std::uint32_t>(dly->numVal);
         }
