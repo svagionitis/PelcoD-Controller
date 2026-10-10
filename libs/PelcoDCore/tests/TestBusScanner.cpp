@@ -3,6 +3,8 @@
 
 #include "BusScanner.h"
 #include "MockPelcoDDevice.h"
+#include "PelcoDDevice.h"
+#include <BaseTransport.h>
 
 #include <gtest/gtest.h>
 
@@ -469,4 +471,296 @@ TEST(BusScannerTest, ScanTimeoutBehavior)
     EXPECT_TRUE(scanner.getDiscoveredDevices().empty());
 }
 
+/// @class EchoingTransport
+/// @brief Test transport simulating RS-485 transceiver local hardware echo and mock responses.
+class EchoingTransport final : public Transport::BaseTransport {
+public:
+    EchoingTransport() = default;
+    ~EchoingTransport() override = default;
+
+    EchoingTransport(const EchoingTransport&) = delete;
+    EchoingTransport& operator=(const EchoingTransport&) = delete;
+    EchoingTransport(EchoingTransport&&) = delete;
+    EchoingTransport& operator=(EchoingTransport&&) = delete;
+
+    bool open() override
+    {
+        m_isOpen.store(true);
+        return true;
+    }
+
+    void close() override
+    {
+        m_isOpen.store(false);
+    }
+
+    [[nodiscard]] bool isOpen() const noexcept override
+    {
+        return m_isOpen.load();
+    }
+
+    bool sendData(const std::vector<std::uint8_t>& data) override
+    {
+        if (!m_isOpen.load()) {
+            return false;
+        }
+        {
+            std::scoped_lock lock(m_txMutex);
+            m_sentPackets.push_back(data);
+        }
+        if (m_echoTx.load()) {
+            // Simulate RS-485 transceiver local hardware echo
+            invokeDataCallback(data);
+        }
+        std::function<std::vector<std::vector<std::uint8_t>>(const std::vector<std::uint8_t>&)> resp;
+        {
+            std::scoped_lock lock(m_txMutex);
+            resp = m_responder;
+        }
+        if (resp) {
+            const auto replies = resp(data);
+            for (const auto& reply : replies) {
+                invokeDataCallback(reply);
+            }
+        }
+        return true;
+    }
+
+    void setEcho(bool enabled) noexcept
+    {
+        m_echoTx.store(enabled);
+    }
+
+    void setResponder(std::function<std::vector<std::vector<std::uint8_t>>(const std::vector<std::uint8_t>&)> responder)
+    {
+        std::scoped_lock lock(m_txMutex);
+        m_responder = std::move(responder);
+    }
+
+    [[nodiscard]] std::vector<std::vector<std::uint8_t>> getSentPackets() const
+    {
+        std::scoped_lock lock(m_txMutex);
+        return m_sentPackets;
+    }
+
+    [[nodiscard]] bool hasDataCallback() const
+    {
+        std::scoped_lock lock(m_callbackMutex);
+        return static_cast<bool>(m_dataCallback);
+    }
+
+private:
+    std::atomic<bool> m_isOpen { true };
+    std::atomic<bool> m_echoTx { true };
+    mutable std::mutex m_txMutex;
+    std::vector<std::vector<std::uint8_t>> m_sentPackets {};
+    std::function<std::vector<std::vector<std::uint8_t>>(const std::vector<std::uint8_t>&)> m_responder {};
+};
+
+/// @brief Verify H7a: local RS-485 hardware echo of the query frame is not treated as device discovery.
+TEST(BusScannerTest, EchoedProbeIgnoredAndNotDiscovered)
+{
+    auto transport = std::make_shared<EchoingTransport>();
+    transport->setEcho(true); // Probe packets will be immediately echoed back to RX
+
+    PelcoD::BusScanner scanner(transport);
+
+    PelcoD::ScanConfig cfg;
+    cfg.startAddress = 1U;
+    cfg.endAddress = 3U;
+    cfg.timeoutMs = 25U;
+    cfg.interCommandDelayMs = 2U;
+
+    std::atomic<bool> finished { false };
+    std::mutex discMutex;
+    std::vector<PelcoD::DiscoveredDevice> discovered;
+    scanner.setDeviceDiscoveredCallback([&](const PelcoD::DiscoveredDevice& dev) {
+        std::scoped_lock lock(discMutex);
+        discovered.push_back(dev);
+    });
+    scanner.setScanFinishedCallback([&](const std::vector<PelcoD::DiscoveredDevice>&) {
+        finished.store(true);
+    });
+
+    ASSERT_TRUE(scanner.startScan(cfg));
+    while (scanner.isScanning() || !finished.load()) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(5));
+    }
+
+    std::scoped_lock lock(discMutex);
+    EXPECT_TRUE(discovered.empty()) << "Echoed probes were falsely discovered as devices!";
+    EXPECT_TRUE(scanner.getDiscoveredDevices().empty());
+}
+
+/// @brief Verify H7a: genuine response is discovered even if hardware echo precedes it.
+TEST(BusScannerTest, ValidPanResponseDiscoveredDespiteEcho)
+{
+    auto transport = std::make_shared<EchoingTransport>();
+    transport->setEcho(true); // Hardware echoes every probe
+
+    // Configure responder: only address 2 responds with a genuine Pan response (0x59)
+    transport->setResponder([](const std::vector<std::uint8_t>& query) -> std::vector<std::vector<std::uint8_t>> {
+        if (query.size() == 7U && query[1] == 2U) {
+            // Build valid Pan response: 9000 centidegrees (0x2328)
+            const auto panResp = PelcoD::PelcoDFrame::createFrame(2U, 0x00U, 0x59U, 0x23U, 0x28U);
+            return { panResp };
+        }
+        return {};
+    });
+
+    PelcoD::BusScanner scanner(transport);
+
+    PelcoD::ScanConfig cfg;
+    cfg.startAddress = 1U;
+    cfg.endAddress = 3U;
+    cfg.timeoutMs = 40U;
+    cfg.interCommandDelayMs = 2U;
+
+    std::atomic<bool> finished { false };
+    scanner.setScanFinishedCallback([&](const std::vector<PelcoD::DiscoveredDevice>&) {
+        finished.store(true);
+    });
+
+    ASSERT_TRUE(scanner.startScan(cfg));
+    while (scanner.isScanning() || !finished.load()) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(5));
+    }
+
+    const auto found = scanner.getDiscoveredDevices();
+    ASSERT_EQ(found.size(), 1U);
+    EXPECT_EQ(found[0].address, 2U);
+    EXPECT_TRUE(found[0].hasPanPosition);
+    EXPECT_EQ(found[0].panCentidegrees, 9000U);
+}
+
+/// @brief Verify H7b: transport data callback is detached on stop and destruction.
+TEST(BusScannerTest, TransportCallbackDetachedOnStopAndDtor)
+{
+    auto transport = std::make_shared<EchoingTransport>();
+    transport->setEcho(false);
+
+    {
+        PelcoD::BusScanner scanner(transport);
+        PelcoD::ScanConfig cfg;
+        cfg.startAddress = 1U;
+        cfg.endAddress = 2U;
+        cfg.timeoutMs = 50U;
+        cfg.interCommandDelayMs = 2U;
+
+        ASSERT_TRUE(scanner.startScan(cfg));
+        scanner.stopScan();
+        EXPECT_EQ(scanner.getState(), PelcoD::ScanState::Idle);
+        EXPECT_FALSE(transport->hasDataCallback()) << "Transport data callback not cleared on stopScan!";
+    }
+
+    // Scanner is now destroyed; sending incoming data must not access dangling callback
+    EXPECT_FALSE(transport->hasDataCallback()) << "Transport data callback not cleared on dtor!";
+    const auto dummyFrame = PelcoD::ProtocolBuilder::buildQueryPan(1U);
+    EXPECT_NO_THROW({
+        transport->sendData(dummyFrame);
+    });
+}
+
+/// @brief Verify H7c: re-entrant access to scanner methods from state callback does not deadlock.
+TEST(BusScannerTest, ReentrantStateCallbackDoesNotDeadlock)
+{
+    auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(1U);
+    PelcoD::BusScanner scanner(mock);
+
+    PelcoD::ScanConfig cfg;
+    cfg.startAddress = 1U;
+    cfg.endAddress = 2U;
+    cfg.timeoutMs = 20U;
+    cfg.interCommandDelayMs = 2U;
+
+    std::atomic<bool> stateCbInvoked { false };
+    scanner.setScanStateChangedCallback([&](PelcoD::ScanState state) {
+        if (state == PelcoD::ScanState::Scanning) {
+            stateCbInvoked.store(true);
+            // Re-entrant queries to scanner while in state callback
+            EXPECT_TRUE(scanner.isScanning());
+            EXPECT_EQ(scanner.getState(), PelcoD::ScanState::Scanning);
+            EXPECT_TRUE(scanner.getDiscoveredDevices().empty());
+        }
+    });
+
+    ASSERT_TRUE(scanner.startScan(cfg));
+    EXPECT_TRUE(stateCbInvoked.load());
+    scanner.stopScan();
+}
+
+/// @brief Verify H7c: calling startScan from inside finished callback on worker thread returns false safely.
+TEST(BusScannerTest, StartScanFromWorkerCbFailsCleanly)
+{
+    auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(1U);
+    PelcoD::BusScanner scanner(mock);
+
+    PelcoD::ScanConfig cfg;
+    cfg.startAddress = 1U;
+    cfg.endAddress = 2U;
+    cfg.timeoutMs = 15U;
+    cfg.interCommandDelayMs = 2U;
+
+    std::atomic<bool> restartAttempted { false };
+    std::atomic<bool> restartResult { true };
+    std::atomic<bool> finished { false };
+
+    scanner.setScanFinishedCallback([&](const std::vector<PelcoD::DiscoveredDevice>&) {
+        restartAttempted.store(true);
+        // Calling startScan from within the worker thread callback must safely return false
+        // without calling m_worker.join() on itself (std::system_error / crash)
+        restartResult.store(scanner.startScan(cfg));
+        finished.store(true);
+    });
+
+    ASSERT_TRUE(scanner.startScan(cfg));
+    while (!finished.load()) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(5));
+    }
+
+    EXPECT_TRUE(restartAttempted.load());
+    EXPECT_FALSE(restartResult.load());
+}
+
+/// @brief Verify A4/H7b: TransportMultiplexer enables PelcoDDevice and BusScanner to share transport concurrently.
+TEST(BusScannerTest, SharedTransportWithPelcoDDeviceViaMultiplexer)
+{
+    const std::uint8_t targetAddr = 2U;
+    auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(targetAddr);
+    auto mux = std::make_shared<PelcoD::TransportMultiplexer>(mock);
+
+    auto devChan = mux->createChannel();
+    auto scanChan = mux->createChannel();
+
+    PelcoD::PelcoDDevice device(devChan, targetAddr);
+    ASSERT_TRUE(device.start());
+
+    PelcoD::BusScanner scanner(scanChan);
+
+    PelcoD::ScanConfig cfg;
+    cfg.startAddress = 1U;
+    cfg.endAddress = 3U;
+    cfg.timeoutMs = 40U;
+    cfg.interCommandDelayMs = 2U;
+
+    std::atomic<bool> scanFinished { false };
+    scanner.setScanFinishedCallback([&](const std::vector<PelcoD::DiscoveredDevice>&) {
+        scanFinished.store(true);
+    });
+
+    ASSERT_TRUE(scanner.startScan(cfg));
+    while (scanner.isScanning() || !scanFinished.load()) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(5));
+    }
+
+    const auto discovered = scanner.getDiscoveredDevices();
+    ASSERT_EQ(discovered.size(), 1U);
+    EXPECT_EQ(discovered[0].address, targetAddr);
+
+    // Verify PelcoDDevice continues normal operation without interference
+    EXPECT_TRUE(device.isConnected());
+    device.stop();
+}
+
 } // namespace
+

@@ -19,6 +19,8 @@ add_library(Transport STATIC
     MpegTsNetworkPublisher.cpp
     SdpGenerator.h
     SdpGenerator.cpp
+    TransportMultiplexer.h
+    TransportMultiplexer.cpp
 )
 
 target_include_directories(Transport PUBLIC

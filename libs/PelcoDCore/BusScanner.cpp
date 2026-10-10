@@ -20,11 +20,24 @@ BusScanner::~BusScanner()
 
 void BusScanner::setTransport(std::shared_ptr<ITransport> transport)
 {
-    std::scoped_lock lock(m_mutex);
-    if (m_state.load() != ScanState::Idle) {
-        return;
+    std::shared_ptr<ITransport> oldTrans;
+    std::shared_ptr<CallbackGate> oldGate;
+    {
+        std::scoped_lock lock(m_mutex);
+        if (m_state.load() != ScanState::Idle) {
+            return;
+        }
+        oldTrans = m_transport;
+        oldGate = m_gate;
+        m_transport = std::move(transport);
+        m_gate.reset();
     }
-    m_transport = std::move(transport);
+    if (oldTrans) {
+        oldTrans->setDataCallback(nullptr);
+    }
+    if (oldGate) {
+        oldGate->close();
+    }
 }
 
 std::shared_ptr<ITransport> BusScanner::getTransport() const
@@ -40,34 +53,55 @@ bool BusScanner::startScan(const ScanConfig& config)
         return false;
     }
 
-    std::scoped_lock lock(m_mutex);
-    if (m_state.load() != ScanState::Idle || !m_transport) {
+    if (m_worker.joinable() && m_worker.get_id() == std::this_thread::get_id()) {
         return false;
     }
 
-    if (!m_transport->isOpen()) {
-        if (!m_transport->open()) {
+    ScanStateChangedCallback stateCb;
+    {
+        std::scoped_lock lock(m_mutex);
+        if (m_state.load() != ScanState::Idle || !m_transport) {
             return false;
         }
+
+        if (!m_transport->isOpen()) {
+            if (!m_transport->open()) {
+                return false;
+            }
+        }
+
+        if (m_gate) {
+            m_gate->close();
+        }
+        auto gate = std::make_shared<CallbackGate>();
+        m_gate = gate;
+
+        // Register callback for incoming responses guarded by CallbackGate
+        m_transport->setDataCallback([this, gate](const std::vector<std::uint8_t>& data) {
+            const CallbackGate::Pass pass(*gate);
+            if (!pass) {
+                return;
+            }
+            onDataReceived(data);
+        });
+
+        if (m_worker.joinable()) {
+            m_worker.join();
+        }
+
+        m_stopRequested.store(false);
+        m_pauseRequested.store(false);
+        m_state.store(ScanState::Scanning);
+
+        m_worker = std::thread(&BusScanner::scanWorker, this, config);
+        stateCb = m_stateCb;
     }
 
-    // Register callback for incoming responses
-    m_transport->setDataCallback([this](const std::vector<std::uint8_t>& data) { onDataReceived(data); });
-
-    if (m_worker.joinable()) {
-        m_worker.join();
-    }
-
-    m_stopRequested.store(false);
-    m_pauseRequested.store(false);
-    m_state.store(ScanState::Scanning);
-
-    const auto stateCb = m_stateCb;
+    // Dispatch state change outside of m_mutex to prevent re-entrant deadlocks
     if (stateCb) {
         stateCb(ScanState::Scanning);
     }
 
-    m_worker = std::thread(&BusScanner::scanWorker, this, config);
     return true;
 }
 
@@ -82,16 +116,31 @@ void BusScanner::stopScan()
         m_worker.join();
     }
 
-    if (m_state.load() != ScanState::Idle) {
-        m_state.store(ScanState::Idle);
-        ScanStateChangedCallback stateCb;
-        {
-            std::scoped_lock lock(m_mutex);
+    std::shared_ptr<ITransport> trans;
+    std::shared_ptr<CallbackGate> gate;
+    bool shouldEmitIdle { false };
+    ScanStateChangedCallback stateCb;
+
+    {
+        std::scoped_lock lock(m_mutex);
+        trans = m_transport;
+        gate = m_gate;
+        if (m_state.load() != ScanState::Idle) {
+            m_state.store(ScanState::Idle);
+            shouldEmitIdle = true;
             stateCb = m_stateCb;
         }
-        if (stateCb) {
-            stateCb(ScanState::Idle);
-        }
+    }
+
+    if (trans) {
+        trans->setDataCallback(nullptr);
+    }
+    if (gate) {
+        gate->close();
+    }
+
+    if (shouldEmitIdle && stateCb) {
+        stateCb(ScanState::Idle);
     }
 }
 
@@ -196,11 +245,25 @@ void BusScanner::onDataReceived(const std::vector<std::uint8_t>& data)
 
     const auto frames = PelcoDFrame::splitStream(m_rxBuffer);
     for (const auto& frame : frames) {
-        if (!frame.empty() && frame[1] == m_currentProbeAddress) {
-            m_foundResponse = true;
-            m_matchedResponse = frame;
-            m_rxCv.notify_all();
-            break;
+        if (frame.empty() || !PelcoDFrame::isValidFrame(frame)) {
+            continue;
+        }
+
+        // Filter out probe packet echo (common on RS-485 2-wire half-duplex)
+        if (!m_currentProbePacket.empty() && frame == m_currentProbePacket) {
+            continue;
+        }
+
+        // Verify that the frame is for the probed address and contains valid Pan telemetry
+        if (frame[1] == m_currentProbeAddress) {
+            std::uint16_t panVal { 0U };
+            if (ProtocolParser::parsePan(frame, panVal)) {
+                m_foundResponse = true;
+                m_matchedResponse = frame;
+                m_matchedPan = panVal;
+                m_rxCv.notify_all();
+                break;
+            }
         }
     }
 }
@@ -297,16 +360,18 @@ void BusScanner::scanWorker(ScanConfig config)
                 multiProgCb(currentBaud, targetAddr, scannedCount, totalCount);
             }
 
+            const auto probe = ProtocolBuilder::buildQueryPan(targetAddr);
+            const auto sentTime = std::chrono::steady_clock::now();
+
             {
                 std::scoped_lock rxLock(m_rxMutex);
                 m_rxBuffer.clear();
+                m_currentProbePacket = probe;
                 m_currentProbeAddress = targetAddr;
                 m_foundResponse = false;
                 m_matchedResponse.clear();
+                m_matchedPan = 0U;
             }
-
-            const auto probe = ProtocolBuilder::buildQueryPan(targetAddr);
-            const auto sentTime = std::chrono::steady_clock::now();
 
             std::shared_ptr<ITransport> activeTrans;
             {
@@ -336,12 +401,8 @@ void BusScanner::scanWorker(ScanConfig config)
                 dev.baudRate = (currentBaud > 0U) ? currentBaud : originalBaud;
                 dev.responseTimeMs = latencyMs;
                 dev.rawResponse = m_matchedResponse;
-
-                std::uint16_t panVal { 0U };
-                if (ProtocolParser::parsePan(dev.rawResponse, panVal)) {
-                    dev.hasPanPosition = true;
-                    dev.panCentidegrees = panVal;
-                }
+                dev.hasPanPosition = true;
+                dev.panCentidegrees = m_matchedPan;
 
                 DeviceDiscoveredCallback discCb;
                 {
@@ -368,6 +429,20 @@ void BusScanner::scanWorker(ScanConfig config)
         trans->setBaudRate(originalBaud);
     }
 
+    if (trans) {
+        trans->setDataCallback(nullptr);
+    }
+    std::shared_ptr<CallbackGate> gate;
+    {
+        std::scoped_lock lock(m_mutex);
+        gate = m_gate;
+    }
+    if (gate) {
+        gate->close();
+    }
+
+    m_state.store(ScanState::Idle);
+
     std::vector<DiscoveredDevice> results;
     ScanStateChangedCallback stateCb;
     ScanFinishedCallback finCb;
@@ -384,8 +459,6 @@ void BusScanner::scanWorker(ScanConfig config)
     if (stateCb) {
         stateCb(ScanState::Idle);
     }
-
-    m_state.store(ScanState::Idle);
 }
 
 } // namespace PelcoD

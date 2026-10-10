@@ -3,6 +3,7 @@
 /// @file BusScanner.h
 /// @brief Multi-drop RS-485 bus address auto-discovery scanner.
 
+#include "CallbackGate.h"
 #include "ITransport.h"
 #include "PelcoDFrame.h"
 #include "ProtocolBuilder.h"
@@ -96,7 +97,7 @@ public:
     /// @brief Initiate asynchronous address range discovery scan.
     /// @param[in] config Probe configuration controlling address limits and timeouts.
     /// @return true if scan started successfully, false on invalid parameters or busy state.
-    bool startScan(const ScanConfig& config = ScanConfig {});
+    [[nodiscard]] bool startScan(const ScanConfig& config = ScanConfig {});
 
     /// @brief Terminate any currently active or paused discovery scan.
     void stopScan();
@@ -151,31 +152,34 @@ private:
     void onDataReceived(const std::vector<std::uint8_t>& data);
     void scanWorker(ScanConfig config);
 
-    mutable std::mutex m_mutex;
-    std::shared_ptr<ITransport> m_transport;
+    mutable std::mutex m_mutex {};
+    std::shared_ptr<ITransport> m_transport {};
+    std::shared_ptr<CallbackGate> m_gate {};
 
-    std::thread m_worker;
+    std::thread m_worker {};
     std::atomic<bool> m_stopRequested { false };
     std::atomic<bool> m_pauseRequested { false };
-    std::condition_variable m_pauseCv;
+    std::condition_variable m_pauseCv {};
     std::atomic<ScanState> m_state { ScanState::Idle };
 
     // Response synchronization
-    std::mutex m_rxMutex;
-    std::condition_variable m_rxCv;
-    std::vector<std::uint8_t> m_rxBuffer;
+    std::mutex m_rxMutex {};
+    std::condition_variable m_rxCv {};
+    std::vector<std::uint8_t> m_rxBuffer {};
+    std::vector<std::uint8_t> m_currentProbePacket {};
     std::uint8_t m_currentProbeAddress { 0U };
     bool m_foundResponse { false };
-    std::vector<std::uint8_t> m_matchedResponse;
+    std::vector<std::uint8_t> m_matchedResponse {};
+    std::uint16_t m_matchedPan { 0U };
 
-    std::vector<DiscoveredDevice> m_discoveredDevices;
+    std::vector<DiscoveredDevice> m_discoveredDevices {};
 
-    DeviceDiscoveredCallback m_discoveredCb;
-    ScanProgressCallback m_progressCb;
-    BaudRateChangedCallback m_baudRateCb;
-    MultiBaudProgressCallback m_multiBaudProgressCb;
-    ScanStateChangedCallback m_stateCb;
-    ScanFinishedCallback m_finishedCb;
+    DeviceDiscoveredCallback m_discoveredCb {};
+    ScanProgressCallback m_progressCb {};
+    BaudRateChangedCallback m_baudRateCb {};
+    MultiBaudProgressCallback m_multiBaudProgressCb {};
+    ScanStateChangedCallback m_stateCb {};
+    ScanFinishedCallback m_finishedCb {};
 };
 
 } // namespace PelcoD
