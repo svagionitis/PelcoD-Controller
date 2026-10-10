@@ -82,13 +82,13 @@ public:
     /// @param[in] sequence Macro sequence to load.
     void loadSequence(MacroSequence sequence);
 
-    /// @brief Retrieves the currently loaded macro sequence.
-    /// @return Const reference to MacroSequence.
-    [[nodiscard]] const MacroSequence& sequence() const noexcept;
+    /// @brief Retrieves a snapshot copy of the currently loaded macro sequence.
+    /// @return MacroSequence snapshot.
+    [[nodiscard]] MacroSequence sequence() const;
 
     /// @brief Starts or resumes playback of loaded sequence.
     /// @return True if playback started/resumed, false if no steps or already playing.
-    bool start();
+    [[nodiscard]] bool start();
 
     /// @brief Pauses active playback at current step.
     void pause();
@@ -101,7 +101,7 @@ public:
 
     /// @brief Executes only the single next step manually, then pauses.
     /// @return True if a step was executed, false if at end or not paused/idle.
-    bool stepNext();
+    [[nodiscard]] bool stepNext();
 
     /// @brief Sets the playback speed multiplier.
     /// @param[in] multiplier Scaling factor applied to delays (e.g. 1.0 = normal, 2.0 = 2x faster, 0.5 = 2x slower).
@@ -124,8 +124,8 @@ public:
     [[nodiscard]] std::size_t currentLoop() const noexcept;
 
 private:
+    [[nodiscard]] bool joinWorker();
     void workerThreadFunc();
-    void setState(MacroPlayerState newState, const std::string& msg = "");
 
     MacroSequence m_sequence {};
     FrameDispatchCallback m_dispatchCb { nullptr };
@@ -141,7 +141,7 @@ private:
     std::atomic<std::size_t> m_currentLoop { 1U };
     std::atomic<double> m_speedMultiplier { 1.0 };
     std::atomic<bool> m_stopRequested { false };
-    std::atomic<bool> m_stepOnceRequested { false };
+    std::atomic<bool> m_workerRunning { false };
 };
 
 } // namespace PelcoD

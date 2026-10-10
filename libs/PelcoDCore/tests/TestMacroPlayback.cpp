@@ -449,6 +449,269 @@ TEST(MacroPlaybackTest, MacroJsonRoundTripWithSpecialLabels)
     EXPECT_EQ(roundTripped.steps[1].expectResponse, seq.steps[1].expectResponse);
 }
 
+/// @brief Verify re-entrant pause() from within a step callback does not deadlock (H8a).
+TEST(MacroPlaybackTest, ReentrantPauseFromStepCallbackDoesNotDeadlock)
+{
+    PelcoD::MacroSequence seq;
+    PelcoD::MacroStep step;
+    step.label = "Step 1";
+    step.frame = PelcoD::PelcoDFrame::createFrame(1, 0, 0x04, 0x10, 0x00);
+    step.delayMs = 50U;
+    seq.steps.push_back(step);
+    seq.steps.push_back(step);
+
+    PelcoD::MacroPlayer player([](const std::vector<std::uint8_t>&) {});
+    player.loadSequence(seq);
+
+    auto fut = std::async(std::launch::async, [&]() {
+        player.setStepCallback([&](std::size_t, std::size_t, const PelcoD::MacroStep&, std::size_t, std::size_t) {
+            player.pause();
+        });
+        return player.stepNext();
+    });
+
+    ASSERT_EQ(fut.wait_for(std::chrono::milliseconds(500)), std::future_status::ready) << "Deadlock in re-entrant pause()";
+    EXPECT_TRUE(fut.get());
+    EXPECT_EQ(player.state(), PelcoD::MacroPlayerState::Paused);
+}
+
+/// @brief Verify re-entrant stop() from within a state callback does not deadlock (H8a).
+TEST(MacroPlaybackTest, ReentrantStopFromStateCallbackDoesNotDeadlock)
+{
+    PelcoD::MacroSequence seq;
+    PelcoD::MacroStep step;
+    step.label = "Step 1";
+    step.frame = PelcoD::PelcoDFrame::createFrame(1, 0, 0x04, 0x10, 0x00);
+    step.delayMs = 50U;
+    seq.steps.push_back(step);
+
+    PelcoD::MacroPlayer player([](const std::vector<std::uint8_t>&) {});
+    player.loadSequence(seq);
+
+    auto fut = std::async(std::launch::async, [&]() {
+        player.setStateCallback([&](PelcoD::MacroPlayerState state, const std::string&) {
+            if (state == PelcoD::MacroPlayerState::Paused) {
+                player.stop();
+            }
+        });
+        return player.stepNext();
+    });
+
+    ASSERT_EQ(fut.wait_for(std::chrono::milliseconds(500)), std::future_status::ready) << "Deadlock in re-entrant stop()";
+    EXPECT_TRUE(fut.get());
+    EXPECT_EQ(player.state(), PelcoD::MacroPlayerState::Stopped);
+}
+
+/// @brief Verify calling stepNext() from Idle followed by start() executes macro via worker (H8c).
+TEST(MacroPlaybackTest, StepNextFromIdleThenStartRunsPlayback)
+{
+    PelcoD::MacroSequence seq;
+    seq.repeatCount = 1U;
+
+    PelcoD::MacroStep step1;
+    step1.label = "Step 1";
+    step1.frame = PelcoD::PelcoDFrame::createFrame(1, 0, 0x04, 0x10, 0x00);
+    step1.delayMs = 20U;
+    seq.steps.push_back(step1);
+
+    PelcoD::MacroStep step2;
+    step2.label = "Step 2";
+    step2.frame = PelcoD::PelcoDFrame::createFrame(1, 0, 0x02, 0x10, 0x00);
+    step2.delayMs = 20U;
+    seq.steps.push_back(step2);
+
+    std::vector<std::vector<std::uint8_t>> dispatched;
+    std::mutex mtx;
+    std::promise<void> completedPromise;
+    auto completedFuture = completedPromise.get_future();
+
+    PelcoD::MacroPlayer player([&](const std::vector<std::uint8_t>& frame) {
+        std::scoped_lock lock(mtx);
+        dispatched.push_back(frame);
+    });
+
+    player.setStateCallback([&](PelcoD::MacroPlayerState state, const std::string&) {
+        if (state == PelcoD::MacroPlayerState::Completed) {
+            completedPromise.set_value();
+        }
+    });
+
+    player.loadSequence(seq);
+    ASSERT_EQ(player.state(), PelcoD::MacroPlayerState::Idle);
+
+    ASSERT_TRUE(player.stepNext());
+    EXPECT_EQ(player.state(), PelcoD::MacroPlayerState::Paused);
+    {
+        std::scoped_lock lock(mtx);
+        ASSERT_EQ(dispatched.size(), 1U);
+        EXPECT_EQ(dispatched[0], step1.frame);
+    }
+
+    player.setSpeedMultiplier(2.0);
+    EXPECT_TRUE(player.start());
+
+    auto status = completedFuture.wait_for(std::chrono::milliseconds(500));
+    ASSERT_EQ(status, std::future_status::ready) << "Worker thread was not spawned to complete playback";
+
+    {
+        std::scoped_lock lock(mtx);
+        ASSERT_EQ(dispatched.size(), 2U);
+        EXPECT_EQ(dispatched[1], step2.frame);
+    }
+    EXPECT_EQ(player.state(), PelcoD::MacroPlayerState::Completed);
+}
+
+/// @brief Verify calling stepNext() from Idle followed by resume() executes macro via worker (H8c).
+TEST(MacroPlaybackTest, StepNextFromIdleThenResumeRunsPlayback)
+{
+    PelcoD::MacroSequence seq;
+    seq.repeatCount = 1U;
+
+    PelcoD::MacroStep step1;
+    step1.label = "Step 1";
+    step1.frame = PelcoD::PelcoDFrame::createFrame(1, 0, 0x04, 0x10, 0x00);
+    step1.delayMs = 20U;
+    seq.steps.push_back(step1);
+
+    PelcoD::MacroStep step2;
+    step2.label = "Step 2";
+    step2.frame = PelcoD::PelcoDFrame::createFrame(1, 0, 0x02, 0x10, 0x00);
+    step2.delayMs = 20U;
+    seq.steps.push_back(step2);
+
+    std::vector<std::vector<std::uint8_t>> dispatched;
+    std::mutex mtx;
+    std::promise<void> completedPromise;
+    auto completedFuture = completedPromise.get_future();
+
+    PelcoD::MacroPlayer player([&](const std::vector<std::uint8_t>& frame) {
+        std::scoped_lock lock(mtx);
+        dispatched.push_back(frame);
+    });
+
+    player.setStateCallback([&](PelcoD::MacroPlayerState state, const std::string&) {
+        if (state == PelcoD::MacroPlayerState::Completed) {
+            completedPromise.set_value();
+        }
+    });
+
+    player.loadSequence(seq);
+    ASSERT_TRUE(player.stepNext());
+    EXPECT_EQ(player.state(), PelcoD::MacroPlayerState::Paused);
+
+    player.setSpeedMultiplier(2.0);
+    player.resume();
+
+    auto status = completedFuture.wait_for(std::chrono::milliseconds(500));
+    ASSERT_EQ(status, std::future_status::ready) << "Worker thread was not spawned by resume()";
+    {
+        std::scoped_lock lock(mtx);
+        ASSERT_EQ(dispatched.size(), 2U);
+        EXPECT_EQ(dispatched[1], step2.frame);
+    }
+    EXPECT_EQ(player.state(), PelcoD::MacroPlayerState::Completed);
+}
+
+/// @brief Verify start() called from worker thread callback rejects safely and avoids self-join (H8).
+TEST(MacroPlaybackTest, StartFromWorkerCallbackFailsGracefully)
+{
+    PelcoD::MacroSequence seq;
+    seq.repeatCount = 1U;
+
+    PelcoD::MacroStep step;
+    step.label = "Step 1";
+    step.frame = PelcoD::PelcoDFrame::createFrame(1, 0, 0x00, 0x00, 0x00);
+    step.delayMs = 10U;
+    seq.steps.push_back(step);
+
+    PelcoD::MacroPlayer player([](const std::vector<std::uint8_t>&) {});
+    player.loadSequence(seq);
+
+    std::atomic<bool> startResult { true };
+    std::atomic<bool> callbackRan { false };
+    std::promise<void> donePromise;
+    auto doneFuture = donePromise.get_future();
+
+    player.setStateCallback([&](PelcoD::MacroPlayerState state, const std::string&) {
+        if (state == PelcoD::MacroPlayerState::Completed) {
+            callbackRan = true;
+            startResult = player.start();
+            donePromise.set_value();
+        }
+    });
+
+    ASSERT_TRUE(player.start());
+    ASSERT_EQ(doneFuture.wait_for(std::chrono::milliseconds(500)), std::future_status::ready);
+    EXPECT_TRUE(callbackRan.load());
+    EXPECT_FALSE(startResult.load());
+}
+
+/// @brief Verify stop() called from worker thread step callback succeeds safely (H8).
+TEST(MacroPlaybackTest, StopFromWorkerCallbackSucceeds)
+{
+    PelcoD::MacroSequence seq;
+    seq.repeatCount = 5U;
+
+    PelcoD::MacroStep step;
+    step.label = "Step 1";
+    step.frame = PelcoD::PelcoDFrame::createFrame(1, 0, 0x00, 0x00, 0x00);
+    step.delayMs = 20U;
+    seq.steps.push_back(step);
+
+    PelcoD::MacroPlayer player([](const std::vector<std::uint8_t>&) {});
+    player.loadSequence(seq);
+
+    std::promise<void> stoppedPromise;
+    auto stoppedFuture = stoppedPromise.get_future();
+
+    player.setStepCallback([&](std::size_t, std::size_t, const PelcoD::MacroStep&, std::size_t, std::size_t) {
+        player.stop();
+        stoppedPromise.set_value();
+    });
+
+    ASSERT_TRUE(player.start());
+    ASSERT_EQ(stoppedFuture.wait_for(std::chrono::milliseconds(500)), std::future_status::ready);
+    EXPECT_EQ(player.state(), PelcoD::MacroPlayerState::Stopped);
+}
+
+/// @brief Verify reading sequence() concurrently with loadSequence() is thread-safe (H8b).
+TEST(MacroPlaybackTest, ConcurrentSequenceSnapshotSafety)
+{
+    PelcoD::MacroSequence seq1;
+    seq1.name = "Sequence 1";
+    PelcoD::MacroStep step1;
+    step1.label = "Step 1";
+    step1.frame = PelcoD::PelcoDFrame::createFrame(1, 0, 0x04, 0x10, 0x00);
+    step1.delayMs = 10U;
+    seq1.steps.push_back(step1);
+
+    PelcoD::MacroSequence seq2;
+    seq2.name = "Sequence 2";
+    PelcoD::MacroStep step2;
+    step2.label = "Step 2";
+    step2.frame = PelcoD::PelcoDFrame::createFrame(1, 0, 0x02, 0x10, 0x00);
+    step2.delayMs = 20U;
+    seq2.steps.push_back(step2);
+
+    PelcoD::MacroPlayer player;
+    player.loadSequence(seq1);
+
+    std::atomic<bool> running { true };
+    std::thread reader([&]() {
+        while (running.load()) {
+            PelcoD::MacroSequence snap = player.sequence();
+            EXPECT_FALSE(snap.name.empty());
+            EXPECT_FALSE(snap.steps.empty());
+        }
+    });
+
+    for (int i = 0; i < 200; ++i) {
+        player.loadSequence((i % 2 == 0) ? seq1 : seq2);
+    }
+    running.store(false);
+    reader.join();
+}
+
 } // namespace
 
 
