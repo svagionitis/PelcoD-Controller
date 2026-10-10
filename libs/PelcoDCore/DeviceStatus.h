@@ -60,8 +60,13 @@ struct DeviceStatus {
     std::uint16_t manualRightLimitCentidegrees { 0U };
     std::uint16_t scanLeftLimitCentidegrees { 0U };
     std::uint16_t scanRightLimitCentidegrees { 0U };
+    std::uint16_t lastLimitCentidegrees { 0U };
+    std::uint8_t everestAlarms { 0x00U };
     std::uint16_t definedPresetsMask { 0U };
     std::uint16_t definedPatternsMask { 0U };
+
+    // Device RTC time (from 0x77 Time Macro response)
+    PelcoDTime deviceTime {};
 
     // Timestamp of last received message
     std::chrono::steady_clock::time_point lastRxTime {};
@@ -90,6 +95,18 @@ struct DeviceStatus {
         }
         const std::uint8_t mask = static_cast<std::uint8_t>(1U << (alarmIndex - 1U));
         return (alarms & mask) != 0U;
+    }
+
+    /// @brief Checks if a specific Everest alarm bit is active (1 to 8).
+    /// @param[in] alarmIndex Alarm number from 1 to 8.
+    /// @return True if Everest alarm flag is asserted.
+    [[nodiscard]] bool isEverestAlarmActive(std::uint8_t alarmIndex) const noexcept
+    {
+        if (alarmIndex < 1U || alarmIndex > 8U) {
+            return false;
+        }
+        const std::uint8_t mask = static_cast<std::uint8_t>(1U << (alarmIndex - 1U));
+        return (everestAlarms & mask) != 0U;
     }
 };
 

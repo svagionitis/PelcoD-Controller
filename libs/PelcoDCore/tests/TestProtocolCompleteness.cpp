@@ -762,7 +762,8 @@ TEST(ProtocolCompletenessTest, Phase4ResponsesAndParsing)
         static_cast<std::uint8_t>(PelcoD::ResponseOpcode::Everest),
         0x00U, 0x0FU);
     ASSERT_TRUE(PelcoD::ProtocolParser::updateStatus(almFrame, status, info));
-    EXPECT_EQ(status.alarms, 0x0FU);
+    EXPECT_EQ(status.everestAlarms, 0x0FU);
+    EXPECT_EQ(status.alarms, 0x00U);
 
     // Everest DefinedPresetsResponse: mask = 0x0055
     const std::vector<std::uint8_t> dpFrame = PelcoD::PelcoDFrame::createFrame(

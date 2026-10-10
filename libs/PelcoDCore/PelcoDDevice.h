@@ -27,6 +27,7 @@
 #include <future>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <string>
 #include <thread>
 #include <vector>
@@ -509,6 +510,7 @@ private:
     std::atomic<bool> m_abortQueryWait { false };
     std::condition_variable m_responseCv;
     std::string m_pendingQueryTag {};
+    std::optional<EverestLimitId> m_pendingLimitId { std::nullopt };
     std::chrono::steady_clock::time_point m_querySentTime {}; ///< Dispatch timestamp of pending query; guarded by m_statusMutex (H1)
 
     std::atomic<std::uint64_t> m_queriesSent { 0U };

@@ -138,6 +138,7 @@ void PelcoDDevice::stop()
         std::scoped_lock lock(m_statusMutex);
         m_awaitingResponse = false;
         m_pendingQueryTag.clear();
+        m_pendingLimitId = std::nullopt;
     }
 
     if (m_transport) {
@@ -1001,6 +1002,10 @@ void PelcoDDevice::setScanRightPanLimit(std::uint16_t centidegrees)
 
 void PelcoDDevice::queryLimit(EverestLimitId limitId)
 {
+    {
+        std::scoped_lock lock(m_statusMutex);
+        m_pendingLimitId = limitId;
+    }
     sendQueryFrame(ProtocolBuilder::buildQueryLimit(m_address, limitId), "QueryLimit");
 }
 
@@ -1306,6 +1311,7 @@ void PelcoDDevice::workerLoop()
                     std::scoped_lock lock(m_statusMutex);
                     m_awaitingResponse = false;
                     m_pendingQueryTag.clear();
+                    m_pendingLimitId = std::nullopt;
                 }
 
                 RetryConfig retryCfg;
@@ -1387,6 +1393,7 @@ void PelcoDDevice::workerLoop()
                             m_abortQueryWait.store(false);
                             m_awaitingResponse = false;
                             m_pendingQueryTag.clear();
+                            m_pendingLimitId = std::nullopt;
                         }
                     }
                     if (!queryAborted) {
@@ -1401,6 +1408,7 @@ void PelcoDDevice::workerLoop()
                                     std::scoped_lock lock(m_statusMutex);
                                     m_awaitingResponse = false;
                                     m_pendingQueryTag.clear();
+                                    m_pendingLimitId = std::nullopt;
                                 }
                                 const std::string reason = "Query '" + item.queryTag + "' timed out";
                                 m_queryRetries.fetch_add(1U, std::memory_order_relaxed);
@@ -1470,6 +1478,7 @@ void PelcoDDevice::resolveQueryWait()
         std::scoped_lock lock(m_statusMutex);
         m_awaitingResponse = false;
         m_pendingQueryTag.clear();
+        m_pendingLimitId = std::nullopt;
     }
     m_responseCv.notify_all();
 }
@@ -1526,7 +1535,7 @@ void PelcoDDevice::dispatchFrame(const std::vector<std::uint8_t>& frame)
         }
 
         // Apply updates directly in-place to m_status and m_info under lock (H2 fix: no TOCTOU)
-        if (ProtocolParser::updateStatus(frame, m_status, m_info)) {
+        if (ProtocolParser::updateStatus(frame, m_status, m_info, m_pendingLimitId)) {
             statusUpdated = true;
 
             if (m_awaitingResponse.load() && isResponseMatchingQuery(m_pendingQueryTag, frame)) {
@@ -1535,6 +1544,7 @@ void PelcoDDevice::dispatchFrame(const std::vector<std::uint8_t>& frame)
                     std::chrono::steady_clock::now() - m_querySentTime);
                 m_awaitingResponse = false;
                 m_pendingQueryTag.clear();
+                m_pendingLimitId = std::nullopt;
                 querySatisfied = true;
             }
 

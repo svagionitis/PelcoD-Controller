@@ -7,6 +7,7 @@
 #include "PelcoDTypes.h"
 
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -112,6 +113,14 @@ public:
     [[nodiscard]] static bool parseEverestResponse(const std::vector<std::uint8_t>& frame,
         EverestSubOpcode& subOpcode, std::uint8_t& data1, std::uint8_t& data2) noexcept;
 
+    /// @brief Decodes 7-byte Everest Limit response (opcode 0x75, sub 0x0D).
+    /// @details Extracts 16-bit angle limit value in centidegrees (0.01 deg).
+    /// @param[in] frame Raw response frame.
+    /// @param[out] limitCentidegrees Extracted limit angle in centidegrees.
+    /// @return True if frame is a valid opcode 0x75 sub 0x0D response.
+    [[nodiscard]] static bool parseLimitResponse(
+        const std::vector<std::uint8_t>& frame, std::uint16_t& limitCentidegrees) noexcept;
+
     /// @brief Decodes 18-byte Query response packet.
     /// @param[in] frame Raw response frame.
     /// @param[out] payload Extracted text payload string.
@@ -122,9 +131,13 @@ public:
     /// @param[in] frame Raw incoming frame.
     /// @param[in,out] status Device status to update.
     /// @param[in,out] info Device info to update.
+    /// @param[in] limitId Optional limit identifier for Everest Limit responses.
     /// @return True if frame was recognized and applied.
     [[nodiscard]] static bool updateStatus(
-        const std::vector<std::uint8_t>& frame, DeviceStatus& status, DeviceInfo& info);
+        const std::vector<std::uint8_t>& frame,
+        DeviceStatus& status,
+        DeviceInfo& info,
+        std::optional<EverestLimitId> limitId = std::nullopt);
 
     /// @brief Disassembles a raw Pelco-D frame into a human-readable description string.
     /// @details Decodes standard PTZ directional movements, extended commands (presets,

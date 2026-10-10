@@ -405,4 +405,244 @@ TEST(ProtocolParserTest, UpdateStatusComprehensive)
     }
 }
 
+/// @brief Verify that all standalone parse* methods reject frames with invalid checksums (M5).
+TEST(ProtocolParserTest, ParseFunctionsRejectBadChecksum)
+{
+    using PelcoD::PelcoDFrame;
+    using PelcoD::ProtocolParser;
+
+    // 4-byte general response with corrupted checksum
+    std::vector<std::uint8_t> badGen { 0xFFU, 0x01U, 0x05U, 0x00U }; // expected csum = (1+5) = 6
+    std::uint8_t addr { 0U };
+    std::uint8_t alarms { 0U };
+    EXPECT_FALSE(ProtocolParser::parseGeneral(badGen, addr, alarms));
+
+    // 7-byte Pan response with corrupted checksum
+    auto badPan = PelcoDFrame::createFrame(1U, 0x00U, 0x59U, 0x10U, 0x20U);
+    badPan[6] ^= 0x55U;
+    std::uint16_t panVal { 0U };
+    EXPECT_FALSE(ProtocolParser::parsePan(badPan, panVal));
+
+    // 7-byte Tilt response with corrupted checksum
+    auto badTilt = PelcoDFrame::createFrame(1U, 0x00U, 0x5BU, 0x05U, 0x10U);
+    badTilt[6] ^= 0x55U;
+    std::uint16_t tiltVal { 0U };
+    EXPECT_FALSE(ProtocolParser::parseTilt(badTilt, tiltVal));
+
+    // 7-byte Zoom response with corrupted checksum
+    auto badZoom = PelcoDFrame::createFrame(1U, 0x00U, 0x5DU, 0x01U, 0x00U);
+    badZoom[6] ^= 0x55U;
+    std::uint16_t zoomVal { 0U };
+    EXPECT_FALSE(ProtocolParser::parseZoom(badZoom, zoomVal));
+
+    // 7-byte Magnification response with corrupted checksum
+    auto badMag = PelcoDFrame::createFrame(1U, 0x00U, 0x63U, 0x02U, 0x50U);
+    badMag[6] ^= 0x55U;
+    std::uint16_t magVal { 0U };
+    EXPECT_FALSE(ProtocolParser::parseMag(badMag, magVal));
+
+    // 7-byte DeviceType response with corrupted checksum
+    auto badDevType = PelcoDFrame::createFrame(1U, 0x00U, 0x6DU, 0x05U, 0x01U);
+    badDevType[6] ^= 0x55U;
+    std::uint8_t swType { 0U };
+    std::uint8_t hwType { 0U };
+    EXPECT_FALSE(ProtocolParser::parseDevType(badDevType, swType, hwType));
+
+    // 7-byte Ack response with corrupted checksum
+    auto badAck = PelcoDFrame::createFrame(1U, 0x00U, 0x01U, 0x59U, 0x01U);
+    badAck[6] ^= 0x55U;
+    std::uint8_t echoOp { 0U };
+    bool ackOk { false };
+    EXPECT_FALSE(ProtocolParser::parseAck(badAck, echoOp, ackOk));
+
+    // 7-byte Diagnostics response with corrupted checksum
+    auto badDiag = PelcoDFrame::createFrame(1U, 0x00U, 0x71U, 40U, 1U);
+    badDiag[6] ^= 0x55U;
+    std::uint8_t temp { 0U };
+    std::uint8_t sensor { 0U };
+    EXPECT_FALSE(ProtocolParser::parseDiagnostics(badDiag, temp, sensor));
+
+    // 7-byte VersionInfo response with corrupted checksum
+    auto badVer = PelcoDFrame::createFrame(1U, 0x01U, 0x73U, 1U, 2U);
+    badVer[6] ^= 0x55U;
+    PelcoD::VersionInfoSubOpcode verSub {};
+    std::uint8_t d1 { 0U };
+    std::uint8_t d2 { 0U };
+    EXPECT_FALSE(ProtocolParser::parseVersionInfo(badVer, verSub, d1, d2));
+
+    // 7-byte Time response with corrupted checksum
+    auto badTime = PelcoDFrame::createFrame(1U, 0x01U, 0x77U, 0U, 30U);
+    badTime[6] ^= 0x55U;
+    PelcoD::TimeSubOpcode timeSub {};
+    EXPECT_FALSE(ProtocolParser::parseTimeResponse(badTime, timeSub, d1, d2));
+
+    // 7-byte Everest response with corrupted checksum
+    auto badEv = PelcoDFrame::createFrame(1U, 0x01U, 0x75U, 0x12U, 0x34U);
+    badEv[6] ^= 0x55U;
+    PelcoD::EverestSubOpcode evSub {};
+    EXPECT_FALSE(ProtocolParser::parseEverestResponse(badEv, evSub, d1, d2));
+
+    // 7-byte Limit response with corrupted checksum
+    auto badLim = PelcoDFrame::createFrame(1U, 0x0DU, 0x75U, 0x12U, 0x34U);
+    badLim[6] ^= 0x55U;
+    std::uint16_t limVal { 0U };
+    EXPECT_FALSE(ProtocolParser::parseLimitResponse(badLim, limVal));
+
+    // 18-byte Query response with corrupted checksum
+    std::vector<std::uint8_t> badQ(18U, 0x00U);
+    badQ[0] = 0xFFU;
+    badQ[1] = 0x01U;
+    badQ[2] = 'T';
+    badQ[3] = 'E';
+    badQ[4] = 'S';
+    badQ[5] = 'T';
+    badQ[17] = 0xAAU; // Corrupted checksum
+    std::string payload;
+    EXPECT_FALSE(ProtocolParser::parseQuery(badQ, payload));
+}
+
+/// @brief Verify MISRA Rule 10.2.x enum validation rejects raw values not mapping to enumerators (M5).
+TEST(ProtocolParserTest, EnumValidationRejectsInvalidValues)
+{
+    using PelcoD::PelcoDFrame;
+    using PelcoD::ProtocolParser;
+
+    // Invalid VersionInfo sub-opcode (0xFF is not a declared VersionInfoSubOpcode)
+    const auto badVerSub = PelcoDFrame::createFrame(1U, 0xFFU, 0x73U, 1U, 2U);
+    PelcoD::VersionInfoSubOpcode verSub {};
+    std::uint8_t d1 { 0U };
+    std::uint8_t d2 { 0U };
+    EXPECT_FALSE(ProtocolParser::parseVersionInfo(badVerSub, verSub, d1, d2));
+
+    // Invalid TimeMacro sub-opcode (0xFE is not a declared TimeSubOpcode)
+    const auto badTimeSub = PelcoDFrame::createFrame(1U, 0xFEU, 0x77U, 10U, 20U);
+    PelcoD::TimeSubOpcode timeSub {};
+    EXPECT_FALSE(ProtocolParser::parseTimeResponse(badTimeSub, timeSub, d1, d2));
+
+    // Invalid Everest sub-opcode (0x55 is not a declared EverestSubOpcode)
+    const auto badEvSub = PelcoDFrame::createFrame(1U, 0x55U, 0x75U, 0x00U, 0x01U);
+    PelcoD::EverestSubOpcode evSub {};
+    EXPECT_FALSE(ProtocolParser::parseEverestResponse(badEvSub, evSub, d1, d2));
+
+    // Frame with valid checksum but unknown ResponseOpcode (0xAA) must be rejected by updateStatus
+    const auto badOpcodeFrame = PelcoDFrame::createFrame(1U, 0x00U, 0xAAU, 0x00U, 0x00U);
+    PelcoD::DeviceStatus status;
+    PelcoD::DeviceInfo info;
+    EXPECT_FALSE(ProtocolParser::updateStatus(badOpcodeFrame, status, info));
+}
+
+/// @brief Verify that TimeMacro responses decode properly into DeviceStatus::deviceTime (M5).
+TEST(ProtocolParserTest, TimeResponsesUpdateDeviceStatusTime)
+{
+    using PelcoD::PelcoDFrame;
+    using PelcoD::ProtocolParser;
+    using PelcoD::TimeSubOpcode;
+    using PelcoD::ResponseOpcode;
+
+    PelcoD::DeviceStatus status;
+    PelcoD::DeviceInfo info;
+
+    // 1. ReportSeconds (sub 0x01, data2 = 45s)
+    const auto secFrame = PelcoDFrame::createFrame(
+        1U, static_cast<std::uint8_t>(TimeSubOpcode::ReportSeconds),
+        static_cast<std::uint8_t>(ResponseOpcode::TimeMacro), 0x00U, 45U);
+    ASSERT_TRUE(ProtocolParser::updateStatus(secFrame, status, info));
+    EXPECT_EQ(status.deviceTime.second, 45U);
+
+    // 2. ReportHourMinute (sub 0x03, data1 = 14h, data2 = 30m)
+    const auto hmFrame = PelcoDFrame::createFrame(
+        1U, static_cast<std::uint8_t>(TimeSubOpcode::ReportHourMinute),
+        static_cast<std::uint8_t>(ResponseOpcode::TimeMacro), 14U, 30U);
+    ASSERT_TRUE(ProtocolParser::updateStatus(hmFrame, status, info));
+    EXPECT_EQ(status.deviceTime.hour, 14U);
+    EXPECT_EQ(status.deviceTime.minute, 30U);
+
+    // 3. ReportMonthDay (sub 0x05, data1 = 10m, data2 = 25d)
+    const auto mdFrame = PelcoDFrame::createFrame(
+        1U, static_cast<std::uint8_t>(TimeSubOpcode::ReportMonthDay),
+        static_cast<std::uint8_t>(ResponseOpcode::TimeMacro), 10U, 25U);
+    ASSERT_TRUE(ProtocolParser::updateStatus(mdFrame, status, info));
+    EXPECT_EQ(status.deviceTime.month, 10U);
+    EXPECT_EQ(status.deviceTime.day, 25U);
+
+    // 4. ReportYear (sub 0x07, year 2026 = 0x07EA)
+    const auto yrFrame = PelcoDFrame::createFrame(
+        1U, static_cast<std::uint8_t>(TimeSubOpcode::ReportYear),
+        static_cast<std::uint8_t>(ResponseOpcode::TimeMacro), 0x07U, 0xEAU);
+    ASSERT_TRUE(ProtocolParser::updateStatus(yrFrame, status, info));
+    EXPECT_EQ(status.deviceTime.year, 2026U);
+}
+
+/// @brief Verify parseLimitResponse and LimitResponse updates in DeviceStatus (M5).
+TEST(ProtocolParserTest, LimitResponsesUpdateDeviceStatus)
+{
+    using PelcoD::PelcoDFrame;
+    using PelcoD::ProtocolParser;
+    using PelcoD::EverestSubOpcode;
+    using PelcoD::ResponseOpcode;
+    using PelcoD::EverestLimitId;
+
+    // Limit angle 125.50 deg = 12550 centidegrees = 0x3106
+    const auto limFrame = PelcoDFrame::createFrame(
+        1U, static_cast<std::uint8_t>(EverestSubOpcode::LimitResponse),
+        static_cast<std::uint8_t>(ResponseOpcode::Everest), 0x31U, 0x06U);
+
+    std::uint16_t parsedLimit { 0U };
+    ASSERT_TRUE(ProtocolParser::parseLimitResponse(limFrame, parsedLimit));
+    EXPECT_EQ(parsedLimit, 12550U);
+
+    PelcoD::DeviceStatus status;
+    PelcoD::DeviceInfo info;
+
+    // Test updateStatus with explicit limit identifier
+    ASSERT_TRUE(ProtocolParser::updateStatus(limFrame, status, info, EverestLimitId::ManualLeftPan));
+    EXPECT_EQ(status.lastLimitCentidegrees, 12550U);
+    EXPECT_EQ(status.manualLeftLimitCentidegrees, 12550U);
+
+    // Test updateStatus with ManualRightPan
+    const auto limRight = PelcoDFrame::createFrame(
+        1U, static_cast<std::uint8_t>(EverestSubOpcode::LimitResponse),
+        static_cast<std::uint8_t>(ResponseOpcode::Everest), 0x50U, 0x00U);
+    ASSERT_TRUE(ProtocolParser::updateStatus(limRight, status, info, EverestLimitId::ManualRightPan));
+    EXPECT_EQ(status.lastLimitCentidegrees, 0x5000U);
+    EXPECT_EQ(status.manualRightLimitCentidegrees, 0x5000U);
+    EXPECT_EQ(status.manualLeftLimitCentidegrees, 12550U); // Unchanged
+}
+
+/// @brief Verify Everest alarms update everestAlarms and do not overwrite general alarms (M5).
+TEST(ProtocolParserTest, EverestAlarmsDoNotOverwriteGeneralAlarms)
+{
+    using PelcoD::PelcoDFrame;
+    using PelcoD::ProtocolParser;
+    using PelcoD::EverestSubOpcode;
+    using PelcoD::ResponseOpcode;
+
+    PelcoD::DeviceStatus status;
+    PelcoD::DeviceInfo info;
+
+    // 1. General response asserts general alarm 2 (0x02)
+    const std::vector<std::uint8_t> genFrame { 0xFFU, 0x01U, 0x02U, 0x03U };
+    ASSERT_TRUE(ProtocolParser::updateStatus(genFrame, status, info));
+    EXPECT_EQ(status.alarms, 0x02U);
+    EXPECT_TRUE(status.isAlarmActive(2));
+    EXPECT_FALSE(status.isEverestAlarmActive(2));
+
+    // 2. Everest alarm response arrives with mask 0x81 (Alarms 1 and 8)
+    const auto evAlarmsFrame = PelcoDFrame::createFrame(
+        1U, static_cast<std::uint8_t>(EverestSubOpcode::AlarmsResponse),
+        static_cast<std::uint8_t>(ResponseOpcode::Everest), 0x00U, 0x81U);
+    ASSERT_TRUE(ProtocolParser::updateStatus(evAlarmsFrame, status, info));
+
+    // General alarms MUST remain preserved!
+    EXPECT_EQ(status.alarms, 0x02U);
+    EXPECT_TRUE(status.isAlarmActive(2));
+
+    // Everest alarms must be correctly updated in everestAlarms!
+    EXPECT_EQ(status.everestAlarms, 0x81U);
+    EXPECT_TRUE(status.isEverestAlarmActive(1));
+    EXPECT_TRUE(status.isEverestAlarmActive(8));
+    EXPECT_FALSE(status.isEverestAlarmActive(2));
+}
+
 } // namespace
+

@@ -7,14 +7,249 @@
 #include <cctype>
 #include <chrono>
 #include <iomanip>
+#include <optional>
 #include <sstream>
 
 namespace PelcoD {
 
+namespace {
+
+[[nodiscard]] constexpr std::optional<ResponseOpcode> toResponseOpcode(std::uint8_t val) noexcept
+{
+    switch (val) {
+    case static_cast<std::uint8_t>(ResponseOpcode::StandardExtended):
+        return ResponseOpcode::StandardExtended;
+    case static_cast<std::uint8_t>(ResponseOpcode::QueryPan):
+        return ResponseOpcode::QueryPan;
+    case static_cast<std::uint8_t>(ResponseOpcode::QueryTilt):
+        return ResponseOpcode::QueryTilt;
+    case static_cast<std::uint8_t>(ResponseOpcode::QueryZoom):
+        return ResponseOpcode::QueryZoom;
+    case static_cast<std::uint8_t>(ResponseOpcode::QueryMagnification):
+        return ResponseOpcode::QueryMagnification;
+    case static_cast<std::uint8_t>(ResponseOpcode::QueryDeviceType):
+        return ResponseOpcode::QueryDeviceType;
+    case static_cast<std::uint8_t>(ResponseOpcode::QueryDiagnostics):
+        return ResponseOpcode::QueryDiagnostics;
+    case static_cast<std::uint8_t>(ResponseOpcode::VersionInfo):
+        return ResponseOpcode::VersionInfo;
+    case static_cast<std::uint8_t>(ResponseOpcode::Everest):
+        return ResponseOpcode::Everest;
+    case static_cast<std::uint8_t>(ResponseOpcode::TimeMacro):
+        return ResponseOpcode::TimeMacro;
+    default:
+        return std::nullopt;
+    }
+}
+
+[[nodiscard]] constexpr std::optional<VersionInfoSubOpcode> toVersionInfoSubOpcode(std::uint8_t val) noexcept
+{
+    switch (val) {
+    case static_cast<std::uint8_t>(VersionInfoSubOpcode::RequestSoftwareVersion):
+        return VersionInfoSubOpcode::RequestSoftwareVersion;
+    case static_cast<std::uint8_t>(VersionInfoSubOpcode::SoftwareVersionResponse):
+        return VersionInfoSubOpcode::SoftwareVersionResponse;
+    case static_cast<std::uint8_t>(VersionInfoSubOpcode::RequestBuildNumber):
+        return VersionInfoSubOpcode::RequestBuildNumber;
+    case static_cast<std::uint8_t>(VersionInfoSubOpcode::BuildNumberResponse):
+        return VersionInfoSubOpcode::BuildNumberResponse;
+    default:
+        return std::nullopt;
+    }
+}
+
+[[nodiscard]] constexpr std::optional<TimeSubOpcode> toTimeSubOpcode(std::uint8_t val) noexcept
+{
+    switch (val) {
+    case static_cast<std::uint8_t>(TimeSubOpcode::SetSeconds):
+        return TimeSubOpcode::SetSeconds;
+    case static_cast<std::uint8_t>(TimeSubOpcode::ReportSeconds):
+        return TimeSubOpcode::ReportSeconds;
+    case static_cast<std::uint8_t>(TimeSubOpcode::SetHourMinute):
+        return TimeSubOpcode::SetHourMinute;
+    case static_cast<std::uint8_t>(TimeSubOpcode::ReportHourMinute):
+        return TimeSubOpcode::ReportHourMinute;
+    case static_cast<std::uint8_t>(TimeSubOpcode::SetMonthDay):
+        return TimeSubOpcode::SetMonthDay;
+    case static_cast<std::uint8_t>(TimeSubOpcode::ReportMonthDay):
+        return TimeSubOpcode::ReportMonthDay;
+    case static_cast<std::uint8_t>(TimeSubOpcode::SetYear):
+        return TimeSubOpcode::SetYear;
+    case static_cast<std::uint8_t>(TimeSubOpcode::ReportYear):
+        return TimeSubOpcode::ReportYear;
+    default:
+        return std::nullopt;
+    }
+}
+
+[[nodiscard]] constexpr std::optional<EverestSubOpcode> toEverestSubOpcode(std::uint8_t val) noexcept
+{
+    switch (val) {
+    case static_cast<std::uint8_t>(EverestSubOpcode::QueryAzimuthZero):
+        return EverestSubOpcode::QueryAzimuthZero;
+    case static_cast<std::uint8_t>(EverestSubOpcode::AzimuthZeroResponse):
+        return EverestSubOpcode::AzimuthZeroResponse;
+    case static_cast<std::uint8_t>(EverestSubOpcode::SetZoomLimit):
+        return EverestSubOpcode::SetZoomLimit;
+    case static_cast<std::uint8_t>(EverestSubOpcode::QueryZoomLimit):
+        return EverestSubOpcode::QueryZoomLimit;
+    case static_cast<std::uint8_t>(EverestSubOpcode::ZoomLimitResponse):
+        return EverestSubOpcode::ZoomLimitResponse;
+    case static_cast<std::uint8_t>(EverestSubOpcode::QueryAlarms):
+        return EverestSubOpcode::QueryAlarms;
+    case static_cast<std::uint8_t>(EverestSubOpcode::AlarmsResponse):
+        return EverestSubOpcode::AlarmsResponse;
+    case static_cast<std::uint8_t>(EverestSubOpcode::DeletePattern):
+        return EverestSubOpcode::DeletePattern;
+    case static_cast<std::uint8_t>(EverestSubOpcode::SetManualLeftPanLimit):
+        return EverestSubOpcode::SetManualLeftPanLimit;
+    case static_cast<std::uint8_t>(EverestSubOpcode::SetManualRightPanLimit):
+        return EverestSubOpcode::SetManualRightPanLimit;
+    case static_cast<std::uint8_t>(EverestSubOpcode::SetScanLeftPanLimit):
+        return EverestSubOpcode::SetScanLeftPanLimit;
+    case static_cast<std::uint8_t>(EverestSubOpcode::SetScanRightPanLimit):
+        return EverestSubOpcode::SetScanRightPanLimit;
+    case static_cast<std::uint8_t>(EverestSubOpcode::QueryLimit):
+        return EverestSubOpcode::QueryLimit;
+    case static_cast<std::uint8_t>(EverestSubOpcode::LimitResponse):
+        return EverestSubOpcode::LimitResponse;
+    case static_cast<std::uint8_t>(EverestSubOpcode::EnableLimits):
+        return EverestSubOpcode::EnableLimits;
+    case static_cast<std::uint8_t>(EverestSubOpcode::QueryDefinedPresets):
+        return EverestSubOpcode::QueryDefinedPresets;
+    case static_cast<std::uint8_t>(EverestSubOpcode::DefinedPresetsResponse):
+        return EverestSubOpcode::DefinedPresetsResponse;
+    case static_cast<std::uint8_t>(EverestSubOpcode::QueryDefinedPatterns):
+        return EverestSubOpcode::QueryDefinedPatterns;
+    case static_cast<std::uint8_t>(EverestSubOpcode::DefinedPatternsResponse):
+        return EverestSubOpcode::DefinedPatternsResponse;
+    default:
+        return std::nullopt;
+    }
+}
+
+[[nodiscard]] constexpr std::optional<CommandOpcode> toCommandOpcode(std::uint8_t val) noexcept
+{
+    switch (val) {
+    case static_cast<std::uint8_t>(CommandOpcode::SetPreset):
+        return CommandOpcode::SetPreset;
+    case static_cast<std::uint8_t>(CommandOpcode::ClearPreset):
+        return CommandOpcode::ClearPreset;
+    case static_cast<std::uint8_t>(CommandOpcode::GoToPreset):
+        return CommandOpcode::GoToPreset;
+    case static_cast<std::uint8_t>(CommandOpcode::SetAuxiliary):
+        return CommandOpcode::SetAuxiliary;
+    case static_cast<std::uint8_t>(CommandOpcode::ClearAuxiliary):
+        return CommandOpcode::ClearAuxiliary;
+    case static_cast<std::uint8_t>(CommandOpcode::Dummy):
+        return CommandOpcode::Dummy;
+    case static_cast<std::uint8_t>(CommandOpcode::RemoteReset):
+        return CommandOpcode::RemoteReset;
+    case static_cast<std::uint8_t>(CommandOpcode::SetZoneStart):
+        return CommandOpcode::SetZoneStart;
+    case static_cast<std::uint8_t>(CommandOpcode::SetZoneEnd):
+        return CommandOpcode::SetZoneEnd;
+    case static_cast<std::uint8_t>(CommandOpcode::WriteCharacter):
+        return CommandOpcode::WriteCharacter;
+    case static_cast<std::uint8_t>(CommandOpcode::ClearScreen):
+        return CommandOpcode::ClearScreen;
+    case static_cast<std::uint8_t>(CommandOpcode::AlarmAcknowledge):
+        return CommandOpcode::AlarmAcknowledge;
+    case static_cast<std::uint8_t>(CommandOpcode::ZoneScanOn):
+        return CommandOpcode::ZoneScanOn;
+    case static_cast<std::uint8_t>(CommandOpcode::ZoneScanOff):
+        return CommandOpcode::ZoneScanOff;
+    case static_cast<std::uint8_t>(CommandOpcode::RecordPatternStart):
+        return CommandOpcode::RecordPatternStart;
+    case static_cast<std::uint8_t>(CommandOpcode::RecordPatternStop):
+        return CommandOpcode::RecordPatternStop;
+    case static_cast<std::uint8_t>(CommandOpcode::RunPattern):
+        return CommandOpcode::RunPattern;
+    case static_cast<std::uint8_t>(CommandOpcode::SetZoomSpeed):
+        return CommandOpcode::SetZoomSpeed;
+    case static_cast<std::uint8_t>(CommandOpcode::SetFocusSpeed):
+        return CommandOpcode::SetFocusSpeed;
+    case static_cast<std::uint8_t>(CommandOpcode::ResetDefaults):
+        return CommandOpcode::ResetDefaults;
+    case static_cast<std::uint8_t>(CommandOpcode::AutoFocus):
+        return CommandOpcode::AutoFocus;
+    case static_cast<std::uint8_t>(CommandOpcode::AutoIris):
+        return CommandOpcode::AutoIris;
+    case static_cast<std::uint8_t>(CommandOpcode::Agc):
+        return CommandOpcode::Agc;
+    case static_cast<std::uint8_t>(CommandOpcode::BacklightComp):
+        return CommandOpcode::BacklightComp;
+    case static_cast<std::uint8_t>(CommandOpcode::AutoWhiteBalance):
+        return CommandOpcode::AutoWhiteBalance;
+    case static_cast<std::uint8_t>(CommandOpcode::PhaseDelayMode):
+        return CommandOpcode::PhaseDelayMode;
+    case static_cast<std::uint8_t>(CommandOpcode::SetShutterSpeed):
+        return CommandOpcode::SetShutterSpeed;
+    case static_cast<std::uint8_t>(CommandOpcode::AdjustLineLock):
+        return CommandOpcode::AdjustLineLock;
+    case static_cast<std::uint8_t>(CommandOpcode::AdjustWbRedBlue):
+        return CommandOpcode::AdjustWbRedBlue;
+    case static_cast<std::uint8_t>(CommandOpcode::AdjustWbMg):
+        return CommandOpcode::AdjustWbMg;
+    case static_cast<std::uint8_t>(CommandOpcode::AdjustGain):
+        return CommandOpcode::AdjustGain;
+    case static_cast<std::uint8_t>(CommandOpcode::AdjustAutoIrisLevel):
+        return CommandOpcode::AdjustAutoIrisLevel;
+    case static_cast<std::uint8_t>(CommandOpcode::AdjustAutoIrisPeak):
+        return CommandOpcode::AdjustAutoIrisPeak;
+    case static_cast<std::uint8_t>(CommandOpcode::Query):
+        return CommandOpcode::Query;
+    case static_cast<std::uint8_t>(CommandOpcode::PresetScan):
+        return CommandOpcode::PresetScan;
+    case static_cast<std::uint8_t>(CommandOpcode::SetZeroPosition):
+        return CommandOpcode::SetZeroPosition;
+    case static_cast<std::uint8_t>(CommandOpcode::SetPanPosition):
+        return CommandOpcode::SetPanPosition;
+    case static_cast<std::uint8_t>(CommandOpcode::SetTiltPosition):
+        return CommandOpcode::SetTiltPosition;
+    case static_cast<std::uint8_t>(CommandOpcode::SetZoomPosition):
+        return CommandOpcode::SetZoomPosition;
+    case static_cast<std::uint8_t>(CommandOpcode::QueryPanPosition):
+        return CommandOpcode::QueryPanPosition;
+    case static_cast<std::uint8_t>(CommandOpcode::QueryTiltPosition):
+        return CommandOpcode::QueryTiltPosition;
+    case static_cast<std::uint8_t>(CommandOpcode::QueryZoomPosition):
+        return CommandOpcode::QueryZoomPosition;
+    case static_cast<std::uint8_t>(CommandOpcode::PrepareForDownload):
+        return CommandOpcode::PrepareForDownload;
+    case static_cast<std::uint8_t>(CommandOpcode::SetMagnification):
+        return CommandOpcode::SetMagnification;
+    case static_cast<std::uint8_t>(CommandOpcode::QueryMagnification):
+        return CommandOpcode::QueryMagnification;
+    case static_cast<std::uint8_t>(CommandOpcode::EchoMode):
+        return CommandOpcode::EchoMode;
+    case static_cast<std::uint8_t>(CommandOpcode::SetBaudRate):
+        return CommandOpcode::SetBaudRate;
+    case static_cast<std::uint8_t>(CommandOpcode::StartDownload):
+        return CommandOpcode::StartDownload;
+    case static_cast<std::uint8_t>(CommandOpcode::QueryDeviceType):
+        return CommandOpcode::QueryDeviceType;
+    case static_cast<std::uint8_t>(CommandOpcode::QueryDiagnostics):
+        return CommandOpcode::QueryDiagnostics;
+    case static_cast<std::uint8_t>(CommandOpcode::VersionInfo):
+        return CommandOpcode::VersionInfo;
+    case static_cast<std::uint8_t>(CommandOpcode::Everest):
+        return CommandOpcode::Everest;
+    case static_cast<std::uint8_t>(CommandOpcode::TimeMacro):
+        return CommandOpcode::TimeMacro;
+    case static_cast<std::uint8_t>(CommandOpcode::ScreenMove):
+        return CommandOpcode::ScreenMove;
+    default:
+        return std::nullopt;
+    }
+}
+
+} // namespace
+
 bool ProtocolParser::parseGeneral(
     const std::vector<std::uint8_t>& frame, std::uint8_t& address, std::uint8_t& alarms) noexcept
 {
-    if (frame.size() != PelcoDFrame::GeneralResponseSize || frame[0] != PelcoDFrame::SyncByte) {
+    if (!PelcoDFrame::isValidFrame(frame) || frame.size() != PelcoDFrame::GeneralResponseSize) {
         return false;
     }
     address = frame[1];
@@ -24,7 +259,7 @@ bool ProtocolParser::parseGeneral(
 
 bool ProtocolParser::parsePan(const std::vector<std::uint8_t>& frame, std::uint16_t& panCentidegrees) noexcept
 {
-    if (frame.size() != PelcoDFrame::StandardFrameSize || frame[0] != PelcoDFrame::SyncByte) {
+    if (!PelcoDFrame::isValidFrame(frame) || frame.size() != PelcoDFrame::StandardFrameSize) {
         return false;
     }
     if (frame[3] != static_cast<std::uint8_t>(ResponseOpcode::QueryPan)) {
@@ -37,7 +272,7 @@ bool ProtocolParser::parsePan(const std::vector<std::uint8_t>& frame, std::uint1
 
 bool ProtocolParser::parseTilt(const std::vector<std::uint8_t>& frame, std::uint16_t& tiltCentidegrees) noexcept
 {
-    if (frame.size() != PelcoDFrame::StandardFrameSize || frame[0] != PelcoDFrame::SyncByte) {
+    if (!PelcoDFrame::isValidFrame(frame) || frame.size() != PelcoDFrame::StandardFrameSize) {
         return false;
     }
     if (frame[3] != static_cast<std::uint8_t>(ResponseOpcode::QueryTilt)) {
@@ -50,7 +285,7 @@ bool ProtocolParser::parseTilt(const std::vector<std::uint8_t>& frame, std::uint
 
 bool ProtocolParser::parseZoom(const std::vector<std::uint8_t>& frame, std::uint16_t& zoomPosition) noexcept
 {
-    if (frame.size() != PelcoDFrame::StandardFrameSize || frame[0] != PelcoDFrame::SyncByte) {
+    if (!PelcoDFrame::isValidFrame(frame) || frame.size() != PelcoDFrame::StandardFrameSize) {
         return false;
     }
     if (frame[3] != static_cast<std::uint8_t>(ResponseOpcode::QueryZoom)) {
@@ -63,7 +298,7 @@ bool ProtocolParser::parseZoom(const std::vector<std::uint8_t>& frame, std::uint
 
 bool ProtocolParser::parseMag(const std::vector<std::uint8_t>& frame, std::uint16_t& magnification) noexcept
 {
-    if (frame.size() != PelcoDFrame::StandardFrameSize || frame[0] != PelcoDFrame::SyncByte) {
+    if (!PelcoDFrame::isValidFrame(frame) || frame.size() != PelcoDFrame::StandardFrameSize) {
         return false;
     }
     if (frame[3] != static_cast<std::uint8_t>(ResponseOpcode::QueryMagnification)) {
@@ -77,7 +312,7 @@ bool ProtocolParser::parseMag(const std::vector<std::uint8_t>& frame, std::uint1
 bool ProtocolParser::parseDevType(
     const std::vector<std::uint8_t>& frame, std::uint8_t& swType, std::uint8_t& hwType) noexcept
 {
-    if (frame.size() != PelcoDFrame::StandardFrameSize || frame[0] != PelcoDFrame::SyncByte) {
+    if (!PelcoDFrame::isValidFrame(frame) || frame.size() != PelcoDFrame::StandardFrameSize) {
         return false;
     }
     if (frame[3] != static_cast<std::uint8_t>(ResponseOpcode::QueryDeviceType)) {
@@ -90,7 +325,7 @@ bool ProtocolParser::parseDevType(
 
 bool ProtocolParser::parseAck(const std::vector<std::uint8_t>& frame, std::uint8_t& echoOpcode, bool& ack) noexcept
 {
-    if (frame.size() != PelcoDFrame::StandardFrameSize || frame[0] != PelcoDFrame::SyncByte) {
+    if (!PelcoDFrame::isValidFrame(frame) || frame.size() != PelcoDFrame::StandardFrameSize) {
         return false;
     }
     if (frame[3] != static_cast<std::uint8_t>(ResponseOpcode::StandardExtended)) {
@@ -104,7 +339,7 @@ bool ProtocolParser::parseAck(const std::vector<std::uint8_t>& frame, std::uint8
 bool ProtocolParser::parseDiagnostics(
     const std::vector<std::uint8_t>& frame, std::uint8_t& temp, std::uint8_t& sensorId) noexcept
 {
-    if (frame.size() != PelcoDFrame::StandardFrameSize || frame[0] != PelcoDFrame::SyncByte) {
+    if (!PelcoDFrame::isValidFrame(frame) || frame.size() != PelcoDFrame::StandardFrameSize) {
         return false;
     }
     if (frame[3] != static_cast<std::uint8_t>(ResponseOpcode::QueryDiagnostics)) {
@@ -118,13 +353,17 @@ bool ProtocolParser::parseDiagnostics(
 bool ProtocolParser::parseVersionInfo(const std::vector<std::uint8_t>& frame,
     VersionInfoSubOpcode& subOpcode, std::uint8_t& data1, std::uint8_t& data2) noexcept
 {
-    if (frame.size() != PelcoDFrame::StandardFrameSize || frame[0] != PelcoDFrame::SyncByte) {
+    if (!PelcoDFrame::isValidFrame(frame) || frame.size() != PelcoDFrame::StandardFrameSize) {
         return false;
     }
     if (frame[3] != static_cast<std::uint8_t>(ResponseOpcode::VersionInfo)) {
         return false;
     }
-    subOpcode = static_cast<VersionInfoSubOpcode>(frame[2]);
+    const auto maybeSub = toVersionInfoSubOpcode(frame[2]);
+    if (!maybeSub.has_value()) {
+        return false;
+    }
+    subOpcode = *maybeSub;
     data1 = frame[4];
     data2 = frame[5];
     return true;
@@ -133,13 +372,17 @@ bool ProtocolParser::parseVersionInfo(const std::vector<std::uint8_t>& frame,
 bool ProtocolParser::parseTimeResponse(const std::vector<std::uint8_t>& frame,
     TimeSubOpcode& subOpcode, std::uint8_t& data1, std::uint8_t& data2) noexcept
 {
-    if (frame.size() != PelcoDFrame::StandardFrameSize || frame[0] != PelcoDFrame::SyncByte) {
+    if (!PelcoDFrame::isValidFrame(frame) || frame.size() != PelcoDFrame::StandardFrameSize) {
         return false;
     }
     if (frame[3] != static_cast<std::uint8_t>(ResponseOpcode::TimeMacro)) {
         return false;
     }
-    subOpcode = static_cast<TimeSubOpcode>(frame[2]);
+    const auto maybeSub = toTimeSubOpcode(frame[2]);
+    if (!maybeSub.has_value()) {
+        return false;
+    }
+    subOpcode = *maybeSub;
     data1 = frame[4];
     data2 = frame[5];
     return true;
@@ -148,21 +391,40 @@ bool ProtocolParser::parseTimeResponse(const std::vector<std::uint8_t>& frame,
 bool ProtocolParser::parseEverestResponse(const std::vector<std::uint8_t>& frame,
     EverestSubOpcode& subOpcode, std::uint8_t& data1, std::uint8_t& data2) noexcept
 {
-    if (frame.size() != PelcoDFrame::StandardFrameSize || frame[0] != PelcoDFrame::SyncByte) {
+    if (!PelcoDFrame::isValidFrame(frame) || frame.size() != PelcoDFrame::StandardFrameSize) {
         return false;
     }
     if (frame[3] != static_cast<std::uint8_t>(ResponseOpcode::Everest)) {
         return false;
     }
-    subOpcode = static_cast<EverestSubOpcode>(frame[2]);
+    const auto maybeSub = toEverestSubOpcode(frame[2]);
+    if (!maybeSub.has_value()) {
+        return false;
+    }
+    subOpcode = *maybeSub;
     data1 = frame[4];
     data2 = frame[5];
     return true;
 }
 
+bool ProtocolParser::parseLimitResponse(
+    const std::vector<std::uint8_t>& frame, std::uint16_t& limitCentidegrees) noexcept
+{
+    if (!PelcoDFrame::isValidFrame(frame) || frame.size() != PelcoDFrame::StandardFrameSize) {
+        return false;
+    }
+    if (frame[3] != static_cast<std::uint8_t>(ResponseOpcode::Everest)
+        || frame[2] != static_cast<std::uint8_t>(EverestSubOpcode::LimitResponse)) {
+        return false;
+    }
+    limitCentidegrees = static_cast<std::uint16_t>(
+        (static_cast<std::uint16_t>(frame[4]) << 8U) | static_cast<std::uint16_t>(frame[5]));
+    return true;
+}
+
 bool ProtocolParser::parseQuery(const std::vector<std::uint8_t>& frame, std::string& payload)
 {
-    if (frame.size() != PelcoDFrame::QueryResponseSize || frame[0] != PelcoDFrame::SyncByte) {
+    if (!PelcoDFrame::isValidFrame(frame) || frame.size() != PelcoDFrame::QueryResponseSize) {
         return false;
     }
 
@@ -179,7 +441,11 @@ bool ProtocolParser::parseQuery(const std::vector<std::uint8_t>& frame, std::str
     return true;
 }
 
-bool ProtocolParser::updateStatus(const std::vector<std::uint8_t>& frame, DeviceStatus& status, DeviceInfo& info)
+bool ProtocolParser::updateStatus(
+    const std::vector<std::uint8_t>& frame,
+    DeviceStatus& status,
+    DeviceInfo& info,
+    [[maybe_unused]] std::optional<EverestLimitId> limitId)
 {
     if (!PelcoDFrame::isValidFrame(frame)) {
         return false;
@@ -197,7 +463,11 @@ bool ProtocolParser::updateStatus(const std::vector<std::uint8_t>& frame, Device
         }
     } else if (frame.size() == PelcoDFrame::StandardFrameSize) {
         status.address = frame[1];
-        const auto opcode = static_cast<ResponseOpcode>(frame[3]);
+        const auto maybeOpcode = toResponseOpcode(frame[3]);
+        if (!maybeOpcode.has_value()) {
+            return false;
+        }
+        const auto opcode = *maybeOpcode;
         switch (opcode) {
         case ResponseOpcode::StandardExtended: {
             std::uint8_t echoOpcode { 0U };
@@ -245,8 +515,33 @@ bool ProtocolParser::updateStatus(const std::vector<std::uint8_t>& frame, Device
             return false;
         }
 
-        case ResponseOpcode::TimeMacro:
-            return true;
+        case ResponseOpcode::TimeMacro: {
+            TimeSubOpcode sub {};
+            std::uint8_t d1 { 0U };
+            std::uint8_t d2 { 0U };
+            if (parseTimeResponse(frame, sub, d1, d2)) {
+                switch (sub) {
+                case TimeSubOpcode::ReportSeconds:
+                    status.deviceTime.second = d2;
+                    return true;
+                case TimeSubOpcode::ReportHourMinute:
+                    status.deviceTime.hour = d1;
+                    status.deviceTime.minute = d2;
+                    return true;
+                case TimeSubOpcode::ReportMonthDay:
+                    status.deviceTime.month = d1;
+                    status.deviceTime.day = d2;
+                    return true;
+                case TimeSubOpcode::ReportYear:
+                    status.deviceTime.year = static_cast<std::uint16_t>(
+                        (static_cast<std::uint16_t>(d1) << 8U) | static_cast<std::uint16_t>(d2));
+                    return true;
+                default:
+                    return false;
+                }
+            }
+            return false;
+        }
 
         case ResponseOpcode::Everest: {
             EverestSubOpcode sub {};
@@ -262,9 +557,26 @@ bool ProtocolParser::updateStatus(const std::vector<std::uint8_t>& frame, Device
                     status.zoomLimit = val16;
                     return true;
                 case EverestSubOpcode::AlarmsResponse:
-                    status.alarms = d2;
+                    status.everestAlarms = d2;
                     return true;
                 case EverestSubOpcode::LimitResponse:
+                    status.lastLimitCentidegrees = val16;
+                    if (limitId.has_value()) {
+                        switch (*limitId) {
+                        case EverestLimitId::ManualLeftPan:
+                            status.manualLeftLimitCentidegrees = val16;
+                            break;
+                        case EverestLimitId::ManualRightPan:
+                            status.manualRightLimitCentidegrees = val16;
+                            break;
+                        case EverestLimitId::ScanLeftPan:
+                            status.scanLeftLimitCentidegrees = val16;
+                            break;
+                        case EverestLimitId::ScanRightPan:
+                            status.scanRightLimitCentidegrees = val16;
+                            break;
+                        }
+                    }
                     return true;
                 case EverestSubOpcode::DefinedPresetsResponse:
                     status.definedPresetsMask = val16;
@@ -393,8 +705,11 @@ std::string ProtocolParser::describeFrame(bool isTx, const std::vector<std::uint
             }
 
             // Extended command
-            const auto opcode = static_cast<CommandOpcode>(cmd2);
-            switch (opcode) {
+            const auto maybeOpcode = toCommandOpcode(cmd2);
+            if (!maybeOpcode.has_value()) {
+                return "Extended Command (Cmd2=0x" + toHexByte(cmd2) + ")";
+            }
+            switch (*maybeOpcode) {
             case CommandOpcode::SetPreset:
                 return "Set Preset " + std::to_string(d2);
             case CommandOpcode::ClearPreset:
