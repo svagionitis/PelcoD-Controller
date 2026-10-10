@@ -788,12 +788,18 @@ void PelcoDDevice::adjustWhiteBalanceMG(std::uint16_t value)
 
 void PelcoDDevice::setMagnification(std::uint16_t value, bool relative)
 {
-    enqueueCommand(ProtocolBuilder::buildSetMagnification(m_address, value, relative));
+    const auto frame = ProtocolBuilder::buildSetMagnification(m_address, value, relative);
+    if (frame.has_value()) {
+        enqueueCommand(*frame);
+    }
 }
 
 void PelcoDDevice::setBaudRate(std::uint32_t baud)
 {
-    enqueueCommand(ProtocolBuilder::buildSetBaudRate(m_address, baud));
+    const auto frame = ProtocolBuilder::buildSetBaudRate(m_address, baud);
+    if (frame.has_value()) {
+        enqueueCommand(*frame);
+    }
 }
 
 void PelcoDDevice::setZeroPosition()

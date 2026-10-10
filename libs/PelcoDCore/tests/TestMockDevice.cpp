@@ -91,13 +91,13 @@ TEST(MockDeviceTest, EndToEnd)
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
     EXPECT_EQ(mock->getInternalState().panCentidegrees, 0U);
 
-    // 8. Set and Query Magnification (0x5F / 0x61)
-    device.setMagnification(250U);
+    // 8. Set and Query Magnification (0x5F / 0x61) - tests 16-bit MSB wire transmission
+    device.setMagnification(600U);
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
-    EXPECT_EQ(mock->getInternalState().magnification, 250U);
+    EXPECT_EQ(mock->getInternalState().magnification, 600U);
     device.queryMagnification();
     std::this_thread::sleep_for(std::chrono::milliseconds(150));
-    EXPECT_EQ(device.getStatus().magnification, 250U);
+    EXPECT_EQ(device.getStatus().magnification, 600U);
 
     // 9. Query Diagnostics (0x6F -> 0x71)
     device.queryDiagnostics();

@@ -6,6 +6,7 @@
 #include "PelcoDTypes.h"
 
 #include <cstdint>
+#include <optional>
 #include <vector>
 
 namespace PelcoD {
@@ -124,13 +125,28 @@ public:
     /// @brief Sets device hardware azimuth zero at current position (opcode 0x49).
     [[nodiscard]] static std::vector<std::uint8_t> buildSetZeroPosition(std::uint8_t address);
 
-    /// @brief Sets optical magnification (opcode 0x5F).
-    /// @param relative If true, value is a relative delta; if false, absolute.
-    [[nodiscard]] static std::vector<std::uint8_t> buildSetMagnification(
+    /// @brief Sets optical magnification in hundredths of units (opcode 0x5F per Pelco-D spec §5.48).
+    /// @details In standard Pelco-D v5.0.1 Section 5.48, opcode 0x5F is a 16-bit big-endian command
+    ///          where Data 1 carries the magnification MSB and Data 2 carries the LSB.
+    ///          Relative magnification cannot be encoded in opcode 0x5F and returns std::nullopt.
+    /// @param[in] address Device bus address (1-255).
+    /// @param[in] value Optical magnification in hundredths (e.g. 100 = 1.00x, 250 = 2.50x, 500 = 5.00x).
+    /// @param[in] relative If true, relative magnification is requested (unsupported by spec §5.48).
+    /// @return 7-byte Pelco-D formatted vector if valid, or std::nullopt if unrepresentable.
+    /// @retval std::nullopt If relative is true or parameters are unrepresentable.
+    [[nodiscard]] static std::optional<std::vector<std::uint8_t>> buildSetMagnification(
         std::uint8_t address, std::uint16_t value, bool relative = false);
 
-    /// @brief Sets remote baud rate (opcode 0x67).
-    [[nodiscard]] static std::vector<std::uint8_t> buildSetBaudRate(std::uint8_t address, std::uint32_t baud);
+    /// @brief Sets remote baud rate on device (opcode 0x67 per Pelco-D spec §5.52).
+    /// @details Discrete spec-defined baud rates are: 2400 (0x00), 4800 (0x01), 9600 (0x02),
+    ///          19200 (0x03), 38400 (0x04), and 115200 (0x05). Unsupported rates return std::nullopt
+    ///          to prevent silent aliasing and device stranding.
+    /// @param[in] address Device bus address (1-255).
+    /// @param[in] baud Target baud rate in bps (2400, 4800, 9600, 19200, 38400, 115200).
+    /// @return 7-byte Pelco-D formatted vector if valid baud rate, or std::nullopt if unsupported.
+    /// @retval std::nullopt If baud is not one of the spec-supported baud rates.
+    [[nodiscard]] static std::optional<std::vector<std::uint8_t>> buildSetBaudRate(
+        std::uint8_t address, std::uint32_t baud);
 
     // Queries
     [[nodiscard]] static std::vector<std::uint8_t> buildQueryPan(std::uint8_t address);

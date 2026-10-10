@@ -4,6 +4,8 @@
 #include "ProtocolBuilder.h"
 #include "PelcoDFrame.h"
 
+#include <algorithm>
+
 namespace PelcoD {
 
 std::vector<std::uint8_t> ProtocolBuilder::buildMotion(std::uint8_t address, PanDirection panDir, std::uint8_t panSpeed,
@@ -44,9 +46,9 @@ std::vector<std::uint8_t> ProtocolBuilder::buildMotion(std::uint8_t address, Pan
         cmd2 |= static_cast<std::uint8_t>(PanDirection::Left);
     }
 
-    // Harden speeds: tilt max is 0x3F, pan max is 0x3F or 0x40 for turbo
-    const std::uint8_t validPanSpeed = (panSpeed == 0x40U) ? 0x40U : static_cast<std::uint8_t>(panSpeed & 0x3FU);
-    const std::uint8_t validTiltSpeed = static_cast<std::uint8_t>(tiltSpeed & 0x3FU);
+    // Harden speeds: tilt saturates at 0x3F, pan saturates at 0x40 (Turbo)
+    const std::uint8_t validPanSpeed = std::min(panSpeed, static_cast<std::uint8_t>(0x40U));
+    const std::uint8_t validTiltSpeed = std::min(tiltSpeed, static_cast<std::uint8_t>(0x3FU));
 
     return PelcoDFrame::createFrame(address, cmd1, cmd2, validPanSpeed, validTiltSpeed);
 }
@@ -189,12 +191,14 @@ std::vector<std::uint8_t> ProtocolBuilder::buildRunPattern(std::uint8_t address,
 
 std::vector<std::uint8_t> ProtocolBuilder::buildZoomSpeed(std::uint8_t address, std::uint8_t speed)
 {
-    return buildStandardCmd(address, CommandOpcode::SetZoomSpeed, 0x00U, static_cast<std::uint8_t>(speed & 0x03U));
+    const std::uint8_t satSpeed = std::min(speed, static_cast<std::uint8_t>(0x03U));
+    return buildStandardCmd(address, CommandOpcode::SetZoomSpeed, 0x00U, satSpeed);
 }
 
 std::vector<std::uint8_t> ProtocolBuilder::buildFocusSpeed(std::uint8_t address, std::uint8_t speed)
 {
-    return buildStandardCmd(address, CommandOpcode::SetFocusSpeed, 0x00U, static_cast<std::uint8_t>(speed & 0x03U));
+    const std::uint8_t satSpeed = std::min(speed, static_cast<std::uint8_t>(0x03U));
+    return buildStandardCmd(address, CommandOpcode::SetFocusSpeed, 0x00U, satSpeed);
 }
 
 std::vector<std::uint8_t> ProtocolBuilder::buildResetDefaults(std::uint8_t address)
@@ -297,29 +301,40 @@ std::vector<std::uint8_t> ProtocolBuilder::buildSetZeroPosition(std::uint8_t add
     return buildStandardCmd(address, CommandOpcode::SetZeroPosition);
 }
 
-std::vector<std::uint8_t> ProtocolBuilder::buildSetMagnification(
+std::optional<std::vector<std::uint8_t>> ProtocolBuilder::buildSetMagnification(
     std::uint8_t address, std::uint16_t value, bool relative)
 {
-    // data1: 0x00=absolute, 0x01=relative (rel/abs bit per spec §5.48)
-    const std::uint8_t relAbs = relative ? 0x01U : 0x00U;
-    const auto lsb = static_cast<std::uint8_t>(value & 0xFFU);
-    return buildStandardCmd(address, CommandOpcode::SetMagnification, relAbs, lsb);
+    if (relative) {
+        return std::nullopt;
+    }
+    return build16BitCmd(address, CommandOpcode::SetMagnification, value);
 }
 
-std::vector<std::uint8_t> ProtocolBuilder::buildSetBaudRate(std::uint8_t address, std::uint32_t baud)
+std::optional<std::vector<std::uint8_t>> ProtocolBuilder::buildSetBaudRate(std::uint8_t address, std::uint32_t baud)
 {
     // Spec-defined baud codes (§5.52): 2400=0, 4800=1, 9600=2, 19200=3, 38400=4, 115200=5
     std::uint8_t baudCode { 0x00U };
-    if (baud >= 115200U) {
-        baudCode = 0x05U;
-    } else if (baud >= 38400U) {
-        baudCode = 0x04U;
-    } else if (baud >= 19200U) {
-        baudCode = 0x03U;
-    } else if (baud >= 9600U) {
-        baudCode = 0x02U;
-    } else if (baud >= 4800U) {
+    switch (baud) {
+    case 2400U:
+        baudCode = 0x00U;
+        break;
+    case 4800U:
         baudCode = 0x01U;
+        break;
+    case 9600U:
+        baudCode = 0x02U;
+        break;
+    case 19200U:
+        baudCode = 0x03U;
+        break;
+    case 38400U:
+        baudCode = 0x04U;
+        break;
+    case 115200U:
+        baudCode = 0x05U;
+        break;
+    default:
+        return std::nullopt;
     }
     return buildStandardCmd(address, CommandOpcode::SetBaudRate, 0x00U, baudCode);
 }
@@ -356,8 +371,9 @@ std::vector<std::uint8_t> ProtocolBuilder::buildQueryGeneral(std::uint8_t addres
 
 std::vector<std::uint8_t> ProtocolBuilder::buildWriteChar(std::uint8_t address, std::uint8_t column, char asciiChar)
 {
-    return buildStandardCmd(address, CommandOpcode::WriteCharacter, static_cast<std::uint8_t>(column & 0x3FU),
-        static_cast<std::uint8_t>(asciiChar));
+    const std::uint8_t satCol = std::min(column, static_cast<std::uint8_t>(0x3FU));
+    return buildStandardCmd(address, CommandOpcode::WriteCharacter, satCol,
+        static_cast<std::uint8_t>(static_cast<unsigned char>(asciiChar)));
 }
 
 std::vector<std::uint8_t> ProtocolBuilder::buildClearScreen(std::uint8_t address)
@@ -394,8 +410,10 @@ std::vector<std::uint8_t> ProtocolBuilder::buildScreenMove(
     std::uint8_t address, std::int8_t panPercent, std::int8_t tiltPercent, bool relative)
 {
     const std::uint8_t cmd1 = relative ? 0x01U : 0x00U;
-    const auto d1 = static_cast<std::uint8_t>(panPercent);
-    const auto d2 = static_cast<std::uint8_t>(tiltPercent);
+    const auto safePan = std::clamp(panPercent, static_cast<std::int8_t>(-100), static_cast<std::int8_t>(100));
+    const auto safeTilt = std::clamp(tiltPercent, static_cast<std::int8_t>(-100), static_cast<std::int8_t>(100));
+    const auto d1 = static_cast<std::uint8_t>(safePan);
+    const auto d2 = static_cast<std::uint8_t>(safeTilt);
     return PelcoDFrame::createFrame(address, cmd1, static_cast<std::uint8_t>(CommandOpcode::ScreenMove), d1, d2);
 }
 

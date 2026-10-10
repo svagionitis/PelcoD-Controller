@@ -97,8 +97,8 @@ TEST(ProtocolCompletenessTest, NewBuilderOpcodes)
         { PelcoD::ProtocolBuilder::buildLineLockDelay(1U, 0x0010U), 0x39U, "LineLockDelay" },
         { PelcoD::ProtocolBuilder::buildWhiteBalanceRB(1U, 0x0010U), 0x3BU, "WhiteBalanceRB" },
         { PelcoD::ProtocolBuilder::buildWhiteBalanceMG(1U, 0x0010U), 0x3DU, "WhiteBalanceMG" },
-        { PelcoD::ProtocolBuilder::buildSetMagnification(1U, 0x0100U, false), 0x5FU, "SetMagnification" },
-        { PelcoD::ProtocolBuilder::buildSetBaudRate(1U, 9600U), 0x67U, "SetBaudRate" },
+        { PelcoD::ProtocolBuilder::buildSetMagnification(1U, 0x0100U, false).value(), 0x5FU, "SetMagnification" },
+        { PelcoD::ProtocolBuilder::buildSetBaudRate(1U, 9600U).value(), 0x67U, "SetBaudRate" },
         { PelcoD::ProtocolBuilder::buildSetZeroPosition(1U), 0x49U, "SetZeroPosition" },
         { PelcoD::ProtocolBuilder::buildQueryDiagnostics(1U), 0x6FU, "QueryDiagnostics" },
     };

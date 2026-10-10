@@ -349,31 +349,31 @@ TEST(ProtocolBuilderTest, AutoIrisAndExposureControls)
 /// @details Checks absolute and relative magnification (opcode 0x5F) and remote baud rate (opcode 0x67).
 TEST(ProtocolBuilderTest, MagnificationAndBaudRate)
 {
-    // Absolute magnification: data1 = 0x00 (abs), data2 = lsb
+    // Absolute magnification: 0x0250 (592 hundredths): data1 = 0x02 (msb), data2 = 0x50 (lsb)
     const auto absMag = PelcoD::ProtocolBuilder::buildSetMagnification(1U, 0x0250U, false);
-    EXPECT_EQ(absMag[3], 0x5FU);
-    EXPECT_EQ(absMag[4], 0x00U);
-    EXPECT_EQ(absMag[5], 0x50U);
-    EXPECT_TRUE(PelcoD::PelcoDFrame::isValidFrame(absMag));
+    ASSERT_TRUE(absMag.has_value());
+    EXPECT_EQ((*absMag)[3], 0x5FU);
+    EXPECT_EQ((*absMag)[4], 0x02U);
+    EXPECT_EQ((*absMag)[5], 0x50U);
+    EXPECT_TRUE(PelcoD::PelcoDFrame::isValidFrame(*absMag));
 
-    // Relative magnification: data1 = 0x01 (rel), data2 = lsb
+    // Relative magnification is unrepresentable in Pelco-D §5.48 and returns std::nullopt
     const auto relMag = PelcoD::ProtocolBuilder::buildSetMagnification(1U, 0x0050U, true);
-    EXPECT_EQ(relMag[3], 0x5FU);
-    EXPECT_EQ(relMag[4], 0x01U);
-    EXPECT_EQ(relMag[5], 0x50U);
-    EXPECT_TRUE(PelcoD::PelcoDFrame::isValidFrame(relMag));
+    EXPECT_FALSE(relMag.has_value());
 
     // Remote baud rate 9600 (code 0x02)
     const auto baud9600 = PelcoD::ProtocolBuilder::buildSetBaudRate(1U, 9600U);
-    EXPECT_EQ(baud9600[3], 0x67U);
-    EXPECT_EQ(baud9600[5], 0x02U);
-    EXPECT_TRUE(PelcoD::PelcoDFrame::isValidFrame(baud9600));
+    ASSERT_TRUE(baud9600.has_value());
+    EXPECT_EQ((*baud9600)[3], 0x67U);
+    EXPECT_EQ((*baud9600)[5], 0x02U);
+    EXPECT_TRUE(PelcoD::PelcoDFrame::isValidFrame(*baud9600));
 
     // Remote baud rate 2400 (code 0x00)
     const auto baud2400 = PelcoD::ProtocolBuilder::buildSetBaudRate(1U, 2400U);
-    EXPECT_EQ(baud2400[3], 0x67U);
-    EXPECT_EQ(baud2400[5], 0x00U);
-    EXPECT_TRUE(PelcoD::PelcoDFrame::isValidFrame(baud2400));
+    ASSERT_TRUE(baud2400.has_value());
+    EXPECT_EQ((*baud2400)[3], 0x67U);
+    EXPECT_EQ((*baud2400)[5], 0x00U);
+    EXPECT_TRUE(PelcoD::PelcoDFrame::isValidFrame(*baud2400));
 }
 
 /// @brief Verify builder methods for all supported query types.
@@ -427,6 +427,133 @@ TEST(ProtocolBuilderTest, CombinedMotionMultiAction)
     EXPECT_EQ(multi[4], 0x25U); // pan speed
     EXPECT_EQ(multi[5], 0x1AU); // tilt speed
     EXPECT_TRUE(PelcoD::PelcoDFrame::isValidFrame(multi));
+}
+
+/// @brief Verify pan speed saturates at 0x40 (Turbo) rather than wrapping through bitmasking.
+TEST(ProtocolBuilderTest, PanSpeedSaturatesAtTurboWithoutMasking)
+{
+    // Speed 0x80 (128): with & 0x3F it produces 0x00 (no motion). Should saturate to 0x40.
+    const auto p80 = PelcoD::ProtocolBuilder::buildPan(1U, PelcoD::PanDirection::Left, 0x80U);
+    ASSERT_EQ(p80.size(), 7U);
+    EXPECT_EQ(p80[4], 0x40U) << "Pan speed 0x80 must saturate to Turbo 0x40 instead of masking to 0x00";
+    EXPECT_TRUE(PelcoD::PelcoDFrame::isValidFrame(p80));
+
+    // Speed 0x50 (80): with & 0x3F it produces 0x10. Should saturate to 0x40.
+    const auto p50 = PelcoD::ProtocolBuilder::buildPan(1U, PelcoD::PanDirection::Right, 0x50U);
+    ASSERT_EQ(p50.size(), 7U);
+    EXPECT_EQ(p50[4], 0x40U) << "Pan speed 0x50 must saturate to Turbo 0x40 instead of masking to 0x10";
+    EXPECT_TRUE(PelcoD::PelcoDFrame::isValidFrame(p50));
+}
+
+/// @brief Verify tilt speed saturates at 0x3F rather than wrapping through bitmasking.
+TEST(ProtocolBuilderTest, TiltSpeedSaturatesAtMaxWithoutMasking)
+{
+    // Speed 0x80: with & 0x3F it produces 0x00. Should saturate to 0x3F.
+    const auto t80 = PelcoD::ProtocolBuilder::buildTilt(1U, PelcoD::TiltDirection::Up, 0x80U);
+    ASSERT_EQ(t80.size(), 7U);
+    EXPECT_EQ(t80[5], 0x3FU) << "Tilt speed 0x80 must saturate to 0x3F instead of masking to 0x00";
+    EXPECT_TRUE(PelcoD::PelcoDFrame::isValidFrame(t80));
+
+    // Speed 0x40: tilt has no turbo mode, so 0x40 with & 0x3F produces 0x00. Should saturate to 0x3F.
+    const auto t40 = PelcoD::ProtocolBuilder::buildTilt(1U, PelcoD::TiltDirection::Down, 0x40U);
+    ASSERT_EQ(t40.size(), 7U);
+    EXPECT_EQ(t40[5], 0x3FU) << "Tilt speed 0x40 must saturate to 0x3F instead of masking to 0x00";
+    EXPECT_TRUE(PelcoD::PelcoDFrame::isValidFrame(t40));
+}
+
+/// @brief Verify zoom and focus speeds saturate at 0x03 rather than wrapping.
+TEST(ProtocolBuilderTest, ZoomAndFocusSpeedSaturateAtMax)
+{
+    // Zoom speed 4 (0b100): with & 0x03 it wraps to 0x00 (slowest). Should saturate to 0x03.
+    const auto z4 = PelcoD::ProtocolBuilder::buildZoomSpeed(1U, 4U);
+    ASSERT_EQ(z4.size(), 7U);
+    EXPECT_EQ(z4[5], 0x03U) << "Zoom speed 4 must saturate to 0x03 instead of wrapping to 0x00";
+    EXPECT_TRUE(PelcoD::PelcoDFrame::isValidFrame(z4));
+
+    // Focus speed 5 (0b101): with & 0x03 it wraps to 0x01. Should saturate to 0x03.
+    const auto f5 = PelcoD::ProtocolBuilder::buildFocusSpeed(1U, 5U);
+    ASSERT_EQ(f5.size(), 7U);
+    EXPECT_EQ(f5[5], 0x03U) << "Focus speed 5 must saturate to 0x03 instead of wrapping to 0x01";
+    EXPECT_TRUE(PelcoD::PelcoDFrame::isValidFrame(f5));
+}
+
+/// @brief Verify 16-bit magnification retains MSB rather than dropping it.
+TEST(ProtocolBuilderTest, MagnificationRetains16BitMsb)
+{
+    // 0x0250 (592 hundredths): byte 4 must be MSB 0x02, byte 5 must be LSB 0x50
+    const auto mag = PelcoD::ProtocolBuilder::buildSetMagnification(1U, 0x0250U, false);
+    ASSERT_TRUE(mag.has_value());
+    ASSERT_EQ((*mag).size(), 7U);
+    EXPECT_EQ((*mag)[3], 0x5FU);
+    EXPECT_EQ((*mag)[4], 0x02U) << "Byte 4 must contain magnification MSB (0x02)";
+    EXPECT_EQ((*mag)[5], 0x50U) << "Byte 5 must contain magnification LSB (0x50)";
+    EXPECT_TRUE(PelcoD::PelcoDFrame::isValidFrame(*mag));
+}
+
+/// @brief Verify relative magnification returns std::nullopt as unrepresentable in Pelco-D §5.48.
+TEST(ProtocolBuilderTest, SetMagnificationRelativeReturnsNullopt)
+{
+    const auto rel = PelcoD::ProtocolBuilder::buildSetMagnification(1U, 0x0100U, true);
+    EXPECT_FALSE(rel.has_value());
+}
+
+/// @brief Verify all spec-defined baud rates (§5.52) encode to correct discrete codes.
+TEST(ProtocolBuilderTest, SetBaudRateSupportedRatesSucceed)
+{
+    struct BaudCase {
+        std::uint32_t baud;
+        std::uint8_t expectedCode;
+    };
+
+    const std::vector<BaudCase> validCases {
+        { 2400U, 0x00U },
+        { 4800U, 0x01U },
+        { 9600U, 0x02U },
+        { 19200U, 0x03U },
+        { 38400U, 0x04U },
+        { 115200U, 0x05U },
+    };
+
+    for (const auto& item : validCases) {
+        const auto frame = PelcoD::ProtocolBuilder::buildSetBaudRate(1U, item.baud);
+        ASSERT_TRUE(frame.has_value()) << "Baud rate " << item.baud << " must be supported";
+        ASSERT_EQ((*frame).size(), 7U);
+        EXPECT_EQ((*frame)[3], 0x67U);
+        EXPECT_EQ((*frame)[4], 0x00U);
+        EXPECT_EQ((*frame)[5], item.expectedCode) << "Baud rate " << item.baud << " code mismatch";
+        EXPECT_TRUE(PelcoD::PelcoDFrame::isValidFrame(*frame));
+    }
+}
+
+/// @brief Verify unsupported baud rates return std::nullopt to prevent device stranding.
+TEST(ProtocolBuilderTest, SetBaudRateUnsupportedRatesReturnNullopt)
+{
+    // Rates not in §5.52 must be rejected rather than aliased
+    const std::vector<std::uint32_t> invalidRates { 0U, 1200U, 14400U, 28800U, 57600U, 230400U, 921600U };
+    for (const auto rate : invalidRates) {
+        const auto frame = PelcoD::ProtocolBuilder::buildSetBaudRate(1U, rate);
+        EXPECT_FALSE(frame.has_value()) << "Unsupported baud rate " << rate << " must return nullopt";
+    }
+}
+
+/// @brief Verify buildWriteChar saturates column at 0x3F without wrapping.
+TEST(ProtocolBuilderTest, WriteCharSaturatesColumn)
+{
+    const auto charFrame = PelcoD::ProtocolBuilder::buildWriteChar(1U, 0x80U, 'A');
+    ASSERT_EQ(charFrame.size(), 7U);
+    EXPECT_EQ(charFrame[4], 0x3FU) << "Column 0x80 must saturate to 0x3F";
+    EXPECT_EQ(charFrame[5], static_cast<std::uint8_t>('A'));
+    EXPECT_TRUE(PelcoD::PelcoDFrame::isValidFrame(charFrame));
+}
+
+/// @brief Verify buildScreenMove clamps signed percentages to [-100, 100].
+TEST(ProtocolBuilderTest, ScreenMoveClampsPercentages)
+{
+    const auto move = PelcoD::ProtocolBuilder::buildScreenMove(1U, static_cast<std::int8_t>(127), static_cast<std::int8_t>(-128));
+    ASSERT_EQ(move.size(), 7U);
+    EXPECT_EQ(static_cast<std::int8_t>(move[4]), 100);
+    EXPECT_EQ(static_cast<std::int8_t>(move[5]), -100);
+    EXPECT_TRUE(PelcoD::PelcoDFrame::isValidFrame(move));
 }
 
 } // namespace
