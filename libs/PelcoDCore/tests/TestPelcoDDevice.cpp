@@ -696,6 +696,324 @@ TEST(PelcoDDeviceQueryOutcome, AsyncQueryRejectsPromptlyOnSendFailure)
     device.stop();
 }
 
+/// @brief Unsolicited alarm frames must not be dropped while a query is awaiting response (M2).
+TEST(PelcoDDeviceUnsolicited, AlarmProcessedWhileQueryPending)
+{
+    auto transport = std::make_shared<PelcoD::Test::CapturingTransport>();
+    PelcoD::PelcoDDevice device { transport, 1U };
+
+    ASSERT_TRUE(device.start());
+    const auto dataCb = transport->lastDataCb();
+    ASSERT_TRUE(dataCb);
+
+    std::promise<PelcoD::DeviceStatus> statusPromise;
+    auto statusFuture = statusPromise.get_future();
+    std::atomic<bool> statusReceived { false };
+
+    static_cast<void>(device.addStatusCallback([&](const PelcoD::DeviceStatus& s) {
+        if (s.alarms != 0U && !statusReceived.exchange(true)) {
+            statusPromise.set_value(s);
+        }
+    }));
+
+    std::promise<bool> queryCompletedPromise;
+    auto queryCompletedFuture = queryCompletedPromise.get_future();
+    std::atomic<bool> queryCompletedReceived { false };
+    static_cast<void>(device.addQueryCompletedCallback(
+        [&](const std::string& tag, bool success, const PelcoD::DeviceStatus&) {
+            if (tag == "QueryPan" && !queryCompletedReceived.exchange(true)) {
+                queryCompletedPromise.set_value(success);
+            }
+        }));
+
+    // Trigger QueryPan; worker loop sends query and enters response wait (m_awaitingResponse = true)
+    device.queryPan();
+    std::this_thread::sleep_for(30ms);
+
+    // Deliver unsolicited 4-byte general response carrying alarm (addr=1, alarms=0x03, cksm=0x04)
+    const std::vector<std::uint8_t> alarmFrame { 0xFFU, 0x01U, 0x03U, 0x04U };
+    dataCb(alarmFrame);
+
+    // Alarm frame should update status and trigger callback even though QueryPan is pending
+    const auto statusRes = statusFuture.wait_for(300ms);
+    EXPECT_EQ(statusRes, std::future_status::ready)
+        << "Unsolicited alarm was dropped while query was pending (M2)!";
+    if (statusRes == std::future_status::ready) {
+        EXPECT_EQ(statusFuture.get().alarms, 0x03U);
+    }
+
+    // Now deliver the matching pan response
+    dataCb(panResponse());
+
+    const auto queryRes = queryCompletedFuture.wait_for(300ms);
+    EXPECT_EQ(queryRes, std::future_status::ready);
+    if (queryRes == std::future_status::ready) {
+        EXPECT_TRUE(queryCompletedFuture.get());
+    }
+
+    device.stop();
+}
+
+/// @brief Unsolicited command ACK responses must not be dropped while a query is pending (M2).
+TEST(PelcoDDeviceUnsolicited, CommandAckProcessedWhileQueryPending)
+{
+    auto transport = std::make_shared<PelcoD::Test::CapturingTransport>();
+    PelcoD::PelcoDDevice device { transport, 1U };
+
+    ASSERT_TRUE(device.start());
+    const auto dataCb = transport->lastDataCb();
+    ASSERT_TRUE(dataCb);
+
+    std::promise<PelcoD::DeviceStatus> ackPromise;
+    auto ackFuture = ackPromise.get_future();
+    std::atomic<bool> ackReceived { false };
+
+    static_cast<void>(device.addStatusCallback([&](const PelcoD::DeviceStatus& s) {
+        if (s.lastAckOk && !ackReceived.exchange(true)) {
+            ackPromise.set_value(s);
+        }
+    }));
+
+    std::promise<bool> queryCompletedPromise;
+    auto queryCompletedFuture = queryCompletedPromise.get_future();
+    std::atomic<bool> queryCompletedReceived { false };
+    static_cast<void>(device.addQueryCompletedCallback(
+        [&](const std::string& tag, bool success, const PelcoD::DeviceStatus&) {
+            if (tag == "QueryPan" && !queryCompletedReceived.exchange(true)) {
+                queryCompletedPromise.set_value(success);
+            }
+        }));
+
+    device.queryPan();
+    std::this_thread::sleep_for(30ms);
+
+    // Standard Extended ACK (cmd2=0x01 StandardExtended, data1=0x04 echo opcode, data2=0x01 ACK)
+    const auto ackFrame = PelcoD::PelcoDFrame::createFrame(1U, 0x00U, 0x01U, 0x04U, 0x01U);
+    dataCb(ackFrame);
+
+    const auto ackRes = ackFuture.wait_for(300ms);
+    EXPECT_EQ(ackRes, std::future_status::ready)
+        << "Unsolicited ACK frame was dropped while query was pending (M2)!";
+    if (ackRes == std::future_status::ready) {
+        const auto status = ackFuture.get();
+        EXPECT_TRUE(status.lastAckOk);
+        EXPECT_EQ(status.lastAckOpcode, 0x04U);
+    }
+
+    dataCb(panResponse());
+
+    const auto queryRes = queryCompletedFuture.wait_for(300ms);
+    EXPECT_EQ(queryRes, std::future_status::ready);
+    if (queryRes == std::future_status::ready) {
+        EXPECT_TRUE(queryCompletedFuture.get());
+    }
+
+    device.stop();
+}
+
+/// @brief A user status callback throwing an exception must not crash or prevent other callbacks (M3).
+TEST(PelcoDDeviceExceptionSafety, ThrowingStatusCallbackDoesNotCrash)
+{
+    auto transport = std::make_shared<PelcoD::Test::CapturingTransport>();
+    PelcoD::PelcoDDevice device { transport, 1U };
+
+    std::promise<PelcoD::DeviceStatus> secondCbPromise;
+    auto secondCbFuture = secondCbPromise.get_future();
+    std::atomic<bool> secondCbFired { false };
+
+    // Register throwing callback first
+    static_cast<void>(device.addStatusCallback([](const PelcoD::DeviceStatus&) {
+        throw std::runtime_error("Simulated user StatusCallback failure");
+    }));
+
+    // Register second callback to verify multicast continues
+    static_cast<void>(device.addStatusCallback([&](const PelcoD::DeviceStatus& s) {
+        if (!secondCbFired.exchange(true)) {
+            secondCbPromise.set_value(s);
+        }
+    }));
+
+    ASSERT_TRUE(device.start());
+    const auto dataCb = transport->lastDataCb();
+    ASSERT_TRUE(dataCb);
+
+    // Feed a pan response to trigger status callbacks
+    dataCb(panResponse());
+
+    const auto res = secondCbFuture.wait_for(300ms);
+    EXPECT_EQ(res, std::future_status::ready)
+        << "Second status callback was not invoked after first callback threw (M3)!";
+
+    device.stop();
+}
+
+/// @brief A user traffic callback throwing an exception must not crash worker or RX threads (M3).
+TEST(PelcoDDeviceExceptionSafety, ThrowingTrafficCallbackDoesNotCrash)
+{
+    auto transport = std::make_shared<PelcoD::Test::CapturingTransport>();
+    PelcoD::PelcoDDevice device { transport, 1U };
+
+    std::promise<bool> secondRxTrafficPromise;
+    auto secondRxTrafficFuture = secondRxTrafficPromise.get_future();
+    std::atomic<bool> secondRxFired { false };
+
+    // Register throwing RX traffic callback
+    static_cast<void>(device.addTrafficCallback(
+        [](bool, const std::vector<std::uint8_t>&) {
+            throw std::runtime_error("Simulated user TrafficCallback failure");
+        }, false, true));
+
+    // Register second callback
+    static_cast<void>(device.addTrafficCallback(
+        [&](bool isTx, const std::vector<std::uint8_t>&) {
+            if (!isTx && !secondRxFired.exchange(true)) {
+                secondRxTrafficPromise.set_value(true);
+            }
+        }, false, true));
+
+    ASSERT_TRUE(device.start());
+    const auto dataCb = transport->lastDataCb();
+    ASSERT_TRUE(dataCb);
+
+    dataCb(panResponse());
+
+    const auto res = secondRxTrafficFuture.wait_for(300ms);
+    EXPECT_EQ(res, std::future_status::ready)
+        << "Second traffic callback was not invoked after first callback threw (M3)!";
+
+    device.stop();
+}
+
+/// @brief A user query completed or latency callback throwing an exception must not crash (M3).
+TEST(PelcoDDeviceExceptionSafety, ThrowingQueryCallbackDoesNotCrash)
+{
+    auto transport = std::make_shared<PelcoD::Test::CapturingTransport>();
+    PelcoD::PelcoDDevice device { transport, 1U };
+
+    std::promise<bool> secondQueryCompletedPromise;
+    auto secondQueryCompletedFuture = secondQueryCompletedPromise.get_future();
+    std::atomic<bool> secondQueryFired { false };
+
+    // Register throwing query callbacks
+    static_cast<void>(device.addQueryCompletedCallback(
+        [](const std::string&, bool, const PelcoD::DeviceStatus&) {
+            throw std::runtime_error("Simulated user QueryCompletedCallback failure");
+        }));
+
+    static_cast<void>(device.addQueryLatencyCallback(
+        [](const std::string&, std::chrono::microseconds, bool) {
+            throw std::runtime_error("Simulated user QueryLatencyCallback failure");
+        }));
+
+    // Register second callback
+    static_cast<void>(device.addQueryCompletedCallback(
+        [&](const std::string& tag, bool success, const PelcoD::DeviceStatus&) {
+            if (tag == "QueryPan" && !secondQueryFired.exchange(true)) {
+                secondQueryCompletedPromise.set_value(success);
+            }
+        }));
+
+    ASSERT_TRUE(device.start());
+    const auto dataCb = transport->lastDataCb();
+    ASSERT_TRUE(dataCb);
+
+    device.queryPan();
+    std::this_thread::sleep_for(30ms);
+
+    dataCb(panResponse());
+
+    const auto res = secondQueryCompletedFuture.wait_for(300ms);
+    EXPECT_EQ(res, std::future_status::ready)
+        << "Second query completed callback was not invoked after first callback threw (M3)!";
+    if (res == std::future_status::ready) {
+        EXPECT_TRUE(secondQueryCompletedFuture.get());
+    }
+
+    device.stop();
+}
+
+/// @brief Verify that zero or negative timeout does not leak callbacks or hang indefinitely (M4).
+TEST(PelcoDDeviceAsync, ZeroOrNegativeTimeoutDoesNotLeak)
+{
+    auto transport = std::make_shared<PelcoD::Test::CapturingTransport>();
+    PelcoD::PelcoDDevice device { transport, 1U };
+    device.setQueryTimeoutMs(50U); // 50ms fallback
+
+    ASSERT_TRUE(device.start());
+    const auto dataCb = transport->lastDataCb();
+    ASSERT_TRUE(dataCb);
+
+    // Test with 0ms (should adopt 50ms fallback)
+    auto futureZero = device.queryPanAsync(0ms);
+    std::this_thread::sleep_for(15ms);
+    dataCb(panResponse());
+
+    const auto resZero = futureZero.wait_for(200ms);
+    ASSERT_EQ(resZero, std::future_status::ready);
+    EXPECT_GT(futureZero.get(), 0U);
+
+    // Test with negative timeout (should also adopt 50ms fallback and timeout cleanly without response)
+    auto futureNeg = device.queryPanAsync(-10ms);
+    const auto resNeg = futureNeg.wait_for(200ms);
+    ASSERT_EQ(resNeg, std::future_status::ready);
+    EXPECT_THROW(futureNeg.get(), std::runtime_error);
+
+    device.stop();
+}
+
+/// @brief Verify that queryStatusAsync() queries and populates Pan, Tilt, and Zoom (M4).
+TEST(PelcoDDeviceAsync, FullStatusAsyncQueriesPanTiltZoom)
+{
+    auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(1U);
+    // Pre-populate mock state with non-zero pan, tilt, zoom
+    PelcoD::MockDeviceState state;
+    state.panCentidegrees = 12000U;
+    state.tiltCentidegrees = 4500U;
+    state.zoomPosition = 350U;
+    mock->setInternalState(state);
+
+    PelcoD::PelcoDDevice device { mock, 1U };
+    ASSERT_TRUE(device.start());
+
+    auto statusFuture = device.queryStatusAsync(1000ms);
+    const auto res = statusFuture.wait_for(500ms);
+    ASSERT_EQ(res, std::future_status::ready)
+        << "queryStatusAsync() future did not resolve with full status (M4)!";
+
+    const auto status = statusFuture.get();
+    EXPECT_TRUE(status.connected);
+    EXPECT_EQ(status.panCentidegrees, 12000U);
+    EXPECT_EQ(status.tiltCentidegrees, 4500U);
+    EXPECT_EQ(status.zoomPosition, 350U);
+
+    device.stop();
+}
+
+/// @brief Verify that queryStatusAsync() rejects promptly if a sub-query fails (M4).
+TEST(PelcoDDeviceAsync, FullStatusAsyncRejectsPromptlyOnSendFailure)
+{
+    auto transport = std::make_shared<PelcoD::Test::CapturingTransport>();
+    PelcoD::PelcoDDevice device { transport, 1U };
+
+    ASSERT_TRUE(device.start());
+    transport->setFailSendCount(1U); // Fail the first send (QueryPan)
+
+    const auto startTime = std::chrono::steady_clock::now();
+    auto statusFuture = device.queryStatusAsync(3000ms);
+
+    const auto res = statusFuture.wait_for(500ms);
+    ASSERT_EQ(res, std::future_status::ready)
+        << "queryStatusAsync() future did not reject promptly on send failure (M4)!";
+
+    const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
+        std::chrono::steady_clock::now() - startTime).count();
+    EXPECT_LT(elapsed, 200) << "queryStatusAsync waited for overall timeout instead of failing promptly!";
+
+    EXPECT_THROW(statusFuture.get(), std::runtime_error);
+
+    device.stop();
+}
+
 } // namespace
 
 

@@ -3,6 +3,7 @@
 /// @file PelcoDDevice.h
 /// @brief Asynchronous thread-safe controller managing Pelco-D device communication.
 
+#include "AsyncWatchdog.h"
 #include "CallbackGate.h"
 #include "Connection.h"
 #include "DeviceStatus.h"
@@ -451,6 +452,10 @@ public:
     [[nodiscard]] std::future<std::uint16_t> queryZoomLimitAsync(
         std::chrono::milliseconds timeout = std::chrono::milliseconds(1000));
 
+    /// @brief Internal watchdog accessor used for async query timeout scheduling.
+    /// @return Reference to the device's AsyncWatchdog.
+    [[nodiscard]] AsyncWatchdog& getAsyncWatchdog() noexcept { return *m_asyncWatchdog; }
+
     void sendRawFrame(const std::vector<std::uint8_t>& frame);
     void sendQueryFrame(const std::vector<std::uint8_t>& frame, std::string queryTag = "Query");
 
@@ -494,6 +499,7 @@ private:
 
     PacedCommandQueue m_queue;
     std::unique_ptr<MotionSafetyGuard> m_safetyGuard {};
+    std::unique_ptr<AsyncWatchdog> m_asyncWatchdog {};
     RxStreamAccumulator m_rxAccumulator;
     std::atomic<std::uint64_t> m_motionGeneration { 0U };
 

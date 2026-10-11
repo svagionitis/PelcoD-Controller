@@ -21,6 +21,8 @@ add_library(PelcoDCore STATIC
     PacedCommandQueue.cpp
     MotionSafetyGuard.h
     MotionSafetyGuard.cpp
+    AsyncWatchdog.h
+    AsyncWatchdog.cpp
     RxStreamAccumulator.h
     RxStreamAccumulator.cpp
     PatrolController.h
