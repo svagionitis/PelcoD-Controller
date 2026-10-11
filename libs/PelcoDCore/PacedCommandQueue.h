@@ -78,6 +78,14 @@ public:
         std::chrono::steady_clock::time_point nextPollTime = std::chrono::steady_clock::time_point::max(),
         std::chrono::milliseconds defaultTimeout = std::chrono::milliseconds(100));
 
+    using EvictionHandler = std::function<void(const CommandItem&)>;
+
+    /// @brief Registers a callback invoked whenever an enqueued item is dropped or evicted.
+    /// @details Invoked without holding internal queue locks when items are evicted due to
+    ///          queue capacity limits, urgent priority purges, or queue clearing.
+    /// @param[in] handler Eviction callback function.
+    void setEvictionHandler(EvictionHandler handler);
+
     /// @brief Checks if any low-priority commands (e.g. telemetry queries) are currently queued.
     [[nodiscard]] bool hasLowPriorityPending() const;
 
@@ -86,6 +94,7 @@ public:
 
     /// @brief Removes all queued commands.
     void clear();
+
 
     /// @brief Purges all queued motion commands and pending motion retries.
     /// @details Removes items associated with active or past motion generations, as well
@@ -111,6 +120,7 @@ private:
     std::condition_variable m_cv;
     std::deque<CommandItem> m_queue;
     std::uint64_t m_currentMotionGeneration { 0U };
+    EvictionHandler m_evictionHandler {};
 };
 
 } // namespace PelcoD

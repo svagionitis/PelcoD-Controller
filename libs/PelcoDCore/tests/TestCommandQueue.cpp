@@ -415,4 +415,73 @@ TEST(CommandQueueTest, ScheduleRetryRejectsObsoleteGeneration)
     EXPECT_EQ(queue.size(), 1U); // Only the Stop command remains
 }
 
+/// @brief Verify that enqueuing an Urgent command notifies the eviction handler for purged Low-priority items (M1).
+TEST(CommandQueueTest, EvictionHandlerInvokedOnUrgentPurge)
+{
+    PelcoD::PacedCommandQueue queue;
+
+    std::vector<std::string> evictedTags {};
+    queue.setEvictionHandler([&](const PelcoD::CommandItem& item) { evictedTags.push_back(item.queryTag); });
+
+    const std::vector<std::uint8_t> lowFrame1 { 0xFF, 0x01, 0x00, 0x51, 0x00, 0x00, 0x52 };
+    const std::vector<std::uint8_t> lowFrame2 { 0xFF, 0x01, 0x00, 0x53, 0x00, 0x00, 0x54 };
+    const std::vector<std::uint8_t> urgentFrame { 0xFF, 0x01, 0x00, 0x00, 0x00, 0x00, 0x01 };
+
+    queue.enqueue(lowFrame1, "QueryPan", PelcoD::CommandPriority::Low);
+    queue.enqueue(lowFrame2, "QueryTilt", PelcoD::CommandPriority::Low);
+    EXPECT_EQ(queue.size(), 2U);
+    EXPECT_TRUE(evictedTags.empty());
+
+    queue.enqueue(urgentFrame, "Stop", PelcoD::CommandPriority::Urgent);
+    EXPECT_EQ(queue.size(), 1U);
+    ASSERT_EQ(evictedTags.size(), 2U);
+    EXPECT_EQ(evictedTags[0], "QueryPan");
+    EXPECT_EQ(evictedTags[1], "QueryTilt");
+}
+
+/// @brief Verify that queue capacity overflow notifies the eviction handler for dropped non-urgent items (M1).
+TEST(CommandQueueTest, EvictionHandlerInvokedOnCapacityOverflow)
+{
+    PelcoD::PacedCommandQueue queue { 2U };
+
+    std::vector<std::string> evictedTags {};
+    queue.setEvictionHandler([&](const PelcoD::CommandItem& item) { evictedTags.push_back(item.queryTag); });
+
+    const std::vector<std::uint8_t> frame1 { 0xFF, 0x01, 0x00, 0x51, 0x00, 0x00, 0x52 };
+    const std::vector<std::uint8_t> frame2 { 0xFF, 0x01, 0x00, 0x53, 0x00, 0x00, 0x54 };
+    const std::vector<std::uint8_t> frame3 { 0xFF, 0x01, 0x00, 0x55, 0x00, 0x00, 0x56 };
+
+    queue.enqueue(frame1, "Query1", PelcoD::CommandPriority::Normal);
+    queue.enqueue(frame2, "Query2", PelcoD::CommandPriority::Normal);
+    EXPECT_TRUE(evictedTags.empty());
+
+    // 3rd item triggers capacity overflow and drops oldest
+    queue.enqueue(frame3, "Query3", PelcoD::CommandPriority::Normal);
+    ASSERT_EQ(evictedTags.size(), 1U);
+    EXPECT_EQ(evictedTags[0], "Query1");
+    EXPECT_EQ(queue.size(), 2U);
+}
+
+/// @brief Verify that clear() notifies the eviction handler for all remaining queued items (M1).
+TEST(CommandQueueTest, EvictionHandlerInvokedOnClear)
+{
+    PelcoD::PacedCommandQueue queue;
+
+    std::vector<std::string> evictedTags {};
+    queue.setEvictionHandler([&](const PelcoD::CommandItem& item) { evictedTags.push_back(item.queryTag); });
+
+    const std::vector<std::uint8_t> frame1 { 0xFF, 0x01, 0x00, 0x51, 0x00, 0x00, 0x52 };
+    const std::vector<std::uint8_t> frame2 { 0xFF, 0x01, 0x00, 0x53, 0x00, 0x00, 0x54 };
+
+    queue.enqueue(frame1, "Query1", PelcoD::CommandPriority::Normal);
+    queue.enqueue(frame2, "Query2", PelcoD::CommandPriority::Low);
+
+    queue.clear();
+    EXPECT_TRUE(queue.empty());
+    ASSERT_EQ(evictedTags.size(), 2U);
+    EXPECT_EQ(evictedTags[0], "Query1");
+    EXPECT_EQ(evictedTags[1], "Query2");
+}
+
 } // namespace
+

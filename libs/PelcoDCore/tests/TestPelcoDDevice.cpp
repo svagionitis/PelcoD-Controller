@@ -533,6 +533,171 @@ TEST(PelcoDDeviceConcurrency, StressStatusDispatch)
         << "dispatchFrame clobbered device address during concurrent setAddress operations!";
 }
 
+/// @brief Verify that transport send failure reports QueryCompleted(success=false) with default maxRetries=0 (M1).
+TEST(PelcoDDeviceQueryOutcome, SendFailureReportsQueryCompletedWithZeroRetries)
+{
+    auto transport = std::make_shared<PelcoD::Test::CapturingTransport>();
+    PelcoD::PelcoDDevice device { transport, 1U };
+
+    ASSERT_TRUE(device.start());
+
+    std::promise<bool> queryCompletedPromise;
+    auto queryCompletedFuture = queryCompletedPromise.get_future();
+    std::string completedTag {};
+    bool completedSuccess { true };
+
+    static_cast<void>(device.addQueryCompletedCallback(
+        [&](const std::string& tag, bool success, const PelcoD::DeviceStatus&) {
+            completedTag = tag;
+            completedSuccess = success;
+            queryCompletedPromise.set_value(success);
+        }));
+
+    // Transport will fail next send
+    transport->setFailSendCount(1U);
+
+    device.queryPan();
+
+    const auto status = queryCompletedFuture.wait_for(500ms);
+    ASSERT_EQ(status, std::future_status::ready) << "QueryCompletedCallback was never invoked on send failure!";
+    EXPECT_EQ(completedTag, "QueryPan");
+    EXPECT_FALSE(completedSuccess);
+
+    device.stop();
+}
+
+/// @brief Verify that urgent pre-emption aborting an in-flight query reports QueryCompleted(success=false) (M1).
+TEST(PelcoDDeviceQueryOutcome, UrgentPreemptionReportsQueryCompletedFalse)
+{
+    auto transport = std::make_shared<PelcoD::Test::CapturingTransport>();
+    PelcoD::PelcoDDevice device { transport, 1U };
+
+    ASSERT_TRUE(device.start());
+
+    std::promise<bool> queryCompletedPromise;
+    auto queryCompletedFuture = queryCompletedPromise.get_future();
+    std::string completedTag {};
+    bool completedSuccess { true };
+
+    static_cast<void>(device.addQueryCompletedCallback(
+        [&](const std::string& tag, bool success, const PelcoD::DeviceStatus&) {
+            completedTag = tag;
+            completedSuccess = success;
+            queryCompletedPromise.set_value(success);
+        }));
+
+    // Send query (which sets awaitingResponse = true)
+    device.queryPan();
+
+    // Give worker time to send query and enter response wait
+    std::this_thread::sleep_for(30ms);
+
+    // Urgent command should pre-empt the query
+    device.stopMotion();
+
+    const auto status = queryCompletedFuture.wait_for(500ms);
+    ASSERT_EQ(status, std::future_status::ready)
+        << "QueryCompletedCallback was not invoked when query was pre-empted by Urgent command!";
+    EXPECT_EQ(completedTag, "QueryPan");
+    EXPECT_FALSE(completedSuccess);
+
+    device.stop();
+}
+
+/// @brief Verify that enqueuing an Urgent command purges queued Low-priority queries and notifies failure (M1).
+TEST(PelcoDDeviceQueryOutcome, UrgentEnqueuePurgesQueuedQueriesWithNotification)
+{
+    auto transport = std::make_shared<PelcoD::Test::CapturingTransport>();
+    PelcoD::PelcoDDevice device { transport, 1U };
+
+    std::promise<bool> queryCompletedPromise;
+    auto queryCompletedFuture = queryCompletedPromise.get_future();
+    std::string completedTag {};
+    bool completedSuccess { true };
+
+    static_cast<void>(device.addQueryCompletedCallback(
+        [&](const std::string& tag, bool success, const PelcoD::DeviceStatus&) {
+            completedTag = tag;
+            completedSuccess = success;
+            queryCompletedPromise.set_value(success);
+        }));
+
+    device.queryPan();
+
+    // Urgent command should purge the queued QueryPan from PacedCommandQueue
+    device.stopMotion();
+
+    const auto status = queryCompletedFuture.wait_for(500ms);
+    ASSERT_EQ(status, std::future_status::ready)
+        << "QueryCompletedCallback was not invoked when queued query was purged by Urgent command!";
+    EXPECT_EQ(completedTag, "QueryPan");
+    EXPECT_FALSE(completedSuccess);
+}
+
+/// @brief Verify that device stop() notifies failure for in-flight and queued queries (M1).
+TEST(PelcoDDeviceQueryOutcome, DeviceStopNotifiesInFlightAndQueuedQueries)
+{
+    auto transport = std::make_shared<PelcoD::Test::CapturingTransport>();
+    PelcoD::PelcoDDevice device { transport, 1U };
+
+    ASSERT_TRUE(device.start());
+
+    std::promise<bool> queryCompletedPromise;
+    auto queryCompletedFuture = queryCompletedPromise.get_future();
+    std::string completedTag {};
+    bool completedSuccess { true };
+
+    static_cast<void>(device.addQueryCompletedCallback(
+        [&](const std::string& tag, bool success, const PelcoD::DeviceStatus&) {
+            completedTag = tag;
+            completedSuccess = success;
+            queryCompletedPromise.set_value(success);
+        }));
+
+    // Dispatch query into response wait
+    device.queryPan();
+    std::this_thread::sleep_for(30ms);
+
+    // Stop device
+    device.stop();
+
+    const auto status = queryCompletedFuture.wait_for(500ms);
+    ASSERT_EQ(status, std::future_status::ready)
+        << "QueryCompletedCallback was not invoked when query was stopped!";
+    EXPECT_EQ(completedTag, "QueryPan");
+    EXPECT_FALSE(completedSuccess);
+}
+
+/// @brief Verify that executeAsyncQuery rejects promptly on transport send failure (M1).
+TEST(PelcoDDeviceQueryOutcome, AsyncQueryRejectsPromptlyOnSendFailure)
+{
+    auto transport = std::make_shared<PelcoD::Test::CapturingTransport>();
+    PelcoD::PelcoDDevice device { transport, 1U };
+
+    ASSERT_TRUE(device.start());
+
+    // Configure transport to fail send
+    transport->setFailSendCount(1U);
+
+    const auto startTime = std::chrono::steady_clock::now();
+    // 3000ms timeout configured, but failure should be prompt (< 200ms)
+    auto future = device.queryPanAsync(3000ms);
+
+    const auto status = future.wait_for(500ms);
+    ASSERT_EQ(status, std::future_status::ready)
+        << "Async query future did not resolve promptly on send failure!";
+
+    const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
+        std::chrono::steady_clock::now() - startTime).count();
+    EXPECT_LT(elapsed, 200) << "Async query waited for timeout instead of failing immediately!";
+
+    EXPECT_THROW(future.get(), std::runtime_error);
+
+    device.stop();
+}
+
 } // namespace
+
+
 
 

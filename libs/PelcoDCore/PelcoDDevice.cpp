@@ -20,6 +20,11 @@ PelcoDDevice::PelcoDDevice(std::shared_ptr<ITransport> transport, std::uint8_t a
         LOG(WARNING) << "PelcoDDevice: dead-man watchdog expired, triggering stopMotion()";
         stopMotion();
     });
+    m_queue.setEvictionHandler([this](const CommandItem& item) {
+        if (!item.queryTag.empty()) {
+            notifyQueryFailed(item.queryTag);
+        }
+    });
 }
 
 PelcoDDevice::~PelcoDDevice()
@@ -134,12 +139,20 @@ void PelcoDDevice::stop()
         m_workerThread.join();
     }
     m_rxAccumulator.clear();
+    std::string inFlightQueryTag {};
     {
         std::scoped_lock lock(m_statusMutex);
+        if (m_awaitingResponse.load() && !m_pendingQueryTag.empty()) {
+            inFlightQueryTag = m_pendingQueryTag;
+        }
         m_awaitingResponse = false;
         m_pendingQueryTag.clear();
         m_pendingLimitId = std::nullopt;
     }
+    if (!inFlightQueryTag.empty()) {
+        notifyQueryFailed(inFlightQueryTag);
+    }
+    m_queue.clear();
 
     if (m_transport) {
         if (m_transport->isOpen()) {
@@ -162,6 +175,20 @@ void PelcoDDevice::onTransportState(TransportState state, const std::string& msg
             m_safetyGuard->onDisconnect();
         }
         (void)m_queue.purgeMotionCommands();
+        std::string inFlightQueryTag {};
+        {
+            std::scoped_lock lock(m_statusMutex);
+            if (m_awaitingResponse.load() && !m_pendingQueryTag.empty()) {
+                inFlightQueryTag = m_pendingQueryTag;
+            }
+            m_awaitingResponse = false;
+            m_pendingQueryTag.clear();
+            m_pendingLimitId = std::nullopt;
+        }
+        if (!inFlightQueryTag.empty()) {
+            notifyQueryFailed(inFlightQueryTag);
+        }
+        m_queue.clear();
         if (m_transport && m_transport->isOpen()) {
             const auto stopFrame = ProtocolBuilder::buildStop(m_address.load());
             (void)m_transport->sendData(stopFrame);
@@ -1155,6 +1182,9 @@ void PelcoDDevice::enqueueCommand(
     const std::vector<std::uint8_t>& frame, std::string queryTag, CommandPriority priority)
 {
     if (frame.empty()) {
+        if (!queryTag.empty()) {
+            notifyQueryFailed(queryTag);
+        }
         return;
     }
     std::uint64_t motionGen { 0U };
@@ -1247,6 +1277,50 @@ void PelcoDDevice::checkQueryTimeout()
         }
     }
 }
+
+void PelcoDDevice::notifyQueryFailed(const std::string& queryTag, std::chrono::microseconds durationUs)
+{
+    if (queryTag.empty()) {
+        return;
+    }
+
+    DeviceStatus statusCopy {};
+    {
+        std::scoped_lock lock(m_statusMutex);
+        statusCopy = m_status;
+    }
+
+    m_responseCv.notify_all();
+
+    std::shared_ptr<const std::vector<CallbackEntry<QueryCompletedCallback>>> qcbs;
+    std::shared_ptr<const std::vector<CallbackEntry<QueryLatencyCallback>>> lcbs;
+    {
+        std::scoped_lock lock(m_callbackState->mutex);
+        qcbs = m_callbackState->queryCompletedCallbacks;
+        lcbs = m_callbackState->queryLatencyCallbacks;
+    }
+
+    for (const auto& entry : *qcbs) {
+        if (entry.cb && entry.gate) {
+            const CallbackGate::Pass pass { *entry.gate };
+            if (pass) {
+                entry.cb(queryTag, false, statusCopy);
+            }
+        }
+    }
+
+    if (durationUs.count() > 0) {
+        for (const auto& entry : *lcbs) {
+            if (entry.cb && entry.gate) {
+                const CallbackGate::Pass pass { *entry.gate };
+                if (pass) {
+                    entry.cb(queryTag, durationUs, false);
+                }
+            }
+        }
+    }
+}
+
 
 void PelcoDDevice::workerLoop()
 {
@@ -1345,25 +1419,8 @@ void PelcoDDevice::workerLoop()
                             }
                         }
                     }
-                } else if (!item.queryTag.empty() && retryCfg.maxRetries > 0U) {
-                    DeviceStatus statusCopy;
-                    {
-                        std::scoped_lock lock(m_statusMutex);
-                        statusCopy = m_status;
-                    }
-                    std::shared_ptr<const std::vector<CallbackEntry<QueryCompletedCallback>>> qcbs;
-                    {
-                        std::scoped_lock lock(m_callbackState->mutex);
-                        qcbs = m_callbackState->queryCompletedCallbacks;
-                    }
-                    for (const auto& entry : *qcbs) {
-                        if (entry.cb && entry.gate) {
-                            const CallbackGate::Pass pass { *entry.gate };
-                            if (pass) {
-                                entry.cb(item.queryTag, false, statusCopy);
-                            }
-                        }
-                    }
+                } else if (!item.queryTag.empty()) {
+                    notifyQueryFailed(item.queryTag);
                 }
             } else {
                 // Dispatch TX traffic callbacks using copy-on-write snapshot (zero heap allocation)
@@ -1383,6 +1440,8 @@ void PelcoDDevice::workerLoop()
 
                 if (!item.queryTag.empty()) {
                     bool queryAborted { false };
+                    std::string abortedTag {};
+                    std::chrono::microseconds abortedDurationUs { 0 };
                     {
                         std::unique_lock<std::mutex> lock(m_statusMutex);
                         m_responseCv.wait_for(lock, std::chrono::milliseconds(m_queryTimeoutMs.load()),
@@ -1391,10 +1450,16 @@ void PelcoDDevice::workerLoop()
                         if (m_abortQueryWait.load()) {
                             queryAborted = true;
                             m_abortQueryWait.store(false);
+                            abortedTag = m_pendingQueryTag;
+                            abortedDurationUs = std::chrono::duration_cast<std::chrono::microseconds>(
+                                std::chrono::steady_clock::now() - m_querySentTime);
                             m_awaitingResponse = false;
                             m_pendingQueryTag.clear();
                             m_pendingLimitId = std::nullopt;
                         }
+                    }
+                    if (queryAborted && !abortedTag.empty()) {
+                        notifyQueryFailed(abortedTag, abortedDurationUs);
                     }
                     if (!queryAborted) {
                         if (m_awaitingResponse.load()) {

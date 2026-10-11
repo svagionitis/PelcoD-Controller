@@ -477,6 +477,8 @@ private:
     void dispatchFrame(const std::vector<std::uint8_t>& frame);
     [[nodiscard]] bool isResponseMatchingQuery(
         const std::string& queryTag, const std::vector<std::uint8_t>& frame) const noexcept;
+    void notifyQueryFailed(
+        const std::string& queryTag, std::chrono::microseconds durationUs = std::chrono::microseconds { 0 });
 
     std::shared_ptr<ITransport> m_transport;
     std::atomic<std::uint8_t> m_address { 1U };

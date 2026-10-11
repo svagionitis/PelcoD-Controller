@@ -14,55 +14,77 @@ PacedCommandQueue::PacedCommandQueue(std::size_t maxCapacity)
 {
 }
 
+void PacedCommandQueue::setEvictionHandler(EvictionHandler handler)
+{
+    std::scoped_lock lock { m_mutex };
+    m_evictionHandler = std::move(handler);
+}
+
 void PacedCommandQueue::enqueue(CommandItem item)
 {
-    std::scoped_lock lock(m_mutex);
+    std::vector<CommandItem> evictedItems {};
+    EvictionHandler handler {};
 
-    if (item.motionGeneration > 0U) {
-        m_currentMotionGeneration = std::max(m_currentMotionGeneration, item.motionGeneration);
-        auto it = m_queue.begin();
-        while (it != m_queue.end()) {
-            if (it->motionGeneration > 0U && it->motionGeneration < m_currentMotionGeneration) {
-                it = m_queue.erase(it);
+    {
+        std::scoped_lock lock(m_mutex);
+
+        if (item.motionGeneration > 0U) {
+            m_currentMotionGeneration = std::max(m_currentMotionGeneration, item.motionGeneration);
+            auto it = m_queue.begin();
+            while (it != m_queue.end()) {
+                if (it->motionGeneration > 0U && it->motionGeneration < m_currentMotionGeneration) {
+                    it = m_queue.erase(it);
+                } else {
+                    ++it;
+                }
+            }
+        }
+
+        if (m_queue.size() >= m_maxCapacity) {
+            LOG(WARNING) << "PacedCommandQueue capacity reached (" << m_queue.size() << "/" << m_maxCapacity
+                         << "): dropping oldest non-urgent command";
+            auto dropIt = m_queue.end();
+            for (auto it = m_queue.begin(); it != m_queue.end(); ++it) {
+                if (it->priority != CommandPriority::Urgent) {
+                    dropIt = it;
+                    break;
+                }
+            }
+            if (dropIt != m_queue.end()) {
+                evictedItems.push_back(std::move(*dropIt));
+                m_queue.erase(dropIt);
             } else {
-                ++it;
+                evictedItems.push_back(std::move(m_queue.front()));
+                m_queue.pop_front();
             }
         }
-    }
 
-    if (m_queue.size() >= m_maxCapacity) {
-        LOG(WARNING) << "PacedCommandQueue capacity reached (" << m_queue.size() << "/" << m_maxCapacity
-                     << "): dropping oldest non-urgent command";
-        auto dropIt = m_queue.end();
-        for (auto it = m_queue.begin(); it != m_queue.end(); ++it) {
-            if (it->priority != CommandPriority::Urgent) {
-                dropIt = it;
-                break;
+        if (item.priority == CommandPriority::Urgent) {
+            auto it = m_queue.begin();
+            while (it != m_queue.end()) {
+                if (it->priority == CommandPriority::Low) {
+                    evictedItems.push_back(std::move(*it));
+                    it = m_queue.erase(it);
+                } else {
+                    ++it;
+                }
             }
-        }
-        if (dropIt != m_queue.end()) {
-            m_queue.erase(dropIt);
+            m_queue.push_front(std::move(item));
         } else {
-            m_queue.pop_front();
+            m_queue.push_back(std::move(item));
         }
+
+        handler = m_evictionHandler;
+        m_cv.notify_one();
     }
 
-    if (item.priority == CommandPriority::Urgent) {
-        auto it = m_queue.begin();
-        while (it != m_queue.end()) {
-            if (it->priority == CommandPriority::Low) {
-                it = m_queue.erase(it);
-            } else {
-                ++it;
-            }
+    if (handler && !evictedItems.empty()) {
+        for (const auto& evicted : evictedItems) {
+            handler(evicted);
         }
-        m_queue.push_front(std::move(item));
-    } else {
-        m_queue.push_back(std::move(item));
     }
-
-    m_cv.notify_one();
 }
+
 
 void PacedCommandQueue::enqueue(
     std::vector<std::uint8_t> frame, std::string queryTag, CommandPriority priority, std::uint64_t motionGeneration)
@@ -211,8 +233,19 @@ void PacedCommandQueue::wakeAll()
 
 void PacedCommandQueue::clear()
 {
-    std::scoped_lock lock(m_mutex);
-    m_queue.clear();
+    std::vector<CommandItem> evictedItems {};
+    EvictionHandler handler {};
+    {
+        std::scoped_lock lock(m_mutex);
+        evictedItems.assign(std::make_move_iterator(m_queue.begin()), std::make_move_iterator(m_queue.end()));
+        m_queue.clear();
+        handler = m_evictionHandler;
+    }
+    if (handler && !evictedItems.empty()) {
+        for (const auto& evicted : evictedItems) {
+            handler(evicted);
+        }
+    }
 }
 
 std::size_t PacedCommandQueue::purgeMotionCommands() noexcept
