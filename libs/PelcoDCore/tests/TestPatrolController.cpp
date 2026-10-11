@@ -481,4 +481,38 @@ TEST(PatrolControllerTest, RestartAfterTourFinished)
     controller.stop();
 }
 
+/// @brief Verify that PatrolStep::speed is passed to the step dispatcher (M6).
+TEST(PatrolControllerTest, PatrolStepSpeedDispatched)
+{
+    std::mutex mtx {};
+    std::condition_variable cv {};
+    std::uint8_t receivedPreset { 0U };
+    std::uint8_t receivedSpeed { 0U };
+    bool dispatched { false };
+
+    PelcoD::PatrolController controller;
+    controller.setCommandDispatcher([&](std::uint8_t presetId, std::uint8_t speed) {
+        std::scoped_lock lock { mtx };
+        receivedPreset = presetId;
+        receivedSpeed = speed;
+        dispatched = true;
+        cv.notify_all();
+    });
+
+    controller.addStep(PelcoD::PatrolStep { 7U, 1U, "Speedy Step", 45U });
+    controller.setLoop(false);
+
+    ASSERT_TRUE(controller.start());
+
+    {
+        std::unique_lock<std::mutex> lock { mtx };
+        ASSERT_TRUE(cv.wait_for(lock, std::chrono::seconds(2), [&]() { return dispatched; }));
+        EXPECT_EQ(receivedPreset, 7U);
+        EXPECT_EQ(receivedSpeed, 45U);
+    }
+
+    controller.stop();
+}
+
 } // namespace
+

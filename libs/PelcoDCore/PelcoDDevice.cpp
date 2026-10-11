@@ -609,21 +609,37 @@ std::chrono::milliseconds PelcoDDevice::getDeadManTimeout() const noexcept
 
 void PelcoDDevice::panLeft(std::uint8_t speed)
 {
+    {
+        std::scoped_lock lock(m_statusMutex);
+        m_status.activePreset = 0U;
+    }
     enqueueCommand(ProtocolBuilder::buildPan(m_address, PanDirection::Left, speed));
 }
 
 void PelcoDDevice::panRight(std::uint8_t speed)
 {
+    {
+        std::scoped_lock lock(m_statusMutex);
+        m_status.activePreset = 0U;
+    }
     enqueueCommand(ProtocolBuilder::buildPan(m_address, PanDirection::Right, speed));
 }
 
 void PelcoDDevice::tiltUp(std::uint8_t speed)
 {
+    {
+        std::scoped_lock lock(m_statusMutex);
+        m_status.activePreset = 0U;
+    }
     enqueueCommand(ProtocolBuilder::buildTilt(m_address, TiltDirection::Up, speed));
 }
 
 void PelcoDDevice::tiltDown(std::uint8_t speed)
 {
+    {
+        std::scoped_lock lock(m_statusMutex);
+        m_status.activePreset = 0U;
+    }
     enqueueCommand(ProtocolBuilder::buildTilt(m_address, TiltDirection::Down, speed));
 }
 
@@ -634,6 +650,10 @@ void PelcoDDevice::stopMotion()
 
 void PelcoDDevice::move(PanDirection panDir, std::uint8_t panSpeed, TiltDirection tiltDir, std::uint8_t tiltSpeed)
 {
+    {
+        std::scoped_lock lock(m_statusMutex);
+        m_status.activePreset = 0U;
+    }
     enqueueCommand(ProtocolBuilder::buildMotion(m_address, panDir, panSpeed, tiltDir, tiltSpeed));
 }
 
@@ -704,11 +724,33 @@ void PelcoDDevice::setPreset(std::uint8_t presetId)
 
 void PelcoDDevice::clearPreset(std::uint8_t presetId)
 {
+    {
+        std::scoped_lock lock(m_statusMutex);
+        if (m_status.activePreset == presetId) {
+            m_status.activePreset = 0U;
+        }
+    }
     enqueueCommand(ProtocolBuilder::buildClearPreset(m_address, presetId));
 }
 
 void PelcoDDevice::goToPreset(std::uint8_t presetId)
 {
+    {
+        std::scoped_lock lock(m_statusMutex);
+        m_status.activePreset = presetId;
+    }
+    enqueueCommand(ProtocolBuilder::buildGoToPreset(m_address, presetId));
+}
+
+void PelcoDDevice::goToPreset(std::uint8_t presetId, std::uint8_t speed)
+{
+    {
+        std::scoped_lock lock(m_statusMutex);
+        m_status.activePreset = presetId;
+    }
+    if (speed > 0U) {
+        enqueueCommand(ProtocolBuilder::buildPan(m_address, PanDirection::Stop, speed));
+    }
     enqueueCommand(ProtocolBuilder::buildGoToPreset(m_address, presetId));
 }
 
@@ -769,36 +811,66 @@ void PelcoDDevice::runPattern(std::uint8_t patternId)
 
 void PelcoDDevice::setZoomSpeed(std::uint8_t speed)
 {
-    enqueueCommand(ProtocolBuilder::buildZoomSpeed(m_address, speed));
+    const auto satSpeed = std::min(speed, static_cast<std::uint8_t>(0x03U));
+    {
+        std::scoped_lock lock(m_statusMutex);
+        m_status.zoomSpeed = satSpeed;
+    }
+    enqueueCommand(ProtocolBuilder::buildZoomSpeed(m_address, satSpeed));
 }
 
 void PelcoDDevice::setFocusSpeed(std::uint8_t speed)
 {
-    enqueueCommand(ProtocolBuilder::buildFocusSpeed(m_address, speed));
+    const auto satSpeed = std::min(speed, static_cast<std::uint8_t>(0x03U));
+    {
+        std::scoped_lock lock(m_statusMutex);
+        m_status.focusSpeed = satSpeed;
+    }
+    enqueueCommand(ProtocolBuilder::buildFocusSpeed(m_address, satSpeed));
 }
 
 void PelcoDDevice::setAutoFocus(AutoMode mode)
 {
+    {
+        std::scoped_lock lock(m_statusMutex);
+        m_status.autoFocus = mode;
+    }
     enqueueCommand(ProtocolBuilder::buildAutoFocus(m_address, mode));
 }
 
 void PelcoDDevice::setAutoIris(AutoMode mode)
 {
+    {
+        std::scoped_lock lock(m_statusMutex);
+        m_status.autoIris = mode;
+    }
     enqueueCommand(ProtocolBuilder::buildAutoIris(m_address, mode));
 }
 
 void PelcoDDevice::setAgc(AutoMode mode)
 {
+    {
+        std::scoped_lock lock(m_statusMutex);
+        m_status.agc = mode;
+    }
     enqueueCommand(ProtocolBuilder::buildAgc(m_address, mode));
 }
 
 void PelcoDDevice::setBacklightComp(SwitchState state)
 {
+    {
+        std::scoped_lock lock(m_statusMutex);
+        m_status.backlightComp = state;
+    }
     enqueueCommand(ProtocolBuilder::buildBacklight(m_address, state));
 }
 
 void PelcoDDevice::setAutoWhiteBalance(SwitchState state)
 {
+    {
+        std::scoped_lock lock(m_statusMutex);
+        m_status.autoWhiteBalance = state;
+    }
     enqueueCommand(ProtocolBuilder::buildWhiteBalance(m_address, state));
 }
 
@@ -861,6 +933,29 @@ void PelcoDDevice::setBaudRate(std::uint32_t baud)
 void PelcoDDevice::setZeroPosition()
 {
     enqueueCommand(ProtocolBuilder::buildSetZeroPosition(m_address));
+}
+
+void PelcoDDevice::setFocusPosition(std::uint16_t pos)
+{
+    std::scoped_lock lock(m_statusMutex);
+    m_status.focusPosition = pos;
+}
+
+void PelcoDDevice::setIrisPosition(std::uint16_t pos)
+{
+    std::scoped_lock lock(m_statusMutex);
+    m_status.irisPosition = pos;
+}
+
+void PelcoDDevice::setSerialNumber(const std::string& serial)
+{
+    std::scoped_lock lock(m_statusMutex);
+    m_info.serialNumber = serial;
+}
+
+void PelcoDDevice::querySerialNumber()
+{
+    sendQueryFrame(ProtocolBuilder::buildQueryGeneral(m_address), "QuerySerialNumber");
 }
 
 void PelcoDDevice::resetDefaults()
@@ -1037,21 +1132,37 @@ void PelcoDDevice::deletePattern(std::uint8_t patternId)
 
 void PelcoDDevice::setManualLeftPanLimit(std::uint16_t centidegrees)
 {
+    {
+        std::scoped_lock lock(m_statusMutex);
+        m_status.manualLeftLimitCentidegrees = centidegrees;
+    }
     enqueueCommand(ProtocolBuilder::buildSetManualLeftPanLimit(m_address, centidegrees));
 }
 
 void PelcoDDevice::setManualRightPanLimit(std::uint16_t centidegrees)
 {
+    {
+        std::scoped_lock lock(m_statusMutex);
+        m_status.manualRightLimitCentidegrees = centidegrees;
+    }
     enqueueCommand(ProtocolBuilder::buildSetManualRightPanLimit(m_address, centidegrees));
 }
 
 void PelcoDDevice::setScanLeftPanLimit(std::uint16_t centidegrees)
 {
+    {
+        std::scoped_lock lock(m_statusMutex);
+        m_status.scanLeftLimitCentidegrees = centidegrees;
+    }
     enqueueCommand(ProtocolBuilder::buildSetScanLeftPanLimit(m_address, centidegrees));
 }
 
 void PelcoDDevice::setScanRightPanLimit(std::uint16_t centidegrees)
 {
+    {
+        std::scoped_lock lock(m_statusMutex);
+        m_status.scanRightLimitCentidegrees = centidegrees;
+    }
     enqueueCommand(ProtocolBuilder::buildSetScanRightPanLimit(m_address, centidegrees));
 }
 
@@ -1753,6 +1864,18 @@ void PelcoDDevice::dispatchFrame(const std::vector<std::uint8_t>& frame)
         // If awaiting query response, check whether this frame satisfies the pending query (M2)
         if (m_awaitingResponse.load() && isResponseMatchingQuery(m_pendingQueryTag, frame)) {
             satisfiedTag = m_pendingQueryTag;
+            if (satisfiedTag == "QuerySerialNumber") {
+                std::string snPayload;
+                if (ProtocolParser::parseQuery(frame, snPayload)) {
+                    if (snPayload.rfind("SN:", 0) == 0) {
+                        m_info.serialNumber = snPayload.substr(3);
+                    } else if (snPayload.rfind("S/N:", 0) == 0) {
+                        m_info.serialNumber = snPayload.substr(4);
+                    } else {
+                        m_info.serialNumber = snPayload;
+                    }
+                }
+            }
             durationUs = std::chrono::duration_cast<std::chrono::microseconds>(
                 std::chrono::steady_clock::now() - m_querySentTime);
             m_awaitingResponse = false;

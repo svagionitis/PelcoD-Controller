@@ -36,6 +36,7 @@ struct PatrolStep {
 class PatrolController {
 public:
     using GoToPresetCallback = std::function<void(std::uint8_t presetId)>;
+    using StepDispatcherCallback = std::function<void(std::uint8_t presetId, std::uint8_t speed)>;
     using StepChangedCallback = std::function<void(std::size_t stepIndex, const PatrolStep& step)>;
     using StateChangedCallback = std::function<void(PatrolState state)>;
     using DwellTickCallback = std::function<void(std::size_t stepIndex, std::uint32_t remainingSeconds)>;
@@ -116,6 +117,10 @@ public:
     void setDevice(PelcoDDevice* device);
     void setCommandDispatcher(GoToPresetCallback dispatcher);
 
+    /// @brief Registers a command dispatcher accepting both preset ID and transition speed.
+    /// @param[in] dispatcher Callback function invoked with presetId and speed.
+    void setCommandDispatcher(StepDispatcherCallback dispatcher);
+
     void setStepChangedCallback(StepChangedCallback cb);
     void setStateChangedCallback(StateChangedCallback cb);
     void setDwellTickCallback(DwellTickCallback cb);
@@ -147,6 +152,7 @@ private:
     std::int32_t m_stepAdvanceDelta { 0 };
 
     GoToPresetCallback m_dispatcher;
+    StepDispatcherCallback m_stepDispatcher;
     StepChangedCallback m_stepChangedCb;
     StateChangedCallback m_stateChangedCb;
     DwellTickCallback m_dwellTickCb;

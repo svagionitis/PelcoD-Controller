@@ -644,5 +644,31 @@ TEST(ProtocolParserTest, EverestAlarmsDoNotOverwriteGeneralAlarms)
     EXPECT_FALSE(status.isEverestAlarmActive(2));
 }
 
+/// @brief Verify that 18-byte Query responses populates serialNumber in DeviceInfo (M6).
+TEST(ProtocolParserTest, QuerySerialNumberPopulatesDeviceInfo)
+{
+    PelcoD::DeviceStatus status;
+    PelcoD::DeviceInfo info;
+
+    // 18-byte response with "SN:PELCO-12345"
+    // Bytes: Sync(0xFF), Addr(0x01), Payload(15 bytes), Checksum
+    std::vector<std::uint8_t> frame(18U, 0x00U);
+    frame[0] = 0xFFU;
+    frame[1] = 0x01U;
+    const std::string snPayload = "SN:PELCO-12345";
+    for (std::size_t i = 0; i < snPayload.size(); ++i) {
+        frame[2 + i] = static_cast<std::uint8_t>(snPayload[i]);
+    }
+    std::uint32_t sum = 0;
+    for (std::size_t i = 1; i < 17; ++i) {
+        sum += frame[i];
+    }
+    frame[17] = static_cast<std::uint8_t>(sum & 0xFFU);
+
+    ASSERT_TRUE(PelcoD::ProtocolParser::updateStatus(frame, status, info));
+    EXPECT_EQ(info.serialNumber, "PELCO-12345");
+}
+
 } // namespace
+
 

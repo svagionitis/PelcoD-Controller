@@ -53,6 +53,16 @@ public:
     /// @brief State transition callback signature.
     using StateCallback = std::function<void(MacroPlayerState newState, const std::string& message)>;
 
+    /// @brief Response frame reception callback signature.
+    /// @param stepIdx Index of the step that awaited this response.
+    /// @param frame Complete received response frame.
+    using ResponseCallback = std::function<void(std::size_t stepIdx, const std::vector<std::uint8_t>& frame)>;
+
+    /// @brief Response timeout notification callback signature.
+    /// @param stepIdx Index of the step that timed out.
+    /// @param step Reference to the macro step whose response timed out.
+    using ResponseTimeoutCallback = std::function<void(std::size_t stepIdx, const MacroStep& step)>;
+
     /// @brief Constructs a MacroPlayer instance.
     /// @param[in] dispatchCb Callback invoked to send raw frame bytes.
     explicit MacroPlayer(FrameDispatchCallback dispatchCb = nullptr);
@@ -77,6 +87,22 @@ public:
     /// @brief Sets the player state transition callback.
     /// @param[in] cb State callback.
     void setStateCallback(StateCallback cb);
+
+    /// @brief Sets response reception callback.
+    /// @param[in] cb Response callback.
+    void setResponseCallback(ResponseCallback cb);
+
+    /// @brief Sets response timeout notification callback.
+    /// @param[in] cb Timeout callback.
+    void setResponseTimeoutCallback(ResponseTimeoutCallback cb);
+
+    /// @brief Feeds an inbound response frame to satisfy a pending expectResponse step.
+    /// @param[in] frame Complete received frame.
+    void feedResponse(const std::vector<std::uint8_t>& frame);
+
+    /// @brief Checks whether player is actively awaiting an inbound response frame.
+    /// @return True if awaiting response, false otherwise.
+    [[nodiscard]] bool isAwaitingResponse() const noexcept;
 
     /// @brief Loads a macro sequence into the player.
     /// @param[in] sequence Macro sequence to load.
@@ -131,6 +157,8 @@ private:
     FrameDispatchCallback m_dispatchCb { nullptr };
     StepCallback m_stepCb { nullptr };
     StateCallback m_stateCb { nullptr };
+    ResponseCallback m_responseCb { nullptr };
+    ResponseTimeoutCallback m_responseTimeoutCb { nullptr };
 
     mutable std::mutex m_mutex {};
     std::condition_variable m_cv {};
@@ -142,6 +170,9 @@ private:
     std::atomic<double> m_speedMultiplier { 1.0 };
     std::atomic<bool> m_stopRequested { false };
     std::atomic<bool> m_workerRunning { false };
+    std::atomic<bool> m_awaitingResponse { false };
+    bool m_responseReceived { false };
+    std::vector<std::uint8_t> m_lastResponse {};
 };
 
 } // namespace PelcoD

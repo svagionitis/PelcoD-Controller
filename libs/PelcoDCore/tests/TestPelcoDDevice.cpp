@@ -964,7 +964,7 @@ TEST(PelcoDDeviceAsync, ZeroOrNegativeTimeoutDoesNotLeak)
 /// @brief Verify that queryStatusAsync() queries and populates Pan, Tilt, and Zoom (M4).
 TEST(PelcoDDeviceAsync, FullStatusAsyncQueriesPanTiltZoom)
 {
-    auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(1U);
+    auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(static_cast<std::uint8_t>(1U));
     // Pre-populate mock state with non-zero pan, tilt, zoom
     PelcoD::MockDeviceState state;
     state.panCentidegrees = 12000U;
@@ -1010,6 +1010,137 @@ TEST(PelcoDDeviceAsync, FullStatusAsyncRejectsPromptlyOnSendFailure)
     EXPECT_LT(elapsed, 200) << "queryStatusAsync waited for overall timeout instead of failing promptly!";
 
     EXPECT_THROW(statusFuture.get(), std::runtime_error);
+
+    device.stop();
+}
+
+/// @brief Verify that optical and camera mode setters update DeviceStatus immediately (M6).
+TEST(PelcoDDeviceStateModel, OpticalSettersUpdateDeviceStatus)
+{
+    auto transport = std::make_shared<PelcoD::Test::CapturingTransport>();
+    PelcoD::PelcoDDevice device { transport, 1U };
+    ASSERT_TRUE(device.start());
+
+    device.setAutoFocus(PelcoD::AutoMode::Auto);
+    EXPECT_EQ(device.getStatus().autoFocus, PelcoD::AutoMode::Auto);
+
+    device.setAutoIris(PelcoD::AutoMode::On);
+    EXPECT_EQ(device.getStatus().autoIris, PelcoD::AutoMode::On);
+
+    device.setAgc(PelcoD::AutoMode::Auto);
+    EXPECT_EQ(device.getStatus().agc, PelcoD::AutoMode::Auto);
+
+    device.setBacklightComp(PelcoD::SwitchState::On);
+    EXPECT_EQ(device.getStatus().backlightComp, PelcoD::SwitchState::On);
+
+    device.setAutoWhiteBalance(PelcoD::SwitchState::On);
+    EXPECT_EQ(device.getStatus().autoWhiteBalance, PelcoD::SwitchState::On);
+
+    device.stop();
+}
+
+/// @brief Verify that zoom and focus speeds saturate to 0x03 and update DeviceStatus (M6).
+TEST(PelcoDDeviceStateModel, SpeedSettersSaturateAndStore)
+{
+    auto transport = std::make_shared<PelcoD::Test::CapturingTransport>();
+    PelcoD::PelcoDDevice device { transport, 1U };
+    ASSERT_TRUE(device.start());
+
+    device.setZoomSpeed(2U);
+    EXPECT_EQ(device.getStatus().zoomSpeed, 2U);
+
+    device.setZoomSpeed(0xFFU); // Must saturate to 0x03
+    EXPECT_EQ(device.getStatus().zoomSpeed, 3U);
+
+    device.setFocusSpeed(1U);
+    EXPECT_EQ(device.getStatus().focusSpeed, 1U);
+
+    device.setFocusSpeed(10U); // Must saturate to 0x03
+    EXPECT_EQ(device.getStatus().focusSpeed, 3U);
+
+    device.stop();
+}
+
+/// @brief Verify that activePreset is tracked on goToPreset and cleared on clearPreset/manual motion (M6).
+TEST(PelcoDDeviceStateModel, PresetLifecycleTracking)
+{
+    auto transport = std::make_shared<PelcoD::Test::CapturingTransport>();
+    PelcoD::PelcoDDevice device { transport, 1U };
+    ASSERT_TRUE(device.start());
+
+    EXPECT_EQ(device.getStatus().activePreset, 0U);
+
+    device.goToPreset(5U);
+    EXPECT_EQ(device.getStatus().activePreset, 5U);
+
+    device.goToPreset(12U, 0x20U);
+    EXPECT_EQ(device.getStatus().activePreset, 12U);
+
+    // clearPreset for different preset does not reset activePreset
+    device.clearPreset(3U);
+    EXPECT_EQ(device.getStatus().activePreset, 12U);
+
+    // clearPreset for activePreset resets it to 0
+    device.clearPreset(12U);
+    EXPECT_EQ(device.getStatus().activePreset, 0U);
+
+    // Manual motion resets activePreset to 0
+    device.goToPreset(8U);
+    EXPECT_EQ(device.getStatus().activePreset, 8U);
+    device.panLeft(0x20U);
+    EXPECT_EQ(device.getStatus().activePreset, 0U);
+
+    device.stop();
+}
+
+/// @brief Verify that setting pan limits updates DeviceStatus centidegree fields (M6).
+TEST(PelcoDDeviceStateModel, LimitSettersSynchronizeStatus)
+{
+    auto transport = std::make_shared<PelcoD::Test::CapturingTransport>();
+    PelcoD::PelcoDDevice device { transport, 1U };
+    ASSERT_TRUE(device.start());
+
+    device.setManualLeftPanLimit(12500U);
+    EXPECT_EQ(device.getStatus().manualLeftLimitCentidegrees, 12500U);
+
+    device.setManualRightPanLimit(24500U);
+    EXPECT_EQ(device.getStatus().manualRightLimitCentidegrees, 24500U);
+
+    device.setScanLeftPanLimit(1000U);
+    EXPECT_EQ(device.getStatus().scanLeftLimitCentidegrees, 1000U);
+
+    device.setScanRightPanLimit(35000U);
+    EXPECT_EQ(device.getStatus().scanRightLimitCentidegrees, 35000U);
+
+    device.stop();
+}
+
+/// @brief Verify that focus and iris positions can be updated in DeviceStatus (M6).
+TEST(PelcoDDeviceStateModel, ExtendedOpticsTelemetricSetters)
+{
+    auto transport = std::make_shared<PelcoD::Test::CapturingTransport>();
+    PelcoD::PelcoDDevice device { transport, 1U };
+    ASSERT_TRUE(device.start());
+
+    device.setFocusPosition(1850U);
+    EXPECT_EQ(device.getStatus().focusPosition, 1850U);
+
+    device.setIrisPosition(420U);
+    EXPECT_EQ(device.getStatus().irisPosition, 420U);
+
+    device.stop();
+}
+
+/// @brief Verify that serialNumber is accessible and updated on DeviceInfo (M6).
+TEST(PelcoDDeviceStateModel, SerialNumberGetterAndSetter)
+{
+    auto transport = std::make_shared<PelcoD::Test::CapturingTransport>();
+    PelcoD::PelcoDDevice device { transport, 1U };
+    ASSERT_TRUE(device.start());
+
+    EXPECT_TRUE(device.getInfo().serialNumber.empty());
+    device.setSerialNumber("PELCO-SN-998877");
+    EXPECT_EQ(device.getInfo().serialNumber, "PELCO-SN-998877");
 
     device.stop();
 }

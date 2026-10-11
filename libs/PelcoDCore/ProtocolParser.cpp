@@ -598,7 +598,15 @@ bool ProtocolParser::updateStatus(
         status.address = frame[1];
         std::string payload;
         if (parseQuery(frame, payload)) {
-            info.modelName = payload;
+            if (payload.rfind("SN:", 0) == 0) {
+                info.serialNumber = payload.substr(3);
+            } else if (payload.rfind("S/N:", 0) == 0) {
+                info.serialNumber = payload.substr(4);
+            } else if (payload.rfind("SERIAL:", 0) == 0) {
+                info.serialNumber = payload.substr(7);
+            } else {
+                info.modelName = payload;
+            }
             return true;
         }
     }
@@ -1111,7 +1119,7 @@ bool ProtocolParser::isResponseMatchingQuery(
         return frame.size() == PelcoDFrame::StandardFrameSize
             && frame[3] == static_cast<std::uint8_t>(ResponseOpcode::Everest);
     }
-    if (queryTag == "QueryGeneral") {
+    if (queryTag == "QueryGeneral" || queryTag == "QuerySerialNumber") {
         return frame.size() == PelcoDFrame::QueryResponseSize;
     }
 

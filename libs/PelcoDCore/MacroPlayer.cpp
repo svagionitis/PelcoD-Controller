@@ -50,6 +50,34 @@ void MacroPlayer::setStateCallback(StateCallback cb)
     m_stateCb = std::move(cb);
 }
 
+void MacroPlayer::setResponseCallback(ResponseCallback cb)
+{
+    std::scoped_lock lock(m_mutex);
+    m_responseCb = std::move(cb);
+}
+
+void MacroPlayer::setResponseTimeoutCallback(ResponseTimeoutCallback cb)
+{
+    std::scoped_lock lock(m_mutex);
+    m_responseTimeoutCb = std::move(cb);
+}
+
+void MacroPlayer::feedResponse(const std::vector<std::uint8_t>& frame)
+{
+    std::unique_lock<std::mutex> lock(m_mutex);
+    if (!m_awaitingResponse.load()) {
+        return;
+    }
+    m_lastResponse = frame;
+    m_responseReceived = true;
+    m_cv.notify_all();
+}
+
+bool MacroPlayer::isAwaitingResponse() const noexcept
+{
+    return m_awaitingResponse.load();
+}
+
 void MacroPlayer::loadSequence(MacroSequence sequence)
 {
     stop();
@@ -200,6 +228,8 @@ void MacroPlayer::stop()
         std::unique_lock<std::mutex> lock(m_mutex);
         if (m_state.load() != MacroPlayerState::Stopped) {
             m_stopRequested.store(true);
+            m_awaitingResponse.store(false);
+            m_responseReceived = false;
             m_state.store(MacroPlayerState::Stopped);
             cb = m_stateCb;
             m_cv.notify_all();
@@ -392,17 +422,67 @@ void MacroPlayer::workerThreadFunc()
             delayMs = static_cast<std::uint32_t>(scaledDelay);
         }
 
-        // Sleep with interruptible check
-        if (delayMs > 0U) {
-            std::unique_lock<std::mutex> lock(m_mutex);
-            m_cv.wait_for(lock, std::chrono::milliseconds(delayMs), [this]() {
-                return m_stopRequested.load() || m_state.load() != MacroPlayerState::Playing;
-            });
-            if (m_stopRequested.load()) {
-                break;
+        if (step.expectResponse) {
+            std::vector<std::uint8_t> responseData {};
+            bool gotResponse { false };
+            ResponseCallback respCb { nullptr };
+            ResponseTimeoutCallback timeoutCb { nullptr };
+
+            {
+                std::unique_lock<std::mutex> lock(m_mutex);
+                m_responseReceived = false;
+                m_lastResponse.clear();
+                m_awaitingResponse.store(true);
+                respCb = m_responseCb;
+                timeoutCb = m_responseTimeoutCb;
+
+                if (delayMs > 0U) {
+                    m_cv.wait_for(lock, std::chrono::milliseconds(delayMs), [this]() {
+                        return m_stopRequested.load() ||
+                               m_state.load() != MacroPlayerState::Playing ||
+                               m_responseReceived;
+                    });
+                } else {
+                    m_cv.wait(lock, [this]() {
+                        return m_stopRequested.load() ||
+                               m_state.load() != MacroPlayerState::Playing ||
+                               m_responseReceived;
+                    });
+                }
+
+                m_awaitingResponse.store(false);
+                if (m_stopRequested.load()) {
+                    break;
+                }
+                gotResponse = m_responseReceived;
+                if (gotResponse) {
+                    responseData = m_lastResponse;
+                }
+            }
+
+            if (gotResponse) {
+                if (respCb) {
+                    respCb(stepIdx, responseData);
+                }
+            } else if (m_state.load() == MacroPlayerState::Playing) {
+                if (timeoutCb) {
+                    timeoutCb(stepIdx, step);
+                }
+            }
+        } else {
+            // Sleep with interruptible check
+            if (delayMs > 0U) {
+                std::unique_lock<std::mutex> lock(m_mutex);
+                m_cv.wait_for(lock, std::chrono::milliseconds(delayMs), [this]() {
+                    return m_stopRequested.load() || m_state.load() != MacroPlayerState::Playing;
+                });
+                if (m_stopRequested.load()) {
+                    break;
+                }
             }
         }
     }
+    m_awaitingResponse.store(false);
     m_workerRunning.store(false);
 }
 

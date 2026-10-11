@@ -811,6 +811,99 @@ TEST(MacroPlaybackTest, FromJsonRejectsNegativeAndOutOfRangeRepeatCount)
     EXPECT_THROW(static_cast<void>(PelcoD::MacroSerializer::fromJson(hugeRepeatJson)), std::runtime_error);
 }
 
+/// @brief Verify that MacroPlayer waits for feedResponse when expectResponse is true (M6).
+TEST(MacroPlaybackTest, MacroPlayerWaitsForResponse)
+{
+    PelcoD::MacroSequence seq;
+    seq.name = "ResponseTest";
+    seq.repeatCount = 1U;
+
+    PelcoD::MacroStep step;
+    step.label = "Query Step";
+    step.frame = PelcoD::PelcoDFrame::createFrame(1, 0, 0x51, 0x00, 0x00);
+    step.delayMs = 2000U; // Long delay; receiving response early must unblock it
+    step.expectResponse = true;
+    seq.steps.push_back(step);
+
+    std::vector<std::uint8_t> receivedResponse;
+    std::mutex mtx;
+    std::condition_variable cv;
+    bool responseHandled { false };
+
+    PelcoD::MacroPlayer player([](const std::vector<std::uint8_t>&) {});
+    player.setResponseCallback([&](std::size_t stepIdx, const std::vector<std::uint8_t>& resp) {
+        std::scoped_lock lock(mtx);
+        EXPECT_EQ(stepIdx, 0U);
+        receivedResponse = resp;
+        responseHandled = true;
+        cv.notify_all();
+    });
+
+    player.loadSequence(seq);
+    const auto startTime = std::chrono::steady_clock::now();
+    ASSERT_TRUE(player.start());
+
+    // Give worker time to dispatch and enter waiting state
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    EXPECT_TRUE(player.isAwaitingResponse());
+
+    // Feed the response
+    const auto dummyResponse = PelcoD::PelcoDFrame::createFrame(1, 0, 0x59, 0x10, 0x20);
+    player.feedResponse(dummyResponse);
+
+    {
+        std::unique_lock<std::mutex> lock(mtx);
+        ASSERT_TRUE(cv.wait_for(lock, std::chrono::milliseconds(1000), [&]() { return responseHandled; }));
+        EXPECT_EQ(receivedResponse, dummyResponse);
+    }
+
+    const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
+        std::chrono::steady_clock::now() - startTime).count();
+    // Must have unblocked promptly without waiting the full 2000 ms delay
+    EXPECT_LT(elapsed, 1200);
+
+    player.stop();
+}
+
+/// @brief Verify that MacroPlayer notifies response timeout if no response arrives (M6).
+TEST(MacroPlaybackTest, MacroPlayerResponseTimeoutFires)
+{
+    PelcoD::MacroSequence seq;
+    seq.name = "TimeoutTest";
+    seq.repeatCount = 1U;
+
+    PelcoD::MacroStep step;
+    step.label = "Query Step";
+    step.frame = PelcoD::PelcoDFrame::createFrame(1, 0, 0x51, 0x00, 0x00);
+    step.delayMs = 50U; // Fast timeout
+    step.expectResponse = true;
+    seq.steps.push_back(step);
+
+    std::mutex mtx;
+    std::condition_variable cv;
+    bool timeoutFired { false };
+
+    PelcoD::MacroPlayer player([](const std::vector<std::uint8_t>&) {});
+    player.setResponseTimeoutCallback([&](std::size_t stepIdx, const PelcoD::MacroStep& timedOutStep) {
+        std::scoped_lock lock(mtx);
+        EXPECT_EQ(stepIdx, 0U);
+        EXPECT_EQ(timedOutStep.label, "Query Step");
+        timeoutFired = true;
+        cv.notify_all();
+    });
+
+    player.loadSequence(seq);
+    ASSERT_TRUE(player.start());
+
+    {
+        std::unique_lock<std::mutex> lock(mtx);
+        ASSERT_TRUE(cv.wait_for(lock, std::chrono::milliseconds(1000), [&]() { return timeoutFired; }));
+    }
+
+    player.stop();
+}
+
 } // namespace
+
 
 

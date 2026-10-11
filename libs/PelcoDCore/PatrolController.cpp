@@ -289,8 +289,12 @@ void PatrolController::setDevice(PelcoDDevice* device)
 {
     std::scoped_lock lock(m_mutex);
     if (device != nullptr) {
+        m_stepDispatcher = [device](std::uint8_t presetId, std::uint8_t speed) {
+            device->goToPreset(presetId, speed);
+        };
         m_dispatcher = [device](std::uint8_t presetId) { device->goToPreset(presetId); };
     } else {
+        m_stepDispatcher = nullptr;
         m_dispatcher = nullptr;
     }
 }
@@ -299,6 +303,14 @@ void PatrolController::setCommandDispatcher(GoToPresetCallback dispatcher)
 {
     std::scoped_lock lock(m_mutex);
     m_dispatcher = std::move(dispatcher);
+    m_stepDispatcher = nullptr;
+}
+
+void PatrolController::setCommandDispatcher(StepDispatcherCallback dispatcher)
+{
+    std::scoped_lock lock(m_mutex);
+    m_stepDispatcher = std::move(dispatcher);
+    m_dispatcher = nullptr;
 }
 
 void PatrolController::setStepChangedCallback(StepChangedCallback cb)
@@ -333,10 +345,13 @@ void PatrolController::dispatchCurrentStep(std::unique_lock<std::mutex>& lock)
     const auto step = m_steps[m_currentStepIndex];
     const auto idx = m_currentStepIndex;
     const auto dispatcher = m_dispatcher;
+    const auto stepDispatcher = m_stepDispatcher;
     const auto stepCb = m_stepChangedCb;
 
     lock.unlock();
-    if (dispatcher) {
+    if (stepDispatcher) {
+        stepDispatcher(step.presetId, step.speed);
+    } else if (dispatcher) {
         dispatcher(step.presetId);
     }
     if (stepCb) {

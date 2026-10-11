@@ -211,6 +211,12 @@ public:
     void setPreset(std::uint8_t presetId);
     void clearPreset(std::uint8_t presetId);
     void goToPreset(std::uint8_t presetId);
+
+    /// @brief Recalls preset with explicit transition speed.
+    /// @param[in] presetId Preset number.
+    /// @param[in] speed Transition speed (0 for standard speed).
+    void goToPreset(std::uint8_t presetId, std::uint8_t speed);
+
     void flip180();
     void zeroPan();
 
@@ -249,6 +255,21 @@ public:
     void setMagnification(std::uint16_t value, bool relative = false);
     void setBaudRate(std::uint32_t baud);
     void setZeroPosition();
+
+    /// @brief Sets absolute focus position in status telemetry.
+    /// @param[in] pos Focus coordinate value.
+    void setFocusPosition(std::uint16_t pos);
+
+    /// @brief Sets absolute iris position in status telemetry.
+    /// @param[in] pos Iris aperture coordinate value.
+    void setIrisPosition(std::uint16_t pos);
+
+    /// @brief Sets factory serial number on device identification model.
+    /// @param[in] serial Serial number string.
+    void setSerialNumber(const std::string& serial);
+
+    /// @brief Queries device serial number asynchronously via 18-byte query.
+    void querySerialNumber();
 
     // System Commands & Queries
     void resetDefaults();
