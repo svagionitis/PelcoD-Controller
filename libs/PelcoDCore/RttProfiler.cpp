@@ -2,12 +2,99 @@
 /// @brief Implementation of Round-Trip-Time (RTT), jitter, and packet loss diagnostics profiler.
 
 #include "RttProfiler.h"
+#include "ProtocolBuilder.h"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
+#include <cstdio>
 #include <iomanip>
 #include <iostream>
 #include <sstream>
+#include <string_view>
+
+namespace {
+
+constexpr std::string_view kProbeTagPrefix { "RttProbe:" };
+
+/// @brief Escape a string field according to RFC 4180 CSV specifications.
+/// @param[in] field Input string view.
+/// @return Escaped string safe for CSV formatting.
+[[nodiscard]] std::string escapeCsvField(std::string_view field)
+{
+    const bool needsQuotes { field.find_first_of(",\"\r\n") != std::string_view::npos
+        || (!field.empty()
+            && (field.front() == '=' || field.front() == '+' || field.front() == '-' || field.front() == '@'
+                || field.front() == '\t')) };
+
+    if (!needsQuotes) {
+        return std::string { field };
+    }
+
+    std::string out {};
+    out.reserve(field.size() + 8U);
+    out.push_back('"');
+    for (const char c : field) {
+        if (c == '"') {
+            out += "\"\"";
+        } else {
+            out.push_back(c);
+        }
+    }
+    out.push_back('"');
+    return out;
+}
+
+/// @brief Escape a string according to RFC 8259 JSON specifications.
+/// @param[in] input Input string view.
+/// @return Escaped string safe for JSON text.
+[[nodiscard]] std::string escapeJsonString(std::string_view input)
+{
+    std::string out {};
+    out.reserve(input.size() + 16U);
+    for (const char c : input) {
+        switch (c) {
+        case '"':
+            out += "\\\"";
+            break;
+        case '\\':
+            out += "\\\\";
+            break;
+        case '\b':
+            out += "\\b";
+            break;
+        case '\f':
+            out += "\\f";
+            break;
+        case '\n':
+            out += "\\n";
+            break;
+        case '\r':
+            out += "\\r";
+            break;
+        case '\t':
+            out += "\\t";
+            break;
+        default: {
+            const auto uc = static_cast<unsigned char>(c);
+            if (uc < 0x20U) {
+                std::array<char, 7> hexBuf {};
+                const int written
+                    = std::snprintf(hexBuf.data(), hexBuf.size(), "\\u%04x", static_cast<unsigned int>(uc));
+                if (written > 0) {
+                    out.append(hexBuf.data(), static_cast<std::size_t>(written));
+                }
+            } else {
+                out.push_back(c);
+            }
+            break;
+        }
+        }
+    }
+    return out;
+}
+
+} // namespace
 
 namespace PelcoD {
 
@@ -110,7 +197,7 @@ bool RttProfiler::start(const RttProfilerConfig& config)
         if (dev) {
             m_deviceLatencyConn
                 = dev->addQueryLatencyCallback([this](const std::string& tag, std::chrono::microseconds duration,
-                                                   bool success) { recordSample(duration, tag, success); });
+                                                   bool success) { onDeviceQueryLatency(tag, duration, success); });
         }
     }
 
@@ -409,9 +496,9 @@ void RttProfiler::activeWorkerLoop(RttProfilerConfig config)
 
 void RttProfiler::dispatchProbeCommand(const std::string& tag)
 {
-    std::shared_ptr<PelcoDDevice> dev;
+    std::shared_ptr<PelcoDDevice> dev {};
     {
-        std::scoped_lock lock(m_mutex);
+        std::scoped_lock lock { m_mutex };
         dev = m_device;
     }
 
@@ -419,18 +506,59 @@ void RttProfiler::dispatchProbeCommand(const std::string& tag)
         return;
     }
 
+    const std::uint8_t addr { dev->getAddress() };
+    const std::string probeTag { std::string(kProbeTagPrefix) + tag };
+
     if (tag == "QueryTilt") {
-        dev->queryTilt();
+        dev->sendQueryFrame(ProtocolBuilder::buildQueryTilt(addr), probeTag);
     } else if (tag == "QueryZoom") {
-        dev->queryZoom();
+        dev->sendQueryFrame(ProtocolBuilder::buildQueryZoom(addr), probeTag);
+    } else if (tag == "QueryMagnification") {
+        dev->sendQueryFrame(ProtocolBuilder::buildQueryMag(addr), probeTag);
     } else if (tag == "QueryDeviceType") {
-        dev->queryDeviceType();
+        dev->sendQueryFrame(ProtocolBuilder::buildQueryDevType(addr), probeTag);
     } else if (tag == "QueryDiagnostics") {
-        dev->queryDiagnostics();
+        dev->sendQueryFrame(ProtocolBuilder::buildQueryDiagnostics(addr), probeTag);
     } else if (tag == "QueryGeneral") {
-        dev->queryGeneral();
+        dev->sendQueryFrame(ProtocolBuilder::buildQueryGeneral(addr), probeTag);
+    } else if (tag == "QuerySoftwareVersion") {
+        dev->sendQueryFrame(ProtocolBuilder::buildQuerySoftwareVersion(addr), probeTag);
+    } else if (tag == "QueryBuildNumber") {
+        dev->sendQueryFrame(ProtocolBuilder::buildQueryBuildNumber(addr), probeTag);
     } else {
-        dev->queryPan();
+        dev->sendQueryFrame(ProtocolBuilder::buildQueryPan(addr), probeTag);
+    }
+}
+
+void RttProfiler::onDeviceQueryLatency(const std::string& tag, std::chrono::microseconds duration, bool success)
+{
+    ProfilerMode mode {};
+    std::string targetTag {};
+    {
+        std::scoped_lock lock { m_mutex };
+        mode = m_config.mode;
+        targetTag = m_config.probeQueryTag;
+    }
+
+    if (mode == ProfilerMode::ActiveBurst || mode == ProfilerMode::ActiveContinuous) {
+        // Active mode: ingest ONLY probes dispatched by this profiler
+        if (tag.rfind(kProbeTagPrefix, 0) != 0) {
+            return;
+        }
+        const std::string cleanTag { tag.substr(kProbeTagPrefix.size()) };
+        if (!targetTag.empty() && cleanTag != targetTag) {
+            return;
+        }
+        recordSample(duration, cleanTag, success);
+    } else {
+        // Passive mode: ignore active probe frames dispatched by any concurrent active profiler
+        if (tag.rfind(kProbeTagPrefix, 0) == 0) {
+            return;
+        }
+        if (!targetTag.empty() && targetTag != "*" && targetTag != "All" && tag != targetTag) {
+            return;
+        }
+        recordSample(duration, tag, success);
     }
 }
 
@@ -444,7 +572,7 @@ bool RttProfiler::exportCsv(std::ostream& os) const
     os << "Sequence,RTT_ms,Status,QueryTag\n";
     for (const auto& sample : m_history) {
         os << sample.sequenceNumber << "," << std::fixed << std::setprecision(3) << sample.rttMs << ","
-           << (sample.success ? "OK" : "TIMEOUT") << "," << sample.queryTag << "\n";
+           << (sample.success ? "OK" : "TIMEOUT") << "," << escapeCsvField(sample.queryTag) << "\n";
     }
 
     return os.good();
@@ -477,7 +605,8 @@ bool RttProfiler::exportJson(std::ostream& os) const
     for (std::size_t i = 0U; i < m_history.size(); ++i) {
         const auto& s = m_history[i];
         os << "    {\"seq\": " << s.sequenceNumber << ", \"rttMs\": " << std::fixed << std::setprecision(3) << s.rttMs
-           << ", \"success\": " << (s.success ? "true" : "false") << ", \"tag\": \"" << s.queryTag << "\"}";
+           << ", \"success\": " << (s.success ? "true" : "false") << ", \"tag\": \"" << escapeJsonString(s.queryTag)
+           << "\"}";
         if (i + 1U < m_history.size()) {
             os << ",";
         }

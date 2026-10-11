@@ -187,6 +187,16 @@ public:
 private:
     void activeWorkerLoop(RttProfilerConfig config);
     void dispatchProbeCommand(const std::string& tag);
+
+    /// @brief Ingestion filter routing and sanitizing device query latency notifications.
+    /// @details In active modes, only probes dispatched by the profiler are ingested; background
+    ///          telemetry polling and unrelated queries are ignored. In passive mode, samples are
+    ///          filtered by the configured probeQueryTag if one is set.
+    /// @param[in] tag Query tag emitted by PelcoDDevice.
+    /// @param[in] duration Microsecond duration of query round trip.
+    /// @param[in] success Whether query received valid response or timed out.
+    void onDeviceQueryLatency(const std::string& tag, std::chrono::microseconds duration, bool success);
+
     void updatePercentilesLocked();
     void resetStatisticsUnderLock() noexcept;
 

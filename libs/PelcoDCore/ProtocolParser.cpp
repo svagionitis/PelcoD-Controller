@@ -1047,79 +1047,85 @@ bool ProtocolParser::isResponseMatchingQuery(
         return false;
     }
 
-    if (queryTag == "QueryPan") {
+    std::string_view tag { queryTag };
+    constexpr std::string_view kProbePrefix { "RttProbe:" };
+    if (tag.rfind(kProbePrefix, 0) == 0) {
+        tag.remove_prefix(kProbePrefix.size());
+    }
+
+    if (tag == "QueryPan") {
         return frame.size() == PelcoDFrame::StandardFrameSize
             && frame[3] == static_cast<std::uint8_t>(ResponseOpcode::QueryPan);
     }
-    if (queryTag == "QueryTilt") {
+    if (tag == "QueryTilt") {
         return frame.size() == PelcoDFrame::StandardFrameSize
             && frame[3] == static_cast<std::uint8_t>(ResponseOpcode::QueryTilt);
     }
-    if (queryTag == "QueryZoom") {
+    if (tag == "QueryZoom") {
         return frame.size() == PelcoDFrame::StandardFrameSize
             && frame[3] == static_cast<std::uint8_t>(ResponseOpcode::QueryZoom);
     }
-    if (queryTag == "QueryMagnification") {
+    if (tag == "QueryMagnification") {
         return frame.size() == PelcoDFrame::StandardFrameSize
             && frame[3] == static_cast<std::uint8_t>(ResponseOpcode::QueryMagnification);
     }
-    if (queryTag == "QueryDeviceType") {
+    if (tag == "QueryDeviceType") {
         return frame.size() == PelcoDFrame::StandardFrameSize
             && frame[3] == static_cast<std::uint8_t>(ResponseOpcode::QueryDeviceType);
     }
-    if (queryTag == "QueryDiagnostics") {
+    if (tag == "QueryDiagnostics") {
         return frame.size() == PelcoDFrame::StandardFrameSize
             && frame[3] == static_cast<std::uint8_t>(ResponseOpcode::QueryDiagnostics);
     }
-    if (queryTag == "QuerySoftwareVersion") {
+    if (tag == "QuerySoftwareVersion") {
         return frame.size() == PelcoDFrame::StandardFrameSize
             && frame[3] == static_cast<std::uint8_t>(ResponseOpcode::VersionInfo)
             && frame[2] == static_cast<std::uint8_t>(VersionInfoSubOpcode::SoftwareVersionResponse);
     }
-    if (queryTag == "QueryBuildNumber") {
+    if (tag == "QueryBuildNumber") {
         return frame.size() == PelcoDFrame::StandardFrameSize
             && frame[3] == static_cast<std::uint8_t>(ResponseOpcode::VersionInfo)
             && frame[2] == static_cast<std::uint8_t>(VersionInfoSubOpcode::BuildNumberResponse);
     }
-    if (queryTag == "QueryTime") {
+    if (tag == "QueryTime") {
         return frame.size() == PelcoDFrame::StandardFrameSize
             && frame[3] == static_cast<std::uint8_t>(ResponseOpcode::TimeMacro);
     }
-    if (queryTag == "QueryAzimuthZero") {
+    if (tag == "QueryAzimuthZero") {
         return frame.size() == PelcoDFrame::StandardFrameSize
             && frame[3] == static_cast<std::uint8_t>(ResponseOpcode::Everest)
             && frame[2] == static_cast<std::uint8_t>(EverestSubOpcode::AzimuthZeroResponse);
     }
-    if (queryTag == "QueryZoomLimit") {
+    if (tag == "QueryZoomLimit") {
         return frame.size() == PelcoDFrame::StandardFrameSize
             && frame[3] == static_cast<std::uint8_t>(ResponseOpcode::Everest)
             && frame[2] == static_cast<std::uint8_t>(EverestSubOpcode::ZoomLimitResponse);
     }
-    if (queryTag == "QueryEverestAlarms") {
+    if (tag == "QueryEverestAlarms") {
         return frame.size() == PelcoDFrame::StandardFrameSize
             && frame[3] == static_cast<std::uint8_t>(ResponseOpcode::Everest)
             && frame[2] == static_cast<std::uint8_t>(EverestSubOpcode::AlarmsResponse);
     }
-    if (queryTag == "QueryLimit") {
+    if (tag == "QueryLimit") {
         return frame.size() == PelcoDFrame::StandardFrameSize
             && frame[3] == static_cast<std::uint8_t>(ResponseOpcode::Everest)
             && frame[2] == static_cast<std::uint8_t>(EverestSubOpcode::LimitResponse);
     }
-    if (queryTag == "QueryDefinedPresets") {
+    if (tag == "QueryDefinedPresets") {
         return frame.size() == PelcoDFrame::StandardFrameSize
             && frame[3] == static_cast<std::uint8_t>(ResponseOpcode::Everest)
             && frame[2] == static_cast<std::uint8_t>(EverestSubOpcode::DefinedPresetsResponse);
     }
-    if (queryTag == "QueryDefinedPatterns") {
+    if (tag == "QueryDefinedPatterns") {
         return frame.size() == PelcoDFrame::StandardFrameSize
             && frame[3] == static_cast<std::uint8_t>(ResponseOpcode::Everest)
             && frame[2] == static_cast<std::uint8_t>(EverestSubOpcode::DefinedPatternsResponse);
     }
-    if (queryTag == "QueryEverest") {
+    if (tag == "QueryEverest") {
         return frame.size() == PelcoDFrame::StandardFrameSize
             && frame[3] == static_cast<std::uint8_t>(ResponseOpcode::Everest);
     }
-    if (queryTag == "QueryGeneral" || queryTag == "QuerySerialNumber") {
+    if (tag == "QueryGeneral" || tag == "QuerySerialNumber") {
         return frame.size() == PelcoDFrame::QueryResponseSize;
     }
 

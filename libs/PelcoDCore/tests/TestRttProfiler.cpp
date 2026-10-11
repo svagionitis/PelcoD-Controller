@@ -606,4 +606,181 @@ TEST(RttProfilerTest, PassiveActiveCycles)
     device->stop();
 }
 
+// =============================================================================
+// M9 regression tests: probe isolation, telemetry suppression, and export escaping
+// =============================================================================
+
+/// @brief Active burst probes must not be polluted by telemetry polling (M9).
+TEST(RttProfilerTest, ActiveBurstIgnoresConcurrentTelemetryPolling)
+{
+    auto device { makeMockDevice() };
+    ASSERT_NE(device, nullptr);
+
+    // Enable high-frequency telemetry polling (queries pan, tilt, zoom every 10 ms)
+    device->setTelemetryPolling(true, 10U);
+
+    PelcoD::RttProfiler profiler { device };
+    std::atomic<bool> finished { false };
+    profiler.setFinishedCallback([&finished](const PelcoD::RttStatistics&) { finished.store(true); });
+
+    PelcoD::RttProfilerConfig cfg {};
+    cfg.mode = PelcoD::ProfilerMode::ActiveBurst;
+    cfg.burstCount = 4U;
+    cfg.intervalMs = 40U;
+    cfg.timeoutMs = 100U;
+    cfg.probeQueryTag = "QueryPan";
+
+    ASSERT_TRUE(profiler.start(cfg));
+    ASSERT_TRUE(waitFor([&finished] { return finished.load(); }, std::chrono::seconds { 5 }));
+    ASSERT_TRUE(waitFor([&profiler] { return !profiler.isRunning(); }));
+
+    const auto stats { profiler.getStatistics() };
+    // Exactly 4 burst probes must be recorded; telemetry polling must not inflate totalProbes
+    EXPECT_EQ(stats.totalProbes, 4U);
+    EXPECT_EQ(stats.successfulProbes, 4U);
+
+    device->stop();
+}
+
+/// @brief Active continuous probing must ignore concurrent unrelated queries (M9).
+TEST(RttProfilerTest, ActiveContinuousIgnoresUnrelatedQueries)
+{
+    auto device { makeMockDevice() };
+    ASSERT_NE(device, nullptr);
+
+    PelcoD::RttProfiler profiler { device };
+    PelcoD::RttProfilerConfig cfg {};
+    cfg.mode = PelcoD::ProfilerMode::ActiveContinuous;
+    cfg.intervalMs = 30U;
+    cfg.probeQueryTag = "QueryPan";
+
+    ASSERT_TRUE(profiler.start(cfg));
+
+    // Concurrently trigger unrelated device queries
+    for (int i { 0 }; i < 5; ++i) {
+        device->queryTilt();
+        device->queryZoom();
+        device->querySerialNumber();
+        std::this_thread::sleep_for(std::chrono::milliseconds { 10 });
+    }
+
+    // Await at least one successful probe from the active continuous session
+    ASSERT_TRUE(
+        waitFor([&profiler] { return profiler.getStatistics().successfulProbes >= 1U; }, std::chrono::seconds { 2 }));
+
+    profiler.stop();
+
+    const auto history { profiler.getHistory() };
+    EXPECT_FALSE(history.empty());
+    for (const auto& sample : history) {
+        EXPECT_EQ(sample.queryTag, "QueryPan");
+    }
+
+    device->stop();
+}
+
+/// @brief Passive mode with a configured queryTag observes only matching queries (M9).
+TEST(RttProfilerTest, PassiveModeFiltersByConfiguredTag)
+{
+    auto device { makeMockDevice() };
+    ASSERT_NE(device, nullptr);
+
+    PelcoD::RttProfiler profiler { device };
+    PelcoD::RttProfilerConfig cfg {};
+    cfg.mode = PelcoD::ProfilerMode::Passive;
+    cfg.probeQueryTag = "QueryPan";
+
+    ASSERT_TRUE(profiler.start(cfg));
+
+    // Send both Pan and Tilt queries
+    device->queryPan();
+    device->queryTilt();
+    device->queryPan();
+
+    ASSERT_TRUE(waitFor([&profiler] { return profiler.getStatistics().totalProbes >= 2U; }, std::chrono::seconds { 2 }));
+
+    const auto history { profiler.getHistory() };
+    EXPECT_EQ(history.size(), 2U);
+    for (const auto& s : history) {
+        EXPECT_EQ(s.queryTag, "QueryPan");
+    }
+
+    profiler.stop();
+    device->stop();
+}
+
+/// @brief Passive mode with wildcard tag observes all device queries (M9).
+TEST(RttProfilerTest, PassiveModeObservesAllQueriesWhenWildcard)
+{
+    auto device { makeMockDevice() };
+    ASSERT_NE(device, nullptr);
+
+    PelcoD::RttProfiler profiler { device };
+    PelcoD::RttProfilerConfig cfg {};
+    cfg.mode = PelcoD::ProfilerMode::Passive;
+    cfg.probeQueryTag = "*";
+
+    ASSERT_TRUE(profiler.start(cfg));
+
+    device->queryPan();
+    device->queryTilt();
+
+    ASSERT_TRUE(waitFor([&profiler] { return profiler.getStatistics().totalProbes >= 2U; }, std::chrono::seconds { 2 }));
+
+    const auto history { profiler.getHistory() };
+    EXPECT_GE(history.size(), 2U);
+
+    profiler.stop();
+    device->stop();
+}
+
+/// @brief exportCsv() safely escapes quotes, delimiters, newlines, and formula injection (M9).
+TEST(RttProfilerTest, ExportCsvEscapesDelimitersQuotesAndFormulae)
+{
+    PelcoD::RttProfiler profiler {};
+    PelcoD::RttProfilerConfig cfg {};
+    cfg.mode = PelcoD::ProfilerMode::Passive;
+    ASSERT_TRUE(profiler.start(cfg));
+
+    profiler.recordSampleMs(10.0, "PlainTag", true);
+    profiler.recordSampleMs(12.0, "Comma,Tag", true);
+    profiler.recordSampleMs(14.0, "Quote\"Tag", true);
+    profiler.recordSampleMs(16.0, "Newline\nTag", true);
+    profiler.recordSampleMs(18.0, "=cmd|' /C calc'!A0", true);
+
+    std::ostringstream oss {};
+    EXPECT_TRUE(profiler.exportCsv(oss));
+    const std::string csv { oss.str() };
+
+    EXPECT_NE(csv.find("1,10.000,OK,PlainTag"), std::string::npos);
+    EXPECT_NE(csv.find("2,12.000,OK,\"Comma,Tag\""), std::string::npos);
+    EXPECT_NE(csv.find("3,14.000,OK,\"Quote\"\"Tag\""), std::string::npos);
+    EXPECT_NE(csv.find("4,16.000,OK,\"Newline\nTag\""), std::string::npos);
+    EXPECT_NE(csv.find("5,18.000,OK,\"=cmd|' /C calc'!A0\""), std::string::npos);
+}
+
+/// @brief exportJson() safely escapes quotes, backslashes, tabs, and newlines (M9).
+TEST(RttProfilerTest, ExportJsonEscapesQuotesBackslashesAndControlCharacters)
+{
+    PelcoD::RttProfiler profiler {};
+    PelcoD::RttProfilerConfig cfg {};
+    cfg.mode = PelcoD::ProfilerMode::Passive;
+    ASSERT_TRUE(profiler.start(cfg));
+
+    profiler.recordSampleMs(10.0, "Tag\"Quote", true);
+    profiler.recordSampleMs(12.0, "Tag\\Backslash", true);
+    profiler.recordSampleMs(14.0, "Tag\nNewline", true);
+    profiler.recordSampleMs(16.0, "Tag\tTab", true);
+
+    std::ostringstream oss {};
+    EXPECT_TRUE(profiler.exportJson(oss));
+    const std::string json { oss.str() };
+
+    EXPECT_NE(json.find("\"tag\": \"Tag\\\"Quote\""), std::string::npos);
+    EXPECT_NE(json.find("\"tag\": \"Tag\\\\Backslash\""), std::string::npos);
+    EXPECT_NE(json.find("\"tag\": \"Tag\\nNewline\""), std::string::npos);
+    EXPECT_NE(json.find("\"tag\": \"Tag\\tTab\""), std::string::npos);
+}
+
 } // namespace
+
