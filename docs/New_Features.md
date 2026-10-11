@@ -17,8 +17,8 @@ Here is a curated list of high-value features and enhancements that can be added
 
 ### 2. Protocol & Core Engine Capabilities (Completed)
 
-* **Pelco-P Protocol Support (Completed)**:
-  * Pelco-P (8-byte framing: `0xA0`, address, data bytes, checksum XOR/modulo-256, `0xAF`) builder and parser. Implemented in `PelcoPBuilder.h` and `PelcoPParser.h`, verified in [TestProtocolCompleteness.cpp](../libs/PelcoDCore/tests/TestProtocolCompleteness.cpp).
+* **Pelco-D Protocol Specification Compliance (Completed)**:
+  * PelcoDCore focuses exclusively on the Pelco-D v5.0.1 protocol specification (7-byte standard commands, 18-byte extended commands, and 4-byte general responses). External protocols such as Pelco-P (8-byte framing) are excluded from PelcoDCore to maintain strict Pelco-D standard compliance and zero-overhead framing. Verified in [TestProtocolCompleteness.cpp](../libs/PelcoDCore/tests/TestProtocolCompleteness.cpp).
 * **Command Retries with Configurable Backoff (Completed)**:
   * Configurable retry policies with backoff before triggering timeout callbacks. Implemented in [RetryPolicy.h](../libs/PelcoDCore/RetryPolicy.h) and tested in [TestRetryPolicy.cpp](../libs/PelcoDQt/tests/TestRetryPolicy.cpp).
 * **Multi-Baud Auto-Discovery in `BusScanner` (Completed)**:

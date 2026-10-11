@@ -288,6 +288,19 @@ void BusScanner::scanWorker(ScanConfig config)
 
     const std::uint32_t originalBaud = trans ? trans->getBaudRate() : 0U;
 
+    // RAII guard guaranteeing restoration of original baud rate upon worker exit (M11)
+    struct BaudRestorer {
+        std::shared_ptr<ITransport> transport;
+        std::uint32_t baud;
+        bool active;
+        ~BaudRestorer()
+        {
+            if (active && transport && baud > 0U) {
+                transport->setBaudRate(baud);
+            }
+        }
+    } baudRestorer { trans, originalBaud, !config.baudRates.empty() };
+
     std::vector<std::uint32_t> baudList = config.baudRates;
     if (baudList.empty()) {
         baudList.push_back(originalBaud);
@@ -307,8 +320,11 @@ void BusScanner::scanWorker(ScanConfig config)
             break;
         }
 
-        if (trans && currentBaud > 0U) {
-            trans->setBaudRate(currentBaud);
+        if (trans && currentBaud > 0U && currentBaud != trans->getBaudRate()) {
+            if (!trans->setBaudRate(currentBaud)) {
+                // Transport rejected baud rate modification (e.g. shared multiplexer or fixed port)
+                continue;
+            }
         }
 
         BaudRateChangedCallback baudCb;
@@ -423,10 +439,6 @@ void BusScanner::scanWorker(ScanConfig config)
                     [this] { return m_stopRequested.load(); });
             }
         }
-    }
-
-    if (trans && originalBaud > 0U && !config.baudRates.empty()) {
-        trans->setBaudRate(originalBaud);
     }
 
     if (trans) {

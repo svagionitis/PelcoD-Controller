@@ -543,6 +543,25 @@ public:
         return m_sentPackets;
     }
 
+    bool setBaudRate(std::uint32_t baudRate) override
+    {
+        if (m_rejectBaud.load()) {
+            return false;
+        }
+        m_baudRate.store(baudRate);
+        return true;
+    }
+
+    [[nodiscard]] std::uint32_t getBaudRate() const noexcept override
+    {
+        return m_baudRate.load();
+    }
+
+    void setRejectBaud(bool reject) noexcept
+    {
+        m_rejectBaud.store(reject);
+    }
+
     [[nodiscard]] bool hasDataCallback() const
     {
         std::scoped_lock lock(m_callbackMutex);
@@ -552,6 +571,8 @@ public:
 private:
     std::atomic<bool> m_isOpen { true };
     std::atomic<bool> m_echoTx { true };
+    std::atomic<bool> m_rejectBaud { false };
+    std::atomic<std::uint32_t> m_baudRate { 9600U };
     mutable std::mutex m_txMutex;
     std::vector<std::vector<std::uint8_t>> m_sentPackets {};
     std::function<std::vector<std::vector<std::uint8_t>>(const std::vector<std::uint8_t>&)> m_responder {};
@@ -760,6 +781,70 @@ TEST(BusScannerTest, SharedTransportWithPelcoDDeviceViaMultiplexer)
     // Verify PelcoDDevice continues normal operation without interference
     EXPECT_TRUE(device.isConnected());
     device.stop();
+}
+
+/// @brief Verify M11: ScanConfig::standardBaudRates contains only Pelco-D spec §5.52 baud rates and excludes 57600.
+TEST(BusScannerTest, StandardBaudRatesMatchesPelcoDSpecWithout57600)
+{
+    const auto rates = PelcoD::ScanConfig::standardBaudRates();
+    const std::vector<std::uint32_t> expected { 9600U, 2400U, 4800U, 19200U, 38400U, 115200U };
+    EXPECT_EQ(rates, expected);
+
+    // Explicitly check 57600 is NOT present
+    EXPECT_TRUE(std::find(rates.begin(), rates.end(), 57600U) == rates.end());
+}
+
+/// @brief Verify M11: If transport rejects baud rate change, BusScanner skips that baud rate safely.
+TEST(BusScannerTest, FailedBaudRateSwitchSkipsProbingSafely)
+{
+    auto transport = std::make_shared<EchoingTransport>();
+    transport->setEcho(false);
+    transport->setBaudRate(9600U);
+    transport->setRejectBaud(true); // Rejects all future baud changes
+
+    PelcoD::BusScanner scanner(transport);
+    PelcoD::ScanConfig cfg;
+    cfg.startAddress = 1U;
+    cfg.endAddress = 2U;
+    cfg.baudRates = { 115200U }; // Must be rejected and skipped
+    cfg.timeoutMs = 15U;
+    cfg.interCommandDelayMs = 2U;
+
+    std::atomic<bool> finished { false };
+    scanner.setScanFinishedCallback([&](const std::vector<PelcoD::DiscoveredDevice>&) {
+        finished.store(true);
+    });
+
+    ASSERT_TRUE(scanner.startScan(cfg));
+    while (scanner.isScanning() || !finished.load()) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(5));
+    }
+
+    // Since baud change was rejected, no probes should have been sent at 115200
+    EXPECT_TRUE(transport->getSentPackets().empty());
+}
+
+/// @brief Verify M11: Multi-baud scan restores original baud rate via RAII when stopped early.
+TEST(BusScannerTest, BaudRateRestoredViaRaiiOnEarlyStop)
+{
+    auto transport = std::make_shared<EchoingTransport>();
+    transport->setEcho(false);
+    transport->setBaudRate(9600U);
+
+    PelcoD::BusScanner scanner(transport);
+    PelcoD::ScanConfig cfg;
+    cfg.startAddress = 1U;
+    cfg.endAddress = 30U;
+    cfg.baudRates = { 19200U, 38400U };
+    cfg.timeoutMs = 50U;
+    cfg.interCommandDelayMs = 5U;
+
+    ASSERT_TRUE(scanner.startScan(cfg));
+    std::this_thread::sleep_for(std::chrono::milliseconds(20));
+    scanner.stopScan();
+
+    EXPECT_EQ(scanner.getState(), PelcoD::ScanState::Idle);
+    EXPECT_EQ(transport->getBaudRate(), 9600U);
 }
 
 } // namespace

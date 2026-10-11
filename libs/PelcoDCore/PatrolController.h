@@ -8,6 +8,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <functional>
+#include <memory>
 #include <mutex>
 #include <string>
 #include <thread>
@@ -42,6 +43,14 @@ public:
     using DwellTickCallback = std::function<void(std::size_t stepIndex, std::uint32_t remainingSeconds)>;
     using TourFinishedCallback = std::function<void()>;
 
+    /// @brief Constructs a PatrolController associated with an optional PelcoDDevice controller.
+    /// @param[in] device Shared pointer to target device controller.
+    explicit PatrolController(std::shared_ptr<PelcoDDevice> device);
+
+    /// @brief Constructs a PatrolController associated with a raw PelcoDDevice pointer.
+    /// @details Raw pointer usage does not provide automatic lifetime management; prefer the
+    ///          std::shared_ptr overload to prevent Use-After-Free hazards (M10).
+    /// @param[in] device Raw pointer to device controller.
     explicit PatrolController(PelcoDDevice* device = nullptr);
     explicit PatrolController(GoToPresetCallback dispatcher);
     ~PatrolController();
@@ -114,7 +123,18 @@ public:
     [[nodiscard]] bool isLooping() const noexcept;
 
     // Callbacks & Dispatcher
+    /// @brief Assigns target device controller with lifetime-safe shared ownership (M10).
+    /// @param[in] device Shared pointer to device controller.
+    void setDevice(std::shared_ptr<PelcoDDevice> device);
+
+    /// @brief Assigns target device controller via raw pointer.
+    /// @param[in] device Raw pointer to device controller.
     void setDevice(PelcoDDevice* device);
+
+    /// @brief Retrieves the currently assigned target device controller.
+    /// @return Shared pointer to PelcoDDevice or nullptr if unset or expired.
+    [[nodiscard]] std::shared_ptr<PelcoDDevice> getDevice() const;
+
     void setCommandDispatcher(GoToPresetCallback dispatcher);
 
     /// @brief Registers a command dispatcher accepting both preset ID and transition speed.
@@ -157,6 +177,9 @@ private:
     StateChangedCallback m_stateChangedCb;
     DwellTickCallback m_dwellTickCb;
     TourFinishedCallback m_tourFinishedCb;
+
+    std::weak_ptr<PelcoDDevice> m_deviceWeak {};
+    bool m_hasDevice { false };
 };
 
 } // namespace PelcoD

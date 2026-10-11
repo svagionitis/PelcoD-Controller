@@ -8,6 +8,11 @@
 
 namespace PelcoD {
 
+PatrolController::PatrolController(std::shared_ptr<PelcoDDevice> device)
+{
+    setDevice(std::move(device));
+}
+
 PatrolController::PatrolController(PelcoDDevice* device)
 {
     setDevice(device);
@@ -63,6 +68,10 @@ bool PatrolController::start()
     {
         std::unique_lock<std::mutex> lock { m_mutex };
         if (m_steps.empty()) {
+            return false;
+        }
+
+        if (m_hasDevice && m_deviceWeak.expired()) {
             return false;
         }
 
@@ -285,23 +294,68 @@ bool PatrolController::isLooping() const noexcept
     return m_loop.load();
 }
 
-void PatrolController::setDevice(PelcoDDevice* device)
+void PatrolController::setDevice(std::shared_ptr<PelcoDDevice> device)
 {
     std::scoped_lock lock(m_mutex);
     if (device != nullptr) {
-        m_stepDispatcher = [device](std::uint8_t presetId, std::uint8_t speed) {
-            device->goToPreset(presetId, speed);
+        m_hasDevice = true;
+        m_deviceWeak = device;
+        std::weak_ptr<PelcoDDevice> weakDev = device;
+        m_stepDispatcher = [weakDev](std::uint8_t presetId, std::uint8_t speed) {
+            if (auto dev = weakDev.lock()) {
+                dev->goToPreset(presetId, speed);
+            }
         };
-        m_dispatcher = [device](std::uint8_t presetId) { device->goToPreset(presetId); };
+        m_dispatcher = [weakDev](std::uint8_t presetId) {
+            if (auto dev = weakDev.lock()) {
+                dev->goToPreset(presetId);
+            }
+        };
     } else {
+        m_hasDevice = false;
+        m_deviceWeak.reset();
         m_stepDispatcher = nullptr;
         m_dispatcher = nullptr;
     }
 }
 
+void PatrolController::setDevice(PelcoDDevice* device)
+{
+    if (device != nullptr) {
+        try {
+            setDevice(device->shared_from_this());
+            return;
+        } catch (const std::bad_weak_ptr&) {
+            // Unmanaged raw pointer fallback
+        }
+    }
+    std::scoped_lock lock(m_mutex);
+    if (device != nullptr) {
+        m_hasDevice = true;
+        m_deviceWeak.reset();
+        m_stepDispatcher = [device](std::uint8_t presetId, std::uint8_t speed) {
+            device->goToPreset(presetId, speed);
+        };
+        m_dispatcher = [device](std::uint8_t presetId) { device->goToPreset(presetId); };
+    } else {
+        m_hasDevice = false;
+        m_deviceWeak.reset();
+        m_stepDispatcher = nullptr;
+        m_dispatcher = nullptr;
+    }
+}
+
+std::shared_ptr<PelcoDDevice> PatrolController::getDevice() const
+{
+    std::scoped_lock lock(m_mutex);
+    return m_deviceWeak.lock();
+}
+
 void PatrolController::setCommandDispatcher(GoToPresetCallback dispatcher)
 {
     std::scoped_lock lock(m_mutex);
+    m_hasDevice = false;
+    m_deviceWeak.reset();
     m_dispatcher = std::move(dispatcher);
     m_stepDispatcher = nullptr;
 }
@@ -309,6 +363,8 @@ void PatrolController::setCommandDispatcher(GoToPresetCallback dispatcher)
 void PatrolController::setCommandDispatcher(StepDispatcherCallback dispatcher)
 {
     std::scoped_lock lock(m_mutex);
+    m_hasDevice = false;
+    m_deviceWeak.reset();
     m_stepDispatcher = std::move(dispatcher);
     m_dispatcher = nullptr;
 }
@@ -340,6 +396,13 @@ void PatrolController::setTourFinishedCallback(TourFinishedCallback cb)
 void PatrolController::dispatchCurrentStep(std::unique_lock<std::mutex>& lock)
 {
     if (m_steps.empty() || m_currentStepIndex >= m_steps.size()) {
+        return;
+    }
+    if (m_hasDevice && m_deviceWeak.expired()) {
+        m_state.store(PatrolState::Idle);
+        m_workerRunning.store(false);
+        m_remainingDwellSeconds = 0U;
+        notifyStateChange(lock, PatrolState::Idle, false);
         return;
     }
     const auto step = m_steps[m_currentStepIndex];
@@ -435,6 +498,13 @@ void PatrolController::workerLoop()
 
         if (m_state.load() != PatrolState::Running || !m_workerRunning.load()) {
             continue;
+        }
+
+        if (m_hasDevice && m_deviceWeak.expired()) {
+            m_state.store(PatrolState::Idle);
+            m_workerRunning.store(false);
+            notifyStateChange(lock, PatrolState::Idle, false);
+            break;
         }
 
         if (m_remainingDwellSeconds == 0U) {

@@ -740,6 +740,26 @@ void PelcoDDevice::move(PanDirection panDir, std::uint8_t panSpeed, TiltDirectio
     enqueueCommand(ProtocolBuilder::buildMotion(m_address, panDir, panSpeed, tiltDir, tiltSpeed));
 }
 
+void PelcoDDevice::move(PanDirection panDir, std::uint8_t panSpeed, TiltDirection tiltDir, std::uint8_t tiltSpeed,
+    ZoomAction zoom, FocusAction focus, IrisAction iris)
+{
+    {
+        std::scoped_lock lock(m_statusMutex);
+        m_status.activePreset = 0U;
+    }
+    enqueueCommand(ProtocolBuilder::buildMotion(m_address, panDir, panSpeed, tiltDir, tiltSpeed, zoom, focus, iris));
+}
+
+void PelcoDDevice::setPower(bool on)
+{
+    enqueueCommand(ProtocolBuilder::buildPower(m_address, on));
+}
+
+void PelcoDDevice::setAutoScan(bool enable)
+{
+    enqueueCommand(ProtocolBuilder::buildScan(m_address, enable));
+}
+
 void PelcoDDevice::zoomTele()
 {
     enqueueCommand(ProtocolBuilder::buildZoom(m_address, ZoomAction::Tele));

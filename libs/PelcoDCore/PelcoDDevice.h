@@ -37,7 +37,7 @@ namespace PelcoD {
 
 /// @class PelcoDDevice
 /// @brief High-level controller coordinating transport, paced command queue, and telemetry polling.
-class PelcoDDevice {
+class PelcoDDevice : public std::enable_shared_from_this<PelcoDDevice> {
 public:
     using StatusCallback = std::function<void(const DeviceStatus& status)>;
     using TrafficCallback = std::function<void(bool isTx, const std::vector<std::uint8_t>& frame)>;
@@ -190,6 +190,25 @@ public:
     void stopMotion();
 
     void move(PanDirection panDir, std::uint8_t panSpeed, TiltDirection tiltDir, std::uint8_t tiltSpeed);
+
+    /// @brief Drives combined motion across Pan, Tilt, Zoom, Focus, and Iris (M12).
+    /// @param[in] panDir Pan direction (Left, Right, Stop).
+    /// @param[in] panSpeed Pan speed (0 - 64).
+    /// @param[in] tiltDir Tilt direction (Up, Down, Stop).
+    /// @param[in] tiltSpeed Tilt speed (0 - 63).
+    /// @param[in] zoom Zoom action (Tele, Wide, Stop).
+    /// @param[in] focus Focus action (Near, Far, Stop).
+    /// @param[in] iris Iris action (Open, Close, Stop).
+    void move(PanDirection panDir, std::uint8_t panSpeed, TiltDirection tiltDir, std::uint8_t tiltSpeed,
+        ZoomAction zoom, FocusAction focus = FocusAction::Stop, IrisAction iris = IrisAction::Stop);
+
+    /// @brief Controls device operational power state (opcode 0x88 On, 0x08 Off) (M12).
+    /// @param[in] on True for Power On, false for Power Off.
+    void setPower(bool on);
+
+    /// @brief Configures auto or manual scan mode (opcode 0x90 Auto, 0x98 Manual) (M12).
+    /// @param[in] enable True to initiate auto scan, false for manual scan.
+    void setAutoScan(bool enable);
 
     void zoomTele();
     void zoomWide();

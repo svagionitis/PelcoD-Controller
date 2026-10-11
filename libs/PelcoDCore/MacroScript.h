@@ -1,7 +1,7 @@
 #pragma once
 
 /// @file MacroScript.h
-/// @brief Pelco-D / Pelco-P command sequence scripting and serialization definitions.
+/// @brief Pelco-D command sequence scripting and serialization definitions.
 
 #include <cstddef>
 #include <cstdint>

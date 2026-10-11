@@ -80,6 +80,12 @@ public:
 
     bool setBaudRate(std::uint32_t baudRate) override
     {
+        if (auto p = m_parent.lock()) {
+            if (p->channelCount() > 1U) {
+                // Reject baud rate modification when multiplexed across multiple active channels (M11)
+                return false;
+            }
+        }
         if (m_underlying) {
             return m_underlying->setBaudRate(baudRate);
         }

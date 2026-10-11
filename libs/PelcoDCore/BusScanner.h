@@ -52,11 +52,11 @@ struct ScanConfig {
     /// @brief Settling delay after switching baud rates before probing addresses (ms).
     std::uint32_t baudSwitchDelayMs { 15U };
 
-    /// @brief Common standard baud rates for multi-baud auto-discovery.
+    /// @brief Pelco-D specification §5.52 standard baud rates for multi-baud auto-discovery.
     /// @return Vector of standard baud rates ordered by popularity.
     [[nodiscard]] static std::vector<std::uint32_t> standardBaudRates()
     {
-        return { 9600U, 2400U, 4800U, 19200U, 38400U, 57600U, 115200U };
+        return { 9600U, 2400U, 4800U, 19200U, 38400U, 115200U };
     }
 };
 

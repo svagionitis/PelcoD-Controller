@@ -57,6 +57,17 @@ public:
         notifyState(state, msg);
     }
 
+    bool setBaudRate(std::uint32_t baudRate) override
+    {
+        m_baud = baudRate;
+        return true;
+    }
+
+    [[nodiscard]] std::uint32_t getBaudRate() const noexcept override
+    {
+        return m_baud;
+    }
+
     [[nodiscard]] std::vector<std::vector<std::uint8_t>> getSent() const
     {
         std::scoped_lock lock(m_txMutex);
@@ -65,6 +76,7 @@ public:
 
 private:
     std::atomic<bool> m_open { true };
+    std::uint32_t m_baud { 9600U };
     mutable std::mutex m_txMutex {};
     std::vector<std::vector<std::uint8_t>> m_sent {};
 };
@@ -149,6 +161,23 @@ TEST(TransportMultiplexerTest, StateChangedFanOut)
 
     EXPECT_EQ(stateChanges1.load(), 1);
     EXPECT_EQ(stateChanges2.load(), 1);
+}
+
+/// @brief Verify M11: changing baud rate is rejected when multiple virtual channels share the multiplexer.
+TEST(TransportMultiplexerTest, RejectBaudRateChangeWhenMultipleChannelsActive)
+{
+    auto dummy = std::make_shared<DummyTransport>();
+    auto mux = std::make_shared<Transport::TransportMultiplexer>(dummy);
+
+    auto chan1 = mux->createChannel();
+    auto chan2 = mux->createChannel();
+
+    EXPECT_FALSE(chan1->setBaudRate(19200U));
+    EXPECT_FALSE(chan2->setBaudRate(38400U));
+
+    // When only one channel remains active, baud rate changes are permitted
+    chan2.reset();
+    EXPECT_TRUE(chan1->setBaudRate(19200U));
 }
 
 } // namespace

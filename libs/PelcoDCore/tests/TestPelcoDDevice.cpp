@@ -1330,6 +1330,83 @@ TEST(PelcoDDeviceStartExceptionSafety, RestartAfterFailedStartSucceeds)
     EXPECT_FALSE(device.isConnected());
 }
 
+/// @brief Verify M12: setPower enqueues standard Power On and Power Off frames.
+TEST(PelcoDDeviceFacade, SetPowerEnqueuesCorrectFrames)
+{
+    auto transport = std::make_shared<PelcoD::Test::CapturingTransport>();
+    PelcoD::PelcoDDevice device { transport, 1U };
+    ASSERT_TRUE(device.start());
+
+    device.setPower(true);
+    device.setPower(false);
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(40));
+    device.stop();
+
+    const auto frames = transport->sentFrames();
+    ASSERT_GE(frames.size(), 2U);
+    // Frame 0: Power On (Cmd1 = 0x88)
+    EXPECT_EQ(frames[0].size(), 7U);
+    EXPECT_EQ(frames[0][2], 0x88U);
+    // Frame 1: Power Off (Cmd1 = 0x08)
+    EXPECT_EQ(frames[1].size(), 7U);
+    EXPECT_EQ(frames[1][2], 0x08U);
+}
+
+/// @brief Verify M12: setAutoScan enqueues standard Auto Scan and Manual Scan frames.
+TEST(PelcoDDeviceFacade, SetAutoScanEnqueuesCorrectFrames)
+{
+    auto transport = std::make_shared<PelcoD::Test::CapturingTransport>();
+    PelcoD::PelcoDDevice device { transport, 1U };
+    ASSERT_TRUE(device.start());
+
+    device.setAutoScan(true);
+    device.setAutoScan(false);
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(40));
+    device.stop();
+
+    const auto frames = transport->sentFrames();
+    ASSERT_GE(frames.size(), 2U);
+    // Frame 0: Auto Scan (Cmd1 = 0x90)
+    EXPECT_EQ(frames[0].size(), 7U);
+    EXPECT_EQ(frames[0][2], 0x90U);
+    // Frame 1: Manual Scan (Cmd1 = 0x10, ScanSense::ManualScanOn)
+    EXPECT_EQ(frames[1].size(), 7U);
+    EXPECT_EQ(frames[1][2], 0x10U);
+}
+
+/// @brief Verify M12: combined PTZ + Zoom/Focus/Iris move command resets activePreset and enqueues full frame.
+TEST(PelcoDDeviceFacade, CombinedMotionEnqueuesFullPayloadAndResetsActivePreset)
+{
+    auto transport = std::make_shared<PelcoD::Test::CapturingTransport>();
+    PelcoD::PelcoDDevice device { transport, 1U };
+    ASSERT_TRUE(device.start());
+
+    // Set an active preset first
+    device.goToPreset(5U);
+    EXPECT_EQ(device.getStatus().activePreset, 5U);
+
+    device.move(PelcoD::PanDirection::Left, 0x20U, PelcoD::TiltDirection::Up, 0x15U,
+        PelcoD::ZoomAction::Tele, PelcoD::FocusAction::Near, PelcoD::IrisAction::Open);
+
+    EXPECT_EQ(device.getStatus().activePreset, 0U);
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(40));
+    device.stop();
+
+    const auto frames = transport->sentFrames();
+    ASSERT_GE(frames.size(), 2U);
+    const auto& moveFrame = frames[1];
+    ASSERT_EQ(moveFrame.size(), 7U);
+    EXPECT_EQ(moveFrame[4], 0x20U); // Pan speed
+    EXPECT_EQ(moveFrame[5], 0x15U); // Tilt speed
+    // Cmd2 bitmask contains Pan Left (0x04) | Tilt Up (0x08) | Zoom Tele (0x20) = 0x2C
+    EXPECT_EQ(moveFrame[3] & 0x2CU, 0x2CU);
+    // Cmd1 bitmask contains Iris Open (0x02) | Focus Near (0x01) = 0x03
+    EXPECT_EQ(moveFrame[2] & 0x03U, 0x03U);
+}
+
 } // namespace
 
 

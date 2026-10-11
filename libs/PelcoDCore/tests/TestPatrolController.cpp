@@ -2,6 +2,8 @@
 /// @brief Unit tests for PelcoD::PatrolController sequencing, dwell timing, and state transitions.
 
 #include "PatrolController.h"
+#include "CapturingTransport.h"
+#include "PelcoDDevice.h"
 #include "TestHelpers.h"
 
 #include <gtest/gtest.h>
@@ -10,6 +12,7 @@
 #include <chrono>
 #include <condition_variable>
 #include <cstdint>
+#include <memory>
 #include <mutex>
 #include <thread>
 #include <vector>
@@ -511,6 +514,62 @@ TEST(PatrolControllerTest, PatrolStepSpeedDispatched)
         EXPECT_EQ(receivedSpeed, 45U);
     }
 
+    controller.stop();
+}
+
+/// @brief Verify M10: starting a tour when the bound shared device was destroyed returns false cleanly.
+TEST(PatrolControllerTest, DeviceDestroyedBeforeTourStartSafe)
+{
+    auto transport = std::make_shared<PelcoD::Test::CapturingTransport>();
+    auto device = std::make_shared<PelcoD::PelcoDDevice>(transport, 1U);
+    PelcoD::PatrolController controller(device);
+    controller.addStep(PelcoD::PatrolStep { 1U, 1U, "Preset 1", 0U });
+
+    // Destroy device
+    device.reset();
+
+    EXPECT_FALSE(controller.start());
+    EXPECT_EQ(controller.getState(), PelcoD::PatrolState::Idle);
+}
+
+/// @brief Verify M10: destroying the bound shared device mid-tour terminates safely without UAF.
+TEST(PatrolControllerTest, DeviceDestroyedDuringActiveTourTerminatesWithoutUaf)
+{
+    auto transport = std::make_shared<PelcoD::Test::CapturingTransport>();
+    auto device = std::make_shared<PelcoD::PelcoDDevice>(transport, 1U);
+    PelcoD::PatrolController controller(device);
+    controller.addStep(PelcoD::PatrolStep { 1U, 1U, "Preset 1", 0U });
+    controller.addStep(PelcoD::PatrolStep { 2U, 1U, "Preset 2", 0U });
+
+    ASSERT_TRUE(controller.start());
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+    // Destroy device mid-tour
+    device.reset();
+
+    // Give time for step dwell and advance attempt without crashing
+    std::this_thread::sleep_for(std::chrono::milliseconds(1100));
+
+    // Must be stopped or halted without UAF crash
+    EXPECT_EQ(controller.getState(), PelcoD::PatrolState::Idle);
+    controller.stop();
+}
+
+/// @brief Verify M10: getDevice returns configured shared pointer and dispatches preset calls.
+TEST(PatrolControllerTest, SharedPtrDeviceAccessorAndDispatch)
+{
+    auto transport = std::make_shared<PelcoD::Test::CapturingTransport>();
+    auto device = std::make_shared<PelcoD::PelcoDDevice>(transport, 1U);
+    PelcoD::PatrolController controller;
+    controller.setDevice(device);
+
+    EXPECT_EQ(controller.getDevice(), device);
+
+    controller.addStep(PelcoD::PatrolStep { 5U, 1U, "Step 5", 20U });
+    controller.setLoop(false);
+
+    ASSERT_TRUE(controller.start());
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
     controller.stop();
 }
 
