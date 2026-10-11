@@ -1145,6 +1145,191 @@ TEST(PelcoDDeviceStateModel, SerialNumberGetterAndSetter)
     device.stop();
 }
 
+/// @brief Test transport that can be configured to throw on open() (M8).
+class ThrowingOpenTransport final : public PelcoD::ITransport {
+public:
+    [[nodiscard]] bool open() override
+    {
+        if (m_shouldThrow) {
+            throw std::runtime_error("Simulated transport open failure");
+        }
+        m_open.store(true);
+        return true;
+    }
+
+    void close() override
+    {
+        m_open.store(false);
+        m_closed = true;
+    }
+
+    [[nodiscard]] bool isOpen() const noexcept override
+    {
+        return m_open.load();
+    }
+
+    [[nodiscard]] bool sendData(const std::vector<std::uint8_t>& /*data*/) override
+    {
+        return m_open.load();
+    }
+
+    void setDataCallback(DataReceivedCallback callback) override
+    {
+        m_hasDataCb = static_cast<bool>(callback);
+    }
+
+    void setStateCallback(StateChangedCallback callback) override
+    {
+        m_hasStateCb = static_cast<bool>(callback);
+    }
+
+    bool m_shouldThrow { true };
+    std::atomic<bool> m_open { false };
+    bool m_closed { false };
+    bool m_hasDataCb { false };
+    bool m_hasStateCb { false };
+};
+
+/// @brief Transport reconnection must set status.connected to true and notify callbacks (M7).
+TEST(PelcoDDeviceReconnect, TransportReconnectSetsConnectedTrueAndNotifiesCallbacks)
+{
+    auto transport = std::make_shared<PelcoD::Test::CapturingTransport>();
+    PelcoD::PelcoDDevice device { transport, 1U };
+    ASSERT_TRUE(device.start());
+    EXPECT_TRUE(device.getStatus().connected);
+
+    std::atomic<std::uint32_t> statusCount { 0U };
+    std::atomic<bool> lastConnectedState { false };
+    static_cast<void>(device.addStatusCallback([&](const PelcoD::DeviceStatus& s) {
+        statusCount.fetch_add(1U);
+        lastConnectedState.store(s.connected);
+    }));
+
+    const auto stateCb = transport->lastStateCb();
+    ASSERT_TRUE(stateCb);
+
+    // Simulate link disconnection
+    stateCb(PelcoD::TransportState::Disconnected, "link down");
+    EXPECT_FALSE(device.getStatus().connected);
+    EXPECT_EQ(statusCount.load(), 1U);
+    EXPECT_FALSE(lastConnectedState.load());
+
+    // Simulate link reconnection
+    stateCb(PelcoD::TransportState::Connected, "link up");
+    EXPECT_TRUE(device.getStatus().connected);
+    EXPECT_EQ(statusCount.load(), 2U);
+    EXPECT_TRUE(lastConnectedState.load());
+
+    device.stop();
+}
+
+/// @brief Redundant Connected notifications must not fire duplicate status callbacks (M7).
+TEST(PelcoDDeviceReconnect, RedundantConnectedEventDoesNotTriggerDuplicateStatusCallback)
+{
+    auto transport = std::make_shared<PelcoD::Test::CapturingTransport>();
+    PelcoD::PelcoDDevice device { transport, 1U };
+    ASSERT_TRUE(device.start());
+
+    std::atomic<std::uint32_t> statusCount { 0U };
+    static_cast<void>(device.addStatusCallback([&](const PelcoD::DeviceStatus&) {
+        statusCount.fetch_add(1U);
+    }));
+
+    const auto stateCb = transport->lastStateCb();
+    ASSERT_TRUE(stateCb);
+
+    // Initial state is already connected; redundant Connected event should be a no-op
+    stateCb(PelcoD::TransportState::Connected, "already up");
+    EXPECT_EQ(statusCount.load(), 0U);
+
+    device.stop();
+}
+
+/// @brief Transport reconnect received while device is stopped must be ignored (M7).
+TEST(PelcoDDeviceReconnect, TransportReconnectIgnoredWhenDeviceStopped)
+{
+    auto transport = std::make_shared<PelcoD::Test::CapturingTransport>();
+    PelcoD::PelcoDDevice device { transport, 1U };
+    ASSERT_TRUE(device.start());
+
+    const auto stateCb = transport->lastStateCb();
+    ASSERT_TRUE(stateCb);
+
+    device.stop();
+    EXPECT_FALSE(device.getStatus().connected);
+
+    // Late or unexpected transport connect while device is stopped
+    stateCb(PelcoD::TransportState::Connected, "link up");
+    EXPECT_FALSE(device.getStatus().connected);
+    EXPECT_FALSE(device.isConnected());
+}
+
+/// @brief Transport reconnect clears partial framing remnants in the accumulator (M7).
+TEST(PelcoDDeviceReconnect, TransportReconnectClearsRxAccumulator)
+{
+    auto transport = std::make_shared<PelcoD::Test::CapturingTransport>();
+    PelcoD::PelcoDDevice device { transport, 1U };
+    ASSERT_TRUE(device.start());
+
+    const auto dataCb = transport->lastDataCb();
+    const auto stateCb = transport->lastStateCb();
+    ASSERT_TRUE(dataCb);
+    ASSERT_TRUE(stateCb);
+
+    // Inject partial junk data
+    dataCb({ 0xFFU, 0x01U, 0x00U });
+
+    // Disconnect and reconnect
+    stateCb(PelcoD::TransportState::Disconnected, "link down");
+    stateCb(PelcoD::TransportState::Connected, "link up");
+
+    std::atomic<std::uint32_t> trafficCount { 0U };
+    static_cast<void>(device.addTrafficCallback([&](bool isTx, const std::vector<std::uint8_t>&) {
+        if (!isTx) {
+            trafficCount.fetch_add(1U);
+        }
+    }));
+
+    // Inject a valid frame
+    dataCb(panResponse());
+    EXPECT_EQ(trafficCount.load(), 1U);
+
+    device.stop();
+}
+
+/// @brief If transport open() throws an exception during start(), device rolls back cleanly (M8).
+TEST(PelcoDDeviceStartExceptionSafety, StartTransportOpenThrowRollsBackCleanly)
+{
+    auto throwingTransport = std::make_shared<ThrowingOpenTransport>();
+    PelcoD::PelcoDDevice device { throwingTransport, 1U };
+
+    EXPECT_FALSE(device.start());
+    EXPECT_FALSE(device.isConnected());
+    EXPECT_FALSE(device.getStatus().connected);
+    EXPECT_FALSE(throwingTransport->m_hasDataCb);
+    EXPECT_FALSE(throwingTransport->m_hasStateCb);
+}
+
+/// @brief After a failed start(), a subsequent start() on the same device succeeds once transport recovers (M8).
+TEST(PelcoDDeviceStartExceptionSafety, RestartAfterFailedStartSucceeds)
+{
+    auto transport = std::make_shared<ThrowingOpenTransport>();
+    PelcoD::PelcoDDevice device { transport, 1U };
+
+    EXPECT_FALSE(device.start());
+    EXPECT_FALSE(device.isConnected());
+    EXPECT_FALSE(device.getStatus().connected);
+
+    // Recover transport link
+    transport->m_shouldThrow = false;
+    EXPECT_TRUE(device.start());
+    EXPECT_TRUE(device.isConnected());
+    EXPECT_TRUE(device.getStatus().connected);
+
+    device.stop();
+    EXPECT_FALSE(device.isConnected());
+}
+
 } // namespace
 
 

@@ -68,53 +68,94 @@ bool PelcoDDevice::start()
         return true;
     }
 
-    if (!m_asyncWatchdog) {
-        m_asyncWatchdog = std::make_unique<AsyncWatchdog>();
-    }
-
     if (!m_transport) {
         return false;
     }
 
-    // C3b: every transport callback of this session enters a fresh gate. stop() closes it and waits for
-    // in-flight invocations; copies of these lambdas that a transport still holds after stop() (or a
-    // restart) are rejected because their gate stays closed.
-    auto gate = std::make_shared<CallbackGate>();
-    m_rxGate = gate;
-    m_transport->setDataCallback([this, gate](const std::vector<std::uint8_t>& data) {
-        const CallbackGate::Pass pass { *gate };
-        if (pass) {
-            onDataReceived(data);
-        }
-    });
-    m_transport->setStateCallback([this, gate](TransportState state, const std::string& msg) {
-        const CallbackGate::Pass pass { *gate };
-        if (pass) {
-            onTransportState(state, msg);
-        }
-    });
+    bool openedByUs { false };
+    std::shared_ptr<CallbackGate> gate {};
 
-    if (!m_transport->isOpen()) {
-        if (!m_transport->open()) {
-            m_transport->setDataCallback(nullptr);
-            m_transport->setStateCallback(nullptr);
-            gate->close();
-            return false;
+    try {
+        if (!m_asyncWatchdog) {
+            m_asyncWatchdog = std::make_unique<AsyncWatchdog>();
         }
+
+        // C3b: every transport callback of this session enters a fresh gate. stop() closes it and waits for
+        // in-flight invocations; copies of these lambdas that a transport still holds after stop() (or a
+        // restart) are rejected because their gate stays closed.
+        gate = std::make_shared<CallbackGate>();
+        m_rxGate = gate;
+        m_transport->setDataCallback([this, gate](const std::vector<std::uint8_t>& data) {
+            const CallbackGate::Pass pass { *gate };
+            if (pass) {
+                onDataReceived(data);
+            }
+        });
+        m_transport->setStateCallback([this, gate](TransportState state, const std::string& msg) {
+            const CallbackGate::Pass pass { *gate };
+            if (pass) {
+                onTransportState(state, msg);
+            }
+        });
+
+        if (!m_transport->isOpen()) {
+            if (!m_transport->open()) {
+                m_transport->setDataCallback(nullptr);
+                m_transport->setStateCallback(nullptr);
+                gate->close();
+                m_rxGate.reset();
+                return false;
+            }
+            openedByUs = true;
+        }
+
+        m_rxAccumulator.clear();
+        m_abortQueryWait.store(false);
+
+        // Spawn worker thread inside protected scope before committing running states (M8)
+        m_running = true;
+        m_workerThread = std::thread(&PelcoDDevice::workerLoop, this);
+
+        {
+            std::scoped_lock lock(m_statusMutex);
+            m_status.connected = true;
+        }
+
+        LOG(INFO) << "Starting PelcoDDevice controller (address: " << static_cast<std::uint32_t>(m_address.load()) << ")";
+
+        return true;
+    } catch (const std::exception& ex) {
+        LOG(ERROR) << "PelcoDDevice::start encountered exception: " << ex.what();
+    } catch (...) {
+        LOG(ERROR) << "PelcoDDevice::start encountered unknown exception";
     }
 
+    // Rollback: restore pristine stopped invariants (M8)
+    m_running = false;
     {
         std::scoped_lock lock(m_statusMutex);
-        m_status.connected = true;
+        m_status.connected = false;
+    }
+    if (gate) {
+        gate->close();
+    }
+    m_rxGate.reset();
+
+    if (m_transport) {
+        m_transport->setDataCallback(nullptr);
+        m_transport->setStateCallback(nullptr);
+        if (openedByUs && m_transport->isOpen()) {
+            m_transport->close();
+        }
     }
 
-    LOG(INFO) << "Starting PelcoDDevice controller (address: " << static_cast<std::uint32_t>(m_address) << ")";
-
+    if (m_asyncWatchdog) {
+        m_asyncWatchdog->shutdown();
+        m_asyncWatchdog.reset();
+    }
     m_rxAccumulator.clear();
-    m_running = true;
-    m_workerThread = std::thread(&PelcoDDevice::workerLoop, this);
 
-    return true;
+    return false;
 }
 
 void PelcoDDevice::stop()
@@ -197,7 +238,14 @@ void PelcoDDevice::stop()
 
 void PelcoDDevice::onTransportState(TransportState state, const std::string& msg)
 {
-    if (state == TransportState::Disconnected || state == TransportState::Error) {
+    if (!m_running.load()) {
+        return;
+    }
+
+    if (state == TransportState::Connected) {
+        LOG(INFO) << "Transport connected: " << msg;
+        markConnected();
+    } else if (state == TransportState::Disconnected || state == TransportState::Error) {
         LOG(WARNING) << "Transport disconnected or error: " << msg;
         if (m_safetyGuard) {
             m_safetyGuard->onDisconnect();
@@ -222,6 +270,41 @@ void PelcoDDevice::onTransportState(TransportState state, const std::string& msg
             (void)m_transport->sendData(stopFrame);
         }
         markDisconnected();
+    }
+}
+
+void PelcoDDevice::markConnected()
+{
+    bool wasDisconnected { false };
+    DeviceStatus copy {};
+    {
+        std::scoped_lock lock(m_statusMutex);
+        wasDisconnected = !m_status.connected;
+        m_status.connected = true;
+        copy = m_status;
+    }
+    if (!wasDisconnected) {
+        return;
+    }
+
+    m_rxAccumulator.clear();
+    m_queue.wakeAll();
+
+    LOG(INFO) << "PelcoDDevice: transport reconnected for address "
+              << static_cast<std::uint32_t>(m_address.load());
+
+    std::shared_ptr<const std::vector<CallbackEntry<StatusCallback>>> sbs {};
+    {
+        std::scoped_lock lock(m_callbackState->mutex);
+        sbs = m_callbackState->statusCallbacks;
+    }
+    for (const auto& entry : *sbs) {
+        if (entry.cb && entry.gate) {
+            const CallbackGate::Pass pass { *entry.gate };
+            if (pass) {
+                invokeCallbackSafely("StatusCallback", entry.cb, copy);
+            }
+        }
     }
 }
 

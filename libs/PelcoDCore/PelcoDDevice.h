@@ -498,6 +498,8 @@ private:
     void workerLoop();
     void onDataReceived(const std::vector<std::uint8_t>& data);
     void onTransportState(TransportState state, const std::string& msg);
+    /// @brief Synchronizes state and notifies observers when transport link is established/restored (M7).
+    void markConnected();
     void markDisconnected();
     void checkQueryTimeout();
     void dispatchFrame(const std::vector<std::uint8_t>& frame);
