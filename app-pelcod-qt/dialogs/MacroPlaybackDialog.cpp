@@ -6,8 +6,8 @@
 #include "PelcoDFrame.h"
 
 #include <QColor>
-#include <QFileDialog>
 #include <QFile>
+#include <QFileDialog>
 #include <QFont>
 #include <QGroupBox>
 #include <QHBoxLayout>
@@ -31,15 +31,17 @@ MacroPlaybackDialog::MacroPlaybackDialog(QWidget* parent)
 
     m_player->setStepCallback([this](std::size_t stepIdx, std::size_t totalSteps, const PelcoD::MacroStep& step,
                                   std::size_t currentLoop, std::size_t totalLoops) {
-        QMetaObject::invokeMethod(this, [this, stepIdx, totalSteps, step, currentLoop, totalLoops]() {
-            onStepExecuted(stepIdx, totalSteps, step, currentLoop, totalLoops);
-        }, Qt::QueuedConnection);
+        QMetaObject::invokeMethod(
+            this,
+            [this, stepIdx, totalSteps, step, currentLoop, totalLoops]() {
+                onStepExecuted(stepIdx, totalSteps, step, currentLoop, totalLoops);
+            },
+            Qt::QueuedConnection);
     });
 
     m_player->setStateCallback([this](PelcoD::MacroPlayerState state, const std::string& msg) {
-        QMetaObject::invokeMethod(this, [this, state, msg]() {
-            onPlayerStateChanged(state, msg);
-        }, Qt::QueuedConnection);
+        QMetaObject::invokeMethod(
+            this, [this, state, msg]() { onPlayerStateChanged(state, msg); }, Qt::QueuedConnection);
     });
 
     // Provide default starter steps if empty
@@ -47,12 +49,10 @@ MacroPlaybackDialog::MacroPlaybackDialog(QWidget* parent)
     initialSeq.name = "Quick PTZ Sweep";
     initialSeq.description = "Pan sweep with stop and preset recall";
     initialSeq.repeatCount = 1U;
-    initialSeq.steps = {
-        { "Pan Left Speed 32", PelcoD::PelcoDFrame::createFrame(1, 0, 0x04, 0x20, 0x00), 200U, false },
+    initialSeq.steps = { { "Pan Left Speed 32", PelcoD::PelcoDFrame::createFrame(1, 0, 0x04, 0x20, 0x00), 200U, false },
         { "Pan Right Speed 32", PelcoD::PelcoDFrame::createFrame(1, 0, 0x02, 0x20, 0x00), 200U, false },
         { "Stop Motion", PelcoD::PelcoDFrame::createFrame(1, 0, 0x00, 0x00, 0x00), 100U, false },
-        { "Go To Preset 1", PelcoD::PelcoDFrame::createFrame(1, 0, 0x07, 0x00, 0x01), 500U, false }
-    };
+        { "Go To Preset 1", PelcoD::PelcoDFrame::createFrame(1, 0, 0x07, 0x00, 0x01), 500U, false } };
     loadSequence(initialSeq);
 }
 
@@ -111,7 +111,8 @@ void MacroPlaybackDialog::setupUi()
     // Steps Table
     tableSteps = new QTableWidget(this);
     tableSteps->setColumnCount(4);
-    tableSteps->setHorizontalHeaderLabels({ tr("Step #"), tr("Hex Dump"), tr("Delay (ms)"), tr("Description / Label") });
+    tableSteps->setHorizontalHeaderLabels(
+        { tr("Step #"), tr("Hex Dump"), tr("Delay (ms)"), tr("Description / Label") });
     tableSteps->horizontalHeader()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
     tableSteps->horizontalHeader()->setSectionResizeMode(1, QHeaderView::ResizeToContents);
     tableSteps->horizontalHeader()->setSectionResizeMode(2, QHeaderView::ResizeToContents);
@@ -156,7 +157,8 @@ void MacroPlaybackDialog::setupUi()
 
     btnPlay = new QPushButton(tr("▶ Play"), this);
     btnPlay->setObjectName("btnPrimary");
-    btnPlay->setStyleSheet("QPushButton { font-weight: bold; background-color: #238636; color: white; padding: 6px 14px; border-radius: 4px; }");
+    btnPlay->setStyleSheet("QPushButton { font-weight: bold; background-color: #238636; color: white; padding: 6px "
+                           "14px; border-radius: 4px; }");
 
     btnPause = new QPushButton(tr("⏸ Pause"), this);
     btnPause->setEnabled(false);
@@ -199,7 +201,8 @@ void MacroPlaybackDialog::setupUi()
     connect(btnLoad, &QPushButton::clicked, this, &MacroPlaybackDialog::handleLoadScript);
     connect(btnSave, &QPushButton::clicked, this, &MacroPlaybackDialog::handleSaveScript);
 
-    connect(spinSpeed, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, &MacroPlaybackDialog::handleSpeedChanged);
+    connect(spinSpeed, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this,
+        &MacroPlaybackDialog::handleSpeedChanged);
     connect(spinRepeat, QOverload<int>::of(&QSpinBox::valueChanged), this, &MacroPlaybackDialog::handleRepeatChanged);
 }
 
@@ -281,7 +284,8 @@ void MacroPlaybackDialog::handlePlay()
     PelcoD::MacroSequence seq = buildSequenceFromUi();
     std::string err;
     if (!PelcoD::MacroSerializer::validate(seq, &err)) {
-        QMessageBox::warning(this, tr("Invalid Macro"), tr("Macro sequence is invalid:\n%1").arg(QString::fromStdString(err)));
+        QMessageBox::warning(
+            this, tr("Invalid Macro"), tr("Macro sequence is invalid:\n%1").arg(QString::fromStdString(err)));
         return;
     }
 
@@ -289,7 +293,10 @@ void MacroPlaybackDialog::handlePlay()
         m_player->loadSequence(seq);
     }
     m_player->setSpeedMultiplier(spinSpeed->value());
-    m_player->start();
+    if (!m_player->start()) {
+        QMessageBox::warning(this, tr("Playback Error"), tr("Failed to start macro playback."));
+        return;
+    }
     updateUiForState(PelcoD::MacroPlayerState::Playing);
 }
 
@@ -308,14 +315,14 @@ void MacroPlaybackDialog::handleStop()
 
 void MacroPlaybackDialog::handleStepNext()
 {
-    if (m_player->state() == PelcoD::MacroPlayerState::Idle ||
-        m_player->state() == PelcoD::MacroPlayerState::Stopped ||
-        m_player->state() == PelcoD::MacroPlayerState::Completed) {
+    if (m_player->state() == PelcoD::MacroPlayerState::Idle || m_player->state() == PelcoD::MacroPlayerState::Stopped
+        || m_player->state() == PelcoD::MacroPlayerState::Completed) {
         PelcoD::MacroSequence seq = buildSequenceFromUi();
         m_player->loadSequence(seq);
     }
-    m_player->stepNext();
-    updateUiForState(PelcoD::MacroPlayerState::Paused);
+    if (m_player->stepNext()) {
+        updateUiForState(PelcoD::MacroPlayerState::Paused);
+    }
 }
 
 void MacroPlaybackDialog::handleAddStep()
@@ -355,16 +362,15 @@ void MacroPlaybackDialog::handleRemoveStep()
 
 void MacroPlaybackDialog::handleClearSteps()
 {
-    if (tableSteps->rowCount() > 0 &&
-        QMessageBox::question(this, tr("Clear Steps"), tr("Remove all steps from the macro?")) == QMessageBox::Yes) {
+    if (tableSteps->rowCount() > 0
+        && QMessageBox::question(this, tr("Clear Steps"), tr("Remove all steps from the macro?")) == QMessageBox::Yes) {
         tableSteps->setRowCount(0);
     }
 }
 
 void MacroPlaybackDialog::handleLoadScript()
 {
-    const QString filePath = QFileDialog::getOpenFileName(
-        this, tr("Load Macro Script"), QString(),
+    const QString filePath = QFileDialog::getOpenFileName(this, tr("Load Macro Script"), QString(),
         tr("Macro Files (*.json *.hex *.txt);;JSON Macro (*.json);;Hex Script (*.hex *.txt);;All Files (*.*)"));
 
     if (filePath.isEmpty()) {
@@ -396,8 +402,7 @@ void MacroPlaybackDialog::handleLoadScript()
 void MacroPlaybackDialog::handleSaveScript()
 {
     const QString filePath = QFileDialog::getSaveFileName(
-        this, tr("Save Macro Script"), QString(),
-        tr("JSON Macro (*.json);;Hex Script (*.hex);;Plain Text (*.txt)"));
+        this, tr("Save Macro Script"), QString(), tr("JSON Macro (*.json);;Hex Script (*.hex);;Plain Text (*.txt)"));
 
     if (filePath.isEmpty()) {
         return;
@@ -450,7 +455,8 @@ void MacroPlaybackDialog::onStepExecuted(std::size_t stepIdx, std::size_t totalS
     if (totalLoops == 0) {
         statusText = tr("Running: Step %1/%2 (Loop %3/∞)").arg(stepIdx + 1).arg(totalSteps).arg(currentLoop);
     } else {
-        statusText = tr("Running: Step %1/%2 (Loop %3/%4)").arg(stepIdx + 1).arg(totalSteps).arg(currentLoop).arg(totalLoops);
+        statusText
+            = tr("Running: Step %1/%2 (Loop %3/%4)").arg(stepIdx + 1).arg(totalSteps).arg(currentLoop).arg(totalLoops);
     }
     lblStatus->setText(statusText);
 }
