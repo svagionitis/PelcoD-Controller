@@ -842,7 +842,10 @@ int main(int argc, char* argv[])
                 std::cout << ")\n";
             });
 
-            scanner.startScan(scanCfg);
+            if (!scanner.startScan(scanCfg)) {
+                std::cerr << "Error: Failed to start bus scan.\n";
+                return 1;
+            }
             while (scanner.getState() == PelcoD::ScanState::Scanning) {
                 std::this_thread::sleep_for(std::chrono::milliseconds(50));
             }
