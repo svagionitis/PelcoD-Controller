@@ -6,7 +6,9 @@
 
 #include <gtest/gtest.h>
 
+#include <chrono>
 #include <cstdint>
+#include <thread>
 #include <vector>
 
 namespace {
@@ -127,11 +129,12 @@ TEST(StreamAccumulatorTest, GeneralResponseFraming)
 
     // Byte-by-byte push with AllowGeneralResponse and final flush
     for (std::size_t i = 0U; i < genFrame.size() - 1U; ++i) {
-        auto step = acc.push(std::vector<std::uint8_t> { genFrame[i] }, PelcoD::RxFrameExpectation::AllowGeneralResponse);
+        auto step
+            = acc.push(std::vector<std::uint8_t> { genFrame[i] }, PelcoD::RxFrameExpectation::AllowGeneralResponse);
         EXPECT_TRUE(step.empty());
     }
-    const auto stepLast = acc.push(
-        std::vector<std::uint8_t> { genFrame.back() }, PelcoD::RxFrameExpectation::AllowGeneralResponse);
+    const auto stepLast
+        = acc.push(std::vector<std::uint8_t> { genFrame.back() }, PelcoD::RxFrameExpectation::AllowGeneralResponse);
     EXPECT_TRUE(stepLast.empty());
     auto finalStep = acc.flush(PelcoD::RxFrameExpectation::AllowGeneralResponse);
     ASSERT_EQ(finalStep.size(), 1U);
@@ -305,7 +308,8 @@ TEST(StreamAccumulatorTest, StatisticsTracking)
 
 /// @brief Verify that chunked 7-byte ACKs from default address 1 are not misread as 4-byte general responses.
 /// @details Regression test for Finding H4. A 7-byte ACK (FF 01 00 01 07 01 0A) delivered in chunks of
-///          5 bytes and 2 bytes must be reassembled into a single 7-byte frame, not prematurely sliced into a 4-byte general response.
+///          5 bytes and 2 bytes must be reassembled into a single 7-byte frame, not prematurely sliced into a 4-byte
+///          general response.
 TEST(StreamAccumulatorTest, ChunkedAckAddress1NotMisreadAsGeneralResponse)
 {
     PelcoD::RxStreamAccumulator acc;
@@ -406,7 +410,8 @@ TEST(StreamAccumulatorTest, SlidingCursorHandlesStreamNoiseEfficiently)
     EXPECT_EQ(acc.checksumErrors(), 0U);
 }
 
-/// @brief Verify that checksumErrors increments for corrupted candidate frames while noise increments discardedBytes (L11).
+/// @brief Verify that checksumErrors increments for corrupted candidate frames while noise increments discardedBytes
+/// (L11).
 TEST(StreamAccumulatorTest, ChecksumErrorAccurateAccounting)
 {
     PelcoD::RxStreamAccumulator acc;
