@@ -135,11 +135,20 @@ public:
     /// @return Shared pointer to PelcoDDevice or nullptr if unset or expired.
     [[nodiscard]] std::shared_ptr<PelcoDDevice> getDevice() const;
 
+    /// @brief Registers a command dispatcher accepting only a preset ID.
+    /// @details Overwrites any previously configured dispatcher or bound device.
+    /// @param[in] dispatcher Callback function invoked with presetId.
     void setCommandDispatcher(GoToPresetCallback dispatcher);
 
     /// @brief Registers a command dispatcher accepting both preset ID and transition speed.
+    /// @details Overwrites any previously configured dispatcher or bound device.
     /// @param[in] dispatcher Callback function invoked with presetId and speed.
     void setCommandDispatcher(StepDispatcherCallback dispatcher);
+
+    /// @brief Clears any registered command dispatcher.
+    /// @details Resets both single-parameter and dual-parameter command dispatchers to empty.
+    /// @param[in] nullptrTag Null pointer literal used to clear dispatchers.
+    void setCommandDispatcher(std::nullptr_t nullptrTag);
 
     void setStepChangedCallback(StepChangedCallback cb);
     void setStateChangedCallback(StateChangedCallback cb);

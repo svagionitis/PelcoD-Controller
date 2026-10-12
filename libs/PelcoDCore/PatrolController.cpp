@@ -333,9 +333,7 @@ void PatrolController::setDevice(PelcoDDevice* device)
     if (device != nullptr) {
         m_hasDevice = true;
         m_deviceWeak.reset();
-        m_stepDispatcher = [device](std::uint8_t presetId, std::uint8_t speed) {
-            device->goToPreset(presetId, speed);
-        };
+        m_stepDispatcher = [device](std::uint8_t presetId, std::uint8_t speed) { device->goToPreset(presetId, speed); };
         m_dispatcher = [device](std::uint8_t presetId) { device->goToPreset(presetId); };
     } else {
         m_hasDevice = false;
@@ -367,6 +365,15 @@ void PatrolController::setCommandDispatcher(StepDispatcherCallback dispatcher)
     m_deviceWeak.reset();
     m_stepDispatcher = std::move(dispatcher);
     m_dispatcher = nullptr;
+}
+
+void PatrolController::setCommandDispatcher(std::nullptr_t /*nullptrTag*/)
+{
+    std::scoped_lock lock(m_mutex);
+    m_hasDevice = false;
+    m_deviceWeak.reset();
+    m_dispatcher = nullptr;
+    m_stepDispatcher = nullptr;
 }
 
 void PatrolController::setStepChangedCallback(StepChangedCallback cb)

@@ -3,6 +3,7 @@
 
 #include "BaseTransport.h"
 #include "MockPelcoDDevice.h"
+#include "QPatrolController.h"
 #include "QPelcoDDevice.h"
 
 #include <QCoreApplication>
@@ -291,6 +292,17 @@ TEST(QPelcoDDeviceTest, RapidConnectCallsDoNotBlock)
 
     EXPECT_TRUE(elapsedMs < 100);
     device.disconnectDevice();
+}
+
+TEST(QPatrolControllerTest, SetDeviceNullptr)
+{
+    PelcoDQt::QPatrolController controller;
+    controller.setDevice(nullptr);
+
+    auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(1U);
+    PelcoDQt::QPelcoDDevice device(mock, 1U);
+    controller.setDevice(&device);
+    controller.setDevice(nullptr);
 }
 
 int main(int argc, char* argv[])

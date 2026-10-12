@@ -1,8 +1,8 @@
 /// @file TestPatrolController.cpp
 /// @brief Unit tests for PelcoD::PatrolController sequencing, dwell timing, and state transitions.
 
-#include "PatrolController.h"
 #include "CapturingTransport.h"
+#include "PatrolController.h"
 #include "PelcoDDevice.h"
 #include "TestHelpers.h"
 
@@ -573,5 +573,15 @@ TEST(PatrolControllerTest, SharedPtrDeviceAccessorAndDispatch)
     controller.stop();
 }
 
-} // namespace
+/// @brief Verify clearing command dispatcher via nullptr overload behaves safely.
+TEST(PatrolControllerTest, ClearCommandDispatcherWithNullptr)
+{
+    PelcoD::PatrolController controller;
+    controller.setCommandDispatcher([](std::uint8_t) {});
+    controller.setCommandDispatcher(nullptr);
 
+    controller.setCommandDispatcher([](std::uint8_t, std::uint8_t) {});
+    controller.setCommandDispatcher(nullptr);
+}
+
+} // namespace
