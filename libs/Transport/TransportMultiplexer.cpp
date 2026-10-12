@@ -4,6 +4,8 @@
 #include "TransportMultiplexer.h"
 
 #include <algorithm>
+#include <atomic>
+#include <mutex>
 #include <utility>
 
 namespace Transport {
@@ -12,9 +14,7 @@ namespace Transport {
 /// @brief Virtual transport endpoint bound to a parent TransportMultiplexer.
 class TransportMultiplexer::Channel final : public ITransport {
 public:
-    Channel(std::shared_ptr<TransportMultiplexer> parent,
-        std::shared_ptr<ITransport> underlying,
-        std::uint64_t id)
+    Channel(std::shared_ptr<TransportMultiplexer> parent, std::shared_ptr<ITransport> underlying, std::uint64_t id)
         : m_parent(std::move(parent))
         , m_underlying(std::move(underlying))
         , m_id(id)
@@ -225,14 +225,13 @@ void TransportMultiplexer::registerChannel(const std::shared_ptr<Channel>& chann
 void TransportMultiplexer::unregisterChannel(std::uint64_t channelId)
 {
     std::scoped_lock lock(m_channelsMutex);
-    m_channels.erase(
-        std::remove_if(m_channels.begin(), m_channels.end(),
-            [channelId](const std::weak_ptr<Channel>& wp) {
-                if (auto ch = wp.lock()) {
-                    return ch->getId() == channelId;
-                }
-                return true;
-            }),
+    m_channels.erase(std::remove_if(m_channels.begin(), m_channels.end(),
+                         [channelId](const std::weak_ptr<Channel>& wp) {
+                             if (auto ch = wp.lock()) {
+                                 return ch->getId() == channelId;
+                             }
+                             return true;
+                         }),
         m_channels.end());
 }
 

@@ -6,6 +6,7 @@
 
 #include <gtest/gtest.h>
 
+#include <atomic>
 #include <chrono>
 #include <cstdint>
 #include <future>
@@ -261,7 +262,8 @@ TEST(CommandQueueTest, LinearBackoffOverflowSaturatesSafely)
     EXPECT_EQ(PelcoD::calculateBackoffDelay(cfg, 1000000U).count(), 50000);
 }
 
-/// @brief Verify that Exponential backoff does not trigger floating-point cast UB or negative wrapping (review finding H10).
+/// @brief Verify that Exponential backoff does not trigger floating-point cast UB or negative wrapping (review finding
+/// H10).
 /// @details Extremely large retry attempts causing pow() to exceed LLONG_MAX or reach infinity must saturate
 ///          safely to maxBackoff without invoking undefined float-to-int conversions (CERT FLP34-C).
 TEST(CommandQueueTest, ExponentialBackoffFloatOverflowSaturatesSafely)
@@ -484,4 +486,3 @@ TEST(CommandQueueTest, EvictionHandlerInvokedOnClear)
 }
 
 } // namespace
-

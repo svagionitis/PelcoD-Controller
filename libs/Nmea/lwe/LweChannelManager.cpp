@@ -1,6 +1,9 @@
 #include "LweChannelManager.h"
 #include "NmeaTagBlockParser.h"
 
+#include <atomic>
+#include <mutex>
+
 namespace Nmea::Lwe {
 
 class LweChannelManager::AggregatedTransport : public Transport::BaseTransport {

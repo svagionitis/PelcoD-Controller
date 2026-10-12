@@ -7,6 +7,7 @@
 #include "PayloadTypes.h"
 
 #include <functional>
+#include <optional>
 
 namespace PayloadHal {
 

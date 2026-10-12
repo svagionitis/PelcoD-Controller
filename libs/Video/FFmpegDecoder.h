@@ -9,6 +9,7 @@
 #include <chrono>
 #include <memory>
 #include <string>
+#include <string_view>
 
 #if defined(PELCOD_HAS_FFMPEG)
 extern "C" {

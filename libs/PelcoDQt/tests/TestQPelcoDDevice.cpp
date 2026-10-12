@@ -7,6 +7,7 @@
 
 #include <QCoreApplication>
 #include <QThread>
+#include <atomic>
 #include <chrono>
 #include <gtest/gtest.h>
 #include <iostream>

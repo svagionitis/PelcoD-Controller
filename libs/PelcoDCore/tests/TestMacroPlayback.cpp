@@ -7,7 +7,9 @@
 
 #include <gtest/gtest.h>
 
+#include <atomic>
 #include <chrono>
+#include <condition_variable>
 #include <cstdint>
 #include <future>
 #include <limits>
@@ -465,13 +467,13 @@ TEST(MacroPlaybackTest, ReentrantPauseFromStepCallbackDoesNotDeadlock)
     player.loadSequence(seq);
 
     auto fut = std::async(std::launch::async, [&]() {
-        player.setStepCallback([&](std::size_t, std::size_t, const PelcoD::MacroStep&, std::size_t, std::size_t) {
-            player.pause();
-        });
+        player.setStepCallback(
+            [&](std::size_t, std::size_t, const PelcoD::MacroStep&, std::size_t, std::size_t) { player.pause(); });
         return player.stepNext();
     });
 
-    ASSERT_EQ(fut.wait_for(std::chrono::milliseconds(500)), std::future_status::ready) << "Deadlock in re-entrant pause()";
+    ASSERT_EQ(fut.wait_for(std::chrono::milliseconds(500)), std::future_status::ready)
+        << "Deadlock in re-entrant pause()";
     EXPECT_TRUE(fut.get());
     EXPECT_EQ(player.state(), PelcoD::MacroPlayerState::Paused);
 }
@@ -498,7 +500,8 @@ TEST(MacroPlaybackTest, ReentrantStopFromStateCallbackDoesNotDeadlock)
         return player.stepNext();
     });
 
-    ASSERT_EQ(fut.wait_for(std::chrono::milliseconds(500)), std::future_status::ready) << "Deadlock in re-entrant stop()";
+    ASSERT_EQ(fut.wait_for(std::chrono::milliseconds(500)), std::future_status::ready)
+        << "Deadlock in re-entrant stop()";
     EXPECT_TRUE(fut.get());
     EXPECT_EQ(player.state(), PelcoD::MacroPlayerState::Stopped);
 }
@@ -739,9 +742,7 @@ TEST(MacroPlaybackTest, MacroPlayerSpeedMultiplierNanAndExtremeSpeed)
     player.setSpeedMultiplier(0.05);
 
     std::atomic<bool> dispatched { false };
-    player.setDispatchCallback([&](const std::vector<std::uint8_t>&) {
-        dispatched.store(true);
-    });
+    player.setDispatchCallback([&](const std::vector<std::uint8_t>&) { dispatched.store(true); });
 
     EXPECT_TRUE(player.start());
     // Allow thread to spawn and dispatch the frame
@@ -857,8 +858,8 @@ TEST(MacroPlaybackTest, MacroPlayerWaitsForResponse)
         EXPECT_EQ(receivedResponse, dummyResponse);
     }
 
-    const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
-        std::chrono::steady_clock::now() - startTime).count();
+    const auto elapsed
+        = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - startTime).count();
     // Must have unblocked promptly without waiting the full 2000 ms delay
     EXPECT_LT(elapsed, 1200);
 
@@ -904,6 +905,3 @@ TEST(MacroPlaybackTest, MacroPlayerResponseTimeoutFires)
 }
 
 } // namespace
-
-
-

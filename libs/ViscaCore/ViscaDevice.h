@@ -6,6 +6,7 @@
 #include <Transport/ITransport.h>
 
 #include <array>
+#include <atomic>
 #include <chrono>
 #include <condition_variable>
 #include <deque>

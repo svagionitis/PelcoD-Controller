@@ -1,10 +1,11 @@
+#include "PayloadStowController.h"
 #include "Stanag4586Bridge.h"
 #include "Stanag4586Types.h"
 #include "sim/SimulatedPayload.h"
-#include "PayloadStowController.h"
 
 #include <gtest/gtest.h>
 
+#include <atomic>
 #include <chrono>
 #include <cmath>
 #include <cstring>
@@ -23,8 +24,8 @@ TEST(TestStanag4586Bridge, Crc16CcittComputation)
     // Known test vector for CRC-16 CCITT (poly 0x1021, init 0xFFFF):
     // "123456789" (ASCII bytes) -> 0x29B1
     const char* testStr = "123456789";
-    const auto crc = StanagWire::computeCrc16Ccitt(
-        reinterpret_cast<const std::uint8_t*>(testStr), std::strlen(testStr));
+    const auto crc
+        = StanagWire::computeCrc16Ccitt(reinterpret_cast<const std::uint8_t*>(testStr), std::strlen(testStr));
     EXPECT_EQ(crc, 0x29B1U);
 }
 
@@ -116,9 +117,7 @@ TEST(TestStanag4586Bridge, Message2001ConfigQueryAndAutoReply)
     auto bridge = std::make_shared<Stanag4586Bridge>(sim, config);
 
     std::vector<std::uint8_t> txPacket;
-    bridge->setPacketTxCallback([&txPacket](const std::vector<std::uint8_t>& pkt) {
-        txPacket = pkt;
-    });
+    bridge->setPacketTxCallback([&txPacket](const std::vector<std::uint8_t>& pkt) { txPacket = pkt; });
 
     // Manually construct framed Message #2001 requesting station 2
     std::vector<std::uint8_t> reqPacket(STANAG4586_HEADER_SIZE + STANAG_PAYLOAD_SIZE_2001 + 2U, 0U);
@@ -135,7 +134,8 @@ TEST(TestStanag4586Bridge, Message2001ConfigQueryAndAutoReply)
 
     // Verify reply packet was transmitted
     ASSERT_FALSE(txPacket.empty());
-    EXPECT_EQ(StanagWire::readUint16Be(&txPacket[2]), static_cast<std::uint16_t>(StanagMessageId::PayloadConfiguration));
+    EXPECT_EQ(
+        StanagWire::readUint16Be(&txPacket[2]), static_cast<std::uint16_t>(StanagMessageId::PayloadConfiguration));
     EXPECT_EQ(txPacket[24], 2U);
 }
 
@@ -339,7 +339,8 @@ TEST(TestStanag4586Bridge, InboundPacketValidationFailures)
 
     auto pktStation0 = bridge->serializeMessage2000(0U);
     // Send packet targeted to station 0 to a bridge expecting station 5
-    EXPECT_EQ(bridgeOther->processInboundBytes(pktStation0.data(), pktStation0.size()), StanagParseResult::StationMismatch);
+    EXPECT_EQ(
+        bridgeOther->processInboundBytes(pktStation0.data(), pktStation0.size()), StanagParseResult::StationMismatch);
 }
 
 // =============================================================================
@@ -355,9 +356,7 @@ TEST(TestStanag4586Bridge, PeriodicTelemetryThreadLifecycle)
     auto bridge = std::make_shared<Stanag4586Bridge>(sim, config);
 
     std::atomic<int> packetCount { 0 };
-    bridge->setPacketTxCallback([&packetCount](const std::vector<std::uint8_t>&) {
-        packetCount.fetch_add(1);
-    });
+    bridge->setPacketTxCallback([&packetCount](const std::vector<std::uint8_t>&) { packetCount.fetch_add(1); });
 
     EXPECT_FALSE(bridge->isPeriodicTelemetryRunning());
     bridge->startPeriodicTelemetry(std::chrono::milliseconds(20));

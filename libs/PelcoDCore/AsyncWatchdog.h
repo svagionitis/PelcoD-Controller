@@ -3,6 +3,7 @@
 /// @file AsyncWatchdog.h
 /// @brief Centralized timer manager for asynchronous query timeouts without detached threads.
 
+#include <atomic>
 #include <chrono>
 #include <condition_variable>
 #include <cstdint>

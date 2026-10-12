@@ -7,6 +7,7 @@
 
 #include <memory>
 #include <string>
+#include <string_view>
 
 #if defined(PELCOD_HAS_GSTREAMER)
 #include <gst/app/gstappsink.h>

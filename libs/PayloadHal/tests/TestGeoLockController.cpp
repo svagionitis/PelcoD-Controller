@@ -4,6 +4,7 @@
 #include "GeoLockController.h"
 #include "GeoreferenceUtils.h"
 #include "sim/SimulatedPayload.h"
+#include <atomic>
 #include <chrono>
 #include <cmath>
 #include <gtest/gtest.h>

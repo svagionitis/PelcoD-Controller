@@ -7,6 +7,7 @@
 #include <cstdint>
 #include <cstring>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace Sightline {
@@ -414,13 +415,13 @@ enum class MessageId : std::uint8_t {
 /// @brief Primary tracking algorithmic modes supported by Sightline SLA firmware.
 /// @details Conforms to EAN-Target-Tracking Section 3.
 enum class TrackingMode : std::uint8_t {
-    Vehicle = 0U,        ///< Any moving or stationary ground vehicle (2.22+)
-    Stationary = 1U,     ///< Fixed infrastructure or buildings (2.22+)
-    Scene = 2U,          ///< Scene tracking / lock via frame registration (2.22+)
+    Vehicle = 0U, ///< Any moving or stationary ground vehicle (2.22+)
+    Stationary = 1U, ///< Fixed infrastructure or buildings (2.22+)
+    Scene = 2U, ///< Scene tracking / lock via frame registration (2.22+)
     NoRegistration = 3U, ///< Deprecated in 3.7; blue sky / untextured targets
-    Static = 4U,         ///< Fixed camera coordinates (IR radiometric reporting)
-    Drone = 5U,          ///< Agile, rapidly resizing aerial targets (2.24+)
-    Person = 6U          ///< Human pedestrian tracking (3.01+)
+    Static = 4U, ///< Fixed camera coordinates (IR radiometric reporting)
+    Drone = 5U, ///< Agile, rapidly resizing aerial targets (2.24+)
+    Person = 6U ///< Human pedestrian tracking (3.01+)
 };
 
 /// @enum ModifyMode
@@ -448,32 +449,32 @@ enum class ModifyMode : std::uint8_t {
 /// @details Conforms to EAN-Target-Tracking Section 7.5.
 enum class ForcedCoastingMode : std::uint8_t {
     None = 0U,
-    FreezeUpdates = 1U,     ///< Searches frame, updates momentum; does not retrain model (2.24+)
-    FreezeSearch = 2U,      ///< Skips search; maintains current velocity projection (3.00+)
-    FreezePropagation = 3U  ///< Freezes search and velocity propagation entirely (3.4+)
+    FreezeUpdates = 1U, ///< Searches frame, updates momentum; does not retrain model (2.24+)
+    FreezeSearch = 2U, ///< Skips search; maintains current velocity projection (3.00+)
+    FreezePropagation = 3U ///< Freezes search and velocity propagation entirely (3.4+)
 };
 
 /// @enum TrackIndexAction
 /// @brief Operational action codes for ModifyTrackIndex (Message ID 0x17).
 /// @details Conforms to EAN-Target-Tracking Section 7.5 and SLA IDD.
 enum class TrackIndexAction : std::uint8_t {
-    Stop = 0U,                        ///< Stop the specified track
-    MakePrimary = 1U,                 ///< Designate the specified track as primary
-    Reinitialize = 2U,                ///< Re-acquire and retrain model at current target position
-    CoastNone = 3U,                   ///< Clear forced coast / resume normal tracking
-    CoastFreezeUpdates = 4U,          ///< Forced coast: search without retraining model
-    CoastFreezeSearch = 5U,           ///< Forced coast: skip search, maintain velocity projection
-    CoastFreezePropagation = 6U,     ///< Forced coast: freeze velocity propagation
-    ResizeNoAcquisitionAssist = 8U,   ///< Resize track box without acquisition assist
-    ResizeWithAcquisitionAssist = 9U  ///< Resize track box with acquisition assist
+    Stop = 0U, ///< Stop the specified track
+    MakePrimary = 1U, ///< Designate the specified track as primary
+    Reinitialize = 2U, ///< Re-acquire and retrain model at current target position
+    CoastNone = 3U, ///< Clear forced coast / resume normal tracking
+    CoastFreezeUpdates = 4U, ///< Forced coast: search without retraining model
+    CoastFreezeSearch = 5U, ///< Forced coast: skip search, maintain velocity projection
+    CoastFreezePropagation = 6U, ///< Forced coast: freeze velocity propagation
+    ResizeNoAcquisitionAssist = 8U, ///< Resize track box without acquisition assist
+    ResizeWithAcquisitionAssist = 9U ///< Resize track box with acquisition assist
 };
 
 /// @enum NudgeCoordinateMode
 /// @brief Coordinate frame selection for NudgeTrackingCoordinate (0x0A).
 /// @details Conforms to EAN-Target-Tracking Section 7.4.
 enum class NudgeCoordinateMode : std::uint8_t {
-    CameraCoordinates = 0U,  ///< Standard camera frame coordinates
-    DisplayCoordinates = 1U  ///< Rotated display coordinates (handles inverted/gimbal displays)
+    CameraCoordinates = 0U, ///< Standard camera frame coordinates
+    DisplayCoordinates = 1U ///< Rotated display coordinates (handles inverted/gimbal displays)
 };
 
 /// @namespace TrackingFlags
@@ -481,10 +482,10 @@ enum class NudgeCoordinateMode : std::uint8_t {
 namespace TrackingFlags {
     inline constexpr std::uint8_t AcquisitionAssist { 0x01U }; ///< Enables initial search area optimization
     inline constexpr std::uint8_t IntelligentAssist { 0x02U }; ///< Enables adaptive reinitialization
-    inline constexpr std::uint8_t ColorTracking     { 0x04U }; ///< Enables color contrast tracking (3.11+)
-    inline constexpr std::uint8_t ZoomScaling       { 0x08U }; ///< Scale target gate with zoom (3.6+)
-    inline constexpr std::uint8_t UniqueTracks      { 0x10U }; ///< Independent per-track modes (3.11+)
-    inline constexpr std::uint8_t AutoTrackMode     { 0x20U }; ///< Automatic AI classification mode (3.11+)
+    inline constexpr std::uint8_t ColorTracking { 0x04U }; ///< Enables color contrast tracking (3.11+)
+    inline constexpr std::uint8_t ZoomScaling { 0x08U }; ///< Scale target gate with zoom (3.6+)
+    inline constexpr std::uint8_t UniqueTracks { 0x10U }; ///< Independent per-track modes (3.11+)
+    inline constexpr std::uint8_t AutoTrackMode { 0x20U }; ///< Automatic AI classification mode (3.11+)
 }
 
 /// @enum CoordinateReportingFlags

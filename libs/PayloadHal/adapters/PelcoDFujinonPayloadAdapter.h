@@ -10,6 +10,7 @@
 
 #include <memory>
 #include <mutex>
+#include <optional>
 
 namespace PayloadHal {
 
@@ -48,7 +49,8 @@ public:
     bool setWDR(PelcoD::FujinonWDRLevel level);
     bool setVLCFilter(bool enable);
 
-    [[nodiscard]] std::shared_ptr<PelcoD::FujinonSX800Device> underlyingDevice() const noexcept {
+    [[nodiscard]] std::shared_ptr<PelcoD::FujinonSX800Device> underlyingDevice() const noexcept
+    {
         return m_device;
     }
 
