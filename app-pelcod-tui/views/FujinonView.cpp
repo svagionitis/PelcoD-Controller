@@ -201,114 +201,114 @@ bool FujinonView::handleInput(const InputEvent& event, PelcoD::FujinonSX800Devic
             mode = PelcoD::FujinonOISMode::EisOn;
         else if (m_oisIndex == 3)
             mode = PelcoD::FujinonOISMode::Off;
-        device.setOISMode(mode);
+        static_cast<void>(device.setOISMode(mode));
         m_lastAction = std::string("Set OIS: ") + kOisNames[m_oisIndex];
         break;
     }
     case 1: { // VLC
         m_vlcFilter = !m_vlcFilter;
-        device.setVLCFilter(m_vlcFilter);
+        static_cast<void>(device.setVLCFilter(m_vlcFilter));
         m_lastAction = m_vlcFilter ? "VLC Filter Engaged" : "VLC Filter Retracted";
         break;
     }
     case 2: { // Defog
         m_defogIndex = isLeft ? ((m_defogIndex + 3) % 4) : ((m_defogIndex + 1) % 4);
-        device.setDefog(static_cast<PelcoD::FujinonDefogLevel>(m_defogIndex));
+        static_cast<void>(device.setDefog(static_cast<PelcoD::FujinonDefogLevel>(m_defogIndex)));
         m_lastAction = std::string("Set Defog: ") + kDefogNames[m_defogIndex];
         break;
     }
     case 3: { // Heat Haze
         m_heatHazeIndex = isLeft ? ((m_heatHazeIndex + 2) % 3) : ((m_heatHazeIndex + 1) % 3);
-        device.setHeatHaze(static_cast<PelcoD::FujinonHeatHazeLevel>(m_heatHazeIndex));
+        static_cast<void>(device.setHeatHaze(static_cast<PelcoD::FujinonHeatHazeLevel>(m_heatHazeIndex)));
         m_lastAction = std::string("Set Heat Haze: ") + kHeatHazeNames[m_heatHazeIndex];
         break;
     }
     case 4: { // WDR
         m_wdrIndex = isLeft ? ((m_wdrIndex + 3) % 4) : ((m_wdrIndex + 1) % 4);
-        device.setWDR(static_cast<PelcoD::FujinonWDRLevel>(m_wdrIndex));
+        static_cast<void>(device.setWDR(static_cast<PelcoD::FujinonWDRLevel>(m_wdrIndex)));
         m_lastAction = std::string("Set WDR: ") + kWdrNames[m_wdrIndex];
         break;
     }
     case 5: { // Anti-Aliasing
         m_antialiasing = !m_antialiasing;
-        device.setAntialiasing(m_antialiasing);
+        static_cast<void>(device.setAntialiasing(m_antialiasing));
         m_lastAction = m_antialiasing ? "Anti-Aliasing: ON" : "Anti-Aliasing: OFF";
         break;
     }
     case 6: { // Fine Brightness
         m_brightnessFine = std::clamp(m_brightnessFine + (isLeft ? -5 : 5), 1, 100);
-        device.setBrightnessFine(static_cast<std::uint8_t>(m_brightnessFine));
+        static_cast<void>(device.setBrightnessFine(static_cast<std::uint8_t>(m_brightnessFine)));
         m_lastAction = "Brightness: " + std::to_string(m_brightnessFine);
         break;
     }
     case 7: { // Fine Contrast
         m_contrastFine = std::clamp(m_contrastFine + (isLeft ? -5 : 5), 1, 100);
-        device.setContrastFine(static_cast<std::uint8_t>(m_contrastFine));
+        static_cast<void>(device.setContrastFine(static_cast<std::uint8_t>(m_contrastFine)));
         m_lastAction = "Contrast: " + std::to_string(m_contrastFine);
         break;
     }
     case 8: { // Fine Saturation
         m_saturationFine = std::clamp(m_saturationFine + (isLeft ? -5 : 5), 1, 100);
-        device.setSaturationFine(static_cast<std::uint8_t>(m_saturationFine));
+        static_cast<void>(device.setSaturationFine(static_cast<std::uint8_t>(m_saturationFine)));
         m_lastAction = "Saturation: " + std::to_string(m_saturationFine);
         break;
     }
     case 9: { // Fine Sharpness
         m_sharpnessFine = std::clamp(m_sharpnessFine + (isLeft ? -5 : 5), 1, 100);
-        device.setSharpnessFine(static_cast<std::uint8_t>(m_sharpnessFine));
+        static_cast<void>(device.setSharpnessFine(static_cast<std::uint8_t>(m_sharpnessFine)));
         m_lastAction = "Sharpness: " + std::to_string(m_sharpnessFine);
         break;
     }
     case 10: { // Fine WB Red
         m_wbShiftRedFine = std::clamp(m_wbShiftRedFine + (isLeft ? -5 : 5), 1, 100);
-        device.setWBShiftRedFine(static_cast<std::uint8_t>(m_wbShiftRedFine));
+        static_cast<void>(device.setWBShiftRedFine(static_cast<std::uint8_t>(m_wbShiftRedFine)));
         m_lastAction = "WB Red: " + std::to_string(m_wbShiftRedFine);
         break;
     }
     case 11: { // Fine WB Blue
         m_wbShiftBlueFine = std::clamp(m_wbShiftBlueFine + (isLeft ? -5 : 5), 1, 100);
-        device.setWBShiftBlueFine(static_cast<std::uint8_t>(m_wbShiftBlueFine));
+        static_cast<void>(device.setWBShiftBlueFine(static_cast<std::uint8_t>(m_wbShiftBlueFine)));
         m_lastAction = "WB Blue: " + std::to_string(m_wbShiftBlueFine);
         break;
     }
     case 12: { // Day/Night Mode Ex
         m_dayNightExIndex = isLeft ? ((m_dayNightExIndex + 4) % 5) : ((m_dayNightExIndex + 1) % 5);
-        device.setDayNightModeEx(static_cast<PelcoD::FujinonDayNightModeEx>(m_dayNightExIndex));
+        static_cast<void>(device.setDayNightModeEx(static_cast<PelcoD::FujinonDayNightModeEx>(m_dayNightExIndex)));
         m_lastAction = std::string("Day/Night Ex: ") + kDayNightNames[m_dayNightExIndex];
         break;
     }
     case 13: { // D->N Threshold
         m_dayToNightThreshold = std::clamp(m_dayToNightThreshold + (isLeft ? -10 : 10), 0, 255);
-        device.setDayToNightThreshold(static_cast<std::uint8_t>(m_dayToNightThreshold));
+        static_cast<void>(device.setDayToNightThreshold(static_cast<std::uint8_t>(m_dayToNightThreshold)));
         m_lastAction = "D->N Thresh: " + std::to_string(m_dayToNightThreshold);
         break;
     }
     case 14: { // N->D Threshold
         m_nightToDayThreshold = std::clamp(m_nightToDayThreshold + (isLeft ? -10 : 10), 0, 255);
-        device.setNightToDayThreshold(static_cast<std::uint8_t>(m_nightToDayThreshold));
+        static_cast<void>(device.setNightToDayThreshold(static_cast<std::uint8_t>(m_nightToDayThreshold)));
         m_lastAction = "N->D Thresh: " + std::to_string(m_nightToDayThreshold);
         break;
     }
     case 15: { // Zoom Speed Ex
         m_zoomSpeedEx = std::clamp(m_zoomSpeedEx + (isLeft ? -1 : 1), 1, 8);
-        device.setZoomSpeedEx(static_cast<std::uint8_t>(m_zoomSpeedEx));
+        static_cast<void>(device.setZoomSpeedEx(static_cast<std::uint8_t>(m_zoomSpeedEx)));
         m_lastAction = "Zoom Speed: " + std::string(kZoomSpeedNames[m_zoomSpeedEx - 1]);
         break;
     }
     case 16: { // Focus Speed Ex
         m_focusSpeedEx = std::clamp(m_focusSpeedEx + (isLeft ? -1 : 1), 1, 5);
-        device.setFocusSpeedEx(static_cast<std::uint8_t>(m_focusSpeedEx));
+        static_cast<void>(device.setFocusSpeedEx(static_cast<std::uint8_t>(m_focusSpeedEx)));
         m_lastAction = "Focus Speed: " + std::string(kFocusSpeedNames[m_focusSpeedEx - 1]);
         break;
     }
     case 17: { // Digital Zoom Mode
         m_digitalZoomMode = isLeft ? ((m_digitalZoomMode + 2) % 3) : ((m_digitalZoomMode + 1) % 3);
-        device.setDigitalZoomMode(static_cast<PelcoD::FujinonDigitalZoomMode>(m_digitalZoomMode));
+        static_cast<void>(device.setDigitalZoomMode(static_cast<PelcoD::FujinonDigitalZoomMode>(m_digitalZoomMode)));
         m_lastAction = std::string("Digital Zoom: ") + kDigitalZoomModes[m_digitalZoomMode];
         break;
     }
     case 18: { // One-Push AF
-        device.onePushAF();
+        static_cast<void>(device.onePushAF());
         m_lastAction = "Triggered One-Push Auto Focus";
         break;
     }
@@ -321,22 +321,23 @@ bool FujinonView::handleInput(const InputEvent& event, PelcoD::FujinonSX800Devic
 #else
         localtime_r(&tt, &localTm);
 #endif
-        device.setRTCYear(static_cast<std::uint16_t>(localTm.tm_year + 1900));
-        device.setRTCMonthDay(
-            static_cast<std::uint8_t>(localTm.tm_mon + 1), static_cast<std::uint8_t>(localTm.tm_mday));
-        device.setRTCHourMinute(static_cast<std::uint8_t>(localTm.tm_hour), static_cast<std::uint8_t>(localTm.tm_min));
-        device.setRTCSecond(static_cast<std::uint8_t>(localTm.tm_sec));
+        static_cast<void>(device.setRTCYear(static_cast<std::uint16_t>(localTm.tm_year + 1900)));
+        static_cast<void>(device.setRTCMonthDay(
+            static_cast<std::uint8_t>(localTm.tm_mon + 1), static_cast<std::uint8_t>(localTm.tm_mday)));
+        static_cast<void>(device.setRTCHourMinute(
+            static_cast<std::uint8_t>(localTm.tm_hour), static_cast<std::uint8_t>(localTm.tm_min)));
+        static_cast<void>(device.setRTCSecond(static_cast<std::uint8_t>(localTm.tm_sec)));
         m_lastAction = "Synchronized RTC with PC";
         break;
     }
     case 20: { // Refresh
-        device.queryPhotoSettings();
-        device.queryImageQuality();
-        device.queryManualSettings();
-        device.queryFirmwareVersion();
-        device.querySerialNumber();
-        device.queryLensStatus();
-        device.queryZoom();
+        static_cast<void>(device.queryPhotoSettings());
+        static_cast<void>(device.queryImageQuality());
+        static_cast<void>(device.queryManualSettings());
+        static_cast<void>(device.queryFirmwareVersion());
+        static_cast<void>(device.querySerialNumber());
+        static_cast<void>(device.queryLensStatus());
+        static_cast<void>(device.queryZoom());
         m_lastAction = "Sent Telemetry Queries";
         break;
     }

@@ -44,7 +44,7 @@ public:
     /// @brief Removes a subscriber and drains any active callback.
     /// @param[in] id Identifier returned by addCallback().
     /// @return True if found and removed.
-    bool removeCallback(CallbackId id)
+    [[nodiscard]] bool removeCallback(CallbackId id)
     {
         std::shared_ptr<CallbackGate> gateToClose;
         {
@@ -173,400 +173,401 @@ void FujinonSX800Device::clearCallbacks()
     m_ext->clearCallbacks();
 }
 
-void FujinonSX800Device::setOISMode(FujinonOISMode mode)
+SendResult FujinonSX800Device::setOISMode(FujinonOISMode mode)
 {
-    enqueueCommand(FujinonBuilder::buildSetOIS(getAddress(), mode));
+    return enqueueCommand(FujinonBuilder::buildSetOIS(getAddress(), mode));
 }
 
-void FujinonSX800Device::setDefog(FujinonDefogLevel level)
+SendResult FujinonSX800Device::setDefog(FujinonDefogLevel level)
 {
-    enqueueCommand(FujinonBuilder::buildSetDefog(getAddress(), level));
+    return enqueueCommand(FujinonBuilder::buildSetDefog(getAddress(), level));
 }
 
-void FujinonSX800Device::setHeatHaze(FujinonHeatHazeLevel level)
+SendResult FujinonSX800Device::setHeatHaze(FujinonHeatHazeLevel level)
 {
-    enqueueCommand(FujinonBuilder::buildSetHeatHaze(getAddress(), level));
+    return enqueueCommand(FujinonBuilder::buildSetHeatHaze(getAddress(), level));
 }
 
-void FujinonSX800Device::setWDR(FujinonWDRLevel level)
+SendResult FujinonSX800Device::setWDR(FujinonWDRLevel level)
 {
-    enqueueCommand(FujinonBuilder::buildSetWDR(getAddress(), level));
+    return enqueueCommand(FujinonBuilder::buildSetWDR(getAddress(), level));
 }
 
-void FujinonSX800Device::setVLCFilter(bool enable)
+SendResult FujinonSX800Device::setVLCFilter(bool enable)
 {
-    enqueueCommand(FujinonBuilder::buildSetVLCFilter(getAddress(), enable));
+    return enqueueCommand(FujinonBuilder::buildSetVLCFilter(getAddress(), enable));
 }
 
-void FujinonSX800Device::setBrightness(std::uint8_t level)
+SendResult FujinonSX800Device::setBrightness(std::uint8_t level)
 {
-    enqueueCommand(FujinonBuilder::buildSetBrightness(getAddress(), level));
+    return enqueueCommand(FujinonBuilder::buildSetBrightness(getAddress(), level));
 }
 
-void FujinonSX800Device::setContrast(std::uint8_t level)
+SendResult FujinonSX800Device::setContrast(std::uint8_t level)
 {
-    enqueueCommand(FujinonBuilder::buildSetContrast(getAddress(), level));
+    return enqueueCommand(FujinonBuilder::buildSetContrast(getAddress(), level));
 }
 
-void FujinonSX800Device::setSaturation(std::uint8_t level)
+SendResult FujinonSX800Device::setSaturation(std::uint8_t level)
 {
-    enqueueCommand(FujinonBuilder::buildSetSaturation(getAddress(), level));
+    return enqueueCommand(FujinonBuilder::buildSetSaturation(getAddress(), level));
 }
 
-void FujinonSX800Device::setSharpness(std::uint8_t level)
+SendResult FujinonSX800Device::setSharpness(std::uint8_t level)
 {
-    enqueueCommand(FujinonBuilder::buildSetSharpness(getAddress(), level));
+    return enqueueCommand(FujinonBuilder::buildSetSharpness(getAddress(), level));
 }
 
-void FujinonSX800Device::setColorTemperature(FujinonColorTemp temp)
+SendResult FujinonSX800Device::setColorTemperature(FujinonColorTemp temp)
 {
-    enqueueCommand(FujinonBuilder::buildSetColorTemperature(getAddress(), temp));
+    return enqueueCommand(FujinonBuilder::buildSetColorTemperature(getAddress(), temp));
 }
 
-void FujinonSX800Device::setWhiteBalance(FujinonWBMode mode)
+SendResult FujinonSX800Device::setWhiteBalance(FujinonWBMode mode)
 {
-    enqueueCommand(FujinonBuilder::buildSetWhiteBalance(getAddress(), mode));
+    return enqueueCommand(FujinonBuilder::buildSetWhiteBalance(getAddress(), mode));
 }
 
-void FujinonSX800Device::setDigitalZoom(FujinonDigitalZoom zoom)
+SendResult FujinonSX800Device::setDigitalZoom(FujinonDigitalZoom zoom)
 {
-    enqueueCommand(FujinonBuilder::buildSetDigitalZoom(getAddress(), zoom));
+    return enqueueCommand(FujinonBuilder::buildSetDigitalZoom(getAddress(), zoom));
 }
 
-void FujinonSX800Device::setNoiseReduction(std::uint8_t level)
+SendResult FujinonSX800Device::setNoiseReduction(std::uint8_t level)
 {
-    enqueueCommand(FujinonBuilder::buildSetNoiseReduction(getAddress(), level));
+    return enqueueCommand(FujinonBuilder::buildSetNoiseReduction(getAddress(), level));
 }
 
-void FujinonSX800Device::setDayNightMode(FujinonDayNightMode mode)
+SendResult FujinonSX800Device::setDayNightMode(FujinonDayNightMode mode)
 {
-    enqueueCommand(FujinonBuilder::buildSetDayNight(getAddress(), mode));
+    return enqueueCommand(FujinonBuilder::buildSetDayNight(getAddress(), mode));
 }
 
-void FujinonSX800Device::setIRWavelength(FujinonIRWavelength wavelength)
+SendResult FujinonSX800Device::setIRWavelength(FujinonIRWavelength wavelength)
 {
-    enqueueCommand(FujinonBuilder::buildSetIRWavelength(getAddress(), wavelength));
+    return enqueueCommand(FujinonBuilder::buildSetIRWavelength(getAddress(), wavelength));
 }
 
-void FujinonSX800Device::setFocusPosition(std::uint16_t focusPos)
+SendResult FujinonSX800Device::setFocusPosition(std::uint16_t focusPos)
 {
-    enqueueCommand(FujinonBuilder::buildSetFocusPosition(getAddress(), focusPos));
+    return enqueueCommand(FujinonBuilder::buildSetFocusPosition(getAddress(), focusPos));
 }
 
-void FujinonSX800Device::onePushAF()
+SendResult FujinonSX800Device::onePushAF()
 {
-    enqueueCommand(FujinonBuilder::buildOnePushAF(getAddress()));
+    return enqueueCommand(FujinonBuilder::buildOnePushAF(getAddress()));
 }
 
-void FujinonSX800Device::setAFSensitivity(std::uint8_t sensitivity)
+SendResult FujinonSX800Device::setAFSensitivity(std::uint8_t sensitivity)
 {
-    enqueueCommand(FujinonBuilder::buildSetAFSensitivity(getAddress(), sensitivity));
+    return enqueueCommand(FujinonBuilder::buildSetAFSensitivity(getAddress(), sensitivity));
 }
 
-void FujinonSX800Device::setAFArea(std::uint8_t area)
+SendResult FujinonSX800Device::setAFArea(std::uint8_t area)
 {
-    enqueueCommand(FujinonBuilder::buildSetAFArea(getAddress(), area));
+    return enqueueCommand(FujinonBuilder::buildSetAFArea(getAddress(), area));
 }
 
-void FujinonSX800Device::setManualIris(std::uint8_t irisVal)
+SendResult FujinonSX800Device::setManualIris(std::uint8_t irisVal)
 {
-    enqueueCommand(FujinonBuilder::buildSetManualIris(getAddress(), irisVal));
+    return enqueueCommand(FujinonBuilder::buildSetManualIris(getAddress(), irisVal));
 }
 
-void FujinonSX800Device::setManualShutter(std::uint8_t shutterVal)
+SendResult FujinonSX800Device::setManualShutter(std::uint8_t shutterVal)
 {
-    enqueueCommand(FujinonBuilder::buildSetManualShutter(getAddress(), shutterVal));
+    return enqueueCommand(FujinonBuilder::buildSetManualShutter(getAddress(), shutterVal));
 }
 
-void FujinonSX800Device::setManualISO(std::uint8_t isoVal)
+SendResult FujinonSX800Device::setManualISO(std::uint8_t isoVal)
 {
-    enqueueCommand(FujinonBuilder::buildSetManualISO(getAddress(), isoVal));
+    return enqueueCommand(FujinonBuilder::buildSetManualISO(getAddress(), isoVal));
 }
 
-void FujinonSX800Device::setTimeDisplay(bool enable)
+SendResult FujinonSX800Device::setTimeDisplay(bool enable)
 {
-    enqueueCommand(FujinonBuilder::buildSetTimeDisplay(getAddress(), enable));
+    return enqueueCommand(FujinonBuilder::buildSetTimeDisplay(getAddress(), enable));
 }
 
-void FujinonSX800Device::setTimePosition(FujinonOSDPosition pos)
+SendResult FujinonSX800Device::setTimePosition(FujinonOSDPosition pos)
 {
-    enqueueCommand(FujinonBuilder::buildSetTimePosition(getAddress(), pos));
+    return enqueueCommand(FujinonBuilder::buildSetTimePosition(getAddress(), pos));
 }
 
-void FujinonSX800Device::setTitleDisplay(bool enable)
+SendResult FujinonSX800Device::setTitleDisplay(bool enable)
 {
-    enqueueCommand(FujinonBuilder::buildSetTitleDisplay(getAddress(), enable));
+    return enqueueCommand(FujinonBuilder::buildSetTitleDisplay(getAddress(), enable));
 }
 
-void FujinonSX800Device::setTitlePosition(FujinonOSDPosition pos)
+SendResult FujinonSX800Device::setTitlePosition(FujinonOSDPosition pos)
 {
-    enqueueCommand(FujinonBuilder::buildSetTitlePosition(getAddress(), pos));
+    return enqueueCommand(FujinonBuilder::buildSetTitlePosition(getAddress(), pos));
 }
 
-void FujinonSX800Device::setIdDisplay(bool enable)
+SendResult FujinonSX800Device::setIdDisplay(bool enable)
 {
-    enqueueCommand(FujinonBuilder::buildSetIdDisplay(getAddress(), enable));
+    return enqueueCommand(FujinonBuilder::buildSetIdDisplay(getAddress(), enable));
 }
 
-void FujinonSX800Device::setIdPosition(FujinonOSDPosition pos)
+SendResult FujinonSX800Device::setIdPosition(FujinonOSDPosition pos)
 {
-    enqueueCommand(FujinonBuilder::buildSetIdPosition(getAddress(), pos));
+    return enqueueCommand(FujinonBuilder::buildSetIdPosition(getAddress(), pos));
 }
 
-void FujinonSX800Device::setReticleDisplay(bool enable)
+SendResult FujinonSX800Device::setReticleDisplay(bool enable)
 {
-    enqueueCommand(FujinonBuilder::buildSetReticleDisplay(getAddress(), enable));
+    return enqueueCommand(FujinonBuilder::buildSetReticleDisplay(getAddress(), enable));
 }
 
-void FujinonSX800Device::setVideoMode(FujinonVideoMode mode)
+SendResult FujinonSX800Device::setVideoMode(FujinonVideoMode mode)
 {
-    enqueueCommand(FujinonBuilder::buildSetVideoMode(getAddress(), mode));
+    return enqueueCommand(FujinonBuilder::buildSetVideoMode(getAddress(), mode));
 }
 
-void FujinonSX800Device::setHDFormat(FujinonHDFormat format)
+SendResult FujinonSX800Device::setHDFormat(FujinonHDFormat format)
 {
-    enqueueCommand(FujinonBuilder::buildSetHDFormat(getAddress(), format));
+    return enqueueCommand(FujinonBuilder::buildSetHDFormat(getAddress(), format));
 }
 
-void FujinonSX800Device::setRS485Termination(bool enable)
+SendResult FujinonSX800Device::setRS485Termination(bool enable)
 {
-    enqueueCommand(FujinonBuilder::buildSetRS485Termination(getAddress(), enable));
+    return enqueueCommand(FujinonBuilder::buildSetRS485Termination(getAddress(), enable));
 }
 
-void FujinonSX800Device::reboot()
+SendResult FujinonSX800Device::reboot()
 {
-    enqueueCommand(FujinonBuilder::buildReboot(getAddress()));
+    return enqueueCommand(FujinonBuilder::buildReboot(getAddress()));
 }
 
-void FujinonSX800Device::recordLiveView(bool start)
+SendResult FujinonSX800Device::recordLiveView(bool start)
 {
-    enqueueCommand(FujinonBuilder::buildRecordLiveView(getAddress(), start));
+    return enqueueCommand(FujinonBuilder::buildRecordLiveView(getAddress(), start));
 }
 
-void FujinonSX800Device::playMovie(bool start)
+SendResult FujinonSX800Device::playMovie(bool start)
 {
-    enqueueCommand(FujinonBuilder::buildPlayMovie(getAddress(), start));
+    return enqueueCommand(FujinonBuilder::buildPlayMovie(getAddress(), start));
 }
 
-void FujinonSX800Device::setMovieMode(bool isPlayMode)
+SendResult FujinonSX800Device::setMovieMode(bool isPlayMode)
 {
-    enqueueCommand(FujinonBuilder::buildSetMovieMode(getAddress(), isPlayMode));
+    return enqueueCommand(FujinonBuilder::buildSetMovieMode(getAddress(), isPlayMode));
 }
 
-void FujinonSX800Device::menuOk()
+SendResult FujinonSX800Device::menuOk()
 {
-    enqueueCommand(FujinonBuilder::buildMenuOk(getAddress()));
+    return enqueueCommand(FujinonBuilder::buildMenuOk(getAddress()));
 }
 
-void FujinonSX800Device::menuDirection(FujinonMenuDirection dir)
+SendResult FujinonSX800Device::menuDirection(FujinonMenuDirection dir)
 {
-    enqueueCommand(FujinonBuilder::buildMenuDirection(getAddress(), dir));
+    return enqueueCommand(FujinonBuilder::buildMenuDirection(getAddress(), dir));
 }
 
-void FujinonSX800Device::queryFujinonFocus()
+SendResult FujinonSX800Device::queryFujinonFocus()
 {
-    sendQueryFrame(FujinonBuilder::buildQueryFocus(getAddress()), "FujinonQueryFocus");
+    return sendQueryFrame(FujinonBuilder::buildQueryFocus(getAddress()), "FujinonQueryFocus");
 }
 
-void FujinonSX800Device::queryFujinonZoom()
+SendResult FujinonSX800Device::queryFujinonZoom()
 {
-    sendQueryFrame(FujinonBuilder::buildQueryZoom(getAddress()), "FujinonQueryZoom");
+    return sendQueryFrame(FujinonBuilder::buildQueryZoom(getAddress()), "FujinonQueryZoom");
 }
 
-void FujinonSX800Device::querySerialNumber()
+SendResult FujinonSX800Device::querySerialNumber()
 {
-    sendQueryFrame(FujinonBuilder::buildQuerySerialNumber(getAddress()), "FujinonQuerySerial");
+    return sendQueryFrame(FujinonBuilder::buildQuerySerialNumber(getAddress()), "FujinonQuerySerial");
 }
 
-void FujinonSX800Device::queryFirmwareVersion()
+SendResult FujinonSX800Device::queryFirmwareVersion()
 {
-    sendQueryFrame(FujinonBuilder::buildQueryFirmwareVersion(getAddress()), "FujinonQueryFirmware");
+    return sendQueryFrame(FujinonBuilder::buildQueryFirmwareVersion(getAddress()), "FujinonQueryFirmware");
 }
 
-void FujinonSX800Device::queryLensStatus()
+SendResult FujinonSX800Device::queryLensStatus()
 {
-    sendQueryFrame(FujinonBuilder::buildQueryLensStatus(getAddress()), "FujinonQueryLens");
+    return sendQueryFrame(FujinonBuilder::buildQueryLensStatus(getAddress()), "FujinonQueryLens");
 }
 
-void FujinonSX800Device::queryPhotoSettings(std::uint8_t target)
+SendResult FujinonSX800Device::queryPhotoSettings(std::uint8_t target)
 {
-    sendQueryFrame(FujinonBuilder::buildQueryPhotoSettings(getAddress(), target), "FujinonQueryPhoto");
+    return sendQueryFrame(FujinonBuilder::buildQueryPhotoSettings(getAddress(), target), "FujinonQueryPhoto");
 }
 
-void FujinonSX800Device::queryImageQuality(std::uint8_t target)
+SendResult FujinonSX800Device::queryImageQuality(std::uint8_t target)
 {
-    sendQueryFrame(FujinonBuilder::buildQueryImageQuality(getAddress(), target), "FujinonQueryImageQuality");
+    return sendQueryFrame(FujinonBuilder::buildQueryImageQuality(getAddress(), target), "FujinonQueryImageQuality");
 }
 
-void FujinonSX800Device::queryManualSettings()
+SendResult FujinonSX800Device::queryManualSettings()
 {
-    sendQueryFrame(FujinonBuilder::buildQueryManualSettings(getAddress()), "FujinonQueryManual");
+    return sendQueryFrame(FujinonBuilder::buildQueryManualSettings(getAddress()), "FujinonQueryManual");
 }
 
-void FujinonSX800Device::setBrightnessFine(std::uint8_t level)
+SendResult FujinonSX800Device::setBrightnessFine(std::uint8_t level)
 {
-    enqueueCommand(FujinonBuilder::buildSetBrightnessFine(getAddress(), level));
+    return enqueueCommand(FujinonBuilder::buildSetBrightnessFine(getAddress(), level));
 }
 
-void FujinonSX800Device::setContrastFine(std::uint8_t level)
+SendResult FujinonSX800Device::setContrastFine(std::uint8_t level)
 {
-    enqueueCommand(FujinonBuilder::buildSetContrastFine(getAddress(), level));
+    return enqueueCommand(FujinonBuilder::buildSetContrastFine(getAddress(), level));
 }
 
-void FujinonSX800Device::setSaturationFine(std::uint8_t level)
+SendResult FujinonSX800Device::setSaturationFine(std::uint8_t level)
 {
-    enqueueCommand(FujinonBuilder::buildSetSaturationFine(getAddress(), level));
+    return enqueueCommand(FujinonBuilder::buildSetSaturationFine(getAddress(), level));
 }
 
-void FujinonSX800Device::setSharpnessFine(std::uint8_t level)
+SendResult FujinonSX800Device::setSharpnessFine(std::uint8_t level)
 {
-    enqueueCommand(FujinonBuilder::buildSetSharpnessFine(getAddress(), level));
+    return enqueueCommand(FujinonBuilder::buildSetSharpnessFine(getAddress(), level));
 }
 
-void FujinonSX800Device::setWBShiftRedFine(std::uint8_t level)
+SendResult FujinonSX800Device::setWBShiftRedFine(std::uint8_t level)
 {
-    enqueueCommand(FujinonBuilder::buildSetWBShiftRedFine(getAddress(), level));
+    return enqueueCommand(FujinonBuilder::buildSetWBShiftRedFine(getAddress(), level));
 }
 
-void FujinonSX800Device::setWBShiftBlueFine(std::uint8_t level)
+SendResult FujinonSX800Device::setWBShiftBlueFine(std::uint8_t level)
 {
-    enqueueCommand(FujinonBuilder::buildSetWBShiftBlueFine(getAddress(), level));
+    return enqueueCommand(FujinonBuilder::buildSetWBShiftBlueFine(getAddress(), level));
 }
 
-void FujinonSX800Device::queryImageQualityFine(std::uint8_t target)
+SendResult FujinonSX800Device::queryImageQualityFine(std::uint8_t target)
 {
-    sendQueryFrame(FujinonBuilder::buildQueryImageQualityFine(getAddress(), target), "FujinonQueryImageQualityFine");
+    return sendQueryFrame(
+        FujinonBuilder::buildQueryImageQualityFine(getAddress(), target), "FujinonQueryImageQualityFine");
 }
 
-void FujinonSX800Device::setDayNightModeEx(FujinonDayNightModeEx mode)
+SendResult FujinonSX800Device::setDayNightModeEx(FujinonDayNightModeEx mode)
 {
-    enqueueCommand(FujinonBuilder::buildSetDayNightModeEx(getAddress(), mode));
+    return enqueueCommand(FujinonBuilder::buildSetDayNightModeEx(getAddress(), mode));
 }
 
-void FujinonSX800Device::setDayToNightThreshold(std::uint8_t threshold)
+SendResult FujinonSX800Device::setDayToNightThreshold(std::uint8_t threshold)
 {
-    enqueueCommand(FujinonBuilder::buildSetDayToNightThreshold(getAddress(), threshold));
+    return enqueueCommand(FujinonBuilder::buildSetDayToNightThreshold(getAddress(), threshold));
 }
 
-void FujinonSX800Device::setNightToDayThreshold(std::uint8_t threshold)
+SendResult FujinonSX800Device::setNightToDayThreshold(std::uint8_t threshold)
 {
-    enqueueCommand(FujinonBuilder::buildSetNightToDayThreshold(getAddress(), threshold));
+    return enqueueCommand(FujinonBuilder::buildSetNightToDayThreshold(getAddress(), threshold));
 }
 
-void FujinonSX800Device::setDayNightAutoDelay(std::uint8_t delaySeconds)
+SendResult FujinonSX800Device::setDayNightAutoDelay(std::uint8_t delaySeconds)
 {
-    enqueueCommand(FujinonBuilder::buildSetDayNightAutoDelay(getAddress(), delaySeconds));
+    return enqueueCommand(FujinonBuilder::buildSetDayNightAutoDelay(getAddress(), delaySeconds));
 }
 
-void FujinonSX800Device::setDayStartTime(std::uint8_t hour, std::uint8_t minute)
+SendResult FujinonSX800Device::setDayStartTime(std::uint8_t hour, std::uint8_t minute)
 {
-    enqueueCommand(FujinonBuilder::buildSetDayStartTime(getAddress(), hour, minute));
+    return enqueueCommand(FujinonBuilder::buildSetDayStartTime(getAddress(), hour, minute));
 }
 
-void FujinonSX800Device::setNightStartTime(std::uint8_t hour, std::uint8_t minute)
+SendResult FujinonSX800Device::setNightStartTime(std::uint8_t hour, std::uint8_t minute)
 {
-    enqueueCommand(FujinonBuilder::buildSetNightStartTime(getAddress(), hour, minute));
+    return enqueueCommand(FujinonBuilder::buildSetNightStartTime(getAddress(), hour, minute));
 }
 
-void FujinonSX800Device::setOpticalFilterDay(bool irPass)
+SendResult FujinonSX800Device::setOpticalFilterDay(bool irPass)
 {
-    enqueueCommand(FujinonBuilder::buildSetOpticalFilterDay(getAddress(), irPass));
+    return enqueueCommand(FujinonBuilder::buildSetOpticalFilterDay(getAddress(), irPass));
 }
 
-void FujinonSX800Device::setOpticalFilterNight(bool irPass)
+SendResult FujinonSX800Device::setOpticalFilterNight(bool irPass)
 {
-    enqueueCommand(FujinonBuilder::buildSetOpticalFilterNight(getAddress(), irPass));
+    return enqueueCommand(FujinonBuilder::buildSetOpticalFilterNight(getAddress(), irPass));
 }
 
-void FujinonSX800Device::queryDayNightEx(std::uint8_t target)
+SendResult FujinonSX800Device::queryDayNightEx(std::uint8_t target)
 {
-    sendQueryFrame(FujinonBuilder::buildQueryDayNightEx(getAddress(), target), "FujinonQueryDayNightEx");
+    return sendQueryFrame(FujinonBuilder::buildQueryDayNightEx(getAddress(), target), "FujinonQueryDayNightEx");
 }
 
-void FujinonSX800Device::setZoomSpeedEx(std::uint8_t speed)
+SendResult FujinonSX800Device::setZoomSpeedEx(std::uint8_t speed)
 {
-    enqueueCommand(FujinonBuilder::buildSetZoomSpeedEx(getAddress(), speed));
+    return enqueueCommand(FujinonBuilder::buildSetZoomSpeedEx(getAddress(), speed));
 }
 
-void FujinonSX800Device::setFocusSpeedEx(std::uint8_t speed)
+SendResult FujinonSX800Device::setFocusSpeedEx(std::uint8_t speed)
 {
-    enqueueCommand(FujinonBuilder::buildSetFocusSpeedEx(getAddress(), speed));
+    return enqueueCommand(FujinonBuilder::buildSetFocusSpeedEx(getAddress(), speed));
 }
 
-void FujinonSX800Device::setDigitalZoomMode(FujinonDigitalZoomMode mode)
+SendResult FujinonSX800Device::setDigitalZoomMode(FujinonDigitalZoomMode mode)
 {
-    enqueueCommand(FujinonBuilder::buildSetDigitalZoomMode(getAddress(), mode));
+    return enqueueCommand(FujinonBuilder::buildSetDigitalZoomMode(getAddress(), mode));
 }
 
-void FujinonSX800Device::queryZoomFocusEx(std::uint8_t target)
+SendResult FujinonSX800Device::queryZoomFocusEx(std::uint8_t target)
 {
-    sendQueryFrame(FujinonBuilder::buildQueryZoomFocusEx(getAddress(), target), "FujinonQueryZoomFocusEx");
+    return sendQueryFrame(FujinonBuilder::buildQueryZoomFocusEx(getAddress(), target), "FujinonQueryZoomFocusEx");
 }
 
-void FujinonSX800Device::setAntialiasing(bool enable)
+SendResult FujinonSX800Device::setAntialiasing(bool enable)
 {
-    enqueueCommand(FujinonBuilder::buildSetAntialiasing(getAddress(), enable));
+    return enqueueCommand(FujinonBuilder::buildSetAntialiasing(getAddress(), enable));
 }
 
-void FujinonSX800Device::menuBack()
+SendResult FujinonSX800Device::menuBack()
 {
-    enqueueCommand(FujinonBuilder::buildMenuBack(getAddress()));
+    return enqueueCommand(FujinonBuilder::buildMenuBack(getAddress()));
 }
 
-void FujinonSX800Device::formatSDCard()
+SendResult FujinonSX800Device::formatSDCard()
 {
-    enqueueCommand(FujinonBuilder::buildFormatSDCard(getAddress()));
+    return enqueueCommand(FujinonBuilder::buildFormatSDCard(getAddress()));
 }
 
-void FujinonSX800Device::factoryReset()
+SendResult FujinonSX800Device::factoryReset()
 {
-    enqueueCommand(FujinonBuilder::buildFactoryReset(getAddress()));
+    return enqueueCommand(FujinonBuilder::buildFactoryReset(getAddress()));
 }
 
-void FujinonSX800Device::setLanguage(FujinonLanguage lang)
+SendResult FujinonSX800Device::setLanguage(FujinonLanguage lang)
 {
-    enqueueCommand(FujinonBuilder::buildSetLanguage(getAddress(), lang));
+    return enqueueCommand(FujinonBuilder::buildSetLanguage(getAddress(), lang));
 }
 
-void FujinonSX800Device::setRTCSecond(std::uint8_t second)
+SendResult FujinonSX800Device::setRTCSecond(std::uint8_t second)
 {
-    enqueueCommand(FujinonBuilder::buildSetRTCSecond(getAddress(), second));
+    return enqueueCommand(FujinonBuilder::buildSetRTCSecond(getAddress(), second));
 }
 
-void FujinonSX800Device::setRTCHourMinute(std::uint8_t hour, std::uint8_t minute)
+SendResult FujinonSX800Device::setRTCHourMinute(std::uint8_t hour, std::uint8_t minute)
 {
-    enqueueCommand(FujinonBuilder::buildSetRTCHourMinute(getAddress(), hour, minute));
+    return enqueueCommand(FujinonBuilder::buildSetRTCHourMinute(getAddress(), hour, minute));
 }
 
-void FujinonSX800Device::setRTCMonthDay(std::uint8_t month, std::uint8_t day)
+SendResult FujinonSX800Device::setRTCMonthDay(std::uint8_t month, std::uint8_t day)
 {
-    enqueueCommand(FujinonBuilder::buildSetRTCMonthDay(getAddress(), month, day));
+    return enqueueCommand(FujinonBuilder::buildSetRTCMonthDay(getAddress(), month, day));
 }
 
-void FujinonSX800Device::setRTCYear(std::uint16_t year)
+SendResult FujinonSX800Device::setRTCYear(std::uint16_t year)
 {
-    enqueueCommand(FujinonBuilder::buildSetRTCYear(getAddress(), year));
+    return enqueueCommand(FujinonBuilder::buildSetRTCYear(getAddress(), year));
 }
 
-void FujinonSX800Device::queryRTC(std::uint8_t subOpCode)
+SendResult FujinonSX800Device::queryRTC(std::uint8_t subOpCode)
 {
-    sendQueryFrame(FujinonBuilder::buildQueryRTC(getAddress(), subOpCode), "FujinonQueryRTC");
+    return sendQueryFrame(FujinonBuilder::buildQueryRTC(getAddress(), subOpCode), "FujinonQueryRTC");
 }
 
-void FujinonSX800Device::queryZoomStandard()
+SendResult FujinonSX800Device::queryZoomStandard()
 {
-    sendQueryFrame(FujinonBuilder::buildQueryZoomStandard(getAddress()), "FujinonQueryZoomStd");
+    return sendQueryFrame(FujinonBuilder::buildQueryZoomStandard(getAddress()), "FujinonQueryZoomStd");
 }
 
 namespace {
 
-/// @brief Maps a parser verdict for an extension-owned query tag onto ExtMatch.
-/// @param[in] parsed True if the frame parsed as the expected response.
-/// @return ExtMatch::Matched or ExtMatch::Rejected.
-[[nodiscard]] constexpr ExtMatch toMatch(bool parsed) noexcept
-{
-    return parsed ? ExtMatch::Matched : ExtMatch::Rejected;
-}
+    /// @brief Maps a parser verdict for an extension-owned query tag onto ExtMatch.
+    /// @param[in] parsed True if the frame parsed as the expected response.
+    /// @return ExtMatch::Matched or ExtMatch::Rejected.
+    [[nodiscard]] constexpr ExtMatch toMatch(bool parsed) noexcept
+    {
+        return parsed ? ExtMatch::Matched : ExtMatch::Rejected;
+    }
 
 } // namespace
 

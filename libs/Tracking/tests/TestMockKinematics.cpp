@@ -8,9 +8,9 @@
 #include "TestHelpers.h"
 
 #include <atomic>
-#include <gtest/gtest.h>
 #include <chrono>
 #include <cmath>
+#include <gtest/gtest.h>
 #include <iostream>
 #include <memory>
 #include <thread>
@@ -33,19 +33,19 @@ TEST(MockKinematicsTest, InstantaneousDefault)
 
     // Instantaneous pan motion
     const auto st0 = mock->getInternalState();
-    device.panRight(0x20U);
+    EXPECT_EQ(device.panRight(0x20U), PelcoD::SendResult::Success);
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
     const auto st1 = mock->getInternalState();
     EXPECT_TRUE(st1.panCentidegrees > st0.panCentidegrees);
     EXPECT_TRUE(!mock->isMoving()); // In instantaneous mode, isMoving remains false
 
     // Instantaneous preset setting and recall
-    device.setPreset(1U);
-    device.zeroPan();
+    EXPECT_EQ(device.setPreset(1U), PelcoD::SendResult::Success);
+    EXPECT_EQ(device.zeroPan(), PelcoD::SendResult::Success);
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
     EXPECT_TRUE(mock->getInternalState().panCentidegrees == 0U);
 
-    device.goToPreset(1U);
+    EXPECT_EQ(device.goToPreset(1U), PelcoD::SendResult::Success);
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
     const auto st2 = mock->getInternalState();
     EXPECT_TRUE(st2.panCentidegrees == st1.panCentidegrees);
@@ -298,7 +298,7 @@ TEST(MockKinematicsTest, MockDeviceWithKinematicsAndLatency)
     EXPECT_TRUE(device.start());
 
     // Command GoToPreset 1 (slew from 90 deg to 30 deg)
-    device.goToPreset(1U);
+    EXPECT_EQ(device.goToPreset(1U), PelcoD::SendResult::Success);
 
     // Wait until slewing starts (device worker loop dispatches command asynchronously)
     const auto startWaitMove = std::chrono::steady_clock::now();
@@ -335,4 +335,3 @@ TEST(MockKinematicsTest, MockDeviceWithKinematicsAndLatency)
 }
 
 } // namespace
-

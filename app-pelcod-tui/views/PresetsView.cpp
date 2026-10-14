@@ -89,27 +89,27 @@ bool PresetsView::handleInput(const InputEvent& event, PelcoD::PelcoDDevice& dev
     const auto presetId = static_cast<std::uint8_t>(m_selectedIndex + 1);
 
     if (event.key == Key::Enter || event.ch == 'g' || event.ch == 'G') {
-        device.goToPreset(presetId);
+        static_cast<void>(device.goToPreset(presetId));
         m_lastAction = "GoTo Preset " + std::to_string(presetId);
         return true;
     }
     if (event.ch == 's' || event.ch == 'S') {
-        device.setPreset(presetId);
+        static_cast<void>(device.setPreset(presetId));
         m_lastAction = "Set Preset " + std::to_string(presetId);
         return true;
     }
     if (event.ch == 'c' || event.ch == 'C') {
-        device.clearPreset(presetId);
+        static_cast<void>(device.clearPreset(presetId));
         m_lastAction = "Clear Preset " + std::to_string(presetId);
         return true;
     }
     if (event.ch == 'p' || event.ch == 'P') {
-        device.flip180();
+        static_cast<void>(device.flip180());
         m_lastAction = "Flip 180°";
         return true;
     }
     if (event.ch == 'z' || event.ch == 'Z') {
-        device.zeroPan();
+        static_cast<void>(device.zeroPan());
         m_lastAction = "Zero Pan";
         return true;
     }

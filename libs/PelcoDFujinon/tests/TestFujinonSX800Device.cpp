@@ -38,66 +38,66 @@ TEST(FujinonSX800DeviceTest, DeviceLifecycleAndCommands)
     });
 
     // Send Fujinon commands
-    device.setOISMode(PelcoD::FujinonOISMode::OisOn);
-    device.setDefog(PelcoD::FujinonDefogLevel::Level2);
-    device.setHeatHaze(PelcoD::FujinonHeatHazeLevel::Level1);
-    device.setWDR(PelcoD::FujinonWDRLevel::Level3);
-    device.setVLCFilter(true);
-    device.setFocusPosition(0x3456U);
+    EXPECT_EQ(device.setOISMode(PelcoD::FujinonOISMode::OisOn), PelcoD::SendResult::Success);
+    EXPECT_EQ(device.setDefog(PelcoD::FujinonDefogLevel::Level2), PelcoD::SendResult::Success);
+    EXPECT_EQ(device.setHeatHaze(PelcoD::FujinonHeatHazeLevel::Level1), PelcoD::SendResult::Success);
+    EXPECT_EQ(device.setWDR(PelcoD::FujinonWDRLevel::Level3), PelcoD::SendResult::Success);
+    EXPECT_EQ(device.setVLCFilter(true), PelcoD::SendResult::Success);
+    EXPECT_EQ(device.setFocusPosition(0x3456U), PelcoD::SendResult::Success);
 
     // Fine image adjustments
-    device.setBrightness(60U);
-    device.setContrast(50U);
-    device.setSaturation(40U);
-    device.setSharpness(30U);
-    device.setColorTemperature(PelcoD::FujinonColorTemp::K9000);
-    device.setWhiteBalance(PelcoD::FujinonWBMode::Auto);
-    device.setDigitalZoom(PelcoD::FujinonDigitalZoom::X2);
-    device.setNoiseReduction(2U);
+    EXPECT_EQ(device.setBrightness(60U), PelcoD::SendResult::Success);
+    EXPECT_EQ(device.setContrast(50U), PelcoD::SendResult::Success);
+    EXPECT_EQ(device.setSaturation(40U), PelcoD::SendResult::Success);
+    EXPECT_EQ(device.setSharpness(30U), PelcoD::SendResult::Success);
+    EXPECT_EQ(device.setColorTemperature(PelcoD::FujinonColorTemp::K9000), PelcoD::SendResult::Success);
+    EXPECT_EQ(device.setWhiteBalance(PelcoD::FujinonWBMode::Auto), PelcoD::SendResult::Success);
+    EXPECT_EQ(device.setDigitalZoom(PelcoD::FujinonDigitalZoom::X2), PelcoD::SendResult::Success);
+    EXPECT_EQ(device.setNoiseReduction(2U), PelcoD::SendResult::Success);
 
     // Day / Night & IR
-    device.setDayNightMode(PelcoD::FujinonDayNightMode::Night);
-    device.setIRWavelength(PelcoD::FujinonIRWavelength::W850nm);
+    EXPECT_EQ(device.setDayNightMode(PelcoD::FujinonDayNightMode::Night), PelcoD::SendResult::Success);
+    EXPECT_EQ(device.setIRWavelength(PelcoD::FujinonIRWavelength::W850nm), PelcoD::SendResult::Success);
 
     // AF & Optics
-    device.onePushAF();
-    device.setAFSensitivity(2U);
-    device.setAFArea(1U);
+    EXPECT_EQ(device.onePushAF(), PelcoD::SendResult::Success);
+    EXPECT_EQ(device.setAFSensitivity(2U), PelcoD::SendResult::Success);
+    EXPECT_EQ(device.setAFArea(1U), PelcoD::SendResult::Success);
 
     // Manual Exposure
-    device.setManualIris(10U);
-    device.setManualShutter(20U);
-    device.setManualISO(15U);
+    EXPECT_EQ(device.setManualIris(10U), PelcoD::SendResult::Success);
+    EXPECT_EQ(device.setManualShutter(20U), PelcoD::SendResult::Success);
+    EXPECT_EQ(device.setManualISO(15U), PelcoD::SendResult::Success);
 
     // OSD Overlays
-    device.setTimeDisplay(true);
-    device.setTimePosition(PelcoD::FujinonOSDPosition::TopRight);
-    device.setTitleDisplay(true);
-    device.setTitlePosition(PelcoD::FujinonOSDPosition::BottomLeft);
-    device.setIdDisplay(false);
-    device.setIdPosition(PelcoD::FujinonOSDPosition::BottomRight);
-    device.setReticleDisplay(true);
+    EXPECT_EQ(device.setTimeDisplay(true), PelcoD::SendResult::Success);
+    EXPECT_EQ(device.setTimePosition(PelcoD::FujinonOSDPosition::TopRight), PelcoD::SendResult::Success);
+    EXPECT_EQ(device.setTitleDisplay(true), PelcoD::SendResult::Success);
+    EXPECT_EQ(device.setTitlePosition(PelcoD::FujinonOSDPosition::BottomLeft), PelcoD::SendResult::Success);
+    EXPECT_EQ(device.setIdDisplay(false), PelcoD::SendResult::Success);
+    EXPECT_EQ(device.setIdPosition(PelcoD::FujinonOSDPosition::BottomRight), PelcoD::SendResult::Success);
+    EXPECT_EQ(device.setReticleDisplay(true), PelcoD::SendResult::Success);
 
     // System Config & Media
-    device.setVideoMode(PelcoD::FujinonVideoMode::PAL);
-    device.setHDFormat(PelcoD::FujinonHDFormat::F1080p30);
-    device.setRS485Termination(true);
-    device.recordLiveView(true);
-    device.playMovie(false);
-    device.setMovieMode(true);
-    device.menuOk();
-    device.menuDirection(PelcoD::FujinonMenuDirection::Down);
-    device.reboot();
+    EXPECT_EQ(device.setVideoMode(PelcoD::FujinonVideoMode::PAL), PelcoD::SendResult::Success);
+    EXPECT_EQ(device.setHDFormat(PelcoD::FujinonHDFormat::F1080p30), PelcoD::SendResult::Success);
+    EXPECT_EQ(device.setRS485Termination(true), PelcoD::SendResult::Success);
+    EXPECT_EQ(device.recordLiveView(true), PelcoD::SendResult::Success);
+    EXPECT_EQ(device.playMovie(false), PelcoD::SendResult::Success);
+    EXPECT_EQ(device.setMovieMode(true), PelcoD::SendResult::Success);
+    EXPECT_EQ(device.menuOk(), PelcoD::SendResult::Success);
+    EXPECT_EQ(device.menuDirection(PelcoD::FujinonMenuDirection::Down), PelcoD::SendResult::Success);
+    EXPECT_EQ(device.reboot(), PelcoD::SendResult::Success);
 
     // Telemetry Queries
-    device.queryFujinonFocus();
-    device.queryFujinonZoom();
-    device.querySerialNumber();
-    device.queryFirmwareVersion();
-    device.queryLensStatus();
-    device.queryPhotoSettings();
-    device.queryImageQuality();
-    device.queryManualSettings();
+    EXPECT_EQ(device.queryFujinonFocus(), PelcoD::SendResult::Success);
+    EXPECT_EQ(device.queryFujinonZoom(), PelcoD::SendResult::Success);
+    EXPECT_EQ(device.querySerialNumber(), PelcoD::SendResult::Success);
+    EXPECT_EQ(device.queryFirmwareVersion(), PelcoD::SendResult::Success);
+    EXPECT_EQ(device.queryLensStatus(), PelcoD::SendResult::Success);
+    EXPECT_EQ(device.queryPhotoSettings(), PelcoD::SendResult::Success);
+    EXPECT_EQ(device.queryImageQuality(), PelcoD::SendResult::Success);
+    EXPECT_EQ(device.queryManualSettings(), PelcoD::SendResult::Success);
 
     // Inject a 7-byte focus position response: FF 01 00 81 34 56 CKSM
     const auto focusResp = PelcoD::PelcoDFrame::createFrame(1U, 0x00U, 0x81U, 0x34U, 0x56U);
@@ -143,41 +143,41 @@ TEST(FujinonSX800DeviceTest, DeviceLifecycleAndCommands)
     EXPECT_EQ(device.getFujinonStatus().serialNumber, "SX800001");
 
     // v2.12.0 Controls
-    device.setBrightnessFine(80U);
-    device.setContrastFine(70U);
-    device.setSaturationFine(60U);
-    device.setSharpnessFine(50U);
-    device.setWBShiftRedFine(55U);
-    device.setWBShiftBlueFine(45U);
-    device.queryImageQualityFine(0xEBU);
+    EXPECT_EQ(device.setBrightnessFine(80U), PelcoD::SendResult::Success);
+    EXPECT_EQ(device.setContrastFine(70U), PelcoD::SendResult::Success);
+    EXPECT_EQ(device.setSaturationFine(60U), PelcoD::SendResult::Success);
+    EXPECT_EQ(device.setSharpnessFine(50U), PelcoD::SendResult::Success);
+    EXPECT_EQ(device.setWBShiftRedFine(55U), PelcoD::SendResult::Success);
+    EXPECT_EQ(device.setWBShiftBlueFine(45U), PelcoD::SendResult::Success);
+    EXPECT_EQ(device.queryImageQualityFine(0xEBU), PelcoD::SendResult::Success);
 
-    device.setDayNightModeEx(PelcoD::FujinonDayNightModeEx::Scheduled);
-    device.setDayToNightThreshold(100U);
-    device.setNightToDayThreshold(50U);
-    device.setDayNightAutoDelay(10U);
-    device.setDayStartTime(6U, 0U);
-    device.setNightStartTime(19U, 0U);
-    device.setOpticalFilterDay(false);
-    device.setOpticalFilterNight(true);
-    device.queryDayNightEx(0x01U);
+    EXPECT_EQ(device.setDayNightModeEx(PelcoD::FujinonDayNightModeEx::Scheduled), PelcoD::SendResult::Success);
+    EXPECT_EQ(device.setDayToNightThreshold(100U), PelcoD::SendResult::Success);
+    EXPECT_EQ(device.setNightToDayThreshold(50U), PelcoD::SendResult::Success);
+    EXPECT_EQ(device.setDayNightAutoDelay(10U), PelcoD::SendResult::Success);
+    EXPECT_EQ(device.setDayStartTime(6U, 0U), PelcoD::SendResult::Success);
+    EXPECT_EQ(device.setNightStartTime(19U, 0U), PelcoD::SendResult::Success);
+    EXPECT_EQ(device.setOpticalFilterDay(false), PelcoD::SendResult::Success);
+    EXPECT_EQ(device.setOpticalFilterNight(true), PelcoD::SendResult::Success);
+    EXPECT_EQ(device.queryDayNightEx(0x01U), PelcoD::SendResult::Success);
 
-    device.setZoomSpeedEx(4U);
-    device.setFocusSpeedEx(2U);
-    device.setDigitalZoomMode(PelcoD::FujinonDigitalZoomMode::CropMode);
-    device.queryZoomFocusEx(0x25U);
+    EXPECT_EQ(device.setZoomSpeedEx(4U), PelcoD::SendResult::Success);
+    EXPECT_EQ(device.setFocusSpeedEx(2U), PelcoD::SendResult::Success);
+    EXPECT_EQ(device.setDigitalZoomMode(PelcoD::FujinonDigitalZoomMode::CropMode), PelcoD::SendResult::Success);
+    EXPECT_EQ(device.queryZoomFocusEx(0x25U), PelcoD::SendResult::Success);
 
-    device.setAntialiasing(true);
-    device.menuBack();
-    device.formatSDCard();
-    device.factoryReset();
-    device.setLanguage(PelcoD::FujinonLanguage::English);
+    EXPECT_EQ(device.setAntialiasing(true), PelcoD::SendResult::Success);
+    EXPECT_EQ(device.menuBack(), PelcoD::SendResult::Success);
+    EXPECT_EQ(device.formatSDCard(), PelcoD::SendResult::Success);
+    EXPECT_EQ(device.factoryReset(), PelcoD::SendResult::Success);
+    EXPECT_EQ(device.setLanguage(PelcoD::FujinonLanguage::English), PelcoD::SendResult::Success);
 
-    device.setRTCSecond(30U);
-    device.setRTCHourMinute(12U, 0U);
-    device.setRTCMonthDay(9U, 14U);
-    device.setRTCYear(2026U);
-    device.queryRTC(0x01U);
-    device.queryZoomStandard();
+    EXPECT_EQ(device.setRTCSecond(30U), PelcoD::SendResult::Success);
+    EXPECT_EQ(device.setRTCHourMinute(12U, 0U), PelcoD::SendResult::Success);
+    EXPECT_EQ(device.setRTCMonthDay(9U, 14U), PelcoD::SendResult::Success);
+    EXPECT_EQ(device.setRTCYear(2026U), PelcoD::SendResult::Success);
+    EXPECT_EQ(device.queryRTC(0x01U), PelcoD::SendResult::Success);
+    EXPECT_EQ(device.queryZoomStandard(), PelcoD::SendResult::Success);
 
     // Inject 0x5D Standard Zoom Response (0x4000 = 800mm tele)
     const auto stdZoomResp = PelcoD::PelcoDFrame::createFrame(1U, 0x00U, 0x5DU, 0x40U, 0x00U);

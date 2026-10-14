@@ -9,7 +9,7 @@ namespace PelcoD {
 
 PelcoDDevice::PelcoDDevice(std::shared_ptr<ITransport> transport, std::uint8_t address)
     : m_session { std::make_shared<PelcoDSession>(std::move(transport), address) }
-    , m_safetyGuard { std::make_shared<MotionSafetyGuard>([this]() { stopMotion(); }) }
+    , m_safetyGuard { std::make_shared<MotionSafetyGuard>([this]() { static_cast<void>(stopMotion()); }) }
     , m_telemetry { std::make_shared<TelemetryCoordinator>() }
     , m_dispatcher { std::make_shared<CallbackDispatcher>() }
     , m_metrics { std::make_unique<ProtocolMetrics>() }
@@ -61,6 +61,12 @@ void PelcoDDevice::initSessionHandlers()
         m_dispatcher->notifyRetry(queryTag, attempt, maxRetries, delay);
     });
 
+    m_session->setCommandDroppedHandler([this](const std::vector<std::uint8_t>& frame, SendResult reason) {
+        m_metrics->recordCommandDropped();
+        m_metrics->recordCommandRetryExhausted();
+        m_dispatcher->notifyCommandDropped(frame, reason);
+    });
+
     m_session->setStateHandler([this](TransportState state, const std::string&) {
         const bool connected = (state == TransportState::Connected);
         m_telemetry->setConnected(connected);
@@ -86,9 +92,9 @@ void PelcoDDevice::pollStep()
     const auto now = std::chrono::steady_clock::now();
     if (pollingEnabled && isConnected() && now >= m_nextPollTime) {
         if (!m_session->hasLowPriorityPending()) {
-            queryPan();
-            queryTilt();
-            queryZoom();
+            static_cast<void>(queryPan());
+            static_cast<void>(queryTilt());
+            static_cast<void>(queryZoom());
         }
         m_nextPollTime = now + std::chrono::milliseconds(m_telemetry->getPollIntervalMs());
     }
@@ -177,6 +183,11 @@ Connection PelcoDDevice::addQueryLatencyCallback(QueryLatencyCallback cb)
     return m_dispatcher->addQueryLatencyCallback(std::move(cb));
 }
 
+Connection PelcoDDevice::addCommandDroppedCallback(CommandDroppedCallback cb)
+{
+    return m_dispatcher->addCommandDroppedCallback(std::move(cb));
+}
+
 bool PelcoDDevice::removeStatusCallback(CallbackId id)
 {
     return m_dispatcher->removeStatusCallback(id);
@@ -205,6 +216,11 @@ bool PelcoDDevice::removeRetryCallback(CallbackId id)
 bool PelcoDDevice::removeQueryLatencyCallback(CallbackId id)
 {
     return m_dispatcher->removeQueryLatencyCallback(id);
+}
+
+bool PelcoDDevice::removeCommandDroppedCallback(CallbackId id)
+{
+    return m_dispatcher->removeCommandDroppedCallback(id);
 }
 
 void PelcoDDevice::clearCallbacks()
@@ -288,500 +304,501 @@ std::chrono::milliseconds PelcoDDevice::getDeadManTimeout() const noexcept
     return std::chrono::milliseconds { 0 };
 }
 
-void PelcoDDevice::panLeft(std::uint8_t speed)
+SendResult PelcoDDevice::panLeft(std::uint8_t speed)
 {
-    m_commands->panLeft(speed);
+    return m_commands->panLeft(speed);
 }
 
-void PelcoDDevice::panRight(std::uint8_t speed)
+SendResult PelcoDDevice::panRight(std::uint8_t speed)
 {
-    m_commands->panRight(speed);
+    return m_commands->panRight(speed);
 }
 
-void PelcoDDevice::tiltUp(std::uint8_t speed)
+SendResult PelcoDDevice::tiltUp(std::uint8_t speed)
 {
-    m_commands->tiltUp(speed);
+    return m_commands->tiltUp(speed);
 }
 
-void PelcoDDevice::tiltDown(std::uint8_t speed)
+SendResult PelcoDDevice::tiltDown(std::uint8_t speed)
 {
-    m_commands->tiltDown(speed);
+    return m_commands->tiltDown(speed);
 }
 
-void PelcoDDevice::stopMotion()
+SendResult PelcoDDevice::stopMotion()
 {
-    m_commands->stopMotion();
+    return m_commands->stopMotion();
 }
 
-void PelcoDDevice::move(PanDirection panDir, std::uint8_t panSpeed, TiltDirection tiltDir, std::uint8_t tiltSpeed)
+SendResult PelcoDDevice::move(PanDirection panDir, std::uint8_t panSpeed, TiltDirection tiltDir, std::uint8_t tiltSpeed)
 {
-    m_commands->move(panDir, panSpeed, tiltDir, tiltSpeed);
+    return m_commands->move(panDir, panSpeed, tiltDir, tiltSpeed);
 }
 
-void PelcoDDevice::move(PanDirection panDir, std::uint8_t panSpeed, TiltDirection tiltDir, std::uint8_t tiltSpeed,
+SendResult PelcoDDevice::move(PanDirection panDir, std::uint8_t panSpeed, TiltDirection tiltDir, std::uint8_t tiltSpeed,
     ZoomAction zoom, FocusAction focus, IrisAction iris)
 {
-    m_commands->move(panDir, panSpeed, tiltDir, tiltSpeed, zoom, focus, iris);
+    return m_commands->move(panDir, panSpeed, tiltDir, tiltSpeed, zoom, focus, iris);
 }
 
-void PelcoDDevice::setPower(bool on)
+SendResult PelcoDDevice::setPower(bool on)
 {
-    m_commands->setPower(on);
+    return m_commands->setPower(on);
 }
 
-void PelcoDDevice::setAutoScan(bool enable)
+SendResult PelcoDDevice::setAutoScan(bool enable)
 {
-    m_commands->setAutoScan(enable);
+    return m_commands->setAutoScan(enable);
 }
 
-void PelcoDDevice::zoomTele()
+SendResult PelcoDDevice::zoomTele()
 {
-    m_commands->zoomTele();
+    return m_commands->zoomTele();
 }
 
-void PelcoDDevice::zoomWide()
+SendResult PelcoDDevice::zoomWide()
 {
-    m_commands->zoomWide();
+    return m_commands->zoomWide();
 }
 
-void PelcoDDevice::zoomStop()
+SendResult PelcoDDevice::zoomStop()
 {
-    m_commands->zoomStop();
+    return m_commands->zoomStop();
 }
 
-void PelcoDDevice::focusNear()
+SendResult PelcoDDevice::focusNear()
 {
-    m_commands->focusNear();
+    return m_commands->focusNear();
 }
 
-void PelcoDDevice::focusFar()
+SendResult PelcoDDevice::focusFar()
 {
-    m_commands->focusFar();
+    return m_commands->focusFar();
 }
 
-void PelcoDDevice::focusStop()
+SendResult PelcoDDevice::focusStop()
 {
-    m_commands->focusStop();
+    return m_commands->focusStop();
 }
 
-void PelcoDDevice::irisOpen()
+SendResult PelcoDDevice::irisOpen()
 {
-    m_commands->irisOpen();
+    return m_commands->irisOpen();
 }
 
-void PelcoDDevice::irisClose()
+SendResult PelcoDDevice::irisClose()
 {
-    m_commands->irisClose();
+    return m_commands->irisClose();
 }
 
-void PelcoDDevice::irisStop()
+SendResult PelcoDDevice::irisStop()
 {
-    m_commands->irisStop();
+    return m_commands->irisStop();
 }
 
-void PelcoDDevice::setPanAngle(std::uint16_t centidegrees)
+SendResult PelcoDDevice::setPanAngle(std::uint16_t centidegrees)
 {
-    m_commands->setPanAngle(centidegrees);
+    return m_commands->setPanAngle(centidegrees);
 }
 
-void PelcoDDevice::setTiltAngle(std::uint16_t centidegrees)
+SendResult PelcoDDevice::setTiltAngle(std::uint16_t centidegrees)
 {
-    m_commands->setTiltAngle(centidegrees);
+    return m_commands->setTiltAngle(centidegrees);
 }
 
-void PelcoDDevice::setZoomPosition(std::uint16_t position)
+SendResult PelcoDDevice::setZoomPosition(std::uint16_t position)
 {
-    m_commands->setZoomPosition(position);
+    return m_commands->setZoomPosition(position);
 }
 
-void PelcoDDevice::setPreset(std::uint8_t presetId)
+SendResult PelcoDDevice::setPreset(std::uint8_t presetId)
 {
-    m_commands->setPreset(presetId);
+    return m_commands->setPreset(presetId);
 }
 
-void PelcoDDevice::clearPreset(std::uint8_t presetId)
+SendResult PelcoDDevice::clearPreset(std::uint8_t presetId)
 {
-    m_commands->clearPreset(presetId);
+    return m_commands->clearPreset(presetId);
 }
 
-void PelcoDDevice::goToPreset(std::uint8_t presetId)
+SendResult PelcoDDevice::goToPreset(std::uint8_t presetId)
 {
-    m_commands->goToPreset(presetId);
+    return m_commands->goToPreset(presetId);
 }
 
-void PelcoDDevice::goToPreset(std::uint8_t presetId, std::uint8_t speed)
+SendResult PelcoDDevice::goToPreset(std::uint8_t presetId, std::uint8_t speed)
 {
-    m_commands->goToPreset(presetId, speed);
+    return m_commands->goToPreset(presetId, speed);
 }
 
-void PelcoDDevice::flip180()
+SendResult PelcoDDevice::flip180()
 {
-    m_commands->flip180();
+    return m_commands->flip180();
 }
 
-void PelcoDDevice::zeroPan()
+SendResult PelcoDDevice::zeroPan()
 {
-    m_commands->zeroPan();
+    return m_commands->zeroPan();
 }
 
-void PelcoDDevice::presetScan(std::uint8_t dwellSeconds)
+SendResult PelcoDDevice::presetScan(std::uint8_t dwellSeconds)
 {
-    m_commands->presetScan(dwellSeconds);
+    return m_commands->presetScan(dwellSeconds);
 }
 
-void PelcoDDevice::setAuxiliary(std::uint8_t auxId)
+SendResult PelcoDDevice::setAuxiliary(std::uint8_t auxId)
 {
-    m_commands->setAuxiliary(auxId);
+    return m_commands->setAuxiliary(auxId);
 }
 
-void PelcoDDevice::clearAuxiliary(std::uint8_t auxId)
+SendResult PelcoDDevice::clearAuxiliary(std::uint8_t auxId)
 {
-    m_commands->clearAuxiliary(auxId);
+    return m_commands->clearAuxiliary(auxId);
 }
 
-void PelcoDDevice::setZoneStart(std::uint8_t zoneId)
+SendResult PelcoDDevice::setZoneStart(std::uint8_t zoneId)
 {
-    m_commands->setZoneStart(zoneId);
+    return m_commands->setZoneStart(zoneId);
 }
 
-void PelcoDDevice::setZoneEnd(std::uint8_t zoneId)
+SendResult PelcoDDevice::setZoneEnd(std::uint8_t zoneId)
 {
-    m_commands->setZoneEnd(zoneId);
+    return m_commands->setZoneEnd(zoneId);
 }
 
-void PelcoDDevice::setZoneScan(bool enable)
+SendResult PelcoDDevice::setZoneScan(bool enable)
 {
-    m_commands->setZoneScan(enable);
+    return m_commands->setZoneScan(enable);
 }
 
-void PelcoDDevice::recordPatternStart(std::uint8_t patternId)
+SendResult PelcoDDevice::recordPatternStart(std::uint8_t patternId)
 {
-    m_commands->recordPatternStart(patternId);
+    return m_commands->recordPatternStart(patternId);
 }
 
-void PelcoDDevice::recordPatternStop()
+SendResult PelcoDDevice::recordPatternStop()
 {
-    m_commands->recordPatternStop();
+    return m_commands->recordPatternStop();
 }
 
-void PelcoDDevice::runPattern(std::uint8_t patternId)
+SendResult PelcoDDevice::runPattern(std::uint8_t patternId)
 {
-    m_commands->runPattern(patternId);
+    return m_commands->runPattern(patternId);
 }
 
-void PelcoDDevice::setZoomSpeed(std::uint8_t speed)
+SendResult PelcoDDevice::setZoomSpeed(std::uint8_t speed)
 {
-    m_commands->setZoomSpeed(speed);
+    return m_commands->setZoomSpeed(speed);
 }
 
-void PelcoDDevice::setFocusSpeed(std::uint8_t speed)
+SendResult PelcoDDevice::setFocusSpeed(std::uint8_t speed)
 {
-    m_commands->setFocusSpeed(speed);
+    return m_commands->setFocusSpeed(speed);
 }
 
-void PelcoDDevice::setAutoFocus(AutoMode mode)
+SendResult PelcoDDevice::setAutoFocus(AutoMode mode)
 {
-    m_commands->setAutoFocus(mode);
+    return m_commands->setAutoFocus(mode);
 }
 
-void PelcoDDevice::setAutoIris(AutoMode mode)
+SendResult PelcoDDevice::setAutoIris(AutoMode mode)
 {
-    m_commands->setAutoIris(mode);
+    return m_commands->setAutoIris(mode);
 }
 
-void PelcoDDevice::setAgc(AutoMode mode)
+SendResult PelcoDDevice::setAgc(AutoMode mode)
 {
-    m_commands->setAgc(mode);
+    return m_commands->setAgc(mode);
 }
 
-void PelcoDDevice::setBacklightComp(SwitchState state)
+SendResult PelcoDDevice::setBacklightComp(SwitchState state)
 {
-    m_commands->setBacklightComp(state);
+    return m_commands->setBacklightComp(state);
 }
 
-void PelcoDDevice::setAutoWhiteBalance(SwitchState state)
+SendResult PelcoDDevice::setAutoWhiteBalance(SwitchState state)
 {
-    m_commands->setAutoWhiteBalance(state);
+    return m_commands->setAutoWhiteBalance(state);
 }
 
-void PelcoDDevice::setShutterSpeed(std::uint16_t speed)
+SendResult PelcoDDevice::setShutterSpeed(std::uint16_t speed)
 {
-    m_commands->setShutterSpeed(speed);
+    return m_commands->setShutterSpeed(speed);
 }
 
-void PelcoDDevice::setGain(std::uint16_t gain)
+SendResult PelcoDDevice::setGain(std::uint16_t gain)
 {
-    m_commands->setGain(gain);
+    return m_commands->setGain(gain);
 }
 
-void PelcoDDevice::setAutoIrisLevel(std::uint8_t level)
+SendResult PelcoDDevice::setAutoIrisLevel(std::uint8_t level)
 {
-    m_commands->setAutoIrisLevel(level);
+    return m_commands->setAutoIrisLevel(level);
 }
 
-void PelcoDDevice::setAutoIrisPeak(std::uint8_t peak)
+SendResult PelcoDDevice::setAutoIrisPeak(std::uint8_t peak)
 {
-    m_commands->setAutoIrisPeak(peak);
+    return m_commands->setAutoIrisPeak(peak);
 }
 
-void PelcoDDevice::setPhaseDelayMode(SwitchState state)
+SendResult PelcoDDevice::setPhaseDelayMode(SwitchState state)
 {
-    m_commands->setPhaseDelayMode(state);
+    return m_commands->setPhaseDelayMode(state);
 }
 
-void PelcoDDevice::adjustLineLockDelay(std::uint16_t centidegrees)
+SendResult PelcoDDevice::adjustLineLockDelay(std::uint16_t centidegrees)
 {
-    m_commands->adjustLineLockDelay(centidegrees);
+    return m_commands->adjustLineLockDelay(centidegrees);
 }
 
-void PelcoDDevice::adjustWhiteBalanceRB(std::uint16_t value)
+SendResult PelcoDDevice::adjustWhiteBalanceRB(std::uint16_t value)
 {
-    m_commands->adjustWhiteBalanceRB(value);
+    return m_commands->adjustWhiteBalanceRB(value);
 }
 
-void PelcoDDevice::adjustWhiteBalanceMG(std::uint16_t value)
+SendResult PelcoDDevice::adjustWhiteBalanceMG(std::uint16_t value)
 {
-    m_commands->adjustWhiteBalanceMG(value);
+    return m_commands->adjustWhiteBalanceMG(value);
 }
 
-void PelcoDDevice::setMagnification(std::uint16_t value, bool relative)
+SendResult PelcoDDevice::setMagnification(std::uint16_t value, bool relative)
 {
-    m_commands->setMagnification(value, relative);
+    return m_commands->setMagnification(value, relative);
 }
 
-void PelcoDDevice::setBaudRate(std::uint32_t baud)
+SendResult PelcoDDevice::setBaudRate(std::uint32_t baud)
 {
-    m_commands->setBaudRate(baud);
+    return m_commands->setBaudRate(baud);
 }
 
-void PelcoDDevice::setZeroPosition()
+SendResult PelcoDDevice::setZeroPosition()
 {
-    m_commands->setZeroPosition();
+    return m_commands->setZeroPosition();
 }
 
-void PelcoDDevice::setFocusPosition(std::uint16_t pos)
+SendResult PelcoDDevice::setFocusPosition(std::uint16_t pos)
 {
-    m_commands->setFocusPosition(pos);
+    return m_commands->setFocusPosition(pos);
 }
 
-void PelcoDDevice::setIrisPosition(std::uint16_t pos)
+SendResult PelcoDDevice::setIrisPosition(std::uint16_t pos)
 {
-    m_commands->setIrisPosition(pos);
+    return m_commands->setIrisPosition(pos);
 }
 
-void PelcoDDevice::setSerialNumber(const std::string& serial)
+SendResult PelcoDDevice::setSerialNumber(const std::string& serial)
 {
     m_telemetry->setSerialNumber(serial);
+    return SendResult::Success;
 }
 
-void PelcoDDevice::querySerialNumber()
+SendResult PelcoDDevice::querySerialNumber()
 {
-    m_commands->querySerialNumber();
+    return m_commands->querySerialNumber();
 }
 
-void PelcoDDevice::resetDefaults()
+SendResult PelcoDDevice::resetDefaults()
 {
-    m_commands->resetDefaults();
+    return m_commands->resetDefaults();
 }
 
-void PelcoDDevice::remoteReset()
+SendResult PelcoDDevice::remoteReset()
 {
-    m_commands->remoteReset();
+    return m_commands->remoteReset();
 }
 
-void PelcoDDevice::queryPan()
+SendResult PelcoDDevice::queryPan()
 {
-    m_commands->queryPan();
+    return m_commands->queryPan();
 }
 
-void PelcoDDevice::queryTilt()
+SendResult PelcoDDevice::queryTilt()
 {
-    m_commands->queryTilt();
+    return m_commands->queryTilt();
 }
 
-void PelcoDDevice::queryZoom()
+SendResult PelcoDDevice::queryZoom()
 {
-    m_commands->queryZoom();
+    return m_commands->queryZoom();
 }
 
-void PelcoDDevice::queryMagnification()
+SendResult PelcoDDevice::queryMagnification()
 {
-    m_commands->queryMagnification();
+    return m_commands->queryMagnification();
 }
 
-void PelcoDDevice::queryDeviceType()
+SendResult PelcoDDevice::queryDeviceType()
 {
-    m_commands->queryDeviceType();
+    return m_commands->queryDeviceType();
 }
 
-void PelcoDDevice::queryGeneral()
+SendResult PelcoDDevice::queryGeneral()
 {
-    m_commands->queryGeneral();
+    return m_commands->queryGeneral();
 }
 
-void PelcoDDevice::queryDiagnostics()
+SendResult PelcoDDevice::queryDiagnostics()
 {
-    m_commands->queryDiagnostics();
+    return m_commands->queryDiagnostics();
 }
 
-void PelcoDDevice::queryAll()
+SendResult PelcoDDevice::queryAll()
 {
-    m_commands->queryAll();
+    return m_commands->queryAll();
 }
 
-void PelcoDDevice::activateEchoMode()
+SendResult PelcoDDevice::activateEchoMode()
 {
-    m_commands->activateEchoMode();
+    return m_commands->activateEchoMode();
 }
 
-void PelcoDDevice::prepareForDownload()
+SendResult PelcoDDevice::prepareForDownload()
 {
-    m_commands->prepareForDownload();
+    return m_commands->prepareForDownload();
 }
 
-void PelcoDDevice::startDownload()
+SendResult PelcoDDevice::startDownload()
 {
-    m_commands->startDownload();
+    return m_commands->startDownload();
 }
 
-void PelcoDDevice::writeCharacter(std::uint8_t column, char asciiChar)
+SendResult PelcoDDevice::writeCharacter(std::uint8_t column, char asciiChar)
 {
-    m_commands->writeCharacter(column, asciiChar);
+    return m_commands->writeCharacter(column, asciiChar);
 }
 
-void PelcoDDevice::clearScreen()
+SendResult PelcoDDevice::clearScreen()
 {
-    m_commands->clearScreen();
+    return m_commands->clearScreen();
 }
 
-void PelcoDDevice::sendDummy()
+SendResult PelcoDDevice::sendDummy()
 {
-    m_commands->sendDummy();
+    return m_commands->sendDummy();
 }
 
-void PelcoDDevice::screenMove(std::int8_t panPercent, std::int8_t tiltPercent, bool relative)
+SendResult PelcoDDevice::screenMove(std::int8_t panPercent, std::int8_t tiltPercent, bool relative)
 {
-    m_commands->screenMove(panPercent, tiltPercent, relative);
+    return m_commands->screenMove(panPercent, tiltPercent, relative);
 }
 
-void PelcoDDevice::querySoftwareVersion()
+SendResult PelcoDDevice::querySoftwareVersion()
 {
-    m_commands->querySoftwareVersion();
+    return m_commands->querySoftwareVersion();
 }
 
-void PelcoDDevice::queryBuildNumber()
+SendResult PelcoDDevice::queryBuildNumber()
 {
-    m_commands->queryBuildNumber();
+    return m_commands->queryBuildNumber();
 }
 
-void PelcoDDevice::setSeconds(std::uint8_t seconds)
+SendResult PelcoDDevice::setSeconds(std::uint8_t seconds)
 {
-    m_commands->setSeconds(seconds);
+    return m_commands->setSeconds(seconds);
 }
 
-void PelcoDDevice::setHourMinute(std::uint8_t hour, std::uint8_t minute)
+SendResult PelcoDDevice::setHourMinute(std::uint8_t hour, std::uint8_t minute)
 {
-    m_commands->setHourMinute(hour, minute);
+    return m_commands->setHourMinute(hour, minute);
 }
 
-void PelcoDDevice::setMonthDay(std::uint8_t month, std::uint8_t day)
+SendResult PelcoDDevice::setMonthDay(std::uint8_t month, std::uint8_t day)
 {
-    m_commands->setMonthDay(month, day);
+    return m_commands->setMonthDay(month, day);
 }
 
-void PelcoDDevice::setYear(std::uint16_t year)
+SendResult PelcoDDevice::setYear(std::uint16_t year)
 {
-    m_commands->setYear(year);
+    return m_commands->setYear(year);
 }
 
-void PelcoDDevice::setTime(std::uint8_t hour, std::uint8_t minute, std::uint8_t second)
+SendResult PelcoDDevice::setTime(std::uint8_t hour, std::uint8_t minute, std::uint8_t second)
 {
-    m_commands->setTime(hour, minute, second);
+    return m_commands->setTime(hour, minute, second);
 }
 
-void PelcoDDevice::setDate(std::uint16_t year, std::uint8_t month, std::uint8_t day)
+SendResult PelcoDDevice::setDate(std::uint16_t year, std::uint8_t month, std::uint8_t day)
 {
-    m_commands->setDate(year, month, day);
+    return m_commands->setDate(year, month, day);
 }
 
-void PelcoDDevice::queryTime(TimeSubOpcode queryType)
+SendResult PelcoDDevice::queryTime(TimeSubOpcode queryType)
 {
-    m_commands->queryTime(queryType);
+    return m_commands->queryTime(queryType);
 }
 
-void PelcoDDevice::setAuxLed(std::uint8_t ledIdOrColor, std::uint8_t onTimeTenths)
+SendResult PelcoDDevice::setAuxLed(std::uint8_t ledIdOrColor, std::uint8_t onTimeTenths)
 {
-    m_commands->setAuxLed(ledIdOrColor, onTimeTenths);
+    return m_commands->setAuxLed(ledIdOrColor, onTimeTenths);
 }
 
-void PelcoDDevice::clearAuxLed(std::uint8_t ledIdOrColor, std::uint8_t offTimeTenths)
+SendResult PelcoDDevice::clearAuxLed(std::uint8_t ledIdOrColor, std::uint8_t offTimeTenths)
 {
-    m_commands->clearAuxLed(ledIdOrColor, offTimeTenths);
+    return m_commands->clearAuxLed(ledIdOrColor, offTimeTenths);
 }
 
-void PelcoDDevice::queryAzimuthZero()
+SendResult PelcoDDevice::queryAzimuthZero()
 {
-    m_commands->queryAzimuthZero();
+    return m_commands->queryAzimuthZero();
 }
 
-void PelcoDDevice::setZoomLimit(std::uint16_t limitHundredths)
+SendResult PelcoDDevice::setZoomLimit(std::uint16_t limitHundredths)
 {
-    m_commands->setZoomLimit(limitHundredths);
+    return m_commands->setZoomLimit(limitHundredths);
 }
 
-void PelcoDDevice::queryZoomLimit()
+SendResult PelcoDDevice::queryZoomLimit()
 {
-    m_commands->queryZoomLimit();
+    return m_commands->queryZoomLimit();
 }
 
-void PelcoDDevice::queryEverestAlarms()
+SendResult PelcoDDevice::queryEverestAlarms()
 {
-    m_commands->queryEverestAlarms();
+    return m_commands->queryEverestAlarms();
 }
 
-void PelcoDDevice::deletePattern(std::uint8_t patternId)
+SendResult PelcoDDevice::deletePattern(std::uint8_t patternId)
 {
-    m_commands->deletePattern(patternId);
+    return m_commands->deletePattern(patternId);
 }
 
-void PelcoDDevice::setManualLeftPanLimit(std::uint16_t centidegrees)
+SendResult PelcoDDevice::setManualLeftPanLimit(std::uint16_t centidegrees)
 {
-    m_commands->setManualLeftPanLimit(centidegrees);
+    return m_commands->setManualLeftPanLimit(centidegrees);
 }
 
-void PelcoDDevice::setManualRightPanLimit(std::uint16_t centidegrees)
+SendResult PelcoDDevice::setManualRightPanLimit(std::uint16_t centidegrees)
 {
-    m_commands->setManualRightPanLimit(centidegrees);
+    return m_commands->setManualRightPanLimit(centidegrees);
 }
 
-void PelcoDDevice::setScanLeftPanLimit(std::uint16_t centidegrees)
+SendResult PelcoDDevice::setScanLeftPanLimit(std::uint16_t centidegrees)
 {
-    m_commands->setScanLeftPanLimit(centidegrees);
+    return m_commands->setScanLeftPanLimit(centidegrees);
 }
 
-void PelcoDDevice::setScanRightPanLimit(std::uint16_t centidegrees)
+SendResult PelcoDDevice::setScanRightPanLimit(std::uint16_t centidegrees)
 {
-    m_commands->setScanRightPanLimit(centidegrees);
+    return m_commands->setScanRightPanLimit(centidegrees);
 }
 
-void PelcoDDevice::queryLimit(EverestLimitId limitId)
+SendResult PelcoDDevice::queryLimit(EverestLimitId limitId)
 {
-    m_commands->queryLimit(limitId);
+    return m_commands->queryLimit(limitId);
 }
 
-void PelcoDDevice::enableLimits(bool enable)
+SendResult PelcoDDevice::enableLimits(bool enable)
 {
-    m_commands->enableLimits(enable);
+    return m_commands->enableLimits(enable);
 }
 
-void PelcoDDevice::queryDefinedPresets(std::uint8_t group)
+SendResult PelcoDDevice::queryDefinedPresets(std::uint8_t group)
 {
-    m_commands->queryDefinedPresets(group);
+    return m_commands->queryDefinedPresets(group);
 }
 
-void PelcoDDevice::queryDefinedPatterns(std::uint8_t group)
+SendResult PelcoDDevice::queryDefinedPatterns(std::uint8_t group)
 {
-    m_commands->queryDefinedPatterns(group);
+    return m_commands->queryDefinedPatterns(group);
 }
 
 AsyncWatchdog& PelcoDDevice::getAsyncWatchdog() noexcept
@@ -789,17 +806,17 @@ AsyncWatchdog& PelcoDDevice::getAsyncWatchdog() noexcept
     return m_session->getAsyncWatchdog();
 }
 
-void PelcoDDevice::sendRawFrame(const std::vector<std::uint8_t>& frame)
+SendResult PelcoDDevice::sendRawFrame(const std::vector<std::uint8_t>& frame)
 {
-    static_cast<void>(m_session->sendRawFrame(frame));
+    return m_session->sendRawFrame(frame);
 }
 
-void PelcoDDevice::sendQueryFrame(const std::vector<std::uint8_t>& frame, std::string queryTag)
+SendResult PelcoDDevice::sendQueryFrame(const std::vector<std::uint8_t>& frame, std::string queryTag)
 {
-    static_cast<void>(m_session->sendQueryFrame(frame, queryTag));
+    return m_session->sendQueryFrame(frame, std::move(queryTag));
 }
 
-void PelcoDDevice::enqueueCommand(
+SendResult PelcoDDevice::enqueueCommand(
     const std::vector<std::uint8_t>& frame, std::string queryTag, CommandPriority priority)
 {
     if (m_safetyGuard) {
@@ -809,7 +826,7 @@ void PelcoDDevice::enqueueCommand(
             m_safetyGuard->onMotionCommand(frame);
         }
     }
-    static_cast<void>(m_session->enqueueCommand(frame, std::move(queryTag), priority));
+    return m_session->enqueueCommand(frame, std::move(queryTag), priority);
 }
 
 bool PelcoDDevice::setFrameExt(std::shared_ptr<IFrameExtension> ext)
@@ -881,7 +898,15 @@ namespace {
         });
         state->timerId.store(tid);
 
-        trigger();
+        const SendResult triggerRes = trigger();
+        if (triggerRes != SendResult::Success) {
+            if (!state->fulfilled.exchange(true)) {
+                device->getAsyncWatchdog().cancel(state->timerId.load());
+                state->conn.disconnect();
+                promise->set_exception(std::make_exception_ptr(std::runtime_error(
+                    "Query '" + queryTag + "' dispatch failed: " + std::string(sendResultToString(triggerRes)))));
+            }
+        }
         return future;
     }
 
@@ -890,19 +915,22 @@ namespace {
 std::future<std::uint16_t> PelcoDDevice::queryPanAsync(std::chrono::milliseconds timeout)
 {
     return executeAsyncQuery<std::uint16_t>(
-        this, "QueryPan", [this] { queryPan(); }, [](const DeviceStatus& s) { return s.panCentidegrees; }, timeout);
+        this, "QueryPan", [this] { return queryPan(); }, [](const DeviceStatus& s) { return s.panCentidegrees; },
+        timeout);
 }
 
 std::future<std::uint16_t> PelcoDDevice::queryTiltAsync(std::chrono::milliseconds timeout)
 {
     return executeAsyncQuery<std::uint16_t>(
-        this, "QueryTilt", [this] { queryTilt(); }, [](const DeviceStatus& s) { return s.tiltCentidegrees; }, timeout);
+        this, "QueryTilt", [this] { return queryTilt(); }, [](const DeviceStatus& s) { return s.tiltCentidegrees; },
+        timeout);
 }
 
 std::future<std::uint16_t> PelcoDDevice::queryZoomAsync(std::chrono::milliseconds timeout)
 {
     return executeAsyncQuery<std::uint16_t>(
-        this, "QueryZoom", [this] { queryZoom(); }, [](const DeviceStatus& s) { return s.zoomPosition; }, timeout);
+        this, "QueryZoom", [this] { return queryZoom(); }, [](const DeviceStatus& s) { return s.zoomPosition; },
+        timeout);
 }
 
 std::future<DeviceStatus> PelcoDDevice::queryStatusAsync(std::chrono::milliseconds timeout)
@@ -952,9 +980,16 @@ std::future<DeviceStatus> PelcoDDevice::queryStatusAsync(std::chrono::millisecon
     });
     state->timerId.store(tid);
 
-    queryPan();
-    queryTilt();
-    queryZoom();
+    const SendResult rPan = queryPan();
+    const SendResult rTilt = queryTilt();
+    const SendResult rZoom = queryZoom();
+    if (rPan != SendResult::Success || rTilt != SendResult::Success || rZoom != SendResult::Success) {
+        if (!state->fulfilled.exchange(true)) {
+            getAsyncWatchdog().cancel(state->timerId.load());
+            state->conn.disconnect();
+            promise->set_exception(std::make_exception_ptr(std::runtime_error("queryStatusAsync dispatch failed")));
+        }
+    }
 
     return future;
 }
@@ -963,7 +998,7 @@ std::future<std::pair<std::uint8_t, std::uint8_t>> PelcoDDevice::querySoftwareVe
     std::chrono::milliseconds timeout)
 {
     return executeAsyncQuery<std::pair<std::uint8_t, std::uint8_t>>(
-        this, "QuerySoftwareVersion", [this] { querySoftwareVersion(); },
+        this, "QuerySoftwareVersion", [this] { return querySoftwareVersion(); },
         [this](const DeviceStatus&) {
             const auto info = getInfo();
             return std::make_pair(info.softwareMajor, info.softwareMinor);
@@ -974,21 +1009,21 @@ std::future<std::pair<std::uint8_t, std::uint8_t>> PelcoDDevice::querySoftwareVe
 std::future<std::uint16_t> PelcoDDevice::queryBuildNumberAsync(std::chrono::milliseconds timeout)
 {
     return executeAsyncQuery<std::uint16_t>(
-        this, "QueryBuildNumber", [this] { queryBuildNumber(); },
+        this, "QueryBuildNumber", [this] { return queryBuildNumber(); },
         [this](const DeviceStatus&) { return getInfo().buildNumber; }, timeout);
 }
 
 std::future<std::uint16_t> PelcoDDevice::queryAzimuthZeroAsync(std::chrono::milliseconds timeout)
 {
     return executeAsyncQuery<std::uint16_t>(
-        this, "QueryAzimuthZero", [this] { queryAzimuthZero(); },
+        this, "QueryAzimuthZero", [this] { return queryAzimuthZero(); },
         [](const DeviceStatus& s) { return s.azimuthZeroOffsetCentidegrees; }, timeout);
 }
 
 std::future<std::uint16_t> PelcoDDevice::queryZoomLimitAsync(std::chrono::milliseconds timeout)
 {
     return executeAsyncQuery<std::uint16_t>(
-        this, "QueryZoomLimit", [this] { queryZoomLimit(); }, [](const DeviceStatus& s) { return s.zoomLimit; },
+        this, "QueryZoomLimit", [this] { return queryZoomLimit(); }, [](const DeviceStatus& s) { return s.zoomLimit; },
         timeout);
 }
 

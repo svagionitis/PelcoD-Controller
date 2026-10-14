@@ -37,130 +37,132 @@ public:
     PtzCommands& operator=(PtzCommands&&) = delete;
 
     // Motion & Positioning
-    SendResult panLeft(std::uint8_t speed);
-    SendResult panRight(std::uint8_t speed);
-    SendResult tiltUp(std::uint8_t speed);
-    SendResult tiltDown(std::uint8_t speed);
-    SendResult stopMotion();
+    [[nodiscard]] SendResult panLeft(std::uint8_t speed);
+    [[nodiscard]] SendResult panRight(std::uint8_t speed);
+    [[nodiscard]] SendResult tiltUp(std::uint8_t speed);
+    [[nodiscard]] SendResult tiltDown(std::uint8_t speed);
+    [[nodiscard]] SendResult stopMotion();
 
-    SendResult move(PanDirection panDir, std::uint8_t panSpeed, TiltDirection tiltDir, std::uint8_t tiltSpeed);
-    SendResult move(PanDirection panDir, std::uint8_t panSpeed, TiltDirection tiltDir, std::uint8_t tiltSpeed,
-        ZoomAction zoom, FocusAction focus = FocusAction::Stop, IrisAction iris = IrisAction::Stop);
+    [[nodiscard]] SendResult move(
+        PanDirection panDir, std::uint8_t panSpeed, TiltDirection tiltDir, std::uint8_t tiltSpeed);
+    [[nodiscard]] SendResult move(PanDirection panDir, std::uint8_t panSpeed, TiltDirection tiltDir,
+        std::uint8_t tiltSpeed, ZoomAction zoom, FocusAction focus = FocusAction::Stop,
+        IrisAction iris = IrisAction::Stop);
 
-    SendResult setPower(bool on);
-    SendResult setAutoScan(bool enable);
+    [[nodiscard]] SendResult setPower(bool on);
+    [[nodiscard]] SendResult setAutoScan(bool enable);
 
-    SendResult zoomTele();
-    SendResult zoomWide();
-    SendResult zoomStop();
+    [[nodiscard]] SendResult zoomTele();
+    [[nodiscard]] SendResult zoomWide();
+    [[nodiscard]] SendResult zoomStop();
 
-    SendResult focusNear();
-    SendResult focusFar();
-    SendResult focusStop();
+    [[nodiscard]] SendResult focusNear();
+    [[nodiscard]] SendResult focusFar();
+    [[nodiscard]] SendResult focusStop();
 
-    SendResult irisOpen();
-    SendResult irisClose();
-    SendResult irisStop();
+    [[nodiscard]] SendResult irisOpen();
+    [[nodiscard]] SendResult irisClose();
+    [[nodiscard]] SendResult irisStop();
 
-    SendResult setPanAngle(std::uint16_t centidegrees);
-    SendResult setTiltAngle(std::uint16_t centidegrees);
-    SendResult setZoomPosition(std::uint16_t position);
+    [[nodiscard]] SendResult setPanAngle(std::uint16_t centidegrees);
+    [[nodiscard]] SendResult setTiltAngle(std::uint16_t centidegrees);
+    [[nodiscard]] SendResult setZoomPosition(std::uint16_t position);
 
     // Presets
-    SendResult setPreset(std::uint8_t presetId);
-    SendResult clearPreset(std::uint8_t presetId);
-    SendResult goToPreset(std::uint8_t presetId);
-    SendResult goToPreset(std::uint8_t presetId, std::uint8_t speed);
+    [[nodiscard]] SendResult setPreset(std::uint8_t presetId);
+    [[nodiscard]] SendResult clearPreset(std::uint8_t presetId);
+    [[nodiscard]] SendResult goToPreset(std::uint8_t presetId);
+    [[nodiscard]] SendResult goToPreset(std::uint8_t presetId, std::uint8_t speed);
 
-    SendResult flip180();
-    SendResult zeroPan();
-    SendResult presetScan(std::uint8_t dwellSeconds);
+    [[nodiscard]] SendResult flip180();
+    [[nodiscard]] SendResult zeroPan();
+    [[nodiscard]] SendResult presetScan(std::uint8_t dwellSeconds);
 
     // Auxiliaries & Zones
-    SendResult setAuxiliary(std::uint8_t auxId);
-    SendResult clearAuxiliary(std::uint8_t auxId);
-    SendResult setZoneStart(std::uint8_t zoneId);
-    SendResult setZoneEnd(std::uint8_t zoneId);
-    SendResult setZoneScan(bool enable);
+    [[nodiscard]] SendResult setAuxiliary(std::uint8_t auxId);
+    [[nodiscard]] SendResult clearAuxiliary(std::uint8_t auxId);
+    [[nodiscard]] SendResult setZoneStart(std::uint8_t zoneId);
+    [[nodiscard]] SendResult setZoneEnd(std::uint8_t zoneId);
+    [[nodiscard]] SendResult setZoneScan(bool enable);
 
     // Patterns
-    SendResult recordPatternStart(std::uint8_t patternId);
-    SendResult recordPatternStop();
-    SendResult runPattern(std::uint8_t patternId);
+    [[nodiscard]] SendResult recordPatternStart(std::uint8_t patternId);
+    [[nodiscard]] SendResult recordPatternStop();
+    [[nodiscard]] SendResult runPattern(std::uint8_t patternId);
 
     // Speeds & Options
-    SendResult setZoomSpeed(std::uint8_t speed);
-    SendResult setFocusSpeed(std::uint8_t speed);
-    SendResult setAutoFocus(AutoMode mode);
-    SendResult setAutoIris(AutoMode mode);
-    SendResult setAgc(AutoMode mode);
-    SendResult setBacklightComp(SwitchState state);
-    SendResult setAutoWhiteBalance(SwitchState state);
-    SendResult setShutterSpeed(std::uint16_t speed);
-    SendResult setGain(std::uint16_t gain);
-    SendResult setAutoIrisLevel(std::uint8_t level);
-    SendResult setAutoIrisPeak(std::uint8_t peak);
-    SendResult setPhaseDelayMode(SwitchState state);
-    SendResult adjustLineLockDelay(std::uint16_t centidegrees);
-    SendResult adjustWhiteBalanceRB(std::uint16_t value);
-    SendResult adjustWhiteBalanceMG(std::uint16_t value);
-    SendResult setMagnification(std::uint16_t value, bool relative = false);
-    SendResult setBaudRate(std::uint32_t baud);
-    SendResult setZeroPosition();
+    [[nodiscard]] SendResult setZoomSpeed(std::uint8_t speed);
+    [[nodiscard]] SendResult setFocusSpeed(std::uint8_t speed);
+    [[nodiscard]] SendResult setAutoFocus(AutoMode mode);
+    [[nodiscard]] SendResult setAutoIris(AutoMode mode);
+    [[nodiscard]] SendResult setAgc(AutoMode mode);
+    [[nodiscard]] SendResult setBacklightComp(SwitchState state);
+    [[nodiscard]] SendResult setAutoWhiteBalance(SwitchState state);
+    [[nodiscard]] SendResult setShutterSpeed(std::uint16_t speed);
+    [[nodiscard]] SendResult setGain(std::uint16_t gain);
+    [[nodiscard]] SendResult setAutoIrisLevel(std::uint8_t level);
+    [[nodiscard]] SendResult setAutoIrisPeak(std::uint8_t peak);
+    [[nodiscard]] SendResult setPhaseDelayMode(SwitchState state);
+    [[nodiscard]] SendResult adjustLineLockDelay(std::uint16_t centidegrees);
+    [[nodiscard]] SendResult adjustWhiteBalanceRB(std::uint16_t value);
+    [[nodiscard]] SendResult adjustWhiteBalanceMG(std::uint16_t value);
+    [[nodiscard]] SendResult setMagnification(std::uint16_t value, bool relative = false);
+    [[nodiscard]] SendResult setBaudRate(std::uint32_t baud);
+    [[nodiscard]] SendResult setZeroPosition();
 
-    SendResult setFocusPosition(std::uint16_t pos);
-    SendResult setIrisPosition(std::uint16_t pos);
+    [[nodiscard]] SendResult setFocusPosition(std::uint16_t pos);
+    [[nodiscard]] SendResult setIrisPosition(std::uint16_t pos);
 
     // System Commands & Queries
-    SendResult resetDefaults();
-    SendResult remoteReset();
-    SendResult queryPan();
-    SendResult queryTilt();
-    SendResult queryZoom();
-    SendResult queryMagnification();
-    SendResult queryDeviceType();
-    SendResult queryGeneral();
-    SendResult queryDiagnostics();
-    SendResult queryAll();
-    SendResult querySerialNumber();
+    [[nodiscard]] SendResult resetDefaults();
+    [[nodiscard]] SendResult remoteReset();
+    [[nodiscard]] SendResult queryPan();
+    [[nodiscard]] SendResult queryTilt();
+    [[nodiscard]] SendResult queryZoom();
+    [[nodiscard]] SendResult queryMagnification();
+    [[nodiscard]] SendResult queryDeviceType();
+    [[nodiscard]] SendResult queryGeneral();
+    [[nodiscard]] SendResult queryDiagnostics();
+    [[nodiscard]] SendResult queryAll();
+    [[nodiscard]] SendResult querySerialNumber();
 
-    SendResult activateEchoMode();
-    SendResult prepareForDownload();
-    SendResult startDownload();
+    [[nodiscard]] SendResult activateEchoMode();
+    [[nodiscard]] SendResult prepareForDownload();
+    [[nodiscard]] SendResult startDownload();
 
-    SendResult writeCharacter(std::uint8_t column, char asciiChar);
-    SendResult clearScreen();
-    SendResult sendDummy();
-    SendResult screenMove(std::int8_t panPercent, std::int8_t tiltPercent, bool relative = false);
+    [[nodiscard]] SendResult writeCharacter(std::uint8_t column, char asciiChar);
+    [[nodiscard]] SendResult clearScreen();
+    [[nodiscard]] SendResult sendDummy();
+    [[nodiscard]] SendResult screenMove(std::int8_t panPercent, std::int8_t tiltPercent, bool relative = false);
 
-    SendResult querySoftwareVersion();
-    SendResult queryBuildNumber();
+    [[nodiscard]] SendResult querySoftwareVersion();
+    [[nodiscard]] SendResult queryBuildNumber();
 
-    SendResult setSeconds(std::uint8_t seconds);
-    SendResult setHourMinute(std::uint8_t hour, std::uint8_t minute);
-    SendResult setMonthDay(std::uint8_t month, std::uint8_t day);
-    SendResult setYear(std::uint16_t year);
-    SendResult setTime(std::uint8_t hour, std::uint8_t minute, std::uint8_t second);
-    SendResult setDate(std::uint16_t year, std::uint8_t month, std::uint8_t day);
-    SendResult queryTime(TimeSubOpcode queryType);
+    [[nodiscard]] SendResult setSeconds(std::uint8_t seconds);
+    [[nodiscard]] SendResult setHourMinute(std::uint8_t hour, std::uint8_t minute);
+    [[nodiscard]] SendResult setMonthDay(std::uint8_t month, std::uint8_t day);
+    [[nodiscard]] SendResult setYear(std::uint16_t year);
+    [[nodiscard]] SendResult setTime(std::uint8_t hour, std::uint8_t minute, std::uint8_t second);
+    [[nodiscard]] SendResult setDate(std::uint16_t year, std::uint8_t month, std::uint8_t day);
+    [[nodiscard]] SendResult queryTime(TimeSubOpcode queryType);
 
-    SendResult setAuxLed(std::uint8_t ledIdOrColor, std::uint8_t onTimeTenths = 0U);
-    SendResult clearAuxLed(std::uint8_t ledIdOrColor, std::uint8_t offTimeTenths = 0U);
+    [[nodiscard]] SendResult setAuxLed(std::uint8_t ledIdOrColor, std::uint8_t onTimeTenths = 0U);
+    [[nodiscard]] SendResult clearAuxLed(std::uint8_t ledIdOrColor, std::uint8_t offTimeTenths = 0U);
 
     // Everest Macro Commands & Queries
-    SendResult queryAzimuthZero();
-    SendResult setZoomLimit(std::uint16_t limitHundredths);
-    SendResult queryZoomLimit();
-    SendResult queryEverestAlarms();
-    SendResult deletePattern(std::uint8_t patternId);
-    SendResult setManualLeftPanLimit(std::uint16_t centidegrees);
-    SendResult setManualRightPanLimit(std::uint16_t centidegrees);
-    SendResult setScanLeftPanLimit(std::uint16_t centidegrees);
-    SendResult setScanRightPanLimit(std::uint16_t centidegrees);
-    SendResult queryLimit(EverestLimitId limitId);
-    SendResult enableLimits(bool enable);
-    SendResult queryDefinedPresets(std::uint8_t group = 0U);
-    SendResult queryDefinedPatterns(std::uint8_t group = 0U);
+    [[nodiscard]] SendResult queryAzimuthZero();
+    [[nodiscard]] SendResult setZoomLimit(std::uint16_t limitHundredths);
+    [[nodiscard]] SendResult queryZoomLimit();
+    [[nodiscard]] SendResult queryEverestAlarms();
+    [[nodiscard]] SendResult deletePattern(std::uint8_t patternId);
+    [[nodiscard]] SendResult setManualLeftPanLimit(std::uint16_t centidegrees);
+    [[nodiscard]] SendResult setManualRightPanLimit(std::uint16_t centidegrees);
+    [[nodiscard]] SendResult setScanLeftPanLimit(std::uint16_t centidegrees);
+    [[nodiscard]] SendResult setScanRightPanLimit(std::uint16_t centidegrees);
+    [[nodiscard]] SendResult queryLimit(EverestLimitId limitId);
+    [[nodiscard]] SendResult enableLimits(bool enable);
+    [[nodiscard]] SendResult queryDefinedPresets(std::uint8_t group = 0U);
+    [[nodiscard]] SendResult queryDefinedPatterns(std::uint8_t group = 0U);
 
 private:
     [[nodiscard]] SendResult dispatch(const std::vector<std::uint8_t>& frame, QueryKind queryKind,

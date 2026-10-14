@@ -158,6 +158,12 @@ public:
     /// @param[in] handler Callback function.
     void setStateHandler(StateHandler handler);
 
+    using CommandDroppedHandler = std::function<void(const std::vector<std::uint8_t>& frame, SendResult reason)>;
+
+    /// @brief Registers command dropped notification handler.
+    /// @param[in] handler Callback function.
+    void setCommandDroppedHandler(CommandDroppedHandler handler);
+
     /// @brief Registers periodic telemetry poll step handler and optional deadline provider.
     /// @param[in] handler Callback function.
     /// @param[in] deadlineHandler Callback providing the next poll deadline time point.
@@ -219,6 +225,7 @@ private:
         QueryKind kind, const std::string& queryTag, const std::vector<std::uint8_t>& frame) const noexcept;
     void notifyQueryFailed(
         const std::string& queryTag, std::chrono::microseconds durationUs = std::chrono::microseconds { 0 });
+    void notifyCommandDropped(const std::vector<std::uint8_t>& frame, SendResult reason);
 
     std::shared_ptr<ITransport> m_transport;
     std::atomic<std::uint8_t> m_address { 1U };
@@ -255,6 +262,7 @@ private:
     QueryFailedHandler m_queryFailedHandler {};
     RetryHandler m_retryHandler {};
     StateHandler m_stateHandler {};
+    CommandDroppedHandler m_commandDroppedHandler {};
     PollStepHandler m_pollStepHandler {};
     PollDeadlineHandler m_pollDeadlineHandler {};
     StatusProvider m_statusProvider {};

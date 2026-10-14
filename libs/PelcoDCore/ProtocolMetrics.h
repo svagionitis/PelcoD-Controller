@@ -41,6 +41,15 @@ public:
     /// @brief Records a query retry attempt.
     void recordQueryRetry() noexcept;
 
+    /// @brief Records an asynchronously dropped command.
+    void recordCommandDropped() noexcept;
+
+    /// @brief Records a command abandoned after reaching max retry attempts.
+    void recordCommandRetryExhausted() noexcept;
+
+    /// @brief Records a command rejected due to queue capacity exhaustion.
+    void recordQueueOverflow() noexcept;
+
     /// @brief Captures a snapshot of current protocol performance counters.
     /// @return Frozen snapshot containing query and latency metrics.
     [[nodiscard]] PelcoDProtocolStats getStats() const noexcept;
@@ -53,6 +62,9 @@ private:
     std::atomic<std::uint64_t> m_queriesCompleted { 0U };
     std::atomic<std::uint64_t> m_queryTimeouts { 0U };
     std::atomic<std::uint64_t> m_queryRetries { 0U };
+    std::atomic<std::uint64_t> m_commandsDropped { 0U };
+    std::atomic<std::uint64_t> m_commandRetriesExhausted { 0U };
+    std::atomic<std::uint64_t> m_queueOverflows { 0U };
     std::atomic<std::uint64_t> m_totalRttUs { 0U };
     std::atomic<std::uint64_t> m_lastRttUs { 0U };
     std::atomic<std::uint64_t> m_minRttUs { 0U };

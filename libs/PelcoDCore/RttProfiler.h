@@ -177,12 +177,12 @@ public:
     /// @brief Export collected history and statistics in CSV format.
     /// @param[out] os Output stream receiving CSV data.
     /// @return True on success; false on stream error.
-    bool exportCsv(std::ostream& os) const;
+    [[nodiscard]] bool exportCsv(std::ostream& os) const;
 
     /// @brief Export collected history and statistics in JSON format.
     /// @param[out] os Output stream receiving JSON text.
     /// @return True on success; false on stream error.
-    bool exportJson(std::ostream& os) const;
+    [[nodiscard]] bool exportJson(std::ostream& os) const;
 
 private:
     void activeWorkerLoop(RttProfilerConfig config);

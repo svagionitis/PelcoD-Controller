@@ -222,33 +222,33 @@ bool VideoView::handleInput(const InputEvent& event, PelcoD::PelcoDDevice& devic
 
     // PTZ Motion controls
     if (event.key == Key::Up || event.ch == 'w' || event.ch == 'W') {
-        device.tiltUp(m_tiltSpeed);
+        static_cast<void>(device.tiltUp(m_tiltSpeed));
         return true;
     }
     if (event.key == Key::Down || event.ch == 's' || event.ch == 'S') {
-        device.tiltDown(m_tiltSpeed);
+        static_cast<void>(device.tiltDown(m_tiltSpeed));
         return true;
     }
     if (event.key == Key::Left || event.ch == 'a' || event.ch == 'A') {
-        device.panLeft(m_panSpeed);
+        static_cast<void>(device.panLeft(m_panSpeed));
         return true;
     }
     if (event.key == Key::Right || event.ch == 'd' || event.ch == 'D') {
-        device.panRight(m_panSpeed);
+        static_cast<void>(device.panRight(m_panSpeed));
         return true;
     }
     if (event.key == Key::Space) {
-        device.stop();
+        static_cast<void>(device.stopMotion());
         return true;
     }
 
     // Zoom controls
     if (event.ch == 'z' || event.ch == 'Z') {
-        device.zoomTele();
+        static_cast<void>(device.zoomTele());
         return true;
     }
     if (event.ch == 'x' || event.ch == 'X') {
-        device.zoomWide();
+        static_cast<void>(device.zoomWide());
         return true;
     }
 

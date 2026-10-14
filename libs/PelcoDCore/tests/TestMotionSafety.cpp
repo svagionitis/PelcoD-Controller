@@ -30,7 +30,7 @@ TEST(TestMotionSafety, FailSafeStopSentOnDeviceStop)
     PelcoD::PelcoDDevice device { transport, 1U };
 
     ASSERT_TRUE(device.start());
-    device.panLeft(0x20U);
+    EXPECT_EQ(device.panLeft(0x20U), PelcoD::SendResult::Success);
     std::this_thread::sleep_for(25ms);
 
     // Operator or system stops device without an explicit stopMotion()
@@ -52,7 +52,7 @@ TEST(TestMotionSafety, FailSafeStopSentOnDeviceDestruction)
     {
         PelcoD::PelcoDDevice device { transport, 1U };
         ASSERT_TRUE(device.start());
-        device.tiltUp(0x20U);
+        EXPECT_EQ(device.tiltUp(0x20U), PelcoD::SendResult::Success);
         std::this_thread::sleep_for(25ms);
         // device destructor runs here
     }
@@ -71,14 +71,14 @@ TEST(TestMotionSafety, PacedCommandQueuePurgeMotionCommands)
 
     // Enqueue a non-motion query
     const auto queryFrame = PelcoD::ProtocolBuilder::buildQueryPan(1U);
-    queue.enqueue(queryFrame, "QueryPan", PelcoD::CommandPriority::Low, 0U);
+    EXPECT_EQ(queue.enqueue(queryFrame, "QueryPan", PelcoD::CommandPriority::Low, 0U), PelcoD::SendResult::Success);
 
     // Enqueue motion commands belonging to the active motion generation
     const auto panFrame = PelcoD::ProtocolBuilder::buildPan(1U, PelcoD::PanDirection::Left, 0x20U);
-    queue.enqueue(panFrame, "", PelcoD::CommandPriority::Normal, 1U);
+    EXPECT_EQ(queue.enqueue(panFrame, "", PelcoD::CommandPriority::Normal, 1U), PelcoD::SendResult::Success);
 
     const auto tiltFrame = PelcoD::ProtocolBuilder::buildTilt(1U, PelcoD::TiltDirection::Up, 0x20U);
-    queue.enqueue(tiltFrame, "", PelcoD::CommandPriority::Normal, 1U);
+    EXPECT_EQ(queue.enqueue(tiltFrame, "", PelcoD::CommandPriority::Normal, 1U), PelcoD::SendResult::Success);
 
     EXPECT_EQ(queue.size(), 3U);
 
@@ -87,7 +87,8 @@ TEST(TestMotionSafety, PacedCommandQueuePurgeMotionCommands)
     EXPECT_EQ(queue.size(), 1U);
 
     PelcoD::CommandItem remaining;
-    EXPECT_TRUE(queue.popReady(remaining, [] { return false; }, std::chrono::steady_clock::time_point::max(), 10ms));
+    EXPECT_TRUE(queue.popReady(
+        remaining, [] { return false; }, std::chrono::steady_clock::time_point::max(), 10ms));
     EXPECT_EQ(remaining.queryTag, "QueryPan");
 }
 
@@ -100,8 +101,8 @@ TEST(TestMotionSafety, TransportDisconnectPurgesQueuedMotion)
     ASSERT_TRUE(device.start());
 
     // Queue motion commands
-    device.panLeft(0x10U);
-    device.tiltDown(0x10U);
+    EXPECT_EQ(device.panLeft(0x10U), PelcoD::SendResult::Success);
+    EXPECT_EQ(device.tiltDown(0x10U), PelcoD::SendResult::Success);
 
     // Simulate transport disconnect event
     transport->close();
@@ -127,7 +128,7 @@ TEST(TestMotionSafety, DeadManWatchdogStopsMotionOnTimeout)
     ASSERT_TRUE(device.start());
 
     // Start motion
-    device.panRight(0x20U);
+    EXPECT_EQ(device.panRight(0x20U), PelcoD::SendResult::Success);
 
     // Wait for watchdog to trigger (60ms timeout + safety margin)
     std::this_thread::sleep_for(160ms);
@@ -156,7 +157,7 @@ TEST(TestMotionSafety, DeadManWatchdogResetBySubsequentMotion)
 
     // Send periodic updates every 30ms (well within 80ms watchdog window)
     for (int i { 0 }; i < 4; ++i) {
-        device.panRight(0x20U);
+        EXPECT_EQ(device.panRight(0x20U), PelcoD::SendResult::Success);
         std::this_thread::sleep_for(30ms);
     }
 
@@ -185,11 +186,11 @@ TEST(TestMotionSafety, DeadManWatchdogDisarmedByExplicitStop)
     device.setDeadManTimeout(60ms);
     ASSERT_TRUE(device.start());
 
-    device.panLeft(0x20U);
+    EXPECT_EQ(device.panLeft(0x20U), PelcoD::SendResult::Success);
     std::this_thread::sleep_for(20ms);
 
     // Operator stops explicitly
-    device.stopMotion();
+    EXPECT_EQ(device.stopMotion(), PelcoD::SendResult::Success);
     std::this_thread::sleep_for(25ms);
 
     // Wait past the 60ms dead-man timeout window
@@ -219,7 +220,7 @@ TEST(TestMotionSafety, ZeroTimeoutDisablesDeadMan)
     EXPECT_EQ(device.getDeadManTimeout(), 0ms);
 
     ASSERT_TRUE(device.start());
-    device.panLeft(0x20U);
+    EXPECT_EQ(device.panLeft(0x20U), PelcoD::SendResult::Success);
 
     std::this_thread::sleep_for(80ms);
 

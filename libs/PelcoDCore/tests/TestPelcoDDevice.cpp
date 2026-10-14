@@ -181,11 +181,11 @@ TEST(PelcoDDeviceLifecycle, MotionRetryCancelledByStopMotion)
     transport->setFailSendCount(1U);
     ASSERT_TRUE(device.start());
 
-    device.panLeft(0x20U);
+    static_cast<void>(device.panLeft(0x20U));
     std::this_thread::sleep_for(15ms); // Allow worker thread to attempt and fail panLeft
 
     // Operator commands stop
-    device.stopMotion();
+    static_cast<void>(device.stopMotion());
 
     // Wait past the 50ms backoff interval
     std::this_thread::sleep_for(120ms);
@@ -222,11 +222,11 @@ TEST(PelcoDDeviceLifecycle, MotionRetryCancelledByDirectionChange)
     transport->setFailSendCount(1U);
     ASSERT_TRUE(device.start());
 
-    device.panLeft(0x20U);
+    static_cast<void>(device.panLeft(0x20U));
     std::this_thread::sleep_for(15ms);
 
     // Operator changes direction to right
-    device.panRight(0x20U);
+    static_cast<void>(device.panRight(0x20U));
 
     std::this_thread::sleep_for(120ms);
 
@@ -341,9 +341,9 @@ TEST(PelcoDDeviceConcurrency, QuerySentTimeRaceSafety)
 
     constexpr std::uint32_t kIterations { 30U };
     for (std::uint32_t i { 0U }; i < kIterations; ++i) {
-        device.queryPan();
-        device.queryTilt();
-        device.queryZoom();
+        static_cast<void>(device.queryPan());
+        static_cast<void>(device.queryTilt());
+        static_cast<void>(device.queryZoom());
         std::this_thread::sleep_for(10ms);
     }
 
@@ -351,7 +351,8 @@ TEST(PelcoDDeviceConcurrency, QuerySentTimeRaceSafety)
     device.stop();
 
     EXPECT_GT(completedQueries.load(), 0U);
-    EXPECT_FALSE(negativeDurationObserved.load()) << "m_querySentTime was clobbered by concurrent query or read racily!";
+    EXPECT_FALSE(negativeDurationObserved.load())
+        << "m_querySentTime was clobbered by concurrent query or read racily!";
 }
 
 /// @brief When checkQueryTimeout races with query dispatch and responses, timeout callbacks must
@@ -373,8 +374,8 @@ TEST(PelcoDDeviceConcurrency, QueryTimeoutRaceSafety)
         }
     }));
 
-    static_cast<void>(device.addQueryLatencyCallback(
-        [&](const std::string& tag, std::chrono::microseconds durationUs, bool success) {
+    static_cast<void>(
+        device.addQueryLatencyCallback([&](const std::string& tag, std::chrono::microseconds durationUs, bool success) {
             if (!success) {
                 if (tag.empty()) {
                     emptyTagObserved.store(true);
@@ -389,7 +390,7 @@ TEST(PelcoDDeviceConcurrency, QueryTimeoutRaceSafety)
 
     // Send queries and let them time out
     for (std::uint32_t i { 0U }; i < 10U; ++i) {
-        device.queryPan();
+        static_cast<void>(device.queryPan());
         std::this_thread::sleep_for(25ms);
     }
 
@@ -546,8 +547,8 @@ TEST(PelcoDDeviceQueryOutcome, SendFailureReportsQueryCompletedWithZeroRetries)
     std::string completedTag {};
     bool completedSuccess { true };
 
-    static_cast<void>(device.addQueryCompletedCallback(
-        [&](const std::string& tag, bool success, const PelcoD::DeviceStatus&) {
+    static_cast<void>(
+        device.addQueryCompletedCallback([&](const std::string& tag, bool success, const PelcoD::DeviceStatus&) {
             completedTag = tag;
             completedSuccess = success;
             queryCompletedPromise.set_value(success);
@@ -556,7 +557,7 @@ TEST(PelcoDDeviceQueryOutcome, SendFailureReportsQueryCompletedWithZeroRetries)
     // Transport will fail next send
     transport->setFailSendCount(1U);
 
-    device.queryPan();
+    static_cast<void>(device.queryPan());
 
     const auto status = queryCompletedFuture.wait_for(500ms);
     ASSERT_EQ(status, std::future_status::ready) << "QueryCompletedCallback was never invoked on send failure!";
@@ -579,21 +580,21 @@ TEST(PelcoDDeviceQueryOutcome, UrgentPreemptionReportsQueryCompletedFalse)
     std::string completedTag {};
     bool completedSuccess { true };
 
-    static_cast<void>(device.addQueryCompletedCallback(
-        [&](const std::string& tag, bool success, const PelcoD::DeviceStatus&) {
+    static_cast<void>(
+        device.addQueryCompletedCallback([&](const std::string& tag, bool success, const PelcoD::DeviceStatus&) {
             completedTag = tag;
             completedSuccess = success;
             queryCompletedPromise.set_value(success);
         }));
 
     // Send query (which sets awaitingResponse = true)
-    device.queryPan();
+    static_cast<void>(device.queryPan());
 
     // Give worker time to send query and enter response wait
     std::this_thread::sleep_for(30ms);
 
     // Urgent command should pre-empt the query
-    device.stopMotion();
+    static_cast<void>(device.stopMotion());
 
     const auto status = queryCompletedFuture.wait_for(500ms);
     ASSERT_EQ(status, std::future_status::ready)
@@ -615,17 +616,17 @@ TEST(PelcoDDeviceQueryOutcome, UrgentEnqueuePurgesQueuedQueriesWithNotification)
     std::string completedTag {};
     bool completedSuccess { true };
 
-    static_cast<void>(device.addQueryCompletedCallback(
-        [&](const std::string& tag, bool success, const PelcoD::DeviceStatus&) {
+    static_cast<void>(
+        device.addQueryCompletedCallback([&](const std::string& tag, bool success, const PelcoD::DeviceStatus&) {
             completedTag = tag;
             completedSuccess = success;
             queryCompletedPromise.set_value(success);
         }));
 
-    device.queryPan();
+    static_cast<void>(device.queryPan());
 
     // Urgent command should purge the queued QueryPan from PacedCommandQueue
-    device.stopMotion();
+    static_cast<void>(device.stopMotion());
 
     const auto status = queryCompletedFuture.wait_for(500ms);
     ASSERT_EQ(status, std::future_status::ready)
@@ -647,23 +648,22 @@ TEST(PelcoDDeviceQueryOutcome, DeviceStopNotifiesInFlightAndQueuedQueries)
     std::string completedTag {};
     bool completedSuccess { true };
 
-    static_cast<void>(device.addQueryCompletedCallback(
-        [&](const std::string& tag, bool success, const PelcoD::DeviceStatus&) {
+    static_cast<void>(
+        device.addQueryCompletedCallback([&](const std::string& tag, bool success, const PelcoD::DeviceStatus&) {
             completedTag = tag;
             completedSuccess = success;
             queryCompletedPromise.set_value(success);
         }));
 
     // Dispatch query into response wait
-    device.queryPan();
+    static_cast<void>(device.queryPan());
     std::this_thread::sleep_for(30ms);
 
     // Stop device
     device.stop();
 
     const auto status = queryCompletedFuture.wait_for(500ms);
-    ASSERT_EQ(status, std::future_status::ready)
-        << "QueryCompletedCallback was not invoked when query was stopped!";
+    ASSERT_EQ(status, std::future_status::ready) << "QueryCompletedCallback was not invoked when query was stopped!";
     EXPECT_EQ(completedTag, "QueryPan");
     EXPECT_FALSE(completedSuccess);
 }
@@ -684,11 +684,10 @@ TEST(PelcoDDeviceQueryOutcome, AsyncQueryRejectsPromptlyOnSendFailure)
     auto future = device.queryPanAsync(3000ms);
 
     const auto status = future.wait_for(500ms);
-    ASSERT_EQ(status, std::future_status::ready)
-        << "Async query future did not resolve promptly on send failure!";
+    ASSERT_EQ(status, std::future_status::ready) << "Async query future did not resolve promptly on send failure!";
 
-    const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
-        std::chrono::steady_clock::now() - startTime).count();
+    const auto elapsed
+        = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - startTime).count();
     EXPECT_LT(elapsed, 200) << "Async query waited for timeout instead of failing immediately!";
 
     EXPECT_THROW(future.get(), std::runtime_error);
@@ -719,15 +718,15 @@ TEST(PelcoDDeviceUnsolicited, AlarmProcessedWhileQueryPending)
     std::promise<bool> queryCompletedPromise;
     auto queryCompletedFuture = queryCompletedPromise.get_future();
     std::atomic<bool> queryCompletedReceived { false };
-    static_cast<void>(device.addQueryCompletedCallback(
-        [&](const std::string& tag, bool success, const PelcoD::DeviceStatus&) {
+    static_cast<void>(
+        device.addQueryCompletedCallback([&](const std::string& tag, bool success, const PelcoD::DeviceStatus&) {
             if (tag == "QueryPan" && !queryCompletedReceived.exchange(true)) {
                 queryCompletedPromise.set_value(success);
             }
         }));
 
     // Trigger QueryPan; worker loop sends query and enters response wait (m_awaitingResponse = true)
-    device.queryPan();
+    static_cast<void>(device.queryPan());
     std::this_thread::sleep_for(30ms);
 
     // Deliver unsolicited 4-byte general response carrying alarm (addr=1, alarms=0x03, cksm=0x04)
@@ -736,8 +735,7 @@ TEST(PelcoDDeviceUnsolicited, AlarmProcessedWhileQueryPending)
 
     // Alarm frame should update status and trigger callback even though QueryPan is pending
     const auto statusRes = statusFuture.wait_for(300ms);
-    EXPECT_EQ(statusRes, std::future_status::ready)
-        << "Unsolicited alarm was dropped while query was pending (M2)!";
+    EXPECT_EQ(statusRes, std::future_status::ready) << "Unsolicited alarm was dropped while query was pending (M2)!";
     if (statusRes == std::future_status::ready) {
         EXPECT_EQ(statusFuture.get().alarms, 0x03U);
     }
@@ -777,14 +775,14 @@ TEST(PelcoDDeviceUnsolicited, CommandAckProcessedWhileQueryPending)
     std::promise<bool> queryCompletedPromise;
     auto queryCompletedFuture = queryCompletedPromise.get_future();
     std::atomic<bool> queryCompletedReceived { false };
-    static_cast<void>(device.addQueryCompletedCallback(
-        [&](const std::string& tag, bool success, const PelcoD::DeviceStatus&) {
+    static_cast<void>(
+        device.addQueryCompletedCallback([&](const std::string& tag, bool success, const PelcoD::DeviceStatus&) {
             if (tag == "QueryPan" && !queryCompletedReceived.exchange(true)) {
                 queryCompletedPromise.set_value(success);
             }
         }));
 
-    device.queryPan();
+    static_cast<void>(device.queryPan());
     std::this_thread::sleep_for(30ms);
 
     // Standard Extended ACK (cmd2=0x01 StandardExtended, data1=0x04 echo opcode, data2=0x01 ACK)
@@ -792,8 +790,7 @@ TEST(PelcoDDeviceUnsolicited, CommandAckProcessedWhileQueryPending)
     dataCb(ackFrame);
 
     const auto ackRes = ackFuture.wait_for(300ms);
-    EXPECT_EQ(ackRes, std::future_status::ready)
-        << "Unsolicited ACK frame was dropped while query was pending (M2)!";
+    EXPECT_EQ(ackRes, std::future_status::ready) << "Unsolicited ACK frame was dropped while query was pending (M2)!";
     if (ackRes == std::future_status::ready) {
         const auto status = ackFuture.get();
         EXPECT_TRUE(status.lastAckOk);
@@ -822,9 +819,8 @@ TEST(PelcoDDeviceExceptionSafety, ThrowingStatusCallbackDoesNotCrash)
     std::atomic<bool> secondCbFired { false };
 
     // Register throwing callback first
-    static_cast<void>(device.addStatusCallback([](const PelcoD::DeviceStatus&) {
-        throw std::runtime_error("Simulated user StatusCallback failure");
-    }));
+    static_cast<void>(device.addStatusCallback(
+        [](const PelcoD::DeviceStatus&) { throw std::runtime_error("Simulated user StatusCallback failure"); }));
 
     // Register second callback to verify multicast continues
     static_cast<void>(device.addStatusCallback([&](const PelcoD::DeviceStatus& s) {
@@ -861,7 +857,8 @@ TEST(PelcoDDeviceExceptionSafety, ThrowingTrafficCallbackDoesNotCrash)
     static_cast<void>(device.addTrafficCallback(
         [](bool, const std::vector<std::uint8_t>&) {
             throw std::runtime_error("Simulated user TrafficCallback failure");
-        }, false, true));
+        },
+        false, true));
 
     // Register second callback
     static_cast<void>(device.addTrafficCallback(
@@ -869,7 +866,8 @@ TEST(PelcoDDeviceExceptionSafety, ThrowingTrafficCallbackDoesNotCrash)
             if (!isTx && !secondRxFired.exchange(true)) {
                 secondRxTrafficPromise.set_value(true);
             }
-        }, false, true));
+        },
+        false, true));
 
     ASSERT_TRUE(device.start());
     const auto dataCb = transport->lastDataCb();
@@ -895,19 +893,17 @@ TEST(PelcoDDeviceExceptionSafety, ThrowingQueryCallbackDoesNotCrash)
     std::atomic<bool> secondQueryFired { false };
 
     // Register throwing query callbacks
-    static_cast<void>(device.addQueryCompletedCallback(
-        [](const std::string&, bool, const PelcoD::DeviceStatus&) {
-            throw std::runtime_error("Simulated user QueryCompletedCallback failure");
-        }));
+    static_cast<void>(device.addQueryCompletedCallback([](const std::string&, bool, const PelcoD::DeviceStatus&) {
+        throw std::runtime_error("Simulated user QueryCompletedCallback failure");
+    }));
 
-    static_cast<void>(device.addQueryLatencyCallback(
-        [](const std::string&, std::chrono::microseconds, bool) {
-            throw std::runtime_error("Simulated user QueryLatencyCallback failure");
-        }));
+    static_cast<void>(device.addQueryLatencyCallback([](const std::string&, std::chrono::microseconds, bool) {
+        throw std::runtime_error("Simulated user QueryLatencyCallback failure");
+    }));
 
     // Register second callback
-    static_cast<void>(device.addQueryCompletedCallback(
-        [&](const std::string& tag, bool success, const PelcoD::DeviceStatus&) {
+    static_cast<void>(
+        device.addQueryCompletedCallback([&](const std::string& tag, bool success, const PelcoD::DeviceStatus&) {
             if (tag == "QueryPan" && !secondQueryFired.exchange(true)) {
                 secondQueryCompletedPromise.set_value(success);
             }
@@ -917,7 +913,7 @@ TEST(PelcoDDeviceExceptionSafety, ThrowingQueryCallbackDoesNotCrash)
     const auto dataCb = transport->lastDataCb();
     ASSERT_TRUE(dataCb);
 
-    device.queryPan();
+    static_cast<void>(device.queryPan());
     std::this_thread::sleep_for(30ms);
 
     dataCb(panResponse());
@@ -977,8 +973,7 @@ TEST(PelcoDDeviceAsync, FullStatusAsyncQueriesPanTiltZoom)
 
     auto statusFuture = device.queryStatusAsync(1000ms);
     const auto res = statusFuture.wait_for(500ms);
-    ASSERT_EQ(res, std::future_status::ready)
-        << "queryStatusAsync() future did not resolve with full status (M4)!";
+    ASSERT_EQ(res, std::future_status::ready) << "queryStatusAsync() future did not resolve with full status (M4)!";
 
     const auto status = statusFuture.get();
     EXPECT_TRUE(status.connected);
@@ -1005,8 +1000,8 @@ TEST(PelcoDDeviceAsync, FullStatusAsyncRejectsPromptlyOnSendFailure)
     ASSERT_EQ(res, std::future_status::ready)
         << "queryStatusAsync() future did not reject promptly on send failure (M4)!";
 
-    const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
-        std::chrono::steady_clock::now() - startTime).count();
+    const auto elapsed
+        = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - startTime).count();
     EXPECT_LT(elapsed, 200) << "queryStatusAsync waited for overall timeout instead of failing promptly!";
 
     EXPECT_THROW(statusFuture.get(), std::runtime_error);
@@ -1021,19 +1016,19 @@ TEST(PelcoDDeviceStateModel, OpticalSettersUpdateDeviceStatus)
     PelcoD::PelcoDDevice device { transport, 1U };
     ASSERT_TRUE(device.start());
 
-    device.setAutoFocus(PelcoD::AutoMode::Auto);
+    static_cast<void>(device.setAutoFocus(PelcoD::AutoMode::Auto));
     EXPECT_EQ(device.getStatus().autoFocus, PelcoD::AutoMode::Auto);
 
-    device.setAutoIris(PelcoD::AutoMode::On);
+    static_cast<void>(device.setAutoIris(PelcoD::AutoMode::On));
     EXPECT_EQ(device.getStatus().autoIris, PelcoD::AutoMode::On);
 
-    device.setAgc(PelcoD::AutoMode::Auto);
+    static_cast<void>(device.setAgc(PelcoD::AutoMode::Auto));
     EXPECT_EQ(device.getStatus().agc, PelcoD::AutoMode::Auto);
 
-    device.setBacklightComp(PelcoD::SwitchState::On);
+    static_cast<void>(device.setBacklightComp(PelcoD::SwitchState::On));
     EXPECT_EQ(device.getStatus().backlightComp, PelcoD::SwitchState::On);
 
-    device.setAutoWhiteBalance(PelcoD::SwitchState::On);
+    static_cast<void>(device.setAutoWhiteBalance(PelcoD::SwitchState::On));
     EXPECT_EQ(device.getStatus().autoWhiteBalance, PelcoD::SwitchState::On);
 
     device.stop();
@@ -1046,16 +1041,16 @@ TEST(PelcoDDeviceStateModel, SpeedSettersSaturateAndStore)
     PelcoD::PelcoDDevice device { transport, 1U };
     ASSERT_TRUE(device.start());
 
-    device.setZoomSpeed(2U);
+    static_cast<void>(device.setZoomSpeed(2U));
     EXPECT_EQ(device.getStatus().zoomSpeed, 2U);
 
-    device.setZoomSpeed(0xFFU); // Must saturate to 0x03
+    static_cast<void>(device.setZoomSpeed(0xFFU)); // Must saturate to 0x03
     EXPECT_EQ(device.getStatus().zoomSpeed, 3U);
 
-    device.setFocusSpeed(1U);
+    static_cast<void>(device.setFocusSpeed(1U));
     EXPECT_EQ(device.getStatus().focusSpeed, 1U);
 
-    device.setFocusSpeed(10U); // Must saturate to 0x03
+    static_cast<void>(device.setFocusSpeed(10U)); // Must saturate to 0x03
     EXPECT_EQ(device.getStatus().focusSpeed, 3U);
 
     device.stop();
@@ -1070,24 +1065,24 @@ TEST(PelcoDDeviceStateModel, PresetLifecycleTracking)
 
     EXPECT_EQ(device.getStatus().activePreset, 0U);
 
-    device.goToPreset(5U);
+    static_cast<void>(device.goToPreset(5U));
     EXPECT_EQ(device.getStatus().activePreset, 5U);
 
-    device.goToPreset(12U, 0x20U);
+    static_cast<void>(device.goToPreset(12U, 0x20U));
     EXPECT_EQ(device.getStatus().activePreset, 12U);
 
     // clearPreset for different preset does not reset activePreset
-    device.clearPreset(3U);
+    static_cast<void>(device.clearPreset(3U));
     EXPECT_EQ(device.getStatus().activePreset, 12U);
 
     // clearPreset for activePreset resets it to 0
-    device.clearPreset(12U);
+    static_cast<void>(device.clearPreset(12U));
     EXPECT_EQ(device.getStatus().activePreset, 0U);
 
     // Manual motion resets activePreset to 0
-    device.goToPreset(8U);
+    static_cast<void>(device.goToPreset(8U));
     EXPECT_EQ(device.getStatus().activePreset, 8U);
-    device.panLeft(0x20U);
+    static_cast<void>(device.panLeft(0x20U));
     EXPECT_EQ(device.getStatus().activePreset, 0U);
 
     device.stop();
@@ -1100,16 +1095,16 @@ TEST(PelcoDDeviceStateModel, LimitSettersSynchronizeStatus)
     PelcoD::PelcoDDevice device { transport, 1U };
     ASSERT_TRUE(device.start());
 
-    device.setManualLeftPanLimit(12500U);
+    EXPECT_EQ(device.setManualLeftPanLimit(12500U), PelcoD::SendResult::Success);
     EXPECT_EQ(device.getStatus().manualLeftLimitCentidegrees, 12500U);
 
-    device.setManualRightPanLimit(24500U);
+    EXPECT_EQ(device.setManualRightPanLimit(24500U), PelcoD::SendResult::Success);
     EXPECT_EQ(device.getStatus().manualRightLimitCentidegrees, 24500U);
 
-    device.setScanLeftPanLimit(1000U);
+    EXPECT_EQ(device.setScanLeftPanLimit(1000U), PelcoD::SendResult::Success);
     EXPECT_EQ(device.getStatus().scanLeftLimitCentidegrees, 1000U);
 
-    device.setScanRightPanLimit(35000U);
+    EXPECT_EQ(device.setScanRightPanLimit(35000U), PelcoD::SendResult::Success);
     EXPECT_EQ(device.getStatus().scanRightLimitCentidegrees, 35000U);
 
     device.stop();
@@ -1122,10 +1117,10 @@ TEST(PelcoDDeviceStateModel, ExtendedOpticsTelemetricSetters)
     PelcoD::PelcoDDevice device { transport, 1U };
     ASSERT_TRUE(device.start());
 
-    device.setFocusPosition(1850U);
+    static_cast<void>(device.setFocusPosition(1850U));
     EXPECT_EQ(device.getStatus().focusPosition, 1850U);
 
-    device.setIrisPosition(420U);
+    static_cast<void>(device.setIrisPosition(420U));
     EXPECT_EQ(device.getStatus().irisPosition, 420U);
 
     device.stop();
@@ -1139,7 +1134,7 @@ TEST(PelcoDDeviceStateModel, SerialNumberGetterAndSetter)
     ASSERT_TRUE(device.start());
 
     EXPECT_TRUE(device.getInfo().serialNumber.empty());
-    device.setSerialNumber("PELCO-SN-998877");
+    static_cast<void>(device.setSerialNumber("PELCO-SN-998877"));
     EXPECT_EQ(device.getInfo().serialNumber, "PELCO-SN-998877");
 
     device.stop();
@@ -1231,9 +1226,7 @@ TEST(PelcoDDeviceReconnect, RedundantConnectedEventDoesNotTriggerDuplicateStatus
     ASSERT_TRUE(device.start());
 
     std::atomic<std::uint32_t> statusCount { 0U };
-    static_cast<void>(device.addStatusCallback([&](const PelcoD::DeviceStatus&) {
-        statusCount.fetch_add(1U);
-    }));
+    static_cast<void>(device.addStatusCallback([&](const PelcoD::DeviceStatus&) { statusCount.fetch_add(1U); }));
 
     const auto stateCb = transport->lastStateCb();
     ASSERT_TRUE(stateCb);
@@ -1337,8 +1330,8 @@ TEST(PelcoDDeviceFacade, SetPowerEnqueuesCorrectFrames)
     PelcoD::PelcoDDevice device { transport, 1U };
     ASSERT_TRUE(device.start());
 
-    device.setPower(true);
-    device.setPower(false);
+    static_cast<void>(device.setPower(true));
+    static_cast<void>(device.setPower(false));
 
     std::this_thread::sleep_for(std::chrono::milliseconds(40));
     device.stop();
@@ -1360,8 +1353,8 @@ TEST(PelcoDDeviceFacade, SetAutoScanEnqueuesCorrectFrames)
     PelcoD::PelcoDDevice device { transport, 1U };
     ASSERT_TRUE(device.start());
 
-    device.setAutoScan(true);
-    device.setAutoScan(false);
+    static_cast<void>(device.setAutoScan(true));
+    static_cast<void>(device.setAutoScan(false));
 
     std::this_thread::sleep_for(std::chrono::milliseconds(40));
     device.stop();
@@ -1384,11 +1377,11 @@ TEST(PelcoDDeviceFacade, CombinedMotionEnqueuesFullPayloadAndResetsActivePreset)
     ASSERT_TRUE(device.start());
 
     // Set an active preset first
-    device.goToPreset(5U);
+    static_cast<void>(device.goToPreset(5U));
     EXPECT_EQ(device.getStatus().activePreset, 5U);
 
-    device.move(PelcoD::PanDirection::Left, 0x20U, PelcoD::TiltDirection::Up, 0x15U,
-        PelcoD::ZoomAction::Tele, PelcoD::FocusAction::Near, PelcoD::IrisAction::Open);
+    static_cast<void>(device.move(PelcoD::PanDirection::Left, 0x20U, PelcoD::TiltDirection::Up, 0x15U,
+        PelcoD::ZoomAction::Tele, PelcoD::FocusAction::Near, PelcoD::IrisAction::Open));
 
     EXPECT_EQ(device.getStatus().activePreset, 0U);
 
@@ -1407,8 +1400,52 @@ TEST(PelcoDDeviceFacade, CombinedMotionEnqueuesFullPayloadAndResetsActivePreset)
     EXPECT_EQ(moveFrame[2] & 0x03U, 0x03U);
 }
 
+/// @brief Verify that commands on stopped device return SendResult::TransportClosed (A3).
+TEST(PelcoDDeviceStateModel, SendResultTransportClosedWhenStopped)
+{
+    auto transport = std::make_shared<PelcoD::Test::CapturingTransport>();
+    PelcoD::PelcoDDevice device { transport, 1U };
+    // Device is not started
+    EXPECT_EQ(device.panLeft(0x20U), PelcoD::SendResult::TransportClosed);
+    EXPECT_EQ(device.stopMotion(), PelcoD::SendResult::TransportClosed);
+    EXPECT_EQ(device.queryPan(), PelcoD::SendResult::TransportClosed);
+    EXPECT_EQ(device.sendRawFrame({ 0xFF, 0x01, 0x00, 0x00, 0x00, 0x00, 0x01 }), PelcoD::SendResult::TransportClosed);
+}
+
+/// @brief Verify that exhausted query retries trigger CommandDroppedCallback and record metric (A3).
+TEST(PelcoDDeviceStateModel, CommandDroppedCallbackOnRetryExhaustion)
+{
+    auto transport = std::make_shared<PelcoD::Test::CapturingTransport>();
+    PelcoD::PelcoDDevice device { transport, 1U };
+
+    PelcoD::RetryConfig cfg;
+    cfg.maxRetries = 1U;
+    cfg.initialBackoff = std::chrono::milliseconds(10);
+    device.setRetryConfig(cfg);
+    device.setQueryTimeoutMs(20U);
+
+    std::atomic<bool> droppedInvoked { false };
+    PelcoD::SendResult droppedReason { PelcoD::SendResult::Success };
+    device.addCommandDroppedCallback([&](const std::vector<std::uint8_t>&, PelcoD::SendResult reason) {
+        droppedReason = reason;
+        droppedInvoked = true;
+    });
+
+    ASSERT_TRUE(device.start());
+    EXPECT_EQ(device.queryPan(), PelcoD::SendResult::Success);
+
+    // Wait for timeout + retry + timeout
+    const auto start = std::chrono::steady_clock::now();
+    while (!droppedInvoked && (std::chrono::steady_clock::now() - start < std::chrono::milliseconds(1000))) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+
+    EXPECT_TRUE(droppedInvoked);
+    EXPECT_EQ(droppedReason, PelcoD::SendResult::QueueFull);
+    EXPECT_GE(device.getProtocolStats().commandRetriesExhausted, 1U);
+    EXPECT_GE(device.getProtocolStats().commandsDropped, 1U);
+
+    device.stop();
+}
+
 } // namespace
-
-
-
-

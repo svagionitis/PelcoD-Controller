@@ -41,6 +41,21 @@ void ProtocolMetrics::recordQueryRetry() noexcept
     m_queryRetries.fetch_add(1U, std::memory_order_relaxed);
 }
 
+void ProtocolMetrics::recordCommandDropped() noexcept
+{
+    m_commandsDropped.fetch_add(1U, std::memory_order_relaxed);
+}
+
+void ProtocolMetrics::recordCommandRetryExhausted() noexcept
+{
+    m_commandRetriesExhausted.fetch_add(1U, std::memory_order_relaxed);
+}
+
+void ProtocolMetrics::recordQueueOverflow() noexcept
+{
+    m_queueOverflows.fetch_add(1U, std::memory_order_relaxed);
+}
+
 PelcoDProtocolStats ProtocolMetrics::getStats() const noexcept
 {
     PelcoDProtocolStats stats {};
@@ -48,6 +63,9 @@ PelcoDProtocolStats ProtocolMetrics::getStats() const noexcept
     stats.queriesCompleted = m_queriesCompleted.load(std::memory_order_relaxed);
     stats.queryTimeouts = m_queryTimeouts.load(std::memory_order_relaxed);
     stats.queryRetries = m_queryRetries.load(std::memory_order_relaxed);
+    stats.commandsDropped = m_commandsDropped.load(std::memory_order_relaxed);
+    stats.commandRetriesExhausted = m_commandRetriesExhausted.load(std::memory_order_relaxed);
+    stats.queueOverflows = m_queueOverflows.load(std::memory_order_relaxed);
 
     const std::uint64_t completed = stats.queriesCompleted;
     const std::uint64_t totalUs = m_totalRttUs.load(std::memory_order_relaxed);
@@ -66,6 +84,9 @@ void ProtocolMetrics::resetStats() noexcept
     m_queriesCompleted.store(0U, std::memory_order_relaxed);
     m_queryTimeouts.store(0U, std::memory_order_relaxed);
     m_queryRetries.store(0U, std::memory_order_relaxed);
+    m_commandsDropped.store(0U, std::memory_order_relaxed);
+    m_commandRetriesExhausted.store(0U, std::memory_order_relaxed);
+    m_queueOverflows.store(0U, std::memory_order_relaxed);
     m_totalRttUs.store(0U, std::memory_order_relaxed);
     m_lastRttUs.store(0U, std::memory_order_relaxed);
     m_minRttUs.store(0U, std::memory_order_relaxed);

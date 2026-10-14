@@ -337,34 +337,34 @@ bool DiagnosticsView::handleInput(const InputEvent& event, PelcoD::PelcoDDevice&
         return true;
     }
     if (event.ch == 'q' || event.ch == 'Q') {
-        device.queryPan();
-        device.queryTilt();
+        static_cast<void>(device.queryPan());
+        static_cast<void>(device.queryTilt());
         m_lastAction = "Dispatched Pan / Tilt Queries";
         return true;
     }
     if (event.ch == 'z' || event.ch == 'Z') {
-        device.queryZoom();
+        static_cast<void>(device.queryZoom());
         m_lastAction = "Dispatched Zoom Query";
         return true;
     }
     if (event.ch == 'm' || event.ch == 'M') {
-        device.queryMagnification();
+        static_cast<void>(device.queryMagnification());
         m_lastAction = "Dispatched Magnification Query";
         return true;
     }
     if (event.ch == 'd' || event.ch == 'D') {
-        device.queryDiagnostics();
+        static_cast<void>(device.queryDiagnostics());
         m_lastAction = "Dispatched Diagnostics Query (Temp/Sensor)";
         return true;
     }
     if (event.ch == 'a' || event.ch == 'A') {
-        device.queryAll();
+        static_cast<void>(device.queryAll());
         m_lastAction = "Dispatched Query All";
         return true;
     }
     if (event.ch == 'p' || event.ch == 'P') {
         for (int i = 0; i < 5; ++i) {
-            device.queryPan();
+            static_cast<void>(device.queryPan());
         }
         m_lastAction = "Triggered RTT Ping Burst (5 queries)";
         return true;
@@ -384,7 +384,7 @@ bool DiagnosticsView::handleInput(const InputEvent& event, PelcoD::PelcoDDevice&
         return true;
     }
     if (event.ch == 'x' || event.ch == 'X') {
-        device.remoteReset();
+        static_cast<void>(device.remoteReset());
         m_lastAction = "Dispatched Remote Reset";
         return true;
     }

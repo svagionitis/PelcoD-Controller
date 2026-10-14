@@ -187,7 +187,7 @@ TEST(ConnectionTest, PelcoDDeviceSelectiveDisconnection)
     ASSERT_TRUE(device.start());
 
     // Send a command to trigger traffic callbacks
-    device.panLeft(0x20);
+    EXPECT_EQ(device.panLeft(0x20), PelcoD::SendResult::Success);
 
     const bool receivedBoth = waitFor([&]() { return countA.load() >= 1 && countB.load() >= 1; }, 2000);
     EXPECT_TRUE(receivedBoth);
@@ -200,7 +200,7 @@ TEST(ConnectionTest, PelcoDDeviceSelectiveDisconnection)
     const int recordedA = countA.load();
     const int recordedB = countB.load();
 
-    device.panRight(0x20);
+    EXPECT_EQ(device.panRight(0x20), PelcoD::SendResult::Success);
 
     const bool bIncremented = waitFor([&]() { return countB.load() > recordedB; }, 2000);
     EXPECT_TRUE(bIncremented);
@@ -266,7 +266,7 @@ TEST(ConnectionTest, FujinonSX800DeviceConnection)
 
     // Verify after clearCallbacks
     ASSERT_TRUE(fujinonDevice.start());
-    fujinonDevice.panLeft(0x20);
+    EXPECT_EQ(fujinonDevice.panLeft(0x20), PelcoD::SendResult::Success);
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
     EXPECT_EQ(baseCount.load(), 0);
     EXPECT_EQ(fujCount2.load(), 0);
@@ -299,7 +299,7 @@ TEST(ConnectionTest, FilteredTrafficCallbacks)
     ASSERT_TRUE(device.start());
 
     // Send pan command (Address 1, TX)
-    device.panLeft(0x20);
+    EXPECT_EQ(device.panLeft(0x20), PelcoD::SendResult::Success);
 
     const bool txReceived = waitFor([&] { return txOnlyCount.load() >= 1; }, 2000);
     EXPECT_TRUE(txReceived);
@@ -333,7 +333,7 @@ TEST(ConnectionTest, AsyncQueries)
     ASSERT_TRUE(device.start());
 
     // Send Pan Right to set non-zero pan
-    device.panRight(0x20);
+    EXPECT_EQ(device.panRight(0x20), PelcoD::SendResult::Success);
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
 
     // Query pan asynchronously
@@ -422,9 +422,7 @@ TEST(ConnectionTest, ConnectionRebind)
 TEST(ConnectionTest, ConcurrentDisconnectSafe)
 {
     std::atomic<int> disconnectCount { 0 };
-    PelcoD::Connection conn([&disconnectCount]() {
-        disconnectCount.fetch_add(1);
-    });
+    PelcoD::Connection conn([&disconnectCount]() { disconnectCount.fetch_add(1); });
 
     constexpr std::size_t kThreadCount { 10U };
     std::vector<std::thread> threads;
@@ -466,9 +464,7 @@ TEST(ConnectionTest, DisconnectBlocksUntilDone)
         });
 
     const std::vector<std::uint8_t> frame = { 0xFFU, 0x01U, 0x00U, 0x00U, 0x00U, 0x00U, 0x01U };
-    std::thread rxThread([transport, frame]() {
-        transport->inject(frame);
-    });
+    std::thread rxThread([transport, frame]() { transport->inject(frame); });
 
     ASSERT_EQ(entered.wait_for(std::chrono::seconds { 2 }), std::future_status::ready);
 
@@ -506,9 +502,7 @@ TEST(ConnectionTest, NoCallbackAfterDisconnect)
     GuardedResource* rawPtr = resource.get();
 
     PelcoD::Connection conn = device.addTrafficCallback(
-        [rawPtr](bool, const std::vector<std::uint8_t>&) {
-            rawPtr->useCount.fetch_add(1);
-        });
+        [rawPtr](bool, const std::vector<std::uint8_t>&) { rawPtr->useCount.fetch_add(1); });
 
     const std::vector<std::uint8_t> frame = { 0xFFU, 0x01U, 0x00U, 0x00U, 0x00U, 0x00U, 0x01U };
     transport->inject(frame);
@@ -538,11 +532,10 @@ TEST(ConnectionTest, ReentrantDisconnectSafe)
     PelcoD::Connection conn {};
     std::atomic<bool> reentrantInvoked { false };
 
-    conn = device.addTrafficCallback(
-        [&conn, &reentrantInvoked](bool, const std::vector<std::uint8_t>&) {
-            conn.disconnect();
-            reentrantInvoked.store(true);
-        });
+    conn = device.addTrafficCallback([&conn, &reentrantInvoked](bool, const std::vector<std::uint8_t>&) {
+        conn.disconnect();
+        reentrantInvoked.store(true);
+    });
 
     const std::vector<std::uint8_t> frame = { 0xFFU, 0x01U, 0x00U, 0x00U, 0x00U, 0x00U, 0x01U };
     transport->inject(frame);
@@ -566,17 +559,14 @@ TEST(ConnectionTest, ClearCallbacksDrainsCb)
     const std::shared_future<void> release { releasePromise.get_future().share() };
     std::atomic<bool> cbFinished { false };
 
-    device.addTrafficCallback(
-        [&enteredPromise, release, &cbFinished](bool, const std::vector<std::uint8_t>&) {
-            enteredPromise.set_value();
-            static_cast<void>(release.wait_for(std::chrono::seconds { 2 }));
-            cbFinished.store(true);
-        });
+    device.addTrafficCallback([&enteredPromise, release, &cbFinished](bool, const std::vector<std::uint8_t>&) {
+        enteredPromise.set_value();
+        static_cast<void>(release.wait_for(std::chrono::seconds { 2 }));
+        cbFinished.store(true);
+    });
 
     const std::vector<std::uint8_t> frame = { 0xFFU, 0x01U, 0x00U, 0x00U, 0x00U, 0x00U, 0x01U };
-    std::thread rxThread([transport, frame]() {
-        transport->inject(frame);
-    });
+    std::thread rxThread([transport, frame]() { transport->inject(frame); });
 
     ASSERT_EQ(entered.wait_for(std::chrono::seconds { 2 }), std::future_status::ready);
 

@@ -47,16 +47,18 @@ public:
     PacedCommandQueue(PacedCommandQueue&&) = delete;
     PacedCommandQueue& operator=(PacedCommandQueue&&) = delete;
 
-    /// @brief Enqueues a command item according to its priority.
+    /// @brief Enqueues a command item according to its priority with capacity enforcement.
     /// @param[in] item Command packet and metadata.
-    void enqueue(CommandItem item);
+    /// @return SendResult::Success on successful insertion, SendResult::QueueFull if rejected.
+    [[nodiscard]] SendResult enqueue(CommandItem item);
 
     /// @brief Helper to construct and enqueue a command item with strongly-typed QueryKind.
     /// @param[in] frame Raw frame bytes.
     /// @param[in] queryKind Expected query kind.
     /// @param[in] priority Scheduling priority.
     /// @param[in] motionGeneration Generation token for motion sequencing (0 = non-motion).
-    void enqueue(std::vector<std::uint8_t> frame, QueryKind queryKind,
+    /// @return SendResult::Success on successful insertion, SendResult::QueueFull if rejected.
+    [[nodiscard]] SendResult enqueue(std::vector<std::uint8_t> frame, QueryKind queryKind,
         CommandPriority priority = CommandPriority::Normal, std::uint64_t motionGeneration = 0U);
 
     /// @brief Helper to construct and enqueue a command item with string query tag.
@@ -64,7 +66,8 @@ public:
     /// @param[in] queryTag Optional query identifier.
     /// @param[in] priority Scheduling priority.
     /// @param[in] motionGeneration Generation token for motion sequencing (0 = non-motion).
-    void enqueue(std::vector<std::uint8_t> frame, std::string queryTag = "",
+    /// @return SendResult::Success on successful insertion, SendResult::QueueFull if rejected.
+    [[nodiscard]] SendResult enqueue(std::vector<std::uint8_t> frame, std::string queryTag = "",
         CommandPriority priority = CommandPriority::Normal, std::uint64_t motionGeneration = 0U);
 
     /// @brief Schedules a failed command for exponential backoff retransmission.

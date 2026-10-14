@@ -34,6 +34,7 @@ public:
         const std::string& queryTag, std::uint32_t attempt, std::uint32_t maxRetries, std::chrono::milliseconds delay)>;
     using QueryLatencyCallback
         = std::function<void(const std::string& queryTag, std::chrono::microseconds duration, bool success)>;
+    using CommandDroppedCallback = std::function<void(const std::vector<std::uint8_t>& frame, SendResult reason)>;
 
     CallbackDispatcher();
     ~CallbackDispatcher();
@@ -52,6 +53,7 @@ public:
     [[nodiscard]] Connection addQueryCompletedCallback(QueryCompletedCallback cb);
     [[nodiscard]] Connection addRetryCallback(RetryCallback cb);
     [[nodiscard]] Connection addQueryLatencyCallback(QueryLatencyCallback cb);
+    [[nodiscard]] Connection addCommandDroppedCallback(CommandDroppedCallback cb);
 
     [[nodiscard]] bool removeStatusCallback(CallbackId id);
     [[nodiscard]] bool removeTrafficCallback(CallbackId id);
@@ -59,6 +61,7 @@ public:
     [[nodiscard]] bool removeQueryCompletedCallback(CallbackId id);
     [[nodiscard]] bool removeRetryCallback(CallbackId id);
     [[nodiscard]] bool removeQueryLatencyCallback(CallbackId id);
+    [[nodiscard]] bool removeCommandDroppedCallback(CallbackId id);
 
     void clearCallbacks();
 
@@ -69,6 +72,7 @@ public:
     void notifyRetry(
         const std::string& queryTag, std::uint32_t attempt, std::uint32_t maxRetries, std::chrono::milliseconds delay);
     void notifyQueryLatency(const std::string& queryTag, std::chrono::microseconds duration, bool success);
+    void notifyCommandDropped(const std::vector<std::uint8_t>& frame, SendResult reason);
 
 private:
     template <typename CallbackT> struct CallbackEntry {
@@ -124,6 +128,9 @@ private:
     };
     std::shared_ptr<const std::vector<CallbackEntry<QueryLatencyCallback>>> m_queryLatencyCallbacks {
         std::make_shared<const std::vector<CallbackEntry<QueryLatencyCallback>>>()
+    };
+    std::shared_ptr<const std::vector<CallbackEntry<CommandDroppedCallback>>> m_commandDroppedCallbacks {
+        std::make_shared<const std::vector<CallbackEntry<CommandDroppedCallback>>>()
     };
 };
 

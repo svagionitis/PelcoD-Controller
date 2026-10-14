@@ -17,6 +17,9 @@ struct PelcoDProtocolStats {
     std::uint64_t queryRetries { 0U };
     std::uint64_t checksumErrors { 0U };
     std::uint64_t discardedSyncBytes { 0U };
+    std::uint64_t commandsDropped { 0U };
+    std::uint64_t commandRetriesExhausted { 0U };
+    std::uint64_t queueOverflows { 0U };
     std::size_t pendingCommands { 0U };
     double lastRttMs { 0.0 };
     double minRttMs { 0.0 };

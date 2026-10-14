@@ -68,8 +68,7 @@ public:
         PelcoD::TiltDirection tiltDir = (tiltVel > 0.02f)
             ? PelcoD::TiltDirection::Up
             : ((tiltVel < -0.02f) ? PelcoD::TiltDirection::Down : PelcoD::TiltDirection::Stop);
-        m_device->move(panDir, panSpeed, tiltDir, tiltSpeed);
-        return true;
+        return m_device->move(panDir, panSpeed, tiltDir, tiltSpeed) == PelcoD::SendResult::Success;
     }
 
     bool setAbsoluteAngles(double panDeg, double tiltDeg) override
@@ -91,9 +90,9 @@ public:
             m_telemetry.timestamp = std::chrono::system_clock::now();
         }
 
-        m_device->setPanAngle(static_cast<std::uint16_t>(normPan * 100.0));
-        m_device->setTiltAngle(static_cast<std::uint16_t>(pelcoTilt * 100.0));
-        return true;
+        const auto rPan = m_device->setPanAngle(static_cast<std::uint16_t>(normPan * 100.0));
+        const auto rTilt = m_device->setTiltAngle(static_cast<std::uint16_t>(pelcoTilt * 100.0));
+        return (rPan == PelcoD::SendResult::Success) && (rTilt == PelcoD::SendResult::Success);
     }
 
     bool setRelativeNudge(double deltaPanDeg, double deltaTiltDeg) override
@@ -112,8 +111,7 @@ public:
     {
         if (!m_device)
             return false;
-        m_device->stopMotion();
-        return true;
+        return m_device->stopMotion() == PelcoD::SendResult::Success;
     }
 
     bool supportsStabilization() const noexcept override
@@ -146,16 +144,14 @@ public:
     {
         if (!m_device)
             return false;
-        m_device->setPreset(presetId);
-        return true;
+        return m_device->setPreset(presetId) == PelcoD::SendResult::Success;
     }
 
     bool recallPreset(uint8_t presetId) override
     {
         if (!m_device)
             return false;
-        m_device->goToPreset(presetId);
-        return true;
+        return m_device->goToPreset(presetId) == PelcoD::SendResult::Success;
     }
 
     void registerTelemetryCallback(TelemetryCallback cb) override
@@ -246,8 +242,7 @@ public:
         const double clampedZoom = std::clamp(zoom01, 0.0, 1.0);
         // Fujinon SX800 has 40x optical zoom. Centivalues range from 100 (1.0x) to 4000 (40.0x)
         const auto centiMag = static_cast<std::uint16_t>(100.0 + clampedZoom * 3900.0);
-        m_device->setMagnification(centiMag);
-        return true;
+        return m_device->setMagnification(centiMag) == PelcoD::SendResult::Success;
     }
 
     bool zoomContinuous(float velocity) override
@@ -255,29 +250,27 @@ public:
         if (!m_device)
             return false;
         if (velocity > 0.05f) {
-            m_device->zoomTele();
+            return m_device->zoomTele() == PelcoD::SendResult::Success;
         } else if (velocity < -0.05f) {
-            m_device->zoomWide();
+            return m_device->zoomWide() == PelcoD::SendResult::Success;
         } else {
-            m_device->zoomStop();
+            return m_device->zoomStop() == PelcoD::SendResult::Success;
         }
-        return true;
     }
 
     bool zoomStop() override
     {
         if (!m_device)
             return false;
-        m_device->zoomStop();
-        return true;
+        return m_device->zoomStop() == PelcoD::SendResult::Success;
     }
 
     bool setFocusAuto(bool enable) override
     {
         if (!m_device)
             return false;
-        m_device->setAutoFocus(enable ? PelcoD::AutoMode::Auto : PelcoD::AutoMode::Off);
-        return true;
+        return m_device->setAutoFocus(enable ? PelcoD::AutoMode::Auto : PelcoD::AutoMode::Off)
+            == PelcoD::SendResult::Success;
     }
 
     bool setFocusNormalized(double /*focus01*/) override
@@ -290,38 +283,36 @@ public:
         if (!m_device)
             return false;
         if (velocity > 0.05f) {
-            m_device->focusFar();
+            return m_device->focusFar() == PelcoD::SendResult::Success;
         } else if (velocity < -0.05f) {
-            m_device->focusNear();
+            return m_device->focusNear() == PelcoD::SendResult::Success;
         } else {
-            m_device->focusStop();
+            return m_device->focusStop() == PelcoD::SendResult::Success;
         }
-        return true;
     }
 
     bool focusStop() override
     {
         if (!m_device)
             return false;
-        m_device->focusStop();
-        return true;
+        return m_device->focusStop() == PelcoD::SendResult::Success;
     }
 
     bool triggerOnePushFocus() override
     {
         if (!m_device)
             return false;
-        m_device->focusNear();
-        m_device->focusStop();
-        return true;
+        const auto r1 = m_device->focusNear();
+        const auto r2 = m_device->focusStop();
+        return (r1 == PelcoD::SendResult::Success) && (r2 == PelcoD::SendResult::Success);
     }
 
     bool setIrisAuto(bool enable) override
     {
         if (!m_device)
             return false;
-        m_device->setAutoIris(enable ? PelcoD::AutoMode::Auto : PelcoD::AutoMode::Off);
-        return true;
+        return m_device->setAutoIris(enable ? PelcoD::AutoMode::Auto : PelcoD::AutoMode::Off)
+            == PelcoD::SendResult::Success;
     }
 
     bool setIrisNormalized(double iris01) override
@@ -331,8 +322,7 @@ public:
         const double clamped = std::clamp(iris01, 0.0, 1.0);
         // Fujinon SX800 manual iris 0 (closed) to 15 (open)
         const auto val = static_cast<std::uint8_t>(clamped * 15.0);
-        m_device->setManualIris(val);
-        return true;
+        return m_device->setManualIris(val) == PelcoD::SendResult::Success;
     }
 
     bool irisContinuous(float velocity) override
@@ -340,45 +330,42 @@ public:
         if (!m_device)
             return false;
         if (velocity > 0.05f) {
-            m_device->irisOpen();
+            return m_device->irisOpen() == PelcoD::SendResult::Success;
         } else if (velocity < -0.05f) {
-            m_device->irisClose();
+            return m_device->irisClose() == PelcoD::SendResult::Success;
         } else {
-            m_device->irisStop();
+            return m_device->irisStop() == PelcoD::SendResult::Success;
         }
-        return true;
     }
 
     bool irisStop() override
     {
         if (!m_device)
             return false;
-        m_device->irisStop();
-        return true;
+        return m_device->irisStop() == PelcoD::SendResult::Success;
     }
 
     bool setDayNightIcr(bool nightMode) override
     {
         if (!m_device)
             return false;
-        m_device->setVLCFilter(nightMode);
-        return true;
+        return m_device->setVLCFilter(nightMode) == PelcoD::SendResult::Success;
     }
 
     bool setDefog(bool enable) override
     {
         if (!m_device)
             return false;
-        m_device->setDefog(enable ? PelcoD::FujinonDefogLevel::Level2 : PelcoD::FujinonDefogLevel::Off);
-        return true;
+        return m_device->setDefog(enable ? PelcoD::FujinonDefogLevel::Level2 : PelcoD::FujinonDefogLevel::Off)
+            == PelcoD::SendResult::Success;
     }
 
     bool setStabilizer(bool enable) override
     {
         if (!m_device)
             return false;
-        m_device->setOISMode(enable ? PelcoD::FujinonOISMode::OisOn : PelcoD::FujinonOISMode::Off);
-        return true;
+        return m_device->setOISMode(enable ? PelcoD::FujinonOISMode::OisOn : PelcoD::FujinonOISMode::Off)
+            == PelcoD::SendResult::Success;
     }
 
     void registerTelemetryCallback(TelemetryCallback cb) override
@@ -638,40 +625,35 @@ bool PelcoDFujinonPayloadAdapter::setOISMode(PelcoD::FujinonOISMode mode)
 {
     if (!m_device)
         return false;
-    m_device->setOISMode(mode);
-    return true;
+    return m_device->setOISMode(mode) == PelcoD::SendResult::Success;
 }
 
 bool PelcoDFujinonPayloadAdapter::setDefogLevel(PelcoD::FujinonDefogLevel level)
 {
     if (!m_device)
         return false;
-    m_device->setDefog(level);
-    return true;
+    return m_device->setDefog(level) == PelcoD::SendResult::Success;
 }
 
 bool PelcoDFujinonPayloadAdapter::setHeatHaze(PelcoD::FujinonHeatHazeLevel level)
 {
     if (!m_device)
         return false;
-    m_device->setHeatHaze(level);
-    return true;
+    return m_device->setHeatHaze(level) == PelcoD::SendResult::Success;
 }
 
 bool PelcoDFujinonPayloadAdapter::setWDR(PelcoD::FujinonWDRLevel level)
 {
     if (!m_device)
         return false;
-    m_device->setWDR(level);
-    return true;
+    return m_device->setWDR(level) == PelcoD::SendResult::Success;
 }
 
 bool PelcoDFujinonPayloadAdapter::setVLCFilter(bool enable)
 {
     if (!m_device)
         return false;
-    m_device->setVLCFilter(enable);
-    return true;
+    return m_device->setVLCFilter(enable) == PelcoD::SendResult::Success;
 }
 
 } // namespace PayloadHal

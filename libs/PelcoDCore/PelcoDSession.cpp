@@ -18,6 +18,8 @@ PelcoDSession::PelcoDSession(std::shared_ptr<ITransport> transport, std::uint8_t
             const std::string tag
                 = evicted.queryTag.empty() ? std::string(toQueryTagName(evicted.queryKind)) : evicted.queryTag;
             notifyQueryFailed(tag);
+        } else {
+            notifyCommandDropped(evicted.frame, SendResult::QueueFull);
         }
     });
 }
@@ -176,7 +178,14 @@ SendResult PelcoDSession::sendQueryFrame(const std::vector<std::uint8_t>& frame,
 SendResult PelcoDSession::enqueueCommand(
     const std::vector<std::uint8_t>& frame, QueryKind queryKind, CommandPriority priority)
 {
-    if (frame.empty()) {
+    if (!m_running.load() || !m_transport || !m_transport->isOpen()) {
+        if (isQueryExpected(queryKind)) {
+            notifyQueryFailed(std::string(toQueryTagName(queryKind)));
+        }
+        return SendResult::TransportClosed;
+    }
+
+    if (frame.empty() || !PelcoDFrame::isValidFrame(frame)) {
         if (isQueryExpected(queryKind)) {
             notifyQueryFailed(std::string(toQueryTagName(queryKind)));
         }
@@ -184,13 +193,17 @@ SendResult PelcoDSession::enqueueCommand(
     }
 
     std::uint64_t motionGen { 0U };
-    if (PelcoDFrame::isStandardMotion(frame)) {
-        motionGen = ++m_motionGeneration;
-    } else if (PelcoDFrame::isStandardStop(frame)) {
+    if (PelcoDFrame::isStandardMotion(frame) || PelcoDFrame::isStandardStop(frame)) {
         motionGen = ++m_motionGeneration;
     }
 
-    m_queue.enqueue(frame, queryKind, priority, motionGen);
+    const SendResult qResult = m_queue.enqueue(frame, queryKind, priority, motionGen);
+    if (qResult != SendResult::Success) {
+        if (isQueryExpected(queryKind)) {
+            notifyQueryFailed(std::string(toQueryTagName(queryKind)));
+        }
+        return qResult;
+    }
 
     if (priority == CommandPriority::Urgent && m_awaitingResponse.load()) {
         m_abortQueryWait.store(true, std::memory_order_relaxed);
@@ -203,7 +216,14 @@ SendResult PelcoDSession::enqueueCommand(
 SendResult PelcoDSession::enqueueCommand(
     const std::vector<std::uint8_t>& frame, const std::string& queryTag, CommandPriority priority)
 {
-    if (frame.empty()) {
+    if (!m_running.load() || !m_transport || !m_transport->isOpen()) {
+        if (!queryTag.empty()) {
+            notifyQueryFailed(queryTag);
+        }
+        return SendResult::TransportClosed;
+    }
+
+    if (frame.empty() || !PelcoDFrame::isValidFrame(frame)) {
         if (!queryTag.empty()) {
             notifyQueryFailed(queryTag);
         }
@@ -211,13 +231,17 @@ SendResult PelcoDSession::enqueueCommand(
     }
 
     std::uint64_t motionGen { 0U };
-    if (PelcoDFrame::isStandardMotion(frame)) {
-        motionGen = ++m_motionGeneration;
-    } else if (PelcoDFrame::isStandardStop(frame)) {
+    if (PelcoDFrame::isStandardMotion(frame) || PelcoDFrame::isStandardStop(frame)) {
         motionGen = ++m_motionGeneration;
     }
 
-    m_queue.enqueue(frame, queryTag, priority, motionGen);
+    const SendResult qResult = m_queue.enqueue(frame, queryTag, priority, motionGen);
+    if (qResult != SendResult::Success) {
+        if (!queryTag.empty()) {
+            notifyQueryFailed(queryTag);
+        }
+        return qResult;
+    }
 
     if (priority == CommandPriority::Urgent && m_awaitingResponse.load()) {
         m_abortQueryWait.store(true, std::memory_order_relaxed);
@@ -305,6 +329,12 @@ void PelcoDSession::setStateHandler(StateHandler handler)
 {
     std::scoped_lock lock(m_handlerMutex);
     m_stateHandler = std::move(handler);
+}
+
+void PelcoDSession::setCommandDroppedHandler(CommandDroppedHandler handler)
+{
+    std::scoped_lock lock(m_handlerMutex);
+    m_commandDroppedHandler = std::move(handler);
 }
 
 void PelcoDSession::setPollStepHandler(PollStepHandler handler, PollDeadlineHandler deadlineHandler)
@@ -436,6 +466,18 @@ void PelcoDSession::notifyQueryFailed(const std::string& queryTag, std::chrono::
     }
     if (handler) {
         handler(queryTag, durationUs);
+    }
+}
+
+void PelcoDSession::notifyCommandDropped(const std::vector<std::uint8_t>& frame, SendResult reason)
+{
+    CommandDroppedHandler handler;
+    {
+        std::scoped_lock lock(m_handlerMutex);
+        handler = m_commandDroppedHandler;
+    }
+    if (handler) {
+        handler(frame, reason);
     }
 }
 
@@ -619,6 +661,8 @@ void PelcoDSession::workerLoop()
                     }
                 } else if (isQuery) {
                     notifyQueryFailed(tagStr);
+                } else {
+                    notifyCommandDropped(item.frame, SendResult::TransportClosed);
                 }
             } else {
                 TrafficHandler tHandler;
@@ -696,6 +740,7 @@ void PelcoDSession::workerLoop()
                             }
                         } else {
                             checkQueryTimeout();
+                            notifyCommandDropped(item.frame, SendResult::QueueFull);
                         }
                     }
                 }

@@ -27,8 +27,8 @@ TEST(CommandQueueTest, PriorityOrdering)
     const std::vector<std::uint8_t> normalFrame { 0xFF, 0x01, 0x00, 0x02, 0x20, 0x00, 0x23 };
     const std::vector<std::uint8_t> urgentFrame { 0xFF, 0x01, 0x00, 0x00, 0x00, 0x00, 0x01 };
 
-    queue.enqueue(normalFrame, "Normal1", PelcoD::CommandPriority::Normal);
-    queue.enqueue(urgentFrame, "Urgent1", PelcoD::CommandPriority::Urgent);
+    EXPECT_EQ(queue.enqueue(normalFrame, "Normal1", PelcoD::CommandPriority::Normal), PelcoD::SendResult::Success);
+    EXPECT_EQ(queue.enqueue(urgentFrame, "Urgent1", PelcoD::CommandPriority::Urgent), PelcoD::SendResult::Success);
 
     PelcoD::CommandItem item1;
     bool ok = queue.popReady(item1, [] { return false; });
@@ -55,11 +55,11 @@ TEST(CommandQueueTest, UrgentPurgesLowPriority)
     const std::vector<std::uint8_t> lowFrame { 0xFF, 0x01, 0x00, 0x51, 0x00, 0x00, 0x52 };
     const std::vector<std::uint8_t> urgentFrame { 0xFF, 0x01, 0x00, 0x00, 0x00, 0x00, 0x01 };
 
-    queue.enqueue(lowFrame, "QueryPan", PelcoD::CommandPriority::Low);
+    EXPECT_EQ(queue.enqueue(lowFrame, "QueryPan", PelcoD::CommandPriority::Low), PelcoD::SendResult::Success);
     EXPECT_TRUE(queue.hasLowPriorityPending());
     EXPECT_EQ(queue.size(), 1U);
 
-    queue.enqueue(urgentFrame, "Stop", PelcoD::CommandPriority::Urgent);
+    EXPECT_EQ(queue.enqueue(urgentFrame, "Stop", PelcoD::CommandPriority::Urgent), PelcoD::SendResult::Success);
     EXPECT_FALSE(queue.hasLowPriorityPending());
     EXPECT_EQ(queue.size(), 1U);
 
@@ -117,13 +117,17 @@ TEST(CommandQueueTest, QueueCapacityAndEviction)
     PelcoD::PacedCommandQueue smallQueue(3U);
     EXPECT_EQ(smallQueue.maxCapacity(), 3U);
 
-    smallQueue.enqueue({ 0xFF, 0x01, 0x00, 0x01 }, "Normal1", PelcoD::CommandPriority::Normal);
-    smallQueue.enqueue({ 0xFF, 0x01, 0x00, 0x02 }, "Normal2", PelcoD::CommandPriority::Normal);
-    smallQueue.enqueue({ 0xFF, 0x01, 0x00, 0x03 }, "Normal3", PelcoD::CommandPriority::Normal);
+    EXPECT_EQ(smallQueue.enqueue({ 0xFF, 0x01, 0x00, 0x01 }, "Normal1", PelcoD::CommandPriority::Normal),
+        PelcoD::SendResult::Success);
+    EXPECT_EQ(smallQueue.enqueue({ 0xFF, 0x01, 0x00, 0x02 }, "Normal2", PelcoD::CommandPriority::Normal),
+        PelcoD::SendResult::Success);
+    EXPECT_EQ(smallQueue.enqueue({ 0xFF, 0x01, 0x00, 0x03 }, "Normal3", PelcoD::CommandPriority::Normal),
+        PelcoD::SendResult::Success);
     EXPECT_EQ(smallQueue.size(), 3U);
 
     // 4th item enqueued should cause oldest non-urgent item ("Normal1") to be dropped
-    smallQueue.enqueue({ 0xFF, 0x01, 0x00, 0x04 }, "Normal4", PelcoD::CommandPriority::Normal);
+    EXPECT_EQ(smallQueue.enqueue({ 0xFF, 0x01, 0x00, 0x04 }, "Normal4", PelcoD::CommandPriority::Normal),
+        PelcoD::SendResult::Success);
     EXPECT_EQ(smallQueue.size(), 3U);
 
     PelcoD::CommandItem popped;
@@ -146,9 +150,12 @@ TEST(CommandQueueTest, ClearAndEmptyState)
 {
     PelcoD::PacedCommandQueue queue;
 
-    queue.enqueue({ 0xFF, 0x01, 0x00, 0x00 }, "Norm0", PelcoD::CommandPriority::Normal);
-    queue.enqueue({ 0xFF, 0x01, 0x00, 0x01 }, "Norm1", PelcoD::CommandPriority::Normal);
-    queue.enqueue({ 0xFF, 0x01, 0x00, 0x02 }, "Urg1", PelcoD::CommandPriority::Urgent);
+    EXPECT_EQ(queue.enqueue({ 0xFF, 0x01, 0x00, 0x00 }, "Norm0", PelcoD::CommandPriority::Normal),
+        PelcoD::SendResult::Success);
+    EXPECT_EQ(queue.enqueue({ 0xFF, 0x01, 0x00, 0x01 }, "Norm1", PelcoD::CommandPriority::Normal),
+        PelcoD::SendResult::Success);
+    EXPECT_EQ(queue.enqueue({ 0xFF, 0x01, 0x00, 0x02 }, "Urg1", PelcoD::CommandPriority::Urgent),
+        PelcoD::SendResult::Success);
     EXPECT_EQ(queue.size(), 3U);
     EXPECT_FALSE(queue.empty());
 
@@ -192,10 +199,10 @@ TEST(CommandQueueTest, ThreeTierPriorityInterleaving)
 {
     PelcoD::PacedCommandQueue queue;
 
-    queue.enqueue({ 0xFF, 0x01 }, "Low1", PelcoD::CommandPriority::Low);
-    queue.enqueue({ 0xFF, 0x02 }, "Norm1", PelcoD::CommandPriority::Normal);
-    queue.enqueue({ 0xFF, 0x03 }, "Urg1", PelcoD::CommandPriority::Urgent);
-    queue.enqueue({ 0xFF, 0x04 }, "Norm2", PelcoD::CommandPriority::Normal);
+    EXPECT_EQ(queue.enqueue({ 0xFF, 0x01 }, "Low1", PelcoD::CommandPriority::Low), PelcoD::SendResult::Success);
+    EXPECT_EQ(queue.enqueue({ 0xFF, 0x02 }, "Norm1", PelcoD::CommandPriority::Normal), PelcoD::SendResult::Success);
+    EXPECT_EQ(queue.enqueue({ 0xFF, 0x03 }, "Urg1", PelcoD::CommandPriority::Urgent), PelcoD::SendResult::Success);
+    EXPECT_EQ(queue.enqueue({ 0xFF, 0x04 }, "Norm2", PelcoD::CommandPriority::Normal), PelcoD::SendResult::Success);
 
     // Urgent1 must have purged Low1. Normal1 and Normal2 should remain.
     EXPECT_EQ(queue.size(), 3U);
@@ -336,7 +343,7 @@ TEST(CommandQueueTest, UrgentStopPurgesPendingMotionRetries)
 
     // Enqueue Urgent stop with generation 2
     const std::vector<std::uint8_t> stopFrame { 0xFF, 0x01, 0x00, 0x00, 0x00, 0x00, 0x01 };
-    queue.enqueue(stopFrame, "Stop", PelcoD::CommandPriority::Urgent, 2U);
+    EXPECT_EQ(queue.enqueue(stopFrame, "Stop", PelcoD::CommandPriority::Urgent, 2U), PelcoD::SendResult::Success);
 
     // The pending pan retry (generation 1) must be purged, leaving ONLY the stop command
     EXPECT_EQ(queue.size(), 1U);
@@ -379,7 +386,8 @@ TEST(CommandQueueTest, NewerMotionPurgesOlderMotionAndRetries)
 
     // Enqueue PanRight with generation 2
     const std::vector<std::uint8_t> panRightFrame { 0xFF, 0x01, 0x00, 0x02, 0x20, 0x00, 0x23 };
-    queue.enqueue(panRightFrame, "PanRight", PelcoD::CommandPriority::Normal, 2U);
+    EXPECT_EQ(
+        queue.enqueue(panRightFrame, "PanRight", PelcoD::CommandPriority::Normal, 2U), PelcoD::SendResult::Success);
 
     // Older generation 1 retry must be purged
     EXPECT_EQ(queue.size(), 1U);
@@ -402,7 +410,7 @@ TEST(CommandQueueTest, ScheduleRetryRejectsObsoleteGeneration)
 
     // Active generation is advanced to 2 by a stop command
     const std::vector<std::uint8_t> stopFrame { 0xFF, 0x01, 0x00, 0x00, 0x00, 0x00, 0x01 };
-    queue.enqueue(stopFrame, "Stop", PelcoD::CommandPriority::Urgent, 2U);
+    EXPECT_EQ(queue.enqueue(stopFrame, "Stop", PelcoD::CommandPriority::Urgent, 2U), PelcoD::SendResult::Success);
     EXPECT_EQ(queue.currentMotionGeneration(), 2U);
 
     // An in-flight motion item with generation 1 attempts to retry
@@ -429,12 +437,12 @@ TEST(CommandQueueTest, EvictionHandlerInvokedOnUrgentPurge)
     const std::vector<std::uint8_t> lowFrame2 { 0xFF, 0x01, 0x00, 0x53, 0x00, 0x00, 0x54 };
     const std::vector<std::uint8_t> urgentFrame { 0xFF, 0x01, 0x00, 0x00, 0x00, 0x00, 0x01 };
 
-    queue.enqueue(lowFrame1, "QueryPan", PelcoD::CommandPriority::Low);
-    queue.enqueue(lowFrame2, "QueryTilt", PelcoD::CommandPriority::Low);
+    EXPECT_EQ(queue.enqueue(lowFrame1, "QueryPan", PelcoD::CommandPriority::Low), PelcoD::SendResult::Success);
+    EXPECT_EQ(queue.enqueue(lowFrame2, "QueryTilt", PelcoD::CommandPriority::Low), PelcoD::SendResult::Success);
     EXPECT_EQ(queue.size(), 2U);
     EXPECT_TRUE(evictedTags.empty());
 
-    queue.enqueue(urgentFrame, "Stop", PelcoD::CommandPriority::Urgent);
+    EXPECT_EQ(queue.enqueue(urgentFrame, "Stop", PelcoD::CommandPriority::Urgent), PelcoD::SendResult::Success);
     EXPECT_EQ(queue.size(), 1U);
     ASSERT_EQ(evictedTags.size(), 2U);
     EXPECT_EQ(evictedTags[0], "QueryPan");
@@ -453,12 +461,12 @@ TEST(CommandQueueTest, EvictionHandlerInvokedOnCapacityOverflow)
     const std::vector<std::uint8_t> frame2 { 0xFF, 0x01, 0x00, 0x53, 0x00, 0x00, 0x54 };
     const std::vector<std::uint8_t> frame3 { 0xFF, 0x01, 0x00, 0x55, 0x00, 0x00, 0x56 };
 
-    queue.enqueue(frame1, "Query1", PelcoD::CommandPriority::Normal);
-    queue.enqueue(frame2, "Query2", PelcoD::CommandPriority::Normal);
+    EXPECT_EQ(queue.enqueue(frame1, "Query1", PelcoD::CommandPriority::Normal), PelcoD::SendResult::Success);
+    EXPECT_EQ(queue.enqueue(frame2, "Query2", PelcoD::CommandPriority::Normal), PelcoD::SendResult::Success);
     EXPECT_TRUE(evictedTags.empty());
 
     // 3rd item triggers capacity overflow and drops oldest
-    queue.enqueue(frame3, "Query3", PelcoD::CommandPriority::Normal);
+    EXPECT_EQ(queue.enqueue(frame3, "Query3", PelcoD::CommandPriority::Normal), PelcoD::SendResult::Success);
     ASSERT_EQ(evictedTags.size(), 1U);
     EXPECT_EQ(evictedTags[0], "Query1");
     EXPECT_EQ(queue.size(), 2U);
@@ -475,14 +483,29 @@ TEST(CommandQueueTest, EvictionHandlerInvokedOnClear)
     const std::vector<std::uint8_t> frame1 { 0xFF, 0x01, 0x00, 0x51, 0x00, 0x00, 0x52 };
     const std::vector<std::uint8_t> frame2 { 0xFF, 0x01, 0x00, 0x53, 0x00, 0x00, 0x54 };
 
-    queue.enqueue(frame1, "Query1", PelcoD::CommandPriority::Normal);
-    queue.enqueue(frame2, "Query2", PelcoD::CommandPriority::Low);
+    EXPECT_EQ(queue.enqueue(frame1, "Query1", PelcoD::CommandPriority::Normal), PelcoD::SendResult::Success);
+    EXPECT_EQ(queue.enqueue(frame2, "Query2", PelcoD::CommandPriority::Low), PelcoD::SendResult::Success);
 
     queue.clear();
     EXPECT_TRUE(queue.empty());
     ASSERT_EQ(evictedTags.size(), 2U);
     EXPECT_EQ(evictedTags[0], "Query1");
     EXPECT_EQ(evictedTags[1], "Query2");
+}
+
+/// @brief Verify SendResult return values for capacity overflow and invalid empty frame.
+TEST(CommandQueueTest, SendResultRejectionAndInvalidFrame)
+{
+    PelcoD::PacedCommandQueue queue { 2U };
+    const std::vector<std::uint8_t> frame { 0xFF, 0x01, 0x00, 0x00, 0x00, 0x00, 0x01 };
+    EXPECT_EQ(queue.enqueue(frame, "Urg1", PelcoD::CommandPriority::Urgent), PelcoD::SendResult::Success);
+    EXPECT_EQ(queue.enqueue(frame, "Urg2", PelcoD::CommandPriority::Urgent), PelcoD::SendResult::Success);
+
+    // Queue is full of urgent commands. Enqueuing normal must return QueueFull.
+    EXPECT_EQ(queue.enqueue(frame, "Norm1", PelcoD::CommandPriority::Normal), PelcoD::SendResult::QueueFull);
+
+    // Enqueuing empty frame returns InvalidFrame
+    EXPECT_EQ(queue.enqueue({}, "Empty", PelcoD::CommandPriority::Normal), PelcoD::SendResult::InvalidFrame);
 }
 
 } // namespace

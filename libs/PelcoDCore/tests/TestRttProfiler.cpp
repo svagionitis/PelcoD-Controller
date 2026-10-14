@@ -658,9 +658,9 @@ TEST(RttProfilerTest, ActiveContinuousIgnoresUnrelatedQueries)
 
     // Concurrently trigger unrelated device queries
     for (int i { 0 }; i < 5; ++i) {
-        device->queryTilt();
-        device->queryZoom();
-        device->querySerialNumber();
+        EXPECT_EQ(device->queryTilt(), PelcoD::SendResult::Success);
+        EXPECT_EQ(device->queryZoom(), PelcoD::SendResult::Success);
+        EXPECT_EQ(device->querySerialNumber(), PelcoD::SendResult::Success);
         std::this_thread::sleep_for(std::chrono::milliseconds { 10 });
     }
 
@@ -693,11 +693,12 @@ TEST(RttProfilerTest, PassiveModeFiltersByConfiguredTag)
     ASSERT_TRUE(profiler.start(cfg));
 
     // Send both Pan and Tilt queries
-    device->queryPan();
-    device->queryTilt();
-    device->queryPan();
+    EXPECT_EQ(device->queryPan(), PelcoD::SendResult::Success);
+    EXPECT_EQ(device->queryTilt(), PelcoD::SendResult::Success);
+    EXPECT_EQ(device->queryPan(), PelcoD::SendResult::Success);
 
-    ASSERT_TRUE(waitFor([&profiler] { return profiler.getStatistics().totalProbes >= 2U; }, std::chrono::seconds { 2 }));
+    ASSERT_TRUE(
+        waitFor([&profiler] { return profiler.getStatistics().totalProbes >= 2U; }, std::chrono::seconds { 2 }));
 
     const auto history { profiler.getHistory() };
     EXPECT_EQ(history.size(), 2U);
@@ -722,10 +723,11 @@ TEST(RttProfilerTest, PassiveModeObservesAllQueriesWhenWildcard)
 
     ASSERT_TRUE(profiler.start(cfg));
 
-    device->queryPan();
-    device->queryTilt();
+    EXPECT_EQ(device->queryPan(), PelcoD::SendResult::Success);
+    EXPECT_EQ(device->queryTilt(), PelcoD::SendResult::Success);
 
-    ASSERT_TRUE(waitFor([&profiler] { return profiler.getStatistics().totalProbes >= 2U; }, std::chrono::seconds { 2 }));
+    ASSERT_TRUE(
+        waitFor([&profiler] { return profiler.getStatistics().totalProbes >= 2U; }, std::chrono::seconds { 2 }));
 
     const auto history { profiler.getHistory() };
     EXPECT_GE(history.size(), 2U);
@@ -783,4 +785,3 @@ TEST(RttProfilerTest, ExportJsonEscapesQuotesBackslashesAndControlCharacters)
 }
 
 } // namespace
-

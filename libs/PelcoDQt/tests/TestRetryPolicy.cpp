@@ -168,7 +168,7 @@ TEST(RetryPolicyTest, QuerySucceedsOnRetry)
     EXPECT_TRUE(device.start());
 
     // Send query
-    device.queryPan();
+    EXPECT_EQ(device.queryPan(), PelcoD::SendResult::Success);
 
     // Wait for attempt 0 to timeout (60ms) and retry attempt 1 to succeed
     std::this_thread::sleep_for(std::chrono::milliseconds(200));
@@ -219,7 +219,7 @@ TEST(RetryPolicyTest, QueryExhaustionTriggersTimeout)
 
     EXPECT_TRUE(device.start());
 
-    device.queryTilt();
+    EXPECT_EQ(device.queryTilt(), PelcoD::SendResult::Success);
 
     // Total wait: attempt 0 (50ms) + retry 1 backoff (20ms) + attempt 1 (50ms) + retry 2 backoff (40ms) + attempt 2
     // (50ms) = ~210ms
@@ -256,13 +256,13 @@ TEST(RetryPolicyTest, PriorityInversionAvoidance)
     EXPECT_TRUE(device.start());
 
     // 1. Dispatch query (will fail attempt 0 at 40ms and schedule retry for +300ms)
-    device.queryPan();
+    EXPECT_EQ(device.queryPan(), PelcoD::SendResult::Success);
     std::this_thread::sleep_for(std::chrono::milliseconds(60));
 
     // At this point, queryPan is waiting in backoff until ~360ms.
     // 2. Dispatch urgent stopMotion now
     const auto stopStart = std::chrono::steady_clock::now();
-    device.stopMotion();
+    EXPECT_EQ(device.stopMotion(), PelcoD::SendResult::Success);
 
     // stopMotion MUST be transmitted immediately without waiting for the 300ms backoff
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
@@ -301,7 +301,7 @@ TEST(RetryPolicyTest, TransportErrorRetry)
 
     EXPECT_TRUE(device.start());
 
-    device.panLeft(0x20U);
+    EXPECT_EQ(device.panLeft(0x20U), PelcoD::SendResult::Success);
 
     // Initial send failed, retry after 25ms should succeed
     std::this_thread::sleep_for(std::chrono::milliseconds(100));

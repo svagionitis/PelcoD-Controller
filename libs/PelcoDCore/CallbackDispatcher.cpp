@@ -134,6 +134,12 @@ Connection CallbackDispatcher::addQueryLatencyCallback(QueryLatencyCallback cb)
         std::move(cb), &CallbackDispatcher::m_queryLatencyCallbacks, &CallbackDispatcher::removeQueryLatencyCallback);
 }
 
+Connection CallbackDispatcher::addCommandDroppedCallback(CommandDroppedCallback cb)
+{
+    return registerHelper(std::move(cb), &CallbackDispatcher::m_commandDroppedCallbacks,
+        &CallbackDispatcher::removeCommandDroppedCallback);
+}
+
 bool CallbackDispatcher::removeStatusCallback(CallbackId id)
 {
     std::shared_ptr<CallbackGate> gate;
@@ -194,6 +200,16 @@ bool CallbackDispatcher::removeQueryLatencyCallback(CallbackId id)
     return found;
 }
 
+bool CallbackDispatcher::removeCommandDroppedCallback(CallbackId id)
+{
+    std::shared_ptr<CallbackGate> gate;
+    const bool found = removeEntry(m_commandDroppedCallbacks, id, m_mutex, gate);
+    if (found && gate) {
+        gate->close();
+    }
+    return found;
+}
+
 void CallbackDispatcher::clearCallbacks()
 {
     std::vector<std::shared_ptr<CallbackGate>> gatesToClose;
@@ -223,12 +239,18 @@ void CallbackDispatcher::clearCallbacks()
             if (entry.gate)
                 gatesToClose.push_back(entry.gate);
         }
+        for (const auto& entry : *m_commandDroppedCallbacks) {
+            if (entry.gate)
+                gatesToClose.push_back(entry.gate);
+        }
+
         m_statusCallbacks = std::make_shared<const std::vector<CallbackEntry<StatusCallback>>>();
         m_trafficCallbacks = std::make_shared<const std::vector<CallbackEntry<TrafficCallback>>>();
         m_timeoutCallbacks = std::make_shared<const std::vector<CallbackEntry<TimeoutCallback>>>();
         m_queryCompletedCallbacks = std::make_shared<const std::vector<CallbackEntry<QueryCompletedCallback>>>();
         m_retryCallbacks = std::make_shared<const std::vector<CallbackEntry<RetryCallback>>>();
         m_queryLatencyCallbacks = std::make_shared<const std::vector<CallbackEntry<QueryLatencyCallback>>>();
+        m_commandDroppedCallbacks = std::make_shared<const std::vector<CallbackEntry<CommandDroppedCallback>>>();
     }
     for (auto& gate : gatesToClose) {
         if (gate) {
@@ -336,6 +358,23 @@ void CallbackDispatcher::notifyQueryLatency(
             const CallbackGate::Pass pass { *entry.gate };
             if (pass) {
                 invokeCallbackSafely("QueryLatencyCallback", entry.cb, queryTag, duration, success);
+            }
+        }
+    }
+}
+
+void CallbackDispatcher::notifyCommandDropped(const std::vector<std::uint8_t>& frame, SendResult reason)
+{
+    std::shared_ptr<const std::vector<CallbackEntry<CommandDroppedCallback>>> snapshot;
+    {
+        std::scoped_lock lock(m_mutex);
+        snapshot = m_commandDroppedCallbacks;
+    }
+    for (const auto& entry : *snapshot) {
+        if (entry.gate) {
+            const CallbackGate::Pass pass { *entry.gate };
+            if (pass) {
+                invokeCallbackSafely("CommandDroppedCallback", entry.cb, frame, reason);
             }
         }
     }

@@ -46,7 +46,7 @@ TEST(MockDeviceTest, EndToEnd)
     EXPECT_TRUE(device.isConnected());
 
     // 1. Send Pan Right command
-    device.panRight(0x20U);
+    EXPECT_EQ(device.panRight(0x20U), PelcoD::SendResult::Success);
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
     // Verify mock device internal pan moved
@@ -55,28 +55,28 @@ TEST(MockDeviceTest, EndToEnd)
     EXPECT_TRUE(trafficReceived.load());
 
     // 2. Set Preset 1 at this position
-    device.setPreset(1U);
+    EXPECT_EQ(device.setPreset(1U), PelcoD::SendResult::Success);
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
     const auto state2 = mock->getInternalState();
     EXPECT_TRUE(state2.presets.find(1U) != state2.presets.end());
     EXPECT_EQ(state2.presets.at(1U).pan, state1.panCentidegrees);
 
     // 3. Move elsewhere (Tilt Up)
-    device.tiltUp(0x10U);
+    EXPECT_EQ(device.tiltUp(0x10U), PelcoD::SendResult::Success);
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
     // 4. Go To Zero Pan
-    device.zeroPan();
+    EXPECT_EQ(device.zeroPan(), PelcoD::SendResult::Success);
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
     EXPECT_EQ(mock->getInternalState().panCentidegrees, 0U);
 
     // 5. Recall Preset 1
-    device.goToPreset(1U);
+    EXPECT_EQ(device.goToPreset(1U), PelcoD::SendResult::Success);
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
     EXPECT_EQ(mock->getInternalState().panCentidegrees, state1.panCentidegrees);
 
     // 6. Query Pan
-    device.queryPan();
+    EXPECT_EQ(device.queryPan(), PelcoD::SendResult::Success);
     std::this_thread::sleep_for(std::chrono::milliseconds(150));
 
     // Check that device received pan in status callback
@@ -84,29 +84,29 @@ TEST(MockDeviceTest, EndToEnd)
     EXPECT_EQ(device.getStatus().panCentidegrees, state1.panCentidegrees);
 
     // 7. Set Zero Position (Calibration opcode 0x49)
-    device.panRight(0x20U);
+    EXPECT_EQ(device.panRight(0x20U), PelcoD::SendResult::Success);
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
     EXPECT_GT(mock->getInternalState().panCentidegrees, 0U);
-    device.setZeroPosition();
+    EXPECT_EQ(device.setZeroPosition(), PelcoD::SendResult::Success);
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
     EXPECT_EQ(mock->getInternalState().panCentidegrees, 0U);
 
     // 8. Set and Query Magnification (0x5F / 0x61) - tests 16-bit MSB wire transmission
-    device.setMagnification(600U);
+    EXPECT_EQ(device.setMagnification(600U), PelcoD::SendResult::Success);
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
     EXPECT_EQ(mock->getInternalState().magnification, 600U);
-    device.queryMagnification();
+    EXPECT_EQ(device.queryMagnification(), PelcoD::SendResult::Success);
     std::this_thread::sleep_for(std::chrono::milliseconds(150));
     EXPECT_EQ(device.getStatus().magnification, 600U);
 
     // 9. Query Diagnostics (0x6F -> 0x71)
-    device.queryDiagnostics();
+    EXPECT_EQ(device.queryDiagnostics(), PelcoD::SendResult::Success);
     std::this_thread::sleep_for(std::chrono::milliseconds(150));
     EXPECT_EQ(device.getStatus().diagnosticTemp, mock->getInternalState().diagnosticTemp);
     EXPECT_EQ(device.getStatus().diagnosticSensorId, mock->getInternalState().diagnosticSensorId);
 
     // 10. Query General (18-byte model name response)
-    device.queryGeneral();
+    EXPECT_EQ(device.queryGeneral(), PelcoD::SendResult::Success);
     std::this_thread::sleep_for(std::chrono::milliseconds(150));
     EXPECT_EQ(device.getInfo().modelName, mock->getInternalState().modelName);
 
@@ -132,7 +132,7 @@ TEST(MockDeviceTest, CopyOnWriteCallbacks)
     ASSERT_TRUE(device.start());
 
     // Send command to trigger TX traffic callback
-    device.panRight(0x10U);
+    EXPECT_EQ(device.panRight(0x10U), PelcoD::SendResult::Success);
     std::this_thread::sleep_for(std::chrono::milliseconds(60));
     EXPECT_GE(cb1Count.load(), 1);
 
@@ -141,7 +141,7 @@ TEST(MockDeviceTest, CopyOnWriteCallbacks)
         [&]([[maybe_unused]] bool isTx, const std::vector<std::uint8_t>&) { cb2Count.fetch_add(1); });
 
     const int cb1Snap = cb1Count.load();
-    device.tiltUp(0x10U);
+    EXPECT_EQ(device.tiltUp(0x10U), PelcoD::SendResult::Success);
     std::this_thread::sleep_for(std::chrono::milliseconds(60));
 
     // Both cb1 and cb2 must have received the new packet
@@ -152,7 +152,7 @@ TEST(MockDeviceTest, CopyOnWriteCallbacks)
     device.addTrafficCallback(
         [&]([[maybe_unused]] bool isTx, const std::vector<std::uint8_t>&) { cb3Count.fetch_add(1); });
 
-    device.stopMotion();
+    EXPECT_EQ(device.stopMotion(), PelcoD::SendResult::Success);
     std::this_thread::sleep_for(std::chrono::milliseconds(60));
     EXPECT_GE(cb3Count.load(), 1);
 
@@ -295,7 +295,7 @@ TEST(MockDeviceTest, ClearCallbacks)
     device.addStatusCallback([&](const PelcoD::DeviceStatus&) { statusCount.fetch_add(1); });
 
     ASSERT_TRUE(device.start());
-    device.panRight(20);
+    EXPECT_EQ(device.panRight(20), PelcoD::SendResult::Success);
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
     EXPECT_GT(trafficCount.load(), 0);
@@ -305,7 +305,7 @@ TEST(MockDeviceTest, ClearCallbacks)
 
     device.clearCallbacks();
 
-    device.panLeft(20);
+    EXPECT_EQ(device.panLeft(20), PelcoD::SendResult::Success);
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
     // No callbacks should fire after clearCallbacks()
@@ -339,7 +339,7 @@ TEST(MockDeviceTest, ReentrantStart)
     EXPECT_TRUE(device.start());
 
     // Verify commands still process normally after multiple re-entrant start calls
-    device.panRight(30);
+    EXPECT_EQ(device.panRight(30), PelcoD::SendResult::Success);
     std::this_thread::sleep_for(std::chrono::milliseconds(80));
     EXPECT_GE(trafficCount.load(), 1);
 
@@ -410,7 +410,8 @@ TEST(MockDeviceTest, SharedBusDeviceFiltering)
 
     const auto waitStart = std::chrono::steady_clock::now();
     while (rxTrafficCount.load() < 2
-        && std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - waitStart).count() < 500) {
+        && std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - waitStart).count()
+            < 500) {
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
 
@@ -449,7 +450,7 @@ TEST(MockDeviceTest, QueryResponseCorrelation)
 
     ASSERT_TRUE(device.start());
 
-    device.queryPan();
+    EXPECT_EQ(device.queryPan(), PelcoD::SendResult::Success);
     std::this_thread::sleep_for(std::chrono::milliseconds(80));
 
     // Inject an interleaved 4-byte general response for Device 1 (e.g. motion/alarm acknowledgment)
@@ -483,7 +484,7 @@ TEST(MockDeviceTest, QueryResponseCorrelation)
     // A mismatched response must not satisfy a subsequent query.
     panUpdated.store(false);
     timedOut.store(false);
-    device.queryPan();
+    EXPECT_EQ(device.queryPan(), PelcoD::SendResult::Success);
     std::this_thread::sleep_for(std::chrono::milliseconds(80));
     transport->inject(fTilt);
     for (int attempt = 0; attempt < 30 && !timedOut.load(); ++attempt) {
@@ -577,8 +578,8 @@ TEST(MockDeviceTest, ConcurrentQueryTimeoutAndAddressUpdates)
     });
 
     for (int i = 0; i < 50; ++i) {
-        device.panLeft(0x20U);
-        device.queryPan();
+        EXPECT_EQ(device.panLeft(0x20U), PelcoD::SendResult::Success);
+        EXPECT_EQ(device.queryPan(), PelcoD::SendResult::Success);
         std::this_thread::sleep_for(std::chrono::milliseconds(2));
     }
 
@@ -612,13 +613,13 @@ TEST(MockDeviceTest, FailedSendDoesNotTriggerTxCallbackOrTimeoutWait)
     EXPECT_TRUE(device.isConnected());
 
     // 1. Standard motion command (sendData returns false)
-    device.panLeft(0x20U);
+    EXPECT_EQ(device.panLeft(0x20U), PelcoD::SendResult::Success);
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
     EXPECT_EQ(txCount.load(), 0);
 
     // 2. Query command (sendData returns false)
     const auto start = std::chrono::steady_clock::now();
-    device.queryPan();
+    EXPECT_EQ(device.queryPan(), PelcoD::SendResult::Success);
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
     // Must not log TX traffic
@@ -645,16 +646,16 @@ TEST(MockDeviceTest, StopMotionPreemptsQueries)
     ASSERT_TRUE(device.start());
 
     // Enqueue 3 queries that will not receive replies
-    device.queryPan();
-    device.queryTilt();
-    device.queryZoom();
+    EXPECT_EQ(device.queryPan(), PelcoD::SendResult::Success);
+    EXPECT_EQ(device.queryTilt(), PelcoD::SendResult::Success);
+    EXPECT_EQ(device.queryZoom(), PelcoD::SendResult::Success);
 
     // Allow worker loop to start processing the first query
     std::this_thread::sleep_for(std::chrono::milliseconds(30));
 
     // Now issue stopMotion() - this is safety-critical and must preempt the waiting queries!
     const auto startTime = std::chrono::steady_clock::now();
-    device.stopMotion();
+    EXPECT_EQ(device.stopMotion(), PelcoD::SendResult::Success);
 
     // Wait until stopMotion frame is seen in transport sent frames
     const std::vector<std::uint8_t> stopFrame = PelcoD::ProtocolBuilder::buildStop(1U);
@@ -783,20 +784,20 @@ TEST(MockDeviceTest, AuxiliaryAndPatternControl)
     ASSERT_TRUE(device.start());
 
     // 1. Auxiliary control
-    device.setAuxiliary(1U);
+    EXPECT_EQ(device.setAuxiliary(1U), PelcoD::SendResult::Success);
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
     EXPECT_TRUE(mock->getInternalState().auxStates[0]);
 
-    device.clearAuxiliary(1U);
+    EXPECT_EQ(device.clearAuxiliary(1U), PelcoD::SendResult::Success);
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
     EXPECT_FALSE(mock->getInternalState().auxStates[0]);
 
     // 2. Pattern recording
-    device.recordPatternStart(1U);
+    EXPECT_EQ(device.recordPatternStart(1U), PelcoD::SendResult::Success);
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
-    device.recordPatternStop();
+    EXPECT_EQ(device.recordPatternStop(), PelcoD::SendResult::Success);
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
-    device.runPattern(1U);
+    EXPECT_EQ(device.runPattern(1U), PelcoD::SendResult::Success);
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
 
     device.stop();
@@ -811,15 +812,15 @@ TEST(MockDeviceTest, AbsolutePositioningEndToEnd)
     PelcoD::PelcoDDevice device(mock, 1U);
     ASSERT_TRUE(device.start());
 
-    device.setPanAngle(18000U);
+    EXPECT_EQ(device.setPanAngle(18000U), PelcoD::SendResult::Success);
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
     EXPECT_EQ(mock->getInternalState().panCentidegrees, 18000U);
 
-    device.setTiltAngle(4500U);
+    EXPECT_EQ(device.setTiltAngle(4500U), PelcoD::SendResult::Success);
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
     EXPECT_EQ(mock->getInternalState().tiltCentidegrees, 4500U);
 
-    device.setZoomPosition(2500U);
+    EXPECT_EQ(device.setZoomPosition(2500U), PelcoD::SendResult::Success);
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
     EXPECT_EQ(mock->getInternalState().zoomPosition, 2500U);
 

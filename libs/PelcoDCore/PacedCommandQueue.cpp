@@ -20,10 +20,15 @@ void PacedCommandQueue::setEvictionHandler(EvictionHandler handler)
     m_evictionHandler = std::move(handler);
 }
 
-void PacedCommandQueue::enqueue(CommandItem item)
+SendResult PacedCommandQueue::enqueue(CommandItem item)
 {
+    if (item.frame.empty()) {
+        return SendResult::InvalidFrame;
+    }
+
     std::vector<CommandItem> evictedItems {};
     EvictionHandler handler {};
+    SendResult result { SendResult::Success };
 
     {
         std::scoped_lock lock(m_mutex);
@@ -41,41 +46,79 @@ void PacedCommandQueue::enqueue(CommandItem item)
         }
 
         if (m_queue.size() >= m_maxCapacity) {
-            LOG(WARNING) << "PacedCommandQueue capacity reached (" << m_queue.size() << "/" << m_maxCapacity
-                         << "): dropping oldest non-urgent command";
-            auto dropIt = m_queue.end();
-            for (auto it = m_queue.begin(); it != m_queue.end(); ++it) {
-                if (it->priority != CommandPriority::Urgent) {
-                    dropIt = it;
-                    break;
+            if (item.priority == CommandPriority::Urgent) {
+                LOG(WARNING) << "PacedCommandQueue capacity reached (" << m_queue.size() << "/" << m_maxCapacity
+                             << "): urgent command evicting oldest non-urgent command";
+                auto dropIt = m_queue.end();
+                for (auto it = m_queue.begin(); it != m_queue.end(); ++it) {
+                    if (it->priority != CommandPriority::Urgent) {
+                        dropIt = it;
+                        break;
+                    }
                 }
-            }
-            if (dropIt != m_queue.end()) {
-                evictedItems.push_back(std::move(*dropIt));
-                m_queue.erase(dropIt);
+                if (dropIt != m_queue.end()) {
+                    evictedItems.push_back(std::move(*dropIt));
+                    m_queue.erase(dropIt);
+                } else {
+                    evictedItems.push_back(std::move(m_queue.front()));
+                    m_queue.pop_front();
+                }
+            } else if (item.priority == CommandPriority::Normal) {
+                auto dropIt = m_queue.end();
+                for (auto it = m_queue.begin(); it != m_queue.end(); ++it) {
+                    if (it->priority != CommandPriority::Urgent) {
+                        dropIt = it;
+                        break;
+                    }
+                }
+                if (dropIt != m_queue.end()) {
+                    evictedItems.push_back(std::move(*dropIt));
+                    m_queue.erase(dropIt);
+                } else {
+                    LOG(WARNING)
+                        << "PacedCommandQueue capacity reached with all urgent commands: rejecting normal command";
+                    evictedItems.push_back(std::move(item));
+                    result = SendResult::QueueFull;
+                }
             } else {
-                evictedItems.push_back(std::move(m_queue.front()));
-                m_queue.pop_front();
+                auto dropIt = m_queue.end();
+                for (auto it = m_queue.begin(); it != m_queue.end(); ++it) {
+                    if (it->priority == CommandPriority::Low) {
+                        dropIt = it;
+                        break;
+                    }
+                }
+                if (dropIt != m_queue.end()) {
+                    evictedItems.push_back(std::move(*dropIt));
+                    m_queue.erase(dropIt);
+                } else {
+                    LOG(WARNING)
+                        << "PacedCommandQueue capacity reached with higher priority commands: rejecting low command";
+                    evictedItems.push_back(std::move(item));
+                    result = SendResult::QueueFull;
+                }
             }
         }
 
-        if (item.priority == CommandPriority::Urgent) {
-            auto it = m_queue.begin();
-            while (it != m_queue.end()) {
-                if (it->priority == CommandPriority::Low) {
-                    evictedItems.push_back(std::move(*it));
-                    it = m_queue.erase(it);
-                } else {
-                    ++it;
+        if (result == SendResult::Success) {
+            if (item.priority == CommandPriority::Urgent) {
+                auto it = m_queue.begin();
+                while (it != m_queue.end()) {
+                    if (it->priority == CommandPriority::Low) {
+                        evictedItems.push_back(std::move(*it));
+                        it = m_queue.erase(it);
+                    } else {
+                        ++it;
+                    }
                 }
+                m_queue.push_front(std::move(item));
+            } else {
+                m_queue.push_back(std::move(item));
             }
-            m_queue.push_front(std::move(item));
-        } else {
-            m_queue.push_back(std::move(item));
+            m_cv.notify_one();
         }
 
         handler = m_evictionHandler;
-        m_cv.notify_one();
     }
 
     if (handler && !evictedItems.empty()) {
@@ -83,12 +126,14 @@ void PacedCommandQueue::enqueue(CommandItem item)
             handler(evicted);
         }
     }
+
+    return result;
 }
 
-void PacedCommandQueue::enqueue(
+SendResult PacedCommandQueue::enqueue(
     std::vector<std::uint8_t> frame, QueryKind queryKind, CommandPriority priority, std::uint64_t motionGeneration)
 {
-    CommandItem item;
+    CommandItem item {};
     item.frame = std::move(frame);
     item.queryKind = queryKind;
     item.queryTag = std::string(toQueryTagName(queryKind));
@@ -96,13 +141,13 @@ void PacedCommandQueue::enqueue(
     item.retryCount = 0U;
     item.earliestDispatchTime = std::chrono::steady_clock::now();
     item.motionGeneration = motionGeneration;
-    enqueue(std::move(item));
+    return enqueue(std::move(item));
 }
 
-void PacedCommandQueue::enqueue(
+SendResult PacedCommandQueue::enqueue(
     std::vector<std::uint8_t> frame, std::string queryTag, CommandPriority priority, std::uint64_t motionGeneration)
 {
-    CommandItem item;
+    CommandItem item {};
     item.frame = std::move(frame);
     item.queryKind = parseQueryKind(queryTag);
     item.queryTag = std::move(queryTag);
@@ -110,7 +155,7 @@ void PacedCommandQueue::enqueue(
     item.retryCount = 0U;
     item.earliestDispatchTime = std::chrono::steady_clock::now();
     item.motionGeneration = motionGeneration;
-    enqueue(std::move(item));
+    return enqueue(std::move(item));
 }
 
 std::chrono::milliseconds PacedCommandQueue::scheduleRetry(
@@ -134,7 +179,7 @@ std::chrono::milliseconds PacedCommandQueue::scheduleRetry(
                   << backoffDelay.count() << " ms";
     }
 
-    enqueue(std::move(item));
+    static_cast<void>(enqueue(std::move(item)));
     return backoffDelay;
 }
 

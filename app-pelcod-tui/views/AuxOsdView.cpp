@@ -90,10 +90,10 @@ bool AuxOsdView::handleInput(const InputEvent& event, PelcoD::PelcoDDevice& devi
         m_auxStates[static_cast<std::size_t>(m_selectedAux)] = newState;
 
         if (newState) {
-            device.setAuxiliary(auxId);
+            static_cast<void>(device.setAuxiliary(auxId));
             m_lastAction = "Aux " + std::to_string(auxId) + " Turned ON";
         } else {
-            device.clearAuxiliary(auxId);
+            static_cast<void>(device.clearAuxiliary(auxId));
             m_lastAction = "Aux " + std::to_string(auxId) + " Turned OFF";
         }
         return true;
@@ -102,17 +102,17 @@ bool AuxOsdView::handleInput(const InputEvent& event, PelcoD::PelcoDDevice& devi
     // Zone scan toggle
     if (event.ch == 'z' || event.ch == 'Z') {
         m_zoneScanActive = !m_zoneScanActive;
-        device.setZoneScan(m_zoneScanActive);
+        static_cast<void>(device.setZoneScan(m_zoneScanActive));
         m_lastAction = m_zoneScanActive ? "Zone Scan Started" : "Zone Scan Stopped";
         return true;
     }
     if (event.ch == '[') {
-        device.setZoneStart(1U);
+        static_cast<void>(device.setZoneStart(1U));
         m_lastAction = "Zone 1 Start Position Recorded";
         return true;
     }
     if (event.ch == ']') {
-        device.setZoneEnd(1U);
+        static_cast<void>(device.setZoneEnd(1U));
         m_lastAction = "Zone 1 End Position Recorded";
         return true;
     }
@@ -120,7 +120,7 @@ bool AuxOsdView::handleInput(const InputEvent& event, PelcoD::PelcoDDevice& devi
     // OSD Menu actions
     if (event.ch == 'm' || event.ch == 'M') {
         // Pelco-D Preset 95 is standard "Open OSD Menu"
-        device.goToPreset(95U);
+        static_cast<void>(device.goToPreset(95U));
         m_lastAction = "OSD Menu Activated (Preset 95)";
         return true;
     }

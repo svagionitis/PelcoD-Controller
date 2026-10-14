@@ -510,23 +510,23 @@ void RttProfiler::dispatchProbeCommand(const std::string& tag)
     const std::string probeTag { std::string(kProbeTagPrefix) + tag };
 
     if (tag == "QueryTilt") {
-        dev->sendQueryFrame(ProtocolBuilder::buildQueryTilt(addr), probeTag);
+        static_cast<void>(dev->sendQueryFrame(ProtocolBuilder::buildQueryTilt(addr), probeTag));
     } else if (tag == "QueryZoom") {
-        dev->sendQueryFrame(ProtocolBuilder::buildQueryZoom(addr), probeTag);
+        static_cast<void>(dev->sendQueryFrame(ProtocolBuilder::buildQueryZoom(addr), probeTag));
     } else if (tag == "QueryMagnification") {
-        dev->sendQueryFrame(ProtocolBuilder::buildQueryMag(addr), probeTag);
+        static_cast<void>(dev->sendQueryFrame(ProtocolBuilder::buildQueryMag(addr), probeTag));
     } else if (tag == "QueryDeviceType") {
-        dev->sendQueryFrame(ProtocolBuilder::buildQueryDevType(addr), probeTag);
+        static_cast<void>(dev->sendQueryFrame(ProtocolBuilder::buildQueryDevType(addr), probeTag));
     } else if (tag == "QueryDiagnostics") {
-        dev->sendQueryFrame(ProtocolBuilder::buildQueryDiagnostics(addr), probeTag);
+        static_cast<void>(dev->sendQueryFrame(ProtocolBuilder::buildQueryDiagnostics(addr), probeTag));
     } else if (tag == "QueryGeneral") {
-        dev->sendQueryFrame(ProtocolBuilder::buildQueryGeneral(addr), probeTag);
+        static_cast<void>(dev->sendQueryFrame(ProtocolBuilder::buildQueryGeneral(addr), probeTag));
     } else if (tag == "QuerySoftwareVersion") {
-        dev->sendQueryFrame(ProtocolBuilder::buildQuerySoftwareVersion(addr), probeTag);
+        static_cast<void>(dev->sendQueryFrame(ProtocolBuilder::buildQuerySoftwareVersion(addr), probeTag));
     } else if (tag == "QueryBuildNumber") {
-        dev->sendQueryFrame(ProtocolBuilder::buildQueryBuildNumber(addr), probeTag);
+        static_cast<void>(dev->sendQueryFrame(ProtocolBuilder::buildQueryBuildNumber(addr), probeTag));
     } else {
-        dev->sendQueryFrame(ProtocolBuilder::buildQueryPan(addr), probeTag);
+        static_cast<void>(dev->sendQueryFrame(ProtocolBuilder::buildQueryPan(addr), probeTag));
     }
 }
 

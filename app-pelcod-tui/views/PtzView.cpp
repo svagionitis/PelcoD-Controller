@@ -111,27 +111,27 @@ void PtzView::render(Canvas& canvas, int startY, int width, int height, const Pe
 bool PtzView::handleInput(const InputEvent& event, PelcoD::PelcoDDevice& device)
 {
     if (event.key == Key::Up || event.ch == 'w' || event.ch == 'W') {
-        device.tiltUp(m_tiltSpeed);
+        static_cast<void>(device.tiltUp(m_tiltSpeed));
         m_lastAction = "Tilt Up (" + std::to_string(m_tiltSpeed) + ")";
         return true;
     }
     if (event.key == Key::Down || event.ch == 's' || event.ch == 'S') {
-        device.tiltDown(m_tiltSpeed);
+        static_cast<void>(device.tiltDown(m_tiltSpeed));
         m_lastAction = "Tilt Down (" + std::to_string(m_tiltSpeed) + ")";
         return true;
     }
     if (event.key == Key::Left || event.ch == 'a' || event.ch == 'A') {
-        device.panLeft(m_panSpeed);
+        static_cast<void>(device.panLeft(m_panSpeed));
         m_lastAction = "Pan Left (" + std::to_string(m_panSpeed) + ")";
         return true;
     }
     if (event.key == Key::Right || event.ch == 'd' || event.ch == 'D') {
-        device.panRight(m_panSpeed);
+        static_cast<void>(device.panRight(m_panSpeed));
         m_lastAction = "Pan Right (" + std::to_string(m_panSpeed) + ")";
         return true;
     }
     if (event.key == Key::Space) {
-        device.stopMotion();
+        static_cast<void>(device.stopMotion());
         m_lastAction = "Stop Motion";
         return true;
     }
@@ -152,32 +152,32 @@ bool PtzView::handleInput(const InputEvent& event, PelcoD::PelcoDDevice& device)
         return true;
     }
     if (event.ch == 'z' || event.ch == 'Z') {
-        device.zoomTele();
+        static_cast<void>(device.zoomTele());
         m_lastAction = "Zoom Tele";
         return true;
     }
     if (event.ch == 'x' || event.ch == 'X') {
-        device.zoomWide();
+        static_cast<void>(device.zoomWide());
         m_lastAction = "Zoom Wide";
         return true;
     }
     if (event.ch == 'f' || event.ch == 'F') {
-        device.focusNear();
+        static_cast<void>(device.focusNear());
         m_lastAction = "Focus Near";
         return true;
     }
     if (event.ch == 'r' || event.ch == 'R') {
-        device.focusFar();
+        static_cast<void>(device.focusFar());
         m_lastAction = "Focus Far";
         return true;
     }
     if (event.ch == 'i' || event.ch == 'I') {
-        device.irisOpen();
+        static_cast<void>(device.irisOpen());
         m_lastAction = "Iris Open";
         return true;
     }
     if (event.ch == 'o' || event.ch == 'O') {
-        device.irisClose();
+        static_cast<void>(device.irisClose());
         m_lastAction = "Iris Close";
         return true;
     }

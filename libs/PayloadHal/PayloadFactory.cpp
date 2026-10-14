@@ -4,13 +4,13 @@
 #include "Transport/SerialTransport.h"
 #include "Transport/TcpTransport.h"
 #include "Transport/UdpTransport.h"
-#include "adapters/OnvifPayloadAdapter.h"
-#include "adapters/PelcoDPtzAdapter.h"
-#include "adapters/PelcoDFujinonPayloadAdapter.h"
-#include "adapters/PelcoDViscaCompositePayload.h"
-#include "adapters/ViscaSonyAdapter.h"
 #include "adapters/LrfProtocols.h"
+#include "adapters/OnvifPayloadAdapter.h"
+#include "adapters/PelcoDFujinonPayloadAdapter.h"
+#include "adapters/PelcoDPtzAdapter.h"
+#include "adapters/PelcoDViscaCompositePayload.h"
 #include "adapters/SerialLrfAdapter.h"
+#include "adapters/ViscaSonyAdapter.h"
 #include "sim/SimulatedPayload.h"
 
 #include <algorithm>
@@ -69,8 +69,7 @@ namespace {
             if (!m_device)
                 return false;
             const auto pos = static_cast<std::uint16_t>(std::clamp(zoom01, 0.0, 1.0) * 0xFFFF);
-            m_device->setZoomPosition(pos);
-            return true;
+            return m_device->setZoomPosition(pos) == PelcoD::SendResult::Success;
         }
 
         bool zoomContinuous(float velocity) override
@@ -78,29 +77,27 @@ namespace {
             if (!m_device)
                 return false;
             if (velocity > 0.05f) {
-                m_device->zoomTele();
+                return m_device->zoomTele() == PelcoD::SendResult::Success;
             } else if (velocity < -0.05f) {
-                m_device->zoomWide();
+                return m_device->zoomWide() == PelcoD::SendResult::Success;
             } else {
-                m_device->zoomStop();
+                return m_device->zoomStop() == PelcoD::SendResult::Success;
             }
-            return true;
         }
 
         bool zoomStop() override
         {
             if (!m_device)
                 return false;
-            m_device->zoomStop();
-            return true;
+            return m_device->zoomStop() == PelcoD::SendResult::Success;
         }
 
         bool setFocusAuto(bool enable) override
         {
             if (!m_device)
                 return false;
-            m_device->setAutoFocus(enable ? PelcoD::AutoMode::Auto : PelcoD::AutoMode::Off);
-            return true;
+            return m_device->setAutoFocus(enable ? PelcoD::AutoMode::Auto : PelcoD::AutoMode::Off)
+                == PelcoD::SendResult::Success;
         }
 
         bool setFocusNormalized(double /*focus01*/) override
@@ -113,38 +110,36 @@ namespace {
             if (!m_device)
                 return false;
             if (velocity > 0.05f) {
-                m_device->focusFar();
+                return m_device->focusFar() == PelcoD::SendResult::Success;
             } else if (velocity < -0.05f) {
-                m_device->focusNear();
+                return m_device->focusNear() == PelcoD::SendResult::Success;
             } else {
-                m_device->focusStop();
+                return m_device->focusStop() == PelcoD::SendResult::Success;
             }
-            return true;
         }
 
         bool focusStop() override
         {
             if (!m_device)
                 return false;
-            m_device->focusStop();
-            return true;
+            return m_device->focusStop() == PelcoD::SendResult::Success;
         }
 
         bool triggerOnePushFocus() override
         {
             if (!m_device)
                 return false;
-            m_device->focusNear();
-            m_device->focusStop();
-            return true;
+            const auto r1 = m_device->focusNear();
+            const auto r2 = m_device->focusStop();
+            return (r1 == PelcoD::SendResult::Success) && (r2 == PelcoD::SendResult::Success);
         }
 
         bool setIrisAuto(bool enable) override
         {
             if (!m_device)
                 return false;
-            m_device->setAutoIris(enable ? PelcoD::AutoMode::Auto : PelcoD::AutoMode::Off);
-            return true;
+            return m_device->setAutoIris(enable ? PelcoD::AutoMode::Auto : PelcoD::AutoMode::Off)
+                == PelcoD::SendResult::Success;
         }
 
         bool setIrisNormalized(double /*iris01*/) override
@@ -157,21 +152,19 @@ namespace {
             if (!m_device)
                 return false;
             if (velocity > 0.05f) {
-                m_device->irisOpen();
+                return m_device->irisOpen() == PelcoD::SendResult::Success;
             } else if (velocity < -0.05f) {
-                m_device->irisClose();
+                return m_device->irisClose() == PelcoD::SendResult::Success;
             } else {
-                m_device->irisStop();
+                return m_device->irisStop() == PelcoD::SendResult::Success;
             }
-            return true;
         }
 
         bool irisStop() override
         {
             if (!m_device)
                 return false;
-            m_device->irisStop();
-            return true;
+            return m_device->irisStop() == PelcoD::SendResult::Success;
         }
 
         bool setDayNightIcr(bool /*nightMode*/) override
@@ -227,7 +220,8 @@ namespace {
             return {};
         }
 
-        bool setVideoStreamUri(const std::string& uri, VideoStreamProfile profile = VideoStreamProfile::Primary) override
+        bool setVideoStreamUri(
+            const std::string& uri, VideoStreamProfile profile = VideoStreamProfile::Primary) override
         {
             std::lock_guard<std::mutex> lock(m_mutex);
             m_streamUris[profile] = uri;
@@ -858,17 +852,15 @@ std::shared_ptr<ILaserRangeFinder> PayloadFactory::createLrfFromUri(const std::s
 
     std::string hostOrPath = parsed.host;
     if (parsed.host == "serial" && !parsed.path.empty()) {
-        hostOrPath = (parsed.path[0] == '/' && parsed.path.size() > 1 && parsed.path[1] != '/')
-            ? parsed.path.substr(1)
-            : parsed.path;
+        hostOrPath = (parsed.path[0] == '/' && parsed.path.size() > 1 && parsed.path[1] != '/') ? parsed.path.substr(1)
+                                                                                                : parsed.path;
     } else if (parsed.host == "tcp" || parsed.host == "udp") {
         if (!parsed.path.empty()) {
             hostOrPath = (parsed.path[0] == '/') ? parsed.path.substr(1) : parsed.path;
         }
     } else if (!parsed.path.empty() && hostOrPath.empty()) {
-        hostOrPath = (parsed.path[0] == '/' && parsed.path.size() > 1 && parsed.path[1] != '/')
-            ? parsed.path.substr(1)
-            : parsed.path;
+        hostOrPath = (parsed.path[0] == '/' && parsed.path.size() > 1 && parsed.path[1] != '/') ? parsed.path.substr(1)
+                                                                                                : parsed.path;
     }
 
     const int port = parsed.port;

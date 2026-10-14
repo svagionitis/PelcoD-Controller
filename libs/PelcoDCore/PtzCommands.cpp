@@ -462,8 +462,14 @@ SendResult PtzCommands::queryDiagnostics()
 
 SendResult PtzCommands::queryAll()
 {
-    queryPan();
-    queryTilt();
+    const auto rPan = queryPan();
+    if (rPan != SendResult::Success) {
+        return rPan;
+    }
+    const auto rTilt = queryTilt();
+    if (rTilt != SendResult::Success) {
+        return rTilt;
+    }
     return queryZoom();
 }
 
@@ -542,13 +548,19 @@ SendResult PtzCommands::setYear(std::uint16_t year)
 
 SendResult PtzCommands::setTime(std::uint8_t hour, std::uint8_t minute, std::uint8_t second)
 {
-    setHourMinute(hour, minute);
+    const auto res = setHourMinute(hour, minute);
+    if (res != SendResult::Success) {
+        return res;
+    }
     return setSeconds(second);
 }
 
 SendResult PtzCommands::setDate(std::uint16_t year, std::uint8_t month, std::uint8_t day)
 {
-    setMonthDay(month, day);
+    const auto res = setMonthDay(month, day);
+    if (res != SendResult::Success) {
+        return res;
+    }
     return setYear(year);
 }
 

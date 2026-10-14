@@ -213,14 +213,36 @@ struct DeviceInfo {
 };
 
 /// @enum SendResult
-/// @brief Status return code for command submission across session.
-enum class SendResult : std::uint8_t {
+/// @brief Status return code for command submission across session and queue.
+/// @details Marked [[nodiscard]] to enforce caller handling of safety and transport outcomes.
+enum class [[nodiscard]] SendResult : std::uint8_t {
     Success = 0U, ///< Frame accepted and queued/transmitted successfully
     TransportClosed, ///< Transport link is down or not opened
     QueueFull, ///< Paced command queue capacity exceeded
     InvalidFrame, ///< Frame failed validation or checksum check
     MotionPurged ///< Replaced by newer motion generation or preempted
 };
+
+/// @brief Converts a SendResult code to human-readable string view.
+/// @param[in] result Outcome status code.
+/// @return String representation suitable for logging.
+[[nodiscard]] constexpr std::string_view sendResultToString(SendResult result) noexcept
+{
+    switch (result) {
+    case SendResult::Success:
+        return "Success";
+    case SendResult::TransportClosed:
+        return "TransportClosed";
+    case SendResult::QueueFull:
+        return "QueueFull";
+    case SendResult::InvalidFrame:
+        return "InvalidFrame";
+    case SendResult::MotionPurged:
+        return "MotionPurged";
+    default:
+        return "Unknown";
+    }
+}
 
 /// @enum QueryKind
 /// @brief Strongly-typed enumeration of all recognized Pelco-D query response categories.

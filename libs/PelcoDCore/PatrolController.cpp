@@ -303,12 +303,12 @@ void PatrolController::setDevice(std::shared_ptr<PelcoDDevice> device)
         std::weak_ptr<PelcoDDevice> weakDev = device;
         m_stepDispatcher = [weakDev](std::uint8_t presetId, std::uint8_t speed) {
             if (auto dev = weakDev.lock()) {
-                dev->goToPreset(presetId, speed);
+                static_cast<void>(dev->goToPreset(presetId, speed));
             }
         };
         m_dispatcher = [weakDev](std::uint8_t presetId) {
             if (auto dev = weakDev.lock()) {
-                dev->goToPreset(presetId);
+                static_cast<void>(dev->goToPreset(presetId));
             }
         };
     } else {
@@ -333,8 +333,10 @@ void PatrolController::setDevice(PelcoDDevice* device)
     if (device != nullptr) {
         m_hasDevice = true;
         m_deviceWeak.reset();
-        m_stepDispatcher = [device](std::uint8_t presetId, std::uint8_t speed) { device->goToPreset(presetId, speed); };
-        m_dispatcher = [device](std::uint8_t presetId) { device->goToPreset(presetId); };
+        m_stepDispatcher = [device](std::uint8_t presetId, std::uint8_t speed) {
+            static_cast<void>(device->goToPreset(presetId, speed));
+        };
+        m_dispatcher = [device](std::uint8_t presetId) { static_cast<void>(device->goToPreset(presetId)); };
     } else {
         m_hasDevice = false;
         m_deviceWeak.reset();

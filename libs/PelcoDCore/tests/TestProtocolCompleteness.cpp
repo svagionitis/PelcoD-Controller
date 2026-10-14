@@ -2,10 +2,10 @@
 /// @brief TDD regression tests for protocol bug fixes, opcode completeness, and enum validity.
 
 #include "DeviceStatus.h"
+#include "MockPelcoDDevice.h"
+#include "PelcoDDevice.h"
 #include "PelcoDFrame.h"
 #include "PelcoDTypes.h"
-#include "PelcoDDevice.h"
-#include "MockPelcoDDevice.h"
 #include "ProtocolBuilder.h"
 #include "ProtocolParser.h"
 #include "TestHelpers.h"
@@ -279,12 +279,12 @@ TEST(ProtocolCompletenessTest, PelcoDDevicePhase1Wrappers)
 
     ASSERT_TRUE(device.start());
 
-    device.presetScan(10U);
-    device.prepareForDownload();
-    device.startDownload();
-    device.activateEchoMode();
-    device.writeCharacter(5U, 'X');
-    device.clearScreen();
+    EXPECT_EQ(device.presetScan(10U), PelcoD::SendResult::Success);
+    EXPECT_EQ(device.prepareForDownload(), PelcoD::SendResult::Success);
+    EXPECT_EQ(device.startDownload(), PelcoD::SendResult::Success);
+    EXPECT_EQ(device.activateEchoMode(), PelcoD::SendResult::Success);
+    EXPECT_EQ(device.writeCharacter(5U, 'X'), PelcoD::SendResult::Success);
+    EXPECT_EQ(device.clearScreen(), PelcoD::SendResult::Success);
 
     // Allow queue to dispatch commands
     std::this_thread::sleep_for(std::chrono::milliseconds(250));
@@ -362,8 +362,8 @@ TEST(ProtocolCompletenessTest, PelcoDDevicePhase2Wrappers)
 
     ASSERT_TRUE(device.start());
 
-    device.sendDummy();
-    device.screenMove(-50, 75, true);
+    EXPECT_EQ(device.sendDummy(), PelcoD::SendResult::Success);
+    EXPECT_EQ(device.screenMove(-50, 75, true), PelcoD::SendResult::Success);
 
     std::this_thread::sleep_for(std::chrono::milliseconds(150));
     device.stop();
@@ -471,7 +471,8 @@ TEST(ProtocolCompletenessTest, Phase3ResponsesAndParsing)
     EXPECT_EQ(verSub, PelcoD::VersionInfoSubOpcode::SoftwareVersionResponse);
     EXPECT_EQ(d1, 2U);
     EXPECT_EQ(d2, 5U);
-    EXPECT_NE(PelcoD::ProtocolParser::describeFrame(false, swResp).find("Software Version Response: 2.5"), std::string::npos);
+    EXPECT_NE(
+        PelcoD::ProtocolParser::describeFrame(false, swResp).find("Software Version Response: 2.5"), std::string::npos);
 
     PelcoD::DeviceStatus status {};
     PelcoD::DeviceInfo info {};
@@ -491,43 +492,47 @@ TEST(ProtocolCompletenessTest, Phase3ResponsesAndParsing)
     EXPECT_EQ(verSub, PelcoD::VersionInfoSubOpcode::BuildNumberResponse);
     EXPECT_EQ(d1, 0x04U);
     EXPECT_EQ(d2, 0xD2U);
-    EXPECT_NE(PelcoD::ProtocolParser::describeFrame(false, buildResp).find("Build Number Response: 1234"), std::string::npos);
+    EXPECT_NE(
+        PelcoD::ProtocolParser::describeFrame(false, buildResp).find("Build Number Response: 1234"), std::string::npos);
 
     EXPECT_TRUE(PelcoD::ProtocolParser::updateStatus(buildResp, status, info));
     EXPECT_EQ(info.buildNumber, 1234U);
 
     // 3. Time Responses (0x77, odd subs)
     PelcoD::TimeSubOpcode timeSub {};
-    const auto timeSecResp = PelcoD::PelcoDFrame::createFrame(addr,
-        static_cast<std::uint8_t>(PelcoD::TimeSubOpcode::ReportSeconds),
-        static_cast<std::uint8_t>(PelcoD::ResponseOpcode::TimeMacro), 0x00U, 45U);
+    const auto timeSecResp
+        = PelcoD::PelcoDFrame::createFrame(addr, static_cast<std::uint8_t>(PelcoD::TimeSubOpcode::ReportSeconds),
+            static_cast<std::uint8_t>(PelcoD::ResponseOpcode::TimeMacro), 0x00U, 45U);
     ASSERT_TRUE(PelcoD::ProtocolParser::parseTimeResponse(timeSecResp, timeSub, d1, d2));
     EXPECT_EQ(timeSub, PelcoD::TimeSubOpcode::ReportSeconds);
     EXPECT_EQ(d2, 45U);
     EXPECT_TRUE(PelcoD::ProtocolParser::isResponseMatchingQuery("QueryTime", timeSecResp));
-    EXPECT_NE(PelcoD::ProtocolParser::describeFrame(false, timeSecResp).find("Seconds Response: 45s"), std::string::npos);
+    EXPECT_NE(
+        PelcoD::ProtocolParser::describeFrame(false, timeSecResp).find("Seconds Response: 45s"), std::string::npos);
 
-    const auto timeHmResp = PelcoD::PelcoDFrame::createFrame(addr,
-        static_cast<std::uint8_t>(PelcoD::TimeSubOpcode::ReportHourMinute),
-        static_cast<std::uint8_t>(PelcoD::ResponseOpcode::TimeMacro), 14U, 30U);
+    const auto timeHmResp
+        = PelcoD::PelcoDFrame::createFrame(addr, static_cast<std::uint8_t>(PelcoD::TimeSubOpcode::ReportHourMinute),
+            static_cast<std::uint8_t>(PelcoD::ResponseOpcode::TimeMacro), 14U, 30U);
     ASSERT_TRUE(PelcoD::ProtocolParser::parseTimeResponse(timeHmResp, timeSub, d1, d2));
     EXPECT_EQ(timeSub, PelcoD::TimeSubOpcode::ReportHourMinute);
     EXPECT_EQ(d1, 14U);
     EXPECT_EQ(d2, 30U);
-    EXPECT_NE(PelcoD::ProtocolParser::describeFrame(false, timeHmResp).find("Hour/Minute Response: 14:30"), std::string::npos);
+    EXPECT_NE(PelcoD::ProtocolParser::describeFrame(false, timeHmResp).find("Hour/Minute Response: 14:30"),
+        std::string::npos);
 
-    const auto timeMdResp = PelcoD::PelcoDFrame::createFrame(addr,
-        static_cast<std::uint8_t>(PelcoD::TimeSubOpcode::ReportMonthDay),
-        static_cast<std::uint8_t>(PelcoD::ResponseOpcode::TimeMacro), 9U, 28U);
+    const auto timeMdResp
+        = PelcoD::PelcoDFrame::createFrame(addr, static_cast<std::uint8_t>(PelcoD::TimeSubOpcode::ReportMonthDay),
+            static_cast<std::uint8_t>(PelcoD::ResponseOpcode::TimeMacro), 9U, 28U);
     ASSERT_TRUE(PelcoD::ProtocolParser::parseTimeResponse(timeMdResp, timeSub, d1, d2));
     EXPECT_EQ(timeSub, PelcoD::TimeSubOpcode::ReportMonthDay);
     EXPECT_EQ(d1, 9U);
     EXPECT_EQ(d2, 28U);
-    EXPECT_NE(PelcoD::ProtocolParser::describeFrame(false, timeMdResp).find("Month/Day Response: 9/28"), std::string::npos);
+    EXPECT_NE(
+        PelcoD::ProtocolParser::describeFrame(false, timeMdResp).find("Month/Day Response: 9/28"), std::string::npos);
 
-    const auto timeYrResp = PelcoD::PelcoDFrame::createFrame(addr,
-        static_cast<std::uint8_t>(PelcoD::TimeSubOpcode::ReportYear),
-        static_cast<std::uint8_t>(PelcoD::ResponseOpcode::TimeMacro), 0x07U, 0xEAU);
+    const auto timeYrResp
+        = PelcoD::PelcoDFrame::createFrame(addr, static_cast<std::uint8_t>(PelcoD::TimeSubOpcode::ReportYear),
+            static_cast<std::uint8_t>(PelcoD::ResponseOpcode::TimeMacro), 0x07U, 0xEAU);
     ASSERT_TRUE(PelcoD::ProtocolParser::parseTimeResponse(timeYrResp, timeSub, d1, d2));
     EXPECT_EQ(timeSub, PelcoD::TimeSubOpcode::ReportYear);
     const auto yr = static_cast<std::uint16_t>((static_cast<std::uint16_t>(d1) << 8U) | d2);
@@ -552,15 +557,15 @@ TEST(ProtocolCompletenessTest, PelcoDDevicePhase3Wrappers)
 
     ASSERT_TRUE(device.start());
 
-    device.querySoftwareVersion();
-    device.queryBuildNumber();
-    device.setSeconds(15U);
-    device.setHourMinute(10U, 45U);
-    device.setMonthDay(11U, 20U);
-    device.setYear(2025U);
-    device.setTime(8U, 30U, 0U);
-    device.setDate(2026U, 7U, 4U);
-    device.queryTime(PelcoD::TimeSubOpcode::ReportHourMinute);
+    EXPECT_EQ(device.querySoftwareVersion(), PelcoD::SendResult::Success);
+    EXPECT_EQ(device.queryBuildNumber(), PelcoD::SendResult::Success);
+    EXPECT_EQ(device.setSeconds(15U), PelcoD::SendResult::Success);
+    EXPECT_EQ(device.setHourMinute(10U, 45U), PelcoD::SendResult::Success);
+    EXPECT_EQ(device.setMonthDay(11U, 20U), PelcoD::SendResult::Success);
+    EXPECT_EQ(device.setYear(2025U), PelcoD::SendResult::Success);
+    EXPECT_EQ(device.setTime(8U, 30U, 0U), PelcoD::SendResult::Success);
+    EXPECT_EQ(device.setDate(2026U, 7U, 4U), PelcoD::SendResult::Success);
+    EXPECT_EQ(device.queryTime(PelcoD::TimeSubOpcode::ReportHourMinute), PelcoD::SendResult::Success);
 
     std::this_thread::sleep_for(std::chrono::milliseconds(500));
     device.stop();
@@ -596,7 +601,8 @@ TEST(ProtocolCompletenessTest, PelcoDDevicePhase3Wrappers)
     // Frame 5: setYear(2025) -> 0x77 sub 0x06
     EXPECT_EQ(sentFrames[5][2], 0x06U);
     EXPECT_EQ(sentFrames[5][3], static_cast<std::uint8_t>(PelcoD::CommandOpcode::TimeMacro));
-    const auto yr2025 = static_cast<std::uint16_t>((static_cast<std::uint16_t>(sentFrames[5][4]) << 8U) | sentFrames[5][5]);
+    const auto yr2025
+        = static_cast<std::uint16_t>((static_cast<std::uint16_t>(sentFrames[5][4]) << 8U) | sentFrames[5][5]);
     EXPECT_EQ(yr2025, 2025U);
 
     // Frame 6 & 7: setTime(8, 30, 0) -> setHourMinute then setSeconds
@@ -611,7 +617,8 @@ TEST(ProtocolCompletenessTest, PelcoDDevicePhase3Wrappers)
     EXPECT_EQ(sentFrames[8][4], 7U);
     EXPECT_EQ(sentFrames[8][5], 4U);
     EXPECT_EQ(sentFrames[9][2], 0x06U);
-    const auto yr2026 = static_cast<std::uint16_t>((static_cast<std::uint16_t>(sentFrames[9][4]) << 8U) | sentFrames[9][5]);
+    const auto yr2026
+        = static_cast<std::uint16_t>((static_cast<std::uint16_t>(sentFrames[9][4]) << 8U) | sentFrames[9][5]);
     EXPECT_EQ(yr2026, 2026U);
 
     // Frame 10: queryTime(ReportHourMinute) -> 0x77 sub 0x03
@@ -650,8 +657,7 @@ TEST(ProtocolCompletenessTest, PelcoDDevicePhase3AsyncQueries)
 TEST(ProtocolCompletenessTest, Phase4BuildersAndDisassembly)
 {
     // Aux Indicator LED: Set
-    const auto setAuxLedFrame = PelcoD::ProtocolBuilder::buildSetAuxLed(
-        1U, PelcoD::AuxLedColor::Amber, 25U);
+    const auto setAuxLedFrame = PelcoD::ProtocolBuilder::buildSetAuxLed(1U, PelcoD::AuxLedColor::Amber, 25U);
     ASSERT_EQ(setAuxLedFrame.size(), 7U);
     EXPECT_EQ(setAuxLedFrame[2], static_cast<std::uint8_t>(PelcoD::AuxSubOpcode::Led));
     EXPECT_EQ(setAuxLedFrame[3], static_cast<std::uint8_t>(PelcoD::CommandOpcode::SetAuxiliary));
@@ -661,8 +667,7 @@ TEST(ProtocolCompletenessTest, Phase4BuildersAndDisassembly)
     EXPECT_NE(descSetLed.find("Set Aux LED"), std::string::npos);
 
     // Aux Indicator LED: Clear
-    const auto clearAuxLedFrame = PelcoD::ProtocolBuilder::buildClearAuxLed(
-        1U, PelcoD::AuxLedColor::Red, 10U);
+    const auto clearAuxLedFrame = PelcoD::ProtocolBuilder::buildClearAuxLed(1U, PelcoD::AuxLedColor::Red, 10U);
     ASSERT_EQ(clearAuxLedFrame.size(), 7U);
     EXPECT_EQ(clearAuxLedFrame[2], static_cast<std::uint8_t>(PelcoD::AuxSubOpcode::Led));
     EXPECT_EQ(clearAuxLedFrame[3], static_cast<std::uint8_t>(PelcoD::CommandOpcode::ClearAuxiliary));
@@ -735,11 +740,9 @@ TEST(ProtocolCompletenessTest, Phase4BuildersAndDisassembly)
 TEST(ProtocolCompletenessTest, Phase4ResponsesAndParsing)
 {
     // Everest AzimuthZeroResponse: val = 18000 = 0x4650
-    const std::vector<std::uint8_t> azFrame = PelcoD::PelcoDFrame::createFrame(
-        1U,
-        static_cast<std::uint8_t>(PelcoD::EverestSubOpcode::AzimuthZeroResponse),
-        static_cast<std::uint8_t>(PelcoD::ResponseOpcode::Everest),
-        0x46U, 0x50U);
+    const std::vector<std::uint8_t> azFrame
+        = PelcoD::PelcoDFrame::createFrame(1U, static_cast<std::uint8_t>(PelcoD::EverestSubOpcode::AzimuthZeroResponse),
+            static_cast<std::uint8_t>(PelcoD::ResponseOpcode::Everest), 0x46U, 0x50U);
 
     PelcoD::DeviceStatus status {};
     PelcoD::DeviceInfo info {};
@@ -747,45 +750,36 @@ TEST(ProtocolCompletenessTest, Phase4ResponsesAndParsing)
     EXPECT_EQ(status.azimuthZeroOffsetCentidegrees, 18000U);
 
     // Everest ZoomLimitResponse: val = 20000 = 0x4E20
-    const std::vector<std::uint8_t> zlFrame = PelcoD::PelcoDFrame::createFrame(
-        1U,
-        static_cast<std::uint8_t>(PelcoD::EverestSubOpcode::ZoomLimitResponse),
-        static_cast<std::uint8_t>(PelcoD::ResponseOpcode::Everest),
-        0x4EU, 0x20U);
+    const std::vector<std::uint8_t> zlFrame
+        = PelcoD::PelcoDFrame::createFrame(1U, static_cast<std::uint8_t>(PelcoD::EverestSubOpcode::ZoomLimitResponse),
+            static_cast<std::uint8_t>(PelcoD::ResponseOpcode::Everest), 0x4EU, 0x20U);
     ASSERT_TRUE(PelcoD::ProtocolParser::updateStatus(zlFrame, status, info));
     EXPECT_EQ(status.zoomLimit, 20000U);
 
     // Everest AlarmsResponse: data2 = 0x0F
-    const std::vector<std::uint8_t> almFrame = PelcoD::PelcoDFrame::createFrame(
-        1U,
-        static_cast<std::uint8_t>(PelcoD::EverestSubOpcode::AlarmsResponse),
-        static_cast<std::uint8_t>(PelcoD::ResponseOpcode::Everest),
-        0x00U, 0x0FU);
+    const std::vector<std::uint8_t> almFrame
+        = PelcoD::PelcoDFrame::createFrame(1U, static_cast<std::uint8_t>(PelcoD::EverestSubOpcode::AlarmsResponse),
+            static_cast<std::uint8_t>(PelcoD::ResponseOpcode::Everest), 0x00U, 0x0FU);
     ASSERT_TRUE(PelcoD::ProtocolParser::updateStatus(almFrame, status, info));
     EXPECT_EQ(status.everestAlarms, 0x0FU);
     EXPECT_EQ(status.alarms, 0x00U);
 
     // Everest DefinedPresetsResponse: mask = 0x0055
-    const std::vector<std::uint8_t> dpFrame = PelcoD::PelcoDFrame::createFrame(
-        1U,
+    const std::vector<std::uint8_t> dpFrame = PelcoD::PelcoDFrame::createFrame(1U,
         static_cast<std::uint8_t>(PelcoD::EverestSubOpcode::DefinedPresetsResponse),
-        static_cast<std::uint8_t>(PelcoD::ResponseOpcode::Everest),
-        0x00U, 0x55U);
+        static_cast<std::uint8_t>(PelcoD::ResponseOpcode::Everest), 0x00U, 0x55U);
     ASSERT_TRUE(PelcoD::ProtocolParser::updateStatus(dpFrame, status, info));
     EXPECT_EQ(status.definedPresetsMask, 0x0055U);
 
     // Everest DefinedPatternsResponse: mask = 0x000F
-    const std::vector<std::uint8_t> patFrame = PelcoD::PelcoDFrame::createFrame(
-        1U,
+    const std::vector<std::uint8_t> patFrame = PelcoD::PelcoDFrame::createFrame(1U,
         static_cast<std::uint8_t>(PelcoD::EverestSubOpcode::DefinedPatternsResponse),
-        static_cast<std::uint8_t>(PelcoD::ResponseOpcode::Everest),
-        0x00U, 0x0FU);
+        static_cast<std::uint8_t>(PelcoD::ResponseOpcode::Everest), 0x00U, 0x0FU);
     ASSERT_TRUE(PelcoD::ProtocolParser::updateStatus(patFrame, status, info));
     EXPECT_EQ(status.definedPatternsMask, 0x000FU);
 
     // Classification test
-    EXPECT_EQ(PelcoD::ProtocolParser::classifyResponse(azFrame),
-        PelcoD::ResponseClassification::ExtendedTelemetry);
+    EXPECT_EQ(PelcoD::ProtocolParser::classifyResponse(azFrame), PelcoD::ResponseClassification::ExtendedTelemetry);
 }
 
 /// @brief Verify high-level PelcoDDevice methods for Phase 4 Aux LED and Everest commands.
@@ -806,21 +800,21 @@ TEST(ProtocolCompletenessTest, PelcoDDevicePhase4Wrappers)
 
     ASSERT_TRUE(device.start());
 
-    device.setAuxLed(PelcoD::AuxLedColor::Amber, 20U);
-    device.clearAuxLed(PelcoD::AuxLedColor::Red, 0U);
-    device.queryAzimuthZero();
-    device.setZoomLimit(22000U);
-    device.queryZoomLimit();
-    device.queryEverestAlarms();
-    device.deletePattern(2U);
-    device.setManualLeftPanLimit(1100U);
-    device.setManualRightPanLimit(34900U);
-    device.setScanLeftPanLimit(2100U);
-    device.setScanRightPanLimit(33900U);
-    device.queryLimit(PelcoD::EverestLimitId::ScanLeftPan);
-    device.enableLimits(true);
-    device.queryDefinedPresets();
-    device.queryDefinedPatterns();
+    EXPECT_EQ(device.setAuxLed(PelcoD::AuxLedColor::Amber, 20U), PelcoD::SendResult::Success);
+    EXPECT_EQ(device.clearAuxLed(PelcoD::AuxLedColor::Red, 0U), PelcoD::SendResult::Success);
+    EXPECT_EQ(device.queryAzimuthZero(), PelcoD::SendResult::Success);
+    EXPECT_EQ(device.setZoomLimit(22000U), PelcoD::SendResult::Success);
+    EXPECT_EQ(device.queryZoomLimit(), PelcoD::SendResult::Success);
+    EXPECT_EQ(device.queryEverestAlarms(), PelcoD::SendResult::Success);
+    EXPECT_EQ(device.deletePattern(2U), PelcoD::SendResult::Success);
+    EXPECT_EQ(device.setManualLeftPanLimit(1100U), PelcoD::SendResult::Success);
+    EXPECT_EQ(device.setManualRightPanLimit(34900U), PelcoD::SendResult::Success);
+    EXPECT_EQ(device.setScanLeftPanLimit(2100U), PelcoD::SendResult::Success);
+    EXPECT_EQ(device.setScanRightPanLimit(33900U), PelcoD::SendResult::Success);
+    EXPECT_EQ(device.queryLimit(PelcoD::EverestLimitId::ScanLeftPan), PelcoD::SendResult::Success);
+    EXPECT_EQ(device.enableLimits(true), PelcoD::SendResult::Success);
+    EXPECT_EQ(device.queryDefinedPresets(), PelcoD::SendResult::Success);
+    EXPECT_EQ(device.queryDefinedPatterns(), PelcoD::SendResult::Success);
 
     std::this_thread::sleep_for(std::chrono::milliseconds(500));
     device.stop();
@@ -858,5 +852,3 @@ TEST(ProtocolCompletenessTest, PelcoDDevicePhase4AsyncQueries)
 }
 
 } // namespace
-
-

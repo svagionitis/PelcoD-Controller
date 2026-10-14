@@ -97,31 +97,31 @@ bool SettingsView::handleInput(const InputEvent& event, PelcoD::PelcoDDevice& de
         switch (m_selectedIndex) {
         case 0: { // Auto Focus
             m_autoFocus = !m_autoFocus;
-            device.setAutoFocus(m_autoFocus ? PelcoD::AutoMode::Auto : PelcoD::AutoMode::Off);
+            static_cast<void>(device.setAutoFocus(m_autoFocus ? PelcoD::AutoMode::Auto : PelcoD::AutoMode::Off));
             m_lastAction = m_autoFocus ? "Auto Focus: ON" : "Auto Focus: OFF";
             return true;
         }
         case 1: { // Auto Iris
             m_autoIris = !m_autoIris;
-            device.setAutoIris(m_autoIris ? PelcoD::AutoMode::Auto : PelcoD::AutoMode::Off);
+            static_cast<void>(device.setAutoIris(m_autoIris ? PelcoD::AutoMode::Auto : PelcoD::AutoMode::Off));
             m_lastAction = m_autoIris ? "Auto Iris: ON" : "Auto Iris: OFF";
             return true;
         }
         case 2: { // AGC
             m_agc = !m_agc;
-            device.setAgc(m_agc ? PelcoD::AutoMode::Auto : PelcoD::AutoMode::Off);
+            static_cast<void>(device.setAgc(m_agc ? PelcoD::AutoMode::Auto : PelcoD::AutoMode::Off));
             m_lastAction = m_agc ? "AGC: ON" : "AGC: OFF";
             return true;
         }
         case 3: { // BLC
             m_blc = !m_blc;
-            device.setBacklightComp(m_blc ? PelcoD::SwitchState::On : PelcoD::SwitchState::Off);
+            static_cast<void>(device.setBacklightComp(m_blc ? PelcoD::SwitchState::On : PelcoD::SwitchState::Off));
             m_lastAction = m_blc ? "BLC: ON" : "BLC: OFF";
             return true;
         }
         case 4: { // AWB
             m_awb = !m_awb;
-            device.setAutoWhiteBalance(m_awb ? PelcoD::SwitchState::On : PelcoD::SwitchState::Off);
+            static_cast<void>(device.setAutoWhiteBalance(m_awb ? PelcoD::SwitchState::On : PelcoD::SwitchState::Off));
             m_lastAction = m_awb ? "AWB: ON" : "AWB: OFF";
             return true;
         }
@@ -130,7 +130,7 @@ bool SettingsView::handleInput(const InputEvent& event, PelcoD::PelcoDDevice& de
                 m_lineLockDelay = static_cast<std::uint16_t>(m_lineLockDelay - 500U);
             else if (!isLeft && m_lineLockDelay <= 35500U)
                 m_lineLockDelay = static_cast<std::uint16_t>(m_lineLockDelay + 500U);
-            device.adjustLineLockDelay(m_lineLockDelay);
+            static_cast<void>(device.adjustLineLockDelay(m_lineLockDelay));
             m_lastAction = "Line Lock: " + std::to_string(m_lineLockDelay);
             return true;
         }
@@ -139,7 +139,7 @@ bool SettingsView::handleInput(const InputEvent& event, PelcoD::PelcoDDevice& de
                 m_wbRB = static_cast<std::uint16_t>(m_wbRB - 8U);
             else if (!isLeft && m_wbRB <= 247U)
                 m_wbRB = static_cast<std::uint16_t>(m_wbRB + 8U);
-            device.adjustWhiteBalanceRB(m_wbRB);
+            static_cast<void>(device.adjustWhiteBalanceRB(m_wbRB));
             m_lastAction = "WB R-B: " + std::to_string(m_wbRB);
             return true;
         }
@@ -148,7 +148,7 @@ bool SettingsView::handleInput(const InputEvent& event, PelcoD::PelcoDDevice& de
                 m_wbMG = static_cast<std::uint16_t>(m_wbMG - 8U);
             else if (!isLeft && m_wbMG <= 247U)
                 m_wbMG = static_cast<std::uint16_t>(m_wbMG + 8U);
-            device.adjustWhiteBalanceMG(m_wbMG);
+            static_cast<void>(device.adjustWhiteBalanceMG(m_wbMG));
             m_lastAction = "WB M-G: " + std::to_string(m_wbMG);
             return true;
         }
@@ -158,7 +158,7 @@ bool SettingsView::handleInput(const InputEvent& event, PelcoD::PelcoDDevice& de
             } else {
                 m_baudIndex = (m_baudIndex < kNumBauds - 1) ? m_baudIndex + 1 : 0;
             }
-            device.setBaudRate(kBaudRates[m_baudIndex]);
+            static_cast<void>(device.setBaudRate(kBaudRates[m_baudIndex]));
             m_lastAction = "Baud Set: " + std::to_string(kBaudRates[m_baudIndex]);
             return true;
         }

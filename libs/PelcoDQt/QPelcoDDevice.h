@@ -78,7 +78,7 @@ public:
     template <typename Func, typename... Args> void invokeCore(Func&& func, Args&&... args)
     {
         if (m_device) {
-            std::invoke(std::forward<Func>(func), m_device.get(), std::forward<Args>(args)...);
+            static_cast<void>(std::invoke(std::forward<Func>(func), m_device.get(), std::forward<Args>(args)...));
         }
     }
 
@@ -99,6 +99,7 @@ signals:
     void connectingStateChanged(bool connecting);
     void queryTimeoutOccurred(const QString& queryTag);
     void queryRetryAttempted(const QString& queryTag, int attempt, int maxRetries, int delayMs);
+    void commandDropped(const QByteArray& frame, PelcoD::SendResult reason);
 
 public slots:
     // Motion

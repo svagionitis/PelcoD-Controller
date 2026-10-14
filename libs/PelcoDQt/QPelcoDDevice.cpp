@@ -96,6 +96,12 @@ void QPelcoDDevice::initDeviceCallbacks()
                 tag, static_cast<int>(attempt), static_cast<int>(maxRetries), static_cast<int>(delay.count()));
         });
     });
+
+    m_deviceConnections += m_device->addCommandDroppedCallback(
+        [this](const std::vector<std::uint8_t>& frame, PelcoD::SendResult reason) {
+            const QByteArray bytes(reinterpret_cast<const char*>(frame.data()), static_cast<int>(frame.size()));
+            QMetaObject::invokeMethod(this, [this, bytes, reason] { emit commandDropped(bytes, reason); });
+        });
 }
 
 bool QPelcoDDevice::connectDevice()
@@ -231,7 +237,7 @@ void QPelcoDDevice::setTelemetryPolling(bool enable, int intervalMs)
     void QPelcoDDevice::slotName()                                                                                     \
     {                                                                                                                  \
         if (m_device) {                                                                                                \
-            m_device->slotName();                                                                                      \
+            static_cast<void>(m_device->slotName());                                                                   \
         }                                                                                                              \
     }
 
@@ -239,7 +245,7 @@ void QPelcoDDevice::setTelemetryPolling(bool enable, int intervalMs)
     void QPelcoDDevice::slotName(ArgType val)                                                                          \
     {                                                                                                                  \
         if (m_device) {                                                                                                \
-            m_device->slotName(static_cast<CastType>(val));                                                            \
+            static_cast<void>(m_device->slotName(static_cast<CastType>(val)));                                         \
         }                                                                                                              \
     }
 
@@ -247,7 +253,7 @@ void QPelcoDDevice::setTelemetryPolling(bool enable, int intervalMs)
     void QPelcoDDevice::slotName(bool enable)                                                                          \
     {                                                                                                                  \
         if (m_device) {                                                                                                \
-            m_device->slotName(enable ? PelcoD::SwitchState::On : PelcoD::SwitchState::Off);                           \
+            static_cast<void>(m_device->slotName(enable ? PelcoD::SwitchState::On : PelcoD::SwitchState::Off));        \
         }                                                                                                              \
     }
 
@@ -293,8 +299,8 @@ FORWARD_CORE_0(stopMotion)
 void QPelcoDDevice::move(int panDir, int panSpeed, int tiltDir, int tiltSpeed)
 {
     if (m_device) {
-        m_device->move(static_cast<PelcoD::PanDirection>(panDir), static_cast<std::uint8_t>(panSpeed),
-            static_cast<PelcoD::TiltDirection>(tiltDir), static_cast<std::uint8_t>(tiltSpeed));
+        static_cast<void>(m_device->move(static_cast<PelcoD::PanDirection>(panDir), static_cast<std::uint8_t>(panSpeed),
+            static_cast<PelcoD::TiltDirection>(tiltDir), static_cast<std::uint8_t>(tiltSpeed)));
     }
 }
 
@@ -330,7 +336,7 @@ FORWARD_CORE_1(setZoneEnd, int, std::uint8_t)
 void QPelcoDDevice::setZoneScan(bool enable)
 {
     if (m_device) {
-        m_device->setZoneScan(enable);
+        static_cast<void>(m_device->setZoneScan(enable));
     }
 }
 
@@ -358,7 +364,7 @@ FORWARD_CORE_1(adjustWhiteBalanceMG, int, std::uint16_t)
 void QPelcoDDevice::setMagnification(int value, bool relative)
 {
     if (m_device) {
-        m_device->setMagnification(static_cast<std::uint16_t>(value), relative);
+        static_cast<void>(m_device->setMagnification(static_cast<std::uint16_t>(value), relative));
     }
 }
 
@@ -389,7 +395,7 @@ void QPelcoDDevice::sendRawHex(const QByteArray& hexData)
         for (const char ch : hexData) {
             frame.push_back(static_cast<std::uint8_t>(ch));
         }
-        m_device->sendRawFrame(frame);
+        static_cast<void>(m_device->sendRawFrame(frame));
     }
 }
 

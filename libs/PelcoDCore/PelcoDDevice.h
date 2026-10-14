@@ -51,6 +51,7 @@ public:
         = std::function<void(const std::string& queryTag, bool success, const DeviceStatus& status)>;
     using RetryCallback = std::function<void(
         const std::string& queryTag, std::uint32_t attempt, std::uint32_t maxRetries, std::chrono::milliseconds delay)>;
+    using CommandDroppedCallback = std::function<void(const std::vector<std::uint8_t>& frame, SendResult reason)>;
 
     explicit PelcoDDevice(std::shared_ptr<ITransport> transport, std::uint8_t address = 1U);
 
@@ -124,35 +125,45 @@ public:
     /// @return Connection object to manage the subscription.
     Connection addQueryLatencyCallback(QueryLatencyCallback cb);
 
+    /// @brief Registers a callback for dropped or rejected commands.
+    /// @param[in] cb Callback receiving rejected/evicted frame and SendResult reason.
+    /// @return Connection object to manage the subscription.
+    Connection addCommandDroppedCallback(CommandDroppedCallback cb);
+
     /// @brief Removes a status callback by identifier.
     /// @param[in] id Callback identifier.
     /// @return True if callback was found and removed; false otherwise.
-    bool removeStatusCallback(CallbackId id);
+    [[nodiscard]] bool removeStatusCallback(CallbackId id);
 
     /// @brief Removes a traffic callback by identifier.
     /// @param[in] id Callback identifier.
     /// @return True if callback was found and removed; false otherwise.
-    bool removeTrafficCallback(CallbackId id);
+    [[nodiscard]] bool removeTrafficCallback(CallbackId id);
 
     /// @brief Removes a timeout callback by identifier.
     /// @param[in] id Callback identifier.
     /// @return True if callback was found and removed; false otherwise.
-    bool removeTimeoutCallback(CallbackId id);
+    [[nodiscard]] bool removeTimeoutCallback(CallbackId id);
 
     /// @brief Removes a query completed callback by identifier.
     /// @param[in] id Callback identifier.
     /// @return True if callback was found and removed; false otherwise.
-    bool removeQueryCompletedCallback(CallbackId id);
+    [[nodiscard]] bool removeQueryCompletedCallback(CallbackId id);
 
     /// @brief Removes a retry callback by identifier.
     /// @param[in] id Callback identifier.
     /// @return True if callback was found and removed; false otherwise.
-    bool removeRetryCallback(CallbackId id);
+    [[nodiscard]] bool removeRetryCallback(CallbackId id);
 
     /// @brief Removes a query latency callback by identifier.
     /// @param[in] id Callback identifier.
     /// @return True if callback was found and removed; false otherwise.
-    bool removeQueryLatencyCallback(CallbackId id);
+    [[nodiscard]] bool removeQueryLatencyCallback(CallbackId id);
+
+    /// @brief Removes a command dropped callback by identifier.
+    /// @param[in] id Callback identifier.
+    /// @return True if callback was found and removed; false otherwise.
+    [[nodiscard]] bool removeCommandDroppedCallback(CallbackId id);
 
     /// @brief Removes all registered status, traffic, and timeout callbacks.
     virtual void clearCallbacks();
@@ -188,13 +199,14 @@ public:
     [[nodiscard]] std::chrono::milliseconds getDeadManTimeout() const noexcept;
 
     // Motion & Positioning
-    void panLeft(std::uint8_t speed);
-    void panRight(std::uint8_t speed);
-    void tiltUp(std::uint8_t speed);
-    void tiltDown(std::uint8_t speed);
-    void stopMotion();
+    [[nodiscard]] SendResult panLeft(std::uint8_t speed);
+    [[nodiscard]] SendResult panRight(std::uint8_t speed);
+    [[nodiscard]] SendResult tiltUp(std::uint8_t speed);
+    [[nodiscard]] SendResult tiltDown(std::uint8_t speed);
+    [[nodiscard]] SendResult stopMotion();
 
-    void move(PanDirection panDir, std::uint8_t panSpeed, TiltDirection tiltDir, std::uint8_t tiltSpeed);
+    [[nodiscard]] SendResult move(
+        PanDirection panDir, std::uint8_t panSpeed, TiltDirection tiltDir, std::uint8_t tiltSpeed);
 
     /// @brief Drives combined motion across Pan, Tilt, Zoom, Focus, and Iris (M12).
     /// @param[in] panDir Pan direction (Left, Right, Stop).
@@ -204,249 +216,250 @@ public:
     /// @param[in] zoom Zoom action (Tele, Wide, Stop).
     /// @param[in] focus Focus action (Near, Far, Stop).
     /// @param[in] iris Iris action (Open, Close, Stop).
-    void move(PanDirection panDir, std::uint8_t panSpeed, TiltDirection tiltDir, std::uint8_t tiltSpeed,
-        ZoomAction zoom, FocusAction focus = FocusAction::Stop, IrisAction iris = IrisAction::Stop);
+    [[nodiscard]] SendResult move(PanDirection panDir, std::uint8_t panSpeed, TiltDirection tiltDir,
+        std::uint8_t tiltSpeed, ZoomAction zoom, FocusAction focus = FocusAction::Stop,
+        IrisAction iris = IrisAction::Stop);
 
     /// @brief Controls device operational power state (opcode 0x88 On, 0x08 Off) (M12).
     /// @param[in] on True for Power On, false for Power Off.
-    void setPower(bool on);
+    [[nodiscard]] SendResult setPower(bool on);
 
     /// @brief Configures auto or manual scan mode (opcode 0x90 Auto, 0x98 Manual) (M12).
     /// @param[in] enable True to initiate auto scan, false for manual scan.
-    void setAutoScan(bool enable);
+    [[nodiscard]] SendResult setAutoScan(bool enable);
 
-    void zoomTele();
-    void zoomWide();
-    void zoomStop();
+    [[nodiscard]] SendResult zoomTele();
+    [[nodiscard]] SendResult zoomWide();
+    [[nodiscard]] SendResult zoomStop();
 
-    void focusNear();
-    void focusFar();
-    void focusStop();
+    [[nodiscard]] SendResult focusNear();
+    [[nodiscard]] SendResult focusFar();
+    [[nodiscard]] SendResult focusStop();
 
-    void irisOpen();
-    void irisClose();
-    void irisStop();
+    [[nodiscard]] SendResult irisOpen();
+    [[nodiscard]] SendResult irisClose();
+    [[nodiscard]] SendResult irisStop();
 
-    void setPanAngle(std::uint16_t centidegrees);
-    void setTiltAngle(std::uint16_t centidegrees);
-    void setZoomPosition(std::uint16_t position);
+    [[nodiscard]] SendResult setPanAngle(std::uint16_t centidegrees);
+    [[nodiscard]] SendResult setTiltAngle(std::uint16_t centidegrees);
+    [[nodiscard]] SendResult setZoomPosition(std::uint16_t position);
 
     // Presets
-    void setPreset(std::uint8_t presetId);
-    void clearPreset(std::uint8_t presetId);
-    void goToPreset(std::uint8_t presetId);
+    [[nodiscard]] SendResult setPreset(std::uint8_t presetId);
+    [[nodiscard]] SendResult clearPreset(std::uint8_t presetId);
+    [[nodiscard]] SendResult goToPreset(std::uint8_t presetId);
 
     /// @brief Recalls preset with explicit transition speed.
     /// @param[in] presetId Preset number.
     /// @param[in] speed Transition speed (0 for standard speed).
-    void goToPreset(std::uint8_t presetId, std::uint8_t speed);
+    [[nodiscard]] SendResult goToPreset(std::uint8_t presetId, std::uint8_t speed);
 
-    void flip180();
-    void zeroPan();
+    [[nodiscard]] SendResult flip180();
+    [[nodiscard]] SendResult zeroPan();
 
     /// @brief Initiates a preset scan touring defined presets with dwell time (opcode 0x47).
     /// @param[in] dwellSeconds Time in seconds to dwell at each visited preset.
-    void presetScan(std::uint8_t dwellSeconds);
+    [[nodiscard]] SendResult presetScan(std::uint8_t dwellSeconds);
 
     // Auxiliaries & Zones
-    void setAuxiliary(std::uint8_t auxId);
-    void clearAuxiliary(std::uint8_t auxId);
-    void setZoneStart(std::uint8_t zoneId);
-    void setZoneEnd(std::uint8_t zoneId);
-    void setZoneScan(bool enable);
+    [[nodiscard]] SendResult setAuxiliary(std::uint8_t auxId);
+    [[nodiscard]] SendResult clearAuxiliary(std::uint8_t auxId);
+    [[nodiscard]] SendResult setZoneStart(std::uint8_t zoneId);
+    [[nodiscard]] SendResult setZoneEnd(std::uint8_t zoneId);
+    [[nodiscard]] SendResult setZoneScan(bool enable);
 
     // Patterns
-    void recordPatternStart(std::uint8_t patternId);
-    void recordPatternStop();
-    void runPattern(std::uint8_t patternId);
+    [[nodiscard]] SendResult recordPatternStart(std::uint8_t patternId);
+    [[nodiscard]] SendResult recordPatternStop();
+    [[nodiscard]] SendResult runPattern(std::uint8_t patternId);
 
     // Speeds & Options
-    void setZoomSpeed(std::uint8_t speed);
-    void setFocusSpeed(std::uint8_t speed);
-    void setAutoFocus(AutoMode mode);
-    void setAutoIris(AutoMode mode);
-    void setAgc(AutoMode mode);
-    void setBacklightComp(SwitchState state);
-    void setAutoWhiteBalance(SwitchState state);
-    void setShutterSpeed(std::uint16_t speed);
-    void setGain(std::uint16_t gain);
-    void setAutoIrisLevel(std::uint8_t level);
-    void setAutoIrisPeak(std::uint8_t peak);
-    void setPhaseDelayMode(SwitchState state);
-    void adjustLineLockDelay(std::uint16_t centidegrees);
-    void adjustWhiteBalanceRB(std::uint16_t value);
-    void adjustWhiteBalanceMG(std::uint16_t value);
-    void setMagnification(std::uint16_t value, bool relative = false);
-    void setBaudRate(std::uint32_t baud);
-    void setZeroPosition();
+    [[nodiscard]] SendResult setZoomSpeed(std::uint8_t speed);
+    [[nodiscard]] SendResult setFocusSpeed(std::uint8_t speed);
+    [[nodiscard]] SendResult setAutoFocus(AutoMode mode);
+    [[nodiscard]] SendResult setAutoIris(AutoMode mode);
+    [[nodiscard]] SendResult setAgc(AutoMode mode);
+    [[nodiscard]] SendResult setBacklightComp(SwitchState state);
+    [[nodiscard]] SendResult setAutoWhiteBalance(SwitchState state);
+    [[nodiscard]] SendResult setShutterSpeed(std::uint16_t speed);
+    [[nodiscard]] SendResult setGain(std::uint16_t gain);
+    [[nodiscard]] SendResult setAutoIrisLevel(std::uint8_t level);
+    [[nodiscard]] SendResult setAutoIrisPeak(std::uint8_t peak);
+    [[nodiscard]] SendResult setPhaseDelayMode(SwitchState state);
+    [[nodiscard]] SendResult adjustLineLockDelay(std::uint16_t centidegrees);
+    [[nodiscard]] SendResult adjustWhiteBalanceRB(std::uint16_t value);
+    [[nodiscard]] SendResult adjustWhiteBalanceMG(std::uint16_t value);
+    [[nodiscard]] SendResult setMagnification(std::uint16_t value, bool relative = false);
+    [[nodiscard]] SendResult setBaudRate(std::uint32_t baud);
+    [[nodiscard]] SendResult setZeroPosition();
 
     /// @brief Sets absolute focus position in status telemetry.
     /// @param[in] pos Focus coordinate value.
-    void setFocusPosition(std::uint16_t pos);
+    [[nodiscard]] SendResult setFocusPosition(std::uint16_t pos);
 
     /// @brief Sets absolute iris position in status telemetry.
     /// @param[in] pos Iris aperture coordinate value.
-    void setIrisPosition(std::uint16_t pos);
+    [[nodiscard]] SendResult setIrisPosition(std::uint16_t pos);
 
     /// @brief Sets factory serial number on device identification model.
     /// @param[in] serial Serial number string.
-    void setSerialNumber(const std::string& serial);
+    [[nodiscard]] SendResult setSerialNumber(const std::string& serial);
 
     /// @brief Queries device serial number asynchronously via 18-byte query.
-    void querySerialNumber();
+    [[nodiscard]] SendResult querySerialNumber();
 
     // System Commands & Queries
-    void resetDefaults();
-    void remoteReset();
-    void queryPan();
-    void queryTilt();
-    void queryZoom();
-    void queryMagnification();
-    void queryDeviceType();
-    void queryGeneral();
-    void queryDiagnostics();
-    void queryAll();
+    [[nodiscard]] SendResult resetDefaults();
+    [[nodiscard]] SendResult remoteReset();
+    [[nodiscard]] SendResult queryPan();
+    [[nodiscard]] SendResult queryTilt();
+    [[nodiscard]] SendResult queryZoom();
+    [[nodiscard]] SendResult queryMagnification();
+    [[nodiscard]] SendResult queryDeviceType();
+    [[nodiscard]] SendResult queryGeneral();
+    [[nodiscard]] SendResult queryDiagnostics();
+    [[nodiscard]] SendResult queryAll();
 
     /// @brief Activates RS-485 loopback echo mode for diagnostic testing (opcode 0x65).
-    void activateEchoMode();
+    [[nodiscard]] SendResult activateEchoMode();
 
     /// @brief Prepares the remote device for firmware download (opcode 0x57).
-    void prepareForDownload();
+    [[nodiscard]] SendResult prepareForDownload();
 
     /// @brief Instructs the remote device to start firmware download data reception (opcode 0x69).
-    void startDownload();
+    [[nodiscard]] SendResult startDownload();
 
     /// @brief Writes a single ASCII character to the on-screen display (opcode 0x15).
     /// @param[in] column Screen column index (0-39).
     /// @param[in] asciiChar Printable ASCII character.
-    void writeCharacter(std::uint8_t column, char asciiChar);
+    [[nodiscard]] SendResult writeCharacter(std::uint8_t column, char asciiChar);
 
     /// @brief Clears on-screen display characters (opcode 0x17).
-    void clearScreen();
+    [[nodiscard]] SendResult clearScreen();
 
     /// @brief Sends a dummy keep-alive NOP packet to the device (opcode 0x0D).
-    void sendDummy();
+    [[nodiscard]] SendResult sendDummy();
 
     /// @brief Commands screen coordinate repositioning (opcode 0x79).
     /// @param[in] panPercent Signed percentage from center (-100 to 100, positive = right).
     /// @param[in] tiltPercent Signed percentage from center (-100 to 100, positive = up).
     /// @param[in] relative If true, move is relative to current screen position; if false, absolute.
-    void screenMove(std::int8_t panPercent, std::int8_t tiltPercent, bool relative = false);
+    [[nodiscard]] SendResult screenMove(std::int8_t panPercent, std::int8_t tiltPercent, bool relative = false);
 
     /// @brief Sends a query to request the camera's application software version (opcode 0x73, sub 0x00).
-    void querySoftwareVersion();
+    [[nodiscard]] SendResult querySoftwareVersion();
 
     /// @brief Sends a query to request the camera's software build number (opcode 0x73, sub 0x02).
-    void queryBuildNumber();
+    [[nodiscard]] SendResult queryBuildNumber();
 
     /// @brief Sets device clock seconds and synchronizes (opcode 0x77, sub 0x00).
     /// @param[in] seconds Seconds (0-59).
-    void setSeconds(std::uint8_t seconds);
+    [[nodiscard]] SendResult setSeconds(std::uint8_t seconds);
 
     /// @brief Sets device clock hour and minute (opcode 0x77, sub 0x02).
     /// @param[in] hour Hour in 24-hour format (0-23).
     /// @param[in] minute Minute (0-59).
-    void setHourMinute(std::uint8_t hour, std::uint8_t minute);
+    [[nodiscard]] SendResult setHourMinute(std::uint8_t hour, std::uint8_t minute);
 
     /// @brief Sets device calendar month and day (opcode 0x77, sub 0x04).
     /// @param[in] month Month (1-12).
     /// @param[in] day Day of month (1-31).
-    void setMonthDay(std::uint8_t month, std::uint8_t day);
+    [[nodiscard]] SendResult setMonthDay(std::uint8_t month, std::uint8_t day);
 
     /// @brief Sets device calendar year (opcode 0x77, sub 0x06).
     /// @param[in] year Full year (e.g. 2026).
-    void setYear(std::uint16_t year);
+    [[nodiscard]] SendResult setYear(std::uint16_t year);
 
     /// @brief Synchronizes device time by sending hour/minute followed by seconds (opcode 0x77).
     /// @param[in] hour Hour in 24-hour format (0-23).
     /// @param[in] minute Minute (0-59).
     /// @param[in] second Second (0-59).
-    void setTime(std::uint8_t hour, std::uint8_t minute, std::uint8_t second);
+    [[nodiscard]] SendResult setTime(std::uint8_t hour, std::uint8_t minute, std::uint8_t second);
 
     /// @brief Sets device calendar date by sending month/day followed by year (opcode 0x77).
     /// @param[in] year Full year (e.g. 2026).
     /// @param[in] month Month (1-12).
     /// @param[in] day Day of month (1-31).
-    void setDate(std::uint16_t year, std::uint8_t month, std::uint8_t day);
+    [[nodiscard]] SendResult setDate(std::uint16_t year, std::uint8_t month, std::uint8_t day);
 
     /// @brief Requests time or date component from device (opcode 0x77, odd sub-opcodes).
     /// @param[in] queryType ReportSeconds (0x01), ReportHourMinute (0x03), ReportMonthDay (0x05), or ReportYear (0x07).
-    void queryTime(TimeSubOpcode queryType);
+    [[nodiscard]] SendResult queryTime(TimeSubOpcode queryType);
 
     /// @brief Turns on or blinks an indicator LED via Auxiliary Set (opcode 0x09, sub 0x01).
     /// @param[in] ledIdOrColor Target LED ID or color code (0xFE Green, 0xFD Red, 0xFC Amber).
     /// @param[in] onTimeTenths Duration in tenths of seconds (0 = permanently ON).
-    void setAuxLed(std::uint8_t ledIdOrColor, std::uint8_t onTimeTenths = 0U);
+    [[nodiscard]] SendResult setAuxLed(std::uint8_t ledIdOrColor, std::uint8_t onTimeTenths = 0U);
 
     /// @brief Turns on or blinks an indicator LED via Auxiliary Set (opcode 0x09, sub 0x01).
     /// @param[in] ledColor Target LED color enum.
     /// @param[in] onTimeTenths Duration in tenths of seconds (0 = permanently ON).
-    void setAuxLed(AuxLedColor ledColor, std::uint8_t onTimeTenths = 0U)
+    [[nodiscard]] SendResult setAuxLed(AuxLedColor ledColor, std::uint8_t onTimeTenths = 0U)
     {
-        setAuxLed(static_cast<std::uint8_t>(ledColor), onTimeTenths);
+        return setAuxLed(static_cast<std::uint8_t>(ledColor), onTimeTenths);
     }
 
     /// @brief Clears or blinks off indicator LED via Auxiliary Clear (opcode 0x0B, sub 0x01).
     /// @param[in] ledIdOrColor Target LED ID or color code.
     /// @param[in] offTimeTenths Duration in tenths of seconds (0 = permanently OFF).
-    void clearAuxLed(std::uint8_t ledIdOrColor, std::uint8_t offTimeTenths = 0U);
+    [[nodiscard]] SendResult clearAuxLed(std::uint8_t ledIdOrColor, std::uint8_t offTimeTenths = 0U);
 
     /// @brief Clears or blinks off indicator LED via Auxiliary Clear (opcode 0x0B, sub 0x01).
     /// @param[in] ledColor Target LED color enum.
     /// @param[in] offTimeTenths Duration in tenths of seconds (0 = permanently OFF).
-    void clearAuxLed(AuxLedColor ledColor, std::uint8_t offTimeTenths = 0U)
+    [[nodiscard]] SendResult clearAuxLed(AuxLedColor ledColor, std::uint8_t offTimeTenths = 0U)
     {
-        clearAuxLed(static_cast<std::uint8_t>(ledColor), offTimeTenths);
+        return clearAuxLed(static_cast<std::uint8_t>(ledColor), offTimeTenths);
     }
 
     /// @brief Queries azimuth zero offset via Everest macro (opcode 0x75, sub 0x00).
-    void queryAzimuthZero();
+    [[nodiscard]] SendResult queryAzimuthZero();
 
     /// @brief Sets maximum zoom limit on device via Everest macro (opcode 0x75, sub 0x02).
     /// @param[in] limitHundredths Zoom magnification limit in hundredths (e.g. 18400 = 184x).
-    void setZoomLimit(std::uint16_t limitHundredths);
+    [[nodiscard]] SendResult setZoomLimit(std::uint16_t limitHundredths);
 
     /// @brief Queries maximum zoom limit from device via Everest macro (opcode 0x75, sub 0x03).
-    void queryZoomLimit();
+    [[nodiscard]] SendResult queryZoomLimit();
 
     /// @brief Queries alarm bitmask from device via Everest macro (opcode 0x75, sub 0x05).
-    void queryEverestAlarms();
+    [[nodiscard]] SendResult queryEverestAlarms();
 
     /// @brief Deletes a recorded pattern by ID via Everest macro (opcode 0x75, sub 0x07).
     /// @param[in] patternId Pattern identifier (1-8).
-    void deletePattern(std::uint8_t patternId);
+    [[nodiscard]] SendResult deletePattern(std::uint8_t patternId);
 
     /// @brief Sets manual left pan limit in centidegrees via Everest macro (opcode 0x75, sub 0x08).
     /// @param[in] centidegrees Left limit angle in hundredths of degrees (0-35999).
-    void setManualLeftPanLimit(std::uint16_t centidegrees);
+    [[nodiscard]] SendResult setManualLeftPanLimit(std::uint16_t centidegrees);
 
     /// @brief Sets manual right pan limit in centidegrees via Everest macro (opcode 0x75, sub 0x09).
     /// @param[in] centidegrees Right limit angle in hundredths of degrees (0-35999).
-    void setManualRightPanLimit(std::uint16_t centidegrees);
+    [[nodiscard]] SendResult setManualRightPanLimit(std::uint16_t centidegrees);
 
     /// @brief Sets scan left pan limit in centidegrees via Everest macro (opcode 0x75, sub 0x0A).
     /// @param[in] centidegrees Scan left limit angle in hundredths of degrees (0-35999).
-    void setScanLeftPanLimit(std::uint16_t centidegrees);
+    [[nodiscard]] SendResult setScanLeftPanLimit(std::uint16_t centidegrees);
 
     /// @brief Sets scan right pan limit in centidegrees via Everest macro (opcode 0x75, sub 0x0B).
     /// @param[in] centidegrees Scan right limit angle in hundredths of degrees (0-35999).
-    void setScanRightPanLimit(std::uint16_t centidegrees);
+    [[nodiscard]] SendResult setScanRightPanLimit(std::uint16_t centidegrees);
 
     /// @brief Queries pan or scan limit value by ID via Everest macro (opcode 0x75, sub 0x0C).
     /// @param[in] limitId Limit identifier (ManualLeftPan, ManualRightPan, ScanLeftPan, ScanRightPan).
-    void queryLimit(EverestLimitId limitId);
+    [[nodiscard]] SendResult queryLimit(EverestLimitId limitId);
 
     /// @brief Enables or disables manual and scan limits via Everest macro (opcode 0x75, sub 0x0E).
     /// @param[in] enable True to enable limits, false to disable.
-    void enableLimits(bool enable);
+    [[nodiscard]] SendResult enableLimits(bool enable);
 
     /// @brief Queries defined presets bitmask for a group of 16 presets via Everest macro (opcode 0x75, sub 0x0F).
     /// @param[in] group Preset group index (0-15).
-    void queryDefinedPresets(std::uint8_t group = 0U);
+    [[nodiscard]] SendResult queryDefinedPresets(std::uint8_t group = 0U);
 
     /// @brief Queries defined patterns bitmask for a group of 16 patterns via Everest macro (opcode 0x75, sub 0x11).
     /// @param[in] group Pattern group index (0-15).
-    void queryDefinedPatterns(std::uint8_t group = 0U);
+    [[nodiscard]] SendResult queryDefinedPatterns(std::uint8_t group = 0U);
 
     /// @brief Asynchronously queries current pan angle with timeout.
     /// @param[in] timeout Maximum wait duration.
@@ -501,11 +514,11 @@ public:
     /// @return Reference to the device's AsyncWatchdog.
     [[nodiscard]] AsyncWatchdog& getAsyncWatchdog() noexcept;
 
-    void sendRawFrame(const std::vector<std::uint8_t>& frame);
-    void sendQueryFrame(const std::vector<std::uint8_t>& frame, std::string queryTag = "Query");
+    [[nodiscard]] SendResult sendRawFrame(const std::vector<std::uint8_t>& frame);
+    [[nodiscard]] SendResult sendQueryFrame(const std::vector<std::uint8_t>& frame, std::string queryTag = "Query");
 
 protected:
-    void enqueueCommand(const std::vector<std::uint8_t>& frame, std::string queryTag = "",
+    [[nodiscard]] SendResult enqueueCommand(const std::vector<std::uint8_t>& frame, std::string queryTag = "",
         CommandPriority priority = CommandPriority::Normal);
 
     /// @brief Installs a vendor protocol extension consulted for every received frame.

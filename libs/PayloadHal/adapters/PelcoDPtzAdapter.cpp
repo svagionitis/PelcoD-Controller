@@ -113,8 +113,7 @@ bool PelcoDPtzAdapter::setNormalizedVelocity(float panVel, float tiltVel)
         tiltDir = PelcoD::TiltDirection::Down;
     }
 
-    m_device->move(panDir, panSpeed, tiltDir, tiltSpeed);
-    return true;
+    return m_device->move(panDir, panSpeed, tiltDir, tiltSpeed) == PelcoD::SendResult::Success;
 }
 
 bool PelcoDPtzAdapter::setAbsoluteAngles(double panDeg, double tiltDeg)
@@ -145,9 +144,9 @@ bool PelcoDPtzAdapter::setAbsoluteAngles(double panDeg, double tiltDeg)
         m_lastTelemetry.timestamp = std::chrono::system_clock::now();
     }
 
-    m_device->setPanAngle(panCd);
-    m_device->setTiltAngle(tiltCd);
-    return true;
+    const auto rPan = m_device->setPanAngle(panCd);
+    const auto rTilt = m_device->setTiltAngle(tiltCd);
+    return (rPan == PelcoD::SendResult::Success) && (rTilt == PelcoD::SendResult::Success);
 }
 
 bool PelcoDPtzAdapter::setRelativeNudge(double deltaPanDeg, double deltaTiltDeg)
@@ -167,8 +166,7 @@ bool PelcoDPtzAdapter::stopMotion()
     if (!m_device) {
         return false;
     }
-    m_device->stopMotion();
-    return true;
+    return m_device->stopMotion() == PelcoD::SendResult::Success;
 }
 
 bool PelcoDPtzAdapter::supportsStabilization() const noexcept
@@ -205,8 +203,7 @@ bool PelcoDPtzAdapter::savePreset(uint8_t presetId, const std::string& /*name*/)
     if (!m_device) {
         return false;
     }
-    m_device->setPreset(presetId);
-    return true;
+    return m_device->setPreset(presetId) == PelcoD::SendResult::Success;
 }
 
 bool PelcoDPtzAdapter::recallPreset(uint8_t presetId)
@@ -214,8 +211,7 @@ bool PelcoDPtzAdapter::recallPreset(uint8_t presetId)
     if (!m_device) {
         return false;
     }
-    m_device->goToPreset(presetId);
-    return true;
+    return m_device->goToPreset(presetId) == PelcoD::SendResult::Success;
 }
 
 void PelcoDPtzAdapter::registerTelemetryCallback(TelemetryCallback cb)

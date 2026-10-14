@@ -98,7 +98,7 @@ void PelcoDPtzAdapter::handleContinuousMove(float panSpeed, float tiltSpeed, flo
     const bool tiltIdle = std::abs(tiltSpeed) < 0.02f;
 
     if (panIdle && tiltIdle) {
-        m_device->stopMotion();
+        static_cast<void>(m_device->stopMotion());
         if (std::abs(zoomSpeed) <= 0.05f) {
             m_isMoving = false;
         }
@@ -121,17 +121,17 @@ void PelcoDPtzAdapter::handleContinuousMove(float panSpeed, float tiltSpeed, flo
         const auto pSpeed = static_cast<std::uint8_t>(std::clamp(std::abs(panSpeed) * 63.0f, 0.0f, 63.0f));
         const auto tSpeed = static_cast<std::uint8_t>(std::clamp(std::abs(tiltSpeed) * 63.0f, 0.0f, 63.0f));
 
-        m_device->move(panDir, pSpeed, tiltDir, tSpeed);
+        static_cast<void>(m_device->move(panDir, pSpeed, tiltDir, tSpeed));
     }
 
     if (zoomSpeed > 0.05f) {
         m_isMoving = true;
-        m_device->zoomTele();
+        static_cast<void>(m_device->zoomTele());
     } else if (zoomSpeed < -0.05f) {
         m_isMoving = true;
-        m_device->zoomWide();
+        static_cast<void>(m_device->zoomWide());
     } else {
-        m_device->zoomStop();
+        static_cast<void>(m_device->zoomStop());
     }
 }
 
@@ -144,17 +144,17 @@ void PelcoDPtzAdapter::handleAbsoluteMove(float pan, float tilt, float zoom)
     // Convert degrees to centidegrees (1/100 of a degree)
     if (pan >= 0.0f) {
         const auto cDeg = static_cast<std::uint16_t>(std::clamp(pan * 100.0f, 0.0f, 35999.0f));
-        m_device->setPanAngle(cDeg);
+        static_cast<void>(m_device->setPanAngle(cDeg));
     }
 
     if (tilt >= 0.0f) {
         const auto cDeg = static_cast<std::uint16_t>(std::clamp(tilt * 100.0f, 0.0f, 35999.0f));
-        m_device->setTiltAngle(cDeg);
+        static_cast<void>(m_device->setTiltAngle(cDeg));
     }
 
     if (zoom >= 0.0f) {
         const auto pos = static_cast<std::uint16_t>(std::clamp(zoom * 65535.0f, 0.0f, 65535.0f));
-        m_device->setZoomPosition(pos);
+        static_cast<void>(m_device->setZoomPosition(pos));
     }
 }
 
@@ -168,12 +168,12 @@ void PelcoDPtzAdapter::handleAbsoluteMoveSpherical(float azimuthDeg, float eleva
     std::uint16_t tiltCdeg = 0;
     Geodesy::anglesToPelcoCentidegrees(azimuthDeg, elevationDeg, panCdeg, tiltCdeg);
 
-    m_device->setPanAngle(panCdeg);
-    m_device->setTiltAngle(tiltCdeg);
+    static_cast<void>(m_device->setPanAngle(panCdeg));
+    static_cast<void>(m_device->setTiltAngle(tiltCdeg));
 
     if (zoom >= 0.0f) {
         const auto pos = static_cast<std::uint16_t>(std::clamp(zoom * 65535.0f, 0.0f, 65535.0f));
-        m_device->setZoomPosition(pos);
+        static_cast<void>(m_device->setZoomPosition(pos));
     }
 }
 
@@ -204,14 +204,14 @@ bool PelcoDPtzAdapter::handleGeoMove(const std::string& /*profileToken*/, const 
     std::uint16_t tiltCdeg = 0;
     Geodesy::anglesToPelcoCentidegrees(panDeg, tiltDeg, panCdeg, tiltCdeg);
 
-    m_device->setPanAngle(panCdeg);
-    m_device->setTiltAngle(tiltCdeg);
+    static_cast<void>(m_device->setPanAngle(panCdeg));
+    static_cast<void>(m_device->setTiltAngle(tiltCdeg));
 
     if (target.areaWidth.has_value() || target.areaHeight.has_value()) {
         const double span = target.areaWidth.value_or(target.areaHeight.value_or(10.0f));
         const double normZoom = Geodesy::computeZoomFromTargetArea(span, slantRangeMeters);
         const auto zoomPos = static_cast<std::uint16_t>(std::clamp(normZoom * 65535.0, 0.0, 65535.0));
-        m_device->setZoomPosition(zoomPos);
+        static_cast<void>(m_device->setZoomPosition(zoomPos));
     }
 
     return true;
@@ -224,11 +224,11 @@ void PelcoDPtzAdapter::handleStop(bool stopPanTilt, bool stopZoom)
     }
 
     if (stopPanTilt) {
-        m_device->stopMotion();
+        static_cast<void>(m_device->stopMotion());
     }
 
     if (stopZoom) {
-        m_device->zoomStop();
+        static_cast<void>(m_device->zoomStop());
     }
 
     if (stopPanTilt && stopZoom) {
@@ -252,7 +252,7 @@ std::string PelcoDPtzAdapter::handleSetPreset(const std::string& name, const std
     try {
         const int id = std::stoi(assignedToken);
         if (m_device && id >= 1 && id <= 255) {
-            m_device->setPreset(static_cast<std::uint8_t>(id));
+            static_cast<void>(m_device->setPreset(static_cast<std::uint8_t>(id)));
         }
     } catch (const std::invalid_argument&) {
         // Non-integer token, ignore device preset index mapping
@@ -276,7 +276,7 @@ bool PelcoDPtzAdapter::handleGotoPreset(const std::string& token)
     try {
         const int id = std::stoi(token);
         if (m_device && id >= 1 && id <= 255) {
-            m_device->goToPreset(static_cast<std::uint8_t>(id));
+            static_cast<void>(m_device->goToPreset(static_cast<std::uint8_t>(id)));
             dispatched = true;
         }
     } catch (const std::invalid_argument&) {
@@ -313,7 +313,7 @@ bool PelcoDPtzAdapter::handleRemovePreset(const std::string& token)
     try {
         const int id = std::stoi(token);
         if (m_device && id >= 1 && id <= 255) {
-            m_device->clearPreset(static_cast<std::uint8_t>(id));
+            static_cast<void>(m_device->clearPreset(static_cast<std::uint8_t>(id)));
         }
     } catch (const std::invalid_argument&) {
         // Fall through
@@ -500,21 +500,21 @@ bool PelcoDPtzAdapter::handleRelativeMove(float pan, float tilt, float zoom, flo
             newPan += 360.0f;
         }
         const auto cDeg = static_cast<std::uint16_t>(std::clamp(newPan * 100.0f, 0.0f, 35999.0f));
-        m_device->setPanAngle(cDeg);
+        static_cast<void>(m_device->setPanAngle(cDeg));
     }
 
     if (std::abs(tilt) > 0.0001f) {
         float currentTilt = static_cast<float>(currentStatus.tiltDegrees());
         float newTilt = std::clamp(currentTilt + tilt, 0.0f, 90.0f);
         const auto cDeg = static_cast<std::uint16_t>(std::clamp(newTilt * 100.0f, 0.0f, 35999.0f));
-        m_device->setTiltAngle(cDeg);
+        static_cast<void>(m_device->setTiltAngle(cDeg));
     }
 
     if (std::abs(zoom) > 0.0001f) {
         float currentZoomNorm = static_cast<float>(currentStatus.zoomPosition) / 65535.0f;
         float newZoom = std::clamp(currentZoomNorm + zoom, 0.0f, 1.0f);
         const auto pos = static_cast<std::uint16_t>(newZoom * 65535.0f);
-        m_device->setZoomPosition(pos);
+        static_cast<void>(m_device->setZoomPosition(pos));
     }
 
     return true;
@@ -534,7 +534,7 @@ bool PelcoDPtzAdapter::handleGotoHomePosition(float /*speed*/)
         try {
             const auto presetId = static_cast<std::uint8_t>(std::stoul(m_homePresetToken));
             if (presetId > 0U) {
-                m_device->goToPreset(presetId);
+                static_cast<void>(m_device->goToPreset(presetId));
                 return true;
             }
         } catch (const std::invalid_argument&) {
@@ -566,7 +566,7 @@ bool PelcoDPtzAdapter::handleSetHomePosition()
     try {
         const auto presetId = static_cast<std::uint8_t>(std::stoul(m_homePresetToken));
         if (presetId > 0U) {
-            m_device->setPreset(presetId);
+            static_cast<void>(m_device->setPreset(presetId));
         }
     } catch (const std::invalid_argument&) {
         // Fall through
@@ -590,9 +590,9 @@ std::string PelcoDPtzAdapter::handleSendAuxiliaryCommand(const std::string& auxi
         const bool isOff
             = auxiliaryData.find("Off") != std::string::npos || auxiliaryData.find("off") != std::string::npos;
         if (isOff) {
-            m_device->clearAuxiliary(1U);
+            static_cast<void>(m_device->clearAuxiliary(1U));
         } else {
-            m_device->setAuxiliary(1U);
+            static_cast<void>(m_device->setAuxiliary(1U));
         }
         return auxiliaryData;
     }
@@ -601,9 +601,9 @@ std::string PelcoDPtzAdapter::handleSendAuxiliaryCommand(const std::string& auxi
         const bool isOff
             = auxiliaryData.find("Off") != std::string::npos || auxiliaryData.find("off") != std::string::npos;
         if (isOff) {
-            m_device->clearAuxiliary(2U);
+            static_cast<void>(m_device->clearAuxiliary(2U));
         } else {
-            m_device->setAuxiliary(2U);
+            static_cast<void>(m_device->setAuxiliary(2U));
         }
         return auxiliaryData;
     }
@@ -613,9 +613,9 @@ std::string PelcoDPtzAdapter::handleSendAuxiliaryCommand(const std::string& auxi
         const bool isOff
             = auxiliaryData.find("Off") != std::string::npos || auxiliaryData.find("off") != std::string::npos;
         if (isOff) {
-            m_device->clearAuxiliary(3U);
+            static_cast<void>(m_device->clearAuxiliary(3U));
         } else {
-            m_device->setAuxiliary(3U);
+            static_cast<void>(m_device->setAuxiliary(3U));
         }
         return auxiliaryData;
     }
@@ -631,9 +631,9 @@ std::string PelcoDPtzAdapter::handleSendAuxiliaryCommand(const std::string& auxi
             const bool isOff
                 = auxiliaryData.find("Off") != std::string::npos || auxiliaryData.find("off") != std::string::npos;
             if (isOff) {
-                m_device->clearAuxiliary(auxId);
+                static_cast<void>(m_device->clearAuxiliary(auxId));
             } else {
-                m_device->setAuxiliary(auxId);
+                static_cast<void>(m_device->setAuxiliary(auxId));
             }
             return auxiliaryData;
         }
@@ -769,7 +769,8 @@ bool PelcoDPtzAdapter::handleSetImagingSettings(
     m_imagingSettings = settings;
 
     if (m_device) {
-        m_device->setBacklightComp(settings.backlightCompensation ? SwitchState::On : SwitchState::Off);
+        static_cast<void>(
+            m_device->setBacklightComp(settings.backlightCompensation ? SwitchState::On : SwitchState::Off));
     }
     return true;
 }
@@ -781,11 +782,11 @@ void PelcoDPtzAdapter::handleMoveFocus(const std::string& /*videoSourceToken*/, 
     }
 
     if (speed < -0.05f) {
-        m_device->focusNear();
+        static_cast<void>(m_device->focusNear());
     } else if (speed > 0.05f) {
-        m_device->focusFar();
+        static_cast<void>(m_device->focusFar());
     } else {
-        m_device->focusStop();
+        static_cast<void>(m_device->focusStop());
     }
 }
 
@@ -794,7 +795,7 @@ void PelcoDPtzAdapter::handleStopFocus(const std::string& /*videoSourceToken*/)
     std::scoped_lock lock(m_mutex);
     m_focusStatus.moveStatus = "IDLE";
     if (m_device) {
-        m_device->focusStop();
+        static_cast<void>(m_device->focusStop());
     }
 }
 
@@ -815,18 +816,18 @@ bool PelcoDPtzAdapter::handleMoveFocusAdvanced(const std::string& videoSourceTok
         m_focusStatus.position = std::clamp(move.absolutePosition, 0.0f, 1.0f);
         if (m_device) {
             if (move.absolutePosition > 0.5f) {
-                m_device->focusFar();
+                static_cast<void>(m_device->focusFar());
             } else {
-                m_device->focusNear();
+                static_cast<void>(m_device->focusNear());
             }
         }
     } else if (move.mode == FocusMoveMode::Relative) {
         m_focusStatus.position = std::clamp(m_focusStatus.position + move.relativeDistance, 0.0f, 1.0f);
         if (m_device) {
             if (move.relativeDistance > 0.0f) {
-                m_device->focusFar();
+                static_cast<void>(m_device->focusFar());
             } else {
-                m_device->focusNear();
+                static_cast<void>(m_device->focusNear());
             }
         }
     }
@@ -903,9 +904,9 @@ bool PelcoDPtzAdapter::handleSetRelayOutputState(const std::string& token, Relay
 
             if (m_device) {
                 if (state == RelayLogicalState::Active) {
-                    m_device->setAuxiliary(auxId);
+                    static_cast<void>(m_device->setAuxiliary(auxId));
                 } else {
-                    m_device->clearAuxiliary(auxId);
+                    static_cast<void>(m_device->clearAuxiliary(auxId));
                 }
             }
 
@@ -924,7 +925,7 @@ bool PelcoDPtzAdapter::handleSetRelayOutputState(const std::string& token, Relay
                         }
                     }
                     if (m_device) {
-                        m_device->clearAuxiliary(auxId);
+                        static_cast<void>(m_device->clearAuxiliary(auxId));
                     }
                 }).detach();
             }
@@ -1936,7 +1937,7 @@ bool PelcoDPtzAdapter::handleTriggerNuc(const std::string& /*videoSourceToken*/)
 {
     if (m_device) {
         // Send Pelco-D auxiliary command 5 (conventional FFC/NUC trigger on thermal PTZs)
-        m_device->setAuxiliary(5);
+        static_cast<void>(m_device->setAuxiliary(5));
     }
     return true;
 }
