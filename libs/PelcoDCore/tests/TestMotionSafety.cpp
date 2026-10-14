@@ -231,4 +231,34 @@ TEST(TestMotionSafety, ZeroTimeoutDisablesDeadMan)
     device.stop();
 }
 
+/// @brief MotionSafetyGuard operates via TaskScheduler without launching its own worker thread.
+TEST(TestMotionSafety, TaskSchedulerWatchdogOperatesWithoutDedicatedThread)
+{
+    auto scheduler = std::make_shared<PelcoD::TaskScheduler>();
+    scheduler->start();
+
+    std::atomic<bool> stopTriggered { false };
+    PelcoD::MotionSafetyGuard guard { [&stopTriggered] { stopTriggered = true; }, scheduler };
+
+    guard.setDeadManTimeout(40ms);
+    EXPECT_FALSE(guard.isArmed());
+    EXPECT_FALSE(guard.isMoving());
+
+    // Issue motion
+    const auto panFrame = PelcoD::ProtocolBuilder::buildPanFrame(1U, PelcoD::PanDirection::Left, 0x20U);
+    guard.onMotionCommand(panFrame);
+
+    EXPECT_TRUE(guard.isArmed());
+    EXPECT_TRUE(guard.isMoving());
+
+    // Wait for timeout (40ms + safety margin)
+    std::this_thread::sleep_for(100ms);
+
+    EXPECT_TRUE(stopTriggered.load());
+    EXPECT_FALSE(guard.isArmed());
+    EXPECT_FALSE(guard.isMoving());
+
+    scheduler->stop();
+}
+
 } // namespace

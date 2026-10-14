@@ -17,7 +17,52 @@ class ProtocolBuilder {
 public:
     ProtocolBuilder() = delete;
 
-    // Standard Motion Commands
+    // Standard Motion Commands (Zero-Allocation StandardFrame)
+    [[nodiscard]] static StandardFrame buildMotionFrame(std::uint8_t address, PanDirection panDir,
+        std::uint8_t panSpeed, TiltDirection tiltDir, std::uint8_t tiltSpeed, ZoomAction zoom = ZoomAction::Stop,
+        FocusAction focus = FocusAction::Stop, IrisAction iris = IrisAction::Stop) noexcept;
+
+    [[nodiscard]] static StandardFrame buildStopFrame(std::uint8_t address) noexcept;
+
+    [[nodiscard]] static StandardFrame buildPanFrame(
+        std::uint8_t address, PanDirection dir, std::uint8_t speed) noexcept;
+
+    [[nodiscard]] static StandardFrame buildTiltFrame(
+        std::uint8_t address, TiltDirection dir, std::uint8_t speed) noexcept;
+
+    [[nodiscard]] static StandardFrame buildZoomFrame(std::uint8_t address, ZoomAction action) noexcept;
+
+    [[nodiscard]] static StandardFrame buildFocusFrame(std::uint8_t address, FocusAction action) noexcept;
+
+    [[nodiscard]] static StandardFrame buildIrisFrame(std::uint8_t address, IrisAction action) noexcept;
+
+    [[nodiscard]] static StandardFrame buildPowerFrame(std::uint8_t address, bool on) noexcept;
+
+    [[nodiscard]] static StandardFrame buildScanFrame(std::uint8_t address, bool autoScan) noexcept;
+
+    // Presets (Zero-Allocation StandardFrame)
+    [[nodiscard]] static StandardFrame buildSetPresetFrame(std::uint8_t address, std::uint8_t presetId) noexcept;
+
+    [[nodiscard]] static StandardFrame buildClearPresetFrame(std::uint8_t address, std::uint8_t presetId) noexcept;
+
+    [[nodiscard]] static StandardFrame buildGoToPresetFrame(std::uint8_t address, std::uint8_t presetId) noexcept;
+
+    [[nodiscard]] static StandardFrame buildFlip180Frame(std::uint8_t address) noexcept;
+
+    [[nodiscard]] static StandardFrame buildZeroPanFrame(std::uint8_t address) noexcept;
+
+    [[nodiscard]] static StandardFrame buildPresetScanFrame(std::uint8_t address, std::uint8_t dwellSeconds) noexcept;
+
+    // Queries (Zero-Allocation StandardFrame)
+    [[nodiscard]] static StandardFrame buildQueryPanFrame(std::uint8_t address) noexcept;
+
+    [[nodiscard]] static StandardFrame buildQueryTiltFrame(std::uint8_t address) noexcept;
+
+    [[nodiscard]] static StandardFrame buildQueryZoomFrame(std::uint8_t address) noexcept;
+
+    [[nodiscard]] static StandardFrame buildQueryMagFrame(std::uint8_t address) noexcept;
+
+    // Standard Motion Commands (Legacy std::vector overloads)
     [[nodiscard]] static std::vector<std::uint8_t> buildMotion(std::uint8_t address, PanDirection panDir,
         std::uint8_t panSpeed, TiltDirection tiltDir, std::uint8_t tiltSpeed, ZoomAction zoom = ZoomAction::Stop,
         FocusAction focus = FocusAction::Stop, IrisAction iris = IrisAction::Stop);

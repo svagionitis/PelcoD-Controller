@@ -360,4 +360,62 @@ TEST(PelcoDFrameTest, HexConversionEdgeCases)
     EXPECT_EQ(PelcoD::PelcoDFrame::toHexString(singleByte), "05");
 }
 
+/// @brief Verify zero-allocation StandardFrame creation and fixed-array validation (Finding A7).
+/// @details Verifies that createStandardFrame produces a 7-byte array with exact protocol bytes and checksum,
+///          and isValidStandardFrame validates it correctly without any dynamic heap allocation.
+TEST(PelcoDFrameTest, StandardFrameCreationAndValidation)
+{
+    // Spec Page 18: Message 1 (Camera 2, Pan Left)
+    const auto stdFrame = PelcoD::PelcoDFrame::createStandardFrame(0x02U, 0x00U, 0x04U, 0x20U, 0x00U);
+    static_assert(std::is_same_v<std::decay_t<decltype(stdFrame)>, PelcoD::StandardFrame>);
+    EXPECT_EQ(stdFrame.size(), 7U);
+    EXPECT_EQ(stdFrame[0], 0xFFU);
+    EXPECT_EQ(stdFrame[1], 0x02U);
+    EXPECT_EQ(stdFrame[2], 0x00U);
+    EXPECT_EQ(stdFrame[3], 0x04U);
+    EXPECT_EQ(stdFrame[4], 0x20U);
+    EXPECT_EQ(stdFrame[5], 0x00U);
+    EXPECT_EQ(stdFrame[6], 0x26U);
+
+    EXPECT_TRUE(PelcoD::PelcoDFrame::isValidStandardFrame(stdFrame));
+
+    // Corrupted checksum must fail validation
+    auto corruptFrame = stdFrame;
+    corruptFrame[6] = 0x99U;
+    EXPECT_FALSE(PelcoD::PelcoDFrame::isValidStandardFrame(corruptFrame));
+
+    // Corrupted sync byte must fail validation
+    auto corruptSync = stdFrame;
+    corruptSync[0] = 0x00U;
+    EXPECT_FALSE(PelcoD::PelcoDFrame::isValidStandardFrame(corruptSync));
+}
+
+/// @brief Verify stack-allocated RawFrame container operations and conversions (Finding A7).
+/// @details Tests conversion between StandardFrame and RawFrame, bounds checking, and toVector helper.
+TEST(PelcoDFrameTest, RawFrameConversionsAndSafety)
+{
+    const auto stdFrame = PelcoD::PelcoDFrame::createStandardFrame(0x01U, 0x00U, 0x02U, 0x10U, 0x00U);
+    const PelcoD::RawFrame rawFromStd(stdFrame);
+
+    EXPECT_EQ(rawFromStd.size(), 7U);
+    EXPECT_FALSE(rawFromStd.empty());
+    EXPECT_EQ(rawFromStd[0], 0xFFU);
+    EXPECT_EQ(rawFromStd[1], 0x01U);
+    EXPECT_EQ(rawFromStd[6], stdFrame[6]);
+
+    const auto roundTrip = rawFromStd.toStandardFrame();
+    EXPECT_EQ(roundTrip, stdFrame);
+
+    const auto vec = rawFromStd.toVector();
+    EXPECT_EQ(vec.size(), 7U);
+    EXPECT_EQ(vec[0], 0xFFU);
+
+    // 4-byte general response in RawFrame
+    const std::uint8_t genBytes[] = { 0xFFU, 0x01U, 0x00U, 0x01U };
+    const PelcoD::RawFrame rawGen(genBytes, sizeof(genBytes));
+    EXPECT_EQ(rawGen.size(), 4U);
+    EXPECT_EQ(rawGen[0], 0xFFU);
+    EXPECT_EQ(rawGen[3], 0x01U);
+}
+
 } // namespace

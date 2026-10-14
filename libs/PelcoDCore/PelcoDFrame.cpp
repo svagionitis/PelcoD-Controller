@@ -26,20 +26,39 @@ std::uint8_t PelcoDFrame::calculateChecksum(const std::uint8_t* data, std::size_
     return static_cast<std::uint8_t>(sum & 0xFFU);
 }
 
-std::vector<std::uint8_t> PelcoDFrame::createFrame(
-    std::uint8_t address, std::uint8_t cmd1, std::uint8_t cmd2, std::uint8_t data1, std::uint8_t data2)
+std::uint8_t PelcoDFrame::calculateChecksum(const StandardFrame& frame) noexcept
 {
-    std::vector<std::uint8_t> frame(StandardFrameSize, 0x00U);
+    return calculateChecksum(&frame[1], 5U);
+}
+
+StandardFrame PelcoDFrame::createStandardFrame(
+    std::uint8_t address, std::uint8_t cmd1, std::uint8_t cmd2, std::uint8_t data1, std::uint8_t data2) noexcept
+{
+    StandardFrame frame {};
     frame[0] = SyncByte;
     frame[1] = address;
     frame[2] = cmd1;
     frame[3] = cmd2;
     frame[4] = data1;
     frame[5] = data2;
-
-    // Checksum is sum of bytes 1 through 5 modulo 256
     frame[6] = calculateChecksum(&frame[1], 5U);
     return frame;
+}
+
+std::vector<std::uint8_t> PelcoDFrame::createFrame(
+    std::uint8_t address, std::uint8_t cmd1, std::uint8_t cmd2, std::uint8_t data1, std::uint8_t data2)
+{
+    const auto stdFrame = createStandardFrame(address, cmd1, cmd2, data1, data2);
+    return std::vector<std::uint8_t>(stdFrame.begin(), stdFrame.end());
+}
+
+bool PelcoDFrame::isValidStandardFrame(const StandardFrame& frame) noexcept
+{
+    if (frame[0] != SyncByte) {
+        return false;
+    }
+    const std::uint8_t expected = calculateChecksum(&frame[1], 5U);
+    return frame[6] == expected;
 }
 
 bool PelcoDFrame::isValidFrame(const std::vector<std::uint8_t>& frame) noexcept
@@ -84,9 +103,9 @@ bool PelcoDFrame::isValidFrame(const std::vector<std::uint8_t>& frame) noexcept
     return false;
 }
 
-bool PelcoDFrame::isStandardMotion(const std::vector<std::uint8_t>& frame) noexcept
+bool PelcoDFrame::isStandardMotion(const StandardFrame& frame) noexcept
 {
-    if (frame.size() != StandardFrameSize || frame[0] != SyncByte) {
+    if (frame[0] != SyncByte) {
         return false;
     }
     const std::uint8_t cmd1 = frame[2];
@@ -97,14 +116,38 @@ bool PelcoDFrame::isStandardMotion(const std::vector<std::uint8_t>& frame) noexc
     return false;
 }
 
-bool PelcoDFrame::isStandardStop(const std::vector<std::uint8_t>& frame) noexcept
+bool PelcoDFrame::isStandardMotion(const std::vector<std::uint8_t>& frame) noexcept
 {
-    if (frame.size() != StandardFrameSize || frame[0] != SyncByte) {
+    if (frame.size() != StandardFrameSize) {
+        return false;
+    }
+    StandardFrame stdFrame {};
+    for (std::size_t i { 0U }; i < StandardFrameSize; ++i) {
+        stdFrame[i] = frame[i];
+    }
+    return isStandardMotion(stdFrame);
+}
+
+bool PelcoDFrame::isStandardStop(const StandardFrame& frame) noexcept
+{
+    if (frame[0] != SyncByte) {
         return false;
     }
     const std::uint8_t cmd1 = frame[2];
     const std::uint8_t cmd2 = frame[3];
     return (cmd1 == 0x00U) && (cmd2 == 0x00U) && (frame[4] == 0x00U) && (frame[5] == 0x00U);
+}
+
+bool PelcoDFrame::isStandardStop(const std::vector<std::uint8_t>& frame) noexcept
+{
+    if (frame.size() != StandardFrameSize) {
+        return false;
+    }
+    StandardFrame stdFrame {};
+    for (std::size_t i { 0U }; i < StandardFrameSize; ++i) {
+        stdFrame[i] = frame[i];
+    }
+    return isStandardStop(stdFrame);
 }
 
 std::vector<std::vector<std::uint8_t>> PelcoDFrame::splitStream(const std::vector<std::uint8_t>& stream)

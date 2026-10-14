@@ -3,6 +3,8 @@
 /// @file PelcoDFrame.h
 /// @brief Pelco-D frame serialization, checksum calculation, and stream parsing.
 
+#include "PelcoDTypes.h"
+
 #include <cstddef>
 #include <cstdint>
 #include <string>
@@ -33,6 +35,29 @@ public:
     /// @return Computed 8-bit checksum value.
     [[nodiscard]] static std::uint8_t calculateChecksum(const std::uint8_t* data, std::size_t length) noexcept;
 
+    /// @brief Calculates 8-bit modulo 256 checksum over a fixed 7-byte StandardFrame.
+    /// @param[in] frame Standard 7-byte Pelco-D array.
+    /// @return Computed 8-bit checksum value.
+    [[nodiscard]] static std::uint8_t calculateChecksum(const StandardFrame& frame) noexcept;
+
+    /// @brief Creates a 7-byte command frame without heap allocation.
+    /// @param[in] address Device RS-485 bus address (1 - 255).
+    /// @param[in] cmd1 Command byte 1.
+    /// @param[in] cmd2 Command byte 2.
+    /// @param[in] data1 Data byte 1.
+    /// @param[in] data2 Data byte 2.
+    /// @return 7-byte Pelco-D StandardFrame array.
+    [[nodiscard]] static StandardFrame createStandardFrame(
+        std::uint8_t address, std::uint8_t cmd1, std::uint8_t cmd2, std::uint8_t data1, std::uint8_t data2) noexcept;
+
+    /// @brief Converts a StandardFrame to a std::vector for legacy API compatibility.
+    /// @param[in] frame Standard 7-byte protocol array.
+    /// @return Byte vector containing the 7 frame bytes.
+    [[nodiscard]] static inline std::vector<std::uint8_t> toVector(const StandardFrame& frame)
+    {
+        return std::vector<std::uint8_t>(frame.begin(), frame.end());
+    }
+
     /// @brief Creates a 7-byte command frame.
     /// @param[in] address Device RS-485 bus address (1 - 255).
     /// @param[in] cmd1 Command byte 1.
@@ -42,6 +67,11 @@ public:
     /// @return 7-byte Pelco-D formatted vector.
     [[nodiscard]] static std::vector<std::uint8_t> createFrame(
         std::uint8_t address, std::uint8_t cmd1, std::uint8_t cmd2, std::uint8_t data1, std::uint8_t data2);
+
+    /// @brief Validates fixed 7-byte frame structure and checksum.
+    /// @param[in] frame Raw standard frame array.
+    /// @return True if sync byte and checksum conform to protocol.
+    [[nodiscard]] static bool isValidStandardFrame(const StandardFrame& frame) noexcept;
 
     /// @brief Validates frame structure and checksum.
     /// @param[in] frame Raw frame bytes starting with SyncByte.
@@ -53,10 +83,20 @@ public:
     /// @return True if standard motion command.
     [[nodiscard]] static bool isStandardMotion(const std::vector<std::uint8_t>& frame) noexcept;
 
+    /// @brief Checks whether the fixed frame is a standard Pelco-D motion command.
+    /// @param[in] frame Raw standard frame.
+    /// @return True if standard motion command.
+    [[nodiscard]] static bool isStandardMotion(const StandardFrame& frame) noexcept;
+
     /// @brief Checks whether the frame is a standard Pelco-D PTZ stop command.
     /// @param[in] frame Raw frame bytes.
     /// @return True if standard stop command.
     [[nodiscard]] static bool isStandardStop(const std::vector<std::uint8_t>& frame) noexcept;
+
+    /// @brief Checks whether the fixed frame is a standard Pelco-D PTZ stop command.
+    /// @param[in] frame Raw standard frame.
+    /// @return True if standard stop command.
+    [[nodiscard]] static bool isStandardStop(const StandardFrame& frame) noexcept;
 
     /// @brief Extracts verified frames from continuous byte stream.
     /// @param[in] stream Input byte buffer.

@@ -549,11 +549,61 @@ TEST(ProtocolBuilderTest, WriteCharSaturatesColumn)
 /// @brief Verify buildScreenMove clamps signed percentages to [-100, 100].
 TEST(ProtocolBuilderTest, ScreenMoveClampsPercentages)
 {
-    const auto move = PelcoD::ProtocolBuilder::buildScreenMove(1U, static_cast<std::int8_t>(127), static_cast<std::int8_t>(-128));
+    const auto move
+        = PelcoD::ProtocolBuilder::buildScreenMove(1U, static_cast<std::int8_t>(127), static_cast<std::int8_t>(-128));
     ASSERT_EQ(move.size(), 7U);
     EXPECT_EQ(static_cast<std::int8_t>(move[4]), 100);
     EXPECT_EQ(static_cast<std::int8_t>(move[5]), -100);
     EXPECT_TRUE(PelcoD::PelcoDFrame::isValidFrame(move));
+}
+
+/// @brief Verify zero-allocation StandardFrame builders construct valid fixed-size frames (Finding A7).
+/// @details Validates that buildPanFrame, buildStopFrame, buildMotionFrame, buildZoomFrame, and query frame
+///          builders produce identical byte content to legacy vector methods without dynamic heap allocation.
+TEST(ProtocolBuilderTest, StandardBuildersReturnZeroHeapFrames)
+{
+    // Pan Left
+    const auto panStd = PelcoD::ProtocolBuilder::buildPanFrame(2U, PelcoD::PanDirection::Left, 0x20U);
+    static_assert(std::is_same_v<std::decay_t<decltype(panStd)>, PelcoD::StandardFrame>);
+    EXPECT_TRUE(PelcoD::PelcoDFrame::isValidStandardFrame(panStd));
+    const auto panVec = PelcoD::ProtocolBuilder::buildPan(2U, PelcoD::PanDirection::Left, 0x20U);
+    EXPECT_THAT(panVec, testing::ElementsAreArray(panStd));
+
+    // Stop Motion
+    const auto stopStd = PelcoD::ProtocolBuilder::buildStopFrame(3U);
+    EXPECT_TRUE(PelcoD::PelcoDFrame::isValidStandardFrame(stopStd));
+    const auto stopVec = PelcoD::ProtocolBuilder::buildStop(3U);
+    EXPECT_THAT(stopVec, testing::ElementsAreArray(stopStd));
+
+    // Combined Motion: Up-Right
+    const auto motionStd = PelcoD::ProtocolBuilder::buildMotionFrame(
+        1U, PelcoD::PanDirection::Right, 0x10U, PelcoD::TiltDirection::Up, 0x15U);
+    EXPECT_TRUE(PelcoD::PelcoDFrame::isValidStandardFrame(motionStd));
+    const auto motionVec = PelcoD::ProtocolBuilder::buildMotion(
+        1U, PelcoD::PanDirection::Right, 0x10U, PelcoD::TiltDirection::Up, 0x15U);
+    EXPECT_THAT(motionVec, testing::ElementsAreArray(motionStd));
+
+    // Presets
+    const auto presetStd = PelcoD::ProtocolBuilder::buildGoToPresetFrame(1U, 5U);
+    EXPECT_TRUE(PelcoD::PelcoDFrame::isValidStandardFrame(presetStd));
+    const auto presetVec = PelcoD::ProtocolBuilder::buildGoToPreset(1U, 5U);
+    EXPECT_THAT(presetVec, testing::ElementsAreArray(presetStd));
+
+    // Queries
+    const auto queryPanStd = PelcoD::ProtocolBuilder::buildQueryPanFrame(1U);
+    EXPECT_TRUE(PelcoD::PelcoDFrame::isValidStandardFrame(queryPanStd));
+    const auto queryPanVec = PelcoD::ProtocolBuilder::buildQueryPan(1U);
+    EXPECT_THAT(queryPanVec, testing::ElementsAreArray(queryPanStd));
+
+    const auto queryTiltStd = PelcoD::ProtocolBuilder::buildQueryTiltFrame(1U);
+    EXPECT_TRUE(PelcoD::PelcoDFrame::isValidStandardFrame(queryTiltStd));
+    const auto queryTiltVec = PelcoD::ProtocolBuilder::buildQueryTilt(1U);
+    EXPECT_THAT(queryTiltVec, testing::ElementsAreArray(queryTiltStd));
+
+    const auto queryZoomStd = PelcoD::ProtocolBuilder::buildQueryZoomFrame(1U);
+    EXPECT_TRUE(PelcoD::PelcoDFrame::isValidStandardFrame(queryZoomStd));
+    const auto queryZoomVec = PelcoD::ProtocolBuilder::buildQueryZoom(1U);
+    EXPECT_THAT(queryZoomVec, testing::ElementsAreArray(queryZoomStd));
 }
 
 } // namespace

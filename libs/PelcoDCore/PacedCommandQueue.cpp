@@ -22,7 +22,7 @@ void PacedCommandQueue::setEvictionHandler(EvictionHandler handler)
 
 SendResult PacedCommandQueue::enqueue(CommandItem item)
 {
-    if (item.frame.empty()) {
+    if (item.frame[0] != PelcoDFrame::SyncByte) {
         return SendResult::InvalidFrame;
     }
 
@@ -131,10 +131,10 @@ SendResult PacedCommandQueue::enqueue(CommandItem item)
 }
 
 SendResult PacedCommandQueue::enqueue(
-    std::vector<std::uint8_t> frame, QueryKind queryKind, CommandPriority priority, std::uint64_t motionGeneration)
+    StandardFrame frame, QueryKind queryKind, CommandPriority priority, std::uint64_t motionGeneration)
 {
     CommandItem item {};
-    item.frame = std::move(frame);
+    item.frame = frame;
     item.queryKind = queryKind;
     item.queryTag = std::string(toQueryTagName(queryKind));
     item.priority = priority;
@@ -145,10 +145,10 @@ SendResult PacedCommandQueue::enqueue(
 }
 
 SendResult PacedCommandQueue::enqueue(
-    std::vector<std::uint8_t> frame, std::string queryTag, CommandPriority priority, std::uint64_t motionGeneration)
+    StandardFrame frame, std::string queryTag, CommandPriority priority, std::uint64_t motionGeneration)
 {
     CommandItem item {};
-    item.frame = std::move(frame);
+    item.frame = frame;
     item.queryKind = parseQueryKind(queryTag);
     item.queryTag = std::move(queryTag);
     item.priority = priority;
@@ -156,6 +156,32 @@ SendResult PacedCommandQueue::enqueue(
     item.earliestDispatchTime = std::chrono::steady_clock::now();
     item.motionGeneration = motionGeneration;
     return enqueue(std::move(item));
+}
+
+SendResult PacedCommandQueue::enqueue(
+    std::vector<std::uint8_t> frame, QueryKind queryKind, CommandPriority priority, std::uint64_t motionGeneration)
+{
+    if (frame.empty() || frame[0] != PelcoDFrame::SyncByte || frame.size() > PelcoDFrame::StandardFrameSize) {
+        return SendResult::InvalidFrame;
+    }
+    StandardFrame stdFrame {};
+    for (std::size_t i { 0U }; i < frame.size(); ++i) {
+        stdFrame[i] = frame[i];
+    }
+    return enqueue(stdFrame, queryKind, priority, motionGeneration);
+}
+
+SendResult PacedCommandQueue::enqueue(
+    std::vector<std::uint8_t> frame, std::string queryTag, CommandPriority priority, std::uint64_t motionGeneration)
+{
+    if (frame.empty() || frame[0] != PelcoDFrame::SyncByte || frame.size() > PelcoDFrame::StandardFrameSize) {
+        return SendResult::InvalidFrame;
+    }
+    StandardFrame stdFrame {};
+    for (std::size_t i { 0U }; i < frame.size(); ++i) {
+        stdFrame[i] = frame[i];
+    }
+    return enqueue(stdFrame, std::move(queryTag), priority, motionGeneration);
 }
 
 std::chrono::milliseconds PacedCommandQueue::scheduleRetry(

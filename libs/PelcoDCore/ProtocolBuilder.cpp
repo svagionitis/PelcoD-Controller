@@ -9,8 +9,18 @@
 
 namespace PelcoD {
 
-std::vector<std::uint8_t> ProtocolBuilder::buildMotion(std::uint8_t address, PanDirection panDir, std::uint8_t panSpeed,
-    TiltDirection tiltDir, std::uint8_t tiltSpeed, ZoomAction zoom, FocusAction focus, IrisAction iris)
+namespace {
+
+    /// @brief Helper converting StandardFrame to std::vector for legacy overloads.
+    [[nodiscard]] inline std::vector<std::uint8_t> toVector(const StandardFrame& frame)
+    {
+        return std::vector<std::uint8_t>(frame.begin(), frame.end());
+    }
+
+} // namespace
+
+StandardFrame ProtocolBuilder::buildMotionFrame(std::uint8_t address, PanDirection panDir, std::uint8_t panSpeed,
+    TiltDirection tiltDir, std::uint8_t tiltSpeed, ZoomAction zoom, FocusAction focus, IrisAction iris) noexcept
 {
     std::uint8_t cmd1 { 0x00U };
     std::uint8_t cmd2 { 0x00U };
@@ -51,107 +61,217 @@ std::vector<std::uint8_t> ProtocolBuilder::buildMotion(std::uint8_t address, Pan
     const std::uint8_t validPanSpeed = std::min(panSpeed, static_cast<std::uint8_t>(0x40U));
     const std::uint8_t validTiltSpeed = std::min(tiltSpeed, static_cast<std::uint8_t>(0x3FU));
 
-    return PelcoDFrame::createFrame(address, cmd1, cmd2, validPanSpeed, validTiltSpeed);
+    return PelcoDFrame::createStandardFrame(address, cmd1, cmd2, validPanSpeed, validTiltSpeed);
+}
+
+StandardFrame ProtocolBuilder::buildStopFrame(std::uint8_t address) noexcept
+{
+    return PelcoDFrame::createStandardFrame(address, 0x00U, 0x00U, 0x00U, 0x00U);
+}
+
+StandardFrame ProtocolBuilder::buildPanFrame(std::uint8_t address, PanDirection dir, std::uint8_t speed) noexcept
+{
+    return buildMotionFrame(address, dir, speed, TiltDirection::Stop, 0x00U);
+}
+
+StandardFrame ProtocolBuilder::buildTiltFrame(std::uint8_t address, TiltDirection dir, std::uint8_t speed) noexcept
+{
+    return buildMotionFrame(address, PanDirection::Stop, 0x00U, dir, speed);
+}
+
+StandardFrame ProtocolBuilder::buildZoomFrame(std::uint8_t address, ZoomAction action) noexcept
+{
+    return buildMotionFrame(address, PanDirection::Stop, 0x00U, TiltDirection::Stop, 0x00U, action);
+}
+
+StandardFrame ProtocolBuilder::buildFocusFrame(std::uint8_t address, FocusAction action) noexcept
+{
+    return buildMotionFrame(address, PanDirection::Stop, 0x00U, TiltDirection::Stop, 0x00U, ZoomAction::Stop, action);
+}
+
+StandardFrame ProtocolBuilder::buildIrisFrame(std::uint8_t address, IrisAction action) noexcept
+{
+    return buildMotionFrame(
+        address, PanDirection::Stop, 0x00U, TiltDirection::Stop, 0x00U, ZoomAction::Stop, FocusAction::Stop, action);
+}
+
+StandardFrame ProtocolBuilder::buildPowerFrame(std::uint8_t address, bool on) noexcept
+{
+    const std::uint8_t cmd1
+        = on ? static_cast<std::uint8_t>(ScanSense::DeviceOn) : static_cast<std::uint8_t>(ScanSense::DeviceOff);
+    return PelcoDFrame::createStandardFrame(address, cmd1, 0x00U, 0x00U, 0x00U);
+}
+
+StandardFrame ProtocolBuilder::buildScanFrame(std::uint8_t address, bool autoScan) noexcept
+{
+    const std::uint8_t cmd1 = autoScan ? static_cast<std::uint8_t>(ScanSense::AutoScanOn)
+                                       : static_cast<std::uint8_t>(ScanSense::ManualScanOn);
+    return PelcoDFrame::createStandardFrame(address, cmd1, 0x00U, 0x00U, 0x00U);
+}
+
+std::vector<std::uint8_t> ProtocolBuilder::buildMotion(std::uint8_t address, PanDirection panDir, std::uint8_t panSpeed,
+    TiltDirection tiltDir, std::uint8_t tiltSpeed, ZoomAction zoom, FocusAction focus, IrisAction iris)
+{
+    return toVector(buildMotionFrame(address, panDir, panSpeed, tiltDir, tiltSpeed, zoom, focus, iris));
 }
 
 std::vector<std::uint8_t> ProtocolBuilder::buildStop(std::uint8_t address)
 {
-    return PelcoDFrame::createFrame(address, 0x00U, 0x00U, 0x00U, 0x00U);
+    return toVector(buildStopFrame(address));
 }
 
 std::vector<std::uint8_t> ProtocolBuilder::buildPan(std::uint8_t address, PanDirection dir, std::uint8_t speed)
 {
-    return buildMotion(address, dir, speed, TiltDirection::Stop, 0x00U);
+    return toVector(buildPanFrame(address, dir, speed));
 }
 
 std::vector<std::uint8_t> ProtocolBuilder::buildTilt(std::uint8_t address, TiltDirection dir, std::uint8_t speed)
 {
-    return buildMotion(address, PanDirection::Stop, 0x00U, dir, speed);
+    return toVector(buildTiltFrame(address, dir, speed));
 }
 
 std::vector<std::uint8_t> ProtocolBuilder::buildZoom(std::uint8_t address, ZoomAction action)
 {
-    return buildMotion(address, PanDirection::Stop, 0x00U, TiltDirection::Stop, 0x00U, action);
+    return toVector(buildZoomFrame(address, action));
 }
 
 std::vector<std::uint8_t> ProtocolBuilder::buildFocus(std::uint8_t address, FocusAction action)
 {
-    return buildMotion(address, PanDirection::Stop, 0x00U, TiltDirection::Stop, 0x00U, ZoomAction::Stop, action);
+    return toVector(buildFocusFrame(address, action));
 }
 
 std::vector<std::uint8_t> ProtocolBuilder::buildIris(std::uint8_t address, IrisAction action)
 {
-    return buildMotion(
-        address, PanDirection::Stop, 0x00U, TiltDirection::Stop, 0x00U, ZoomAction::Stop, FocusAction::Stop, action);
+    return toVector(buildIrisFrame(address, action));
 }
 
 std::vector<std::uint8_t> ProtocolBuilder::buildPower(std::uint8_t address, bool on)
 {
-    const std::uint8_t cmd1
-        = on ? static_cast<std::uint8_t>(ScanSense::DeviceOn) : static_cast<std::uint8_t>(ScanSense::DeviceOff);
-    return PelcoDFrame::createFrame(address, cmd1, 0x00U, 0x00U, 0x00U);
+    return toVector(buildPowerFrame(address, on));
 }
 
 std::vector<std::uint8_t> ProtocolBuilder::buildScan(std::uint8_t address, bool autoScan)
 {
-    const std::uint8_t cmd1 = autoScan ? static_cast<std::uint8_t>(ScanSense::AutoScanOn)
-                                       : static_cast<std::uint8_t>(ScanSense::ManualScanOn);
-    return PelcoDFrame::createFrame(address, cmd1, 0x00U, 0x00U, 0x00U);
+    return toVector(buildScanFrame(address, autoScan));
 }
 
 namespace {
 
-/// @brief Decomposes a 16-bit integer into big-endian (MSB, LSB) byte pair.
-[[nodiscard]] inline constexpr std::pair<std::uint8_t, std::uint8_t> split16Bit(std::uint16_t value) noexcept
-{
-    return { static_cast<std::uint8_t>((value >> 8U) & 0xFFU), static_cast<std::uint8_t>(value & 0xFFU) };
-}
+    /// @brief Decomposes a 16-bit integer into big-endian (MSB, LSB) byte pair.
+    [[nodiscard]] inline constexpr std::pair<std::uint8_t, std::uint8_t> split16Bit(std::uint16_t value) noexcept
+    {
+        return { static_cast<std::uint8_t>((value >> 8U) & 0xFFU), static_cast<std::uint8_t>(value & 0xFFU) };
+    }
 
-/// @brief Constructs a standard Pelco-D command frame with Command 1 set to 0x00.
-[[nodiscard]] inline std::vector<std::uint8_t> buildStandardCmd(
-    std::uint8_t address, CommandOpcode opcode, std::uint8_t data1 = 0x00U, std::uint8_t data2 = 0x00U)
-{
-    return PelcoDFrame::createFrame(address, 0x00U, static_cast<std::uint8_t>(opcode), data1, data2);
-}
+    /// @brief Constructs a standard Pelco-D command frame with Command 1 set to 0x00 without heap allocation.
+    [[nodiscard]] inline StandardFrame buildStandardCmdFrame(
+        std::uint8_t address, CommandOpcode opcode, std::uint8_t data1 = 0x00U, std::uint8_t data2 = 0x00U) noexcept
+    {
+        return PelcoDFrame::createStandardFrame(address, 0x00U, static_cast<std::uint8_t>(opcode), data1, data2);
+    }
 
-/// @brief Constructs a standard Pelco-D command frame with a 16-bit big-endian payload (data1=msb, data2=lsb).
-[[nodiscard]] inline std::vector<std::uint8_t> build16BitCmd(
-    std::uint8_t address, CommandOpcode opcode, std::uint16_t value)
-{
-    const auto [msb, lsb] = split16Bit(value);
-    return PelcoDFrame::createFrame(address, 0x00U, static_cast<std::uint8_t>(opcode), msb, lsb);
-}
+    /// @brief Constructs a standard Pelco-D command frame with a 16-bit big-endian payload without heap allocation.
+    [[nodiscard]] inline StandardFrame build16BitCmdFrame(
+        std::uint8_t address, CommandOpcode opcode, std::uint16_t value) noexcept
+    {
+        const auto [msb, lsb] = split16Bit(value);
+        return PelcoDFrame::createStandardFrame(address, 0x00U, static_cast<std::uint8_t>(opcode), msb, lsb);
+    }
+
+    /// @brief Constructs a standard Pelco-D command frame with Command 1 set to 0x00.
+    [[nodiscard]] inline std::vector<std::uint8_t> buildStandardCmd(
+        std::uint8_t address, CommandOpcode opcode, std::uint8_t data1 = 0x00U, std::uint8_t data2 = 0x00U)
+    {
+        return toVector(buildStandardCmdFrame(address, opcode, data1, data2));
+    }
+
+    /// @brief Constructs a standard Pelco-D command frame with a 16-bit big-endian payload (data1=msb, data2=lsb).
+    [[nodiscard]] inline std::vector<std::uint8_t> build16BitCmd(
+        std::uint8_t address, CommandOpcode opcode, std::uint16_t value)
+    {
+        return toVector(build16BitCmdFrame(address, opcode, value));
+    }
 
 } // namespace
 
+StandardFrame ProtocolBuilder::buildSetPresetFrame(std::uint8_t address, std::uint8_t presetId) noexcept
+{
+    return buildStandardCmdFrame(address, CommandOpcode::SetPreset, 0x00U, presetId);
+}
+
+StandardFrame ProtocolBuilder::buildClearPresetFrame(std::uint8_t address, std::uint8_t presetId) noexcept
+{
+    return buildStandardCmdFrame(address, CommandOpcode::ClearPreset, 0x00U, presetId);
+}
+
+StandardFrame ProtocolBuilder::buildGoToPresetFrame(std::uint8_t address, std::uint8_t presetId) noexcept
+{
+    return buildStandardCmdFrame(address, CommandOpcode::GoToPreset, 0x00U, presetId);
+}
+
+StandardFrame ProtocolBuilder::buildFlip180Frame(std::uint8_t address) noexcept
+{
+    return buildStandardCmdFrame(address, CommandOpcode::GoToPreset, 0x00U, 0x21U);
+}
+
+StandardFrame ProtocolBuilder::buildZeroPanFrame(std::uint8_t address) noexcept
+{
+    return buildStandardCmdFrame(address, CommandOpcode::GoToPreset, 0x00U, 0x22U);
+}
+
+StandardFrame ProtocolBuilder::buildPresetScanFrame(std::uint8_t address, std::uint8_t dwellSeconds) noexcept
+{
+    return buildStandardCmdFrame(address, CommandOpcode::PresetScan, 0x00U, dwellSeconds);
+}
+
+StandardFrame ProtocolBuilder::buildQueryPanFrame(std::uint8_t address) noexcept
+{
+    return buildStandardCmdFrame(address, CommandOpcode::QueryPanPosition);
+}
+
+StandardFrame ProtocolBuilder::buildQueryTiltFrame(std::uint8_t address) noexcept
+{
+    return buildStandardCmdFrame(address, CommandOpcode::QueryTiltPosition);
+}
+
+StandardFrame ProtocolBuilder::buildQueryZoomFrame(std::uint8_t address) noexcept
+{
+    return buildStandardCmdFrame(address, CommandOpcode::QueryZoomPosition);
+}
+
+StandardFrame ProtocolBuilder::buildQueryMagFrame(std::uint8_t address) noexcept
+{
+    return buildStandardCmdFrame(address, CommandOpcode::QueryMagnification);
+}
+
 std::vector<std::uint8_t> ProtocolBuilder::buildSetPreset(std::uint8_t address, std::uint8_t presetId)
 {
-    return buildStandardCmd(address, CommandOpcode::SetPreset, 0x00U, presetId);
+    return toVector(buildSetPresetFrame(address, presetId));
 }
 
 std::vector<std::uint8_t> ProtocolBuilder::buildClearPreset(std::uint8_t address, std::uint8_t presetId)
 {
-    return buildStandardCmd(address, CommandOpcode::ClearPreset, 0x00U, presetId);
+    return toVector(buildClearPresetFrame(address, presetId));
 }
 
 std::vector<std::uint8_t> ProtocolBuilder::buildGoToPreset(std::uint8_t address, std::uint8_t presetId)
 {
-    return buildStandardCmd(address, CommandOpcode::GoToPreset, 0x00U, presetId);
+    return toVector(buildGoToPresetFrame(address, presetId));
 }
 
 std::vector<std::uint8_t> ProtocolBuilder::buildFlip180(std::uint8_t address)
 {
-    return buildGoToPreset(address, 0x21U);
+    return toVector(buildFlip180Frame(address));
 }
 
 std::vector<std::uint8_t> ProtocolBuilder::buildZeroPan(std::uint8_t address)
 {
-    return buildGoToPreset(address, 0x22U);
+    return toVector(buildZeroPanFrame(address));
 }
 
 std::vector<std::uint8_t> ProtocolBuilder::buildPresetScan(std::uint8_t address, std::uint8_t dwellSeconds)
 {
-    return buildStandardCmd(address, CommandOpcode::PresetScan, 0x00U, dwellSeconds);
+    return toVector(buildPresetScanFrame(address, dwellSeconds));
 }
 
 std::vector<std::uint8_t> ProtocolBuilder::buildSetAux(std::uint8_t address, std::uint8_t auxId)
@@ -347,22 +467,22 @@ std::optional<std::vector<std::uint8_t>> ProtocolBuilder::buildSetBaudRate(std::
 
 std::vector<std::uint8_t> ProtocolBuilder::buildQueryPan(std::uint8_t address)
 {
-    return buildStandardCmd(address, CommandOpcode::QueryPanPosition);
+    return toVector(buildQueryPanFrame(address));
 }
 
 std::vector<std::uint8_t> ProtocolBuilder::buildQueryTilt(std::uint8_t address)
 {
-    return buildStandardCmd(address, CommandOpcode::QueryTiltPosition);
+    return toVector(buildQueryTiltFrame(address));
 }
 
 std::vector<std::uint8_t> ProtocolBuilder::buildQueryZoom(std::uint8_t address)
 {
-    return buildStandardCmd(address, CommandOpcode::QueryZoomPosition);
+    return toVector(buildQueryZoomFrame(address));
 }
 
 std::vector<std::uint8_t> ProtocolBuilder::buildQueryMag(std::uint8_t address)
 {
-    return buildStandardCmd(address, CommandOpcode::QueryMagnification);
+    return toVector(buildQueryMagFrame(address));
 }
 
 std::vector<std::uint8_t> ProtocolBuilder::buildQueryDevType(std::uint8_t address)
@@ -448,8 +568,7 @@ std::vector<std::uint8_t> ProtocolBuilder::buildSetHourMinute(
         static_cast<std::uint8_t>(CommandOpcode::TimeMacro), hour, minute);
 }
 
-std::vector<std::uint8_t> ProtocolBuilder::buildSetMonthDay(
-    std::uint8_t address, std::uint8_t month, std::uint8_t day)
+std::vector<std::uint8_t> ProtocolBuilder::buildSetMonthDay(std::uint8_t address, std::uint8_t month, std::uint8_t day)
 {
     return PelcoDFrame::createFrame(address, static_cast<std::uint8_t>(TimeSubOpcode::SetMonthDay),
         static_cast<std::uint8_t>(CommandOpcode::TimeMacro), month, day);

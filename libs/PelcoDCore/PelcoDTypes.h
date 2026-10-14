@@ -4,10 +4,130 @@
 /// @brief Type definitions, enumerations, and constants for Pelco-D protocol.
 
 #include <Transport/TransportTypes.h>
+#include <array>
+#include <cstddef>
 #include <cstdint>
 #include <string>
+#include <string_view>
+#include <vector>
 
 namespace PelcoD {
+
+/// @brief Standard Pelco-D command frame length in bytes per specification v5.0.1.
+inline constexpr std::size_t kStandardFrameSize { 7U };
+
+/// @brief General response / alarm frame length in bytes.
+inline constexpr std::size_t kGeneralResponseSize { 4U };
+
+/// @brief Extended ASCII query response frame length in bytes.
+inline constexpr std::size_t kQueryResponseSize { 18U };
+
+/// @brief Zero-allocation fixed 7-byte Pelco-D command frame.
+/// @details Represents all standard Pelco-D transmitted commands as a fixed-size stack array.
+///          Eliminates heap allocation on hot command dispatch paths (MISRA C++:2023 Rule 21.6.1).
+using StandardFrame = std::array<std::uint8_t, kStandardFrameSize>;
+
+/// @class RawFrame
+/// @brief Bounded, stack-allocated protocol frame container for 4, 7, or 18-byte packets.
+/// @details Provides a uniform value type capable of storing any valid Pelco-D packet
+///          without dynamic heap allocation.
+class RawFrame final {
+public:
+    static constexpr std::size_t MaxCapacity { kQueryResponseSize };
+
+    constexpr RawFrame() noexcept = default;
+
+    /// @brief Construct a RawFrame from a 7-byte StandardFrame.
+    /// @param[in] frame Source standard frame array.
+    constexpr RawFrame(const StandardFrame& frame) noexcept
+        : m_size { static_cast<std::uint8_t>(kStandardFrameSize) }
+    {
+        for (std::size_t i { 0U }; i < kStandardFrameSize; ++i) {
+            m_data[i] = frame[i];
+        }
+    }
+
+    /// @brief Construct a RawFrame from raw memory pointer and length.
+    /// @param[in] bytes Pointer to raw byte buffer.
+    /// @param[in] length Number of bytes in buffer.
+    RawFrame(const std::uint8_t* bytes, std::size_t length) noexcept
+        : m_size { static_cast<std::uint8_t>(length <= MaxCapacity ? length : MaxCapacity) }
+    {
+        if (bytes != nullptr) {
+            for (std::size_t i { 0U }; i < m_size; ++i) {
+                m_data[i] = bytes[i];
+            }
+        }
+    }
+
+    /// @brief Retrieves pointer to underlying buffer.
+    [[nodiscard]] constexpr const std::uint8_t* data() const noexcept
+    {
+        return m_data.data();
+    }
+
+    /// @brief Retrieves mutable pointer to underlying buffer.
+    [[nodiscard]] constexpr std::uint8_t* data() noexcept
+    {
+        return m_data.data();
+    }
+
+    /// @brief Retrieves number of active bytes stored.
+    [[nodiscard]] constexpr std::size_t size() const noexcept
+    {
+        return m_size;
+    }
+
+    /// @brief Checks whether the frame contains zero bytes.
+    [[nodiscard]] constexpr bool empty() const noexcept
+    {
+        return m_size == 0U;
+    }
+
+    /// @brief Subscript access operator.
+    [[nodiscard]] constexpr std::uint8_t operator[](std::size_t idx) const noexcept
+    {
+        return m_data[idx];
+    }
+
+    /// @brief Mutable subscript access operator.
+    [[nodiscard]] constexpr std::uint8_t& operator[](std::size_t idx) noexcept
+    {
+        return m_data[idx];
+    }
+
+    /// @brief Beginning iterator.
+    [[nodiscard]] constexpr const std::uint8_t* begin() const noexcept
+    {
+        return m_data.data();
+    }
+
+    /// @brief End iterator.
+    [[nodiscard]] constexpr const std::uint8_t* end() const noexcept
+    {
+        return m_data.data() + m_size;
+    }
+
+    /// @brief Converts to a 7-byte StandardFrame if size matches.
+    [[nodiscard]] StandardFrame toStandardFrame() const noexcept
+    {
+        StandardFrame out {};
+        for (std::size_t i { 0U }; i < kStandardFrameSize && i < m_size; ++i) {
+            out[i] = m_data[i];
+        }
+        return out;
+    }
+
+    /// @brief Converts stored bytes to a heap std::vector for legacy consumers.
+    [[nodiscard]] std::vector<std::uint8_t> toVector() const
+    {
+        return std::vector<std::uint8_t>(m_data.begin(), m_data.begin() + m_size);
+    }
+
+private:
+    std::array<std::uint8_t, MaxCapacity> m_data {};
+    std::uint8_t m_size { 0U };
+};
 
 /// @enum PanDirection
 /// @brief Standard Pan motion directions.

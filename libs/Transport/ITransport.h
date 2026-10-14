@@ -6,6 +6,8 @@
 #include "TransportStats.h"
 #include "TransportTypes.h"
 
+#include <array>
+#include <cstddef>
 #include <cstdint>
 #include <functional>
 #include <string>
@@ -37,6 +39,28 @@ public:
     /// @param[in] data Byte buffer to send.
     /// @return True if write succeeded.
     [[nodiscard]] virtual bool sendData(const std::vector<std::uint8_t>& data) = 0;
+
+    /// @brief Transmits raw bytes across the medium from a contiguous buffer.
+    /// @param[in] data Pointer to raw byte sequence.
+    /// @param[in] length Number of bytes to transmit.
+    /// @return True if write succeeded; false otherwise.
+    [[nodiscard]] virtual bool sendBytes(const std::uint8_t* data, std::size_t length)
+    {
+        if (data == nullptr || length == 0U) {
+            return false;
+        }
+        const std::vector<std::uint8_t> vec(data, data + length);
+        return sendData(vec);
+    }
+
+    /// @brief Transmits a fixed-size byte array without dynamic heap allocation.
+    /// @tparam N Size of array buffer.
+    /// @param[in] frame Array containing frame bytes.
+    /// @return True if transmission succeeded.
+    template <std::size_t N> [[nodiscard]] bool sendFrame(const std::array<std::uint8_t, N>& frame)
+    {
+        return sendBytes(frame.data(), frame.size());
+    }
 
     /// @brief Registers callback for incoming bytes.
     /// @param[in] callback Function invoked when new data arrives.

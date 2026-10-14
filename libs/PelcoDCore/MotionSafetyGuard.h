@@ -3,6 +3,9 @@
 /// @file MotionSafetyGuard.h
 /// @brief Monitors PTZ motion lifetime, manages dead-man timeouts, and enforces fail-safe stops.
 
+#include "PelcoDTypes.h"
+#include "TaskScheduler.h"
+
 #include <chrono>
 #include <condition_variable>
 #include <cstdint>
@@ -24,7 +27,8 @@ public:
 
     /// @brief Constructs a motion safety guard.
     /// @param[in] stopCb Callback invoked when the dead-man timer expires to issue a stop command.
-    explicit MotionSafetyGuard(StopTriggerCallback stopCb);
+    /// @param[in] scheduler Optional shared task scheduler. If provided, uses scheduler instead of a dedicated thread.
+    explicit MotionSafetyGuard(StopTriggerCallback stopCb, std::shared_ptr<TaskScheduler> scheduler = nullptr);
 
     /// @brief Destructor; terminates the watchdog thread safely.
     ~MotionSafetyGuard();
@@ -50,6 +54,11 @@ public:
     /// @return True if moving.
     [[nodiscard]] bool isMoving() const noexcept;
 
+    /// @brief Informs the guard that a standard motion command was issued.
+    /// @details Arms or resets the dead-man timeout deadline.
+    /// @param[in] frame Standard 7-byte protocol array.
+    void onMotionCommand(const StandardFrame& frame);
+
     /// @brief Informs the guard that a motion command was issued.
     /// @details Arms or resets the dead-man timeout deadline.
     /// @param[in] frame Raw Pelco-D frame bytes.
@@ -67,8 +76,11 @@ public:
 
 private:
     void watchdogLoop();
+    void onDeadManTimeout();
 
     StopTriggerCallback m_stopCb {};
+    std::shared_ptr<TaskScheduler> m_scheduler {};
+    TaskId m_scheduledTaskId { 0U };
     std::chrono::milliseconds m_timeout { 0 };
     std::chrono::steady_clock::time_point m_deadline {};
     bool m_moving { false };

@@ -165,6 +165,10 @@ public:
     [[nodiscard]] SendResult queryDefinedPatterns(std::uint8_t group = 0U);
 
 private:
+    [[nodiscard]] SendResult dispatch(
+        const StandardFrame& frame, QueryKind queryKind, CommandPriority priority = CommandPriority::Normal);
+    [[nodiscard]] SendResult dispatch(const StandardFrame& frame, const std::string& queryTag = "",
+        CommandPriority priority = CommandPriority::Normal);
     [[nodiscard]] SendResult dispatch(const std::vector<std::uint8_t>& frame, QueryKind queryKind,
         CommandPriority priority = CommandPriority::Normal);
     [[nodiscard]] SendResult dispatch(const std::vector<std::uint8_t>& frame, const std::string& queryTag = "",

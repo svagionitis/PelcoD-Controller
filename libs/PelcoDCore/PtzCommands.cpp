@@ -7,9 +7,19 @@ namespace PelcoD {
 
 namespace {
 
+    bool isMotionFrame(const StandardFrame& frame) noexcept
+    {
+        return PelcoDFrame::isStandardMotion(frame);
+    }
+
     bool isMotionFrame(const std::vector<std::uint8_t>& frame) noexcept
     {
         return PelcoDFrame::isStandardMotion(frame);
+    }
+
+    bool isStopFrame(const StandardFrame& frame) noexcept
+    {
+        return PelcoDFrame::isStandardStop(frame);
     }
 
     bool isStopFrame(const std::vector<std::uint8_t>& frame) noexcept
@@ -25,6 +35,36 @@ PtzCommands::PtzCommands(std::shared_ptr<PelcoDSession> session, std::shared_ptr
     , m_guard { std::move(guard) }
     , m_telemetry { std::move(telemetry) }
 {
+}
+
+SendResult PtzCommands::dispatch(const StandardFrame& frame, QueryKind queryKind, CommandPriority priority)
+{
+    if (!m_session) {
+        return SendResult::TransportClosed;
+    }
+    if (m_guard) {
+        if (isStopFrame(frame) || priority == CommandPriority::Urgent) {
+            m_guard->onStopCommand();
+        } else if (isMotionFrame(frame)) {
+            m_guard->onMotionCommand(frame);
+        }
+    }
+    return m_session->enqueueCommand(frame, queryKind, priority);
+}
+
+SendResult PtzCommands::dispatch(const StandardFrame& frame, const std::string& queryTag, CommandPriority priority)
+{
+    if (!m_session) {
+        return SendResult::TransportClosed;
+    }
+    if (m_guard) {
+        if (isStopFrame(frame) || priority == CommandPriority::Urgent) {
+            m_guard->onStopCommand();
+        } else if (isMotionFrame(frame)) {
+            m_guard->onMotionCommand(frame);
+        }
+    }
+    return m_session->enqueueCommand(frame, queryTag, priority);
 }
 
 SendResult PtzCommands::dispatch(const std::vector<std::uint8_t>& frame, QueryKind queryKind, CommandPriority priority)
@@ -63,7 +103,7 @@ SendResult PtzCommands::panLeft(std::uint8_t speed)
     if (m_telemetry) {
         m_telemetry->setActivePreset(0U);
     }
-    return dispatch(ProtocolBuilder::buildPan(m_session->getAddress(), PanDirection::Left, speed));
+    return dispatch(ProtocolBuilder::buildPanFrame(m_session->getAddress(), PanDirection::Left, speed));
 }
 
 SendResult PtzCommands::panRight(std::uint8_t speed)
@@ -71,7 +111,7 @@ SendResult PtzCommands::panRight(std::uint8_t speed)
     if (m_telemetry) {
         m_telemetry->setActivePreset(0U);
     }
-    return dispatch(ProtocolBuilder::buildPan(m_session->getAddress(), PanDirection::Right, speed));
+    return dispatch(ProtocolBuilder::buildPanFrame(m_session->getAddress(), PanDirection::Right, speed));
 }
 
 SendResult PtzCommands::tiltUp(std::uint8_t speed)
@@ -79,7 +119,7 @@ SendResult PtzCommands::tiltUp(std::uint8_t speed)
     if (m_telemetry) {
         m_telemetry->setActivePreset(0U);
     }
-    return dispatch(ProtocolBuilder::buildTilt(m_session->getAddress(), TiltDirection::Up, speed));
+    return dispatch(ProtocolBuilder::buildTiltFrame(m_session->getAddress(), TiltDirection::Up, speed));
 }
 
 SendResult PtzCommands::tiltDown(std::uint8_t speed)
@@ -87,12 +127,12 @@ SendResult PtzCommands::tiltDown(std::uint8_t speed)
     if (m_telemetry) {
         m_telemetry->setActivePreset(0U);
     }
-    return dispatch(ProtocolBuilder::buildTilt(m_session->getAddress(), TiltDirection::Down, speed));
+    return dispatch(ProtocolBuilder::buildTiltFrame(m_session->getAddress(), TiltDirection::Down, speed));
 }
 
 SendResult PtzCommands::stopMotion()
 {
-    return dispatch(ProtocolBuilder::buildStop(m_session->getAddress()), "", CommandPriority::Urgent);
+    return dispatch(ProtocolBuilder::buildStopFrame(m_session->getAddress()), "", CommandPriority::Urgent);
 }
 
 SendResult PtzCommands::move(PanDirection panDir, std::uint8_t panSpeed, TiltDirection tiltDir, std::uint8_t tiltSpeed)
@@ -100,7 +140,7 @@ SendResult PtzCommands::move(PanDirection panDir, std::uint8_t panSpeed, TiltDir
     if (m_telemetry) {
         m_telemetry->setActivePreset(0U);
     }
-    return dispatch(ProtocolBuilder::buildMotion(m_session->getAddress(), panDir, panSpeed, tiltDir, tiltSpeed));
+    return dispatch(ProtocolBuilder::buildMotionFrame(m_session->getAddress(), panDir, panSpeed, tiltDir, tiltSpeed));
 }
 
 SendResult PtzCommands::move(PanDirection panDir, std::uint8_t panSpeed, TiltDirection tiltDir, std::uint8_t tiltSpeed,
@@ -109,64 +149,66 @@ SendResult PtzCommands::move(PanDirection panDir, std::uint8_t panSpeed, TiltDir
     if (m_telemetry) {
         m_telemetry->setActivePreset(0U);
     }
-    return dispatch(
-        ProtocolBuilder::buildMotion(m_session->getAddress(), panDir, panSpeed, tiltDir, tiltSpeed, zoom, focus, iris));
+    return dispatch(ProtocolBuilder::buildMotionFrame(
+        m_session->getAddress(), panDir, panSpeed, tiltDir, tiltSpeed, zoom, focus, iris));
 }
 
 SendResult PtzCommands::setPower(bool on)
 {
-    return dispatch(ProtocolBuilder::buildPower(m_session->getAddress(), on));
+    return dispatch(ProtocolBuilder::buildPowerFrame(m_session->getAddress(), on));
 }
 
 SendResult PtzCommands::setAutoScan(bool enable)
 {
-    return dispatch(ProtocolBuilder::buildScan(m_session->getAddress(), enable));
+    return dispatch(ProtocolBuilder::buildScanFrame(m_session->getAddress(), enable));
 }
 
 SendResult PtzCommands::zoomTele()
 {
-    return dispatch(ProtocolBuilder::buildZoom(m_session->getAddress(), ZoomAction::Tele));
+    return dispatch(ProtocolBuilder::buildZoomFrame(m_session->getAddress(), ZoomAction::Tele));
 }
 
 SendResult PtzCommands::zoomWide()
 {
-    return dispatch(ProtocolBuilder::buildZoom(m_session->getAddress(), ZoomAction::Wide));
+    return dispatch(ProtocolBuilder::buildZoomFrame(m_session->getAddress(), ZoomAction::Wide));
 }
 
 SendResult PtzCommands::zoomStop()
 {
-    return dispatch(ProtocolBuilder::buildZoom(m_session->getAddress(), ZoomAction::Stop), "", CommandPriority::Urgent);
+    return dispatch(
+        ProtocolBuilder::buildZoomFrame(m_session->getAddress(), ZoomAction::Stop), "", CommandPriority::Urgent);
 }
 
 SendResult PtzCommands::focusNear()
 {
-    return dispatch(ProtocolBuilder::buildFocus(m_session->getAddress(), FocusAction::Near));
+    return dispatch(ProtocolBuilder::buildFocusFrame(m_session->getAddress(), FocusAction::Near));
 }
 
 SendResult PtzCommands::focusFar()
 {
-    return dispatch(ProtocolBuilder::buildFocus(m_session->getAddress(), FocusAction::Far));
+    return dispatch(ProtocolBuilder::buildFocusFrame(m_session->getAddress(), FocusAction::Far));
 }
 
 SendResult PtzCommands::focusStop()
 {
     return dispatch(
-        ProtocolBuilder::buildFocus(m_session->getAddress(), FocusAction::Stop), "", CommandPriority::Urgent);
+        ProtocolBuilder::buildFocusFrame(m_session->getAddress(), FocusAction::Stop), "", CommandPriority::Urgent);
 }
 
 SendResult PtzCommands::irisOpen()
 {
-    return dispatch(ProtocolBuilder::buildIris(m_session->getAddress(), IrisAction::Open));
+    return dispatch(ProtocolBuilder::buildIrisFrame(m_session->getAddress(), IrisAction::Open));
 }
 
 SendResult PtzCommands::irisClose()
 {
-    return dispatch(ProtocolBuilder::buildIris(m_session->getAddress(), IrisAction::Close));
+    return dispatch(ProtocolBuilder::buildIrisFrame(m_session->getAddress(), IrisAction::Close));
 }
 
 SendResult PtzCommands::irisStop()
 {
-    return dispatch(ProtocolBuilder::buildIris(m_session->getAddress(), IrisAction::Stop), "", CommandPriority::Urgent);
+    return dispatch(
+        ProtocolBuilder::buildIrisFrame(m_session->getAddress(), IrisAction::Stop), "", CommandPriority::Urgent);
 }
 
 SendResult PtzCommands::setPanAngle(std::uint16_t centidegrees)
@@ -186,7 +228,7 @@ SendResult PtzCommands::setZoomPosition(std::uint16_t position)
 
 SendResult PtzCommands::setPreset(std::uint8_t presetId)
 {
-    return dispatch(ProtocolBuilder::buildSetPreset(m_session->getAddress(), presetId));
+    return dispatch(ProtocolBuilder::buildSetPresetFrame(m_session->getAddress(), presetId));
 }
 
 SendResult PtzCommands::clearPreset(std::uint8_t presetId)
@@ -194,7 +236,7 @@ SendResult PtzCommands::clearPreset(std::uint8_t presetId)
     if (m_telemetry && m_telemetry->getStatus().activePreset == presetId) {
         m_telemetry->setActivePreset(0U);
     }
-    return dispatch(ProtocolBuilder::buildClearPreset(m_session->getAddress(), presetId));
+    return dispatch(ProtocolBuilder::buildClearPresetFrame(m_session->getAddress(), presetId));
 }
 
 SendResult PtzCommands::goToPreset(std::uint8_t presetId)
@@ -202,7 +244,7 @@ SendResult PtzCommands::goToPreset(std::uint8_t presetId)
     if (m_telemetry) {
         m_telemetry->setActivePreset(presetId);
     }
-    return dispatch(ProtocolBuilder::buildGoToPreset(m_session->getAddress(), presetId));
+    return dispatch(ProtocolBuilder::buildGoToPresetFrame(m_session->getAddress(), presetId));
 }
 
 SendResult PtzCommands::goToPreset(std::uint8_t presetId, std::uint8_t speed)
@@ -211,12 +253,12 @@ SendResult PtzCommands::goToPreset(std::uint8_t presetId, std::uint8_t speed)
         m_telemetry->setActivePreset(presetId);
     }
     if (speed > 0U) {
-        const auto res = dispatch(ProtocolBuilder::buildPan(m_session->getAddress(), PanDirection::Stop, speed));
+        const auto res = dispatch(ProtocolBuilder::buildPanFrame(m_session->getAddress(), PanDirection::Stop, speed));
         if (res != SendResult::Success) {
             return res;
         }
     }
-    return dispatch(ProtocolBuilder::buildGoToPreset(m_session->getAddress(), presetId));
+    return dispatch(ProtocolBuilder::buildGoToPresetFrame(m_session->getAddress(), presetId));
 }
 
 SendResult PtzCommands::flip180()
@@ -423,17 +465,19 @@ SendResult PtzCommands::remoteReset()
 
 SendResult PtzCommands::queryPan()
 {
-    return dispatch(ProtocolBuilder::buildQueryPan(m_session->getAddress()), QueryKind::Pan, CommandPriority::Low);
+    return dispatch(ProtocolBuilder::buildQueryPanFrame(m_session->getAddress()), QueryKind::Pan, CommandPriority::Low);
 }
 
 SendResult PtzCommands::queryTilt()
 {
-    return dispatch(ProtocolBuilder::buildQueryTilt(m_session->getAddress()), QueryKind::Tilt, CommandPriority::Low);
+    return dispatch(
+        ProtocolBuilder::buildQueryTiltFrame(m_session->getAddress()), QueryKind::Tilt, CommandPriority::Low);
 }
 
 SendResult PtzCommands::queryZoom()
 {
-    return dispatch(ProtocolBuilder::buildQueryZoom(m_session->getAddress()), QueryKind::Zoom, CommandPriority::Low);
+    return dispatch(
+        ProtocolBuilder::buildQueryZoomFrame(m_session->getAddress()), QueryKind::Zoom, CommandPriority::Low);
 }
 
 SendResult PtzCommands::queryMagnification()

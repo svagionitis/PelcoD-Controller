@@ -22,7 +22,7 @@ namespace PelcoD {
 /// @struct CommandItem
 /// @brief Single schedulable command packet with priority, query tag, and timing.
 struct CommandItem {
-    std::vector<std::uint8_t> frame {};
+    StandardFrame frame {};
     QueryKind queryKind { QueryKind::None };
     std::string queryTag {};
     CommandPriority priority { CommandPriority::Normal };
@@ -51,6 +51,24 @@ public:
     /// @param[in] item Command packet and metadata.
     /// @return SendResult::Success on successful insertion, SendResult::QueueFull if rejected.
     [[nodiscard]] SendResult enqueue(CommandItem item);
+
+    /// @brief Helper to construct and enqueue a command item with zero-allocation StandardFrame.
+    /// @param[in] frame Standard 7-byte protocol array.
+    /// @param[in] queryKind Expected query kind.
+    /// @param[in] priority Scheduling priority.
+    /// @param[in] motionGeneration Generation token for motion sequencing (0 = non-motion).
+    /// @return SendResult::Success on successful insertion, SendResult::QueueFull if rejected.
+    [[nodiscard]] SendResult enqueue(StandardFrame frame, QueryKind queryKind,
+        CommandPriority priority = CommandPriority::Normal, std::uint64_t motionGeneration = 0U);
+
+    /// @brief Helper to construct and enqueue a command item with zero-allocation StandardFrame.
+    /// @param[in] frame Standard 7-byte protocol array.
+    /// @param[in] queryTag Optional query identifier.
+    /// @param[in] priority Scheduling priority.
+    /// @param[in] motionGeneration Generation token for motion sequencing (0 = non-motion).
+    /// @return SendResult::Success on successful insertion, SendResult::QueueFull if rejected.
+    [[nodiscard]] SendResult enqueue(StandardFrame frame, std::string queryTag = "",
+        CommandPriority priority = CommandPriority::Normal, std::uint64_t motionGeneration = 0U);
 
     /// @brief Helper to construct and enqueue a command item with strongly-typed QueryKind.
     /// @param[in] frame Raw frame bytes.

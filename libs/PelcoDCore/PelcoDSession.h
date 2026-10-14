@@ -76,16 +76,33 @@ public:
     /// @return Logical device address.
     [[nodiscard]] std::uint8_t getAddress() const noexcept;
 
+    /// @brief Submits a standard command frame for transmission.
+    /// @param[in] frame Standard 7-byte protocol array.
+    /// @return Result status code.
+    [[nodiscard]] SendResult sendRawFrame(const StandardFrame& frame);
+
     /// @brief Submits a raw command frame for immediate transmission.
     /// @param[in] frame Protocol frame bytes.
     /// @return Result status code.
     [[nodiscard]] SendResult sendRawFrame(const std::vector<std::uint8_t>& frame);
+
+    /// @brief Submits a standard query frame with strongly-typed QueryKind.
+    /// @param[in] frame Standard 7-byte protocol array.
+    /// @param[in] queryKind Strongly-typed query category.
+    /// @return Result status code.
+    [[nodiscard]] SendResult sendQueryFrame(const StandardFrame& frame, QueryKind queryKind);
 
     /// @brief Submits a query frame with strongly-typed QueryKind.
     /// @param[in] frame Protocol frame bytes.
     /// @param[in] queryKind Strongly-typed query category.
     /// @return Result status code.
     [[nodiscard]] SendResult sendQueryFrame(const std::vector<std::uint8_t>& frame, QueryKind queryKind);
+
+    /// @brief Submits a standard query frame, registering an expectation for correlated response.
+    /// @param[in] frame Standard 7-byte protocol array.
+    /// @param[in] queryTag Tag identifying expected response.
+    /// @return Result status code.
+    [[nodiscard]] SendResult sendQueryFrame(const StandardFrame& frame, const std::string& queryTag = "Query");
 
     /// @brief Submits a query frame, registering an expectation for correlated response.
     /// @param[in] frame Protocol frame bytes.
@@ -94,12 +111,28 @@ public:
     [[nodiscard]] SendResult sendQueryFrame(
         const std::vector<std::uint8_t>& frame, const std::string& queryTag = "Query");
 
+    /// @brief Submits a standard command into the prioritized pacing queue with strongly-typed QueryKind.
+    /// @param[in] frame Standard 7-byte protocol array.
+    /// @param[in] queryKind Expected query kind.
+    /// @param[in] priority Execution priority level.
+    /// @return Result status code.
+    [[nodiscard]] SendResult enqueueCommand(
+        const StandardFrame& frame, QueryKind queryKind, CommandPriority priority = CommandPriority::Normal);
+
     /// @brief Submits a command into the prioritized pacing queue with strongly-typed QueryKind.
     /// @param[in] frame Raw frame bytes.
     /// @param[in] queryKind Expected query kind.
     /// @param[in] priority Execution priority level.
     /// @return Result status code.
     [[nodiscard]] SendResult enqueueCommand(const std::vector<std::uint8_t>& frame, QueryKind queryKind,
+        CommandPriority priority = CommandPriority::Normal);
+
+    /// @brief Submits a standard command into the prioritized pacing queue.
+    /// @param[in] frame Standard 7-byte protocol array.
+    /// @param[in] queryTag Optional query identifier.
+    /// @param[in] priority Execution priority level.
+    /// @return Result status code.
+    [[nodiscard]] SendResult enqueueCommand(const StandardFrame& frame, const std::string& queryTag = "",
         CommandPriority priority = CommandPriority::Normal);
 
     /// @brief Submits a command into the prioritized pacing queue.
@@ -229,6 +262,7 @@ private:
         QueryKind kind, const std::string& queryTag, const std::vector<std::uint8_t>& frame) const noexcept;
     void notifyQueryFailed(
         const std::string& queryTag, std::chrono::microseconds durationUs = std::chrono::microseconds { 0 });
+    void notifyCommandDropped(const StandardFrame& frame, SendResult reason);
     void notifyCommandDropped(const std::vector<std::uint8_t>& frame, SendResult reason);
     [[nodiscard]] std::shared_ptr<ITransport> activeTransport() const noexcept;
 
