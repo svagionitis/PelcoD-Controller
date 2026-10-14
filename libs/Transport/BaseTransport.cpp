@@ -3,11 +3,17 @@
 
 #include "BaseTransport.h"
 
+#include <glog/logging.h>
+
 namespace Transport {
 
 void BaseTransport::setDataCallback(DataReceivedCallback callback)
 {
     std::scoped_lock lock(m_callbackMutex);
+    if (m_dataCallback && callback) {
+        LOG(WARNING) << "BaseTransport::setDataCallback: Overwriting existing active data callback! "
+                        "If multiple components share this transport, use TransportMultiplexer to avoid clobbering.";
+    }
     m_dataCallback = std::move(callback);
 }
 

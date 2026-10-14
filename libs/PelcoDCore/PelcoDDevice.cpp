@@ -243,6 +243,11 @@ Transport::TransportStatsSnapshot PelcoDDevice::getTransportStats() const
     return m_session->getTransportStats();
 }
 
+std::shared_ptr<ITransport> PelcoDDevice::createVirtualChannel()
+{
+    return m_session ? m_session->createVirtualChannel() : nullptr;
+}
+
 PelcoDProtocolStats PelcoDDevice::getProtocolStats() const
 {
     PelcoDProtocolStats stats = m_metrics->getStats();

@@ -8,6 +8,47 @@
 
 namespace PelcoD {
 
+template <typename CallbackT>
+bool BusScanner::removeEntry(std::shared_ptr<const std::vector<CallbackEntry<CallbackT>>>& list, std::uint64_t id,
+    std::mutex& mtx, std::shared_ptr<CallbackGate>& outGate)
+{
+    std::scoped_lock lock(mtx);
+    const auto& current = *list;
+    auto it = std::find_if(current.begin(), current.end(), [id](const auto& entry) { return entry.id == id; });
+    if (it == current.end()) {
+        return false;
+    }
+    outGate = it->gate;
+    auto nextList = std::make_shared<std::vector<CallbackEntry<CallbackT>>>();
+    nextList->reserve(current.size() - 1U);
+    for (const auto& entry : current) {
+        if (entry.id != id) {
+            nextList->push_back(entry);
+        }
+    }
+    list = std::move(nextList);
+    return true;
+}
+
+template <typename CallbackT, typename... Args>
+void BusScanner::dispatchSafely(
+    const std::shared_ptr<const std::vector<CallbackEntry<CallbackT>>>& list, Args&&... args)
+{
+    for (const auto& entry : *list) {
+        if (entry.gate) {
+            const CallbackGate::Pass pass(*entry.gate);
+            if (pass) {
+                try {
+                    entry.cb(std::forward<Args>(args)...);
+                } catch (const std::exception& /*e*/) {
+                    // SEI CERT ERR50-CPP
+                } catch (...) {
+                }
+            }
+        }
+    }
+}
+
 BusScanner::BusScanner(std::shared_ptr<ITransport> transport)
     : m_transport(std::move(transport))
 {
@@ -16,6 +57,7 @@ BusScanner::BusScanner(std::shared_ptr<ITransport> transport)
 BusScanner::~BusScanner()
 {
     stopScan();
+    clearCallbacks();
 }
 
 void BusScanner::setTransport(std::shared_ptr<ITransport> transport)
@@ -46,6 +88,162 @@ std::shared_ptr<ITransport> BusScanner::getTransport() const
     return m_transport;
 }
 
+template <typename CallbackT>
+Connection BusScanner::registerHubCallback(
+    CallbackT cb, std::shared_ptr<const std::vector<CallbackEntry<CallbackT>>> CallbackHub::*listMember)
+{
+    if (!cb) {
+        return Connection {};
+    }
+    const auto id = m_hub->nextId.fetch_add(1U, std::memory_order_relaxed);
+    auto gate = std::make_shared<CallbackGate>();
+
+    {
+        std::scoped_lock lock(m_hub->mutex);
+        const auto& current = *(m_hub.get()->*listMember);
+        auto nextList = std::make_shared<std::vector<CallbackEntry<CallbackT>>>();
+        nextList->reserve(current.size() + 1U);
+        for (const auto& entry : current) {
+            nextList->push_back(entry);
+        }
+        nextList->push_back(CallbackEntry<CallbackT> { id, std::move(cb), gate });
+        m_hub.get()->*listMember = std::move(nextList);
+    }
+
+    std::weak_ptr<CallbackHub> weakHub = m_hub;
+    return Connection([weakHub, id, listMember, gate]() {
+        if (auto hub = weakHub.lock()) {
+            std::shared_ptr<CallbackGate> outGate;
+            const bool removed = removeEntry(hub.get()->*listMember, id, hub->mutex, outGate);
+            if (removed && outGate) {
+                outGate->close();
+            }
+        } else if (gate) {
+            gate->close();
+        }
+    });
+}
+
+Connection BusScanner::addDeviceDiscoveredCallback(DeviceDiscoveredCallback cb)
+{
+    return registerHubCallback(std::move(cb), &CallbackHub::discoveredList);
+}
+
+Connection BusScanner::addScanProgressCallback(ScanProgressCallback cb)
+{
+    return registerHubCallback(std::move(cb), &CallbackHub::progressList);
+}
+
+Connection BusScanner::addBaudRateChangedCallback(BaudRateChangedCallback cb)
+{
+    return registerHubCallback(std::move(cb), &CallbackHub::baudRateList);
+}
+
+Connection BusScanner::addMultiBaudProgressCallback(MultiBaudProgressCallback cb)
+{
+    return registerHubCallback(std::move(cb), &CallbackHub::multiBaudProgressList);
+}
+
+Connection BusScanner::addScanStateChangedCallback(ScanStateChangedCallback cb)
+{
+    return registerHubCallback(std::move(cb), &CallbackHub::stateList);
+}
+
+Connection BusScanner::addScanFinishedCallback(ScanFinishedCallback cb)
+{
+    return registerHubCallback(std::move(cb), &CallbackHub::finishedList);
+}
+
+void BusScanner::setDeviceDiscoveredCallback(DeviceDiscoveredCallback cb)
+{
+    m_legacyDiscoveredConn = addDeviceDiscoveredCallback(std::move(cb));
+}
+
+void BusScanner::setScanProgressCallback(ScanProgressCallback cb)
+{
+    m_legacyProgressConn = addScanProgressCallback(std::move(cb));
+}
+
+void BusScanner::setBaudRateChangedCallback(BaudRateChangedCallback cb)
+{
+    m_legacyBaudRateConn = addBaudRateChangedCallback(std::move(cb));
+}
+
+void BusScanner::setMultiBaudProgressCallback(MultiBaudProgressCallback cb)
+{
+    m_legacyMultiBaudProgressConn = addMultiBaudProgressCallback(std::move(cb));
+}
+
+void BusScanner::setScanStateChangedCallback(ScanStateChangedCallback cb)
+{
+    m_legacyStateConn = addScanStateChangedCallback(std::move(cb));
+}
+
+void BusScanner::setScanFinishedCallback(ScanFinishedCallback cb)
+{
+    m_legacyFinishedConn = addScanFinishedCallback(std::move(cb));
+}
+
+void BusScanner::clearCallbacks()
+{
+    std::vector<std::shared_ptr<CallbackGate>> gatesToClose;
+    {
+        std::scoped_lock lock(m_hub->mutex);
+        for (const auto& entry : *m_hub->discoveredList) {
+            if (entry.gate) {
+                gatesToClose.push_back(entry.gate);
+            }
+        }
+        for (const auto& entry : *m_hub->progressList) {
+            if (entry.gate) {
+                gatesToClose.push_back(entry.gate);
+            }
+        }
+        for (const auto& entry : *m_hub->baudRateList) {
+            if (entry.gate) {
+                gatesToClose.push_back(entry.gate);
+            }
+        }
+        for (const auto& entry : *m_hub->multiBaudProgressList) {
+            if (entry.gate) {
+                gatesToClose.push_back(entry.gate);
+            }
+        }
+        for (const auto& entry : *m_hub->stateList) {
+            if (entry.gate) {
+                gatesToClose.push_back(entry.gate);
+            }
+        }
+        for (const auto& entry : *m_hub->finishedList) {
+            if (entry.gate) {
+                gatesToClose.push_back(entry.gate);
+            }
+        }
+
+        m_hub->discoveredList = std::make_shared<const std::vector<CallbackEntry<DeviceDiscoveredCallback>>>();
+        m_hub->progressList = std::make_shared<const std::vector<CallbackEntry<ScanProgressCallback>>>();
+        m_hub->baudRateList = std::make_shared<const std::vector<CallbackEntry<BaudRateChangedCallback>>>();
+        m_hub->multiBaudProgressList = std::make_shared<const std::vector<CallbackEntry<MultiBaudProgressCallback>>>();
+        m_hub->stateList = std::make_shared<const std::vector<CallbackEntry<ScanStateChangedCallback>>>();
+        m_hub->finishedList = std::make_shared<const std::vector<CallbackEntry<ScanFinishedCallback>>>();
+    }
+    for (auto& gate : gatesToClose) {
+        if (gate) {
+            gate->close();
+        }
+    }
+}
+
+void BusScanner::notifyStateChanged(ScanState state)
+{
+    std::shared_ptr<const std::vector<CallbackEntry<ScanStateChangedCallback>>> snapshot;
+    {
+        std::scoped_lock lock(m_hub->mutex);
+        snapshot = m_hub->stateList;
+    }
+    dispatchSafely(snapshot, state);
+}
+
 bool BusScanner::startScan(const ScanConfig& config)
 {
     if (config.startAddress == 0U || config.startAddress > 254U || config.endAddress == 0U || config.endAddress > 254U
@@ -57,7 +255,6 @@ bool BusScanner::startScan(const ScanConfig& config)
         return false;
     }
 
-    ScanStateChangedCallback stateCb;
     {
         std::scoped_lock lock(m_mutex);
         if (m_state.load() != ScanState::Idle || !m_transport) {
@@ -94,14 +291,9 @@ bool BusScanner::startScan(const ScanConfig& config)
         m_state.store(ScanState::Scanning);
 
         m_worker = std::thread(&BusScanner::scanWorker, this, config);
-        stateCb = m_stateCb;
     }
 
-    // Dispatch state change outside of m_mutex to prevent re-entrant deadlocks
-    if (stateCb) {
-        stateCb(ScanState::Scanning);
-    }
-
+    notifyStateChanged(ScanState::Scanning);
     return true;
 }
 
@@ -119,7 +311,6 @@ void BusScanner::stopScan()
     std::shared_ptr<ITransport> trans;
     std::shared_ptr<CallbackGate> gate;
     bool shouldEmitIdle { false };
-    ScanStateChangedCallback stateCb;
 
     {
         std::scoped_lock lock(m_mutex);
@@ -128,7 +319,6 @@ void BusScanner::stopScan()
         if (m_state.load() != ScanState::Idle) {
             m_state.store(ScanState::Idle);
             shouldEmitIdle = true;
-            stateCb = m_stateCb;
         }
     }
 
@@ -139,8 +329,8 @@ void BusScanner::stopScan()
         gate->close();
     }
 
-    if (shouldEmitIdle && stateCb) {
-        stateCb(ScanState::Idle);
+    if (shouldEmitIdle) {
+        notifyStateChanged(ScanState::Idle);
     }
 }
 
@@ -149,14 +339,7 @@ void BusScanner::pauseScan()
     if (m_state.load() == ScanState::Scanning) {
         m_pauseRequested.store(true);
         m_state.store(ScanState::Paused);
-        ScanStateChangedCallback stateCb;
-        {
-            std::scoped_lock lock(m_mutex);
-            stateCb = m_stateCb;
-        }
-        if (stateCb) {
-            stateCb(ScanState::Paused);
-        }
+        notifyStateChanged(ScanState::Paused);
     }
 }
 
@@ -166,14 +349,7 @@ void BusScanner::resumeScan()
         m_pauseRequested.store(false);
         m_state.store(ScanState::Scanning);
         m_pauseCv.notify_all();
-        ScanStateChangedCallback stateCb;
-        {
-            std::scoped_lock lock(m_mutex);
-            stateCb = m_stateCb;
-        }
-        if (stateCb) {
-            stateCb(ScanState::Scanning);
-        }
+        notifyStateChanged(ScanState::Scanning);
     }
 }
 
@@ -196,42 +372,6 @@ std::vector<DiscoveredDevice> BusScanner::getDiscoveredDevices() const
 {
     std::scoped_lock lock(m_mutex);
     return m_discoveredDevices;
-}
-
-void BusScanner::setDeviceDiscoveredCallback(DeviceDiscoveredCallback cb)
-{
-    std::scoped_lock lock(m_mutex);
-    m_discoveredCb = std::move(cb);
-}
-
-void BusScanner::setScanProgressCallback(ScanProgressCallback cb)
-{
-    std::scoped_lock lock(m_mutex);
-    m_progressCb = std::move(cb);
-}
-
-void BusScanner::setBaudRateChangedCallback(BaudRateChangedCallback cb)
-{
-    std::scoped_lock lock(m_mutex);
-    m_baudRateCb = std::move(cb);
-}
-
-void BusScanner::setMultiBaudProgressCallback(MultiBaudProgressCallback cb)
-{
-    std::scoped_lock lock(m_mutex);
-    m_multiBaudProgressCb = std::move(cb);
-}
-
-void BusScanner::setScanStateChangedCallback(ScanStateChangedCallback cb)
-{
-    std::scoped_lock lock(m_mutex);
-    m_stateCb = std::move(cb);
-}
-
-void BusScanner::setScanFinishedCallback(ScanFinishedCallback cb)
-{
-    std::scoped_lock lock(m_mutex);
-    m_finishedCb = std::move(cb);
 }
 
 void BusScanner::onDataReceived(const std::vector<std::uint8_t>& data)
@@ -327,14 +467,12 @@ void BusScanner::scanWorker(ScanConfig config)
             }
         }
 
-        BaudRateChangedCallback baudCb;
+        std::shared_ptr<const std::vector<CallbackEntry<BaudRateChangedCallback>>> baudSnapshot;
         {
-            std::scoped_lock lock(m_mutex);
-            baudCb = m_baudRateCb;
+            std::scoped_lock lock(m_hub->mutex);
+            baudSnapshot = m_hub->baudRateList;
         }
-        if (baudCb) {
-            baudCb(currentBaud);
-        }
+        dispatchSafely(baudSnapshot, currentBaud);
 
         if (config.baudSwitchDelayMs > 0U && currentBaud > 0U) {
             std::unique_lock<std::mutex> delayLock(m_rxMutex);
@@ -362,19 +500,15 @@ void BusScanner::scanWorker(ScanConfig config)
             const auto targetAddr = static_cast<std::uint8_t>(addr);
             ++scannedCount;
 
-            ScanProgressCallback progCb;
-            MultiBaudProgressCallback multiProgCb;
+            std::shared_ptr<const std::vector<CallbackEntry<ScanProgressCallback>>> progSnapshot;
+            std::shared_ptr<const std::vector<CallbackEntry<MultiBaudProgressCallback>>> multiProgSnapshot;
             {
-                std::scoped_lock lock(m_mutex);
-                progCb = m_progressCb;
-                multiProgCb = m_multiBaudProgressCb;
+                std::scoped_lock lock(m_hub->mutex);
+                progSnapshot = m_hub->progressList;
+                multiProgSnapshot = m_hub->multiBaudProgressList;
             }
-            if (progCb) {
-                progCb(targetAddr, scannedCount, totalCount);
-            }
-            if (multiProgCb) {
-                multiProgCb(currentBaud, targetAddr, scannedCount, totalCount);
-            }
+            dispatchSafely(progSnapshot, targetAddr, scannedCount, totalCount);
+            dispatchSafely(multiProgSnapshot, currentBaud, targetAddr, scannedCount, totalCount);
 
             const auto probe = ProtocolBuilder::buildQueryPan(targetAddr);
             const auto sentTime = std::chrono::steady_clock::now();
@@ -420,15 +554,17 @@ void BusScanner::scanWorker(ScanConfig config)
                 dev.hasPanPosition = true;
                 dev.panCentidegrees = m_matchedPan;
 
-                DeviceDiscoveredCallback discCb;
                 {
                     std::scoped_lock lock(m_mutex);
                     m_discoveredDevices.push_back(dev);
-                    discCb = m_discoveredCb;
                 }
-                if (discCb) {
-                    discCb(dev);
+
+                std::shared_ptr<const std::vector<CallbackEntry<DeviceDiscoveredCallback>>> discSnapshot;
+                {
+                    std::scoped_lock lock(m_hub->mutex);
+                    discSnapshot = m_hub->discoveredList;
                 }
+                dispatchSafely(discSnapshot, dev);
             }
 
             rxLock.unlock();
@@ -456,21 +592,19 @@ void BusScanner::scanWorker(ScanConfig config)
     m_state.store(ScanState::Idle);
 
     std::vector<DiscoveredDevice> results;
-    ScanStateChangedCallback stateCb;
-    ScanFinishedCallback finCb;
     {
         std::scoped_lock lock(m_mutex);
         results = m_discoveredDevices;
-        stateCb = m_stateCb;
-        finCb = m_finishedCb;
     }
 
-    if (finCb) {
-        finCb(results);
+    std::shared_ptr<const std::vector<CallbackEntry<ScanFinishedCallback>>> finSnapshot;
+    {
+        std::scoped_lock lock(m_hub->mutex);
+        finSnapshot = m_hub->finishedList;
     }
-    if (stateCb) {
-        stateCb(ScanState::Idle);
-    }
+    dispatchSafely(finSnapshot, results);
+
+    notifyStateChanged(ScanState::Idle);
 }
 
 } // namespace PelcoD

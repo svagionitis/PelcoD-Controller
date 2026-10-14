@@ -5,10 +5,100 @@
 
 #include <algorithm>
 #include <atomic>
+#include <chrono>
+#include <glog/logging.h>
 #include <mutex>
+#include <thread>
 #include <utility>
 
 namespace Transport {
+
+namespace {
+
+    /// @class ChannelGate
+    /// @brief Admission gate guarding virtual channel callbacks during teardown.
+    class ChannelGate final {
+    public:
+        ChannelGate() noexcept = default;
+        ~ChannelGate() = default;
+
+        ChannelGate(const ChannelGate&) = delete;
+        ChannelGate& operator=(const ChannelGate&) = delete;
+        ChannelGate(ChannelGate&&) = delete;
+        ChannelGate& operator=(ChannelGate&&) = delete;
+
+        class Pass final {
+        public:
+            explicit Pass(ChannelGate& gate) noexcept
+                : m_gate(gate)
+            {
+                m_entered = m_gate.enter();
+            }
+
+            ~Pass()
+            {
+                if (m_entered) {
+                    m_gate.leave();
+                }
+            }
+
+            Pass(const Pass&) = delete;
+            Pass& operator=(const Pass&) = delete;
+            Pass(Pass&&) = delete;
+            Pass& operator=(Pass&&) = delete;
+
+            [[nodiscard]] explicit operator bool() const noexcept
+            {
+                return m_entered;
+            }
+
+        private:
+            ChannelGate& m_gate;
+            bool m_entered { false };
+        };
+
+        void close() noexcept
+        {
+            m_state.fetch_or(kClosedBit, std::memory_order_acq_rel);
+            while ((m_state.load(std::memory_order_acquire) & kCountMask) > 0U) {
+                std::this_thread::sleep_for(std::chrono::milliseconds(1));
+            }
+        }
+
+        [[nodiscard]] bool isClosed() const noexcept
+        {
+            return (m_state.load(std::memory_order_acquire) & kClosedBit) != 0U;
+        }
+
+    private:
+        [[nodiscard]] bool enter() noexcept
+        {
+            std::uint32_t current = m_state.load(std::memory_order_relaxed);
+            while (true) {
+                if ((current & kClosedBit) != 0U) {
+                    return false;
+                }
+                if ((current & kCountMask) >= kCountMask) {
+                    return false;
+                }
+                if (m_state.compare_exchange_weak(
+                        current, current + 1U, std::memory_order_acquire, std::memory_order_relaxed)) {
+                    return true;
+                }
+            }
+        }
+
+        void leave() noexcept
+        {
+            m_state.fetch_sub(1U, std::memory_order_release);
+        }
+
+        static constexpr std::uint32_t kClosedBit { 0x80000000U };
+        static constexpr std::uint32_t kCountMask { 0x7FFFFFFFU };
+        std::atomic<std::uint32_t> m_state { 0U };
+    };
+
+} // namespace
 
 /// @class TransportMultiplexer::Channel
 /// @brief Virtual transport endpoint bound to a parent TransportMultiplexer.
@@ -23,6 +113,7 @@ public:
 
     ~Channel() override
     {
+        close();
         if (auto p = m_parent.lock()) {
             p->unregisterChannel(m_id);
         }
@@ -45,6 +136,14 @@ public:
     {
         // Channel-level close leaves underlying physical transport operational for other peers
         m_closed.store(true);
+        std::shared_ptr<ChannelGate> gate;
+        {
+            std::scoped_lock lock(m_mutex);
+            gate = m_gate;
+        }
+        if (gate) {
+            gate->close();
+        }
     }
 
     [[nodiscard]] bool isOpen() const noexcept override
@@ -68,14 +167,86 @@ public:
 
     void setDataCallback(DataReceivedCallback callback) override
     {
-        std::scoped_lock lock(m_mutex);
-        m_dataCallback = std::move(callback);
+        std::shared_ptr<ChannelGate> oldGate;
+        {
+            std::scoped_lock lock(m_mutex);
+            oldGate = m_gate;
+            m_dataCallback = std::move(callback);
+            m_gate = std::make_shared<ChannelGate>();
+        }
+        if (oldGate) {
+            oldGate->close();
+        }
     }
 
     void setStateCallback(StateChangedCallback callback) override
     {
-        std::scoped_lock lock(m_mutex);
-        m_stateCallback = std::move(callback);
+        std::shared_ptr<ChannelGate> oldGate;
+        {
+            std::scoped_lock lock(m_mutex);
+            oldGate = m_gate;
+            m_stateCallback = std::move(callback);
+            m_gate = std::make_shared<ChannelGate>();
+        }
+        if (oldGate) {
+            oldGate->close();
+        }
+    }
+
+    void deliverData(const std::vector<std::uint8_t>& data)
+    {
+        if (m_closed.load()) {
+            return;
+        }
+        DataReceivedCallback cb;
+        std::shared_ptr<ChannelGate> gate;
+        {
+            std::scoped_lock lock(m_mutex);
+            cb = m_dataCallback;
+            gate = m_gate;
+        }
+        if (!cb || !gate) {
+            return;
+        }
+        const ChannelGate::Pass pass(*gate);
+        if (!pass) {
+            return;
+        }
+        try {
+            cb(data);
+        } catch (const std::exception& e) {
+            LOG(WARNING) << "TransportMultiplexer: exception in channel data callback: " << e.what();
+        } catch (...) {
+            LOG(WARNING) << "TransportMultiplexer: unknown exception in channel data callback";
+        }
+    }
+
+    void deliverState(TransportState state, const std::string& errorMsg)
+    {
+        if (m_closed.load()) {
+            return;
+        }
+        StateChangedCallback cb;
+        std::shared_ptr<ChannelGate> gate;
+        {
+            std::scoped_lock lock(m_mutex);
+            cb = m_stateCallback;
+            gate = m_gate;
+        }
+        if (!cb || !gate) {
+            return;
+        }
+        const ChannelGate::Pass pass(*gate);
+        if (!pass) {
+            return;
+        }
+        try {
+            cb(state, errorMsg);
+        } catch (const std::exception& e) {
+            LOG(WARNING) << "TransportMultiplexer: exception in channel state callback: " << e.what();
+        } catch (...) {
+            LOG(WARNING) << "TransportMultiplexer: unknown exception in channel state callback";
+        }
     }
 
     bool setBaudRate(std::uint32_t baudRate) override
@@ -114,18 +285,6 @@ public:
         return m_id;
     }
 
-    [[nodiscard]] DataReceivedCallback getDataCallback() const
-    {
-        std::scoped_lock lock(m_mutex);
-        return m_dataCallback;
-    }
-
-    [[nodiscard]] StateChangedCallback getStateCallback() const
-    {
-        std::scoped_lock lock(m_mutex);
-        return m_stateCallback;
-    }
-
 private:
     std::weak_ptr<TransportMultiplexer> m_parent {};
     std::shared_ptr<ITransport> m_underlying {};
@@ -135,6 +294,7 @@ private:
     mutable std::mutex m_mutex {};
     DataReceivedCallback m_dataCallback {};
     StateChangedCallback m_stateCallback {};
+    std::shared_ptr<ChannelGate> m_gate { std::make_shared<ChannelGate>() };
 };
 
 TransportMultiplexer::TransportMultiplexer(std::shared_ptr<ITransport> underlying)
@@ -237,15 +397,12 @@ void TransportMultiplexer::unregisterChannel(std::uint64_t channelId)
 
 void TransportMultiplexer::onDataReceived(const std::vector<std::uint8_t>& data)
 {
-    std::vector<ITransport::DataReceivedCallback> callbacks;
+    std::vector<std::shared_ptr<Channel>> activeChannels;
     {
         std::scoped_lock lock(m_channelsMutex);
         for (auto it = m_channels.begin(); it != m_channels.end();) {
             if (auto ch = it->lock()) {
-                auto cb = ch->getDataCallback();
-                if (cb) {
-                    callbacks.push_back(std::move(cb));
-                }
+                activeChannels.push_back(std::move(ch));
                 ++it;
             } else {
                 it = m_channels.erase(it);
@@ -253,22 +410,19 @@ void TransportMultiplexer::onDataReceived(const std::vector<std::uint8_t>& data)
         }
     }
 
-    for (const auto& cb : callbacks) {
-        cb(data);
+    for (const auto& ch : activeChannels) {
+        ch->deliverData(data);
     }
 }
 
 void TransportMultiplexer::onStateChanged(TransportState state, const std::string& errorMsg)
 {
-    std::vector<ITransport::StateChangedCallback> callbacks;
+    std::vector<std::shared_ptr<Channel>> activeChannels;
     {
         std::scoped_lock lock(m_channelsMutex);
         for (auto it = m_channels.begin(); it != m_channels.end();) {
             if (auto ch = it->lock()) {
-                auto cb = ch->getStateCallback();
-                if (cb) {
-                    callbacks.push_back(std::move(cb));
-                }
+                activeChannels.push_back(std::move(ch));
                 ++it;
             } else {
                 it = m_channels.erase(it);
@@ -276,8 +430,8 @@ void TransportMultiplexer::onStateChanged(TransportState state, const std::strin
         }
     }
 
-    for (const auto& cb : callbacks) {
-        cb(state, errorMsg);
+    for (const auto& ch : activeChannels) {
+        ch->deliverState(state, errorMsg);
     }
 }
 

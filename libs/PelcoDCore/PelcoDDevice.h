@@ -175,6 +175,10 @@ public:
     /// @return Aggregated snapshot containing generic and kernel-level metrics.
     [[nodiscard]] Transport::TransportStatsSnapshot getTransportStats() const;
 
+    /// @brief Creates an independent virtual transport channel for concurrent services (e.g. BusScanner).
+    /// @return Shared pointer to an independent ITransport channel, or nullptr if transport is null.
+    [[nodiscard]] std::shared_ptr<ITransport> createVirtualChannel();
+
     /// @brief Captures real-time Pelco-D protocol telemetry and error counters.
     /// @return Protocol statistics snapshot with query latency and framing metrics.
     [[nodiscard]] PelcoDProtocolStats getProtocolStats() const;

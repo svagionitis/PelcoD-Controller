@@ -213,6 +213,10 @@ public:
     /// @return Transport telemetry snapshot.
     [[nodiscard]] Transport::TransportStatsSnapshot getTransportStats() const;
 
+    /// @brief Creates an independent virtual transport channel for concurrent services (e.g. BusScanner).
+    /// @return Shared pointer to an independent ITransport channel, or nullptr if transport is null.
+    [[nodiscard]] std::shared_ptr<ITransport> createVirtualChannel();
+
 private:
     void workerLoop();
     void onDataReceived(const std::vector<std::uint8_t>& data);
@@ -226,8 +230,11 @@ private:
     void notifyQueryFailed(
         const std::string& queryTag, std::chrono::microseconds durationUs = std::chrono::microseconds { 0 });
     void notifyCommandDropped(const std::vector<std::uint8_t>& frame, SendResult reason);
+    [[nodiscard]] std::shared_ptr<ITransport> activeTransport() const noexcept;
 
     std::shared_ptr<ITransport> m_transport;
+    std::shared_ptr<TransportMultiplexer> m_multiplexer {};
+    std::shared_ptr<ITransport> m_sessionChannel {};
     std::atomic<std::uint8_t> m_address { 1U };
     std::atomic<bool> m_running { false };
     std::atomic<bool> m_connected { false };

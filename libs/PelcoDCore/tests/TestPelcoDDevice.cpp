@@ -1448,4 +1448,69 @@ TEST(PelcoDDeviceStateModel, CommandDroppedCallbackOnRetryExhaustion)
     device.stop();
 }
 
+/// @brief Verify A4: PelcoDDevice::createVirtualChannel transparently multiplexes underlying transport.
+TEST(PelcoDDeviceFacade, DeviceProvidesMultiplexedChannel)
+{
+    auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(std::uint8_t { 1U });
+    PelcoD::PelcoDDevice device { mock, 1U };
+
+    auto auxChan = device.createVirtualChannel();
+    ASSERT_NE(auxChan, nullptr);
+
+    ASSERT_TRUE(device.start());
+    EXPECT_TRUE(device.isConnected());
+
+    std::atomic<int> auxRxCount { 0 };
+    std::vector<std::uint8_t> auxRxData;
+    auxChan->setDataCallback([&](const std::vector<std::uint8_t>& data) {
+        auxRxData = data;
+        auxRxCount.fetch_add(1);
+    });
+
+    std::atomic<int> deviceRxCount { 0 };
+    auto conn = device.addTrafficCallback([&](bool isTx, const std::vector<std::uint8_t>&) {
+        if (!isTx) {
+            deviceRxCount.fetch_add(1);
+        }
+    });
+
+    // Send command via device
+    EXPECT_EQ(device.panLeft(0x20), PelcoD::SendResult::Success);
+
+    // Send probe via auxChan
+    const std::vector<std::uint8_t> probeFrame = { 0xFF, 0x02, 0x00, 0x51, 0x00, 0x00, 0x53 };
+    EXPECT_TRUE(auxChan->sendData(probeFrame));
+
+    // Simulate incoming frame on underlying transport
+    const std::vector<std::uint8_t> responseFrame = { 0xFF, 0x01, 0x00, 0x59, 0x00, 0x00, 0x5A };
+    mock->injectRxData(responseFrame);
+
+    auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(1000);
+    while ((auxRxCount.load() < 1 || deviceRxCount.load() < 1) && std::chrono::steady_clock::now() < deadline) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+
+    EXPECT_GE(auxRxCount.load(), 1);
+    EXPECT_GE(deviceRxCount.load(), 1);
+    EXPECT_EQ(auxRxData, responseFrame);
+
+    // Close auxChan: device remains operational
+    auxChan->close();
+    EXPECT_FALSE(auxChan->isOpen());
+    EXPECT_TRUE(device.isConnected());
+    const int auxCountAtClose = auxRxCount.load();
+
+    // Inject another frame: only device receives it
+    const int deviceCountBeforeInject = deviceRxCount.load();
+    mock->injectRxData(responseFrame);
+    deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(500);
+    while (deviceRxCount.load() <= deviceCountBeforeInject && std::chrono::steady_clock::now() < deadline) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+    EXPECT_GT(deviceRxCount.load(), deviceCountBeforeInject);
+    EXPECT_EQ(auxRxCount.load(), auxCountAtClose); // auxChan received nothing after close
+
+    device.stop();
+}
+
 } // namespace

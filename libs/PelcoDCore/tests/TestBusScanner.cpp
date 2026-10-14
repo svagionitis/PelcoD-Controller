@@ -11,6 +11,7 @@
 #include <atomic>
 #include <chrono>
 #include <cstdint>
+#include <future>
 #include <memory>
 #include <mutex>
 #include <thread>
@@ -599,9 +600,7 @@ TEST(BusScannerTest, EchoedProbeIgnoredAndNotDiscovered)
         std::scoped_lock lock(discMutex);
         discovered.push_back(dev);
     });
-    scanner.setScanFinishedCallback([&](const std::vector<PelcoD::DiscoveredDevice>&) {
-        finished.store(true);
-    });
+    scanner.setScanFinishedCallback([&](const std::vector<PelcoD::DiscoveredDevice>&) { finished.store(true); });
 
     ASSERT_TRUE(scanner.startScan(cfg));
     while (scanner.isScanning() || !finished.load()) {
@@ -638,9 +637,7 @@ TEST(BusScannerTest, ValidPanResponseDiscoveredDespiteEcho)
     cfg.interCommandDelayMs = 2U;
 
     std::atomic<bool> finished { false };
-    scanner.setScanFinishedCallback([&](const std::vector<PelcoD::DiscoveredDevice>&) {
-        finished.store(true);
-    });
+    scanner.setScanFinishedCallback([&](const std::vector<PelcoD::DiscoveredDevice>&) { finished.store(true); });
 
     ASSERT_TRUE(scanner.startScan(cfg));
     while (scanner.isScanning() || !finished.load()) {
@@ -677,9 +674,7 @@ TEST(BusScannerTest, TransportCallbackDetachedOnStopAndDtor)
     // Scanner is now destroyed; sending incoming data must not access dangling callback
     EXPECT_FALSE(transport->hasDataCallback()) << "Transport data callback not cleared on dtor!";
     const auto dummyFrame = PelcoD::ProtocolBuilder::buildQueryPan(1U);
-    EXPECT_NO_THROW({
-        transport->sendData(dummyFrame);
-    });
+    EXPECT_NO_THROW({ transport->sendData(dummyFrame); });
 }
 
 /// @brief Verify H7c: re-entrant access to scanner methods from state callback does not deadlock.
@@ -765,9 +760,7 @@ TEST(BusScannerTest, SharedTransportWithPelcoDDeviceViaMultiplexer)
     cfg.interCommandDelayMs = 2U;
 
     std::atomic<bool> scanFinished { false };
-    scanner.setScanFinishedCallback([&](const std::vector<PelcoD::DiscoveredDevice>&) {
-        scanFinished.store(true);
-    });
+    scanner.setScanFinishedCallback([&](const std::vector<PelcoD::DiscoveredDevice>&) { scanFinished.store(true); });
 
     ASSERT_TRUE(scanner.startScan(cfg));
     while (scanner.isScanning() || !scanFinished.load()) {
@@ -811,9 +804,7 @@ TEST(BusScannerTest, FailedBaudRateSwitchSkipsProbingSafely)
     cfg.interCommandDelayMs = 2U;
 
     std::atomic<bool> finished { false };
-    scanner.setScanFinishedCallback([&](const std::vector<PelcoD::DiscoveredDevice>&) {
-        finished.store(true);
-    });
+    scanner.setScanFinishedCallback([&](const std::vector<PelcoD::DiscoveredDevice>&) { finished.store(true); });
 
     ASSERT_TRUE(scanner.startScan(cfg));
     while (scanner.isScanning() || !finished.load()) {
@@ -847,5 +838,100 @@ TEST(BusScannerTest, BaudRateRestoredViaRaiiOnEarlyStop)
     EXPECT_EQ(transport->getBaudRate(), 9600U);
 }
 
-} // namespace
+/// @brief Verify A5: disconnecting BusScanner callback acts as barrier blocking until in-flight callback finishes.
+TEST(BusScannerTest, BusScannerCallbackDisconnectBlocks)
+{
+    const std::uint8_t targetAddr = 1U;
+    auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(targetAddr);
+    PelcoD::BusScanner scanner(mock);
 
+    std::promise<void> enteredPromise {};
+    auto entered = enteredPromise.get_future();
+    std::promise<void> releasePromise {};
+    const std::shared_future<void> release { releasePromise.get_future().share() };
+    std::atomic<bool> cbFinished { false };
+
+    PelcoD::Connection conn
+        = scanner.addDeviceDiscoveredCallback([&enteredPromise, release, &cbFinished](const PelcoD::DiscoveredDevice&) {
+              enteredPromise.set_value();
+              static_cast<void>(release.wait_for(std::chrono::seconds { 2 }));
+              cbFinished.store(true);
+          });
+
+    PelcoD::ScanConfig cfg;
+    cfg.startAddress = 1U;
+    cfg.endAddress = 2U;
+    cfg.timeoutMs = 50U;
+    cfg.interCommandDelayMs = 2U;
+
+    ASSERT_TRUE(scanner.startScan(cfg));
+    ASSERT_EQ(entered.wait_for(std::chrono::seconds { 2 }), std::future_status::ready);
+
+    std::atomic<bool> disconnectDone { false };
+    std::thread disconnector([&conn, &disconnectDone]() {
+        conn.disconnect();
+        disconnectDone.store(true);
+    });
+
+    std::this_thread::sleep_for(std::chrono::milliseconds { 50 });
+    EXPECT_FALSE(disconnectDone.load());
+
+    releasePromise.set_value();
+    disconnector.join();
+
+    EXPECT_TRUE(disconnectDone.load());
+    EXPECT_TRUE(cbFinished.load());
+
+    scanner.stopScan();
+}
+
+/// @brief Verify A5: multiple concurrent observers can subscribe to BusScanner via Connection.
+TEST(BusScannerTest, BusScannerModernConnectionsMultiObserver)
+{
+    const std::uint8_t targetAddr = 1U;
+    auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(targetAddr);
+    PelcoD::BusScanner scanner(mock);
+
+    std::atomic<int> countA { 0 };
+    std::atomic<int> countB { 0 };
+
+    PelcoD::Connection connA
+        = scanner.addDeviceDiscoveredCallback([&countA](const PelcoD::DiscoveredDevice&) { countA.fetch_add(1); });
+    PelcoD::Connection connB
+        = scanner.addDeviceDiscoveredCallback([&countB](const PelcoD::DiscoveredDevice&) { countB.fetch_add(1); });
+
+    EXPECT_TRUE(connA.isConnected());
+    EXPECT_TRUE(connB.isConnected());
+
+    PelcoD::ScanConfig cfg;
+    cfg.startAddress = 1U;
+    cfg.endAddress = 2U;
+    cfg.timeoutMs = 20U;
+    cfg.interCommandDelayMs = 2U;
+
+    ASSERT_TRUE(scanner.startScan(cfg));
+    while (scanner.isScanning()) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(5));
+    }
+
+    EXPECT_EQ(countA.load(), 1);
+    EXPECT_EQ(countB.load(), 1);
+
+    // Disconnect A only
+    connA.disconnect();
+    EXPECT_FALSE(connA.isConnected());
+    EXPECT_TRUE(connB.isConnected());
+
+    ASSERT_TRUE(scanner.startScan(cfg));
+    while (scanner.isScanning()) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(5));
+    }
+
+    EXPECT_EQ(countA.load(), 1);
+    EXPECT_EQ(countB.load(), 2);
+
+    connB.disconnect();
+    EXPECT_FALSE(connB.isConnected());
+}
+
+} // namespace

@@ -29,13 +29,19 @@ PelcoDSession::~PelcoDSession()
     stop();
 }
 
+std::shared_ptr<ITransport> PelcoDSession::activeTransport() const noexcept
+{
+    return m_sessionChannel ? m_sessionChannel : m_transport;
+}
+
 bool PelcoDSession::start()
 {
     std::unique_lock<std::recursive_mutex> lock(m_lifecycleMutex);
     if (m_running.load()) {
         return true;
     }
-    if (!m_transport) {
+    auto transport = activeTransport();
+    if (!transport) {
         LOG(ERROR) << "PelcoDSession::start: No transport configured.";
         return false;
     }
@@ -48,22 +54,22 @@ bool PelcoDSession::start()
     m_rxGate = rxGate;
 
     try {
-        if (!m_transport->isOpen()) {
-            if (!m_transport->open()) {
+        if (!transport->isOpen()) {
+            if (!transport->open()) {
                 LOG(ERROR) << "PelcoDSession::start: Failed to open transport.";
                 m_rxGate.reset();
                 return false;
             }
         }
 
-        m_transport->setDataCallback([this, rxGate](const std::vector<std::uint8_t>& data) {
+        transport->setDataCallback([this, rxGate](const std::vector<std::uint8_t>& data) {
             const CallbackGate::Pass pass { *rxGate };
             if (pass) {
                 onDataReceived(data);
             }
         });
 
-        m_transport->setStateCallback([this, rxGate](TransportState state, const std::string& msg) {
+        transport->setStateCallback([this, rxGate](TransportState state, const std::string& msg) {
             const CallbackGate::Pass pass { *rxGate };
             if (pass) {
                 onTransportState(state, msg);
@@ -71,7 +77,7 @@ bool PelcoDSession::start()
         });
 
         m_running.store(true);
-        m_connected.store(m_transport->isOpen());
+        m_connected.store(transport->isOpen());
         if (!m_asyncWatchdog) {
             m_asyncWatchdog = std::make_unique<AsyncWatchdog>();
         }
@@ -86,9 +92,9 @@ bool PelcoDSession::start()
             m_asyncWatchdog->shutdown();
             m_asyncWatchdog.reset();
         }
-        if (m_transport) {
-            m_transport->setDataCallback(nullptr);
-            m_transport->setStateCallback(nullptr);
+        if (transport) {
+            transport->setDataCallback(nullptr);
+            transport->setStateCallback(nullptr);
         }
         return false;
     }
@@ -104,18 +110,20 @@ void PelcoDSession::stop()
         lifecycleLock.lock();
     }
 
-    if (m_transport && m_transport->isOpen()) {
+    auto transport = activeTransport();
+
+    if (transport && transport->isOpen()) {
         const auto stopFrame = ProtocolBuilder::buildStop(m_address.load(std::memory_order_relaxed));
-        static_cast<void>(m_transport->sendData(stopFrame));
+        static_cast<void>(transport->sendData(stopFrame));
     }
 
     if (!m_running.load() && !m_workerThread.joinable()) {
-        if (m_transport) {
-            if (m_transport->isOpen()) {
-                m_transport->close();
+        if (transport) {
+            if (transport->isOpen()) {
+                transport->close();
             }
-            m_transport->setDataCallback(nullptr);
-            m_transport->setStateCallback(nullptr);
+            transport->setDataCallback(nullptr);
+            transport->setStateCallback(nullptr);
         }
         return;
     }
@@ -135,10 +143,10 @@ void PelcoDSession::stop()
         m_asyncWatchdog.reset();
     }
 
-    if (m_transport) {
-        m_transport->setDataCallback(nullptr);
-        m_transport->setStateCallback(nullptr);
-        m_transport->close();
+    if (transport) {
+        transport->setDataCallback(nullptr);
+        transport->setStateCallback(nullptr);
+        transport->close();
     }
 
     m_rxGate.reset();
@@ -178,7 +186,8 @@ SendResult PelcoDSession::sendQueryFrame(const std::vector<std::uint8_t>& frame,
 SendResult PelcoDSession::enqueueCommand(
     const std::vector<std::uint8_t>& frame, QueryKind queryKind, CommandPriority priority)
 {
-    if (!m_running.load() || !m_transport || !m_transport->isOpen()) {
+    auto transport = activeTransport();
+    if (!m_running.load() || !transport || !transport->isOpen()) {
         if (isQueryExpected(queryKind)) {
             notifyQueryFailed(std::string(toQueryTagName(queryKind)));
         }
@@ -216,7 +225,8 @@ SendResult PelcoDSession::enqueueCommand(
 SendResult PelcoDSession::enqueueCommand(
     const std::vector<std::uint8_t>& frame, const std::string& queryTag, CommandPriority priority)
 {
-    if (!m_running.load() || !m_transport || !m_transport->isOpen()) {
+    auto transport = activeTransport();
+    if (!m_running.load() || !transport || !transport->isOpen()) {
         if (!queryTag.empty()) {
             notifyQueryFailed(queryTag);
         }
@@ -374,10 +384,45 @@ std::optional<EverestLimitId> PelcoDSession::getPendingLimitId() const noexcept
 
 Transport::TransportStatsSnapshot PelcoDSession::getTransportStats() const
 {
-    if (m_transport) {
-        return m_transport->getStats();
+    auto transport = activeTransport();
+    if (transport) {
+        return transport->getStats();
     }
     return Transport::TransportStatsSnapshot {};
+}
+
+std::shared_ptr<ITransport> PelcoDSession::createVirtualChannel()
+{
+    std::unique_lock<std::recursive_mutex> lifecycleLock { m_lifecycleMutex };
+    if (!m_transport) {
+        return nullptr;
+    }
+    if (!m_multiplexer) {
+        m_multiplexer = std::make_shared<TransportMultiplexer>(m_transport);
+        m_sessionChannel = m_multiplexer->createChannel();
+
+        if (m_running.load()) {
+            m_transport->setDataCallback(nullptr);
+            m_transport->setStateCallback(nullptr);
+
+            auto rxGate = m_rxGate;
+            if (rxGate) {
+                m_sessionChannel->setDataCallback([this, rxGate](const std::vector<std::uint8_t>& data) {
+                    const CallbackGate::Pass pass { *rxGate };
+                    if (pass) {
+                        onDataReceived(data);
+                    }
+                });
+                m_sessionChannel->setStateCallback([this, rxGate](TransportState state, const std::string& msg) {
+                    const CallbackGate::Pass pass { *rxGate };
+                    if (pass) {
+                        onTransportState(state, msg);
+                    }
+                });
+            }
+        }
+    }
+    return m_multiplexer->createChannel();
 }
 
 void PelcoDSession::markConnected()
@@ -620,7 +665,8 @@ void PelcoDSession::workerLoop()
         }
 
         const auto sendStartTime = std::chrono::steady_clock::now();
-        if (m_transport && m_transport->isOpen()) {
+        auto transport = activeTransport();
+        if (transport && transport->isOpen()) {
             const bool isQuery = isQueryExpected(item.queryKind) || !item.queryTag.empty();
             const std::string tagStr
                 = item.queryTag.empty() ? std::string(toQueryTagName(item.queryKind)) : item.queryTag;
@@ -633,7 +679,7 @@ void PelcoDSession::workerLoop()
                 m_awaitingResponse.store(true, std::memory_order_relaxed);
             }
 
-            const bool sendSuccess = m_transport->sendData(item.frame);
+            const bool sendSuccess = transport->sendData(item.frame);
             if (!sendSuccess) {
                 if (isQuery) {
                     std::scoped_lock lock(m_sessionMutex);

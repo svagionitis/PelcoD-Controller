@@ -7,9 +7,12 @@
 #include <gtest/gtest.h>
 
 #include <atomic>
+#include <chrono>
 #include <cstdint>
+#include <future>
 #include <memory>
 #include <mutex>
+#include <thread>
 #include <vector>
 
 namespace {
@@ -178,6 +181,104 @@ TEST(TransportMultiplexerTest, RejectBaudRateChangeWhenMultipleChannelsActive)
     // When only one channel remains active, baud rate changes are permitted
     chan2.reset();
     EXPECT_TRUE(chan1->setBaudRate(19200U));
+}
+
+/// @brief Verify SEI CERT ERR50-CPP/ERR51-CPP: throwing callback in one channel does not escape or crash peer channels.
+TEST(TransportMultiplexerTest, ThrowingCallbackDoesNotCrashMultiplexer)
+{
+    auto dummy = std::make_shared<DummyTransport>();
+    auto mux = std::make_shared<Transport::TransportMultiplexer>(dummy);
+
+    auto chan1 = mux->createChannel();
+    auto chan2 = mux->createChannel();
+
+    chan1->setDataCallback(
+        [](const std::vector<std::uint8_t>&) { throw std::runtime_error("Simulated subscriber crash"); });
+
+    std::vector<std::uint8_t> rx2;
+    chan2->setDataCallback([&rx2](const std::vector<std::uint8_t>& data) { rx2 = data; });
+
+    const std::vector<std::uint8_t> testPayload { 0xFF, 0x01, 0x00, 0x00, 0x00, 0x00, 0x01 };
+
+    // Invocation must NOT throw out of simulateRx and chan2 must receive the payload
+    EXPECT_NO_THROW({ dummy->simulateRx(testPayload); });
+    EXPECT_EQ(rx2, testPayload);
+}
+
+/// @brief Verify virtual channel close() is isolated and leaves peer channels and underlying transport operational.
+TEST(TransportMultiplexerTest, ChannelCloseIsIsolated)
+{
+    auto dummy = std::make_shared<DummyTransport>();
+    auto mux = std::make_shared<Transport::TransportMultiplexer>(dummy);
+
+    auto chan1 = mux->createChannel();
+    auto chan2 = mux->createChannel();
+
+    EXPECT_TRUE(chan1->isOpen());
+    EXPECT_TRUE(chan2->isOpen());
+    EXPECT_TRUE(dummy->isOpen());
+
+    std::vector<std::uint8_t> rx1;
+    std::vector<std::uint8_t> rx2;
+    chan1->setDataCallback([&rx1](const std::vector<std::uint8_t>& data) { rx1 = data; });
+    chan2->setDataCallback([&rx2](const std::vector<std::uint8_t>& data) { rx2 = data; });
+
+    // Close channel 1
+    chan1->close();
+    EXPECT_FALSE(chan1->isOpen());
+    EXPECT_TRUE(chan2->isOpen());
+    EXPECT_TRUE(dummy->isOpen());
+
+    const std::vector<std::uint8_t> testPayload { 0xFF, 0x01, 0x00, 0x01, 0x00, 0x00, 0x02 };
+    dummy->simulateRx(testPayload);
+
+    EXPECT_TRUE(rx1.empty()); // chan1 must receive nothing after close
+    EXPECT_EQ(rx2, testPayload); // chan2 must receive data normally
+}
+
+/// @brief Verify finding A5 / channel barrier: setDataCallback(nullptr) or close() waits for in-flight callbacks.
+TEST(TransportMultiplexerTest, ChannelDisconnectBlocksUntilInFlightDone)
+{
+    auto dummy = std::make_shared<DummyTransport>();
+    auto mux = std::make_shared<Transport::TransportMultiplexer>(dummy);
+    auto chan = mux->createChannel();
+
+    std::promise<void> enteredPromise;
+    auto enteredFuture = enteredPromise.get_future();
+    std::promise<void> releasePromise;
+    auto releaseFuture = releasePromise.get_future().share();
+    std::atomic<bool> callbackFinished { false };
+
+    chan->setDataCallback([&enteredPromise, releaseFuture, &callbackFinished](const std::vector<std::uint8_t>&) {
+        enteredPromise.set_value();
+        static_cast<void>(releaseFuture.wait_for(std::chrono::seconds { 2 }));
+        callbackFinished.store(true);
+    });
+
+    const std::vector<std::uint8_t> payload { 0x01, 0x02, 0x03 };
+    std::thread rxThread([dummy, payload]() { dummy->simulateRx(payload); });
+
+    // Wait until callback is running
+    ASSERT_EQ(enteredFuture.wait_for(std::chrono::seconds { 2 }), std::future_status::ready);
+
+    std::atomic<bool> disconnectDone { false };
+    std::thread disconnector([&chan, &disconnectDone]() {
+        chan->setDataCallback(nullptr);
+        disconnectDone.store(true);
+    });
+
+    // Verify disconnector is blocking while callback is in flight
+    std::this_thread::sleep_for(std::chrono::milliseconds { 80 });
+    EXPECT_FALSE(disconnectDone.load());
+
+    // Release callback
+    releasePromise.set_value();
+
+    disconnector.join();
+    rxThread.join();
+
+    EXPECT_TRUE(disconnectDone.load());
+    EXPECT_TRUE(callbackFinished.load());
 }
 
 } // namespace

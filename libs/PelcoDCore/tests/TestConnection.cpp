@@ -1,6 +1,7 @@
 /// @file TestConnection.cpp
 /// @brief Google Test suite for Connection, ScopedConnection, and callback lifecycle management.
 
+#include "CallbackDispatcher.h"
 #include "Connection.h"
 #include "FujinonSX800Device.h"
 #include "MockPelcoDDevice.h"
@@ -587,6 +588,117 @@ TEST(ConnectionTest, ClearCallbacksDrainsCb)
     EXPECT_TRUE(cbFinished.load());
 
     device.stop();
+}
+
+/// @brief Verify ScopedConnectionList destruction blocks until all in-flight callbacks finish.
+TEST(ConnectionTest, ScopedConnectionListDestructionDrainsAllGates)
+{
+    auto transport = std::make_shared<ControlledTransport>();
+    PelcoD::PelcoDDevice device(transport, static_cast<std::uint8_t>(1U));
+    ASSERT_TRUE(device.start());
+
+    std::promise<void> enteredPromise {};
+    auto entered = enteredPromise.get_future();
+    std::promise<void> releasePromise {};
+    const std::shared_future<void> release { releasePromise.get_future().share() };
+    std::atomic<bool> cbFinished { false };
+
+    std::thread listThread([&]() {
+        PelcoD::ScopedConnectionList list;
+        list += device.addTrafficCallback(
+            [&enteredPromise, release, &cbFinished](bool, const std::vector<std::uint8_t>&) {
+                enteredPromise.set_value();
+                static_cast<void>(release.wait_for(std::chrono::seconds { 2 }));
+                cbFinished.store(true);
+            });
+
+        ASSERT_EQ(entered.wait_for(std::chrono::seconds { 2 }), std::future_status::ready);
+        // Leaving scope here destroys list and blocks until releasePromise is set
+    });
+
+    const std::vector<std::uint8_t> frame = { 0xFFU, 0x01U, 0x00U, 0x00U, 0x00U, 0x00U, 0x01U };
+    std::thread rxThread([transport, frame]() { transport->inject(frame); });
+
+    std::this_thread::sleep_for(std::chrono::milliseconds { 80 });
+    EXPECT_FALSE(cbFinished.load());
+
+    releasePromise.set_value();
+    listThread.join();
+    rxThread.join();
+
+    EXPECT_TRUE(cbFinished.load());
+    device.stop();
+}
+
+/// @brief Verify that disconnect() on every CallbackDispatcher channel blocks until in-flight callback finishes.
+TEST(ConnectionTest, AllDispatcherChannelsBlockOnDisconnect)
+{
+    auto dispatcher = std::make_shared<PelcoD::CallbackDispatcher>();
+
+    auto testChannelBarrier = [dispatcher](auto addCb, auto notifyFn) {
+        std::promise<void> enteredPromise {};
+        auto entered = enteredPromise.get_future();
+        std::promise<void> releasePromise {};
+        const std::shared_future<void> release { releasePromise.get_future().share() };
+        std::atomic<bool> cbFinished { false };
+
+        PelcoD::Connection conn = addCb([&enteredPromise, release, &cbFinished](auto&&...) {
+            enteredPromise.set_value();
+            static_cast<void>(release.wait_for(std::chrono::seconds { 2 }));
+            cbFinished.store(true);
+        });
+
+        std::thread notifyThread([notifyFn]() { notifyFn(); });
+        ASSERT_EQ(entered.wait_for(std::chrono::seconds { 2 }), std::future_status::ready);
+
+        std::atomic<bool> disconnectDone { false };
+        std::thread disconnector([&conn, &disconnectDone]() {
+            conn.disconnect();
+            disconnectDone.store(true);
+        });
+
+        std::this_thread::sleep_for(std::chrono::milliseconds { 50 });
+        EXPECT_FALSE(disconnectDone.load());
+
+        releasePromise.set_value();
+        disconnector.join();
+        notifyThread.join();
+
+        EXPECT_TRUE(disconnectDone.load());
+        EXPECT_TRUE(cbFinished.load());
+    };
+
+    // 1. Status
+    testChannelBarrier([&](auto cb) { return dispatcher->addStatusCallback(cb); },
+        [&]() { dispatcher->notifyStatus(PelcoD::DeviceStatus {}); });
+
+    // 2. Traffic
+    testChannelBarrier([&](auto cb) { return dispatcher->addTrafficCallback(cb); },
+        [&]() {
+            dispatcher->notifyTraffic(true, { 0xFF, 0x01 });
+        });
+
+    // 3. Timeout
+    testChannelBarrier(
+        [&](auto cb) { return dispatcher->addTimeoutCallback(cb); }, [&]() { dispatcher->notifyTimeout("query1"); });
+
+    // 4. QueryCompleted
+    testChannelBarrier([&](auto cb) { return dispatcher->addQueryCompletedCallback(cb); },
+        [&]() { dispatcher->notifyQueryCompleted("query1", true, PelcoD::DeviceStatus {}); });
+
+    // 5. Retry
+    testChannelBarrier([&](auto cb) { return dispatcher->addRetryCallback(cb); },
+        [&]() { dispatcher->notifyRetry("query1", 1U, 3U, std::chrono::milliseconds { 10 }); });
+
+    // 6. QueryLatency
+    testChannelBarrier([&](auto cb) { return dispatcher->addQueryLatencyCallback(cb); },
+        [&]() { dispatcher->notifyQueryLatency("query1", std::chrono::microseconds { 100 }, true); });
+
+    // 7. CommandDropped
+    testChannelBarrier([&](auto cb) { return dispatcher->addCommandDroppedCallback(cb); },
+        [&]() {
+            dispatcher->notifyCommandDropped({ 0xFF, 0x01 }, PelcoD::SendResult::QueueFull);
+        });
 }
 
 } // namespace

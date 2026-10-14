@@ -4,6 +4,7 @@
 /// @brief Multi-drop RS-485 bus address auto-discovery scanner.
 
 #include "CallbackGate.h"
+#include "Connection.h"
 #include "ITransport.h"
 #include "PelcoDFrame.h"
 #include "ProtocolBuilder.h"
@@ -126,31 +127,108 @@ public:
 
     /// @brief Register callback invoked when a device is successfully identified.
     /// @param[in] cb Callback receiving DiscoveredDevice descriptor.
-    void setDeviceDiscoveredCallback(DeviceDiscoveredCallback cb);
+    /// @return Connection object managing callback lifecycle.
+    [[nodiscard]] Connection addDeviceDiscoveredCallback(DeviceDiscoveredCallback cb);
 
     /// @brief Register callback invoked after probing each bus address.
     /// @param[in] cb Callback receiving current address, scanned count, and total count.
-    void setScanProgressCallback(ScanProgressCallback cb);
+    /// @return Connection object managing callback lifecycle.
+    [[nodiscard]] Connection addScanProgressCallback(ScanProgressCallback cb);
 
     /// @brief Register callback invoked when the scanner switches to a new baud rate during multi-baud discovery.
     /// @param[in] cb Callback receiving active baud rate in bps.
-    void setBaudRateChangedCallback(BaudRateChangedCallback cb);
+    /// @return Connection object managing callback lifecycle.
+    [[nodiscard]] Connection addBaudRateChangedCallback(BaudRateChangedCallback cb);
 
     /// @brief Register callback invoked after probing each bus address, reporting active baud rate.
     /// @param[in] cb Callback receiving current baud rate, current address, scanned count, and total count.
-    void setMultiBaudProgressCallback(MultiBaudProgressCallback cb);
+    /// @return Connection object managing callback lifecycle.
+    [[nodiscard]] Connection addMultiBaudProgressCallback(MultiBaudProgressCallback cb);
 
     /// @brief Register callback invoked on scan operational state transitions.
     /// @param[in] cb Callback receiving new ScanState value.
-    void setScanStateChangedCallback(ScanStateChangedCallback cb);
+    /// @return Connection object managing callback lifecycle.
+    [[nodiscard]] Connection addScanStateChangedCallback(ScanStateChangedCallback cb);
 
     /// @brief Register callback invoked when address range probe has fully completed.
     /// @param[in] cb Callback receiving final list of all discovered devices.
+    /// @return Connection object managing callback lifecycle.
+    [[nodiscard]] Connection addScanFinishedCallback(ScanFinishedCallback cb);
+
+    /// @brief Register legacy callback invoked when a device is successfully identified.
+    /// @param[in] cb Callback receiving DiscoveredDevice descriptor.
+    void setDeviceDiscoveredCallback(DeviceDiscoveredCallback cb);
+
+    /// @brief Register legacy callback invoked after probing each bus address.
+    /// @param[in] cb Callback receiving current address, scanned count, and total count.
+    void setScanProgressCallback(ScanProgressCallback cb);
+
+    /// @brief Register legacy callback invoked when the scanner switches to a new baud rate during multi-baud
+    /// discovery.
+    /// @param[in] cb Callback receiving active baud rate in bps.
+    void setBaudRateChangedCallback(BaudRateChangedCallback cb);
+
+    /// @brief Register legacy callback invoked after probing each bus address, reporting active baud rate.
+    /// @param[in] cb Callback receiving current baud rate, current address, scanned count, and total count.
+    void setMultiBaudProgressCallback(MultiBaudProgressCallback cb);
+
+    /// @brief Register legacy callback invoked on scan operational state transitions.
+    /// @param[in] cb Callback receiving new ScanState value.
+    void setScanStateChangedCallback(ScanStateChangedCallback cb);
+
+    /// @brief Register legacy callback invoked when address range probe has fully completed.
+    /// @param[in] cb Callback receiving final list of all discovered devices.
     void setScanFinishedCallback(ScanFinishedCallback cb);
 
+    /// @brief Unregister and drain all registered callbacks.
+    void clearCallbacks();
+
 private:
+    template <typename CallbackT> struct CallbackEntry {
+        std::uint64_t id { 0U };
+        CallbackT cb {};
+        std::shared_ptr<CallbackGate> gate {};
+    };
+
+    struct CallbackHub {
+        mutable std::mutex mutex {};
+        std::atomic<std::uint64_t> nextId { 1U };
+
+        std::shared_ptr<const std::vector<CallbackEntry<DeviceDiscoveredCallback>>> discoveredList {
+            std::make_shared<const std::vector<CallbackEntry<DeviceDiscoveredCallback>>>()
+        };
+        std::shared_ptr<const std::vector<CallbackEntry<ScanProgressCallback>>> progressList {
+            std::make_shared<const std::vector<CallbackEntry<ScanProgressCallback>>>()
+        };
+        std::shared_ptr<const std::vector<CallbackEntry<BaudRateChangedCallback>>> baudRateList {
+            std::make_shared<const std::vector<CallbackEntry<BaudRateChangedCallback>>>()
+        };
+        std::shared_ptr<const std::vector<CallbackEntry<MultiBaudProgressCallback>>> multiBaudProgressList {
+            std::make_shared<const std::vector<CallbackEntry<MultiBaudProgressCallback>>>()
+        };
+        std::shared_ptr<const std::vector<CallbackEntry<ScanStateChangedCallback>>> stateList {
+            std::make_shared<const std::vector<CallbackEntry<ScanStateChangedCallback>>>()
+        };
+        std::shared_ptr<const std::vector<CallbackEntry<ScanFinishedCallback>>> finishedList {
+            std::make_shared<const std::vector<CallbackEntry<ScanFinishedCallback>>>()
+        };
+    };
+
     void onDataReceived(const std::vector<std::uint8_t>& data);
     void scanWorker(ScanConfig config);
+    void notifyStateChanged(ScanState state);
+
+    template <typename CallbackT>
+    static bool removeEntry(std::shared_ptr<const std::vector<CallbackEntry<CallbackT>>>& list, std::uint64_t id,
+        std::mutex& mtx, std::shared_ptr<CallbackGate>& outGate);
+
+    template <typename CallbackT, typename... Args>
+    static void dispatchSafely(
+        const std::shared_ptr<const std::vector<CallbackEntry<CallbackT>>>& list, Args&&... args);
+
+    template <typename CallbackT>
+    [[nodiscard]] Connection registerHubCallback(
+        CallbackT cb, std::shared_ptr<const std::vector<CallbackEntry<CallbackT>>> CallbackHub::*listMember);
 
     mutable std::mutex m_mutex {};
     std::shared_ptr<ITransport> m_transport {};
@@ -174,12 +252,14 @@ private:
 
     std::vector<DiscoveredDevice> m_discoveredDevices {};
 
-    DeviceDiscoveredCallback m_discoveredCb {};
-    ScanProgressCallback m_progressCb {};
-    BaudRateChangedCallback m_baudRateCb {};
-    MultiBaudProgressCallback m_multiBaudProgressCb {};
-    ScanStateChangedCallback m_stateCb {};
-    ScanFinishedCallback m_finishedCb {};
+    std::shared_ptr<CallbackHub> m_hub { std::make_shared<CallbackHub>() };
+
+    ScopedConnection m_legacyDiscoveredConn {};
+    ScopedConnection m_legacyProgressConn {};
+    ScopedConnection m_legacyBaudRateConn {};
+    ScopedConnection m_legacyMultiBaudProgressConn {};
+    ScopedConnection m_legacyStateConn {};
+    ScopedConnection m_legacyFinishedConn {};
 };
 
 } // namespace PelcoD
