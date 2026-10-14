@@ -15,13 +15,7 @@ namespace PelcoD {
 
 /// @enum ResponseClassification
 /// @brief High-level classification of an incoming Pelco-D response frame.
-enum class ResponseClassification {
-    Unknown,
-    General,
-    ExtendedTelemetry,
-    StandardExtendedAckNak,
-    QueryReply
-};
+enum class ResponseClassification { Unknown, General, ExtendedTelemetry, StandardExtendedAckNak, QueryReply };
 
 /// @class ProtocolParser
 /// @brief Decodes Pelco-D 4-byte general, 7-byte extended, and 18-byte query responses.
@@ -92,8 +86,8 @@ public:
     /// @param[out] data1 First data byte (Major version or Build MSB).
     /// @param[out] data2 Second data byte (Minor version or Build LSB).
     /// @return True if opcode is 0x73 and frame is valid.
-    [[nodiscard]] static bool parseVersionInfo(const std::vector<std::uint8_t>& frame,
-        VersionInfoSubOpcode& subOpcode, std::uint8_t& data1, std::uint8_t& data2) noexcept;
+    [[nodiscard]] static bool parseVersionInfo(const std::vector<std::uint8_t>& frame, VersionInfoSubOpcode& subOpcode,
+        std::uint8_t& data1, std::uint8_t& data2) noexcept;
 
     /// @brief Decodes 7-byte Time Commands Macro response (opcode 0x77).
     /// @param[in] frame Raw response frame.
@@ -101,8 +95,8 @@ public:
     /// @param[out] data1 First data byte.
     /// @param[out] data2 Second data byte.
     /// @return True if opcode is 0x77 and frame is valid.
-    [[nodiscard]] static bool parseTimeResponse(const std::vector<std::uint8_t>& frame,
-        TimeSubOpcode& subOpcode, std::uint8_t& data1, std::uint8_t& data2) noexcept;
+    [[nodiscard]] static bool parseTimeResponse(const std::vector<std::uint8_t>& frame, TimeSubOpcode& subOpcode,
+        std::uint8_t& data1, std::uint8_t& data2) noexcept;
 
     /// @brief Decodes 7-byte Everest Macro response (opcode 0x75).
     /// @param[in] frame Raw response frame.
@@ -110,8 +104,8 @@ public:
     /// @param[out] data1 First data byte.
     /// @param[out] data2 Second data byte.
     /// @return True if opcode is 0x75 and frame is valid.
-    [[nodiscard]] static bool parseEverestResponse(const std::vector<std::uint8_t>& frame,
-        EverestSubOpcode& subOpcode, std::uint8_t& data1, std::uint8_t& data2) noexcept;
+    [[nodiscard]] static bool parseEverestResponse(const std::vector<std::uint8_t>& frame, EverestSubOpcode& subOpcode,
+        std::uint8_t& data1, std::uint8_t& data2) noexcept;
 
     /// @brief Decodes 7-byte Everest Limit response (opcode 0x75, sub 0x0D).
     /// @details Extracts 16-bit angle limit value in centidegrees (0.01 deg).
@@ -133,11 +127,8 @@ public:
     /// @param[in,out] info Device info to update.
     /// @param[in] limitId Optional limit identifier for Everest Limit responses.
     /// @return True if frame was recognized and applied.
-    [[nodiscard]] static bool updateStatus(
-        const std::vector<std::uint8_t>& frame,
-        DeviceStatus& status,
-        DeviceInfo& info,
-        std::optional<EverestLimitId> limitId = std::nullopt);
+    [[nodiscard]] static bool updateStatus(const std::vector<std::uint8_t>& frame, DeviceStatus& status,
+        DeviceInfo& info, std::optional<EverestLimitId> limitId = std::nullopt);
 
     /// @brief Disassembles a raw Pelco-D frame into a human-readable description string.
     /// @details Decodes standard PTZ directional movements, extended commands (presets,
@@ -152,12 +143,20 @@ public:
     /// @brief Classifies the type of an incoming response frame based on length and opcode.
     /// @param[in] frame Raw response frame.
     /// @return Category of the response frame.
-    [[nodiscard]] static ResponseClassification classifyResponse(
-        const std::vector<std::uint8_t>& frame) noexcept;
+    [[nodiscard]] static ResponseClassification classifyResponse(const std::vector<std::uint8_t>& frame) noexcept;
+
+    /// @brief Checks whether a received frame matches the expected QueryKind.
+    /// @details Eliminates stringly-typed query correlation defects (Finding A2) by verifying
+    ///          discrete response opcodes and sub-opcodes directly.
+    /// @param[in] kind Expected query category.
+    /// @param[in] frame Complete received frame.
+    /// @return True if frame definitively answers the expected query; false otherwise.
+    [[nodiscard]] static bool isResponseMatchingQuery(QueryKind kind, const std::vector<std::uint8_t>& frame) noexcept;
 
     /// @brief Checks whether a received frame matches the expected query tag.
-    /// @param[in] queryTag Name of query (e.g. "QueryPan", "QueryTilt", "QueryZoom", "QueryMagnification",
-    ///                     "QueryDeviceType", "QueryDiagnostics", "QueryGeneral").
+    /// @details Legacy string overload that validates against known QueryKind categories.
+    ///          Mistyped or unknown tags strictly return false instead of matching any response.
+    /// @param[in] queryTag Name of query (e.g. "QueryPan", "QueryTilt", "GenericQuery").
     /// @param[in] frame Incoming response frame.
     /// @return True if the frame satisfies the given query tag.
     [[nodiscard]] static bool isResponseMatchingQuery(

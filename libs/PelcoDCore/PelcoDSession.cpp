@@ -14,8 +14,10 @@ PelcoDSession::PelcoDSession(std::shared_ptr<ITransport> transport, std::uint8_t
     , m_asyncWatchdog { std::make_unique<AsyncWatchdog>() }
 {
     m_queue.setEvictionHandler([this](const CommandItem& evicted) {
-        if (!evicted.queryTag.empty()) {
-            notifyQueryFailed(evicted.queryTag);
+        if (isQueryExpected(evicted.queryKind) || !evicted.queryTag.empty()) {
+            const std::string tag
+                = evicted.queryTag.empty() ? std::string(toQueryTagName(evicted.queryKind)) : evicted.queryTag;
+            notifyQueryFailed(tag);
         }
     });
 }
@@ -161,9 +163,41 @@ SendResult PelcoDSession::sendRawFrame(const std::vector<std::uint8_t>& frame)
     return enqueueCommand(frame, "", CommandPriority::Normal);
 }
 
+SendResult PelcoDSession::sendQueryFrame(const std::vector<std::uint8_t>& frame, QueryKind queryKind)
+{
+    return enqueueCommand(frame, queryKind, CommandPriority::Low);
+}
+
 SendResult PelcoDSession::sendQueryFrame(const std::vector<std::uint8_t>& frame, const std::string& queryTag)
 {
     return enqueueCommand(frame, queryTag, CommandPriority::Low);
+}
+
+SendResult PelcoDSession::enqueueCommand(
+    const std::vector<std::uint8_t>& frame, QueryKind queryKind, CommandPriority priority)
+{
+    if (frame.empty()) {
+        if (isQueryExpected(queryKind)) {
+            notifyQueryFailed(std::string(toQueryTagName(queryKind)));
+        }
+        return SendResult::InvalidFrame;
+    }
+
+    std::uint64_t motionGen { 0U };
+    if (PelcoDFrame::isStandardMotion(frame)) {
+        motionGen = ++m_motionGeneration;
+    } else if (PelcoDFrame::isStandardStop(frame)) {
+        motionGen = ++m_motionGeneration;
+    }
+
+    m_queue.enqueue(frame, queryKind, priority, motionGen);
+
+    if (priority == CommandPriority::Urgent && m_awaitingResponse.load()) {
+        m_abortQueryWait.store(true, std::memory_order_relaxed);
+        m_responseCv.notify_all();
+    }
+
+    return SendResult::Success;
 }
 
 SendResult PelcoDSession::enqueueCommand(
@@ -208,6 +242,7 @@ void PelcoDSession::resolveQueryWait()
     {
         std::scoped_lock lock(m_sessionMutex);
         m_awaitingResponse.store(false, std::memory_order_relaxed);
+        m_pendingQueryKind = QueryKind::None;
         m_pendingQueryTag.clear();
         m_pendingLimitId = std::nullopt;
     }
@@ -378,13 +413,16 @@ void PelcoDSession::onDataReceived(const std::vector<std::uint8_t>& data)
 }
 
 bool PelcoDSession::isResponseMatchingQuery(
-    const std::string& queryTag, const std::vector<std::uint8_t>& frame) const noexcept
+    QueryKind kind, const std::string& queryTag, const std::vector<std::uint8_t>& frame) const noexcept
 {
     if (m_frameExt) {
         const ExtMatch verdict { m_frameExt->matchQuery(queryTag, frame) };
         if (verdict != ExtMatch::NotHandled) {
             return verdict == ExtMatch::Matched;
         }
+    }
+    if (kind != QueryKind::None && kind != QueryKind::Custom) {
+        return ProtocolParser::isResponseMatchingQuery(kind, frame);
     }
     return ProtocolParser::isResponseMatchingQuery(queryTag, frame);
 }
@@ -412,6 +450,7 @@ void PelcoDSession::checkQueryTimeout()
             durationUs = std::chrono::duration_cast<std::chrono::microseconds>(
                 std::chrono::steady_clock::now() - m_querySentTime);
             m_awaitingResponse.store(false, std::memory_order_relaxed);
+            m_pendingQueryKind = QueryKind::None;
             m_pendingQueryTag.clear();
             m_pendingLimitId = std::nullopt;
         }
@@ -474,7 +513,7 @@ void PelcoDSession::dispatchFrame(const std::vector<std::uint8_t>& frame)
     {
         std::scoped_lock lock(m_sessionMutex);
         if (m_awaitingResponse.load()) {
-            const bool matches = isResponseMatchingQuery(m_pendingQueryTag, frame);
+            const bool matches = isResponseMatchingQuery(m_pendingQueryKind, m_pendingQueryTag, frame);
             const bool isUnsolicited = (frame.size() == PelcoDFrame::GeneralResponseSize)
                 || (frame.size() == PelcoDFrame::StandardFrameSize
                     && frame[3] == static_cast<std::uint8_t>(ResponseOpcode::StandardExtended));
@@ -489,6 +528,7 @@ void PelcoDSession::dispatchFrame(const std::vector<std::uint8_t>& frame)
                     std::chrono::steady_clock::now() - m_querySentTime);
                 limitId = m_pendingLimitId;
                 m_awaitingResponse.store(false, std::memory_order_relaxed);
+                m_pendingQueryKind = QueryKind::None;
                 m_pendingQueryTag.clear();
                 m_pendingLimitId = std::nullopt;
                 m_responseCv.notify_all();
@@ -539,19 +579,24 @@ void PelcoDSession::workerLoop()
 
         const auto sendStartTime = std::chrono::steady_clock::now();
         if (m_transport && m_transport->isOpen()) {
-            if (!item.queryTag.empty()) {
+            const bool isQuery = isQueryExpected(item.queryKind) || !item.queryTag.empty();
+            const std::string tagStr
+                = item.queryTag.empty() ? std::string(toQueryTagName(item.queryKind)) : item.queryTag;
+            if (isQuery) {
                 std::scoped_lock lock(m_sessionMutex);
                 m_abortQueryWait.store(false, std::memory_order_relaxed);
-                m_pendingQueryTag = item.queryTag;
+                m_pendingQueryKind = item.queryKind;
+                m_pendingQueryTag = tagStr;
                 m_querySentTime = sendStartTime;
                 m_awaitingResponse.store(true, std::memory_order_relaxed);
             }
 
             const bool sendSuccess = m_transport->sendData(item.frame);
             if (!sendSuccess) {
-                if (!item.queryTag.empty()) {
+                if (isQuery) {
                     std::scoped_lock lock(m_sessionMutex);
                     m_awaitingResponse.store(false, std::memory_order_relaxed);
+                    m_pendingQueryKind = QueryKind::None;
                     m_pendingQueryTag.clear();
                     m_pendingLimitId = std::nullopt;
                 }
@@ -559,7 +604,7 @@ void PelcoDSession::workerLoop()
                 RetryConfig retryCfg = getRetryConfig();
                 if (retryCfg.retryOnTransportError && item.retryCount < retryCfg.maxRetries) {
                     const std::string reason = "Transport transmission failed for "
-                        + (item.queryTag.empty() ? "command" : "query '" + item.queryTag + "'");
+                        + (tagStr.empty() ? "command" : "query '" + tagStr + "'");
                     const auto backoffDelay = m_queue.scheduleRetry(item, retryCfg, reason);
                     if (backoffDelay.count() > 0) {
                         RetryHandler rHandler;
@@ -568,12 +613,12 @@ void PelcoDSession::workerLoop()
                             rHandler = m_retryHandler;
                         }
                         if (rHandler) {
-                            rHandler(item.queryTag.empty() ? "Command" : item.queryTag, item.retryCount + 1U,
-                                retryCfg.maxRetries, backoffDelay);
+                            rHandler(tagStr.empty() ? "Command" : tagStr, item.retryCount + 1U, retryCfg.maxRetries,
+                                backoffDelay);
                         }
                     }
-                } else if (!item.queryTag.empty()) {
-                    notifyQueryFailed(item.queryTag);
+                } else if (isQuery) {
+                    notifyQueryFailed(tagStr);
                 }
             } else {
                 TrafficHandler tHandler;
@@ -585,7 +630,7 @@ void PelcoDSession::workerLoop()
                     tHandler(true, item.frame);
                 }
 
-                if (!item.queryTag.empty()) {
+                if (isQuery) {
                     bool queryAborted { false };
                     std::string abortedTag {};
                     std::chrono::microseconds abortedDurationUs { 0 };
@@ -627,6 +672,7 @@ void PelcoDSession::workerLoop()
                             abortedDurationUs = std::chrono::duration_cast<std::chrono::microseconds>(
                                 std::chrono::steady_clock::now() - m_querySentTime);
                             m_awaitingResponse.store(false, std::memory_order_relaxed);
+                            m_pendingQueryKind = QueryKind::None;
                             m_pendingQueryTag.clear();
                             m_pendingLimitId = std::nullopt;
                         }
@@ -638,7 +684,7 @@ void PelcoDSession::workerLoop()
                         const RetryConfig retryCfg = getRetryConfig();
                         if (item.retryCount < retryCfg.maxRetries) {
                             resolveQueryWait();
-                            const std::string reason = "Query '" + item.queryTag + "' timed out";
+                            const std::string reason = "Query '" + tagStr + "' timed out";
                             const auto backoffDelay = m_queue.scheduleRetry(item, retryCfg, reason);
                             RetryHandler rHandler;
                             {
@@ -646,7 +692,7 @@ void PelcoDSession::workerLoop()
                                 rHandler = m_retryHandler;
                             }
                             if (rHandler) {
-                                rHandler(item.queryTag, item.retryCount + 1U, retryCfg.maxRetries, backoffDelay);
+                                rHandler(tagStr, item.retryCount + 1U, retryCfg.maxRetries, backoffDelay);
                             }
                         } else {
                             checkQueryTimeout();

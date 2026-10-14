@@ -85,12 +85,26 @@ void PacedCommandQueue::enqueue(CommandItem item)
     }
 }
 
+void PacedCommandQueue::enqueue(
+    std::vector<std::uint8_t> frame, QueryKind queryKind, CommandPriority priority, std::uint64_t motionGeneration)
+{
+    CommandItem item;
+    item.frame = std::move(frame);
+    item.queryKind = queryKind;
+    item.queryTag = std::string(toQueryTagName(queryKind));
+    item.priority = priority;
+    item.retryCount = 0U;
+    item.earliestDispatchTime = std::chrono::steady_clock::now();
+    item.motionGeneration = motionGeneration;
+    enqueue(std::move(item));
+}
 
 void PacedCommandQueue::enqueue(
     std::vector<std::uint8_t> frame, std::string queryTag, CommandPriority priority, std::uint64_t motionGeneration)
 {
     CommandItem item;
     item.frame = std::move(frame);
+    item.queryKind = parseQueryKind(queryTag);
     item.queryTag = std::move(queryTag);
     item.priority = priority;
     item.retryCount = 0U;

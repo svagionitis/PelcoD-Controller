@@ -81,12 +81,26 @@ public:
     /// @return Result status code.
     [[nodiscard]] SendResult sendRawFrame(const std::vector<std::uint8_t>& frame);
 
+    /// @brief Submits a query frame with strongly-typed QueryKind.
+    /// @param[in] frame Protocol frame bytes.
+    /// @param[in] queryKind Strongly-typed query category.
+    /// @return Result status code.
+    [[nodiscard]] SendResult sendQueryFrame(const std::vector<std::uint8_t>& frame, QueryKind queryKind);
+
     /// @brief Submits a query frame, registering an expectation for correlated response.
     /// @param[in] frame Protocol frame bytes.
     /// @param[in] queryTag Tag identifying expected response.
     /// @return Result status code.
     [[nodiscard]] SendResult sendQueryFrame(
         const std::vector<std::uint8_t>& frame, const std::string& queryTag = "Query");
+
+    /// @brief Submits a command into the prioritized pacing queue with strongly-typed QueryKind.
+    /// @param[in] frame Raw frame bytes.
+    /// @param[in] queryKind Expected query kind.
+    /// @param[in] priority Execution priority level.
+    /// @return Result status code.
+    [[nodiscard]] SendResult enqueueCommand(const std::vector<std::uint8_t>& frame, QueryKind queryKind,
+        CommandPriority priority = CommandPriority::Normal);
 
     /// @brief Submits a command into the prioritized pacing queue.
     /// @param[in] frame Raw frame bytes.
@@ -202,7 +216,7 @@ private:
     void checkQueryTimeout();
     void dispatchFrame(const std::vector<std::uint8_t>& frame);
     [[nodiscard]] bool isResponseMatchingQuery(
-        const std::string& queryTag, const std::vector<std::uint8_t>& frame) const noexcept;
+        QueryKind kind, const std::string& queryTag, const std::vector<std::uint8_t>& frame) const noexcept;
     void notifyQueryFailed(
         const std::string& queryTag, std::chrono::microseconds durationUs = std::chrono::microseconds { 0 });
 
@@ -229,6 +243,7 @@ private:
     std::atomic<bool> m_awaitingResponse { false };
     std::atomic<bool> m_abortQueryWait { false };
     std::condition_variable m_responseCv;
+    QueryKind m_pendingQueryKind { QueryKind::None };
     std::string m_pendingQueryTag {};
     std::optional<EverestLimitId> m_pendingLimitId { std::nullopt };
     std::chrono::steady_clock::time_point m_querySentTime {};

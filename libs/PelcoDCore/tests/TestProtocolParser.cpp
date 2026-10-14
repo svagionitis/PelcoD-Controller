@@ -274,6 +274,146 @@ TEST(ProtocolParserTest, QueryMatching)
     EXPECT_FALSE(PelcoD::ProtocolParser::isResponseMatchingQuery("QueryPan", {}));
 }
 
+/// @brief Verify parser rejection of mistyped or unknown query tags (Finding A2).
+/// @details Ensures that typos such as 'QueryPann' or unrecognized custom tags do NOT fall through
+///          to match arbitrary standard or 18-byte query responses.
+TEST(ProtocolParserTest, QueryMatchingRejectsTypoAndUnknownTags)
+{
+    const auto panFrame = PelcoD::PelcoDFrame::createFrame(0x01U, 0x00U, 0x59U, 0x10U, 0x20U);
+    const auto tiltFrame = PelcoD::PelcoDFrame::createFrame(0x01U, 0x00U, 0x5BU, 0x05U, 0x15U);
+    std::vector<std::uint8_t> q18Frame(18U, 0x00U);
+    q18Frame[0] = 0xFFU;
+
+    // Typos must strictly return false rather than matching any response (A2)
+    EXPECT_FALSE(PelcoD::ProtocolParser::isResponseMatchingQuery("QueryPann", panFrame));
+    EXPECT_FALSE(PelcoD::ProtocolParser::isResponseMatchingQuery("QueryTiltt", tiltFrame));
+    EXPECT_FALSE(PelcoD::ProtocolParser::isResponseMatchingQuery("PanQuery", panFrame));
+    EXPECT_FALSE(PelcoD::ProtocolParser::isResponseMatchingQuery("UnknownCustomTag", panFrame));
+    EXPECT_FALSE(PelcoD::ProtocolParser::isResponseMatchingQuery("UnknownCustomTag", q18Frame));
+
+    // Explicit generic query wildcard remains supported
+    EXPECT_TRUE(PelcoD::ProtocolParser::isResponseMatchingQuery("GenericQuery", panFrame));
+    EXPECT_TRUE(PelcoD::ProtocolParser::isResponseMatchingQuery("GenericQuery", tiltFrame));
+    EXPECT_TRUE(PelcoD::ProtocolParser::isResponseMatchingQuery("GenericQuery", q18Frame));
+}
+
+/// @brief Verify strongly-typed QueryKind matching with exact opcodes (Finding A2).
+TEST(ProtocolParserTest, StronglyTypedQueryMatching)
+{
+    const auto panFrame = PelcoD::PelcoDFrame::createFrame(0x01U, 0x00U, 0x59U, 0x10U, 0x20U);
+    const auto tiltFrame = PelcoD::PelcoDFrame::createFrame(0x01U, 0x00U, 0x5BU, 0x05U, 0x15U);
+    const auto zoomFrame = PelcoD::PelcoDFrame::createFrame(0x01U, 0x00U, 0x5DU, 0x01U, 0x00U);
+    const auto magFrame = PelcoD::PelcoDFrame::createFrame(0x01U, 0x00U, 0x63U, 0x02U, 0x50U);
+    const auto devFrame = PelcoD::PelcoDFrame::createFrame(0x01U, 0x00U, 0x6DU, 0x01U, 0x02U);
+    const auto diagFrame = PelcoD::PelcoDFrame::createFrame(0x01U, 0x00U, 0x71U, 0x10U, 0x20U);
+    const auto swVerFrame = PelcoD::PelcoDFrame::createFrame(0x01U,
+        static_cast<std::uint8_t>(PelcoD::VersionInfoSubOpcode::SoftwareVersionResponse),
+        static_cast<std::uint8_t>(PelcoD::ResponseOpcode::VersionInfo), 0x02U, 0x05U);
+    const auto buildFrame = PelcoD::PelcoDFrame::createFrame(0x01U,
+        static_cast<std::uint8_t>(PelcoD::VersionInfoSubOpcode::BuildNumberResponse),
+        static_cast<std::uint8_t>(PelcoD::ResponseOpcode::VersionInfo), 0x04U, 0xD2U);
+    const auto timeFrame
+        = PelcoD::PelcoDFrame::createFrame(0x01U, static_cast<std::uint8_t>(PelcoD::TimeSubOpcode::ReportSeconds),
+            static_cast<std::uint8_t>(PelcoD::ResponseOpcode::TimeMacro), 0x12U, 0x34U);
+    const auto azZeroFrame = PelcoD::PelcoDFrame::createFrame(0x01U,
+        static_cast<std::uint8_t>(PelcoD::EverestSubOpcode::AzimuthZeroResponse),
+        static_cast<std::uint8_t>(PelcoD::ResponseOpcode::Everest), 0x01U, 0x00U);
+    const auto limitFrame
+        = PelcoD::PelcoDFrame::createFrame(0x01U, static_cast<std::uint8_t>(PelcoD::EverestSubOpcode::LimitResponse),
+            static_cast<std::uint8_t>(PelcoD::ResponseOpcode::Everest), 0x05U, 0xDCU);
+    std::vector<std::uint8_t> q18Frame(18U, 0x00U);
+    q18Frame[0] = 0xFFU;
+
+    // Exact QueryKind matching
+    EXPECT_TRUE(PelcoD::ProtocolParser::isResponseMatchingQuery(PelcoD::QueryKind::Pan, panFrame));
+    EXPECT_FALSE(PelcoD::ProtocolParser::isResponseMatchingQuery(PelcoD::QueryKind::Pan, tiltFrame));
+
+    EXPECT_TRUE(PelcoD::ProtocolParser::isResponseMatchingQuery(PelcoD::QueryKind::Tilt, tiltFrame));
+    EXPECT_FALSE(PelcoD::ProtocolParser::isResponseMatchingQuery(PelcoD::QueryKind::Tilt, panFrame));
+
+    EXPECT_TRUE(PelcoD::ProtocolParser::isResponseMatchingQuery(PelcoD::QueryKind::Zoom, zoomFrame));
+    EXPECT_FALSE(PelcoD::ProtocolParser::isResponseMatchingQuery(PelcoD::QueryKind::Zoom, magFrame));
+
+    EXPECT_TRUE(PelcoD::ProtocolParser::isResponseMatchingQuery(PelcoD::QueryKind::Magnification, magFrame));
+    EXPECT_FALSE(PelcoD::ProtocolParser::isResponseMatchingQuery(PelcoD::QueryKind::Magnification, zoomFrame));
+
+    EXPECT_TRUE(PelcoD::ProtocolParser::isResponseMatchingQuery(PelcoD::QueryKind::DeviceType, devFrame));
+    EXPECT_FALSE(PelcoD::ProtocolParser::isResponseMatchingQuery(PelcoD::QueryKind::DeviceType, diagFrame));
+
+    EXPECT_TRUE(PelcoD::ProtocolParser::isResponseMatchingQuery(PelcoD::QueryKind::Diagnostics, diagFrame));
+    EXPECT_FALSE(PelcoD::ProtocolParser::isResponseMatchingQuery(PelcoD::QueryKind::Diagnostics, devFrame));
+
+    EXPECT_TRUE(PelcoD::ProtocolParser::isResponseMatchingQuery(PelcoD::QueryKind::SoftwareVersion, swVerFrame));
+    EXPECT_FALSE(PelcoD::ProtocolParser::isResponseMatchingQuery(PelcoD::QueryKind::SoftwareVersion, buildFrame));
+
+    EXPECT_TRUE(PelcoD::ProtocolParser::isResponseMatchingQuery(PelcoD::QueryKind::BuildNumber, buildFrame));
+    EXPECT_FALSE(PelcoD::ProtocolParser::isResponseMatchingQuery(PelcoD::QueryKind::BuildNumber, swVerFrame));
+
+    EXPECT_TRUE(PelcoD::ProtocolParser::isResponseMatchingQuery(PelcoD::QueryKind::Time, timeFrame));
+    EXPECT_FALSE(PelcoD::ProtocolParser::isResponseMatchingQuery(PelcoD::QueryKind::Time, panFrame));
+
+    EXPECT_TRUE(PelcoD::ProtocolParser::isResponseMatchingQuery(PelcoD::QueryKind::AzimuthZero, azZeroFrame));
+    EXPECT_FALSE(PelcoD::ProtocolParser::isResponseMatchingQuery(PelcoD::QueryKind::AzimuthZero, panFrame));
+
+    EXPECT_TRUE(PelcoD::ProtocolParser::isResponseMatchingQuery(PelcoD::QueryKind::Limit, limitFrame));
+    EXPECT_FALSE(PelcoD::ProtocolParser::isResponseMatchingQuery(PelcoD::QueryKind::Limit, panFrame));
+
+    EXPECT_TRUE(PelcoD::ProtocolParser::isResponseMatchingQuery(PelcoD::QueryKind::General, q18Frame));
+    EXPECT_FALSE(PelcoD::ProtocolParser::isResponseMatchingQuery(PelcoD::QueryKind::General, panFrame));
+
+    EXPECT_TRUE(PelcoD::ProtocolParser::isResponseMatchingQuery(PelcoD::QueryKind::SerialNumber, q18Frame));
+    EXPECT_FALSE(PelcoD::ProtocolParser::isResponseMatchingQuery(PelcoD::QueryKind::SerialNumber, panFrame));
+
+    // Explicit wildcard
+    EXPECT_TRUE(PelcoD::ProtocolParser::isResponseMatchingQuery(PelcoD::QueryKind::AnyStandard, panFrame));
+    EXPECT_TRUE(PelcoD::ProtocolParser::isResponseMatchingQuery(PelcoD::QueryKind::AnyStandard, tiltFrame));
+    EXPECT_TRUE(PelcoD::ProtocolParser::isResponseMatchingQuery(PelcoD::QueryKind::AnyStandard, q18Frame));
+
+    // None and Custom return false
+    EXPECT_FALSE(PelcoD::ProtocolParser::isResponseMatchingQuery(PelcoD::QueryKind::None, panFrame));
+    EXPECT_FALSE(PelcoD::ProtocolParser::isResponseMatchingQuery(PelcoD::QueryKind::Custom, panFrame));
+}
+
+/// @brief Verify bidirectional conversions between QueryKind and canonical string tags.
+TEST(ProtocolParserTest, QueryKindStringConversions)
+{
+    EXPECT_EQ(PelcoD::toQueryTagName(PelcoD::QueryKind::Pan), "QueryPan");
+    EXPECT_EQ(PelcoD::toQueryTagName(PelcoD::QueryKind::Tilt), "QueryTilt");
+    EXPECT_EQ(PelcoD::toQueryTagName(PelcoD::QueryKind::Zoom), "QueryZoom");
+    EXPECT_EQ(PelcoD::toQueryTagName(PelcoD::QueryKind::Magnification), "QueryMagnification");
+    EXPECT_EQ(PelcoD::toQueryTagName(PelcoD::QueryKind::DeviceType), "QueryDeviceType");
+    EXPECT_EQ(PelcoD::toQueryTagName(PelcoD::QueryKind::Diagnostics), "QueryDiagnostics");
+    EXPECT_EQ(PelcoD::toQueryTagName(PelcoD::QueryKind::SoftwareVersion), "QuerySoftwareVersion");
+    EXPECT_EQ(PelcoD::toQueryTagName(PelcoD::QueryKind::BuildNumber), "QueryBuildNumber");
+    EXPECT_EQ(PelcoD::toQueryTagName(PelcoD::QueryKind::Time), "QueryTime");
+    EXPECT_EQ(PelcoD::toQueryTagName(PelcoD::QueryKind::AzimuthZero), "QueryAzimuthZero");
+    EXPECT_EQ(PelcoD::toQueryTagName(PelcoD::QueryKind::ZoomLimit), "QueryZoomLimit");
+    EXPECT_EQ(PelcoD::toQueryTagName(PelcoD::QueryKind::EverestAlarms), "QueryEverestAlarms");
+    EXPECT_EQ(PelcoD::toQueryTagName(PelcoD::QueryKind::Limit), "QueryLimit");
+    EXPECT_EQ(PelcoD::toQueryTagName(PelcoD::QueryKind::DefinedPresets), "QueryDefinedPresets");
+    EXPECT_EQ(PelcoD::toQueryTagName(PelcoD::QueryKind::DefinedPatterns), "QueryDefinedPatterns");
+    EXPECT_EQ(PelcoD::toQueryTagName(PelcoD::QueryKind::EverestGeneric), "QueryEverest");
+    EXPECT_EQ(PelcoD::toQueryTagName(PelcoD::QueryKind::General), "QueryGeneral");
+    EXPECT_EQ(PelcoD::toQueryTagName(PelcoD::QueryKind::SerialNumber), "QuerySerialNumber");
+    EXPECT_EQ(PelcoD::toQueryTagName(PelcoD::QueryKind::AnyStandard), "GenericQuery");
+    EXPECT_EQ(PelcoD::toQueryTagName(PelcoD::QueryKind::None), "");
+    EXPECT_EQ(PelcoD::toQueryTagName(PelcoD::QueryKind::Custom), "Custom");
+
+    // parseQueryKind
+    EXPECT_EQ(PelcoD::parseQueryKind("QueryPan"), PelcoD::QueryKind::Pan);
+    EXPECT_EQ(PelcoD::parseQueryKind("RttProbe:QueryPan"), PelcoD::QueryKind::Pan);
+    EXPECT_EQ(PelcoD::parseQueryKind("QueryTilt"), PelcoD::QueryKind::Tilt);
+    EXPECT_EQ(PelcoD::parseQueryKind("GenericQuery"), PelcoD::QueryKind::AnyStandard);
+    EXPECT_EQ(PelcoD::parseQueryKind(""), PelcoD::QueryKind::None);
+    EXPECT_EQ(PelcoD::parseQueryKind("QueryPann"), PelcoD::QueryKind::Custom);
+    EXPECT_EQ(PelcoD::parseQueryKind("FujinonQueryFocus"), PelcoD::QueryKind::Custom);
+
+    // isQueryExpected helper
+    EXPECT_TRUE(PelcoD::isQueryExpected(PelcoD::QueryKind::Pan));
+    EXPECT_TRUE(PelcoD::isQueryExpected(PelcoD::QueryKind::Custom));
+    EXPECT_FALSE(PelcoD::isQueryExpected(PelcoD::QueryKind::None));
+}
+
 /// @brief Verify parser rejection of corrupted frames and invalid structures.
 /// @details Ensures updateStatus, parsePan, parseTilt, parseZoom, and parseQuery safely fail
 ///          when presented with bad checksums, mismatched opcodes, or corrupted sync bytes.
@@ -536,38 +676,34 @@ TEST(ProtocolParserTest, TimeResponsesUpdateDeviceStatusTime)
 {
     using PelcoD::PelcoDFrame;
     using PelcoD::ProtocolParser;
-    using PelcoD::TimeSubOpcode;
     using PelcoD::ResponseOpcode;
+    using PelcoD::TimeSubOpcode;
 
     PelcoD::DeviceStatus status;
     PelcoD::DeviceInfo info;
 
     // 1. ReportSeconds (sub 0x01, data2 = 45s)
-    const auto secFrame = PelcoDFrame::createFrame(
-        1U, static_cast<std::uint8_t>(TimeSubOpcode::ReportSeconds),
+    const auto secFrame = PelcoDFrame::createFrame(1U, static_cast<std::uint8_t>(TimeSubOpcode::ReportSeconds),
         static_cast<std::uint8_t>(ResponseOpcode::TimeMacro), 0x00U, 45U);
     ASSERT_TRUE(ProtocolParser::updateStatus(secFrame, status, info));
     EXPECT_EQ(status.deviceTime.second, 45U);
 
     // 2. ReportHourMinute (sub 0x03, data1 = 14h, data2 = 30m)
-    const auto hmFrame = PelcoDFrame::createFrame(
-        1U, static_cast<std::uint8_t>(TimeSubOpcode::ReportHourMinute),
+    const auto hmFrame = PelcoDFrame::createFrame(1U, static_cast<std::uint8_t>(TimeSubOpcode::ReportHourMinute),
         static_cast<std::uint8_t>(ResponseOpcode::TimeMacro), 14U, 30U);
     ASSERT_TRUE(ProtocolParser::updateStatus(hmFrame, status, info));
     EXPECT_EQ(status.deviceTime.hour, 14U);
     EXPECT_EQ(status.deviceTime.minute, 30U);
 
     // 3. ReportMonthDay (sub 0x05, data1 = 10m, data2 = 25d)
-    const auto mdFrame = PelcoDFrame::createFrame(
-        1U, static_cast<std::uint8_t>(TimeSubOpcode::ReportMonthDay),
+    const auto mdFrame = PelcoDFrame::createFrame(1U, static_cast<std::uint8_t>(TimeSubOpcode::ReportMonthDay),
         static_cast<std::uint8_t>(ResponseOpcode::TimeMacro), 10U, 25U);
     ASSERT_TRUE(ProtocolParser::updateStatus(mdFrame, status, info));
     EXPECT_EQ(status.deviceTime.month, 10U);
     EXPECT_EQ(status.deviceTime.day, 25U);
 
     // 4. ReportYear (sub 0x07, year 2026 = 0x07EA)
-    const auto yrFrame = PelcoDFrame::createFrame(
-        1U, static_cast<std::uint8_t>(TimeSubOpcode::ReportYear),
+    const auto yrFrame = PelcoDFrame::createFrame(1U, static_cast<std::uint8_t>(TimeSubOpcode::ReportYear),
         static_cast<std::uint8_t>(ResponseOpcode::TimeMacro), 0x07U, 0xEAU);
     ASSERT_TRUE(ProtocolParser::updateStatus(yrFrame, status, info));
     EXPECT_EQ(status.deviceTime.year, 2026U);
@@ -576,15 +712,14 @@ TEST(ProtocolParserTest, TimeResponsesUpdateDeviceStatusTime)
 /// @brief Verify parseLimitResponse and LimitResponse updates in DeviceStatus (M5).
 TEST(ProtocolParserTest, LimitResponsesUpdateDeviceStatus)
 {
+    using PelcoD::EverestLimitId;
+    using PelcoD::EverestSubOpcode;
     using PelcoD::PelcoDFrame;
     using PelcoD::ProtocolParser;
-    using PelcoD::EverestSubOpcode;
     using PelcoD::ResponseOpcode;
-    using PelcoD::EverestLimitId;
 
     // Limit angle 125.50 deg = 12550 centidegrees = 0x3106
-    const auto limFrame = PelcoDFrame::createFrame(
-        1U, static_cast<std::uint8_t>(EverestSubOpcode::LimitResponse),
+    const auto limFrame = PelcoDFrame::createFrame(1U, static_cast<std::uint8_t>(EverestSubOpcode::LimitResponse),
         static_cast<std::uint8_t>(ResponseOpcode::Everest), 0x31U, 0x06U);
 
     std::uint16_t parsedLimit { 0U };
@@ -600,8 +735,7 @@ TEST(ProtocolParserTest, LimitResponsesUpdateDeviceStatus)
     EXPECT_EQ(status.manualLeftLimitCentidegrees, 12550U);
 
     // Test updateStatus with ManualRightPan
-    const auto limRight = PelcoDFrame::createFrame(
-        1U, static_cast<std::uint8_t>(EverestSubOpcode::LimitResponse),
+    const auto limRight = PelcoDFrame::createFrame(1U, static_cast<std::uint8_t>(EverestSubOpcode::LimitResponse),
         static_cast<std::uint8_t>(ResponseOpcode::Everest), 0x50U, 0x00U);
     ASSERT_TRUE(ProtocolParser::updateStatus(limRight, status, info, EverestLimitId::ManualRightPan));
     EXPECT_EQ(status.lastLimitCentidegrees, 0x5000U);
@@ -612,9 +746,9 @@ TEST(ProtocolParserTest, LimitResponsesUpdateDeviceStatus)
 /// @brief Verify Everest alarms update everestAlarms and do not overwrite general alarms (M5).
 TEST(ProtocolParserTest, EverestAlarmsDoNotOverwriteGeneralAlarms)
 {
+    using PelcoD::EverestSubOpcode;
     using PelcoD::PelcoDFrame;
     using PelcoD::ProtocolParser;
-    using PelcoD::EverestSubOpcode;
     using PelcoD::ResponseOpcode;
 
     PelcoD::DeviceStatus status;
@@ -628,8 +762,7 @@ TEST(ProtocolParserTest, EverestAlarmsDoNotOverwriteGeneralAlarms)
     EXPECT_FALSE(status.isEverestAlarmActive(2));
 
     // 2. Everest alarm response arrives with mask 0x81 (Alarms 1 and 8)
-    const auto evAlarmsFrame = PelcoDFrame::createFrame(
-        1U, static_cast<std::uint8_t>(EverestSubOpcode::AlarmsResponse),
+    const auto evAlarmsFrame = PelcoDFrame::createFrame(1U, static_cast<std::uint8_t>(EverestSubOpcode::AlarmsResponse),
         static_cast<std::uint8_t>(ResponseOpcode::Everest), 0x00U, 0x81U);
     ASSERT_TRUE(ProtocolParser::updateStatus(evAlarmsFrame, status, info));
 
@@ -670,5 +803,3 @@ TEST(ProtocolParserTest, QuerySerialNumberPopulatesDeviceInfo)
 }
 
 } // namespace
-
-

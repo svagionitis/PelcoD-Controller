@@ -23,6 +23,7 @@ namespace PelcoD {
 /// @brief Single schedulable command packet with priority, query tag, and timing.
 struct CommandItem {
     std::vector<std::uint8_t> frame {};
+    QueryKind queryKind { QueryKind::None };
     std::string queryTag {};
     CommandPriority priority { CommandPriority::Normal };
     std::uint32_t retryCount { 0U };
@@ -50,7 +51,15 @@ public:
     /// @param[in] item Command packet and metadata.
     void enqueue(CommandItem item);
 
-    /// @brief Helper to construct and enqueue a command item.
+    /// @brief Helper to construct and enqueue a command item with strongly-typed QueryKind.
+    /// @param[in] frame Raw frame bytes.
+    /// @param[in] queryKind Expected query kind.
+    /// @param[in] priority Scheduling priority.
+    /// @param[in] motionGeneration Generation token for motion sequencing (0 = non-motion).
+    void enqueue(std::vector<std::uint8_t> frame, QueryKind queryKind,
+        CommandPriority priority = CommandPriority::Normal, std::uint64_t motionGeneration = 0U);
+
+    /// @brief Helper to construct and enqueue a command item with string query tag.
     /// @param[in] frame Raw frame bytes.
     /// @param[in] queryTag Optional query identifier.
     /// @param[in] priority Scheduling priority.
@@ -94,7 +103,6 @@ public:
 
     /// @brief Removes all queued commands.
     void clear();
-
 
     /// @brief Purges all queued motion commands and pending motion retries.
     /// @details Removes items associated with active or past motion generations, as well

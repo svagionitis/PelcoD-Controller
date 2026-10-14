@@ -1,5 +1,6 @@
 add_library(PelcoDCore STATIC
     PelcoDTypes.h
+    PelcoDTypes.cpp
     RetryPolicy.h
     Connection.h
     Connection.cpp

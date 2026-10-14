@@ -27,6 +27,21 @@ PtzCommands::PtzCommands(std::shared_ptr<PelcoDSession> session, std::shared_ptr
 {
 }
 
+SendResult PtzCommands::dispatch(const std::vector<std::uint8_t>& frame, QueryKind queryKind, CommandPriority priority)
+{
+    if (!m_session) {
+        return SendResult::TransportClosed;
+    }
+    if (m_guard) {
+        if (isStopFrame(frame) || priority == CommandPriority::Urgent) {
+            m_guard->onStopCommand();
+        } else if (isMotionFrame(frame)) {
+            m_guard->onMotionCommand(frame);
+        }
+    }
+    return m_session->enqueueCommand(frame, queryKind, priority);
+}
+
 SendResult PtzCommands::dispatch(
     const std::vector<std::uint8_t>& frame, const std::string& queryTag, CommandPriority priority)
 {
@@ -408,40 +423,41 @@ SendResult PtzCommands::remoteReset()
 
 SendResult PtzCommands::queryPan()
 {
-    return dispatch(ProtocolBuilder::buildQueryPan(m_session->getAddress()), "QueryPan", CommandPriority::Low);
+    return dispatch(ProtocolBuilder::buildQueryPan(m_session->getAddress()), QueryKind::Pan, CommandPriority::Low);
 }
 
 SendResult PtzCommands::queryTilt()
 {
-    return dispatch(ProtocolBuilder::buildQueryTilt(m_session->getAddress()), "QueryTilt", CommandPriority::Low);
+    return dispatch(ProtocolBuilder::buildQueryTilt(m_session->getAddress()), QueryKind::Tilt, CommandPriority::Low);
 }
 
 SendResult PtzCommands::queryZoom()
 {
-    return dispatch(ProtocolBuilder::buildQueryZoom(m_session->getAddress()), "QueryZoom", CommandPriority::Low);
+    return dispatch(ProtocolBuilder::buildQueryZoom(m_session->getAddress()), QueryKind::Zoom, CommandPriority::Low);
 }
 
 SendResult PtzCommands::queryMagnification()
 {
     return dispatch(
-        ProtocolBuilder::buildQueryMag(m_session->getAddress()), "QueryMagnification", CommandPriority::Low);
+        ProtocolBuilder::buildQueryMag(m_session->getAddress()), QueryKind::Magnification, CommandPriority::Low);
 }
 
 SendResult PtzCommands::queryDeviceType()
 {
     return dispatch(
-        ProtocolBuilder::buildQueryDevType(m_session->getAddress()), "QueryDeviceType", CommandPriority::Low);
+        ProtocolBuilder::buildQueryDevType(m_session->getAddress()), QueryKind::DeviceType, CommandPriority::Low);
 }
 
 SendResult PtzCommands::queryGeneral()
 {
-    return dispatch(ProtocolBuilder::buildQueryGeneral(m_session->getAddress()), "QueryGeneral", CommandPriority::Low);
+    return dispatch(
+        ProtocolBuilder::buildQueryGeneral(m_session->getAddress()), QueryKind::General, CommandPriority::Low);
 }
 
 SendResult PtzCommands::queryDiagnostics()
 {
     return dispatch(
-        ProtocolBuilder::buildQueryDiagnostics(m_session->getAddress()), "QueryDiagnostics", CommandPriority::Low);
+        ProtocolBuilder::buildQueryDiagnostics(m_session->getAddress()), QueryKind::Diagnostics, CommandPriority::Low);
 }
 
 SendResult PtzCommands::queryAll()
@@ -454,7 +470,7 @@ SendResult PtzCommands::queryAll()
 SendResult PtzCommands::querySerialNumber()
 {
     return dispatch(
-        ProtocolBuilder::buildQueryGeneral(m_session->getAddress()), "QuerySerialNumber", CommandPriority::Low);
+        ProtocolBuilder::buildQueryGeneral(m_session->getAddress()), QueryKind::SerialNumber, CommandPriority::Low);
 }
 
 SendResult PtzCommands::activateEchoMode()
@@ -494,14 +510,14 @@ SendResult PtzCommands::screenMove(std::int8_t panPercent, std::int8_t tiltPerce
 
 SendResult PtzCommands::querySoftwareVersion()
 {
-    return dispatch(ProtocolBuilder::buildQuerySoftwareVersion(m_session->getAddress()), "QuerySoftwareVersion",
+    return dispatch(ProtocolBuilder::buildQuerySoftwareVersion(m_session->getAddress()), QueryKind::SoftwareVersion,
         CommandPriority::Low);
 }
 
 SendResult PtzCommands::queryBuildNumber()
 {
     return dispatch(
-        ProtocolBuilder::buildQueryBuildNumber(m_session->getAddress()), "QueryBuildNumber", CommandPriority::Low);
+        ProtocolBuilder::buildQueryBuildNumber(m_session->getAddress()), QueryKind::BuildNumber, CommandPriority::Low);
 }
 
 SendResult PtzCommands::setSeconds(std::uint8_t seconds)
@@ -538,8 +554,8 @@ SendResult PtzCommands::setDate(std::uint16_t year, std::uint8_t month, std::uin
 
 SendResult PtzCommands::queryTime(TimeSubOpcode queryType)
 {
-    const std::string tag = "QueryTime_" + std::to_string(static_cast<std::uint8_t>(queryType));
-    return dispatch(ProtocolBuilder::buildQueryTime(m_session->getAddress(), queryType), tag, CommandPriority::Low);
+    return dispatch(
+        ProtocolBuilder::buildQueryTime(m_session->getAddress(), queryType), QueryKind::Time, CommandPriority::Low);
 }
 
 SendResult PtzCommands::setAuxLed(std::uint8_t ledIdOrColor, std::uint8_t onTimeTenths)
@@ -555,7 +571,7 @@ SendResult PtzCommands::clearAuxLed(std::uint8_t ledIdOrColor, std::uint8_t offT
 SendResult PtzCommands::queryAzimuthZero()
 {
     return dispatch(
-        ProtocolBuilder::buildQueryAzimuthZero(m_session->getAddress()), "QueryAzimuthZero", CommandPriority::Low);
+        ProtocolBuilder::buildQueryAzimuthZero(m_session->getAddress()), QueryKind::AzimuthZero, CommandPriority::Low);
 }
 
 SendResult PtzCommands::setZoomLimit(std::uint16_t limitHundredths)
@@ -566,13 +582,13 @@ SendResult PtzCommands::setZoomLimit(std::uint16_t limitHundredths)
 SendResult PtzCommands::queryZoomLimit()
 {
     return dispatch(
-        ProtocolBuilder::buildQueryZoomLimit(m_session->getAddress()), "QueryZoomLimit", CommandPriority::Low);
+        ProtocolBuilder::buildQueryZoomLimit(m_session->getAddress()), QueryKind::ZoomLimit, CommandPriority::Low);
 }
 
 SendResult PtzCommands::queryEverestAlarms()
 {
-    return dispatch(
-        ProtocolBuilder::buildQueryEverestAlarms(m_session->getAddress()), "QueryEverestAlarms", CommandPriority::Low);
+    return dispatch(ProtocolBuilder::buildQueryEverestAlarms(m_session->getAddress()), QueryKind::EverestAlarms,
+        CommandPriority::Low);
 }
 
 SendResult PtzCommands::deletePattern(std::uint8_t patternId)
@@ -616,7 +632,7 @@ SendResult PtzCommands::queryLimit(EverestLimitId limitId)
 {
     m_session->setPendingLimitId(limitId);
     return dispatch(
-        ProtocolBuilder::buildQueryLimit(m_session->getAddress(), limitId), "QueryLimit", CommandPriority::Low);
+        ProtocolBuilder::buildQueryLimit(m_session->getAddress(), limitId), QueryKind::Limit, CommandPriority::Low);
 }
 
 SendResult PtzCommands::enableLimits(bool enable)
@@ -626,14 +642,14 @@ SendResult PtzCommands::enableLimits(bool enable)
 
 SendResult PtzCommands::queryDefinedPresets(std::uint8_t group)
 {
-    return dispatch(ProtocolBuilder::buildQueryDefinedPresets(m_session->getAddress(), group), "QueryDefinedPresets",
-        CommandPriority::Low);
+    return dispatch(ProtocolBuilder::buildQueryDefinedPresets(m_session->getAddress(), group),
+        QueryKind::DefinedPresets, CommandPriority::Low);
 }
 
 SendResult PtzCommands::queryDefinedPatterns(std::uint8_t group)
 {
-    return dispatch(ProtocolBuilder::buildQueryDefinedPatterns(m_session->getAddress(), group), "QueryDefinedPatterns",
-        CommandPriority::Low);
+    return dispatch(ProtocolBuilder::buildQueryDefinedPatterns(m_session->getAddress(), group),
+        QueryKind::DefinedPatterns, CommandPriority::Low);
 }
 
 } // namespace PelcoD

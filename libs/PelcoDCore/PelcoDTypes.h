@@ -222,4 +222,100 @@ enum class SendResult : std::uint8_t {
     MotionPurged ///< Replaced by newer motion generation or preempted
 };
 
+/// @enum QueryKind
+/// @brief Strongly-typed enumeration of all recognized Pelco-D query response categories.
+/// @details Eliminates stringly-typed query correlation defects (Finding A2) by enforcing
+///          compile-time safety, bounded categories, and exact opcode dispatch.
+enum class QueryKind : std::uint16_t {
+    None = 0x0000U, ///< No query expected (unsolicited command / motion frame).
+    Pan = 0x0001U, ///< Standard Pan position query (opcode 0x59).
+    Tilt = 0x0002U, ///< Standard Tilt position query (opcode 0x5B).
+    Zoom = 0x0003U, ///< Standard Zoom position query (opcode 0x5D).
+    Magnification = 0x0004U, ///< Standard Magnification query (opcode 0x63).
+    DeviceType = 0x0005U, ///< Device type query (opcode 0x6D).
+    Diagnostics = 0x0006U, ///< Camera diagnostics query (opcode 0x71).
+    SoftwareVersion = 0x0007U, ///< Software version query (opcode 0x73, sub 0x00).
+    BuildNumber = 0x0008U, ///< Build number query (opcode 0x73, sub 0x01).
+    Time = 0x0009U, ///< Time Macro query (opcode 0x77).
+    AzimuthZero = 0x000AU, ///< Everest Azimuth zero query (opcode 0x75, sub 0x00).
+    ZoomLimit = 0x000BU, ///< Everest Zoom limit query (opcode 0x75, sub 0x01).
+    EverestAlarms = 0x000CU, ///< Everest Alarms query (opcode 0x75, sub 0x02).
+    Limit = 0x000DU, ///< Everest Limit query (opcode 0x75, sub 0x03).
+    DefinedPresets = 0x000EU, ///< Everest Defined Presets query (opcode 0x75, sub 0x04).
+    DefinedPatterns = 0x000FU, ///< Everest Defined Patterns query (opcode 0x75, sub 0x05).
+    EverestGeneric = 0x0010U, ///< Generic Everest query (opcode 0x75).
+    General = 0x0011U, ///< Extended 18-byte general query response.
+    SerialNumber = 0x0012U, ///< Serial number query (18-byte general response).
+    AnyStandard = 0x00F0U, ///< Explicit wildcard matching any standard query response.
+    Custom = 0x00FFU ///< Custom / Vendor extension query (e.g. Fujinon).
+};
+
+/// @brief Converts a QueryKind enumeration to its canonical string representation.
+/// @param[in] kind Query enumeration value.
+/// @return String view of the canonical query tag name.
+[[nodiscard]] constexpr std::string_view toQueryTagName(QueryKind kind) noexcept
+{
+    switch (kind) {
+    case QueryKind::Pan:
+        return "QueryPan";
+    case QueryKind::Tilt:
+        return "QueryTilt";
+    case QueryKind::Zoom:
+        return "QueryZoom";
+    case QueryKind::Magnification:
+        return "QueryMagnification";
+    case QueryKind::DeviceType:
+        return "QueryDeviceType";
+    case QueryKind::Diagnostics:
+        return "QueryDiagnostics";
+    case QueryKind::SoftwareVersion:
+        return "QuerySoftwareVersion";
+    case QueryKind::BuildNumber:
+        return "QueryBuildNumber";
+    case QueryKind::Time:
+        return "QueryTime";
+    case QueryKind::AzimuthZero:
+        return "QueryAzimuthZero";
+    case QueryKind::ZoomLimit:
+        return "QueryZoomLimit";
+    case QueryKind::EverestAlarms:
+        return "QueryEverestAlarms";
+    case QueryKind::Limit:
+        return "QueryLimit";
+    case QueryKind::DefinedPresets:
+        return "QueryDefinedPresets";
+    case QueryKind::DefinedPatterns:
+        return "QueryDefinedPatterns";
+    case QueryKind::EverestGeneric:
+        return "QueryEverest";
+    case QueryKind::General:
+        return "QueryGeneral";
+    case QueryKind::SerialNumber:
+        return "QuerySerialNumber";
+    case QueryKind::AnyStandard:
+        return "GenericQuery";
+    case QueryKind::Custom:
+        return "Custom";
+    case QueryKind::None:
+    default:
+        return "";
+    }
+}
+
+/// @brief Parses a string tag into its corresponding QueryKind enumeration value.
+/// @details Handles legacy query tags, active RTT probe prefixes ("RttProbe:"),
+///          and explicit wildcards ("GenericQuery"). Unknown tags return QueryKind::Custom
+///          (if non-empty) or QueryKind::None (if empty).
+/// @param[in] tag Query tag string view.
+/// @return Resolved QueryKind enumeration value.
+[[nodiscard]] QueryKind parseQueryKind(std::string_view tag) noexcept;
+
+/// @brief Validates whether a QueryKind corresponds to an active query expectation.
+/// @param[in] kind Query enumeration value.
+/// @return True if kind represents an active query expectation.
+[[nodiscard]] constexpr bool isQueryExpected(QueryKind kind) noexcept
+{
+    return kind != QueryKind::None;
+}
+
 } // namespace PelcoD
