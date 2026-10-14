@@ -17,6 +17,16 @@ add_library(PelcoDCore STATIC
     ProtocolParser.cpp
     PelcoDDevice.h
     PelcoDDevice.cpp
+    PelcoDSession.h
+    PelcoDSession.cpp
+    TelemetryCoordinator.h
+    TelemetryCoordinator.cpp
+    CallbackDispatcher.h
+    CallbackDispatcher.cpp
+    ProtocolMetrics.h
+    ProtocolMetrics.cpp
+    PtzCommands.h
+    PtzCommands.cpp
     PacedCommandQueue.h
     PacedCommandQueue.cpp
     MotionSafetyGuard.h

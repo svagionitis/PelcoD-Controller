@@ -96,7 +96,7 @@ flowchart TD
 
 | # | Issue | Impact |
 |---|---|---|
-| A1 | **`PelcoDDevice` is a god class.** One class owns lifecycle, I/O, framing, correlation, retry, polling, stats, six callback channels, and ~110 command wrappers. | It is hard to reason about thread safety, and every new opcode touches four places. |
+| **A1** ✅ 🛠️ **Fixed** | **`PelcoDDevice` is a god class.** Decomposed `PelcoDDevice` into cohesive subsystems (`PelcoDSession`, `TelemetryCoordinator`, `CallbackDispatcher`, `ProtocolMetrics`, and `PtzCommands`) while preserving 100% API/ABI compatibility on the facade. Detailed architecture and design: [PelcoDDevice Decomposition Plan](PelcoDDevice_Decomposition_Plan.md). | Decoupled thread safety, lifecycle synchronization, and telemetry management from command builders and callback dispatching. |
 | A2 | **Query correlation is stringly typed** (`"QueryPan"` and so on). An unknown tag falls through to "match any query response". | A typo silently matches the wrong frames, and there is no compile-time safety. |
 | A3 | **Fire-and-forget command API.** Every command returns `void`. Queue overflow, a closed transport, or a dropped retry is invisible to the caller. | Callers cannot detect lost safety commands. It also conflicts with the intent of checklist item 8. |
 | A4 | **`ITransport` allows only one data callback.** `BusScanner` overwrites it and never restores or clears it. | Using a shared transport breaks `PelcoDDevice` and leaves a dangling `this`. |

@@ -4,6 +4,7 @@
 /// @brief Asynchronous thread-safe controller managing Pelco-D device communication.
 
 #include "AsyncWatchdog.h"
+#include "CallbackDispatcher.h"
 #include "CallbackGate.h"
 #include "Connection.h"
 #include "DeviceStatus.h"
@@ -11,12 +12,16 @@
 #include "ITransport.h"
 #include "MotionSafetyGuard.h"
 #include "PacedCommandQueue.h"
+#include "PelcoDSession.h"
 #include "PelcoDStats.h"
 #include "PelcoDTypes.h"
 #include "ProtocolBuilder.h"
+#include "ProtocolMetrics.h"
 #include "ProtocolParser.h"
+#include "PtzCommands.h"
 #include "RetryPolicy.h"
 #include "RxStreamAccumulator.h"
+#include "TelemetryCoordinator.h"
 
 #include <algorithm>
 #include <atomic>
@@ -494,7 +499,7 @@ public:
 
     /// @brief Internal watchdog accessor used for async query timeout scheduling.
     /// @return Reference to the device's AsyncWatchdog.
-    [[nodiscard]] AsyncWatchdog& getAsyncWatchdog() noexcept { return *m_asyncWatchdog; }
+    [[nodiscard]] AsyncWatchdog& getAsyncWatchdog() noexcept;
 
     void sendRawFrame(const std::vector<std::uint8_t>& frame);
     void sendQueryFrame(const std::vector<std::uint8_t>& frame, std::string queryTag = "Query");
@@ -514,128 +519,19 @@ protected:
     void resolveQueryWait();
 
 private:
-    void workerLoop();
-    void onDataReceived(const std::vector<std::uint8_t>& data);
-    void onTransportState(TransportState state, const std::string& msg);
-    /// @brief Synchronizes state and notifies observers when transport link is established/restored (M7).
-    void markConnected();
-    void markDisconnected();
-    void checkQueryTimeout();
-    void dispatchFrame(const std::vector<std::uint8_t>& frame);
-    [[nodiscard]] bool isResponseMatchingQuery(
-        const std::string& queryTag, const std::vector<std::uint8_t>& frame) const noexcept;
-    void notifyQueryFailed(
-        const std::string& queryTag, std::chrono::microseconds durationUs = std::chrono::microseconds { 0 });
+    void initSessionHandlers();
+    void pollStep();
+    [[nodiscard]] std::chrono::steady_clock::time_point getPollDeadline() const noexcept;
 
-    std::shared_ptr<ITransport> m_transport;
-    std::atomic<std::uint8_t> m_address { 1U };
+    std::chrono::steady_clock::time_point m_nextPollTime { std::chrono::steady_clock::now() };
+    bool m_lastPollingEnabled { false };
 
-    mutable std::recursive_mutex m_lifecycleMutex;
-    std::atomic<bool> m_running { false };
-    std::thread m_workerThread;
-
-    /// Per-session admission gate for transport callbacks (guarded by m_lifecycleMutex).
-    std::shared_ptr<CallbackGate> m_rxGate {};
-    /// Optional vendor extension; written only while no session is active (see setFrameExt()).
-    std::shared_ptr<IFrameExtension> m_frameExt {};
-
-    PacedCommandQueue m_queue;
-    std::unique_ptr<MotionSafetyGuard> m_safetyGuard {};
-    std::unique_ptr<AsyncWatchdog> m_asyncWatchdog {};
-    RxStreamAccumulator m_rxAccumulator;
-    std::atomic<std::uint64_t> m_motionGeneration { 0U };
-
-    std::atomic<bool> m_telemetryPolling { false };
-    std::atomic<std::uint32_t> m_pollIntervalMs { 1000U };
-    std::atomic<std::uint32_t> m_queryTimeoutMs { 1000U };
-
-    mutable std::mutex m_retryMutex;
-    RetryConfig m_retryConfig {};
-
-    mutable std::mutex m_statusMutex;
-    DeviceStatus m_status {};
-    DeviceInfo m_info {};
-
-    std::atomic<bool> m_awaitingResponse { false };
-    std::atomic<bool> m_abortQueryWait { false };
-    std::condition_variable m_responseCv;
-    std::string m_pendingQueryTag {};
-    std::optional<EverestLimitId> m_pendingLimitId { std::nullopt };
-    std::chrono::steady_clock::time_point m_querySentTime {}; ///< Dispatch timestamp of pending query; guarded by m_statusMutex (H1)
-
-    std::atomic<std::uint64_t> m_queriesSent { 0U };
-    std::atomic<std::uint64_t> m_queriesCompleted { 0U };
-    std::atomic<std::uint64_t> m_queryTimeouts { 0U };
-    std::atomic<std::uint64_t> m_queryRetries { 0U };
-    std::atomic<std::uint64_t> m_totalRttUs { 0U };
-    std::atomic<std::uint64_t> m_lastRttUs { 0U };
-    std::atomic<std::uint64_t> m_minRttUs { 0U };
-    std::atomic<std::uint64_t> m_maxRttUs { 0U };
-
-    template <typename CallbackT> struct CallbackEntry {
-        CallbackId id { 0U };
-        CallbackT cb {};
-        std::shared_ptr<CallbackGate> gate {};
-    };
-
-    struct CallbackState {
-        mutable std::mutex mutex;
-        std::atomic<CallbackId> nextId { 1U };
-        std::shared_ptr<const std::vector<CallbackEntry<StatusCallback>>> statusCallbacks {
-            std::make_shared<const std::vector<CallbackEntry<StatusCallback>>>()
-        };
-        std::shared_ptr<const std::vector<CallbackEntry<TrafficCallback>>> trafficCallbacks {
-            std::make_shared<const std::vector<CallbackEntry<TrafficCallback>>>()
-        };
-        std::shared_ptr<const std::vector<CallbackEntry<TimeoutCallback>>> timeoutCallbacks {
-            std::make_shared<const std::vector<CallbackEntry<TimeoutCallback>>>()
-        };
-        std::shared_ptr<const std::vector<CallbackEntry<QueryCompletedCallback>>> queryCompletedCallbacks {
-            std::make_shared<const std::vector<CallbackEntry<QueryCompletedCallback>>>()
-        };
-        std::shared_ptr<const std::vector<CallbackEntry<RetryCallback>>> retryCallbacks {
-            std::make_shared<const std::vector<CallbackEntry<RetryCallback>>>()
-        };
-        std::shared_ptr<const std::vector<CallbackEntry<QueryLatencyCallback>>> queryLatencyCallbacks {
-            std::make_shared<const std::vector<CallbackEntry<QueryLatencyCallback>>>()
-        };
-
-        template <typename CallbackT>
-        static bool removeCallbackEntry(std::shared_ptr<const std::vector<CallbackEntry<CallbackT>>>& list,
-            CallbackId id, std::mutex& mtx, std::shared_ptr<CallbackGate>& outGate)
-        {
-            std::scoped_lock lock(mtx);
-            const auto& current = *list;
-            auto it = std::find_if(current.begin(), current.end(), [id](const auto& entry) { return entry.id == id; });
-            if (it == current.end()) {
-                return false;
-            }
-            outGate = it->gate;
-            auto nextList = std::make_shared<std::vector<CallbackEntry<CallbackT>>>();
-            nextList->reserve(current.size() - 1U);
-            for (const auto& entry : current) {
-                if (entry.id != id) {
-                    nextList->push_back(entry);
-                }
-            }
-            list = std::move(nextList);
-            return true;
-        }
-
-        bool removeStatus(CallbackId id);
-        bool removeTraffic(CallbackId id);
-        bool removeTimeout(CallbackId id);
-        bool removeQueryCompleted(CallbackId id);
-        bool removeRetry(CallbackId id);
-        bool removeQueryLatency(CallbackId id);
-        void clear();
-    };
-
-    template <typename CallbackT, typename RemoveMemFn>
-    Connection registerCallbackHelper(CallbackT cb,
-        std::shared_ptr<const std::vector<CallbackEntry<CallbackT>>> CallbackState::*listMember, RemoveMemFn removeFn);
-
-    std::shared_ptr<CallbackState> m_callbackState { std::make_shared<CallbackState>() };
+    std::shared_ptr<PelcoDSession> m_session;
+    std::shared_ptr<MotionSafetyGuard> m_safetyGuard;
+    std::shared_ptr<TelemetryCoordinator> m_telemetry;
+    std::shared_ptr<CallbackDispatcher> m_dispatcher;
+    std::unique_ptr<ProtocolMetrics> m_metrics;
+    std::unique_ptr<PtzCommands> m_commands;
 };
 
 } // namespace PelcoD

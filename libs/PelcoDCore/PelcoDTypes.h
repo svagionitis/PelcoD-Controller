@@ -109,19 +109,11 @@ enum class ResponseOpcode : std::uint8_t {
 
 /// @enum AuxSubOpcode
 /// @brief Sub-opcodes for Auxiliary commands (opcodes 0x09/0x0B, Command 1 byte).
-enum class AuxSubOpcode : std::uint8_t {
-    Relay = 0x00U,
-    Led = 0x01U
-};
+enum class AuxSubOpcode : std::uint8_t { Relay = 0x00U, Led = 0x01U };
 
 /// @enum AuxLedColor
 /// @brief Spectra IV two-color indicator LED color codes (opcode 0x09/0x0B with sub 0x01).
-enum class AuxLedColor : std::uint8_t {
-    Off = 0x00U,
-    Amber = 0xFCU,
-    Red = 0xFDU,
-    Green = 0xFEU
-};
+enum class AuxLedColor : std::uint8_t { Off = 0x00U, Amber = 0xFCU, Red = 0xFDU, Green = 0xFEU };
 
 /// @enum EverestSubOpcode
 /// @brief Sub-opcodes for Everest Macro (opcode 0x75, Command 1 byte).
@@ -218,6 +210,16 @@ struct DeviceInfo {
     std::uint8_t softwareMajor { 0x00U };
     std::uint8_t softwareMinor { 0x00U };
     std::uint16_t buildNumber { 0x0000U };
+};
+
+/// @enum SendResult
+/// @brief Status return code for command submission across session.
+enum class SendResult : std::uint8_t {
+    Success = 0U, ///< Frame accepted and queued/transmitted successfully
+    TransportClosed, ///< Transport link is down or not opened
+    QueueFull, ///< Paced command queue capacity exceeded
+    InvalidFrame, ///< Frame failed validation or checksum check
+    MotionPurged ///< Replaced by newer motion generation or preempted
 };
 
 } // namespace PelcoD
