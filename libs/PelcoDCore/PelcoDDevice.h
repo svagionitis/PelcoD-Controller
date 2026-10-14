@@ -202,6 +202,26 @@ public:
     /// @return Configured watchdog duration.
     [[nodiscard]] std::chrono::milliseconds getDeadManTimeout() const noexcept;
 
+    /// @brief Configures the comprehensive motion safety policy.
+    /// @param[in] policy Safety policy configuration.
+    void setMotionSafetyPolicy(const MotionSafetyPolicy& policy) noexcept;
+
+    /// @brief Retrieves the active motion safety policy snapshot.
+    /// @return Active policy.
+    [[nodiscard]] MotionSafetyPolicy getMotionSafetyPolicy() const noexcept;
+
+    using MotionSafetyCallback = CallbackDispatcher::MotionSafetyCallback;
+
+    /// @brief Registers an observer for motion safety interventions (dead-man timeouts, runaway limits).
+    /// @param[in] cb Callback receiving the intervention event and affected motion axes.
+    /// @return Connection object to manage the subscription.
+    [[nodiscard]] Connection addMotionSafetyCallback(MotionSafetyCallback cb);
+
+    /// @brief Removes a motion safety intervention callback by identifier.
+    /// @param[in] id Subscription identifier.
+    /// @return True if callback was found and removed; false otherwise.
+    [[nodiscard]] bool removeMotionSafetyCallback(CallbackId id);
+
     // Motion & Positioning
     [[nodiscard]] SendResult panLeft(std::uint8_t speed);
     [[nodiscard]] SendResult panRight(std::uint8_t speed);

@@ -98,6 +98,16 @@ public:
     /// @return True if standard stop command.
     [[nodiscard]] static bool isStandardStop(const StandardFrame& frame) noexcept;
 
+    /// @brief Decomposes a standard 7-byte frame into active physical motion axes.
+    /// @param[in] frame Standard 7-byte protocol array.
+    /// @return Bitmask of active motion axes (None if not moving or stop command).
+    [[nodiscard]] static MotionAxis extractMotionAxes(const StandardFrame& frame) noexcept;
+
+    /// @brief Decomposes a raw frame vector into active physical motion axes.
+    /// @param[in] frame Raw frame bytes.
+    /// @return Bitmask of active motion axes.
+    [[nodiscard]] static MotionAxis extractMotionAxes(const std::vector<std::uint8_t>& frame) noexcept;
+
     /// @brief Extracts verified frames from continuous byte stream.
     /// @param[in] stream Input byte buffer.
     /// @return List of isolated valid protocol frames.

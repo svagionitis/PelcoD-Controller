@@ -143,6 +143,10 @@ public:
     [[nodiscard]] SendResult enqueueCommand(const std::vector<std::uint8_t>& frame, const std::string& queryTag = "",
         CommandPriority priority = CommandPriority::Normal);
 
+    /// @brief Purges all motion and stop commands from the prioritized command queue.
+    /// @return Number of purged motion commands.
+    [[nodiscard]] std::size_t purgeMotionCommands() noexcept;
+
     /// @brief Installs a vendor protocol extension hook.
     /// @param[in] ext Shared pointer to frame extension.
     /// @return True if successfully installed.

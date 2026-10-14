@@ -56,6 +56,26 @@ void ProtocolMetrics::recordQueueOverflow() noexcept
     m_queueOverflows.fetch_add(1U, std::memory_order_relaxed);
 }
 
+void ProtocolMetrics::recordDeadManTrip() noexcept
+{
+    m_deadManTrips.fetch_add(1U, std::memory_order_relaxed);
+}
+
+void ProtocolMetrics::recordContinuousMotionTrip() noexcept
+{
+    m_continuousMotionTrips.fetch_add(1U, std::memory_order_relaxed);
+}
+
+void ProtocolMetrics::recordFailSafeStop() noexcept
+{
+    m_failSafeStopsEmitted.fetch_add(1U, std::memory_order_relaxed);
+}
+
+void ProtocolMetrics::recordMotionPurgeOnDisconnect() noexcept
+{
+    m_motionPurgesOnDisconnect.fetch_add(1U, std::memory_order_relaxed);
+}
+
 PelcoDProtocolStats ProtocolMetrics::getStats() const noexcept
 {
     PelcoDProtocolStats stats {};
@@ -66,6 +86,10 @@ PelcoDProtocolStats ProtocolMetrics::getStats() const noexcept
     stats.commandsDropped = m_commandsDropped.load(std::memory_order_relaxed);
     stats.commandRetriesExhausted = m_commandRetriesExhausted.load(std::memory_order_relaxed);
     stats.queueOverflows = m_queueOverflows.load(std::memory_order_relaxed);
+    stats.deadManTrips = m_deadManTrips.load(std::memory_order_relaxed);
+    stats.continuousMotionTrips = m_continuousMotionTrips.load(std::memory_order_relaxed);
+    stats.failSafeStopsEmitted = m_failSafeStopsEmitted.load(std::memory_order_relaxed);
+    stats.motionPurgesOnDisconnect = m_motionPurgesOnDisconnect.load(std::memory_order_relaxed);
 
     const std::uint64_t completed = stats.queriesCompleted;
     const std::uint64_t totalUs = m_totalRttUs.load(std::memory_order_relaxed);
@@ -87,6 +111,10 @@ void ProtocolMetrics::resetStats() noexcept
     m_commandsDropped.store(0U, std::memory_order_relaxed);
     m_commandRetriesExhausted.store(0U, std::memory_order_relaxed);
     m_queueOverflows.store(0U, std::memory_order_relaxed);
+    m_deadManTrips.store(0U, std::memory_order_relaxed);
+    m_continuousMotionTrips.store(0U, std::memory_order_relaxed);
+    m_failSafeStopsEmitted.store(0U, std::memory_order_relaxed);
+    m_motionPurgesOnDisconnect.store(0U, std::memory_order_relaxed);
     m_totalRttUs.store(0U, std::memory_order_relaxed);
     m_lastRttUs.store(0U, std::memory_order_relaxed);
     m_minRttUs.store(0U, std::memory_order_relaxed);

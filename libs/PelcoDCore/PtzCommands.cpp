@@ -5,30 +5,6 @@
 
 namespace PelcoD {
 
-namespace {
-
-    bool isMotionFrame(const StandardFrame& frame) noexcept
-    {
-        return PelcoDFrame::isStandardMotion(frame);
-    }
-
-    bool isMotionFrame(const std::vector<std::uint8_t>& frame) noexcept
-    {
-        return PelcoDFrame::isStandardMotion(frame);
-    }
-
-    bool isStopFrame(const StandardFrame& frame) noexcept
-    {
-        return PelcoDFrame::isStandardStop(frame);
-    }
-
-    bool isStopFrame(const std::vector<std::uint8_t>& frame) noexcept
-    {
-        return PelcoDFrame::isStandardStop(frame);
-    }
-
-} // namespace
-
 PtzCommands::PtzCommands(std::shared_ptr<PelcoDSession> session, std::shared_ptr<MotionSafetyGuard> guard,
     std::shared_ptr<TelemetryCoordinator> telemetry)
     : m_session { std::move(session) }
@@ -39,45 +15,33 @@ PtzCommands::PtzCommands(std::shared_ptr<PelcoDSession> session, std::shared_ptr
 
 SendResult PtzCommands::dispatch(const StandardFrame& frame, QueryKind queryKind, CommandPriority priority)
 {
+    if (m_guard) {
+        return m_guard->dispatch(frame, queryKind, priority);
+    }
     if (!m_session) {
         return SendResult::TransportClosed;
-    }
-    if (m_guard) {
-        if (isStopFrame(frame) || priority == CommandPriority::Urgent) {
-            m_guard->onStopCommand();
-        } else if (isMotionFrame(frame)) {
-            m_guard->onMotionCommand(frame);
-        }
     }
     return m_session->enqueueCommand(frame, queryKind, priority);
 }
 
 SendResult PtzCommands::dispatch(const StandardFrame& frame, const std::string& queryTag, CommandPriority priority)
 {
+    if (m_guard) {
+        return m_guard->dispatch(frame, queryTag, priority);
+    }
     if (!m_session) {
         return SendResult::TransportClosed;
-    }
-    if (m_guard) {
-        if (isStopFrame(frame) || priority == CommandPriority::Urgent) {
-            m_guard->onStopCommand();
-        } else if (isMotionFrame(frame)) {
-            m_guard->onMotionCommand(frame);
-        }
     }
     return m_session->enqueueCommand(frame, queryTag, priority);
 }
 
 SendResult PtzCommands::dispatch(const std::vector<std::uint8_t>& frame, QueryKind queryKind, CommandPriority priority)
 {
+    if (m_guard) {
+        return m_guard->dispatch(frame, queryKind, priority);
+    }
     if (!m_session) {
         return SendResult::TransportClosed;
-    }
-    if (m_guard) {
-        if (isStopFrame(frame) || priority == CommandPriority::Urgent) {
-            m_guard->onStopCommand();
-        } else if (isMotionFrame(frame)) {
-            m_guard->onMotionCommand(frame);
-        }
     }
     return m_session->enqueueCommand(frame, queryKind, priority);
 }
@@ -85,15 +49,11 @@ SendResult PtzCommands::dispatch(const std::vector<std::uint8_t>& frame, QueryKi
 SendResult PtzCommands::dispatch(
     const std::vector<std::uint8_t>& frame, const std::string& queryTag, CommandPriority priority)
 {
+    if (m_guard) {
+        return m_guard->dispatch(frame, queryTag, priority);
+    }
     if (!m_session) {
         return SendResult::TransportClosed;
-    }
-    if (m_guard) {
-        if (isStopFrame(frame) || priority == CommandPriority::Urgent) {
-            m_guard->onStopCommand();
-        } else if (isMotionFrame(frame)) {
-            m_guard->onMotionCommand(frame);
-        }
     }
     return m_session->enqueueCommand(frame, queryTag, priority);
 }

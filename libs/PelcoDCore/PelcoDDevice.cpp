@@ -9,7 +9,7 @@ namespace PelcoD {
 
 PelcoDDevice::PelcoDDevice(std::shared_ptr<ITransport> transport, std::uint8_t address)
     : m_session { std::make_shared<PelcoDSession>(std::move(transport), address) }
-    , m_safetyGuard { std::make_shared<MotionSafetyGuard>([this]() { static_cast<void>(stopMotion()); }) }
+    , m_safetyGuard { std::make_shared<MotionSafetyGuard>(m_session) }
     , m_telemetry { std::make_shared<TelemetryCoordinator>() }
     , m_dispatcher { std::make_shared<CallbackDispatcher>() }
     , m_metrics { std::make_unique<ProtocolMetrics>() }
@@ -67,11 +67,27 @@ void PelcoDDevice::initSessionHandlers()
         m_dispatcher->notifyCommandDropped(frame, reason);
     });
 
+    if (m_safetyGuard) {
+        m_safetyGuard->setSafetyEventCallback([this](MotionSafetyEvent event, MotionAxis axes) {
+            if (event == MotionSafetyEvent::DeadManTimeout) {
+                m_metrics->recordDeadManTrip();
+            } else if (event == MotionSafetyEvent::ContinuousMotionLimit) {
+                m_metrics->recordContinuousMotionTrip();
+            } else if (event == MotionSafetyEvent::DisconnectStop || event == MotionSafetyEvent::ShutdownStop) {
+                m_metrics->recordFailSafeStop();
+            }
+            m_dispatcher->notifyMotionSafety(event, axes);
+        });
+    }
+
     m_session->setStateHandler([this](TransportState state, const std::string&) {
         const bool connected = (state == TransportState::Connected);
         m_telemetry->setConnected(connected);
-        if (!connected && m_safetyGuard) {
-            m_safetyGuard->onDisconnect();
+        if (!connected) {
+            if (m_safetyGuard) {
+                m_safetyGuard->handleDisconnect();
+            }
+            m_metrics->recordMotionPurgeOnDisconnect();
         }
         m_dispatcher->notifyStatus(m_telemetry->getStatus());
     });
@@ -307,6 +323,31 @@ std::chrono::milliseconds PelcoDDevice::getDeadManTimeout() const noexcept
         return m_safetyGuard->getDeadManTimeout();
     }
     return std::chrono::milliseconds { 0 };
+}
+
+void PelcoDDevice::setMotionSafetyPolicy(const MotionSafetyPolicy& policy) noexcept
+{
+    if (m_safetyGuard) {
+        m_safetyGuard->setPolicy(policy);
+    }
+}
+
+MotionSafetyPolicy PelcoDDevice::getMotionSafetyPolicy() const noexcept
+{
+    if (m_safetyGuard) {
+        return m_safetyGuard->getPolicy();
+    }
+    return MotionSafetyPolicy {};
+}
+
+Connection PelcoDDevice::addMotionSafetyCallback(MotionSafetyCallback cb)
+{
+    return m_dispatcher->addMotionSafetyCallback(std::move(cb));
+}
+
+bool PelcoDDevice::removeMotionSafetyCallback(CallbackId id)
+{
+    return m_dispatcher->removeMotionSafetyCallback(id);
 }
 
 SendResult PelcoDDevice::panLeft(std::uint8_t speed)
@@ -813,7 +854,7 @@ AsyncWatchdog& PelcoDDevice::getAsyncWatchdog() noexcept
 
 SendResult PelcoDDevice::sendRawFrame(const std::vector<std::uint8_t>& frame)
 {
-    return m_session->sendRawFrame(frame);
+    return enqueueCommand(frame, "", CommandPriority::Normal);
 }
 
 SendResult PelcoDDevice::sendQueryFrame(const std::vector<std::uint8_t>& frame, std::string queryTag)
@@ -825,11 +866,7 @@ SendResult PelcoDDevice::enqueueCommand(
     const std::vector<std::uint8_t>& frame, std::string queryTag, CommandPriority priority)
 {
     if (m_safetyGuard) {
-        if (PelcoDFrame::isStandardStop(frame) || priority == CommandPriority::Urgent) {
-            m_safetyGuard->onStopCommand();
-        } else if (PelcoDFrame::isStandardMotion(frame)) {
-            m_safetyGuard->onMotionCommand(frame);
-        }
+        return m_safetyGuard->dispatch(frame, std::move(queryTag), priority);
     }
     return m_session->enqueueCommand(frame, std::move(queryTag), priority);
 }

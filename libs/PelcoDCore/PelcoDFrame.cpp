@@ -150,6 +150,52 @@ bool PelcoDFrame::isStandardStop(const std::vector<std::uint8_t>& frame) noexcep
     return isStandardStop(stdFrame);
 }
 
+MotionAxis PelcoDFrame::extractMotionAxes(const StandardFrame& frame) noexcept
+{
+    if (frame[0] != SyncByte) {
+        return MotionAxis::None;
+    }
+    const std::uint8_t cmd1 = frame[2];
+    const std::uint8_t cmd2 = frame[3];
+    if ((cmd2 & 0x01U) != 0U) {
+        return MotionAxis::None;
+    }
+
+    MotionAxis axes { MotionAxis::None };
+    if ((cmd2 & 0x06U) != 0U) {
+        axes |= MotionAxis::Pan;
+    }
+    if ((cmd2 & 0x18U) != 0U) {
+        axes |= MotionAxis::Tilt;
+    }
+    if ((cmd2 & 0x60U) != 0U) {
+        axes |= MotionAxis::Zoom;
+    }
+    if (((cmd2 & 0x80U) != 0U) || ((cmd1 & 0x01U) != 0U)) {
+        axes |= MotionAxis::Focus;
+    }
+    if ((cmd1 & 0x06U) != 0U) {
+        axes |= MotionAxis::Iris;
+    }
+    if ((cmd1 & 0x90U) != 0U) {
+        axes |= MotionAxis::Scan;
+    }
+
+    return axes;
+}
+
+MotionAxis PelcoDFrame::extractMotionAxes(const std::vector<std::uint8_t>& frame) noexcept
+{
+    if (frame.size() != StandardFrameSize) {
+        return MotionAxis::None;
+    }
+    StandardFrame stdFrame {};
+    for (std::size_t i { 0U }; i < StandardFrameSize; ++i) {
+        stdFrame[i] = frame[i];
+    }
+    return extractMotionAxes(stdFrame);
+}
+
 std::vector<std::vector<std::uint8_t>> PelcoDFrame::splitStream(const std::vector<std::uint8_t>& stream)
 {
     constexpr std::size_t MaxStreamSize { 1024U * 1024U }; // 1 MB limit

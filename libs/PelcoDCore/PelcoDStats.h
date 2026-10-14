@@ -20,6 +20,10 @@ struct PelcoDProtocolStats {
     std::uint64_t commandsDropped { 0U };
     std::uint64_t commandRetriesExhausted { 0U };
     std::uint64_t queueOverflows { 0U };
+    std::uint64_t deadManTrips { 0U };
+    std::uint64_t continuousMotionTrips { 0U };
+    std::uint64_t failSafeStopsEmitted { 0U };
+    std::uint64_t motionPurgesOnDisconnect { 0U };
     std::size_t pendingCommands { 0U };
     double lastRttMs { 0.0 };
     double minRttMs { 0.0 };

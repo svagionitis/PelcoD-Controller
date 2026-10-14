@@ -30,6 +30,7 @@ add_library(PelcoDCore STATIC
     PtzCommands.cpp
     PacedCommandQueue.h
     PacedCommandQueue.cpp
+    MotionSafetyPolicy.h
     MotionSafetyGuard.h
     MotionSafetyGuard.cpp
     AsyncWatchdog.h

@@ -131,6 +131,7 @@ void PelcoDSession::stop()
     m_running.store(false);
     m_connected.store(false);
     m_abortQueryWait.store(true);
+    static_cast<void>(m_queue.purgeMotionCommands());
     m_queue.wakeAll();
     m_responseCv.notify_all();
 
@@ -380,6 +381,11 @@ SendResult PelcoDSession::enqueueCommand(
     return SendResult::Success;
 }
 
+std::size_t PelcoDSession::purgeMotionCommands() noexcept
+{
+    return m_queue.purgeMotionCommands();
+}
+
 bool PelcoDSession::setFrameExt(std::shared_ptr<IFrameExtension> ext)
 {
     std::scoped_lock lock(m_lifecycleMutex);
@@ -568,6 +574,7 @@ void PelcoDSession::markDisconnected()
     if (!wasConnected) {
         return;
     }
+    static_cast<void>(m_queue.purgeMotionCommands());
     resolveQueryWait();
     StateHandler stateHandler;
     {

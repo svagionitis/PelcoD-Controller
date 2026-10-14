@@ -153,6 +153,57 @@ enum class ZoomAction : std::uint8_t { Stop = 0x00U, Tele = 0x20U, Wide = 0x40U 
 /// @brief Sense bit interpretations for Command 1.
 enum class ScanSense : std::uint8_t { AutoScanOn = 0x90U, ManualScanOn = 0x10U, DeviceOn = 0x88U, DeviceOff = 0x08U };
 
+/// @enum MotionAxis
+/// @brief Discrete physical motion axes controllable in Pelco-D protocol frames.
+enum class MotionAxis : std::uint8_t {
+    None = 0x00U,
+    Pan = 0x01U,
+    Tilt = 0x02U,
+    Zoom = 0x04U,
+    Focus = 0x08U,
+    Iris = 0x10U,
+    Scan = 0x20U,
+    All = 0x3FU
+};
+
+[[nodiscard]] inline constexpr MotionAxis operator|(MotionAxis lhs, MotionAxis rhs) noexcept
+{
+    return static_cast<MotionAxis>(static_cast<std::uint8_t>(lhs) | static_cast<std::uint8_t>(rhs));
+}
+
+[[nodiscard]] inline constexpr MotionAxis operator&(MotionAxis lhs, MotionAxis rhs) noexcept
+{
+    return static_cast<MotionAxis>(static_cast<std::uint8_t>(lhs) & static_cast<std::uint8_t>(rhs));
+}
+
+[[nodiscard]] inline constexpr MotionAxis operator^(MotionAxis lhs, MotionAxis rhs) noexcept
+{
+    return static_cast<MotionAxis>(static_cast<std::uint8_t>(lhs) ^ static_cast<std::uint8_t>(rhs));
+}
+
+[[nodiscard]] inline constexpr MotionAxis operator~(MotionAxis val) noexcept
+{
+    return static_cast<MotionAxis>(~static_cast<std::uint8_t>(val) & static_cast<std::uint8_t>(MotionAxis::All));
+}
+
+inline constexpr MotionAxis& operator|=(MotionAxis& lhs, MotionAxis rhs) noexcept
+{
+    lhs = lhs | rhs;
+    return lhs;
+}
+
+inline constexpr MotionAxis& operator&=(MotionAxis& lhs, MotionAxis rhs) noexcept
+{
+    lhs = lhs & rhs;
+    return lhs;
+}
+
+inline constexpr MotionAxis& operator^=(MotionAxis& lhs, MotionAxis rhs) noexcept
+{
+    lhs = lhs ^ rhs;
+    return lhs;
+}
+
 /// @enum CommandOpcode
 /// @brief Extended command opcode values (Command 2 byte).
 enum class CommandOpcode : std::uint8_t {

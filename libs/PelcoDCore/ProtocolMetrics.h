@@ -50,6 +50,18 @@ public:
     /// @brief Records a command rejected due to queue capacity exhaustion.
     void recordQueueOverflow() noexcept;
 
+    /// @brief Records a dead-man watchdog timeout trip.
+    void recordDeadManTrip() noexcept;
+
+    /// @brief Records a continuous motion limit trip.
+    void recordContinuousMotionTrip() noexcept;
+
+    /// @brief Records a fail-safe emergency stop dispatch.
+    void recordFailSafeStop() noexcept;
+
+    /// @brief Records a motion command purge on transport disconnect.
+    void recordMotionPurgeOnDisconnect() noexcept;
+
     /// @brief Captures a snapshot of current protocol performance counters.
     /// @return Frozen snapshot containing query and latency metrics.
     [[nodiscard]] PelcoDProtocolStats getStats() const noexcept;
@@ -65,6 +77,10 @@ private:
     std::atomic<std::uint64_t> m_commandsDropped { 0U };
     std::atomic<std::uint64_t> m_commandRetriesExhausted { 0U };
     std::atomic<std::uint64_t> m_queueOverflows { 0U };
+    std::atomic<std::uint64_t> m_deadManTrips { 0U };
+    std::atomic<std::uint64_t> m_continuousMotionTrips { 0U };
+    std::atomic<std::uint64_t> m_failSafeStopsEmitted { 0U };
+    std::atomic<std::uint64_t> m_motionPurgesOnDisconnect { 0U };
     std::atomic<std::uint64_t> m_totalRttUs { 0U };
     std::atomic<std::uint64_t> m_lastRttUs { 0U };
     std::atomic<std::uint64_t> m_minRttUs { 0U };

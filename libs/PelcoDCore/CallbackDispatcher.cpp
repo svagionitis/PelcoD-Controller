@@ -140,6 +140,12 @@ Connection CallbackDispatcher::addCommandDroppedCallback(CommandDroppedCallback 
         &CallbackDispatcher::removeCommandDroppedCallback);
 }
 
+Connection CallbackDispatcher::addMotionSafetyCallback(MotionSafetyCallback cb)
+{
+    return registerHelper(
+        std::move(cb), &CallbackDispatcher::m_motionSafetyCallbacks, &CallbackDispatcher::removeMotionSafetyCallback);
+}
+
 bool CallbackDispatcher::removeStatusCallback(CallbackId id)
 {
     std::shared_ptr<CallbackGate> gate;
@@ -210,6 +216,16 @@ bool CallbackDispatcher::removeCommandDroppedCallback(CallbackId id)
     return found;
 }
 
+bool CallbackDispatcher::removeMotionSafetyCallback(CallbackId id)
+{
+    std::shared_ptr<CallbackGate> gate;
+    const bool found = removeEntry(m_motionSafetyCallbacks, id, m_mutex, gate);
+    if (found && gate) {
+        gate->close();
+    }
+    return found;
+}
+
 void CallbackDispatcher::clearCallbacks()
 {
     std::vector<std::shared_ptr<CallbackGate>> gatesToClose;
@@ -243,6 +259,10 @@ void CallbackDispatcher::clearCallbacks()
             if (entry.gate)
                 gatesToClose.push_back(entry.gate);
         }
+        for (const auto& entry : *m_motionSafetyCallbacks) {
+            if (entry.gate)
+                gatesToClose.push_back(entry.gate);
+        }
 
         m_statusCallbacks = std::make_shared<const std::vector<CallbackEntry<StatusCallback>>>();
         m_trafficCallbacks = std::make_shared<const std::vector<CallbackEntry<TrafficCallback>>>();
@@ -251,6 +271,7 @@ void CallbackDispatcher::clearCallbacks()
         m_retryCallbacks = std::make_shared<const std::vector<CallbackEntry<RetryCallback>>>();
         m_queryLatencyCallbacks = std::make_shared<const std::vector<CallbackEntry<QueryLatencyCallback>>>();
         m_commandDroppedCallbacks = std::make_shared<const std::vector<CallbackEntry<CommandDroppedCallback>>>();
+        m_motionSafetyCallbacks = std::make_shared<const std::vector<CallbackEntry<MotionSafetyCallback>>>();
     }
     for (auto& gate : gatesToClose) {
         if (gate) {
@@ -375,6 +396,23 @@ void CallbackDispatcher::notifyCommandDropped(const std::vector<std::uint8_t>& f
             const CallbackGate::Pass pass { *entry.gate };
             if (pass) {
                 invokeCallbackSafely("CommandDroppedCallback", entry.cb, frame, reason);
+            }
+        }
+    }
+}
+
+void CallbackDispatcher::notifyMotionSafety(MotionSafetyEvent event, MotionAxis axes)
+{
+    std::shared_ptr<const std::vector<CallbackEntry<MotionSafetyCallback>>> snapshot;
+    {
+        std::scoped_lock lock(m_mutex);
+        snapshot = m_motionSafetyCallbacks;
+    }
+    for (const auto& entry : *snapshot) {
+        if (entry.gate) {
+            const CallbackGate::Pass pass { *entry.gate };
+            if (pass) {
+                invokeCallbackSafely("MotionSafetyCallback", entry.cb, event, axes);
             }
         }
     }
