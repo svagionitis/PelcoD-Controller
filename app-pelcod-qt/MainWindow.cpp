@@ -52,22 +52,6 @@ void MainWindow::setupUi()
     m_tabWidget->addTab(m_osdTab, tr("OSD Display"));
     m_tabWidget->addTab(m_systemTab, tr("System Diagnostics"));
 
-#if defined(PELCOD_ENABLE_ONVIF)
-    m_onvifDevice = new PelcoD::Qt::QOnvifDevice(this);
-    m_onvifTab = new OnvifCameraTab(m_onvifDevice, m_videoTab, this);
-    m_tabWidget->addTab(m_onvifTab, tr("ONVIF Camera"));
-
-    m_onvifServer = new PelcoD::Qt::QOnvifServer({}, this);
-    if (m_presetsTab != nullptr && m_presetsTab->patrolController() != nullptr) {
-        m_onvifServer->bindPatrolController(m_presetsTab->patrolController()->coreController());
-    }
-    m_onvifServerTab = new OnvifServerTab(m_onvifServer, m_device, this);
-    m_tabWidget->addTab(m_onvifServerTab, tr("ONVIF Server"));
-
-    connect(m_onvifTab, &OnvifCameraTab::streamUriSelected, this,
-        [this](const QString& uri) { statusBar()->showMessage(tr("ONVIF RTSP URI ready: %1").arg(uri), 5000); });
-#endif
-
     centralLayout->addWidget(m_tabWidget);
     setCentralWidget(centralWidget);
 

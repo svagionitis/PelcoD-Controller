@@ -14,7 +14,7 @@
 #include <QTableWidget>
 #include <QWidget>
 
-namespace PelcoDApp {
+namespace OnvifApp {
 
 /// @class OnvifServerTab
 /// @brief UI widget providing service controls, network parameters, device metadata, and request logs.
@@ -24,10 +24,10 @@ class OnvifServerTab : public QWidget {
 public:
     /// @brief Constructs OnvifServerTab bound to server and device instances.
     /// @param[in] server Pointer to active QOnvifServer service adapter.
-    /// @param[in] device Pointer to active QPelcoDDevice controller.
+    /// @param[in] device Pointer to active QPelcoDDevice controller (optional).
     /// @param[in] parent Optional parent widget.
     explicit OnvifServerTab(
-        PelcoD::Qt::QOnvifServer* server, PelcoDQt::QPelcoDDevice* device, QWidget* parent = nullptr);
+        PelcoD::Qt::QOnvifServer* server, PelcoDQt::QPelcoDDevice* device = nullptr, QWidget* parent = nullptr);
     ~OnvifServerTab() override = default;
 
 private slots:
@@ -89,4 +89,4 @@ private:
     int m_requestCount { 0 };
 };
 
-} // namespace PelcoDApp
+} // namespace OnvifApp

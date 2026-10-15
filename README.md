@@ -18,8 +18,9 @@ A production-grade, cross-platform C++17 library and modern Qt 6 desktop client 
   9. [`libs/Onvif/`](libs/Onvif/): Standalone ONVIF Profile S and Profile T client and server library (zero Qt dependencies). Implements WS-Discovery multicast scanning, WS-Security password digest generation, Device Management, Media Streaming (RTSP & Snapshot URIs), PTZ controls (continuous, relative, absolute, home position, presets, tours, GeoMove), Optical & Imaging Service (brightness, contrast, saturation, sharpness, IR cut filter, WDR, BLC, focus), thermal radiometry, and PullPoint Event Service (real-time motion/tamper notifications). Contains protocol hardware adapters in `libs/Onvif/adapters/`.
   10. [`libs/PelcoDQt/`](libs/PelcoDQt/): Qt 6 adapter layer exposing asynchronous signals and slots for UI integration (`QPelcoDDevice`, `QFujinonSX800Device`, `QRttProfiler`, `QPatrolController`, `QBusScanner`, `QVideoStreamWorker`, `QOnvifDevice`).
   11. User Applications:
-      - [`app-pelcod-qt/`](app-pelcod-qt/): Modern dark-themed Qt 6 desktop dashboard for pure Pelco-D PTZ controls, live RTSP video streaming, tactical HUD overlays, compass jog controls, preset sequence manager, ONVIF Profile S/T camera control tab, RTT profiler, bus scanner, and traffic inspector.
+      - [`app-pelcod-qt/`](app-pelcod-qt/): Modern dark-themed Qt 6 desktop dashboard for pure Pelco-D PTZ controls, live RTSP video streaming, tactical HUD overlays, compass jog controls, preset sequence manager, RTT profiler, bus scanner, and traffic inspector.
       - [`app-fujinon-qt/`](app-fujinon-qt/): Dedicated Qt 6 desktop client for Fujinon SX800 and SX801 optical surveillance cameras (optical/electronic image stabilization, defog, heat haze, day/night filter scheduling, fine image quality adjustments, lens telemetry, OSD menu, and traffic inspector).
+      - [`app-onvif-qt/`](app-onvif-qt/): Dedicated Qt 6 desktop client and server suite for ONVIF Profile S/T/G IP cameras (WS-Discovery, PTZ, imaging, presets, tours, events, recordings, and embedded server daemon).
       - [`app-pelcod-tui/`](app-pelcod-tui/): Zero-dependency UTF-8 terminal interface featuring ASCII/Braille live video playback, interactive PTZ compass, traffic inspection, bus scan, and ONVIF discovery CLI tools.
 - **Direct Real-Time RX Stream Framing:**
   - Inbound byte streams are framed and validated directly inside the transport callback (`onDataReceived`) using a bounded accumulator, delivering sub-microsecond frame dispatch without thread sprawl.
@@ -127,6 +128,13 @@ cmake --build build --target format-check
 ./build/app-fujinon-qt/FujinonAppQt
 # Windows:
 # .\build\app-fujinon-qt\Release\FujinonAppQt.exe
+```
+
+#### ONVIF Camera & Server GUI Suite (`app-onvif-qt`)
+```bash
+./build/app-onvif-qt/OnvifAppQt
+# Windows:
+# .\build\app-onvif-qt\Release\OnvifAppQt.exe
 ```
 
 #### Zero-Dependency Terminal Client & CLI Tools (`app-pelcod-tui`)

@@ -23,9 +23,7 @@
 #include <QVBoxLayout>
 #include <QWidget>
 
-namespace PelcoDApp {
-
-class VideoStreamTab;
+namespace OnvifApp {
 
 /// @class OnvifCameraTab
 /// @brief Dashboard tab providing ONVIF discovery, profile selection, PTZ, and preset management.
@@ -33,8 +31,7 @@ class OnvifCameraTab : public QWidget {
     Q_OBJECT
 
 public:
-    explicit OnvifCameraTab(
-        PelcoD::Qt::QOnvifDevice* onvifDevice, VideoStreamTab* videoTab = nullptr, QWidget* parent = nullptr);
+    explicit OnvifCameraTab(PelcoD::Qt::QOnvifDevice* onvifDevice, QWidget* parent = nullptr);
     ~OnvifCameraTab() override = default;
 
 signals:
@@ -272,7 +269,6 @@ private:
     [[nodiscard]] static Onvif::OsdPositionType osdPositionFromIndex(int index) noexcept;
 
     PelcoD::Qt::QOnvifDevice* m_onvifDevice { nullptr };
-    VideoStreamTab* m_videoTab { nullptr };
     QList<Onvif::DiscoveredDevice> m_discoveredList {};
 
     QList<QWidget*> m_connectionWidgets;
@@ -590,4 +586,4 @@ private:
     QLabel* lblThermalAlarmStatus { nullptr };
 };
 
-} // namespace PelcoDApp
+} // namespace OnvifApp

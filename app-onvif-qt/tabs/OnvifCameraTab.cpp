@@ -2,7 +2,6 @@
 /// @brief Dashboard tab for discovering, connecting to, and controlling ONVIF Profile S IP cameras.
 
 #include "OnvifCameraTab.h"
-#include "VideoStreamTab.h"
 #include <Onvif/GeodesyUtils.h>
 #include <algorithm>
 
@@ -15,12 +14,11 @@
 #include <QSignalBlocker>
 #include <QSplitter>
 
-namespace PelcoDApp {
+namespace OnvifApp {
 
-OnvifCameraTab::OnvifCameraTab(PelcoD::Qt::QOnvifDevice* onvifDevice, VideoStreamTab* videoTab, QWidget* parent)
+OnvifCameraTab::OnvifCameraTab(PelcoD::Qt::QOnvifDevice* onvifDevice, QWidget* parent)
     : QWidget(parent)
     , m_onvifDevice(onvifDevice)
-    , m_videoTab(videoTab)
 {
     setupUi();
 
@@ -4804,4 +4802,4 @@ void OnvifCameraTab::handleNucTriggered(bool success)
     }
 }
 
-} // namespace PelcoDApp
+} // namespace OnvifApp

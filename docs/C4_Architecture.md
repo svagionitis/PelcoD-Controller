@@ -675,10 +675,9 @@ The Component diagram details the GUI layer (`app-qt`) and its bridge (`PelcoDQt
 |  +-----------------+ +--------------------+ +--------------------------------------------------------------+  |
 |  |ConnectionWidget | |TrafficInspector    | | Tab Widgets:                                                 |  |
 |  | - Port/Baud     | | - Live hex monitor | | - LiveVideoTab (Video Canvas, HUD Overlays, Filters)         |  |
-|  | - Host/Port     | | - Filter (TX/RX)   | | - OnvifCameraTab (Profile S/T: Discovery, Imaging, Events)   |  |
-|  | - Mock selector | | - Raw packet send  | | - PtzControlTab (8-Way D-Pad, Jog, Speed Sliders)            |  |
-|  +-----------------+ +--------------------+ | - PresetsTab (1-255, Tours, Scan)                            |  |
-|                                             | - DeviceSettingsTab (Optics & Focus)                         |  |
+|  | - Host/Port     | | - Filter (TX/RX)   | | - PtzControlTab (8-Way D-Pad, Jog, Speed Sliders)            |  |
+|  | - Mock selector | | - Raw packet send  | | - PresetsTab (1-255, Tours, Scan)                            |  |
+|  +-----------------+ +--------------------+ | - DeviceSettingsTab (Optics & Focus)                         |  |
 |                                             | - AuxZonesTab (Relays, Zones, Patterns)                      |  |
 |                                             | - OsdScreenTab (OSD Text Generator)                          |  |
 |                                             | - SystemTab (Diagnostics, Queries)                           |  |
@@ -714,7 +713,6 @@ C4Component
         Component(connWidget, "ConnectionWidget", "QWidget", "Provides controls for Serial, TCP, UDP, and Mock simulator connection.")
         Component(trafficWidget, "TrafficInspectorWidget", "QWidget", "Hex packet table viewer with TX/RX color tagging and manual hex sender.")
         Component(videoTab, "LiveVideoTab", "QWidget", "Renders live video canvas, HUD overlays, tactical filters, and tracking boxes.")
-        Component(onvifTab, "OnvifCameraTab", "QWidget", "Manages ONVIF discovery, profile selection, imaging adjustments, and events.")
         Component(ptzTab, "PtzControlTab", "QWidget", "8-direction interactive D-Pad with hold-to-move, speed sliders, and coordinates.")
         Component(presetTab, "PresetsTab", "QWidget", "Manages 255 presets with Set, Go To, Clear, quick buttons, and auto tour.")
         Component(settingsTab, "DeviceSettingsTab", "QWidget", "Optics controls: Auto Focus, Auto Iris, AGC, BLC, White Balance, Shutter, Gain.")

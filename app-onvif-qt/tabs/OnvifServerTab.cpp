@@ -13,7 +13,7 @@
 #include <QSplitter>
 #include <QVBoxLayout>
 
-namespace PelcoDApp {
+namespace OnvifApp {
 
 OnvifServerTab::OnvifServerTab(PelcoD::Qt::QOnvifServer* server, PelcoDQt::QPelcoDDevice* device, QWidget* parent)
     : QWidget(parent)
@@ -378,4 +378,4 @@ void OnvifServerTab::onCopyEndpointClicked()
     QApplication::clipboard()->setText(m_endpointEdit->text());
 }
 
-} // namespace PelcoDApp
+} // namespace OnvifApp

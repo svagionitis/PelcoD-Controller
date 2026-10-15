@@ -15,13 +15,6 @@
 #include "app-pelcod-qt/widgets/ConnectionWidget.h"
 #include "app-pelcod-qt/widgets/TrafficInspectorWidget.h"
 
-#if defined(PELCOD_ENABLE_ONVIF)
-#include "QOnvifDevice.h"
-#include "QOnvifServer.h"
-#include "app-pelcod-qt/tabs/OnvifCameraTab.h"
-#include "app-pelcod-qt/tabs/OnvifServerTab.h"
-#endif
-
 #include <QDockWidget>
 #include <QMainWindow>
 #include <QTabWidget>
@@ -58,13 +51,6 @@ private:
     AuxZonesTab* m_auxZonesTab { nullptr };
     OsdScreenTab* m_osdTab { nullptr };
     SystemTab* m_systemTab { nullptr };
-
-#if defined(PELCOD_ENABLE_ONVIF)
-    PelcoD::Qt::QOnvifDevice* m_onvifDevice { nullptr };
-    OnvifCameraTab* m_onvifTab { nullptr };
-    PelcoD::Qt::QOnvifServer* m_onvifServer { nullptr };
-    OnvifServerTab* m_onvifServerTab { nullptr };
-#endif
 
     QDockWidget* m_dockInspector { nullptr };
     TrafficInspectorWidget* m_inspectorWidget { nullptr };
