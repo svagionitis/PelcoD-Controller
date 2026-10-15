@@ -396,12 +396,15 @@ namespace {
         std::atomic<bool> fulfilled { false };
         Connection conn {};
         std::atomic<std::uint64_t> timerId { 0U };
+
+        void finish(PelcoDDevice* device) noexcept
+        {
+            device->getAsyncWatchdog().cancel(timerId.load());
+            conn.disconnect();
+        }
     };
 
-    struct CompositeQueryState {
-        std::atomic<bool> fulfilled { false };
-        Connection conn {};
-        std::atomic<std::uint64_t> timerId { 0U };
+    struct CompositeQueryState : QueryState {
         std::atomic<bool> panReceived { false };
         std::atomic<bool> tiltReceived { false };
         std::atomic<bool> zoomReceived { false };
@@ -424,8 +427,7 @@ namespace {
                 const std::string& completedTag, bool success, const DeviceStatus& status) {
                 if (completedTag == queryTag) {
                     if (!state->fulfilled.exchange(true)) {
-                        device->getAsyncWatchdog().cancel(state->timerId.load());
-                        state->conn.disconnect();
+                        state->finish(device);
                         if (success) {
                             try {
                                 promise->set_value(extract(status));
@@ -452,8 +454,7 @@ namespace {
         const SendResult triggerRes = trigger();
         if (triggerRes != SendResult::Success) {
             if (!state->fulfilled.exchange(true)) {
-                device->getAsyncWatchdog().cancel(state->timerId.load());
-                state->conn.disconnect();
+                state->finish(device);
                 promise->set_exception(std::make_exception_ptr(std::runtime_error(
                     "Query '" + queryTag + "' dispatch failed: " + std::string(sendResultToString(triggerRes)))));
             }
@@ -498,8 +499,7 @@ std::future<DeviceStatus> PelcoDDevice::queryStatusAsync(std::chrono::millisecon
         [this, promise, state](const std::string& completedTag, bool success, const DeviceStatus& status) {
             if (!success) {
                 if (!state->fulfilled.exchange(true)) {
-                    getAsyncWatchdog().cancel(state->timerId.load());
-                    state->conn.disconnect();
+                    state->finish(this);
                     promise->set_exception(std::make_exception_ptr(
                         std::runtime_error("queryStatusAsync subquery failed: " + completedTag)));
                 }
@@ -516,8 +516,7 @@ std::future<DeviceStatus> PelcoDDevice::queryStatusAsync(std::chrono::millisecon
 
             if (state->panReceived.load() && state->tiltReceived.load() && state->zoomReceived.load()) {
                 if (!state->fulfilled.exchange(true)) {
-                    getAsyncWatchdog().cancel(state->timerId.load());
-                    state->conn.disconnect();
+                    state->finish(this);
                     promise->set_value(status);
                 }
             }
@@ -536,8 +535,7 @@ std::future<DeviceStatus> PelcoDDevice::queryStatusAsync(std::chrono::millisecon
     const SendResult rZoom = queryZoom();
     if (rPan != SendResult::Success || rTilt != SendResult::Success || rZoom != SendResult::Success) {
         if (!state->fulfilled.exchange(true)) {
-            getAsyncWatchdog().cancel(state->timerId.load());
-            state->conn.disconnect();
+            state->finish(this);
             promise->set_exception(std::make_exception_ptr(std::runtime_error("queryStatusAsync dispatch failed")));
         }
     }

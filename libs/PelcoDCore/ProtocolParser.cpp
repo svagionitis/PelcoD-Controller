@@ -441,6 +441,104 @@ bool ProtocolParser::parseQuery(const std::vector<std::uint8_t>& frame, std::str
     return true;
 }
 
+[[nodiscard]] static bool updateStatusVersion(const std::vector<std::uint8_t>& frame, DeviceInfo& info)
+{
+    VersionInfoSubOpcode sub { VersionInfoSubOpcode::RequestSoftwareVersion };
+    std::uint8_t d1 { 0U };
+    std::uint8_t d2 { 0U };
+    if (ProtocolParser::parseVersionInfo(frame, sub, d1, d2)) {
+        if (sub == VersionInfoSubOpcode::SoftwareVersionResponse) {
+            info.softwareMajor = d1;
+            info.softwareMinor = d2;
+            return true;
+        }
+        if (sub == VersionInfoSubOpcode::BuildNumberResponse) {
+            info.buildNumber = static_cast<std::uint16_t>((static_cast<std::uint16_t>(d1) << 8U) | d2);
+            return true;
+        }
+    }
+    return false;
+}
+
+[[nodiscard]] static bool updateStatusTime(const std::vector<std::uint8_t>& frame, DeviceStatus& status)
+{
+    TimeSubOpcode sub {};
+    std::uint8_t d1 { 0U };
+    std::uint8_t d2 { 0U };
+    if (ProtocolParser::parseTimeResponse(frame, sub, d1, d2)) {
+        switch (sub) {
+        case TimeSubOpcode::ReportSeconds:
+            status.deviceTime.second = d2;
+            return true;
+        case TimeSubOpcode::ReportHourMinute:
+            status.deviceTime.hour = d1;
+            status.deviceTime.minute = d2;
+            return true;
+        case TimeSubOpcode::ReportMonthDay:
+            status.deviceTime.month = d1;
+            status.deviceTime.day = d2;
+            return true;
+        case TimeSubOpcode::ReportYear:
+            status.deviceTime.year
+                = static_cast<std::uint16_t>((static_cast<std::uint16_t>(d1) << 8U) | static_cast<std::uint16_t>(d2));
+            return true;
+        default:
+            return false;
+        }
+    }
+    return false;
+}
+
+[[nodiscard]] static bool updateStatusEverest(
+    const std::vector<std::uint8_t>& frame, DeviceStatus& status, std::optional<EverestLimitId> limitId)
+{
+    EverestSubOpcode sub {};
+    std::uint8_t d1 { 0U };
+    std::uint8_t d2 { 0U };
+    if (ProtocolParser::parseEverestResponse(frame, sub, d1, d2)) {
+        const auto val16 = static_cast<std::uint16_t>((static_cast<std::uint16_t>(d1) << 8U) | d2);
+        switch (sub) {
+        case EverestSubOpcode::AzimuthZeroResponse:
+            status.azimuthZeroOffsetCentidegrees = val16;
+            return true;
+        case EverestSubOpcode::ZoomLimitResponse:
+            status.zoomLimit = val16;
+            return true;
+        case EverestSubOpcode::AlarmsResponse:
+            status.everestAlarms = d2;
+            return true;
+        case EverestSubOpcode::LimitResponse:
+            status.lastLimitCentidegrees = val16;
+            if (limitId.has_value()) {
+                switch (*limitId) {
+                case EverestLimitId::ManualLeftPan:
+                    status.manualLeftLimitCentidegrees = val16;
+                    break;
+                case EverestLimitId::ManualRightPan:
+                    status.manualRightLimitCentidegrees = val16;
+                    break;
+                case EverestLimitId::ScanLeftPan:
+                    status.scanLeftLimitCentidegrees = val16;
+                    break;
+                case EverestLimitId::ScanRightPan:
+                    status.scanRightLimitCentidegrees = val16;
+                    break;
+                }
+            }
+            return true;
+        case EverestSubOpcode::DefinedPresetsResponse:
+            status.definedPresetsMask = val16;
+            return true;
+        case EverestSubOpcode::DefinedPatternsResponse:
+            status.definedPatternsMask = val16;
+            return true;
+        default:
+            return true;
+        }
+    }
+    return false;
+}
+
 bool ProtocolParser::updateStatus(const std::vector<std::uint8_t>& frame, DeviceStatus& status, DeviceInfo& info,
     [[maybe_unused]] std::optional<EverestLimitId> limitId)
 {
@@ -494,99 +592,14 @@ bool ProtocolParser::updateStatus(const std::vector<std::uint8_t>& frame, Device
         case ResponseOpcode::QueryDiagnostics:
             return parseDiagnostics(frame, status.diagnosticTemp, status.diagnosticSensorId);
 
-        case ResponseOpcode::VersionInfo: {
-            VersionInfoSubOpcode sub { VersionInfoSubOpcode::RequestSoftwareVersion };
-            std::uint8_t d1 { 0U };
-            std::uint8_t d2 { 0U };
-            if (parseVersionInfo(frame, sub, d1, d2)) {
-                if (sub == VersionInfoSubOpcode::SoftwareVersionResponse) {
-                    info.softwareMajor = d1;
-                    info.softwareMinor = d2;
-                    return true;
-                }
-                if (sub == VersionInfoSubOpcode::BuildNumberResponse) {
-                    info.buildNumber = static_cast<std::uint16_t>((static_cast<std::uint16_t>(d1) << 8U) | d2);
-                    return true;
-                }
-            }
-            return false;
-        }
+        case ResponseOpcode::VersionInfo:
+            return updateStatusVersion(frame, info);
 
-        case ResponseOpcode::TimeMacro: {
-            TimeSubOpcode sub {};
-            std::uint8_t d1 { 0U };
-            std::uint8_t d2 { 0U };
-            if (parseTimeResponse(frame, sub, d1, d2)) {
-                switch (sub) {
-                case TimeSubOpcode::ReportSeconds:
-                    status.deviceTime.second = d2;
-                    return true;
-                case TimeSubOpcode::ReportHourMinute:
-                    status.deviceTime.hour = d1;
-                    status.deviceTime.minute = d2;
-                    return true;
-                case TimeSubOpcode::ReportMonthDay:
-                    status.deviceTime.month = d1;
-                    status.deviceTime.day = d2;
-                    return true;
-                case TimeSubOpcode::ReportYear:
-                    status.deviceTime.year = static_cast<std::uint16_t>(
-                        (static_cast<std::uint16_t>(d1) << 8U) | static_cast<std::uint16_t>(d2));
-                    return true;
-                default:
-                    return false;
-                }
-            }
-            return false;
-        }
+        case ResponseOpcode::TimeMacro:
+            return updateStatusTime(frame, status);
 
-        case ResponseOpcode::Everest: {
-            EverestSubOpcode sub {};
-            std::uint8_t d1 { 0U };
-            std::uint8_t d2 { 0U };
-            if (parseEverestResponse(frame, sub, d1, d2)) {
-                const auto val16 = static_cast<std::uint16_t>((static_cast<std::uint16_t>(d1) << 8U) | d2);
-                switch (sub) {
-                case EverestSubOpcode::AzimuthZeroResponse:
-                    status.azimuthZeroOffsetCentidegrees = val16;
-                    return true;
-                case EverestSubOpcode::ZoomLimitResponse:
-                    status.zoomLimit = val16;
-                    return true;
-                case EverestSubOpcode::AlarmsResponse:
-                    status.everestAlarms = d2;
-                    return true;
-                case EverestSubOpcode::LimitResponse:
-                    status.lastLimitCentidegrees = val16;
-                    if (limitId.has_value()) {
-                        switch (*limitId) {
-                        case EverestLimitId::ManualLeftPan:
-                            status.manualLeftLimitCentidegrees = val16;
-                            break;
-                        case EverestLimitId::ManualRightPan:
-                            status.manualRightLimitCentidegrees = val16;
-                            break;
-                        case EverestLimitId::ScanLeftPan:
-                            status.scanLeftLimitCentidegrees = val16;
-                            break;
-                        case EverestLimitId::ScanRightPan:
-                            status.scanRightLimitCentidegrees = val16;
-                            break;
-                        }
-                    }
-                    return true;
-                case EverestSubOpcode::DefinedPresetsResponse:
-                    status.definedPresetsMask = val16;
-                    return true;
-                case EverestSubOpcode::DefinedPatternsResponse:
-                    status.definedPatternsMask = val16;
-                    return true;
-                default:
-                    return true;
-                }
-            }
-            return false;
-        }
+        case ResponseOpcode::Everest:
+            return updateStatusEverest(frame, status, limitId);
 
         default:
             return false;
@@ -614,6 +627,362 @@ bool ProtocolParser::updateStatus(const std::vector<std::uint8_t>& frame, Device
 static std::string toHexByte(std::uint8_t val)
 {
     return PelcoDFrame::toHexString(&val, 1U, '\0');
+}
+
+[[nodiscard]] static std::string describeTxStandardMotion(
+    std::uint8_t cmd1, std::uint8_t cmd2, std::uint8_t d1, std::uint8_t d2)
+{
+    std::vector<std::string> acts;
+    if ((cmd2 & 0x02U) != 0U) {
+        acts.push_back("Right(spd " + std::to_string(d1) + ")");
+    }
+    if ((cmd2 & 0x04U) != 0U) {
+        acts.push_back("Left(spd " + std::to_string(d1) + ")");
+    }
+    if ((cmd2 & 0x08U) != 0U) {
+        acts.push_back("Up(spd " + std::to_string(d2) + ")");
+    }
+    if ((cmd2 & 0x10U) != 0U) {
+        acts.push_back("Down(spd " + std::to_string(d2) + ")");
+    }
+    if ((cmd2 & 0x20U) != 0U) {
+        acts.push_back("ZoomTele");
+    }
+    if ((cmd2 & 0x40U) != 0U) {
+        acts.push_back("ZoomWide");
+    }
+    if ((cmd1 & 0x01U) != 0U) {
+        acts.push_back("FocusNear");
+    }
+    if ((cmd2 & 0x80U) != 0U) {
+        acts.push_back("FocusFar");
+    }
+    if ((cmd1 & 0x02U) != 0U) {
+        acts.push_back("IrisOpen");
+    }
+    if ((cmd1 & 0x04U) != 0U) {
+        acts.push_back("IrisClose");
+    }
+    if (acts.empty()) {
+        if (cmd1 == static_cast<std::uint8_t>(ScanSense::DeviceOn)) {
+            return "Power On";
+        }
+        if (cmd1 == static_cast<std::uint8_t>(ScanSense::DeviceOff)) {
+            return "Power Off";
+        }
+        if (cmd1 == static_cast<std::uint8_t>(ScanSense::AutoScanOn)) {
+            return "Auto Scan On";
+        }
+        if (cmd1 == static_cast<std::uint8_t>(ScanSense::ManualScanOn)) {
+            return "Manual Scan On";
+        }
+        if (cmd1 != 0x00U) {
+            return "Camera Command (Cmd1=0x" + toHexByte(cmd1) + ")";
+        }
+        return "PTZ Stop";
+    }
+    std::string result = "PTZ: ";
+    for (std::size_t i { 0U }; i < acts.size(); ++i) {
+        if (i > 0U) {
+            result += ", ";
+        }
+        result += acts[i];
+    }
+    return result;
+}
+
+[[nodiscard]] static std::string describeTxExtended(
+    std::uint8_t cmd1, std::uint8_t cmd2, std::uint8_t d1, std::uint8_t d2)
+{
+    const auto maybeOpcode = toCommandOpcode(cmd2);
+    if (!maybeOpcode.has_value()) {
+        return "Extended Command (Cmd2=0x" + toHexByte(cmd2) + ")";
+    }
+    switch (*maybeOpcode) {
+    case CommandOpcode::SetPreset:
+        return "Set Preset " + std::to_string(d2);
+    case CommandOpcode::ClearPreset:
+        return "Clear Preset " + std::to_string(d2);
+    case CommandOpcode::GoToPreset:
+        return "GoTo Preset " + std::to_string(d2);
+    case CommandOpcode::SetAuxiliary:
+        if (cmd1 == static_cast<std::uint8_t>(AuxSubOpcode::Led)) {
+            return "Set Aux LED (ID/Color=0x" + toHexByte(d2) + ", Rate=" + std::to_string(d1) + ")";
+        }
+        return "Set Aux " + std::to_string(d2) + " ON";
+    case CommandOpcode::ClearAuxiliary:
+        if (cmd1 == static_cast<std::uint8_t>(AuxSubOpcode::Led)) {
+            return "Clear Aux LED (ID/Color=0x" + toHexByte(d2) + ", Rate=" + std::to_string(d1) + ")";
+        }
+        return "Clear Aux " + std::to_string(d2) + " OFF";
+    case CommandOpcode::Dummy:
+        return "Dummy / Ping";
+    case CommandOpcode::RemoteReset:
+        return "Remote Reset";
+    case CommandOpcode::SetZoneStart:
+        return "Set Zone " + std::to_string(d2) + " Start";
+    case CommandOpcode::SetZoneEnd:
+        return "Set Zone " + std::to_string(d2) + " End";
+    case CommandOpcode::WriteCharacter:
+        return std::string("Write Char '") + static_cast<char>(d2) + "' at Col " + std::to_string(d1);
+    case CommandOpcode::ClearScreen:
+        return "Clear Screen";
+    case CommandOpcode::AlarmAcknowledge:
+        return "Alarm Acknowledge (Alarm " + std::to_string(d2) + ")";
+    case CommandOpcode::ZoneScanOn:
+        return "Zone Scan On";
+    case CommandOpcode::ZoneScanOff:
+        return "Zone Scan Off";
+    case CommandOpcode::RecordPatternStart:
+        return "Record Pattern " + std::to_string(d2) + " Start";
+    case CommandOpcode::RecordPatternStop:
+        return "Record Pattern Stop";
+    case CommandOpcode::RunPattern:
+        return "Run Pattern " + std::to_string(d2);
+    case CommandOpcode::SetZoomSpeed:
+        return "Set Zoom Speed (" + std::to_string(d2) + ")";
+    case CommandOpcode::SetFocusSpeed:
+        return "Set Focus Speed (" + std::to_string(d2) + ")";
+    case CommandOpcode::ResetDefaults:
+        return "Reset Defaults";
+    case CommandOpcode::AutoFocus:
+        return "Auto Focus (" + std::to_string(d2) + ")";
+    case CommandOpcode::AutoIris:
+        return "Auto Iris (" + std::to_string(d2) + ")";
+    case CommandOpcode::Agc:
+        return "AGC (" + std::to_string(d2) + ")";
+    case CommandOpcode::BacklightComp:
+        return "Backlight Comp (" + std::to_string(d2) + ")";
+    case CommandOpcode::AutoWhiteBalance:
+        return "Auto White Balance (" + std::to_string(d2) + ")";
+    case CommandOpcode::PhaseDelayMode:
+        return "Phase Delay Mode (" + std::to_string(d2) + ")";
+    case CommandOpcode::SetShutterSpeed: {
+        const auto val16 = static_cast<std::uint16_t>((static_cast<std::uint16_t>(d1) << 8U) | d2);
+        return "Set Shutter Speed (" + std::to_string(val16) + ")";
+    }
+    case CommandOpcode::AdjustLineLock: {
+        const auto val16 = static_cast<std::uint16_t>((static_cast<std::uint16_t>(d1) << 8U) | d2);
+        return "Adjust Line Lock (" + std::to_string(val16) + ")";
+    }
+    case CommandOpcode::AdjustWbRedBlue: {
+        const auto val16 = static_cast<std::uint16_t>((static_cast<std::uint16_t>(d1) << 8U) | d2);
+        return "Adjust WB Red/Blue (" + std::to_string(val16) + ")";
+    }
+    case CommandOpcode::AdjustWbMg: {
+        const auto val16 = static_cast<std::uint16_t>((static_cast<std::uint16_t>(d1) << 8U) | d2);
+        return "Adjust WB Magenta/Green (" + std::to_string(val16) + ")";
+    }
+    case CommandOpcode::AdjustGain: {
+        const auto val16 = static_cast<std::uint16_t>((static_cast<std::uint16_t>(d1) << 8U) | d2);
+        return "Adjust Gain (" + std::to_string(val16) + ")";
+    }
+    case CommandOpcode::AdjustAutoIrisLevel:
+        return "Adjust Auto Iris Level (" + std::to_string(d2) + ")";
+    case CommandOpcode::AdjustAutoIrisPeak:
+        return "Adjust Auto Iris Peak (" + std::to_string(d2) + ")";
+    case CommandOpcode::Query:
+        return "Query (General)";
+    case CommandOpcode::PresetScan:
+        return "Preset Scan (Dwell " + std::to_string(d2) + "s)";
+    case CommandOpcode::SetZeroPosition:
+        return "Set Zero Position";
+    case CommandOpcode::SetPanPosition: {
+        const auto val16 = static_cast<std::uint16_t>((static_cast<std::uint16_t>(d1) << 8U) | d2);
+        return "Set Pan Position (" + std::to_string(val16) + ")";
+    }
+    case CommandOpcode::SetTiltPosition: {
+        const auto val16 = static_cast<std::uint16_t>((static_cast<std::uint16_t>(d1) << 8U) | d2);
+        return "Set Tilt Position (" + std::to_string(val16) + ")";
+    }
+    case CommandOpcode::SetZoomPosition: {
+        const auto val16 = static_cast<std::uint16_t>((static_cast<std::uint16_t>(d1) << 8U) | d2);
+        return "Set Zoom Position (" + std::to_string(val16) + ")";
+    }
+    case CommandOpcode::QueryPanPosition:
+        return "Query Pan Position";
+    case CommandOpcode::QueryTiltPosition:
+        return "Query Tilt Position";
+    case CommandOpcode::QueryZoomPosition:
+        return "Query Zoom Position";
+    case CommandOpcode::PrepareForDownload:
+        return "Prepare For Download";
+    case CommandOpcode::SetMagnification: {
+        const auto val16 = static_cast<std::uint16_t>((static_cast<std::uint16_t>(d1) << 8U) | d2);
+        return "Set Magnification (" + std::to_string(val16) + ")";
+    }
+    case CommandOpcode::QueryMagnification:
+        return "Query Magnification";
+    case CommandOpcode::EchoMode:
+        return "Activate Echo Mode";
+    case CommandOpcode::SetBaudRate:
+        return "Set Baud Rate";
+    case CommandOpcode::StartDownload:
+        return "Start Download";
+    case CommandOpcode::QueryDeviceType:
+        return "Query Device Type";
+    case CommandOpcode::QueryDiagnostics:
+        return "Query Diagnostics";
+    case CommandOpcode::ScreenMove: {
+        const auto panVal = static_cast<std::int32_t>(static_cast<std::int8_t>(d1));
+        const auto tiltVal = static_cast<std::int32_t>(static_cast<std::int8_t>(d2));
+        const std::string modeStr = (cmd1 == 0x01U) ? "Rel" : "Abs";
+        return "Screen Move (" + modeStr + ", Pan " + std::to_string(panVal) + "%, Tilt " + std::to_string(tiltVal)
+            + "%)";
+    }
+    case CommandOpcode::VersionInfo: {
+        if (cmd1 == 0x00U) {
+            return "Query Software Version";
+        }
+        if (cmd1 == 0x02U) {
+            return "Query Build Number";
+        }
+        return "Version Info Macro (Sub 0x" + toHexByte(cmd1) + ")";
+    }
+    case CommandOpcode::TimeMacro: {
+        switch (cmd1) {
+        case 0x00U:
+            return "Set Seconds (" + std::to_string(d2) + "s)";
+        case 0x01U:
+            return "Query Seconds";
+        case 0x02U:
+            return "Set Hour/Minute (" + std::to_string(d1) + ":" + std::to_string(d2) + ")";
+        case 0x03U:
+            return "Query Hour/Minute";
+        case 0x04U:
+            return "Set Month/Day (" + std::to_string(d1) + "/" + std::to_string(d2) + ")";
+        case 0x05U:
+            return "Query Month/Day";
+        case 0x06U: {
+            const auto yr = static_cast<std::uint16_t>((static_cast<std::uint16_t>(d1) << 8U) | d2);
+            return "Set Year (" + std::to_string(yr) + ")";
+        }
+        case 0x07U:
+            return "Query Year";
+        default:
+            return "Time Command (Sub 0x" + toHexByte(cmd1) + ")";
+        }
+    }
+    case CommandOpcode::Everest: {
+        const auto val16 = static_cast<std::uint16_t>((static_cast<std::uint16_t>(d1) << 8U) | d2);
+        switch (cmd1) {
+        case 0x00U:
+            return "Query Azimuth Zero Offset";
+        case 0x02U:
+            return "Set Zoom Limit (" + std::to_string(val16) + ")";
+        case 0x03U:
+            return "Query Zoom Limit";
+        case 0x05U:
+            return "Query Alarms (Everest)";
+        case 0x07U:
+            return "Delete Pattern " + std::to_string(d2);
+        case 0x08U:
+            return "Set Manual Left Pan Limit (" + std::to_string(val16) + ")";
+        case 0x09U:
+            return "Set Manual Right Pan Limit (" + std::to_string(val16) + ")";
+        case 0x0AU:
+            return "Set Scan Left Pan Limit (" + std::to_string(val16) + ")";
+        case 0x0BU:
+            return "Set Scan Right Pan Limit (" + std::to_string(val16) + ")";
+        case 0x0CU:
+            return "Query Limit (ID=" + std::to_string(d2) + ")";
+        case 0x0EU:
+            return "Set Limits " + std::string(d2 == 1U ? "Enabled" : "Disabled");
+        case 0x0FU:
+            return "Query Defined Presets (Group " + std::to_string(d2) + ")";
+        case 0x11U:
+            return "Query Defined Patterns (Group " + std::to_string(d2) + ")";
+        default:
+            return "Everest Macro (Sub 0x" + toHexByte(cmd1) + ")";
+        }
+    }
+    default:
+        break;
+    }
+    return "Extended Command (Cmd2=0x" + toHexByte(cmd2) + ")";
+}
+
+[[nodiscard]] static std::string describeRxResponse(
+    std::uint8_t cmd1, std::uint8_t cmd2, std::uint8_t d1, std::uint8_t d2)
+{
+    if (cmd2 == 0x01U) {
+        return (d2 == 0x01U) ? ("ACK (OK) for Opcode 0x" + toHexByte(d1))
+                             : ("NAK (Error) for Opcode 0x" + toHexByte(d1));
+    }
+    if (cmd2 == static_cast<std::uint8_t>(ResponseOpcode::QueryPan)) {
+        const auto cdeg = static_cast<std::uint16_t>((static_cast<std::uint16_t>(d1) << 8U) | d2);
+        std::ostringstream oss;
+        oss << "Pan Response: " << std::fixed << std::setprecision(2) << (static_cast<double>(cdeg) / 100.0) << " deg";
+        return oss.str();
+    }
+    if (cmd2 == static_cast<std::uint8_t>(ResponseOpcode::QueryTilt)) {
+        const auto cdeg = static_cast<std::uint16_t>((static_cast<std::uint16_t>(d1) << 8U) | d2);
+        std::ostringstream oss;
+        oss << "Tilt Response: " << std::fixed << std::setprecision(2) << (static_cast<double>(cdeg) / 100.0) << " deg";
+        return oss.str();
+    }
+    if (cmd2 == static_cast<std::uint8_t>(ResponseOpcode::QueryZoom)) {
+        const auto pos = static_cast<std::uint16_t>((static_cast<std::uint16_t>(d1) << 8U) | d2);
+        return "Zoom Response: " + std::to_string(pos);
+    }
+    if (cmd2 == static_cast<std::uint8_t>(ResponseOpcode::QueryMagnification)) {
+        const auto mag = static_cast<std::uint16_t>((static_cast<std::uint16_t>(d1) << 8U) | d2);
+        return "Magnification Response: " + std::to_string(mag);
+    }
+    if (cmd2 == static_cast<std::uint8_t>(ResponseOpcode::QueryDeviceType)) {
+        return "Device Type Response: SW=0x" + toHexByte(d1) + " HW=0x" + toHexByte(d2);
+    }
+    if (cmd2 == static_cast<std::uint8_t>(ResponseOpcode::QueryDiagnostics)) {
+        const auto temp = static_cast<std::int32_t>(static_cast<std::int8_t>(d1));
+        return "Diagnostics Response: Temp=" + std::to_string(temp) + " C Sensor=0x" + toHexByte(d2);
+    }
+    if (cmd2 == static_cast<std::uint8_t>(ResponseOpcode::VersionInfo)) {
+        if (cmd1 == 0x01U) {
+            return "Software Version Response: " + std::to_string(d1) + "." + std::to_string(d2);
+        }
+        if (cmd1 == 0x03U) {
+            const auto build = static_cast<std::uint16_t>((static_cast<std::uint16_t>(d1) << 8U) | d2);
+            return "Build Number Response: " + std::to_string(build);
+        }
+        return "Version Info Response (Sub 0x" + toHexByte(cmd1) + ")";
+    }
+    if (cmd2 == static_cast<std::uint8_t>(ResponseOpcode::TimeMacro)) {
+        switch (cmd1) {
+        case 0x01U:
+            return "Seconds Response: " + std::to_string(d2) + "s";
+        case 0x03U:
+            return "Hour/Minute Response: " + std::to_string(d1) + ":" + std::to_string(d2);
+        case 0x05U:
+            return "Month/Day Response: " + std::to_string(d1) + "/" + std::to_string(d2);
+        case 0x07U: {
+            const auto yr = static_cast<std::uint16_t>((static_cast<std::uint16_t>(d1) << 8U) | d2);
+            return "Year Response: " + std::to_string(yr);
+        }
+        default:
+            return "Time Response (Sub 0x" + toHexByte(cmd1) + ")";
+        }
+    }
+    if (cmd2 == static_cast<std::uint8_t>(ResponseOpcode::Everest)) {
+        const auto val16 = static_cast<std::uint16_t>((static_cast<std::uint16_t>(d1) << 8U) | d2);
+        switch (cmd1) {
+        case 0x01U:
+            return "Azimuth Zero Offset Response: " + std::to_string(val16) + " centidegrees";
+        case 0x04U:
+            return "Zoom Limit Response: " + std::to_string(val16);
+        case 0x06U:
+            return "Alarms Response (Everest): Mask=0x" + toHexByte(d2);
+        case 0x0DU:
+            return "Limit Response: " + std::to_string(val16) + " centidegrees";
+        case 0x10U:
+            return "Defined Presets Response: Mask=0x" + toHexByte(d1) + toHexByte(d2);
+        case 0x12U:
+            return "Defined Patterns Response: Mask=0x" + toHexByte(d1) + toHexByte(d2);
+        default:
+            return "Everest Response (Sub 0x" + toHexByte(cmd1) + ")";
+        }
+    }
+
+    return "Response (Opcode 0x" + toHexByte(cmd2) + ")";
 }
 
 std::string ProtocolParser::describeFrame(bool isTx, const std::vector<std::uint8_t>& frame)
@@ -650,355 +1019,11 @@ std::string ProtocolParser::describeFrame(bool isTx, const std::vector<std::uint
 
         if (isTx) {
             if ((cmd2 & 0x01U) == 0U) {
-                std::vector<std::string> acts;
-                if ((cmd2 & 0x02U) != 0U) {
-                    acts.push_back("Right(spd " + std::to_string(d1) + ")");
-                }
-                if ((cmd2 & 0x04U) != 0U) {
-                    acts.push_back("Left(spd " + std::to_string(d1) + ")");
-                }
-                if ((cmd2 & 0x08U) != 0U) {
-                    acts.push_back("Up(spd " + std::to_string(d2) + ")");
-                }
-                if ((cmd2 & 0x10U) != 0U) {
-                    acts.push_back("Down(spd " + std::to_string(d2) + ")");
-                }
-                if ((cmd2 & 0x20U) != 0U) {
-                    acts.push_back("ZoomTele");
-                }
-                if ((cmd2 & 0x40U) != 0U) {
-                    acts.push_back("ZoomWide");
-                }
-                if ((cmd1 & 0x01U) != 0U) {
-                    acts.push_back("FocusNear");
-                }
-                if ((cmd2 & 0x80U) != 0U) {
-                    acts.push_back("FocusFar");
-                }
-                if ((cmd1 & 0x02U) != 0U) {
-                    acts.push_back("IrisOpen");
-                }
-                if ((cmd1 & 0x04U) != 0U) {
-                    acts.push_back("IrisClose");
-                }
-                if (acts.empty()) {
-                    if (cmd1 == static_cast<std::uint8_t>(ScanSense::DeviceOn)) {
-                        return "Power On";
-                    }
-                    if (cmd1 == static_cast<std::uint8_t>(ScanSense::DeviceOff)) {
-                        return "Power Off";
-                    }
-                    if (cmd1 == static_cast<std::uint8_t>(ScanSense::AutoScanOn)) {
-                        return "Auto Scan On";
-                    }
-                    if (cmd1 == static_cast<std::uint8_t>(ScanSense::ManualScanOn)) {
-                        return "Manual Scan On";
-                    }
-                    if (cmd1 != 0x00U) {
-                        return "Camera Command (Cmd1=0x" + toHexByte(cmd1) + ")";
-                    }
-                    return "PTZ Stop";
-                }
-                std::string result = "PTZ: ";
-                for (std::size_t i { 0U }; i < acts.size(); ++i) {
-                    if (i > 0U) {
-                        result += ", ";
-                    }
-                    result += acts[i];
-                }
-                return result;
+                return describeTxStandardMotion(cmd1, cmd2, d1, d2);
             }
-
-            // Extended command
-            const auto maybeOpcode = toCommandOpcode(cmd2);
-            if (!maybeOpcode.has_value()) {
-                return "Extended Command (Cmd2=0x" + toHexByte(cmd2) + ")";
-            }
-            switch (*maybeOpcode) {
-            case CommandOpcode::SetPreset:
-                return "Set Preset " + std::to_string(d2);
-            case CommandOpcode::ClearPreset:
-                return "Clear Preset " + std::to_string(d2);
-            case CommandOpcode::GoToPreset:
-                return "GoTo Preset " + std::to_string(d2);
-            case CommandOpcode::SetAuxiliary:
-                if (cmd1 == static_cast<std::uint8_t>(AuxSubOpcode::Led)) {
-                    return "Set Aux LED (ID/Color=0x" + toHexByte(d2) + ", Rate=" + std::to_string(d1) + ")";
-                }
-                return "Set Aux " + std::to_string(d2) + " ON";
-            case CommandOpcode::ClearAuxiliary:
-                if (cmd1 == static_cast<std::uint8_t>(AuxSubOpcode::Led)) {
-                    return "Clear Aux LED (ID/Color=0x" + toHexByte(d2) + ", Rate=" + std::to_string(d1) + ")";
-                }
-                return "Clear Aux " + std::to_string(d2) + " OFF";
-            case CommandOpcode::Dummy:
-                return "Dummy / Ping";
-            case CommandOpcode::RemoteReset:
-                return "Remote Reset";
-            case CommandOpcode::SetZoneStart:
-                return "Set Zone " + std::to_string(d2) + " Start";
-            case CommandOpcode::SetZoneEnd:
-                return "Set Zone " + std::to_string(d2) + " End";
-            case CommandOpcode::WriteCharacter:
-                return std::string("Write Char '") + static_cast<char>(d2) + "' at Col " + std::to_string(d1);
-            case CommandOpcode::ClearScreen:
-                return "Clear Screen";
-            case CommandOpcode::AlarmAcknowledge:
-                return "Alarm Acknowledge (Alarm " + std::to_string(d2) + ")";
-            case CommandOpcode::ZoneScanOn:
-                return "Zone Scan On";
-            case CommandOpcode::ZoneScanOff:
-                return "Zone Scan Off";
-            case CommandOpcode::RecordPatternStart:
-                return "Record Pattern " + std::to_string(d2) + " Start";
-            case CommandOpcode::RecordPatternStop:
-                return "Record Pattern Stop";
-            case CommandOpcode::RunPattern:
-                return "Run Pattern " + std::to_string(d2);
-            case CommandOpcode::SetZoomSpeed:
-                return "Set Zoom Speed (" + std::to_string(d2) + ")";
-            case CommandOpcode::SetFocusSpeed:
-                return "Set Focus Speed (" + std::to_string(d2) + ")";
-            case CommandOpcode::ResetDefaults:
-                return "Reset Defaults";
-            case CommandOpcode::AutoFocus:
-                return "Auto Focus (" + std::to_string(d2) + ")";
-            case CommandOpcode::AutoIris:
-                return "Auto Iris (" + std::to_string(d2) + ")";
-            case CommandOpcode::Agc:
-                return "AGC (" + std::to_string(d2) + ")";
-            case CommandOpcode::BacklightComp:
-                return "Backlight Comp (" + std::to_string(d2) + ")";
-            case CommandOpcode::AutoWhiteBalance:
-                return "Auto White Balance (" + std::to_string(d2) + ")";
-            case CommandOpcode::PhaseDelayMode:
-                return "Phase Delay Mode (" + std::to_string(d2) + ")";
-            case CommandOpcode::SetShutterSpeed: {
-                const auto val16 = static_cast<std::uint16_t>((static_cast<std::uint16_t>(d1) << 8U) | d2);
-                return "Set Shutter Speed (" + std::to_string(val16) + ")";
-            }
-            case CommandOpcode::AdjustLineLock: {
-                const auto val16 = static_cast<std::uint16_t>((static_cast<std::uint16_t>(d1) << 8U) | d2);
-                return "Adjust Line Lock (" + std::to_string(val16) + ")";
-            }
-            case CommandOpcode::AdjustWbRedBlue: {
-                const auto val16 = static_cast<std::uint16_t>((static_cast<std::uint16_t>(d1) << 8U) | d2);
-                return "Adjust WB Red/Blue (" + std::to_string(val16) + ")";
-            }
-            case CommandOpcode::AdjustWbMg: {
-                const auto val16 = static_cast<std::uint16_t>((static_cast<std::uint16_t>(d1) << 8U) | d2);
-                return "Adjust WB Magenta/Green (" + std::to_string(val16) + ")";
-            }
-            case CommandOpcode::AdjustGain: {
-                const auto val16 = static_cast<std::uint16_t>((static_cast<std::uint16_t>(d1) << 8U) | d2);
-                return "Adjust Gain (" + std::to_string(val16) + ")";
-            }
-            case CommandOpcode::AdjustAutoIrisLevel:
-                return "Adjust Auto Iris Level (" + std::to_string(d2) + ")";
-            case CommandOpcode::AdjustAutoIrisPeak:
-                return "Adjust Auto Iris Peak (" + std::to_string(d2) + ")";
-            case CommandOpcode::Query:
-                return "Query (General)";
-            case CommandOpcode::PresetScan:
-                return "Preset Scan (Dwell " + std::to_string(d2) + "s)";
-            case CommandOpcode::SetZeroPosition:
-                return "Set Zero Position";
-            case CommandOpcode::SetPanPosition: {
-                const auto val16 = static_cast<std::uint16_t>((static_cast<std::uint16_t>(d1) << 8U) | d2);
-                return "Set Pan Position (" + std::to_string(val16) + ")";
-            }
-            case CommandOpcode::SetTiltPosition: {
-                const auto val16 = static_cast<std::uint16_t>((static_cast<std::uint16_t>(d1) << 8U) | d2);
-                return "Set Tilt Position (" + std::to_string(val16) + ")";
-            }
-            case CommandOpcode::SetZoomPosition: {
-                const auto val16 = static_cast<std::uint16_t>((static_cast<std::uint16_t>(d1) << 8U) | d2);
-                return "Set Zoom Position (" + std::to_string(val16) + ")";
-            }
-            case CommandOpcode::QueryPanPosition:
-                return "Query Pan Position";
-            case CommandOpcode::QueryTiltPosition:
-                return "Query Tilt Position";
-            case CommandOpcode::QueryZoomPosition:
-                return "Query Zoom Position";
-            case CommandOpcode::PrepareForDownload:
-                return "Prepare For Download";
-            case CommandOpcode::SetMagnification: {
-                const auto val16 = static_cast<std::uint16_t>((static_cast<std::uint16_t>(d1) << 8U) | d2);
-                return "Set Magnification (" + std::to_string(val16) + ")";
-            }
-            case CommandOpcode::QueryMagnification:
-                return "Query Magnification";
-            case CommandOpcode::EchoMode:
-                return "Activate Echo Mode";
-            case CommandOpcode::SetBaudRate:
-                return "Set Baud Rate";
-            case CommandOpcode::StartDownload:
-                return "Start Download";
-            case CommandOpcode::QueryDeviceType:
-                return "Query Device Type";
-            case CommandOpcode::QueryDiagnostics:
-                return "Query Diagnostics";
-            case CommandOpcode::ScreenMove: {
-                const auto panVal = static_cast<std::int32_t>(static_cast<std::int8_t>(d1));
-                const auto tiltVal = static_cast<std::int32_t>(static_cast<std::int8_t>(d2));
-                const std::string modeStr = (cmd1 == 0x01U) ? "Rel" : "Abs";
-                return "Screen Move (" + modeStr + ", Pan " + std::to_string(panVal) + "%, Tilt "
-                    + std::to_string(tiltVal) + "%)";
-            }
-            case CommandOpcode::VersionInfo: {
-                if (cmd1 == 0x00U) {
-                    return "Query Software Version";
-                }
-                if (cmd1 == 0x02U) {
-                    return "Query Build Number";
-                }
-                return "Version Info Macro (Sub 0x" + toHexByte(cmd1) + ")";
-            }
-            case CommandOpcode::TimeMacro: {
-                switch (cmd1) {
-                case 0x00U:
-                    return "Set Seconds (" + std::to_string(d2) + "s)";
-                case 0x01U:
-                    return "Query Seconds";
-                case 0x02U:
-                    return "Set Hour/Minute (" + std::to_string(d1) + ":" + std::to_string(d2) + ")";
-                case 0x03U:
-                    return "Query Hour/Minute";
-                case 0x04U:
-                    return "Set Month/Day (" + std::to_string(d1) + "/" + std::to_string(d2) + ")";
-                case 0x05U:
-                    return "Query Month/Day";
-                case 0x06U: {
-                    const auto yr = static_cast<std::uint16_t>((static_cast<std::uint16_t>(d1) << 8U) | d2);
-                    return "Set Year (" + std::to_string(yr) + ")";
-                }
-                case 0x07U:
-                    return "Query Year";
-                default:
-                    return "Time Command (Sub 0x" + toHexByte(cmd1) + ")";
-                }
-            }
-            case CommandOpcode::Everest: {
-                const auto val16 = static_cast<std::uint16_t>((static_cast<std::uint16_t>(d1) << 8U) | d2);
-                switch (cmd1) {
-                case 0x00U:
-                    return "Query Azimuth Zero Offset";
-                case 0x02U:
-                    return "Set Zoom Limit (" + std::to_string(val16) + ")";
-                case 0x03U:
-                    return "Query Zoom Limit";
-                case 0x05U:
-                    return "Query Alarms (Everest)";
-                case 0x07U:
-                    return "Delete Pattern " + std::to_string(d2);
-                case 0x08U:
-                    return "Set Manual Left Pan Limit (" + std::to_string(val16) + ")";
-                case 0x09U:
-                    return "Set Manual Right Pan Limit (" + std::to_string(val16) + ")";
-                case 0x0AU:
-                    return "Set Scan Left Pan Limit (" + std::to_string(val16) + ")";
-                case 0x0BU:
-                    return "Set Scan Right Pan Limit (" + std::to_string(val16) + ")";
-                case 0x0CU:
-                    return "Query Limit (ID=" + std::to_string(d2) + ")";
-                case 0x0EU:
-                    return "Set Limits " + std::string(d2 == 1U ? "Enabled" : "Disabled");
-                case 0x0FU:
-                    return "Query Defined Presets (Group " + std::to_string(d2) + ")";
-                case 0x11U:
-                    return "Query Defined Patterns (Group " + std::to_string(d2) + ")";
-                default:
-                    return "Everest Macro (Sub 0x" + toHexByte(cmd1) + ")";
-                }
-            }
-            default:
-                break;
-            }
-            return "Extended Command (Cmd2=0x" + toHexByte(cmd2) + ")";
+            return describeTxExtended(cmd1, cmd2, d1, d2);
         }
-
-        // Responses (!isTx)
-        if (cmd2 == 0x01U) {
-            return (d2 == 0x01U) ? ("ACK (OK) for Opcode 0x" + toHexByte(d1))
-                                 : ("NAK (Error) for Opcode 0x" + toHexByte(d1));
-        }
-        if (cmd2 == static_cast<std::uint8_t>(ResponseOpcode::QueryPan)) {
-            const auto cdeg = static_cast<std::uint16_t>((static_cast<std::uint16_t>(d1) << 8U) | d2);
-            std::ostringstream oss;
-            oss << "Pan Response: " << std::fixed << std::setprecision(2) << (static_cast<double>(cdeg) / 100.0)
-                << " deg";
-            return oss.str();
-        }
-        if (cmd2 == static_cast<std::uint8_t>(ResponseOpcode::QueryTilt)) {
-            const auto cdeg = static_cast<std::uint16_t>((static_cast<std::uint16_t>(d1) << 8U) | d2);
-            std::ostringstream oss;
-            oss << "Tilt Response: " << std::fixed << std::setprecision(2) << (static_cast<double>(cdeg) / 100.0)
-                << " deg";
-            return oss.str();
-        }
-        if (cmd2 == static_cast<std::uint8_t>(ResponseOpcode::QueryZoom)) {
-            const auto pos = static_cast<std::uint16_t>((static_cast<std::uint16_t>(d1) << 8U) | d2);
-            return "Zoom Response: " + std::to_string(pos);
-        }
-        if (cmd2 == static_cast<std::uint8_t>(ResponseOpcode::QueryMagnification)) {
-            const auto mag = static_cast<std::uint16_t>((static_cast<std::uint16_t>(d1) << 8U) | d2);
-            return "Magnification Response: " + std::to_string(mag);
-        }
-        if (cmd2 == static_cast<std::uint8_t>(ResponseOpcode::QueryDeviceType)) {
-            return "Device Type Response: SW=0x" + toHexByte(d1) + " HW=0x" + toHexByte(d2);
-        }
-        if (cmd2 == static_cast<std::uint8_t>(ResponseOpcode::QueryDiagnostics)) {
-            const auto temp = static_cast<std::int32_t>(static_cast<std::int8_t>(d1));
-            return "Diagnostics Response: Temp=" + std::to_string(temp) + " C Sensor=0x" + toHexByte(d2);
-        }
-        if (cmd2 == static_cast<std::uint8_t>(ResponseOpcode::VersionInfo)) {
-            if (cmd1 == 0x01U) {
-                return "Software Version Response: " + std::to_string(d1) + "." + std::to_string(d2);
-            }
-            if (cmd1 == 0x03U) {
-                const auto build = static_cast<std::uint16_t>((static_cast<std::uint16_t>(d1) << 8U) | d2);
-                return "Build Number Response: " + std::to_string(build);
-            }
-            return "Version Info Response (Sub 0x" + toHexByte(cmd1) + ")";
-        }
-        if (cmd2 == static_cast<std::uint8_t>(ResponseOpcode::TimeMacro)) {
-            switch (cmd1) {
-            case 0x01U:
-                return "Seconds Response: " + std::to_string(d2) + "s";
-            case 0x03U:
-                return "Hour/Minute Response: " + std::to_string(d1) + ":" + std::to_string(d2);
-            case 0x05U:
-                return "Month/Day Response: " + std::to_string(d1) + "/" + std::to_string(d2);
-            case 0x07U: {
-                const auto yr = static_cast<std::uint16_t>((static_cast<std::uint16_t>(d1) << 8U) | d2);
-                return "Year Response: " + std::to_string(yr);
-            }
-            default:
-                return "Time Response (Sub 0x" + toHexByte(cmd1) + ")";
-            }
-        }
-        if (cmd2 == static_cast<std::uint8_t>(ResponseOpcode::Everest)) {
-            const auto val16 = static_cast<std::uint16_t>((static_cast<std::uint16_t>(d1) << 8U) | d2);
-            switch (cmd1) {
-            case 0x01U:
-                return "Azimuth Zero Offset Response: " + std::to_string(val16) + " centidegrees";
-            case 0x04U:
-                return "Zoom Limit Response: " + std::to_string(val16);
-            case 0x06U:
-                return "Alarms Response (Everest): Mask=0x" + toHexByte(d2);
-            case 0x0DU:
-                return "Limit Response: " + std::to_string(val16) + " centidegrees";
-            case 0x10U:
-                return "Defined Presets Response: Mask=0x" + toHexByte(d1) + toHexByte(d2);
-            case 0x12U:
-                return "Defined Patterns Response: Mask=0x" + toHexByte(d1) + toHexByte(d2);
-            default:
-                return "Everest Response (Sub 0x" + toHexByte(cmd1) + ")";
-            }
-        }
-
-        return "Response (Opcode 0x" + toHexByte(cmd2) + ")";
+        return describeRxResponse(cmd1, cmd2, d1, d2);
     }
 
     return "Raw Frame (" + std::to_string(frame.size()) + " bytes)";

@@ -446,56 +446,47 @@ enum class QueryKind : std::uint16_t {
     Custom = 0x00FFU ///< Custom / Vendor extension query (e.g. Fujinon).
 };
 
+/// @struct QueryKindTagMapping
+/// @brief Bidirectional mapping entry between QueryKind enum and its canonical tag string.
+struct QueryKindTagMapping {
+    QueryKind kind;
+    std::string_view tag;
+};
+
+inline constexpr QueryKindTagMapping kQueryKindTagTable[] = {
+    { QueryKind::Pan, "QueryPan" },
+    { QueryKind::Tilt, "QueryTilt" },
+    { QueryKind::Zoom, "QueryZoom" },
+    { QueryKind::Magnification, "QueryMagnification" },
+    { QueryKind::DeviceType, "QueryDeviceType" },
+    { QueryKind::Diagnostics, "QueryDiagnostics" },
+    { QueryKind::SoftwareVersion, "QuerySoftwareVersion" },
+    { QueryKind::BuildNumber, "QueryBuildNumber" },
+    { QueryKind::Time, "QueryTime" },
+    { QueryKind::AzimuthZero, "QueryAzimuthZero" },
+    { QueryKind::ZoomLimit, "QueryZoomLimit" },
+    { QueryKind::EverestAlarms, "QueryEverestAlarms" },
+    { QueryKind::Limit, "QueryLimit" },
+    { QueryKind::DefinedPresets, "QueryDefinedPresets" },
+    { QueryKind::DefinedPatterns, "QueryDefinedPatterns" },
+    { QueryKind::EverestGeneric, "QueryEverest" },
+    { QueryKind::General, "QueryGeneral" },
+    { QueryKind::SerialNumber, "QuerySerialNumber" },
+    { QueryKind::AnyStandard, "GenericQuery" },
+    { QueryKind::Custom, "Custom" },
+};
+
 /// @brief Converts a QueryKind enumeration to its canonical string representation.
 /// @param[in] kind Query enumeration value.
 /// @return String view of the canonical query tag name.
 [[nodiscard]] constexpr std::string_view toQueryTagName(QueryKind kind) noexcept
 {
-    switch (kind) {
-    case QueryKind::Pan:
-        return "QueryPan";
-    case QueryKind::Tilt:
-        return "QueryTilt";
-    case QueryKind::Zoom:
-        return "QueryZoom";
-    case QueryKind::Magnification:
-        return "QueryMagnification";
-    case QueryKind::DeviceType:
-        return "QueryDeviceType";
-    case QueryKind::Diagnostics:
-        return "QueryDiagnostics";
-    case QueryKind::SoftwareVersion:
-        return "QuerySoftwareVersion";
-    case QueryKind::BuildNumber:
-        return "QueryBuildNumber";
-    case QueryKind::Time:
-        return "QueryTime";
-    case QueryKind::AzimuthZero:
-        return "QueryAzimuthZero";
-    case QueryKind::ZoomLimit:
-        return "QueryZoomLimit";
-    case QueryKind::EverestAlarms:
-        return "QueryEverestAlarms";
-    case QueryKind::Limit:
-        return "QueryLimit";
-    case QueryKind::DefinedPresets:
-        return "QueryDefinedPresets";
-    case QueryKind::DefinedPatterns:
-        return "QueryDefinedPatterns";
-    case QueryKind::EverestGeneric:
-        return "QueryEverest";
-    case QueryKind::General:
-        return "QueryGeneral";
-    case QueryKind::SerialNumber:
-        return "QuerySerialNumber";
-    case QueryKind::AnyStandard:
-        return "GenericQuery";
-    case QueryKind::Custom:
-        return "Custom";
-    case QueryKind::None:
-    default:
-        return "";
+    for (const auto& entry : kQueryKindTagTable) {
+        if (entry.kind == kind) {
+            return entry.tag;
+        }
     }
+    return "";
 }
 
 /// @brief Parses a string tag into its corresponding QueryKind enumeration value.
