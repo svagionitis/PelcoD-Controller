@@ -41,8 +41,10 @@ PelcoDDevice::~PelcoDDevice()
 
 void PelcoDDevice::initSessionHandlers()
 {
-    m_session->setFrameHandler([this](const std::vector<std::uint8_t>& frame, const std::string& queryTag,
-                                   std::chrono::microseconds durationUs, std::optional<EverestLimitId> limitId) {
+    PelcoDSession::SessionHandlers handlers;
+
+    handlers.frameHandler = [this](const std::vector<std::uint8_t>& frame, const std::string& queryTag,
+                                std::chrono::microseconds durationUs, std::optional<EverestLimitId> limitId) {
         const bool statusUpdated = m_telemetry->updateFromFrame(frame, limitId);
         const auto statusSnapshot = m_telemetry->getStatus();
         if (statusUpdated) {
@@ -54,29 +56,29 @@ void PelcoDDevice::initSessionHandlers()
             m_dispatcher->notifyQueryCompleted(queryTag, true, statusSnapshot);
             m_dispatcher->notifyQueryLatency(queryTag, durationUs, true);
         }
-    });
+    };
 
-    m_session->setTrafficHandler(
-        [this](bool isTx, const std::vector<std::uint8_t>& frame) { m_dispatcher->notifyTraffic(isTx, frame); });
+    handlers.trafficHandler
+        = [this](bool isTx, const std::vector<std::uint8_t>& frame) { m_dispatcher->notifyTraffic(isTx, frame); };
 
-    m_session->setTimeoutHandler([this](const std::string& queryTag) {
+    handlers.timeoutHandler = [this](const std::string& queryTag) {
         m_metrics->recordQueryTimeout();
         m_dispatcher->notifyTimeout(queryTag);
-    });
+    };
 
-    m_session->setQueryFailedHandler([this](const std::string& queryTag, std::chrono::microseconds durationUs) {
+    handlers.queryFailedHandler = [this](const std::string& queryTag, std::chrono::microseconds durationUs) {
         const auto statusSnapshot = m_telemetry->getStatus();
         m_dispatcher->notifyQueryCompleted(queryTag, false, statusSnapshot);
         m_dispatcher->notifyQueryLatency(queryTag, durationUs, false);
-    });
+    };
 
-    m_session->setRetryHandler([this](const std::string& queryTag, std::uint32_t attempt, std::uint32_t maxRetries,
-                                   std::chrono::milliseconds delay) {
+    handlers.retryHandler = [this](const std::string& queryTag, std::uint32_t attempt, std::uint32_t maxRetries,
+                                std::chrono::milliseconds delay) {
         m_metrics->recordQueryRetry();
         m_dispatcher->notifyRetry(queryTag, attempt, maxRetries, delay);
-    });
+    };
 
-    m_session->setCommandDroppedHandler([this](const std::vector<std::uint8_t>& frame, SendResult reason) {
+    handlers.commandDroppedHandler = [this](const std::vector<std::uint8_t>& frame, SendResult reason) {
         m_metrics->recordCommandDropped();
         if (reason == SendResult::QueueFull) {
             m_metrics->recordQueueOverflow();
@@ -86,7 +88,23 @@ void PelcoDDevice::initSessionHandlers()
             // Other drop reasons (e.g. TransportClosed) are covered by commandsDropped alone.
         }
         m_dispatcher->notifyCommandDropped(frame, reason);
-    });
+    };
+
+    handlers.stateHandler = [this](TransportState state, const std::string&) {
+        const bool connected = (state == TransportState::Connected);
+        m_telemetry->setConnected(connected);
+        if (!connected) {
+            m_safetyGuard->handleDisconnect();
+            m_metrics->recordMotionPurgeOnDisconnect();
+        }
+        m_dispatcher->notifyStatus(m_telemetry->getStatus());
+    };
+
+    handlers.pollStepHandler = [this]() { pollStep(); };
+    handlers.pollDeadlineHandler = [this]() { return getPollDeadline(); };
+    handlers.statusProvider = [this]() { return m_telemetry->getStatus(); };
+
+    static_cast<void>(m_session->setHandlers(std::move(handlers)));
 
     m_safetyGuard->setSafetyEventCallback([this](MotionSafetyEvent event, MotionAxis axes) {
         if (event == MotionSafetyEvent::DeadManTimeout) {
@@ -98,20 +116,6 @@ void PelcoDDevice::initSessionHandlers()
         }
         m_dispatcher->notifyMotionSafety(event, axes);
     });
-
-    m_session->setStateHandler([this](TransportState state, const std::string&) {
-        const bool connected = (state == TransportState::Connected);
-        m_telemetry->setConnected(connected);
-        if (!connected) {
-            m_safetyGuard->handleDisconnect();
-            m_metrics->recordMotionPurgeOnDisconnect();
-        }
-        m_dispatcher->notifyStatus(m_telemetry->getStatus());
-    });
-
-    m_session->setPollStepHandler([this]() { pollStep(); }, [this]() { return getPollDeadline(); });
-
-    m_session->setStatusProvider([this]() { return m_telemetry->getStatus(); });
 }
 
 void PelcoDDevice::pollStep()
@@ -282,22 +286,22 @@ std::shared_ptr<ITransport> PelcoDDevice::createVirtualChannel()
 PelcoDProtocolStats PelcoDDevice::getProtocolStats() const
 {
     PelcoDProtocolStats stats = m_metrics->getStats();
-    stats.checksumErrors = m_session->getAccumulator().checksumErrors();
-    stats.discardedSyncBytes = m_session->getAccumulator().discardedBytes();
-    stats.pendingCommands = m_session->getQueue().size();
+    stats.checksumErrors = m_session->getChecksumErrors();
+    stats.discardedSyncBytes = m_session->getDiscardedBytes();
+    stats.pendingCommands = m_session->getPendingCommandCount();
     return stats;
 }
 
 void PelcoDDevice::resetProtocolStats() noexcept
 {
     m_metrics->resetStats();
-    m_session->getAccumulator().resetStats();
+    m_session->resetAccumulatorStats();
 }
 
 void PelcoDDevice::setTelemetryPolling(bool enable, std::uint32_t intervalMs) noexcept
 {
     m_telemetry->setPolling(enable, intervalMs);
-    m_session->getQueue().wakeAll();
+    m_session->wakeQueue();
 }
 
 bool PelcoDDevice::getTelemetryPolling() const noexcept

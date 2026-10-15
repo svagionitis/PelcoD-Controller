@@ -9,9 +9,15 @@
 namespace PelcoD {
 
 PelcoDSession::PelcoDSession(std::shared_ptr<ITransport> transport, std::uint8_t address)
+    : PelcoDSession(std::move(transport), address, SessionHandlers {})
+{
+}
+
+PelcoDSession::PelcoDSession(std::shared_ptr<ITransport> transport, std::uint8_t address, SessionHandlers handlers)
     : m_transport { std::move(transport) }
     , m_address { address }
     , m_asyncWatchdog { std::make_unique<AsyncWatchdog>() }
+    , m_handlers { std::move(handlers) }
 {
     m_queue.setEvictionHandler([this](const CommandItem& evicted) {
         if (isQueryExpected(evicted.queryKind) || !evicted.queryTag.empty()) {
@@ -62,19 +68,7 @@ bool PelcoDSession::start()
             }
         }
 
-        transport->setDataCallback([this, rxGate](const std::vector<std::uint8_t>& data) {
-            const CallbackGate::Pass pass { *rxGate };
-            if (pass) {
-                onDataReceived(data);
-            }
-        });
-
-        transport->setStateCallback([this, rxGate](TransportState state, const std::string& msg) {
-            const CallbackGate::Pass pass { *rxGate };
-            if (pass) {
-                onTransportState(state, msg);
-            }
-        });
+        bindTransport(transport, rxGate);
 
         m_running.store(true);
         m_connected.store(transport->isOpen());
@@ -92,10 +86,7 @@ bool PelcoDSession::start()
             m_asyncWatchdog->shutdown();
             m_asyncWatchdog.reset();
         }
-        if (transport) {
-            transport->setDataCallback(nullptr);
-            transport->setStateCallback(nullptr);
-        }
+        unbindTransport(transport);
         return false;
     }
 }
@@ -122,8 +113,7 @@ void PelcoDSession::stop()
             if (transport->isOpen()) {
                 transport->close();
             }
-            transport->setDataCallback(nullptr);
-            transport->setStateCallback(nullptr);
+            unbindTransport(transport);
         }
         return;
     }
@@ -145,8 +135,7 @@ void PelcoDSession::stop()
     }
 
     if (transport) {
-        transport->setDataCallback(nullptr);
-        transport->setStateCallback(nullptr);
+        unbindTransport(transport);
         transport->close();
     }
 
@@ -307,59 +296,39 @@ RetryConfig PelcoDSession::getRetryConfig() const noexcept
     return m_retryConfig;
 }
 
-void PelcoDSession::setFrameHandler(FrameHandler handler)
+bool PelcoDSession::setHandlers(SessionHandlers handlers)
 {
-    std::scoped_lock lock(m_handlerMutex);
-    m_frameHandler = std::move(handler);
+    std::unique_lock<std::recursive_mutex> lock(m_lifecycleMutex);
+    if (m_running.load()) {
+        return false;
+    }
+    m_handlers = std::move(handlers);
+    return true;
 }
 
-void PelcoDSession::setTrafficHandler(TrafficHandler handler)
+std::size_t PelcoDSession::getPendingCommandCount() const noexcept
 {
-    std::scoped_lock lock(m_handlerMutex);
-    m_trafficHandler = std::move(handler);
+    return m_queue.size();
 }
 
-void PelcoDSession::setTimeoutHandler(TimeoutHandler handler)
+std::uint64_t PelcoDSession::getChecksumErrors() const noexcept
 {
-    std::scoped_lock lock(m_handlerMutex);
-    m_timeoutHandler = std::move(handler);
+    return m_rxAccumulator.checksumErrors();
 }
 
-void PelcoDSession::setQueryFailedHandler(QueryFailedHandler handler)
+std::uint64_t PelcoDSession::getDiscardedBytes() const noexcept
 {
-    std::scoped_lock lock(m_handlerMutex);
-    m_queryFailedHandler = std::move(handler);
+    return m_rxAccumulator.discardedBytes();
 }
 
-void PelcoDSession::setRetryHandler(RetryHandler handler)
+void PelcoDSession::resetAccumulatorStats() noexcept
 {
-    std::scoped_lock lock(m_handlerMutex);
-    m_retryHandler = std::move(handler);
+    m_rxAccumulator.resetStats();
 }
 
-void PelcoDSession::setStateHandler(StateHandler handler)
+void PelcoDSession::wakeQueue() noexcept
 {
-    std::scoped_lock lock(m_handlerMutex);
-    m_stateHandler = std::move(handler);
-}
-
-void PelcoDSession::setCommandDroppedHandler(CommandDroppedHandler handler)
-{
-    std::scoped_lock lock(m_handlerMutex);
-    m_commandDroppedHandler = std::move(handler);
-}
-
-void PelcoDSession::setPollStepHandler(PollStepHandler handler, PollDeadlineHandler deadlineHandler)
-{
-    std::scoped_lock lock(m_handlerMutex);
-    m_pollStepHandler = std::move(handler);
-    m_pollDeadlineHandler = std::move(deadlineHandler);
-}
-
-void PelcoDSession::setStatusProvider(StatusProvider provider)
-{
-    std::scoped_lock lock(m_handlerMutex);
-    m_statusProvider = std::move(provider);
+    m_queue.wakeAll();
 }
 
 bool PelcoDSession::hasLowPriorityPending() const noexcept
@@ -382,6 +351,39 @@ Transport::TransportStatsSnapshot PelcoDSession::getTransportStats() const
     return Transport::TransportStatsSnapshot {};
 }
 
+void PelcoDSession::bindTransport(
+    const std::shared_ptr<ITransport>& transport, const std::shared_ptr<CallbackGate>& gate)
+{
+    if (!transport) {
+        return;
+    }
+    if (!gate) {
+        transport->setDataCallback(nullptr);
+        transport->setStateCallback(nullptr);
+        return;
+    }
+    transport->setDataCallback([this, gate](const std::vector<std::uint8_t>& data) {
+        const CallbackGate::Pass pass { *gate };
+        if (pass) {
+            onDataReceived(data);
+        }
+    });
+    transport->setStateCallback([this, gate](TransportState state, const std::string& msg) {
+        const CallbackGate::Pass pass { *gate };
+        if (pass) {
+            onTransportState(state, msg);
+        }
+    });
+}
+
+void PelcoDSession::unbindTransport(const std::shared_ptr<ITransport>& transport)
+{
+    if (transport) {
+        transport->setDataCallback(nullptr);
+        transport->setStateCallback(nullptr);
+    }
+}
+
 std::shared_ptr<ITransport> PelcoDSession::createVirtualChannel()
 {
     std::unique_lock<std::recursive_mutex> lifecycleLock { m_lifecycleMutex };
@@ -393,23 +395,11 @@ std::shared_ptr<ITransport> PelcoDSession::createVirtualChannel()
         m_sessionChannel = m_multiplexer->createChannel();
 
         if (m_running.load()) {
-            m_transport->setDataCallback(nullptr);
-            m_transport->setStateCallback(nullptr);
+            unbindTransport(m_transport);
 
             auto rxGate = m_rxGate;
             if (rxGate) {
-                m_sessionChannel->setDataCallback([this, rxGate](const std::vector<std::uint8_t>& data) {
-                    const CallbackGate::Pass pass { *rxGate };
-                    if (pass) {
-                        onDataReceived(data);
-                    }
-                });
-                m_sessionChannel->setStateCallback([this, rxGate](TransportState state, const std::string& msg) {
-                    const CallbackGate::Pass pass { *rxGate };
-                    if (pass) {
-                        onTransportState(state, msg);
-                    }
-                });
+                bindTransport(m_sessionChannel, rxGate);
             }
         }
     }
@@ -424,13 +414,8 @@ void PelcoDSession::markConnected()
     }
     m_rxAccumulator.clear();
     m_queue.wakeAll();
-    StateHandler stateHandler;
-    {
-        std::scoped_lock lock(m_handlerMutex);
-        stateHandler = m_stateHandler;
-    }
-    if (stateHandler) {
-        stateHandler(TransportState::Connected, "Connected");
+    if (m_handlers.stateHandler) {
+        m_handlers.stateHandler(TransportState::Connected, "Connected");
     }
 }
 
@@ -442,13 +427,8 @@ void PelcoDSession::markDisconnected()
     }
     static_cast<void>(m_queue.purgeMotionCommands());
     resolveQueryWait();
-    StateHandler stateHandler;
-    {
-        std::scoped_lock lock(m_handlerMutex);
-        stateHandler = m_stateHandler;
-    }
-    if (stateHandler) {
-        stateHandler(TransportState::Disconnected, "Disconnected");
+    if (m_handlers.stateHandler) {
+        m_handlers.stateHandler(TransportState::Disconnected, "Disconnected");
     }
 }
 
@@ -496,13 +476,8 @@ bool PelcoDSession::isResponseMatchingQuery(
 
 void PelcoDSession::notifyQueryFailed(const std::string& queryTag, std::chrono::microseconds durationUs)
 {
-    QueryFailedHandler handler;
-    {
-        std::scoped_lock lock(m_handlerMutex);
-        handler = m_queryFailedHandler;
-    }
-    if (handler) {
-        handler(queryTag, durationUs);
+    if (m_handlers.queryFailedHandler) {
+        m_handlers.queryFailedHandler(queryTag, durationUs);
     }
 }
 
@@ -513,13 +488,8 @@ void PelcoDSession::notifyCommandDropped(const StandardFrame& frame, SendResult 
 
 void PelcoDSession::notifyCommandDropped(const std::vector<std::uint8_t>& frame, SendResult reason)
 {
-    CommandDroppedHandler handler;
-    {
-        std::scoped_lock lock(m_handlerMutex);
-        handler = m_commandDroppedHandler;
-    }
-    if (handler) {
-        handler(frame, reason);
+    if (m_handlers.commandDroppedHandler) {
+        m_handlers.commandDroppedHandler(frame, reason);
     }
 }
 
@@ -540,18 +510,11 @@ void PelcoDSession::checkQueryTimeout()
         }
     }
     if (!timedOutTag.empty()) {
-        TimeoutHandler tHandler;
-        QueryFailedHandler fHandler;
-        {
-            std::scoped_lock lock(m_handlerMutex);
-            tHandler = m_timeoutHandler;
-            fHandler = m_queryFailedHandler;
+        if (m_handlers.timeoutHandler) {
+            m_handlers.timeoutHandler(timedOutTag);
         }
-        if (tHandler) {
-            tHandler(timedOutTag);
-        }
-        if (fHandler) {
-            fHandler(timedOutTag, durationUs);
+        if (m_handlers.queryFailedHandler) {
+            m_handlers.queryFailedHandler(timedOutTag, durationUs);
         }
     }
 }
@@ -560,26 +523,13 @@ void PelcoDSession::dispatchFrame(const std::vector<std::uint8_t>& frame)
 {
     if (m_frameExt && m_frameExt->onFrame(frame)) {
         resolveQueryWait();
-        StatusProvider sProvider;
-        {
-            std::scoped_lock lock(m_handlerMutex);
-            sProvider = m_statusProvider;
-        }
-        if (sProvider) {
-            m_frameExt->publish(sProvider());
+        if (m_handlers.statusProvider) {
+            m_frameExt->publish(m_handlers.statusProvider());
         }
     }
 
-    TrafficHandler tHandler;
-    FrameHandler fHandler;
-    {
-        std::scoped_lock lock(m_handlerMutex);
-        tHandler = m_trafficHandler;
-        fHandler = m_frameHandler;
-    }
-
-    if (tHandler) {
-        tHandler(false, frame);
+    if (m_handlers.trafficHandler) {
+        m_handlers.trafficHandler(false, frame);
     }
 
     if (frame.size() < 2U) {
@@ -620,8 +570,8 @@ void PelcoDSession::dispatchFrame(const std::vector<std::uint8_t>& frame)
         }
     }
 
-    if (fHandler) {
-        fHandler(frame, satisfiedTag, durationUs, limitId);
+    if (m_handlers.frameHandler) {
+        m_handlers.frameHandler(frame, satisfiedTag, durationUs, limitId);
     }
 }
 
@@ -634,18 +584,12 @@ void PelcoDSession::workerLoop()
             dispatchFrame(frame);
         }
 
-        PollStepHandler pollHandler;
-        PollDeadlineHandler deadlineHandler;
-        {
-            std::scoped_lock lock(m_handlerMutex);
-            pollHandler = m_pollStepHandler;
-            deadlineHandler = m_pollDeadlineHandler;
-        }
-        if (pollHandler) {
-            pollHandler();
+        if (m_handlers.pollStepHandler) {
+            m_handlers.pollStepHandler();
         }
 
-        const auto pollDeadline = deadlineHandler ? deadlineHandler() : std::chrono::steady_clock::time_point::max();
+        const auto pollDeadline = m_handlers.pollDeadlineHandler ? m_handlers.pollDeadlineHandler()
+                                                                 : std::chrono::steady_clock::time_point::max();
 
         CommandItem item {};
         const auto idleWaitTimeout
@@ -692,14 +636,9 @@ void PelcoDSession::workerLoop()
                         + (tagStr.empty() ? "command" : "query '" + tagStr + "'");
                     const auto backoffDelay = m_queue.scheduleRetry(item, retryCfg, reason);
                     if (backoffDelay.count() > 0) {
-                        RetryHandler rHandler;
-                        {
-                            std::scoped_lock lock(m_handlerMutex);
-                            rHandler = m_retryHandler;
-                        }
-                        if (rHandler) {
-                            rHandler(tagStr.empty() ? "Command" : tagStr, item.retryCount + 1U, retryCfg.maxRetries,
-                                backoffDelay);
+                        if (m_handlers.retryHandler) {
+                            m_handlers.retryHandler(tagStr.empty() ? "Command" : tagStr, item.retryCount + 1U,
+                                retryCfg.maxRetries, backoffDelay);
                         }
                     }
                 } else if (isQuery) {
@@ -709,13 +648,8 @@ void PelcoDSession::workerLoop()
                         retryCfg.retryOnTransportError ? SendResult::RetriesExhausted : SendResult::TransportClosed);
                 }
             } else {
-                TrafficHandler tHandler;
-                {
-                    std::scoped_lock lock(m_handlerMutex);
-                    tHandler = m_trafficHandler;
-                }
-                if (tHandler) {
-                    tHandler(true, PelcoDFrame::toVector(item.frame));
+                if (m_handlers.trafficHandler) {
+                    m_handlers.trafficHandler(true, PelcoDFrame::toVector(item.frame));
                 }
 
                 if (isQuery) {
@@ -774,13 +708,11 @@ void PelcoDSession::workerLoop()
                             resolveQueryWait();
                             const std::string reason = "Query '" + tagStr + "' timed out";
                             const auto backoffDelay = m_queue.scheduleRetry(item, retryCfg, reason);
-                            RetryHandler rHandler;
-                            {
-                                std::scoped_lock lock(m_handlerMutex);
-                                rHandler = m_retryHandler;
-                            }
-                            if (rHandler) {
-                                rHandler(tagStr, item.retryCount + 1U, retryCfg.maxRetries, backoffDelay);
+                            if (backoffDelay.count() > 0) {
+                                if (m_handlers.retryHandler) {
+                                    m_handlers.retryHandler(
+                                        tagStr, item.retryCount + 1U, retryCfg.maxRetries, backoffDelay);
+                                }
                             }
                         } else {
                             checkQueryTimeout();

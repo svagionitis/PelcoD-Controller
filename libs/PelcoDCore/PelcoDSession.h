@@ -43,11 +43,35 @@ public:
     using PollStepHandler = std::function<void()>;
     using PollDeadlineHandler = std::function<std::chrono::steady_clock::time_point()>;
     using StatusProvider = std::function<DeviceStatus()>;
+    using CommandDroppedHandler = std::function<void(const std::vector<std::uint8_t>& frame, SendResult reason)>;
+
+    /// @struct SessionHandlers
+    /// @brief Immutable dispatch and callback hooks bundle configured before session start.
+    struct SessionHandlers {
+        SessionHandlers() = default;
+
+        FrameHandler frameHandler {};
+        TrafficHandler trafficHandler {};
+        TimeoutHandler timeoutHandler {};
+        QueryFailedHandler queryFailedHandler {};
+        RetryHandler retryHandler {};
+        StateHandler stateHandler {};
+        CommandDroppedHandler commandDroppedHandler {};
+        PollStepHandler pollStepHandler {};
+        PollDeadlineHandler pollDeadlineHandler {};
+        StatusProvider statusProvider {};
+    };
 
     /// @brief Constructs a communication session.
     /// @param[in] transport Underlying communication transport interface.
     /// @param[in] address Logical RS-485 device address (1-31).
     explicit PelcoDSession(std::shared_ptr<ITransport> transport, std::uint8_t address = 1U);
+
+    /// @brief Constructs a communication session with pre-configured handlers.
+    /// @param[in] transport Underlying communication transport interface.
+    /// @param[in] address Logical RS-485 device address (1-31).
+    /// @param[in] handlers Pre-configured session handlers.
+    PelcoDSession(std::shared_ptr<ITransport> transport, std::uint8_t address, SessionHandlers handlers);
 
     /// @brief Destructor stopping the worker strand and closing the session admission gate.
     ~PelcoDSession();
@@ -154,44 +178,12 @@ public:
     /// @return Active policy parameters.
     [[nodiscard]] RetryConfig getRetryConfig() const noexcept;
 
-    /// @brief Registers incoming frame dispatch handler.
-    /// @param[in] handler Callback function.
-    void setFrameHandler(FrameHandler handler);
-
-    /// @brief Registers traffic observation handler.
-    /// @param[in] handler Callback function.
-    void setTrafficHandler(TrafficHandler handler);
-
-    /// @brief Registers query timeout handler.
-    /// @param[in] handler Callback function.
-    void setTimeoutHandler(TimeoutHandler handler);
-
-    /// @brief Registers query failure handler.
-    /// @param[in] handler Callback function.
-    void setQueryFailedHandler(QueryFailedHandler handler);
-
-    /// @brief Registers retry event handler.
-    /// @param[in] handler Callback function.
-    void setRetryHandler(RetryHandler handler);
-
-    /// @brief Registers transport link state change handler.
-    /// @param[in] handler Callback function.
-    void setStateHandler(StateHandler handler);
-
-    using CommandDroppedHandler = std::function<void(const std::vector<std::uint8_t>& frame, SendResult reason)>;
-
-    /// @brief Registers command dropped notification handler.
-    /// @param[in] handler Callback function.
-    void setCommandDroppedHandler(CommandDroppedHandler handler);
-
-    /// @brief Registers periodic telemetry poll step handler and optional deadline provider.
-    /// @param[in] handler Callback function.
-    /// @param[in] deadlineHandler Callback providing the next poll deadline time point.
-    void setPollStepHandler(PollStepHandler handler, PollDeadlineHandler deadlineHandler = nullptr);
-
-    /// @brief Registers status provider used by protocol extensions.
-    /// @param[in] provider Function returning a current DeviceStatus snapshot.
-    void setStatusProvider(StatusProvider provider);
+    /// @brief Configures session event and dispatch handlers.
+    /// @details Thread-safe; may only be called when the session is stopped. Handlers remain immutable during
+    /// execution.
+    /// @param[in] handlers Handlers bundle to install.
+    /// @return True if installed; false if the session is currently running.
+    [[nodiscard]] bool setHandlers(SessionHandlers handlers);
 
     /// @brief Checks whether low-priority commands are pending in the command queue.
     /// @return True if low priority commands are pending.
@@ -222,6 +214,24 @@ public:
         return m_rxAccumulator;
     }
 
+    /// @brief Captures number of pending commands waiting in pacing queue.
+    /// @return Count of queued commands.
+    [[nodiscard]] std::size_t getPendingCommandCount() const noexcept;
+
+    /// @brief Retrieves count of framing checksum errors recorded by stream accumulator.
+    /// @return Accumulated checksum error count.
+    [[nodiscard]] std::uint64_t getChecksumErrors() const noexcept;
+
+    /// @brief Retrieves count of discarded unaligned sync bytes from accumulator.
+    /// @return Accumulated discarded byte count.
+    [[nodiscard]] std::uint64_t getDiscardedBytes() const noexcept;
+
+    /// @brief Resets accumulator framing error and discarded byte metrics.
+    void resetAccumulatorStats() noexcept;
+
+    /// @brief Awakens command queue waiting threads.
+    void wakeQueue() noexcept;
+
     /// @brief Captures underlying transport statistics snapshot.
     /// @return Transport telemetry snapshot.
     [[nodiscard]] Transport::TransportStatsSnapshot getTransportStats() const;
@@ -245,6 +255,9 @@ private:
     void notifyCommandDropped(const StandardFrame& frame, SendResult reason);
     void notifyCommandDropped(const std::vector<std::uint8_t>& frame, SendResult reason);
     [[nodiscard]] std::shared_ptr<ITransport> activeTransport() const noexcept;
+
+    void bindTransport(const std::shared_ptr<ITransport>& transport, const std::shared_ptr<CallbackGate>& gate);
+    void unbindTransport(const std::shared_ptr<ITransport>& transport);
 
     std::shared_ptr<ITransport> m_transport;
     std::shared_ptr<TransportMultiplexer> m_multiplexer {};
@@ -276,17 +289,7 @@ private:
     std::optional<EverestLimitId> m_pendingLimitId { std::nullopt };
     std::chrono::steady_clock::time_point m_querySentTime {};
 
-    mutable std::mutex m_handlerMutex;
-    FrameHandler m_frameHandler {};
-    TrafficHandler m_trafficHandler {};
-    TimeoutHandler m_timeoutHandler {};
-    QueryFailedHandler m_queryFailedHandler {};
-    RetryHandler m_retryHandler {};
-    StateHandler m_stateHandler {};
-    CommandDroppedHandler m_commandDroppedHandler {};
-    PollStepHandler m_pollStepHandler {};
-    PollDeadlineHandler m_pollDeadlineHandler {};
-    StatusProvider m_statusProvider {};
+    SessionHandlers m_handlers {};
 };
 
 } // namespace PelcoD
