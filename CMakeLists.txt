@@ -221,6 +221,7 @@ endif()
 # ==============================================================================
 add_subdirectory(libs)
 add_subdirectory(app-pelcod-qt)
+add_subdirectory(app-fujinon-qt)
 add_subdirectory(app-visca-qt)
 add_subdirectory(app-pelcod-tui)
 if(PELCOD_ENABLE_VIDEO)
@@ -250,7 +251,7 @@ include(GitHooks)
 # Target Installation
 # ==============================================================================
 
-set(PELCOD_INSTALL_TARGETS PelcoDAppQt ViscaAppQt PelcoDAppTui PelcoDCore PelcoDQt Math Transport ViscaCore ViscaSony Tracking Klv Mapping PayloadHal PelcoDFujinon PelcoDSim Nmea SightlineCore SightlineQt)
+set(PELCOD_INSTALL_TARGETS PelcoDAppQt FujinonAppQt ViscaAppQt PelcoDAppTui PelcoDCore PelcoDQt Math Transport ViscaCore ViscaSony Tracking Klv Mapping PayloadHal PelcoDFujinon PelcoDSim Nmea SightlineCore SightlineQt)
 if(TARGET MappingQt)
     list(APPEND PELCOD_INSTALL_TARGETS MappingQt)
 endif()

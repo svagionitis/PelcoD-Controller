@@ -26,8 +26,6 @@ add_executable(PelcoDAppQt
     tabs/OsdScreenTab.cpp
     tabs/SystemTab.h
     tabs/SystemTab.cpp
-    tabs/FujinonSX800Tab.h
-    tabs/FujinonSX800Tab.cpp
     dialogs/BusScanDialog.h
     dialogs/BusScanDialog.cpp
     dialogs/MockDynamicsDialog.h
@@ -48,7 +46,6 @@ target_include_directories(PelcoDAppQt PRIVATE
     ${CMAKE_SOURCE_DIR}/libs/Video
     ${CMAKE_SOURCE_DIR}/libs/VideoFilters
     ${CMAKE_SOURCE_DIR}/libs/Tracking
-    ${CMAKE_SOURCE_DIR}/libs/PelcoDFujinon
     ${CMAKE_SOURCE_DIR}/libs/PelcoDSim
 )
 
@@ -64,7 +61,6 @@ endif()
 
 target_link_libraries(PelcoDAppQt PRIVATE
     PelcoDQt
-    PelcoDFujinon
     PelcoDSim
     Tracking
     Video

@@ -9,6 +9,8 @@ add_library(PelcoDQt STATIC
     QRttProfiler.cpp
     QFujinonSX800Device.h
     QFujinonSX800Device.cpp
+    QPelcoDFujinonDevice.h
+    QPelcoDFujinonDevice.cpp
 )
 
 target_include_directories(PelcoDQt PUBLIC

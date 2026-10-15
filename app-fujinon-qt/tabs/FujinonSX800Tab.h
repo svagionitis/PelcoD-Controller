@@ -4,7 +4,7 @@
 /// @brief Dedicated dashboard tab for Fujinon SX800 / SX801 optical surveillance cameras.
 
 #include "FujinonTypes.h"
-#include "QPelcoDDevice.h"
+#include "QPelcoDFujinonDevice.h"
 
 #include <QCheckBox>
 #include <QComboBox>
@@ -23,7 +23,7 @@
 #include <QVBoxLayout>
 #include <QWidget>
 
-namespace PelcoDApp {
+namespace FujinonApp {
 
 /// @class FujinonSX800Tab
 /// @brief Dashboard tab providing comprehensive controls and telemetry for Fujinon SX800/SX801.
@@ -31,7 +31,7 @@ class FujinonSX800Tab : public QWidget {
     Q_OBJECT
 
 public:
-    explicit FujinonSX800Tab(PelcoDQt::QPelcoDDevice* device, QWidget* parent = nullptr);
+    explicit FujinonSX800Tab(PelcoDQt::QPelcoDFujinonDevice* device, QWidget* parent = nullptr);
     ~FujinonSX800Tab() override = default;
 
 public slots:
@@ -97,7 +97,7 @@ private:
     void setupConnections();
     [[nodiscard]] PelcoDQt::QFujinonSX800Device* fujinon() const noexcept;
 
-    PelcoDQt::QPelcoDDevice* m_device { nullptr };
+    PelcoDQt::QPelcoDFujinonDevice* m_device { nullptr };
 
     // Group 1: Optics & Stabilization
     QComboBox* cmbOis { nullptr };
@@ -169,4 +169,4 @@ private:
     QPushButton* btnReboot { nullptr };
 };
 
-} // namespace PelcoDApp
+} // namespace FujinonApp

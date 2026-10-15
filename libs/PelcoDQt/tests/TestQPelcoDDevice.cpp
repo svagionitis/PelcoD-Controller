@@ -5,6 +5,7 @@
 #include "MockPelcoDDevice.h"
 #include "QPatrolController.h"
 #include "QPelcoDDevice.h"
+#include "QPelcoDFujinonDevice.h"
 
 #include <QCoreApplication>
 #include <QThread>
@@ -65,7 +66,7 @@ TEST(QPelcoDDeviceTest, NoDuplicateSignalsOnReconnection)
     }
 
     // Must be emitted EXACTLY ONCE, not duplicated
-    EXPECT_TRUE(txCount == 1);
+    EXPECT_EQ(txCount, 1);
 
     // 3rd Connection cycle
     device.disconnectDevice();
@@ -303,6 +304,25 @@ TEST(QPatrolControllerTest, SetDeviceNullptr)
     PelcoDQt::QPelcoDDevice device(mock, 1U);
     controller.setDevice(&device);
     controller.setDevice(nullptr);
+}
+
+TEST(QPelcoDFujinonDeviceTest, InstantiationAndCoreDevice)
+{
+    auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(1U);
+    PelcoDQt::QPelcoDFujinonDevice fujinonDevice(mock, 1U);
+
+    EXPECT_NE(fujinonDevice.fujinonCoreDevice(), nullptr);
+    EXPECT_NE(fujinonDevice.fujinonDevice(), nullptr);
+    EXPECT_NE(fujinonDevice.coreDevice(), nullptr);
+
+    int statusCount { 0 };
+    QObject::connect(&fujinonDevice, &PelcoDQt::QPelcoDFujinonDevice::fujinonStatusUpdated,
+        [&statusCount](const PelcoD::FujinonStatus&) { ++statusCount; });
+
+    EXPECT_TRUE(fujinonDevice.connectDevice());
+    EXPECT_TRUE(fujinonDevice.isConnected());
+    fujinonDevice.disconnectDevice();
+    EXPECT_FALSE(fujinonDevice.isConnected());
 }
 
 int main(int argc, char* argv[])

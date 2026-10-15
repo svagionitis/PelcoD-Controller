@@ -5,7 +5,6 @@
 
 #include "ChirpCalibrator.h"
 #include "DeviceStatus.h"
-#include "FujinonTypes.h"
 #include "LatencyCalibrator.h"
 #include "LatencyEstimator.h"
 #include "PlantIdentifier.h"
@@ -52,9 +51,6 @@ public:
 public slots:
     /// @brief Receives base Pelco-D telemetry and feeds into HUD.
     void handleDeviceStatusUpdated(const PelcoD::DeviceStatus& status);
-
-    /// @brief Receives Fujinon SX800 extended telemetry and feeds into HUD.
-    void handleFujinonStatusUpdated(const PelcoD::FujinonStatus& status);
 
     /// @brief Receives RTT profiler measurements and feeds into HUD diagnostics.
     void handleRttStatsUpdated(double avgRttMs, double jitterMs);

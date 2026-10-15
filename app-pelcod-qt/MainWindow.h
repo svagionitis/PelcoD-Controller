@@ -4,11 +4,9 @@
 /// @brief Main application window hosting dashboard tabs and traffic inspector.
 
 #include "DeviceStatus.h"
-#include "FujinonTypes.h"
 #include "QPelcoDDevice.h"
 #include "app-pelcod-qt/tabs/AuxZonesTab.h"
 #include "app-pelcod-qt/tabs/DeviceSettingsTab.h"
-#include "app-pelcod-qt/tabs/FujinonSX800Tab.h"
 #include "app-pelcod-qt/tabs/OsdScreenTab.h"
 #include "app-pelcod-qt/tabs/PresetsTab.h"
 #include "app-pelcod-qt/tabs/PtzControlTab.h"
@@ -43,7 +41,6 @@ private slots:
     void handleConnect(std::shared_ptr<Transport::ITransport> transport, std::uint8_t address);
     void handleDisconnect();
     void handleStatusUpdated(const PelcoD::DeviceStatus& status);
-    void handleFujinonStatusUpdated(const PelcoD::FujinonStatus& status);
 
 private:
     void setupUi();
@@ -61,7 +58,6 @@ private:
     AuxZonesTab* m_auxZonesTab { nullptr };
     OsdScreenTab* m_osdTab { nullptr };
     SystemTab* m_systemTab { nullptr };
-    FujinonSX800Tab* m_fujinonTab { nullptr };
 
 #if defined(PELCOD_ENABLE_ONVIF)
     PelcoD::Qt::QOnvifDevice* m_onvifDevice { nullptr };

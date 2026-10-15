@@ -6,9 +6,9 @@
 #include <QMessageBox>
 #include <QSignalBlocker>
 
-namespace PelcoDApp {
+namespace FujinonApp {
 
-FujinonSX800Tab::FujinonSX800Tab(PelcoDQt::QPelcoDDevice* device, QWidget* parent)
+FujinonSX800Tab::FujinonSX800Tab(PelcoDQt::QPelcoDFujinonDevice* device, QWidget* parent)
     : QWidget(parent)
     , m_device { device }
 {
@@ -941,4 +941,4 @@ void FujinonSX800Tab::handleReboot()
     }
 }
 
-} // namespace PelcoDApp
+} // namespace FujinonApp

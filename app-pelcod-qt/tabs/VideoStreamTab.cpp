@@ -1113,59 +1113,8 @@ void VideoStreamTab::handleDeviceStatusUpdated(const PelcoD::DeviceStatus& statu
     const double approxMag = 1.0 + (static_cast<double>(status.zoomPosition) / 65535.0) * 39.0;
     const double approxFocal = 35.0 + (static_cast<double>(status.zoomPosition) / 65535.0) * 765.0;
     m_overlayWidget->setZoomInfo(status.zoomPosition, approxMag, approxFocal);
-}
-
-void VideoStreamTab::handleFujinonStatusUpdated(const PelcoD::FujinonStatus& status)
-{
-    handleDeviceStatusUpdated(status.baseStatus);
-
-    QString oisStr = "OFF";
-    switch (status.oisMode) {
-    case PelcoD::FujinonOISMode::Auto:
-        oisStr = "AUTO";
-        break;
-    case PelcoD::FujinonOISMode::OisOn:
-        oisStr = "OIS ON";
-        break;
-    case PelcoD::FujinonOISMode::EisOn:
-        oisStr = "EIS ON";
-        break;
-    case PelcoD::FujinonOISMode::Off:
-        oisStr = "OFF";
-        break;
-    }
-
-    QString defogStr = "OFF";
-    switch (status.defogLevel) {
-    case PelcoD::FujinonDefogLevel::Level1:
-        defogStr = "L1";
-        break;
-    case PelcoD::FujinonDefogLevel::Level2:
-        defogStr = "L2";
-        break;
-    case PelcoD::FujinonDefogLevel::Level3:
-        defogStr = "L3";
-        break;
-    default:
-        defogStr = "OFF";
-        break;
-    }
-
-    QString dnStr = "AUTO";
-    switch (status.dayNightMode) {
-    case PelcoD::FujinonDayNightMode::Day:
-        dnStr = "DAY [VIS]";
-        break;
-    case PelcoD::FujinonDayNightMode::Night:
-        dnStr = "NIGHT [IR]";
-        break;
-    default:
-        dnStr = "AUTO";
-        break;
-    }
-
-    m_overlayWidget->setOpticalStatus((status.baseStatus.autoFocus == PelcoD::AutoMode::On) ? "AUTO" : "MANUAL",
-        (status.baseStatus.autoIris == PelcoD::AutoMode::On) ? "AUTO" : "MANUAL", oisStr, defogStr, dnStr);
+    m_overlayWidget->setOpticalStatus((status.autoFocus == PelcoD::AutoMode::On) ? "AUTO" : "MANUAL",
+        (status.autoIris == PelcoD::AutoMode::On) ? "AUTO" : "MANUAL", "N/A", "N/A", "N/A");
 }
 
 void VideoStreamTab::handleRttStatsUpdated(double avgRttMs, double jitterMs)
