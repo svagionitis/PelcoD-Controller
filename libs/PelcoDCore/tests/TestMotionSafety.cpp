@@ -232,36 +232,6 @@ TEST(TestMotionSafety, ZeroTimeoutDisablesDeadMan)
     device.stop();
 }
 
-/// @brief MotionSafetyGuard operates via TaskScheduler without launching its own worker thread.
-TEST(TestMotionSafety, TaskSchedulerWatchdogOperatesWithoutDedicatedThread)
-{
-    auto scheduler = std::make_shared<PelcoD::TaskScheduler>();
-    scheduler->start();
-
-    std::atomic<bool> stopTriggered { false };
-    PelcoD::MotionSafetyGuard guard { [&stopTriggered] { stopTriggered = true; }, scheduler };
-
-    guard.setDeadManTimeout(40ms);
-    EXPECT_FALSE(guard.isArmed());
-    EXPECT_FALSE(guard.isMoving());
-
-    // Issue motion
-    const auto panFrame = PelcoD::ProtocolBuilder::buildPanFrame(1U, PelcoD::PanDirection::Left, 0x20U);
-    guard.onMotionCommand(panFrame);
-
-    EXPECT_TRUE(guard.isArmed());
-    EXPECT_TRUE(guard.isMoving());
-
-    // Wait for timeout (40ms + safety margin)
-    std::this_thread::sleep_for(100ms);
-
-    EXPECT_TRUE(stopTriggered.load());
-    EXPECT_FALSE(guard.isArmed());
-    EXPECT_FALSE(guard.isMoving());
-
-    scheduler->stop();
-}
-
 /// @brief extractMotionAxes decomposes Pan and Tilt motion commands into discrete axes.
 TEST(TestMotionSafety, ExtractMotionAxesIdentifiesPanAndTiltCorrectly)
 {
@@ -345,7 +315,7 @@ TEST(TestMotionSafety, DispatchOnlyArmsWatchdogOnSuccessfulEnqueue)
     PelcoD::MotionSafetyPolicy policy {};
     policy.deadManTimeout = 50ms;
 
-    auto guard = std::make_shared<PelcoD::MotionSafetyGuard>(session, nullptr, policy);
+    auto guard = std::make_shared<PelcoD::MotionSafetyGuard>(session, policy);
     EXPECT_FALSE(guard->isMoving());
     EXPECT_FALSE(guard->isArmed());
 
@@ -368,11 +338,8 @@ TEST(TestMotionSafety, RunawayLimitStopsMotionAfterMaxDuration)
     policy.deadManTimeout = 80ms;
     policy.maxContinuousDuration = 100ms;
 
-    auto scheduler = std::make_shared<PelcoD::TaskScheduler>();
-    scheduler->start();
-
     std::atomic<bool> runawayTripped { false };
-    auto guard = std::make_shared<PelcoD::MotionSafetyGuard>(session, scheduler, policy);
+    auto guard = std::make_shared<PelcoD::MotionSafetyGuard>(session, policy);
     guard->setSafetyEventCallback([&runawayTripped](PelcoD::MotionSafetyEvent ev, PelcoD::MotionAxis) {
         if (ev == PelcoD::MotionSafetyEvent::ContinuousMotionLimit) {
             runawayTripped = true;
@@ -390,7 +357,6 @@ TEST(TestMotionSafety, RunawayLimitStopsMotionAfterMaxDuration)
     EXPECT_TRUE(runawayTripped.load());
     EXPECT_FALSE(guard->isMoving());
 
-    scheduler->stop();
     session->stop();
 }
 
@@ -404,14 +370,11 @@ TEST(TestMotionSafety, SafetyEventCallbackFiresWithAccurateEventAndAxes)
     PelcoD::MotionSafetyPolicy policy {};
     policy.deadManTimeout = 40ms;
 
-    auto scheduler = std::make_shared<PelcoD::TaskScheduler>();
-    scheduler->start();
-
     std::atomic<bool> eventFired { false };
     PelcoD::MotionSafetyEvent receivedEvent {};
     PelcoD::MotionAxis receivedAxes {};
 
-    auto guard = std::make_shared<PelcoD::MotionSafetyGuard>(session, scheduler, policy);
+    auto guard = std::make_shared<PelcoD::MotionSafetyGuard>(session, policy);
     guard->setSafetyEventCallback([&](PelcoD::MotionSafetyEvent ev, PelcoD::MotionAxis axes) {
         receivedEvent = ev;
         receivedAxes = axes;
@@ -427,7 +390,6 @@ TEST(TestMotionSafety, SafetyEventCallbackFiresWithAccurateEventAndAxes)
     EXPECT_EQ(receivedEvent, PelcoD::MotionSafetyEvent::DeadManTimeout);
     EXPECT_EQ(receivedAxes, PelcoD::MotionAxis::Pan);
 
-    scheduler->stop();
     session->stop();
 }
 

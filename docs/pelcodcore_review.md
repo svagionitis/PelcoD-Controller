@@ -278,3 +278,130 @@ Per `.agents/rules/verification-checklist.md` item 11, each fix should start wit
 13. Wire up or remove the dead `DeviceStatus` fields (M6). Add the missing facade methods (M12). Decode the Time and Limit responses. *Time and Limit responses decoded in M5; Everest alarms separated from general alarms. M6 is done: optical status/modes, zoom/focus speeds, active preset tracking, limit centidegrees, DeviceInfo::serialNumber querying and parsing, PatrolStep::speed dispatching, and MacroStep::expectResponse synchronization with feedResponse() and timeout callback implemented. M10 (PatrolController safe std::weak_ptr/std::shared_ptr lifetime management preventing UAF), M11 (BusScanner standard baud rates aligned with Pelco-D spec without 57600, multiplexer virtual channel baud isolation, and RAII baud restoration), and M12 (PelcoDDevice setPower, setAutoScan, composite move overloads, and docstrings cleanup) are done.*
 14. Clear the MISRA advisories (L1–L4), use `std::array` frames (A7), address thread proliferation (A6), and add an exception boundary around callbacks (M3). *L1–L11 are done: C-style arrays eliminated (L1); signed bitwise promotions prevented with explicit uint16_t casts (L2); fixed-width integer types adopted (L3); non-basic source char ° replaced with deg/C (L4); describeFrame sanitized and extended with all opcodes (L5); throwing noexcept removed (L6); MacroPlayer copy/move explicitly deleted (L7); headers cleaned (L8); static utility classes deleted ctors & 16-bit MSB/LSB splitting unified (L9); fromHexString strict validation enforced (L10); and RxStreamAccumulator O(1) sliding cursor and metrics separation implemented (L11). M2 (unsolicited frames processed during queries without dropping), M3 (SEI CERT exception boundary around user callbacks), and M4 (centralized AsyncWatchdog, timeout fallback, full status pan/tilt/zoom async query) are done. A6 (unified Concurrency Core with TaskScheduler, ThreadPoolExecutor, CancellationToken, and single-timer watchdog) and A7 (zero-alloc StandardFrame array pipeline) are done with 100% test pass.*
 15. Add a TSan job and the regression tests from §6 to CI.
+
+---
+
+## 8. Follow-up Refactoring Review (post-decomposition)
+
+**Scope:** `libs/PelcoDCore` after the decomposition, motion-safety, and concurrency-core work above (~15.5k production lines, ~11.2k test lines).
+**Question:** does the library need more refactoring to simplify the codebase?
+**Verdict:** yes. The split into Session / Guard / Dispatcher / Commands helped, but it left a lot of duplicated code behind. About **1.4k–1.6k production lines (~10%)** can be removed without changing behaviour.
+
+### 8.1 Architecture after decomposition
+
+```
+                         +--------------------+
+   Apps / PelcoDQt  ---> |    PelcoDDevice    |  ~90 one-line forwarders
+                         +---------+----------+
+          +-----------+------------+-------------+--------------+
+          v           v            v             v              v
+   +-----------+ +----------+ +-----------+ +-----------+ +------------+
+   |PtzCommands| |Callback  | |Telemetry  | |Protocol   | |MotionSafe- |
+   |4x dispatch| |Dispatcher| |Coordinator| |Metrics    | |tyGuard     |
+   +-----+-----+ |8 chans x | +-----------+ +-----------+ |4x dispatch |
+         |       |add/rm/   |                             |own thread  |
+         |       |notify    |                             +-----+------+
+         |       +----------+                                   |
+         +-------------------------+----------------------------+
+                                   v
+                         +--------------------+
+                         |   PelcoDSession    |  8x enqueue/send overloads
+                         | 10 handler setters |
+                         +---------+----------+
+                                   v
+                         +--------------------+
+                         | PacedCommandQueue  |  4x enqueue overloads
+                         +--------------------+
+```
+
+```mermaid
+graph TD
+    App["Apps / PelcoDQt"] --> Dev["PelcoDDevice (~90 forwarders)"]
+    Dev --> Cmd["PtzCommands (4x dispatch)"]
+    Dev --> Disp["CallbackDispatcher (8 channels x add/remove/notify)"]
+    Dev --> Tel["TelemetryCoordinator"]
+    Dev --> Met["ProtocolMetrics"]
+    Dev --> Guard["MotionSafetyGuard (4x dispatch, own thread)"]
+    Cmd --> Guard
+    Guard --> Sess["PelcoDSession (8x enqueue/send, 10 handler setters)"]
+    Cmd --> Sess
+    Sess --> Queue["PacedCommandQueue (4x enqueue)"]
+```
+
+### 8.2 Findings, by impact
+
+#### R1. The `{StandardFrame, vector} × {QueryKind, string}` overload explosion (High)
+
+Every layer repeats the same 2×2 overload matrix, and the bodies are near-identical copies:
+
+| Layer | Overloads | Duplicated lines |
+|---|---|---|
+| [PelcoDSession.cpp](../libs/PelcoDCore/PelcoDSession.cpp) | 4 `enqueueCommand` + 4 `sendQueryFrame` + 2 `sendRawFrame` | ~200 |
+| [MotionSafetyGuard.cpp](../libs/PelcoDCore/MotionSafetyGuard.cpp) | 4 `dispatch` | ~120 |
+| [PtzCommands.cpp](../libs/PelcoDCore/PtzCommands.cpp) | 4 `dispatch` | ~45 |
+| [PacedCommandQueue.h](../libs/PelcoDCore/PacedCommandQueue.h) | 4 `enqueue` helpers | ~40 |
+
+**Proposal:** a single `QueryRef { QueryKind kind; std::string tag; }` value type, with one real implementation per layer that everything else forwards to. Keep the `StandardFrame` path only where it avoids a heap allocation on the hot path.
+
+#### R2. `PelcoDDevice` is a ~500-line forwarding shim (High)
+
+[PelcoDDevice.cpp](../libs/PelcoDCore/PelcoDDevice.cpp) is ~90 methods of `return m_commands->X(...)`, and [PtzCommands.h](../libs/PelcoDCore/PtzCommands.h) repeats every declaration. The Doxygen lives only on the device side, so `PtzCommands` fails checklist item 9.
+
+**Proposal (keeps the public API intact):** make `PelcoDDevice` inherit the command set publicly, move the Doxygen into `PtzCommands.h`, and delete the forwarders. Call sites stay the same.
+
+#### R3. `CallbackDispatcher` is hand-expanded 8 times (High)
+
+[CallbackDispatcher.cpp](../libs/PelcoDCore/CallbackDispatcher.cpp) has 8 identical `remove*` bodies, 8 identical `notify*` bodies and an 8-way `clearCallbacks`. `PelcoDDevice` re-exposes 8 `add*` and 8 `remove*` methods. Nothing outside the core calls the 8 `PelcoDDevice::remove*Callback` methods; `Connection` RAII already covers unsubscription.
+
+**Proposal:** a generic copy-on-write `SignalChannel<Args...>` template (snapshot + `CallbackGate` + exception barrier), with one member per channel.
+
+#### R4. Dead or test-only code (Medium)
+
+| Item | Status |
+|---|---|
+| [ThreadPoolExecutor.h](../libs/PelcoDCore/ThreadPoolExecutor.h), [CancellationToken.h](../libs/PelcoDCore/CancellationToken.h) | Only used in `TestConcurrencyCore.cpp`; no production user anywhere |
+| [TaskScheduler.h](../libs/PelcoDCore/TaskScheduler.h) path in `MotionSafetyGuard` | Never supplied, so the guard always starts its own `watchdogLoop` thread. That leaves two parallel timer implementations |
+| `MotionSafetyGuard(StopTriggerCallback)` ctor, `onMotionCommand` ×2 | Test-only legacy hooks |
+| `MotionSafetyGuard::onStopCommand`, `onDisconnect` | Unused (`onDisconnect` is just an alias for `handleDisconnect`) |
+| `PelcoDSession::wakeQueue`, `getPendingLimitId` | Unused |
+| `if (m_safetyGuard)` checks in `PelcoDDevice` | The guard is always created in the constructor, so these checks never fail |
+
+#### R5. Duplicated session plumbing (Medium)
+
+- **Duplicate transport binding:** the same rx/state lambdas are bound in both `start()` and `createVirtualChannel()`. Extract a `bindTransport()` helper.
+- **Mutable handlers:** there are 10 `std::function` setters, each copied under `m_handlerMutex` on every RX frame, but they are only ever set once, from the device constructor. Make them an immutable `SessionHandlers` struct.
+- **Two internal-access routes:** `getQueue()`, `getAccumulator()` and `wakeQueue()` overlap.
+
+#### R6. Async query duplication (Low-Medium)
+
+`PelcoDDevice::queryStatusAsync` re-implements the promise/timer/connection logic of `executeAsyncQuery`, and `QueryState` and `CompositeQueryState` duplicate each other.
+
+#### R7. Tag/kind mapping and long functions (Low)
+
+- **Tag/kind mapping:** [PelcoDTypes.cpp](../libs/PelcoDCore/PelcoDTypes.cpp) maps tags to kinds with an `if` chain, separately from `toQueryTagName`. Replace both with one `constexpr` table.
+- **Long functions:** `ProtocolParser::describeFrame` is ~390 lines and `updateStatus` is ~175 lines. Split them per opcode family.
+- **Frame-check overloads:** `PelcoDFrame` has paired vector/`StandardFrame` overloads for the checksum, motion, stop and axes checks.
+
+### 8.3 Bugs found along the way
+
+These are real defects, not just simplifications, and are fixed TDD-first (checklist item 11).
+
+- **B1. Data race:** `MotionSafetyGuard::handleDisconnect` reads `m_policy.stopOnDisconnect` / `purgeQueueOnDisconnect` without holding `m_mutex`, while `setPolicy` writes them under the lock (CERT CON43-CPP).
+- **B2. Double-counted metrics:** the command-dropped handler in `PelcoDDevice` increments both `commandDropped` and `commandRetryExhausted` for every drop, including `QueueFull` evictions.
+- **B3. Setters that don't send anything:** `setFocusPosition`, `setIrisPosition` and `setSerialNumber` send no frame, only change local telemetry, and still return `SendResult::Success`.
+- **B4. Name hiding:** `FujinonSX800Device::setFocusPosition` hides the non-virtual base method, so a call through `PelcoDDevice&` silently runs the local-only version.
+
+### 8.4 Refactoring roadmap
+
+| # | Step | Est. lines removed | Risk | API break |
+|---|---|---|---|---|
+| 1 | Fix B1–B4 (TDD) | — | Low | Minor (B3) |
+| 2 | Remove dead code and legacy hooks (R4) | ~450 | Low | No (internal/test only) |
+| 3 | Collapse overloads with `QueryRef` (R1) | ~350 | Medium | Session/Guard internals only |
+| 4 | Generic `SignalChannel` (R3) | ~270 | Medium | No (`remove*` deprecated) |
+| 5 | Remove device forwarders via inheritance (R2) | ~550 | Medium | No |
+| 6 | Immutable session handlers, `bindTransport` (R5) | ~80 | Medium | Internal only |
+| 7 | Async helper, mapping table, parser split (R6–R7) | ~100 | Low | No |
+
+Each step is meant to be a separate Conventional Commit, with the full test suite green and zero warnings under `-Werror` and `/W4`.
+

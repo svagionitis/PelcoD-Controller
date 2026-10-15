@@ -12,24 +12,11 @@
 
 namespace PelcoD {
 
-MotionSafetyGuard::MotionSafetyGuard(
-    std::shared_ptr<PelcoDSession> session, std::shared_ptr<TaskScheduler> scheduler, MotionSafetyPolicy policy)
+MotionSafetyGuard::MotionSafetyGuard(std::shared_ptr<PelcoDSession> session, MotionSafetyPolicy policy)
     : m_session { session }
-    , m_scheduler { std::move(scheduler) }
     , m_policy { policy }
 {
-    if (!m_scheduler) {
-        m_worker = std::thread(&MotionSafetyGuard::watchdogLoop, this);
-    }
-}
-
-MotionSafetyGuard::MotionSafetyGuard(StopTriggerCallback stopCb, std::shared_ptr<TaskScheduler> scheduler)
-    : m_stopCb { std::move(stopCb) }
-    , m_scheduler { std::move(scheduler) }
-{
-    if (!m_scheduler) {
-        m_worker = std::thread(&MotionSafetyGuard::watchdogLoop, this);
-    }
+    m_worker = std::thread(&MotionSafetyGuard::watchdogLoop, this);
 }
 
 MotionSafetyGuard::~MotionSafetyGuard()
@@ -60,7 +47,6 @@ void MotionSafetyGuard::setDeadManTimeout(std::chrono::milliseconds timeout) noe
         updateMotionStateLocked(m_activeAxes, false);
     } else {
         m_armed = false;
-        cancelDeadManLocked();
         m_cv.notify_one();
     }
 }
@@ -234,9 +220,8 @@ SendResult MotionSafetyGuard::dispatch(
 
 SendResult MotionSafetyGuard::triggerEmergencyStop(MotionSafetyEvent reason) noexcept
 {
-    std::shared_ptr<PelcoDSession> session;
-    StopTriggerCallback stopCb;
-    SafetyEventCallback eventCb;
+    std::shared_ptr<PelcoDSession> session {};
+    SafetyEventCallback eventCb {};
     MotionAxis previousAxes { MotionAxis::None };
 
     {
@@ -245,16 +230,8 @@ SendResult MotionSafetyGuard::triggerEmergencyStop(MotionSafetyEvent reason) noe
             m_interlocked = true;
         }
         previousAxes = m_activeAxes;
-        m_activeAxes = MotionAxis::None;
-        m_moving = false;
-        m_armed = false;
-        m_continuousStart = {};
-        cancelDeadManLocked();
-        cancelRunawayLocked();
-        m_cv.notify_all();
-
+        resetMotionLocked();
         session = m_session.lock();
-        stopCb = m_stopCb;
         eventCb = m_eventCb;
     }
 
@@ -262,46 +239,12 @@ SendResult MotionSafetyGuard::triggerEmergencyStop(MotionSafetyEvent reason) noe
         eventCb(reason, previousAxes);
     }
 
-    if (session) {
-        static_cast<void>(session->purgeMotionCommands());
-        const auto stopFrame = ProtocolBuilder::buildStopFrame(session->getAddress());
-        return session->enqueueCommand(stopFrame, QueryKind::None, CommandPriority::Urgent);
+    if (!session) {
+        return SendResult::TransportClosed;
     }
-
-    if (stopCb) {
-        stopCb();
-        return SendResult::Success;
-    }
-
-    return SendResult::TransportClosed;
-}
-
-void MotionSafetyGuard::onMotionCommand(const StandardFrame& frame)
-{
-    const MotionAxis axes = PelcoDFrame::extractMotionAxes(frame);
-    if (axes == MotionAxis::None && !PelcoDFrame::isStandardMotion(frame)) {
-        return;
-    }
-
-    std::scoped_lock lock { m_mutex };
-    updateMotionStateLocked(axes != MotionAxis::None ? axes : MotionAxis::All, false);
-}
-
-void MotionSafetyGuard::onMotionCommand(const std::vector<std::uint8_t>& frame)
-{
-    const MotionAxis axes = PelcoDFrame::extractMotionAxes(frame);
-    if (axes == MotionAxis::None && !PelcoDFrame::isStandardMotion(frame)) {
-        return;
-    }
-
-    std::scoped_lock lock { m_mutex };
-    updateMotionStateLocked(axes != MotionAxis::None ? axes : MotionAxis::All, false);
-}
-
-void MotionSafetyGuard::onStopCommand() noexcept
-{
-    std::scoped_lock lock { m_mutex };
-    updateMotionStateLocked(MotionAxis::None, true);
+    static_cast<void>(session->purgeMotionCommands());
+    const auto stopFrame = ProtocolBuilder::buildStopFrame(session->getAddress());
+    return session->enqueueCommand(stopFrame, QueryKind::None, CommandPriority::Urgent);
 }
 
 void MotionSafetyGuard::handleDisconnect() noexcept
@@ -314,13 +257,7 @@ void MotionSafetyGuard::handleDisconnect() noexcept
         stopOnDisconnect = m_policy.stopOnDisconnect;
         purgeQueue = m_policy.purgeQueueOnDisconnect;
         if (!stopOnDisconnect) {
-            m_activeAxes = MotionAxis::None;
-            m_moving = false;
-            m_armed = false;
-            m_continuousStart = {};
-            cancelDeadManLocked();
-            cancelRunawayLocked();
-            m_cv.notify_all();
+            resetMotionLocked();
             session = m_session.lock();
         }
     }
@@ -330,11 +267,6 @@ void MotionSafetyGuard::handleDisconnect() noexcept
     } else if (session && purgeQueue) {
         static_cast<void>(session->purgeMotionCommands());
     }
-}
-
-void MotionSafetyGuard::onDisconnect() noexcept
-{
-    handleDisconnect();
 }
 
 void MotionSafetyGuard::shutdown() noexcept
@@ -348,13 +280,7 @@ void MotionSafetyGuard::shutdown() noexcept
         m_isShuttingDown = true;
         m_stopRequested = true;
         needStop = m_moving && m_policy.stopOnShutdown;
-        m_activeAxes = MotionAxis::None;
-        m_moving = false;
-        m_armed = false;
-        m_continuousStart = {};
-        cancelDeadManLocked();
-        cancelRunawayLocked();
-        m_cv.notify_all();
+        resetMotionLocked();
     }
 
     if (m_worker.joinable()) {
@@ -366,93 +292,38 @@ void MotionSafetyGuard::shutdown() noexcept
     }
 }
 
-void MotionSafetyGuard::rescheduleDeadManLocked()
+void MotionSafetyGuard::resetMotionLocked() noexcept
 {
-    if (!m_scheduler) {
-        return;
-    }
-    if (m_scheduledTaskId != 0U) {
-        static_cast<void>(m_scheduler->cancel(m_scheduledTaskId));
-    }
-    m_scheduledTaskId = m_scheduler->schedule(m_policy.deadManTimeout, [this] { onDeadManTimeout(); });
-}
-
-void MotionSafetyGuard::cancelDeadManLocked()
-{
-    if (m_scheduler && m_scheduledTaskId != 0U) {
-        static_cast<void>(m_scheduler->cancel(m_scheduledTaskId));
-        m_scheduledTaskId = 0U;
-    }
-}
-
-void MotionSafetyGuard::rescheduleRunawayLocked()
-{
-    if (!m_scheduler) {
-        return;
-    }
-    if (m_runawayTaskId != 0U) {
-        return; // Monotonic timer active from continuous motion start
-    }
-    m_runawayTaskId = m_scheduler->schedule(m_policy.maxContinuousDuration, [this] { onRunawayTimeout(); });
-}
-
-void MotionSafetyGuard::cancelRunawayLocked()
-{
-    if (m_scheduler && m_runawayTaskId != 0U) {
-        static_cast<void>(m_scheduler->cancel(m_runawayTaskId));
-        m_runawayTaskId = 0U;
-    }
+    m_activeAxes = MotionAxis::None;
+    m_moving = false;
+    m_armed = false;
+    m_continuousStart = {};
+    m_cv.notify_all();
 }
 
 void MotionSafetyGuard::updateMotionStateLocked(const MotionAxis axes, bool isStop)
 {
-    const auto now = std::chrono::steady_clock::now();
     if (isStop || axes == MotionAxis::None) {
-        m_activeAxes = MotionAxis::None;
-        m_moving = false;
-        m_armed = false;
-        m_continuousStart = {};
         m_interlocked = false;
-        cancelDeadManLocked();
-        cancelRunawayLocked();
-        m_cv.notify_all();
+        resetMotionLocked();
         return;
     }
 
+    const auto now = std::chrono::steady_clock::now();
     m_activeAxes = axes;
     m_moving = true;
 
-    if (m_policy.deadManTimeout.count() > 0) {
+    m_armed = (m_policy.deadManTimeout.count() > 0);
+    if (m_armed) {
         m_deadline = now + m_policy.deadManTimeout;
-        m_armed = true;
-        rescheduleDeadManLocked();
-    } else {
-        m_armed = false;
-        cancelDeadManLocked();
     }
 
-    if (m_policy.maxContinuousDuration.count() > 0) {
-        if (m_continuousStart == std::chrono::steady_clock::time_point {}) {
-            m_continuousStart = now;
-        }
-        rescheduleRunawayLocked();
-    } else {
-        cancelRunawayLocked();
+    if ((m_policy.maxContinuousDuration.count() > 0)
+        && (m_continuousStart == std::chrono::steady_clock::time_point {})) {
+        m_continuousStart = now;
     }
 
     m_cv.notify_all();
-}
-
-void MotionSafetyGuard::onDeadManTimeout()
-{
-    LOG(WARNING) << "MotionSafetyGuard: dead-man watchdog timeout expired, triggering fail-safe stop";
-    static_cast<void>(triggerEmergencyStop(MotionSafetyEvent::DeadManTimeout));
-}
-
-void MotionSafetyGuard::onRunawayTimeout()
-{
-    LOG(WARNING) << "MotionSafetyGuard: continuous motion duration limit exceeded, triggering fail-safe stop";
-    static_cast<void>(triggerEmergencyStop(MotionSafetyEvent::ContinuousMotionLimit));
 }
 
 void MotionSafetyGuard::watchdogLoop()
@@ -511,6 +382,9 @@ void MotionSafetyGuard::watchdogLoop()
         }
 
         if (shouldTrigger) {
+            LOG(WARNING) << ((triggerEvent == MotionSafetyEvent::ContinuousMotionLimit)
+                    ? "MotionSafetyGuard: continuous motion duration limit exceeded, triggering fail-safe stop"
+                    : "MotionSafetyGuard: dead-man watchdog timeout expired, triggering fail-safe stop");
             static_cast<void>(triggerEmergencyStop(triggerEvent));
         }
     }

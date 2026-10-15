@@ -47,12 +47,6 @@ add_library(PelcoDCore STATIC
     MacroScript.cpp
     MacroPlayer.h
     MacroPlayer.cpp
-    CancellationToken.h
-    CancellationToken.cpp
-    TaskScheduler.h
-    TaskScheduler.cpp
-    ThreadPoolExecutor.h
-    ThreadPoolExecutor.cpp
 )
 
 target_include_directories(PelcoDCore PUBLIC

@@ -203,7 +203,7 @@ TEST(PelcoDSessionAndCommandsTest, PtzCommandDispatchThroughSession)
     auto transport = std::make_shared<PelcoD::Test::CapturingTransport>();
     auto session = std::make_shared<PelcoDSession>(transport, 1U);
     auto telemetry = std::make_shared<TelemetryCoordinator>();
-    auto guard = std::make_shared<MotionSafetyGuard>([]() {});
+    auto guard = std::make_shared<MotionSafetyGuard>(session);
 
     PtzCommands commands { session, guard, telemetry };
 

@@ -490,21 +490,10 @@ bool PelcoDSession::hasLowPriorityPending() const noexcept
     return m_queue.hasLowPriorityPending();
 }
 
-void PelcoDSession::wakeQueue() noexcept
-{
-    m_queue.wakeAll();
-}
-
 void PelcoDSession::setPendingLimitId(std::optional<EverestLimitId> limitId) noexcept
 {
     std::scoped_lock lock(m_sessionMutex);
     m_pendingLimitId = limitId;
-}
-
-std::optional<EverestLimitId> PelcoDSession::getPendingLimitId() const noexcept
-{
-    std::scoped_lock lock(m_sessionMutex);
-    return m_pendingLimitId;
 }
 
 Transport::TransportStatsSnapshot PelcoDSession::getTransportStats() const

@@ -214,16 +214,9 @@ public:
     /// @return True if low priority commands are pending.
     [[nodiscard]] bool hasLowPriorityPending() const noexcept;
 
-    /// @brief Wakes all waiting threads on the command queue.
-    void wakeQueue() noexcept;
-
     /// @brief Sets active pending Everest limit ID for response correlation.
     /// @param[in] limitId Optional limit identifier.
     void setPendingLimitId(std::optional<EverestLimitId> limitId) noexcept;
-
-    /// @brief Retrieves currently pending Everest limit ID.
-    /// @return Optional limit identifier.
-    [[nodiscard]] std::optional<EverestLimitId> getPendingLimitId() const noexcept;
 
     /// @brief Grants access to internal AsyncWatchdog.
     /// @return Reference to watchdog instance.

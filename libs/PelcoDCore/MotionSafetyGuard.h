@@ -5,7 +5,6 @@
 
 #include "MotionSafetyPolicy.h"
 #include "PelcoDTypes.h"
-#include "TaskScheduler.h"
 
 #include <chrono>
 #include <condition_variable>
@@ -27,24 +26,17 @@ enum class MotionSafetyEvent : std::uint8_t { DeadManTimeout, ContinuousMotionLi
 
 /// @class MotionSafetyGuard
 /// @brief Mediates command dispatch between PTZ facades and PelcoDSession to enforce functional safety.
-/// @details Tracks active physical motion axes, coordinates dead-man watchdog timeouts via TaskScheduler,
-///          enforces continuous runaway motion limits, and ensures fail-safe stops upon disconnect/shutdown.
+/// @details Tracks active physical motion axes, runs a dedicated watchdog thread enforcing the dead-man
+///          timeout and the continuous runaway motion limit, and ensures fail-safe stops upon
+///          disconnect/shutdown.
 class MotionSafetyGuard final : public std::enable_shared_from_this<MotionSafetyGuard> {
 public:
-    using StopTriggerCallback = std::function<void()>;
     using SafetyEventCallback = std::function<void(MotionSafetyEvent event, MotionAxis axes)>;
 
-    /// @brief Primary constructor attaching the guard to a session, scheduler, and policy.
+    /// @brief Constructs the guard, attaching it to a session and starting the watchdog thread.
     /// @param[in] session Target communication session for command transmission and queue management.
-    /// @param[in] scheduler Task scheduler for cooperative deadline timers (zero dedicated threads).
     /// @param[in] policy Initial safety configuration policy.
-    explicit MotionSafetyGuard(std::shared_ptr<PelcoDSession> session,
-        std::shared_ptr<TaskScheduler> scheduler = nullptr, MotionSafetyPolicy policy = {});
-
-    /// @brief Backward-compatible constructor for standalone callbacks.
-    /// @param[in] stopCb Callback invoked when the dead-man timer expires to issue a stop command.
-    /// @param[in] scheduler Optional shared task scheduler.
-    explicit MotionSafetyGuard(StopTriggerCallback stopCb, std::shared_ptr<TaskScheduler> scheduler = nullptr);
+    explicit MotionSafetyGuard(std::shared_ptr<PelcoDSession> session, MotionSafetyPolicy policy = {});
 
     /// @brief Destructor terminating watchdog timers and issuing shutdown stop if configured.
     ~MotionSafetyGuard();
@@ -135,45 +127,21 @@ public:
     /// @return SendResult of the injected stop command.
     [[nodiscard]] SendResult triggerEmergencyStop(MotionSafetyEvent reason) noexcept;
 
-    /// @brief Legacy hook: informs guard that a standard motion command was issued.
-    /// @param[in] frame Standard 7-byte protocol array.
-    void onMotionCommand(const StandardFrame& frame);
-
-    /// @brief Legacy hook: informs guard that a raw motion command was issued.
-    /// @param[in] frame Raw Pelco-D frame bytes.
-    void onMotionCommand(const std::vector<std::uint8_t>& frame);
-
-    /// @brief Informs guard that an explicit stop command was issued.
-    void onStopCommand() noexcept;
-
     /// @brief Handles transport disconnection events, purging motion queue and emitting fail-safe stop.
     void handleDisconnect() noexcept;
-
-    /// @brief Disarms the guard and resets motion state on transport disconnect or error (forwards to
-    /// handleDisconnect).
-    void onDisconnect() noexcept;
 
     /// @brief Shuts down watchdog timers and issues final fail-safe stop if configured.
     void shutdown() noexcept;
 
 private:
-    void rescheduleDeadManLocked();
-    void cancelDeadManLocked();
-    void rescheduleRunawayLocked();
-    void cancelRunawayLocked();
+    void resetMotionLocked() noexcept;
     void updateMotionStateLocked(const MotionAxis axes, bool isStop);
     void watchdogLoop();
-    void onDeadManTimeout();
-    void onRunawayTimeout();
 
     std::weak_ptr<PelcoDSession> m_session {};
-    StopTriggerCallback m_stopCb {};
-    std::shared_ptr<TaskScheduler> m_scheduler {};
     MotionSafetyPolicy m_policy {};
     SafetyEventCallback m_eventCb {};
 
-    TaskId m_scheduledTaskId { 0U };
-    TaskId m_runawayTaskId { 0U };
     std::chrono::steady_clock::time_point m_deadline {};
     std::chrono::steady_clock::time_point m_continuousStart {};
     MotionAxis m_activeAxes { MotionAxis::None };
