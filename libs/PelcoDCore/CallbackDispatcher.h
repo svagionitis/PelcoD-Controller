@@ -18,7 +18,152 @@
 #include <string>
 #include <vector>
 
+#include <glog/logging.h>
+
 namespace PelcoD {
+
+/// @class SignalChannel
+/// @brief Generic thread-safe copy-on-write subscription channel with CallbackGate drainage.
+/// @tparam Args Argument types emitted to subscriber callbacks.
+template <typename... Args> class SignalChannel final {
+public:
+    using CallbackType = std::function<void(Args...)>;
+
+    struct Entry {
+        CallbackId id { 0U };
+        CallbackType cb {};
+        std::shared_ptr<CallbackGate> gate {};
+    };
+
+    /// @brief Constructs a named signal channel.
+    /// @param[in] name Channel diagnostic name used in log messages.
+    explicit SignalChannel(const char* name = "SignalChannel") noexcept
+        : m_name { name }
+        , m_list { std::make_shared<const std::vector<Entry>>() }
+    {
+    }
+
+    ~SignalChannel() = default;
+
+    SignalChannel(const SignalChannel&) = delete;
+    SignalChannel& operator=(const SignalChannel&) = delete;
+    SignalChannel(SignalChannel&&) = delete;
+    SignalChannel& operator=(SignalChannel&&) = delete;
+
+    /// @brief Registers an observer callback, returning a scoped RAII Connection.
+    /// @param[in] cb Callback to register.
+    /// @param[in,out] idGen Shared atomic counter generating unique callback IDs.
+    /// @param[in] weakDispatcher Weak pointer to parent dispatcher to coordinate unsubscription.
+    /// @return Connection object whose destruction or disconnect() unregisters the callback.
+    [[nodiscard]] Connection subscribe(
+        CallbackType cb, std::atomic<CallbackId>& idGen, std::weak_ptr<void> weakDispatcher)
+    {
+        if (!cb) {
+            return Connection {};
+        }
+        const auto id = idGen.fetch_add(1U, std::memory_order_relaxed);
+        auto gate = std::make_shared<CallbackGate>();
+
+        {
+            std::scoped_lock lock { m_mutex };
+            const auto& current = *m_list;
+            auto nextList = std::make_shared<std::vector<Entry>>();
+            nextList->reserve(current.size() + 1U);
+            for (const auto& entry : current) {
+                nextList->push_back(entry);
+            }
+            nextList->push_back(Entry { id, std::move(cb), gate });
+            m_list = std::move(nextList);
+        }
+
+        return Connection([this, weakDispatcher, id, gate]() {
+            if (auto pinned = weakDispatcher.lock()) {
+                static_cast<void>(unsubscribe(id));
+            } else if (gate) {
+                gate->close();
+            }
+        });
+    }
+
+    /// @brief Unregisters a callback by ID, closing its gate and draining in-flight invocations.
+    /// @param[in] id Unique callback identifier.
+    /// @return True if found and removed; false if not found.
+    bool unsubscribe(CallbackId id)
+    {
+        std::shared_ptr<CallbackGate> gateToClose;
+        {
+            std::scoped_lock lock { m_mutex };
+            const auto& current = *m_list;
+            auto it = std::find_if(current.begin(), current.end(), [id](const auto& entry) { return entry.id == id; });
+            if (it == current.end()) {
+                return false;
+            }
+            gateToClose = it->gate;
+            auto nextList = std::make_shared<std::vector<Entry>>();
+            nextList->reserve(current.size() - 1U);
+            for (const auto& entry : current) {
+                if (entry.id != id) {
+                    nextList->push_back(entry);
+                }
+            }
+            m_list = std::move(nextList);
+        }
+        if (gateToClose) {
+            gateToClose->close();
+        }
+        return true;
+    }
+
+    /// @brief Purges all registered callbacks, draining in-flight invocations across all gates.
+    void clear()
+    {
+        std::vector<std::shared_ptr<CallbackGate>> gatesToClose;
+        {
+            std::scoped_lock lock { m_mutex };
+            for (const auto& entry : *m_list) {
+                if (entry.gate) {
+                    gatesToClose.push_back(entry.gate);
+                }
+            }
+            m_list = std::make_shared<const std::vector<Entry>>();
+        }
+        for (auto& gate : gatesToClose) {
+            if (gate) {
+                gate->close();
+            }
+        }
+    }
+
+    /// @brief Dispatches notification to all registered observers under an exception barrier.
+    /// @param[in] args Arguments forwarded to subscriber callbacks.
+    void notify(const Args&... args)
+    {
+        std::shared_ptr<const std::vector<Entry>> snapshot;
+        {
+            std::scoped_lock lock { m_mutex };
+            snapshot = m_list;
+        }
+        for (const auto& entry : *snapshot) {
+            if (entry.gate) {
+                const CallbackGate::Pass pass { *entry.gate };
+                if (pass) {
+                    try {
+                        entry.cb(args...);
+                    } catch (const std::exception& e) {
+                        LOG(WARNING) << "CallbackDispatcher: exception in " << m_name << ": " << e.what();
+                    } catch (...) {
+                        LOG(WARNING) << "CallbackDispatcher: unknown exception in " << m_name;
+                    }
+                }
+            }
+        }
+    }
+
+private:
+    const char* m_name { "SignalChannel" };
+    mutable std::mutex m_mutex {};
+    std::shared_ptr<const std::vector<Entry>> m_list {};
+};
 
 /// @class CallbackDispatcher
 /// @brief Hub managing subscriber channels, thread-safe registration, and isolated callback invocation.
@@ -80,66 +225,18 @@ public:
     void notifyMotionSafety(MotionSafetyEvent event, MotionAxis axes);
 
 private:
-    template <typename CallbackT> struct CallbackEntry {
-        CallbackId id { 0U };
-        CallbackT cb {};
-        std::shared_ptr<CallbackGate> gate {};
-    };
-
-    template <typename CallbackT>
-    static bool removeEntry(std::shared_ptr<const std::vector<CallbackEntry<CallbackT>>>& list, CallbackId id,
-        std::mutex& mtx, std::shared_ptr<CallbackGate>& outGate)
-    {
-        std::scoped_lock lock(mtx);
-        const auto& current = *list;
-        auto it = std::find_if(current.begin(), current.end(), [id](const auto& entry) { return entry.id == id; });
-        if (it == current.end()) {
-            return false;
-        }
-        outGate = it->gate;
-        auto nextList = std::make_shared<std::vector<CallbackEntry<CallbackT>>>();
-        nextList->reserve(current.size() - 1U);
-        for (const auto& entry : current) {
-            if (entry.id != id) {
-                nextList->push_back(entry);
-            }
-        }
-        list = std::move(nextList);
-        return true;
-    }
-
-    template <typename CallbackT, typename RemoveMemFn>
-    Connection registerHelper(CallbackT cb,
-        std::shared_ptr<const std::vector<CallbackEntry<CallbackT>>> CallbackDispatcher::*listMember,
-        RemoveMemFn removeFn);
-
-    mutable std::mutex m_mutex;
     std::atomic<CallbackId> m_nextId { 1U };
 
-    std::shared_ptr<const std::vector<CallbackEntry<StatusCallback>>> m_statusCallbacks {
-        std::make_shared<const std::vector<CallbackEntry<StatusCallback>>>()
+    SignalChannel<const DeviceStatus&> m_statusChannel { "StatusCallback" };
+    SignalChannel<bool, const std::vector<std::uint8_t>&> m_trafficChannel { "TrafficCallback" };
+    SignalChannel<const std::string&> m_timeoutChannel { "TimeoutCallback" };
+    SignalChannel<const std::string&, bool, const DeviceStatus&> m_queryCompletedChannel { "QueryCompletedCallback" };
+    SignalChannel<const std::string&, std::uint32_t, std::uint32_t, std::chrono::milliseconds> m_retryChannel {
+        "RetryCallback"
     };
-    std::shared_ptr<const std::vector<CallbackEntry<TrafficCallback>>> m_trafficCallbacks {
-        std::make_shared<const std::vector<CallbackEntry<TrafficCallback>>>()
-    };
-    std::shared_ptr<const std::vector<CallbackEntry<TimeoutCallback>>> m_timeoutCallbacks {
-        std::make_shared<const std::vector<CallbackEntry<TimeoutCallback>>>()
-    };
-    std::shared_ptr<const std::vector<CallbackEntry<QueryCompletedCallback>>> m_queryCompletedCallbacks {
-        std::make_shared<const std::vector<CallbackEntry<QueryCompletedCallback>>>()
-    };
-    std::shared_ptr<const std::vector<CallbackEntry<RetryCallback>>> m_retryCallbacks {
-        std::make_shared<const std::vector<CallbackEntry<RetryCallback>>>()
-    };
-    std::shared_ptr<const std::vector<CallbackEntry<QueryLatencyCallback>>> m_queryLatencyCallbacks {
-        std::make_shared<const std::vector<CallbackEntry<QueryLatencyCallback>>>()
-    };
-    std::shared_ptr<const std::vector<CallbackEntry<CommandDroppedCallback>>> m_commandDroppedCallbacks {
-        std::make_shared<const std::vector<CallbackEntry<CommandDroppedCallback>>>()
-    };
-    std::shared_ptr<const std::vector<CallbackEntry<MotionSafetyCallback>>> m_motionSafetyCallbacks {
-        std::make_shared<const std::vector<CallbackEntry<MotionSafetyCallback>>>()
-    };
+    SignalChannel<const std::string&, std::chrono::microseconds, bool> m_queryLatencyChannel { "QueryLatencyCallback" };
+    SignalChannel<const std::vector<std::uint8_t>&, SendResult> m_commandDroppedChannel { "CommandDroppedCallback" };
+    SignalChannel<MotionSafetyEvent, MotionAxis> m_motionSafetyChannel { "MotionSafetyCallback" };
 };
 
 } // namespace PelcoD
