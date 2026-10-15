@@ -13,7 +13,10 @@
 #include <cstdint>
 #include <future>
 #include <memory>
+#include <string>
 #include <thread>
+#include <type_traits>
+#include <utility>
 #include <vector>
 
 namespace {
@@ -1110,34 +1113,37 @@ TEST(PelcoDDeviceStateModel, LimitSettersSynchronizeStatus)
     device.stop();
 }
 
-/// @brief Verify that focus and iris positions can be updated in DeviceStatus (M6).
-TEST(PelcoDDeviceStateModel, ExtendedOpticsTelemetricSetters)
+/// @brief Detects a callable setFocusPosition(std::uint16_t) member.
+template <typename T, typename = void> struct HasFocusSetter : std::false_type {
+};
+template <typename T>
+struct HasFocusSetter<T, std::void_t<decltype(std::declval<T&>().setFocusPosition(std::uint16_t {}))>>
+    : std::true_type {
+};
+
+/// @brief Detects a callable setIrisPosition(std::uint16_t) member.
+template <typename T, typename = void> struct HasIrisSetter : std::false_type {
+};
+template <typename T>
+struct HasIrisSetter<T, std::void_t<decltype(std::declval<T&>().setIrisPosition(std::uint16_t {}))>> : std::true_type {
+};
+
+/// @brief Detects a callable setSerialNumber(const std::string&) member.
+template <typename T, typename = void> struct HasSerialSetter : std::false_type {
+};
+template <typename T>
+struct HasSerialSetter<T, std::void_t<decltype(std::declval<T&>().setSerialNumber(std::string {}))>> : std::true_type {
+};
+
+/// @brief PelcoDDevice must not expose command-style setters that transmit nothing (B3, B4).
+/// @details setFocusPosition / setIrisPosition / setSerialNumber only mutated local telemetry yet
+///          returned SendResult::Success, and FujinonSX800Device::setFocusPosition (a real command)
+///          hid the non-virtual base method, so calls through PelcoDDevice& silently sent nothing.
+TEST(PelcoDDeviceStateModel, NoLocalOnlyCommandSetters)
 {
-    auto transport = std::make_shared<PelcoD::Test::CapturingTransport>();
-    PelcoD::PelcoDDevice device { transport, 1U };
-    ASSERT_TRUE(device.start());
-
-    static_cast<void>(device.setFocusPosition(1850U));
-    EXPECT_EQ(device.getStatus().focusPosition, 1850U);
-
-    static_cast<void>(device.setIrisPosition(420U));
-    EXPECT_EQ(device.getStatus().irisPosition, 420U);
-
-    device.stop();
-}
-
-/// @brief Verify that serialNumber is accessible and updated on DeviceInfo (M6).
-TEST(PelcoDDeviceStateModel, SerialNumberGetterAndSetter)
-{
-    auto transport = std::make_shared<PelcoD::Test::CapturingTransport>();
-    PelcoD::PelcoDDevice device { transport, 1U };
-    ASSERT_TRUE(device.start());
-
-    EXPECT_TRUE(device.getInfo().serialNumber.empty());
-    static_cast<void>(device.setSerialNumber("PELCO-SN-998877"));
-    EXPECT_EQ(device.getInfo().serialNumber, "PELCO-SN-998877");
-
-    device.stop();
+    EXPECT_FALSE(HasFocusSetter<PelcoD::PelcoDDevice>::value);
+    EXPECT_FALSE(HasIrisSetter<PelcoD::PelcoDDevice>::value);
+    EXPECT_FALSE(HasSerialSetter<PelcoD::PelcoDDevice>::value);
 }
 
 /// @brief Test transport that can be configured to throw on open() (M8).
@@ -1441,11 +1447,44 @@ TEST(PelcoDDeviceStateModel, CommandDroppedCallbackOnRetryExhaustion)
     }
 
     EXPECT_TRUE(droppedInvoked);
-    EXPECT_EQ(droppedReason, PelcoD::SendResult::QueueFull);
+    EXPECT_EQ(droppedReason, PelcoD::SendResult::RetriesExhausted);
     EXPECT_GE(device.getProtocolStats().commandRetriesExhausted, 1U);
     EXPECT_GE(device.getProtocolStats().commandsDropped, 1U);
 
     device.stop();
+}
+
+/// @brief Queue-capacity evictions must be counted as overflows, not retry exhaustion (B2).
+/// @details The command-dropped handler previously incremented commandRetriesExhausted for every
+///          drop, so a pure QueueFull eviction was misreported as an exhausted retry.
+TEST(PelcoDDeviceStateModel, QueueOverflowNotCountedAsRetryExhaustion)
+{
+    auto transport = std::make_shared<PelcoD::Test::CapturingTransport>();
+    PelcoD::PelcoDDevice device { transport, 1U };
+
+    std::atomic<std::uint32_t> overflowDrops { 0U };
+    auto conn = device.addCommandDroppedCallback(
+        [&overflowDrops](const std::vector<std::uint8_t>&, PelcoD::SendResult reason) {
+            if (reason == PelcoD::SendResult::QueueFull) {
+                overflowDrops.fetch_add(1U);
+            }
+        });
+
+    ASSERT_TRUE(device.start());
+
+    // The worker paces at ~20 ms per frame, so flooding beyond capacity forces evictions.
+    constexpr std::size_t floodCount { PelcoD::PacedCommandQueue::DefaultMaxCapacity + 32U };
+    for (std::size_t i { 0U }; i < floodCount; ++i) {
+        static_cast<void>(device.setPreset(1U));
+    }
+
+    const auto stats = device.getProtocolStats();
+    device.stop();
+
+    EXPECT_GE(overflowDrops.load(), 1U);
+    EXPECT_GE(stats.queueOverflows, 1U);
+    EXPECT_EQ(stats.commandRetriesExhausted, 0U);
+    EXPECT_GE(stats.commandsDropped, 1U);
 }
 
 /// @brief Verify A4: PelcoDDevice::createVirtualChannel transparently multiplexes underlying transport.

@@ -397,22 +397,6 @@ SendResult PtzCommands::setZeroPosition()
     return dispatch(ProtocolBuilder::buildSetZeroPosition(m_session->getAddress()));
 }
 
-SendResult PtzCommands::setFocusPosition(std::uint16_t pos)
-{
-    if (m_telemetry) {
-        m_telemetry->setFocusPosition(pos);
-    }
-    return SendResult::Success;
-}
-
-SendResult PtzCommands::setIrisPosition(std::uint16_t pos)
-{
-    if (m_telemetry) {
-        m_telemetry->setIrisPosition(pos);
-    }
-    return SendResult::Success;
-}
-
 SendResult PtzCommands::resetDefaults()
 {
     return dispatch(ProtocolBuilder::buildResetDefaults(m_session->getAddress()));

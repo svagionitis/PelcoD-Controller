@@ -63,7 +63,13 @@ void PelcoDDevice::initSessionHandlers()
 
     m_session->setCommandDroppedHandler([this](const std::vector<std::uint8_t>& frame, SendResult reason) {
         m_metrics->recordCommandDropped();
-        m_metrics->recordCommandRetryExhausted();
+        if (reason == SendResult::QueueFull) {
+            m_metrics->recordQueueOverflow();
+        } else if (reason == SendResult::RetriesExhausted) {
+            m_metrics->recordCommandRetryExhausted();
+        } else {
+            // Other drop reasons (e.g. TransportClosed) are covered by commandsDropped alone.
+        }
         m_dispatcher->notifyCommandDropped(frame, reason);
     });
 
@@ -619,22 +625,6 @@ SendResult PelcoDDevice::setBaudRate(std::uint32_t baud)
 SendResult PelcoDDevice::setZeroPosition()
 {
     return m_commands->setZeroPosition();
-}
-
-SendResult PelcoDDevice::setFocusPosition(std::uint16_t pos)
-{
-    return m_commands->setFocusPosition(pos);
-}
-
-SendResult PelcoDDevice::setIrisPosition(std::uint16_t pos)
-{
-    return m_commands->setIrisPosition(pos);
-}
-
-SendResult PelcoDDevice::setSerialNumber(const std::string& serial)
-{
-    m_telemetry->setSerialNumber(serial);
-    return SendResult::Success;
 }
 
 SendResult PelcoDDevice::querySerialNumber()

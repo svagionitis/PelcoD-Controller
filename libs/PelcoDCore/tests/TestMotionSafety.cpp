@@ -7,6 +7,7 @@
 #include "PelcoDFrame.h"
 #include "ProtocolBuilder.h"
 
+#include <atomic>
 #include <chrono>
 #include <gtest/gtest.h>
 #include <memory>
@@ -535,6 +536,37 @@ TEST(TestMotionSafety, SafetyInterlockBlocksMotion)
     EXPECT_EQ(device.panRight(0x20U), PelcoD::SendResult::Success);
 
     device.stop();
+}
+
+/// @brief Concurrent setPolicy() and handleDisconnect() must not race on the policy (B1, CERT CON43-CPP).
+/// @details handleDisconnect() previously read stopOnDisconnect / purgeQueueOnDisconnect without holding
+///          the guard mutex. The race is reported deterministically when built with ENABLE_TSAN=ON;
+///          in regular builds this test acts as a smoke test.
+TEST(TestMotionSafety, PolicyReadUnderLockOnDisconnect)
+{
+    auto transport = std::make_shared<PelcoD::Test::CapturingTransport>();
+    auto session = std::make_shared<PelcoD::PelcoDSession>(transport, 1U);
+    auto guard = std::make_shared<PelcoD::MotionSafetyGuard>(session);
+
+    std::atomic<bool> running { true };
+    std::thread writer { [&running, &guard]() {
+        PelcoD::MotionSafetyPolicy policy {};
+        bool toggle { false };
+        while (running.load()) {
+            toggle = !toggle;
+            policy.stopOnDisconnect = toggle;
+            policy.purgeQueueOnDisconnect = !toggle;
+            guard->setPolicy(policy);
+        }
+    } };
+
+    for (std::uint32_t i { 0U }; i < 2000U; ++i) {
+        guard->handleDisconnect();
+    }
+    running.store(false);
+    writer.join();
+
+    EXPECT_FALSE(guard->isMoving());
 }
 
 } // namespace

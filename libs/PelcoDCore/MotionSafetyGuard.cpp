@@ -306,12 +306,14 @@ void MotionSafetyGuard::onStopCommand() noexcept
 
 void MotionSafetyGuard::handleDisconnect() noexcept
 {
-    if (m_policy.stopOnDisconnect) {
-        static_cast<void>(triggerEmergencyStop(MotionSafetyEvent::DisconnectStop));
-    } else {
-        std::shared_ptr<PelcoDSession> session;
-        {
-            std::scoped_lock lock { m_mutex };
+    bool stopOnDisconnect { false };
+    bool purgeQueue { false };
+    std::shared_ptr<PelcoDSession> session {};
+    {
+        std::scoped_lock lock { m_mutex };
+        stopOnDisconnect = m_policy.stopOnDisconnect;
+        purgeQueue = m_policy.purgeQueueOnDisconnect;
+        if (!stopOnDisconnect) {
             m_activeAxes = MotionAxis::None;
             m_moving = false;
             m_armed = false;
@@ -321,9 +323,12 @@ void MotionSafetyGuard::handleDisconnect() noexcept
             m_cv.notify_all();
             session = m_session.lock();
         }
-        if (session && m_policy.purgeQueueOnDisconnect) {
-            static_cast<void>(session->purgeMotionCommands());
-        }
+    }
+
+    if (stopOnDisconnect) {
+        static_cast<void>(triggerEmergencyStop(MotionSafetyEvent::DisconnectStop));
+    } else if (session && purgeQueue) {
+        static_cast<void>(session->purgeMotionCommands());
     }
 }
 

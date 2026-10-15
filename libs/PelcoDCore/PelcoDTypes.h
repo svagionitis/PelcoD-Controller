@@ -391,7 +391,8 @@ enum class [[nodiscard]] SendResult : std::uint8_t {
     TransportClosed, ///< Transport link is down or not opened
     QueueFull, ///< Paced command queue capacity exceeded
     InvalidFrame, ///< Frame failed validation or checksum check
-    MotionPurged ///< Replaced by newer motion generation or preempted
+    MotionPurged, ///< Replaced by newer motion generation or preempted
+    RetriesExhausted ///< Abandoned after exhausting the configured retry attempts
 };
 
 /// @brief Converts a SendResult code to human-readable string view.
@@ -410,6 +411,8 @@ enum class [[nodiscard]] SendResult : std::uint8_t {
         return "InvalidFrame";
     case SendResult::MotionPurged:
         return "MotionPurged";
+    case SendResult::RetriesExhausted:
+        return "RetriesExhausted";
     default:
         return "Unknown";
     }

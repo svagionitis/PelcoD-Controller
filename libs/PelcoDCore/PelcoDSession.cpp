@@ -839,7 +839,8 @@ void PelcoDSession::workerLoop()
                 } else if (isQuery) {
                     notifyQueryFailed(tagStr);
                 } else {
-                    notifyCommandDropped(item.frame, SendResult::TransportClosed);
+                    notifyCommandDropped(item.frame,
+                        retryCfg.retryOnTransportError ? SendResult::RetriesExhausted : SendResult::TransportClosed);
                 }
             } else {
                 TrafficHandler tHandler;
@@ -917,7 +918,7 @@ void PelcoDSession::workerLoop()
                             }
                         } else {
                             checkQueryTimeout();
-                            notifyCommandDropped(item.frame, SendResult::QueueFull);
+                            notifyCommandDropped(item.frame, SendResult::RetriesExhausted);
                         }
                     }
                 }

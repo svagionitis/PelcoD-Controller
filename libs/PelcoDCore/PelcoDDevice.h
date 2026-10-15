@@ -317,18 +317,6 @@ public:
     [[nodiscard]] SendResult setBaudRate(std::uint32_t baud);
     [[nodiscard]] SendResult setZeroPosition();
 
-    /// @brief Sets absolute focus position in status telemetry.
-    /// @param[in] pos Focus coordinate value.
-    [[nodiscard]] SendResult setFocusPosition(std::uint16_t pos);
-
-    /// @brief Sets absolute iris position in status telemetry.
-    /// @param[in] pos Iris aperture coordinate value.
-    [[nodiscard]] SendResult setIrisPosition(std::uint16_t pos);
-
-    /// @brief Sets factory serial number on device identification model.
-    /// @param[in] serial Serial number string.
-    [[nodiscard]] SendResult setSerialNumber(const std::string& serial);
-
     /// @brief Queries device serial number asynchronously via 18-byte query.
     [[nodiscard]] SendResult querySerialNumber();
 

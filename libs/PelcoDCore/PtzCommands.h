@@ -110,9 +110,6 @@ public:
     [[nodiscard]] SendResult setBaudRate(std::uint32_t baud);
     [[nodiscard]] SendResult setZeroPosition();
 
-    [[nodiscard]] SendResult setFocusPosition(std::uint16_t pos);
-    [[nodiscard]] SendResult setIrisPosition(std::uint16_t pos);
-
     // System Commands & Queries
     [[nodiscard]] SendResult resetDefaults();
     [[nodiscard]] SendResult remoteReset();
