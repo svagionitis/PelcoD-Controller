@@ -171,62 +171,37 @@ std::uint8_t PelcoDSession::getAddress() const noexcept
 
 SendResult PelcoDSession::sendRawFrame(const StandardFrame& frame)
 {
-    return enqueueCommand(frame, "", CommandPriority::Normal);
+    return enqueueCommand(frame, QueryRef {}, CommandPriority::Normal);
 }
 
 SendResult PelcoDSession::sendRawFrame(const std::vector<std::uint8_t>& frame)
 {
-    if (frame.size() == PelcoDFrame::StandardFrameSize) {
-        StandardFrame stdFrame {};
-        std::copy(frame.begin(), frame.end(), stdFrame.begin());
-        return enqueueCommand(stdFrame, "", CommandPriority::Normal);
-    }
-    return enqueueCommand(frame, "", CommandPriority::Normal);
+    return enqueueCommand(frame, QueryRef {}, CommandPriority::Normal);
 }
 
-SendResult PelcoDSession::sendQueryFrame(const StandardFrame& frame, QueryKind queryKind)
+SendResult PelcoDSession::sendQueryFrame(const StandardFrame& frame, QueryRef query)
 {
-    return enqueueCommand(frame, queryKind, CommandPriority::Low);
+    return enqueueCommand(frame, std::move(query), CommandPriority::Low);
 }
 
-SendResult PelcoDSession::sendQueryFrame(const std::vector<std::uint8_t>& frame, QueryKind queryKind)
+SendResult PelcoDSession::sendQueryFrame(const std::vector<std::uint8_t>& frame, QueryRef query)
 {
-    if (frame.size() == PelcoDFrame::StandardFrameSize) {
-        StandardFrame stdFrame {};
-        std::copy(frame.begin(), frame.end(), stdFrame.begin());
-        return enqueueCommand(stdFrame, queryKind, CommandPriority::Low);
-    }
-    return enqueueCommand(frame, queryKind, CommandPriority::Low);
+    return enqueueCommand(frame, std::move(query), CommandPriority::Low);
 }
 
-SendResult PelcoDSession::sendQueryFrame(const StandardFrame& frame, const std::string& queryTag)
-{
-    return enqueueCommand(frame, queryTag, CommandPriority::Low);
-}
-
-SendResult PelcoDSession::sendQueryFrame(const std::vector<std::uint8_t>& frame, const std::string& queryTag)
-{
-    if (frame.size() == PelcoDFrame::StandardFrameSize) {
-        StandardFrame stdFrame {};
-        std::copy(frame.begin(), frame.end(), stdFrame.begin());
-        return enqueueCommand(stdFrame, queryTag, CommandPriority::Low);
-    }
-    return enqueueCommand(frame, queryTag, CommandPriority::Low);
-}
-
-SendResult PelcoDSession::enqueueCommand(const StandardFrame& frame, QueryKind queryKind, CommandPriority priority)
+SendResult PelcoDSession::enqueueCommand(const StandardFrame& frame, QueryRef query, CommandPriority priority)
 {
     auto transport = activeTransport();
     if (!m_running.load() || !transport || !transport->isOpen()) {
-        if (isQueryExpected(queryKind)) {
-            notifyQueryFailed(std::string(toQueryTagName(queryKind)));
+        if (query.isQuery()) {
+            notifyQueryFailed(query.tag);
         }
         return SendResult::TransportClosed;
     }
 
     if (!PelcoDFrame::isValidStandardFrame(frame)) {
-        if (isQueryExpected(queryKind)) {
-            notifyQueryFailed(std::string(toQueryTagName(queryKind)));
+        if (query.isQuery()) {
+            notifyQueryFailed(query.tag);
         }
         return SendResult::InvalidFrame;
     }
@@ -236,10 +211,10 @@ SendResult PelcoDSession::enqueueCommand(const StandardFrame& frame, QueryKind q
         motionGen = ++m_motionGeneration;
     }
 
-    const SendResult qResult = m_queue.enqueue(frame, queryKind, priority, motionGen);
+    const SendResult qResult = m_queue.enqueue(frame, query, priority, motionGen);
     if (qResult != SendResult::Success) {
-        if (isQueryExpected(queryKind)) {
-            notifyQueryFailed(std::string(toQueryTagName(queryKind)));
+        if (query.isQuery()) {
+            notifyQueryFailed(query.tag);
         }
         return qResult;
     }
@@ -253,132 +228,34 @@ SendResult PelcoDSession::enqueueCommand(const StandardFrame& frame, QueryKind q
 }
 
 SendResult PelcoDSession::enqueueCommand(
-    const std::vector<std::uint8_t>& frame, QueryKind queryKind, CommandPriority priority)
+    const std::vector<std::uint8_t>& frame, QueryRef query, CommandPriority priority)
 {
     if (frame.size() == PelcoDFrame::StandardFrameSize) {
         StandardFrame stdFrame {};
         std::copy(frame.begin(), frame.end(), stdFrame.begin());
-        return enqueueCommand(stdFrame, queryKind, priority);
+        return enqueueCommand(stdFrame, std::move(query), priority);
     }
 
-    auto transport = activeTransport();
-    if (!m_running.load() || !transport || !transport->isOpen()) {
-        if (isQueryExpected(queryKind)) {
-            notifyQueryFailed(std::string(toQueryTagName(queryKind)));
-        }
-        return SendResult::TransportClosed;
-    }
-
-    if (frame.empty() || !PelcoDFrame::isValidFrame(frame)) {
-        if (isQueryExpected(queryKind)) {
-            notifyQueryFailed(std::string(toQueryTagName(queryKind)));
+    if (frame.empty() || !PelcoDFrame::isValidFrame(frame) || frame.size() > PelcoDFrame::StandardFrameSize) {
+        if (query.isQuery()) {
+            notifyQueryFailed(query.tag);
         }
         return SendResult::InvalidFrame;
     }
 
-    std::uint64_t motionGen { 0U };
-    if (PelcoDFrame::isStandardMotion(frame) || PelcoDFrame::isStandardStop(frame)) {
-        motionGen = ++m_motionGeneration;
-    }
-
-    const SendResult qResult = m_queue.enqueue(frame, queryKind, priority, motionGen);
-    if (qResult != SendResult::Success) {
-        if (isQueryExpected(queryKind)) {
-            notifyQueryFailed(std::string(toQueryTagName(queryKind)));
-        }
-        return qResult;
-    }
-
-    if (priority == CommandPriority::Urgent && m_awaitingResponse.load()) {
-        m_abortQueryWait.store(true, std::memory_order_relaxed);
-        m_responseCv.notify_all();
-    }
-
-    return SendResult::Success;
+    StandardFrame stdFrame {};
+    std::copy(frame.begin(), frame.end(), stdFrame.begin());
+    return enqueueCommand(stdFrame, std::move(query), priority);
 }
 
-SendResult PelcoDSession::enqueueCommand(
-    const StandardFrame& frame, const std::string& queryTag, CommandPriority priority)
+SendResult PelcoDSession::enqueueCommand(const StandardFrame& frame, CommandPriority priority)
 {
-    auto transport = activeTransport();
-    if (!m_running.load() || !transport || !transport->isOpen()) {
-        if (!queryTag.empty()) {
-            notifyQueryFailed(queryTag);
-        }
-        return SendResult::TransportClosed;
-    }
-
-    if (!PelcoDFrame::isValidStandardFrame(frame)) {
-        if (!queryTag.empty()) {
-            notifyQueryFailed(queryTag);
-        }
-        return SendResult::InvalidFrame;
-    }
-
-    std::uint64_t motionGen { 0U };
-    if (PelcoDFrame::isStandardMotion(frame) || PelcoDFrame::isStandardStop(frame)) {
-        motionGen = ++m_motionGeneration;
-    }
-
-    const SendResult qResult = m_queue.enqueue(frame, queryTag, priority, motionGen);
-    if (qResult != SendResult::Success) {
-        if (!queryTag.empty()) {
-            notifyQueryFailed(queryTag);
-        }
-        return qResult;
-    }
-
-    if (priority == CommandPriority::Urgent && m_awaitingResponse.load()) {
-        m_abortQueryWait.store(true, std::memory_order_relaxed);
-        m_responseCv.notify_all();
-    }
-
-    return SendResult::Success;
+    return enqueueCommand(frame, QueryRef {}, priority);
 }
 
-SendResult PelcoDSession::enqueueCommand(
-    const std::vector<std::uint8_t>& frame, const std::string& queryTag, CommandPriority priority)
+SendResult PelcoDSession::enqueueCommand(const std::vector<std::uint8_t>& frame, CommandPriority priority)
 {
-    if (frame.size() == PelcoDFrame::StandardFrameSize) {
-        StandardFrame stdFrame {};
-        std::copy(frame.begin(), frame.end(), stdFrame.begin());
-        return enqueueCommand(stdFrame, queryTag, priority);
-    }
-
-    auto transport = activeTransport();
-    if (!m_running.load() || !transport || !transport->isOpen()) {
-        if (!queryTag.empty()) {
-            notifyQueryFailed(queryTag);
-        }
-        return SendResult::TransportClosed;
-    }
-
-    if (frame.empty() || !PelcoDFrame::isValidFrame(frame)) {
-        if (!queryTag.empty()) {
-            notifyQueryFailed(queryTag);
-        }
-        return SendResult::InvalidFrame;
-    }
-
-    std::uint64_t motionGen { 0U };
-    if (PelcoDFrame::isStandardMotion(frame) || PelcoDFrame::isStandardStop(frame)) {
-        motionGen = ++m_motionGeneration;
-    }
-
-    const SendResult qResult = m_queue.enqueue(frame, queryTag, priority, motionGen);
-    if (qResult != SendResult::Success) {
-        if (!queryTag.empty()) {
-            notifyQueryFailed(queryTag);
-        }
-        return qResult;
-    }
-
-    if (priority == CommandPriority::Urgent && m_awaitingResponse.load()) {
-        m_abortQueryWait.store(true, std::memory_order_relaxed);
-        m_responseCv.notify_all();
-    }
-
-    return SendResult::Success;
+    return enqueueCommand(frame, QueryRef {}, priority);
 }
 
 std::size_t PelcoDSession::purgeMotionCommands() noexcept

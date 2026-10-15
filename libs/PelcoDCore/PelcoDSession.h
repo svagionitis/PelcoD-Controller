@@ -86,62 +86,45 @@ public:
     /// @return Result status code.
     [[nodiscard]] SendResult sendRawFrame(const std::vector<std::uint8_t>& frame);
 
-    /// @brief Submits a standard query frame with strongly-typed QueryKind.
-    /// @param[in] frame Standard 7-byte protocol array.
-    /// @param[in] queryKind Strongly-typed query category.
-    /// @return Result status code.
-    [[nodiscard]] SendResult sendQueryFrame(const StandardFrame& frame, QueryKind queryKind);
-
-    /// @brief Submits a query frame with strongly-typed QueryKind.
-    /// @param[in] frame Protocol frame bytes.
-    /// @param[in] queryKind Strongly-typed query category.
-    /// @return Result status code.
-    [[nodiscard]] SendResult sendQueryFrame(const std::vector<std::uint8_t>& frame, QueryKind queryKind);
-
     /// @brief Submits a standard query frame, registering an expectation for correlated response.
     /// @param[in] frame Standard 7-byte protocol array.
-    /// @param[in] queryTag Tag identifying expected response.
+    /// @param[in] query Expected query kind or tag name.
     /// @return Result status code.
-    [[nodiscard]] SendResult sendQueryFrame(const StandardFrame& frame, const std::string& queryTag = "Query");
+    [[nodiscard]] SendResult sendQueryFrame(const StandardFrame& frame, QueryRef query = "Query");
 
     /// @brief Submits a query frame, registering an expectation for correlated response.
     /// @param[in] frame Protocol frame bytes.
-    /// @param[in] queryTag Tag identifying expected response.
+    /// @param[in] query Expected query kind or tag name.
     /// @return Result status code.
-    [[nodiscard]] SendResult sendQueryFrame(
-        const std::vector<std::uint8_t>& frame, const std::string& queryTag = "Query");
-
-    /// @brief Submits a standard command into the prioritized pacing queue with strongly-typed QueryKind.
-    /// @param[in] frame Standard 7-byte protocol array.
-    /// @param[in] queryKind Expected query kind.
-    /// @param[in] priority Execution priority level.
-    /// @return Result status code.
-    [[nodiscard]] SendResult enqueueCommand(
-        const StandardFrame& frame, QueryKind queryKind, CommandPriority priority = CommandPriority::Normal);
-
-    /// @brief Submits a command into the prioritized pacing queue with strongly-typed QueryKind.
-    /// @param[in] frame Raw frame bytes.
-    /// @param[in] queryKind Expected query kind.
-    /// @param[in] priority Execution priority level.
-    /// @return Result status code.
-    [[nodiscard]] SendResult enqueueCommand(const std::vector<std::uint8_t>& frame, QueryKind queryKind,
-        CommandPriority priority = CommandPriority::Normal);
+    [[nodiscard]] SendResult sendQueryFrame(const std::vector<std::uint8_t>& frame, QueryRef query = "Query");
 
     /// @brief Submits a standard command into the prioritized pacing queue.
     /// @param[in] frame Standard 7-byte protocol array.
-    /// @param[in] queryTag Optional query identifier.
+    /// @param[in] query Expected query kind or tag name.
     /// @param[in] priority Execution priority level.
     /// @return Result status code.
-    [[nodiscard]] SendResult enqueueCommand(const StandardFrame& frame, const std::string& queryTag = "",
+    [[nodiscard]] SendResult enqueueCommand(
+        const StandardFrame& frame, QueryRef query = {}, CommandPriority priority = CommandPriority::Normal);
+
+    /// @brief Submits a raw command into the prioritized pacing queue.
+    /// @param[in] frame Raw frame bytes.
+    /// @param[in] query Expected query kind or tag name.
+    /// @param[in] priority Execution priority level.
+    /// @return Result status code.
+    [[nodiscard]] SendResult enqueueCommand(const std::vector<std::uint8_t>& frame, QueryRef query = {},
         CommandPriority priority = CommandPriority::Normal);
 
-    /// @brief Submits a command into the prioritized pacing queue.
-    /// @param[in] frame Raw frame bytes.
-    /// @param[in] queryTag Optional query identifier.
+    /// @brief Submits a standard command with explicit priority into the pacing queue.
+    /// @param[in] frame Standard 7-byte protocol array.
     /// @param[in] priority Execution priority level.
     /// @return Result status code.
-    [[nodiscard]] SendResult enqueueCommand(const std::vector<std::uint8_t>& frame, const std::string& queryTag = "",
-        CommandPriority priority = CommandPriority::Normal);
+    [[nodiscard]] SendResult enqueueCommand(const StandardFrame& frame, CommandPriority priority);
+
+    /// @brief Submits a raw command with explicit priority into the pacing queue.
+    /// @param[in] frame Raw frame bytes.
+    /// @param[in] priority Execution priority level.
+    /// @return Result status code.
+    [[nodiscard]] SendResult enqueueCommand(const std::vector<std::uint8_t>& frame, CommandPriority priority);
 
     /// @brief Purges all motion and stop commands from the prioritized command queue.
     /// @return Number of purged motion commands.

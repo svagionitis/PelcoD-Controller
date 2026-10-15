@@ -92,35 +92,31 @@ public:
 
     /// @brief Intermediates and enqueues a standard frame, updating safety state only on success.
     /// @param[in] frame Standard 7-byte protocol array.
-    /// @param[in] queryKind Associated query kind if applicable.
-    /// @param[in] priority Command queue priority.
-    /// @return SendResult from session enqueue.
-    [[nodiscard]] SendResult dispatch(const StandardFrame& frame, QueryKind queryKind = QueryKind::None,
-        CommandPriority priority = CommandPriority::Normal);
-
-    /// @brief Intermediates and enqueues a standard frame with query tag.
-    /// @param[in] frame Standard 7-byte protocol array.
-    /// @param[in] queryTag Associated correlation string tag.
+    /// @param[in] query Associated query kind or tag if applicable.
     /// @param[in] priority Command queue priority.
     /// @return SendResult from session enqueue.
     [[nodiscard]] SendResult dispatch(
-        const StandardFrame& frame, const std::string& queryTag, CommandPriority priority = CommandPriority::Normal);
+        const StandardFrame& frame, QueryRef query = {}, CommandPriority priority = CommandPriority::Normal);
 
     /// @brief Intermediates and enqueues a raw frame vector, updating safety state only on success.
     /// @param[in] frame Raw frame bytes.
-    /// @param[in] queryKind Associated query kind if applicable.
+    /// @param[in] query Associated query kind or tag if applicable.
     /// @param[in] priority Command queue priority.
     /// @return SendResult from session enqueue.
-    [[nodiscard]] SendResult dispatch(const std::vector<std::uint8_t>& frame, QueryKind queryKind = QueryKind::None,
+    [[nodiscard]] SendResult dispatch(const std::vector<std::uint8_t>& frame, QueryRef query = {},
         CommandPriority priority = CommandPriority::Normal);
 
-    /// @brief Intermediates and enqueues a raw frame vector with query tag.
-    /// @param[in] frame Raw frame bytes.
-    /// @param[in] queryTag Correlation string tag.
+    /// @brief Intermediates and enqueues a standard frame with explicit priority.
+    /// @param[in] frame Standard 7-byte protocol array.
     /// @param[in] priority Command queue priority.
     /// @return SendResult from session enqueue.
-    [[nodiscard]] SendResult dispatch(const std::vector<std::uint8_t>& frame, const std::string& queryTag,
-        CommandPriority priority = CommandPriority::Normal);
+    [[nodiscard]] SendResult dispatch(const StandardFrame& frame, CommandPriority priority);
+
+    /// @brief Intermediates and enqueues a raw frame vector with explicit priority.
+    /// @param[in] frame Raw frame bytes.
+    /// @param[in] priority Command queue priority.
+    /// @return SendResult from session enqueue.
+    [[nodiscard]] SendResult dispatch(const std::vector<std::uint8_t>& frame, CommandPriority priority);
 
     /// @brief Triggers an immediate fail-safe emergency stop across all active axes.
     /// @param[in] reason Cause for the fail-safe stop.

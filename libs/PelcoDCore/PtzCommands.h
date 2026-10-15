@@ -163,12 +163,8 @@ public:
 
 private:
     [[nodiscard]] SendResult dispatch(
-        const StandardFrame& frame, QueryKind queryKind, CommandPriority priority = CommandPriority::Normal);
-    [[nodiscard]] SendResult dispatch(const StandardFrame& frame, const std::string& queryTag = "",
-        CommandPriority priority = CommandPriority::Normal);
-    [[nodiscard]] SendResult dispatch(const std::vector<std::uint8_t>& frame, QueryKind queryKind,
-        CommandPriority priority = CommandPriority::Normal);
-    [[nodiscard]] SendResult dispatch(const std::vector<std::uint8_t>& frame, const std::string& queryTag = "",
+        const StandardFrame& frame, QueryRef query = {}, CommandPriority priority = CommandPriority::Normal);
+    [[nodiscard]] SendResult dispatch(const std::vector<std::uint8_t>& frame, QueryRef query = {},
         CommandPriority priority = CommandPriority::Normal);
 
     std::shared_ptr<PelcoDSession> m_session;

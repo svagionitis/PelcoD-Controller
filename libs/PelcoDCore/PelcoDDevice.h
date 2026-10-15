@@ -527,10 +527,10 @@ public:
     [[nodiscard]] AsyncWatchdog& getAsyncWatchdog() noexcept;
 
     [[nodiscard]] SendResult sendRawFrame(const std::vector<std::uint8_t>& frame);
-    [[nodiscard]] SendResult sendQueryFrame(const std::vector<std::uint8_t>& frame, std::string queryTag = "Query");
+    [[nodiscard]] SendResult sendQueryFrame(const std::vector<std::uint8_t>& frame, QueryRef query = "Query");
 
 protected:
-    [[nodiscard]] SendResult enqueueCommand(const std::vector<std::uint8_t>& frame, std::string queryTag = "",
+    [[nodiscard]] SendResult enqueueCommand(const std::vector<std::uint8_t>& frame, QueryRef query = {},
         CommandPriority priority = CommandPriority::Normal);
 
     /// @brief Installs a vendor protocol extension consulted for every received frame.

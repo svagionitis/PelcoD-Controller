@@ -99,7 +99,7 @@ void MotionSafetyGuard::resetInterlock() noexcept
     m_interlocked = false;
 }
 
-SendResult MotionSafetyGuard::dispatch(const StandardFrame& frame, QueryKind queryKind, CommandPriority priority)
+SendResult MotionSafetyGuard::dispatch(const StandardFrame& frame, QueryRef query, CommandPriority priority)
 {
     auto session = m_session.lock();
     if (!session) {
@@ -120,7 +120,7 @@ SendResult MotionSafetyGuard::dispatch(const StandardFrame& frame, QueryKind que
         }
     }
 
-    const SendResult result = session->enqueueCommand(frame, queryKind, priority);
+    const SendResult result = session->enqueueCommand(frame, std::move(query), priority);
     if (result == SendResult::Success) {
         std::scoped_lock lock { m_mutex };
         updateMotionStateLocked(axes, isStop);
@@ -128,9 +128,14 @@ SendResult MotionSafetyGuard::dispatch(const StandardFrame& frame, QueryKind que
     return result;
 }
 
-SendResult MotionSafetyGuard::dispatch(
-    const StandardFrame& frame, const std::string& queryTag, CommandPriority priority)
+SendResult MotionSafetyGuard::dispatch(const std::vector<std::uint8_t>& frame, QueryRef query, CommandPriority priority)
 {
+    if (frame.size() == PelcoDFrame::StandardFrameSize) {
+        StandardFrame stdFrame {};
+        std::copy(frame.begin(), frame.end(), stdFrame.begin());
+        return dispatch(stdFrame, std::move(query), priority);
+    }
+
     auto session = m_session.lock();
     if (!session) {
         return SendResult::TransportClosed;
@@ -150,7 +155,7 @@ SendResult MotionSafetyGuard::dispatch(
         }
     }
 
-    const SendResult result = session->enqueueCommand(frame, queryTag, priority);
+    const SendResult result = session->enqueueCommand(frame, std::move(query), priority);
     if (result == SendResult::Success) {
         std::scoped_lock lock { m_mutex };
         updateMotionStateLocked(axes, isStop);
@@ -158,64 +163,14 @@ SendResult MotionSafetyGuard::dispatch(
     return result;
 }
 
-SendResult MotionSafetyGuard::dispatch(
-    const std::vector<std::uint8_t>& frame, QueryKind queryKind, CommandPriority priority)
+SendResult MotionSafetyGuard::dispatch(const StandardFrame& frame, CommandPriority priority)
 {
-    auto session = m_session.lock();
-    if (!session) {
-        return SendResult::TransportClosed;
-    }
-
-    const MotionAxis axes = PelcoDFrame::extractMotionAxes(frame);
-    const bool isStop
-        = (axes == MotionAxis::None) && (PelcoDFrame::isStandardStop(frame) || priority == CommandPriority::Urgent);
-
-    {
-        std::scoped_lock lock { m_mutex };
-        if (m_interlocked) {
-            if (!isStop) {
-                return SendResult::MotionPurged;
-            }
-            m_interlocked = false;
-        }
-    }
-
-    const SendResult result = session->enqueueCommand(frame, queryKind, priority);
-    if (result == SendResult::Success) {
-        std::scoped_lock lock { m_mutex };
-        updateMotionStateLocked(axes, isStop);
-    }
-    return result;
+    return dispatch(frame, QueryRef {}, priority);
 }
 
-SendResult MotionSafetyGuard::dispatch(
-    const std::vector<std::uint8_t>& frame, const std::string& queryTag, CommandPriority priority)
+SendResult MotionSafetyGuard::dispatch(const std::vector<std::uint8_t>& frame, CommandPriority priority)
 {
-    auto session = m_session.lock();
-    if (!session) {
-        return SendResult::TransportClosed;
-    }
-
-    const MotionAxis axes = PelcoDFrame::extractMotionAxes(frame);
-    const bool isStop
-        = (axes == MotionAxis::None) && (PelcoDFrame::isStandardStop(frame) || priority == CommandPriority::Urgent);
-
-    {
-        std::scoped_lock lock { m_mutex };
-        if (m_interlocked) {
-            if (!isStop) {
-                return SendResult::MotionPurged;
-            }
-            m_interlocked = false;
-        }
-    }
-
-    const SendResult result = session->enqueueCommand(frame, queryTag, priority);
-    if (result == SendResult::Success) {
-        std::scoped_lock lock { m_mutex };
-        updateMotionStateLocked(axes, isStop);
-    }
-    return result;
+    return dispatch(frame, QueryRef {}, priority);
 }
 
 SendResult MotionSafetyGuard::triggerEmergencyStop(MotionSafetyEvent reason) noexcept

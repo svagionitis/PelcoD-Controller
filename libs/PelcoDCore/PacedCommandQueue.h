@@ -54,39 +54,37 @@ public:
 
     /// @brief Helper to construct and enqueue a command item with zero-allocation StandardFrame.
     /// @param[in] frame Standard 7-byte protocol array.
-    /// @param[in] queryKind Expected query kind.
+    /// @param[in] query Expected query metadata or correlation tag.
     /// @param[in] priority Scheduling priority.
     /// @param[in] motionGeneration Generation token for motion sequencing (0 = non-motion).
     /// @return SendResult::Success on successful insertion, SendResult::QueueFull if rejected.
-    [[nodiscard]] SendResult enqueue(StandardFrame frame, QueryKind queryKind,
+    [[nodiscard]] SendResult enqueue(StandardFrame frame, QueryRef query = {},
         CommandPriority priority = CommandPriority::Normal, std::uint64_t motionGeneration = 0U);
 
-    /// @brief Helper to construct and enqueue a command item with zero-allocation StandardFrame.
+    /// @brief Helper to construct and enqueue a command item with raw frame buffer.
+    /// @param[in] frame Raw frame bytes.
+    /// @param[in] query Expected query metadata or correlation tag.
+    /// @param[in] priority Scheduling priority.
+    /// @param[in] motionGeneration Generation token for motion sequencing (0 = non-motion).
+    /// @return SendResult::Success on successful insertion, SendResult::QueueFull if rejected.
+    [[nodiscard]] SendResult enqueue(const std::vector<std::uint8_t>& frame, QueryRef query = {},
+        CommandPriority priority = CommandPriority::Normal, std::uint64_t motionGeneration = 0U);
+
+    /// @brief Helper to enqueue a standard command frame with explicit priority and motion generation.
     /// @param[in] frame Standard 7-byte protocol array.
-    /// @param[in] queryTag Optional query identifier.
     /// @param[in] priority Scheduling priority.
     /// @param[in] motionGeneration Generation token for motion sequencing (0 = non-motion).
     /// @return SendResult::Success on successful insertion, SendResult::QueueFull if rejected.
-    [[nodiscard]] SendResult enqueue(StandardFrame frame, std::string queryTag = "",
-        CommandPriority priority = CommandPriority::Normal, std::uint64_t motionGeneration = 0U);
+    [[nodiscard]] SendResult enqueue(
+        StandardFrame frame, CommandPriority priority, std::uint64_t motionGeneration = 0U);
 
-    /// @brief Helper to construct and enqueue a command item with strongly-typed QueryKind.
+    /// @brief Helper to enqueue a raw command frame with explicit priority and motion generation.
     /// @param[in] frame Raw frame bytes.
-    /// @param[in] queryKind Expected query kind.
     /// @param[in] priority Scheduling priority.
     /// @param[in] motionGeneration Generation token for motion sequencing (0 = non-motion).
     /// @return SendResult::Success on successful insertion, SendResult::QueueFull if rejected.
-    [[nodiscard]] SendResult enqueue(std::vector<std::uint8_t> frame, QueryKind queryKind,
-        CommandPriority priority = CommandPriority::Normal, std::uint64_t motionGeneration = 0U);
-
-    /// @brief Helper to construct and enqueue a command item with string query tag.
-    /// @param[in] frame Raw frame bytes.
-    /// @param[in] queryTag Optional query identifier.
-    /// @param[in] priority Scheduling priority.
-    /// @param[in] motionGeneration Generation token for motion sequencing (0 = non-motion).
-    /// @return SendResult::Success on successful insertion, SendResult::QueueFull if rejected.
-    [[nodiscard]] SendResult enqueue(std::vector<std::uint8_t> frame, std::string queryTag = "",
-        CommandPriority priority = CommandPriority::Normal, std::uint64_t motionGeneration = 0U);
+    [[nodiscard]] SendResult enqueue(
+        const std::vector<std::uint8_t>& frame, CommandPriority priority, std::uint64_t motionGeneration = 0U);
 
     /// @brief Schedules a failed command for exponential backoff retransmission.
     /// @param[in,out] item Command item being retried (retryCount incremented).

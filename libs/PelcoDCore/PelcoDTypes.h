@@ -514,4 +514,64 @@ enum class QueryKind : std::uint16_t {
     return kind != QueryKind::None;
 }
 
+/// @struct QueryRef
+/// @brief Unified reference describing an expected query kind and/or correlation tag.
+/// @details Collapses the combinatorial overload matrix between QueryKind and string tags
+///          across queue, session, guard, and PTZ command layers.
+struct QueryRef {
+    QueryKind kind { QueryKind::None };
+    std::string tag {};
+
+    /// @brief Default constructor creating an empty non-query reference.
+    constexpr QueryRef() noexcept = default;
+
+    /// @brief Implicit converting constructor from strongly-typed QueryKind.
+    /// @param[in] k Strongly-typed query kind.
+    QueryRef(QueryKind k)
+        : kind { k }
+        , tag { toQueryTagName(k) }
+    {
+    }
+
+    /// @brief Implicit converting constructor from owned string tag.
+    /// @param[in] t Correlation string tag.
+    QueryRef(std::string t)
+        : kind { parseQueryKind(t) }
+        , tag { std::move(t) }
+    {
+    }
+
+    /// @brief Implicit converting constructor from string literal or C-string tag.
+    /// @param[in] t Null-terminated C-string tag.
+    QueryRef(const char* t)
+        : kind { parseQueryKind((t != nullptr) ? t : "") }
+        , tag { (t != nullptr) ? t : "" }
+    {
+    }
+
+    /// @brief Implicit converting constructor from string view tag.
+    /// @param[in] t String view tag.
+    QueryRef(std::string_view t)
+        : kind { parseQueryKind(t) }
+        , tag { t }
+    {
+    }
+
+    /// @brief Constructor binding both QueryKind and explicit string tag.
+    /// @param[in] k Strongly-typed query kind.
+    /// @param[in] t Explicit correlation string tag.
+    QueryRef(QueryKind k, std::string t)
+        : kind { k }
+        , tag { t.empty() ? std::string(toQueryTagName(k)) : std::move(t) }
+    {
+    }
+
+    /// @brief Checks whether this reference denotes an active query expectation.
+    /// @return True if a query kind is set or a tag is non-empty.
+    [[nodiscard]] bool isQuery() const noexcept
+    {
+        return kind != QueryKind::None || !tag.empty();
+    }
+};
+
 } // namespace PelcoD

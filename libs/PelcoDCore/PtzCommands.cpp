@@ -13,49 +13,26 @@ PtzCommands::PtzCommands(std::shared_ptr<PelcoDSession> session, std::shared_ptr
 {
 }
 
-SendResult PtzCommands::dispatch(const StandardFrame& frame, QueryKind queryKind, CommandPriority priority)
+SendResult PtzCommands::dispatch(const StandardFrame& frame, QueryRef query, CommandPriority priority)
 {
     if (m_guard) {
-        return m_guard->dispatch(frame, queryKind, priority);
+        return m_guard->dispatch(frame, std::move(query), priority);
     }
     if (!m_session) {
         return SendResult::TransportClosed;
     }
-    return m_session->enqueueCommand(frame, queryKind, priority);
+    return m_session->enqueueCommand(frame, std::move(query), priority);
 }
 
-SendResult PtzCommands::dispatch(const StandardFrame& frame, const std::string& queryTag, CommandPriority priority)
+SendResult PtzCommands::dispatch(const std::vector<std::uint8_t>& frame, QueryRef query, CommandPriority priority)
 {
     if (m_guard) {
-        return m_guard->dispatch(frame, queryTag, priority);
+        return m_guard->dispatch(frame, std::move(query), priority);
     }
     if (!m_session) {
         return SendResult::TransportClosed;
     }
-    return m_session->enqueueCommand(frame, queryTag, priority);
-}
-
-SendResult PtzCommands::dispatch(const std::vector<std::uint8_t>& frame, QueryKind queryKind, CommandPriority priority)
-{
-    if (m_guard) {
-        return m_guard->dispatch(frame, queryKind, priority);
-    }
-    if (!m_session) {
-        return SendResult::TransportClosed;
-    }
-    return m_session->enqueueCommand(frame, queryKind, priority);
-}
-
-SendResult PtzCommands::dispatch(
-    const std::vector<std::uint8_t>& frame, const std::string& queryTag, CommandPriority priority)
-{
-    if (m_guard) {
-        return m_guard->dispatch(frame, queryTag, priority);
-    }
-    if (!m_session) {
-        return SendResult::TransportClosed;
-    }
-    return m_session->enqueueCommand(frame, queryTag, priority);
+    return m_session->enqueueCommand(frame, std::move(query), priority);
 }
 
 SendResult PtzCommands::panLeft(std::uint8_t speed)

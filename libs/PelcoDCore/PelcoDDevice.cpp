@@ -831,15 +831,15 @@ SendResult PelcoDDevice::sendRawFrame(const std::vector<std::uint8_t>& frame)
     return enqueueCommand(frame, "", CommandPriority::Normal);
 }
 
-SendResult PelcoDDevice::sendQueryFrame(const std::vector<std::uint8_t>& frame, std::string queryTag)
+SendResult PelcoDDevice::sendQueryFrame(const std::vector<std::uint8_t>& frame, QueryRef query)
 {
-    return m_session->sendQueryFrame(frame, std::move(queryTag));
+    return m_session->sendQueryFrame(frame, std::move(query));
 }
 
 SendResult PelcoDDevice::enqueueCommand(
-    const std::vector<std::uint8_t>& frame, std::string queryTag, CommandPriority priority)
+    const std::vector<std::uint8_t>& frame, QueryRef query, CommandPriority priority)
 {
-    return m_safetyGuard->dispatch(frame, std::move(queryTag), priority);
+    return m_safetyGuard->dispatch(frame, std::move(query), priority);
 }
 
 bool PelcoDDevice::setFrameExt(std::shared_ptr<IFrameExtension> ext)
