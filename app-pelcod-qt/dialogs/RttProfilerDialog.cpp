@@ -7,6 +7,7 @@
 #include <QLinearGradient>
 #include <QMessageBox>
 #include <QPainterPath>
+#include <QTimer>
 #include <algorithm>
 #include <cmath>
 
@@ -163,6 +164,18 @@ RttProfilerDialog::~RttProfilerDialog()
     }
 }
 
+bool RttProfilerDialog::isAutoHide() const noexcept
+{
+    return chkAutoHide ? chkAutoHide->isChecked() : false;
+}
+
+void RttProfilerDialog::setAutoHide(bool enable) noexcept
+{
+    if (chkAutoHide) {
+        chkAutoHide->setChecked(enable);
+    }
+}
+
 void RttProfilerDialog::setupUi()
 {
     setWindowTitle("Round-Trip-Time (RTT) & Jitter Profiler");
@@ -266,6 +279,10 @@ void RttProfilerDialog::setupUi()
     cmbQueryTag->addItems(
         { "QueryPan", "QueryTilt", "QueryZoom", "QueryDeviceType", "QueryDiagnostics", "QueryGeneral" });
     ctrlLayout->addWidget(cmbQueryTag);
+
+    chkAutoHide = new QCheckBox(tr("Auto-hide on completion"), this);
+    chkAutoHide->setToolTip(tr("Automatically hide this dialog when profiling finishes"));
+    ctrlLayout->addWidget(chkAutoHide);
 
     ctrlLayout->addStretch();
     mainLayout->addWidget(ctrlGroup);
@@ -396,6 +413,17 @@ void RttProfilerDialog::onStateChanged(bool isRunning)
 void RttProfilerDialog::onProfilingFinished(const PelcoD::RttStatistics& stats)
 {
     updateKpiCards(stats);
+    if (chkAutoHide && chkAutoHide->isChecked()) {
+        QTimer::singleShot(500, this, [this] {
+            if (chkAutoHide && chkAutoHide->isChecked() && m_profiler && !m_profiler->isRunning()) {
+                if (isModal()) {
+                    accept();
+                } else {
+                    hide();
+                }
+            }
+        });
+    }
 }
 
 void RttProfilerDialog::onSampleRecorded(const PelcoD::RttSample& sample, const PelcoD::RttStatistics& stats)

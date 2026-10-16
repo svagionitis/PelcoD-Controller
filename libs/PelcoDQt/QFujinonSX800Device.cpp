@@ -578,4 +578,250 @@ void QFujinonSX800Device::queryZoomStandard()
     }
 }
 
+void QFujinonSX800Device::queryZoom()
+{
+    if (m_device) {
+        static_cast<void>(m_device->queryFujinonZoom());
+        static_cast<void>(m_device->queryZoomStandard());
+    }
+}
+
+void QFujinonSX800Device::queryFocus()
+{
+    if (m_device) {
+        static_cast<void>(m_device->queryFujinonFocus());
+    }
+}
+
+void QFujinonSX800Device::setZoomPosition(int zoomPos)
+{
+    if (m_device && zoomPos >= 0 && zoomPos <= 65535) {
+        static_cast<void>(m_device->setZoomPosition(static_cast<std::uint16_t>(zoomPos)));
+    }
+}
+
+void QFujinonSX800Device::setZoomSpeed(int speed)
+{
+    if (m_device && speed >= 0 && speed <= 255) {
+        static_cast<void>(m_device->setZoomSpeed(static_cast<std::uint8_t>(speed)));
+    }
+}
+
+void QFujinonSX800Device::setFocusSpeed(int speed)
+{
+    if (m_device && speed >= 0 && speed <= 255) {
+        static_cast<void>(m_device->setFocusSpeed(static_cast<std::uint8_t>(speed)));
+    }
+}
+
+void QFujinonSX800Device::setAutoFocus(PelcoD::FujinonAutoFocusMode mode)
+{
+    if (m_device) {
+        static_cast<void>(m_device->setAutoFocus(mode));
+    }
+}
+
+void QFujinonSX800Device::setAutoIris(PelcoD::FujinonAutoIrisMode mode)
+{
+    if (m_device) {
+        static_cast<void>(m_device->setAutoIris(mode));
+    }
+}
+
+void QFujinonSX800Device::setAGC(PelcoD::FujinonAGCMode mode)
+{
+    if (m_device) {
+        static_cast<void>(m_device->setAGC(mode));
+    }
+}
+
+void QFujinonSX800Device::setBLC(PelcoD::FujinonBLCMode mode)
+{
+    if (m_device) {
+        static_cast<void>(m_device->setBLC(mode));
+    }
+}
+
+void QFujinonSX800Device::setBaudRate(int baudRateIndex)
+{
+    if (m_device && baudRateIndex >= 0 && baudRateIndex <= 255) {
+        static_cast<void>(m_device->setBaudRate(static_cast<std::uint8_t>(baudRateIndex)));
+    }
+}
+
+void QFujinonSX800Device::setShutterLimitAuto(PelcoD::FujinonShutterLimitAuto limit)
+{
+    if (m_device) {
+        static_cast<void>(m_device->setShutterLimitAuto(limit));
+    }
+}
+
+void QFujinonSX800Device::queryManualShutter()
+{
+    if (m_device) {
+        static_cast<void>(m_device->queryManualShutter());
+    }
+}
+
+void QFujinonSX800Device::queryManualISO()
+{
+    if (m_device) {
+        static_cast<void>(m_device->queryManualISO());
+    }
+}
+
+void QFujinonSX800Device::queryManualIris()
+{
+    if (m_device) {
+        static_cast<void>(m_device->queryManualIris());
+    }
+}
+
+void QFujinonSX800Device::setPhotoModePreset(PelcoD::FujinonPhotoModePreset preset)
+{
+    if (m_device) {
+        static_cast<void>(m_device->setPhotoModePreset(preset));
+    }
+}
+
+void QFujinonSX800Device::setExternalDayNight(PelcoD::FujinonExternalDayNight mode)
+{
+    if (m_device) {
+        static_cast<void>(m_device->setExternalDayNight(mode));
+    }
+}
+
+void QFujinonSX800Device::queryDisplay(int target)
+{
+    if (m_device) {
+        static_cast<void>(m_device->queryDisplay(static_cast<std::uint8_t>(target)));
+    }
+}
+
+void QFujinonSX800Device::setTimeFormat(PelcoD::FujinonTimeFormat fmt)
+{
+    if (m_device) {
+        static_cast<void>(m_device->setTimeFormat(fmt));
+    }
+}
+
+void QFujinonSX800Device::setDateFormat(PelcoD::FujinonDateFormat fmt)
+{
+    if (m_device) {
+        static_cast<void>(m_device->setDateFormat(fmt));
+    }
+}
+
+void QFujinonSX800Device::setVideoDisplay(PelcoD::FujinonVideoDisplayMode mode)
+{
+    if (m_device) {
+        static_cast<void>(m_device->setVideoDisplay(mode));
+    }
+}
+
+void QFujinonSX800Device::setRS485Address(int newId)
+{
+    if (m_device && newId >= 1 && newId <= 31) {
+        static_cast<void>(m_device->setRS485Address(static_cast<std::uint8_t>(newId)));
+    }
+}
+
+void QFujinonSX800Device::setSDRecordingMode(PelcoD::FujinonSDRecordMode mode)
+{
+    if (m_device) {
+        static_cast<void>(m_device->setSDRecordingMode(mode));
+    }
+}
+
+void QFujinonSX800Device::setSDCapacityDisp(bool enable)
+{
+    if (m_device) {
+        static_cast<void>(m_device->setSDCapacityDisp(enable));
+    }
+}
+
+void QFujinonSX800Device::recordLogData()
+{
+    if (m_device) {
+        static_cast<void>(m_device->recordLogData());
+    }
+}
+
+void QFujinonSX800Device::setEncodeMode(PelcoD::FujinonVideoEncoding enc)
+{
+    if (m_device) {
+        static_cast<void>(m_device->setEncodeMode(enc));
+    }
+}
+
+void QFujinonSX800Device::setFirstMovieFile(int fileIndex)
+{
+    if (m_device && fileIndex >= 0 && fileIndex <= 65535) {
+        static_cast<void>(m_device->setFirstMovieFile(static_cast<std::uint16_t>(fileIndex)));
+    }
+}
+
+void QFujinonSX800Device::playMovieMode(PelcoD::FujinonMoviePlayMode mode)
+{
+    if (m_device) {
+        static_cast<void>(m_device->playMovieMode(mode));
+    }
+}
+
+void QFujinonSX800Device::deleteMovie(int fileIndex)
+{
+    if (m_device && fileIndex >= 0 && fileIndex <= 65535) {
+        static_cast<void>(m_device->deleteMovie(static_cast<std::uint16_t>(fileIndex)));
+    }
+}
+
+void QFujinonSX800Device::queryKeySetting(int target)
+{
+    if (m_device) {
+        static_cast<void>(m_device->queryKeySetting(static_cast<std::uint8_t>(target)));
+    }
+}
+
+void QFujinonSX800Device::queryMovieCount()
+{
+    if (m_device) {
+        static_cast<void>(m_device->queryMovieCount());
+    }
+}
+
+void QFujinonSX800Device::queryMovieYear(int fileIndex)
+{
+    if (m_device && fileIndex >= 0 && fileIndex <= 65535) {
+        static_cast<void>(m_device->queryMovieYear(static_cast<std::uint16_t>(fileIndex)));
+    }
+}
+
+void QFujinonSX800Device::queryMovieDate(int fileIndex)
+{
+    if (m_device && fileIndex >= 0 && fileIndex <= 65535) {
+        static_cast<void>(m_device->queryMovieDate(static_cast<std::uint16_t>(fileIndex)));
+    }
+}
+
+void QFujinonSX800Device::queryMovieTime(int fileIndex)
+{
+    if (m_device && fileIndex >= 0 && fileIndex <= 65535) {
+        static_cast<void>(m_device->queryMovieTime(static_cast<std::uint16_t>(fileIndex)));
+    }
+}
+
+void QFujinonSX800Device::queryLogData(PelcoD::FujinonLogType logType)
+{
+    if (m_device) {
+        static_cast<void>(m_device->queryLogData(logType));
+    }
+}
+
+void QFujinonSX800Device::setDigitalZoomEx(int magIndex)
+{
+    if (m_device && magIndex >= 0 && magIndex <= 3) {
+        static_cast<void>(m_device->setDigitalZoomEx(static_cast<std::uint8_t>(magIndex)));
+    }
+}
+
 } // namespace PelcoDQt

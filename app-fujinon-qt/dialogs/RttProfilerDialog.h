@@ -5,6 +5,7 @@
 
 #include "QRttProfiler.h"
 
+#include <QCheckBox>
 #include <QComboBox>
 #include <QDialog>
 #include <QFileDialog>
@@ -59,6 +60,14 @@ public:
     /// @brief Destructor stopping background profiling.
     ~RttProfilerDialog() override;
 
+    /// @brief Check whether autohide on completion is enabled.
+    /// @return True if dialog will autohide after profiling finishes.
+    [[nodiscard]] bool isAutoHide() const noexcept;
+
+    /// @brief Enable or disable autohide on completion.
+    /// @param[in] enable True to autohide when profiling finishes.
+    void setAutoHide(bool enable) noexcept;
+
 private slots:
     void handleStartStopClicked();
     void handleResetClicked();
@@ -97,6 +106,7 @@ private:
     QSpinBox* spinBurstCount { nullptr };
     QSpinBox* spinIntervalMs { nullptr };
     QComboBox* cmbQueryTag { nullptr };
+    QCheckBox* chkAutoHide { nullptr };
 
     QPushButton* btnStartStop { nullptr };
     QPushButton* btnReset { nullptr };

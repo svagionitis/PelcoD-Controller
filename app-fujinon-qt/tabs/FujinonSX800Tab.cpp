@@ -814,6 +814,7 @@ void FujinonSX800Tab::handleDigitalZoomMagChanged(int index)
 void FujinonSX800Tab::handleOnePushAF()
 {
     if (auto* f = fujinon()) {
+        f->setAutoFocus(PelcoD::FujinonAutoFocusMode::AFOff);
         f->onePushAF();
     }
 }

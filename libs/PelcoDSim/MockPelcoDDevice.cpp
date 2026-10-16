@@ -264,6 +264,35 @@ void MockPelcoDDevice::processFrame(const std::vector<std::uint8_t>& frame)
         return;
     }
 
+    if (cmd1 == 0x00U && (cmd2 == 0x81U || cmd2 == 0x83U)) {
+        if (cmd2 == 0x83U) {
+            std::uint16_t zoom { 0U };
+            {
+                std::scoped_lock lock(m_stateMutex);
+                if (m_kinematics.getConfig().enabled) {
+                    m_kinematics.update(std::chrono::steady_clock::now());
+                    zoom = m_kinematics.currentZoomInt();
+                    m_state.zoomPosition = zoom;
+                } else {
+                    zoom = m_state.zoomPosition;
+                }
+            }
+            const auto msb = static_cast<std::uint8_t>((zoom >> 8U) & 0xFFU);
+            const auto lsb = static_cast<std::uint8_t>(zoom & 0xFFU);
+            sendExtendedReply(0x00U, 0x83U, msb, lsb);
+        } else {
+            std::uint16_t focus { 0U };
+            {
+                std::scoped_lock lock(m_stateMutex);
+                focus = m_state.focusPosition;
+            }
+            const auto msb = static_cast<std::uint8_t>((focus >> 8U) & 0xFFU);
+            const auto lsb = static_cast<std::uint8_t>(focus & 0xFFU);
+            sendExtendedReply(0x00U, 0x81U, msb, lsb);
+        }
+        return;
+    }
+
     // Extended Commands: bit 0 of cmd2 is 1
     const auto opcode = static_cast<CommandOpcode>(cmd2);
     switch (opcode) {
@@ -708,8 +737,8 @@ void MockPelcoDDevice::processFrame(const std::vector<std::uint8_t>& frame)
         }
 
         if (sendExtended) {
-            sendExtendedReply(static_cast<std::uint8_t>(respSub),
-                static_cast<std::uint8_t>(ResponseOpcode::Everest), d1Out, d2Out);
+            sendExtendedReply(
+                static_cast<std::uint8_t>(respSub), static_cast<std::uint8_t>(ResponseOpcode::Everest), d1Out, d2Out);
         } else {
             sendGeneralReply(cksm);
         }

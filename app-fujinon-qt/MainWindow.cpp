@@ -2,6 +2,7 @@
 /// @brief Implementation of main application window for Fujinon SX800 controller.
 
 #include "MainWindow.h"
+#include "app-fujinon-qt/dialogs/RttProfilerDialog.h"
 
 #include <QStatusBar>
 #include <QToolBar>
@@ -36,8 +37,21 @@ void MainWindow::setupUi()
 
     m_tabWidget = new QTabWidget(centralWidget);
 
-    m_fujinonTab = new FujinonSX800Tab(m_device, this);
-    m_tabWidget->addTab(m_fujinonTab, tr("Fujinon SX800"));
+    m_opticsTab = new OpticsTab(m_device, this);
+    m_exposureTab = new ExposureTab(m_device, this);
+    m_imageTab = new ImageEnhanceTab(m_device, this);
+    m_dayNightTab = new DayNightTab(m_device, this);
+    m_osdTab = new OsdDisplayTab(m_device, this);
+    m_systemTab = new SystemMediaTab(m_device, this);
+    m_overviewTab = new FujinonSX800Tab(m_device, this);
+
+    m_tabWidget->addTab(m_opticsTab, tr("Optics & PTZ"));
+    m_tabWidget->addTab(m_exposureTab, tr("Exposure & Sensor"));
+    m_tabWidget->addTab(m_imageTab, tr("Image Enhancement"));
+    m_tabWidget->addTab(m_dayNightTab, tr("Day / Night & IR"));
+    m_tabWidget->addTab(m_osdTab, tr("OSD & Display"));
+    m_tabWidget->addTab(m_systemTab, tr("System & Media"));
+    m_tabWidget->addTab(m_overviewTab, tr("Full Dashboard"));
 
     centralLayout->addWidget(m_tabWidget);
     setCentralWidget(centralWidget);
@@ -75,6 +89,9 @@ void MainWindow::setupConnections()
     connect(m_inspectorWidget, &TrafficInspectorWidget::sendRawHexRequested, m_device,
         &PelcoDQt::QPelcoDFujinonDevice::sendRawHex);
 
+    // Profiler launch from inspector
+    connect(m_inspectorWidget, &TrafficInspectorWidget::openProfilerRequested, this, &MainWindow::handleOpenProfiler);
+
     connect(m_device, &PelcoDQt::QPelcoDFujinonDevice::connectionStateChanged, this, [this](bool connected) {
         if (connected) {
             statusBar()->showMessage(tr("Connected to Fujinon SX800 Device"));
@@ -101,18 +118,56 @@ void MainWindow::handleDisconnect()
     statusBar()->showMessage(tr("Disconnected"));
 }
 
-void MainWindow::handleStatusUpdated(const PelcoD::DeviceStatus& /*status*/)
+void MainWindow::handleStatusUpdated(const PelcoD::DeviceStatus& status)
 {
     if (m_inspectorWidget && m_device) {
         m_inspectorWidget->updateTransportStats(m_device->transportStats(), m_device->protocolStats());
+    }
+    if (m_opticsTab) {
+        m_opticsTab->updateBaseStatus(status);
     }
 }
 
 void MainWindow::handleFujinonStatusUpdated(const PelcoD::FujinonStatus& status)
 {
-    if (m_fujinonTab) {
-        m_fujinonTab->updateFujinonStatus(status);
+    if (m_opticsTab) {
+        m_opticsTab->updateFujinonStatus(status);
     }
+    if (m_exposureTab) {
+        m_exposureTab->updateFujinonStatus(status);
+    }
+    if (m_imageTab) {
+        m_imageTab->updateFujinonStatus(status);
+    }
+    if (m_dayNightTab) {
+        m_dayNightTab->updateFujinonStatus(status);
+    }
+    if (m_osdTab) {
+        m_osdTab->updateFujinonStatus(status);
+    }
+    if (m_systemTab) {
+        m_systemTab->updateFujinonStatus(status);
+    }
+    if (m_overviewTab) {
+        m_overviewTab->updateFujinonStatus(status);
+    }
+}
+
+void MainWindow::handleOpenProfiler()
+{
+    if (!m_device) {
+        return;
+    }
+    auto coreDev = m_device->sharedCoreDevice();
+    if (!coreDev) {
+        return;
+    }
+    if (!m_profilerDialog) {
+        m_profilerDialog = new RttProfilerDialog(coreDev, this);
+    }
+    m_profilerDialog->show();
+    m_profilerDialog->raise();
+    m_profilerDialog->activateWindow();
 }
 
 } // namespace FujinonApp

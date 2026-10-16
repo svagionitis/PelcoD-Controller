@@ -116,6 +116,82 @@ enum class FujinonDayNightModeEx : std::uint8_t {
 /// @brief On-screen display language selection (v2.12.0).
 enum class FujinonLanguage : std::uint8_t { English = 0x00U, French = 0x01U, Japanese = 0x03U };
 
+/// @enum FujinonAutoFocusMode
+/// @brief Auto Focus operating mode.
+enum class FujinonAutoFocusMode : std::uint8_t { AFOn = 0x00U, AFOff = 0x01U, QuickAF = 0x02U };
+
+/// @enum FujinonAutoIrisMode
+/// @brief Auto Iris operating mode.
+enum class FujinonAutoIrisMode : std::uint8_t { Manual = 0x00U, Auto = 0x01U };
+
+/// @enum FujinonAGCMode
+/// @brief Automatic Gain Control mode.
+enum class FujinonAGCMode : std::uint8_t { Standard = 0x00U, Off = 0x01U, Hyper = 0x02U };
+
+/// @enum FujinonBLCMode
+/// @brief Backlight Compensation mode.
+enum class FujinonBLCMode : std::uint8_t { Off = 0x00U, Soft = 0x01U, Hard = 0x02U };
+
+/// @enum FujinonShutterLimitAuto
+/// @brief Lower shutter limit for automatic exposure.
+enum class FujinonShutterLimitAuto : std::uint8_t {
+    Manual = 0x00U,
+    S1_8 = 0x01U,
+    S1_15 = 0x02U,
+    S1_30 = 0x03U,
+    S1_60 = 0x04U,
+    S1_125 = 0x05U,
+    S1_250 = 0x06U,
+    S1_500 = 0x07U,
+    S1_1000 = 0x08U,
+    S1_2000 = 0x09U,
+    S1_4000 = 0x0AU,
+    S1_10000 = 0x0BU
+};
+
+/// @enum FujinonPhotoModePreset
+/// @brief Camera photo scene mode preset.
+enum class FujinonPhotoModePreset : std::uint8_t { Surveillance = 0x01U, Movie = 0x02U };
+
+/// @enum FujinonExternalDayNight
+/// @brief External contact trigger Day/Night control.
+enum class FujinonExternalDayNight : std::uint8_t { OnVLC = 0x01U, OnClear = 0x02U, Off = 0x03U };
+
+/// @enum FujinonTimeFormat
+/// @brief OSD time display format mode.
+enum class FujinonTimeFormat : std::uint8_t { Mode24H = 0x01U, Mode12H = 0x02U };
+
+/// @enum FujinonDateFormat
+/// @brief OSD calendar date display format.
+enum class FujinonDateFormat : std::uint8_t {
+    YMD_Hyphen = 0x01U,
+    MDY_Hyphen = 0x02U,
+    DMY_Hyphen = 0x03U,
+    YMD_Slash = 0x04U,
+    MDY_Slash = 0x05U,
+    DMY_Slash = 0x06U
+};
+
+/// @enum FujinonVideoDisplayMode
+/// @brief Video aspect framing display mode.
+enum class FujinonVideoDisplayMode : std::uint8_t { SideCut = 0x01U, LetterBox = 0x02U, Squeeze = 0x03U };
+
+/// @enum FujinonSDRecordMode
+/// @brief SD card recording behavior when storage is full.
+enum class FujinonSDRecordMode : std::uint8_t { Overwrite = 0x01U, Stop = 0x02U };
+
+/// @enum FujinonVideoEncoding
+/// @brief SD card video recording codec.
+enum class FujinonVideoEncoding : std::uint8_t { H264 = 0x01U, MJPEG = 0x02U, MPEG4 = 0x03U };
+
+/// @enum FujinonMoviePlayMode
+/// @brief SD card recorded video playback state.
+enum class FujinonMoviePlayMode : std::uint8_t { Stop = 0x00U, Step = 0x01U, Continuous = 0x02U };
+
+/// @enum FujinonLogType
+/// @brief Internal diagnostic log category.
+enum class FujinonLogType : std::uint8_t { Zoom = 0x01U, Focus = 0x02U, PowerOnTime = 0x03U, OIS = 0x04U };
+
 /// @struct FujinonPhotoSettings
 /// @brief Snapshot decoded from 18-byte Query Photo Setting response.
 struct FujinonPhotoSettings {
@@ -208,6 +284,9 @@ struct FujinonStatus {
     std::uint8_t noiseReduction { 3U };
 
     // Optics & Sensor
+    FujinonAutoFocusMode autoFocusMode { FujinonAutoFocusMode::AFOn };
+    std::uint8_t afArea { 0U };
+    std::uint8_t afSensitivity { 2U };
     std::uint16_t absoluteFocusPosition { 0U };
     std::uint16_t absoluteZoomPosition { 0U };
     std::uint8_t manualIris { 0U };

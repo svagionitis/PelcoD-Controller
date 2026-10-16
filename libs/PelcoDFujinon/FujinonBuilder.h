@@ -491,6 +491,206 @@ public:
     /// @return 7-byte Pelco-D query packet.
     [[nodiscard]] static std::vector<std::uint8_t> buildQueryZoomStandard(std::uint8_t address);
 
+    /// @brief Construct a command to set direct zoom coordinate (0x00 0x4F).
+    /// @param[in] address RS-485 device bus address.
+    /// @param[in] zoomPos 16-bit zoom coordinate.
+    /// @return 7-byte Pelco-D command packet.
+    [[nodiscard]] static std::vector<std::uint8_t> buildSetZoomPosition(std::uint8_t address, std::uint16_t zoomPos);
+
+    /// @brief Construct a command to configure standard zoom speed (0x00 0x25).
+    /// @param[in] address RS-485 device bus address.
+    /// @param[in] speed Zoom speed (0..3).
+    /// @return 7-byte Pelco-D command packet.
+    [[nodiscard]] static std::vector<std::uint8_t> buildSetZoomSpeed(std::uint8_t address, std::uint8_t speed);
+
+    /// @brief Construct a command to configure standard focus speed (0x00 0x27).
+    /// @param[in] address RS-485 device bus address.
+    /// @param[in] speed Focus speed (0..3).
+    /// @return 7-byte Pelco-D command packet.
+    [[nodiscard]] static std::vector<std::uint8_t> buildSetFocusSpeed(std::uint8_t address, std::uint8_t speed);
+
+    /// @brief Construct a command to configure auto-focus mode (0x00 0x2B).
+    /// @param[in] address RS-485 device bus address.
+    /// @param[in] mode Auto focus mode.
+    /// @return 7-byte Pelco-D command packet.
+    [[nodiscard]] static std::vector<std::uint8_t> buildSetAutoFocus(std::uint8_t address, FujinonAutoFocusMode mode);
+
+    /// @brief Construct a command to configure auto-iris mode (0x00 0x2D).
+    /// @param[in] address RS-485 device bus address.
+    /// @param[in] mode Auto iris mode.
+    /// @return 7-byte Pelco-D command packet.
+    [[nodiscard]] static std::vector<std::uint8_t> buildSetAutoIris(std::uint8_t address, FujinonAutoIrisMode mode);
+
+    /// @brief Construct a command to configure automatic gain control (0x00 0x2F).
+    /// @param[in] address RS-485 device bus address.
+    /// @param[in] mode AGC mode.
+    /// @return 7-byte Pelco-D command packet.
+    [[nodiscard]] static std::vector<std::uint8_t> buildSetAGC(std::uint8_t address, FujinonAGCMode mode);
+
+    /// @brief Construct a command to configure backlight compensation (0x00 0x31).
+    /// @param[in] address RS-485 device bus address.
+    /// @param[in] mode Backlight compensation mode.
+    /// @return 7-byte Pelco-D command packet.
+    [[nodiscard]] static std::vector<std::uint8_t> buildSetBLC(std::uint8_t address, FujinonBLCMode mode);
+
+    /// @brief Construct a command to configure remote baud rate (0x00 0x67).
+    /// @param[in] address RS-485 device bus address.
+    /// @param[in] baudRateIndex Baud rate index (0:2400 to 5:115200).
+    /// @return 7-byte Pelco-D command packet.
+    [[nodiscard]] static std::vector<std::uint8_t> buildSetBaudRate(std::uint8_t address, std::uint8_t baudRateIndex);
+
+    /// @brief Construct a command to set AE lower shutter limit (0x00 0x93).
+    /// @param[in] address RS-485 device bus address.
+    /// @param[in] limit Auto shutter lower limit.
+    /// @return 7-byte Pelco-D command packet.
+    [[nodiscard]] static std::vector<std::uint8_t> buildSetShutterLimitAuto(
+        std::uint8_t address, FujinonShutterLimitAuto limit);
+
+    /// @brief Construct a query for manual electronic shutter speed (0x00 0x97).
+    /// @param[in] address RS-485 device bus address.
+    /// @return 7-byte Pelco-D command packet.
+    [[nodiscard]] static std::vector<std::uint8_t> buildQueryManualShutter(std::uint8_t address);
+
+    /// @brief Construct a query for manual ISO gain sensitivity (0x00 0x9B).
+    /// @param[in] address RS-485 device bus address.
+    /// @return 7-byte Pelco-D command packet.
+    [[nodiscard]] static std::vector<std::uint8_t> buildQueryManualISO(std::uint8_t address);
+
+    /// @brief Construct a query for manual aperture iris (0x00 0x9D).
+    /// @param[in] address RS-485 device bus address.
+    /// @return 7-byte Pelco-D command packet.
+    [[nodiscard]] static std::vector<std::uint8_t> buildQueryManualIris(std::uint8_t address);
+
+    /// @brief Construct a command to select photo scene preset (0xF0 0x17).
+    /// @param[in] address RS-485 device bus address.
+    /// @param[in] preset Scene preset.
+    /// @return 7-byte Pelco-D command packet.
+    [[nodiscard]] static std::vector<std::uint8_t> buildSetPhotoModePreset(
+        std::uint8_t address, FujinonPhotoModePreset preset);
+
+    /// @brief Construct a command to configure external Day/Night trigger (0xF0 0x19).
+    /// @param[in] address RS-485 device bus address.
+    /// @param[in] mode External contact trigger mode.
+    /// @return 7-byte Pelco-D command packet.
+    [[nodiscard]] static std::vector<std::uint8_t> buildSetExternalDayNight(
+        std::uint8_t address, FujinonExternalDayNight mode);
+
+    /// @brief Construct a query for OSD display settings (0xF0 0x5D).
+    /// @param[in] address RS-485 device bus address.
+    /// @param[in] target Query target opcode.
+    /// @return 7-byte Pelco-D command packet.
+    [[nodiscard]] static std::vector<std::uint8_t> buildQueryDisplay(std::uint8_t address, std::uint8_t target = 0x00U);
+
+    /// @brief Construct a command to set OSD time display format (0xF0 0x61).
+    /// @param[in] address RS-485 device bus address.
+    /// @param[in] fmt Time format (12h or 24h).
+    /// @return 7-byte Pelco-D command packet.
+    [[nodiscard]] static std::vector<std::uint8_t> buildSetTimeFormat(std::uint8_t address, FujinonTimeFormat fmt);
+
+    /// @brief Construct a command to set OSD calendar date format (0xF0 0x63).
+    /// @param[in] address RS-485 device bus address.
+    /// @param[in] fmt Date format.
+    /// @return 7-byte Pelco-D command packet.
+    [[nodiscard]] static std::vector<std::uint8_t> buildSetDateFormat(std::uint8_t address, FujinonDateFormat fmt);
+
+    /// @brief Construct a command to set video aspect display mode (0xF0 0x6B).
+    /// @param[in] address RS-485 device bus address.
+    /// @param[in] mode Aspect display mode.
+    /// @return 7-byte Pelco-D command packet.
+    [[nodiscard]] static std::vector<std::uint8_t> buildSetVideoDisplay(
+        std::uint8_t address, FujinonVideoDisplayMode mode);
+
+    /// @brief Construct a command to reprogram RS-485 bus address (0xF0 0x6F).
+    /// @param[in] address RS-485 device bus address.
+    /// @param[in] newId Target bus address (1..31).
+    /// @return 7-byte Pelco-D command packet.
+    [[nodiscard]] static std::vector<std::uint8_t> buildSetRS485Address(std::uint8_t address, std::uint8_t newId);
+
+    /// @brief Construct a command to set SD card recording mode (0xF0 0x77).
+    /// @param[in] address RS-485 device bus address.
+    /// @param[in] mode Full-card behavior (overwrite or stop).
+    /// @return 7-byte Pelco-D command packet.
+    [[nodiscard]] static std::vector<std::uint8_t> buildSetSDRecordingMode(
+        std::uint8_t address, FujinonSDRecordMode mode);
+
+    /// @brief Construct a command to toggle SD card capacity remaining display (0xF0 0x79).
+    /// @param[in] address RS-485 device bus address.
+    /// @param[in] enable True to display capacity on OSD.
+    /// @return 7-byte Pelco-D command packet.
+    [[nodiscard]] static std::vector<std::uint8_t> buildSetSDCapacityDisp(std::uint8_t address, bool enable);
+
+    /// @brief Construct a command to record diagnostic log data to SD card (0xF0 0x7F).
+    /// @param[in] address RS-485 device bus address.
+    /// @return 7-byte Pelco-D command packet.
+    [[nodiscard]] static std::vector<std::uint8_t> buildRecordLogData(std::uint8_t address);
+
+    /// @brief Construct a command to configure video encoding codec (0xF0 0x91).
+    /// @param[in] address RS-485 device bus address.
+    /// @param[in] enc Video encoding format.
+    /// @return 7-byte Pelco-D command packet.
+    [[nodiscard]] static std::vector<std::uint8_t> buildSetEncodeMode(std::uint8_t address, FujinonVideoEncoding enc);
+
+    /// @brief Construct a command to select first file for movie playback (0xF0 0x95).
+    /// @param[in] address RS-485 device bus address.
+    /// @param[in] fileIndex 1-based movie file index.
+    /// @return 7-byte Pelco-D command packet.
+    [[nodiscard]] static std::vector<std::uint8_t> buildSetFirstMovieFile(
+        std::uint8_t address, std::uint16_t fileIndex);
+
+    /// @brief Construct a command to play movie with play mode (0xF0 0x97).
+    /// @param[in] address RS-485 device bus address.
+    /// @param[in] mode Play mode (Stop, Step, Continuous).
+    /// @return 7-byte Pelco-D command packet.
+    [[nodiscard]] static std::vector<std::uint8_t> buildPlayMovieMode(std::uint8_t address, FujinonMoviePlayMode mode);
+
+    /// @brief Construct a command to delete movie file from SD card (0xF0 0x99).
+    /// @param[in] address RS-485 device bus address.
+    /// @param[in] fileIndex File index or 0x0000 to delete all.
+    /// @return 7-byte Pelco-D command packet.
+    [[nodiscard]] static std::vector<std::uint8_t> buildDeleteMovie(std::uint8_t address, std::uint16_t fileIndex);
+
+    /// @brief Construct a query for key setting (0xF0 0xAD).
+    /// @param[in] address RS-485 device bus address.
+    /// @param[in] target Target opcode.
+    /// @return 7-byte Pelco-D command packet.
+    [[nodiscard]] static std::vector<std::uint8_t> buildQueryKeySetting(
+        std::uint8_t address, std::uint8_t target = 0x00U);
+
+    /// @brief Construct a query for total number of recorded movies on SD card (0xF0 0xB1).
+    /// @param[in] address RS-485 device bus address.
+    /// @return 7-byte Pelco-D command packet.
+    [[nodiscard]] static std::vector<std::uint8_t> buildQueryMovieCount(std::uint8_t address);
+
+    /// @brief Construct a query for movie recording year (0xF0 0xB5).
+    /// @param[in] address RS-485 device bus address.
+    /// @param[in] fileIndex Movie file index.
+    /// @return 7-byte Pelco-D command packet.
+    [[nodiscard]] static std::vector<std::uint8_t> buildQueryMovieYear(std::uint8_t address, std::uint16_t fileIndex);
+
+    /// @brief Construct a query for movie recording month/day (0xF0 0xB9).
+    /// @param[in] address RS-485 device bus address.
+    /// @param[in] fileIndex Movie file index.
+    /// @return 7-byte Pelco-D command packet.
+    [[nodiscard]] static std::vector<std::uint8_t> buildQueryMovieDate(std::uint8_t address, std::uint16_t fileIndex);
+
+    /// @brief Construct a query for movie recording hour/minute (0xF0 0xBD).
+    /// @param[in] address RS-485 device bus address.
+    /// @param[in] fileIndex Movie file index.
+    /// @return 7-byte Pelco-D command packet.
+    [[nodiscard]] static std::vector<std::uint8_t> buildQueryMovieTime(std::uint8_t address, std::uint16_t fileIndex);
+
+    /// @brief Construct a query for internal diagnostic log data (0xF0 0xD1).
+    /// @param[in] address RS-485 device bus address.
+    /// @param[in] logType Category of log data.
+    /// @return 7-byte Pelco-D command packet.
+    [[nodiscard]] static std::vector<std::uint8_t> buildQueryLogData(std::uint8_t address, FujinonLogType logType);
+
+    /// @brief Construct a command to set digital zoom magnification ratio (0xF1 0x21).
+    /// @param[in] address RS-485 device bus address.
+    /// @param[in] magIndex 0:1.25x, 1:1.50x, 2:1.75x, 3:2.00x.
+    /// @return 7-byte Pelco-D command packet.
+    [[nodiscard]] static std::vector<std::uint8_t> buildSetDigitalZoomEx(std::uint8_t address, std::uint8_t magIndex);
+
     /// @brief Convert raw optical zoom position to physical focal length in millimeters.
     /// @param[in] rawZoom Raw 16-bit zoom coordinate (0x0000 = 20mm to 0x4000 = 800mm).
     /// @param[in] digitalZoom Optional digital zoom magnification factor.

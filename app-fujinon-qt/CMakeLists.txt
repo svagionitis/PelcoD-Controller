@@ -8,6 +8,18 @@ add_executable(FujinonAppQt
     widgets/TrafficInspectorWidget.cpp
     tabs/FujinonSX800Tab.h
     tabs/FujinonSX800Tab.cpp
+    tabs/OpticsTab.h
+    tabs/OpticsTab.cpp
+    tabs/ExposureTab.h
+    tabs/ExposureTab.cpp
+    tabs/ImageEnhanceTab.h
+    tabs/ImageEnhanceTab.cpp
+    tabs/DayNightTab.h
+    tabs/DayNightTab.cpp
+    tabs/OsdDisplayTab.h
+    tabs/OsdDisplayTab.cpp
+    tabs/SystemMediaTab.h
+    tabs/SystemMediaTab.cpp
     dialogs/BusScanDialog.h
     dialogs/BusScanDialog.cpp
     dialogs/MockDynamicsDialog.h

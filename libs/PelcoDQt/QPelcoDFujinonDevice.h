@@ -40,6 +40,13 @@ public:
     /// @return Current FujinonStatus struct.
     [[nodiscard]] PelcoD::FujinonStatus fujinonStatus() const;
 
+    /// @brief Configure autofocus operational mode on the underlying Fujinon camera.
+    /// @param[in] mode AF on, AF off (manual), or Quick AF.
+    void setAutoFocus(PelcoD::FujinonAutoFocusMode mode);
+
+    /// @brief Trigger One-Push Auto Focus execution.
+    void onePushAF();
+
 signals:
     /// @brief Emitted when an extended Fujinon telemetry packet is received.
     /// @param[in] status Updated Fujinon telemetry snapshot.

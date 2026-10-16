@@ -269,7 +269,7 @@ public:
     {
         if (!m_device)
             return false;
-        return m_device->setAutoFocus(enable ? PelcoD::AutoMode::Auto : PelcoD::AutoMode::Off)
+        return m_device->setAutoFocus(enable ? PelcoD::FujinonAutoFocusMode::AFOn : PelcoD::FujinonAutoFocusMode::AFOff)
             == PelcoD::SendResult::Success;
     }
 
@@ -302,16 +302,14 @@ public:
     {
         if (!m_device)
             return false;
-        const auto r1 = m_device->focusNear();
-        const auto r2 = m_device->focusStop();
-        return (r1 == PelcoD::SendResult::Success) && (r2 == PelcoD::SendResult::Success);
+        return m_device->onePushAF() == PelcoD::SendResult::Success;
     }
 
     bool setIrisAuto(bool enable) override
     {
         if (!m_device)
             return false;
-        return m_device->setAutoIris(enable ? PelcoD::AutoMode::Auto : PelcoD::AutoMode::Off)
+        return m_device->setAutoIris(enable ? PelcoD::FujinonAutoIrisMode::Auto : PelcoD::FujinonAutoIrisMode::Manual)
             == PelcoD::SendResult::Success;
     }
 

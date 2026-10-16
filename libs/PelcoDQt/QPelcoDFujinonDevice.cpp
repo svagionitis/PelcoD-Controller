@@ -40,6 +40,20 @@ PelcoD::FujinonStatus QPelcoDFujinonDevice::fujinonStatus() const
     return m_fujinonDevice ? m_fujinonDevice->getFujinonStatus() : PelcoD::FujinonStatus {};
 }
 
+void QPelcoDFujinonDevice::setAutoFocus(PelcoD::FujinonAutoFocusMode mode)
+{
+    if (m_fujinonDevice) {
+        static_cast<void>(m_fujinonDevice->setAutoFocus(mode));
+    }
+}
+
+void QPelcoDFujinonDevice::onePushAF()
+{
+    if (m_fujinonDevice) {
+        static_cast<void>(m_fujinonDevice->onePushAF());
+    }
+}
+
 std::shared_ptr<PelcoD::PelcoDDevice> QPelcoDFujinonDevice::createCoreDevice(
     std::shared_ptr<PelcoD::ITransport> transport, std::uint8_t address)
 {

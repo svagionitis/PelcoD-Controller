@@ -8,10 +8,12 @@
 #include "app-fujinon-qt/dialogs/MacroPlaybackDialog.h"
 
 #include <QDateTime>
+#include <QEvent>
 #include <QFont>
 #include <QFrame>
 #include <QHeaderView>
 #include <QLabel>
+#include <QTimer>
 
 #include <limits>
 
@@ -21,6 +23,50 @@ TrafficInspectorWidget::TrafficInspectorWidget(QWidget* parent)
     : QWidget(parent)
 {
     setupUi();
+}
+
+bool TrafficInspectorWidget::isAutoHideStats() const noexcept
+{
+    return chkAutoHideStats ? chkAutoHideStats->isChecked() : false;
+}
+
+void TrafficInspectorWidget::setAutoHideStats(bool enable) noexcept
+{
+    if (chkAutoHideStats) {
+        chkAutoHideStats->setChecked(enable);
+    }
+}
+
+bool TrafficInspectorWidget::eventFilter(QObject* watched, QEvent* event)
+{
+    if (watched == statsFrame && event) {
+        if (event->type() == QEvent::Enter) {
+            if (m_statsHideTimer) {
+                m_statsHideTimer->stop();
+            }
+        } else if (event->type() == QEvent::Leave) {
+            if (chkAutoHideStats && chkAutoHideStats->isChecked() && m_statsHideTimer) {
+                m_statsHideTimer->start();
+            }
+        }
+    }
+    return QWidget::eventFilter(watched, event);
+}
+
+void TrafficInspectorWidget::handleAutoHideStatsToggled(bool checked)
+{
+    if (!checked) {
+        if (m_statsHideTimer) {
+            m_statsHideTimer->stop();
+        }
+        if (statsFrame) {
+            statsFrame->show();
+        }
+    } else {
+        if (statsFrame) {
+            statsFrame->hide();
+        }
+    }
 }
 
 void TrafficInspectorWidget::setupUi()
@@ -42,14 +88,26 @@ void TrafficInspectorWidget::setupUi()
     chkAutoScroll = new QCheckBox(tr("Auto-scroll"), this);
     chkAutoScroll->setChecked(true);
 
+    chkAutoHideStats = new QCheckBox(tr("Auto-hide stats"), this);
+    chkAutoHideStats->setChecked(false);
+    chkAutoHideStats->setToolTip(tr("Automatically hide diagnostics telemetry bar when traffic is inactive"));
+
+    m_statsHideTimer = new QTimer(this);
+    m_statsHideTimer->setSingleShot(true);
+    m_statsHideTimer->setInterval(3000);
+
     btnClear = new QPushButton(tr("Clear Log"), this);
     btnMacros = new QPushButton(tr("Macros..."), this);
     btnMacros->setToolTip(tr("Open Packet Macro Playback and Hex Scripting"));
+    btnProfiler = new QPushButton(tr("Profiler..."), this);
+    btnProfiler->setToolTip(tr("Open Round-Trip-Time (RTT) & Latency Profiler"));
 
     toolbarLayout->addWidget(lblFilter);
     toolbarLayout->addWidget(cmbFilter);
     toolbarLayout->addWidget(chkAutoScroll);
+    toolbarLayout->addWidget(chkAutoHideStats);
     toolbarLayout->addStretch();
+    toolbarLayout->addWidget(btnProfiler);
     toolbarLayout->addWidget(btnMacros);
     toolbarLayout->addWidget(btnClear);
 
@@ -79,7 +137,8 @@ void TrafficInspectorWidget::setupUi()
     mainLayout->addWidget(tableInspector);
 
     // Transport and kernel diagnostics bar
-    auto* statsFrame = new QFrame(this);
+    statsFrame = new QFrame(this);
+    statsFrame->installEventFilter(this);
     statsFrame->setFrameShape(QFrame::StyledPanel);
     statsFrame->setStyleSheet(
         "QFrame { background-color: #0d1117; border: 1px solid #30363d; border-radius: 4px; padding: 2px; }");
@@ -122,10 +181,17 @@ void TrafficInspectorWidget::setupUi()
     // Connections
     connect(btnClear, &QPushButton::clicked, this, &TrafficInspectorWidget::clearLog);
     connect(btnMacros, &QPushButton::clicked, this, &TrafficInspectorWidget::handleOpenMacros);
+    connect(btnProfiler, &QPushButton::clicked, this, &TrafficInspectorWidget::openProfilerRequested);
     connect(btnSendRaw, &QPushButton::clicked, this, &TrafficInspectorWidget::handleSendClicked);
     connect(editRawHex, &QLineEdit::returnPressed, this, &TrafficInspectorWidget::handleSendClicked);
     connect(cmbFilter, QOverload<int>::of(&QComboBox::currentIndexChanged), this,
         &TrafficInspectorWidget::handleFilterChanged);
+    connect(chkAutoHideStats, &QCheckBox::toggled, this, &TrafficInspectorWidget::handleAutoHideStatsToggled);
+    connect(m_statsHideTimer, &QTimer::timeout, this, [this]() {
+        if (chkAutoHideStats && chkAutoHideStats->isChecked() && statsFrame) {
+            statsFrame->hide();
+        }
+    });
 }
 
 void TrafficInspectorWidget::logFrame(bool isTx, const QByteArray& frame, const QString& description)
@@ -239,6 +305,7 @@ void TrafficInspectorWidget::updateTransportStats(
     const Transport::TransportStatsSnapshot& stats, const PelcoD::PelcoDProtocolStats& protoStats)
 {
     const auto& gen = stats.generic;
+
     const double txKb = static_cast<double>(gen.bytesSent) / 1024.0;
     const double rxKb = static_cast<double>(gen.bytesReceived) / 1024.0;
     const double txRateKb = gen.txBytesPerSec / 1024.0;

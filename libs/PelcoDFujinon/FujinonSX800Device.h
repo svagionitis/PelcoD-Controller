@@ -367,6 +367,141 @@ public:
     /// @brief Send standard Pelco-D query for optical zoom position (0x00 0x55).
     [[nodiscard]] SendResult queryZoomStandard();
 
+    /// @brief Set absolute optical zoom coordinate (0..65535).
+    /// @param[in] zoomPos Absolute 16-bit zoom coordinate.
+    [[nodiscard]] SendResult setZoomPosition(std::uint16_t zoomPos);
+
+    /// @brief Configure auto focus mode using standard Pelco-D AutoMode with Fujinon polarity.
+    /// @param[in] mode Off (manual), On, or Auto.
+    [[nodiscard]] SendResult setAutoFocus(AutoMode mode);
+    using PelcoDDevice::setAutoIris;
+    using PelcoDDevice::setBaudRate;
+    using PelcoDDevice::setFocusSpeed;
+    using PelcoDDevice::setZoomSpeed;
+
+    /// @brief Set standard zoom speed (0..3).
+    /// @param[in] speed Zoom speed.
+    [[nodiscard]] SendResult setZoomSpeed(std::uint8_t speed);
+
+    /// @brief Set standard focus speed (0..3).
+    /// @param[in] speed Focus speed.
+    [[nodiscard]] SendResult setFocusSpeed(std::uint8_t speed);
+
+    /// @brief Configure auto focus mode (AF on, AF off / manual, Quick AF).
+    /// @param[in] mode Auto focus mode.
+    [[nodiscard]] SendResult setAutoFocus(FujinonAutoFocusMode mode);
+
+    /// @brief Configure auto iris mode (manual or auto).
+    /// @param[in] mode Auto iris mode.
+    [[nodiscard]] SendResult setAutoIris(FujinonAutoIrisMode mode);
+
+    /// @brief Configure AGC mode (standard, off, hyper).
+    /// @param[in] mode AGC mode.
+    [[nodiscard]] SendResult setAGC(FujinonAGCMode mode);
+
+    /// @brief Configure backlight compensation mode (off, soft, hard).
+    /// @param[in] mode BLC mode.
+    [[nodiscard]] SendResult setBLC(FujinonBLCMode mode);
+
+    /// @brief Set remote baud rate index (0:2400 to 5:115200).
+    /// @param[in] baudRateIndex Baud rate index.
+    [[nodiscard]] SendResult setBaudRate(std::uint8_t baudRateIndex);
+
+    /// @brief Set auto shutter lowest limit.
+    /// @param[in] limit Lower limit.
+    [[nodiscard]] SendResult setShutterLimitAuto(FujinonShutterLimitAuto limit);
+
+    /// @brief Query manual electronic shutter speed setting.
+    [[nodiscard]] SendResult queryManualShutter();
+
+    /// @brief Query manual sensor gain / ISO sensitivity setting.
+    [[nodiscard]] SendResult queryManualISO();
+
+    /// @brief Query manual aperture iris setting.
+    [[nodiscard]] SendResult queryManualIris();
+
+    /// @brief Select photo scene mode preset (Surveillance, Movie).
+    /// @param[in] preset Scene preset.
+    [[nodiscard]] SendResult setPhotoModePreset(FujinonPhotoModePreset preset);
+
+    /// @brief Configure external contact trigger Day/Night mode.
+    /// @param[in] mode External trigger mode.
+    [[nodiscard]] SendResult setExternalDayNight(FujinonExternalDayNight mode);
+
+    /// @brief Query OSD display setting.
+    /// @param[in] target Target opcode.
+    [[nodiscard]] SendResult queryDisplay(std::uint8_t target = 0x00U);
+
+    /// @brief Set OSD time display format (12h or 24h).
+    /// @param[in] fmt Time format.
+    [[nodiscard]] SendResult setTimeFormat(FujinonTimeFormat fmt);
+
+    /// @brief Set OSD calendar date display format.
+    /// @param[in] fmt Date format.
+    [[nodiscard]] SendResult setDateFormat(FujinonDateFormat fmt);
+
+    /// @brief Set video display framing aspect mode.
+    /// @param[in] mode Aspect display mode.
+    [[nodiscard]] SendResult setVideoDisplay(FujinonVideoDisplayMode mode);
+
+    /// @brief Reprogram device RS-485 bus address (1..31).
+    /// @param[in] newId New bus address.
+    [[nodiscard]] SendResult setRS485Address(std::uint8_t newId);
+
+    /// @brief Set SD card recording mode on full card (overwrite or stop).
+    /// @param[in] mode SD recording mode.
+    [[nodiscard]] SendResult setSDRecordingMode(FujinonSDRecordMode mode);
+
+    /// @brief Toggle OSD display of remaining SD card capacity.
+    /// @param[in] enable True to display capacity on OSD.
+    [[nodiscard]] SendResult setSDCapacityDisp(bool enable);
+
+    /// @brief Copy memory diagnostic logs to SD card.
+    [[nodiscard]] SendResult recordLogData();
+
+    /// @brief Set SD recording video codec format.
+    /// @param[in] enc Video encoding format.
+    [[nodiscard]] SendResult setEncodeMode(FujinonVideoEncoding enc);
+
+    /// @brief Set initial movie file index for playback.
+    /// @param[in] fileIndex 1-based movie index.
+    [[nodiscard]] SendResult setFirstMovieFile(std::uint16_t fileIndex);
+
+    /// @brief Set movie playback operating state (Stop, Step, Continuous).
+    /// @param[in] mode Movie play mode.
+    [[nodiscard]] SendResult playMovieMode(FujinonMoviePlayMode mode);
+
+    /// @brief Delete movie from SD card by file index (or 0x0000 for all).
+    /// @param[in] fileIndex 1-based index or 0 for all.
+    [[nodiscard]] SendResult deleteMovie(std::uint16_t fileIndex);
+
+    /// @brief Query OSD menu key setting.
+    /// @param[in] target Target opcode.
+    [[nodiscard]] SendResult queryKeySetting(std::uint8_t target = 0x00U);
+
+    /// @brief Query total count of recorded movies on SD card.
+    [[nodiscard]] SendResult queryMovieCount();
+
+    /// @brief Query movie recording year.
+    /// @param[in] fileIndex 1-based movie index.
+    [[nodiscard]] SendResult queryMovieYear(std::uint16_t fileIndex);
+
+    /// @brief Query movie recording month and day.
+    /// @param[in] fileIndex 1-based movie index.
+    [[nodiscard]] SendResult queryMovieDate(std::uint16_t fileIndex);
+
+    /// @brief Query movie recording hour and minute.
+    /// @param[in] fileIndex 1-based movie index.
+    [[nodiscard]] SendResult queryMovieTime(std::uint16_t fileIndex);
+
+    /// @brief Query internal diagnostic log entry.
+    /// @param[in] logType Category of log data.
+    [[nodiscard]] SendResult queryLogData(FujinonLogType logType);
+
+    /// @brief Set digital zoom magnification ratio.
+    /// @param[in] magIndex 0:1.25x, 1:1.50x, 2:1.75x, 3:2.00x.
+    [[nodiscard]] SendResult setDigitalZoomEx(std::uint8_t magIndex);
+
 private:
     class FujinonFrameExt;
 

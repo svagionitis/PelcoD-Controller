@@ -76,7 +76,7 @@ TEST(FujinonProtocolTest, BuilderCommands)
     const auto focusFrame = PelcoD::FujinonBuilder::buildSetFocusPosition(addr, 0x1234U);
     EXPECT_TRUE(focusFrame.size() == 7U);
     EXPECT_TRUE(focusFrame[2] == 0x00U);
-    EXPECT_TRUE(focusFrame[3] == 0x4BU);
+    EXPECT_TRUE(focusFrame[3] == 0x8FU);
     EXPECT_TRUE(focusFrame[4] == 0x12U);
     EXPECT_TRUE(focusFrame[5] == 0x34U);
     EXPECT_TRUE(PelcoD::PelcoDFrame::isValidFrame(focusFrame));
@@ -84,6 +84,7 @@ TEST(FujinonProtocolTest, BuilderCommands)
     // One push AF
     const auto afFrame = PelcoD::FujinonBuilder::buildOnePushAF(addr);
     EXPECT_TRUE(afFrame.size() == 7U && afFrame[2] == 0xF0U && afFrame[3] == 0x07U);
+    EXPECT_EQ(afFrame[5], 0x00U);
     EXPECT_TRUE(PelcoD::PelcoDFrame::isValidFrame(afFrame));
 
     // AF Sensitivity
@@ -133,15 +134,15 @@ TEST(FujinonProtocolTest, BuilderCommands)
 
     // Exposure Manual Overrides
     const auto irisFrame = PelcoD::FujinonBuilder::buildSetManualIris(addr, 15U);
-    EXPECT_TRUE(irisFrame.size() == 7U && irisFrame[3] == 0x4DU && irisFrame[5] == 15U);
+    EXPECT_TRUE(irisFrame.size() == 7U && irisFrame[3] == 0x91U && irisFrame[5] == 15U);
     EXPECT_TRUE(PelcoD::PelcoDFrame::isValidFrame(irisFrame));
 
     const auto shutterFrame = PelcoD::FujinonBuilder::buildSetManualShutter(addr, 25U);
-    EXPECT_TRUE(shutterFrame.size() == 7U && shutterFrame[3] == 0x51U && shutterFrame[5] == 25U);
+    EXPECT_TRUE(shutterFrame.size() == 7U && shutterFrame[3] == 0x95U && shutterFrame[5] == 25U);
     EXPECT_TRUE(PelcoD::PelcoDFrame::isValidFrame(shutterFrame));
 
     const auto isoFrame = PelcoD::FujinonBuilder::buildSetManualISO(addr, 10U);
-    EXPECT_TRUE(isoFrame.size() == 7U && isoFrame[3] == 0x53U && isoFrame[5] == 10U);
+    EXPECT_TRUE(isoFrame.size() == 7U && isoFrame[3] == 0x99U && isoFrame[5] == 10U);
     EXPECT_TRUE(PelcoD::PelcoDFrame::isValidFrame(isoFrame));
 
     // OSD Overlays
@@ -192,23 +193,23 @@ TEST(FujinonProtocolTest, BuilderCommands)
 
     // Media & OSD Menu Navigation
     const auto recFrame = PelcoD::FujinonBuilder::buildRecordLiveView(addr, true);
-    EXPECT_TRUE(recFrame.size() == 7U && recFrame[3] == 0x87U && recFrame[5] == 0x01U);
+    EXPECT_TRUE(recFrame.size() == 7U && recFrame[3] == 0x93U && recFrame[5] == 0x00U);
     EXPECT_TRUE(PelcoD::PelcoDFrame::isValidFrame(recFrame));
 
     const auto playFrame = PelcoD::FujinonBuilder::buildPlayMovie(addr, false);
-    EXPECT_TRUE(playFrame.size() == 7U && playFrame[3] == 0x8BU && playFrame[5] == 0x00U);
+    EXPECT_TRUE(playFrame.size() == 7U && playFrame[3] == 0x97U && playFrame[5] == 0x00U);
     EXPECT_TRUE(PelcoD::PelcoDFrame::isValidFrame(playFrame));
 
     const auto movieModeFrame = PelcoD::FujinonBuilder::buildSetMovieMode(addr, true);
-    EXPECT_TRUE(movieModeFrame.size() == 7U && movieModeFrame[3] == 0x8FU && movieModeFrame[5] == 0x01U);
+    EXPECT_TRUE(movieModeFrame.size() == 7U && movieModeFrame[3] == 0x9BU && movieModeFrame[5] == 0x02U);
     EXPECT_TRUE(PelcoD::PelcoDFrame::isValidFrame(movieModeFrame));
 
     const auto menuOkFrame = PelcoD::FujinonBuilder::buildMenuOk(addr);
-    EXPECT_TRUE(menuOkFrame.size() == 7U && menuOkFrame[3] == 0x9BU && menuOkFrame[5] == 0x01U);
+    EXPECT_TRUE(menuOkFrame.size() == 7U && menuOkFrame[3] == 0xA7U && menuOkFrame[5] == 0x01U);
     EXPECT_TRUE(PelcoD::PelcoDFrame::isValidFrame(menuOkFrame));
 
     const auto menuDirFrame = PelcoD::FujinonBuilder::buildMenuDirection(addr, PelcoD::FujinonMenuDirection::Down);
-    EXPECT_TRUE(menuDirFrame.size() == 7U && menuDirFrame[3] == 0x9DU && menuDirFrame[5] == 0x02U);
+    EXPECT_TRUE(menuDirFrame.size() == 7U && menuDirFrame[3] == 0xA9U && menuDirFrame[5] == 0x02U);
     EXPECT_TRUE(PelcoD::PelcoDFrame::isValidFrame(menuDirFrame));
 
     // Query Focus, Zoom, Serial Number, Firmware Version, Lens Status
@@ -237,11 +238,11 @@ TEST(FujinonProtocolTest, BuilderCommands)
     EXPECT_TRUE(PelcoD::PelcoDFrame::isValidFrame(qPhoto));
 
     const auto qImg = PelcoD::FujinonBuilder::buildQueryImageQuality(addr, 0x29U);
-    EXPECT_TRUE(qImg[2] == 0xF0U && qImg[3] == 0x2BU && qImg[4] == 0x29U);
+    EXPECT_TRUE(qImg[2] == 0xF0U && qImg[3] == 0x3DU && qImg[4] == 0x29U);
     EXPECT_TRUE(PelcoD::PelcoDFrame::isValidFrame(qImg));
 
     const auto qManual = PelcoD::FujinonBuilder::buildQueryManualSettings(addr);
-    EXPECT_TRUE(qManual[2] == 0x00U && qManual[3] == 0x8FU);
+    EXPECT_TRUE(qManual[2] == 0x00U && qManual[3] == 0xADU);
     EXPECT_TRUE(PelcoD::PelcoDFrame::isValidFrame(qManual));
 
     std::cout << "  testBuilderCommands: PASSED\n";
@@ -479,7 +480,7 @@ TEST(FujinonProtocolTest, V2120Extensions)
     EXPECT_TRUE(PelcoD::PelcoDFrame::isValidFrame(optNight));
 
     const auto qDnEx = PelcoD::FujinonBuilder::buildQueryDayNightEx(addr, 0x01U);
-    EXPECT_TRUE(qDnEx.size() == 7U && qDnEx[2] == 0xF1U && qDnEx[3] == 0x1FU && qDnEx[4] == 0x01U);
+    EXPECT_TRUE(qDnEx.size() == 7U && qDnEx[2] == 0xF1U && qDnEx[3] == 0x1DU && qDnEx[4] == 0x01U);
     EXPECT_TRUE(PelcoD::PelcoDFrame::isValidFrame(qDnEx));
 
     // 3. ZoomFocus Ex Builder
@@ -492,11 +493,11 @@ TEST(FujinonProtocolTest, V2120Extensions)
     EXPECT_TRUE(PelcoD::PelcoDFrame::isValidFrame(fSpeed));
 
     const auto dzMode = PelcoD::FujinonBuilder::buildSetDigitalZoomMode(addr, PelcoD::FujinonDigitalZoomMode::CropMode);
-    EXPECT_TRUE(dzMode.size() == 7U && dzMode[2] == 0xF1U && dzMode[3] == 0x37U && dzMode[5] == 0x02U);
+    EXPECT_TRUE(dzMode.size() == 7U && dzMode[2] == 0xF0U && dzMode[3] == 0x37U && dzMode[5] == 0x02U);
     EXPECT_TRUE(PelcoD::PelcoDFrame::isValidFrame(dzMode));
 
     const auto qZfEx = PelcoD::FujinonBuilder::buildQueryZoomFocusEx(addr, 0x25U);
-    EXPECT_TRUE(qZfEx.size() == 7U && qZfEx[2] == 0xF1U && qZfEx[3] == 0x3DU && qZfEx[4] == 0x25U);
+    EXPECT_TRUE(qZfEx.size() == 7U && qZfEx[2] == 0xF1U && qZfEx[3] == 0x2DU && qZfEx[4] == 0x25U);
     EXPECT_TRUE(PelcoD::PelcoDFrame::isValidFrame(qZfEx));
 
     // 4. Extended Commands
@@ -607,3 +608,117 @@ TEST(FujinonProtocolTest, V2120Extensions)
     std::cout << "  testV2120Extensions: PASSED\n";
 }
 
+TEST(FujinonProtocolTest, AdditionalV2120Commands)
+{
+    const std::uint8_t addr = 1U;
+
+    // Zoom Position
+    const auto zp = PelcoD::FujinonBuilder::buildSetZoomPosition(addr, 0x4000U);
+    EXPECT_TRUE(zp.size() == 7U && zp[2] == 0x00U && zp[3] == 0x4FU && zp[4] == 0x40U && zp[5] == 0x00U);
+    EXPECT_TRUE(PelcoD::PelcoDFrame::isValidFrame(zp));
+
+    // Standard Zoom / Focus Speed
+    const auto zs = PelcoD::FujinonBuilder::buildSetZoomSpeed(addr, 6U);
+    EXPECT_TRUE(zs.size() == 7U && zs[2] == 0x00U && zs[3] == 0x25U && zs[5] == 6U);
+    EXPECT_TRUE(PelcoD::PelcoDFrame::isValidFrame(zs));
+
+    const auto fs = PelcoD::FujinonBuilder::buildSetFocusSpeed(addr, 4U);
+    EXPECT_TRUE(fs.size() == 7U && fs[2] == 0x00U && fs[3] == 0x27U && fs[5] == 4U);
+    EXPECT_TRUE(PelcoD::PelcoDFrame::isValidFrame(fs));
+
+    // Auto Focus mode
+    const auto afm = PelcoD::FujinonBuilder::buildSetAutoFocus(addr, PelcoD::FujinonAutoFocusMode::QuickAF);
+    EXPECT_TRUE(afm.size() == 7U && afm[2] == 0x00U && afm[3] == 0x2BU && afm[5] == 0x02U);
+    EXPECT_TRUE(PelcoD::PelcoDFrame::isValidFrame(afm));
+
+    // Auto Iris mode
+    const auto aim = PelcoD::FujinonBuilder::buildSetAutoIris(addr, PelcoD::FujinonAutoIrisMode::Manual);
+    EXPECT_TRUE(aim.size() == 7U && aim[2] == 0x00U && aim[3] == 0x2DU && aim[5] == 0x00U);
+    EXPECT_TRUE(PelcoD::PelcoDFrame::isValidFrame(aim));
+
+    // AGC
+    const auto agc = PelcoD::FujinonBuilder::buildSetAGC(addr, PelcoD::FujinonAGCMode::Hyper);
+    EXPECT_TRUE(agc.size() == 7U && agc[2] == 0x00U && agc[3] == 0x2FU && agc[5] == 0x02U);
+    EXPECT_TRUE(PelcoD::PelcoDFrame::isValidFrame(agc));
+
+    // BLC
+    const auto blc = PelcoD::FujinonBuilder::buildSetBLC(addr, PelcoD::FujinonBLCMode::Soft);
+    EXPECT_TRUE(blc.size() == 7U && blc[2] == 0x00U && blc[3] == 0x31U && blc[5] == 0x01U);
+    EXPECT_TRUE(PelcoD::PelcoDFrame::isValidFrame(blc));
+
+    // Photo Mode Preset
+    const auto pmp
+        = PelcoD::FujinonBuilder::buildSetPhotoModePreset(addr, PelcoD::FujinonPhotoModePreset::Surveillance);
+    EXPECT_TRUE(pmp.size() == 7U && pmp[2] == 0xF0U && pmp[3] == 0x17U && pmp[5] == 0x01U);
+    EXPECT_TRUE(PelcoD::PelcoDFrame::isValidFrame(pmp));
+
+    // External DayNight
+    const auto edn = PelcoD::FujinonBuilder::buildSetExternalDayNight(addr, PelcoD::FujinonExternalDayNight::OnClear);
+    EXPECT_TRUE(edn.size() == 7U && edn[2] == 0xF0U && edn[3] == 0x19U && edn[5] == 0x02U);
+    EXPECT_TRUE(PelcoD::PelcoDFrame::isValidFrame(edn));
+
+    // Time & Date format
+    const auto tf = PelcoD::FujinonBuilder::buildSetTimeFormat(addr, PelcoD::FujinonTimeFormat::Mode24H);
+    EXPECT_TRUE(tf.size() == 7U && tf[2] == 0xF0U && tf[3] == 0x61U && tf[5] == 0x01U);
+    EXPECT_TRUE(PelcoD::PelcoDFrame::isValidFrame(tf));
+
+    const auto df = PelcoD::FujinonBuilder::buildSetDateFormat(addr, PelcoD::FujinonDateFormat::DMY_Hyphen);
+    EXPECT_TRUE(df.size() == 7U && df[2] == 0xF0U && df[3] == 0x63U && df[5] == 0x03U);
+    EXPECT_TRUE(PelcoD::PelcoDFrame::isValidFrame(df));
+
+    // Video Display Mode
+    const auto vd = PelcoD::FujinonBuilder::buildSetVideoDisplay(addr, PelcoD::FujinonVideoDisplayMode::Squeeze);
+    EXPECT_TRUE(vd.size() == 7U && vd[2] == 0xF0U && vd[3] == 0x6BU && vd[5] == 0x03U);
+    EXPECT_TRUE(PelcoD::PelcoDFrame::isValidFrame(vd));
+
+    // SD Mode & Capacity
+    const auto sdm = PelcoD::FujinonBuilder::buildSetSDRecordingMode(addr, PelcoD::FujinonSDRecordMode::Overwrite);
+    EXPECT_TRUE(sdm.size() == 7U && sdm[2] == 0xF0U && sdm[3] == 0x77U && sdm[5] == 0x01U);
+    EXPECT_TRUE(PelcoD::PelcoDFrame::isValidFrame(sdm));
+
+    const auto sdc = PelcoD::FujinonBuilder::buildSetSDCapacityDisp(addr, true);
+    EXPECT_TRUE(sdc.size() == 7U && sdc[2] == 0xF0U && sdc[3] == 0x79U && sdc[5] == 0x01U);
+    EXPECT_TRUE(PelcoD::PelcoDFrame::isValidFrame(sdc));
+
+    // Video Encode format
+    const auto enc = PelcoD::FujinonBuilder::buildSetEncodeMode(addr, PelcoD::FujinonVideoEncoding::H264);
+    EXPECT_TRUE(enc.size() == 7U && enc[2] == 0xF0U && enc[3] == 0x91U && enc[5] == 0x01U);
+    EXPECT_TRUE(PelcoD::PelcoDFrame::isValidFrame(enc));
+
+    // Log recording
+    const auto logRec = PelcoD::FujinonBuilder::buildRecordLogData(addr);
+    EXPECT_TRUE(logRec.size() == 7U && logRec[2] == 0xF0U && logRec[3] == 0x7FU && logRec[5] == 0x01U);
+    EXPECT_TRUE(PelcoD::PelcoDFrame::isValidFrame(logRec));
+
+    const auto qLog = PelcoD::FujinonBuilder::buildQueryLogData(addr, PelcoD::FujinonLogType::Focus);
+    EXPECT_TRUE(qLog.size() == 7U && qLog[2] == 0xF0U && qLog[3] == 0xD1U && qLog[4] == 0xD3U && qLog[5] == 0x02U);
+    EXPECT_TRUE(PelcoD::PelcoDFrame::isValidFrame(qLog));
+
+    // Movie controls
+    const auto firstMov = PelcoD::FujinonBuilder::buildSetFirstMovieFile(addr, 42U);
+    EXPECT_TRUE(firstMov.size() == 7U && firstMov[2] == 0xF0U && firstMov[3] == 0x95U && firstMov[5] == 42U);
+    EXPECT_TRUE(PelcoD::PelcoDFrame::isValidFrame(firstMov));
+
+    const auto playMMode = PelcoD::FujinonBuilder::buildPlayMovieMode(addr, PelcoD::FujinonMoviePlayMode::Continuous);
+    EXPECT_TRUE(playMMode.size() == 7U && playMMode[2] == 0xF0U && playMMode[3] == 0x97U && playMMode[5] == 0x02U);
+    EXPECT_TRUE(PelcoD::PelcoDFrame::isValidFrame(playMMode));
+
+    const auto delMov = PelcoD::FujinonBuilder::buildDeleteMovie(addr, 10U);
+    EXPECT_TRUE(delMov.size() == 7U && delMov[2] == 0xF0U && delMov[3] == 0x99U && delMov[5] == 10U);
+    EXPECT_TRUE(PelcoD::PelcoDFrame::isValidFrame(delMov));
+
+    // Query Commands
+    const auto qDisp = PelcoD::FujinonBuilder::buildQueryDisplay(addr, 0x43U);
+    EXPECT_TRUE(qDisp.size() == 7U && qDisp[2] == 0xF0U && qDisp[3] == 0x5DU && qDisp[4] == 0x43U);
+    EXPECT_TRUE(PelcoD::PelcoDFrame::isValidFrame(qDisp));
+
+    const auto qKey = PelcoD::FujinonBuilder::buildQueryKeySetting(addr, 0x73U);
+    EXPECT_TRUE(qKey.size() == 7U && qKey[2] == 0xF0U && qKey[3] == 0xADU && qKey[4] == 0x73U);
+    EXPECT_TRUE(PelcoD::PelcoDFrame::isValidFrame(qKey));
+
+    const auto qMovCnt = PelcoD::FujinonBuilder::buildQueryMovieCount(addr);
+    EXPECT_TRUE(qMovCnt.size() == 7U && qMovCnt[2] == 0xF0U && qMovCnt[3] == 0xB1U && qMovCnt[4] == 0xB3U);
+    EXPECT_TRUE(PelcoD::PelcoDFrame::isValidFrame(qMovCnt));
+
+    std::cout << "  testAdditionalV2120Commands: PASSED\n";
+}

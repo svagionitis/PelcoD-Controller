@@ -390,6 +390,8 @@ bool FujinonParser::updateFujinonStatus(const std::vector<std::uint8_t>& frame, 
 
     FujinonPhotoSettings photo;
     if (parsePhotoSettings(frame, photo)) {
+        status.afArea = photo.afArea;
+        status.afSensitivity = photo.afSensitivity;
         status.dayNightMode = photo.dayNightMode;
         status.irWavelength = photo.irWavelength;
         status.oisMode = photo.oisMode;
@@ -434,6 +436,10 @@ bool FujinonParser::updateFujinonStatus(const std::vector<std::uint8_t>& frame, 
 
     // OSD / Operation frames
     if (frame.size() == PelcoDFrame::StandardFrameSize && frame[0] == PelcoDFrame::SyncByte) {
+        if (frame[2] == 0x00U && frame[3] == 0x2BU) {
+            status.autoFocusMode = static_cast<FujinonAutoFocusMode>(frame[5]);
+            return true;
+        }
         if (frame[2] == 0xF0U) {
             switch (frame[3]) {
             case 0x43U: // DayTime display

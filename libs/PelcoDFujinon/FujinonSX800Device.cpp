@@ -255,6 +255,7 @@ SendResult FujinonSX800Device::setFocusPosition(std::uint16_t focusPos)
 
 SendResult FujinonSX800Device::onePushAF()
 {
+    static_cast<void>(setAutoFocus(FujinonAutoFocusMode::AFOff));
     return enqueueCommand(FujinonBuilder::buildOnePushAF(getAddress()));
 }
 
@@ -557,6 +558,177 @@ SendResult FujinonSX800Device::queryRTC(std::uint8_t subOpCode)
 SendResult FujinonSX800Device::queryZoomStandard()
 {
     return sendQueryFrame(FujinonBuilder::buildQueryZoomStandard(getAddress()), "FujinonQueryZoomStd");
+}
+
+SendResult FujinonSX800Device::setZoomPosition(std::uint16_t zoomPos)
+{
+    return enqueueCommand(FujinonBuilder::buildSetZoomPosition(getAddress(), zoomPos));
+}
+
+SendResult FujinonSX800Device::setZoomSpeed(std::uint8_t speed)
+{
+    return enqueueCommand(FujinonBuilder::buildSetZoomSpeed(getAddress(), speed));
+}
+
+SendResult FujinonSX800Device::setFocusSpeed(std::uint8_t speed)
+{
+    return enqueueCommand(FujinonBuilder::buildSetFocusSpeed(getAddress(), speed));
+}
+
+SendResult FujinonSX800Device::setAutoFocus(AutoMode mode)
+{
+    const auto fMode = (mode == AutoMode::Off) ? FujinonAutoFocusMode::AFOff : FujinonAutoFocusMode::AFOn;
+    return setAutoFocus(fMode);
+}
+
+SendResult FujinonSX800Device::setAutoFocus(FujinonAutoFocusMode mode)
+{
+    return enqueueCommand(FujinonBuilder::buildSetAutoFocus(getAddress(), mode));
+}
+
+SendResult FujinonSX800Device::setAutoIris(FujinonAutoIrisMode mode)
+{
+    return enqueueCommand(FujinonBuilder::buildSetAutoIris(getAddress(), mode));
+}
+
+SendResult FujinonSX800Device::setAGC(FujinonAGCMode mode)
+{
+    return enqueueCommand(FujinonBuilder::buildSetAGC(getAddress(), mode));
+}
+
+SendResult FujinonSX800Device::setBLC(FujinonBLCMode mode)
+{
+    return enqueueCommand(FujinonBuilder::buildSetBLC(getAddress(), mode));
+}
+
+SendResult FujinonSX800Device::setBaudRate(std::uint8_t baudRateIndex)
+{
+    return enqueueCommand(FujinonBuilder::buildSetBaudRate(getAddress(), baudRateIndex));
+}
+
+SendResult FujinonSX800Device::setShutterLimitAuto(FujinonShutterLimitAuto limit)
+{
+    return enqueueCommand(FujinonBuilder::buildSetShutterLimitAuto(getAddress(), limit));
+}
+
+SendResult FujinonSX800Device::queryManualShutter()
+{
+    return sendQueryFrame(FujinonBuilder::buildQueryManualShutter(getAddress()), "FujinonQueryManualShutter");
+}
+
+SendResult FujinonSX800Device::queryManualISO()
+{
+    return sendQueryFrame(FujinonBuilder::buildQueryManualISO(getAddress()), "FujinonQueryManualISO");
+}
+
+SendResult FujinonSX800Device::queryManualIris()
+{
+    return sendQueryFrame(FujinonBuilder::buildQueryManualIris(getAddress()), "FujinonQueryManualIris");
+}
+
+SendResult FujinonSX800Device::setPhotoModePreset(FujinonPhotoModePreset preset)
+{
+    return enqueueCommand(FujinonBuilder::buildSetPhotoModePreset(getAddress(), preset));
+}
+
+SendResult FujinonSX800Device::setExternalDayNight(FujinonExternalDayNight mode)
+{
+    return enqueueCommand(FujinonBuilder::buildSetExternalDayNight(getAddress(), mode));
+}
+
+SendResult FujinonSX800Device::queryDisplay(std::uint8_t target)
+{
+    return sendQueryFrame(FujinonBuilder::buildQueryDisplay(getAddress(), target), "FujinonQueryDisplay");
+}
+
+SendResult FujinonSX800Device::setTimeFormat(FujinonTimeFormat fmt)
+{
+    return enqueueCommand(FujinonBuilder::buildSetTimeFormat(getAddress(), fmt));
+}
+
+SendResult FujinonSX800Device::setDateFormat(FujinonDateFormat fmt)
+{
+    return enqueueCommand(FujinonBuilder::buildSetDateFormat(getAddress(), fmt));
+}
+
+SendResult FujinonSX800Device::setVideoDisplay(FujinonVideoDisplayMode mode)
+{
+    return enqueueCommand(FujinonBuilder::buildSetVideoDisplay(getAddress(), mode));
+}
+
+SendResult FujinonSX800Device::setRS485Address(std::uint8_t newId)
+{
+    return enqueueCommand(FujinonBuilder::buildSetRS485Address(getAddress(), newId));
+}
+
+SendResult FujinonSX800Device::setSDRecordingMode(FujinonSDRecordMode mode)
+{
+    return enqueueCommand(FujinonBuilder::buildSetSDRecordingMode(getAddress(), mode));
+}
+
+SendResult FujinonSX800Device::setSDCapacityDisp(bool enable)
+{
+    return enqueueCommand(FujinonBuilder::buildSetSDCapacityDisp(getAddress(), enable));
+}
+
+SendResult FujinonSX800Device::recordLogData()
+{
+    return enqueueCommand(FujinonBuilder::buildRecordLogData(getAddress()));
+}
+
+SendResult FujinonSX800Device::setEncodeMode(FujinonVideoEncoding enc)
+{
+    return enqueueCommand(FujinonBuilder::buildSetEncodeMode(getAddress(), enc));
+}
+
+SendResult FujinonSX800Device::setFirstMovieFile(std::uint16_t fileIndex)
+{
+    return enqueueCommand(FujinonBuilder::buildSetFirstMovieFile(getAddress(), fileIndex));
+}
+
+SendResult FujinonSX800Device::playMovieMode(FujinonMoviePlayMode mode)
+{
+    return enqueueCommand(FujinonBuilder::buildPlayMovieMode(getAddress(), mode));
+}
+
+SendResult FujinonSX800Device::deleteMovie(std::uint16_t fileIndex)
+{
+    return enqueueCommand(FujinonBuilder::buildDeleteMovie(getAddress(), fileIndex));
+}
+
+SendResult FujinonSX800Device::queryKeySetting(std::uint8_t target)
+{
+    return sendQueryFrame(FujinonBuilder::buildQueryKeySetting(getAddress(), target), "FujinonQueryKeySetting");
+}
+
+SendResult FujinonSX800Device::queryMovieCount()
+{
+    return sendQueryFrame(FujinonBuilder::buildQueryMovieCount(getAddress()), "FujinonQueryMovieCount");
+}
+
+SendResult FujinonSX800Device::queryMovieYear(std::uint16_t fileIndex)
+{
+    return sendQueryFrame(FujinonBuilder::buildQueryMovieYear(getAddress(), fileIndex), "FujinonQueryMovieYear");
+}
+
+SendResult FujinonSX800Device::queryMovieDate(std::uint16_t fileIndex)
+{
+    return sendQueryFrame(FujinonBuilder::buildQueryMovieDate(getAddress(), fileIndex), "FujinonQueryMovieDate");
+}
+
+SendResult FujinonSX800Device::queryMovieTime(std::uint16_t fileIndex)
+{
+    return sendQueryFrame(FujinonBuilder::buildQueryMovieTime(getAddress(), fileIndex), "FujinonQueryMovieTime");
+}
+
+SendResult FujinonSX800Device::queryLogData(FujinonLogType logType)
+{
+    return sendQueryFrame(FujinonBuilder::buildQueryLogData(getAddress(), logType), "FujinonQueryLogData");
+}
+
+SendResult FujinonSX800Device::setDigitalZoomEx(std::uint8_t magIndex)
+{
+    return enqueueCommand(FujinonBuilder::buildSetDigitalZoomEx(getAddress(), magIndex));
 }
 
 namespace {

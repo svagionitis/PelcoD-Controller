@@ -209,6 +209,77 @@ public slots:
     void queryRTC(int subOpCode);
     /// @brief Send standard Pelco-D query for zoom position.
     void queryZoomStandard();
+    /// @brief Send query for zoom position.
+    void queryZoom();
+    /// @brief Send query for focus position.
+    void queryFocus();
+
+    /// @brief Drive zoom to absolute 16-bit coordinate (0..65535).
+    void setZoomPosition(int zoomPos);
+    /// @brief Set standard zoom speed (0..3).
+    void setZoomSpeed(int speed);
+    /// @brief Set standard focus speed (0..3).
+    void setFocusSpeed(int speed);
+    /// @brief Configure auto focus mode (AF on, AF off / manual, Quick AF).
+    void setAutoFocus(PelcoD::FujinonAutoFocusMode mode);
+    /// @brief Configure auto iris mode (manual or auto).
+    void setAutoIris(PelcoD::FujinonAutoIrisMode mode);
+    /// @brief Configure AGC mode (standard, off, hyper).
+    void setAGC(PelcoD::FujinonAGCMode mode);
+    /// @brief Configure backlight compensation mode (off, soft, hard).
+    void setBLC(PelcoD::FujinonBLCMode mode);
+    /// @brief Set remote baud rate index (0:2400 to 5:115200).
+    void setBaudRate(int baudRateIndex);
+    /// @brief Set auto shutter lowest limit.
+    void setShutterLimitAuto(PelcoD::FujinonShutterLimitAuto limit);
+    /// @brief Query manual electronic shutter speed setting.
+    void queryManualShutter();
+    /// @brief Query manual sensor gain / ISO sensitivity setting.
+    void queryManualISO();
+    /// @brief Query manual aperture iris setting.
+    void queryManualIris();
+    /// @brief Select photo scene mode preset (Surveillance, Movie).
+    void setPhotoModePreset(PelcoD::FujinonPhotoModePreset preset);
+    /// @brief Configure external contact trigger Day/Night mode.
+    void setExternalDayNight(PelcoD::FujinonExternalDayNight mode);
+    /// @brief Query OSD display setting.
+    void queryDisplay(int target = 0);
+    /// @brief Set OSD time display format (12h or 24h).
+    void setTimeFormat(PelcoD::FujinonTimeFormat fmt);
+    /// @brief Set OSD calendar date display format.
+    void setDateFormat(PelcoD::FujinonDateFormat fmt);
+    /// @brief Set video display framing aspect mode.
+    void setVideoDisplay(PelcoD::FujinonVideoDisplayMode mode);
+    /// @brief Reprogram device RS-485 bus address (1..31).
+    void setRS485Address(int newId);
+    /// @brief Set SD card recording mode on full card (overwrite or stop).
+    void setSDRecordingMode(PelcoD::FujinonSDRecordMode mode);
+    /// @brief Toggle OSD display of remaining SD card capacity.
+    void setSDCapacityDisp(bool enable);
+    /// @brief Copy memory diagnostic logs to SD card.
+    void recordLogData();
+    /// @brief Set SD recording video codec format.
+    void setEncodeMode(PelcoD::FujinonVideoEncoding enc);
+    /// @brief Set initial movie file index for playback.
+    void setFirstMovieFile(int fileIndex);
+    /// @brief Set movie playback operating state (Stop, Step, Continuous).
+    void playMovieMode(PelcoD::FujinonMoviePlayMode mode);
+    /// @brief Delete movie from SD card by file index (or 0 for all).
+    void deleteMovie(int fileIndex);
+    /// @brief Query OSD menu key setting.
+    void queryKeySetting(int target = 0);
+    /// @brief Query total count of recorded movies on SD card.
+    void queryMovieCount();
+    /// @brief Query movie recording year.
+    void queryMovieYear(int fileIndex);
+    /// @brief Query movie recording month and day.
+    void queryMovieDate(int fileIndex);
+    /// @brief Query movie recording hour and minute.
+    void queryMovieTime(int fileIndex);
+    /// @brief Query internal diagnostic log entry.
+    void queryLogData(PelcoD::FujinonLogType logType);
+    /// @brief Set digital zoom magnification ratio.
+    void setDigitalZoomEx(int magIndex);
 
 signals:
     /// @brief Emitted when any Fujinon status parameter changes.

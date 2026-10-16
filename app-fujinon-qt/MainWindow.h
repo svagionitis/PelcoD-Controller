@@ -5,8 +5,13 @@
 
 #include "DeviceStatus.h"
 #include "FujinonTypes.h"
-#include "QPelcoDFujinonDevice.h"
+#include "app-fujinon-qt/tabs/DayNightTab.h"
+#include "app-fujinon-qt/tabs/ExposureTab.h"
 #include "app-fujinon-qt/tabs/FujinonSX800Tab.h"
+#include "app-fujinon-qt/tabs/ImageEnhanceTab.h"
+#include "app-fujinon-qt/tabs/OpticsTab.h"
+#include "app-fujinon-qt/tabs/OsdDisplayTab.h"
+#include "app-fujinon-qt/tabs/SystemMediaTab.h"
 #include "app-fujinon-qt/widgets/ConnectionWidget.h"
 #include "app-fujinon-qt/widgets/TrafficInspectorWidget.h"
 
@@ -15,6 +20,8 @@
 #include <QTabWidget>
 
 namespace FujinonApp {
+
+class RttProfilerDialog;
 
 /// @class MainWindow
 /// @brief Top-level application window for Fujinon SX800 Camera Controller.
@@ -30,6 +37,8 @@ private slots:
     void handleDisconnect();
     void handleStatusUpdated(const PelcoD::DeviceStatus& status);
     void handleFujinonStatusUpdated(const PelcoD::FujinonStatus& status);
+    /// @brief Opens or activates the RTT latency & jitter profiler dialog.
+    void handleOpenProfiler();
 
 private:
     void setupUi();
@@ -39,10 +48,18 @@ private:
 
     ConnectionWidget* m_connectionWidget { nullptr };
     QTabWidget* m_tabWidget { nullptr };
-    FujinonSX800Tab* m_fujinonTab { nullptr };
+
+    OpticsTab* m_opticsTab { nullptr };
+    ExposureTab* m_exposureTab { nullptr };
+    ImageEnhanceTab* m_imageTab { nullptr };
+    DayNightTab* m_dayNightTab { nullptr };
+    OsdDisplayTab* m_osdTab { nullptr };
+    SystemMediaTab* m_systemTab { nullptr };
+    FujinonSX800Tab* m_overviewTab { nullptr };
 
     QDockWidget* m_dockInspector { nullptr };
     TrafficInspectorWidget* m_inspectorWidget { nullptr };
+    RttProfilerDialog* m_profilerDialog { nullptr };
 };
 
 } // namespace FujinonApp
