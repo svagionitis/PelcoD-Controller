@@ -42,6 +42,11 @@ public:
     /// @brief Retrieves the latest snapshot of Fujinon extended status and telemetry.
     [[nodiscard]] FujinonStatus getFujinonStatus() const;
 
+    /// @brief Configures device bus address and synchronizes RX frame extension filter.
+    /// @param[in] address RS-485 device bus address (1 - 31).
+    void setAddress(std::uint8_t address);
+    using PelcoDDevice::getAddress;
+
     /// @brief Register a callback for extended Fujinon telemetry updates.
     /// @param[in] cb Function receiving FujinonStatus snapshot.
     /// @return Connection object to manage or disconnect the subscription.

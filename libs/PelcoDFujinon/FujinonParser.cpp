@@ -16,10 +16,11 @@ bool FujinonParser::isFujinonResponse(const std::vector<std::uint8_t>& frame) no
             return false;
         }
         // Focus (0x81), Zoom (0x83), FW (0x8B), Lens Status (0x8D), Manual (0x8F), Zoom std (0x5D), RTC (0x3B),
-        // or Original Resp (0xF0, 0xF1)
+        // Shutter (0x97), ISO (0x9B), Iris (0x9D), or Original Resp (0xF0, 0xF1)
         return (frame[2] == 0x00U
                    && (frame[3] == 0x81U || frame[3] == 0x83U || frame[3] == 0x8BU || frame[3] == 0x8DU
-                       || frame[3] == 0x8FU || frame[3] == 0x5DU || frame[3] == 0x3BU))
+                       || frame[3] == 0x8FU || frame[3] == 0x5DU || frame[3] == 0x3BU || frame[3] == 0x97U
+                       || frame[3] == 0x9BU || frame[3] == 0x9DU))
             || (frame[2] == 0xF0U) || (frame[2] == 0xF1U);
     }
 
@@ -351,6 +352,136 @@ bool FujinonParser::parseQueryRTC(
     return false;
 }
 
+bool FujinonParser::parseQueryManualShutter(const std::vector<std::uint8_t>& frame, std::uint8_t& shutterVal) noexcept
+{
+    if (frame.size() != PelcoDFrame::StandardFrameSize || frame[0] != PelcoDFrame::SyncByte) {
+        return false;
+    }
+    if (frame[2] == 0x00U && frame[3] == 0x97U) {
+        shutterVal = frame[5];
+        return true;
+    }
+    return false;
+}
+
+bool FujinonParser::parseQueryManualISO(const std::vector<std::uint8_t>& frame, std::uint8_t& isoVal) noexcept
+{
+    if (frame.size() != PelcoDFrame::StandardFrameSize || frame[0] != PelcoDFrame::SyncByte) {
+        return false;
+    }
+    if (frame[2] == 0x00U && frame[3] == 0x9BU) {
+        isoVal = frame[5];
+        return true;
+    }
+    return false;
+}
+
+bool FujinonParser::parseQueryManualIris(const std::vector<std::uint8_t>& frame, std::uint8_t& irisVal) noexcept
+{
+    if (frame.size() != PelcoDFrame::StandardFrameSize || frame[0] != PelcoDFrame::SyncByte) {
+        return false;
+    }
+    if (frame[2] == 0x00U && frame[3] == 0x9DU) {
+        irisVal = frame[5];
+        return true;
+    }
+    return false;
+}
+
+bool FujinonParser::parseQueryDisplay(
+    const std::vector<std::uint8_t>& frame, std::uint8_t& target, std::uint8_t& settingVal) noexcept
+{
+    if (frame.size() != PelcoDFrame::StandardFrameSize || frame[0] != PelcoDFrame::SyncByte) {
+        return false;
+    }
+    if (frame[2] == 0xF0U && frame[3] == 0x5FU) {
+        target = frame[4];
+        settingVal = frame[5];
+        return true;
+    }
+    return false;
+}
+
+bool FujinonParser::parseQueryKeySetting(
+    const std::vector<std::uint8_t>& frame, std::uint8_t& target, std::uint8_t& keyVal) noexcept
+{
+    if (frame.size() != PelcoDFrame::StandardFrameSize || frame[0] != PelcoDFrame::SyncByte) {
+        return false;
+    }
+    if (frame[2] == 0xF0U && frame[3] == 0xAFU) {
+        target = frame[4];
+        keyVal = frame[5];
+        return true;
+    }
+    return false;
+}
+
+bool FujinonParser::parseQueryMovieCount(const std::vector<std::uint8_t>& frame, std::uint16_t& count) noexcept
+{
+    if (frame.size() != PelcoDFrame::StandardFrameSize || frame[0] != PelcoDFrame::SyncByte) {
+        return false;
+    }
+    if (frame[2] == 0xF0U && frame[3] == 0xB3U) {
+        count = static_cast<std::uint16_t>((static_cast<std::uint16_t>(frame[4]) << 8U) | frame[5]);
+        return true;
+    }
+    return false;
+}
+
+bool FujinonParser::parseQueryMovieYear(const std::vector<std::uint8_t>& frame, std::uint16_t& year) noexcept
+{
+    if (frame.size() != PelcoDFrame::StandardFrameSize || frame[0] != PelcoDFrame::SyncByte) {
+        return false;
+    }
+    if (frame[2] == 0xF0U && frame[3] == 0xB7U) {
+        year = static_cast<std::uint16_t>((static_cast<std::uint16_t>(frame[4]) << 8U) | frame[5]);
+        return true;
+    }
+    return false;
+}
+
+bool FujinonParser::parseQueryMovieDate(
+    const std::vector<std::uint8_t>& frame, std::uint8_t& month, std::uint8_t& day) noexcept
+{
+    if (frame.size() != PelcoDFrame::StandardFrameSize || frame[0] != PelcoDFrame::SyncByte) {
+        return false;
+    }
+    if (frame[2] == 0xF0U && frame[3] == 0xBBU) {
+        month = frame[4];
+        day = frame[5];
+        return true;
+    }
+    return false;
+}
+
+bool FujinonParser::parseQueryMovieTime(
+    const std::vector<std::uint8_t>& frame, std::uint8_t& hour, std::uint8_t& min) noexcept
+{
+    if (frame.size() != PelcoDFrame::StandardFrameSize || frame[0] != PelcoDFrame::SyncByte) {
+        return false;
+    }
+    if (frame[2] == 0xF0U && frame[3] == 0xBFU) {
+        hour = frame[4];
+        min = frame[5];
+        return true;
+    }
+    return false;
+}
+
+bool FujinonParser::parseQueryLogData(
+    const std::vector<std::uint8_t>& frame, std::uint8_t& data1, std::uint8_t& data2) noexcept
+{
+    if (frame.size() != PelcoDFrame::StandardFrameSize || frame[0] != PelcoDFrame::SyncByte) {
+        return false;
+    }
+    if (frame[2] == 0xF0U && frame[3] == 0xD3U) {
+        data1 = frame[4];
+        data2 = frame[5];
+        return true;
+    }
+    return false;
+}
+
 bool FujinonParser::updateFujinonStatus(const std::vector<std::uint8_t>& frame, FujinonStatus& status) noexcept
 {
     if (frame.size() == PelcoDFrame::GeneralResponseSize) {
@@ -422,6 +553,52 @@ bool FujinonParser::updateFujinonStatus(const std::vector<std::uint8_t>& frame, 
         return true;
     }
 
+    std::uint8_t shutterVal { 0U };
+    if (parseQueryManualShutter(frame, shutterVal)) {
+        status.manualShutter = shutterVal;
+        return true;
+    }
+
+    std::uint8_t isoVal { 0U };
+    if (parseQueryManualISO(frame, isoVal)) {
+        status.manualISO = isoVal;
+        return true;
+    }
+
+    std::uint8_t irisVal { 0U };
+    if (parseQueryManualIris(frame, irisVal)) {
+        status.manualIris = irisVal;
+        return true;
+    }
+
+    std::uint16_t movCnt { 0U };
+    if (parseQueryMovieCount(frame, movCnt)) {
+        status.movieCount = movCnt;
+        return true;
+    }
+
+    std::uint16_t movYr { 0U };
+    if (parseQueryMovieYear(frame, movYr)) {
+        status.lastMovieYear = movYr;
+        return true;
+    }
+
+    std::uint8_t movMonth { 0U };
+    std::uint8_t movDay { 0U };
+    if (parseQueryMovieDate(frame, movMonth, movDay)) {
+        status.lastMovieMonth = movMonth;
+        status.lastMovieDay = movDay;
+        return true;
+    }
+
+    std::uint8_t movHr { 0U };
+    std::uint8_t movMn { 0U };
+    if (parseQueryMovieTime(frame, movHr, movMn)) {
+        status.lastMovieHour = movHr;
+        status.lastMovieMinute = movMn;
+        return true;
+    }
+
     if (parseFineImageSettings(frame, status.fineImageSettings)) {
         return true;
     }
@@ -463,6 +640,35 @@ bool FujinonParser::updateFujinonStatus(const std::vector<std::uint8_t>& frame, 
             case 0x51U: // Reticle display
                 status.reticleDisplay = (frame[5] == 0x01U);
                 return true;
+            case 0x5FU: { // Query Display Response
+                const auto target = frame[4];
+                const auto val = frame[5];
+                switch (target) {
+                case 0x43U:
+                    status.timeDisplay = (val == 0x01U);
+                    return true;
+                case 0x45U:
+                    status.timePosition = static_cast<FujinonOSDPosition>(val);
+                    return true;
+                case 0x47U:
+                    status.titleDisplay = (val == 0x01U);
+                    return true;
+                case 0x4BU:
+                    status.titlePosition = static_cast<FujinonOSDPosition>(val);
+                    return true;
+                case 0x4DU:
+                    status.idDisplay = (val == 0x01U);
+                    return true;
+                case 0x4FU:
+                    status.idPosition = static_cast<FujinonOSDPosition>(val);
+                    return true;
+                case 0x51U:
+                    status.reticleDisplay = (val == 0x01U);
+                    return true;
+                default:
+                    return true;
+                }
+            }
             case 0x55U: // Anti-aliasing
                 status.antialiasing = (frame[5] == 0x01U);
                 return true;

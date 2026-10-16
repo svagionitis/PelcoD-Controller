@@ -722,3 +722,113 @@ TEST(FujinonProtocolTest, AdditionalV2120Commands)
 
     std::cout << "  testAdditionalV2120Commands: PASSED\n";
 }
+
+TEST(FujinonProtocolTest, ParserDecodesManualExposureResponses)
+{
+    const std::uint8_t addr = 1U;
+
+    // Manual Shutter response: [FF, addr, 0x00, 0x97, 0x00, 10, Checksum]
+    const auto shutterResp = PelcoD::PelcoDFrame::createFrame(addr, 0x00U, 0x97U, 0x00U, 10U);
+    std::uint8_t shutterVal { 0U };
+    EXPECT_TRUE(PelcoD::FujinonParser::parseQueryManualShutter(shutterResp, shutterVal));
+    EXPECT_EQ(shutterVal, 10U);
+
+    // Manual ISO response: [FF, addr, 0x00, 0x9B, 0x00, 25, Checksum]
+    const auto isoResp = PelcoD::PelcoDFrame::createFrame(addr, 0x00U, 0x9BU, 0x00U, 25U);
+    std::uint8_t isoVal { 0U };
+    EXPECT_TRUE(PelcoD::FujinonParser::parseQueryManualISO(isoResp, isoVal));
+    EXPECT_EQ(isoVal, 25U);
+
+    // Manual Iris response: [FF, addr, 0x00, 0x9D, 0x00, 7, Checksum]
+    const auto irisResp = PelcoD::PelcoDFrame::createFrame(addr, 0x00U, 0x9DU, 0x00U, 7U);
+    std::uint8_t irisVal { 0U };
+    EXPECT_TRUE(PelcoD::FujinonParser::parseQueryManualIris(irisResp, irisVal));
+    EXPECT_EQ(irisVal, 7U);
+
+    // Status update check
+    PelcoD::FujinonStatus status {};
+    EXPECT_TRUE(PelcoD::FujinonParser::updateFujinonStatus(shutterResp, status));
+    EXPECT_EQ(status.manualShutter, 10U);
+
+    EXPECT_TRUE(PelcoD::FujinonParser::updateFujinonStatus(isoResp, status));
+    EXPECT_EQ(status.manualISO, 25U);
+
+    EXPECT_TRUE(PelcoD::FujinonParser::updateFujinonStatus(irisResp, status));
+    EXPECT_EQ(status.manualIris, 7U);
+}
+
+TEST(FujinonProtocolTest, ParserDecodesMovieAndDisplayQueries)
+{
+    const std::uint8_t addr = 1U;
+
+    // Movie count response: [FF, addr, 0xF0, 0xB3, 0x01, 0x2C, Checksum] -> 300 files
+    const auto countResp = PelcoD::PelcoDFrame::createFrame(addr, 0xF0U, 0xB3U, 0x01U, 0x2CU);
+    std::uint16_t movieCount { 0U };
+    EXPECT_TRUE(PelcoD::FujinonParser::parseQueryMovieCount(countResp, movieCount));
+    EXPECT_EQ(movieCount, 300U);
+
+    // Movie year response: [FF, addr, 0xF0, 0xB7, 0x07, 0xEAU, Checksum] -> 2026
+    const auto yearResp = PelcoD::PelcoDFrame::createFrame(addr, 0xF0U, 0xB7U, 0x07U, 0xEAU);
+    std::uint16_t movieYear { 0U };
+    EXPECT_TRUE(PelcoD::FujinonParser::parseQueryMovieYear(yearResp, movieYear));
+    EXPECT_EQ(movieYear, 2026U);
+
+    // Movie date response: [FF, addr, 0xF0, 0xBB, 10, 16, Checksum] -> Oct 16
+    const auto dateResp = PelcoD::PelcoDFrame::createFrame(addr, 0xF0U, 0xBBU, 10U, 16U);
+    std::uint8_t month { 0U };
+    std::uint8_t day { 0U };
+    EXPECT_TRUE(PelcoD::FujinonParser::parseQueryMovieDate(dateResp, month, day));
+    EXPECT_EQ(month, 10U);
+    EXPECT_EQ(day, 16U);
+
+    // Movie time response: [FF, addr, 0xF0, 0xBF, 14, 30, Checksum] -> 14:30
+    const auto timeResp = PelcoD::PelcoDFrame::createFrame(addr, 0xF0U, 0xBFU, 14U, 30U);
+    std::uint8_t hour { 0U };
+    std::uint8_t min { 0U };
+    EXPECT_TRUE(PelcoD::FujinonParser::parseQueryMovieTime(timeResp, hour, min));
+    EXPECT_EQ(hour, 14U);
+    EXPECT_EQ(min, 30U);
+
+    // Display query response: [FF, addr, 0xF0, 0x5F, 0x43, 0x01, Checksum] -> timeDisplay true
+    const auto dispResp = PelcoD::PelcoDFrame::createFrame(addr, 0xF0U, 0x5FU, 0x43U, 0x01U);
+    std::uint8_t target { 0U };
+    std::uint8_t val { 0U };
+    EXPECT_TRUE(PelcoD::FujinonParser::parseQueryDisplay(dispResp, target, val));
+    EXPECT_EQ(target, 0x43U);
+    EXPECT_EQ(val, 0x01U);
+
+    // Key setting query response: [FF, addr, 0xF0, 0xAF, 0x73, 0x02, Checksum]
+    const auto keyResp = PelcoD::PelcoDFrame::createFrame(addr, 0xF0U, 0xAFU, 0x73U, 0x02U);
+    std::uint8_t keyTarget { 0U };
+    std::uint8_t keyVal { 0U };
+    EXPECT_TRUE(PelcoD::FujinonParser::parseQueryKeySetting(keyResp, keyTarget, keyVal));
+    EXPECT_EQ(keyTarget, 0x73U);
+    EXPECT_EQ(keyVal, 0x02U);
+
+    // Log data response: [FF, addr, 0xF0, 0xD3, 0xAA, 0xBB, Checksum]
+    const auto logResp = PelcoD::PelcoDFrame::createFrame(addr, 0xF0U, 0xD3U, 0xAAU, 0xBBU);
+    std::uint8_t logD1 { 0U };
+    std::uint8_t logD2 { 0U };
+    EXPECT_TRUE(PelcoD::FujinonParser::parseQueryLogData(logResp, logD1, logD2));
+    EXPECT_EQ(logD1, 0xAAU);
+    EXPECT_EQ(logD2, 0xBBU);
+
+    // Status update checks
+    PelcoD::FujinonStatus status {};
+    EXPECT_TRUE(PelcoD::FujinonParser::updateFujinonStatus(countResp, status));
+    EXPECT_EQ(status.movieCount, 300U);
+
+    EXPECT_TRUE(PelcoD::FujinonParser::updateFujinonStatus(yearResp, status));
+    EXPECT_EQ(status.lastMovieYear, 2026U);
+
+    EXPECT_TRUE(PelcoD::FujinonParser::updateFujinonStatus(dateResp, status));
+    EXPECT_EQ(status.lastMovieMonth, 10U);
+    EXPECT_EQ(status.lastMovieDay, 16U);
+
+    EXPECT_TRUE(PelcoD::FujinonParser::updateFujinonStatus(timeResp, status));
+    EXPECT_EQ(status.lastMovieHour, 14U);
+    EXPECT_EQ(status.lastMovieMinute, 30U);
+
+    EXPECT_TRUE(PelcoD::FujinonParser::updateFujinonStatus(dispResp, status));
+    EXPECT_TRUE(status.timeDisplay);
+}

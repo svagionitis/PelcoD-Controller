@@ -315,6 +315,14 @@ struct FujinonStatus {
     bool antialiasing { false };
     FujinonLanguage language { FujinonLanguage::English };
     double focalLengthMm { 20.0 }; ///< Optical focal length in millimeters (20.0mm wide to 800.0mm tele)
+
+    // Media & SD Card Telemetry
+    std::uint16_t movieCount { 0U };
+    std::uint16_t lastMovieYear { 0U };
+    std::uint8_t lastMovieMonth { 0U };
+    std::uint8_t lastMovieDay { 0U };
+    std::uint8_t lastMovieHour { 0U };
+    std::uint8_t lastMovieMinute { 0U };
 };
 
 } // namespace PelcoD

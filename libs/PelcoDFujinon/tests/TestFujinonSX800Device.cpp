@@ -254,4 +254,164 @@ TEST(FujinonSX800DeviceTest, FujinonDtorWaitsForRx)
     EXPECT_TRUE(destroyed.load());
 }
 
+/// @brief Telemetry from other bus addresses must NOT mutate device status (Finding F1).
+TEST(FujinonSX800DeviceTest, MultiDropAddressFilteringIgnoresForeignFrames)
+{
+    auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(std::uint8_t { 1U });
+    PelcoD::FujinonSX800Device device1(mock, 1U);
+    ASSERT_TRUE(device1.start());
+
+    std::atomic<bool> cbTriggered { false };
+    static_cast<void>(device1.addFujinonStatusCallback([&](const PelcoD::FujinonStatus&) { cbTriggered.store(true); }));
+
+    // Inject focus telemetry addressed to Device 2 (0x02)
+    const auto foreignFocusResp = PelcoD::PelcoDFrame::createFrame(2U, 0x00U, 0x81U, 0x55U, 0x66U);
+    mock->injectRxData(foreignFocusResp);
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+    // Device 1 must NOT have its focus mutated by Device 2's frame
+    EXPECT_EQ(device1.getFujinonStatus().absoluteFocusPosition, 0U);
+    EXPECT_FALSE(cbTriggered.load());
+
+    // Inject focus telemetry addressed to Device 1 (0x01)
+    const auto myFocusResp = PelcoD::PelcoDFrame::createFrame(1U, 0x00U, 0x81U, 0x12U, 0x34U);
+    mock->injectRxData(myFocusResp);
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+    EXPECT_EQ(device1.getFujinonStatus().absoluteFocusPosition, 0x1234U);
+    EXPECT_TRUE(cbTriggered.load());
+
+    device1.stop();
+}
+
+/// @brief Runtime address changes must synchronize into the frame extension (Finding F1).
+TEST(FujinonSX800DeviceTest, DynamicAddressReconfigurationFiltersCorrectly)
+{
+    auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(std::uint8_t { 1U });
+    PelcoD::FujinonSX800Device device(mock, 1U);
+    ASSERT_TRUE(device.start());
+
+    // Switch device address to 5
+    device.setAddress(5U);
+    EXPECT_EQ(device.getAddress(), 5U);
+
+    // Old address 1 should now be rejected
+    const auto oldAddrResp = PelcoD::PelcoDFrame::createFrame(1U, 0x00U, 0x81U, 0x11U, 0x11U);
+    mock->injectRxData(oldAddrResp);
+    std::this_thread::sleep_for(std::chrono::milliseconds(30));
+    EXPECT_EQ(device.getFujinonStatus().absoluteFocusPosition, 0U);
+
+    // New address 5 should be accepted
+    const auto newAddrResp = PelcoD::PelcoDFrame::createFrame(5U, 0x00U, 0x81U, 0x55U, 0x55U);
+    mock->injectRxData(newAddrResp);
+    std::this_thread::sleep_for(std::chrono::milliseconds(30));
+    EXPECT_EQ(device.getFujinonStatus().absoluteFocusPosition, 0x5555U);
+
+    device.stop();
+}
+
+/// @brief Subscriber exceptions must NOT escape the RX thread or invoke std::terminate (Finding F2).
+TEST(FujinonSX800DeviceTest, ThrowingSubscriberDoesNotCrashRxThread)
+{
+    auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(std::uint8_t { 1U });
+    PelcoD::FujinonSX800Device device(mock, 1U);
+    ASSERT_TRUE(device.start());
+
+    std::atomic<bool> throwingCbCalled { false };
+    std::atomic<bool> secondCbCalled { false };
+
+    // Register a subscriber that throws an exception
+    static_cast<void>(device.addFujinonStatusCallback([&](const PelcoD::FujinonStatus&) {
+        throwingCbCalled.store(true);
+        throw std::runtime_error("Simulated subscriber UI crash");
+    }));
+
+    // Register a second subscriber to verify execution continues
+    static_cast<void>(
+        device.addFujinonStatusCallback([&](const PelcoD::FujinonStatus&) { secondCbCalled.store(true); }));
+
+    const auto focusResp = PelcoD::PelcoDFrame::createFrame(1U, 0x00U, 0x81U, 0x44U, 0x44U);
+    EXPECT_NO_THROW({ mock->injectRxData(focusResp); });
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+    EXPECT_TRUE(throwingCbCalled.load());
+    EXPECT_TRUE(secondCbCalled.load());
+    EXPECT_TRUE(device.isConnected());
+
+    device.stop();
+}
+
+/// @brief Queries with formerly dead tags must resolve and populate status (Finding F3).
+TEST(FujinonSX800DeviceTest, PreviouslyDeadQueriesResolvePromptly)
+{
+    auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(std::uint8_t { 1U });
+    PelcoD::FujinonSX800Device device(mock, 1U);
+    ASSERT_TRUE(device.start());
+
+    // 1. Manual Shutter
+    EXPECT_EQ(device.queryManualShutter(), PelcoD::SendResult::Success);
+    mock->injectRxData(PelcoD::PelcoDFrame::createFrame(1U, 0x00U, 0x97U, 0x00U, 12U));
+    std::this_thread::sleep_for(std::chrono::milliseconds(20));
+    EXPECT_EQ(device.getFujinonStatus().manualShutter, 12U);
+
+    // 2. Manual ISO
+    EXPECT_EQ(device.queryManualISO(), PelcoD::SendResult::Success);
+    mock->injectRxData(PelcoD::PelcoDFrame::createFrame(1U, 0x00U, 0x9BU, 0x00U, 30U));
+    std::this_thread::sleep_for(std::chrono::milliseconds(20));
+    EXPECT_EQ(device.getFujinonStatus().manualISO, 30U);
+
+    // 3. Manual Iris
+    EXPECT_EQ(device.queryManualIris(), PelcoD::SendResult::Success);
+    mock->injectRxData(PelcoD::PelcoDFrame::createFrame(1U, 0x00U, 0x9DU, 0x00U, 8U));
+    std::this_thread::sleep_for(std::chrono::milliseconds(20));
+    EXPECT_EQ(device.getFujinonStatus().manualIris, 8U);
+
+    // 4. Movie Count
+    EXPECT_EQ(device.queryMovieCount(), PelcoD::SendResult::Success);
+    mock->injectRxData(PelcoD::PelcoDFrame::createFrame(1U, 0xF0U, 0xB3U, 0x02U, 0x05U));
+    std::this_thread::sleep_for(std::chrono::milliseconds(20));
+    EXPECT_EQ(device.getFujinonStatus().movieCount, 517U);
+
+    // 5. Movie Year
+    EXPECT_EQ(device.queryMovieYear(1U), PelcoD::SendResult::Success);
+    mock->injectRxData(PelcoD::PelcoDFrame::createFrame(1U, 0xF0U, 0xB7U, 0x07U, 0xEAU));
+    std::this_thread::sleep_for(std::chrono::milliseconds(20));
+    EXPECT_EQ(device.getFujinonStatus().lastMovieYear, 2026U);
+
+    // 6. Movie Date
+    EXPECT_EQ(device.queryMovieDate(1U), PelcoD::SendResult::Success);
+    mock->injectRxData(PelcoD::PelcoDFrame::createFrame(1U, 0xF0U, 0xBBU, 11U, 20U));
+    std::this_thread::sleep_for(std::chrono::milliseconds(20));
+    EXPECT_EQ(device.getFujinonStatus().lastMovieMonth, 11U);
+    EXPECT_EQ(device.getFujinonStatus().lastMovieDay, 20U);
+
+    // 7. Movie Time
+    EXPECT_EQ(device.queryMovieTime(1U), PelcoD::SendResult::Success);
+    mock->injectRxData(PelcoD::PelcoDFrame::createFrame(1U, 0xF0U, 0xBFU, 18U, 45U));
+    std::this_thread::sleep_for(std::chrono::milliseconds(20));
+    EXPECT_EQ(device.getFujinonStatus().lastMovieHour, 18U);
+    EXPECT_EQ(device.getFujinonStatus().lastMovieMinute, 45U);
+
+    // 8. Display Query (Time display enable)
+    EXPECT_EQ(device.queryDisplay(0x43U), PelcoD::SendResult::Success);
+    mock->injectRxData(PelcoD::PelcoDFrame::createFrame(1U, 0xF0U, 0x5FU, 0x43U, 0x01U));
+    std::this_thread::sleep_for(std::chrono::milliseconds(20));
+    EXPECT_TRUE(device.getFujinonStatus().timeDisplay);
+
+    // 9. Key Setting
+    EXPECT_EQ(device.queryKeySetting(0x73U), PelcoD::SendResult::Success);
+    mock->injectRxData(PelcoD::PelcoDFrame::createFrame(1U, 0xF0U, 0xAFU, 0x73U, 0x01U));
+    std::this_thread::sleep_for(std::chrono::milliseconds(20));
+
+    // 10. Log Data
+    EXPECT_EQ(device.queryLogData(PelcoD::FujinonLogType::Focus), PelcoD::SendResult::Success);
+    mock->injectRxData(PelcoD::PelcoDFrame::createFrame(1U, 0xF0U, 0xD3U, 0x01U, 0x02U));
+    std::this_thread::sleep_for(std::chrono::milliseconds(20));
+
+    device.stop();
+}
+
 } // namespace

@@ -4,6 +4,8 @@
 #include "FujinonSX800Device.h"
 #include "CallbackGate.h"
 
+#include <glog/logging.h>
+
 #include <algorithm>
 #include <atomic>
 #include <mutex>
@@ -19,6 +21,18 @@ namespace PelcoD {
 ///       callbacks are invoked without holding any lock (copy-on-write snapshot).
 class FujinonSX800Device::FujinonFrameExt final : public IFrameExtension {
 public:
+    explicit FujinonFrameExt(std::uint8_t address = 1U) noexcept
+        : m_address { address }
+    {
+    }
+
+    /// @brief Updates active RS-485 bus address for incoming frame filtration.
+    /// @param[in] address Device bus address.
+    void setAddress(std::uint8_t address) noexcept
+    {
+        m_address.store(address, std::memory_order_relaxed);
+    }
+
     /// @brief Returns a snapshot of the Fujinon status model (baseStatus left default).
     /// @return Copy of the current Fujinon status.
     [[nodiscard]] FujinonStatus snapshot() const
@@ -93,6 +107,9 @@ public:
 
     [[nodiscard]] bool onFrame(const std::vector<std::uint8_t>& frame) override
     {
+        if (frame.size() < 2U || frame[1] != m_address.load(std::memory_order_relaxed)) {
+            return false;
+        }
         std::scoped_lock lock { m_statusMutex };
         return FujinonParser::updateFujinonStatus(frame, m_status);
     }
@@ -110,7 +127,13 @@ public:
             if (entry.cb && entry.gate) {
                 const CallbackGate::Pass pass { *entry.gate };
                 if (pass) {
-                    entry.cb(current);
+                    try {
+                        entry.cb(current);
+                    } catch (const std::exception& ex) {
+                        LOG(ERROR) << "FujinonStatusCallback threw an unhandled std::exception: " << ex.what();
+                    } catch (...) {
+                        LOG(ERROR) << "FujinonStatusCallback threw an unknown non-standard exception";
+                    }
                 }
             }
         }
@@ -123,6 +146,7 @@ private:
         std::shared_ptr<CallbackGate> gate {};
     };
 
+    std::atomic<std::uint8_t> m_address { 1U };
     mutable std::mutex m_statusMutex {};
     FujinonStatus m_status {};
 
@@ -133,13 +157,21 @@ private:
 
 FujinonSX800Device::FujinonSX800Device(std::shared_ptr<ITransport> transport, std::uint8_t address)
     : PelcoDDevice(std::move(transport), address)
-    , m_ext { std::make_shared<FujinonFrameExt>() }
+    , m_ext { std::make_shared<FujinonFrameExt>(address) }
 {
     // No session can be active inside the constructor, so installation cannot be refused.
     static_cast<void>(setFrameExt(m_ext));
 }
 
 FujinonSX800Device::~FujinonSX800Device() = default;
+
+void FujinonSX800Device::setAddress(std::uint8_t address)
+{
+    PelcoDDevice::setAddress(address);
+    if (m_ext) {
+        m_ext->setAddress(address);
+    }
+}
 
 FujinonStatus FujinonSX800Device::getFujinonStatus() const
 {
@@ -798,6 +830,51 @@ ExtMatch FujinonSX800Device::FujinonFrameExt::matchQuery(
     if (queryTag == "FujinonQueryZoomStd") {
         std::uint16_t val { 0U };
         return toMatch(FujinonParser::parseQueryZoomStandard(frame, val));
+    }
+    if (queryTag == "FujinonQueryManualShutter") {
+        std::uint8_t val { 0U };
+        return toMatch(FujinonParser::parseQueryManualShutter(frame, val));
+    }
+    if (queryTag == "FujinonQueryManualISO") {
+        std::uint8_t val { 0U };
+        return toMatch(FujinonParser::parseQueryManualISO(frame, val));
+    }
+    if (queryTag == "FujinonQueryManualIris") {
+        std::uint8_t val { 0U };
+        return toMatch(FujinonParser::parseQueryManualIris(frame, val));
+    }
+    if (queryTag == "FujinonQueryDisplay") {
+        std::uint8_t target { 0U };
+        std::uint8_t val { 0U };
+        return toMatch(FujinonParser::parseQueryDisplay(frame, target, val));
+    }
+    if (queryTag == "FujinonQueryKeySetting") {
+        std::uint8_t target { 0U };
+        std::uint8_t val { 0U };
+        return toMatch(FujinonParser::parseQueryKeySetting(frame, target, val));
+    }
+    if (queryTag == "FujinonQueryMovieCount") {
+        std::uint16_t count { 0U };
+        return toMatch(FujinonParser::parseQueryMovieCount(frame, count));
+    }
+    if (queryTag == "FujinonQueryMovieYear") {
+        std::uint16_t year { 0U };
+        return toMatch(FujinonParser::parseQueryMovieYear(frame, year));
+    }
+    if (queryTag == "FujinonQueryMovieDate") {
+        std::uint8_t month { 0U };
+        std::uint8_t day { 0U };
+        return toMatch(FujinonParser::parseQueryMovieDate(frame, month, day));
+    }
+    if (queryTag == "FujinonQueryMovieTime") {
+        std::uint8_t hour { 0U };
+        std::uint8_t min { 0U };
+        return toMatch(FujinonParser::parseQueryMovieTime(frame, hour, min));
+    }
+    if (queryTag == "FujinonQueryLogData") {
+        std::uint8_t d1 { 0U };
+        std::uint8_t d2 { 0U };
+        return toMatch(FujinonParser::parseQueryLogData(frame, d1, d2));
     }
 
     return ExtMatch::NotHandled;
