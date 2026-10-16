@@ -832,3 +832,136 @@ TEST(FujinonProtocolTest, ParserDecodesMovieAndDisplayQueries)
     EXPECT_TRUE(PelcoD::FujinonParser::updateFujinonStatus(dispResp, status));
     EXPECT_TRUE(status.timeDisplay);
 }
+
+TEST(FujinonProtocolTest, ParserRejectsCorruptedChecksumFrames)
+{
+    const std::uint8_t addr { 0x01U };
+
+    // 1. Valid focus response: FF 01 00 81 12 34 87 (0x01+0x00+0x81+0x12+0x34 = 0xC8)
+    const auto validFocus = PelcoD::PelcoDFrame::createFrame(addr, 0x00U, 0x81U, 0x12U, 0x34U);
+    std::uint16_t focusVal { 0U };
+    EXPECT_TRUE(PelcoD::FujinonParser::parseQueryFocus(validFocus, focusVal));
+    EXPECT_EQ(focusVal, 0x1234U);
+
+    // Corrupted checksum at byte 6
+    auto badFocus = validFocus;
+    badFocus[6] ^= 0x55U;
+    EXPECT_FALSE(PelcoD::FujinonParser::isFujinonResponse(badFocus));
+    EXPECT_FALSE(PelcoD::FujinonParser::parseQueryFocus(badFocus, focusVal));
+
+    // Corrupted checksum on 18-byte query response
+    std::vector<std::uint8_t> validSerial(18U, 0x00U);
+    validSerial[0] = 0xFFU;
+    validSerial[1] = addr;
+    for (std::size_t i { 2U }; i <= 9U; ++i) {
+        validSerial[i] = static_cast<std::uint8_t>('0' + i);
+    }
+    validSerial[17] = PelcoD::PelcoDFrame::calculateChecksum(&validSerial[1], 16U);
+    std::string serialStr;
+    EXPECT_TRUE(PelcoD::FujinonParser::parseQuerySerialNumber(validSerial, serialStr));
+
+    auto badSerial = validSerial;
+    badSerial[17] ^= 0xAAU;
+    EXPECT_FALSE(PelcoD::FujinonParser::isFujinonResponse(badSerial));
+    EXPECT_FALSE(PelcoD::FujinonParser::parseQuerySerialNumber(badSerial, serialStr));
+}
+
+TEST(FujinonProtocolTest, EnumValidatorsRejectOutOfRangeValues)
+{
+    // Test toFujinonOISMode
+    EXPECT_EQ(PelcoD::toFujinonOISMode(0x01U), PelcoD::FujinonOISMode::Auto);
+    EXPECT_EQ(PelcoD::toFujinonOISMode(0x02U), PelcoD::FujinonOISMode::OisOn);
+    EXPECT_EQ(PelcoD::toFujinonOISMode(0x03U), PelcoD::FujinonOISMode::EisOn);
+    EXPECT_EQ(PelcoD::toFujinonOISMode(0x04U), PelcoD::FujinonOISMode::Off);
+    EXPECT_FALSE(PelcoD::toFujinonOISMode(0x00U).has_value());
+    EXPECT_FALSE(PelcoD::toFujinonOISMode(0x05U).has_value());
+    EXPECT_FALSE(PelcoD::toFujinonOISMode(0xFFU).has_value());
+
+    // Test toFujinonDayNightMode
+    EXPECT_EQ(PelcoD::toFujinonDayNightMode(0x01U), PelcoD::FujinonDayNightMode::Auto);
+    EXPECT_EQ(PelcoD::toFujinonDayNightMode(0x04U), PelcoD::FujinonDayNightMode::External);
+    EXPECT_FALSE(PelcoD::toFujinonDayNightMode(0x00U).has_value());
+    EXPECT_FALSE(PelcoD::toFujinonDayNightMode(0x05U).has_value());
+
+    // Test toFujinonIRWavelength
+    EXPECT_EQ(PelcoD::toFujinonIRWavelength(0x00U), PelcoD::FujinonIRWavelength::Visible);
+    EXPECT_EQ(PelcoD::toFujinonIRWavelength(0x04U), PelcoD::FujinonIRWavelength::W808nm);
+    EXPECT_FALSE(PelcoD::toFujinonIRWavelength(0x05U).has_value());
+
+    // Test toFujinonDefogLevel
+    EXPECT_EQ(PelcoD::toFujinonDefogLevel(0x00U), PelcoD::FujinonDefogLevel::Off);
+    EXPECT_EQ(PelcoD::toFujinonDefogLevel(0x03U), PelcoD::FujinonDefogLevel::Level3);
+    EXPECT_FALSE(PelcoD::toFujinonDefogLevel(0x04U).has_value());
+
+    // Test toFujinonHeatHazeLevel
+    EXPECT_EQ(PelcoD::toFujinonHeatHazeLevel(0x00U), PelcoD::FujinonHeatHazeLevel::Off);
+    EXPECT_EQ(PelcoD::toFujinonHeatHazeLevel(0x02U), PelcoD::FujinonHeatHazeLevel::Level2);
+    EXPECT_FALSE(PelcoD::toFujinonHeatHazeLevel(0x03U).has_value());
+
+    // Test toFujinonWDRLevel
+    EXPECT_EQ(PelcoD::toFujinonWDRLevel(0x00U), PelcoD::FujinonWDRLevel::Off);
+    EXPECT_EQ(PelcoD::toFujinonWDRLevel(0x03U), PelcoD::FujinonWDRLevel::Level3);
+    EXPECT_FALSE(PelcoD::toFujinonWDRLevel(0x04U).has_value());
+
+    // Test toFujinonDigitalZoom
+    EXPECT_EQ(PelcoD::toFujinonDigitalZoom(0x00U), PelcoD::FujinonDigitalZoom::Off);
+    EXPECT_EQ(PelcoD::toFujinonDigitalZoom(0x04U), PelcoD::FujinonDigitalZoom::X2);
+    EXPECT_FALSE(PelcoD::toFujinonDigitalZoom(0x05U).has_value());
+
+    // Test toFujinonOSDPosition
+    EXPECT_EQ(PelcoD::toFujinonOSDPosition(0x01U), PelcoD::FujinonOSDPosition::TopLeft);
+    EXPECT_EQ(PelcoD::toFujinonOSDPosition(0x04U), PelcoD::FujinonOSDPosition::BottomRight);
+    EXPECT_FALSE(PelcoD::toFujinonOSDPosition(0x00U).has_value());
+    EXPECT_FALSE(PelcoD::toFujinonOSDPosition(0x05U).has_value());
+
+    // Test toFujinonDigitalZoomMode
+    EXPECT_EQ(PelcoD::toFujinonDigitalZoomMode(0x00U), PelcoD::FujinonDigitalZoomMode::Off);
+    EXPECT_EQ(PelcoD::toFujinonDigitalZoomMode(0x02U), PelcoD::FujinonDigitalZoomMode::CropMode);
+    EXPECT_FALSE(PelcoD::toFujinonDigitalZoomMode(0x03U).has_value());
+
+    // Test toFujinonDayNightModeEx
+    EXPECT_EQ(PelcoD::toFujinonDayNightModeEx(0x00U), PelcoD::FujinonDayNightModeEx::Auto);
+    EXPECT_EQ(PelcoD::toFujinonDayNightModeEx(0x04U), PelcoD::FujinonDayNightModeEx::Night);
+    EXPECT_FALSE(PelcoD::toFujinonDayNightModeEx(0x05U).has_value());
+
+    // Test toFujinonLanguage
+    EXPECT_EQ(PelcoD::toFujinonLanguage(0x00U), PelcoD::FujinonLanguage::English);
+    EXPECT_EQ(PelcoD::toFujinonLanguage(0x01U), PelcoD::FujinonLanguage::French);
+    EXPECT_EQ(PelcoD::toFujinonLanguage(0x03U), PelcoD::FujinonLanguage::Japanese);
+    EXPECT_FALSE(PelcoD::toFujinonLanguage(0x02U).has_value()); // 0x02 is unassigned in spec
+    EXPECT_FALSE(PelcoD::toFujinonLanguage(0x04U).has_value());
+
+    // Test toFujinonAutoFocusMode
+    EXPECT_EQ(PelcoD::toFujinonAutoFocusMode(0x00U), PelcoD::FujinonAutoFocusMode::AFOn);
+    EXPECT_EQ(PelcoD::toFujinonAutoFocusMode(0x02U), PelcoD::FujinonAutoFocusMode::QuickAF);
+    EXPECT_FALSE(PelcoD::toFujinonAutoFocusMode(0x03U).has_value());
+}
+
+TEST(FujinonProtocolTest, ParserRejectsMalformedEnumPayloads)
+{
+    const std::uint8_t addr { 0x01U };
+
+    // Construct frame with invalid OIS mode 0x99: FF 01 F0 1F 13 99 CKSM
+    const auto badOisFrame = PelcoD::PelcoDFrame::createFrame(addr, 0xF0U, 0x1FU, 0x13U, 0x99U);
+    PelcoD::FujinonPhotoSettings photo {};
+    EXPECT_FALSE(PelcoD::FujinonParser::parsePhotoSettings(badOisFrame, photo));
+
+    // Construct frame with invalid DayNight mode 0xFE: FF 01 F1 1F 01 FE CKSM
+    const auto badDayNightFrame = PelcoD::PelcoDFrame::createFrame(addr, 0xF1U, 0x1FU, 0x01U, 0xFEU);
+    PelcoD::FujinonDayNightExSettings dnEx {};
+    EXPECT_FALSE(PelcoD::FujinonParser::parseDayNightExSettings(badDayNightFrame, dnEx));
+
+    // Construct frame with invalid DigitalZoomMode 0x55: FF 01 F1 2F 21 55 CKSM
+    const auto badZoomModeFrame = PelcoD::PelcoDFrame::createFrame(addr, 0xF1U, 0x2FU, 0x21U, 0x55U);
+    PelcoD::FujinonZoomFocusExSettings zfEx {};
+    EXPECT_FALSE(PelcoD::FujinonParser::parseZoomFocusExSettings(badZoomModeFrame, zfEx));
+
+    // Construct status frame with invalid AutoFocusMode 0x99: FF 01 00 2B 00 99 CKSM
+    const auto badAfFrame = PelcoD::PelcoDFrame::createFrame(addr, 0x00U, 0x2BU, 0x00U, 0x99U);
+    PelcoD::FujinonStatus status {};
+    EXPECT_FALSE(PelcoD::FujinonParser::updateFujinonStatus(badAfFrame, status));
+
+    // Construct status frame with invalid Language 0x02: FF 01 F0 85 00 02 CKSM
+    const auto badLangFrame = PelcoD::PelcoDFrame::createFrame(addr, 0xF0U, 0x85U, 0x00U, 0x02U);
+    EXPECT_FALSE(PelcoD::FujinonParser::updateFujinonStatus(badLangFrame, status));
+}

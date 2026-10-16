@@ -4,17 +4,36 @@
 #include "FujinonParser.h"
 #include "FujinonBuilder.h"
 
-#include <iomanip>
-#include <sstream>
+#include <array>
+#include <cstdio>
 
 namespace PelcoD {
 
+bool FujinonParser::isValidResponse(const std::vector<std::uint8_t>& frame) noexcept
+{
+    if (frame.empty() || frame[0] != PelcoDFrame::SyncByte) {
+        return false;
+    }
+
+    if (frame.size() == PelcoDFrame::StandardFrameSize) {
+        return PelcoDFrame::isValidFrame(frame);
+    }
+
+    if (frame.size() == PelcoDFrame::QueryResponseSize) {
+        const std::uint8_t expected = PelcoDFrame::calculateChecksum(&frame[1], 16U);
+        return frame[17] == expected;
+    }
+
+    return false;
+}
+
 bool FujinonParser::isFujinonResponse(const std::vector<std::uint8_t>& frame) noexcept
 {
+    if (!isValidResponse(frame)) {
+        return false;
+    }
+
     if (frame.size() == PelcoDFrame::StandardFrameSize) {
-        if (frame[0] != PelcoDFrame::SyncByte) {
-            return false;
-        }
         // Focus (0x81), Zoom (0x83), FW (0x8B), Lens Status (0x8D), Manual (0x8F), Zoom std (0x5D), RTC (0x3B),
         // Shutter (0x97), ISO (0x9B), Iris (0x9D), or Original Resp (0xF0, 0xF1)
         return (frame[2] == 0x00U
@@ -25,7 +44,7 @@ bool FujinonParser::isFujinonResponse(const std::vector<std::uint8_t>& frame) no
     }
 
     if (frame.size() == PelcoDFrame::QueryResponseSize) {
-        return frame[0] == PelcoDFrame::SyncByte;
+        return true;
     }
 
     return false;
@@ -33,7 +52,7 @@ bool FujinonParser::isFujinonResponse(const std::vector<std::uint8_t>& frame) no
 
 bool FujinonParser::parseQueryFocus(const std::vector<std::uint8_t>& frame, std::uint16_t& focusPos) noexcept
 {
-    if (frame.size() != PelcoDFrame::StandardFrameSize || frame[0] != PelcoDFrame::SyncByte) {
+    if (!isValidResponse(frame) || frame.size() != PelcoDFrame::StandardFrameSize) {
         return false;
     }
     if (frame[2] == 0x00U && frame[3] == 0x81U) {
@@ -45,7 +64,7 @@ bool FujinonParser::parseQueryFocus(const std::vector<std::uint8_t>& frame, std:
 
 bool FujinonParser::parseQueryZoom(const std::vector<std::uint8_t>& frame, std::uint16_t& zoomPos) noexcept
 {
-    if (frame.size() != PelcoDFrame::StandardFrameSize || frame[0] != PelcoDFrame::SyncByte) {
+    if (!isValidResponse(frame) || frame.size() != PelcoDFrame::StandardFrameSize) {
         return false;
     }
     if (frame[2] == 0x00U && frame[3] == 0x83U) {
@@ -55,15 +74,15 @@ bool FujinonParser::parseQueryZoom(const std::vector<std::uint8_t>& frame, std::
     return false;
 }
 
-bool FujinonParser::parseQuerySerialNumber(const std::vector<std::uint8_t>& frame, std::string& serialStr) noexcept
+bool FujinonParser::parseQuerySerialNumber(const std::vector<std::uint8_t>& frame, std::string& serialStr)
 {
-    if (frame.size() != PelcoDFrame::QueryResponseSize || frame[0] != PelcoDFrame::SyncByte) {
+    if (!isValidResponse(frame) || frame.size() != PelcoDFrame::QueryResponseSize) {
         return false;
     }
 
     // Bytes 2 to 9 contain ASCII characters of the serial number
     serialStr.clear();
-    for (std::size_t i = 2U; i <= 9U && i < frame.size(); ++i) {
+    for (std::size_t i { 2U }; i <= 9U && i < frame.size(); ++i) {
         if (frame[i] >= 0x20U && frame[i] <= 0x7EU) {
             serialStr.push_back(static_cast<char>(frame[i]));
         } else {
@@ -74,24 +93,26 @@ bool FujinonParser::parseQuerySerialNumber(const std::vector<std::uint8_t>& fram
     return serialStr.size() == 8U;
 }
 
-bool FujinonParser::parseQueryFirmwareVersion(const std::vector<std::uint8_t>& frame, std::string& fwStr) noexcept
+bool FujinonParser::parseQueryFirmwareVersion(const std::vector<std::uint8_t>& frame, std::string& fwStr)
 {
-    if (frame.size() != PelcoDFrame::StandardFrameSize || frame[0] != PelcoDFrame::SyncByte) {
+    if (!isValidResponse(frame) || frame.size() != PelcoDFrame::StandardFrameSize) {
         return false;
     }
     if (frame[2] == 0x00U && frame[3] == 0x8BU) {
-        std::ostringstream oss;
-        oss << "v" << static_cast<int>(frame[4]) << "." << std::setw(2) << std::setfill('0') << std::hex
-            << static_cast<int>(frame[5]);
-        fwStr = oss.str();
-        return true;
+        std::array<char, 16> buf {};
+        const int written = std::snprintf(buf.data(), buf.size(), "v%u.%02x", static_cast<unsigned int>(frame[4]),
+            static_cast<unsigned int>(frame[5]));
+        if (written > 0 && static_cast<std::size_t>(written) < buf.size()) {
+            fwStr.assign(buf.data(), static_cast<std::size_t>(written));
+            return true;
+        }
     }
     return false;
 }
 
 bool FujinonParser::parseQueryLensStatus(const std::vector<std::uint8_t>& frame, std::uint8_t& statusVal) noexcept
 {
-    if (frame.size() != PelcoDFrame::StandardFrameSize || frame[0] != PelcoDFrame::SyncByte) {
+    if (!isValidResponse(frame) || frame.size() != PelcoDFrame::StandardFrameSize) {
         return false;
     }
     if (frame[2] == 0x00U && frame[3] == 0x8DU) {
@@ -103,7 +124,11 @@ bool FujinonParser::parseQueryLensStatus(const std::vector<std::uint8_t>& frame,
 
 bool FujinonParser::parsePhotoSettings(const std::vector<std::uint8_t>& frame, FujinonPhotoSettings& settings) noexcept
 {
-    if (frame.size() == PelcoDFrame::StandardFrameSize && frame[0] == PelcoDFrame::SyncByte) {
+    if (!isValidResponse(frame)) {
+        return false;
+    }
+
+    if (frame.size() == PelcoDFrame::StandardFrameSize) {
         if (frame[2] == 0xF0U && frame[3] == 0x1FU) {
             const auto target = frame[4];
             const auto val = frame[5];
@@ -114,26 +139,47 @@ bool FujinonParser::parsePhotoSettings(const std::vector<std::uint8_t>& frame, F
             case 0x05U: // AF Sensitivity
                 settings.afSensitivity = val;
                 return true;
-            case 0x0FU: // Day/Night Mode
-                settings.dayNightMode = static_cast<FujinonDayNightMode>(val);
+            case 0x0FU: { // Day/Night Mode
+                const auto mode = toFujinonDayNightMode(val);
+                if (!mode) {
+                    return false;
+                }
+                settings.dayNightMode = *mode;
                 return true;
-            case 0x11U: // IR Wavelength
-                settings.irWavelength = static_cast<FujinonIRWavelength>(val);
+            }
+            case 0x11U: { // IR Wavelength
+                const auto wave = toFujinonIRWavelength(val);
+                if (!wave) {
+                    return false;
+                }
+                settings.irWavelength = *wave;
                 return true;
-            case 0x13U: // OIS Mode
-                settings.oisMode = static_cast<FujinonOISMode>(val);
+            }
+            case 0x13U: { // OIS Mode
+                const auto ois = toFujinonOISMode(val);
+                if (!ois) {
+                    return false;
+                }
+                settings.oisMode = *ois;
                 return true;
+            }
             default:
                 break;
             }
         }
-    } else if (frame.size() == PelcoDFrame::QueryResponseSize && frame[0] == PelcoDFrame::SyncByte) {
+    } else if (frame.size() == PelcoDFrame::QueryResponseSize) {
         // 18-byte Query Photo Setting response format
+        const auto mode = toFujinonDayNightMode(frame[4]);
+        const auto wave = toFujinonIRWavelength(frame[5]);
+        const auto ois = toFujinonOISMode(frame[6]);
+        if (!mode || !wave || !ois) {
+            return false;
+        }
         settings.afArea = frame[2];
         settings.afSensitivity = frame[3];
-        settings.dayNightMode = static_cast<FujinonDayNightMode>(frame[4]);
-        settings.irWavelength = static_cast<FujinonIRWavelength>(frame[5]);
-        settings.oisMode = static_cast<FujinonOISMode>(frame[6]);
+        settings.dayNightMode = *mode;
+        settings.irWavelength = *wave;
+        settings.oisMode = *ois;
         return true;
     }
 
@@ -143,7 +189,11 @@ bool FujinonParser::parsePhotoSettings(const std::vector<std::uint8_t>& frame, F
 bool FujinonParser::parseImageQualitySettings(
     const std::vector<std::uint8_t>& frame, FujinonImageQualitySettings& settings) noexcept
 {
-    if (frame.size() == PelcoDFrame::StandardFrameSize && frame[0] == PelcoDFrame::SyncByte) {
+    if (!isValidResponse(frame)) {
+        return false;
+    }
+
+    if (frame.size() == PelcoDFrame::StandardFrameSize) {
         if (frame[2] == 0xF0U && frame[3] == 0x2BU) {
             const auto target = frame[4];
             const auto val = frame[5];
@@ -151,15 +201,30 @@ bool FujinonParser::parseImageQualitySettings(
             case 0x21U: // VLC Filter
                 settings.vlcFilter = (val == 0x01U);
                 return true;
-            case 0x23U: // WDR
-                settings.wdr = static_cast<FujinonWDRLevel>(val);
+            case 0x23U: { // WDR
+                const auto wdr = toFujinonWDRLevel(val);
+                if (!wdr) {
+                    return false;
+                }
+                settings.wdr = *wdr;
                 return true;
-            case 0x27U: // De-Heat Haze
-                settings.heatHaze = static_cast<FujinonHeatHazeLevel>(val);
+            }
+            case 0x27U: { // De-Heat Haze
+                const auto haze = toFujinonHeatHazeLevel(val);
+                if (!haze) {
+                    return false;
+                }
+                settings.heatHaze = *haze;
                 return true;
-            case 0x29U: // Defog
-                settings.defog = static_cast<FujinonDefogLevel>(val);
+            }
+            case 0x29U: { // Defog
+                const auto defog = toFujinonDefogLevel(val);
+                if (!defog) {
+                    return false;
+                }
+                settings.defog = *defog;
                 return true;
+            }
             case 0x2BU: // Brightness
                 settings.brightness = val;
                 return true;
@@ -172,9 +237,14 @@ bool FujinonParser::parseImageQualitySettings(
             case 0x31U: // Sharpness
                 settings.sharpness = val;
                 return true;
-            case 0x37U: // Digital Zoom
-                settings.digitalZoom = static_cast<FujinonDigitalZoom>(val);
+            case 0x37U: { // Digital Zoom
+                const auto dzoom = toFujinonDigitalZoom(val);
+                if (!dzoom) {
+                    return false;
+                }
+                settings.digitalZoom = *dzoom;
                 return true;
+            }
             case 0x39U: // NR
                 settings.noiseReduction = val;
                 return true;
@@ -182,17 +252,24 @@ bool FujinonParser::parseImageQualitySettings(
                 break;
             }
         }
-    } else if (frame.size() == PelcoDFrame::QueryResponseSize && frame[0] == PelcoDFrame::SyncByte) {
+    } else if (frame.size() == PelcoDFrame::QueryResponseSize) {
         // 18-byte Query Image Quality response format
+        const auto wdr = toFujinonWDRLevel(frame[3]);
+        const auto haze = toFujinonHeatHazeLevel(frame[4]);
+        const auto defog = toFujinonDefogLevel(frame[5]);
+        const auto dzoom = toFujinonDigitalZoom(frame[10]);
+        if (!wdr || !haze || !defog || !dzoom) {
+            return false;
+        }
         settings.vlcFilter = (frame[2] == 0x01U);
-        settings.wdr = static_cast<FujinonWDRLevel>(frame[3]);
-        settings.heatHaze = static_cast<FujinonHeatHazeLevel>(frame[4]);
-        settings.defog = static_cast<FujinonDefogLevel>(frame[5]);
+        settings.wdr = *wdr;
+        settings.heatHaze = *haze;
+        settings.defog = *defog;
         settings.brightness = frame[6];
         settings.contrast = frame[7];
         settings.saturation = frame[8];
         settings.sharpness = frame[9];
-        settings.digitalZoom = static_cast<FujinonDigitalZoom>(frame[10]);
+        settings.digitalZoom = *dzoom;
         settings.noiseReduction = frame[11];
         return true;
     }
@@ -203,13 +280,17 @@ bool FujinonParser::parseImageQualitySettings(
 bool FujinonParser::parseManualSettings(
     const std::vector<std::uint8_t>& frame, FujinonManualSettings& settings) noexcept
 {
-    if (frame.size() == PelcoDFrame::StandardFrameSize && frame[0] == PelcoDFrame::SyncByte) {
+    if (!isValidResponse(frame)) {
+        return false;
+    }
+
+    if (frame.size() == PelcoDFrame::StandardFrameSize) {
         if (frame[2] == 0x00U && frame[3] == 0x8FU) {
             settings.manualIris = frame[4];
             settings.manualShutter = frame[5];
             return true;
         }
-    } else if (frame.size() == PelcoDFrame::QueryResponseSize && frame[0] == PelcoDFrame::SyncByte) {
+    } else if (frame.size() == PelcoDFrame::QueryResponseSize) {
         settings.manualIris = frame[2];
         settings.manualShutter = frame[3];
         settings.manualISO = frame[4];
@@ -221,7 +302,7 @@ bool FujinonParser::parseManualSettings(
 
 bool FujinonParser::parseQueryZoomStandard(const std::vector<std::uint8_t>& frame, std::uint16_t& zoomPos) noexcept
 {
-    if (frame.size() != PelcoDFrame::StandardFrameSize || frame[0] != PelcoDFrame::SyncByte) {
+    if (!isValidResponse(frame) || frame.size() != PelcoDFrame::StandardFrameSize) {
         return false;
     }
     if (frame[2] == 0x00U && frame[3] == 0x5DU) {
@@ -234,7 +315,7 @@ bool FujinonParser::parseQueryZoomStandard(const std::vector<std::uint8_t>& fram
 bool FujinonParser::parseFineImageSettings(
     const std::vector<std::uint8_t>& frame, FujinonFineImageSettings& settings, std::uint8_t target) noexcept
 {
-    if (frame.size() != PelcoDFrame::StandardFrameSize || frame[0] != PelcoDFrame::SyncByte) {
+    if (!isValidResponse(frame) || frame.size() != PelcoDFrame::StandardFrameSize) {
         return false;
     }
     if (frame[2] == 0xF0U && frame[3] == 0xFFU) {
@@ -269,7 +350,7 @@ bool FujinonParser::parseFineImageSettings(
 bool FujinonParser::parseDayNightExSettings(
     const std::vector<std::uint8_t>& frame, FujinonDayNightExSettings& settings, std::uint8_t target) noexcept
 {
-    if (frame.size() != PelcoDFrame::StandardFrameSize || frame[0] != PelcoDFrame::SyncByte) {
+    if (!isValidResponse(frame) || frame.size() != PelcoDFrame::StandardFrameSize) {
         return false;
     }
     if (frame[2] == 0xF1U && frame[3] == 0x1FU) {
@@ -278,9 +359,14 @@ bool FujinonParser::parseDayNightExSettings(
         const auto data1 = frame[4];
         const auto data2 = frame[5];
         switch (opcode) {
-        case 0x01U:
-            settings.mode = static_cast<FujinonDayNightModeEx>(data2);
+        case 0x01U: {
+            const auto mode = toFujinonDayNightModeEx(data2);
+            if (!mode) {
+                return false;
+            }
+            settings.mode = *mode;
             return true;
+        }
         case 0x03U:
             settings.dayToNightThreshold = data2;
             return true;
@@ -314,7 +400,7 @@ bool FujinonParser::parseDayNightExSettings(
 bool FujinonParser::parseZoomFocusExSettings(
     const std::vector<std::uint8_t>& frame, FujinonZoomFocusExSettings& settings, std::uint8_t target) noexcept
 {
-    if (frame.size() != PelcoDFrame::StandardFrameSize || frame[0] != PelcoDFrame::SyncByte) {
+    if (!isValidResponse(frame) || frame.size() != PelcoDFrame::StandardFrameSize) {
         return false;
     }
     if (frame[2] == 0xF1U && frame[3] == 0x2FU) {
@@ -328,9 +414,14 @@ bool FujinonParser::parseZoomFocusExSettings(
             settings.focusSpeedEx = val;
             return true;
         case 0x21U:
-        case 0x37U:
-            settings.digitalZoomMode = static_cast<FujinonDigitalZoomMode>(val);
+        case 0x37U: {
+            const auto dmode = toFujinonDigitalZoomMode(val);
+            if (!dmode) {
+                return false;
+            }
+            settings.digitalZoomMode = *dmode;
             return true;
+        }
         default:
             return true;
         }
@@ -341,7 +432,7 @@ bool FujinonParser::parseZoomFocusExSettings(
 bool FujinonParser::parseQueryRTC(
     const std::vector<std::uint8_t>& frame, std::uint8_t& data1, std::uint8_t& data2) noexcept
 {
-    if (frame.size() != PelcoDFrame::StandardFrameSize || frame[0] != PelcoDFrame::SyncByte) {
+    if (!isValidResponse(frame) || frame.size() != PelcoDFrame::StandardFrameSize) {
         return false;
     }
     if (frame[2] == 0x00U && frame[3] == 0x3BU) {
@@ -354,7 +445,7 @@ bool FujinonParser::parseQueryRTC(
 
 bool FujinonParser::parseQueryManualShutter(const std::vector<std::uint8_t>& frame, std::uint8_t& shutterVal) noexcept
 {
-    if (frame.size() != PelcoDFrame::StandardFrameSize || frame[0] != PelcoDFrame::SyncByte) {
+    if (!isValidResponse(frame) || frame.size() != PelcoDFrame::StandardFrameSize) {
         return false;
     }
     if (frame[2] == 0x00U && frame[3] == 0x97U) {
@@ -366,7 +457,7 @@ bool FujinonParser::parseQueryManualShutter(const std::vector<std::uint8_t>& fra
 
 bool FujinonParser::parseQueryManualISO(const std::vector<std::uint8_t>& frame, std::uint8_t& isoVal) noexcept
 {
-    if (frame.size() != PelcoDFrame::StandardFrameSize || frame[0] != PelcoDFrame::SyncByte) {
+    if (!isValidResponse(frame) || frame.size() != PelcoDFrame::StandardFrameSize) {
         return false;
     }
     if (frame[2] == 0x00U && frame[3] == 0x9BU) {
@@ -378,7 +469,7 @@ bool FujinonParser::parseQueryManualISO(const std::vector<std::uint8_t>& frame, 
 
 bool FujinonParser::parseQueryManualIris(const std::vector<std::uint8_t>& frame, std::uint8_t& irisVal) noexcept
 {
-    if (frame.size() != PelcoDFrame::StandardFrameSize || frame[0] != PelcoDFrame::SyncByte) {
+    if (!isValidResponse(frame) || frame.size() != PelcoDFrame::StandardFrameSize) {
         return false;
     }
     if (frame[2] == 0x00U && frame[3] == 0x9DU) {
@@ -391,7 +482,7 @@ bool FujinonParser::parseQueryManualIris(const std::vector<std::uint8_t>& frame,
 bool FujinonParser::parseQueryDisplay(
     const std::vector<std::uint8_t>& frame, std::uint8_t& target, std::uint8_t& settingVal) noexcept
 {
-    if (frame.size() != PelcoDFrame::StandardFrameSize || frame[0] != PelcoDFrame::SyncByte) {
+    if (!isValidResponse(frame) || frame.size() != PelcoDFrame::StandardFrameSize) {
         return false;
     }
     if (frame[2] == 0xF0U && frame[3] == 0x5FU) {
@@ -405,7 +496,7 @@ bool FujinonParser::parseQueryDisplay(
 bool FujinonParser::parseQueryKeySetting(
     const std::vector<std::uint8_t>& frame, std::uint8_t& target, std::uint8_t& keyVal) noexcept
 {
-    if (frame.size() != PelcoDFrame::StandardFrameSize || frame[0] != PelcoDFrame::SyncByte) {
+    if (!isValidResponse(frame) || frame.size() != PelcoDFrame::StandardFrameSize) {
         return false;
     }
     if (frame[2] == 0xF0U && frame[3] == 0xAFU) {
@@ -418,7 +509,7 @@ bool FujinonParser::parseQueryKeySetting(
 
 bool FujinonParser::parseQueryMovieCount(const std::vector<std::uint8_t>& frame, std::uint16_t& count) noexcept
 {
-    if (frame.size() != PelcoDFrame::StandardFrameSize || frame[0] != PelcoDFrame::SyncByte) {
+    if (!isValidResponse(frame) || frame.size() != PelcoDFrame::StandardFrameSize) {
         return false;
     }
     if (frame[2] == 0xF0U && frame[3] == 0xB3U) {
@@ -430,7 +521,7 @@ bool FujinonParser::parseQueryMovieCount(const std::vector<std::uint8_t>& frame,
 
 bool FujinonParser::parseQueryMovieYear(const std::vector<std::uint8_t>& frame, std::uint16_t& year) noexcept
 {
-    if (frame.size() != PelcoDFrame::StandardFrameSize || frame[0] != PelcoDFrame::SyncByte) {
+    if (!isValidResponse(frame) || frame.size() != PelcoDFrame::StandardFrameSize) {
         return false;
     }
     if (frame[2] == 0xF0U && frame[3] == 0xB7U) {
@@ -443,7 +534,7 @@ bool FujinonParser::parseQueryMovieYear(const std::vector<std::uint8_t>& frame, 
 bool FujinonParser::parseQueryMovieDate(
     const std::vector<std::uint8_t>& frame, std::uint8_t& month, std::uint8_t& day) noexcept
 {
-    if (frame.size() != PelcoDFrame::StandardFrameSize || frame[0] != PelcoDFrame::SyncByte) {
+    if (!isValidResponse(frame) || frame.size() != PelcoDFrame::StandardFrameSize) {
         return false;
     }
     if (frame[2] == 0xF0U && frame[3] == 0xBBU) {
@@ -457,7 +548,7 @@ bool FujinonParser::parseQueryMovieDate(
 bool FujinonParser::parseQueryMovieTime(
     const std::vector<std::uint8_t>& frame, std::uint8_t& hour, std::uint8_t& min) noexcept
 {
-    if (frame.size() != PelcoDFrame::StandardFrameSize || frame[0] != PelcoDFrame::SyncByte) {
+    if (!isValidResponse(frame) || frame.size() != PelcoDFrame::StandardFrameSize) {
         return false;
     }
     if (frame[2] == 0xF0U && frame[3] == 0xBFU) {
@@ -471,7 +562,7 @@ bool FujinonParser::parseQueryMovieTime(
 bool FujinonParser::parseQueryLogData(
     const std::vector<std::uint8_t>& frame, std::uint8_t& data1, std::uint8_t& data2) noexcept
 {
-    if (frame.size() != PelcoDFrame::StandardFrameSize || frame[0] != PelcoDFrame::SyncByte) {
+    if (!isValidResponse(frame) || frame.size() != PelcoDFrame::StandardFrameSize) {
         return false;
     }
     if (frame[2] == 0xF0U && frame[3] == 0xD3U) {
@@ -482,9 +573,9 @@ bool FujinonParser::parseQueryLogData(
     return false;
 }
 
-bool FujinonParser::updateFujinonStatus(const std::vector<std::uint8_t>& frame, FujinonStatus& status) noexcept
+bool FujinonParser::updateFujinonStatus(const std::vector<std::uint8_t>& frame, FujinonStatus& status)
 {
-    if (frame.size() == PelcoDFrame::GeneralResponseSize) {
+    if (!isValidResponse(frame)) {
         return false;
     }
 
@@ -611,32 +702,57 @@ bool FujinonParser::updateFujinonStatus(const std::vector<std::uint8_t>& frame, 
         return true;
     }
 
+    std::uint8_t rtcD1 { 0U };
+    std::uint8_t rtcD2 { 0U };
+    if (parseQueryRTC(frame, rtcD1, rtcD2)) {
+        return true;
+    }
+
     // OSD / Operation frames
-    if (frame.size() == PelcoDFrame::StandardFrameSize && frame[0] == PelcoDFrame::SyncByte) {
+    if (frame.size() == PelcoDFrame::StandardFrameSize) {
         if (frame[2] == 0x00U && frame[3] == 0x2BU) {
-            status.autoFocusMode = static_cast<FujinonAutoFocusMode>(frame[5]);
-            return true;
+            const auto af = toFujinonAutoFocusMode(frame[5]);
+            if (af) {
+                status.autoFocusMode = *af;
+                return true;
+            }
+            return false;
         }
         if (frame[2] == 0xF0U) {
             switch (frame[3]) {
             case 0x43U: // DayTime display
                 status.timeDisplay = (frame[5] == 0x01U);
                 return true;
-            case 0x45U: // DayTime position
-                status.timePosition = static_cast<FujinonOSDPosition>(frame[5]);
-                return true;
+            case 0x45U: { // DayTime position
+                const auto pos = toFujinonOSDPosition(frame[5]);
+                if (pos) {
+                    status.timePosition = *pos;
+                    return true;
+                }
+                return false;
+            }
             case 0x47U: // Title display
                 status.titleDisplay = (frame[5] == 0x01U);
                 return true;
-            case 0x4BU: // Title position
-                status.titlePosition = static_cast<FujinonOSDPosition>(frame[5]);
-                return true;
+            case 0x4BU: { // Title position
+                const auto pos = toFujinonOSDPosition(frame[5]);
+                if (pos) {
+                    status.titlePosition = *pos;
+                    return true;
+                }
+                return false;
+            }
             case 0x4DU: // ID display
                 status.idDisplay = (frame[5] == 0x01U);
                 return true;
-            case 0x4FU: // ID position
-                status.idPosition = static_cast<FujinonOSDPosition>(frame[5]);
-                return true;
+            case 0x4FU: { // ID position
+                const auto pos = toFujinonOSDPosition(frame[5]);
+                if (pos) {
+                    status.idPosition = *pos;
+                    return true;
+                }
+                return false;
+            }
             case 0x51U: // Reticle display
                 status.reticleDisplay = (frame[5] == 0x01U);
                 return true;
@@ -647,21 +763,36 @@ bool FujinonParser::updateFujinonStatus(const std::vector<std::uint8_t>& frame, 
                 case 0x43U:
                     status.timeDisplay = (val == 0x01U);
                     return true;
-                case 0x45U:
-                    status.timePosition = static_cast<FujinonOSDPosition>(val);
-                    return true;
+                case 0x45U: {
+                    const auto pos = toFujinonOSDPosition(val);
+                    if (pos) {
+                        status.timePosition = *pos;
+                        return true;
+                    }
+                    return false;
+                }
                 case 0x47U:
                     status.titleDisplay = (val == 0x01U);
                     return true;
-                case 0x4BU:
-                    status.titlePosition = static_cast<FujinonOSDPosition>(val);
-                    return true;
+                case 0x4BU: {
+                    const auto pos = toFujinonOSDPosition(val);
+                    if (pos) {
+                        status.titlePosition = *pos;
+                        return true;
+                    }
+                    return false;
+                }
                 case 0x4DU:
                     status.idDisplay = (val == 0x01U);
                     return true;
-                case 0x4FU:
-                    status.idPosition = static_cast<FujinonOSDPosition>(val);
-                    return true;
+                case 0x4FU: {
+                    const auto pos = toFujinonOSDPosition(val);
+                    if (pos) {
+                        status.idPosition = *pos;
+                        return true;
+                    }
+                    return false;
+                }
                 case 0x51U:
                     status.reticleDisplay = (val == 0x01U);
                     return true;
@@ -675,9 +806,14 @@ bool FujinonParser::updateFujinonStatus(const std::vector<std::uint8_t>& frame, 
             case 0x73U: // RS485 termination
                 status.rs485Termination = (frame[5] == 0x01U);
                 return true;
-            case 0x85U: // Language
-                status.language = static_cast<FujinonLanguage>(frame[5]);
-                return true;
+            case 0x85U: { // Language
+                const auto lang = toFujinonLanguage(frame[5]);
+                if (lang) {
+                    status.language = *lang;
+                    return true;
+                }
+                return false;
+            }
             default:
                 break;
             }

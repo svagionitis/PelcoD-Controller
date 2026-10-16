@@ -12,9 +12,10 @@
 
 namespace PelcoD {
 namespace Fujinon {
-    // Canonical namespace for Fujinon camera extensions
+    // Canonical namespace aliases for Fujinon camera extensions
+    using PelcoD::FujinonBuilder;
+    using PelcoD::FujinonParser;
+    using PelcoD::FujinonStatus;
+    using PelcoD::FujinonSX800Device;
 } // namespace Fujinon
-
-// Aliases for backward compatibility
-using namespace Fujinon;
 } // namespace PelcoD

@@ -342,16 +342,18 @@ Multi-Drop RS-485 Bus
 
 ## 6. Recommendations & Action Plan
 
-### Phase 1: Critical Safety & Concurrency Hardening (Immediate)
-1. **Multi-Drop Address Gate:** Bind the device bus address into `FujinonFrameExt` and discard foreign address frames in `onFrame()` before modifying status or resolving query waits.
-2. **RX Callback Shielding:** Wrap client callback invocations in `FujinonFrameExt::publish()` with `try/catch` exception barriers to ensure user-space exceptions cannot terminate the RX thread.
-3. **Dead Query Tag Fix:** Implement decoders in `FujinonParser` for `0x97`, `0x9B`, `0x9D`, `0x5D`, `0xAD`, `0xB1`, `0xB5`, `0xB9`, `0xBD`, and `0xD1`, and bind all 10 query tags in `FujinonFrameExt::matchQuery`.
+### Phase 1: Critical Safety & Concurrency Hardening (Immediate) — ✅ Completed
+*Plan and Details:* [`docs/PelcoD_Fujinon_Phase1_Plan.md`](PelcoD_Fujinon_Phase1_Plan.md)
+1. **Multi-Drop Address Gate:** ✅ Bound the device bus address into `FujinonFrameExt` and discarded foreign address frames in `onFrame()` before modifying status or resolving query waits.
+2. **RX Callback Shielding:** ✅ Wrapped client callback invocations in `FujinonFrameExt::publish()` with `try/catch` exception barriers to ensure user-space exceptions cannot terminate the RX thread.
+3. **Dead Query Tag Fix:** ✅ Implemented decoders in `FujinonParser` for `0x97`, `0x9B`, `0x9D`, `0x5D`, `0xAD`, `0xB1`, `0xB5`, `0xB9`, `0xBD`, and `0xD1`, and bound all 10 query tags in `FujinonFrameExt::matchQuery`.
 
-### Phase 2: Input Robustness & Standards Compliance
-1. **Checksum Barriers:** Add `PelcoDFrame::isValidFrame(frame)` guards at the entry of `isFujinonResponse` and all `parse*` methods.
-2. **Enum Conversion Validators:** Replace raw `static_cast<EnumType>` with validated `constexpr toFujinon*(uint8_t)` helpers.
-3. **`noexcept` Safety:** Eliminate heap allocations (`std::ostringstream`, dynamic `std::string`) from `noexcept` functions in `FujinonParser`.
-4. **Header Hygiene:** Remove `using namespace Fujinon;` from `PelcoDFujinon.h`.
+### Phase 2: Input Robustness & Standards Compliance — ✅ Completed
+*Plan and Details:* [`docs/PelcoD_Fujinon_Phase2_Plan.md`](PelcoD_Fujinon_Phase2_Plan.md)
+1. **Checksum Barriers:** ✅ Added `isValidResponse` entry guards to `isFujinonResponse` and all 19 `parse*` methods, validating 7-byte frames with `PelcoDFrame::isValidFrame(frame)` and 18-byte query frames via checksum modulo 256.
+2. **Enum Conversion Validators:** ✅ Replaced raw `static_cast<EnumType>` with validated `constexpr toFujinon*(uint8_t)` helpers in `FujinonTypes.h` for all 12 enumerations.
+3. **`noexcept` Safety:** ✅ Eliminated heap allocations (`std::ostringstream`) by switching to stack `std::snprintf`, and removed `noexcept` from `parseQuerySerialNumber`, `parseQueryFirmwareVersion`, and `updateFujinonStatus` to prevent abnormal `std::terminate()` on allocation failure.
+4. **Header Hygiene:** ✅ Removed `using namespace Fujinon;` from `PelcoDFujinon.h` in compliance with MISRA C++:2023 Rule 10.3 and MISRA C++:2008 Rule 7-3-6.
 
 ### Phase 3: Architectural Unification & Zero-Alloc Optimization
 1. **Zero-Alloc Hot Path:** Implement `StandardFrame = std::array<uint8_t, 7>` builders in `FujinonBuilder` for all 7-byte commands.

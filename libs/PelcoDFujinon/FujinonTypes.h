@@ -6,6 +6,7 @@
 #include "DeviceStatus.h"
 
 #include <cstdint>
+#include <optional>
 #include <string>
 
 namespace PelcoD {
@@ -191,6 +192,232 @@ enum class FujinonMoviePlayMode : std::uint8_t { Stop = 0x00U, Step = 0x01U, Con
 /// @enum FujinonLogType
 /// @brief Internal diagnostic log category.
 enum class FujinonLogType : std::uint8_t { Zoom = 0x01U, Focus = 0x02U, PowerOnTime = 0x03U, OIS = 0x04U };
+
+/// @brief Validates and converts raw byte to FujinonOISMode.
+/// @param[in] val Raw byte value from frame payload.
+/// @return Validated FujinonOISMode or std::nullopt if out of range.
+[[nodiscard]] constexpr std::optional<FujinonOISMode> toFujinonOISMode(std::uint8_t val) noexcept
+{
+    switch (val) {
+    case 0x01U:
+        return FujinonOISMode::Auto;
+    case 0x02U:
+        return FujinonOISMode::OisOn;
+    case 0x03U:
+        return FujinonOISMode::EisOn;
+    case 0x04U:
+        return FujinonOISMode::Off;
+    default:
+        return std::nullopt;
+    }
+}
+
+/// @brief Validates and converts raw byte to FujinonDayNightMode.
+/// @param[in] val Raw byte value from frame payload.
+/// @return Validated FujinonDayNightMode or std::nullopt if out of range.
+[[nodiscard]] constexpr std::optional<FujinonDayNightMode> toFujinonDayNightMode(std::uint8_t val) noexcept
+{
+    switch (val) {
+    case 0x01U:
+        return FujinonDayNightMode::Auto;
+    case 0x02U:
+        return FujinonDayNightMode::Day;
+    case 0x03U:
+        return FujinonDayNightMode::Night;
+    case 0x04U:
+        return FujinonDayNightMode::External;
+    default:
+        return std::nullopt;
+    }
+}
+
+/// @brief Validates and converts raw byte to FujinonIRWavelength.
+/// @param[in] val Raw byte value from frame payload.
+/// @return Validated FujinonIRWavelength or std::nullopt if out of range.
+[[nodiscard]] constexpr std::optional<FujinonIRWavelength> toFujinonIRWavelength(std::uint8_t val) noexcept
+{
+    switch (val) {
+    case 0x00U:
+        return FujinonIRWavelength::Visible;
+    case 0x01U:
+        return FujinonIRWavelength::W950nm;
+    case 0x02U:
+        return FujinonIRWavelength::W940nm;
+    case 0x03U:
+        return FujinonIRWavelength::W850nm;
+    case 0x04U:
+        return FujinonIRWavelength::W808nm;
+    default:
+        return std::nullopt;
+    }
+}
+
+/// @brief Validates and converts raw byte to FujinonDefogLevel.
+/// @param[in] val Raw byte value from frame payload.
+/// @return Validated FujinonDefogLevel or std::nullopt if out of range.
+[[nodiscard]] constexpr std::optional<FujinonDefogLevel> toFujinonDefogLevel(std::uint8_t val) noexcept
+{
+    switch (val) {
+    case 0x00U:
+        return FujinonDefogLevel::Off;
+    case 0x01U:
+        return FujinonDefogLevel::Level1;
+    case 0x02U:
+        return FujinonDefogLevel::Level2;
+    case 0x03U:
+        return FujinonDefogLevel::Level3;
+    default:
+        return std::nullopt;
+    }
+}
+
+/// @brief Validates and converts raw byte to FujinonHeatHazeLevel.
+/// @param[in] val Raw byte value from frame payload.
+/// @return Validated FujinonHeatHazeLevel or std::nullopt if out of range.
+[[nodiscard]] constexpr std::optional<FujinonHeatHazeLevel> toFujinonHeatHazeLevel(std::uint8_t val) noexcept
+{
+    switch (val) {
+    case 0x00U:
+        return FujinonHeatHazeLevel::Off;
+    case 0x01U:
+        return FujinonHeatHazeLevel::Level1;
+    case 0x02U:
+        return FujinonHeatHazeLevel::Level2;
+    default:
+        return std::nullopt;
+    }
+}
+
+/// @brief Validates and converts raw byte to FujinonWDRLevel.
+/// @param[in] val Raw byte value from frame payload.
+/// @return Validated FujinonWDRLevel or std::nullopt if out of range.
+[[nodiscard]] constexpr std::optional<FujinonWDRLevel> toFujinonWDRLevel(std::uint8_t val) noexcept
+{
+    switch (val) {
+    case 0x00U:
+        return FujinonWDRLevel::Off;
+    case 0x01U:
+        return FujinonWDRLevel::Level1;
+    case 0x02U:
+        return FujinonWDRLevel::Level2;
+    case 0x03U:
+        return FujinonWDRLevel::Level3;
+    default:
+        return std::nullopt;
+    }
+}
+
+/// @brief Validates and converts raw byte to FujinonDigitalZoom.
+/// @param[in] val Raw byte value from frame payload.
+/// @return Validated FujinonDigitalZoom or std::nullopt if out of range.
+[[nodiscard]] constexpr std::optional<FujinonDigitalZoom> toFujinonDigitalZoom(std::uint8_t val) noexcept
+{
+    switch (val) {
+    case 0x00U:
+        return FujinonDigitalZoom::Off;
+    case 0x01U:
+        return FujinonDigitalZoom::X1_25;
+    case 0x02U:
+        return FujinonDigitalZoom::X1_5;
+    case 0x03U:
+        return FujinonDigitalZoom::X1_75;
+    case 0x04U:
+        return FujinonDigitalZoom::X2;
+    default:
+        return std::nullopt;
+    }
+}
+
+/// @brief Validates and converts raw byte to FujinonOSDPosition.
+/// @param[in] val Raw byte value from frame payload.
+/// @return Validated FujinonOSDPosition or std::nullopt if out of range.
+[[nodiscard]] constexpr std::optional<FujinonOSDPosition> toFujinonOSDPosition(std::uint8_t val) noexcept
+{
+    switch (val) {
+    case 0x01U:
+        return FujinonOSDPosition::TopLeft;
+    case 0x02U:
+        return FujinonOSDPosition::BottomLeft;
+    case 0x03U:
+        return FujinonOSDPosition::TopRight;
+    case 0x04U:
+        return FujinonOSDPosition::BottomRight;
+    default:
+        return std::nullopt;
+    }
+}
+
+/// @brief Validates and converts raw byte to FujinonDigitalZoomMode.
+/// @param[in] val Raw byte value from frame payload.
+/// @return Validated FujinonDigitalZoomMode or std::nullopt if out of range.
+[[nodiscard]] constexpr std::optional<FujinonDigitalZoomMode> toFujinonDigitalZoomMode(std::uint8_t val) noexcept
+{
+    switch (val) {
+    case 0x00U:
+        return FujinonDigitalZoomMode::Off;
+    case 0x01U:
+        return FujinonDigitalZoomMode::DigitalZoom;
+    case 0x02U:
+        return FujinonDigitalZoomMode::CropMode;
+    default:
+        return std::nullopt;
+    }
+}
+
+/// @brief Validates and converts raw byte to FujinonDayNightModeEx.
+/// @param[in] val Raw byte value from frame payload.
+/// @return Validated FujinonDayNightModeEx or std::nullopt if out of range.
+[[nodiscard]] constexpr std::optional<FujinonDayNightModeEx> toFujinonDayNightModeEx(std::uint8_t val) noexcept
+{
+    switch (val) {
+    case 0x00U:
+        return FujinonDayNightModeEx::Auto;
+    case 0x01U:
+        return FujinonDayNightModeEx::AutoAndScheduled;
+    case 0x02U:
+        return FujinonDayNightModeEx::Scheduled;
+    case 0x03U:
+        return FujinonDayNightModeEx::Day;
+    case 0x04U:
+        return FujinonDayNightModeEx::Night;
+    default:
+        return std::nullopt;
+    }
+}
+
+/// @brief Validates and converts raw byte to FujinonLanguage.
+/// @param[in] val Raw byte value from frame payload.
+/// @return Validated FujinonLanguage or std::nullopt if out of range.
+[[nodiscard]] constexpr std::optional<FujinonLanguage> toFujinonLanguage(std::uint8_t val) noexcept
+{
+    switch (val) {
+    case 0x00U:
+        return FujinonLanguage::English;
+    case 0x01U:
+        return FujinonLanguage::French;
+    case 0x03U:
+        return FujinonLanguage::Japanese;
+    default:
+        return std::nullopt;
+    }
+}
+
+/// @brief Validates and converts raw byte to FujinonAutoFocusMode.
+/// @param[in] val Raw byte value from frame payload.
+/// @return Validated FujinonAutoFocusMode or std::nullopt if out of range.
+[[nodiscard]] constexpr std::optional<FujinonAutoFocusMode> toFujinonAutoFocusMode(std::uint8_t val) noexcept
+{
+    switch (val) {
+    case 0x00U:
+        return FujinonAutoFocusMode::AFOn;
+    case 0x01U:
+        return FujinonAutoFocusMode::AFOff;
+    case 0x02U:
+        return FujinonAutoFocusMode::QuickAF;
+    default:
+        return std::nullopt;
+    }
+}
 
 /// @struct FujinonPhotoSettings
 /// @brief Snapshot decoded from 18-byte Query Photo Setting response.

@@ -18,6 +18,11 @@ class FujinonParser {
 public:
     FujinonParser() = delete;
 
+    /// @brief Validates frame length, synchronization byte, and Pelco-D checksum.
+    /// @param[in] frame Raw frame bytes to validate.
+    /// @return True if frame conforms to standard 7-byte or 18-byte protocol checksum.
+    [[nodiscard]] static bool isValidResponse(const std::vector<std::uint8_t>& frame) noexcept;
+
     /// @brief Checks if frame is an extended Fujinon response.
     [[nodiscard]] static bool isFujinonResponse(const std::vector<std::uint8_t>& frame) noexcept;
 
@@ -28,12 +33,10 @@ public:
     [[nodiscard]] static bool parseQueryZoom(const std::vector<std::uint8_t>& frame, std::uint16_t& zoomPos) noexcept;
 
     /// @brief Decodes 18-byte Serial Number response (0x00 0x89).
-    [[nodiscard]] static bool parseQuerySerialNumber(
-        const std::vector<std::uint8_t>& frame, std::string& serialStr) noexcept;
+    [[nodiscard]] static bool parseQuerySerialNumber(const std::vector<std::uint8_t>& frame, std::string& serialStr);
 
     /// @brief Decodes 7-byte Firmware Version response (0x00 0x8B).
-    [[nodiscard]] static bool parseQueryFirmwareVersion(
-        const std::vector<std::uint8_t>& frame, std::string& fwStr) noexcept;
+    [[nodiscard]] static bool parseQueryFirmwareVersion(const std::vector<std::uint8_t>& frame, std::string& fwStr);
 
     /// @brief Decodes 7-byte Lens Status response (0x00 0x8D).
     [[nodiscard]] static bool parseQueryLensStatus(
@@ -153,8 +156,7 @@ public:
     /// @param[in] frame Raw response packet.
     /// @param[in,out] status Telemetry status structure to update.
     /// @return True if frame matched and updated status; false otherwise.
-    [[nodiscard]] static bool updateFujinonStatus(
-        const std::vector<std::uint8_t>& frame, FujinonStatus& status) noexcept;
+    [[nodiscard]] static bool updateFujinonStatus(const std::vector<std::uint8_t>& frame, FujinonStatus& status);
 };
 
 } // namespace PelcoD
