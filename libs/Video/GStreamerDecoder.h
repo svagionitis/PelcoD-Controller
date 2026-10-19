@@ -5,6 +5,9 @@
 
 #include "BaseVideoDecoder.h"
 
+#include <chrono>
+#include <cstddef>
+#include <cstdint>
 #include <memory>
 #include <string>
 #include <string_view>
@@ -117,9 +120,14 @@ private:
     std::string getBusErrorMessage();
     void setupKlvProbe(GstPad* pad);
 
+    static constexpr guint kRtspJitterBufferMs { 150U };
+    static constexpr GstClockTime kPullSampleTimeoutNs { 100U * GST_MSECOND };
+    static constexpr int kStarvationTimeoutMs { 8000 };
+
     GstElementPtr m_pipeline;
     GstElement* m_sink { nullptr };
     bool m_reachedEof { false };
+    std::chrono::steady_clock::time_point m_lastSampleTime {};
 };
 
 } // namespace Video

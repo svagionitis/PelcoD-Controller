@@ -2,6 +2,8 @@
 
 #if defined(PELCOD_HAS_GSTREAMER)
 
+#include <cstddef>
+#include <cstdint>
 #include <cstring>
 
 #include <algorithm>
@@ -52,6 +54,7 @@ void GStreamerDecoder::close()
     m_frameBuffer.clear();
     m_reachedEof = false;
     m_reconnectAttempts = 0;
+    m_lastSampleTime = {};
 }
 
 std::string GStreamerDecoder::getBusErrorMessage()
@@ -68,9 +71,18 @@ std::string GStreamerDecoder::getBusErrorMessage()
     if (msg != nullptr) {
         GError* err = nullptr;
         gchar* debugInfo = nullptr;
-        gst_message_parse_error(msg, &err, &debugInfo);
+        if (GST_MESSAGE_TYPE(msg) == GST_MESSAGE_ERROR) {
+            gst_message_parse_error(msg, &err, &debugInfo);
+        } else if (GST_MESSAGE_TYPE(msg) == GST_MESSAGE_WARNING) {
+            gst_message_parse_warning(msg, &err, &debugInfo);
+        }
         if (err != nullptr) {
             errMsg = err->message;
+            if (debugInfo != nullptr) {
+                errMsg += " (";
+                errMsg += debugInfo;
+                errMsg += ")";
+            }
             g_error_free(err);
         }
         if (debugInfo != nullptr) {
@@ -97,7 +109,7 @@ bool GStreamerDecoder::initialize(std::string_view source, PixelFormat format, i
     const SourceType srcType = detectSourceType(m_filePath);
     std::string uri;
     if (srcType != SourceType::Device) {
-        uri = m_filePath;
+        uri = buildAuthenticatedUri(m_filePath);
         if (uri.find("://") == std::string::npos) {
             gchar* fileUri = gst_filename_to_uri(uri.c_str(), nullptr);
             if (fileUri != nullptr) {
@@ -114,6 +126,14 @@ bool GStreamerDecoder::initialize(std::string_view source, PixelFormat format, i
         return false;
     }
     m_pipeline.reset(playbinRaw);
+
+    // Disable audio, text, and visualizers to avoid preroll stalls in video-only decoding
+    // 0x01 = GST_PLAY_FLAG_VIDEO, 0x400 = GST_PLAY_FLAG_SOFT_COLORBALANCE, 0x1000 = GST_PLAY_FLAG_FORCE_SW_DECODERS
+    int playFlags = 0x00000401;
+    if (m_deviceType == DeviceType::CPU) {
+        playFlags |= 0x00001000;
+    }
+    g_object_set(G_OBJECT(playbinRaw), "flags", playFlags, nullptr);
 
     g_signal_connect(playbinRaw, "deep-element-added",
         G_CALLBACK(+[](GstBin*, GstBin*, GstElement* element, gpointer data) {
@@ -136,7 +156,7 @@ bool GStreamerDecoder::initialize(std::string_view source, PixelFormat format, i
             if (srcElem != nullptr
                 && g_object_class_find_property(G_OBJECT_GET_CLASS(srcElem), "protocols") != nullptr) {
                 // GstRTSPLowerTrans flags: UDP=1, UDP_MCAST=2, TCP=4
-                int proto = 1 | 4; // Auto: UDP with TCP fallback
+                int proto = 4; // Default to TCP interleaved for reliable NAT/firewall traversal
                 switch (self->rtspTransport()) {
                 case RtspTransportMode::Tcp:
                     proto = 4;
@@ -148,12 +168,15 @@ bool GStreamerDecoder::initialize(std::string_view source, PixelFormat format, i
                     proto = 2;
                     break;
                 case RtspTransportMode::Auto:
-                    proto = 1 | 4;
+                    proto = 4;
                     break;
                 }
-                g_object_set(srcElem, "protocols", proto, "latency", 0, nullptr);
+                g_object_set(srcElem, "protocols", proto, "latency", kRtspJitterBufferMs, nullptr);
+                if (g_object_class_find_property(G_OBJECT_GET_CLASS(srcElem), "timeout") != nullptr) {
+                    g_object_set(srcElem, "timeout", static_cast<guint64>(1500000), nullptr);
+                }
                 if (g_object_class_find_property(G_OBJECT_GET_CLASS(srcElem), "drop-on-latency") != nullptr) {
-                    g_object_set(srcElem, "drop-on-latency", TRUE, nullptr);
+                    g_object_set(srcElem, "drop-on-latency", FALSE, nullptr);
                 }
                 if (self->hasCredentials()
                     && g_object_class_find_property(G_OBJECT_GET_CLASS(srcElem), "user-id") != nullptr) {
@@ -188,6 +211,7 @@ bool GStreamerDecoder::initialize(std::string_view source, PixelFormat format, i
     gst_app_sink_set_drop(GST_APP_SINK(m_sink), TRUE);
     gst_app_sink_set_max_buffers(GST_APP_SINK(m_sink), 2);
     gst_base_sink_set_sync(GST_BASE_SINK(m_sink), FALSE);
+    g_object_set(G_OBJECT(m_sink), "async", FALSE, nullptr);
 
     gst_bin_add_many(GST_BIN(sinkBin), conv, appsink, nullptr);
     if (!gst_element_link(conv, appsink)) {
@@ -246,6 +270,7 @@ bool GStreamerDecoder::initialize(std::string_view source, PixelFormat format, i
     m_isLiveStream = (m_duration <= 0.0 || detectSourceType(m_filePath) == SourceType::Rtsp
         || detectSourceType(m_filePath) == SourceType::Device);
 
+    m_lastSampleTime = std::chrono::steady_clock::now();
     m_isInitialized = true;
     const auto end = std::chrono::steady_clock::now();
     m_initTimeMs = std::chrono::duration<double, std::milli>(end - start).count();
@@ -281,11 +306,11 @@ bool GStreamerDecoder::decodeNextFrame()
 
     const auto start = std::chrono::steady_clock::now();
 
-    GstSample* sample = gst_app_sink_pull_sample(GST_APP_SINK(m_sink));
+    GstSample* sample = gst_app_sink_try_pull_sample(GST_APP_SINK(m_sink), kPullSampleTimeoutNs);
     if (!sample) {
+        const bool isLive = (m_duration <= 0.0 || m_isLiveStream || detectSourceType(m_filePath) == SourceType::Rtsp);
+
         if (gst_app_sink_is_eos(GST_APP_SINK(m_sink))) {
-            const bool isLive
-                = (m_duration <= 0.0 || m_isLiveStream || detectSourceType(m_filePath) == SourceType::Rtsp);
             if (isLive && m_autoReconnect) {
                 LOG(WARNING) << "GStreamerDecoder: Unexpected EOS on live stream. Triggering reconnection...";
                 m_isInitialized = false;
@@ -299,21 +324,44 @@ bool GStreamerDecoder::decodeNextFrame()
             return false;
         }
 
-        // Potential live stream drop -> auto-reconnect
-        const bool isLive = (m_duration <= 0.0 || m_isLiveStream || detectSourceType(m_filePath) == SourceType::Rtsp);
-        if (isLive && m_autoReconnect) {
-            LOG(WARNING) << "GStreamerDecoder: Stream sample timeout. Reconnecting...";
-            ++m_reconnectAttempts;
-            m_isInitialized = false;
-            std::this_thread::sleep_for(std::chrono::milliseconds(200));
-            if (reconnect()) {
-                m_reconnectAttempts = 0;
-                return decodeNextFrame();
+        // Check for bus errors (e.g. connection refused, network stall)
+        const std::string busErr = getBusErrorMessage();
+        if (!busErr.empty()) {
+            LOG(ERROR) << "GStreamerDecoder: Pipeline error from bus: " << busErr;
+            if (isLive && m_autoReconnect) {
+                ++m_reconnectAttempts;
+                m_isInitialized = false;
+                std::this_thread::sleep_for(std::chrono::milliseconds(200));
+                if (reconnect()) {
+                    m_reconnectAttempts = 0;
+                    return decodeNextFrame();
+                }
             }
             return false;
         }
+
+        // Starvation detection: only reconnect if no samples arrived for kStarvationTimeoutMs
+        if (isLive && m_autoReconnect) {
+            const auto now = std::chrono::steady_clock::now();
+            const auto elapsedMs
+                = std::chrono::duration_cast<std::chrono::milliseconds>(now - m_lastSampleTime).count();
+            if (elapsedMs >= kStarvationTimeoutMs) {
+                LOG(WARNING) << "GStreamerDecoder: Stream starvation timeout (" << elapsedMs << " ms). Reconnecting...";
+                ++m_reconnectAttempts;
+                m_isInitialized = false;
+                std::this_thread::sleep_for(std::chrono::milliseconds(200));
+                if (reconnect()) {
+                    m_reconnectAttempts = 0;
+                    return decodeNextFrame();
+                }
+                return false;
+            }
+        }
+
         return false;
     }
+
+    m_lastSampleTime = std::chrono::steady_clock::now();
 
     GstCaps* caps = gst_sample_get_caps(sample);
     if (caps) {
@@ -393,9 +441,17 @@ void GStreamerDecoder::setupKlvProbe(GstPad* pad)
         gchar* capsStr = gst_caps_to_string(caps);
         if (capsStr != nullptr) {
             const std::string_view str(capsStr);
+            // Explicitly ignore RTP/RTCP transport containers, video, and audio streams
+            if (str.find("application/x-rtp") != std::string_view::npos
+                || str.find("application/x-rtcp") != std::string_view::npos
+                || str.find("video/") != std::string_view::npos || str.find("audio/") != std::string_view::npos) {
+                g_free(capsStr);
+                gst_caps_unref(caps);
+                return;
+            }
+
             if (str.find("meta/x-klv") != std::string_view::npos || str.find("smpte336m") != std::string_view::npos
-                || (str.find("application/") != std::string_view::npos
-                    && str.find("video") == std::string_view::npos)) {
+                || str.find("application/x-klv") != std::string_view::npos) {
                 isKlvOrMeta = true;
             }
             g_free(capsStr);
@@ -406,8 +462,7 @@ void GStreamerDecoder::setupKlvProbe(GstPad* pad)
     gchar* padName = gst_pad_get_name(pad);
     if (padName != nullptr) {
         const std::string_view name(padName);
-        if (name.rfind("private_", 0) == 0 || name.find("meta") != std::string_view::npos
-            || name.find("klv") != std::string_view::npos) {
+        if (name.rfind("private_", 0) == 0 || name.rfind("meta_", 0) == 0) {
             isKlvOrMeta = true;
         }
         g_free(padName);

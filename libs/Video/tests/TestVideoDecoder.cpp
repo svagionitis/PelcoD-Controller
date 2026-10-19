@@ -2236,6 +2236,15 @@ TEST(VideoDecoderTest, GStreamerDecoderDemuxesKlvMetadataStream)
         decoder->close();
     }
 }
+
+TEST(VideoDecoderTest, GStreamerDecoderNonBlockingTimeout)
+{
+    auto decoder = DecoderFactory::create(BackendType::GStreamer);
+    ASSERT_TRUE(decoder != nullptr);
+
+    EXPECT_FALSE(decoder->isInitialized());
+    EXPECT_FALSE(decoder->decodeNextFrame());
+}
 #endif
 
 TEST(VideoDecoderTest, ColorConverterYuvToRgb)
