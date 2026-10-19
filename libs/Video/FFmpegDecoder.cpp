@@ -1,12 +1,18 @@
 #include "FFmpegDecoder.h"
-#include "LatencyTracker.h"
 
 #if defined(PELCOD_HAS_FFMPEG)
 
-#include <chrono>
+#include <cstdint>
 #include <cstring>
-#include <glog/logging.h>
+
+#include <chrono>
+#include <string>
+#include <string_view>
 #include <thread>
+
+#include <glog/logging.h>
+
+#include "LatencyTracker.h"
 
 // Check if libavformat version is older than 59.4.100
 #if LIBAVFORMAT_VERSION_INT < AV_VERSION_INT(59, 4, 100)
@@ -151,6 +157,15 @@ bool FFmpegDecoder::initialize(std::string_view source, PixelFormat format, int 
                 break;
             }
         }
+    }
+
+    if (m_isLiveStream) {
+        // Eliminate demuxer packet buffering and max delay for real-time live camera streams
+        av_dict_set(&options, "fflags", "nobuffer", 0);
+        av_dict_set(&options, "max_delay", "0", 0);
+        if (formatCtxRaw != nullptr) {
+            formatCtxRaw->flags |= AVFMT_FLAG_NOBUFFER;
+        }
     } else if (srcType == SourceType::Device) {
 #ifdef _WIN32
         iformat = av_find_input_format("dshow");
@@ -233,6 +248,11 @@ bool FFmpegDecoder::initialize(std::string_view source, PixelFormat format, int 
 
     m_codecCtx->thread_count = m_threadCount;
     m_codecCtx->thread_type = FF_THREAD_FRAME | FF_THREAD_SLICE;
+
+    if (m_isLiveStream) {
+        // Enforce immediate zero-latency frame output without B-frame reordering delay
+        m_codecCtx->flags |= AV_CODEC_FLAG_LOW_DELAY;
+    }
 
     // Configure hardware acceleration
     if (m_deviceType != DeviceType::CPU) {

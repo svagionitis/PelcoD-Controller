@@ -1,15 +1,20 @@
 #include "GStreamerDecoder.h"
-#include "LatencyTracker.h"
 
 #if defined(PELCOD_HAS_GSTREAMER)
 
+#include <cstring>
+
 #include <algorithm>
 #include <chrono>
-#include <cstring>
+#include <mutex>
+#include <string>
+#include <string_view>
+#include <thread>
+
 #include <glog/logging.h>
 #include <gst/video/video.h>
-#include <mutex>
-#include <thread>
+
+#include "LatencyTracker.h"
 
 namespace Video {
 
@@ -146,7 +151,10 @@ bool GStreamerDecoder::initialize(std::string_view source, PixelFormat format, i
                     proto = 1 | 4;
                     break;
                 }
-                g_object_set(srcElem, "protocols", proto, "latency", 100, nullptr);
+                g_object_set(srcElem, "protocols", proto, "latency", 0, nullptr);
+                if (g_object_class_find_property(G_OBJECT_GET_CLASS(srcElem), "drop-on-latency") != nullptr) {
+                    g_object_set(srcElem, "drop-on-latency", TRUE, nullptr);
+                }
                 if (self->hasCredentials()
                     && g_object_class_find_property(G_OBJECT_GET_CLASS(srcElem), "user-id") != nullptr) {
                     const std::string user = self->rtspUsername();
