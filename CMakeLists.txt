@@ -1,4 +1,7 @@
 cmake_minimum_required(VERSION 3.16)
+if(POLICY CMP0100)
+    cmake_policy(SET CMP0100 NEW)
+endif()
 # Disable Qt Creator automatic vcpkg and MaintenanceTool provider warnings
 set(QT_CREATOR_SKIP_VCPKG_SETUP ON CACHE BOOL "Disable Qt Creator automatic vcpkg setup")
 set(QT_CREATOR_ENABLE_MAINTENANCE_TOOL_PROVIDER OFF CACHE BOOL "Disable Qt Creator MaintenanceTool provider")
@@ -65,6 +68,7 @@ option(PELCOD_ENABLE_DJI "Build DJI MP4 subtitle telemetry reader (depends on Kl
 option(PELCOD_ENABLE_VIDEO "Build in-tree RTSP video decoder and overlay subsystem" ON)
 option(PELCOD_ENABLE_FFMPEG "Enable FFmpeg decoder backend in PelcoDVideo" ON)
 option(PELCOD_ENABLE_GSTREAMER "Enable GStreamer decoder backend in PelcoDVideo" ON)
+option(PELCOD_ENABLE_LIVE555 "Enable Live555 + OpenH264 decoder backend in PelcoDVideo" ON)
 option(PELCOD_ENABLE_FILTERS "Enable OpenCV video enhancement filters in PelcoDVideo" ON)
 
 if(PELCOD_ENABLE_VIDEO)
@@ -162,6 +166,37 @@ if(PELCOD_ENABLE_VIDEO)
         else()
             message(WARNING "PelcoDVideo: GStreamer libraries not found, disabling GStreamer backend")
             set(PELCOD_ENABLE_GSTREAMER OFF)
+        endif()
+    endif()
+
+    # Live555 and OpenH264 components
+    if(PELCOD_ENABLE_LIVE555)
+        include(FindOrFetchLive555)
+
+        find_package(PkgConfig QUIET)
+        if(PKG_CONFIG_FOUND)
+            pkg_check_modules(OPENH264 QUIET openh264)
+            if(OPENH264_FOUND)
+                set(OPENH264_INCLUDE_DIRS ${OPENH264_INCLUDE_DIRS})
+                set(OPENH264_LIBRARIES ${OPENH264_LINK_LIBRARIES})
+            endif()
+        endif()
+
+        if(NOT OPENH264_FOUND)
+            find_path(OPENH264_INCLUDE_DIR NAMES wels/codec_api.h PATHS "C:/vcpkg/installed/x64-windows/include")
+            find_library(OPENH264_LIB NAMES openh264 PATHS "C:/vcpkg/installed/x64-windows/lib")
+            if(OPENH264_INCLUDE_DIR AND OPENH264_LIB)
+                set(OPENH264_FOUND TRUE)
+                set(OPENH264_INCLUDE_DIRS ${OPENH264_INCLUDE_DIR})
+                set(OPENH264_LIBRARIES ${OPENH264_LIB})
+            endif()
+        endif()
+
+        if(LIVE555_FOUND AND OPENH264_FOUND)
+            message(STATUS "PelcoDVideo: Live555 + OpenH264 backend enabled")
+        else()
+            message(STATUS "PelcoDVideo: Live555 or OpenH264 libraries not found, disabling Live555 backend")
+            set(PELCOD_ENABLE_LIVE555 OFF)
         endif()
     endif()
 

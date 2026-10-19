@@ -2,6 +2,21 @@
 /// @brief Master QML controller bridging UI events with Video and VideoFilters subsystems.
 
 #include "VideoPlayerController.h"
+
+#include <cstddef>
+#include <cstdint>
+
+#include <algorithm>
+#include <chrono>
+#include <memory>
+#include <vector>
+
+#include <QDateTime>
+#include <QDir>
+#include <QFile>
+#include <QStandardPaths>
+#include <QUrl>
+
 #include "LatencyTracker.h"
 #include "MpegTsKlvExtractor.h"
 #include "VideoQuickItem.h"
@@ -14,14 +29,6 @@
 #if defined(PELCOD_HAS_DJI)
 #include "DjiTelemetrySource.h"
 #endif
-
-#include <QDateTime>
-#include <QDir>
-#include <QFile>
-#include <QStandardPaths>
-#include <QUrl>
-#include <algorithm>
-#include <chrono>
 
 namespace VideoApp {
 
@@ -112,6 +119,9 @@ QStringList VideoPlayerController::availableBackends() const
             break;
         case Video::BackendType::GStreamer:
             list.append(tr("GStreamer Pipeline"));
+            break;
+        case Video::BackendType::Live555:
+            list.append(tr("Live555 + OpenH264 (Low-Latency RTSP)"));
             break;
         case Video::BackendType::Mock:
             list.append(tr("Mock Synthetic Generator"));

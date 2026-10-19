@@ -3,6 +3,7 @@
 
 #include "AtomicTripleBuffer.h"
 #include "BrailleRenderer.h"
+#include "ColorConverter.h"
 #include "DecoderFactory.h"
 #include "DecoderTypes.h"
 #include "DeviceEnumerator.h"
@@ -13,18 +14,26 @@
 #include "VideoFilters.h"
 #endif
 
+#include <cassert>
+#include <cmath>
+#include <cstddef>
+#include <cstdint>
+
+#include <algorithm>
+#include <atomic>
+#include <chrono>
+#include <filesystem>
+#include <iostream>
+#include <memory>
+#include <string>
+#include <thread>
+#include <vector>
+
 #include <QCoreApplication>
 #include <QImage>
 #include <QSignalSpy>
 #include <QTest>
-#include <algorithm>
-#include <atomic>
-#include <cassert>
-#include <cmath>
-#include <filesystem>
 #include <gtest/gtest.h>
-#include <iostream>
-#include <thread>
 
 using namespace Video;
 
@@ -177,6 +186,15 @@ TEST(VideoDecoderTest, DecoderFactory)
     EXPECT_TRUE(std::find(backends.begin(), backends.end(), BackendType::GStreamer) != backends.end());
     auto gst = DecoderFactory::create(BackendType::GStreamer);
     EXPECT_TRUE(gst != nullptr);
+#endif
+
+#if defined(PELCOD_HAS_LIVE555)
+    EXPECT_TRUE(std::find(backends.begin(), backends.end(), BackendType::Live555) != backends.end());
+    auto live555 = DecoderFactory::create(BackendType::Live555);
+    EXPECT_TRUE(live555 != nullptr);
+#else
+    auto live555Fallback = DecoderFactory::create(BackendType::Live555);
+    EXPECT_TRUE(live555Fallback != nullptr);
 #endif
 }
 
@@ -2219,6 +2237,46 @@ TEST(VideoDecoderTest, GStreamerDecoderDemuxesKlvMetadataStream)
     }
 }
 #endif
+
+TEST(VideoDecoderTest, ColorConverterYuvToRgb)
+{
+    // Test null input safety
+    EXPECT_FALSE(ColorConverter::yuv420ToRgb(nullptr, nullptr, nullptr, 640, 360, 640, 320, 320, nullptr));
+
+    // Test invalid dimensions
+    std::vector<std::uint8_t> dummyY(640 * 360, 128);
+    std::vector<std::uint8_t> dummyU(320 * 180, 128);
+    std::vector<std::uint8_t> dummyV(320 * 180, 128);
+    std::vector<std::uint8_t> dst(640 * 360 * 3, 0);
+
+    EXPECT_FALSE(
+        ColorConverter::yuv420ToRgb(dummyY.data(), dummyU.data(), dummyV.data(), 0, 360, 640, 320, 320, dst.data()));
+    EXPECT_FALSE(
+        ColorConverter::yuv420ToRgb(dummyY.data(), dummyU.data(), dummyV.data(), 640, -1, 640, 320, 320, dst.data()));
+
+    // Test standard black (Y=0, U=128, V=128) -> RGB=(0, 0, 0)
+    std::fill(dummyY.begin(), dummyY.end(), 0);
+    EXPECT_TRUE(ColorConverter::yuv420ToRgb(
+        dummyY.data(), dummyU.data(), dummyV.data(), 640, 360, 640, 320, 320, dst.data(), PixelFormat::RGB24));
+    EXPECT_EQ(dst[0], 0);
+    EXPECT_EQ(dst[1], 0);
+    EXPECT_EQ(dst[2], 0);
+
+    // Test standard white (Y=255, U=128, V=128) -> RGB=(255, 255, 255)
+    std::fill(dummyY.begin(), dummyY.end(), 255);
+    EXPECT_TRUE(ColorConverter::yuv420ToRgb(
+        dummyY.data(), dummyU.data(), dummyV.data(), 640, 360, 640, 320, 320, dst.data(), PixelFormat::RGB24));
+    EXPECT_EQ(dst[0], 255);
+    EXPECT_EQ(dst[1], 255);
+    EXPECT_EQ(dst[2], 255);
+
+    // Test BGR24 output
+    EXPECT_TRUE(ColorConverter::yuv420ToRgb(
+        dummyY.data(), dummyU.data(), dummyV.data(), 640, 360, 640, 320, 320, dst.data(), PixelFormat::BGR24));
+    EXPECT_EQ(dst[0], 255);
+    EXPECT_EQ(dst[1], 255);
+    EXPECT_EQ(dst[2], 255);
+}
 
 int main(int argc, char* argv[])
 {

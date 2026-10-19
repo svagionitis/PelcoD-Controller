@@ -1,6 +1,9 @@
 #include "VideoStreamTab.h"
-#include "DecoderFactory.h"
-#include "DeviceEnumerator.h"
+
+#include <cstdint>
+
+#include <chrono>
+#include <memory>
 
 #include <QDateTime>
 #include <QFileDialog>
@@ -12,6 +15,9 @@
 #include <QShortcut>
 #include <QSplitter>
 #include <QStandardPaths>
+
+#include "DecoderFactory.h"
+#include "DeviceEnumerator.h"
 
 #if defined(PELCOD_HAS_FILTERS)
 #include "VideoFilters.h"
@@ -116,6 +122,9 @@ void VideoStreamTab::setupUi()
             break;
         case Video::BackendType::GStreamer:
             m_backendCombo->addItem(tr("GStreamer (Playbin)"), static_cast<int>(b));
+            break;
+        case Video::BackendType::Live555:
+            m_backendCombo->addItem(tr("Live555 (Low-Latency RTSP)"), static_cast<int>(b));
             break;
         case Video::BackendType::Mock:
             m_backendCombo->addItem(tr("Mock Synthetic"), static_cast<int>(b));

@@ -470,10 +470,12 @@ void printUsage(std::string_view progName)
                 result.videoBackend = Video::BackendType::FFmpeg;
             } else if (beStr == "gstreamer") {
                 result.videoBackend = Video::BackendType::GStreamer;
+            } else if (beStr == "live555") {
+                result.videoBackend = Video::BackendType::Live555;
             } else {
                 result.status = ParseStatus::Error;
-                result.errorMessage
-                    = "Unknown video backend '" + std::string(beStr) + "': expected mock, ffmpeg, or gstreamer";
+                result.errorMessage = "Unknown video backend '" + std::string(beStr)
+                    + "': expected mock, ffmpeg, gstreamer, or live555";
                 return result;
             }
 #if defined(PELCOD_ENABLE_ONVIF)

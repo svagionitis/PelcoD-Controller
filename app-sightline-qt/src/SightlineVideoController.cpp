@@ -3,7 +3,13 @@
 
 #include "SightlineVideoController.h"
 
-#include <Transport/SdpGenerator.h>
+#include <cstddef>
+#include <cstdint>
+
+#include <algorithm>
+#include <array>
+#include <chrono>
+#include <memory>
 
 #include <QColor>
 #include <QCoreApplication>
@@ -13,8 +19,8 @@
 #include <QDir>
 #include <QStandardPaths>
 #include <QUrl>
-#include <algorithm>
-#include <chrono>
+
+#include <Transport/SdpGenerator.h>
 
 namespace SightlineApp {
 
@@ -266,6 +272,9 @@ QStringList SightlineVideoController::availableBackends() const
             break;
         case Video::BackendType::GStreamer:
             list.append(QStringLiteral("GStreamer"));
+            break;
+        case Video::BackendType::Live555:
+            list.append(QStringLiteral("Live555"));
             break;
         case Video::BackendType::Mock:
             list.append(QStringLiteral("Mock/Synthetic"));

@@ -1,0 +1,102 @@
+#pragma once
+
+/// @file Live555Decoder.h
+/// @brief Ultra-low latency RTSP video decoder backend using Live555 and Cisco OpenH264.
+
+#include "BaseVideoDecoder.h"
+#include "DecoderTypes.h"
+
+#include <atomic>
+#include <condition_variable>
+#include <cstddef>
+#include <cstdint>
+#include <deque>
+#include <mutex>
+#include <string_view>
+#include <thread>
+#include <vector>
+
+#if defined(PELCOD_HAS_LIVE555)
+class TaskScheduler;
+class UsageEnvironment;
+class RTSPClient;
+class MediaSession;
+class MediaSubsession;
+class ISVCDecoder;
+#endif
+
+namespace Video {
+
+#if defined(PELCOD_HAS_LIVE555)
+class Live555H264Sink;
+#endif
+
+/// @struct NaluPacket
+/// @brief Internal container holding a single Annex-B NAL unit and its timestamp.
+struct NaluPacket {
+    std::vector<std::uint8_t> data; ///< Annex-B NAL unit byte payload
+    double timestamp { 0.0 }; ///< Presentation timestamp (PTS) in seconds
+};
+
+/// @class Live555Decoder
+/// @brief High-performance RTSP video decoder utilizing Live555 for streaming and OpenH264 for decoding.
+class Live555Decoder : public BaseVideoDecoder {
+public:
+    /// @brief Default constructor.
+    Live555Decoder();
+
+    /// @brief Destructor releasing network threads and codec resources.
+    ~Live555Decoder() override;
+
+    /// @brief Initializes Live555 RTSP session and OpenH264 decoder.
+    /// @param[in] source RTSP stream URI.
+    /// @param[in] format Output pixel format (defaults to RGB24).
+    /// @param[in] threadCount Worker thread count.
+    /// @param[in] device Hardware acceleration type (CPU only for OpenH264).
+    /// @return True if connection established and decoder ready.
+    bool initialize(std::string_view source, PixelFormat format = PixelFormat::RGB24, int threadCount = 0,
+        DeviceType device = DeviceType::CPU) override;
+
+    /// @brief Decodes the next available H.264 frame from the input queue.
+    /// @return True if a complete video frame was decoded.
+    bool decodeNextFrame() override;
+
+    /// @brief Seek operation (unsupported for live RTSP streams).
+    /// @param[in] timeInSeconds Target timestamp in seconds.
+    /// @return False as live streams do not support seeking.
+    bool seek(double timeInSeconds) override;
+
+    /// @brief Closes the RTSP stream and tears down network/decoder workers.
+    void close() override;
+
+    /// @brief Asynchronously interrupts active network selects and blocking queues.
+    void interrupt() noexcept override;
+
+private:
+    void startNetworkLoop();
+    void stopNetworkLoop();
+    void onNaluReceived(const std::uint8_t* data, std::size_t size, double pts);
+
+    std::atomic<bool> m_running { false };
+    std::atomic<bool> m_connected { false };
+    std::atomic<bool> m_interrupted { false };
+
+    std::mutex m_queueMutex;
+    std::condition_variable m_queueCv;
+    std::deque<NaluPacket> m_naluQueue;
+
+    std::thread m_networkThread;
+
+#if defined(PELCOD_HAS_LIVE555)
+    char volatile m_watchVariable { 0 };
+    TaskScheduler* m_scheduler { nullptr };
+    UsageEnvironment* m_env { nullptr };
+    RTSPClient* m_rtspClient { nullptr };
+    MediaSession* m_session { nullptr };
+    MediaSubsession* m_subsession { nullptr };
+    Live555H264Sink* m_sink { nullptr };
+    ISVCDecoder* m_decoder { nullptr };
+#endif
+};
+
+} // namespace Video

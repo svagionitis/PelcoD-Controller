@@ -1,7 +1,12 @@
 #include "TuiApp.h"
 
+#include <cstdint>
+
 #include <chrono>
+#include <memory>
+#include <string>
 #include <thread>
+#include <vector>
 
 namespace PelcoDTui {
 
@@ -84,7 +89,8 @@ void TuiApp::videoWorkerLoop()
 
     const std::string backendName = (m_videoBackend == videodecoder::BackendType::Mock) ? "Mock"
         : (m_videoBackend == videodecoder::BackendType::FFmpeg)                         ? "FFmpeg"
-                                                                                        : "GStreamer";
+        : (m_videoBackend == videodecoder::BackendType::GStreamer)                      ? "GStreamer"
+                                                                                        : "Live555";
 
     m_videoView.setStreamInfo(videodecoder::StreamState::Connecting, m_videoSource, backendName);
 

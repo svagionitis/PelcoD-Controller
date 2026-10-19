@@ -1,4 +1,10 @@
 #include "DecoderFactory.h"
+
+#include <memory>
+#include <vector>
+
+#include <glog/logging.h>
+
 #include "MockVideoDecoder.h"
 
 #if defined(PELCOD_HAS_FFMPEG)
@@ -9,7 +15,9 @@
 #include "GStreamerDecoder.h"
 #endif
 
-#include <glog/logging.h>
+#if defined(PELCOD_HAS_LIVE555)
+#include "Live555Decoder.h"
+#endif
 
 namespace Video {
 
@@ -35,6 +43,14 @@ std::unique_ptr<IVideoDecoder> DecoderFactory::create(BackendType backend)
         return std::make_unique<MockVideoDecoder>();
 #endif
 
+    case BackendType::Live555:
+#if defined(PELCOD_HAS_LIVE555)
+        return std::make_unique<Live555Decoder>();
+#else
+        LOG(WARNING) << "DecoderFactory: Live555 backend not compiled. Falling back to Mock decoder.";
+        return std::make_unique<MockVideoDecoder>();
+#endif
+
     default:
         LOG(ERROR) << "DecoderFactory: Unknown backend requested. Returning nullptr.";
         return nullptr;
@@ -49,6 +65,9 @@ std::vector<BackendType> DecoderFactory::availableBackends()
 #endif
 #if defined(PELCOD_HAS_GSTREAMER)
     backends.push_back(BackendType::GStreamer);
+#endif
+#if defined(PELCOD_HAS_LIVE555)
+    backends.push_back(BackendType::Live555);
 #endif
     backends.push_back(BackendType::Mock);
     return backends;

@@ -16,6 +16,8 @@ set(PELCOD_VIDEO_SOURCES
     StreamHealthMonitor.cpp
     LatencyTracker.h
     LatencyTracker.cpp
+    ColorConverter.h
+    ColorConverter.cpp
 )
 
 if(PELCOD_ENABLE_FFMPEG AND FFMPEG_FOUND)
@@ -29,6 +31,15 @@ if(PELCOD_ENABLE_GSTREAMER AND GSTREAMER_FOUND)
     list(APPEND PELCOD_VIDEO_SOURCES
         GStreamerDecoder.h
         GStreamerDecoder.cpp
+    )
+endif()
+
+if(PELCOD_ENABLE_LIVE555 AND LIVE555_FOUND AND OPENH264_FOUND)
+    list(APPEND PELCOD_VIDEO_SOURCES
+        Live555Decoder.h
+        Live555Decoder.cpp
+        Live555H264Sink.h
+        Live555H264Sink.cpp
     )
 endif()
 
@@ -62,6 +73,14 @@ if(PELCOD_ENABLE_GSTREAMER AND GSTREAMER_FOUND)
         target_include_directories(Video SYSTEM PUBLIC $<BUILD_INTERFACE:${_dir}>)
     endforeach()
     target_link_libraries(Video PUBLIC ${GSTREAMER_LIBRARIES})
+endif()
+
+if(PELCOD_ENABLE_LIVE555 AND LIVE555_FOUND AND OPENH264_FOUND)
+    target_compile_definitions(Video PUBLIC PELCOD_HAS_LIVE555)
+    foreach(_dir ${LIVE555_INCLUDE_DIRS} ${OPENH264_INCLUDE_DIRS})
+        target_include_directories(Video SYSTEM PUBLIC $<BUILD_INTERFACE:${_dir}>)
+    endforeach()
+    target_link_libraries(Video PRIVATE $<BUILD_INTERFACE:${LIVE555_LIBRARIES}> ${OPENH264_LIBRARIES})
 endif()
 
 apply_compiler_flags(Video)

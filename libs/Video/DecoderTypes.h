@@ -16,7 +16,8 @@ namespace Video {
 enum class BackendType {
     FFmpeg, ///< Native FFmpeg demuxer and codec pipeline (avformat/avcodec/swscale)
     GStreamer, ///< GStreamer pipeline using playbin / appsink
-    Mock ///< Synthetic test pattern and frame generator for testing/offline use
+    Mock, ///< Synthetic test pattern and frame generator for testing/offline use
+    Live555 ///< Low-latency Live555 RTSP client with Cisco OpenH264 decoding
 };
 
 /// @enum PixelFormat
