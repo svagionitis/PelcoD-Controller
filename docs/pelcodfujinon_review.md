@@ -355,7 +355,9 @@ Multi-Drop RS-485 Bus
 3. **`noexcept` Safety:** ✅ Eliminated heap allocations (`std::ostringstream`) by switching to stack `std::snprintf`, and removed `noexcept` from `parseQuerySerialNumber`, `parseQueryFirmwareVersion`, and `updateFujinonStatus` to prevent abnormal `std::terminate()` on allocation failure.
 4. **Header Hygiene:** ✅ Removed `using namespace Fujinon;` from `PelcoDFujinon.h` in compliance with MISRA C++:2023 Rule 10.3 and MISRA C++:2008 Rule 7-3-6.
 
-### Phase 3: Architectural Unification & Zero-Alloc Optimization
-1. **Zero-Alloc Hot Path:** Implement `StandardFrame = std::array<uint8_t, 7>` builders in `FujinonBuilder` for all 7-byte commands.
-2. **Base Telemetry Synchronization:** Align `setFocusPosition`, `setZoomSpeed`, and `setFocusSpeed` with `PelcoDCore`'s state model and saturation rules.
-3. **Doxygen Completeness:** Add full `@param`, `@return`, and `@details` templates across `FujinonParser.h` and `FujinonSX800Device.h`.
+### Phase 3: Architectural Unification & Zero-Alloc Optimization ✅
+*Plan and Details:* [`PelcoD_Fujinon_Phase3_Plan.md`](PelcoD_Fujinon_Phase3_Plan.md)
+1. **Zero-Alloc Hot Path:** ✅ Implemented `StandardFrame = std::array<uint8_t, 7>` builders in `FujinonBuilder` for all 60+ 7-byte commands marked `noexcept`, with vector conversion wrappers for backward compatibility and `StandardFrame` overloads in `PelcoDDevice`.
+2. **Base Telemetry Synchronization:** ✅ Unified `setZoomSpeed`, `setFocusSpeed`, and `setZoomPosition` with `PelcoDCore`'s state model and saturation rules; synchronized `setFocusPosition` with target tracking; added RTC telemetry integration populating `DeviceStatus::deviceTime`.
+3. **Input Range Clamping:** ✅ Applied strict MISRA/CERT compliant clamping via `std::clamp` across all bounded image adjustments, RTC parameters, and RS-485 addresses.
+4. **Doxygen Completeness:** ✅ Added full `@param`, `@return`, and `@details` templates across `FujinonParser.h` and `FujinonSX800Device.h`.

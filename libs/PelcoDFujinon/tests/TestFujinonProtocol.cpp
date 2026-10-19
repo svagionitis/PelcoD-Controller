@@ -1,13 +1,19 @@
 /// @file TestFujinonProtocol.cpp
 /// @brief Unit tests for Fujinon SX800 / SX801 protocol frame builder and response parser.
 
+#include <cstddef>
+#include <cstdint>
+
+#include <array>
+#include <iostream>
+#include <string>
+#include <vector>
+
+#include <gtest/gtest.h>
+
 #include "FujinonBuilder.h"
 #include "FujinonParser.h"
 #include "PelcoDFrame.h"
-
-#include <gtest/gtest.h>
-#include <iostream>
-#include <vector>
 
 TEST(FujinonProtocolTest, BuilderCommands)
 {
@@ -97,21 +103,21 @@ TEST(FujinonProtocolTest, BuilderCommands)
     EXPECT_TRUE(afAreaFrame.size() == 7U && afAreaFrame[3] == 0x03U && afAreaFrame[5] == 1U);
     EXPECT_TRUE(PelcoD::PelcoDFrame::isValidFrame(afAreaFrame));
 
-    // Image adjustments: Brightness, Contrast, Saturation, Sharpness
-    const auto brightFrame = PelcoD::FujinonBuilder::buildSetBrightness(addr, 50U);
-    EXPECT_TRUE(brightFrame.size() == 7U && brightFrame[3] == 0x2BU && brightFrame[5] == 50U);
+    // Image adjustments: Brightness (1..21), Contrast (1..5), Saturation (1..5), Sharpness (1..5)
+    const auto brightFrame = PelcoD::FujinonBuilder::buildSetBrightness(addr, 15U);
+    EXPECT_TRUE(brightFrame.size() == 7U && brightFrame[3] == 0x2BU && brightFrame[5] == 15U);
     EXPECT_TRUE(PelcoD::PelcoDFrame::isValidFrame(brightFrame));
 
-    const auto contFrame = PelcoD::FujinonBuilder::buildSetContrast(addr, 40U);
-    EXPECT_TRUE(contFrame.size() == 7U && contFrame[3] == 0x2DU && contFrame[5] == 40U);
+    const auto contFrame = PelcoD::FujinonBuilder::buildSetContrast(addr, 4U);
+    EXPECT_TRUE(contFrame.size() == 7U && contFrame[3] == 0x2DU && contFrame[5] == 4U);
     EXPECT_TRUE(PelcoD::PelcoDFrame::isValidFrame(contFrame));
 
-    const auto satFrame = PelcoD::FujinonBuilder::buildSetSaturation(addr, 30U);
-    EXPECT_TRUE(satFrame.size() == 7U && satFrame[3] == 0x2FU && satFrame[5] == 30U);
+    const auto satFrame = PelcoD::FujinonBuilder::buildSetSaturation(addr, 3U);
+    EXPECT_TRUE(satFrame.size() == 7U && satFrame[3] == 0x2FU && satFrame[5] == 3U);
     EXPECT_TRUE(PelcoD::PelcoDFrame::isValidFrame(satFrame));
 
-    const auto sharpFrame = PelcoD::FujinonBuilder::buildSetSharpness(addr, 20U);
-    EXPECT_TRUE(sharpFrame.size() == 7U && sharpFrame[3] == 0x31U && sharpFrame[5] == 20U);
+    const auto sharpFrame = PelcoD::FujinonBuilder::buildSetSharpness(addr, 4U);
+    EXPECT_TRUE(sharpFrame.size() == 7U && sharpFrame[3] == 0x31U && sharpFrame[5] == 4U);
     EXPECT_TRUE(PelcoD::PelcoDFrame::isValidFrame(sharpFrame));
 
     // Color Temp & White Balance
@@ -617,13 +623,13 @@ TEST(FujinonProtocolTest, AdditionalV2120Commands)
     EXPECT_TRUE(zp.size() == 7U && zp[2] == 0x00U && zp[3] == 0x4FU && zp[4] == 0x40U && zp[5] == 0x00U);
     EXPECT_TRUE(PelcoD::PelcoDFrame::isValidFrame(zp));
 
-    // Standard Zoom / Focus Speed
-    const auto zs = PelcoD::FujinonBuilder::buildSetZoomSpeed(addr, 6U);
-    EXPECT_TRUE(zs.size() == 7U && zs[2] == 0x00U && zs[3] == 0x25U && zs[5] == 6U);
+    // Standard Zoom / Focus Speed (0..3)
+    const auto zs = PelcoD::FujinonBuilder::buildSetZoomSpeed(addr, 2U);
+    EXPECT_TRUE(zs.size() == 7U && zs[2] == 0x00U && zs[3] == 0x25U && zs[5] == 2U);
     EXPECT_TRUE(PelcoD::PelcoDFrame::isValidFrame(zs));
 
-    const auto fs = PelcoD::FujinonBuilder::buildSetFocusSpeed(addr, 4U);
-    EXPECT_TRUE(fs.size() == 7U && fs[2] == 0x00U && fs[3] == 0x27U && fs[5] == 4U);
+    const auto fs = PelcoD::FujinonBuilder::buildSetFocusSpeed(addr, 1U);
+    EXPECT_TRUE(fs.size() == 7U && fs[2] == 0x00U && fs[3] == 0x27U && fs[5] == 1U);
     EXPECT_TRUE(PelcoD::PelcoDFrame::isValidFrame(fs));
 
     // Auto Focus mode
@@ -964,4 +970,140 @@ TEST(FujinonProtocolTest, ParserRejectsMalformedEnumPayloads)
     // Construct status frame with invalid Language 0x02: FF 01 F0 85 00 02 CKSM
     const auto badLangFrame = PelcoD::PelcoDFrame::createFrame(addr, 0xF0U, 0x85U, 0x00U, 0x02U);
     EXPECT_FALSE(PelcoD::FujinonParser::updateFujinonStatus(badLangFrame, status));
+}
+
+TEST(FujinonProtocolTest, ZeroAllocationBuildersTest)
+{
+    // Verify static type is StandardFrame (std::array<std::uint8_t, 7>)
+    static_assert(std::is_same_v<decltype(PelcoD::FujinonBuilder::buildSetOIS(1U, PelcoD::FujinonOISMode::Auto)),
+        PelcoD::StandardFrame>);
+    static_assert(
+        std::is_same_v<decltype(PelcoD::FujinonBuilder::buildSetFocusPosition(1U, 0x1000U)), PelcoD::StandardFrame>);
+    static_assert(std::is_same_v<decltype(PelcoD::FujinonBuilder::buildSetZoomSpeed(1U, 2U)), PelcoD::StandardFrame>);
+
+    // Verify sizeof is strictly 7 bytes (zero dynamic pointer overhead)
+    static_assert(sizeof(PelcoD::FujinonBuilder::buildSetOIS(1U, PelcoD::FujinonOISMode::Auto)) == 7U);
+    static_assert(sizeof(PelcoD::FujinonBuilder::buildSetBrightness(1U, 11U)) == 7U);
+
+    // Verify noexcept guarantees
+    static_assert(noexcept(PelcoD::FujinonBuilder::buildSetOIS(1U, PelcoD::FujinonOISMode::Auto)));
+    static_assert(noexcept(PelcoD::FujinonBuilder::buildSetFocusPosition(1U, 0x1000U)));
+    static_assert(noexcept(PelcoD::FujinonBuilder::buildSetZoomSpeed(1U, 2U)));
+    static_assert(noexcept(PelcoD::FujinonBuilder::buildSetRTCSecond(1U, 30U)));
+}
+
+TEST(FujinonProtocolTest, ParameterClampingTest)
+{
+    const std::uint8_t addr { 1U };
+
+    // Brightness: 1..21
+    const auto lowBright = PelcoD::FujinonBuilder::buildSetBrightness(addr, 0U);
+    EXPECT_EQ(lowBright[5], 1U);
+    const auto highBright = PelcoD::FujinonBuilder::buildSetBrightness(addr, 255U);
+    EXPECT_EQ(highBright[5], 21U);
+
+    // Contrast: 1..5
+    const auto lowCont = PelcoD::FujinonBuilder::buildSetContrast(addr, 0U);
+    EXPECT_EQ(lowCont[5], 1U);
+    const auto highCont = PelcoD::FujinonBuilder::buildSetContrast(addr, 10U);
+    EXPECT_EQ(highCont[5], 5U);
+
+    // Saturation: 1..5
+    const auto lowSat = PelcoD::FujinonBuilder::buildSetSaturation(addr, 0U);
+    EXPECT_EQ(lowSat[5], 1U);
+    const auto highSat = PelcoD::FujinonBuilder::buildSetSaturation(addr, 99U);
+    EXPECT_EQ(highSat[5], 5U);
+
+    // Sharpness: 1..5
+    const auto lowSharp = PelcoD::FujinonBuilder::buildSetSharpness(addr, 0U);
+    EXPECT_EQ(lowSharp[5], 1U);
+    const auto highSharp = PelcoD::FujinonBuilder::buildSetSharpness(addr, 40U);
+    EXPECT_EQ(highSharp[5], 5U);
+
+    // Noise reduction: 1..3
+    const auto lowNr = PelcoD::FujinonBuilder::buildSetNoiseReduction(addr, 0U);
+    EXPECT_EQ(lowNr[5], 1U);
+    const auto highNr = PelcoD::FujinonBuilder::buildSetNoiseReduction(addr, 5U);
+    EXPECT_EQ(highNr[5], 3U);
+
+    // Fine adjustments: 1..100
+    const auto lowFine = PelcoD::FujinonBuilder::buildSetBrightnessFine(addr, 0U);
+    EXPECT_EQ(lowFine[5], 1U);
+    const auto highFine = PelcoD::FujinonBuilder::buildSetBrightnessFine(addr, 150U);
+    EXPECT_EQ(highFine[5], 100U);
+
+    // Zoom speed: 0..3
+    const auto highZs = PelcoD::FujinonBuilder::buildSetZoomSpeed(addr, 7U);
+    EXPECT_EQ(highZs[5], 3U);
+
+    // Focus speed: 0..3
+    const auto highFs = PelcoD::FujinonBuilder::buildSetFocusSpeed(addr, 9U);
+    EXPECT_EQ(highFs[5], 3U);
+
+    // Extended zoom speed: 1..8
+    const auto lowZsEx = PelcoD::FujinonBuilder::buildSetZoomSpeedEx(addr, 0U);
+    EXPECT_EQ(lowZsEx[5], 1U);
+    const auto highZsEx = PelcoD::FujinonBuilder::buildSetZoomSpeedEx(addr, 15U);
+    EXPECT_EQ(highZsEx[5], 8U);
+
+    // Extended focus speed: 1..5
+    const auto lowFsEx = PelcoD::FujinonBuilder::buildSetFocusSpeedEx(addr, 0U);
+    EXPECT_EQ(lowFsEx[5], 1U);
+    const auto highFsEx = PelcoD::FujinonBuilder::buildSetFocusSpeedEx(addr, 20U);
+    EXPECT_EQ(highFsEx[5], 5U);
+
+    // RTC Seconds: 0..59
+    const auto highSec = PelcoD::FujinonBuilder::buildSetRTCSecond(addr, 85U);
+    EXPECT_EQ(highSec[5], 59U);
+
+    // RTC Hour & Minute: 0..23, 0..59
+    const auto highHm = PelcoD::FujinonBuilder::buildSetRTCHourMinute(addr, 30U, 99U);
+    EXPECT_EQ(highHm[4], 23U);
+    EXPECT_EQ(highHm[5], 59U);
+
+    // RTC Month & Day: 1..12, 1..31
+    const auto lowMd = PelcoD::FujinonBuilder::buildSetRTCMonthDay(addr, 0U, 0U);
+    EXPECT_EQ(lowMd[4], 1U);
+    EXPECT_EQ(lowMd[5], 1U);
+    const auto highMd = PelcoD::FujinonBuilder::buildSetRTCMonthDay(addr, 15U, 40U);
+    EXPECT_EQ(highMd[4], 12U);
+    EXPECT_EQ(highMd[5], 31U);
+
+    // RS-485 Address: 1..31
+    const auto lowAddr = PelcoD::FujinonBuilder::buildSetRS485Address(addr, 0U);
+    EXPECT_EQ(lowAddr[5], 1U);
+    const auto highAddr = PelcoD::FujinonBuilder::buildSetRS485Address(addr, 40U);
+    EXPECT_EQ(highAddr[5], 31U);
+}
+
+TEST(FujinonProtocolTest, RTCTelemetryStatusTests)
+{
+    const std::uint8_t addr { 1U };
+    PelcoD::FujinonStatus st {};
+
+    // 1. Second telemetry (subOp 0x01)
+    const auto respSec = PelcoD::PelcoDFrame::createFrame(addr, 0x01U, 0x3BU, 0x00U, 45U);
+    EXPECT_TRUE(PelcoD::FujinonParser::isFujinonResponse(respSec));
+    EXPECT_TRUE(PelcoD::FujinonParser::updateFujinonStatus(respSec, st));
+    EXPECT_EQ(st.baseStatus.deviceTime.second, 45U);
+
+    // 2. Hour / Minute telemetry (subOp 0x03)
+    const auto respHm = PelcoD::PelcoDFrame::createFrame(addr, 0x03U, 0x3BU, 14U, 30U);
+    EXPECT_TRUE(PelcoD::FujinonParser::isFujinonResponse(respHm));
+    EXPECT_TRUE(PelcoD::FujinonParser::updateFujinonStatus(respHm, st));
+    EXPECT_EQ(st.baseStatus.deviceTime.hour, 14U);
+    EXPECT_EQ(st.baseStatus.deviceTime.minute, 30U);
+
+    // 3. Month / Day telemetry (subOp 0x05)
+    const auto respMd = PelcoD::PelcoDFrame::createFrame(addr, 0x05U, 0x3BU, 10U, 19U);
+    EXPECT_TRUE(PelcoD::FujinonParser::isFujinonResponse(respMd));
+    EXPECT_TRUE(PelcoD::FujinonParser::updateFujinonStatus(respMd, st));
+    EXPECT_EQ(st.baseStatus.deviceTime.month, 10U);
+    EXPECT_EQ(st.baseStatus.deviceTime.day, 19U);
+
+    // 4. Year telemetry (subOp 0x07: 2026 = 0x07EA)
+    const auto respYr = PelcoD::PelcoDFrame::createFrame(addr, 0x07U, 0x3BU, 0x07U, 0xEAU);
+    EXPECT_TRUE(PelcoD::FujinonParser::isFujinonResponse(respYr));
+    EXPECT_TRUE(PelcoD::FujinonParser::updateFujinonStatus(respYr, st));
+    EXPECT_EQ(st.baseStatus.deviceTime.year, 2026U);
 }

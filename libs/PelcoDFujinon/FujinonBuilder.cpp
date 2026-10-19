@@ -3,575 +3,605 @@
 
 #include "FujinonBuilder.h"
 
+#include <cstdint>
+
+#include <algorithm>
+
 namespace PelcoD {
 
-std::vector<std::uint8_t> FujinonBuilder::buildSetOIS(std::uint8_t address, FujinonOISMode mode)
+StandardFrame FujinonBuilder::buildSetOIS(std::uint8_t address, FujinonOISMode mode) noexcept
 {
-    return PelcoDFrame::createFrame(address, 0xF0U, 0x13U, 0x00U, static_cast<std::uint8_t>(mode));
+    return PelcoDFrame::createStandardFrame(address, 0xF0U, 0x13U, 0x00U, static_cast<std::uint8_t>(mode));
 }
 
-std::vector<std::uint8_t> FujinonBuilder::buildSetDefog(std::uint8_t address, FujinonDefogLevel level)
+StandardFrame FujinonBuilder::buildSetDefog(std::uint8_t address, FujinonDefogLevel level) noexcept
 {
-    return PelcoDFrame::createFrame(address, 0xF0U, 0x29U, 0x00U, static_cast<std::uint8_t>(level));
+    return PelcoDFrame::createStandardFrame(address, 0xF0U, 0x29U, 0x00U, static_cast<std::uint8_t>(level));
 }
 
-std::vector<std::uint8_t> FujinonBuilder::buildSetHeatHaze(std::uint8_t address, FujinonHeatHazeLevel level)
+StandardFrame FujinonBuilder::buildSetHeatHaze(std::uint8_t address, FujinonHeatHazeLevel level) noexcept
 {
-    return PelcoDFrame::createFrame(address, 0xF0U, 0x27U, 0x00U, static_cast<std::uint8_t>(level));
+    return PelcoDFrame::createStandardFrame(address, 0xF0U, 0x27U, 0x00U, static_cast<std::uint8_t>(level));
 }
 
-std::vector<std::uint8_t> FujinonBuilder::buildSetWDR(std::uint8_t address, FujinonWDRLevel level)
+StandardFrame FujinonBuilder::buildSetWDR(std::uint8_t address, FujinonWDRLevel level) noexcept
 {
-    return PelcoDFrame::createFrame(address, 0xF0U, 0x23U, 0x00U, static_cast<std::uint8_t>(level));
+    return PelcoDFrame::createStandardFrame(address, 0xF0U, 0x23U, 0x00U, static_cast<std::uint8_t>(level));
 }
 
-std::vector<std::uint8_t> FujinonBuilder::buildSetVLCFilter(std::uint8_t address, bool enable)
+StandardFrame FujinonBuilder::buildSetVLCFilter(std::uint8_t address, bool enable) noexcept
 {
-    return PelcoDFrame::createFrame(address, 0xF0U, 0x21U, 0x00U, enable ? 0x01U : 0x00U);
+    return PelcoDFrame::createStandardFrame(address, 0xF0U, 0x21U, 0x00U, enable ? 0x01U : 0x00U);
 }
 
-std::vector<std::uint8_t> FujinonBuilder::buildSetBrightness(std::uint8_t address, std::uint8_t level)
+StandardFrame FujinonBuilder::buildSetBrightness(std::uint8_t address, std::uint8_t level) noexcept
 {
-    return PelcoDFrame::createFrame(address, 0xF0U, 0x2BU, 0x00U, level);
+    const std::uint8_t clamped { std::clamp<std::uint8_t>(level, 1U, 21U) };
+    return PelcoDFrame::createStandardFrame(address, 0xF0U, 0x2BU, 0x00U, clamped);
 }
 
-std::vector<std::uint8_t> FujinonBuilder::buildSetContrast(std::uint8_t address, std::uint8_t level)
+StandardFrame FujinonBuilder::buildSetContrast(std::uint8_t address, std::uint8_t level) noexcept
 {
-    return PelcoDFrame::createFrame(address, 0xF0U, 0x2DU, 0x00U, level);
+    const std::uint8_t clamped { std::clamp<std::uint8_t>(level, 1U, 5U) };
+    return PelcoDFrame::createStandardFrame(address, 0xF0U, 0x2DU, 0x00U, clamped);
 }
 
-std::vector<std::uint8_t> FujinonBuilder::buildSetSaturation(std::uint8_t address, std::uint8_t level)
+StandardFrame FujinonBuilder::buildSetSaturation(std::uint8_t address, std::uint8_t level) noexcept
 {
-    return PelcoDFrame::createFrame(address, 0xF0U, 0x2FU, 0x00U, level);
+    const std::uint8_t clamped { std::clamp<std::uint8_t>(level, 1U, 5U) };
+    return PelcoDFrame::createStandardFrame(address, 0xF0U, 0x2FU, 0x00U, clamped);
 }
 
-std::vector<std::uint8_t> FujinonBuilder::buildSetSharpness(std::uint8_t address, std::uint8_t level)
+StandardFrame FujinonBuilder::buildSetSharpness(std::uint8_t address, std::uint8_t level) noexcept
 {
-    return PelcoDFrame::createFrame(address, 0xF0U, 0x31U, 0x00U, level);
+    const std::uint8_t clamped { std::clamp<std::uint8_t>(level, 1U, 5U) };
+    return PelcoDFrame::createStandardFrame(address, 0xF0U, 0x31U, 0x00U, clamped);
 }
 
-std::vector<std::uint8_t> FujinonBuilder::buildSetColorTemperature(std::uint8_t address, FujinonColorTemp temp)
+StandardFrame FujinonBuilder::buildSetColorTemperature(std::uint8_t address, FujinonColorTemp temp) noexcept
 {
-    return PelcoDFrame::createFrame(address, 0xF0U, 0x33U, 0x00U, static_cast<std::uint8_t>(temp));
+    return PelcoDFrame::createStandardFrame(address, 0xF0U, 0x33U, 0x00U, static_cast<std::uint8_t>(temp));
 }
 
-std::vector<std::uint8_t> FujinonBuilder::buildSetWhiteBalance(std::uint8_t address, FujinonWBMode mode)
+StandardFrame FujinonBuilder::buildSetWhiteBalance(std::uint8_t address, FujinonWBMode mode) noexcept
 {
-    return PelcoDFrame::createFrame(address, 0xF0U, 0x35U, 0x00U, static_cast<std::uint8_t>(mode));
+    return PelcoDFrame::createStandardFrame(address, 0xF0U, 0x35U, 0x00U, static_cast<std::uint8_t>(mode));
 }
 
-std::vector<std::uint8_t> FujinonBuilder::buildSetDigitalZoom(std::uint8_t address, FujinonDigitalZoom zoom)
+StandardFrame FujinonBuilder::buildSetDigitalZoom(std::uint8_t address, FujinonDigitalZoom zoom) noexcept
 {
-    return PelcoDFrame::createFrame(address, 0xF0U, 0x37U, 0x00U, static_cast<std::uint8_t>(zoom));
+    return PelcoDFrame::createStandardFrame(address, 0xF0U, 0x37U, 0x00U, static_cast<std::uint8_t>(zoom));
 }
 
-std::vector<std::uint8_t> FujinonBuilder::buildSetNoiseReduction(std::uint8_t address, std::uint8_t level)
+StandardFrame FujinonBuilder::buildSetNoiseReduction(std::uint8_t address, std::uint8_t level) noexcept
 {
-    return PelcoDFrame::createFrame(address, 0xF0U, 0x39U, 0x00U, level);
+    const std::uint8_t clamped { std::clamp<std::uint8_t>(level, 1U, 3U) };
+    return PelcoDFrame::createStandardFrame(address, 0xF0U, 0x39U, 0x00U, clamped);
 }
 
-std::vector<std::uint8_t> FujinonBuilder::buildSetDayNight(std::uint8_t address, FujinonDayNightMode mode)
+StandardFrame FujinonBuilder::buildSetDayNight(std::uint8_t address, FujinonDayNightMode mode) noexcept
 {
-    return PelcoDFrame::createFrame(address, 0xF0U, 0x0FU, 0x00U, static_cast<std::uint8_t>(mode));
+    return PelcoDFrame::createStandardFrame(address, 0xF0U, 0x0FU, 0x00U, static_cast<std::uint8_t>(mode));
 }
 
-std::vector<std::uint8_t> FujinonBuilder::buildSetIRWavelength(std::uint8_t address, FujinonIRWavelength wavelength)
+StandardFrame FujinonBuilder::buildSetIRWavelength(std::uint8_t address, FujinonIRWavelength wavelength) noexcept
 {
-    return PelcoDFrame::createFrame(address, 0xF0U, 0x11U, 0x00U, static_cast<std::uint8_t>(wavelength));
+    return PelcoDFrame::createStandardFrame(address, 0xF0U, 0x11U, 0x00U, static_cast<std::uint8_t>(wavelength));
 }
 
-std::vector<std::uint8_t> FujinonBuilder::buildSetFocusPosition(std::uint8_t address, std::uint16_t focusPos)
+StandardFrame FujinonBuilder::buildSetFocusPosition(std::uint8_t address, std::uint16_t focusPos) noexcept
 {
-    const auto msb = static_cast<std::uint8_t>((focusPos >> 8U) & 0xFFU);
-    const auto lsb = static_cast<std::uint8_t>(focusPos & 0xFFU);
-    return PelcoDFrame::createFrame(address, 0x00U, 0x8FU, msb, lsb);
+    const std::uint8_t msb { static_cast<std::uint8_t>((focusPos >> 8U) & 0xFFU) };
+    const std::uint8_t lsb { static_cast<std::uint8_t>(focusPos & 0xFFU) };
+    return PelcoDFrame::createStandardFrame(address, 0x00U, 0x8FU, msb, lsb);
 }
 
-std::vector<std::uint8_t> FujinonBuilder::buildOnePushAF(std::uint8_t address)
+StandardFrame FujinonBuilder::buildOnePushAF(std::uint8_t address) noexcept
 {
-    return PelcoDFrame::createFrame(address, 0xF0U, 0x07U, 0x00U, 0x00U);
+    return PelcoDFrame::createStandardFrame(address, 0xF0U, 0x07U, 0x00U, 0x00U);
 }
 
-std::vector<std::uint8_t> FujinonBuilder::buildSetAFSensitivity(std::uint8_t address, std::uint8_t sensitivity)
+StandardFrame FujinonBuilder::buildSetAFSensitivity(std::uint8_t address, std::uint8_t sensitivity) noexcept
 {
-    return PelcoDFrame::createFrame(address, 0xF0U, 0x05U, 0x00U, sensitivity);
+    const std::uint8_t clamped { std::clamp<std::uint8_t>(sensitivity, 1U, 3U) };
+    return PelcoDFrame::createStandardFrame(address, 0xF0U, 0x05U, 0x00U, clamped);
 }
 
-std::vector<std::uint8_t> FujinonBuilder::buildSetAFArea(std::uint8_t address, std::uint8_t area)
+StandardFrame FujinonBuilder::buildSetAFArea(std::uint8_t address, std::uint8_t area) noexcept
 {
-    return PelcoDFrame::createFrame(address, 0xF0U, 0x03U, 0x00U, area);
+    const std::uint8_t clamped { std::clamp<std::uint8_t>(area, 0U, 2U) };
+    return PelcoDFrame::createStandardFrame(address, 0xF0U, 0x03U, 0x00U, clamped);
 }
 
-std::vector<std::uint8_t> FujinonBuilder::buildSetManualIris(std::uint8_t address, std::uint8_t irisVal)
+StandardFrame FujinonBuilder::buildSetManualIris(std::uint8_t address, std::uint8_t irisVal) noexcept
 {
-    return PelcoDFrame::createFrame(address, 0x00U, 0x91U, 0x00U, irisVal);
+    return PelcoDFrame::createStandardFrame(address, 0x00U, 0x91U, 0x00U, irisVal);
 }
 
-std::vector<std::uint8_t> FujinonBuilder::buildSetManualShutter(std::uint8_t address, std::uint8_t shutterVal)
+StandardFrame FujinonBuilder::buildSetManualShutter(std::uint8_t address, std::uint8_t shutterVal) noexcept
 {
-    return PelcoDFrame::createFrame(address, 0x00U, 0x95U, 0x00U, shutterVal);
+    return PelcoDFrame::createStandardFrame(address, 0x00U, 0x95U, 0x00U, shutterVal);
 }
 
-std::vector<std::uint8_t> FujinonBuilder::buildSetManualISO(std::uint8_t address, std::uint8_t isoVal)
+StandardFrame FujinonBuilder::buildSetManualISO(std::uint8_t address, std::uint8_t isoVal) noexcept
 {
-    return PelcoDFrame::createFrame(address, 0x00U, 0x99U, 0x00U, isoVal);
+    return PelcoDFrame::createStandardFrame(address, 0x00U, 0x99U, 0x00U, isoVal);
 }
 
-std::vector<std::uint8_t> FujinonBuilder::buildSetTimeDisplay(std::uint8_t address, bool enable)
+StandardFrame FujinonBuilder::buildSetTimeDisplay(std::uint8_t address, bool enable) noexcept
 {
-    return PelcoDFrame::createFrame(address, 0xF0U, 0x43U, 0x00U, enable ? 0x01U : 0x00U);
+    return PelcoDFrame::createStandardFrame(address, 0xF0U, 0x43U, 0x00U, enable ? 0x01U : 0x00U);
 }
 
-std::vector<std::uint8_t> FujinonBuilder::buildSetTimePosition(std::uint8_t address, FujinonOSDPosition pos)
+StandardFrame FujinonBuilder::buildSetTimePosition(std::uint8_t address, FujinonOSDPosition pos) noexcept
 {
-    return PelcoDFrame::createFrame(address, 0xF0U, 0x45U, 0x00U, static_cast<std::uint8_t>(pos));
+    return PelcoDFrame::createStandardFrame(address, 0xF0U, 0x45U, 0x00U, static_cast<std::uint8_t>(pos));
 }
 
-std::vector<std::uint8_t> FujinonBuilder::buildSetTitleDisplay(std::uint8_t address, bool enable)
+StandardFrame FujinonBuilder::buildSetTitleDisplay(std::uint8_t address, bool enable) noexcept
 {
-    return PelcoDFrame::createFrame(address, 0xF0U, 0x47U, 0x00U, enable ? 0x01U : 0x00U);
+    return PelcoDFrame::createStandardFrame(address, 0xF0U, 0x47U, 0x00U, enable ? 0x01U : 0x00U);
 }
 
-std::vector<std::uint8_t> FujinonBuilder::buildSetTitlePosition(std::uint8_t address, FujinonOSDPosition pos)
+StandardFrame FujinonBuilder::buildSetTitlePosition(std::uint8_t address, FujinonOSDPosition pos) noexcept
 {
-    return PelcoDFrame::createFrame(address, 0xF0U, 0x4BU, 0x00U, static_cast<std::uint8_t>(pos));
+    return PelcoDFrame::createStandardFrame(address, 0xF0U, 0x4BU, 0x00U, static_cast<std::uint8_t>(pos));
 }
 
-std::vector<std::uint8_t> FujinonBuilder::buildSetIdDisplay(std::uint8_t address, bool enable)
+StandardFrame FujinonBuilder::buildSetIdDisplay(std::uint8_t address, bool enable) noexcept
 {
-    return PelcoDFrame::createFrame(address, 0xF0U, 0x4DU, 0x00U, enable ? 0x01U : 0x00U);
+    return PelcoDFrame::createStandardFrame(address, 0xF0U, 0x4DU, 0x00U, enable ? 0x01U : 0x00U);
 }
 
-std::vector<std::uint8_t> FujinonBuilder::buildSetIdPosition(std::uint8_t address, FujinonOSDPosition pos)
+StandardFrame FujinonBuilder::buildSetIdPosition(std::uint8_t address, FujinonOSDPosition pos) noexcept
 {
-    return PelcoDFrame::createFrame(address, 0xF0U, 0x4FU, 0x00U, static_cast<std::uint8_t>(pos));
+    return PelcoDFrame::createStandardFrame(address, 0xF0U, 0x4FU, 0x00U, static_cast<std::uint8_t>(pos));
 }
 
-std::vector<std::uint8_t> FujinonBuilder::buildSetReticleDisplay(std::uint8_t address, bool enable)
+StandardFrame FujinonBuilder::buildSetReticleDisplay(std::uint8_t address, bool enable) noexcept
 {
-    return PelcoDFrame::createFrame(address, 0xF0U, 0x51U, 0x00U, enable ? 0x01U : 0x00U);
+    return PelcoDFrame::createStandardFrame(address, 0xF0U, 0x51U, 0x00U, enable ? 0x01U : 0x00U);
 }
 
-std::vector<std::uint8_t> FujinonBuilder::buildSetVideoMode(std::uint8_t address, FujinonVideoMode mode)
+StandardFrame FujinonBuilder::buildSetVideoMode(std::uint8_t address, FujinonVideoMode mode) noexcept
 {
-    return PelcoDFrame::createFrame(address, 0xF0U, 0x67U, 0x00U, static_cast<std::uint8_t>(mode));
+    return PelcoDFrame::createStandardFrame(address, 0xF0U, 0x67U, 0x00U, static_cast<std::uint8_t>(mode));
 }
 
-std::vector<std::uint8_t> FujinonBuilder::buildSetHDFormat(std::uint8_t address, FujinonHDFormat format)
+StandardFrame FujinonBuilder::buildSetHDFormat(std::uint8_t address, FujinonHDFormat format) noexcept
 {
-    return PelcoDFrame::createFrame(address, 0xF0U, 0x69U, 0x00U, static_cast<std::uint8_t>(format));
+    return PelcoDFrame::createStandardFrame(address, 0xF0U, 0x69U, 0x00U, static_cast<std::uint8_t>(format));
 }
 
-std::vector<std::uint8_t> FujinonBuilder::buildSetRS485Termination(std::uint8_t address, bool enable)
+StandardFrame FujinonBuilder::buildSetRS485Termination(std::uint8_t address, bool enable) noexcept
 {
-    return PelcoDFrame::createFrame(address, 0xF0U, 0x73U, 0x00U, enable ? 0x01U : 0x00U);
+    return PelcoDFrame::createStandardFrame(address, 0xF0U, 0x73U, 0x00U, enable ? 0x01U : 0x00U);
 }
 
-std::vector<std::uint8_t> FujinonBuilder::buildReboot(std::uint8_t address)
+StandardFrame FujinonBuilder::buildReboot(std::uint8_t address) noexcept
 {
-    return PelcoDFrame::createFrame(address, 0xF0U, 0x83U, 0x00U, 0x01U);
+    return PelcoDFrame::createStandardFrame(address, 0xF0U, 0x83U, 0x00U, 0x01U);
 }
 
-std::vector<std::uint8_t> FujinonBuilder::buildRecordLiveView(std::uint8_t address, bool start)
+StandardFrame FujinonBuilder::buildRecordLiveView(std::uint8_t address, bool start) noexcept
 {
-    return PelcoDFrame::createFrame(address, 0xF0U, 0x93U, 0x00U, start ? 0x00U : 0x01U);
+    return PelcoDFrame::createStandardFrame(address, 0xF0U, 0x93U, 0x00U, start ? 0x00U : 0x01U);
 }
 
-std::vector<std::uint8_t> FujinonBuilder::buildPlayMovie(std::uint8_t address, bool start)
+StandardFrame FujinonBuilder::buildPlayMovie(std::uint8_t address, bool start) noexcept
 {
-    return PelcoDFrame::createFrame(address, 0xF0U, 0x97U, 0x00U, start ? 0x02U : 0x00U);
+    return PelcoDFrame::createStandardFrame(address, 0xF0U, 0x97U, 0x00U, start ? 0x02U : 0x00U);
 }
 
-std::vector<std::uint8_t> FujinonBuilder::buildSetMovieMode(std::uint8_t address, bool isPlayMode)
+StandardFrame FujinonBuilder::buildSetMovieMode(std::uint8_t address, bool isPlayMode) noexcept
 {
-    return PelcoDFrame::createFrame(address, 0xF0U, 0x9BU, 0x00U, isPlayMode ? 0x02U : 0x01U);
+    return PelcoDFrame::createStandardFrame(address, 0xF0U, 0x9BU, 0x00U, isPlayMode ? 0x02U : 0x01U);
 }
 
-std::vector<std::uint8_t> FujinonBuilder::buildMenuOk(std::uint8_t address)
+StandardFrame FujinonBuilder::buildMenuOk(std::uint8_t address) noexcept
 {
-    return PelcoDFrame::createFrame(address, 0xF0U, 0xA7U, 0x00U, 0x01U);
+    return PelcoDFrame::createStandardFrame(address, 0xF0U, 0xA7U, 0x00U, 0x01U);
 }
 
-std::vector<std::uint8_t> FujinonBuilder::buildMenuDirection(std::uint8_t address, FujinonMenuDirection dir)
+StandardFrame FujinonBuilder::buildMenuDirection(std::uint8_t address, FujinonMenuDirection dir) noexcept
 {
-    return PelcoDFrame::createFrame(address, 0xF0U, 0xA9U, 0x00U, static_cast<std::uint8_t>(dir));
+    return PelcoDFrame::createStandardFrame(address, 0xF0U, 0xA9U, 0x00U, static_cast<std::uint8_t>(dir));
 }
 
-std::vector<std::uint8_t> FujinonBuilder::buildQueryFocus(std::uint8_t address)
+StandardFrame FujinonBuilder::buildQueryFocus(std::uint8_t address) noexcept
 {
-    return PelcoDFrame::createFrame(address, 0x00U, 0x81U, 0x00U, 0x00U);
+    return PelcoDFrame::createStandardFrame(address, 0x00U, 0x81U, 0x00U, 0x00U);
 }
 
-std::vector<std::uint8_t> FujinonBuilder::buildQueryZoom(std::uint8_t address)
+StandardFrame FujinonBuilder::buildQueryZoom(std::uint8_t address) noexcept
 {
-    return PelcoDFrame::createFrame(address, 0x00U, 0x83U, 0x00U, 0x00U);
+    return PelcoDFrame::createStandardFrame(address, 0x00U, 0x83U, 0x00U, 0x00U);
 }
 
-std::vector<std::uint8_t> FujinonBuilder::buildQuerySerialNumber(std::uint8_t address)
+StandardFrame FujinonBuilder::buildQuerySerialNumber(std::uint8_t address) noexcept
 {
-    return PelcoDFrame::createFrame(address, 0x00U, 0x89U, 0x00U, 0x00U);
+    return PelcoDFrame::createStandardFrame(address, 0x00U, 0x89U, 0x00U, 0x00U);
 }
 
-std::vector<std::uint8_t> FujinonBuilder::buildQueryFirmwareVersion(std::uint8_t address)
+StandardFrame FujinonBuilder::buildQueryFirmwareVersion(std::uint8_t address) noexcept
 {
-    return PelcoDFrame::createFrame(address, 0x00U, 0x8BU, 0x00U, 0x00U);
+    return PelcoDFrame::createStandardFrame(address, 0x00U, 0x8BU, 0x00U, 0x00U);
 }
 
-std::vector<std::uint8_t> FujinonBuilder::buildQueryLensStatus(std::uint8_t address)
+StandardFrame FujinonBuilder::buildQueryLensStatus(std::uint8_t address) noexcept
 {
-    return PelcoDFrame::createFrame(address, 0x00U, 0x8DU, 0x00U, 0x00U);
+    return PelcoDFrame::createStandardFrame(address, 0x00U, 0x8DU, 0x00U, 0x00U);
 }
 
-std::vector<std::uint8_t> FujinonBuilder::buildQueryPhotoSettings(std::uint8_t address, std::uint8_t target)
+StandardFrame FujinonBuilder::buildQueryPhotoSettings(std::uint8_t address, std::uint8_t target) noexcept
 {
-    return PelcoDFrame::createFrame(address, 0xF0U, 0x1DU, target, 0x00U);
+    return PelcoDFrame::createStandardFrame(address, 0xF0U, 0x1DU, target, 0x00U);
 }
 
-std::vector<std::uint8_t> FujinonBuilder::buildQueryImageQuality(std::uint8_t address, std::uint8_t target)
+StandardFrame FujinonBuilder::buildQueryImageQuality(std::uint8_t address, std::uint8_t target) noexcept
 {
-    return PelcoDFrame::createFrame(address, 0xF0U, 0x3DU, target, 0x00U);
+    return PelcoDFrame::createStandardFrame(address, 0xF0U, 0x3DU, target, 0x00U);
 }
 
-std::vector<std::uint8_t> FujinonBuilder::buildQueryManualSettings(std::uint8_t address)
+StandardFrame FujinonBuilder::buildQueryManualSettings(std::uint8_t address) noexcept
 {
-    return PelcoDFrame::createFrame(address, 0x00U, 0xADU, 0x00U, 0x00U);
+    return PelcoDFrame::createStandardFrame(address, 0x00U, 0xADU, 0x00U, 0x00U);
 }
 
-std::vector<std::uint8_t> FujinonBuilder::buildSetBrightnessFine(std::uint8_t address, std::uint8_t level)
+StandardFrame FujinonBuilder::buildSetBrightnessFine(std::uint8_t address, std::uint8_t level) noexcept
 {
-    return PelcoDFrame::createFrame(address, 0xF0U, 0xEBU, 0x00U, level);
+    const std::uint8_t clamped { std::clamp<std::uint8_t>(level, 1U, 100U) };
+    return PelcoDFrame::createStandardFrame(address, 0xF0U, 0xEBU, 0x00U, clamped);
 }
 
-std::vector<std::uint8_t> FujinonBuilder::buildSetContrastFine(std::uint8_t address, std::uint8_t level)
+StandardFrame FujinonBuilder::buildSetContrastFine(std::uint8_t address, std::uint8_t level) noexcept
 {
-    return PelcoDFrame::createFrame(address, 0xF0U, 0xEDU, 0x00U, level);
+    const std::uint8_t clamped { std::clamp<std::uint8_t>(level, 1U, 100U) };
+    return PelcoDFrame::createStandardFrame(address, 0xF0U, 0xEDU, 0x00U, clamped);
 }
 
-std::vector<std::uint8_t> FujinonBuilder::buildSetSaturationFine(std::uint8_t address, std::uint8_t level)
+StandardFrame FujinonBuilder::buildSetSaturationFine(std::uint8_t address, std::uint8_t level) noexcept
 {
-    return PelcoDFrame::createFrame(address, 0xF0U, 0xEFU, 0x00U, level);
+    const std::uint8_t clamped { std::clamp<std::uint8_t>(level, 1U, 100U) };
+    return PelcoDFrame::createStandardFrame(address, 0xF0U, 0xEFU, 0x00U, clamped);
 }
 
-std::vector<std::uint8_t> FujinonBuilder::buildSetSharpnessFine(std::uint8_t address, std::uint8_t level)
+StandardFrame FujinonBuilder::buildSetSharpnessFine(std::uint8_t address, std::uint8_t level) noexcept
 {
-    return PelcoDFrame::createFrame(address, 0xF0U, 0xF1U, 0x00U, level);
+    const std::uint8_t clamped { std::clamp<std::uint8_t>(level, 1U, 100U) };
+    return PelcoDFrame::createStandardFrame(address, 0xF0U, 0xF1U, 0x00U, clamped);
 }
 
-std::vector<std::uint8_t> FujinonBuilder::buildSetWBShiftRedFine(std::uint8_t address, std::uint8_t level)
+StandardFrame FujinonBuilder::buildSetWBShiftRedFine(std::uint8_t address, std::uint8_t level) noexcept
 {
-    return PelcoDFrame::createFrame(address, 0xF0U, 0xF5U, 0x00U, level);
+    const std::uint8_t clamped { std::clamp<std::uint8_t>(level, 1U, 100U) };
+    return PelcoDFrame::createStandardFrame(address, 0xF0U, 0xF5U, 0x00U, clamped);
 }
 
-std::vector<std::uint8_t> FujinonBuilder::buildSetWBShiftBlueFine(std::uint8_t address, std::uint8_t level)
+StandardFrame FujinonBuilder::buildSetWBShiftBlueFine(std::uint8_t address, std::uint8_t level) noexcept
 {
-    return PelcoDFrame::createFrame(address, 0xF0U, 0xF7U, 0x00U, level);
+    const std::uint8_t clamped { std::clamp<std::uint8_t>(level, 1U, 100U) };
+    return PelcoDFrame::createStandardFrame(address, 0xF0U, 0xF7U, 0x00U, clamped);
 }
 
-std::vector<std::uint8_t> FujinonBuilder::buildQueryImageQualityFine(std::uint8_t address, std::uint8_t target)
+StandardFrame FujinonBuilder::buildQueryImageQualityFine(std::uint8_t address, std::uint8_t target) noexcept
 {
-    return PelcoDFrame::createFrame(address, 0xF0U, 0xFDU, target, 0x00U);
+    return PelcoDFrame::createStandardFrame(address, 0xF0U, 0xFDU, target, 0x00U);
 }
 
-std::vector<std::uint8_t> FujinonBuilder::buildSetDayNightModeEx(std::uint8_t address, FujinonDayNightModeEx mode)
+StandardFrame FujinonBuilder::buildSetDayNightModeEx(std::uint8_t address, FujinonDayNightModeEx mode) noexcept
 {
-    return PelcoDFrame::createFrame(address, 0xF1U, 0x01U, 0x00U, static_cast<std::uint8_t>(mode));
+    return PelcoDFrame::createStandardFrame(address, 0xF1U, 0x01U, 0x00U, static_cast<std::uint8_t>(mode));
 }
 
-std::vector<std::uint8_t> FujinonBuilder::buildSetDayToNightThreshold(std::uint8_t address, std::uint8_t threshold)
+StandardFrame FujinonBuilder::buildSetDayToNightThreshold(std::uint8_t address, std::uint8_t threshold) noexcept
 {
-    return PelcoDFrame::createFrame(address, 0xF1U, 0x03U, 0x00U, threshold);
+    return PelcoDFrame::createStandardFrame(address, 0xF1U, 0x03U, 0x00U, threshold);
 }
 
-std::vector<std::uint8_t> FujinonBuilder::buildSetNightToDayThreshold(std::uint8_t address, std::uint8_t threshold)
+StandardFrame FujinonBuilder::buildSetNightToDayThreshold(std::uint8_t address, std::uint8_t threshold) noexcept
 {
-    return PelcoDFrame::createFrame(address, 0xF1U, 0x05U, 0x00U, threshold);
+    return PelcoDFrame::createStandardFrame(address, 0xF1U, 0x05U, 0x00U, threshold);
 }
 
-std::vector<std::uint8_t> FujinonBuilder::buildSetDayNightAutoDelay(std::uint8_t address, std::uint8_t delaySeconds)
+StandardFrame FujinonBuilder::buildSetDayNightAutoDelay(std::uint8_t address, std::uint8_t delaySeconds) noexcept
 {
-    return PelcoDFrame::createFrame(address, 0xF1U, 0x07U, 0x00U, delaySeconds);
+    return PelcoDFrame::createStandardFrame(address, 0xF1U, 0x07U, 0x00U, delaySeconds);
 }
 
-std::vector<std::uint8_t> FujinonBuilder::buildSetDayStartTime(
-    std::uint8_t address, std::uint8_t hour, std::uint8_t minute)
+StandardFrame FujinonBuilder::buildSetDayStartTime(
+    std::uint8_t address, std::uint8_t hour, std::uint8_t minute) noexcept
 {
-    return PelcoDFrame::createFrame(address, 0xF1U, 0x09U, hour, minute);
+    const std::uint8_t clampedHour { std::clamp<std::uint8_t>(hour, 0U, 23U) };
+    const std::uint8_t clampedMinute { std::clamp<std::uint8_t>(minute, 0U, 59U) };
+    return PelcoDFrame::createStandardFrame(address, 0xF1U, 0x09U, clampedHour, clampedMinute);
 }
 
-std::vector<std::uint8_t> FujinonBuilder::buildSetNightStartTime(
-    std::uint8_t address, std::uint8_t hour, std::uint8_t minute)
+StandardFrame FujinonBuilder::buildSetNightStartTime(
+    std::uint8_t address, std::uint8_t hour, std::uint8_t minute) noexcept
 {
-    return PelcoDFrame::createFrame(address, 0xF1U, 0x0BU, hour, minute);
+    const std::uint8_t clampedHour { std::clamp<std::uint8_t>(hour, 0U, 23U) };
+    const std::uint8_t clampedMinute { std::clamp<std::uint8_t>(minute, 0U, 59U) };
+    return PelcoDFrame::createStandardFrame(address, 0xF1U, 0x0BU, clampedHour, clampedMinute);
 }
 
-std::vector<std::uint8_t> FujinonBuilder::buildSetOpticalFilterDay(std::uint8_t address, bool irPass)
+StandardFrame FujinonBuilder::buildSetOpticalFilterDay(std::uint8_t address, bool irPass) noexcept
 {
-    return PelcoDFrame::createFrame(address, 0xF1U, 0x0DU, 0x00U, irPass ? 0x01U : 0x00U);
+    return PelcoDFrame::createStandardFrame(address, 0xF1U, 0x0DU, 0x00U, irPass ? 0x01U : 0x00U);
 }
 
-std::vector<std::uint8_t> FujinonBuilder::buildSetOpticalFilterNight(std::uint8_t address, bool irPass)
+StandardFrame FujinonBuilder::buildSetOpticalFilterNight(std::uint8_t address, bool irPass) noexcept
 {
-    return PelcoDFrame::createFrame(address, 0xF1U, 0x0FU, 0x00U, irPass ? 0x01U : 0x00U);
+    return PelcoDFrame::createStandardFrame(address, 0xF1U, 0x0FU, 0x00U, irPass ? 0x01U : 0x00U);
 }
 
-std::vector<std::uint8_t> FujinonBuilder::buildQueryDayNightEx(std::uint8_t address, std::uint8_t target)
+StandardFrame FujinonBuilder::buildQueryDayNightEx(std::uint8_t address, std::uint8_t target) noexcept
 {
-    return PelcoDFrame::createFrame(address, 0xF1U, 0x1DU, target, 0x00U);
+    return PelcoDFrame::createStandardFrame(address, 0xF1U, 0x1DU, target, 0x00U);
 }
 
-std::vector<std::uint8_t> FujinonBuilder::buildSetZoomSpeedEx(std::uint8_t address, std::uint8_t speed)
+StandardFrame FujinonBuilder::buildSetZoomSpeedEx(std::uint8_t address, std::uint8_t speed) noexcept
 {
-    return PelcoDFrame::createFrame(address, 0xF1U, 0x25U, 0x00U, speed);
+    const std::uint8_t clamped { std::clamp<std::uint8_t>(speed, 1U, 8U) };
+    return PelcoDFrame::createStandardFrame(address, 0xF1U, 0x25U, 0x00U, clamped);
 }
 
-std::vector<std::uint8_t> FujinonBuilder::buildSetFocusSpeedEx(std::uint8_t address, std::uint8_t speed)
+StandardFrame FujinonBuilder::buildSetFocusSpeedEx(std::uint8_t address, std::uint8_t speed) noexcept
 {
-    return PelcoDFrame::createFrame(address, 0xF1U, 0x27U, 0x00U, speed);
+    const std::uint8_t clamped { std::clamp<std::uint8_t>(speed, 1U, 5U) };
+    return PelcoDFrame::createStandardFrame(address, 0xF1U, 0x27U, 0x00U, clamped);
 }
 
-std::vector<std::uint8_t> FujinonBuilder::buildSetDigitalZoomMode(std::uint8_t address, FujinonDigitalZoomMode mode)
+StandardFrame FujinonBuilder::buildSetDigitalZoomMode(std::uint8_t address, FujinonDigitalZoomMode mode) noexcept
 {
-    return PelcoDFrame::createFrame(address, 0xF0U, 0x37U, 0x00U, static_cast<std::uint8_t>(mode));
+    return PelcoDFrame::createStandardFrame(address, 0xF0U, 0x37U, 0x00U, static_cast<std::uint8_t>(mode));
 }
 
-std::vector<std::uint8_t> FujinonBuilder::buildQueryZoomFocusEx(std::uint8_t address, std::uint8_t target)
+StandardFrame FujinonBuilder::buildQueryZoomFocusEx(std::uint8_t address, std::uint8_t target) noexcept
 {
-    return PelcoDFrame::createFrame(address, 0xF1U, 0x2DU, target, 0x00U);
+    return PelcoDFrame::createStandardFrame(address, 0xF1U, 0x2DU, target, 0x00U);
 }
 
-std::vector<std::uint8_t> FujinonBuilder::buildSetAntialiasing(std::uint8_t address, bool enable)
+StandardFrame FujinonBuilder::buildSetAntialiasing(std::uint8_t address, bool enable) noexcept
 {
-    return PelcoDFrame::createFrame(address, 0xF0U, 0x55U, 0x00U, enable ? 0x01U : 0x00U);
+    return PelcoDFrame::createStandardFrame(address, 0xF0U, 0x55U, 0x00U, enable ? 0x01U : 0x00U);
 }
 
-std::vector<std::uint8_t> FujinonBuilder::buildMenuBack(std::uint8_t address)
+StandardFrame FujinonBuilder::buildMenuBack(std::uint8_t address) noexcept
 {
-    return PelcoDFrame::createFrame(address, 0xF0U, 0xABU, 0x00U, 0x01U);
+    return PelcoDFrame::createStandardFrame(address, 0xF0U, 0xABU, 0x00U, 0x01U);
 }
 
-std::vector<std::uint8_t> FujinonBuilder::buildFormatSDCard(std::uint8_t address)
+StandardFrame FujinonBuilder::buildFormatSDCard(std::uint8_t address) noexcept
 {
-    return PelcoDFrame::createFrame(address, 0xF0U, 0x7BU, 0x00U, 0x01U);
+    return PelcoDFrame::createStandardFrame(address, 0xF0U, 0x7BU, 0x00U, 0x01U);
 }
 
-std::vector<std::uint8_t> FujinonBuilder::buildFactoryReset(std::uint8_t address)
+StandardFrame FujinonBuilder::buildFactoryReset(std::uint8_t address) noexcept
 {
-    return PelcoDFrame::createFrame(address, 0xF0U, 0x81U, 0x00U, 0x01U);
+    return PelcoDFrame::createStandardFrame(address, 0xF0U, 0x81U, 0x00U, 0x01U);
 }
 
-std::vector<std::uint8_t> FujinonBuilder::buildSetLanguage(std::uint8_t address, FujinonLanguage lang)
+StandardFrame FujinonBuilder::buildSetLanguage(std::uint8_t address, FujinonLanguage lang) noexcept
 {
-    return PelcoDFrame::createFrame(address, 0xF0U, 0x85U, 0x00U, static_cast<std::uint8_t>(lang));
+    return PelcoDFrame::createStandardFrame(address, 0xF0U, 0x85U, 0x00U, static_cast<std::uint8_t>(lang));
 }
 
-std::vector<std::uint8_t> FujinonBuilder::buildSetRTCSecond(std::uint8_t address, std::uint8_t second)
+StandardFrame FujinonBuilder::buildSetRTCSecond(std::uint8_t address, std::uint8_t second) noexcept
 {
-    return PelcoDFrame::createFrame(address, 0x00U, 0x3BU, 0x00U, second);
+    const std::uint8_t clamped { std::clamp<std::uint8_t>(second, 0U, 59U) };
+    return PelcoDFrame::createStandardFrame(address, 0x00U, 0x3BU, 0x00U, clamped);
 }
 
-std::vector<std::uint8_t> FujinonBuilder::buildSetRTCHourMinute(
-    std::uint8_t address, std::uint8_t hour, std::uint8_t minute)
+StandardFrame FujinonBuilder::buildSetRTCHourMinute(
+    std::uint8_t address, std::uint8_t hour, std::uint8_t minute) noexcept
 {
-    return PelcoDFrame::createFrame(address, 0x02U, 0x3BU, hour, minute);
+    const std::uint8_t clampedHour { std::clamp<std::uint8_t>(hour, 0U, 23U) };
+    const std::uint8_t clampedMinute { std::clamp<std::uint8_t>(minute, 0U, 59U) };
+    return PelcoDFrame::createStandardFrame(address, 0x02U, 0x3BU, clampedHour, clampedMinute);
 }
 
-std::vector<std::uint8_t> FujinonBuilder::buildSetRTCMonthDay(
-    std::uint8_t address, std::uint8_t month, std::uint8_t day)
+StandardFrame FujinonBuilder::buildSetRTCMonthDay(std::uint8_t address, std::uint8_t month, std::uint8_t day) noexcept
 {
-    return PelcoDFrame::createFrame(address, 0x04U, 0x3BU, month, day);
+    const std::uint8_t clampedMonth { std::clamp<std::uint8_t>(month, 1U, 12U) };
+    const std::uint8_t clampedDay { std::clamp<std::uint8_t>(day, 1U, 31U) };
+    return PelcoDFrame::createStandardFrame(address, 0x04U, 0x3BU, clampedMonth, clampedDay);
 }
 
-std::vector<std::uint8_t> FujinonBuilder::buildSetRTCYear(std::uint8_t address, std::uint16_t year)
+StandardFrame FujinonBuilder::buildSetRTCYear(std::uint8_t address, std::uint16_t year) noexcept
 {
-    return PelcoDFrame::createFrame(
+    return PelcoDFrame::createStandardFrame(
         address, 0x06U, 0x3BU, static_cast<std::uint8_t>((year >> 8) & 0xFFU), static_cast<std::uint8_t>(year & 0xFFU));
 }
 
-std::vector<std::uint8_t> FujinonBuilder::buildQueryRTC(std::uint8_t address, std::uint8_t subOpCode)
+StandardFrame FujinonBuilder::buildQueryRTC(std::uint8_t address, std::uint8_t subOpCode) noexcept
 {
-    return PelcoDFrame::createFrame(address, subOpCode, 0x3BU, 0x00U, 0x00U);
+    return PelcoDFrame::createStandardFrame(address, subOpCode, 0x3BU, 0x00U, 0x00U);
 }
 
-std::vector<std::uint8_t> FujinonBuilder::buildQueryZoomStandard(std::uint8_t address)
+StandardFrame FujinonBuilder::buildQueryZoomStandard(std::uint8_t address) noexcept
 {
-    return PelcoDFrame::createFrame(address, 0x00U, 0x55U, 0x00U, 0x00U);
+    return PelcoDFrame::createStandardFrame(address, 0x00U, 0x55U, 0x00U, 0x00U);
 }
 
-std::vector<std::uint8_t> FujinonBuilder::buildSetZoomPosition(std::uint8_t address, std::uint16_t zoomPos)
+StandardFrame FujinonBuilder::buildSetZoomPosition(std::uint8_t address, std::uint16_t zoomPos) noexcept
 {
-    const auto msb = static_cast<std::uint8_t>((zoomPos >> 8U) & 0xFFU);
-    const auto lsb = static_cast<std::uint8_t>(zoomPos & 0xFFU);
-    return PelcoDFrame::createFrame(address, 0x00U, 0x4FU, msb, lsb);
+    const std::uint8_t msb { static_cast<std::uint8_t>((zoomPos >> 8U) & 0xFFU) };
+    const std::uint8_t lsb { static_cast<std::uint8_t>(zoomPos & 0xFFU) };
+    return PelcoDFrame::createStandardFrame(address, 0x00U, 0x4FU, msb, lsb);
 }
 
-std::vector<std::uint8_t> FujinonBuilder::buildSetZoomSpeed(std::uint8_t address, std::uint8_t speed)
+StandardFrame FujinonBuilder::buildSetZoomSpeed(std::uint8_t address, std::uint8_t speed) noexcept
 {
-    return PelcoDFrame::createFrame(address, 0x00U, 0x25U, 0x00U, speed);
+    const std::uint8_t clamped { std::clamp<std::uint8_t>(speed, 0U, 3U) };
+    return PelcoDFrame::createStandardFrame(address, 0x00U, 0x25U, 0x00U, clamped);
 }
 
-std::vector<std::uint8_t> FujinonBuilder::buildSetFocusSpeed(std::uint8_t address, std::uint8_t speed)
+StandardFrame FujinonBuilder::buildSetFocusSpeed(std::uint8_t address, std::uint8_t speed) noexcept
 {
-    return PelcoDFrame::createFrame(address, 0x00U, 0x27U, 0x00U, speed);
+    const std::uint8_t clamped { std::clamp<std::uint8_t>(speed, 0U, 3U) };
+    return PelcoDFrame::createStandardFrame(address, 0x00U, 0x27U, 0x00U, clamped);
 }
 
-std::vector<std::uint8_t> FujinonBuilder::buildSetAutoFocus(std::uint8_t address, FujinonAutoFocusMode mode)
+StandardFrame FujinonBuilder::buildSetAutoFocus(std::uint8_t address, FujinonAutoFocusMode mode) noexcept
 {
-    return PelcoDFrame::createFrame(address, 0x00U, 0x2BU, 0x00U, static_cast<std::uint8_t>(mode));
+    return PelcoDFrame::createStandardFrame(address, 0x00U, 0x2BU, 0x00U, static_cast<std::uint8_t>(mode));
 }
 
-std::vector<std::uint8_t> FujinonBuilder::buildSetAutoIris(std::uint8_t address, FujinonAutoIrisMode mode)
+StandardFrame FujinonBuilder::buildSetAutoIris(std::uint8_t address, FujinonAutoIrisMode mode) noexcept
 {
-    return PelcoDFrame::createFrame(address, 0x00U, 0x2DU, 0x00U, static_cast<std::uint8_t>(mode));
+    return PelcoDFrame::createStandardFrame(address, 0x00U, 0x2DU, 0x00U, static_cast<std::uint8_t>(mode));
 }
 
-std::vector<std::uint8_t> FujinonBuilder::buildSetAGC(std::uint8_t address, FujinonAGCMode mode)
+StandardFrame FujinonBuilder::buildSetAGC(std::uint8_t address, FujinonAGCMode mode) noexcept
 {
-    return PelcoDFrame::createFrame(address, 0x00U, 0x2FU, 0x00U, static_cast<std::uint8_t>(mode));
+    return PelcoDFrame::createStandardFrame(address, 0x00U, 0x2FU, 0x00U, static_cast<std::uint8_t>(mode));
 }
 
-std::vector<std::uint8_t> FujinonBuilder::buildSetBLC(std::uint8_t address, FujinonBLCMode mode)
+StandardFrame FujinonBuilder::buildSetBLC(std::uint8_t address, FujinonBLCMode mode) noexcept
 {
-    return PelcoDFrame::createFrame(address, 0x00U, 0x31U, 0x00U, static_cast<std::uint8_t>(mode));
+    return PelcoDFrame::createStandardFrame(address, 0x00U, 0x31U, 0x00U, static_cast<std::uint8_t>(mode));
 }
 
-std::vector<std::uint8_t> FujinonBuilder::buildSetBaudRate(std::uint8_t address, std::uint8_t baudRateIndex)
+StandardFrame FujinonBuilder::buildSetBaudRate(std::uint8_t address, std::uint8_t baudRateIndex) noexcept
 {
-    return PelcoDFrame::createFrame(address, 0x00U, 0x67U, 0x00U, baudRateIndex);
+    return PelcoDFrame::createStandardFrame(address, 0x00U, 0x67U, 0x00U, baudRateIndex);
 }
 
-std::vector<std::uint8_t> FujinonBuilder::buildSetShutterLimitAuto(std::uint8_t address, FujinonShutterLimitAuto limit)
+StandardFrame FujinonBuilder::buildSetShutterLimitAuto(std::uint8_t address, FujinonShutterLimitAuto limit) noexcept
 {
-    return PelcoDFrame::createFrame(address, 0x00U, 0x93U, 0x00U, static_cast<std::uint8_t>(limit));
+    return PelcoDFrame::createStandardFrame(address, 0x00U, 0x93U, 0x00U, static_cast<std::uint8_t>(limit));
 }
 
-std::vector<std::uint8_t> FujinonBuilder::buildQueryManualShutter(std::uint8_t address)
+StandardFrame FujinonBuilder::buildQueryManualShutter(std::uint8_t address) noexcept
 {
-    return PelcoDFrame::createFrame(address, 0x00U, 0x97U, 0x00U, 0x00U);
+    return PelcoDFrame::createStandardFrame(address, 0x00U, 0x97U, 0x00U, 0x00U);
 }
 
-std::vector<std::uint8_t> FujinonBuilder::buildQueryManualISO(std::uint8_t address)
+StandardFrame FujinonBuilder::buildQueryManualISO(std::uint8_t address) noexcept
 {
-    return PelcoDFrame::createFrame(address, 0x00U, 0x9BU, 0x00U, 0x00U);
+    return PelcoDFrame::createStandardFrame(address, 0x00U, 0x9BU, 0x00U, 0x00U);
 }
 
-std::vector<std::uint8_t> FujinonBuilder::buildQueryManualIris(std::uint8_t address)
+StandardFrame FujinonBuilder::buildQueryManualIris(std::uint8_t address) noexcept
 {
-    return PelcoDFrame::createFrame(address, 0x00U, 0x9DU, 0x00U, 0x00U);
+    return PelcoDFrame::createStandardFrame(address, 0x00U, 0x9DU, 0x00U, 0x00U);
 }
 
-std::vector<std::uint8_t> FujinonBuilder::buildSetPhotoModePreset(std::uint8_t address, FujinonPhotoModePreset preset)
+StandardFrame FujinonBuilder::buildSetPhotoModePreset(std::uint8_t address, FujinonPhotoModePreset preset) noexcept
 {
-    return PelcoDFrame::createFrame(address, 0xF0U, 0x17U, 0x00U, static_cast<std::uint8_t>(preset));
+    return PelcoDFrame::createStandardFrame(address, 0xF0U, 0x17U, 0x00U, static_cast<std::uint8_t>(preset));
 }
 
-std::vector<std::uint8_t> FujinonBuilder::buildSetExternalDayNight(std::uint8_t address, FujinonExternalDayNight mode)
+StandardFrame FujinonBuilder::buildSetExternalDayNight(std::uint8_t address, FujinonExternalDayNight mode) noexcept
 {
-    return PelcoDFrame::createFrame(address, 0xF0U, 0x19U, 0x00U, static_cast<std::uint8_t>(mode));
+    return PelcoDFrame::createStandardFrame(address, 0xF0U, 0x19U, 0x00U, static_cast<std::uint8_t>(mode));
 }
 
-std::vector<std::uint8_t> FujinonBuilder::buildQueryDisplay(std::uint8_t address, std::uint8_t target)
+StandardFrame FujinonBuilder::buildQueryDisplay(std::uint8_t address, std::uint8_t target) noexcept
 {
-    return PelcoDFrame::createFrame(address, 0xF0U, 0x5DU, target, 0x00U);
+    return PelcoDFrame::createStandardFrame(address, 0xF0U, 0x5DU, target, 0x00U);
 }
 
-std::vector<std::uint8_t> FujinonBuilder::buildSetTimeFormat(std::uint8_t address, FujinonTimeFormat fmt)
+StandardFrame FujinonBuilder::buildSetTimeFormat(std::uint8_t address, FujinonTimeFormat fmt) noexcept
 {
-    return PelcoDFrame::createFrame(address, 0xF0U, 0x61U, 0x00U, static_cast<std::uint8_t>(fmt));
+    return PelcoDFrame::createStandardFrame(address, 0xF0U, 0x61U, 0x00U, static_cast<std::uint8_t>(fmt));
 }
 
-std::vector<std::uint8_t> FujinonBuilder::buildSetDateFormat(std::uint8_t address, FujinonDateFormat fmt)
+StandardFrame FujinonBuilder::buildSetDateFormat(std::uint8_t address, FujinonDateFormat fmt) noexcept
 {
-    return PelcoDFrame::createFrame(address, 0xF0U, 0x63U, 0x00U, static_cast<std::uint8_t>(fmt));
+    return PelcoDFrame::createStandardFrame(address, 0xF0U, 0x63U, 0x00U, static_cast<std::uint8_t>(fmt));
 }
 
-std::vector<std::uint8_t> FujinonBuilder::buildSetVideoDisplay(std::uint8_t address, FujinonVideoDisplayMode mode)
+StandardFrame FujinonBuilder::buildSetVideoDisplay(std::uint8_t address, FujinonVideoDisplayMode mode) noexcept
 {
-    return PelcoDFrame::createFrame(address, 0xF0U, 0x6BU, 0x00U, static_cast<std::uint8_t>(mode));
+    return PelcoDFrame::createStandardFrame(address, 0xF0U, 0x6BU, 0x00U, static_cast<std::uint8_t>(mode));
 }
 
-std::vector<std::uint8_t> FujinonBuilder::buildSetRS485Address(std::uint8_t address, std::uint8_t newId)
+StandardFrame FujinonBuilder::buildSetRS485Address(std::uint8_t address, std::uint8_t newId) noexcept
 {
-    return PelcoDFrame::createFrame(address, 0xF0U, 0x6FU, 0x00U, newId);
+    const std::uint8_t clamped { std::clamp<std::uint8_t>(newId, 1U, 31U) };
+    return PelcoDFrame::createStandardFrame(address, 0xF0U, 0x6FU, 0x00U, clamped);
 }
 
-std::vector<std::uint8_t> FujinonBuilder::buildSetSDRecordingMode(std::uint8_t address, FujinonSDRecordMode mode)
+StandardFrame FujinonBuilder::buildSetSDRecordingMode(std::uint8_t address, FujinonSDRecordMode mode) noexcept
 {
-    return PelcoDFrame::createFrame(address, 0xF0U, 0x77U, 0x00U, static_cast<std::uint8_t>(mode));
+    return PelcoDFrame::createStandardFrame(address, 0xF0U, 0x77U, 0x00U, static_cast<std::uint8_t>(mode));
 }
 
-std::vector<std::uint8_t> FujinonBuilder::buildSetSDCapacityDisp(std::uint8_t address, bool enable)
+StandardFrame FujinonBuilder::buildSetSDCapacityDisp(std::uint8_t address, bool enable) noexcept
 {
-    return PelcoDFrame::createFrame(address, 0xF0U, 0x79U, 0x00U, enable ? 0x01U : 0x02U);
+    return PelcoDFrame::createStandardFrame(address, 0xF0U, 0x79U, 0x00U, enable ? 0x01U : 0x02U);
 }
 
-std::vector<std::uint8_t> FujinonBuilder::buildRecordLogData(std::uint8_t address)
+StandardFrame FujinonBuilder::buildRecordLogData(std::uint8_t address) noexcept
 {
-    return PelcoDFrame::createFrame(address, 0xF0U, 0x7FU, 0x00U, 0x01U);
+    return PelcoDFrame::createStandardFrame(address, 0xF0U, 0x7FU, 0x00U, 0x01U);
 }
 
-std::vector<std::uint8_t> FujinonBuilder::buildSetEncodeMode(std::uint8_t address, FujinonVideoEncoding enc)
+StandardFrame FujinonBuilder::buildSetEncodeMode(std::uint8_t address, FujinonVideoEncoding enc) noexcept
 {
-    return PelcoDFrame::createFrame(address, 0xF0U, 0x91U, 0x00U, static_cast<std::uint8_t>(enc));
+    return PelcoDFrame::createStandardFrame(address, 0xF0U, 0x91U, 0x00U, static_cast<std::uint8_t>(enc));
 }
 
-std::vector<std::uint8_t> FujinonBuilder::buildSetFirstMovieFile(std::uint8_t address, std::uint16_t fileIndex)
+StandardFrame FujinonBuilder::buildSetFirstMovieFile(std::uint8_t address, std::uint16_t fileIndex) noexcept
 {
-    const auto msb = static_cast<std::uint8_t>((fileIndex >> 8U) & 0xFFU);
-    const auto lsb = static_cast<std::uint8_t>(fileIndex & 0xFFU);
-    return PelcoDFrame::createFrame(address, 0xF0U, 0x95U, msb, lsb);
+    const std::uint8_t msb { static_cast<std::uint8_t>((fileIndex >> 8U) & 0xFFU) };
+    const std::uint8_t lsb { static_cast<std::uint8_t>(fileIndex & 0xFFU) };
+    return PelcoDFrame::createStandardFrame(address, 0xF0U, 0x95U, msb, lsb);
 }
 
-std::vector<std::uint8_t> FujinonBuilder::buildPlayMovieMode(std::uint8_t address, FujinonMoviePlayMode mode)
+StandardFrame FujinonBuilder::buildPlayMovieMode(std::uint8_t address, FujinonMoviePlayMode mode) noexcept
 {
-    return PelcoDFrame::createFrame(address, 0xF0U, 0x97U, 0x00U, static_cast<std::uint8_t>(mode));
+    return PelcoDFrame::createStandardFrame(address, 0xF0U, 0x97U, 0x00U, static_cast<std::uint8_t>(mode));
 }
 
-std::vector<std::uint8_t> FujinonBuilder::buildDeleteMovie(std::uint8_t address, std::uint16_t fileIndex)
+StandardFrame FujinonBuilder::buildDeleteMovie(std::uint8_t address, std::uint16_t fileIndex) noexcept
 {
-    const auto msb = static_cast<std::uint8_t>((fileIndex >> 8U) & 0xFFU);
-    const auto lsb = static_cast<std::uint8_t>(fileIndex & 0xFFU);
-    return PelcoDFrame::createFrame(address, 0xF0U, 0x99U, msb, lsb);
+    const std::uint8_t msb { static_cast<std::uint8_t>((fileIndex >> 8U) & 0xFFU) };
+    const std::uint8_t lsb { static_cast<std::uint8_t>(fileIndex & 0xFFU) };
+    return PelcoDFrame::createStandardFrame(address, 0xF0U, 0x99U, msb, lsb);
 }
 
-std::vector<std::uint8_t> FujinonBuilder::buildQueryKeySetting(std::uint8_t address, std::uint8_t target)
+StandardFrame FujinonBuilder::buildQueryKeySetting(std::uint8_t address, std::uint8_t target) noexcept
 {
-    return PelcoDFrame::createFrame(address, 0xF0U, 0xADU, target, 0x00U);
+    return PelcoDFrame::createStandardFrame(address, 0xF0U, 0xADU, target, 0x00U);
 }
 
-std::vector<std::uint8_t> FujinonBuilder::buildQueryMovieCount(std::uint8_t address)
+StandardFrame FujinonBuilder::buildQueryMovieCount(std::uint8_t address) noexcept
 {
-    return PelcoDFrame::createFrame(address, 0xF0U, 0xB1U, 0xB3U, 0x00U);
+    return PelcoDFrame::createStandardFrame(address, 0xF0U, 0xB1U, 0xB3U, 0x00U);
 }
 
-std::vector<std::uint8_t> FujinonBuilder::buildQueryMovieYear(std::uint8_t address, std::uint16_t fileIndex)
+StandardFrame FujinonBuilder::buildQueryMovieYear(std::uint8_t address, std::uint16_t fileIndex) noexcept
 {
-    const auto msb = static_cast<std::uint8_t>((fileIndex >> 8U) & 0xFFU);
-    const auto lsb = static_cast<std::uint8_t>(fileIndex & 0xFFU);
-    return PelcoDFrame::createFrame(address, 0xF0U, 0xB5U, msb, lsb);
+    const std::uint8_t msb { static_cast<std::uint8_t>((fileIndex >> 8U) & 0xFFU) };
+    const std::uint8_t lsb { static_cast<std::uint8_t>(fileIndex & 0xFFU) };
+    return PelcoDFrame::createStandardFrame(address, 0xF0U, 0xB5U, msb, lsb);
 }
 
-std::vector<std::uint8_t> FujinonBuilder::buildQueryMovieDate(std::uint8_t address, std::uint16_t fileIndex)
+StandardFrame FujinonBuilder::buildQueryMovieDate(std::uint8_t address, std::uint16_t fileIndex) noexcept
 {
-    const auto msb = static_cast<std::uint8_t>((fileIndex >> 8U) & 0xFFU);
-    const auto lsb = static_cast<std::uint8_t>(fileIndex & 0xFFU);
-    return PelcoDFrame::createFrame(address, 0xF0U, 0xB9U, msb, lsb);
+    const std::uint8_t msb { static_cast<std::uint8_t>((fileIndex >> 8U) & 0xFFU) };
+    const std::uint8_t lsb { static_cast<std::uint8_t>(fileIndex & 0xFFU) };
+    return PelcoDFrame::createStandardFrame(address, 0xF0U, 0xB9U, msb, lsb);
 }
 
-std::vector<std::uint8_t> FujinonBuilder::buildQueryMovieTime(std::uint8_t address, std::uint16_t fileIndex)
+StandardFrame FujinonBuilder::buildQueryMovieTime(std::uint8_t address, std::uint16_t fileIndex) noexcept
 {
-    const auto msb = static_cast<std::uint8_t>((fileIndex >> 8U) & 0xFFU);
-    const auto lsb = static_cast<std::uint8_t>(fileIndex & 0xFFU);
-    return PelcoDFrame::createFrame(address, 0xF0U, 0xBDU, msb, lsb);
+    const std::uint8_t msb { static_cast<std::uint8_t>((fileIndex >> 8U) & 0xFFU) };
+    const std::uint8_t lsb { static_cast<std::uint8_t>(fileIndex & 0xFFU) };
+    return PelcoDFrame::createStandardFrame(address, 0xF0U, 0xBDU, msb, lsb);
 }
 
-std::vector<std::uint8_t> FujinonBuilder::buildQueryLogData(std::uint8_t address, FujinonLogType logType)
+StandardFrame FujinonBuilder::buildQueryLogData(std::uint8_t address, FujinonLogType logType) noexcept
 {
-    return PelcoDFrame::createFrame(address, 0xF0U, 0xD1U, 0xD3U, static_cast<std::uint8_t>(logType));
+    return PelcoDFrame::createStandardFrame(address, 0xF0U, 0xD1U, 0xD3U, static_cast<std::uint8_t>(logType));
 }
 
-std::vector<std::uint8_t> FujinonBuilder::buildSetDigitalZoomEx(std::uint8_t address, std::uint8_t magIndex)
+StandardFrame FujinonBuilder::buildSetDigitalZoomEx(std::uint8_t address, std::uint8_t magIndex) noexcept
 {
-    return PelcoDFrame::createFrame(address, 0xF1U, 0x21U, 0x00U, magIndex);
+    return PelcoDFrame::createStandardFrame(address, 0xF1U, 0x21U, 0x00U, magIndex);
 }
 
 double FujinonBuilder::rawZoomToFocalLengthMm(std::uint16_t rawZoom, FujinonDigitalZoom digitalZoom)

@@ -2,14 +2,20 @@
 /// @brief Implementation of Fujinon SX800 / SX801 specialized device profile.
 
 #include "FujinonSX800Device.h"
-#include "CallbackGate.h"
 
-#include <glog/logging.h>
+#include <cstdint>
 
 #include <algorithm>
 #include <atomic>
+#include <memory>
 #include <mutex>
+#include <string>
 #include <utility>
+#include <vector>
+
+#include <glog/logging.h>
+
+#include "CallbackGate.h"
 
 namespace PelcoD {
 
@@ -31,6 +37,12 @@ public:
     void setAddress(std::uint8_t address) noexcept
     {
         m_address.store(address, std::memory_order_relaxed);
+    }
+
+    void setFocusPositionTarget(std::uint16_t focusPos) noexcept
+    {
+        std::scoped_lock lock { m_statusMutex };
+        m_status.absoluteFocusPosition = focusPos;
     }
 
     /// @brief Returns a snapshot of the Fujinon status model (baseStatus left default).
@@ -282,7 +294,11 @@ SendResult FujinonSX800Device::setIRWavelength(FujinonIRWavelength wavelength)
 
 SendResult FujinonSX800Device::setFocusPosition(std::uint16_t focusPos)
 {
-    return enqueueCommand(FujinonBuilder::buildSetFocusPosition(getAddress(), focusPos));
+    const auto result = enqueueCommand(FujinonBuilder::buildSetFocusPosition(getAddress(), focusPos));
+    if (result == SendResult::Success && m_ext) {
+        m_ext->setFocusPositionTarget(focusPos);
+    }
+    return result;
 }
 
 SendResult FujinonSX800Device::onePushAF()
@@ -594,17 +610,19 @@ SendResult FujinonSX800Device::queryZoomStandard()
 
 SendResult FujinonSX800Device::setZoomPosition(std::uint16_t zoomPos)
 {
-    return enqueueCommand(FujinonBuilder::buildSetZoomPosition(getAddress(), zoomPos));
+    return PtzCommands::setZoomPosition(zoomPos);
 }
 
 SendResult FujinonSX800Device::setZoomSpeed(std::uint8_t speed)
 {
-    return enqueueCommand(FujinonBuilder::buildSetZoomSpeed(getAddress(), speed));
+    const std::uint8_t satSpeed { std::min(speed, static_cast<std::uint8_t>(0x03U)) };
+    return PtzCommands::setZoomSpeed(satSpeed);
 }
 
 SendResult FujinonSX800Device::setFocusSpeed(std::uint8_t speed)
 {
-    return enqueueCommand(FujinonBuilder::buildSetFocusSpeed(getAddress(), speed));
+    const std::uint8_t satSpeed { std::min(speed, static_cast<std::uint8_t>(0x03U)) };
+    return PtzCommands::setFocusSpeed(satSpeed);
 }
 
 SendResult FujinonSX800Device::setAutoFocus(AutoMode mode)

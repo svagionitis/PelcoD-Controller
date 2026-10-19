@@ -73,6 +73,14 @@ public:
     /// @return True if sync byte and checksum conform to protocol.
     [[nodiscard]] static bool isValidStandardFrame(const StandardFrame& frame) noexcept;
 
+    /// @brief Validates fixed 7-byte frame structure and checksum.
+    /// @param[in] frame Raw standard frame array.
+    /// @return True if sync byte and checksum conform to protocol.
+    [[nodiscard]] static inline bool isValidFrame(const StandardFrame& frame) noexcept
+    {
+        return isValidStandardFrame(frame);
+    }
+
     /// @brief Validates frame structure and checksum.
     /// @param[in] frame Raw frame bytes starting with SyncByte.
     /// @return True if length and checksum conform to protocol.

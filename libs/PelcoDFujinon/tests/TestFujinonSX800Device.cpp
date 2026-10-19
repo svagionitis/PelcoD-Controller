@@ -1,12 +1,8 @@
 /// @file TestFujinonSX800Device.cpp
 /// @brief Integration tests for PelcoD::FujinonSX800Device profile with mock transport.
 
-#include "FujinonBuilder.h"
-#include "FujinonSX800Device.h"
-#include "MockPelcoDDevice.h"
-#include "PelcoDFrame.h"
-
-#include <gtest/gtest.h>
+#include <cstddef>
+#include <cstdint>
 
 #include <atomic>
 #include <chrono>
@@ -14,6 +10,13 @@
 #include <memory>
 #include <thread>
 #include <vector>
+
+#include <gtest/gtest.h>
+
+#include "FujinonBuilder.h"
+#include "FujinonSX800Device.h"
+#include "MockPelcoDDevice.h"
+#include "PelcoDFrame.h"
 
 namespace {
 
@@ -410,6 +413,38 @@ TEST(FujinonSX800DeviceTest, PreviouslyDeadQueriesResolvePromptly)
     EXPECT_EQ(device.queryLogData(PelcoD::FujinonLogType::Focus), PelcoD::SendResult::Success);
     mock->injectRxData(PelcoD::PelcoDFrame::createFrame(1U, 0xF0U, 0xD3U, 0x01U, 0x02U));
     std::this_thread::sleep_for(std::chrono::milliseconds(20));
+
+    device.stop();
+}
+
+TEST(FujinonSX800DeviceTest, ZoomAndFocusSpeedSaturationAndTelemetrySync)
+{
+    auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(std::uint8_t { 1U });
+    PelcoD::FujinonSX800Device device(mock, 1U);
+    ASSERT_TRUE(device.start());
+
+    // Zoom speed saturation to 3 and telemetry synchronization
+    EXPECT_EQ(device.setZoomSpeed(5U), PelcoD::SendResult::Success);
+    EXPECT_EQ(device.getStatus().zoomSpeed, 3U);
+    EXPECT_EQ(device.getFujinonStatus().baseStatus.zoomSpeed, 3U);
+
+    // Focus speed saturation to 3 and telemetry synchronization
+    EXPECT_EQ(device.setFocusSpeed(8U), PelcoD::SendResult::Success);
+    EXPECT_EQ(device.getStatus().focusSpeed, 3U);
+    EXPECT_EQ(device.getFujinonStatus().baseStatus.focusSpeed, 3U);
+
+    device.stop();
+}
+
+TEST(FujinonSX800DeviceTest, FocusPositionTelemetrySynchronization)
+{
+    auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(std::uint8_t { 1U });
+    PelcoD::FujinonSX800Device device(mock, 1U);
+    ASSERT_TRUE(device.start());
+
+    // Focus position command updates optimistic telemetry
+    EXPECT_EQ(device.setFocusPosition(0x2468U), PelcoD::SendResult::Success);
+    EXPECT_EQ(device.getFujinonStatus().absoluteFocusPosition, 0x2468U);
 
     device.stop();
 }

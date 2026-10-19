@@ -1,9 +1,19 @@
 #include "PelcoDDevice.h"
 
+#include <cstdint>
+
 #include <algorithm>
-#include <glog/logging.h>
+#include <atomic>
+#include <chrono>
+#include <initializer_list>
+#include <memory>
+#include <optional>
 #include <stdexcept>
+#include <string>
 #include <utility>
+#include <vector>
+
+#include <glog/logging.h>
 
 namespace PelcoD {
 
@@ -369,13 +379,38 @@ SendResult PelcoDDevice::sendRawFrame(const std::vector<std::uint8_t>& frame)
     return enqueueCommand(frame, "", CommandPriority::Normal);
 }
 
+SendResult PelcoDDevice::sendRawFrame(const StandardFrame& frame)
+{
+    return enqueueCommand(frame, "", CommandPriority::Normal);
+}
+
+SendResult PelcoDDevice::sendRawFrame(std::initializer_list<std::uint8_t> frame)
+{
+    if (frame.size() == PelcoDFrame::StandardFrameSize) {
+        StandardFrame stdFrame {};
+        std::copy(frame.begin(), frame.end(), stdFrame.begin());
+        return sendRawFrame(stdFrame);
+    }
+    return sendRawFrame(std::vector<std::uint8_t>(frame));
+}
+
 SendResult PelcoDDevice::sendQueryFrame(const std::vector<std::uint8_t>& frame, QueryRef query)
+{
+    return m_session->sendQueryFrame(frame, std::move(query));
+}
+
+SendResult PelcoDDevice::sendQueryFrame(const StandardFrame& frame, QueryRef query)
 {
     return m_session->sendQueryFrame(frame, std::move(query));
 }
 
 SendResult PelcoDDevice::enqueueCommand(
     const std::vector<std::uint8_t>& frame, QueryRef query, CommandPriority priority)
+{
+    return m_safetyGuard->dispatch(frame, std::move(query), priority);
+}
+
+SendResult PelcoDDevice::enqueueCommand(const StandardFrame& frame, QueryRef query, CommandPriority priority)
 {
     return m_safetyGuard->dispatch(frame, std::move(query), priority);
 }

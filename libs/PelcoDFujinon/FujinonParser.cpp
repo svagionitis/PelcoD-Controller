@@ -2,10 +2,16 @@
 /// @brief Implementation of response decoders for Fujinon SX800 / SX801 frames.
 
 #include "FujinonParser.h"
-#include "FujinonBuilder.h"
+
+#include <cstddef>
+#include <cstdint>
+#include <cstdio>
 
 #include <array>
-#include <cstdio>
+#include <string>
+#include <vector>
+
+#include "FujinonBuilder.h"
 
 namespace PelcoD {
 
@@ -34,13 +40,13 @@ bool FujinonParser::isFujinonResponse(const std::vector<std::uint8_t>& frame) no
     }
 
     if (frame.size() == PelcoDFrame::StandardFrameSize) {
-        // Focus (0x81), Zoom (0x83), FW (0x8B), Lens Status (0x8D), Manual (0x8F), Zoom std (0x5D), RTC (0x3B),
-        // Shutter (0x97), ISO (0x9B), Iris (0x9D), or Original Resp (0xF0, 0xF1)
+        // Focus (0x81), Zoom (0x83), FW (0x8B), Lens Status (0x8D), Manual (0x8F), Zoom std (0x5D),
+        // Shutter (0x97), ISO (0x9B), Iris (0x9D), RTC (0x3B), or Original Resp (0xF0, 0xF1)
         return (frame[2] == 0x00U
                    && (frame[3] == 0x81U || frame[3] == 0x83U || frame[3] == 0x8BU || frame[3] == 0x8DU
-                       || frame[3] == 0x8FU || frame[3] == 0x5DU || frame[3] == 0x3BU || frame[3] == 0x97U
-                       || frame[3] == 0x9BU || frame[3] == 0x9DU))
-            || (frame[2] == 0xF0U) || (frame[2] == 0xF1U);
+                       || frame[3] == 0x8FU || frame[3] == 0x5DU || frame[3] == 0x97U || frame[3] == 0x9BU
+                       || frame[3] == 0x9DU))
+            || (frame[3] == 0x3BU) || (frame[2] == 0xF0U) || (frame[2] == 0xF1U);
     }
 
     if (frame.size() == PelcoDFrame::QueryResponseSize) {
@@ -435,7 +441,7 @@ bool FujinonParser::parseQueryRTC(
     if (!isValidResponse(frame) || frame.size() != PelcoDFrame::StandardFrameSize) {
         return false;
     }
-    if (frame[2] == 0x00U && frame[3] == 0x3BU) {
+    if (frame[3] == 0x3BU) {
         data1 = frame[4];
         data2 = frame[5];
         return true;
@@ -705,6 +711,30 @@ bool FujinonParser::updateFujinonStatus(const std::vector<std::uint8_t>& frame, 
     std::uint8_t rtcD1 { 0U };
     std::uint8_t rtcD2 { 0U };
     if (parseQueryRTC(frame, rtcD1, rtcD2)) {
+        if (frame.size() == PelcoDFrame::StandardFrameSize) {
+            const std::uint8_t subOp { frame[2] };
+            switch (subOp) {
+            case 0x01U: // Second
+                status.baseStatus.deviceTime.second = rtcD2;
+                return true;
+            case 0x03U: // Hour / Minute
+                status.baseStatus.deviceTime.hour = rtcD1;
+                status.baseStatus.deviceTime.minute = rtcD2;
+                return true;
+            case 0x05U: // Month / Day
+                status.baseStatus.deviceTime.month = rtcD1;
+                status.baseStatus.deviceTime.day = rtcD2;
+                return true;
+            case 0x07U: // Year
+                status.baseStatus.deviceTime.year
+                    = static_cast<std::uint16_t>((static_cast<std::uint16_t>(rtcD1) << 8U) | rtcD2);
+                return true;
+            default: // Generic / 0x00
+                status.baseStatus.deviceTime.hour = rtcD1;
+                status.baseStatus.deviceTime.minute = rtcD2;
+                return true;
+            }
+        }
         return true;
     }
 

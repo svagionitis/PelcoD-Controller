@@ -31,6 +31,7 @@
 #include <deque>
 #include <functional>
 #include <future>
+#include <initializer_list>
 #include <memory>
 #include <mutex>
 #include <optional>
@@ -276,11 +277,16 @@ public:
     [[nodiscard]] AsyncWatchdog& getAsyncWatchdog() noexcept;
 
     [[nodiscard]] SendResult sendRawFrame(const std::vector<std::uint8_t>& frame);
+    [[nodiscard]] SendResult sendRawFrame(const StandardFrame& frame);
+    [[nodiscard]] SendResult sendRawFrame(std::initializer_list<std::uint8_t> frame);
     [[nodiscard]] SendResult sendQueryFrame(const std::vector<std::uint8_t>& frame, QueryRef query = "Query");
+    [[nodiscard]] SendResult sendQueryFrame(const StandardFrame& frame, QueryRef query = "Query");
 
 protected:
     [[nodiscard]] SendResult enqueueCommand(const std::vector<std::uint8_t>& frame, QueryRef query = {},
         CommandPriority priority = CommandPriority::Normal);
+    [[nodiscard]] SendResult enqueueCommand(
+        const StandardFrame& frame, QueryRef query = {}, CommandPriority priority = CommandPriority::Normal);
 
     /// @brief Installs a vendor protocol extension consulted for every received frame.
     /// @details The device shares ownership of @p ext, so the extension outlives every in-flight RX
