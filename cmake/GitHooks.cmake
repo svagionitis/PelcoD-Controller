@@ -90,3 +90,13 @@ if(CLANG_FORMAT_BIN)
         COMMENT "Checking C++ sources formatting with clang-format (alias)"
     )
 endif()
+
+# IWYU and <cstdint> compliance target
+find_package(Python3 COMPONENTS Interpreter QUIET)
+if(Python3_FOUND)
+    add_custom_target(check-iwyu
+        COMMAND ${Python3_EXECUTABLE} "${PROJECT_SOURCE_DIR}/scripts/verify_iwyu_cstdint.py"
+        WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}"
+        COMMENT "Verifying <cstdint> and IWYU compliance across C++ sources"
+    )
+endif()
