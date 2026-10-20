@@ -20,6 +20,11 @@ set(PELCOD_VIDEO_SOURCES
     ColorConverter.cpp
     MpegTsH264Demuxer.h
     MpegTsH264Demuxer.cpp
+    RtspServerConfig.h
+    RtspServerConfig.cpp
+    Live555FrameTypes.h
+    Live555FrameQueue.h
+    Live555FrameQueue.cpp
 )
 
 if(PELCOD_ENABLE_FFMPEG AND FFMPEG_FOUND)
