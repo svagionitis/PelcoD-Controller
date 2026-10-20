@@ -1,0 +1,15 @@
+<RCC>
+    <qresource prefix="/">
+        <file>qml/Main.qml</file>
+        <file>qml/components/TacticalCard.qml</file>
+        <file>qml/components/TacticalTextField.qml</file>
+        <file>qml/components/TacticalButton.qml</file>
+        <file>qml/components/TacticalComboBox.qml</file>
+        <file>qml/components/StatusIndicator.qml</file>
+        <file>qml/panels/HeaderBar.qml</file>
+        <file>qml/panels/ServerConfigPanel.qml</file>
+        <file>qml/panels/MediaSourcePanel.qml</file>
+        <file>qml/panels/TelemetryPanel.qml</file>
+        <file>qml/panels/EventLogPanel.qml</file>
+    </qresource>
+</RCC>

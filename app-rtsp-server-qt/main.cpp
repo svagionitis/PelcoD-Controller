@@ -1,0 +1,41 @@
+#include "RtspServerController.h"
+
+#include <QGuiApplication>
+#include <QQmlApplicationEngine>
+#include <QQmlContext>
+#include <QQuickStyle>
+#include <QUrl>
+#include <glog/logging.h>
+
+int main(int argc, char* argv[])
+{
+    google::InitGoogleLogging(argv[0]);
+    FLAGS_logtostderr = 1;
+
+    QGuiApplication app(argc, argv);
+
+    QGuiApplication::setApplicationName(QStringLiteral("PelcoD RTSP Server"));
+    QGuiApplication::setOrganizationName(QStringLiteral("PelcoD"));
+    QGuiApplication::setOrganizationDomain(QStringLiteral("pelcod.local"));
+    QGuiApplication::setApplicationVersion(QStringLiteral("1.0.0"));
+
+    QQuickStyle::setStyle(QStringLiteral("Fusion"));
+
+    qmlRegisterType<RtspServerApp::RtspServerController>("RtspServerApp", 1, 0, "RtspServerController");
+
+    QQmlApplicationEngine engine;
+
+    const QUrl url(QStringLiteral("qrc:/qml/Main.qml"));
+    QObject::connect(
+        &engine, &QQmlApplicationEngine::objectCreated, &app,
+        [url](QObject* obj, const QUrl& objUrl) {
+            if (obj == nullptr && url == objUrl) {
+                QCoreApplication::exit(-1);
+            }
+        },
+        Qt::QueuedConnection);
+
+    engine.load(url);
+
+    return app.exec();
+}
