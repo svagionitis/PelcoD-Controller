@@ -92,6 +92,16 @@ if(PELCOD_ENABLE_LIVE555 AND LIVE555_FOUND AND OPENH264_FOUND)
         GTest::gtest_main
     )
     pelcod_register_gtest(TestLive555Subsession)
+
+    add_executable(TestLive555RtspServer TestLive555RtspServer.cpp)
+    target_include_directories(TestLive555RtspServer PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/..
+    )
+    target_link_libraries(TestLive555RtspServer PRIVATE
+        Video
+        GTest::gtest_main
+    )
+    pelcod_register_gtest(TestLive555RtspServer)
 endif()
 
 if(PELCOD_ENABLE_FILTERS AND OpenCV_FOUND)

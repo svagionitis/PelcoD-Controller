@@ -8,6 +8,7 @@
 #include <cstddef>
 #include <cstdint>
 
+#include <functional>
 #include <memory>
 
 #include <liveMedia.hh>
@@ -23,6 +24,9 @@ class Live555FrameQueue;
 ///          and coordinates with Live555 TaskScheduler via event triggers.
 class Live555H264LiveSource : public FramedSource {
 public:
+    /// @brief Callback signature invoked upon source destruction.
+    using ClosedCallback = std::function<void(Live555H264LiveSource*)>;
+
     /// @brief Factory creating a new Live555H264LiveSource instance.
     /// @param[in] env Live555 usage environment.
     /// @param[in] queue Shared frame queue providing live frames.
@@ -30,6 +34,10 @@ public:
     /// @return Pointer to newly allocated Live555H264LiveSource.
     [[nodiscard]] static Live555H264LiveSource* createNew(
         UsageEnvironment& env, Live555FrameQueue& queue, bool syncToKeyframe = true);
+
+    /// @brief Registers a callback invoked upon source destruction.
+    /// @param[in] callback Function to call upon destruction.
+    void setClosedCallback(ClosedCallback callback);
 
     /// @brief Retrieves the Live555 event trigger ID for asynchronous notification.
     /// @return EventTriggerId assigned to this source.
@@ -68,6 +76,7 @@ private:
     std::unique_ptr<FrameQueueReader> m_reader { nullptr };
     EventTriggerId m_eventTriggerId { 0U };
     bool m_isAwaitingData { false };
+    ClosedCallback m_closedCallback {};
 };
 
 } // namespace Video

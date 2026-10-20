@@ -43,12 +43,20 @@ Live555Mp2tLiveSource::Live555Mp2tLiveSource(UsageEnvironment& env, Live555Frame
 
 Live555Mp2tLiveSource::~Live555Mp2tLiveSource()
 {
+    if (m_closedCallback) {
+        m_closedCallback(this);
+    }
     if (m_eventTriggerId != 0U) {
         envir().taskScheduler().deleteEventTrigger(m_eventTriggerId);
         m_eventTriggerId = 0U;
     }
     envir().taskScheduler().unscheduleDelayedTask(nextTask());
     nextTask() = nullptr;
+}
+
+void Live555Mp2tLiveSource::setClosedCallback(ClosedCallback callback)
+{
+    m_closedCallback = std::move(callback);
 }
 
 EventTriggerId Live555Mp2tLiveSource::eventTriggerId() const noexcept

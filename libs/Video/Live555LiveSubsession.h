@@ -19,6 +19,8 @@
 namespace Video {
 
 class Live555FrameQueue;
+class Live555H264LiveSource;
+class Live555Mp2tLiveSource;
 
 /// @class Live555LiveSubsession
 /// @brief Abstract base subsession managing shared frame queue and client session lifecycle.
@@ -51,6 +53,9 @@ public:
     /// @brief Retrieves reference to parent frame queue.
     /// @return Reference to frame queue.
     [[nodiscard]] Live555FrameQueue& frameQueue() noexcept;
+
+    /// @brief Wakes all active client stream sources awaiting incoming data.
+    virtual void wakeAllSources();
 
     /// @brief Generates SDP description lines for this subsession.
     /// @param[in] addressFamily Socket address family (e.g. AF_INET).
@@ -127,6 +132,9 @@ public:
     /// @return Formatted SDP string or nullptr if parameters unavailable.
     char const* getAuxSDPLine(RTPSink* rtpSink, FramedSource* inputSource) override;
 
+    /// @brief Wakes all active H.264 client stream sources awaiting incoming data.
+    void wakeAllSources() override;
+
 protected:
     /// @brief Protected constructor per Live555 Medium conventions.
     /// @param[in] env Live555 usage environment.
@@ -143,6 +151,7 @@ private:
     std::vector<std::uint8_t> m_sps {};
     std::vector<std::uint8_t> m_pps {};
     char* m_auxSDPLine { nullptr };
+    std::vector<Live555H264LiveSource*> m_activeSources {};
 };
 
 /// @class Live555Mp2tLiveSubsession
@@ -177,6 +186,9 @@ public:
     /// @return nullptr.
     char const* getAuxSDPLine(RTPSink* rtpSink, FramedSource* inputSource) override;
 
+    /// @brief Wakes all active MP2T client stream sources awaiting incoming data.
+    void wakeAllSources() override;
+
 protected:
     /// @brief Protected constructor per Live555 Medium conventions.
     /// @param[in] env Live555 usage environment.
@@ -188,6 +200,9 @@ protected:
 
     /// @brief Destructor.
     ~Live555Mp2tLiveSubsession() override = default;
+
+private:
+    std::vector<Live555Mp2tLiveSource*> m_activeSources {};
 };
 
 } // namespace Video

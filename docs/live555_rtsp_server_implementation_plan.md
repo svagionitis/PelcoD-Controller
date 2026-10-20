@@ -295,18 +295,21 @@ private:
   - Overrides `createNewRTPSink()` returning `H264VideoRTPSink` or `SimpleRTPSink` (payload 33).
   - Overrides `getAuxSDPLine()` to supply `sprop-parameter-sets` for direct H.264 playback without initial artifacts.
 
-### Step 4: `Live555RtspServer` Orchestrator Implementation
-- [ ] Implement `Live555RtspServer.cpp`:
+### Step 4: `Live555RtspServer` Orchestrator Implementation [Completed]
+> [!NOTE]
+> Detailed specification and implementation plan: [live555_rtsp_server_step4_implementation_plan.md](live555_rtsp_server_step4_implementation_plan.md)
+
+- [x] Implement `Live555RtspServer.h` and `Live555RtspServer.cpp`:
   - Uses PIMPL pattern to shield client code and tests from raw Live555 headers.
   - Instantiates `BasicTaskScheduler` and `BasicUsageEnvironment`.
-  - Sets up `RTSPServer::createNew()`.
+  - Sets up `RTSPServer::createNew()` via `CustomRtspServer` subclass for ephemeral port discovery.
   - Registers `ServerMediaSession` with the custom subsessions.
   - Configures `UserAuthenticationDatabase` if credentials are provided.
   - Runs event loop in worker thread; responds to `TaskScheduler::triggerEvent`.
 
-### Step 5: CMake Registration
-- [ ] Update `libs/Video/CMakeLists.txt` to include new server sources when `PELCOD_ENABLE_LIVE555` is enabled.
-- [ ] Apply hardening flags and warnings (`apply_compiler_flags(Video)`).
+### Step 5: CMake Registration [Completed]
+- [x] Update `libs/Video/CMakeLists.txt` to include new server sources when `PELCOD_ENABLE_LIVE555` is enabled.
+- [x] Apply hardening flags and warnings (`apply_compiler_flags(Video)`).
 
 ---
 

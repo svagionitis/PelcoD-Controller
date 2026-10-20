@@ -36,12 +36,20 @@ Live555H264LiveSource::Live555H264LiveSource(UsageEnvironment& env, Live555Frame
 
 Live555H264LiveSource::~Live555H264LiveSource()
 {
+    if (m_closedCallback) {
+        m_closedCallback(this);
+    }
     if (m_eventTriggerId != 0U) {
         envir().taskScheduler().deleteEventTrigger(m_eventTriggerId);
         m_eventTriggerId = 0U;
     }
     envir().taskScheduler().unscheduleDelayedTask(nextTask());
     nextTask() = nullptr;
+}
+
+void Live555H264LiveSource::setClosedCallback(ClosedCallback callback)
+{
+    m_closedCallback = std::move(callback);
 }
 
 EventTriggerId Live555H264LiveSource::eventTriggerId() const noexcept

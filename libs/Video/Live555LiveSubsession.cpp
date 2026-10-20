@@ -74,6 +74,10 @@ Live555FrameQueue& Live555LiveSubsession::frameQueue() noexcept
     return m_queue;
 }
 
+void Live555LiveSubsession::wakeAllSources()
+{
+}
+
 char const* Live555LiveSubsession::sdpLines(int addressFamily)
 {
     return OnDemandServerMediaSubsession::sdpLines(addressFamily);
@@ -154,7 +158,24 @@ FramedSource* Live555H264LiveSubsession::createNewStreamSource(unsigned /*client
         return nullptr;
     }
 
+    liveSource->setClosedCallback([this](Live555H264LiveSource* src) {
+        auto it = std::find(m_activeSources.begin(), m_activeSources.end(), src);
+        if (it != m_activeSources.end()) {
+            m_activeSources.erase(it);
+        }
+    });
+    m_activeSources.push_back(liveSource);
+
     return H264VideoStreamDiscreteFramer::createNew(envir(), liveSource);
+}
+
+void Live555H264LiveSubsession::wakeAllSources()
+{
+    for (auto* src : m_activeSources) {
+        if ((src != nullptr) && src->isAwaitingData()) {
+            src->deliverFrame();
+        }
+    }
 }
 
 RTPSink* Live555H264LiveSubsession::createNewRTPSink(
@@ -238,7 +259,20 @@ Live555Mp2tLiveSubsession::Live555Mp2tLiveSubsession(
 FramedSource* Live555Mp2tLiveSubsession::createNewStreamSource(unsigned /*clientSessionId*/, unsigned& estBitrate)
 {
     estBitrate = m_estimatedBitrateKbps;
-    return Live555Mp2tLiveSource::createNew(envir(), m_queue, m_syncToKeyframe);
+    auto* liveSource = Live555Mp2tLiveSource::createNew(envir(), m_queue, m_syncToKeyframe);
+    if (liveSource == nullptr) {
+        return nullptr;
+    }
+
+    liveSource->setClosedCallback([this](Live555Mp2tLiveSource* src) {
+        auto it = std::find(m_activeSources.begin(), m_activeSources.end(), src);
+        if (it != m_activeSources.end()) {
+            m_activeSources.erase(it);
+        }
+    });
+    m_activeSources.push_back(liveSource);
+
+    return liveSource;
 }
 
 RTPSink* Live555Mp2tLiveSubsession::createNewRTPSink(
@@ -250,6 +284,15 @@ RTPSink* Live555Mp2tLiveSubsession::createNewRTPSink(
 char const* Live555Mp2tLiveSubsession::getAuxSDPLine(RTPSink* /*rtpSink*/, FramedSource* /*inputSource*/)
 {
     return nullptr;
+}
+
+void Live555Mp2tLiveSubsession::wakeAllSources()
+{
+    for (auto* src : m_activeSources) {
+        if ((src != nullptr) && src->isAwaitingData()) {
+            src->deliverFrame();
+        }
+    }
 }
 
 } // namespace Video

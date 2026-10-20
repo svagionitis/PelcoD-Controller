@@ -10,6 +10,7 @@
 #include <cstddef>
 #include <cstdint>
 
+#include <functional>
 #include <memory>
 #include <optional>
 
@@ -26,6 +27,9 @@ class Live555FrameQueue;
 ///          guaranteeing strict 188-byte alignment for SimpleRTPSink.
 class Live555Mp2tLiveSource : public FramedSource {
 public:
+    /// @brief Callback signature invoked upon source destruction.
+    using ClosedCallback = std::function<void(Live555Mp2tLiveSource*)>;
+
     /// @brief Factory creating a new Live555Mp2tLiveSource instance.
     /// @param[in] env Live555 usage environment.
     /// @param[in] queue Shared frame queue providing live TS packets.
@@ -33,6 +37,10 @@ public:
     /// @return Pointer to newly allocated Live555Mp2tLiveSource.
     [[nodiscard]] static Live555Mp2tLiveSource* createNew(
         UsageEnvironment& env, Live555FrameQueue& queue, bool syncToKeyframe = true);
+
+    /// @brief Registers a callback invoked upon source destruction.
+    /// @param[in] callback Function to call upon destruction.
+    void setClosedCallback(ClosedCallback callback);
 
     /// @brief Retrieves the Live555 event trigger ID for asynchronous notification.
     /// @return EventTriggerId assigned to this source.
@@ -77,6 +85,7 @@ private:
     bool m_isAwaitingData { false };
     std::optional<QueuedFrame> m_pendingFrame { std::nullopt };
     std::size_t m_currentOffset { 0U };
+    ClosedCallback m_closedCallback {};
 };
 
 } // namespace Video

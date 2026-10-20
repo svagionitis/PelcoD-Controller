@@ -55,6 +55,8 @@ if(PELCOD_ENABLE_LIVE555 AND LIVE555_FOUND AND OPENH264_FOUND)
         Live555Mp2tLiveSource.cpp
         Live555LiveSubsession.h
         Live555LiveSubsession.cpp
+        Live555RtspServer.h
+        Live555RtspServer.cpp
         Live555RTSPClient.h
         Live555RTSPClient.cpp
     )
