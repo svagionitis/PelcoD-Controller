@@ -177,7 +177,7 @@ namespace {
         server.stop();
     }
 
-    TEST(Live555RtspServerTest, AuthenticationConfiguration)
+    TEST(Live555RtspServerTest, AuthenticationConfigurationAndClientValidation)
     {
         RtspServerConfig config {};
         config.port = 0U;
@@ -194,6 +194,31 @@ namespace {
         EXPECT_EQ(server.config().username.value_or(""), "operator");
         EXPECT_EQ(server.config().password.value_or(""), "pass123");
         EXPECT_EQ(server.config().realm, "PelcoD_Security");
+
+        const std::string rtspUrl { server.getUrl("127.0.0.1") };
+
+        // Test 1: Client with wrong credentials should fail to initialize
+        {
+            Live555Decoder badDecoder;
+            badDecoder.setRtspTransport(RtspTransportMode::Tcp);
+            badDecoder.setCredentials("operator", "wrongpass");
+            const bool badOk { badDecoder.initialize(rtspUrl) };
+            EXPECT_FALSE(badOk);
+            EXPECT_FALSE(badDecoder.isInitialized());
+            badDecoder.close();
+        }
+
+        // Test 2: Client with valid credentials should successfully connect
+        {
+            Live555Decoder goodDecoder;
+            goodDecoder.setRtspTransport(RtspTransportMode::Tcp);
+            goodDecoder.setCredentials("operator", "pass123");
+            const bool goodOk { goodDecoder.initialize(rtspUrl) };
+            EXPECT_TRUE(goodOk);
+            EXPECT_TRUE(goodDecoder.isInitialized());
+            goodDecoder.interrupt();
+            goodDecoder.close();
+        }
 
         server.stop();
     }
@@ -238,6 +263,51 @@ namespace {
             }
 
             decoder.interrupt();
+            decoder.close();
+        }
+
+        server.stop();
+    }
+
+    TEST(Live555RtspServerTest, Mp2tLoopbackStreamingWithDecoder)
+    {
+        RtspServerConfig config {};
+        config.port = 0U;
+        config.streamPath = "stanag4609.ts";
+        config.streamType = RtspStreamType::Mpeg2TransportStream;
+
+        Live555RtspServer server(config);
+        ASSERT_TRUE(server.start());
+
+        // Push initial synthetic TS packets (7 packets = 1316 bytes)
+        std::vector<std::uint8_t> multiPacket(1316U, 0xFFU);
+        for (std::size_t i { 0U }; i < 7U; ++i) {
+            multiPacket[i * 188U] = 0x47U;
+            multiPacket[(i * 188U) + 1U] = 0x01U; // PID 0x100
+            multiPacket[(i * 188U) + 2U] = 0x00U;
+            multiPacket[(i * 188U) + 3U] = 0x10U; // Payload only
+        }
+        ASSERT_TRUE(server.pushTsPackets(multiPacket.data(), multiPacket.size()));
+
+        // Connect Live555Decoder
+        const std::string rtspUrl { server.getUrl("127.0.0.1") };
+        Live555Decoder decoder;
+        decoder.setRtspTransport(RtspTransportMode::Tcp);
+
+        const bool initOk { decoder.initialize(rtspUrl) };
+        EXPECT_TRUE(initOk);
+
+        if (initOk) {
+            EXPECT_TRUE(decoder.isInitialized());
+
+            // Push additional TS packets during active connection
+            for (int i { 0 }; i < 3; ++i) {
+                EXPECT_TRUE(server.pushTsPackets(multiPacket.data(), multiPacket.size()));
+                std::this_thread::sleep_for(std::chrono::milliseconds(10));
+            }
+
+            decoder.interrupt();
+            decoder.close();
         }
 
         server.stop();
@@ -269,8 +339,13 @@ namespace {
         decoder2.setRtspTransport(RtspTransportMode::Tcp);
         const bool dec2Ok { decoder2.initialize(rtspUrl) };
 
-        if (dec1Ok && dec2Ok) {
-            EXPECT_GE(server.activeClientCount(), 1U);
+        // Connect Client 3
+        Live555Decoder decoder3;
+        decoder3.setRtspTransport(RtspTransportMode::Tcp);
+        const bool dec3Ok { decoder3.initialize(rtspUrl) };
+
+        if (dec1Ok && dec2Ok && dec3Ok) {
+            EXPECT_GE(server.activeClientCount(), 2U);
 
             // Push frames to verify multi-client wake dispatching
             for (int i { 0 }; i < 3; ++i) {
@@ -281,6 +356,10 @@ namespace {
 
             decoder1.interrupt();
             decoder2.interrupt();
+            decoder3.interrupt();
+            decoder1.close();
+            decoder2.close();
+            decoder3.close();
         }
 
         server.stop();
