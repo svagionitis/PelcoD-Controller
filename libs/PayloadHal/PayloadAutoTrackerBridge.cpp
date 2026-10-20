@@ -2,8 +2,16 @@
 /// @brief Implementation of PayloadAutoTrackerBridge connecting Tracking::PtzAutoTracker to PayloadHal.
 
 #include "PayloadAutoTrackerBridge.h"
-#include <algorithm>
+
 #include <cmath>
+#include <cstdint>
+
+#include <algorithm>
+#include <chrono>
+#include <memory>
+#include <mutex>
+#include <thread>
+#include <utility>
 
 namespace PayloadHal {
 
@@ -172,8 +180,8 @@ void PayloadAutoTrackerBridge::dispatchCommand(const Tracking::PtzAutoTracker::T
             if (m_ptu) {
                 m_ptu->setNormalizedVelocity(panVel, tiltVel);
             }
-            m_status.commandedPanVel = panVel;
-            m_status.commandedTiltVel = tiltVel;
+            m_status.commandedPanVel = static_cast<double>(panVel);
+            m_status.commandedTiltVel = static_cast<double>(tiltVel);
         } else {
             const double panRate =
                 (static_cast<double>(cmd.panDirection * cmd.panSpeed) / 63.0) * m_maxPanRateDegPerSec;
@@ -191,7 +199,7 @@ void PayloadAutoTrackerBridge::dispatchCommand(const Tracking::PtzAutoTracker::T
         const float zoomVel = static_cast<float>(cmd.zoomDirection * cmd.zoomSpeed) / 63.0f;
         m_camera->zoomContinuous(zoomVel);
         m_lastZoomVel = zoomVel;
-        m_status.commandedZoomVel = zoomVel;
+        m_status.commandedZoomVel = static_cast<double>(zoomVel);
     } else {
         if (std::abs(m_lastZoomVel) > 0.001f && m_camera) {
             m_camera->zoomStop();
@@ -303,7 +311,7 @@ bool PayloadAutoTrackerBridge::startTrackingLoop(double rateHz)
     m_loopRunning.store(true);
     m_lastUpdateTime = std::chrono::steady_clock::now();
 
-    const auto intervalMs = std::chrono::milliseconds(static_cast<int64_t>(1000.0 / rateHz));
+    const auto intervalMs = std::chrono::milliseconds(static_cast<std::int64_t>(1000.0 / rateHz));
     m_workerThread = std::thread(&PayloadAutoTrackerBridge::trackingWorker, this, intervalMs);
     return true;
 }

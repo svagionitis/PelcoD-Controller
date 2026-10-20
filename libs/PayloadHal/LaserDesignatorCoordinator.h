@@ -42,11 +42,11 @@ public:
 
     virtual ~LaserDesignatorCoordinator();
 
-    // Disable copy semantics to prevent hardware interlock aliasing
+    // Disable copy and move semantics (contains std::recursive_mutex)
     LaserDesignatorCoordinator(const LaserDesignatorCoordinator&) = delete;
     LaserDesignatorCoordinator& operator=(const LaserDesignatorCoordinator&) = delete;
-    LaserDesignatorCoordinator(LaserDesignatorCoordinator&&) noexcept = default;
-    LaserDesignatorCoordinator& operator=(LaserDesignatorCoordinator&&) noexcept = default;
+    LaserDesignatorCoordinator(LaserDesignatorCoordinator&&) = delete;
+    LaserDesignatorCoordinator& operator=(LaserDesignatorCoordinator&&) = delete;
 
     // --- Configuration ---
 

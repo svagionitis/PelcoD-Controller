@@ -830,10 +830,10 @@ TEST(VideoFiltersTest, ImageStabilizationEIS)
     stab.setCropMarginPercent(0.06);
     EXPECT_TRUE(qFuzzyCompare(stab.getCropMarginPercent(), 0.06));
 
-    const int w = 128;
-    const int h = 128;
+    constexpr int w = 128;
+    constexpr int h = 128;
 
-    auto createPattern = [w, h](int offsetX, int offsetY) -> std::vector<std::uint8_t> {
+    auto createPattern = [](int offsetX, int offsetY) -> std::vector<std::uint8_t> {
         std::vector<std::uint8_t> img(static_cast<std::size_t>(w * h * 3), 0U);
         for (int y = 0; y < h; ++y) {
             for (int x = 0; x < w; ++x) {
@@ -1132,9 +1132,9 @@ TEST(VideoFiltersTest, OpticalFlowFieldFilter)
     flow.setArrowScale(1.5);
     EXPECT_TRUE(qFuzzyCompare(flow.getArrowScale(), 1.5));
 
-    const int w = 64;
-    const int h = 64;
-    auto createMovingPattern = [w, h](int shiftX) {
+    constexpr int w = 64;
+    constexpr int h = 64;
+    auto createMovingPattern = [](int shiftX) {
         std::vector<std::uint8_t> frame(static_cast<std::size_t>(w * h * 3), 0U);
         for (int y = 0; y < h; ++y) {
             for (int x = 0; x < w; ++x) {
@@ -1181,9 +1181,9 @@ TEST(VideoFiltersTest, CentroidTargetTrackerFilter)
     tracker.releaseTarget();
     EXPECT_TRUE(!tracker.isTargetLocked());
 
-    const int w = 128;
-    const int h = 128;
-    auto createFrameWithBox = [w, h](int bx, int by) {
+    constexpr int w = 128;
+    constexpr int h = 128;
+    auto createFrameWithBox = [](int bx, int by) {
         std::vector<std::uint8_t> frame(static_cast<std::size_t>(w * h * 3), 50U);
         for (int y = by; y < by + 30 && y < h; ++y) {
             for (int x = bx; x < bx + 30 && x < w; ++x) {
@@ -1260,7 +1260,7 @@ TEST(VideoFiltersTest, CentroidTargetTrackerFilter)
     EXPECT_EQ(st0.height, 20);
     EXPECT_TRUE(qFuzzyCompare(st0.scaleFactor, 1.0));
 
-    auto createSizedBox = [w, h](int bx, int by, int bw, int bh) {
+    auto createSizedBox = [](int bx, int by, int bw, int bh) {
         std::vector<std::uint8_t> frame(static_cast<std::size_t>(w * h * 3), 40U);
         for (int y = by; y < by + bh && y < h; ++y) {
             for (int x = bx; x < bx + bw && x < w; ++x) {
@@ -1398,9 +1398,9 @@ TEST(VideoFiltersTest, PerimeterTripwireFilter)
     EXPECT_EQ(trip.getIntrusionCount(), 0ULL);
     EXPECT_TRUE(!trip.hasAlarm());
 
-    const int w = 128;
-    const int h = 128;
-    auto createTargetFrame = [w, h](int cy) {
+    constexpr int w = 128;
+    constexpr int h = 128;
+    auto createTargetFrame = [](int cy) {
         std::vector<std::uint8_t> frame(static_cast<std::size_t>(w * h * 3), 40U);
         for (int y = cy - 10; y < cy + 10 && y < h; ++y) {
             for (int x = 54; x < 74 && x < w; ++x) {

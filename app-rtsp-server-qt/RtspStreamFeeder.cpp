@@ -16,7 +16,6 @@ namespace RtspServerApp {
 
 namespace {
 
-    constexpr std::uint32_t kDefaultSleepMs { 33U };
     constexpr std::size_t kTsPacketSize { 188U };
 
 } // namespace

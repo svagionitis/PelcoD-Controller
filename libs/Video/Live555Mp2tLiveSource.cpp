@@ -13,6 +13,7 @@
 #include <utility>
 #include <vector>
 
+#include <GroupsockHelper.hh>
 #include <UsageEnvironment.hh>
 #include <glog/logging.h>
 #include <liveMedia.hh>

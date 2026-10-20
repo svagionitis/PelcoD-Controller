@@ -74,11 +74,11 @@ public:
 
     ~CameraStreamBinder();
 
-    // Non-copyable, movable
+    // Non-copyable, non-movable (contains std::mutex)
     CameraStreamBinder(const CameraStreamBinder&) = delete;
     CameraStreamBinder& operator=(const CameraStreamBinder&) = delete;
-    CameraStreamBinder(CameraStreamBinder&&) noexcept = default;
-    CameraStreamBinder& operator=(CameraStreamBinder&&) noexcept = default;
+    CameraStreamBinder(CameraStreamBinder&&) = delete;
+    CameraStreamBinder& operator=(CameraStreamBinder&&) = delete;
 
     /// @brief Configures host platform geodetic coordinates and heading for ground projection.
     /// @param[in] platformPos Platform 3D coordinate (latitude, longitude, altitude MSL in meters).

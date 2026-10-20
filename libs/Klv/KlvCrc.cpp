@@ -1,4 +1,8 @@
 #include "KlvCrc.h"
+
+#include <cstddef>
+#include <cstdint>
+
 #include <array>
 
 namespace Klv {
@@ -9,15 +13,15 @@ namespace {
 constexpr std::array<std::uint16_t, 256> generateCrcTable() noexcept {
     std::array<std::uint16_t, 256> table {};
     for (std::size_t i = 0U; i < 256U; ++i) {
-        std::uint16_t curr = static_cast<std::uint16_t>(i << 8U);
+        auto curr = static_cast<std::uint32_t>(i << 8U);
         for (std::size_t bit = 0U; bit < 8U; ++bit) {
             if ((curr & 0x8000U) != 0U) {
-                curr = static_cast<std::uint16_t>((curr << 1U) ^ 0x1021U);
+                curr = (curr << 1U) ^ 0x1021U;
             } else {
-                curr = static_cast<std::uint16_t>(curr << 1U);
+                curr = curr << 1U;
             }
         }
-        table[i] = curr;
+        table[i] = static_cast<std::uint16_t>(curr);
     }
     return table;
 }
@@ -31,12 +35,12 @@ std::uint16_t KlvCrc::calculate(const std::uint8_t* data, std::size_t size) noex
         return 0U;
     }
 
-    std::uint16_t crc { 0U };
+    std::uint32_t crc { 0U };
     for (std::size_t i = 0U; i < size; ++i) {
-        const std::uint8_t idx = static_cast<std::uint8_t>((crc >> 8U) ^ data[i]);
-        crc = static_cast<std::uint16_t>((crc << 8U) ^ kCrcTable[idx]);
+        const auto idx = static_cast<std::size_t>((crc >> 8U) ^ static_cast<std::uint32_t>(data[i]));
+        crc = ((crc << 8U) ^ static_cast<std::uint32_t>(kCrcTable[idx])) & 0xFFFFU;
     }
-    return crc;
+    return static_cast<std::uint16_t>(crc);
 }
 
 std::uint16_t KlvCrc::computeBcc16(const std::uint8_t* data, std::size_t size) noexcept {
@@ -44,12 +48,12 @@ std::uint16_t KlvCrc::computeBcc16(const std::uint8_t* data, std::size_t size) n
         return 0U;
     }
 
-    std::uint16_t bcc { 0U };
+    std::uint32_t bcc { 0U };
     for (std::size_t i = 0U; i < size; ++i) {
-        const auto shift = static_cast<std::uint8_t>(8U * ((i + 1U) % 2U));
-        bcc = static_cast<std::uint16_t>(bcc + (static_cast<std::uint16_t>(data[i]) << shift));
+        const auto shift = static_cast<std::uint32_t>(8U * ((i + 1U) % 2U));
+        bcc = (bcc + (static_cast<std::uint32_t>(data[i]) << shift)) & 0xFFFFU;
     }
-    return bcc;
+    return static_cast<std::uint16_t>(bcc);
 }
 
 bool KlvCrc::verifyPacket(const std::uint8_t* packet, std::size_t packetSize) noexcept {
@@ -60,8 +64,8 @@ bool KlvCrc::verifyPacket(const std::uint8_t* packet, std::size_t packetSize) no
     // 1. Check MISB ST 0601 BCC-16 checksum
     // Tag 1 (Checksum) stores a 2-byte big-endian value at the end of the packet.
     const auto storedChecksum = static_cast<std::uint16_t>(
-        (static_cast<std::uint16_t>(packet[packetSize - 2U]) << 8U) |
-        static_cast<std::uint16_t>(packet[packetSize - 1U]));
+        (static_cast<std::uint32_t>(packet[packetSize - 2U]) << 8U) |
+        static_cast<std::uint32_t>(packet[packetSize - 1U]));
 
     const std::uint16_t calculatedBcc = computeBcc16(packet, packetSize - 2U);
     if (calculatedBcc == storedChecksum) {

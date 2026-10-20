@@ -167,7 +167,7 @@ void FujinonSX800Tab::setupUi()
     auto* grpFine = new QGroupBox(tr("Fine Image Quality (1..100)"), container);
     auto* gridFine = new QGridLayout(grpFine);
 
-    auto makeSliderRow = [this, gridFine](int row, const QString& title, QSlider*& slider, QSpinBox*& spin) {
+    auto makeSliderRow = [gridFine](int row, const QString& title, QSlider*& slider, QSpinBox*& spin) {
         gridFine->addWidget(new QLabel(title), row, 0);
         slider = new QSlider(Qt::Horizontal);
         slider->setRange(1, 100);

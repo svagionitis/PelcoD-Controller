@@ -104,11 +104,11 @@ public:
     /// @brief Virtual destructor.
     virtual ~TargetThreatEvaluator() = default;
 
-    // Non-copyable, movable
+    // Non-copyable, non-movable (contains std::mutex)
     TargetThreatEvaluator(const TargetThreatEvaluator&) = delete;
     TargetThreatEvaluator& operator=(const TargetThreatEvaluator&) = delete;
-    TargetThreatEvaluator(TargetThreatEvaluator&&) noexcept = default;
-    TargetThreatEvaluator& operator=(TargetThreatEvaluator&&) noexcept = default;
+    TargetThreatEvaluator(TargetThreatEvaluator&&) = delete;
+    TargetThreatEvaluator& operator=(TargetThreatEvaluator&&) = delete;
 
     /// @brief Updates threat assessment configuration.
     /// @param[in] config New configuration parameters.

@@ -27,7 +27,10 @@ namespace {
     protected:
         void SetUp() override
         {
-            ReceivingInterfaceAddr = inet_addr("127.0.0.1");
+            in_addr addr {};
+            if (inet_pton(AF_INET, "127.0.0.1", &addr) == 1) {
+                ReceivingInterfaceAddr = addr.s_addr;
+            }
             m_scheduler = BasicTaskScheduler::createNew();
             ASSERT_NE(m_scheduler, nullptr);
             m_env = BasicUsageEnvironment::createNew(*m_scheduler);

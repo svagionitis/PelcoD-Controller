@@ -1,12 +1,16 @@
+#include <cmath>
+#include <cstddef>
+#include <cstdint>
+
+#include <memory>
+#include <string>
+#include <vector>
+
 #include <gtest/gtest.h>
 
 #include "PayloadHal.h"
 #include "TacticalHudRenderer.h"
 #include "sim/SimulatedPayload.h"
-
-#include <cmath>
-#include <memory>
-#include <vector>
 
 using namespace PayloadHal;
 

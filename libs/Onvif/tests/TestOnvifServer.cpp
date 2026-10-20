@@ -1,21 +1,23 @@
-#include <Onvif/OnvifClient.h>
-#include <Onvif/OnvifServer.h>
-#include <Onvif/adapters/PelcoDPtzAdapter.h>
-#include <PelcoDSim/MockPelcoDDevice.h>
-
-#include "OnvifTestClient.h"
-
-#include <Onvif/HttplibInclude.h>
-#include <pugixml.hpp>
+#include <cmath>
+#include <cstddef>
+#include <cstdint>
 
 #include <chrono>
-#include <cmath>
-#include <gtest/gtest.h>
 #include <iostream>
 #include <memory>
 #include <string>
 #include <thread>
 #include <vector>
+
+#include <gtest/gtest.h>
+#include <pugixml.hpp>
+
+#include <Onvif/HttplibInclude.h>
+#include <Onvif/OnvifClient.h>
+#include <Onvif/OnvifServer.h>
+#include <Onvif/adapters/PelcoDPtzAdapter.h>
+#include <PelcoDSim/MockPelcoDDevice.h>
+#include "OnvifTestClient.h"
 
 using namespace Onvif;
 
@@ -71,9 +73,9 @@ public:
     PtzStatus handleGetStatus() override
     {
         PtzStatus st {};
-        st.pan = 180.0f;
-        st.tilt = 45.0f;
-        st.zoom = 0.5f;
+        st.pan = 180.0;
+        st.tilt = 45.0;
+        st.zoom = 0.5;
         st.isMoving = false;
         return st;
     }

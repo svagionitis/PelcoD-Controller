@@ -1,14 +1,24 @@
 #include "PelcoDPtzAdapter.h"
-#include "GeodesyUtils.h"
-#include "OnvifSecurity.h"
-#include <PelcoDCore/PatrolController.h>
 
-#include <algorithm>
 #include <cctype>
 #include <cmath>
+#include <cstddef>
+#include <cstdint>
+
+#include <algorithm>
+#include <chrono>
 #include <fstream>
+#include <memory>
+#include <optional>
 #include <sstream>
 #include <stdexcept>
+#include <string>
+#include <utility>
+#include <vector>
+
+#include <PelcoDCore/PatrolController.h>
+#include "GeodesyUtils.h"
+#include "OnvifSecurity.h"
 
 namespace Onvif {
 
@@ -166,7 +176,8 @@ void PelcoDPtzAdapter::handleAbsoluteMoveSpherical(float azimuthDeg, float eleva
 
     std::uint16_t panCdeg = 0;
     std::uint16_t tiltCdeg = 0;
-    Geodesy::anglesToPelcoCentidegrees(azimuthDeg, elevationDeg, panCdeg, tiltCdeg);
+    Geodesy::anglesToPelcoCentidegrees(
+        static_cast<double>(azimuthDeg), static_cast<double>(elevationDeg), panCdeg, tiltCdeg);
 
     static_cast<void>(m_device->setPanAngle(panCdeg));
     static_cast<void>(m_device->setTiltAngle(tiltCdeg));
@@ -208,7 +219,7 @@ bool PelcoDPtzAdapter::handleGeoMove(const std::string& /*profileToken*/, const 
     static_cast<void>(m_device->setTiltAngle(tiltCdeg));
 
     if (target.areaWidth.has_value() || target.areaHeight.has_value()) {
-        const double span = target.areaWidth.value_or(target.areaHeight.value_or(10.0f));
+        const double span = static_cast<double>(target.areaWidth.value_or(target.areaHeight.value_or(10.0f)));
         const double normZoom = Geodesy::computeZoomFromTargetArea(span, slantRangeMeters);
         const auto zoomPos = static_cast<std::uint16_t>(std::clamp(normZoom * 65535.0, 0.0, 65535.0));
         static_cast<void>(m_device->setZoomPosition(zoomPos));
@@ -347,9 +358,9 @@ PtzStatus PelcoDPtzAdapter::handleGetStatus()
     }
 
     const auto devStatus = m_device->getStatus();
-    status.pan = static_cast<float>(devStatus.panDegrees());
-    status.tilt = static_cast<float>(devStatus.tiltDegrees());
-    status.zoom = static_cast<float>(devStatus.zoomPosition) / 65535.0f;
+    status.pan = devStatus.panDegrees();
+    status.tilt = devStatus.tiltDegrees();
+    status.zoom = static_cast<double>(devStatus.zoomPosition) / 65535.0;
     status.isMoving = m_isMoving.load();
     return status;
 }

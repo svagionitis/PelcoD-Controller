@@ -1,14 +1,23 @@
 #include "N2kDevice.h"
 
+#include <cstddef>
+#include <cstdint>
 #include <cstring>
+
+#include <chrono>
+#include <memory>
+#include <mutex>
+#include <optional>
+#include <utility>
+#include <vector>
 
 namespace Nmea::N2k {
 
 namespace {
     inline std::uint32_t readU32LE(const std::uint8_t* p) noexcept
     {
-        return static_cast<std::uint32_t>(p[0]) | (static_cast<std::uint32_t>(p[1]) << 8)
-            | (static_cast<std::uint32_t>(p[2]) << 16) | (static_cast<std::uint32_t>(p[3]) << 24);
+        return static_cast<std::uint32_t>(p[0]) | (static_cast<std::uint32_t>(p[1]) << 8U)
+            | (static_cast<std::uint32_t>(p[2]) << 16U) | (static_cast<std::uint32_t>(p[3]) << 24U);
     }
 } // namespace
 

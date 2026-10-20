@@ -144,11 +144,11 @@ public:
     /// @brief Destructor.
     ~PayloadStowController();
 
-    // Non-copyable, movable
+    // Non-copyable, non-movable (contains std::mutex)
     PayloadStowController(const PayloadStowController&) = delete;
     PayloadStowController& operator=(const PayloadStowController&) = delete;
-    PayloadStowController(PayloadStowController&&) noexcept = default;
-    PayloadStowController& operator=(PayloadStowController&&) noexcept = default;
+    PayloadStowController(PayloadStowController&&) = delete;
+    PayloadStowController& operator=(PayloadStowController&&) = delete;
 
     // --- Orientations & Lifecycle Commands ---
 

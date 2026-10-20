@@ -1,15 +1,15 @@
-#include "TargetThreatEvaluator.h"
+#include <cmath>
+#include <cstddef>
+
+#include <chrono>
+#include <vector>
 
 #include <gtest/gtest.h>
 
-#include <chrono>
-#include <cmath>
-#include <vector>
+#include "TargetThreatEvaluator.h"
 
 namespace PayloadHal {
 namespace {
-
-    constexpr double kKnotsToMps = 0.5144444444444444;
 
     TEST(TestTargetThreatEvaluator, HeadOnCollisionCpaCalculation)
     {

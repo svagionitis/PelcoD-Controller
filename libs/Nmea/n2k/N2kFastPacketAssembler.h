@@ -26,11 +26,11 @@ public:
     /// @brief Default virtual destructor.
     ~N2kFastPacketAssembler() = default;
 
-    // Non-copyable, movable
+    // Non-copyable, non-movable (contains std::mutex)
     N2kFastPacketAssembler(const N2kFastPacketAssembler&) = delete;
     N2kFastPacketAssembler& operator=(const N2kFastPacketAssembler&) = delete;
-    N2kFastPacketAssembler(N2kFastPacketAssembler&&) noexcept = default;
-    N2kFastPacketAssembler& operator=(N2kFastPacketAssembler&&) noexcept = default;
+    N2kFastPacketAssembler(N2kFastPacketAssembler&&) = delete;
+    N2kFastPacketAssembler& operator=(N2kFastPacketAssembler&&) = delete;
 
     /// @brief Checks if a PGN is registered as a Fast Packet multi-frame PGN.
     /// @param[in] pgn Parameter Group Number to query.

@@ -7,15 +7,22 @@
 
 #if defined(PELCOD_HAS_FILTERS)
 
+#include <cmath>
+#include <cstddef>
+#include <cstdint>
+
 #include <algorithm>
 #include <chrono>
-#include <cmath>
 #include <deque>
 #include <iomanip>
+#include <memory>
 #include <mutex>
 #include <numeric>
-#include <opencv2/opencv.hpp>
 #include <sstream>
+#include <string>
+#include <vector>
+
+#include <opencv2/opencv.hpp>
 
 namespace Video::Filters {
 
@@ -1572,8 +1579,8 @@ void MotionHeatmapFilter::process(std::uint8_t* data, int width, int height, Pix
     cv::Mat motionFloat;
     motionMask.convertTo(motionFloat, CV_32F);
 
-    m_impl->accumHeatmap = m_impl->accumHeatmap * static_cast<float>(m_decayFactor)
-        + motionFloat * (1.0f - static_cast<float>(m_decayFactor));
+    m_impl->accumHeatmap = m_impl->accumHeatmap * m_decayFactor
+        + motionFloat * (1.0 - m_decayFactor);
 
     cv::Mat normHeatmap;
     cv::normalize(m_impl->accumHeatmap, normHeatmap, 0, 255, cv::NORM_MINMAX, CV_8U);

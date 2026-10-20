@@ -1,14 +1,18 @@
 /// @file TestPhaseCorrelation.cpp
 /// @brief Automated unit test suite for 2D FFT and Phase Correlation Global Motion Estimator.
 
-#include "Fft.h"
-#include "PhaseCorrelation.h"
+#include <cmath>
+#include <cstddef>
+#include <cstdint>
 
 #include <algorithm>
-#include <cmath>
-#include <gtest/gtest.h>
 #include <iostream>
 #include <vector>
+
+#include <gtest/gtest.h>
+
+#include "Fft.h"
+#include "PhaseCorrelation.h"
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -124,10 +128,10 @@ TEST(PhaseCorrelationTest, ExactIntegerTranslation)
 TEST(PhaseCorrelationTest, SubPixelFractionalTranslation)
 {
     std::cout << "[Test] testSubPixelFractionalTranslation...\n";
-    const int width = 128;
-    const int height = 128;
-    const auto uWidth = static_cast<std::size_t>(width);
-    const auto uHeight = static_cast<std::size_t>(height);
+    constexpr int width = 128;
+    constexpr int height = 128;
+    constexpr auto uWidth = static_cast<std::size_t>(width);
+    constexpr auto uHeight = static_cast<std::size_t>(height);
     std::vector<double> raw(uWidth * uHeight, 0.0);
 
     // Deterministic pseudo-random noise
@@ -142,7 +146,7 @@ TEST(PhaseCorrelationTest, SubPixelFractionalTranslation)
     }
 
     // Two passes of 5x5 box filter to simulate realistic camera continuous textures
-    auto boxFilter5 = [uWidth, uHeight](const std::vector<double>& in) {
+    auto boxFilter5 = [](const std::vector<double>& in) {
         std::vector<double> out(uWidth * uHeight, 0.0);
         for (std::size_t y = 0U; y < uHeight; ++y) {
             for (std::size_t x = 0U; x < uWidth; ++x) {

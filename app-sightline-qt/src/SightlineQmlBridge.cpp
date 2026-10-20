@@ -2,7 +2,21 @@
 /// @brief Implementation of Sightline QML Bridge controller.
 
 #include "SightlineQmlBridge.h"
-#include "SightlineBlendCatalog.h"
+
+#include <cstddef>
+#include <cstdint>
+
+#include <algorithm>
+#include <limits>
+#include <memory>
+#include <string>
+#include <vector>
+
+#include <QDateTime>
+#include <QFile>
+#include <QHostAddress>
+#include <QSettings>
+#include <QUrl>
 
 #include <SightlineCore/SightlineCrc8.h>
 #include <SightlineCore/SightlineProtocolParser.h>
@@ -13,14 +27,7 @@
 #include <SightlineCore/modules/SightlineStabilization.h>
 #include <SightlineCore/modules/SightlineStabilizationBuilder.h>
 #include <Transport/SdpGenerator.h>
-
-#include <QDateTime>
-#include <QFile>
-#include <QHostAddress>
-#include <QSettings>
-#include <QUrl>
-#include <algorithm>
-#include <limits>
+#include "SightlineBlendCatalog.h"
 
 namespace {
 [[nodiscard]] std::string toSafeStdString(const QString& str)
@@ -2687,8 +2694,9 @@ void SightlineQmlBridge::handleDetectionROI(const Sightline::MsgDetectionROI& ro
 
 void SightlineQmlBridge::handleKlvMetricFilters(const Sightline::MsgKlvMetricFilters& filters)
 {
-    emit klvMetricFiltersReceived(filters.cameraIndex, filters.minTargetWidthM, filters.maxTargetWidthM,
-        filters.minTargetHeightM, filters.maxTargetHeightM, filters.filterAboveHorizon, filters.filterBelowHorizon,
+    emit klvMetricFiltersReceived(filters.cameraIndex, static_cast<double>(filters.minTargetWidthM),
+        static_cast<double>(filters.maxTargetWidthM), static_cast<double>(filters.minTargetHeightM),
+        static_cast<double>(filters.maxTargetHeightM), filters.filterAboveHorizon, filters.filterBelowHorizon,
         filters.minLatitude, filters.maxLatitude, filters.minLongitude, filters.maxLongitude);
 }
 

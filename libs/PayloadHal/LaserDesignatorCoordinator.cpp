@@ -1,15 +1,23 @@
 #include "LaserDesignatorCoordinator.h"
-#include "GeoreferenceUtils.h"
+
+#include <cmath>
+#include <cstdint>
 
 #include <algorithm>
-#include <cmath>
+#include <chrono>
+#include <memory>
+#include <mutex>
+#include <optional>
+#include <string>
+#include <utility>
+
+#include "GeoreferenceUtils.h"
 
 namespace PayloadHal {
 
 namespace {
     inline constexpr double PI = 3.14159265358979323846;
     inline constexpr double DEG_TO_RAD = PI / 180.0;
-    inline constexpr double RAD_TO_DEG = 180.0 / PI;
 
     [[nodiscard]] double normalizeHeadingDeg(double deg) noexcept
     {

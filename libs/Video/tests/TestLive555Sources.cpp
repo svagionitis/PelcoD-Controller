@@ -25,7 +25,7 @@ namespace {
     struct TestDeliveryContext {
         std::atomic<bool> frameDelivered { false };
         std::atomic<bool> sourceClosed { false };
-        char watchVariable { 0 };
+        EventLoopWatchVariable watchVariable { 0 };
         unsigned frameSize { 0U };
         unsigned numTruncatedBytes { 0U };
         struct timeval presentationTime {
@@ -84,16 +84,16 @@ namespace {
         {
             ctx.watchVariable = 0;
             TaskToken timeoutToken = m_env->taskScheduler().scheduleDelayedTask(
-                timeoutUs, [](void* ptr) { *static_cast<char*>(ptr) = 1; }, &ctx.watchVariable);
+                timeoutUs, [](void* ptr) { *static_cast<EventLoopWatchVariable*>(ptr) = 1; }, &ctx.watchVariable);
             m_env->taskScheduler().doEventLoop(&ctx.watchVariable);
             m_env->taskScheduler().unscheduleDelayedTask(timeoutToken);
         }
 
         void stepEventLoopTimeout(std::int64_t timeoutUs = 5000)
         {
-            char watchVariable { 0 };
+            EventLoopWatchVariable watchVariable { 0 };
             m_env->taskScheduler().scheduleDelayedTask(
-                timeoutUs, [](void* ptr) { *static_cast<char*>(ptr) = 1; }, &watchVariable);
+                timeoutUs, [](void* ptr) { *static_cast<EventLoopWatchVariable*>(ptr) = 1; }, &watchVariable);
             m_env->taskScheduler().doEventLoop(&watchVariable);
         }
 

@@ -43,11 +43,11 @@ public:
 
     virtual ~GeoSurveyGridEngine();
 
-    // Disable copy semantics; allow move semantics
+    // Disable copy semantics and move semantics (contains std::mutex)
     GeoSurveyGridEngine(const GeoSurveyGridEngine&) = delete;
     GeoSurveyGridEngine& operator=(const GeoSurveyGridEngine&) = delete;
-    GeoSurveyGridEngine(GeoSurveyGridEngine&&) noexcept = default;
-    GeoSurveyGridEngine& operator=(GeoSurveyGridEngine&&) noexcept = default;
+    GeoSurveyGridEngine(GeoSurveyGridEngine&&) = delete;
+    GeoSurveyGridEngine& operator=(GeoSurveyGridEngine&&) = delete;
 
     // --- Configuration & Trajectory Planning ---
 

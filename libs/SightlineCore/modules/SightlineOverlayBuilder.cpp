@@ -2,9 +2,15 @@
 /// @brief Implementation of Sightline Overlays module builder.
 
 #include "SightlineOverlayBuilder.h"
-#include "SightlineKlvBuilder.h"
+
+#include <cstddef>
+#include <cstdint>
 
 #include <algorithm>
+#include <string>
+#include <vector>
+
+#include "SightlineKlvBuilder.h"
 
 namespace Sightline {
 
@@ -107,8 +113,8 @@ MsgDrawOverlay SightlineOverlayBuilder::makeCrossOverlay(std::uint8_t cameraInde
     msg.b = static_cast<std::uint16_t>(centerY);
     msg.c = size;
     msg.d = 0U;
-    msg.backgroundColor = static_cast<std::uint8_t>(((static_cast<std::uint8_t>(fgColor) & 0x0FU) << 4U)
-        | (static_cast<std::uint8_t>(OverlayPaletteColor::TransparentBgOrTurquoiseFg) & 0x0FU));
+    msg.backgroundColor = static_cast<std::uint8_t>(((static_cast<std::uint32_t>(fgColor) & 0x0FU) << 4U)
+        | (static_cast<std::uint32_t>(OverlayPaletteColor::TransparentBgOrTurquoiseFg) & 0x0FU));
     msg.text.clear();
     msg.e = thickness;
     msg.hasE = true;
@@ -135,7 +141,7 @@ MsgDrawOverlay SightlineOverlayBuilder::makeRectangleOverlay(std::uint8_t camera
     msg.c = width;
     msg.d = height;
     msg.backgroundColor = static_cast<std::uint8_t>(
-        ((static_cast<std::uint8_t>(fgColor) & 0x0FU) << 4U) | (static_cast<std::uint8_t>(bgColor) & 0x0FU));
+        ((static_cast<std::uint32_t>(fgColor) & 0x0FU) << 4U) | (static_cast<std::uint32_t>(bgColor) & 0x0FU));
     msg.text.clear();
     msg.e = thickness;
     msg.hasE = true;
@@ -158,10 +164,10 @@ MsgDrawOverlay SightlineOverlayBuilder::makeTextOverlay(std::uint8_t cameraIndex
     msg.type = OverlayObjectType::TextExtended;
     msg.a = static_cast<std::uint16_t>(x);
     msg.b = static_cast<std::uint16_t>(y);
-    msg.c = static_cast<std::uint16_t>((static_cast<std::uint16_t>(vScale) << 8U) | static_cast<std::uint16_t>(hScale));
+    msg.c = static_cast<std::uint16_t>((static_cast<std::uint32_t>(vScale) << 8U) | static_cast<std::uint32_t>(hScale));
     msg.d = static_cast<std::uint16_t>(static_cast<std::uint8_t>(fontId) & 0x1FU);
     msg.backgroundColor = static_cast<std::uint8_t>(
-        ((static_cast<std::uint8_t>(fgColor) & 0x0FU) << 4U) | (static_cast<std::uint8_t>(bgColor) & 0x0FU));
+        ((static_cast<std::uint32_t>(fgColor) & 0x0FU) << 4U) | (static_cast<std::uint32_t>(bgColor) & 0x0FU));
     msg.text = text;
     msg.e = 0U;
     msg.hasE = true;
@@ -184,11 +190,11 @@ MsgDrawOverlay SightlineOverlayBuilder::makeKlvFieldOverlay(std::uint8_t cameraI
     msg.type = OverlayObjectType::KlvField;
     msg.a = static_cast<std::uint16_t>(x);
     msg.b = static_cast<std::uint16_t>(y);
-    msg.c = static_cast<std::uint16_t>((32U << 8U) | (static_cast<std::uint8_t>(fontId) & 0x1FU));
+    msg.c = static_cast<std::uint16_t>((32U << 8U) | (static_cast<std::uint32_t>(fontId) & 0x1FU));
     msg.d = static_cast<std::uint16_t>(
-        (static_cast<std::uint16_t>(formatType) << 8U) | (static_cast<std::uint8_t>(fieldTag) & 0xFFU));
-    msg.backgroundColor = static_cast<std::uint8_t>(((static_cast<std::uint8_t>(fgColor) & 0x0FU) << 4U)
-        | (static_cast<std::uint8_t>(OverlayPaletteColor::TransparentBgOrTurquoiseFg) & 0x0FU));
+        (static_cast<std::uint32_t>(formatType) << 8U) | (static_cast<std::uint32_t>(fieldTag) & 0xFFU));
+    msg.backgroundColor = static_cast<std::uint8_t>(((static_cast<std::uint32_t>(fgColor) & 0x0FU) << 4U)
+        | (static_cast<std::uint32_t>(OverlayPaletteColor::TransparentBgOrTurquoiseFg) & 0x0FU));
     msg.text = formatString;
     msg.e = 0U;
     msg.hasE = false;
@@ -209,8 +215,9 @@ MsgDrawOverlay SightlineOverlayBuilder::makeBlackoutOverlay(
     msg.b = 1U;
     msg.c = width;
     msg.d = height;
-    msg.backgroundColor = static_cast<std::uint8_t>((static_cast<std::uint8_t>(OverlayPaletteColor::Black) << 4U)
-        | (static_cast<std::uint8_t>(OverlayPaletteColor::Black) & 0x0FU));
+    msg.backgroundColor = static_cast<std::uint8_t>(
+        ((static_cast<std::uint32_t>(OverlayPaletteColor::Black) & 0x0FU) << 4U)
+        | (static_cast<std::uint32_t>(OverlayPaletteColor::Black) & 0x0FU));
     msg.text.clear();
     msg.e = 1U;
     msg.hasE = true;

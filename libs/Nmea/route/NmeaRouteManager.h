@@ -46,11 +46,11 @@ public:
     NmeaRouteManager() = default;
     ~NmeaRouteManager() = default;
 
-    // Non-copyable, movable
+    // Non-copyable, non-movable (contains std::mutex)
     NmeaRouteManager(const NmeaRouteManager&) = delete;
     NmeaRouteManager& operator=(const NmeaRouteManager&) = delete;
-    NmeaRouteManager(NmeaRouteManager&&) noexcept = default;
-    NmeaRouteManager& operator=(NmeaRouteManager&&) noexcept = default;
+    NmeaRouteManager(NmeaRouteManager&&) = delete;
+    NmeaRouteManager& operator=(NmeaRouteManager&&) = delete;
 
     /// @brief Ingests a Waypoint Location sentence ($--WPL) into the waypoint dictionary.
     /// @param[in] wpl Deserialized WplData.

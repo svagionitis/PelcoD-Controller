@@ -2,21 +2,19 @@
 /// @brief Unit tests for PtzCameraModel: project/unproject round-trips, Jacobian finite-difference
 ///        validation, intrinsics getters/setters, and boundary conditions.
 
+#include <cmath>
+#include <cstddef>
+#include <iostream>
+
+#include <gtest/gtest.h>
+
 #include "MatrixMath.h"
 #include "PtzCameraModel.h"
-
-#include <cmath>
-#include <gtest/gtest.h>
-#include <iostream>
 
 using namespace Tracking;
 using namespace Math;
 
 namespace {
-
-#ifndef M_PI
-constexpr double M_PI = 3.14159265358979323846;
-#endif
 
 constexpr double TOL_PIX = 0.5; ///< Pixel tolerance for round-trip
 constexpr double TOL_RAD = 0.001; ///< Radian tolerance for angular round-trip

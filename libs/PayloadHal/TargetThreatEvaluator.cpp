@@ -1,15 +1,22 @@
 #include "TargetThreatEvaluator.h"
-#include "NmeaSlavingBridge.h"
+
+#include <cmath>
+#include <cstddef>
+#include <cstdint>
 
 #include <algorithm>
-#include <cmath>
+#include <chrono>
+#include <mutex>
+#include <optional>
 #include <unordered_set>
+#include <vector>
+
+#include "NmeaSlavingBridge.h"
 
 namespace PayloadHal {
 
 namespace {
     constexpr double kDegToRad = 3.14159265358979323846 / 180.0;
-    constexpr double kRadToDeg = 180.0 / 3.14159265358979323846;
     constexpr double kKnotsToMps = 0.5144444444444444;
     constexpr double kNmiToMeters = 1852.0;
 

@@ -1,7 +1,12 @@
 #include "BrailleRenderer.h"
 
-#include <algorithm>
 #include <cmath>
+#include <cstddef>
+#include <cstdint>
+
+#include <algorithm>
+#include <string>
+#include <vector>
 
 namespace Video {
 
@@ -21,11 +26,6 @@ namespace {
     // (dx=0, dy=2) -> 0x04 | (dx=1, dy=2) -> 0x20
     // (dx=0, dy=3) -> 0x40 | (dx=1, dy=3) -> 0x80
     constexpr int kDotMap[4][2] = { { 0x01, 0x08 }, { 0x02, 0x10 }, { 0x04, 0x20 }, { 0x40, 0x80 } };
-
-    inline std::uint8_t clampToUint8(int val) noexcept
-    {
-        return static_cast<std::uint8_t>(std::clamp(val, 0, 255));
-    }
 
 } // namespace
 

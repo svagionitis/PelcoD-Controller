@@ -1,14 +1,23 @@
 #include "OnvifClient.h"
-#include "OnvifSecurity.h"
-#include "XmlUtils.h"
+
+#include <cstddef>
+#include <cstdint>
+#include <cstring>
+#include <ctime>
+
+#include <chrono>
+#include <iomanip>
+#include <optional>
+#include <sstream>
+#include <stdexcept>
+#include <string>
+#include <string_view>
+#include <vector>
 
 #include <pugixml.hpp>
 
-#include <cstring>
-#include <ctime>
-#include <iomanip>
-#include <sstream>
-#include <stdexcept>
+#include "OnvifSecurity.h"
+#include "XmlUtils.h"
 
 namespace Onvif {
 
@@ -3353,12 +3362,12 @@ std::optional<MetadataStreamPayload> OnvifClient::parseMetadataStreamResponse(co
         PtzStatus ptz {};
         const auto panTiltNode = findRecursiveNodeWithSuffix(ptzNode, "PanTilt");
         if (panTiltNode) {
-            ptz.pan = panTiltNode.attribute("x").as_float(0.0f);
-            ptz.tilt = panTiltNode.attribute("y").as_float(0.0f);
+            ptz.pan = panTiltNode.attribute("x").as_double(0.0);
+            ptz.tilt = panTiltNode.attribute("y").as_double(0.0);
         }
         const auto zoomNode = findRecursiveNodeWithSuffix(ptzNode, "Zoom");
         if (zoomNode) {
-            ptz.zoom = zoomNode.attribute("x").as_float(0.0f);
+            ptz.zoom = zoomNode.attribute("x").as_double(0.0);
         }
         const auto moveStatusNode = findRecursiveNodeWithSuffix(ptzNode, "MoveStatus");
         if (moveStatusNode) {

@@ -1,5 +1,11 @@
 #include "VideoPesPacketizer.h"
+
+#include <cstddef>
+#include <cstdint>
+
 #include <algorithm>
+#include <optional>
+#include <vector>
 
 namespace Klv {
 
@@ -40,7 +46,7 @@ std::vector<std::uint8_t> VideoPesPacketizer::generateAud(VideoCodec codec,
     if (codec == VideoCodec::H264) {
         // Start code: 00 00 00 01, NAL 0x09
         aud = { 0x00U, 0x00U, 0x00U, 0x01U, 0x09U };
-        std::uint8_t picType = 7U; // Any slice type default
+        std::uint32_t picType = 7U; // Any slice type default
         if (sliceType == VideoSliceType::I) {
             picType = 0U; // I slices only
         } else if (sliceType == VideoSliceType::P) {
@@ -52,7 +58,7 @@ std::vector<std::uint8_t> VideoPesPacketizer::generateAud(VideoCodec codec,
     } else if (codec == VideoCodec::H265) {
         // Start code: 00 00 00 01, NAL 0x46 (35 << 1), temporal_id_plus1 = 1 (0x01)
         aud = { 0x00U, 0x00U, 0x00U, 0x01U, 0x46U, 0x01U };
-        std::uint8_t picType = 2U; // I, P, B
+        std::uint32_t picType = 2U; // I, P, B
         if (sliceType == VideoSliceType::I) {
             picType = 0U; // I only
         } else if (sliceType == VideoSliceType::P) {

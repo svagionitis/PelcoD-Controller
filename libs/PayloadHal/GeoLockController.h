@@ -3,9 +3,7 @@
 /// @file GeoLockController.h
 /// @brief Closed-loop geographic coordinate tracking and line-of-sight stabilization controller.
 
-#include "IPayload.h"
-#include "Klv/KlvTypes.h"
-#include "PlatformLeverArmCompensator.h"
+#include <cstdint>
 
 #include <atomic>
 #include <chrono>
@@ -15,6 +13,10 @@
 #include <mutex>
 #include <optional>
 #include <thread>
+
+#include "IPayload.h"
+#include "Klv/KlvTypes.h"
+#include "PlatformLeverArmCompensator.h"
 
 namespace PayloadHal {
 
@@ -31,7 +33,7 @@ struct GeoLockStatus {
     double currentTiltDeg { 0.0 }; ///< Gimbal current tilt angle in degrees
     double trackingErrorDeg { 0.0 }; ///< Angular error between target line-of-sight and gimbal boresight
     double slantRangeMeters { 0.0 }; ///< Line-of-sight distance to target in meters
-    uint64_t updateCount { 0 }; ///< Total number of tracking update cycles processed
+    std::uint64_t updateCount { 0U }; ///< Total number of tracking update cycles processed
 };
 
 /// @class GeoLockController
@@ -50,11 +52,11 @@ public:
     /// @brief Destructor; terminates any active background tracking thread.
     virtual ~GeoLockController();
 
-    // Disable copy semantics; allow move
+    // Disable copy semantics and move semantics (contains std::mutex and std::thread)
     GeoLockController(const GeoLockController&) = delete;
     GeoLockController& operator=(const GeoLockController&) = delete;
-    GeoLockController(GeoLockController&&) noexcept = default;
-    GeoLockController& operator=(GeoLockController&&) noexcept = default;
+    GeoLockController(GeoLockController&&) = delete;
+    GeoLockController& operator=(GeoLockController&&) = delete;
 
     /// @brief Sets the angular deadband threshold in degrees to suppress actuator jitter.
     /// @param[in] deadbandDeg Minimum angle delta in degrees required to issue a new slew command (default 0.05).
@@ -164,7 +166,7 @@ private:
     double m_currentTiltDeg { 0.0 };
     double m_trackingErrorDeg { 0.0 };
     double m_slantRangeMeters { 0.0 };
-    uint64_t m_updateCount { 0 };
+    std::uint64_t m_updateCount { 0U };
 
     std::thread m_workerThread;
     std::condition_variable m_cv;

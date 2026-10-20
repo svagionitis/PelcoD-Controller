@@ -1,7 +1,12 @@
 #include "N2kDecoder.h"
 
 #include <cmath>
+#include <cstddef>
+#include <cstdint>
 #include <cstring>
+
+#include <algorithm>
+#include <vector>
 
 namespace Nmea::N2k {
 
@@ -14,7 +19,8 @@ namespace {
 
     inline std::uint16_t readU16LE(const std::uint8_t* p) noexcept
     {
-        return static_cast<std::uint16_t>(p[0]) | (static_cast<std::uint16_t>(p[1]) << 8);
+        return static_cast<std::uint16_t>(
+            static_cast<std::uint32_t>(p[0]) | (static_cast<std::uint32_t>(p[1]) << 8U));
     }
 
     inline std::int16_t readI16LE(const std::uint8_t* p) noexcept
@@ -24,8 +30,8 @@ namespace {
 
     inline std::uint32_t readU32LE(const std::uint8_t* p) noexcept
     {
-        return static_cast<std::uint32_t>(p[0]) | (static_cast<std::uint32_t>(p[1]) << 8)
-            | (static_cast<std::uint32_t>(p[2]) << 16) | (static_cast<std::uint32_t>(p[3]) << 24);
+        return static_cast<std::uint32_t>(p[0]) | (static_cast<std::uint32_t>(p[1]) << 8U)
+            | (static_cast<std::uint32_t>(p[2]) << 16U) | (static_cast<std::uint32_t>(p[3]) << 24U);
     }
 
     inline std::int32_t readI32LE(const std::uint8_t* p) noexcept
@@ -36,7 +42,7 @@ namespace {
     inline void writeU16LE(std::uint8_t* p, std::uint16_t val) noexcept
     {
         p[0] = static_cast<std::uint8_t>(val & 0xFFU);
-        p[1] = static_cast<std::uint8_t>((val >> 8) & 0xFFU);
+        p[1] = static_cast<std::uint8_t>((static_cast<std::uint32_t>(val) >> 8U) & 0xFFU);
     }
 
     inline void writeI16LE(std::uint8_t* p, std::int16_t val) noexcept
@@ -47,9 +53,9 @@ namespace {
     inline void writeU32LE(std::uint8_t* p, std::uint32_t val) noexcept
     {
         p[0] = static_cast<std::uint8_t>(val & 0xFFU);
-        p[1] = static_cast<std::uint8_t>((val >> 8) & 0xFFU);
-        p[2] = static_cast<std::uint8_t>((val >> 16) & 0xFFU);
-        p[3] = static_cast<std::uint8_t>((val >> 24) & 0xFFU);
+        p[1] = static_cast<std::uint8_t>((val >> 8U) & 0xFFU);
+        p[2] = static_cast<std::uint8_t>((val >> 16U) & 0xFFU);
+        p[3] = static_cast<std::uint8_t>((val >> 24U) & 0xFFU);
     }
 
     inline void writeI32LE(std::uint8_t* p, std::int32_t val) noexcept
@@ -594,7 +600,10 @@ std::vector<std::uint8_t> N2kDecoder::encodePgn126993(const HeartbeatData& hb)
     std::vector<std::uint8_t> buf(8U, 0xFFU);
     writeU16LE(buf.data(), hb.transmitIntervalMs);
     buf[2] = hb.sequenceCounter;
-    buf[3] = (hb.controllerState & 0x03U) | static_cast<std::uint8_t>((hb.equipmentStatus & 0x03U) << 2U) | 0xF0U;
+    buf[3] = static_cast<std::uint8_t>(
+        (static_cast<std::uint32_t>(hb.controllerState) & 0x03U) |
+        ((static_cast<std::uint32_t>(hb.equipmentStatus) & 0x03U) << 2U) |
+        0xF0U);
     return buf;
 }
 
@@ -621,7 +630,7 @@ std::vector<CanFrame> N2kDecoder::splitFastPacket(
     }
 
     const std::uint32_t canId = header.toCanId();
-    const std::uint8_t seq = seqCounter & 0x1FU;
+    const std::uint32_t seq = static_cast<std::uint32_t>(seqCounter) & 0x1FU;
 
     // Frame 0:
     // data[0]: (seq << 3) | 0x00
@@ -631,7 +640,7 @@ std::vector<CanFrame> N2kDecoder::splitFastPacket(
     f0.id = canId;
     f0.dlc = 8U;
     f0.data.fill(0xFFU);
-    f0.data[0] = static_cast<std::uint8_t>(seq << 3);
+    f0.data[0] = static_cast<std::uint8_t>(seq << 3U);
     f0.data[1] = static_cast<std::uint8_t>(len & 0xFFU);
 
     const std::size_t chunk0 = std::min<std::size_t>(len, 6U);
@@ -646,7 +655,7 @@ std::vector<CanFrame> N2kDecoder::splitFastPacket(
         fn.id = canId;
         fn.dlc = 8U;
         fn.data.fill(0xFFU);
-        fn.data[0] = static_cast<std::uint8_t>((seq << 3) | (frameCounter & 0x07U));
+        fn.data[0] = static_cast<std::uint8_t>((seq << 3U) | (static_cast<std::uint32_t>(frameCounter) & 0x07U));
 
         const std::size_t remaining = len - offset;
         const std::size_t chunkN = std::min<std::size_t>(remaining, 7U);
@@ -654,7 +663,7 @@ std::vector<CanFrame> N2kDecoder::splitFastPacket(
         frames.push_back(fn);
 
         offset += chunkN;
-        frameCounter = static_cast<std::uint8_t>((frameCounter + 1U) & 0xFFU);
+        frameCounter = static_cast<std::uint8_t>((static_cast<std::uint32_t>(frameCounter) + 1U) & 0xFFU);
     }
 
     return frames;

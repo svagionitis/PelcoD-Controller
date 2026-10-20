@@ -1,10 +1,13 @@
 /// @file TestTrackingVmtiBridge.cpp
 /// @brief Unit tests for TrackingVmtiBridge and PtzAutoTracker VMTI ingestion.
 
+#include <cstdint>
+
+#include <gtest/gtest.h>
+
 #include "PtzAutoTracker.h"
 #include "PtzSphericalEstimator.h"
 #include "TrackingVmtiBridge.h"
-#include <gtest/gtest.h>
 
 using namespace Tracking;
 

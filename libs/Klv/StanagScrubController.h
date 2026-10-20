@@ -4,10 +4,10 @@
 /// @brief Master playback and timeline scrubbing controller linking video and telemetry.
 
 #include "StanagScrubTypes.h"
-#include "TelemetryInterpolator.h"
 #include "TelemetryTimeIndex.h"
+
+#include <cstdint>
 #include <functional>
-#include <memory>
 #include <mutex>
 
 namespace Video {
@@ -83,7 +83,6 @@ public:
 private:
     mutable std::mutex m_mutex {};
     TelemetryTimeIndex m_timeIndex {};
-    TelemetryInterpolator m_interpolator {};
     Video::IVideoDecoder* m_decoder { nullptr };
     ScrubFrameCallback m_callback {};
 

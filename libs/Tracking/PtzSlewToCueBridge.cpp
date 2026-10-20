@@ -1,17 +1,17 @@
-/// @file PtzSlewToCueBridge.cpp
-/// @brief Implementation of geodetic cue ingestion, platform attitude compensation, and Pelco-D actuation.
-
 #include "PtzSlewToCueBridge.h"
+
+#include <cmath>
+#include <cstddef>
+#include <cstdint>
+
 #include <algorithm>
 #include <array>
-#include <cmath>
 
 namespace Tracking {
 
 namespace {
 
 constexpr double kPi { 3.14159265358979323846 };
-constexpr double kEarthRadiusMeters { 6371008.8 };
 
 inline double deg2rad(double deg) noexcept {
     return deg * (kPi / 180.0);

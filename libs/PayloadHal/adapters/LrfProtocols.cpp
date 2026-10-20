@@ -3,11 +3,19 @@
 
 #include "LrfProtocols.h"
 
+#include <cctype>
+#include <cstddef>
+#include <cstdint>
+
 #include <algorithm>
 #include <array>
-#include <cctype>
 #include <charconv>
+#include <chrono>
+#include <memory>
+#include <optional>
+#include <string>
 #include <string_view>
+#include <vector>
 
 namespace PayloadHal {
 
@@ -448,16 +456,16 @@ namespace {
     constexpr std::array<std::uint16_t, 256> generateCrc16CcittTable() noexcept
     {
         std::array<std::uint16_t, 256> table {};
-        for (std::uint32_t i = 0; i < 256; ++i) {
-            std::uint16_t cur = static_cast<std::uint16_t>(i << 8U);
-            for (int bit = 0; bit < 8; ++bit) {
+        for (std::uint32_t i = 0U; i < 256U; ++i) {
+            std::uint32_t cur = i << 8U;
+            for (std::uint32_t bit = 0U; bit < 8U; ++bit) {
                 if ((cur & 0x8000U) != 0U) {
-                    cur = static_cast<std::uint16_t>((cur << 1U) ^ 0x1021U);
+                    cur = ((cur << 1U) ^ 0x1021U) & 0xFFFFU;
                 } else {
-                    cur = static_cast<std::uint16_t>(cur << 1U);
+                    cur = (cur << 1U) & 0xFFFFU;
                 }
             }
-            table[i] = cur;
+            table[i] = static_cast<std::uint16_t>(cur);
         }
         return table;
     }
@@ -555,16 +563,17 @@ std::vector<LrfTargetMeasurement> BinaryLrfParser::parseIncomingBytes(const std:
             continue;
         }
 
-        const std::size_t totalFrameLen = 4 + payloadLen + 2;
+        const std::size_t totalFrameLen = 4U + payloadLen + 2U;
 
         if (m_rxBuffer.size() - offset < totalFrameLen) {
             break; // Await more incoming stream bytes
         }
 
-        const std::uint16_t expectedCrc = (static_cast<std::uint16_t>(m_rxBuffer[offset + 4 + payloadLen]) << 8)
-            | static_cast<std::uint16_t>(m_rxBuffer[offset + 5 + payloadLen]);
+        const std::uint16_t expectedCrc = static_cast<std::uint16_t>(
+            (static_cast<std::uint32_t>(m_rxBuffer[offset + 4U + payloadLen]) << 8U)
+            | static_cast<std::uint32_t>(m_rxBuffer[offset + 5U + payloadLen]));
 
-        const std::uint16_t computedCrc = computeCrc16(m_rxBuffer.data() + offset, 4 + payloadLen);
+        const std::uint16_t computedCrc = computeCrc16(m_rxBuffer.data() + offset, 4U + payloadLen);
         if (computedCrc != expectedCrc) {
             // CRC mismatch: skip first sync byte to re-sync
             ++offset;

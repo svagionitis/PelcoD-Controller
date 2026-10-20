@@ -1,14 +1,18 @@
 /// @file TestDwt.cpp
 /// @brief Automated unit test suite for Discrete Wavelet Transform (DWT) and Transient Shock Detector in PelcoDCore.
 
-#include "Dwt.h"
-#include "TransientShockDetector.h"
+#include <cmath>
+#include <cstddef>
+#include <cstdint>
 
 #include <algorithm>
-#include <cmath>
-#include <gtest/gtest.h>
 #include <iostream>
 #include <vector>
+
+#include <gtest/gtest.h>
+
+#include "Dwt.h"
+#include "TransientShockDetector.h"
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846

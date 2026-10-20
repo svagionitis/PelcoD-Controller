@@ -1,13 +1,17 @@
 /// @file TestIntegralImage.cpp
 /// @brief Automated unit test suite for Integral Images (Summed-Area Tables) in PelcoDCore.
 
-#include "IntegralImage.h"
+#include <cmath>
+#include <cstddef>
+#include <cstdint>
 
 #include <algorithm>
-#include <cmath>
-#include <gtest/gtest.h>
 #include <iostream>
 #include <vector>
+
+#include <gtest/gtest.h>
+
+#include "IntegralImage.h"
 
 using namespace Math;
 

@@ -145,7 +145,6 @@ private:
     PlatformNavState m_platform{};
     std::optional<TargetCue> m_activeCue{std::nullopt};
     SlewState m_state{SlewState::Idle};
-    double m_lastDesiredHfovDeg{0.0};
 };
 
 } // namespace Tracking

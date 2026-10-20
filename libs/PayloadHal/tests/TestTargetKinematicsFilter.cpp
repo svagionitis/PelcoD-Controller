@@ -1,14 +1,16 @@
+#include <cmath>
+
+#include <chrono>
+
+#include <gtest/gtest.h>
+
 #include "PayloadHal.h"
 #include "TargetKinematicsFilter.h"
 #include "sim/SimulatedPayload.h"
-#include <gtest/gtest.h>
-#include <chrono>
-#include <cmath>
 
 namespace PayloadHal {
 namespace {
 
-constexpr double kDegToRad = 3.14159265358979323846 / 180.0;
 constexpr double kRadToDeg = 180.0 / 3.14159265358979323846;
 
 TEST(TestTargetKinematicsFilter, StationaryTargetConvergence)

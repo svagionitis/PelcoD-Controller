@@ -1,18 +1,20 @@
 #include "VesselAttitudeCompensator.h"
 
-#include "Nmea/NmeaTypes.h"
-#include "Nmea/n2k/N2kTypes.h"
-
-#include <algorithm>
 #include <cctype>
 #include <cmath>
+
+#include <algorithm>
+#include <chrono>
+#include <mutex>
+#include <string>
+#include <string_view>
+
+#include "Nmea/NmeaTypes.h"
+#include "Nmea/n2k/N2kTypes.h"
 
 namespace PayloadHal {
 
 namespace {
-
-    constexpr double Pi = 3.14159265358979323846;
-    constexpr double RadToDeg = 180.0 / Pi;
 
     [[nodiscard]] double normalizeHeadingDeg(double angleDeg) noexcept
     {

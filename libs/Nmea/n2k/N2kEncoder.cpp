@@ -1,9 +1,14 @@
 #include "N2kEncoder.h"
-#include "N2kDecoder.h"
+
+#include <cmath>
+#include <cstddef>
+#include <cstdint>
+#include <cstring>
 
 #include <algorithm>
-#include <cmath>
-#include <cstring>
+#include <vector>
+
+#include "N2kDecoder.h"
 
 namespace Nmea::N2k {
 
@@ -208,7 +213,8 @@ std::vector<std::uint8_t> N2kEncoder::encodePgn129038Payload(const AisClassAPosi
     std::vector<std::uint8_t> payload(28U, 0xFFU);
 
     payload[0] = (ais.messageId != 0U) ? ais.messageId : 1U;
-    payload[1] = static_cast<std::uint8_t>((ais.repeatIndicator & 0x03U) | ((ais.navStatus & 0x0FU) << 2) | 0xC0U);
+    payload[1] = static_cast<std::uint8_t>(
+        (ais.repeatIndicator & 0x03U) | ((static_cast<std::uint32_t>(ais.navStatus) & 0x0FU) << 2U) | 0xC0U);
 
     writeU32LE(payload.data() + 2, ais.mmsi);
 

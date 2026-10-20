@@ -1,11 +1,20 @@
 #include "Stanag4586Bridge.h"
+
+#include <cstdint>
+#include <cstring>
+
+#include <chrono>
+#include <memory>
+#include <mutex>
+#include <optional>
+#include <string_view>
+#include <utility>
+#include <vector>
+
 #include "GimbalSectorBlanking.h"
 #include "PayloadHealthMonitor.h"
 #include "PayloadStowController.h"
 #include "SensorFusionManager.h"
-
-#include <chrono>
-#include <cstring>
 
 namespace PayloadHal {
 
@@ -431,9 +440,10 @@ bool Stanag4586Bridge::dispatchMessage2004(const Stanag4586Message2004& cmd)
         if (m_payload->isGeoLocked()) {
             m_payload->disengageGeoLock();
         }
-        const bool panTiltOk = ptu->setAbsoluteAngles(cmd.commandedAzimuthDeg, cmd.commandedElevationDeg);
+        const bool panTiltOk = ptu->setAbsoluteAngles(
+            static_cast<double>(cmd.commandedAzimuthDeg), static_cast<double>(cmd.commandedElevationDeg));
         if (std::abs(cmd.commandedRollDeg) > 1e-3f && ptu->hasRollAxis()) {
-            ptu->setRollAngle(cmd.commandedRollDeg);
+            ptu->setRollAngle(static_cast<double>(cmd.commandedRollDeg));
         }
         return panTiltOk;
     }
@@ -444,7 +454,9 @@ bool Stanag4586Bridge::dispatchMessage2004(const Stanag4586Message2004& cmd)
         if (m_payload->isGeoLocked()) {
             m_payload->disengageGeoLock();
         }
-        return ptu->setRate(cmd.commandedAzimuthRateDegPerSec, cmd.commandedElevationRateDegPerSec);
+        return ptu->setRate(
+            static_cast<double>(cmd.commandedAzimuthRateDegPerSec),
+            static_cast<double>(cmd.commandedElevationRateDegPerSec));
     }
     case StanagSteeringMode::GeoPointing: {
         PlatformNavData nav;

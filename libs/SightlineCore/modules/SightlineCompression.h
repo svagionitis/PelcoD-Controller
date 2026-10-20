@@ -42,7 +42,7 @@ enum class DeblockingFilter : std::uint8_t {
 [[nodiscard]] constexpr std::uint8_t makeH264Flags(H264Profile profile, BitrateControlMode mode) noexcept
 {
     return static_cast<std::uint8_t>(
-        (static_cast<std::uint8_t>(mode) << 4U) | (static_cast<std::uint8_t>(profile) & 0x03U));
+        (static_cast<std::uint32_t>(mode) << 4U) | (static_cast<std::uint32_t>(profile) & 0x03U));
 }
 
 /// @struct MsgSetH264Parameters

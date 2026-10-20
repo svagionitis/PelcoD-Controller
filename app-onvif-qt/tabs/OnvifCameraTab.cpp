@@ -2,8 +2,13 @@
 /// @brief Dashboard tab for discovering, connecting to, and controlling ONVIF Profile S IP cameras.
 
 #include "OnvifCameraTab.h"
-#include <Onvif/GeodesyUtils.h>
+
+#include <cstddef>
+#include <cstdint>
+
 #include <algorithm>
+#include <string>
+#include <vector>
 
 #include <QApplication>
 #include <QClipboard>
@@ -13,6 +18,8 @@
 #include <QMessageBox>
 #include <QSignalBlocker>
 #include <QSplitter>
+
+#include <Onvif/GeodesyUtils.h>
 
 namespace OnvifApp {
 
@@ -2626,11 +2633,11 @@ void OnvifCameraTab::handleTourSelected(int index)
     for (const auto& tour : tours) {
         if (tour.token == token.toStdString()) {
             tableTourSpots->setRowCount(static_cast<int>(tour.spots.size()));
-            for (size_t i = 0; i < tour.spots.size(); ++i) {
+            for (std::size_t i = 0; i < tour.spots.size(); ++i) {
                 const auto& spot = tour.spots[i];
                 const int row = static_cast<int>(i);
                 tableTourSpots->setItem(row, 0, new QTableWidgetItem(QString::fromStdString(spot.presetToken)));
-                tableTourSpots->setItem(row, 1, new QTableWidgetItem(QString::number(spot.speed, 'f', 2)));
+                tableTourSpots->setItem(row, 1, new QTableWidgetItem(QString::number(static_cast<double>(spot.speed), 'f', 2)));
                 tableTourSpots->setItem(row, 2, new QTableWidgetItem(QString::number(spot.stayTimeSeconds)));
             }
 
@@ -3231,7 +3238,7 @@ void OnvifCameraTab::handleVideoSourceModesUpdated(const std::vector<Onvif::Vide
                             .arg(QString::fromStdString(mode.token))
                             .arg(mode.width)
                             .arg(mode.height)
-                            .arg(mode.maxFramerate, 0, 'f', 0)
+                            .arg(static_cast<double>(mode.maxFramerate), 0, 'f', 0)
                             .arg(mode.reboot ? tr(", Reboot") : "");
         if (mode.enabled) {
             label += tr(" [ACTIVE]");
@@ -3571,7 +3578,8 @@ void OnvifCameraTab::handleFocusStatusUpdated(const Onvif::FocusStatus20& status
     const bool isMoving = (status.moveStatus == "MOVING");
     const QString moveStr = QString::fromStdString(status.moveStatus.empty() ? "IDLE" : status.moveStatus);
     const QString color = isMoving ? QStringLiteral("#d29922") : QStringLiteral("#7ee787");
-    lblFocusStatus->setText(tr("Focus: %1 | Pos: %2").arg(moveStr).arg(QString::number(status.position, 'f', 2)));
+    lblFocusStatus->setText(
+        tr("Focus: %1 | Pos: %2").arg(moveStr).arg(QString::number(static_cast<double>(status.position), 'f', 2)));
     lblFocusStatus->setStyleSheet(QString("font-weight: bold; color: %1;").arg(color));
 }
 
@@ -3669,7 +3677,8 @@ void OnvifCameraTab::handleRelaysUpdated(const std::vector<Onvif::RelayOutputCon
         tableRelays->insertRow(row);
         tableRelays->setItem(row, 0, new QTableWidgetItem(QString::fromStdString(r.token)));
         tableRelays->setItem(row, 1, new QTableWidgetItem(QString::fromStdString(Onvif::relayModeToString(r.mode))));
-        tableRelays->setItem(row, 2, new QTableWidgetItem(QString::number(r.delayTimeSeconds, 'f', 1)));
+        tableRelays->setItem(
+            row, 2, new QTableWidgetItem(QString::number(static_cast<double>(r.delayTimeSeconds), 'f', 1)));
         tableRelays->setItem(
             row, 3, new QTableWidgetItem(QString::fromStdString(Onvif::relayIdleStateToString(r.idleState))));
         const QString stateStr = QString::fromStdString(Onvif::relayLogicalStateToString(r.logicalState));
@@ -3843,12 +3852,13 @@ void OnvifCameraTab::handleMetadataReceived(const Onvif::MetadataStreamPayload& 
         tableMetaObjects->insertRow(row);
         tableMetaObjects->setItem(row, 0, new QTableWidgetItem(QString::number(obj.objectId)));
         tableMetaObjects->setItem(row, 1, new QTableWidgetItem(QString::fromStdString(obj.className)));
-        tableMetaObjects->setItem(row, 2, new QTableWidgetItem(QString::number(obj.confidence, 'f', 2)));
+        tableMetaObjects->setItem(
+            row, 2, new QTableWidgetItem(QString::number(static_cast<double>(obj.confidence), 'f', 2)));
         const QString bbox = QStringLiteral("[%1, %2, %3, %4]")
-                                 .arg(obj.boundingBox.left, 0, 'f', 2)
-                                 .arg(obj.boundingBox.top, 0, 'f', 2)
-                                 .arg(obj.boundingBox.right, 0, 'f', 2)
-                                 .arg(obj.boundingBox.bottom, 0, 'f', 2);
+                                 .arg(static_cast<double>(obj.boundingBox.left), 0, 'f', 2)
+                                 .arg(static_cast<double>(obj.boundingBox.top), 0, 'f', 2)
+                                 .arg(static_cast<double>(obj.boundingBox.right), 0, 'f', 2)
+                                 .arg(static_cast<double>(obj.boundingBox.bottom), 0, 'f', 2);
         tableMetaObjects->setItem(row, 3, new QTableWidgetItem(bbox));
         const QString geo = QStringLiteral("Lat: %1, Lon: %2")
                                 .arg(obj.geoLocation.latitude, 0, 'f', 4)
@@ -3963,10 +3973,10 @@ void OnvifCameraTab::handleRulesUpdated(const std::vector<Onvif::AnalyticsRule>&
         } else if (r.type.find("Line") != std::string::npos) {
             paramStr = QStringLiteral("Dir: %1 | Line: (%2,%3)->(%4,%5)")
                            .arg(QString::fromStdString(r.direction))
-                           .arg(r.lineStart.x, 0, 'f', 2)
-                           .arg(r.lineStart.y, 0, 'f', 2)
-                           .arg(r.lineEnd.x, 0, 'f', 2)
-                           .arg(r.lineEnd.y, 0, 'f', 2);
+                           .arg(static_cast<double>(r.lineStart.x), 0, 'f', 2)
+                           .arg(static_cast<double>(r.lineStart.y), 0, 'f', 2)
+                           .arg(static_cast<double>(r.lineEnd.x), 0, 'f', 2)
+                           .arg(static_cast<double>(r.lineEnd.y), 0, 'f', 2);
         } else if (r.type.find("Field") != std::string::npos) {
             paramStr = QStringLiteral("Polygon: %1 pts").arg(r.polygon.size());
         } else {
@@ -4674,12 +4684,12 @@ void OnvifCameraTab::handleRadiometryConfigUpdated(const Onvif::RadiometryConfig
     QSignalBlocker b5(spinRelativeHumidity);
     QSignalBlocker b6(spinWindowTransmission);
 
-    spinEmissivity->setValue(config.emissivity);
-    spinTargetDistance->setValue(config.distance);
-    spinReflectedTemp->setValue(config.reflectedTemperature);
-    spinAtmosphericTemp->setValue(config.atmosphericTemperature);
-    spinRelativeHumidity->setValue(config.relativeHumidity);
-    spinWindowTransmission->setValue(config.windowTransmission);
+    spinEmissivity->setValue(static_cast<double>(config.emissivity));
+    spinTargetDistance->setValue(static_cast<double>(config.distance));
+    spinReflectedTemp->setValue(static_cast<double>(config.reflectedTemperature));
+    spinAtmosphericTemp->setValue(static_cast<double>(config.atmosphericTemperature));
+    spinRelativeHumidity->setValue(static_cast<double>(config.relativeHumidity));
+    spinWindowTransmission->setValue(static_cast<double>(config.windowTransmission));
 }
 
 void OnvifCameraTab::handleRadiometrySpotsUpdated(const std::vector<Onvif::RadiometrySpot>& spots)
@@ -4692,10 +4702,14 @@ void OnvifCameraTab::handleRadiometrySpotsUpdated(const std::vector<Onvif::Radio
         tableRadiometry->setItem(row, 1, new QTableWidgetItem(tr("Spotmeter")));
         tableRadiometry->setItem(row, 2, new QTableWidgetItem(QString::fromStdString(s.label)));
         tableRadiometry->setItem(row, 3,
-            new QTableWidgetItem(QString("(%1, %2)").arg(s.position.x, 0, 'f', 2).arg(s.position.y, 0, 'f', 2)));
-        tableRadiometry->setItem(row, 4, new QTableWidgetItem(QString("%1 °C").arg(s.temperature, 0, 'f', 1)));
+            new QTableWidgetItem(QString("(%1, %2)")
+                                     .arg(static_cast<double>(s.position.x), 0, 'f', 2)
+                                     .arg(static_cast<double>(s.position.y), 0, 'f', 2)));
         tableRadiometry->setItem(
-            row, 5, new QTableWidgetItem(QString("%1 °F").arg(s.temperature * 1.8f + 32.0f, 0, 'f', 1)));
+            row, 4, new QTableWidgetItem(QString("%1 °C").arg(static_cast<double>(s.temperature), 0, 'f', 1)));
+        tableRadiometry->setItem(row, 5,
+            new QTableWidgetItem(
+                QString("%1 °F").arg(static_cast<double>(s.temperature) * 1.8 + 32.0, 0, 'f', 1)));
         tableRadiometry->setItem(row, 6, new QTableWidgetItem(tr("N/A")));
     }
     if (m_onvifDevice != nullptr) {
@@ -4708,15 +4722,17 @@ void OnvifCameraTab::handleRadiometrySpotsUpdated(const std::vector<Onvif::Radio
             tableRadiometry->setItem(row, 2, new QTableWidgetItem(QString::fromStdString(b.label)));
             tableRadiometry->setItem(row, 3,
                 new QTableWidgetItem(QString("[%1, %2, %3, %4]")
-                                         .arg(b.topLeft.x, 0, 'f', 2)
-                                         .arg(b.topLeft.y, 0, 'f', 2)
-                                         .arg(b.bottomRight.x, 0, 'f', 2)
-                                         .arg(b.bottomRight.y, 0, 'f', 2)));
+                                         .arg(static_cast<double>(b.topLeft.x), 0, 'f', 2)
+                                         .arg(static_cast<double>(b.topLeft.y), 0, 'f', 2)
+                                         .arg(static_cast<double>(b.bottomRight.x), 0, 'f', 2)
+                                         .arg(static_cast<double>(b.bottomRight.y), 0, 'f', 2)));
             tableRadiometry->setItem(row, 4,
+                new QTableWidgetItem(QString("Avg %1 °C (Max %2)")
+                                         .arg(static_cast<double>(b.avgTemperature), 0, 'f', 1)
+                                         .arg(static_cast<double>(b.maxTemperature), 0, 'f', 1)));
+            tableRadiometry->setItem(row, 5,
                 new QTableWidgetItem(
-                    QString("Avg %1 °C (Max %2)").arg(b.avgTemperature, 0, 'f', 1).arg(b.maxTemperature, 0, 'f', 1)));
-            tableRadiometry->setItem(
-                row, 5, new QTableWidgetItem(QString("Avg %1 °F").arg(b.avgTemperature * 1.8f + 32.0f, 0, 'f', 1)));
+                    QString("Avg %1 °F").arg(static_cast<double>(b.avgTemperature) * 1.8 + 32.0, 0, 'f', 1)));
             const bool alarm = (b.maxTemperature >= thresh);
             auto* itemAlarm = new QTableWidgetItem(alarm ? tr("🚨 HIGH TEMP") : tr("Normal"));
             if (alarm) {
@@ -4738,10 +4754,14 @@ void OnvifCameraTab::handleRadiometryBoxesUpdated(const std::vector<Onvif::Radio
             tableRadiometry->setItem(row, 1, new QTableWidgetItem(tr("Spotmeter")));
             tableRadiometry->setItem(row, 2, new QTableWidgetItem(QString::fromStdString(s.label)));
             tableRadiometry->setItem(row, 3,
-                new QTableWidgetItem(QString("(%1, %2)").arg(s.position.x, 0, 'f', 2).arg(s.position.y, 0, 'f', 2)));
-            tableRadiometry->setItem(row, 4, new QTableWidgetItem(QString("%1 °C").arg(s.temperature, 0, 'f', 1)));
+                new QTableWidgetItem(QString("(%1, %2)")
+                                         .arg(static_cast<double>(s.position.x), 0, 'f', 2)
+                                         .arg(static_cast<double>(s.position.y), 0, 'f', 2)));
             tableRadiometry->setItem(
-                row, 5, new QTableWidgetItem(QString("%1 °F").arg(s.temperature * 1.8f + 32.0f, 0, 'f', 1)));
+                row, 4, new QTableWidgetItem(QString("%1 °C").arg(static_cast<double>(s.temperature), 0, 'f', 1)));
+            tableRadiometry->setItem(row, 5,
+                new QTableWidgetItem(
+                    QString("%1 °F").arg(static_cast<double>(s.temperature) * 1.8 + 32.0, 0, 'f', 1)));
             tableRadiometry->setItem(row, 6, new QTableWidgetItem(tr("N/A")));
         }
     }
@@ -4755,15 +4775,17 @@ void OnvifCameraTab::handleRadiometryBoxesUpdated(const std::vector<Onvif::Radio
         tableRadiometry->setItem(row, 2, new QTableWidgetItem(QString::fromStdString(b.label)));
         tableRadiometry->setItem(row, 3,
             new QTableWidgetItem(QString("[%1, %2, %3, %4]")
-                                     .arg(b.topLeft.x, 0, 'f', 2)
-                                     .arg(b.topLeft.y, 0, 'f', 2)
-                                     .arg(b.bottomRight.x, 0, 'f', 2)
-                                     .arg(b.bottomRight.y, 0, 'f', 2)));
+                                     .arg(static_cast<double>(b.topLeft.x), 0, 'f', 2)
+                                     .arg(static_cast<double>(b.topLeft.y), 0, 'f', 2)
+                                     .arg(static_cast<double>(b.bottomRight.x), 0, 'f', 2)
+                                     .arg(static_cast<double>(b.bottomRight.y), 0, 'f', 2)));
         tableRadiometry->setItem(row, 4,
+            new QTableWidgetItem(QString("Avg %1 °C (Max %2)")
+                                     .arg(static_cast<double>(b.avgTemperature), 0, 'f', 1)
+                                     .arg(static_cast<double>(b.maxTemperature), 0, 'f', 1)));
+        tableRadiometry->setItem(row, 5,
             new QTableWidgetItem(
-                QString("Avg %1 °C (Max %2)").arg(b.avgTemperature, 0, 'f', 1).arg(b.maxTemperature, 0, 'f', 1)));
-        tableRadiometry->setItem(
-            row, 5, new QTableWidgetItem(QString("Avg %1 °F").arg(b.avgTemperature * 1.8f + 32.0f, 0, 'f', 1)));
+                QString("Avg %1 °F").arg(static_cast<double>(b.avgTemperature) * 1.8 + 32.0, 0, 'f', 1)));
         const bool alarm = (b.maxTemperature >= thresh);
         if (alarm) {
             anyAlarm = true;

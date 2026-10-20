@@ -264,18 +264,18 @@ namespace StanagWire {
     /// @return 16-bit CRC checksum.
     [[nodiscard]] inline std::uint16_t computeCrc16Ccitt(const std::uint8_t* data, std::size_t length) noexcept
     {
-        std::uint16_t crc = 0xFFFFU;
-        for (std::size_t i = 0; i < length; ++i) {
-            crc ^= static_cast<std::uint16_t>(data[i]) << 8U;
-            for (std::uint8_t bit = 0; bit < 8U; ++bit) {
+        std::uint32_t crc = 0xFFFFU;
+        for (std::size_t i = 0U; i < length; ++i) {
+            crc ^= (static_cast<std::uint32_t>(data[i]) << 8U);
+            for (std::uint8_t bit = 0U; bit < 8U; ++bit) {
                 if ((crc & 0x8000U) != 0U) {
-                    crc = static_cast<std::uint16_t>((crc << 1U) ^ 0x1021U);
+                    crc = ((crc << 1U) ^ 0x1021U) & 0xFFFFU;
                 } else {
-                    crc = static_cast<std::uint16_t>(crc << 1U);
+                    crc = (crc << 1U) & 0xFFFFU;
                 }
             }
         }
-        return crc;
+        return static_cast<std::uint16_t>(crc);
     }
 
     /// @brief Writes a 16-bit unsigned integer in Big-Endian format.

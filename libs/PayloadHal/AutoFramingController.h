@@ -79,11 +79,11 @@ public:
 
     virtual ~AutoFramingController() = default;
 
-    // Non-copyable, movable
+    // Non-copyable, non-movable (contains std::mutex)
     AutoFramingController(const AutoFramingController&) = delete;
     AutoFramingController& operator=(const AutoFramingController&) = delete;
-    AutoFramingController(AutoFramingController&&) noexcept = default;
-    AutoFramingController& operator=(AutoFramingController&&) noexcept = default;
+    AutoFramingController(AutoFramingController&&) = delete;
+    AutoFramingController& operator=(AutoFramingController&&) = delete;
 
     /// @brief Updates framing configuration parameters.
     /// @param[in] config New configuration.

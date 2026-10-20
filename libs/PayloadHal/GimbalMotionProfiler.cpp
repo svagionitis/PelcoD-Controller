@@ -1,7 +1,11 @@
 #include "GimbalMotionProfiler.h"
 
-#include <algorithm>
 #include <cmath>
+#include <cstddef>
+
+#include <algorithm>
+#include <chrono>
+#include <vector>
 
 namespace PayloadHal {
 
@@ -43,8 +47,8 @@ AxisTrajectory::AxisTrajectory(double startPos, double targetPos,
         return;
     }
 
-    const size_t numSegments = m_durations.size();
-    m_switchTimes.resize(numSegments + 1, 0.0);
+    const std::size_t numSegments = m_durations.size();
+    m_switchTimes.resize(numSegments + 1U, 0.0);
     m_boundaryPos.resize(numSegments + 1, 0.0);
     m_boundaryVel.resize(numSegments + 1, 0.0);
     m_boundaryAcc.resize(numSegments + 1, 0.0);
@@ -77,7 +81,7 @@ AxisTrajectory::AxisTrajectory(double startPos, double targetPos,
     }
 
     // Integrate boundaries forward
-    for (size_t i = 0; i < numSegments; ++i) {
+    for (std::size_t i = 0U; i < numSegments; ++i) {
         const double dt = m_durations[i];
         m_switchTimes[i + 1] = m_switchTimes[i] + dt;
 
@@ -127,9 +131,9 @@ KinematicState1D AxisTrajectory::sample(double timeOffsetSec) const noexcept {
         return state;
     }
 
-    const size_t numSegments = m_durations.size();
-    size_t seg = numSegments - 1;
-    for (size_t i = 0; i < numSegments; ++i) {
+    const std::size_t numSegments = m_durations.size();
+    std::size_t seg = numSegments - 1U;
+    for (std::size_t i = 0U; i < numSegments; ++i) {
         if (timeOffsetSec < m_switchTimes[i + 1]) {
             seg = i;
             break;

@@ -1,8 +1,17 @@
 #include "OnvifPayloadAdapter.h"
-#include "GeoreferenceUtils.h"
+
+#include <cmath>
+#include <cstdint>
 
 #include <algorithm>
-#include <cmath>
+#include <chrono>
+#include <memory>
+#include <mutex>
+#include <optional>
+#include <string>
+#include <vector>
+
+#include "GeoreferenceUtils.h"
 
 namespace PayloadHal {
 
@@ -143,7 +152,8 @@ bool OnvifPtuAdapter::setNormalizedVelocity(float panVel, float tiltVel)
     const float clampedPan = std::clamp(panVel, -1.0f, 1.0f);
     const float clampedTilt = std::clamp(tiltVel, -1.0f, 1.0f);
 
-    const bool ok = m_client->continuousMove(m_profileToken, clampedPan, clampedTilt, 0.0);
+    const bool ok = m_client->continuousMove(
+        m_profileToken, static_cast<double>(clampedPan), static_cast<double>(clampedTilt), 0.0);
     if (ok) {
         GimbalTelemetry telem {};
         TelemetryCallback cbCopy {};
@@ -490,7 +500,7 @@ bool OnvifCameraAdapter::zoomContinuous(float velocity)
         return false;
     }
     const float clampedVel = std::clamp(velocity, -1.0f, 1.0f);
-    return m_client->continuousMove(m_profileToken, 0.0, 0.0, clampedVel);
+    return m_client->continuousMove(m_profileToken, 0.0, 0.0, static_cast<double>(clampedVel));
 }
 
 bool OnvifCameraAdapter::zoomStop()
@@ -526,7 +536,7 @@ bool OnvifCameraAdapter::setFocusNormalized(double focus01)
     const bool ok = m_client->moveFocusAbsolute(m_videoSourceToken, pos);
     if (ok) {
         std::lock_guard<std::mutex> lock(m_mutex);
-        m_telemetry.focusDistanceNormalized = pos;
+        m_telemetry.focusDistanceNormalized = static_cast<double>(pos);
         m_telemetry.timestamp = std::chrono::system_clock::now();
     }
     return ok;

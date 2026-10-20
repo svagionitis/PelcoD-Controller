@@ -3,20 +3,21 @@
 /// @file PayloadAutoTrackerBridge.h
 /// @brief Closed-loop optical visual auto-tracking bridge connecting Tracking::PtzAutoTracker to PayloadHal.
 
-#include "ICameraPayload.h"
-#include "IPanTiltUnit.h"
-#include "IPayload.h"
-#include "Tracking/PtzAutoTracker.h"
+#include <cstdint>
 
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
-#include <cstdint>
 #include <functional>
 #include <memory>
 #include <mutex>
 #include <optional>
 #include <thread>
+
+#include "ICameraPayload.h"
+#include "IPanTiltUnit.h"
+#include "IPayload.h"
+#include "Tracking/PtzAutoTracker.h"
 
 namespace PayloadHal {
 
@@ -53,7 +54,7 @@ struct AutoTrackerStatus {
     double lastLeadOffsetX { 0.0 };   ///< Predictive lead boresight offset X
     double lastLeadOffsetY { 0.0 };   ///< Predictive lead boresight offset Y
     double currentZoomFactor { 1.0 }; ///< Optical magnification used in gain calculation
-    uint64_t updateCount { 0U };      ///< Total update cycles completed
+    std::uint64_t updateCount { 0U };      ///< Total update cycles completed
 };
 
 /// @class PayloadAutoTrackerBridge
@@ -79,11 +80,11 @@ public:
     /// @brief Destructor; terminates any active background tracking thread and halts motion.
     virtual ~PayloadAutoTrackerBridge();
 
-    // Disable copy semantics; allow move
+    // Disable copy semantics and move semantics (contains std::mutex and std::thread)
     PayloadAutoTrackerBridge(const PayloadAutoTrackerBridge&) = delete;
     PayloadAutoTrackerBridge& operator=(const PayloadAutoTrackerBridge&) = delete;
-    PayloadAutoTrackerBridge(PayloadAutoTrackerBridge&&) noexcept = default;
-    PayloadAutoTrackerBridge& operator=(PayloadAutoTrackerBridge&&) noexcept = default;
+    PayloadAutoTrackerBridge(PayloadAutoTrackerBridge&&) = delete;
+    PayloadAutoTrackerBridge& operator=(PayloadAutoTrackerBridge&&) = delete;
 
     // --- Control Lifecycle ---
 

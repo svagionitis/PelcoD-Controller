@@ -52,11 +52,11 @@ public:
     ThermalTuningAdvisor() = default;
     ~ThermalTuningAdvisor() = default;
 
-    // Non-copyable, movable
+    // Non-copyable, non-movable (contains std::mutex)
     ThermalTuningAdvisor(const ThermalTuningAdvisor&) = delete;
     ThermalTuningAdvisor& operator=(const ThermalTuningAdvisor&) = delete;
-    ThermalTuningAdvisor(ThermalTuningAdvisor&&) noexcept = default;
-    ThermalTuningAdvisor& operator=(ThermalTuningAdvisor&&) noexcept = default;
+    ThermalTuningAdvisor(ThermalTuningAdvisor&&) = delete;
+    ThermalTuningAdvisor& operator=(ThermalTuningAdvisor&&) = delete;
 
     /// @brief Ingests Mean Water Temperature ($--MTW).
     /// @param[in] mtw Deserialized MtwData.

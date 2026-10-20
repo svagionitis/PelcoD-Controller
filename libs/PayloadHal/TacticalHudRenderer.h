@@ -195,11 +195,11 @@ public:
     TacticalHudRenderer();
     ~TacticalHudRenderer();
 
-    // Non-copyable, movable
+    // Non-copyable, non-movable (contains std::mutex)
     TacticalHudRenderer(const TacticalHudRenderer&) = delete;
     TacticalHudRenderer& operator=(const TacticalHudRenderer&) = delete;
-    TacticalHudRenderer(TacticalHudRenderer&&) noexcept = default;
-    TacticalHudRenderer& operator=(TacticalHudRenderer&&) noexcept = default;
+    TacticalHudRenderer(TacticalHudRenderer&&) = delete;
+    TacticalHudRenderer& operator=(TacticalHudRenderer&&) = delete;
 
     // --- Configuration ---
 

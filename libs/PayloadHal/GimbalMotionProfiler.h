@@ -106,6 +106,15 @@ public:
     /// @brief Returns the final target position in degrees.
     [[nodiscard]] double targetPosition() const noexcept { return m_targetPos; }
 
+    /// @brief Returns the peak cruise velocity limit in deg/s.
+    [[nodiscard]] double velocityLimit() const noexcept { return m_vLim; }
+
+    /// @brief Returns the peak acceleration reached in deg/s^2.
+    [[nodiscard]] double accelerationLimit() const noexcept { return m_aLim; }
+
+    /// @brief Returns the maximum jerk in deg/s^3.
+    [[nodiscard]] double jerkLimit() const noexcept { return m_jMax; }
+
     /// @brief Returns the profile algorithm used to plan this trajectory.
     [[nodiscard]] ProfileAlgorithm algorithm() const noexcept { return m_algorithm; }
 

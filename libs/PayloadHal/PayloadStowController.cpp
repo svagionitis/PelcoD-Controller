@@ -3,14 +3,16 @@
 
 #include "PayloadStowController.h"
 
-#include <algorithm>
 #include <cmath>
+
+#include <algorithm>
+#include <memory>
+#include <mutex>
+#include <string>
 
 namespace PayloadHal {
 
 namespace {
-
-constexpr double kPi = 3.14159265358979323846;
 
 double normalizeAngleDeg(double angleDeg) noexcept
 {

@@ -1,14 +1,15 @@
-#include "PayloadFactory.h"
-#include "adapters/OnvifPayloadAdapter.h"
-#include <Onvif/OnvifClient.h>
-#include <Onvif/OnvifServer.h>
-#include <gtest/gtest.h>
-
 #include <chrono>
 #include <memory>
 #include <string>
 #include <thread>
 #include <vector>
+
+#include <gtest/gtest.h>
+
+#include "Onvif/OnvifClient.h"
+#include "Onvif/OnvifServer.h"
+#include "PayloadFactory.h"
+#include "adapters/OnvifPayloadAdapter.h"
 
 namespace PayloadHal {
 namespace {
@@ -90,9 +91,9 @@ namespace {
         std::string lastRemoveToken {};
         std::vector<Onvif::PtzPreset> presets {};
 
-        float currentPan { 120.0f };
-        float currentTilt { -30.0f };
-        float currentZoom { 0.4f };
+        double currentPan { 120.0 };
+        double currentTilt { -30.0 };
+        double currentZoom { 0.4 };
         bool isMoving { false };
     };
 
@@ -321,8 +322,8 @@ namespace {
         EXPECT_EQ(payload.videoStreamUri(), "rtsp://admin:secretPass@127.0.0.1:8554/live.sdp");
 
         // Configure PTU pointing forward (pan 0 deg) and depressed 45 degrees towards flat earth
-        m_ptzHandler->currentPan = 0.0f;
-        m_ptzHandler->currentTilt = -45.0f;
+        m_ptzHandler->currentPan = 0.0;
+        m_ptzHandler->currentTilt = -45.0;
         auto onvifPtu = std::dynamic_pointer_cast<OnvifPtuAdapter>(ptu);
         ASSERT_NE(onvifPtu, nullptr);
         onvifPtu->updateTelemetry();

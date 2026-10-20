@@ -2,19 +2,16 @@
 /// @brief Unit tests for PtzSphericalEstimator: EKF/UKF mode, init, predict/update cycle,
 ///        state getters, lock query, reset, and config set/get.
 
-#include "PtzSphericalEstimator.h"
-
 #include <cmath>
-#include <gtest/gtest.h>
 #include <iostream>
+
+#include <gtest/gtest.h>
+
+#include "PtzSphericalEstimator.h"
 
 using namespace Tracking;
 
 namespace {
-
-#ifndef M_PI
-constexpr double M_PI = 3.14159265358979323846;
-#endif
 
 constexpr double TOL = 0.05; // 50 mrad / ~3 degrees tolerance
 

@@ -198,6 +198,21 @@ if ($needsConfigure) {
 # 6. CMake Build
 Write-Host "`n[3/4] Compiling targets ($Config)..." -ForegroundColor Yellow
 
+# Clean up orphaned Ninja recompaction temporary files if left behind by interrupted runs or locks
+$restatFile = Join-Path $buildFullPath ".ninja_log.restat"
+$logFile = Join-Path $buildFullPath ".ninja_log"
+if (Test-Path $restatFile) {
+    if (-not (Test-Path $logFile)) {
+        Move-Item -Path $restatFile -Destination $logFile -Force -ErrorAction SilentlyContinue
+    } else {
+        Remove-Item -Path $restatFile -Force -ErrorAction SilentlyContinue
+    }
+}
+$recompactFile = Join-Path $buildFullPath ".ninja_deps.recompact"
+if (Test-Path $recompactFile) {
+    Remove-Item -Path $recompactFile -Force -ErrorAction SilentlyContinue
+}
+
 $buildArgs = @(
     "--build", $buildFullPath,
     "--config", $Config,

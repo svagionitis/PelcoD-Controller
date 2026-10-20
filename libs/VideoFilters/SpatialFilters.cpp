@@ -8,11 +8,17 @@
 
 #if defined(PELCOD_HAS_FILTERS)
 
-#include "Math/Gabor.h"
-#include <algorithm>
 #include <cmath>
+#include <cstddef>
+#include <cstdint>
 #include <cstring>
+
+#include <algorithm>
+#include <vector>
+
 #include <opencv2/opencv.hpp>
+
+#include "Math/Gabor.h"
 
 namespace Video::Filters {
 
@@ -150,8 +156,8 @@ void CustomConvolutionFilter::process(std::uint8_t* data, int width, int height,
 
     cv::Mat activeKernel = kernel.clone();
     if (m_normalize) {
-        float sum = static_cast<float>(cv::sum(activeKernel)[0]);
-        if (std::abs(sum) > 1e-6f) {
+        const double sum = cv::sum(activeKernel)[0];
+        if (std::abs(sum) > 1e-6) {
             activeKernel /= sum;
         }
     }
@@ -322,9 +328,9 @@ void DarkChannelDehazeFilter::process(std::uint8_t* data, int width, int height,
     cv::Mat darkNorm;
     cv::erode(minNorm, darkNorm, kernel);
 
-    cv::Mat transmission = 1.0f - static_cast<float>(m_omega) * darkNorm;
+    cv::Mat transmission = 1.0 - m_omega * darkNorm;
     cv::blur(transmission, transmission, cv::Size(m_patchSize, m_patchSize));
-    cv::max(transmission, static_cast<float>(m_t0), transmission);
+    cv::max(transmission, m_t0, transmission);
 
     for (std::size_t c = 0U; c < 3U; ++c) {
         cv::Mat chFloat;
@@ -475,9 +481,9 @@ void GaborFilter::process(std::uint8_t* data, int width, int height, PixelFormat
             const double energy = std::sqrt(r * r + im * im) * 4.0;
             const int enInt = std::clamp(static_cast<int>(energy), 0, 255);
             // Blend green highlight over original frame
-            const int gIdx = (format == PixelFormat::BGR24) ? 1 : 1;
-            const int origG = data[i * 3 + gIdx];
-            data[i * 3 + gIdx] = static_cast<std::uint8_t>(std::min(255, origG + enInt));
+            const std::size_t gIdx = (format == PixelFormat::BGR24) ? 1U : 1U;
+            const int origG = static_cast<int>(data[i * 3U + gIdx]);
+            data[i * 3U + gIdx] = static_cast<std::uint8_t>(std::min(255, origG + enInt));
         }
     }
 }

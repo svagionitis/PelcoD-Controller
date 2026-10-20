@@ -1,7 +1,13 @@
 #include "StanagScrubController.h"
-#include "Video/IVideoDecoder.h"
+
+#include <cstdint>
 
 #include <algorithm>
+#include <mutex>
+#include <utility>
+
+#include "TelemetryInterpolator.h"
+#include "Video/IVideoDecoder.h"
 
 namespace Klv {
 
@@ -164,7 +170,7 @@ bool StanagScrubController::executeSeekLocked(std::uint64_t targetPts)
     if (optKlv && optKlv->message) {
         telemetry = *optKlv->message;
         const std::int64_t ptsDiff = static_cast<std::int64_t>(framePts) - static_cast<std::int64_t>(optKlv->ptsTicks);
-        skewUs = (ptsDiff * 1000000) / 90000;
+        skewUs = (ptsDiff * 1000000LL) / 90000LL;
         isInterpolated = false;
         ++m_stats.cacheHitCount;
     } else if (m_interpolateTelemetry) {
@@ -174,35 +180,35 @@ bool StanagScrubController::executeSeekLocked(std::uint64_t targetPts)
         if (m_timeIndex.findTelemetryBounds(framePts, before, after)) {
             const std::uint64_t gapTicks = (after.ptsTicks >= before.ptsTicks)
                 ? (after.ptsTicks - before.ptsTicks) : 0U;
-            const std::uint64_t gapMs = (gapTicks * 1000U) / 90000U;
+            const std::uint64_t gapMs = (gapTicks * 1000ULL) / 90000ULL;
 
-            if (before.message && after.message && before.ptsTicks < after.ptsTicks && gapMs <= 1000U) {
+            if (before.message && after.message && before.ptsTicks < after.ptsTicks && gapMs <= 1000ULL) {
                 telemetry = TelemetryInterpolator::interpolate(*before.message, before.ptsTicks,
                                                                *after.message, after.ptsTicks, framePts);
-                skewUs = 0;
+                skewUs = 0LL;
                 isInterpolated = true;
                 ++m_stats.cacheHitCount;
             } else if (before.message) {
                 telemetry = *before.message;
                 const std::int64_t diff = static_cast<std::int64_t>(framePts) - static_cast<std::int64_t>(before.ptsTicks);
-                skewUs = (diff * 1000000) / 90000;
+                skewUs = (diff * 1000000LL) / 90000LL;
                 isInterpolated = false;
                 ++m_stats.cacheHitCount;
             } else if (after.message) {
                 telemetry = *after.message;
                 const std::int64_t diff = static_cast<std::int64_t>(framePts) - static_cast<std::int64_t>(after.ptsTicks);
-                skewUs = (diff * 1000000) / 90000;
+                skewUs = (diff * 1000000LL) / 90000LL;
                 isInterpolated = false;
                 ++m_stats.cacheHitCount;
             }
         }
     } else {
         // Nearest packet within sync tolerance
-        const auto optNearest = m_timeIndex.findTelemetry(framePts, static_cast<std::uint64_t>(m_syncToleranceMs) * 1000U);
+        const auto optNearest = m_timeIndex.findTelemetry(framePts, static_cast<std::uint64_t>(m_syncToleranceMs) * 1000ULL);
         if (optNearest && optNearest->message) {
             telemetry = *optNearest->message;
             const std::int64_t ptsDiff = static_cast<std::int64_t>(framePts) - static_cast<std::int64_t>(optNearest->ptsTicks);
-            skewUs = (ptsDiff * 1000000) / 90000;
+            skewUs = (ptsDiff * 1000000LL) / 90000LL;
             isInterpolated = false;
             ++m_stats.cacheHitCount;
         } else {

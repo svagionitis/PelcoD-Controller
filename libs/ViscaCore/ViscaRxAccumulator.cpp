@@ -1,6 +1,14 @@
 #include "ViscaRxAccumulator.h"
 
+#include <cstddef>
+#include <cstdint>
+
 #include <algorithm>
+#include <iterator>
+#include <mutex>
+#include <optional>
+#include <utility>
+#include <vector>
 
 namespace Visca {
 
@@ -10,9 +18,9 @@ void ViscaRxAccumulator::setFrameCallback(FrameCallback callback)
     m_callback = std::move(callback);
 }
 
-void ViscaRxAccumulator::addData(const uint8_t* data, size_t length)
+void ViscaRxAccumulator::addData(const std::uint8_t* data, std::size_t length)
 {
-    if (data == nullptr || length == 0) {
+    if (data == nullptr || length == 0U) {
         return;
     }
 
@@ -39,7 +47,7 @@ void ViscaRxAccumulator::addData(const uint8_t* data, size_t length)
     }
 }
 
-void ViscaRxAccumulator::addData(const std::vector<uint8_t>& data)
+void ViscaRxAccumulator::addData(const std::vector<std::uint8_t>& data)
 {
     addData(data.data(), data.size());
 }
@@ -61,7 +69,7 @@ bool ViscaRxAccumulator::hasFrames() const
     return !m_frameQueue.empty();
 }
 
-size_t ViscaRxAccumulator::pendingFrameCount() const
+std::size_t ViscaRxAccumulator::pendingFrameCount() const
 {
     std::scoped_lock lock(m_mutex);
     return m_frameQueue.size();
@@ -82,16 +90,16 @@ void ViscaRxAccumulator::processBufferLocked()
             // No terminator found yet
             if (m_buffer.size() > kMaxAccumulatorBufferSize) {
                 // Drop oldest data to prevent unbounded buffer growth
-                const size_t keep = kMaxPacketLength;
+                const std::size_t keep = kMaxPacketLength;
                 m_buffer.erase(m_buffer.begin(), m_buffer.end() - static_cast<std::ptrdiff_t>(keep));
             }
             break;
         }
 
-        const size_t frameLength = static_cast<size_t>(std::distance(m_buffer.begin(), it) + 1);
+        const std::size_t frameLength = static_cast<std::size_t>(std::distance(m_buffer.begin(), it) + 1);
 
         // Check valid packet criteria
-        if (frameLength >= kMinPacketLength && frameLength <= kMaxPacketLength && (m_buffer[0] & 0x80) != 0) {
+        if (frameLength >= kMinPacketLength && frameLength <= kMaxPacketLength && (m_buffer[0] & 0x80U) != 0U) {
             ViscaFrame frame(m_buffer.data(), frameLength);
             m_frameQueue.push_back(std::move(frame));
         }

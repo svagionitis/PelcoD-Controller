@@ -109,12 +109,14 @@ if(NOT LIVE555_FOUND)
                 AUTORCC OFF
             )
             if(WIN32)
-                target_compile_definitions(${_target} PRIVATE _CRT_SECURE_NO_WARNINGS)
+                target_compile_definitions(${_target} PUBLIC _CRT_SECURE_NO_WARNINGS _WINSOCK_DEPRECATED_NO_WARNINGS NO_GETIFADDRS=1)
             endif()
         endforeach()
 
         if(WIN32)
+            target_link_libraries(liveMedia_in_tree PUBLIC ws2_32)
             target_link_libraries(groupsock_in_tree PUBLIC ws2_32)
+            target_link_libraries(BasicUsageEnvironment_in_tree PUBLIC ws2_32)
         endif()
 
         install(TARGETS liveMedia_in_tree groupsock_in_tree UsageEnvironment_in_tree BasicUsageEnvironment_in_tree

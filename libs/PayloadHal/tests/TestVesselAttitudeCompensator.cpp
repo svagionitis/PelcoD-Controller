@@ -1,19 +1,20 @@
-#include "VesselAttitudeCompensator.h"
+#include <cmath>
+
+#include <chrono>
+#include <memory>
+
+#include <gtest/gtest.h>
+
 #include "GeoLockController.h"
 #include "Nmea/NmeaChecksum.h"
 #include "Nmea/NmeaSentenceParser.h"
 #include "Nmea/NmeaTypes.h"
 #include "Nmea/n2k/N2kTypes.h"
+#include "VesselAttitudeCompensator.h"
 #include "sim/SimulatedPayload.h"
-
-#include <gtest/gtest.h>
-#include <chrono>
-#include <cmath>
 
 namespace PayloadHal {
 namespace {
-
-    constexpr double kPi = 3.14159265358979323846;
 
     TEST(TestVesselAttitudeCompensator, PurePitchCompensation)
     {
