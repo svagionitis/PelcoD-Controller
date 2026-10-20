@@ -6,10 +6,12 @@
 #include "BaseVideoDecoder.h"
 #include "DecoderTypes.h"
 
-#include <atomic>
-#include <condition_variable>
 #include <cstddef>
 #include <cstdint>
+
+#include <atomic>
+#include <chrono>
+#include <condition_variable>
 #include <deque>
 #include <mutex>
 #include <string_view>
@@ -69,10 +71,21 @@ public:
     /// @brief Asynchronously interrupts active network selects and blocking queues.
     void interrupt() noexcept override;
 
+    /// @brief Enqueues an Annex-B formatted NAL unit into the internal decoding queue.
+    /// @param[in] data Pointer to the Annex-B byte buffer.
+    /// @param[in] size Buffer size in bytes.
+    /// @param[in] pts Presentation timestamp in seconds.
+    void queueNalu(const std::uint8_t* data, std::size_t size, double pts = 0.0);
+
 private:
     void startNetworkLoop();
     void stopNetworkLoop();
     void onNaluReceived(const std::uint8_t* data, std::size_t size, double pts);
+
+#if defined(PELCOD_HAS_LIVE555)
+    bool handleDecodedFrame(unsigned char* const* planes, int width, int height, int yStride, int uvStride, double pts,
+        std::chrono::steady_clock::time_point start);
+#endif
 
     std::atomic<bool> m_running { false };
     std::atomic<bool> m_connected { false };

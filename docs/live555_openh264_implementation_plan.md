@@ -149,22 +149,31 @@ All new components will reside in `libs/Video/` alongside the existing decoders:
   - Support both TCP interleaved mode (`RTP-over-RTSP`) and UDP transport configured via `IVideoDecoder::setRtspTransport`.
   - Comprehensive unit test suite in `libs/Video/tests/TestLive555Decoder.cpp`.
 
-### Phase 4: Cisco OpenH264 Integration & Frame Decoding
+### Phase 4: Cisco OpenH264 Integration & Frame Decoding [Completed]
 - Initialize OpenH264 in `Live555Decoder::initialize()`:
-  - Call `WelsCreateDecoder(&m_pDecoder)`.
+  - Call `WelsCreateDecoder(&m_decoder)`.
+  - Set options prior to initialization: trace level, callback (`openH264TraceCallback` mapped to `glog`), and thread count via `DECODER_OPTION_NUM_OF_THREADS`.
   - Setup `SDecodingParam`:
-    - `sDecParam.eOutputColorFormat = videoFormatI420;`
-    - `sDecParam.uiTargetVideoWidth = ...;`
-    - `sDecParam.bParseOnly = false;`
-  - Call `m_pDecoder->Initialize(&sDecParam)`.
-- Frame decoding in `decodeNextFrame()`:
-  - Pop next Annex-B NALU from queue.
-  - Call `m_pDecoder->DecodeFrameNoDelay(...)`.
-  - When `sDstBufInfo.iBufferStatus == 1` (frame decoded):
-    - Read planar Y, U, V pointers (`pDst[0]`, `pDst[1]`, `pDst[2]`) and line strides.
-    - Execute color conversion into `m_frameBuffer` (RGB24 / BGR24).
-    - Update timing metrics (`m_lastDecodeTimeMs`, `m_decodedFramesCount`).
-    - Invoke `dispatchFrameProcessors()` and `publishToTripleBuffer()`.
+    - `decParam.bParseOnly = false;`
+    - `decParam.eEcActiveIdc = ERROR_CON_SLICE_COPY;`
+    - `decParam.sVideoProperty.eVideoBsType = VIDEO_BITSTREAM_DEFAULT;`
+  - Call `m_decoder->Initialize(&decParam)`.
+  - Support synthetic in-memory streams (`memory://`, `test://`, `mock://`) for deterministic offline decoding tests.
+- Robust frame decoding in `decodeNextFrame()`:
+  - Continuous NALU queue draining loop consuming non-VCL NALUs (SPS, PPS, SEI) and multi-slice units without premature timeouts.
+  - Call `m_decoder->DecodeFrameNoDelay(...)` for zero reordering latency.
+  - When `dstBufInfo.iBufferStatus == 1` (frame decoded):
+    - Read planar Y, U, V pointers (`pDst[0]`, `pDst[1]`, `pDst[2]`) and separate row strides.
+    - Validate dimensions and dynamically resize `m_frameBuffer` and `AtomicTripleBuffer` slots on resolution changes.
+    - Execute fixed-point color conversion into `m_frameBuffer` (RGB24 / BGR24) via `ColorConverter::yuv420ToRgb()`.
+    - Update timing and latency metrics (`m_lastDecodeTimeMs`, `m_totalDecodeTimeMs`, `m_decodedFramesCount`, `m_decodedAtNs`).
+    - Invoke `dispatchFrameProcessors()` in-place.
+    - Publish decoded frame to lock-free `AtomicTripleBuffer`.
+- Comprehensive synthetic H.264 unit tests in `libs/Video/tests/TestLive555Decoder.cpp`:
+  - `OpenH264DecoderLifecycle`: verify parameter initialization, threading options, and clean destruction.
+  - `NonVclNaluHandling`: verify isolated SPS/PPS consumption without crash or false frame generation.
+  - `SyntheticFrameDecodingRgb24` and `SyntheticFrameDecodingBgr24`: end-to-end decode verification with synthetic Annex-B bitstreams.
+  - `TripleBufferingAndFrameProcessors`: verify post-processor dispatch and triple buffer publication.
 
 ### Phase 5: Reconnection, Error Handling & Lifecycle
 - Implement `close()`:

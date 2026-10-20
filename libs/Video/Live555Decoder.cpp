@@ -9,6 +9,7 @@
 #include <mutex>
 #include <string>
 #include <string_view>
+#include <thread>
 #include <utility>
 #include <vector>
 
@@ -18,12 +19,33 @@
 #include <BasicUsageEnvironment.hh>
 #include <liveMedia.hh>
 #include <wels/codec_api.h>
+#include <wels/codec_app_def.h>
 
 #include "ColorConverter.h"
 #include "Live555RTSPClient.h"
 #endif
 
 namespace Video {
+
+namespace {
+
+#if defined(PELCOD_HAS_LIVE555)
+    void openH264TraceCallback(void* /*ctx*/, int level, const char* message)
+    {
+        if (message == nullptr) {
+            return;
+        }
+        if (level == WELS_LOG_ERROR) {
+            LOG(ERROR) << "OpenH264: " << message;
+        } else if (level == WELS_LOG_WARNING) {
+            LOG(WARNING) << "OpenH264: " << message;
+        } else {
+            VLOG(1) << "OpenH264: " << message;
+        }
+    }
+#endif
+
+} // namespace
 
 Live555Decoder::Live555Decoder()
 {
@@ -56,16 +78,40 @@ bool Live555Decoder::initialize(std::string_view source, PixelFormat format, int
         return false;
     }
 
+    WelsTraceCallback traceCb { &openH264TraceCallback };
+    m_decoder->SetOption(DECODER_OPTION_TRACE_CALLBACK, &traceCb);
+    int traceLevel { WELS_LOG_WARNING };
+    m_decoder->SetOption(DECODER_OPTION_TRACE_LEVEL, &traceLevel);
+
+    if (m_threadCount > 0) {
+        int threads { std::clamp(m_threadCount, 1, 16) };
+        m_decoder->SetOption(DECODER_OPTION_NUM_OF_THREADS, &threads);
+    }
+
     SDecodingParam decParam;
     std::memset(&decParam, 0, sizeof(decParam));
     decParam.bParseOnly = false;
+    decParam.eEcActiveIdc = ERROR_CON_SLICE_COPY;
     decParam.sVideoProperty.eVideoBsType = VIDEO_BITSTREAM_DEFAULT;
+    decParam.uiCpuLoad = 0U;
+    decParam.uiTargetDqLayer = 0U;
 
     if (m_decoder->Initialize(&decParam) != 0) {
         LOG(ERROR) << "Live555Decoder: Failed to initialize OpenH264 decoder parameters.";
         WelsDestroyDecoder(m_decoder);
         m_decoder = nullptr;
         return false;
+    }
+
+    const bool isMemorySource { (source.rfind("memory://", 0) == 0) || (source.rfind("mock://", 0) == 0)
+        || (source.rfind("test://", 0) == 0) };
+    if (isMemorySource) {
+        m_running.store(true);
+        m_connected.store(true);
+        m_isInitialized = true;
+        const auto endTime { std::chrono::steady_clock::now() };
+        m_initTimeMs = std::chrono::duration<double, std::milli>(endTime - startTime).count();
+        return true;
     }
 
     startNetworkLoop();
@@ -112,65 +158,42 @@ bool Live555Decoder::decodeNextFrame()
         return false;
     }
 
-    NaluPacket packet;
-    {
-        std::unique_lock<std::mutex> lock(m_queueMutex);
-        if (m_queueCv.wait_for(lock, std::chrono::milliseconds(100),
-                [this]() { return !m_naluQueue.empty() || m_interrupted.load() || !m_running.load(); })) {
-            if (m_interrupted.load() || m_naluQueue.empty()) {
+    const auto decodeStart { std::chrono::steady_clock::now() };
+    const auto timeout { std::chrono::milliseconds(100) };
+
+    while (!m_interrupted.load() && m_running.load()) {
+        NaluPacket packet;
+        {
+            std::unique_lock<std::mutex> lock(m_queueMutex);
+            if (!m_queueCv.wait_for(lock, timeout,
+                    [this]() { return !m_naluQueue.empty() || m_interrupted.load() || !m_running.load(); })) {
+                return false;
+            }
+            if (m_interrupted.load() || !m_running.load() || m_naluQueue.empty()) {
                 return false;
             }
             packet = std::move(m_naluQueue.front());
             m_naluQueue.pop_front();
-        } else {
-            return false;
         }
-    }
 
-    const auto decodeStart { std::chrono::steady_clock::now() };
+        if (packet.data.empty()) {
+            continue;
+        }
 
-    unsigned char* pDstPlanes[3] { nullptr, nullptr, nullptr };
-    SBufferInfo dstBufInfo;
-    std::memset(&dstBufInfo, 0, sizeof(dstBufInfo));
+        unsigned char* pDstPlanes[3] { nullptr, nullptr, nullptr };
+        SBufferInfo dstBufInfo;
+        std::memset(&dstBufInfo, 0, sizeof(dstBufInfo));
 
-    const DECODING_STATE rv { m_decoder->DecodeFrameNoDelay(
-        packet.data.data(), static_cast<int>(packet.data.size()), pDstPlanes, &dstBufInfo) };
+        const DECODING_STATE rv { m_decoder->DecodeFrameNoDelay(
+            packet.data.data(), static_cast<int>(packet.data.size()), pDstPlanes, &dstBufInfo) };
 
-    if ((rv == dsErrorFree) && (dstBufInfo.iBufferStatus == 1)) {
-        const int w { dstBufInfo.UsrData.sSystemBuffer.iWidth };
-        const int h { dstBufInfo.UsrData.sSystemBuffer.iHeight };
-        const int yStride { dstBufInfo.UsrData.sSystemBuffer.iStride[0] };
-        const int uStride { dstBufInfo.UsrData.sSystemBuffer.iStride[1] };
-        const int vStride { dstBufInfo.UsrData.sSystemBuffer.iStride[1] };
+        if ((rv == dsErrorFree) && (dstBufInfo.iBufferStatus == 1)) {
+            const int w { dstBufInfo.UsrData.sSystemBuffer.iWidth };
+            const int h { dstBufInfo.UsrData.sSystemBuffer.iHeight };
+            const int yStride { dstBufInfo.UsrData.sSystemBuffer.iStride[0] };
+            const int uvStride { dstBufInfo.UsrData.sSystemBuffer.iStride[1] };
 
-        if ((w > 0) && (h > 0) && (pDstPlanes[0] != nullptr) && (pDstPlanes[1] != nullptr)
-            && (pDstPlanes[2] != nullptr)) {
-            const std::size_t requiredBytes { static_cast<std::size_t>(w) * static_cast<std::size_t>(h) * 3U };
-            if (m_frameBuffer.size() != requiredBytes) {
-                m_frameBuffer.resize(requiredBytes);
-                if (isTripleBufferingEnabled()) {
-                    initTripleBufferSlots(w, h, m_outputFormat);
-                }
-            }
-
-            m_width = w;
-            m_height = h;
-            m_timestamp = packet.timestamp;
-
-            ColorConverter::yuv420ToRgb(pDstPlanes[0], pDstPlanes[1], pDstPlanes[2], w, h, yStride, uStride, vStride,
-                m_frameBuffer.data(), m_outputFormat);
-
-            const auto decodeEnd { std::chrono::steady_clock::now() };
-            m_lastDecodeTimeMs = std::chrono::duration<double, std::milli>(decodeEnd - decodeStart).count();
-            m_totalDecodeTimeMs += m_lastDecodeTimeMs;
-            ++m_decodedFramesCount;
-            m_decodedAtNs = std::chrono::duration_cast<std::chrono::nanoseconds>(decodeEnd.time_since_epoch()).count();
-
-            dispatchFrameProcessors(m_frameBuffer.data(), m_width, m_height, m_outputFormat);
-            publishToTripleBuffer(m_frameBuffer.data(), m_width, m_height, m_frameBuffer.size(), m_timestamp,
-                m_lastDecodeTimeMs, m_outputFormat);
-
-            return true;
+            return handleDecodedFrame(pDstPlanes, w, h, yStride, uvStride, packet.timestamp, decodeStart);
         }
     }
 
@@ -179,6 +202,44 @@ bool Live555Decoder::decodeNextFrame()
     return false;
 #endif
 }
+
+#if defined(PELCOD_HAS_LIVE555)
+bool Live555Decoder::handleDecodedFrame(unsigned char* const* planes, int width, int height, int yStride, int uvStride,
+    double pts, std::chrono::steady_clock::time_point start)
+{
+    if ((width <= 0) || (height <= 0) || (planes == nullptr) || (planes[0] == nullptr) || (planes[1] == nullptr)
+        || (planes[2] == nullptr)) {
+        return false;
+    }
+
+    const std::size_t requiredBytes { static_cast<std::size_t>(width) * static_cast<std::size_t>(height) * 3U };
+    if (m_frameBuffer.size() != requiredBytes) {
+        m_frameBuffer.resize(requiredBytes);
+        if (isTripleBufferingEnabled()) {
+            initTripleBufferSlots(width, height, m_outputFormat);
+        }
+    }
+
+    m_width = width;
+    m_height = height;
+    m_timestamp = pts;
+
+    ColorConverter::yuv420ToRgb(planes[0], planes[1], planes[2], width, height, yStride, uvStride, uvStride,
+        m_frameBuffer.data(), m_outputFormat);
+
+    const auto decodeEnd { std::chrono::steady_clock::now() };
+    m_lastDecodeTimeMs = std::chrono::duration<double, std::milli>(decodeEnd - start).count();
+    m_totalDecodeTimeMs += m_lastDecodeTimeMs;
+    ++m_decodedFramesCount;
+    m_decodedAtNs = std::chrono::duration_cast<std::chrono::nanoseconds>(decodeEnd.time_since_epoch()).count();
+
+    dispatchFrameProcessors(m_frameBuffer.data(), m_width, m_height, m_outputFormat);
+    publishToTripleBuffer(
+        m_frameBuffer.data(), m_width, m_height, m_frameBuffer.size(), m_timestamp, m_lastDecodeTimeMs, m_outputFormat);
+
+    return true;
+}
+#endif
 
 bool Live555Decoder::seek(double /*timeInSeconds*/)
 {
@@ -212,7 +273,7 @@ void Live555Decoder::interrupt() noexcept
     m_queueCv.notify_all();
 }
 
-void Live555Decoder::onNaluReceived(const std::uint8_t* data, std::size_t size, double pts)
+void Live555Decoder::queueNalu(const std::uint8_t* data, std::size_t size, double pts)
 {
     if ((data == nullptr) || (size == 0U)) {
         return;
@@ -229,6 +290,11 @@ void Live555Decoder::onNaluReceived(const std::uint8_t* data, std::size_t size, 
     packet.timestamp = pts;
     m_naluQueue.push_back(std::move(packet));
     m_queueCv.notify_one();
+}
+
+void Live555Decoder::onNaluReceived(const std::uint8_t* data, std::size_t size, double pts)
+{
+    queueNalu(data, size, pts);
 }
 
 void Live555Decoder::startNetworkLoop()
