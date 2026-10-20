@@ -285,8 +285,11 @@ private:
   - Bundles 7 TS packets (1316 bytes) per RTP call for optimal MTU fit.
   - Implements `doGetNextFrame()`.
 
-### Step 3: Custom Live555 `ServerMediaSubsession` Subclasses
-- [ ] Create `libs/Video/Live555LiveSubsession.h` and `.cpp`:
+### Step 3: Custom Live555 `ServerMediaSubsession` Subclasses [Completed]
+> [!NOTE]
+> Detailed specification and implementation plan: [live555_rtsp_server_step3_implementation_plan.md](live555_rtsp_server_step3_implementation_plan.md)
+
+- [x] Create `libs/Video/Live555LiveSubsession.h` and `.cpp`:
   - Inherits from `OnDemandServerMediaSubsession`.
   - Overrides `createNewStreamSource()` to instantiate `Live555H264LiveSource` or `Live555Mp2tLiveSource`.
   - Overrides `createNewRTPSink()` returning `H264VideoRTPSink` or `SimpleRTPSink` (payload 33).
