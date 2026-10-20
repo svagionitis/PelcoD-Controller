@@ -198,16 +198,30 @@ All new components will reside in `libs/Video/` alongside the existing decoders:
   - `ReconnectionWithSyntheticSource`: verifies end-to-end reconnect cycle with synthetic NALU decoding.
   - `OpenH264DecoderReinitializationCycles`: validates repeated re-initialization and clean destruction without resource leaks.
 
-### Phase 6: Testing & Quality Assurance
-- Implement unit tests in `libs/Video/tests/Test_Live555Decoder.cpp`:
+### Phase 6: Testing & Quality Assurance [Completed]
+- Comprehensive unit test suite in [TestLive555Decoder.cpp](../libs/Video/tests/TestLive555Decoder.cpp) (21 passing tests):
   - Test instantiation via [DecoderFactory](../libs/Video/DecoderFactory.h).
-  - Verify initialization state machine and credential handling.
-  - Mock NALU feeding into OpenH264 to test synthetic frame decoding without physical camera hardware.
-- Execute project verification checks:
-  - Run `scripts/verify_iwyu_cstdint.py`.
-  - Verify zero Qt dependencies in `libs/Video/`.
-  - Ensure all function names are strictly under 30 characters.
-  - Verify compliance with MISRA C++:2023 and SEI CERT C++.
+  - Verify initialization state machine, configuration properties, and credential handling.
+  - Verify interrupt responsiveness and live-stream seek rejection.
+  - Test Live555 SDP `sprop-parameter-sets` base64 extraction and Annex-B prefixing.
+  - Test `Live555H264Sink` chunk depacketization and PTS calculation.
+  - Test connection timeout failure handling on non-existent RTSP servers.
+  - Verify OpenH264 decoder lifecycle, threading parameters, and clean destruction.
+  - Verify non-VCL NALU filtering without premature timeouts.
+  - Validate synthetic frame decoding for RGB24 and BGR24 outputs with fixed-point YUV420P conversion.
+  - Test triple buffering and in-place frame processor dispatch.
+  - Verify `close()` idempotency and asynchronous thread cancellation during blocking decode waits.
+  - Test auto-reconnect configuration and reconnection with synthetic bitstreams.
+  - Test repeated decoder reinitialization cycles without memory leaks.
+  - Test `BitstreamCorruptionTolerance`: verifies slice error concealment (`ERROR_CON_SLICE_COPY`) on truncated and corrupted NALUs, followed by seamless recovery.
+  - Test `DynamicResolutionSwitching`: verifies dynamic buffer reallocation across resolution shifts ($64\times 64 \leftrightarrow 32\times 32$) without leaks or frame tearing.
+  - Test `QueueBackpressureAndOverflow`: verifies bounded FIFO drops during burst loads ($\ge 30\text{ NALUs}$) preserving memory limits and low latency.
+  - Test `ConcurrentTripleBufferReading`: verifies lock-free atomic triple buffer reads across concurrent producer and consumer threads.
+- Executed project verification checks:
+  - Run `scripts/verify_iwyu_cstdint.py`: 100% compliance with `<cstdint>` and IWYU rules.
+  - Verified zero Qt dependencies in `libs/Video/` core decoding and transport layers.
+  - Verified all function and method names are strictly under 30 characters.
+  - Verified compliance with MISRA C++:2023 and SEI CERT C++ coding standards.
 
 ---
 
