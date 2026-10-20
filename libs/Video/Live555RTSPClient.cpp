@@ -17,6 +17,7 @@
 #include <liveMedia.hh>
 
 #include "Live555H264Sink.h"
+#include "Live555Mp2tSink.h"
 
 namespace Video {
 
@@ -146,13 +147,20 @@ void Live555RTSPClient::setupNextSubsession()
             return;
         }
 
-        if (std::strcmp(m_subsession->codecName(), "H264") != 0) {
-            LOG(WARNING) << "Live555RTSPClient: Skipping non-H264 video codec: " << m_subsession->codecName();
+        const bool isH264 { std::strcmp(m_subsession->codecName(), "H264") == 0 };
+        const bool isMp2t { std::strcmp(m_subsession->codecName(), "MP2T") == 0 };
+
+        if (!isH264 && !isMp2t) {
+            LOG(WARNING) << "Live555RTSPClient: Skipping unsupported video codec: " << m_subsession->codecName();
             setupNextSubsession();
             return;
         }
 
-        extractSpropParams(m_subsession);
+        m_isMp2t = isMp2t;
+
+        if (isH264) {
+            extractSpropParams(m_subsession);
+        }
 
         if (!m_subsession->initiate()) {
             LOG(ERROR) << "Live555RTSPClient: Failed to initiate subsession: " << envir().getResultMsg();
@@ -164,9 +172,9 @@ void Live555RTSPClient::setupNextSubsession()
         return;
     }
 
-    LOG(ERROR) << "Live555RTSPClient: No suitable H.264 video subsession found in stream.";
+    LOG(ERROR) << "Live555RTSPClient: No suitable H.264 or MP2T video subsession found in stream.";
     if (m_statusCallback) {
-        m_statusCallback(false, "No suitable H.264 video subsession found in stream");
+        m_statusCallback(false, "No suitable H.264 or MP2T video subsession found in stream");
     }
 }
 
@@ -220,11 +228,16 @@ void Live555RTSPClient::handleSetup(int resultCode, char* resultString)
     delete[] resultString;
 
     if (m_subsession != nullptr) {
-        m_subsession->sink = Live555H264Sink::createNew(envir(), m_naluCallback);
+        if (m_isMp2t) {
+            m_subsession->sink = Live555Mp2tSink::createNew(envir(), m_naluCallback);
+        } else {
+            m_subsession->sink = Live555H264Sink::createNew(envir(), m_naluCallback);
+        }
         if (m_subsession->sink == nullptr) {
-            LOG(ERROR) << "Live555RTSPClient: Failed to create Live555H264Sink: " << envir().getResultMsg();
+            const char* const sinkName { m_isMp2t ? "Live555Mp2tSink" : "Live555H264Sink" };
+            LOG(ERROR) << "Live555RTSPClient: Failed to create " << sinkName << ": " << envir().getResultMsg();
             if (m_statusCallback) {
-                m_statusCallback(false, "Failed to create Live555H264Sink");
+                m_statusCallback(false, std::string("Failed to create ") + sinkName);
             }
             return;
         }

@@ -52,6 +52,16 @@ target_link_libraries(TestLive555Decoder PRIVATE
 )
 pelcod_register_gtest(TestLive555Decoder)
 
+add_executable(TestMpegTsH264Demuxer TestMpegTsH264Demuxer.cpp)
+target_include_directories(TestMpegTsH264Demuxer PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/..
+)
+target_link_libraries(TestMpegTsH264Demuxer PRIVATE
+    Video
+    GTest::gtest_main
+)
+pelcod_register_gtest(TestMpegTsH264Demuxer)
+
 if(PELCOD_ENABLE_FILTERS AND OpenCV_FOUND)
     add_executable(TestMapRasterizerFilter TestMapRasterizerFilter.cpp)
     target_include_directories(TestMapRasterizerFilter PRIVATE

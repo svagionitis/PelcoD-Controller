@@ -52,6 +52,13 @@ public:
     /// @return Pointer to MediaSession or nullptr.
     [[nodiscard]] MediaSession* session() const noexcept;
 
+    /// @brief Queries whether current subsession is MPEG-2 TS (MP2T).
+    /// @return True if MP2T container, false if direct H.264 RTP stream.
+    [[nodiscard]] bool isMp2t() const noexcept
+    {
+        return m_isMp2t;
+    }
+
 protected:
     /// @brief Protected destructor to enforce Medium::close() object lifetime.
     ~Live555RTSPClient() override;
@@ -83,6 +90,7 @@ private:
     MediaSession* m_session { nullptr };
     std::unique_ptr<MediaSubsessionIterator> m_subsessionIter;
     MediaSubsession* m_subsession { nullptr };
+    bool m_isMp2t { false };
 };
 
 } // namespace Video

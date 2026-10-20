@@ -20,6 +20,7 @@
 #include "IVideoDecoder.h"
 #include "Live555Decoder.h"
 #include "Live555H264Sink.h"
+#include "Live555Mp2tSink.h"
 #include "Live555RTSPClient.h"
 #endif
 
@@ -131,6 +132,26 @@ TEST(Live555DecoderTest, SinkBufferFramingAndPTS)
     Medium::close(sink);
     env->reclaim();
     delete scheduler;
+}
+
+TEST(Live555DecoderTest, Mp2tSinkLifecycleAndFraming)
+{
+    TaskScheduler* scheduler { BasicTaskScheduler::createNew() };
+    ASSERT_NE(scheduler, nullptr);
+
+    UsageEnvironment* env { BasicUsageEnvironment::createNew(*scheduler) };
+    ASSERT_NE(env, nullptr);
+
+    std::size_t receivedCount { 0U };
+    auto callback = [&](const std::uint8_t* /*data*/, std::size_t /*size*/, double /*pts*/) { ++receivedCount; };
+
+    Live555Mp2tSink* sink { Live555Mp2tSink::createNew(*env, callback, 1316U) };
+    ASSERT_NE(sink, nullptr);
+
+    Medium::close(sink);
+    env->reclaim();
+    delete scheduler;
+    EXPECT_EQ(receivedCount, 0U);
 }
 
 TEST(Live555DecoderTest, ConnectionTimeoutFailure)
