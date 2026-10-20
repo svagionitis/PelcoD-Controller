@@ -360,12 +360,14 @@ TEST(Live555FrameQueueTest, ConcurrentProducerAndReadersStress)
     auto consumerTask = [&]() {
         auto reader { queue.createReader(false) };
         std::size_t readCount { 0U };
-        while (!producerDone.load() || (readCount < kTotalFrames)) {
+        while (!producerDone.load() || (reader->lastSequence() <= kTotalFrames)) {
             bool dropped { false };
             auto frame { reader->getNextFrame(dropped) };
             if (frame.has_value()) {
                 ++readCount;
                 ++totalFramesReadByAll;
+            } else if (producerDone.load()) {
+                break;
             } else {
                 std::this_thread::yield();
             }

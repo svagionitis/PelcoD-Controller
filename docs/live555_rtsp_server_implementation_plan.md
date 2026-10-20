@@ -273,12 +273,15 @@ private:
 - [x] Register files in `libs/Video/CMakeLists.txt`.
 - [x] Create unit tests in `libs/Video/tests/TestLive555FrameQueue.cpp`.
 
-### Step 2: Custom Live555 `FramedSource` Subclasses
-- [ ] Create `libs/Video/Live555H264LiveSource.h` and `.cpp`:
+### Step 2: Custom Live555 `FramedSource` Subclasses [Completed]
+> [!NOTE]
+> Detailed specification and implementation plan: [live555_rtsp_server_step2_implementation_plan.md](live555_rtsp_server_step2_implementation_plan.md)
+
+- [x] Create `libs/Video/Live555H264LiveSource.h` and `.cpp`:
   - Inherits from `FramedSource`.
   - Implements `doGetNextFrame()`.
   - Handles NALU fragmentation and delivery pacing without blocking the scheduler.
-- [ ] Create `libs/Video/Live555Mp2tLiveSource.h` and `.cpp`:
+- [x] Create `libs/Video/Live555Mp2tLiveSource.h` and `.cpp`:
   - Bundles 7 TS packets (1316 bytes) per RTP call for optimal MTU fit.
   - Implements `doGetNextFrame()`.
 

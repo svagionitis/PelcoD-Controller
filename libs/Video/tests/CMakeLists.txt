@@ -72,6 +72,18 @@ target_link_libraries(TestLive555FrameQueue PRIVATE
 )
 pelcod_register_gtest(TestLive555FrameQueue)
 
+if(PELCOD_ENABLE_LIVE555 AND LIVE555_FOUND AND OPENH264_FOUND)
+    add_executable(TestLive555Sources TestLive555Sources.cpp)
+    target_include_directories(TestLive555Sources PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/..
+    )
+    target_link_libraries(TestLive555Sources PRIVATE
+        Video
+        GTest::gtest_main
+    )
+    pelcod_register_gtest(TestLive555Sources)
+endif()
+
 if(PELCOD_ENABLE_FILTERS AND OpenCV_FOUND)
     add_executable(TestMapRasterizerFilter TestMapRasterizerFilter.cpp)
     target_include_directories(TestMapRasterizerFilter PRIVATE
