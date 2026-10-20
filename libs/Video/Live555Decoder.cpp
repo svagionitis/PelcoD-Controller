@@ -109,6 +109,7 @@ bool Live555Decoder::initialize(std::string_view source, PixelFormat format, int
         m_running.store(true);
         m_connected.store(true);
         m_isInitialized = true;
+        m_lastNaluTime = std::chrono::steady_clock::now();
         const auto endTime { std::chrono::steady_clock::now() };
         m_initTimeMs = std::chrono::duration<double, std::milli>(endTime - startTime).count();
         return true;
@@ -140,6 +141,8 @@ bool Live555Decoder::initialize(std::string_view source, PixelFormat format, int
         return false;
     }
 
+    m_lastNaluTime = std::chrono::steady_clock::now();
+
     if (isTripleBufferingEnabled() && (m_width > 0) && (m_height > 0)) {
         initTripleBufferSlots(m_width, m_height, m_outputFormat);
     }
@@ -154,8 +157,28 @@ bool Live555Decoder::initialize(std::string_view source, PixelFormat format, int
 bool Live555Decoder::decodeNextFrame()
 {
 #if defined(PELCOD_HAS_LIVE555)
-    if (!m_isInitialized || (m_decoder == nullptr)) {
-        return false;
+    if (!m_isInitialized || !m_connected.load() || (m_decoder == nullptr)) {
+        if (m_autoReconnect && isLiveSource() && !m_filePath.empty()) {
+            const auto now { std::chrono::steady_clock::now() };
+            const auto elapsedMs {
+                std::chrono::duration_cast<std::chrono::milliseconds>(now - m_lastReconnectAttempt).count()
+            };
+            if (elapsedMs >= m_reconnectIntervalMs) {
+                LOG(INFO) << "Live555Decoder: Attempting background live stream reconnection ("
+                          << (m_reconnectAttempts + 1) << ")...";
+                ++m_reconnectAttempts;
+                if (reconnect()) {
+                    LOG(INFO) << "Live555Decoder: Live stream reconnected successfully. Resuming playback.";
+                    m_reconnectAttempts = 0;
+                } else {
+                    return false;
+                }
+            } else {
+                return false;
+            }
+        } else {
+            return false;
+        }
     }
 
     const auto decodeStart { std::chrono::steady_clock::now() };
@@ -167,6 +190,9 @@ bool Live555Decoder::decodeNextFrame()
             std::unique_lock<std::mutex> lock(m_queueMutex);
             if (!m_queueCv.wait_for(lock, timeout,
                     [this]() { return !m_naluQueue.empty() || m_interrupted.load() || !m_running.load(); })) {
+                if (checkStarvation()) {
+                    return false;
+                }
                 return false;
             }
             if (m_interrupted.load() || !m_running.load() || m_naluQueue.empty()) {
@@ -244,6 +270,7 @@ bool Live555Decoder::handleDecodedFrame(unsigned char* const* planes, int width,
 bool Live555Decoder::seek(double /*timeInSeconds*/)
 {
     // Live RTSP streams do not support arbitrary seek operations
+    LOG(WARNING) << "Live555Decoder: Seek operation is unsupported for live RTSP streams.";
     return false;
 }
 
@@ -262,6 +289,7 @@ void Live555Decoder::close()
 
     m_isInitialized = false;
     m_connected.store(false);
+    m_running.store(false);
 }
 
 void Live555Decoder::interrupt() noexcept
@@ -273,6 +301,38 @@ void Live555Decoder::interrupt() noexcept
     m_queueCv.notify_all();
 }
 
+bool Live555Decoder::reconnect()
+{
+    LOG(INFO) << "Live555Decoder: Reconnecting to " << maskCredentials(m_filePath) << "...";
+    m_lastNaluTime = std::chrono::steady_clock::now();
+    return BaseVideoDecoder::reconnect();
+}
+
+bool Live555Decoder::isLiveSource() const
+{
+    return (m_filePath.rfind("memory://", 0) != 0) && (m_filePath.rfind("mock://", 0) != 0)
+        && (m_filePath.rfind("test://", 0) != 0);
+}
+
+bool Live555Decoder::checkStarvation()
+{
+    if (!m_connected.load() || !m_isInitialized || !isLiveSource()) {
+        return false;
+    }
+
+    const auto now { std::chrono::steady_clock::now() };
+    const auto elapsedMs { std::chrono::duration_cast<std::chrono::milliseconds>(now - m_lastNaluTime).count() };
+    if (elapsedMs >= 3000) {
+        LOG(WARNING) << "Live555Decoder: Stream starvation detected (no NALUs for " << elapsedMs
+                     << " ms). Disconnecting...";
+        m_connected.store(false);
+        m_isInitialized = false;
+        m_queueCv.notify_all();
+        return true;
+    }
+    return false;
+}
+
 void Live555Decoder::queueNalu(const std::uint8_t* data, std::size_t size, double pts)
 {
     if ((data == nullptr) || (size == 0U)) {
@@ -280,6 +340,7 @@ void Live555Decoder::queueNalu(const std::uint8_t* data, std::size_t size, doubl
     }
 
     std::unique_lock<std::mutex> lock(m_queueMutex);
+    m_lastNaluTime = std::chrono::steady_clock::now();
     // Bounded queue of 30 NALUs to prevent buffer bloat and preserve ultra-low latency
     if (m_naluQueue.size() >= 30U) {
         m_naluQueue.pop_front();
@@ -326,9 +387,11 @@ void Live555Decoder::startNetworkLoop()
                 m_connected.store(true);
             } else {
                 m_connected.store(false);
+                m_isInitialized = false;
                 if (!errorMsg.empty()) {
                     LOG(WARNING) << "Live555Decoder: RTSP client error: " << errorMsg;
                 }
+                m_queueCv.notify_all();
             }
         };
 

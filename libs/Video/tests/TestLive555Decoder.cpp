@@ -2,8 +2,10 @@
 #include <cstdint>
 #include <cstring>
 
+#include <atomic>
 #include <chrono>
 #include <memory>
+#include <thread>
 #include <vector>
 
 #include <gtest/gtest.h>
@@ -277,6 +279,126 @@ TEST(Live555DecoderTest, TripleBufferingAndFrameProcessors)
     EXPECT_EQ(processor->capturedFormat, PixelFormat::RGB24);
 
     decoder->close();
+}
+
+TEST(Live555DecoderTest, LifecycleCloseIdempotency)
+{
+    auto decoder { std::make_unique<Live555Decoder>() };
+    ASSERT_NE(decoder, nullptr);
+
+    EXPECT_TRUE(decoder->initialize("memory://stream", PixelFormat::RGB24));
+    EXPECT_TRUE(decoder->isInitialized());
+
+    decoder->close();
+    EXPECT_FALSE(decoder->isInitialized());
+
+    // Idempotent secondary and tertiary close calls
+    decoder->close();
+    EXPECT_FALSE(decoder->isInitialized());
+    decoder->close();
+    EXPECT_FALSE(decoder->isInitialized());
+}
+
+TEST(Live555DecoderTest, LifecycleInterruptDuringDecoding)
+{
+    auto decoder { std::make_unique<Live555Decoder>() };
+    ASSERT_NE(decoder, nullptr);
+
+    EXPECT_TRUE(decoder->initialize("memory://stream", PixelFormat::RGB24));
+
+    std::atomic<bool> decodeFinished { false };
+    std::atomic<bool> decodeResult { true };
+
+    std::thread decodeThread([&]() {
+        decodeResult.store(decoder->decodeNextFrame());
+        decodeFinished.store(true);
+    });
+
+    // Allow thread to enter waiting condition variable
+    std::this_thread::sleep_for(std::chrono::milliseconds(20));
+
+    const auto t0 { std::chrono::steady_clock::now() };
+    decoder->interrupt();
+    decodeThread.join();
+    const auto t1 { std::chrono::steady_clock::now() };
+
+    const auto elapsedMs { std::chrono::duration_cast<std::chrono::milliseconds>(t1 - t0).count() };
+    EXPECT_TRUE(decodeFinished.load());
+    EXPECT_FALSE(decodeResult.load());
+    EXPECT_LT(elapsedMs, 150);
+
+    decoder->close();
+}
+
+TEST(Live555DecoderTest, SeekRejectionForLiveStream)
+{
+    auto decoder { std::make_unique<Live555Decoder>() };
+    ASSERT_NE(decoder, nullptr);
+
+    EXPECT_FALSE(decoder->seek(10.0));
+    EXPECT_FALSE(decoder->seek(-1.0));
+    EXPECT_FALSE(decoder->seek(0.0));
+}
+
+TEST(Live555DecoderTest, AutoReconnectConfiguration)
+{
+    auto decoder { std::make_unique<Live555Decoder>() };
+    ASSERT_NE(decoder, nullptr);
+
+    EXPECT_TRUE(decoder->isAutoReconnectEnabled());
+
+    decoder->setAutoReconnect(false);
+    EXPECT_FALSE(decoder->isAutoReconnectEnabled());
+
+    decoder->setAutoReconnect(true, 500);
+    EXPECT_TRUE(decoder->isAutoReconnectEnabled());
+}
+
+TEST(Live555DecoderTest, ReconnectionWithSyntheticSource)
+{
+    auto decoder { std::make_unique<Live555Decoder>() };
+    ASSERT_NE(decoder, nullptr);
+
+    EXPECT_TRUE(decoder->initialize("memory://stream", PixelFormat::RGB24));
+    EXPECT_TRUE(decoder->isInitialized());
+
+    EXPECT_TRUE(decoder->reconnect());
+    EXPECT_TRUE(decoder->isInitialized());
+
+    decoder->queueNalu(kSyntheticSps.data(), kSyntheticSps.size(), 0.0);
+    decoder->queueNalu(kSyntheticPps.data(), kSyntheticPps.size(), 0.0);
+    decoder->queueNalu(kSyntheticIdr.data(), kSyntheticIdr.size(), 3.0);
+
+    EXPECT_TRUE(decoder->decodeNextFrame());
+    const auto frameInfo { decoder->getRawFrameData() };
+    EXPECT_EQ(frameInfo.width, 64);
+    EXPECT_EQ(frameInfo.height, 64);
+    EXPECT_DOUBLE_EQ(frameInfo.timestamp, 3.0);
+
+    decoder->close();
+}
+
+TEST(Live555DecoderTest, OpenH264DecoderReinitializationCycles)
+{
+    auto decoder { std::make_unique<Live555Decoder>() };
+    ASSERT_NE(decoder, nullptr);
+
+    for (int cycle { 0 }; cycle < 3; ++cycle) {
+        EXPECT_TRUE(decoder->initialize("memory://stream", PixelFormat::RGB24));
+        EXPECT_TRUE(decoder->isInitialized());
+
+        decoder->queueNalu(kSyntheticSps.data(), kSyntheticSps.size(), 0.0);
+        decoder->queueNalu(kSyntheticPps.data(), kSyntheticPps.size(), 0.0);
+        decoder->queueNalu(kSyntheticIdr.data(), kSyntheticIdr.size(), static_cast<double>(cycle));
+
+        EXPECT_TRUE(decoder->decodeNextFrame());
+        const auto frameInfo { decoder->getRawFrameData() };
+        EXPECT_EQ(frameInfo.width, 64);
+        EXPECT_EQ(frameInfo.height, 64);
+
+        decoder->close();
+        EXPECT_FALSE(decoder->isInitialized());
+    }
 }
 
 #endif // PELCOD_HAS_LIVE555

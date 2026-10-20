@@ -175,16 +175,28 @@ All new components will reside in `libs/Video/` alongside the existing decoders:
   - `SyntheticFrameDecodingRgb24` and `SyntheticFrameDecodingBgr24`: end-to-end decode verification with synthetic Annex-B bitstreams.
   - `TripleBufferingAndFrameProcessors`: verify post-processor dispatch and triple buffer publication.
 
-### Phase 5: Reconnection, Error Handling & Lifecycle
-- Implement `close()`:
-  - Signal event loop termination (`m_eventLoopWatchVariable = 1`).
-  - Send RTSP `TEARDOWN` command if connected.
-  - Join Live555 background thread.
+### Phase 5: Reconnection, Error Handling & Lifecycle [Completed]
+- Implement `close()` in [Live555Decoder.cpp](libs/Video/Live555Decoder.cpp):
+  - Idempotent session teardown coordinating background network thread shutdown.
+  - Signal event loop termination (`m_watchVariable = 1`) and notify all waiting CV threads.
+  - Issues RTSP `TEARDOWN` via `Live555RTSPClient::shutdown()` on dedicated network thread before loop termination.
+  - Join Live555 background thread safely.
   - Uninitialize and destroy OpenH264 decoder (`WelsDestroyDecoder`).
 - Implement `interrupt()`:
-  - Atomically set `m_eventLoopWatchVariable = 1` to immediately break blocking socket selects in `BasicTaskScheduler0::SingleStep`.
+  - Atomically set `m_interrupted.store(true)` and `m_watchVariable = 1` to immediately abort blocking socket selects and wake up waiting frame decoding queues.
 - Support `seek()`:
-  - Return `false` (Live RTSP streams do not support arbitrary file seeking).
+  - Logs warning and returns `false` (Live RTSP streams do not support arbitrary seeking).
+- Automated Reconnection & Stream Starvation Detection:
+  - Added `checkStarvation()`: flags stream starvation if no NALUs are received for $> 3000\text{ ms}$ on active live streams.
+  - Implemented auto-reconnect backoff loop in `decodeNextFrame()` using `reconnect()` override when connection drops or starves.
+  - Thread-safe disconnection signaling via status callback unblocking consumer queue.
+- Comprehensive Unit Testing in [TestLive555Decoder.cpp](libs/Video/tests/TestLive555Decoder.cpp):
+  - `LifecycleCloseIdempotency`: verifies repeated `close()` invocations.
+  - `LifecycleInterruptDuringDecoding`: validates sub-millisecond asynchronous cancellation.
+  - `SeekRejectionForLiveStream`: verifies unsupported seek behavior.
+  - `AutoReconnectConfiguration`: verifies reconnect enablement and retry intervals.
+  - `ReconnectionWithSyntheticSource`: verifies end-to-end reconnect cycle with synthetic NALU decoding.
+  - `OpenH264DecoderReinitializationCycles`: validates repeated re-initialization and clean destruction without resource leaks.
 
 ### Phase 6: Testing & Quality Assurance
 - Implement unit tests in `libs/Video/tests/Test_Live555Decoder.cpp`:

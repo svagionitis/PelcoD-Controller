@@ -71,6 +71,10 @@ public:
     /// @brief Asynchronously interrupts active network selects and blocking queues.
     void interrupt() noexcept override;
 
+    /// @brief Re-initializes RTSP session and OpenH264 decoder using cached parameters.
+    /// @return True if reconnection was successful.
+    bool reconnect() override;
+
     /// @brief Enqueues an Annex-B formatted NAL unit into the internal decoding queue.
     /// @param[in] data Pointer to the Annex-B byte buffer.
     /// @param[in] size Buffer size in bytes.
@@ -81,6 +85,8 @@ private:
     void startNetworkLoop();
     void stopNetworkLoop();
     void onNaluReceived(const std::uint8_t* data, std::size_t size, double pts);
+    [[nodiscard]] bool isLiveSource() const;
+    bool checkStarvation();
 
 #if defined(PELCOD_HAS_LIVE555)
     bool handleDecodedFrame(unsigned char* const* planes, int width, int height, int yStride, int uvStride, double pts,
@@ -96,6 +102,7 @@ private:
     std::deque<NaluPacket> m_naluQueue;
 
     std::thread m_networkThread;
+    std::chrono::steady_clock::time_point m_lastNaluTime {};
 
 #if defined(PELCOD_HAS_LIVE555)
     char volatile m_watchVariable { 0 };
