@@ -42,6 +42,16 @@ target_link_libraries(TestLatencyTracker PRIVATE
 )
 pelcod_register_gtest(TestLatencyTracker)
 
+add_executable(TestLive555Decoder TestLive555Decoder.cpp)
+target_include_directories(TestLive555Decoder PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/..
+)
+target_link_libraries(TestLive555Decoder PRIVATE
+    Video
+    GTest::gtest_main
+)
+pelcod_register_gtest(TestLive555Decoder)
+
 if(PELCOD_ENABLE_FILTERS AND OpenCV_FOUND)
     add_executable(TestMapRasterizerFilter TestMapRasterizerFilter.cpp)
     target_include_directories(TestMapRasterizerFilter PRIVATE

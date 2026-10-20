@@ -51,7 +51,13 @@ void Live555H264Sink::afterGettingFrame(void* clientData, unsigned frameSize, un
 void Live555H264Sink::handleFrame(unsigned frameSize, unsigned numTruncatedBytes, struct timeval presentationTime)
 {
     if (numTruncatedBytes > 0U) {
-        LOG(WARNING) << "Live555H264Sink: Frame truncated by " << numTruncatedBytes << " bytes.";
+        LOG(WARNING) << "Live555H264Sink: Frame truncated by " << numTruncatedBytes << " bytes; expanding buffer.";
+        const std::size_t newSize { m_buffer.size() + static_cast<std::size_t>(numTruncatedBytes) + 65536U };
+        m_buffer.resize(newSize, 0U);
+        m_buffer[0] = 0x00U;
+        m_buffer[1] = 0x00U;
+        m_buffer[2] = 0x00U;
+        m_buffer[3] = 0x01U;
     }
 
     if ((frameSize > 0U) && m_callback) {

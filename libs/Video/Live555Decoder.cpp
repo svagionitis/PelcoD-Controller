@@ -20,7 +20,7 @@
 #include <wels/codec_api.h>
 
 #include "ColorConverter.h"
-#include "Live555H264Sink.h"
+#include "Live555RTSPClient.h"
 #endif
 
 namespace Video {
@@ -84,11 +84,21 @@ bool Live555Decoder::initialize(std::string_view source, PixelFormat format, int
     m_initTimeMs = std::chrono::duration<double, std::milli>(endTime - startTime).count();
 
     m_isInitialized = m_connected.load();
-    if (m_isInitialized && isTripleBufferingEnabled() && (m_width > 0) && (m_height > 0)) {
+    if (!m_isInitialized) {
+        stopNetworkLoop();
+        if (m_decoder != nullptr) {
+            m_decoder->Uninitialize();
+            WelsDestroyDecoder(m_decoder);
+            m_decoder = nullptr;
+        }
+        return false;
+    }
+
+    if (isTripleBufferingEnabled() && (m_width > 0) && (m_height > 0)) {
         initTripleBufferSlots(m_width, m_height, m_outputFormat);
     }
 
-    return m_isInitialized;
+    return true;
 #else
     LOG(ERROR) << "Live555Decoder: Compiled without PELCOD_HAS_LIVE555 support.";
     return false;
@@ -241,16 +251,30 @@ void Live555Decoder::startNetworkLoop()
         }
 
         m_watchVariable = 0;
-        m_connected.store(true);
 
-        m_scheduler->doEventLoop(&m_watchVariable);
+        auto naluCb
+            = [this](const std::uint8_t* data, std::size_t size, double pts) { onNaluReceived(data, size, pts); };
+
+        auto statusCb = [this](bool connected, std::string_view errorMsg) {
+            if (connected) {
+                m_connected.store(true);
+            } else {
+                m_connected.store(false);
+                if (!errorMsg.empty()) {
+                    LOG(WARNING) << "Live555Decoder: RTSP client error: " << errorMsg;
+                }
+            }
+        };
+
+        m_rtspClient = Live555RTSPClient::createNew(*m_env, m_filePath, m_rtspTransport, m_rtspUsername, m_rtspPassword,
+            std::move(naluCb), std::move(statusCb));
+
+        if (m_rtspClient != nullptr) {
+            m_rtspClient->startSession();
+            m_scheduler->doEventLoop(&m_watchVariable);
+        }
 
         m_connected.store(false);
-
-        if (m_sink != nullptr) {
-            Medium::close(m_sink);
-            m_sink = nullptr;
-        }
 
         if (m_rtspClient != nullptr) {
             Medium::close(m_rtspClient);

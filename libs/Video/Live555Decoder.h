@@ -19,16 +19,13 @@
 #if defined(PELCOD_HAS_LIVE555)
 class TaskScheduler;
 class UsageEnvironment;
-class RTSPClient;
-class MediaSession;
-class MediaSubsession;
 class ISVCDecoder;
 #endif
 
 namespace Video {
 
 #if defined(PELCOD_HAS_LIVE555)
-class Live555H264Sink;
+class Live555RTSPClient;
 #endif
 
 /// @struct NaluPacket
@@ -91,10 +88,7 @@ private:
     char volatile m_watchVariable { 0 };
     TaskScheduler* m_scheduler { nullptr };
     UsageEnvironment* m_env { nullptr };
-    RTSPClient* m_rtspClient { nullptr };
-    MediaSession* m_session { nullptr };
-    MediaSubsession* m_subsession { nullptr };
-    Live555H264Sink* m_sink { nullptr };
+    Live555RTSPClient* m_rtspClient { nullptr };
     ISVCDecoder* m_decoder { nullptr };
 #endif
 };

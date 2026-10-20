@@ -85,6 +85,8 @@ if(NOT LIVE555_FOUND)
         file(GLOB USAGEENV_SRCS "${LIVE555_ROOT_DIR}/UsageEnvironment/*.cpp")
         file(GLOB BASICUSAGEENV_SRCS "${LIVE555_ROOT_DIR}/BasicUsageEnvironment/*.cpp")
 
+        enable_language(C)
+
         add_library(liveMedia_in_tree STATIC ${LIVEMEDIA_SRCS})
         add_library(groupsock_in_tree STATIC ${GROUPSOCK_SRCS})
         add_library(UsageEnvironment_in_tree STATIC ${USAGEENV_SRCS})

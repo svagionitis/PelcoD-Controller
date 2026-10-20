@@ -40,6 +40,8 @@ if(PELCOD_ENABLE_LIVE555 AND LIVE555_FOUND AND OPENH264_FOUND)
         Live555Decoder.cpp
         Live555H264Sink.h
         Live555H264Sink.cpp
+        Live555RTSPClient.h
+        Live555RTSPClient.cpp
     )
 endif()
 

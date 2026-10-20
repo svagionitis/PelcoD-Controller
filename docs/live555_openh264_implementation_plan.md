@@ -91,16 +91,18 @@ All new components will reside in `libs/Video/` alongside the existing decoders:
 | :--- | :--- |
 | `libs/Video/Live555Decoder.h` | Derived from [BaseVideoDecoder](../libs/Video/BaseVideoDecoder.h), public header declaring `Live555Decoder`. |
 | `libs/Video/Live555Decoder.cpp` | Implementation of initialization, Live555 event loop, OpenH264 decoding, color conversion, and cleanup. |
+| `libs/Video/Live555RTSPClient.h` | Subclass of Live555 `RTSPClient` handling asynchronous DESCRIBE/SETUP/PLAY state machine and out-of-band SPS/PPS parameter set extraction. |
+| `libs/Video/Live555RTSPClient.cpp` | Session negotiation, Authenticator credentials, transport configuration, and subsession dispatch. |
 | `libs/Video/Live555H264Sink.h` | Internal `MediaSink` subclass to capture NALUs and format Annex-B byte stream. |
-| `libs/Video/Live555H264Sink.cpp` | Buffer management and NALU boundary handling. |
+| `libs/Video/Live555H264Sink.cpp` | Buffer management, truncation expansion, and NALU boundary handling. |
 | `libs/Video/ColorConverter.h` | Standalone header-only / inline optimized YUV420P to RGB24/BGR24 converter. |
-| `libs/Video/tests/Test_Live555Decoder.cpp` | Unit and mock integration tests. |
+| `libs/Video/tests/TestLive555Decoder.cpp` | Unit and mock integration tests. |
 
 ---
 
 ## 4. Step-by-Step Implementation Phases
 
-### Phase 1: Build System & Dependency Discovery (CMake)
+### Phase 1: Build System & Dependency Discovery (CMake) [Completed]
 - Add CMake options:
   - `PELCOD_ENABLE_LIVE555` (default: `ON`)
   - `PELCOD_ENABLE_OPENH264` (default: `ON`)
@@ -113,7 +115,7 @@ All new components will reside in `libs/Video/` alongside the existing decoders:
   - Link against `liveMedia`, `groupsock`, `BasicUsageEnvironment`, `UsageEnvironment`, and `openh264`.
   - Add compile definition `PELCOD_HAS_LIVE555`.
 
-### Phase 2: Core Data Types & Factory Registration
+### Phase 2: Core Data Types & Factory Registration [Completed]
 - Update [DecoderTypes.h](../libs/Video/DecoderTypes.h):
   - Add `BackendType::Live555` to the `BackendType` enum:
     ```cpp
@@ -128,19 +130,24 @@ All new components will reside in `libs/Video/` alongside the existing decoders:
   - Register `BackendType::Live555` returning `std::make_unique<Live555Decoder>()`.
   - Query `PELCOD_HAS_LIVE555` in `availableBackends()`.
 
-### Phase 3: Live555 RTSP Client & MediaSink Integration
+### Phase 3: Live555 RTSP Client & MediaSink Integration [Completed]
 - Implement `Live555H264Sink`:
   - Inherits from `MediaSink`.
   - Overrides `continuePlaying()`.
   - Receives RTP frame packets, checks frame boundary markers (`bMarkerBit`), and constructs Annex-B NAL units with `0x00 0x00 0x00 0x01` prefixes.
+  - Dynamically expands receive buffer upon frame truncation (`numTruncatedBytes > 0`).
   - Enqueues framed NALUs into a thread-safe bounded circular queue.
-- Implement RTSP session negotiation in `Live555Decoder`:
+- Implement RTSP session negotiation in `Live555RTSPClient` and `Live555Decoder`:
   - Construct `TaskScheduler` and `BasicUsageEnvironment`.
   - Subclass `RTSPClient` to handle async response handlers:
     - `continueAfterDESCRIBE()`
     - `continueAfterSETUP()`
     - `continueAfterPLAY()`
+    - RTCP BYE and stream closure handlers
+  - Handle out-of-band H.264 SPS/PPS extraction from SDP `sprop-parameter-sets`.
   - Handle Digest authentication via `Authenticator` if credentials are set in `BaseVideoDecoder`.
+  - Support both TCP interleaved mode (`RTP-over-RTSP`) and UDP transport configured via `IVideoDecoder::setRtspTransport`.
+  - Comprehensive unit test suite in `libs/Video/tests/TestLive555Decoder.cpp`.
 
 ### Phase 4: Cisco OpenH264 Integration & Frame Decoding
 - Initialize OpenH264 in `Live555Decoder::initialize()`:
