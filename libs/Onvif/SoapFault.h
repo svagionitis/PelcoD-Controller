@@ -75,6 +75,24 @@ public:
     /// @return Serialized Fault element.
     [[nodiscard]] static std::string invalidArgVal(std::string_view reason = "Invalid argument value");
 
+    /// @brief Fault returned when an operation references an unknown or invalid token.
+    /// @details Code `SOAP-ENV:Sender`, Subcode `ter:InvalidArgVal`, secondary `ter:NoToken`.
+    /// @param[in] reason Human-readable reason text.
+    /// @return Serialized Fault element.
+    [[nodiscard]] static std::string noToken(std::string_view reason = "The requested token does not exist.");
+
+    /// @brief Fault returned when a numeric or range argument exceeds allowable limits.
+    /// @details Code `SOAP-ENV:Sender`, Subcode `ter:InvalidArgVal`, secondary `ter:OutofRange`.
+    /// @param[in] reason Human-readable reason text.
+    /// @return Serialized Fault element.
+    [[nodiscard]] static std::string outOfRange(std::string_view reason = "Argument value is out of range");
+
+    /// @brief Fault returned when attempting to create a user that already exists.
+    /// @details Code `SOAP-ENV:Sender`, Subcode `ter:InvalidArgVal`, secondary `ter:UsernameClash`.
+    /// @param[in] reason Human-readable reason text.
+    /// @return Serialized Fault element.
+    [[nodiscard]] static std::string usernameClash(std::string_view reason = "The requested username already exists");
+
     /// @brief Generic sender fault.
     /// @param[in] subcode Qualified ONVIF subcode (e.g. "ter:InvalidArgVal").
     /// @param[in] secondSubcode Optional nested subcode (e.g. "ter:UsernameClash"); empty to omit.

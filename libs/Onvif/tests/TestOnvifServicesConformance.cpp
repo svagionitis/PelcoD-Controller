@@ -1,13 +1,18 @@
 /// @file TestOnvifServicesConformance.cpp
 /// @brief Conformance and regression tests for ONVIF GetServicesResponse (Finding C4).
 
+#include <cstddef>
+
 #include <atomic>
-#include <gtest/gtest.h>
-#include <pugixml.hpp>
+#include <chrono>
 #include <string>
 #include <thread>
 #include <vector>
 
+#include <gtest/gtest.h>
+#include <pugixml.hpp>
+
+#include "HttplibInclude.h"
 #include "OnvifServer.h"
 #include "OnvifServerTypes.h"
 #include "OnvifTestClient.h"
@@ -307,6 +312,82 @@ TEST(TestOnvifServicesConformance, LiveServerEndToEndGetServices)
         }
     }
     EXPECT_GE(serviceCount, 8U);
+
+    server.stop();
+}
+
+TEST(TestOnvifServicesConformance, Ipv6BracketedXAddr)
+{
+    const auto registry = Onvif::ServiceRegistry::createDefault(false, false);
+
+    // Bare IPv6
+    {
+        const std::string xml = registry.buildServicesXml("::1", 8080, false);
+        pugi::xml_document doc;
+        ASSERT_TRUE(doc.load_string(xml.c_str()));
+        const auto xAddrNode = doc.select_node("//*[local-name()='XAddr']").node();
+        ASSERT_FALSE(xAddrNode.empty());
+        EXPECT_STREQ(xAddrNode.text().as_string(), "http://[::1]:8080/onvif/device_service");
+    }
+
+    // Already bracketed IPv6
+    {
+        const std::string xml = registry.buildServicesXml("[::1]", 8080, false);
+        pugi::xml_document doc;
+        ASSERT_TRUE(doc.load_string(xml.c_str()));
+        const auto xAddrNode = doc.select_node("//*[local-name()='XAddr']").node();
+        ASSERT_FALSE(xAddrNode.empty());
+        EXPECT_STREQ(xAddrNode.text().as_string(), "http://[::1]:8080/onvif/device_service");
+    }
+}
+
+TEST(TestOnvifServicesConformance, HostHeaderSanitization)
+{
+    const int port { g_port.fetch_add(1) };
+    Onvif::OnvifServerConfig config {};
+    config.bindAddress = "0.0.0.0";
+    config.port = port;
+
+    Onvif::OnvifServer server { config };
+    ASSERT_TRUE(server.start());
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+    // 1. IPv6 bracketed host header
+    {
+        httplib::Client cli("127.0.0.1", port);
+        httplib::Headers headers { { "Host", "[::1]:" + std::to_string(port) } };
+        const std::string req = wrapSoapReq("<tds:GetServices/>");
+        const auto res = cli.Post("/onvif/device_service", headers, req, kSoapCt);
+        ASSERT_TRUE(res);
+        EXPECT_EQ(res->status, 200);
+
+        pugi::xml_document doc;
+        ASSERT_TRUE(doc.load_string(res->body.c_str()));
+        const auto xAddrNode = doc.select_node("//*[local-name()='XAddr']").node();
+        ASSERT_FALSE(xAddrNode.empty());
+        EXPECT_STREQ(
+            xAddrNode.text().as_string(), ("http://[::1]:" + std::to_string(port) + "/onvif/device_service").c_str());
+    }
+
+    // 2. Injected XML / script in Host header
+    {
+        httplib::Client cli("127.0.0.1", port);
+        httplib::Headers headers { { "Host", "evil<script>alert(1)</script>:9999" } };
+        const std::string req = wrapSoapReq("<tds:GetServices/>");
+        const auto res = cli.Post("/onvif/device_service", headers, req, kSoapCt);
+        ASSERT_TRUE(res);
+        EXPECT_EQ(res->status, 200);
+
+        EXPECT_EQ(res->body.find("<script>"), std::string::npos);
+        EXPECT_EQ(res->body.find("alert(1)"), std::string::npos);
+
+        pugi::xml_document doc;
+        ASSERT_TRUE(doc.load_string(res->body.c_str()));
+        const auto xAddrNode = doc.select_node("//*[local-name()='XAddr']").node();
+        ASSERT_FALSE(xAddrNode.empty());
+        EXPECT_STREQ(xAddrNode.text().as_string(),
+            ("http://127.0.0.1:" + std::to_string(port) + "/onvif/device_service").c_str());
+    }
 
     server.stop();
 }

@@ -1,15 +1,16 @@
 /// @file TestOnvifServerLifecycle.cpp
 /// @brief Conformance tests for ONVIF server startup, failure handling, and lifecycle (Finding H2).
 
-#include <Onvif/OnvifServer.h>
-#include <Onvif/OnvifServerTypes.h>
-
-#include <gtest/gtest.h>
-
 #include <atomic>
 #include <chrono>
 #include <memory>
+#include <string>
 #include <thread>
+
+#include <gtest/gtest.h>
+
+#include <Onvif/OnvifServer.h>
+#include <Onvif/OnvifServerTypes.h>
 
 namespace {
 

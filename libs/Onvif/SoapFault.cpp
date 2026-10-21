@@ -3,10 +3,11 @@
 
 #include "SoapFault.h"
 
+#include <sstream>
 #include <string>
 #include <string_view>
 
-#include "XmlUtils.h"
+#include <pugixml.hpp>
 
 namespace Onvif {
 
@@ -15,28 +16,28 @@ namespace {
     [[nodiscard]] std::string formatFault(
         std::string_view codeValue, std::string_view subcode, std::string_view secondSubcode, std::string_view reason)
     {
-        std::string out {};
-        out.append("    <SOAP-ENV:Fault>\r\n")
-            .append("      <SOAP-ENV:Code>\r\n")
-            .append("        <SOAP-ENV:Value>")
-            .append(Xml::escapeXml(codeValue))
-            .append("</SOAP-ENV:Value>\r\n")
-            .append("        <SOAP-ENV:Subcode>\r\n")
-            .append("          <SOAP-ENV:Value>")
-            .append(Xml::escapeXml(subcode))
-            .append("</SOAP-ENV:Value>\r\n");
+        pugi::xml_document doc {};
+        auto faultNode = doc.append_child("SOAP-ENV:Fault");
+
+        auto codeNode = faultNode.append_child("SOAP-ENV:Code");
+        codeNode.append_child("SOAP-ENV:Value").text().set(std::string(codeValue).c_str());
+
+        auto subNode = codeNode.append_child("SOAP-ENV:Subcode");
+        subNode.append_child("SOAP-ENV:Value").text().set(std::string(subcode).c_str());
+
         if (!secondSubcode.empty()) {
-            out.append("          <SOAP-ENV:Subcode><SOAP-ENV:Value>")
-                .append(Xml::escapeXml(secondSubcode))
-                .append("</SOAP-ENV:Value></SOAP-ENV:Subcode>\r\n");
+            auto secSubNode = subNode.append_child("SOAP-ENV:Subcode");
+            secSubNode.append_child("SOAP-ENV:Value").text().set(std::string(secondSubcode).c_str());
         }
-        out.append("        </SOAP-ENV:Subcode>\r\n")
-            .append("      </SOAP-ENV:Code>\r\n")
-            .append("      <SOAP-ENV:Reason><SOAP-ENV:Text xml:lang=\"en\">")
-            .append(Xml::escapeXml(reason))
-            .append("</SOAP-ENV:Text></SOAP-ENV:Reason>\r\n")
-            .append("    </SOAP-ENV:Fault>\r\n");
-        return out;
+
+        auto reasonNode = faultNode.append_child("SOAP-ENV:Reason");
+        auto textNode = reasonNode.append_child("SOAP-ENV:Text");
+        textNode.append_attribute("xml:lang").set_value("en");
+        textNode.text().set(std::string(reason).c_str());
+
+        std::ostringstream ss {};
+        doc.print(ss, "  ", pugi::format_indent | pugi::format_no_declaration);
+        return ss.str();
     }
 
 } // namespace
@@ -98,6 +99,24 @@ std::string SoapFault::invalidArgVal(std::string_view reason)
 {
     const std::string_view r { reason.empty() ? "Invalid argument value" : reason };
     return sender("ter:InvalidArgVal", "", r);
+}
+
+std::string SoapFault::noToken(std::string_view reason)
+{
+    const std::string_view r { reason.empty() ? "The requested token does not exist." : reason };
+    return sender("ter:InvalidArgVal", "ter:NoToken", r);
+}
+
+std::string SoapFault::outOfRange(std::string_view reason)
+{
+    const std::string_view r { reason.empty() ? "Argument value is out of range" : reason };
+    return sender("ter:InvalidArgVal", "ter:OutofRange", r);
+}
+
+std::string SoapFault::usernameClash(std::string_view reason)
+{
+    const std::string_view r { reason.empty() ? "The requested username already exists" : reason };
+    return sender("ter:InvalidArgVal", "ter:UsernameClash", r);
 }
 
 } // namespace Onvif

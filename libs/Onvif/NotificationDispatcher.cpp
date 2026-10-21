@@ -2,6 +2,14 @@
 /// @brief Implementation of bounded push notification delivery worker.
 
 #include "NotificationDispatcher.h"
+
+#include <cstddef>
+
+#include <chrono>
+#include <mutex>
+#include <string>
+#include <utility>
+
 #include "HttplibInclude.h"
 
 namespace Onvif {

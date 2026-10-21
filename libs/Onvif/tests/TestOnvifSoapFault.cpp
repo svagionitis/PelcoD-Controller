@@ -1,20 +1,21 @@
 /// @file TestOnvifSoapFault.cpp
 /// @brief Conformance tests for SOAP 1.2 Receiver and ActionNotSupported faults (Finding C3).
 
+#include <atomic>
+#include <chrono>
+#include <memory>
+#include <string>
+#include <thread>
+
+#include <gtest/gtest.h>
+#include <pugixml.hpp>
+
 #include <Onvif/HttplibInclude.h>
 #include <Onvif/OnvifServer.h>
 #include <Onvif/SoapFault.h>
 #include <Onvif/XmlUtils.h>
 
 #include "OnvifTestClient.h"
-
-#include <gtest/gtest.h>
-#include <pugixml.hpp>
-
-#include <atomic>
-#include <chrono>
-#include <string>
-#include <thread>
 
 namespace {
 
@@ -279,4 +280,129 @@ TEST_F(OnvifSoapFaultServerTest, ValidOperationsStillSucceed)
     ASSERT_TRUE(doc.load_string(res->body.c_str()));
     const auto dateNode = doc.select_node("//*[local-name()='GetSystemDateAndTimeResponse']").node();
     EXPECT_FALSE(dateNode.empty());
+}
+
+TEST(TestOnvifSoapFault, NoTokenStructure)
+{
+    const std::string xml = wrapEnvelope(Onvif::SoapFault::noToken());
+    pugi::xml_document doc {};
+    ASSERT_TRUE(doc.load_string(xml.c_str()));
+
+    const auto faultNode = doc.select_node("//*[local-name()='Fault']").node();
+    ASSERT_FALSE(faultNode.empty());
+
+    const auto codeValNode
+        = doc.select_node("//*[local-name()='Fault']/*[local-name()='Code']/*[local-name()='Value']").node();
+    EXPECT_STREQ(codeValNode.text().as_string(), "SOAP-ENV:Sender");
+
+    const auto priSub
+        = doc.select_node(
+                 "//*[local-name()='Fault']/*[local-name()='Code']/*[local-name()='Subcode']/*[local-name()='Value']")
+              .node();
+    EXPECT_STREQ(priSub.text().as_string(), "ter:InvalidArgVal");
+
+    const auto secSub = doc.select_node("//*[local-name()='Fault']/*[local-name()='Code']/*[local-name()='Subcode']/"
+                                        "*[local-name()='Subcode']/*[local-name()='Value']")
+                            .node();
+    EXPECT_STREQ(secSub.text().as_string(), "ter:NoToken");
+}
+
+TEST(TestOnvifSoapFault, OutOfRangeStructure)
+{
+    const std::string xml = wrapEnvelope(Onvif::SoapFault::outOfRange());
+    pugi::xml_document doc {};
+    ASSERT_TRUE(doc.load_string(xml.c_str()));
+
+    const auto codeValNode
+        = doc.select_node("//*[local-name()='Fault']/*[local-name()='Code']/*[local-name()='Value']").node();
+    EXPECT_STREQ(codeValNode.text().as_string(), "SOAP-ENV:Sender");
+
+    const auto priSub
+        = doc.select_node(
+                 "//*[local-name()='Fault']/*[local-name()='Code']/*[local-name()='Subcode']/*[local-name()='Value']")
+              .node();
+    EXPECT_STREQ(priSub.text().as_string(), "ter:InvalidArgVal");
+
+    const auto secSub = doc.select_node("//*[local-name()='Fault']/*[local-name()='Code']/*[local-name()='Subcode']/"
+                                        "*[local-name()='Subcode']/*[local-name()='Value']")
+                            .node();
+    EXPECT_STREQ(secSub.text().as_string(), "ter:OutofRange");
+}
+
+TEST(TestOnvifSoapFault, UsernameClashStructure)
+{
+    const std::string xml = wrapEnvelope(Onvif::SoapFault::usernameClash());
+    pugi::xml_document doc {};
+    ASSERT_TRUE(doc.load_string(xml.c_str()));
+
+    const auto codeValNode
+        = doc.select_node("//*[local-name()='Fault']/*[local-name()='Code']/*[local-name()='Value']").node();
+    EXPECT_STREQ(codeValNode.text().as_string(), "SOAP-ENV:Sender");
+
+    const auto priSub
+        = doc.select_node(
+                 "//*[local-name()='Fault']/*[local-name()='Code']/*[local-name()='Subcode']/*[local-name()='Value']")
+              .node();
+    EXPECT_STREQ(priSub.text().as_string(), "ter:InvalidArgVal");
+
+    const auto secSub = doc.select_node("//*[local-name()='Fault']/*[local-name()='Code']/*[local-name()='Subcode']/"
+                                        "*[local-name()='Subcode']/*[local-name()='Value']")
+                            .node();
+    EXPECT_STREQ(secSub.text().as_string(), "ter:UsernameClash");
+}
+
+TEST_F(OnvifSoapFaultServerTest, GotoPreset_UnknownToken_ReturnsFault)
+{
+    const std::string reqXml = makeSoapRequest("<tptz:GotoPreset>"
+                                               "<tptz:ProfileToken>ProfileToken_1</tptz:ProfileToken>"
+                                               "<tptz:PresetToken>NonExistentPreset_999</tptz:PresetToken>"
+                                               "</tptz:GotoPreset>");
+
+    const auto res = m_client->Post("/onvif/ptz_service", reqXml, "application/soap+xml; charset=utf-8");
+    ASSERT_TRUE(res);
+    EXPECT_EQ(res->status, 400);
+
+    pugi::xml_document doc {};
+    ASSERT_TRUE(doc.load_string(res->body.c_str()));
+    const auto secSub = doc.select_node("//*[local-name()='Fault']/*[local-name()='Code']/*[local-name()='Subcode']/"
+                                        "*[local-name()='Subcode']/*[local-name()='Value']")
+                            .node();
+    EXPECT_STREQ(secSub.text().as_string(), "ter:NoToken");
+}
+
+TEST_F(OnvifSoapFaultServerTest, GotoPreset_MissingToken_ReturnsFault)
+{
+    const std::string reqXml = makeSoapRequest("<tptz:GotoPreset>"
+                                               "<tptz:ProfileToken>ProfileToken_1</tptz:ProfileToken>"
+                                               "</tptz:GotoPreset>");
+
+    const auto res = m_client->Post("/onvif/ptz_service", reqXml, "application/soap+xml; charset=utf-8");
+    ASSERT_TRUE(res);
+    EXPECT_EQ(res->status, 400);
+
+    pugi::xml_document doc {};
+    ASSERT_TRUE(doc.load_string(res->body.c_str()));
+    const auto secSub = doc.select_node("//*[local-name()='Fault']/*[local-name()='Code']/*[local-name()='Subcode']/"
+                                        "*[local-name()='Subcode']/*[local-name()='Value']")
+                            .node();
+    EXPECT_STREQ(secSub.text().as_string(), "ter:NoToken");
+}
+
+TEST_F(OnvifSoapFaultServerTest, RemovePreset_UnknownToken_ReturnsFault)
+{
+    const std::string reqXml = makeSoapRequest("<tptz:RemovePreset>"
+                                               "<tptz:ProfileToken>ProfileToken_1</tptz:ProfileToken>"
+                                               "<tptz:PresetToken>NonExistentPreset_999</tptz:PresetToken>"
+                                               "</tptz:RemovePreset>");
+
+    const auto res = m_client->Post("/onvif/ptz_service", reqXml, "application/soap+xml; charset=utf-8");
+    ASSERT_TRUE(res);
+    EXPECT_EQ(res->status, 400);
+
+    pugi::xml_document doc {};
+    ASSERT_TRUE(doc.load_string(res->body.c_str()));
+    const auto secSub = doc.select_node("//*[local-name()='Fault']/*[local-name()='Code']/*[local-name()='Subcode']/"
+                                        "*[local-name()='Subcode']/*[local-name()='Value']")
+                            .node();
+    EXPECT_STREQ(secSub.text().as_string(), "ter:NoToken");
 }

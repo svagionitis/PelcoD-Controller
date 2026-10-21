@@ -2,8 +2,13 @@
 /// @brief Implementation of ONVIF service registry and DOM response builder.
 
 #include "ServiceRegistry.h"
-#include "XmlUtils.h"
+
 #include <sstream>
+#include <string>
+#include <string_view>
+#include <vector>
+
+#include "XmlUtils.h"
 
 namespace Onvif {
 
@@ -66,7 +71,9 @@ std::string ServiceRegistry::buildServicesXml(const std::string& host, int port,
 
         // 2. tds:XAddr (Strictly matching opening and closing tag via DOM)
         auto xNode = sNode.append_child("tds:XAddr");
-        const std::string url = "http://" + safeHost + ":" + std::to_string(port) + svc.xAddrPath;
+        const bool isIpv6 = (safeHost.find(':') != std::string::npos && safeHost.front() != '[');
+        const std::string hostFormatted = isIpv6 ? ("[" + safeHost + "]") : safeHost;
+        const std::string url = "http://" + hostFormatted + ":" + std::to_string(port) + svc.xAddrPath;
         xNode.text().set(url.c_str());
 
         // 3. Optional tds:Capabilities (must precede tds:Version per WSDL schema sequence)

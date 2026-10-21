@@ -887,17 +887,33 @@ void OnvifServer::setRequestLogCallback(RequestLogCallback callback)
 
 std::string OnvifServer::resolveHost(const httplib::Request& req) const
 {
-    if (m_config.bindAddress != "0.0.0.0" && !m_config.bindAddress.empty()) {
+    if (m_config.bindAddress != "0.0.0.0" && m_config.bindAddress != "::" && !m_config.bindAddress.empty()) {
         return m_config.bindAddress;
     }
 
     if (req.has_header("Host")) {
         const std::string hostHeader = req.get_header_value("Host");
-        const auto colonPos = hostHeader.find(':');
-        if (colonPos != std::string::npos) {
-            return hostHeader.substr(0, colonPos);
+        std::string hostCandidate;
+
+        if (!hostHeader.empty() && hostHeader.front() == '[') {
+            const auto closeBracket = hostHeader.find(']');
+            if (closeBracket != std::string::npos) {
+                hostCandidate = hostHeader.substr(0, closeBracket + 1);
+            }
+        } else {
+            const auto colonPos = hostHeader.rfind(':');
+            if (colonPos != std::string::npos) {
+                hostCandidate = hostHeader.substr(0, colonPos);
+            } else {
+                hostCandidate = hostHeader;
+            }
         }
-        return hostHeader;
+
+        const bool hasInvalidChars
+            = hostCandidate.empty() || (hostCandidate.find_first_of("<>\"'& \r\n\t") != std::string::npos);
+        if (!hasInvalidChars) {
+            return hostCandidate;
+        }
     }
 
     return "127.0.0.1";
@@ -3491,8 +3507,9 @@ void OnvifServer::handlePtzService(const httplib::Request& req, httplib::Respons
         const pugi::xml_node tokenNode = doc.select_node("//*[local-name()='PresetToken']").node();
         const std::string presetToken = tokenNode ? tokenNode.text().as_string() : "";
 
-        if (ptzHandler) {
-            ptzHandler->handleGotoPreset(presetToken);
+        if (presetToken.empty() || !ptzHandler || !ptzHandler->handleGotoPreset(presetToken)) {
+            sendSoapResponse(res, SoapFault::noToken(), 400);
+            return;
         }
 
         body << "    <tptz:GotoPresetResponse/>\r\n";
@@ -3506,8 +3523,9 @@ void OnvifServer::handlePtzService(const httplib::Request& req, httplib::Respons
 
         const pugi::xml_node tokNode = doc.select_node("//*[local-name()='PresetTourToken']").node();
         const std::string tourTok = tokNode ? tokNode.text().as_string() : "";
-        if (ptzHandler) {
-            ptzHandler->handleRemovePresetTour(tourTok);
+        if (tourTok.empty() || !ptzHandler || !ptzHandler->handleRemovePresetTour(tourTok)) {
+            sendSoapResponse(res, SoapFault::noToken(), 400);
+            return;
         }
         body << "    <tptz:RemovePresetTourResponse/>\r\n";
     } else if (opName.find("RemovePreset") != std::string::npos) {
@@ -3521,8 +3539,9 @@ void OnvifServer::handlePtzService(const httplib::Request& req, httplib::Respons
         const pugi::xml_node tokenNode = doc.select_node("//*[local-name()='PresetToken']").node();
         const std::string presetToken = tokenNode ? tokenNode.text().as_string() : "";
 
-        if (ptzHandler) {
-            ptzHandler->handleRemovePreset(presetToken);
+        if (presetToken.empty() || !ptzHandler || !ptzHandler->handleRemovePreset(presetToken)) {
+            sendSoapResponse(res, SoapFault::noToken(), 400);
+            return;
         }
 
         body << "    <tptz:RemovePresetResponse/>\r\n";
