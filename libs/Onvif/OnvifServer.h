@@ -86,6 +86,15 @@ public:
     /// @param[in] mode Target DiscoveryMode.
     void setDiscoveryMode(DiscoveryMode mode);
 
+    /// @brief Gets active network protocol configurations.
+    /// @return Vector of NetworkProtocolConfig.
+    [[nodiscard]] std::vector<NetworkProtocolConfig> getNetworkProtocols() const;
+
+    /// @brief Sets network protocol configurations.
+    /// @param[in] protocols List of updated protocols.
+    /// @return True on success.
+    bool setNetworkProtocols(const std::vector<NetworkProtocolConfig>& protocols);
+
     /// @brief Gets active server configuration.
     /// @return Copy of active OnvifServerConfig.
     [[nodiscard]] OnvifServerConfig getConfig() const;
@@ -281,6 +290,7 @@ private:
     std::shared_ptr<CredentialStore> m_credStore {};
     std::unique_ptr<Authenticator> m_authenticator {};
     std::vector<NetworkInterfaceConfig> m_internalNetworkInterfaces {};
+    std::vector<NetworkProtocolConfig> m_internalNetworkProtocols {};
     std::string m_internalGateway { "192.168.1.1" };
     DnsConfig m_internalDns {};
     NtpConfig m_internalNtp {};

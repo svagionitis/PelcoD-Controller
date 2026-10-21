@@ -429,6 +429,17 @@ OnvifServer::OnvifServer(OnvifServerConfig config, std::shared_ptr<IPtzHandler> 
         m_provisioningState = ProvisioningState::Unprovisioned;
     }
     m_internalNetworkInterfaces = m_config.defaultNetworkInterfaces;
+    m_internalNetworkProtocols = m_config.defaultNetworkProtocols;
+    if (m_internalNetworkProtocols.empty()) {
+        m_internalNetworkProtocols
+            = { { "HTTP", true, m_config.port }, { "HTTPS", false, 8443 }, { "RTSP", true, 8554 } };
+    } else {
+        for (auto& proto : m_internalNetworkProtocols) {
+            if (proto.name == "HTTP" && m_config.port != 8080 && proto.port == 8080) {
+                proto.port = m_config.port;
+            }
+        }
+    }
     m_internalGateway = m_config.defaultGateway;
     m_internalDns = m_config.defaultDns;
     m_internalNtp = m_config.defaultNtp;
@@ -695,6 +706,44 @@ void OnvifServer::setDiscoveryMode(DiscoveryMode mode)
     if (m_discoveryServer) {
         m_discoveryServer->setDiscoveryMode(mode);
     }
+}
+
+std::vector<NetworkProtocolConfig> OnvifServer::getNetworkProtocols() const
+{
+    const auto deviceHandler = getDeviceManagementHandler();
+    if (deviceHandler) {
+        auto protocols = deviceHandler->handleGetNetworkProtocols();
+        if (!protocols.empty()) {
+            return protocols;
+        }
+    }
+    std::scoped_lock lock(m_deviceMutex);
+    return m_internalNetworkProtocols;
+}
+
+bool OnvifServer::setNetworkProtocols(const std::vector<NetworkProtocolConfig>& protocols)
+{
+    for (const auto& proto : protocols) {
+        if (proto.port < 1 || proto.port > 65535) {
+            return false;
+        }
+    }
+    const auto deviceHandler = getDeviceManagementHandler();
+    if (deviceHandler) {
+        deviceHandler->handleSetNetworkProtocols(protocols);
+    }
+    std::scoped_lock lock(m_deviceMutex);
+    for (const auto& u : protocols) {
+        auto it = std::find_if(m_internalNetworkProtocols.begin(), m_internalNetworkProtocols.end(),
+            [&u](const NetworkProtocolConfig& existing) { return existing.name == u.name; });
+        if (it != m_internalNetworkProtocols.end()) {
+            it->enabled = u.enabled;
+            it->port = u.port;
+        } else {
+            m_internalNetworkProtocols.push_back(u);
+        }
+    }
+    return true;
 }
 
 void OnvifServer::setPtzHandler(std::shared_ptr<IPtzHandler> handler)
@@ -1265,61 +1314,233 @@ void OnvifServer::handleDeviceService(const httplib::Request& req, httplib::Resp
              << "      <tds:SerialNumber>" << Xml::escapeXmlText(m_config.serialNumber) << "</tds:SerialNumber>\r\n"
              << "      <tds:HardwareId>" << Xml::escapeXmlText(m_config.hardwareId) << "</tds:HardwareId>\r\n"
              << "    </tds:GetDeviceInformationResponse>\r\n";
+    } else if (isOp(opName, "GetDiscoveryMode")) {
+        const DiscoveryMode mode = getDiscoveryMode();
+        const char* modeStr = (mode == DiscoveryMode::NonDiscoverable) ? "NonDiscoverable" : "Discoverable";
+        body << "    <tds:GetDiscoveryModeResponse>\r\n"
+             << "      <tds:DiscoveryMode>" << modeStr << "</tds:DiscoveryMode>\r\n"
+             << "    </tds:GetDiscoveryModeResponse>\r\n";
+    } else if (isOp(opName, "SetDiscoveryMode")) {
+        const auto modeNode = reqNode.select_node(".//*[local-name()='DiscoveryMode']").node();
+        const std::string modeStr = modeNode ? modeNode.text().as_string() : "";
+        DiscoveryMode targetMode = DiscoveryMode::Discoverable;
+        if (modeStr == "Discoverable") {
+            targetMode = DiscoveryMode::Discoverable;
+        } else if (modeStr == "NonDiscoverable") {
+            targetMode = DiscoveryMode::NonDiscoverable;
+        } else {
+            sendSoapResponse(res, SoapFault::sender("ter:InvalidArgVal", "", "Invalid discovery mode"), 400);
+            return;
+        }
+
+        if (deviceHandler) {
+            deviceHandler->handleSetDiscoveryMode(targetMode);
+        }
+        setDiscoveryMode(targetMode);
+        body << "    <tds:SetDiscoveryModeResponse/>\r\n";
+    } else if (isOp(opName, "GetNetworkProtocols")) {
+        const auto protocols = getNetworkProtocols();
+        body << "    <tds:GetNetworkProtocolsResponse>\r\n";
+        for (const auto& proto : protocols) {
+            body << "      <tds:NetworkProtocols>\r\n"
+                 << "        <tt:Name>" << Xml::escapeXmlText(proto.name) << "</tt:Name>\r\n"
+                 << "        <tt:Enabled>" << (proto.enabled ? "true" : "false") << "</tt:Enabled>\r\n"
+                 << "        <tt:Port>" << proto.port << "</tt:Port>\r\n"
+                 << "      </tds:NetworkProtocols>\r\n";
+        }
+        body << "    </tds:GetNetworkProtocolsResponse>\r\n";
+    } else if (isOp(opName, "SetNetworkProtocols")) {
+        const auto protoNodes = reqNode.select_nodes(".//*[local-name()='NetworkProtocols']");
+        if (protoNodes.empty()) {
+            sendSoapResponse(res, SoapFault::sender("ter:InvalidArgVal", "", "Missing NetworkProtocols"), 400);
+            return;
+        }
+        std::vector<NetworkProtocolConfig> updated;
+        for (const auto& sel : protoNodes) {
+            NetworkProtocolConfig proto;
+            const auto nameNode = sel.node().select_node(".//*[local-name()='Name']").node();
+            const auto enabledNode = sel.node().select_node(".//*[local-name()='Enabled']").node();
+            const auto portNode = sel.node().select_node(".//*[local-name()='Port']").node();
+
+            if (!nameNode || !portNode) {
+                sendSoapResponse(
+                    res, SoapFault::sender("ter:InvalidArgVal", "", "Missing Name or Port in NetworkProtocols"), 400);
+                return;
+            }
+            proto.name = nameNode.text().as_string();
+            proto.enabled = enabledNode ? enabledNode.text().as_bool(true) : true;
+            const int p = portNode.text().as_int(-1);
+            if (p < 1 || p > 65535) {
+                sendSoapResponse(
+                    res, SoapFault::sender("ter:InvalidArgVal", "", "Invalid network protocol port number"), 400);
+                return;
+            }
+            proto.port = p;
+            updated.push_back(proto);
+        }
+
+        if (!setNetworkProtocols(updated)) {
+            sendSoapResponse(res, SoapFault::sender("ter:InvalidArgVal", "", "Failed to apply network protocols"), 400);
+            return;
+        }
+        body << "    <tds:SetNetworkProtocolsResponse/>\r\n";
+    } else if (isOp(opName, "GetWsdlUrl")) {
+        const std::string safeHost = Xml::escapeXml(host);
+        body << "    <tds:GetWsdlUrlResponse>\r\n"
+             << "      <tds:WsdlUrl>http://" << safeHost << ":" << port << "/onvif/device.wsdl</tds:WsdlUrl>\r\n"
+             << "    </tds:GetWsdlUrlResponse>\r\n";
+    } else if (isOp(opName, "GetServiceCapabilities")) {
+        body << "    <tds:GetServiceCapabilitiesResponse>\r\n"
+             << "      <tds:Capabilities>\r\n"
+             << "        <tds:Network IPFilter=\"false\" ZeroConfiguration=\"false\" IPVersion6=\"false\" "
+                "DynDNS=\"false\"/>\r\n"
+             << "        <tds:Security TLS1.2=\"true\" UsernameToken=\"true\" HttpDigest=\"true\" "
+                "AccessPolicyConfig=\"true\"/>\r\n"
+             << "        <tds:System DiscoveryBye=\"true\" DiscoveryResolve=\"false\" SystemBackup=\"true\" "
+                "SystemLogging=\"true\"/>\r\n"
+             << "      </tds:Capabilities>\r\n"
+             << "    </tds:GetServiceCapabilitiesResponse>\r\n";
     } else if (isOp(opName, "GetCapabilities")) {
-        size_t numRelays = 0;
+        std::size_t numRelays = 0;
         {
             std::scoped_lock lock(m_deviceIoMutex);
             numRelays = m_internalRelayOutputs.size();
         }
 
+        const auto catNodes = reqNode.select_nodes(".//*[local-name()='Category']");
+        std::vector<std::string> requestedCats;
+        for (const auto& catSel : catNodes) {
+            requestedCats.push_back(catSel.node().text().as_string());
+        }
+
+        const bool hasFilter = !requestedCats.empty();
+        const bool includeAll
+            = !hasFilter || (std::find(requestedCats.begin(), requestedCats.end(), "All") != requestedCats.end());
+
+        auto shouldInclude = [&](const std::string& cat) {
+            if (includeAll) {
+                return true;
+            }
+            return std::find(requestedCats.begin(), requestedCats.end(), cat) != requestedCats.end();
+        };
+
         const std::string safeHost = Xml::escapeXml(host);
         body << "    <tds:GetCapabilitiesResponse>\r\n"
-             << "      <tds:Capabilities>\r\n"
-             << "        <tt:Device>\r\n"
-             << "          <tt:XAddr>http://" << safeHost << ":" << port << "/onvif/device_service</tt:XAddr>\r\n"
-             << "        </tt:Device>\r\n"
-             << "        <tt:Media>\r\n"
-             << "          <tt:XAddr>http://" << safeHost << ":" << port << "/onvif/media_service</tt:XAddr>\r\n"
-             << "        </tt:Media>\r\n"
-             << "        <tt:PTZ>\r\n"
-             << "          <tt:XAddr>http://" << safeHost << ":" << port << "/onvif/ptz_service</tt:XAddr>\r\n"
-             << "        </tt:PTZ>\r\n"
-             << "        <tt:Imaging>\r\n"
-             << "          <tt:XAddr>http://" << safeHost << ":" << port << "/onvif/imaging_service</tt:XAddr>\r\n"
-             << "        </tt:Imaging>\r\n"
-             << "        <tt:Events>\r\n"
-             << "          <tt:XAddr>http://" << safeHost << ":" << port << "/onvif/event_service</tt:XAddr>\r\n"
-             << "        </tt:Events>\r\n"
-             << "        <tt:Analytics>\r\n"
-             << "          <tt:XAddr>http://" << safeHost << ":" << port << "/onvif/analytics_service</tt:XAddr>\r\n"
-             << "          <tt:RuleSupport>true</tt:RuleSupport>\r\n"
-             << "        </tt:Analytics>\r\n"
-             << "        <tt:Extension>\r\n"
-             << "          <tt:DeviceIO>\r\n"
-             << "            <tt:XAddr>http://" << safeHost << ":" << port << "/onvif/deviceio_service</tt:XAddr>\r\n"
-             << "            <tt:VideoSources>1</tt:VideoSources>\r\n"
-             << "            <tt:RelayOutputs>" << numRelays << "</tt:RelayOutputs>\r\n"
-             << "          </tt:DeviceIO>\r\n"
-             << "          <tt:Recording>\r\n"
-             << "            <tt:XAddr>http://" << safeHost << ":" << port << "/onvif/recording_service</tt:XAddr>\r\n"
-             << "            <tt:Receiver>false</tt:Receiver>\r\n"
-             << "            <tt:MediaProfileSummary>false</tt:MediaProfileSummary>\r\n"
-             << "          </tt:Recording>\r\n"
-             << "          <tt:Search>\r\n"
-             << "            <tt:XAddr>http://" << safeHost << ":" << port << "/onvif/search_service</tt:XAddr>\r\n"
-             << "            <tt:MetadataSearch>true</tt:MetadataSearch>\r\n"
-             << "          </tt:Search>\r\n"
-             << "          <tt:Replay>\r\n"
-             << "            <tt:XAddr>http://" << safeHost << ":" << port << "/onvif/replay_service</tt:XAddr>\r\n"
-             << "          </tt:Replay>\r\n"
-             << "          <tt:Media2>\r\n"
-             << "            <tt:XAddr>http://" << safeHost << ":" << port << "/onvif/media2_service</tt:XAddr>\r\n"
-             << "          </tt:Media2>\r\n"
-             << "          <tt:Thermal>\r\n"
-             << "            <tt:XAddr>http://" << safeHost << ":" << port << "/onvif/thermal_service</tt:XAddr>\r\n"
-             << "          </tt:Thermal>\r\n"
-             << "        </tt:Extension>\r\n"
-             << "      </tds:Capabilities>\r\n"
+             << "      <tds:Capabilities>\r\n";
+
+        if (shouldInclude("Device")) {
+            body << "        <tt:Device>\r\n"
+                 << "          <tt:XAddr>http://" << safeHost << ":" << port << "/onvif/device_service</tt:XAddr>\r\n"
+                 << "          <tt:Network>\r\n"
+                 << "            <tt:IPFilter>false</tt:IPFilter>\r\n"
+                 << "            <tt:ZeroConfiguration>false</tt:ZeroConfiguration>\r\n"
+                 << "            <tt:IPVersion6>false</tt:IPVersion6>\r\n"
+                 << "            <tt:DynDNS>false</tt:DynDNS>\r\n"
+                 << "          </tt:Network>\r\n"
+                 << "          <tt:System>\r\n"
+                 << "            <tt:DiscoveryResolve>false</tt:DiscoveryResolve>\r\n"
+                 << "            <tt:DiscoveryBye>true</tt:DiscoveryBye>\r\n"
+                 << "            <tt:RemoteDiscovery>false</tt:RemoteDiscovery>\r\n"
+                 << "            <tt:SystemBackup>true</tt:SystemBackup>\r\n"
+                 << "            <tt:SystemLogging>true</tt:SystemLogging>\r\n"
+                 << "            <tt:FirmwareUpgrade>false</tt:FirmwareUpgrade>\r\n"
+                 << "            <tt:SupportedVersions>\r\n"
+                 << "              <tt:Major>2</tt:Major>\r\n"
+                 << "              <tt:Minor>4</tt:Minor>\r\n"
+                 << "            </tt:SupportedVersions>\r\n"
+                 << "          </tt:System>\r\n"
+                 << "          <tt:IO>\r\n"
+                 << "            <tt:InputConnectors>1</tt:InputConnectors>\r\n"
+                 << "            <tt:RelayOutputs>" << numRelays << "</tt:RelayOutputs>\r\n"
+                 << "          </tt:IO>\r\n"
+                 << "          <tt:Security>\r\n"
+                 << "            <tt:TLS1.1>false</tt:TLS1.1>\r\n"
+                 << "            <tt:TLS1.2>true</tt:TLS1.2>\r\n"
+                 << "            <tt:OnboardKeyGeneration>false</tt:OnboardKeyGeneration>\r\n"
+                 << "            <tt:AccessPolicyConfig>true</tt:AccessPolicyConfig>\r\n"
+                 << "            <tt:X.509Token>false</tt:X.509Token>\r\n"
+                 << "            <tt:SAMLToken>false</tt:SAMLToken>\r\n"
+                 << "            <tt:KerberosToken>false</tt:KerberosToken>\r\n"
+                 << "            <tt:RELToken>false</tt:RELToken>\r\n"
+                 << "          </tt:Security>\r\n"
+                 << "        </tt:Device>\r\n";
+        }
+
+        if (shouldInclude("Media")) {
+            body << "        <tt:Media>\r\n"
+                 << "          <tt:XAddr>http://" << safeHost << ":" << port << "/onvif/media_service</tt:XAddr>\r\n"
+                 << "          <tt:StreamingCapabilities>\r\n"
+                 << "            <tt:RTPMulticast>false</tt:RTPMulticast>\r\n"
+                 << "            <tt:RTP_TCP>true</tt:RTP_TCP>\r\n"
+                 << "            <tt:RTP_RTSP_TCP>true</tt:RTP_RTSP_TCP>\r\n"
+                 << "          </tt:StreamingCapabilities>\r\n"
+                 << "        </tt:Media>\r\n";
+        }
+
+        if (shouldInclude("Events")) {
+            body << "        <tt:Events>\r\n"
+                 << "          <tt:XAddr>http://" << safeHost << ":" << port << "/onvif/event_service</tt:XAddr>\r\n"
+                 << "          <tt:WSSubscriptionPolicySupport>true</tt:WSSubscriptionPolicySupport>\r\n"
+                 << "          <tt:WSPullPointSupport>true</tt:WSPullPointSupport>\r\n"
+                 << "          "
+                    "<tt:WSPausableSubscriptionManagerInterfaceSupport>false</"
+                    "tt:WSPausableSubscriptionManagerInterfaceSupport>\r\n"
+                 << "        </tt:Events>\r\n";
+        }
+
+        if (shouldInclude("Imaging")) {
+            body << "        <tt:Imaging>\r\n"
+                 << "          <tt:XAddr>http://" << safeHost << ":" << port << "/onvif/imaging_service</tt:XAddr>\r\n"
+                 << "        </tt:Imaging>\r\n";
+        }
+
+        if (shouldInclude("PTZ")) {
+            body << "        <tt:PTZ>\r\n"
+                 << "          <tt:XAddr>http://" << safeHost << ":" << port << "/onvif/ptz_service</tt:XAddr>\r\n"
+                 << "        </tt:PTZ>\r\n";
+        }
+
+        if (shouldInclude("Analytics")) {
+            body << "        <tt:Analytics>\r\n"
+                 << "          <tt:XAddr>http://" << safeHost << ":" << port
+                 << "/onvif/analytics_service</tt:XAddr>\r\n"
+                 << "          <tt:RuleSupport>true</tt:RuleSupport>\r\n"
+                 << "          <tt:AnalyticsModuleSupport>true</tt:AnalyticsModuleSupport>\r\n"
+                 << "        </tt:Analytics>\r\n";
+        }
+
+        if (includeAll || shouldInclude("Extension")) {
+            body << "        <tt:Extension>\r\n"
+                 << "          <tt:DeviceIO>\r\n"
+                 << "            <tt:XAddr>http://" << safeHost << ":" << port
+                 << "/onvif/deviceio_service</tt:XAddr>\r\n"
+                 << "            <tt:VideoSources>1</tt:VideoSources>\r\n"
+                 << "            <tt:RelayOutputs>" << numRelays << "</tt:RelayOutputs>\r\n"
+                 << "          </tt:DeviceIO>\r\n"
+                 << "          <tt:Recording>\r\n"
+                 << "            <tt:XAddr>http://" << safeHost << ":" << port
+                 << "/onvif/recording_service</tt:XAddr>\r\n"
+                 << "            <tt:Receiver>false</tt:Receiver>\r\n"
+                 << "            <tt:MediaProfileSummary>false</tt:MediaProfileSummary>\r\n"
+                 << "          </tt:Recording>\r\n"
+                 << "          <tt:Search>\r\n"
+                 << "            <tt:XAddr>http://" << safeHost << ":" << port << "/onvif/search_service</tt:XAddr>\r\n"
+                 << "            <tt:MetadataSearch>true</tt:MetadataSearch>\r\n"
+                 << "          </tt:Search>\r\n"
+                 << "          <tt:Replay>\r\n"
+                 << "            <tt:XAddr>http://" << safeHost << ":" << port << "/onvif/replay_service</tt:XAddr>\r\n"
+                 << "          </tt:Replay>\r\n"
+                 << "          <tt:Media2>\r\n"
+                 << "            <tt:XAddr>http://" << safeHost << ":" << port << "/onvif/media2_service</tt:XAddr>\r\n"
+                 << "          </tt:Media2>\r\n"
+                 << "          <tt:Thermal>\r\n"
+                 << "            <tt:XAddr>http://" << safeHost << ":" << port
+                 << "/onvif/thermal_service</tt:XAddr>\r\n"
+                 << "          </tt:Thermal>\r\n"
+                 << "        </tt:Extension>\r\n";
+        }
+
+        body << "      </tds:Capabilities>\r\n"
              << "    </tds:GetCapabilitiesResponse>\r\n";
     } else if (isOp(opName, "GetServices")) {
         const bool includeCap = ServiceRegistry::parseIncludeCap(reqNode);

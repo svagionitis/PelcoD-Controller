@@ -3,8 +3,10 @@
 
 #include "AccessPolicy.h"
 
-#include <array>
 #include <cstddef>
+
+#include <array>
+#include <string_view>
 
 namespace Onvif {
 
@@ -19,16 +21,19 @@ namespace {
     using C = AccessClass;
 
     // ONVIF Core §5.9.4 / service specifications. Keep rows grouped by class for review.
-    constexpr std::array<OpRule, 45U> kDevice { {
+    constexpr std::array<OpRule, 50U> kDevice { {
         { "GetSystemDateAndTime", C::PreAuth },
         { "GetCapabilities", C::PreAuth },
         { "GetServices", C::PreAuth },
         { "GetWsdlUrl", C::PreAuth },
+        { "GetDiscoveryMode", C::PreAuth },
+        { "GetServiceCapabilities", C::PreAuth },
         { "GetHostname", C::PreAuth },
         { "GetEndpointReference", C::PreAuth },
         { "GetDeviceInformation", C::ReadSystem },
         { "GetScopes", C::ReadSystem },
         { "GetNetworkInterfaces", C::ReadSystem },
+        { "GetNetworkProtocols", C::ReadSystem },
         { "GetNetworkDefaultGateway", C::ReadSystem },
         { "GetDNS", C::ReadSystem },
         { "GetNTP", C::ReadSystem },
@@ -42,6 +47,8 @@ namespace {
         { "GetSystemSupportInformation", C::ReadSystemSecret },
         { "GetSystemBackup", C::ReadSystemSecret },
         { "SetSystemDateAndTime", C::WriteSystem },
+        { "SetDiscoveryMode", C::WriteSystem },
+        { "SetNetworkProtocols", C::WriteSystem },
         { "AddScopes", C::WriteSystem },
         { "RemoveScopes", C::WriteSystem },
         { "SetScopes", C::WriteSystem },
@@ -244,8 +251,7 @@ namespace {
 
     /// @brief True if every row names an operation (guards against over-sized std::array bounds,
     ///        whose value-initialised rows would otherwise default to AccessClass::PreAuth).
-    template <std::size_t N>
-    [[nodiscard]] constexpr bool allRowsFilled(const std::array<OpRule, N>& table) noexcept
+    template <std::size_t N> [[nodiscard]] constexpr bool allRowsFilled(const std::array<OpRule, N>& table) noexcept
     {
         for (const OpRule& rule : table) {
             if (rule.op.empty()) {

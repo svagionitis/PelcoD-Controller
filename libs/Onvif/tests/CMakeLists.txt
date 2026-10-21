@@ -33,3 +33,5 @@ add_onvif_test(TestOnvifConcurrency TestOnvifConcurrency.cpp)
 add_onvif_test(TestOnvifEventLifecycle TestOnvifEventLifecycle.cpp)
 add_onvif_test(TestOnvifPtzConformance TestOnvifPtzConformance.cpp)
 add_onvif_test(TestOnvifDiscoveryProfileS TestOnvifDiscoveryProfileS.cpp)
+add_onvif_test(TestOnvifDeviceProfileS TestOnvifDeviceProfileS.cpp)
+

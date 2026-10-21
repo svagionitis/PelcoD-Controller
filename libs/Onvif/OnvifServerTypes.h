@@ -94,6 +94,19 @@ struct PasswordPolicyConfig {
 /// @brief Operational discovery mode of the ONVIF device (Profile S / Core §8.1).
 enum class DiscoveryMode : std::uint8_t { Discoverable, NonDiscoverable };
 
+/// @struct NetworkProtocolConfig
+/// @brief Operational configuration for an ONVIF network protocol endpoint (ONVIF Core §8.2 / Profile S §7.2).
+struct NetworkProtocolConfig {
+    /// @brief Protocol name (e.g. "HTTP", "HTTPS", "RTSP").
+    std::string name {};
+
+    /// @brief Operational enable/disable state.
+    bool enabled { true };
+
+    /// @brief Port number (1-65535).
+    int port { 8080 };
+};
+
 /// @struct DiscoveryConfig
 /// @brief Operational and security configuration for WS-Discovery responder (review finding C7).
 struct DiscoveryConfig {
@@ -180,6 +193,10 @@ struct OnvifServerConfig {
     /// @brief Default network interfaces.
     std::vector<NetworkInterfaceConfig> defaultNetworkInterfaces { { "eth0", true, "eth0", "00:11:22:33:44:55", 1500,
         { true, true, "192.168.1.100", 24 } } };
+
+    /// @brief Default network protocol configurations (HTTP, HTTPS, RTSP).
+    std::vector<NetworkProtocolConfig> defaultNetworkProtocols { { "HTTP", true, 8080 }, { "HTTPS", false, 8443 },
+        { "RTSP", true, 8554 } };
 
     /// @brief Default network default gateway.
     std::string defaultGateway { "192.168.1.1" };
@@ -747,6 +764,36 @@ public:
     [[nodiscard]] virtual std::string handleGetEndpointReference()
     {
         return {};
+    }
+
+    /// @brief Retrieves supported network protocol settings.
+    /// @return Vector of NetworkProtocolConfig.
+    [[nodiscard]] virtual std::vector<NetworkProtocolConfig> handleGetNetworkProtocols()
+    {
+        return {};
+    }
+
+    /// @brief Updates network protocol settings.
+    /// @param[in] protocols Updated network protocols.
+    /// @return True on success.
+    virtual bool handleSetNetworkProtocols(const std::vector<NetworkProtocolConfig>& /*protocols*/)
+    {
+        return false;
+    }
+
+    /// @brief Retrieves device discovery mode.
+    /// @return Active DiscoveryMode.
+    [[nodiscard]] virtual DiscoveryMode handleGetDiscoveryMode()
+    {
+        return DiscoveryMode::Discoverable;
+    }
+
+    /// @brief Updates device discovery mode.
+    /// @param[in] mode Target DiscoveryMode.
+    /// @return True on success.
+    virtual bool handleSetDiscoveryMode(DiscoveryMode /*mode*/)
+    {
+        return false;
     }
 
     /// @brief Retrieves list of installed X.509 certificates.
