@@ -35,7 +35,64 @@ if(NOT LIVE555_FOUND)
     set(LIVE555_ARCHIVE_FILE "${LIVE555_DOWNLOAD_DIR}/live555-latest.tar.gz")
     set(LIVE555_SOURCE_DIR "${LIVE555_DOWNLOAD_DIR}/src")
 
-    if(NOT EXISTS "${LIVE555_SOURCE_DIR}/live/liveMedia" AND NOT EXISTS "${LIVE555_SOURCE_DIR}/liveMedia")
+    # 1. Search for existing extracted Live555 sources across candidate locations
+    set(LIVE555_CANDIDATE_ROOTS
+        "${LIVE555_SOURCE_DIR}/live"
+        "${LIVE555_SOURCE_DIR}"
+        "${CMAKE_BINARY_DIR}/live"
+        "${CMAKE_SOURCE_DIR}/build/live"
+        "${CMAKE_SOURCE_DIR}/.cache/live555/src/live"
+        "${CMAKE_SOURCE_DIR}/.cache/live555/src"
+        "${CMAKE_SOURCE_DIR}/.cache/live555/live"
+        "${CMAKE_SOURCE_DIR}/build/_deps/live555/src/live"
+        "${CMAKE_SOURCE_DIR}/build/_deps/live555/src"
+        "${CMAKE_SOURCE_DIR}/build_clang/_deps/live555/src/live"
+        "${CMAKE_SOURCE_DIR}/build_clang/_deps/live555/src"
+    )
+    foreach(_cand ${LIVE555_CANDIDATE_ROOTS})
+        if(EXISTS "${_cand}/liveMedia" AND EXISTS "${_cand}/BasicUsageEnvironment")
+            set(LIVE555_ROOT_DIR "${_cand}")
+            break()
+        endif()
+    endforeach()
+
+    # 2. If not already extracted, check for cached tarball before attempting internet download
+    if(NOT LIVE555_ROOT_DIR)
+        set(LIVE555_CANDIDATE_TARBALLS
+            "${CMAKE_SOURCE_DIR}/.cache/live555/live555-latest.tar.gz"
+            "${CMAKE_SOURCE_DIR}/build_clang/_deps/live555/live555-latest.tar.gz"
+            "${CMAKE_SOURCE_DIR}/build/_deps/live555/live555-latest.tar.gz"
+            "${LIVE555_ARCHIVE_FILE}"
+        )
+        set(VALID_TARBALL "")
+        foreach(_tarball ${LIVE555_CANDIDATE_TARBALLS})
+            if(EXISTS "${_tarball}")
+                file(SIZE "${_tarball}" _t_size)
+                if(_t_size GREATER 1000)
+                    set(VALID_TARBALL "${_tarball}")
+                    break()
+                endif()
+            endif()
+        endforeach()
+
+        if(VALID_TARBALL)
+            message(STATUS "PelcoDVideo: Using cached Live555 tarball: ${VALID_TARBALL}")
+            file(MAKE_DIRECTORY "${LIVE555_SOURCE_DIR}")
+            execute_process(
+                COMMAND ${CMAKE_COMMAND} -E tar xzf "${VALID_TARBALL}"
+                WORKING_DIRECTORY "${LIVE555_SOURCE_DIR}"
+                RESULT_VARIABLE LIVE555_EXTRACT_RESULT
+            )
+            if(EXISTS "${LIVE555_SOURCE_DIR}/live/liveMedia")
+                set(LIVE555_ROOT_DIR "${LIVE555_SOURCE_DIR}/live")
+            elseif(EXISTS "${LIVE555_SOURCE_DIR}/liveMedia")
+                set(LIVE555_ROOT_DIR "${LIVE555_SOURCE_DIR}")
+            endif()
+        endif()
+    endif()
+
+    # 3. If still not found, attempt download
+    if(NOT LIVE555_ROOT_DIR)
         message(STATUS "PelcoDVideo: Live555 not found on system. Attempting download from ${LIVE555_TARBALL_URL}...")
         file(MAKE_DIRECTORY "${LIVE555_DOWNLOAD_DIR}")
         
@@ -51,25 +108,30 @@ if(NOT LIVE555_FOUND)
         list(GET LIVE555_DL_STATUS 1 LIVE555_DL_MSG)
 
         if(LIVE555_DL_CODE EQUAL 0)
-            message(STATUS "PelcoDVideo: Live555 tarball downloaded successfully. Extracting...")
-            file(MAKE_DIRECTORY "${LIVE555_SOURCE_DIR}")
-            execute_process(
-                COMMAND ${CMAKE_COMMAND} -E tar xzf "${LIVE555_ARCHIVE_FILE}"
-                WORKING_DIRECTORY "${LIVE555_SOURCE_DIR}"
-                RESULT_VARIABLE LIVE555_EXTRACT_RESULT
-            )
-            if(NOT LIVE555_EXTRACT_RESULT EQUAL 0)
-                message(WARNING "PelcoDVideo: Failed to extract Live555 tarball.")
+            file(SIZE "${LIVE555_ARCHIVE_FILE}" _dl_size)
+            if(_dl_size GREATER 1000)
+                message(STATUS "PelcoDVideo: Live555 tarball downloaded successfully. Extracting...")
+                file(MAKE_DIRECTORY "${LIVE555_SOURCE_DIR}")
+                execute_process(
+                    COMMAND ${CMAKE_COMMAND} -E tar xzf "${LIVE555_ARCHIVE_FILE}"
+                    WORKING_DIRECTORY "${LIVE555_SOURCE_DIR}"
+                    RESULT_VARIABLE LIVE555_EXTRACT_RESULT
+                )
+                if(EXISTS "${LIVE555_SOURCE_DIR}/live/liveMedia")
+                    set(LIVE555_ROOT_DIR "${LIVE555_SOURCE_DIR}/live")
+                elseif(EXISTS "${LIVE555_SOURCE_DIR}/liveMedia")
+                    set(LIVE555_ROOT_DIR "${LIVE555_SOURCE_DIR}")
+                endif()
+            else()
+                file(REMOVE "${LIVE555_ARCHIVE_FILE}")
+                message(WARNING "PelcoDVideo: Downloaded Live555 tarball is corrupted or empty.")
             endif()
         else()
+            if(EXISTS "${LIVE555_ARCHIVE_FILE}")
+                file(REMOVE "${LIVE555_ARCHIVE_FILE}")
+            endif()
             message(WARNING "PelcoDVideo: Could not download Live555 (${LIVE555_DL_MSG}). Offline or download unavailable.")
         endif()
-    endif()
-
-    if(EXISTS "${LIVE555_SOURCE_DIR}/live/liveMedia")
-        set(LIVE555_ROOT_DIR "${LIVE555_SOURCE_DIR}/live")
-    elseif(EXISTS "${LIVE555_SOURCE_DIR}/liveMedia")
-        set(LIVE555_ROOT_DIR "${LIVE555_SOURCE_DIR}")
     endif()
 
     if(LIVE555_ROOT_DIR)

@@ -219,15 +219,18 @@ char const* Live555H264LiveSubsession::getAuxSDPLine(RTPSink* rtpSink, FramedSou
                 reinterpret_cast<const char*>(m_pps.data()), static_cast<unsigned>(m_pps.size())) };
 
             if ((spsBase64 != nullptr) && (ppsBase64 != nullptr)) {
-                constexpr const char* fmtpFmt { "a=fmtp:96 packetization-mode=1"
-                                                ";profile-level-id=%06X"
-                                                ";sprop-parameter-sets=%s,%s\r\n" };
+                constexpr char fmtpFmt[] { "a=fmtp:96 packetization-mode=1"
+                                           ";profile-level-id=%06X"
+                                           ";sprop-parameter-sets=%s,%s\r\n" };
 
-                const std::size_t fmtpSize { std::strlen(fmtpFmt) + 16U + std::strlen(spsBase64)
-                    + std::strlen(ppsBase64) };
+                const std::size_t fmtpSize { sizeof(fmtpFmt) + 16U + std::strlen(spsBase64) + std::strlen(ppsBase64) };
 
                 m_auxSDPLine = new char[fmtpSize];
-                std::snprintf(m_auxSDPLine, fmtpSize, fmtpFmt, profileLevelId, spsBase64, ppsBase64);
+                std::snprintf(m_auxSDPLine, fmtpSize,
+                    "a=fmtp:96 packetization-mode=1"
+                    ";profile-level-id=%06X"
+                    ";sprop-parameter-sets=%s,%s\r\n",
+                    profileLevelId, spsBase64, ppsBase64);
             }
 
             delete[] spsBase64;

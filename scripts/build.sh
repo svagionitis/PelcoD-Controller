@@ -103,6 +103,10 @@ Options:
         Path to vcpkg CMake toolchain file (vcpkg.cmake). Auto-detected if VCPKG_ROOT is set or present.
         (Also accepts -VcpkgToolchain <Path>)
 
+    --compiler <Compiler>
+        Compiler family or CXX executable: "gcc" (default), "clang", or custom path.
+        (Also accepts -Compiler <Compiler>)
+
     -j, --parallel-jobs <N>
         Number of parallel compilation processes. Defaults to logical CPU count.
         (Also accepts -ParallelJobs <N>)
@@ -141,6 +145,7 @@ TEST_FILTER=""
 QT_DIR=""
 VCPKG_TOOLCHAIN=""
 PARALLEL_JOBS=0
+COMPILER=""
 
 # ------------------------------------------------------------------------------
 # Argument Parsing (supports both GNU --option and PowerShell -Option formats)
@@ -245,6 +250,18 @@ while [ $# -gt 0 ]; do
             PARALLEL_JOBS="${1#*=}"
             shift
             ;;
+        --compiler|-Compiler)
+            if [ -z "${2:-}" ]; then
+                log_error "Option '$1' requires an argument."
+                exit 1
+            fi
+            COMPILER="$2"
+            shift 2
+            ;;
+        --compiler=*|-Compiler=*)
+            COMPILER="${1#*=}"
+            shift
+            ;;
         -h|--help|-Help)
             show_help
             exit 0
@@ -300,6 +317,9 @@ log_info " Workspace     : $WORKSPACE_ROOT"
 log_info " Build Dir     : $BUILD_FULL_PATH"
 if [ -n "$TARGET" ]; then
     log_info " Target        : $TARGET"
+fi
+if [ -n "$COMPILER" ]; then
+    log_info " Compiler      : $COMPILER"
 fi
 log_header "================================================================="
 
@@ -462,6 +482,23 @@ if [ "$NEEDS_CONFIGURE" = false ] && [ -f "$CACHE_FILE" ]; then
     fi
 fi
 
+# Validate compiler match in existing cache
+if [ "$NEEDS_CONFIGURE" = false ] && [ -f "$CACHE_FILE" ] && [ -n "$COMPILER" ]; then
+    cached_cxx=$(grep -E "^CMAKE_CXX_COMPILER:FILEPATH=" "$CACHE_FILE" 2>/dev/null | cut -d'=' -f2 || true)
+    compiler_lower=$(echo "$COMPILER" | tr '[:upper:]' '[:lower:]')
+    if [ "$compiler_lower" = "clang" ] || [ "$compiler_lower" = "clang++" ]; then
+        if [[ "$cached_cxx" != *"clang"* ]]; then
+            log_warn "[INFO] Cached compiler does not match requested ($COMPILER). Forcing reconfigure..."
+            NEEDS_CONFIGURE=true
+        fi
+    elif [ "$compiler_lower" = "gcc" ] || [ "$compiler_lower" = "g++" ]; then
+        if [[ "$cached_cxx" != *"g++"* ]] && [[ "$cached_cxx" != *"c++"* ]]; then
+            log_warn "[INFO] Cached compiler does not match requested ($COMPILER). Forcing reconfigure..."
+            NEEDS_CONFIGURE=true
+        fi
+    fi
+fi
+
 if [ "$NEEDS_CONFIGURE" = true ]; then
     log_warn "\n[2/4] Configuring project with CMake..."
     mkdir -p "$BUILD_FULL_PATH"
@@ -471,6 +508,20 @@ if [ "$NEEDS_CONFIGURE" = true ]; then
         "-S" "$WORKSPACE_ROOT"
         "-DCMAKE_BUILD_TYPE=$CONFIG"
     )
+
+    if [ -n "$COMPILER" ]; then
+        case "$(echo "$COMPILER" | tr '[:upper:]' '[:lower:]')" in
+            clang|clang++|llvm)
+                CMAKE_ARGS+=("-DCMAKE_C_COMPILER=clang" "-DCMAKE_CXX_COMPILER=clang++")
+                ;;
+            gcc|g++|gnu)
+                CMAKE_ARGS+=("-DCMAKE_C_COMPILER=gcc" "-DCMAKE_CXX_COMPILER=g++")
+                ;;
+            *)
+                CMAKE_ARGS+=("-DCMAKE_CXX_COMPILER=$COMPILER")
+                ;;
+        esac
+    fi
 
     if [ -n "$VCPKG_TOOLCHAIN" ]; then
         CMAKE_ARGS+=("-DCMAKE_TOOLCHAIN_FILE=$VCPKG_TOOLCHAIN")

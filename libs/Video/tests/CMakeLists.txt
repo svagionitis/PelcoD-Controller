@@ -42,16 +42,6 @@ target_link_libraries(TestLatencyTracker PRIVATE
 )
 pelcod_register_gtest(TestLatencyTracker)
 
-add_executable(TestLive555Decoder TestLive555Decoder.cpp)
-target_include_directories(TestLive555Decoder PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/..
-)
-target_link_libraries(TestLive555Decoder PRIVATE
-    Video
-    GTest::gtest_main
-)
-pelcod_register_gtest(TestLive555Decoder)
-
 add_executable(TestMpegTsH264Demuxer TestMpegTsH264Demuxer.cpp)
 target_include_directories(TestMpegTsH264Demuxer PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/..
@@ -73,6 +63,16 @@ target_link_libraries(TestLive555FrameQueue PRIVATE
 pelcod_register_gtest(TestLive555FrameQueue)
 
 if(PELCOD_ENABLE_LIVE555 AND LIVE555_FOUND AND OPENH264_FOUND)
+    add_executable(TestLive555Decoder TestLive555Decoder.cpp)
+    target_include_directories(TestLive555Decoder PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/..
+    )
+    target_link_libraries(TestLive555Decoder PRIVATE
+        Video
+        GTest::gtest_main
+    )
+    pelcod_register_gtest(TestLive555Decoder)
+
     add_executable(TestLive555Sources TestLive555Sources.cpp)
     target_include_directories(TestLive555Sources PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/..
