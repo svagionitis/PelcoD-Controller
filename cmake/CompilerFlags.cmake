@@ -7,6 +7,7 @@ option(ENABLE_ASAN "Enable AddressSanitizer (ASan)" OFF)
 option(ENABLE_UBSAN "Enable UndefinedBehaviorSanitizer (UBSan)" OFF)
 option(ENABLE_TSAN "Enable ThreadSanitizer (TSan)" OFF)
 option(ENABLE_HARDENING "Enable security hardening flags" ON)
+option(ENABLE_SPECTRE_MITIGATION "Enable MSVC Spectre mitigation (/Qspectre, requires VS Spectre-mitigated libs)" OFF)
 
 function(apply_compiler_flags TARGET_NAME)
     set_target_properties(${TARGET_NAME} PROPERTIES POSITION_INDEPENDENT_CODE ON)
@@ -69,8 +70,12 @@ function(apply_compiler_flags TARGET_NAME)
                 /guard:cf           # Control Flow Guard (compiler-level indirect call target validation)
                 /guard:ehcont       # Exception handling continuation guard (ROP protection)
                 /sdl                # Microsoft Security Development Lifecycle checks (strict security checks)
-                /Qspectre           # Speculative execution side-channel mitigation
             )
+            if(ENABLE_SPECTRE_MITIGATION)
+                target_compile_options(${TARGET_NAME} PRIVATE
+                    /Qspectre       # Speculative execution side-channel mitigation (requires VS Spectre-mitigated libs)
+                )
+            endif()
             target_compile_definitions(${TARGET_NAME} PRIVATE
                 $<$<OR:$<CONFIG:Release>,$<CONFIG:RelWithDebInfo>>:_ITERATOR_DEBUG_LEVEL=1> # Lightweight checked iterators in Release
             )

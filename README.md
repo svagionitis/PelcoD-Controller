@@ -48,6 +48,7 @@ The project uses a modular CMake architecture with dedicated `CMakeLists.txt` fi
 | `PELCOD_ENABLE_ONVIF` | `ON` | Compiles `Onvif` library, Profile S/T client, and ONVIF tabs/CLI tools |
 | `WARNINGS_AS_ERRORS` | `ON` | Treats compiler warnings as errors (`-Werror` / `/WX`) |
 | `ENABLE_HARDENING` | `ON` | Enables security hardening flags (stack protection, control flow guard, PIE, ASLR, RELRO) |
+| `ENABLE_SPECTRE_MITIGATION` | `OFF` | Enables MSVC Spectre mitigations (`/Qspectre`). Requires optional VS Spectre libs component |
 | `ENABLE_ASAN` | `OFF` | Enables AddressSanitizer (ASan) for memory leak & boundary detection |
 | `ENABLE_UBSAN` | `OFF` | Enables UndefinedBehaviorSanitizer (UBSan) |
 | `ENABLE_TSAN` | `OFF` | Enables ThreadSanitizer (TSan) for race condition analysis |
