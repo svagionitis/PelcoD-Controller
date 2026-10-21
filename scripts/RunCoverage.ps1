@@ -60,7 +60,11 @@ Write-Host "=================================================================" -
 # 3. Locate All Test Executables
 $searchPaths = @(
     "$workspaceRoot\$BuildDir\libs\*\tests\Debug\Test$Pattern.exe",
-    "$workspaceRoot\$BuildDir\tests\Debug\Test$Pattern.exe"
+    "$workspaceRoot\$BuildDir\libs\*\tests\*\Debug\Test$Pattern.exe",
+    "$workspaceRoot\$BuildDir\tests\Debug\Test$Pattern.exe",
+    "$workspaceRoot\$BuildDir\tests\*\Debug\Test$Pattern.exe",
+    "$workspaceRoot\$BuildDir\app-*\tests\*\Debug\Test$Pattern.exe",
+    "$workspaceRoot\$BuildDir\app-*\Debug\Test$Pattern.exe"
 )
 
 $testExes = @()

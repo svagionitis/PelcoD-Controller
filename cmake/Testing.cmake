@@ -65,24 +65,41 @@ if(WIN32)
     endif()
 
     set(_PELCOD_VCPKG_BIN_DIRS "")
+    set(_PELCOD_VCPKG_DEBUG_BIN_DIRS "")
+    set(_PELCOD_VCPKG_RELEASE_BIN_DIRS "")
     if(DEFINED VCPKG_INSTALLED_DIR AND DEFINED VCPKG_TARGET_TRIPLET)
+        list(APPEND _PELCOD_VCPKG_DEBUG_BIN_DIRS "${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/debug/bin")
+        list(APPEND _PELCOD_VCPKG_RELEASE_BIN_DIRS "${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/bin")
         list(APPEND _PELCOD_VCPKG_BIN_DIRS
             "${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/debug/bin"
             "${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/bin"
         )
     endif()
-    list(APPEND _PELCOD_VCPKG_BIN_DIRS
+    list(APPEND _PELCOD_VCPKG_DEBUG_BIN_DIRS
         "${CMAKE_SOURCE_DIR}/vcpkg_installed/x64-windows/debug/bin"
-        "${CMAKE_SOURCE_DIR}/vcpkg_installed/x64-windows/bin"
         "${CMAKE_BINARY_DIR}/vcpkg_installed/x64-windows/debug/bin"
-        "${CMAKE_BINARY_DIR}/vcpkg_installed/x64-windows/bin"
         "C:/vcpkg/installed/x64-windows/debug/bin"
+    )
+    list(APPEND _PELCOD_VCPKG_RELEASE_BIN_DIRS
+        "${CMAKE_SOURCE_DIR}/vcpkg_installed/x64-windows/bin"
+        "${CMAKE_BINARY_DIR}/vcpkg_installed/x64-windows/bin"
         "C:/vcpkg/installed/x64-windows/bin"
     )
+    list(APPEND _PELCOD_VCPKG_BIN_DIRS
+        ${_PELCOD_VCPKG_DEBUG_BIN_DIRS}
+        ${_PELCOD_VCPKG_RELEASE_BIN_DIRS}
+    )
+    list(REMOVE_DUPLICATES _PELCOD_VCPKG_DEBUG_BIN_DIRS)
+    list(REMOVE_DUPLICATES _PELCOD_VCPKG_RELEASE_BIN_DIRS)
     list(REMOVE_DUPLICATES _PELCOD_VCPKG_BIN_DIRS)
 
     find_file(_GFLAGS_DEBUG_DLL NAMES gflags_debug.dll gflags.dll
-        PATHS ${_PELCOD_VCPKG_BIN_DIRS}
+        PATHS ${_PELCOD_VCPKG_DEBUG_BIN_DIRS}
+        NO_DEFAULT_PATH
+    )
+    find_file(_GFLAGS_RELEASE_DLL NAMES gflags.dll
+        PATHS ${_PELCOD_VCPKG_RELEASE_BIN_DIRS}
+        NO_DEFAULT_PATH
     )
 endif()
 
@@ -94,6 +111,11 @@ function(pelcod_register_gtest target_name)
         target_link_libraries(${target_name} PRIVATE GTest::gmock_main)
     endif()
     apply_compiler_flags(${target_name})
+
+    # Isolate test binary directory to eliminate parallel MSBuild DLL copy collisions (ERROR_SHARING_VIOLATION / exit code 32)
+    set_target_properties(${target_name} PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/${target_name}"
+    )
 
     if(WIN32)
         if(TARGET Qt6::Core)
@@ -160,10 +182,21 @@ function(pelcod_register_gtest target_name)
                 COMMENT "Copying gtest DLL for ${target_name}"
             )
         endif()
-        if(_GFLAGS_DEBUG_DLL)
+        if(_GFLAGS_DEBUG_DLL OR _GFLAGS_RELEASE_DLL)
+            if(NOT _GFLAGS_RELEASE_DLL)
+                set(_GFLAGS_RELEASE_FINAL "${_GFLAGS_DEBUG_DLL}")
+            else()
+                set(_GFLAGS_RELEASE_FINAL "${_GFLAGS_RELEASE_DLL}")
+            endif()
+            if(NOT _GFLAGS_DEBUG_DLL)
+                set(_GFLAGS_DEBUG_FINAL "${_GFLAGS_RELEASE_DLL}")
+            else()
+                set(_GFLAGS_DEBUG_FINAL "${_GFLAGS_DEBUG_DLL}")
+            endif()
+
             add_custom_command(TARGET ${target_name} POST_BUILD
                 COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                    "${_GFLAGS_DEBUG_DLL}"
+                    "$<IF:$<CONFIG:Debug>,${_GFLAGS_DEBUG_FINAL},${_GFLAGS_RELEASE_FINAL}>"
                     "$<TARGET_FILE_DIR:${target_name}>"
                 COMMENT "Copying gflags DLL for ${target_name}"
             )
