@@ -7,18 +7,22 @@
 
 #include <algorithm>
 #include <chrono>
+#include <condition_variable>
 #include <fstream>
 #include <memory>
+#include <mutex>
 #include <optional>
 #include <sstream>
 #include <stdexcept>
 #include <string>
+#include <thread>
 #include <utility>
 #include <vector>
 
-#include <PelcoDCore/PatrolController.h>
 #include "GeodesyUtils.h"
 #include "OnvifSecurity.h"
+#include "XmlUtils.h"
+#include <PelcoDCore/PatrolController.h>
 
 namespace Onvif {
 
@@ -85,11 +89,65 @@ PelcoDPtzAdapter::PelcoDPtzAdapter(std::shared_ptr<PelcoD::PelcoDDevice> device)
 
     m_videoSourceModes.push_back(mode1);
     m_videoSourceModes.push_back(mode2);
+
+    m_timerRunning = true;
+    m_timerThread = std::thread(&PelcoDPtzAdapter::timerLoop, this);
 }
 
 PelcoDPtzAdapter::~PelcoDPtzAdapter()
 {
+    cancelAutoStop();
+    m_timerRunning = false;
+    m_timerCv.notify_all();
+    if (m_timerThread.joinable()) {
+        m_timerThread.join();
+    }
     m_statusConn.disconnect();
+}
+
+void PelcoDPtzAdapter::armAutoStop(std::chrono::milliseconds timeout)
+{
+    std::scoped_lock lock(m_timerMutex);
+    m_autoStopDeadline = std::chrono::steady_clock::now() + timeout;
+    m_timerCv.notify_all();
+}
+
+void PelcoDPtzAdapter::cancelAutoStop()
+{
+    std::scoped_lock lock(m_timerMutex);
+    m_autoStopDeadline = std::nullopt;
+    m_timerCv.notify_all();
+}
+
+void PelcoDPtzAdapter::timerLoop()
+{
+    std::unique_lock lock(m_timerMutex);
+    while (m_timerRunning.load()) {
+        if (!m_autoStopDeadline.has_value()) {
+            m_timerCv.wait(lock, [this] { return !m_timerRunning.load() || m_autoStopDeadline.has_value(); });
+            continue;
+        }
+
+        const auto now = std::chrono::steady_clock::now();
+        if (now >= *m_autoStopDeadline) {
+            m_autoStopDeadline = std::nullopt;
+            lock.unlock();
+
+            if (m_device) {
+                static_cast<void>(m_device->stopMotion());
+                static_cast<void>(m_device->zoomStop());
+            }
+            m_isMoving = false;
+
+            lock.lock();
+        } else {
+            const auto remaining = *m_autoStopDeadline - now;
+            m_timerCv.wait_for(lock, remaining, [this] {
+                return !m_timerRunning.load() || !m_autoStopDeadline.has_value()
+                    || (std::chrono::steady_clock::now() >= *m_autoStopDeadline);
+            });
+        }
+    }
 }
 
 void PelcoDPtzAdapter::setEventPublisher(EventCallback publisher)
@@ -98,10 +156,22 @@ void PelcoDPtzAdapter::setEventPublisher(EventCallback publisher)
     m_eventPublisher = std::move(publisher);
 }
 
-void PelcoDPtzAdapter::handleContinuousMove(float panSpeed, float tiltSpeed, float zoomSpeed)
+void PelcoDPtzAdapter::handleContinuousMove(
+    float panSpeed, float tiltSpeed, float zoomSpeed, std::optional<std::chrono::milliseconds> timeout)
 {
     if (!m_device) {
         return;
+    }
+
+    // CERT FLP34-C / H9: Intercept NaN and Inf before clamp/cast
+    if (!std::isfinite(panSpeed) || !std::isfinite(tiltSpeed) || !std::isfinite(zoomSpeed)) {
+        return;
+    }
+
+    if (timeout.has_value() && *timeout > std::chrono::milliseconds::zero()) {
+        armAutoStop(*timeout);
+    } else {
+        cancelAutoStop();
     }
 
     const bool panIdle = std::abs(panSpeed) < 0.02f;
@@ -145,25 +215,59 @@ void PelcoDPtzAdapter::handleContinuousMove(float panSpeed, float tiltSpeed, flo
     }
 }
 
-void PelcoDPtzAdapter::handleAbsoluteMove(float pan, float tilt, float zoom)
+void PelcoDPtzAdapter::handleAbsoluteMove(
+    std::optional<float> pan, std::optional<float> tilt, std::optional<float> zoom, const std::string& spaceUri)
 {
     if (!m_device) {
         return;
     }
 
-    // Convert degrees to centidegrees (1/100 of a degree)
-    if (pan >= 0.0f) {
-        const auto cDeg = static_cast<std::uint16_t>(std::clamp(pan * 100.0f, 0.0f, 35999.0f));
+    const bool isSpherical = (spaceUri.find("Spherical") != std::string::npos);
+
+    if (pan.has_value()) {
+        if (!std::isfinite(*pan)) {
+            return;
+        }
+        float deg = 0.0f;
+        if (isSpherical) {
+            deg = std::fmod(*pan + 360.0f, 360.0f);
+            if (deg < 0.0f) {
+                deg += 360.0f;
+            }
+        } else {
+            // PositionGenericSpace: X in [-1.0, 1.0] -> [0 deg, 360 deg)
+            const float clampedNorm = std::clamp(*pan, -1.0f, 1.0f);
+            deg = (clampedNorm + 1.0f) * 180.0f;
+            if (deg >= 360.0f) {
+                deg = 359.99f;
+            }
+        }
+        const auto cDeg = static_cast<std::uint16_t>(std::clamp(deg * 100.0f, 0.0f, 35999.0f));
         static_cast<void>(m_device->setPanAngle(cDeg));
     }
 
-    if (tilt >= 0.0f) {
-        const auto cDeg = static_cast<std::uint16_t>(std::clamp(tilt * 100.0f, 0.0f, 35999.0f));
+    if (tilt.has_value()) {
+        if (!std::isfinite(*tilt)) {
+            return;
+        }
+        float deg = 0.0f;
+        if (isSpherical) {
+            deg = std::clamp(*tilt, 0.0f, 90.0f);
+        } else {
+            // PositionGenericSpace: Y in [-1.0, 1.0] -> [0 deg, 90 deg]
+            const float clampedNorm = std::clamp(*tilt, -1.0f, 1.0f);
+            deg = (clampedNorm + 1.0f) * 45.0f;
+        }
+        const auto cDeg = static_cast<std::uint16_t>(std::clamp(deg * 100.0f, 0.0f, 9000.0f));
         static_cast<void>(m_device->setTiltAngle(cDeg));
     }
 
-    if (zoom >= 0.0f) {
-        const auto pos = static_cast<std::uint16_t>(std::clamp(zoom * 65535.0f, 0.0f, 65535.0f));
+    if (zoom.has_value()) {
+        if (!std::isfinite(*zoom)) {
+            return;
+        }
+        const float clampedNorm = std::clamp(*zoom, 0.0f, 1.0f);
+        const auto pos = static_cast<std::uint16_t>(clampedNorm * 65535.0f);
         static_cast<void>(m_device->setZoomPosition(pos));
     }
 }
@@ -230,6 +334,7 @@ bool PelcoDPtzAdapter::handleGeoMove(const std::string& /*profileToken*/, const 
 
 void PelcoDPtzAdapter::handleStop(bool stopPanTilt, bool stopZoom)
 {
+    cancelAutoStop();
     if (!m_device) {
         return;
     }
@@ -457,7 +562,8 @@ bool PelcoDPtzAdapter::handleOperatePresetTour(const std::string& tourToken, Pre
                     step.presetId = 1U;
                 }
                 step.dwellTimeSeconds = spot.stayTimeSeconds;
-                step.speed = static_cast<std::uint8_t>(std::clamp(spot.speed * 63.0f, 0.0f, 63.0f));
+                step.speed
+                    = static_cast<std::uint8_t>(std::clamp(Xml::safeFloat(spot.speed, 1.0f) * 63.0f, 0.0f, 63.0f));
                 steps.push_back(step);
             }
             if (!steps.empty()) {
@@ -496,17 +602,28 @@ bool PelcoDPtzAdapter::handleRemovePresetTour(const std::string& tourToken)
     return removed;
 }
 
-bool PelcoDPtzAdapter::handleRelativeMove(float pan, float tilt, float zoom, float /*speed*/)
+bool PelcoDPtzAdapter::handleRelativeMove(std::optional<float> pan, std::optional<float> tilt,
+    std::optional<float> zoom, float speed, const std::string& spaceUri)
 {
+    static_cast<void>(speed);
     if (!m_device) {
         return false;
     }
 
     const auto currentStatus = m_device->getStatus();
+    const bool isSpherical = (spaceUri.find("Spherical") != std::string::npos);
 
-    if (std::abs(pan) > 0.0001f) {
+    if (pan.has_value()) {
+        if (!std::isfinite(*pan)) {
+            return false;
+        }
+        float deltaDeg = *pan;
+        if (!isSpherical) {
+            // TranslationGenericSpace: X in [-1.0, 1.0] where 1.0 = 180 deg
+            deltaDeg = std::clamp(*pan, -1.0f, 1.0f) * 180.0f;
+        }
         float currentPan = static_cast<float>(currentStatus.panDegrees());
-        float newPan = std::fmod(currentPan + pan + 360.0f, 360.0f);
+        float newPan = std::fmod(currentPan + deltaDeg + 360.0f, 360.0f);
         if (newPan < 0.0f) {
             newPan += 360.0f;
         }
@@ -514,16 +631,31 @@ bool PelcoDPtzAdapter::handleRelativeMove(float pan, float tilt, float zoom, flo
         static_cast<void>(m_device->setPanAngle(cDeg));
     }
 
-    if (std::abs(tilt) > 0.0001f) {
+    if (tilt.has_value()) {
+        if (!std::isfinite(*tilt)) {
+            return false;
+        }
+        float deltaDeg = *tilt;
+        if (!isSpherical) {
+            // TranslationGenericSpace: Y in [-1.0, 1.0] where 1.0 = 45 deg
+            deltaDeg = std::clamp(*tilt, -1.0f, 1.0f) * 45.0f;
+        }
         float currentTilt = static_cast<float>(currentStatus.tiltDegrees());
-        float newTilt = std::clamp(currentTilt + tilt, 0.0f, 90.0f);
-        const auto cDeg = static_cast<std::uint16_t>(std::clamp(newTilt * 100.0f, 0.0f, 35999.0f));
+        float newTilt = std::clamp(currentTilt + deltaDeg, 0.0f, 90.0f);
+        const auto cDeg = static_cast<std::uint16_t>(std::clamp(newTilt * 100.0f, 0.0f, 9000.0f));
         static_cast<void>(m_device->setTiltAngle(cDeg));
     }
 
-    if (std::abs(zoom) > 0.0001f) {
+    if (zoom.has_value()) {
+        if (!std::isfinite(*zoom)) {
+            return false;
+        }
+        float deltaZoom = *zoom;
+        if (!isSpherical) {
+            deltaZoom = std::clamp(*zoom, -1.0f, 1.0f);
+        }
         float currentZoomNorm = static_cast<float>(currentStatus.zoomPosition) / 65535.0f;
-        float newZoom = std::clamp(currentZoomNorm + zoom, 0.0f, 1.0f);
+        float newZoom = std::clamp(currentZoomNorm + deltaZoom, 0.0f, 1.0f);
         const auto pos = static_cast<std::uint16_t>(newZoom * 65535.0f);
         static_cast<void>(m_device->setZoomPosition(pos));
     }

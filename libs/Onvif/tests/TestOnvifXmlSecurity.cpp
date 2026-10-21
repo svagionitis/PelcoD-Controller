@@ -11,6 +11,7 @@
 
 #include <chrono>
 #include <memory>
+#include <optional>
 #include <string>
 #include <thread>
 #include <vector>
@@ -22,10 +23,12 @@ namespace {
 /// @brief Mock PTZ handler for security tests.
 class SecurityMockPtzHandler final : public IPtzHandler {
 public:
-    void handleContinuousMove(float /*pan*/, float /*tilt*/, float /*zoom*/) override
+    void handleContinuousMove(float /*pan*/, float /*tilt*/, float /*zoom*/,
+        std::optional<std::chrono::milliseconds> /*timeout*/ = std::nullopt) override
     {
     }
-    void handleAbsoluteMove(float /*pan*/, float /*tilt*/, float /*zoom*/) override
+    void handleAbsoluteMove(std::optional<float> /*pan*/, std::optional<float> /*tilt*/, std::optional<float> /*zoom*/,
+        const std::string& /*spaceUri*/ = "") override
     {
     }
     void handleStop(bool /*stopPanTilt*/, bool /*stopZoom*/) override

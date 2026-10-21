@@ -2,6 +2,10 @@
 /// @brief Implementation of SOAP 1.2 fault builders.
 
 #include "SoapFault.h"
+
+#include <string>
+#include <string_view>
+
 #include "XmlUtils.h"
 
 namespace Onvif {
@@ -82,6 +86,18 @@ std::string SoapFault::deviceUnprovisioned()
 std::string SoapFault::passwordTooWeak(std::string_view reason)
 {
     return sender("ter:InvalidArgVal", "ter:PasswordTooWeak", reason);
+}
+
+std::string SoapFault::noProfile(std::string_view reason)
+{
+    const std::string_view r { reason.empty() ? "The requested profile token does not exist." : reason };
+    return sender("ter:InvalidArgVal", "ter:NoProfile", r);
+}
+
+std::string SoapFault::invalidArgVal(std::string_view reason)
+{
+    const std::string_view r { reason.empty() ? "Invalid argument value" : reason };
+    return sender("ter:InvalidArgVal", "", r);
 }
 
 } // namespace Onvif

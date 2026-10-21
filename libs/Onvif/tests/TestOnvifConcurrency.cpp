@@ -15,6 +15,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <string>
 #include <thread>
 #include <vector>
@@ -47,12 +48,14 @@ std::atomic<int> g_concurrencyPort { 19550 };
 /// @brief Mock PTZ handler recording command counts atomically.
 class MockPtzHandler : public Onvif::IPtzHandler {
 public:
-    void handleContinuousMove(float /*panSpeed*/, float /*tiltSpeed*/, float /*zoomSpeed*/) override
+    void handleContinuousMove(float /*panSpeed*/, float /*tiltSpeed*/, float /*zoomSpeed*/,
+        std::optional<std::chrono::milliseconds> /*timeout*/ = std::nullopt) override
     {
         moveCount.fetch_add(1, std::memory_order_relaxed);
     }
 
-    void handleAbsoluteMove(float /*pan*/, float /*tilt*/, float /*zoom*/) override
+    void handleAbsoluteMove(std::optional<float> /*pan*/, std::optional<float> /*tilt*/, std::optional<float> /*zoom*/,
+        const std::string& /*spaceUri*/ = "") override
     {
         moveCount.fetch_add(1, std::memory_order_relaxed);
     }

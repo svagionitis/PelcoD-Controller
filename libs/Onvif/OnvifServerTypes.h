@@ -366,17 +366,23 @@ class IPtzHandler {
 public:
     virtual ~IPtzHandler() = default;
 
-    /// @brief Handles continuous pan, tilt, and zoom velocity commands.
+    /// @brief Handles continuous pan, tilt, and zoom velocity commands with optional timeout.
     /// @param[in] panSpeed Normalized horizontal velocity [-1.0 (left) to 1.0 (right)].
     /// @param[in] tiltSpeed Normalized vertical velocity [-1.0 (down) to 1.0 (up)].
     /// @param[in] zoomSpeed Normalized zoom velocity [-1.0 (wide) to 1.0 (tele)].
-    virtual void handleContinuousMove(float panSpeed, float tiltSpeed, float zoomSpeed) = 0;
+    /// @param[in] timeout Optional auto-stop timeout duration.
+    virtual void handleContinuousMove(float panSpeed, float tiltSpeed, float zoomSpeed,
+        std::optional<std::chrono::milliseconds> timeout = std::nullopt)
+        = 0;
 
-    /// @brief Handles absolute positioning commands.
-    /// @param[in] pan Target pan position in degrees or normalized coordinate.
-    /// @param[in] tilt Target tilt position in degrees or normalized coordinate.
-    /// @param[in] zoom Target zoom position in normalized range [0.0, 1.0].
-    virtual void handleAbsoluteMove(float pan, float tilt, float zoom) = 0;
+    /// @brief Handles absolute positioning with optional axes and coordinate space.
+    /// @param[in] pan Target pan position or nullopt if unchanged.
+    /// @param[in] tilt Target tilt position or nullopt if unchanged.
+    /// @param[in] zoom Target zoom position or nullopt if unchanged.
+    /// @param[in] spaceUri Coordinate space URI.
+    virtual void handleAbsoluteMove(std::optional<float> pan, std::optional<float> tilt, std::optional<float> zoom,
+        const std::string& spaceUri = "")
+        = 0;
 
     /// @brief Handles stop motion requests.
     /// @param[in] stopPanTilt True if pan and tilt motion should cease.
@@ -454,14 +460,21 @@ public:
         return false;
     }
 
-    /// @brief Moves camera relatively by specified coordinate translation vector.
-    /// @param[in] pan Relative pan translation [-1.0 to 1.0].
-    /// @param[in] tilt Relative tilt translation [-1.0 to 1.0].
-    /// @param[in] zoom Relative zoom translation [-1.0 to 1.0].
+    /// @brief Moves camera relatively by specified coordinate translation vector with optional axes.
+    /// @param[in] pan Relative pan translation or nullopt.
+    /// @param[in] tilt Relative tilt translation or nullopt.
+    /// @param[in] zoom Relative zoom translation or nullopt.
     /// @param[in] speed Movement speed ratio [0.0 to 1.0].
+    /// @param[in] spaceUri Coordinate space URI.
     /// @return True if relative move command dispatched.
-    virtual bool handleRelativeMove(float /*pan*/, float /*tilt*/, float /*zoom*/, float /*speed*/ = 1.0f)
+    virtual bool handleRelativeMove(std::optional<float> pan, std::optional<float> tilt, std::optional<float> zoom,
+        float speed = 1.0f, const std::string& spaceUri = "")
     {
+        static_cast<void>(pan);
+        static_cast<void>(tilt);
+        static_cast<void>(zoom);
+        static_cast<void>(speed);
+        static_cast<void>(spaceUri);
         return false;
     }
 

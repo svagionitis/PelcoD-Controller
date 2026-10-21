@@ -5,6 +5,7 @@
 #include <chrono>
 #include <iostream>
 #include <memory>
+#include <optional>
 #include <string>
 #include <thread>
 #include <vector>
@@ -23,19 +24,23 @@ using namespace Onvif;
 
 class MockPtzHandler : public IPtzHandler {
 public:
-    void handleContinuousMove(float panSpeed, float tiltSpeed, float zoomSpeed) override
+    void handleContinuousMove(float panSpeed, float tiltSpeed, float zoomSpeed,
+        std::optional<std::chrono::milliseconds> timeout = std::nullopt) override
     {
+        static_cast<void>(timeout);
         lastPan = panSpeed;
         lastTilt = tiltSpeed;
         lastZoom = zoomSpeed;
         moveCount++;
     }
 
-    void handleAbsoluteMove(float pan, float tilt, float zoom) override
+    void handleAbsoluteMove(std::optional<float> pan, std::optional<float> tilt, std::optional<float> zoom,
+        const std::string& spaceUri = "") override
     {
-        absPan = pan;
-        absTilt = tilt;
-        absZoom = zoom;
+        static_cast<void>(spaceUri);
+        absPan = pan.value_or(0.0f);
+        absTilt = tilt.value_or(0.0f);
+        absZoom = zoom.value_or(0.0f);
         absMoveCount++;
     }
 
@@ -304,6 +309,7 @@ TEST(OnvifServerTest, HttpSoapEndpoints)
                                     "xmlns:tt=\"http://www.onvif.org/ver10/schema\">\r\n"
                                     "  <SOAP-ENV:Body>\r\n"
                                     "    <tptz:ContinuousMove>\r\n"
+                                    "      <tptz:ProfileToken>ProfileToken_1</tptz:ProfileToken>\r\n"
                                     "      <tptz:Velocity>\r\n"
                                     "        <tt:PanTilt x=\"0.75\" y=\"-0.5\"/>\r\n"
                                     "        <tt:Zoom x=\"0.2\"/>\r\n"
@@ -324,6 +330,7 @@ TEST(OnvifServerTest, HttpSoapEndpoints)
                                     "xmlns:tptz=\"http://www.onvif.org/ver20/ptz/wsdl\">\r\n"
                                     "  <SOAP-ENV:Body>\r\n"
                                     "    <tptz:Stop>\r\n"
+                                    "      <tptz:ProfileToken>ProfileToken_1</tptz:ProfileToken>\r\n"
                                     "      <tptz:PanTilt>true</tptz:PanTilt>\r\n"
                                     "      <tptz:Zoom>true</tptz:Zoom>\r\n"
                                     "    </tptz:Stop>\r\n"

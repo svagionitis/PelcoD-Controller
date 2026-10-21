@@ -63,6 +63,18 @@ public:
     [[nodiscard]] static std::string receiver(
         std::string_view subcode, std::string_view secondSubcode, std::string_view reason);
 
+    /// @brief Fault returned when an operation references an unknown or non-existent profile.
+    /// @details Code `SOAP-ENV:Sender`, Subcode `ter:InvalidArgVal`, secondary `ter:NoProfile`.
+    /// @param[in] reason Human-readable reason text.
+    /// @return Serialized Fault element.
+    [[nodiscard]] static std::string noProfile(std::string_view reason = "The requested profile token does not exist.");
+
+    /// @brief Fault returned when an argument value is invalid.
+    /// @details Code `SOAP-ENV:Sender`, Subcode `ter:InvalidArgVal`.
+    /// @param[in] reason Human-readable reason text.
+    /// @return Serialized Fault element.
+    [[nodiscard]] static std::string invalidArgVal(std::string_view reason = "Invalid argument value");
+
     /// @brief Generic sender fault.
     /// @param[in] subcode Qualified ONVIF subcode (e.g. "ter:InvalidArgVal").
     /// @param[in] secondSubcode Optional nested subcode (e.g. "ter:UsernameClash"); empty to omit.

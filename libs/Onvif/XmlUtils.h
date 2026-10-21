@@ -4,13 +4,54 @@
 /// @brief XML traversal and namespace-agnostic element lookup utilities for ONVIF.
 
 #include "OnvifTypes.h"
+
+#include <cmath>
+#include <cstddef>
+#include <cstdint>
+
+#include <chrono>
+#include <optional>
 #include <ostream>
-#include <pugixml.hpp>
 #include <string>
 #include <string_view>
 #include <vector>
 
+#include <pugixml.hpp>
+
 namespace Onvif::Xml {
+
+/// @brief Parses an ISO 8601 duration string into milliseconds.
+/// @param[in] isoDuration ISO 8601 duration string (e.g. "PT0.5S", "PT1S", "PT2M").
+/// @return Optional duration in milliseconds, or nullopt if invalid or zero/negative.
+[[nodiscard]] std::optional<std::chrono::milliseconds> parseIsoDurationMs(std::string_view isoDuration) noexcept;
+
+/// @brief Validates if a floating-point value is finite (not NaN, not Inf).
+/// @param[in] val Value to test.
+/// @return true if finite.
+[[nodiscard]] inline bool isSafeFinite(float val) noexcept
+{
+    return std::isfinite(val);
+}
+
+/// @brief Sanitizes a float, returning fallback if not finite (CERT FLP34-C).
+/// @param[in] val Float value to test.
+/// @param[in] fallback Safe fallback value if not finite.
+/// @return Finite float value.
+[[nodiscard]] inline float safeFloat(float val, float fallback = 0.0f) noexcept
+{
+    return std::isfinite(val) ? val : fallback;
+}
+
+/// @brief Parses a safe finite float from an XML attribute.
+/// @param[in] attr XML attribute to parse.
+/// @param[in] fallback Default value if attribute missing or not finite.
+/// @return Finite float value.
+[[nodiscard]] float parseSafeFloat(const pugi::xml_attribute& attr, float fallback = 0.0f) noexcept;
+
+/// @brief Parses an optional finite float from an XML attribute.
+/// @param[in] attr XML attribute to parse.
+/// @return Optional containing finite float, or nullopt if attribute missing or not finite.
+[[nodiscard]] std::optional<float> parseOptionalFloat(const pugi::xml_attribute& attr) noexcept;
 
 /// @brief Sanitizes a string by filtering out illegal XML 1.0 control characters.
 /// @details XML 1.0 §2.2 specifies valid characters:

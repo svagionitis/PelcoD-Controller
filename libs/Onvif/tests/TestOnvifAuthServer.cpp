@@ -18,8 +18,10 @@
 #include <array>
 #include <atomic>
 #include <chrono>
+#include <cstddef>
 #include <iomanip>
 #include <memory>
+#include <optional>
 #include <sstream>
 #include <string>
 #include <thread>
@@ -108,11 +110,13 @@ std::string digestParam(const std::string& header, const std::string& name)
 /// @brief PTZ handler counting actuation calls (atomic: written by server worker threads).
 class CountingPtzHandler : public IPtzHandler {
 public:
-    void handleContinuousMove(float /*pan*/, float /*tilt*/, float /*zoom*/) override
+    void handleContinuousMove(float /*pan*/, float /*tilt*/, float /*zoom*/,
+        std::optional<std::chrono::milliseconds> /*timeout*/ = std::nullopt) override
     {
         moves.fetch_add(1);
     }
-    void handleAbsoluteMove(float /*pan*/, float /*tilt*/, float /*zoom*/) override
+    void handleAbsoluteMove(std::optional<float> /*pan*/, std::optional<float> /*tilt*/, std::optional<float> /*zoom*/,
+        const std::string& /*spaceUri*/ = "") override
     {
         moves.fetch_add(1);
     }
@@ -242,7 +246,8 @@ TEST_F(OnvifAuthServerTest, NoCredsProtectedOpChallenged)
 TEST_F(OnvifAuthServerTest, AdminCreateUsersSucceeds)
 {
     auto c { client("admin", "Adm1n-Pass") };
-    const auto res { c.Post("/onvif/device_service", envelope(createUserBody("newbie", "New-Pass1", "User")), kSoapCt) };
+    const auto res { c.Post(
+        "/onvif/device_service", envelope(createUserBody("newbie", "New-Pass1", "User")), kSoapCt) };
     ASSERT_TRUE(res);
     EXPECT_EQ(res->status, 200);
     EXPECT_TRUE(hasUser("newbie"));
@@ -318,8 +323,8 @@ TEST_F(OnvifAuthServerTest, HttpDigestEndToEnd)
     const std::string ha1 { hashHex(EVP_sha256(), "admin:" + realm + ":Adm1n-Pass") };
     const std::string ha2 { hashHex(EVP_sha256(), "POST:" + uri) };
     const std::string response { hashHex(EVP_sha256(), ha1 + ":" + nonce + ":00000001:abc123:auth:" + ha2) };
-    const std::string auth { "Digest username=\"admin\", realm=\"" + realm + "\", nonce=\"" + nonce + "\", uri=\""
-        + uri + "\", algorithm=SHA-256, qop=auth, nc=00000001, cnonce=\"abc123\", response=\"" + response + "\"" };
+    const std::string auth { "Digest username=\"admin\", realm=\"" + realm + "\", nonce=\"" + nonce + "\", uri=\"" + uri
+        + "\", algorithm=SHA-256, qop=auth, nc=00000001, cnonce=\"abc123\", response=\"" + response + "\"" };
 
     const httplib::Headers headers { { "Authorization", auth } };
     const auto second { raw.Post("/onvif/device_service", headers, body, kSoapCt) };

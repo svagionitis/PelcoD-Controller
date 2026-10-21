@@ -1,5 +1,6 @@
 #include <chrono>
 #include <memory>
+#include <optional>
 #include <string>
 #include <thread>
 #include <vector>
@@ -16,19 +17,23 @@ namespace {
 
     class MockPtzHandler : public Onvif::IPtzHandler {
     public:
-        void handleContinuousMove(float panSpeed, float tiltSpeed, float zoomSpeed) override
+        void handleContinuousMove(float panSpeed, float tiltSpeed, float zoomSpeed,
+            std::optional<std::chrono::milliseconds> timeout = std::nullopt) override
         {
+            static_cast<void>(timeout);
             lastPanSpeed = panSpeed;
             lastTiltSpeed = tiltSpeed;
             lastZoomSpeed = zoomSpeed;
             continuousMoveCount++;
         }
 
-        void handleAbsoluteMove(float pan, float tilt, float zoom) override
+        void handleAbsoluteMove(std::optional<float> pan, std::optional<float> tilt, std::optional<float> zoom,
+            const std::string& spaceUri = "") override
         {
-            lastAbsPan = pan;
-            lastAbsTilt = tilt;
-            lastAbsZoom = zoom;
+            static_cast<void>(spaceUri);
+            lastAbsPan = pan.value_or(0.0f);
+            lastAbsTilt = tilt.value_or(0.0f);
+            lastAbsZoom = zoom.value_or(0.0f);
             absoluteMoveCount++;
         }
 

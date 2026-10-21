@@ -903,6 +903,17 @@ std::string OnvifServer::resolveHost(const httplib::Request& req) const
     return "127.0.0.1";
 }
 
+bool OnvifServer::isProfileValid(std::string_view token) const
+{
+    if (token.empty()) {
+        return false;
+    }
+    if (token == "ProfileToken_1" || token == "Profile_1" || token == "MainProfile") {
+        return true;
+    }
+    return false;
+}
+
 void OnvifServer::setupRoutes()
 {
     m_httpServer.Post("/onvif/device_service",
@@ -3033,27 +3044,77 @@ void OnvifServer::handlePtzService(const httplib::Request& req, httplib::Respons
     std::ostringstream body;
 
     if (opName.find("ContinuousMove") != std::string::npos) {
+        const pugi::xml_node profNode = doc.select_node("//*[local-name()='ProfileToken']").node();
+        const std::string profToken = profNode ? profNode.text().as_string() : "";
+        if (!isProfileValid(profToken)) {
+            sendSoapResponse(res, SoapFault::noProfile(), 400);
+            return;
+        }
+
         float pan = 0.0f;
         float tilt = 0.0f;
         float zoom = 0.0f;
 
-        const pugi::xml_node ptNode = doc.select_node("//*[local-name()='PanTilt']").node();
+        const pugi::xml_node ptNode
+            = doc.select_node("//*[local-name()='Velocity']/*[local-name()='PanTilt'] | //*[local-name()='PanTilt']")
+                  .node();
         if (ptNode) {
-            pan = ptNode.attribute("x").as_float(0.0f);
-            tilt = ptNode.attribute("y").as_float(0.0f);
+            const auto attrX = ptNode.attribute("x");
+            if (!attrX.empty()) {
+                const auto parsed = Xml::parseOptionalFloat(attrX);
+                if (!parsed.has_value()) {
+                    sendSoapResponse(res, SoapFault::invalidArgVal("Invalid or non-finite pan velocity"), 400);
+                    return;
+                }
+                pan = *parsed;
+            }
+            const auto attrY = ptNode.attribute("y");
+            if (!attrY.empty()) {
+                const auto parsed = Xml::parseOptionalFloat(attrY);
+                if (!parsed.has_value()) {
+                    sendSoapResponse(res, SoapFault::invalidArgVal("Invalid or non-finite tilt velocity"), 400);
+                    return;
+                }
+                tilt = *parsed;
+            }
         }
 
-        const pugi::xml_node zNode = doc.select_node("//*[local-name()='Zoom']").node();
+        const pugi::xml_node zNode
+            = doc.select_node("//*[local-name()='Velocity']/*[local-name()='Zoom'] | //*[local-name()='Zoom']").node();
         if (zNode) {
-            zoom = zNode.attribute("x").as_float(0.0f);
+            const auto attrX = zNode.attribute("x");
+            if (!attrX.empty()) {
+                const auto parsed = Xml::parseOptionalFloat(attrX);
+                if (!parsed.has_value()) {
+                    sendSoapResponse(res, SoapFault::invalidArgVal("Invalid or non-finite zoom velocity"), 400);
+                    return;
+                }
+                zoom = *parsed;
+            }
+        }
+
+        const pugi::xml_node toNode = doc.select_node("//*[local-name()='Timeout']").node();
+        std::optional<std::chrono::milliseconds> timeout = std::nullopt;
+        if (toNode) {
+            const std::string toStr = toNode.text().as_string();
+            if (!toStr.empty()) {
+                timeout = Xml::parseIsoDurationMs(toStr);
+            }
         }
 
         if (ptzHandler) {
-            ptzHandler->handleContinuousMove(pan, tilt, zoom);
+            ptzHandler->handleContinuousMove(pan, tilt, zoom, timeout);
         }
 
         body << "    <tptz:ContinuousMoveResponse/>\r\n";
     } else if (opName.find("Stop") != std::string::npos) {
+        const pugi::xml_node profNode = doc.select_node("//*[local-name()='ProfileToken']").node();
+        const std::string profToken = profNode ? profNode.text().as_string() : "";
+        if (!isProfileValid(profToken)) {
+            sendSoapResponse(res, SoapFault::noProfile(), 400);
+            return;
+        }
+
         bool stopPanTilt = true;
         bool stopZoom = true;
 
@@ -3073,35 +3134,66 @@ void OnvifServer::handlePtzService(const httplib::Request& req, httplib::Respons
 
         body << "    <tptz:StopResponse/>\r\n";
     } else if (opName.find("AbsoluteMove") != std::string::npos) {
-        float pan = -1.0f;
-        float tilt = -1.0f;
-        float zoom = -1.0f;
+        const pugi::xml_node profNode = doc.select_node("//*[local-name()='ProfileToken']").node();
+        const std::string profToken = profNode ? profNode.text().as_string() : "";
+        if (!isProfileValid(profToken)) {
+            sendSoapResponse(res, SoapFault::noProfile(), 400);
+            return;
+        }
+
+        std::optional<float> pan = std::nullopt;
+        std::optional<float> tilt = std::nullopt;
+        std::optional<float> zoom = std::nullopt;
         std::string spaceUri {};
 
-        const pugi::xml_node ptNode = doc.select_node("//*[local-name()='PanTilt']").node();
+        const pugi::xml_node ptNode
+            = doc.select_node("//*[local-name()='Position']/*[local-name()='PanTilt'] | //*[local-name()='PanTilt']")
+                  .node();
         if (ptNode) {
-            pan = ptNode.attribute("x").as_float(-1.0f);
-            tilt = ptNode.attribute("y").as_float(-1.0f);
+            const auto attrX = ptNode.attribute("x");
+            if (!attrX.empty()) {
+                pan = Xml::parseOptionalFloat(attrX);
+                if (!pan.has_value()) {
+                    sendSoapResponse(res, SoapFault::invalidArgVal("Invalid or non-finite pan coordinate"), 400);
+                    return;
+                }
+            }
+            const auto attrY = ptNode.attribute("y");
+            if (!attrY.empty()) {
+                tilt = Xml::parseOptionalFloat(attrY);
+                if (!tilt.has_value()) {
+                    sendSoapResponse(res, SoapFault::invalidArgVal("Invalid or non-finite tilt coordinate"), 400);
+                    return;
+                }
+            }
             spaceUri = ptNode.attribute("space").as_string();
         }
 
-        const pugi::xml_node zNode = doc.select_node("//*[local-name()='Zoom']").node();
+        const pugi::xml_node zNode
+            = doc.select_node("//*[local-name()='Position']/*[local-name()='Zoom'] | //*[local-name()='Zoom']").node();
         if (zNode) {
-            zoom = zNode.attribute("x").as_float(-1.0f);
+            const auto attrX = zNode.attribute("x");
+            if (!attrX.empty()) {
+                zoom = Xml::parseOptionalFloat(attrX);
+                if (!zoom.has_value()) {
+                    sendSoapResponse(res, SoapFault::invalidArgVal("Invalid or non-finite zoom coordinate"), 400);
+                    return;
+                }
+            }
         }
 
         if (ptzHandler) {
-            if (spaceUri.find("Spherical") != std::string::npos) {
-                ptzHandler->handleAbsoluteMoveSpherical(pan, tilt, zoom);
-            } else {
-                ptzHandler->handleAbsoluteMove(pan, tilt, zoom);
-            }
+            ptzHandler->handleAbsoluteMove(pan, tilt, zoom, spaceUri);
         }
 
         body << "    <tptz:AbsoluteMoveResponse/>\r\n";
     } else if (opName.find("GeoMove") != std::string::npos) {
         const pugi::xml_node profNode = doc.select_node("//*[local-name()='ProfileToken']").node();
-        const std::string profToken = profNode ? profNode.text().as_string() : "Profile_1";
+        const std::string profToken = profNode ? profNode.text().as_string() : "";
+        if (!isProfileValid(profToken)) {
+            sendSoapResponse(res, SoapFault::noProfile(), 400);
+            return;
+        }
 
         GeoMoveTarget target {};
         pugi::xml_node targetNode = doc.select_node("//*[local-name()='Target']").node();
@@ -3152,44 +3244,91 @@ void OnvifServer::handlePtzService(const httplib::Request& req, httplib::Respons
 
         body << "    <tptz:GeoMoveResponse/>\r\n";
     } else if (opName.find("RelativeMove") != std::string::npos) {
-        float pan = 0.0f;
-        float tilt = 0.0f;
-        float zoom = 0.0f;
-        float speed = 1.0f;
-
-        const pugi::xml_node ptNode
-            = doc.select_node("//*[local-name()='Translation']/*[local-name()='PanTilt']").node();
-        if (ptNode) {
-            pan = ptNode.attribute("x").as_float(0.0f);
-            tilt = ptNode.attribute("y").as_float(0.0f);
+        const pugi::xml_node profNode = doc.select_node("//*[local-name()='ProfileToken']").node();
+        const std::string profToken = profNode ? profNode.text().as_string() : "";
+        if (!isProfileValid(profToken)) {
+            sendSoapResponse(res, SoapFault::noProfile(), 400);
+            return;
         }
 
-        const pugi::xml_node zNode = doc.select_node("//*[local-name()='Translation']/*[local-name()='Zoom']").node();
+        std::optional<float> pan = std::nullopt;
+        std::optional<float> tilt = std::nullopt;
+        std::optional<float> zoom = std::nullopt;
+        float speed = 1.0f;
+        std::string spaceUri {};
+
+        const pugi::xml_node ptNode
+            = doc.select_node("//*[local-name()='Translation']/*[local-name()='PanTilt'] | //*[local-name()='PanTilt']")
+                  .node();
+        if (ptNode) {
+            const auto attrX = ptNode.attribute("x");
+            if (!attrX.empty()) {
+                pan = Xml::parseOptionalFloat(attrX);
+                if (!pan.has_value()) {
+                    sendSoapResponse(res, SoapFault::invalidArgVal("Invalid or non-finite relative pan"), 400);
+                    return;
+                }
+            }
+            const auto attrY = ptNode.attribute("y");
+            if (!attrY.empty()) {
+                tilt = Xml::parseOptionalFloat(attrY);
+                if (!tilt.has_value()) {
+                    sendSoapResponse(res, SoapFault::invalidArgVal("Invalid or non-finite relative tilt"), 400);
+                    return;
+                }
+            }
+            spaceUri = ptNode.attribute("space").as_string();
+        }
+
+        const pugi::xml_node zNode
+            = doc.select_node("//*[local-name()='Translation']/*[local-name()='Zoom'] | //*[local-name()='Zoom']")
+                  .node();
         if (zNode) {
-            zoom = zNode.attribute("x").as_float(0.0f);
+            const auto attrX = zNode.attribute("x");
+            if (!attrX.empty()) {
+                zoom = Xml::parseOptionalFloat(attrX);
+                if (!zoom.has_value()) {
+                    sendSoapResponse(res, SoapFault::invalidArgVal("Invalid or non-finite relative zoom"), 400);
+                    return;
+                }
+            }
         }
 
         const pugi::xml_node spNode = doc.select_node("//*[local-name()='Speed']/*[local-name()='PanTilt']").node();
         if (spNode) {
-            speed = spNode.attribute("x").as_float(1.0f);
+            speed = Xml::safeFloat(spNode.attribute("x").as_float(1.0f), 1.0f);
         }
 
         if (ptzHandler) {
-            ptzHandler->handleRelativeMove(pan, tilt, zoom, speed);
+            ptzHandler->handleRelativeMove(pan, tilt, zoom, speed, spaceUri);
         }
 
         body << "    <tptz:RelativeMoveResponse/>\r\n";
     } else if (opName.find("GotoHomePosition") != std::string::npos) {
+        const pugi::xml_node profNode = doc.select_node("//*[local-name()='ProfileToken']").node();
+        const std::string profToken = profNode ? profNode.text().as_string() : "";
+        if (!isProfileValid(profToken)) {
+            sendSoapResponse(res, SoapFault::noProfile(), 400);
+            return;
+        }
+
         float speed = 1.0f;
         const pugi::xml_node spNode = doc.select_node("//*[local-name()='Speed']/*[local-name()='PanTilt']").node();
         if (spNode) {
-            speed = spNode.attribute("x").as_float(1.0f);
+            speed = Xml::safeFloat(spNode.attribute("x").as_float(1.0f), 1.0f);
         }
         if (ptzHandler) {
             ptzHandler->handleGotoHomePosition(speed);
         }
         body << "    <tptz:GotoHomePositionResponse/>\r\n";
     } else if (opName.find("SetHomePosition") != std::string::npos) {
+        const pugi::xml_node profNode = doc.select_node("//*[local-name()='ProfileToken']").node();
+        const std::string profToken = profNode ? profNode.text().as_string() : "";
+        if (!isProfileValid(profToken)) {
+            sendSoapResponse(res, SoapFault::noProfile(), 400);
+            return;
+        }
+
         if (ptzHandler) {
             ptzHandler->handleSetHomePosition();
         }
@@ -3302,6 +3441,13 @@ void OnvifServer::handlePtzService(const httplib::Request& req, httplib::Respons
              << "      </tptz:PTZNode>\r\n"
              << "    </tptz:GetNodesResponse>\r\n";
     } else if (opName.find("GetPresets") != std::string::npos) {
+        const pugi::xml_node profNode = doc.select_node("//*[local-name()='ProfileToken']").node();
+        const std::string profToken = profNode ? profNode.text().as_string() : "";
+        if (!isProfileValid(profToken)) {
+            sendSoapResponse(res, SoapFault::noProfile(), 400);
+            return;
+        }
+
         body << "    <tptz:GetPresetsResponse>\r\n";
         if (ptzHandler) {
             const auto presets = ptzHandler->handleGetPresets();
@@ -3313,6 +3459,13 @@ void OnvifServer::handlePtzService(const httplib::Request& req, httplib::Respons
         }
         body << "    </tptz:GetPresetsResponse>\r\n";
     } else if (opName.find("SetPreset") != std::string::npos) {
+        const pugi::xml_node profNode = doc.select_node("//*[local-name()='ProfileToken']").node();
+        const std::string profToken = profNode ? profNode.text().as_string() : "";
+        if (!isProfileValid(profToken)) {
+            sendSoapResponse(res, SoapFault::noProfile(), 400);
+            return;
+        }
+
         const pugi::xml_node nameNode = doc.select_node("//*[local-name()='PresetName']").node();
         const pugi::xml_node tokenNode = doc.select_node("//*[local-name()='PresetToken']").node();
 
@@ -3328,6 +3481,13 @@ void OnvifServer::handlePtzService(const httplib::Request& req, httplib::Respons
              << "      <tptz:PTZPresetToken>" << Xml::escapeXmlText(assignedToken) << "</tptz:PTZPresetToken>\r\n"
              << "    </tptz:SetPresetResponse>\r\n";
     } else if (opName.find("GotoPreset") != std::string::npos) {
+        const pugi::xml_node profNode = doc.select_node("//*[local-name()='ProfileToken']").node();
+        const std::string profToken = profNode ? profNode.text().as_string() : "";
+        if (!isProfileValid(profToken)) {
+            sendSoapResponse(res, SoapFault::noProfile(), 400);
+            return;
+        }
+
         const pugi::xml_node tokenNode = doc.select_node("//*[local-name()='PresetToken']").node();
         const std::string presetToken = tokenNode ? tokenNode.text().as_string() : "";
 
@@ -3337,6 +3497,13 @@ void OnvifServer::handlePtzService(const httplib::Request& req, httplib::Respons
 
         body << "    <tptz:GotoPresetResponse/>\r\n";
     } else if (opName.find("RemovePresetTour") != std::string::npos) {
+        const pugi::xml_node profNode = doc.select_node("//*[local-name()='ProfileToken']").node();
+        const std::string profToken = profNode ? profNode.text().as_string() : "";
+        if (!isProfileValid(profToken)) {
+            sendSoapResponse(res, SoapFault::noProfile(), 400);
+            return;
+        }
+
         const pugi::xml_node tokNode = doc.select_node("//*[local-name()='PresetTourToken']").node();
         const std::string tourTok = tokNode ? tokNode.text().as_string() : "";
         if (ptzHandler) {
@@ -3344,6 +3511,13 @@ void OnvifServer::handlePtzService(const httplib::Request& req, httplib::Respons
         }
         body << "    <tptz:RemovePresetTourResponse/>\r\n";
     } else if (opName.find("RemovePreset") != std::string::npos) {
+        const pugi::xml_node profNode = doc.select_node("//*[local-name()='ProfileToken']").node();
+        const std::string profToken = profNode ? profNode.text().as_string() : "";
+        if (!isProfileValid(profToken)) {
+            sendSoapResponse(res, SoapFault::noProfile(), 400);
+            return;
+        }
+
         const pugi::xml_node tokenNode = doc.select_node("//*[local-name()='PresetToken']").node();
         const std::string presetToken = tokenNode ? tokenNode.text().as_string() : "";
 
@@ -3353,6 +3527,13 @@ void OnvifServer::handlePtzService(const httplib::Request& req, httplib::Respons
 
         body << "    <tptz:RemovePresetResponse/>\r\n";
     } else if (opName.find("GetStatus") != std::string::npos) {
+        const pugi::xml_node profNode = doc.select_node("//*[local-name()='ProfileToken']").node();
+        const std::string profToken = profNode ? profNode.text().as_string() : "";
+        if (!isProfileValid(profToken)) {
+            sendSoapResponse(res, SoapFault::noProfile(), 400);
+            return;
+        }
+
         PtzStatus status {};
         if (ptzHandler) {
             status = ptzHandler->handleGetStatus();
@@ -3371,6 +3552,13 @@ void OnvifServer::handlePtzService(const httplib::Request& req, httplib::Respons
              << "      </tptz:PTZStatus>\r\n"
              << "    </tptz:GetStatusResponse>\r\n";
     } else if (opName.find("GetPresetTours") != std::string::npos) {
+        const pugi::xml_node profNode = doc.select_node("//*[local-name()='ProfileToken']").node();
+        const std::string profToken = profNode ? profNode.text().as_string() : "";
+        if (!isProfileValid(profToken)) {
+            sendSoapResponse(res, SoapFault::noProfile(), 400);
+            return;
+        }
+
         body << "    <tptz:GetPresetToursResponse>\r\n";
         if (ptzHandler) {
             const auto tours = ptzHandler->handleGetPresetTours();
@@ -3380,6 +3568,13 @@ void OnvifServer::handlePtzService(const httplib::Request& req, httplib::Respons
         }
         body << "    </tptz:GetPresetToursResponse>\r\n";
     } else if (opName.find("GetPresetTourOptions") != std::string::npos) {
+        const pugi::xml_node profNode = doc.select_node("//*[local-name()='ProfileToken']").node();
+        const std::string profToken = profNode ? profNode.text().as_string() : "";
+        if (!isProfileValid(profToken)) {
+            sendSoapResponse(res, SoapFault::noProfile(), 400);
+            return;
+        }
+
         body << "    <tptz:GetPresetTourOptionsResponse>\r\n"
              << "      <tptz:Options>\r\n"
              << "        <tt:AutoStart>true</tt:AutoStart>\r\n"
@@ -3397,6 +3592,13 @@ void OnvifServer::handlePtzService(const httplib::Request& req, httplib::Respons
              << "      </tptz:Options>\r\n"
              << "    </tptz:GetPresetTourOptionsResponse>\r\n";
     } else if (opName.find("GetPresetTour") != std::string::npos) {
+        const pugi::xml_node profNode = doc.select_node("//*[local-name()='ProfileToken']").node();
+        const std::string profToken = profNode ? profNode.text().as_string() : "";
+        if (!isProfileValid(profToken)) {
+            sendSoapResponse(res, SoapFault::noProfile(), 400);
+            return;
+        }
+
         const pugi::xml_node tokNode = doc.select_node("//*[local-name()='PresetTourToken']").node();
         const std::string tourTok = tokNode ? tokNode.text().as_string() : "";
         body << "    <tptz:GetPresetTourResponse>\r\n";
@@ -3408,6 +3610,13 @@ void OnvifServer::handlePtzService(const httplib::Request& req, httplib::Respons
         }
         body << "    </tptz:GetPresetTourResponse>\r\n";
     } else if (opName.find("CreatePresetTour") != std::string::npos) {
+        const pugi::xml_node profNode = doc.select_node("//*[local-name()='ProfileToken']").node();
+        const std::string profToken = profNode ? profNode.text().as_string() : "";
+        if (!isProfileValid(profToken)) {
+            sendSoapResponse(res, SoapFault::noProfile(), 400);
+            return;
+        }
+
         std::string assignedToken = "Tour_1";
         if (ptzHandler) {
             assignedToken = ptzHandler->handleCreatePresetTour();
@@ -3416,6 +3625,13 @@ void OnvifServer::handlePtzService(const httplib::Request& req, httplib::Respons
              << "      <tptz:PresetTourToken>" << Xml::escapeXmlText(assignedToken) << "</tptz:PresetTourToken>\r\n"
              << "    </tptz:CreatePresetTourResponse>\r\n";
     } else if (opName.find("ModifyPresetTour") != std::string::npos) {
+        const pugi::xml_node profNode = doc.select_node("//*[local-name()='ProfileToken']").node();
+        const std::string profToken = profNode ? profNode.text().as_string() : "";
+        if (!isProfileValid(profToken)) {
+            sendSoapResponse(res, SoapFault::noProfile(), 400);
+            return;
+        }
+
         const pugi::xml_node tourNode = doc.select_node("//*[local-name()='PresetTour']").node();
         if (tourNode && ptzHandler) {
             PresetTour tour {};

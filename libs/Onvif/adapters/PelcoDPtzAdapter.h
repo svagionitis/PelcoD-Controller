@@ -4,17 +4,23 @@
 /// @brief Adapter translating ONVIF PTZ and Imaging commands to PelcoDDevice hardware control.
 
 #include "OnvifServerTypes.h"
-#include <PelcoDCore/PatrolController.h>
-#include <PelcoDCore/PelcoDDevice.h>
+
 #include <cstdint>
 
 #include <atomic>
+#include <chrono>
+#include <condition_variable>
 #include <functional>
 #include <map>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <string>
+#include <thread>
 #include <vector>
+
+#include <PelcoDCore/PatrolController.h>
+#include <PelcoDCore/PelcoDDevice.h>
 
 namespace Onvif {
 
@@ -67,8 +73,12 @@ public:
     // IPtzHandler Implementation (Profile S & T)
     // =========================================================================
 
-    void handleContinuousMove(float panSpeed, float tiltSpeed, float zoomSpeed) override;
-    void handleAbsoluteMove(float pan, float tilt, float zoom) override;
+    void handleContinuousMove(float panSpeed, float tiltSpeed, float zoomSpeed,
+        std::optional<std::chrono::milliseconds> timeout = std::nullopt) override;
+
+    void handleAbsoluteMove(std::optional<float> pan, std::optional<float> tilt, std::optional<float> zoom,
+        const std::string& spaceUri = "") override;
+
     void handleStop(bool stopPanTilt, bool stopZoom) override;
     [[nodiscard]] std::string handleSetPreset(const std::string& name, const std::string& token) override;
     [[nodiscard]] bool handleGotoPreset(const std::string& token) override;
@@ -83,7 +93,8 @@ public:
     [[nodiscard]] bool handleOperatePresetTour(const std::string& tourToken, PresetTourOperation op) override;
     [[nodiscard]] bool handleRemovePresetTour(const std::string& tourToken) override;
 
-    [[nodiscard]] bool handleRelativeMove(float pan, float tilt, float zoom, float speed = 1.0f) override;
+    [[nodiscard]] bool handleRelativeMove(std::optional<float> pan, std::optional<float> tilt,
+        std::optional<float> zoom, float speed = 1.0f, const std::string& spaceUri = "") override;
     [[nodiscard]] bool handleGotoHomePosition(float speed = 1.0f) override;
     [[nodiscard]] bool handleSetHomePosition() override;
     [[nodiscard]] std::string handleSendAuxiliaryCommand(const std::string& auxiliaryData) override;
@@ -274,6 +285,16 @@ private:
     void onDeviceStatusUpdated(const PelcoD::DeviceStatus& status);
     void saveTours();
     void loadTours();
+
+    void timerLoop();
+    void armAutoStop(std::chrono::milliseconds timeout);
+    void cancelAutoStop();
+
+    std::atomic<bool> m_timerRunning { false };
+    std::condition_variable m_timerCv {};
+    std::mutex m_timerMutex {};
+    std::thread m_timerThread {};
+    std::optional<std::chrono::steady_clock::time_point> m_autoStopDeadline { std::nullopt };
 
     std::shared_ptr<PelcoD::PelcoDDevice> m_device;
     std::shared_ptr<PelcoD::PatrolController> m_sharedPatrol {};

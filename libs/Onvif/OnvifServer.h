@@ -227,6 +227,7 @@ private:
 
     [[nodiscard]] std::string generateMetadataStreamXml(const MetadataStreamPayload& payload) const;
     [[nodiscard]] std::string resolveHost(const httplib::Request& req) const;
+    [[nodiscard]] bool isProfileValid(std::string_view token) const;
 
     struct SoapRequest {
         pugi::xml_node bodyNode {};
