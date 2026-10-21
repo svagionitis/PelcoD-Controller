@@ -17,6 +17,23 @@
 
 namespace Onvif {
 
+/// @enum TlsVerificationMode
+/// @brief Certificate verification policy for client HTTPS connections (SEI CERT POS44-C).
+enum class TlsVerificationMode : std::uint8_t {
+    Strict = 0U, ///< Verify peer certificate and hostname against trusted CAs (default).
+    VerifyPeerOnly = 1U, ///< Verify certificate chain without strict hostname validation.
+    PinnedCertificate = 2U, ///< Verify against pinned public key / certificate hash (TOFU).
+    InsecureAllowSelfSigned ///< Opt-out: Allow self-signed or invalid certs (logs security warning).
+};
+
+/// @struct TlsConfig
+/// @brief TLS/HTTPS transport security settings for OnvifHttpClient.
+struct TlsConfig {
+    TlsVerificationMode mode { TlsVerificationMode::Strict };
+    std::string caBundlePath {}; ///< Custom CA certificate bundle path (optional).
+    std::string pinnedPublicKey {}; ///< SHA-256 base64 pinned public key hash (optional).
+};
+
 /// @enum AccessClass
 /// @brief ONVIF Core Specification §5.9.4 service access classes.
 /// @details Every SOAP operation is mapped to exactly one class; unknown operations are

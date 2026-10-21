@@ -12,12 +12,12 @@
 #include <gtest/gtest.h>
 #include <pugixml.hpp>
 
+#include "OnvifTestClient.h"
 #include <Onvif/HttplibInclude.h>
 #include <Onvif/OnvifClient.h>
 #include <Onvif/OnvifServer.h>
 #include <Onvif/adapters/PelcoDPtzAdapter.h>
 #include <PelcoDSim/MockPelcoDDevice.h>
-#include "OnvifTestClient.h"
 
 using namespace Onvif;
 
@@ -189,6 +189,7 @@ TEST(OnvifServerTest, HttpSoapEndpoints)
     config.manufacturer = "PelcoD-Test";
     config.model = "Model-XYZ";
     config.rtspStreamUri = "rtsp://127.0.0.1:8554/test_stream";
+    config.defaultUsers = OnvifTest::defaultTestUsers();
 
     auto mockHandler = std::make_shared<MockPtzHandler>();
     OnvifServer server(config, mockHandler);
@@ -350,6 +351,7 @@ TEST(OnvifServerTest, ProfileTImagingAndEvents)
     config.bindAddress = "127.0.0.1";
     config.port = 18081; // Unique test port
     config.deviceName = "Profile T Camera";
+    config.defaultUsers = OnvifTest::defaultTestUsers();
 
     auto mockImaging = std::make_shared<MockImagingHandler>();
     mockImaging->settings.brightness = 60.0f;
@@ -593,6 +595,7 @@ TEST(OnvifServerTest, PresetToursServerAndAdapter)
     config.bindAddress = "127.0.0.1";
     config.port = 18082; // Unique port
     config.deviceName = "Preset Tour Test Camera";
+    config.defaultUsers = OnvifTest::defaultTestUsers();
 
     OnvifServer server(config, adapter, adapter);
     EXPECT_TRUE(server.start());
@@ -784,6 +787,7 @@ TEST(OnvifServerTest, PtzServiceExtensionsServerAndAdapter)
     config.bindAddress = "127.0.0.1";
     config.port = 18083; // Unique port
     config.deviceName = "PTZ Extensions Test Camera";
+    config.defaultUsers = OnvifTest::defaultTestUsers();
 
     OnvifServer server(config, adapter, adapter);
     EXPECT_TRUE(server.start());
@@ -944,6 +948,7 @@ TEST(OnvifServerTest, Media2OsdAndAnalytics)
     config.deviceName = "Media2Cam";
     config.model = "ONVIF-M2";
     config.rtspStreamUri = "rtsp://127.0.0.1:8554/live2";
+    config.defaultUsers = OnvifTest::defaultTestUsers();
 
     OnvifServer server(config);
     EXPECT_TRUE(server.start());
@@ -1175,6 +1180,10 @@ TEST(OnvifServerTest, DeviceManagementAndSecurity)
     config.bindAddress = "127.0.0.1";
     config.port = 18591;
     config.deviceName = "DeviceMgmtCamera";
+    config.defaultUsers = { { "admin", "Adm1n-Pass", OnvifUserLevel::Administrator },
+        { "operator", "Operat0r-Pass!", OnvifUserLevel::Operator } };
+    config.passwordPolicy.minClasses = 1;
+    config.passwordPolicy.rejectCommonDefaults = false;
 
     OnvifServer server(config);
     EXPECT_TRUE(server.start());
@@ -1530,6 +1539,7 @@ TEST(OnvifServerTest, ImagingExtensionsAndDeviceIo)
     config.port = 18595;
     config.bindAddress = "127.0.0.1";
     config.deviceName = "ImagingDeviceIoCamera";
+    config.defaultUsers = OnvifTest::defaultTestUsers();
 
     OnvifServer server(config, adapter, adapter);
     server.setDeviceIoHandler(adapter);
@@ -1779,6 +1789,7 @@ TEST(OnvifServerTest, MetadataStreamsAndMaintenanceExtensions)
     config.port = 18596;
     config.bindAddress = "127.0.0.1";
     config.deviceName = "MetadataMaintenanceCamera";
+    config.defaultUsers = OnvifTest::defaultTestUsers();
 
     OnvifServer server(config, adapter, adapter);
     server.setMetadataHandler(adapter);
@@ -1954,6 +1965,7 @@ TEST(OnvifServerTest, ProfileGAndPkiCertificates)
     config.port = 18597;
     config.bindAddress = "127.0.0.1";
     config.deviceName = "ProfileGCam";
+    config.defaultUsers = OnvifTest::defaultTestUsers();
 
     OnvifServer server(config, adapter, adapter);
     server.setDeviceManagementHandler(adapter);
@@ -2410,6 +2422,7 @@ TEST(OnvifServerTest, VideoAnalyticsRuleEngineAndEvaluation)
     OnvifServerConfig config;
     config.bindAddress = "127.0.0.1";
     config.port = 18090;
+    config.defaultUsers = OnvifTest::defaultTestUsers();
 
     OnvifServer server(config, adapter, adapter);
     server.setAnalyticsHandler(adapter);
@@ -2583,6 +2596,7 @@ TEST(OnvifServerTest, PtzGeoMoveAndSphericalSpaces)
     config.defaultLocation.fixed = true;
     config.defaultLocation.location = { 37.9838, 23.7275, 150.0 };
     config.defaultLocation.orientation = { 0.0, 0.0, 0.0 }; // Pointing true North
+    config.defaultUsers = OnvifTest::defaultTestUsers();
 
     OnvifServer server(config);
     adapter->setCameraLocation(config.defaultLocation);
@@ -2756,6 +2770,7 @@ TEST(OnvifServerTest, ProfileTPrivacyMasksAndVideoSourceModes)
     config.bindAddress = "127.0.0.1";
     config.port = port;
     config.deviceName = "Profile T Privacy & Source Modes Camera";
+    config.defaultUsers = OnvifTest::defaultTestUsers();
 
     auto mockTransport = std::make_shared<PelcoD::MockPelcoDDevice>();
     auto device = std::make_shared<PelcoD::PelcoDDevice>(mockTransport);
@@ -2980,7 +2995,8 @@ TEST(OnvifServerTest, ProfileTPrivacyMasksAndVideoSourceModes)
 
     // 11. End-to-end OnvifClient calls against the running server
     {
-        OnvifClient onvifClient("http://127.0.0.1:" + std::to_string(port) + "/onvif/device_service", OnvifTest::defaultAdmin());
+        OnvifClient onvifClient(
+            "http://127.0.0.1:" + std::to_string(port) + "/onvif/device_service", OnvifTest::defaultAdmin());
         EXPECT_TRUE(onvifClient.getCapabilities());
 
         const auto opts = onvifClient.getMaskOptions("VideoSource_1");
@@ -3036,6 +3052,7 @@ TEST(OnvifServerTest, ThermalServiceAndRadiometry)
     config.bindAddress = "127.0.0.1";
     config.port = port;
     config.deviceName = "Thermal Test Camera";
+    config.defaultUsers = OnvifTest::defaultTestUsers();
 
     auto mockTransport = std::make_shared<PelcoD::MockPelcoDDevice>();
     auto device = std::make_shared<PelcoD::PelcoDDevice>(mockTransport);
@@ -3215,7 +3232,8 @@ TEST(OnvifServerTest, ThermalServiceAndRadiometry)
 
     // 8. End-to-end OnvifClient calls against running server
     {
-        OnvifClient onvifClient("http://127.0.0.1:" + std::to_string(port) + "/onvif/device_service", OnvifTest::defaultAdmin());
+        OnvifClient onvifClient(
+            "http://127.0.0.1:" + std::to_string(port) + "/onvif/device_service", OnvifTest::defaultAdmin());
         const auto caps = onvifClient.getCapabilities();
         EXPECT_TRUE(caps.has_value());
         EXPECT_TRUE(!caps->thermalXAddr.empty());

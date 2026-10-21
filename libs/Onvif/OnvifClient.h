@@ -3,6 +3,7 @@
 /// @file OnvifClient.h
 /// @brief High-level ONVIF Profile S Client supporting Device, Media, and PTZ services.
 
+#include "OnvifAuthTypes.h"
 #include "OnvifHttpClient.h"
 #include "OnvifSecurity.h"
 #include "OnvifTypes.h"
@@ -36,10 +37,11 @@ struct OnvifCapabilities {
 /// @brief Client communicating with ONVIF Profile S IP cameras.
 class OnvifClient {
 public:
-    /// @brief Constructs client with device endpoint and credentials.
+    /// @brief Constructs client with device endpoint, credentials and TLS settings.
     /// @param[in] deviceEndpoint Device service URL (e.g. http://192.168.1.100/onvif/device_service).
     /// @param[in] credentials Authentication credentials.
-    explicit OnvifClient(std::string deviceEndpoint, SecurityCredentials credentials = {});
+    /// @param[in] tlsConfig TLS verification options.
+    explicit OnvifClient(std::string deviceEndpoint, SecurityCredentials credentials = {}, TlsConfig tlsConfig = {});
 
     /// @brief Virtual destructor.
     virtual ~OnvifClient() = default;
@@ -51,6 +53,14 @@ public:
     /// @brief Gets current credentials.
     /// @return Current authentication credentials.
     [[nodiscard]] const SecurityCredentials& credentials() const;
+
+    /// @brief Configures TLS transport security options.
+    /// @param[in] tlsConfig TLS verification mode and certificate paths.
+    void setTlsConfig(TlsConfig tlsConfig);
+
+    /// @brief Gets current TLS transport configuration.
+    /// @return Current TlsConfig.
+    [[nodiscard]] const TlsConfig& tlsConfig() const noexcept;
 
     /// @brief Sets device service endpoint.
     /// @param[in] endpoint New device endpoint URL.

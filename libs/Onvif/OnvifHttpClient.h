@@ -3,6 +3,8 @@
 /// @file OnvifHttpClient.h
 /// @brief HTTP POST SOAP client wrapper using libcurl.
 
+#include "OnvifAuthTypes.h"
+
 #include <chrono>
 #include <string>
 
@@ -46,6 +48,23 @@ public:
     /// @return Timeout duration.
     [[nodiscard]] std::chrono::milliseconds timeout() const;
 
+    /// @brief Configures TLS transport security options.
+    /// @param[in] config TLS verification mode and certificate paths.
+    void setTlsConfig(TlsConfig config);
+
+    /// @brief Gets current TLS transport configuration.
+    /// @return Current TlsConfig.
+    [[nodiscard]] const TlsConfig& tlsConfig() const noexcept;
+
+    /// @brief Configures HTTP transport credentials for Digest/Basic authentication.
+    /// @param[in] username HTTP authentication username.
+    /// @param[in] password HTTP authentication password.
+    void setHttpCredentials(std::string username, std::string password);
+
+    /// @brief Gets current HTTP authentication username.
+    /// @return Configured username string.
+    [[nodiscard]] const std::string& httpUsername() const noexcept;
+
     /// @brief Executes a synchronous HTTP POST request with SOAP payload.
     /// @param[in] url Destination endpoint URL (e.g. http://192.168.1.100/onvif/device_service).
     /// @param[in] soapXml XML payload body to transmit.
@@ -63,6 +82,9 @@ private:
     [[nodiscard]] HttpResponse executeRequest(void* curlHandle, const std::string& url);
 
     std::chrono::milliseconds m_timeout { 5000 };
+    TlsConfig m_tlsConfig {};
+    std::string m_httpUser {};
+    std::string m_httpPass {};
 };
 
 } // namespace Onvif

@@ -2,15 +2,20 @@
 
 #include <curl/curl.h>
 
+#include <array>
+#include <chrono>
+#include <cstddef>
 #include <memory>
+#include <string>
+#include <utility>
 
 namespace Onvif {
 
 namespace {
 
-    size_t writeCallback(void* contents, size_t size, size_t nmemb, void* userp)
+    std::size_t writeCallback(void* contents, std::size_t size, std::size_t nmemb, void* userp)
     {
-        const size_t totalSize = size * nmemb;
+        const std::size_t totalSize = size * nmemb;
         auto* str = static_cast<std::string*>(userp);
         str->append(static_cast<char*>(contents), totalSize);
         return totalSize;
@@ -54,6 +59,27 @@ std::chrono::milliseconds OnvifHttpClient::timeout() const
     return m_timeout;
 }
 
+void OnvifHttpClient::setTlsConfig(TlsConfig config)
+{
+    m_tlsConfig = std::move(config);
+}
+
+const TlsConfig& OnvifHttpClient::tlsConfig() const noexcept
+{
+    return m_tlsConfig;
+}
+
+void OnvifHttpClient::setHttpCredentials(std::string username, std::string password)
+{
+    m_httpUser = std::move(username);
+    m_httpPass = std::move(password);
+}
+
+const std::string& OnvifHttpClient::httpUsername() const noexcept
+{
+    return m_httpUser;
+}
+
 HttpResponse OnvifHttpClient::executeRequest(void* curlHandle, const std::string& url)
 {
     HttpResponse response {};
@@ -71,19 +97,50 @@ HttpResponse OnvifHttpClient::executeRequest(void* curlHandle, const std::string
     curl_easy_setopt(curl, CURLOPT_TIMEOUT_MS, timeoutMs);
     curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT_MS, timeoutMs > 3000 ? 3000L : timeoutMs);
 
-    // Camera LAN devices frequently use self-signed certificates for HTTPS
-    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
-    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0L);
+    // Apply TLS verification mode (Finding H5 / SEI CERT POS44-C)
+    switch (m_tlsConfig.mode) {
+    case TlsVerificationMode::Strict:
+        curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 1L);
+        curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 2L);
+        break;
+    case TlsVerificationMode::VerifyPeerOnly:
+        curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 1L);
+        curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0L);
+        break;
+    case TlsVerificationMode::PinnedCertificate:
+        curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 1L);
+        curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 2L);
+        if (!m_tlsConfig.pinnedPublicKey.empty()) {
+            curl_easy_setopt(curl, CURLOPT_PINNEDPUBLICKEY, m_tlsConfig.pinnedPublicKey.c_str());
+        }
+        break;
+    case TlsVerificationMode::InsecureAllowSelfSigned:
+        curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
+        curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0L);
+        break;
+    }
+
+    if (!m_tlsConfig.caBundlePath.empty()) {
+        curl_easy_setopt(curl, CURLOPT_CAINFO, m_tlsConfig.caBundlePath.c_str());
+    }
+
+    // Configure HTTP Digest / Basic authentication (Finding H6 / C1)
+    std::string userPwd {};
+    if (!m_httpUser.empty()) {
+        userPwd = m_httpUser + ":" + m_httpPass;
+        curl_easy_setopt(curl, CURLOPT_HTTPAUTH, CURLAUTH_DIGEST | CURLAUTH_BASIC);
+        curl_easy_setopt(curl, CURLOPT_USERPWD, userPwd.c_str());
+    }
 
     // Bypass proxies for local/loopback camera addresses and test fixtures
     curl_easy_setopt(curl, CURLOPT_NOPROXY, "127.0.0.1,localhost");
 
-    char errorBuffer[CURL_ERROR_SIZE] { 0 };
-    curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, errorBuffer);
+    std::array<char, CURL_ERROR_SIZE> errorBuffer {};
+    curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, errorBuffer.data());
 
     const CURLcode res = curl_easy_perform(curl);
     if (res != CURLE_OK) {
-        response.errorMessage = errorBuffer[0] != '\0' ? errorBuffer : curl_easy_strerror(res);
+        response.errorMessage = errorBuffer[0] != '\0' ? errorBuffer.data() : curl_easy_strerror(res);
         return response;
     }
 

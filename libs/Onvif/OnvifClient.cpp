@@ -16,6 +16,7 @@
 
 #include <pugixml.hpp>
 
+#include "OnvifAuthTypes.h"
 #include "OnvifSecurity.h"
 #include "XmlUtils.h"
 
@@ -105,20 +106,33 @@ namespace {
 
 using namespace Xml;
 
-OnvifClient::OnvifClient(std::string deviceEndpoint, SecurityCredentials credentials)
+OnvifClient::OnvifClient(std::string deviceEndpoint, SecurityCredentials credentials, TlsConfig tlsConfig)
     : m_deviceEndpoint(std::move(deviceEndpoint))
     , m_credentials(std::move(credentials))
 {
+    m_httpClient.setTlsConfig(std::move(tlsConfig));
+    m_httpClient.setHttpCredentials(m_credentials.username, m_credentials.password);
 }
 
 void OnvifClient::setCredentials(SecurityCredentials credentials)
 {
     m_credentials = std::move(credentials);
+    m_httpClient.setHttpCredentials(m_credentials.username, m_credentials.password);
 }
 
 const SecurityCredentials& OnvifClient::credentials() const
 {
     return m_credentials;
+}
+
+void OnvifClient::setTlsConfig(TlsConfig tlsConfig)
+{
+    m_httpClient.setTlsConfig(std::move(tlsConfig));
+}
+
+const TlsConfig& OnvifClient::tlsConfig() const noexcept
+{
+    return m_httpClient.tlsConfig();
 }
 
 void OnvifClient::setDeviceEndpoint(std::string endpoint)

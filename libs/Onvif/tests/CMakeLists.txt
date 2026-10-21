@@ -28,5 +28,6 @@ add_onvif_test(TestOnvifServicesConformance TestOnvifServicesConformance.cpp)
 add_onvif_test(TestOnvifSoapFault TestOnvifSoapFault.cpp)
 add_onvif_test(TestOnvifServerLifecycle TestOnvifServerLifecycle.cpp)
 add_onvif_test(TestOnvifNotificationPayload TestOnvifNotificationPayload.cpp)
+add_onvif_test(TestOnvifTlsSecurity TestOnvifTlsSecurity.cpp)
 
 

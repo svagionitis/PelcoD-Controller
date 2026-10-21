@@ -31,8 +31,14 @@ namespace OnvifTest {
 {
     Onvif::SecurityCredentials creds {};
     creds.username = "admin";
-    creds.password = "admin";
+    creds.password = "Adm1n-Pass";
     return creds;
+}
+
+/// @brief Default provisioned users for test fixtures requiring authenticated access.
+[[nodiscard]] inline std::vector<Onvif::OnvifUser> defaultTestUsers()
+{
+    return { { "admin", "Adm1n-Pass", Onvif::OnvifUserLevel::Administrator } };
 }
 
 /// @brief Builds credentials from a username/password pair.
