@@ -80,21 +80,39 @@ namespace {
             }
         }
 
+        struct TimeoutContext {
+            EventLoopWatchVariable watchVariable { 0 };
+        };
+
         void stepEventLoop(TestDeliveryContext& ctx, std::int64_t timeoutUs = 50000)
         {
             ctx.watchVariable = 0;
             TaskToken timeoutToken = m_env->taskScheduler().scheduleDelayedTask(
-                timeoutUs, [](void* ptr) { *static_cast<EventLoopWatchVariable*>(ptr) = 1; }, &ctx.watchVariable);
+                timeoutUs,
+                [](void* ptr) {
+                    auto* c { static_cast<TestDeliveryContext*>(ptr) };
+                    if (c != nullptr) {
+                        c->watchVariable = 1;
+                    }
+                },
+                &ctx);
             m_env->taskScheduler().doEventLoop(&ctx.watchVariable);
             m_env->taskScheduler().unscheduleDelayedTask(timeoutToken);
         }
 
         void stepEventLoopTimeout(std::int64_t timeoutUs = 5000)
         {
-            EventLoopWatchVariable watchVariable { 0 };
+            TimeoutContext timeoutCtx {};
             m_env->taskScheduler().scheduleDelayedTask(
-                timeoutUs, [](void* ptr) { *static_cast<EventLoopWatchVariable*>(ptr) = 1; }, &watchVariable);
-            m_env->taskScheduler().doEventLoop(&watchVariable);
+                timeoutUs,
+                [](void* ptr) {
+                    auto* c { static_cast<TimeoutContext*>(ptr) };
+                    if (c != nullptr) {
+                        c->watchVariable = 1;
+                    }
+                },
+                &timeoutCtx);
+            m_env->taskScheduler().doEventLoop(&timeoutCtx.watchVariable);
         }
 
         TaskScheduler* m_scheduler { nullptr };
