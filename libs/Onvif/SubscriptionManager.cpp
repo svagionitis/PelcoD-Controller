@@ -3,11 +3,22 @@
 
 #include "SubscriptionManager.h"
 
-#include <algorithm>
-#include <charconv>
+#include <cstddef>
 #include <ctime>
+
+#include <algorithm>
+#include <atomic>
+#include <charconv>
+#include <chrono>
 #include <iomanip>
+#include <memory>
+#include <mutex>
+#include <optional>
 #include <sstream>
+#include <string>
+#include <string_view>
+#include <thread>
+#include <vector>
 
 namespace Onvif {
 
@@ -30,17 +41,112 @@ namespace {
         return ss.str();
     }
 
+    /// @brief Parses an ISO 8601 UTC dateTime string into a system clock time point.
+    /// @param[in] dtStr ISO 8601 UTC string (e.g. "2026-10-21T15:30:00Z").
+    /// @return System clock time point on success; nullopt on malformed string.
+    [[nodiscard]] std::optional<std::chrono::system_clock::time_point> parseIso8601Utc(std::string_view dtStr) noexcept
+    {
+        // Expect at least "YYYY-MM-DDTHH:MM:SS" (19 chars)
+        if (dtStr.size() < 19U) {
+            return std::nullopt;
+        }
+        if (dtStr[4] != '-' || dtStr[7] != '-' || dtStr[10] != 'T' || dtStr[13] != ':' || dtStr[16] != ':') {
+            return std::nullopt;
+        }
+        const auto parseNum = [](const char* p, std::size_t len, int& out) noexcept -> bool {
+            const auto res = std::from_chars(p, p + len, out);
+            return res.ec == std::errc {};
+        };
+        int year { 0 };
+        int month { 0 };
+        int day { 0 };
+        int hour { 0 };
+        int min { 0 };
+        int sec { 0 };
+        if (!parseNum(&dtStr[0], 4U, year) || !parseNum(&dtStr[5], 2U, month) || !parseNum(&dtStr[8], 2U, day)
+            || !parseNum(&dtStr[11], 2U, hour) || !parseNum(&dtStr[14], 2U, min) || !parseNum(&dtStr[17], 2U, sec)) {
+            return std::nullopt;
+        }
+        std::tm tmBuf {};
+        tmBuf.tm_year = year - 1900;
+        tmBuf.tm_mon = month - 1;
+        tmBuf.tm_mday = day;
+        tmBuf.tm_hour = hour;
+        tmBuf.tm_min = min;
+        tmBuf.tm_sec = sec;
+        tmBuf.tm_isdst = 0;
+#ifdef _WIN32
+        const std::time_t t { _mkgmtime(&tmBuf) };
+#else
+        const std::time_t t { timegm(&tmBuf) };
+#endif
+        if (t == static_cast<std::time_t>(-1)) {
+            return std::nullopt;
+        }
+        return std::chrono::system_clock::from_time_t(t);
+    }
+
 } // namespace
 
 SubscriptionManager::SubscriptionManager(NotificationConfig config)
     : m_config { std::move(config) }
 {
+    start();
+}
+
+SubscriptionManager::~SubscriptionManager()
+{
+    stop();
+}
+
+void SubscriptionManager::start()
+{
+    bool expected { false };
+    if (m_sweeperRunning.compare_exchange_strong(expected, true)) {
+        m_sweepThread = std::thread(&SubscriptionManager::sweeperLoop, this);
+    }
+}
+
+void SubscriptionManager::stop()
+{
+    bool expected { true };
+    if (m_sweeperRunning.compare_exchange_strong(expected, false)) {
+        m_sweepCv.notify_all();
+        if (m_sweepThread.joinable()) {
+            m_sweepThread.join();
+        }
+    }
+    notifyAll();
+}
+
+void SubscriptionManager::sweeperLoop()
+{
+    std::unique_lock<std::mutex> lock(m_sweepMutex);
+    while (m_sweeperRunning.load()) {
+        if (m_sweepCv.wait_for(lock, m_config.sweepInterval, [this] { return !m_sweeperRunning.load(); })) {
+            break;
+        }
+        sweepExpired();
+    }
 }
 
 std::chrono::seconds SubscriptionManager::parseLease(std::string_view termStr) const
 {
     if (termStr.empty()) {
         return m_config.defaultLease;
+    }
+
+    // Check if it's an ISO 8601 absolute UTC dateTime (e.g. "2026-10-21T15:30:00Z")
+    if (termStr.size() >= 19U && termStr.find('-') != std::string_view::npos
+        && termStr.find('T') != std::string_view::npos) {
+        const auto tp = parseIso8601Utc(termStr);
+        if (tp) {
+            const auto diff = std::chrono::duration_cast<std::chrono::seconds>(*tp - std::chrono::system_clock::now());
+            if (diff.count() <= 0) {
+                return m_config.minLease;
+            }
+            return std::clamp(diff, m_config.minLease, m_config.maxLease);
+        }
     }
 
     // Check if it's an ISO 8601 duration starting with P or PT
@@ -203,6 +309,9 @@ bool SubscriptionManager::pullMessages(std::string_view subId, int limit, int ti
     std::vector<OnvifEvent>& outEvents, std::string& outCurTime, std::string& outTermTime,
     const std::atomic<bool>& serverRunning)
 {
+    const int clampedLimit { std::clamp(limit, 1, 100) };
+    const int clampedTimeoutSec { std::clamp(timeoutSec, 0, 10) };
+
     std::shared_ptr<PullPointSub> sub {};
     {
         std::scoped_lock lock(m_mutex);
@@ -212,6 +321,10 @@ bool SubscriptionManager::pullMessages(std::string_view subId, int limit, int ti
             return false;
         }
         if (it->second->terminationTime <= nowSteady) {
+            {
+                std::scoped_lock subLock(it->second->mutex);
+                it->second->cv.notify_all();
+            }
             m_pullSubs.erase(it);
             return false;
         }
@@ -220,14 +333,33 @@ bool SubscriptionManager::pullMessages(std::string_view subId, int limit, int ti
 
     {
         std::unique_lock<std::mutex> subLock(sub->mutex);
-        if (sub->queue.empty() && timeoutSec > 0) {
-            sub->cv.wait_for(subLock, std::chrono::seconds(timeoutSec),
-                [&]() { return !sub->queue.empty() || !serverRunning.load(); });
+        if (sub->queue.empty() && clampedTimeoutSec > 0) {
+            const auto now = std::chrono::steady_clock::now();
+            const auto remainingMs = std::chrono::duration_cast<std::chrono::milliseconds>(sub->terminationTime - now);
+            const auto timeoutMs = std::chrono::milliseconds(clampedTimeoutSec * 1000);
+            const auto waitDuration = std::min(timeoutMs, std::max(std::chrono::milliseconds(0), remainingMs));
+
+            if (waitDuration.count() > 0) {
+                sub->cv.wait_for(subLock, waitDuration, [&]() {
+                    return !sub->queue.empty() || !serverRunning.load()
+                        || (std::chrono::steady_clock::now() >= sub->terminationTime);
+                });
+            }
         }
 
-        while (!sub->queue.empty() && static_cast<int>(outEvents.size()) < limit) {
+        while (!sub->queue.empty() && static_cast<int>(outEvents.size()) < clampedLimit) {
             outEvents.push_back(std::move(sub->queue.front()));
             sub->queue.pop_front();
+        }
+
+        if (outEvents.empty()) {
+            const auto now = std::chrono::steady_clock::now();
+            if (now < sub->terminationTime && (sub->terminationTime - now) <= std::chrono::milliseconds(50)) {
+                std::this_thread::sleep_until(sub->terminationTime);
+            }
+            if (std::chrono::steady_clock::now() >= sub->terminationTime) {
+                return false;
+            }
         }
     }
 
@@ -246,10 +378,14 @@ void SubscriptionManager::publishEvent(const OnvifEvent& event, std::vector<std:
 
     for (auto it { m_pullSubs.begin() }; it != m_pullSubs.end();) {
         if (it->second->terminationTime <= nowSteady) {
+            {
+                std::scoped_lock subLock(it->second->mutex);
+                it->second->cv.notify_all();
+            }
             it = m_pullSubs.erase(it);
         } else {
             std::scoped_lock subLock(it->second->mutex);
-            if (it->second->queue.size() >= m_config.maxQueuePerSubscription) {
+            while (it->second->queue.size() >= m_config.maxQueuePerSubscription) {
                 it->second->queue.pop_front();
             }
             it->second->queue.push_back(event);
@@ -278,6 +414,10 @@ std::size_t SubscriptionManager::sweepExpired()
 
     for (auto it { m_pullSubs.begin() }; it != m_pullSubs.end();) {
         if (it->second->terminationTime <= nowSteady) {
+            {
+                std::scoped_lock subLock(it->second->mutex);
+                it->second->cv.notify_all();
+            }
             it = m_pullSubs.erase(it);
             ++swept;
         } else {

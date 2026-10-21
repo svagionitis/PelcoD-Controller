@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <atomic>
+#include <charconv>
 #include <chrono>
 #include <cmath>
 #include <iomanip>
@@ -187,28 +188,48 @@ namespace {
         return std::string(buf);
     }
 
-    int parseTimeoutSeconds(const std::string& isoDuration, int defaultSecs = 5)
+    [[nodiscard]] int parseTimeoutSeconds(const std::string& isoDuration, int defaultSecs = 5) noexcept
     {
         if (isoDuration.empty()) {
             return defaultSecs;
         }
 
-        const auto posT = isoDuration.find('T');
-        const auto posS = isoDuration.find('S');
-        if (posT != std::string::npos && posS != std::string::npos && posS > posT + 1) {
-            try {
-                const int val = std::stoi(isoDuration.substr(posT + 1, posS - posT - 1));
-                return std::clamp(val, 0, 10);
-            } catch (const std::invalid_argument&) {
-                // Fallback
-            } catch (const std::out_of_range&) {
-                // Fallback
-            } catch (const std::exception&) {
-                // Fallback
-            } catch (...) {
-                // Fallback
+        if (isoDuration.front() == 'P') {
+            int totalSeconds { 0 };
+            int currentVal { 0 };
+            bool inTime { false };
+
+            for (std::size_t i { 1U }; i < isoDuration.size(); ++i) {
+                const char c { isoDuration[i] };
+                if (c == 'T') {
+                    inTime = true;
+                } else if (c >= '0' && c <= '9') {
+                    currentVal = (currentVal * 10) + (c - '0');
+                } else if (c == 'D') {
+                    totalSeconds += currentVal * 86400;
+                    currentVal = 0;
+                } else if (c == 'H' && inTime) {
+                    totalSeconds += currentVal * 3600;
+                    currentVal = 0;
+                } else if (c == 'M' && inTime) {
+                    totalSeconds += currentVal * 60;
+                    currentVal = 0;
+                } else if (c == 'S' && inTime) {
+                    totalSeconds += currentVal;
+                    currentVal = 0;
+                }
+            }
+            if (totalSeconds >= 0) {
+                return std::clamp(totalSeconds, 0, 10);
             }
         }
+
+        int rawSec { 0 };
+        const auto res { std::from_chars(isoDuration.data(), isoDuration.data() + isoDuration.size(), rawSec) };
+        if (res.ec == std::errc {} && rawSec >= 0) {
+            return std::clamp(rawSec, 0, 10);
+        }
+
         return defaultSecs;
     }
 
@@ -638,7 +659,7 @@ void OnvifServer::stop()
     }
 
     if (m_subManager) {
-        m_subManager->notifyAll();
+        m_subManager->stop();
     }
 
     if (m_httpThread.joinable()) {
@@ -3997,6 +4018,12 @@ void OnvifServer::handleSubscriptionService(const httplib::Request& req, httplib
     if (req.path.rfind(prefix, 0) == 0 && req.path.length() > prefix.length()) {
         subId = req.path.substr(prefix.length());
     }
+    if (subId.empty()) {
+        const auto subIdNode = doc.select_node("//*[local-name()='SubscriptionId']").node();
+        if (subIdNode) {
+            subId = subIdNode.text().as_string();
+        }
+    }
 
     if (!m_subManager) {
         sendSoapResponse(res, SoapFault::resourceUnknown("Event service unavailable"), 500);
@@ -4038,8 +4065,14 @@ void OnvifServer::handleSubscriptionService(const httplib::Request& req, httplib
 
         body << "    </tev:PullMessagesResponse>\r\n";
     } else if (opName.find("Unsubscribe") != std::string::npos) {
-        if (!subId.empty()) {
-            m_subManager->unsubscribe(subId);
+        if (subId.empty()) {
+            sendSoapResponse(res, SoapFault::resourceUnknown("Missing subscription ID in URI"), 400);
+            return;
+        }
+        const bool removed = m_subManager->unsubscribe(subId);
+        if (!removed) {
+            sendSoapResponse(res, SoapFault::resourceUnknown("Subscription does not exist or has expired"), 400);
+            return;
         }
         body << "    <wsnt:UnsubscribeResponse/>\r\n";
     } else if (opName.find("Renew") != std::string::npos) {

@@ -4,20 +4,23 @@
 /// @brief Lifecycle, lease enforcement, and quota management for ONVIF event subscriptions.
 /// @details Remediates review finding C5 (CWE-400 resource exhaustion, lease expiration).
 
-#include "OnvifServerTypes.h"
-#include "OnvifTypes.h"
+#include <cstddef>
+#include <cstdint>
 
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
-#include <cstddef>
 #include <deque>
 #include <map>
 #include <memory>
 #include <mutex>
 #include <string>
 #include <string_view>
+#include <thread>
 #include <vector>
+
+#include "OnvifServerTypes.h"
+#include "OnvifTypes.h"
 
 namespace Onvif {
 
@@ -41,7 +44,8 @@ public:
     /// @param[in] config Operational notification configuration.
     explicit SubscriptionManager(NotificationConfig config);
 
-    ~SubscriptionManager() = default;
+    /// @brief Destructor, cleanly stops and joins the sweeper thread.
+    ~SubscriptionManager();
 
     SubscriptionManager(const SubscriptionManager&) = delete;
     SubscriptionManager& operator=(const SubscriptionManager&) = delete;
@@ -109,6 +113,12 @@ public:
     /// @return Clamped duration in seconds.
     [[nodiscard]] std::chrono::seconds parseLease(std::string_view termStr) const;
 
+    /// @brief Starts the background TTL sweeper thread.
+    void start();
+
+    /// @brief Stops the background TTL sweeper thread and notifies waiting subscribers.
+    void stop();
+
 private:
     struct PullPointSub {
         std::string id {};
@@ -129,6 +139,13 @@ private:
     std::map<std::string, std::shared_ptr<PullPointSub>> m_pullSubs {};
     std::map<std::string, PushSub> m_pushSubs {};
     std::uint32_t m_nextSubId { 1U };
+
+    std::atomic<bool> m_sweeperRunning { false };
+    std::condition_variable m_sweepCv {};
+    std::mutex m_sweepMutex {};
+    std::thread m_sweepThread {};
+
+    void sweeperLoop();
 };
 
 } // namespace Onvif

@@ -59,6 +59,9 @@ struct NotificationConfig {
 
     /// @brief Maximum number of pending delivery items in the dispatcher work queue.
     std::size_t maxDispatchQueueSize { 128 };
+
+    /// @brief Periodic interval between active background subscription sweep cycles.
+    std::chrono::milliseconds sweepInterval { 5000 };
 };
 
 /// @enum ProvisioningState
