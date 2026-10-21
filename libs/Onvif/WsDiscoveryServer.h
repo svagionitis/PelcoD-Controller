@@ -9,6 +9,7 @@
 
 #include <atomic>
 #include <memory>
+#include <mutex>
 #include <string>
 #include <thread>
 #include <vector>
@@ -61,9 +62,14 @@ public:
     /// @return Complete SOAP XML Bye payload.
     [[nodiscard]] std::string createByePayload() const;
 
+    /// @brief Thread-safely updates configurable scopes in discovery responder.
+    /// @param[in] scopes List of active scope URIs.
+    void updateScopes(const std::vector<std::string>& scopes);
+
 private:
     void runListener();
 
+    mutable std::mutex m_scopeMutex {};
     OnvifServerConfig m_config;
     std::atomic<bool> m_running { false };
     std::thread m_thread {};

@@ -1,13 +1,17 @@
 #include "WsDiscoveryServer.h"
-#include "WsDiscoveryCommon.h"
-#include "XmlUtils.h"
+
+#include <cstring>
+
+#include <array>
+#include <sstream>
+#include <string>
+#include <vector>
 
 #include <Transport/SocketUtils.h>
 #include <pugixml.hpp>
 
-#include <array>
-#include <cstring>
-#include <sstream>
+#include "WsDiscoveryCommon.h"
+#include "XmlUtils.h"
 
 namespace Onvif {
 
@@ -245,8 +249,11 @@ std::string WsDiscoveryServer::createProbeMatchesPayload(
         << "          onvif://www.onvif.org/name/" << Xml::escapeXml(m_config.deviceName) << "\r\n"
         << "          onvif://www.onvif.org/hardware/" << Xml::escapeXml(m_config.model) << "\r\n";
 
-    for (const auto& scope : m_config.scopes) {
-        oss << "          " << Xml::escapeXml(scope) << "\r\n";
+    {
+        std::scoped_lock lock(m_scopeMutex);
+        for (const auto& scope : m_config.scopes) {
+            oss << "          " << Xml::escapeXml(scope) << "\r\n";
+        }
     }
 
     oss << "        </d:Scopes>\r\n"
@@ -289,8 +296,11 @@ std::string WsDiscoveryServer::createHelloPayload(const std::string& localIp) co
         << "        onvif://www.onvif.org/name/" << Xml::escapeXml(m_config.deviceName) << "\r\n"
         << "        onvif://www.onvif.org/hardware/" << Xml::escapeXml(m_config.model) << "\r\n";
 
-    for (const auto& scope : m_config.scopes) {
-        oss << "        " << Xml::escapeXml(scope) << "\r\n";
+    {
+        std::scoped_lock lock(m_scopeMutex);
+        for (const auto& scope : m_config.scopes) {
+            oss << "        " << Xml::escapeXml(scope) << "\r\n";
+        }
     }
 
     oss << "      </d:Scopes>\r\n"
@@ -302,6 +312,12 @@ std::string WsDiscoveryServer::createHelloPayload(const std::string& localIp) co
         << "</SOAP-ENV:Envelope>\r\n";
 
     return oss.str();
+}
+
+void WsDiscoveryServer::updateScopes(const std::vector<std::string>& scopes)
+{
+    std::scoped_lock lock(m_scopeMutex);
+    m_config.scopes = scopes;
 }
 
 std::string WsDiscoveryServer::createByePayload() const

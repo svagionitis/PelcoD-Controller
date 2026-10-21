@@ -3,16 +3,10 @@
 /// @file OnvifServer.h
 /// @brief Embedded ONVIF Profile S HTTP server and WS-Discovery responder.
 
-#include "Authenticator.h"
-#include "CredentialStore.h"
-#include "HttplibInclude.h"
-#include "OnvifServerTypes.h"
-#include "WsDiscoveryServer.h"
-
 #include <cstdint>
-#include <pugixml.hpp>
 
 #include <atomic>
+#include <chrono>
 #include <condition_variable>
 #include <deque>
 #include <map>
@@ -23,6 +17,15 @@
 #include <string>
 #include <string_view>
 #include <thread>
+#include <vector>
+
+#include <pugixml.hpp>
+
+#include "Authenticator.h"
+#include "CredentialStore.h"
+#include "HttplibInclude.h"
+#include "OnvifServerTypes.h"
+#include "WsDiscoveryServer.h"
 
 namespace Onvif {
 
@@ -131,6 +134,58 @@ public:
     /// @param[in] handler New IThermalHandler instance.
     void setThermalHandler(std::shared_ptr<IThermalHandler> handler);
 
+    /// @brief Gets a thread-safe snapshot of the active PTZ handler.
+    /// @return Active IPtzHandler shared pointer, or nullptr.
+    [[nodiscard]] std::shared_ptr<IPtzHandler> getPtzHandler() const;
+
+    /// @brief Gets a thread-safe snapshot of the active Imaging handler.
+    /// @return Active IImagingHandler shared pointer, or nullptr.
+    [[nodiscard]] std::shared_ptr<IImagingHandler> getImagingHandler() const;
+
+    /// @brief Gets a thread-safe snapshot of the active OSD handler.
+    /// @return Active IOsdHandler shared pointer, or nullptr.
+    [[nodiscard]] std::shared_ptr<IOsdHandler> getOsdHandler() const;
+
+    /// @brief Gets a thread-safe snapshot of the active Device Management handler.
+    /// @return Active IDeviceManagementHandler shared pointer, or nullptr.
+    [[nodiscard]] std::shared_ptr<IDeviceManagementHandler> getDeviceManagementHandler() const;
+
+    /// @brief Gets a thread-safe snapshot of the active Device I/O handler.
+    /// @return Active IDeviceIoHandler shared pointer, or nullptr.
+    [[nodiscard]] std::shared_ptr<IDeviceIoHandler> getDeviceIoHandler() const;
+
+    /// @brief Gets a thread-safe snapshot of the active Metadata handler.
+    /// @return Active IMetadataHandler shared pointer, or nullptr.
+    [[nodiscard]] std::shared_ptr<IMetadataHandler> getMetadataHandler() const;
+
+    /// @brief Gets a thread-safe snapshot of the active Recording handler.
+    /// @return Active IRecordingHandler shared pointer, or nullptr.
+    [[nodiscard]] std::shared_ptr<IRecordingHandler> getRecordingHandler() const;
+
+    /// @brief Gets a thread-safe snapshot of the active Search handler.
+    /// @return Active ISearchHandler shared pointer, or nullptr.
+    [[nodiscard]] std::shared_ptr<ISearchHandler> getSearchHandler() const;
+
+    /// @brief Gets a thread-safe snapshot of the active Replay handler.
+    /// @return Active IReplayHandler shared pointer, or nullptr.
+    [[nodiscard]] std::shared_ptr<IReplayHandler> getReplayHandler() const;
+
+    /// @brief Gets a thread-safe snapshot of the active Analytics handler.
+    /// @return Active IAnalyticsHandler shared pointer, or nullptr.
+    [[nodiscard]] std::shared_ptr<IAnalyticsHandler> getAnalyticsHandler() const;
+
+    /// @brief Gets a thread-safe snapshot of the active Privacy Mask handler.
+    /// @return Active IMaskHandler shared pointer, or nullptr.
+    [[nodiscard]] std::shared_ptr<IMaskHandler> getMaskHandler() const;
+
+    /// @brief Gets a thread-safe snapshot of the active Video Source Mode handler.
+    /// @return Active IVideoSourceModeHandler shared pointer, or nullptr.
+    [[nodiscard]] std::shared_ptr<IVideoSourceModeHandler> getVideoSourceModeHandler() const;
+
+    /// @brief Gets a thread-safe snapshot of the active Thermal handler.
+    /// @return Active IThermalHandler shared pointer, or nullptr.
+    [[nodiscard]] std::shared_ptr<IThermalHandler> getThermalHandler() const;
+
     /// @brief Records an operational message into the internal system log buffer.
     /// @param[in] level Log level ("INFO", "WARNING", "ERROR").
     /// @param[in] msg Log message.
@@ -196,20 +251,21 @@ private:
 
     OnvifServerConfig m_config;
     RequestLogCallback m_logCallback {};
-    std::shared_ptr<IPtzHandler> m_ptzHandler;
-    std::shared_ptr<IImagingHandler> m_imagingHandler;
-    std::shared_ptr<IOsdHandler> m_osdHandler;
-    std::shared_ptr<IDeviceManagementHandler> m_deviceHandler;
-    std::shared_ptr<IDeviceIoHandler> m_deviceIoHandler;
-    std::shared_ptr<IMetadataHandler> m_metadataHandler;
-    std::shared_ptr<IRecordingHandler> m_recordingHandler;
-    std::shared_ptr<ISearchHandler> m_searchHandler;
-    std::shared_ptr<IReplayHandler> m_replayHandler;
-    std::shared_ptr<IAnalyticsHandler> m_analyticsHandler;
-    std::shared_ptr<IMaskHandler> m_maskHandler;
-    std::shared_ptr<IVideoSourceModeHandler> m_videoSourceModeHandler;
-    std::shared_ptr<IThermalHandler> m_thermalHandler;
-    std::unique_ptr<WsDiscoveryServer> m_discoveryServer;
+    mutable std::mutex m_handlerMutex {};
+    std::shared_ptr<IPtzHandler> m_ptzHandler {};
+    std::shared_ptr<IImagingHandler> m_imagingHandler {};
+    std::shared_ptr<IOsdHandler> m_osdHandler {};
+    std::shared_ptr<IDeviceManagementHandler> m_deviceHandler {};
+    std::shared_ptr<IDeviceIoHandler> m_deviceIoHandler {};
+    std::shared_ptr<IMetadataHandler> m_metadataHandler {};
+    std::shared_ptr<IRecordingHandler> m_recordingHandler {};
+    std::shared_ptr<ISearchHandler> m_searchHandler {};
+    std::shared_ptr<IReplayHandler> m_replayHandler {};
+    std::shared_ptr<IAnalyticsHandler> m_analyticsHandler {};
+    std::shared_ptr<IMaskHandler> m_maskHandler {};
+    std::shared_ptr<IVideoSourceModeHandler> m_videoSourceModeHandler {};
+    std::shared_ptr<IThermalHandler> m_thermalHandler {};
+    std::unique_ptr<WsDiscoveryServer> m_discoveryServer {};
     httplib::Server m_httpServer;
 
     mutable std::mutex m_deviceMutex {};
