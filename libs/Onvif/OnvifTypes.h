@@ -192,16 +192,20 @@ struct OsdConfig {
 };
 
 /// @struct VideoEncoderConfig
-/// @brief Media2 video encoding configuration parameters.
+/// @brief Video encoding configuration parameters (ONVIF Profile S / Media ver10 & Media2).
 struct VideoEncoderConfig {
     std::string token { "VideoEncoderConfig_1" }; ///< Unique configuration token
     std::string name { "VideoEncoderConfig" }; ///< User-friendly configuration name
+    int useCount { 1 }; ///< Number of profiles referencing this configuration
     std::string encoding { "H264" }; ///< Video codec ("H264", "H265", "JPEG")
     int width { 1920 }; ///< Frame width in pixels
     int height { 1080 }; ///< Frame height in pixels
+    float quality { 5.0f }; ///< Encoding quality level
     float frameRateLimit { 30.0f }; ///< Maximum encoded framerate
     int bitrateLimitKbps { 4096 }; ///< Bitrate target limit in Kbps
     int govLength { 30 }; ///< Group of Video / keyframe interval
+    std::string h264Profile { "Main" }; ///< H.264 profile ("Baseline", "Main", "High", "Extended")
+    std::string sessionTimeout { "PT30S" }; ///< RTSP session timeout
 };
 
 /// @struct Point2D

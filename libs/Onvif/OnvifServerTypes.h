@@ -7,6 +7,7 @@
 #include "OnvifTypes.h"
 
 #include <chrono>
+#include <cstddef>
 #include <cstdint>
 #include <functional>
 #include <memory>
@@ -105,6 +106,59 @@ struct NetworkProtocolConfig {
 
     /// @brief Port number (1-65535).
     int port { 8080 };
+};
+
+/// @struct VideoSourceConfig
+/// @brief Configuration parameters for a video sensor/source attachment (ONVIF Profile S).
+struct VideoSourceConfig {
+    /// @brief Unique configuration token.
+    std::string token { "VideoSourceConfig_1" };
+
+    /// @brief Configuration name.
+    std::string name { "VideoSourceConfig" };
+
+    /// @brief Number of profiles referencing this configuration.
+    int useCount { 1 };
+
+    /// @brief Attached physical video source token.
+    std::string sourceToken { "VideoSource_1" };
+
+    /// @brief Source window X coordinate.
+    int x { 0 };
+
+    /// @brief Source window Y coordinate.
+    int y { 0 };
+
+    /// @brief Source window width.
+    int width { 1920 };
+
+    /// @brief Source window height.
+    int height { 1080 };
+};
+
+/// @struct ServerMediaProfile
+/// @brief Full server-side ONVIF Profile representation aggregating configurations (Profile S).
+struct ServerMediaProfile {
+    /// @brief Unique profile identifier token.
+    std::string token { "ProfileToken_1" };
+
+    /// @brief Profile name.
+    std::string name { "MainProfile" };
+
+    /// @brief If true, profile cannot be deleted via DeleteProfile.
+    bool fixed { true };
+
+    /// @brief Bound VideoSourceConfiguration token.
+    std::string vscToken { "VideoSourceConfig_1" };
+
+    /// @brief Bound VideoEncoderConfiguration token.
+    std::string vecToken { "VideoEncoderConfig_1" };
+
+    /// @brief Bound PTZConfiguration token.
+    std::string ptzToken { "PTZConfig_1" };
+
+    /// @brief Bound MetadataConfiguration token.
+    std::string metadataToken { "MetadataConfig_1" };
 };
 
 /// @struct DiscoveryConfig
@@ -224,6 +278,18 @@ struct OnvifServerConfig {
     /// @brief Default metadata stream configurations (Profile T / Profile M).
     std::vector<MetadataConfiguration> defaultMetadataConfigs { { "MetadataConfig_1", "MetadataConfiguration", 1,
         "PT60S", true, true, true, false } };
+
+    /// @brief Default video source configurations (Profile S).
+    std::vector<VideoSourceConfig> defaultVideoSourceConfigs { { "VideoSourceConfig_1", "VideoSourceConfig", 1,
+        "VideoSource_1", 0, 0, 1920, 1080 } };
+
+    /// @brief Default video encoder configurations (Profile S).
+    std::vector<VideoEncoderConfig> defaultVideoEncoderConfigs { { "VideoEncoderConfig_1", "VideoEncoderConfig", 1,
+        "H264", 1920, 1080, 5.0f, 30.0f, 4096, 30, "Main", "PT30S" } };
+
+    /// @brief Default media profiles (Profile S).
+    std::vector<ServerMediaProfile> defaultMediaProfiles { { "ProfileToken_1", "MainProfile", true,
+        "VideoSourceConfig_1", "VideoEncoderConfig_1", "PTZConfig_1", "MetadataConfig_1" } };
 
     /// @brief Default RTSP or HTTP metadata stream URI.
     std::string metadataStreamUri { "rtsp://127.0.0.1:8554/metadata" };

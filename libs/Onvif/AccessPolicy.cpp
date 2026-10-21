@@ -75,8 +75,9 @@ namespace {
     } };
 
     // Shared by Media (ver10) and Media2 (ver20).
-    constexpr std::array<OpRule, 32U> kMedia { {
+    constexpr std::array<OpRule, 47U> kMedia { {
         { "GetProfiles", C::ReadMedia },
+        { "GetProfile", C::ReadMedia },
         { "GetVideoSources", C::ReadMedia },
         { "GetStreamUri", C::ReadMedia },
         { "GetSnapshotUri", C::ReadMedia },
@@ -87,8 +88,15 @@ namespace {
         { "GetMetadataConfiguration", C::ReadMedia },
         { "GetMetadataConfigurationOptions", C::ReadMedia },
         { "GetCompatibleMetadataConfigurations", C::ReadMedia },
+        { "GetVideoSourceConfigurations", C::ReadMedia },
+        { "GetVideoSourceConfiguration", C::ReadMedia },
         { "GetVideoEncoderConfigurations", C::ReadMedia },
+        { "GetVideoEncoderConfiguration", C::ReadMedia },
         { "GetVideoEncoderConfigurationOptions", C::ReadMedia },
+        { "GetCompatibleVideoSourceConfigurations", C::ReadMedia },
+        { "GetCompatibleVideoEncoderConfigurations", C::ReadMedia },
+        { "GetGuaranteedNumberOfVideoEncoderInstances", C::ReadMedia },
+        { "GetServiceCapabilities", C::PreAuth },
         { "GetMaskOptions", C::ReadMedia },
         { "GetMasks", C::ReadMedia },
         { "GetMask", C::ReadMedia },
@@ -105,7 +113,14 @@ namespace {
         { "DeleteProfile", C::Actuate },
         { "AddConfiguration", C::Actuate },
         { "RemoveConfiguration", C::Actuate },
+        { "AddVideoEncoderConfiguration", C::Actuate },
+        { "RemoveVideoEncoderConfiguration", C::Actuate },
+        { "AddVideoSourceConfiguration", C::Actuate },
+        { "RemoveVideoSourceConfiguration", C::Actuate },
+        { "AddPTZConfiguration", C::Actuate },
+        { "RemovePTZConfiguration", C::Actuate },
         { "SetVideoEncoderConfiguration", C::Actuate },
+        { "SetSynchronizationPoint", C::Actuate },
         { "StartMulticastStreaming", C::Actuate },
         { "StopMulticastStreaming", C::Actuate },
     } };

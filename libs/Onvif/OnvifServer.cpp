@@ -11,6 +11,7 @@
 #include <cmath>
 #include <iomanip>
 #include <memory>
+#include <mutex>
 #include <optional>
 #include <sstream>
 #include <stdexcept>
@@ -518,6 +519,10 @@ OnvifServer::OnvifServer(OnvifServerConfig config, std::shared_ptr<IPtzHandler> 
         devHandler->handleSetGeoLocation(m_config.defaultLocation);
     }
 
+    m_internalProfiles = m_config.defaultMediaProfiles;
+    m_internalVideoSources = m_config.defaultVideoSourceConfigs;
+    m_internalVideoEncoders = m_config.defaultVideoEncoderConfigs;
+
     m_internalMasks = m_config.defaultMasks;
     m_internalMaskOptions = m_config.defaultMaskOptions;
     m_internalVideoSourceModes = m_config.defaultVideoSourceModes;
@@ -987,7 +992,13 @@ bool OnvifServer::isProfileValid(std::string_view token) const
     if (token.empty()) {
         return false;
     }
-    if (token == "ProfileToken_1" || token == "Profile_1" || token == "MainProfile") {
+    std::lock_guard<std::mutex> lock(m_mediaMutex);
+    for (const auto& prof : m_internalProfiles) {
+        if (prof.token == token) {
+            return true;
+        }
+    }
+    if (token == "Profile_1" || token == "MainProfile") {
         return true;
     }
     return false;
@@ -2370,6 +2381,151 @@ void OnvifServer::handleDeviceService(const httplib::Request& req, httplib::Resp
     sendSoapResponse(res, body.str());
 }
 
+void OnvifServer::formatVideoSourceConfigXml(const VideoSourceConfig& cfg, std::ostringstream& body,
+    const std::string& prefix, const std::string& elemName) const
+{
+    body << "      <" << prefix << ":" << elemName << " token=\"" << Xml::escapeXmlAttr(cfg.token) << "\">\r\n"
+         << "        <tt:Name>" << Xml::escapeXmlText(cfg.name) << "</tt:Name>\r\n"
+         << "        <tt:UseCount>" << cfg.useCount << "</tt:UseCount>\r\n"
+         << "        <tt:SourceToken>" << Xml::escapeXmlText(cfg.sourceToken) << "</tt:SourceToken>\r\n"
+         << "        <tt:Bounds x=\"" << cfg.x << "\" y=\"" << cfg.y << "\" width=\"" << cfg.width << "\" height=\""
+         << cfg.height << "\"/>\r\n"
+         << "      </" << prefix << ":" << elemName << ">\r\n";
+}
+
+void OnvifServer::formatVideoEncoderConfigXml(const VideoEncoderConfig& cfg, std::ostringstream& body,
+    const std::string& prefix, const std::string& elemName) const
+{
+    body << "      <" << prefix << ":" << elemName << " token=\"" << Xml::escapeXmlAttr(cfg.token) << "\">\r\n"
+         << "        <tt:Name>" << Xml::escapeXmlText(cfg.name) << "</tt:Name>\r\n"
+         << "        <tt:UseCount>" << cfg.useCount << "</tt:UseCount>\r\n"
+         << "        <tt:Encoding>" << Xml::escapeXmlText(cfg.encoding) << "</tt:Encoding>\r\n"
+         << "        <tt:Resolution>\r\n"
+         << "          <tt:Width>" << cfg.width << "</tt:Width>\r\n"
+         << "          <tt:Height>" << cfg.height << "</tt:Height>\r\n"
+         << "        </tt:Resolution>\r\n"
+         << "        <tt:Quality>" << cfg.quality << "</tt:Quality>\r\n"
+         << "        <tt:RateControl>\r\n"
+         << "          <tt:FrameRateLimit>" << static_cast<int>(cfg.frameRateLimit) << "</tt:FrameRateLimit>\r\n"
+         << "          <tt:EncodingInterval>1</tt:EncodingInterval>\r\n"
+         << "          <tt:BitrateLimit>" << cfg.bitrateLimitKbps << "</tt:BitrateLimit>\r\n"
+         << "        </tt:RateControl>\r\n";
+    if (cfg.encoding == "H264") {
+        body << "        <tt:H264>\r\n"
+             << "          <tt:GovLength>" << cfg.govLength << "</tt:GovLength>\r\n"
+             << "          <tt:H264Profile>" << Xml::escapeXmlText(cfg.h264Profile.empty() ? "Main" : cfg.h264Profile)
+             << "</tt:H264Profile>\r\n"
+             << "        </tt:H264>\r\n";
+    }
+    body << "        <tt:Multicast>\r\n"
+         << "          <tt:Address>\r\n"
+         << "            <tt:Type>IPv4</tt:Type>\r\n"
+         << "            <tt:IPv4Address>0.0.0.0</tt:IPv4Address>\r\n"
+         << "          </tt:Address>\r\n"
+         << "          <tt:Port>0</tt:Port>\r\n"
+         << "          <tt:TTL>5</tt:TTL>\r\n"
+         << "          <tt:AutoStart>false</tt:AutoStart>\r\n"
+         << "        </tt:Multicast>\r\n"
+         << "        <tt:SessionTimeout>"
+         << Xml::escapeXmlText(cfg.sessionTimeout.empty() ? "PT30S" : cfg.sessionTimeout) << "</tt:SessionTimeout>\r\n"
+         << "      </" << prefix << ":" << elemName << ">\r\n";
+}
+
+void OnvifServer::formatProfileXml(
+    const ServerMediaProfile& prof, std::ostringstream& body, const std::string& prefix, bool isSingleProfile) const
+{
+    const std::string tag = isSingleProfile ? "Profile" : "Profiles";
+    body << "      <" << prefix << ":" << tag << " token=\"" << Xml::escapeXmlAttr(prof.token) << "\" fixed=\""
+         << (prof.fixed ? "true" : "false") << "\">\r\n"
+         << "        <tt:Name>" << Xml::escapeXmlText(prof.name) << "</tt:Name>\r\n";
+
+    if (!prof.vscToken.empty()) {
+        VideoSourceConfig vsc;
+        vsc.token = prof.vscToken;
+        for (const auto& s : m_internalVideoSources) {
+            if (s.token == prof.vscToken) {
+                vsc = s;
+                break;
+            }
+        }
+        body << "        <tt:VideoSourceConfiguration token=\"" << Xml::escapeXmlAttr(vsc.token) << "\">\r\n"
+             << "          <tt:Name>" << Xml::escapeXmlText(vsc.name) << "</tt:Name>\r\n"
+             << "          <tt:UseCount>" << vsc.useCount << "</tt:UseCount>\r\n"
+             << "          <tt:SourceToken>" << Xml::escapeXmlText(vsc.sourceToken) << "</tt:SourceToken>\r\n"
+             << "          <tt:Bounds x=\"" << vsc.x << "\" y=\"" << vsc.y << "\" width=\"" << vsc.width
+             << "\" height=\"" << vsc.height << "\"/>\r\n"
+             << "        </tt:VideoSourceConfiguration>\r\n";
+    }
+
+    if (!prof.vecToken.empty()) {
+        VideoEncoderConfig vec;
+        vec.token = prof.vecToken;
+        for (const auto& e : m_internalVideoEncoders) {
+            if (e.token == prof.vecToken) {
+                vec = e;
+                break;
+            }
+        }
+        body << "        <tt:VideoEncoderConfiguration token=\"" << Xml::escapeXmlAttr(vec.token) << "\">\r\n"
+             << "          <tt:Name>" << Xml::escapeXmlText(vec.name) << "</tt:Name>\r\n"
+             << "          <tt:UseCount>" << vec.useCount << "</tt:UseCount>\r\n"
+             << "          <tt:Encoding>" << Xml::escapeXmlText(vec.encoding) << "</tt:Encoding>\r\n"
+             << "          <tt:Resolution>\r\n"
+             << "            <tt:Width>" << vec.width << "</tt:Width>\r\n"
+             << "            <tt:Height>" << vec.height << "</tt:Height>\r\n"
+             << "          </tt:Resolution>\r\n"
+             << "          <tt:Quality>" << vec.quality << "</tt:Quality>\r\n"
+             << "          <tt:RateControl>\r\n"
+             << "            <tt:FrameRateLimit>" << static_cast<int>(vec.frameRateLimit) << "</tt:FrameRateLimit>\r\n"
+             << "            <tt:EncodingInterval>1</tt:EncodingInterval>\r\n"
+             << "            <tt:BitrateLimit>" << vec.bitrateLimitKbps << "</tt:BitrateLimit>\r\n"
+             << "          </tt:RateControl>\r\n";
+        if (vec.encoding == "H264") {
+            body << "          <tt:H264>\r\n"
+                 << "            <tt:GovLength>" << vec.govLength << "</tt:GovLength>\r\n"
+                 << "            <tt:H264Profile>"
+                 << Xml::escapeXmlText(vec.h264Profile.empty() ? "Main" : vec.h264Profile) << "</tt:H264Profile>\r\n"
+                 << "          </tt:H264>\r\n";
+        }
+        body << "          <tt:Multicast>\r\n"
+             << "            <tt:Address>\r\n"
+             << "              <tt:Type>IPv4</tt:Type>\r\n"
+             << "              <tt:IPv4Address>0.0.0.0</tt:IPv4Address>\r\n"
+             << "            </tt:Address>\r\n"
+             << "            <tt:Port>0</tt:Port>\r\n"
+             << "            <tt:TTL>5</tt:TTL>\r\n"
+             << "            <tt:AutoStart>false</tt:AutoStart>\r\n"
+             << "          </tt:Multicast>\r\n"
+             << "          <tt:SessionTimeout>"
+             << Xml::escapeXmlText(vec.sessionTimeout.empty() ? "PT30S" : vec.sessionTimeout)
+             << "</tt:SessionTimeout>\r\n"
+             << "        </tt:VideoEncoderConfiguration>\r\n";
+    }
+
+    if (!prof.ptzToken.empty()) {
+        body << "        <tt:PTZConfiguration token=\"" << Xml::escapeXmlAttr(prof.ptzToken) << "\">\r\n"
+             << "          <tt:Name>PTZConfig</tt:Name>\r\n"
+             << "          <tt:UseCount>1</tt:UseCount>\r\n"
+             << "          <tt:NodeToken>PTZNode_1</tt:NodeToken>\r\n"
+             << "          "
+                "<tt:DefaultContinuousPanTiltVelocitySpace>http://www.onvif.org/ver10/tptz/PanTiltSpaces/"
+                "VelocityGenericSpace</tt:DefaultContinuousPanTiltVelocitySpace>\r\n"
+             << "          "
+                "<tt:DefaultContinuousZoomVelocitySpace>http://www.onvif.org/ver10/tptz/ZoomSpaces/"
+                "VelocityGenericSpace</tt:DefaultContinuousZoomVelocitySpace>\r\n"
+             << "        </tt:PTZConfiguration>\r\n";
+    }
+
+    if (!prof.metadataToken.empty()) {
+        body << "        <tt:MetadataConfiguration token=\"" << Xml::escapeXmlAttr(prof.metadataToken) << "\">\r\n"
+             << "          <tt:Name>DefaultMetadataConfig</tt:Name>\r\n"
+             << "          <tt:UseCount>1</tt:UseCount>\r\n"
+             << "        </tt:MetadataConfiguration>\r\n";
+    }
+
+    body << "      </" << prefix << ":" << tag << ">\r\n";
+}
+
 void OnvifServer::handleMediaService(const httplib::Request& req, httplib::Response& res)
 {
     pugi::xml_document doc;
@@ -2391,33 +2547,382 @@ void OnvifServer::handleMediaService(const httplib::Request& req, httplib::Respo
         || isOp(opName, "SetMetadataConfiguration") || isOp(opName, "GetMetadataConfigurationOptions")
         || isOp(opName, "GetCompatibleMetadataConfigurations")) {
         processMetadataRequest(opName, doc, body, "trt");
-    } else if (opName.find("GetProfiles") != std::string::npos) {
-        body << "    <trt:GetProfilesResponse>\r\n"
-             << "      <trt:Profiles token=\"ProfileToken_1\" fixed=\"true\">\r\n"
-             << "        <tt:Name>MainProfile</tt:Name>\r\n"
-             << "        <tt:VideoSourceConfiguration token=\"VideoSourceConfig_1\">\r\n"
-             << "          <tt:Name>VideoSourceConfig</tt:Name>\r\n"
-             << "          <tt:UseCount>1</tt:UseCount>\r\n"
-             << "          <tt:SourceToken>VideoSource_1</tt:SourceToken>\r\n"
-             << "          <tt:Bounds x=\"0\" y=\"0\" width=\"1920\" height=\"1080\"/>\r\n"
-             << "        </tt:VideoSourceConfiguration>\r\n"
-             << "        <tt:PTZConfiguration token=\"PTZConfig_1\">\r\n"
-             << "          <tt:Name>PTZConfig</tt:Name>\r\n"
-             << "          <tt:UseCount>1</tt:UseCount>\r\n"
-             << "          <tt:NodeToken>PTZNode_1</tt:NodeToken>\r\n"
-             << "          "
-                "<tt:DefaultContinuousPanTiltVelocitySpace>http://www.onvif.org/ver10/tptz/PanTiltSpaces/"
-                "VelocityGenericSpace</tt:DefaultContinuousPanTiltVelocitySpace>\r\n"
-             << "          "
-                "<tt:DefaultContinuousZoomVelocitySpace>http://www.onvif.org/ver10/tptz/ZoomSpaces/"
-                "VelocityGenericSpace</tt:DefaultContinuousZoomVelocitySpace>\r\n"
-             << "        </tt:PTZConfiguration>\r\n"
-             << "        <tt:MetadataConfiguration token=\"MetadataConfig_1\">\r\n"
-             << "          <tt:Name>DefaultMetadataConfig</tt:Name>\r\n"
-             << "          <tt:UseCount>1</tt:UseCount>\r\n"
-             << "        </tt:MetadataConfiguration>\r\n"
-             << "      </trt:Profiles>\r\n"
-             << "    </trt:GetProfilesResponse>\r\n";
+    } else if (isOp(opName, "GetProfiles")) {
+        std::lock_guard<std::mutex> lock(m_mediaMutex);
+        body << "    <trt:GetProfilesResponse>\r\n";
+        for (const auto& prof : m_internalProfiles) {
+            formatProfileXml(prof, body, "trt", false);
+        }
+        body << "    </trt:GetProfilesResponse>\r\n";
+    } else if (isOp(opName, "GetProfile")) {
+        const auto profNode = reqNode.select_node(".//*[local-name()='ProfileToken']").node();
+        const std::string profToken = profNode ? profNode.text().as_string() : "";
+        std::lock_guard<std::mutex> lock(m_mediaMutex);
+        const auto it = std::find_if(m_internalProfiles.begin(), m_internalProfiles.end(),
+            [&profToken](const ServerMediaProfile& p) { return p.token == profToken; });
+        if (it == m_internalProfiles.end() || profToken.empty()) {
+            sendSoapResponse(res, SoapFault::noProfile(), 400);
+            return;
+        }
+        body << "    <trt:GetProfileResponse>\r\n";
+        formatProfileXml(*it, body, "trt", true);
+        body << "    </trt:GetProfileResponse>\r\n";
+    } else if (isOp(opName, "CreateProfile")) {
+        const auto nameNode = reqNode.select_node(".//*[local-name()='Name']").node();
+        const std::string name = nameNode ? nameNode.text().as_string() : "";
+        if (name.empty()) {
+            sendSoapResponse(res, SoapFault::invalidArgVal("Profile Name is required"), 400);
+            return;
+        }
+        const auto tokNode = reqNode.select_node(".//*[local-name()='Token']").node();
+        std::string token = tokNode ? tokNode.text().as_string() : "";
+        std::lock_guard<std::mutex> lock(m_mediaMutex);
+        if (token.empty()) {
+            token = "Profile_" + std::to_string(m_nextProfileId++);
+        } else {
+            const auto it = std::find_if(m_internalProfiles.begin(), m_internalProfiles.end(),
+                [&token](const ServerMediaProfile& p) { return p.token == token; });
+            if (it != m_internalProfiles.end()) {
+                sendSoapResponse(res, SoapFault::invalidArgVal("Profile token already exists"), 400);
+                return;
+            }
+        }
+        ServerMediaProfile newProf;
+        newProf.token = token;
+        newProf.name = name;
+        newProf.fixed = false;
+        newProf.vscToken.clear();
+        newProf.vecToken.clear();
+        newProf.ptzToken.clear();
+        newProf.metadataToken.clear();
+        m_internalProfiles.push_back(newProf);
+
+        body << "    <trt:CreateProfileResponse>\r\n";
+        formatProfileXml(newProf, body, "trt", true);
+        body << "    </trt:CreateProfileResponse>\r\n";
+    } else if (isOp(opName, "DeleteProfile")) {
+        const auto profNode = reqNode.select_node(".//*[local-name()='ProfileToken']").node();
+        const std::string profToken = profNode ? profNode.text().as_string() : "";
+        std::lock_guard<std::mutex> lock(m_mediaMutex);
+        const auto it = std::find_if(m_internalProfiles.begin(), m_internalProfiles.end(),
+            [&profToken](const ServerMediaProfile& p) { return p.token == profToken; });
+        if (it == m_internalProfiles.end() || profToken.empty()) {
+            sendSoapResponse(res, SoapFault::noProfile(), 400);
+            return;
+        }
+        if (it->fixed) {
+            sendSoapResponse(res, SoapFault::invalidArgVal("Cannot delete fixed profile"), 400);
+            return;
+        }
+        m_internalProfiles.erase(it);
+        body << "    <trt:DeleteProfileResponse/>\r\n";
+    } else if (isOp(opName, "GetVideoSourceConfigurations")) {
+        std::lock_guard<std::mutex> lock(m_mediaMutex);
+        body << "    <trt:GetVideoSourceConfigurationsResponse>\r\n";
+        for (const auto& vsc : m_internalVideoSources) {
+            formatVideoSourceConfigXml(vsc, body, "trt", "Configurations");
+        }
+        body << "    </trt:GetVideoSourceConfigurationsResponse>\r\n";
+    } else if (isOp(opName, "GetVideoSourceConfiguration")) {
+        const auto tokNode = reqNode.select_node(".//*[local-name()='ConfigurationToken']").node();
+        const std::string tok = tokNode ? tokNode.text().as_string() : "";
+        std::lock_guard<std::mutex> lock(m_mediaMutex);
+        const auto it = std::find_if(m_internalVideoSources.begin(), m_internalVideoSources.end(),
+            [&tok](const VideoSourceConfig& c) { return c.token == tok; });
+        if (it == m_internalVideoSources.end() || tok.empty()) {
+            sendSoapResponse(res, SoapFault::noToken(), 400);
+            return;
+        }
+        body << "    <trt:GetVideoSourceConfigurationResponse>\r\n";
+        formatVideoSourceConfigXml(*it, body, "trt", "Configuration");
+        body << "    </trt:GetVideoSourceConfigurationResponse>\r\n";
+    } else if (isOp(opName, "GetVideoEncoderConfigurations")) {
+        std::lock_guard<std::mutex> lock(m_mediaMutex);
+        body << "    <trt:GetVideoEncoderConfigurationsResponse>\r\n";
+        for (const auto& vec : m_internalVideoEncoders) {
+            formatVideoEncoderConfigXml(vec, body, "trt", "Configurations");
+        }
+        body << "    </trt:GetVideoEncoderConfigurationsResponse>\r\n";
+    } else if (isOp(opName, "GetVideoEncoderConfiguration")) {
+        const auto tokNode = reqNode.select_node(".//*[local-name()='ConfigurationToken']").node();
+        const std::string tok = tokNode ? tokNode.text().as_string() : "";
+        std::lock_guard<std::mutex> lock(m_mediaMutex);
+        const auto it = std::find_if(m_internalVideoEncoders.begin(), m_internalVideoEncoders.end(),
+            [&tok](const VideoEncoderConfig& c) { return c.token == tok; });
+        if (it == m_internalVideoEncoders.end() || tok.empty()) {
+            sendSoapResponse(res, SoapFault::noToken(), 400);
+            return;
+        }
+        body << "    <trt:GetVideoEncoderConfigurationResponse>\r\n";
+        formatVideoEncoderConfigXml(*it, body, "trt", "Configuration");
+        body << "    </trt:GetVideoEncoderConfigurationResponse>\r\n";
+    } else if (isOp(opName, "GetVideoEncoderConfigurationOptions")) {
+        body << "    <trt:GetVideoEncoderConfigurationOptionsResponse>\r\n"
+             << "      <trt:Options>\r\n"
+             << "        <tt:QualityRange>\r\n"
+             << "          <tt:Min>1</tt:Min>\r\n"
+             << "          <tt:Max>10</tt:Max>\r\n"
+             << "        </tt:QualityRange>\r\n"
+             << "        <tt:H264>\r\n"
+             << "          <tt:ResolutionsAvailable>\r\n"
+             << "            <tt:Width>1920</tt:Width>\r\n"
+             << "            <tt:Height>1080</tt:Height>\r\n"
+             << "          </tt:ResolutionsAvailable>\r\n"
+             << "          <tt:ResolutionsAvailable>\r\n"
+             << "            <tt:Width>1280</tt:Width>\r\n"
+             << "            <tt:Height>720</tt:Height>\r\n"
+             << "          </tt:ResolutionsAvailable>\r\n"
+             << "          <tt:ResolutionsAvailable>\r\n"
+             << "            <tt:Width>640</tt:Width>\r\n"
+             << "            <tt:Height>480</tt:Height>\r\n"
+             << "          </tt:ResolutionsAvailable>\r\n"
+             << "          <tt:GovLengthRange Min=\"1\" Max=\"120\">\r\n"
+             << "            <tt:Min>1</tt:Min>\r\n"
+             << "            <tt:Max>120</tt:Max>\r\n"
+             << "          </tt:GovLengthRange>\r\n"
+             << "          <tt:FrameRateRange Min=\"1\" Max=\"30\">\r\n"
+             << "            <tt:Min>1</tt:Min>\r\n"
+             << "            <tt:Max>30</tt:Max>\r\n"
+             << "          </tt:FrameRateRange>\r\n"
+             << "          <tt:EncodingIntervalRange Min=\"1\" Max=\"1\">\r\n"
+             << "            <tt:Min>1</tt:Min>\r\n"
+             << "            <tt:Max>1</tt:Max>\r\n"
+             << "          </tt:EncodingIntervalRange>\r\n"
+             << "          <tt:H264ProfilesSupported>Baseline</tt:H264ProfilesSupported>\r\n"
+             << "          <tt:H264ProfilesSupported>Main</tt:H264ProfilesSupported>\r\n"
+             << "          <tt:H264ProfilesSupported>High</tt:H264ProfilesSupported>\r\n"
+             << "        </tt:H264>\r\n"
+             << "      </trt:Options>\r\n"
+             << "    </trt:GetVideoEncoderConfigurationOptionsResponse>\r\n";
+    } else if (isOp(opName, "SetVideoEncoderConfiguration")) {
+        const auto cfgNode = reqNode.select_node(".//*[local-name()='Configuration']").node();
+        if (!cfgNode) {
+            sendSoapResponse(res, SoapFault::invalidArgVal("Missing Configuration node"), 400);
+            return;
+        }
+        const std::string tok = cfgNode.attribute("token").as_string();
+        std::lock_guard<std::mutex> lock(m_mediaMutex);
+        auto it = std::find_if(m_internalVideoEncoders.begin(), m_internalVideoEncoders.end(),
+            [&tok](const VideoEncoderConfig& c) { return c.token == tok; });
+        if (it == m_internalVideoEncoders.end() || tok.empty()) {
+            sendSoapResponse(res, SoapFault::noToken(), 400);
+            return;
+        }
+
+        const auto nameNode = cfgNode.select_node(".//*[local-name()='Name']").node();
+        if (nameNode) {
+            it->name = nameNode.text().as_string();
+        }
+
+        const auto resNode = cfgNode.select_node(".//*[local-name()='Resolution']").node();
+        if (resNode) {
+            const int w = resNode.select_node(".//*[local-name()='Width']").node().text().as_int(0);
+            const int h = resNode.select_node(".//*[local-name()='Height']").node().text().as_int(0);
+            if (w <= 0 || h <= 0 || w > 3840 || h > 2160) {
+                sendSoapResponse(res, SoapFault::invalidArgVal("Resolution out of range"), 400);
+                return;
+            }
+            it->width = w;
+            it->height = h;
+        }
+
+        const auto rcNode = cfgNode.select_node(".//*[local-name()='RateControl']").node();
+        if (rcNode) {
+            const auto fpsNode = rcNode.select_node(".//*[local-name()='FrameRateLimit']").node();
+            if (fpsNode) {
+                const float fps = fpsNode.text().as_float(0.0f);
+                if (std::isnan(fps) || std::isinf(fps) || fps < 1.0f || fps > 60.0f) {
+                    sendSoapResponse(res, SoapFault::outOfRange("FrameRateLimit out of range [1, 60]"), 400);
+                    return;
+                }
+                it->frameRateLimit = fps;
+            }
+            const auto brNode = rcNode.select_node(".//*[local-name()='BitrateLimit']").node();
+            if (brNode) {
+                const int br = brNode.text().as_int(0);
+                if (br < 64 || br > 32768) {
+                    sendSoapResponse(res, SoapFault::outOfRange("BitrateLimit out of range"), 400);
+                    return;
+                }
+                it->bitrateLimitKbps = br;
+            }
+        }
+
+        const auto qualNode = cfgNode.select_node(".//*[local-name()='Quality']").node();
+        if (qualNode) {
+            const float q = qualNode.text().as_float(0.0f);
+            if (!std::isnan(q) && !std::isinf(q) && q >= 1.0f && q <= 100.0f) {
+                it->quality = q;
+            }
+        }
+
+        const auto h264Node = cfgNode.select_node(".//*[local-name()='H264']").node();
+        if (h264Node) {
+            const auto govNode = h264Node.select_node(".//*[local-name()='GovLength']").node();
+            if (govNode) {
+                const int gov = govNode.text().as_int(0);
+                if (gov < 1 || gov > 300) {
+                    sendSoapResponse(res, SoapFault::outOfRange("GovLength out of range [1, 300]"), 400);
+                    return;
+                }
+                it->govLength = gov;
+            }
+            const auto profSubNode = h264Node.select_node(".//*[local-name()='H264Profile']").node();
+            if (profSubNode) {
+                it->h264Profile = profSubNode.text().as_string();
+            }
+        }
+
+        body << "    <trt:SetVideoEncoderConfigurationResponse/>\r\n";
+    } else if (isOp(opName, "AddVideoEncoderConfiguration")) {
+        const auto pTokNode = reqNode.select_node(".//*[local-name()='ProfileToken']").node();
+        const std::string pTok = pTokNode ? pTokNode.text().as_string() : "";
+        const auto cTokNode = reqNode.select_node(".//*[local-name()='ConfigurationToken']").node();
+        const std::string cTok = cTokNode ? cTokNode.text().as_string() : "";
+        std::lock_guard<std::mutex> lock(m_mediaMutex);
+        auto itP = std::find_if(m_internalProfiles.begin(), m_internalProfiles.end(),
+            [&pTok](const ServerMediaProfile& p) { return p.token == pTok; });
+        if (itP == m_internalProfiles.end() || pTok.empty()) {
+            sendSoapResponse(res, SoapFault::noProfile(), 400);
+            return;
+        }
+        auto itC = std::find_if(m_internalVideoEncoders.begin(), m_internalVideoEncoders.end(),
+            [&cTok](const VideoEncoderConfig& c) { return c.token == cTok; });
+        if (itC == m_internalVideoEncoders.end() || cTok.empty()) {
+            sendSoapResponse(res, SoapFault::noToken(), 400);
+            return;
+        }
+        itP->vecToken = cTok;
+        body << "    <trt:AddVideoEncoderConfigurationResponse/>\r\n";
+    } else if (isOp(opName, "RemoveVideoEncoderConfiguration")) {
+        const auto pTokNode = reqNode.select_node(".//*[local-name()='ProfileToken']").node();
+        const std::string pTok = pTokNode ? pTokNode.text().as_string() : "";
+        std::lock_guard<std::mutex> lock(m_mediaMutex);
+        auto itP = std::find_if(m_internalProfiles.begin(), m_internalProfiles.end(),
+            [&pTok](const ServerMediaProfile& p) { return p.token == pTok; });
+        if (itP == m_internalProfiles.end() || pTok.empty()) {
+            sendSoapResponse(res, SoapFault::noProfile(), 400);
+            return;
+        }
+        itP->vecToken.clear();
+        body << "    <trt:RemoveVideoEncoderConfigurationResponse/>\r\n";
+    } else if (isOp(opName, "AddVideoSourceConfiguration")) {
+        const auto pTokNode = reqNode.select_node(".//*[local-name()='ProfileToken']").node();
+        const std::string pTok = pTokNode ? pTokNode.text().as_string() : "";
+        const auto cTokNode = reqNode.select_node(".//*[local-name()='ConfigurationToken']").node();
+        const std::string cTok = cTokNode ? cTokNode.text().as_string() : "";
+        std::lock_guard<std::mutex> lock(m_mediaMutex);
+        auto itP = std::find_if(m_internalProfiles.begin(), m_internalProfiles.end(),
+            [&pTok](const ServerMediaProfile& p) { return p.token == pTok; });
+        if (itP == m_internalProfiles.end() || pTok.empty()) {
+            sendSoapResponse(res, SoapFault::noProfile(), 400);
+            return;
+        }
+        auto itC = std::find_if(m_internalVideoSources.begin(), m_internalVideoSources.end(),
+            [&cTok](const VideoSourceConfig& c) { return c.token == cTok; });
+        if (itC == m_internalVideoSources.end() || cTok.empty()) {
+            sendSoapResponse(res, SoapFault::noToken(), 400);
+            return;
+        }
+        itP->vscToken = cTok;
+        body << "    <trt:AddVideoSourceConfigurationResponse/>\r\n";
+    } else if (isOp(opName, "RemoveVideoSourceConfiguration")) {
+        const auto pTokNode = reqNode.select_node(".//*[local-name()='ProfileToken']").node();
+        const std::string pTok = pTokNode ? pTokNode.text().as_string() : "";
+        std::lock_guard<std::mutex> lock(m_mediaMutex);
+        auto itP = std::find_if(m_internalProfiles.begin(), m_internalProfiles.end(),
+            [&pTok](const ServerMediaProfile& p) { return p.token == pTok; });
+        if (itP == m_internalProfiles.end() || pTok.empty()) {
+            sendSoapResponse(res, SoapFault::noProfile(), 400);
+            return;
+        }
+        itP->vscToken.clear();
+        body << "    <trt:RemoveVideoSourceConfigurationResponse/>\r\n";
+    } else if (isOp(opName, "AddPTZConfiguration")) {
+        const auto pTokNode = reqNode.select_node(".//*[local-name()='ProfileToken']").node();
+        const std::string pTok = pTokNode ? pTokNode.text().as_string() : "";
+        const auto cTokNode = reqNode.select_node(".//*[local-name()='ConfigurationToken']").node();
+        const std::string cTok = cTokNode ? cTokNode.text().as_string() : "";
+        std::lock_guard<std::mutex> lock(m_mediaMutex);
+        auto itP = std::find_if(m_internalProfiles.begin(), m_internalProfiles.end(),
+            [&pTok](const ServerMediaProfile& p) { return p.token == pTok; });
+        if (itP == m_internalProfiles.end() || pTok.empty()) {
+            sendSoapResponse(res, SoapFault::noProfile(), 400);
+            return;
+        }
+        if (cTok.empty()) {
+            sendSoapResponse(res, SoapFault::noToken(), 400);
+            return;
+        }
+        itP->ptzToken = cTok;
+        body << "    <trt:AddPTZConfigurationResponse/>\r\n";
+    } else if (isOp(opName, "RemovePTZConfiguration")) {
+        const auto pTokNode = reqNode.select_node(".//*[local-name()='ProfileToken']").node();
+        const std::string pTok = pTokNode ? pTokNode.text().as_string() : "";
+        std::lock_guard<std::mutex> lock(m_mediaMutex);
+        auto itP = std::find_if(m_internalProfiles.begin(), m_internalProfiles.end(),
+            [&pTok](const ServerMediaProfile& p) { return p.token == pTok; });
+        if (itP == m_internalProfiles.end() || pTok.empty()) {
+            sendSoapResponse(res, SoapFault::noProfile(), 400);
+            return;
+        }
+        itP->ptzToken.clear();
+        body << "    <trt:RemovePTZConfigurationResponse/>\r\n";
+    } else if (isOp(opName, "GetCompatibleVideoSourceConfigurations")) {
+        const auto pTokNode = reqNode.select_node(".//*[local-name()='ProfileToken']").node();
+        const std::string pTok = pTokNode ? pTokNode.text().as_string() : "";
+        std::lock_guard<std::mutex> lock(m_mediaMutex);
+        auto itP = std::find_if(m_internalProfiles.begin(), m_internalProfiles.end(),
+            [&pTok](const ServerMediaProfile& p) { return p.token == pTok; });
+        if (itP == m_internalProfiles.end() || pTok.empty()) {
+            sendSoapResponse(res, SoapFault::noProfile(), 400);
+            return;
+        }
+        body << "    <trt:GetCompatibleVideoSourceConfigurationsResponse>\r\n";
+        for (const auto& vsc : m_internalVideoSources) {
+            formatVideoSourceConfigXml(vsc, body, "trt", "Configurations");
+        }
+        body << "    </trt:GetCompatibleVideoSourceConfigurationsResponse>\r\n";
+    } else if (isOp(opName, "GetCompatibleVideoEncoderConfigurations")) {
+        const auto pTokNode = reqNode.select_node(".//*[local-name()='ProfileToken']").node();
+        const std::string pTok = pTokNode ? pTokNode.text().as_string() : "";
+        std::lock_guard<std::mutex> lock(m_mediaMutex);
+        auto itP = std::find_if(m_internalProfiles.begin(), m_internalProfiles.end(),
+            [&pTok](const ServerMediaProfile& p) { return p.token == pTok; });
+        if (itP == m_internalProfiles.end() || pTok.empty()) {
+            sendSoapResponse(res, SoapFault::noProfile(), 400);
+            return;
+        }
+        body << "    <trt:GetCompatibleVideoEncoderConfigurationsResponse>\r\n";
+        for (const auto& vec : m_internalVideoEncoders) {
+            formatVideoEncoderConfigXml(vec, body, "trt", "Configurations");
+        }
+        body << "    </trt:GetCompatibleVideoEncoderConfigurationsResponse>\r\n";
+    } else if (isOp(opName, "GetGuaranteedNumberOfVideoEncoderInstances")) {
+        body << "    <trt:GetGuaranteedNumberOfVideoEncoderInstancesResponse>\r\n"
+             << "      <trt:TotalNumber>2</trt:TotalNumber>\r\n"
+             << "      <trt:H264>2</trt:H264>\r\n"
+             << "    </trt:GetGuaranteedNumberOfVideoEncoderInstancesResponse>\r\n";
+    } else if (isOp(opName, "SetSynchronizationPoint")) {
+        const auto pTokNode = reqNode.select_node(".//*[local-name()='ProfileToken']").node();
+        const std::string pTok = pTokNode ? pTokNode.text().as_string() : "";
+        std::lock_guard<std::mutex> lock(m_mediaMutex);
+        auto itP = std::find_if(m_internalProfiles.begin(), m_internalProfiles.end(),
+            [&pTok](const ServerMediaProfile& p) { return p.token == pTok; });
+        if (itP == m_internalProfiles.end() || pTok.empty()) {
+            sendSoapResponse(res, SoapFault::noProfile(), 400);
+            return;
+        }
+        body << "    <trt:SetSynchronizationPointResponse/>\r\n";
+    } else if (isOp(opName, "GetServiceCapabilities")) {
+        body << "    <trt:GetServiceCapabilitiesResponse>\r\n"
+             << "      <trt:Capabilities SnapshotUri=\"true\" Rotation=\"false\" VideoSourceMode=\"false\" "
+                "OSD=\"true\">\r\n"
+             << "        <trt:ProfileCapabilities MaximumNumberOfProfiles=\"8\"/>\r\n"
+             << "        <trt:StreamingCapabilities RTPMulticast=\"false\" RTP_TCP=\"true\" RTP_RTSP_TCP=\"true\" "
+                "NonAggregateControl=\"false\"/>\r\n"
+             << "      </trt:Capabilities>\r\n"
+             << "    </trt:GetServiceCapabilitiesResponse>\r\n";
     } else if (opName.find("GetVideoSources") != std::string::npos) {
         body << "    <trt:GetVideoSourcesResponse>\r\n"
              << "      <trt:VideoSources token=\"VideoSource_1\">\r\n"
