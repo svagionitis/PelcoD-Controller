@@ -41,6 +41,7 @@
         "x264"
       ]
     },
-    "opencv4"
+    "opencv4",
+    "openh264"
   ]
 }
