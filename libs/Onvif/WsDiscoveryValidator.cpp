@@ -1,9 +1,17 @@
 #include "WsDiscoveryValidator.h"
-#include <pugixml.hpp>
+
+#include <cstddef>
+#include <cstdint>
 
 #include <algorithm>
 #include <chrono>
+#include <mutex>
+#include <sstream>
+#include <string>
 #include <string_view>
+#include <vector>
+
+#include <pugixml.hpp>
 
 namespace Onvif {
 
@@ -42,6 +50,59 @@ namespace {
         const auto it { std::search(text.cbegin(), text.cend(), uuid.cbegin(), uuid.cend(),
             [](char lhs, char rhs) noexcept { return toLowerAscii(lhs) == toLowerAscii(rhs); }) };
         return it != text.cend();
+    }
+
+    /// @brief Checks if a single probe scope matches an active device scope according to RFC 3986 rules.
+    [[nodiscard]] bool matchScopeRfc3986(std::string_view probeScope, std::string_view activeScope) noexcept
+    {
+        const auto probePathPos = probeScope.find("://");
+        const auto activePathPos = activeScope.find("://");
+
+        if (probePathPos != std::string_view::npos && activePathPos != std::string_view::npos) {
+            const auto probeAuthEnd = probeScope.find('/', probePathPos + 3U);
+            const auto activeAuthEnd = activeScope.find('/', activePathPos + 3U);
+
+            const auto probeSchemeAuth
+                = (probeAuthEnd == std::string_view::npos) ? probeScope : probeScope.substr(0, probeAuthEnd);
+            const auto activeSchemeAuth
+                = (activeAuthEnd == std::string_view::npos) ? activeScope : activeScope.substr(0, activeAuthEnd);
+
+            if (probeSchemeAuth.size() != activeSchemeAuth.size()) {
+                return false;
+            }
+
+            for (std::size_t i = 0; i < probeSchemeAuth.size(); ++i) {
+                if (toLowerAscii(probeSchemeAuth[i]) != toLowerAscii(activeSchemeAuth[i])) {
+                    return false;
+                }
+            }
+
+            const auto probePath
+                = (probeAuthEnd == std::string_view::npos) ? std::string_view("") : probeScope.substr(probeAuthEnd);
+            const auto activePath
+                = (activeAuthEnd == std::string_view::npos) ? std::string_view("") : activeScope.substr(activeAuthEnd);
+
+            if (probePath == activePath) {
+                return true;
+            }
+
+            if (activePath.size() > probePath.size() && activePath.substr(0, probePath.size()) == probePath) {
+                if (probePath.empty() || probePath.back() == '/' || activePath[probePath.size()] == '/') {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        if (probeScope == activeScope) {
+            return true;
+        }
+        if (activeScope.size() > probeScope.size() && activeScope.substr(0, probeScope.size()) == probeScope) {
+            if (probeScope.empty() || probeScope.back() == '/' || activeScope[probeScope.size()] == '/') {
+                return true;
+            }
+        }
+        return false;
     }
 
 } // namespace
@@ -89,8 +150,57 @@ bool WsDiscoveryValidator::matchesTypes(const pugi::xml_document& xmlDoc) noexce
     return true;
 }
 
+bool WsDiscoveryValidator::matchesScopes(
+    const pugi::xml_document& xmlDoc, const std::vector<std::string>& activeScopes) noexcept
+{
+    const pugi::xml_node scopesNode = xmlDoc.select_node("//*[local-name()='Scopes']").node();
+    if (!scopesNode) {
+        return true;
+    }
+
+    const std::string scopesText = trimWhitespace(scopesNode.text().as_string());
+    if (scopesText.empty()) {
+        return true;
+    }
+
+    const std::string matchBy = scopesNode.attribute("MatchBy").as_string();
+    if (matchBy == "http://schemas.xmlsoap.org/ws/2005/04/discovery/none") {
+        return false;
+    }
+
+    std::istringstream iss(scopesText);
+    std::string probeScope;
+    while (iss >> probeScope) {
+        bool matchedOne = false;
+        for (const auto& activeScope : activeScopes) {
+            if (matchBy == "http://schemas.xmlsoap.org/ws/2005/04/discovery/strcmp0") {
+                if (probeScope == activeScope) {
+                    matchedOne = true;
+                    break;
+                }
+            } else {
+                if (matchScopeRfc3986(probeScope, activeScope)) {
+                    matchedOne = true;
+                    break;
+                }
+            }
+        }
+        if (!matchedOne) {
+            return false;
+        }
+    }
+    return true;
+}
+
 DiscoveryValidationResult WsDiscoveryValidator::validateProbe(const pugi::xml_document& xmlDoc,
     std::uint16_t senderPort, const std::string& localServiceUuid, bool dropReflectionPort3702) noexcept
+{
+    return validateProbe(xmlDoc, senderPort, localServiceUuid, dropReflectionPort3702, {});
+}
+
+DiscoveryValidationResult WsDiscoveryValidator::validateProbe(const pugi::xml_document& xmlDoc,
+    std::uint16_t senderPort, const std::string& localServiceUuid, bool dropReflectionPort3702,
+    const std::vector<std::string>& activeScopes) noexcept
 {
     DiscoveryValidationResult result {};
 
@@ -141,7 +251,12 @@ DiscoveryValidationResult WsDiscoveryValidator::validateProbe(const pugi::xml_do
         return result;
     }
 
-    // 6. Extract MessageID for RelatesTo header in ProbeMatches
+    // 6. Scopes filter check (WS-Discovery §5.2)
+    if (!activeScopes.empty() && !matchesScopes(xmlDoc, activeScopes)) {
+        return result;
+    }
+
+    // 7. Extract MessageID for RelatesTo header in ProbeMatches
     const pugi::xml_node msgIdNode = xmlDoc.select_node("//*[local-name()='MessageID']").node();
     result.messageId = msgIdNode ? trimWhitespace(msgIdNode.text().as_string()) : "";
     result.isValidProbe = true;

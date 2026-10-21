@@ -53,6 +53,24 @@ public:
     [[nodiscard]] static DiscoveryValidationResult validateProbe(const pugi::xml_document& xmlDoc,
         std::uint16_t senderPort, const std::string& localServiceUuid, bool dropReflectionPort3702 = true) noexcept;
 
+    /// @brief Validates incoming XML, address, and target scopes against WS-Discovery §5 rules.
+    /// @param[in] xmlDoc Parsed XML document of the incoming message.
+    /// @param[in] senderPort Port number of the sender (host byte order).
+    /// @param[in] localServiceUuid Server's configured service UUID.
+    /// @param[in] dropReflectionPort3702 If true, rejects messages from source port 3702.
+    /// @param[in] activeScopes List of device's active scope URIs.
+    /// @return Validation result structure indicating validity and drop reasons.
+    [[nodiscard]] static DiscoveryValidationResult validateProbe(const pugi::xml_document& xmlDoc,
+        std::uint16_t senderPort, const std::string& localServiceUuid, bool dropReflectionPort3702,
+        const std::vector<std::string>& activeScopes) noexcept;
+
+    /// @brief Verifies that Scopes filter in Probe matches target device scopes (WS-Discovery §5.2).
+    /// @param[in] xmlDoc Parsed XML document.
+    /// @param[in] activeScopes List of device's active scope URIs.
+    /// @return True if Scopes match or if Scopes element is absent/empty (wildcard).
+    [[nodiscard]] static bool matchesScopes(
+        const pugi::xml_document& xmlDoc, const std::vector<std::string>& activeScopes) noexcept;
+
     /// @brief Checks if Action header strictly equals WS-Discovery Probe URI.
     /// @param[in] actionUri Trimmed Action URI string.
     /// @return True only if exact match for WS-Discovery 2005/04 Probe.

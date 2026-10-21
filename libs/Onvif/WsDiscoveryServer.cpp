@@ -1,8 +1,11 @@
 #include "WsDiscoveryServer.h"
 
+#include <cstdint>
 #include <cstring>
 
 #include <array>
+#include <chrono>
+#include <random>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -51,6 +54,7 @@ namespace {
 
 WsDiscoveryServer::WsDiscoveryServer(OnvifServerConfig config)
     : m_config(std::move(config))
+    , m_discoveryMode(m_config.discoveryMode)
     , m_rateLimiter(m_config.discovery.maxResponsesPerSecPerIp, m_config.discovery.maxGlobalResponsesPerSec)
 {
     if (m_config.serviceUuid.empty()) {
@@ -103,7 +107,21 @@ bool WsDiscoveryServer::start()
     m_running = true;
     m_thread = std::thread(&WsDiscoveryServer::runListener, this);
 
-    // Broadcast Hello announcement
+    // Broadcast Hello announcement if Discoverable
+    if (m_discoveryMode.load() == DiscoveryMode::Discoverable) {
+        broadcastHello();
+    }
+
+    return true;
+}
+
+void WsDiscoveryServer::broadcastHello()
+{
+    const Net::SocketHandle sock = m_sockFd;
+    if (sock == Net::InvalidSocket) {
+        return;
+    }
+
     sockaddr_in mcastDest {};
     mcastDest.sin_family = AF_INET;
     mcastDest.sin_port = htons(kMulticastPort);
@@ -116,8 +134,38 @@ bool WsDiscoveryServer::start()
     const std::string hello = createHelloPayload(localIp);
     sendto(sock, hello.data(), static_cast<Net::SockBufLenType>(hello.size()), 0,
         reinterpret_cast<struct sockaddr*>(&mcastDest), sizeof(mcastDest));
+}
 
-    return true;
+void WsDiscoveryServer::setDiscoveryMode(DiscoveryMode mode) noexcept
+{
+    m_discoveryMode.store(mode);
+}
+
+DiscoveryMode WsDiscoveryServer::getDiscoveryMode() const noexcept
+{
+    return m_discoveryMode.load();
+}
+
+std::uint32_t WsDiscoveryServer::getMetadataVersion() const noexcept
+{
+    std::scoped_lock lock(m_scopeMutex);
+    return m_metadataVersion;
+}
+
+std::vector<std::string> WsDiscoveryServer::getActiveScopes() const
+{
+    std::vector<std::string> scopes;
+    scopes.push_back("onvif://www.onvif.org/type/video_encoder");
+    scopes.push_back("onvif://www.onvif.org/type/ptz");
+    scopes.push_back("onvif://www.onvif.org/name/" + m_config.deviceName);
+    scopes.push_back("onvif://www.onvif.org/hardware/" + m_config.model);
+    {
+        std::scoped_lock lock(m_scopeMutex);
+        for (const auto& s : m_config.scopes) {
+            scopes.push_back(s);
+        }
+    }
+    return scopes;
 }
 
 void WsDiscoveryServer::stop()
@@ -188,10 +236,16 @@ void WsDiscoveryServer::runListener()
             continue;
         }
 
+        // If discovery mode is NonDiscoverable, suppress responding to probes
+        if (m_discoveryMode.load() == DiscoveryMode::NonDiscoverable) {
+            continue;
+        }
+
         // Strict validation against WS-Discovery §5 and self-amplification defense (C7)
+        const auto activeScopes = getActiveScopes();
         const auto senderPort = ntohs(senderAddr.sin_port);
         const auto valResult = WsDiscoveryValidator::validateProbe(
-            doc, senderPort, m_config.serviceUuid, m_config.discovery.dropReflectionPort3702);
+            doc, senderPort, m_config.serviceUuid, m_config.discovery.dropReflectionPort3702, activeScopes);
 
         if (!valResult.isValidProbe) {
             continue;
@@ -202,6 +256,21 @@ void WsDiscoveryServer::runListener()
         inet_ntop(AF_INET, &senderAddr.sin_addr, senderIpStr, sizeof(senderIpStr));
         if (m_config.discovery.enableRateLimiting && !m_rateLimiter.checkRateLimit(senderIpStr)) {
             continue;
+        }
+
+        // Random jitter delay APP_MAX_DELAY (0 to maxAppDelayMs) per WS-Discovery §7.2 / Profile S §6.1
+        if (m_config.discovery.maxAppDelayMs > 0U && m_running) {
+            std::random_device rd {};
+            std::mt19937 gen(rd());
+            std::uniform_int_distribution<std::uint32_t> dis(0U, m_config.discovery.maxAppDelayMs);
+            const auto delayMs = dis(gen);
+            const auto startWait = std::chrono::steady_clock::now();
+            while (m_running && (std::chrono::steady_clock::now() - startWait < std::chrono::milliseconds(delayMs))) {
+                std::this_thread::sleep_for(std::chrono::milliseconds(10));
+            }
+            if (!m_running) {
+                break;
+            }
         }
 
         const std::string localIp = (m_config.bindAddress != "0.0.0.0" && !m_config.bindAddress.empty())
@@ -235,7 +304,7 @@ std::string WsDiscoveryServer::createProbeMatchesPayload(
 
     oss << "    <wsa:To>http://schemas.xmlsoap.org/ws/2004/08/addressing/role/anonymous</wsa:To>\r\n"
         << "    <wsa:Action>http://schemas.xmlsoap.org/ws/2005/04/discovery/ProbeMatches</wsa:Action>\r\n"
-        << "  </SOAP-ENV:Header>\r\n"
+        << m_appSequence.formatHeader() << "  </SOAP-ENV:Header>\r\n"
         << "  <SOAP-ENV:Body>\r\n"
         << "    <d:ProbeMatches>\r\n"
         << "      <d:ProbeMatch>\r\n"
@@ -259,7 +328,7 @@ std::string WsDiscoveryServer::createProbeMatchesPayload(
     oss << "        </d:Scopes>\r\n"
         << "        <d:XAddrs>http://" << Xml::escapeXml(localIp) << ":" << m_config.port
         << "/onvif/device_service</d:XAddrs>\r\n"
-        << "        <d:MetadataVersion>1</d:MetadataVersion>\r\n"
+        << "        <d:MetadataVersion>" << getMetadataVersion() << "</d:MetadataVersion>\r\n"
         << "      </d:ProbeMatch>\r\n"
         << "    </d:ProbeMatches>\r\n"
         << "  </SOAP-ENV:Body>\r\n"
@@ -283,7 +352,7 @@ std::string WsDiscoveryServer::createHelloPayload(const std::string& localIp) co
         << "    <wsa:MessageID>urn:uuid:" << msgUuid << "</wsa:MessageID>\r\n"
         << "    <wsa:To>urn:schemas-xmlsoap-org:ws:2005:04:discovery</wsa:To>\r\n"
         << "    <wsa:Action>http://schemas.xmlsoap.org/ws/2005/04/discovery/Hello</wsa:Action>\r\n"
-        << "  </SOAP-ENV:Header>\r\n"
+        << m_appSequence.formatHeader() << "  </SOAP-ENV:Header>\r\n"
         << "  <SOAP-ENV:Body>\r\n"
         << "    <d:Hello>\r\n"
         << "      <wsa:EndpointReference>\r\n"
@@ -306,7 +375,7 @@ std::string WsDiscoveryServer::createHelloPayload(const std::string& localIp) co
     oss << "      </d:Scopes>\r\n"
         << "      <d:XAddrs>http://" << Xml::escapeXml(localIp) << ":" << m_config.port
         << "/onvif/device_service</d:XAddrs>\r\n"
-        << "      <d:MetadataVersion>1</d:MetadataVersion>\r\n"
+        << "      <d:MetadataVersion>" << getMetadataVersion() << "</d:MetadataVersion>\r\n"
         << "    </d:Hello>\r\n"
         << "  </SOAP-ENV:Body>\r\n"
         << "</SOAP-ENV:Envelope>\r\n";
@@ -316,8 +385,14 @@ std::string WsDiscoveryServer::createHelloPayload(const std::string& localIp) co
 
 void WsDiscoveryServer::updateScopes(const std::vector<std::string>& scopes)
 {
-    std::scoped_lock lock(m_scopeMutex);
-    m_config.scopes = scopes;
+    {
+        std::scoped_lock lock(m_scopeMutex);
+        m_config.scopes = scopes;
+        ++m_metadataVersion;
+    }
+    if (m_running && (m_discoveryMode.load() == DiscoveryMode::Discoverable)) {
+        broadcastHello();
+    }
 }
 
 std::string WsDiscoveryServer::createByePayload() const
@@ -333,7 +408,7 @@ std::string WsDiscoveryServer::createByePayload() const
         << "    <wsa:MessageID>urn:uuid:" << msgUuid << "</wsa:MessageID>\r\n"
         << "    <wsa:To>urn:schemas-xmlsoap-org:ws:2005:04:discovery</wsa:To>\r\n"
         << "    <wsa:Action>http://schemas.xmlsoap.org/ws/2005/04/discovery/Bye</wsa:Action>\r\n"
-        << "  </SOAP-ENV:Header>\r\n"
+        << m_appSequence.formatHeader() << "  </SOAP-ENV:Header>\r\n"
         << "  <SOAP-ENV:Body>\r\n"
         << "    <d:Bye>\r\n"
         << "      <wsa:EndpointReference>\r\n"

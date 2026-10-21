@@ -78,6 +78,14 @@ public:
     /// @return Current ProvisioningState (Unprovisioned vs Provisioned).
     [[nodiscard]] ProvisioningState provisioningState() const noexcept;
 
+    /// @brief Gets active device discovery mode (Discoverable vs NonDiscoverable).
+    /// @return Active DiscoveryMode.
+    [[nodiscard]] DiscoveryMode getDiscoveryMode() const noexcept;
+
+    /// @brief Sets device discovery mode and notifies discovery server.
+    /// @param[in] mode Target DiscoveryMode.
+    void setDiscoveryMode(DiscoveryMode mode);
+
     /// @brief Gets active server configuration.
     /// @return Copy of active OnvifServerConfig.
     [[nodiscard]] OnvifServerConfig getConfig() const;
@@ -339,6 +347,7 @@ private:
     std::unique_ptr<NotificationDispatcher> m_dispatcher {};
 
     std::atomic<ProvisioningState> m_provisioningState { ProvisioningState::Unprovisioned };
+    std::atomic<DiscoveryMode> m_discoveryMode { DiscoveryMode::Discoverable };
     std::atomic<bool> m_running { false };
     std::thread m_httpThread {};
 };

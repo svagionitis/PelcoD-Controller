@@ -4,10 +4,12 @@
 /// @brief WS-Discovery multicast responder daemon for ONVIF device discovery.
 
 #include "OnvifServerTypes.h"
+#include "WsDiscoveryCommon.h"
 #include "WsDiscoveryValidator.h"
 #include <Transport/SocketUtils.h>
 
 #include <atomic>
+#include <cstdint>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -46,6 +48,25 @@ public:
     /// @return True if running.
     [[nodiscard]] bool isRunning() const noexcept;
 
+    /// @brief Sets device discovery mode (Discoverable vs NonDiscoverable).
+    /// @param[in] mode Target discovery mode.
+    void setDiscoveryMode(DiscoveryMode mode) noexcept;
+
+    /// @brief Gets current device discovery mode.
+    /// @return Active discovery mode.
+    [[nodiscard]] DiscoveryMode getDiscoveryMode() const noexcept;
+
+    /// @brief Gets active metadata version.
+    /// @return Incremental 32-bit metadata version counter.
+    [[nodiscard]] std::uint32_t getMetadataVersion() const noexcept;
+
+    /// @brief Collects all active device scope URIs.
+    /// @return Vector of active scope URIs.
+    [[nodiscard]] std::vector<std::string> getActiveScopes() const;
+
+    /// @brief Broadcasts a multicast Hello announcement packet.
+    void broadcastHello();
+
     /// @brief Formats a ProbeMatches SOAP envelope string for a given probe request.
     /// @param[in] relatesToMessageId Incoming probe MessageID header.
     /// @param[in] localIp IPv4 address where the HTTP service is reachable.
@@ -72,6 +93,9 @@ private:
     mutable std::mutex m_scopeMutex {};
     OnvifServerConfig m_config;
     std::atomic<bool> m_running { false };
+    std::atomic<DiscoveryMode> m_discoveryMode { DiscoveryMode::Discoverable };
+    std::uint32_t m_metadataVersion { 1U };
+    mutable AppSequenceTracker m_appSequence {};
     std::thread m_thread {};
 
     Net::SocketHandle m_sockFd { Net::InvalidSocket };

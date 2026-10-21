@@ -90,6 +90,10 @@ struct PasswordPolicyConfig {
     bool rejectCommonDefaults { true };
 };
 
+/// @enum DiscoveryMode
+/// @brief Operational discovery mode of the ONVIF device (Profile S / Core §8.1).
+enum class DiscoveryMode : std::uint8_t { Discoverable, NonDiscoverable };
+
 /// @struct DiscoveryConfig
 /// @brief Operational and security configuration for WS-Discovery responder (review finding C7).
 struct DiscoveryConfig {
@@ -107,6 +111,10 @@ struct DiscoveryConfig {
 
     /// @brief Maximum total probe responses permitted per second globally.
     std::size_t maxGlobalResponsesPerSec { 60 };
+
+    /// @brief Maximum random delay in milliseconds before replying to Probe (WS-Discovery §7.2 / Profile S).
+    /// @details 0 disables jitter (e.g. for fast unit tests); default 500ms per standard.
+    std::uint32_t maxAppDelayMs { 500U };
 };
 
 /// @struct OnvifServerConfig
@@ -117,6 +125,9 @@ struct OnvifServerConfig {
 
     /// @brief HTTP server listening port (default: 8080).
     int port { 8080 };
+
+    /// @brief Operational discovery mode (Discoverable or NonDiscoverable).
+    DiscoveryMode discoveryMode { DiscoveryMode::Discoverable };
 
     /// @brief Human-readable name of the advertised ONVIF device.
     std::string deviceName { "Pelco-D ONVIF Bridge" };
@@ -143,8 +154,8 @@ struct OnvifServerConfig {
     std::string serviceUuid {};
 
     /// @brief Additional WS-Discovery scope URIs.
-    std::vector<std::string> scopes { "onvif://www.onvif.org/Profile/S", "onvif://www.onvif.org/Profile/T",
-        "onvif://www.onvif.org/Profile/G" };
+    std::vector<std::string> scopes { "onvif://www.onvif.org/Profile/Streaming", "onvif://www.onvif.org/Profile/S",
+        "onvif://www.onvif.org/Profile/T", "onvif://www.onvif.org/Profile/G" };
 
     /// @brief Default optical and imaging configuration.
     ImagingSettings defaultImagingSettings {};

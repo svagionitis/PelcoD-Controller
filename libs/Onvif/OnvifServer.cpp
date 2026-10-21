@@ -419,6 +419,7 @@ OnvifServer::OnvifServer(OnvifServerConfig config, std::shared_ptr<IPtzHandler> 
     , m_deviceIoHandler(std::move(deviceIoHandler))
     , m_metadataHandler(std::move(metadataHandler))
     , m_analyticsHandler(std::move(analyticsHandler))
+    , m_discoveryMode(m_config.discoveryMode)
 {
     m_credStore = std::make_shared<CredentialStore>(m_config.defaultUsers);
     m_authenticator = std::make_unique<Authenticator>(m_credStore, m_config.auth);
@@ -681,6 +682,19 @@ OnvifServerConfig OnvifServer::getConfig() const
 ProvisioningState OnvifServer::provisioningState() const noexcept
 {
     return m_provisioningState.load();
+}
+
+DiscoveryMode OnvifServer::getDiscoveryMode() const noexcept
+{
+    return m_discoveryMode.load();
+}
+
+void OnvifServer::setDiscoveryMode(DiscoveryMode mode)
+{
+    m_discoveryMode.store(mode);
+    if (m_discoveryServer) {
+        m_discoveryServer->setDiscoveryMode(mode);
+    }
 }
 
 void OnvifServer::setPtzHandler(std::shared_ptr<IPtzHandler> handler)
