@@ -3,16 +3,19 @@
 /// @file OnvifClient.h
 /// @brief High-level ONVIF Profile S Client supporting Device, Media, and PTZ services.
 
-#include "OnvifAuthTypes.h"
-#include "OnvifHttpClient.h"
-#include "OnvifSecurity.h"
-#include "OnvifTypes.h"
+#include <cstddef>
+#include <cstdint>
 
 #include <chrono>
 #include <memory>
 #include <optional>
 #include <string>
 #include <vector>
+
+#include "OnvifAuthTypes.h"
+#include "OnvifHttpClient.h"
+#include "OnvifSecurity.h"
+#include "OnvifTypes.h"
 
 namespace Onvif {
 
@@ -227,6 +230,11 @@ public:
     /// @return Snapshot URI string or nullopt on failure.
     [[nodiscard]] std::optional<std::string> getSnapshotUri(
         const std::string& profileToken, bool injectCredentials = true);
+
+    /// @brief Downloads a binary JPEG snapshot from the specified snapshot URI.
+    /// @param[in] snapshotUri HTTP/HTTPS snapshot endpoint URL.
+    /// @return Byte vector containing raw JPEG image data, or nullopt on failure.
+    [[nodiscard]] std::optional<std::vector<std::uint8_t>> getSnapshot(const std::string& snapshotUri);
 
     // =========================================================================
     // OSD & Media Service Extensions

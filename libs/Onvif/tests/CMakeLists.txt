@@ -36,4 +36,5 @@ add_onvif_test(TestOnvifDiscoveryProfileS TestOnvifDiscoveryProfileS.cpp)
 add_onvif_test(TestOnvifDeviceProfileS TestOnvifDeviceProfileS.cpp)
 add_onvif_test(TestOnvifMediaProfileS TestOnvifMediaProfileS.cpp)
 add_onvif_test(TestAsciiUtils TestAsciiUtils.cpp)
+add_onvif_test(TestOnvifSnapshot TestOnvifSnapshot.cpp)
 

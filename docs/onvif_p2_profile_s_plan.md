@@ -13,41 +13,41 @@ In [`docs/onvif_review.md`](onvif_review.md), **Phase P2** focuses on achieving 
 While P0 (Security Hardening) and P1 (Protocol Correctness, SOAP faults, and event subscription lifecycle) established a safe and stable transport layer, the server currently fails Profile S conformance tests because several mandatory operations, schema structures, and profile components are missing or incomplete.
 
 ```
-+-------------------------------------------------------------------------------------------------------+
-|                                    PROFILE S GAPS REQUIRING P2 REMEDIATION                            |
-+----------------------+------------------------------------+-------------------------------------------+
-| Subsystem            | Current Defect / Gap               | Profile S Requirement                     |
-+----------------------+------------------------------------+-------------------------------------------+
-| WS-Discovery         | Scopes omit Profile/Streaming;     | Mandatory scope:                          |
-|                      | No AppSequence header;             | onvif://www.onvif.org/Profile/Streaming;  |
-|                      | No random APP_MAX_DELAY (0-500ms); | wsd:AppSequence (InstanceId, MsgNumber);  |
-|                      | Ignores Probe Scopes filter;       | APP_MAX_DELAY back-off before ProbeMatch; |
-|                      | Stale config copy on scope changes | RFC 3986 Scopes match; Hello re-announce |
-+----------------------+------------------------------------+-------------------------------------------+
-| Device Service       | Missing: GetDiscoveryMode,         | Mandatory Profile S device ops;           |
-| (tds)                | SetDiscoveryMode, GetNetwork-      | Category filtering on GetCapabilities;    |
-|                      | Protocols, SetNetworkProtocols,    | Schema-compliant child capability blocks  |
-|                      | GetWsdlUrl, GetServiceCapabilities | (Network, Security, System, Streaming)    |
-+----------------------+------------------------------------+-------------------------------------------+
-| Media Service        | Profiles lack VideoEncoderConfig;  | At least one profile with VSC + VEC;      |
-| (trt - ver10)        | Missing: GetProfile (single),      | Dynamic profile lifecycle; VEC and VSC    |
-|                      | CreateProfile, DeleteProfile,      | queries, updates, and options;            |
-|                      | Get/SetVideoEncoderConfiguration,  | Add/Remove configuration mapping;         |
-|                      | GetVideoEncoderConfigOptions,      | Encoder instance counts;                  |
-|                      | Add/Remove*Configuration,          | SetSynchronizationPoint (IDR request);    |
-|                      | SetSynchronizationPoint            | Media GetServiceCapabilities              |
-+----------------------+------------------------------------+-------------------------------------------+
-| Snapshot Delivery    | /onvif/snapshot returns HTTP 501   | Valid HTTP 200 image/jpeg payload         |
-|                      | despite GetSnapshotUri advertising | for snapshot verification and VMS checks  |
-+----------------------+------------------------------------+-------------------------------------------+
-| PTZ Service          | Missing: SetConfiguration,         | Full configuration modification;          |
-| (tptz)               | GetServiceCapabilities;            | PTZ service capabilities;                 |
-|                      | Missing token validation faults    | ter:NoProfile and ter:NoToken faults      |
-+----------------------+------------------------------------+-------------------------------------------+
-| Events Service       | Missing: SetSynchronizationPoint,  | PullPoint state synchronization (sends    |
-| (tev)                | GetServiceCapabilities,            | Initialized property events); Topic       |
-|                      | Topic Filter parsing               | expression filter matching                |
-+----------------------+------------------------------------+-------------------------------------------+
++-----------------------------------------------------------------------------------------------------------------------+
+|                                        PROFILE S GAPS REQUIRING P2 REMEDIATION                                        |
++----------------------+------------------------------------+-------------------------------------------+---------------+
+| Subsystem            | Defect / Gap                       | Profile S Requirement                     | Status        |
++----------------------+------------------------------------+-------------------------------------------+---------------+
+| WS-Discovery         | Scopes omit Profile/Streaming;     | Mandatory scope:                          | RESOLVED      |
+|                      | No AppSequence header;             | onvif://www.onvif.org/Profile/Streaming;  | (Phase 1)     |
+|                      | No random APP_MAX_DELAY (0-500ms); | wsd:AppSequence (InstanceId, MsgNumber);  |               |
+|                      | Ignores Probe Scopes filter;       | APP_MAX_DELAY back-off before ProbeMatch; |               |
+|                      | Stale config copy on scope changes | RFC 3986 Scopes match; Hello re-announce |               |
++----------------------+------------------------------------+-------------------------------------------+---------------+
+| Device Service       | Missing: GetDiscoveryMode,         | Mandatory Profile S device ops;           | RESOLVED      |
+| (tds)                | SetDiscoveryMode, GetNetwork-      | Category filtering on GetCapabilities;    | (Phase 2)     |
+|                      | Protocols, SetNetworkProtocols,    | Schema-compliant child capability blocks  |               |
+|                      | GetWsdlUrl, GetServiceCapabilities | (Network, Security, System, Streaming)    |               |
++----------------------+------------------------------------+-------------------------------------------+---------------+
+| Media Service        | Profiles lack VideoEncoderConfig;  | At least one profile with VSC + VEC;      | RESOLVED      |
+| (trt - ver10)        | Missing: GetProfile (single),      | Dynamic profile lifecycle; VEC and VSC    | (Phase 3)     |
+|                      | CreateProfile, DeleteProfile,      | queries, updates, and options;            |               |
+|                      | Get/SetVideoEncoderConfiguration,  | Add/Remove configuration mapping;         |               |
+|                      | GetVideoEncoderConfigOptions,      | Encoder instance counts;                  |               |
+|                      | Add/Remove*Configuration,          | SetSynchronizationPoint (IDR request);    |               |
+|                      | SetSynchronizationPoint            | Media GetServiceCapabilities              |               |
++----------------------+------------------------------------+-------------------------------------------+---------------+
+| Snapshot Delivery    | /onvif/snapshot returns HTTP 501   | Valid HTTP 200 image/jpeg payload         | RESOLVED      |
+|                      | despite GetSnapshotUri advertising | for snapshot verification and VMS checks  | (Phase 4)     |
++----------------------+------------------------------------+-------------------------------------------+---------------+
+| PTZ Service          | Missing: SetConfiguration,         | Full configuration modification;          | OPEN          |
+| (tptz)               | GetServiceCapabilities;            | PTZ service capabilities;                 | (Phase 5)     |
+|                      | Missing token validation faults    | ter:NoProfile and ter:NoToken faults      |               |
++----------------------+------------------------------------+-------------------------------------------+---------------+
+| Events Service       | Missing: SetSynchronizationPoint,  | PullPoint state synchronization (sends    | OPEN          |
+| (tev)                | GetServiceCapabilities,            | Initialized property events); Topic       | (Phase 5)     |
+|                      | Topic Filter parsing               | expression filter matching                |               |
++----------------------+------------------------------------+-------------------------------------------+---------------+
 ```
 
 ---
@@ -329,52 +329,52 @@ sequenceDiagram
 
 ## 3. Implementation Phases & Detailed Tasks
 
-### Phase 1: WS-Discovery & Discovery Mode Conformance
+### Phase 1: WS-Discovery & Discovery Mode Conformance `[RESOLVED]`
 
-- **Task 1.1: Scope Definition & Profile S Identifier**  
+- **Task 1.1: Scope Definition & Profile S Identifier** `[RESOLVED]`  
   In [`libs/Onvif/OnvifServerTypes.h`](../libs/Onvif/OnvifServerTypes.h) and [`libs/Onvif/WsDiscoveryServer.cpp`](../libs/Onvif/WsDiscoveryServer.cpp):
   - Ensure the default scopes include `onvif://www.onvif.org/Profile/Streaming` and `onvif://www.onvif.org/Profile/S`.
   - In `createProbeMatchesPayload` and `createHelloPayload`, emit the streaming profile scope.
-- **Task 1.2: AppSequence Header Generation**  
+- **Task 1.2: AppSequence Header Generation** `[RESOLVED]`  
   In [`libs/Onvif/WsDiscoveryCommon.h`](../libs/Onvif/WsDiscoveryCommon.h) and [`libs/Onvif/WsDiscoveryServer.h`](../libs/Onvif/WsDiscoveryServer.h):
   - Implement `AppSequence` tracker with atomic message counter and persistent instance ID (e.g. system boot timestamp).
   - Add `<d:AppSequence InstanceId="..." MessageNumber="..."/>` to WS-Discovery headers for `Hello`, `Bye`, and `ProbeMatches`.
-- **Task 1.3: Random `APP_MAX_DELAY` Jitter Implementation**  
+- **Task 1.3: Random `APP_MAX_DELAY` Jitter Implementation** `[RESOLVED]`  
   In [`libs/Onvif/WsDiscoveryServer.cpp`](../libs/Onvif/WsDiscoveryServer.cpp):
   - When a multicast probe is validated, sleep for a random interval between 0 and `APP_MAX_DELAY` (default 500 ms) before sending the unicast `ProbeMatches` reply.
-- **Task 1.4: Probe Scope Matching (RFC 3986)**  
+- **Task 1.4: Probe Scope Matching (RFC 3986)** `[RESOLVED]`  
   In [`libs/Onvif/WsDiscoveryValidator.cpp`](../libs/Onvif/WsDiscoveryValidator.cpp):
   - Parse `<d:Scopes>` and optional `MatchBy` attribute from probe XML.
   - If scopes are specified in the probe, verify that the device satisfies all requested scope URIs; drop or ignore the probe if any requested scope does not match.
-- **Task 1.5: Discovery Mode State Tracking & Notification**  
+- **Task 1.5: Discovery Mode State Tracking & Notification** `[RESOLVED]`  
   - Add `std::atomic<DiscoveryMode> m_discoveryMode { DiscoveryMode::Discoverable }` in `OnvifServer`.
   - When set to `DiscoveryMode::NonDiscoverable`, suppress probe responses and outgoing Hello messages.
   - When scopes change via `AddScopes`, `SetScopes`, or `RemoveScopes`, broadcast a new `Hello` payload with incremented `MetadataVersion`.
 
 ---
 
-### Phase 2: Device Management Profile S Operations
+### Phase 2: Device Management Profile S Operations `[RESOLVED]`
 
-- **Task 2.1: Implement `GetDiscoveryMode` & `SetDiscoveryMode`**  
+- **Task 2.1: Implement `GetDiscoveryMode` & `SetDiscoveryMode`** `[RESOLVED]`  
   In [`libs/Onvif/OnvifServer.cpp`](../libs/Onvif/OnvifServer.cpp):
   - `GetDiscoveryMode`: Returns `<tds:DiscoveryMode>Discoverable | NonDiscoverable</tds:DiscoveryMode>`.
   - `SetDiscoveryMode`: Parses mode, updates `m_discoveryMode`, updates `WsDiscoveryServer`, and returns `<tds:SetDiscoveryModeResponse/>`.
   - Update [`libs/Onvif/AccessPolicy.cpp`](../libs/Onvif/AccessPolicy.cpp): map `GetDiscoveryMode` to `AccessClass::PreAuth` or `ReadSystem`, and `SetDiscoveryMode` to `AccessClass::WriteSystem`.
-- **Task 2.2: Implement `GetNetworkProtocols` & `SetNetworkProtocols`**  
+- **Task 2.2: Implement `GetNetworkProtocols` & `SetNetworkProtocols`** `[RESOLVED]`  
   In [`libs/Onvif/OnvifServerTypes.h`](../libs/Onvif/OnvifServerTypes.h) and [`libs/Onvif/OnvifServer.cpp`](../libs/Onvif/OnvifServer.cpp):
   - Define `NetworkProtocolConfig` (HTTP on `port`, HTTPS on `httpsPort`, RTSP on `rtspPort`).
   - `GetNetworkProtocols`: Serializes list of `<tds:NetworkProtocols>` with `<tt:Name>`, `<tt:Enabled>`, `<tt:Port>`.
   - `SetNetworkProtocols`: Validates port numbers (1-65535) and updates protocol state.
   - Update `AccessPolicy.cpp`: map `GetNetworkProtocols` to `AccessClass::ReadSystem` and `SetNetworkProtocols` to `AccessClass::WriteSystem`.
-- **Task 2.3: Implement `GetWsdlUrl`**  
+- **Task 2.3: Implement `GetWsdlUrl`** `[RESOLVED]`  
   - Return `<tds:GetWsdlUrlResponse><tds:WsdlUrl>http://[host]:[port]/onvif/device.wsdl</tds:WsdlUrl></tds:GetWsdlUrlResponse>`.
   - Verify `AccessPolicy.cpp` handles `GetWsdlUrl` under `PreAuth`.
-- **Task 2.4: Implement `GetServiceCapabilities` for Device Service**  
+- **Task 2.4: Implement `GetServiceCapabilities` for Device Service** `[RESOLVED]`  
   - Return standard Device Service Capabilities:
     - `<tds:Network IPFilter="false" ZeroConfiguration="false" IPVersion6="false" DynDNS="false"/>`
     - `<tds:Security TLS1.2="true" UsernameToken="true" HttpDigest="true" AccessPolicyConfig="true"/>`
     - `<tds:System DiscoveryBye="true" DiscoveryResolve="false" SystemBackup="true" SystemLogging="true"/>`
-- **Task 2.5: Category Filtering & Schema Completion in `GetCapabilities`**  
+- **Task 2.5: Category Filtering & Schema Completion in `GetCapabilities`** `[RESOLVED]`  
   In `handleDeviceService`:
   - Parse `<tds:Category>` elements from `reqNode`. Support `All`, `Device`, `Media`, `Events`, `Imaging`, `PTZ`, `Analytics`.
   - Add missing required child elements per ONVIF schema:
@@ -384,47 +384,47 @@ sequenceDiagram
 
 ---
 
-### Phase 3: Media ver10 Profile S Core & VideoEncoderConfiguration
+### Phase 3: Media ver10 Profile S Core & VideoEncoderConfiguration `[RESOLVED]`
 
-- **Task 3.1: Profile S Media Profile Model**  
+- **Task 3.1: Profile S Media Profile Model** `[RESOLVED]`  
   In [`libs/Onvif/OnvifServerTypes.h`](../libs/Onvif/OnvifServerTypes.h) and [`libs/Onvif/OnvifServer.h`](../libs/Onvif/OnvifServer.h):
   - Define `VideoEncoderConfig` for Media1 (trt) containing encoding (`H264`, `JPEG`), resolution (`Width`, `Height`), `Quality`, `RateControl` (FrameRateLimit, BitrateLimit), and `H264` (GovLength, Profile).
   - Define `ServerMediaProfile` containing `token`, `name`, `fixed`, `vscToken`, `vecToken`, `ptzToken`, `metadataToken`.
   - Initialize default Profile S profiles (e.g. `ProfileToken_1` / `MainProfile` with both `VideoSourceConfig_1` and `VideoEncoderConfig_1`).
-- **Task 3.2: Serialize VideoEncoderConfiguration in `GetProfiles` & `GetProfile`**  
+- **Task 3.2: Serialize VideoEncoderConfiguration in `GetProfiles` & `GetProfile`** `[RESOLVED]`  
   In [`libs/Onvif/OnvifServer.cpp`](../libs/Onvif/OnvifServer.cpp):
   - Refactor profile XML serialization into a reusable helper `formatProfileXml(profile, body, prefix)`.
   - Include `<tt:VideoEncoderConfiguration>` with `<tt:Encoding>`, `<tt:Resolution>`, `<tt:Quality>`, `<tt:RateControl>`, `<tt:H264>`, `<tt:Multicast>`, `<tt:SessionTimeout>`.
   - Implement `GetProfile`: Parse `<trt:ProfileToken>`, find profile in store. If not found, return `SoapFault::noProfile()` with HTTP 400.
-- **Task 3.3: Dynamic Profile Lifecycle (`CreateProfile`, `DeleteProfile`)**  
+- **Task 3.3: Dynamic Profile Lifecycle (`CreateProfile`, `DeleteProfile`)** `[RESOLVED]`  
   - `CreateProfile`: Parse `<trt:Name>` and optional `<trt:Token>`. Generate token if missing. Insert into profile store and return `<trt:CreateProfileResponse><trt:Profile token="...">...</trt:Profile></trt:CreateProfileResponse>`.
   - `DeleteProfile`: Parse `<trt:ProfileToken>`. If profile is fixed (`fixed == true`), return `SoapFault::invalidArgVal("Cannot delete fixed profile")`. Otherwise erase and return `<trt:DeleteProfileResponse/>`.
-- **Task 3.4: Video Source & Encoder Configuration Queries**  
+- **Task 3.4: Video Source & Encoder Configuration Queries** `[RESOLVED]`  
   - Implement `GetVideoSourceConfiguration(ConfigurationToken)` and `GetVideoSourceConfigurations()`.
   - Implement `GetVideoEncoderConfiguration(ConfigurationToken)` and `GetVideoEncoderConfigurations()`.
   - Implement `GetVideoEncoderConfigurationOptions(ConfigurationToken, ProfileToken)`: Emit supported resolutions (1920x1080, 1280x720, 640x480), framerates (1-30 fps), bitrates (256-8192 kbps), GovLength (1-120), and H.264 profiles (Baseline, Main, High).
   - Implement `SetVideoEncoderConfiguration`: Parse config node, validate resolution and numeric ranges (preventing NaN / out-of-range per CERT FLP34-C / INT32-C), update store, and return `<trt:SetVideoEncoderConfigurationResponse/>`.
-- **Task 3.5: Configuration Attachment & Compatibility Operations**  
+- **Task 3.5: Configuration Attachment & Compatibility Operations** `[RESOLVED]`  
   - Implement `AddVideoEncoderConfiguration` & `RemoveVideoEncoderConfiguration`.
   - Implement `AddVideoSourceConfiguration` & `RemoveVideoSourceConfiguration`.
   - Implement `AddPTZConfiguration` & `RemovePTZConfiguration`.
   - Implement `GetCompatibleVideoSourceConfigurations` and `GetCompatibleVideoEncoderConfigurations`.
   - Implement `GetGuaranteedNumberOfVideoEncoderInstances`: Return total count (e.g. 2) and H.264 count (2).
-- **Task 3.6: Implement Media `SetSynchronizationPoint` & `GetServiceCapabilities`**  
+- **Task 3.6: Implement Media `SetSynchronizationPoint` & `GetServiceCapabilities`** `[RESOLVED]`  
   - `SetSynchronizationPoint`: Parse `<trt:ProfileToken>`, verify existence, log IDR request, return `<trt:SetSynchronizationPointResponse/>`.
   - `GetServiceCapabilities`: Emit ProfileCapabilities (MaxProfiles=8), StreamingCapabilities (RTP_TCP=true), Snapshot=true, OSD=true.
 
 ---
 
-### Phase 4: Snapshot Delivery & HTTP 200 JPEG Generator
+### Phase 4: Snapshot Delivery & HTTP 200 JPEG Generator `[RESOLVED]`
 
-- **Task 4.1: Standards-Compliant Minimal JPEG Generator**  
+- **Task 4.1: Standards-Compliant Minimal JPEG Generator** `[RESOLVED]`  
   In a new helper [`libs/Onvif/JpegGenerator.h`](../libs/Onvif/JpegGenerator.h) / `JpegGenerator.cpp`:
   - Implement lightweight, zero-dependency, allocation-bounded JFIF JPEG generator:
     - Standard SOI (`0xFFD8`), JFIF APP0 (`0xFFE0`), DQT (`0xFFDB`), SOF0 (`0xFFC0`), DHT (`0xFFC4`), SOS (`0xFFDA`), and EOI (`0xFFD9`).
     - Produces a valid 640x480 or 1920x1080 test card pattern with UTC timestamp.
     - Alternatively reads raw frame if camera video sink is active.
-- **Task 4.2: Replace 501 Handler with HTTP 200 Snapshot Delivery**  
+- **Task 4.2: Replace 501 Handler with HTTP 200 Snapshot Delivery** `[RESOLVED]`  
   In [`libs/Onvif/OnvifServer.cpp`](../libs/Onvif/OnvifServer.cpp):
   - In `m_httpServer.Get("/onvif/snapshot", ...)`:
     - Perform authentication check (`authorizeHttp(req, res, "Snapshot")`).
@@ -433,27 +433,27 @@ sequenceDiagram
 
 ---
 
-### Phase 5: PTZ & Events Profile S Completeness
+### Phase 5: PTZ & Events Profile S Completeness `[OPEN]`
 
-- **Task 5.1: PTZ `SetConfiguration` & `GetServiceCapabilities`**  
+- **Task 5.1: PTZ `SetConfiguration` & `GetServiceCapabilities`** `[OPEN]`  
   In [`libs/Onvif/OnvifServer.cpp`](../libs/Onvif/OnvifServer.cpp):
   - `SetConfiguration`: Parse `<tptz:PTZConfiguration>`, validate spaces and limits, update PTZ configuration in store, and return `<tptz:SetConfigurationResponse/>`.
   - `GetServiceCapabilities`: Return `<tptz:Capabilities EFlip="false" Reverse="false" GetCompatibleConfigurations="true" MoveStatus="true" StatusPosition="true"/>`.
   - Verify token existence across all PTZ operations, returning `SoapFault::noProfile()` or `SoapFault::noToken()`.
-- **Task 5.2: Event `SetSynchronizationPoint` & State Initialization**  
+- **Task 5.2: Event `SetSynchronizationPoint` & State Initialization** `[OPEN]`  
   In [`libs/Onvif/SubscriptionManager.h`](../libs/Onvif/SubscriptionManager.h) and [`libs/Onvif/SubscriptionManager.cpp`](../libs/Onvif/SubscriptionManager.cpp):
   - Implement `SubscriptionManager::setSynchronizationPoint(const std::string& subId)`.
   - Enqueue initial state `OnvifEvent` objects with `PropertyOperation = "Initialized"` (e.g. RelayOutput state, DigitalInput state, MotionAlarm state).
   - In `OnvifServer::handleEventService` / `handlePullPointService`: Handle `SetSynchronizationPoint`, invoke `SubscriptionManager`, and return `<tev:SetSynchronizationPointResponse/>`.
-- **Task 5.3: Event `GetServiceCapabilities` & Topic Filter Parsing**  
+- **Task 5.3: Event `GetServiceCapabilities` & Topic Filter Parsing** `[OPEN]`  
   - Return `<tev:Capabilities WSSubscriptionPolicySupport="true" WSPullPointSupport="true" MaxPullPoints="10" PersistentNotificationStorage="false"/>`.
   - In `CreatePullPointSubscription` and `Subscribe`, parse `<wsnt:Filter>` and store topic filter expression in subscription state for matching during event dispatch.
 
 ---
 
-### Phase 6: Client-Side Profile S Support (`OnvifClient`)
+### Phase 6: Client-Side Profile S Support (`OnvifClient`) `[IN PROGRESS]`
 
-- **Task 6.1: Media Profile & Video Encoder Configuration Client APIs**  
+- **Task 6.1: Media Profile & Video Encoder Configuration Client APIs** `[OPEN]`  
   In [`libs/Onvif/OnvifClient.h`](../libs/Onvif/OnvifClient.h) and [`libs/Onvif/OnvifClient.cpp`](../libs/Onvif/OnvifClient.cpp):
   - Add `getProfile(const std::string& token)`.
   - Add `createProfile(const std::string& name, const std::string& token = "")`.
@@ -462,11 +462,11 @@ sequenceDiagram
   - Add `getVideoEncoderConfigurationOptions(const std::string& token)`.
   - Add `setVideoEncoderConfiguration(const VideoEncoderConfig& config)`.
   - Add `mediaSetSyncPoint(const std::string& profileToken)`.
-- **Task 6.2: Device Discovery Mode & Protocol Client APIs**  
+- **Task 6.2: Device Discovery Mode & Protocol Client APIs** `[OPEN]`  
   - Add `getDiscoveryMode()`.
   - Add `setDiscoveryMode(DiscoveryMode mode)`.
   - Add `getNetworkProtocols()`.
-- **Task 6.3: Snapshot Fetch Client API**  
+- **Task 6.3: Snapshot Fetch Client API** `[RESOLVED]`  
   - Add `getSnapshot(const std::string& snapshotUri) -> std::optional<std::vector<std::uint8_t>>`.
 
 ---

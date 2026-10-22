@@ -907,6 +907,24 @@ std::optional<std::string> OnvifClient::getSnapshotUri(const std::string& profil
     return result;
 }
 
+std::optional<std::vector<std::uint8_t>> OnvifClient::getSnapshot(const std::string& snapshotUri)
+{
+    if (snapshotUri.empty()) {
+        return std::nullopt;
+    }
+
+    const HttpResponse resp = m_httpClient.sendGet(snapshotUri);
+    if (!resp.isSuccess() || resp.body.empty()) {
+        return std::nullopt;
+    }
+
+    std::vector<std::uint8_t> jpegData(resp.body.size());
+    for (std::size_t i = 0; i < resp.body.size(); ++i) {
+        jpegData[i] = static_cast<std::uint8_t>(resp.body[i]);
+    }
+    return jpegData;
+}
+
 bool OnvifClient::relativeMove(
     const std::string& profileToken, double panTranslation, double tiltTranslation, double zoomTranslation)
 {

@@ -9,6 +9,7 @@
 #include <chrono>
 #include <condition_variable>
 #include <deque>
+#include <functional>
 #include <map>
 #include <memory>
 #include <mutex>
@@ -216,6 +217,13 @@ public:
     /// @param[in] callback Callback invoked on every incoming SOAP transaction.
     void setRequestLogCallback(RequestLogCallback callback);
 
+    /// @brief Callback returning binary JPEG image bytes for snapshot requests.
+    using SnapshotProvider = std::function<std::vector<std::uint8_t>()>;
+
+    /// @brief Sets custom frame provider for snapshot delivery.
+    /// @param[in] provider Function returning JPEG encoded image bytes.
+    void setSnapshotProvider(SnapshotProvider provider);
+
 private:
     void setupRoutes();
     void handleDeviceService(const httplib::Request& req, httplib::Response& res);
@@ -388,6 +396,9 @@ private:
 
     std::atomic<ProvisioningState> m_provisioningState { ProvisioningState::Unprovisioned };
     std::atomic<DiscoveryMode> m_discoveryMode { DiscoveryMode::Discoverable };
+    mutable std::mutex m_snapshotMutex {};
+    SnapshotProvider m_snapshotProvider {};
+
     std::atomic<bool> m_running { false };
     std::thread m_httpThread {};
 };

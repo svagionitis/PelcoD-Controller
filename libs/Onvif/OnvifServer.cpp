@@ -22,6 +22,7 @@
 #include <pugixml.hpp>
 
 #include "AccessPolicy.h"
+#include "JpegGenerator.h"
 #include "NotificationDispatcher.h"
 #include "NotificationUrlValidator.h"
 #include "OnvifSecurity.h"
@@ -953,6 +954,12 @@ void OnvifServer::setRequestLogCallback(RequestLogCallback callback)
     m_logCallback = std::move(callback);
 }
 
+void OnvifServer::setSnapshotProvider(SnapshotProvider provider)
+{
+    std::lock_guard<std::mutex> lock(m_snapshotMutex);
+    m_snapshotProvider = std::move(provider);
+}
+
 std::string OnvifServer::resolveHost(const httplib::Request& req) const
 {
     if (m_config.bindAddress != "0.0.0.0" && m_config.bindAddress != "::" && !m_config.bindAddress.empty()) {
@@ -1055,8 +1062,24 @@ void OnvifServer::setupRoutes()
         if (!authorizeHttp(req, res, "Snapshot")) {
             return;
         }
-        res.status = 501;
-        res.set_content("Snapshot service not implemented", "text/plain");
+
+        std::vector<std::uint8_t> jpegData {};
+        SnapshotProvider provider {};
+        {
+            std::lock_guard<std::mutex> lock(m_snapshotMutex);
+            provider = m_snapshotProvider;
+        }
+
+        if (provider) {
+            jpegData = provider();
+        }
+
+        if (jpegData.empty()) {
+            jpegData = JpegGenerator::createTestFrame(640, 480);
+        }
+
+        res.status = 200;
+        res.set_content(reinterpret_cast<const char*>(jpegData.data()), jpegData.size(), "image/jpeg");
     });
 }
 
