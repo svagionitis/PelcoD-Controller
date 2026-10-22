@@ -215,7 +215,49 @@ for (const char ch : hexData) {
 
 Behaviour is unchanged; the conversion is now explicit and located in project code.
 
-### 4.3 Tests
+### 4.3 Performance and Optimization Impact of `static_cast` in Vector/Array Conversions
+
+A common question is whether introducing an explicit `static_cast<std::uint8_t>(ch)` when populating an array or `std::vector` creates runtime performance overhead or hampers optimization compared to the implicit conversion or range constructor.
+
+#### 4.3.1 Machine-Level Zero Overhead
+At the assembly and hardware level, `static_cast` between same-width integral types (`char` and `unsigned char` / `std::uint8_t`, both 8-bit bytes) has **strictly zero runtime cost (0 CPU cycles)**:
+
+1. **Bit Representation**: An 8-bit memory cell holds 8 binary bits. Sign interpretation exists only in high-level language semantics and CPU instruction choice (e.g., signed vs. unsigned comparison). The bit pattern copied is identical.
+2. **Instruction Generation**: The cast is a pure compile-time directive to the C++ type system and warning engine. The compiler emits identical load/store instructions (`mov`, `vmovdqu`, or `memcpy`) whether the cast is explicit or implicit.
+
+ASCII Diagram:
+
+```
+Source (char):          [ b7 | b6 | b5 | b4 | b3 | b2 | b1 | b0 ]  (interpreted as signed [-128, 127])
+                             |
+                             v  static_cast<std::uint8_t> (Compile-time only: 0 CPU instructions)
+                             |
+Destination (uint8_t):   [ b7 | b6 | b5 | b4 | b3 | b2 | b1 | b0 ]  (interpreted as unsigned [0, 255])
+```
+
+Mermaid Diagram:
+
+```mermaid
+flowchart LR
+    A["char (8-bit signed byte)"] -->|"static_cast&lt;std::uint8_t&gt;<br/>(Compile-time only, 0 instructions)"| B["std::uint8_t (8-bit unsigned byte)"]
+    B --> C["Identical Memory/Register Bit Pattern"]
+```
+
+#### 4.3.2 Loop Optimization and Auto-Vectorization
+In release builds (`/O2` on MSVC, `-O2`/`-O3` on GCC/Clang):
+* The explicit `reserve()` eliminates intermediate memory reallocations.
+* Modern optimizing compilers recognize the contiguous memory buffer and 1-to-1 byte transformation, automatically vectorizing the loop into SIMD block instructions (`movdqu` / `vmovdqu`) or collapsing it into an inlined block copy.
+* The presence of `static_cast` does not inhibit compiler optimization, loop unrolling, or vectorization.
+
+#### 4.3.3 Pattern Comparison
+
+| Pattern | Code | Assembly / Performance | Warning Conformance |
+|---|---|---|---|
+| **Range Constructor** | `std::vector<std::uint8_t> v(qba.begin(), qba.end());` | Element iteration in STL | ❌ Triggers `C4365` under MSVC `/WX` (`char` $\to$ `unsigned char`) |
+| **Reserved Loop + Cast** | `reserve()` + `push_back(static_cast<std::uint8_t>(c))` | Auto-vectorized SIMD (`vmovdqu`) | ✅ Zero warnings across MSVC, GCC, and Clang |
+| **Direct Memcpy / Cast** | `std::memcpy(v.data(), qba.constData(), len)` | Single `memcpy` invocation | ✅ Zero warnings, maximal throughput |
+
+### 4.4 Tests
 
 File: [`libs/Onvif/tests/TestOnvifDiscoverySecurity.cpp`](../libs/Onvif/tests/TestOnvifDiscoverySecurity.cpp)
 
